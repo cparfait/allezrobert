@@ -1,22 +1,24 @@
 # Feuille de route — Allez Robert !
 
+> État au 22 octobre 2026 (v0.1.0) : les cases cochées sont faites et vérifiées **en simulation** ; aucune n'a encore été testée avec le vrai matériel. Détails dans `docs/releases/v0.1.0.md`.
+
 Chaque jalon n'est déclaré terminé qu'après vérification : tests (protocoles octet par octet), test de charge réseau quand il y a du réseau, captures d'écran examinées, courte vidéo de démo, notes de version (`docs/releases/`).
 
 ## Jalon 0 — Socle
 
-- [ ] Monorepo pnpm, TypeScript strict, Vitest, CI GitHub Actions (types, tests, build, images Docker)
-- [ ] `packages/shared` : contrats capteurs, profils, itinéraires, réseau, pont natif
-- [ ] Simulateur de capteurs (trainer + pédales + FC + commandes) pour coder sans rouler
-- [ ] Scène Three.js minimale (WebGPU, repli WebGL2)
+- [x] Monorepo pnpm, TypeScript strict, Vitest, CI GitHub Actions (types, tests, build, images Docker)
+- [x] `packages/shared` : contrats capteurs, profils, itinéraires, réseau, pont natif
+- [x] Simulateur de capteurs (trainer + pédales + FC + commandes) pour coder sans rouler
+- [x] Scène Three.js minimale (WebGPU, repli WebGL2)
 - [ ] Fichiers de déploiement de test (Docker Compose, Caddy) et `docs/DEPLOY.md`
 
 ## Jalon 1 — Premier coup de pédale
 
-- [ ] Boucle d'environ 10 km en vallée de Chevreuse : relief IGN, routes OSM, tirée des sorties Garmin
+- [x] Boucle d'environ 10 km en vallée de Chevreuse : relief IGN, routes OSM, tirée des sorties Garmin
 - [ ] KICKR CORE / CORE 2 en FTMS (simulation de pente), Assioma en CPS, TICKR en HRS — Web Bluetooth et Tauri
-- [ ] Physique de Martin, vitesse calculée par le jeu, pente envoyée au trainer (difficulté 50 %)
-- [ ] HUD complet : puissance (3 s), FC, cadence, vitesse, distance, temps, pente, profil, mini-carte, balance G/D, rapport
-- [ ] Export FIT (balance G/D, TE, PS) validé par le SDK Garmin
+- [x] Physique de Martin, vitesse calculée par le jeu, pente envoyée au trainer (difficulté 50 %)
+- [x] HUD complet : puissance (3 s), FC, cadence, vitesse, distance, temps, pente, profil, mini-carte, balance G/D, rapport
+- [x] Export FIT (balance G/D, TE, PS) validé par le SDK Garmin
 
 ## Jalon 2 — Matériel complet
 
@@ -28,12 +30,12 @@ Chaque jalon n'est déclaré terminé qu'après vérification : tests (protocole
 ## Jalon 3 — Beauté
 
 - [ ] `docs/ART_DIRECTION.md` validé
-- [ ] Ciel physique, atmosphère, ombres en cascade, AO, bloom, TAA, LUT par saison
-- [ ] Saisons, jour/nuit, météo (pluie, brouillard, vent qui pèse sur la physique)
+- [x] Ciel physique, atmosphère, ombres en cascade, AO, bloom, TAA, LUT par saison
+- [x] Saisons, jour/nuit, météo (pluie, brouillard, vent qui pèse sur la physique)
 - [ ] Végétation instanciée animée par le vent, villages en meulière, toits de tuiles, eau
 - [ ] Avatars riggés, pédalage procédural, cosmétiques ; caméras poursuite, cockpit, drone, TV, photo
 - [ ] Son : ambiances, roulement, roue libre, souffle, public
-- [ ] Corridor complet Saclay → Chevreuse → Rambouillet, streaming par tuiles, préréglages bas → ultra
+- [x] Corridor complet Saclay → Chevreuse → Rambouillet, streaming par tuiles, préréglages bas → ultra
 
 ## Jalon 4 — Multijoueur
 
@@ -45,16 +47,16 @@ Chaque jalon n'est déclaré terminé qu'après vérification : tests (protocole
 
 ## Jalon 5 — Jeu
 
-- [ ] Modes : libre, groupe, course, ERG (.zwo / .erg / .mrc), test FTP, segments KOM / sprint, fantôme
-- [ ] Coureurs IA (relais, attaques, profils)
-- [ ] Progression : XP, niveaux, garage, déblocages cosmétiques
+- [x] Modes : libre, groupe, course, ERG (.zwo / .erg / .mrc), test FTP, segments KOM / sprint, fantôme
+- [x] Coureurs IA (relais, attaques, profils)
+- [x] Progression : XP, niveaux, garage, déblocages cosmétiques
 - [ ] Export Strava (option « ne pas envoyer » si l'Edge enregistre) et intervals.icu
 
 ## Jalon 6 — Mise en scène
 
-- [ ] Séquences HyperFrames en jeu : intro et compte à rebours, KOM / sprint, arrivée et podium, habillage TV
+- [x] Séquences HyperFrames en jeu : intro et compte à rebours, KOM / sprint, arrivée et podium, habillage TV
 - [ ] Vidéo résumé MP4 rendue sur le VPS
-- [ ] Onboarding guidé avec voix off FR / EN et sous-titres, rejouable
+- [x] Onboarding guidé avec voix off FR / EN et sous-titres, rejouable
 
 ## Plus tard
 

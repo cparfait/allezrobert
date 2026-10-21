@@ -16,7 +16,8 @@
     "@allezrobert/physics": "workspace:*",
     "@allezrobert/devices": "workspace:*",
     "@allezrobert/protocols": "workspace:*",
-    "@allezrobert/fit": "workspace:*"
+    "@allezrobert/fit": "workspace:*",
+    "@allezrobert/sequences": "workspace:*"
   },
   "devDependencies": {
     "@types/three": "^0.186.0",

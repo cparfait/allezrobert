@@ -35,6 +35,9 @@ importers:
       '@allezrobert/protocols':
         specifier: workspace:*
         version: link:../../packages/protocols
+      '@allezrobert/sequences':
+        specifier: workspace:*
+        version: link:../../packages/sequences
       '@allezrobert/shared':
         specifier: workspace:*
         version: link:../../packages/shared

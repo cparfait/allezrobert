@@ -23,6 +23,7 @@ import { showPause, showSummary, rideToFit } from './ui/ridepanels.ts';
 import { splatAt } from './world/splat.ts';
 import { Onboarding, RideTutorial } from './onboarding/onboarding.ts';
 import { showGarage, awardRide } from './ui/garage.ts';
+import { RideSequences } from './game/sequences.ts';
 
 const ui = document.getElementById('ui') as HTMLElement;
 const hudRoot = document.getElementById('hud') as HTMLElement;
@@ -179,7 +180,20 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   };
   keyboard.onShift(onShift);
   input.onShift(onShift);
-  ride.onSegmentDone = (r) => hud.toast(`${t('segmentDone')} · ${r.seg.name} · ${Math.floor(r.timeS / 60)}:${String(Math.round(r.timeS % 60)).padStart(2, '0')}`);
+  const sequences = new RideSequences(document.getElementById('app') as HTMLElement, track);
+  ride.onSegmentDone = (r) => {
+    // Séquence HyperFrames (KOM / sprint) ; toast texte si les séquences sont coupées.
+    // Rang solo : le joueur est classé seul ; en multijoueur le serveur fournit le vrai rang.
+    if (sequences.enabled) sequences.segment(r, s.name, track.route.id, 1, 1);
+    else hud.toast(`${t('segmentDone')} · ${r.seg.name} · ${Math.floor(r.timeS / 60)}:${String(Math.round(r.timeS % 60)).padStart(2, '0')}`);
+  };
+  // Départ : intro + compte à rebours HyperFrames, la sortie démarre au « go » (?nointro pour les tests).
+  if (!params.has('nointro')) {
+    ride.paused = true;
+    void sequences
+      .intro({ season: s.season, riders: peloton.riders.length + 1, rideType: s.mode })
+      .finally(() => (ride.paused = false));
+  }
   ride.onLap = (lap) => {
     hud.toast(`${t('lap')} ${lap}`);
     ghost.lap(ride.elapsedS, ride.state.distM);
@@ -284,6 +298,9 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     hudAcc += dt;
     if (hudAcc > 0.1) {
       hudAcc = 0;
+      // Habillage TV synchronisé avec la caméra « réalisation TV ».
+      const rank = 1 + peloton.riders.filter((r) => r.state.distM > ride.state.distM).length;
+      sequences.tv(rig.mode === 'tv', { riderName: s.name, color: s.look.jersey, position: rank, wkg: ride.watts3s() / s.massKg, watts: ride.watts3s() });
       const i = ride.inputs;
       hud.update(
         {
