@@ -66,7 +66,7 @@ export class Ghost {
     const a = this.best.dist[i] ?? 0;
     const b = this.best.dist[i + 1] ?? a;
     const d = this.lapStartD + a + (b - a) * f;
-    const p = this.track.positionAt(d, 1.0, this.sample);
+    const p = this.track.positionAt(d, 0.2, this.sample);
     this.avatar.root.position.set(p.x, p.y + 0.06, p.z);
     this.avatar.root.rotation.set(0, Math.atan2(p.dirX, p.dirZ), 0);
     this.avatar.root.rotateX(-Math.atan(p.grade / 100));

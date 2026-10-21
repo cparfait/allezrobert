@@ -37,7 +37,7 @@ export interface TelemetryMsg {
   hr?: number;
   /** Rapport virtuel courant (indice 0–23). */
   gear: number;
-  /** Décalage latéral souhaité (direction au clavier / manette). */
+  /** Décalage latéral souhaité (m, positif = à droite dans le sens de marche ; voie de droite ≈ +1,2 m). */
   steer: number;
   /** Puissance virtuelle bornée pour un invité sans matériel. */
   guestThrottle?: number;

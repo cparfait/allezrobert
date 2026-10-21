@@ -71,6 +71,7 @@ FORE = 0.28
 
 LOD0_BODY_TRIS = 5600
 LOD1_RATIO = 0.25
+PROTECT_FACTOR = float(os.environ.get('AR_PF', '1.0'))
 
 
 # ---------------------------------------------------------------------------------------------
@@ -619,8 +620,10 @@ def label_vertices(vc, prims):
                 sd[m] = d[m]
                 ss[m] = (cum[i] + t[m] * seg[i]) / tot
         else:
-            q = (vc - p['c']) @ p['R'].T / p['radii']
-            sd = (np.linalg.norm(q, axis=1) - 1.0) * p['radii'].min()
+            q = (vc - p['c']) @ p['R'].T
+            k0 = np.linalg.norm(q / p['radii'], axis=1)
+            k1 = np.maximum(np.linalg.norm(q / p['radii'] ** 2, axis=1), 1e-9)
+            sd = k0 * (k0 - 1.0) / k1  # approximation classique de la distance à un ellipsoïde
             ss = np.zeros(N)
         m = sd < best
         best[m] = sd[m]
@@ -666,9 +669,6 @@ def in_torso_zone(r, region, c):
     if region.startswith('thigh'):
         d = r.side[region[-1]]
         return np.dot(c - d.hip, d.thigh_d) / THIGH < 0.12
-    if region.startswith('upper_arm'):
-        d = r.side[region[-1]]
-        return np.dot(c - d.shoulder, d.upper_d) / UPPER < SLEEVE[0]
     return False
 
 
@@ -708,7 +708,7 @@ def face_material(r, region, c):
         return 'sock' if np.dot(c - d.ankle, d.shin_d) > -SOCK_H else 'skin'
     if region.startswith('upper_arm'):
         p = np.dot(c - d.shoulder, d.upper_d) / UPPER
-        return 'jersey_accent' if p < SLEEVE[1] else 'skin'
+        return 'jersey' if p < SLEEVE[0] else 'jersey_accent' if p < SLEEVE[1] else 'skin'
     return 'skin'
 
 
@@ -821,12 +821,16 @@ def finalize_body(r, src, name, target_tris, prims):
     # Détail préservé sur le visage et les mains (vus de près).
     vc0 = to_client_arr(np.array([v.co[:] for v in ob.data.vertices]))
     reg0, _ = label_vertices(vc0, prims)
+    # (Blender : poids faible = effondrement coûteux ; poids nul = jamais décimé.)
     vg = ob.vertex_groups.new(name='protect')
     for i, rg in enumerate(reg0):
-        w = 1.0 if rg == 'head' else 0.5 if rg.startswith('hand') else 0.0
-        if w:
-            vg.add([i], w, 'REPLACE')
-    decimate_to(ob, target_tris, 'protect')
+        w = 0.5 if rg == 'head' else 0.7 if rg.startswith('hand') else 1.0
+        vg.add([i], w, 'REPLACE')
+    decimate_to(ob, target_tris, 'protect', PROTECT_FACTOR)
+    vc1 = to_client_arr(np.array([v.co[:] for v in ob.data.vertices]))
+    reg1, _ = label_vertices(vc1, prims)
+    print('DEBUG smooth', sum(p.use_smooth for p in ob.data.polygons), len(ob.data.polygons))
+    print('DEBUG head verts', name, int((reg0 == 'head').sum()), '->', int((reg1 == 'head').sum()), 'total', len(vc1))
     me = ob.data
     # Coupes nettes aux ourlets (maillot, cuissard, manches, chaussettes, bande d'accent, col).
     bm = bmesh.new()

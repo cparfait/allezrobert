@@ -112,7 +112,7 @@ export class Peloton {
         color,
         // Départ groupé : en file indienne juste devant et derrière le joueur.
         state: createRiderState({ distM: startDistM + (i % 2 ? 1 : -1) * (2 + Math.floor(i / 2) * 2.2), speedMs: 0 }),
-        lateral: ((i % 3) - 1) * 0.9 - 0.8,
+        lateral: ((i % 3) - 1) * 0.9 + 1.0,
         ai: new AiRider({ id: `ai-${i}`, profile: PROFILES[i % PROFILES.length] as AiProfileName, ftpWatts: ftp, params, riderMassKg: massKg, seed: i * 7919, aggressiveness: 0.35 }),
         avatar,
         label,
@@ -183,7 +183,7 @@ export class Peloton {
       r.pose = r.poseCtl.update({ watts: out.watts, cadence: out.cadence, gradePercent: s.grade, ftpWatts: r.ftp, speedMs: r.state.speedMs }, dt);
       stepRider(r.state, { watts: r.watts, gradePercent: s.grade, params: r.ai.params, env, cdaFactor: 1 - r.draft }, dt);
       const half = this.track.route.roadWidthM / 2 - 0.5;
-      const targetLat = THREE.MathUtils.clamp((ahead?.lateral ?? -1) + out.lateralTargetM, -half, half);
+      const targetLat = THREE.MathUtils.clamp((ahead?.lateral ?? 1) + out.lateralTargetM, -half, half);
       r.lateral += (targetLat - r.lateral) * Math.min(1, dt * 0.8);
     });
     return factors[0] ?? 0;

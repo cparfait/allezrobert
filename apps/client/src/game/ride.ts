@@ -53,7 +53,7 @@ export class RideSession {
   readonly params: RiderPhysicsParams;
   readonly gears: Gear[];
   gearIndex: number;
-  lateral = -1.2; // on roule à droite de l'axe (circulation à droite)
+  lateral = 1.2; // voie de droite (décalage positif = à droite dans le sens de marche)
   pose: 'seated' | 'standing' | 'coasting' = 'seated';
   inputs: RideInputs = { watts: 0, cadence: 0, steer: 0 };
   paused = false;

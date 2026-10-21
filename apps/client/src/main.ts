@@ -64,7 +64,7 @@ async function boot(): Promise<void> {
   ui.innerHTML = `<div class="loading">${t('loading')}</div>`;
   const scene = await loadScene(settings);
   const devices = createDeviceLayer();
-  const start = scene.track.positionAt(0, -1.2);
+  const start = scene.track.positionAt(0, 1.2);
   await scene.world.preload(new THREE.Vector3(start.x, start.y, start.z));
 
   // Plan d'attente derrière le menu : orbite lente autour du départ.
@@ -220,7 +220,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   if (mp) {
     const net = mp.net;
     // Télémétrie à 10 Hz : puissance mesurée (ou virtuelle pour un invité), rapport, direction.
-    net.startTelemetry(() => ({ watts: ride.inputs.watts, cadence: ride.inputs.cadence, ...(ride.inputs.hr !== undefined ? { hr: ride.inputs.hr } : {}), gear: ride.gearIndex, steer: keyboard.steer }));
+    net.startTelemetry(() => ({ watts: ride.inputs.watts, cadence: ride.inputs.cadence, ...(ride.inputs.hr !== undefined ? { hr: ride.inputs.hr } : {}), gear: ride.gearIndex, steer: ride.lateral }));
     net.on('event', (ev) => {
       if (ev.kind === 'segmentEnd' && ev.riderId === net.selfId && !s.guest) {
         const seg = track.route.segments.find((x) => x.id === ev.segmentId);

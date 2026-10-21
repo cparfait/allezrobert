@@ -412,7 +412,7 @@ export class RideSimulation {
       const median = dists[Math.floor(dists.length / 2)]!;
       r.state.distM = median - 6;
       r.state.speedMs = this.riders.reduce((s, x) => s + x.state.speedMs, 0) / this.riders.length;
-      r.lateralM = r.lateralTarget = 0;
+      r.lateralM = r.lateralTarget = Math.min(1.2, this.halfRoad());
     }
     r.lap = this.lapOf(r.state.distM);
   }
@@ -676,7 +676,7 @@ export class RideSimulation {
   private aiLateral(r: SimRider, offset: number): number {
     const p = this.order.indexOf(r);
     const ahead = p > 0 ? this.order[p - 1] : undefined;
-    const base = ahead && ahead.state.distM - r.state.distM < 10 ? ahead.lateralM : 0;
+    const base = ahead && ahead.state.distM - r.state.distM < 10 ? ahead.lateralM : Math.min(1, this.halfRoad());
     const half = this.halfRoad();
     return Math.min(Math.max(base + offset, -half), half);
   }
