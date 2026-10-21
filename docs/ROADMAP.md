@@ -6,7 +6,8 @@ Chaque jalon n'est déclaré terminé qu'après vérification : tests (protocole
 
 ## Jalon 0 — Socle
 
-- [x] Monorepo pnpm, TypeScript strict, Vitest, CI GitHub Actions (types, tests, build, images Docker)
+- [x] Monorepo pnpm, TypeScript strict, Vitest
+- [ ] CI GitHub Actions (types, tests, build, images Docker) — fichier écrit, jamais exécuté sur GitHub
 - [x] `packages/shared` : contrats capteurs, profils, itinéraires, réseau, pont natif
 - [x] Simulateur de capteurs (trainer + pédales + FC + commandes) pour coder sans rouler
 - [x] Scène Three.js minimale (WebGPU, repli WebGL2)
@@ -18,7 +19,7 @@ Chaque jalon n'est déclaré terminé qu'après vérification : tests (protocole
 - [ ] KICKR CORE / CORE 2 en FTMS (simulation de pente), Assioma en CPS, TICKR en HRS — Web Bluetooth et Tauri
 - [x] Physique de Martin, vitesse calculée par le jeu, pente envoyée au trainer (difficulté 50 %)
 - [x] HUD complet : puissance (3 s), FC, cadence, vitesse, distance, temps, pente, profil, mini-carte, balance G/D, rapport
-- [x] Export FIT (balance G/D, TE, PS) validé par le SDK Garmin
+- [x] Export FIT (balance G/D) validé par le SDK Garmin — TE / PS : seulement via ANT+ PWR (le Bluetooth CPS ne les transmet pas)
 
 ## Jalon 2 — Matériel complet
 
@@ -30,7 +31,7 @@ Chaque jalon n'est déclaré terminé qu'après vérification : tests (protocole
 ## Jalon 3 — Beauté
 
 - [ ] `docs/ART_DIRECTION.md` validé
-- [x] Ciel physique, atmosphère, ombres en cascade, AO, bloom, TAA, LUT par saison
+- [x] Ciel physique, atmosphère, ombres en cascade, AO, bloom, TAA, étalonnage par saison et par heure (LUT dédiées : plus tard)
 - [x] Saisons, jour/nuit, météo (pluie, brouillard, vent qui pèse sur la physique)
 - [ ] Végétation instanciée animée par le vent, villages en meulière, toits de tuiles, eau
 - [ ] Avatars riggés, pédalage procédural, cosmétiques ; caméras poursuite, cockpit, drone, TV, photo
@@ -47,7 +48,8 @@ Chaque jalon n'est déclaré terminé qu'après vérification : tests (protocole
 
 ## Jalon 5 — Jeu
 
-- [x] Modes : libre, groupe, course, ERG (.zwo / .erg / .mrc), test FTP, segments KOM / sprint, fantôme
+- [x] Modes solo : libre, ERG (.zwo / .erg / .mrc), test FTP, segments KOM / sprint, fantôme
+- [ ] Modes groupe et course (dépendent du jalon 4)
 - [x] Coureurs IA (relais, attaques, profils)
 - [x] Progression : XP, niveaux, garage, déblocages cosmétiques
 - [ ] Export Strava (option « ne pas envoyer » si l'Edge enregistre) et intervals.icu
