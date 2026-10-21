@@ -27,6 +27,7 @@ import { RideSequences } from './game/sequences.ts';
 import { GuestInputSource } from './game/guest.ts';
 import { Crowd } from './world/crowd.ts';
 import { TownSigns } from './world/signs.ts';
+import { Traffic } from './world/traffic.ts';
 import { Multiplayer } from './game/multiplayer.ts';
 import type { InterpolatedRider } from './net/index.ts';
 
@@ -174,6 +175,9 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   const crowd = new Crowd(track, (x, z) => world.terrain.heightAt(x, z));
   engine.scene.add(crowd.mesh);
   engine.scene.add(new TownSigns(track, (x, z) => world.terrain.heightAt(x, z)).group);
+  // Monde vivant : circulation et piétons (désactivable par ?traffic=0).
+  const traffic = params.get('traffic') === '0' ? null : new Traffic(track);
+  if (traffic) engine.scene.add(traffic.group);
   const hud = new Hud(hudRoot, track, source.attribution);
   hud.ftp = s.ftpWatts;
   hud.setVisible(true);
@@ -336,6 +340,11 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
       } else ride.draft = peloton.update(dt, { distM: ride.state.distM, lateral: ride.lateral, speedMs: ride.state.speedMs, watts: ride.inputs.watts, massKg: s.massKg, ftpWatts: s.ftpWatts });
     }
     remoteRiders = mp ? mp.render(dt, engine.camera) : [];
+    traffic?.update(dt, ride.state, [
+      { distM: ride.state.distM, lateral: ride.lateral, speedMs: ride.state.speedMs },
+      ...peloton.riders.map((r) => ({ distM: r.state.distM, lateral: r.lateral, speedMs: r.state.speedMs })),
+      ...remoteRiders.map((r) => ({ distM: r.unwrappedM, lateral: r.lateralM, speedMs: r.speedMs })),
+    ]);
     track.positionAt(ride.state.distM, ride.lateral, sample);
     pos.set(sample.x, sample.y + 0.06, sample.z);
     dir.set(sample.dirX, 0, sample.dirZ);

@@ -71,7 +71,7 @@ FORE = 0.28
 
 LOD0_BODY_TRIS = 5600
 LOD1_RATIO = 0.25
-PROTECT_FACTOR = float(os.environ.get('AR_PF', '1.0'))
+PROTECT_FACTOR = float(os.environ.get('AR_PF', '0.012'))
 
 
 # ---------------------------------------------------------------------------------------------
@@ -829,7 +829,6 @@ def finalize_body(r, src, name, target_tris, prims):
     decimate_to(ob, target_tris, 'protect', PROTECT_FACTOR)
     vc1 = to_client_arr(np.array([v.co[:] for v in ob.data.vertices]))
     reg1, _ = label_vertices(vc1, prims)
-    print('DEBUG smooth', sum(p.use_smooth for p in ob.data.polygons), len(ob.data.polygons))
     print('DEBUG head verts', name, int((reg0 == 'head').sum()), '->', int((reg1 == 'head').sum()), 'total', len(vc1))
     me = ob.data
     # Coupes nettes aux ourlets (maillot, cuissard, manches, chaussettes, bande d'accent, col).
@@ -892,6 +891,7 @@ def finalize_body(r, src, name, target_tris, prims):
     me.vertices.foreach_get('co', co)
     co = co.reshape(-1, 3) + nn.reshape(-1, 3) * amt[:, None]
     k.data.foreach_set('co', co.ravel())
+    print('DEBUG smooth', name, sum(p.use_smooth for p in me.polygons), len(me.polygons))
     return ob
 
 
