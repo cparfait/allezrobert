@@ -1,0 +1,18 @@
+{
+  "lang": "fr",
+  "rider_name": "Christophe P.",
+  "team": "Les Pois Chiches",
+  "team_color": "#3b82f6",
+  "position": 4,
+  "wkg": 4.6,
+  "watts": 341,
+  "groups": [
+    { "label": "tv.breakaway", "riders": 3, "gap_s": 0, "color": "#ffd23f" },
+    { "label": "tv.chasers", "riders": 2, "gap_s": 18 },
+    { "label": "tv.peloton", "riders": 12, "gap_s": 42, "color": "#3b82f6" },
+    { "label": "tv.gruppetto", "riders": 4, "gap_s": 95 }
+  ],
+  "focus_group": 2,
+  "preview_backdrop": true,
+  "show_safe_zones": true
+}

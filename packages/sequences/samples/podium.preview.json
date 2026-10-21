@@ -1,0 +1,12 @@
+{
+  "lang": "fr",
+  "route_name": "Les 17 Tournants",
+  "podium": [
+    { "name": "Robert", "time_s": 3412.4, "team": "VC Chevreuse", "team_color": "#ef4444" },
+    { "name": "Christophe P.", "time_s": 3415.9, "team": "Les Pois Chiches", "team_color": "#3b82f6" },
+    { "name": "Mathilde Delacroix-Fontaine", "time_s": 3460.2, "team": "Saclay Express", "team_color": "#22c55e" }
+  ],
+  "seed": 11,
+  "preview_backdrop": true,
+  "show_safe_zones": true
+}

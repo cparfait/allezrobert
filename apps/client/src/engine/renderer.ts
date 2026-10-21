@@ -1,5 +1,5 @@
 import * as THREE from 'three/webgpu';
-import { pass, mrt, output, emissive, normalView, velocity, vec4, packNormalToRGB, unpackRGBToNormal, sample, uniform, float } from 'three/tsl';
+import { pass, mrt, output, emissive, normalView, velocity, vec4, vec3, packNormalToRGB, unpackRGBToNormal, sample, uniform, float, saturation, vibrance } from 'three/tsl';
 import { bloom } from 'three/addons/tsl/display/BloomNode.js';
 import { ao } from 'three/addons/tsl/display/GTAONode.js';
 import { traa } from 'three/addons/tsl/display/TRAANode.js';
@@ -14,9 +14,13 @@ export interface Engine {
   backend: 'webgpu' | 'webgl2';
   /** Exposition globale (étalonnage par saison / heure). */
   exposure: { value: number };
+  /** Étalonnage : saturation, vivacité et teinte multiplicative (lumière chaude ou froide). */
+  grade: { saturation: number; vibrance: number; tint: THREE.Color };
   rebuildPipeline(q: QualitySettings): void;
   resize(): void;
   render(): void;
+  /** Rendu hors boucle d'animation (tests, captures) : avance le compteur d'images des nœuds. */
+  renderManual(): void;
 }
 
 /**
@@ -39,6 +43,10 @@ export async function createEngine(canvas: HTMLCanvasElement, q: QualitySettings
 
   const exposure = { value: 1 };
   const exposureNode = uniform(1);
+  const grade = { saturation: 1.12, vibrance: 0.18, tint: new THREE.Color(1, 1, 1) };
+  const satNode = uniform(1.12);
+  const vibNode = uniform(0.18);
+  const tintNode = uniform(new THREE.Color(1, 1, 1));
   const pipeline = new THREE.RenderPipeline(renderer);
 
   const engine: Engine = {
@@ -48,6 +56,7 @@ export async function createEngine(canvas: HTMLCanvasElement, q: QualitySettings
     camera,
     backend,
     exposure,
+    grade,
     rebuildPipeline(settings: QualitySettings) {
       camera.far = settings.viewDistance;
       camera.updateProjectionMatrix();
@@ -93,7 +102,9 @@ export async function createEngine(canvas: HTMLCanvasElement, q: QualitySettings
         result = result.add(b) as unknown as Vec4Node;
       }
 
-      result = vec4(result.rgb.mul(exposureNode), float(1));
+      // Étalonnage avant le tone mapping : couleurs vives mais crédibles (direction artistique).
+      const tinted = result.rgb.mul(exposureNode).mul(vec3(tintNode as unknown as THREE.Node<'vec3'>));
+      result = vec4(vibrance(saturation(tinted, satNode), vibNode), float(1));
 
       if (settings.taa) {
         const depth = scenePass.getTextureNode('depth');
@@ -114,6 +125,21 @@ export async function createEngine(canvas: HTMLCanvasElement, q: QualitySettings
     },
     render() {
       exposureNode.value = exposure.value;
+      satNode.value = grade.saturation;
+      vibNode.value = grade.vibrance;
+      (tintNode.value as THREE.Color).copy(grade.tint);
+      pipeline.render();
+    },
+    renderManual() {
+      // Sans requestAnimationFrame (page masquée, tests), les passes « une fois par image »
+      // ne se recalculent pas : on avance nous-mêmes le compteur, comme le fait la boucle d'animation.
+      const nodes = (renderer as unknown as { _nodes: { nodeFrame: { update(): void; frameId: number } } })._nodes;
+      nodes.nodeFrame.update();
+      (renderer.info as { frame: number }).frame = nodes.nodeFrame.frameId;
+      exposureNode.value = exposure.value;
+      satNode.value = grade.saturation;
+      vibNode.value = grade.vibrance;
+      (tintNode.value as THREE.Color).copy(grade.tint);
       pipeline.render();
     },
   };

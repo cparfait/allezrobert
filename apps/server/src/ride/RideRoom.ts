@@ -244,7 +244,11 @@ export class RideRoom extends Room {
       this.sim.setConnected(ud.riderId, false);
       this.broadcastRoster();
     }
-    this.allowReconnection(client, this.svc.reconnectGraceS);
+    try {
+      this.allowReconnection(client, this.svc.reconnectGraceS);
+    } catch {
+      // Salle en cours de fermeture (arrêt du serveur) : pas de reconnexion possible.
+    }
   }
 
   override onReconnect(client: Client): void {

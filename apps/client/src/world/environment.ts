@@ -1,6 +1,7 @@
 import * as THREE from 'three/webgpu';
 import { SkyMesh } from 'three/addons/objects/SkyMesh.js';
 import { CSMShadowNode } from 'three/addons/csm/CSMShadowNode.js';
+import { NightSky } from './nightsky.ts';
 import type { QualitySettings } from '../engine/quality.ts';
 
 export type Season = 'spring' | 'summer' | 'autumn' | 'winter';
@@ -81,6 +82,7 @@ export class Environment {
   readonly sun: THREE.DirectionalLight;
   readonly hemi: THREE.HemisphereLight;
   readonly fog: THREE.FogExp2;
+  readonly nightSky = new NightSky();
   state: EnvironmentState;
   private csm: CSMShadowNode | null = null;
   private readonly sunDir = new THREE.Vector3();
@@ -96,6 +98,7 @@ export class Environment {
     this.sky.mieCoefficient.value = 0.004;
     this.sky.mieDirectionalG.value = 0.82;
     scene.add(this.sky);
+    scene.add(this.nightSky.mesh);
 
     this.sun = new THREE.DirectionalLight(0xffffff, 3.2);
     this.sun.castShadow = true;
@@ -145,9 +148,31 @@ export class Environment {
     this.sun.color.copy(isNight ? new THREE.Color('#9fb4ff') : pal.sunColor);
     this.hemi.color.copy(pal.hemiSky);
     this.hemi.groundColor.copy(pal.hemiGround);
-    this.hemi.intensity = 0.25 + 1.1 * THREE.MathUtils.smoothstep(this.sunDir.y, -0.2, 0.3) + overcast * 0.5;
+    const nightK = 1 - THREE.MathUtils.smoothstep(this.sunDir.y, -0.18, 0.02);
+    this.nightSky.night.value = nightK;
+    // Nuit : clair de lune bleuté (lisibilité de la route), jamais le noir complet.
+    this.hemi.intensity = 0.25 + 1.1 * THREE.MathUtils.smoothstep(this.sunDir.y, -0.2, 0.3) + overcast * 0.5 + nightK * 0.35;
+    if (nightK > 0) this.hemi.color.lerp(new THREE.Color('#3b4f7a'), nightK * 0.8);
     this.fog.color.copy(pal.fog);
     this.fog.density = 0.00012 + weather.fog * 0.0022 + weather.rain * 0.0004;
+  }
+
+  /** Étalonnage conseillé selon saison, heure et météo (voir ART_DIRECTION.md). */
+  grade(out: { saturation: number; vibrance: number; tint: THREE.Color }): void {
+    const { season, weather } = this.state;
+    const el = this.sunDir.y;
+    const golden = el > 0 ? 1 - THREE.MathUtils.smoothstep(el, 0.05, 0.3) : 0;
+    const night = 1 - THREE.MathUtils.smoothstep(el, -0.15, 0.02);
+    const base: Record<Season, [number, number, number, number]> = {
+      spring: [1.14, 0.2, 0.99, 1.01],
+      summer: [1.1, 0.18, 1.0, 1.0],
+      autumn: [1.16, 0.22, 1.03, 0.99],
+      winter: [0.96, 0.1, 0.97, 1.0],
+    };
+    const [sat, vib, r, g] = base[season];
+    out.saturation = (sat - night * 0.25) * (1 - weather.rain * 0.22 - weather.fog * 0.15);
+    out.vibrance = vib * (1 - night);
+    out.tint.setRGB(r + golden * 0.06 - night * 0.08, g - golden * 0.01 - night * 0.04, 1 - golden * 0.08 + night * 0.1 + (season === 'winter' ? 0.03 : 0));
   }
 
   /** Exposition conseillée pour le tone mapping (plus forte la nuit pour rester lisible). */
@@ -157,7 +182,7 @@ export class Environment {
   }
 
   dispose(): void {
-    this.scene.remove(this.sky, this.sun, this.hemi);
+    this.scene.remove(this.sky, this.sun, this.hemi, this.nightSky.mesh);
     this.csm?.dispose();
   }
 }

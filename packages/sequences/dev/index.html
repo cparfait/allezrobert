@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Allez Robert ! — banc d'essai des séquences</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        background: #0a0e16;
+        color: #f5f7fa;
+        font: 14px system-ui, sans-serif;
+        overflow: hidden;
+      }
+      #app {
+        position: fixed;
+        inset: 0;
+      }
+      /* Faux canvas 3D animé en continu : sert à mesurer les fps pendant une séquence. */
+      #scene {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        display: block;
+      }
+      #bar {
+        position: fixed;
+        left: 8px;
+        bottom: 8px;
+        z-index: 100;
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+        align-items: center;
+        background: rgba(0, 0, 0, 0.6);
+        padding: 6px 8px;
+        border-radius: 8px;
+      }
+      #bar button,
+      #bar select {
+        font: inherit;
+      }
+      #fps {
+        font-family: ui-monospace, monospace;
+        min-width: 260px;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app"><canvas id="scene"></canvas></div>
+    <div id="bar">
+      <select id="lang">
+        <option value="fr">FR</option>
+        <option value="en">EN</option>
+      </select>
+      <button data-play="intro">intro</button>
+      <button data-play="kom">kom</button>
+      <button data-play="sprint">sprint</button>
+      <button data-play="podium">podium</button>
+      <button data-play="tv">tv (maintien)</button>
+      <button id="release">release</button>
+      <button id="update">update tv</button>
+      <button data-play="summary">summary</button>
+      <button id="stop">stop</button>
+      <span id="fps"></span>
+    </div>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

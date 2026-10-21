@@ -110,7 +110,6 @@ export interface WorldMeta {
   /** Identifiant de l'itinéraire du jalon 1. */
   mainRoute: string;
   attribution: string[];
-  generatedAt: string;
 }
 
 /** Polygone : anneaux plats [x0,z0,x1,z1,…] ; le premier est l'extérieur, les suivants des trous. */

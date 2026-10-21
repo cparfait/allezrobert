@@ -119,6 +119,11 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   });
   const avatar = new RiderAvatar(s.look);
   engine.scene.add(avatar.root);
+  // Phare avant (la nuit) : projecteur fixé au vélo, sans ombre portée (coût).
+  const headlight = new THREE.SpotLight(0xfff1d6, 0, 60, 0.45, 0.6, 1.4);
+  headlight.position.set(0, 1.0, 0.6);
+  headlight.target.position.set(0, 0, 14);
+  avatar.root.add(headlight, headlight.target);
   // Séance structurée : fichier .zwo/.erg/.mrc ou test FTP (rampe) ; pas d'IA pendant une séance.
   let workout: WorkoutController | null = null;
   try {
@@ -204,7 +209,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   let hudAcc = 0;
   let prevHeading = Number.NaN;
   let bank = 0;
-  const frame = (dt: number, render: boolean) => {
+  const frame = (dt: number, render: boolean, manual = false) => {
     const steer = keyboard.update(dt);
     if (workout) ride.ergTarget = workout.update(ride.elapsedS, ride.inputs.watts);
     ride.update(dt, input, steer);
@@ -233,9 +238,12 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
 
     rig.update(dt, { position: pos, dir, distM: ride.state.distM, speedMs: ride.state.speedMs });
     world.update(dt, pos);
+    headlight.intensity = world.nightFactor() * 120;
     if (!render) return;
     engine.exposure.value = world.env.exposure();
-    engine.render();
+    world.env.grade(engine.grade);
+    if (manual) engine.renderManual();
+    else engine.render();
 
     const tile = world.terrain.getTile(...world.terrain.tileCoord(pos.x, pos.z));
     audio.update(
@@ -316,11 +324,15 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   // Crochet de test : avance la simulation à pas fixe (1/60 s) sans dépendre de l'affichage.
   const advance = (seconds: number) => {
     const n = Math.round(seconds * 60);
-    for (let k = 0; k < n; k++) frame(1 / 60, k === n - 1);
+    for (let k = 0; k < n; k++) frame(1 / 60, k === n - 1, true);
   };
   /** Capture du canvas (rendu immédiat puis lecture dans la même tâche) envoyée au serveur de dev. */
   const shot = async (name: string) => {
-    frame(1 / 60, true);
+    frame(1 / 60, false);
+    // Rendu manuel puis lecture du canvas dans la même tâche (avant présentation).
+    engine.exposure.value = world.env.exposure();
+    world.env.grade(engine.grade);
+    engine.renderManual();
     const url = engine.renderer.domElement.toDataURL('image/jpeg', 0.9);
     const res = await fetch(`/__shot?name=${encodeURIComponent(name)}`, { method: 'POST', body: url });
     return res.text();

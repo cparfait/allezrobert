@@ -4,7 +4,7 @@
  *
  * Point d'entrée navigateur (Vite) : `SequencePlayer` monte <hyperframes-player> au-dessus du
  * canvas. Les modules purs (catalogue, assemblage, données du résumé, textes) sont aussi
- * exportés seuls via `@allezrobert/sequences/catalog` pour le serveur et les scripts Node.
+ * exportés seuls via `@allezrobert/sequences/node` pour le serveur et les scripts Node.
  *
  * @example
  * const seq = new SequencePlayer(document.getElementById('app')!, { lang: 'fr' });

@@ -3876,7 +3876,7 @@
    "tx": -3,
    "tz": -4,
    "baseM": 120,
-   "minM": 121.71,
+   "minM": 121.67,
    "maxM": 167.04,
    "lods": [
     "lo",
@@ -5350,7 +5350,7 @@
    "tz": 3,
    "baseM": 148,
    "minM": 150,
-   "maxM": 170.5,
+   "maxM": 170.52,
    "lods": [
     "lo",
     "hi",
@@ -5522,7 +5522,7 @@
    "tx": 4,
    "tz": -1,
    "baseM": 147,
-   "minM": 148.61,
+   "minM": 148.05,
    "maxM": 165.08,
    "lods": [
     "lo",
@@ -5750,7 +5750,7 @@
    "tx": 5,
    "tz": -1,
    "baseM": 84,
-   "minM": 85.61,
+   "minM": 85.52,
    "maxM": 163.45,
    "lods": [
     "lo",
@@ -6204,7 +6204,7 @@
    "tz": -1,
    "baseM": 148,
    "minM": 149.31,
-   "maxM": 163.41,
+   "maxM": 163.47,
    "lods": [
     "lo",
     "hi",
@@ -7507,6 +7507,5 @@
   "© IGN — RGE ALTI® / LiDAR HD (Licence Ouverte Etalab 2.0)",
   "© les contributeurs OpenStreetMap (ODbL)",
   "© IGN — BD ORTHO® (Licence Ouverte Etalab 2.0)"
- ],
- "generatedAt": "2026-10-21T22:14:26.591Z"
+ ]
 }

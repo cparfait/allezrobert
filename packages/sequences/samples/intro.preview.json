@@ -1,0 +1,14 @@
+{
+  "lang": "fr",
+  "route_name": "Les 17 Tournants",
+  "ride_type": "race",
+  "season": "automne",
+  "distance_km": 28.6,
+  "elevation_m": 418,
+  "riders": 9,
+  "start_label": "Saint-Rémy-lès-Chevreuse",
+  "finish_label": "Château de la Madeleine",
+  "profile": [88, 90, 93, 97, 104, 116, 131, 149, 160, 158, 147, 132, 120, 113, 110, 118, 134, 152, 171, 186, 194, 190, 176, 158, 140, 127, 121, 125, 139, 158, 177, 192, 203, 208, 205],
+  "preview_backdrop": true,
+  "show_safe_zones": true
+}

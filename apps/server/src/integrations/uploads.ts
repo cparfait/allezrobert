@@ -129,7 +129,7 @@ export class UploadService {
   /** Envoi automatique après téléversement : intervals.icu toujours, Strava sauf option. */
   async autoUpload(userId: string, activityId: string, fit: Uint8Array, name: string, skipStrava: boolean): Promise<{ strava: UploadResult; intervals: UploadResult }> {
     const strava: UploadResult = skipStrava ? { status: 'skipped' } : await this.uploadStrava(userId, activityId, fit, name).catch((e) => ({ status: 'failed' as const, error: String(e) }));
-    const intervals = await this.uploadIntervals(userId, activityId, fit, name).catch((e) => ({ status: 'failed' as const, error: String(e) }));
+    const intervals: UploadResult = await this.uploadIntervals(userId, activityId, fit, name).catch((e) => ({ status: 'failed' as const, error: String(e) }));
     if (strava.status !== 'not_linked') await this.repos.setUploadStatus(activityId, 'strava', strava.status, strava.ref);
     if (intervals.status !== 'not_linked') await this.repos.setUploadStatus(activityId, 'intervals', intervals.status, intervals.ref);
     return { strava, intervals };

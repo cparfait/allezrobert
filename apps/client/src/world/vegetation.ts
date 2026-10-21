@@ -66,9 +66,15 @@ function deciduousGeometry(lod: number): THREE.BufferGeometry {
     const s = lod === 0 ? 2.3 + r() * 1.3 : lod === 1 ? 3.4 : 4.2;
     const blob = new THREE.IcosahedronGeometry(s, lod === 0 ? 1 : 0);
     const p = blob.getAttribute('position');
+    // Déformation fonction de la direction du sommet (et non aléatoire par sommet) : les faces
+    // restent jointives, le houppier est bosselé sans se déchirer.
+    const seed = r() * 10;
     for (let k = 0; k < p.count; k++) {
-      const f = 0.85 + 0.25 * r();
-      p.setXYZ(k, p.getX(k) * f, p.getY(k) * f * 0.82, p.getZ(k) * f);
+      const x = p.getX(k);
+      const y = p.getY(k);
+      const z = p.getZ(k);
+      const f = 0.86 + 0.14 * Math.sin((x * 3.1 + seed) / s) * Math.cos((z * 2.7 - y * 1.3 + seed) / s) + 0.08 * Math.sin((y * 4.2 + seed) / s);
+      p.setXYZ(k, x * f, y * f * 0.82, z * f);
     }
     const a = (i / blobs) * Math.PI * 2;
     const rad = lod === 0 ? 1.7 + r() * 0.7 : lod === 1 ? 1.1 : 0;

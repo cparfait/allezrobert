@@ -81,6 +81,26 @@ interface Running {
   signal?: AbortSignal;
 }
 
+/** <hyperframes-player> configuré pour l'incrustation : muet, sans contrôles ni carte de chargement. */
+function createPlayerElement(): HyperframesPlayer {
+  const el = document.createElement('hyperframes-player') as HyperframesPlayer;
+  for (const [k, v] of Object.entries({
+    width: '1920',
+    height: '1080',
+    muted: '',
+    'audio-locked': '',
+    'disable-click-to-play': '',
+    'assets-loading-ui': 'none',
+    'shader-loading': 'none',
+  })) {
+    el.setAttribute(k, v);
+  }
+  // :host du lecteur = fond noir ; un style inline l'emporte sur :host → transparent.
+  el.style.cssText =
+    'position:absolute;inset:0;width:100%;height:100%;display:block;background:transparent;pointer-events:none;';
+  return el;
+}
+
 export class SequencePlayer {
   readonly layer: HTMLDivElement;
   private lang: Lang;
@@ -133,20 +153,46 @@ export class SequencePlayer {
    * le premier `play()` ne déclenche aucun téléchargement. À appeler pendant un écran de
    * chargement.
    */
-  async preload(names: SequenceName[] = SEQUENCE_NAMES): Promise<void> {
+  async preload(names: SequenceName[] = SEQUENCE_NAMES, options: { warm?: boolean } = {}): Promise<void> {
     const files = [...new Set(names.map((n) => SEQUENCES[n].file))];
     await Promise.all([loadPlayerElement(), loadSharedAssets(), ...files.map((f) => loadCompositionHtml(f))]);
-    // Polices : on les décode une fois dans la page hôte pour qu'elles soient en cache HTTP.
+    // Polices : téléchargées une fois dans la page hôte → servies depuis le cache HTTP à l'iframe.
     const shared = await loadSharedAssets();
-    if (typeof FontFace !== 'undefined') {
-      await Promise.all(
-        Object.values(shared.fontUrls).map((url) =>
-          fetch(url)
-            .then((r) => r.arrayBuffer())
-            .catch(() => undefined)
-        )
-      );
+    await Promise.all(Object.values(shared.fontUrls).map((url) => fetch(url).catch(() => undefined)));
+    if (options.warm !== false) {
+      // Une chauffe par fichier de composition (kom et sprint partagent « segment »).
+      for (const file of files) {
+        const name = names.find((n) => SEQUENCES[n].file === file);
+        if (name) await this.warmUp(name);
+      }
     }
+  }
+
+  /**
+   * Chauffe à blanc : charge une composition dans un lecteur invisible jusqu'à « ready », puis
+   * le retire. Le premier montage compile le runtime HyperFrames et GSAP (~50–130 ms de blocage
+   * mesurés en headless) ; après la chauffe, un montage ne coûte plus qu'une image (~33 ms).
+   * Sans effet si une séquence est en cours.
+   */
+  private async warmUp(name: SequenceName): Promise<void> {
+    if (this.running) return;
+    const meta = SEQUENCES[name];
+    const [html, shared] = await Promise.all([loadCompositionHtml(meta.file), loadSharedAssets()]);
+    if (this.running) return;
+    const el = createPlayerElement();
+    el.style.visibility = 'hidden';
+    await new Promise<void>((done) => {
+      const timer = setTimeout(finish, this.readyTimeoutMs);
+      function finish() {
+        clearTimeout(timer);
+        el.remove();
+        done();
+      }
+      el.addEventListener('ready', finish, { once: true });
+      el.addEventListener('error', finish, { once: true });
+      el.setAttribute('srcdoc', assembleComposition(html, shared, { lang: this.lang }));
+      this.layer.appendChild(el);
+    });
   }
 
   /**
@@ -180,22 +226,7 @@ export class SequencePlayer {
     if (options.signal?.aborted) return { name, completed: false, reason: 'aborted' };
 
     return new Promise<PlayResult>((resolve) => {
-      const el = document.createElement('hyperframes-player') as HyperframesPlayer;
-      for (const [k, v] of Object.entries({
-        width: '1920',
-        height: '1080',
-        muted: '',
-        'audio-locked': '',
-        'disable-click-to-play': '',
-        'assets-loading-ui': 'none',
-        'shader-loading': 'none',
-      })) {
-        el.setAttribute(k, v);
-      }
-      // :host du lecteur = fond noir ; un style inline l'emporte sur :host → transparent.
-      el.style.cssText =
-        'position:absolute;inset:0;width:100%;height:100%;display:block;background:transparent;pointer-events:none;';
-
+      const el = createPlayerElement();
       const run: Running = {
         token,
         name,
@@ -238,7 +269,7 @@ export class SequencePlayer {
         this.finish(run, { name, completed: true, reason: 'ended' });
       });
       el.addEventListener('error', (e) => {
-        const detail = (e as CustomEvent<{ message?: string }>).detail;
+        const detail = (e as unknown as CustomEvent<{ message?: string }>).detail;
         this.finish(run, { name, completed: false, reason: 'error', error: detail?.message ?? 'erreur du lecteur' });
       });
       run.readyTimer = setTimeout(() => {

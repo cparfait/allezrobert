@@ -33,6 +33,7 @@
     "@types/express": "^5.0.6",
     "@types/nodemailer": "^8.0.2",
     "@types/pg": "^8.23.1",
+    "msgpackr": "^2.1.2",
     "pg-mem": "^3.0.14"
   }
 }

@@ -83,6 +83,20 @@ export class Repos {
     private readonly cipher: DataCipher,
   ) {}
 
+  /**
+   * Colonnes bytea : Buffer tel quel pour PostgreSQL. pg-mem (tests, dev) corrompt les octets
+   * > 0x7F : on y stocke alors du base64 (même schéma, codec transparent).
+   */
+  private bin(b: Buffer | null): Buffer | string | null {
+    if (b === null) return null;
+    return this.db.kind === 'memory' ? b.toString('base64') : b;
+  }
+
+  private unbin(v: unknown): Buffer {
+    const b = Buffer.isBuffer(v) ? v : Buffer.from(String(v));
+    return this.db.kind === 'memory' ? Buffer.from(b.toString('utf8'), 'base64') : b;
+  }
+
   /* ───────────── Comptes ───────────── */
 
   async findUserByIdentity(provider: string, subject: string): Promise<User | null> {
@@ -205,7 +219,7 @@ export class Repos {
       locale: row.locale === 'en' ? 'en' : 'fr',
     };
     if (p.consentHr && row.hr_settings_enc) {
-      const hr = this.cipher.decryptJson<{ maxHr?: number; restHr?: number }>(row.hr_settings_enc, `hr:${userId}`);
+      const hr = this.cipher.decryptJson<{ maxHr?: number; restHr?: number }>(this.unbin(row.hr_settings_enc), `hr:${userId}`);
       if (hr.maxHr !== undefined) p.maxHr = hr.maxHr;
       if (hr.restHr !== undefined) p.restHr = hr.restHr;
     }
@@ -220,7 +234,7 @@ export class Repos {
     const consentFaceChanged = next.consentFace !== current.consentFace;
     const hrSettings =
       next.consentHr && (next.maxHr !== undefined || next.restHr !== undefined)
-        ? this.cipher.encryptJson({ maxHr: next.maxHr, restHr: next.restHr }, `hr:${userId}`)
+        ? this.bin(this.cipher.encryptJson({ maxHr: next.maxHr, restHr: next.restHr }, `hr:${userId}`))
         : null;
     await this.db.tx(async (q) => {
       await q.query('UPDATE users SET display_name = $2 WHERE id = $1', [userId, sanitizeName(next.displayName) || current.displayName]);
@@ -259,8 +273,8 @@ export class Repos {
     skipStrava: boolean;
   }): Promise<string> {
     const id = randomUUID();
-    const hrEnc = a.hr && (a.hr.avg !== undefined || a.hr.max !== undefined) ? this.cipher.encryptJson(a.hr, `act-hr:${id}`) : null;
-    const fitEnc = this.cipher.encrypt(a.fit, `fit:${id}`);
+    const hrEnc = a.hr && (a.hr.avg !== undefined || a.hr.max !== undefined) ? this.bin(this.cipher.encryptJson(a.hr, `act-hr:${id}`)) : null;
+    const fitEnc = this.bin(this.cipher.encrypt(a.fit, `fit:${id}`));
     await this.db.query(
       `INSERT INTO activities (id, user_id, name, started_at, duration_s, moving_s, distance_m, elevation_m, avg_watts, max_watts,
                                hr_summary_enc, fit_enc, fit_size, xp, route_id, ride_id, skip_strava)
@@ -311,7 +325,7 @@ export class Repos {
       createdAt: toDate(row.created_at),
     };
     if (row.hr_summary_enc) {
-      const hr = this.cipher.decryptJson<{ avg?: number; max?: number }>(row.hr_summary_enc, `act-hr:${row.id}`);
+      const hr = this.cipher.decryptJson<{ avg?: number; max?: number }>(this.unbin(row.hr_summary_enc), `act-hr:${row.id}`);
       if (hr.avg !== undefined) a.avgHr = hr.avg;
       if (hr.max !== undefined) a.maxHr = hr.max;
     }
@@ -321,11 +335,11 @@ export class Repos {
   async getActivityFit(userId: string, id: string): Promise<Buffer | null> {
     const r = await this.db.query('SELECT fit_enc FROM activities WHERE user_id = $1 AND id = $2', [userId, id]);
     const row = r.rows[0];
-    return row ? this.cipher.decrypt(row.fit_enc, `fit:${id}`) : null;
+    return row ? this.cipher.decrypt(this.unbin(row.fit_enc), `fit:${id}`) : null;
   }
 
   async replaceActivityFit(id: string, fit: Uint8Array): Promise<void> {
-    await this.db.query('UPDATE activities SET fit_enc = $2, fit_size = $3 WHERE id = $1', [id, this.cipher.encrypt(fit, `fit:${id}`), fit.length]);
+    await this.db.query('UPDATE activities SET fit_enc = $2, fit_size = $3 WHERE id = $1', [id, this.bin(this.cipher.encrypt(fit, `fit:${id}`)), fit.length]);
   }
 
   async listActivityIds(userId: string): Promise<string[]> {
@@ -398,7 +412,7 @@ export class Repos {
   /* ───────────── Intégrations ───────────── */
 
   async setIntegration(userId: string, provider: 'strava' | 'intervals', secret: unknown, meta: Record<string, unknown>): Promise<void> {
-    const enc = this.cipher.encryptJson(secret, `int:${provider}:${userId}`);
+    const enc = this.bin(this.cipher.encryptJson(secret, `int:${provider}:${userId}`));
     await this.db.tx(async (q) => {
       await q.query('DELETE FROM integrations WHERE user_id = $1 AND provider = $2', [userId, provider]);
       await q.query('INSERT INTO integrations (user_id, provider, secret_enc, meta) VALUES ($1, $2, $3, $4)', [userId, provider, enc, JSON.stringify(meta)]);
@@ -409,7 +423,7 @@ export class Repos {
     const r = await this.db.query('SELECT secret_enc, meta FROM integrations WHERE user_id = $1 AND provider = $2', [userId, provider]);
     const row = r.rows[0];
     if (!row) return null;
-    return { secret: this.cipher.decryptJson<T>(row.secret_enc, `int:${provider}:${userId}`), meta: toJson(row.meta, {}) };
+    return { secret: this.cipher.decryptJson<T>(this.unbin(row.secret_enc), `int:${provider}:${userId}`), meta: toJson(row.meta, {}) };
   }
 
   async listIntegrations(userId: string): Promise<Array<{ provider: string; meta: Record<string, unknown>; updatedAt: Date }>> {

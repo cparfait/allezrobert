@@ -60,14 +60,22 @@ for (const r of meta.routes) {
 }
 
 // continuité des bords (même LOD) entre tuiles voisines
-let maxSeam = 0;
-for (const t of meta.tiles) {
-  for (const lod of ['hi', 'lo'] as const) {
-    const a = grid(t.tx, t.tz, lod);
-    const b = grid(t.tx + 1, t.tz, lod);
-    if (!a || !b) continue;
-    const N = a.n + 1;
-    for (let j = 0; j < N; j++) maxSeam = Math.max(maxSeam, Math.abs(a.h[j * N + a.n]! - b.h[j * N]!));
+for (const lod of ['hi', 'lo'] as const) {
+  let maxSeam = 0;
+  let pairs = 0;
+  for (const t of meta.tiles) {
+    for (const [dx, dz] of [[1, 0], [0, 1]] as const) {
+      const a = grid(t.tx, t.tz, lod);
+      const b = grid(t.tx + dx, t.tz + dz, lod);
+      if (!a || !b) continue;
+      pairs++;
+      const N = a.n + 1;
+      for (let k = 0; k < N; k++) {
+        const va = dx ? a.h[k * N + a.n]! : a.h[a.n * N + k]!;
+        const vb = dx ? b.h[k * N]! : b.h[k]!;
+        maxSeam = Math.max(maxSeam, Math.abs(va - vb));
+      }
+    }
   }
+  console.log(`raccord des bords ${lod}/${lod} : écart max ${(maxSeam * 100).toFixed(1)} cm sur ${pairs} bords`);
 }
-console.log(`raccord des bords de tuiles (même niveau) : écart max ${(maxSeam * 100).toFixed(1)} cm`);

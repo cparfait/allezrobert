@@ -282,20 +282,14 @@ export function buildTile(
   const rect = tileRect(tx, tz);
   const carve = inputs.carve.get(tx, tz);
   // grilles
+  // niveau lo : toujours depuis le MNT 8 m (bords identiques entre toutes les tuiles lo)
+  const lo = sampleGrid(dems.lo, tx, tz, LOD_LO.n, false);
+  carveGrid(lo, carve, () => 14, 4);
   let hiGrid: Grid | null = null;
-  let lo: Grid;
   if (hi) {
     hiGrid = sampleGrid(dems.hi, tx, tz, LOD_HI.n, true);
-    // niveau lo cohérent avec hi : décimation de la grille fine (avant creusement)
-    const f = LOD_HI.n / LOD_LO.n;
-    const N = LOD_LO.n + 1;
-    const NH = LOD_HI.n + 1;
-    const h = new Float32Array(N * N);
-    for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) h[j * N + i] = hiGrid.h[j * f * NH + i * f]!;
-    lo = { n: LOD_LO.n, res: LOD_LO.resM, x0: hiGrid.x0, z0: hiGrid.z0, h };
     carveGrid(hiGrid, carve, (hw) => 4 + hw, 0);
-  } else lo = sampleGrid(dems.lo, tx, tz, LOD_LO.n, false);
-  carveGrid(lo, carve, () => 14, 4);
+  }
   const fine = hiGrid ?? lo;
   let minM = Infinity;
   let maxM = -Infinity;

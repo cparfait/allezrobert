@@ -571,7 +571,6 @@ async function main(): Promise<void> {
     })),
     mainRoute: mainLoop.built.data.id,
     attribution: [...ATTRIBUTION, ...(WITH_ORTHO ? [ATTRIBUTION_ORTHO] : [])],
-    generatedAt: new Date().toISOString(),
   };
   fs.writeFileSync(worldFile, JSON.stringify(meta, null, 1));
 

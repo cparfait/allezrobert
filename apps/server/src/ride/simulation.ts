@@ -101,6 +101,8 @@ const TELEMETRY_STALE_MS = 2000;
 const GROUP_GAP_M = 12;
 const LATERAL_SPEED_MS = 1.5;
 const FINISH_TIMEOUT_MS = 10 * 60_000;
+/** Hors course, une IA à plus de REGROUP_M des humains les attend ou les rejoint. */
+const REGROUP_M = 40;
 
 export class SimRider {
   readonly id: string;
@@ -298,7 +300,11 @@ export class RideSimulation {
         },
         now,
       );
-      if (r) out.push(r);
+      if (r) {
+        // Sortie de groupe : attaques rares ; course : profil complet.
+        if (r.ai && this.options.mode !== 'race') r.ai.aggressiveness = 0.3;
+        out.push(r);
+      }
     }
     return out;
   }
@@ -457,6 +463,13 @@ export class RideSimulation {
       }
     }
 
+    // Centre des humains (avec ou sans matériel) : référence de regroupement des IA.
+    let humanCenter: number | undefined;
+    {
+      const hs = riders.filter((r) => r.kind !== 'ai').map((r) => r.state.distM).sort((a, b) => a - b);
+      if (hs.length) humanCenter = hs[Math.floor(hs.length / 2)]!;
+    }
+
     // 1. Consignes.
     for (const r of riders) {
       if (r.kind === 'human') {
@@ -476,6 +489,12 @@ export class RideSimulation {
         r.watts = out.watts;
         r.cadence = out.cadence;
         r.lateralTarget = this.aiLateral(r, out.lateralTargetM);
+        // Sortie de groupe (hors course) : les IA attendent ou rejoignent les humains.
+        if (this.options.mode !== 'race' && humanCenter !== undefined) {
+          const e = r.state.distM - humanCenter;
+          if (e > REGROUP_M) r.watts *= 0.55;
+          else if (e < -REGROUP_M) r.watts = Math.max(r.watts, r.ftpWatts * 1.05);
+        }
       }
     }
 

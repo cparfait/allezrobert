@@ -7,6 +7,8 @@ import { Vegetation } from './vegetation.ts';
 import { Buildings } from './buildings.ts';
 import { RoadMesh } from './road.ts';
 import { RoadNetwork } from './network.ts';
+import { Rain } from './weather.ts';
+import { GrassField } from './grass.ts';
 import type { WorldSource } from './types.ts';
 
 /** Assemble le monde : environnement, terrain streamé, route, végétation, bâtiments. */
@@ -17,6 +19,8 @@ export class World {
   readonly buildings: Buildings;
   readonly road: RoadMesh;
   readonly network: RoadNetwork;
+  readonly rain: Rain;
+  readonly grass: GrassField;
   readonly source: WorldSource;
   private readonly scene: THREE.Scene;
   private readonly track: RouteTrack;
@@ -44,6 +48,11 @@ export class World {
     scene.add(this.buildings.group);
     this.network = new RoadNetwork(route.id, groundAt);
     scene.add(this.network.group);
+    this.rain = new Rain();
+    scene.add(this.rain.mesh);
+    const onAsphalt = buildRoadProximity(route, route.roadWidthM / 2 + 0.4);
+    this.grass = new GrassField(q, envState.season, (x, z) => this.terrain.getTile(...this.terrain.tileCoord(x, z)), groundAt, onAsphalt);
+    scene.add(this.grass.mesh);
 
     this.terrain.onTileLoaded = (tile) => {
       this.buildings.addTile(tile);
@@ -71,6 +80,7 @@ export class World {
     this.env.state.season = season;
     this.terrain.setSeason(season);
     this.vegetation.setSeason(season);
+    this.grass.setSeason(season);
   }
 
   setQuality(q: QualitySettings): void {
@@ -82,12 +92,15 @@ export class World {
   update(dt: number, focus: THREE.Vector3): void {
     this.env.update(dt, focus);
     this.vegetation.update(focus);
+    this.grass.update(focus);
     const w = this.env.state.weather;
     this.road.wetness.value = w.rain;
     this.network.wetness.value = w.rain;
     this.terrain.wetness.value = w.rain * 0.8;
     this.vegetation.windStrength.value = 0.15 + w.windMs * 0.06;
-    this.buildings.night.value = this.env.sun.position.y < focus.y + 20 ? 1 : 0;
+    this.grass.wind.value = 0.25 + w.windMs * 0.08;
+    this.rain.update(w.rain, w.windMs, w.windFrom);
+    this.buildings.night.value = this.nightFactor() > 0.35 ? 1 : 0;
     // Streaming : à chaque changement de tuile, on recharge le voisinage.
     const ft = this.terrain.tileCoord(focus.x, focus.z);
     const key = ft.join('_');
@@ -103,6 +116,12 @@ export class World {
       this.updating = true;
       this.terrain.update(focus).finally(() => (this.updating = false));
     }
+  }
+
+  /** 0 = plein jour, 1 = nuit noire (élévation du soleil). */
+  nightFactor(): number {
+    const el = this.env.sky.sunPosition.value.y;
+    return Math.min(1, Math.max(0, (0.06 - el) / 0.16));
   }
 
   dispose(): void {

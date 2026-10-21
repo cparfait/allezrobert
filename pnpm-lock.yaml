@@ -125,6 +125,9 @@ importers:
       '@types/pg':
         specifier: ^8.23.1
         version: 8.23.1
+      msgpackr:
+        specifier: ^2.1.2
+        version: 2.1.2
       pg-mem:
         specifier: ^3.0.14
         version: 3.0.14
@@ -168,6 +171,9 @@ importers:
       '@allezrobert/shared':
         specifier: workspace:*
         version: link:../shared
+      '@hyperframes/core':
+        specifier: 0.8.185
+        version: 0.8.185(@types/node@26.6.5)
       '@hyperframes/player':
         specifier: 0.8.185
         version: 0.8.185
@@ -181,12 +187,12 @@ importers:
       '@fontsource-variable/jetbrains-mono':
         specifier: ^5.3.0
         version: 5.3.0
-      '@hyperframes/core':
-        specifier: 0.8.185
-        version: 0.8.185(@types/node@26.6.5)
       hyperframes:
         specifier: 0.8.185
         version: 0.8.185(@types/node@26.6.5)
+      vite:
+        specifier: ^8.3.5
+        version: 8.3.5(@types/node@26.6.5)(esbuild@0.28.2)(tsx@4.23.15)
 
   packages/shared: {}
 

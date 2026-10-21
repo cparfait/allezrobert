@@ -4,8 +4,22 @@
     {
       "name": "client",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["--filter", "@allezrobert/client", "dev"],
+      "runtimeArgs": [
+        "--filter",
+        "@allezrobert/client",
+        "dev"
+      ],
       "port": 5173
+    },
+    {
+      "name": "sequences",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": [
+        "--filter",
+        "@allezrobert/sequences",
+        "dev"
+      ],
+      "port": 5180
     }
   ]
 }

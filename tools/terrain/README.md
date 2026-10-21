@@ -1,0 +1,212 @@
+# @allezrobert/terrain — monde « Vallée de Chevreuse »
+
+Chaîne hors ligne qui fabrique le monde du jeu à partir du relief IGN, d'OpenStreetMap et des
+sorties Garmin de l'auteur : itinéraires nettoyés (boucle du jalon 1 + boucles longues), tuiles
+d'altitude avec routes déjà creusées dans le terrain, entités vectorielles par tuile.
+
+```bash
+pnpm --filter @allezrobert/terrain build:world      # tout (réseau la 1re fois, puis cache) ~4 min
+pnpm --filter @allezrobert/terrain build:routes     # itinéraires seuls (garde les tuiles existantes)
+pnpm --filter @allezrobert/terrain fetch:osm        # remplit seulement le cache OSM
+npx tsx tools/terrain/src/verify-world.ts           # tailles, écart route/terrain, raccords de tuiles
+npx vitest run tools/terrain                        # tests (projection, profils, creusement, vie privée)
+```
+
+Options de `build-world.ts` : `--no-ortho` (pas d'orthophotos), `--offline` (cache seul, échoue
+si une donnée manque ; équivalent `TERRAIN_OFFLINE=1`), `--routes-only`.
+
+Tout ce qui est téléchargé est conservé dans `data/cache/terrain/` (ignoré par git) : une
+reconstruction ne sollicite plus les services. Ne jamais écrire sur C: (disque plein).
+
+## Sources et licences
+
+| Donnée | Source | Licence | Attribution affichée |
+| --- | --- | --- | --- |
+| Relief | IGN **MNT LiDAR HD** (`IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.LAMB93`, 50 cm natif) via WMS-R `data.geopf.fr/wms-r`, `image/x-bil;bits=32` ; repli **RGE ALTI® 1 m** (`ELEVATION.ELEVATIONGRIDCOVERAGE.HIGHRES`) là où le LiDAR n'a pas de valeur | Licence Ouverte Etalab 2.0 | « © IGN — RGE ALTI® / LiDAR HD (Licence Ouverte Etalab 2.0) » |
+| Routes, bâtiments, forêts, eau, lieux | OpenStreetMap via Overpass (`overpass.openstreetmap.fr` en premier, puis `overpass-api.de`, `overpass.private.coffee`, `maps.mail.ru`, `overpass.kumi.systems`) | ODbL 1.0 | « © les contributeurs OpenStreetMap (ODbL) » |
+| Orthophotos (indice de couleur du sol, facultatif) | IGN **BD ORTHO®** `ORTHOIMAGERY.ORTHOPHOTOS` (WMS-R, JPEG) | Licence Ouverte Etalab 2.0 | « © IGN — BD ORTHO® (Licence Ouverte Etalab 2.0) » |
+| Itinéraires | sorties Garmin (GPX) de `data/garmin/` — **privées**, jamais exportées | — | — |
+
+Les chaînes d'attribution sont dans `world.json` (`attribution`) et dans chaque itinéraire ; le
+client doit les afficher. Les entités des tuiles sont une base dérivée d'OSM : si on les
+redistribue publiquement, elles restent sous ODbL (attribution + partage à l'identique).
+Usage respectueux des services : requêtes Overpass en petits blocs (0,06° × 0,042°) avec
+`User-Agent`, recul exponentiel et rotation des miroirs ; WMS IGN limité à ~8 requêtes/s,
+blocs mis en cache.
+
+## Vie privée (dépôt public)
+
+- Les GPX ne quittent jamais `data/garmin/` ; aucune coordonnée de domicile n'est écrite dans un
+  fichier versionné (ni dans le code : les points sensibles sont lus à l'exécution).
+- Points sensibles = départ et arrivée de chaque sortie. Les 2 premiers et 2 derniers km de
+  chaque sortie, et tout point à moins de 2 km d'un point sensible, sont retirés avant tout
+  traitement (`trimPrivate`).
+- Les itinéraires sont reconstruits sur le graphe OSM (pas de trace brute) ; ils ne peuvent pas
+  passer à moins de 2 km d'un point sensible (contrôle avant écriture).
+- Le corridor entier doit être à plus de 2 km de tout point sensible, sinon la construction
+  échoue (plutôt qu'un « trou » révélateur dans la grille de tuiles).
+- Audit final de `apps/client/public/worlds/chevreuse/` (`auditWorldDir`) + test
+  `test/privacy.test.ts` (itinéraires, tuiles, emprise, entités, absence de coordonnées GPS
+  brutes dans les fichiers versionnés). Le test est ignoré sur un clone sans `data/garmin`.
+- L'analyse des sorties (fréquentation, côtes candidates) reste dans `data/cache/terrain/analysis/`.
+
+## Repère et projection
+
+- Lambert-93 (EPSG:2154) implémenté dans `src/lambert93.ts` (LCC sécante GRS80, formules IGN
+  NT/G 71). Testé : origine (3°E, 46,5°N) → (700 000, 6 600 000) exactement, facteur d'échelle 1
+  à 44° et 49° (1e-12), Paris (2,3522°E, 48,8566°N) ↔ (652 469,02 ; 6 862 035,26) à < 1 cm,
+  aller-retour < 1 mm sur toute la métropole.
+- Repère monde (mètres) : **x = E − 629 000**, **z = −(N − 6 846 000)**, **y = altitude** (NGF/IGN69).
+  Three.js : y vers le haut, x vers l'est, z vers le **sud**. L'origine (629 000 ; 6 846 000) est à
+  ~500 m du centre de Chevreuse. `src/frame.ts` fournit les conversions WGS84 ↔ monde.
+- Tuile `(tx, tz)` de 1 000 m : x ∈ [tx·1000, (tx+1)·1000], z ∈ [tz·1000, (tz+1)·1000]. Les
+  tuiles sont alignées sur le kilomètre Lambert-93 (E = 629 000 + 1000·tx, N_nord = 6 846 000 − 1000·tz).
+
+## Sorties : `apps/client/public/worlds/chevreuse/`
+
+```
+world.json                 index (WorldMeta)             versionné
+routes/<id>.json           itinéraires (RouteData)       versionnés
+tiles/<tx>_<tz>.json       entités (WorldTile)           non versionné (.gitignore local)
+tiles/<tx>_<tz>.lo.u16     altitudes 8 m, 126×126        non versionné
+tiles/<tx>_<tz>.hi.u16     altitudes 2 m, 501×501        non versionné (tuiles proches des itinéraires)
+tiles/<tx>_<tz>.ortho.jpg  orthophoto 256² (lo) ou 512² (hi) px, nord en haut   non versionné
+```
+
+Les types TypeScript sont dans `packages/shared/src/route.ts` (`RouteData`, `WorldMeta`,
+`WorldTileIndex`, `WorldRouteIndex`, `WorldLod`, `WorldTile`).
+
+### world.json (`WorldMeta`)
+
+```jsonc
+{
+  "formatVersion": 1, "id": "chevreuse", "name": "Vallée de Chevreuse", "crs": "EPSG:2154",
+  "originL93": { "x": 629000, "y": 6846000 },
+  "bounds": { "minX": -20000, "minZ": -6000, "maxX": 13000, "maxZ": 11000 },  // monde, m
+  "tileSizeM": 1000, "heightResolutionM": 2,
+  "heightEncoding": { "type": "uint16le", "stepM": 0.01, "rowOrder": "north-to-south", "colOrder": "west-to-east" },
+  "lods": [ { "id": "lo", "resolutionM": 8, "n": 125, "suffix": ".lo.u16" },
+            { "id": "hi", "resolutionM": 2, "n": 500, "suffix": ".hi.u16" } ],
+  "tiles": [ { "id": "-3_-1", "tx": -3, "tz": -1, "baseM": 103, "minM": 104.54, "maxM": 168.17,
+               "lods": ["lo", "hi", "ortho"], "bytes": 633759 }, … ],           // 561 tuiles
+  "routes": [ { "id": "chevreuse-boucle", "file": "routes/chevreuse-boucle.json", "name": "…",
+                "lengthM": 10059.35, "elevationGainM": 126.61, "loop": true, "main": true }, … ],
+  "mainRoute": "chevreuse-boucle",
+  "attribution": [ "© IGN — RGE ALTI® / LiDAR HD (Licence Ouverte Etalab 2.0)", "© les contributeurs OpenStreetMap (ODbL)", "© IGN — BD ORTHO® (Licence Ouverte Etalab 2.0)" ]
+}
+```
+
+`tiles[].lods` liste les fichiers présents : `lo` toujours, `hi` pour les tuiles à moins de 2 km
+de la boucle principale ou à moins de 300 m d'un itinéraire secondaire, `ortho` si l'orthophoto a
+été téléchargée.
+
+### Altitudes `tiles/<id>.lo.u16` / `.hi.u16`
+
+- Grille de **(n+1)×(n+1)** échantillons `Uint16` petit-boutiste, sans en-tête :
+  lo : n = 125, pas 8 m (126² × 2 o = 31 752 o) ; hi : n = 500, pas 2 m (501² × 2 o = 502 002 o).
+- Ligne `j` (0 = **nord**, z min) × colonne `i` (0 = **ouest**, x min), rang `k = j·(n+1) + i`.
+- Échantillon `(i, j)` au point monde `x = tx·1000 + i·res`, `z = tz·1000 + j·res` ; les
+  échantillons de bord sont **partagés** avec la tuile voisine (même valeur, vérifié : écart 0).
+- Altitude : `h = baseM + q × 0,01` (cm), `baseM` dans `world.json` et dans le JSON de la tuile
+  (même base pour lo et hi).
+- Les routes sont **déjà creusées** : sur la chaussée (demi-largeur + 0,5 m) le terrain vaut le
+  profil de route lissé, puis raccord smoothstep sur 4 m + demi-largeur (hi) ou 14 m (lo, demi-largeur
+  min. 4 m). Priorité : boucle principale > autres itinéraires > routes OSM. Sous un point
+  d'itinéraire, terrain hi (bilinéaire) = `y` de la route à 0,2 cm près en moyenne, 1 cm max sur
+  la boucle principale. Ponts/tunnels ne sont pas creusés (le client pose le tablier au `y` de la route).
+- Source : lo = MNT 8 m (LiDAR HD rééchantillonné par le service, repli RGE ALTI) ; hi = MNT 1 m
+  filtré [1 2 1]² puis échantillonné à 2 m. Les deux niveaux d'une même tuile ne coïncident pas
+  exactement entre eux (prévoir des jupes aux transitions lo/hi).
+
+Décodage (client) :
+
+```ts
+const buf = await (await fetch(`/worlds/chevreuse/tiles/${id}.hi.u16`)).arrayBuffer();
+const q = new Uint16Array(buf);            // plateformes petit-boutistes
+const N = 501, h = (i: number, j: number) => tile.baseM + q[j * N + i] * 0.01;
+```
+
+### Entités `tiles/<id>.json` (`WorldTile`)
+
+Coordonnées **monde absolues** en mètres, arrondies au cm, tableaux plats.
+
+| Champ | Contenu |
+| --- | --- |
+| `heights` | `{ baseM, stepM: 0.01, encoding: "uint16le", lo: { n: 125, resolutionM: 8, file }, hi?: { n: 500, resolutionM: 2, file } }` (`file` relatif à `tiles/`) |
+| `roads[]` | `{ id, kind (highway OSM), name?, ref?, width (m), surface, bridge?, tunnel?, route?, flatten?: [demiLargeurPlate, rayonExtérieur], pts: [x,y,z,…] }` — `y` = profil de chaussée lissé (cohérent avec le terrain creusé). Les arêtes empruntées par un itinéraire sont remplacées par la géométrie lissée de l'itinéraire (`id: "route:<routeId>:<wayId>"`, `route: <routeId>`, mêmes points que `routes/<id>.json`). Géométrie OSM simplifiée à 20 cm en plan / 3 cm en altitude. Découpées aux bords de la tuile. `flatten` présent = couloir déjà creusé (motorway…service, cycleway, track hors ponts/tunnels) ; absent = sentier/piste non creusé. |
+| `buildings[]` | `{ id, kind, height (faîtage, m), levels, minHeight?, roof: { shape, height, colour? }, colour?, material?, name?, y (altitude min du terrain sous l'emprise), pts: [x,z,…], holes?: [[x,z,…]] }` — rattaché à la tuile de son centroïde (non découpé). `kind` ∈ house, apartments, church, chapel, farm, barn, shed, garage, industrial, commercial, public, castle, greenhouse, tower, roof, ruins. Hauteurs : `height`/`building:levels`/`roof:*` OSM sinon défauts par type (niveau 3 m, toit 2,5–6 m). |
+| `forests[]` | `{ id, kind: deciduous \| conifer \| mixed, name?, rings }` (`leaf_type` OSM, défaut feuillus) |
+| `fields[]` | `{ id, kind: farmland \| meadow \| grass \| orchard \| vineyard \| allotments \| heath \| scrub \| wetland \| bare \| sand, rings }` |
+| `landuse[]` | `{ id, kind: residential \| industrial \| commercial \| cemetery \| farmyard \| park \| golf \| pitch \| garden \| quarry \| railway, rings }` |
+| `water[]` | `{ id, kind: lake \| pond \| river \| reservoir, name?, level (m, 10e centile du terrain sur le contour), rings }` |
+| `waterways[]` | `{ id, kind (river, stream, ditch, drain, canal…), width, name?, tunnel?, pts: [x,z,…] }` |
+| `railways[]` | `{ id, kind (rail, light_rail…), width, name?, tunnel?, bridge?, pts: [x,z,…] }` |
+| `pois[]` | `{ id, kind (village, hamlet, town, locality, church, castle, peak…), name, x, y, z, ele? }` |
+
+`rings` : tableau d'anneaux plats `[x0,z0,x1,z1,…]` (non fermés) ; le premier est l'extérieur
+(aire signée positive dans le plan (x, z)), les suivants sont des trous. Les polygones sont
+découpés au bord de la tuile (Sutherland–Hodgman) et simplifiés (0,5 m hi, 1,5 m lo).
+
+### Itinéraires `routes/<id>.json` (`RouteData`)
+
+- `points[]` : `{ x, y, z, d }` tous les **~2 m** (`stepM` exact = longueur / nombre de points),
+  boucle fermée (le dernier point est à un pas du premier, `d` repart de 0 après `lengthM`).
+- Plan : géométrie OSM concaténée, rééchantillonnée à 4 m, lissage gaussien σ = 5 m (arrondit les
+  angles des carrefours), Catmull-Rom centripète, rééchantillonnage uniforme à 2 m.
+- Altitude : MNT 1 m sous la chaussée (médiane centre / ±1,5 m latéral), ponts et tunnels
+  interpolés entre culées, lissage gaussien σ = 10 m puis passes locales jusqu'à une variation de
+  pente ≤ 3,5 % par 20 m (rayon de raccordement vertical ≥ ~600 m) ; pas de bruit sous le mètre.
+- `segments[]` : `{ id, kind: "kom" | "sprint", name, startM, endM, avgGrade }`. KOM = montée
+  ≥ 500 m et ≥ 3 % de moyenne (extrêmes du profil avec hystérésis 4 m, approches plates rognées) ;
+  sprint = ligne droite de 300 à 500 m, pente moyenne ≤ 1 %, locale ≤ 2,5 %, écart à la corde
+  ≤ 10 m, de préférence sur des routes déjà roulées. Aucun segment ne chevauche le départ.
+  Noms : nom de voie explicite (« Côte … », « Route des 17 Tournants » → « Côte des 17 Tournants »),
+  sinon « Côte de <lieu OSM le plus proche du sommet> » / « Sprint de <lieu> », élision française.
+- Champs facultatifs : `roadWidths[]` (largeur OSM par tronçon), `landmarks[]` (villages traversés
+  avec `d`), `stepM`, `minElevationM`, `maxElevationM`, `maxGradePct` (sur 10 m).
+- `roadWidthM` = médiane des largeurs OSM (tag `width`, sinon `lanes` × 3 m, sinon défaut par type).
+
+## Méthode
+
+1. **GPX** (`gpx.ts`) → points monde ; parties privées retirées.
+2. **OSM** (`overpass.ts`, `osm.ts`) : 32 blocs, éléments dédoublonnés, multipolygones assemblés.
+   Graphe routier (`graph.ts`) coupé aux carrefours.
+3. **Recalage** (`mapmatch.ts`) : arête la plus proche (≤ 25 m) avec pénalité de cap (> 45° :
+   +20 m) et bonus de continuité, trous comblés par plus court chemin (≤ 300 m). Une arête est
+   « roulée » par une sortie si au moins la moitié est couverte. Fréquentation = nombre de sorties.
+4. **Côtes et sprints candidats** sur les parties publiques des sorties (rapport privé
+   `data/cache/terrain/analysis/candidates.json`).
+5. **Boucle** (`loop.ts`) : cycles simples énumérés par paires de carrefours (un par maille de
+   250 m, priorité aux carrefours roulés) : aller = plus court chemin pondéré, retour = plus court
+   chemin disjoint (arêtes et nœuds), 3 pondérations (préférence routes roulées, aléa, neutre).
+   Interdits : autoroutes, voies rapides, chemins non revêtus, voies de service non roulées ;
+   pénalités primaire ×3,5, secondaire ×1,9 ; un cycle simple n'a pas de cul-de-sac.
+   Note rapide = 4·part roulée + 2·fréquence − 3·trafic − écart de longueur + villages + compacité
+   + bonus côte/sprint (profil 10 m) ; puis les 40 meilleurs sont reconstruits finement et
+   renotés avec les vrais segments ; une boucle sans KOM ni sprint est écartée.
+6. **Itinéraire** (`route.ts`) : voir ci-dessus ; départ placé hors segments, au plus près du
+   principal village traversé.
+7. **Tuiles** (`tiles.ts`, `roads3d.ts`) : profils 3D de toutes les routes OSM (altitude unique par
+   nœud, égale à celle de l'itinéraire s'il y passe → continuité aux carrefours), creusement, entités.
+
+## Résultat actuel (octobre 2026)
+
+- **Boucle du jalon 1** `chevreuse-boucle` — « Boucle de Chevreuse par Dampierre-en-Yvelines et
+  Saint-Forget » : 10,06 km, D+ 127 m, 81,9 → 166,7 m, 5 030 points, chaussée 6,5 m, 100 % sur
+  des routes déjà roulées. Départ à Chevreuse ; D 58 (vallée de l'Yvette, 3,75 km) → D 91
+  (2,8 km) → D 13 par le plateau (3,5 km). Segments : KOM « Côte des 17 Tournants » 1 358 m à
+  5,4 % (pente max 7,8 %) ; sprint « Sprint de Saint-Forget » 500 m sur le plateau.
+- `grande-boucle-chevreuse` 26,2 km D+ 356 m (4 KOM dont « Côte de Buloyer », 2 sprints),
+  `boucle-rambouillet` 30,6 km D+ 268 m, `boucle-saclay` 28,1 km D+ 379 m.
+- 561 tuiles (corridor 33 × 17 km : lon ≈ 1,77–2,21, lat ≈ 48,61–48,76), dont 134 en 2 m.
+  Tailles : `.hi.u16` 67 Mo, `.lo.u16` 18 Mo, `.json` 52 Mo, `.ortho.jpg` 12 Mo — **≈ 150 Mo**
+  (non versionnés) ; `world.json` 96 Ko et `routes/` 2,3 Mo (versionnés).
+- Cache : MNT ≈ 850 Mo (1 m sur ~205 km², 8 m sur le corridor), OSM 168 Mo, orthos 12 Mo.
+
+## Limites connues
+
+- Bâtiments sans `height`/`building:levels` : hauteurs par défaut ; les `building:part`
+  (clochers détaillés) ne sont pas exploités.
+- Les ponts ne sont pas modélisés (le client doit poser un tablier entre culées au `y` fourni).
+- Les forêts sans `leaf_type` sont classées en feuillus.
+- Le niveau lo des tuiles hi provient du MNT 8 m : raccords lo/hi à gérer côté client (jupes).

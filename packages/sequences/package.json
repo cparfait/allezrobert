@@ -4,20 +4,32 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./node": "./src/node.ts",
+    "./tokens.css": "./tokens.css",
+    "./package.json": "./package.json"
   },
   "scripts": {
-    "typecheck": "tsc -p tsconfig.json"
+    "dev": "vite",
+    "typecheck": "tsc -p tsconfig.json",
+    "sync-assets": "tsx scripts/sync-assets.ts",
+    "check": "tsx scripts/hf.ts check",
+    "preview": "tsx scripts/hf.ts preview",
+    "render": "tsx scripts/hf.ts render",
+    "snapshot": "tsx scripts/hf.ts snapshot",
+    "render:summary": "tsx scripts/render-summary.ts"
   },
   "dependencies": {
     "@allezrobert/shared": "workspace:*",
+    "@hyperframes/core": "0.8.185",
     "@hyperframes/player": "0.8.185",
     "gsap": "^3.15.0"
   },
   "devDependencies": {
     "@fontsource-variable/inter": "^5.3.0",
     "@fontsource-variable/jetbrains-mono": "^5.3.0",
-    "@hyperframes/core": "0.8.185",
-    "hyperframes": "0.8.185"
-  }
+    "hyperframes": "0.8.185",
+    "vite": "^8.3.5"
+  },
+  "description": "Séquences animées HyperFrames (intro, KOM/sprint, podium, habillage TV, vidéo résumé)"
 }

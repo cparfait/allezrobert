@@ -64,10 +64,14 @@ export async function createDb(databaseUrl: string, ssl = false): Promise<Db> {
  * une transaction. Idempotent : lancé à chaque démarrage du serveur.
  */
 export async function migrate(db: Db, dir = MIGRATIONS_DIR, log: (msg: string) => void = () => undefined): Promise<string[]> {
-  await db.query(
-    'CREATE TABLE IF NOT EXISTS schema_migrations (name text PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now())',
-  );
-  const done = new Set((await db.query<{ name: string }>('SELECT name FROM schema_migrations')).rows.map((r) => r.name));
+  let rows: Array<{ name: string }>;
+  try {
+    rows = (await db.query<{ name: string }>('SELECT name FROM schema_migrations')).rows;
+  } catch {
+    await db.query('CREATE TABLE schema_migrations (name text PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now())');
+    rows = [];
+  }
+  const done = new Set(rows.map((r) => r.name));
   const files = (await readdir(dir)).filter((f) => /^\d+_.*\.sql$/.test(f)).sort();
   const applied: string[] = [];
   for (const file of files) {

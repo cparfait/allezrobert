@@ -12,7 +12,7 @@ import type { LoadedTile } from './types.ts';
 const RENDERS = ['#e8dfcf', '#e2d6c0', '#d9ccb2', '#efe7d8', '#d6c3a0'];
 const MEULIERE = ['#b8936a', '#a98660', '#c29f74'];
 const BRICK = '#a8624a';
-const ROOFS = ['#9c4f33', '#8f4630', '#a8593a', '#86402b', '#b0623f'];
+const ROOFS = ['#8a4a35', '#7d4331', '#94553d', '#6f3f30', '#86513c', '#7a4a3a'];
 const SLATE = '#4f565f';
 const SHUTTERS = ['#7d8f9b', '#5f7d66', '#e8e4da', '#8a5a3c', '#4b6a8a', '#a7b8a0'];
 
@@ -231,7 +231,8 @@ export class Buildings {
     const inShutter = step(float(0.6), shutterX).mul(step(shutterX, float(1.08))).mul(step(fy, float(1.38))).mul(hasWin);
     // Lames des volets.
     const slats = fract(fy.mul(9)).mul(0.25).add(0.8);
-    const lit = step(0.5, mx_noise_float(floor(positionWorld.mul(0.3)))).mul(this.night);
+    // Environ une fenêtre sur deux allumée la nuit (bruit par pièce).
+    const lit = step(0.0, mx_noise_float(floor(positionWorld.mul(0.3)).add(0.37))).mul(this.night);
     const glass = mix(vec3(0.1, 0.12, 0.14).add(normalWorld.y.mul(0)), vec3(1.0, 0.74, 0.42), lit);
     // Reflet du ciel dans les vitres (haut plus clair).
     const glassSky = glass.add(vec3(0.12, 0.15, 0.18).mul(fy.div(1.35)).mul(float(1).sub(lit)));

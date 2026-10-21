@@ -66,12 +66,18 @@ export function assembleComposition(html: string, assets: SharedAssets, options:
     'ar-seq.js': assets.arSeqJs,
   };
 
-  let out = html.replace(/<link\b[^>]*\bhref="assets\/([\w.-]+\.css)"[^>]*>/g, (_m, file: string) => {
+  const linkRe = /<link\b[^>]*\bhref="assets\/([\w.-]+\.css)"[^>]*>/g;
+  const scriptRe = /<script\b[^>]*\bsrc="assets\/([\w.-]+\.js)"[^>]*><\/script>/g;
+  // Contrôle sur la source (pas sur le résultat : le code inliné peut citer ces chemins).
+  const leftover = html.replace(linkRe, '').replace(scriptRe, '').match(/(?:href|src)="assets\/[^"]+"/);
+  if (leftover) throw new Error(`Ressource relative non résolue : ${leftover[0]}`);
+
+  let out = html.replace(linkRe, (_m, file: string) => {
     const css = styles[file];
     if (css === undefined) throw new Error(`Feuille de style non inlinable : assets/${file}`);
     return `<style data-ar-asset="${file}">\n${escapeInline(css, 'style')}\n</style>`;
   });
-  out = out.replace(/<script\b[^>]*\bsrc="assets\/([\w.-]+\.js)"[^>]*><\/script>/g, (_m, file: string) => {
+  out = out.replace(scriptRe, (_m, file: string) => {
     const js = scripts[file];
     if (js === undefined) throw new Error(`Script non inlinable : assets/${file}`);
     return `<script data-ar-asset="${file}">\n${escapeInline(js, 'script')}\n</script>`;
@@ -91,8 +97,5 @@ export function assembleComposition(html: string, assets: SharedAssets, options:
   if (options.lang) {
     out = out.replace(/<html\b([^>]*?)\slang="[^"]*"/i, (_m, attrs: string) => `<html${attrs} lang="${options.lang}"`);
   }
-
-  const leftover = out.match(/(?:href|src)="assets\/[^"]+"/);
-  if (leftover) throw new Error(`Ressource relative non résolue : ${leftover[0]}`);
   return out;
 }

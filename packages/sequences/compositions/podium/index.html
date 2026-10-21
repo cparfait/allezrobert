@@ -60,7 +60,7 @@
       }
       .confetti i {
         position: absolute;
-        top: 240px;
+        top: 272px;
         display: block;
         width: 10px;
         height: 16px;
@@ -246,7 +246,7 @@
           b.style.left = Math.round(520 + rand() * 880) + 'px';
           b.style.background = colors[c % colors.length];
           box.appendChild(b);
-          bits.push({ el: b, delay: rand() * 1.2, dx: (rand() - 0.5) * 160, rot: (rand() - 0.5) * 720, fall: 420 + rand() * 260 });
+          bits.push({ el: b, delay: rand() * 1.2, dx: (rand() - 0.5) * 160, rot: (rand() - 0.5) * 720, fall: 380 + rand() * 240 });
         }
 
         var tl = gsap.timeline({ paused: true });
