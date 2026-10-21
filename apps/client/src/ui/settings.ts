@@ -27,6 +27,8 @@ export interface Settings {
   /** Ne pas envoyer à Strava : le compteur Garmin enregistre déjà la sortie. */
   skipStrava: boolean;
   aiRiders: number;
+  /** Niveau des coureurs IA en fraction de la FTP du joueur (0,8 / 1 / 1,15). */
+  aiLevel: number;
   /** Source de puissance de référence quand pédales et trainer sont présents. */
   powerSource: 'pedals' | 'trainer';
   smoothing3s: boolean;
@@ -55,6 +57,7 @@ export const DEFAULT_SETTINGS: Settings = {
   drivetrain: 'cog',
   skipStrava: true,
   aiRiders: 4,
+  aiLevel: 1,
   powerSource: 'pedals',
   smoothing3s: false,
   guest: false,

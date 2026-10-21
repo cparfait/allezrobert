@@ -89,7 +89,8 @@ export class Peloton {
     const r = rng(42);
     for (let i = 0; i < count; i++) {
       const massKg = 58 + r() * 30;
-      const ftp = Math.round(ftpRef * (0.8 + r() * 0.45));
+      // FTP de chaque IA autour du niveau choisi (± 10 %).
+      const ftp = Math.round(ftpRef * (0.9 + r() * 0.2));
       const color = JERSEYS[i % JERSEYS.length] as string;
       const look: AvatarLook = {
         ...DEFAULT_LOOK,

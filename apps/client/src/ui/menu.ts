@@ -120,6 +120,7 @@ export class MainMenu {
               <label class="field">Brouillard<input id="m-fog" type="range" min="0" max="1" step="0.05" value="${s.fog}" /></label>
               <label class="field">${t('difficulty')} <span id="m-diffv">${Math.round(s.trainerDifficulty * 100)} %</span><input id="m-diff" type="range" min="0" max="1" step="0.05" value="${s.trainerDifficulty}" /></label>
               <label class="field">Coureurs IA<input id="m-ai" type="number" min="0" max="19" value="${s.aiRiders}" /></label>
+              <label class="field">Niveau IA<select id="m-ailevel">${this.opt('0.8', String(s.aiLevel), '80 % FTP')}${this.opt('1', String(s.aiLevel), '100 % FTP')}${this.opt('1.15', String(s.aiLevel), '115 % FTP')}</select></label>
               <label class="field">${t('language')}<select id="m-lang">${this.opt('fr', s.lang, 'Français')}${this.opt('en', s.lang, 'English')}</select></label>
               <label class="field">Transmission<select id="m-drive">${this.opt('cog', s.drivetrain, 'Zwift Cog (vitesses virtuelles)')}${this.opt('cassette', s.drivetrain, 'Cassette réelle')}</select></label>
               <label class="field">Strava<select id="m-strava">${this.opt('skip', s.skipStrava ? 'skip' : 'send', 'Ne pas envoyer (Garmin)')}${this.opt('send', s.skipStrava ? 'skip' : 'send', 'Envoyer')}</select></label>
@@ -275,6 +276,10 @@ export class MainMenu {
     });
     $<HTMLSelectElement>('m-strava').addEventListener('change', (e) => {
       s.skipStrava = (e.target as HTMLSelectElement).value === 'skip';
+      changed();
+    });
+    $<HTMLSelectElement>('m-ailevel').addEventListener('change', (e) => {
+      s.aiLevel = Number((e.target as HTMLSelectElement).value);
       changed();
     });
     $<HTMLSelectElement>('m-smooth').addEventListener('change', (e) => {
