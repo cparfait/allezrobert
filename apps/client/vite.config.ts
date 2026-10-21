@@ -1,5 +1,5 @@
 import { defineConfig, type Plugin } from 'vite';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync, rmSync, existsSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 // AR_HMR=0 coupe le rechargement à chaud (utile quand d'autres processus modifient les paquets partagés).
@@ -57,8 +57,25 @@ function screenshots(): Plugin {
   };
 }
 
+/**
+ * Build : les tuiles du monde (≈ 150 Mo) ne sont pas embarquées dans le bundle web — Caddy les
+ * sert depuis un volume (docs/DEPLOY.md). AR_BUNDLE_TILES=1 les garde (app Windows hors ligne).
+ */
+function excludeWorldTiles(): Plugin {
+  return {
+    name: 'ar-exclude-world-tiles',
+    apply: 'build',
+    closeBundle() {
+      if (process.env.AR_BUNDLE_TILES === '1') return;
+      const worlds = resolve(__dirname, 'dist/worlds');
+      if (!existsSync(worlds)) return;
+      for (const w of readdirSync(worlds)) rmSync(resolve(worlds, w, 'tiles'), { recursive: true, force: true });
+    },
+  };
+}
+
 export default defineConfig({
-  plugins: [screenshots()],
+  plugins: [screenshots(), excludeWorldTiles()],
   server: { port: 5173, strictPort: true, host: true, hmr },
   build: { target: 'es2022', sourcemap: true, chunkSizeWarningLimit: 2500 },
   clearScreen: false,
