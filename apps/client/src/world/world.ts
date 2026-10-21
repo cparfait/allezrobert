@@ -9,6 +9,7 @@ import { RoadMesh } from './road.ts';
 import { RoadNetwork } from './network.ts';
 import { Rain } from './weather.ts';
 import { GrassField } from './grass.ts';
+import { soundSourcesForTile, type SoundSource } from '../audio/spatial.ts';
 import type { WorldSource } from './types.ts';
 
 /** Assemble le monde : environnement, terrain streamé, route, végétation, bâtiments. */
@@ -27,6 +28,8 @@ export class World {
   private lastFocusTile = '';
   private updating = false;
   private retryAcc = 0;
+  /** Sources sonores positionnées par tuile (tags OSM). */
+  readonly soundSources = new Map<string, SoundSource[]>();
 
   constructor(scene: THREE.Scene, source: WorldSource, route: RouteData, track: RouteTrack, q: QualitySettings, envState: EnvironmentState) {
     this.scene = scene;
@@ -55,11 +58,13 @@ export class World {
     scene.add(this.grass.mesh);
 
     this.terrain.onTileLoaded = (tile) => {
+      this.soundSources.set(tile.id, soundSourcesForTile(tile));
       this.buildings.addTile(tile);
       this.network.addTile(tile);
       this.vegetation.addTile(tile);
     };
     this.terrain.onTileUnloaded = (tile) => {
+      this.soundSources.delete(tile.id);
       this.buildings.removeTile(tile);
       this.network.removeTile(tile);
       this.vegetation.removeTile(tile);

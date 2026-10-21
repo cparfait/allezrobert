@@ -192,6 +192,10 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   const audio = new GameAudio();
   audio.start();
   audio.setVolume(s.volume);
+  // Sons positionnés (églises, prés, eau) : la liste suit les tuiles chargées.
+  const refreshSources = () => audio.setSources([...world.soundSources.values()].flat());
+  refreshSources();
+  const sourcesTimer = setInterval(refreshSources, 5000);
 
   const tutorial = extras.tutorial ? new RideTutorial() : null;
   let shifted = false;
@@ -255,6 +259,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
 
   const finish = () => {
     engine.renderer.setAnimationLoop(null);
+    clearInterval(sourcesTimer);
     void mp?.dispose();
     tutorial?.stop();
     // Invité : ni XP compétitive, ni segments, ni FIT.
@@ -374,6 +379,9 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
         forest: tile ? splatAt(tile, 0, pos.x + 30, pos.z) * 0.5 + splatAt(tile, 0, pos.x - 30, pos.z) * 0.5 : 0,
         crowd: ride.segment?.seg.kind === 'kom' ? 0.6 : 0,
         windMs: world.env.state.weather.windMs,
+        x: pos.x,
+        z: pos.z,
+        heading,
       },
       dt,
     );

@@ -4,6 +4,8 @@
  * cadence tombe à zéro, chaîne, ambiance forêt / oiseaux, pluie, public sur les côtes.
  * La musique est coupée par défaut (décision 18).
  */
+import type { SoundSource } from './spatial.ts';
+
 export interface AudioState {
   speedMs: number;
   cadence: number;
@@ -18,6 +20,11 @@ export interface AudioState {
   /** Public présent (côtes, arrivée). */
   crowd: number;
   windMs: number;
+  /** Position et cap de l'auditeur (son positionné). */
+  x?: number;
+  z?: number;
+  /** Cap en radians (atan2(dirX, dirZ)). */
+  heading?: number;
 }
 
 function noiseBuffer(ctx: AudioContext, seconds: number, pink: boolean): AudioBuffer {
@@ -118,6 +125,130 @@ export class GameAudio {
     s.start(at);
   }
 
+  /** Sources positionnées (tags OSM) actuellement connues. */
+  private sources: SoundSource[] = [];
+  private readonly nextEvent = new Map<SoundSource, number>();
+  private waterGain: GainNode | null = null;
+  private waterPan: StereoPannerNode | null = null;
+
+  setSources(list: SoundSource[]): void {
+    this.sources = list;
+  }
+
+  /** Cloche : partiels inharmoniques à décroissance lente (volée de 3 à 6 coups). */
+  private bells(at: number, gain: number, pan: number): void {
+    const ctx = this.ctx as AudioContext;
+    const p = ctx.createStereoPanner();
+    p.pan.value = pan;
+    p.connect(this.master);
+    const strikes = 3 + Math.floor(Math.random() * 4);
+    for (let k = 0; k < strikes; k++) {
+      const t0 = at + k * 1.4;
+      for (const [ratio, amp] of [
+        [1, 1],
+        [2.4, 0.5],
+        [3.0, 0.35],
+        [4.2, 0.2],
+      ] as const) {
+        const o = ctx.createOscillator();
+        const g = ctx.createGain();
+        o.frequency.value = 392 * ratio;
+        g.gain.setValueAtTime(gain * amp * 0.08, t0);
+        g.gain.exponentialRampToValueAtTime(0.0001, t0 + 3.5);
+        o.connect(g).connect(p);
+        o.start(t0);
+        o.stop(t0 + 3.6);
+      }
+    }
+  }
+
+  /** Meuglement : dent de scie grave, formant filtré, glissando descendant. */
+  private moo(at: number, gain: number, pan: number): void {
+    const ctx = this.ctx as AudioContext;
+    const o = ctx.createOscillator();
+    o.type = 'sawtooth';
+    const f = ctx.createBiquadFilter();
+    f.type = 'bandpass';
+    f.frequency.value = 520;
+    f.Q.value = 3;
+    const g = ctx.createGain();
+    const p = ctx.createStereoPanner();
+    p.pan.value = pan;
+    const base = 110 + Math.random() * 30;
+    o.frequency.setValueAtTime(base * 1.2, at);
+    o.frequency.linearRampToValueAtTime(base, at + 0.4);
+    o.frequency.linearRampToValueAtTime(base * 0.85, at + 1.4);
+    g.gain.setValueAtTime(0, at);
+    g.gain.linearRampToValueAtTime(gain * 0.12, at + 0.25);
+    g.gain.linearRampToValueAtTime(gain * 0.08, at + 1.1);
+    g.gain.linearRampToValueAtTime(0, at + 1.6);
+    o.connect(f).connect(g).connect(p).connect(this.master);
+    o.start(at);
+    o.stop(at + 1.7);
+  }
+
+  /** Atténuation et panoramique d'une source par rapport à l'auditeur. */
+  private spatial(src: SoundSource, x: number, z: number, heading: number): { gain: number; pan: number } | null {
+    const dx = src.x - x;
+    const dz = src.z - z;
+    const d = Math.hypot(dx, dz);
+    if (d > src.range) return null;
+    const gain = Math.min(1, (1 - d / src.range) ** 2 * (40 / Math.max(d, 40)) * 1.5);
+    // Angle de la source par rapport au cap : droite = (−dirZ, dirX) dans le repère x est / z sud.
+    const rightX = -Math.cos(heading);
+    const rightZ = Math.sin(heading);
+    const pan = d > 1 ? Math.max(-1, Math.min(1, -(dx * rightX + dz * rightZ) / d)) : 0;
+    return { gain, pan };
+  }
+
+  private updateSpatial(s: AudioState): void {
+    const ctx = this.ctx as AudioContext;
+    if (s.x === undefined || s.z === undefined) return;
+    const now = ctx.currentTime;
+    const heading = s.heading ?? 0;
+    let water = 0;
+    let waterPan = 0;
+    for (const src of this.sources) {
+      const sp = this.spatial(src, s.x, s.z, heading);
+      if (!sp) continue;
+      if (src.kind === 'water') {
+        if (sp.gain > water) {
+          water = sp.gain;
+          waterPan = sp.pan;
+        }
+        continue;
+      }
+      if (src.kind === 'village') continue;
+      const next = this.nextEvent.get(src) ?? now + Math.random() * 20;
+      if (now >= next) {
+        if (src.kind === 'bells') this.bells(now + 0.05, sp.gain, sp.pan);
+        else this.moo(now + 0.05, sp.gain, sp.pan);
+        this.nextEvent.set(src, now + (src.kind === 'bells' ? 90 + Math.random() * 120 : 12 + Math.random() * 25));
+      } else if (!this.nextEvent.has(src)) this.nextEvent.set(src, next);
+    }
+    // Eau : bruit filtré continu, piloté par la source d'eau la plus proche.
+    if (!this.waterGain) {
+      const len = ctx.sampleRate * 2;
+      const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+      const d = buf.getChannelData(0);
+      for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * 0.5;
+      const srcNode = ctx.createBufferSource();
+      srcNode.buffer = buf;
+      srcNode.loop = true;
+      const f = ctx.createBiquadFilter();
+      f.type = 'bandpass';
+      f.frequency.value = 1800;
+      f.Q.value = 0.6;
+      this.waterGain = ctx.createGain();
+      this.waterGain.gain.value = 0;
+      this.waterPan = ctx.createStereoPanner();
+      srcNode.connect(f).connect(this.waterGain).connect(this.waterPan).connect(this.master);
+      srcNode.start();
+    }
+    this.waterGain.gain.setTargetAtTime(water * 0.06, now, 0.5);
+    this.waterPan?.pan.setTargetAtTime(waterPan, now, 0.3);
+  }
+
   private bird(at: number): void {
     const ctx = this.ctx as AudioContext;
     const o = ctx.createOscillator();
@@ -141,6 +272,7 @@ export class GameAudio {
   update(s: AudioState, dt: number): void {
     const ctx = this.ctx;
     if (!ctx) return;
+    this.updateSpatial(s);
     const now = ctx.currentTime;
     const v = s.speedMs;
     const k = 0.15;
