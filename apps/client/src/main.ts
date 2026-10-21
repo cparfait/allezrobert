@@ -26,6 +26,7 @@ import { showGarage, awardRide } from './ui/garage.ts';
 import { RideSequences } from './game/sequences.ts';
 import { GuestInputSource } from './game/guest.ts';
 import { Crowd } from './world/crowd.ts';
+import { TownSigns } from './world/signs.ts';
 
 const ui = document.getElementById('ui') as HTMLElement;
 const hudRoot = document.getElementById('hud') as HTMLElement;
@@ -156,6 +157,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   // Public sur les côtes (une fois le terrain chargé autour du départ).
   const crowd = new Crowd(track, (x, z) => world.terrain.heightAt(x, z));
   engine.scene.add(crowd.mesh);
+  engine.scene.add(new TownSigns(track, (x, z) => world.terrain.heightAt(x, z)).group);
   const hud = new Hud(hudRoot, track, source.attribution);
   hud.ftp = s.ftpWatts;
   hud.setVisible(true);
