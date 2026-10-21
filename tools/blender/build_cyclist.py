@@ -550,8 +550,8 @@ def body_primitives(r):
     H = r.H
     hx = (r.xh, r.uh, r.fh)
     add(ellipsoid(H(0, 0.0, -0.005), hx, (0.077, 0.098, 0.102), 24, 14), 'head', [(1.0, 'head')])
-    add(ellipsoid(H(0, -0.06, 0.016), hx, (0.06, 0.056, 0.068), 20, 12), 'head', [(1.0, 'head')])
-    add(ellipsoid(H(0, -0.106, 0.07), hx, (0.025, 0.02, 0.022), 12, 8), 'head', [(1.0, 'head')])
+    add(ellipsoid(H(0, -0.056, 0.016), hx, (0.058, 0.052, 0.066), 20, 12), 'head', [(1.0, 'head')])
+    add(ellipsoid(H(0, -0.1, 0.068), hx, (0.024, 0.018, 0.02), 12, 8), 'head', [(1.0, 'head')])
     add(ellipsoid(H(0, 0.022, 0.084), hx, (0.058, 0.014, 0.02), 16, 8), 'head', [(1.0, 'head')])
     add(ellipsoid(H(0, -0.076, 0.082), hx, (0.02, 0.007, 0.009), 12, 8), 'head', [(1.0, 'head')])
     for s in (1, -1):
@@ -824,12 +824,19 @@ def finalize_body(r, src, name, target_tris, prims):
     # (Blender : poids faible = effondrement coûteux ; poids nul = jamais décimé.)
     vg = ob.vertex_groups.new(name='protect')
     for i, rg in enumerate(reg0):
-        w = 0.5 if rg == 'head' else 0.7 if rg.startswith('hand') else 1.0
+        w = 1.0
+        if rg == 'head':
+            q = vc0[i] - r.Sc
+            up, fw = np.dot(q, r.uh), np.dot(q, r.fh)
+            # Calotte cachée par le casque : décimée librement ; visage : préservé.
+            w = 1.0 if up > 0.035 else 0.3 if fw > 0.0 else 0.6
+        elif rg.startswith('hand'):
+            w = 0.7
         vg.add([i], w, 'REPLACE')
     decimate_to(ob, target_tris, 'protect', PROTECT_FACTOR)
     vc1 = to_client_arr(np.array([v.co[:] for v in ob.data.vertices]))
     reg1, _ = label_vertices(vc1, prims)
-    print('DEBUG head verts', name, int((reg0 == 'head').sum()), '->', int((reg1 == 'head').sum()), 'total', len(vc1))
+    print('INFO sommets tête', name, int((reg1 == 'head').sum()), '/', len(vc1))
     me = ob.data
     # Coupes nettes aux ourlets (maillot, cuissard, manches, chaussettes, bande d'accent, col).
     bm = bmesh.new()
@@ -891,7 +898,6 @@ def finalize_body(r, src, name, target_tris, prims):
     me.vertices.foreach_get('co', co)
     co = co.reshape(-1, 3) + nn.reshape(-1, 3) * amt[:, None]
     k.data.foreach_set('co', co.ravel())
-    print('DEBUG smooth', name, sum(p.use_smooth for p in me.polygons), len(me.polygons))
     return ob
 
 
@@ -1288,8 +1294,7 @@ def build_wheel(name, axle, front, lod=0):
     tire = [(0.3225 + 0.0125 * math.cos(a), 0.0125 * math.sin(a)) for a in np.linspace(0, 2 * math.pi, 7)[:-1]]
     v, f = lathe(tire, n)
     mb.add(v, f, 'tire')
-    rim = [(0.312, 0.0125), (0.296, 0.0142), (0.278, 0.0125), (0.266, 0.006), (0.266, -0.006), (0.278, -0.0125),
-           (0.296, -0.0142), (0.312, -0.0125)]
+    rim = [(0.312, 0.0125), (0.29, 0.0142), (0.268, 0.007), (0.268, -0.007), (0.29, -0.0142), (0.312, -0.0125)]
     if lod:
         rim = rim[::2]
     v, f = lathe(rim, n)
@@ -1309,7 +1314,7 @@ def build_wheel(name, axle, front, lod=0):
             mb.add(v, f, 'chrome')
         # Disque de frein (gauche) et cassette (droite, roue arrière).
         rr = 0.08 if front else 0.07
-        disc = [(0.05, 0.051), (rr, 0.051), (rr, 0.049), (0.05, 0.049)]
+        disc = [(0.05, 0.05), (rr, 0.051), (rr, 0.049)]
         v, f = lathe(disc, 24)
         mb.add(v, f, 'chrome')
         if not front:
@@ -1319,7 +1324,7 @@ def build_wheel(name, axle, front, lod=0):
                 x = -0.034 - i * 0.0075
                 cas += [(rc, x), (rc, x - 0.004)]
             cas = [(0.012, -0.03)] + cas + [(0.012, cas[-1][1])]
-            v, f = lathe(cas, 20, closed=True)
+            v, f = lathe(cas, 16, closed=True)
             mb.add(v, f, 'chrome')
     # Coordonnées locales (origine = axe) → objet placé à l'axe.
     ob = mb.build(name)
@@ -1358,7 +1363,7 @@ def build_crankset(lod=0):
     else:
         v, f = lathe([(0.086, -0.043), (0.103, -0.043), (0.103, -0.047), (0.086, -0.047)], n)
         mb.add(v, f, 'chrome')
-    v, f = lathe([(0.068, -0.037), (0.08, -0.037), (0.08, -0.04), (0.068, -0.04)], 24 if lod == 0 else 12)
+    v, f = lathe([(0.068, -0.037), (0.08, -0.037), (0.08, -0.04), (0.068, -0.04)], 16 if lod == 0 else 10)
     mb.add(v, f, 'components')
     # Araignée.
     for k in range(4):
@@ -1401,7 +1406,7 @@ def build_pedal(tag, lod=0):
 
 def build_bike(lod=0):
     g = bike_geometry()
-    frame = build_frame(g, 0.0025 if lod == 0 else 0.004, 1500 if lod == 0 else 420)
+    frame = build_frame(g, 0.0025 if lod == 0 else 0.004, 1400 if lod == 0 else 420)
     parts = build_bike_parts(g, lod)
     vs, fs, ms = mesh_arrays(frame)
     mb = MB()

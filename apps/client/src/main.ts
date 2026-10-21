@@ -489,9 +489,11 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     void (async () => {
       for (let d = 0; d < track.length; d += 500) {
         ride.state.distM = d;
+        rig.setMode('chase'); // recale la caméra sans lissage après le saut
         advance(0.2);
-        await new Promise((r) => setTimeout(r, 2500));
-        advance(0.2);
+        // Laisse le temps aux tuiles autour du nouveau point de se charger.
+        await new Promise((r) => setTimeout(r, 6000));
+        advance(1);
         await shot(`worldcheck-${track.route.id}-${String(Math.round(d)).padStart(5, '0')}`);
       }
       hud.toast('Contrôle visuel terminé : docs/screenshots/worldcheck-*');

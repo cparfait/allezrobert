@@ -11,6 +11,7 @@ const hmr = process.env.AR_HMR !== '0';
  */
 function screenshots(): Plugin {
   const dir = resolve(__dirname, '../../docs/screenshots');
+  const checkDir = resolve(__dirname, '../../out/worldcheck');
   return {
     name: 'ar-screenshots',
     apply: 'serve',
@@ -47,8 +48,10 @@ function screenshots(): Plugin {
             res.end('data URL attendue');
             return;
           }
-          mkdirSync(dir, { recursive: true });
-          const file = resolve(dir, `${name}.${m[1] === 'jpeg' ? 'jpg' : 'png'}`);
+          // Les captures du contrôle visuel vont dans out/ (non versionné).
+          const target = name.startsWith('worldcheck-') ? checkDir : dir;
+          mkdirSync(target, { recursive: true });
+          const file = resolve(target, `${name}.${m[1] === 'jpeg' ? 'jpg' : 'png'}`);
           writeFileSync(file, Buffer.from(m[2] as string, 'base64'));
           res.end(file);
         });
