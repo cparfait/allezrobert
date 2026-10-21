@@ -58,7 +58,7 @@ export function showPause(root: HTMLElement, cb: PauseCallbacks): void {
 }
 
 /** Résumé de fin de sortie : statistiques, segments, téléchargement du FIT. */
-export function showSummary(root: HTMLElement, ride: RideSession, fit: () => Uint8Array, onClose: () => void): void {
+export function showSummary(root: HTMLElement, ride: RideSession, fit: () => Uint8Array, onClose: () => void, xp?: { gained: number; level: number; levelUp: boolean; unlocked: Array<{ name: { fr: string; en: string } }> }): void {
   const distKm = (ride.records.at(-1)?.distanceM ?? 0) / 1000;
   const segs = ride.segmentResults
     .map((r) => `<div class="device"><div><b>${r.seg.kind === 'kom' ? t('kom') : t('sprint')} · ${r.seg.name}</b><div class="meta">${Math.round(r.avgWatts)} W</div></div><b class="num">${fmt(r.timeS)}</b></div>`)
@@ -78,6 +78,7 @@ export function showSummary(root: HTMLElement, ride: RideSession, fit: () => Uin
         .map(([k, v]) => `<div class="panel metric"><div class="label">${k}</div><div class="value num" style="font-size:28px">${v}</div></div>`)
         .join('')}
     </div>
+    ${xp ? `<div class="row" style="gap:12px;margin-bottom:6px"><b class="num" style="color:var(--ar-accent);font-size:20px">+${xp.gained} XP</b><span>${getLang() === 'fr' ? 'Niveau' : 'Level'} ${xp.level}${xp.levelUp ? ' 🎉' : ''}</span>${xp.unlocked.length ? `<span class="meta" style="color:var(--ar-muted)">${getLang() === 'fr' ? 'Débloqué' : 'Unlocked'} : ${xp.unlocked.map((u) => u.name[getLang()]).join(', ')}</span>` : ''}</div>` : ''}
     ${segs ? `<h2>Segments</h2><div class="device-list">${segs}</div>` : ''}
     <div class="row" style="justify-content:flex-end;margin-top:22px">
       <button class="btn" id="s-close">${getLang() === 'fr' ? 'Retour au menu' : 'Back to menu'}</button>

@@ -7,3 +7,4 @@ export * from './activity.ts';
 export * from './native-bridge.ts';
 export * from './track.ts';
 export * from './geo.ts';
+export * from './progression.ts';

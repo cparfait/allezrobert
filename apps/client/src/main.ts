@@ -22,6 +22,7 @@ import { MainMenu } from './ui/menu.ts';
 import { showPause, showSummary, rideToFit } from './ui/ridepanels.ts';
 import { splatAt } from './world/splat.ts';
 import { Onboarding, RideTutorial } from './onboarding/onboarding.ts';
+import { showGarage, awardRide } from './ui/garage.ts';
 
 const ui = document.getElementById('ui') as HTMLElement;
 const hudRoot = document.getElementById('hud') as HTMLElement;
@@ -99,6 +100,7 @@ async function boot(): Promise<void> {
     env.weather.fog = s.fog;
     if (env.season !== s.season) scene.world.setSeason(s.season);
   };
+  menu.onGarage = () => showGarage(ui, settings, () => menu.show());
   menu.onTutorial = () => {
     new Onboarding(ui, settings, devices.panel, (s) => {
       inMenu = false;
@@ -183,6 +185,8 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
 
   const finish = () => {
     engine.renderer.setAnimationLoop(null);
+    tutorial?.stop();
+    const xp = awardRide({ distanceM: ride.state.distM - startD, elevationM: ride.elevationGainM, movingS: ride.elapsedS });
     audio.dispose();
     hud.setVisible(false);
     input.sendTrainer({ kind: 'simulation', gradePercent: 0 });
@@ -195,6 +199,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
         url.searchParams.delete('autostart');
         location.href = url.toString();
       },
+      xp,
     );
   };
   const togglePause = () => {
