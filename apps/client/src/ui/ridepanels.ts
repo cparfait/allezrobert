@@ -96,7 +96,8 @@ export function showSummary(root: HTMLElement, ride: RideSession, fit: () => Uin
   (root.querySelector('#s-close') as HTMLElement).onclick = onClose;
   (root.querySelector('#s-card') as HTMLElement).onclick = async () => {
     const st = JSON.parse(localStorage.getItem('ar.settings') ?? '{}') as { name?: string; ftpWatts?: number };
-    const blob = await shareCard(ride, { routeName: ride.route.name, riderName: st.name ?? 'Robert', ftp: st.ftpWatts ?? 250 });
+    const photo = ride.summitPhotos[0];
+    const blob = await shareCard(ride, { routeName: ride.route.name, riderName: st.name ?? 'Robert', ftp: st.ftpWatts ?? 250, ...(photo ? { photo } : {}) });
     download(new Uint8Array(await blob.arrayBuffer()), `allez-robert-${new Date(ride.startT).toISOString().slice(0, 10)}.png`, 'image/png');
   };
 }

@@ -218,6 +218,11 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     // Séquence HyperFrames (KOM / sprint) ; toast texte si les séquences sont coupées.
     // Rang solo : le joueur est classé seul ; en multijoueur le serveur fournit le vrai rang.
     if (s.guest) return;
+    // Sommet d'une côte : photo automatique (caméra courante, sans l'interface).
+    if (r.seg.kind === 'kom' && ride.summitPhotos.length < 6) {
+      engine.renderManual();
+      ride.summitPhotos.push(engine.renderer.domElement.toDataURL('image/jpeg', 0.85));
+    }
     if (sequences.enabled) sequences.segment(r, s.name, track.route.id, 1, 1);
     else hud.toast(`${t('segmentDone')} · ${r.seg.name} · ${Math.floor(r.timeS / 60)}:${String(Math.round(r.timeS % 60)).padStart(2, '0')}`);
   };

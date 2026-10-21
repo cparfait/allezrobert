@@ -70,6 +70,8 @@ export class RideSession {
   readonly startT = Date.now();
   segment: SegmentEffort | null = null;
   readonly segmentResults: SegmentResult[] = [];
+  /** Photos automatiques au sommet des côtes (data URL JPEG), pour l'image de partage et la vidéo résumé. */
+  readonly summitPhotos: string[] = [];
   /** Fins de tour (epoch ms), pour les tours du FIT. */
   readonly lapTimes: number[] = [];
   onSegmentDone?: (r: SegmentResult) => void;
