@@ -99,6 +99,11 @@ export class RideSession {
     this.state = createRiderState({ distM: opts.startDistM ?? 0 });
   }
 
+  /** Itinéraire de la sortie. */
+  get route(): RouteTrack['route'] {
+    return this.opts.track.route;
+  }
+
   get gear(): Gear {
     return this.gears[this.gearIndex] as Gear;
   }

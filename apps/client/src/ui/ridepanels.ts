@@ -1,6 +1,7 @@
 import { encodeActivity, buildActivity } from '@allezrobert/fit';
 import { worldToWgs84, type ActivityRecord } from '@allezrobert/shared';
 import { t, getLang } from '../i18n/index.ts';
+import { shareCard } from './sharecard.ts';
 import type { RideSession } from '../game/ride.ts';
 
 function fmt(s: number): string {
@@ -82,6 +83,7 @@ export function showSummary(root: HTMLElement, ride: RideSession, fit: () => Uin
     ${segs ? `<h2>Segments</h2><div class="device-list">${segs}</div>` : ''}
     <div class="row" style="justify-content:flex-end;margin-top:22px">
       <button class="btn" id="s-close">${getLang() === 'fr' ? 'Retour au menu' : 'Back to menu'}</button>
+      <button class="btn" id="s-card">${getLang() === 'fr' ? 'Image à partager' : 'Share image'}</button>
       ${xp ? `<button class="btn primary" id="s-fit">${t('exportFit')}</button>` : ''}
     </div>
   </div></div>`;
@@ -92,4 +94,9 @@ export function showSummary(root: HTMLElement, ride: RideSession, fit: () => Uin
     download(fit(), name);
   };
   (root.querySelector('#s-close') as HTMLElement).onclick = onClose;
+  (root.querySelector('#s-card') as HTMLElement).onclick = async () => {
+    const st = JSON.parse(localStorage.getItem('ar.settings') ?? '{}') as { name?: string; ftpWatts?: number };
+    const blob = await shareCard(ride, { routeName: ride.route.name, riderName: st.name ?? 'Robert', ftp: st.ftpWatts ?? 250 });
+    download(new Uint8Array(await blob.arrayBuffer()), `allez-robert-${new Date(ride.startT).toISOString().slice(0, 10)}.png`, 'image/png');
+  };
 }
