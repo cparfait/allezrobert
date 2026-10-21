@@ -1,7 +1,7 @@
 import * as THREE from 'three/webgpu';
 import { AiRider, AI_PROFILES, DraftCalculator, PoseController, createRiderState, paramsFromBike, stepRider, airDensity, type AiProfileName, type RiderState } from '@allezrobert/physics';
 import { DEFAULT_BIKE, DEFAULT_LOOK, type AvatarLook, type RouteTrack } from '@allezrobert/shared';
-import { RiderAvatar } from '../rider/avatar.ts';
+import { createAvatar, type RiderAvatarLike } from '../rider/gltfAvatar.ts';
 import { rng } from '../engine/noise.ts';
 
 /** Noms des coureurs IA (clins d'œil locaux, aucun nom réel). */
@@ -16,7 +16,7 @@ export interface PelotonRider {
   state: RiderState;
   lateral: number;
   ai: AiRider;
-  avatar: RiderAvatar;
+  avatar: RiderAvatarLike;
   label: THREE.Sprite;
   watts: number;
   cadence: number;
@@ -101,7 +101,7 @@ export class Peloton {
         helmet: ['#f4f4f4', '#111111', color][i % 3] as string,
         build: r(),
       };
-      const avatar = new RiderAvatar(look);
+      const avatar = createAvatar(look);
       scene.add(avatar.root);
       const name = NAMES[i % NAMES.length] as string;
       const label = nameSprite(name, color);

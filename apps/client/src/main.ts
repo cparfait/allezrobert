@@ -6,7 +6,7 @@ import { QUALITY_PRESETS, withUrlOverrides } from './engine/quality.ts';
 import { World } from './world/world.ts';
 import { loadWorldSource } from './world/loader.ts';
 import type { WorldSource } from './world/types.ts';
-import { RiderAvatar } from './rider/avatar.ts';
+import { GltfRiderAvatar, createAvatar } from './rider/gltfAvatar.ts';
 import { CameraRig } from './game/cameras.ts';
 import { RideSession } from './game/ride.ts';
 import { KeyboardControls, type InputSource } from './game/inputs.ts';
@@ -63,7 +63,8 @@ async function boot(): Promise<void> {
   const settings = loadSettings();
   setLang(settings.lang);
   ui.innerHTML = `<div class="loading">${t('loading')}</div>`;
-  const scene = await loadScene(settings);
+  // Avatars Blender (glTF) chargés une fois ; repli procédural automatique en cas d'échec.
+  const [scene] = await Promise.all([loadScene(settings), GltfRiderAvatar.load()]);
   const devices = createDeviceLayer();
   const start = scene.track.positionAt(0, 1.2);
   await scene.world.preload(new THREE.Vector3(start.x, start.y, start.z));
@@ -137,7 +138,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     startDistM: startD,
     wind: { ms: s.windMs, from: 4.4 },
   });
-  const avatar = new RiderAvatar(s.look);
+  const avatar = createAvatar(s.look);
   engine.scene.add(avatar.root);
   // Phare avant (la nuit) : projecteur fixé au vélo, sans ombre portée (coût).
   const headlight = new THREE.SpotLight(0xfff1d6, 0, 60, 0.45, 0.6, 1.4);

@@ -1,6 +1,6 @@
 import * as THREE from 'three/webgpu';
 import type { RouteTrack } from '@allezrobert/shared';
-import { RiderAvatar } from '../rider/avatar.ts';
+import { createAvatar, type RiderAvatarLike } from '../rider/gltfAvatar.ts';
 
 interface GhostLap {
   lapTimeS: number;
@@ -16,7 +16,7 @@ const KEY = (routeId: string) => `ar.ghost.${routeId}`;
  * translucide. Chaque tour terminé plus vite remplace le record (stockage local).
  */
 export class Ghost {
-  readonly avatar: RiderAvatar;
+  readonly avatar: RiderAvatarLike;
   private best: GhostLap | null;
   private readonly track: RouteTrack;
   private readonly routeId: string;
@@ -33,7 +33,7 @@ export class Ghost {
     this.lapStartD = startD;
     const raw = localStorage.getItem(KEY(routeId));
     this.best = raw ? (JSON.parse(raw) as GhostLap) : null;
-    this.avatar = new RiderAvatar({ skin: '#cfe8ff', hair: '#cfe8ff', hairStyle: 0, jersey: '#9ad7ff', jerseyAccent: '#ffffff', helmet: '#e6f6ff', bike: '#9ad7ff', build: 0.4 });
+    this.avatar = createAvatar({ skin: '#cfe8ff', hair: '#cfe8ff', hairStyle: 0, jersey: '#9ad7ff', jerseyAccent: '#ffffff', helmet: '#e6f6ff', bike: '#9ad7ff', build: 0.4 });
     // Translucide et sans ombre : on le distingue des vrais coureurs.
     this.avatar.root.traverse((o) => {
       const m = (o as THREE.Mesh).material as THREE.Material | undefined;

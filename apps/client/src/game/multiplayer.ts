@@ -1,7 +1,7 @@
 import * as THREE from 'three/webgpu';
 import type { CompanionCommand, RideMode, RouteTrack } from '@allezrobert/shared';
 import { RideNetClient, type InterpolatedRider } from '../net/index.ts';
-import { RiderAvatar } from '../rider/avatar.ts';
+import { createAvatar, type RiderAvatarLike } from '../rider/gltfAvatar.ts';
 
 /** Adresse du serveur : VITE_SERVER_URL (prod : https://allezrobert.cparfait.ovh/colyseus), sinon local. */
 export function serverEndpoint(): string {
@@ -24,7 +24,7 @@ function tokenProvider(apiBase: string, name: string): () => Promise<string | un
 }
 
 interface Remote {
-  avatar: RiderAvatar;
+  avatar: RiderAvatarLike;
   label: THREE.Sprite | null;
 }
 
@@ -81,7 +81,7 @@ export class Multiplayer {
       seen.add(r.id);
       let rem = this.remotes.get(r.id);
       if (!rem) {
-        rem = { avatar: new RiderAvatar(r.avatar), label: null };
+        rem = { avatar: createAvatar(r.avatar), label: null };
         this.scene.add(rem.avatar.root);
         this.remotes.set(r.id, rem);
       }

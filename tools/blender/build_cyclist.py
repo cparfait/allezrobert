@@ -322,9 +322,9 @@ def apply_modifiers(ob):
     old = ob.data
     ob.modifiers.clear()
     ob.data = me
-    me.name = ob.name
     if old.users == 0:
         bpy.data.meshes.remove(old)
+    me.name = ob.name
 
 
 def remove_obj(ob):
@@ -1570,7 +1570,7 @@ def main():
         co, ground = setup_preview_scene()
         views = args.views.split(',')
         if '3q' in views:
-            render_view(co, V(2.0, 1.25, 2.1), V(0, 0.78, 0.08), 40, prev)
+            render_view(co, V(2.3, 1.4, 2.4), V(0, 0.85, 0.08), 35, prev)
         if 'side' in views:
             render_view(co, V(3.6, 0.85, 0.1), V(0, 0.8, 0.08), 40, base + '-side' + ext)
         if 'front' in views:
