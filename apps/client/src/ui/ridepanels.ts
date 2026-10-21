@@ -82,10 +82,11 @@ export function showSummary(root: HTMLElement, ride: RideSession, fit: () => Uin
     ${segs ? `<h2>Segments</h2><div class="device-list">${segs}</div>` : ''}
     <div class="row" style="justify-content:flex-end;margin-top:22px">
       <button class="btn" id="s-close">${getLang() === 'fr' ? 'Retour au menu' : 'Back to menu'}</button>
-      <button class="btn primary" id="s-fit">${t('exportFit')}</button>
+      ${xp ? `<button class="btn primary" id="s-fit">${t('exportFit')}</button>` : ''}
     </div>
   </div></div>`;
-  (root.querySelector('#s-fit') as HTMLElement).onclick = () => {
+  const fitBtn = root.querySelector('#s-fit') as HTMLElement | null;
+  if (fitBtn) fitBtn.onclick = () => {
     const d = new Date(ride.startT);
     const name = `allez-robert-${d.toISOString().slice(0, 16).replace(/[:T]/g, '-')}.fit`;
     download(fit(), name);

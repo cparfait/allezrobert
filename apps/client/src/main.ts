@@ -24,6 +24,7 @@ import { splatAt } from './world/splat.ts';
 import { Onboarding, RideTutorial } from './onboarding/onboarding.ts';
 import { showGarage, awardRide } from './ui/garage.ts';
 import { RideSequences } from './game/sequences.ts';
+import { GuestInputSource } from './game/guest.ts';
 
 const ui = document.getElementById('ui') as HTMLElement;
 const hudRoot = document.getElementById('hud') as HTMLElement;
@@ -92,7 +93,7 @@ async function boot(): Promise<void> {
       }
       inMenu = false;
       menu.hide();
-      void startRide(scene, s, devices.source(), extras);
+      void startRide(scene, s, s.guest ? new GuestInputSource(s.massKg) : devices.source(), extras);
     },
   });
   menu.onSettingsChange = (s) => {
@@ -186,6 +187,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   ride.onSegmentDone = (r) => {
     // Séquence HyperFrames (KOM / sprint) ; toast texte si les séquences sont coupées.
     // Rang solo : le joueur est classé seul ; en multijoueur le serveur fournit le vrai rang.
+    if (s.guest) return;
     if (sequences.enabled) sequences.segment(r, s.name, track.route.id, 1, 1);
     else hud.toast(`${t('segmentDone')} · ${r.seg.name} · ${Math.floor(r.timeS / 60)}:${String(Math.round(r.timeS % 60)).padStart(2, '0')}`);
   };
@@ -204,7 +206,8 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   const finish = () => {
     engine.renderer.setAnimationLoop(null);
     tutorial?.stop();
-    const xp = awardRide({ distanceM: ride.state.distM - startD, elevationM: ride.elevationGainM, movingS: ride.elapsedS });
+    // Invité : ni XP compétitive, ni segments, ni FIT.
+    const xp = s.guest ? undefined : awardRide({ distanceM: ride.state.distM - startD, elevationM: ride.elevationGainM, movingS: ride.elapsedS });
     audio.dispose();
     hud.setVisible(false);
     input.sendTrainer({ kind: 'simulation', gradePercent: 0 });

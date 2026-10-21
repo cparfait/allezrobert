@@ -30,6 +30,8 @@ export interface Settings {
   /** Source de puissance de référence quand pédales et trainer sont présents. */
   powerSource: 'pedals' | 'trainer';
   smoothing3s: boolean;
+  /** Invité sans matériel : puissance virtuelle au clavier / à la manette. */
+  guest: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -55,6 +57,7 @@ export const DEFAULT_SETTINGS: Settings = {
   aiRiders: 4,
   powerSource: 'pedals',
   smoothing3s: false,
+  guest: false,
 };
 
 const KEY = 'ar.settings';

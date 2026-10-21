@@ -161,6 +161,7 @@ export class MainMenu {
           <select id="m-transport" class="btn small">${transports.map((tr) => `<option value="${esc(tr.id)}">${esc(tr.label)}</option>`).join('')}</select>
           ${roles.map(([role, k]) => `<button class="btn small" data-pair="${role}">+ ${t(k)}</button>`).join('')}
         </div>
+        <label class="row" style="font-size:13px;color:var(--ar-muted)"><input type="checkbox" id="m-guest" ${this.s.guest ? 'checked' : ''}/> ${getLang() === 'fr' ? 'Invité sans matériel (clavier / manette, hors classements)' : 'Guest without hardware (keyboard / gamepad, unranked)'}</label>
         <label class="row" style="font-size:13px;color:var(--ar-muted)"><input type="checkbox" id="m-sim" ${this.devices.simulatorOn() ? 'checked' : ''}/> ${t('simulator')} (${getLang() === 'fr' ? 'rouler sans matériel' : 'ride without hardware'})</label>
         <div id="m-adapters"></div>
         ${this.devices
@@ -184,6 +185,10 @@ export class MainMenu {
       }),
     );
     box.querySelectorAll<HTMLButtonElement>('[data-forget]').forEach((b) => b.addEventListener('click', () => this.devices.forget(b.dataset.forget as string)));
+    (box.querySelector('#m-guest') as HTMLInputElement).addEventListener('change', (e) => {
+      this.s.guest = (e.target as HTMLInputElement).checked;
+      saveSettings(this.s);
+    });
     (box.querySelector('#m-sim') as HTMLInputElement).addEventListener('change', (e) => {
       this.devices.useSimulator((e.target as HTMLInputElement).checked);
       this.renderDevices();
