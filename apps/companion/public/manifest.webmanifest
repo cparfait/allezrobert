@@ -1,0 +1,19 @@
+{
+  "name": "Allez Robert ! — Compagnon",
+  "short_name": "Robert",
+  "description": "Carte, chat, vitesses virtuelles, caméra et ventilateur pendant ta sortie Allez Robert !",
+  "lang": "fr",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#10151c",
+  "theme_color": "#10151c",
+  "categories": ["sports", "fitness", "games"],
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "icons/icon.svg", "sizes": "any", "type": "image/svg+xml" }
+  ]
+}

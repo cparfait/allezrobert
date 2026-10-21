@@ -1,7 +1,7 @@
 /*
  * Allez Robert ! — utilitaires communs aux compositions HyperFrames (window.AR).
  *
- * Chargé par chaque composition via <script src="assets/ar-seq.js"> (copié par
+ * Chargé par chaque composition (balise script vers assets/ar-seq.js, copié par
  * scripts/sync-assets.ts) ou injecté en ligne par l'assembleur du lecteur en jeu.
  * Aucune horloge, aucun hasard non semé, aucun accès réseau : tout est déterministe.
  */

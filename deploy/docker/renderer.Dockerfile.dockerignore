@@ -1,0 +1,20 @@
+# Contexte de l'image renderer : sources, sans données personnelles ni binaires lourds.
+**/node_modules
+**/dist
+**/.vite
+**/coverage
+**/*.log
+.git
+.github
+.claude
+.env
+**/.env
+**/.env.*
+!**/.env.example
+data
+out
+renders
+docs
+apps/desktop/src-tauri/target
+apps/client/public/worlds
+packages/sequences/out

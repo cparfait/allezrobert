@@ -17,9 +17,9 @@ const LEAVES: Record<Season, [string, string, string]> = {
 };
 
 /** Taille des blocs d'instanciation (m) : compromis entre appels de dessin et élimination hors champ. */
-const CHUNK = 250;
+const CHUNK = 500;
 /** Distances de bascule des niveaux de détail (m). */
-const LOD_NEAR = 280;
+const LOD_NEAR = 300;
 const LOD_MID = 1100;
 
 /** Marque chaque sommet : 0 = bois, 1 = feuillage (pour l'animation et la saison). */

@@ -1,0 +1,39 @@
+# Renderer des vidéos résumé (VPS) — Node 22 + FFmpeg + Chromium headless.
+# Inspiré du Dockerfile officiel de la CLI HyperFrames (hyperframes/dist/docker/Dockerfile.render).
+#
+# Contexte de build = racine du dépôt :
+#   docker build -f packages/sequences/docker/Dockerfile.renderer -t allezrobert-renderer .
+#   docker run --rm --shm-size=1g -v "$PWD/data/renders:/data" allezrobert-renderer \
+#     /data/ride.json /data/ride.mp4 --lang fr --quality looks
+#
+# Non testé en conteneur à ce stade (rendu validé sous Windows) : à valider au jalon serveur.
+FROM node:22-bookworm-slim
+
+# Bibliothèques de Chromium + polices de secours (les compositions embarquent Inter et
+# JetBrains Mono en woff2, aucune police système n'est nécessaire au rendu).
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      ca-certificates ffmpeg \
+      libgbm1 libnss3 libatk-bridge2.0-0 libdrm2 libxcomposite1 libxdamage1 libxrandr2 \
+      libcups2 libasound2 libpangocairo-1.0-0 libxshmfence1 libgtk-3-0 \
+      fonts-dejavu-core fontconfig \
+    && rm -rf /var/lib/apt/lists/* && fc-cache -f
+
+RUN corepack enable
+WORKDIR /app
+
+# Dépendances (couche mise en cache tant que les manifestes ne changent pas).
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
+COPY packages/shared/package.json packages/shared/
+COPY packages/sequences/package.json packages/sequences/
+RUN pnpm install --frozen-lockfile --filter "@allezrobert/sequences..." --filter "allezrobert"
+
+COPY packages/shared packages/shared
+COPY packages/sequences packages/sequences
+
+# Chrome épinglé par la CLI (chrome-headless-shell → capture BeginFrame déterministe).
+# Alternative : PRODUCER_HEADLESS_SHELL_PATH=<binaire> si l'image en fournit un.
+WORKDIR /app/packages/sequences
+RUN npx hyperframes browser ensure && npx hyperframes doctor
+
+ENV CONTAINER=true
+ENTRYPOINT ["npx", "--no-install", "tsx", "scripts/render-summary.ts"]

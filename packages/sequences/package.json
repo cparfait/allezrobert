@@ -7,7 +7,8 @@
     ".": "./src/index.ts",
     "./node": "./src/node.ts",
     "./tokens.css": "./tokens.css",
-    "./package.json": "./package.json"
+    "./package.json": "./package.json",
+    "./render-summary": "./scripts/render-summary.ts"
   },
   "scripts": {
     "dev": "vite",
@@ -17,7 +18,9 @@
     "preview": "tsx scripts/hf.ts preview",
     "render": "tsx scripts/hf.ts render",
     "snapshot": "tsx scripts/hf.ts snapshot",
-    "render:summary": "tsx scripts/render-summary.ts"
+    "render:summary": "tsx scripts/render-summary.ts",
+    "bench": "tsx scripts/bench.ts",
+    "test": "vitest run --root ../.. packages/sequences"
   },
   "dependencies": {
     "@allezrobert/shared": "workspace:*",

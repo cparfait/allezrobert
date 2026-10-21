@@ -1,5 +1,34 @@
 import * as THREE from 'three/webgpu';
 import type { AvatarLook } from '@allezrobert/shared';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+
+/**
+ * Fusionne les maillages enfants directs d'un groupe, par matériau (transformations locales
+ * appliquées) : un vélo passe d'une quarantaine d'appels de dessin à quelques-uns.
+ */
+function mergeByMaterial(group: THREE.Object3D): void {
+  const byMat = new Map<THREE.Material, THREE.BufferGeometry[]>();
+  for (const child of [...group.children]) {
+    const mesh = child as THREE.Mesh;
+    if (!mesh.isMesh || child.children.length) continue;
+    mesh.updateMatrix();
+    const geo = (mesh.geometry.index ? mesh.geometry.toNonIndexed() : mesh.geometry.clone()).applyMatrix4(mesh.matrix);
+    for (const name of Object.keys(geo.attributes)) if (name !== 'position' && name !== 'normal') geo.deleteAttribute(name);
+    const mat = mesh.material as THREE.Material;
+    let list = byMat.get(mat);
+    if (!list) byMat.set(mat, (list = []));
+    list.push(geo);
+    group.remove(mesh);
+  }
+  for (const [mat, geos] of byMat) {
+    const merged = mergeGeometries(geos, false);
+    if (!merged) continue;
+    const m = new THREE.Mesh(merged, mat);
+    m.castShadow = true;
+    m.receiveShadow = true;
+    group.add(m);
+  }
+}
 
 /**
  * Cycliste et vélo procéduraux. Repère local : +z = avant, +y = haut, +x = gauche.
@@ -207,7 +236,7 @@ export class RiderAvatar {
         sp.set(new THREE.Vector3((k % 2 ? 1 : -1) * 0.03, 0, 0), new THREE.Vector3(0, Math.sin(a) * (WHEEL_R - 0.06), Math.cos(a) * (WHEEL_R - 0.06)));
         wheel.add(sp.mesh);
       }
-      for (const o of wheel.children) o.castShadow = true;
+      mergeByMaterial(wheel);
       g.add(wheel);
     }
     // Pédalier : plateau, manivelles, pédales.
@@ -224,7 +253,14 @@ export class RiderAvatar {
       this.pedals.push(pedal);
       g.add(pedal);
     }
+    mergeByMaterial(this.crankGroup);
     g.add(this.crankGroup);
+    // Pièces fixes du vélo (cadre, cintre, selle…) fusionnées ; pédales, roues et pédalier restent mobiles.
+    const pedals = new Set<THREE.Object3D>(this.pedals);
+    const keep = g.children.filter((c) => pedals.has(c));
+    keep.forEach((c) => g.remove(c));
+    mergeByMaterial(g);
+    keep.forEach((c) => g.add(c));
     return g;
   }
 
@@ -294,6 +330,14 @@ export class RiderAvatar {
       arm.upper.set(sh, elbow);
       arm.fore.set(elbow, hand);
     }
+  }
+
+  private shadows = true;
+  /** Active ou coupe les ombres portées de tout l'avatar (coureurs lointains : coupées). */
+  setShadows(on: boolean): void {
+    if (on === this.shadows) return;
+    this.shadows = on;
+    this.root.traverse((o) => (o.castShadow = on));
   }
 
   setLook(look: AvatarLook): void {

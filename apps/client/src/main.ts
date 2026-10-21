@@ -28,6 +28,7 @@ const ui = document.getElementById('ui') as HTMLElement;
 const hudRoot = document.getElementById('hud') as HTMLElement;
 
 interface Scene3D {
+  quality: Settings['quality'];
   engine: Engine;
   source: WorldSource;
   world: World;
@@ -48,7 +49,7 @@ async function loadScene(settings: Settings): Promise<Scene3D> {
     season: (params.get('season') as Settings['season'] | null) ?? settings.season,
     weather: { clouds: settings.clouds, rain: settings.rain, fog: settings.fog, windMs: settings.windMs, windFrom: 4.4 },
   });
-  return { engine, source, world, route, track };
+  return { quality: (params.get('quality') as Settings['quality'] | null) ?? settings.quality, engine, source, world, route, track };
 }
 
 async function boot(): Promise<void> {
@@ -79,10 +80,11 @@ async function boot(): Promise<void> {
   const menu = new MainMenu(ui, settings, scene.source.routes, devices.panel, {
     onStart: (s, extras) => {
       saveSettings(s);
-      // Changement d'itinéraire : rechargement propre de la scène.
-      if (s.routeId !== scene.route.id) {
+      // Changement d'itinéraire ou de qualité graphique : rechargement propre de la scène.
+      if (s.routeId !== scene.route.id || s.quality !== scene.quality) {
         const url = new URL(location.href);
         url.searchParams.set('route', s.routeId);
+        url.searchParams.delete('quality');
         url.searchParams.set('autostart', '1');
         location.href = url.toString();
         return;

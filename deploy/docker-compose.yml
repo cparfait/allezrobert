@@ -1,0 +1,166 @@
+# Allez Robert ! — pile de production (VPS OVH). Lancer depuis deploy/ :
+#   cp .env.example .env && nano .env     (secrets générés sur le VPS)
+#   ./deploy.sh                            (pull des images, migrations, démarrage, contrôle)
+# Voir docs/DEPLOY.md.
+name: allezrobert
+
+x-server-env: &server-env
+  NODE_ENV: production
+  PORT: "2567"
+  HOST: 0.0.0.0
+  PUBLIC_URL: https://${DOMAIN:?DOMAIN manquant}
+  CORS_ORIGINS: https://${DOMAIN}
+  DATABASE_URL: postgres://allezrobert:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD manquant}@postgres:5432/allezrobert
+  SESSION_SECRET: ${SESSION_SECRET:?SESSION_SECRET manquant}
+  DATA_ENCRYPTION_KEY: ${DATA_ENCRYPTION_KEY:?DATA_ENCRYPTION_KEY manquant}
+  GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+  GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+  DISCORD_CLIENT_ID: ${DISCORD_CLIENT_ID:-}
+  DISCORD_CLIENT_SECRET: ${DISCORD_CLIENT_SECRET:-}
+  STRAVA_CLIENT_ID: ${STRAVA_CLIENT_ID:-}
+  STRAVA_CLIENT_SECRET: ${STRAVA_CLIENT_SECRET:-}
+  SMTP_URL: ${SMTP_URL:-}
+  SMTP_FROM: ${SMTP_FROM:-Allez Robert ! <no-reply@cparfait.ovh>}
+  LIVEKIT_URL: wss://${LIVEKIT_DOMAIN:?LIVEKIT_DOMAIN manquant}
+  LIVEKIT_API_KEY: ${LIVEKIT_API_KEY:-}
+  LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:-}
+  ALLOW_ANONYMOUS_GUESTS: ${ALLOW_ANONYMOUS_GUESTS:-true}
+  GUEST_MAX_WKG: ${GUEST_MAX_WKG:-3.5}
+  RECONNECT_GRACE_S: ${RECONNECT_GRACE_S:-30}
+  LOG_LEVEL: ${LOG_LEVEL:-info}
+  RENDERS_DIR: /data/renders
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: 10m
+    max-file: "3"
+
+services:
+  caddy:
+    image: ${WEB_IMAGE:-ghcr.io/cparfait/allezrobert-web:latest}
+    build:
+      context: ..
+      dockerfile: deploy/docker/web.Dockerfile
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      DOMAIN: ${DOMAIN}
+      LIVEKIT_DOMAIN: ${LIVEKIT_DOMAIN}
+      ACME_EMAIL: ${ACME_EMAIL:-}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      server:
+        condition: service_started
+    logging: *logging
+
+  server:
+    image: ${SERVER_IMAGE:-ghcr.io/cparfait/allezrobert-server:latest}
+    build:
+      context: ..
+      dockerfile: deploy/docker/server.Dockerfile
+    restart: unless-stopped
+    environment: *server-env
+    volumes:
+      - renders:/data/renders
+    expose:
+      - "2567"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:2567/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      start_period: 40s
+      retries: 3
+    stop_grace_period: 20s
+    logging: *logging
+
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: allezrobert
+      POSTGRES_USER: allezrobert
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U allezrobert -d allezrobert"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    shm_size: 128mb
+    logging: *logging
+
+  livekit:
+    image: ${LIVEKIT_IMAGE:-livekit/livekit-server:latest}
+    restart: unless-stopped
+    command: ["--config", "/etc/livekit.yaml"]
+    environment:
+      LIVEKIT_KEYS: "${LIVEKIT_API_KEY:?LIVEKIT_API_KEY manquant}: ${LIVEKIT_API_SECRET:?LIVEKIT_API_SECRET manquant}"
+    volumes:
+      - ./livekit.yaml:/etc/livekit.yaml:ro
+    ports:
+      - "7881:7881/tcp"
+      - "7882:7882/udp"
+    expose:
+      - "7880"
+    logging: *logging
+
+  renderer:
+    image: ${RENDERER_IMAGE:-ghcr.io/cparfait/allezrobert-renderer:latest}
+    build:
+      context: ..
+      dockerfile: deploy/docker/renderer.Dockerfile
+    profiles: ["render"]
+    restart: unless-stopped
+    environment:
+      <<: *server-env
+      RENDER_QUALITY: looks
+    volumes:
+      - renders:/data/renders
+    depends_on:
+      postgres:
+        condition: service_healthy
+      server:
+        condition: service_healthy
+    shm_size: 1gb
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 3g
+    logging: *logging
+
+  backup:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    entrypoint: ["/bin/sh", "/backup/backup-loop.sh"]
+    environment:
+      PGHOST: postgres
+      PGUSER: allezrobert
+      PGDATABASE: allezrobert
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      BACKUP_HOUR: ${BACKUP_HOUR:-3}
+      BACKUP_KEEP_DAYS: ${BACKUP_KEEP_DAYS:-14}
+    volumes:
+      - ./backup:/backup:ro
+      - ${BACKUP_DIR:-./backups}:/backups
+    depends_on:
+      postgres:
+        condition: service_healthy
+    logging: *logging
+
+volumes:
+  pgdata:
+  caddy_data:
+  caddy_config:
+  renders:

@@ -18,6 +18,8 @@ import { OAUTH_COOKIE, parseCookies, serializeCookie } from './cookies.ts';
 import { createLiveKitToken, voiceRoomName } from '../integrations/livekit.ts';
 import { normalizeCode } from '../ride/registry.ts';
 import { activeRooms } from '../ride/RideRoom.ts';
+import { normalizedPower } from '@allezrobert/physics';
+import type { ActivitySummaryRow } from '../db/repos.ts';
 
 const hex = z.string().regex(/^#[0-9a-fA-F]{6}$/);
 const AvatarSchema = z.object({
@@ -49,7 +51,8 @@ const ProfilePatchSchema = z
   .partial()
   .strict();
 
-const RENDER_COMPOSITIONS = ['ride-summary', 'podium', 'kom', 'intro'] as const;
+/** Séquences HyperFrames de packages/sequences (src/catalog.ts). */
+const RENDER_COMPOSITIONS = ['summary', 'intro', 'kom', 'sprint', 'podium', 'tv'] as const;
 
 export function mountApi(app: express.Application, ctx: AppContext): void {
   app.set('trust proxy', 'loopback, linklocal, uniquelocal');
@@ -359,17 +362,25 @@ export function mountApi(app: express.Application, ctx: AppContext): void {
       .object({
         composition: z.enum(RENDER_COMPOSITIONS),
         activityId: z.string().uuid().optional(),
-        variables: z.record(z.string(), z.union([z.string().max(500), z.number(), z.boolean()])).default({}),
+        lang: z.enum(['fr', 'en']).optional(),
+        variables: z.record(z.string().max(64), z.union([z.string().max(500), z.number(), z.boolean()])).default({}),
       })
       .parse(req.body);
     if ((await ctx.repos.countPendingRenders(u.userId)) >= 3) throw new HttpError(429, 'Trois rendus au plus en attente', 'rate_limited');
-    let summary: Record<string, unknown> = {};
-    if (body.activityId) {
+    const profile = await ctx.repos.getProfile(u.userId);
+    const lang = body.lang ?? profile?.locale ?? 'fr';
+    let payload: Record<string, unknown>;
+    if (body.composition === 'summary') {
+      // Vidéo résumé : entrée RideSummaryInput de packages/sequences, construite depuis la sortie.
+      if (!body.activityId) throw new HttpError(400, 'activityId requis pour la vidéo résumé', 'invalid');
       const a = await ctx.repos.getActivity(u.userId, body.activityId);
-      if (!a) throw new HttpError(404, 'Sortie introuvable', 'not_found');
-      summary = { name: a.name, distanceKm: Math.round(a.distanceM / 100) / 10, elevationM: Math.round(a.elevationM), durationS: a.movingS, avgWatts: a.avgWatts ?? 0 };
+      const fit = await ctx.repos.getActivityFit(u.userId, body.activityId);
+      if (!a || !fit) throw new HttpError(404, 'Sortie introuvable', 'not_found');
+      payload = { kind: 'summary', lang, input: rideSummaryInput(ctx, a, fit, profile?.displayName ?? u.name, lang, body.variables) };
+    } else {
+      payload = { kind: 'sequence', lang, variables: { lang, ...body.variables } };
     }
-    const id = await ctx.repos.enqueueRender(u.userId, body.composition, { ...summary, ...body.variables, riderName: u.name });
+    const id = await ctx.repos.enqueueRender(u.userId, body.composition, payload);
     res.status(202).json({ id, status: 'queued' });
   });
 
@@ -403,6 +414,47 @@ export function mountApi(app: express.Application, ctx: AppContext): void {
 
 function publicJob(j: { id: string; status: string; composition: string; error: string | null; createdAt: Date; finishedAt: Date | null }) {
   return { id: j.id, status: j.status, composition: j.composition, error: j.error, createdAt: j.createdAt, finishedAt: j.finishedAt, fileUrl: j.status === 'done' ? `/api/renders/${j.id}/file` : null };
+}
+
+/** Entrée de la vidéo résumé (RideSummaryInput de packages/sequences) depuis une sortie stockée. */
+function rideSummaryInput(
+  ctx: AppContext,
+  a: ActivitySummaryRow,
+  fit: Buffer,
+  riderName: string,
+  lang: 'fr' | 'en',
+  overrides: Record<string, string | number | boolean>,
+): Record<string, unknown> {
+  let records: Array<{ t: number; distanceM?: number; altitudeM?: number; lat?: number; lon?: number; watts?: number }> = [];
+  let npW: number | undefined;
+  try {
+    const imported = decodeFit(new Uint8Array(fit));
+    const watts = imported.activity.records.map((r) => r.watts ?? 0);
+    if (watts.some((w) => w > 0)) npW = Math.round(normalizedPower(watts, 1));
+    // Tracé et profil : ~900 points suffisent à la vidéo (jamais de FC transmise au rendu).
+    const step = Math.max(1, Math.ceil(imported.activity.records.length / 900));
+    records = imported.activity.records
+      .filter((_, i) => i % step === 0)
+      .map((r) => ({ t: r.t, distanceM: r.distanceM, altitudeM: r.altitudeM, ...(r.lat !== undefined && r.lon !== undefined ? { lat: r.lat, lon: r.lon } : {}), ...(r.watts !== undefined ? { watts: r.watts } : {}) }));
+  } catch {
+    records = [];
+  }
+  const routeName = (a.routeId && ctx.routes.get(a.routeId)?.data.name) || a.name;
+  return {
+    lang,
+    title: typeof overrides.title === 'string' ? overrides.title : a.name,
+    date: a.startedAt.toISOString(),
+    routeName,
+    riderName,
+    stats: {
+      distanceKm: Math.round(a.distanceM / 100) / 10,
+      durationS: a.movingS,
+      elevationM: Math.round(a.elevationM),
+      ...(a.avgWatts !== null ? { avgPowerW: Math.round(a.avgWatts) } : {}),
+      ...(npW !== undefined ? { npW } : {}),
+    },
+    records,
+  };
 }
 
 /** Ré-encode sans FC tous les FIT stockés d'un compte (retrait du consentement). */

@@ -64,10 +64,10 @@ export const QUALITY_PRESETS: Record<QualityLevel, QualitySettings> = {
     aoScale: 0.5,
     bloom: true,
     taa: true,
-    viewDistance: 6000,
+    viewDistance: 5000,
     treeDensity: 0.8,
     grassDensity: 0.8,
-    tileRadius: 4,
+    tileRadius: 3,
     terrainSegmentsPerTile: 192,
   },
   ultra: {
@@ -80,11 +80,11 @@ export const QUALITY_PRESETS: Record<QualityLevel, QualitySettings> = {
     aoScale: 1,
     bloom: true,
     taa: true,
-    viewDistance: 9000,
-    treeDensity: 1.2,
+    viewDistance: 7000,
+    treeDensity: 1.1,
     grassDensity: 1.4,
-    tileRadius: 5,
-    terrainSegmentsPerTile: 256,
+    tileRadius: 4,
+    terrainSegmentsPerTile: 224,
   },
 };
 

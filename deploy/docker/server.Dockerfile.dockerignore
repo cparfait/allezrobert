@@ -1,0 +1,28 @@
+# Contexte de l'image serveur : sources seulement, ni données ni tuiles du monde.
+# (Les package.json de tout le monorepo restent présents pour l'installation pnpm filtrée.)
+**/node_modules
+**/dist
+**/.vite
+**/coverage
+**/*.log
+.git
+.github
+.claude
+.env
+**/.env
+**/.env.*
+!**/.env.example
+data
+out
+renders
+docs
+apps/desktop/src-tauri/target
+apps/desktop/src-tauri/gen
+apps/client/src
+apps/client/public/worlds/*/tiles
+apps/client/public/**/*.glb
+apps/client/public/**/*.jpg
+apps/client/public/**/*.png
+apps/client/public/**/*.u16
+packages/sequences/out
+packages/sequences/compositions

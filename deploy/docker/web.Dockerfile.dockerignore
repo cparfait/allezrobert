@@ -1,0 +1,19 @@
+# Contexte de l'image web (jeu + compagnon statiques servis par Caddy).
+**/node_modules
+**/dist
+**/.vite
+**/coverage
+**/*.log
+.git
+.github
+.claude
+.env
+**/.env
+**/.env.*
+!**/.env.example
+data
+out
+renders
+docs
+apps/desktop/src-tauri/target
+packages/sequences/out

@@ -285,11 +285,34 @@ describe('API — sorties, segments, progression', () => {
 
   it('rendu vidéo : mise en file et suivi', async () => {
     const s = await devLogin('Monteur');
-    const r = await s.json('POST', '/api/renders', { composition: 'ride-summary', variables: { title: 'Ma sortie' } });
+    expect((await s.json('POST', '/api/renders', { composition: 'summary' })).status).toBe(400);
+    const act = await s.json('POST', '/api/activities?name=Vid%C3%A9o', sampleFit(true));
+    const r = await s.json('POST', '/api/renders', { composition: 'summary', activityId: act.body.activity.id, variables: { title: 'Ma sortie' } });
     expect(r.status).toBe(202);
     const job = await s.json('GET', `/api/renders/${r.body.id}`);
-    expect(job.body).toMatchObject({ status: 'queued', composition: 'ride-summary', fileUrl: null });
+    expect(job.body).toMatchObject({ status: 'queued', composition: 'summary', fileUrl: null });
+    const row = (await db.query('SELECT payload FROM render_jobs WHERE id = $1', [r.body.id])).rows[0];
+    const payload = typeof row.payload === 'string' ? JSON.parse(row.payload) : row.payload;
+    expect(payload.kind).toBe('summary');
+    expect(payload.input).toMatchObject({ title: 'Ma sortie', routeName: 'Vidéo', stats: { distanceKm: 16.2 } });
+    expect(payload.input.records.length).toBeGreaterThan(100);
+    expect(payload.input.records.length).toBeLessThanOrEqual(900);
+    expect(JSON.stringify(payload)).not.toContain('"hr"');
+    const seq = await s.json('POST', '/api/renders', { composition: 'podium', variables: { title: 'Podium' } });
+    expect(seq.status).toBe(202);
     expect((await s.json('POST', '/api/renders', { composition: 'inconnue' })).status).toBe(400);
+  });
+
+  it.runIf(!!process.env.TEST_DATABASE_URL)('file de rendu (PostgreSQL) : réservation SKIP LOCKED, fin, remise en file', async () => {
+    const s = await devLogin('Worker');
+    const id = (await s.json('POST', '/api/renders', { composition: 'kom' })).body.id as string;
+    const [j1, j2] = await Promise.all([ctx.repos.claimRender(), ctx.repos.claimRender()]);
+    const claimed = [j1, j2].filter(Boolean);
+    expect(claimed.map((j) => j!.id)).toContain(id);
+    expect(new Set(claimed.map((j) => j!.id)).size).toBe(claimed.length);
+    await ctx.repos.requeueStaleRenders(0);
+    await ctx.repos.finishRender(id, true, `${id}.mp4`, null);
+    expect((await s.json('GET', `/api/renders/${id}`)).body).toMatchObject({ status: 'done', fileUrl: `/api/renders/${id}/file` });
   });
 
   it('voix : jeton réservé aux participants', async () => {

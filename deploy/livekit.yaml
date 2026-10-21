@@ -1,0 +1,22 @@
+# LiveKit (voix des sorties), auto-hébergé. Clés : variable LIVEKIT_KEYS (« clé: secret »)
+# fournie par docker-compose depuis deploy/.env — jamais dans ce fichier.
+port: 7880
+bind_addresses:
+  - ""
+rtc:
+  # WebRTC sur TCP (repli derrière les pare-feu stricts).
+  tcp_port: 7881
+  # Multiplexage UDP sur UN seul port (au lieu d'une plage 50000-60000) : un seul port à
+  # ouvrir et à publier depuis Docker. Pour une plage, remplacer par :
+  #   port_range_start: 50000
+  #   port_range_end: 60000
+  udp_port: 7882
+  # Découverte de l'IP publique du VPS (STUN) à annoncer aux navigateurs.
+  use_external_ip: true
+room:
+  # Une salle par sortie : ride-<roomId>, fermée 5 min après le départ du dernier.
+  empty_timeout: 300
+  max_participants: 30
+logging:
+  level: info
+  json: false

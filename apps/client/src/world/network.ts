@@ -84,6 +84,9 @@ export class RoadNetwork {
         objs.push(mesh);
       }
     }
+    // Plans d'eau de la tuile fusionnés en un seul maillage (un appel de dessin).
+    const waterPos: number[] = [];
+    const waterIdx: number[] = [];
     for (const w of tile.features.water) {
       const outer = w.rings[0];
       if (!outer || outer.length < 6) continue;
@@ -98,29 +101,27 @@ export class RoadNetwork {
       const holes = w.rings.slice(1).map(toV2);
       const tris = THREE.ShapeUtils.triangulateShape(contour, holes);
       const all = [...contour, ...holes.flat()];
-      const pos = new Float32Array(all.length * 3);
-      all.forEach((v, i) => {
-        pos[i * 3] = v.x;
-        pos[i * 3 + 1] = level + 0.05;
-        pos[i * 3 + 2] = v.y;
-      });
-      const g = new THREE.BufferGeometry();
-      g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-      // Triangulation 2D en (x, z) : on oriente les faces vers le haut quel que soit le sens du contour.
-      const idx: number[] = tris.flatMap((t) => [t[0] as number, t[1] as number, t[2] as number]);
-      if (idx.length >= 3) {
-        const [i0, i1, i2] = idx as [number, number, number];
-        const ux = (pos[i1 * 3] as number) - (pos[i0 * 3] as number);
-        const uz = (pos[i1 * 3 + 2] as number) - (pos[i0 * 3 + 2] as number);
-        const vx = (pos[i2 * 3] as number) - (pos[i0 * 3] as number);
-        const vz = (pos[i2 * 3 + 2] as number) - (pos[i0 * 3 + 2] as number);
-        // Composante y de (u × v) = uz·vx − ux·vz : négative → faces vers le bas, on inverse.
-        if (uz * vx - ux * vz < 0) for (let k = 0; k < idx.length; k += 3) [idx[k + 1], idx[k + 2]] = [idx[k + 2] as number, idx[k + 1] as number];
+      const base = waterPos.length / 3;
+      for (const v of all) waterPos.push(v.x, level + 0.05, v.y);
+      for (const t of tris) {
+        const [i0, i1, i2] = [t[0] as number, t[1] as number, t[2] as number];
+        const p0 = all[i0] as THREE.Vector2;
+        const p1 = all[i1] as THREE.Vector2;
+        const p2 = all[i2] as THREE.Vector2;
+        // Orientation vers le haut quel que soit le sens du contour : composante y de (u × v) > 0.
+        const up = (p1.y - p0.y) * (p2.x - p0.x) - (p1.x - p0.x) * (p2.y - p0.y) > 0;
+        if (up) waterIdx.push(base + i0, base + i1, base + i2);
+        else waterIdx.push(base + i0, base + i2, base + i1);
       }
-      g.setIndex(idx);
+    }
+    if (waterIdx.length) {
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.Float32BufferAttribute(waterPos, 3));
+      g.setIndex(waterIdx);
       g.computeVertexNormals();
       const mesh = new THREE.Mesh(g, this.waterMat);
       mesh.receiveShadow = true;
+      mesh.name = `water_${tile.id}`;
       objs.push(mesh);
     }
     objs.forEach((o) => this.group.add(o));
