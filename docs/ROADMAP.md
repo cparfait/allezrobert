@@ -60,6 +60,23 @@ Chaque jalon n'est déclaré terminé qu'après vérification : tests (protocole
 - [ ] Vidéo résumé MP4 rendue sur le VPS
 - [x] Onboarding guidé avec voix off FR / EN et sous-titres, rejouable
 
+## Idées NCT Ride (ajoutées le 22/10/2026)
+
+Idées seulement : ni nom, ni asset, ni code, ni physique de NCT Ride (la vitesse reste calculée par le jeu, modèle de Martin).
+
+| # | Idée | Jalon | État |
+| --- | --- | --- | --- |
+| 1 | Équipiers IA pour rouler seul : allure à % de FTP réglable en sortie, relais, équipiers lâchés en côte et attendus, ordre « ralentissez », barre d'aspiration, aspiration partielle si décalé | 5, avancé juste après le jalon 1 | en cours |
+| 2 | IA avec réserve W′bal ; profils échappée / sprinteur / suiveur ; niveaux 80 / 100 / 115 % FTP | 5 | W′bal fait (packages/physics) ; niveaux à exposer |
+| 3 | Monde vivant : trafic qui double en s'écartant, piétons, déclencheurs à une distance de route | 3 | à faire |
+| 4 | Son positionné depuis OSM (église → cloches, prairie → vaches, eau…) | 3 | à faire |
+| 5 | Caméra « GoPro » sur la poitrine | 3 | à faire |
+| 6 | Poussière sur les chemins, roulement selon le revêtement | 3 | à faire |
+| 7 | Foule avec pancartes et photo automatique au sommet des segments, réutilisée dans la vidéo résumé | 5 | foule faite ; photo à faire |
+| 8 | Image de fin de sortie à partager | 5 | à faire |
+| 9 | Mondes génériques (emprise + itinéraires via tools/terrain) | 3 | pipeline générique fait ; montée célèbre à tester |
+| 10 | Contrôle visuel automatique du monde généré | 3 | captures automatiques faites ; détection à faire |
+
 ## Plus tard
 
 - Apps natives Mac et iPad (Mac et compte Apple Developer requis)
