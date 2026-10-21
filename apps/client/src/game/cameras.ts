@@ -53,7 +53,7 @@ export class CameraRig {
   }
 
   cycle(): CameraMode {
-    const order: CameraMode[] = ['chase', 'cockpit', 'drone', 'tv', 'photo'];
+    const order: CameraMode[] = ['chase', 'cockpit', 'gopro', 'drone', 'tv', 'photo'];
     this.setMode(order[(order.indexOf(this.mode) + 1) % order.length] as CameraMode);
     return this.mode;
   }
@@ -83,6 +83,15 @@ export class CameraRig {
         const ahead = this.track.sample(t.distM + 25);
         look.set(ahead.x, ahead.y + 1.2, ahead.z);
         stiffness = 14;
+        break;
+      }
+      case 'gopro': {
+        // Caméra embarquée sur la poitrine : bras et cintre dans le champ, vibrations de la route.
+        const shake = Math.sin(performance.now() * 0.031) * 0.006 * Math.min(t.speedMs / 8, 1);
+        desired.copy(t.position).addScaledVector(t.dir, 0.42).add(new THREE.Vector3(0, 1.22 + shake, 0));
+        const ahead = this.track.sample(t.distM + 12);
+        look.set(ahead.x, ahead.y + 0.4, ahead.z);
+        stiffness = 30;
         break;
       }
       case 'drone': {

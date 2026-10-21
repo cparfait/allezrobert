@@ -332,6 +332,11 @@ export class RiderAvatar {
     }
   }
 
+  /** Masque la tête (caméra embarquée sur la poitrine). */
+  setHeadVisible(on: boolean): void {
+    this.head.visible = on;
+  }
+
   private shadows = true;
   /** Active ou coupe les ombres portées de tout l'avatar (coureurs lointains : coupées). */
   setShadows(on: boolean): void {

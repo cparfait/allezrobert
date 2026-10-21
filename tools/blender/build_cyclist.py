@@ -69,7 +69,7 @@ SHIN = 0.41
 UPPER = 0.31
 FORE = 0.28
 
-LOD0_BODY_TRIS = 7200
+LOD0_BODY_TRIS = 5600
 LOD1_RATIO = 0.25
 
 
@@ -326,11 +326,19 @@ def apply_modifiers(ob):
         bpy.data.meshes.remove(old)
 
 
+def remove_obj(ob):
+    me = ob.data if ob.type == 'MESH' else None
+    bpy.data.objects.remove(ob)
+    if me is not None and me.users == 0:
+        bpy.data.meshes.remove(me)
+
+
 def tri_count(ob):
     return sum(len(p.vertices) - 2 for p in ob.data.polygons)
 
 
-def decimate_to(ob, target):
+def decimate_to(ob, target, protect=None, factor=8.0):
+    """Décimation par effondrement d'arêtes ; protect = nom d'un groupe de sommets à préserver."""
     tris = tri_count(ob)
     if tris <= target:
         return
@@ -338,7 +346,12 @@ def decimate_to(ob, target):
     m.decimate_type = 'COLLAPSE'
     m.ratio = target / tris
     m.use_collapse_triangulate = True
+    if protect:
+        m.vertex_group = protect
+        m.vertex_group_factor = factor
     apply_modifiers(ob)
+    if protect and protect in ob.vertex_groups:
+        ob.vertex_groups.remove(ob.vertex_groups[protect])
 
 
 def remesh_union(ob, voxel, smooth_iter, smooth_factor=0.5):
@@ -503,11 +516,11 @@ def body_primitives(r):
 
     # Tronc : sections le long de l'axe u (t, demi-largeur, demi-profondeur, décalage ventral).
     T = [
-        (-0.115, 0.07, 0.045, -0.035),
-        (-0.085, 0.125, 0.075, -0.035),
-        (-0.035, 0.162, 0.105, -0.025),
-        (0.03, 0.172, 0.118, -0.012),
-        (0.10, 0.158, 0.112, 0.0),
+        (-0.11, 0.065, 0.04, -0.03),
+        (-0.08, 0.115, 0.068, -0.03),
+        (-0.035, 0.148, 0.095, -0.022),
+        (0.03, 0.156, 0.106, -0.01),
+        (0.10, 0.152, 0.108, 0.0),
         (0.18, 0.148, 0.108, 0.01),
         (0.26, 0.153, 0.113, 0.014),
         (0.34, 0.163, 0.118, 0.01),
@@ -529,17 +542,17 @@ def body_primitives(r):
     # Cou (de l'intérieur du thorax jusque dans le crâne).
     npts = [r.C(0.40) - r.f * 0.02, r.N0, r.atlas, r.atlas + r.uh * 0.05]
     seg = np.cumsum([0] + [np.linalg.norm(npts[i + 1] - npts[i]) for i in range(3)])
-    add(loft(npts, [0.07, 0.057, 0.051, 0.046], [0.075, 0.06, 0.054, 0.048], r.f, n=16),
+    add(loft(npts, [0.066, 0.053, 0.048, 0.044], [0.07, 0.056, 0.051, 0.046], r.f, n=16),
         'neck', [(seg[1] / seg[-1], 'chest'), (seg[2] / seg[-1], 'neck'), (1.0, 'head')])
 
     # Tête (repère tête : x latéral, uh haut, fh avant).
     H = r.H
     hx = (r.xh, r.uh, r.fh)
     add(ellipsoid(H(0, 0.0, -0.005), hx, (0.077, 0.098, 0.102), 24, 14), 'head', [(1.0, 'head')])
-    add(ellipsoid(H(0, -0.064, 0.026), hx, (0.06, 0.058, 0.07), 20, 12), 'head', [(1.0, 'head')])
-    add(ellipsoid(H(0, -0.11, 0.068), hx, (0.026, 0.022, 0.025), 12, 8), 'head', [(1.0, 'head')])
+    add(ellipsoid(H(0, -0.06, 0.016), hx, (0.06, 0.056, 0.068), 20, 12), 'head', [(1.0, 'head')])
+    add(ellipsoid(H(0, -0.106, 0.07), hx, (0.025, 0.02, 0.022), 12, 8), 'head', [(1.0, 'head')])
     add(ellipsoid(H(0, 0.022, 0.084), hx, (0.058, 0.014, 0.02), 16, 8), 'head', [(1.0, 'head')])
-    add(ellipsoid(H(0, -0.079, 0.087), hx, (0.021, 0.009, 0.011), 12, 8), 'head', [(1.0, 'head')])
+    add(ellipsoid(H(0, -0.076, 0.082), hx, (0.02, 0.007, 0.009), 12, 8), 'head', [(1.0, 'head')])
     for s in (1, -1):
         add(ellipsoid(H(0.042 * s, -0.03, 0.066), hx, (0.024, 0.02, 0.022), 12, 8), 'head', [(1.0, 'head')])
         add(ellipsoid(H(0.076 * s, -0.028, -0.008), hx, (0.011, 0.03, 0.019), 12, 8), 'head', [(1.0, 'head')])
@@ -550,8 +563,8 @@ def body_primitives(r):
         s = d.s
         # Cuisse.
         ts = [-0.10, 0.0, 0.25, 0.55, 0.8, 0.95, 1.06]
-        rxs = [0.06, 0.085, 0.083, 0.072, 0.058, 0.05, 0.04]
-        rys = [0.06, 0.085, 0.083, 0.07, 0.056, 0.05, 0.04]
+        rxs = [0.058, 0.079, 0.078, 0.069, 0.056, 0.049, 0.04]
+        rys = [0.058, 0.08, 0.079, 0.068, 0.055, 0.049, 0.04]
         ofs = [0.0, 0.0, 0.005, 0.008, 0.006, 0.0, 0.0]
         add(loft([d.hip + d.thigh_d * THIGH * t for t in ts], rxs, rys, d.knee_pole, ofs, n=18), f'thigh_{tag}', [(1.0, f'thigh_{tag}')])
         # Jambe (mollet en arrière).
@@ -629,40 +642,57 @@ def label_vertices(vc, prims):
 # ---------------------------------------------------------------------------------------------
 # Finition du corps : coupe des ourlets, matériaux, poids, clé de forme « build »
 # ---------------------------------------------------------------------------------------------
-T_WAIST = 0.07
+T_WAIST = 0.1
 T_STRIPE = (0.30, 0.355)
 SLEEVE = (0.47, 0.55)
 SHORTS_HEM = 0.78
 SOCK_H = 0.13
 
 
+def near_neck(r, c, rad=0.16):
+    v = c - r.N0
+    return np.linalg.norm(v - r.nd * np.dot(v, r.nd)) < rad
+
+
+def collar_skin(r, c):
+    return np.dot(c - r.N0, r.nd) > 0.012 and near_neck(r, c)
+
+
+def in_torso_zone(r, region, c):
+    """Zone « tronc » indépendante de la région : évite les frontières dentelées aux jonctions
+    tronc / cuisses / bras (le maillot et le cuissard y suivent les mêmes plans)."""
+    if region == 'torso':
+        return True
+    if region.startswith('thigh'):
+        d = r.side[region[-1]]
+        return np.dot(c - d.hip, d.thigh_d) / THIGH < 0.12
+    if region.startswith('upper_arm'):
+        d = r.side[region[-1]]
+        return np.dot(c - d.shoulder, d.upper_d) / UPPER < SLEEVE[0]
+    return False
+
+
 def body_cuts(r):
+    """Plans de coupe : (prédicat(région, centre de face), point, normale)."""
     cuts = []
-    cuts.append(({'torso'}, r.C(T_WAIST), r.u, None))
-    cuts.append(({'torso'}, r.C(T_STRIPE[0]), r.u, None))
-    cuts.append(({'torso'}, r.C(T_STRIPE[1]), r.u, None))
-    ncol = r.N0 + r.nd * 0.012
-
-    def near_neck(c):
-        v = c - r.N0
-        return np.linalg.norm(v - r.nd * np.dot(v, r.nd)) < 0.085
-
-    cuts.append(({'torso', 'neck'}, ncol, r.nd, near_neck))
+    zone = lambda reg, c: in_torso_zone(r, reg, c)
+    for t in (T_WAIST, T_STRIPE[0], T_STRIPE[1]):
+        cuts.append((zone, r.C(t), r.u))
+    cuts.append((lambda reg, c: reg in ('torso', 'neck') and near_neck(r, c), r.N0 + r.nd * 0.012, r.nd))
     for tag, d in r.side.items():
-        cuts.append(({f'thigh_{tag}'}, d.hip + d.thigh_d * THIGH * SHORTS_HEM, d.thigh_d, None))
-        cuts.append(({f'shin_{tag}'}, d.ankle - d.shin_d * SOCK_H, d.shin_d, None))
-        cuts.append(({f'upper_arm_{tag}'}, d.shoulder + d.upper_d * UPPER * SLEEVE[0], d.upper_d, None))
-        cuts.append(({f'upper_arm_{tag}'}, d.shoulder + d.upper_d * UPPER * SLEEVE[1], d.upper_d, None))
+        cuts.append((lambda reg, c, tag=tag: reg == f'thigh_{tag}', d.hip + d.thigh_d * THIGH * SHORTS_HEM, d.thigh_d))
+        cuts.append((lambda reg, c, tag=tag: reg == f'shin_{tag}', d.ankle - d.shin_d * SOCK_H, d.shin_d))
+        for k in SLEEVE:
+            cuts.append((lambda reg, c, tag=tag: reg == f'upper_arm_{tag}', d.shoulder + d.upper_d * UPPER * k, d.upper_d))
     return cuts
 
 
 def face_material(r, region, c):
-    if region in ('torso', 'neck'):
-        v = c - r.N0
-        if np.dot(v, r.nd) > 0.012 and np.linalg.norm(v - r.nd * np.dot(v, r.nd)) < 0.085:
-            return 'skin'
-        if region == 'neck':
-            return 'jersey'
+    if region in ('torso', 'neck') and collar_skin(r, c):
+        return 'skin'
+    if region == 'neck':
+        return 'jersey'
+    if in_torso_zone(r, region, c):
         t = np.dot(c - r.H0, r.u)
         if t < T_WAIST:
             return 'shorts'
@@ -671,19 +701,14 @@ def face_material(r, region, c):
         return 'jersey'
     if region == 'head' or region.startswith('hand') or region.startswith('forearm'):
         return 'skin'
-    tag = region[-1]
-    d = r.side[tag]
+    d = r.side[region[-1]]
     if region.startswith('thigh'):
         return 'shorts' if np.dot(c - d.hip, d.thigh_d) / THIGH < SHORTS_HEM else 'skin'
     if region.startswith('shin'):
         return 'sock' if np.dot(c - d.ankle, d.shin_d) > -SOCK_H else 'skin'
     if region.startswith('upper_arm'):
         p = np.dot(c - d.shoulder, d.upper_d) / UPPER
-        if p < SLEEVE[0]:
-            return 'jersey'
-        if p < SLEEVE[1]:
-            return 'jersey_accent'
-        return 'skin'
+        return 'jersey_accent' if p < SLEEVE[1] else 'skin'
     return 'skin'
 
 
@@ -793,23 +818,31 @@ def build_amount(r, vc, nc, regions):
 
 def finalize_body(r, src, name, target_tris, prims):
     ob = copy_object(src, name)
-    decimate_to(ob, target_tris)
+    # Détail préservé sur le visage et les mains (vus de près).
+    vc0 = to_client_arr(np.array([v.co[:] for v in ob.data.vertices]))
+    reg0, _ = label_vertices(vc0, prims)
+    vg = ob.vertex_groups.new(name='protect')
+    for i, rg in enumerate(reg0):
+        w = 1.0 if rg == 'head' else 0.5 if rg.startswith('hand') else 0.0
+        if w:
+            vg.add([i], w, 'REPLACE')
+    decimate_to(ob, target_tris, 'protect')
     me = ob.data
     # Coupes nettes aux ourlets (maillot, cuissard, manches, chaussettes, bande d'accent, col).
     bm = bmesh.new()
     bm.from_mesh(me)
-    for regs, co, no, cond in body_cuts(r):
+    for pred, co, no in body_cuts(r):
         bm.verts.ensure_lookup_table()
+        bm.verts.index_update()
         vc = to_client_arr(np.array([v.co[:] for v in bm.verts]))
         regions, _ = label_vertices(vc, prims)
         sel = []
         for f in bm.faces:
             rr = [regions[v.index] for v in f.verts]
             reg = max(set(rr), key=rr.count)
-            if reg in regs:
-                c = np.mean([vc[v.index] for v in f.verts], axis=0)
-                if cond is None or cond(c):
-                    sel.append(f)
+            c = np.mean([vc[v.index] for v in f.verts], axis=0)
+            if pred(reg, c):
+                sel.append(f)
         if not sel:
             continue
         geom = set(sel)
@@ -874,7 +907,7 @@ def bisect_keep(ob, co, no):
 def build_hair(r):
     mb = MB()
     H = r.H
-    v, f, _ = ellipsoid(H(0, 0.0, -0.005), (r.xh, r.uh, r.fh), (0.083, 0.104, 0.108), 28, 16)
+    v, f, _ = ellipsoid(H(0, 0.0, -0.005), (r.xh, r.uh, r.fh), (0.083, 0.104, 0.108), 20, 12)
     mb.add(v, f, 'hair')
     ob = mb.build('rider_hair')
     a, b = H(0, 0.05, 0.1), H(0, -0.068, -0.1)
@@ -894,10 +927,10 @@ def build_hair(r):
 def build_helmet(r):
     H = r.H
     hx = (r.xh, r.uh, r.fh)
-    cen = H(0, 0.028, -0.012)
-    rad = (0.099, 0.104, 0.136)
+    cen = H(0, 0.03, -0.016)
+    rad = (0.099, 0.097, 0.14)
     mb = MB()
-    v, f, _ = ellipsoid(cen, hx, rad, 36, 18)
+    v, f, _ = ellipsoid(cen, hx, rad, 30, 15)
     # Queue effilée vers l'arrière.
     vv = []
     for p in v:
@@ -906,7 +939,7 @@ def build_helmet(r):
         fw = np.dot(q, r.fh)
         up = np.dot(q, r.uh)
         k = float(smoothstep(-0.06, -0.136, fw))
-        p = p - r.fh * 0.02 * k - r.uh * 0.01 * k * float(up < 0.02)
+        p = p - r.fh * 0.03 * k - r.uh * 0.012 * k * float(up < 0.02)
         vv.append(p.tolist())
     mb.add(vv, f, 'helmet')
     ob = mb.build('rider_helmet')
@@ -921,15 +954,15 @@ def build_helmet(r):
     apply_modifiers(ob)
     # Aérations : découpe booléenne par des ellipsoïdes orientés selon la normale du casque.
     cm = MB()
-    for xx, fw in ((0.03, 0.065), (-0.03, 0.065), (0.032, -0.015), (-0.032, -0.015), (0.068, 0.03), (-0.068, 0.03),
-                   (0.062, -0.055), (-0.062, -0.055), (0.0, 0.02), (0.03, -0.085), (-0.03, -0.085)):
+    for xx, fw in ((0.022, 0.07), (-0.022, 0.07), (0.058, 0.05), (-0.058, 0.05), (0.0, 0.02), (0.035, 0.0), (-0.035, 0.0),
+                   (0.074, -0.015), (-0.074, -0.015), (0.0, -0.07), (0.04, -0.07), (-0.04, -0.07)):
         q = 1 - (xx / rad[0]) ** 2 - ((fw + 0.0) / rad[2]) ** 2
         up = rad[1] * math.sqrt(max(q, 0.05))
         p = cen + r.xh * xx + r.uh * up + r.fh * fw
         n = nrm(r.xh * xx / rad[0] ** 2 + r.uh * up / rad[1] ** 2 + r.fh * fw / rad[2] ** 2)
         lat = nrm(r.xh - n * np.dot(r.xh, n))
         ln = np.cross(n, lat)
-        vv, ff, _ = ellipsoid(p, (lat, n, ln), (0.0105, 0.045, 0.03), 12, 8)
+        vv, ff, _ = ellipsoid(p, (lat, n, ln), (0.009, 0.045, 0.036), 12, 8)
         cm.add(vv, ff, 'helmet_detail')
     cut = cm.build('helmet_cutter')
     bo = ob.modifiers.new('vents', 'BOOLEAN')
@@ -937,8 +970,8 @@ def build_helmet(r):
     bo.solver = 'EXACT'
     bo.object = cut
     apply_modifiers(ob)
-    bpy.data.objects.remove(cut)
-    decimate_to(ob, 1500)
+    remove_obj(cut)
+    decimate_to(ob, 1050)
     # Matériaux : coque extérieure = couleur du casque, intérieur / tranches / aérations = sombre.
     me = ob.data
     me.materials.clear()
@@ -955,8 +988,8 @@ def build_helmet(r):
     sb = MB()
     for s in (1, -1):
         for start in (H(0.088 * s, -0.012, 0.035), H(0.09 * s, -0.022, -0.05)):
-            pth = catmull([start, H(0.07 * s, -0.075, -0.004), H(0.032 * s, -0.122, 0.05), H(0.0, -0.128, 0.052)], 3)
-            v2, f2, _ = loft(pth, 0.0075, 0.0018, r.xh * s, n=6)
+            pth = catmull([start, H(0.07 * s, -0.075, -0.004), H(0.032 * s, -0.122, 0.05), H(0.0, -0.128, 0.052)], 2)
+            v2, f2, _ = loft(pth, 0.0075, 0.0018, r.xh * s, n=4)
             sb.add(v2, f2, 'helmet_detail')
     straps = sb.build('straps')
     return join_into(ob, [straps])
@@ -970,7 +1003,7 @@ def join_into(ob, others):
     name = ob.name
     sharp_src = ob
     for o in [ob] + others:
-        bpy.data.objects.remove(o)
+        remove_obj(o)
     new = mb.build(name, recalc=False)
     shade(new, 50)
     return new
@@ -979,9 +1012,9 @@ def join_into(ob, others):
 def build_glasses(r):
     H = r.H
     mb = MB()
-    nphi = 26
+    nphi = 18
     phis = np.linspace(-math.radians(80), math.radians(80), nphi)
-    rows = 5
+    rows = 3
     verts = []
     for ph in phis:
         hmin = -0.034 + 0.02 * math.exp(-(ph / 0.22) ** 2)
@@ -1002,13 +1035,13 @@ def build_glasses(r):
     apply_modifiers(lens)
     fb = MB()
     top = [H(math.sin(ph) * 0.0875, 0.0185, math.cos(ph) * 0.1205 - 0.012 * (0.0185 / 0.03) ** 2 - 0.004) for ph in phis]
-    v, f, _ = loft(top, 0.0045, 0.003, r.uh, n=8)
+    v, f, _ = loft(top, 0.0045, 0.003, r.uh, n=5)
     fb.add(v, f, 'glasses_frame')
     for s in (1, -1):
         ph = math.radians(80) * s
         st = H(math.sin(ph) * 0.087, 0.008, math.cos(ph) * 0.12 - 0.006)
-        pth = catmull([st, H(0.085 * s, 0.006, -0.02), H(0.081 * s, -0.006, -0.065)], 3)
-        v, f, _ = loft(pth, 0.006, 0.0022, r.xh * s, n=6)
+        pth = catmull([st, H(0.085 * s, 0.006, -0.02), H(0.081 * s, -0.006, -0.065)], 2)
+        v, f, _ = loft(pth, 0.006, 0.0022, r.xh * s, n=4)
         fb.add(v, f, 'glasses_frame')
     fr = fb.build('gframe')
     ob = join_into(lens, [fr])
@@ -1033,18 +1066,18 @@ def build_shoes(r):
         path = [T(V(0, (bot[i] + top[i]) / 2, zs[i])) for i in range(len(zs))]
         ry = [(top[i] - bot[i]) / 2 for i in range(len(zs))]
         pth = catmull(path, 2)
-        v, f, _ = loft(pth, resample(hw, 2), resample(ry, 2), rotx(V(0, 1, 0), REST_PITCH), n=14, expo=2.8)
+        v, f, _ = loft(pth, resample(hw, 2), resample(ry, 2), rotx(V(0, 1, 0), REST_PITCH), n=10, expo=2.8)
         mb.add(v, f, 'shoe')
         # Semelle rigide.
-        sp = catmull([T(V(0, 0.0125, z)) for z in zs[:-1]] + [T(V(0, 0.018, zs[-1] - 0.002))], 2)
-        v, f, _ = loft(sp, resample([w + 0.002 for w in hw[:-1]] + [hw[-1]], 2), 0.0048, rotx(V(0, 1, 0), REST_PITCH), n=10, expo=4)
+        sp = [T(V(0, 0.0125, z)) for z in zs[:-1]] + [T(V(0, 0.018, zs[-1] - 0.002))]
+        v, f, _ = loft(sp, [w + 0.002 for w in hw[:-1]] + [hw[-1]], 0.0048, rotx(V(0, 1, 0), REST_PITCH), n=8, expo=4)
         mb.add(v, f, 'shoe_sole')
         # Cale.
         v, f = box(T(V(0, 0.0105, 0.005)), (0.026, 0.004, 0.032), (V(1, 0, 0), rotx(V(0, 1, 0), REST_PITCH), rotx(V(0, 0, 1), REST_PITCH)))
         mb.add(v, f, 'components')
         # Molette de serrage.
         dial = T(V(0.0, 0.101, -0.07))
-        v, f, _ = loft([dial - rotx(V(0, 0.006, 0), REST_PITCH), dial + rotx(V(0, 0.006, 0), REST_PITCH)], 0.014, 0.014, V(1, 0, 0), n=10)
+        v, f, _ = loft([dial - rotx(V(0, 0.006, 0), REST_PITCH), dial + rotx(V(0, 0.006, 0), REST_PITCH)], 0.014, 0.014, V(1, 0, 0), n=8)
         mb.add(v, f, 'shoe_sole')
     ob = mb.build('rider_shoes')
     shade(ob, 45)
@@ -1175,9 +1208,9 @@ def build_bike_parts(g, lod=0):
             V(0.2, 0.752, 0.585), V(0.2, 0.745, 0.545), V(0.2, 0.745, 0.49)]
     other = [p * V(-1, 1, 1) for p in half[1:]]
     full = list(reversed(other)) + half
-    per = 3 if lod == 0 else 1
+    per = 2 if lod == 0 else 1
     pth = catmull(full, per)
-    v, f, _ = loft(pth, 0.0125, 0.0125, V(0, 1, 0.3), n=8 if lod == 0 else 5)
+    v, f, _ = loft(pth, 0.0125, 0.0125, V(0, 1, 0.3), n=6 if lod == 0 else 4)
     mb.add(v, f, 'components')
     for s in (1, -1):
         # Cocotte (corps de levier) + lame de frein.
@@ -1186,14 +1219,14 @@ def build_bike_parts(g, lod=0):
         mb.add(v, f, 'components')
         if lod == 0:
             lever = catmull([V(0.2 * s, 0.892, 0.645), V(0.2 * s, 0.85, 0.656), V(0.2 * s, 0.8, 0.653), V(0.2 * s, 0.77, 0.641)], 2)
-            v, f, _ = loft(lever, 0.0055, 0.009, V(0, 0, 1), n=6)
-            mb.add(v, f, 'chrome')
+            v, f, _ = loft(lever, 0.0055, 0.009, V(0, 0, 1), n=5)
+            mb.add(v, f, 'components')
     # Selle.
     S = [(-0.335, 0.045, 0.952, 0.935), (-0.325, 0.066, 0.958, 0.93), (-0.29, 0.07, 0.96, 0.928), (-0.245, 0.06, 0.957, 0.928),
          (-0.19, 0.04, 0.953, 0.93), (-0.14, 0.024, 0.952, 0.932), (-0.09, 0.02, 0.953, 0.934), (-0.062, 0.012, 0.95, 0.937)]
     sp = catmull([V(0, (s[2] + s[3]) / 2, s[0]) for s in S], 2 if lod == 0 else 1)
     k = 2 if lod == 0 else 1
-    v, f, _ = loft(sp, resample([s[1] for s in S], k), resample([(s[2] - s[3]) / 2 for s in S], k), V(0, 1, 0), n=16 if lod == 0 else 8, expo=3.0)
+    v, f, _ = loft(sp, resample([s[1] for s in S], k), resample([(s[2] - s[3]) / 2 for s in S], k), V(0, 1, 0), n=12 if lod == 0 else 6, expo=3.0)
     mb.add(v, f, 'components')
     # Tige de selle + chariot + rails.
     sp_top = BB + g.st_dir * ((0.915 - BB[1]) / g.st_dir[1])
@@ -1204,7 +1237,7 @@ def build_bike_parts(g, lod=0):
         mb.add(v, f, 'components')
         for s in (1, -1):
             rail = catmull([V(0.03 * s, 0.933, -0.31), V(0.034 * s, 0.914, -0.25), V(0.033 * s, 0.914, -0.15), V(0.016 * s, 0.934, -0.085)], 2)
-            v, f, _ = loft(rail, 0.0035, 0.0035, V(0, 1, 0), n=6)
+            v, f, _ = loft(rail, 0.0035, 0.0035, V(0, 1, 0), n=4)
             mb.add(v, f, 'chrome')
     # Transmission : chaîne, dérailleur arrière (fixes).
     if lod == 0:
@@ -1239,7 +1272,7 @@ def build_bike_parts(g, lod=0):
             nb = -nb
         b0 = BB + dt * 0.14 + nb * 0.06
         bottle = [b0 + dt * t for t in (0.0, 0.01, 0.06, 0.15, 0.17, 0.185, 0.2)]
-        v, f, _ = loft(bottle, [0.02, 0.035, 0.036, 0.036, 0.03, 0.012, 0.01], [0.02, 0.035, 0.036, 0.036, 0.03, 0.012, 0.01], X, n=12)
+        v, f, _ = loft(bottle, [0.02, 0.035, 0.036, 0.036, 0.03, 0.012, 0.01], [0.02, 0.035, 0.036, 0.036, 0.03, 0.012, 0.01], X, n=10)
         mb.add(v, f, 'components')
     ob = mb.build('parts')
     return ob
@@ -1247,18 +1280,18 @@ def build_bike_parts(g, lod=0):
 
 def build_wheel(name, axle, front, lod=0):
     mb = MB()
-    n = 40 if lod == 0 else 20
-    tire = [(0.3225 + 0.0125 * math.cos(a), 0.0125 * math.sin(a)) for a in np.linspace(0, 2 * math.pi, 9)[:-1]]
+    n = 36 if lod == 0 else 18
+    tire = [(0.3225 + 0.0125 * math.cos(a), 0.0125 * math.sin(a)) for a in np.linspace(0, 2 * math.pi, 7)[:-1]]
     v, f = lathe(tire, n)
     mb.add(v, f, 'tire')
-    rim = [(0.312, 0.0125), (0.30, 0.0142), (0.285, 0.0136), (0.272, 0.0105), (0.266, 0.005), (0.264, 0.0),
-           (0.266, -0.005), (0.272, -0.0105), (0.285, -0.0136), (0.30, -0.0142), (0.312, -0.0125)]
+    rim = [(0.312, 0.0125), (0.296, 0.0142), (0.278, 0.0125), (0.266, 0.006), (0.266, -0.006), (0.278, -0.0125),
+           (0.296, -0.0142), (0.312, -0.0125)]
     if lod:
         rim = rim[::2]
     v, f = lathe(rim, n)
     mb.add(v, f, 'rim')
     hub = [(0.008, 0.062), (0.016, 0.055), (0.03, 0.03), (0.017, 0.026), (0.017, -0.026), (0.03, -0.03), (0.016, -0.055), (0.008, -0.062)]
-    v, f = lathe(hub, 16 if lod == 0 else 8, closed=True)
+    v, f = lathe(hub, 12 if lod == 0 else 6, closed=True)
     mb.add(v, f, 'components')
     if lod == 0:
         ns = 20 if front else 24
@@ -1273,16 +1306,16 @@ def build_wheel(name, axle, front, lod=0):
         # Disque de frein (gauche) et cassette (droite, roue arrière).
         rr = 0.08 if front else 0.07
         disc = [(0.05, 0.051), (rr, 0.051), (rr, 0.049), (0.05, 0.049)]
-        v, f = lathe(disc, 32)
+        v, f = lathe(disc, 24)
         mb.add(v, f, 'chrome')
         if not front:
             cas = []
-            radii = [0.05, 0.046, 0.042, 0.038, 0.034, 0.031, 0.028, 0.025]
+            radii = [0.05, 0.043, 0.036, 0.029]
             for i, rc in enumerate(radii):
-                x = -0.034 - i * 0.0038
-                cas += [(rc, x), (rc, x - 0.0022), (rc - 0.006, x - 0.0022)]
+                x = -0.034 - i * 0.0075
+                cas += [(rc, x), (rc, x - 0.004)]
             cas = [(0.012, -0.03)] + cas + [(0.012, cas[-1][1])]
-            v, f = lathe(cas, 24, closed=True)
+            v, f = lathe(cas, 20, closed=True)
             mb.add(v, f, 'chrome')
     # Coordonnées locales (origine = axe) → objet placé à l'axe.
     ob = mb.build(name)
@@ -1296,7 +1329,7 @@ def build_crankset(lod=0):
     n = 36 if lod == 0 else 16
     # Plateau dentelé (grand) et petit plateau.
     if lod == 0:
-        teeth = 36
+        teeth = 30
         pts_o = []
         for k in range(teeth * 2):
             a = math.pi * k / teeth
@@ -1321,7 +1354,7 @@ def build_crankset(lod=0):
     else:
         v, f = lathe([(0.086, -0.043), (0.103, -0.043), (0.103, -0.047), (0.086, -0.047)], n)
         mb.add(v, f, 'chrome')
-    v, f = lathe([(0.068, -0.037), (0.08, -0.037), (0.08, -0.04), (0.068, -0.04)], n)
+    v, f = lathe([(0.068, -0.037), (0.08, -0.037), (0.08, -0.04), (0.068, -0.04)], 24 if lod == 0 else 12)
     mb.add(v, f, 'components')
     # Araignée.
     for k in range(4):
@@ -1364,15 +1397,15 @@ def build_pedal(tag, lod=0):
 
 def build_bike(lod=0):
     g = bike_geometry()
-    frame = build_frame(g, 0.0025 if lod == 0 else 0.004, 2600 if lod == 0 else 650)
+    frame = build_frame(g, 0.0025 if lod == 0 else 0.004, 1500 if lod == 0 else 420)
     parts = build_bike_parts(g, lod)
     vs, fs, ms = mesh_arrays(frame)
     mb = MB()
     mb.add_bl(vs, fs, ms)
     vs, fs, ms = mesh_arrays(parts)
     mb.add_bl(vs, fs, ms)
-    bpy.data.objects.remove(frame)
-    bpy.data.objects.remove(parts)
+    remove_obj(frame)
+    remove_obj(parts)
     fr = mb.build('frame', recalc=False)
     shade(fr, 50)
     objs = [fr,
@@ -1482,8 +1515,8 @@ def main():
     print('body remesh tris', tri_count(raw))
     ao = build_armature(r)
     body0 = finalize_body(r, raw, 'rider_body', LOD0_BODY_TRIS, prims)
-    body1 = finalize_body(r, raw, 'rider_body_lod1', int(LOD0_BODY_TRIS * LOD1_RATIO), prims)
-    bpy.data.objects.remove(raw)
+    body1 = finalize_body(r, raw, 'rider_body_lod1', int(LOD0_BODY_TRIS * 0.2), prims)
+    remove_obj(raw)
 
     hair = build_hair(r)
     helmet = build_helmet(r)
@@ -1542,7 +1575,7 @@ def main():
 
     # --- LOD1 : on retire le LOD0 et on reprend les mêmes noms d'objets.
     for o in [body0] + acc0 + bike0:
-        bpy.data.objects.remove(o)
+        remove_obj(o)
     for o in [body1] + acc1:
         o.name = o.name.replace('_lod1', '')
         o.data.name = o.name

@@ -14,7 +14,7 @@ import { drawMap, RouteGeometry, type MapRider } from './map.ts';
 const SERVER = (import.meta.env.VITE_SERVER_URL as string | undefined) ?? (import.meta.env.DEV ? 'http://localhost:2567' : '');
 const API = SERVER ? `${SERVER}/api` : `${location.origin}/api`;
 const ENDPOINT = SERVER || `${location.origin}/colyseus`;
-const CAMERAS: CameraMode[] = ['chase', 'cockpit', 'drone', 'tv', 'photo'];
+const CAMERAS: CameraMode[] = ['chase', 'cockpit', 'gopro', 'drone', 'tv', 'photo'];
 
 let lang: Lang = detectLang();
 let t = STRINGS[lang];

@@ -349,6 +349,8 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     avatar.root.rotateX(-Math.atan(sample.grade / 100));
     avatar.update(dt, ride.inputs.cadence, ride.state.speedMs, ride.pose, bank);
     avatar.root.visible = rig.mode !== 'cockpit';
+    // Caméra embarquée : on garde le vélo et les bras, mais pas la tête dans le champ.
+    avatar.setHeadVisible(rig.mode !== 'gopro');
     peloton.render(dt, engine.camera);
 
     rig.update(dt, { position: pos, dir, distM: ride.state.distM, speedMs: ride.state.speedMs });
