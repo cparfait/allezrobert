@@ -484,6 +484,19 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     return res.text();
   };
   (window as unknown as { __ar: unknown }).__ar = { engine, world, ride, rig, track, peloton, input, finish, advance, hud, shot };
+  // Contrôle visuel du monde (?worldcheck=1, développement) : une capture tous les 500 m de l'itinéraire.
+  if (params.has('worldcheck')) {
+    void (async () => {
+      for (let d = 0; d < track.length; d += 500) {
+        ride.state.distM = d;
+        advance(0.2);
+        await new Promise((r) => setTimeout(r, 2500));
+        advance(0.2);
+        await shot(`worldcheck-${track.route.id}-${String(Math.round(d)).padStart(5, '0')}`);
+      }
+      hud.toast('Contrôle visuel terminé : docs/screenshots/worldcheck-*');
+    })();
+  }
 }
 
 boot().catch((err) => {

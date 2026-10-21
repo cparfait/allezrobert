@@ -146,11 +146,16 @@ function roofGeometry(b: Obb, eave: number, pitchDeg: number, hip: boolean): { r
   const build = (tris: Array<[number, number, number][]>, uvFor: (p: [number, number, number]) => [number, number]) => {
     const pos: number[] = [];
     const uvs: number[] = [];
-    for (const t of tris)
+    for (const t0 of tris) {
+      // Contrôle automatique : un pan de toit doit regarder vers le haut (sinon « toit inversé »).
+      const [a, b, c] = t0 as [[number, number, number], [number, number, number], [number, number, number]];
+      const ny = (b[2] - a[2]) * (c[0] - a[0]) - (b[0] - a[0]) * (c[2] - a[2]);
+      const t = ny < 0 ? [a, c, b] : t0;
       for (const p of t) {
         pos.push(...p);
         uvs.push(...uvFor(p));
       }
+    }
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
     g.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
