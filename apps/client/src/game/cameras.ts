@@ -28,6 +28,8 @@ export class CameraRig {
   /** Objets qui bloquent la vue (bâtiments) : la caméra TV cherche un plan dégagé. */
   occluders: THREE.Object3D[] = [];
   private readonly ray = new THREE.Raycaster();
+  private collideTick = 0;
+  private collideScale = 1;
 
   constructor(camera: THREE.PerspectiveCamera, track: RouteTrack, groundAt: (x: number, z: number) => number, dom: HTMLElement) {
     this.camera = camera;
@@ -75,6 +77,20 @@ export class CameraRig {
         desired.copy(t.position).addScaledVector(t.dir, -5.2).add(new THREE.Vector3(0, 2.1, 0));
         look.set(ahead.x, ahead.y + 1.0, ahead.z).lerp(t.position.clone().add(new THREE.Vector3(0, 1.1, 0)), 0.55);
         stiffness = 5;
+        // Collision : un mur entre le coureur et la caméra rapproche la caméra (une image sur trois).
+        if (this.occluders.length && (this.collideTick = (this.collideTick + 1) % 3) === 0) {
+          const head = t.position.clone().add(new THREE.Vector3(0, 1.3, 0));
+          const toCam = desired.clone().sub(head);
+          const len = toCam.length();
+          this.ray.set(head, toCam.normalize());
+          this.ray.far = len;
+          const hit = this.ray.intersectObjects(this.occluders, true)[0];
+          this.collideScale = hit ? Math.max(0.25, (hit.distance - 0.6) / len) : 1;
+        }
+        if (this.collideScale < 1) {
+          const head = t.position.clone().add(new THREE.Vector3(0, 1.3, 0));
+          desired.sub(head).multiplyScalar(this.collideScale).add(head);
+        }
         break;
       }
       case 'cockpit': {
