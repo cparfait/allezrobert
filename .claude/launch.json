@@ -20,6 +20,26 @@
         "dev"
       ],
       "port": 5180
+    },
+    {
+      "name": "server",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": [
+        "--filter",
+        "@allezrobert/server",
+        "dev"
+      ],
+      "port": 2567
+    },
+    {
+      "name": "companion",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": [
+        "--filter",
+        "@allezrobert/companion",
+        "dev"
+      ],
+      "port": 5174
     }
   ]
 }

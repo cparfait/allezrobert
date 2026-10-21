@@ -140,6 +140,13 @@ export function drawMap(canvas: HTMLCanvasElement, geo: RouteGeometry, riders: M
 
   // Coureurs (soi en dernier, au-dessus).
   const sorted = [...riders].sort((a, b2) => Number(a.self) - Number(b2.self));
+  // Étiquettes : soi d'abord, puis les autres seulement s'ils ne chevauchent pas une étiquette posée.
+  const labeled: Array<{ x: number; y: number }> = [];
+  const canLabel = (x: number, y: number): boolean => labeled.every((p) => Math.abs(p.x - x) > 70 || Math.abs(p.y - y) > 14);
+  if (self) {
+    const p = geo.at(self.distM, self.lateralM);
+    labeled.push({ x: px(p.x), y: pz(p.z) });
+  }
   for (const r of sorted) {
     const p = geo.at(r.distM, r.lateralM);
     const X = px(p.x);
@@ -153,7 +160,8 @@ export function drawMap(canvas: HTMLCanvasElement, geo: RouteGeometry, riders: M
     if (r.isGuest) ctx.setLineDash([3, 2]);
     ctx.stroke();
     ctx.setLineDash([]);
-    if (r.self || opts.follow) {
+    if (r.self || (opts.follow && canLabel(X, Z))) {
+      if (!r.self) labeled.push({ x: X, y: Z });
       ctx.font = '600 12px system-ui, sans-serif';
       ctx.fillStyle = '#fff';
       ctx.fillText(r.name, X + 11, Z - 8);

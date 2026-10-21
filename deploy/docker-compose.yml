@@ -29,6 +29,9 @@ x-server-env: &server-env
   RECONNECT_GRACE_S: ${RECONNECT_GRACE_S:-30}
   LOG_LEVEL: ${LOG_LEVEL:-info}
   RENDERS_DIR: /data/renders
+  # Itinéraires : ceux du bundle du jeu, copiés dans l'image serveur au même commit ; pour des
+  # itinéraires régénérés sans reconstruire, ROUTES_DIR=/data/worlds/chevreuse/routes (volume).
+  ROUTES_DIR: ${ROUTES_DIR:-/app/apps/client/public/worlds/chevreuse/routes}
 
 x-logging: &logging
   driver: json-file
@@ -53,6 +56,8 @@ services:
       ACME_EMAIL: ${ACME_EMAIL:-}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # Tuiles du monde générées par tools/terrain puis copiées sur le VPS (docs/DEPLOY.md §12)
+      - ${WORLDS_DIR:-./data/worlds}:/srv/worlds:ro
       - caddy_data:/data
       - caddy_config:/config
     depends_on:
@@ -69,6 +74,7 @@ services:
     environment: *server-env
     volumes:
       - renders:/data/renders
+      - ${WORLDS_DIR:-./data/worlds}:/data/worlds:ro
     expose:
       - "2567"
     depends_on:

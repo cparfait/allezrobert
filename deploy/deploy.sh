@@ -19,6 +19,12 @@ if grep -qE '^(SESSION_SECRET|DATA_ENCRYPTION_KEY|POSTGRES_PASSWORD|LIVEKIT_API_
   exit 1
 fi
 
+worlds="${WORLDS_DIR:-./data/worlds}"
+mkdir -p "$worlds" "${BACKUP_DIR:-./backups}"
+if [[ -z "$(ls -A "$worlds" 2>/dev/null)" ]]; then
+  echo "Attention : aucune tuile du monde dans $worlds (le relief ne s'affichera pas) : voir docs/DEPLOY.md §12."
+fi
+
 compose() { docker compose "$@"; }
 compose config -q
 

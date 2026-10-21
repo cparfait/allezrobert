@@ -27,3 +27,8 @@ docs/research/
 
 # Exports de test et rendus locaux
 out/
+
+# Déploiement : secrets, sauvegardes et tuiles du monde sur le VPS
+deploy/.env
+deploy/backups/
+deploy/data/

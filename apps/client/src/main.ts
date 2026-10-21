@@ -237,6 +237,15 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     if (e.key === 'c' || e.key === 'C') hud.toast(t(rig.cycle()));
     if (e.key === 'h' || e.key === 'H') hud.toggle();
     if (e.key === 'm' || e.key === 'M') audio.toggleMute();
+    if (e.key === 'p' || e.key === 'P') {
+      // Photo : rendu immédiat puis lecture du canvas (sans l'interface).
+      engine.renderManual();
+      const a = document.createElement('a');
+      a.href = engine.renderer.domElement.toDataURL('image/png');
+      a.download = `allez-robert-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.png`;
+      a.click();
+      hud.toast('📷');
+    }
     if (e.key === ' ' || e.key === 'Escape') {
       e.preventDefault();
       togglePause();

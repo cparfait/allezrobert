@@ -17,3 +17,4 @@ renders
 docs
 apps/desktop/src-tauri/target
 packages/sequences/out
+apps/client/public/worlds/*/tiles

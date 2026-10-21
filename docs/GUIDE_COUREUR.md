@@ -35,6 +35,7 @@ Le tutoriel (voix off, coupable) règle : la langue, ton profil (poids, taille, 
 | Espace / Échap | Pause (reprendre, terminer la sortie) |
 | H | Masquer l'interface |
 | M | Couper le son |
+| P | Photo (image PNG de la scène) |
 
 Le **HUD** affiche la puissance moyenne 3 s (couleur de zone), FC, cadence, vitesse, pente, temps, distance, D+, NP, aspiration, rapport, balance G/D, le profil de l'itinéraire et la mini-carte.
 

@@ -44,7 +44,9 @@ function wrapPool(pool: pg.Pool, kind: Db['kind']): Db {
 
 export async function createDb(databaseUrl: string, ssl = false): Promise<Db> {
   if (databaseUrl === 'memory') {
-    const { newDb } = await import('pg-mem');
+    const { newDb } = await import('pg-mem').catch(() => {
+      throw new Error('DATABASE_URL=memory nécessite pg-mem (dépendance de développement) : utiliser PostgreSQL');
+    });
     const mem = newDb({ autoCreateForeignKeyIndices: true });
     const adapter = mem.adapters.createPg();
     const pool = new adapter.Pool() as pg.Pool;

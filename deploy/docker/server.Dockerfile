@@ -17,7 +17,7 @@ COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
 RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store pnpm fetch --prod
 COPY . .
 RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
-    pnpm --filter @allezrobert/server --prod --offline deploy --legacy /out
+    pnpm --filter @allezrobert/server --prod --config.inject-workspace-packages=true deploy /out
 
 FROM node:22-bookworm-slim AS runtime
 ENV NODE_ENV=production PORT=2567 HOST=0.0.0.0 RENDERS_DIR=/data/renders \
