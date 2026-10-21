@@ -116,7 +116,7 @@ export class CameraRig {
           }
           this.initialized = false;
         }
-        desired.copy(this.tvSpot.pos);
+        if (this.tvSpot) desired.copy(this.tvSpot.pos);
         look.copy(t.position).add(new THREE.Vector3(0, 1, 0));
         stiffness = 50;
         // Zoom : focale plus serrée quand le coureur est loin.
