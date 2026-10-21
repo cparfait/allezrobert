@@ -25,6 +25,9 @@ export class CameraRig {
   private droneAngle = 0;
   private photo = { yaw: 0, pitch: 0.2, dist: 6 };
   private dragging = false;
+  /** Objets qui bloquent la vue (bâtiments) : la caméra TV cherche un plan dégagé. */
+  occluders: THREE.Object3D[] = [];
+  private readonly ray = new THREE.Raycaster();
 
   constructor(camera: THREE.PerspectiveCamera, track: RouteTrack, groundAt: (x: number, z: number) => number, dom: HTMLElement) {
     this.camera = camera;
@@ -75,7 +78,8 @@ export class CameraRig {
         break;
       }
       case 'cockpit': {
-        desired.copy(t.position).addScaledVector(t.dir, 0.25).add(new THREE.Vector3(0, 1.62, 0));
+        // Vue depuis la selle, devant la tête (l'avatar du joueur est masqué dans ce mode).
+        desired.copy(t.position).addScaledVector(t.dir, 0.55).add(new THREE.Vector3(0, 1.5, 0));
         const ahead = this.track.sample(t.distM + 25);
         look.set(ahead.x, ahead.y + 1.2, ahead.z);
         stiffness = 14;
@@ -92,10 +96,24 @@ export class CameraRig {
       case 'tv': {
         // Plan fixe en bord de route, 60 à 90 m devant ; on change quand le coureur l'a dépassé.
         if (!this.tvSpot || t.distM > this.tvSpot.untilD) {
-          const d = t.distM + 70 + Math.random() * 25;
-          const s = this.track.positionAt(d, (Math.random() > 0.5 ? 1 : -1) * (7 + Math.random() * 5));
-          const y = this.ground(s.x, s.z, s.y) + 1.6 + Math.random() * 2.5;
-          this.tvSpot = { pos: new THREE.Vector3(s.x, y, s.z), untilD: d + 15 };
+          // Plusieurs emplacements candidats ; on garde le premier qui voit la route sans bâtiment devant.
+          for (let attempt = 0; attempt < 10; attempt++) {
+            const d = t.distM + 55 + Math.random() * 40;
+            const side = attempt % 2 ? 1 : -1;
+            const s = this.track.positionAt(d, side * (6 + Math.random() * 6));
+            const y = this.ground(s.x, s.z, s.y) + 1.6 + Math.random() * 2.5 + attempt * 0.8;
+            const pos = new THREE.Vector3(s.x, y, s.z);
+            const road = this.track.positionAt(d - 25, 0);
+            const dir = new THREE.Vector3(road.x, road.y + 1, road.z).sub(pos);
+            const len = dir.length();
+            this.ray.set(pos, dir.normalize());
+            this.ray.far = len;
+            const blocked = this.occluders.length > 0 && this.ray.intersectObjects(this.occluders, true).length > 0;
+            if (!blocked || attempt === 9) {
+              this.tvSpot = { pos, untilD: d + 15 };
+              break;
+            }
+          }
           this.initialized = false;
         }
         desired.copy(this.tvSpot.pos);

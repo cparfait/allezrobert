@@ -150,6 +150,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   const peloton = new Peloton(engine.scene, track, aiCount, startD, s.ftpWatts);
   const ghost = new Ghost(engine.scene, track, track.route.id, startD);
   const rig = new CameraRig(engine.camera, track, (x, z) => world.terrain.heightAt(x, z), engine.renderer.domElement);
+  rig.occluders = [world.buildings.group];
   const hud = new Hud(hudRoot, track, source.attribution);
   hud.ftp = s.ftpWatts;
   hud.setVisible(true);
@@ -269,6 +270,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     avatar.root.rotateY(heading);
     avatar.root.rotateX(-Math.atan(sample.grade / 100));
     avatar.update(dt, ride.inputs.cadence, ride.state.speedMs, ride.pose, bank);
+    avatar.root.visible = rig.mode !== 'cockpit';
     peloton.render(dt, engine.camera);
 
     rig.update(dt, { position: pos, dir, distM: ride.state.distM, speedMs: ride.state.speedMs });
