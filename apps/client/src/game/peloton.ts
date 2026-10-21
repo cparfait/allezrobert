@@ -65,6 +65,22 @@ export class Peloton {
   private readonly scene: THREE.Scene;
   private readonly draft = new DraftCalculator();
   private paceWkg = 2.6;
+  /**
+   * Équipiers (idée « rouler seul en semaine ») : allure imposée en % de la FTP du joueur,
+   * réglable en sortie ; null = le groupe suit l'allure du joueur.
+   */
+  paceFtpPct: number | null = null;
+  /** Ordre « ralentissez » : allure réduite jusqu'à cet instant (s de sortie). */
+  private slowUntil = 0;
+  private time = 0;
+  /** Équipier attendu (lâché) — pour l'affichage. */
+  waitingFor: string | null = null;
+  onWait?: (name: string | null) => void;
+
+  /** Ordre « ralentissez » : −15 % pendant une minute. */
+  slowDown(): void {
+    this.slowUntil = this.time + 60;
+  }
   private readonly sample = { x: 0, y: 0, z: 0, dirX: 1, dirZ: 0, grade: 0, d: 0 };
 
   constructor(scene: THREE.Scene, track: RouteTrack, count: number, startDistM: number, ftpRef: number) {
@@ -97,7 +113,7 @@ export class Peloton {
         // Départ groupé : en file indienne juste devant et derrière le joueur.
         state: createRiderState({ distM: startDistM + (i % 2 ? 1 : -1) * (2 + Math.floor(i / 2) * 2.2), speedMs: 0 }),
         lateral: ((i % 3) - 1) * 0.9 - 0.8,
-        ai: new AiRider({ id: `ai-${i}`, profile: PROFILES[i % PROFILES.length] as AiProfileName, ftpWatts: ftp, params, riderMassKg: massKg, seed: i * 7919 }),
+        ai: new AiRider({ id: `ai-${i}`, profile: PROFILES[i % PROFILES.length] as AiProfileName, ftpWatts: ftp, params, riderMassKg: massKg, seed: i * 7919, aggressiveness: 0.35 }),
         avatar,
         label,
         watts: 0,
@@ -116,11 +132,20 @@ export class Peloton {
    * @param player position et puissance du joueur (référence d'allure et d'aspiration)
    * @returns l'aspiration dont bénéficie le joueur (0–1)
    */
-  update(dt: number, player: { distM: number; lateral: number; speedMs: number; watts: number; massKg: number }): number {
+  update(dt: number, player: { distM: number; lateral: number; speedMs: number; watts: number; massKg: number; ftpWatts?: number }): number {
     if (!this.riders.length) return 0;
-    // Allure du groupe : W/kg du joueur, lissé sur ~20 s (le groupe roule « avec » lui).
-    const wkg = player.watts / Math.max(player.massKg, 1);
-    this.paceWkg += (Math.min(Math.max(wkg, 1.2), 5.5) - this.paceWkg) * Math.min(1, dt / 20);
+    this.time += dt;
+    // Allure : % de FTP imposé (équipiers) ou W/kg du joueur lissé sur ~20 s (le groupe roule « avec » lui).
+    const target = this.paceFtpPct !== null && player.ftpWatts ? (player.ftpWatts * this.paceFtpPct) / Math.max(player.massKg, 1) : player.watts / Math.max(player.massKg, 1);
+    this.paceWkg += (Math.min(Math.max(target, 1.2), 5.5) - this.paceWkg) * Math.min(1, dt / (this.paceFtpPct !== null ? 6 : 20));
+    // Équipier lâché (> 60 m derrière le joueur) : le groupe lève le pied pour l'attendre.
+    const dropped = this.riders.filter((r) => player.distM - r.state.distM > 60).sort((a, b) => a.state.distM - b.state.distM)[0];
+    const waiting = dropped?.name ?? null;
+    if (waiting !== this.waitingFor) {
+      this.waitingFor = waiting;
+      this.onWait?.(waiting);
+    }
+    const easing = (this.time < this.slowUntil ? 0.85 : 1) * (waiting ? 0.85 : 1);
 
     const all = [{ distM: player.distM, lateralM: player.lateral, speedMs: player.speedMs }, ...this.riders.map((r) => ({ distM: r.state.distM, lateralM: r.lateral, speedMs: r.state.speedMs }))];
     const factors = this.draft.compute(all);
@@ -139,7 +164,7 @@ export class Peloton {
           gradePercent: s.grade,
           speedMs: r.state.speedMs,
           // Élastique autour du joueur : on ralentit devant lui, on accélère derrière (sortie solo).
-          groupPaceWkg: this.paceWkg * (1 - THREE.MathUtils.clamp((r.state.distM - player.distM - 4) / 50, -0.3, 0.45)),
+          groupPaceWkg: this.paceWkg * easing * (1 - THREE.MathUtils.clamp((r.state.distM - player.distM - 4) / 50, -0.3, 0.45)),
           gapAheadM: ahead ? ahead.distM - r.state.distM - 1.8 : Infinity,
           speedAheadMs: ahead?.speedMs ?? r.state.speedMs,
           ...(ahead ? { lateralAheadM: ahead.lateral - r.lateral } : {}),
@@ -151,9 +176,12 @@ export class Peloton {
         dt,
       );
       r.watts = out.watts;
+      // En solo, personne ne file seul devant : au-delà de 40 m d'avance, l'équipier attend le groupe.
+      const leadM = r.state.distM - player.distM;
+      if (leadM > 40) r.watts = Math.min(r.watts, this.paceWkg * r.massKg * Math.max(0.2, 0.7 - (leadM - 40) / 200));
       r.cadence = out.cadence;
       r.pose = r.poseCtl.update({ watts: out.watts, cadence: out.cadence, gradePercent: s.grade, ftpWatts: r.ftp, speedMs: r.state.speedMs }, dt);
-      stepRider(r.state, { watts: out.watts, gradePercent: s.grade, params: r.ai.params, env, cdaFactor: 1 - r.draft }, dt);
+      stepRider(r.state, { watts: r.watts, gradePercent: s.grade, params: r.ai.params, env, cdaFactor: 1 - r.draft }, dt);
       const half = this.track.route.roadWidthM / 2 - 0.5;
       const targetLat = THREE.MathUtils.clamp((ahead?.lateral ?? -1) + out.lateralTargetM, -half, half);
       r.lateral += (targetLat - r.lateral) * Math.min(1, dt * 0.8);

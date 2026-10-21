@@ -167,6 +167,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   const aiCount = workout || mp ? 0 : Math.min(Math.max(s.aiRiders, 0), 19);
   const peloton = new Peloton(engine.scene, track, aiCount, startD, s.ftpWatts);
   const ghost = new Ghost(engine.scene, track, track.route.id, startD);
+  peloton.onWait = (name) => name && hud.toast(getLang() === 'fr' ? `On attend ${name}` : `Waiting for ${name}`);
   const rig = new CameraRig(engine.camera, track, (x, z) => world.terrain.heightAt(x, z), engine.renderer.domElement);
   rig.occluders = [world.buildings.group];
   // Public sur les côtes (une fois le terrain chargé autour du départ).
@@ -283,6 +284,15 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     if (e.key === 'c' || e.key === 'C') hud.toast(t(rig.cycle()));
     if (e.key === 'h' || e.key === 'H') hud.toggle();
     if (e.key === 'm' || e.key === 'M') audio.toggleMute();
+    // Équipiers : allure du groupe en % de FTP ([ / ]), ordre « ralentissez » (R).
+    if ((e.key === '[' || e.key === ']') && peloton.riders.length) {
+      peloton.paceFtpPct = Math.min(1.2, Math.max(0.5, (peloton.paceFtpPct ?? 0.75) + (e.key === ']' ? 0.05 : -0.05)));
+      hud.toast(`${getLang() === 'fr' ? 'Allure du groupe' : 'Group pace'} : ${Math.round(peloton.paceFtpPct * 100)} % FTP`);
+    }
+    if ((e.key === 'r' || e.key === 'R') && peloton.riders.length) {
+      peloton.slowDown();
+      hud.toast(getLang() === 'fr' ? '« Ralentissez ! »' : '“Ease up!”');
+    }
     if (e.key === 'p' || e.key === 'P') {
       // Photo : rendu immédiat puis lecture du canvas (sans l'interface).
       engine.renderManual();
@@ -318,7 +328,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
         // Prédiction locale + correction douce vers la position autoritaire du serveur.
         ride.draft = mp.selfDraft();
         ride.state.distM += mp.reconcile(ride.state.distM, dt);
-      } else ride.draft = peloton.update(dt, { distM: ride.state.distM, lateral: ride.lateral, speedMs: ride.state.speedMs, watts: ride.inputs.watts, massKg: s.massKg });
+      } else ride.draft = peloton.update(dt, { distM: ride.state.distM, lateral: ride.lateral, speedMs: ride.state.speedMs, watts: ride.inputs.watts, massKg: s.massKg, ftpWatts: s.ftpWatts });
     }
     remoteRiders = mp ? mp.render(dt, engine.camera) : [];
     track.positionAt(ride.state.distM, ride.lateral, sample);
