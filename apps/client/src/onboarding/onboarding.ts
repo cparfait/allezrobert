@@ -3,6 +3,7 @@ import { getLang, setLang, t } from '../i18n/index.ts';
 import type { DevicePanel } from '../ui/menu.ts';
 import { saveSettings, type Settings } from '../ui/settings.ts';
 import { VoiceOver } from './voice.ts';
+import { likenessFromPhoto } from './likeness.ts';
 
 const STEPS = ['welcome', 'profile', 'avatar', 'devices', 'gears'] as const;
 type Step = (typeof STEPS)[number];
@@ -89,7 +90,10 @@ export class Onboarding {
           <label class="field">${fr ? 'Bande du maillot' : 'Jersey stripe'}<input id="o-accent" type="color" value="${this.s.look.jerseyAccent}"/></label>
           <label class="field">${fr ? 'Casque' : 'Helmet'}<input id="o-helmet" type="color" value="${this.s.look.helmet}"/></label>
           <label class="field">Vélo<input id="o-bike" type="color" value="${this.s.look.bike}"/></label></div>
-          <p class="meta" style="color:var(--ar-muted);font-size:13px">${fr ? 'Ressemblance à partir d’une photo : proposée plus tard, avec ton accord explicite, traitement local.' : 'Photo likeness: offered later, with your explicit consent, processed locally.'}</p>`;
+          <div class="device" style="margin-top:12px"><div><b>${fr ? 'Ressemblance à partir d’une photo' : 'Likeness from a photo'}</b>
+            <div class="meta">${fr ? 'Teint et cheveux estimés sur ton ordinateur ; la photo n’est ni envoyée ni conservée. Uniquement une photo de toi.' : 'Skin and hair estimated on your computer; the photo is never uploaded nor stored. Only a photo of yourself.'}</div>
+            <label class="row" style="font-size:13px;margin-top:6px"><input type="checkbox" id="o-consent"/> ${fr ? 'J’accepte ce traitement local de ma photo' : 'I agree to this local processing of my photo'}</label></div>
+            <label class="btn small" id="o-photo-label" style="opacity:.5">${fr ? 'Choisir une photo' : 'Choose a photo'}<input id="o-photo" type="file" accept="image/*" hidden disabled/></label></div>`;
         break;
       case 'devices': {
         const list = this.devices.list();
@@ -170,6 +174,22 @@ export class Onboarding {
     $<HTMLInputElement>('o-build')?.addEventListener('input', (e) => (this.s.look = { ...this.s.look, build: Number((e.target as HTMLInputElement).value) }));
     this.root.querySelectorAll<HTMLButtonElement>('[data-skin]').forEach((b) => b.addEventListener('click', () => ((this.s.look = { ...this.s.look, skin: b.dataset.skin as string }), this.render())));
     this.root.querySelectorAll<HTMLButtonElement>('[data-hair]').forEach((b) => b.addEventListener('click', () => ((this.s.look = { ...this.s.look, hair: b.dataset.hair as string }), this.render())));
+    $<HTMLInputElement>('o-consent')?.addEventListener('change', (e) => {
+      const ok = (e.target as HTMLInputElement).checked;
+      const input = $<HTMLInputElement>('o-photo');
+      if (input) input.disabled = !ok;
+      const label = $<HTMLElement>('o-photo-label');
+      if (label) label.style.opacity = ok ? '1' : '.5';
+    });
+    $<HTMLInputElement>('o-photo')?.addEventListener('change', async (e) => {
+      const input = e.target as HTMLInputElement;
+      const f = input.files?.[0];
+      input.value = '';
+      if (!f || !$<HTMLInputElement>('o-consent')?.checked) return;
+      const l = await likenessFromPhoto(f);
+      this.s.look = { ...this.s.look, skin: l.skin, hair: l.hair };
+      this.render();
+    });
     $<HTMLSelectElement>('o-drive')?.addEventListener('change', (e) => (this.s.drivetrain = (e.target as HTMLSelectElement).value as Settings['drivetrain']));
     this.root.querySelectorAll<HTMLButtonElement>('[data-pair]').forEach((b) =>
       b.addEventListener('click', async () => {
