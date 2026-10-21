@@ -1,0 +1,36 @@
+[package]
+name = "allezrobert-desktop"
+version = "0.1.0"
+description = "Allez Robert ! — application Windows (Bluetooth LE, Wahoo Direct Connect, ANT+)"
+authors = ["Christophe Parfait"]
+edition = "2021"
+rust-version = "1.90"
+publish = false
+
+[lib]
+name = "allezrobert_desktop_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.7", features = [] }
+
+[dependencies]
+tauri = { version = "2.12", features = [] }
+tauri-plugin-log = "2.10"
+serde = { version = "1", features = ["derive"] }
+log = "0.4"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "net", "io-util", "time"] }
+futures = "0.3"
+uuid = "1"
+btleplug = "0.13"
+mdns-sd = "0.21"
+nusb = { version = "0.2", features = ["tokio"] }
+
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.62", features = ["Devices_Bluetooth", "Devices_Enumeration", "Foundation", "Foundation_Collections"] }
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+strip = true

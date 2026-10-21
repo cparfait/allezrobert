@@ -1,0 +1,26 @@
+node_modules/
+dist/
+build/
+.vite/
+coverage/
+*.log
+.env
+.env.*
+!.env.example
+# Données personnelles : jamais versionnées (dépôt public)
+data/garmin/
+data/cache/
+data/private/
+# Rust / Tauri
+apps/desktop/src-tauri/target/
+apps/desktop/src-tauri/gen/
+# Sorties de rendu
+out/
+renders/
+*.mp4
+!packages/sequences/**/*.mp4
+.DS_Store
+Thumbs.db
+
+# Analyse REA de Zwift / MyWhoosh : hors dépôt public en attendant décision
+docs/research/

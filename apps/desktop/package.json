@@ -1,0 +1,18 @@
+{
+  "name": "@allezrobert/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Allez Robert ! — application Windows (Tauri 2) : Bluetooth LE, Wahoo Direct Connect et ANT+ natifs",
+  "type": "module",
+  "scripts": {
+    "tauri": "tauri",
+    "dev": "tauri dev",
+    "build": "tauri build",
+    "icons": "node scripts/make-icon.mjs && tauri icon src-tauri/icons/source.png -o src-tauri/icons",
+    "check": "cargo check --manifest-path src-tauri/Cargo.toml",
+    "test": "cargo test --manifest-path src-tauri/Cargo.toml"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.12.4"
+  }
+}

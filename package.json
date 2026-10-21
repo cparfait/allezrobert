@@ -1,0 +1,26 @@
+{
+  "name": "allezrobert",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Allez Robert ! — simulateur de vélo d'intérieur multijoueur entre amis",
+  "type": "module",
+  "packageManager": "pnpm@10.33.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @allezrobert/client dev",
+    "dev:server": "pnpm --filter @allezrobert/server dev",
+    "build": "pnpm -r --filter=!@allezrobert/desktop build",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "pnpm -r typecheck",
+    "lint": "pnpm -r lint"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.5"
+  }
+}

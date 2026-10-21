@@ -1,0 +1,48 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Allez Robert !",
+  "version": "0.1.0",
+  "identifier": "fr.cparfait.allezrobert",
+  "build": {
+    "devUrl": "http://localhost:5173",
+    "frontendDist": "../../client/dist",
+    "beforeDevCommand": "pnpm --filter @allezrobert/client dev",
+    "beforeBuildCommand": "pnpm --filter @allezrobert/client build"
+  },
+  "app": {
+    "withGlobalTauri": false,
+    "windows": [
+      {
+        "label": "main",
+        "title": "Allez Robert !",
+        "width": 1920,
+        "height": 1080,
+        "minWidth": 1024,
+        "minHeight": 600,
+        "resizable": true,
+        "center": true
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["msi", "nsis"],
+    "category": "SportsGame",
+    "shortDescription": "Vélo d'intérieur multijoueur entre amis",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "windows": {
+      "webviewInstallMode": { "type": "downloadBootstrapper" },
+      "wix": { "language": "fr-FR" },
+      "nsis": { "languages": ["French"], "installMode": "currentUser" }
+    }
+  }
+}

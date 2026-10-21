@@ -1,0 +1,163 @@
+import * as THREE from 'three/webgpu';
+import { SkyMesh } from 'three/addons/objects/SkyMesh.js';
+import { CSMShadowNode } from 'three/addons/csm/CSMShadowNode.js';
+import type { QualitySettings } from '../engine/quality.ts';
+
+export type Season = 'spring' | 'summer' | 'autumn' | 'winter';
+
+export interface Weather {
+  /** Couverture nuageuse 0–1. */
+  clouds: number;
+  /** Pluie 0–1. */
+  rain: number;
+  /** Brouillard 0–1. */
+  fog: number;
+  /** Vent : vitesse (m/s) et direction d'où il vient (radians, 0 = nord). */
+  windMs: number;
+  windFrom: number;
+}
+
+export interface EnvironmentState {
+  /** Heure locale décimale (0–24). */
+  hour: number;
+  season: Season;
+  weather: Weather;
+}
+
+/** Date représentative par saison (jour de l'année) pour la course du soleil. */
+const SEASON_DAY: Record<Season, number> = { spring: 110, summer: 180, autumn: 290, winter: 355 };
+const LATITUDE = 48.7 * (Math.PI / 180);
+
+/** Position du soleil (élévation, azimut) pour la latitude de Chevreuse. */
+export function sunDirection(hour: number, season: Season, out = new THREE.Vector3()): THREE.Vector3 {
+  const day = SEASON_DAY[season];
+  const decl = -23.44 * (Math.PI / 180) * Math.cos(((2 * Math.PI) / 365) * (day + 10));
+  // Heure solaire ≈ heure locale − 1,5 h en été / − 0,9 h en hiver (France, longitude 2°E).
+  const solar = hour - (season === 'summer' || season === 'spring' ? 1.9 : 0.9);
+  const ha = ((solar - 12) / 12) * Math.PI;
+  const sinEl = Math.sin(LATITUDE) * Math.sin(decl) + Math.cos(LATITUDE) * Math.cos(decl) * Math.cos(ha);
+  const el = Math.asin(sinEl);
+  const cosAz = (Math.sin(decl) - Math.sin(el) * Math.sin(LATITUDE)) / (Math.cos(el) * Math.cos(LATITUDE));
+  let az = Math.acos(Math.min(Math.max(cosAz, -1), 1));
+  if (ha > 0) az = 2 * Math.PI - az;
+  // Repère : x est, z sud, y haut ; azimut depuis le nord dans le sens horaire.
+  out.set(Math.sin(az) * Math.cos(el), Math.sin(el), -Math.cos(az) * Math.cos(el));
+  return out;
+}
+
+interface Palette {
+  hemiSky: THREE.Color;
+  hemiGround: THREE.Color;
+  fog: THREE.Color;
+  sunColor: THREE.Color;
+}
+
+/** Couleurs de lumière selon l'élévation du soleil et la saison (voir ART_DIRECTION.md). */
+function palette(el: number, season: Season, weather: Weather): Palette {
+  const day = THREE.MathUtils.smoothstep(el, -0.08, 0.35);
+  const golden = 1 - THREE.MathUtils.smoothstep(el, 0.05, 0.4);
+  const night = 1 - THREE.MathUtils.smoothstep(el, -0.15, 0.02);
+  const sun = new THREE.Color().setRGB(1, 0.96, 0.9).lerp(new THREE.Color(1, 0.62, 0.32), golden * 0.85);
+  if (season === 'winter') sun.lerp(new THREE.Color(0.9, 0.95, 1), 0.25);
+  const sky = new THREE.Color('#9cc3ec').lerp(new THREE.Color('#ffb98a'), golden * 0.45).lerp(new THREE.Color('#0d1a2e'), night);
+  const groundTint: Record<Season, string> = { spring: '#6f7f45', summer: '#7a7448', autumn: '#7b5a35', winter: '#6b6b60' };
+  const ground = new THREE.Color(groundTint[season]).multiplyScalar(0.35 + 0.65 * day);
+  const fogBase: Record<Season, string> = { spring: '#dfe8ef', summer: '#e8e0cf', autumn: '#d9d2c3', winter: '#c9d1d6' };
+  const fog = new THREE.Color(fogBase[season]).lerp(new THREE.Color('#f2b483'), golden * 0.35).lerp(new THREE.Color('#0b1220'), night * 0.95);
+  // Météo couverte : lumière plus grise et plus diffuse.
+  const overcast = Math.max(weather.clouds - 0.4, 0) / 0.6;
+  sun.lerp(new THREE.Color('#c8ccd2'), overcast * 0.6);
+  sky.lerp(new THREE.Color('#a9b2bc').multiplyScalar(0.4 + 0.6 * day), overcast * 0.5);
+  fog.lerp(new THREE.Color('#b9c0c7').multiplyScalar(0.3 + 0.7 * day), Math.max(overcast, weather.fog) * 0.6);
+  return { hemiSky: sky, hemiGround: ground, fog, sunColor: sun };
+}
+
+/**
+ * Ciel physique (SkyMesh avec nuages), soleil avec ombres en cascade (CSM), lumière
+ * d'ambiance hémisphérique et brume atmosphérique. Piloté par l'heure, la saison et la météo.
+ */
+export class Environment {
+  readonly sky: SkyMesh;
+  readonly sun: THREE.DirectionalLight;
+  readonly hemi: THREE.HemisphereLight;
+  readonly fog: THREE.FogExp2;
+  state: EnvironmentState;
+  private csm: CSMShadowNode | null = null;
+  private readonly sunDir = new THREE.Vector3();
+  private readonly scene: THREE.Scene;
+
+  constructor(scene: THREE.Scene, q: QualitySettings, state: EnvironmentState) {
+    this.scene = scene;
+    this.state = state;
+    this.sky = new SkyMesh();
+    this.sky.scale.setScalar(450000);
+    this.sky.turbidity.value = 3.2;
+    this.sky.rayleigh.value = 1.6;
+    this.sky.mieCoefficient.value = 0.004;
+    this.sky.mieDirectionalG.value = 0.82;
+    scene.add(this.sky);
+
+    this.sun = new THREE.DirectionalLight(0xffffff, 3.2);
+    this.sun.castShadow = true;
+    scene.add(this.sun);
+    scene.add(this.sun.target);
+
+    this.hemi = new THREE.HemisphereLight(0xbfd8ff, 0x5b5a3a, 1.1);
+    scene.add(this.hemi);
+
+    this.fog = new THREE.FogExp2(0xdfe8ef, 0.00018);
+    scene.fog = this.fog;
+    this.applyQuality(q);
+    this.update(0);
+  }
+
+  applyQuality(q: QualitySettings): void {
+    this.sun.shadow.mapSize.set(q.shadowMapSize, q.shadowMapSize);
+    this.sun.shadow.bias = -0.0003;
+    this.sun.shadow.normalBias = 0.04;
+    this.csm?.dispose();
+    this.csm = new CSMShadowNode(this.sun, { cascades: q.shadowCascades, maxFar: q.shadowFar, mode: 'practical', lightMargin: 120 });
+    this.csm.fade = true;
+    this.sun.shadow.shadowNode = this.csm;
+  }
+
+  /** Avance l'environnement ; `focus` = position du coureur suivi (pour cadrer le soleil). */
+  update(_dt: number, focus?: THREE.Vector3): void {
+    const { hour, season, weather } = this.state;
+    sunDirection(hour, season, this.sunDir);
+    const el = Math.asin(this.sunDir.y);
+    const pal = palette(el, season, weather);
+
+    this.sky.sunPosition.value.copy(this.sunDir);
+    this.sky.cloudCoverage.value = 0.15 + weather.clouds * 0.75;
+    this.sky.cloudDensity.value = 0.25 + weather.clouds * 0.6;
+    this.sky.turbidity.value = 2.5 + weather.fog * 6 + weather.clouds * 3;
+
+    // Le soleil passe sous l'horizon : la lune prend le relais (lumière froide et faible).
+    const isNight = this.sunDir.y < -0.02;
+    const lightDir = isNight ? new THREE.Vector3(-this.sunDir.x, 0.6, -this.sunDir.z).normalize() : this.sunDir;
+    const center = focus ?? new THREE.Vector3();
+    this.sun.position.copy(center).addScaledVector(lightDir, 400);
+    this.sun.target.position.copy(center);
+    const sunStrength = THREE.MathUtils.smoothstep(this.sunDir.y, -0.05, 0.25);
+    const overcast = Math.max(weather.clouds - 0.3, 0) / 0.7;
+    this.sun.intensity = isNight ? 0.12 : (0.4 + 3.0 * sunStrength) * (1 - 0.7 * overcast);
+    this.sun.color.copy(isNight ? new THREE.Color('#9fb4ff') : pal.sunColor);
+    this.hemi.color.copy(pal.hemiSky);
+    this.hemi.groundColor.copy(pal.hemiGround);
+    this.hemi.intensity = 0.25 + 1.1 * THREE.MathUtils.smoothstep(this.sunDir.y, -0.2, 0.3) + overcast * 0.5;
+    this.fog.color.copy(pal.fog);
+    this.fog.density = 0.00012 + weather.fog * 0.0022 + weather.rain * 0.0004;
+  }
+
+  /** Exposition conseillée pour le tone mapping (plus forte la nuit pour rester lisible). */
+  exposure(): number {
+    const el = this.sunDir.y;
+    return el < 0 ? 1.6 : 1.0 + 0.35 * (1 - THREE.MathUtils.smoothstep(el, 0, 0.3));
+  }
+
+  dispose(): void {
+    this.scene.remove(this.sky, this.sun, this.hemi);
+    this.csm?.dispose();
+  }
+}

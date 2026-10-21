@@ -1,0 +1,18 @@
+{
+  "name": "@allezrobert/fit",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "devDependencies": {
+    "@garmin/fitsdk": "^21.218.0"
+  },
+  "dependencies": {
+    "@allezrobert/shared": "workspace:*"
+  }
+}

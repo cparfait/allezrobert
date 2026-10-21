@@ -1,0 +1,17 @@
+{
+  "name": "@allezrobert/devices",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@allezrobert/protocols": "workspace:*",
+    "@allezrobert/shared": "workspace:*",
+    "@tauri-apps/api": "^2.12.4"
+  }
+}
