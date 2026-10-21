@@ -220,6 +220,10 @@ class ManagerInputSource implements InputSource {
     this.shiftCbs.push(cb);
   }
 
+  onWarning(cb: (message: string) => void): void {
+    this.offs.push(this.manager.on('warning', (w) => cb(w.message)));
+  }
+
   status(): Array<{ label: string; state: 'ok' | 'warn' | 'off' }> {
     const list = this.manager.summaries().map((d) => ({
       label: `${d.transport === 'simulator' ? `${t('simulator')} · ` : ''}${d.name}${d.transport === 'simulator' && d.kinds.includes('trainer') ? ` · ${this.sim.riderPowerW} W (+/−)` : ''}`,

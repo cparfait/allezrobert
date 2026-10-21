@@ -180,6 +180,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   };
   keyboard.onShift(onShift);
   input.onShift(onShift);
+  input.onWarning?.((m) => hud.toast(m));
   const sequences = new RideSequences(document.getElementById('app') as HTMLElement, track);
   ride.onSegmentDone = (r) => {
     // Séquence HyperFrames (KOM / sprint) ; toast texte si les séquences sont coupées.

@@ -22,6 +22,8 @@ export interface InputSource {
   /** Ventilateur asservi (HEADWIND), 0–100 %. */
   setFan?(percent: number): void;
   onShift(cb: (a: ShiftAction) => void): void;
+  /** Alertes matériel à afficher pendant la sortie (Garmin qui pilote le trainer, Assioma…). */
+  onWarning?(cb: (message: string) => void): void;
   /** État lisible des appareils pour le HUD. */
   status(): Array<{ label: string; state: 'ok' | 'warn' | 'off' }>;
   dispose(): void;
