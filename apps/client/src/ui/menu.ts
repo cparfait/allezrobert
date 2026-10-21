@@ -38,6 +38,8 @@ export class MainMenu {
   private readonly cb: MenuCallbacks;
   private workoutFile: { name: string; content: string } | undefined;
   onSettingsChange?: (s: Settings) => void;
+  /** Relance le tutoriel (onboarding) depuis le menu. */
+  onTutorial?: () => void;
 
   constructor(root: HTMLElement, settings: Settings, routes: RouteData[], devices: DevicePanel, cb: MenuCallbacks) {
     this.root = root;
@@ -124,6 +126,7 @@ export class MainMenu {
           </div>
         </div>
         <div class="row" style="justify-content:flex-end;margin-top:22px">
+          <button id="m-tuto" class="btn">${getLang() === 'fr' ? 'Tutoriel' : 'Tutorial'}</button>
           <button id="m-start" class="btn primary" style="font-size:18px;padding:14px 34px">${t('ride')} →</button>
         </div>
       </div></div>`;
@@ -276,6 +279,7 @@ export class MainMenu {
       this.workoutFile = { name: f.name, content: await f.text() };
       $<HTMLElement>('m-wname').textContent = f.name;
     });
+    $<HTMLButtonElement>('m-tuto').addEventListener('click', () => this.onTutorial?.());
     $<HTMLButtonElement>('m-start').addEventListener('click', () => {
       const invite = $<HTMLInputElement>('m-invite').value.trim();
       this.cb.onStart(s, { ...(this.workoutFile ? { workoutFile: this.workoutFile } : {}), ...(invite ? { inviteCode: invite } : {}) });

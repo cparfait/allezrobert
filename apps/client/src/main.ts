@@ -21,6 +21,7 @@ import { loadSettings, saveSettings, type Settings } from './ui/settings.ts';
 import { MainMenu } from './ui/menu.ts';
 import { showPause, showSummary, rideToFit } from './ui/ridepanels.ts';
 import { splatAt } from './world/splat.ts';
+import { Onboarding, RideTutorial } from './onboarding/onboarding.ts';
 
 const ui = document.getElementById('ui') as HTMLElement;
 const hudRoot = document.getElementById('hud') as HTMLElement;
@@ -98,13 +99,21 @@ async function boot(): Promise<void> {
     env.weather.fog = s.fog;
     if (env.season !== s.season) scene.world.setSeason(s.season);
   };
+  menu.onTutorial = () => {
+    new Onboarding(ui, settings, devices.panel, (s) => {
+      inMenu = false;
+      ui.innerHTML = '';
+      void startRide(scene, s, devices.source(), { tutorial: true });
+    }).start();
+  };
   if (new URLSearchParams(location.search).has('autostart')) {
     inMenu = false;
     void startRide(scene, settings, devices.source(), {});
-  } else menu.show();
+  } else if (Onboarding.needed()) menu.onTutorial();
+  else menu.show();
 }
 
-async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras: { workoutFile?: { name: string; content: string }; inviteCode?: string }): Promise<void> {
+async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras: { workoutFile?: { name: string; content: string }; inviteCode?: string; tutorial?: boolean }): Promise<void> {
   const { engine, world, track, source } = scene;
   ui.innerHTML = '';
   const profile: RiderProfile = { id: 'local', displayName: s.name, massKg: s.massKg, heightCm: s.heightCm, ftpWatts: s.ftpWatts, bike: DEFAULT_BIKE };
@@ -155,7 +164,10 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   audio.start();
   audio.setVolume(s.volume);
 
+  const tutorial = extras.tutorial ? new RideTutorial() : null;
+  let shifted = false;
   const onShift = (a: string) => {
+    shifted = true;
     if (a === 'up') ride.shift(1);
     else if (a === 'down') ride.shift(-1);
     else if (a === 'frontUp') ride.shift(12);
@@ -215,6 +227,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     ride.update(dt, input, steer);
     if (!ride.paused) {
       ghost.update(dt, ride.elapsedS, ride.state.distM);
+      tutorial?.update({ shifted, gradePercent: ride.gradePercent, inSegment: !!ride.segment, draft: ride.draft, distM: ride.state.distM - startD });
       ride.draft = peloton.update(dt, { distM: ride.state.distM, lateral: ride.lateral, speedMs: ride.state.speedMs, watts: ride.inputs.watts, massKg: s.massKg });
     }
     track.positionAt(ride.state.distM, ride.lateral, sample);
