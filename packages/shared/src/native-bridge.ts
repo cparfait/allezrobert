@@ -18,10 +18,13 @@
  *   dircon_send({ connectionId, data })         -> void   (trame DirCon complète)
  *   dircon_close({ connectionId })              -> void
  *   ant_list_sticks()                           -> NativeAntStick[]
- *   ant_open({ stickId })                       -> void
+ *   ant_open({ stickId, networkKey? })          -> void   (networkKey : 8 octets, optionnel, issu de la configuration —
+ *                                                        jamais codé en dur : licence ANT+ ; absent → config de l'app desktop)
  *   ant_open_channel({ channel, deviceType, deviceNumber, transmissionType, period, rfFreq }) -> void
  *   ant_send({ channel, data, acknowledged })   -> void   (8 octets de charge utile)
  *   ant_close()                                 -> void
+ *   ant_close_channel({ channel })              -> void   (OPTIONNEL, proposé par `devices` : libère un canal de
+ *                                                        recherche ; appelé dans un try/catch, peut ne pas exister)
  *
  * Événements Tauri (listen) :
  *   "ble://discovered"   NativeDiscovered

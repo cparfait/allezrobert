@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "items": [
+    { "id": "jersey-club-bleu", "slot": "jersey", "name": { "fr": "Maillot du club (bleu)", "en": "Club jersey (blue)" }, "level": 1, "color": "#1f6feb" },
+    { "id": "jersey-chevreuse", "slot": "jersey", "name": { "fr": "Maillot vallée de Chevreuse", "en": "Chevreuse Valley jersey" }, "level": 2, "color": "#2e7d32" },
+    { "id": "jersey-saclay", "slot": "jersey", "name": { "fr": "Maillot plateau de Saclay", "en": "Saclay Plateau jersey" }, "level": 4, "color": "#f9a825" },
+    { "id": "jersey-rambouillet", "slot": "jersey", "name": { "fr": "Maillot forêt de Rambouillet", "en": "Rambouillet Forest jersey" }, "level": 6, "color": "#1b5e20" },
+    { "id": "jersey-pois", "slot": "jersey", "name": { "fr": "Maillot à pois de grimpeur", "en": "Climber's polka-dot jersey" }, "level": 10, "color": "#ffffff" },
+    { "id": "jersey-robert", "slot": "jersey", "name": { "fr": "Maillot « Allez Robert ! »", "en": "\"Allez Robert!\" jersey" }, "level": 20, "color": "#ffd23f" },
+    { "id": "helmet-blanc", "slot": "helmet", "name": { "fr": "Casque blanc", "en": "White helmet" }, "level": 1, "color": "#f4f4f4" },
+    { "id": "helmet-noir-mat", "slot": "helmet", "name": { "fr": "Casque noir mat", "en": "Matte black helmet" }, "level": 3, "color": "#222222" },
+    { "id": "helmet-aero", "slot": "helmet", "name": { "fr": "Casque aéro", "en": "Aero helmet" }, "level": 12, "color": "#c0392b" },
+    { "id": "bike-alu", "slot": "bike", "name": { "fr": "Vélo route aluminium", "en": "Aluminium road bike" }, "level": 1, "color": "#c0392b" },
+    { "id": "bike-carbone", "slot": "bike", "name": { "fr": "Vélo carbone", "en": "Carbon bike" }, "level": 8, "color": "#333333" },
+    { "id": "bike-acier-vintage", "slot": "bike", "name": { "fr": "Vélo acier vintage", "en": "Vintage steel bike" }, "level": 15, "color": "#2c6e91" },
+    { "id": "bike-grimpeur", "slot": "bike", "name": { "fr": "Vélo de grimpeur ultraléger", "en": "Ultralight climbing bike" }, "level": 25, "color": "#eeeeee" },
+    { "id": "wheels-alu", "slot": "wheels", "name": { "fr": "Roues aluminium", "en": "Aluminium wheels" }, "level": 1 },
+    { "id": "wheels-carbone-50", "slot": "wheels", "name": { "fr": "Roues carbone 50 mm", "en": "50 mm carbon wheels" }, "level": 9 },
+    { "id": "wheels-lenticulaire", "slot": "wheels", "name": { "fr": "Roue lenticulaire", "en": "Disc wheel" }, "level": 30 },
+    { "id": "socks-blanches", "slot": "socks", "name": { "fr": "Chaussettes blanches", "en": "White socks" }, "level": 1, "color": "#ffffff" },
+    { "id": "socks-tricolores", "slot": "socks", "name": { "fr": "Chaussettes tricolores", "en": "Tricolour socks" }, "level": 5 },
+    { "id": "glasses-classiques", "slot": "glasses", "name": { "fr": "Lunettes classiques", "en": "Classic glasses" }, "level": 2 },
+    { "id": "glasses-miroir", "slot": "glasses", "name": { "fr": "Lunettes miroir", "en": "Mirror glasses" }, "level": 7 }
+  ]
+}

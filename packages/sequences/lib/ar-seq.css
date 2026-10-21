@@ -1,0 +1,68 @@
+/*
+ * Styles communs aux compositions (en plus de tokens.css).
+ * Règle de performance : on n'anime que transform et opacity ; pas de backdrop-filter, pas de
+ * filtres animés, DOM minimal.
+ */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  width: 1920px;
+  height: 1080px;
+  overflow: hidden;
+  background: transparent;
+  color: var(--ar-fg);
+  font-family: var(--font);
+  -webkit-font-smoothing: antialiased;
+}
+
+[data-composition-id] {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* --- Faux décor de prévisualisation (variable preview_backdrop) --------------------------- */
+.ar-backdrop {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(180deg, rgba(10, 14, 22, 0) 58%, rgba(10, 14, 22, 0.35) 100%),
+    conic-gradient(from 180deg at 50% 62%, #3c3d40 0deg 18deg, transparent 18deg 342deg, #3c3d40 342deg) bottom / 100% 38% no-repeat,
+    linear-gradient(180deg, #7fb0e6 0%, #b9d3ee 45%, #e8e0cf 58%, #6b8e3a 60%, #4f7a32 100%);
+}
+
+/* --- Zones vitales du HUD (variable show_safe_zones) — géométrie de hud.css à 1080p ------- */
+.ar-safe-zones {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.ar-sz {
+  position: absolute;
+  border: 2px dashed rgba(239, 68, 68, 0.85);
+  background: rgba(239, 68, 68, 0.12);
+  border-radius: 10px;
+}
+
+.ar-sz span {
+  position: absolute;
+  left: 8px;
+  top: 4px;
+  font: 600 13px var(--font);
+  color: #fecaca;
+}
+
+.ar-sz-top { left: 560px; top: 0; width: 800px; height: 250px; }
+.ar-sz-left { left: 0; top: 0; width: 260px; height: 160px; }
+.ar-sz-map { left: 1660px; top: 0; width: 260px; height: 255px; }
+.ar-sz-riders { left: 1660px; top: 255px; width: 260px; height: 450px; }
+.ar-sz-gears { left: 0; top: 760px; width: 380px; height: 190px; }
+.ar-sz-profile { left: 0; top: 950px; width: 1920px; height: 130px; }

@@ -26,7 +26,12 @@ export interface BuiltRoute {
 const PLACE_KINDS = /^(village|town|hamlet|suburb|neighbourhood|locality|isolated_dwelling|quarter|city)$/;
 
 /** « de » à la française : de Chevreuse, d'Orsigny, du Mesnil, des Molières, de la Madeleine. */
+const MASC = /^(Carrefour|Bois|Moulin|Pont|Château|Mont|Val|Petit|Grand|Parc|Port|Trou|Christ|Domaine|Hameau|Clos|Champ|Chêne|Gué|Buisson|Pavillon|Rond-Point|Plateau|Village|Bout|Haut|Fond|Marais|Pré|Vieux|Fort|Moulin|Étang|Prieuré|Manoir|Mesnil|Plessis|Vivier)\b/;
+const FEM = /^(Plaine|Maison|Ferme|Croix|Mare|Butte|Forêt|Route|Vallée|Côte|Porte|Grange|Fontaine|Petite|Grande|Haute|Basse|Vieille|Tour|Chapelle|Garenne|Futaie|Queue|Lande|Source|Cour|Rue|Sente|Allée|Abbaye)\b/;
+
 export function frenchDe(name: string): string {
+  if (MASC.test(name)) return /^[AEIOUYÉÈÊÂÎÔ]/.test(name) ? `de l'${name}` : `du ${name}`;
+  if (FEM.test(name)) return /^[AEIOUYÉÈÊÂÎÔ]/.test(name) ? `de l'${name}` : `de la ${name}`;
   if (/^Le /.test(name)) return `du ${name.slice(3)}`;
   if (/^Les /.test(name)) return `des ${name.slice(4)}`;
   if (/^La /.test(name)) return `de la ${name.slice(3)}`;
@@ -61,7 +66,7 @@ function nearestPlace(pois: Poi[], x: number, z: number, maxD: number, exclude: 
 }
 
 /** Nom d'une côte : nom de rue explicite (« Côte de … ») sinon « Côte de <lieu> ». */
-function climbName(g: RoadGraph, edgeIds: number[], pois: Poi[], top: Pt, used: Set<string>): string {
+export function climbName(g: RoadGraph, edgeIds: number[], pois: Poi[], top: Pt, used: Set<string>): string {
   const byName = new Map<string, number>();
   for (const eid of edgeIds) {
     const e = g.edges[eid]!;
@@ -70,6 +75,9 @@ function climbName(g: RoadGraph, edgeIds: number[], pois: Poi[], top: Pt, used: 
   const named = [...byName.entries()].sort((a, b) => b[1] - a[1]);
   for (const [n] of named) {
     if (/^(Côte|Rampe|Montée|Grimpette)\b/i.test(n) && !used.has(n)) return n;
+    // voie nommée d'après ses lacets : « Route des 17 Tournants » → « Côte des 17 Tournants »
+    const m = /^(?:Route|Chemin|Rue|Avenue)\s+(des?\s.*(?:Tournants|Lacets|Virages).*)$/i.exec(n);
+    if (m && !used.has(`Côte ${m[1]}`)) return `Côte ${m[1]}`;
   }
   const excl = new Set<string>();
   for (let k = 0; k < 4; k++) {
@@ -82,7 +90,7 @@ function climbName(g: RoadGraph, edgeIds: number[], pois: Poi[], top: Pt, used: 
   return `Côte n° ${used.size + 1}`;
 }
 
-function sprintName(pois: Poi[], mid: Pt, used: Set<string>): string {
+export function sprintName(pois: Poi[], mid: Pt, used: Set<string>): string {
   const excl = new Set<string>();
   for (let k = 0; k < 4; k++) {
     const p = nearestPlace(pois, mid[0], mid[1], 2500, excl);
@@ -255,13 +263,13 @@ export function buildRoute(g: RoadGraph, cycle: DirectedCycle, dem: DemStack, po
     const ids = edgeOf.slice(c.startIdx, c.endIdx);
     const name = climbName(g, ids, pois, [xs[c.endIdx]!, zs[c.endIdx]!], used);
     used.add(name);
-    segments.push({ id: `kom-${slug(name.replace(/^Côte (de |d'|du |des |de la )?/, ''))}`, kind: 'kom', name, startM: round2(c.startIdx * step), endM: round2(c.endIdx * step), avgGrade: round2(c.avgGrade) });
+    segments.push({ id: `kom-${slug(name.replace(/^Côte (de la |de l'|de |d'|du |des )?/, ''))}`, kind: 'kom', name, startM: round2(c.startIdx * step), endM: round2(c.endIdx * step), avgGrade: round2(c.avgGrade) });
   }
   for (const s of sprints) {
     const mid = Math.floor((s.startIdx + s.endIdx) / 2);
     const name = sprintName(pois, [xs[mid]!, zs[mid]!], used);
     used.add(name);
-    segments.push({ id: `sprint-${slug(name.replace(/^Sprint (de |d'|du |des |de la )?/, ''))}`, kind: 'sprint', name, startM: round2(s.startIdx * step), endM: round2(s.endIdx * step), avgGrade: round2(s.avgGrade) });
+    segments.push({ id: `sprint-${slug(name.replace(/^Sprint (de la |de l'|de |d'|du |des )?/, ''))}`, kind: 'sprint', name, startM: round2(s.startIdx * step), endM: round2(s.endIdx * step), avgGrade: round2(s.avgGrade) });
   }
   segments.sort((a, b) => a.startM - b.startM);
   // largeur de chaussée
@@ -280,7 +288,7 @@ export function buildRoute(g: RoadGraph, cycle: DirectedCycle, dem: DemStack, po
   for (const p of pois) {
     if (!/^(village|town|hamlet)$/.test(p.kind) || !p.name) continue;
     let bi = -1;
-    let bd = 250;
+    let bd = /^(village|town)$/.test(p.kind) ? 400 : 250;
     for (let i = 0; i < n; i += 2) {
       const d = Math.hypot(xs[i]! - p.x, zs[i]! - p.z);
       if (d < bd) {

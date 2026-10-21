@@ -14,7 +14,71 @@ export const LAYER_LIDAR = 'IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.LA
 export const LAYER_RGEALTI = 'ELEVATION.ELEVATIONGRIDCOVERAGE.HIGHRES';
 const WMS = 'https://data.geopf.fr/wms-r';
 
-const NODATA_BELOW = -1000;
+/** Altitudes plausibles dans le corridor (le reste = absence de donnée ou bord contaminé). */
+const VALID_MIN = -50;
+const VALID_MAX = 5000;
+
+/**
+ * Masque des pixels invalides : hors plage, puis dilaté de 2 pixels — le service rééchantillonne
+ * au bord des zones sans donnée en mélangeant la valeur -99999, d'où des pixels « intermédiaires ».
+ */
+export function invalidMask(a: Float32Array, n: number): Uint8Array {
+  const bad = new Uint8Array(a.length);
+  let any = false;
+  for (let i = 0; i < a.length; i++) {
+    const v = a[i]!;
+    if (!(v > VALID_MIN && v < VALID_MAX)) {
+      bad[i] = 1;
+      any = true;
+    }
+  }
+  if (!any) return bad;
+  const out = bad.slice();
+  for (let j = 0; j < n; j++)
+    for (let i = 0; i < n; i++) {
+      if (!bad[j * n + i]) continue;
+      for (let dj = -2; dj <= 2; dj++)
+        for (let di = -2; di <= 2; di++) {
+          const x = i + di;
+          const y = j + dj;
+          if (x >= 0 && y >= 0 && x < n && y < n) out[y * n + x] = 1;
+        }
+    }
+  return out;
+}
+
+/** Bouche les pixels masqués restants par moyennes successives des voisins valides. */
+export function inpaint(a: Float32Array, mask: Uint8Array, n: number): void {
+  let remaining = 0;
+  for (const m of mask) remaining += m;
+  for (let pass = 0; remaining > 0 && pass < 4 * n; pass++) {
+    const fill: Array<[number, number]> = [];
+    for (let j = 0; j < n; j++)
+      for (let i = 0; i < n; i++) {
+        const k = j * n + i;
+        if (!mask[k]) continue;
+        let s = 0;
+        let c = 0;
+        for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
+          const x = i + di;
+          const y = j + dj;
+          if (x < 0 || y < 0 || x >= n || y >= n) continue;
+          const kk = y * n + x;
+          if (!mask[kk]) {
+            s += a[kk]!;
+            c++;
+          }
+        }
+        if (c) fill.push([k, s / c]);
+      }
+    if (!fill.length) break;
+    for (const [k, v] of fill) {
+      a[k] = v;
+      mask[k] = 0;
+    }
+    remaining -= fill.length;
+  }
+}
 
 function wmsUrl(layer: string, xmin: number, ymin: number, xmax: number, ymax: number, w: number, h: number): string {
   return (
@@ -88,13 +152,22 @@ export class Dem {
       this.stats.fromCache++;
       return;
     }
+    const n = this.samples;
     const lidar = await this.fetchLayer(LAYER_LIDAR, bx, by);
+    const mask = invalidMask(lidar, n);
     let nodata = 0;
-    for (const v of lidar) if (!(v > NODATA_BELOW)) nodata++;
+    for (const m of mask) nodata += m;
     if (nodata > 0) {
       const alti = await this.fetchLayer(LAYER_RGEALTI, bx, by);
-      for (let i = 0; i < lidar.length; i++) if (!((lidar[i] ?? NaN) > NODATA_BELOW)) lidar[i] = alti[i] ?? NaN;
+      const altiMask = invalidMask(alti, n);
+      for (let i = 0; i < lidar.length; i++) {
+        if (mask[i] && !altiMask[i]) {
+          lidar[i] = alti[i]!;
+          mask[i] = 0;
+        }
+      }
       this.stats.filledFromRgeAlti += nodata;
+      inpaint(lidar, mask, n);
     }
     fs.writeFileSync(merged, Buffer.from(lidar.buffer, lidar.byteOffset, lidar.byteLength));
     this.stats.downloaded++;
@@ -136,10 +209,21 @@ export class Dem {
   /** Altitude bilinéaire en (E, N) Lambert-93 ; NaN si le bloc n'est pas disponible. */
   sample(e: number, n: number): number {
     const S = this.blockSize;
-    const bx = Math.floor(e / S);
-    const by = Math.floor(n / S);
-    const data = this.block(bx, by);
-    if (!data) return NaN;
+    let bx = Math.floor(e / S);
+    let by = Math.floor(n / S);
+    let data = this.block(bx, by);
+    if (!data) {
+      // point exactement sur un bord partagé : le bloc voisin le contient aussi
+      const onX = Math.abs(e - bx * S) < 1e-6;
+      const onY = Math.abs(n - by * S) < 1e-6;
+      if (onX && (data = this.block(bx - 1, by))) bx -= 1;
+      else if (onY && (data = this.block(bx, by - 1))) by -= 1;
+      else if (onX && onY && (data = this.block(bx - 1, by - 1))) {
+        bx -= 1;
+        by -= 1;
+      }
+      if (!data) return NaN;
+    }
     const N = this.samples;
     const fx = (e - bx * S) / this.res;
     const fy = ((by + 1) * S - n) / this.res;

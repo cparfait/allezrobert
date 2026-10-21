@@ -1,0 +1,88 @@
+/*
+ * Allez Robert ! — jetons de design partagés entre le HUD (apps/client/src/hud/hud.css)
+ * et les séquences HyperFrames (packages/sequences/compositions/*).
+ *
+ * Mêmes noms de variables que le HUD : --ar-*, --z1…--z7, --font, --mono.
+ * Source unique : ce fichier. Le HUD peut l'importer tel quel
+ * (`import '@allezrobert/sequences/tokens.css'`) puis supprimer son propre bloc :root.
+ *
+ * Les polices sont livrées localement (OFL) dans ./assets/fonts — jamais de CDN : le rendu
+ * MP4 doit être identique sur le VPS et le jeu doit fonctionner hors ligne.
+ */
+
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: block;
+  src: url('./assets/fonts/inter-latin-wght-normal.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 100 800;
+  font-display: block;
+  src: url('./assets/fonts/jetbrains-mono-latin-wght-normal.woff2') format('woff2');
+}
+
+:root {
+  /* Surfaces et texte (identiques au HUD) */
+  --ar-bg: rgba(10, 14, 22, 0.62);
+  --ar-bg-strong: rgba(10, 14, 22, 0.82);
+  --ar-fg: #f5f7fa;
+  --ar-muted: #9aa5b1;
+  --ar-accent: #ffd23f;
+  --ar-radius: 14px;
+
+  /* Zones de puissance Z1…Z7 */
+  --z1: #9aa5b1;
+  --z2: #3b82f6;
+  --z3: #22c55e;
+  --z4: #eab308;
+  --z5: #f97316;
+  --z6: #ef4444;
+  --z7: #a855f7;
+
+  /* Typographies */
+  --font: 'Inter', system-ui, sans-serif;
+  --mono: 'JetBrains Mono', ui-monospace, monospace;
+
+  /* Compléments propres aux séquences (préfixe --ar-seq-*) */
+  --ar-ink: #0a0e16; /* fond de page du jeu, texte sur accent */
+  --ar-line: rgba(255, 255, 255, 0.08); /* liseré des panneaux */
+  --ar-kom: var(--z6); /* KOM = rouge, comme .segment dans le HUD */
+  --ar-sprint: var(--z3); /* sprint = vert */
+  --ar-gold: #ffd23f;
+  --ar-silver: #c9d1d9;
+  --ar-bronze: #d08a4c;
+  --ar-shadow: 0 8px 30px rgba(0, 0, 0, 0.25);
+
+  /* Saisons (ART_DIRECTION.md) : teinte de brume + accent végétal */
+  --ar-season-printemps: #a9cf6a;
+  --ar-season-ete: #d8b86a;
+  --ar-season-automne: #e0a33a;
+  --ar-season-hiver: #c9d1d6;
+}
+
+/* Classes utilitaires communes (mêmes rendus que .panel / .num du HUD, sans backdrop-filter :
+   un flou d'arrière-plan dans l'iframe du lecteur ne voit pas le canvas et coûte des fps). */
+.ar-panel {
+  background: var(--ar-bg-strong);
+  border-radius: var(--ar-radius);
+  border: 1px solid var(--ar-line);
+  box-shadow: var(--ar-shadow);
+}
+
+.ar-num {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.ar-kicker {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ar-muted);
+}

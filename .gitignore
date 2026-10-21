@@ -24,3 +24,6 @@ Thumbs.db
 
 # Analyse REA de Zwift / MyWhoosh : hors dépôt public en attendant décision
 docs/research/
+
+# Exports de test et rendus locaux
+out/

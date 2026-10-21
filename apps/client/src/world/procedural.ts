@@ -1,7 +1,7 @@
 import type { RouteData, RoutePoint } from '@allezrobert/shared';
 import { fbm, rng, valueNoise } from '../engine/noise.ts';
-import type { LoadedTile, TileFeatures, WorldSource } from './types.ts';
-import { SPLAT_CHANNELS } from './types.ts';
+import type { TileFeatures, WorldSource } from './types.ts';
+import { SPLAT_CHANNELS, emptyFeatures } from './types.ts';
 
 /**
  * Monde procédural de secours : une vallée boisée façon Chevreuse avec une boucle d'environ 10 km.
@@ -185,7 +185,7 @@ export function createProceduralWorld(): WorldSource {
           else splat[o + 2] = 255;
         }
 
-      const features: TileFeatures = { roads: [], buildings: [], forests: [], water: [], fields: [], waterways: [] };
+      const features: TileFeatures = emptyFeatures();
       const r = rng(1000 + tx * 31 + tz * 977);
       for (const v of villages) {
         if (v.x < x0 || v.x >= x0 + TILE || v.z < z0 || v.z >= z0 + TILE) continue;

@@ -86,16 +86,18 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #0a0e16; col
 /* Menus */
 .ui > * { pointer-events: auto; }
 .menu { position: absolute; inset: 0; display: grid; place-items: center; background: radial-gradient(ellipse at center, rgba(10, 14, 22, 0.35), rgba(10, 14, 22, 0.8)); }
-.menu .card { width: min(980px, 92vw); max-height: 88vh; overflow: auto; padding: 28px 32px; background: var(--ar-bg-strong); }
+.menu .card { width: min(1180px, 94vw); max-height: 88vh; overflow: auto; padding: 28px 32px; background: var(--ar-bg-strong); }
 .menu h1 { margin: 0 0 4px; font-size: 44px; letter-spacing: -0.02em; }
 .menu h1 em { color: var(--ar-accent); font-style: normal; }
 .menu h2 { font-size: 15px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--ar-muted); margin: 22px 0 10px; }
 .menu .tagline { color: var(--ar-muted); margin: 0 0 18px; }
-.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
-.grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.grid2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: 26px; }
+.grid3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
 .field { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--ar-muted); }
-.field input, .field select { background: rgba(255, 255, 255, 0.07); color: var(--ar-fg); border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 10px; padding: 9px 11px; font: inherit; font-size: 15px; }
+.field input, .field select { width: 100%; min-width: 0; box-sizing: border-box;
+  background: rgba(255, 255, 255, 0.07); color: var(--ar-fg); border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 10px; padding: 9px 11px; font: inherit; font-size: 15px; }
 .field input[type='range'] { padding: 0; }
+.field input[type='color'] { height: 40px; padding: 3px; }
 .btn { appearance: none; border: 0; border-radius: 12px; padding: 12px 20px; font: inherit; font-weight: 700; font-size: 15px; cursor: pointer; background: rgba(255, 255, 255, 0.1); color: var(--ar-fg); }
 .btn:hover { background: rgba(255, 255, 255, 0.18); }
 .btn.primary { background: var(--ar-accent); color: #0a0e16; }

@@ -67,6 +67,8 @@ export class RideSession {
   readonly startT = Date.now();
   segment: SegmentEffort | null = null;
   readonly segmentResults: SegmentResult[] = [];
+  /** Fins de tour (epoch ms), pour les tours du FIT. */
+  readonly lapTimes: number[] = [];
   onSegmentDone?: (r: SegmentResult) => void;
   onLap?: (lap: number) => void;
 
@@ -129,8 +131,9 @@ export class RideSession {
   update(dt: number, source: InputSource, steer: number): void {
     this.inputs = source.read();
     if (this.paused) return;
-    const now = Date.now();
     this.elapsedS += dt;
+    // Horloge de la sortie : temps en mouvement (pauses exclues), indépendante de la cadence d'affichage.
+    const now = this.startT + this.elapsedS * 1000;
     const track = this.opts.track;
     const s = track.sample(this.state.distM, this.sample);
     this.gradePercent = s.grade;
@@ -140,6 +143,7 @@ export class RideSession {
     // Tour de boucle.
     if (track.route.loop && Math.floor(this.state.distM / track.length) > Math.floor(prevDist / track.length)) {
       this.lap++;
+      this.lapTimes.push(this.startT + this.elapsedS * 1000);
       this.onLap?.(this.lap);
     }
     // Direction : décalage latéral borné à la chaussée.

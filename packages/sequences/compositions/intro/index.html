@@ -1,0 +1,344 @@
+<!doctype html>
+<html
+  lang="fr"
+  data-composition-variables='[
+    {"id":"lang","type":"enum","label":"Langue","default":"fr","options":[{"value":"fr","label":"Français"},{"value":"en","label":"English"}]},
+    {"id":"route_name","type":"string","label":"Nom du parcours","default":"Boucle de la Madeleine","maxLength":48},
+    {"id":"ride_type","type":"enum","label":"Type de sortie","default":"group","options":[{"value":"free","label":"Libre"},{"value":"group","label":"Groupe"},{"value":"race","label":"Course"},{"value":"workout","label":"Entraînement"},{"value":"ftpTest","label":"Test FTP"}]},
+    {"id":"season","type":"enum","label":"Saison","default":"automne","options":[{"value":"printemps","label":"Printemps"},{"value":"ete","label":"Été"},{"value":"automne","label":"Automne"},{"value":"hiver","label":"Hiver"}]},
+    {"id":"distance_km","type":"number","label":"Distance","default":42.3,"min":0,"step":0.1,"unit":"km"},
+    {"id":"elevation_m","type":"number","label":"Dénivelé positif","default":612,"min":0,"step":1,"unit":"m"},
+    {"id":"riders","type":"number","label":"Coureurs","default":6,"min":1,"step":1},
+    {"id":"start_label","type":"string","label":"Lieu de départ","default":"Saint-Rémy-lès-Chevreuse"},
+    {"id":"finish_label","type":"string","label":"Lieu d’arrivée","default":"Dampierre-en-Yvelines"},
+    {"id":"profile","type":"string","label":"Profil (JSON : altitudes en m)","default":"[92,95,101,118,140,162,171,166,150,128,112,104,99,110,131,158,182,196,204,199,186,170,151,136,128,124,133,149,168,173,165,148,129,114,103,97,94,96,99,93]"},
+    {"id":"accent","type":"color","label":"Accent","default":"#ffd23f"},
+    {"id":"preview_backdrop","type":"boolean","label":"Décor de prévisualisation","default":false},
+    {"id":"show_safe_zones","type":"boolean","label":"Afficher les zones vitales du HUD","default":false}
+  ]'
+>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <title>Allez Robert ! — Intro et compte à rebours</title>
+    <link rel="stylesheet" href="assets/tokens.css" />
+    <link rel="stylesheet" href="assets/ar-seq.css" />
+    <script src="assets/gsap.min.js"></script>
+    <script src="assets/strings.js"></script>
+    <script src="assets/ar-seq.js"></script>
+    <style>
+      /* Zone utile : x 440–1480, y 280–900 (voir README, « zones vitales »). */
+      #intro-card {
+        position: absolute;
+        left: 440px;
+        top: 290px;
+        width: 1040px;
+        height: 430px;
+      }
+      .card {
+        width: 100%;
+        height: 100%;
+        padding: 30px 40px 26px;
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+      }
+      .kicker-row {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+      }
+      .chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 5px 12px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.08);
+        font-size: 15px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--ar-fg);
+      }
+      .chip i {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: var(--season, #e0a33a);
+        display: block;
+      }
+      .route-name {
+        font-size: 68px;
+        font-weight: 800;
+        letter-spacing: -0.02em;
+        line-height: 1.05;
+        white-space: nowrap;
+        max-width: 960px;
+      }
+      .accent-bar {
+        width: 96px;
+        height: 6px;
+        border-radius: 3px;
+        background: var(--accent);
+        transform-origin: left center;
+      }
+      .stats {
+        display: flex;
+        gap: 46px;
+        margin-top: 4px;
+      }
+      .stat .k {
+        font-size: 14px;
+        font-weight: 600;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: var(--ar-muted);
+      }
+      .stat .v {
+        font-size: 40px;
+        font-weight: 700;
+        line-height: 1.1;
+      }
+      .stat .u {
+        font-family: var(--font);
+        font-size: 18px;
+        color: var(--ar-muted);
+        margin-left: 6px;
+        font-weight: 500;
+      }
+      .prof {
+        position: relative;
+        width: 960px;
+        height: 118px;
+        margin-top: auto;
+      }
+      .prof-clip,
+      .prof-inner {
+        position: absolute;
+        inset: 0;
+        overflow: hidden;
+      }
+      .prof svg {
+        display: block;
+        width: 960px;
+        height: 96px;
+      }
+      .prof-labels {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        display: flex;
+        justify-content: space-between;
+        font-size: 14px;
+        color: var(--ar-muted);
+      }
+      .prof-labels b {
+        color: var(--ar-fg);
+        font-weight: 600;
+      }
+
+      /* Compte à rebours */
+      #countdown {
+        position: absolute;
+        left: 660px;
+        top: 330px;
+        width: 600px;
+        height: 400px;
+      }
+      .cd-stage {
+        position: absolute;
+        inset: 0;
+        display: grid;
+        place-items: center;
+      }
+      .disc {
+        position: absolute;
+        left: 150px;
+        top: 50px;
+        width: 300px;
+        height: 300px;
+        border-radius: 50%;
+        background: var(--ar-bg-strong);
+        border: 1px solid var(--ar-line);
+        box-shadow: var(--ar-shadow);
+      }
+      .ring {
+        position: absolute;
+        left: 150px;
+        top: 50px;
+        width: 300px;
+        height: 300px;
+        border-radius: 50%;
+        border: 6px solid var(--accent);
+      }
+      .digit {
+        position: absolute;
+        left: 150px;
+        top: 50px;
+        width: 300px;
+        height: 300px;
+        display: grid;
+        place-items: center;
+        font-family: var(--mono);
+        font-size: 190px;
+        font-weight: 800;
+        line-height: 1;
+        color: var(--ar-fg);
+      }
+      .go {
+        position: absolute;
+        left: 0;
+        top: 120px;
+        width: 600px;
+        height: 160px;
+        display: grid;
+        place-items: center;
+      }
+      .go span {
+        display: block;
+        padding: 14px 54px 18px;
+        border-radius: 999px;
+        background: var(--accent);
+        color: var(--ar-ink);
+        font-size: 104px;
+        font-weight: 900;
+        letter-spacing: -0.02em;
+        line-height: 1;
+        box-shadow: var(--ar-shadow);
+        white-space: nowrap;
+      }
+    </style>
+  </head>
+  <body>
+    <div
+      id="root"
+      data-composition-id="ar-intro"
+      data-start="0"
+      data-duration="6"
+      data-width="1920"
+      data-height="1080"
+    >
+      <section id="intro-card">
+        <div id="card-wrap" class="card ar-panel">
+          <div class="kicker-row" id="kicker-row">
+            <span class="chip" id="season-chip"><i></i><span id="season-label">Automne</span></span>
+            <span class="ar-kicker" id="ride-type">Sortie de groupe</span>
+          </div>
+          <h1 class="route-name" id="route-name">Boucle de la Madeleine</h1>
+          <div class="accent-bar" id="accent-bar"></div>
+          <div class="stats" id="stats">
+            <div class="stat">
+              <div class="k" id="k-dist">Distance</div>
+              <div class="v ar-num"><span id="v-dist">42,3</span><span class="u">km</span></div>
+            </div>
+            <div class="stat">
+              <div class="k" id="k-elev">Dénivelé +</div>
+              <div class="v ar-num"><span id="v-elev">612</span><span class="u">m</span></div>
+            </div>
+            <div class="stat">
+              <div class="k" id="k-riders">Coureurs</div>
+              <div class="v ar-num"><span id="v-riders">6</span></div>
+            </div>
+          </div>
+          <div class="prof" id="prof">
+            <div class="prof-clip" id="prof-clip" data-layout-allow-overflow>
+              <div class="prof-inner" id="prof-inner" data-layout-allow-overflow>
+                <svg viewBox="0 0 960 96" preserveAspectRatio="none" aria-hidden="true">
+                  <defs>
+                    <linearGradient id="prof-fill" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0" stop-color="var(--accent)" stop-opacity="0.45" />
+                      <stop offset="1" stop-color="var(--accent)" stop-opacity="0.04" />
+                    </linearGradient>
+                  </defs>
+                  <path id="prof-area" fill="url(#prof-fill)" d="M0 96 L960 96 Z" />
+                  <path id="prof-line" fill="none" stroke="var(--accent)" stroke-width="3" stroke-linejoin="round" d="M0 96 L960 96" />
+                </svg>
+              </div>
+            </div>
+            <div class="prof-labels" id="prof-labels">
+              <span><b id="lbl-start-k">Départ</b> · <span id="lbl-start">Saint-Rémy</span></span>
+              <span><span id="lbl-finish">Dampierre</span> · <b id="lbl-finish-k">Arrivée</b></span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="countdown">
+        <div class="cd-stage">
+          <div class="disc" id="disc"></div>
+          <div class="ring" id="ring"></div>
+          <div class="digit" id="d3">3</div>
+          <div class="digit" id="d2">2</div>
+          <div class="digit" id="d1">1</div>
+          <div class="go" id="go"><span id="go-label">Allez !</span></div>
+        </div>
+      </section>
+    </div>
+
+    <script>
+      AR.ready(function () {
+        var v = AR.vars();
+        AR.setLang(v.lang);
+        var root = document.getElementById('root');
+        AR.decorate(root, v);
+        root.style.setProperty('--season', AR.seasonColor(v.season));
+
+        AR.text('season-label', AR.t('season.' + v.season));
+        AR.text('ride-type', AR.t('ride.' + v.ride_type));
+        AR.text('route-name', v.route_name);
+        AR.fit(document.getElementById('route-name'), 960, 40);
+        AR.text('k-dist', AR.t('intro.distance'));
+        AR.text('k-elev', AR.t('intro.elevation'));
+        AR.text('k-riders', AR.t('intro.riders'));
+        AR.text('v-dist', AR.num(v.distance_km, 1));
+        AR.text('v-elev', AR.num(v.elevation_m, 0));
+        AR.text('v-riders', AR.num(v.riders, 0));
+        AR.text('lbl-start-k', AR.t('intro.start'));
+        AR.text('lbl-finish-k', AR.t('intro.finish'));
+        AR.text('lbl-start', v.start_label || '');
+        AR.text('lbl-finish', v.finish_label || '');
+        AR.text('go-label', AR.t('intro.go'));
+
+        var p = AR.profile(AR.json(v.profile, []), 960, 96, { padTop: 6 });
+        document.getElementById('prof-line').setAttribute('d', p.line);
+        document.getElementById('prof-area').setAttribute('d', p.area);
+
+        var tl = gsap.timeline({ paused: true });
+        // 1. Carte du parcours
+        tl.fromTo('#card-wrap', { opacity: 0, y: 34 }, { opacity: 1, y: 0, duration: 0.5, ease: 'power3.out' }, 0);
+        tl.fromTo('#kicker-row', { opacity: 0, x: -24 }, { opacity: 1, x: 0, duration: 0.4, ease: 'power2.out' }, 0.15);
+        tl.fromTo('#route-name', { opacity: 0, y: 22 }, { opacity: 1, y: 0, duration: 0.5, ease: 'power3.out' }, 0.22);
+        tl.fromTo('#accent-bar', { scaleX: 0 }, { scaleX: 1, duration: 0.5, ease: 'power2.inOut' }, 0.4);
+        tl.fromTo('#stats .stat', { opacity: 0, y: 16 }, { opacity: 1, y: 0, duration: 0.4, stagger: 0.08, ease: 'power2.out' }, 0.45);
+        // Révélation du profil par contre-translation (transform uniquement)
+        tl.fromTo('#prof-clip', { xPercent: -100 }, { xPercent: 0, duration: 1.2, ease: 'power2.inOut' }, 0.6);
+        tl.fromTo('#prof-inner', { xPercent: 100 }, { xPercent: 0, duration: 1.2, ease: 'power2.inOut' }, 0.6);
+        tl.fromTo('#prof-labels', { opacity: 0 }, { opacity: 1, duration: 0.4 }, 1.3);
+        tl.to('#card-wrap', { opacity: 0, y: -24, duration: 0.35, ease: 'power2.in' }, 2.55);
+
+        // 2. Compte à rebours 3-2-1 « Allez ! » (temps absolus, section à 2.7 s)
+        tl.fromTo('#disc', { opacity: 0, scale: 0.6 }, { opacity: 1, scale: 1, duration: 0.3, ease: 'back.out(1.6)' }, 2.75);
+        var beats = [
+          ['#d3', 2.85],
+          ['#d2', 3.6],
+          ['#d1', 4.35],
+        ];
+        tl.set('#d3, #d2, #d1, #go', { opacity: 0 }, 0);
+        tl.set('#ring', { opacity: 0 }, 0);
+        beats.forEach(function (b) {
+          tl.fromTo(b[0], { opacity: 0, scale: 1.7 }, { opacity: 1, scale: 1, duration: 0.25, ease: 'power3.out' }, b[1]);
+          tl.fromTo('#ring', { opacity: 0.9, scale: 1 }, { opacity: 0, scale: 1.25, duration: 0.6, ease: 'power2.out', immediateRender: false }, b[1]);
+          tl.to(b[0], { opacity: 0, scale: 0.6, duration: 0.18, ease: 'power2.in' }, b[1] + 0.58);
+        });
+        tl.to('#disc', { opacity: 0, scale: 1.3, duration: 0.2, ease: 'power2.in' }, 5.0);
+        // « Allez ! » = signal de départ (repère « go » à 5.1 s)
+        tl.fromTo('#go', { opacity: 0, scale: 0.5 }, { opacity: 1, scale: 1, duration: 0.35, ease: 'back.out(2)' }, 5.1);
+        tl.to('#go', { opacity: 0, y: -30, duration: 0.3, ease: 'power2.in' }, 5.68);
+
+        window.__timelines['ar-intro'] = tl;
+      });
+    </script>
+  </body>
+</html>

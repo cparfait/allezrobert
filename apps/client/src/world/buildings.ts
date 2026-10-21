@@ -17,6 +17,16 @@ interface Obb {
   hw: number; // demi-largeur selon v
 }
 
+/** Couleur OSM (« brick », « #c0a080 »…) avec repli si elle n'est pas reconnue. */
+function safeColor(c: THREE.Color, value: string, fallback: string): THREE.Color {
+  const named: Record<string, string> = { brick: '#9c5a3c', stone: '#a8835a', white: '#e6dccb', beige: '#d9cdb6', yellow: '#d8c48a', grey: '#9a9a96', gray: '#9a9a96' };
+  try {
+    return c.set(named[value] ?? value);
+  } catch {
+    return c.set(fallback);
+  }
+}
+
 /** Rectangle orienté minimal (calipers sur les arêtes du polygone). */
 function orientedBox(pts: number[]): Obb {
   let best: Obb | null = null;
@@ -203,32 +213,39 @@ export class Buildings {
     const c = new THREE.Color();
     for (const bld of tile.features.buildings) {
       if (bld.pts.length < 6) continue;
-      // Base posée au point le plus bas de l'emprise (pas de bâtiment qui flotte).
-      let base = Infinity;
-      for (let i = 0; i < bld.pts.length; i += 2) base = Math.min(base, this.groundAt(bld.pts[i] as number, bld.pts[i + 1] as number));
+      // Base : altitude fournie par le pipeline, sinon point le plus bas de l'emprise.
+      let base = bld.y ?? Infinity;
+      if (!Number.isFinite(base)) for (let i = 0; i < bld.pts.length; i += 2) base = Math.min(base, this.groundAt(bld.pts[i] as number, bld.pts[i + 1] as number));
       if (!Number.isFinite(base)) continue;
       base -= 0.3;
       const isChurch = bld.kind === 'church' || bld.kind === 'chapel';
-      const height = isChurch ? Math.max(bld.height, 11) : Math.max(bld.height || (bld.levels ?? 1.6) * 2.9, 3);
-      const w = walls(bld.pts, base, height + 0.3);
-      colorAttr(w, c.set(WALLS[Math.floor(r() * WALLS.length)] as string), 0);
-      parts.push(w);
       const box = orientedBox(bld.pts);
-      const flat = bld.roof === 'flat' || box.hw > 18;
-      const roof = hippedRoof(box, base + height + 0.3, flat ? 4 : isChurch ? 50 : 38 + r() * 12, !isChurch && r() < 0.6);
-      colorAttr(roof, c.set(ROOFS[isChurch ? 4 : Math.floor(r() * (ROOFS.length - 1))] as string), 1);
+      const shape = bld.roof ?? 'gabled';
+      const flat = shape === 'flat' || box.hw > 20;
+      const total = isChurch ? Math.max(bld.height, 14) : Math.max(bld.height || (bld.levels ?? 1.6) * 2.9 + 3, 4);
+      const roofH = flat ? 0.4 : Math.min(bld.roofHeight ?? Math.tan((40 * Math.PI) / 180) * box.hw, total * 0.6);
+      const wallH = Math.max(total - roofH, 2.4);
+      const w = walls(bld.pts, base, wallH + 0.3);
+      const wallColour = bld.colour && /^#|^[a-z]+$/.test(bld.colour) ? bld.colour : (WALLS[Math.floor(r() * WALLS.length)] as string);
+      colorAttr(w, safeColor(c, wallColour, WALLS[0] as string), 0);
+      parts.push(w);
+      const pitch = flat ? 3 : (Math.atan(roofH / Math.max(box.hw + 0.4, 0.5)) * 180) / Math.PI;
+      const hip = shape === 'hipped' || shape === 'pyramidal' || shape === 'half-hipped';
+      const roof = hippedRoof(box, base + wallH + 0.3, pitch, hip);
+      const slate = bld.material === 'slate' || shape === 'mansard' || isChurch;
+      colorAttr(roof, c.set(ROOFS[slate ? 4 : Math.floor(r() * (ROOFS.length - 1))] as string), 1);
       parts.push(roof);
       if (isChurch) {
         // Clocher : tour carrée et flèche d'ardoise à une extrémité.
         const tx = box.cx + box.ux * (box.hl - 2.5);
         const tz = box.cz + box.uz * (box.hl - 2.5);
-        const tower = new THREE.BoxGeometry(4.5, height + 9, 4.5).translate(tx, base + (height + 9) / 2, tz);
-        const twr = tower.toNonIndexed();
-        const tuv = twr.getAttribute('uv');
-        for (let i = 0; i < tuv.count; i++) tuv.setXY(i, tuv.getX(i) * 4.5, tuv.getY(i) * (height + 9));
-        colorAttr(twr, c.set('#a8835a'), 0);
-        parts.push(twr);
-        const spire = new THREE.ConeGeometry(3.4, 11, 8).translate(tx, base + height + 9 + 5.5, tz).toNonIndexed();
+        const th = wallH + 9;
+        const tower = new THREE.BoxGeometry(4.5, th, 4.5).translate(tx, base + th / 2, tz).toNonIndexed();
+        const tuv = tower.getAttribute('uv');
+        for (let i = 0; i < tuv.count; i++) tuv.setXY(i, tuv.getX(i) * 4.5, tuv.getY(i) * th);
+        colorAttr(tower, c.set('#a8835a'), 0);
+        parts.push(tower);
+        const spire = new THREE.ConeGeometry(3.4, 11, 8).translate(tx, base + th + 5.5, tz).toNonIndexed();
         colorAttr(spire, c.set('#4f545c'), 2);
         parts.push(spire);
       }

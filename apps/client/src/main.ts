@@ -1,57 +1,131 @@
 import './hud/hud.css';
 import * as THREE from 'three/webgpu';
-import { RouteTrack, DEFAULT_BIKE, DEFAULT_LOOK, type RiderProfile } from '@allezrobert/shared';
-import { createEngine } from './engine/renderer.ts';
-import { QUALITY_PRESETS, detectDefaultQuality, withUrlOverrides } from './engine/quality.ts';
+import { RouteTrack, DEFAULT_BIKE, type RiderProfile, type RouteData } from '@allezrobert/shared';
+import { createEngine, type Engine } from './engine/renderer.ts';
+import { QUALITY_PRESETS, withUrlOverrides } from './engine/quality.ts';
 import { World } from './world/world.ts';
 import { loadWorldSource } from './world/loader.ts';
+import type { WorldSource } from './world/types.ts';
 import { RiderAvatar } from './rider/avatar.ts';
 import { CameraRig } from './game/cameras.ts';
 import { RideSession } from './game/ride.ts';
 import { KeyboardControls, type InputSource } from './game/inputs.ts';
-import { DevSimSource } from './game/devsim.ts';
+import { Peloton } from './game/peloton.ts';
+import { createDeviceLayer } from './game/devices.ts';
 import { Hud } from './hud/hud.ts';
-import { t } from './i18n/index.ts';
-import type { Season } from './world/environment.ts';
+import { GameAudio } from './audio/audio.ts';
+import { t, setLang } from './i18n/index.ts';
+import { loadSettings, saveSettings, type Settings } from './ui/settings.ts';
+import { MainMenu } from './ui/menu.ts';
+import { showPause, showSummary, rideToFit } from './ui/ridepanels.ts';
+import { splatAt } from './world/splat.ts';
+
+const ui = document.getElementById('ui') as HTMLElement;
+const hudRoot = document.getElementById('hud') as HTMLElement;
+
+interface Scene3D {
+  engine: Engine;
+  source: WorldSource;
+  world: World;
+  route: RouteData;
+  track: RouteTrack;
+}
+
+/** Charge le monde et l'itinéraire choisis (le monde reste affiché derrière le menu). */
+async function loadScene(settings: Settings): Promise<Scene3D> {
+  const params = new URLSearchParams(location.search);
+  const q = withUrlOverrides(QUALITY_PRESETS[(params.get('quality') as Settings['quality'] | null) ?? settings.quality]);
+  const engine = await createEngine(document.getElementById('scene') as HTMLCanvasElement, q);
+  const source = await loadWorldSource(params.get('world') ?? 'chevreuse');
+  const route = source.routes.find((r) => r.id === (params.get('route') ?? settings.routeId)) ?? (source.routes[0] as RouteData);
+  const track = new RouteTrack(route);
+  const world = new World(engine.scene, source, route, track, q, {
+    hour: Number(params.get('hour') ?? settings.hour),
+    season: (params.get('season') as Settings['season'] | null) ?? settings.season,
+    weather: { clouds: settings.clouds, rain: settings.rain, fog: settings.fog, windMs: settings.windMs, windFrom: 4.4 },
+  });
+  return { engine, source, world, route, track };
+}
 
 async function boot(): Promise<void> {
-  const ui = document.getElementById('ui') as HTMLElement;
+  const settings = loadSettings();
+  setLang(settings.lang);
   ui.innerHTML = `<div class="loading">${t('loading')}</div>`;
-  const params = new URLSearchParams(location.search);
-  const q = withUrlOverrides(QUALITY_PRESETS[detectDefaultQuality()]);
-  const engine = await createEngine(document.getElementById('scene') as HTMLCanvasElement, q);
+  const scene = await loadScene(settings);
+  const devices = createDeviceLayer();
+  const start = scene.track.positionAt(0, -1.2);
+  await scene.world.preload(new THREE.Vector3(start.x, start.y, start.z));
 
-  const source = await loadWorldSource(params.get('world') ?? 'chevreuse');
-  const route = source.routes[0];
-  if (!route) throw new Error('Aucun itinéraire dans le monde');
-  const track = new RouteTrack(route);
-  const season = (params.get('season') as Season | null) ?? 'autumn';
-  const hour = Number(params.get('hour') ?? 10.5);
-  const world = new World(engine.scene, source, route, track, q, {
-    hour,
-    season,
-    weather: { clouds: Number(params.get('clouds') ?? 0.35), rain: Number(params.get('rain') ?? 0), fog: Number(params.get('fog') ?? 0), windMs: 3, windFrom: 4.4 },
+  // Plan d'attente derrière le menu : orbite lente autour du départ.
+  let orbit = 0;
+  let inMenu = true;
+  const focus = new THREE.Vector3();
+  scene.engine.renderer.setAnimationLoop(() => {
+    if (!inMenu) return;
+    orbit += 0.0015;
+    const p = scene.track.positionAt(0, 0);
+    focus.set(p.x, p.y, p.z);
+    scene.engine.camera.position.set(p.x + Math.cos(orbit) * 40, p.y + 14, p.z + Math.sin(orbit) * 40);
+    scene.engine.camera.lookAt(p.x, p.y + 2, p.z);
+    scene.world.update(1 / 60, focus);
+    scene.engine.exposure.value = scene.world.env.exposure();
+    scene.engine.render();
   });
 
-  const profile: RiderProfile = {
-    id: 'local',
-    displayName: localStorage.getItem('ar.name') ?? 'Robert',
-    massKg: 75,
-    heightCm: 178,
-    ftpWatts: 250,
-    bike: DEFAULT_BIKE,
+  const menu = new MainMenu(ui, settings, scene.source.routes, devices.panel, {
+    onStart: (s, extras) => {
+      saveSettings(s);
+      // Changement d'itinéraire : rechargement propre de la scène.
+      if (s.routeId !== scene.route.id) {
+        const url = new URL(location.href);
+        url.searchParams.set('route', s.routeId);
+        url.searchParams.set('autostart', '1');
+        location.href = url.toString();
+        return;
+      }
+      inMenu = false;
+      menu.hide();
+      void startRide(scene, s, devices.source(), extras);
+    },
+  });
+  menu.onSettingsChange = (s) => {
+    const env = scene.world.env.state;
+    env.hour = s.hour;
+    env.weather.clouds = s.clouds;
+    env.weather.rain = s.rain;
+    env.weather.fog = s.fog;
+    if (env.season !== s.season) scene.world.setSeason(s.season);
   };
-  const startD = Number(params.get('d') ?? 0);
-  const ride = new RideSession({ profile, track, trainerDifficulty: 0.5, startDistM: startD, wind: { ms: 3, from: 4.4 } });
-  const start = track.positionAt(startD, ride.lateral);
-  await world.preload(new THREE.Vector3(start.x, start.y, start.z));
+  if (new URLSearchParams(location.search).has('autostart')) {
+    inMenu = false;
+    void startRide(scene, settings, devices.source(), {});
+  } else menu.show();
+}
 
-  const avatar = new RiderAvatar(DEFAULT_LOOK);
+async function startRide(scene: Scene3D, s: Settings, input: InputSource, _extras: { workoutFile?: { name: string; content: string }; inviteCode?: string }): Promise<void> {
+  const { engine, world, track, source } = scene;
+  ui.innerHTML = '';
+  const profile: RiderProfile = { id: 'local', displayName: s.name, massKg: s.massKg, heightCm: s.heightCm, ftpWatts: s.ftpWatts, bike: DEFAULT_BIKE };
+  const params = new URLSearchParams(location.search);
+  const startD = Number(params.get('d') ?? 0);
+  const ride = new RideSession({
+    profile,
+    track,
+    trainerDifficulty: s.trainerDifficulty,
+    startDistM: startD,
+    wind: { ms: s.windMs, from: 4.4 },
+  });
+  const avatar = new RiderAvatar(s.look);
   engine.scene.add(avatar.root);
+  const peloton = new Peloton(engine.scene, track, Math.min(Math.max(s.aiRiders, 0), 19), startD, s.ftpWatts);
   const rig = new CameraRig(engine.camera, track, (x, z) => world.terrain.heightAt(x, z), engine.renderer.domElement);
-  const hud = new Hud(document.getElementById('hud') as HTMLElement, track, source.attribution);
+  const hud = new Hud(hudRoot, track, source.attribution);
+  hud.setVisible(true);
   const keyboard = new KeyboardControls();
-  const input: InputSource = new DevSimSource();
+  const audio = new GameAudio();
+  audio.start();
+  audio.setVolume(s.volume);
+
   const onShift = (a: string) => {
     if (a === 'up') ride.shift(1);
     else if (a === 'down') ride.shift(-1);
@@ -62,12 +136,38 @@ async function boot(): Promise<void> {
   input.onShift(onShift);
   ride.onSegmentDone = (r) => hud.toast(`${t('segmentDone')} · ${r.seg.name} · ${Math.floor(r.timeS / 60)}:${String(Math.round(r.timeS % 60)).padStart(2, '0')}`);
   ride.onLap = (lap) => hud.toast(`${t('lap')} ${lap}`);
+
+  const finish = () => {
+    engine.renderer.setAnimationLoop(null);
+    audio.dispose();
+    hud.setVisible(false);
+    input.sendTrainer({ kind: 'simulation', gradePercent: 0 });
+    showSummary(
+      ui,
+      ride,
+      () => rideToFit(ride, { name: `Allez Robert ! — ${track.route.name}`, massKg: s.massKg, ftp: s.ftpWatts, ...(source.originL93 ? { originL93: source.originL93 } : {}), skipStrava: s.skipStrava }),
+      () => {
+        const url = new URL(location.href);
+        url.searchParams.delete('autostart');
+        location.href = url.toString();
+      },
+    );
+  };
+  const togglePause = () => {
+    ride.paused = !ride.paused;
+    if (ride.paused) showPause(ui, { onResume: togglePause, onFinish: finish });
+    else ui.innerHTML = '';
+  };
   window.addEventListener('keydown', (e) => {
+    if ((e.target as HTMLElement | null)?.tagName === 'INPUT') return;
     if (e.key === 'c' || e.key === 'C') hud.toast(t(rig.cycle()));
     if (e.key === 'h' || e.key === 'H') hud.toggle();
-    if (e.key === ' ') ride.paused = !ride.paused;
+    if (e.key === 'm' || e.key === 'M') audio.toggleMute();
+    if (e.key === ' ' || e.key === 'Escape') {
+      e.preventDefault();
+      togglePause();
+    }
   });
-  ui.innerHTML = '';
 
   const timer = new THREE.Timer();
   timer.connect(document);
@@ -75,21 +175,21 @@ async function boot(): Promise<void> {
   const dir = new THREE.Vector3();
   const sample = { x: 0, y: 0, z: 0, dirX: 1, dirZ: 0, grade: 0, d: 0 };
   let hudAcc = 0;
-  let prevHeading = 0;
+  let prevHeading = Number.NaN;
   let bank = 0;
-  (window as unknown as { __ar: unknown }).__ar = { engine, world, ride, rig, track };
-
-  engine.renderer.setAnimationLoop(() => {
-    timer.update();
-    const dt = Math.min(timer.getDelta(), 0.1);
+  const frame = (dt: number, render: boolean) => {
     const steer = keyboard.update(dt);
     ride.update(dt, input, steer);
+    if (!ride.paused) {
+      ride.draft = peloton.update(dt, { distM: ride.state.distM, lateral: ride.lateral, speedMs: ride.state.speedMs, watts: ride.inputs.watts, massKg: s.massKg });
+    }
     track.positionAt(ride.state.distM, ride.lateral, sample);
     pos.set(sample.x, sample.y + 0.06, sample.z);
     dir.set(sample.dirX, 0, sample.dirZ);
     avatar.root.position.copy(pos);
     const heading = Math.atan2(sample.dirX, sample.dirZ);
-    // Inclinaison en virage : proportionnelle à v²/R (vitesse angulaire du cap × vitesse).
+    if (Number.isNaN(prevHeading)) prevHeading = heading;
+    // Inclinaison en virage : ∝ v·(dψ/dt), bornée.
     let dh = heading - prevHeading;
     if (dh > Math.PI) dh -= Math.PI * 2;
     if (dh < -Math.PI) dh += Math.PI * 2;
@@ -100,11 +200,29 @@ async function boot(): Promise<void> {
     avatar.root.rotateY(heading);
     avatar.root.rotateX(-Math.atan(sample.grade / 100));
     avatar.update(dt, ride.inputs.cadence, ride.state.speedMs, ride.pose, bank);
+    peloton.render(dt, engine.camera);
 
     rig.update(dt, { position: pos, dir, distM: ride.state.distM, speedMs: ride.state.speedMs });
     world.update(dt, pos);
+    if (!render) return;
     engine.exposure.value = world.env.exposure();
     engine.render();
+
+    const tile = world.terrain.getTile(...world.terrain.tileCoord(pos.x, pos.z));
+    audio.update(
+      {
+        speedMs: ride.state.speedMs,
+        cadence: ride.inputs.cadence,
+        watts: ride.inputs.watts,
+        ftp: s.ftpWatts,
+        roughness: 0.15,
+        rain: world.env.state.weather.rain,
+        forest: tile ? splatAt(tile, 0, pos.x + 30, pos.z) * 0.5 + splatAt(tile, 0, pos.x - 30, pos.z) * 0.5 : 0,
+        crowd: ride.segment?.seg.kind === 'kom' ? 0.6 : 0,
+        windMs: world.env.state.weather.windMs,
+      },
+      dt,
+    );
 
     hudAcc += dt;
     if (hudAcc > 0.1) {
@@ -124,25 +242,47 @@ async function boot(): Promise<void> {
           gradePercent: ride.gradePercent,
           avgWatts: ride.avgWatts(),
           np: ride.normalizedPower(),
-          ftp: profile.ftpWatts,
+          ftp: s.ftpWatts,
           gearLabel: `${ride.gear.chainring}×${ride.gear.cog}`,
           gearIndex: ride.gearIndex,
           gearCount: ride.gears.length,
           ...(i.balanceLeft !== undefined ? { balanceLeft: i.balanceLeft } : {}),
           draftPct: ride.draft * 100,
           lap: ride.lap,
-          riders: [{ id: 'me', name: profile.displayName, distM: ride.state.distM, x: pos.x, z: pos.z, me: true, isAI: false, isGuest: false, color: '#ffd23f' }],
-          ...(ride.segment ? { segment: { seg: ride.segment.seg, progress: ride.segment.progress, elapsedS: (Date.now() - ride.segment.startT) / 1000 } } : {}),
+          riders: [
+            { id: 'me', name: s.name, distM: ride.state.distM, x: pos.x, z: pos.z, me: true, isAI: false, isGuest: false, color: '#ffd23f' },
+            ...peloton.riders.map((r) => {
+              const p = track.sample(r.state.distM);
+              return { id: r.id, name: r.name, distM: r.state.distM, x: p.x, z: p.z, me: false, isAI: true, isGuest: false, color: r.color };
+            }),
+          ],
+          ...(ride.segment ? { segment: { seg: ride.segment.seg, progress: ride.segment.progress, elapsedS: (ride.startT + ride.elapsedS * 1000 - ride.segment.startT) / 1000 } } : {}),
           devices: input.status(),
         },
-        profile.massKg,
+        s.massKg,
       );
     }
+  };
+  engine.renderer.setAnimationLoop(() => {
+    timer.update();
+    frame(Math.min(timer.getDelta(), 0.1), true);
   });
+  // Crochet de test : avance la simulation à pas fixe (1/60 s) sans dépendre de l'affichage.
+  const advance = (seconds: number) => {
+    const n = Math.round(seconds * 60);
+    for (let k = 0; k < n; k++) frame(1 / 60, k === n - 1);
+  };
+  /** Capture du canvas (rendu immédiat puis lecture dans la même tâche) envoyée au serveur de dev. */
+  const shot = async (name: string) => {
+    frame(1 / 60, true);
+    const url = engine.renderer.domElement.toDataURL('image/jpeg', 0.9);
+    const res = await fetch(`/__shot?name=${encodeURIComponent(name)}`, { method: 'POST', body: url });
+    return res.text();
+  };
+  (window as unknown as { __ar: unknown }).__ar = { engine, world, ride, rig, track, peloton, input, finish, advance, hud, shot };
 }
 
 boot().catch((err) => {
   console.error(err);
-  const ui = document.getElementById('ui') as HTMLElement;
   ui.innerHTML = `<div class="loading">Erreur : ${String((err as Error).message ?? err)}</div>`;
 });

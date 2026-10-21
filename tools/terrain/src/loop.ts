@@ -43,7 +43,16 @@ export interface CycleScore {
   sprints: number;
   villages: string[];
   compactness: number;
+  /** Note hors segments (fréquentation, trafic, longueur, villages, forme). */
+  base: number;
   score: number;
+}
+
+/** Bonus de segments : une vraie côte et un sprint sont attendus. */
+export function segmentBonus(nClimbs: number, bestGain: number, nSprints: number): number {
+  let s = nClimbs ? 2 + Math.min(2, bestGain / 40) + 0.3 * Math.min(2, nClimbs - 1) : -3;
+  s += nSprints ? 1.5 : -1.5;
+  return s;
 }
 
 /** Arête utilisable pour une boucle vélo ? */
@@ -256,11 +265,10 @@ export function scoreCycle(g: RoadGraph, c: DirectedCycle, dem: DemStack, pois: 
     if (dmin < 400) villages.push(name);
   }
   const best = climbs.reduce((m, k) => Math.max(m, k.gainM), 0);
-  let score = 4 * ridden + 2 * freq - 3 * busy;
-  score += climbs.length ? 2 + Math.min(2, best / 40) + 0.3 * Math.min(2, climbs.length - 1) : -3;
-  score += sprints.length ? 1.5 : -1.5;
-  score -= (Math.abs(len - o.targetLen) / 1000) * 0.4;
-  score += 0.3 * Math.min(4, villages.length);
-  score += compactness < 0.08 ? -2 : 0.5 * Math.min(compactness, 0.6);
-  return { cycle: c, lengthM: len, ridden, freq, busy, klimbs: climbs.length, bestClimbGain: best, sprints: sprints.length, villages, compactness, score };
+  let base = 4 * ridden + 2 * freq - 3 * busy;
+  base -= (Math.abs(len - o.targetLen) / 1000) * (0.4 * 10000 / o.targetLen);
+  base += 0.3 * Math.min(4, villages.length);
+  base += compactness < 0.08 ? -2 : 0.5 * Math.min(compactness, 0.6);
+  const score = base + segmentBonus(climbs.length, best, sprints.length);
+  return { cycle: c, lengthM: len, ridden, freq, busy, klimbs: climbs.length, bestClimbGain: best, sprints: sprints.length, villages, compactness, base, score };
 }

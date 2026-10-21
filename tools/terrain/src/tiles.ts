@@ -282,13 +282,20 @@ export function buildTile(
   const rect = tileRect(tx, tz);
   const carve = inputs.carve.get(tx, tz);
   // grilles
-  const lo = sampleGrid(dems.lo, tx, tz, LOD_LO.n, false);
-  carveGrid(lo, carve, () => 14, 4);
   let hiGrid: Grid | null = null;
+  let lo: Grid;
   if (hi) {
     hiGrid = sampleGrid(dems.hi, tx, tz, LOD_HI.n, true);
+    // niveau lo cohérent avec hi : décimation de la grille fine (avant creusement)
+    const f = LOD_HI.n / LOD_LO.n;
+    const N = LOD_LO.n + 1;
+    const NH = LOD_HI.n + 1;
+    const h = new Float32Array(N * N);
+    for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) h[j * N + i] = hiGrid.h[j * f * NH + i * f]!;
+    lo = { n: LOD_LO.n, res: LOD_LO.resM, x0: hiGrid.x0, z0: hiGrid.z0, h };
     carveGrid(hiGrid, carve, (hw) => 4 + hw, 0);
-  }
+  } else lo = sampleGrid(dems.lo, tx, tz, LOD_LO.n, false);
+  carveGrid(lo, carve, () => 14, 4);
   const fine = hiGrid ?? lo;
   let minM = Infinity;
   let maxM = -Infinity;
@@ -309,7 +316,7 @@ export function buildTile(
     bytes += hb.length;
   }
   // entités
-  const roads = [];
+  const roads: Array<Record<string, unknown>> = [];
   for (const r of inputs.roads.get(tx, tz)) {
     for (const piece of clipPolylineToBox(r.pts, rect)) {
       if (piece.length < 2) continue;
@@ -324,7 +331,7 @@ export function buildTile(
       roads.push(o);
     }
   }
-  const buildings = [];
+  const buildings: Array<Record<string, unknown>> = [];
   for (const b of inputs.buildings.get(tx, tz)) {
     const c = b.centroid;
     if (c[0] < rect.minX || c[0] >= rect.maxX || c[1] < rect.minZ || c[1] >= rect.maxZ) continue;
@@ -347,10 +354,10 @@ export function buildTile(
     if (b.name) o.name = b.name;
     buildings.push(o);
   }
-  const forests = [];
-  const fields = [];
-  const landuse = [];
-  const water = [];
+  const forests: Array<Record<string, unknown>> = [];
+  const fields: Array<Record<string, unknown>> = [];
+  const landuse: Array<Record<string, unknown>> = [];
+  const water: Array<Record<string, unknown>> = [];
   const tol = hi ? 0.5 : 1.5;
   for (const a of inputs.areas.get(tx, tz)) {
     const polys = clipRings(a.polygons, rect, tol);
@@ -366,8 +373,8 @@ export function buildTile(
       }
     }
   }
-  const waterways = [];
-  const railways = [];
+  const waterways: Array<Record<string, unknown>> = [];
+  const railways: Array<Record<string, unknown>> = [];
   for (const l of inputs.lines.get(tx, tz)) {
     for (const piece of clipPolylineToBox(l.pts, rect)) {
       const o: Record<string, unknown> = { id: l.id, kind: l.kind, width: l.width };
@@ -378,7 +385,7 @@ export function buildTile(
       (l.cat === 'waterway' ? waterways : railways).push(o);
     }
   }
-  const pois = [];
+  const pois: Array<Record<string, unknown>> = [];
   for (const p of inputs.pois.get(tx, tz)) {
     if (p.x < rect.minX || p.x >= rect.maxX || p.z < rect.minZ || p.z >= rect.maxZ) continue;
     pois.push({ id: p.id, kind: p.kind, name: p.name, x: p.x, y: r2(gridSample(fine, p.x, p.z)), z: p.z, ...(p.ele !== undefined ? { ele: p.ele } : {}) });

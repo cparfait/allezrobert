@@ -44,6 +44,10 @@ export class TerrainManager {
   readonly wetness = uniform(0);
   /** Neige / givre (hiver). */
   readonly frost = uniform(0);
+  /** Teinte appliquée à l'orthophoto (prise en été) selon la saison, et sa saturation. */
+  private readonly orthoTint = colorUniform('#ffffff');
+  private readonly orthoSat = uniform(1);
+  private readonly loader = new THREE.TextureLoader();
   onTileLoaded?: (tile: LoadedTile) => void;
   onTileUnloaded?: (tile: LoadedTile) => void;
 
@@ -58,6 +62,9 @@ export class TerrainManager {
     const c = SEASON_GROUND[season];
     for (const k of Object.keys(c) as Array<keyof typeof c>) this.seasonColors[k].set(c[k]);
     this.frost.value = season === 'winter' ? 0.25 : 0;
+    const tint: Record<Season, [string, number]> = { spring: ['#f2ffe8', 1.05], summer: ['#ffffff', 1], autumn: ['#ffd9a8', 0.85], winter: ['#d6dbe0', 0.45] };
+    this.orthoTint.set(tint[season][0]);
+    this.orthoSat.value = tint[season][1];
   }
 
   setQuality(q: QualitySettings): void {
@@ -146,7 +153,17 @@ export class TerrainManager {
   private add(tile: LoadedTile, lod: number): void {
     if (!tile.splat) tile.splat = rasterizeSplat(tile);
     const textures = this.splatTextures(tile);
-    const material = this.createMaterial(textures);
+    let ortho: THREE.Texture | null = null;
+    if (tile.orthoUrl) {
+      // Orthophoto IGN : chargée en arrière-plan, le matériau la prend en compte dès réception.
+      ortho = this.loader.load(tile.orthoUrl, undefined, undefined, () => undefined);
+      ortho.colorSpace = THREE.SRGBColorSpace;
+      ortho.flipY = false;
+      ortho.anisotropy = 8;
+      ortho.wrapS = ortho.wrapT = THREE.ClampToEdgeWrapping;
+      textures.push(ortho as THREE.DataTexture);
+    }
+    const material = this.createMaterial(textures, ortho);
     const mesh = new THREE.Mesh(this.buildGeometry(tile, lod), material);
     mesh.position.set(tile.x0 + tile.size / 2, 0, tile.z0 + tile.size / 2);
     mesh.receiveShadow = true;
@@ -262,7 +279,7 @@ export class TerrainManager {
     });
   }
 
-  private createMaterial(textures: THREE.DataTexture[]): THREE.MeshStandardNodeMaterial {
+  private createMaterial(textures: THREE.DataTexture[], ortho: THREE.Texture | null): THREE.MeshStandardNodeMaterial {
     const m = new THREE.MeshStandardNodeMaterial();
     const s0 = texture(textures[0] as THREE.Texture, uv());
     const s1 = texture(textures[1] as THREE.Texture, uv());
@@ -293,6 +310,15 @@ export class TerrainManager {
     // Pentes fortes : terre et pierre apparentes.
     const slope = float(1).sub(normalWorld.y);
     col = mix(col, c.dirt.node, smoothstep(0.3, 0.55, slope).mul(0.6));
+    if (ortho) {
+      // Orthophoto : vrais motifs de parcelles, haies, villages ; teinte saisonnière ; le détail
+      // procédural reste visible de près. La chaussée garde le rendu asphalte.
+      const photo = texture(ortho, uv()).rgb;
+      const lum = photo.dot(vec3(0.299, 0.587, 0.114));
+      const seasonal = mix(vec3(lum, lum, lum), photo, this.orthoSat).mul(this.orthoTint.node).mul(1.08);
+      const roadMask = smoothstep(0.35, 0.75, s1.g);
+      col = mix(col, seasonal, float(0.72).mul(float(1).sub(roadMask)));
+    }
     col = col.mul(detail);
     // Pluie : sol plus sombre ; givre : voile clair sur les surfaces planes.
     col = col.mul(float(1).sub(this.wetness.mul(0.35)));

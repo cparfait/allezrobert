@@ -6,6 +6,7 @@ import { TerrainManager } from './terrain.ts';
 import { Vegetation } from './vegetation.ts';
 import { Buildings } from './buildings.ts';
 import { RoadMesh } from './road.ts';
+import { RoadNetwork } from './network.ts';
 import type { WorldSource } from './types.ts';
 
 /** Assemble le monde : environnement, terrain streamé, route, végétation, bâtiments. */
@@ -15,6 +16,7 @@ export class World {
   readonly vegetation: Vegetation;
   readonly buildings: Buildings;
   readonly road: RoadMesh;
+  readonly network: RoadNetwork;
   readonly source: WorldSource;
   private readonly scene: THREE.Scene;
   private readonly track: RouteTrack;
@@ -39,13 +41,17 @@ export class World {
     scene.add(this.vegetation.group);
     this.buildings = new Buildings(groundAt);
     scene.add(this.buildings.group);
+    this.network = new RoadNetwork(route.id, groundAt);
+    scene.add(this.network.group);
 
     this.terrain.onTileLoaded = (tile) => {
       this.buildings.addTile(tile);
+      this.network.addTile(tile);
       this.vegetation.addTile(tile);
     };
     this.terrain.onTileUnloaded = (tile) => {
       this.buildings.removeTile(tile);
+      this.network.removeTile(tile);
       this.vegetation.removeTile(tile);
     };
   }
@@ -77,6 +83,7 @@ export class World {
     this.vegetation.update(focus);
     const w = this.env.state.weather;
     this.road.wetness.value = w.rain;
+    this.network.wetness.value = w.rain;
     this.terrain.wetness.value = w.rain * 0.8;
     this.vegetation.windStrength.value = 0.15 + w.windMs * 0.06;
     this.buildings.night.value = this.env.sun.position.y < focus.y + 20 ? 1 : 0;
@@ -93,7 +100,7 @@ export class World {
 
   dispose(): void {
     this.env.dispose();
-    this.scene.remove(this.terrain.group, this.road.mesh, this.vegetation.group, this.buildings.group);
+    this.scene.remove(this.terrain.group, this.road.mesh, this.vegetation.group, this.buildings.group, this.network.group);
     void this.track;
   }
 }

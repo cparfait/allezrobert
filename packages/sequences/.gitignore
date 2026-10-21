@@ -1,0 +1,8 @@
+# Copies générées par scripts/sync-assets.ts (sources : tokens.css, lib/, src/strings.ts)
+compositions/*/assets/
+# État et artefacts de la CLI HyperFrames
+.hyperframes/
+compositions/*/.hyperframes/
+compositions/*/renders/
+# Rendus locaux
+out/

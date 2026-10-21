@@ -1,0 +1,285 @@
+<!doctype html>
+<html
+  lang="fr"
+  data-composition-variables='[
+    {"id":"lang","type":"enum","label":"Langue","default":"fr","options":[{"value":"fr","label":"Français"},{"value":"en","label":"English"}]},
+    {"id":"route_name","type":"string","label":"Nom du parcours","default":"Boucle de la Madeleine","maxLength":48},
+    {"id":"podium","type":"string","label":"Podium (JSON : [{name, time_s, team, team_color}] du 1er au 3e)","default":"[{\"name\":\"Robert\",\"time_s\":5123,\"team\":\"VC Chevreuse\",\"team_color\":\"#ef4444\"},{\"name\":\"Christophe P.\",\"time_s\":5135.6,\"team\":\"Les Pois Chiches\",\"team_color\":\"#3b82f6\"},{\"name\":\"Mathilde\",\"time_s\":5170.2,\"team\":\"Saclay Express\",\"team_color\":\"#22c55e\"}]"},
+    {"id":"seed","type":"number","label":"Graine des confettis","default":7,"min":0,"step":1},
+    {"id":"preview_backdrop","type":"boolean","label":"Décor de prévisualisation","default":false},
+    {"id":"show_safe_zones","type":"boolean","label":"Afficher les zones vitales du HUD","default":false}
+  ]'
+>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <title>Allez Robert ! — Arrivée et podium</title>
+    <link rel="stylesheet" href="assets/tokens.css" />
+    <link rel="stylesheet" href="assets/ar-seq.css" />
+    <script src="assets/gsap.min.js"></script>
+    <script src="assets/strings.js"></script>
+    <script src="assets/ar-seq.js"></script>
+    <style>
+      /* Scène : x 460–1460, y 262–922 (au-dessus du profil, sous le bloc puissance). */
+      #head {
+        position: absolute;
+        left: 560px;
+        top: 262px;
+        width: 800px;
+        height: 110px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+      }
+      .head-panel {
+        padding: 12px 34px 14px;
+        border-radius: var(--ar-radius);
+        background: var(--ar-bg-strong);
+        border: 1px solid var(--ar-line);
+        box-shadow: var(--ar-shadow);
+      }
+      #head .ar-kicker {
+        color: var(--ar-accent);
+      }
+      .route {
+        font-size: 40px;
+        font-weight: 800;
+        letter-spacing: -0.015em;
+        white-space: nowrap;
+        max-width: 740px;
+      }
+      .confetti {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 1920px;
+        height: 1080px;
+        pointer-events: none;
+      }
+      .confetti i {
+        position: absolute;
+        top: 240px;
+        display: block;
+        width: 10px;
+        height: 16px;
+        border-radius: 2px;
+        opacity: 0;
+      }
+      .pillar {
+        position: absolute;
+        width: 300px;
+        bottom: 160px; /* bas des marches à y = 920 */
+        transform-origin: center bottom;
+      }
+      .pillar .block {
+        position: absolute;
+        inset: 0;
+        border-radius: 12px 12px 4px 4px;
+        background: var(--ar-bg-strong);
+        border: 1px solid var(--ar-line);
+        overflow: hidden;
+      }
+      .pillar .band {
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: 0;
+        height: 10px;
+        background: var(--team, #9aa5b1);
+      }
+      .pillar .rank {
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: 22px;
+        text-align: center;
+        font-family: var(--mono);
+        font-size: 84px;
+        font-weight: 800;
+        line-height: 1;
+      }
+      #p1 { left: 810px; height: 250px; }
+      #p2 { left: 490px; height: 180px; }
+      #p3 { left: 1130px; height: 130px; }
+      #p1 .rank { color: var(--ar-gold); }
+      #p2 .rank { color: var(--ar-silver); }
+      #p3 .rank { color: var(--ar-bronze); }
+
+      .who {
+        position: absolute;
+        width: 300px;
+        height: 118px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: flex-end;
+        text-align: center;
+      }
+      #w1 { left: 810px; top: 534px; height: 130px; }
+      #w2 { left: 490px; top: 604px; }
+      #w3 { left: 1130px; top: 654px; }
+      .who .tag {
+        padding: 10px 16px 12px;
+        border-radius: 12px;
+        background: var(--ar-bg-strong);
+        border: 1px solid var(--ar-line);
+        border-left: 6px solid var(--team, #9aa5b1);
+        min-width: 220px;
+        max-width: 300px;
+      }
+      .who .winner {
+        font-size: 13px;
+        font-weight: 800;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--ar-accent);
+      }
+      .who .n {
+        font-size: 26px;
+        font-weight: 800;
+        white-space: nowrap;
+      }
+      #w1 .n { font-size: 32px; }
+      .who .team {
+        font-size: 14px;
+        color: var(--ar-muted);
+        white-space: nowrap;
+      }
+      .who .tm {
+        font-size: 22px;
+        font-weight: 700;
+      }
+      .glow {
+        position: absolute;
+        left: 735px;
+        top: 470px;
+        width: 450px;
+        height: 450px;
+        border-radius: 50%;
+        background: radial-gradient(circle, rgba(255, 210, 63, 0.35) 0%, rgba(255, 210, 63, 0) 65%);
+        opacity: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <div
+      id="root"
+      data-composition-id="ar-podium"
+      data-start="0"
+      data-duration="6"
+      data-width="1920"
+      data-height="1080"
+    >
+      <div id="stage">
+        <div class="glow" id="glow" data-layout-ignore></div>
+        <div class="confetti" id="confetti" data-layout-ignore></div>
+        <section id="head">
+          <div class="head-panel" id="head-panel">
+            <div class="ar-kicker" id="kicker">Arrivée · Podium</div>
+            <div class="route" id="route">Boucle de la Madeleine</div>
+          </div>
+        </section>
+
+        <div class="pillar" id="p2"><div class="block"><div class="band"></div><div class="rank">2</div></div></div>
+        <div class="pillar" id="p1"><div class="block"><div class="band"></div><div class="rank">1</div></div></div>
+        <div class="pillar" id="p3"><div class="block"><div class="band"></div><div class="rank">3</div></div></div>
+
+        <div class="who" id="w2">
+          <div class="tag"><div class="n" id="n2">—</div><div class="team" id="t2"></div><div class="tm ar-num" id="tm2"></div></div>
+        </div>
+        <div class="who" id="w1">
+          <div class="tag"><div class="winner" id="winner">Vainqueur</div><div class="n" id="n1">—</div><div class="team" id="t1"></div><div class="tm ar-num" id="tm1"></div></div>
+        </div>
+        <div class="who" id="w3">
+          <div class="tag"><div class="n" id="n3">—</div><div class="team" id="t3"></div><div class="tm ar-num" id="tm3"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      AR.ready(function () {
+        var v = AR.vars();
+        AR.setLang(v.lang);
+        var root = document.getElementById('root');
+        AR.decorate(root, v);
+
+        AR.text('kicker', AR.t('podium.finish') + ' · ' + AR.t('podium.title'));
+        AR.text('route', v.route_name);
+        AR.fit(document.getElementById('route'), 740, 24);
+        AR.text('winner', AR.t('podium.winner'));
+
+        var list = AR.json(v.podium, []);
+        var leaderTime = list[0] ? Number(list[0].time_s) || 0 : 0;
+        var present = [];
+        for (var i = 0; i < 3; i++) {
+          var r = list[i];
+          var k = i + 1;
+          var pillar = document.getElementById('p' + k);
+          var who = document.getElementById('w' + k);
+          if (!r) {
+            pillar.style.display = 'none';
+            who.style.display = 'none';
+            continue;
+          }
+          present.push(k);
+          var color = r.team_color || '#9aa5b1';
+          pillar.style.setProperty('--team', color);
+          who.style.setProperty('--team', color);
+          AR.text('n' + k, r.name || '');
+          AR.fit(document.getElementById('n' + k), 268, 16);
+          AR.text('t' + k, r.team || '');
+          AR.text('tm' + k, k === 1 ? AR.duration(r.time_s) : AR.gap((Number(r.time_s) || 0) - leaderTime));
+        }
+
+        // Confettis déterministes (PRNG semé) : 30 éléments, transform/opacity uniquement.
+        var rand = AR.rng(Number(v.seed) || 7);
+        var colors = ['#ffd23f'];
+        list.slice(0, 3).forEach(function (r) {
+          colors.push(r.team_color || '#f5f7fa');
+        });
+        var box = document.getElementById('confetti');
+        var bits = [];
+        for (var c = 0; c < 30; c++) {
+          var b = document.createElement('i');
+          b.style.left = Math.round(520 + rand() * 880) + 'px';
+          b.style.background = colors[c % colors.length];
+          box.appendChild(b);
+          bits.push({ el: b, delay: rand() * 1.2, dx: (rand() - 0.5) * 160, rot: (rand() - 0.5) * 720, fall: 420 + rand() * 260 });
+        }
+
+        var tl = gsap.timeline({ paused: true });
+        tl.fromTo('#head-panel', { opacity: 0, y: -24 }, { opacity: 1, y: 0, duration: 0.5, ease: 'power3.out' }, 0);
+        var order = [
+          [3, 0.5, 0.85],
+          [2, 0.8, 1.15],
+          [1, 1.1, 1.55],
+        ];
+        order.forEach(function (o) {
+          if (present.indexOf(o[0]) < 0) return;
+          tl.fromTo('#p' + o[0], { scaleY: 0 }, { scaleY: 1, duration: o[0] === 1 ? 0.55 : 0.45, ease: 'power3.out' }, o[1]);
+          tl.fromTo('#w' + o[0], { opacity: 0, y: 24 }, { opacity: 1, y: 0, duration: 0.4, ease: 'power3.out' }, o[2]);
+        });
+        if (present.indexOf(1) >= 0) {
+          tl.fromTo('#glow', { opacity: 0, scale: 0.6 }, { opacity: 1, scale: 1, duration: 0.8, ease: 'power2.out' }, 1.6);
+          tl.fromTo('#winner', { opacity: 0, scale: 0.7 }, { opacity: 1, scale: 1, duration: 0.35, ease: 'back.out(2)' }, 1.75);
+          bits.forEach(function (bit) {
+            var t0 = 1.8 + bit.delay;
+            tl.fromTo(
+              bit.el,
+              { y: 0, x: 0, rotation: 0 },
+              { y: bit.fall, x: bit.dx, rotation: bit.rot, duration: 2.2, ease: 'power1.in', immediateRender: false },
+              t0
+            );
+            tl.fromTo(bit.el, { opacity: 0 }, { opacity: 1, duration: 0.15, immediateRender: false }, t0);
+            tl.to(bit.el, { opacity: 0, duration: 0.4 }, t0 + 1.8);
+          });
+        }
+        tl.to('#stage', { opacity: 0, y: 24, duration: 0.5, ease: 'power2.in' }, 5.45);
+
+        window.__timelines['ar-podium'] = tl;
+      });
+    </script>
+  </body>
+</html>

@@ -1,0 +1,796 @@
+<!doctype html>
+<html
+  lang="fr"
+  data-composition-variables='[
+    {"id":"lang","type":"enum","label":"Langue","default":"fr","options":[{"value":"fr","label":"Français"},{"value":"en","label":"English"}]},
+    {"id":"ride_title","type":"string","label":"Titre de la sortie","default":"La sortie du dimanche","maxLength":48},
+    {"id":"date_label","type":"string","label":"Date (texte libre)","default":"Dimanche 18 octobre 2026"},
+    {"id":"route_name","type":"string","label":"Parcours","default":"Boucle de la Madeleine","maxLength":48},
+    {"id":"season","type":"enum","label":"Saison","default":"automne","options":[{"value":"printemps","label":"Printemps"},{"value":"ete","label":"Été"},{"value":"automne","label":"Automne"},{"value":"hiver","label":"Hiver"}]},
+    {"id":"rider_name","type":"string","label":"Coureur (destinataire)","default":"Christophe P."},
+    {"id":"trace","type":"string","label":"Tracé (JSON : [[lat, lon], …] ou [[x, y], …])","default":"[[48.706,2.13215],[48.7103,2.13478],[48.71317,2.13212],[48.71471,2.12781],[48.71582,2.12495],[48.71746,2.12391],[48.71988,2.12277],[48.72269,2.1195],[48.72557,2.1138],[48.72876,2.10701],[48.73274,2.10047],[48.73731,2.09421],[48.74121,2.08716],[48.74275,2.0786],[48.74129,2.06918],[48.73801,2.06039],[48.73534,2.05314],[48.73515,2.04684],[48.73735,2.04],[48.74007,2.0317],[48.74124,2.02243],[48.74027,2.01343],[48.73839,2.00542],[48.73742,1.99791],[48.73818,1.98998],[48.73991,1.98154],[48.74107,1.97361],[48.7406,1.9674],[48.73851,1.9629],[48.73534,1.95883],[48.73133,1.95418],[48.7261,1.94982],[48.71934,1.94849],[48.71152,1.95271],[48.70393,1.96225],[48.69794,1.97361],[48.694,1.98215],[48.69158,1.98535],[48.68983,1.9844],[48.68831,1.98293],[48.68713,1.98399],[48.68631,1.98796],[48.68527,1.99287],[48.68302,1.99663],[48.67899,1.99889],[48.67361,2.00094],[48.6679,2.00405],[48.66254,2.00817],[48.65727,2.01216],[48.65136,2.01521],[48.6449,2.01787],[48.63949,2.02157],[48.63752,2.02709],[48.64042,2.03377],[48.64735,2.04],[48.65549,2.04478],[48.6618,2.04847],[48.66493,2.05225],[48.66563,2.05672],[48.66568,2.0613],[48.66624,2.06498],[48.66723,2.06757],[48.66802,2.07003],[48.66848,2.07347],[48.66938,2.0778],[48.67177,2.0817],[48.67593,2.08408],[48.68118,2.08576],[48.68648,2.08945],[48.69133,2.0976],[48.69602,2.10997],[48.70097,2.12304],[48.706,2.13215]]"},
+    {"id":"trace_projection","type":"enum","label":"Projection du tracé","default":"latlon","options":[{"value":"latlon","label":"Latitude / longitude"},{"value":"xy","label":"Plan x / y (y vers le bas)"}]},
+    {"id":"elevation","type":"string","label":"Profil (JSON : altitudes en m)","default":"[92,95,101,118,140,162,171,166,150,128,112,104,99,110,131,158,182,196,204,199,186,170,151,136,128,124,133,149,168,173,165,148,129,114,103,97,94,96,99,93]"},
+    {"id":"distance_km","type":"number","label":"Distance","default":42.3,"min":0,"step":0.1,"unit":"km"},
+    {"id":"duration_s","type":"number","label":"Durée","default":5135.6,"min":0,"step":1,"unit":"s"},
+    {"id":"avg_power_w","type":"number","label":"Puissance moyenne","default":214,"min":0,"step":1,"unit":"W"},
+    {"id":"np_w","type":"number","label":"Puissance normalisée","default":236,"min":0,"step":1,"unit":"W"},
+    {"id":"elevation_m","type":"number","label":"Dénivelé positif","default":612,"min":0,"step":1,"unit":"m"},
+    {"id":"calories_kcal","type":"number","label":"Calories","default":1098,"min":0,"step":1,"unit":"kcal"},
+    {"id":"leaderboard","type":"string","label":"Classement (JSON : [{name, time_s, team_color, me}])","default":"[{\"name\":\"Robert\",\"time_s\":5123,\"team_color\":\"#ef4444\"},{\"name\":\"Christophe P.\",\"time_s\":5135.6,\"team_color\":\"#3b82f6\",\"me\":true},{\"name\":\"Mathilde\",\"time_s\":5170.2,\"team_color\":\"#22c55e\"},{\"name\":\"Julien\",\"time_s\":5244,\"team_color\":\"#a855f7\"},{\"name\":\"Sophie\",\"time_s\":5302.8,\"team_color\":\"#f97316\"},{\"name\":\"Karim\",\"time_s\":5419,\"team_color\":\"#eab308\"}]"},
+    {"id":"segments","type":"string","label":"Meilleurs moments (JSON : [{kind, name, time_s, rank, rank_total, pr, pr_delta_s}])","default":"[{\"kind\":\"kom\",\"name\":\"Côte de la Madeleine\",\"time_s\":263.4,\"rank\":2,\"rank_total\":12,\"pr\":true,\"pr_delta_s\":4.2},{\"kind\":\"sprint\",\"name\":\"Sprint de Dampierre\",\"time_s\":21.8,\"rank\":1,\"rank_total\":12,\"pr\":false},{\"kind\":\"kom\",\"name\":\"Côte des 17 Tournants\",\"time_s\":402.1,\"rank\":4,\"rank_total\":12,\"pr\":true,\"pr_delta_s\":11}]"},
+    {"id":"accent","type":"color","label":"Accent","default":"#ffd23f"}
+  ]'
+>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <title>Allez Robert ! — Vidéo résumé de la sortie</title>
+    <link rel="stylesheet" href="assets/tokens.css" />
+    <link rel="stylesheet" href="assets/ar-seq.css" />
+    <script src="assets/gsap.min.js"></script>
+    <script src="assets/strings.js"></script>
+    <script src="assets/ar-seq.js"></script>
+    <style>
+      body {
+        background: var(--ar-ink);
+      }
+      .bg {
+        position: absolute;
+        inset: 0;
+        background: radial-gradient(ellipse at 50% 120%, #141b2b 0%, var(--ar-ink) 70%);
+      }
+      .blob {
+        position: absolute;
+        width: 1400px;
+        height: 1400px;
+        border-radius: 50%;
+        opacity: 0.16;
+        background: radial-gradient(circle, var(--season, #e0a33a) 0%, rgba(0, 0, 0, 0) 62%);
+      }
+      #blob-a { left: -520px; top: -640px; }
+      #blob-b { left: 1100px; top: 260px; opacity: 0.1; background: radial-gradient(circle, var(--accent) 0%, rgba(0, 0, 0, 0) 60%); }
+
+      /* Bandeau persistant */
+      .chrome-top {
+        position: absolute;
+        left: 80px;
+        right: 80px;
+        top: 48px;
+        height: 40px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      .brand {
+        font-size: 24px;
+        font-weight: 800;
+        letter-spacing: -0.01em;
+      }
+      .brand em,
+      .brand-xl em {
+        font-style: normal;
+        color: var(--accent);
+      }
+      .chrome-top .meta {
+        font-size: 18px;
+        color: var(--ar-muted);
+        white-space: nowrap;
+      }
+      .progress {
+        position: absolute;
+        left: 80px;
+        right: 80px;
+        bottom: 44px;
+        height: 4px;
+        border-radius: 2px;
+        background: rgba(255, 255, 255, 0.1);
+        overflow: hidden;
+      }
+      .progress span {
+        display: block;
+        width: 100%;
+        height: 100%;
+        background: var(--accent);
+        transform-origin: left center;
+      }
+
+      .scene {
+        position: absolute;
+        inset: 0;
+        opacity: 0;
+      }
+      .scene-title {
+        position: absolute;
+        left: 120px;
+        top: 150px;
+        font-size: 18px;
+        font-weight: 700;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: var(--accent);
+      }
+
+      /* S1 — titre */
+      #s-title .center {
+        position: absolute;
+        left: 160px;
+        right: 160px;
+        top: 300px;
+        height: 480px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        gap: 18px;
+      }
+      .brand-xl {
+        font-size: 40px;
+        font-weight: 800;
+      }
+      .kick {
+        font-size: 20px;
+        font-weight: 700;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: var(--ar-muted);
+      }
+      .ride-title {
+        font-size: 108px;
+        font-weight: 900;
+        letter-spacing: -0.03em;
+        line-height: 1;
+        white-space: nowrap;
+        max-width: 1560px;
+      }
+      .sub {
+        font-size: 30px;
+        color: var(--ar-fg);
+        white-space: nowrap;
+      }
+      .sub span {
+        color: var(--ar-muted);
+      }
+      .rule {
+        width: 140px;
+        height: 8px;
+        border-radius: 4px;
+        background: var(--accent);
+        transform-origin: center center;
+      }
+
+      /* S2 — parcours */
+      .map {
+        position: absolute;
+        left: 120px;
+        top: 200px;
+        width: 900px;
+        height: 720px;
+        border-radius: 22px;
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid var(--ar-line);
+      }
+      .map svg {
+        position: absolute;
+        inset: 0;
+        width: 900px;
+        height: 720px;
+      }
+      .route-info {
+        position: absolute;
+        left: 1100px;
+        top: 220px;
+        width: 700px;
+      }
+      .route-info .rn {
+        font-size: 60px;
+        font-weight: 800;
+        letter-spacing: -0.02em;
+        line-height: 1.05;
+        white-space: nowrap;
+        max-width: 700px;
+      }
+      .kpis {
+        margin-top: 30px;
+        display: flex;
+        gap: 48px;
+      }
+      .kpi .k {
+        font-size: 16px;
+        font-weight: 600;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--ar-muted);
+      }
+      .kpi .v {
+        font-size: 58px;
+        font-weight: 800;
+        line-height: 1.05;
+      }
+      .kpi .u {
+        font-family: var(--font);
+        font-size: 22px;
+        color: var(--ar-muted);
+        margin-left: 6px;
+        font-weight: 600;
+      }
+      .elev {
+        position: absolute;
+        left: 1100px;
+        top: 600px;
+        width: 700px;
+        height: 320px;
+        padding: 22px 26px;
+        border-radius: 22px;
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid var(--ar-line);
+      }
+      .elev .k {
+        font-size: 16px;
+        font-weight: 600;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--ar-muted);
+      }
+      .elev-box {
+        position: absolute;
+        left: 26px;
+        top: 70px;
+        width: 648px;
+        height: 220px;
+      }
+      .elev-clip,
+      .elev-inner {
+        position: absolute;
+        inset: 0;
+        overflow: hidden;
+      }
+      .elev svg {
+        display: block;
+        width: 648px;
+        height: 220px;
+      }
+      .marker {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 22px;
+        height: 22px;
+        margin: -11px 0 0 -11px;
+        border-radius: 50%;
+        background: var(--accent);
+        border: 4px solid var(--ar-ink);
+        box-shadow: 0 0 0 4px rgba(255, 210, 63, 0.35);
+      }
+
+      /* S3 — chiffres */
+      .tiles {
+        position: absolute;
+        left: 120px;
+        top: 230px;
+        width: 1680px;
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 28px;
+      }
+      .tile {
+        height: 300px;
+        padding: 34px 38px;
+        border-radius: 22px;
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid var(--ar-line);
+        border-top: 6px solid var(--c, var(--accent));
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+      }
+      .tile .k {
+        font-size: 20px;
+        font-weight: 700;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--ar-muted);
+      }
+      .tile .v {
+        font-size: 104px;
+        font-weight: 800;
+        line-height: 1;
+        letter-spacing: -0.02em;
+        white-space: nowrap;
+      }
+      .tile .u {
+        font-family: var(--font);
+        font-size: 30px;
+        font-weight: 600;
+        color: var(--ar-muted);
+        margin-left: 10px;
+        letter-spacing: 0;
+      }
+
+      /* S4 — classement */
+      .board {
+        position: absolute;
+        left: 420px;
+        top: 220px;
+        width: 1080px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      .brow {
+        height: 76px;
+        display: flex;
+        align-items: center;
+        gap: 22px;
+        padding: 0 30px 0 0;
+        border-radius: 14px;
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid var(--ar-line);
+        overflow: hidden;
+      }
+      .brow.me {
+        background: rgba(255, 210, 63, 0.14);
+        border-color: rgba(255, 210, 63, 0.6);
+      }
+      .brow .bar {
+        width: 10px;
+        align-self: stretch;
+        background: var(--c, #9aa5b1);
+      }
+      .brow .rk {
+        width: 70px;
+        font-size: 34px;
+        font-weight: 800;
+        text-align: center;
+      }
+      .brow .nm {
+        flex: 1;
+        min-width: 0;
+        font-size: 32px;
+        font-weight: 700;
+        white-space: nowrap;
+      }
+      .brow .you {
+        margin-left: 12px;
+        padding: 3px 10px;
+        border-radius: 8px;
+        background: var(--accent);
+        color: var(--ar-ink);
+        font-size: 16px;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        vertical-align: 6px;
+      }
+      .brow .tm {
+        font-size: 30px;
+        font-weight: 700;
+      }
+      .brow .gp {
+        width: 150px;
+        text-align: right;
+        font-size: 24px;
+        color: var(--ar-muted);
+      }
+
+      /* S5 — meilleurs moments */
+      .cards {
+        position: absolute;
+        left: 120px;
+        top: 250px;
+        width: 1680px;
+        display: flex;
+        gap: 30px;
+      }
+      .hcard {
+        position: relative;
+        flex: 1;
+        height: 520px;
+        padding: 40px 40px 36px 58px;
+        border-radius: 22px;
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid var(--ar-line);
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        --kind: var(--ar-kom);
+      }
+      .hcard.sprint {
+        --kind: var(--ar-sprint);
+      }
+      .hcard .stripe {
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        width: 20px;
+        background-color: var(--kind);
+      }
+      .hcard.kom .stripe {
+        background-image: radial-gradient(circle at 50% 50%, #fff 0 3px, transparent 3.5px);
+        background-size: 20px 20px;
+      }
+      .hcard .kk {
+        font-size: 18px;
+        font-weight: 800;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--kind);
+        filter: brightness(1.3);
+      }
+      .hcard .hn {
+        margin-top: 14px;
+        font-size: 40px;
+        font-weight: 800;
+        line-height: 1.1;
+        letter-spacing: -0.01em;
+      }
+      .hcard .ht {
+        margin-top: auto;
+        font-size: 88px;
+        font-weight: 800;
+        line-height: 1;
+      }
+      .hcard .hr {
+        margin-top: 12px;
+        font-size: 26px;
+        color: var(--ar-muted);
+      }
+      .hcard .hr b {
+        color: var(--ar-fg);
+      }
+      .hcard .badge {
+        position: absolute;
+        right: 32px;
+        top: 34px;
+        padding: 8px 14px;
+        border-radius: 10px;
+        background: var(--ar-accent);
+        color: var(--ar-ink);
+        font-size: 16px;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        white-space: nowrap;
+      }
+
+      /* S6 — fin */
+      #s-outro .center {
+        position: absolute;
+        left: 160px;
+        right: 160px;
+        top: 340px;
+        height: 400px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 22px;
+        text-align: center;
+      }
+      .bye {
+        font-size: 120px;
+        font-weight: 900;
+        letter-spacing: -0.03em;
+        white-space: nowrap;
+      }
+      .fade {
+        position: absolute;
+        inset: 0;
+        background: #000;
+        opacity: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <div
+      id="root"
+      data-composition-id="ar-summary"
+      data-start="0"
+      data-duration="28"
+      data-width="1920"
+      data-height="1080"
+    >
+      <div class="bg" data-layout-ignore></div>
+      <div class="blob" id="blob-a" data-layout-ignore></div>
+      <div class="blob" id="blob-b" data-layout-ignore></div>
+
+      <div class="chrome-top" id="chrome">
+        <div class="brand">Allez <em>Robert</em> !</div>
+        <div class="meta" id="chrome-meta">La sortie du dimanche · Dimanche 18 octobre 2026</div>
+      </div>
+      <div class="progress" id="progress-wrap"><span id="progress"></span></div>
+
+      <section class="scene" id="s-title">
+        <div class="center">
+          <div class="brand-xl" id="t-brand">Allez <em>Robert</em> !</div>
+          <div class="kick" id="t-kick">Résumé de la sortie · Automne</div>
+          <div class="ride-title" id="t-title">La sortie du dimanche</div>
+          <div class="rule" id="t-rule"></div>
+          <div class="sub" id="t-sub">Boucle de la Madeleine <span>· Dimanche 18 octobre 2026</span></div>
+        </div>
+      </section>
+
+      <section class="scene" id="s-route">
+        <div class="scene-title" id="r-title">Le parcours</div>
+        <div class="map" id="map">
+          <svg viewBox="0 0 900 720" aria-hidden="true">
+            <path id="trace-shadow" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="16" stroke-linecap="round" stroke-linejoin="round" d="M0 0" />
+            <path id="trace-line" fill="none" stroke="var(--accent)" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" d="M0 0" />
+            <circle id="trace-start" r="12" fill="#22c55e" stroke="#0a0e16" stroke-width="4" cx="0" cy="0" />
+            <circle id="trace-end" r="12" fill="#ef4444" stroke="#0a0e16" stroke-width="4" cx="0" cy="0" />
+          </svg>
+          <div class="marker" id="map-dot"></div>
+        </div>
+        <div class="route-info">
+          <div class="rn" id="r-name">Boucle de la Madeleine</div>
+          <div class="kpis">
+            <div class="kpi"><div class="k" id="r-k-dist">Distance</div><div class="v ar-num"><span id="r-dist">42,3</span><span class="u">km</span></div></div>
+            <div class="kpi"><div class="k" id="r-k-elev">Dénivelé +</div><div class="v ar-num"><span id="r-elev">612</span><span class="u">m</span></div></div>
+          </div>
+        </div>
+        <div class="elev" id="elev">
+          <div class="k" id="r-k-prof">Profil</div>
+          <div class="elev-box">
+            <div class="elev-clip" id="elev-clip" data-layout-allow-overflow>
+              <div class="elev-inner" id="elev-inner" data-layout-allow-overflow>
+                <svg viewBox="0 0 648 220" preserveAspectRatio="none" aria-hidden="true">
+                  <defs>
+                    <linearGradient id="elev-fill" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0" stop-color="var(--accent)" stop-opacity="0.5" />
+                      <stop offset="1" stop-color="var(--accent)" stop-opacity="0.03" />
+                    </linearGradient>
+                  </defs>
+                  <path id="elev-area" fill="url(#elev-fill)" d="M0 220 Z" />
+                  <path id="elev-line" fill="none" stroke="var(--accent)" stroke-width="3" d="M0 220" />
+                </svg>
+              </div>
+            </div>
+            <div class="marker" id="elev-dot"></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="scene" id="s-stats">
+        <div class="scene-title" id="st-title">Les chiffres</div>
+        <div class="tiles" id="tiles"></div>
+      </section>
+
+      <section class="scene" id="s-board">
+        <div class="scene-title" id="b-title">Classement</div>
+        <div class="board" id="board"></div>
+      </section>
+
+      <section class="scene" id="s-high">
+        <div class="scene-title" id="h-title">Meilleurs moments</div>
+        <div class="cards" id="cards"></div>
+      </section>
+
+      <section class="scene" id="s-outro">
+        <div class="center">
+          <div class="bye" id="o-bye">À la prochaine !</div>
+          <div class="brand-xl">Allez <em>Robert</em> !</div>
+        </div>
+      </section>
+
+      <div class="fade" id="fade" data-layout-ignore></div>
+    </div>
+
+    <script>
+      AR.ready(function () {
+        var v = AR.vars();
+        AR.setLang(v.lang);
+        var root = document.getElementById('root');
+        root.style.setProperty('--season', AR.seasonColor(v.season));
+
+        // --- Textes ---------------------------------------------------------------------
+        AR.text('chrome-meta', [v.ride_title, v.date_label].filter(Boolean).join(' · '));
+        AR.text('t-kick', AR.t('sum.kicker') + ' · ' + AR.t('season.' + v.season));
+        AR.text('t-title', v.ride_title);
+        AR.fit(document.getElementById('t-title'), 1560, 48);
+        var sub = document.getElementById('t-sub');
+        sub.textContent = v.route_name;
+        if (v.date_label) sub.appendChild(AR.el('span', '', ' · ' + v.date_label));
+        AR.fit(sub, 1560, 18);
+        AR.text('r-title', AR.t('sum.route'));
+        AR.text('r-name', v.route_name);
+        AR.fit(document.getElementById('r-name'), 700, 28);
+        AR.text('r-k-dist', AR.t('sum.distance'));
+        AR.text('r-k-elev', AR.t('sum.elevation'));
+        AR.text('r-dist', AR.num(v.distance_km, 1));
+        AR.text('r-elev', AR.num(v.elevation_m, 0));
+        AR.text('r-k-prof', AR.t('sum.profile'));
+        AR.text('st-title', AR.t('sum.stats'));
+        AR.text('b-title', AR.t('sum.leaderboard'));
+        AR.text('h-title', AR.t('sum.highlights'));
+        AR.text('o-bye', AR.t('sum.outro'));
+
+        // --- Tracé et profil ------------------------------------------------------------
+        var tr = AR.trace(AR.json(v.trace, []), 900, 720, { pad: 60, projection: v.trace_projection });
+        var traceLine = document.getElementById('trace-line');
+        traceLine.setAttribute('d', tr.d);
+        document.getElementById('trace-shadow').setAttribute('d', tr.d);
+        var first = tr.points[0];
+        var last = tr.points[tr.points.length - 1];
+        document.getElementById('trace-start').setAttribute('cx', first[0]);
+        document.getElementById('trace-start').setAttribute('cy', first[1]);
+        document.getElementById('trace-end').setAttribute('cx', last[0]);
+        document.getElementById('trace-end').setAttribute('cy', last[1]);
+        var traceLen = traceLine.getTotalLength ? traceLine.getTotalLength() : tr.length;
+        traceLine.style.strokeDasharray = traceLen + ' ' + traceLen;
+        traceLine.style.strokeDashoffset = String(traceLen);
+
+        var prof = AR.profile(AR.json(v.elevation, []), 648, 220, { padTop: 10 });
+        document.getElementById('elev-line').setAttribute('d', prof.line);
+        document.getElementById('elev-area').setAttribute('d', prof.area);
+        function profY(f) {
+          var pts = prof.points;
+          var x = f * 648;
+          for (var i = 1; i < pts.length; i++) {
+            if (pts[i][0] >= x) {
+              var r = (x - pts[i - 1][0]) / Math.max(pts[i][0] - pts[i - 1][0], 1e-6);
+              return pts[i - 1][1] + (pts[i][1] - pts[i - 1][1]) * r;
+            }
+          }
+          return pts[pts.length - 1][1];
+        }
+
+        // --- Tuiles de chiffres ----------------------------------------------------------
+        var tiles = [
+          { k: 'sum.distance', v: Number(v.distance_km) || 0, d: 1, u: 'km', c: 'var(--accent)' },
+          { k: 'sum.time', v: Number(v.duration_s) || 0, fmt: 'duration', u: '', c: 'var(--z2)' },
+          { k: 'sum.avgPower', v: Number(v.avg_power_w) || 0, d: 0, u: 'W', c: 'var(--z4)' },
+          { k: 'sum.np', v: Number(v.np_w) || 0, d: 0, u: 'W', c: 'var(--z5)' },
+          { k: 'sum.elevation', v: Number(v.elevation_m) || 0, d: 0, u: 'm', c: 'var(--z3)' },
+          { k: 'sum.calories', v: Number(v.calories_kcal) || 0, d: 0, u: 'kcal', c: 'var(--z6)' },
+        ];
+        var tilesEl = document.getElementById('tiles');
+        tiles.forEach(function (tile) {
+          var n = AR.el('div', 'tile');
+          n.style.setProperty('--c', tile.c);
+          n.appendChild(AR.el('div', 'k', AR.t(tile.k)));
+          var val = AR.el('div', 'v ar-num');
+          var num = AR.el('span', '');
+          val.appendChild(num);
+          if (tile.u) val.appendChild(AR.el('span', 'u', tile.u));
+          n.appendChild(val);
+          tilesEl.appendChild(n);
+          tile.el = n;
+          tile.num = num;
+          tile.show = function (x) {
+            num.textContent = tile.fmt === 'duration' ? AR.duration(x) : AR.num(x, tile.d);
+          };
+          tile.show(tile.v);
+        });
+
+        // --- Classement -----------------------------------------------------------------
+        var board = AR.json(v.leaderboard, []).slice(0, 8);
+        var t0 = board[0] ? Number(board[0].time_s) || 0 : 0;
+        var boardEl = document.getElementById('board');
+        board.forEach(function (r, i) {
+          var row = AR.el('div', 'brow' + (r.me ? ' me' : ''));
+          row.style.setProperty('--c', r.team_color || '#9aa5b1');
+          row.appendChild(AR.el('div', 'bar'));
+          row.appendChild(AR.el('div', 'rk ar-num', String(i + 1)));
+          var nm = AR.el('div', 'nm', r.name || '');
+          if (r.me) nm.appendChild(AR.el('span', 'you', AR.t('sum.you')));
+          row.appendChild(nm);
+          row.appendChild(AR.el('div', 'tm ar-num', AR.duration(r.time_s)));
+          row.appendChild(AR.el('div', 'gp ar-num', i === 0 ? '' : AR.gap((Number(r.time_s) || 0) - t0)));
+          boardEl.appendChild(row);
+        });
+
+        // --- Meilleurs moments ----------------------------------------------------------
+        var segs = AR.json(v.segments, []).slice(0, 3);
+        var cardsEl = document.getElementById('cards');
+        segs.forEach(function (s) {
+          var sprint = s.kind === 'sprint';
+          var c = AR.el('div', 'hcard ' + (sprint ? 'sprint' : 'kom'));
+          c.appendChild(AR.el('div', 'stripe'));
+          c.appendChild(AR.el('div', 'kk', AR.t(sprint ? 'seg.sprint' : 'seg.kom')));
+          c.appendChild(AR.el('div', 'hn', s.name || ''));
+          c.appendChild(AR.el('div', 'ht ar-num', AR.segTime(s.time_s)));
+          var rk = AR.el('div', 'hr');
+          rk.appendChild(AR.el('b', '', AR.ordinal(s.rank)));
+          if (s.rank_total) rk.appendChild(document.createTextNode(' ' + AR.t('seg.of') + ' ' + s.rank_total));
+          c.appendChild(rk);
+          if (s.pr) {
+            var badge = AR.el('div', 'badge', AR.t('seg.pr') + (s.pr_delta_s > 0 ? ' −' + AR.num(s.pr_delta_s, 1) + ' s' : ''));
+            c.appendChild(badge);
+          }
+          cardsEl.appendChild(c);
+        });
+        if (!segs.length) document.getElementById('s-high').style.display = 'none';
+
+        // --- Timeline (28 s) ------------------------------------------------------------
+        var tl = gsap.timeline({ paused: true });
+        // Fond vivant : dérive lente des halos (transform uniquement)
+        tl.fromTo('#blob-a', { x: 0, y: 0 }, { x: 260, y: 120, duration: 28, ease: 'none' }, 0);
+        tl.fromTo('#blob-b', { x: 0, y: 0 }, { x: -300, y: -80, duration: 28, ease: 'none' }, 0);
+        tl.fromTo('#progress', { scaleX: 0 }, { scaleX: 1, duration: 28, ease: 'none' }, 0);
+        tl.fromTo('#chrome', { opacity: 0 }, { opacity: 1, duration: 0.6 }, 3.8);
+
+        function scene(id, start, end) {
+          tl.fromTo(id, { opacity: 0 }, { opacity: 1, duration: 0.45, ease: 'power1.out' }, start);
+          if (end !== null) tl.to(id, { opacity: 0, duration: 0.4, ease: 'power1.in' }, end - 0.4);
+        }
+
+        // S1 — titre (0 → 4)
+        scene('#s-title', 0, 4);
+        tl.fromTo('#t-brand', { opacity: 0, y: -20 }, { opacity: 1, y: 0, duration: 0.6, ease: 'power3.out' }, 0.2);
+        tl.fromTo('#t-kick', { opacity: 0 }, { opacity: 1, duration: 0.5 }, 0.5);
+        tl.fromTo('#t-title', { opacity: 0, y: 40 }, { opacity: 1, y: 0, duration: 0.8, ease: 'power3.out' }, 0.6);
+        tl.fromTo('#t-rule', { scaleX: 0 }, { scaleX: 1, duration: 0.6, ease: 'power2.inOut' }, 1.1);
+        tl.fromTo('#t-sub', { opacity: 0, y: 16 }, { opacity: 1, y: 0, duration: 0.6, ease: 'power2.out' }, 1.3);
+        tl.to('#t-title', { scale: 1.04, duration: 2.6, ease: 'none' }, 1.4);
+
+        // S2 — parcours (4 → 11.5)
+        scene('#s-route', 4, 11.5);
+        tl.fromTo('#r-title', { opacity: 0, x: -20 }, { opacity: 1, x: 0, duration: 0.4 }, 4.2);
+        tl.fromTo('#map', { opacity: 0, scale: 0.96 }, { opacity: 1, scale: 1, duration: 0.6, ease: 'power2.out' }, 4.2);
+        tl.fromTo('.route-info', { opacity: 0, x: 30 }, { opacity: 1, x: 0, duration: 0.6, ease: 'power3.out' }, 4.4);
+        tl.fromTo('#elev', { opacity: 0, y: 30 }, { opacity: 1, y: 0, duration: 0.6, ease: 'power3.out' }, 4.6);
+        tl.fromTo('#trace-end', { opacity: 0 }, { opacity: 1, duration: 0.3 }, 10.0);
+        var mapDot = document.getElementById('map-dot');
+        var elevDot = document.getElementById('elev-dot');
+        var prog = { p: 0 };
+        function drawProgress() {
+          var p = prog.p;
+          traceLine.style.strokeDashoffset = String(traceLen * (1 - p));
+          var pt = AR.pointAt(tr.points, p);
+          gsap.set(mapDot, { x: pt[0], y: pt[1] });
+          gsap.set(elevDot, { x: p * 648, y: profY(p) });
+        }
+        drawProgress();
+        tl.fromTo('#elev-clip', { xPercent: -100 }, { xPercent: 0, duration: 5, ease: 'none' }, 5.0);
+        tl.fromTo('#elev-inner', { xPercent: 100 }, { xPercent: 0, duration: 5, ease: 'none' }, 5.0);
+        tl.fromTo(prog, { p: 0 }, { p: 1, duration: 5, ease: 'none', onUpdate: drawProgress }, 5.0);
+
+        // S3 — chiffres (11.5 → 16.5)
+        scene('#s-stats', 11.5, 16.5);
+        tl.fromTo('#st-title', { opacity: 0, x: -20 }, { opacity: 1, x: 0, duration: 0.4 }, 11.7);
+        tiles.forEach(function (tile, i) {
+          var at = 11.8 + i * 0.12;
+          tl.fromTo(tile.el, { opacity: 0, y: 40 }, { opacity: 1, y: 0, duration: 0.5, ease: 'power3.out' }, at);
+          var c = { x: 0 };
+          tl.fromTo(
+            c,
+            { x: 0 },
+            {
+              x: tile.v,
+              duration: 1.2,
+              ease: 'power2.out',
+              onUpdate: function () {
+                tile.show(c.x);
+              },
+            },
+            at + 0.1
+          );
+        });
+
+        // S4 — classement (16.5 → 21.5)
+        scene('#s-board', 16.5, 21.5);
+        tl.fromTo('#b-title', { opacity: 0, x: -20 }, { opacity: 1, x: 0, duration: 0.4 }, 16.7);
+        tl.fromTo('#board .brow', { opacity: 0, x: 60 }, { opacity: 1, x: 0, duration: 0.45, stagger: 0.12, ease: 'power3.out' }, 16.8);
+        tl.fromTo('#board .brow.me', { scale: 1 }, { scale: 1.03, duration: 0.35, yoyo: true, repeat: 1, ease: 'power1.inOut' }, 18.6);
+
+        // S5 — meilleurs moments (21.5 → 26)
+        if (segs.length) {
+          scene('#s-high', 21.5, 26);
+          tl.fromTo('#h-title', { opacity: 0, x: -20 }, { opacity: 1, x: 0, duration: 0.4 }, 21.7);
+          tl.fromTo('#cards .hcard', { opacity: 0, y: 60 }, { opacity: 1, y: 0, duration: 0.55, stagger: 0.25, ease: 'power3.out' }, 21.8);
+          tl.fromTo('#cards .badge', { opacity: 0, scale: 0.5 }, { opacity: 1, scale: 1, duration: 0.4, stagger: 0.25, ease: 'back.out(2)' }, 22.6);
+        }
+
+        // S6 — fin (26 → 28)
+        scene('#s-outro', segs.length ? 26 : 21.5, null);
+        tl.fromTo('#o-bye', { opacity: 0, y: 30 }, { opacity: 1, y: 0, duration: 0.6, ease: 'power3.out' }, segs.length ? 26.1 : 21.6);
+        tl.to('#chrome, #progress-wrap', { opacity: 0, duration: 0.4 }, 26.2);
+        tl.fromTo('#fade', { opacity: 0 }, { opacity: 1, duration: 0.6, ease: 'power1.in' }, 27.4);
+
+        window.__timelines['ar-summary'] = tl;
+      });
+    </script>
+  </body>
+</html>

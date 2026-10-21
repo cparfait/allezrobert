@@ -6,7 +6,7 @@
 import type { RouteData } from '@allezrobert/shared';
 import type { DemStack } from './dem.ts';
 import { worldToL93 } from './frame.ts';
-import { resampleOpen, smooth1d, type Pt } from './geom.ts';
+import { resampleOpen, simplify3, smooth1d, type Pt } from './geom.ts';
 import type { Edge, RoadGraph } from './graph.ts';
 import type { CarveLine, TileRoad } from './tiles.ts';
 
@@ -114,7 +114,8 @@ export function buildRoads3d(g: RoadGraph, dem: DemStack, routes: RouteOnGraph[]
       ...(e.road.bridge ? { bridge: true } : {}),
       ...(e.road.tunnel ? { tunnel: true } : {}),
       ...(carved ? { flatten: [Math.round((hw + 0.5) * 100) / 100, Math.round((4 + hw + 0.5) * 100) / 100] as [number, number] } : {}),
-      pts: pts3,
+      // géométrie de rendu simplifiée (≤ 20 cm en plan, ≤ 3 cm en altitude) ; le creusement utilise le profil dense
+      pts: simplify3(pts3, 0.2, 0.03),
     });
     if (carved) carve.push({ pts: pts3, halfWidth: hw, priority: 0 });
   }

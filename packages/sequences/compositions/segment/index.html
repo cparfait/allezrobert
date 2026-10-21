@@ -1,0 +1,272 @@
+<!doctype html>
+<html
+  lang="fr"
+  data-composition-variables='[
+    {"id":"lang","type":"enum","label":"Langue","default":"fr","options":[{"value":"fr","label":"Français"},{"value":"en","label":"English"}]},
+    {"id":"kind","type":"enum","label":"Type de segment","default":"kom","options":[{"value":"kom","label":"KOM (côte)"},{"value":"sprint","label":"Sprint"}]},
+    {"id":"segment_name","type":"string","label":"Nom du segment","default":"Côte de la Madeleine","maxLength":40},
+    {"id":"rider_name","type":"string","label":"Coureur","default":"Christophe P.","maxLength":28},
+    {"id":"time_s","type":"number","label":"Temps (s)","default":263.4,"min":0,"step":0.1,"unit":"s"},
+    {"id":"rank","type":"number","label":"Rang","default":2,"min":1,"step":1},
+    {"id":"rank_total","type":"number","label":"Classés","default":12,"min":0,"step":1},
+    {"id":"gap_s","type":"number","label":"Écart au meilleur temps (s)","default":3.8,"min":0,"step":0.1,"unit":"s"},
+    {"id":"pr","type":"boolean","label":"Record personnel","default":true},
+    {"id":"pr_delta_s","type":"number","label":"Gain sur l’ancien record (s)","default":4.2,"min":0,"step":0.1,"unit":"s"},
+    {"id":"preview_backdrop","type":"boolean","label":"Décor de prévisualisation","default":false},
+    {"id":"show_safe_zones","type":"boolean","label":"Afficher les zones vitales du HUD","default":false}
+  ]'
+>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <title>Allez Robert ! — Segment franchi (KOM / sprint)</title>
+    <link rel="stylesheet" href="assets/tokens.css" />
+    <link rel="stylesheet" href="assets/ar-seq.css" />
+    <script src="assets/gsap.min.js"></script>
+    <script src="assets/strings.js"></script>
+    <script src="assets/ar-seq.js"></script>
+    <style>
+      /* Carte sous le bloc puissance (y ≥ 270) et au-dessus de la route : x 560–1360, y 280–500. */
+      #seg {
+        position: absolute;
+        left: 560px;
+        top: 282px;
+        width: 800px;
+        height: 214px;
+        --kind: var(--ar-kom);
+      }
+      #seg.sprint {
+        --kind: var(--ar-sprint);
+      }
+      .card {
+        position: absolute;
+        inset: 0;
+        overflow: hidden;
+        padding: 22px 30px 22px 46px;
+      }
+      .stripe {
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        width: 18px;
+        background-color: var(--kind);
+        transform-origin: center top;
+      }
+      /* Maillot à pois pour le KOM : motif statique (aucun coût d'animation). */
+      #seg.kom .stripe {
+        background-image: radial-gradient(circle at 50% 50%, #fff 0 3px, transparent 3.5px);
+        background-size: 18px 18px;
+      }
+      .kicker-row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+      .kicker-row svg {
+        width: 26px;
+        height: 20px;
+        display: block;
+      }
+      .kicker-row .ar-kicker {
+        color: var(--kind);
+        filter: brightness(1.25);
+      }
+      .rider {
+        margin-left: auto;
+        font-size: 16px;
+        font-weight: 600;
+        color: var(--ar-muted);
+        white-space: nowrap;
+      }
+      .name {
+        margin-top: 6px;
+        font-size: 42px;
+        font-weight: 800;
+        letter-spacing: -0.015em;
+        white-space: nowrap;
+        max-width: 720px;
+      }
+      .row {
+        margin-top: 14px;
+        display: flex;
+        align-items: flex-end;
+        gap: 34px;
+      }
+      .k {
+        font-size: 13px;
+        font-weight: 600;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: var(--ar-muted);
+      }
+      .time {
+        font-size: 60px;
+        font-weight: 800;
+        line-height: 1;
+        min-width: 250px;
+      }
+      .rank {
+        font-size: 40px;
+        font-weight: 700;
+        line-height: 1.05;
+      }
+      .rank small {
+        font-family: var(--font);
+        font-size: 18px;
+        font-weight: 500;
+        color: var(--ar-muted);
+        margin-left: 6px;
+      }
+      .gap {
+        font-size: 15px;
+        color: var(--ar-muted);
+        margin-top: 2px;
+      }
+      .pr {
+        position: relative;
+        margin-left: auto;
+        align-self: center;
+        overflow: hidden;
+        border-radius: 12px;
+        background: var(--ar-accent);
+        color: var(--ar-ink);
+        padding: 10px 18px 11px;
+        text-align: center;
+        transform-origin: center center;
+      }
+      .pr .t {
+        font-size: 15px;
+        font-weight: 800;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        white-space: nowrap;
+      }
+      .pr .d {
+        font-size: 26px;
+        font-weight: 800;
+        line-height: 1.1;
+      }
+      .shine {
+        position: absolute;
+        top: -20px;
+        bottom: -20px;
+        left: 0;
+        width: 60px;
+        background: linear-gradient(90deg, rgba(255, 255, 255, 0), rgba(255, 255, 255, 0.75), rgba(255, 255, 255, 0));
+        opacity: 0;
+      }
+      .hidden {
+        display: none !important;
+      }
+    </style>
+  </head>
+  <body>
+    <div
+      id="root"
+      data-composition-id="ar-segment"
+      data-start="0"
+      data-duration="3.5"
+      data-width="1920"
+      data-height="1080"
+    >
+      <section id="seg" class="kom">
+        <div class="card ar-panel" id="card">
+          <div class="stripe" id="stripe"></div>
+          <div class="kicker-row" id="kicker-row">
+            <svg id="ico-kom" viewBox="0 0 26 20" aria-hidden="true">
+              <path d="M1 19 L9 6 L13 12 L17 4 L25 19 Z" fill="var(--kind)" />
+            </svg>
+            <svg id="ico-sprint" class="hidden" viewBox="0 0 26 20" aria-hidden="true">
+              <path d="M15 1 L5 11 L12 11 L10 19 L21 8 L14 8 Z" fill="var(--kind)" />
+            </svg>
+            <span class="ar-kicker" id="kicker">Grimpeur · KOM</span>
+            <span class="rider" id="rider">Christophe P.</span>
+          </div>
+          <div class="name" id="name">Côte de la Madeleine</div>
+          <div class="row">
+            <div id="blk-time">
+              <div class="k" id="k-time">Temps</div>
+              <div class="time ar-num" id="time">4:23,4</div>
+            </div>
+            <div id="blk-rank">
+              <div class="k" id="k-rank">Rang</div>
+              <div class="rank ar-num"><span id="rank">2e</span><small id="rank-total">sur 12</small></div>
+              <div class="gap ar-num" id="gap">+0:04 du meilleur temps</div>
+            </div>
+            <div class="pr" id="pr">
+              <div class="shine" id="shine" data-layout-ignore></div>
+              <div class="t" id="pr-t">Record perso</div>
+              <div class="d ar-num" id="pr-d">−4,2 s</div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <script>
+      AR.ready(function () {
+        var v = AR.vars();
+        AR.setLang(v.lang);
+        var root = document.getElementById('root');
+        AR.decorate(root, v);
+        var seg = document.getElementById('seg');
+        var isSprint = v.kind === 'sprint';
+        seg.className = isSprint ? 'sprint' : 'kom';
+        document.getElementById('ico-kom').classList.toggle('hidden', isSprint);
+        document.getElementById('ico-sprint').classList.toggle('hidden', !isSprint);
+
+        AR.text('kicker', AR.t(isSprint ? 'seg.sprint' : 'seg.kom'));
+        AR.text('rider', v.rider_name || '');
+        AR.text('name', v.segment_name);
+        AR.fit(document.getElementById('name'), 720, 26);
+        AR.text('k-time', AR.t('seg.time'));
+        AR.text('k-rank', AR.t('seg.rank'));
+        AR.text('time', AR.segTime(v.time_s));
+        AR.text('rank', AR.ordinal(v.rank));
+        AR.text('rank-total', v.rank_total > 0 ? AR.t('seg.of') + ' ' + AR.num(v.rank_total) : '');
+        AR.text(
+          'gap',
+          Number(v.rank) <= 1 || !(v.gap_s > 0)
+            ? AR.t('seg.best')
+            : '+' + AR.num(v.gap_s, 1) + ' s ' + AR.t('seg.behind')
+        );
+        AR.text('pr-t', AR.t('seg.pr'));
+        AR.text('pr-d', v.pr_delta_s > 0 ? '−' + AR.num(v.pr_delta_s, 1) + ' s' : '★');
+        var hasPr = !!v.pr;
+        document.getElementById('pr').classList.toggle('hidden', !hasPr);
+
+        var tl = gsap.timeline({ paused: true });
+        tl.fromTo('#card', { opacity: 0, x: -60 }, { opacity: 1, x: 0, duration: 0.42, ease: 'power3.out' }, 0);
+        tl.fromTo('#stripe', { scaleY: 0 }, { scaleY: 1, duration: 0.4, ease: 'power2.out' }, 0.05);
+        tl.fromTo('#kicker-row', { opacity: 0, y: -10 }, { opacity: 1, y: 0, duration: 0.3, ease: 'power2.out' }, 0.18);
+        tl.fromTo('#name', { opacity: 0, x: -20 }, { opacity: 1, x: 0, duration: 0.4, ease: 'power3.out' }, 0.24);
+        tl.fromTo('#blk-time', { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.3, ease: 'power2.out' }, 0.38);
+        // Défilement du chrono (déterministe : piloté par la position de la timeline)
+        var counter = { s: 0 };
+        var timeEl = document.getElementById('time');
+        tl.fromTo(
+          counter,
+          { s: 0 },
+          {
+            s: Number(v.time_s) || 0,
+            duration: 0.75,
+            ease: 'power2.out',
+            onUpdate: function () {
+              timeEl.textContent = AR.segTime(counter.s);
+            },
+          },
+          0.4
+        );
+        tl.fromTo('#blk-rank', { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.32, ease: 'power2.out' }, 0.75);
+        if (hasPr) {
+          tl.fromTo('#pr', { opacity: 0, scale: 0.4 }, { opacity: 1, scale: 1, duration: 0.42, ease: 'back.out(2.2)' }, 1.05);
+          tl.fromTo('#shine', { x: -80, rotation: 18, opacity: 1 }, { x: 260, rotation: 18, opacity: 1, duration: 0.6, ease: 'power1.inOut' }, 1.4);
+        }
+        tl.to('#card', { opacity: 0, x: 50, duration: 0.4, ease: 'power2.in' }, 3.05);
+
+        window.__timelines['ar-segment'] = tl;
+      });
+    </script>
+  </body>
+</html>

@@ -382,3 +382,37 @@ export class GridIndex<T> {
     return [...out];
   }
 }
+
+/**
+ * Simplification Douglas–Peucker 3D d'une polyligne [x, y, z] : un point est conservé si
+ * son écart en plan dépasse `tolPlan` ou son écart vertical dépasse `tolY`.
+ */
+export function simplify3(pts: Array<[number, number, number]>, tolPlan: number, tolY: number): Array<[number, number, number]> {
+  if (pts.length < 3) return pts.slice();
+  const keep = new Uint8Array(pts.length);
+  keep[0] = 1;
+  keep[pts.length - 1] = 1;
+  const stack: Array<[number, number]> = [[0, pts.length - 1]];
+  while (stack.length) {
+    const [a, b] = stack.pop()!;
+    const pa = pts[a]!;
+    const pb = pts[b]!;
+    let worst = 1;
+    let idx = -1;
+    for (let i = a + 1; i < b; i++) {
+      const p = pts[i]!;
+      const pr = projectOnSegment(p[0], p[2], pa[0], pa[2], pb[0], pb[2]);
+      const y = pa[1] + (pb[1] - pa[1]) * pr.t;
+      const e = Math.max(pr.d / tolPlan, Math.abs(p[1] - y) / tolY);
+      if (e > worst) {
+        worst = e;
+        idx = i;
+      }
+    }
+    if (idx > 0) {
+      keep[idx] = 1;
+      stack.push([a, idx], [idx, b]);
+    }
+  }
+  return pts.filter((_, i) => keep[i]);
+}

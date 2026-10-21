@@ -7,7 +7,11 @@
     ".": "./src/index.ts"
   },
   "scripts": {
-    "typecheck": "tsc -p tsconfig.json"
+    "typecheck": "tsc -p tsconfig.json",
+    "build:world": "tsx src/build-world.ts",
+    "build:routes": "tsx src/build-world.ts --routes-only --no-ortho",
+    "fetch:osm": "tsx src/fetch-osm.ts",
+    "test": "vitest run --root ../.. tools/terrain"
   },
   "dependencies": {
     "@allezrobert/shared": "workspace:*"

@@ -1,0 +1,327 @@
+<!doctype html>
+<html
+  lang="fr"
+  data-composition-variables='[
+    {"id":"lang","type":"enum","label":"Langue","default":"fr","options":[{"value":"fr","label":"Français"},{"value":"en","label":"English"}]},
+    {"id":"show_banner","type":"boolean","label":"Bandeau coureur","default":true},
+    {"id":"rider_name","type":"string","label":"Coureur","default":"Christophe P.","maxLength":28},
+    {"id":"team","type":"string","label":"Équipe","default":"Les Pois Chiches","maxLength":32},
+    {"id":"team_color","type":"color","label":"Couleur d’équipe","default":"#3b82f6"},
+    {"id":"position","type":"number","label":"Position","default":4,"min":1,"step":1},
+    {"id":"wkg","type":"number","label":"W/kg","default":4.2,"min":0,"step":0.1,"unit":"W/kg"},
+    {"id":"watts","type":"number","label":"Puissance","default":312,"min":0,"step":1,"unit":"W"},
+    {"id":"show_gaps","type":"boolean","label":"Graphique des écarts","default":true},
+    {"id":"groups","type":"string","label":"Groupes (JSON : [{label, riders, gap_s, color}])","default":"[{\"label\":\"tv.breakaway\",\"riders\":3,\"gap_s\":0,\"color\":\"#ffd23f\"},{\"label\":\"tv.peloton\",\"riders\":12,\"gap_s\":42},{\"label\":\"tv.gruppetto\",\"riders\":4,\"gap_s\":95}]"},
+    {"id":"focus_group","type":"number","label":"Groupe du coureur (index, -1 = aucun)","default":1,"min":-1,"step":1},
+    {"id":"preview_backdrop","type":"boolean","label":"Décor de prévisualisation","default":false},
+    {"id":"show_safe_zones","type":"boolean","label":"Afficher les zones vitales du HUD","default":false}
+  ]'
+>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <title>Allez Robert ! — Habillage TV (bandeau coureur, écarts)</title>
+    <link rel="stylesheet" href="assets/tokens.css" />
+    <link rel="stylesheet" href="assets/ar-seq.css" />
+    <script src="assets/gsap.min.js"></script>
+    <script src="assets/strings.js"></script>
+    <script src="assets/ar-seq.js"></script>
+    <style>
+      /*
+       * Bandeau : x 420–1220, y 770–916 (à droite des vitesses, au-dessus du profil).
+       * Écarts  : x 24–524,  y 276–540 (sous le panneau d'infos, à gauche du bloc puissance).
+       * Boucle de maintien : 1,0 s → 4,6 s (voir SEQUENCES.tv.hold).
+       */
+      #banner {
+        position: absolute;
+        left: 420px;
+        top: 770px;
+        width: 800px;
+        height: 146px;
+      }
+      .live {
+        position: absolute;
+        left: 0;
+        top: 0;
+        height: 30px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 0 12px;
+        border-radius: 8px 8px 0 0;
+        background: var(--ar-bg-strong);
+        font-size: 13px;
+        font-weight: 800;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+      }
+      .live i {
+        display: block;
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: var(--z6);
+      }
+      .lt-clip {
+        position: absolute;
+        left: 0;
+        top: 30px;
+        width: 800px;
+        height: 116px;
+        overflow: hidden;
+        border-radius: 0 var(--ar-radius) var(--ar-radius) var(--ar-radius);
+      }
+      .lt-inner {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: stretch;
+        background: var(--ar-bg-strong);
+        border: 1px solid var(--ar-line);
+        border-radius: 0 var(--ar-radius) var(--ar-radius) var(--ar-radius);
+      }
+      .pos {
+        width: 116px;
+        flex: none;
+        display: grid;
+        place-items: center;
+        background: var(--team, #3b82f6);
+        color: #fff;
+        font-family: var(--mono);
+        font-size: 60px;
+        font-weight: 800;
+      }
+      .ident {
+        flex: 1;
+        min-width: 0;
+        padding: 18px 24px 0;
+      }
+      .ident .n {
+        font-size: 40px;
+        font-weight: 800;
+        letter-spacing: -0.01em;
+        white-space: nowrap;
+        max-width: 430px;
+      }
+      .ident .tm {
+        margin-top: 2px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 18px;
+        color: var(--ar-muted);
+        white-space: nowrap;
+      }
+      .ident .tm i {
+        display: block;
+        width: 26px;
+        height: 6px;
+        border-radius: 3px;
+        background: var(--team, #3b82f6);
+      }
+      .power {
+        flex: none;
+        width: 220px;
+        padding: 16px 24px 0;
+        border-left: 1px solid var(--ar-line);
+        text-align: right;
+      }
+      .power .wkg {
+        font-size: 50px;
+        font-weight: 800;
+        line-height: 1;
+        color: var(--ar-accent);
+      }
+      .power .wkg small {
+        font-family: var(--font);
+        font-size: 18px;
+        font-weight: 600;
+        color: var(--ar-muted);
+        margin-left: 4px;
+      }
+      .power .w {
+        margin-top: 6px;
+        font-size: 20px;
+        color: var(--ar-fg);
+      }
+
+      #gaps {
+        position: absolute;
+        left: 24px;
+        top: 276px;
+        width: 500px;
+      }
+      .gaps-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 4px 8px;
+      }
+      .rows {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+      .grow {
+        position: relative;
+        height: 52px;
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        padding: 0 18px 0 0;
+        border-radius: 10px;
+        background: var(--ar-bg-strong);
+        border: 1px solid var(--ar-line);
+        overflow: hidden;
+      }
+      .grow.focus {
+        border-color: rgba(255, 210, 63, 0.75);
+        background: rgba(40, 34, 12, 0.9);
+      }
+      .grow .bar {
+        width: 8px;
+        align-self: stretch;
+        background: var(--c, #9aa5b1);
+      }
+      .grow .lab {
+        flex: 1;
+        min-width: 0;
+        font-size: 20px;
+        font-weight: 700;
+        white-space: nowrap;
+      }
+      .grow .lab small {
+        font-size: 15px;
+        font-weight: 500;
+        color: var(--ar-muted);
+        margin-left: 8px;
+      }
+      .grow .gp {
+        font-size: 22px;
+        font-weight: 700;
+      }
+    </style>
+  </head>
+  <body>
+    <div
+      id="root"
+      data-composition-id="ar-tv"
+      data-start="0"
+      data-duration="6"
+      data-width="1920"
+      data-height="1080"
+    >
+      <section id="gaps">
+        <div class="gaps-head" id="gaps-head"><span class="ar-kicker" id="gaps-title">Écarts</span></div>
+        <div class="rows" id="rows"></div>
+      </section>
+
+      <section id="banner">
+        <div class="live" id="live"><i id="live-dot"></i><span id="live-label">En direct</span></div>
+        <div class="lt-clip" id="lt-clip" data-layout-allow-overflow>
+          <div class="lt-inner" id="lt-inner" data-layout-allow-overflow>
+            <div class="pos ar-num" id="pos">4</div>
+            <div class="ident">
+              <div class="n" id="rider">Christophe P.</div>
+              <div class="tm"><i></i><span id="team">Les Pois Chiches</span></div>
+            </div>
+            <div class="power">
+              <div class="wkg ar-num"><span id="wkg">4,2</span><small>W/kg</small></div>
+              <div class="w ar-num" id="watts">312 W</div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <script>
+      AR.ready(function () {
+        var v = AR.vars();
+        AR.setLang(v.lang);
+        var root = document.getElementById('root');
+        AR.decorate(root, v);
+
+        var banner = document.getElementById('banner');
+        var gaps = document.getElementById('gaps');
+        banner.style.setProperty('--team', v.team_color || '#3b82f6');
+        AR.text('live-label', AR.t('tv.live'));
+        AR.text('gaps-title', AR.t('tv.gaps'));
+
+        function setRider(d) {
+          if (d.position !== undefined) AR.text('pos', String(Math.round(Number(d.position) || 0)));
+          if (d.wkg !== undefined) AR.text('wkg', AR.num(d.wkg, 1));
+          if (d.watts !== undefined) AR.text('watts', AR.num(d.watts, 0) + ' W');
+        }
+        AR.text('rider', v.rider_name);
+        AR.fit(document.getElementById('rider'), 430, 22);
+        AR.text('team', v.team || '');
+        setRider(v);
+
+        // 4 emplacements fixes : les mises à jour en direct remplissent les mêmes nœuds,
+        // la timeline (entrée / sortie) continue donc de les piloter.
+        var rowsEl = document.getElementById('rows');
+        var slots = [];
+        for (var s = 0; s < 4; s++) {
+          var row = AR.el('div', 'grow');
+          row.appendChild(AR.el('div', 'bar'));
+          var lab = AR.el('div', 'lab');
+          var labText = AR.el('span', '');
+          var labCount = AR.el('small', '');
+          lab.appendChild(labText);
+          lab.appendChild(labCount);
+          row.appendChild(lab);
+          var gp = AR.el('div', 'gp ar-num');
+          row.appendChild(gp);
+          rowsEl.appendChild(row);
+          slots.push({ row: row, label: labText, count: labCount, gap: gp });
+        }
+        function renderGroups(groups, focus) {
+          slots.forEach(function (slot, i) {
+            var g = (groups || [])[i];
+            slot.row.style.display = g ? '' : 'none';
+            if (!g) return;
+            slot.row.classList.toggle('focus', i === focus);
+            slot.row.style.setProperty('--c', g.color || (i === 0 ? '#ffd23f' : '#9aa5b1'));
+            slot.label.textContent = AR.label(g.label);
+            var n = Number(g.riders) || 0;
+            slot.count.textContent = n > 0 ? n + ' ' + AR.t(n > 1 ? 'tv.riders' : 'tv.rider') : '';
+            slot.gap.textContent = AR.gap(g.gap_s);
+          });
+        }
+        var groups = AR.json(v.groups, []);
+        renderGroups(groups, Number(v.focus_group));
+
+        if (!v.show_banner) banner.style.display = 'none';
+        if (!v.show_gaps || !groups.length) gaps.style.display = 'none';
+
+        // Mises à jour en direct depuis le jeu (SequencePlayer.update) : textes seulement.
+        AR.onLive('ar-tv', function (d) {
+          if (!d || typeof d !== 'object') return;
+          setRider(d);
+          if (Array.isArray(d.groups)) {
+            renderGroups(d.groups, d.focus_group !== undefined ? Number(d.focus_group) : Number(v.focus_group));
+          }
+        });
+
+        var tl = gsap.timeline({ paused: true });
+        // Entrée (0 → 1 s)
+        tl.fromTo('#live', { opacity: 0, y: 12 }, { opacity: 1, y: 0, duration: 0.3, ease: 'power2.out' }, 0.05);
+        tl.fromTo('#lt-clip', { xPercent: -100 }, { xPercent: 0, duration: 0.6, ease: 'power3.out' }, 0.1);
+        tl.fromTo('#lt-inner', { xPercent: 100 }, { xPercent: 0, duration: 0.6, ease: 'power3.out' }, 0.1);
+        tl.fromTo('#pos', { scale: 0.4, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.4, ease: 'back.out(2)' }, 0.45);
+        tl.fromTo('#gaps-head', { opacity: 0, x: -20 }, { opacity: 1, x: 0, duration: 0.3, ease: 'power2.out' }, 0.2);
+        tl.fromTo('#rows .grow', { opacity: 0, x: -40 }, { opacity: 1, x: 0, duration: 0.35, stagger: 0.09, ease: 'power3.out' }, 0.3);
+        // Maintien (1,0 → 4,6 s) : seul le point « en direct » pulse ; 6 demi-cycles → boucle sans saut.
+        tl.fromTo('#live-dot', { opacity: 1 }, { opacity: 0.25, duration: 0.6, ease: 'sine.inOut', repeat: 5, yoyo: true }, 1.0);
+        // Sortie (4,7 → 5,5 s)
+        tl.to('#rows .grow', { opacity: 0, x: -30, duration: 0.3, stagger: 0.05, ease: 'power2.in' }, 4.7);
+        tl.to('#gaps-head', { opacity: 0, duration: 0.25 }, 4.85);
+        tl.to('#lt-clip', { xPercent: -100, duration: 0.45, ease: 'power3.in' }, 4.9);
+        tl.to('#lt-inner', { xPercent: 100, duration: 0.45, ease: 'power3.in' }, 4.9);
+        tl.to('#live', { opacity: 0, duration: 0.25 }, 5.15);
+
+        window.__timelines['ar-tv'] = tl;
+      });
+    </script>
+  </body>
+</html>
