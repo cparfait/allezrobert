@@ -16,7 +16,7 @@ import { Ghost } from './game/ghost.ts';
 import { createDeviceLayer } from './game/devices.ts';
 import { Hud } from './hud/hud.ts';
 import { GameAudio } from './audio/audio.ts';
-import { t, setLang } from './i18n/index.ts';
+import { t, setLang, getLang } from './i18n/index.ts';
 import { loadSettings, saveSettings, type Settings } from './ui/settings.ts';
 import { MainMenu } from './ui/menu.ts';
 import { showPause, showSummary, rideToFit } from './ui/ridepanels.ts';
@@ -27,6 +27,8 @@ import { RideSequences } from './game/sequences.ts';
 import { GuestInputSource } from './game/guest.ts';
 import { Crowd } from './world/crowd.ts';
 import { TownSigns } from './world/signs.ts';
+import { Multiplayer } from './game/multiplayer.ts';
+import type { InterpolatedRider } from './net/index.ts';
 
 const ui = document.getElementById('ui') as HTMLElement;
 const hudRoot = document.getElementById('hud') as HTMLElement;
@@ -149,7 +151,20 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   } catch (e) {
     console.warn('Séance illisible', e);
   }
-  const aiCount = workout ? 0 : Math.min(Math.max(s.aiRiders, 0), 19);
+  // Sortie de groupe / course : le serveur fait rouler tout le monde (IA comprises).
+  let mp: Multiplayer | null = null;
+  if (s.mode === 'group' || s.mode === 'race') {
+    mp = new Multiplayer(engine.scene, track, s.name);
+    try {
+      const code = await mp.connect({ ...(extras.inviteCode ? { inviteCode: extras.inviteCode } : {}), mode: s.mode, guest: s.guest, aiRiders: s.aiRiders, trainerDifficulty: s.trainerDifficulty, name: s.name });
+      setTimeout(() => hud.toast(`${getLang() === 'fr' ? 'Code d’invitation' : 'Invite code'} : ${code}`), 500);
+    } catch (e) {
+      console.warn('Serveur injoignable, sortie solo', e);
+      setTimeout(() => hud.toast(getLang() === 'fr' ? 'Serveur injoignable : sortie solo' : 'Server unreachable: solo ride'), 500);
+      mp = null;
+    }
+  }
+  const aiCount = workout || mp ? 0 : Math.min(Math.max(s.aiRiders, 0), 19);
   const peloton = new Peloton(engine.scene, track, aiCount, startD, s.ftpWatts);
   const ghost = new Ghost(engine.scene, track, track.route.id, startD);
   const rig = new CameraRig(engine.camera, track, (x, z) => world.terrain.heightAt(x, z), engine.renderer.domElement);
@@ -197,6 +212,34 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     if (sequences.enabled) sequences.segment(r, s.name, track.route.id, 1, 1);
     else hud.toast(`${t('segmentDone')} · ${r.seg.name} · ${Math.floor(r.timeS / 60)}:${String(Math.round(r.timeS % 60)).padStart(2, '0')}`);
   };
+  if (mp) {
+    const net = mp.net;
+    // Télémétrie à 10 Hz : puissance mesurée (ou virtuelle pour un invité), rapport, direction.
+    net.startTelemetry(() => ({ watts: ride.inputs.watts, cadence: ride.inputs.cadence, ...(ride.inputs.hr !== undefined ? { hr: ride.inputs.hr } : {}), gear: ride.gearIndex, steer: keyboard.steer }));
+    net.on('event', (ev) => {
+      if (ev.kind === 'segmentEnd' && ev.riderId === net.selfId && !s.guest) {
+        const seg = track.route.segments.find((x) => x.id === ev.segmentId);
+        if (seg) sequences.segment({ seg, timeS: ev.timeMs / 1000, avgWatts: ride.avgWatts() }, s.name, track.route.id, ev.rank, net.roster.size);
+      } else if (ev.kind === 'chat') hud.toast(`${net.roster.get(ev.riderId)?.name ?? '?'} : ${ev.text}`);
+      else if (ev.kind === 'rideOn' && ev.to === net.selfId) hud.toast(`👍 Ride On — ${net.roster.get(ev.from)?.name ?? ''}`);
+      else if (ev.kind === 'results') {
+        const top = ev.results.filter((r) => r.rank > 0).sort((a, b) => a.rank - b.rank);
+        void sequences.podium(top.map((r) => ({ name: r.name, timeS: r.timeMs / 1000, color: net.roster.get(r.riderId)?.avatar.jersey ?? '#ffd23f' })));
+      } else if (ev.kind === 'phase' && ev.phase === 'countdown' && ev.startsAt) {
+        // Départ groupé : tout le monde attend le signal du serveur.
+        ride.paused = true;
+        setTimeout(() => (ride.paused = false), Math.max(0, ev.startsAt - net.serverNow()));
+      }
+    });
+    mp.onCompanion((c) => {
+      if (c.kind === 'shift') onShift(c.action);
+      else if (c.kind === 'pause' || c.kind === 'resume') togglePause();
+      else if (c.kind === 'camera') rig.setMode(c.camera);
+      else if (c.kind === 'fan') input.setFan?.(c.percent);
+      else if (c.kind === 'chat') net.chat(c.text);
+      else if (c.kind === 'rideOn') net.rideOn(c.to);
+    });
+  }
   // Départ : intro + compte à rebours HyperFrames, la sortie démarre au « go » (?nointro pour les tests).
   if (!params.has('nointro')) {
     ride.paused = true;
@@ -211,6 +254,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
 
   const finish = () => {
     engine.renderer.setAnimationLoop(null);
+    void mp?.dispose();
     tutorial?.stop();
     // Invité : ni XP compétitive, ni segments, ni FIT.
     const xp = s.guest ? undefined : awardRide({ distanceM: ride.state.distM - startD, elevationM: ride.elevationGainM, movingS: ride.elapsedS });
@@ -260,6 +304,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   const dir = new THREE.Vector3();
   const sample = { x: 0, y: 0, z: 0, dirX: 1, dirZ: 0, grade: 0, d: 0 };
   let hudAcc = 0;
+  let remoteRiders: InterpolatedRider[] = [];
   let prevHeading = Number.NaN;
   let bank = 0;
   const frame = (dt: number, render: boolean, manual = false) => {
@@ -269,8 +314,13 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     if (!ride.paused) {
       ghost.update(dt, ride.elapsedS, ride.state.distM);
       tutorial?.update({ shifted, gradePercent: ride.gradePercent, inSegment: !!ride.segment, draft: ride.draft, distM: ride.state.distM - startD });
-      ride.draft = peloton.update(dt, { distM: ride.state.distM, lateral: ride.lateral, speedMs: ride.state.speedMs, watts: ride.inputs.watts, massKg: s.massKg });
+      if (mp) {
+        // Prédiction locale + correction douce vers la position autoritaire du serveur.
+        ride.draft = mp.selfDraft();
+        ride.state.distM += mp.reconcile(ride.state.distM, dt);
+      } else ride.draft = peloton.update(dt, { distM: ride.state.distM, lateral: ride.lateral, speedMs: ride.state.speedMs, watts: ride.inputs.watts, massKg: s.massKg });
     }
+    remoteRiders = mp ? mp.render(dt, engine.camera) : [];
     track.positionAt(ride.state.distM, ride.lateral, sample);
     pos.set(sample.x, sample.y + 0.06, sample.z);
     dir.set(sample.dirX, 0, sample.dirZ);
@@ -346,6 +396,10 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
           lap: ride.lap,
           riders: [
             { id: 'me', name: s.name, distM: ride.state.distM, x: pos.x, z: pos.z, me: true, isAI: false, isGuest: false, color: '#ffd23f' },
+            ...remoteRiders.map((r) => {
+              const p = track.sample(r.unwrappedM);
+              return { id: r.id, name: r.name, distM: r.unwrappedM, x: p.x, z: p.z, me: false, isAI: r.isAI, isGuest: r.isGuest, color: r.avatar.jersey };
+            }),
             ...peloton.riders.map((r) => {
               const p = track.sample(r.state.distM);
               return { id: r.id, name: r.name, distM: r.state.distM, x: p.x, z: p.z, me: false, isAI: true, isGuest: false, color: r.color };
