@@ -66,16 +66,16 @@ Idées seulement : ni nom, ni asset, ni code, ni physique de NCT Ride (la vitess
 
 | # | Idée | Jalon | État |
 | --- | --- | --- | --- |
-| 1 | Équipiers IA pour rouler seul : allure à % de FTP réglable en sortie, relais, équipiers lâchés en côte et attendus, ordre « ralentissez », barre d'aspiration, aspiration partielle si décalé | 5, avancé juste après le jalon 1 | en cours |
-| 2 | IA avec réserve W′bal ; profils échappée / sprinteur / suiveur ; niveaux 80 / 100 / 115 % FTP | 5 | W′bal fait (packages/physics) ; niveaux à exposer |
-| 3 | Monde vivant : trafic qui double en s'écartant, piétons, déclencheurs à une distance de route | 3 | à faire |
-| 4 | Son positionné depuis OSM (église → cloches, prairie → vaches, eau…) | 3 | à faire |
-| 5 | Caméra « GoPro » sur la poitrine | 3 | à faire |
+| 1 | Équipiers IA pour rouler seul : allure à % de FTP réglable en sortie, relais, équipiers lâchés en côte et attendus, ordre « ralentissez », barre d'aspiration, aspiration partielle si décalé | 5, avancé juste après le jalon 1 | fait en solo ([ / ] allure, R ralentir, attente des lâchés, barre d'aspiration) ; demi-tour : à faire |
+| 2 | IA avec réserve W′bal ; profils échappée / sprinteur / suiveur ; niveaux 80 / 100 / 115 % FTP | 5 | fait (W′bal, profils, niveau 80 / 100 / 115 % au menu) |
+| 3 | Monde vivant : trafic qui double en s'écartant, piétons, déclencheurs à une distance de route | 3 | fait (voitures, camionnettes, tracteur, piétons) ; trains : à faire |
+| 4 | Son positionné depuis OSM (église → cloches, prairie → vaches, eau…) | 3 | fait |
+| 5 | Caméra « GoPro » sur la poitrine | 3 | fait |
 | 6 | Poussière sur les chemins, roulement selon le revêtement | 3 | à faire |
-| 7 | Foule avec pancartes et photo automatique au sommet des segments, réutilisée dans la vidéo résumé | 5 | foule faite ; photo à faire |
-| 8 | Image de fin de sortie à partager | 5 | à faire |
+| 7 | Foule avec pancartes et photo automatique au sommet des segments, réutilisée dans la vidéo résumé | 5 | fait (foule animée, photo au sommet, en fond de l'image de partage) ; pancartes et vidéo résumé : à faire |
+| 8 | Image de fin de sortie à partager | 5 | fait |
 | 9 | Mondes génériques (emprise + itinéraires via tools/terrain) | 3 | pipeline générique fait ; montée célèbre à tester |
-| 10 | Contrôle visuel automatique du monde généré | 3 | captures automatiques faites ; détection à faire |
+| 10 | Contrôle visuel automatique du monde généré | 3 | fait (?worldcheck=1, toits inversés corrigés à la construction) ; détection automatique d'anomalies : à faire |
 
 ## Plus tard
 
