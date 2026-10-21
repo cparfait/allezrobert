@@ -60,6 +60,9 @@ export class RideSession {
   elapsedS = 0;
   elevationGainM = 0;
   gradePercent = 0;
+  /** Consigne ERG imposée par une séance (W) ; null = simulation de pente. */
+  ergTarget: number | null = null;
+  private ergAcc = 0;
   /** Économie due à l'aspiration (0–1), fournie par le serveur ou les coureurs IA proches. */
   draft = 0;
   lap = 1;
@@ -174,8 +177,18 @@ export class RideSession {
       cdaFactor: 1 - this.draft,
       trainerDifficulty: this.opts.trainerDifficulty,
     });
-    const send = this.smoother.update(target, dt);
-    if (send !== null) source.sendTrainer({ kind: 'simulation', gradePercent: send, windSpeedMs: 0, crr: this.params.crr, cw: 0.5 * env.airDensity * this.params.cda });
+    if (this.ergTarget !== null) {
+      // Séance : consigne ERG renvoyée chaque seconde (le power match corrige côté DeviceManager).
+      this.ergAcc += dt;
+      if (this.ergAcc >= 1) {
+        this.ergAcc = 0;
+        source.sendTrainer({ kind: 'erg', watts: Math.round(this.ergTarget) });
+      }
+      this.smoother.reset(target);
+    } else {
+      const send = this.smoother.update(target, dt);
+      if (send !== null) source.sendTrainer({ kind: 'simulation', gradePercent: send, windSpeedMs: 0, crr: this.params.crr, cw: 0.5 * env.airDensity * this.params.cda });
+    }
 
     // Ventilateur : asservi à la vitesse (48 km/h = 100 %).
     source.setFan?.(Math.min(100, (this.state.speedMs * 3.6 * 100) / 48));

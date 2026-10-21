@@ -64,7 +64,7 @@ function deciduousGeometry(lod: number): THREE.BufferGeometry {
   const crown = new THREE.Vector3(0, 7.6, 0);
   for (let i = 0; i < blobs; i++) {
     const s = lod === 0 ? 2.3 + r() * 1.3 : lod === 1 ? 3.4 : 4.2;
-    const blob = new THREE.IcosahedronGeometry(s, 0);
+    const blob = new THREE.IcosahedronGeometry(s, lod === 0 ? 1 : 0);
     const p = blob.getAttribute('position');
     for (let k = 0; k < p.count; k++) {
       const f = 0.85 + 0.25 * r();

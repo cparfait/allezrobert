@@ -62,7 +62,7 @@ export class TerrainManager {
     const c = SEASON_GROUND[season];
     for (const k of Object.keys(c) as Array<keyof typeof c>) this.seasonColors[k].set(c[k]);
     this.frost.value = season === 'winter' ? 0.25 : 0;
-    const tint: Record<Season, [string, number]> = { spring: ['#f2ffe8', 1.05], summer: ['#ffffff', 1], autumn: ['#ffd9a8', 0.85], winter: ['#d6dbe0', 0.45] };
+    const tint: Record<Season, [string, number]> = { spring: ['#f4fff0', 1.05], summer: ['#fffbf2', 1], autumn: ['#fbead2', 0.9], winter: ['#dde2e6', 0.5] };
     this.orthoTint.set(tint[season][0]);
     this.orthoSat.value = tint[season][1];
   }

@@ -11,6 +11,8 @@ import { CameraRig } from './game/cameras.ts';
 import { RideSession } from './game/ride.ts';
 import { KeyboardControls, type InputSource } from './game/inputs.ts';
 import { Peloton } from './game/peloton.ts';
+import { WorkoutController } from './game/workout.ts';
+import { Ghost } from './game/ghost.ts';
 import { createDeviceLayer } from './game/devices.ts';
 import { Hud } from './hud/hud.ts';
 import { GameAudio } from './audio/audio.ts';
@@ -102,7 +104,7 @@ async function boot(): Promise<void> {
   } else menu.show();
 }
 
-async function startRide(scene: Scene3D, s: Settings, input: InputSource, _extras: { workoutFile?: { name: string; content: string }; inviteCode?: string }): Promise<void> {
+async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras: { workoutFile?: { name: string; content: string }; inviteCode?: string }): Promise<void> {
   const { engine, world, track, source } = scene;
   ui.innerHTML = '';
   const profile: RiderProfile = { id: 'local', displayName: s.name, massKg: s.massKg, heightCm: s.heightCm, ftpWatts: s.ftpWatts, bike: DEFAULT_BIKE };
@@ -117,10 +119,32 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, _extra
   });
   const avatar = new RiderAvatar(s.look);
   engine.scene.add(avatar.root);
-  const peloton = new Peloton(engine.scene, track, Math.min(Math.max(s.aiRiders, 0), 19), startD, s.ftpWatts);
+  // Séance structurée : fichier .zwo/.erg/.mrc ou test FTP (rampe) ; pas d'IA pendant une séance.
+  let workout: WorkoutController | null = null;
+  try {
+    if (s.mode === 'workout' && extras.workoutFile) workout = new WorkoutController('file', s.ftpWatts, extras.workoutFile);
+    else if (s.mode === 'ftpTest') workout = new WorkoutController(params.get('ftptest') === '20' ? 'ftp20' : 'ramp', s.ftpWatts);
+  } catch (e) {
+    console.warn('Séance illisible', e);
+  }
+  const aiCount = workout ? 0 : Math.min(Math.max(s.aiRiders, 0), 19);
+  const peloton = new Peloton(engine.scene, track, aiCount, startD, s.ftpWatts);
+  const ghost = new Ghost(engine.scene, track, track.route.id, startD);
   const rig = new CameraRig(engine.camera, track, (x, z) => world.terrain.heightAt(x, z), engine.renderer.domElement);
   const hud = new Hud(hudRoot, track, source.attribution);
+  hud.ftp = s.ftpWatts;
   hud.setVisible(true);
+  if (workout) {
+    workout.onMessage = (m) => hud.toast(m);
+    workout.onFinished = (ftp) => {
+      if (ftp) {
+        hud.toast(`FTP estimée : ${ftp} W`);
+        s.ftpWatts = ftp;
+        saveSettings(s);
+      } else hud.toast(t('segmentDone'));
+    };
+  }
+  ghost.onNewRecord = (lapS, prev) => hud.toast(`${t('newRecord')} ${Math.floor(lapS / 60)}:${String(Math.round(lapS % 60)).padStart(2, '0')}${prev ? ` (−${Math.round(prev - lapS)} s)` : ''}`);
   const keyboard = new KeyboardControls();
   const audio = new GameAudio();
   audio.start();
@@ -135,7 +159,10 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, _extra
   keyboard.onShift(onShift);
   input.onShift(onShift);
   ride.onSegmentDone = (r) => hud.toast(`${t('segmentDone')} · ${r.seg.name} · ${Math.floor(r.timeS / 60)}:${String(Math.round(r.timeS % 60)).padStart(2, '0')}`);
-  ride.onLap = (lap) => hud.toast(`${t('lap')} ${lap}`);
+  ride.onLap = (lap) => {
+    hud.toast(`${t('lap')} ${lap}`);
+    ghost.lap(ride.elapsedS, ride.state.distM);
+  };
 
   const finish = () => {
     engine.renderer.setAnimationLoop(null);
@@ -179,8 +206,10 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, _extra
   let bank = 0;
   const frame = (dt: number, render: boolean) => {
     const steer = keyboard.update(dt);
+    if (workout) ride.ergTarget = workout.update(ride.elapsedS, ride.inputs.watts);
     ride.update(dt, input, steer);
     if (!ride.paused) {
+      ghost.update(dt, ride.elapsedS, ride.state.distM);
       ride.draft = peloton.update(dt, { distM: ride.state.distM, lateral: ride.lateral, speedMs: ride.state.speedMs, watts: ride.inputs.watts, massKg: s.massKg });
     }
     track.positionAt(ride.state.distM, ride.lateral, sample);
@@ -261,6 +290,23 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, _extra
         },
         s.massKg,
       );
+      if (workout) {
+        const w = workout.position;
+        const next = workout.workout.steps[w.stepIndex + 1];
+        hud.setWorkout({
+          name: workout.workout.name,
+          targetWatts: w.targetWatts,
+          watts3s: ride.watts3s(),
+          stepIndex: w.stepIndex,
+          stepCount: workout.workout.steps.length,
+          stepRemainingS: w.stepRemainingS,
+          remainingS: w.remainingS,
+          ...(next ? { next: `${Math.round(((next.powerStart + next.powerEnd) / 2) * (next.powerUnit === 'ftp' ? s.ftpWatts : 1))} W` } : {}),
+          profile: workout.profile(s.ftpWatts),
+          elapsedS: ride.elapsedS,
+          totalS: workout.durationS,
+        });
+      }
     }
   };
   engine.renderer.setAnimationLoop(() => {

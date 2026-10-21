@@ -40,17 +40,16 @@ export async function createFileWorld(id: string, meta: WorldMeta): Promise<Worl
     async loadTile(tx, tz) {
       const key = `${tx}_${tz}`;
       const res = await fetch(`${base}/tiles/${key}.json`);
-      if (!res.ok || !(res.headers.get('content-type') ?? '').includes('json')) {
+      // 404 : tuile hors du monde, on n'y revient plus ; autre erreur (génération en cours) : on réessaiera.
+      if (res.status === 404 || (res.ok && !(res.headers.get('content-type') ?? '').includes('json'))) {
         missing.add(key);
         return null;
       }
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const tile = (await res.json()) as WorldTile;
       const grid = tile.heights.hi ?? tile.heights.lo;
       const bin = await fetch(`${base}/tiles/${grid.file}`);
-      if (!bin.ok) {
-        missing.add(key);
-        return null;
-      }
+      if (!bin.ok) throw new Error(`HTTP ${bin.status}`);
       const raw = new Uint16Array(await bin.arrayBuffer());
       const heights = new Float32Array(raw.length);
       for (let i = 0; i < raw.length; i++) heights[i] = tile.heights.baseM + (raw[i] as number) * tile.heights.stepM;

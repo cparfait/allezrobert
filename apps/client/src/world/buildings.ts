@@ -1,12 +1,20 @@
 import * as THREE from 'three/webgpu';
-import { attribute, uv, fract, step, mix, vec3, float, uniform, mx_noise_float, positionWorld, smoothstep } from 'three/tsl';
+import { attribute, uv, fract, floor, step, mix, vec3, float, uniform, mx_noise_float, positionWorld, smoothstep, max, min, abs, normalWorld } from 'three/tsl';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { rng, polygonArea } from '../engine/noise.ts';
 import type { LoadedTile } from './types.ts';
 
-/** Matériaux d'Île-de-France rurale : meulière, enduit clair, tuile plate brun-rouge, ardoise. */
-const WALLS = ['#a8835a', '#9c7b55', '#e6dccb', '#d9cdb6', '#b89a74'];
-const ROOFS = ['#9c4a2f', '#8a3f28', '#7a3825', '#a5583a', '#5b5f66'];
+/**
+ * Bâti d'Île-de-France rurale (voir ART_DIRECTION.md) : enduits clairs et meulière ocre,
+ * soubassement plus sombre, fenêtres à encadrement clair et volets colorés, tuile plate
+ * brun-rouge en rangs serrés, ardoise pour les églises et les toits à la Mansart.
+ */
+const RENDERS = ['#e8dfcf', '#e2d6c0', '#d9ccb2', '#efe7d8', '#d6c3a0'];
+const MEULIERE = ['#b8936a', '#a98660', '#c29f74'];
+const BRICK = '#a8624a';
+const ROOFS = ['#9c4f33', '#8f4630', '#a8593a', '#86402b', '#b0623f'];
+const SLATE = '#4f565f';
+const SHUTTERS = ['#7d8f9b', '#5f7d66', '#e8e4da', '#8a5a3c', '#4b6a8a', '#a7b8a0'];
 
 interface Obb {
   cx: number;
@@ -18,13 +26,11 @@ interface Obb {
 }
 
 /** Couleur OSM (« brick », « #c0a080 »…) avec repli si elle n'est pas reconnue. */
-function safeColor(c: THREE.Color, value: string, fallback: string): THREE.Color {
-  const named: Record<string, string> = { brick: '#9c5a3c', stone: '#a8835a', white: '#e6dccb', beige: '#d9cdb6', yellow: '#d8c48a', grey: '#9a9a96', gray: '#9a9a96' };
-  try {
-    return c.set(named[value] ?? value);
-  } catch {
-    return c.set(fallback);
-  }
+function osmColour(value: string | undefined, fallback: string): string {
+  if (!value) return fallback;
+  const named: Record<string, string> = { brick: BRICK, stone: MEULIERE[0] as string, white: '#efe7d8', beige: '#d9ccb2', yellow: '#dccb92', grey: '#a3a39e', gray: '#a3a39e', red: BRICK, brown: '#8a6a4a' };
+  if (named[value]) return named[value] as string;
+  return /^#[0-9a-f]{3,8}$/i.test(value) ? value : fallback;
 }
 
 /** Rectangle orienté minimal (calipers sur les arêtes du polygone). */
@@ -62,33 +68,37 @@ function orientedBox(pts: number[]): Obb {
       best = { cx: cu * ux - cv * uz, cz: cu * uz + cv * ux, ux, uz, hl: (maxU - minU) / 2, hw: (maxV - minV) / 2 };
     }
   }
-  if (best && best.hl < best.hw) {
-    // Faîtage selon le grand côté.
-    best = { cx: best.cx, cz: best.cz, ux: -best.uz, uz: best.ux, hl: best.hw, hw: best.hl };
-  }
+  if (best && best.hl < best.hw) best = { cx: best.cx, cz: best.cz, ux: -best.uz, uz: best.ux, hl: best.hw, hw: best.hl };
   return best ?? { cx: pts[0] as number, cz: pts[1] as number, ux: 1, uz: 0, hl: 3, hw: 3 };
 }
 
-function colorAttr(geo: THREE.BufferGeometry, c: THREE.Color, kind: number): void {
+/** Attributs par sommet : couleur de base, type (0 mur, 1 tuile, 2 ardoise), couleur des volets, ornements. */
+function paint(geo: THREE.BufferGeometry, base: THREE.Color, kind: number, accent: THREE.Color, stones: number, windows: number): void {
   const n = geo.getAttribute('position').count;
   const col = new Float32Array(n * 3);
-  const k = new Float32Array(n).fill(kind);
+  const acc = new Float32Array(n * 3);
+  const info = new Float32Array(n * 3);
   for (let i = 0; i < n; i++) {
-    col[i * 3] = c.r;
-    col[i * 3 + 1] = c.g;
-    col[i * 3 + 2] = c.b;
+    col.set([base.r, base.g, base.b], i * 3);
+    acc.set([accent.r, accent.g, accent.b], i * 3);
+    info.set([kind, stones, windows], i * 3);
   }
   geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
-  geo.setAttribute('kind', new THREE.BufferAttribute(k, 1));
+  geo.setAttribute('accent', new THREE.BufferAttribute(acc, 3));
+  geo.setAttribute('binfo', new THREE.BufferAttribute(info, 3));
+  if (!geo.getAttribute('facade')) geo.setAttribute('facade', new THREE.BufferAttribute(new Float32Array(n * 2), 2));
 }
 
-/** Murs extrudés depuis l'emprise réelle ; uv = (mètres le long du mur, hauteur en m). */
+/**
+ * Murs extrudés depuis l'emprise réelle. uv = (mètres le long du mur, hauteur au-dessus de la base) ;
+ * attribut `facade` = (longueur du mur, nombre de travées de fenêtres).
+ */
 function walls(pts: number[], base: number, height: number): THREE.BufferGeometry {
   const n = pts.length / 2;
   const ccw = polygonArea(pts) > 0;
   const pos: number[] = [];
   const uvs: number[] = [];
-  let run = 0;
+  const fac: number[] = [];
   for (let i = 0; i < n; i++) {
     const a = ccw ? i : n - 1 - i;
     const b = ccw ? (i + 1) % n : (n - 2 - i + n) % n;
@@ -97,21 +107,23 @@ function walls(pts: number[], base: number, height: number): THREE.BufferGeometr
     const bx = pts[b * 2] as number;
     const bz = pts[b * 2 + 1] as number;
     const len = Math.hypot(bx - ax, bz - az);
+    if (len < 0.05) continue;
     const top = base + height;
-    // Deux triangles par façade, orientés vers l'extérieur.
+    const bays = len >= 2.6 ? Math.max(1, Math.floor((len - 0.6) / 3.1)) : 0;
     pos.push(ax, base, az, ax, top, az, bx, base, bz, bx, base, bz, ax, top, az, bx, top, bz);
-    uvs.push(run, 0, run, height, run + len, 0, run + len, 0, run, height, run + len, height);
-    run += len;
+    uvs.push(0, 0, 0, height, len, 0, len, 0, 0, height, len, height);
+    for (let k = 0; k < 6; k++) fac.push(len, bays);
   }
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
   g.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+  g.setAttribute('facade', new THREE.Float32BufferAttribute(fac, 2));
   g.computeVertexNormals();
   return g;
 }
 
-/** Toit à quatre pans (ou à deux pans) sur le rectangle orienté, avec débord de 40 cm. */
-function hippedRoof(b: Obb, eave: number, pitchDeg: number, hip: boolean): THREE.BufferGeometry {
+/** Toit à quatre pans (ou à deux pans + pignons) sur le rectangle orienté, avec débord de 40 cm. */
+function roofGeometry(b: Obb, eave: number, pitchDeg: number, hip: boolean): { roof: THREE.BufferGeometry; gables: THREE.BufferGeometry | null } {
   const o = 0.4;
   const hl = b.hl + o;
   const hw = b.hw + o;
@@ -124,39 +136,48 @@ function hippedRoof(b: Obb, eave: number, pitchDeg: number, hip: boolean): THREE
   const c4 = P(-hl, hw, eave);
   const r1 = P(-ridgeHalf, 0, eave + rise);
   const r2 = P(ridgeHalf, 0, eave + rise);
-  const tris: Array<[number, number, number][]> = [
+  const roofTris: Array<[number, number, number][]> = [
     [c1, r1, c2],
     [c2, r1, r2],
     [c3, r2, c4],
     [c4, r2, r1],
-    [c2, r2, c3],
-    [c4, r1, c1],
   ];
-  if (!hip) {
-    // Pignons : les extrémités deviennent des triangles verticaux.
-    tris[4] = [c2, r2, c3];
-    tris[5] = [c4, r1, c1];
-  }
-  const pos: number[] = [];
-  const uvs: number[] = [];
-  for (const t of tris) {
-    for (const p of t) {
-      pos.push(...p);
-      // uv : coordonnées monde pour le motif de tuiles.
-      uvs.push(p[0] * b.ux + p[2] * b.uz, p[1]);
-    }
-  }
-  const g = new THREE.BufferGeometry();
-  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-  g.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
-  g.computeVertexNormals();
-  return g;
+  if (hip) roofTris.push([c2, r2, c3], [c4, r1, c1]);
+  const build = (tris: Array<[number, number, number][]>, uvFor: (p: [number, number, number]) => [number, number]) => {
+    const pos: number[] = [];
+    const uvs: number[] = [];
+    for (const t of tris)
+      for (const p of t) {
+        pos.push(...p);
+        uvs.push(...uvFor(p));
+      }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    g.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+    g.computeVertexNormals();
+    return g;
+  };
+  // uv du toit : (le long du faîtage, distance horizontale au faîtage) → rangs de tuiles parallèles à l'égout.
+  const roof = build(roofTris, (p) => {
+    const du = (p[0] - b.cx) * b.ux + (p[2] - b.cz) * b.uz;
+    const dv = -(p[0] - b.cx) * b.uz + (p[2] - b.cz) * b.ux;
+    return [du, Math.abs(dv) / Math.cos((pitchDeg * Math.PI) / 180)];
+  });
+  // Pignons (murs triangulaires) : même enduit que les murs.
+  const gables = hip
+    ? null
+    : build(
+        [
+          [c2, r2, c3],
+          [c4, r1, c1],
+        ],
+        (p) => [(-(p[0] - b.cx) * b.uz + (p[2] - b.cz) * b.ux) + hw, p[1] - eave + 3],
+      );
+  return { roof, gables };
 }
 
 /**
- * Bâtiments d'une tuile fusionnés en un seul maillage : murs en meulière ou enduit
- * (motif procédural, fenêtres éclairées la nuit), toits de tuiles plates ou d'ardoise,
- * clochers pour les églises.
+ * Bâtiments d'une tuile fusionnés en un seul maillage, matériau procédural unique (TSL).
  */
 export class Buildings {
   readonly group = new THREE.Group();
@@ -174,35 +195,69 @@ export class Buildings {
 
   private createMaterial(): THREE.MeshStandardNodeMaterial {
     const m = new THREE.MeshStandardNodeMaterial({ vertexColors: true });
-    const kind = attribute<'float'>('kind'); // 0 = mur, 1 = toit, 2 = clocher
+    const info = attribute<'vec3'>('binfo'); // type, pierres apparentes, fenêtres
+    const kind = info.x;
     const base = attribute<'vec3'>('color');
+    const accent = attribute<'vec3'>('accent');
+    const facade = attribute<'vec2'>('facade'); // longueur du mur, travées
     const u = uv().x;
     const v = uv().y;
-    const n = mx_noise_float(positionWorld.mul(1.6)).mul(0.5).add(0.5);
-    const n2 = mx_noise_float(positionWorld.mul(0.25)).mul(0.5).add(0.5);
-    // Meulière : pierres irrégulières, joints clairs.
-    const stones = smoothstep(0.42, 0.5, mx_noise_float(positionWorld.mul(2.6)).mul(0.5).add(0.5));
-    const wallCol = mix(base.mul(n.mul(0.25).add(0.8)), base.mul(1.25), stones.mul(0.35));
-    // Fenêtres : 1,1 m × 1,4 m tous les 3,2 m, par étage de 2,8 m, au-dessus de 0,9 m.
-    const wx = fract(u.div(3.2));
-    const wy = fract(v.sub(0.9).div(2.8));
-    const isWin = step(0.33, wx).mul(step(wx, 0.67)).mul(step(0.1, wy)).mul(step(wy, 0.6)).mul(step(0.9, v));
-    const lit = step(0.45, n2).mul(this.night);
-    const winCol = mix(vec3(0.08, 0.09, 0.1), vec3(1.0, 0.72, 0.38), lit);
-    // Tuiles : rangs de 17 cm, décalés.
-    const rows = fract(v.mul(5.8));
-    const tilesPattern = smoothstep(0.0, 0.12, rows).mul(0.25).add(0.75);
-    const roofCol = base.mul(tilesPattern).mul(n.mul(0.35).add(0.7));
-    const isWall = float(1).sub(kind.min(1));
-    const isRoof = kind.min(1);
-    let col = mix(wallCol, roofCol, isRoof);
-    col = mix(col, winCol, isWin.mul(isWall));
+    const isWall = step(kind, float(0.5));
+    const isTile = step(float(0.5), kind).mul(step(kind, float(1.5)));
+    const isSlate = step(float(1.5), kind);
+
+    // ── Murs ──
+    const nBig = mx_noise_float(positionWorld.mul(0.35)).mul(0.5).add(0.5);
+    const nFine = mx_noise_float(positionWorld.mul(3.1)).mul(0.5).add(0.5);
+    // Meulière : moellons irréguliers à joints clairs (cellules de bruit), seulement si `stones`.
+    const cell = mx_noise_float(positionWorld.mul(2.2));
+    const joint = smoothstep(0.04, 0.0, abs(cell)).mul(info.y);
+    const stoneTone = mx_noise_float(floor(positionWorld.mul(2.2)).add(0.5)).mul(0.12).mul(info.y);
+    let wall = base.mul(nBig.mul(0.08).add(0.95)).mul(nFine.mul(0.06).add(0.97)).add(stoneTone);
+    wall = mix(wall, vec3(0.86, 0.83, 0.76), joint.mul(0.7));
+    // Soubassement plus sombre (0,6 m) et salissures en pied de mur.
+    wall = wall.mul(mix(float(0.72), float(1), smoothstep(0.55, 0.65, v))).mul(mix(float(0.88), float(1), smoothstep(0.0, 2.0, v)));
+    // Fenêtres : travées réparties sur la longueur, une par étage de 2,8 m, au-dessus de 0,9 m.
+    const bays = max(facade.y, float(0.0001));
+    const local = fract(u.div(facade.x).mul(bays));
+    const bayW = facade.x.div(bays);
+    const wx = local.sub(0.5).mul(bayW); // mètres depuis l'axe de la travée
+    const floorY = fract(v.sub(0.9).div(2.8));
+    const fy = floorY.mul(2.8); // mètres au-dessus de l'allège
+    const hasWin = step(float(0.5), facade.y).mul(info.z).mul(step(0.9, v));
+    const inWin = step(abs(wx), float(0.5)).mul(step(fy, float(1.35))).mul(hasWin);
+    const inFrame = step(abs(wx), float(0.58)).mul(step(fy, float(1.43))).mul(step(float(-0.08), fy.sub(0.0))).mul(hasWin);
+    const shutterX = abs(wx);
+    const inShutter = step(float(0.6), shutterX).mul(step(shutterX, float(1.08))).mul(step(fy, float(1.38))).mul(hasWin);
+    // Lames des volets.
+    const slats = fract(fy.mul(9)).mul(0.25).add(0.8);
+    const lit = step(0.5, mx_noise_float(floor(positionWorld.mul(0.3)))).mul(this.night);
+    const glass = mix(vec3(0.1, 0.12, 0.14).add(normalWorld.y.mul(0)), vec3(1.0, 0.74, 0.42), lit);
+    // Reflet du ciel dans les vitres (haut plus clair).
+    const glassSky = glass.add(vec3(0.12, 0.15, 0.18).mul(fy.div(1.35)).mul(float(1).sub(lit)));
+    wall = mix(wall, accent.mul(slats), inShutter.mul(float(1).sub(inWin)));
+    wall = mix(wall, vec3(0.93, 0.92, 0.88), inFrame.mul(float(1).sub(inWin)));
+    wall = mix(wall, glassSky, inWin);
+
+    // ── Toits ──
+    const rows = v.mul(5.6); // tuile plate : pureau ≈ 18 cm
+    const rowIdx = floor(rows);
+    const tileX = fract(u.mul(5.8).add(rowIdx.mul(0.5)));
+    const rowShade = smoothstep(0.0, 0.18, fract(rows)).mul(0.22).add(0.78);
+    const gap = smoothstep(0.0, 0.06, min(tileX, float(1).sub(tileX))).mul(0.15).add(0.85);
+    const tileVar = mx_noise_float(vec3(floor(u.mul(5.8).add(rowIdx.mul(0.5))), rowIdx, 0)).mul(0.12).add(1);
+    const moss = smoothstep(0.55, 0.85, mx_noise_float(positionWorld.mul(0.6))).mul(0.25);
+    const tiles = mix(base.mul(rowShade).mul(gap).mul(tileVar), vec3(0.35, 0.38, 0.22), moss);
+    const slate = base.mul(smoothstep(0.0, 0.12, fract(v.mul(4))).mul(0.25).add(0.75)).mul(nFine.mul(0.1).add(0.95));
+
+    let col = mix(wall, tiles, isTile);
+    col = mix(col, slate, isSlate);
     m.colorNode = col;
-    m.emissiveNode = vec3(1.0, 0.62, 0.3).mul(isWin.mul(isWall).mul(lit).mul(2.2));
-    m.roughnessNode = mix(float(0.92), float(0.25), isWin.mul(isWall));
+    m.emissiveNode = vec3(1.0, 0.62, 0.3).mul(inWin.mul(lit).mul(isWall).mul(2.2));
+    m.roughnessNode = mix(mix(float(0.93), float(0.15), inWin.mul(isWall)), float(0.75), isTile.add(isSlate).min(1)).sub(isSlate.mul(0.2));
+    m.metalnessNode = float(0);
     // Les emprises OSM n'ont pas d'orientation garantie : on rend les deux faces.
     m.side = THREE.DoubleSide;
-    m.metalnessNode = float(0);
     return m;
   }
 
@@ -211,50 +266,54 @@ export class Buildings {
     const r = rng(tile.tx * 92821 + tile.tz * 68917);
     const parts: THREE.BufferGeometry[] = [];
     const c = new THREE.Color();
+    const acc = new THREE.Color();
     for (const bld of tile.features.buildings) {
       if (bld.pts.length < 6) continue;
-      // Base : altitude fournie par le pipeline, sinon point le plus bas de l'emprise.
       let base = bld.y ?? Infinity;
       if (!Number.isFinite(base)) for (let i = 0; i < bld.pts.length; i += 2) base = Math.min(base, this.groundAt(bld.pts[i] as number, bld.pts[i + 1] as number));
       if (!Number.isFinite(base)) continue;
       base -= 0.3;
       const isChurch = bld.kind === 'church' || bld.kind === 'chapel';
+      const isUtility = ['shed', 'garage', 'garages', 'barn', 'greenhouse', 'roof', 'industrial', 'ruins'].includes(bld.kind);
       const box = orientedBox(bld.pts);
       const shape = bld.roof ?? 'gabled';
       const flat = shape === 'flat' || box.hw > 20;
-      const total = isChurch ? Math.max(bld.height, 14) : Math.max(bld.height || (bld.levels ?? 1.6) * 2.9 + 3, 4);
-      const roofH = flat ? 0.4 : Math.min(bld.roofHeight ?? Math.tan((40 * Math.PI) / 180) * box.hw, total * 0.6);
+      const total = isChurch ? Math.max(bld.height, 14) : Math.max(bld.height || (bld.levels ?? 1.6) * 2.9 + 3, 3.5);
+      const roofH = flat ? 0.4 : Math.min(bld.roofHeight ?? Math.tan((42 * Math.PI) / 180) * box.hw, total * 0.6);
       const wallH = Math.max(total - roofH, 2.4);
+      // Matériau de façade : meulière (≈ 30 %), enduit clair, ou couleur OSM.
+      const stones = !isUtility && !bld.colour && (bld.material === 'stone' || r() < 0.3);
+      const wallColour = osmColour(bld.colour, stones ? (MEULIERE[Math.floor(r() * MEULIERE.length)] as string) : bld.material === 'brick' ? BRICK : (RENDERS[Math.floor(r() * RENDERS.length)] as string));
+      acc.set(SHUTTERS[Math.floor(r() * SHUTTERS.length)] as string);
       const w = walls(bld.pts, base, wallH + 0.3);
-      const wallColour = bld.colour && /^#|^[a-z]+$/.test(bld.colour) ? bld.colour : (WALLS[Math.floor(r() * WALLS.length)] as string);
-      colorAttr(w, safeColor(c, wallColour, WALLS[0] as string), 0);
+      paint(w, c.set(wallColour), 0, acc, stones ? 1 : 0, isUtility ? 0 : 1);
       parts.push(w);
       const pitch = flat ? 3 : (Math.atan(roofH / Math.max(box.hw + 0.4, 0.5)) * 180) / Math.PI;
       const hip = shape === 'hipped' || shape === 'pyramidal' || shape === 'half-hipped';
-      const roof = hippedRoof(box, base + wallH + 0.3, pitch, hip);
+      const { roof, gables } = roofGeometry(box, base + wallH + 0.3, pitch, hip);
       const slate = bld.material === 'slate' || shape === 'mansard' || isChurch;
-      colorAttr(roof, c.set(ROOFS[slate ? 4 : Math.floor(r() * (ROOFS.length - 1))] as string), 1);
+      paint(roof, c.set(slate ? SLATE : flat ? '#6f6c66' : (osmColour(undefined, ROOFS[Math.floor(r() * ROOFS.length)] as string))), slate || flat ? 2 : 1, acc, 0, 0);
       parts.push(roof);
+      if (gables) {
+        paint(gables, c.set(wallColour), 0, acc, stones ? 1 : 0, 0);
+        parts.push(gables);
+      }
       if (isChurch) {
-        // Clocher : tour carrée et flèche d'ardoise à une extrémité.
+        // Clocher : tour carrée en pierre et flèche d'ardoise à une extrémité.
         const tx = box.cx + box.ux * (box.hl - 2.5);
         const tz = box.cz + box.uz * (box.hl - 2.5);
         const th = wallH + 9;
-        const tower = new THREE.BoxGeometry(4.5, th, 4.5).translate(tx, base + th / 2, tz).toNonIndexed();
-        const tuv = tower.getAttribute('uv');
-        for (let i = 0; i < tuv.count; i++) tuv.setXY(i, tuv.getX(i) * 4.5, tuv.getY(i) * th);
-        colorAttr(tower, c.set('#a8835a'), 0);
+        const tower = walls([tx - 2.25, tz - 2.25, tx + 2.25, tz - 2.25, tx + 2.25, tz + 2.25, tx - 2.25, tz + 2.25], base, th);
+        paint(tower, c.set(MEULIERE[1] as string), 0, acc.set('#5b5f66'), 1, 0);
         parts.push(tower);
         const spire = new THREE.ConeGeometry(3.4, 11, 8).translate(tx, base + th + 5.5, tz).toNonIndexed();
-        colorAttr(spire, c.set('#4f545c'), 2);
+        spire.deleteAttribute('uv');
+        spire.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(spire.getAttribute('position').count * 2), 2));
+        paint(spire, c.set(SLATE), 2, acc, 0, 0);
         parts.push(spire);
       }
     }
     if (!parts.length) return;
-    for (const p of parts) {
-      if (!p.getAttribute('uv')) p.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(p.getAttribute('position').count * 2), 2));
-      if (p.getAttribute('normal') === undefined) p.computeVertexNormals();
-    }
     const merged = mergeGeometries(
       parts.map((p) => (p.index ? p.toNonIndexed() : p)),
       false,
@@ -276,4 +335,3 @@ export class Buildings {
     this.tiles.delete(tile.id);
   }
 }
-

@@ -46,9 +46,10 @@ function nameSprite(text: string, color: string): THREE.Sprite {
   ctx.fillText(text, 52, 33);
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
-  const mat = new THREE.SpriteMaterial({ map: tex, depthWrite: false, transparent: true });
+  // Taille constante à l'écran, quelle que soit la distance.
+  const mat = new THREE.SpriteMaterial({ map: tex, depthWrite: false, transparent: true, sizeAttenuation: false });
   const s = new THREE.Sprite(mat);
-  s.scale.set(1.6, 0.4, 1);
+  s.scale.set(0.11, 0.0275, 1);
   s.renderOrder = 10;
   return s;
 }
@@ -172,7 +173,7 @@ export class Peloton {
       r.avatar.root.visible = dist < 600;
       if (dist < 250) r.avatar.update(dt, r.cadence, r.state.speedMs, r.pose);
       r.label.position.set(p.x, p.y + 2.15, p.z);
-      r.label.visible = dist < 120;
+      r.label.visible = dist > 7 && dist < 150;
     }
   }
 

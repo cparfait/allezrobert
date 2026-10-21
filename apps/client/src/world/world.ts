@@ -22,6 +22,7 @@ export class World {
   private readonly track: RouteTrack;
   private lastFocusTile = '';
   private updating = false;
+  private retryAcc = 0;
 
   constructor(scene: THREE.Scene, source: WorldSource, route: RouteData, track: RouteTrack, q: QualitySettings, envState: EnvironmentState) {
     this.scene = scene;
@@ -90,6 +91,12 @@ export class World {
     // Streaming : à chaque changement de tuile, on recharge le voisinage.
     const ft = this.terrain.tileCoord(focus.x, focus.z);
     const key = ft.join('_');
+    // Nouvelle tentative périodique pour les tuiles manquantes (génération en cours, réseau).
+    this.retryAcc += dt;
+    if (this.retryAcc > 10) {
+      this.retryAcc = 0;
+      this.lastFocusTile = '';
+    }
     if (key !== this.lastFocusTile && !this.updating) {
       this.lastFocusTile = key;
       this.focusTile = ft;

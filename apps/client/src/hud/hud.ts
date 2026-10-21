@@ -45,6 +45,13 @@ function zoneColor(watts: number, ftp: number): string {
   return `var(--z${idx === -1 ? 7 : idx + 1})`;
 }
 
+const ZONE_HEX = ['#9aa5b1', '#3b82f6', '#22c55e', '#eab308', '#f97316', '#ef4444', '#a855f7'];
+function zoneColorHex(watts: number, ftp: number): string {
+  const r = watts / Math.max(ftp, 1);
+  const idx = ZONES.findIndex((z) => r < z);
+  return ZONE_HEX[idx === -1 ? 6 : idx] as string;
+}
+
 function fmtTime(s: number): string {
   const h = Math.floor(s / 3600);
   const m = Math.floor((s % 3600) / 60);
@@ -88,6 +95,7 @@ export class Hud {
       <div class="panel gearbox"><div class="label metric-label" style="font-size:11px;color:var(--ar-muted);text-transform:uppercase;letter-spacing:.08em">${t('gear')}</div><div class="value num" data-k="gear">34×17</div><div class="bars" data-k="gearbars"></div></div>
       <div class="panel balance hidden" data-k="balanceBox"><div style="font-size:11px;color:var(--ar-muted);text-transform:uppercase;letter-spacing:.08em">${t('balance')}</div><div class="num" data-k="balance" style="font-size:20px;font-weight:700">50 / 50</div><div class="bar"><span data-k="balanceBar" style="width:50%"></span></div></div>
       <div class="panel segment hidden" data-k="segment"><div class="name" data-k="segName"></div><div class="num" data-k="segInfo"></div><div class="bar"><span data-k="segBar" style="width:0%"></span></div></div>
+      <div class="panel workout hidden" data-k="workout"><div class="row" style="justify-content:space-between"><b data-k="wName"></b><span class="num" data-k="wRemain"></span></div><div class="num" data-k="wTarget" style="font-size:30px;font-weight:800"></div><div class="num" data-k="wStep" style="color:var(--ar-muted);font-size:13px"></div><canvas width="900" height="90" data-k="wChart"></canvas></div>
       <div class="devices-chip" data-k="devices"></div>
       <div class="toasts"></div>
       <div class="panel profile"><canvas width="1800" height="160"></canvas></div>
@@ -106,6 +114,59 @@ export class Hud {
       maxZ: Math.max(...pts.map((p) => p.z)),
     };
   }
+
+  /** Panneau de séance structurée (null = masqué). */
+  setWorkout(
+    w: null | {
+      name: string;
+      targetWatts: number | null;
+      watts3s: number;
+      stepIndex: number;
+      stepCount: number;
+      stepRemainingS: number;
+      remainingS: number;
+      next?: string;
+      profile: Array<[number, number, number, number]>;
+      elapsedS: number;
+      totalS: number;
+    },
+  ): void {
+    const box = this.el.workout as HTMLElement;
+    if (!w) {
+      box.classList.add('hidden');
+      return;
+    }
+    box.classList.remove('hidden');
+    (this.el.wName as HTMLElement).textContent = w.name;
+    (this.el.wRemain as HTMLElement).textContent = fmtTime(w.remainingS);
+    const delta = w.targetWatts ? w.watts3s - w.targetWatts : 0;
+    const tgt = this.el.wTarget as HTMLElement;
+    tgt.textContent = w.targetWatts ? `${Math.round(w.targetWatts)} W` : 'Libre';
+    tgt.style.color = !w.targetWatts ? '#f5f7fa' : Math.abs(delta) < w.targetWatts * 0.05 ? '#22c55e' : delta > 0 ? '#f97316' : '#60a5fa';
+    (this.el.wStep as HTMLElement).textContent = `Étape ${Math.min(w.stepIndex + 1, w.stepCount)}/${w.stepCount} · ${fmtTime(w.stepRemainingS)}${w.next ? ` · ensuite ${w.next}` : ''}`;
+    const c = this.el.wChart as HTMLCanvasElement;
+    const ctx = c.getContext('2d') as CanvasRenderingContext2D;
+    ctx.clearRect(0, 0, c.width, c.height);
+    const maxW = Math.max(...w.profile.map((p) => Math.max(p[2], p[3]))) * 1.1;
+    const X = (t: number) => (t / w.totalS) * c.width;
+    const Y = (p: number) => c.height - (p / maxW) * c.height;
+    for (const [t0, d, a, b] of w.profile) {
+      ctx.fillStyle = zoneColorHex((a + b) / 2, this.ftp);
+      ctx.globalAlpha = t0 + d < w.elapsedS ? 0.45 : 0.9;
+      ctx.beginPath();
+      ctx.moveTo(X(t0), c.height);
+      ctx.lineTo(X(t0), Y(a));
+      ctx.lineTo(X(t0 + d), Y(b));
+      ctx.lineTo(X(t0 + d), c.height);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = '#ffd23f';
+    ctx.fillRect(X(w.elapsedS) - 2, 0, 4, c.height);
+  }
+
+  /** FTP courante (couleurs des zones). */
+  ftp = 250;
 
   setVisible(v: boolean): void {
     this.root.classList.toggle('hidden', !v);
