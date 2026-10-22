@@ -1,7 +1,7 @@
 # Allez Robert !
 
 > Simulateur de vélo d'intérieur gratuit, privé et multijoueur, pour rouler entre amis du plateau de Saclay à la forêt de Rambouillet par la vallée de Chevreuse.
-> Clin d'œil à Robert Marchand, recordman de l'heure à 105 ans au vélodrome de Saint-Quentin-en-Yvelines.
+> Clin d'œil à Robert Marchand, recordman de l'heure à 105 ans au vélodrome de Saint-Quentin-en-Yvelines, et à Robert Chassat.
 
 ![Village de la vallée de Chevreuse](docs/screenshots/j3-1-village-matin.jpg)
 
