@@ -313,3 +313,25 @@
 .mm-hero.mm-hero-home h1 { font-size: clamp(64px, 8vw, 140px); }
 .mm-home-go { position: absolute; left: 50%; bottom: 8vh; transform: translateX(-50%); font-size: 26px; padding: 20px 64px; }
 .mm-home-go:hover span { transform: translateX(6px); }
+
+/* Fenêtres Zones / Parcours : grille de cartes */
+.mm-picker { width: min(1180px, 94vw) !important; max-height: 86vh; overflow: auto; }
+.mm-cardgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; margin-top: 8px; }
+.mm-routepick { appearance: none; border: 2px solid transparent; border-radius: 16px; padding: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; position: relative; display: flex; flex-direction: column; transition: border-color 0.15s, transform 0.15s; }
+.mm-routepick .mm-routecard { margin: 0; }
+.mm-routepick:hover { transform: translateY(-2px); border-color: rgba(255, 210, 63, 0.45); }
+.mm-routepick.on { border-color: var(--ar-accent); }
+.mm-routetag { position: absolute; top: 10px; right: 12px; font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 999px; background: rgba(8, 11, 18, 0.75); color: #d8dee6; }
+.mm-routepick.on .mm-routetag { background: var(--ar-accent); color: #0a0e16; }
+.mm-zonegrid { grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
+.mm-zonecard { display: flex; flex-direction: column; justify-content: space-between; gap: 10px; min-height: 150px; padding: 16px; border-radius: 16px; border: 2px solid transparent;
+  background: linear-gradient(160deg, rgba(80, 110, 70, 0.28), rgba(20, 28, 22, 0.35)), rgba(255, 255, 255, 0.04); }
+.mm-zonecard.on { border-color: var(--ar-accent); }
+.mm-zonecard .mm-zone-pick { appearance: none; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; padding: 0; display: flex; flex-direction: column; gap: 3px; }
+.mm-zonecard .mm-zone-pick small { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--ar-accent); font-weight: 700; }
+.mm-zonecard .mm-zone-pick b { font-size: 20px; }
+.mm-zonecard .mm-zone-pick span { font-size: 12.5px; color: #aeb7c3; }
+.mm-zonestats { margin-top: 6px; color: #d8dee6 !important; }
+.mm-zonestats em { font-style: normal; font-weight: 800; color: #fff; }
+.mm-picker .mm-explore { margin-top: 14px; width: 100%; }
+.mm-routepick .mm-rc-title { padding-right: 96px; }

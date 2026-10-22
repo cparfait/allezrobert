@@ -473,9 +473,6 @@ export class MainMenu {
             : ''
       }
       ${this.pickersHtml(r)}
-      ${r ? this.routeCard(r) : ''}
-      ${this.onExplore ? `<button id="m-explore" class="mm-explore">${ICON.explore}<span><b>${L ? 'Explorer la carte' : 'Explore the map'}</b><small>${L ? 'Caméra libre, sans rouler · Échap pour revenir' : 'Free camera, no riding · Esc to come back'}</small></span></button>` : ''}
-      <div class="mm-conds"><span>${t(s.season)} · ${s.hour.toFixed(1).replace('.', L ? ',' : '.')} h · ${L ? 'nuages' : 'clouds'} ${Math.round(s.clouds * 100)} %${s.rain > 0.05 ? ` · ${L ? 'pluie' : 'rain'}` : ''}</span><button class="mm-link" data-tab="settings">${L ? 'Modifier' : 'Change'}</button></div>
     </section>
     <div class="mm-hero"><h1>Allez <em>Robert</em> !</h1><p>${L ? 'Rouler ensemble, chacun chez soi.' : 'Ride together, each from home.'}</p></div>
     ${this.pickerHtml()}`;
@@ -500,13 +497,15 @@ export class MainMenu {
     const L = fr();
     const zones = this.picker === 'zones';
     const list = zones
-      ? `<div class="mm-zones">${this.zonesHtml()}</div>`
-      : `<div class="mm-routes">${this.routes
+      ? `<div class="mm-cardgrid mm-zonegrid">${this.zonesHtml()}</div>`
+      : `<div class="mm-cardgrid">${this.routes
           .map(
-            (x) => `<button class="mm-route ${x.id === this.s.routeId ? 'on' : ''}" data-route="${esc(x.id)}">
-            <b>${esc(this.routeName(x))}</b><span>${this.km(x.lengthM)} km · ${Math.round(x.elevationGainM)} m D+${x.loop ? '' : L ? ' · aller simple' : ' · one way'}</span></button>`,
+            (x) => `<button class="mm-routepick ${x.id === this.s.routeId ? 'on' : ''}" data-route="${esc(x.id)}">
+            ${this.routeCard(x)}
+            <span class="mm-routetag">${x.loop ? (L ? 'Boucle' : 'Loop') : L ? 'Aller simple' : 'One way'}${x.id === this.s.routeId ? ` · ${L ? 'choisi' : 'selected'}` : ''}</span></button>`,
           )
-          .join('')}</div>`;
+          .join('')}</div>
+        ${this.onExplore ? `<button id="m-explore" class="mm-explore">${ICON.explore}<span><b>${L ? 'Explorer la carte' : 'Explore the map'}</b><small>${L ? 'Caméra libre, sans rouler · Échap pour revenir' : 'Free camera, no riding · Esc to come back'}</small></span></button>` : ''}`;
     const hint = zones
       ? L
         ? 'Télécharge une zone pour la garder sur cet appareil ; sinon elle se charge au fil de la sortie.'
@@ -560,8 +559,13 @@ export class MainMenu {
         else if (st.kind === 'installed' && st.upToDate) action = `<span class="mm-pack ok">${L ? 'Téléchargée' : 'Downloaded'} ✓</span><button class="mm-link mm-unpack" data-unpack="${esc(w.id)}">${L ? 'Supprimer' : 'Remove'}</button>`;
         else if (st.kind === 'installed') action = `<button class="mm-pack" data-pack="${esc(w.id)}">${L ? 'Mettre à jour' : 'Update'}${z?.pack ? ` · ${formatBytes(z.pack.bytes, L)}` : ''}</button>`;
         else if (st.kind === 'absent' && z?.pack) action = `<button class="mm-pack" data-pack="${esc(w.id)}">↓ ${formatBytes(z.pack.bytes, L)}</button>`;
-        return `<div class="mm-zone ${w.id === this.worldId ? 'on' : ''}">
-          <button class="mm-zone-pick" data-world="${esc(w.id)}"><b>${esc(w.name[lang])}</b><span>${esc(w.hint[lang])}${info}</span></button>
+        const longest = z?.routes.length ? Math.max(...z.routes.map((x) => x.lengthM)) : 0;
+        return `<div class="mm-zone mm-zonecard ${w.id === this.worldId ? 'on' : ''}">
+          <button class="mm-zone-pick" data-world="${esc(w.id)}">
+            <small>${w.id === this.worldId ? (L ? 'Zone actuelle' : 'Current area') : L ? 'Zone' : 'Area'}</small>
+            <b>${esc(w.name[lang])}</b><span>${esc(w.hint[lang])}</span>
+            <span class="mm-zonestats">${z?.routes.length ? `<em>${z.routes.length}</em> ${L ? 'parcours' : z.routes.length > 1 ? 'routes' : 'route'}${longest ? ` · <em>${this.km(longest)}</em> km max` : ''}` : ''}${info && !z?.routes.length ? info : ''}</span>
+          </button>
           <div class="mm-zone-pack">${action}</div></div>`;
       }).join('');
     void L;
