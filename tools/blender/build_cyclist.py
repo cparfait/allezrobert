@@ -73,7 +73,7 @@ SHIN = 0.41
 UPPER = 0.31
 FORE = 0.28
 
-LOD0_BODY_TRIS = 5600
+LOD0_BODY_TRIS = 6400
 LOD1_RATIO = 0.25
 PROTECT_FACTOR = float(os.environ.get('AR_PF', '0.012'))
 
@@ -535,6 +535,84 @@ def build_rig():
 # ---------------------------------------------------------------------------------------------
 # Corps : primitives → union voxel
 # ---------------------------------------------------------------------------------------------
+# ---------------------------------------------------------------------------------------------
+# Tête : champ de distance signé (repère tête : x latéral, u haut, f avant, origine r.Sc)
+# ---------------------------------------------------------------------------------------------
+def _smin(a, b, k):
+    h = np.clip(0.5 + 0.5 * (b - a) / k, 0.0, 1.0)
+    return b + (a - b) * h - k * h * (1.0 - h)
+
+
+def _smax(a, b, k):
+    return -_smin(-a, -b, k)
+
+
+def _ell(q, c, rad):
+    d = (q - np.asarray(c)) / np.asarray(rad)
+    return (np.linalg.norm(d, axis=1) - 1.0) * min(rad)
+
+
+def _sph(q, c, rad):
+    return np.linalg.norm(q - np.asarray(c), axis=1) - rad
+
+
+def _caps(q, a, b, rad):
+    a, b = np.asarray(a, dtype=float), np.asarray(b, dtype=float)
+    ab = b - a
+    t = np.clip(((q - a) @ ab) / (ab @ ab), 0.0, 1.0)
+    return np.linalg.norm(q - (a + t[:, None] * ab), axis=1) - rad
+
+
+def head_local(r, P):
+    q = np.asarray(P, dtype=float) - r.Sc
+    return np.stack([q @ r.xh, q @ r.uh, q @ r.fh], axis=1)
+
+
+def head_sdf_local(q):
+    """Distance signée (m) à la tête, q en repère tête (x, u, f)."""
+    qs = np.stack([np.abs(q[:, 0]), q[:, 1], q[:, 2]], axis=1)  # symétrie gauche / droite
+    d = _ell(q, (0, 0.005, -0.01), (0.074, 0.096, 0.1))                       # crâne
+    d = _smin(d, _ell(q, (0, -0.05, 0.022), (0.055, 0.056, 0.07)), 0.03)       # mâchoire, bas du visage
+    d = _smin(d, _ell(q, (0, -0.097, 0.06), (0.024, 0.019, 0.022)), 0.022)     # menton
+    d = _smin(d, _ell(qs, (0.04, -0.02, 0.058), (0.024, 0.016, 0.024)), 0.028) # pommettes
+    d = _smin(d, _caps(qs, (0.0, 0.022, 0.083), (0.036, 0.02, 0.078), 0.0105), 0.02)  # arcades
+    d = _smax(d, -_sph(qs, (0.031, 0.003, 0.097), 0.0155), 0.012)             # orbites
+    d = _smin(d, _ell(qs, (0.031, 0.002, 0.083), (0.0125, 0.0105, 0.0095)), 0.004)    # globes (paupières)
+    d = _smin(d, _caps(q, (0, 0.008, 0.092), (0, -0.036, 0.113), 0.0075), 0.012)       # arête du nez
+    d = _smin(d, _sph(q, (0, -0.042, 0.11), 0.0115), 0.01)                     # bout du nez
+    d = _smin(d, _sph(qs, (0.0115, -0.046, 0.102), 0.0085), 0.008)             # ailes du nez
+    d = _smin(d, _ell(q, (0, -0.064, 0.094), (0.021, 0.0062, 0.0085)), 0.008) # lèvre supérieure
+    d = _smin(d, _ell(q, (0, -0.077, 0.091), (0.019, 0.0068, 0.0085)), 0.008) # lèvre inférieure
+    d = _smax(d, -_ell(q, (0, -0.0705, 0.101), (0.02, 0.0015, 0.012)), 0.0025) # commissure
+    d = _smin(d, _ell(qs, (0.075, -0.025, -0.008), (0.012, 0.03, 0.019)), 0.01)       # oreilles
+    return d
+
+
+def project_to_head(r, P, w=None, iters=12):
+    """Amène des points (repère client) sur la surface du champ de la tête (pas de Newton),
+    pondérés par w (0 = inchangé, 1 = sur la surface)."""
+    P = np.asarray(P, dtype=float).copy()
+    R = np.stack([r.xh, r.uh, r.fh])  # local = R @ (P - Sc)
+    e = 1e-4
+    I = np.eye(3)
+    for _ in range(iters):
+        q = head_local(r, P)
+        d = head_sdf_local(q)
+        g = np.stack([(head_sdf_local(q + e * I[k]) - head_sdf_local(q - e * I[k])) / (2 * e) for k in range(3)], axis=1)
+        step = (d / np.maximum((g * g).sum(axis=1), 1e-6))[:, None] * g
+        if w is not None:
+            step *= w[:, None]
+        P -= step @ R
+    return P
+
+
+def head_mesh(r):
+    """Surface de la tête : ellipsoïde dense projeté sur le champ de distance."""
+    v, f, _ = ellipsoid(r.H(0, -0.02, 0.01), (r.xh, r.uh, r.fh), (0.13, 0.15, 0.15), 120, 80)
+    v = project_to_head(r, np.array(v), iters=40)
+    return v.tolist(), f
+
+
 def body_primitives(r):
     """Renvoie (MB, prims). Chaque primitive porte une région (matériaux) et un découpage en os."""
     mb = MB()
@@ -581,16 +659,16 @@ def body_primitives(r):
     # Tête (repère tête : x latéral, uh haut, fh avant).
     H = r.H
     hx = (r.xh, r.uh, r.fh)
-    add(ellipsoid(H(0, 0.0, -0.005), hx, (0.077, 0.098, 0.102), 24, 14), 'head', [(1.0, 'head')])
-    add(ellipsoid(H(0, -0.056, 0.016), hx, (0.058, 0.052, 0.066), 20, 12), 'head', [(1.0, 'head')])
-    add(ellipsoid(H(0, -0.1, 0.068), hx, (0.024, 0.018, 0.02), 12, 8), 'head', [(1.0, 'head')])
-    add(ellipsoid(H(0, 0.022, 0.084), hx, (0.058, 0.014, 0.02), 16, 8), 'head', [(1.0, 'head')])
-    add(ellipsoid(H(0, -0.076, 0.082), hx, (0.02, 0.007, 0.009), 12, 8), 'head', [(1.0, 'head')])
-    for s in (1, -1):
-        add(ellipsoid(H(0.042 * s, -0.03, 0.066), hx, (0.024, 0.02, 0.022), 12, 8), 'head', [(1.0, 'head')])
-        add(ellipsoid(H(0.076 * s, -0.028, -0.008), hx, (0.011, 0.03, 0.019), 12, 8), 'head', [(1.0, 'head')])
-    nose = [H(0, 0.008, 0.087), H(0, -0.018, 0.102), H(0, -0.04, 0.111), H(0, -0.05, 0.103)]
-    add(loft(nose, [0.008, 0.010, 0.012, 0.014], [0.006, 0.009, 0.011, 0.007], r.fh, n=10), 'head', [(1.0, 'head')])
+    # Crâne et visage : surface d'un champ de distance lissé (head_sdf_local), plus continue que des
+    # primitives juxtaposées. Les ellipsoïdes ci-dessous ne servent qu'à l'étiquetage des sommets
+    # (région « tête », os de la tête), pas à la géométrie.
+    for c, rad in (((0, 0.005, -0.01), (0.074, 0.096, 0.1)), ((0, -0.05, 0.022), (0.056, 0.055, 0.07))):
+        _, _, info = ellipsoid(H(*c), hx, rad, 8, 6)
+        info['region'] = 'head'
+        info['bones'] = [(1.0, 'head')]
+        prims.append(info)
+    hv, hf = head_mesh(r)
+    mb.add(hv, hf, 'skin')
 
     for tag, d in r.side.items():
         s = d.s
@@ -848,6 +926,22 @@ def build_amount(r, vc, nc, regions):
     return amt
 
 
+def refine_face(r, ob, prims):
+    """Après l'union voxel (qui gomme le détail sous ~5 mm), les sommets du visage sont ramenés
+    sur la surface exacte de la tête (head_sdf_local), avec un fondu vers le cou."""
+    vc = to_client_arr(np.array([v.co[:] for v in ob.data.vertices]))
+    reg, _ = label_vertices(vc, prims)
+    up = (vc - r.Sc) @ r.uh
+    w = np.where(reg == 'head', np.clip((up + 0.13) / 0.04, 0.0, 1.0), 0.0)
+    idx = np.nonzero(w > 0)[0]
+    if not len(idx):
+        return
+    P = project_to_head(r, vc[idx], w[idx], iters=8)
+    for i, p in zip(idx, P):
+        ob.data.vertices[int(i)].co = Vector(to_bl(p))
+    ob.data.update()
+
+
 def finalize_body(r, src, name, target_tris, prims):
     ob = copy_object(src, name)
     # Détail préservé sur le visage et les mains (vus de près).
@@ -861,7 +955,7 @@ def finalize_body(r, src, name, target_tris, prims):
             q = vc0[i] - r.Sc
             up, fw = np.dot(q, r.uh), np.dot(q, r.fh)
             # Calotte cachée par le casque : décimée librement ; visage : préservé.
-            w = 1.0 if up > 0.035 else 0.3 if fw > 0.0 else 0.6
+            w = 1.0 if up > 0.035 else 0.04 if fw > 0.0 else 0.5
         elif rg.startswith('hand'):
             w = 0.7
         vg.add([i], w, 'REPLACE')
@@ -1175,7 +1269,7 @@ def skin_to(ob, ao):
 # Les cotes d'ancrage (boîtier, axes, selle, cocottes) sont celles du coureur : ne pas les bouger.
 # ---------------------------------------------------------------------------------------------
 BIKE_STYLES = {
-    # Aéro (défaut, bike.glb). Cordes / largeurs en mètres.
+    # Aéro (famille « aero », bikes/aero.glb). Cordes / largeurs en mètres.
     'aero': {
         'ht': (0.076, 0.064, 0.036, 0.032),     # douille : corde bas, corde haut, largeur bas, largeur haut
         'dt': (0.054, 0.066, 0.034, 0.037),     # diagonal : corde côté boîtier, côté douille, largeurs
@@ -1189,7 +1283,7 @@ BIKE_STYLES = {
         'round': False,
         'rim': (0.052, 0.048),                  # hauteur de jante avant / arrière
     },
-    # Grimpeur (bike_climb.glb) : tubes ronds et fins, tige ronde, jantes 38 mm.
+    # Grimpeur (famille « climb », bikes/climb.glb) : tubes ronds et fins, tige ronde, jantes 38 mm.
     'climb': {
         'ht': (0.05, 0.044, 0.042, 0.038),
         'dt': (0.044, 0.05, 0.04, 0.042),
@@ -1371,10 +1465,12 @@ def with_children(objs):
     return out
 
 
-def export_glb(objs, path):
+def export_glb(objs, path, children=True):
+    """Exporte objs (et leurs enfants, sauf children=False : le squelette du coureur porte les
+    maillages des deux LOD, chaque fichier ne doit garder que les siens)."""
     for o in bpy.context.scene.objects:
         o.select_set(False)
-    sel = with_children(objs)
+    sel = with_children(objs) if children else list(objs)
     for o in sel:
         o.select_set(True)
     bpy.context.view_layer.objects.active = objs[0]
@@ -1583,6 +1679,7 @@ def main():
         mb, prims = body_primitives(r)
         raw = mb.build('body_raw')
         remesh_union(raw, 0.0045, 12, 0.5)
+        refine_face(r, raw, prims)
         print('body remesh tris', tri_count(raw))
         ao = build_armature(r)
         body0 = finalize_body(r, raw, 'rider_body', LOD0_BODY_TRIS, prims)
@@ -1612,9 +1709,9 @@ def main():
         stats['cyclist_aero_helmet'] = tri_count(aero)
         stats['cyclist_lod1'] = tris_of(rider1)
         stats['cyclist_parts'] = {o.name: tri_count(o) for o in rider0 if o.type == 'MESH'}
-        export_glb(rider0, os.path.join(OUT, 'cyclist.glb'))
+        export_glb(rider0, os.path.join(OUT, 'cyclist.glb'), children=False)
         swap_names(rider0[1:], rider1[1:])
-        export_glb(rider1, os.path.join(OUT, 'cyclist_lod1.glb'))
+        export_glb(rider1, os.path.join(OUT, 'cyclist_lod1.glb'), children=False)
         swap_names(rider0[1:], rider1[1:])
         for o in rider1[1:]:
             o.hide_render = True

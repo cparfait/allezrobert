@@ -5,7 +5,7 @@ import { Environment, type EnvironmentState, type Season } from './environment.t
 import { TerrainManager } from './terrain.ts';
 import { Vegetation } from './vegetation.ts';
 import { Buildings } from './buildings.ts';
-import { RoadMesh, SHOULDER, TMP_NOFIX } from './road.ts';
+import { RoadMesh, SHOULDER } from './road.ts';
 import { RouteFootprint } from './ribbon.ts';
 import { RoadNetwork } from './network.ts';
 import { Rain } from './weather.ts';
@@ -42,7 +42,7 @@ export class World {
     this.terrain = new TerrainManager(source, q, envState.season);
     // Emprise du ruban : terrain abaissé dessous, réseau OSM découpé à son bord.
     const footprint = new RouteFootprint(route.points, route.loop, route.roadWidthM / 2, SHOULDER);
-    this.terrain.footprint = TMP_NOFIX ? null : footprint;
+    this.terrain.footprint = footprint;
     scene.add(this.terrain.group);
     this.road = new RoadMesh(route);
     scene.add(this.road.mesh);
@@ -55,7 +55,7 @@ export class World {
     scene.add(this.vegetation.group);
     this.buildings = new Buildings(groundAt, q.propDensity);
     scene.add(this.buildings.group);
-    this.network = new RoadNetwork(route.id, groundAt, TMP_NOFIX ? null : footprint);
+    this.network = new RoadNetwork(route.id, groundAt, footprint);
     scene.add(this.network.group);
     this.rain = new Rain();
     scene.add(this.rain.mesh);

@@ -34,7 +34,8 @@ Chaque jalon n'est déclaré terminé qu'après vérification : tests (protocole
 - [x] Ciel physique, atmosphère, ombres en cascade, AO, bloom, TAA, étalonnage par saison et par heure (LUT dédiées : plus tard)
 - [x] Saisons, jour/nuit, météo (pluie, brouillard, vent qui pèse sur la physique)
 - [ ] Végétation instanciée animée par le vent, villages en meulière, toits de tuiles, eau
-- [ ] Avatars riggés, pédalage procédural, cosmétiques ; caméras poursuite, cockpit, drone, TV, photo
+- [x] Avatars riggés, pédalage procédural, cosmétiques : catalogue de 101 vélos (familles de cadres, roues, livrées d'après photos, inscriptions des cadres et des jantes, position et casque chrono, compteur GPS seulement sur les vélos récents) ; caméras poursuite, cockpit, drone, TV, photo
+- [x] Visages et avatars (`docs/AVATARS.md`) : base MPFB 2 (CC0), 42 curseurs de forme, 51 expressions ARKit pilotées par l'effort, peau (teint, rides, barbe, rousseur, rougeur et sueur), trois niveaux de détail, 8 profils de base, éditeur au garage, ressemblance à partir d'une photo sur l'appareil — reste : mesure des fps sur une vraie carte graphique
 - [ ] Son : ambiances, roulement, roue libre, souffle, public
 - [x] Corridor complet Saclay → Chevreuse → Rambouillet, streaming par tuiles, préréglages bas → ultra
 
@@ -45,6 +46,7 @@ Chaque jalon n'est déclaré terminé qu'après vérification : tests (protocole
 - [x] Voix LiveKit, chat texte, « Ride On » (testés en local ; repli Discord : à faire)
 - [x] Appli compagnon PWA ; mode invité sans matériel
 - [x] Test de charge à 20 coureurs (tick moyen 1,8 ms)
+- [x] Amis : code ami et lien `/?ami=`, demandes, présence (menu / en sortie), « Rejoindre » sans code, invitations à rouler (30 min), classements de segments entre amis — fantôme d'un ami : à faire (voir `docs/ARCHITECTURE.md`, « Amis »)
 
 ## Jalon 5 — Jeu
 

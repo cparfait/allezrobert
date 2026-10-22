@@ -1,4 +1,4 @@
-import { DEFAULT_LOOK, type AvatarLook, type RideMode } from '@allezrobert/shared';
+import { DEFAULT_LOOK, migrateBikeId, type AvatarLook, type RideMode } from '@allezrobert/shared';
 import type { QualityLevel } from '../engine/quality.ts';
 import type { Season } from '../world/environment.ts';
 import type { Lang } from '../i18n/index.ts';
@@ -68,11 +68,31 @@ const KEY = 'ar.settings';
 export function loadSettings(): Settings {
   try {
     const raw = localStorage.getItem(KEY);
-    if (raw) return { ...DEFAULT_SETTINGS, ...(JSON.parse(raw) as Partial<Settings>) };
+    if (raw) return migrateBike({ ...DEFAULT_SETTINGS, ...(JSON.parse(raw) as Partial<Settings>) });
   } catch {
     // Réglages corrompus : on repart des valeurs par défaut.
   }
-  return { ...DEFAULT_SETTINGS };
+  return migrateBike({ ...DEFAULT_SETTINGS });
+}
+
+/**
+ * Vélo équipé avant le catalogue (bike-alu…, dans la progression) : une seule fois, le modèle
+ * correspondant devient celui de la tenue et l'équipement est réécrit avec son nouvel identifiant.
+ */
+function migrateBike(s: Settings): Settings {
+  try {
+    const raw = localStorage.getItem('ar.progress');
+    const p = raw ? (JSON.parse(raw) as { equipped?: Record<string, string> }) : null;
+    const old = p?.equipped?.bike;
+    if (!p?.equipped || !old || migrateBikeId(old) === old) return s;
+    p.equipped.bike = migrateBikeId(old);
+    localStorage.setItem('ar.progress', JSON.stringify(p));
+    if (!s.look.bikeModel) s.look = { ...s.look, bikeModel: p.equipped.bike };
+    saveSettings(s);
+  } catch {
+    // Progression illisible : rien à migrer.
+  }
+  return s;
 }
 
 export function saveSettings(s: Settings): void {

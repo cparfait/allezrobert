@@ -1,12 +1,16 @@
 import type { AvatarLook, CosmeticItem, RouteData } from '@allezrobert/shared';
-import { COSMETICS, levelProgress, type CosmeticSlot } from '@allezrobert/shared';
+import { BIKE_GROUPS, BIKE_TEAMS, COSMETICS, bikeById, levelProgress, type BikeCollection, type BikeType, type CosmeticSlot } from '@allezrobert/shared';
 import { t, setLang, getLang, type I18nKey } from '../i18n/index.ts';
 import type { Settings } from './settings.ts';
 import { saveSettings } from './settings.ts';
 import { music } from '../audio/music.ts';
 import { spotify, redirectUri } from '../audio/spotify.ts';
-import { loadProgress, equipItem, SLOT_LABEL } from './garage.ts';
+import { loadProgress, equipItem, equipPlainBike, SLOT_LABEL } from './garage.ts';
 import type { GarageView } from './poster.ts';
+import { FriendsPanel } from './friends.ts';
+import { faceEditorHtml, withBaseHead, withLikeness, withProfile, withRandomFace, withSlider, type FaceTab } from './faceEditor.ts';
+import type { FaceSlider } from '@allezrobert/shared';
+import { joinSettings } from './friendsLogic.ts';
 import './menu.css';
 
 /** Ce que l'écran d'appairage sait faire, quel que soit le transport (implémenté avec @allezrobert/devices). */
@@ -28,14 +32,15 @@ export interface DevicePanel {
 }
 
 export interface MenuCallbacks {
-  onStart(settings: Settings, extras: { workoutFile?: { name: string; content: string }; inviteCode?: string }): void;
+  /** `inviteFriends` : amis (identifiants de relation) à inviter une fois la sortie créée. */
+  onStart(settings: Settings, extras: { workoutFile?: { name: string; content: string }; inviteCode?: string; inviteFriends?: string[] }): void;
 }
 
 function esc(s: string): string {
   return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] as string);
 }
 
-type Tab = 'ride' | 'garage' | 'devices' | 'profile' | 'settings';
+type Tab = 'ride' | 'friends' | 'garage' | 'devices' | 'profile' | 'settings';
 type Role = Parameters<DevicePanel['pair']>[0];
 
 const fr = () => getLang() === 'fr';
@@ -67,6 +72,30 @@ const ICON = {
 /** Gros plan du garage selon la catégorie choisie. */
 const SLOT_VIEW: Record<CosmeticSlot, GarageView> = { jersey: '3q', helmet: 'front', bike: 'side', wheels: 'bike', socks: 'bike', glasses: 'front' };
 
+/** Filtres de la liste des vélos du garage. */
+type BikeFilter = BikeCollection | 'unlocked';
+const BIKE_FILTERS: Array<[BikeFilter, string, string]> = [
+  ['saison-2026', 'Saison 2026', '2026 season'],
+  ['mythiques', 'Mythiques', 'Legends'],
+  ['divers', 'Divers', 'Misc.'],
+  ['unlocked', 'Débloqués', 'Unlocked'],
+];
+const BIKE_TYPE: Record<BikeType, [string, string]> = {
+  aero: ['Aéro', 'Aero'],
+  climbing: ['Grimpeur', 'Climbing'],
+  tt: ['Chrono', 'Time trial'],
+  classic: ['Classique', 'Classic'],
+  track: ['Piste', 'Track'],
+};
+
+/** Vignette d'un équipement : couleur unie, ou bandes de la livrée pour un vélo. */
+function swatch(c: CosmeticItem): string {
+  const cols = c.colors ?? [];
+  if (cols.length < 2) return c.color ?? '#7a8594';
+  const n = cols.length;
+  return `linear-gradient(135deg, ${cols.map((x, i) => `${x} ${((i * 100) / n).toFixed(0)}% ${(((i + 1) * 100) / n).toFixed(0)}%`).join(', ')})`;
+}
+
 /**
  * Menu principal façon jeu : barre d'onglets en haut (Rouler, Garage, Capteurs, Profil,
  * Réglages), lecteur de musique et compte à droite ; panneaux posés sur la scène 3D fixe.
@@ -81,7 +110,15 @@ export class MainMenu {
   private readonly cb: MenuCallbacks;
   private workoutFile: { name: string; content: string } | undefined;
   private tab: Tab = 'ride';
-  private garageSlot: CosmeticSlot | 'colors' = 'jersey';
+  private garageSlot: CosmeticSlot | 'colors' | 'face' = 'jersey';
+  /** Éditeur de visage : groupe de curseurs, tête nue dans l'aperçu, tenues précédentes (annulation). */
+  private faceTab: FaceTab = 'head';
+  private bareHead = true;
+  private readonly faceUndo: AvatarLook[] = [];
+  private photoOpen = false;
+  private bikeFilter: BikeFilter = 'saison-2026';
+  /** Panneau affiché (onglet, catégorie, filtre) : sa position de défilement survit à un nouveau rendu. */
+  private panelKey = '';
   private view: GarageView = '3q';
   private yaw = 0;
   private readonly onKey = (e: KeyboardEvent) => {
@@ -95,6 +132,12 @@ export class MainMenu {
   onTutorial?: () => void;
   /** « Explorer la carte » : survol libre du monde chargé, sans rouler (Échap pour revenir). */
   onExplore?: () => void;
+  /** Aperçu immédiat d'une tenue (éditeur de visage) sur le coureur du garage, sans reconstruire la scène. */
+  onLookLive?: (look: AvatarLook, bareHead: boolean) => void;
+  /** Éditeur de visage ouvert avec tête nue : l'aperçu garde casque et lunettes masqués. */
+  get bareHeadPreview(): boolean {
+    return this.tab === 'garage' && this.garageSlot === 'face' && this.bareHead;
+  }
   /** Cadrage 3D demandé par le menu : photo du groupe ou vue du garage (rotation en radians). */
   onScene?: (view: 'poster' | GarageView, yaw: number) => void;
   /** Aperçu d'un équipement (même verrouillé) sur le coureur du garage ; null : tenue équipée. */
@@ -105,6 +148,8 @@ export class MainMenu {
   onLogin?: () => void;
   onLogout?: () => void;
   onSettingsSaved?: (s: Settings) => void;
+  /** Onglet Amis : présence, demandes, invitations (interrogation tant que le menu est affiché). */
+  private readonly friends: FriendsPanel;
 
   constructor(root: HTMLElement, settings: Settings, routes: RouteData[], devices: DevicePanel, cb: MenuCallbacks) {
     this.root = root;
@@ -113,6 +158,25 @@ export class MainMenu {
     this.devices = devices;
     this.cb = cb;
     if (!this.s.routeId || !routes.some((r) => r.id === this.s.routeId)) this.s.routeId = routes[0]?.id ?? '';
+    this.friends = new FriendsPanel({
+      loggedIn: () => !!this.account,
+      login: () => this.onLogin?.(),
+      routes,
+      currentRouteId: () => this.s.routeId,
+      join: (info) => {
+        // Rejoindre un ami : son mode et son itinéraire (s'il existe dans ce monde), code fourni par le serveur.
+        const j = joinSettings(info, this.routes.map((r) => r.id), this.s);
+        this.s.mode = j.mode;
+        this.s.routeId = j.routeId;
+        saveSettings(this.s);
+        this.cb.onStart(this.s, { inviteCode: info.inviteCode });
+      },
+      rideWith: (ids) => {
+        if (this.s.mode !== 'group' && this.s.mode !== 'race') this.s.mode = 'group';
+        saveSettings(this.s);
+        this.cb.onStart(this.s, { inviteFriends: ids });
+      },
+    });
     devices.onChange(() => {
       if (this.tab === 'devices') this.renderDevices();
       this.renderStatus();
@@ -121,11 +185,14 @@ export class MainMenu {
 
   show(tab: Tab = 'ride'): void {
     document.addEventListener('keydown', this.onKey);
-    this.go(tab);
+    this.friends.start();
+    // Lien /?ami=CODE : l'onglet Amis propose la demande.
+    this.go(tab === 'ride' && this.friends.hasPendingCode() ? 'friends' : tab);
   }
 
   hide(): void {
     document.removeEventListener('keydown', this.onKey);
+    this.friends.stop();
     this.root.innerHTML = '';
   }
 
@@ -174,8 +241,8 @@ export class MainMenu {
     if (item.color) {
       if (item.slot === 'jersey') look.jersey = item.color;
       if (item.slot === 'helmet') look.helmet = item.color;
-      if (item.slot === 'bike') look.bike = item.color;
     }
+    if (item.slot === 'bike') look.bikeModel = item.id;
     return look;
   }
 
@@ -223,6 +290,7 @@ export class MainMenu {
     const L = fr();
     const tabs: Array<[Tab, string]> = [
       ['ride', t('ride')],
+      ['friends', L ? 'Amis' : 'Friends'],
       ['garage', 'Garage'],
       ['devices', t('devices')],
       ['profile', t('profile')],
@@ -240,16 +308,21 @@ export class MainMenu {
       .toUpperCase();
     const body: Record<Tab, () => string> = {
       ride: () => this.rideHtml(),
+      friends: () => this.friends.html(),
       garage: () => this.garageHtml(),
       devices: () =>
         `<section class="mm-panel mm-center mm-wide">${this.closeBtn()}<header class="mm-head"><h2>${t('devices')}</h2><p>${L ? 'Associe ton home trainer et tes capteurs. Une seule appli à la fois par capteur Bluetooth.' : 'Pair your trainer and sensors. One app at a time per Bluetooth sensor.'}</p></header><div id="m-devices"></div></section>`,
       profile: () => this.profileHtml(),
       settings: () => this.settingsHtml(),
     };
+    // Liste longue (vélos) : même panneau, même position de défilement après un nouveau rendu.
+    const key = `${this.tab}/${this.garageSlot}/${this.bikeFilter}`;
+    const scroll = key === this.panelKey ? (this.root.querySelector('.mm-side')?.scrollTop ?? 0) : 0;
+    this.panelKey = key;
     this.root.innerHTML = `<div class="mm mm-tab-${this.tab}">
       <header class="mm-top">
         <div class="mm-brand">Allez <em>Robert</em> !</div>
-        <nav class="mm-tabs">${tabs.map(([id, label]) => `<button class="mm-tab ${id === this.tab ? 'on' : ''}" data-tab="${id}">${esc(label)}</button>`).join('')}
+        <nav class="mm-tabs">${tabs.map(([id, label]) => `<button class="mm-tab ${id === this.tab ? 'on' : ''}" data-tab="${id}">${esc(label)}${id === 'friends' ? this.friends.badgeHtml() : ''}</button>`).join('')}
           <button class="mm-tab subtle" id="m-tuto">${L ? 'Tutoriel' : 'Tutorial'}</button></nav>
         <div class="mm-right">
           <div class="mm-music" id="m-music"></div>
@@ -262,15 +335,19 @@ export class MainMenu {
         </div>
       </header>
       ${body[this.tab]()}
+      <div id="m-friendbar"></div>
       <footer class="mm-foot">
         <div class="mm-status" id="m-status"></div>
         ${this.tab === 'ride' ? `<button id="m-start" class="mm-go">${t('ride')} <span>→</span></button>` : `<button class="mm-go ghost" data-tab="ride">← ${t('ride')}</button>`}
       </footer>
     </div>`;
     if (this.tab === 'devices') this.renderDevices();
+    const side = this.root.querySelector('.mm-side');
+    if (side) side.scrollTop = scroll;
     this.renderStatus();
     this.renderMusic();
     this.bind();
+    this.friends.mount(this.root, this.tab === 'friends');
   }
 
   /** Pied de page : état des capteurs (cliquable vers l'onglet Capteurs) et raccourcis. */
@@ -398,23 +475,30 @@ export class MainMenu {
       ['cockpit', 'Cockpit'],
     ];
     const items =
-      this.garageSlot === 'colors'
+      this.garageSlot === 'face'
+        ? faceEditorHtml(this.s.look, this.faceTab, this.bareHead, this.faceUndo.length > 0, this.photoOpen)
+        : this.garageSlot === 'colors'
         ? `<div class="mm-colors">
             <label class="field">${L ? 'Maillot' : 'Jersey'}<input id="m-jersey" type="color" value="${this.s.look.jersey}" /></label>
             <label class="field">${L ? 'Bande du maillot' : 'Jersey stripe'}<input id="m-accent" type="color" value="${this.s.look.jerseyAccent}" /></label>
             <label class="field">${L ? 'Casque' : 'Helmet'}<input id="m-helmet" type="color" value="${this.s.look.helmet}" /></label>
-            <label class="field">${L ? 'Vélo' : 'Bike'}<input id="m-bike" type="color" value="${this.s.look.bike}" /></label>
+            <label class="field">${L ? 'Vélo sans marque' : 'Unbranded bike'}<input id="m-bike" type="color" value="${this.s.look.bike}" /></label>
             <label class="field">${L ? 'Peau' : 'Skin'}<input id="m-skin" type="color" value="${this.s.look.skin}" /></label>
             <label class="field">${L ? 'Cheveux' : 'Hair'}<input id="m-hair" type="color" value="${this.s.look.hair}" /></label>
           </div>`
-        : `<div class="mm-items">${COSMETICS.filter((c) => c.slot === this.garageSlot)
+        : `${this.garageSlot === 'bike' ? this.bikeFiltersHtml() : ''}<div class="mm-items">${this.garageSlot === 'bike' ? this.plainBikeHtml() : ''}${this.garageItems(lp.level)
             .map((c) => {
               const locked = c.level > lp.level;
               const on = p.equipped[c.slot] === c.id;
               const prev = this.previewId === c.id;
-              return `<button class="mm-item ${on ? 'on' : ''} ${locked ? 'locked' : ''} ${prev ? 'preview' : ''}" data-item="${c.id}" title="${locked ? (L ? 'Cliquer pour l’essayer' : 'Click to try it on') : ''}">
-                <i style="background:${c.color ?? '#7a8594'}"></i><b>${esc(c.name[lang])}</b>
-                <span>${prev ? `👁 ${L ? 'Aperçu' : 'Preview'} · 🔒 ${L ? 'niveau' : 'level'} ${c.level}` : locked ? `🔒 ${L ? 'niveau' : 'level'} ${c.level}` : on ? (L ? 'Équipé' : 'Equipped') : L ? 'Disponible' : 'Available'}</span></button>`;
+              const bike = c.slot === 'bike' ? bikeById(c.id) : undefined;
+              // Vélos : type, puis équipe (saison 2026 : plusieurs équipes roulent le même modèle) ou collection.
+              const from = bike ? (BIKE_TEAMS.find((t) => t.id === bike.group)?.name ?? BIKE_GROUPS.find((g) => g.id === bike.group)?.name[lang]) : undefined;
+              const kind = bike ? `${BIKE_TYPE[bike.type][L ? 0 : 1]}${from ? ` · ${from}` : ''} · ` : '';
+              const tip = bike ? bike.desc[lang] : '';
+              return `<button class="mm-item ${on ? 'on' : ''} ${locked ? 'locked' : ''} ${prev ? 'preview' : ''}" data-item="${c.id}" title="${esc([tip, locked ? (L ? 'Cliquer pour l’essayer' : 'Click to try it on') : ''].filter(Boolean).join(' — '))}">
+                <i style="background:${swatch(c)}"></i><b>${esc(c.name[lang])}</b>
+                <span>${kind}${prev ? `👁 ${L ? 'Aperçu' : 'Preview'} · 🔒 ${L ? 'niveau' : 'level'} ${c.level}` : locked ? `🔒 ${L ? 'niveau' : 'level'} ${c.level}` : on ? (L ? 'Équipé' : 'Equipped') : L ? 'Disponible' : 'Available'}</span></button>`;
             })
             .join('')}</div>`;
     return `<div class="mm-dragzone" id="m-dragzone"></div>
@@ -424,10 +508,37 @@ export class MainMenu {
         <header class="mm-head"><h2>${L ? 'Ton coureur' : 'Your rider'}</h2>
           <div class="mm-level"><b>${L ? 'Niveau' : 'Level'} ${lp.level}</b><span>${p.xp} XP${lp.nextLevelXp ? ` / ${lp.nextLevelXp}` : ''}</span><i class="mm-xp big"><i style="width:${(lp.progress * 100).toFixed(1)}%"></i></i></div></header>
         <div class="mm-slots">${slots.map((sl) => `<button class="mm-slot ${sl === this.garageSlot ? 'on' : ''}" data-slot="${sl}">${SLOT_LABEL[sl][lang]}</button>`).join('')}
-          <button class="mm-slot ${this.garageSlot === 'colors' ? 'on' : ''}" data-slot="colors">${L ? 'Couleurs' : 'Colours'}</button></div>
+          <button class="mm-slot ${this.garageSlot === 'colors' ? 'on' : ''}" data-slot="colors">${L ? 'Couleurs' : 'Colours'}</button>
+          <button class="mm-slot ${this.garageSlot === 'face' ? 'on' : ''}" data-slot="face">${L ? 'Visage' : 'Face'}</button></div>
         ${items}
         <p class="mm-hint">${L ? 'Les équipements se débloquent en roulant (XP par kilomètre et par mètre de dénivelé). Clique un équipement verrouillé pour l’essayer.' : 'Gear unlocks as you ride (XP per kilometre and metre climbed). Click locked gear to try it on.'}</p>
       </section>`;
+  }
+
+  /** Équipements de l'emplacement choisi ; vélos : filtrés (collection ou débloqués), par niveau puis par groupe. */
+  private garageItems(level: number): CosmeticItem[] {
+    const items = COSMETICS.filter((c) => c.slot === this.garageSlot);
+    if (this.garageSlot !== 'bike') return items;
+    const group = (id: string) => BIKE_GROUPS.findIndex((g) => g.id === bikeById(id)?.group);
+    return items
+      .filter((c) => (this.bikeFilter === 'unlocked' ? c.level <= level : bikeById(c.id)?.collection === this.bikeFilter))
+      .sort((a, b) => a.level - b.level || group(a.id) - group(b.id) || a.name.fr.localeCompare(b.name.fr));
+  }
+
+  /** Vélo de départ sans marque, à la couleur choisie dans « Couleurs ». */
+  private plainBikeHtml(): string {
+    const L = fr();
+    const on = !this.s.look.bikeModel;
+    return `<button class="mm-item ${on ? 'on' : ''}" data-plainbike title="${L ? 'Couleur au choix dans l’onglet Couleurs' : 'Pick its colour in the Colours tab'}">
+      <i style="background:${this.s.look.bike}"></i><b>${L ? 'Vélo sans marque' : 'Unbranded bike'}</b>
+      <span>${L ? 'Couleur au choix' : 'Your colour'} · ${on ? (L ? 'Équipé' : 'Equipped') : L ? 'Disponible' : 'Available'}</span></button>`;
+  }
+
+  private bikeFiltersHtml(): string {
+    const L = fr();
+    return `<div class="mm-bikefilter" role="radiogroup">${BIKE_FILTERS.map(
+      ([id, fr_, en]) => `<button class="${id === this.bikeFilter ? 'on' : ''}" data-bikefilter="${id}" role="radio" aria-checked="${id === this.bikeFilter}">${L ? fr_ : en}</button>`,
+    ).join('')}</div>`;
   }
 
   // ————————————————————————————————————————————— Profil et réglages
@@ -790,18 +901,131 @@ export class MainMenu {
       const n = this.root.querySelector('#m-wname');
       if (n) n.textContent = f.name;
     });
+    // Éditeur de visage : aperçu immédiat pendant le glissement, enregistrement au relâcher.
+    const faceLive = (look: AvatarLook) => {
+      s.look = look;
+      this.onLookLive?.(look, this.bareHeadPreview);
+    };
+    const faceCommit = (before: AvatarLook) => {
+      this.faceUndo.push(before);
+      if (this.faceUndo.length > 30) this.faceUndo.shift();
+      saveSettings(s);
+      this.onSettingsSaved?.(s);
+      const undo = this.root.querySelector<HTMLButtonElement>('#fe-undo');
+      if (undo) undo.disabled = false;
+    };
+    const faceSet = (look: AvatarLook) => {
+      const before = s.look;
+      faceLive(look);
+      faceCommit(before);
+      this.render();
+    };
+    this.root.querySelectorAll<HTMLInputElement>('[data-feslider]').forEach((el) => {
+      let before: AvatarLook | null = null;
+      el.addEventListener('input', () => {
+        before ??= s.look;
+        faceLive(withSlider(s.look, el.dataset.feslider as FaceSlider, Number(el.value)));
+      });
+      el.addEventListener('change', () => {
+        if (before) faceCommit(before);
+        before = null;
+      });
+    });
+    const feNum = (id: string, key: 'beard' | 'freckles') =>
+      on<HTMLInputElement>(id, 'input', (el) => faceLive({ ...s.look, [key]: Number(el.value) }));
+    feNum('fe-beard', 'beard');
+    feNum('fe-freckles', 'freckles');
+    for (const id of ['fe-beard', 'fe-freckles', 'fe-skin', 'fe-hair']) {
+      let before: AvatarLook | null = null;
+      on<HTMLInputElement>(id, 'pointerdown', () => (before = s.look));
+      on<HTMLInputElement>(id, 'change', () => {
+        faceCommit(before ?? s.look);
+        before = null;
+      });
+    }
+    on<HTMLInputElement>('fe-skin', 'input', (el) => faceLive({ ...s.look, skin: el.value }));
+    on<HTMLInputElement>('fe-hair', 'input', (el) => faceLive({ ...s.look, hair: el.value }));
+    on<HTMLInputElement>('fe-moustache', 'change', (el) => faceSet({ ...s.look, moustache: el.checked }));
+    this.root.querySelectorAll<HTMLElement>('#fe-hairstyle [data-v]').forEach((el) =>
+      el.addEventListener('click', () => faceSet({ ...s.look, hairStyle: Number(el.dataset.v) })),
+    );
+    this.root.querySelectorAll<HTMLElement>('[data-feprofile]').forEach((el) =>
+      el.addEventListener('click', () => faceSet(withProfile(s.look, el.dataset.feprofile as string))),
+    );
+    this.root.querySelectorAll<HTMLElement>('[data-fetab]').forEach((el) =>
+      el.addEventListener('click', () => {
+        this.faceTab = el.dataset.fetab as FaceTab;
+        this.render();
+      }),
+    );
+    on('fe-random', 'click', () => faceSet(withRandomFace(s.look)));
+    on('fe-reset', 'click', () => faceSet(withBaseHead(s.look)));
+    on('fe-undo', 'click', () => {
+      const prev = this.faceUndo.pop();
+      if (!prev) return;
+      faceLive(prev);
+      saveSettings(s);
+      this.onSettingsSaved?.(s);
+      this.render();
+    });
+    // Ressemblance photo : consentement à chaque fois, traitement local (onboarding/likeness.ts).
+    this.root.querySelector('.fe-photo')?.addEventListener('toggle', (e) => (this.photoOpen = (e.target as HTMLDetailsElement).open));
+    on<HTMLInputElement>('fe-consent', 'change', (el) => {
+      const input = this.root.querySelector<HTMLInputElement>('#fe-photo');
+      if (input) input.disabled = !el.checked;
+      this.root.querySelector('#fe-photo-label')?.setAttribute('aria-disabled', String(!el.checked));
+    });
+    on<HTMLInputElement>('fe-photo', 'change', async (el) => {
+      const f = el.files?.[0];
+      el.value = '';
+      if (!f || !this.root.querySelector<HTMLInputElement>('#fe-consent')?.checked) return;
+      const msg = this.root.querySelector<HTMLElement>('#fe-photo-msg');
+      const L = getLang() === 'fr';
+      if (msg) msg.textContent = L ? 'Analyse sur ton appareil…' : 'Analysing on your device…';
+      try {
+        const { likenessFromPhoto } = await import('../onboarding/likeness.ts');
+        const l = await likenessFromPhoto(f);
+        faceSet(withLikeness(s.look, l));
+        const m2 = this.root.querySelector<HTMLElement>('#fe-photo-msg');
+        if (m2) m2.textContent = l.face ? (L ? 'Visage, teint et cheveux appliqués ; photo oubliée.' : 'Face, skin and hair applied; photo discarded.') : L ? 'Aucun visage trouvé : teint et cheveux seulement.' : 'No face found: skin and hair only.';
+      } catch {
+        if (msg) msg.textContent = L ? 'Analyse impossible sur cet appareil.' : 'Analysis failed on this device.';
+      }
+    });
+    on<HTMLInputElement>('fe-bare', 'change', (el) => {
+      this.bareHead = el.checked;
+      this.onLookLive?.(s.look, this.bareHeadPreview);
+    });
     // Garage : catégories, objets, vues et rotation de l'aperçu.
     this.root.querySelectorAll<HTMLElement>('[data-slot]').forEach((el) =>
       el.addEventListener('click', () => {
-        this.garageSlot = el.dataset.slot as CosmeticSlot | 'colors';
-        if (this.garageSlot !== 'colors') {
+        const was = this.garageSlot;
+        this.garageSlot = el.dataset.slot as CosmeticSlot | 'colors' | 'face';
+        if (this.garageSlot === 'face') {
+          this.view = 'face';
+          this.yaw = 0;
+        } else if (this.garageSlot !== 'colors') {
           this.view = SLOT_VIEW[this.garageSlot];
           this.yaw = 0;
         }
         this.render();
         this.onScene?.(this.view, this.yaw);
+        if ((was === 'face') !== (this.garageSlot === 'face')) this.onLookLive?.(s.look, this.bareHeadPreview);
       }),
     );
+    this.root.querySelectorAll<HTMLElement>('[data-bikefilter]').forEach((el) =>
+      el.addEventListener('click', () => {
+        this.bikeFilter = el.dataset.bikefilter as BikeFilter;
+        this.render();
+      }),
+    );
+    this.root.querySelector<HTMLElement>('[data-plainbike]')?.addEventListener('click', () => {
+      this.previewId = null;
+      this.onPreviewLook?.(null);
+      equipPlainBike(s);
+      changed();
+      this.render();
+    });
     this.root.querySelectorAll<HTMLElement>('[data-item]').forEach((el) =>
       el.addEventListener('click', () => {
         const item = COSMETICS.find((c) => c.id === el.dataset.item);
@@ -846,7 +1070,7 @@ export class MainMenu {
       zone.addEventListener('pointerup', up);
       zone.addEventListener('pointercancel', up);
     }
-    const color = (id: string, key: 'jersey' | 'jerseyAccent' | 'helmet' | 'bike' | 'skin' | 'hair') =>
+    const color = (id: string, key: 'jersey' | 'jerseyAccent' | 'helmet' | 'skin' | 'hair') =>
       on<HTMLInputElement>(id, 'input', (el) => {
         s.look = { ...s.look, [key]: el.value };
         changed();
@@ -854,8 +1078,12 @@ export class MainMenu {
     color('m-jersey', 'jersey');
     color('m-accent', 'jerseyAccent');
     color('m-helmet', 'helmet');
-    color('m-bike', 'bike');
     color('m-skin', 'skin');
+    // Couleur du vélo : celle du vélo sans marque, qui devient le vélo équipé.
+    on<HTMLInputElement>('m-bike', 'input', (el) => {
+      equipPlainBike(s, el.value);
+      changed();
+    });
     color('m-hair', 'hair');
     // Profil.
     const num = (id: string, key: 'massKg' | 'ftpWatts' | 'heightCm' | 'aiRiders') =>

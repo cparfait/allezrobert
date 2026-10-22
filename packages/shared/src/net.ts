@@ -67,8 +67,19 @@ export interface AvatarLook {
   jersey: string;
   jerseyAccent: string;
   helmet: string;
+  /** Couleur du vélo de base (sans modèle du catalogue). */
   bike: string;
+  /** Modèle du catalogue de vélos (bikes.ts) ; absent : vélo de base de la couleur `bike`. */
+  bikeModel?: string;
   build: number; // 0 = fin, 1 = costaud
+  /** Curseurs de forme du visage et du corps (face.ts, encodeFace) ; absent : tête de base. */
+  face?: string;
+  /** Barbe (0 = rasé → 1 = barbe courte), de la couleur des cheveux. */
+  beard?: number;
+  /** Taches de rousseur (0 → 1). */
+  freckles?: number;
+  /** Moustache (de la couleur des cheveux). */
+  moustache?: boolean;
 }
 
 export const DEFAULT_LOOK: AvatarLook = {

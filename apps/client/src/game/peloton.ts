@@ -1,13 +1,31 @@
 import * as THREE from 'three/webgpu';
 import { AiRider, AI_PROFILES, DraftCalculator, PoseController, createRiderState, paramsFromBike, stepRider, airDensity, type AiProfileName, type RiderState } from '@allezrobert/physics';
-import { DEFAULT_BIKE, DEFAULT_LOOK, type AvatarLook, type RouteTrack } from '@allezrobert/shared';
+import { BASE_PROFILES, DEFAULT_BIKE, DEFAULT_LOOK, FACE_SLIDERS, encodeFace, type AvatarLook, type FaceShape, type RouteTrack } from '@allezrobert/shared';
 import { createAvatar, type RiderAvatarLike } from '../rider/gltfAvatar.ts';
+import { crowdBike } from '../rider/bikes.ts';
 import { rng } from '../engine/noise.ts';
 
 /** Noms des coureurs IA (clins d'œil locaux, aucun nom réel). */
 const NAMES = ['Lucien', 'Marcelle', 'Fernand', 'Odette', 'Gaston', 'Simone', 'Raymond', 'Paulette', 'Émile', 'Yvette', 'Marius', 'Germaine', 'Albert', 'Huguette', 'Léon', 'Jeannine', 'Maurice', 'Suzanne', 'René'];
 const JERSEYS = ['#e63946', '#2a9d8f', '#f4a261', '#8d99ae', '#06d6a0', '#ef476f', '#118ab2', '#ffd166', '#6a4c93', '#90be6d', '#f3722c', '#277da1'];
 const PROFILES: AiProfileName[] = ['rouleur', 'diesel', 'puncheur', 'sprinter'];
+/** Visages des IA (avatar MPFB) : profils de base selon le prénom (NAMES alterne hommes et femmes). */
+const MEN = ['robert', 'moussa', 'karim', 'tom'];
+const WOMEN = ['lea', 'aiko', 'ines', 'marta'];
+
+/** Tenue d'un profil de base, curseurs du visage un peu variés (pas deux têtes identiques). */
+function botFace(i: number, r: () => number): Partial<AvatarLook> {
+  const ids = i % 2 === 0 ? MEN : WOMEN;
+  const p = BASE_PROFILES.find((b) => b.id === ids[Math.floor(i / 2) % ids.length]);
+  if (!p) return {};
+  const shape: FaceShape = { ...p.shape };
+  for (const s of FACE_SLIDERS) {
+    if (s.group === 'body') continue;
+    shape[s.id] = Math.max(-1, Math.min(1, (shape[s.id] ?? 0) + (r() - 0.5) * 0.5));
+  }
+  const { jersey: _j, jerseyAccent: _a, ...look } = p.look;
+  return { ...look, face: encodeFace(shape) };
+}
 
 export interface PelotonRider {
   id: string;
@@ -97,9 +115,11 @@ export class Peloton {
         jersey: color,
         jerseyAccent: JERSEYS[(i + 5) % JERSEYS.length] as string,
         bike: ['#1d1d1f', '#c0392b', '#f4f4f4', '#2c3e50', '#16a085'][i % 5] as string,
+        bikeModel: crowdBike(i),
         skin: ['#f1c27d', '#e0ac69', '#c68642', '#8d5524', '#ffdbac'][i % 5] as string,
         helmet: ['#f4f4f4', '#111111', color][i % 3] as string,
         build: r(),
+        ...botFace(i, r),
       };
       const avatar = createAvatar(look);
       scene.add(avatar.root);
@@ -200,7 +220,10 @@ export class Peloton {
       r.avatar.root.rotateX(-Math.atan(p.grade / 100));
       const dist = camera.position.distanceTo(r.avatar.root.position);
       r.avatar.root.visible = dist < 600;
-      if (dist < 250) r.avatar.update(dt, r.cadence, r.state.speedMs, r.pose);
+      if (dist < 250) {
+        r.avatar.setEffort?.(r.watts / r.ftp);
+        r.avatar.update(dt, r.cadence, r.state.speedMs, r.pose);
+      }
       // Ombres portées seulement pour les coureurs proches (coût des cascades d'ombre).
       r.avatar.setShadows(dist < 40);
       r.label.position.set(p.x, p.y + 2.15, p.z);

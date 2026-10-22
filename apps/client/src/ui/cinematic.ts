@@ -2,6 +2,7 @@ import * as THREE from 'three/webgpu';
 import type { AvatarLook, RouteTrack, TrackSample } from '@allezrobert/shared';
 import { DEFAULT_LOOK } from '@allezrobert/shared';
 import { createAvatar, type RiderAvatarLike } from '../rider/gltfAvatar.ts';
+import { crowdBike } from '../rider/bikes.ts';
 import { sunDirection } from '../world/environment.ts';
 import { splatAt } from '../world/splat.ts';
 import type { World } from '../world/world.ts';
@@ -112,6 +113,7 @@ function lookFor(i: number): AvatarLook {
     hairStyle: j % 3,
     helmet: HELMETS[j % HELMETS.length] as string,
     bike: BIKES[j % BIKES.length] as string,
+    bikeModel: crowdBike(j),
     build: ((j * 37) % 10) / 10,
   };
 }
