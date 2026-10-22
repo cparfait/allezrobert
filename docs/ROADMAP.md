@@ -99,6 +99,11 @@ Idées seulement : ni nom, ni asset, ni code, ni physique de NCT Ride (la vitess
 - [x] Trains déclenchés à un point précis (voies OSM dessinées ; le train passe au croisement ou au plus près de la route quand on y arrive ; essai : `?fakerail` en développement)
 - [x] Groupe : heure de départ et météo qui évolue (choix de l'hôte, identique pour tous, sans message réseau ; aussi en solo)
 
+## Qualité des mondes (22/10/2026)
+
+- [x] Qualité standard pour tous les mondes : LiDAR HD 2 m à 800 m des itinéraires, orthophotos ≈ 1 m/px, arbres et haies LiDAR, bâtiments et voies BD TOPO à 600 m
+- [ ] Reconstruire Chevreuse, l'Alpe d'Huez et le Mont Ventoux avec cette qualité (sur le poste de l'auteur pour Chevreuse : sorties Garmin)
+
 ## Plus tard
 
 - Apps natives Mac et iPad (Mac et compte Apple Developer requis)

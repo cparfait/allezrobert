@@ -13,7 +13,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { OpenPath, RoadNet, type RoadGraphData, type RoadGraphEdge, type RouteData, type RouteSegment, type WorldMeta } from '@allezrobert/shared';
-import { ATTRIBUTION, ATTRIBUTION_ORTHO, CORRIDOR_TILES, LOD_HI, LOD_LO, ORIGIN_L93, OUT_DIR, TILE_SIZE_M, WORLD, type LonLat, type OpenTour, type OpenWorld } from './config.ts';
+import { ATTRIBUTION, ATTRIBUTION_ORTHO, CORRIDOR_TILES, LOD_HI, LOD_LO, ORIGIN_L93, OUT_DIR, TILE_SIZE_M, WORLD, worldEnrich, type LonLat, type OpenTour, type OpenWorld } from './config.ts';
 import { nearestEdgeOf, routeViaEdges } from './climb.ts';
 import { corridorWgs84, OSM_CHUNK } from './corridor.ts';
 import { Dem, DemStack } from './dem.ts';
@@ -26,12 +26,17 @@ import { buildOsmWorld } from './osm.ts';
 import { fetchOsm, fetchOsmApi, reachableOverpass } from './overpass.ts';
 import { detectClimbs, elevationGain } from './profile.ts';
 import { buildRoads3d } from './roads3d.ts';
+import { ATTRIBUTION_BDTOPO } from './bdtopo.ts';
+import { bdTopoRoadAttrs, prepareEnrichment, type TileEnrichment } from './enrich.ts';
+import { ATTRIBUTION_LIDAR } from './lidar.ts';
 import { frenchDe } from './route.ts';
 import type { TileResult } from './tiles.ts';
 import { writeWorldTiles } from './world-tiles.ts';
 
 if (WORLD.kind !== 'open') throw new Error('build-open : monde de type « open » attendu');
 const W: OpenWorld = WORLD;
+/** Données fines IGN (qualité standard sauf réglage du monde). */
+const ENRICH = worldEnrich(W);
 
 const args = new Set(process.argv.slice(2));
 const WITH_ORTHO = !args.has('--no-ortho');
@@ -102,6 +107,16 @@ async function main(): Promise<void> {
   const r3 = buildRoads3d(g, dem, []);
   log(`   ${r3.roads.length} tronçons, ${r3.carve.length} couloirs creusés`);
 
+  // 3 bis. données fines IGN sur toute l'emprise : arbres et haies (MNH LiDAR HD), bâtiments
+  // BD TOPO (toits mesurés au MNS), nature et largeur des voies
+  let enrichment: Map<string, TileEnrichment> | undefined;
+  if (ENRICH) {
+    log('3 bis. LiDAR HD (végétation, toits) et BD TOPO (bâtiments, voies)');
+    const roadPts = g.edges.flatMap((e) => e.pts.filter((_, i) => i % 4 === 0));
+    enrichment = await prepareEnrichment({ enrich: ENRICH, tiles, routePts: roadPts, roads: osm.roads, dem, log });
+  }
+  const tileOf = (x: number, z: number) => `${Math.floor(x / TILE_SIZE_M)}_${Math.floor(z / TILE_SIZE_M)}`;
+
   // 4. graphe roulable
   log('4. Graphe roulable');
   const inside = (pts: Array<[number, number, number]>) =>
@@ -124,6 +139,10 @@ async function main(): Promise<void> {
     const pts3 = r3.edgePts.get(e.id);
     if (!pts3 || pts3.length < 2 || !inside(pts3)) continue;
     const simple = simplify3(pts3, 0.1, 0.02);
+    // revêtement et largeur BD TOPO (chemins empierrés, de terre) : physique et son du mode ouvert
+    const mid = pts3[pts3.length >> 1]!;
+    const fine = enrichment?.get(tileOf(mid[0], mid[2]));
+    const bd = fine ? bdTopoRoadAttrs(pts3.flat(), fine.roads) : null;
     const a = nodeOf(e.a, pts3[0]!);
     const b = nodeOf(e.b, pts3[pts3.length - 1]!);
     if (a === b) continue;
@@ -134,8 +153,8 @@ async function main(): Promise<void> {
       kind: e.road.kind,
       ...(e.road.name ? { name: e.road.name } : {}),
       ...(e.road.ref ? { ref: e.road.ref } : {}),
-      width: e.road.width,
-      surface: e.road.surface,
+      width: bd?.width ?? e.road.width,
+      surface: bd?.surface ?? e.road.surface,
       oneway: e.oneway as 0 | 1 | -1,
       len: r2(e.len),
       pts: simple.flatMap((p) => [r2(p[0]), r2(p[1]), r2(p[2])]),
@@ -173,6 +192,7 @@ async function main(): Promise<void> {
     outDir: OUT_DIR,
     withOrtho: WITH_ORTHO,
     orthoPx: W.orthoPx,
+    ...(enrichment ? { enrichment } : {}),
     log,
   });
   const horizon = await writeHorizon(W.horizon.halfSizeM, W.horizon.resM, OUT_DIR, log);
@@ -194,7 +214,12 @@ async function main(): Promise<void> {
     tiles: tileResults.map((t) => ({ id: t.id, tx: t.tx, tz: t.tz, baseM: t.baseM, minM: t.minM, maxM: t.maxM, lods: t.lods as Array<'lo' | 'hi' | 'ortho'>, bytes: t.bytes, ...(t.stepM !== 0.01 ? { stepM: t.stepM } : {}) })),
     routes: routes.map((r, i) => ({ id: r.id, file: `routes/${r.id}.json`, name: r.name, lengthM: r.lengthM, elevationGainM: r.elevationGainM, loop: r.loop, main: i === 0 })),
     mainRoute: routes[0]?.id ?? '',
-    attribution: [...ATTRIBUTION, ...(WITH_ORTHO ? [ATTRIBUTION_ORTHO] : [])],
+    attribution: [
+      ...ATTRIBUTION,
+      ...(WITH_ORTHO ? [ATTRIBUTION_ORTHO] : []),
+      ...(ENRICH?.lidarVegetation || ENRICH?.bdtopoBuildings ? [ATTRIBUTION_LIDAR] : []),
+      ...(ENRICH?.bdtopoBuildings ? [ATTRIBUTION_BDTOPO] : []),
+    ],
     horizon,
     open: { graph: 'graph.json', start: { x: r2(start[0]), z: r2(start[1]) } },
   };

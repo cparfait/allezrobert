@@ -27,6 +27,18 @@ dans `apps/client/public/worlds/chevreuse/` sans priver le client de tuiles pend
 Tout ce qui est téléchargé est conservé dans `data/cache/terrain/` (ignoré par git) : une
 reconstruction ne sollicite plus les services. Ne jamais écrire sur C: (disque plein).
 
+## Qualité standard (tous les mondes)
+
+`QUALITY` dans `src/config.ts`, appliquée par les trois chaînes (sorties Garmin, montées, monde
+ouvert) sauf réglage contraire du monde :
+
+- relief **LiDAR HD** en 2 m à moins de **800 m** des itinéraires (boucle principale de Chevreuse :
+  2 km), 8 m au-delà ;
+- **orthophotos** IGN à **1 024 px** par tuile de 1 km en 2 m (≈ 1 m/px), 512 px ailleurs ;
+- **enrichissement** à moins de **600 m** des itinéraires (`enrich`, `false` pour s'en passer) :
+  arbres et haies du MNH LiDAR HD, bâtiments BD TOPO aux toits mesurés dans le MNS, nature et
+  largeur des voies BD TOPO. Compter ≈ 12 s et ≈ 35 Mo de cache LiDAR par tuile enrichie.
+
 ## Sources et licences
 
 | Donnée | Source | Licence | Attribution affichée |
@@ -262,7 +274,9 @@ donnée Garmin lue** (les règles de vie privée ci-dessus ne concernent que Che
 6. **KOM** du pied (`climbStart`) à l'arrivée (`finish`) ; bilan comparé aux valeurs publiées
    (`reference`) dans le journal et dans `data/cache/terrain/analysis/<id>-report.json`.
 7. **Tuiles** seulement à moins de `loMarginM` (5 km) de la route, en 2 m à moins de `hiMarginM`
-   (400 m). Creusement « par passage » (`carveGridPasses`) : dans un lacet, les deux branches
+   (800 m). Orthophotos `orthoPx` : 1 024 px par tuile de 1 km en 2 m (≈ 1 m/px), 512 px au-delà
+   (≈ 2 m/px). Enrichissement `enrich` à moins de 600 m de la route : arbres et haies du MNH
+   LiDAR HD, bâtiments BD TOPO aux toits mesurés dans le MNS, nature et largeur des voies. Creusement « par passage » (`carveGridPasses`) : dans un lacet, les deux branches
    proches contribuent toutes deux (moyenne pondérée, chaussée plate à l'altitude de sa branche)
    au lieu d'une marche à mi-distance. Pas de quantification par tuile (`stepM`, 1 cm, 2 cm si la
    tuile a plus de 650 m de dénivelé), indiqué dans le JSON de la tuile et dans `world.json`.
@@ -286,6 +300,10 @@ Neuville, Glaine-Montaigut, Bongheat et Égliseneuve-près-Billom, en bordure de
 - **Toujours** les trois sources : relief **LiDAR HD** 1 m (repli RGE ALTI) sur toute l'emprise,
   toutes les tuiles en 2 m ; **OSM** pour la topographie (routes, chemins, bâti, cultures, eau) ;
   **orthophotos** IGN à 1 024 px par tuile (≈ 1 m/px). Horizon à ±45 km (Chaîne des Puys, Forez).
+- **Enrichissement** sur toute l'emprise (`enrich`) : un arbre par sommet du MNH LiDAR HD, haies
+  et buissons, bâtiments BD TOPO (hauteurs, matériaux, toits mesurés dans le MNS) à la place de ceux
+  d'OSM ; la nature des voies BD TOPO (« Route empierrée » → gravier, « Chemin » → terre) et leur
+  largeur passent aussi dans `graph.json`, donc dans la physique du mode ouvert.
 - OSM : Overpass si un miroir répond, sinon l'**API principale d'OpenStreetMap** (`/api/0.6/map`,
   blocs de 0,02° × 0,015°, `fetchOsmApi`), convertie au format Overpass `out geom`.
 - Toutes les routes sont creusées (aucun itinéraire prioritaire) et **`graph.json`** décrit le

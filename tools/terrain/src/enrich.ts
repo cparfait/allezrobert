@@ -257,13 +257,10 @@ export function decorateTile(json: Record<string, unknown>, e: TileEnrichment, g
     let n = 0;
     for (const r of json.roads as Array<Record<string, unknown>>) {
       if (r.route) continue;
-      const m = matchRoad(r.pts as number[], e.roads);
-      if (!m) continue;
-      // revêtement : la BD TOPO distingue les chemins empierrés et de terre, qu'OSM laisse souvent sans `surface`
-      if (m.nature === 'Route empierrée') r.surface = 'gravel';
-      else if (m.nature === 'Chemin' || m.nature === 'Sentier') r.surface = 'ground';
-      const w = m.width ?? (m.nature === 'Route empierrée' ? 3 : m.nature === 'Chemin' ? 2.5 : m.nature === 'Sentier' ? 1.2 : null);
-      if (w !== null) r.width = w;
+      const a = bdTopoRoadAttrs(r.pts as number[], e.roads);
+      if (!a) continue;
+      if (a.surface) r.surface = a.surface;
+      if (a.width !== undefined) r.width = a.width;
       n++;
     }
     flags.roads = n > 0;
@@ -274,6 +271,21 @@ export function decorateTile(json: Record<string, unknown>, e: TileEnrichment, g
     flags.vegetation = true;
   }
   json.enriched = flags;
+}
+
+/**
+ * Revêtement et largeur d'une voie (points [x, y, z, …]) d'après le tronçon BD TOPO apparié : la
+ * BD TOPO distingue les chemins empierrés et de terre, qu'OSM laisse souvent sans `surface`.
+ */
+export function bdTopoRoadAttrs(pts3: number[], roads: TileEnrichment['roads']): { surface?: string; width?: number } | null {
+  const m = matchRoad(pts3, roads);
+  if (!m) return null;
+  const out: { surface?: string; width?: number } = {};
+  if (m.nature === 'Route empierrée') out.surface = 'gravel';
+  else if (m.nature === 'Chemin' || m.nature === 'Sentier') out.surface = 'ground';
+  const w = m.width ?? (m.nature === 'Route empierrée' ? 3 : m.nature === 'Chemin' ? 2.5 : m.nature === 'Sentier' ? 1.2 : null);
+  if (w !== null) out.width = w;
+  return out;
 }
 
 /** Distance d'un point à une polyligne plate [x, z, …]. */

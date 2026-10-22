@@ -86,7 +86,8 @@ interface WorldBase {
   originL93: { x: number; y: number };
   /** Emprise maximale en indices de tuiles (bornes incluses). */
   corridorTiles: { txMin: number; txMax: number; tzMin: number; tzMax: number };
-  enrich?: WorldEnrich;
+  /** Données fines IGN ; défaut QUALITY.enrich, `false` pour s'en passer. */
+  enrich?: WorldEnrich | false;
   /** Monde privé (data/private/worlds) : sortie ignorée par git. */
   private?: boolean;
 }
@@ -104,6 +105,8 @@ export interface ClimbWorld extends WorldBase {
   loMarginM: number;
   /** Relief lointain (ligne d'horizon) : grille unique, demi-côté et pas en mètres. */
   horizon: { halfSizeM: number; resM: number };
+  /** Côté des orthophotos (px par tuile de 1 km) : tuiles 2 m et tuiles 8 m. Défaut QUALITY.orthoPx. */
+  orthoPx?: { hi: number; lo: number };
 }
 
 /** Tour proposé dans un monde ouvert : boucle par des points de passage publics (villages). */
@@ -135,6 +138,19 @@ export interface OpenWorld extends WorldBase {
 
 export type WorldConfig = GarminWorld | ClimbWorld | OpenWorld;
 
+/**
+ * Qualité standard de tous les mondes (22/10/2026), sauf réglage contraire dans le monde :
+ * - relief en 2 m (LiDAR HD) à moins de 800 m des itinéraires (vue depuis les lacets, drone, TV) ;
+ * - orthophotos IGN à 1 024 px par tuile de 1 km en 2 m (≈ 1 m/px), 512 px au-delà (≈ 2 m/px) ;
+ * - enrichissement à moins de 600 m des itinéraires : arbres et haies du MNH LiDAR HD, bâtiments
+ *   BD TOPO aux toits mesurés dans le MNS, nature et largeur des voies BD TOPO.
+ */
+export const QUALITY = {
+  hiMarginM: 800,
+  orthoPx: { hi: 1024, lo: 512 },
+  enrich: { radiusM: 600, lidarVegetation: true, bdtopoBuildings: true } as WorldEnrich,
+};
+
 export const WORLDS: Record<string, WorldConfig> = {
   chevreuse: {
     kind: 'garmin',
@@ -153,7 +169,8 @@ export const WORLDS: Record<string, WorldConfig> = {
     originL93: { x: 940000, y: 6447000 },
     // itinéraire ≈ E 938,8–942,3 km, N 6 444,4–6 449,0 km, + 5 km de montagnes autour
     corridorTiles: { txMin: -8, txMax: 7, tzMin: -8, tzMax: 8 },
-    hiMarginM: 400,
+    // qualité standard (QUALITY) : bande de 2 m, vue aérienne ≈ 1 m/px, LiDAR HD et BD TOPO
+    hiMarginM: QUALITY.hiMarginM,
     loMarginM: 5000,
     horizon: { halfSizeM: 30000, resM: 100 },
     climb: {
@@ -201,7 +218,8 @@ export const WORLDS: Record<string, WorldConfig> = {
     originL93: { x: 880000, y: 6342000 },
     // itinéraire ≈ E 874,3–885,5 km, N 6 338,3–6 345,0 km, + 5 km autour
     corridorTiles: { txMin: -12, txMax: 11, tzMin: -9, tzMax: 10 },
-    hiMarginM: 400,
+    // qualité standard (QUALITY) : bande de 2 m, vue aérienne ≈ 1 m/px, LiDAR HD et BD TOPO
+    hiMarginM: QUALITY.hiMarginM,
     loMarginM: 5000,
     horizon: { halfSizeM: 35000, resM: 100 },
     climb: {
@@ -256,6 +274,8 @@ export const WORLDS: Record<string, WorldConfig> = {
     corridorTiles: { txMin: -4, txMax: 2, tzMin: -3, tzMax: 3 },
     start: { lon: 3.4364, lat: 45.7453 },
     orthoPx: 1024,
+    // toute l'emprise : arbres et haies LiDAR HD, bâtiments (hauteurs, toits) et voies BD TOPO
+    enrich: { radiusM: 50, lidarVegetation: true, bdtopoBuildings: true },
     // Chaîne des Puys (Puy de Dôme à 31 km à l'ouest), Livradois et Forez à l'est
     horizon: { halfSizeM: 45000, resM: 100 },
     tours: [
@@ -301,6 +321,11 @@ function selectWorld(): WorldConfig {
   return w;
 }
 
+/** Données fines IGN du monde : les siennes, sinon la qualité standard (null si désactivées). */
+export function worldEnrich(w: WorldConfig): WorldEnrich | null {
+  return w.enrich === false ? null : (w.enrich ?? QUALITY.enrich);
+}
+
 /** Monde en cours de construction. */
 export const WORLD: WorldConfig = selectWorld();
 
@@ -337,8 +362,8 @@ export const LOOP_LENGTH = { min: 9000, max: 12000, target: 10500 } as const;
 
 /** Tuiles haute résolution : toutes les tuiles à moins de cette distance de la boucle principale. */
 export const HI_RES_MARGIN_M = 2000;
-/** … et à moins de cette distance des itinéraires secondaires. */
-export const HI_RES_MARGIN_SECONDARY_M = 300;
+/** … et à moins de cette distance des itinéraires secondaires (qualité standard). */
+export const HI_RES_MARGIN_SECONDARY_M = QUALITY.hiMarginM;
 
 /** Rayon d'exclusion autour des départs/arrivées des sorties Garmin (vie privée). */
 export const PRIVACY_RADIUS_M = 2000;

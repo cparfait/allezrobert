@@ -12,7 +12,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import type { RouteData, RouteHairpin, RouteSegment, WorldHorizon, WorldMeta } from '@allezrobert/shared';
-import { ATTRIBUTION, ATTRIBUTION_ORTHO, CACHE_DIR, CORRIDOR_TILES, LOD_HI, LOD_LO, ORIGIN_L93, OUT_DIR, ROUTE_STEP_M, TILE_SIZE_M, WORLD, type ClimbWorld, type LonLat } from './config.ts';
+import { ATTRIBUTION, ATTRIBUTION_ORTHO, CACHE_DIR, CORRIDOR_TILES, LOD_HI, LOD_LO, ORIGIN_L93, OUT_DIR, ROUTE_STEP_M, TILE_SIZE_M, QUALITY, WORLD, worldEnrich, type ClimbWorld, type LonLat } from './config.ts';
 import { circumradius, detectHairpins, hairpinShortName, interpolateMaskedOpen, nearestEdgeOf, pathPolyline, platformHeight, projectArc, relaxTightCorners, routeViaEdges, slicePolyline, smoothOpenPath, unwrappedHeading } from './climb.ts';
 import { corridorWgs84, OSM_CHUNK } from './corridor.ts';
 import { Dem, DemStack } from './dem.ts';
@@ -33,6 +33,8 @@ import { ATTRIBUTION_LIDAR } from './lidar.ts';
 if (WORLD.kind !== 'climb') throw new Error('build-climb : monde de type « climb » attendu');
 const W: ClimbWorld = WORLD;
 const C = W.climb;
+/** Données fines IGN (qualité standard sauf réglage du monde). */
+const ENRICH = worldEnrich(W);
 
 const args = new Set(process.argv.slice(2));
 const WITH_ORTHO = !args.has('--no-ortho');
@@ -425,9 +427,9 @@ async function main(): Promise<void> {
   if (outside.length) log(`   ! ${outside.length} tuiles au bord du corridor : élargir corridorTiles pour garder ${W.loMarginM} m de marge partout`);
   if (!ROUTES_ONLY) {
     log(`5. Tuiles (${loTiles.length}, dont ${hiSet.size} en haute résolution)`);
-    const enrichment = W.enrich
+    const enrichment = ENRICH
       ? await prepareEnrichment({
-          enrich: W.enrich,
+          enrich: ENRICH,
           tiles: loTiles.filter(([tx, tz]) => hiSet.has(tileId(tx, tz))),
           routePts: pts,
           roads: osm.roads,
@@ -442,6 +444,8 @@ async function main(): Promise<void> {
       dems: { lo, hi },
       osm,
       routes: [{ route: data, edgeOf, priority: 2 }],
+      orthoPx: (W.orthoPx ?? QUALITY.orthoPx).hi,
+      orthoPxLo: (W.orthoPx ?? QUALITY.orthoPx).lo,
       tiles: loTiles,
       hiTiles: hiSet,
       outDir: OUT_DIR,
@@ -474,8 +478,8 @@ async function main(): Promise<void> {
     attribution: [
       ...ATTRIBUTION,
       ...(WITH_ORTHO || prev?.attribution.includes(ATTRIBUTION_ORTHO) ? [ATTRIBUTION_ORTHO] : []),
-      ...(W.enrich?.lidarVegetation || W.enrich?.bdtopoBuildings ? [ATTRIBUTION_LIDAR] : []),
-      ...(W.enrich?.bdtopoBuildings ? [ATTRIBUTION_BDTOPO] : []),
+      ...(ENRICH?.lidarVegetation || ENRICH?.bdtopoBuildings ? [ATTRIBUTION_LIDAR] : []),
+      ...(ENRICH?.bdtopoBuildings ? [ATTRIBUTION_BDTOPO] : []),
     ],
     ...(horizon ? { horizon } : {}),
   };

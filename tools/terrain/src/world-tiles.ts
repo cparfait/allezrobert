@@ -26,8 +26,10 @@ export interface WriteTilesOptions {
   outDir: string;
   withOrtho: boolean;
   carveMode?: 'max' | 'passes';
-  /** Côté des orthophotos (px) : défaut 512 en haute résolution, 256 sinon. */
+  /** Côté des orthophotos (px) des tuiles haute résolution : défaut 512. */
   orthoPx?: number;
+  /** Côté des orthophotos (px) des tuiles basse résolution : défaut 256. */
+  orthoPxLo?: number;
   /** Profils 3D déjà calculés (sinon calculés ici). */
   roads3d?: Roads3d;
   /** Données fines par tuile (voir enrich.ts). */
@@ -113,7 +115,7 @@ export async function writeWorldTiles(o: WriteTilesOptions): Promise<TileResult[
     const res = buildTile(tx, tz, o.hiTiles.has(id), o.dems, inputs, o.outDir, o.carveMode ?? 'max', fine ? (json, groundAt) => decorateTile(json, fine, groundAt) : undefined);
     tileResults.push(res);
     if (o.withOrtho) {
-      const ok = await fetchOrtho(tx, tz, o.orthoPx ?? (o.hiTiles.has(id) ? 512 : 256), path.join(tilesDir, `${id}.ortho.jpg`));
+      const ok = await fetchOrtho(tx, tz, o.hiTiles.has(id) ? (o.orthoPx ?? 512) : (o.orthoPxLo ?? 256), path.join(tilesDir, `${id}.ortho.jpg`));
       if (ok) {
         res.lods.push('ortho');
         res.bytes += fs.statSync(path.join(tilesDir, `${id}.ortho.jpg`)).size;

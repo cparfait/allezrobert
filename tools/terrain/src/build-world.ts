@@ -27,6 +27,7 @@ import {
   ORIGIN_L93,
   OUT_DIR,
   PRIVACY_RADIUS_M,
+  QUALITY,
   RIDE_ROUTE_MIN_M,
   RIDE_RUN_MARGIN_M,
   TILE_SIZE_M,
@@ -34,6 +35,7 @@ import {
   WORLD_EDGE_MARGIN_M,
   WORLD_ID,
   WORLD_NAME,
+  worldEnrich,
 } from './config.ts';
 import { Dem, DemStack } from './dem.ts';
 import { corridorWgs84, OSM_CHUNK } from './corridor.ts';
@@ -53,6 +55,9 @@ import { closeWalk, matchWalk } from './ridematch.ts';
 import { buildRoute, climbName, frenchDe, slug, sprintName, type BuiltRoute } from './route.ts';
 import type { TileResult } from './tiles.ts';
 import { writeWorldTiles } from './world-tiles.ts';
+import { prepareEnrichment } from './enrich.ts';
+import { ATTRIBUTION_LIDAR } from './lidar.ts';
+import { ATTRIBUTION_BDTOPO } from './bdtopo.ts';
 
 const args = new Set(process.argv.slice(2));
 if (WORLD.kind === 'climb') {
@@ -65,6 +70,8 @@ if (WORLD.kind === 'open') {
   await import('./build-open.ts');
   process.exit(0);
 }
+/** Données fines IGN (qualité standard sauf réglage du monde). */
+const ENRICH = worldEnrich(WORLD);
 const WITH_ORTHO = !args.has('--no-ortho');
 const ROUTES_ONLY = args.has('--routes-only');
 if (args.has('--offline')) setOffline(true);
@@ -529,7 +536,34 @@ async function main(): Promise<void> {
     const c = CORRIDOR_TILES;
     const order: Array<[number, number]> = [];
     for (let tx = c.txMin; tx <= c.txMax; tx++) for (let tz = c.tzMin; tz <= c.tzMax; tz++) order.push([tx, tz]);
-    tileResults.push(...(await writeWorldTiles({ g, dem, dems: { lo, hi }, osm, routes: onGraph, tiles: order, hiTiles, outDir: OUT_DIR, withOrtho: WITH_ORTHO, log })));
+    // Qualité standard : données fines IGN autour des itinéraires (tuiles 2 m), vue aérienne ≈ 1 m/px.
+    const enrichment = ENRICH
+      ? await prepareEnrichment({
+          enrich: ENRICH,
+          tiles: order.filter(([tx, tz]) => hiTiles.has(tileId(tx, tz))),
+          routePts: picked.flatMap((p) => p.built.data.points.map((q) => [q.x, q.z] as Pt)),
+          roads: osm.roads,
+          dem,
+          log,
+        })
+      : undefined;
+    tileResults.push(
+      ...(await writeWorldTiles({
+        g,
+        dem,
+        dems: { lo, hi },
+        osm,
+        routes: onGraph,
+        tiles: order,
+        hiTiles,
+        outDir: OUT_DIR,
+        withOrtho: WITH_ORTHO,
+        orthoPx: QUALITY.orthoPx.hi,
+        orthoPxLo: QUALITY.orthoPx.lo,
+        ...(enrichment ? { enrichment } : {}),
+        log,
+      })),
+    );
   }
 
   // 8. world.json
@@ -562,7 +596,12 @@ async function main(): Promise<void> {
       main: p.main,
     })),
     mainRoute: mainLoop.built.data.id,
-    attribution: [...ATTRIBUTION, ...(WITH_ORTHO ? [ATTRIBUTION_ORTHO] : [])],
+    attribution: [
+      ...ATTRIBUTION,
+      ...(WITH_ORTHO ? [ATTRIBUTION_ORTHO] : []),
+      ...(ENRICH?.lidarVegetation || ENRICH?.bdtopoBuildings ? [ATTRIBUTION_LIDAR] : []),
+      ...(ENRICH?.bdtopoBuildings ? [ATTRIBUTION_BDTOPO] : []),
+    ],
   };
   fs.writeFileSync(worldFile, JSON.stringify(meta, null, 1));
 
