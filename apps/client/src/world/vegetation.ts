@@ -7,6 +7,7 @@ import { fbm, rng } from '../engine/noise.ts';
 import type { LoadedTile } from './types.ts';
 import { splatAt } from './splat.ts';
 import type { Season } from './environment.ts';
+import { broadleafVariants, realTreeMaterial, shrubGeometry, TREE_H, TREE_R } from './trees.ts';
 
 /** Couleurs de feuillage par saison (feuillus) — palettes de ART_DIRECTION.md. */
 const LEAVES: Record<Season, [string, string, string]> = {
@@ -21,6 +22,15 @@ const CHUNK = 500;
 /** Distances de bascule des niveaux de détail (m). */
 const LOD_NEAR = 300;
 const LOD_MID = 1100;
+/** Blocs plus petits pour la végétation réelle (LiDAR) : beaucoup plus dense, détail proche. */
+const REAL_CHUNK = 125;
+/** Végétation réelle : cartes de feuillage jusqu'à REAL_NEAR, silhouettes au-delà, buissons masqués après REAL_MID. */
+const REAL_NEAR = 160;
+const REAL_MID = 700;
+/** Rapport hauteur / rayon de houppier au-delà duquel un arbre réel est élancé (peuplier, jeune arbre). */
+const SLENDER = 4.2;
+
+type Kind = 'decid' | 'conif' | 'real0' | 'real1' | 'real2' | 'shrub';
 
 /** Marque chaque sommet : 0 = bois, 1 = feuillage (pour l'animation et la saison). */
 function tag(geo: THREE.BufferGeometry, leaf: number, shade: number, center?: THREE.Vector3): THREE.BufferGeometry {
@@ -104,7 +114,10 @@ interface Chunk {
   tileId: string;
   cx: number;
   cz: number;
-  meshes: Array<{ kind: 'decid' | 'conif'; mesh: THREE.InstancedMesh }>;
+  /** Côté du bloc (m). */
+  size: number;
+  real: boolean;
+  meshes: Array<{ kind: Kind; mesh: THREE.InstancedMesh }>;
   lod: number;
 }
 
@@ -121,23 +134,62 @@ export class Vegetation {
   private readonly leafC = colorUniform();
   /** 1 = feuillage complet, 0 = arbres nus (hiver). */
   private readonly leafAmount = uniform(1);
-  private readonly geos: Record<'decid' | 'conif', THREE.BufferGeometry[]>;
+  private readonly geos: Record<Kind, Array<THREE.BufferGeometry | null>>;
   private readonly mats: Record<'decid' | 'conif', THREE.MeshStandardNodeMaterial>;
+  /** Arbres réels proches (cartes de feuillage) et haies / buissons. */
+  private readonly realMat: THREE.MeshStandardNodeMaterial;
+  private readonly shrubMat: THREE.MeshStandardNodeMaterial;
   private readonly chunks = new Map<string, Chunk>();
   private q: QualitySettings;
   private readonly heightAt: (x: number, z: number) => number;
   /** Zones interdites (route principale). */
   private readonly avoid: (x: number, z: number) => boolean;
+  /** Arbres réels : seulement la chaussée et son bord immédiat (les haies de bord de route restent). */
+  private readonly avoidReal: (x: number, z: number) => boolean;
   private readonly focus = new THREE.Vector3(1e9, 0, 1e9);
 
-  constructor(q: QualitySettings, season: Season, heightAt: (x: number, z: number) => number, avoid: (x: number, z: number) => boolean) {
+  constructor(q: QualitySettings, season: Season, heightAt: (x: number, z: number) => number, avoid: (x: number, z: number) => boolean, avoidReal: (x: number, z: number) => boolean = avoid) {
     this.q = q;
     this.heightAt = heightAt;
     this.avoid = avoid;
+    this.avoidReal = avoidReal;
     this.group.name = 'vegetation';
-    this.geos = { decid: [0, 1, 2].map(deciduousGeometry), conif: [0, 1, 2].map(coniferGeometry) };
+    const decid = [0, 1, 2].map(deciduousGeometry);
+    const conif = [0, 1, 2].map(coniferGeometry);
+    const real = broadleafVariants();
+    const shrub = shrubGeometry();
+    this.geos = {
+      decid,
+      conif,
+      // trois feuillus détaillés ; au-delà de REAL_NEAR, la silhouette des feuillus semés
+      real0: [real[0]!, decid[1]!, decid[2]!],
+      real1: [real[1]!, decid[1]!, decid[2]!],
+      real2: [real[2]!, decid[1]!, decid[2]!],
+      shrub: [shrub, shrub, null],
+    };
     this.mats = { decid: this.material(false), conif: this.material(true) };
+    const colours = { a: this.leafA.node, b: this.leafB.node, c: this.leafC.node, amount: this.leafAmount, wind: this.windStrength };
+    this.realMat = realTreeMaterial(colours, true);
+    this.shrubMat = realTreeMaterial(colours, false);
     this.setSeason(season);
+  }
+
+  private materialFor(kind: Kind, lod: number): THREE.MeshStandardNodeMaterial {
+    if (kind === 'shrub') return this.shrubMat;
+    if (kind === 'conif') return this.mats.conif;
+    if (kind === 'decid') return this.mats.decid;
+    return lod === 0 ? this.realMat : this.mats.decid;
+  }
+
+  /** Géométrie et matériau d'un bloc selon le niveau de détail (null = masqué). */
+  private applyLod(kind: Kind, mesh: THREE.InstancedMesh, lod: number): void {
+    const geo = this.geos[kind][lod] ?? null;
+    mesh.visible = geo !== null;
+    if (geo) mesh.geometry = geo;
+    mesh.material = this.materialFor(kind, lod);
+    mesh.castShadow = lod === 0;
+    mesh.receiveShadow = lod === 0;
+    mesh.computeBoundingSphere();
   }
 
   setSeason(season: Season): void {
@@ -186,15 +238,93 @@ export class Vegetation {
     return m;
   }
 
-  private lodFor(cx: number, cz: number): number {
-    const x = (cx + 0.5) * CHUNK;
-    const z = (cz + 0.5) * CHUNK;
-    const d = Math.hypot(x - this.focus.x, z - this.focus.z) - CHUNK * 0.7;
+  private lodFor(c: Pick<Chunk, 'cx' | 'cz' | 'size' | 'real'>): number {
+    const x = (c.cx + 0.5) * c.size;
+    const z = (c.cz + 0.5) * c.size;
+    const d = Math.hypot(x - this.focus.x, z - this.focus.z) - c.size * 0.7;
+    if (c.real) return d < REAL_NEAR ? 0 : d < REAL_MID ? 1 : 2;
     return d < LOD_NEAR ? 0 : d < LOD_MID ? 1 : 2;
+  }
+
+  /**
+   * Végétation réelle (tuile enrichie au LiDAR HD) : un arbre par sommet mesuré, à sa hauteur et
+   * à la largeur de son houppier, haies et buissons ; aucun semis aléatoire.
+   */
+  private addRealTile(tile: LoadedTile): void {
+    const f = tile.features;
+    const per = new Map<string, Map<Kind, THREE.Matrix4[]>>();
+    const m = new THREE.Matrix4();
+    const qn = new THREE.Quaternion();
+    const up = new THREE.Vector3(0, 1, 0);
+    const sc = new THREE.Vector3();
+    const p = new THREE.Vector3();
+    const push = (kind: Kind, x: number, z: number) => {
+      const key = `${Math.floor(x / REAL_CHUNK)}_${Math.floor(z / REAL_CHUNK)}`;
+      let b = per.get(key);
+      if (!b) per.set(key, (b = new Map()));
+      let list = b.get(kind);
+      if (!list) b.set(kind, (list = []));
+      list.push(m.clone());
+    };
+    // pseudo-aléa stable par position (même arbre à chaque chargement)
+    const seedAt = (x: number, z: number) => Math.abs(Math.sin(x * 12.9898 + z * 78.233) * 43758.5453) % 1;
+    const trees = f.trees ?? [];
+    for (let i = 0; i + 3 < trees.length; i += 4) {
+      const x = trees[i] as number;
+      const z = trees[i + 1] as number;
+      const h = trees[i + 2] as number;
+      const cr = trees[i + 3] as number;
+      if (this.avoidReal(x, z)) continue;
+      const y = this.heightAt(x, z);
+      if (!Number.isFinite(y)) continue;
+      const seed = seedAt(x, z);
+      // houppier mesuré ; un arbre élancé (peuplier, jeune arbre) reste un feuillus étroit, borné
+      // pour ne pas devenir une aiguille
+      const sxz = Math.max(cr, 0.8, h / SLENDER / 1.6) / TREE_R;
+      p.set(x, y - 0.15, z);
+      qn.setFromAxisAngle(up, seed * Math.PI * 2);
+      sc.set(sxz, h / TREE_H, sxz);
+      m.compose(p, qn, sc);
+      push(seed < 0.34 ? 'real0' : seed < 0.67 ? 'real1' : 'real2', x, z);
+    }
+    const shrubs = f.shrubs ?? [];
+    for (let i = 0; i + 2 < shrubs.length; i += 3) {
+      const x = shrubs[i] as number;
+      const z = shrubs[i + 1] as number;
+      const h = shrubs[i + 2] as number;
+      if (this.avoidReal(x, z)) continue;
+      const y = this.heightAt(x, z);
+      if (!Number.isFinite(y)) continue;
+      const seed = seedAt(x + 0.37, z);
+      p.set(x + (seed - 0.5) * 0.6, y - 0.05, z + (seed - 0.5) * 0.6);
+      qn.setFromAxisAngle(up, seed * Math.PI * 2);
+      const w = 0.95 + seed * 0.35;
+      sc.set(w, h, w);
+      m.compose(p, qn, sc);
+      push('shrub', x, z);
+    }
+    for (const [key, bucket] of per) {
+      const [cx, cz] = key.split('_').map(Number) as [number, number];
+      const chunk: Chunk = { key: `${tile.id}:r${key}`, tileId: tile.id, cx, cz, size: REAL_CHUNK, real: true, meshes: [], lod: 0 };
+      chunk.lod = this.lodFor(chunk);
+      for (const [kind, list] of bucket) {
+        const im = new THREE.InstancedMesh(this.geos[kind][0] as THREE.BufferGeometry, this.materialFor(kind, 0), list.length);
+        list.forEach((mat, k) => im.setMatrixAt(k, mat));
+        im.instanceMatrix.needsUpdate = true;
+        this.applyLod(kind, im, chunk.lod);
+        this.group.add(im);
+        chunk.meshes.push({ kind, mesh: im });
+      }
+      this.chunks.set(chunk.key, chunk);
+    }
   }
 
   /** Place les arbres d'une tuile (déterministe) et crée ses blocs instanciés. */
   addTile(tile: LoadedTile): void {
+    if (tile.features.realVegetation) {
+      this.addRealTile(tile);
+      return;
+    }
     const r = rng(tile.tx * 73856093 + tile.tz * 19349663);
     const tries = Math.floor(((tile.size * tile.size) / 100) * this.q.treeDensity * 0.45);
     const per = new Map<string, { decid: THREE.Matrix4[]; conif: THREE.Matrix4[] }>();
@@ -235,8 +365,8 @@ export class Vegetation {
     }
     for (const [key, bucket] of per) {
       const [cx, cz] = key.split('_').map(Number) as [number, number];
-      const lod = this.lodFor(cx, cz);
-      const chunk: Chunk = { key: `${tile.id}:${key}`, tileId: tile.id, cx, cz, meshes: [], lod };
+      const lod = this.lodFor({ cx, cz, size: CHUNK, real: false });
+      const chunk: Chunk = { key: `${tile.id}:${key}`, tileId: tile.id, cx, cz, size: CHUNK, real: false, meshes: [], lod };
       for (const kind of ['decid', 'conif'] as const) {
         const list = bucket[kind];
         if (!list.length) continue;
@@ -269,15 +399,10 @@ export class Vegetation {
     if (Math.hypot(focus.x - this.focus.x, focus.z - this.focus.z) < 40) return;
     this.focus.copy(focus);
     for (const c of this.chunks.values()) {
-      const lod = this.lodFor(c.cx, c.cz);
+      const lod = this.lodFor(c);
       if (lod === c.lod) continue;
       c.lod = lod;
-      for (const { kind, mesh } of c.meshes) {
-        mesh.geometry = this.geos[kind][lod] as THREE.BufferGeometry;
-        mesh.castShadow = lod === 0;
-        mesh.receiveShadow = lod === 0;
-        mesh.computeBoundingSphere();
-      }
+      for (const { kind, mesh } of c.meshes) this.applyLod(kind, mesh, lod);
     }
   }
 }

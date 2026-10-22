@@ -390,6 +390,8 @@ export function buildTile(
   outDir: string,
   /** « passes » : itinéraires creusés par `carveGridPasses` (lacets), routes OSM par `carveGrid`. */
   carveMode: 'max' | 'passes' = 'max',
+  /** Retouche du JSON avant écriture (données fines), avec le terrain creusé le plus fin. */
+  decorate?: (json: Record<string, unknown>, groundAt: (x: number, z: number) => number) => void,
 ): TileResult {
   const id = tileId(tx, tz);
   const rect = tileRect(tx, tz);
@@ -527,6 +529,7 @@ export function buildTile(
     railways,
     pois,
   };
+  decorate?.(json, (x, z) => gridSample(fine, x, z));
   const s = JSON.stringify(json);
   fs.writeFileSync(path.join(tilesDir, `${id}.json`), s);
   bytes += Buffer.byteLength(s);

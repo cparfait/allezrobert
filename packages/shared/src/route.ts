@@ -51,6 +51,8 @@ export interface RouteData {
    * virage ; `radiusM` = rayon minimal de l'axe de la chaussée ; `altitudeM` = altitude de la route.
    */
   hairpins?: RouteHairpin[];
+  /** Marquage de la chaussée : rives et axe (défaut), axe seul, ou aucun (petites départementales). */
+  markings?: 'full' | 'axis' | 'none';
 }
 
 export interface RouteHairpin {
@@ -193,13 +195,20 @@ export interface WorldTile {
     height: number; // hauteur totale au faîtage (m)
     levels: number;
     minHeight?: number;
-    roof: { shape: string; height: number; colour?: string };
+    /**
+     * `material` du toit (BD TOPO) : tiles, slate, metal, concrete ; `ridge: 'short'` = faîtage
+     * parallèle au petit côté (mesuré au LiDAR). `shape` peut valoir « skillion » (monopente).
+     */
+    roof: { shape: string; height: number; colour?: string; material?: string; ridge?: 'short' };
     colour?: string;
+    /** Murs : stone, brick, render, wood, concrete (BD TOPO) ou valeur OSM `building:material`. */
     material?: string;
     name?: string;
     y: number;
     pts: number[];
     holes?: number[][];
+    /** « bdtopo » sur les tuiles enrichies. */
+    source?: string;
   }>;
   forests: Array<{ id: string; kind: 'deciduous' | 'conifer' | 'mixed'; name?: string; rings: WorldRings }>;
   fields: Array<{ id: string; kind: string; name?: string; rings: WorldRings }>; // farmland, meadow, grass, orchard, vineyard, allotments, heath, scrub, wetland, bare, sand, scree, glacier
@@ -208,4 +217,10 @@ export interface WorldTile {
   waterways: Array<{ id: number; kind: string; width: number; name?: string; tunnel?: boolean; pts: number[] }>;
   railways: Array<{ id: number; kind: string; width: number; name?: string; tunnel?: boolean; bridge?: boolean; pts: number[] }>;
   pois: Array<{ id: string; kind: string; name: string; x: number; y: number; z: number; ele?: number }>;
+  /** Arbres détectés dans le LiDAR HD : [x, z, hauteur, rayon du houppier, …] (tuiles enrichies). */
+  trees?: number[];
+  /** Haies et buissons du LiDAR HD : [x, z, hauteur, …]. */
+  shrubs?: number[];
+  /** Données fines présentes : la végétation n'est alors plus semée au hasard. */
+  enriched?: { vegetation?: boolean; buildings?: boolean };
 }

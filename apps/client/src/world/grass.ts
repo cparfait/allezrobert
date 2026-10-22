@@ -104,13 +104,15 @@ export class GrassField {
       const forest = splatAt(tile, 0, x, z);
       const road = splatAt(tile, 5, x, z);
       const water = splatAt(tile, 3, x, z);
+      // abords de l'itinéraire actif : bas-côté herbeux dense et plus haut
+      const verge = splatAt(tile, 6, x, z);
       // Herbe partout sauf chaussée et eau, plus dense dans les prés et sur les bas-côtés.
-      const density = road > 0.3 || water > 0.3 ? 0 : 0.35 + meadow * 0.65 - forest * 0.25 + field * 0.1;
+      const density = road > 0.3 || water > 0.3 ? 0 : 0.35 + meadow * 0.65 - forest * 0.25 + field * 0.1 + verge * 0.8;
       if (r() > density) continue;
       if (this.avoid(x, z)) continue;
       const y = this.heightAt(x, z);
       if (!Number.isFinite(y)) continue;
-      const k = 0.6 + r() * 0.7;
+      const k = (0.6 + r() * 0.7) * (1 + verge * 0.6);
       p.set(x, y - 0.02, z);
       q.setFromAxisAngle(up, r() * Math.PI);
       s.set(k, k * (0.8 + r() * 0.6), k);

@@ -1,5 +1,5 @@
 import * as THREE from 'three/webgpu';
-import { uv, mix, smoothstep, step, fract, vec3, float, uniform, mx_noise_float, positionWorld, clamp, abs, max } from 'three/tsl';
+import { uv, mix, smoothstep, step, fract, vec2, vec3, float, floor, hash, uniform, mx_noise_float, positionWorld, clamp, abs, max } from 'three/tsl';
 import type { RouteData, RoutePoint } from '@allezrobert/shared';
 import { asphaltGrain } from './asphalt.ts';
 import { ribbonEdges, ribbonIndex, roundCorners } from './ribbon.ts';
@@ -23,26 +23,74 @@ export class RoadMesh {
     const half = route.roadWidthM / 2;
     const ax = abs(across);
 
-    const n = mx_noise_float(positionWorld.xz.mul(1.7)).mul(0.5).add(0.5);
-    const n2 = mx_noise_float(positionWorld.xz.mul(0.08)).mul(0.5).add(0.5);
-    const asphalt = vec3(0.235, 0.24, 0.255).mul(asphaltGrain()).mul(n2.mul(0.2).add(0.9));
-    // Traces de roulement plus claires et plus lisses.
+    const wp = positionWorld.xz;
+    const n = mx_noise_float(wp.mul(1.7)).mul(0.5).add(0.5);
+    const n2 = mx_noise_float(wp.mul(0.08)).mul(0.5).add(0.5);
+    // Enrobé vieilli : gris clair, délavé par plaques ; traces de roulement plus claires et lisses.
+    const age = mx_noise_float(wp.mul(0.03).add(17)).mul(0.5).add(0.5);
+    const asphalt = mix(vec3(0.235, 0.24, 0.255), vec3(0.31, 0.31, 0.3), age).mul(asphaltGrain()).mul(n2.mul(0.2).add(0.9));
     const wheelTrack = smoothstep(0.5, 0.0, abs(ax.sub(half * 0.5))).mul(0.06);
-    const gravel = vec3(0.42, 0.39, 0.33).mul(n.mul(0.35).add(0.7));
 
-    const edgeLine = smoothstep(half - 0.35, half - 0.3, ax).mul(smoothstep(half - 0.1, half - 0.15, ax));
+    // ── Usure ──
+    // Rapiéçages : enrobé plus récent (plus sombre) en rectangles, sur une voie ou toute la largeur.
+    const cell = floor(v.div(11));
+    const hp = hash(cell);
+    const vs = cell.mul(11).add(hash(cell.add(1)).mul(4));
+    const ve = vs.add(hash(cell.add(2)).mul(7).add(2.5));
+    const full = step(0.8, hash(cell.add(4)));
+    const right = step(0.5, hash(cell.add(3)));
+    const u0 = mix(mix(float(-half + 0.15), float(0.1), right), float(-half + 0.1), full);
+    const u1 = mix(mix(float(-0.1), float(half - 0.15), right), float(half - 0.1), full);
+    const inPatch = step(0.68, hp).mul(step(vs, v)).mul(step(v, ve)).mul(step(u0, across)).mul(step(across, u1));
+    const patchCol = vec3(0.17, 0.175, 0.18).mul(asphaltGrain());
+    // Joints colmatés au bitume : joint longitudinal d'axe (ondulant, interrompu) et quelques
+    // fissures transversales, fins et sombres, plus brillants que l'enrobé.
+    const wob = mx_noise_float(vec2(v.mul(0.06), 2)).mul(0.18);
+    const seam = smoothstep(0.035, 0.012, abs(across.add(wob))).mul(step(0.55, mx_noise_float(vec2(v.mul(0.04), 11)).mul(0.5).add(0.5)));
+    const tcell = floor(v.div(23));
+    const tpos = tcell.mul(23).add(hash(tcell.add(7)).mul(18));
+    const transverse = smoothstep(0.03, 0.01, abs(v.sub(tpos).add(mx_noise_float(vec2(across.mul(0.8), tcell)).mul(0.35)))).mul(step(0.6, hash(tcell.add(9))));
+    const tar = max(seam, transverse).mul(0.85);
+    // Faïençage discret près des rives : réseau fin, faible contraste, par plaques.
+    const crackA = smoothstep(0.02, 0.0, abs(mx_noise_float(wp.mul(2.2))));
+    const crackB = smoothstep(0.018, 0.0, abs(mx_noise_float(wp.mul(4.7).add(9))));
+    const crackZone = smoothstep(half - 1.0, half - 0.35, ax).mul(smoothstep(0.55, 0.75, age));
+    const cracks = max(crackA, crackB).mul(crackZone).mul(0.6);
+
+    // ── Rive déchiquetée et bas-côté ──
+    // Le bord de l'enrobé ondule et s'effrite ; au-delà, une bande de terre et de gravillons
+    // d'épaisseur variable, puis le ruban s'arrête (alpha) : le terrain et l'herbe prennent le relais.
+    const e1 = mx_noise_float(vec2(v.mul(0.31), 3.1)).mul(0.5).add(0.5);
+    const e2 = mx_noise_float(vec2(v.mul(2.3), 7.3)).mul(0.5).add(0.5);
+    const edge = float(half).add(e1.mul(0.2)).add(e2.mul(0.08)).sub(0.16);
+    const onRoad = smoothstep(edge.add(0.03), edge.sub(0.03), ax);
+    const ravel = smoothstep(edge.sub(0.45), edge, ax).mul(step(0.45, n));
+    const vergeOuter = edge.add(0.08).add(e2.mul(0.18)).add(e1.mul(0.25));
+    const dirt = mix(vec3(0.22, 0.19, 0.14), vec3(0.32, 0.29, 0.23), n).mul(n2.mul(0.2).add(0.85));
+    const verge = mix(dirt, vec3(0.16, 0.2, 0.09), smoothstep(edge.add(0.05), vergeOuter, ax).mul(0.8));
+
+    const mk = route.markings ?? 'full';
+    const edgeLine = smoothstep(half - 0.35, half - 0.3, ax).mul(smoothstep(half - 0.1, half - 0.15, ax)).mul(mk === 'full' ? 1 : 0);
     const dash = step(fract(v.div(13)), float(3 / 13));
-    const centerLine = smoothstep(0.08, 0.06, ax).mul(dash);
-    const paint = max(edgeLine, centerLine).mul(n2.mul(0.25).add(0.75));
+    const centerLine = smoothstep(0.08, 0.06, ax).mul(dash).mul(mk === 'none' ? 0 : 1);
+    // Peinture usée : écaillée par plaques, effacée dans les traces de roues.
+    const paint = max(edgeLine, centerLine).mul(n2.mul(0.25).add(0.75)).mul(smoothstep(0.25, 0.55, mx_noise_float(wp.mul(0.9)).mul(0.5).add(0.5)).mul(0.6).add(0.4));
 
-    const onRoad = smoothstep(half + 0.05, half - 0.05, ax);
-    let col = mix(gravel, asphalt.add(wheelTrack), onRoad);
-    col = mix(col, vec3(0.9, 0.9, 0.86), paint);
+    let road = asphalt.add(wheelTrack);
+    road = mix(road, road.mul(vec3(1.25, 1.22, 1.15)), ravel.mul(0.6));
+    road = mix(road, patchCol, inPatch);
+    road = mix(road, road.mul(0.6), cracks);
+    road = mix(road, vec3(0.1, 0.1, 0.105), tar);
+    let col = mix(verge, road, onRoad);
+    col = mix(col, vec3(0.9, 0.9, 0.86), paint.mul(onRoad));
     const wet = this.wetness;
     col = col.mul(float(1).sub(wet.mul(0.4).mul(onRoad)));
     m.colorNode = col;
-    m.roughnessNode = clamp(mix(float(0.95), float(0.78).sub(wheelTrack), onRoad).sub(wet.mul(0.6).mul(onRoad)), 0.06, 1);
+    const rough = mix(float(0.84).sub(wheelTrack), float(0.45), tar);
+    m.roughnessNode = clamp(mix(float(0.97), rough, onRoad).sub(wet.mul(0.6).mul(onRoad)), 0.06, 1);
     m.metalnessNode = float(0);
+    m.opacityNode = step(ax, vergeOuter);
+    m.alphaTest = 0.5;
     m.polygonOffset = true;
     m.polygonOffsetFactor = -2;
     m.polygonOffsetUnits = -2;

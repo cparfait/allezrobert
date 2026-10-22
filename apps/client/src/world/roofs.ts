@@ -196,10 +196,12 @@ export interface RoofOptions {
   gabled: boolean;
   /** Retrait maximal (m) avant d'arrêter le toit par un terrasson plat. */
   maxInset?: number;
+  /** Faîtage parallèle au petit côté (pignons sur les grands côtés), mesuré au LiDAR. */
+  ridgeShort?: boolean;
 }
 
 /** Arêtes de pignon (petits côtés) si l'emprise est convexe et proche de son rectangle orienté. */
-function gableEdges(ring: P2[]): boolean[] | null {
+function gableEdges(ring: P2[], ridgeShort = false): boolean[] | null {
   const n = ring.length;
   const flat: number[] = [];
   for (const p of ring) flat.push(p.x, p.z);
@@ -219,8 +221,11 @@ function gableEdges(ring: P2[]): boolean[] | null {
     const b = ring[(i + 1) % n] as P2;
     const len = Math.hypot(b.x - a.x, b.z - a.z);
     const along = Math.abs(((b.x - a.x) * box.ux + (b.z - a.z) * box.uz) / len);
-    const mid = ((a.x + b.x) / 2 - box.cx) * box.ux + ((a.z + b.z) / 2 - box.cz) * box.uz;
-    const isG = along < 0.34 && Math.abs(mid) > box.hl * 0.6 && len > 1;
+    const mx = (a.x + b.x) / 2 - box.cx;
+    const mz = (a.z + b.z) / 2 - box.cz;
+    // pignons : petits côtés (faîtage selon la longueur) ou grands côtés (faîtage selon la largeur)
+    const mid = ridgeShort ? -mx * box.uz + mz * box.ux : mx * box.ux + mz * box.uz;
+    const isG = ridgeShort ? along > 0.66 && Math.abs(mid) > box.hw * 0.6 && len > 1 : along < 0.34 && Math.abs(mid) > box.hl * 0.6 && len > 1;
     g.push(isG);
     if (isG) ends |= mid > 0 ? 1 : 2;
   }
@@ -251,7 +256,7 @@ export function planRoof(pts: number[], opts: RoofOptions): RoofPlan | null {
   const n0 = ring.length;
   if (n0 < 3 || ringArea(ring) < 1) return null;
   const o = opts.overhang;
-  const gable = opts.gabled ? gableEdges(ring) : null;
+  const gable = opts.gabled ? gableEdges(ring, opts.ridgeShort) : null;
   const lines: Line[] = [];
   for (let i = 0; i < n0; i++) {
     const a = ring[i] as P2;
