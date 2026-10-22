@@ -2,7 +2,7 @@ import * as THREE from 'three/webgpu';
 import { attribute, uv, fract, floor, step, mix, vec2, vec3, float, uniform, mx_noise_float, positionWorld, smoothstep, max, min, abs, hash, normalWorld, texture, normalMap } from 'three/tsl';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { rng, polygonArea } from '../engine/noise.ts';
-import type { LoadedTile } from './types.ts';
+import type { LoadedTile, TileRoad } from './types.ts';
 import { orientedBox, planRoof, roofBuffers, flatRoof } from './roofs.ts';
 
 /** Textures photo CC0 (Poly Haven) des façades et toits, chargées une fois et partagées. */
@@ -39,6 +39,24 @@ const TERRACOTTA = ['#c4733f', '#b9683d', '#c97d4a', '#b0603a', '#be7650', '#a85
 /** Bac acier et fibrociment : gris clair à gris-vert, parfois vert ou brun. */
 const METAL_ROOFS = ['#8d9294', '#9da1a0', '#7f8784', '#6f7a72', '#84776a'];
 const SHUTTERS = ['#7d8f9b', '#5f7d66', '#e8e4da', '#8a5a3c', '#4b6a8a', '#a7b8a0'];
+/**
+ * Style local des bâtiments BD TOPO (Limagne, Livradois) : enduits à la chaux ocrés, rosés ou grège,
+ * volets bois brun, vert de gris, bleu charrette, lie-de-vin.
+ */
+const RENDERS_LOCAL = ['#d9c4a0', '#d2b48c', '#cdb79e', '#e0cdb0', '#c9a882', '#d9b8a0', '#e3d6c2'];
+const SHUTTERS_LOCAL = ['#6b4a35', '#7d8a7a', '#5d7380', '#7e3a33', '#d9d2c2', '#4f6b5a', '#8c6a4a'];
+
+/** Façade d'un mur : style local, génoise sous l'égout, porte d'entrée dans une travée. */
+interface WallStyle {
+  /** Bâtiment BD TOPO : génoise, chaînes d'angle, encadrements de pierre, travées irrégulières. */
+  local: boolean;
+  /** Mur d'égout (parallèle au faîtage) d'après sa direction : génoise. */
+  eave?: (dx: number, dz: number) => boolean;
+  /** Milieu du mur qui reçoit la porte d'entrée (côté rue). */
+  door?: [number, number];
+  /** Tirage de la travée de la porte (0–1). */
+  doorPick?: number;
+}
 
 /** Couleur OSM (« brick », « #c0a080 »…) avec repli si elle n'est pas reconnue. */
 function osmColour(value: string | undefined, fallback: string): string {
@@ -63,18 +81,21 @@ function paint(geo: THREE.BufferGeometry, base: THREE.Color, kind: number, accen
   geo.setAttribute('accent', new THREE.BufferAttribute(acc, 3));
   geo.setAttribute('binfo', new THREE.BufferAttribute(info, 3));
   if (!geo.getAttribute('facade')) geo.setAttribute('facade', new THREE.BufferAttribute(new Float32Array(n * 2), 2));
+  if (!geo.getAttribute('bstyle')) geo.setAttribute('bstyle', new THREE.BufferAttribute(new Float32Array(n * 4), 4));
 }
 
 /**
  * Murs extrudés depuis l'emprise réelle. uv = (mètres le long du mur, hauteur au-dessus de la base) ;
- * attribut `facade` = (longueur du mur, nombre de travées de fenêtres).
+ * attribut `facade` = (longueur du mur, nombre de travées de fenêtres) ; `bstyle` = (style local,
+ * hauteur du mur, génoise, travée de la porte d'entrée + 1 ou 0).
  */
-function walls(pts: number[], base: number, height: number): THREE.BufferGeometry {
+function walls(pts: number[], base: number, height: number, style?: WallStyle): THREE.BufferGeometry {
   const n = pts.length / 2;
   const ccw = polygonArea(pts) > 0;
   const pos: number[] = [];
   const uvs: number[] = [];
   const fac: number[] = [];
+  const sty: number[] = [];
   for (let i = 0; i < n; i++) {
     const a = ccw ? i : n - 1 - i;
     const b = ccw ? (i + 1) % n : (n - 2 - i + n) % n;
@@ -88,12 +109,19 @@ function walls(pts: number[], base: number, height: number): THREE.BufferGeometr
     const bays = len >= 2.6 ? Math.max(1, Math.floor((len - 0.6) / 3.1)) : 0;
     pos.push(ax, base, az, ax, top, az, bx, base, bz, bx, base, bz, ax, top, az, bx, top, bz);
     uvs.push(0, 0, 0, height, len, 0, len, 0, 0, height, len, height);
-    for (let k = 0; k < 6; k++) fac.push(len, bays);
+    const genoise = style?.local && style.eave?.(bx - ax, bz - az) ? 1 : 0;
+    const isDoor = style?.door && bays > 0 && Math.hypot((ax + bx) / 2 - style.door[0], (az + bz) / 2 - style.door[1]) < 0.01;
+    const doorBay = isDoor ? 1 + Math.min(bays - 1, Math.floor((style?.doorPick ?? 0.5) * bays)) : 0;
+    for (let k = 0; k < 6; k++) {
+      fac.push(len, bays);
+      sty.push(style?.local ? 1 : 0, height, genoise, doorBay);
+    }
   }
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
   g.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
   g.setAttribute('facade', new THREE.Float32BufferAttribute(fac, 2));
+  g.setAttribute('bstyle', new THREE.Float32BufferAttribute(sty, 4));
   g.computeVertexNormals();
   return g;
 }
@@ -111,6 +139,63 @@ function slopedWalls(pts: number[], base: number, heightAt: (x: number, z: numbe
   }
   g.computeVertexNormals();
   return g;
+}
+
+/**
+ * Milieu du mur d'au moins 3 m le plus proche d'une voie (porte d'entrée côté rue), ou null si
+ * aucune voie à moins de 40 m.
+ */
+function streetWall(pts: number[], roads: TileRoad[]): [number, number] | null {
+  let cx = 0;
+  let cz = 0;
+  const n = pts.length / 2;
+  for (let i = 0; i < pts.length; i += 2) {
+    cx += pts[i] as number;
+    cz += pts[i + 1] as number;
+  }
+  cx /= n;
+  cz /= n;
+  const near: number[][] = [];
+  for (const r of roads) {
+    if (r.kind === 'footway' || r.kind === 'path' || r.kind === 'steps') continue;
+    for (let i = 0; i < r.pts.length; i += 2)
+      if (Math.abs((r.pts[i] as number) - cx) < 60 && Math.abs((r.pts[i + 1] as number) - cz) < 60) {
+        near.push(r.pts);
+        break;
+      }
+  }
+  if (!near.length) return null;
+  const dist = (x: number, z: number) => {
+    let best = Infinity;
+    for (const l of near)
+      for (let i = 0; i + 3 < l.length; i += 2) {
+        const ax = l[i] as number;
+        const az = l[i + 1] as number;
+        const dx = (l[i + 2] as number) - ax;
+        const dz = (l[i + 3] as number) - az;
+        const l2 = dx * dx + dz * dz;
+        const t = l2 > 0 ? Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / l2)) : 0;
+        best = Math.min(best, Math.hypot(x - ax - t * dx, z - az - t * dz));
+      }
+    return best;
+  };
+  let best: [number, number] | null = null;
+  let bestD = 40;
+  for (let i = 0; i < n; i++) {
+    const ax = pts[i * 2] as number;
+    const az = pts[i * 2 + 1] as number;
+    const bx = pts[((i + 1) % n) * 2] as number;
+    const bz = pts[((i + 1) % n) * 2 + 1] as number;
+    if (Math.hypot(bx - ax, bz - az) < 3) continue;
+    const mx = (ax + bx) / 2;
+    const mz = (az + bz) / 2;
+    const d = dist(mx, mz);
+    if (d < bestD) {
+      bestD = d;
+      best = [mx, mz];
+    }
+  }
+  return best;
 }
 
 /** Géométrie Three.js depuis des tableaux position/uv (triangles non indexés). */
@@ -149,6 +234,9 @@ export class Buildings {
     const base = attribute<'vec3'>('color');
     const accent = attribute<'vec3'>('accent');
     const facade = attribute<'vec2'>('facade'); // longueur du mur, travées
+    const bstyle = attribute<'vec4'>('bstyle'); // style local, hauteur du mur, génoise, travée de la porte + 1
+    const isLocal = bstyle.x;
+    const wallH = bstyle.y;
     const u = uv().x;
     const v = uv().y;
     const isWall = step(kind, float(0.5));
@@ -177,19 +265,46 @@ export class Buildings {
     wall = wall.mul(nBig.mul(0.1).add(0.95));
     // Soubassement plus sombre (0,6 m) et salissures en pied de mur.
     wall = wall.mul(mix(float(0.72), float(1), smoothstep(0.55, 0.65, v))).mul(mix(float(0.85), float(1), smoothstep(0.0, 2.0, v)));
+    // Pierre claire du pays (arkose) : chaînes d'angle, encadrements, claveaux.
+    const stoneLum = stone.dot(vec3(0.3, 0.59, 0.11)).div(0.3);
+    const lightStone = vec3(0.6, 0.55, 0.46).mul(stoneLum.mul(0.35).add(0.7));
+    // Chaînes d'angle (style local, murs enduits à fenêtres) : blocs alternés longs / courts aux extrémités.
+    const course = floor(v.div(0.32));
+    const qw = mix(float(0.45), float(0.27), fract(course.mul(0.5)).mul(2));
+    const inQuoin = max(step(u, qw), step(facade.x.sub(qw), u)).mul(isLocal).mul(isRender).mul(isWall).mul(step(float(0.5), info.z));
+    const quoinJoint = smoothstep(0.035, 0.0, fract(v.div(0.32))).add(smoothstep(0.04, 0.0, abs(u.sub(qw)))).add(smoothstep(0.04, 0.0, abs(u.sub(facade.x.sub(qw))))).min(1);
+    wall = mix(wall, lightStone.mul(float(1).sub(quoinJoint.mul(0.35))), inQuoin);
     // Fenêtres : travées réparties sur la longueur, une par étage de 2,8 m, au-dessus de 0,9 m.
     const bays = max(facade.y, float(0.0001));
     const local = fract(u.div(facade.x).mul(bays));
     const bayW = facade.x.div(bays);
+    const bayIdx = floor(u.div(facade.x).mul(bays));
     const wx = local.sub(0.5).mul(bayW); // mètres depuis l'axe de la travée
+    const floorIdx = floor(v.sub(0.9).div(2.8));
     const floorY = fract(v.sub(0.9).div(2.8));
     const fy = floorY.mul(2.8); // mètres au-dessus de l'allège
+    // Porte d'entrée (style local) : dans la travée tirée du mur côté rue, au rez-de-chaussée.
+    const doorBay = bstyle.w;
+    const isDoorBay = step(float(0.5), doorBay).mul(step(abs(bayIdx.add(1).sub(doorBay)), float(0.5)));
+    // Style local : travées irrégulières (environ une baie sur cinq murée), fenêtres plus étroites sur la pierre.
+    const skip = step(hash(bayIdx.mul(3.7).add(floorIdx.mul(11.3)).add(facade.x.mul(1.37))), float(0.2)).mul(isLocal);
+    const halfW = mix(float(0.5), float(0.4), isLocal.mul(isStone));
     // binfo.z : 0 mur aveugle, 1 fenêtres, 2 annexe (grande porte en bois sur un mur sur deux)
-    const hasWin = step(float(0.5), facade.y).mul(step(float(0.5), info.z)).mul(step(info.z, float(1.5))).mul(step(0.9, v));
-    const inWin = step(abs(wx), float(0.5)).mul(step(fy, float(1.35))).mul(hasWin);
-    const inFrame = step(abs(wx), float(0.58)).mul(step(fy, float(1.43))).mul(step(float(-0.08), fy.sub(0.0))).mul(hasWin);
+    const hasWin = step(float(0.5), facade.y)
+      .mul(step(float(0.5), info.z))
+      .mul(step(info.z, float(1.5)))
+      .mul(step(0.9, v))
+      .mul(float(1).sub(skip))
+      .mul(float(1).sub(isDoorBay.mul(step(floorIdx, float(0.5)))))
+      // pas de fenêtre dans la génoise
+      .mul(max(step(v, wallH.sub(bstyle.z.mul(0.5))), step(isLocal, float(0.5))));
+    const inWin = step(abs(wx), halfW).mul(step(fy, float(1.35))).mul(hasWin);
+    // Encadrements : 8 cm (Île-de-France) ou 16 cm de pierre claire (style local) ; appui saillant ombré dessous.
+    const fm = mix(float(0.08), float(0.16), isLocal);
+    const inFrame = step(abs(wx), halfW.add(fm)).mul(step(fy, float(1.35).add(fm))).mul(step(fm.negate(), fy)).mul(hasWin);
+    const underSill = step(abs(wx), halfW.add(fm)).mul(step(fm.negate().sub(0.07), fy)).mul(step(fy, fm.negate())).mul(hasWin).mul(isLocal);
     const shutterX = abs(wx);
-    const inShutter = step(float(0.6), shutterX).mul(step(shutterX, float(1.08))).mul(step(fy, float(1.38))).mul(hasWin);
+    const inShutter = step(halfW.add(fm).add(0.02), shutterX).mul(step(shutterX, halfW.mul(2).add(fm).add(0.02))).mul(step(fy, float(1.38))).mul(hasWin);
     // Lames des volets.
     const slats = fract(fy.mul(9)).mul(0.25).add(0.8);
     // Environ une fenêtre sur deux allumée la nuit (bruit par pièce).
@@ -198,8 +313,19 @@ export class Buildings {
     // Reflet du ciel dans les vitres (haut plus clair).
     const glassSky = glass.add(vec3(0.12, 0.15, 0.18).mul(fy.div(1.35)).mul(float(1).sub(lit)));
     wall = mix(wall, accent.mul(slats), inShutter.mul(float(1).sub(inWin)));
-    wall = mix(wall, vec3(0.93, 0.92, 0.88), inFrame.mul(float(1).sub(inWin)));
+    wall = mix(wall, mix(vec3(0.93, 0.92, 0.88), lightStone, isLocal), inFrame.mul(float(1).sub(inWin)));
+    wall = mix(wall, wall.mul(0.55), underSill);
     wall = mix(wall, glassSky, inWin);
+    // Porte d'entrée : bois à panneaux (couleur des volets, plus sombre), imposte vitrée, encadrement de pierre.
+    const fdW = float(0.55);
+    const frontOk = isDoorBay.mul(isWall).mul(step(float(0.5), facade.y));
+    const inFront = step(abs(wx), fdW).mul(step(v, float(2.25))).mul(frontOk);
+    const inFrontFrame = step(abs(wx), fdW.add(0.16)).mul(step(v, float(2.41))).mul(frontOk).mul(float(1).sub(inFront));
+    const panel = step(0.06, abs(fract(v.div(0.55)).sub(0.5))).mul(step(abs(abs(wx).sub(fdW.mul(0.5))), fdW.mul(0.38)));
+    const transom = step(float(1.95), v);
+    const frontWood = accent.mul(0.6).mul(mix(float(0.8), float(1), panel));
+    wall = mix(wall, lightStone, inFrontFrame);
+    wall = mix(wall, mix(frontWood, glassSky, transom), inFront);
     // Porte de grange / garage : planches verticales, encadrement sombre, position tirée par mur.
     const wallSeed = hash(floor(facade.x.mul(7.31)));
     const hasDoor = step(float(1.5), info.z).mul(step(float(3.2), facade.x)).mul(step(float(0.45), wallSeed));
@@ -207,11 +333,27 @@ export class Buildings {
     const doorC = facade.x.mul(wallSeed.mul(0.4).add(0.3));
     const doorH = min(float(2.7), facade.x.mul(0.6));
     const dx = abs(u.sub(doorC));
-    const inDoor = step(dx, doorW.mul(0.5)).mul(step(v, doorH)).mul(hasDoor);
-    const inDoorFrame = step(dx, doorW.mul(0.5).add(0.1)).mul(step(v, doorH.add(0.1))).mul(hasDoor);
+    // Style local, pierre : porte charretière en anse de panier, claveaux de pierre claire.
+    const arch = isLocal.mul(isStone);
+    const rr = dx.div(doorW.mul(0.5)).min(1);
+    const archTop = doorH.sub(arch.mul(0.55).mul(float(1).sub(float(1).sub(rr.mul(rr)).max(0).sqrt())));
+    const inDoor = step(dx, doorW.mul(0.5)).mul(step(v, archTop)).mul(hasDoor);
+    const inDoorFrame = step(dx, doorW.mul(0.5).add(mix(float(0.1), float(0.28), arch))).mul(step(v, archTop.add(mix(float(0.1), float(0.3), arch)))).mul(hasDoor);
     const planks = fract(u.div(0.16)).mul(0.25).add(0.75).mul(mx_noise_float(vec2(u.mul(3), v.mul(0.2))).mul(0.15).add(0.9));
-    wall = mix(wall, vec3(0.12, 0.09, 0.07), inDoorFrame);
+    wall = mix(wall, mix(vec3(0.12, 0.09, 0.07), lightStone, arch), inDoorFrame);
     wall = mix(wall, accent.mul(0.55).add(vec3(0.12, 0.08, 0.04)).mul(planks), inDoor);
+    // Génoise (style local, murs d'égout) : trois rangs de tuiles canal en encorbellement sous le toit,
+    // bouts arrondis en terre cuite, mortier de chaux entre les rangs.
+    const gz = bstyle.z.mul(isWall).mul(step(wallH.sub(0.45), v)).mul(step(v, wallH.add(0.05)));
+    const gd = wallH.sub(v);
+    const row = floor(gd.div(0.14));
+    const gx = fract(u.div(0.2).add(row.mul(0.5)));
+    const tileEnd = float(1).sub(gx.sub(0.5).mul(2).pow(2)).max(0).sqrt();
+    const rowY = fract(gd.div(0.14));
+    const inTileEnd = step(rowY, tileEnd.mul(0.75).add(0.12));
+    const terracotta = vec3(0.5, 0.22, 0.11).mul(tileEnd.mul(0.4).add(0.65)).mul(rowY.mul(0.3).add(0.75));
+    const genoise = mix(vec3(0.62, 0.58, 0.5).mul(0.7), terracotta, inTileEnd).mul(mix(float(0.55), float(1), smoothstep(0.0, 0.05, rowY)));
+    wall = mix(wall, genoise, gz);
 
     // ── Toits : tuiles en terre cuite et ardoise (textures photo), mousse par endroits ──
     const roofUv = (size: number) => vec2(u, v).div(size);
@@ -282,16 +424,33 @@ export class Buildings {
       const brick = bld.material === 'brick';
       const wallColour = osmColour(
         bld.colour,
-        stones ? ((bld.bdtopo ? STONE_LOCAL : MEULIERE)[Math.floor(r() * (bld.bdtopo ? STONE_LOCAL : MEULIERE).length)] as string) : brick ? BRICK : bld.material === 'concrete' ? '#cfcac0' : bld.material === 'wood' ? '#7a5a3e' : (RENDERS[Math.floor(r() * RENDERS.length)] as string),
+        stones ? ((bld.bdtopo ? STONE_LOCAL : MEULIERE)[Math.floor(r() * (bld.bdtopo ? STONE_LOCAL : MEULIERE).length)] as string) : brick ? BRICK : bld.material === 'concrete' ? '#cfcac0' : bld.material === 'wood' ? '#7a5a3e' : ((bld.bdtopo ? RENDERS_LOCAL : RENDERS)[Math.floor(r() * (bld.bdtopo ? RENDERS_LOCAL : RENDERS).length)] as string),
       );
-      acc.set(SHUTTERS[Math.floor(r() * SHUTTERS.length)] as string);
+      acc.set((bld.bdtopo ? SHUTTERS_LOCAL : SHUTTERS)[Math.floor(r() * (bld.bdtopo ? SHUTTERS_LOCAL : SHUTTERS).length)] as string);
       // Monopente : haut des murs sur le plan du toit (pente selon la largeur, ou la longueur si faîtage court).
       const slopeU = !!bld.ridgeShort;
       const sx = slopeU ? box.ux : -box.uz;
       const sz = slopeU ? box.uz : box.ux;
       const half = slopeU ? box.hl : box.hw;
       const roofAt = (x: number, z: number) => wallTop + ((((x - box.cx) * sx + (z - box.cz) * sz) / half + 1) / 2) * roofH;
-      const w = skillion ? slopedWalls(bld.pts, base, (x, z) => roofAt(x, z) - base) : walls(bld.pts, base, wallH + 0.3);
+      // Style local (BD TOPO) : génoise sous les égouts des toits de tuiles, porte d'entrée côté rue.
+      let style: WallStyle | undefined;
+      if (bld.bdtopo) {
+        style = { local: true, doorPick: r() };
+        const housing = !isUtility && !isChurch;
+        if (housing && plan && !metal && roofMat !== 'slate') {
+          // croupes : tous les murs sont des égouts ; deux pans : seulement les murs parallèles au faîtage
+          const rx = bld.ridgeShort ? -box.uz : box.ux;
+          const rz = bld.ridgeShort ? box.ux : box.uz;
+          const hipped = HIPPED.has(shape);
+          style.eave = (dx, dz) => hipped || Math.abs(dx * rx + dz * rz) / Math.hypot(dx, dz) > 0.7;
+        }
+        if (housing) {
+          const door = streetWall(bld.pts, tile.features.roads);
+          if (door) style.door = door;
+        }
+      }
+      const w = skillion ? slopedWalls(bld.pts, base, (x, z) => roofAt(x, z) - base) : walls(bld.pts, base, wallH + 0.3, style);
       const wallType = stones ? 1 : brick ? 2 : 0;
       paint(w, c.set(wallColour), 0, acc, wallType, isUtility ? 2 : 1);
       parts.push(w);
