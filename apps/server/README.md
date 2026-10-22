@@ -78,7 +78,8 @@ Distances : le serveur intègre en distances **dépliées** (tour × longueur + 
 | `chat` / `rideOn` | C → S | `{ text }` / `{ to }` (anti-flood côté serveur) |
 | `cmp` | compagnon → S → jeu | `CompanionCommand` (vitesses, caméra, pause, ventilateur ; chat / Ride On exécutés par le serveur) |
 | `cmpState` | jeu → S → compagnon | `CompanionStateMsg` (rapport, pause, caméra, ventilateur) |
-| `start` / `opts` / `kick` / `host` | hôte → S | compte à rebours, options (invités, groupe soudé, aspiration), exclusion, passation |
+| `start` / `opts` / `kick` / `host` | hôte → S | compte à rebours, options (invités, groupe soudé, aspiration, allure annoncée `paceWkg`, meneur `leaderId`), exclusion, passation |
+| `regroup` | hôte ou meneur → S | `{ active? }` lance / arrête un regroupement (sortie de groupe) |
 | `ping` | C ↔ S | estimation de l'aller-retour |
 
 ### Rôles, invités, IA
@@ -95,7 +96,9 @@ Distances : le serveur intègre en distances **dépliées** (tour × longueur + 
 - IA (`aiRiders` à la création) : `AiRider` de packages/physics avec un `AiContext` construit
   par le serveur (pente, écart et vitesse du coureur devant, position dans le groupe, allure
   du groupe d'après les humains, segment proche, attaque détectée). Hors course, les IA
-  attaquent rarement et attendent / rejoignent les humains au-delà de 40 m.
+  attaquent rarement et attendent / rejoignent les humains (ou le meneur) au-delà de 40 m.
+  Niveau : FTP du créateur × `aiLevel` (0,6–1,3). En course, au salon, chaque humain qui
+  arrive prend la place d'une IA (taille du peloton = 1 + `aiRiders`).
 
 ### Phases, segments, résultats
 
@@ -105,6 +108,19 @@ Distances : le serveur intègre en distances **dépliées** (tour × longueur + 
 - Segments KOM / sprint de l'itinéraire : `segmentStart`, puis `segmentEnd` avec temps
   interpolé au franchissement, rang dans la sortie et record personnel (`pr`). Les efforts des
   humains (hors invités et arrivées tardives en course) sont enregistrés en base.
+- Sortie de groupe : allure annoncée (`paceWkg`, W/kg, tenue par les IA et affichée par le
+  jeu), meneur (`leaderId`, l'hôte par défaut), regroupement à la demande (élastique doux
+  sans téléportation, fini quand l'écart tête – queue reste sous 20 m pendant 3 s, 3 min au
+  plus → événements `regroup`), alerte `split` quand les humains sont à plus de 150 m.
+- Course : primes `prime` aux 3 premiers au sommet des KOM / sur la ligne des sprints (5 / 3 / 1
+  points, par tour), `deadline` (heure limite = première arrivée + 10 min), `abandon` (un
+  humain qui quitte la course est classé `dnf`), `results` avec état (`finished`, `racing`,
+  `otl` hors délai, `dnf`, `dq`, `unranked`), écart au vainqueur et points. Un coureur qui
+  (re)joint reçoit le classement courant et l'heure limite dans `welcome`.
+- Contrôle de puissance (`src/ride/power-guard.ts`) : pic isolé d'un paquet ignoré, plafond
+  30 W/kg, moyennes 5 s / 1 min / 5 min / 20 min plafonnées à 25 / 12 / 7,8 / 6,8 W/kg
+  (au-dessus des records humains) ; la physique ne profite jamais de l'excès. Premier
+  plafonnement → `flag` `warn` ; en course, plus de 10 s cumulées → `flag` `dq` (hors course).
 
 ### Reconnexion, hôte
 
@@ -148,7 +164,7 @@ const net = new RideNetClient({
 | `reconcileSelf(localUnwrappedM, dtS, now?)` → `number` | Correction (m) à ajouter à la position prédite localement |
 | `serverNow()` | Heure serveur estimée (epoch ms) — comptes à rebours |
 | `chat(text)`, `rideOn(riderId)` | Chat et Ride On |
-| `startCountdown(s?)`, `setHostOptions({ allowGuests?, stickyGroup?, draftingStrength? })`, `kick(id)`, `transferHost(id)` | Hôte |
+| `startCountdown(s?)`, `setHostOptions({ allowGuests?, stickyGroup?, draftingStrength?, paceWkg?, leaderId? })`, `regroup(active?)`, `kick(id)`, `transferHost(id)` | Hôte (regroupement : aussi le meneur) |
 | `sendCompanionCommand(cmd)` / `sendCompanionState(state)` | Compagnon → jeu / jeu → compagnon |
 | `on(event, cb)` → désabonnement | `welcome`, `roster`, `snapshot`, `event`, `companion`, `companionState`, `connection` (`idle` / `connecting` / `connected` / `reconnecting` / `disconnected`), `error` |
 | Propriétés | `state`, `welcome`, `roster: Map<id, RosterEntry>`, `hostId`, `isHost`, `selfId`, `role`, `roomId`, `inviteCode`, `latest`, `rtt` |
