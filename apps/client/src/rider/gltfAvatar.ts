@@ -66,8 +66,18 @@ const MATERIALS: Record<string, [string, number, number]> = {
   frame: ['#c0392b', 0.3, 0.3],
   components: ['#18191c', 0.45, 0.2],
   tire: ['#121214', 0.85, 0],
-  rim: ['#1e2024', 0.3, 0.2],
+  rim: ['#1e2024', 0.35, 0.1],
   chrome: ['#b9bcc2', 0.2, 1],
+  // Vélo 2026 : bande décor des jantes, guidoline et bidons (accent du maillot), écran du compteur.
+  rim_decal: ['#6a7079', 0.45, 0.1],
+  bar_tape: ['#ffd23f', 0.75, 0],
+  bottle: ['#ffd23f', 0.5, 0],
+  computer_screen: ['#1b2a30', 0.15, 0],
+};
+
+/** Matériaux légèrement émissifs : couleur d'émission, intensité. */
+const EMISSIVE: Record<string, [string, number]> = {
+  computer_screen: ['#3f7f8f', 0.6],
 };
 
 interface BoneRest {
@@ -219,6 +229,11 @@ function makeMaterial(name: string, look: AvatarLook): THREE.MeshStandardNodeMat
   const def = MATERIALS[name] ?? ['#808080', 0.6, 0];
   const m = new THREE.MeshStandardNodeMaterial({ color: def[0], roughness: def[1], metalness: def[2] });
   m.name = name;
+  const em = EMISSIVE[name];
+  if (em) {
+    m.emissive.set(em[0]);
+    m.emissiveIntensity = em[1];
+  }
   applyLookColor(m, look);
   return m;
 }
@@ -231,6 +246,8 @@ function applyLookColor(m: THREE.MeshStandardNodeMaterial, look: AvatarLook): vo
     helmet: look.helmet,
     hair: look.hair,
     frame: look.bike,
+    bar_tape: look.jerseyAccent,
+    bottle: look.jerseyAccent,
   };
   const col = c[m.name];
   if (col) m.color.set(col);

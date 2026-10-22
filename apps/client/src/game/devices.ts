@@ -81,6 +81,12 @@ export function createDeviceLayer(): DeviceLayer {
   const listeners: Array<() => void> = [];
   const changed = () => listeners.forEach((l) => l());
   manager.on('devices', changed);
+  // Un vrai home trainer ou capteur de puissance connecté : le simulateur s'efface aussitôt
+  // (sinon il continuerait à « pédaler » à 210 W à la place du coureur).
+  manager.on('devices', (list) => {
+    const real = list.some((d) => d.transport !== 'simulator' && d.state === 'connected' && (d.kinds.includes('trainer') || d.kinds.includes('power')));
+    if (real) for (const d of list.filter((x) => x.transport === 'simulator')) void manager.disconnect(d.id);
+  });
   manager.on('roles', changed);
   manager.on('warning', (w) => {
     if (!warnings.some((x) => x.code === w.code && x.deviceId === w.deviceId)) warnings.push(w);
@@ -93,7 +99,6 @@ export function createDeviceLayer(): DeviceLayer {
     changed();
   });
 
-  const simConnected = () => manager.summaries().some((d) => d.transport === 'simulator');
   const connectSimulator = async () => {
     const found: DiscoveredDevice[] = [];
     await manager.scan({ transports: ['simulator'], timeoutMs: 300 });
@@ -133,10 +138,13 @@ export function createDeviceLayer(): DeviceLayer {
       void manager.forget(id).then(changed);
     },
     useSimulator: (on) => {
+      // Choix mémorisé : décoché, le simulateur ne se relance plus tout seul au départ.
+      localStorage.setItem('ar.sim', on ? 'on' : 'off');
       if (on) void connectSimulator().then(changed);
       else for (const d of manager.summaries().filter((x) => x.transport === 'simulator')) void manager.disconnect(d.id).then(changed);
     },
-    simulatorOn: simConnected,
+    // Case cochée = simulateur autorisé (il ne roule que s'il n'y a aucun vrai capteur).
+    simulatorOn: () => localStorage.getItem('ar.sim') !== 'off',
     warnings: () => warnings.map((w) => w.message),
     adapters: async () => (isTauri() ? manager.listAdapters() : []),
     selectAdapter: (id) => manager.selectAdapter(id),
@@ -148,7 +156,7 @@ export function createDeviceLayer(): DeviceLayer {
     manager,
     source: () => {
       // Sans aucun capteur : simulateur automatique (rouler tout de suite sans matériel).
-      if (!manager.summaries().some((d) => d.state === 'connected' || d.state === 'connecting')) void connectSimulator().then(changed);
+      if (localStorage.getItem('ar.sim') !== 'off' && !manager.summaries().some((d) => d.state === 'connected' || d.state === 'connecting')) void connectSimulator().then(changed);
       return new ManagerInputSource(manager, sim);
     },
   };
