@@ -34,6 +34,8 @@ import { addXp, awardRide, loadProgress } from './ui/garage.ts';
 import { awardTrophies } from './game/trophies.ts';
 import { roadSurfaceAt, windShelterAt } from './world/conditions.ts';
 import { OpenNavigator } from './game/open.ts';
+import { ITINERARY_PREFIX } from './ui/routePlanner.ts';
+import { waitBike } from './ui/waitBike.ts';
 import { KomChallenge, readKomRecord, type ChallengeResult } from './game/challenge.ts';
 import { HairpinWatcher, hairpinToast, reachedFinish, summitStats } from './game/climb.ts';
 import { showSummit } from './ui/summit.ts';
@@ -113,6 +115,8 @@ function worldOverlay(label: string): HTMLElement {
   const el = document.createElement('div');
   el.className = 'world-wait';
   el.innerHTML = `<div class="world-wait-box"><div class="world-wait-bar"><i></i></div><span>${label}</span></div>`;
+  // Petit coureur qui pédale au-dessus de la barre.
+  el.firstElementChild?.prepend(waitBike());
   document.body.appendChild(el);
   return el;
 }
@@ -319,6 +323,12 @@ async function boot(): Promise<void> {
   const menu = new MainMenu(ui, settings, scene.source.routes, devices.panel, {
     onStart: (s, extras) => {
       saveSettings(s);
+      // Itinéraire tracé sur la carte : il remplace le précédent dans les parcours du monde.
+      if (extras.customRoute) {
+        const routes = scene.source.routes;
+        for (let i = routes.length - 1; i >= 0; i--) if (routes[i]?.id.startsWith(ITINERARY_PREFIX) && routes[i]?.id !== extras.customRoute.id) routes.splice(i, 1);
+        if (!routes.some((r) => r.id === extras.customRoute?.id)) routes.push(extras.customRoute);
+      }
       // Changement de qualité graphique : rechargement propre de la page.
       if (s.quality !== scene.quality) {
         const url = new URL(location.href);
@@ -351,6 +361,7 @@ async function boot(): Promise<void> {
   });
   menu.worldId = scene.source.id;
   menu.openWorld = !!scene.source.open;
+  menu.planner.setOpen(scene.source.open ?? null);
   // Changement de monde sans recharger la page : données du nouveau monde, paysage refait en arrière-plan.
   menu.onWorld = (id) => {
     settings.world = id;
@@ -379,6 +390,7 @@ async function boot(): Promise<void> {
       url.searchParams.set('world', id);
       url.searchParams.delete('route');
       history.replaceState(null, '', url.toString());
+      menu.planner.setOpen(source.open ?? null);
       menu.setWorld(source.routes, source.id, !!source.open);
       void prepareWorld();
     })();
@@ -498,15 +510,15 @@ async function boot(): Promise<void> {
   }
 }
 
-async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras: { workoutFile?: { name: string; content: string }; inviteCode?: string; inviteFriends?: string[]; tutorial?: boolean }): Promise<void> {
+async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras: { workoutFile?: { name: string; content: string }; inviteCode?: string; inviteFriends?: string[]; tutorial?: boolean; openStart?: { x: number; z: number } }): Promise<void> {
   const { engine, world, source } = scene;
   // Monde ouvert : chemin construit au fil des carrefours (le même RouteTrack s'allonge).
   const nav =
     s.mode === 'open' && source.open
       ? new OpenNavigator(
           source.open.graph,
-          // Départ ailleurs qu'au point par défaut : ?x=…&z=… (repère monde, m).
-          new URLSearchParams(location.search).has('x') ? { x: Number(new URLSearchParams(location.search).get('x')), z: Number(new URLSearchParams(location.search).get('z') ?? 0) } : source.open.start,
+          // Départ ailleurs qu'au point par défaut : choisi sur la carte du menu, ou ?x=…&z=… (repère monde, m).
+          extras.openStart ?? (new URLSearchParams(location.search).has('x') ? { x: Number(new URLSearchParams(location.search).get('x')), z: Number(new URLSearchParams(location.search).get('z') ?? 0) } : source.open.start),
           getLang() === 'fr' ? `Monde ouvert — ${source.name}` : `Open world — ${source.name}`,
         )
       : null;
