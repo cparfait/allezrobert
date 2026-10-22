@@ -26,10 +26,16 @@ describe('calibration des pièces de l’atelier', () => {
     }
   });
 
-  it('valeurs cibles : roues aéro +3 % à plat, roues légères +3 % en côte, pneus +1 %, cockpit +1 %, transmission +1 %', () => {
+  it('valeurs cibles : roues aéro +3 % à plat, roues légères réalistes en côte (300 à 500 g, +0,5 à 1 %), pneus +1 %, cockpit +1 %, transmission +1 %', () => {
     const g = (id: string) => tunedBikeSetup(DEFAULT_BIKE, [id]).raw;
     expect(pct(g('tune-wh-enve-67').flat)).toBeCloseTo(3, 0);
-    expect(pct(g('tune-wh-enve-34').climb)).toBeCloseTo(3, 0);
+    expect(pct(g('tune-wh-enve-34').climb)).toBeGreaterThan(0.5);
+    expect(pct(g('tune-wh-enve-34').climb)).toBeLessThan(1);
+    for (const id of ['tune-wh-enve-34', 'tune-wh-zipp-303']) {
+      const kg = tuneItem(id)?.perf?.massKg ?? 0;
+      expect(kg, id).toBeGreaterThanOrEqual(-0.5);
+      expect(kg, id).toBeLessThanOrEqual(-0.3);
+    }
     expect(pct(g('tune-ty-gp5000').flat)).toBeCloseTo(1, 0);
     expect(pct(g('tune-ck-aero').flat)).toBeCloseTo(1, 0);
     expect(pct(g('tune-gs-duraace').flat)).toBeCloseTo(1, 0);
@@ -59,15 +65,16 @@ describe('plafond des bonus', () => {
       return items[0]?.id;
     }).filter((x): x is string => !!x);
 
-  it('le meilleur montage plat et le meilleur montage côte plafonnent à 5 %', () => {
-    for (const key of ['flat', 'climb'] as const) {
-      const ids = bestOf(key);
-      const t = tunedBikeSetup(DEFAULT_BIKE, ids);
-      expect(t.raw[key]).toBeGreaterThan(TUNE_BONUS_CAP);
-      expect(t.scale).toBeLessThan(1);
-      expect(Math.max(t.gains.flat, t.gains.climb)).toBeLessThanOrEqual(TUNE_BONUS_CAP + 1e-9);
-      expect(Math.max(t.gains.flat, t.gains.climb)).toBeGreaterThan(TUNE_BONUS_CAP - 1e-4);
-    }
+  it('le meilleur montage plat plafonne à 5 % ; le meilleur montage côte reste en dessous', () => {
+    const flat = tunedBikeSetup(DEFAULT_BIKE, bestOf('flat'));
+    expect(flat.raw.flat).toBeGreaterThan(TUNE_BONUS_CAP);
+    expect(flat.scale).toBeLessThan(1);
+    expect(Math.max(flat.gains.flat, flat.gains.climb)).toBeLessThanOrEqual(TUNE_BONUS_CAP + 1e-9);
+    expect(Math.max(flat.gains.flat, flat.gains.climb)).toBeGreaterThan(TUNE_BONUS_CAP - 1e-4);
+    // Roues légères réalistes : en côte, le gain vient surtout de la transmission et des pneus.
+    const climb = tunedBikeSetup(DEFAULT_BIKE, bestOf('climb'));
+    expect(climb.gains.climb).toBeLessThanOrEqual(TUNE_BONUS_CAP + 1e-9);
+    expect(climb.gains.climb).toBeGreaterThan(0.02);
   });
 
   it('aucune combinaison d’une pièce par emplacement ne dépasse le plafond (sur tous les vélos du catalogue)', () => {
