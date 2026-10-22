@@ -45,6 +45,8 @@ export interface Settings {
   workoutPreset: string;
   /** Mode défi : montée choisie (identifiant de segment KOM de l'itinéraire). */
   challengeSeg: string;
+  /** Météo qui évolue pendant la sortie (en groupe : choix de l'hôte, partagé). */
+  weatherEvolves: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -76,6 +78,7 @@ export const DEFAULT_SETTINGS: Settings = {
   world: 'chevreuse',
   workoutPreset: 'sweet-spot-3x12',
   challengeSeg: '',
+  weatherEvolves: false,
 };
 
 const KEY = 'ar.settings';

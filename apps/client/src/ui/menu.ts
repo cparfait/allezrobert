@@ -198,6 +198,13 @@ export class MainMenu {
     return getLang() === 'en' && r.nameEn ? r.nameEn : r.name;
   }
 
+  /** 9,25 → « 9 h 15 ». */
+  private hourLabel(h: number): string {
+    const hh = Math.floor(h);
+    const mm = Math.round((h - hh) * 60);
+    return `${hh} h ${String(mm).padStart(2, '0')}`;
+  }
+
   private km(m: number): string {
     return (m / 1000).toFixed(1).replace('.', fr() ? ',' : '.');
   }
@@ -318,7 +325,15 @@ export class MainMenu {
       <p class="mm-hint">${mode ? esc(mode[2]) : ''}</p>
       ${
         s.mode === 'group' || s.mode === 'race'
-          ? `<input id="m-invite" class="mm-input" placeholder="${L ? 'Code d’invitation (facultatif)' : 'Invite code (optional)'}" />`
+          ? `<input id="m-invite" class="mm-input" placeholder="${L ? 'Code d’invitation (facultatif)' : 'Invite code (optional)'}" />
+            <div class="mm-groupopts">
+              <label class="field">${L ? 'Heure de départ' : 'Start time'} <span id="m-hourv">${this.hourLabel(s.hour)}</span><input id="m-hour" type="range" min="5" max="22" step="0.25" value="${s.hour}" /></label>
+              <div class="field">${L ? 'Météo' : 'Weather'}${this.seg('m-evolve', s.weatherEvolves ? '1' : '0', [
+                ['0', L ? 'Fixe' : 'Fixed'],
+                ['1', L ? 'Qui évolue' : 'Changing'],
+              ])}</div>
+              <p class="mm-hint">${L ? 'Si tu crées la sortie, ton heure et ta météo s’appliquent à tout le groupe.' : 'If you create the ride, your time and weather apply to the whole group.'}</p>
+            </div>`
           : s.mode === 'challenge'
             ? this.challengeHtml(r)
           : s.mode === 'workout'
@@ -518,10 +533,14 @@ export class MainMenu {
       <div class="grid3">
         <div class="field">${t('quality')}${this.seg('m-quality', s.quality, (['low', 'medium', 'high', 'ultra'] as const).map((q) => [q, t(q)]))}</div>
         <div class="field">${t('season')}${this.seg('m-season', s.season, (['spring', 'summer', 'autumn', 'winter'] as const).map((q) => [q, t(q)]))}</div>
-        <label class="field">${t('hour')} <span id="m-hourv">${s.hour.toFixed(1)} h</span><input id="m-hour" type="range" min="5" max="22" step="0.25" value="${s.hour}" /></label>
+        <label class="field">${t('hour')} <span id="m-hourv">${this.hourLabel(s.hour)}</span><input id="m-hour" type="range" min="5" max="22" step="0.25" value="${s.hour}" /></label>
         <label class="field">${L ? 'Nuages' : 'Clouds'}<input id="m-clouds" type="range" min="0" max="1" step="0.05" value="${s.clouds}" /></label>
         <label class="field">${L ? 'Pluie' : 'Rain'}<input id="m-rain" type="range" min="0" max="1" step="0.05" value="${s.rain}" /></label>
         <label class="field">${L ? 'Brouillard' : 'Fog'}<input id="m-fog" type="range" min="0" max="1" step="0.05" value="${s.fog}" /></label>
+        <div class="field">${L ? 'Météo' : 'Weather'}${this.seg('m-evolve', s.weatherEvolves ? '1' : '0', [
+          ['0', L ? 'Fixe' : 'Fixed'],
+          ['1', L ? 'Qui évolue' : 'Changing'],
+        ])}</div>
       </div>
       <h3>${L ? 'Home trainer' : 'Smart trainer'}</h3>
       <div class="grid3">
@@ -985,7 +1004,7 @@ export class MainMenu {
         if (l && fmt) l.textContent = fmt(s[key]);
         changed();
       });
-    range('m-hour', 'hour', 'm-hourv', (v) => `${v.toFixed(1)} h`);
+    range('m-hour', 'hour', 'm-hourv', (v) => this.hourLabel(v));
     range('m-clouds', 'clouds');
     range('m-rain', 'rain');
     range('m-fog', 'fog');
@@ -1007,6 +1026,10 @@ export class MainMenu {
     });
     on<HTMLSelectElement>('m-ailevel', 'change', (el) => {
       s.aiLevel = Number(el.value);
+      changed();
+    });
+    on<HTMLSelectElement>('m-evolve', 'change', (el) => {
+      s.weatherEvolves = el.value === '1';
       changed();
     });
     on<HTMLSelectElement>('m-smooth', 'change', (el) => {

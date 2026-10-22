@@ -172,6 +172,11 @@ export class RideSession {
     return this.np.value;
   }
 
+  /** Vent météo (m/s) qui change pendant la sortie (météo évolutive). */
+  setWind(ms: number): void {
+    this.opts.wind = { ms, from: this.opts.wind?.from ?? 4.4 };
+  }
+
   /** Vent apparent de face (m/s) selon la direction de la route. */
   private headwind(dirX: number, dirZ: number): number {
     const w = this.opts.wind;

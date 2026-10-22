@@ -1,5 +1,5 @@
 import * as THREE from 'three/webgpu';
-import type { CompanionCommand, RideMode, RouteTrack } from '@allezrobert/shared';
+import type { CompanionCommand, RideMode, RideWeather, RouteTrack } from '@allezrobert/shared';
 import { RideNetClient, type InterpolatedRider } from '../net/index.ts';
 import { createAvatar, type RiderAvatarLike } from '../rider/gltfAvatar.ts';
 
@@ -50,14 +50,18 @@ export class Multiplayer {
   }
 
   /** Rejoint par code d'invitation, ou crée une sortie privée sur l'itinéraire courant. */
-  async connect(opts: { inviteCode?: string; mode: RideMode; guest: boolean; aiRiders: number; trainerDifficulty: number; name: string }): Promise<string> {
+  /** Heure et météo de la sortie (choix de l'hôte), connues après l'entrée dans la salle. */
+  weather: RideWeather | null = null;
+
+  async connect(opts: { inviteCode?: string; mode: RideMode; guest: boolean; aiRiders: number; trainerDifficulty: number; name: string; weather: RideWeather }): Promise<string> {
     const role = opts.guest ? 'guest' : 'rider';
     const welcome = opts.inviteCode
       ? await this.net.joinByCode(opts.inviteCode, { role, displayName: opts.name })
       : await this.net.create(
-          { routeId: this.track.route.id, mode: opts.mode, stickyGroup: opts.mode === 'group', allowGuests: true, draftingStrength: 1, trainerDifficulty: opts.trainerDifficulty, aiRiders: opts.aiRiders },
+          { routeId: this.track.route.id, mode: opts.mode, stickyGroup: opts.mode === 'group', allowGuests: true, draftingStrength: 1, trainerDifficulty: opts.trainerDifficulty, aiRiders: opts.aiRiders, weather: opts.weather },
           { role, displayName: opts.name },
         );
+    this.weather = welcome.options.weather ?? null;
     return welcome.inviteCode;
   }
 

@@ -1,6 +1,6 @@
 import './hud/hud.css';
 import * as THREE from 'three/webgpu';
-import { RouteTrack, bikeSetupFor, type RiderProfile, type RouteData } from '@allezrobert/shared';
+import { RouteTrack, bikeSetupFor, weatherAt, weatherSeed, type RideWeather, type RiderProfile, type RouteData } from '@allezrobert/shared';
 import { surfaceClass, surfaceRoughness } from '@allezrobert/physics';
 import { Dust } from './world/dust.ts';
 import { createEngine, type Engine } from './engine/renderer.ts';
@@ -409,13 +409,17 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     console.warn('Séance illisible', e);
   }
   // Sortie de groupe / course : le serveur fait rouler tout le monde (IA comprises).
+  // Heure et météo de la sortie : réglages du coureur ; en groupe, celles de l'hôte (partagées).
+  const myWeather: RideWeather = { hour: s.hour, clouds: s.clouds, rain: s.rain, fog: s.fog, windMs: s.windMs, evolving: s.weatherEvolves, seed: weatherSeed(`${Date.now()}`) };
+  let rideWeather = myWeather;
   let mp: Multiplayer | null = null;
   let voice: VoiceChat | null = null;
   if (s.mode === 'group' || s.mode === 'race') {
     mp = new Multiplayer(engine.scene, track, s.name);
     try {
-      const code = await mp.connect({ ...(extras.inviteCode ? { inviteCode: extras.inviteCode } : {}), mode: s.mode, guest: s.guest, aiRiders: s.aiRiders, trainerDifficulty: s.trainerDifficulty, name: s.name });
+      const code = await mp.connect({ ...(extras.inviteCode ? { inviteCode: extras.inviteCode } : {}), mode: s.mode, guest: s.guest, aiRiders: s.aiRiders, trainerDifficulty: s.trainerDifficulty, name: s.name, weather: myWeather });
       setTimeout(() => hud.toast(`${getLang() === 'fr' ? 'Code d’invitation' : 'Invite code'} : ${code}`), 500);
+      if (mp.weather) rideWeather = mp.weather;
     } catch (e) {
       console.warn('Serveur injoignable, sortie solo', e);
       setTimeout(() => hud.toast(getLang() === 'fr' ? 'Serveur injoignable : sortie solo' : 'Server unreachable: solo ride'), 500);
@@ -755,10 +759,19 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
       nav.update(ride.state.distM);
       track.route.roadWidthM = Math.max(3, nav.widthAt(ride.state.distM));
     }
-    // Conditions sous les roues, 4 fois par seconde : revêtement, abri du vent, pluie.
+    // Conditions sous les roues, 4 fois par seconde : heure et météo de la sortie (qui avancent ou
+    // évoluent au fil du temps), revêtement, abri du vent, pluie.
     condAcc += dt;
     if (condAcc > 0.25) {
       condAcc = 0;
+      const wNow = weatherAt(rideWeather, ride.elapsedS);
+      const envState = world.env.state;
+      envState.hour = wNow.hour;
+      envState.weather.clouds = wNow.clouds;
+      envState.weather.rain = wNow.rain;
+      envState.weather.fog = wNow.fog;
+      envState.weather.windMs = wNow.windMs;
+      ride.setWind(wNow.windMs);
       const here = track.positionAt(ride.state.distM, ride.lateral, sample);
       const t = world.terrain.getTile(...world.terrain.tileCoord(here.x, here.z));
       ride.surface = nav?.surfaceAt(ride.state.distM) ?? track.surfaceAt(ride.state.distM) ?? roadSurfaceAt(t, here.x, here.z, ride.surface);

@@ -9,3 +9,4 @@ export * from './track.ts';
 export * from './geo.ts';
 export * from './progression.ts';
 export * from './roadgraph.ts';
+export * from './weather.ts';

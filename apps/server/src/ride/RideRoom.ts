@@ -43,6 +43,17 @@ const CreateOptionsSchema = z
     name: z.string().max(60).optional(),
     laps: finite.optional(),
     aiPaceWkg: finite.optional(),
+    weather: z
+      .object({
+        hour: finite.transform((v) => Math.min(Math.max(v, 0), 24)),
+        clouds: finite.transform((v) => Math.min(Math.max(v, 0), 1)),
+        rain: finite.transform((v) => Math.min(Math.max(v, 0), 1)),
+        fog: finite.transform((v) => Math.min(Math.max(v, 0), 1)),
+        windMs: finite.transform((v) => Math.min(Math.max(v, 0), 25)),
+        evolving: z.boolean(),
+        seed: finite.transform((v) => Math.round(Math.abs(v)) % 100000),
+      })
+      .optional(),
   })
   .passthrough();
 

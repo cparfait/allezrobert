@@ -5,6 +5,8 @@
  * Position = distance sur l'itinéraire + décalage latéral (m, positif = droite).
  */
 
+import type { RideWeather } from './weather.ts';
+
 export const NET_TICK_HZ = 10;
 export const MAX_RIDERS_PER_ROOM = 20;
 
@@ -167,6 +169,8 @@ export type RideRole = 'rider' | 'guest' | 'companion';
 export interface RideRoomOptions extends RoomOptions {
   /** Allure des IA sans humain à suivre (W/kg). Défaut 2,6. */
   aiPaceWkg?: number;
+  /** Heure de départ et météo choisies par l'hôte, appliquées à tout le groupe. */
+  weather?: RideWeather;
 }
 
 /** Options modifiables par l'hôte en cours de sortie. */

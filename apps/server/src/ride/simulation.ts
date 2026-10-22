@@ -92,6 +92,7 @@ export function resolveRideOptions(o: Partial<RideRoomOptions>, routeId: string)
     aiPaceWkg: clamp(o.aiPaceWkg, 1, 6, 2.6),
   };
   if (o.name) r.name = o.name.slice(0, 60);
+  if (o.weather) r.weather = { ...o.weather };
   if (typeof o.startAt === 'number' && Number.isFinite(o.startAt)) r.startAt = o.startAt;
   return r;
 }

@@ -96,7 +96,7 @@ Idées seulement : ni nom, ni asset, ni code, ni physique de NCT Ride (la vitess
 - [x] Photo du sommet enregistrable depuis l'écran de fin
 - [x] Poussière sur les chemins secs, pancartes dans la foule (dont « Allez <ton nom> ! »)
 - [ ] Trains déclenchés à un point précis
-- [ ] Groupe : heure de départ et météo qui évolue
+- [x] Groupe : heure de départ et météo qui évolue (choix de l'hôte, identique pour tous, sans message réseau ; aussi en solo)
 
 ## Plus tard
 
