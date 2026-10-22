@@ -127,46 +127,6 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #0a0e16; col
 .route-card { padding: 12px 14px; border-radius: 12px; background: rgba(255, 255, 255, 0.05); cursor: pointer; border: 2px solid transparent; }
 .route-card.selected { border-color: var(--ar-accent); }
 .route-card .meta { font-size: 12px; color: var(--ar-muted); }
-/* Accueil (panneau à gauche sur l'image fixe) et pages du menu */
-.menu.home-menu { place-items: stretch start; background: linear-gradient(90deg, rgba(8, 11, 18, 0.92) 0%, rgba(8, 11, 18, 0.78) 30%, rgba(8, 11, 18, 0.25) 52%, rgba(8, 11, 18, 0) 70%); }
-.home-panel { width: min(470px, 92vw); box-sizing: border-box; height: 100%; overflow: auto; padding: 5vh 34px 26px 5vw; display: flex; flex-direction: column; gap: 14px; }
-.home-panel h1 { font-size: 52px; margin: 0; text-shadow: 0 2px 18px rgba(0, 0, 0, 0.45); }
-.home-panel .tagline { margin: -6px 0 6px; }
-.home-account { position: absolute; top: 20px; right: 24px; }
-.account-chip { display: flex; align-items: center; gap: 10px; font-size: 13px; color: #e6ebf2; padding: 6px 6px 6px 14px; border-radius: 999px; background: rgba(8, 11, 18, 0.55); backdrop-filter: blur(8px); }
-.menu .card.page { width: min(980px, 94vw); }
-.menu .card.page.narrow { width: min(720px, 94vw); }
-.summary { display: flex; flex-direction: column; gap: 12px; }
-.sum-route { display: flex; flex-direction: column; gap: 3px; text-align: left; font: inherit; color: var(--ar-fg); cursor: pointer; padding: 14px 18px; border-radius: 14px;
-  background: rgba(255, 255, 255, 0.06); border: 2px solid rgba(255, 210, 63, 0.35); position: relative; transition: border-color 0.15s, background 0.15s; }
-.sum-route:hover, .sum-route:focus-visible { border-color: var(--ar-accent); background: rgba(255, 255, 255, 0.1); outline: none; }
-.sum-route b { font-size: 18px; line-height: 1.25; padding-right: 64px; }
-.sum-change { position: absolute; top: 14px; right: 16px; font-size: 12px; font-weight: 700; color: var(--ar-accent); }
-.btn.big { font-size: 20px; padding: 16px 34px; }
-.summary .btn.big { width: 100%; }
-.nav { display: flex; flex-direction: column; gap: 6px; margin-top: 4px; }
-.nav-item { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 10px 16px; border-radius: 12px; border: 2px solid transparent;
-  background: rgba(255, 255, 255, 0.04); color: var(--ar-fg); font: inherit; text-align: left; cursor: pointer; transition: background 0.15s, border-color 0.15s, transform 0.15s; }
-.nav-item::after { content: '›'; font-size: 24px; line-height: 1; color: var(--ar-muted); }
-.nav-item:hover, .nav-item:focus-visible { background: rgba(255, 255, 255, 0.1); border-color: rgba(255, 210, 63, 0.55); outline: none; transform: translateX(3px); }
-.nav-item b { display: block; font-size: 17px; }
-.nav-item .meta { display: block; font-size: 12px; color: var(--ar-muted); margin-top: 1px; }
-.menu .meta { font-size: 12px; color: var(--ar-muted); }
-.warn-text { color: #fde68a !important; }
-.shortcuts { margin: auto 0 0; font-size: 11px; color: var(--ar-muted); opacity: 0.75; }
-.page-head { display: flex; align-items: center; gap: 16px; }
-.menu .page-head h1 { font-size: 32px; margin: 0; }
-.mode-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; }
-.route-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); gap: 10px; }
-.route-card:focus-visible { outline: 2px solid rgba(255, 210, 63, 0.6); outline-offset: 2px; }
-.page-foot { display: flex; justify-content: flex-end; gap: 10px; margin-top: 22px; }
-.music-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 16px; }
-.music-bar .btn.on { background: rgba(255, 210, 63, 0.16); color: var(--ar-accent); }
-.music-bar input[type='range'] { width: 110px; }
-.music-bar .spotify { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-.music-bar .sp-dot { color: #1db954; }
-.music-bar #sp-now { max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
-.music-bar .spotify-btn { background: rgba(29, 185, 84, 0.18); color: #b7f5cd; }
 .pause-overlay { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(10, 14, 22, 0.55); }
 .loading { position: absolute; inset: 0; display: grid; place-items: center; font-size: 20px; color: var(--ar-muted); background: #0a0e16; }
 .hidden { display: none !important; }
