@@ -59,6 +59,8 @@ services:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       # Tuiles du monde générées par tools/terrain puis copiées sur le VPS (docs/DEPLOY.md §12)
       - ${WORLDS_DIR:-./data/worlds}:/srv/worlds:ro
+      # Boucles vidéo du menu générées par tools/menu-loop puis copiées sur le VPS (docs/DEPLOY.md §12 bis)
+      - ${MENU_DIR:-./data/menu}:/srv/menu:ro
       - caddy_data:/data
       - caddy_config:/config
     depends_on:

@@ -253,6 +253,32 @@ itinéraires régénérés sans reconstruire les images, les copier aussi dans
 `deploy/data/worlds/chevreuse/routes/` et mettre `ROUTES_DIR=/data/worlds/chevreuse/routes`
 dans `.env` (le jeu, lui, garde ceux de son bundle : reconstruire l'image web pour aligner).
 
+## 12 bis. Boucles vidéo du menu
+
+Le fond du menu joue une boucle de 60 s par saison (`/menu/loop-<saison>.mp4`, H.264, ≈15 à
+30 Mo ; `.webm` VP9 en repli). Trop lourdes pour le dépôt public, elles ne sont ni dans git ni
+dans l'image web : Caddy les sert depuis `deploy/data/menu/` (volume `MENU_DIR`, lecture seule).
+Les images fixes `still-<saison>.jpg` restent dans l'image : sans vidéo (fichier absent, 404),
+le menu affiche simplement l'image fixe de la saison.
+
+1. Sur ton PC, générer les vidéos (≈1 h 30 pour les 4 saisons, voir `tools/menu-loop/README.md`) :
+   ```bash
+   pnpm --filter @allezrobert/menu-loop capture
+   ```
+2. Les copier sur le VPS (depuis la racine du dépôt) :
+   ```bash
+   ssh debian@<IP> mkdir -p /opt/allezrobert/deploy/data/menu
+   rsync -av apps/client/public/menu/loop-*.mp4 apps/client/public/menu/loop-*.webm debian@<IP>:/opt/allezrobert/deploy/data/menu/
+   ```
+   (Sous Windows sans rsync : `scp apps/client/public/menu/loop-* debian@<IP>:/opt/allezrobert/deploy/data/menu/`.)
+   Le volume est monté sur `/srv/menu` : `/menu/loop-autumn.mp4` → `deploy/data/menu/loop-autumn.mp4`.
+3. Rien à redémarrer. Vérifier `https://allezrobert.cparfait.ovh/menu/loop-autumn.mp4` → 200
+   (`video/mp4`). Après une régénération, augmenter `MENU_MEDIA_VERSION` dans
+   `apps/client/src/main.ts` (les navigateurs gardent les vidéos 7 jours) et redéployer l'image web.
+
+Application Windows : `pnpm --filter @allezrobert/desktop build` embarque ce qui se trouve dans
+`apps/client/public/menu/` au moment du build ; générer (ou copier) les vidéos avant.
+
 ## 13. Premier déploiement
 
 ```bash

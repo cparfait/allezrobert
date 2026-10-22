@@ -51,6 +51,15 @@
 		file_server
 	}
 
+	# Boucles vidéo du menu (≈20 Mo chacune, hors du dépôt et de l'image) : volume deploy/data/menu
+	# monté sur /srv/menu (docs/DEPLOY.md §12 bis). Absentes : 404, le menu garde l'image fixe.
+	@menuloops path /menu/loop-*
+	handle @menuloops {
+		root * /srv
+		header Cache-Control "public, max-age=604800"
+		file_server
+	}
+
 	# Appli compagnon (PWA).
 	redir /companion /companion/ 308
 	handle_path /companion/* {
