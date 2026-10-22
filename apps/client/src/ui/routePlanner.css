@@ -37,3 +37,16 @@
   .rp { grid-template-columns: 1fr; }
   .rp-map { height: 46vh; }
 }
+/* Zone choisie en cours de chargement (fenêtre « Zones »), avant l'ouverture de ses parcours. */
+.mm-zonecard.busy { border-color: var(--ar-accent); opacity: 0.75; pointer-events: none; }
+.mm-zonecard.busy small { animation: rp-blink 0.9s ease-in-out infinite alternate; }
+@keyframes rp-blink { to { opacity: 0.35; } }
+.rp-head-links { display: flex; gap: 14px; margin-left: auto; margin-right: 14px; }
+/* Points de passage et noms des lieux (villes et villages toujours, hameaux une fois zoomé). */
+.rp-via circle, .rp-dot.rp-via { fill: #fff; background: #fff; }
+.rp-via circle { r: 7px; }
+.rp-place { pointer-events: none; }
+.rp-place circle { fill: #0a0e16; stroke: rgba(236, 239, 244, 0.85); stroke-width: 1.2px; }
+.rp-place text { font: 700 12.5px system-ui, sans-serif; fill: #fff; paint-order: stroke; stroke: rgba(6, 9, 15, 0.85); stroke-width: 3px; stroke-linejoin: round; }
+.rp-hamlet text { font-size: 10.5px; font-weight: 600; fill: #d5dce5; }
+.rp-map:not(.rp-zoomed) .rp-hamlet { display: none; }

@@ -2,7 +2,7 @@
  * Petit coureur qui pédale au-dessus des barres d'attente : SVG animé à chaque image, jambes en
  * cinématique inverse (hanche fixe, pied sur la pédale, genou vers l'avant), roues entraînées
  * par le braquet, léger balancement du buste. L'animation s'arrête d'elle-même quand le
- * dessin quitte la page.
+ * dessin quitte la page. Le bas du dessin est le bas des pneus : il se pose sur la barre.
  */
 
 const NS = 'http://www.w3.org/2000/svg';
@@ -45,11 +45,6 @@ function spokes(c: P): string {
 }
 
 const MARKUP = `
-  <defs>
-    <linearGradient id="wb-shadow" x1="0" x2="1"><stop offset="0" stop-color="#000" stop-opacity="0"/><stop offset=".5" stop-color="#000" stop-opacity=".45"/><stop offset="1" stop-color="#000" stop-opacity="0"/></linearGradient>
-  </defs>
-  <ellipse cx="60" cy="76" rx="50" ry="2.2" fill="url(#wb-shadow)"/>
-  <line class="wb-road" x1="-10" y1="76" x2="130" y2="76"/>
   <g class="wb-far"><path data-leg="far"/><path data-crank="far"/></g>
   <g class="wb-wheel" data-wheel="r"><circle cx="${REAR[0]}" cy="${REAR[1]}" r="${WHEEL_R}"/><path class="wb-spokes" d="${spokes(REAR)}"/></g>
   <g class="wb-wheel" data-wheel="f"><circle cx="${FRONT[0]}" cy="${FRONT[1]}" r="${WHEEL_R}"/><path class="wb-spokes" d="${spokes(FRONT)}"/></g>
@@ -69,7 +64,8 @@ const MARKUP = `
 export function waitBike(): SVGSVGElement {
   const svg = document.createElementNS(NS, 'svg');
   svg.setAttribute('class', 'world-wait-bike');
-  svg.setAttribute('viewBox', '0 0 120 78');
+  // Bas du cadre = bas des pneus : le vélo roule sur la barre d'attente posée juste dessous.
+  svg.setAttribute('viewBox', `0 0 120 ${REAR[1] + WHEEL_R + 1.3}`);
   svg.setAttribute('aria-hidden', 'true');
   svg.innerHTML = MARKUP;
   const q = (sel: string) => svg.querySelector(sel) as SVGElement;
@@ -78,7 +74,6 @@ export function waitBike(): SVGSVGElement {
   const wheelR = q('[data-wheel="r"]');
   const wheelF = q('[data-wheel="f"]');
   const body = q('[data-body]');
-  const road = q('.wb-road');
   const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
   let theta = 0.4;
   let last = performance.now();
@@ -106,8 +101,6 @@ export function waitBike(): SVGSVGElement {
     wheelR.setAttribute('transform', `rotate(${fmt(wheelDeg)} ${REAR[0]} ${REAR[1]})`);
     wheelF.setAttribute('transform', `rotate(${fmt(wheelDeg)} ${FRONT[0]} ${FRONT[1]})`);
     body.setAttribute('transform', `translate(0 ${fmt(bob)})`);
-    // La route défile à la vitesse du bord de la roue.
-    road.setAttribute('stroke-dashoffset', fmt((theta * GEAR * WHEEL_R) % 16));
     requestAnimationFrame(frame);
   };
   requestAnimationFrame(frame);

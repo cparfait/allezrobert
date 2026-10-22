@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { itineraryRoute, planItinerary, RoadNet, snapToRoad, type RoadGraphData, type RoadGraphEdge } from '../src/index.ts';
+import { frenchOf, itineraryRoute, joinItineraries, planItinerary, RoadNet, snapToRoad, type RoadGraphData, type RoadGraphEdge } from '../src/index.ts';
 
 /** Arête droite échantillonnée tous les 10 m (x = est, z = sud). */
 function line(a: number, b: number, from: [number, number, number], to: [number, number, number], extra: Partial<RoadGraphEdge> = {}): RoadGraphEdge {
@@ -76,8 +76,30 @@ describe('itinéraire départ → arrivée', () => {
 
   it('même arête : tout droit, sans détour', () => {
     const it = planItinerary(net, snapToRoad(net, 800, 0)!, snapToRoad(net, 200, 0)!)!;
-    expect(it.steps).toEqual([{ edge: 0, forward: false }]);
+    expect(it.steps.map((s) => [s.edge, s.forward])).toEqual([[0, false]]);
+    expect(it.steps[0]!.from).toBeCloseTo(200, 0);
+    expect(it.steps[0]!.to).toBeCloseTo(800, 0);
     expect(itineraryRoute(net, it, { id: 't', name: 'T' })!.lengthM).toBeCloseTo(600, -1);
+  });
+
+  it('plusieurs points de passage, et boucle revenant au départ', () => {
+    const pts = [snapToRoad(net, 300, 0)!, snapToRoad(net, 1000, 500)!, snapToRoad(net, 500, 1000)!, snapToRoad(net, 300, 0)!];
+    const legs = pts.slice(1).map((p, i) => planItinerary(net, pts[i]!, p)!);
+    const it = joinItineraries(legs);
+    // 700 + 500 (étape 1), 500 + 500 (étape 2), 500 + 1000 + 300 (retour par l'ouest)
+    const route = itineraryRoute(net, it, { id: 'b', name: 'Boucle', places: [{ name: 'Le Roussel', kind: 'hamlet', x: 1050, z: 500 }, { name: 'Loin', kind: 'village', x: 5000, z: 5000 }] })!;
+    expect(route.lengthM).toBeCloseTo(4000, -1);
+    const a = route.points[0]!;
+    const b = route.points[route.points.length - 1]!;
+    expect(Math.hypot(a.x - b.x, a.z - b.z)).toBeLessThan(3);
+    // l'arête 0 continuée au point de passage n'est pas coupée en deux
+    expect(it.steps.filter((s) => s.edge === 0).length).toBe(2);
+    expect(route.landmarks).toEqual([{ name: 'Le Roussel', d: expect.closeTo(1200, -1) }]);
+    expect(route.segments[0]?.name).toBe('Côte du Roussel');
+  });
+
+  it('« de » devant les noms de lieux', () => {
+    expect(['Le Roussel', 'Les Vigiers', 'La Pireyre', 'Égliseneuve-près-Billom', 'Glaine', "L'Arbre"].map(frenchOf)).toEqual(['du Roussel', 'des Vigiers', 'de la Pireyre', 'd’Égliseneuve-près-Billom', 'de Glaine', 'de l’Arbre']);
   });
 
   it('respecte les sens uniques', () => {

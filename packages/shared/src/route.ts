@@ -159,9 +159,18 @@ export interface WorldMeta {
   horizon?: WorldHorizon;
   /**
    * Monde ouvert : graphe routier roulable (`RoadGraphData`, fichier relatif au dossier du monde)
-   * et point de départ par défaut. Toutes les routes y sont creusées et dessinées.
+   * et point de départ par défaut. Toutes les routes y sont creusées et dessinées. `places` :
+   * villes, villages et hameaux (`WorldPlace[]`, fichier relatif), pour la carte d'itinéraire.
    */
-  open?: { graph: string; start: { x: number; z: number } };
+  open?: { graph: string; start: { x: number; z: number }; places?: string };
+}
+
+/** Lieu habité (OSM `place` : town, village, hamlet…) d'un monde ouvert, repère monde. */
+export interface WorldPlace {
+  name: string;
+  kind: string;
+  x: number;
+  z: number;
 }
 
 /** Polygone : anneaux plats [x0,z0,x1,z1,…] ; le premier est l'extérieur, les suivants des trous. */

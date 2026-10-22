@@ -181,15 +181,19 @@ export class MainMenu {
     this.worldId = worldId;
     this.openWorld = open;
     if (!routes.some((r) => r.id === this.s.routeId)) this.s.routeId = routes[0]?.id ?? '';
+    if (this.routesAfterWorld && this.picker === 'zones') this.picker = open ? 'map' : 'routes';
+    this.routesAfterWorld = false;
     if (this.root.querySelector('.mm')) this.render();
   }
   openWorld = false;
+  /** Zone choisie dans la fenêtre « Zones » : ses parcours s'ouvrent dès qu'elle est chargée. */
+  private routesAfterWorld = false;
   /** Itinéraire sur la carte d'une zone ouverte (fenêtre « Parcours ») : graphe donné par `planner.setOpen`. */
   readonly planner = new RoutePlanner();
   onWorld?: (id: string) => void;
   onSettingsSaved?: (s: Settings) => void;
   /** Fenêtre de choix ouverte au milieu de l'écran (boutons « Zone » et « Parcours »). */
-  private picker: 'zones' | 'routes' | null = null;
+  private picker: 'zones' | 'routes' | 'map' | null = null;
   /** Catalogue des zones (packs de cartes). */
   private zones: WorldCatalogue['zones'] = [];
   /** Téléchargements en cours : octets reçus / total, ou message d'erreur. */
@@ -551,10 +555,19 @@ export class MainMenu {
   private pickerHtml(): string {
     if (!this.picker) return '';
     const L = fr();
+    // Zone ouverte choisie : sa carte, où l'on trace son itinéraire (ou roulage libre).
+    if (this.picker === 'map') {
+      const w = WORLD_LIST.find((x) => x.id === this.worldId);
+      return `<div class="mm-modal mm-picker-modal" data-picker-close>
+      <div class="mm-dialog mm-picker" role="dialog" aria-modal="true">
+        <header><h2>${esc(w ? w.name[getLang()] : this.worldId)}</h2><span class="rp-head-links"><button class="mm-link" data-picker="zones">← ${L ? 'Zones' : 'Areas'}</button>${this.routes.length ? `<button class="mm-link" data-picker="routes">${L ? 'Parcours proposés' : 'Suggested routes'} →</button>` : ''}</span><button class="mm-x" data-picker-close aria-label="${L ? 'Fermer' : 'Close'}">×</button></header>
+        ${this.planner.html((r) => this.routeCard(r))}
+      </div></div>`;
+    }
     const zones = this.picker === 'zones';
     const list = zones
       ? `<div class="mm-cardgrid mm-zonegrid">${this.zonesHtml()}</div>`
-      : `${this.openWorld ? `${this.planner.html((r) => this.routeCard(r))}<h3 class="rp-routes-title">${L ? 'Parcours proposés' : 'Suggested routes'}</h3>` : ''}<div class="mm-cardgrid">${this.routes
+      : `<div class="mm-cardgrid">${this.routes
           .map(
             (x) => `<button class="mm-routepick ${x.id === this.s.routeId ? 'on' : ''}" data-route="${esc(x.id)}">
             ${this.routeCard(x)}
@@ -1167,7 +1180,7 @@ export class MainMenu {
     on('m-start', 'click', () => this.start());
     on('m-explore', 'click', () => this.onExplore?.());
     // Itinéraire sur la carte : parcours calculé (sortie libre sur ce tracé) ou roulage libre.
-    if (this.picker === 'routes' && this.openWorld)
+    if (this.picker === 'map' && this.openWorld)
       this.planner.bind(this.root, (r) => this.routeCard(r), {
         ride: (route) => {
           s.routeId = route.id;
@@ -1209,13 +1222,23 @@ export class MainMenu {
     this.root.querySelectorAll<HTMLElement>('[data-world]').forEach((el) =>
       el.addEventListener('click', () => {
         const id = el.dataset.world as string;
-        if (id !== this.worldId) this.onWorld?.(id);
+        // Zone choisie : on enchaîne sur ses parcours (et la carte d'itinéraire des zones ouvertes).
+        if (id === this.worldId) {
+          this.picker = this.openWorld ? 'map' : 'routes';
+          this.render();
+          return;
+        }
+        this.routesAfterWorld = true;
+        el.closest('.mm-zonecard')?.classList.add('busy');
+        const tag = el.querySelector('small');
+        if (tag) tag.textContent = fr() ? 'Chargement…' : 'Loading…';
+        this.onWorld?.(id);
       }),
     );
     // Boutons « Zone » / « Parcours » : fenêtre de choix au milieu de l'écran.
     this.root.querySelectorAll<HTMLElement>('[data-picker]').forEach((el) =>
       el.addEventListener('click', () => {
-        this.picker = el.dataset.picker as 'zones' | 'routes';
+        this.picker = el.dataset.picker as 'zones' | 'routes' | 'map';
         this.render();
       }),
     );

@@ -12,7 +12,8 @@
     "build:routes": "tsx src/build-world.ts --routes-only --no-ortho",
     "packs": "tsx src/build-packs.ts",
     "fetch:osm": "tsx src/fetch-osm.ts",
-    "test": "vitest run --root ../.. tools/terrain"
+    "test": "vitest run --root ../.. tools/terrain",
+    "places": "tsx src/places.ts"
   },
   "dependencies": {
     "@allezrobert/shared": "workspace:*"

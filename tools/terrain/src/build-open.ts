@@ -13,6 +13,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { OpenPath, RoadNet, type RoadGraphData, type RoadGraphEdge, type RouteData, type RouteSegment, type WorldMeta } from '@allezrobert/shared';
+import { PLACES_FILE, placesOf } from './places.ts';
 import { ATTRIBUTION, ATTRIBUTION_ORTHO, CORRIDOR_TILES, LOD_HI, LOD_LO, ORIGIN_L93, OUT_DIR, TILE_SIZE_M, WORLD, worldEnrich, type LonLat, type OpenTour, type OpenWorld } from './config.ts';
 import { nearestEdgeOf, routeViaEdges } from './climb.ts';
 import { corridorWgs84, OSM_CHUNK } from './corridor.ts';
@@ -179,6 +180,11 @@ async function main(): Promise<void> {
     log(`   ${route.name} : ${(route.lengthM / 1000).toFixed(2)} km, D+ ${route.elevationGainM.toFixed(0)} m, ${route.segments.length} montée(s), repères ${route.landmarks?.map((l) => l.name).join(', ')}`);
   }
 
+  // 5 bis. villes, villages et hameaux : noms sur la carte d'itinéraire du menu
+  const places = placesOf(osm.pois);
+  fs.writeFileSync(path.join(OUT_DIR, PLACES_FILE), JSON.stringify(places));
+  log(`   ${places.length} lieux nommés (${PLACES_FILE})`);
+
   // 6. tuiles
   log(`6. Tuiles (${tiles.length}, toutes en haute résolution${WITH_ORTHO ? `, orthophotos ${W.orthoPx} px` : ''})`);
   const tileResults: TileResult[] = await writeWorldTiles({
@@ -222,7 +228,7 @@ async function main(): Promise<void> {
       ...(ENRICH?.bdtopoBuildings ? [ATTRIBUTION_BDTOPO] : []),
     ],
     horizon,
-    open: { graph: 'graph.json', start: { x: r2(start[0]), z: r2(start[1]) } },
+    open: { graph: 'graph.json', start: { x: r2(start[0]), z: r2(start[1]) }, places: PLACES_FILE },
   };
   fs.writeFileSync(path.join(OUT_DIR, 'world.json'), JSON.stringify(meta, null, 1));
 

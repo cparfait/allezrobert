@@ -1,4 +1,4 @@
-import type { RoadGraphData, RouteData, WorldMeta, WorldTile } from '@allezrobert/shared';
+import type { RoadGraphData, RouteData, WorldMeta, WorldPlace, WorldTile } from '@allezrobert/shared';
 import type { HorizonGrid, LoadedTile, TileFeatures, WorldSource } from './types.ts';
 import { worldFetch } from './packs.ts';
 
@@ -16,11 +16,13 @@ export async function createFileWorld(id: string, meta: WorldMeta): Promise<Worl
       return (await res.json()) as RouteData;
     }),
   );
-  // Monde ouvert : graphe routier (≈ 1 Mo), chargé avec les itinéraires.
+  // Monde ouvert : graphe routier (≈ 1 Mo), chargé avec les itinéraires, et noms des lieux
+  // habités pour la carte d'itinéraire du menu (facultatifs).
   let open: WorldSource['open'];
   if (meta.open) {
-    const res = await fetch(`${base}/${meta.open.graph}`);
-    if (res.ok) open = { graph: (await res.json()) as RoadGraphData, start: meta.open.start };
+    const [res, pl] = await Promise.all([fetch(`${base}/${meta.open.graph}`), meta.open.places ? fetch(`${base}/${meta.open.places}`).catch(() => null) : null]);
+    const places = pl?.ok ? ((await pl.json().catch(() => null)) as WorldPlace[] | null) : null;
+    if (res.ok) open = { graph: (await res.json()) as RoadGraphData, start: meta.open.start, ...(places ? { places } : {}) };
   }
   // Itinéraire principal en premier (jalon 1).
   routes.sort((a, b) => (a.id === meta.mainRoute ? -1 : b.id === meta.mainRoute ? 1 : 0));

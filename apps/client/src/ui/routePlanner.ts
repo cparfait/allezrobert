@@ -1,11 +1,12 @@
 /**
- * Itinéraire sur la carte d'une zone ouverte (fenêtre « Parcours » du menu) : on clique un
- * départ, puis éventuellement une arrivée ; le plus court chemin roulable (routes revêtues de
- * préférence) est calculé sur le graphe routier du monde et devient un parcours comme les
- * autres (aller simple). Sans arrivée : roulage libre depuis ce départ ; ou depuis le départ
- * par défaut de la zone (« Rouler en libre »).
+ * Itinéraire sur la carte d'une zone ouverte (fenêtre ouverte dès le choix de la zone) : on
+ * clique un départ, puis autant de points de passage qu'on veut ; chaque étape est le plus
+ * court chemin roulable (routes revêtues de préférence) sur le graphe routier du monde, et le
+ * tout devient un parcours comme les autres. « Revenir au départ » ferme la boucle. Un seul
+ * point : roulage libre depuis ce départ ; ou depuis le départ par défaut (« Rouler en libre »).
+ * Les villes, villages et hameaux (places.json) sont nommés sur la carte.
  */
-import { isPavedEdge, itineraryRoute, planItinerary, RoadNet, snapToRoad, type RoadGraphData, type RoadSnap, type RouteData } from '@allezrobert/shared';
+import { frenchOf, isPavedEdge, itineraryRoute, joinItineraries, planItinerary, RoadNet, snapToRoad, type Itinerary, type RoadGraphData, type RoadSnap, type RouteData, type WorldPlace } from '@allezrobert/shared';
 import { getLang } from '../i18n/index.ts';
 import './routePlanner.css';
 
@@ -15,6 +16,7 @@ export const ITINERARY_PREFIX = 'itineraire-';
 export interface OpenMap {
   graph: RoadGraphData;
   start: { x: number; z: number };
+  places?: WorldPlace[];
 }
 
 export interface PlannerActions {
@@ -32,7 +34,12 @@ interface View {
 }
 
 const fr = () => getLang() === 'fr';
+/** « à » devant un nom de lieu : au Roussel, aux Vigiers, à la Pireyre, à Glaine. */
+const frenchTo = (name: string) =>
+  /^Le /.test(name) ? `au ${name.slice(3)}` : /^Les /.test(name) ? `aux ${name.slice(4)}` : /^La /.test(name) ? `à la ${name.slice(3)}` : /^L['’]/.test(name) ? `à l’${name.slice(2)}` : `à ${name}`;
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c] as string);
+/** Largeur de vue (fraction de la zone) en dessous de laquelle les hameaux sont nommés. */
+const HAMLET_ZOOM = 0.55;
 
 export class RoutePlanner {
   private open: OpenMap | null = null;
@@ -41,8 +48,9 @@ export class RoutePlanner {
   private roads = '';
   private bounds: View = { x: 0, z: 0, w: 1, h: 1 };
   private view: View = { x: 0, z: 0, w: 1, h: 1 };
-  private from: RoadSnap | null = null;
-  private to: RoadSnap | null = null;
+  /** Départ puis points de passage ; `legs[i]` va de `points[i]` à `points[i + 1]`. */
+  private points: RoadSnap[] = [];
+  private legs: Itinerary[] = [];
   private result: RouteData | null = null;
   private error = '';
 
@@ -76,10 +84,17 @@ export class RoutePlanner {
   }
 
   private clear(): void {
-    this.from = null;
-    this.to = null;
+    this.points = [];
+    this.legs = [];
     this.result = null;
     this.error = '';
+  }
+
+  /** Boucle fermée : le dernier point est revenu sur le départ. */
+  private get closed(): boolean {
+    const a = this.points[0];
+    const b = this.points[this.points.length - 1];
+    return this.points.length > 2 && !!a && !!b && a.edge === b.edge && Math.abs(a.along - b.along) < 1;
   }
 
   /** Routes en trois classes (grandes, petites, chemins), points espacés d'au moins ~1 px. */
@@ -105,18 +120,53 @@ export class RoutePlanner {
     return `<path class="rp-track" d="${d.track}"/><path class="rp-minor" d="${d.minor}"/><path class="rp-major" d="${d.major}"/>`;
   }
 
-  private roadName(s: RoadSnap): string {
-    const e = this.net?.edge(s.edge);
-    return e?.name || e?.ref || (fr() ? 'route sans nom' : 'unnamed road');
+  /** Lieu habité le plus proche (moins de `maxM`), villes et villages d'abord. */
+  private nearPlace(x: number, z: number, maxM = 1200): WorldPlace | null {
+    let best: WorldPlace | null = null;
+    let bd = Infinity;
+    for (const p of this.open?.places ?? []) {
+      // un village compte « plus près » qu'un hameau à distance égale
+      const d = Math.hypot(p.x - x, p.z - z) * (p.kind === 'hamlet' ? 1.6 : 1);
+      if (d < bd && d < maxM) {
+        bd = d;
+        best = p;
+      }
+    }
+    return best;
   }
 
-  private km(m: number): string {
-    return (m / 1000).toFixed(1).replace('.', fr() ? ',' : '.');
+  /** Où est ce point : route (nom ou numéro) et lieu le plus proche. */
+  private where(s: RoadSnap): string {
+    const L = fr();
+    const e = this.net?.edge(s.edge);
+    const road = e?.name || e?.ref || '';
+    const place = this.nearPlace(s.x, s.z)?.name;
+    const near = place ? (L ? `près ${frenchOf(place)}` : `near ${place}`) : '';
+    if (road && near) return `${road}, ${near}`;
+    if (near) return near;
+    return road || (L ? 'route sans nom' : 'unnamed road');
+  }
+
+  private scaleK(): string {
+    return (this.view.w / 600).toFixed(3);
   }
 
   /** Repère (taille constante à l'écran : mis à l'échelle de la vue). */
   private marker(x: number, z: number, cls: string, label: string): string {
-    return `<g class="rp-mk ${cls}" data-mk transform="translate(${x.toFixed(1)} ${z.toFixed(1)}) scale(${(this.view.w / 600).toFixed(3)})"><circle r="9"/><text y="4">${label}</text></g>`;
+    return `<g class="rp-mk ${cls}" data-mk transform="translate(${x.toFixed(1)} ${z.toFixed(1)}) scale(${this.scaleK()})"><circle r="9"/><text y="4">${label}</text></g>`;
+  }
+
+  /** Noms des lieux : villes et villages toujours, hameaux une fois zoomé. */
+  private placeLabels(): string {
+    const order = (k: string) => (k === 'hamlet' ? 0 : 1);
+    return (this.open?.places ?? [])
+      .slice()
+      .sort((a, b) => order(a.kind) - order(b.kind))
+      .map(
+        (p) =>
+          `<g class="rp-place rp-${p.kind === 'hamlet' ? 'hamlet' : 'village'}" data-mk transform="translate(${p.x.toFixed(0)} ${p.z.toFixed(0)}) scale(${this.scaleK()})"><circle r="${p.kind === 'hamlet' ? 2 : 3.2}"/><text x="6" y="4">${esc(p.name)}</text></g>`,
+      )
+      .join('');
   }
 
   /** Bloc complet : carte cliquable et panneau (consignes, chiffres, boutons). */
@@ -125,51 +175,68 @@ export class RoutePlanner {
     const L = fr();
     const v = this.view;
     const r = this.result;
+    const pts = this.points;
+    const n = pts.length;
     let line = '';
     if (r) {
-      const step = Math.max(1, Math.floor(r.points.length / 1500));
+      const step = Math.max(1, Math.floor(r.points.length / 2000));
       line = `<path class="rp-route" d="${r.points
         .filter((_, i) => i % step === 0 || i === r.points.length - 1)
         .map((p, i) => `${i ? 'L' : 'M'}${p.x.toFixed(0)} ${p.z.toFixed(0)}`)
         .join('')}"/>`;
     }
-    const marks =
-      (this.from ? this.marker(this.from.x, this.from.z, 'rp-from', 'D') : this.marker(this.open.start.x, this.open.start.z, 'rp-home', '')) + (this.to ? this.marker(this.to.x, this.to.z, 'rp-to', 'A') : '');
+    let marks = '';
+    if (!n) marks = this.marker(this.open.start.x, this.open.start.z, 'rp-home', '');
+    else {
+      // points de passage numérotés, puis arrivée (sauf boucle fermée), puis départ par-dessus
+      for (let i = 1; i < n - 1; i++) marks += this.marker((pts[i] as RoadSnap).x, (pts[i] as RoadSnap).z, 'rp-via', String(i));
+      if (n > 1 && !this.closed) marks += this.marker((pts[n - 1] as RoadSnap).x, (pts[n - 1] as RoadSnap).z, 'rp-to', 'A');
+      marks += this.marker((pts[0] as RoadSnap).x, (pts[0] as RoadSnap).z, 'rp-from', 'D');
+    }
     const hint = this.error
       ? `<p class="rp-err">${esc(this.error)}</p>`
       : `<p class="mm-hint">${
-          !this.from
+          !n
             ? L
-              ? 'Clique sur la carte pour choisir ton départ (molette : zoom, glisser : déplacer).'
-              : 'Click the map to pick your start (wheel: zoom, drag: pan).'
-            : !this.to
+              ? 'Clique sur la carte pour choisir ton départ, puis tes points de passage (molette : zoom, glisser : déplacer).'
+              : 'Click the map to pick your start, then your waypoints (wheel: zoom, drag: pan).'
+            : n === 1
               ? L
-                ? 'Clique ton arrivée, ou pars d’ici en roulage libre.'
-                : 'Click your finish, or ride freely from here.'
-              : L
-                ? 'Un nouveau clic choisit un autre départ.'
-                : 'Click again to pick another start.'
+                ? 'Clique ton prochain point (le parcours suit les routes), ou pars d’ici en roulage libre.'
+                : 'Click your next point (the route follows the roads), or ride freely from here.'
+              : this.closed
+                ? L
+                  ? 'Boucle fermée : tu reviens à ton départ.'
+                  : 'Loop closed: you finish where you started.'
+                : L
+                  ? 'Clique pour ajouter des points de passage, ou reviens au départ pour faire une boucle.'
+                  : 'Click to add waypoints, or go back to the start to make a loop.'
         }</p>`;
-    const pts = this.from
-      ? `<ol class="rp-pts"><li><i class="rp-dot rp-from"></i>${L ? 'Départ' : 'Start'} · <b>${esc(this.roadName(this.from))}</b></li>${this.to ? `<li><i class="rp-dot rp-to"></i>${L ? 'Arrivée' : 'Finish'} · <b>${esc(this.roadName(this.to))}</b></li>` : ''}</ol>`
+    const list = n
+      ? `<ol class="rp-pts"><li><i class="rp-dot rp-from"></i>${L ? 'Départ' : 'Start'} · <b>${esc(this.where(pts[0] as RoadSnap))}</b></li>${
+          n > 2 ? `<li><i class="rp-dot rp-via"></i>${n - 2} ${L ? `point${n - 2 > 1 ? 's' : ''} de passage` : `waypoint${n - 2 > 1 ? 's' : ''}`}</li>` : ''
+        }${n > 1 ? (this.closed ? `<li><i class="rp-dot rp-from"></i>${L ? 'Retour au départ' : 'Back to the start'}</li>` : `<li><i class="rp-dot rp-to"></i>${L ? 'Arrivée' : 'Finish'} · <b>${esc(this.where(pts[n - 1] as RoadSnap))}</b></li>`) : ''}</ol>`
       : '';
     const go = (id: string, label: string, cls = '') => `<button class="rp-btn ${cls}" data-plan="${id}">${label}</button>`;
     const actions = [
-      r ? go('ride', `${L ? 'Rouler cet itinéraire' : 'Ride this route'} →`, 'rp-go') : '',
-      this.from && !this.to ? go('here', `${L ? 'Partir d’ici en libre' : 'Ride freely from here'} →`, 'rp-go') : '',
-      go('free', L ? 'Rouler en libre' : 'Free ride', this.from ? '' : 'rp-go'),
-      this.from ? go('clear', L ? 'Effacer' : 'Clear') : '',
+      r ? go('ride', `${L ? (this.closed ? 'Rouler cette boucle' : 'Rouler cet itinéraire') : this.closed ? 'Ride this loop' : 'Ride this route'} →`, 'rp-go') : '',
+      n === 1 ? go('here', `${L ? 'Partir d’ici en libre' : 'Ride freely from here'} →`, 'rp-go') : '',
+      n > 1 && !this.closed ? go('loop', `↺ ${L ? 'Revenir au départ' : 'Back to the start'}`) : '',
+      n ? go('undo', `↶ ${L ? 'Annuler le dernier point' : 'Undo last point'}`) : '',
+      n ? go('clear', L ? 'Effacer' : 'Clear') : '',
+      go('free', L ? 'Rouler en libre' : 'Free ride', n ? '' : 'rp-go'),
     ].join('');
+    const zoomed = v.w < this.bounds.w * HAMLET_ZOOM;
     return `<section class="rp" aria-label="${L ? 'Itinéraire sur la carte' : 'Route on the map'}">
       <div class="rp-mapbox">
-        <svg class="rp-map" viewBox="${v.x.toFixed(1)} ${v.z.toFixed(1)} ${v.w.toFixed(1)} ${v.h.toFixed(1)}" preserveAspectRatio="xMidYMid meet">
-          <g class="rp-roads">${this.roads}</g>${line}${marks}
+        <svg class="rp-map${zoomed ? ' rp-zoomed' : ''}" viewBox="${v.x.toFixed(1)} ${v.z.toFixed(1)} ${v.w.toFixed(1)} ${v.h.toFixed(1)}" preserveAspectRatio="xMidYMid meet">
+          <g class="rp-roads">${this.roads}</g>${line}<g class="rp-places">${this.placeLabels()}</g>${marks}
         </svg>
-        <div class="rp-legend"><span><i class="rp-l-major"></i>${L ? 'route' : 'road'}</span><span><i class="rp-l-track"></i>${L ? 'chemin' : 'track'}</span>${this.from ? '' : `<span><i class="rp-dot rp-home"></i>${L ? 'départ par défaut' : 'default start'}</span>`}</div>
+        <div class="rp-legend"><span><i class="rp-l-major"></i>${L ? 'route' : 'road'}</span><span><i class="rp-l-track"></i>${L ? 'chemin' : 'track'}</span>${n ? '' : `<span><i class="rp-dot rp-home"></i>${L ? 'départ par défaut' : 'default start'}</span>`}</div>
       </div>
       <div class="rp-side">
         <h3>${L ? 'Ton itinéraire' : 'Your route'}</h3>
-        ${hint}${pts}
+        ${hint}${list}
         ${r ? `<div class="rp-card">${routeCard(r)}</div>` : ''}
         <div class="rp-actions">${actions}</div>
       </div>
@@ -192,12 +259,14 @@ export class RoutePlanner {
     box.querySelectorAll<HTMLElement>('[data-plan]').forEach((el) =>
       el.addEventListener('click', () => {
         const id = el.dataset.plan;
-        if (id === 'clear') {
-          this.clear();
-          redraw();
-        } else if (id === 'ride' && this.result) act.ride(this.result);
-        else if (id === 'here' && this.from) act.free({ x: this.from.x, z: this.from.z });
-        else if (id === 'free') act.free(null);
+        const first = this.points[0];
+        if (id === 'ride' && this.result) return act.ride(this.result);
+        if (id === 'here' && first) return act.free({ x: first.x, z: first.z });
+        if (id === 'free') return act.free(null);
+        if (id === 'clear') this.clear();
+        else if (id === 'undo') this.undo();
+        else if (id === 'loop' && first) this.addPoint({ ...first });
+        redraw();
       }),
     );
     const toWorld = (cx: number, cy: number) => {
@@ -209,7 +278,8 @@ export class RoutePlanner {
     const applyView = () => {
       const v = this.view;
       svg.setAttribute('viewBox', `${v.x.toFixed(1)} ${v.z.toFixed(1)} ${v.w.toFixed(1)} ${v.h.toFixed(1)}`);
-      const k = (v.w / 600).toFixed(3);
+      svg.classList.toggle('rp-zoomed', v.w < this.bounds.w * HAMLET_ZOOM);
+      const k = this.scaleK();
       svg.querySelectorAll<SVGGElement>('[data-mk]').forEach((g) => g.setAttribute('transform', (g.getAttribute('transform') ?? '').replace(/scale\([^)]*\)/, `scale(${k})`)));
     };
     // Molette : zoom autour du pointeur, entre la zone entière et ~600 m de large.
@@ -229,7 +299,7 @@ export class RoutePlanner {
       },
       { passive: false },
     );
-    // Glisser : déplacer la carte ; clic sans glisser : départ ou arrivée.
+    // Glisser : déplacer la carte ; clic sans glisser : nouveau point.
     let drag: { x: number; y: number; vx: number; vz: number; moved: boolean } | null = null;
     svg.addEventListener('pointerdown', (e) => {
       drag = { x: e.clientX, y: e.clientY, vx: this.view.x, vz: this.view.z, moved: false };
@@ -266,37 +336,64 @@ export class RoutePlanner {
     v.z = Math.min(Math.max(v.z, b.z - v.h * 0.25), b.z + b.h - v.h * 0.75);
   }
 
-  /** Clic sur la carte : départ, puis arrivée (itinéraire calculé), puis nouveau départ. */
+  /** Clic sur la carte : rattaché à la route la plus proche, puis ajouté au parcours. */
   private pick(x: number, z: number, tolM: number): void {
     if (!this.net) return;
-    const L = fr();
     const snap = snapToRoad(this.net, x, z, Math.max(60, tolM));
     if (!snap) {
-      this.error = L ? 'Clique plus près d’une route.' : 'Click closer to a road.';
+      this.error = fr() ? 'Clique plus près d’une route.' : 'Click closer to a road.';
       return;
     }
+    // Boucle déjà fermée : un nouveau clic repart de zéro.
+    if (this.closed) this.clear();
+    this.addPoint(snap);
+  }
+
+  /** Ajoute un point : étape calculée depuis le point précédent (refusé si impossible). */
+  private addPoint(snap: RoadSnap): void {
+    if (!this.net) return;
+    const L = fr();
     this.error = '';
-    if (!this.from || this.to) {
-      this.from = snap;
-      this.to = null;
-      this.result = null;
+    const prev = this.points[this.points.length - 1];
+    if (!prev) {
+      this.points.push(snap);
       return;
     }
-    this.to = snap;
+    if (Math.hypot(snap.x - prev.x, snap.z - prev.z) < 30) {
+      this.error = L ? 'Point trop près du précédent.' : 'Point too close to the previous one.';
+      return;
+    }
+    const leg = planItinerary(this.net, prev, snap);
+    if (!leg) {
+      this.error = L ? 'Aucune route praticable jusqu’à ce point.' : 'No rideable road to this point.';
+      return;
+    }
+    this.points.push(snap);
+    this.legs.push(leg);
+    this.rebuild();
+  }
+
+  private undo(): void {
+    this.points.pop();
+    this.legs.length = Math.max(0, this.points.length - 1);
+    this.error = '';
+    this.rebuild();
+  }
+
+  /** Parcours complet à partir des étapes ; nommé d'après les lieux de départ et d'arrivée. */
+  private rebuild(): void {
     this.result = null;
-    const it = planItinerary(this.net, this.from, snap);
-    const route = it
-      ? itineraryRoute(this.net, it, {
-          id: `${ITINERARY_PREFIX}${Date.now().toString(36)}`,
-          name: 'Mon itinéraire',
-          nameEn: 'My route',
-        })
-      : null;
-    if (!route) {
-      this.error = it ? (L ? 'Arrivée trop près du départ.' : 'Finish too close to the start.') : L ? 'Aucune route praticable entre ces deux points.' : 'No rideable road between these two points.';
-      this.to = null;
-      return;
-    }
-    this.result = route;
+    if (!this.net || !this.legs.length) return;
+    const a = this.points[0] as RoadSnap;
+    const b = this.points[this.points.length - 1] as RoadSnap;
+    const pa = this.nearPlace(a.x, a.z, 2500)?.name;
+    const pb = this.nearPlace(b.x, b.z, 2500)?.name;
+    const name = this.closed ? (pa ? [`Boucle au départ ${frenchOf(pa)}`, `Loop from ${pa}`] : ['Ma boucle', 'My loop']) : pa && pb && pa !== pb ? [`${frenchOf(pa).replace(/^./, (c) => c.toUpperCase())} ${frenchTo(pb)}`, `From ${pa} to ${pb}`] : ['Mon itinéraire', 'My route'];
+    this.result = itineraryRoute(this.net, joinItineraries(this.legs), {
+      id: `${ITINERARY_PREFIX}${Date.now().toString(36)}`,
+      name: name[0] as string,
+      nameEn: name[1] as string,
+      ...(this.open?.places ? { places: this.open.places } : {}),
+    });
   }
 }
