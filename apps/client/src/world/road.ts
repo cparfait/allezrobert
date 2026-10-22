@@ -1,6 +1,7 @@
 import * as THREE from 'three/webgpu';
 import { uv, mix, smoothstep, step, fract, vec3, float, uniform, mx_noise_float, positionWorld, clamp, abs, max } from 'three/tsl';
 import type { RouteData, RoutePoint } from '@allezrobert/shared';
+import { asphaltGrain } from './asphalt.ts';
 
 /**
  * Ruban de chaussée de l'itinéraire, posé sur le terrain déjà creusé, avec marquages
@@ -23,7 +24,7 @@ export class RoadMesh {
 
     const n = mx_noise_float(positionWorld.xz.mul(1.7)).mul(0.5).add(0.5);
     const n2 = mx_noise_float(positionWorld.xz.mul(0.08)).mul(0.5).add(0.5);
-    const asphalt = vec3(0.235, 0.24, 0.255).mul(n.mul(0.18).add(0.86)).mul(n2.mul(0.2).add(0.9));
+    const asphalt = vec3(0.235, 0.24, 0.255).mul(asphaltGrain()).mul(n2.mul(0.2).add(0.9));
     // Traces de roulement plus claires et plus lisses.
     const wheelTrack = smoothstep(0.5, 0.0, abs(ax.sub(half * 0.5))).mul(0.06);
     const gravel = vec3(0.42, 0.39, 0.33).mul(n.mul(0.35).add(0.7));

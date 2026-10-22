@@ -1,6 +1,7 @@
 import * as THREE from 'three/webgpu';
 import { uv, attribute, mix, smoothstep, step, fract, vec3, float, uniform, mx_noise_float, positionWorld, clamp, abs, max, time, sin, normalWorld, cameraPosition } from 'three/tsl';
 import type { LoadedTile, TileRoad } from './types.ts';
+import { asphaltGrain } from './asphalt.ts';
 
 /** Routes revêtues avec marquage axial (départementales et plus). */
 const MARKED = new Set(['primary', 'secondary', 'tertiary', 'trunk', 'primary_link', 'secondary_link']);
@@ -37,7 +38,7 @@ export class RoadNetwork {
     const ax = abs(across);
     const n = mx_noise_float(positionWorld.xz.mul(1.7)).mul(0.5).add(0.5);
     const n2 = mx_noise_float(positionWorld.xz.mul(0.08)).mul(0.5).add(0.5);
-    const asphalt = vec3(0.24, 0.245, 0.26).mul(n.mul(0.18).add(0.86)).mul(n2.mul(0.2).add(0.9));
+    const asphalt = vec3(0.24, 0.245, 0.26).mul(asphaltGrain()).mul(n2.mul(0.2).add(0.9));
     const gravel = vec3(0.5, 0.46, 0.38).mul(n.mul(0.35).add(0.7));
     const edge = smoothstep(half.sub(0.35), half.sub(0.3), ax).mul(smoothstep(half.sub(0.1), half.sub(0.15), ax)).mul(info.y);
     const dash = step(fract(along.div(13)), float(3 / 13));
