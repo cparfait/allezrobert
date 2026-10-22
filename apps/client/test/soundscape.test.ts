@@ -80,7 +80,7 @@ describe('roulement', () => {
     }
     expect(tireMix('smooth', 10).crunch.gain).toBe(0);
     expect(tireMix('smooth', 10).cobble.gain).toBe(0);
-    expect(tireMix('gravel', 10).crunch.gain).toBeGreaterThan(0.08);
+    expect(tireMix('gravel', 10).crunch.gain).toBeGreaterThan(0.2);
   });
 
   it('pavés : un impact tous les 16 cm', () => {
@@ -97,7 +97,7 @@ describe('roulement', () => {
       for (const v of [Number.NaN, -3, 0, 5, 25, 40]) {
         const t = tireTotal(s, v, 1);
         expect(Number.isFinite(t)).toBe(true);
-        expect(t).toBeLessThan(0.5);
+        expect(t).toBeLessThan(0.9);
       }
   });
 });
@@ -115,7 +115,7 @@ describe('vent', () => {
   it('souffle de l’air croissant et borné', () => {
     expect(windMix(0).gain).toBeLessThan(0.01);
     expect(windMix(10).gain).toBeGreaterThan(windMix(5).gain);
-    expect(windMix(100).gain).toBeLessThanOrEqual(0.28);
+    expect(windMix(100).gain).toBeLessThanOrEqual(0.2);
     expect(windMix(15).freq).toBeGreaterThan(windMix(5).freq);
   });
 });
@@ -153,9 +153,9 @@ describe('souffle', () => {
     expect(settle(0.4).gain).toBe(0);
     const ftp = settle(1);
     const vo2 = settle(1.25);
-    expect(ftp.gain).toBeGreaterThan(0.02);
+    expect(ftp.gain).toBeGreaterThan(0.1);
     expect(vo2.gain).toBeGreaterThan(ftp.gain);
-    expect(vo2.gain).toBeLessThanOrEqual(0.06);
+    expect(vo2.gain).toBeLessThanOrEqual(0.3);
   });
 
   it('rythme comme le visage (rider/face.ts) : 12 → 50 cycles/min selon la FC', () => {
@@ -266,7 +266,7 @@ describe('ambiances', () => {
 
   it('forêt : feuillage dans le vent (moins l’hiver), hulotte la nuit', () => {
     const forest = { ...base, forest: 1, open: 0, windMs: 7 };
-    expect(ambienceMix(forest).foliage).toBeGreaterThan(0.03);
+    expect(ambienceMix(forest).foliage).toBeGreaterThan(0.025);
     expect(ambienceMix({ ...forest, windMs: 0 }).foliage).toBe(0);
     expect(ambienceMix({ ...forest, season: 'winter' }).foliage).toBeLessThan(ambienceMix(forest).foliage * 0.5);
     expect(ambienceMix({ ...forest, night: 1, season: 'autumn' }).owl).toBeGreaterThan(0.3);

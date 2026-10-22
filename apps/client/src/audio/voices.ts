@@ -71,7 +71,7 @@ function whistleNote(ctx: BaseAudioContext, out: AudioNode, t0: number, f0: numb
  */
 export function bird(ctx: BaseAudioContext, out: AudioNode, noise: AudioBuffer, at: number, kind: BirdKind, gain: number, pan: number, lowpass = 20000): number {
   const o = placed(ctx, out, pan, lowpass);
-  const g = gain * 0.03;
+  const g = gain * 0.09;
   switch (kind) {
     case 'warble': {
       // Merle : phrase flûtée de 4 à 8 notes, 1,6–3,2 kHz.
@@ -256,17 +256,17 @@ export function moo(ctx: BaseAudioContext, out: AudioNode, at: number, gain: num
 
 /** Un applaudissement (claquement de mains). */
 export function clap(ctx: BaseAudioContext, out: AudioNode, noise: AudioBuffer, at: number, gain: number, pan: number): void {
-  burst(ctx, noise, placed(ctx, out, pan), at, between(0.03, 0.06), 'bandpass', between(1100, 2200), 1.2, gain * 0.05, 0.001);
+  burst(ctx, noise, placed(ctx, out, pan), at, between(0.03, 0.06), 'bandpass', between(1100, 2200), 1.2, gain * 0.12, 0.001);
 }
 
 /** Sifflet aux doigts : montée puis tenue, ou deux tons. */
 export function fanWhistle(ctx: BaseAudioContext, out: AudioNode, at: number, gain: number, pan: number): void {
   const o = placed(ctx, out, pan);
   const f = between(2400, 3200);
-  if (r() < 0.5) whistleNote(ctx, o, at, f * 0.7, f, 0.5, gain * 0.025);
+  if (r() < 0.5) whistleNote(ctx, o, at, f * 0.7, f, 0.5, gain * 0.06);
   else {
-    whistleNote(ctx, o, at, f * 0.8, f * 1.1, 0.25, gain * 0.025);
-    whistleNote(ctx, o, at + 0.32, f * 1.05, f * 0.6, 0.45, gain * 0.025);
+    whistleNote(ctx, o, at, f * 0.8, f * 1.1, 0.25, gain * 0.06);
+    whistleNote(ctx, o, at + 0.32, f * 1.05, f * 0.6, 0.45, gain * 0.06);
   }
 }
 
@@ -301,9 +301,9 @@ export function shout(ctx: BaseAudioContext, out: AudioNode, at: number, gain: n
   src.frequency.linearRampToValueAtTime(f0 * 1.15, at + dur);
   const g = ctx.createGain();
   g.gain.setValueAtTime(0, at);
-  g.gain.linearRampToValueAtTime(gain * 0.05, at + 0.04);
-  g.gain.linearRampToValueAtTime(gain * 0.025, mid);
-  g.gain.linearRampToValueAtTime(gain * 0.06, mid + 0.08);
+  g.gain.linearRampToValueAtTime(gain * 0.12, at + 0.04);
+  g.gain.linearRampToValueAtTime(gain * 0.06, mid);
+  g.gain.linearRampToValueAtTime(gain * 0.14, mid + 0.08);
   g.gain.linearRampToValueAtTime(0, at + dur);
   src.connect(g);
   g.connect(f1);
@@ -326,7 +326,7 @@ export function cowbell(ctx: BaseAudioContext, out: AudioNode, at: number, gain:
     ] as const)
       tone(ctx, o, t, 0.35, 'square', (f, g) => {
         f.value = base * ratio;
-        g.setValueAtTime(gain * 0.008 * amp, t);
+        g.setValueAtTime(gain * 0.02 * amp, t);
         g.exponentialRampToValueAtTime(0.0001, t + 0.3);
       });
   }

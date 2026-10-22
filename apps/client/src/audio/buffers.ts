@@ -24,7 +24,10 @@ function normalize(d: Float32Array, peak: number): Float32Array {
 
 /** Bruit blanc ou rose (filtre de Paul Kellet), amplitude crête ~0,5. */
 export function noise(sampleRate: number, seconds: number, pink: boolean, rnd: () => number): Float32Array {
-  const d = new Float32Array(Math.floor(sampleRate * seconds));
+  const n = Math.floor(sampleRate * seconds);
+  const f = Math.min(n >> 2, Math.floor(sampleRate * 0.02));
+  // f échantillons de plus : la queue se fond dans ce qui précède le début (raccord continu).
+  const d = new Float32Array(n + f);
   let b0 = 0;
   let b1 = 0;
   let b2 = 0;
@@ -37,14 +40,15 @@ export function noise(sampleRate: number, seconds: number, pink: boolean, rnd: (
       d[i] = (b0 + b1 + b2 + w * 0.1848) * 0.18;
     } else d[i] = w * 0.5;
   }
-  // Raccord de boucle : fondu de 20 ms vers le début.
-  const f = Math.min(d.length >> 2, Math.floor(sampleRate * 0.02));
-  for (let i = 0; i < f; i++) {
-    const t = i / f;
-    const j = d.length - f + i;
-    d[j] = (d[j] as number) * (1 - t) + (d[i] as number) * t;
+  // Boucle : y = d[f … f+n[, les f derniers échantillons fondus vers d[0 … f[ (qui précède y[0]).
+  const y = d.slice(f, f + n);
+  for (let k = n - f; k < n; k++) {
+    const t = (k - (n - f) + 1) / f;
+    y[k] = (y[k] as number) * (1 - t) + (d[k - (n - f)] as number) * t;
   }
-  return d;
+  let m = 0;
+  for (const x of y) m = Math.max(m, Math.abs(x));
+  return m > 0.9 ? normalize(y, 0.9) : y;
 }
 
 /**

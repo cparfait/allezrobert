@@ -113,9 +113,9 @@ interface TireProfile {
 /** Signature de chaque revêtement (facteurs relatifs à l'enrobé lisse). */
 export const TIRE_PROFILES: Record<Surface, TireProfile> = {
   smooth: { roar: 1, roarHz: 0, q: 1.1, hiss: 0.15, hissHz: 4200, crunch: 0, cobble: 0 },
-  rough: { roar: 1.45, roarHz: 70, q: 0.8, hiss: 0.55, hissHz: 3400, crunch: 0.1, cobble: 0 },
+  rough: { roar: 1.45, roarHz: 70, q: 0.8, hiss: 0.8, hissHz: 3400, crunch: 0.15, cobble: 0 },
   cobbles: { roar: 1.3, roarHz: 30, q: 0.6, hiss: 0.4, hissHz: 3000, crunch: 0.08, cobble: 1 },
-  gravel: { roar: 1.1, roarHz: 140, q: 0.5, hiss: 0.8, hissHz: 2600, crunch: 1, cobble: 0 },
+  gravel: { roar: 1.5, roarHz: 140, q: 0.5, hiss: 1.1, hissHz: 2600, crunch: 1, cobble: 0 },
   dirt: { roar: 0.75, roarHz: -40, q: 0.6, hiss: 0.35, hissHz: 2200, crunch: 0.4, cobble: 0 },
 };
 
@@ -133,7 +133,7 @@ export function tireMix(surface: Surface, speedMs: number, wet = 0): TireMix {
   return {
     roar: { gain: 0.09 * p.roar * roll * sp ** 0.8, freq: Math.max(60, 110 + v * 22 + p.roarHz), q: p.q },
     hiss: { gain: 0.05 * p.hiss * roll * Math.min(1.4, v / 10), freq: p.hissHz },
-    crunch: { gain: 0.11 * p.crunch * roll * Math.min(1.2, Math.sqrt(v / 8)), rate: clamp(0.35 + v / 9, 0.35, 2.4) },
+    crunch: { gain: 0.4 * p.crunch * roll * Math.min(1.2, Math.sqrt(v / 8)), rate: clamp(0.35 + v / 9, 0.35, 2.4) },
     cobble: { gain: 0.16 * p.cobble * roll * Math.min(1, v / 5), rate: v / COBBLE_SPACING_M },
     spray: 0.05 * clamp(wet, 0, 1) * roll * Math.min(1.3, v / 10) * (paved ? 1 : 0.5),
   };
@@ -153,7 +153,7 @@ export function apparentWind(speedMs: number, windMs: number, windFrom: number, 
 /** Souffle de l'air aux oreilles : volume et brillance croissent avec la vitesse de l'air. */
 export function windMix(airMs: number): { gain: number; freq: number } {
   const a = Math.max(0, Number.isFinite(airMs) ? airMs : 0);
-  return { gain: Math.min(0.28, 0.004 + 0.2 * (a / 15) ** 2), freq: Math.min(2400, 220 + a * 70) };
+  return { gain: Math.min(0.2, 0.004 + 0.14 * (a / 15) ** 2), freq: Math.min(2400, 220 + a * 70) };
 }
 
 // ————————————————————————————————————————————— Roue libre et transmission
@@ -178,7 +178,7 @@ export function freewheelRate(speedMs: number): number {
  */
 export function freewheelClickGain(rate: number): number {
   if (rate <= 0) return 0;
-  return 0.09 / Math.sqrt(Math.max(1, rate / 40));
+  return 0.15 / Math.sqrt(Math.max(1, rate / 40));
 }
 
 // ————————————————————————————————————————————— Souffle du coureur
@@ -212,7 +212,7 @@ export class BreathModel {
     const rate = 12 + 38 * smoothstep(0.5, 1, hr);
     // Après un gros effort, la FC reste haute : on souffle encore en roue libre (un peu moins fort).
     const level = Math.max(smoothstep(0.6, 1.2, e), 0.7 * smoothstep(0.82, 0.97, hr));
-    return { rate, gain: 0.06 * level * (coasting ? 0.7 : 1), open: smoothstep(0.85, 1.3, e), effort: e, hr };
+    return { rate, gain: 0.25 * level * (coasting ? 0.7 : 1), open: smoothstep(0.85, 1.3, e), effort: e, hr };
   }
 }
 
@@ -281,7 +281,7 @@ export function crowdActivity(level: number, ftpFrac: number, mountain = false):
   const l = clamp(level, 0, 1);
   const excite = 0.55 + 0.65 * smoothstep(0.8, 1.3, ftpFrac);
   return {
-    bed: 0.07 * l * (0.7 + 0.3 * excite),
+    bed: 0.16 * l * (0.7 + 0.3 * excite),
     claps: 14 * l * excite,
     shouts: 2.6 * l * l * excite,
     whistles: 0.5 * l * excite,
@@ -427,12 +427,12 @@ export function ambienceMix(a: AmbienceInput): AmbienceMix {
     owl: 0.5 * night * clamp(forest + 0.3 * urban, 0, 1) * (1 - rain) * { spring: 0.6, summer: 0.4, autumn: 1, winter: 1 }[s],
     dogs: 0.6 * urban * (0.5 + 0.5 * day),
     birdGain: 0.5 + 0.5 * dawn,
-    crickets: 0.05 * INSECTS[s] * (0.15 * day * open + dusk) * clamp(0.3 + 0.7 * (open + 0.5 * urban), 0, 1) * (1 - rain),
-    foliage: 0.06 * forest * LEAVES[s] * smoothstep(0.5, 8, wind),
+    crickets: 0.11 * INSECTS[s] * (0.15 * day * open + dusk) * clamp(0.3 + 0.7 * (open + 0.5 * urban), 0, 1) * (1 - rain),
+    foliage: 0.045 * forest * LEAVES[s] * smoothstep(0.5, 8, wind),
     wind: 0.05 * smoothstep(1, 12, wind) * (0.6 + 0.4 * open),
-    village: 0.035 * urban * (0.4 + 0.6 * day),
-    rainHiss: 0.1 * rain,
-    rainDrops: 0.08 * rain ** 0.7,
+    village: 0.055 * urban * (0.4 + 0.6 * day),
+    rainHiss: 0.08 * rain,
+    rainDrops: 0.065 * rain ** 0.7,
     rainLeaves: 0.06 * rain * forest,
     bells: hour >= 7 && hour <= 21.5,
     cows: s !== 'winter' && day > 0.3,

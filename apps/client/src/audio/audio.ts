@@ -6,7 +6,8 @@
  * le mixage par bus dans mix.ts. La musique est à part (music.ts).
  *
  * Graphe : couches → bus de catégorie (ambiance, vélo, souffle, public, trafic) → général →
- * écrêteur doux (crête < −0,9 dBFS quoi qu'il arrive) → sortie.
+ * gain de compensation → compresseur doux (les scènes chargées) → écrêteur doux (crête
+ * < −0,9 dBFS quoi qu'il arrive) → sortie. Niveaux mesurés : apps/client/scripts/audio-bench.mjs.
  */
 import type { SoundSource } from './spatial.ts';
 import { BUSES, busGains, DEFAULT_MIX, type Bus, type SoundMix } from './mix.ts';
@@ -84,6 +85,11 @@ interface TrafficVoice {
 }
 
 const SONGS: BirdKind[] = ['warble', 'tit', 'chiff'];
+/**
+ * Gain de compensation après le général (+13 dB) ; le compresseur de WebAudio ajoute sa propre
+ * compensation automatique (~+4,5 dB avec ces réglages).
+ */
+const MAKEUP = 4.5;
 
 export class GameAudio {
   private ctx: BaseAudioContext | null = null;
@@ -192,7 +198,16 @@ export class GameAudio {
     shaper.oversample = '2x';
     this.master = ctx.createGain();
     this.master.gain.value = 0;
-    this.master.connect(pre).connect(shaper).connect(ctx.destination);
+    // Les couches sont réglées avec de la marge (somme bornée) : on remonte l'ensemble ici.
+    const makeup = ctx.createGain();
+    makeup.gain.value = MAKEUP;
+    const comp = ctx.createDynamicsCompressor();
+    comp.threshold.value = -12;
+    comp.knee.value = 6;
+    comp.ratio.value = 4;
+    comp.attack.value = 0.005;
+    comp.release.value = 0.3;
+    this.master.connect(makeup).connect(comp).connect(pre).connect(shaper).connect(ctx.destination);
     this.buses = Object.fromEntries(
       BUSES.map((b) => {
         const g = ctx.createGain();
@@ -522,7 +537,7 @@ export class GameAudio {
         this.set(voice.tireFilter.frequency, (500 + speed * 25) * vv.doppler, 0.08);
         this.set(voice.air.frequency, vv.lowpass, 0.08);
         this.set(voice.pan.pan, vv.pan, 0.05);
-        this.set(voice.out.gain, vv.gain * 0.11, 0.06);
+        this.set(voice.out.gain, vv.gain * 0.25, 0.06);
         voice.idle = vv.gain > 0 ? 0 : voice.idle + dt;
       }
     }
