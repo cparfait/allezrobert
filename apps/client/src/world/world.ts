@@ -10,6 +10,7 @@ import { RouteFootprint } from './ribbon.ts';
 import { RoadNetwork } from './network.ts';
 import { Rain } from './weather.ts';
 import { GrassField } from './grass.ts';
+import { WaterSystem } from './water.ts';
 import { soundSourcesForTile, type SoundSource } from '../audio/spatial.ts';
 import type { WorldSource } from './types.ts';
 
@@ -23,6 +24,7 @@ export class World {
   readonly network: RoadNetwork;
   readonly rain: Rain;
   readonly grass: GrassField;
+  readonly water: WaterSystem;
   readonly source: WorldSource;
   private readonly scene: THREE.Scene;
   private readonly track: RouteTrack;
@@ -51,7 +53,7 @@ export class World {
     const groundAt = (x: number, z: number) => this.terrain.heightAt(x, z);
     this.vegetation = new Vegetation(q, envState.season, groundAt, nearRoad);
     scene.add(this.vegetation.group);
-    this.buildings = new Buildings(groundAt);
+    this.buildings = new Buildings(groundAt, q.propDensity);
     scene.add(this.buildings.group);
     this.network = new RoadNetwork(route.id, groundAt, TMP_NOFIX ? null : footprint);
     scene.add(this.network.group);
@@ -60,18 +62,22 @@ export class World {
     const onAsphalt = buildRoadProximity(route, route.roadWidthM / 2 + 0.4);
     this.grass = new GrassField(q, envState.season, (x, z) => this.terrain.getTile(...this.terrain.tileCoord(x, z)), groundAt, onAsphalt);
     scene.add(this.grass.mesh);
+    this.water = new WaterSystem(q, envState.season, groundAt, nearRoad);
+    scene.add(this.water.group);
 
     this.terrain.onTileLoaded = (tile) => {
       this.soundSources.set(tile.id, soundSourcesForTile(tile));
       this.buildings.addTile(tile);
       this.network.addTile(tile);
       this.vegetation.addTile(tile);
+      this.water.addTile(tile);
     };
     this.terrain.onTileUnloaded = (tile) => {
       this.soundSources.delete(tile.id);
       this.buildings.removeTile(tile);
       this.network.removeTile(tile);
       this.vegetation.removeTile(tile);
+      this.water.removeTile(tile);
     };
   }
 
@@ -90,12 +96,14 @@ export class World {
     this.terrain.setSeason(season);
     this.vegetation.setSeason(season);
     this.grass.setSeason(season);
+    this.water.setSeason(season);
   }
 
   setQuality(q: QualitySettings): void {
     this.env.applyQuality(q);
     this.terrain.setQuality(q);
     this.vegetation.setQuality(q);
+    this.water.setQuality(q);
   }
 
   update(dt: number, focus: THREE.Vector3): void {
@@ -108,6 +116,17 @@ export class World {
     this.terrain.wetness.value = w.rain * 0.8;
     this.vegetation.windStrength.value = 0.15 + w.windMs * 0.06;
     this.grass.wind.value = 0.25 + w.windMs * 0.08;
+    // Sens du vent (vers où il souffle), commun aux arbres, à l'herbe, à l'eau et à la poussière.
+    const wx = -Math.sin(w.windFrom);
+    const wz = Math.cos(w.windFrom);
+    (this.vegetation.windDir.value as THREE.Vector2).set(wx, wz);
+    (this.grass.windDir.value as THREE.Vector2).set(wx, wz);
+    (this.water.windDir.value as THREE.Vector2).set(wx, wz);
+    this.water.windMs.value = w.windMs;
+    this.water.rain.value = w.rain;
+    // L'eau reflète le ciel (zénith) et l'horizon (brume) du moment.
+    this.water.skyColor.value.copy(this.env.hemi.color);
+    this.water.horizonColor.value.copy(this.env.fog.color);
     this.rain.update(w.rain, w.windMs, w.windFrom);
     this.buildings.night.value = this.nightFactor() > 0.35 ? 1 : 0;
     // Streaming : à chaque changement de tuile, on recharge le voisinage.
@@ -137,7 +156,7 @@ export class World {
     this.terrain.disposeAll();
     this.env.dispose();
     this.road.mesh.geometry.dispose();
-    this.scene.remove(this.terrain.group, this.road.mesh, this.vegetation.group, this.buildings.group, this.network.group, this.grass.mesh, this.rain.mesh);
+    this.scene.remove(this.terrain.group, this.road.mesh, this.vegetation.group, this.buildings.group, this.network.group, this.grass.mesh, this.rain.mesh, this.water.group);
     void this.track;
   }
 }

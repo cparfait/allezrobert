@@ -44,6 +44,8 @@ function clumpGeometry(): THREE.BufferGeometry {
 export class GrassField {
   readonly mesh: THREE.InstancedMesh;
   readonly wind = uniform(0.3);
+  /** Direction vers laquelle souffle le vent (x, z), unitaire. */
+  readonly windDir = uniform(new THREE.Vector2(0.6, 0.8));
   private readonly base = colorUniform();
   private readonly tipCol = colorUniform();
   private readonly max: number;
@@ -60,8 +62,10 @@ export class GrassField {
     const m = new THREE.MeshStandardNodeMaterial({ side: THREE.DoubleSide });
     const tip = attribute<'float'>('tip');
     const h = hash(instanceIndex);
-    const sway = sin(time.mul(float(1.6).add(h.mul(0.8))).add(h.mul(30))).mul(this.wind).mul(tip).mul(0.12);
-    m.positionNode = positionLocal.add(vec3(sway, 0, sway.mul(0.5)));
+    // Brins couchés dans le sens du vent, avec des vagues de rafales qui parcourent la prairie.
+    const wave = sin(positionLocal.x.mul(this.windDir.x).add(positionLocal.z.mul(this.windDir.y)).mul(0.35).sub(time.mul(2.2)));
+    const sway = sin(time.mul(float(1.6).add(h.mul(0.8))).add(h.mul(30))).mul(0.4).add(wave.mul(0.35)).add(0.6).mul(this.wind).mul(tip).mul(0.12);
+    m.positionNode = positionLocal.add(vec3(this.windDir.x.mul(sway), 0, this.windDir.y.mul(sway)));
     m.colorNode = varying(mix(this.base.node, this.tipCol.node, tip.mul(h.mul(0.4).add(0.6))).mul(h.mul(0.3).add(0.8)));
     m.roughnessNode = float(0.85);
     // Normale verticale des deux côtés : les brins sont éclairés comme le sol (pas de faces sombres).

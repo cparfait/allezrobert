@@ -116,6 +116,8 @@ interface Chunk {
 export class Vegetation {
   readonly group = new THREE.Group();
   readonly windStrength = uniform(0.3);
+  /** Direction vers laquelle souffle le vent (x, z), unitaire : les arbres ploient sous le vent. */
+  readonly windDir = uniform(new THREE.Vector2(0.6, 0.8));
   private readonly leafA = colorUniform();
   private readonly leafB = colorUniform();
   private readonly leafC = colorUniform();
@@ -165,9 +167,15 @@ export class Vegetation {
     // aléatoire par arbre, rafales lentes ; quelques centimètres en tête d'arbre.
     const y = raw.y.max(0);
     const gust = sin(time.mul(0.35).add(h.mul(6.28))).mul(0.5).add(0.5);
-    const sway = sin(time.mul(float(1.3).add(h2.mul(0.6))).add(h.mul(40))).mul(this.windStrength).mul(y.mul(y).mul(0.0012)).mul(gust.mul(0.6).add(0.4));
+    // Flexion sous le vent (moyenne non nulle, dans le sens du vent) + oscillation autour, plus un
+    // léger balancement transversal ; le feuillage frémit en plus (haute fréquence).
+    const bend = y.mul(y).mul(0.0012).mul(this.windStrength);
+    const osc = sin(time.mul(float(1.3).add(h2.mul(0.6))).add(h.mul(40)));
+    const along = bend.mul(gust.mul(0.7).add(0.3)).mul(osc.mul(0.45).add(0.75));
+    const across = bend.mul(sin(time.mul(0.9).add(h.mul(17)))).mul(0.25);
     const flutter = sin(time.mul(7).add(raw.x.mul(3)).add(raw.z.mul(2))).mul(0.03).mul(leaf).mul(this.windStrength);
-    let offset: THREE.Node<'vec3'> = vec3(sway.add(flutter), 0, sway.mul(0.6));
+    const wd = this.windDir;
+    let offset: THREE.Node<'vec3'> = vec3(wd.x.mul(along).sub(wd.y.mul(across)).add(flutter), 0, wd.y.mul(along).add(wd.x.mul(across)).add(flutter.mul(0.5)));
     if (!conifer) {
       // Hiver : le houppier se rétracte vers le tronc (vers le centre du houppier) et laisse les branches nues.
       const crownCenter = vec3(0, 7.5, 0);

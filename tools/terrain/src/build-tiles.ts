@@ -122,7 +122,14 @@ async function main(): Promise<void> {
   // 2. OSM : blocs (découpage de build-world ÷ CHUNK_DIV) qui recoupent l'emprise (+ 600 m pour les entités à cheval)
   const want = rectToWgs84({ minX: rect.minX - 600, minZ: rect.minZ - 600, maxX: rect.maxX + 600, maxZ: rect.maxZ + 600 });
   const els = OSM_API
-    ? await fetchOsmApi(splitBBox(want, 0.02, 0.014))
+    ? // blocs alignés sur une grille fixe : le cache sert d'une emprise à l'autre
+      await fetchOsmApi(
+        splitBBox(
+          { west: Math.floor(want.west / 0.02) * 0.02, south: Math.floor(want.south / 0.014) * 0.014, east: Math.ceil(want.east / 0.02) * 0.02, north: Math.ceil(want.north / 0.014) * 0.014 },
+          0.02,
+          0.014,
+        ),
+      )
     : await fetchOsm(corridorWgs84(), OSM_CHUNK.lon / CHUNK_DIV, OSM_CHUNK.lat / CHUNK_DIV, undefined, (c) => intersects(c, want));
   const osm = buildOsmWorld(els);
   console.log(`2. OSM : ${osm.roads.length} voies, ${osm.buildings.length} bâtiments, ${osm.areas.length} surfaces, ${osm.lines.length} lignes`);
