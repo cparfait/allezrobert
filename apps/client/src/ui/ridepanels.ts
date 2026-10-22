@@ -46,6 +46,8 @@ export function download(bytes: Uint8Array, filename: string, mime = 'applicatio
 export interface PauseCallbacks {
   onResume(): void;
   onFinish(): void;
+  /** Libellé du bouton de fin (ex. « Abandonner la course »). */
+  finishLabel?: string;
 }
 
 export function showPause(root: HTMLElement, cb: PauseCallbacks): void {
@@ -53,14 +55,22 @@ export function showPause(root: HTMLElement, cb: PauseCallbacks): void {
     <h2 style="margin:0 0 18px">${t('pause')}</h2>
     <div class="row" style="justify-content:center">
       <button class="btn primary" id="p-resume">${t('resume')}</button>
-      <button class="btn" id="p-finish">${t('finish')}</button>
+      <button class="btn" id="p-finish">${cb.finishLabel ?? t('finish')}</button>
     </div></div></div>`;
   (root.querySelector('#p-resume') as HTMLElement).onclick = cb.onResume;
   (root.querySelector('#p-finish') as HTMLElement).onclick = cb.onFinish;
 }
 
 /** Résumé de fin de sortie : statistiques, segments, téléchargement du FIT. */
-export function showSummary(root: HTMLElement, ride: RideSession, fit: () => Uint8Array, onClose: () => void, xp?: { gained: number; level: number; levelUp: boolean; unlocked: Array<{ name: { fr: string; en: string } }> }): void {
+export function showSummary(
+  root: HTMLElement,
+  ride: RideSession,
+  fit: () => Uint8Array,
+  onClose: () => void,
+  xp?: { gained: number; level: number; levelUp: boolean; unlocked: Array<{ name: { fr: string; en: string } }> },
+  /** Course en ligne : tableau des résultats (déjà échappé). */
+  raceHtml = '',
+): void {
   const distKm = (ride.records.at(-1)?.distanceM ?? 0) / 1000;
   const segs = ride.segmentResults
     .map((r) => `<div class="device"><div><b>${r.seg.kind === 'kom' ? t('kom') : t('sprint')} · ${r.seg.name}</b><div class="meta">${Math.round(r.avgWatts)} W</div></div><b class="num">${fmt(r.timeS)}</b></div>`)
@@ -81,6 +91,7 @@ export function showSummary(root: HTMLElement, ride: RideSession, fit: () => Uin
         .join('')}
     </div>
     ${xp ? `<div class="row" style="gap:12px;margin-bottom:6px"><b class="num" style="color:var(--ar-accent);font-size:20px">+${xp.gained} XP</b><span>${getLang() === 'fr' ? 'Niveau' : 'Level'} ${xp.level}${xp.levelUp ? ' 🎉' : ''}</span>${xp.unlocked.length ? `<span class="meta" style="color:var(--ar-muted)">${getLang() === 'fr' ? 'Débloqué' : 'Unlocked'} : ${xp.unlocked.map((u) => u.name[getLang()]).join(', ')}</span>` : ''}</div>` : ''}
+    ${raceHtml}
     ${segs ? `<h2>Segments</h2><div class="device-list">${segs}</div>` : ''}
     <div id="s-online"></div>
     <div class="row" style="justify-content:flex-end;margin-top:22px">

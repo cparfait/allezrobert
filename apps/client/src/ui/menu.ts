@@ -303,7 +303,10 @@ export class MainMenu {
       <p class="mm-hint">${mode ? esc(mode[2]) : ''}</p>
       ${
         s.mode === 'group' || s.mode === 'race'
-          ? `<input id="m-invite" class="mm-input" placeholder="${L ? 'Code d’invitation (facultatif)' : 'Invite code (optional)'}" />`
+          ? `<input id="m-invite" class="mm-input" placeholder="${L ? 'Code d’invitation (facultatif)' : 'Invite code (optional)'}" />${
+              // Course sur une boucle : nombre de tours (créateur de la course).
+              s.mode === 'race' && r?.loop ? `<label class="mm-input" style="display:flex;align-items:center;justify-content:space-between;gap:10px">${L ? 'Tours de la course' : 'Race laps'}<input id="m-laps" type="number" min="1" max="20" value="${s.raceLaps}" style="width:64px" /></label>` : ''
+            }`
           : s.mode === 'workout'
             ? `<label class="mm-file">${L ? 'Choisir une séance' : 'Choose a workout'} (.zwo / .erg / .mrc)<input id="m-workout" type="file" accept=".zwo,.erg,.mrc" hidden /><span id="m-wname">${this.workoutFile ? esc(this.workoutFile.name) : ''}</span></label>`
             : ''
@@ -745,6 +748,8 @@ export class MainMenu {
 
   private start(): void {
     const invite = (this.root.querySelector('#m-invite') as HTMLInputElement | null)?.value.trim();
+    const laps = Number((this.root.querySelector('#m-laps') as HTMLInputElement | null)?.value);
+    if (Number.isFinite(laps) && laps >= 1) this.s.raceLaps = Math.min(20, Math.round(laps));
     this.cb.onStart(this.s, { ...(this.workoutFile ? { workoutFile: this.workoutFile } : {}), ...(invite ? { inviteCode: invite } : {}) });
   }
 

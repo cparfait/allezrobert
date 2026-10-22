@@ -36,6 +36,10 @@ Le tutoriel (voix off, coupable) règle : la langue, ton profil (poids, taille, 
 | H | Masquer l'interface |
 | M | Couper le son |
 | P | Photo (image PNG de la scène) |
+| T / V | Chat texte / micro (sorties à plusieurs) |
+| [ / ] | Allure : des équipiers IA (solo) ou annoncée au groupe (organisateur d'une sortie de groupe) |
+| R | « Ralentissez ! » aux équipiers IA (solo) |
+| G | Regroupement (sortie de groupe : organisateur ou meneur) |
 
 Le **HUD** affiche la puissance moyenne 3 s (couleur de zone), FC, cadence, vitesse, pente, temps, distance, D+, NP, aspiration, rapport, balance G/D, le profil de l'itinéraire et la mini-carte.
 
@@ -47,7 +51,27 @@ Le **HUD** affiche la puissance moyenne 3 s (couleur de zone), FC, cadence, vite
 - **Entraînement** : charge un fichier `.zwo`, `.erg` ou `.mrc` ; le home trainer passe en ERG, corrigé par les pédales (power match).
 - **Test FTP** : rampe (+20 W / min) ; la FTP estimée est enregistrée dans ton profil.
 - **Fantôme** : ton meilleur tour sur la boucle roule à côté de toi (silhouette bleutée).
-- **Sortie de groupe / course** : sur invitation, avec chat vocal (serveur requis).
+- **Sortie de groupe** (serveur requis) : crée la sortie, donne le **code d'invitation** aux amis
+  (champ « Code d'invitation » du menu). Le groupe est soudé par défaut. Panneau « Sortie de
+  groupe » à gauche : **allure annoncée** (W/kg ; ta propre allure s'affiche en vert dans la
+  bande, orange au-dessus, bleu en dessous), **meneur** ★ (l'organisateur par défaut) et l'écart
+  avec lui. L'organisateur règle l'allure avec **[ / ]** (ou − / + / Libre) ; l'organisateur ou
+  le meneur lance un **regroupement** avec **G** : la tête temporise, la queue est aidée,
+  jusqu'à ce que le groupe soit reformé. Si le groupe se scinde, une alerte le signale.
+- **Course** (serveur requis) : salle d'attente avec le code d'invitation et les coureurs ;
+  l'organisateur choisit le nombre de **tours** dans le menu et donne le départ ; compte à
+  rebours de 10 s sur la grille, puis panneau « Course » : place, distance restante, écarts
+  devant / derrière, classement en direct, **primes** au sommet des KOM et sur les sprints
+  (5 / 3 / 1 points aux trois premiers), heure limite (10 min après le premier). Les **IA**
+  complètent le peloton (niveau réglé dans « Coureurs IA ») : chaque ami qui arrive en salle
+  d'attente prend la place d'une IA. À l'arrivée : **résultats** (temps, écarts, points, hors
+  délai, abandons) et podium. Quitter une course en cours (Échap → « Abandonner la course »)
+  = abandon. Un invité ou un coureur arrivé après le départ roule hors classement.
+  Contrôle de puissance : une puissance invraisemblable (au-delà des records humains) est
+  plafonnée et, si elle dure, met le coureur hors course : vérifie ton capteur si un
+  avertissement apparaît.
+- **Voix** : chat vocal intégré (V pour le micro). S'il est indisponible, la pastille de la voix
+  propose de **rejoindre le salon Discord** des sorties (s'il est configuré).
 
 ## 6. Après la sortie
 

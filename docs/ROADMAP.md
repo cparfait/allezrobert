@@ -49,7 +49,7 @@ Chaque jalon n'est déclaré terminé qu'après vérification : tests (protocole
 ## Jalon 5 — Jeu
 
 - [x] Modes solo : libre, ERG (.zwo / .erg / .mrc), test FTP, segments KOM / sprint, fantôme
-- [ ] Modes groupe et course (dépendent du jalon 4)
+- [x] Modes groupe et course : allure annoncée, meneur, regroupement, alerte de groupe scindé ; salle d'attente, compte à rebours synchronisé, classement en direct, primes KOM / sprint, heure limite, abandons, résultats et podium, IA qui complètent le peloton, contrôle de puissance côté serveur (vérifiés en simulation et à deux navigateurs, captures `docs/screenshots/jeu-*`)
 - [x] Coureurs IA (relais, attaques, profils)
 - [x] Progression : XP, niveaux, garage, déblocages cosmétiques
 - [x] Export Strava (option « ne pas envoyer » si l'Edge enregistre) et intervals.icu (Strava : appli OAuth à créer)

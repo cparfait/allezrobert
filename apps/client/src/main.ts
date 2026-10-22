@@ -36,6 +36,7 @@ import { TownSigns } from './world/signs.ts';
 import { Traffic, loadVehicleModels } from './world/traffic.ts';
 import { Multiplayer } from './game/multiplayer.ts';
 import { VoiceChat, fetchVoiceConfig } from './game/voice.ts';
+import { RideRoomUi } from './game/rideroom.ts';
 import type { InterpolatedRider } from './net/index.ts';
 
 const ui = document.getElementById('ui') as HTMLElement;
@@ -368,7 +369,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   if (s.mode === 'group' || s.mode === 'race') {
     mp = new Multiplayer(engine.scene, track, s.name);
     try {
-      const code = await mp.connect({ ...(extras.inviteCode ? { inviteCode: extras.inviteCode } : {}), mode: s.mode, guest: s.guest, aiRiders: s.aiRiders, trainerDifficulty: s.trainerDifficulty, name: s.name });
+      const code = await mp.connect({ ...(extras.inviteCode ? { inviteCode: extras.inviteCode } : {}), mode: s.mode, guest: s.guest, aiRiders: s.aiRiders, aiLevel: s.aiLevel, laps: s.raceLaps, trainerDifficulty: s.trainerDifficulty, name: s.name });
       setTimeout(() => hud.toast(`${getLang() === 'fr' ? 'Code d’invitation' : 'Invite code'} : ${code}`), 500);
     } catch (e) {
       console.warn('Serveur injoignable, sortie solo', e);
@@ -444,8 +445,15 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     if (sequences.enabled) sequences.segment(r, s.name, track.route.id, 1, 1);
     else hud.toast(`${t('segmentDone')} · ${r.seg.name} · ${Math.floor(r.timeS / 60)}:${String(Math.round(r.timeS % 60)).padStart(2, '0')}`);
   };
+  // Sortie à plusieurs : salle d'attente et compte à rebours (course), panneau en direct, résultats, allure du groupe.
+  let room: RideRoomUi | null = null;
   if (mp) {
     const net = mp.net;
+    const voiceCfg = fetchVoiceConfig();
+    room = new RideRoomUi({ hudRoot, net, track, mode: s.mode === 'race' ? 'race' : 'group', lang: getLang(), toast: (m) => hud.toast(m), voice: voiceCfg });
+    // Course pas lancée : le coureur reste sur la grille (le serveur le tient immobile).
+    room.onHoldChange = (hold) => (ride.paused = hold);
+    room.onLeave = () => finish();
     // Télémétrie à 10 Hz : puissance mesurée (ou virtuelle pour un invité), rapport, direction.
     net.startTelemetry(() => ({ watts: ride.inputs.watts, cadence: ride.inputs.cadence, ...(ride.inputs.hr !== undefined ? { hr: ride.inputs.hr } : {}), gear: ride.gearIndex, steer: ride.lateral }));
     net.on('event', (ev) => {
@@ -457,16 +465,11 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
       else if (ev.kind === 'results') {
         const top = ev.results.filter((r) => r.rank > 0).sort((a, b) => a.rank - b.rank);
         void sequences.podium(top.map((r) => ({ name: r.name, timeS: r.timeMs / 1000, color: net.roster.get(r.riderId)?.avatar.jersey ?? '#ffd23f' })));
-      } else if (ev.kind === 'phase' && ev.phase === 'countdown' && ev.startsAt) {
-        // Départ groupé : tout le monde attend le signal du serveur.
-        ride.paused = true;
-        setTimeout(() => (ride.paused = false), Math.max(0, ev.startsAt - net.serverNow()));
       }
     });
     // Chat vocal LiveKit (micro coupé à l'arrivée, V pour parler) et Ride On depuis la liste.
     voice = new VoiceChat();
     // Repli Discord : lien du salon proposé quand LiveKit est absent ou échoue.
-    const voiceCfg = fetchVoiceConfig();
     voice.onState = (st, detail) => void voiceCfg.then((cfg) => hud.setVoice({ connected: st === 'connected', micOn: voice?.micOn ?? false, ...(detail ? { detail } : {}), discordUrl: cfg.discordInvite }));
     void voice.connect(net.roomId);
     hud.onRideOn = (id) => {
@@ -483,7 +486,8 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     });
   }
   // Départ : intro + compte à rebours HyperFrames, la sortie démarre au « go » (?nointro pour les tests).
-  if (!params.has('nointro')) {
+  // Course en ligne : le départ est donné par le serveur (compte à rebours synchronisé), pas par l'intro.
+  if (!params.has('nointro') && !(mp && s.mode === 'race')) {
     ride.paused = true;
     void sequences
       .intro({ season: s.season, riders: peloton.riders.length + 1, rideType: s.mode })
@@ -496,6 +500,8 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
 
   const finish = () => {
     engine.renderer.setAnimationLoop(null);
+    const raceHtml = room?.summaryHtml() ?? '';
+    room?.dispose();
     clearInterval(sourcesTimer);
     void mp?.dispose();
     void voice?.disconnect();
@@ -515,11 +521,13 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
         location.href = url.toString();
       },
       xp,
+      raceHtml,
     );
   };
   const togglePause = () => {
     ride.paused = !ride.paused;
-    if (ride.paused) showPause(ui, { onResume: togglePause, onFinish: finish });
+    // En pleine course, « Terminer » = abandonner (classé DNF).
+    if (ride.paused) showPause(ui, { onResume: togglePause, onFinish: finish, ...(room?.racing ? { finishLabel: getLang() === 'fr' ? 'Abandonner la course' : 'Abandon the race' } : {}) });
     else ui.innerHTML = '';
   };
   window.addEventListener('keydown', (e) => {
@@ -582,6 +590,12 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   const frame = (dt: number, render: boolean, manual = false) => {
     const steer = keyboard.update(dt);
     if (workout) ride.ergTarget = workout.update(ride.elapsedS, ride.inputs.watts);
+    // Course au salon / compte à rebours : immobile sur la grille, à la place donnée par le serveur.
+    if (room?.holding) {
+      ride.paused = true;
+      const me = mp?.net.getSelfSnapshot();
+      if (me) ride.state.distM = me.lap * track.length + me.distM;
+    }
     ride.update(dt, input, steer);
     if (!ride.paused) {
       ghost.update(dt, ride.elapsedS, ride.state.distM);
@@ -656,6 +670,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
       hudAcc = 0;
       // Habillage TV synchronisé avec la caméra « réalisation TV ».
       const rank = 1 + peloton.riders.filter((r) => r.state.distM > ride.state.distM).length;
+      room?.update({ distM: ride.state.distM, speedMs: ride.state.speedMs, wkg: ride.watts3s() / s.massKg });
       sequences.tv(rig.mode === 'tv', { riderName: s.name, color: s.look.jersey, position: rank, wkg: ride.watts3s() / s.massKg, watts: ride.watts3s() });
       const i = ride.inputs;
       hud.update(
@@ -734,7 +749,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     const res = await fetch(`/__shot?name=${encodeURIComponent(name)}`, { method: 'POST', body: url });
     return res.text();
   };
-  (window as unknown as { __ar: unknown }).__ar = { engine, world, ride, rig, track, peloton, input, finish, advance, hud, shot, avatar };
+  (window as unknown as { __ar: unknown }).__ar = { engine, world, ride, rig, track, peloton, input, finish, advance, hud, shot, avatar, room };
   // Contrôle visuel du monde (?worldcheck=1, développement) : une capture tous les 500 m de l'itinéraire.
   if (params.has('worldcheck')) {
     void (async () => {
