@@ -484,7 +484,7 @@ export class MainMenu {
     }
     const L = fr();
     const uri = redirectUri();
-    const local = /localhost/.test(uri);
+    const local = location.hostname === 'localhost';
     const dlg = document.createElement('div');
     dlg.className = 'mm-modal';
     dlg.innerHTML = `<div class="mm-dialog">
@@ -493,11 +493,11 @@ export class MainMenu {
       <ol>
         <li>${L ? 'Ouvre' : 'Open'} <a href="https://developer.spotify.com/dashboard" target="_blank" rel="noopener">developer.spotify.com/dashboard</a> ${L ? 'et clique « Create app ».' : 'and click “Create app”.'}</li>
         <li>${L ? 'Nom : « Allez Robert » ; API : coche « Web API ».' : 'Name: “Allez Robert”; API: tick “Web API”.'}</li>
-        <li>${L ? 'Redirect URI, à copier exactement :' : 'Redirect URI, copy exactly:'} <code>${esc(uri)}</code> <button class="mm-link" id="sp-copy">${L ? 'Copier' : 'Copy'}</button></li>
+        <li>${L ? 'Redirect URI, à copier exactement (avec le « / » final) :' : 'Redirect URI, copy exactly (with the trailing “/”):'} <code>${esc(uri)}</code> <button class="mm-link" id="sp-copy">${L ? 'Copier' : 'Copy'}</button></li>
         <li>${L ? 'Enregistre, puis colle ici le « Client ID » :' : 'Save, then paste the “Client ID” here:'}</li>
       </ol>
       <input id="sp-id" class="mm-input" placeholder="Client ID" autocomplete="off" spellcheck="false" />
-      ${local ? `<p class="warn-text">${L ? 'Spotify refuse les adresses « localhost » : en local, ouvre le jeu via http://127.0.0.1:5173 avant de te connecter.' : 'Spotify rejects “localhost” addresses: locally, open the game at http://127.0.0.1:5173 before signing in.'}</p>` : ''}
+      ${local ? `<p class="mm-hint">${L ? 'Spotify refuse « localhost » : à la connexion, le jeu passe tout seul à l’adresse 127.0.0.1 (garde-la ensuite).' : 'Spotify rejects “localhost”: on sign-in the game switches to 127.0.0.1 by itself (keep using it afterwards).'}</p>` : ''}
       <p class="mm-hint">${L ? 'La musique sort de ton appli Spotify (ordinateur ou téléphone) ; lecture / pause et morceau suivant demandent un compte Premium.' : 'Music plays from your Spotify app (computer or phone); play / pause and next need Premium.'}</p>
       <div class="mm-dialog-foot"><button class="btn" id="sp-cancel">${L ? 'Annuler' : 'Cancel'}</button><button class="btn primary" id="sp-ok">${L ? 'Se connecter à Spotify' : 'Sign in to Spotify'}</button></div>
     </div>`;

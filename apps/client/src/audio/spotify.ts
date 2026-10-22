@@ -28,7 +28,8 @@ export interface NowPlaying {
   image?: string;
 }
 
-export const redirectUri = () => env.VITE_SPOTIFY_REDIRECT_URI ?? `${location.origin}/`;
+/** Adresse de retour à déclarer chez Spotify ; « localhost » y est refusé, d'où 127.0.0.1 en local. */
+export const redirectUri = () => env.VITE_SPOTIFY_REDIRECT_URI ?? `${location.origin.replace('//localhost', '//127.0.0.1')}/`;
 
 function b64url(bytes: Uint8Array): string {
   return btoa(String.fromCharCode(...bytes))
@@ -88,6 +89,13 @@ class SpotifyRemote {
 
   /** Redirige vers la page d'autorisation Spotify. */
   async login(): Promise<void> {
+    // Ouvert via « localhost » : on bascule d'abord sur l'adresse de retour (127.0.0.1) en emportant
+    // l'identifiant (public), la connexion reprend là-bas — le stockage du navigateur dépend de l'adresse.
+    const back = new URL(redirectUri());
+    if (back.origin !== location.origin) {
+      location.href = `${back.origin}${location.pathname}#spotify-connect=${encodeURIComponent(clientId())}`;
+      return;
+    }
     const verifier = randomString(64);
     const state = randomString(16);
     sessionStorage.setItem('ar.spotify.verifier', verifier);
@@ -107,6 +115,13 @@ class SpotifyRemote {
 
   /** Au chargement : termine la connexion si l'on revient de Spotify (?code&state), puis nettoie l'URL. */
   async handleRedirect(): Promise<void> {
+    // Suite d'une bascule depuis « localhost » : identifiant repris, connexion lancée.
+    const m = /^#spotify-connect=([0-9a-f]{32})$/i.exec(location.hash);
+    if (m) {
+      history.replaceState(null, '', location.pathname + location.search);
+      if (this.setClientId(m[1] as string)) await this.login();
+      return;
+    }
     const url = new URL(location.href);
     const code = url.searchParams.get('code');
     const state = url.searchParams.get('state');
