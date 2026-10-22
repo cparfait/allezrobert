@@ -301,13 +301,12 @@ export class GltfRiderAvatar implements RiderAvatarLike {
 
   /**
    * Charge le coureur et le vélo de base (une seule fois), plus les familles de cadres demandées
-   * (les autres se chargent à la demande). Renvoie false si le coureur ou le vélo de base manque.
+   * (attendues aussi ; les autres se chargent à la demande). Renvoie false si le coureur ou le
+   * vélo de base manque.
    */
-  static load(families: readonly BikeFamily[] = [], baseUrl = `${import.meta.env.BASE_URL}models/`): Promise<boolean> {
-    for (const f of families) void loadBikeFamily(f);
-    if (templates) return Promise.resolve(true);
-    if (loading) return loading;
-    loading = (async () => {
+  static async load(families: readonly BikeFamily[] = [], baseUrl = `${import.meta.env.BASE_URL}models/`): Promise<boolean> {
+    const extra = Promise.all(families.map((f) => loadBikeFamily(f)));
+    loading ??= (async () => {
       try {
         const loader = new GLTFLoader();
         const [riders, plain] = await Promise.all([Promise.all(FILES.map((f) => loader.loadAsync(baseUrl + f))), loadBikeFamily(PLAIN_BIKE_FAMILY)]);
@@ -321,7 +320,9 @@ export class GltfRiderAvatar implements RiderAvatarLike {
         return false;
       }
     })();
-    return loading;
+    const ok = await loading;
+    await extra;
+    return ok;
   }
 
   /** Modèles chargés ? */

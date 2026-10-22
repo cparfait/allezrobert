@@ -166,11 +166,15 @@ export class Onboarding {
       this.s.mode = 'ftpTest';
       this.next();
     });
-    const look = (id: string, key: 'jersey' | 'jerseyAccent' | 'helmet' | 'bike') => $<HTMLInputElement>(id)?.addEventListener('input', (e) => (this.s.look = { ...DEFAULT_LOOK, ...this.s.look, [key]: (e.target as HTMLInputElement).value }));
+    const look = (id: string, key: 'jersey' | 'jerseyAccent' | 'helmet') => $<HTMLInputElement>(id)?.addEventListener('input', (e) => (this.s.look = { ...DEFAULT_LOOK, ...this.s.look, [key]: (e.target as HTMLInputElement).value }));
     look('o-jersey', 'jersey');
     look('o-accent', 'jerseyAccent');
     look('o-helmet', 'helmet');
-    look('o-bike', 'bike');
+    // Couleur du vélo choisie : vélo de base peint de cette couleur (le modèle du garage est retiré).
+    $<HTMLInputElement>('o-bike')?.addEventListener('input', (e) => {
+      const { bikeModel: _, ...rest } = { ...DEFAULT_LOOK, ...this.s.look };
+      this.s.look = { ...rest, bike: (e.target as HTMLInputElement).value };
+    });
     $<HTMLInputElement>('o-build')?.addEventListener('input', (e) => (this.s.look = { ...this.s.look, build: Number((e.target as HTMLInputElement).value) }));
     this.root.querySelectorAll<HTMLButtonElement>('[data-skin]').forEach((b) => b.addEventListener('click', () => ((this.s.look = { ...this.s.look, skin: b.dataset.skin as string }), this.render())));
     this.root.querySelectorAll<HTMLButtonElement>('[data-hair]').forEach((b) => b.addEventListener('click', () => ((this.s.look = { ...this.s.look, hair: b.dataset.hair as string }), this.render())));

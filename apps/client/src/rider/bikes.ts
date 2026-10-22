@@ -1,6 +1,6 @@
 import * as THREE from 'three/webgpu';
 import { GLTFLoader, type GLTF } from 'three/addons/loaders/GLTFLoader.js';
-import { PLAIN_BIKE_FAMILY, type AvatarLook, type BikeBuild, type BikeFamily } from '@allezrobert/shared';
+import { BIKES, PLAIN_BIKE_FAMILY, type AvatarLook, type BikeBuild, type BikeFamily } from '@allezrobert/shared';
 import { LiveryMaterial } from './livery.ts';
 
 /**
@@ -63,6 +63,15 @@ const BIKE_MATERIALS: Record<string, [string, number, number]> = {
 const EMISSIVE: Record<string, [string, number]> = {
   computer_screen: ['#3f7f8f', 0.6],
 };
+
+/** Vélos des coureurs du décor (IA, photo d'accueil, film) : modèles route 2026, familles préchargées. */
+const CROWD = BIKES.filter((b) => b.collection === 'saison-2026' && (b.family === 'aero' || b.family === 'climb'));
+export const CROWD_FAMILIES: readonly BikeFamily[] = ['aero', 'climb'];
+
+/** Modèle de vélo du coureur n° i du décor (varié, stable d'une partie à l'autre). */
+export function crowdBike(i: number): string | undefined {
+  return CROWD.length ? CROWD[(i * 7 + 3) % CROWD.length]?.id : undefined;
+}
 
 type Lods = [GLTF, GLTF];
 

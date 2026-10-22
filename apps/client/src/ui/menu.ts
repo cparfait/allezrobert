@@ -1,5 +1,5 @@
 import type { AvatarLook, CosmeticItem, RouteData } from '@allezrobert/shared';
-import { COSMETICS, levelProgress, type CosmeticSlot } from '@allezrobert/shared';
+import { BIKE_GROUPS, BIKE_TEAMS, COSMETICS, bikeById, levelProgress, type BikeCollection, type BikeType, type CosmeticSlot } from '@allezrobert/shared';
 import { t, setLang, getLang, type I18nKey } from '../i18n/index.ts';
 import type { Settings } from './settings.ts';
 import { saveSettings } from './settings.ts';
@@ -67,6 +67,29 @@ const ICON = {
 /** Gros plan du garage selon la catégorie choisie. */
 const SLOT_VIEW: Record<CosmeticSlot, GarageView> = { jersey: '3q', helmet: 'front', bike: 'side', wheels: 'bike', socks: 'bike', glasses: 'front' };
 
+/** Filtres de la liste des vélos du garage. */
+type BikeFilter = BikeCollection | 'unlocked';
+const BIKE_FILTERS: Array<[BikeFilter, string, string]> = [
+  ['saison-2026', 'Saison 2026', '2026 season'],
+  ['mythiques', 'Mythiques', 'Legends'],
+  ['unlocked', 'Débloqués', 'Unlocked'],
+];
+const BIKE_TYPE: Record<BikeType, [string, string]> = {
+  aero: ['Aéro', 'Aero'],
+  climbing: ['Grimpeur', 'Climbing'],
+  tt: ['Chrono', 'Time trial'],
+  classic: ['Classique', 'Classic'],
+  track: ['Piste', 'Track'],
+};
+
+/** Vignette d'un équipement : couleur unie, ou bandes de la livrée pour un vélo. */
+function swatch(c: CosmeticItem): string {
+  const cols = c.colors ?? [];
+  if (cols.length < 2) return c.color ?? '#7a8594';
+  const n = cols.length;
+  return `linear-gradient(135deg, ${cols.map((x, i) => `${x} ${((i * 100) / n).toFixed(0)}% ${(((i + 1) * 100) / n).toFixed(0)}%`).join(', ')})`;
+}
+
 /**
  * Menu principal façon jeu : barre d'onglets en haut (Rouler, Garage, Capteurs, Profil,
  * Réglages), lecteur de musique et compte à droite ; panneaux posés sur la scène 3D fixe.
@@ -82,6 +105,9 @@ export class MainMenu {
   private workoutFile: { name: string; content: string } | undefined;
   private tab: Tab = 'ride';
   private garageSlot: CosmeticSlot | 'colors' = 'jersey';
+  private bikeFilter: BikeFilter = 'saison-2026';
+  /** Panneau affiché (onglet, catégorie, filtre) : sa position de défilement survit à un nouveau rendu. */
+  private panelKey = '';
   private view: GarageView = '3q';
   private yaw = 0;
   private readonly onKey = (e: KeyboardEvent) => {
@@ -174,8 +200,8 @@ export class MainMenu {
     if (item.color) {
       if (item.slot === 'jersey') look.jersey = item.color;
       if (item.slot === 'helmet') look.helmet = item.color;
-      if (item.slot === 'bike') look.bike = item.color;
     }
+    if (item.slot === 'bike') look.bikeModel = item.id;
     return look;
   }
 
@@ -246,6 +272,10 @@ export class MainMenu {
       profile: () => this.profileHtml(),
       settings: () => this.settingsHtml(),
     };
+    // Liste longue (vélos) : même panneau, même position de défilement après un nouveau rendu.
+    const key = `${this.tab}/${this.garageSlot}/${this.bikeFilter}`;
+    const scroll = key === this.panelKey ? (this.root.querySelector('.mm-side')?.scrollTop ?? 0) : 0;
+    this.panelKey = key;
     this.root.innerHTML = `<div class="mm mm-tab-${this.tab}">
       <header class="mm-top">
         <div class="mm-brand">Allez <em>Robert</em> !</div>
@@ -268,6 +298,8 @@ export class MainMenu {
       </footer>
     </div>`;
     if (this.tab === 'devices') this.renderDevices();
+    const side = this.root.querySelector('.mm-side');
+    if (side) side.scrollTop = scroll;
     this.renderStatus();
     this.renderMusic();
     this.bind();
@@ -403,18 +435,22 @@ export class MainMenu {
             <label class="field">${L ? 'Maillot' : 'Jersey'}<input id="m-jersey" type="color" value="${this.s.look.jersey}" /></label>
             <label class="field">${L ? 'Bande du maillot' : 'Jersey stripe'}<input id="m-accent" type="color" value="${this.s.look.jerseyAccent}" /></label>
             <label class="field">${L ? 'Casque' : 'Helmet'}<input id="m-helmet" type="color" value="${this.s.look.helmet}" /></label>
-            <label class="field">${L ? 'Vélo' : 'Bike'}<input id="m-bike" type="color" value="${this.s.look.bike}" /></label>
             <label class="field">${L ? 'Peau' : 'Skin'}<input id="m-skin" type="color" value="${this.s.look.skin}" /></label>
             <label class="field">${L ? 'Cheveux' : 'Hair'}<input id="m-hair" type="color" value="${this.s.look.hair}" /></label>
           </div>`
-        : `<div class="mm-items">${COSMETICS.filter((c) => c.slot === this.garageSlot)
+        : `${this.garageSlot === 'bike' ? this.bikeFiltersHtml() : ''}<div class="mm-items">${this.garageItems(lp.level)
             .map((c) => {
               const locked = c.level > lp.level;
               const on = p.equipped[c.slot] === c.id;
               const prev = this.previewId === c.id;
-              return `<button class="mm-item ${on ? 'on' : ''} ${locked ? 'locked' : ''} ${prev ? 'preview' : ''}" data-item="${c.id}" title="${locked ? (L ? 'Cliquer pour l’essayer' : 'Click to try it on') : ''}">
-                <i style="background:${c.color ?? '#7a8594'}"></i><b>${esc(c.name[lang])}</b>
-                <span>${prev ? `👁 ${L ? 'Aperçu' : 'Preview'} · 🔒 ${L ? 'niveau' : 'level'} ${c.level}` : locked ? `🔒 ${L ? 'niveau' : 'level'} ${c.level}` : on ? (L ? 'Équipé' : 'Equipped') : L ? 'Disponible' : 'Available'}</span></button>`;
+              const bike = c.slot === 'bike' ? bikeById(c.id) : undefined;
+              // Vélos : type, puis équipe (saison 2026 : plusieurs équipes roulent le même modèle) ou collection.
+              const from = bike ? (BIKE_TEAMS.find((t) => t.id === bike.group)?.name ?? BIKE_GROUPS.find((g) => g.id === bike.group)?.name[lang]) : undefined;
+              const kind = bike ? `${BIKE_TYPE[bike.type][L ? 0 : 1]}${from ? ` · ${from}` : ''} · ` : '';
+              const tip = bike ? bike.desc[lang] : '';
+              return `<button class="mm-item ${on ? 'on' : ''} ${locked ? 'locked' : ''} ${prev ? 'preview' : ''}" data-item="${c.id}" title="${esc([tip, locked ? (L ? 'Cliquer pour l’essayer' : 'Click to try it on') : ''].filter(Boolean).join(' — '))}">
+                <i style="background:${swatch(c)}"></i><b>${esc(c.name[lang])}</b>
+                <span>${kind}${prev ? `👁 ${L ? 'Aperçu' : 'Preview'} · 🔒 ${L ? 'niveau' : 'level'} ${c.level}` : locked ? `🔒 ${L ? 'niveau' : 'level'} ${c.level}` : on ? (L ? 'Équipé' : 'Equipped') : L ? 'Disponible' : 'Available'}</span></button>`;
             })
             .join('')}</div>`;
     return `<div class="mm-dragzone" id="m-dragzone"></div>
@@ -428,6 +464,23 @@ export class MainMenu {
         ${items}
         <p class="mm-hint">${L ? 'Les équipements se débloquent en roulant (XP par kilomètre et par mètre de dénivelé). Clique un équipement verrouillé pour l’essayer.' : 'Gear unlocks as you ride (XP per kilometre and metre climbed). Click locked gear to try it on.'}</p>
       </section>`;
+  }
+
+  /** Équipements de l'emplacement choisi ; vélos : filtrés (collection ou débloqués), par niveau puis par groupe. */
+  private garageItems(level: number): CosmeticItem[] {
+    const items = COSMETICS.filter((c) => c.slot === this.garageSlot);
+    if (this.garageSlot !== 'bike') return items;
+    const group = (id: string) => BIKE_GROUPS.findIndex((g) => g.id === bikeById(id)?.group);
+    return items
+      .filter((c) => (this.bikeFilter === 'unlocked' ? c.level <= level : bikeById(c.id)?.collection === this.bikeFilter))
+      .sort((a, b) => a.level - b.level || group(a.id) - group(b.id) || a.name.fr.localeCompare(b.name.fr));
+  }
+
+  private bikeFiltersHtml(): string {
+    const L = fr();
+    return `<div class="mm-bikefilter" role="radiogroup">${BIKE_FILTERS.map(
+      ([id, fr_, en]) => `<button class="${id === this.bikeFilter ? 'on' : ''}" data-bikefilter="${id}" role="radio" aria-checked="${id === this.bikeFilter}">${L ? fr_ : en}</button>`,
+    ).join('')}</div>`;
   }
 
   // ————————————————————————————————————————————— Profil et réglages
@@ -802,6 +855,12 @@ export class MainMenu {
         this.onScene?.(this.view, this.yaw);
       }),
     );
+    this.root.querySelectorAll<HTMLElement>('[data-bikefilter]').forEach((el) =>
+      el.addEventListener('click', () => {
+        this.bikeFilter = el.dataset.bikefilter as BikeFilter;
+        this.render();
+      }),
+    );
     this.root.querySelectorAll<HTMLElement>('[data-item]').forEach((el) =>
       el.addEventListener('click', () => {
         const item = COSMETICS.find((c) => c.id === el.dataset.item);
@@ -846,7 +905,7 @@ export class MainMenu {
       zone.addEventListener('pointerup', up);
       zone.addEventListener('pointercancel', up);
     }
-    const color = (id: string, key: 'jersey' | 'jerseyAccent' | 'helmet' | 'bike' | 'skin' | 'hair') =>
+    const color = (id: string, key: 'jersey' | 'jerseyAccent' | 'helmet' | 'skin' | 'hair') =>
       on<HTMLInputElement>(id, 'input', (el) => {
         s.look = { ...s.look, [key]: el.value };
         changed();
@@ -854,7 +913,6 @@ export class MainMenu {
     color('m-jersey', 'jersey');
     color('m-accent', 'jerseyAccent');
     color('m-helmet', 'helmet');
-    color('m-bike', 'bike');
     color('m-skin', 'skin');
     color('m-hair', 'hair');
     // Profil.

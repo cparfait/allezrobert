@@ -34,7 +34,7 @@ Chaque jalon n'est déclaré terminé qu'après vérification : tests (protocole
 - [x] Ciel physique, atmosphère, ombres en cascade, AO, bloom, TAA, étalonnage par saison et par heure (LUT dédiées : plus tard)
 - [x] Saisons, jour/nuit, météo (pluie, brouillard, vent qui pèse sur la physique)
 - [ ] Végétation instanciée animée par le vent, villages en meulière, toits de tuiles, eau
-- [ ] Avatars riggés, pédalage procédural, cosmétiques ; caméras poursuite, cockpit, drone, TV, photo
+- [ ] Avatars riggés, pédalage procédural, cosmétiques (catalogue de 100 vélos en jeu : familles de cadres, roues, livrées, position chrono ; marques et logos sur les cadres, casque chrono : à faire) ; caméras poursuite, cockpit, drone, TV, photo
 - [ ] Son : ambiances, roulement, roue libre, souffle, public
 - [x] Corridor complet Saclay → Chevreuse → Rambouillet, streaming par tuiles, préréglages bas → ultra
 

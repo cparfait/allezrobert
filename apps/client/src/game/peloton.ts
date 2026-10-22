@@ -2,6 +2,7 @@ import * as THREE from 'three/webgpu';
 import { AiRider, AI_PROFILES, DraftCalculator, PoseController, createRiderState, paramsFromBike, stepRider, airDensity, type AiProfileName, type RiderState } from '@allezrobert/physics';
 import { DEFAULT_BIKE, DEFAULT_LOOK, type AvatarLook, type RouteTrack } from '@allezrobert/shared';
 import { createAvatar, type RiderAvatarLike } from '../rider/gltfAvatar.ts';
+import { crowdBike } from '../rider/bikes.ts';
 import { rng } from '../engine/noise.ts';
 
 /** Noms des coureurs IA (clins d'œil locaux, aucun nom réel). */
@@ -97,6 +98,7 @@ export class Peloton {
         jersey: color,
         jerseyAccent: JERSEYS[(i + 5) % JERSEYS.length] as string,
         bike: ['#1d1d1f', '#c0392b', '#f4f4f4', '#2c3e50', '#16a085'][i % 5] as string,
+        bikeModel: crowdBike(i),
         skin: ['#f1c27d', '#e0ac69', '#c68642', '#8d5524', '#ffdbac'][i % 5] as string,
         helmet: ['#f4f4f4', '#111111', color][i % 3] as string,
         build: r(),

@@ -1175,7 +1175,7 @@ def skin_to(ob, ao):
 # Les cotes d'ancrage (boîtier, axes, selle, cocottes) sont celles du coureur : ne pas les bouger.
 # ---------------------------------------------------------------------------------------------
 BIKE_STYLES = {
-    # Aéro (défaut, bike.glb). Cordes / largeurs en mètres.
+    # Aéro (famille « aero », bikes/aero.glb). Cordes / largeurs en mètres.
     'aero': {
         'ht': (0.076, 0.064, 0.036, 0.032),     # douille : corde bas, corde haut, largeur bas, largeur haut
         'dt': (0.054, 0.066, 0.034, 0.037),     # diagonal : corde côté boîtier, côté douille, largeurs
@@ -1189,7 +1189,7 @@ BIKE_STYLES = {
         'round': False,
         'rim': (0.052, 0.048),                  # hauteur de jante avant / arrière
     },
-    # Grimpeur (bike_climb.glb) : tubes ronds et fins, tige ronde, jantes 38 mm.
+    # Grimpeur (famille « climb », bikes/climb.glb) : tubes ronds et fins, tige ronde, jantes 38 mm.
     'climb': {
         'ht': (0.05, 0.044, 0.042, 0.038),
         'dt': (0.044, 0.05, 0.04, 0.042),

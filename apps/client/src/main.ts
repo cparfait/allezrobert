@@ -1,12 +1,13 @@
 import './hud/hud.css';
 import * as THREE from 'three/webgpu';
-import { RouteTrack, DEFAULT_BIKE, type RiderProfile, type RouteData } from '@allezrobert/shared';
+import { RouteTrack, DEFAULT_BIKE, bikeOfLook, type RiderProfile, type RouteData } from '@allezrobert/shared';
 import { createEngine, type Engine } from './engine/renderer.ts';
 import { QUALITY_PRESETS, withUrlOverrides, type QualitySettings } from './engine/quality.ts';
 import { World } from './world/world.ts';
 import { loadWorldSource } from './world/loader.ts';
 import type { WorldSource } from './world/types.ts';
 import { GltfRiderAvatar, createAvatar } from './rider/gltfAvatar.ts';
+import { CROWD_FAMILIES, onBikeFamilyLoaded } from './rider/bikes.ts';
 import { CameraRig } from './game/cameras.ts';
 import { FreeFlyCamera } from './game/freecam.ts';
 import { RideSession } from './game/ride.ts';
@@ -104,7 +105,7 @@ async function boot(): Promise<void> {
   setLang(settings.lang);
   bootStep(12, 'Chargement des coureurs, des vélos et des voitures');
   // Avatars Blender (glTF) chargés une fois ; repli procédural automatique en cas d'échec.
-  const [scene] = await Promise.all([loadScene(settings), GltfRiderAvatar.load(), loadVehicleModels()]);
+  const [scene] = await Promise.all([loadScene(settings), GltfRiderAvatar.load([bikeOfLook(settings.look).family, ...CROWD_FAMILIES]), loadVehicleModels()]);
   // Film d'accueil (développement) : rendu image par image, sans menu (voir tools/menu-loop).
   if (import.meta.env.DEV && new URLSearchParams(location.search).has('cinematic')) {
     const { runCinematic } = await import('./ui/cinematic.ts');
@@ -153,6 +154,8 @@ async function boot(): Promise<void> {
     await scene.world.preload(focus);
     renderPoster();
     window.addEventListener('resize', () => inMenu && !exploring && renderPoster());
+    // Vélo essayé dans le garage dont la famille arrive à l'instant : l'avatar l'a monté, on refait l'image.
+    onBikeFamilyLoaded(() => inMenu && !exploring && renderPoster());
   } else {
     bootStep(60, 'Paysage : relief, routes, bâtiments, arbres');
     const start = scene.track.positionAt(0, 1.2);

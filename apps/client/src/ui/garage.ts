@@ -1,4 +1,4 @@
-import { COSMETICS, levelProgress, xpForRide, type CosmeticItem, type CosmeticSlot } from '@allezrobert/shared';
+import { COSMETICS, levelProgress, migrateCosmeticId, xpForRide, type CosmeticItem, type CosmeticSlot } from '@allezrobert/shared';
 import { saveSettings, type Settings } from './settings.ts';
 
 /** Progression locale (synchronisée avec le serveur une fois connecté). */
@@ -12,7 +12,12 @@ const KEY = 'ar.progress';
 export function loadProgress(): Progress {
   try {
     const raw = localStorage.getItem(KEY);
-    if (raw) return { xp: 0, equipped: {}, ...(JSON.parse(raw) as Partial<Progress>) };
+    if (raw) {
+      const p: Progress = { xp: 0, equipped: {}, ...(JSON.parse(raw) as Partial<Progress>) };
+      // Anciens vélos du garage (bike-alu…) → modèles du catalogue.
+      for (const [slot, id] of Object.entries(p.equipped)) p.equipped[slot as CosmeticSlot] = migrateCosmeticId(slot, id);
+      return p;
+    }
   } catch {
     // Progression illisible : on repart de zéro plutôt que de bloquer le jeu.
   }
@@ -43,7 +48,7 @@ export const SLOT_LABEL: Record<CosmeticSlot, { fr: string; en: string }> = {
   glasses: { fr: 'Lunettes', en: 'Glasses' },
 };
 
-/** Équipe un cosmétique débloqué ; les cosmétiques à couleur s'appliquent à l'avatar. */
+/** Équipe un cosmétique débloqué ; les cosmétiques à couleur et les vélos s'appliquent à l'avatar. */
 export function equipItem(item: CosmeticItem, s: Settings): void {
   const p = loadProgress();
   p.equipped[item.slot] = item.id;
@@ -51,7 +56,7 @@ export function equipItem(item: CosmeticItem, s: Settings): void {
   if (item.color) {
     if (item.slot === 'jersey') s.look = { ...s.look, jersey: item.color };
     if (item.slot === 'helmet') s.look = { ...s.look, helmet: item.color };
-    if (item.slot === 'bike') s.look = { ...s.look, bike: item.color };
   }
+  if (item.slot === 'bike') s.look = { ...s.look, bikeModel: item.id };
   saveSettings(s);
 }
