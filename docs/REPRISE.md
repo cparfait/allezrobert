@@ -40,7 +40,7 @@ Captures de contrôle : `docs/screenshots/avatars-*.jpg`, `bikes-*.jpg`.
 
 | Chantier | Contenu | État |
 | --- | --- | --- |
-| Matériel | audit et compléments : KICKR CORE (FTMS), Assioma (CPS), TICKR (HRS), vitesses virtuelles (Di2, Click, Play, Ride, HID, manette), HEADWIND asservi, ANT+ USB, Direct Connect, power match ERG, calibration, reconnexion ; `docs/HARDWARE_TEST.md` (tests à faire avec le vrai matériel) | en cours |
+| Matériel | audit et compléments : KICKR CORE (FTMS), Assioma (CPS), TICKR (HRS), vitesses virtuelles (Di2, Click, Play, Ride, HID, manette), HEADWIND asservi, ANT+ USB, Direct Connect, power match ERG, calibration, reconnexion ; `docs/HARDWARE_TEST.md` (tests à faire avec le vrai matériel) | **fusionné** — fait en simulation (calibration guidée, ventilateur asservi, manette et HID, adaptateurs Click / Di2 / HEADWIND activables, HUD « muet / reconnexion », réglages avancés dans l'onglet Capteurs) ; à valider avec le vrai matériel |
 | Son | ambiances (lieu, heure, saison, météo), roulement selon le revêtement, roue libre, souffle selon l'effort, public, trafic ; volumes par catégorie (Réglages et pause) | **fusionné** — synthèse sans fichier, niveaux mesurés au banc (`apps/client/scripts/audio-bench.mjs`), à écouter |
 | Monde et beauté | végétation au vent, villages, toits, eau, poussière sur les chemins, trains, détection automatique d'anomalies du monde, `docs/ART_DIRECTION.md` (points à valider par toi) | en cours |
 | Jeu | modes groupe et course complets, demi-tour des équipiers IA, pancartes de la foule, vidéo résumé MP4 sur le serveur, repli Discord pour la voix | en cours |
@@ -51,7 +51,11 @@ donne le détail.
 ## Ce qui demande une action de ta part
 
 - **Matériel réel** : rien n'a pu être testé avec de vrais appareils (environnement sans
-  Bluetooth ni USB). Suivre `docs/HARDWARE_TEST.md` dès qu'il est fusionné.
+  Bluetooth ni USB). Suivre `docs/HARDWARE_TEST.md` (checklist pas à pas, journaux à copier).
+  L'app Windows (`apps/desktop`, Rust) doit être recompilée sous Windows : elle ne compile pas
+  dans l'environnement cloud.
+- **Après un `git pull`** : si le client affiche une erreur du type « … is not a function »,
+  vider le cache de Vite (`rmdir /s /q apps\client\node_modules\.vite`) puis relancer `pnpm dev`.
 - **Performances** : mesurer les fps sur ta carte graphique :
   `http://localhost:5173/avatar-test.html?bench&quality=high` (puis `low`, `medium`, `ultra`) ;
   le résultat s'affiche en haut de la page (comparer avec `&avatar=classic`).
