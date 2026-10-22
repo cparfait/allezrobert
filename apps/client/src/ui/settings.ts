@@ -34,6 +34,8 @@ export interface Settings {
   smoothing3s: boolean;
   /** Invité sans matériel : puissance virtuelle au clavier / à la manette. */
   guest: boolean;
+  /** Course sur une boucle : nombre de tours. */
+  raceLaps: number;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -61,6 +63,7 @@ export const DEFAULT_SETTINGS: Settings = {
   powerSource: 'pedals',
   smoothing3s: false,
   guest: false,
+  raceLaps: 1,
 };
 
 const KEY = 'ar.settings';

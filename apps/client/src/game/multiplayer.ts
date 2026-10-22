@@ -50,12 +50,22 @@ export class Multiplayer {
   }
 
   /** Rejoint par code d'invitation, ou crée une sortie privée sur l'itinéraire courant. */
-  async connect(opts: { inviteCode?: string; mode: RideMode; guest: boolean; aiRiders: number; trainerDifficulty: number; name: string }): Promise<string> {
+  async connect(opts: { inviteCode?: string; mode: RideMode; guest: boolean; aiRiders: number; aiLevel?: number; laps?: number; trainerDifficulty: number; name: string }): Promise<string> {
     const role = opts.guest ? 'guest' : 'rider';
     const welcome = opts.inviteCode
       ? await this.net.joinByCode(opts.inviteCode, { role, displayName: opts.name })
       : await this.net.create(
-          { routeId: this.track.route.id, mode: opts.mode, stickyGroup: opts.mode === 'group', allowGuests: true, draftingStrength: 1, trainerDifficulty: opts.trainerDifficulty, aiRiders: opts.aiRiders },
+          {
+            routeId: this.track.route.id,
+            mode: opts.mode,
+            stickyGroup: opts.mode === 'group',
+            allowGuests: true,
+            draftingStrength: 1,
+            trainerDifficulty: opts.trainerDifficulty,
+            aiRiders: opts.aiRiders,
+            ...(opts.aiLevel ? { aiLevel: opts.aiLevel } : {}),
+            ...(opts.mode === 'race' && opts.laps ? { laps: opts.laps } : {}),
+          },
           { role, displayName: opts.name },
         );
     return welcome.inviteCode;

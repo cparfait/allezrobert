@@ -1,5 +1,5 @@
 import * as THREE from 'three/webgpu';
-import { AiRider, AI_PROFILES, DraftCalculator, PoseController, createRiderState, paramsFromBike, stepRider, airDensity, type AiProfileName, type RiderState } from '@allezrobert/physics';
+import { AiRider, AI_PROFILES, DraftCalculator, PoseController, TeammateUTurn, createRiderState, paramsFromBike, powerForSpeed, stepRider, airDensity, type AiProfileName, type RiderState } from '@allezrobert/physics';
 import { BASE_PROFILES, DEFAULT_BIKE, DEFAULT_LOOK, FACE_SLIDERS, encodeFace, type AvatarLook, type FaceShape, type RouteTrack } from '@allezrobert/shared';
 import { createAvatar, type RiderAvatarLike } from '../rider/gltfAvatar.ts';
 import { crowdBike } from '../rider/bikes.ts';
@@ -43,6 +43,10 @@ export interface PelotonRider {
   ftp: number;
   poseCtl: PoseController;
   pose: 'seated' | 'standing' | 'coasting';
+  /** Demi-tour vers le groupe quand l'équipier est parti trop loin devant. */
+  uturn: TeammateUTurn;
+  /** Cap relatif à la route (rad) : 0 sens de marche, π contresens (demi-tour). */
+  heading: number;
 }
 
 function nameSprite(text: string, color: string): THREE.Sprite {
@@ -94,6 +98,8 @@ export class Peloton {
   /** Équipier attendu (lâché) — pour l'affichage. */
   waitingFor: string | null = null;
   onWait?: (name: string | null) => void;
+  /** Un équipier fait demi-tour pour revenir au groupe (annonce dans le HUD). */
+  onUTurn?: (name: string) => void;
 
   /** Ordre « ralentissez » : −15 % pendant une minute. */
   slowDown(): void {
@@ -144,6 +150,8 @@ export class Peloton {
         ftp,
         poseCtl: new PoseController(),
         pose: 'seated',
+        uturn: new TeammateUTurn({ halfRoadM: Math.max(1.2, track.route.roadWidthM / 2 - 0.4) }),
+        heading: 0,
       });
     }
     void AI_PROFILES;
@@ -160,7 +168,7 @@ export class Peloton {
     const target = this.paceFtpPct !== null && player.ftpWatts ? (player.ftpWatts * this.paceFtpPct) / Math.max(player.massKg, 1) : player.watts / Math.max(player.massKg, 1);
     this.paceWkg += (Math.min(Math.max(target, 1.2), 5.5) - this.paceWkg) * Math.min(1, dt / (this.paceFtpPct !== null ? 6 : 20));
     // Équipier lâché (> 60 m derrière le joueur) : le groupe lève le pied pour l'attendre.
-    const dropped = this.riders.filter((r) => player.distM - r.state.distM > 60).sort((a, b) => a.state.distM - b.state.distM)[0];
+    const dropped = this.riders.filter((r) => !r.uturn.active && player.distM - r.state.distM > 60).sort((a, b) => a.state.distM - b.state.distM)[0];
     const waiting = dropped?.name ?? null;
     if (waiting !== this.waitingFor) {
       this.waitingFor = waiting;
@@ -168,18 +176,43 @@ export class Peloton {
     }
     const easing = (this.time < this.slowUntil ? 0.85 : 1) * (waiting ? 0.85 : 1);
 
-    const all = [{ distM: player.distM, lateralM: player.lateral, speedMs: player.speedMs }, ...this.riders.map((r) => ({ distM: r.state.distM, lateralM: r.lateral, speedMs: r.state.speedMs }))];
+    // Équipier à contresens (demi-tour) : hors aspiration (écarté latéralement) et jamais « roue devant ».
+    const all = [
+      { distM: player.distM, lateralM: player.lateral, speedMs: player.speedMs },
+      ...this.riders.map((r) => ({ distM: r.state.distM, lateralM: r.uturn.active ? 100 : r.lateral, speedMs: r.uturn.active ? 0 : r.state.speedMs })),
+    ];
     const factors = this.draft.compute(all);
     const order = [...this.riders].sort((a, b) => b.state.distM - a.state.distM);
+    const half = this.track.route.roadWidthM / 2 - 0.5;
     order.forEach((r, rank) => {
-      r.draft = factors[this.riders.indexOf(r) + 1] ?? 0;
+      r.draft = r.uturn.active ? 0 : (factors[this.riders.indexOf(r) + 1] ?? 0);
       const s = this.track.sample(r.state.distM, this.sample);
-      // Coureur juste devant (IA ou joueur).
+      const env = { airDensity: airDensity(s.y, 14), windSpeedMs: 0 };
+      // Demi-tour : l'équipier parti trop loin devant revient vers le groupe (sauf dans un segment disputé).
+      const wasActive = r.uturn.active;
+      const turn = r.uturn.update(
+        { leadM: r.state.distM - player.distM, groupSpeedMs: player.speedMs, distM: r.state.distM, speedMs: r.state.speedMs, lateralM: r.lateral, blocked: this.inSegment(r.state.distM) },
+        dt,
+      );
+      if (turn.active) {
+        if (!wasActive) this.onUTurn?.(r.name);
+        r.state.distM = turn.distM;
+        r.state.speedMs = turn.speedMs;
+        r.state.accelMs2 = 0;
+        r.lateral = turn.lateralM;
+        r.heading = turn.headingRad;
+        // À contresens, la pente ressentie est l'opposée de celle de l'itinéraire.
+        r.watts = turn.pedaling ? Math.max(0, Math.round(powerForSpeed(turn.speedMs, -s.grade, r.ai.params, env))) : 0;
+        r.cadence = r.watts > 15 ? 82 : 0;
+        r.pose = r.poseCtl.update({ watts: r.watts, cadence: r.cadence, gradePercent: turn.pedaling ? -s.grade : 0, ftpWatts: r.ftp, speedMs: turn.speedMs }, dt);
+        return;
+      }
+      r.heading = 0;
+      // Coureur juste devant (IA dans le sens de marche, ou joueur).
       let ahead: { distM: number; speedMs: number; lateral: number } | null = null;
-      for (const o of [...this.riders.map((x) => ({ distM: x.state.distM, speedMs: x.state.speedMs, lateral: x.lateral })), { distM: player.distM, speedMs: player.speedMs, lateral: player.lateral }]) {
+      for (const o of [...this.riders.filter((x) => !x.uturn.active).map((x) => ({ distM: x.state.distM, speedMs: x.state.speedMs, lateral: x.lateral })), { distM: player.distM, speedMs: player.speedMs, lateral: player.lateral }]) {
         if (o.distM > r.state.distM + 0.01 && (!ahead || o.distM < ahead.distM)) ahead = o;
       }
-      const env = { airDensity: airDensity(s.y, 14), windSpeedMs: 0 };
       const out = r.ai.update(
         {
           gradePercent: s.grade,
@@ -197,17 +230,23 @@ export class Peloton {
         dt,
       );
       r.watts = out.watts;
-      // En solo, personne ne file seul devant : au-delà de 40 m d'avance, l'équipier attend le groupe.
+      // Se laisser glisser : au-delà de 40 m d'avance, l'équipier se relève et attend le groupe
+      // (au-delà de ~120 m qui ne se résorbent pas, il fait demi-tour : voir TeammateUTurn).
       const leadM = r.state.distM - player.distM;
       if (leadM > 40) r.watts = Math.min(r.watts, this.paceWkg * r.massKg * Math.max(0.2, 0.7 - (leadM - 40) / 200));
       r.cadence = out.cadence;
-      r.pose = r.poseCtl.update({ watts: out.watts, cadence: out.cadence, gradePercent: s.grade, ftpWatts: r.ftp, speedMs: r.state.speedMs }, dt);
+      r.pose = r.poseCtl.update({ watts: r.watts, cadence: out.cadence, gradePercent: s.grade, ftpWatts: r.ftp, speedMs: r.state.speedMs }, dt);
       stepRider(r.state, { watts: r.watts, gradePercent: s.grade, params: r.ai.params, env, cdaFactor: 1 - r.draft }, dt);
-      const half = this.track.route.roadWidthM / 2 - 0.5;
       const targetLat = THREE.MathUtils.clamp((ahead?.lateral ?? 1) + out.lateralTargetM, -half, half);
       r.lateral += (targetLat - r.lateral) * Math.min(1, dt * 0.8);
     });
     return factors[0] ?? 0;
+  }
+
+  /** Dans un segment KOM / sprint (on ne fait pas demi-tour en pleine bagarre). */
+  private inSegment(distM: number): boolean {
+    const d = this.track.wrap(distM);
+    return this.track.route.segments.some((g) => g.kind !== 'section' && d >= g.startM && d <= g.endM);
   }
 
   /** Place les avatars ; les coureurs lointains ne sont pas animés (économie). */
@@ -216,8 +255,9 @@ export class Peloton {
       const p = this.track.positionAt(r.state.distM, r.lateral, this.sample);
       r.avatar.root.position.set(p.x, p.y + 0.06, p.z);
       r.avatar.root.rotation.set(0, 0, 0);
-      r.avatar.root.rotateY(Math.atan2(p.dirX, p.dirZ));
-      r.avatar.root.rotateX(-Math.atan(p.grade / 100));
+      // Cap relatif (demi-tour) : à contresens, l'inclinaison de la pente s'inverse.
+      r.avatar.root.rotateY(Math.atan2(p.dirX, p.dirZ) + r.heading);
+      r.avatar.root.rotateX(-Math.atan(p.grade / 100) * Math.cos(r.heading));
       const dist = camera.position.distanceTo(r.avatar.root.position);
       r.avatar.root.visible = dist < 600;
       if (dist < 250) {

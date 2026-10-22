@@ -20,6 +20,7 @@ import { OAUTH_COOKIE, parseCookies, serializeCookie } from './cookies.ts';
 import { createLiveKitToken, voiceRoomName } from '../integrations/livekit.ts';
 import { normalizeCode } from '../ride/registry.ts';
 import { activeRooms } from '../ride/RideRoom.ts';
+import { readHeartbeat } from '../render/worker.ts';
 import { normalizedPower } from '@allezrobert/physics';
 import { FACE_CODE_RE } from '@allezrobert/shared';
 import type { ActivitySummaryRow } from '../db/repos.ts';
@@ -364,6 +365,12 @@ export function mountApi(app: express.Application, ctx: AppContext): void {
     res.json({ roomId: e.roomId, inviteCode: e.inviteCode, name: e.name, routeId: e.routeId, mode: e.mode });
   });
 
+  /** Voix disponible : LiveKit configuré, et lien du salon Discord de repli (public, sans compte). */
+  api.get('/voice', (_req, res) => {
+    const c = ctx.config;
+    res.json({ livekit: !!(c.LIVEKIT_URL && c.LIVEKIT_API_KEY && c.LIVEKIT_API_SECRET), discordInvite: c.DISCORD_VOICE_INVITE ?? null });
+  });
+
   /** Jeton LiveKit pour la voix de la sortie (participants uniquement). */
   api.get('/rides/:roomId/voice-token', async (req: AuthedRequest, res) => {
     const u = requireUser(req);
@@ -405,7 +412,14 @@ export function mountApi(app: express.Application, ctx: AppContext): void {
       payload = { kind: 'sequence', lang, variables: { lang, ...body.variables } };
     }
     const id = await ctx.repos.enqueueRender(u.userId, body.composition, payload);
+    ctx.renderWorker?.nudge();
     res.status(202).json({ id, status: 'queued' });
+  });
+
+  /** Rendu vidéo disponible ? (pouls du worker : conteneur renderer ou RENDER_INLINE). */
+  api.get('/renders/capabilities', async (_req, res) => {
+    const { available, heartbeat } = await readHeartbeat(ctx.config.RENDERS_DIR);
+    res.json({ available, engine: available ? (heartbeat?.engine ?? null) : null, inline: heartbeat?.inline ?? false });
   });
 
   api.get('/renders', async (req: AuthedRequest, res) => {

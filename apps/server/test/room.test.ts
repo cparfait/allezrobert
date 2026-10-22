@@ -185,6 +185,55 @@ describe('salle ride', () => {
     await a.leave();
   });
 
+  it("course : l'IA cède sa place au salon, abandon diffusé, classement à l'accueil", async () => {
+    const a = await client('Hôte course');
+    const w = await a.create({ mode: 'race', laps: 1, aiRiders: 2, aiLevel: 0.8 });
+    expect(w.roster.riders.filter((r) => r.isAI)).toHaveLength(2);
+    expect(w.hostOptions).toMatchObject({ paceWkg: null, leaderId: '' });
+    const b = await client('Second');
+    const leaveEv = waitFor(a, (ev) => ev.kind === 'leave' && ev);
+    await b.joinByCode(w.inviteCode);
+    // Taille du peloton conservée : une IA est partie.
+    expect((await leaveEv).riderId).toMatch(/^ai-/);
+    await sleep(100);
+    expect([...a.roster.values()].filter((r) => r.isAI)).toHaveLength(1);
+    a.startCountdown(3);
+    await waitFor(a, (e) => e.kind === 'phase' && e.phase === 'running' && e, 6000);
+    const bId = b.selfId;
+    const abandon = waitFor(a, (ev) => ev.kind === 'abandon' && ev);
+    await b.leave();
+    expect(await abandon).toMatchObject({ riderId: bId, name: 'Second' });
+    // Un nouveau venu reçoit le classement courant (avec l'abandon) dans l'accueil.
+    const c = await client('Retardataire');
+    const wc = await c.joinByCode(w.inviteCode);
+    expect(wc.results?.find((r) => r.riderId === bId)?.status).toBe('dnf');
+    expect(wc.results?.find((r) => r.riderId === c.selfId)?.status).toBe('unranked');
+    await c.leave();
+    await a.leave();
+  });
+
+  it('sortie de groupe : allure annoncée, meneur et regroupement (hôte ou meneur seulement)', async () => {
+    const a = await client('Meneuse');
+    const w = await a.create({ mode: 'group', paceWkg: 2.6 });
+    expect(w.hostOptions?.paceWkg).toBe(2.6);
+    const b = await client('Suiveur');
+    await b.joinByCode(w.inviteCode);
+    const opt = waitFor(b, (ev) => ev.kind === 'options' && ev);
+    a.setHostOptions({ paceWkg: 3.1, leaderId: b.selfId });
+    expect(await opt).toMatchObject({ options: { paceWkg: 3.1, leaderId: b.selfId } });
+    expect(b.welcome?.hostOptions?.leaderId).toBe(b.selfId);
+    // Le meneur peut demander le regroupement.
+    const rg = waitFor(a, (ev) => ev.kind === 'regroup' && ev);
+    b.regroup(true);
+    expect(await rg).toMatchObject({ active: true });
+    expect(a.welcome?.regrouping).toBe(true);
+    // Le meneur parti, l'hôte redevient la référence.
+    const back = waitFor(a, (ev) => ev.kind === 'options' && ev);
+    await b.leave();
+    expect(await back).toMatchObject({ options: { leaderId: '' } });
+    await a.leave();
+  });
+
   it('reconnexion après coupure : même coureur, état resynchronisé', async () => {
     const a = await client('Coupé');
     const w = await a.create({ mode: 'group' });

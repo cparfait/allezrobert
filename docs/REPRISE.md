@@ -26,6 +26,8 @@ pnpm dev
 - Monde : les tuiles se génèrent avec `pnpm --filter @allezrobert/terrain build:world`
   (≈ 150 Mo, 3–4 min, réseau nécessaire).
 
+> **Liste complète de ce qu'il reste à faire : `docs/A_FAIRE.md`.**
+
 ## Ce qui est fait (poussé)
 
 | Chantier | État | Où regarder |
@@ -36,7 +38,7 @@ pnpm dev
 
 Captures de contrôle : `docs/screenshots/avatars-*.jpg`, `bikes-*.jpg`.
 
-## En cours (agents en parallèle, fusionnés au fil de l'eau)
+## Chantiers parallèles (arrêtés le 22/10 ; monde et jeu fusionnés en l'état, à vérifier)
 
 | Chantier | Contenu | État |
 | --- | --- | --- |

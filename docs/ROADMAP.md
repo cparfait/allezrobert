@@ -43,7 +43,7 @@ Chaque jalon n'est déclaré terminé qu'après vérification : tests (protocole
 
 - [x] Salles privées sur invitation, serveur autoritaire 10 Hz, drafting réseau, groupe soudé
 - [x] Comptes Google, Discord, lien magique ; profils (Google / Discord : identifiants OAuth à créer)
-- [x] Voix LiveKit, chat texte, « Ride On » (testés en local ; repli Discord : à faire)
+- [x] Voix LiveKit, chat texte, « Ride On » (testés en local) ; repli Discord par lien d'invitation (`DISCORD_VOICE_INVITE`, lien à créer par le propriétaire)
 - [x] Appli compagnon PWA ; mode invité sans matériel
 - [x] Test de charge à 20 coureurs (tick moyen 1,8 ms)
 - [x] Amis : code ami et lien `/?ami=`, demandes, présence (menu / en sortie), « Rejoindre » sans code, invitations à rouler (30 min), classements de segments entre amis — fantôme d'un ami : à faire (voir `docs/ARCHITECTURE.md`, « Amis »)
@@ -51,7 +51,7 @@ Chaque jalon n'est déclaré terminé qu'après vérification : tests (protocole
 ## Jalon 5 — Jeu
 
 - [x] Modes solo : libre, ERG (.zwo / .erg / .mrc), test FTP, segments KOM / sprint, fantôme
-- [ ] Modes groupe et course (dépendent du jalon 4)
+- [x] Modes groupe et course : allure annoncée, meneur, regroupement, alerte de groupe scindé ; salle d'attente, compte à rebours synchronisé, classement en direct, primes KOM / sprint, heure limite, abandons, résultats et podium, IA qui complètent le peloton, contrôle de puissance côté serveur (vérifiés en simulation et à deux navigateurs, captures `docs/screenshots/jeu-*`)
 - [x] Coureurs IA (relais, attaques, profils)
 - [x] Progression : XP, niveaux, garage, déblocages cosmétiques
 - [x] Export Strava (option « ne pas envoyer » si l'Edge enregistre) et intervals.icu (Strava : appli OAuth à créer)
@@ -68,13 +68,13 @@ Idées seulement : ni nom, ni asset, ni code, ni physique de NCT Ride (la vitess
 
 | # | Idée | Jalon | État |
 | --- | --- | --- | --- |
-| 1 | Équipiers IA pour rouler seul : allure à % de FTP réglable en sortie, relais, équipiers lâchés en côte et attendus, ordre « ralentissez », barre d'aspiration, aspiration partielle si décalé | 5, avancé juste après le jalon 1 | fait en solo ([ / ] allure, R ralentir, attente des lâchés, barre d'aspiration) ; demi-tour : à faire |
+| 1 | Équipiers IA pour rouler seul : allure à % de FTP réglable en sortie, relais, équipiers lâchés en côte et attendus, ordre « ralentissez », barre d'aspiration, aspiration partielle si décalé | 5, avancé juste après le jalon 1 | fait en solo ([ / ] allure, R ralentir, attente des lâchés, barre d’aspiration, demi-tour de l’équipier parti trop loin devant : `TeammateUTurn` dans packages/physics) |
 | 2 | IA avec réserve W′bal ; profils échappée / sprinteur / suiveur ; niveaux 80 / 100 / 115 % FTP | 5 | fait (W′bal, profils, niveau 80 / 100 / 115 % au menu) |
 | 3 | Monde vivant : trafic qui double en s'écartant, piétons, déclencheurs à une distance de route | 3 | fait (voitures, camionnettes, tracteur, piétons) ; trains : à faire |
 | 4 | Son positionné depuis OSM (église → cloches, prairie → vaches, eau…) | 3 | fait |
 | 5 | Caméra « GoPro » sur la poitrine | 3 | fait |
 | 6 | Poussière sur les chemins, roulement selon le revêtement | 3 | roulement selon le revêtement fait (tags OSM `surface` des tuiles : lisse, rugueux, pavés, gravier, terre ; chaussée mouillée) ; poussière : à faire |
-| 7 | Foule avec pancartes et photo automatique au sommet des segments, réutilisée dans la vidéo résumé | 5 | fait (foule animée, photo au sommet, en fond de l'image de partage) ; pancartes et vidéo résumé : à faire |
+| 7 | Foule avec pancartes et photo automatique au sommet des segments, réutilisée dans la vidéo résumé | 5 | fait (foule animée, photo au sommet, en fond de l'image de partage, pancartes au sommet des KOM et sur les sprints : encouragements, prénom du coureur, « Allez Robert ! », textures dessinées sur canevas) ; photos dans la vidéo résumé : à faire |
 | 8 | Image de fin de sortie à partager | 5 | fait |
 | 9 | Mondes génériques (emprise + itinéraires via tools/terrain) | 3 | pipeline générique fait ; montée célèbre à tester |
 | 10 | Contrôle visuel automatique du monde généré | 3 | fait (?worldcheck=1, toits inversés corrigés à la construction) ; détection automatique d'anomalies : à faire |

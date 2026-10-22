@@ -50,6 +50,14 @@ export const ConfigSchema = z.object({
   LIVEKIT_URL: optionalString,
   LIVEKIT_API_KEY: optionalString,
   LIVEKIT_API_SECRET: optionalString,
+  /**
+   * Repli de la voix : lien d'invitation d'un salon Discord (https://discord.gg/… ou
+   * https://discord.com/invite/…), proposé dans le jeu quand LiveKit est absent ou échoue.
+   */
+  DISCORD_VOICE_INVITE: optionalString.refine(
+    (v) => v === undefined || /^https:\/\/(discord\.gg|(www\.)?discord(app)?\.com\/invite)\/[A-Za-z0-9-]{2,64}\/?$/.test(v),
+    'DISCORD_VOICE_INVITE : lien https://discord.gg/… ou https://discord.com/invite/… attendu',
+  ),
 
   /** Synthèse vocale (voix off du tutoriel) : clé Cartesia, uniquement côté serveur. */
   CARTESIA_API_KEY: optionalString,
@@ -64,6 +72,11 @@ export const ConfigSchema = z.object({
   ROUTES_DIR: optionalString,
   /** Dossier des vidéos rendues (volume partagé avec le conteneur renderer). */
   RENDERS_DIR: z.string().default('./renders'),
+  /**
+   * Worker vidéo dans le processus du serveur (petit VPS sans conteneur renderer, développement) :
+   * HyperFrames si Chromium est là, sinon repli FFmpeg ; sans FFmpeg, aucun MP4.
+   */
+  RENDER_INLINE: bool.default(false),
 
   RECONNECT_GRACE_S: z.coerce.number().int().min(0).max(600).default(30),
   ALLOW_ANONYMOUS_GUESTS: bool.default(true),

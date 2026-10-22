@@ -475,7 +475,8 @@ export class Repos {
   async claimRender(): Promise<RenderJob | null> {
     return this.db.tx(async (q) => {
       const r = await q.query(
-        "SELECT * FROM render_jobs WHERE status = 'queued' ORDER BY created_at LIMIT 1 FOR UPDATE SKIP LOCKED",
+        // pg-mem (développement, worker intégré au serveur) ne connaît pas SKIP LOCKED : un seul worker.
+        `SELECT * FROM render_jobs WHERE status = 'queued' ORDER BY created_at LIMIT 1${this.db.kind === 'memory' ? '' : ' FOR UPDATE SKIP LOCKED'}`,
       );
       const row = r.rows[0];
       if (!row) return null;
@@ -495,6 +496,7 @@ export class Repos {
 
   /** Remet en file les tâches « running » abandonnées (worker redémarré). */
   async requeueStaleRenders(olderThanMin = 30): Promise<void> {
+    if (this.db.kind === 'memory') return; // un seul worker, dans le même processus
     await this.db.query(
       `UPDATE render_jobs SET status = 'queued' WHERE status = 'running' AND started_at < now() - ($1 || ' minutes')::interval AND attempts < 3`,
       [String(olderThanMin)],

@@ -160,6 +160,8 @@ export const NET_MSG = {
   kick: 'kick',
   /** Hôte → serveur : `{ riderId }` cède le rôle d'hôte. */
   host: 'host',
+  /** Hôte ou meneur → serveur : `{ active }` lance / arrête un regroupement (sortie de groupe). */
+  regroup: 'regroup',
   /** Client → serveur : `{ t }` ; serveur → client : `{ t, serverT }` (estimation d'horloge). */
   ping: 'ping',
 } as const;
@@ -171,6 +173,10 @@ export type RideRole = 'rider' | 'guest' | 'companion';
 export interface RideRoomOptions extends RoomOptions {
   /** Allure des IA sans humain à suivre (W/kg). Défaut 2,6. */
   aiPaceWkg?: number;
+  /** Niveau des IA en fraction de la FTP du créateur (0,6–1,3). Défaut 1. */
+  aiLevel?: number;
+  /** Sortie de groupe : allure annoncée (W/kg) ; absente = libre. */
+  paceWkg?: number;
 }
 
 /** Options modifiables par l'hôte en cours de sortie. */
@@ -178,6 +184,10 @@ export interface HostOptions {
   allowGuests: boolean;
   stickyGroup: boolean;
   draftingStrength: number;
+  /** Sortie de groupe : allure annoncée par le meneur (W/kg), null = libre. Les IA la tiennent. */
+  paceWkg: number | null;
+  /** Sortie de groupe : meneur (identifiant de coureur) ; '' = l'hôte. */
+  leaderId: string;
 }
 
 /** Options d'entrée dans une salle (`client.joinById(roomId, options)`). */
@@ -240,6 +250,14 @@ export interface WelcomeMsg {
   tickHz: number;
   route: RouteSummary;
   roster: RosterMsg;
+  /** Course en cours ou terminée : classement à l'instant de l'accueil (arrivées, abandons). */
+  results?: RideResult[];
+  /** Course : heure limite d'arrivée (epoch ms) une fois le premier arrivé. */
+  deadline?: number;
+  /** Options d'hôte courantes (allure annoncée, meneur…). */
+  hostOptions?: HostOptions;
+  /** Sortie de groupe : regroupement en cours. */
+  regrouping?: boolean;
 }
 
 /** État du jeu affiché par l'appli compagnon (relayé tel quel). */
@@ -251,6 +269,14 @@ export interface CompanionStateMsg {
   fanPercent?: number;
 }
 
+/**
+ * État d'un coureur au classement d'une course :
+ * `finished` arrivé et classé, `racing` encore en course, `dnf` abandon (a quitté la course),
+ * `otl` hors délai, `dq` mis hors course (puissance invraisemblable), `unranked` hors
+ * classement (invité, arrivé après le départ).
+ */
+export type RaceStatus = 'finished' | 'racing' | 'dnf' | 'otl' | 'dq' | 'unranked';
+
 export interface RideResult {
   riderId: string;
   name: string;
@@ -259,7 +285,19 @@ export interface RideResult {
   timeMs: number;
   isAI: boolean;
   isGuest: boolean;
+  /** Ajouts (facultatifs pour la compatibilité) : état, écart au vainqueur, primes. */
+  status?: RaceStatus;
+  /** Écart au vainqueur (ms), arrivés seulement. */
+  gapMs?: number;
+  /** Points du classement de la montagne et du sprint (primes KOM / sprint). */
+  komPts?: number;
+  sprintPts?: number;
+  /** Distance de course parcourue (m) — utile pour les non-arrivés. */
+  distM?: number;
 }
+
+/** Points attribués aux trois premiers au sommet d'un KOM / sur la ligne d'un sprint. */
+export const PRIME_POINTS: readonly number[] = [5, 3, 1];
 
 /** Événements de la salle : `GameEventMsg` + ajouts. */
 export type RideEventMsg =
@@ -270,7 +308,19 @@ export type RideEventMsg =
   | { kind: 'leave'; riderId: string }
   | { kind: 'results'; results: RideResult[] }
   | { kind: 'options'; options: HostOptions }
-  | { kind: 'error'; code: string; message: string };
+  | { kind: 'error'; code: string; message: string }
+  /** Course : prime d'un segment KOM / sprint (ordre de passage, 3 premiers). */
+  | { kind: 'prime'; segmentId: string; segmentKind: 'kom' | 'sprint'; riderId: string; place: number; points: number; lap: number }
+  /** Course : heure limite d'arrivée après le premier arrivé. */
+  | { kind: 'deadline'; at: number }
+  /** Course : abandon (coureur parti) ; il apparaît « DNF » au classement. */
+  | { kind: 'abandon'; riderId: string; name: string }
+  /** Contrôle de puissance : avertissement (puissance plafonnée) ou mise hors course. */
+  | { kind: 'flag'; riderId: string; action: 'warn' | 'dq'; reason: string }
+  /** Sortie de groupe : regroupement en cours ou terminé (écart tête – queue). */
+  | { kind: 'regroup'; active: boolean; spreadM: number }
+  /** Sortie de groupe : le groupe s'est scindé (écart tête – queue des humains, m). */
+  | { kind: 'split'; gapM: number };
 
 /** Ligne dynamique d'un coureur (entrée de l'encodeur compact). */
 export interface SnapshotRow {

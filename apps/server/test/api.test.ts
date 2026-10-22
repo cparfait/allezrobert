@@ -103,7 +103,7 @@ function fitHasHr(bytes: Uint8Array): boolean {
 }
 
 beforeAll(async () => {
-  const config = testConfig({ DEV_LOGIN: 'true', STRAVA_CLIENT_ID: 'sid', STRAVA_CLIENT_SECRET: 'ssecret', GOOGLE_CLIENT_ID: 'gid', GOOGLE_CLIENT_SECRET: 'gsecret', LIVEKIT_URL: 'wss://lk.test', LIVEKIT_API_KEY: 'k', LIVEKIT_API_SECRET: 'livekit-secret-livekit-secret' });
+  const config = testConfig({ DEV_LOGIN: 'true', STRAVA_CLIENT_ID: 'sid', STRAVA_CLIENT_SECRET: 'ssecret', GOOGLE_CLIENT_ID: 'gid', GOOGLE_CLIENT_SECRET: 'gsecret', LIVEKIT_URL: 'wss://lk.test', LIVEKIT_API_KEY: 'k', LIVEKIT_API_SECRET: 'livekit-secret-livekit-secret', DISCORD_VOICE_INVITE: 'https://discord.gg/AllezRobert' });
   // TEST_DATABASE_URL=postgres://… : mêmes tests sur un vrai PostgreSQL (CI, Docker), base remise à zéro.
   const url = process.env.TEST_DATABASE_URL ?? 'memory';
   db = await createDb(url);
@@ -326,6 +326,14 @@ describe('API — sorties, segments, progression', () => {
     expect(t.body).toMatchObject({ url: 'wss://lk.test', room: 'ride-abc' });
     expect((await s.json('GET', '/api/rides/current')).body).toMatchObject({ roomId: 'abc', inviteCode: 'ZZZZZZ' });
     expect((await s.json('GET', '/api/rides/code/zzz-zzz')).body).toMatchObject({ roomId: 'abc' });
+  });
+
+  it('voix : configuration publique (LiveKit, repli Discord) et lien Discord validé', async () => {
+    const s = new Session();
+    expect((await s.json('GET', '/api/voice')).body).toEqual({ livekit: true, discordInvite: 'https://discord.gg/AllezRobert' });
+    expect(() => testConfig({ DISCORD_VOICE_INVITE: 'https://example.com/piege' })).toThrow(/DISCORD_VOICE_INVITE/);
+    expect(testConfig({ DISCORD_VOICE_INVITE: 'https://discord.com/invite/abc-123' }).DISCORD_VOICE_INVITE).toBe('https://discord.com/invite/abc-123');
+    expect(testConfig({ DISCORD_VOICE_INVITE: '' }).DISCORD_VOICE_INVITE).toBeUndefined();
   });
 });
 

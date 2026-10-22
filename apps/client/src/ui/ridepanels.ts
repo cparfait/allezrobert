@@ -2,6 +2,7 @@ import { encodeActivity, buildActivity } from '@allezrobert/fit';
 import { worldToWgs84, type ActivityRecord } from '@allezrobert/shared';
 import { t, getLang } from '../i18n/index.ts';
 import { shareCard } from './sharecard.ts';
+import { SummaryVideoPanel } from './summaryvideo.ts';
 import { apiBase, fetchMe } from './account.ts';
 import { renderRideInvite } from './friends.ts';
 import type { RideSession } from '../game/ride.ts';
@@ -48,6 +49,8 @@ export function download(bytes: Uint8Array, filename: string, mime = 'applicatio
 export interface PauseCallbacks {
   onResume(): void;
   onFinish(): void;
+  /** Libellé du bouton de fin (ex. « Abandonner la course »). */
+  finishLabel?: string;
   /** Sortie de groupe en cours : la pause propose d'y inviter des amis. */
   roomId?: string;
 }
@@ -57,7 +60,7 @@ export function showPause(root: HTMLElement, cb: PauseCallbacks): void {
     <h2 style="margin:0 0 18px">${t('pause')}</h2>
     <div class="row" style="justify-content:center">
       <button class="btn primary" id="p-resume">${t('resume')}</button>
-      <button class="btn" id="p-finish">${t('finish')}</button>
+      <button class="btn" id="p-finish">${cb.finishLabel ?? t('finish')}</button>
     </div><div id="p-friends"></div>
     <div id="p-sound" style="margin-top:18px;text-align:left"></div></div></div>`;
   renderSoundSettings(root.querySelector('#p-sound'));
@@ -67,7 +70,15 @@ export function showPause(root: HTMLElement, cb: PauseCallbacks): void {
 }
 
 /** Résumé de fin de sortie : statistiques, segments, téléchargement du FIT. */
-export function showSummary(root: HTMLElement, ride: RideSession, fit: () => Uint8Array, onClose: () => void, xp?: { gained: number; level: number; levelUp: boolean; unlocked: Array<{ name: { fr: string; en: string } }> }): void {
+export function showSummary(
+  root: HTMLElement,
+  ride: RideSession,
+  fit: () => Uint8Array,
+  onClose: () => void,
+  xp?: { gained: number; level: number; levelUp: boolean; unlocked: Array<{ name: { fr: string; en: string } }> },
+  /** Course en ligne : tableau des résultats (déjà échappé). */
+  raceHtml = '',
+): void {
   const distKm = (ride.records.at(-1)?.distanceM ?? 0) / 1000;
   const segs = ride.segmentResults
     .map((r) => `<div class="device"><div><b>${r.seg.kind === 'kom' ? t('kom') : t('sprint')} · ${r.seg.name}</b><div class="meta">${Math.round(r.avgWatts)} W</div></div><b class="num">${fmt(r.timeS)}</b></div>`)
@@ -88,7 +99,9 @@ export function showSummary(root: HTMLElement, ride: RideSession, fit: () => Uin
         .join('')}
     </div>
     ${xp ? `<div class="row" style="gap:12px;margin-bottom:6px"><b class="num" style="color:var(--ar-accent);font-size:20px">+${xp.gained} XP</b><span>${getLang() === 'fr' ? 'Niveau' : 'Level'} ${xp.level}${xp.levelUp ? ' 🎉' : ''}</span>${xp.unlocked.length ? `<span class="meta" style="color:var(--ar-muted)">${getLang() === 'fr' ? 'Débloqué' : 'Unlocked'} : ${xp.unlocked.map((u) => u.name[getLang()]).join(', ')}</span>` : ''}</div>` : ''}
+    ${raceHtml}
     ${segs ? `<h2>Segments</h2><div class="device-list">${segs}</div>` : ''}
+    <div id="s-video"></div>
     <div id="s-online"></div>
     <div class="row" style="justify-content:flex-end;margin-top:22px">
       <button class="btn" id="s-close">${getLang() === 'fr' ? 'Retour au menu' : 'Back to menu'}</button>
@@ -103,7 +116,10 @@ export function showSummary(root: HTMLElement, ride: RideSession, fit: () => Uin
     download(fit(), name);
   };
   (root.querySelector('#s-close') as HTMLElement).onclick = onClose;
-  if (xp) void onlinePanel(root.querySelector('#s-online') as HTMLElement, ride, fit);
+  // Vidéo résumé : MP4 rendu sur le serveur (sortie enregistrée), sinon résumé animé dans le navigateur.
+  const riderName = (JSON.parse(localStorage.getItem('ar.settings') ?? '{}') as { name?: string }).name ?? 'Robert';
+  const video = new SummaryVideoPanel(root.querySelector('#s-video') as HTMLElement, ride, riderName);
+  if (xp) void onlinePanel(root.querySelector('#s-online') as HTMLElement, ride, fit, video);
   (root.querySelector('#s-card') as HTMLElement).onclick = async () => {
     const st = JSON.parse(localStorage.getItem('ar.settings') ?? '{}') as { name?: string; ftpWatts?: number };
     const photo = ride.summitPhotos[0];
@@ -116,9 +132,10 @@ export function showSummary(root: HTMLElement, ride: RideSession, fit: () => Uin
  * Compte connecté : enregistrement de la sortie sur le serveur (XP, segments), envoi
  * automatique vers Strava (sauf option « Garmin ») et intervals.icu s'ils sont reliés.
  */
-async function onlinePanel(box: HTMLElement, ride: RideSession, fit: () => Uint8Array): Promise<void> {
+async function onlinePanel(box: HTMLElement, ride: RideSession, fit: () => Uint8Array, video?: SummaryVideoPanel): Promise<void> {
   const fr = getLang() === 'fr';
   const me = await fetchMe();
+  video?.setLoggedIn(!!me);
   if (!me) {
     box.innerHTML = `<p class="meta" style="color:var(--ar-muted);font-size:13px">${fr ? 'Connecte-toi pour enregistrer la sortie sur ton compte et l’envoyer vers Strava / intervals.icu.' : 'Sign in to save the ride and send it to Strava / intervals.icu.'}</p>`;
     return;
@@ -141,7 +158,7 @@ async function onlinePanel(box: HTMLElement, ride: RideSession, fit: () => Uint8
     e.preventDefault();
     const key = (box.querySelector('#o-intkey') as HTMLInputElement).value.trim();
     const r = await api('/integrations/intervals', { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ apiKey: key }) }).catch(() => null);
-    if (r?.ok) void onlinePanel(box, ride, fit);
+    if (r?.ok) void onlinePanel(box, ride, fit, video);
     else alert(fr ? 'intervals.icu a refusé cette clé.' : 'intervals.icu rejected this key.');
   });
   box.querySelector('#o-save')?.addEventListener('click', async (e) => {
@@ -151,7 +168,8 @@ async function onlinePanel(box: HTMLElement, ride: RideSession, fit: () => Uint8
     const r = await api(`/activities?${q}`, { method: 'POST', headers: { 'content-type': 'application/octet-stream' }, body: fit() as BlobPart }).catch(() => null);
     const msg = box.querySelector('#o-save-msg') as HTMLElement;
     if (r?.ok) {
-      const j = (await r.json()) as { xpGained: number; progression: { level: number } };
+      const j = (await r.json()) as { xpGained: number; progression: { level: number }; activity?: { id: string } };
+      if (j.activity?.id) video?.setActivity(j.activity.id);
       msg.textContent = `${fr ? 'Enregistrée' : 'Saved'} · +${j.xpGained} XP · ${fr ? 'niveau' : 'level'} ${j.progression.level}${integ?.strava.connected && !st.skipStrava ? ' · Strava…' : ''}${integ?.intervals.connected ? ' · intervals.icu…' : ''}`;
     } else {
       msg.textContent = fr ? 'Enregistrement impossible pour le moment.' : 'Could not save right now.';
