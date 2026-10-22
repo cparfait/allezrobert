@@ -1,7 +1,7 @@
 import * as THREE from 'three/webgpu';
 import { BIKES, DEFAULT_LOOK, type AvatarLook, type BikeModel } from '@allezrobert/shared';
 import { createEngine } from './engine/renderer.ts';
-import { QUALITY_PRESETS } from './engine/quality.ts';
+import { QUALITY_PRESETS, type QualityLevel } from './engine/quality.ts';
 import { GltfRiderAvatar, type RiderPose } from './rider/gltfAvatar.ts';
 
 /**
@@ -15,7 +15,9 @@ const canvas = document.getElementById('scene') as HTMLCanvasElement;
 const params = new URLSearchParams(location.search);
 
 async function main(): Promise<void> {
-  const q = { ...QUALITY_PRESETS.high, ao: false, taa: false, bloom: false, pixelRatio: 1 };
+  // &bench&quality=low|medium|high|ultra : préréglage complet (post-traitements compris).
+  const preset = QUALITY_PRESETS[(params.get('quality') ?? 'high') as QualityLevel] ?? QUALITY_PRESETS.high;
+  const q = params.has('bench') ? preset : { ...QUALITY_PRESETS.high, ao: false, taa: false, bloom: false, pixelRatio: 1 };
   const engine = await createEngine(canvas, q);
   const { scene, camera, renderer } = engine;
   renderer.setPixelRatio(1);
@@ -43,6 +45,7 @@ async function main(): Promise<void> {
   log.textContent = ok ? 'modèles chargés' : 'ÉCHEC du chargement';
   if (!ok) return;
   if (params.has('bikes')) return bikeSheet(engine, params.get('bikes') ?? '');
+  if (params.has('bench')) return bench(engine);
 
   const looks: AvatarLook[] = [
     DEFAULT_LOOK,
@@ -152,9 +155,77 @@ async function main(): Promise<void> {
 }
 
 /**
+ * Banc de performance (docs/AVATARS.md § 10) : ?bench&quality=high&secs=30 — 10 coureurs animés
+ * en peloton (pédalage, danseuse), caméra de poursuite ; fps moyen, 1 % bas, triangles.
+ * Résultat dans window.__bench (et le journal de la page).
+ */
+async function bench(engine: Awaited<ReturnType<typeof createEngine>>): Promise<void> {
+  const { scene, camera, renderer } = engine;
+  const secs = Number(params.get('secs') ?? 30);
+  const ids = BIKES.filter((b) => b.collection === 'saison-2026').slice(0, 10);
+  await GltfRiderAvatar.load([...new Set(ids.map((b) => b.family))]);
+  const riders = ids.map((b, i) => {
+    const a = new GltfRiderAvatar({ ...DEFAULT_LOOK, bikeModel: b.id });
+    // Deux files, 2 m entre roues, décalées.
+    a.root.position.set((i % 2) * 0.7 - 0.35, 0, -Math.floor(i / 2) * 2.1 - (i % 2) * 0.6);
+    scene.add(a.root);
+    return { a, cadence: 80 + (i % 4) * 5, pose: (i % 5 === 4 ? 'standing' : 'seated') as RiderPose, phase: i * 0.7 };
+  });
+  for (const r of riders) r.a.update(r.phase, r.cadence, 9, r.pose, 0);
+  camera.fov = 50;
+  camera.updateProjectionMatrix();
+  const frames: number[] = [];
+  const t0 = performance.now();
+  let last = t0;
+  let tris = 0;
+  let cpu = 0;
+  await new Promise<void>((done) => {
+    const loop = (): void => {
+      const now = performance.now();
+      const dt = (now - last) / 1000;
+      if (now > t0 + 1000) frames.push(now - last); // 1 s de chauffe
+      last = now;
+      const t = (now - t0) / 1000;
+      const c0 = performance.now();
+      for (const r of riders) {
+        r.a.root.position.z -= 9 * Math.min(dt, 0.05);
+        r.a.update(Math.min(dt, 0.05), r.cadence, 9, r.pose, 0);
+      }
+      if (now > t0 + 1000) cpu += performance.now() - c0;
+      // Poursuite : derrière et au-dessus du dernier, qui ondule un peu.
+      const tail = (riders[riders.length - 1] as (typeof riders)[number]).a.root.position;
+      camera.position.set(Math.sin(t * 0.4) * 2.5, 2.0, tail.z + 5);
+      camera.lookAt(0, 0.9, tail.z - 4);
+      engine.render();
+      tris = renderer.info.render.triangles;
+      if (now < t0 + 1000 + secs * 1000) requestAnimationFrame(loop);
+      else done();
+    };
+    requestAnimationFrame(loop);
+  });
+  const sorted = [...frames].sort((a, b) => b - a);
+  const avg = frames.reduce((s, f) => s + f, 0) / frames.length;
+  const worst = sorted.slice(0, Math.max(1, Math.floor(frames.length / 100)));
+  const res = {
+    avatar: params.get('avatar') ?? 'classic',
+    quality: params.get('quality') ?? 'high',
+    frames: frames.length,
+    fps: +(1000 / avg).toFixed(1),
+    low1: +(1000 / (worst.reduce((s, f) => s + f, 0) / worst.length)).toFixed(1),
+    ms: +avg.toFixed(2),
+    /** Mise à jour des 10 avatars (IK, pédalage) par image, en ms. */
+    updateMs: +(cpu / frames.length).toFixed(3),
+    triangles: tris,
+  };
+  log.textContent = JSON.stringify(res);
+  (window as unknown as { __bench: unknown }).__bench = res;
+  (window as unknown as { __avatarTestDone: boolean }).__avatarTestDone = true;
+}
+
+/**
  * Planche des vélos du catalogue vus de profil, côté transmission (?bikes=id1,id2… par préfixes,
  * vide : la planche des livrées des aperçus Blender ; &rider : avec le coureur ; &side=left :
- * côté gauche ; &view=3q : de trois quarts avant ; &view=face : visage ; &view=portrait : visage de face sans casque ; &view=cockpit : poste de pilotage). Enregistrée comme bikes-client-<nom>.jpg (&name=…), sauf avec ?noshot ; &each : chaque vélo aussi dans out/bikes-render/<id>.jpg.
+ * côté gauche ; &view=3q : de trois quarts avant ; &view=back : de dos ; &view=face : visage ; &view=portrait : visage de face sans casque ; ?avatar=mpfb&face=jawWidth:1,… : avatar MPFB et ses curseurs ; &view=cockpit : poste de pilotage). Enregistrée comme bikes-client-<nom>.jpg (&name=…), sauf avec ?noshot ; &each : chaque vélo aussi dans out/bikes-render/<id>.jpg.
  */
 const LIVERY_SHEET = ['s26-04-', 's26-01-', 's26-14-', 'myth-bianchi-specialissima-acier', 'myth-peugeot-px10', 'myth-lotus-110',
   's26-06-', 'myth-look-kg86', 'myth-specialized-tarmac-sl7', 'myth-pinarello-espada', 'myth-giant-tcr-compact', 'myth-colnago-c40-mapei'];
@@ -182,6 +253,9 @@ async function bikeSheet(engine: Awaited<ReturnType<typeof createEngine>>, list:
   const left = params.get('side') === 'left';
   for (const [i, b] of models.entries()) {
     const a = new GltfRiderAvatar({ ...DEFAULT_LOOK, bikeModel: b.id });
+    // &face=jawWidth:1,noseLength:-0.5 : curseurs de visage (avatar MPFB, ?avatar=mpfb).
+    const face = Object.fromEntries((params.get('face') ?? '').split(',').filter(Boolean).map((kv) => [kv.split(':')[0] as string, Number(kv.split(':')[1])]));
+    a.setFace(face);
     a.update(0, 0, 0, 'seated');
     a.update(1 / 60, 0.0001, 0, 'seated');
     const riderOn = params.has('rider');
@@ -215,6 +289,7 @@ async function bikeSheet(engine: Awaited<ReturnType<typeof createEngine>>, list:
       camera.updateProjectionMatrix();
       camera.lookAt(0, 0.88, 0.5);
     } else if (params.get('view') === '3q') camera.position.set(sx * 2.2, 1.5, 2.6);
+    else if (params.get('view') === 'back') camera.position.set(sx * 1.2, 1.9, -3.4);
     else camera.position.set(sx * (riderOn ? 4.4 : 3.4) * Number(params.get('zoom') ?? 1), riderOn ? 0.95 : 0.62, 0.09);
     if (!['face', 'portrait', 'cockpit', 'cockpitside'].includes(params.get('view') ?? '')) {
       camera.updateProjectionMatrix();

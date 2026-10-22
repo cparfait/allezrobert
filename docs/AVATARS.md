@@ -282,3 +282,39 @@ par rapport aux avatars actuels en préréglage bas. Résultats notés dans les 
 Prochaine étape après validation : `build_base.py` (MPFB, rig, pose de conduite), 5 curseurs
 (`jawWidth`, `cheekVolume`, `noseLength`, `lipFullness`, `age`), export et affichage dans le
 banc d'essai et en jeu, planche de captures et mesure des fps.
+
+## 13. Avancement
+
+### Étape 2 — base, 5 curseurs, export, affichage (faite)
+
+- `tools/blender/avatars/build_avatar.py` : télécharge et vérifie MPFB 2.0.18, crée l'humain
+  (macros), le squelette « game_engine » (53 os), cuit les macros, ajoute les 5 curseurs en
+  cibles `nom+` / `nom-`, découpe la tenue (ourlets nets par plans : col, manches, bande,
+  maillot / cuissard, chaussettes), pose le coureur sur le vélo de base (bassin sur la selle,
+  buste penché, IK jambes vers les pédales à la manivelle 0, mains sur les cocottes), fige
+  cette pose comme pose de repos (maillage, cibles et squelette), reprend casque, lunettes,
+  cheveux et chaussures de `cyclist.glb` et exporte `apps/client/public/models/avatar/rider.glb`
+  (13 884 sommets, 27 660 triangles pour le corps, 10 cibles).
+  Commande : `blender -b -P tools/blender/avatars/build_avatar.py -- --mpfb <mpfb.zip> --out <dossier>`.
+- Client : `?avatar=mpfb` charge cet avatar (banc d'essai et jeu) ; correspondance des os
+  classique / MPFB (`RIG_BONES`), colonne à trois segments et clavicules, `setFace({ jawWidth: 1, … })`.
+- Vérifié à l'image (`docs/screenshots/avatars-etape2.jpg`) : profil, trois quarts, dos,
+  visage avec casque et lunettes, portrait sans casque, curseurs à ±1 et âge ; en jeu
+  (`/?avatar=mpfb&autostart`) avec les coureurs IA.
+- Banc `avatar-test.html?bench&quality=…` (10 coureurs animés, caméra de poursuite).
+  Mesures du conteneur de développement, rendu logiciel SwiftShader : les fps absolus n'y ont
+  pas de sens (≈ 1 à 2 fps pour les deux avatars), on n'en retient que les écarts :
+
+  | | avatar actuel | avatar MPFB |
+  | --- | --- | --- |
+  | Mise à jour des 10 avatars (IK, pédalage), CPU | 0,81 ms / image | 1,23 ms / image |
+  | Triangles de la scène, préréglage bas (ombres comprises) | 345 k | 748 k |
+  | Triangles, préréglage haut | 389 k | 830 k |
+
+  Le surcoût en triangles vient du LOD 0 non réduit (le même fichier sert aux deux LOD) : les
+  niveaux de détail (§ 8, 15 k / 5 k / 1,5 k) sont prévus à l'étape 3, avant toute mise en
+  service par défaut. La mesure des fps sur une vraie carte graphique reste à faire sur un poste.
+
+Limites connues, pour l'étape 3 : peau unie (sans texture ni SSS), index de la main
+proche un peu tendu, poitrine du maillage par défaut à corriger par les macros, lunettes
+reprises de l'ancien modèle un peu grandes pour ce visage.

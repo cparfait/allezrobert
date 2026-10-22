@@ -38,16 +38,38 @@ export interface RiderAvatarLike {
   eyeWorld?(out: THREE.Vector3, hands?: THREE.Vector3): THREE.Vector3;
 }
 
+/** Rôles des os pilotés (noms de cyclist.glb) ; spine2 et les clavicules n'existent que dans certains squelettes. */
 const BONES = [
-  'hips', 'spine', 'chest', 'neck', 'head',
-  'upper_arm_L', 'forearm_L', 'hand_L', 'thigh_L', 'shin_L', 'foot_L',
-  'upper_arm_R', 'forearm_R', 'hand_R', 'thigh_R', 'shin_R', 'foot_R',
+  'hips', 'spine', 'spine2', 'chest', 'neck', 'head',
+  'clavicle_L', 'upper_arm_L', 'forearm_L', 'hand_L', 'thigh_L', 'shin_L', 'foot_L',
+  'clavicle_R', 'upper_arm_R', 'forearm_R', 'hand_R', 'thigh_R', 'shin_R', 'foot_R',
 ] as const;
 type BoneName = (typeof BONES)[number];
 type Side = 'L' | 'R';
 const SIDES: readonly Side[] = ['L', 'R'];
+const OPTIONAL_BONES: ReadonlySet<BoneName> = new Set(['spine2', 'clavicle_L', 'clavicle_R']);
 
-const FILES = ['cyclist.glb', 'cyclist_lod1.glb'] as const;
+/**
+ * Nom des os par squelette : cyclist.glb (build_cyclist.py) ou avatar MPFB, squelette « game_engine »
+ * (tools/blender/avatars/build_avatar.py, docs/AVATARS.md).
+ */
+const RIG_BONES: Record<'classic' | 'mpfb', Partial<Record<BoneName, string>>> = {
+  classic: Object.fromEntries(BONES.filter((b) => !OPTIONAL_BONES.has(b)).map((b) => [b, b])),
+  mpfb: {
+    hips: 'pelvis', spine: 'spine_01', spine2: 'spine_02', chest: 'spine_03', neck: 'neck_01', head: 'head',
+    clavicle_L: 'clavicle_l', upper_arm_L: 'upperarm_l', forearm_L: 'lowerarm_l', hand_L: 'hand_l', thigh_L: 'thigh_l', shin_L: 'calf_l', foot_L: 'foot_l',
+    clavicle_R: 'clavicle_r', upper_arm_R: 'upperarm_r', forearm_R: 'lowerarm_r', hand_R: 'hand_r', thigh_R: 'thigh_r', shin_R: 'calf_r', foot_R: 'foot_r',
+  },
+};
+
+/**
+ * Fichiers du coureur : cyclist.glb, ou l'avatar MPFB en essai (?avatar=mpfb, étape 2 de
+ * docs/AVATARS.md ; pas encore de LOD1 dédié).
+ */
+const FILES: readonly [string, string] =
+  typeof location !== 'undefined' && new URLSearchParams(location.search).get('avatar') === 'mpfb'
+    ? ['avatar/rider.glb', 'avatar/rider.glb']
+    : ['cyclist.glb', 'cyclist_lod1.glb'];
 /** Distance (m) au-delà de laquelle on affiche le LOD1. */
 const LOD1_DISTANCE = 30;
 const WHEEL_R = 0.335;
@@ -79,6 +101,10 @@ const MATERIALS: Record<string, [string, number, number]> = {
   glasses_frame: ['#141518', 0.35, 0],
   hair: ['#3b2a1e', 0.8, 0],
   components: ['#18191c', 0.45, 0.2],
+  // Avatar MPFB : globes oculaires.
+  eye: ['#eeebe4', 0.18, 0],
+  iris: ['#5a3d22', 0.2, 0],
+  pupil: ['#070707', 0.1, 0],
 };
 
 interface BoneRest {
@@ -104,6 +130,8 @@ interface ChainRest {
 interface Templates {
   rider0: GLTF;
   rider1: GLTF;
+  /** Rôle → nom de l'os dans le fichier (rôles facultatifs absents si le squelette ne les a pas). */
+  names: Partial<Record<BoneName, string>>;
   bones: Record<BoneName, BoneRest>;
   armQ: THREE.Quaternion;
   armP: THREE.Vector3;
@@ -191,13 +219,18 @@ function chainRest(bones: Record<BoneName, BoneRest>, upper: BoneName, lower: Bo
 function buildTemplates(rider0: GLTF, rider1: GLTF): Templates {
   const scene = rider0.scene;
   scene.updateMatrixWorld(true);
+  const names = RIG_BONES[scene.getObjectByName('pelvis') ? 'mpfb' : 'classic'];
+  const roleOf = new Map(Object.entries(names).map(([role, node]) => [node, role as BoneName]));
   const bones = {} as Record<BoneName, BoneRest>;
   let armature: THREE.Object3D | null = null;
   for (const name of BONES) {
-    const b = scene.getObjectByName(name);
-    if (!b) throw new Error(`os manquant dans cyclist.glb : ${name}`);
-    const parentName = b.parent?.name ?? '';
-    const parent = (BONES as readonly string[]).includes(parentName) ? (parentName as BoneName) : null;
+    const node = names[name];
+    const b = node ? scene.getObjectByName(node) : undefined;
+    if (!b) {
+      if (OPTIONAL_BONES.has(name) && !node) continue;
+      throw new Error(`os manquant dans le modèle du coureur : ${node ?? name}`);
+    }
+    const parent = roleOf.get(b.parent?.name ?? '') ?? null;
     if (!parent) armature = b.parent;
     const rest: BoneRest = { parent, localQ: b.quaternion.clone(), localP: b.position.clone(), modelQ: new THREE.Quaternion(), modelP: new THREE.Vector3() };
     decompose(b, rest.modelQ, rest.modelP);
@@ -231,7 +264,7 @@ function buildTemplates(rider0: GLTF, rider1: GLTF): Templates {
   const uh = new THREE.Vector3(0, 1, 0).applyQuaternion(bones.head.modelQ).normalize();
   const fh = new THREE.Vector3(0, 0, 1).addScaledVector(uh, -uh.z).normalize();
   const eyeRest = uh.multiplyScalar(0.06).addScaledVector(fh, 0.11);
-  return { rider0, rider1, bones, armQ, armP, legs, arms, bb, crank, pedalRest, pedalPitch, ankleFlat, eyeRest, refHands: bikeAnchors(PLAIN_BIKE_FAMILY).hands };
+  return { rider0, rider1, names, bones, armQ, armP, legs, arms, bb, crank, pedalRest, pedalPitch, ankleFlat, eyeRest, refHands: bikeAnchors(PLAIN_BIKE_FAMILY).hands };
 }
 
 /** L'objet ou l'un de ses parents porte-t-il un nom commençant par `prefix` ? */
@@ -360,8 +393,10 @@ export class GltfRiderAvatar implements RiderAvatarLike {
     // Niveau 0 : squelette cloné + vélo complet.
     const rider0 = SkeletonUtils.clone(t.rider0.scene);
     for (const name of BONES) {
-      const b = rider0.getObjectByName(name);
-      if (!b) throw new Error(`os manquant : ${name}`);
+      const node = t.names[name];
+      if (!node) continue;
+      const b = rider0.getObjectByName(node);
+      if (!b) throw new Error(`os manquant : ${node}`);
       this.bones[name] = b;
       this.mQ[name] = new THREE.Quaternion();
       this.mP[name] = new THREE.Vector3();
@@ -377,7 +412,7 @@ export class GltfRiderAvatar implements RiderAvatarLike {
       const sm = o as THREE.SkinnedMesh;
       if (!sm.isSkinnedMesh) return;
       const m = sm.clone();
-      const bones = sm.skeleton.bones.map((b) => (this.bones[b.name as BoneName] as THREE.Bone | undefined) ?? b);
+      const bones = sm.skeleton.bones.map((b) => (rider0.getObjectByName(b.name) as THREE.Bone | undefined) ?? b);
       m.bind(new THREE.Skeleton(bones, sm.skeleton.boneInverses), sm.bindMatrix);
       sm.matrixWorld.decompose(m.position, m.quaternion, m.scale);
       level1.add(m);
@@ -404,7 +439,7 @@ export class GltfRiderAvatar implements RiderAvatarLike {
       mesh.receiveShadow = true;
       if ((mesh as THREE.SkinnedMesh).isSkinnedMesh) {
         (mesh as THREE.SkinnedMesh).boundingSphere = bounds.clone();
-        if (mesh.morphTargetDictionary && mesh.morphTargetDictionary.build !== undefined) this.morphMeshes.push(mesh);
+        if (mesh.morphTargetDictionary) this.morphMeshes.push(mesh);
       }
     });
     this.lod.traverse((o) => {
@@ -606,7 +641,11 @@ export class GltfRiderAvatar implements RiderAvatarLike {
     this.bones.spine.quaternion.copy(t.bones.spine.localQ);
     this.fk('spine');
     if (tuck > 0) this.setModelQ('spine', _q3.setFromAxisAngle(X_AXIS, TUCK_SPINE * tuck).multiply(this.mQ.spine));
-    _q1.multiplyQuaternions(this.mQ.spine, t.bones.chest.localQ);
+    if (t.names.spine2) {
+      this.bones.spine2.quaternion.copy(t.bones.spine2.localQ);
+      this.fk('spine2');
+    }
+    _q1.multiplyQuaternions(this.mQ[t.bones.chest.parent ?? 'spine'], t.bones.chest.localQ);
     _q2.setFromAxisAngle(Z_AXIS, -roll * 0.9);
     if (tuck > 0) _q2.multiply(_q3.setFromAxisAngle(X_AXIS, TUCK_CHEST * tuck));
     this.setModelQ('chest', _q3.multiplyQuaternions(_q2, _q1));
@@ -628,6 +667,11 @@ export class GltfRiderAvatar implements RiderAvatarLike {
     // --- Bras : mains fixes sur le cintre (ou les prolongateurs).
     for (const s of SIDES) {
       const c = t.arms[s];
+      const clav: BoneName = `clavicle_${s}`;
+      if (t.names[clav]) {
+        this.bones[clav].quaternion.copy(t.bones[clav].localQ);
+        this.fk(clav);
+      }
       this.bones[c.upper].quaternion.copy(t.bones[c.upper].localQ);
       this.fk(c.upper);
       this.solveChain(c, this.target.copy(this.handTarget[s]), this.elbowPole[s]);
@@ -653,6 +697,25 @@ export class GltfRiderAvatar implements RiderAvatarLike {
       this.solveChain(c, this.target);
       _q1.setFromAxisAngle(X_AXIS, pitch - t.pedalPitch);
       this.setModelQ(c.end, _q2.multiplyQuaternions(_q1, t.bones[c.end].modelQ));
+    }
+  }
+
+  /**
+   * Curseurs de visage (avatar MPFB) : valeur −1 → 1 par curseur, appliquée aux cibles « nom+ » /
+   * « nom− » du modèle (étape 2 : cibles animées ; étape 3 : précalcul sur le processeur).
+   */
+  setFace(values: Readonly<Record<string, number>>): void {
+    for (const m of this.morphMeshes) {
+      const dict = m.morphTargetDictionary;
+      const inf = m.morphTargetInfluences;
+      if (!dict || !inf) continue;
+      for (const [k, v] of Object.entries(values)) {
+        const x = THREE.MathUtils.clamp(v, -1, 1);
+        const ip = dict[`${k}+`];
+        const im = dict[`${k}-`];
+        if (ip !== undefined) inf[ip] = Math.max(x, 0);
+        if (im !== undefined) inf[im] = Math.max(-x, 0);
+      }
     }
   }
 
