@@ -56,6 +56,10 @@ const ICON = {
   fan: svg('<circle cx="12" cy="12" r="1.5"/><path d="M12 10.5C11 6 13 3 16 4s1 5-2.5 7M13.5 12.5c4.4 1 6.5 3.5 5 6s-5 .5-6.5-3M10.5 12c-4.5.2-7.3-1.7-6.6-4.5s4.6-1.6 6.4 1.9"/>'),
   music: svg('<path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/>', 16),
   next: svg('<path d="m5 4 10 8-10 8zM19 5v14"/>', 14),
+  prev: svg('<path d="M19 20 9 12l10-8zM5 19V5"/>', 14),
+  play: svg('<path d="m7 4 13 8-13 8z"/>', 14),
+  pause: svg('<path d="M7 4v16M17 4v16"/>', 14),
+  list: svg('<path d="M4 6h12M4 12h12M4 18h8M18 15v6l4-3z"/>', 16),
   rotate: svg('<path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/>', 16),
 };
 
@@ -431,23 +435,48 @@ export class MainMenu {
   renderMusic(): void {
     const L = fr();
     const top = this.root.querySelector('#m-music');
-    if (top) {
+    if (top && spotify.connected) {
+      // Spotify piloté depuis le jeu : lecture ici, titre, commandes, playlists, volume.
+      top.innerHTML = `<img class="mm-cover" id="sp-cover" alt="" hidden />
+        <span class="mm-now" id="mu-now"><i class="sp">●</i> Spotify</span>
+        <button class="mm-ico" id="sp-prev" title="${L ? 'Précédent' : 'Previous'}">${ICON.prev}</button>
+        <button class="mm-ico on" id="sp-play" title="${L ? 'Lecture / pause (B)' : 'Play / pause (B)'}">${ICON.play}</button>
+        <button class="mm-ico" id="sp-next" title="${L ? 'Suivant (N)' : 'Next (N)'}">${ICON.next}</button>
+        <button class="mm-ico" id="sp-lists" title="${L ? 'Mes playlists' : 'My playlists'}">${ICON.list}</button>
+        ${
+          spotify.canPlayHere
+            ? `<button class="mm-spotify" id="sp-here" title="${L ? 'Faire jouer Spotify par le jeu' : 'Play Spotify in the game'}">${L ? 'Écouter ici' : 'Play here'}</button>`
+            : `<button class="mm-spotify" id="sp-relog" title="${L ? 'Une reconnexion autorise la lecture dans le jeu' : 'Reconnect once to allow in-game playback'}">${L ? 'Jouer ici' : 'Play here'}</button>`
+        }
+        <div class="mm-pop" id="sp-pop" hidden></div>`;
+      const later = () => setTimeout(() => void this.refreshNowPlaying(), 700);
+      top.querySelector('#sp-prev')?.addEventListener('click', () => void spotify.previous().then(later));
+      // Lecture : dans le jeu dès que c'est autorisé (sinon l'appareil actif, ex. le téléphone).
+      top.querySelector('#sp-play')?.addEventListener('click', () => {
+        void spotify.toggleSmart().then(later);
+      });
+      top.querySelector('#sp-next')?.addEventListener('click', () => void spotify.next().then(later));
+      top.querySelector('#sp-relog')?.addEventListener('click', () => void spotify.login());
+      top.querySelector('#sp-here')?.addEventListener('click', () => {
+        void spotify.playHere().then((ok) => {
+          if (!ok) this.spotifyError();
+          later();
+        });
+      });
+      top.querySelector('#sp-lists')?.addEventListener('click', () => void this.spotifyPlaylists());
+      void this.refreshNowPlaying();
+    } else if (top) {
       const cur = music.enabled && music.current ? esc(music.current.title) : L ? 'Musique coupée' : 'Music off';
-      top.innerHTML = `<button class="mm-ico ${music.enabled || spotify.connected ? 'on' : ''}" id="mu-toggle" title="${L ? 'Musique marche / arrêt (B)' : 'Music on / off (B)'}">${ICON.music}</button>
-        <span class="mm-now" id="mu-now">${spotify.connected ? '<i class="sp">●</i> Spotify' : cur}</span>
+      top.innerHTML = `<button class="mm-ico ${music.enabled ? 'on' : ''}" id="mu-toggle" title="${L ? 'Musique marche / arrêt (B)' : 'Music on / off (B)'}">${ICON.music}</button>
+        <span class="mm-now" id="mu-now">${cur}</span>
         <button class="mm-ico" id="mu-next" title="${L ? 'Morceau suivant (N)' : 'Next track (N)'}">${ICON.next}</button>
-        ${spotify.connected ? '' : `<button class="mm-spotify" id="sp-login" title="${L ? 'Connecter ton compte Spotify' : 'Connect your Spotify account'}"><i class="sp">●</i> Spotify</button>`}`;
+        <button class="mm-spotify" id="sp-login" title="${L ? 'Connecter ton compte Spotify' : 'Connect your Spotify account'}"><i class="sp">●</i> Spotify</button>`;
       top.querySelector('#mu-toggle')?.addEventListener('click', () => {
-        if (spotify.connected) void spotify.togglePlay().then(() => setTimeout(() => void this.refreshNowPlaying(), 600));
-        else music.toggle();
+        music.toggle();
         this.renderMusic();
       });
-      top.querySelector('#mu-next')?.addEventListener('click', () => {
-        if (spotify.connected) void spotify.next().then(() => setTimeout(() => void this.refreshNowPlaying(), 600));
-        else music.next();
-      });
+      top.querySelector('#mu-next')?.addEventListener('click', () => music.next());
       top.querySelector('#sp-login')?.addEventListener('click', () => this.spotifyConnect());
-      if (spotify.connected) void this.refreshNowPlaying();
     }
     const set = this.root.querySelector('#m-music-settings');
     if (set) {
@@ -473,7 +502,58 @@ export class MainMenu {
     const el = this.root.querySelector('#mu-now');
     if (!el) return;
     const np = await spotify.nowPlaying();
-    el.innerHTML = `<i class="sp">●</i> ${np ? `${np.isPlaying ? '' : '⏸ '}${esc(np.title)} — ${esc(np.artist)}` : fr() ? 'Spotify : rien en lecture' : 'Spotify: nothing playing'}`;
+    el.innerHTML = np ? `${esc(np.title)} <span>— ${esc(np.artist)}</span>` : `<i class="sp">●</i> ${fr() ? 'Spotify : rien en lecture' : 'Spotify: nothing playing'}`;
+    el.setAttribute('title', np ? `${np.title} — ${np.artist}` : '');
+    const cover = this.root.querySelector<HTMLImageElement>('#sp-cover');
+    if (cover) {
+      cover.hidden = !np?.image;
+      if (np?.image) cover.src = np.image;
+    }
+    const play = this.root.querySelector('#sp-play');
+    if (play) play.innerHTML = np?.isPlaying ? ICON.pause : ICON.play;
+    const here = this.root.querySelector<HTMLElement>('#sp-here');
+    if (here) {
+      const on = np?.isPlaying ? await spotify.playingHere() : false;
+      here.classList.toggle('on', on);
+      here.textContent = on ? (fr() ? '♪ Dans le jeu' : '♪ In game') : fr() ? 'Écouter ici' : 'Play here';
+    }
+  }
+
+  private spotifyError(): void {
+    const msg = spotify.playerError || (fr() ? 'Lecture impossible dans le jeu.' : 'Cannot play in the game.');
+    const el = this.root.querySelector('#mu-now');
+    if (el) el.innerHTML = `<span class="warn-text">${esc(msg)}</span>`;
+  }
+
+  /** Liste des playlists du compte : un clic la lance dans le jeu. */
+  private async spotifyPlaylists(): Promise<void> {
+    const pop = this.root.querySelector<HTMLElement>('#sp-pop');
+    if (!pop) return;
+    if (!pop.hidden) {
+      pop.hidden = true;
+      return;
+    }
+    const L = fr();
+    pop.hidden = false;
+    pop.innerHTML = `<div class="mm-pop-head">${L ? 'Mes playlists' : 'My playlists'}</div><div class="mm-hint">${L ? 'Chargement…' : 'Loading…'}</div>`;
+    const lists = await spotify.playlists();
+    pop.innerHTML = `<div class="mm-pop-head">${L ? 'Mes playlists' : 'My playlists'}
+        <label class="mm-vol">Volume<input id="sp-vol" type="range" min="0" max="1" step="0.05" value="0.7" /></label></div>
+      <div class="mm-pop-list">${
+        lists.length
+          ? lists.map((p) => `<button class="mm-pl" data-uri="${esc(p.uri)}">${p.image ? `<img src="${esc(p.image)}" alt="" />` : '<i></i>'}<b>${esc(p.name)}</b><span>${p.tracks}</span></button>`).join('')
+          : `<p class="mm-hint">${spotify.canPlayHere ? (L ? 'Aucune playlist.' : 'No playlists.') : L ? 'Clique « Jouer ici » (reconnexion) pour voir tes playlists.' : 'Click “Play here” (reconnect) to see your playlists.'}</p>`
+      }</div>`;
+    pop.querySelector('#sp-vol')?.addEventListener('input', (e) => spotify.setHereVolume(Number((e.target as HTMLInputElement).value)));
+    pop.querySelectorAll<HTMLElement>('[data-uri]').forEach((b) =>
+      b.addEventListener('click', () => {
+        pop.hidden = true;
+        void spotify.playContext(b.dataset.uri as string).then((ok) => {
+          if (!ok) this.spotifyError();
+          setTimeout(() => void this.refreshNowPlaying(), 900);
+        });
+      }),
+    );
   }
 
   /** Connexion Spotify ; la première fois, assistant pour déclarer l'application (identifiant client). */

@@ -1,8 +1,8 @@
 /**
  * Spotify : connexion au compte du coureur (OAuth « Authorization Code + PKCE », sans secret
- * côté serveur) puis télécommande de son appli Spotify (Spotify Connect) : titre en cours,
- * lecture / pause, titre suivant / précédent. La musique sort de l'appli Spotify (ordinateur,
- * téléphone, enceinte), pas du jeu. Les commandes de lecture exigent un compte Premium.
+ * côté serveur), télécommande Spotify Connect (titre en cours, lecture / pause, suivant /
+ * précédent) et lecteur intégré (Web Playback SDK) : le jeu devient un appareil Spotify
+ * « Allez Robert ! » vers lequel on transfère la lecture. Lecture et commandes : compte Premium.
  *
  * Configuration : identifiant d'une application créée sur developer.spotify.com, saisi une fois
  * dans le jeu (bouton « Connecter Spotify », gardé dans le navigateur) ou fourni au build par
@@ -12,13 +12,29 @@
 
 const env = (import.meta as unknown as { env: Record<string, string | undefined> }).env;
 const clientId = () => env.VITE_SPOTIFY_CLIENT_ID ?? localStorage.getItem('ar.spotify.clientId') ?? '';
-const SCOPES = 'user-read-playback-state user-modify-playback-state user-read-currently-playing';
+const SCOPES = 'user-read-playback-state user-modify-playback-state user-read-currently-playing streaming user-read-email user-read-private playlist-read-private playlist-read-collaborative';
+const PLAYER_NAME = 'Allez Robert !';
+
+/** Sous-ensemble du Web Playback SDK utilisé ici. */
+interface SdkPlayer {
+  connect(): Promise<boolean>;
+  disconnect(): void;
+  activateElement(): Promise<void>;
+  setVolume(v: number): Promise<void>;
+  addListener(ev: string, cb: (arg: { device_id?: string; message?: string }) => void): void;
+}
+type SdkWindow = Window & {
+  Spotify?: { Player: new (o: { name: string; getOAuthToken: (cb: (t: string) => void) => void; volume: number }) => SdkPlayer };
+  onSpotifyWebPlaybackSDKReady?: () => void;
+};
 const KEY = 'ar.spotify';
 
 interface Tokens {
   access: string;
   refresh: string;
   expiresAt: number;
+  /** Permissions accordées (pour savoir s'il faut se reconnecter après l'ajout du lecteur intégré). */
+  scope?: string;
 }
 
 export interface NowPlaying {
@@ -62,9 +78,10 @@ async function tokenRequest(body: Record<string, string>): Promise<Tokens | null
     body: new URLSearchParams({ client_id: clientId(), ...body }),
   }).catch(() => null);
   if (!r?.ok) return null;
-  const j = (await r.json()) as { access_token: string; refresh_token?: string; expires_in: number };
+  const j = (await r.json()) as { access_token: string; refresh_token?: string; expires_in: number; scope?: string };
   const prev = load();
-  const t = { access: j.access_token, refresh: j.refresh_token ?? prev?.refresh ?? '', expiresAt: Date.now() + (j.expires_in - 60) * 1000 };
+  const scope = j.scope ?? prev?.scope;
+  const t: Tokens = { access: j.access_token, refresh: j.refresh_token ?? prev?.refresh ?? '', expiresAt: Date.now() + (j.expires_in - 60) * 1000, ...(scope ? { scope } : {}) };
   save(t);
   return t;
 }
@@ -85,6 +102,128 @@ class SpotifyRemote {
 
   get connected(): boolean {
     return this.available && load() !== null;
+  }
+
+  /** La connexion autorise la lecture dans le jeu (sinon : se reconnecter une fois). */
+  get canPlayHere(): boolean {
+    const sc = load()?.scope ?? '';
+    return sc.includes('streaming') && sc.includes('playlist-read-private');
+  }
+
+  private player: SdkPlayer | null = null;
+  private deviceId: string | null = null;
+  private playerReady: Promise<string> | null = null;
+  /** Dernière erreur du lecteur intégré (compte non Premium, navigateur sans DRM…). */
+  playerError = '';
+
+  /** Identifiant d'appareil du lecteur intégré, s'il est prêt. */
+  get hereDeviceId(): string | null {
+    return this.deviceId;
+  }
+
+  /** Charge le Web Playback SDK et crée l'appareil « Allez Robert ! ». */
+  private startPlayer(): Promise<string> {
+    if (this.playerReady) return this.playerReady;
+    this.playerReady = new Promise<string>((resolve, reject) => {
+      const w = window as SdkWindow;
+      const create = () => {
+        const Player = w.Spotify?.Player;
+        if (!Player) return reject(new Error('SDK Spotify indisponible'));
+        const p = new Player({ name: PLAYER_NAME, volume: 0.7, getOAuthToken: (cb) => void this.token().then((t) => t && cb(t)) });
+        p.addListener('ready', ({ device_id }) => {
+          this.deviceId = device_id ?? null;
+          if (device_id) resolve(device_id);
+        });
+        p.addListener('not_ready', () => (this.deviceId = null));
+        for (const ev of ['initialization_error', 'authentication_error', 'account_error']) {
+          p.addListener(ev, ({ message }) => {
+            this.playerError = ev === 'account_error' ? 'Compte Spotify Premium nécessaire' : (message ?? ev);
+            reject(new Error(this.playerError));
+          });
+        }
+        void p.connect();
+        this.player = p;
+      };
+      if (w.Spotify) return create();
+      w.onSpotifyWebPlaybackSDKReady = create;
+      const sc = document.createElement('script');
+      sc.src = 'https://sdk.scdn.co/spotify-player.js';
+      sc.onerror = () => reject(new Error('SDK Spotify injoignable'));
+      document.head.appendChild(sc);
+    });
+    this.playerReady.catch(() => (this.playerReady = null));
+    return this.playerReady;
+  }
+
+  /** Transfère la lecture vers le jeu (à appeler depuis un clic : le navigateur exige un geste). */
+  async playHere(): Promise<boolean> {
+    try {
+      const id = await this.startPlayer();
+      await this.player?.activateElement();
+      const tok = await this.token();
+      if (!tok) return false;
+      const r = await fetch('https://api.spotify.com/v1/me/player', {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${tok}`, 'content-type': 'application/json' },
+        body: JSON.stringify({ device_ids: [id], play: true }),
+      });
+      if (r.status === 403) this.playerError = 'Compte Spotify Premium nécessaire';
+      return r.ok;
+    } catch {
+      return false;
+    }
+  }
+
+  /** Playlists du compte (les 50 premières). */
+  async playlists(): Promise<Array<{ name: string; uri: string; image?: string; tracks: number }>> {
+    const r = await this.api('/me/playlists?limit=50');
+    if (!r || r.status !== 200) return [];
+    const j = (await r.json()) as { items: Array<{ name: string; uri: string; images?: Array<{ url: string }> | null; tracks?: { total: number } }> };
+    return j.items.map((p) => {
+      const image = p.images?.at(-1)?.url;
+      return { name: p.name, uri: p.uri, tracks: p.tracks?.total ?? 0, ...(image ? { image } : {}) };
+    });
+  }
+
+  /** Lance une playlist dans le jeu (lecteur intégré, à défaut l'appareil actif). */
+  async playContext(uri: string): Promise<boolean> {
+    let id: string | null = null;
+    try {
+      id = await this.startPlayer();
+      await this.player?.activateElement();
+    } catch {
+      id = null;
+    }
+    const tok = await this.token();
+    if (!tok) return false;
+    const r = await fetch(`https://api.spotify.com/v1/me/player/play${id ? `?device_id=${id}` : ''}`, {
+      method: 'PUT',
+      headers: { Authorization: `Bearer ${tok}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ context_uri: uri }),
+    });
+    if (r.status === 403) this.playerError = 'Compte Spotify Premium nécessaire';
+    return r.ok;
+  }
+
+  /** Lecture / pause ; la reprise se fait dans le jeu quand c'est autorisé. Renvoie l'état « en lecture ». */
+  async toggleSmart(): Promise<boolean> {
+    const np = await this.nowPlaying();
+    if (this.canPlayHere && !(np?.isPlaying && (await this.playingHere()))) return this.playHere();
+    return this.togglePlay();
+  }
+
+  /** Volume du lecteur intégré (0–1). */
+  setHereVolume(v: number): void {
+    void this.player?.setVolume(v);
+  }
+
+  /** L'appareil actif est-il le jeu ? */
+  async playingHere(): Promise<boolean> {
+    if (!this.deviceId) return false;
+    const r = await this.api('/me/player');
+    if (!r || r.status !== 200) return false;
+    const j = (await r.json()) as { device?: { id?: string } };
+    return j.device?.id === this.deviceId;
   }
 
   /** Redirige vers la page d'autorisation Spotify. */
@@ -136,6 +275,10 @@ class SpotifyRemote {
   }
 
   logout(): void {
+    this.player?.disconnect();
+    this.player = null;
+    this.playerReady = null;
+    this.deviceId = null;
     save(null);
   }
 

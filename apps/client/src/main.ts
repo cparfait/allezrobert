@@ -204,7 +204,8 @@ async function boot(): Promise<void> {
     }).start();
   };
   bootStep(95, 'Première image');
-  await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+  // Deux images rendues, sans bloquer si l'onglet est en arrière-plan (pas de requestAnimationFrame).
+  await Promise.race([new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))), new Promise((r) => setTimeout(r, 400))]);
   bootDone();
   if (autostart) {
     void startRide(scene, settings, devices.source(), {});
@@ -430,7 +431,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     if (e.key === 'm' || e.key === 'M') audio.toggleMute();
     // Musique : B lecture / arrêt (Spotify s'il est connecté, sinon musique du jeu), N morceau suivant.
     if (e.key === 'b' || e.key === 'B') {
-      if (spotify.connected) void spotify.togglePlay().then((on) => hud.toast(on ? '♪ Spotify ▶' : '♪ Spotify ⏸'));
+      if (spotify.connected) void spotify.toggleSmart().then((on) => hud.toast(on ? '♪ Spotify ▶' : '♪ Spotify ⏸'));
       else hud.toast(music.toggle() ? (getLang() === 'fr' ? '♪ Musique activée' : '♪ Music on') : getLang() === 'fr' ? '♪ Musique coupée' : '♪ Music off');
     }
     if (e.key === 'n' || e.key === 'N') {
