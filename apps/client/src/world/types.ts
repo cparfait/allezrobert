@@ -44,11 +44,13 @@ export interface TileFeatures {
   fields: Array<{ rings: Rings; kind: string }>;
   landuse: Array<{ rings: Rings; kind: string }>;
   waterways: Array<{ width: number; pts: number[]; kind?: string; tunnel?: boolean }>;
+  /** Voies ferrées OSM (polyligne x, z ; l'altitude est déduite du terrain). */
+  railways: Array<{ pts: number[]; kind: string; name?: string; bridge?: boolean; tunnel?: boolean }>;
   pois: Array<{ kind: string; name: string; x: number; y: number; z: number }>;
 }
 
 export function emptyFeatures(): TileFeatures {
-  return { roads: [], buildings: [], forests: [], water: [], fields: [], landuse: [], waterways: [], pois: [] };
+  return { roads: [], buildings: [], forests: [], water: [], fields: [], landuse: [], waterways: [], railways: [], pois: [] };
 }
 
 /** Tuile chargée, prête pour le rendu, en coordonnées monde. */
