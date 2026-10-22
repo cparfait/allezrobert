@@ -35,7 +35,7 @@ const BRICK = '#a8624a';
 const ROOFS = ['#8a4a35', '#7d4331', '#94553d', '#6f3f30', '#86513c', '#7a4a3a'];
 const SLATE = '#4f565f';
 /** Tuiles mécaniques et canal (BD TOPO « tuiles », hors Île-de-France) : orangé à rouge brique. */
-const TERRACOTTA = ['#c4733f', '#b9683d', '#c97d4a', '#b0603a', '#be7650', '#a85f3c'];
+const TERRACOTTA = ['#a87a6a', '#9d7062', '#b18574', '#94695c', '#a67d6e', '#b38a78'];
 /** Bac acier et fibrociment : gris clair à gris-vert, parfois vert ou brun. */
 const METAL_ROOFS = ['#8d9294', '#9da1a0', '#7f8784', '#6f7a72', '#84776a'];
 const SHUTTERS = ['#7d8f9b', '#5f7d66', '#e8e4da', '#8a5a3c', '#4b6a8a', '#a7b8a0'];
@@ -115,6 +115,42 @@ function walls(pts: number[], base: number, height: number, style?: WallStyle): 
     for (let k = 0; k < 6; k++) {
       fac.push(len, bays);
       sty.push(style?.local ? 1 : 0, height, genoise, doorBay);
+    }
+    if (genoise) {
+      // Génoise : trois rangs en encorbellement (10, 20, 30 cm du bas vers le haut), 14 cm chacun, sous
+      // l'égout ; face avant (même uv que le mur : le shader y peint les bouts de tuiles) et sous-face.
+      // Contour orienté dans le sens positif : l'extérieur est à droite du mur, normale (dz, −dx).
+      const nx = (bz - az) / len;
+      const nz = -(bx - ax) / len;
+      const ux = (bx - ax) / len;
+      const uz = (bz - az) / len;
+      for (let row = 0; row < 3; row++) {
+        const d = 0.1 * (row + 1);
+        const y1 = top - 0.14 * (2 - row);
+        const y0 = y1 - 0.14;
+        // les rangs dépassent un peu aux extrémités pour se rejoindre aux angles
+        const x0 = ax - ux * d + nx * d;
+        const z0 = az - uz * d + nz * d;
+        const x1 = bx + ux * d + nx * d;
+        const z1 = bz + uz * d + nz * d;
+        const L = len + 2 * d;
+        const v0 = y0 - base;
+        const v1 = y1 - base;
+        // face avant
+        pos.push(x0, y0, z0, x1, y0, z1, x0, y1, z0, x1, y0, z1, x1, y1, z1, x0, y1, z0);
+        uvs.push(-d, v0, L - d, v0, -d, v1, L - d, v0, L - d, v1, -d, v1);
+        // sous-face (du mur à la face avant)
+        const wx0 = ax - ux * d;
+        const wz0 = az - uz * d;
+        const wx1 = bx + ux * d;
+        const wz1 = bz + uz * d;
+        pos.push(wx0, y0, wz0, x1, y0, z1, x0, y0, z0, wx0, y0, wz0, wx1, y0, wz1, x1, y0, z1);
+        uvs.push(-d, v0, L - d, v0, -d, v0, -d, v0, L - d, v0, L - d, v0);
+        for (let k = 0; k < 12; k++) {
+          fac.push(len, 0);
+          sty.push(1, height, 1, 0);
+        }
+      }
     }
   }
   const g = new THREE.BufferGeometry();
@@ -316,6 +352,12 @@ export class Buildings {
     wall = mix(wall, mix(vec3(0.93, 0.92, 0.88), lightStone, isLocal), inFrame.mul(float(1).sub(inWin)));
     wall = mix(wall, wall.mul(0.55), underSill);
     wall = mix(wall, glassSky, inWin);
+    // Embrasure : la vitre est en retrait de 15 cm ; le linteau et un tableau portent leur ombre sur
+    // le haut et le côté de la baie, l'appui est éclairé.
+    const reveal = max(step(float(1.35).sub(0.12), fy), step(wx, halfW.negate().add(0.09))).mul(inWin);
+    wall = mix(wall, wall.mul(0.45), reveal.mul(isLocal.mul(0.6).add(0.4)));
+    const outline = step(abs(wx), halfW.add(fm)).mul(step(halfW.add(fm).sub(0.025), abs(wx))).max(step(float(1.35).add(fm).sub(0.025), fy).mul(step(fy, float(1.35).add(fm))).mul(step(abs(wx), halfW.add(fm))));
+    wall = mix(wall, wall.mul(0.7), outline.mul(inFrame).mul(isLocal));
     // Porte d'entrée : bois à panneaux (couleur des volets, plus sombre), imposte vitrée, encadrement de pierre.
     const fdW = float(0.55);
     const frontOk = isDoorBay.mul(isWall).mul(step(float(0.5), facade.y));
@@ -359,7 +401,14 @@ export class Buildings {
     const roofUv = (size: number) => vec2(u, v).div(size);
     const moss = smoothstep(0.6, 0.9, mx_noise_float(positionWorld.mul(0.5))).mul(0.3);
     const tileTex = texture(T.tiles.map, roofUv(3.2)).rgb;
-    const tiles = mix(tileTex.mul(base.div(vec3(0.33, 0.13, 0.08)).clamp(0.7, 1.8)), vec3(0.3, 0.33, 0.18), moss);
+    // Tuiles vieillies (BD TOPO, binfo.y = 1 sur le toit) : seule la luminance de la photo (relief des
+    // tuiles, moyenne 0,048 en linéaire) est gardée, teintée par une terre cuite passée mesurée sur
+    // l'orthophoto (rose saumon peu saturé), avec lichens gris par plaques.
+    const tileLum = tileTex.dot(vec3(0.2126, 0.7152, 0.0722)).div(0.048).clamp(0.45, 1.5);
+    const lichen = smoothstep(0.45, 0.8, mx_noise_float(positionWorld.mul(0.9).add(3))).mul(0.25);
+    const weathered = mix(base.mul(tileLum), vec3(0.32, 0.31, 0.28).mul(tileLum), lichen);
+    const tilesIdf = tileTex.mul(base.div(vec3(0.33, 0.13, 0.08)).clamp(0.7, 1.8));
+    const tiles = mix(mix(tilesIdf, weathered, step(float(0.5), info.y)), vec3(0.3, 0.33, 0.18), moss);
     const slate = texture(T.slate.map, roofUv(1.5)).rgb;
     // Bac acier : ondes de 25 cm dans la pente, coulures et rouille légère par plaques.
     const rib = abs(fract(u.div(0.25)).sub(0.5)).mul(2);
@@ -469,7 +518,7 @@ export class Buildings {
       if (skillion) for (let i = 0; i < roofPart.pos.length; i += 3) roofPart.pos[i + 1] = roofAt(roofPart.pos[i] as number, roofPart.pos[i + 2] as number);
       if (roofPart.pos.length) {
         const roof = toGeometry(roofPart.pos, roofPart.uv);
-        paint(roof, c.set(roofColour), roofKind, acc, 0, 0);
+        paint(roof, c.set(roofColour), roofKind, acc, bld.bdtopo && roofKind === 1 ? 1 : 0, 0);
         parts.push(roof);
       }
       if (buf && buf.gables.pos.length) {
