@@ -2,6 +2,8 @@ import type { RouteData } from '@allezrobert/shared';
 import { t, setLang, getLang, type I18nKey } from '../i18n/index.ts';
 import type { Settings } from './settings.ts';
 import { saveSettings } from './settings.ts';
+import { music } from '../audio/music.ts';
+import { spotify } from '../audio/spotify.ts';
 
 /** Ce que l'écran d'appairage sait faire, quel que soit le transport (implémenté avec @allezrobert/devices). */
 export interface DevicePanel {
@@ -138,6 +140,7 @@ export class MainMenu {
     this.root.innerHTML = html[this.page]();
     if (this.page === 'devices') this.renderDevices();
     if (this.page === 'home') this.renderSummary();
+    this.renderMusic();
     this.bind();
     (this.root.querySelector('.nav-item, #m-back') as HTMLElement | null)?.focus({ preventScroll: true });
   }
@@ -160,6 +163,7 @@ export class MainMenu {
           .join('')}</nav>
         <div class="summary" id="m-summary"></div>
       </div>
+      <div id="m-music" class="music-bar"></div>
       <p class="shortcuts">${t('shortcuts')}</p>
     </div></div>`;
   }
@@ -255,12 +259,59 @@ export class MainMenu {
         <label class="field">${L ? 'Nombre' : 'Count'}<input id="m-ai" type="number" min="0" max="19" value="${s.aiRiders}" /></label>
         <label class="field">${L ? 'Niveau' : 'Level'}<select id="m-ailevel">${this.opt('0.8', String(s.aiLevel), '80 % FTP')}${this.opt('1', String(s.aiLevel), '100 % FTP')}${this.opt('1.15', String(s.aiLevel), '115 % FTP')}</select></label>
       </div>
+      <h2>${L ? 'Musique' : 'Music'}</h2>
+      <div id="m-music" class="music-bar"></div>
       <h2>${L ? 'Langue et envoi des sorties' : 'Language and ride upload'}</h2>
       <div class="grid3">
         <label class="field">${t('language')}<select id="m-lang">${this.opt('fr', s.lang, 'Français')}${this.opt('en', s.lang, 'English')}</select></label>
         <label class="field">Strava<select id="m-strava">${this.opt('skip', s.skipStrava ? 'skip' : 'send', L ? 'Ne pas envoyer (Garmin)' : 'Don’t upload (Garmin)')}${this.opt('send', s.skipStrava ? 'skip' : 'send', L ? 'Envoyer' : 'Upload')}</select></label>
       </div>
     </div></div>`;
+  }
+
+  /** Barre musique : musique du jeu (marche / arrêt, volume) et télécommande Spotify. */
+  renderMusic(): void {
+    const box = this.root.querySelector('#m-music');
+    if (!box) return;
+    const L = fr();
+    const sp = !spotify.available
+      ? this.page === 'settings'
+        ? `<span class="meta">${L ? 'Spotify : renseigner VITE_SPOTIFY_CLIENT_ID (voir le README) pour pouvoir connecter son compte.' : 'Spotify: set VITE_SPOTIFY_CLIENT_ID (see README) to link an account.'}</span>`
+        : ''
+      : spotify.connected
+        ? `<span class="spotify"><span class="sp-dot">●</span> <span id="sp-now" class="meta">Spotify</span>
+            <button class="btn small" id="sp-prev" title="${L ? 'Précédent' : 'Previous'}">⏮</button><button class="btn small" id="sp-play" title="${L ? 'Lecture / pause' : 'Play / pause'}">⏯</button><button class="btn small" id="sp-next" title="${L ? 'Suivant' : 'Next'}">⏭</button>
+            ${this.page === 'settings' ? `<button class="btn small" id="sp-logout">${L ? 'Déconnecter Spotify' : 'Disconnect Spotify'}</button>` : ''}</span>`
+        : `<button class="btn small spotify-btn" id="sp-login">${L ? 'Connecter Spotify' : 'Connect Spotify'}</button>`;
+    box.innerHTML = `
+      <button class="btn small ${music.enabled ? 'on' : ''}" id="mu-toggle">♪ ${L ? 'Musique' : 'Music'} : ${music.enabled ? (L ? 'activée' : 'on') : L ? 'coupée' : 'off'}</button>
+      <input id="mu-vol" type="range" min="0" max="1" step="0.05" value="${music.volume}" title="${L ? 'Volume de la musique' : 'Music volume'}" ${music.enabled ? '' : 'disabled'} />
+      ${music.enabled && music.current ? `<span class="meta">♪ ${esc(music.current.title)}</span><button class="btn small" id="mu-next" title="${L ? 'Morceau suivant' : 'Next track'}">⏭</button>` : ''}
+      ${sp}`;
+    box.querySelector('#mu-toggle')?.addEventListener('click', () => {
+      music.toggle();
+      this.renderMusic();
+    });
+    box.querySelector('#mu-next')?.addEventListener('click', () => music.next());
+    box.querySelector('#mu-vol')?.addEventListener('input', (e) => music.setVolume(Number((e.target as HTMLInputElement).value)));
+    box.querySelector('#sp-login')?.addEventListener('click', () => void spotify.login());
+    box.querySelector('#sp-logout')?.addEventListener('click', () => {
+      spotify.logout();
+      this.renderMusic();
+    });
+    const refresh = () => setTimeout(() => void this.refreshNowPlaying(), 600);
+    box.querySelector('#sp-play')?.addEventListener('click', () => void spotify.togglePlay().then(refresh));
+    box.querySelector('#sp-next')?.addEventListener('click', () => void spotify.next().then(refresh));
+    box.querySelector('#sp-prev')?.addEventListener('click', () => void spotify.previous().then(refresh));
+    if (spotify.connected) void this.refreshNowPlaying();
+  }
+
+  /** Met à jour le titre Spotify affiché (appelé aussi par le suivi périodique). */
+  async refreshNowPlaying(): Promise<void> {
+    const el = this.root.querySelector('#sp-now');
+    if (!el) return;
+    const np = await spotify.nowPlaying();
+    el.textContent = np ? `${np.isPlaying ? '' : '⏸ '}${np.title} — ${np.artist}` : fr() ? 'Rien en lecture (lance Spotify sur un appareil)' : 'Nothing playing (start Spotify on a device)';
   }
 
   private start(): void {

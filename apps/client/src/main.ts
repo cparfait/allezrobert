@@ -16,6 +16,8 @@ import { Ghost } from './game/ghost.ts';
 import { createDeviceLayer } from './game/devices.ts';
 import { Hud } from './hud/hud.ts';
 import { GameAudio } from './audio/audio.ts';
+import { music } from './audio/music.ts';
+import { spotify } from './audio/spotify.ts';
 import { t, setLang, getLang } from './i18n/index.ts';
 import { loadSettings, saveSettings, type Settings } from './ui/settings.ts';
 import { MainMenu } from './ui/menu.ts';
@@ -61,7 +63,13 @@ async function loadScene(settings: Settings): Promise<Scene3D> {
   return { quality: (params.get('quality') as Settings['quality'] | null) ?? settings.quality, engine, source, world, route, track };
 }
 
+/** Musique : volume de base (plus bas en sortie) et annonce des titres Spotify pendant la sortie. */
+const musicCtl = { base: 1, lastTitle: '', onTrack: null as ((label: string) => void) | null };
+
 async function boot(): Promise<void> {
+  // Retour de l'autorisation Spotify (?code&state), avant tout le reste.
+  await spotify.handleRedirect();
+  music.unlockOnGesture();
   const settings = loadSettings();
   setLang(settings.lang);
   ui.innerHTML = `<div class="loading">${t('loading')}</div>`;
@@ -87,6 +95,19 @@ async function boot(): Promise<void> {
     scene.engine.render();
   });
 
+  // Suivi Spotify : la musique du jeu se tait quand Spotify joue ; titre annoncé au changement.
+  setInterval(async () => {
+    if (!spotify.connected || document.hidden) return music.setDuck(musicCtl.base);
+    const np = await spotify.nowPlaying();
+    music.setDuck(np?.isPlaying ? 0 : musicCtl.base);
+    const label = np ? `${np.title} — ${np.artist}` : '';
+    if (np?.isPlaying && label !== musicCtl.lastTitle) {
+      musicCtl.lastTitle = label;
+      musicCtl.onTrack?.(label);
+    }
+    if (inMenu) void menu.refreshNowPlaying();
+  }, 8000);
+
   const menu = new MainMenu(ui, settings, scene.source.routes, devices.panel, {
     onStart: (s, extras) => {
       saveSettings(s);
@@ -104,6 +125,11 @@ async function boot(): Promise<void> {
       void startRide(scene, s, s.guest ? new GuestInputSource(s.massKg) : devices.source(), extras);
     },
   });
+  // Nouveau morceau : barre musique du menu à jour, annonce dans le HUD pendant la sortie.
+  music.onTrack = (tr) => {
+    menu.renderMusic();
+    musicCtl.onTrack?.(tr.title);
+  };
   menu.onSettingsChange = (s) => {
     const env = scene.world.env.state;
     env.hour = s.hour;
@@ -216,6 +242,10 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   const traffic = params.get('traffic') === '0' ? null : new Traffic(track);
   if (traffic) engine.scene.add(traffic.group);
   const hud = new Hud(hudRoot, track, source.attribution);
+  // Musique plus discrète en sortie ; titres Spotify annoncés dans le HUD.
+  musicCtl.base = 0.6;
+  music.setDuck(musicCtl.base);
+  musicCtl.onTrack = (label) => hud.toast(`♪ ${label}`);
   hud.ftp = s.ftpWatts;
   hud.setVisible(true);
   if (workout) {
@@ -344,6 +374,15 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     if (e.key === 'c' || e.key === 'C') hud.toast(t(rig.cycle()));
     if (e.key === 'h' || e.key === 'H') hud.toggle();
     if (e.key === 'm' || e.key === 'M') audio.toggleMute();
+    // Musique : B lecture / arrêt (Spotify s'il est connecté, sinon musique du jeu), N morceau suivant.
+    if (e.key === 'b' || e.key === 'B') {
+      if (spotify.connected) void spotify.togglePlay().then((on) => hud.toast(on ? '♪ Spotify ▶' : '♪ Spotify ⏸'));
+      else hud.toast(music.toggle() ? (getLang() === 'fr' ? '♪ Musique activée' : '♪ Music on') : getLang() === 'fr' ? '♪ Musique coupée' : '♪ Music off');
+    }
+    if (e.key === 'n' || e.key === 'N') {
+      if (spotify.connected) void spotify.next();
+      else music.next();
+    }
     if (mp && (e.key === 't' || e.key === 'T')) {
       e.preventDefault();
       hud.openChat((text) => mp?.net.chat(text));

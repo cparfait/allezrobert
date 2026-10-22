@@ -35,3 +35,6 @@ deploy/data/
 
 # Cache de la synthèse vocale
 tts-cache/
+
+# Fichiers audio d'origine déposés à la racine (les versions du jeu sont dans apps/client/public/music)
+/*.mp3

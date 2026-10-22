@@ -33,7 +33,19 @@ Sans tuiles générées, le client bascule sur un monde procédural de développ
 | `pnpm test` | Tous les tests (protocoles octet par octet, physique, FIT, terrain, serveur) |
 | `pnpm typecheck` | Vérification des types |
 
-Raccourcis en jeu : ↑ / ↓ vitesses, PageUp / PageDown plateau, ← / → direction, C caméra, Espace pause, H interface, M son ; avec le simulateur : + / − puissance.
+Raccourcis en jeu : ↑ / ↓ vitesses, PageUp / PageDown plateau, ← / → direction, C caméra, Espace pause, H interface, M son, B musique (marche / arrêt), N morceau suivant ; avec le simulateur : + / − puissance.
+
+### Musique et Spotify
+
+La musique de fond (`apps/client/public/music`) démarre au premier clic ; elle se coupe depuis l'accueil, les réglages ou la touche B. Pour piloter son propre Spotify depuis le jeu (titre en cours, lecture / pause, suivant), créer une application sur [developer.spotify.com](https://developer.spotify.com/dashboard) (API « Web API »), y déclarer l'URL de retour, puis créer `apps/client/.env.local` :
+
+```bash
+VITE_SPOTIFY_CLIENT_ID=identifiant_de_l_application
+# Spotify refuse « localhost » : en local, ouvrir le jeu via http://127.0.0.1:5173 et déclarer cette adresse.
+VITE_SPOTIFY_REDIRECT_URI=http://127.0.0.1:5173/
+```
+
+La connexion utilise PKCE (aucun secret). La musique sort de l'appli Spotify du coureur (ordinateur, téléphone) ; les commandes de lecture demandent un compte Premium. Quand Spotify joue, la musique du jeu se tait.
 
 ## Organisation
 

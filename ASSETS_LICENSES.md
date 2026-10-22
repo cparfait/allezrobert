@@ -34,5 +34,5 @@ L'attribution est affichée en jeu (bas de l'écran) et dans `world.json`.
 
 | Asset | Source | Licence | Usage |
 | --- | --- | --- | --- |
-| Voix off du tutoriel | Synthèse vocale du système (Web Speech API), script `apps/client/src/onboarding/script.ts` | Voix du système d'exploitation, aucun fichier versionné | Onboarding |
-| Musiques Suno | — | À vérifier selon l'abonnement avant tout ajout | Aucune pour l'instant (musique coupée par défaut) |
+| Voix off du tutoriel | Cartesia (synthèse via le serveur, `/api/tts`), repli sur la synthèse vocale du système (Web Speech API) ; script `apps/client/src/onboarding/script.ts` | Audio généré à la demande, mis en cache côté serveur, aucun fichier versionné | Onboarding |
+| Musiques « Lofi », « Jazzy », « Effort constant », « Effort pur » (2 versions) — `apps/client/public/music/` | Composées par cris_tof avec [Suno](https://suno.com) (« made with Suno »), réencodées en MP3 128 kbit/s | Droits de l'auteur selon son abonnement Suno au moment de la génération (Pro / Premier : propriété de l'auteur ; offre gratuite : usage non commercial avec crédit Suno) | Musique de fond du menu et des sorties |
