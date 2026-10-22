@@ -45,6 +45,7 @@ Chaque jalon n'est déclaré terminé qu'après vérification : tests (protocole
 - [x] Voix LiveKit, chat texte, « Ride On » (testés en local ; repli Discord : à faire)
 - [x] Appli compagnon PWA ; mode invité sans matériel
 - [x] Test de charge à 20 coureurs (tick moyen 1,8 ms)
+- [x] Amis : code ami et lien `/?ami=`, demandes, présence (menu / en sortie), « Rejoindre » sans code, invitations à rouler (30 min), classements de segments entre amis — fantôme d'un ami : à faire (voir `docs/ARCHITECTURE.md`, « Amis »)
 
 ## Jalon 5 — Jeu
 

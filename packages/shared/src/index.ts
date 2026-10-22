@@ -4,6 +4,7 @@ export * from './rider.ts';
 export * from './route.ts';
 export * from './net.ts';
 export * from './activity.ts';
+export * from './friends.ts';
 export * from './native-bridge.ts';
 export * from './track.ts';
 export * from './geo.ts';

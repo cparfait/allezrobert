@@ -1,5 +1,5 @@
 /**
- * API HTTP (montée sous /api) : profil, progression, sorties (FIT), segments, intégrations
+ * API HTTP (montée sous /api) : profil, progression, sorties (FIT), segments, amis, intégrations
  * Strava / intervals.icu, sorties en cours (codes d'invitation, compagnon), voix LiveKit,
  * file de rendu vidéo, export et suppression RGPD, santé.
  */
@@ -11,6 +11,7 @@ import { z } from 'zod';
 import type { AppContext } from '../context.ts';
 import { authRoutes } from './auth-routes.ts';
 import { ttsRoutes } from './tts.ts';
+import { friendRoutes } from './friends-routes.ts';
 import { clearSessionCookie, cors, errorHandler, HttpError, loadUser, originCheck, requireUser, type AuthedRequest } from './middleware.ts';
 import { COSMETICS, levelInfo, unlockedCosmetics, validateEquipped, xpForRide } from '../progression/xp.ts';
 import { decodeFit, FitImportError, stripHeartRate } from '../activities/fit-import.ts';
@@ -67,6 +68,7 @@ export function mountApi(app: express.Application, ctx: AppContext): void {
 
   api.use('/auth', authRoutes(ctx));
   api.use('/tts', ttsRoutes(ctx));
+  api.use('/friends', friendRoutes(ctx));
 
   /* ───────────── Santé ───────────── */
   api.get('/health', async (_req, res) => {
@@ -118,6 +120,7 @@ export function mountApi(app: express.Application, ctx: AppContext): void {
     await ctx.uploads.unlinkStrava(u.userId).catch(() => undefined);
     const renders = await ctx.repos.listRenders(u.userId);
     await ctx.repos.deleteUser(u.userId);
+    ctx.friends.forgetUser(u.userId);
     ctx.forgetSession();
     for (const job of renders) if (job.outputFile) await rm(path.join(ctx.config.RENDERS_DIR, path.basename(job.outputFile)), { force: true });
     clearSessionCookie(ctx, res);
@@ -128,6 +131,8 @@ export function mountApi(app: express.Application, ctx: AppContext): void {
   api.get('/me/export', async (req: AuthedRequest, res) => {
     const u = requireUser(req);
     const data = await ctx.repos.exportUser(u.userId);
+    // Invitations à rouler en cours (en mémoire, 30 min au plus).
+    data.rideInvites = ctx.friends.exportFor(u.userId);
     res.setHeader('Content-Disposition', `attachment; filename="allezrobert-export-${new Date().toISOString().slice(0, 10)}.json"`);
     res.json(data);
   });
@@ -240,9 +245,18 @@ export function mountApi(app: express.Application, ctx: AppContext): void {
   });
 
   /* ───────────── Segments ───────────── */
-  api.get('/segments/:routeId/:segmentId/leaderboard', async (req, res) => {
-    const q = z.object({ limit: z.coerce.number().int().min(1).max(100).default(20) }).parse(req.query);
-    const board = await ctx.repos.segmentLeaderboard(String(req.params.routeId), String(req.params.segmentId), q.limit);
+  api.get('/segments/:routeId/:segmentId/leaderboard', async (req: AuthedRequest, res) => {
+    const q = z.object({ limit: z.coerce.number().int().min(1).max(100).default(20), scope: z.enum(['all', 'friends']).default('all') }).parse(req.query);
+    const routeId = String(req.params.routeId);
+    const segmentId = String(req.params.segmentId);
+    if (q.scope === 'friends') {
+      // Classement entre amis : soi et ses amis seulement (compte requis), sa ligne marquée.
+      const u = requireUser(req);
+      const board = await ctx.repos.segmentLeaderboard(routeId, segmentId, q.limit, u.userId);
+      res.json(board.map((b, i) => ({ rank: i + 1, name: b.name, bestMs: b.bestMs, efforts: b.efforts, me: b.userId === u.userId })));
+      return;
+    }
+    const board = await ctx.repos.segmentLeaderboard(routeId, segmentId, q.limit);
     // Pas d'identifiant interne exposé : rang, nom affiché, temps.
     res.json(board.map((b, i) => ({ rank: i + 1, name: b.name, bestMs: b.bestMs, efforts: b.efforts })));
   });

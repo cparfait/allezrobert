@@ -7,6 +7,8 @@ import { music } from '../audio/music.ts';
 import { spotify, redirectUri } from '../audio/spotify.ts';
 import { loadProgress, equipItem, equipPlainBike, SLOT_LABEL } from './garage.ts';
 import type { GarageView } from './poster.ts';
+import { FriendsPanel } from './friends.ts';
+import { joinSettings } from './friendsLogic.ts';
 import './menu.css';
 
 /** Ce que l'écran d'appairage sait faire, quel que soit le transport (implémenté avec @allezrobert/devices). */
@@ -28,14 +30,15 @@ export interface DevicePanel {
 }
 
 export interface MenuCallbacks {
-  onStart(settings: Settings, extras: { workoutFile?: { name: string; content: string }; inviteCode?: string }): void;
+  /** `inviteFriends` : amis (identifiants de relation) à inviter une fois la sortie créée. */
+  onStart(settings: Settings, extras: { workoutFile?: { name: string; content: string }; inviteCode?: string; inviteFriends?: string[] }): void;
 }
 
 function esc(s: string): string {
   return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] as string);
 }
 
-type Tab = 'ride' | 'garage' | 'devices' | 'profile' | 'settings';
+type Tab = 'ride' | 'friends' | 'garage' | 'devices' | 'profile' | 'settings';
 type Role = Parameters<DevicePanel['pair']>[0];
 
 const fr = () => getLang() === 'fr';
@@ -132,6 +135,8 @@ export class MainMenu {
   onLogin?: () => void;
   onLogout?: () => void;
   onSettingsSaved?: (s: Settings) => void;
+  /** Onglet Amis : présence, demandes, invitations (interrogation tant que le menu est affiché). */
+  private readonly friends: FriendsPanel;
 
   constructor(root: HTMLElement, settings: Settings, routes: RouteData[], devices: DevicePanel, cb: MenuCallbacks) {
     this.root = root;
@@ -140,6 +145,25 @@ export class MainMenu {
     this.devices = devices;
     this.cb = cb;
     if (!this.s.routeId || !routes.some((r) => r.id === this.s.routeId)) this.s.routeId = routes[0]?.id ?? '';
+    this.friends = new FriendsPanel({
+      loggedIn: () => !!this.account,
+      login: () => this.onLogin?.(),
+      routes,
+      currentRouteId: () => this.s.routeId,
+      join: (info) => {
+        // Rejoindre un ami : son mode et son itinéraire (s'il existe dans ce monde), code fourni par le serveur.
+        const j = joinSettings(info, this.routes.map((r) => r.id), this.s);
+        this.s.mode = j.mode;
+        this.s.routeId = j.routeId;
+        saveSettings(this.s);
+        this.cb.onStart(this.s, { inviteCode: info.inviteCode });
+      },
+      rideWith: (ids) => {
+        if (this.s.mode !== 'group' && this.s.mode !== 'race') this.s.mode = 'group';
+        saveSettings(this.s);
+        this.cb.onStart(this.s, { inviteFriends: ids });
+      },
+    });
     devices.onChange(() => {
       if (this.tab === 'devices') this.renderDevices();
       this.renderStatus();
@@ -148,11 +172,14 @@ export class MainMenu {
 
   show(tab: Tab = 'ride'): void {
     document.addEventListener('keydown', this.onKey);
-    this.go(tab);
+    this.friends.start();
+    // Lien /?ami=CODE : l'onglet Amis propose la demande.
+    this.go(tab === 'ride' && this.friends.hasPendingCode() ? 'friends' : tab);
   }
 
   hide(): void {
     document.removeEventListener('keydown', this.onKey);
+    this.friends.stop();
     this.root.innerHTML = '';
   }
 
@@ -250,6 +277,7 @@ export class MainMenu {
     const L = fr();
     const tabs: Array<[Tab, string]> = [
       ['ride', t('ride')],
+      ['friends', L ? 'Amis' : 'Friends'],
       ['garage', 'Garage'],
       ['devices', t('devices')],
       ['profile', t('profile')],
@@ -267,6 +295,7 @@ export class MainMenu {
       .toUpperCase();
     const body: Record<Tab, () => string> = {
       ride: () => this.rideHtml(),
+      friends: () => this.friends.html(),
       garage: () => this.garageHtml(),
       devices: () =>
         `<section class="mm-panel mm-center mm-wide">${this.closeBtn()}<header class="mm-head"><h2>${t('devices')}</h2><p>${L ? 'Associe ton home trainer et tes capteurs. Une seule appli à la fois par capteur Bluetooth.' : 'Pair your trainer and sensors. One app at a time per Bluetooth sensor.'}</p></header><div id="m-devices"></div></section>`,
@@ -280,7 +309,7 @@ export class MainMenu {
     this.root.innerHTML = `<div class="mm mm-tab-${this.tab}">
       <header class="mm-top">
         <div class="mm-brand">Allez <em>Robert</em> !</div>
-        <nav class="mm-tabs">${tabs.map(([id, label]) => `<button class="mm-tab ${id === this.tab ? 'on' : ''}" data-tab="${id}">${esc(label)}</button>`).join('')}
+        <nav class="mm-tabs">${tabs.map(([id, label]) => `<button class="mm-tab ${id === this.tab ? 'on' : ''}" data-tab="${id}">${esc(label)}${id === 'friends' ? this.friends.badgeHtml() : ''}</button>`).join('')}
           <button class="mm-tab subtle" id="m-tuto">${L ? 'Tutoriel' : 'Tutorial'}</button></nav>
         <div class="mm-right">
           <div class="mm-music" id="m-music"></div>
@@ -293,6 +322,7 @@ export class MainMenu {
         </div>
       </header>
       ${body[this.tab]()}
+      <div id="m-friendbar"></div>
       <footer class="mm-foot">
         <div class="mm-status" id="m-status"></div>
         ${this.tab === 'ride' ? `<button id="m-start" class="mm-go">${t('ride')} <span>→</span></button>` : `<button class="mm-go ghost" data-tab="ride">← ${t('ride')}</button>`}
@@ -304,6 +334,7 @@ export class MainMenu {
     this.renderStatus();
     this.renderMusic();
     this.bind();
+    this.friends.mount(this.root, this.tab === 'friends');
   }
 
   /** Pied de page : état des capteurs (cliquable vers l'onglet Capteurs) et raccourcis. */

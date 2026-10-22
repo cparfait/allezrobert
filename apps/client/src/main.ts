@@ -31,6 +31,7 @@ import { splatAt } from './world/splat.ts';
 import { Onboarding, RideTutorial } from './onboarding/onboarding.ts';
 import { awardRide } from './ui/garage.ts';
 import { fetchMe, showLogin, applyProfile, logout, pushProfile, type Me } from './ui/account.ts';
+import { sendRideInvites } from './ui/friends.ts';
 import { RideSequences } from './game/sequences.ts';
 import { GuestInputSource } from './game/guest.ts';
 import { Crowd } from './world/crowd.ts';
@@ -345,7 +346,7 @@ async function boot(): Promise<void> {
   }
 }
 
-async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras: { workoutFile?: { name: string; content: string }; inviteCode?: string; tutorial?: boolean }): Promise<void> {
+async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras: { workoutFile?: { name: string; content: string }; inviteCode?: string; inviteFriends?: string[]; tutorial?: boolean }): Promise<void> {
   const { engine, world, track, source } = scene;
   ui.innerHTML = '';
   const profile: RiderProfile = { id: 'local', displayName: s.name, massKg: s.massKg, heightCm: s.heightCm, ftpWatts: s.ftpWatts, bike: DEFAULT_BIKE };
@@ -381,6 +382,10 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     try {
       const code = await mp.connect({ ...(extras.inviteCode ? { inviteCode: extras.inviteCode } : {}), mode: s.mode, guest: s.guest, aiRiders: s.aiRiders, trainerDifficulty: s.trainerDifficulty, name: s.name });
       setTimeout(() => hud.toast(`${getLang() === 'fr' ? 'Code d’invitation' : 'Invite code'} : ${code}`), 500);
+      // « Partir et inviter » depuis l'onglet Amis : invitations envoyées une fois la salle créée.
+      if (extras.inviteFriends?.length) {
+        void sendRideInvites(mp.net.roomId, extras.inviteFriends).then((n) => n && setTimeout(() => hud.toast(getLang() === 'fr' ? `Invitation envoyée à ${n} ami${n > 1 ? 's' : ''}` : `Invite sent to ${n} friend${n > 1 ? 's' : ''}`), 2500));
+      }
     } catch (e) {
       console.warn('Serveur injoignable, sortie solo', e);
       setTimeout(() => hud.toast(getLang() === 'fr' ? 'Serveur injoignable : sortie solo' : 'Server unreachable: solo ride'), 500);
@@ -527,7 +532,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   };
   const togglePause = () => {
     ride.paused = !ride.paused;
-    if (ride.paused) showPause(ui, { onResume: togglePause, onFinish: finish });
+    if (ride.paused) showPause(ui, { onResume: togglePause, onFinish: finish, ...(mp?.net.roomId ? { roomId: mp.net.roomId } : {}) });
     else ui.innerHTML = '';
   };
   window.addEventListener('keydown', (e) => {
