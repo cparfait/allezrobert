@@ -34,6 +34,7 @@ const AvatarSchema = z.object({
   build: z.number().min(0).max(1),
   shoes: hex.optional(),
   socks: hex.optional(),
+  bikeType: z.enum(['road', 'gravel', 'mtb']).optional(),
 });
 
 const ProfilePatchSchema = z

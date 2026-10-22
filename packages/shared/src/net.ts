@@ -76,6 +76,8 @@ export interface AvatarLook {
   shoes?: string;
   /** Couleur des chaussettes. */
   socks?: string;
+  /** Vélo affiché : route (défaut), gravel ou VTT (selon le vélo équipé au garage). */
+  bikeType?: 'road' | 'gravel' | 'mtb';
 }
 
 export const DEFAULT_LOOK: AvatarLook = {

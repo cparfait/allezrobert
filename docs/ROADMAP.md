@@ -89,7 +89,8 @@ Idées seulement : ni nom, ni asset, ni code, ni physique de NCT Ride (la vitess
 - [x] Séances intégrées (seuil, sweet spot, pyramide, sprints, VO2max, récupération active)
 - [x] Trophées qui rapportent de l'XP (14, affichés en fin de sortie)
 - [x] Mode défi (battre son record sur une montée : départ lancé, fantôme, écart en direct)
-- [x] VTT, roues carbone 40 / 50 / 88 mm (les hautes moins bonnes en côte), chaussettes hautes (−0,7 %) — modèle 3D du VTT à faire
+- [x] VTT, roues carbone 40 / 50 / 88 mm (les hautes moins bonnes en côte), chaussettes hautes (−0,7 %)
+- [x] Modèles 3D du VTT (semi-rigide, fourche suspendue, cintre plat, pneus à crampons, freins à disque) et du gravel (pneus larges à flancs beiges, sacoche de cadre)
 - [x] Couleur des chaussures et des chaussettes, 6 tenues préréglées
 - [x] Vue arrière (X maintenue)
 - [x] Demi-tour sur les itinéraires (U, en solo : aller rechercher les équipiers, qui continuent à leur allure)

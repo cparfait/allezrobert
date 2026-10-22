@@ -7,7 +7,7 @@
 
 ## Ce qui marche aujourd'hui
 
-- **Monde réel** : relief IGN LiDAR HD / RGE ALTI, routes, bâtiments, forêts et eau OpenStreetMap, orthophotos IGN ; boucle de 10 km par la Côte des 17 Tournants, plus trois grandes boucles (Chevreuse, Rambouillet, Saclay).
+- **Monde réel** : relief IGN LiDAR HD / RGE ALTI, routes, bâtiments, forêts et eau OpenStreetMap, orthophotos IGN ; vallée de Chevreuse (boucle de 10 km par la Côte des 17 Tournants, trois grandes boucles), Alpe d'Huez, Mont Ventoux, et le monde ouvert « Limagne — Neuville » (63) où l'on choisit sa route à chaque carrefour.
 - **Matériel** : home trainers FTMS et FE-C (KICKR CORE / CORE 2…), pédales Assioma (CPS, balance G/D), cardio TICKR, Wahoo Direct Connect et ANT+ dans l'app Windows ; vitesses virtuelles (24 rapports), power match, simulateur de capteurs pour rouler sans matériel.
 - **Jeu** : physique de Martin et al. (1998), aspiration, coureurs IA, segments KOM / sprint, fantôme de son record, séances ERG (.zwo / .erg / .mrc), test FTP, progression et garage.
 - **Rendu** : Three.js WebGPU (repli WebGL2), saisons, jour / nuit, pluie, brouillard, végétation animée par le vent, préréglages bas → ultra.
@@ -34,6 +34,18 @@ Sans tuiles générées, le client bascule sur un monde procédural de développ
 | `pnpm typecheck` | Vérification des types |
 
 Raccourcis en jeu : ↑ / ↓ vitesses, PageUp / PageDown plateau, ← / → direction, C caméra, Espace pause, H interface, M son, B musique (marche / arrêt), N morceau suivant ; avec le simulateur : + / − puissance.
+
+### Tester le monde « Limagne — Neuville » (63)
+
+Le monde ouvert de 7 × 7 km autour de Neuville (Glaine-Montaigut, Bongheat, Égliseneuve-près-Billom) est construit à partir du LiDAR HD, des données topographiques et des orthophotos IGN, et d'OpenStreetMap. Le graphe des routes et le « Tour de Neuville » sont dans le dépôt ; le relief et les photos aériennes (≈ 37 Mo) se génèrent une fois sur ta machine :
+
+```bash
+pnpm install
+pnpm --filter @allezrobert/terrain build:world -- --world limagne   # ≈ 3 min la 1re fois (téléchargements IGN + OSM), puis tout est en cache
+pnpm dev                                                           # puis http://localhost:5173/?world=limagne
+```
+
+Dans le menu : **Monde → Limagne — Neuville**, puis le mode **Monde ouvert** (← / → pour choisir ta route au carrefour signalé « Bifurcation dans X m », U pour faire demi-tour), ou **Sortie libre** / **Défi KOM** sur le Tour de Neuville (16,2 km, 4 côtes). Sans matériel, le simulateur fait l'affaire (+ / − pour la puissance). **Explorer la carte** survole le monde en caméra libre.
 
 ### Musique et Spotify
 

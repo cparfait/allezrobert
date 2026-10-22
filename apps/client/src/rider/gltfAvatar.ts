@@ -3,6 +3,7 @@ import { GLTFLoader, type GLTF } from 'three/addons/loaders/GLTFLoader.js';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 import type { AvatarLook } from '@allezrobert/shared';
 import { RiderAvatar } from './avatar.ts';
+import { buildBikeKit, roadPartsReplaced, type BikeType } from './bikeKits.ts';
 
 /**
  * Cycliste et vélo modélisés dans Blender (tools/blender/build_cyclist.py), squelette piloté
@@ -59,6 +60,9 @@ const MATERIALS: Record<string, [string, number, number]> = {
   shorts: ['#15171c', 0.55, 0],
   sock: ['#f2f2f2', 0.8, 0],
   shoe: ['#f2f2f2', 0.4, 0],
+  // Kits VTT et gravel (rider/bikeKits.ts) : poignées et selle, flancs beiges des pneus gravel.
+  saddle_grip: ['#141518', 0.8, 0],
+  tire_wall: ['#a9825a', 0.85, 0],
   shoe_sole: ['#1a1b1f', 0.6, 0],
   helmet: ['#f4f4f4', 0.35, 0],
   helmet_detail: ['#1c1d22', 0.6, 0],
@@ -270,6 +274,11 @@ interface BikeParts {
   pedals: Record<Side, THREE.Object3D[]>;
 }
 
+/** Vélo affiché selon la tenue (route par défaut). */
+function bikeTypeOf(look: AvatarLook): BikeType {
+  return look.bikeType ?? 'road';
+}
+
 export class GltfRiderAvatar implements RiderAvatarLike {
   readonly root = new THREE.Group();
   /** Nom affiché au-dessus du coureur. */
@@ -284,6 +293,11 @@ export class GltfRiderAvatar implements RiderAvatarLike {
   private readonly materials = new Map<string, THREE.MeshStandardNodeMaterial>();
   private readonly morphMeshes: THREE.Mesh[] = [];
   private readonly bike: BikeParts = { crank: [], wheels: [], pedals: { L: [], R: [] } };
+  /** Les deux niveaux de détail du vélo (pour y poser les kits VTT / gravel). */
+  private readonly bikeLevels: THREE.Object3D[] = [];
+  private readonly kits = new Map<BikeType, THREE.Group[]>();
+  private bikeType: BikeType = 'road';
+  private look: AvatarLook;
   private crankAngle = Math.random() * Math.PI * 2;
   private wheelAngle = 0;
   private poseBlend = 0; // 0 assis → 1 danseuse
@@ -322,6 +336,7 @@ export class GltfRiderAvatar implements RiderAvatarLike {
 
   constructor(look: AvatarLook) {
     if (!templates) throw new Error('GltfRiderAvatar.load() doit être appelé (et attendu) avant la création');
+    this.look = look;
     const t = (this.t = templates);
     this.root.add(this.lean);
     this.lean.add(this.lod);
@@ -375,6 +390,7 @@ export class GltfRiderAvatar implements RiderAvatarLike {
         if (mesh.morphTargetDictionary && mesh.morphTargetDictionary.build !== undefined) this.morphMeshes.push(mesh);
       }
     });
+    this.bikeLevels.push(bike0, level1);
     for (const level of [bike0, level1]) {
       const crank = level.getObjectByName('crankset');
       if (crank) this.bike.crank.push(crank);
@@ -388,7 +404,50 @@ export class GltfRiderAvatar implements RiderAvatarLike {
       }
     }
     this.setBuild(look.build);
+    this.setBikeType(bikeTypeOf(look));
     this.update(0, 0, 0, 'seated');
+  }
+
+  /** Vélo route, gravel ou VTT : kit construit à la demande, pièces route masquées. */
+  setBikeType(type: BikeType): void {
+    if (type !== 'road' && !this.kits.has(type)) {
+      const list: THREE.Group[] = [];
+      for (const level of this.bikeLevels) {
+        const kit = buildBikeKit(level, type);
+        if (!kit) continue;
+        kit.traverse((o) => {
+          const mesh = o as THREE.Mesh;
+          if (!mesh.isMesh) return;
+          const src = mesh.material as THREE.Material;
+          let mat = this.materials.get(src.name);
+          if (!mat) {
+            mat = makeMaterial(src.name, this.look);
+            this.materials.set(src.name, mat);
+          }
+          mesh.material = mat;
+          mesh.castShadow = this.shadows;
+          mesh.receiveShadow = true;
+        });
+        for (const w of ['wheel_front', 'wheel_rear']) {
+          const o = kit.getObjectByName(w);
+          if (o) this.bike.wheels.push(o);
+        }
+        list.push(kit);
+      }
+      this.kits.set(type, list);
+    }
+    this.bikeType = type;
+    for (const [t, list] of this.kits) for (const k of list) k.visible = t === type;
+    const hidden = new Set(roadPartsReplaced(type));
+    for (const level of this.bikeLevels) {
+      for (const child of level.children) {
+        if (child.name.startsWith('kit_')) continue;
+        // Le vélo route d'un niveau est soit la scène glTF (enfants nommés), soit son clone.
+        child.traverse((o) => {
+          if (['frame', 'wheel_front', 'wheel_rear'].includes(o.name) && !o.parent?.name.startsWith('kit_')) o.visible = !hidden.has(o.name);
+        });
+      }
+    }
   }
 
   /** Repère « modèle » (= groupe incliné) d'un os à partir de son parent et de sa rotation locale. */
@@ -567,8 +626,10 @@ export class GltfRiderAvatar implements RiderAvatarLike {
   }
 
   setLook(look: AvatarLook): void {
+    this.look = look;
     for (const m of this.materials.values()) applyLookColor(m, look);
     this.setBuild(look.build);
+    if (bikeTypeOf(look) !== this.bikeType) this.setBikeType(bikeTypeOf(look));
   }
 }
 

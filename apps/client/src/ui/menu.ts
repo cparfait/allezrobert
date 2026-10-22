@@ -187,6 +187,7 @@ export class MainMenu {
       if (item.slot === 'bike') look.bike = item.color;
       if (item.slot === 'socks') look.socks = item.color;
     }
+    if (item.slot === 'bike') look.bikeType = item.physics?.tyre ?? 'road';
     return look;
   }
 

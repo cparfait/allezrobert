@@ -43,6 +43,42 @@ async function main(): Promise<void> {
   log.textContent = ok ? 'modèles chargés' : 'ÉCHEC du chargement';
   if (!ok) return;
 
+  // ?kits : les trois vélos (route, gravel, VTT) côte à côte, de profil et de trois quarts.
+  if (params.has('kits')) {
+    const types = ['road', 'gravel', 'mtb'] as const;
+    const avs = types.map((bikeType, i) => {
+      const a = new GltfRiderAvatar({ ...DEFAULT_LOOK, bikeType, bike: ['#c0392b', '#6b7d4f', '#2f6b3a'][i] as string });
+      a.root.position.set(0, 0, 0);
+      a.root.visible = false;
+      scene.add(a.root);
+      for (let t = 0; t < 1; t += 1 / 60) a.update(1 / 60, 90, 8, 'seated', 0);
+      return a;
+    });
+    const kitShots: Array<[string, string]> = [];
+    const sheet = document.createElement('canvas');
+    sheet.width = 1920;
+    sheet.height = 720;
+    const g = sheet.getContext('2d') as CanvasRenderingContext2D;
+    avs.forEach((a, i) => {
+      for (const o of avs) o.root.visible = o === a;
+      camera.position.set(3.2, 1.0, 0.1);
+      camera.fov = 34;
+      camera.updateProjectionMatrix();
+      camera.lookAt(0, 0.65, 0.1);
+      engine.renderManual();
+      g.drawImage(canvas, i * 640, 0, 640, 360);
+      camera.position.set(2.2, 1.5, 2.6);
+      camera.lookAt(0, 0.7, 0.15);
+      engine.renderManual();
+      g.drawImage(canvas, i * 640, 360, 640, 360);
+    });
+    kitShots.push(['bikes-kits', sheet.toDataURL('image/jpeg', 0.9)]);
+    if (!params.has('noshot')) for (const [name, data] of kitShots) await fetch(`/__shot?name=${name}`, { method: 'POST', body: data });
+    (window as unknown as { __kitsShot: string }).__kitsShot = kitShots[0]?.[1] ?? '';
+    (window as unknown as { __avatarTestDone: boolean }).__avatarTestDone = true;
+    return;
+  }
+
   const looks: AvatarLook[] = [
     DEFAULT_LOOK,
     { ...DEFAULT_LOOK, jersey: '#e63946', jerseyAccent: '#f1faee', skin: '#8d5a3b', hair: '#111111', helmet: '#222222', bike: '#2a9d8f', build: 1 },

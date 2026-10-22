@@ -71,5 +71,7 @@ export function equipItem(item: CosmeticItem, s: Settings): void {
     if (item.slot === 'bike') s.look = { ...s.look, bike: item.color };
     if (item.slot === 'socks') s.look = { ...s.look, socks: item.color };
   }
+  // Vélo équipé : le modèle affiché suit les pneus (route, gravel, VTT).
+  if (item.slot === 'bike') s.look = { ...s.look, bikeType: item.physics?.tyre ?? 'road' };
   saveSettings(s);
 }

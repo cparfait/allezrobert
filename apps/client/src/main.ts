@@ -114,6 +114,8 @@ async function boot(): Promise<void> {
   music.unlockOnGesture();
   const settings = loadSettings();
   setLang(settings.lang);
+  // Vélo affiché au garage et sur l'image d'accueil : celui qui est équipé (sauvegardes anciennes).
+  settings.look = { ...settings.look, bikeType: bikeSetupFor(loadProgress().equipped).tyre ?? 'road' };
   bootStep(12, 'Chargement des coureurs, des vélos et des voitures');
   // Avatars Blender (glTF) chargés une fois ; repli procédural automatique en cas d'échec.
   const [scene] = await Promise.all([loadScene(settings), GltfRiderAvatar.load(), loadVehicleModels()]);
@@ -393,7 +395,8 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     wind: { ms: s.windMs, from: 4.4 },
     inertiaFactor: s.inertia,
   });
-  const avatar = createAvatar(s.look);
+  // Modèle du vélo (route, gravel, VTT) : celui du vélo équipé.
+  const avatar = createAvatar({ ...s.look, bikeType: profile.bike.tyre ?? 'road' });
   engine.scene.add(avatar.root);
   // Phare avant (la nuit) : projecteur fixé au vélo, sans ombre portée (coût).
   const headlight = new THREE.SpotLight(0xfff1d6, 0, 60, 0.45, 0.6, 1.4);
