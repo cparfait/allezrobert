@@ -10,7 +10,7 @@ import type { AvatarLook } from './net.ts';
 export type BikeFamily = 'aero' | 'climb' | 'tt' | 'retro' | 'retro_compact' | 'steel' | 'lowpro' | 'lotus';
 export type WheelType = 'box' | 'c35' | 'c50' | 'c65' | 'disc' | 'tri';
 export type BikeType = 'aero' | 'climbing' | 'tt' | 'classic' | 'track';
-export type BikeCollection = 'saison-2026' | 'mythiques';
+export type BikeCollection = 'saison-2026' | 'mythiques' | 'divers';
 export type LiveryPattern = 'solid' | 'fade' | 'split' | 'band' | 'stripes' | 'rainbow' | 'checker' | 'blocks' | 'dots';
 /** Axe du motif : z = avant → arrière, y = bas → haut, x = gauche → droite, diag / anti = diagonales. */
 export type LiveryAxis = 'z' | 'y' | 'x' | 'diag' | 'anti';

@@ -60,3 +60,13 @@ export function equipItem(item: CosmeticItem, s: Settings): void {
   if (item.slot === 'bike') s.look = { ...s.look, bikeModel: item.id };
   saveSettings(s);
 }
+
+/** Vélo sans marque, peint de la couleur choisie (ou de sa couleur actuelle) : plus de modèle du catalogue. */
+export function equipPlainBike(s: Settings, color?: string): void {
+  const p = loadProgress();
+  delete p.equipped.bike;
+  saveProgress(p);
+  const { bikeModel: _, ...look } = s.look;
+  s.look = { ...look, bike: color ?? look.bike };
+  saveSettings(s);
+}

@@ -51,9 +51,14 @@ const FILES = ['cyclist.glb', 'cyclist_lod1.glb'] as const;
 /** Distance (m) au-delà de laquelle on affiche le LOD1. */
 const LOD1_DISTANCE = 30;
 const WHEEL_R = 0.335;
-/** Position chrono : bascule vers l'avant de la colonne et du thorax (rad). */
-const TUCK_SPINE = 0.3;
-const TUCK_CHEST = 0.42;
+/**
+ * Position chrono, par unité de « tuck » (rad) : surtout le bassin qui bascule vers l'avant (dos
+ * plat), un peu la colonne et le thorax ; la tête se relève pour regarder la route.
+ */
+const TUCK_HIPS = 0.5;
+const TUCK_SPINE = 0.08;
+const TUCK_CHEST = 0.12;
+const TUCK_HEAD = 0.35;
 const X_AXIS = new THREE.Vector3(1, 0, 0);
 const Y_AXIS = new THREE.Vector3(0, 1, 0);
 const Z_AXIS = new THREE.Vector3(0, 0, 1);
@@ -285,8 +290,10 @@ export class GltfRiderAvatar implements RiderAvatarLike {
   /** Cible des mains (repère modèle) et direction des coudes, selon le vélo monté. */
   private readonly handTarget: Record<Side, THREE.Vector3> = { L: new THREE.Vector3(), R: new THREE.Vector3() };
   private readonly elbowPole: Record<Side, THREE.Vector3> = { L: new THREE.Vector3(), R: new THREE.Vector3() };
-  /** Position chrono (vélo à prolongateurs) : 0 → 1, dos plongeant. */
+  /** Position chrono (vélo à prolongateurs ; 0 = buste de repos) : dos plongeant jusqu'à poser les coudes. */
   private tuck = 0;
+  /** Casques route et chrono, lunettes (les deux LOD) : casque chrono à visière selon le vélo. */
+  private readonly headgear: Record<'road' | 'aero' | 'glasses', THREE.Object3D[]> = { road: [], aero: [], glasses: [] };
   private crankAngle = Math.random() * Math.PI * 2;
   private wheelAngle = 0;
   private poseBlend = 0; // 0 assis → 1 danseuse
@@ -385,6 +392,12 @@ export class GltfRiderAvatar implements RiderAvatarLike {
         if (mesh.morphTargetDictionary && mesh.morphTargetDictionary.build !== undefined) this.morphMeshes.push(mesh);
       }
     });
+    this.lod.traverse((o) => {
+      const n = o.name;
+      if (n.startsWith('rider_helmet_aero')) this.headgear.aero.push(o);
+      else if (n.startsWith('rider_helmet')) this.headgear.road.push(o);
+      else if (n.startsWith('rider_glasses')) this.headgear.glasses.push(o);
+    });
     this.mountBike(bikeOfLook(look), look);
     this.setBuild(look.build);
     this.update(0, 0, 0, 'seated');
@@ -443,12 +456,52 @@ export class GltfRiderAvatar implements RiderAvatarLike {
         this.elbowPole[s].copy(toPad).addScaledVector(dir, -toPad.dot(dir)).normalize();
       } else this.elbowPole[s].copy(c.pole);
     }
-    this.tuck = anchors.pads ? 1 : 0;
+    this.tuck = anchors.pads ? this.solveTuck(anchors.pads) : 0;
+    // Casque chrono (modèles qui le demandent) : sa visière remplace les lunettes. Sans casque chrono
+    // dans le modèle du coureur (ancien cyclist.glb), casque route.
+    const aero = !!build.params.aeroHelmet && this.headgear.aero.length > 0;
+    for (const o of this.headgear.aero) o.visible = aero;
+    for (const o of this.headgear.road) o.visible = !aero;
+    for (const o of this.headgear.glasses) o.visible = !aero;
     if (family !== build.family) {
       void loadBikeFamily(build.family).then((ok) => {
         if (ok && this.mounted?.key === key) this.mountBike(this.mounted.build, this.look);
       });
     }
+  }
+
+  /**
+   * Bascule du buste qui met les épaules à une longueur de bras (os supérieur) au-dessus des
+   * repose-coudes : avec le pli des coudes tiré vers eux, les avant-bras s'y posent.
+   */
+  private solveTuck(pads: Record<Side, THREE.Vector3>): number {
+    const b = this.t.bones;
+    let best = 1;
+    let bestErr = Infinity;
+    // Bassin, colonne et thorax basculent autour de leurs origines (axes X parallèles), dans cet ordre.
+    const pivots: Array<[BoneName, number]> = [['hips', TUCK_HIPS], ['spine', TUCK_SPINE], ['chest', TUCK_CHEST]];
+    const pts = pivots.map(() => new THREE.Vector3());
+    for (let a = 0; a <= 2.5; a += 0.01) {
+      let err = 0;
+      for (const s of SIDES) {
+        const c = this.t.arms[s];
+        pivots.forEach(([name], i) => pts[i]?.copy(b[name].modelP));
+        const sh = _v2.copy(b[c.upper].modelP);
+        pivots.forEach(([, k], i) => {
+          const o = pts[i] as THREE.Vector3;
+          for (let j = i + 1; j < pts.length; j++) (pts[j] as THREE.Vector3).sub(o).applyAxisAngle(X_AXIS, k * a).add(o);
+          sh.sub(o).applyAxisAngle(X_AXIS, k * a).add(o);
+        });
+        const pad = pads[s];
+        // Bras supérieur posé : épaule à l1 du coude et au-dessus de lui.
+        err += Math.abs(sh.distanceTo(pad) - c.l1) + Math.max(0, pad.y + 0.15 - sh.y);
+      }
+      if (err < bestErr) {
+        bestErr = err;
+        best = a;
+      }
+    }
+    return best;
   }
 
   /** Repère « modèle » (= groupe incliné) d'un os à partir de son parent et de sa rotation locale. */
@@ -518,7 +571,8 @@ export class GltfRiderAvatar implements RiderAvatarLike {
     // --- Bassin
     const hipsR = t.bones.hips;
     const roll = 0.02 * Math.sin(a) * (1 - stand) * (1 - coast);
-    const tilt = -0.09 * stand - 0.05 * coast;
+    const tuck = this.tuck * (1 - 0.6 * stand);
+    const tilt = -0.09 * stand - 0.05 * coast + TUCK_HIPS * tuck;
     _q1.setFromAxisAngle(Z_AXIS, counter + roll);
     _q2.setFromAxisAngle(X_AXIS, tilt);
     _q3.multiplyQuaternions(_q1, _q2).multiply(hipsR.modelQ);
@@ -534,7 +588,6 @@ export class GltfRiderAvatar implements RiderAvatarLike {
 
     // --- Colonne : le thorax compense le roulis du bassin (épaules stables) ; dos plongeant en
     // position chrono (moins en danseuse).
-    const tuck = this.tuck * (1 - 0.6 * stand);
     this.bones.spine.quaternion.copy(t.bones.spine.localQ);
     this.fk('spine');
     if (tuck > 0) this.setModelQ('spine', _q3.setFromAxisAngle(X_AXIS, TUCK_SPINE * tuck).multiply(this.mQ.spine));
@@ -548,6 +601,7 @@ export class GltfRiderAvatar implements RiderAvatarLike {
     this.fk('neck');
     const look = 0.06 * Math.sin(this.time * 0.37) * Math.sin(this.time * 0.13);
     _q1.setFromAxisAngle(Z_AXIS, -(0.7 * bank + rock + counter));
+    if (tuck > 0) _q1.multiply(_q3.setFromAxisAngle(X_AXIS, -TUCK_HEAD * tuck));
     _q2.setFromAxisAngle(Y_AXIS, look);
     const headTarget = _q3.multiplyQuaternions(_q1, _q2).multiply(t.bones.head.modelQ);
     _q1.multiplyQuaternions(this.mQ.neck, t.bones.head.localQ).invert(); // tête si cou au repos

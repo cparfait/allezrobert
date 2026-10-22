@@ -5,7 +5,7 @@ import type { Settings } from './settings.ts';
 import { saveSettings } from './settings.ts';
 import { music } from '../audio/music.ts';
 import { spotify, redirectUri } from '../audio/spotify.ts';
-import { loadProgress, equipItem, SLOT_LABEL } from './garage.ts';
+import { loadProgress, equipItem, equipPlainBike, SLOT_LABEL } from './garage.ts';
 import type { GarageView } from './poster.ts';
 import './menu.css';
 
@@ -72,6 +72,7 @@ type BikeFilter = BikeCollection | 'unlocked';
 const BIKE_FILTERS: Array<[BikeFilter, string, string]> = [
   ['saison-2026', 'Saison 2026', '2026 season'],
   ['mythiques', 'Mythiques', 'Legends'],
+  ['divers', 'Divers', 'Misc.'],
   ['unlocked', 'Débloqués', 'Unlocked'],
 ];
 const BIKE_TYPE: Record<BikeType, [string, string]> = {
@@ -435,10 +436,11 @@ export class MainMenu {
             <label class="field">${L ? 'Maillot' : 'Jersey'}<input id="m-jersey" type="color" value="${this.s.look.jersey}" /></label>
             <label class="field">${L ? 'Bande du maillot' : 'Jersey stripe'}<input id="m-accent" type="color" value="${this.s.look.jerseyAccent}" /></label>
             <label class="field">${L ? 'Casque' : 'Helmet'}<input id="m-helmet" type="color" value="${this.s.look.helmet}" /></label>
+            <label class="field">${L ? 'Vélo sans marque' : 'Unbranded bike'}<input id="m-bike" type="color" value="${this.s.look.bike}" /></label>
             <label class="field">${L ? 'Peau' : 'Skin'}<input id="m-skin" type="color" value="${this.s.look.skin}" /></label>
             <label class="field">${L ? 'Cheveux' : 'Hair'}<input id="m-hair" type="color" value="${this.s.look.hair}" /></label>
           </div>`
-        : `${this.garageSlot === 'bike' ? this.bikeFiltersHtml() : ''}<div class="mm-items">${this.garageItems(lp.level)
+        : `${this.garageSlot === 'bike' ? this.bikeFiltersHtml() : ''}<div class="mm-items">${this.garageSlot === 'bike' ? this.plainBikeHtml() : ''}${this.garageItems(lp.level)
             .map((c) => {
               const locked = c.level > lp.level;
               const on = p.equipped[c.slot] === c.id;
@@ -474,6 +476,15 @@ export class MainMenu {
     return items
       .filter((c) => (this.bikeFilter === 'unlocked' ? c.level <= level : bikeById(c.id)?.collection === this.bikeFilter))
       .sort((a, b) => a.level - b.level || group(a.id) - group(b.id) || a.name.fr.localeCompare(b.name.fr));
+  }
+
+  /** Vélo de départ sans marque, à la couleur choisie dans « Couleurs ». */
+  private plainBikeHtml(): string {
+    const L = fr();
+    const on = !this.s.look.bikeModel;
+    return `<button class="mm-item ${on ? 'on' : ''}" data-plainbike title="${L ? 'Couleur au choix dans l’onglet Couleurs' : 'Pick its colour in the Colours tab'}">
+      <i style="background:${this.s.look.bike}"></i><b>${L ? 'Vélo sans marque' : 'Unbranded bike'}</b>
+      <span>${L ? 'Couleur au choix' : 'Your colour'} · ${on ? (L ? 'Équipé' : 'Equipped') : L ? 'Disponible' : 'Available'}</span></button>`;
   }
 
   private bikeFiltersHtml(): string {
@@ -861,6 +872,13 @@ export class MainMenu {
         this.render();
       }),
     );
+    this.root.querySelector<HTMLElement>('[data-plainbike]')?.addEventListener('click', () => {
+      this.previewId = null;
+      this.onPreviewLook?.(null);
+      equipPlainBike(s);
+      changed();
+      this.render();
+    });
     this.root.querySelectorAll<HTMLElement>('[data-item]').forEach((el) =>
       el.addEventListener('click', () => {
         const item = COSMETICS.find((c) => c.id === el.dataset.item);
@@ -914,6 +932,11 @@ export class MainMenu {
     color('m-accent', 'jerseyAccent');
     color('m-helmet', 'helmet');
     color('m-skin', 'skin');
+    // Couleur du vélo : celle du vélo sans marque, qui devient le vélo équipé.
+    on<HTMLInputElement>('m-bike', 'input', (el) => {
+      equipPlainBike(s, el.value);
+      changed();
+    });
     color('m-hair', 'hair');
     // Profil.
     const num = (id: string, key: 'massKg' | 'ftpWatts' | 'heightCm' | 'aiRiders') =>

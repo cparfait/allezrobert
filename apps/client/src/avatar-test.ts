@@ -154,7 +154,7 @@ async function main(): Promise<void> {
 /**
  * Planche des vélos du catalogue vus de profil, côté transmission (?bikes=id1,id2… par préfixes,
  * vide : la planche des livrées des aperçus Blender ; &rider : avec le coureur ; &side=left :
- * côté gauche ; &view=3q : de trois quarts avant). Enregistrée comme bikes-client-<nom>.jpg (&name=…), sauf avec ?noshot.
+ * côté gauche ; &view=3q : de trois quarts avant ; &view=face : visage ; &view=cockpit : poste de pilotage). Enregistrée comme bikes-client-<nom>.jpg (&name=…), sauf avec ?noshot.
  */
 const LIVERY_SHEET = ['s26-04-', 's26-01-', 's26-14-', 'myth-bianchi-specialissima-acier', 'myth-peugeot-px10', 'myth-lotus-110',
   's26-06-', 'myth-look-kg86', 'myth-specialized-tarmac-sl7', 'myth-pinarello-espada', 'myth-giant-tcr-compact', 'myth-colnago-c40-mapei'];
@@ -168,9 +168,12 @@ async function bikeSheet(engine: Awaited<ReturnType<typeof createEngine>>, list:
   await Promise.all(models.map((b) => loadBikeFamily(b.family)));
   const cols = Math.min(4, models.length);
   const rows = Math.ceil(models.length / cols);
+  // Taille d'une case (&cell=960 pour un gros plan).
+  const cw = Number(params.get('cell') ?? 480);
+  const ch = Math.round((cw * 300) / 480);
   const sheet = document.createElement('canvas');
-  sheet.width = cols * 480;
-  sheet.height = rows * 300;
+  sheet.width = cols * cw;
+  sheet.height = rows * ch;
   const g = sheet.getContext('2d') as CanvasRenderingContext2D;
   g.fillStyle = '#eceeef';
   g.fillRect(0, 0, sheet.width, sheet.height);
@@ -188,20 +191,32 @@ async function bikeSheet(engine: Awaited<ReturnType<typeof createEngine>>, list:
     scene.add(a.root);
     camera.fov = 30;
     const sx = left ? 1 : -1;
-    if (params.get('view') === '3q') camera.position.set(sx * 2.2, 1.5, 2.6);
-    else camera.position.set(sx * (riderOn ? 4.4 : 3.4), riderOn ? 0.95 : 0.62, 0.09);
-    camera.updateProjectionMatrix();
-    camera.lookAt(0, riderOn ? 0.85 : 0.56, 0.09);
+    if (params.get('view') === 'face') {
+      // Gros plan du visage : yeux du coureur (pose courante, position chrono comprise).
+      const eye = a.eyeWorld(new THREE.Vector3());
+      camera.position.set(eye.x + sx * 0.45, eye.y + 0.05, eye.z + 0.75);
+      camera.updateProjectionMatrix();
+      camera.lookAt(eye.x, eye.y - 0.06, eye.z);
+    } else if (params.get('view') === 'cockpit') {
+      camera.position.set(sx * 0.75, 1.15, 1.05);
+      camera.updateProjectionMatrix();
+      camera.lookAt(0, 0.88, 0.5);
+    } else if (params.get('view') === '3q') camera.position.set(sx * 2.2, 1.5, 2.6);
+    else camera.position.set(sx * (riderOn ? 4.4 : 3.4) * Number(params.get('zoom') ?? 1), riderOn ? 0.95 : 0.62, 0.09);
+    if (params.get('view') !== 'face' && params.get('view') !== 'cockpit') {
+      camera.updateProjectionMatrix();
+      camera.lookAt(0, riderOn ? 0.85 : 0.56, 0.09);
+    }
     engine.renderManual();
-    const x = (i % cols) * 480;
-    const y = Math.floor(i / cols) * 300;
-    g.drawImage(canvas, 160, 60, 960, 600, x, y, 480, 300);
+    const x = (i % cols) * cw;
+    const y = Math.floor(i / cols) * ch;
+    g.drawImage(canvas, 160, 60, 960, 600, x, y, cw, ch);
     g.fillStyle = '#16181c';
-    g.fillText(`${b.name} · ${b.family}`, x + 240, y + 24);
+    g.fillText(`${b.name} · ${b.family}`, x + cw / 2, y + 24);
     scene.remove(a.root);
   }
   document.body.replaceChildren(sheet);
-  sheet.style.cssText = 'display:block;max-width:100vw';
+  sheet.style.cssText = 'display:block;width:100%;height:auto';
   if (!params.has('noshot')) await fetch(`/__shot?name=bikes-client-${params.get('name') ?? 'liveries'}`, { method: 'POST', body: sheet.toDataURL('image/jpeg', 0.9) });
   (window as unknown as { __avatarTestDone: boolean }).__avatarTestDone = true;
 }

@@ -1371,10 +1371,12 @@ def with_children(objs):
     return out
 
 
-def export_glb(objs, path):
+def export_glb(objs, path, children=True):
+    """Exporte objs (et leurs enfants, sauf children=False : le squelette du coureur porte les
+    maillages des deux LOD, chaque fichier ne doit garder que les siens)."""
     for o in bpy.context.scene.objects:
         o.select_set(False)
-    sel = with_children(objs)
+    sel = with_children(objs) if children else list(objs)
     for o in sel:
         o.select_set(True)
     bpy.context.view_layer.objects.active = objs[0]
@@ -1612,9 +1614,9 @@ def main():
         stats['cyclist_aero_helmet'] = tri_count(aero)
         stats['cyclist_lod1'] = tris_of(rider1)
         stats['cyclist_parts'] = {o.name: tri_count(o) for o in rider0 if o.type == 'MESH'}
-        export_glb(rider0, os.path.join(OUT, 'cyclist.glb'))
+        export_glb(rider0, os.path.join(OUT, 'cyclist.glb'), children=False)
         swap_names(rider0[1:], rider1[1:])
-        export_glb(rider1, os.path.join(OUT, 'cyclist_lod1.glb'))
+        export_glb(rider1, os.path.join(OUT, 'cyclist_lod1.glb'), children=False)
         swap_names(rider0[1:], rider1[1:])
         for o in rider1[1:]:
             o.hide_render = True

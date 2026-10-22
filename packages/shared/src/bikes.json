@@ -278,6 +278,13 @@
     "fr": "Icônes modernes et collection",
     "en": "Modern icons and collector"
    }
+  },
+  {
+   "id": "divers",
+   "name": {
+    "fr": "Divers",
+    "en": "Miscellaneous"
+   }
   }
  ],
  "brands": [
@@ -4134,6 +4141,46 @@
    "desc": {
     "fr": "Édition collection du Y1Rs, jaune nacré.",
     "en": "Collector edition Y1Rs in pearl yellow."
+   }
+  },
+  {
+   "id": "div-look-785-huez-rs-chameleon",
+   "name": "LOOK 785 Huez RS Chameleon",
+   "brand": "look",
+   "collection": "divers",
+   "group": "divers",
+   "type": "climbing",
+   "family": "climb",
+   "params": {
+    "brakes": "disc",
+    "wheels": [
+     "c35",
+     "c35"
+    ],
+    "rimBrand": "look"
+   },
+   "livery": {
+    "colors": [
+     "#121417",
+     "#1f7a6e",
+     "#5b3a7a"
+    ],
+    "pattern": "fade",
+    "axis": "z",
+    "at": 0.55,
+    "width": 0.35,
+    "zones": {
+     "fork": 1
+    },
+    "finish": "iridescent",
+    "rim": "#2a2d31",
+    "tape": "#121212"
+   },
+   "level": 10,
+   "year": 2021,
+   "desc": {
+    "fr": "Grimpeur carbone LOOK, peinture caméléon vert-violet sur l’avant, Shimano Ultegra Di2 12 vitesses, roues LOOK Carbone R38D.",
+    "en": "LOOK carbon climbing bike, green-purple chameleon paint up front, Shimano Ultegra Di2 12-speed, LOOK Carbon R38D wheels."
    }
   }
  ]
