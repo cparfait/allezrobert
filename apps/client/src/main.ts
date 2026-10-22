@@ -627,6 +627,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     avatar.root.rotation.set(0, 0, 0);
     avatar.root.rotateY(heading);
     avatar.root.rotateX(-Math.atan(sample.grade / 100));
+    avatar.setEffort?.(ride.inputs.watts / Math.max(50, s.ftpWatts), ride.inputs.hr !== undefined ? ride.inputs.hr / 190 : undefined);
     avatar.update(dt, ride.inputs.cadence, ride.state.speedMs, ride.pose, bank);
     // Vue subjective et caméra embarquée : on garde le vélo, les bras et les mains, mais pas la tête.
     const onboard = rig.mode === 'cockpit' || rig.mode === 'gopro';

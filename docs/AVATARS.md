@@ -337,3 +337,25 @@ reprises de l'ancien modèle un peu grandes pour ce visage.
   (glTF-Transform, décodeur meshopt de three.js).
 - Planches : `avatar-test.html?avatar=mpfb&sliders` (chaque curseur à −1, 0, +1) et
   `&random=24` (têtes aléatoires passées par `look.face`, casque et lunettes en place).
+
+### Étape 3b — expressions (faite)
+
+- 51 formes ARKit (la langue tirée manque : pas de langue animable) recréées dans
+  `build_avatar.py` : unités d'expression MakeHuman CC0 (moyenne des trois variantes d'origine),
+  séparées gauche / droite et haut / bas de la bouche par masques doux ; mâchoire latérale et en
+  avant, bouche latérale, joues gonflées et regard (rotation des globes, paupières qui suivent)
+  scriptés. Langue gardée, intérieur de bouche sombre ; les dents d'aide de MakeHuman, trop
+  grossières, sont retirées.
+- `apps/client/src/rider/face.ts` : effort (puissance / FTP lissée), respiration (rythme selon
+  la FC, bouche plus ouverte dans l'effort), grimace au-delà de 85 % de la FTP, joues gonflées
+  au sprint en danseuse, sourire en descente, clignements toutes les 3 à 6 s ; poursuites
+  exponentielles. Seulement au premier niveau de détail. Effort transmis par le joueur, les
+  coureurs IA et les coureurs distants (FTP de référence 250 W).
+- Compression : les cibles n'ont plus de normales (fichier 3 fois plus léger ; celles des
+  curseurs sont recalculées, lissées à travers les coutures) ; le client remet positions,
+  normales et cibles en flottants au chargement, three.js r186 appliquant mal les cibles animées
+  sur des attributs quantifiés. Fichier : **1,95 Mo**.
+- Corrigé au passage : des sommets d'aides MakeHuman restaient dans le cuissard (indices décalés
+  après la séparation des yeux).
+- Planches : `&sliders&expr` (chaque forme à 1), `&sliders&effort` (au train, au seuil, à bloc,
+  sprint, descente).

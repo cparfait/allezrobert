@@ -4,6 +4,7 @@ import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 import { PLAIN_BIKE_FAMILY, bikeOfLook, decodeFace, type AvatarLook, type BikeBuild, type BikeFamily } from '@allezrobert/shared';
 import { RiderAvatar } from './avatar.ts';
+import { FaceAnimator } from './face.ts';
 import { BikeMaterials, assembleBike, availableFamily, bikeAnchors, familyScene, loadBikeFamily, type AssembledBike, type BikeAnchors } from './bikes.ts';
 
 /**
@@ -33,6 +34,8 @@ export interface RiderAvatarLike {
   readonly label: THREE.Sprite | null;
   update(dt: number, cadence: number, speed: number, pose: RiderPose, bank?: number): void;
   setLook(look: AvatarLook): void;
+  /** Effort du coureur (puissance / FTP, FC / FC max) : expressions du visage (avatar MPFB). */
+  setEffort?(ftpFrac: number, hrFrac?: number): void;
   setHeadVisible(on: boolean): void;
   setShadows(on: boolean): void;
   /** Position des yeux (repère monde) pour la vue subjective ; absente : position estimée par la caméra. */
@@ -94,7 +97,6 @@ const MATERIALS: Record<string, [string, number, number]> = {
   shorts: ['#15171c', 0.55, 0],
   sock: ['#f2f2f2', 0.8, 0],
   shoe: ['#f2f2f2', 0.4, 0],
-  teeth: ['#e6dfcc', 0.35, 0],
   mouth: ['#4a1c1e', 0.75, 0],
   shoe_sole: ['#1a1b1f', 0.6, 0],
   helmet: ['#f4f4f4', 0.35, 0],
@@ -242,6 +244,27 @@ function toFloat(a: THREE.BufferAttribute | THREE.InterleavedBufferAttribute): F
   return out;
 }
 
+/**
+ * Attributs flottants, non entrelacés (positions, normales et cibles quantifiées par la
+ * compression du modèle) : three.js r186 (WebGPURenderer) applique mal les cibles animées sur des
+ * attributs quantifiés et entrelacés. Les valeurs restent dans l'espace quantifié du maillage
+ * (la transformation du nœud, intégrée à la liaison du squelette, les remet à l'échelle).
+ */
+function plainAttribute(a: THREE.BufferAttribute | THREE.InterleavedBufferAttribute): THREE.BufferAttribute {
+  const out = new Float32Array(a.count * a.itemSize);
+  for (let i = 0; i < a.count; i++) for (let c = 0; c < a.itemSize; c++) out[i * a.itemSize + c] = a.getComponent(i, c);
+  return new THREE.BufferAttribute(out, a.itemSize);
+}
+
+function plainAttributes(g: THREE.BufferGeometry): void {
+  for (const k of ['position', 'normal']) {
+    const a = g.getAttribute(k);
+    if (a && (a.normalized || (a as THREE.InterleavedBufferAttribute).isInterleavedBufferAttribute || !(a.array instanceof Float32Array))) g.setAttribute(k, plainAttribute(a));
+  }
+  const ma = g.morphAttributes as Record<string, Array<THREE.BufferAttribute | THREE.InterleavedBufferAttribute>>;
+  for (const k of Object.keys(ma)) ma[k] = (ma[k] ?? []).map(plainAttribute);
+}
+
 function extractIdentity(scene: THREE.Object3D): void {
   const done = new Set<THREE.BufferGeometry>();
   scene.traverse((o) => {
@@ -251,6 +274,7 @@ function extractIdentity(scene: THREE.Object3D): void {
     if (!mesh.isMesh || !g || !dict) return;
     if (!done.has(g)) {
       done.add(g);
+      plainAttributes(g);
       const names = Object.keys(dict).sort((a, b) => (dict[a] as number) - (dict[b] as number));
       const keep = names.map((n) => !IDENTITY.test(n));
       if (keep.every(Boolean)) return;
@@ -285,6 +309,46 @@ function extractIdentity(scene: THREE.Object3D): void {
   });
 }
 
+function smoothNormals(g: THREE.BufferGeometry): void {
+  const p = g.getAttribute('position');
+  const idx = g.index;
+  const n = new Float32Array(p.count * 3);
+  const key = (i: number): string => `${Math.round(p.getX(i) * 1e4)},${Math.round(p.getY(i) * 1e4)},${Math.round(p.getZ(i) * 1e4)}`;
+  const weld = new Map<string, number>();
+  const rep = new Int32Array(p.count);
+  for (let i = 0; i < p.count; i++) {
+    const k = key(i);
+    let r = weld.get(k);
+    if (r === undefined) weld.set(k, (r = i));
+    rep[i] = r;
+  }
+  const a = new THREE.Vector3();
+  const b = new THREE.Vector3();
+  const c = new THREE.Vector3();
+  const count = idx ? idx.count : p.count;
+  for (let f = 0; f < count; f += 3) {
+    const i0 = idx ? idx.getX(f) : f;
+    const i1 = idx ? idx.getX(f + 1) : f + 1;
+    const i2 = idx ? idx.getX(f + 2) : f + 2;
+    a.fromBufferAttribute(p, i0);
+    b.fromBufferAttribute(p, i1).sub(a);
+    c.fromBufferAttribute(p, i2).sub(a);
+    b.cross(c); // aire × normale
+    for (const i of [i0, i1, i2]) {
+      const r = rep[i] as number;
+      n[r * 3] = (n[r * 3] as number) + b.x;
+      n[r * 3 + 1] = (n[r * 3 + 1] as number) + b.y;
+      n[r * 3 + 2] = (n[r * 3 + 2] as number) + b.z;
+    }
+  }
+  for (let i = 0; i < p.count; i++) {
+    const r = rep[i] as number;
+    a.set(n[r * 3] as number, n[r * 3 + 1] as number, n[r * 3 + 2] as number).normalize();
+    a.toArray(n, i * 3);
+  }
+  g.setAttribute('normal', new THREE.BufferAttribute(n, 3));
+}
+
 /** Géométrie propre à l'avatar : base + Σ poids × cibles d'identité (positions et normales). */
 function bakeIdentity(base: THREE.BufferGeometry, id: IdentityTargets, w: readonly number[]): THREE.BufferGeometry {
   // Index, UV, poids et cibles animées partagés avec le modèle : seules positions et normales sont propres.
@@ -307,6 +371,12 @@ function bakeIdentity(base: THREE.BufferGeometry, id: IdentityTargets, w: readon
     if (n && dn) for (let i = 0; i < n.length; i++) n[i] = (n[i] as number) + k * (dn[i] as number);
   });
   g.setAttribute('position', new THREE.BufferAttribute(p, 3));
+  if (n && !id.nrm.some(Boolean)) {
+    // Cibles sans normales : normales recalculées, lissées à travers les coutures (sommets
+    // dédoublés aux bords d'UV et de matériaux, mêmes positions).
+    smoothNormals(g);
+    return g;
+  }
   if (n) {
     const na = new THREE.BufferAttribute(n, 3);
     for (let i = 0; i < na.count; i++) _v1.fromBufferAttribute(na, i).normalize().toArray(n, i * 3);
@@ -431,6 +501,10 @@ export class GltfRiderAvatar implements RiderAvatarLike {
   private readonly morphMeshes: THREE.Mesh[] = [];
   /** Maillages à curseurs de forme et leur géométrie partagée (avant précalcul). */
   private faceKey = '[]';
+  /** Expressions en sortie (modèle à formes ARKit seulement). */
+  private faceAnim: FaceAnimator | null = null;
+  private ftpFrac = 0.7;
+  private hrFrac: number | undefined;
   private readonly identityMeshes: Array<{ mesh: THREE.Mesh; base: THREE.BufferGeometry }> = [];
   private readonly bike: BikeParts = { crank: [], wheels: [], pedals: { L: [], R: [] } };
   /** Groupes recevant le vélo : niveau 0, niveau 1. */
@@ -553,6 +627,7 @@ export class GltfRiderAvatar implements RiderAvatarLike {
       else if (n.startsWith('rider_helmet')) this.headgear.road.push(o);
       else if (n.startsWith('rider_glasses')) this.headgear.glasses.push(o);
     });
+    if (this.morphMeshes.some((m) => m.morphTargetDictionary?.jawOpen !== undefined)) this.faceAnim = new FaceAnimator();
     this.mountBike(bikeOfLook(look), look);
     this.setBuild(look.build);
     this.update(0, 0, 0, 'seated');
@@ -697,6 +772,11 @@ export class GltfRiderAvatar implements RiderAvatarLike {
    * @param bank inclinaison dans les virages (rad)
    */
   update(dt: number, cadence: number, speed: number, pose: RiderPose, bank = 0): void {
+    // Visage : seulement au premier niveau de détail (au-delà, invisible).
+    if (this.faceAnim && dt > 0 && this.lod.getCurrentLevel() === 0) {
+      const inp = { ftpFrac: this.ftpFrac, cadence, speed, standing: pose === 'standing' };
+      this.setExpressions(this.faceAnim.update(dt, this.hrFrac === undefined ? inp : { ...inp, hrFrac: this.hrFrac }));
+    }
     const t = this.t;
     this.time += dt;
     this.crankAngle += (cadence / 60) * Math.PI * 2 * dt;
@@ -891,6 +971,11 @@ export class GltfRiderAvatar implements RiderAvatarLike {
     this.root.traverse((o) => {
       if ((o as THREE.Mesh).isMesh) o.castShadow = on;
     });
+  }
+
+  setEffort(ftpFrac: number, hrFrac?: number): void {
+    this.ftpFrac = ftpFrac;
+    this.hrFrac = hrFrac;
   }
 
   setLook(look: AvatarLook): void {

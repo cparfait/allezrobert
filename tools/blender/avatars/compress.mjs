@@ -2,9 +2,6 @@
  * Compression de l'avatar (build_avatar.py) : quantification des attributs de base et
  * compression meshopt (EXT_meshopt_compression, décodée par three.js).
  *
- * Les cibles (morph targets) restent en flottants : certaines parties du corps (bouche,
- * globes oculaires) ont des cibles entièrement nulles, dont la plage de quantification nulle
- * corrompt les autres cibles une fois décodées.
  *
  * Usage : pnpm --filter @allezrobert/blender-tools compress:avatar <entrée.glb> <sortie.glb>
  */
@@ -21,13 +18,20 @@ if (!input || !output) {
 await Promise.all([MeshoptDecoder.ready, MeshoptEncoder.ready]);
 const io = new NodeIO().registerExtensions(ALL_EXTENSIONS).registerDependencies({ 'meshopt.decoder': MeshoptDecoder, 'meshopt.encoder': MeshoptEncoder });
 const doc = await io.read(input);
+// Cibles sans normales : le client recalcule les normales des curseurs de forme, et les
+// expressions gardent celles du visage au repos (écart invisible, fichier 3 fois plus léger).
+for (const mesh of doc.getRoot().listMeshes()) {
+  for (const prim of mesh.listPrimitives()) for (const t of prim.listTargets()) t.setAttribute('NORMAL', null);
+}
 await doc.transform(
   // Matériaux exclus : tous identiques à l'export, ils seraient fusionnés.
   dedup({ propertyTypes: [PropertyType.ACCESSOR, PropertyType.MESH, PropertyType.TEXTURE] }),
   prune({ keepAttributes: true }),
   reorder({ encoder: MeshoptEncoder }),
+  // Le client remet positions, normales et cibles en flottants au chargement (gltfAvatar.ts,
+  // plainAttributes) : three.js r186 applique mal les cibles animées sur des attributs quantifiés.
   quantize(),
 );
 // Compression à l'écriture (meshopt() quantifierait aussi les cibles).
-doc.createExtension(EXTMeshoptCompression).setRequired(true).setEncoderOptions({ method: EXTMeshoptCompression.EncoderMethod.QUANTIZE });
+doc.createExtension(EXTMeshoptCompression).setRequired(true).setEncoderOptions({ method: EXTMeshoptCompression.EncoderMethod.FILTER });
 await io.write(output, doc);

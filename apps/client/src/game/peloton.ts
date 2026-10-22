@@ -202,7 +202,10 @@ export class Peloton {
       r.avatar.root.rotateX(-Math.atan(p.grade / 100));
       const dist = camera.position.distanceTo(r.avatar.root.position);
       r.avatar.root.visible = dist < 600;
-      if (dist < 250) r.avatar.update(dt, r.cadence, r.state.speedMs, r.pose);
+      if (dist < 250) {
+        r.avatar.setEffort?.(r.watts / r.ftp);
+        r.avatar.update(dt, r.cadence, r.state.speedMs, r.pose);
+      }
       // Ombres portées seulement pour les coureurs proches (coût des cascades d'ombre).
       r.avatar.setShadows(dist < 40);
       r.label.position.set(p.x, p.y + 2.15, p.z);

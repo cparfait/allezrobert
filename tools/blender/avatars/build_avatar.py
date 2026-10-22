@@ -381,8 +381,6 @@ def build_base(HS, TS, LS):
             body.modifiers.remove(m)
     # Globes oculaires à part ; les autres aides (cils, cheveux, collants, jupe…) sont supprimées.
     eyes_idx = vgroup_members(body, 'helper-l-eye') | vgroup_members(body, 'helper-r-eye')
-    mouth_idx = set().union(*(vgroup_members(body, g) for g in ('helper-upper-teeth', 'helper-lower-teeth', 'helper-tongue')))
-    keep = vgroup_members(body, 'body') | eyes_idx | mouth_idx
     set_active(body)
     bpy.ops.object.mode_set(mode='EDIT')
     bm = bmesh.from_edit_mesh(body.data)
@@ -399,12 +397,16 @@ def build_base(HS, TS, LS):
     bpy.ops.object.mode_set(mode='EDIT')
     bm = bmesh.from_edit_mesh(body.data)
     bm.verts.ensure_lookup_table()
+    # Indices recalculés après la séparation des yeux (ceux d'avant sont décalés). Langue gardée
+    # (bouche ouverte) ; les dents d'aide de MakeHuman, grossières, sont retirées.
+    keep = vgroup_members(body, 'body') | vgroup_members(body, 'helper-tongue')
     gone = [v for v in bm.verts if v.index not in keep]
     bmesh.ops.delete(bm, geom=gone, context='VERTS')
     bmesh.update_edit_mesh(body.data)
     bpy.ops.object.mode_set(mode='OBJECT')
     body.name = body.data.name = 'rider_body'
     return body, eyes, rig
+
 
 
 def prune_keys(ob, eps=1e-5):
@@ -535,15 +537,18 @@ def assign_kit(body, rig):
     pelvis_z = rig.data.bones['pelvis'].head_local.z
     chest_z = rig.data.bones['spine_03'].head_local.z
     vreg = [region_at(rig, dom[v.index] or 'pelvis', v.co, pelvis_z, chest_z) for v in me.vertices]
-    names = ['skin', 'jersey', 'jersey_accent', 'shorts', 'sock', 'teeth', 'mouth']
-    teeth = vgroup_members(body, 'helper-upper-teeth') | vgroup_members(body, 'helper-lower-teeth')
+    names = ['skin', 'jersey', 'jersey_accent', 'shorts', 'sock', 'mouth']
     tongue = vgroup_members(body, 'helper-tongue')
     mouth = MOUTH[0]
 
+    # Intérieur de la bouche : faces derrière les lèvres tournées vers l'intérieur de la tête (la
+    # peau extérieure, elle, regarde vers l'extérieur).
+    head_c = mouth + Vector((0, 0.08, 0.05))
+
     def inside_mouth(p):
         c = p.center
-        return (abs(c.x - mouth.x) < 0.026 and abs(c.z - mouth.z) < 0.016 and c.y > mouth.y + 0.008
-                and c.y < mouth.y + 0.06 and p.normal.y > -0.3)
+        return (abs(c.x - mouth.x) < 0.034 and mouth.z - 0.04 < c.z < mouth.z + 0.022 and mouth.y + 0.004 < c.y < mouth.y + 0.095
+                and p.normal.dot(head_c - c) > 0)
     me.materials.clear()
     for n in names:
         m = bpy.data.materials.get(n) or bpy.data.materials.new(n)
@@ -553,9 +558,6 @@ def assign_kit(body, rig):
     mi = []
     for p in me.polygons:
         vs = set(p.vertices)
-        if vs <= teeth:
-            mi.append(names.index('teeth'))
-            continue
         if vs <= tongue or inside_mouth(p):
             mi.append(names.index('mouth'))
             continue
@@ -563,6 +565,7 @@ def assign_kit(body, rig):
         reg = region_at(rig, max(set([dom[i] for i in p.vertices if dom[i]] or ['pelvis']), key=[dom[i] for i in p.vertices].count), p.center, pelvis_z, chest_z)
         mi.append(names.index(reg if reg else max(set(rr), key=rr.count)))
     me.polygons.foreach_set('material_index', mi)
+    print('zones :', {n: mi.count(i) for i, n in enumerate(names)})
 
 
 def assign_eyes(eyes, rig):

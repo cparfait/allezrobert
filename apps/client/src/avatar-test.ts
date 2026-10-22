@@ -230,6 +230,40 @@ async function sliderSheet(engine: Awaited<ReturnType<typeof createEngine>>): Pr
   g.font = '600 16px system-ui, sans-serif';
   const eye = a.eyeWorld(new THREE.Vector3());
   camera.fov = 30;
+  // &effort : visage en sortie (FaceAnimator) dans quatre situations, après 10 s simulées.
+  if (params.has('effort')) {
+    const cases: Array<[string, number, number, RiderPose, number]> = [
+      ['au train', 0.65, 85, 'seated', 9], ['au seuil', 1.05, 90, 'seated', 8],
+      ['à bloc', 1.4, 95, 'seated', 7], ['sprint', 1.8, 110, 'standing', 15], ['descente', 0, 0, 'coasting', 16],
+    ];
+    sheet.width = cases.length * cw;
+    sheet.height = ch;
+    g.font = '600 16px system-ui, sans-serif';
+    for (const [i, [label, ftp, cad, pose, v]] of cases.entries()) {
+      const b = new GltfRiderAvatar({ ...DEFAULT_LOOK, bikeModel: 's26-04-cervelo-s5' });
+      b.root.traverse((o) => {
+        if (/rider_(glasses|helmet)/.test(o.name)) o.visible = false;
+      });
+      scene.remove(a.root);
+      scene.add(b.root);
+      b.setEffort(ftp);
+      for (let t = 0; t < 10.13; t += 1 / 30) b.update(1 / 30, cad, v, pose);
+      b.root.updateMatrixWorld(true);
+      const e = b.eyeWorld(new THREE.Vector3());
+      camera.position.set(e.x - 0.12, e.y - 0.01, e.z + 0.34);
+      camera.updateProjectionMatrix();
+      camera.lookAt(e.x, e.y - 0.05, e.z);
+      engine.renderManual();
+      g.drawImage(canvas, 390, 90, 500, 500, i * cw, 0, cw, ch);
+      g.fillStyle = '#000';
+      g.fillText(label, i * cw + 8, 20);
+      scene.remove(b.root);
+    }
+    document.body.replaceChildren(sheet);
+    sheet.style.cssText = 'display:block;width:100%;height:auto';
+    (window as unknown as { __avatarTestDone: boolean }).__avatarTestDone = true;
+    return;
+  }
   // &expr : formes d'expression (une par case, poids 1) au lieu des curseurs.
   if (params.has('expr')) {
     const names = new Set<string>();
