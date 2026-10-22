@@ -10,6 +10,7 @@ import path from 'node:path';
 import { z } from 'zod';
 import type { AppContext } from '../context.ts';
 import { authRoutes } from './auth-routes.ts';
+import { ttsRoutes } from './tts.ts';
 import { clearSessionCookie, cors, errorHandler, HttpError, loadUser, originCheck, requireUser, type AuthedRequest } from './middleware.ts';
 import { COSMETICS, levelInfo, unlockedCosmetics, validateEquipped, xpForRide } from '../progression/xp.ts';
 import { decodeFit, FitImportError, stripHeartRate } from '../activities/fit-import.ts';
@@ -64,6 +65,7 @@ export function mountApi(app: express.Application, ctx: AppContext): void {
   api.use(loadUser(ctx));
 
   api.use('/auth', authRoutes(ctx));
+  api.use('/tts', ttsRoutes(ctx));
 
   /* ───────────── Santé ───────────── */
   api.get('/health', async (_req, res) => {

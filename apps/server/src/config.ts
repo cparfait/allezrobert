@@ -51,6 +51,15 @@ export const ConfigSchema = z.object({
   LIVEKIT_API_KEY: optionalString,
   LIVEKIT_API_SECRET: optionalString,
 
+  /** Synthèse vocale (voix off du tutoriel) : clé Cartesia, uniquement côté serveur. */
+  CARTESIA_API_KEY: optionalString,
+  CARTESIA_MODEL: z.string().default('sonic-2'),
+  /** Voix : Henri (« Express Host ») en français, Jameson (« Easygoing Support ») en anglais. */
+  CARTESIA_VOICE_FR: z.string().default('d9f4af15-c402-4f50-bbda-d8823d028d6a'),
+  CARTESIA_VOICE_EN: z.string().default('a5136bf9-224c-4d76-b823-52bd5efcffcc'),
+  /** Cache disque des répliques synthétisées (une même phrase n'est générée qu'une fois). */
+  TTS_CACHE_DIR: z.string().default('./tts-cache'),
+
   /** Dossier des itinéraires JSON (RouteData). Repli : boucle procédurale. */
   ROUTES_DIR: optionalString,
   /** Dossier des vidéos rendues (volume partagé avec le conteneur renderer). */

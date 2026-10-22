@@ -10,8 +10,8 @@ const hmr = process.env.AR_HMR !== '0';
  * capture du canvas dans docs/screenshots/, pour examiner le rendu à chaque jalon.
  */
 function screenshots(): Plugin {
-  const dir = resolve(__dirname, '../../docs/screenshots');
-  const checkDir = resolve(__dirname, '../../out/worldcheck');
+  const dir = resolve(import.meta.dirname, '../../docs/screenshots');
+  const checkDir = resolve(import.meta.dirname, '../../out/worldcheck');
   return {
     name: 'ar-screenshots',
     apply: 'serve',
@@ -23,7 +23,7 @@ function screenshots(): Plugin {
         const chunks: Buffer[] = [];
         req.on('data', (c: Buffer) => chunks.push(c));
         req.on('end', () => {
-          const outDir = resolve(__dirname, '../../out');
+          const outDir = resolve(import.meta.dirname, '../../out');
           mkdirSync(outDir, { recursive: true });
           const file = resolve(outDir, name);
           writeFileSync(file, Buffer.concat(chunks));
@@ -70,7 +70,7 @@ function excludeWorldTiles(): Plugin {
     apply: 'build',
     closeBundle() {
       if (process.env.AR_BUNDLE_TILES === '1') return;
-      const worlds = resolve(__dirname, 'dist/worlds');
+      const worlds = resolve(import.meta.dirname, 'dist/worlds');
       if (!existsSync(worlds)) return;
       for (const w of readdirSync(worlds)) rmSync(resolve(worlds, w, 'tiles'), { recursive: true, force: true });
     },

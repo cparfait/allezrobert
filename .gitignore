@@ -32,3 +32,6 @@ out/
 deploy/.env
 deploy/backups/
 deploy/data/
+
+# Cache de la synthèse vocale
+tts-cache/

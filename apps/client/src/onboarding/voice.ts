@@ -1,5 +1,23 @@
 import { getLang } from '../i18n/index.ts';
 import { ONBOARDING_SCRIPT } from './script.ts';
+import { serverEndpoint } from '../game/multiplayer.ts';
+
+/** Audio Cartesia déjà reçu (par texte et langue) : chaque réplique n'est téléchargée qu'une fois. */
+const audioCache = new Map<string, Promise<string | null>>();
+
+/** Voix de qualité (Cartesia, via le serveur qui garde la clé) ; null si indisponible. */
+function cartesiaUrl(text: string, lang: 'fr' | 'en'): Promise<string | null> {
+  const key = `${lang}|${text}`;
+  let p = audioCache.get(key);
+  if (!p) {
+    const api = `${serverEndpoint().replace(/\/colyseus$/, '')}/api`;
+    p = fetch(`${api}/tts`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text, lang }) })
+      .then(async (r) => (r.ok ? URL.createObjectURL(await r.blob()) : null))
+      .catch(() => null);
+    audioCache.set(key, p);
+  }
+  return p;
+}
 
 /**
  * Voix off du tutoriel : synthèse vocale du système (Web Speech API), voix française ou
@@ -35,6 +53,8 @@ export class VoiceOver {
   say(key: keyof typeof ONBOARDING_SCRIPT): Promise<void> {
     const lines = ONBOARDING_SCRIPT[key] ?? [];
     const g = this.gen;
+    // Préchargement : toutes les répliques de la clé partent en synthèse tout de suite.
+    if (this.enabled) for (const line of lines) void cartesiaUrl(getLang() === 'fr' ? line.fr : line.en, getLang() === 'fr' ? 'fr' : 'en');
     for (const line of lines) {
       const text = getLang() === 'fr' ? line.fr : line.en;
       this.queue = this.queue.then(() => (g === this.gen ? this.speak(text) : undefined));
@@ -56,7 +76,29 @@ export class VoiceOver {
         }, Math.max(2500, text.length * 55)),
       );
     }
-    return new Promise((res) => {
+    const g = this.gen;
+    return cartesiaUrl(text, getLang() === 'fr' ? 'fr' : 'en').then(
+      (url) =>
+        new Promise<void>((res) => {
+          if (g !== this.gen) return res();
+          if (url) {
+            const audio = new Audio(url);
+            this.current = audio;
+            audio.onended = () => (hide(), res());
+            audio.onerror = () => (hide(), res());
+            void audio.play().catch(() => (hide(), res()));
+            return;
+          }
+          this.speakSystem(text, hide, res);
+        }),
+    );
+  }
+
+  private current: HTMLAudioElement | null = null;
+
+  /** Repli : synthèse vocale du système (Web Speech API). */
+  private speakSystem(text: string, hide: () => void, res: () => void): void {
+    {
       const u = new SpeechSynthesisUtterance(text);
       const v = this.voice();
       if (v) u.voice = v;
@@ -65,13 +107,15 @@ export class VoiceOver {
       u.onend = () => (hide(), res());
       u.onerror = () => (hide(), res());
       speechSynthesis.speak(u);
-    });
+    }
   }
 
   stop(): void {
     this.gen++;
     this.queue = Promise.resolve();
     speechSynthesis.cancel();
+    this.current?.pause();
+    this.current = null;
     this.subtitle.classList.add('hidden');
   }
 }
