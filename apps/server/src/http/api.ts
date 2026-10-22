@@ -31,6 +31,7 @@ const AvatarSchema = z.object({
   jerseyAccent: hex,
   helmet: hex,
   bike: hex,
+  bikeModel: z.string().regex(/^[a-z0-9-]{1,64}$/).optional(),
   build: z.number().min(0).max(1),
 });
 
@@ -96,9 +97,11 @@ export function mountApi(app: express.Application, ctx: AppContext): void {
   api.put('/me/profile', async (req: AuthedRequest, res) => {
     const u = requireUser(req);
     const patch = ProfilePatchSchema.parse(req.body);
-    if (patch.equipped) {
+    // Équipement et modèle de vélo de l'avatar : existants et débloqués au niveau du compte.
+    const bikeModel = patch.avatar?.bikeModel;
+    if (patch.equipped || bikeModel) {
       const level = levelInfo((await ctx.repos.getProgression(u.userId)).xp).level;
-      const err = validateEquipped(patch.equipped, level);
+      const err = validateEquipped(patch.equipped ?? {}, level) ?? (bikeModel ? validateEquipped({ bike: bikeModel }, level) : null);
       if (err) throw new HttpError(400, err, 'cosmetic_locked');
     }
     const before = await ctx.repos.getProfile(u.userId);

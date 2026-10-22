@@ -67,7 +67,10 @@ export interface AvatarLook {
   jersey: string;
   jerseyAccent: string;
   helmet: string;
+  /** Couleur du vélo de base (sans modèle du catalogue). */
   bike: string;
+  /** Modèle du catalogue de vélos (bikes.ts) ; absent : vélo de base de la couleur `bike`. */
+  bikeModel?: string;
   build: number; // 0 = fin, 1 = costaud
 }
 
