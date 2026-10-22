@@ -3,7 +3,6 @@ import {
   AntGenericCommandDeduplicator,
   DflyDecoder,
   EXPERIMENTAL_ADAPTERS_DEFAULT,
-  SRAM_AXS_STUB,
   ZwiftButtonEdgeDetector,
   decodeAntGenericCommand,
   decodeHeadwindStatus,
@@ -17,6 +16,11 @@ import {
   zigzagDecode,
   zigzagEncode,
   zwiftDeviceTypeFromManufacturerData,
+  filterZwiftPodButtons,
+  parseZwiftHandshakeResponse,
+  ZwiftLockDetector,
+  DEFAULT_ZWIFT_CLICK_V2_ACTIONS,
+  ZWIFT_CLICK_V2_RIGHT_ONLY_ACTIONS,
   ZWIFT_RIDE_ON,
 } from '../src/index.ts';
 
@@ -79,6 +83,61 @@ describe('manettes Zwift (expérimental)', () => {
     expect(zwiftDeviceTypeFromManufacturerData([0x09, 0x00])).toBe('click');
     expect(zwiftDeviceTypeFromManufacturerData([0x07])).toBe('rideRight');
     expect(zwiftDeviceTypeFromManufacturerData([0x42])).toBeUndefined();
+    expect(zwiftDeviceTypeFromManufacturerData([0x0a])).toBe('clickV2Right');
+    expect(zwiftDeviceTypeFromManufacturerData([0x0b])).toBe('clickV2Left');
+  });
+});
+
+describe('Zwift Click v2 (recherche 2026)', () => {
+  it('trame de repos et appuis capturés (zwift-play-remote, ORQWA)', () => {
+    // Repos : tous les bits à 1.
+    expect(decodeZwiftControllerMessage(h('23 08 ff ff ff ff 0f'))).toMatchObject({ source: 'ride', pressed: [] });
+    expect(decodeZwiftControllerMessage(h('23 08 fe ff ff ff 0f'))).toMatchObject({ pressed: ['navLeft'] });
+    expect(decodeZwiftControllerMessage(h('23 08 ef ff ff ff 0f'))).toMatchObject({ pressed: ['a'] });
+    expect(decodeZwiftControllerMessage(h('23 08 ff fe ff ff 0f'))).toMatchObject({ pressed: ['z'] });
+    // « + » = 0x1000 (shiftUpRight), « − » = 0x100 (shiftUpLeft).
+    expect(decodeZwiftControllerMessage(h('23 08 ff df ff ff 0f'))).toMatchObject({ pressed: ['shiftUpRight'] });
+    expect(decodeZwiftControllerMessage(h('23 08 ff fd ff ff 0f'))).toMatchObject({ pressed: ['shiftUpLeft'] });
+  });
+
+  it('batterie en champ 2 (19 10 64 = 100 %), champ 1 toujours accepté', () => {
+    expect(decodeZwiftControllerMessage(h('19 10 64'))).toEqual({ type: 'battery', percent: 100 });
+    expect(decodeZwiftControllerMessage(h('19 08 50'))).toEqual({ type: 'battery', percent: 80 });
+  });
+
+  it('messages vendeur, journal, déconnexion', () => {
+    expect(decodeZwiftControllerMessage(h('ff 03 01 02 03'))).toEqual({ type: 'vendor', subtype: 3, payload: h('01 02 03') });
+    expect(decodeZwiftControllerMessage(h('ff 05 00 ea 05'))).toEqual({ type: 'vendor', subtype: 5, payload: h('00 ea 05') });
+    expect(decodeZwiftControllerMessage(h('2a 0a 02 4f 4b')).type).toBe('log');
+    expect(decodeZwiftControllerMessage(h('fe'))).toEqual({ type: 'disconnect' });
+  });
+
+  it('le palet gauche relaie le droit : filtrage par palet', () => {
+    const relayed = ['shiftUpRight', 'navUp'] as const;
+    expect(filterZwiftPodButtons('clickV2Left', relayed)).toEqual(['navUp']);
+    expect(filterZwiftPodButtons('clickV2Right', relayed)).toEqual(['shiftUpRight']);
+    expect(filterZwiftPodButtons('rideLeft', relayed)).toEqual(['shiftUpRight', 'navUp']);
+    expect(DEFAULT_ZWIFT_CLICK_V2_ACTIONS.shiftUpLeft).toBe('down');
+    expect(DEFAULT_ZWIFT_CLICK_V2_ACTIONS.shiftUpRight).toBe('up');
+    expect(ZWIFT_CLICK_V2_RIGHT_ONLY_ACTIONS.b).toBe('down');
+  });
+
+  it('réponse RideOn : variante Click v2, clé publique Zap', () => {
+    expect(parseZwiftHandshakeResponse(h('52 69 64 65 4f 6e 02 03'))).toEqual({ variant: h('02 03') });
+    const key = new Uint8Array(64).fill(7);
+    const r = parseZwiftHandshakeResponse(Uint8Array.from([...ZWIFT_RIDE_ON, 0x01, 0x03, ...key]));
+    expect(r?.devicePublicKey).toEqual(key);
+    expect(parseZwiftHandshakeResponse(h('23 08 ff'))).toBeUndefined();
+  });
+
+  it('verrou : défi ff 03 sans écho = verrouillée ; écho RideOn = déverrouillée', () => {
+    const d = new ZwiftLockDetector();
+    expect(d.push(h('ff 03 aa bb'))).toBe('locked');
+    expect(d.push(h('52 69 64 65 4f 6e 02 03'))).toBe('unlocked');
+    const ok = new ZwiftLockDetector();
+    ok.push(h('52 69 64 65 4f 6e 02 03'));
+    expect(ok.push(h('ff 03 aa bb'))).toBeUndefined(); // défi isolé après l'écho : ignoré
+    expect(ok.state).toBe('unlocked');
   });
 });
 
@@ -108,12 +167,12 @@ describe('Shimano D-Fly (expérimental)', () => {
     expect(d.push(h('00 00 00 00 00'))).toEqual([{ channel: 2, kind: 'release' }]);
     expect(d.push(h('00 00 00 00 42'))).toEqual([{ channel: 4, kind: 'double' }]);
   });
-});
 
-describe('SRAM AXS : interface seule', () => {
-  it('non pris en charge', async () => {
-    expect(SRAM_AXS_STUB.supported).toBe(false);
-    await expect(SRAM_AXS_STUB.bond(async () => {})).rejects.toThrow();
+  it('canal non affecté (0xF0) ignoré', () => {
+    const d = new DflyDecoder();
+    expect(d.push(h('00 00 00 00 00'))).toEqual([]);
+    expect(d.push(h('01 00 00 f0 f0'))).toEqual([]);
+    expect(d.push(h('02 10 00 f0 f0'))).toEqual([{ channel: 1, kind: 'short' }]);
   });
 });
 

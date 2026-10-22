@@ -108,7 +108,9 @@ export type DeviceWarningCode =
   | 'experimental-adapter'
   | 'ant-network-key-missing'
   | 'dircon-single-client'
-  | 'command-failed';
+  | 'command-failed'
+  | 'zwift-controller-locked'
+  | 'sram-axs-not-bonded';
 
 export interface DeviceWarning {
   t: number;

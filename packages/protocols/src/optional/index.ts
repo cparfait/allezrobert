@@ -4,7 +4,9 @@
  * Risques : peuvent casser à une mise à jour de firmware, pas de garantie constructeur.
  */
 export * from './protobuf.ts';
+export * from './aes.ts';
 export * from './zwift-controllers.ts';
+export * from './zwift-zap.ts';
 export * from './headwind.ts';
 export * from './shimano-dfly.ts';
 export * from './sram-axs.ts';
@@ -17,7 +19,7 @@ export interface ExperimentalAdapters {
   headwind: boolean;
   /** Shimano Di2 D-Fly en Bluetooth. */
   shimanoDfly: boolean;
-  /** SRAM AXS : non implémenté (interface seulement). */
+  /** SRAM AXS : rapport engagé après appairage SRAMBond (bouton AXS maintenu), sinon clics anonymes. */
   sramAxs: boolean;
   /** Télécommandes ANT+ Controls (page 73). */
   antControls: boolean;

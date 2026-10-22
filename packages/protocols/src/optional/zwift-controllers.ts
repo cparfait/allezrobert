@@ -15,13 +15,26 @@
  * Notification : [type de message][message protobuf].
  *   0x37 Click (ClickKeyPadStatus : 1 = plus, 2 = moins ; enum 0 = APPUYÉ, 1 = relâché)
  *   0x07 Play  (PlayKeyPadStatus : 1 = côté (0 = droite, 1 = gauche), 2 Y/haut, 3 Z/gauche, 4 A/droite, 5 B/bas, 6 shift, 7 on, 8/9 analogiques zigzag)
- *   0x23 Ride / Click v2 (RideKeyPadStatus : 1 = masque de boutons, bit à 0 = appuyé ; 3 = palettes analogiques)
- *   0x19 batterie (champ 1 = %), 0x15 message vide (inactivité).
+ *   0x23 Ride / Click v2 / Play fw 2 (RideKeyPadStatus : 1 = masque de boutons, bit à 0 = appuyé ; 3 = palettes analogiques)
+ *   0x19 batterie (champ 1 = % sur Play/Click v1, champ 2 sur Click v2 : `19 10 64` = 100 %),
+ *   0x15 message vide (inactivité), 0x2A journal texte du firmware, 0xFE déconnexion,
+ *   0xFF message « vendeur » : `ff 03 …` = défi cryptographique d'une manette verrouillée,
+ *   `ff 05 …` = numéro de série / état renvoyé par le Click v2 après chaque RideOn.
  *
- * TODO (non vérifiable sans matériel / non documenté publiquement) :
- *   - firmwares anciens chiffrés (ECDH + AES-CCM après « RideOn » + clé publique) : non géré ;
- *   - Click v2 et Ride ≥ 1.3 : service masqué tant que la manette n'est pas « déverrouillée » par l'appli
- *     Zwift (mécanisme « unlock ») : non géré, voir ZwiftUnlockStrategy.
+ * Click v2 (état de la recherche, 22/10/2026 — voir docs/PROTOCOLS.md §10.2) :
+ *   - deux palets séparés (type 0x0A droit, 0x0B gauche), protocole « Ride » en clair sur 0xFC82,
+ *     réponse `RideOn 02 03` ; le palet gauche relaie aussi les boutons du droit : on filtre par palet ;
+ *   - les palets s'endorment (~1 min) sans trafic : renvoyer « RideOn » toutes les 3 s les garde éveillés ;
+ *   - le palet DROIT n'est jamais verrouillé ; le GAUCHE l'est si l'appli Zwift ne l'a pas vu depuis
+ *     ~24 h : il répond `ff 03 …` (défi) au lieu de « RideOn » et ne remonte plus ses boutons.
+ *   Ride ≥ 1.3 (« Ride v2 ») : même verrou, service Zwift masqué tant qu'il n'est pas déverrouillé.
+ *
+ * NON IMPLÉMENTÉ, volontairement :
+ *   - répondre au défi `ff 03 …` : la réponse exige une clé détenue par Zwift (BikeControl la garde
+ *     dans un paquet privé et relaie le défi à l'appli Zwift elle-même) ;
+ *   - la trame `ff 04 00` que certains projets écrivent pour qu'une manette déjà déverrouillée « le
+ *     reste » au-delà de 24 h : c'est contourner la fenêtre imposée par le constructeur, on s'abstient.
+ *   Le joueur déverrouille lui-même via l'appli Zwift (10–30 s connecté, gratuit), puis le jeu prend le relais.
  */
 import { startsWith, toBytes, type ByteSource } from '../bytes.ts';
 import { parseProtobuf, zigzagDecode, type ProtoField } from './protobuf.ts';
@@ -45,8 +58,22 @@ export const ZWIFT_MESSAGE_TYPE = {
   empty: 0x15,
   battery: 0x19,
   rideNotification: 0x23,
+  log: 0x2a,
   clickNotification: 0x37,
+  disconnect: 0xfe,
+  vendor: 0xff,
 } as const;
+
+/** Sous-types connus du message « vendeur » 0xFF. */
+export const ZWIFT_VENDOR_SUBTYPE = {
+  /** Défi cryptographique : la manette est verrouillée (réponse réservée à l'appli Zwift). */
+  challenge: 0x03,
+  /** Numéro de série / état, envoyé par le Click v2 après chaque RideOn. */
+  status: 0x05,
+} as const;
+
+/** Intervalle de renvoi de « RideOn » qui empêche le Click v2 de s'endormir (qdomyos-zwift, Torqa, ORQWA). */
+export const ZWIFT_KEEPALIVE_INTERVAL_MS = 3000;
 
 /** Octet de type d'appareil dans les données fabricant (après l'identifiant 0x094A). */
 export const ZWIFT_DEVICE_TYPE = {
@@ -122,6 +149,9 @@ export type ZwiftControllerMessage =
   | { type: 'battery'; percent: number }
   | { type: 'handshake'; variant: Uint8Array }
   | { type: 'idle' }
+  | { type: 'log'; payload: Uint8Array }
+  | { type: 'vendor'; subtype: number; payload: Uint8Array }
+  | { type: 'disconnect' }
   | { type: 'unknown'; messageType: number; payload: Uint8Array };
 
 function field(fields: ProtoField[], n: number): number | undefined {
@@ -143,8 +173,17 @@ export function decodeZwiftControllerMessage(data: ByteSource): ZwiftControllerM
   switch (type) {
     case ZWIFT_MESSAGE_TYPE.empty:
       return { type: 'idle' };
-    case ZWIFT_MESSAGE_TYPE.battery:
-      return { type: 'battery', percent: field(parseProtobuf(payload), 1) ?? 0 };
+    case ZWIFT_MESSAGE_TYPE.battery: {
+      // Play / Click v1 : champ 1 ; Click v2 (protocole Ride) : champ 2.
+      const f = parseProtobuf(payload);
+      return { type: 'battery', percent: field(f, 2) ?? field(f, 1) ?? 0 };
+    }
+    case ZWIFT_MESSAGE_TYPE.log:
+      return { type: 'log', payload: payload.slice() };
+    case ZWIFT_MESSAGE_TYPE.disconnect:
+      return { type: 'disconnect' };
+    case ZWIFT_MESSAGE_TYPE.vendor:
+      return { type: 'vendor', subtype: payload[0] ?? -1, payload: payload.subarray(1).slice() };
     case ZWIFT_MESSAGE_TYPE.clickNotification: {
       const f = parseProtobuf(payload);
       const pressed: ZwiftButton[] = [];
@@ -235,15 +274,95 @@ export const DEFAULT_ZWIFT_BUTTON_ACTIONS: Partial<Record<ZwiftButton, 'up' | 'd
   y: 'menu',
 };
 
+// --- Click v2 : deux palets ---------------------------------------------------------------
+
+/** Boutons physiquement portés par chaque palet du Click v2 (le gauche relaie aussi ceux du droit). */
+export const ZWIFT_CLICK_V2_POD_BUTTONS: Readonly<Record<'clickV2Left' | 'clickV2Right', readonly ZwiftButton[]>> = {
+  // Palet gauche : croix de navigation + bouton « − » (bit shiftUpLeft 0x100).
+  clickV2Left: ['navUp', 'navDown', 'navLeft', 'navRight', 'shiftUpLeft'],
+  // Palet droit : Y, Z, A, B + bouton « + » (bit shiftUpRight 0x1000).
+  clickV2Right: ['y', 'z', 'a', 'b', 'shiftUpRight'],
+};
+
+/** Ne garde que les boutons du palet qui a émis la trame (évite le double appui dû au relais). */
+export function filterZwiftPodButtons(deviceType: ZwiftDeviceType | undefined, pressed: readonly ZwiftButton[]): ZwiftButton[] {
+  if (deviceType !== 'clickV2Left' && deviceType !== 'clickV2Right') return [...pressed];
+  const own = ZWIFT_CLICK_V2_POD_BUTTONS[deviceType];
+  return pressed.filter((b) => own.includes(b));
+}
+
+/** Correspondance par défaut du Click v2 : « + » monte, « − » descend (et non plateau). */
+export const DEFAULT_ZWIFT_CLICK_V2_ACTIONS: typeof DEFAULT_ZWIFT_BUTTON_ACTIONS = {
+  ...DEFAULT_ZWIFT_BUTTON_ACTIONS,
+  shiftUpRight: 'up',
+  shiftUpLeft: 'down',
+};
+
+/** Variante « palet droit seul » (sans déverrouillage) : « + » monte, B descend (comme BikeControl ≥ 6.4). */
+export const ZWIFT_CLICK_V2_RIGHT_ONLY_ACTIONS: typeof DEFAULT_ZWIFT_BUTTON_ACTIONS = {
+  ...DEFAULT_ZWIFT_CLICK_V2_ACTIONS,
+  b: 'down',
+};
+
+// --- Poignée de main et verrou ------------------------------------------------------------
+
+export interface ZwiftHandshakeResponse {
+  /** Deux octets après « RideOn » : 01 03 Click, 01 04 Play, 02 03 Click v2 (observés). */
+  variant: Uint8Array;
+  /** Clé publique P-256 de l'appareil (64 octets X‖Y) : présente seulement en mode chiffré « Zap ». */
+  devicePublicKey?: Uint8Array;
+}
+
+/** Analyse une réponse « RideOn » reçue sur SyncTx ; undefined si ce n'en est pas une. */
+export function parseZwiftHandshakeResponse(data: ByteSource): ZwiftHandshakeResponse | undefined {
+  const b = toBytes(data);
+  if (!startsWith(b, ZWIFT_RIDE_ON)) return undefined;
+  const variant = b.slice(ZWIFT_RIDE_ON.length, ZWIFT_RIDE_ON.length + 2);
+  const rest = b.subarray(ZWIFT_RIDE_ON.length + 2);
+  return rest.length === 64 ? { variant, devicePublicKey: rest.slice() } : { variant };
+}
+
+export type ZwiftLockState = 'unknown' | 'unlocked' | 'locked';
+
 /**
- * Point d'extension pour les variantes nécessitant une poignée de main non documentée
- * (firmwares chiffrés, « unlock » Click v2 / Ride v2). Aucune implémentation fournie.
+ * Déduit l'état de verrouillage des réponses de la manette (SyncTx et Async) :
+ * écho « RideOn » = déverrouillée ; défi `ff 03 …` sans écho = verrouillée (palet gauche du Click v2,
+ * Ride v2). Un défi isolé après un écho « RideOn » est ignoré (observé sur du matériel qui continue
+ * pourtant d'envoyer ses boutons).
+ */
+export class ZwiftLockDetector {
+  private _state: ZwiftLockState = 'unknown';
+
+  get state(): ZwiftLockState {
+    return this._state;
+  }
+
+  /** Renvoie le nouvel état si la trame l'a changé. */
+  push(data: ByteSource): ZwiftLockState | undefined {
+    const b = toBytes(data);
+    const before = this._state;
+    if (startsWith(b, ZWIFT_RIDE_ON)) this._state = 'unlocked';
+    else if (b[0] === ZWIFT_MESSAGE_TYPE.vendor && b[1] === ZWIFT_VENDOR_SUBTYPE.challenge && this._state !== 'unlocked') this._state = 'locked';
+    return this._state !== before ? this._state : undefined;
+  }
+
+  reset(): void {
+    this._state = 'unknown';
+  }
+}
+
+/**
+ * Stratégie de poignée de main. Implémentations fournies : RideOn en clair (défaut) et « Zap »
+ * chiffré des anciens firmwares (zwift-zap.ts). Le déverrouillage Click v2 / Ride v2 n'en fait PAS
+ * partie : il exige une clé de Zwift (voir l'en-tête du fichier).
  */
 export interface ZwiftUnlockStrategy {
   readonly name: string;
   /** Octets à écrire sur SyncRx avant de recevoir des appuis. */
   handshake(): Promise<Uint8Array[]>;
-  /** Déchiffre une notification si nécessaire. */
+  /** Réponse « RideOn » reçue sur SyncTx (clé publique de l'appareil en mode chiffré, par exemple). */
+  onHandshakeResponse?(data: Uint8Array): Promise<void> | void;
+  /** Déchiffre une notification si nécessaire (sinon la renvoie telle quelle). */
   decrypt?(data: Uint8Array): Uint8Array;
 }
 

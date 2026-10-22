@@ -20,4 +20,10 @@ export const WARNING_MESSAGES: Record<DeviceWarningCode, string> = {
     'Clé réseau ANT+ absente : renseignez-la dans les réglages de l’app (ANT_PLUS_NETWORK_KEY). Elle n’est pas fournie avec le jeu (licence ANT+).',
   'dircon-single-client': 'Direct Connect n’accepte qu’un client TCP à la fois : fermez les autres applis connectées en WiFi/Ethernet au trainer.',
   'command-failed': 'Le home trainer a refusé une commande.',
+  'zwift-controller-locked':
+    'Manette Zwift verrouillée par Zwift (Click v2 gauche, Ride v2) : ouvrez l’appli Zwift (compte gratuit), connectez-y la manette 10 à 30 s, ' +
+    'fermez Zwift puis reconnectez-la ici. Le déverrouillage dure environ 24 h. Le palet droit du Click v2 fonctionne sans déverrouillage.',
+  'sram-axs-not-bonded':
+    'SRAM AXS non appairé : seuls des appuis anonymes sont lus (clic = monter, double clic = descendre). Pour lire le rapport engagé, ' +
+    'lancez l’appairage en maintenant le bouton AXS du dérailleur jusqu’au clignotement (l’appli SRAM se ré-appairera seule ensuite).',
 };

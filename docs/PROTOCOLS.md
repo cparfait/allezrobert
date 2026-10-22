@@ -24,6 +24,7 @@ Direct Connect est en big-endian. Toutes les UUID sont manipulées en 128 bits m
 | Favero Assioma Duo | Bluetooth CPS (**1 seule connexion**) | ANT+ PWR (TE/PS) | `PowerMeter` / `AntPowerMeter` |
 | Zwift Click / Play / Ride | Bluetooth propriétaire (expérimental) | — | `ZwiftControllerShifter` |
 | Shimano Di2 D-Fly | Bluetooth propriétaire (expérimental) | — | `DflyShifter` |
+| SRAM AXS (dérailleur arrière) | Bluetooth propriétaire (expérimental) | — | `SramAxsShifter` |
 | KICKR HEADWIND | Bluetooth propriétaire (expérimental) | — | `HeadwindFan` |
 | Clavier, manette | API navigateur | — | `KeyboardShifter`, `GamepadShifter` |
 
@@ -454,18 +455,136 @@ Ils sont activés par `DeviceManager.setExperimental({...})`. Ce sont des protoc
 non documentés, décodés par la communauté : ils peuvent cesser de fonctionner après une mise à jour
 de firmware. Chaque connexion émet l'avertissement `experimental-adapter`.
 
-| Adaptateur | Ce qui est implémenté | Non implémenté (TODO) | Source |
+| Adaptateur | Ce qui est implémenté | Non implémenté | Source |
 | --- | --- | --- | --- |
-| Zwift Click v1/v2, Play, Ride | service `00000001-19ca-4651-86e5-fa29dcdd09d1` (ou 0xFC82), poignée de main « RideOn » en clair, décodage protobuf des boutons (0x37 Click, 0x07 Play, 0x23 Ride/Click v2 ; bit à 0 = appuyé), palettes analogiques, batterie (0x19), fronts montants | firmwares chiffrés (ECDH + AES-CCM) ; « déverrouillage » Click v2 / Ride ≥ 1.3 (service masqué) : interface `ZwiftUnlockStrategy` seulement | BikeControl / OpenBikeControl |
+| Zwift Click v1, Play, Ride ≤ 1.2 | service `00000001-19ca-4651-86e5-fa29dcdd09d1` (ou 0xFC82), poignée de main « RideOn » en clair, décodage protobuf des boutons (0x37 Click, 0x07 Play, 0x23 Ride/Click v2/Play fw 2 ; bit à 0 = appuyé), palettes analogiques, batterie (0x19, champ 1 ou 2), journal 0x2A, messages vendeur 0xFF, fronts montants | — | BikeControl, zwift-play-remote |
+| Zwift Play / Click (anciens firmwares chiffrés « Zap ») | `createZapUnlockStrategy()` (opt-in) : ECDH P-256 éphémère (WebCrypto), HKDF-SHA-256, AES-256-CCM (étiquette 4 o) ; repli automatique en clair si la manette ne renvoie pas de clé | vérification sur matériel (aucune capture publique avec clés) | Makinolo, ajchellew/zwiftplay |
+| Zwift Click v2 | palets séparés (0x0A droit, 0x0B gauche) : filtrage des boutons relayés par le gauche, « − » = descendre, RideOn toutes les 3 s (sinon veille au bout d'~1 min), détection du verrou (`ff 03 …` sans écho RideOn → `zwift-controller-locked`) | réponse au défi `ff 03` (clé détenue par Zwift) ; trame `ff 04 00` de « maintien du déverrouillage » (contournement de la fenêtre de 24 h : écartée) | qdomyos-zwift #4743, Torqa #271, ORQWA #306, BikeControl |
+| Zwift Ride v2 (firmware ≥ 1.3) | détection du service masqué (annonce Zwift sans service → `zwift-controller-locked`) ; une fois déverrouillé par l'appli Zwift, même décodage que le Ride | déverrouillage (clé Zwift, voir §10.2) | BikeControl #398 |
 | KICKR HEADWIND | `[04 mode]` (1 arrêt, 2 FC, 3 vitesse, 4 manuel), `[02 %]`, état `FD 01 % mode` ; pas de 25 % par défaut (seules valeurs observées) | vérification des valeurs intermédiaires, ANT+ | BikeControl (bêta) |
-| Shimano Di2 D-Fly | service `000018ef-5348-494d-414e-4f5f424c4500`, canaux 1–4 : 0x10 court, 0x20 long, 0x40 double | rapport réellement engagé (service 0x18FF authentifié E-TUBE) | BikeControl |
-| SRAM AXS | **interface seule** (`SramAxsAdapter`) | tout : les constantes publiées par BikeControl sont factices, les vraies sont privées | — |
+| Shimano Di2 D-Fly | service `000018ef-5348-494d-414e-4f5f424c4500`, canaux 1–4 : 0x10 court, 0x20 long, 0x40 double, 0xF0 = canal non affecté (ignoré) | « mode boutons » et rapport engagé des Di2 12 v sans fil (service 0x18FF authentifié par le code E-TUBE, non publié) | BikeControl, kelvkk/shimano-di2-media-controls |
+| SRAM AXS | annonces (batterie mV/%, série, firmware) ; caractéristiques en clair (série, modèle, firmware + build, MicroAdjust, compteur) ; appairage SRAMBond v1 hors ligne (DH 128 bits + AES-EAX) ; rapport engagé `d905000b` déchiffré → `shift` avec `realGear` ; sans appairage : appuis anonymes clic simple / double | identité du bouton pressé (chiffrée, format non publié), SRAMBond v2, reconnexion « greet », réglages | GaborWnuk/sram-axs (MPL-2.0), tarekrached/esphome-sram-axs (MIT), BikeControl #234 |
 | ANT+ Controls | page 73 « Generic Command » (haut, bas, sélection, retour…) | — | ANT+ Controls profile |
 
 **Jamais** de « Zwift Protocol » pour piloter la résistance d'un trainer : le jeu passe par FTMS ou
 FE-C. Le décodeur Zwift ne lit que les boutons. Licence : BikeControl est publié sous licence non
 commerciale (avant le tag `gpl3` : GPL-3.0). Nous n'en reprenons que des **faits de protocole**
-(UUID, valeurs d'octets), réimplémentés sans copie de code.
+(UUID, valeurs d'octets), réimplémentés sans copie de code. Même règle pour tous les projets cités
+ci-dessous, quelle que soit leur licence.
+
+### 10.1 Utilisation
+
+- **Click v2** : le type de palet vient des données fabricant (`0x094A`, transmises par l'app desktop ;
+  clé décimale `"2378"`). En Web Bluetooth, sans données fabricant, le nom « Zwift Click » et le service
+  0xFC82 suffisent à reconnaître un Click v2 (maintien en éveil), mais pas le côté : connecter **un seul
+  palet** évite alors le double appui. Mode « palet droit seul » (sans déverrouillage) :
+  `zwift: { actions: ZWIFT_CLICK_V2_RIGHT_ONLY_ACTIONS }` (« + » monte, B descend).
+- **Manette verrouillée** (`zwift-controller-locked`) : ouvrir l'appli Zwift (compte gratuit), y
+  connecter la manette 10 à 30 s, fermer Zwift, reconnecter dans le jeu. Valable ~24 h.
+- **Zap** : `createProfiles(link, { experimental: { zwiftControllers: true }, zwift: { unlock: createZapUnlockStrategy() } })`,
+  pour une manette dont le firmware n'a jamais été mis à jour. Sinon, mettre le firmware à jour dans
+  Zwift Companion (plus simple).
+- **SRAM AXS** : fournir `sramAxs: { keyStore }` (clé par numéro de série). Sans clé, le profil
+  passe en clics anonymes et émet `sram-axs-not-bonded`. L'interface appelle
+  `SramAxsShifter.createBond()` **après** avoir demandé au cycliste de maintenir le bouton AXS du
+  dérailleur jusqu'au clignotement. L'appairage renouvelle la clé : l'appli SRAM AXS se ré-appaire
+  seule ensuite (le changement de vitesses, sur la radio AIREA, n'est jamais affecté). Pour les clics
+  anonymes, régler l'action des palettes sur « aucune » dans l'appli SRAM si le dérailleur ne doit pas
+  bouger. Web Bluetooth ne connaît que les services SRAM listés dans `ALL_KNOWN_SERVICES` ; l'app
+  desktop découvre tout. Ne jamais écrire sur 0xFE59 (DFU Nordic).
+
+### 10.2 État de la recherche (22 octobre 2026)
+
+Recherche menée sur les dépôts GitHub, tickets, forums et blogs publics. Règle suivie : on implémente
+ce qui est **décrit publiquement** et ne demande **ni clé ni secret du constructeur, ni contournement**
+d'une mesure de protection ; tout le reste est documenté ici et laissé de côté.
+
+**Zwift Click v2, Ride v2 (déverrouillage)**
+
+- Fonctionne : le Click v2 parle le protocole « Ride » **en clair** (`RideOn` → `RideOn 02 03`, trames
+  0x23, masque de 32 bits, repos `23 08 ff ff ff ff 0f`). Le palet droit n'est jamais verrouillé ; les
+  deux s'endorment sans trafic (RideOn toutes les 3 s). Batterie `19 10 64` (champ 2), journal 0x2A,
+  `ff 05 …` (série) après chaque RideOn. Masques confirmés sur matériel par ORQWA #306 : + 0x1000,
+  − 0x100, Y 0x40, Z 0x80, A 0x10, B 0x20, haut 0x2, bas 0x8, gauche 0x1, droite 0x4.
+- Bloqué : le palet gauche (et le Ride ≥ 1.3, qui masque même son service) n'envoie ses boutons que si
+  l'appli Zwift l'a « déverrouillé » dans les ~24 h. Verrouillé, il répond au RideOn par un défi
+  `ff 03 …`. **La réponse exige une clé de Zwift** : BikeControl la conserve dans un paquet privé
+  (`prop`, « clé de déverrouillage par famille ») et fait déverrouiller la manette par l'appli Zwift
+  elle-même en relayant le défi (émulation d'un pont). Rien de public : non implémenté.
+- Écarté volontairement : `ff 04 00` écrit après la poignée de main (BikeControl, repris par
+  qdomyos-zwift #4743 et Torqa) maintiendrait déverrouillée une manette déjà déverrouillée, au-delà
+  des 24 h. Aucune clé n'est en jeu, mais c'est contourner la fenêtre imposée par Zwift : décision
+  laissée aux mainteneurs, non implémentée. Le mode « redémarrage chaque minute » de BikeControl
+  (palet gauche réinitialisé) n'est pas décrit publiquement.
+- Sources : [BikeControl](https://github.com/OpenBikeControl/bikecontrol) (`zwift_unlock.dart`,
+  `constants.dart`, [PR #398](https://github.com/OpenBikeControl/bikecontrol/pull/398),
+  [ticket #68](https://github.com/OpenBikeControl/bikecontrol/issues/68),
+  [billet](https://bikecontrol.app/blog/zwift-click-v2-with-other-trainer-apps/), licence non
+  commerciale) ; [qdomyos-zwift PR #4743](https://github.com/cagnulein/qdomyos-zwift/pull/4743)
+  (GPL-3.0) ; [Torqa PR #271](https://github.com/Torqa-Indoor-Cycling/Torqa/pull/271) ;
+  [ORQWA PR #306](https://github.com/ORQWA/ORQWA/pull/306) ;
+  [MarcelCode/zwift-play-remote, docs/protocol.md](https://github.com/MarcelCode/zwift-play-remote/blob/main/docs/protocol.md) ;
+  [michalbychawski/zwift-click-bridge](https://github.com/michalbychawski/zwift-click-bridge).
+  Fiabilité : bonne pour le décodage (plusieurs projets indépendants, tests matériels ORQWA) ; les
+  durées (veille ~56 s, 24 h) sont des observations d'auteurs, non confirmées par Zwift.
+
+**Zwift Play / Click, mode chiffré « Zap » (anciens firmwares)**
+
+- Implémenté (opt-in, non vérifié sur matériel) : ECDH P-256 éphémère — **aucune clé du
+  constructeur**, la manette accepte la clé publique de n'importe quel hôte —, HKDF-SHA-256
+  (sel = clé manette ‖ clé hôte, 36 octets : 32 de clé AES-256, 4 de nonce), AES-CCM (nonce 8 octets =
+  4 HKDF ‖ compteur tel que reçu, étiquette 4 octets). Le CCM est validé par la RFC 3610 et par un
+  vecteur AES-256 produit avec OpenSSL ; l'échange est testé de bout en bout contre une manette simulée.
+- Sources : [Makinolo, « Connecting to Zwift Play controllers »](https://www.makinolo.com/blog/2023/10/08/connecting-to-zwift-play-controllers/)
+  (pas de licence ; description seulement) ; [ajchellew/zwiftplay](https://github.com/ajchellew/zwiftplay)
+  (pas de licence : lu pour les faits, rien repris). Les firmwares actuels n'en ont plus besoin.
+
+**SRAM AXS**
+
+- Fonctionne (lecture seule, sans connexion) : annonces `0x0933` — octets 7–8 tension (mV, LE),
+  octet 11 % (batteries AXS ; 0xFF sur pile bouton), octets 2–3 firmware ; données de service 0xFE51 —
+  série (u32 LE, octets 2–5). Les palettes ne réveillent pas la radio : les annonces ne disent rien du
+  rapport. Source : [tarekrached/esphome-sram-axs](https://github.com/tarekrached/esphome-sram-axs)
+  (MIT, `docs/protocol.md`, `facts.yaml`), recoupé par ShannoG/home-assistant-sram-axs.
+- Fonctionne (connecté, en clair) : série `d905fe54`, modèle `d905fe56` (1075 = RD-GX-E-B1),
+  enregistrement `d905fe58` (version à l'octet 5, correctif d'abord : `06 37 02` = 2.55.6, build ASCII
+  en fin), MicroAdjust `d905000a`, compteur de changements (octet 50 de `d9050003`), batterie 0x2A19.
+- Fonctionne après appairage : **SRAMBond v1** sur `d905ee52`, entièrement hors ligne : écrire
+  `00 01 … 0f`, écrire g^x mod p (g = 5, p = 2¹²⁸ − 713, 16 octets gros-boutistes), lire la clé publique
+  du composant, lire 48 octets (nonce ‖ chiffré ‖ étiquette) que l'on déchiffre en AES-128-EAX avec le
+  secret partagé → clé du composant, écrire `73`. Puis chaque lecture de `d905000b` (41 octets) se
+  déchiffre en `drivetrain_status` : champ 20 plateau, **21 pignon**, 22 trim. Pas de clé du
+  constructeur : la clé est générée par le composant et ne sort que pendant l'appairage, qui exige de
+  **maintenir le bouton AXS** (possession physique) — la même procédure que l'appli officielle.
+  Vérifié octet par octet contre l'exemple publié (§6.2) et 3 trames réelles d'un RD-GX-E-B1.
+  Source : [GaborWnuk/sram-axs](https://github.com/GaborWnuk/sram-axs) (`PROTOCOL.md`,
+  `SECURITY.md`, MPL-2.0 ; réimplémenté depuis la description, seuls des vecteurs de test repris).
+  Fiabilité : un seul auteur, un dérailleur GX Eagle Transmission et une AXS Controller ; les autres
+  composants devraient suivre (même plateforme), non vérifié. Hypothèse non vérifiée : pignon 1 = le
+  plus facile (sens « up » des actions émises).
+- Partiel : sans appairage, `d9050054` notifie `ff` à chaque appui (BikeControl
+  [#234](https://github.com/OpenBikeControl/bikecontrol/issues/234)) ; l'identité du bouton est dans une
+  lecture chiffrée dont le format n'est pas publié (BikeControl ≥ 6.3 la décode avec du code privé).
+  On distingue donc seulement clic simple / double au temps.
+- Bloqué : SRAMBond v2 (`d905ee58`–`ee5b`) et reconnexion « greet » (non décrits), écriture de réglages
+  (bouton, désactivation du passage des vitesses : non publiés). Le passage des vitesses lui-même passe
+  par la radio AIREA, inaccessible. Le rapport est aussi diffusé en ANT+ « Shifting », profil réservé
+  aux membres ANT+ ([annonce Shifting 2](https://www.thisisant.com/developer/resources/tech-bulletin/ant-shifting-2-profile-now-available-to-ant-members)).
+  Autre lecture possible : [karl-petter/sram-axs-for-ha](https://github.com/karl-petter/sram-axs-for-ha) (batterie 0x180F).
+
+**Shimano Di2**
+
+- Fonctionne : D-Fly (service 0x18EF, caractéristique 0x2AC2 en indications, `[compteur, c1…c4]`,
+  0x10 / 0x20 / 0x40, 0xF0 = non affecté) ; l'appareil doit être appairé au niveau Bluetooth.
+  Sources : BikeControl, [kelvkk/shimano-di2-media-controls](https://github.com/kelvkk/shimano-di2-media-controls)
+  (pas de licence : faits seulement).
+- Bloqué : Di2 12 v sans fil (RD-R7150…) en « mode boutons » (sans affecter de canal D-Fly) et
+  rapport engagé : service 0x18FF « E-TUBE », authentifié par le code d'accès E-TUBE ; BikeControl 7.3
+  ([PR #414](https://github.com/OpenBikeControl/bikecontrol/pull/414)) l'implémente dans son paquet
+  privé, rien de public. Les travaux de K. Wakeham sur l'ANT privé Shimano
+  ([Hackaday](https://hackaday.com/2019/03/26/reverse-engineering-shimano-bike-electronics/)) ne sont
+  plus en ligne ; l'article MakeShift (USENIX WOOT'24) analyse la sécurité de l'ANT, pas un protocole
+  utilisable. Le rapport engagé passe aussi par ANT+ « Shifting » (réservé aux membres ANT+).
 
 ---
 
@@ -497,6 +616,8 @@ morceaux), Web Bluetooth (faux `navigator.bluetooth`) et ANT+ (FE-C, PWR avec TE
 - Wahoo — [Direct Connect](https://support.wahoofitness.com/hc/en-us/articles/360018905100), [KICKR CORE 2](https://support.wahoofitness.com/hc/en-us/articles/28096790110354).
 - [Berg0162/DirCon](https://github.com/Berg0162/DirCon), [binarylogic/py-wftnp](https://github.com/binarylogic/py-wftnp), [cagnulein/qdomyos-zwift](https://github.com/cagnulein/qdomyos-zwift).
 - [OpenBikeControl/bikecontrol](https://github.com/OpenBikeControl/bikecontrol) (ex-jonasbark/swiftcontrol), [pymmog/virtual-cog](https://github.com/pymmog/virtual-cog), [doudar/SHIFTR](https://github.com/doudar/SHIFTR).
+- Adaptateurs expérimentaux (détail et licences au §10.2) : [GaborWnuk/sram-axs](https://github.com/GaborWnuk/sram-axs), [tarekrached/esphome-sram-axs](https://github.com/tarekrached/esphome-sram-axs), [Makinolo — Zwift Play](https://www.makinolo.com/blog/2023/10/08/connecting-to-zwift-play-controllers/), [MarcelCode/zwift-play-remote](https://github.com/MarcelCode/zwift-play-remote), [qdomyos-zwift #4743](https://github.com/cagnulein/qdomyos-zwift/pull/4743).
+- Normes de chiffrement utilisées par `optional/aes.ts` : FIPS-197 (AES), RFC 4493 (CMAC), RFC 3610 / NIST SP 800-38C (CCM), Bellare-Rogaway-Wagner « The EAX Mode of Operation ».
 - [dvmarinoff/Auuki](https://github.com/dvmarinoff/Flux) (FTMS / FE-C dans le navigateur).
 - Favero Assioma, une seule connexion BLE : [forum TrainerRoad](https://www.trainerroad.com/forum/t/favero-assioma-users/24651?page=44) ; mode G+D combiné : [DC Rainmaker](https://dcrainmaker.com/2018/08/bluetooth-compatibility-additional.html).
 - Virtual shifting, protocole Zwift propriétaire : [DC Rainmaker](https://dcrainmaker.com/2024/12/zwift-virtual-shifting-compatibility-jetblack-decathlon.html).

@@ -4,9 +4,12 @@ import {
   HEADWIND,
   SERVICE,
   SHIMANO_DFLY,
+  SRAM_AXS,
   TACX_FEC,
   ZWIFT_CONTROLLER,
   normalizeUuid,
+  isSramAxsUuid,
+  sramAxsSerialFromName,
   type ExperimentalAdapters,
 } from '@allezrobert/protocols';
 import type { GattConnection, GattServiceInfo } from './types.ts';
@@ -57,6 +60,7 @@ export function kindsFromServices(services: readonly string[], name = '', experi
     kinds.add('shifter');
   }
   if (experimental.shimanoDfly && hasService(services, SHIMANO_DFLY.service)) kinds.add('shifter');
+  if (experimental.sramAxs && (isSramAxs(services) || sramAxsSerialFromName(name) !== undefined)) kinds.add('shifter');
   if (experimental.headwind && (hasService(services, HEADWIND.service) || /headwind/i.test(name))) kinds.add('fan');
   return [...kinds];
 }
@@ -82,6 +86,7 @@ export function servicesForKinds(kinds: readonly DeviceKind[] | undefined, exper
         out.add(ZWIFT_CONTROLLER.rideService);
       }
       if (experimental.shimanoDfly) out.add(SHIMANO_DFLY.service);
+      if (experimental.sramAxs) out.add(SRAM_AXS.memberService);
     }
     if (k === 'fan' && experimental.headwind) out.add(HEADWIND.service);
   }
@@ -101,4 +106,21 @@ export const ALL_KNOWN_SERVICES: string[] = [
   ZWIFT_CONTROLLER.rideService,
   HEADWIND.service,
   SHIMANO_DFLY.service,
+  // SRAM AXS : seuls ces services sont connus par leur UUID ; Web Bluetooth ne verra pas les autres
+  // services de la famille d905xxxx (l'app desktop, elle, découvre tout).
+  SRAM_AXS.memberService,
+  SRAM_AXS.buttonService,
+  SRAM_AXS.bondV1Service,
 ];
+
+/** Le périphérique expose-t-il des services SRAM AXS (0xFE51 ou famille d905xxxx) ? */
+export function isSramAxs(services: readonly GattServiceInfo[] | readonly string[]): boolean {
+  if (hasService(services, SRAM_AXS.memberService)) return true;
+  return services.some((s) => isSramAxsUuid(typeof s === 'string' ? s : s.uuid));
+}
+
+/** Service qui porte une caractéristique donnée (UUID 128 bits normalisé), s'il existe. */
+export function serviceOf(conn: GattConnection, characteristic: string): string | undefined {
+  const c = normalizeUuid(characteristic);
+  return conn.services.find((s) => s.characteristics.some((x) => normalizeUuid(x.uuid) === c))?.uuid;
+}

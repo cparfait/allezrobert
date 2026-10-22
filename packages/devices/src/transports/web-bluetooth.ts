@@ -3,7 +3,7 @@
  * il DOIT être appelé depuis un geste utilisateur (clic). Un seul appareil est renvoyé par appel.
  * Les services utilisables doivent être déclarés à l'avance (`optionalServices`).
  */
-import { SERVICE, ZWIFT_CONTROLLER, normalizeUuid, type ExperimentalAdapters } from '@allezrobert/protocols';
+import { SERVICE, SRAM_AXS, ZWIFT_CONTROLLER, normalizeUuid, type ExperimentalAdapters } from '@allezrobert/protocols';
 import { ALL_KNOWN_SERVICES, kindsFromServices, servicesForKinds } from '../gatt-util.ts';
 import type { DeviceLink, DiscoveredDevice, GattConnection, GattServiceInfo, NotificationHandler, ScanHandle, ScanOptions, Transport } from '../types.ts';
 
@@ -96,7 +96,9 @@ export class WebBluetoothTransport implements Transport {
       filters.push({ namePrefix: 'Zwift' }, { manufacturerData: [{ companyIdentifier: ZWIFT_CONTROLLER.manufacturerId }] });
     }
     if (exp.headwind) filters.push({ namePrefix: 'HEADWIND' });
-    return { filters, optionalServices: ALL_KNOWN_SERVICES, ...(exp.zwiftControllers ? { optionalManufacturerData: [ZWIFT_CONTROLLER.manufacturerId] } : {}) };
+    if (exp.sramAxs) filters.push({ namePrefix: 'SRAM' }, { manufacturerData: [{ companyIdentifier: SRAM_AXS.manufacturerId }] });
+    const manufacturers = [...(exp.zwiftControllers ? [ZWIFT_CONTROLLER.manufacturerId] : []), ...(exp.sramAxs ? [SRAM_AXS.manufacturerId] : [])];
+    return { filters, optionalServices: ALL_KNOWN_SERVICES, ...(manufacturers.length ? { optionalManufacturerData: manufacturers } : {}) };
   }
 
   async scan(options: ScanOptions, onFound: (d: DiscoveredDevice) => void): Promise<ScanHandle> {

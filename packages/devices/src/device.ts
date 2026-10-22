@@ -170,7 +170,8 @@ export class Device extends Emitter<DeviceEventMap> {
     this.link = link;
     this.linkUnsub = link.onDisconnect(() => this.onLinkLost(link));
     if (!this.profiles) {
-      this.profiles = this.options.profiles ?? createProfiles(link, this.options);
+      const advertisement = { name: this.descriptor.name, ...(this.descriptor.manufacturerData ? { manufacturerData: this.descriptor.manufacturerData } : {}) };
+      this.profiles = this.options.profiles ?? createProfiles(link, { ...this.options, advertisement: this.options.advertisement ?? advertisement });
     }
     const ctx = this.makeContext();
     if (link.type === 'gatt') await this.readDeviceInformation(link);
