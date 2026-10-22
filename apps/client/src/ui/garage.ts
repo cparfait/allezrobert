@@ -42,6 +42,15 @@ export function awardRide(
   return { gained, total, level: after, progress: lp.progress, levelUp: after > before, unlocked: COSMETICS.filter((c) => c.level > before && c.level <= after) };
 }
 
+/** Ajoute de l'XP (trophées) ; renvoie niveau et progression après coup. */
+export function addXp(xp: number): { level: number; progress: number } {
+  const p = loadProgress();
+  p.xp += Math.max(0, Math.round(xp));
+  saveProgress(p);
+  const lp = levelProgress(p.xp);
+  return { level: lp.level, progress: lp.progress };
+}
+
 export const SLOT_LABEL: Record<CosmeticSlot, { fr: string; en: string }> = {
   jersey: { fr: 'Maillot', en: 'Jersey' },
   helmet: { fr: 'Casque', en: 'Helmet' },

@@ -14,3 +14,4 @@ export function parseWorkoutFile(fileName: string, content: string): Workout {
   if (ext === 'mrc') return parseErgOrMrc(content, { unit: 'percent' });
   throw new Error(`Format de séance non pris en charge : ${fileName}`);
 }
+export * from './library.ts';

@@ -86,12 +86,14 @@ Idées seulement : ni nom, ni asset, ni code, ni physique de NCT Ride (la vitess
 - [x] Stats de fin de sortie complètes (courbe de puissance et records, zones, TSS · IF, calories, comparaison, groupe, .gpx, reprendre)
 - [x] Panneau des coureurs réels à proximité (écarts en s et en m, W/kg, filtre réels / tous)
 - [x] Cyclistes virtuels croisés dans les deux sens (en face, plus lents qu'on double, plus rapides qui doublent ; roue que l'on peut prendre)
-- [ ] Séances intégrées (seuil, sweet spot, pyramide, sprint, récupération active)
-- [ ] Trophées qui rapportent de l'XP ; mode défi (battre les KOM)
+- [x] Séances intégrées (seuil, sweet spot, pyramide, sprints, VO2max, récupération active)
+- [x] Trophées qui rapportent de l'XP (14, affichés en fin de sortie)
+- [ ] Mode défi (battre les KOM)
 - [x] VTT, roues carbone 40 / 50 / 88 mm (les hautes moins bonnes en côte), chaussettes hautes (−0,7 %) — modèle 3D du VTT à faire
 - [ ] Couleur des chaussures, tenues préréglées
 - [ ] Demi-tour sur les itinéraires (aller rechercher les équipiers), vue arrière
-- [ ] Trains déclenchés à un point précis, poussière sur les chemins, pancartes dans la foule, photo du sommet enregistrée
+- [x] Photo du sommet enregistrable depuis l'écran de fin
+- [ ] Trains déclenchés à un point précis, poussière sur les chemins, pancartes dans la foule
 - [ ] Groupe : heure de départ et météo qui évolue
 
 ## Plus tard

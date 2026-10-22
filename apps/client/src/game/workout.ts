@@ -7,11 +7,12 @@ import {
   ftpFrom20MinTest,
   workoutDuration,
   stepTargetWatts,
+  WORKOUT_LIBRARY,
   type Workout,
   type WorkoutPosition,
 } from '@allezrobert/physics';
 
-export type WorkoutKind = 'file' | 'ramp' | 'ftp20';
+export type WorkoutKind = 'file' | 'ramp' | 'ftp20' | 'library';
 
 /**
  * Séance structurée pendant la sortie : consigne ERG envoyée au home trainer (corrigée par
@@ -28,9 +29,19 @@ export class WorkoutController {
   onFinished?: (ftpEstimate: number | null) => void;
   private finishedNotified = false;
 
-  constructor(kind: WorkoutKind, ftpWatts: number, file?: { name: string; content: string }) {
+  /** `file` : séance importée ; `library` : séance intégrée dont `presetId` est l'identifiant. */
+  constructor(kind: WorkoutKind, ftpWatts: number, file?: { name: string; content: string }, presetId?: string) {
     this.kind = kind;
-    this.workout = kind === 'ramp' ? rampTestWorkout() : kind === 'ftp20' ? ftp20MinTestWorkout() : parseWorkoutFile((file as { name: string }).name, (file as { content: string }).content);
+    const preset = WORKOUT_LIBRARY.find((w) => w.id === presetId);
+    if (kind === 'library' && !preset) throw new Error(`Séance intégrée inconnue : ${presetId}`);
+    this.workout =
+      kind === 'ramp'
+        ? rampTestWorkout()
+        : kind === 'ftp20'
+          ? ftp20MinTestWorkout()
+          : kind === 'library'
+            ? (preset as (typeof WORKOUT_LIBRARY)[number]).build()
+            : parseWorkoutFile((file as { name: string }).name, (file as { content: string }).content);
     this.runner = new WorkoutRunner(this.workout, { ftpWatts });
     this.position = this.runner.at(0);
   }

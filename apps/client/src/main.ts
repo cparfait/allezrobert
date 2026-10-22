@@ -31,7 +31,8 @@ import { compareAndStore, readPowerRecords, rideStats, updatePowerRecords } from
 import { shareCard } from './ui/sharecard.ts';
 import { splatAt } from './world/splat.ts';
 import { Onboarding, RideTutorial } from './onboarding/onboarding.ts';
-import { awardRide, loadProgress } from './ui/garage.ts';
+import { addXp, awardRide, loadProgress } from './ui/garage.ts';
+import { awardTrophies } from './game/trophies.ts';
 import { roadSurfaceAt, windShelterAt } from './world/conditions.ts';
 import { OpenNavigator } from './game/open.ts';
 import { fetchMe, showLogin, applyProfile, logout, pushProfile, type Me } from './ui/account.ts';
@@ -391,6 +392,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   let workout: WorkoutController | null = null;
   try {
     if (s.mode === 'workout' && extras.workoutFile) workout = new WorkoutController('file', s.ftpWatts, extras.workoutFile);
+    else if (s.mode === 'workout' && s.workoutPreset) workout = new WorkoutController('library', s.ftpWatts, undefined, s.workoutPreset);
     else if (s.mode === 'ftpTest') workout = new WorkoutController(params.get('ftptest') === '20' ? 'ftp20' : 'ramp', s.ftpWatts);
   } catch (e) {
     console.warn('Séance illisible', e);
@@ -566,6 +568,24 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
       ? null
       : compareAndStore({ routeId: track.route.id, date: ride.startT, distanceM: stats.distanceM, movingS: stats.movingS, avgSpeedKmh: stats.avgSpeedKmh, avgWatts: stats.avgWatts, np: stats.np });
     const L = getLang() === 'fr';
+    const trophies = awardTrophies(
+      {
+        distanceM: done.distanceM,
+        elevationGainM: done.elevationM,
+        komsDone: ride.segmentResults.filter((r) => r.seg.kind === 'kom').length,
+        recordsBeaten: records.beaten.length,
+        rainSeen,
+        nightSeen,
+        openWorld: !!nav,
+        draftS: ride.group.draftS,
+        pulls: ride.group.pulls,
+        workoutFinished: !!workout?.position.finished,
+        guest: s.guest,
+      },
+      String(ride.startT),
+    );
+    const trophyXp = trophies.reduce((a, t) => a + t.xp, 0);
+    const after = trophyXp && xp ? addXp(trophyXp) : null;
     showRideSummary(
       ui,
       {
@@ -578,12 +598,13 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
         records,
         withGroup: peloton.riders.length > 0 || !!mp || ride.group.draftS > 0,
         guest: s.guest,
+        trophies: trophies.map((t) => ({ name: t.name[getLang()], description: t.description[getLang()], xp: t.xp })),
         ...(xp
           ? {
               xp: {
-                gained: xp.total,
-                level: xp.level,
-                progress: xp.progress,
+                gained: xp.total + trophyXp,
+                level: after?.level ?? xp.level,
+                progress: after?.progress ?? xp.progress,
                 levelUp: xp.levelUp,
                 detail: `${Math.round((20 * done.distanceM) / 1000)} ${L ? 'distance' : 'distance'} · ${Math.round(done.elevationM)} ${L ? 'dénivelé' : 'climbing'} · ${Math.round((2 * done.movingS) / 60)} ${L ? 'temps' : 'time'}`,
                 unlocked: xp.unlocked.map((u) => u.name[getLang()]),
@@ -689,6 +710,9 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   let prevHeading = Number.NaN;
   let bank = 0;
   let condAcc = Infinity;
+  // Pour les trophées : pluie et nuit rencontrées pendant la sortie.
+  let rainSeen = false;
+  let nightSeen = false;
   const frame = (dt: number, render: boolean, manual = false) => {
     const steer = keyboard.update(dt);
     if (nav) {
@@ -704,6 +728,10 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
       ride.surface = nav?.surfaceAt(ride.state.distM) ?? track.surfaceAt(ride.state.distM) ?? roadSurfaceAt(t, here.x, here.z, ride.surface);
       ride.shelter = windShelterAt(t, here.x, here.z, here.dirX, here.dirZ);
       ride.rain = world.env.state.weather.rain;
+      if (!ride.paused) {
+        rainSeen ||= ride.rain > 0.2;
+        nightSeen ||= world.nightFactor() > 0.6;
+      }
     }
     if (workout) ride.ergTarget = workout.update(ride.elapsedS, ride.inputs.watts);
     ride.update(dt, input, steer);

@@ -28,6 +28,8 @@ export interface SummaryData {
   /** Il y avait des équipiers, des coureurs IA ou d'autres joueurs. */
   withGroup: boolean;
   guest: boolean;
+  /** Trophées gagnés par cette sortie. */
+  trophies?: Array<{ name: string; description: string; xp: number }>;
 }
 
 export interface SummaryActions {
@@ -101,6 +103,13 @@ export function showRideSummary(root: HTMLElement, d: SummaryData, a: SummaryAct
             : `<section class="sum-card"><p class="sum-muted">${L ? 'Invité : sortie hors classements, sans XP ni export.' : 'Guest: no rankings, XP or export.'}</p></section>`
         }
         ${
+          d.trophies?.length
+            ? `<section class="sum-card"><h3>${L ? 'Trophées' : 'Trophies'}</h3>${d.trophies
+                .map((t) => `<div class="sum-row sum-trophy"><span>🏆 <b>${esc(t.name)}</b><small>${esc(t.description)}</small></span><b></b><em>+${t.xp} XP</em></div>`)
+                .join('')}</section>`
+            : ''
+        }
+        ${
           beaten.length
             ? `<section class="sum-card"><h3>${L ? 'Nouveaux records' : 'New records'}</h3>${beaten
                 .map((dur) => {
@@ -116,6 +125,13 @@ export function showRideSummary(root: HTMLElement, d: SummaryData, a: SummaryAct
               <div class="sum-row"><span>${L ? 'Dans les roues' : 'On a wheel'}</span><b>${hms(g.draftS)}</b></div>
               <div class="sum-row"><span>${L ? 'Énergie économisée' : 'Energy saved'}</span><b>${Math.round(g.savedJ / 1000)} kJ</b></div>
               <div class="sum-row"><span>${L ? 'Relais pris' : 'Pulls taken'}</span><b>${g.pulls}</b></div></section>`
+            : ''
+        }
+        ${
+          d.ride.summitPhotos.length
+            ? `<section class="sum-card"><h3>${L ? 'Photos au sommet' : 'Summit photos'}</h3><div class="sum-photos">${d.ride.summitPhotos
+                .map((src, i) => `<a href="${src}" download="allez-robert-sommet-${i + 1}.jpg" title="${L ? 'Enregistrer la photo' : 'Save the photo'}"><img src="${src}" alt="${L ? 'Photo au sommet' : 'Summit photo'} ${i + 1}" /></a>`)
+                .join('')}</div></section>`
             : ''
         }
         <section class="sum-card" id="s-online"></section>

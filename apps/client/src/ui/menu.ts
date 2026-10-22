@@ -1,5 +1,6 @@
 import type { AvatarLook, CosmeticItem, RouteData } from '@allezrobert/shared';
 import { COSMETICS, DEFAULT_BIKE, bikeSetupFor, levelProgress, type CosmeticSlot } from '@allezrobert/shared';
+import { WORKOUT_LIBRARY } from '@allezrobert/physics';
 import { t, setLang, getLang, type I18nKey } from '../i18n/index.ts';
 import type { Settings } from './settings.ts';
 import { saveSettings } from './settings.ts';
@@ -211,7 +212,7 @@ export class MainMenu {
           ['free', 'free', 'Rouler à son rythme, avec ou sans coureurs IA.'],
           ['group', 'group', 'Rouler à plusieurs : le groupe reste ensemble.'],
           ['race', 'race', 'Course en ligne, classement à l’arrivée.'],
-          ['workout', 'workout', 'Séance structurée (.zwo, .erg, .mrc) en mode ERG.'],
+          ['workout', 'workout', 'Séance structurée en mode ERG : séances intégrées ou fichier .zwo, .erg, .mrc.'],
           ['ftpTest', 'ftpTest', 'Test de 20 minutes pour estimer ta FTP.'],
           ...(this.openWorld ? ([['open', 'open', 'Toutes les routes du monde : ← / → pour choisir ta direction à chaque carrefour, U pour faire demi-tour.']] as Array<[Settings['mode'], I18nKey, string]>) : []),
         ]
@@ -219,7 +220,7 @@ export class MainMenu {
           ['free', 'free', 'Ride at your own pace, with or without AI riders.'],
           ['group', 'group', 'Ride together: the group stays as one.'],
           ['race', 'race', 'Online race, results at the finish.'],
-          ['workout', 'workout', 'Structured session (.zwo, .erg, .mrc) in ERG mode.'],
+          ['workout', 'workout', 'Structured session in ERG mode: built-in workouts or a .zwo, .erg, .mrc file.'],
           ['ftpTest', 'ftpTest', '20-minute test to estimate your FTP.'],
           ...(this.openWorld ? ([['open', 'open', 'Every road of the world: ← / → to pick your way at each junction, U to turn around.']] as Array<[Settings['mode'], I18nKey, string]>) : []),
         ];
@@ -313,7 +314,11 @@ export class MainMenu {
         s.mode === 'group' || s.mode === 'race'
           ? `<input id="m-invite" class="mm-input" placeholder="${L ? 'Code d’invitation (facultatif)' : 'Invite code (optional)'}" />`
           : s.mode === 'workout'
-            ? `<label class="mm-file">${L ? 'Choisir une séance' : 'Choose a workout'} (.zwo / .erg / .mrc)<input id="m-workout" type="file" accept=".zwo,.erg,.mrc" hidden /><span id="m-wname">${this.workoutFile ? esc(this.workoutFile.name) : ''}</span></label>`
+            ? `<div class="mm-routes mm-presets">${WORKOUT_LIBRARY.map(
+                (w) =>
+                  `<button class="mm-route ${!this.workoutFile && w.id === s.workoutPreset ? 'on' : ''}" data-preset="${w.id}"><b>${esc(w.name[getLang()])}</b><span>${esc(w.description[getLang()])}</span></button>`,
+              ).join('')}</div>
+              <label class="mm-file">${L ? 'Ou importer une séance' : 'Or import a workout'} (.zwo / .erg / .mrc)<input id="m-workout" type="file" accept=".zwo,.erg,.mrc" hidden /><span id="m-wname">${this.workoutFile ? esc(this.workoutFile.name) : ''}</span></label>`
             : ''
       }
       ${r ? this.routeCard(r) : ''}
@@ -798,6 +803,14 @@ export class MainMenu {
     this.root.querySelectorAll<HTMLElement>('[data-mode]').forEach((el) =>
       el.addEventListener('click', () => {
         s.mode = el.dataset.mode as Settings['mode'];
+        changed();
+        this.render();
+      }),
+    );
+    this.root.querySelectorAll<HTMLElement>('[data-preset]').forEach((el) =>
+      el.addEventListener('click', () => {
+        s.workoutPreset = el.dataset.preset as string;
+        this.workoutFile = undefined;
         changed();
         this.render();
       }),

@@ -41,6 +41,8 @@ export interface Settings {
   inertia: number;
   /** Monde choisi (dossier public/worlds/<id>) ; `?world=` dans l'adresse a priorité. */
   world: string;
+  /** Séance intégrée choisie (mode entraînement), si aucun fichier n'est importé. */
+  workoutPreset: string;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -70,6 +72,7 @@ export const DEFAULT_SETTINGS: Settings = {
   guest: false,
   inertia: 1,
   world: 'chevreuse',
+  workoutPreset: 'sweet-spot-3x12',
 };
 
 const KEY = 'ar.settings';
