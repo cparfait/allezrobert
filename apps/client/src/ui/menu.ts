@@ -5,6 +5,7 @@ import type { Settings } from './settings.ts';
 import { saveSettings } from './settings.ts';
 import { music } from '../audio/music.ts';
 import { spotify, redirectUri } from '../audio/spotify.ts';
+import { renderSoundSettings } from './soundSettings.ts';
 import { loadProgress, equipItem, SLOT_LABEL } from './garage.ts';
 import type { GarageView } from './poster.ts';
 import './menu.css';
@@ -270,6 +271,7 @@ export class MainMenu {
     if (this.tab === 'devices') this.renderDevices();
     this.renderStatus();
     this.renderMusic();
+    renderSoundSettings(this.root.querySelector('#m-sound-settings'));
     this.bind();
   }
 
@@ -485,6 +487,8 @@ export class MainMenu {
       </div>
       <h3>${L ? 'Musique' : 'Music'}</h3>
       <div id="m-music-settings" class="mm-musicset"></div>
+      <h3>${L ? 'Son' : 'Sound'}</h3>
+      <div id="m-sound-settings"></div>
       <h3>${L ? 'Langue et envoi des sorties' : 'Language and ride upload'}</h3>
       <div class="grid3">
         <div class="field">${t('language')}${this.seg('m-lang', s.lang, [

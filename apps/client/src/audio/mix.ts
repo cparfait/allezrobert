@@ -20,13 +20,13 @@ export interface SoundMix {
 
 export const DEFAULT_MIX: SoundMix = { master: 0.8, ambience: 0.8, bike: 0.8, breath: 0.5, crowd: 0.8, traffic: 0.7, breathOn: true };
 
-export const BUS_LABELS: Record<Bus | 'master', { fr: string; en: string }> = {
-  master: { fr: 'Général', en: 'Master' },
-  ambience: { fr: 'Ambiance (nature, météo, villages)', en: 'Ambience (nature, weather, villages)' },
-  bike: { fr: 'Vélo (roulement, roue libre, vent)', en: 'Bike (tyres, freewheel, wind)' },
-  breath: { fr: 'Souffle du coureur', en: 'Rider breathing' },
-  crowd: { fr: 'Public', en: 'Crowd' },
-  traffic: { fr: 'Trafic', en: 'Traffic' },
+export const BUS_LABELS: Record<Bus | 'master', { fr: string; en: string; hint: { fr: string; en: string } }> = {
+  master: { fr: 'Général', en: 'Master', hint: { fr: 'Tous les sons du jeu (hors musique)', en: 'All game sounds (not music)' } },
+  ambience: { fr: 'Ambiance', en: 'Ambience', hint: { fr: 'Nature, météo, villages, cloches', en: 'Nature, weather, villages, bells' } },
+  bike: { fr: 'Vélo', en: 'Bike', hint: { fr: 'Roulement, roue libre, dérailleur, vent', en: 'Tyres, freewheel, shifting, wind' } },
+  breath: { fr: 'Souffle', en: 'Breathing', hint: { fr: 'Respiration du coureur à l’effort', en: 'Rider breathing when pushing' } },
+  crowd: { fr: 'Public', en: 'Crowd', hint: { fr: 'Spectateurs des côtes et des sprints', en: 'Spectators on climbs and sprints' } },
+  traffic: { fr: 'Trafic', en: 'Traffic', hint: { fr: 'Voitures, camionnettes, tracteurs', en: 'Cars, vans, tractors' } },
 };
 
 const KEY = 'ar.sound';
