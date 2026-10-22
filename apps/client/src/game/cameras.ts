@@ -20,15 +20,15 @@ export interface CameraTarget {
 
 const _up = new THREE.Vector3(0, 1, 0);
 /**
- * Vue subjective : caméra entre les bras, COCKPIT_BACK m en arrière des mains et COCKPIT_UP m
- * au-dessus (sous la ligne des épaules, tête et cou masqués) ; regard COCKPIT_PITCH rad sous
- * l'axe de la route. Focale verticale COCKPIT_FOV (≈ 95° en horizontal en 16/9, sans fish-eye) :
- * cintre (≈ 40 cm) en bas de l'image, bras par les coins, horizon vers le tiers haut.
+ * Vue subjective depuis les yeux (mesuré sur le modèle : mains 54 cm sous les yeux et 19 cm
+ * devant, soit ≈ 70° sous l'horizontale). Caméra COCKPIT_BACK m en retrait des yeux, regard
+ * baissé de COCKPIT_PITCH rad, focale verticale COCKPIT_FOV proche du champ utile de l'œil :
+ * route et horizon en haut, cintre, mains et compteur en bas, comme en roulant.
  */
-const COCKPIT_BACK = 0.5;
-const COCKPIT_UP = 0.29;
-const COCKPIT_PITCH = 0.27;
-const COCKPIT_FOV = 60;
+const COCKPIT_BACK = 0.08;
+const COCKPIT_UP = 0.02;
+const COCKPIT_PITCH = 0.56;
+const COCKPIT_FOV = 76;
 
 /**
  * Caméras : poursuite (par défaut), cockpit (vue subjective), caméra embarquée, drone,
@@ -144,12 +144,10 @@ export class CameraRig {
         // Vue subjective depuis les yeux du coureur (tête masquée) : la caméra suit la tête, donc
         // le balancement du coup de pédale. Regard vers la route devant, un peu plongeant, pour
         // garder avant-bras, mains sur les cocottes, cintre, potence et compteur en bas de l'image.
-        // Placée entre les bras, en arrière du cintre et sous la ligne des épaules (comme les vues
-        // subjectives des simulateurs) : cintre grand en bas de l'image, bras entrant par les coins,
-        // horizon vers le tiers haut, sans grand angle déformant.
-        if (t.hands) desired.copy(t.hands).addScaledVector(t.dir, -COCKPIT_BACK).addScaledVector(_up, COCKPIT_UP);
-        else if (t.eye) desired.copy(t.eye).addScaledVector(t.dir, 0.1).addScaledVector(_up, -0.25);
-        else desired.copy(t.position).addScaledVector(t.dir, 0.1).addScaledVector(_up, 1.3);
+        // Depuis les yeux du coureur (tête et cou masqués), à peine en retrait : ce que l'on voit
+        // vraiment en roulant, regard baissé vers la route ; cintre, mains et compteur en bas.
+        if (t.eye) desired.copy(t.eye).addScaledVector(t.dir, -COCKPIT_BACK).addScaledVector(_up, COCKPIT_UP);
+        else desired.copy(t.position).addScaledVector(t.dir, 0.05).addScaledVector(_up, 1.5);
         // Tangage : mains (cintre) calées en bas de l'image, en côte comme en descente (plongée bornée :
         // en danseuse elles descendent un peu) ; sans repère des mains, pente du vélo plus un tiers
         // de l'écart vers la route à 30 m.
@@ -158,7 +156,7 @@ export class CameraRig {
         const dz = ahead.z - desired.z;
         const hd = Math.hypot(dx, dz) || 1;
         const bikePitch = Math.atan(this.track.sample(t.distM).grade / 100);
-        // Regard presque dans l'axe de la route (légère plongée), quelle que soit la pente.
+        // Regard baissé de COCKPIT_PITCH sous la pente du vélo (un tiers de l'écart avec la route à 30 m).
         const roadPitch = Math.atan2(ahead.y + 1.0 - desired.y, hd);
         const pitch = bikePitch + (roadPitch - bikePitch) / 3 - COCKPIT_PITCH;
         look.set(desired.x + (dx / hd) * Math.cos(pitch) * 10, desired.y + Math.sin(pitch) * 10, desired.z + (dz / hd) * Math.cos(pitch) * 10);
