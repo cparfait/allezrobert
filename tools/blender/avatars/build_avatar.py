@@ -858,6 +858,143 @@ def transfer_keys(body, objs):
 
 
 # ---------------------------------------------------------------------------------------------
+# Niveaux de détail (docs/AVATARS.md § 8)
+# ---------------------------------------------------------------------------------------------
+# Suffixe, réduction du corps (depuis le niveau 0), des accessoires, ourlets protégés.
+LODS = (('_lod1', 0.4, 0.6, True), ('_lod2', 0.2, 0.3, False))
+
+
+def border_verts(me):
+    """Sommets au bord de deux matériaux (ourlets de la tenue), et leurs voisins."""
+    mats = {}
+    for p in me.polygons:
+        for k in p.edge_keys:
+            mats.setdefault(k, set()).add(p.material_index)
+    border = {v for k, m in mats.items() if len(m) > 1 for v in k}
+    ring = set(border)
+    for e in me.edges:
+        a, b = e.vertices
+        if a in border or b in border:
+            ring.update((a, b))
+    return ring
+
+
+def decimate_group(ob, protect_head):
+    """Groupe « decimate » : 1 = libre, 0 = protégé (ourlets ; tête si demandé)."""
+    hg = ob.vertex_groups.get('head')
+    ng = ob.vertex_groups.get('neck_01')
+    keep = border_verts(ob.data)
+    g = ob.vertex_groups.new(name='decimate')
+    for v in ob.data.vertices:
+        w = 0.0
+        if protect_head:
+            for ge in v.groups:
+                if (hg and ge.group == hg.index) or (ng and ge.group == ng.index):
+                    w = max(w, ge.weight)
+        f = 0.0 if v.index in keep else 1.0 - min(1.0, w * 2)
+        g.add([v.index], f, 'REPLACE')
+
+
+def reduce_body(body, ratio=0.45):
+    """Niveau 0 : corps décimé hors de la tête (protégée par son poids d'os : visage, expressions
+    et curseurs intacts) ; toutes les cibles reportées depuis l'original."""
+    from mathutils import kdtree
+    c = body.copy()
+    c.data = body.data.copy()
+    bpy.context.scene.collection.objects.link(c)
+    c.shape_key_clear()
+    decimate_group(c, protect_head=True)
+    dec = c.modifiers.new('Decimate', 'DECIMATE')
+    dec.ratio = ratio
+    dec.vertex_group = 'decimate'
+    dec.vertex_group_factor = 1.0
+    dec.use_collapse_triangulate = True
+    set_active(c)
+    bpy.ops.object.modifier_move_to_index(modifier='Decimate', index=0)
+    bpy.ops.object.modifier_apply(modifier='Decimate')
+    c.vertex_groups.remove(c.vertex_groups['decimate'])
+    keys = body.data.shape_keys.key_blocks
+    base = [d.co.copy() for d in keys['Basis'].data]
+    kd = kdtree.KDTree(len(base))
+    for i, p in enumerate(base):
+        kd.insert(p, i)
+    kd.balance()
+    near = []
+    for v in c.data.vertices:
+        found = kd.find_n(v.co, 3)
+        if found[0][2] < 1e-6:
+            near.append([(found[0][1], 1.0)])
+            continue
+        w = [1 / max(d, 1e-5) for _, _, d in found]
+        t = sum(w)
+        near.append([(i, wi / t) for (_, i, _), wi in zip(found, w)])
+    c.shape_key_add(name='Basis', from_mix=False)
+    for kb in list(keys)[1:]:
+        k = c.shape_key_add(name=kb.name, from_mix=False)
+        for kd_, v, nb in zip(k.data, c.data.vertices, near):
+            kd_.co = v.co + sum(((kb.data[i].co - base[i]) * w for i, w in nb), Vector())
+        k.value = 0.0
+    name = body.name
+    bpy.data.objects.remove(body, do_unlink=True)
+    c.name = c.data.name = name
+    print(f'corps (niveau 0) : {sum(len(p.vertices) - 2 for p in c.data.polygons)} triangles')
+    return c
+
+
+def make_lods(rig, objs):
+    """Copies décimées (poids des os interpolés par la décimation), sans expressions ; cibles
+    d'identité reportées depuis l'original (moyenne pondérée des 3 sommets les plus proches)."""
+    from mathutils import kdtree
+    out = []
+    for suffix, r_body, r_acc, hems in LODS:
+        level = []
+        for o in objs:
+            c = o.copy()
+            c.data = o.data.copy()
+            bpy.context.scene.collection.objects.link(c)
+            c.name = c.data.name = o.name + suffix
+            if c.data.shape_keys:
+                c.shape_key_clear()
+            dec = c.modifiers.new('Decimate', 'DECIMATE')
+            dec.ratio = r_body if o.name == 'rider_body' else r_acc
+            dec.use_collapse_triangulate = True
+            if o.name == 'rider_body' and hems:
+                decimate_group(c, protect_head=False)
+                dec.vertex_group = 'decimate'
+            set_active(c)
+            bpy.ops.object.modifier_move_to_index(modifier='Decimate', index=0)
+            bpy.ops.object.modifier_apply(modifier='Decimate')
+            if 'decimate' in c.vertex_groups:
+                c.vertex_groups.remove(c.vertex_groups['decimate'])
+            keys = o.data.shape_keys.key_blocks if o.data.shape_keys else []
+            ident = [kb for kb in list(keys)[1:] if kb.name[-1] in '+-']
+            if ident:
+                base = [d.co.copy() for d in keys['Basis'].data]
+                kd = kdtree.KDTree(len(base))
+                for i, p in enumerate(base):
+                    kd.insert(p, i)
+                kd.balance()
+                near = []
+                for v in c.data.vertices:
+                    found = kd.find_n(v.co, 3)
+                    w = [1 / max(d, 1e-5) for _, _, d in found]
+                    t = sum(w)
+                    near.append([(i, wi / t) for (_, i, _), wi in zip(found, w)])
+                c.shape_key_add(name='Basis', from_mix=False)
+                for kb in ident:
+                    k = c.shape_key_add(name=kb.name, from_mix=False)
+                    for kd_, v, nb in zip(k.data, c.data.vertices, near):
+                        kd_.co = v.co + sum(((kb.data[i].co - base[i]) * w for i, w in nb), Vector())
+                    k.value = 0.0
+                prune_keys(c)
+            tris = sum(len(p.vertices) - 2 for p in c.data.polygons)
+            print(f'{c.name} : {tris} triangles')
+            level.append(c)
+        out.append((suffix, level))
+    return out
+
+
+# ---------------------------------------------------------------------------------------------
 # Textures de peau (docs/AVATARS.md § 6)
 # ---------------------------------------------------------------------------------------------
 VENDOR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'vendor', 'makehuman')
@@ -997,16 +1134,19 @@ def main():
     apply_pose_as_rest(rig, [body, eyes])
     acc = import_accessories(rig, body)
     transfer_keys(body, acc)
+    body = reduce_body(body)
     rig.name = rig.data.name = 'Armature'
     tris = sum(len(p.vertices) - 2 for p in body.data.polygons)
     print(f'corps : {len(body.data.vertices)} sommets, {tris} triangles, cibles : {[k.name for k in body.data.shape_keys.key_blocks]}')
-    out = os.path.join(OUT, 'rider.glb')
-    raw = out if args.no_compress else os.path.join(OUT, 'rider.raw.glb')
-    export([rig, body, eyes] + acc, raw)
-    if not args.no_compress:
-        subprocess.run(['pnpm', '--filter', '@allezrobert/blender-tools', 'compress:avatar', os.path.abspath(raw), os.path.abspath(out)], check=True)
-        os.remove(raw)
-        print(f'compressé : {os.path.getsize(out) / 1e6:.2f} Mo')
+    lods = make_lods(rig, [body, eyes] + acc)
+    for name, objs in [('rider', [body, eyes] + acc)] + [('rider' + sfx, lv) for sfx, lv in lods]:
+        out = os.path.join(OUT, name + '.glb')
+        raw = out if args.no_compress else os.path.join(OUT, name + '.raw.glb')
+        export([rig] + objs, raw)
+        if not args.no_compress:
+            subprocess.run(['pnpm', '--filter', '@allezrobert/blender-tools', 'compress:avatar', os.path.abspath(raw), os.path.abspath(out)], check=True)
+            os.remove(raw)
+            print(f'{name} compressé : {os.path.getsize(out) / 1e6:.2f} Mo')
     print('exporté', os.path.join(OUT, 'rider.glb'))
 
 

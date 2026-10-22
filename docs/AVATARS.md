@@ -376,3 +376,29 @@ reprises de l'ancien modèle un peu grandes pour ce visage.
 - Écarts au plan : textures en WebP (pas de KTX2 : pas d'encodeur Basis dans la chaîne actuelle),
   pas de carte de normales de pores ni de transmission en lumière rasante ; yeux sans parallaxe.
 - Planche : `&sliders&skin` (base, teint foncé, âgé, barbe, taches de rousseur, effort 20 min).
+
+### Étape 3d — niveaux de détail et mesure (faite)
+
+- Niveau 0 : corps décimé hors de la tête (tête et cou protégés : visage, curseurs et expressions
+  intacts ; ourlets protégés) : **12,6 k triangles** au lieu de 27,9 k ; toutes les cibles
+  reportées depuis le maillage complet (sommets inchangés : copie exacte ; ailleurs : moyenne
+  pondérée des 3 plus proches).
+- Niveau 1 (au-delà de 10 m) : 5 k triangles, ourlets protégés, curseurs de forme seulement ;
+  niveau 2 (au-delà de 30 m) : 2,5 k. Accessoires réduits à 60 % et 30 %. Fichiers
+  `rider.glb` 1,49 Mo, `rider_lod1.glb` 0,91 Mo, `rider_lod2.glb` 0,73 Mo.
+- Distances × 0,6 (bas), 0,8 (moyen), 1 (haut), 1,5 (ultra) (`GltfRiderAvatar.lodScale`). Le
+  client gère un nombre quelconque de niveaux, tous liés au squelette du niveau 0 ; le vélo
+  simplifié sert au-delà du niveau 0.
+- Pas d'imposteurs (niveau 3) : à plus de 60 m, 2,5 k triangles suffisent ; les coureurs au-delà
+  de 600 m sont masqués.
+- Banc `?bench` (10 coureurs, poursuite à 5 m du dernier), conteneur sans carte graphique
+  (rendu logiciel : seuls les écarts comptent) :
+
+  | | avatar actuel | avatar MPFB |
+  | --- | --- | --- |
+  | Mise à jour des 10 avatars (IK, visage, peau), CPU | 0,84 ms / image | 0,75 à 1,24 ms / image |
+  | Triangles, préréglage bas (ombres comprises) | 109 k | 152 k |
+  | Triangles, préréglage haut | 298 k | 240 k |
+
+  Reste à mesurer les fps sur une vraie carte graphique (poste local, `avatar-test.html?bench`).
+- Planche : `&sliders&lod` (5, 15 et 45 m au téléobjectif).

@@ -24,7 +24,7 @@ import { BikeMaterials, assembleBike, availableFamily, bikeAnchors, familyScene,
  *  - bassin / tronc : position assise, danseuse (bassin avancé, vélo qui balance, corps qui
  *    compense), roue libre (buste un peu relevé) ;
  *  - tête : regarde la route et compense en partie l'inclinaison du vélo.
- * LOD : niveau 1 (≈ 25 % des triangles) au-delà de LOD1_DISTANCE, lié au même squelette.
+ * LOD : niveaux simplifiés (FILES) au-delà de LOD_DISTANCES, liés au même squelette.
  */
 
 export type RiderPose = 'seated' | 'standing' | 'coasting';
@@ -67,16 +67,14 @@ const RIG_BONES: Record<'classic' | 'mpfb', Partial<Record<BoneName, string>>> =
   },
 };
 
+const MPFB = typeof location !== 'undefined' && new URLSearchParams(location.search).get('avatar') === 'mpfb';
 /**
- * Fichiers du coureur : cyclist.glb, ou l'avatar MPFB en essai (?avatar=mpfb, étape 2 de
- * docs/AVATARS.md ; pas encore de LOD1 dédié).
+ * Fichiers du coureur par niveau de détail et distance (m) d'apparition de chaque niveau :
+ * cyclist.glb, ou l'avatar MPFB en essai (?avatar=mpfb, docs/AVATARS.md : 28 k, 11 k et 3,4 k
+ * triangles pour le corps).
  */
-const FILES: readonly [string, string] =
-  typeof location !== 'undefined' && new URLSearchParams(location.search).get('avatar') === 'mpfb'
-    ? ['avatar/rider.glb', 'avatar/rider.glb']
-    : ['cyclist.glb', 'cyclist_lod1.glb'];
-/** Distance (m) au-delà de laquelle on affiche le LOD1. */
-const LOD1_DISTANCE = 30;
+const FILES: readonly string[] = MPFB ? ['avatar/rider.glb', 'avatar/rider_lod1.glb', 'avatar/rider_lod2.glb'] : ['cyclist.glb', 'cyclist_lod1.glb'];
+const LOD_DISTANCES: readonly number[] = MPFB ? [0, 10, 30] : [0, 30];
 const WHEEL_R = 0.335;
 /**
  * Position chrono, par unité de « tuck » (rad) : surtout le bassin qui bascule vers l'avant (dos
@@ -134,8 +132,8 @@ interface ChainRest {
 }
 
 interface Templates {
-  rider0: GLTF;
-  rider1: GLTF;
+  /** Niveaux de détail du coureur (0 : complet, avec le squelette animé). */
+  riders: GLTF[];
   /** Rôle → nom de l'os dans le fichier (rôles facultatifs absents si le squelette ne les a pas). */
   names: Partial<Record<BoneName, string>>;
   bones: Record<BoneName, BoneRest>;
@@ -386,10 +384,9 @@ function bakeIdentity(base: THREE.BufferGeometry, id: IdentityTargets, w: readon
   return g;
 }
 
-function buildTemplates(rider0: GLTF, rider1: GLTF): Templates {
-  extractIdentity(rider0.scene);
-  if (rider1 !== rider0) extractIdentity(rider1.scene);
-  const scene = rider0.scene;
+function buildTemplates(riders: GLTF[]): Templates {
+  for (const r of riders) extractIdentity(r.scene);
+  const scene = (riders[0] as GLTF).scene;
   scene.updateMatrixWorld(true);
   const names = RIG_BONES[scene.getObjectByName('pelvis') ? 'mpfb' : 'classic'];
   const roleOf = new Map(Object.entries(names).map(([role, node]) => [node, role as BoneName]));
@@ -436,7 +433,7 @@ function buildTemplates(rider0: GLTF, rider1: GLTF): Templates {
   const uh = new THREE.Vector3(0, 1, 0).applyQuaternion(bones.head.modelQ).normalize();
   const fh = new THREE.Vector3(0, 0, 1).addScaledVector(uh, -uh.z).normalize();
   const eyeRest = uh.multiplyScalar(0.06).addScaledVector(fh, 0.11);
-  return { rider0, rider1, names, bones, armQ, armP, legs, arms, bb, crank, pedalRest, pedalPitch, ankleFlat, eyeRest, refHands: bikeAnchors(PLAIN_BIKE_FAMILY).hands };
+  return { riders, names, bones, armQ, armP, legs, arms, bb, crank, pedalRest, pedalPitch, ankleFlat, eyeRest, refHands: bikeAnchors(PLAIN_BIKE_FAMILY).hands };
 }
 
 /** L'objet ou l'un de ses parents porte-t-il un nom commençant par `prefix` ? */
@@ -515,7 +512,8 @@ export class GltfRiderAvatar implements RiderAvatarLike {
   private readonly identityMeshes: Array<{ mesh: THREE.Mesh; base: THREE.BufferGeometry }> = [];
   private readonly bike: BikeParts = { crank: [], wheels: [], pedals: { L: [], R: [] } };
   /** Groupes recevant le vélo : niveau 0, niveau 1. */
-  private readonly bikeSlots: [THREE.Group, THREE.Group] = [new THREE.Group(), new THREE.Group()];
+  /** Vélo de chaque niveau de détail (au-delà du premier : le vélo simplifié). */
+  private readonly bikeSlots: THREE.Group[] = FILES.map(() => new THREE.Group());
   private mounted: MountedBike | null = null;
   private look: AvatarLook;
   /** Cible des mains (repère modèle) et direction des coudes, selon le vélo monté. */
@@ -547,11 +545,10 @@ export class GltfRiderAvatar implements RiderAvatarLike {
     loading ??= (async () => {
       try {
         const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
-        const skin = FILES[0].startsWith('avatar/') ? loadSkinTextures(`${baseUrl}avatar/`) : null;
+        const skin = MPFB ? loadSkinTextures(`${baseUrl}avatar/`) : null;
         const [riders, plain] = await Promise.all([Promise.all(FILES.map((f) => loader.loadAsync(baseUrl + f))), loadBikeFamily(PLAIN_BIKE_FAMILY), skin]);
         if (!plain) throw new Error(`vélo de base (${PLAIN_BIKE_FAMILY}) indisponible`);
-        const [r0, r1] = riders;
-        templates = buildTemplates(r0 as GLTF, r1 as GLTF);
+        templates = buildTemplates(riders);
         return true;
       } catch (e) {
         console.warn('Avatar glTF indisponible, repli sur l’avatar procédural', e);
@@ -563,6 +560,9 @@ export class GltfRiderAvatar implements RiderAvatarLike {
     await extra;
     return ok;
   }
+
+  /** Facteur des distances de niveau de détail (préréglage graphique : 0,6 bas → 1,5 ultra). */
+  static lodScale = 1;
 
   /** Modèles chargés ? */
   static get ready(): boolean {
@@ -577,7 +577,7 @@ export class GltfRiderAvatar implements RiderAvatarLike {
     this.lean.add(this.lod);
 
     // Niveau 0 : squelette cloné + vélo complet.
-    const rider0 = SkeletonUtils.clone(t.rider0.scene);
+    const rider0 = SkeletonUtils.clone((t.riders[0] as GLTF).scene);
     for (const name of BONES) {
       const node = t.names[name];
       if (!node) continue;
@@ -588,24 +588,26 @@ export class GltfRiderAvatar implements RiderAvatarLike {
       this.mP[name] = new THREE.Vector3();
     }
     const level0 = new THREE.Group();
-    level0.add(this.bikeSlots[0], rider0);
-
-    // Niveau 1 : maillages simplifiés liés aux os du niveau 0 (un seul squelette à animer).
-    const level1 = new THREE.Group();
-    level1.add(this.bikeSlots[1]);
-    t.rider1.scene.updateMatrixWorld(true);
-    t.rider1.scene.traverse((o) => {
-      const sm = o as THREE.SkinnedMesh;
-      if (!sm.isSkinnedMesh) return;
-      const m = sm.clone();
-      const bones = sm.skeleton.bones.map((b) => (rider0.getObjectByName(b.name) as THREE.Bone | undefined) ?? b);
-      m.bind(new THREE.Skeleton(bones, sm.skeleton.boneInverses), sm.bindMatrix);
-      sm.matrixWorld.decompose(m.position, m.quaternion, m.scale);
-      level1.add(m);
-    });
+    level0.add(this.bikeSlots[0] as THREE.Group, rider0);
 
     this.lod.addLevel(level0, 0, 0.1);
-    this.lod.addLevel(level1, LOD1_DISTANCE, 0.1);
+    // Niveaux suivants : maillages simplifiés liés aux os du niveau 0 (un seul squelette à animer).
+    t.riders.forEach((r, i) => {
+      if (i === 0) return;
+      const level = new THREE.Group();
+      level.add(this.bikeSlots[i] as THREE.Group);
+      r.scene.updateMatrixWorld(true);
+      r.scene.traverse((o) => {
+        const sm = o as THREE.SkinnedMesh;
+        if (!sm.isSkinnedMesh) return;
+        const m = sm.clone();
+        const bones = sm.skeleton.bones.map((b) => (rider0.getObjectByName(b.name) as THREE.Bone | undefined) ?? b);
+        m.bind(new THREE.Skeleton(bones, sm.skeleton.boneInverses), sm.bindMatrix);
+        sm.matrixWorld.decompose(m.position, m.quaternion, m.scale);
+        level.add(m);
+      });
+      this.lod.addLevel(level, (LOD_DISTANCES[i] ?? 30 * i) * GltfRiderAvatar.lodScale, 0.1);
+    });
 
     // Coureur : matériaux (instances propres à l'avatar), ombres, sphères englobantes des maillages skinnés.
     const bounds = new THREE.Sphere(new THREE.Vector3(0, 0.85, 0.05), 1.1);
@@ -664,7 +666,7 @@ export class GltfRiderAvatar implements RiderAvatarLike {
       cur.materials.dispose();
     }
     const materials = new BikeMaterials(build, look, family);
-    const levels = [assembleBike(build, family, 0), assembleBike(build, family, 1)];
+    const levels = this.bikeSlots.map((_, i) => assembleBike(build, family, i === 0 ? 0 : 1));
     const parts: BikeParts = { crank: [], wheels: [], pedals: { L: [], R: [] } };
     levels.forEach((lv, i) => {
       lv.group.traverse((o) => {

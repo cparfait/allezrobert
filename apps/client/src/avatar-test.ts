@@ -230,6 +230,32 @@ async function sliderSheet(engine: Awaited<ReturnType<typeof createEngine>>): Pr
   g.font = '600 16px system-ui, sans-serif';
   const eye = a.eyeWorld(new THREE.Vector3());
   camera.fov = 30;
+  // &lod : le même coureur à 5, 15 et 45 m (téléobjectif : même taille à l'écran), un niveau par case.
+  if (params.has('lod')) {
+    sheet.width = 3 * cw;
+    sheet.height = ch;
+    g.font = '600 16px system-ui, sans-serif';
+    const lod = (a as unknown as { lod: THREE.LOD }).lod;
+    for (const [i, d] of [5, 15, 45].entries()) {
+      a.update(1 / 30, 0.0001, 9, 'seated');
+      const fov = 2 * Math.atan(1.1 / d) * (180 / Math.PI);
+      camera.fov = fov;
+      camera.position.set(-d * 0.55, 1.2, d * 0.84);
+      camera.updateProjectionMatrix();
+      camera.lookAt(0, 0.9, 0.2);
+      engine.renderManual();
+      g.drawImage(canvas, 280, 0, 720, 720, i * cw, 0, cw, ch);
+      g.fillStyle = '#000';
+      g.fillText(`${d} m · niveau ${lod.levels.filter((l) => l.distance <= d).length - 1}`, i * cw + 8, 20);
+    }
+    a.root.traverse((o) => {
+      if (/rider_(glasses|helmet)/.test(o.name)) o.visible = true;
+    });
+    document.body.replaceChildren(sheet);
+    sheet.style.cssText = 'display:block;width:100%;height:auto';
+    (window as unknown as { __avatarTestDone: boolean }).__avatarTestDone = true;
+    return;
+  }
   // &skin : peau (teint, rides, barbe, taches de rousseur, rougeur d'effort et sueur).
   if (params.has('skin')) {
     const looks: Array<[string, Partial<AvatarLook>, number]> = [
@@ -363,6 +389,7 @@ async function bench(engine: Awaited<ReturnType<typeof createEngine>>): Promise<
   const { scene, camera, renderer } = engine;
   const secs = Number(params.get('secs') ?? 30);
   const ids = BIKES.filter((b) => b.collection === 'saison-2026').slice(0, 10);
+  GltfRiderAvatar.lodScale = { low: 0.6, medium: 0.8, high: 1, ultra: 1.5 }[(params.get('quality') ?? 'high') as QualityLevel] ?? 1;
   await GltfRiderAvatar.load([...new Set(ids.map((b) => b.family))]);
   const riders = ids.map((b, i) => {
     const a = new GltfRiderAvatar({ ...DEFAULT_LOOK, bikeModel: b.id });

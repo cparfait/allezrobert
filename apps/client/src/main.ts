@@ -60,6 +60,7 @@ async function loadScene(settings: Settings): Promise<Scene3D> {
   const q = withUrlOverrides(QUALITY_PRESETS[(params.get('quality') as Settings['quality'] | null) ?? settings.quality]);
   bootStep(20, 'Démarrage du moteur 3D (WebGPU)');
   const engine = await createEngine(document.getElementById('scene') as HTMLCanvasElement, q);
+  GltfRiderAvatar.lodScale = { low: 0.6, medium: 0.8, high: 1, ultra: 1.5 }[q.level];
   bootStep(35, 'Monde et itinéraires');
   const source = await loadWorldSource(params.get('world') ?? 'chevreuse');
   const route = source.routes.find((r) => r.id === (params.get('route') ?? settings.routeId)) ?? (source.routes[0] as RouteData);
