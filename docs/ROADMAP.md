@@ -36,7 +36,7 @@ Chaque jalon n'est déclaré terminé qu'après vérification : tests (protocole
 - [ ] Végétation instanciée animée par le vent, villages en meulière, toits de tuiles, eau
 - [x] Avatars riggés, pédalage procédural, cosmétiques : catalogue de 101 vélos (familles de cadres, roues, livrées d'après photos, inscriptions des cadres et des jantes, position et casque chrono, compteur GPS seulement sur les vélos récents) ; caméras poursuite, cockpit, drone, TV, photo
 - [x] Visages et avatars (`docs/AVATARS.md`) : base MPFB 2 (CC0), 42 curseurs de forme, 51 expressions ARKit pilotées par l'effort, peau (teint, rides, barbe, rousseur, rougeur et sueur), trois niveaux de détail, 8 profils de base, éditeur au garage, ressemblance à partir d'une photo sur l'appareil — reste : mesure des fps sur une vraie carte graphique
-- [ ] Son : ambiances, roulement, roue libre, souffle, public
+- [x] Son : ambiances, roulement, roue libre, souffle, public — synthèse WebAudio sans fichier (`apps/client/src/audio`) : ambiances selon le lieu, l'heure, la saison et la météo, roulement selon le revêtement OSM, roue libre et dérailleur, souffle selon l'effort (désactivable), public des sommets, voitures spatialisées ; volumes par catégorie (Réglages, pause). Vérifié par tests et banc hors ligne (`apps/client/scripts/audio-bench.mjs`, niveaux et crêtes mesurés) ; **pas encore écouté** sur de vraies enceintes
 - [x] Corridor complet Saclay → Chevreuse → Rambouillet, streaming par tuiles, préréglages bas → ultra
 
 ## Jalon 4 — Multijoueur
@@ -73,7 +73,7 @@ Idées seulement : ni nom, ni asset, ni code, ni physique de NCT Ride (la vitess
 | 3 | Monde vivant : trafic qui double en s'écartant, piétons, déclencheurs à une distance de route | 3 | fait (voitures, camionnettes, tracteur, piétons) ; trains : à faire |
 | 4 | Son positionné depuis OSM (église → cloches, prairie → vaches, eau…) | 3 | fait |
 | 5 | Caméra « GoPro » sur la poitrine | 3 | fait |
-| 6 | Poussière sur les chemins, roulement selon le revêtement | 3 | à faire |
+| 6 | Poussière sur les chemins, roulement selon le revêtement | 3 | roulement selon le revêtement fait (tags OSM `surface` des tuiles : lisse, rugueux, pavés, gravier, terre ; chaussée mouillée) ; poussière : à faire |
 | 7 | Foule avec pancartes et photo automatique au sommet des segments, réutilisée dans la vidéo résumé | 5 | fait (foule animée, photo au sommet, en fond de l'image de partage) ; pancartes et vidéo résumé : à faire |
 | 8 | Image de fin de sortie à partager | 5 | fait |
 | 9 | Mondes génériques (emprise + itinéraires via tools/terrain) | 3 | pipeline générique fait ; montée célèbre à tester |

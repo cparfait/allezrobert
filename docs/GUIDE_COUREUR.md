@@ -34,7 +34,7 @@ Le tutoriel (voix off, coupable) règle : la langue, ton profil (poids, taille, 
 | C | Caméra : poursuite, cockpit, drone, réalisation TV, photo (souris pour orbiter) |
 | Espace / Échap | Pause (reprendre, terminer la sortie) |
 | H | Masquer l'interface |
-| M | Couper le son |
+| M | Couper le son (la musique a sa touche B) |
 | P | Photo (image PNG de la scène) |
 
 Le **HUD** affiche la puissance moyenne 3 s (couleur de zone), FC, cadence, vitesse, pente, temps, distance, D+, NP, aspiration, rapport, balance G/D, le profil de l'itinéraire et la mini-carte.
@@ -69,3 +69,9 @@ Résumé (distance, temps, D+, puissance moyenne, NP, kcal, segments), XP et niv
 ## 8. Réglages graphiques
 
 Bas / moyen / haut / ultra (ultra calibré pour une RTX 4090), saison, heure, nuages, pluie, brouillard. Paramètres d'URL utiles : `?quality=ultra`, `?season=winter`, `?hour=18`.
+
+## 8. Son
+
+Tout le son est synthétisé par le jeu : le vent et le roulement suivent la vitesse et le revêtement (enrobé lisse ou rugueux, pavés, gravier, chaussée mouillée), le moyeu cliquette en roue libre, le dérailleur claque au changement de vitesse, les oiseaux chantent selon la saison et l'heure (pas l'hiver, chœur à l'aube, grillons les soirs d'été, hulotte la nuit en forêt), le public encourage dans les 350 derniers mètres des côtes et sur les sprints — plus fort quand vous souffrez — et les voitures passent de gauche à droite avec l'effet Doppler. Au-delà d'environ 60 % de la FTP, on entend son souffle (rythme calé sur la FC).
+
+Réglages → **Son** (et menu pause) : volume général et par catégorie (ambiance, vélo, souffle, public, trafic), souffle désactivable. En pause, seuls les bruits d'ambiance restent, atténués.

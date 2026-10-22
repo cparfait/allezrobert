@@ -5,6 +5,7 @@ import { shareCard } from './sharecard.ts';
 import { apiBase, fetchMe } from './account.ts';
 import { renderRideInvite } from './friends.ts';
 import type { RideSession } from '../game/ride.ts';
+import { renderSoundSettings } from './soundSettings.ts';
 
 function fmt(s: number): string {
   const h = Math.floor(s / 3600);
@@ -52,12 +53,14 @@ export interface PauseCallbacks {
 }
 
 export function showPause(root: HTMLElement, cb: PauseCallbacks): void {
-  root.innerHTML = `<div class="pause-overlay"><div class="panel" style="padding:28px 34px;text-align:center;min-width:320px">
+  root.innerHTML = `<div class="pause-overlay"><div class="panel" style="padding:28px 34px;text-align:center;min-width:320px;max-width:min(720px,92vw)">
     <h2 style="margin:0 0 18px">${t('pause')}</h2>
     <div class="row" style="justify-content:center">
       <button class="btn primary" id="p-resume">${t('resume')}</button>
       <button class="btn" id="p-finish">${t('finish')}</button>
-    </div><div id="p-friends"></div></div></div>`;
+    </div><div id="p-friends"></div>
+    <div id="p-sound" style="margin-top:18px;text-align:left"></div></div></div>`;
+  renderSoundSettings(root.querySelector('#p-sound'));
   (root.querySelector('#p-resume') as HTMLElement).onclick = cb.onResume;
   (root.querySelector('#p-finish') as HTMLElement).onclick = cb.onFinish;
   if (cb.roomId) void renderRideInvite(root.querySelector('#p-friends') as HTMLElement, cb.roomId);

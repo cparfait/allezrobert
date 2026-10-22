@@ -41,7 +41,7 @@ Captures de contrôle : `docs/screenshots/avatars-*.jpg`, `bikes-*.jpg`.
 | Chantier | Contenu | État |
 | --- | --- | --- |
 | Matériel | audit et compléments : KICKR CORE (FTMS), Assioma (CPS), TICKR (HRS), vitesses virtuelles (Di2, Click, Play, Ride, HID, manette), HEADWIND asservi, ANT+ USB, Direct Connect, power match ERG, calibration, reconnexion ; `docs/HARDWARE_TEST.md` (tests à faire avec le vrai matériel) | en cours |
-| Son | ambiances (lieu, heure, saison, météo), roulement selon le revêtement, roue libre, souffle selon l'effort, public, trafic ; volumes par catégorie | en cours |
+| Son | ambiances (lieu, heure, saison, météo), roulement selon le revêtement, roue libre, souffle selon l'effort, public, trafic ; volumes par catégorie (Réglages et pause) | **fusionné** — synthèse sans fichier, niveaux mesurés au banc (`apps/client/scripts/audio-bench.mjs`), à écouter |
 | Monde et beauté | végétation au vent, villages, toits, eau, poussière sur les chemins, trains, détection automatique d'anomalies du monde, `docs/ART_DIRECTION.md` (points à valider par toi) | en cours |
 | Jeu | modes groupe et course complets, demi-tour des équipiers IA, pancartes de la foule, vidéo résumé MP4 sur le serveur, repli Discord pour la voix | en cours |
 
@@ -55,6 +55,7 @@ donne le détail.
 - **Performances** : mesurer les fps sur ta carte graphique :
   `http://localhost:5173/avatar-test.html?bench&quality=high` (puis `low`, `medium`, `ultra`) ;
   le résultat s'affiche en haut de la page (comparer avec `&avatar=classic`).
+- **Son** : écouter une sortie et le banc `apps/client/audio-bench.html` (32 situations) ; tout est synthétisé, le réalisme reste à juger à l'oreille.
 - **Direction artistique** : valider `docs/ART_DIRECTION.md` (section « Points à valider »).
 - **Comptes et services** : identifiants OAuth Google / Discord / Strava, LiveKit, lien Discord
   de repli, ffmpeg sur le VPS (voir `docs/DEPLOY.md`).
