@@ -21,6 +21,7 @@ import { spotify } from './audio/spotify.ts';
 import { t, setLang, getLang } from './i18n/index.ts';
 import { loadSettings, saveSettings, type Settings } from './ui/settings.ts';
 import { MainMenu } from './ui/menu.ts';
+import { bootStep, bootDone, bootError } from './ui/splash.ts';
 import { PosterScene, choosePosterSpot, POSTER_HOUR } from './ui/poster.ts';
 import { showPause, showSummary, rideToFit } from './ui/ridepanels.ts';
 import { splatAt } from './world/splat.ts';
@@ -52,7 +53,9 @@ interface Scene3D {
 async function loadScene(settings: Settings): Promise<Scene3D> {
   const params = new URLSearchParams(location.search);
   const q = withUrlOverrides(QUALITY_PRESETS[(params.get('quality') as Settings['quality'] | null) ?? settings.quality]);
+  bootStep(20, 'Démarrage du moteur 3D (WebGPU)');
   const engine = await createEngine(document.getElementById('scene') as HTMLCanvasElement, q);
+  bootStep(35, 'Monde et itinéraires');
   const source = await loadWorldSource(params.get('world') ?? 'chevreuse');
   const route = source.routes.find((r) => r.id === (params.get('route') ?? settings.routeId)) ?? (source.routes[0] as RouteData);
   const track = new RouteTrack(route);
@@ -73,9 +76,10 @@ async function boot(): Promise<void> {
   music.unlockOnGesture();
   const settings = loadSettings();
   setLang(settings.lang);
-  ui.innerHTML = `<div class="loading">${t('loading')}</div>`;
+  bootStep(12, 'Chargement des coureurs, des vélos et des voitures');
   // Avatars Blender (glTF) chargés une fois ; repli procédural automatique en cas d'échec.
   const [scene] = await Promise.all([loadScene(settings), GltfRiderAvatar.load(), loadVehicleModels()]);
+  bootStep(50, 'Choix du lieu de la photo d’accueil');
   const devices = createDeviceLayer();
   const autostart = new URLSearchParams(location.search).has('autostart');
   const env = scene.world.env.state;
@@ -107,13 +111,22 @@ async function boot(): Promise<void> {
     const d = await choosePosterSpot(scene.world, scene.track, settings.season);
     poster.build(settings.look);
     focus.copy(poster.place(d));
+    bootStep(60, 'Paysage : relief, routes, bâtiments, arbres');
     await scene.world.preload(focus);
     renderPoster();
     window.addEventListener('resize', () => inMenu && renderPoster());
   } else {
+    bootStep(60, 'Paysage : relief, routes, bâtiments, arbres');
     const start = scene.track.positionAt(0, 1.2);
     await scene.world.preload(new THREE.Vector3(start.x, start.y, start.z));
   }
+  // Shaders compilés derrière l'écran de chargement : le premier affichage ne saccade pas.
+  bootStep(85, 'Préparation des matériaux (shaders)');
+  if (inMenu) {
+    poster.frame();
+    scene.world.update(1 / 60, focus);
+  }
+  await scene.engine.renderer.compileAsync(scene.engine.scene, scene.engine.camera).catch(() => undefined);
   scene.engine.renderer.setAnimationLoop(() => {
     if (!inMenu || posterFrames <= 0) return;
     posterFrames--;
@@ -190,6 +203,9 @@ async function boot(): Promise<void> {
       void startRide(scene, s, devices.source(), { tutorial: true });
     }).start();
   };
+  bootStep(95, 'Première image');
+  await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+  bootDone();
   if (autostart) {
     void startRide(scene, settings, devices.source(), {});
   } else {
@@ -631,5 +647,6 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
 
 boot().catch((err) => {
   console.error(err);
+  bootError(String((err as Error).message ?? err));
   ui.innerHTML = `<div class="loading">Erreur : ${String((err as Error).message ?? err)}</div>`;
 });

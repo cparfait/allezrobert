@@ -68,7 +68,7 @@ export class Onboarding {
     switch (this.step) {
       case 'welcome':
         body = `<h1>Allez <em>Robert</em> !</h1>
-          <p class="tagline">${fr ? 'Simulateur de vélo entre amis — de Saclay à Rambouillet.' : 'Indoor cycling with friends — from Saclay to Rambouillet.'}</p>
+          <p class="tagline">${fr ? 'Rouler ensemble, chacun chez soi.' : 'Ride together, each from home.'}</p>
           <div class="row"><button class="btn ${fr ? 'primary' : ''}" data-lang="fr">Français</button><button class="btn ${fr ? '' : 'primary'}" data-lang="en">English</button>
           <label class="row" style="margin-left:auto;font-size:13px;color:var(--ar-muted)"><input type="checkbox" id="o-voice" ${this.voice.enabled ? 'checked' : ''}/> ${fr ? 'Voix off' : 'Voice-over'}</label></div>
           <div class="warning" style="margin-top:16px;background:rgba(59,130,246,.12);border-color:rgba(59,130,246,.35);color:#bfdbfe">${fr ? 'Compte : la connexion Google, Discord ou lien magique sera proposée pour rouler en groupe. Pour une sortie seul, aucun compte n’est nécessaire.' : 'Account: Google, Discord or magic-link sign-in is offered for group rides. Riding solo needs no account.'}</div>`;

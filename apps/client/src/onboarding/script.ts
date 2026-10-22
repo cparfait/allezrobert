@@ -10,8 +10,8 @@ export interface Line {
 export const ONBOARDING_SCRIPT: Record<string, Line[]> = {
   welcome: [
     {
-      fr: "Bienvenue dans Allez Robert ! Un clin d'œil à Robert Marchand, recordman de l'heure à cent cinq ans. Ici, on roule entre amis, de Saclay à Rambouillet.",
-      en: 'Welcome to Allez Robert! A nod to Robert Marchand, who set the hour record at one hundred and five. Here we ride with friends, from Saclay to Rambouillet.',
+      fr: "Bienvenue dans Allez Robert ! Un clin d'œil à Robert Marchand, recordman de l'heure à cent cinq ans. Ici, on roule ensemble, chacun chez soi.",
+      en: 'Welcome to Allez Robert! A nod to Robert Marchand, who set the hour record at one hundred and five. Here we ride together, each from home.',
     },
     { fr: 'En quelques minutes, on règle ton profil, ton avatar et tes capteurs, puis on part pour une première sortie.', en: "In a few minutes we'll set up your profile, avatar and sensors, then head out for a first ride." },
   ],
