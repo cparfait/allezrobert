@@ -42,6 +42,7 @@ async function main(): Promise<void> {
   scene.add(ground);
 
   const ok = await GltfRiderAvatar.load();
+  if (params.has('neck')) GltfRiderAvatar.neckLift = Number(params.get('neck'));
   log.textContent = ok ? 'modèles chargés' : 'ÉCHEC du chargement';
   if (!ok) return;
   if (params.has('bikes')) return bikeSheet(engine, params.get('bikes') ?? '');

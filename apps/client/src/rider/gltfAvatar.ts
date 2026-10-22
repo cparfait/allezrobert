@@ -642,6 +642,9 @@ export class GltfRiderAvatar implements RiderAvatarLike {
   /** Facteur des distances de niveau de détail (préréglage graphique : 0,6 bas → 1,5 ultra). */
   static lodScale = 1;
 
+  /** Redressement du cou par rapport à la pose de repos (rad, avatar MPFB : cou de repos trop penché, tête en avant). */
+  static neckLift = 0.4;
+
   /** Modèles chargés ? */
   static get ready(): boolean {
     return templates !== null;
@@ -951,6 +954,8 @@ export class GltfRiderAvatar implements RiderAvatarLike {
     // --- Tête : regarde devant, compense une partie de l'inclinaison ; le cou en prend la moitié.
     this.bones.neck.quaternion.copy(t.bones.neck.localQ);
     this.fk('neck');
+    // Cou de repos du modèle MPFB trop penché : redressé (la tête, orientée à part, garde le regard).
+    if (GltfRiderAvatar.neckLift && t.names.hips === 'pelvis') this.setModelQ('neck', _q1.setFromAxisAngle(X_AXIS, -GltfRiderAvatar.neckLift).multiply(this.mQ.neck));
     const look = 0.06 * Math.sin(this.time * 0.37) * Math.sin(this.time * 0.13);
     _q1.setFromAxisAngle(Z_AXIS, -(0.7 * bank + rock + counter));
     if (tuck > 0) _q1.multiply(_q3.setFromAxisAngle(X_AXIS, -TUCK_HEAD * tuck));

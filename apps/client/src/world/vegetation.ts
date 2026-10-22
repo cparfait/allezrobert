@@ -1,5 +1,5 @@
 import * as THREE from 'three/webgpu';
-import { attribute, positionLocal, time, sin, vec3, float, uniform, mix, instanceIndex, hash, color, smoothstep, varying } from 'three/tsl';
+import { attribute, positionLocal, positionWorld, time, sin, vec3, float, uniform, mix, instanceIndex, hash, color, smoothstep, varying, floor, step, dot, fract } from 'three/tsl';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import type { QualitySettings } from '../engine/quality.ts';
 import { colorUniform } from '../engine/tsl.ts';
@@ -265,14 +265,19 @@ export class Vegetation {
     const across = bend.mul(sin(time.mul(0.9).add(h.mul(17)))).mul(0.25);
     const flutter = sin(time.mul(7).add(raw.x.mul(3)).add(raw.z.mul(2))).mul(0.03).mul(leaf).mul(this.windStrength);
     const wd = this.windDir;
-    let offset: THREE.Node<'vec3'> = vec3(wd.x.mul(along).sub(wd.y.mul(across)).add(flutter), 0, wd.y.mul(along).add(wd.x.mul(across)).add(flutter.mul(0.5)));
-    if (!conifer) {
-      // Hiver : le houppier se rétracte vers le tronc (vers le centre du houppier) et laisse les branches nues.
-      const crownCenter = vec3(0, 7.5, 0);
-      const k = mix(float(1), this.leafAmount, leaf);
-      offset = offset.add(crownCenter.sub(raw).mul(leaf).mul(float(1).sub(k)));
-    }
+    const offset: THREE.Node<'vec3'> = vec3(wd.x.mul(along).sub(wd.y.mul(across)).add(flutter), 0, wd.y.mul(along).add(wd.x.mul(across)).add(flutter.mul(0.5)));
     m.positionNode = positionLocal.add(offset);
+    if (!conifer) {
+      // Hiver : le houppier devient une masse de rameaux nus, gris-brun et ajourée (motif fixe
+      // dans l'espace, un peu plus d'un tiers écarté). Le rétracter vers le tronc ne marche pas :
+      // l'échelle propre à chaque arbre (houppier mesuré, souvent large et bas) n'est pas connue
+      // ici, et l'arbre devenait un disque plat.
+      // Coordonnées monde (grandes valeurs) : hash classique, celui de TSL y dégénère.
+      const cellW = floor(positionWorld.mul(5)).mod(1024);
+      const twig = step(0.38, fract(sin(dot(cellW, vec3(12.9898, 78.233, 37.719))).mul(43758.5453)));
+      m.opacityNode = mix(float(1), mix(twig, float(1), this.leafAmount), leaf);
+      m.alphaTest = 0.5;
+    }
     const wood = color('#4a3a2c');
     const leafCol =
       kind === 'larch'
