@@ -115,13 +115,32 @@ function worldOverlay(label: string): HTMLElement {
   return el;
 }
 
-/** Boucle vidéo de la saison en fond du menu (public/menu/loop-<saison>.webm). */
+/** Version des médias du menu (vidéos, images) : à augmenter quand on les régénère (cache navigateur). */
+const MENU_MEDIA_VERSION = 3;
+
+/** Boucle vidéo de la saison en fond du menu (public/menu/loop-<saison>.webm), sur son image fixe. */
 function createMenuVideo(el: HTMLVideoElement | null) {
   let failed = false;
+  let useWebm = false;
   let current = '';
   const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  // Image fixe de la saison, affichée tout de suite sous la vidéo (et seule si la vidéo échoue).
+  const still = document.getElementById('menu-still');
+  const showStill = (season: Settings['season'] | null) => {
+    if (!still) return;
+    if (season) still.style.backgroundImage = `url(/menu/still-${season}.jpg?v=${MENU_MEDIA_VERSION})`;
+    still.hidden = !season;
+  };
   if (el) {
     el.addEventListener('error', () => {
+      if (!useWebm && current.includes('.mp4')) {
+        // MP4 refusé : on retente en WebM avant d'abandonner (l'image fixe reste en dessous).
+        useWebm = true;
+        current = current.replace('.mp4', '.webm');
+        el.src = current;
+        void el.play().catch(() => undefined);
+        return;
+      }
       failed = true;
       el.hidden = true;
     });
@@ -133,8 +152,11 @@ function createMenuVideo(el: HTMLVideoElement | null) {
   return {
     /** Affiche la boucle ; false si impossible (fichier absent, mouvement réduit). */
     show(season: Settings['season']): boolean {
-      if (!el || failed || reduced) return false;
-      const src = `/menu/loop-${season}.webm`;
+      showStill(season);
+      if (!el || failed || reduced) return true;
+      // H.264 (décodé par toutes les cartes graphiques) sinon VP9 ; repli sur l'autre format en cas d'erreur.
+      const ext = useWebm || !el.canPlayType('video/mp4; codecs="avc1.640028"') ? 'webm' : 'mp4';
+      const src = `/menu/loop-${season}.${ext}?v=${MENU_MEDIA_VERSION}`;
       if (current !== src) {
         current = src;
         el.classList.remove('on');
@@ -145,12 +167,14 @@ function createMenuVideo(el: HTMLVideoElement | null) {
       return true;
     },
     stop(): void {
+      showStill(null);
       if (!el) return;
       el.pause();
       el.hidden = true;
     },
+    /** Fond du menu affiché (vidéo ou, à défaut, image fixe) : pas de rendu 3D nécessaire. */
     playing(): boolean {
-      return !!el && !el.hidden && !failed;
+      return !!still && !still.hidden;
     },
   };
 }
