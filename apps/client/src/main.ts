@@ -16,7 +16,7 @@ import { WorkoutController } from './game/workout.ts';
 import { Ghost } from './game/ghost.ts';
 import { createDeviceLayer } from './game/devices.ts';
 import { Hud } from './hud/hud.ts';
-import { GameAudio } from './audio/audio.ts';
+import { RideSound } from './audio/rideSound.ts';
 import { music } from './audio/music.ts';
 import { spotify } from './audio/spotify.ts';
 import { t, setLang, getLang } from './i18n/index.ts';
@@ -25,7 +25,6 @@ import { MainMenu } from './ui/menu.ts';
 import { bootStep, bootDone, bootError } from './ui/splash.ts';
 import { PosterScene, choosePosterSpot, POSTER_HOUR } from './ui/poster.ts';
 import { showPause, showSummary, rideToFit } from './ui/ridepanels.ts';
-import { splatAt } from './world/splat.ts';
 import { Onboarding, RideTutorial } from './onboarding/onboarding.ts';
 import { awardRide } from './ui/garage.ts';
 import { fetchMe, showLogin, applyProfile, logout, pushProfile, type Me } from './ui/account.ts';
@@ -410,9 +409,8 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   const keyboard = new KeyboardControls();
   // Caméra libre : les flèches déplacent la caméra, pas le coureur.
   keyboard.arrowsBlocked = () => rig.mode === 'free';
-  const audio = new GameAudio();
-  audio.start();
-  audio.setVolume(s.volume);
+  // Son de la sortie (ambiances, roulement, roue libre, souffle, public, trafic) : audio/rideSound.ts.
+  const audio = new RideSound({ world, track, ride, traffic, ftpWatts: s.ftpWatts });
   // Sons positionnés (églises, prés, eau) : la liste suit les tuiles chargées.
   const refreshSources = () => audio.setSources([...world.soundSources.values()].flat());
   refreshSources();
@@ -629,24 +627,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     if (manual) engine.renderManual();
     else engine.render();
 
-    const tile = world.terrain.getTile(...world.terrain.tileCoord(pos.x, pos.z));
-    audio.update(
-      {
-        speedMs: ride.state.speedMs,
-        cadence: ride.inputs.cadence,
-        watts: ride.inputs.watts,
-        ftp: s.ftpWatts,
-        roughness: 0.15,
-        rain: world.env.state.weather.rain,
-        forest: tile ? splatAt(tile, 0, pos.x + 30, pos.z) * 0.5 + splatAt(tile, 0, pos.x - 30, pos.z) * 0.5 : 0,
-        crowd: ride.segment?.seg.kind === 'kom' ? 0.6 : 0,
-        windMs: world.env.state.weather.windMs,
-        x: pos.x,
-        z: pos.z,
-        heading,
-      },
-      dt,
-    );
+    audio.update(dt, pos, heading);
 
     hudAcc += dt;
     if (hudAcc > 0.1) {
@@ -731,7 +712,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     const res = await fetch(`/__shot?name=${encodeURIComponent(name)}`, { method: 'POST', body: url });
     return res.text();
   };
-  (window as unknown as { __ar: unknown }).__ar = { engine, world, ride, rig, track, peloton, input, finish, advance, hud, shot, avatar };
+  (window as unknown as { __ar: unknown }).__ar = { engine, world, ride, rig, track, peloton, input, finish, advance, hud, shot, avatar, audio };
   // Contrôle visuel du monde (?worldcheck=1, développement) : une capture tous les 500 m de l'itinéraire.
   if (params.has('worldcheck')) {
     void (async () => {

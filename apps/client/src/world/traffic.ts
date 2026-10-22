@@ -4,6 +4,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import type { RouteTrack } from '@allezrobert/shared';
 import { rng } from '../engine/noise.ts';
 import { Pedestrians } from './pedestrians.ts';
+import type { VehicleSound } from '../audio/soundscape.ts';
 
 type Kind = 'car' | 'van' | 'tractor';
 
@@ -18,6 +19,9 @@ interface Vehicle {
   cruise: number;
   speed: number;
   lateral: number;
+  /** Vitesse dans le repère monde (m/s), pour le son (Doppler). */
+  vx: number;
+  vz: number;
 }
 
 const CAR_COLORS = ['#c0392b', '#2c3e50', '#ecf0f1', '#7f8c8d', '#1f6feb', '#16a085', '#f1c40f', '#111111', '#8e44ad'];
@@ -169,7 +173,7 @@ export class Traffic {
       const { group, wheels } = buildVehicle(kind, kind === 'tractor' ? '#2e7d32' : (CAR_COLORS[i % CAR_COLORS.length] as string), i);
       const sens: 1 | -1 = i % 2 ? -1 : 1;
       const cruise = kind === 'tractor' ? 7 : 13 + this.r() * 6;
-      this.vehicles.push({ kind, mesh: group, wheels, d: (sens > 0 ? -150 : 300) - i * 180, sens, cruise, speed: cruise, lateral: this.laneOf(sens) });
+      this.vehicles.push({ kind, mesh: group, wheels, d: (sens > 0 ? -150 : 300) - i * 180, sens, cruise, speed: cruise, lateral: this.laneOf(sens), vx: 0, vz: 0 });
       this.group.add(group);
     }
     // Piétons : autour des villages traversés (un seul maillage instancié).
@@ -216,6 +220,8 @@ export class Traffic {
       v.d += v.sens * v.speed * dt;
       const p = this.track.positionAt(((v.d % L) + L) % L, v.lateral, this.sample);
       v.mesh.position.set(p.x, p.y + 0.02, p.z);
+      v.vx = p.dirX * v.sens * v.speed;
+      v.vz = p.dirZ * v.sens * v.speed;
       v.mesh.rotation.set(0, Math.atan2(p.dirX, p.dirZ) + (v.sens < 0 ? Math.PI : 0), 0);
       v.mesh.rotateX(-Math.atan(p.grade / 100) * v.sens);
       for (const w of v.wheels) {
@@ -225,5 +231,10 @@ export class Traffic {
       }
     }
     this.pedestrians.update(dt, player.distM);
+  }
+
+  /** Véhicules pour le son (position, vitesse) ; `id` stable = rang du véhicule. */
+  audible(): VehicleSound[] {
+    return this.vehicles.map((v, id) => ({ id, kind: v.kind, x: v.mesh.position.x, z: v.mesh.position.z, vx: v.vx, vz: v.vz }));
   }
 }
