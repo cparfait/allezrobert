@@ -1,12 +1,13 @@
 import './hud/hud.css';
 import * as THREE from 'three/webgpu';
-import { RouteTrack, DEFAULT_BIKE, type RiderProfile, type RouteData } from '@allezrobert/shared';
+import { RouteTrack, DEFAULT_BIKE, bikeOfLook, type RiderProfile, type RouteData } from '@allezrobert/shared';
 import { createEngine, type Engine } from './engine/renderer.ts';
 import { QUALITY_PRESETS, withUrlOverrides, type QualitySettings } from './engine/quality.ts';
 import { World } from './world/world.ts';
 import { loadWorldSource } from './world/loader.ts';
 import type { WorldSource } from './world/types.ts';
 import { GltfRiderAvatar, createAvatar } from './rider/gltfAvatar.ts';
+import { CROWD_FAMILIES, onBikeFamilyLoaded } from './rider/bikes.ts';
 import { CameraRig } from './game/cameras.ts';
 import { FreeFlyCamera } from './game/freecam.ts';
 import { RideSession } from './game/ride.ts';
@@ -24,11 +25,13 @@ import { loadSettings, saveSettings, type Settings } from './ui/settings.ts';
 import { MainMenu } from './ui/menu.ts';
 import { bootStep, bootDone, bootError } from './ui/splash.ts';
 import { PosterScene, choosePosterSpot, POSTER_HOUR } from './ui/poster.ts';
+import { MenuLoop } from './ui/menuLoop.ts';
 import { showPause, showSummary, rideToFit } from './ui/ridepanels.ts';
 import { splatAt } from './world/splat.ts';
 import { Onboarding, RideTutorial } from './onboarding/onboarding.ts';
 import { awardRide } from './ui/garage.ts';
 import { fetchMe, showLogin, applyProfile, logout, pushProfile, type Me } from './ui/account.ts';
+import { sendRideInvites } from './ui/friends.ts';
 import { RideSequences } from './game/sequences.ts';
 import { GuestInputSource } from './game/guest.ts';
 import { Crowd } from './world/crowd.ts';
@@ -57,6 +60,7 @@ async function loadScene(settings: Settings): Promise<Scene3D> {
   const q = withUrlOverrides(QUALITY_PRESETS[(params.get('quality') as Settings['quality'] | null) ?? settings.quality]);
   bootStep(20, 'Démarrage du moteur 3D (WebGPU)');
   const engine = await createEngine(document.getElementById('scene') as HTMLCanvasElement, q);
+  GltfRiderAvatar.lodScale = { low: 0.6, medium: 0.8, high: 1, ultra: 1.5 }[q.level];
   bootStep(35, 'Monde et itinéraires');
   const source = await loadWorldSource(params.get('world') ?? 'chevreuse');
   const route = source.routes.find((r) => r.id === (params.get('route') ?? settings.routeId)) ?? (source.routes[0] as RouteData);
@@ -103,7 +107,7 @@ async function boot(): Promise<void> {
   setLang(settings.lang);
   bootStep(12, 'Chargement des coureurs, des vélos et des voitures');
   // Avatars Blender (glTF) chargés une fois ; repli procédural automatique en cas d'échec.
-  const [scene] = await Promise.all([loadScene(settings), GltfRiderAvatar.load(), loadVehicleModels()]);
+  const [scene] = await Promise.all([loadScene(settings), GltfRiderAvatar.load([bikeOfLook(settings.look).family, ...CROWD_FAMILIES]), loadVehicleModels()]);
   // Film d'accueil (développement) : rendu image par image, sans menu (voir tools/menu-loop).
   if (import.meta.env.DEV && new URLSearchParams(location.search).has('cinematic')) {
     const { runCinematic } = await import('./ui/cinematic.ts');
@@ -129,6 +133,9 @@ async function boot(): Promise<void> {
   /** « Explorer la carte » depuis l'accueil : caméra libre, sans sortie. */
   let exploring = false;
   const poster = new PosterScene(scene.engine, scene.world, scene.track);
+  // Film d'accueil de la saison par-dessus l'image fixe, quand il a été rendu (tools/menu-loop).
+  const loop = inMenu ? new MenuLoop(scene.engine.renderer.domElement) : null;
+  loop?.setSeason(settings.season);
   let posterFrames = 0;
   const focus = new THREE.Vector3();
   const renderPoster = () => {
@@ -149,6 +156,8 @@ async function boot(): Promise<void> {
     await scene.world.preload(focus);
     renderPoster();
     window.addEventListener('resize', () => inMenu && !exploring && renderPoster());
+    // Vélo essayé dans le garage dont la famille arrive à l'instant : l'avatar l'a monté, on refait l'image.
+    onBikeFamilyLoaded(() => inMenu && !exploring && renderPoster());
   } else {
     bootStep(60, 'Paysage : relief, routes, bâtiments, arbres');
     const start = scene.track.positionAt(0, 1.2);
@@ -187,6 +196,7 @@ async function boot(): Promise<void> {
   const leaveMenu = (s: Settings) => {
     inMenu = false;
     poster.dispose();
+    loop?.dispose();
     applyEnv(s);
   };
 
@@ -238,6 +248,7 @@ async function boot(): Promise<void> {
   const startExplore = () => {
     if (exploring || !inMenu) return;
     menu.hide();
+    loop?.show(false);
     exploring = true;
     exploreT = performance.now();
     const cam = scene.engine.camera;
@@ -267,8 +278,16 @@ async function boot(): Promise<void> {
   menu.onSettingsChange = (s) => {
     if (!inMenu) return applyEnv(s);
     if (scene.world.env.state.season !== s.season) scene.world.setSeason(s.season);
+    loop?.setSeason(s.season);
     poster.build(s.look);
+    poster.setPlayerLook(s.look, menu.bareHeadPreview);
     poster.place(poster.d);
+    renderPoster();
+  };
+  // Éditeur de visage : le coureur du garage suit les curseurs sans reconstruire la scène.
+  menu.onLookLive = (look, bareHead) => {
+    if (!inMenu) return;
+    poster.setPlayerLook(look, bareHead);
     renderPoster();
   };
   // Onglets : photo du groupe, ou aperçu du coureur dans le garage (vues et rotation).
@@ -281,6 +300,7 @@ async function boot(): Promise<void> {
   };
   menu.onScene = (view, yaw) => {
     if (!inMenu) return;
+    loop?.show(view === 'poster');
     poster.setView(view, yaw);
     renderPoster();
   };
@@ -334,7 +354,7 @@ async function boot(): Promise<void> {
   }
 }
 
-async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras: { workoutFile?: { name: string; content: string }; inviteCode?: string; tutorial?: boolean }): Promise<void> {
+async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras: { workoutFile?: { name: string; content: string }; inviteCode?: string; inviteFriends?: string[]; tutorial?: boolean }): Promise<void> {
   const { engine, world, track, source } = scene;
   ui.innerHTML = '';
   const profile: RiderProfile = { id: 'local', displayName: s.name, massKg: s.massKg, heightCm: s.heightCm, ftpWatts: s.ftpWatts, bike: DEFAULT_BIKE };
@@ -371,6 +391,10 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     try {
       const code = await mp.connect({ ...(extras.inviteCode ? { inviteCode: extras.inviteCode } : {}), mode: s.mode, guest: s.guest, aiRiders: s.aiRiders, trainerDifficulty: s.trainerDifficulty, name: s.name });
       setTimeout(() => hud.toast(`${getLang() === 'fr' ? 'Code d’invitation' : 'Invite code'} : ${code}`), 500);
+      // « Partir et inviter » depuis l'onglet Amis : invitations envoyées une fois la salle créée.
+      if (extras.inviteFriends?.length) {
+        void sendRideInvites(mp.net.roomId, extras.inviteFriends).then((n) => n && setTimeout(() => hud.toast(getLang() === 'fr' ? `Invitation envoyée à ${n} ami${n > 1 ? 's' : ''}` : `Invite sent to ${n} friend${n > 1 ? 's' : ''}`), 2500));
+      }
     } catch (e) {
       console.warn('Serveur injoignable, sortie solo', e);
       setTimeout(() => hud.toast(getLang() === 'fr' ? 'Serveur injoignable : sortie solo' : 'Server unreachable: solo ride'), 500);
@@ -517,7 +541,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   };
   const togglePause = () => {
     ride.paused = !ride.paused;
-    if (ride.paused) showPause(ui, { onResume: togglePause, onFinish: finish });
+    if (ride.paused) showPause(ui, { onResume: togglePause, onFinish: finish, ...(mp?.net.roomId ? { roomId: mp.net.roomId } : {}) });
     else ui.innerHTML = '';
   };
   window.addEventListener('keydown', (e) => {
@@ -612,6 +636,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     avatar.root.rotation.set(0, 0, 0);
     avatar.root.rotateY(heading);
     avatar.root.rotateX(-Math.atan(sample.grade / 100));
+    avatar.setEffort?.(ride.inputs.watts / Math.max(50, s.ftpWatts), ride.inputs.hr !== undefined ? ride.inputs.hr / 190 : undefined);
     avatar.update(dt, ride.inputs.cadence, ride.state.speedMs, ride.pose, bank);
     // Vue subjective et caméra embarquée : on garde le vélo, les bras et les mains, mais pas la tête.
     const onboard = rig.mode === 'cockpit' || rig.mode === 'gopro';

@@ -1,5 +1,5 @@
 import * as THREE from 'three/webgpu';
-import type { AvatarLook } from '@allezrobert/shared';
+import { bikeOfLook, type AvatarLook } from '@allezrobert/shared';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 /**
@@ -120,7 +120,7 @@ export class RiderAvatar {
       shoe: mat('#1c1d22', 0.4),
       helmet: mat(look.helmet, 0.35),
       visor: mat('#20242c', 0.1, 0.4),
-      frame: mat(look.bike, 0.3, 0.3),
+      frame: mat(frameColor(look), 0.3, 0.3),
       dark: mat('#18191c', 0.45, 0.2),
       tire: mat('#121214', 0.85),
       rim: mat('#2b2e33', 0.25, 0.8),
@@ -351,7 +351,12 @@ export class RiderAvatar {
     (m.accent as THREE.MeshStandardNodeMaterial).color.set(look.jerseyAccent);
     (m.skin as THREE.MeshStandardNodeMaterial).color.set(look.skin);
     (m.helmet as THREE.MeshStandardNodeMaterial).color.set(look.helmet);
-    (m.frame as THREE.MeshStandardNodeMaterial).color.set(look.bike);
+    (m.frame as THREE.MeshStandardNodeMaterial).color.set(frameColor(look));
     (m.hair as THREE.MeshStandardNodeMaterial).color.set(look.hair);
   }
+}
+
+/** Couleur dominante du cadre (vélo du catalogue ou vélo de base). */
+function frameColor(look: AvatarLook): string {
+  return bikeOfLook(look).livery.colors[0] ?? look.bike;
 }
