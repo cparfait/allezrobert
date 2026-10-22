@@ -109,6 +109,15 @@
 .mm-route.on { border-color: var(--ar-accent); background: rgba(255, 210, 63, 0.08); }
 .mm-conds { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--mm-line); font-size: 12.5px; color: #aeb7c3; }
 
+/* Titre du jeu sur l'image d'accueil */
+.mm-hero { grid-row: 2; position: absolute; top: 5vh; left: 470px; right: 24px; text-align: center; pointer-events: none; }
+.mm-hero h1 { margin: 0; font-size: clamp(54px, 6.4vw, 112px); font-weight: 900; letter-spacing: -0.035em; line-height: 0.95; color: #fff;
+  text-shadow: 0 4px 24px rgba(0, 0, 0, 0.45), 0 1px 2px rgba(0, 0, 0, 0.5); }
+.mm-hero h1 em { color: var(--ar-accent); font-style: normal; }
+.mm-hero p { margin: 14px 0 0; font-size: clamp(16px, 1.5vw, 24px); font-weight: 600; color: rgba(255, 255, 255, 0.92); letter-spacing: 0.01em; text-shadow: 0 2px 12px rgba(0, 0, 0, 0.55); }
+.mm-rc-title { padding: 10px 12px 0; font-size: 15px; font-weight: 800; line-height: 1.25; }
+@media (max-width: 900px) { .mm-hero { display: none; } }
+
 /* Pied : capteurs et départ */
 .mm-foot { grid-row: 3; display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 0 22px 14px; }
 .mm-status { display: flex; align-items: center; gap: 16px; min-width: 0; }

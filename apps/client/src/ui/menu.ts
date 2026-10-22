@@ -267,7 +267,8 @@ export class MainMenu {
         )
         .join('')}</div>
       <div class="mm-conds"><span>${t(s.season)} · ${s.hour.toFixed(1).replace('.', L ? ',' : '.')} h · ${L ? 'nuages' : 'clouds'} ${Math.round(s.clouds * 100)} %${s.rain > 0.05 ? ` · ${L ? 'pluie' : 'rain'}` : ''}</span><button class="mm-link" data-tab="settings">${L ? 'Modifier' : 'Change'}</button></div>
-    </section>`;
+    </section>
+    <div class="mm-hero"><h1>Allez <em>Robert</em> !</h1><p>${L ? 'Rouler ensemble, chacun chez soi.' : 'Ride together, each from home.'}</p></div>`;
   }
 
   /** Carte de l'itinéraire (tracé coloré selon la pente) et profil d'altitude. */
@@ -310,6 +311,7 @@ export class MainMenu {
     const py = (y: number) => (PH - 4 - ((y - lo) / (hi - lo || 1)) * (PH - 10)).toFixed(1);
     const area = `M0,${PH} ${sel.map((p) => `L${px(p.d).toFixed(1)},${py(p.y)}`).join(' ')} L${PW},${PH} Z`;
     return `<div class="mm-routecard">
+      <div class="mm-rc-title">${esc(this.routeName(r))}</div>
       <svg class="mm-map" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
         <g stroke-width="3.2" stroke-linecap="round">${lines}</g>
         ${first ? `<circle cx="${X(first.x)}" cy="${Z(first.z)}" r="6" fill="var(--ar-accent)" stroke="#0a0e16" stroke-width="2.5"/>` : ''}
