@@ -105,6 +105,55 @@ async function switchRoute(scene: Scene3D, s: Settings): Promise<void> {
   history.replaceState(null, '', url.toString());
 }
 
+/** Petit écran d'attente par-dessus le menu (préparation du paysage à la demande). */
+function worldOverlay(label: string): HTMLElement {
+  const el = document.createElement('div');
+  el.className = 'world-wait';
+  el.innerHTML = `<div class="world-wait-box"><div class="world-wait-bar"><i></i></div><span>${label}</span></div>`;
+  document.body.appendChild(el);
+  return el;
+}
+
+/** Boucle vidéo de la saison en fond du menu (public/menu/loop-<saison>.webm). */
+function createMenuVideo(el: HTMLVideoElement | null) {
+  let failed = false;
+  let current = '';
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (el) {
+    el.addEventListener('error', () => {
+      failed = true;
+      el.hidden = true;
+    });
+    el.addEventListener('playing', () => el.classList.add('on'));
+    document.addEventListener('visibilitychange', () => {
+      if (!el.hidden) void (document.hidden ? el.pause() : el.play().catch(() => undefined));
+    });
+  }
+  return {
+    /** Affiche la boucle ; false si impossible (fichier absent, mouvement réduit). */
+    show(season: Settings['season']): boolean {
+      if (!el || failed || reduced) return false;
+      const src = `/menu/loop-${season}.webm`;
+      if (current !== src) {
+        current = src;
+        el.classList.remove('on');
+        el.src = src;
+      }
+      el.hidden = false;
+      void el.play().catch(() => undefined);
+      return true;
+    },
+    stop(): void {
+      if (!el) return;
+      el.pause();
+      el.hidden = true;
+    },
+    playing(): boolean {
+      return !!el && !el.hidden && !failed;
+    },
+  };
+}
+
 /** Musique : volume de base (plus bas en sortie) et annonce des titres Spotify pendant la sortie. */
 const musicCtl = { base: 1, lastTitle: '', onTrack: null as ((label: string) => void) | null };
 
@@ -116,16 +165,18 @@ async function boot(): Promise<void> {
   setLang(settings.lang);
   // Vélo affiché au garage et sur l'image d'accueil : celui qui est équipé (sauvegardes anciennes).
   settings.look = { ...settings.look, bikeType: bikeSetupFor(loadProgress().equipped).tyre ?? 'road' };
-  bootStep(12, 'Chargement des coureurs, des vélos et des voitures');
-  // Avatars Blender (glTF) chargés une fois ; repli procédural automatique en cas d'échec.
-  const [scene] = await Promise.all([loadScene(settings), GltfRiderAvatar.load(), loadVehicleModels()]);
+  bootStep(20, 'Chargement du jeu');
+  // Avatars Blender (glTF) et voitures : chargés en parallèle, attendus seulement quand la 3D sert.
+  const modelsReady = Promise.all([GltfRiderAvatar.load(), loadVehicleModels()]);
+  // Léger : moteur, liste des mondes et des parcours. Le paysage (tuiles, shaders) se charge après le menu.
+  const scene = await loadScene(settings);
   // Film d'accueil (développement) : rendu image par image, sans menu (voir tools/menu-loop).
   if (import.meta.env.DEV && new URLSearchParams(location.search).has('cinematic')) {
+    await modelsReady;
     const { runCinematic } = await import('./ui/cinematic.ts');
     bootDone();
     return runCinematic(scene.engine, scene.world, scene.track);
   }
-  bootStep(50, 'Choix du lieu de la photo d’accueil');
   const devices = createDeviceLayer();
   const autostart = new URLSearchParams(location.search).has('autostart');
   /** Ciel et lumière de la sortie (réglages du coureur) ; l'environnement suit le monde courant. */
@@ -143,7 +194,7 @@ async function boot(): Promise<void> {
   let inMenu = !autostart;
   /** « Explorer la carte » depuis l'accueil : caméra libre, sans sortie. */
   let exploring = false;
-  const poster = new PosterScene(scene.engine, scene.world, scene.track);
+  let poster = new PosterScene(scene.engine, scene.world, scene.track);
   let posterFrames = 0;
   const focus = new THREE.Vector3();
   const renderPoster = () => {
@@ -155,27 +206,42 @@ async function boot(): Promise<void> {
     env.weather.fog = 0.08;
     posterFrames = 24;
   };
-  if (inMenu) {
-    if (scene.world.env.state.season !== settings.season) scene.world.setSeason(settings.season);
-    const d = await choosePosterSpot(scene.world, scene.track, settings.season);
-    poster.build(settings.look);
-    focus.copy(poster.place(d));
-    bootStep(60, 'Paysage : relief, routes, bâtiments, arbres');
-    await scene.world.preload(focus);
-    renderPoster();
-    window.addEventListener('resize', () => inMenu && !exploring && renderPoster());
-  } else {
-    bootStep(60, 'Paysage : relief, routes, bâtiments, arbres');
-    const start = scene.track.positionAt(0, 1.2);
-    await scene.world.preload(new THREE.Vector3(start.x, start.y, start.z));
-  }
-  // Shaders compilés derrière l'écran de chargement : le premier affichage ne saccade pas.
-  bootStep(85, 'Préparation des matériaux (shaders)');
-  if (inMenu) {
-    poster.frame();
-    scene.world.update(1 / 60, focus);
-  }
-  await scene.engine.renderer.compileAsync(scene.engine.scene, scene.engine.camera).catch(() => undefined);
+  /**
+   * Paysage du monde courant (tuiles, végétation, bâtiments), image d'accueil 3D et shaders.
+   * Lancé en arrière-plan une fois le menu affiché ; garage, exploration, tutoriel et départ l'attendent.
+   */
+  let worldReady: Promise<void> | null = null;
+  const prepareWorld = (): Promise<void> =>
+    (worldReady ??= (async () => {
+      await modelsReady;
+      if (inMenu) {
+        if (scene.world.env.state.season !== settings.season) scene.world.setSeason(settings.season);
+        const d = await choosePosterSpot(scene.world, scene.track, settings.season);
+        poster.build(settings.look);
+        focus.copy(poster.place(d));
+        await scene.world.preload(focus);
+        poster.frame();
+        scene.world.update(1 / 60, focus);
+      } else {
+        const start = scene.track.positionAt(0, 1.2);
+        await scene.world.preload(new THREE.Vector3(start.x, start.y, start.z));
+      }
+      await scene.engine.renderer.compileAsync(scene.engine.scene, scene.engine.camera).catch(() => undefined);
+      if (inMenu && !menuVideo.playing()) renderPoster();
+    })());
+  /** Attend le paysage avant une action 3D, avec un écran d'attente seulement s'il n'est pas prêt. */
+  const withWorld = async (label: string): Promise<void> => {
+    let done = false;
+    const p = prepareWorld().then(() => (done = true));
+    await Promise.race([p, new Promise((r) => setTimeout(r, 60))]);
+    if (done) return;
+    const overlay = worldOverlay(label);
+    await p;
+    overlay.remove();
+  };
+  window.addEventListener('resize', () => inMenu && !exploring && worldReady && !menuVideo.playing() && renderPoster());
+  // Fond du menu : boucle vidéo de la saison (aucun calcul 3D pendant ce temps).
+  const menuVideo = createMenuVideo(document.getElementById('menu-bg') as HTMLVideoElement | null);
   // Explorer la carte : caméra libre au-dessus du monde chargé ; les tuiles suivent la caméra.
   const explorer = new FreeFlyCamera(scene.engine.camera, scene.engine.renderer.domElement, (x, z) => scene.world.terrain.heightAt(x, z));
   let exploreT = 0;
@@ -201,6 +267,7 @@ async function boot(): Promise<void> {
   /** Sortie de l'accueil : retrait du groupe figé, réglages du coureur rétablis. */
   const leaveMenu = (s: Settings) => {
     inMenu = false;
+    menuVideo.stop();
     poster.dispose();
     applyEnv(s);
   };
@@ -232,38 +299,70 @@ async function boot(): Promise<void> {
         location.href = url.toString();
         return;
       }
-      // Changement d'itinéraire : monde reconstruit sur place, la musique continue.
+      // Changement d'itinéraire : monde reconstruit sur place (sans attendre l'ancien), la musique continue.
       if (s.routeId !== scene.route.id) {
         menu.hide();
         leaveMenu(s);
-        ui.innerHTML = `<div class="loading">${getLang() === 'fr' ? 'Chargement de l’itinéraire…' : 'Loading route…'}</div>`;
-        void switchRoute(scene, s).then(() => startRide(scene, s, s.guest ? new GuestInputSource(s.massKg) : devices.source(), extras));
+        const overlay = worldOverlay(getLang() === 'fr' ? 'Chargement de l’itinéraire…' : 'Loading route…');
+        void modelsReady
+          .then(() => switchRoute(scene, s))
+          .then(() => scene.engine.renderer.compileAsync(scene.engine.scene, scene.engine.camera).catch(() => undefined))
+          .then(() => {
+            overlay.remove();
+            return startRide(scene, s, s.guest ? new GuestInputSource(s.massKg) : devices.source(), extras);
+          });
         return;
       }
-      leaveMenu(s);
-      menu.hide();
-      void startRide(scene, s, s.guest ? new GuestInputSource(s.massKg) : devices.source(), extras);
+      void withWorld(getLang() === 'fr' ? 'Préparation de la sortie…' : 'Preparing the ride…').then(() => {
+        leaveMenu(s);
+        menu.hide();
+        return startRide(scene, s, s.guest ? new GuestInputSource(s.massKg) : devices.source(), extras);
+      });
     },
   });
   menu.worldId = scene.source.id;
   menu.openWorld = !!scene.source.open;
-  // Changement de monde : rechargement de la page sur le nouveau monde (premier itinéraire).
+  // Changement de monde sans recharger la page : données du nouveau monde, paysage refait en arrière-plan.
   menu.onWorld = (id) => {
     settings.world = id;
     settings.routeId = '';
     saveSettings(settings);
-    const url = new URL(location.href);
-    url.searchParams.set('world', id);
-    url.searchParams.delete('route');
-    location.href = url.toString();
+    void (async () => {
+      const source = await loadWorldSource(id);
+      if (settings.mode === 'open' && !source.open) settings.mode = 'free';
+      const pending = worldReady;
+      worldReady = null;
+      await pending?.catch(() => undefined);
+      poster.dispose();
+      scene.world.dispose();
+      scene.source = source;
+      scene.route = source.routes[0] as RouteData;
+      scene.track = new RouteTrack(scene.route);
+      scene.world = new World(scene.engine.scene, source, scene.route, scene.track, scene.q, {
+        hour: settings.hour,
+        season: settings.season,
+        weather: { clouds: settings.clouds, rain: settings.rain, fog: settings.fog, windMs: settings.windMs, windFrom: 4.4 },
+      });
+      poster = new PosterScene(scene.engine, scene.world, scene.track);
+      settings.routeId = scene.route.id;
+      saveSettings(settings);
+      const url = new URL(location.href);
+      url.searchParams.set('world', id);
+      url.searchParams.delete('route');
+      history.replaceState(null, '', url.toString());
+      menu.setWorld(source.routes, source.id, !!source.open);
+      void prepareWorld();
+    })();
   };
   const onExploreKey = (e: KeyboardEvent) => {
     if (e.key !== 'Escape') return;
     e.preventDefault();
     stopExplore();
   };
-  const startExplore = () => {
+  const startExplore = async () => {
     if (exploring || !inMenu) return;
+    await withWorld(getLang() === 'fr' ? 'Chargement de la carte…' : 'Loading the map…');
+    menuVideo.stop();
     menu.hide();
     exploring = true;
     exploreT = performance.now();
@@ -280,10 +379,10 @@ async function boot(): Promise<void> {
     exploring = false;
     window.removeEventListener('keydown', onExploreKey);
     explorer.disable();
-    menu.show(); // → onScene('poster') → renderPoster()
+    menu.show(); // → onScene('poster') → vidéo de la saison (ou image 3D si absente)
     void scene.world.preload(focus).then(() => inMenu && !exploring && renderPoster());
   };
-  menu.onExplore = startExplore;
+  menu.onExplore = () => void startExplore();
   if (import.meta.env.DEV) (window as unknown as { __arMenu: unknown }).__arMenu = { engine: scene.engine, world: scene.world, explorer, startExplore, stopExplore };
   // Nouveau morceau : barre musique du menu à jour, annonce dans le HUD pendant la sortie.
   music.onTrack = (tr) => {
@@ -294,6 +393,8 @@ async function boot(): Promise<void> {
   menu.onSettingsChange = (s) => {
     if (!inMenu) return applyEnv(s);
     if (scene.world.env.state.season !== s.season) scene.world.setSeason(s.season);
+    if (menuVideo.playing()) menuVideo.show(s.season);
+    if (!worldReady) return;
     poster.build(s.look);
     poster.place(poster.d);
     renderPoster();
@@ -301,15 +402,23 @@ async function boot(): Promise<void> {
   // Onglets : photo du groupe, ou aperçu du coureur dans le garage (vues et rotation).
   // Garage : aperçu d'un équipement (même verrouillé) sur le coureur, puis retour à la tenue équipée.
   menu.onPreviewLook = (look) => {
-    if (!inMenu) return;
+    if (!inMenu || !worldReady) return;
     poster.build(look ?? settings.look);
     poster.place(poster.d);
     renderPoster();
   };
   menu.onScene = (view, yaw) => {
-    if (!inMenu) return;
+    if (!inMenu || exploring) return;
+    // Accueil : la vidéo de la saison ; garage : vraie 3D (attend le paysage si besoin).
+    if (view === 'poster' && menuVideo.show(settings.season)) return;
+    menuVideo.stop();
     poster.setView(view, yaw);
-    renderPoster();
+    if (worldReady) return renderPoster();
+    void withWorld(getLang() === 'fr' ? 'Chargement du garage…' : 'Loading the garage…').then(() => {
+      if (!inMenu || exploring) return;
+      poster.setView(view, yaw);
+      renderPoster();
+    });
   };
   menu.onTutorial = () => {
     new Onboarding(ui, settings, devices.panel, (s, skipped) => {
@@ -318,18 +427,20 @@ async function boot(): Promise<void> {
         menu.show();
         return;
       }
-      leaveMenu(s);
-      ui.innerHTML = '';
-      void startRide(scene, s, devices.source(), { tutorial: true });
+      void withWorld(getLang() === 'fr' ? 'Préparation de la sortie…' : 'Preparing the ride…').then(() => {
+        leaveMenu(s);
+        ui.innerHTML = '';
+        return startRide(scene, s, devices.source(), { tutorial: true });
+      });
     }).start();
   };
-  bootStep(95, 'Première image');
-  // Deux images rendues, sans bloquer si l'onglet est en arrière-plan (pas de requestAnimationFrame).
-  await Promise.race([new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))), new Promise((r) => setTimeout(r, 400))]);
   bootDone();
   if (autostart) {
+    await withWorld(getLang() === 'fr' ? 'Préparation de la sortie…' : 'Preparing the ride…');
     void startRide(scene, settings, devices.source(), {});
   } else {
+    // Le paysage se prépare pendant que le coureur choisit (sans bloquer le menu).
+    setTimeout(() => void prepareWorld(), 400);
     // Compte : session existante, sinon écran de connexion (sauf choix « sans compte »).
     let me: Me | null = await fetchMe();
     if (me) applyProfile(me, settings);

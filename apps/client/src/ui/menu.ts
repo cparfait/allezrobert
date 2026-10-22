@@ -83,7 +83,7 @@ const SLOT_VIEW: Record<CosmeticSlot, GarageView> = { jersey: '3q', helmet: 'fro
 export class MainMenu {
   private readonly root: HTMLElement;
   private readonly s: Settings;
-  private readonly routes: RouteData[];
+  private routes: RouteData[];
   private readonly devices: DevicePanel;
   private readonly cb: MenuCallbacks;
   private workoutFile: { name: string; content: string } | undefined;
@@ -118,6 +118,15 @@ export class MainMenu {
   onLogout?: () => void;
   /** Monde affiché et changement de monde (rechargement de la page). */
   worldId = 'chevreuse';
+
+  /** Nouveau monde chargé sur place : parcours, identifiant, monde ouvert ; l'écran est refait. */
+  setWorld(routes: RouteData[], worldId: string, open: boolean): void {
+    this.routes = routes;
+    this.worldId = worldId;
+    this.openWorld = open;
+    if (!routes.some((r) => r.id === this.s.routeId)) this.s.routeId = routes[0]?.id ?? '';
+    if (this.root.querySelector('.mm')) this.render();
+  }
   openWorld = false;
   onWorld?: (id: string) => void;
   onSettingsSaved?: (s: Settings) => void;
