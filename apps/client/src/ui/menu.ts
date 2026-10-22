@@ -71,6 +71,7 @@ const ICON = {
   shifter: svg('<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="M12 4v3M12 17v3M4 12h3M17 12h3"/>'),
   fan: svg('<circle cx="12" cy="12" r="1.5"/><path d="M12 10.5C11 6 13 3 16 4s1 5-2.5 7M13.5 12.5c4.4 1 6.5 3.5 5 6s-5 .5-6.5-3M10.5 12c-4.5.2-7.3-1.7-6.6-4.5s4.6-1.6 6.4 1.9"/>'),
   music: svg('<path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/>', 16),
+  musicOff: svg('<path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/><path d="M3 3l18 18"/>', 16),
   next: svg('<path d="m5 4 10 8-10 8zM19 5v14"/>', 14),
   prev: svg('<path d="M19 20 9 12l10-8zM5 19V5"/>', 14),
   play: svg('<path d="m7 4 13 8-13 8z"/>', 14),
@@ -900,7 +901,7 @@ export class MainMenu {
       void this.refreshNowPlaying();
     } else if (top) {
       const cur = music.enabled && music.current ? esc(music.current.title) : L ? 'Musique coupée' : 'Music off';
-      top.innerHTML = `<button class="mm-ico ${music.enabled ? 'on' : ''}" id="mu-toggle" title="${L ? 'Musique marche / arrêt (B)' : 'Music on / off (B)'}">${ICON.music}</button>
+      top.innerHTML = `<button class="mm-ico ${music.enabled ? 'on' : ''}" id="mu-toggle" title="${L ? 'Musique marche / arrêt (B)' : 'Music on / off (B)'}">${music.enabled ? ICON.music : ICON.musicOff}</button>
         <span class="mm-now" id="mu-now">${cur}</span>
         <button class="mm-ico" id="mu-next" title="${L ? 'Morceau suivant (N)' : 'Next track (N)'}">${ICON.next}</button>
         <button class="mm-spotify" id="sp-login" title="${L ? 'Connecter ton compte Spotify' : 'Connect your Spotify account'}"><i class="sp">●</i> Spotify</button>`;
