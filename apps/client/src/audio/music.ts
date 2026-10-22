@@ -11,7 +11,6 @@ export interface Track {
 }
 
 export const PLAYLIST: Track[] = [
-  { file: 'lofi.mp3', title: 'Lofi' },
   { file: 'effort-constant.mp3', title: 'Effort constant' },
   { file: 'effort-pur.mp3', title: 'Effort pur' },
   { file: 'effort-pur-2.mp3', title: 'Effort pur (version longue)' },
