@@ -3,6 +3,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import type { RouteTrack } from '@allezrobert/shared';
 import { rng } from '../engine/noise.ts';
+import { Pedestrians } from './pedestrians.ts';
 
 type Kind = 'car' | 'van' | 'tractor';
 
@@ -17,14 +18,6 @@ interface Vehicle {
   cruise: number;
   speed: number;
   lateral: number;
-}
-
-interface Walker {
-  mesh: THREE.Group;
-  d: number;
-  lateral: number;
-  speed: number;
-  phase: number;
 }
 
 const CAR_COLORS = ['#c0392b', '#2c3e50', '#ecf0f1', '#7f8c8d', '#1f6feb', '#16a085', '#f1c40f', '#111111', '#8e44ad'];
@@ -152,30 +145,22 @@ function buildVehicle(kind: Kind, color: string, pick = 0): { group: THREE.Group
   return { group: g, wheels };
 }
 
-/** Piéton : corps, tête ; balancement de marche animé sur le CPU (quelques unités seulement). */
-function buildWalker(color: string, skin: string): THREE.Group {
-  const g = new THREE.Group();
-  const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.2, 0.9, 3, 8).translate(0, 0.75, 0), new THREE.MeshStandardNodeMaterial({ color, roughness: 0.8 }));
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.13, 10, 8).translate(0, 1.42, 0), new THREE.MeshStandardNodeMaterial({ color: skin, roughness: 0.7 }));
-  body.castShadow = head.castShadow = true;
-  g.add(body, head);
-  return g;
-}
-
 /**
  * Monde vivant peu coûteux, dans le même repère que les coureurs (distance + décalage) :
  * voitures et camionnettes qui doublent en s'écartant (et patientent si quelqu'un arrive en
- * face), circulation en sens inverse, tracteur ; piétons sur les bas-côtés des villages.
+ * face), circulation en sens inverse, tracteur ; piétons sur les bas-côtés des villages
+ * (silhouettes instanciées et animées sur le GPU, voir pedestrians.ts).
  */
 export class Traffic {
   readonly group = new THREE.Group();
   private readonly vehicles: Vehicle[] = [];
-  private readonly walkers: Walker[] = [];
+  readonly pedestrians: Pedestrians;
   private readonly track: RouteTrack;
   private readonly r = rng(77);
   private readonly sample = { x: 0, y: 0, z: 0, dirX: 1, dirZ: 0, grade: 0, d: 0 };
 
-  constructor(track: RouteTrack, density = 1) {
+  /** @param groundAt altitude du terrain, pour les piétons posés au-delà de l'accotement (facultatif) */
+  constructor(track: RouteTrack, density = 1, groundAt?: (x: number, z: number) => number) {
     this.track = track;
     this.group.name = 'traffic';
     const n = Math.round(6 * density);
@@ -187,15 +172,9 @@ export class Traffic {
       this.vehicles.push({ kind, mesh: group, wheels, d: (sens > 0 ? -150 : 300) - i * 180, sens, cruise, speed: cruise, lateral: this.laneOf(sens) });
       this.group.add(group);
     }
-    // Piétons : autour des villages traversés.
-    for (const lm of track.route.landmarks ?? []) {
-      for (let k = 0; k < 2; k++) {
-        const m = buildWalker(CAR_COLORS[(k * 3 + lm.name.length) % CAR_COLORS.length] as string, k ? '#e0ac69' : '#f1c27d');
-        const side = k ? 1 : -1;
-        this.walkers.push({ mesh: m, d: lm.d + (this.r() - 0.5) * 120, lateral: side * (track.route.roadWidthM / 2 + 1.3), speed: (this.r() > 0.5 ? 1 : -1) * (1.1 + this.r() * 0.4), phase: this.r() * 6 });
-        this.group.add(m);
-      }
-    }
+    // Piétons : autour des villages traversés (un seul maillage instancié).
+    this.pedestrians = new Pedestrians(track, groundAt);
+    this.group.add(this.pedestrians.mesh);
   }
 
   private laneOf(sens: 1 | -1): number {
@@ -245,12 +224,6 @@ export class Traffic {
         else w.rotation.x += spin;
       }
     }
-    for (const w of this.walkers) {
-      w.d += w.speed * dt;
-      w.phase += dt * 7;
-      const p = this.track.positionAt(((w.d % L) + L) % L, w.lateral, this.sample);
-      w.mesh.position.set(p.x, p.y + Math.abs(Math.sin(w.phase)) * 0.04, p.z);
-      w.mesh.rotation.set(0, Math.atan2(p.dirX, p.dirZ) + (w.speed < 0 ? Math.PI : 0), Math.sin(w.phase) * 0.04);
-    }
+    this.pedestrians.update(dt, player.distM);
   }
 }
