@@ -513,8 +513,8 @@ export class MainMenu {
     const zone = w ? w.name[lang] : this.worldId;
     const chevron = '<i aria-hidden="true">›</i>';
     return `<div class="mm-pickers">
-      <button class="mm-pick" data-picker="zones"><small>${L ? 'Zone' : 'Area'}</small><b>${esc(zone)}</b><span>${w ? esc(w.hint[lang]) : ''}</span>${chevron}</button>
-      <button class="mm-pick" data-picker="routes"><small>${L ? 'Parcours' : 'Route'}</small><b>${r ? esc(this.routeName(r)) : '—'}</b><span>${r ? `${this.km(r.lengthM)} km · ${Math.round(r.elevationGainM)} m D+` : ''}</span>${chevron}</button>
+      <button class="mm-pick mm-pick-big" data-picker="zones" title="${esc(zone)}"><b>${L ? 'ZONES' : 'AREAS'}</b>${chevron}</button>
+      <button class="mm-pick mm-pick-big" data-picker="routes" title="${r ? esc(this.routeName(r)) : ''}"><b>${L ? 'PARCOURS' : 'ROUTES'}</b>${chevron}</button>
     </div>`;
   }
 
