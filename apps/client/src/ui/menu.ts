@@ -328,7 +328,7 @@ export class MainMenu {
           ['group', 'group', 'Rouler à plusieurs : le groupe reste ensemble.'],
           ['race', 'race', 'Course en ligne, classement à l’arrivée.'],
           ['workout', 'workout', 'Séance structurée en mode ERG : séances intégrées ou fichier .zwo, .erg, .mrc.'],
-          ['ftpTest', 'ftpTest', 'Test de 20 minutes pour estimer ta FTP.'],
+          ['ftpTest', 'ftpTest', 'Test rampe : paliers d’une minute jusqu’à épuisement, pour estimer ta FTP.'],
           ['challenge', 'challenge', 'Bats ton record sur une montée : départ lancé, fantôme de ton meilleur temps, écart en direct.'],
           ...(this.openWorld ? ([['open', 'open', 'Toutes les routes du monde : ← / → pour choisir ta direction à chaque carrefour, U pour faire demi-tour.']] as Array<[Settings['mode'], I18nKey, string]>) : []),
         ]
@@ -337,7 +337,7 @@ export class MainMenu {
           ['group', 'group', 'Ride together: the group stays as one.'],
           ['race', 'race', 'Online race, results at the finish.'],
           ['workout', 'workout', 'Structured session in ERG mode: built-in workouts or a .zwo, .erg, .mrc file.'],
-          ['ftpTest', 'ftpTest', '20-minute test to estimate your FTP.'],
+          ['ftpTest', 'ftpTest', 'Ramp test: one-minute steps to exhaustion, to estimate your FTP.'],
           ['challenge', 'challenge', 'Beat your record on a climb: flying start, ghost of your best time, live gap.'],
           ...(this.openWorld ? ([['open', 'open', 'Every road of the world: ← / → to pick your way at each junction, U to turn around.']] as Array<[Settings['mode'], I18nKey, string]>) : []),
         ];
@@ -472,10 +472,37 @@ export class MainMenu {
               <label class="mm-file">${L ? 'Ou importer une séance' : 'Or import a workout'} (.zwo / .erg / .mrc)<input id="m-workout" type="file" accept=".zwo,.erg,.mrc" hidden /><span id="m-wname">${this.workoutFile ? esc(this.workoutFile.name) : ''}</span></label>`
             : ''
       }
-      ${this.pickersHtml(r)}
+      ${
+        s.mode === 'ftpTest'
+          ? this.ftpTestHtml()
+          : `<h3 class="mm-where">${L ? 'Où rouler ?' : 'Where to ride?'}</h3>${this.pickersHtml(r)}`
+      }
     </section>
     <div class="mm-hero"><h1>Allez <em>Robert</em> !</h1><p>${L ? 'Rouler ensemble, chacun chez soi.' : 'Ride together, each from home.'}</p></div>
     ${this.pickerHtml()}`;
+  }
+
+  /** Test FTP : déroulé du test rampe (pas de choix de zone ni de parcours). */
+  private ftpTestHtml(): string {
+    const L = fr();
+    const steps = L
+      ? [
+          ['Échauffement', '5 min à 100 W, mode ERG : le home trainer impose la puissance.'],
+          ['Paliers', '+20 W chaque minute. Garde une cadence régulière, autour de 85–95 tr/min.'],
+          ['Jusqu’au bout', 'Arrête-toi quand tu ne tiens plus le palier : c’est la fin du test (souvent 15 à 25 min).'],
+          ['Résultat', 'FTP = 75 % de ta meilleure minute. Elle est proposée à la fin et règle tes zones et tes séances.'],
+        ]
+      : [
+          ['Warm-up', '5 min at 100 W in ERG mode: the trainer sets the power.'],
+          ['Steps', '+20 W every minute. Keep a steady cadence, around 85–95 rpm.'],
+          ['To the end', 'Stop when you can no longer hold the step: that ends the test (often 15–25 min).'],
+          ['Result', 'FTP = 75% of your best minute. It is offered at the end and sets your zones and workouts.'],
+        ];
+    return `<div class="mm-ftptest">
+      <h3>${L ? 'Comment se passe le test' : 'How the test works'}</h3>
+      <ol>${steps.map(([t, d]) => `<li><b>${t}</b><span>${d}</span></li>`).join('')}</ol>
+      <p class="mm-hint">${L ? `FTP actuelle : ${Math.round(this.s.ftpWatts)} W. Bien reposé, ventilateur allumé, bidon à portée de main.` : `Current FTP: ${Math.round(this.s.ftpWatts)} W. Be rested, fan on, bottle within reach.`}</p>
+    </div>`;
   }
 
   /** Deux boutons : la zone et le parcours choisis ; chacun ouvre sa liste au milieu de l'écran. */
