@@ -42,6 +42,11 @@ export class MainMenu {
   onTutorial?: () => void;
   /** Ouvre le garage (progression, cosmétiques). */
   onGarage?: () => void;
+  /** Compte connecté (affiché dans le menu), connexion / déconnexion, synchro du profil. */
+  account: { name: string; level: number } | null = null;
+  onLogin?: () => void;
+  onLogout?: () => void;
+  onSettingsSaved?: (s: Settings) => void;
 
   constructor(root: HTMLElement, settings: Settings, routes: RouteData[], devices: DevicePanel, cb: MenuCallbacks) {
     this.root = root;
@@ -85,6 +90,7 @@ export class MainMenu {
     this.root.innerHTML = `
       <div class="menu"><div class="card panel">
         <h1>Allez <em>Robert</em> !</h1>
+        <div class="row" style="float:right;font-size:13px;color:var(--ar-muted)">${this.account ? `● ${esc(this.account.name)} · ${getLang() === 'fr' ? 'niveau' : 'level'} ${this.account.level} <button class="btn small" id="m-logout">${getLang() === 'fr' ? 'Se déconnecter' : 'Sign out'}</button>` : `<button class="btn small" id="m-login">${getLang() === 'fr' ? 'Se connecter' : 'Sign in'}</button>`}</div>
         <p class="tagline">${getLang() === 'fr' ? 'De Saclay à Rambouillet, entre amis.' : 'From Saclay to Rambouillet, with friends.'} <span style="opacity:.6">${t('shortcuts')}</span></p>
         <div class="grid2">
           <div>
@@ -210,6 +216,7 @@ export class MainMenu {
     const changed = () => {
       saveSettings(s);
       this.onSettingsChange?.(s);
+      this.onSettingsSaved?.(s);
     };
     this.root.querySelectorAll<HTMLElement>('[data-route]').forEach((el) =>
       el.addEventListener('click', () => {
@@ -293,6 +300,8 @@ export class MainMenu {
       $<HTMLElement>('m-wname').textContent = f.name;
     });
     $<HTMLButtonElement>('m-tuto').addEventListener('click', () => this.onTutorial?.());
+    this.root.querySelector('#m-login')?.addEventListener('click', () => this.onLogin?.());
+    this.root.querySelector('#m-logout')?.addEventListener('click', () => this.onLogout?.());
     $<HTMLButtonElement>('m-garage').addEventListener('click', () => this.onGarage?.());
     $<HTMLButtonElement>('m-start').addEventListener('click', () => {
       const invite = $<HTMLInputElement>('m-invite').value.trim();

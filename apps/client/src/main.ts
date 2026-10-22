@@ -23,6 +23,7 @@ import { showPause, showSummary, rideToFit } from './ui/ridepanels.ts';
 import { splatAt } from './world/splat.ts';
 import { Onboarding, RideTutorial } from './onboarding/onboarding.ts';
 import { showGarage, awardRide } from './ui/garage.ts';
+import { fetchMe, showLogin, applyProfile, logout, pushProfile, type Me } from './ui/account.ts';
 import { RideSequences } from './game/sequences.ts';
 import { GuestInputSource } from './game/guest.ts';
 import { Crowd } from './world/crowd.ts';
@@ -112,7 +113,12 @@ async function boot(): Promise<void> {
   };
   menu.onGarage = () => showGarage(ui, settings, () => menu.show());
   menu.onTutorial = () => {
-    new Onboarding(ui, settings, devices.panel, (s) => {
+    new Onboarding(ui, settings, devices.panel, (s, skipped) => {
+      // Tutoriel passé : retour au menu ; terminé : première sortie commentée.
+      if (skipped) {
+        menu.show();
+        return;
+      }
       inMenu = false;
       ui.innerHTML = '';
       void startRide(scene, s, devices.source(), { tutorial: true });
@@ -121,8 +127,36 @@ async function boot(): Promise<void> {
   if (new URLSearchParams(location.search).has('autostart')) {
     inMenu = false;
     void startRide(scene, settings, devices.source(), {});
-  } else if (Onboarding.needed()) menu.onTutorial();
-  else menu.show();
+  } else {
+    // Compte : session existante, sinon écran de connexion (sauf choix « sans compte »).
+    let me: Me | null = await fetchMe();
+    if (me) applyProfile(me, settings);
+    const afterLogin = () => {
+      menu.account = me ? { name: me.profile.displayName, level: me.progression.level } : null;
+      if (Onboarding.needed()) menu.onTutorial?.();
+      else menu.show();
+    };
+    menu.onLogin = () =>
+      void showLogin(ui, settings, (m) => {
+        me = m;
+        afterLogin();
+      });
+    menu.onLogout = async () => {
+      await logout();
+      me = null;
+      localStorage.removeItem('ar.skipLogin');
+      afterLogin();
+    };
+    // Profil envoyé au compte une fois les réglages stabilisés (1,5 s sans changement).
+    let pushTimer: ReturnType<typeof setTimeout> | undefined;
+    menu.onSettingsSaved = (st) => {
+      if (!me) return;
+      clearTimeout(pushTimer);
+      pushTimer = setTimeout(() => void pushProfile(st), 1500);
+    };
+    if (!me && !localStorage.getItem('ar.skipLogin')) menu.onLogin();
+    else afterLogin();
+  }
 }
 
 async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras: { workoutFile?: { name: string; content: string }; inviteCode?: string; tutorial?: boolean }): Promise<void> {

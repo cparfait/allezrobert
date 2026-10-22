@@ -21,9 +21,9 @@ export class Onboarding {
   private readonly devices: DevicePanel;
   private readonly voice: VoiceOver;
   private step: Step = 'welcome';
-  private readonly done: (s: Settings) => void;
+  private readonly done: (s: Settings, skipped: boolean) => void;
 
-  constructor(root: HTMLElement, settings: Settings, devices: DevicePanel, done: (s: Settings) => void) {
+  constructor(root: HTMLElement, settings: Settings, devices: DevicePanel, done: (s: Settings, skipped: boolean) => void) {
     this.root = root;
     this.s = settings;
     this.devices = devices;
@@ -56,7 +56,7 @@ export class Onboarding {
     else {
       this.voice.stop();
       localStorage.setItem('ar.onboarded', new Date().toISOString());
-      this.done(this.s);
+      this.done(this.s, false);
     }
   }
 
@@ -147,7 +147,7 @@ export class Onboarding {
       this.voice.stop();
       localStorage.setItem('ar.onboarded', 'skipped');
       saveSettings(this.s);
-      this.done(this.s);
+      this.done(this.s, true);
     });
     this.root.querySelectorAll<HTMLButtonElement>('[data-lang]').forEach((b) =>
       b.addEventListener('click', () => {
