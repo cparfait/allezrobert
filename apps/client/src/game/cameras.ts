@@ -1,5 +1,10 @@
 import * as THREE from 'three/webgpu';
 import type { CameraMode, RouteTrack } from '@allezrobert/shared';
+import { FreeFlyCamera } from './freecam.ts';
+import { getLang } from '../i18n/index.ts';
+
+/** Modes de la caméra du jeu : ceux du protocole (appli compagnon) plus la caméra libre, locale. */
+export type RigMode = CameraMode | 'free';
 
 export interface CameraTarget {
   position: THREE.Vector3;
@@ -7,14 +12,37 @@ export interface CameraTarget {
   dir: THREE.Vector3;
   distM: number;
   speedMs: number;
+  /** Yeux du coureur (repère monde), pour la vue subjective ; à défaut, position estimée. */
+  eye?: THREE.Vector3;
+  /** Milieu des mains sur les cocottes (repère monde) : la vue subjective garde le cintre en bas de l'image. */
+  hands?: THREE.Vector3;
 }
 
+const _up = new THREE.Vector3(0, 1, 0);
 /**
- * Caméras : poursuite (par défaut), cockpit, drone, réalisation TV (plans fixes en bord
- * de route qui se succèdent), mode photo (orbite libre à la souris).
+ * Vue subjective : la caméra est un peu en arrière et au-dessus des yeux (tête et cou masqués),
+ * comme dans les autres simulateurs, sinon les mains, presque à la verticale des yeux, sortent du
+ * champ. Focale verticale COCKPIT_FOV ; le regard plonge juste assez pour garder les mains à
+ * COCKPIT_HANDS_MARGIN (rad) au-dessus du bas de l'image (sans repère des mains : COCKPIT_PITCH
+ * sous l'axe de la route).
+ */
+const COCKPIT_BACK = 0.22;
+const COCKPIT_UP = 0.12;
+const COCKPIT_PITCH = 0.48;
+const COCKPIT_HANDS_MARGIN = 0.2;
+/** Plongée maximale sous la pente du vélo (rad) : en danseuse, la tête passe au-dessus du cintre. */
+const COCKPIT_MAX_DOWN = 0.52;
+const COCKPIT_FOV = 82;
+
+/**
+ * Caméras : poursuite (par défaut), cockpit (vue subjective), caméra embarquée, drone,
+ * réalisation TV (plans fixes en bord de route qui se succèdent), mode photo (orbite à la
+ * souris), caméra libre (vol au clavier et à la souris, voir FreeFlyCamera).
  */
 export class CameraRig {
-  mode: CameraMode = 'chase';
+  mode: RigMode = 'chase';
+  /** Caméra libre (mode « free ») : vol indépendant du coureur. */
+  readonly free: FreeFlyCamera;
   private readonly camera: THREE.PerspectiveCamera;
   private readonly track: RouteTrack;
   private readonly groundAt: (x: number, z: number) => number;
@@ -35,6 +63,8 @@ export class CameraRig {
     this.camera = camera;
     this.track = track;
     this.groundAt = groundAt;
+    this.free = new FreeFlyCamera(camera, dom, groundAt);
+    this.free.exitHint = getLang() === 'fr' ? '<kbd>C</kbd> caméra suivante' : '<kbd>C</kbd> next camera';
     dom.addEventListener('pointerdown', () => (this.dragging = this.mode === 'photo'));
     window.addEventListener('pointerup', () => (this.dragging = false));
     window.addEventListener('pointermove', (e) => {
@@ -48,15 +78,17 @@ export class CameraRig {
     });
   }
 
-  setMode(mode: CameraMode): void {
+  setMode(mode: RigMode): void {
+    if (mode === 'free') this.free.enable();
+    else this.free.disable();
     this.mode = mode;
     this.tvSpot = null;
     this.initialized = false;
   }
 
-  cycle(): CameraMode {
-    const order: CameraMode[] = ['chase', 'cockpit', 'gopro', 'drone', 'tv', 'photo'];
-    this.setMode(order[(order.indexOf(this.mode) + 1) % order.length] as CameraMode);
+  cycle(): RigMode {
+    const order: RigMode[] = ['chase', 'cockpit', 'gopro', 'drone', 'tv', 'photo', 'free'];
+    this.setMode(order[(order.indexOf(this.mode) + 1) % order.length] as RigMode);
     return this.mode;
   }
 
@@ -65,8 +97,27 @@ export class CameraRig {
     return Number.isFinite(h) ? h : fallback;
   }
 
+  /** Focale verticale (°) par défaut, et celle de la vue subjective (bornée à 120° en horizontal sur écran très large). */
+  private fovFor(mode: RigMode): number {
+    const cam = this.camera;
+    if (mode === 'cockpit') return Math.min(COCKPIT_FOV, 2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(60)) / cam.aspect) * THREE.MathUtils.RAD2DEG);
+    if (mode === 'free') return cam.aspect > 2.5 ? 55 : 70;
+    return cam.aspect > 2.5 ? 48 : 62;
+  }
+
   update(dt: number, t: CameraTarget): void {
     const cam = this.camera;
+    if (this.mode !== 'tv') {
+      const fov = this.fovFor(this.mode);
+      if (Math.abs(cam.fov - fov) > 0.01) {
+        cam.fov = fov;
+        cam.updateProjectionMatrix();
+      }
+    }
+    if (this.mode === 'free') {
+      this.free.update(dt);
+      return;
+    }
     const desired = new THREE.Vector3();
     const look = new THREE.Vector3();
     let stiffness = 6;
@@ -94,11 +145,29 @@ export class CameraRig {
         break;
       }
       case 'cockpit': {
-        // Vue depuis la selle, devant la tête (l'avatar du joueur est masqué dans ce mode).
-        desired.copy(t.position).addScaledVector(t.dir, 0.55).add(new THREE.Vector3(0, 1.5, 0));
-        const ahead = this.track.sample(t.distM + 25);
-        look.set(ahead.x, ahead.y + 1.2, ahead.z);
-        stiffness = 14;
+        // Vue subjective depuis les yeux du coureur (tête masquée) : la caméra suit la tête, donc
+        // le balancement du coup de pédale. Regard vers la route devant, un peu plongeant, pour
+        // garder avant-bras, mains sur les cocottes, cintre, potence et compteur en bas de l'image.
+        if (t.eye) desired.copy(t.eye).addScaledVector(t.dir, -COCKPIT_BACK).addScaledVector(_up, COCKPIT_UP);
+        else desired.copy(t.position).addScaledVector(t.dir, 0.1).addScaledVector(_up, 1.6);
+        // Tangage : mains (cintre) calées en bas de l'image, en côte comme en descente (plongée bornée :
+        // en danseuse elles descendent un peu) ; sans repère des mains, pente du vélo plus un tiers
+        // de l'écart vers la route à 30 m.
+        const ahead = this.track.sample(t.distM + 30);
+        const dx = ahead.x - desired.x;
+        const dz = ahead.z - desired.z;
+        const hd = Math.hypot(dx, dz) || 1;
+        const bikePitch = Math.atan(this.track.sample(t.distM).grade / 100);
+        let pitch: number;
+        if (t.hands) {
+          const handsPitch = Math.atan2(t.hands.y - desired.y, Math.hypot(t.hands.x - desired.x, t.hands.z - desired.z));
+          pitch = Math.max(handsPitch + THREE.MathUtils.degToRad(cam.fov) / 2 - COCKPIT_HANDS_MARGIN, bikePitch - COCKPIT_MAX_DOWN);
+        } else {
+          const roadPitch = Math.atan2(ahead.y + 1.2 - desired.y, hd);
+          pitch = bikePitch + (roadPitch - bikePitch) / 3 - COCKPIT_PITCH;
+        }
+        look.set(desired.x + (dx / hd) * Math.cos(pitch) * 10, desired.y + Math.sin(pitch) * 10, desired.z + (dz / hd) * Math.cos(pitch) * 10);
+        stiffness = 12;
         break;
       }
       case 'gopro': {
@@ -159,10 +228,6 @@ export class CameraRig {
         break;
       }
     }
-    if (this.mode !== 'tv' && cam.fov < 40) {
-      cam.fov = cam.aspect > 2.5 ? 48 : 62;
-      cam.updateProjectionMatrix();
-    }
     // La caméra ne passe jamais sous le terrain.
     const minY = this.ground(desired.x, desired.z, desired.y - 2) + 0.6;
     if (desired.y < minY) desired.y = minY;
@@ -172,7 +237,9 @@ export class CameraRig {
       this.initialized = true;
     }
     const k = 1 - Math.exp(-dt * stiffness);
-    this.smoothPos.lerp(desired, k);
+    // Vues embarquées : la caméra est solidaire du coureur (un retard ferait « nager » le cintre).
+    if (this.mode === 'cockpit' || this.mode === 'gopro') this.smoothPos.copy(desired);
+    else this.smoothPos.lerp(desired, k);
     this.smoothLook.lerp(look, Math.min(1, k * 1.5));
     cam.position.copy(this.smoothPos);
     cam.lookAt(this.smoothLook);

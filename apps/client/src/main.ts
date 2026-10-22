@@ -8,6 +8,7 @@ import { loadWorldSource } from './world/loader.ts';
 import type { WorldSource } from './world/types.ts';
 import { GltfRiderAvatar, createAvatar } from './rider/gltfAvatar.ts';
 import { CameraRig } from './game/cameras.ts';
+import { FreeFlyCamera } from './game/freecam.ts';
 import { RideSession } from './game/ride.ts';
 import { KeyboardControls, type InputSource } from './game/inputs.ts';
 import { Peloton } from './game/peloton.ts';
@@ -119,6 +120,8 @@ async function boot(): Promise<void> {
   // Image d'accueil fixe : un lieu ouvert de l'itinéraire, soleil du matin, le groupe face à l'objectif.
   // Rendue sur quelques images (lissage temporel) puis plus rien ne bouge ; nouveau rendu au redimensionnement.
   let inMenu = !autostart;
+  /** « Explorer la carte » depuis l'accueil : caméra libre, sans sortie. */
+  let exploring = false;
   const poster = new PosterScene(scene.engine, scene.world, scene.track);
   let posterFrames = 0;
   const focus = new THREE.Vector3();
@@ -139,7 +142,7 @@ async function boot(): Promise<void> {
     bootStep(60, 'Paysage : relief, routes, bâtiments, arbres');
     await scene.world.preload(focus);
     renderPoster();
-    window.addEventListener('resize', () => inMenu && renderPoster());
+    window.addEventListener('resize', () => inMenu && !exploring && renderPoster());
   } else {
     bootStep(60, 'Paysage : relief, routes, bâtiments, arbres');
     const start = scene.track.positionAt(0, 1.2);
@@ -152,7 +155,21 @@ async function boot(): Promise<void> {
     scene.world.update(1 / 60, focus);
   }
   await scene.engine.renderer.compileAsync(scene.engine.scene, scene.engine.camera).catch(() => undefined);
+  // Explorer la carte : caméra libre au-dessus du monde chargé ; les tuiles suivent la caméra.
+  const explorer = new FreeFlyCamera(scene.engine.camera, scene.engine.renderer.domElement, (x, z) => scene.world.terrain.heightAt(x, z));
+  let exploreT = 0;
   scene.engine.renderer.setAnimationLoop(() => {
+    if (exploring) {
+      const now = performance.now();
+      const dt = Math.min((now - exploreT) / 1000, 0.1);
+      exploreT = now;
+      explorer.update(dt);
+      scene.world.update(dt, explorer.position);
+      scene.engine.exposure.value = scene.world.env.exposure();
+      scene.world.env.grade(scene.engine.grade);
+      scene.engine.render();
+      return;
+    }
     if (!inMenu || posterFrames <= 0) return;
     posterFrames--;
     scene.world.update(1 / 60, focus);
@@ -205,6 +222,34 @@ async function boot(): Promise<void> {
       void startRide(scene, s, s.guest ? new GuestInputSource(s.massKg) : devices.source(), extras);
     },
   });
+  const onExploreKey = (e: KeyboardEvent) => {
+    if (e.key !== 'Escape') return;
+    e.preventDefault();
+    stopExplore();
+  };
+  const startExplore = () => {
+    if (exploring || !inMenu) return;
+    menu.hide();
+    exploring = true;
+    exploreT = performance.now();
+    const cam = scene.engine.camera;
+    cam.fov = cam.aspect > 2.5 ? 55 : 70;
+    cam.updateProjectionMatrix();
+    explorer.exitHint = getLang() === 'fr' ? '<kbd>Échap</kbd> retour au menu' : '<kbd>Esc</kbd> back to menu';
+    explorer.enable();
+    window.addEventListener('keydown', onExploreKey);
+  };
+  /** Retour à l'accueil : l'image fixe est recadrée, puis refaite une fois les tuiles du lieu rechargées. */
+  const stopExplore = () => {
+    if (!exploring) return;
+    exploring = false;
+    window.removeEventListener('keydown', onExploreKey);
+    explorer.disable();
+    menu.show(); // → onScene('poster') → renderPoster()
+    void scene.world.preload(focus).then(() => inMenu && !exploring && renderPoster());
+  };
+  menu.onExplore = startExplore;
+  if (import.meta.env.DEV) (window as unknown as { __arMenu: unknown }).__arMenu = { engine: scene.engine, world: scene.world, explorer, startExplore, stopExplore };
   // Nouveau morceau : barre musique du menu à jour, annonce dans le HUD pendant la sortie.
   music.onTrack = (tr) => {
     menu.renderMusic();
@@ -348,6 +393,8 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   }
   ghost.onNewRecord = (lapS, prev) => hud.toast(`${t('newRecord')} ${Math.floor(lapS / 60)}:${String(Math.round(lapS % 60)).padStart(2, '0')}${prev ? ` (−${Math.round(prev - lapS)} s)` : ''}`);
   const keyboard = new KeyboardControls();
+  // Caméra libre : les flèches déplacent la caméra, pas le coureur.
+  keyboard.arrowsBlocked = () => rig.mode === 'free';
   const audio = new GameAudio();
   audio.start();
   audio.setVolume(s.volume);
@@ -459,7 +506,10 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   };
   window.addEventListener('keydown', (e) => {
     if ((e.target as HTMLElement | null)?.tagName === 'INPUT') return;
-    if (e.key === 'c' || e.key === 'C') hud.toast(t(rig.cycle()));
+    if (e.key === 'c' || e.key === 'C') {
+      const m = rig.cycle();
+      hud.toast(t(m === 'free' ? 'freeCam' : m));
+    }
     if (e.key === 'h' || e.key === 'H') hud.toggle();
     if (e.key === 'm' || e.key === 'M') audio.toggleMute();
     // Musique : B lecture / arrêt (Spotify s'il est connecté, sinon musique du jeu), N morceau suivant.
@@ -505,6 +555,8 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   const pos = new THREE.Vector3();
   const dir = new THREE.Vector3();
   const sample = { x: 0, y: 0, z: 0, dirX: 1, dirZ: 0, grade: 0, d: 0 };
+  const eye = new THREE.Vector3();
+  const hands = new THREE.Vector3();
   let hudAcc = 0;
   let remoteRiders: InterpolatedRider[] = [];
   let prevHeading = Number.NaN;
@@ -545,13 +597,16 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     avatar.root.rotateY(heading);
     avatar.root.rotateX(-Math.atan(sample.grade / 100));
     avatar.update(dt, ride.inputs.cadence, ride.state.speedMs, ride.pose, bank);
-    avatar.root.visible = rig.mode !== 'cockpit';
-    // Caméra embarquée : on garde le vélo et les bras, mais pas la tête dans le champ.
-    avatar.setHeadVisible(rig.mode !== 'gopro');
+    // Vue subjective et caméra embarquée : on garde le vélo, les bras et les mains, mais pas la tête.
+    const onboard = rig.mode === 'cockpit' || rig.mode === 'gopro';
+    avatar.setHeadVisible(!onboard);
     peloton.render(dt, engine.camera);
 
-    rig.update(dt, { position: pos, dir, distM: ride.state.distM, speedMs: ride.state.speedMs });
-    world.update(dt, pos);
+    const eyeOk = rig.mode === 'cockpit' && !!avatar.eyeWorld;
+    if (eyeOk) avatar.eyeWorld?.(eye, hands);
+    rig.update(dt, { position: pos, dir, distM: ride.state.distM, speedMs: ride.state.speedMs, ...(eyeOk ? { eye, hands } : {}) });
+    // Les tuiles se chargent autour de la caméra libre, où qu'elle aille ; sinon autour du coureur.
+    world.update(dt, rig.mode === 'free' ? engine.camera.position : pos);
     headlight.intensity = world.nightFactor() * 120;
     if (!render) return;
     engine.exposure.value = world.env.exposure();
@@ -661,7 +716,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     const res = await fetch(`/__shot?name=${encodeURIComponent(name)}`, { method: 'POST', body: url });
     return res.text();
   };
-  (window as unknown as { __ar: unknown }).__ar = { engine, world, ride, rig, track, peloton, input, finish, advance, hud, shot };
+  (window as unknown as { __ar: unknown }).__ar = { engine, world, ride, rig, track, peloton, input, finish, advance, hud, shot, avatar };
   // Contrôle visuel du monde (?worldcheck=1, développement) : une capture tous les 500 m de l'itinéraire.
   if (params.has('worldcheck')) {
     void (async () => {

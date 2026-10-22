@@ -30,6 +30,8 @@ export interface RiderAvatarLike {
   setLook(look: AvatarLook): void;
   setHeadVisible(on: boolean): void;
   setShadows(on: boolean): void;
+  /** Position des yeux (repère monde) pour la vue subjective ; absente : position estimée par la caméra. */
+  eyeWorld?(out: THREE.Vector3, hands?: THREE.Vector3): THREE.Vector3;
 }
 
 const BONES = [
@@ -116,6 +118,8 @@ interface Templates {
   pedalPitch: number;
   /** Cheville par rapport à l'axe de pédale, pied à plat. */
   ankleFlat: Record<Side, THREE.Vector3>;
+  /** Yeux par rapport à l'os de la tête, pose de repos (repère modèle). */
+  eyeRest: THREE.Vector3;
 }
 
 let templates: Templates | null = null;
@@ -222,7 +226,12 @@ function buildTemplates(rider0: GLTF, rider1: GLTF, bike0: GLTF, bike1: GLTF): T
     legs[s] = chainRest(bones, `thigh_${s}`, `shin_${s}`, `foot_${s}`);
     arms[s] = chainRest(bones, `upper_arm_${s}`, `forearm_${s}`, `hand_${s}`);
   }
-  return { rider0, rider1, bike0, bike1, bones, armQ, armP, legs, arms, bb, crank, pedalRest, pedalPitch, ankleFlat };
+  // Yeux : l'os de la tête va de l'atlas au sommet du crâne (axe Y de l'os) ; dans le script Blender
+  // ils sont ≈ 6 cm au-dessus de l'atlas et 9,5 cm devant. On se place juste devant (verres des lunettes).
+  const uh = new THREE.Vector3(0, 1, 0).applyQuaternion(bones.head.modelQ).normalize();
+  const fh = new THREE.Vector3(0, 0, 1).addScaledVector(uh, -uh.z).normalize();
+  const eyeRest = uh.multiplyScalar(0.06).addScaledVector(fh, 0.11);
+  return { rider0, rider1, bike0, bike1, bones, armQ, armP, legs, arms, bb, crank, pedalRest, pedalPitch, ankleFlat, eyeRest };
 }
 
 function makeMaterial(name: string, look: AvatarLook): THREE.MeshStandardNodeMaterial {
@@ -519,9 +528,31 @@ export class GltfRiderAvatar implements RiderAvatarLike {
     }
   }
 
-  /** Masque la tête (caméra embarquée) : l'os de la tête est réduit à un point. */
+  /**
+   * Yeux du coureur (repère monde) pour la vue subjective : suivent la tête animée (bassin qui
+   * roule, danseuse, virages), plus un léger hochement au rythme du pédalage. Si `hands` est fourni,
+   * y écrit le milieu des mains (sur les cocottes), pour cadrer le cintre. À appeler après update()
+   * et le placement de root.
+   */
+  eyeWorld(out: THREE.Vector3, hands?: THREE.Vector3): THREE.Vector3 {
+    const t = this.t;
+    _q1.copy(t.bones.head.modelQ).invert().premultiply(this.mQ.head);
+    out.copy(t.eyeRest).applyQuaternion(_q1).add(this.mP.head);
+    const pedal = 1 - this.coastBlend;
+    const a = this.crankAngle;
+    out.y += 0.006 * Math.sin(2 * a) * pedal * (1 - this.poseBlend * 0.5);
+    out.x += 0.008 * Math.sin(a) * pedal * (1 + this.poseBlend);
+    this.lean.updateWorldMatrix(true, false);
+    if (hands) this.lean.localToWorld(hands.addVectors(this.mP.hand_L, this.mP.hand_R).multiplyScalar(0.5));
+    return this.lean.localToWorld(out);
+  }
+
+  /**
+   * Masque la tête (vue subjective, caméra embarquée) : l'os du cou est réduit à un point, la tête
+   * (son enfant) avec lui ; sinon le moignon du cou resterait dans le champ, sous la caméra.
+   */
   setHeadVisible(on: boolean): void {
-    this.bones.head.scale.setScalar(on ? 1 : 1e-3);
+    this.bones.neck.scale.setScalar(on ? 1 : 1e-3);
   }
 
   /** Active ou coupe les ombres portées de tout l'avatar (coureurs lointains : coupées). */

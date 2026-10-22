@@ -61,6 +61,7 @@ const ICON = {
   pause: svg('<path d="M7 4v16M17 4v16"/>', 14),
   list: svg('<path d="M4 6h12M4 12h12M4 18h8M18 15v6l4-3z"/>', 16),
   rotate: svg('<path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/>', 16),
+  explore: svg('<circle cx="12" cy="12" r="9"/><path d="m15.8 8.2-2.3 5.3-5.3 2.3 2.3-5.3z"/>', 20),
 };
 
 /** Gros plan du garage selon la catégorie choisie. */
@@ -92,6 +93,8 @@ export class MainMenu {
   onSettingsChange?: (s: Settings) => void;
   /** Relance le tutoriel (onboarding) depuis le menu. */
   onTutorial?: () => void;
+  /** « Explorer la carte » : survol libre du monde chargé, sans rouler (Échap pour revenir). */
+  onExplore?: () => void;
   /** Cadrage 3D demandé par le menu : photo du groupe ou vue du garage (rotation en radians). */
   onScene?: (view: 'poster' | GarageView, yaw: number) => void;
   /** Compte connecté (affiché dans le menu), connexion / déconnexion, synchro du profil. */
@@ -259,6 +262,7 @@ export class MainMenu {
             : ''
       }
       ${r ? this.routeCard(r) : ''}
+      ${this.onExplore ? `<button id="m-explore" class="mm-explore">${ICON.explore}<span><b>${L ? 'Explorer la carte' : 'Explore the map'}</b><small>${L ? 'Caméra libre, sans rouler · Échap pour revenir' : 'Free camera, no riding · Esc to come back'}</small></span></button>` : ''}
       <h3>${L ? 'Itinéraires' : 'Routes'}</h3>
       <div class="mm-routes">${this.routes
         .map(
@@ -697,6 +701,7 @@ export class MainMenu {
     on('m-login', 'click', () => this.onLogin?.());
     on('m-logout', 'click', () => this.onLogout?.());
     on('m-start', 'click', () => this.start());
+    on('m-explore', 'click', () => this.onExplore?.());
     // Rouler : modes et itinéraires.
     this.root.querySelectorAll<HTMLElement>('[data-mode]').forEach((el) =>
       el.addEventListener('click', () => {

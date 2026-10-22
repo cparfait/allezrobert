@@ -99,6 +99,14 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #0a0e16; col
 
 .attribution { position: absolute; right: 12px; bottom: 116px; font-size: 10px; color: rgba(255, 255, 255, 0.55); text-align: right; }
 
+/* Caméra libre : aide des commandes en bas, au-dessus du profil quand le HUD est affiché. */
+.freecam-hint { position: absolute; left: 50%; bottom: 24px; transform: translateX(-50%); max-width: calc(100vw - 32px); display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 6px 16px;
+  padding: 10px 18px; border-radius: var(--ar-radius); background: var(--ar-bg); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.08); font-size: 12.5px; color: #d8dee6; pointer-events: none; }
+.hud:not(:empty):not(.hidden) ~ .freecam-hint { bottom: 146px; }
+.freecam-hint b { color: var(--ar-accent); font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; }
+.freecam-hint span { white-space: nowrap; }
+.freecam-hint kbd { display: inline-block; min-width: 1.6em; padding: 1px 6px; margin-right: 2px; border-radius: 6px; background: rgba(255, 255, 255, 0.12); border: 1px solid rgba(255, 255, 255, 0.18); font: 600 11.5px var(--font); text-align: center; color: #fff; }
+
 /* Menus */
 .ui > * { pointer-events: auto; }
 .menu { position: absolute; inset: 0; display: grid; place-items: center; background: radial-gradient(ellipse at center, rgba(10, 14, 22, 0.35), rgba(10, 14, 22, 0.8)); }
