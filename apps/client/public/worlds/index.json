@@ -16,9 +16,9 @@
     }
    ],
    "pack": {
-    "version": "3ec00af31b43",
-    "bytes": 23497127,
-    "files": 500
+    "version": "54fd434028b8",
+    "bytes": 46824827,
+    "files": 508
    }
   },
   {
@@ -76,6 +76,7 @@
   {
    "id": "limagne",
    "name": "Limagne — Neuville",
+   "region": "Puy-de-Dôme · Limagne",
    "routes": [
     {
      "id": "tour-de-neuville",
@@ -86,7 +87,11 @@
      "loop": false
     }
    ],
-   "pack": null
+   "pack": {
+    "version": "737c2dedd64a",
+    "bytes": 49292146,
+    "files": 197
+   }
   },
   {
    "id": "mont-ventoux",
@@ -103,9 +108,9 @@
     }
    ],
    "pack": {
-    "version": "e4f7a8478a76",
-    "bytes": 46322684,
-    "files": 895
+    "version": "eb11b1987252",
+    "bytes": 122541355,
+    "files": 916
    }
   }
  ]
