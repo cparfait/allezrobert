@@ -92,6 +92,11 @@ export class MainMenu {
   private view: GarageView = '3q';
   private yaw = 0;
   private readonly onKey = (e: KeyboardEvent) => {
+    if (this.picker && e.key === 'Escape') {
+      e.preventDefault();
+      this.closePicker();
+      return;
+    }
     if (!this.root.querySelector('.mm') || this.root.querySelector('.mm-modal')) return;
     const tag = (e.target as HTMLElement | null)?.tagName;
     if (tag === 'INPUT' || tag === 'SELECT') return;
@@ -116,6 +121,8 @@ export class MainMenu {
   openWorld = false;
   onWorld?: (id: string) => void;
   onSettingsSaved?: (s: Settings) => void;
+  /** Fenêtre de choix ouverte au milieu de l'écran (boutons « Zone » et « Parcours »). */
+  private picker: 'zones' | 'routes' | null = null;
   /** Catalogue des zones (packs de cartes). */
   private zones: WorldCatalogue['zones'] = [];
   /** Téléchargements en cours : octets reçus / total, ou message d'erreur. */
@@ -150,6 +157,7 @@ export class MainMenu {
   }
 
   private go(tab: Tab): void {
+    this.picker = null;
     if (tab !== 'garage' && this.previewId) {
       this.previewId = null;
       this.onPreviewLook?.(null);
@@ -355,19 +363,57 @@ export class MainMenu {
               <label class="mm-file">${L ? 'Ou importer une séance' : 'Or import a workout'} (.zwo / .erg / .mrc)<input id="m-workout" type="file" accept=".zwo,.erg,.mrc" hidden /><span id="m-wname">${this.workoutFile ? esc(this.workoutFile.name) : ''}</span></label>`
             : ''
       }
+      ${this.pickersHtml(r)}
       ${r ? this.routeCard(r) : ''}
       ${this.onExplore ? `<button id="m-explore" class="mm-explore">${ICON.explore}<span><b>${L ? 'Explorer la carte' : 'Explore the map'}</b><small>${L ? 'Caméra libre, sans rouler · Échap pour revenir' : 'Free camera, no riding · Esc to come back'}</small></span></button>` : ''}
-      ${this.zonesHtml()}
-      <h3>${L ? 'Parcours' : 'Routes'}</h3>
-      <div class="mm-routes">${this.routes
-        .map(
-          (x) => `<button class="mm-route ${x.id === s.routeId ? 'on' : ''}" data-route="${esc(x.id)}">
-            <b>${esc(this.routeName(x))}</b><span>${this.km(x.lengthM)} km · ${Math.round(x.elevationGainM)} m D+</span></button>`,
-        )
-        .join('')}</div>
       <div class="mm-conds"><span>${t(s.season)} · ${s.hour.toFixed(1).replace('.', L ? ',' : '.')} h · ${L ? 'nuages' : 'clouds'} ${Math.round(s.clouds * 100)} %${s.rain > 0.05 ? ` · ${L ? 'pluie' : 'rain'}` : ''}</span><button class="mm-link" data-tab="settings">${L ? 'Modifier' : 'Change'}</button></div>
     </section>
-    <div class="mm-hero"><h1>Allez <em>Robert</em> !</h1><p>${L ? 'Rouler ensemble, chacun chez soi.' : 'Ride together, each from home.'}</p></div>`;
+    <div class="mm-hero"><h1>Allez <em>Robert</em> !</h1><p>${L ? 'Rouler ensemble, chacun chez soi.' : 'Ride together, each from home.'}</p></div>
+    ${this.pickerHtml()}`;
+  }
+
+  /** Deux boutons : la zone et le parcours choisis ; chacun ouvre sa liste au milieu de l'écran. */
+  private pickersHtml(r: RouteData | undefined): string {
+    const L = fr();
+    const lang = getLang();
+    const w = WORLD_LIST.find((x) => x.id === this.worldId);
+    const zone = w ? w.name[lang] : this.worldId;
+    const chevron = '<i aria-hidden="true">›</i>';
+    return `<div class="mm-pickers">
+      <button class="mm-pick" data-picker="zones"><small>${L ? 'Zone' : 'Area'}</small><b>${esc(zone)}</b><span>${w ? esc(w.hint[lang]) : ''}</span>${chevron}</button>
+      <button class="mm-pick" data-picker="routes"><small>${L ? 'Parcours' : 'Route'}</small><b>${r ? esc(this.routeName(r)) : '—'}</b><span>${r ? `${this.km(r.lengthM)} km · ${Math.round(r.elevationGainM)} m D+` : ''}</span>${chevron}</button>
+    </div>`;
+  }
+
+  /** Fenêtre centrée : liste des zones (avec leurs packs) ou des parcours de la zone. */
+  private pickerHtml(): string {
+    if (!this.picker) return '';
+    const L = fr();
+    const zones = this.picker === 'zones';
+    const list = zones
+      ? `<div class="mm-zones">${this.zonesHtml()}</div>`
+      : `<div class="mm-routes">${this.routes
+          .map(
+            (x) => `<button class="mm-route ${x.id === this.s.routeId ? 'on' : ''}" data-route="${esc(x.id)}">
+            <b>${esc(this.routeName(x))}</b><span>${this.km(x.lengthM)} km · ${Math.round(x.elevationGainM)} m D+${x.loop ? '' : L ? ' · aller simple' : ' · one way'}</span></button>`,
+          )
+          .join('')}</div>`;
+    const hint = zones
+      ? L
+        ? 'Télécharge une zone pour la garder sur cet appareil ; sinon elle se charge au fil de la sortie.'
+        : 'Download an area to keep it on this device; otherwise it loads as you ride.'
+      : '';
+    return `<div class="mm-modal mm-picker-modal" data-picker-close>
+      <div class="mm-dialog mm-picker" role="dialog" aria-modal="true">
+        <header><h2>${zones ? (L ? 'Zones' : 'Areas') : L ? 'Parcours' : 'Routes'}</h2><button class="mm-x" data-picker-close aria-label="${L ? 'Fermer' : 'Close'}">×</button></header>
+        ${hint ? `<p class="mm-hint">${hint}</p>` : ''}
+        ${list}
+      </div></div>`;
+  }
+
+  private closePicker(): void {
+    this.picker = null;
+    this.render();
   }
 
   /** Mode défi : montées de l'itinéraire choisi, avec le record de chacune. */
@@ -409,7 +455,8 @@ export class MainMenu {
           <button class="mm-zone-pick" data-world="${esc(w.id)}"><b>${esc(w.name[lang])}</b><span>${esc(w.hint[lang])}${info}</span></button>
           <div class="mm-zone-pack">${action}</div></div>`;
       }).join('');
-    return `<h3>${L ? 'Zones' : 'Areas'}</h3><div class="mm-zones">${items}</div>`;
+    void L;
+    return items;
   }
 
   private async downloadZone(id: string): Promise<void> {
@@ -934,6 +981,18 @@ export class MainMenu {
         if (id !== this.worldId) this.onWorld?.(id);
       }),
     );
+    // Boutons « Zone » / « Parcours » : fenêtre de choix au milieu de l'écran.
+    this.root.querySelectorAll<HTMLElement>('[data-picker]').forEach((el) =>
+      el.addEventListener('click', () => {
+        this.picker = el.dataset.picker as 'zones' | 'routes';
+        this.render();
+      }),
+    );
+    this.root.querySelectorAll<HTMLElement>('[data-picker-close]').forEach((el) =>
+      el.addEventListener('click', (e) => {
+        if (e.target === el) this.closePicker();
+      }),
+    );
     // Zones : télécharger ou supprimer le pack de cartes.
     this.root.querySelectorAll<HTMLElement>('[data-pack]').forEach((el) => el.addEventListener('click', () => void this.downloadZone(el.dataset.pack as string)));
     this.root.querySelectorAll<HTMLElement>('[data-unpack]').forEach((el) =>
@@ -944,6 +1003,7 @@ export class MainMenu {
     this.root.querySelectorAll<HTMLElement>('[data-route]').forEach((el) =>
       el.addEventListener('click', () => {
         s.routeId = el.dataset.route as string;
+        this.picker = null;
         changed();
         this.render();
       }),
