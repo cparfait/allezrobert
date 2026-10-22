@@ -44,6 +44,7 @@ import { Crowd } from './world/crowd.ts';
 import { TownSigns } from './world/signs.ts';
 import { Traffic, loadVehicleModels } from './world/traffic.ts';
 import { AmbientCyclists } from './world/cyclists.ts';
+import { Trains } from './world/trains.ts';
 import { Multiplayer } from './game/multiplayer.ts';
 import { VoiceChat } from './game/voice.ts';
 import type { InterpolatedRider } from './net/index.ts';
@@ -439,6 +440,16 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   // Monde vivant : circulation et piétons (désactivable par ?traffic=0).
   const traffic = params.get('traffic') === '0' ? null : new Traffic(track);
   if (traffic) engine.scene.add(traffic.group);
+  // Trains : départ quand on approche de l'endroit où la route longe ou croise une voie.
+  const trains = new Trains(track, (x, z) => world.terrain.heightAt(x, z), () => world.terrain.loadedTiles());
+  engine.scene.add(trains.group);
+  if (import.meta.env.DEV && params.has('fakerail')) {
+    // Développement : voie factice qui croise l'itinéraire 260 m devant le départ (1,4 km de long).
+    const c = track.positionAt(startD + 260, 0);
+    const pts: number[] = [];
+    for (let k = -700; k <= 700; k += 20) pts.push(c.x - c.dirZ * k, c.z + c.dirX * k);
+    trains.addRail(pts);
+  }
   // Poussière derrière la roue arrière sur les chemins.
   const dust = new Dust();
   engine.scene.add(dust.mesh);
@@ -807,6 +818,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
       }
     }
     remoteRiders = mp ? mp.render(dt, engine.camera) : [];
+    if (!ride.paused) trains.update(dt, ride.state.distM, ride.dir, ride.state.speedMs);
     traffic?.update(dt, ride.state, [
       { distM: ride.state.distM, lateral: ride.lateral, speedMs: ride.state.speedMs },
       ...peloton.riders.map((r) => ({ distM: r.state.distM, lateral: r.lateral, speedMs: r.state.speedMs })),

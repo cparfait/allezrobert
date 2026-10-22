@@ -44,6 +44,8 @@ export interface TileFeatures {
   fields: Array<{ rings: Rings; kind: string }>;
   landuse: Array<{ rings: Rings; kind: string }>;
   waterways: Array<{ width: number; pts: number[]; kind?: string; tunnel?: boolean }>;
+  /** Voies ferrées (morceaux découpés à la tuile ; `id` = voie OSM, pour les raccorder). */
+  railways?: Array<{ id: number; kind: string; pts: number[]; tunnel?: boolean; bridge?: boolean }>;
   pois: Array<{ kind: string; name: string; x: number; y: number; z: number }>;
 }
 
