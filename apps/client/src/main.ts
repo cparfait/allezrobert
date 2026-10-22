@@ -40,6 +40,7 @@ import { GuestInputSource } from './game/guest.ts';
 import { Crowd } from './world/crowd.ts';
 import { TownSigns } from './world/signs.ts';
 import { Traffic, loadVehicleModels } from './world/traffic.ts';
+import { AmbientCyclists } from './world/cyclists.ts';
 import { Multiplayer } from './game/multiplayer.ts';
 import { VoiceChat } from './game/voice.ts';
 import type { InterpolatedRider } from './net/index.ts';
@@ -421,6 +422,8 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   // Monde vivant : circulation et piétons (désactivable par ?traffic=0).
   const traffic = params.get('traffic') === '0' ? null : new Traffic(track);
   if (traffic) engine.scene.add(traffic.group);
+  // Cyclistes croisés dans les deux sens (désactivables avec le trafic ou par ?cyclists=0).
+  const cyclists = traffic && params.get('cyclists') !== '0' ? new AmbientCyclists(engine.scene, track, startD) : null;
   const hud = new Hud(hudRoot, track, source.attribution);
   if (nav && source.open) hud.setOpen(source.open.graph);
   // En groupe, le panneau « À proximité » montre d'abord les coureurs réels.
@@ -720,6 +723,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
       ride.wheelFollowed = peloton.riders.some((r) => onWheel(r.state.distM, r.lateral)) || remoteRiders.some((r) => onWheel(r.unwrappedM, r.lateralM));
       // Abri derrière un tracteur ou une camionnette qui roule dans le même sens.
       if (traffic) ride.draft = Math.max(ride.draft, traffic.draftFor(ride.state.distM, ride.lateral));
+      if (cyclists) ride.draft = Math.max(ride.draft, cyclists.update(dt, { distM: ride.state.distM, lateral: ride.lateral, speedMs: ride.state.speedMs }, engine.camera));
     }
     remoteRiders = mp ? mp.render(dt, engine.camera) : [];
     traffic?.update(dt, ride.state, [

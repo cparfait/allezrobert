@@ -69,7 +69,7 @@ Idées seulement : ni nom, ni asset, ni code, ni physique de NCT Ride (la vitess
 | --- | --- | --- | --- |
 | 1 | Équipiers IA pour rouler seul : allure à % de FTP réglable en sortie, relais, équipiers lâchés en côte et attendus, ordre « ralentissez », barre d'aspiration, aspiration partielle si décalé | 5, avancé juste après le jalon 1 | fait en solo ([ / ] allure, R ralentir, attente des lâchés, barre d'aspiration) ; demi-tour : à faire |
 | 2 | IA avec réserve W′bal ; profils échappée / sprinteur / suiveur ; niveaux 80 / 100 / 115 % FTP | 5 | fait (W′bal, profils, niveau 80 / 100 / 115 % au menu) |
-| 3 | Monde vivant : trafic qui double en s'écartant, piétons, déclencheurs à une distance de route | 3 | fait (voitures, camionnettes, tracteur, piétons) ; trains : à faire |
+| 3 | Monde vivant : trafic qui double en s'écartant, piétons, déclencheurs à une distance de route | 3 | fait (voitures, camionnettes, tracteur, piétons, cyclistes dans les deux sens) ; trains : à faire |
 | 4 | Son positionné depuis OSM (église → cloches, prairie → vaches, eau…) | 3 | fait |
 | 5 | Caméra « GoPro » sur la poitrine | 3 | fait |
 | 6 | Poussière sur les chemins, roulement selon le revêtement | 3 | roulement fait (Crr et son selon le tag OSM `surface`, pneus gravel) ; poussière : à faire |
@@ -85,7 +85,7 @@ Idées seulement : ni nom, ni asset, ni code, ni physique de NCT Ride (la vitess
 - [ ] Mode ouvert en groupe (serveur : chemin partagé ou graphe complet)
 - [x] Stats de fin de sortie complètes (courbe de puissance et records, zones, TSS · IF, calories, comparaison, groupe, .gpx, reprendre)
 - [x] Panneau des coureurs réels à proximité (écarts en s et en m, W/kg, filtre réels / tous)
-- [ ] Cyclistes virtuels croisés dans les deux sens
+- [x] Cyclistes virtuels croisés dans les deux sens (en face, plus lents qu'on double, plus rapides qui doublent ; roue que l'on peut prendre)
 - [ ] Séances intégrées (seuil, sweet spot, pyramide, sprint, récupération active)
 - [ ] Trophées qui rapportent de l'XP ; mode défi (battre les KOM)
 - [x] VTT, roues carbone 40 / 50 / 88 mm (les hautes moins bonnes en côte), chaussettes hautes (−0,7 %) — modèle 3D du VTT à faire
