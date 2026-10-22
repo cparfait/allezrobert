@@ -28,6 +28,8 @@ export interface SummaryData {
   /** Il y avait des équipiers, des coureurs IA ou d'autres joueurs. */
   withGroup: boolean;
   guest: boolean;
+  /** Défi KOM terminé : temps, record d'avant. */
+  challenge?: { name: string; timeS: number; previousS: number | null; isRecord: boolean };
   /** Trophées gagnés par cette sortie. */
   trophies?: Array<{ name: string; description: string; xp: number }>;
 }
@@ -101,6 +103,17 @@ export function showRideSummary(root: HTMLElement, d: SummaryData, a: SummaryAct
             ? `<section class="sum-card sum-level"><div class="sum-lv"><b>${L ? 'Niveau' : 'Level'} ${d.xp.level}${d.xp.levelUp ? ' 🎉' : ''}</b><i class="sum-xp"><i style="width:${(d.xp.progress * 100).toFixed(0)}%"></i></i></div>
               <p>+${d.xp.gained} XP <span>(${esc(d.xp.detail)})</span></p>${d.xp.unlocked.length ? `<p class="sum-unlock">${L ? 'Débloqué' : 'Unlocked'} : ${d.xp.unlocked.map(esc).join(', ')}</p>` : ''}</section>`
             : `<section class="sum-card"><p class="sum-muted">${L ? 'Invité : sortie hors classements, sans XP ni export.' : 'Guest: no rankings, XP or export.'}</p></section>`
+        }
+        ${
+          d.challenge
+            ? `<section class="sum-card sum-challenge"><h3>${L ? 'Défi' : 'Challenge'} · ${esc(d.challenge.name)}</h3><b>${hms(d.challenge.timeS)}</b><p>${
+                d.challenge.isRecord
+                  ? d.challenge.previousS === null
+                    ? L ? 'Premier record établi' : 'First record set'
+                    : `🏆 ${L ? 'Record battu de' : 'Record beaten by'} ${Math.round(d.challenge.previousS - d.challenge.timeS)} s`
+                  : `${L ? 'Record' : 'Best'} ${hms(d.challenge.previousS as number)} (+${Math.round(d.challenge.timeS - (d.challenge.previousS as number))} s)`
+              }</p></section>`
+            : ''
         }
         ${
           d.trophies?.length

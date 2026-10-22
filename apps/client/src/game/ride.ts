@@ -73,6 +73,11 @@ export class RideSession {
   /** Consigne ERG imposée par une séance (W) ; null = simulation de pente. */
   ergTarget: number | null = null;
   private ergAcc = 0;
+  /**
+   * Sens de marche sur l'itinéraire : 1 = sens normal, −1 = après un demi-tour (on remonte
+   * l'itinéraire, la pente et le vent s'inversent ; ni segment ni tour comptés).
+   */
+  dir: 1 | -1 = 1;
   /** Économie due à l'aspiration (0–1), fournie par le serveur, les coureurs IA ou les véhicules proches. */
   draft = 0;
   /** Revêtement OSM sous les roues (tenu à jour par la boucle de jeu). */
@@ -141,6 +146,14 @@ export class RideSession {
     return this.gears[this.gearIndex] as Gear;
   }
 
+  /** Demi-tour sur place : on repart dans l'autre sens, sur la voie de droite. */
+  uturn(): void {
+    this.dir = this.dir > 0 ? -1 : 1;
+    this.lateral = -this.lateral;
+    this.state.speedMs = Math.min(this.state.speedMs, 3);
+    this.smoothedPower.reset(this.inputs.watts);
+  }
+
   shift(delta: number): void {
     this.gearIndex = shiftGear(this.gearIndex, delta, this.gears);
   }
@@ -177,11 +190,13 @@ export class RideSession {
     const now = this.startT + this.elapsedS * 1000;
     const track = this.opts.track;
     const s = track.sample(this.state.distM, this.sample);
-    this.gradePercent = s.grade;
-    this.windMs = riderWind(this.headwind(s.dirX, s.dirZ), this.shelter);
+    // Pente dans le sens de marche (inversée après un demi-tour).
+    const grade = s.grade * this.dir;
+    this.gradePercent = grade;
+    this.windMs = riderWind(this.headwind(s.dirX * this.dir, s.dirZ * this.dir), this.shelter);
     const env = { airDensity: airDensity(s.y, 14), windSpeedMs: this.windMs };
     this.crr = surfaceCrr(this.surface, this.params.crr, this.opts.profile.bike.tyre) * wetCrrFactor(this.rain);
-    const cdaFactor = (1 - this.draft) * poseCdaFactor(this.pose, s.grade, this.state.speedMs);
+    const cdaFactor = (1 - this.draft) * poseCdaFactor(this.pose, grade, this.state.speedMs);
     const prevDist = this.state.distM;
     // Statistiques de groupe : aspiration et relais.
     if (this.draft > 0.05) {
@@ -203,7 +218,7 @@ export class RideSession {
       this.state,
       {
         watts: this.smoothedPower.update(this.inputs.watts, dt),
-        gradePercent: s.grade,
+        gradePercent: grade,
         params: this.params,
         env,
         cdaFactor,
@@ -212,18 +227,27 @@ export class RideSession {
       },
       dt,
     );
+    // Sens inverse : stepRider avance toujours ; on recule d'autant sur l'itinéraire.
+    if (this.dir < 0) {
+      this.state.distM = prevDist - (this.state.distM - prevDist);
+      if (!track.route.loop && this.state.distM < 0) {
+        this.state.distM = 0;
+        this.state.speedMs = 0;
+      }
+    }
     // Tour de boucle.
-    if (track.route.loop && Math.floor(this.state.distM / track.length) > Math.floor(prevDist / track.length)) {
+    if (this.dir > 0 && track.route.loop && Math.floor(this.state.distM / track.length) > Math.floor(prevDist / track.length)) {
       this.lap++;
       this.lapTimes.push(this.startT + this.elapsedS * 1000);
       this.onLap?.(this.lap);
     }
     // Direction : décalage latéral borné à la chaussée.
     const half = track.route.roadWidthM / 2 - 0.5;
-    this.lateral = THREE.MathUtils.clamp(this.lateral + steer * dt * 1.8, -half, half);
+    // Décalage dans le repère de l'itinéraire : à contresens, la droite du coureur est à gauche.
+    this.lateral = THREE.MathUtils.clamp(this.lateral + steer * this.dir * dt * 1.8, -half, half);
 
     this.pose = this.poseCtl.update(
-      { watts: this.inputs.watts, cadence: this.inputs.cadence, gradePercent: s.grade, ftpWatts: this.opts.profile.ftpWatts, speedMs: this.state.speedMs },
+      { watts: this.inputs.watts, cadence: this.inputs.cadence, gradePercent: grade, ftpWatts: this.opts.profile.ftpWatts, speedMs: this.state.speedMs },
       dt,
     );
 
@@ -237,7 +261,7 @@ export class RideSession {
     // Home trainer : pente lissée, au plus 4 commandes/s.
     this.trainerAcc += dt;
     const target = computeTrainerGrade({
-      gradePercent: s.grade,
+      gradePercent: grade,
       speedMs: this.state.speedMs,
       gearRatio: this.gear.ratio,
       referenceRatio: this.referenceRatio,
@@ -283,7 +307,7 @@ export class RideSession {
         ...(i.balanceLeft !== undefined ? { balanceLeft: i.balanceLeft } : {}),
         ...(i.teLeft !== undefined ? { teLeft: i.teLeft, teRight: i.teRight } : {}),
         ...(i.psLeft !== undefined ? { psLeft: i.psLeft, psRight: i.psRight } : {}),
-        gradePercent: s.grade,
+        gradePercent: grade,
         x: s.x,
         z: s.z,
       } as ActivityRecord & { x: number; z: number });
@@ -292,6 +316,11 @@ export class RideSession {
 
   private updateSegments(now: number): void {
     const track = this.opts.track;
+    // À contresens : segment en cours abandonné, aucun nouveau.
+    if (this.dir < 0) {
+      this.segment = null;
+      return;
+    }
     const d = track.wrap(this.state.distM);
     // Distance depuis le début d'un segment : repliée sur une boucle, signée sinon (wrap bornerait
     // les distances négatives à 0 et ouvrirait le segment dès le départ).

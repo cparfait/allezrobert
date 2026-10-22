@@ -11,6 +11,22 @@ interface GhostLap {
 
 const KEY = (routeId: string) => `ar.ghost.${routeId}`;
 
+/** Avatar translucide et sans ombre, pour distinguer un fantôme des vrais coureurs. */
+export function ghostAvatar(scene: THREE.Scene): RiderAvatarLike {
+  const avatar = createAvatar({ skin: '#cfe8ff', hair: '#cfe8ff', hairStyle: 0, jersey: '#9ad7ff', jerseyAccent: '#ffffff', helmet: '#e6f6ff', bike: '#9ad7ff', build: 0.4 });
+  avatar.root.traverse((o) => {
+    const m = (o as THREE.Mesh).material as THREE.Material | undefined;
+    if (m) {
+      m.transparent = true;
+      m.opacity = 0.42;
+      m.depthWrite = false;
+    }
+    o.castShadow = false;
+  });
+  scene.add(avatar.root);
+  return avatar;
+}
+
 /**
  * Fantôme de son record : le meilleur tour de la boucle est rejoué en parallèle, avatar
  * translucide. Chaque tour terminé plus vite remplace le record (stockage local).
@@ -33,19 +49,8 @@ export class Ghost {
     this.lapStartD = startD;
     const raw = localStorage.getItem(KEY(routeId));
     this.best = raw ? (JSON.parse(raw) as GhostLap) : null;
-    this.avatar = createAvatar({ skin: '#cfe8ff', hair: '#cfe8ff', hairStyle: 0, jersey: '#9ad7ff', jerseyAccent: '#ffffff', helmet: '#e6f6ff', bike: '#9ad7ff', build: 0.4 });
-    // Translucide et sans ombre : on le distingue des vrais coureurs.
-    this.avatar.root.traverse((o) => {
-      const m = (o as THREE.Mesh).material as THREE.Material | undefined;
-      if (m) {
-        m.transparent = true;
-        m.opacity = 0.42;
-        m.depthWrite = false;
-      }
-      o.castShadow = false;
-    });
+    this.avatar = ghostAvatar(scene);
     this.avatar.root.visible = !!this.best;
-    scene.add(this.avatar.root);
   }
 
   get bestLapS(): number | null {

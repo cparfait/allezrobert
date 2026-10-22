@@ -111,6 +111,7 @@ export class Hud {
         </div>
         <div class="panel grade-badge num" data-k="grade">0,0 %</div>
         <div class="panel junction hidden" data-k="junction"></div>
+        <div class="panel challenge hidden" data-k="challenge"></div>
         <div class="panel segment hidden" data-k="segment"><div class="name" data-k="segName"></div><div class="num" data-k="segInfo"></div><div class="bar"><span data-k="segBar" style="width:0%"></span></div></div>
         <div class="toasts"></div>
       </div>
@@ -163,6 +164,25 @@ export class Hud {
       minZ: Math.min(...pts.map((p) => p.z)),
       maxZ: Math.max(...pts.map((p) => p.z)),
     };
+  }
+
+  /** Panneau du défi KOM : élan, puis chrono et écart avec le fantôme du record (null = masqué). */
+  setChallenge(c: null | { name: string; phase: 'runup' | 'climbing' | 'done'; toGoM: number; elapsedS: number; recordS: number | null; deltaS: number | null; progress: number }): void {
+    const box = this.el.challenge as HTMLElement;
+    if (!c) {
+      box.classList.add('hidden');
+      return;
+    }
+    box.classList.remove('hidden');
+    const fr = getLang() === 'fr';
+    const rec = c.recordS === null ? (fr ? 'pas de record' : 'no record') : `${fr ? 'record' : 'best'} ${fmtTime(c.recordS)}`;
+    const delta =
+      c.deltaS === null ? '' : `<span class="num" style="color:${c.deltaS <= 0 ? '#22c55e' : '#ef4444'}">${c.deltaS <= 0 ? '−' : '+'}${Math.abs(c.deltaS).toFixed(1).replace('.', fr ? ',' : '.')} s</span>`;
+    const main =
+      c.phase === 'runup'
+        ? `${fr ? 'Pied de la côte dans' : 'Climb starts in'} <b class="num">${Math.round(c.toGoM)} m</b>`
+        : `<b class="num">${fmtTime(c.elapsedS)}</b> ${delta} <span class="num" style="color:var(--ar-muted)">· ${Math.round(c.toGoM)} m</span>`;
+    box.innerHTML = `<div class="ch-head"><b>${fr ? 'Défi' : 'Challenge'}</b><span>${c.name.replace(/[<>&]/g, '')} · ${rec}</span></div><div class="ch-main">${main}</div><div class="bar"><span style="width:${(c.progress * 100).toFixed(1)}%"></span></div>`;
   }
 
   /** Panneau de séance structurée (null = masqué). */

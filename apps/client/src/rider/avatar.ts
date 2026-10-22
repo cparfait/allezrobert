@@ -116,8 +116,8 @@ export class RiderAvatar {
       accent: mat(look.jerseyAccent, 0.7),
       shorts: mat('#15171c', 0.55),
       skin: mat(look.skin, 0.65),
-      sock: mat('#f2f2f2', 0.8),
-      shoe: mat('#1c1d22', 0.4),
+      sock: mat(look.socks ?? '#f2f2f2', 0.8),
+      shoe: mat(look.shoes ?? '#1c1d22', 0.4),
       helmet: mat(look.helmet, 0.35),
       visor: mat('#20242c', 0.1, 0.4),
       frame: mat(look.bike, 0.3, 0.3),
@@ -353,5 +353,7 @@ export class RiderAvatar {
     (m.helmet as THREE.MeshStandardNodeMaterial).color.set(look.helmet);
     (m.frame as THREE.MeshStandardNodeMaterial).color.set(look.bike);
     (m.hair as THREE.MeshStandardNodeMaterial).color.set(look.hair);
+    if (look.shoes) (m.shoe as THREE.MeshStandardNodeMaterial).color.set(look.shoes);
+    if (look.socks) (m.sock as THREE.MeshStandardNodeMaterial).color.set(look.socks);
   }
 }

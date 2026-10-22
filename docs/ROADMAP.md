@@ -88,11 +88,11 @@ Idées seulement : ni nom, ni asset, ni code, ni physique de NCT Ride (la vitess
 - [x] Cyclistes virtuels croisés dans les deux sens (en face, plus lents qu'on double, plus rapides qui doublent ; roue que l'on peut prendre)
 - [x] Séances intégrées (seuil, sweet spot, pyramide, sprints, VO2max, récupération active)
 - [x] Trophées qui rapportent de l'XP (14, affichés en fin de sortie)
-- [ ] Mode défi (battre les KOM)
+- [x] Mode défi (battre son record sur une montée : départ lancé, fantôme, écart en direct)
 - [x] VTT, roues carbone 40 / 50 / 88 mm (les hautes moins bonnes en côte), chaussettes hautes (−0,7 %) — modèle 3D du VTT à faire
-- [ ] Couleur des chaussures, tenues préréglées
+- [x] Couleur des chaussures et des chaussettes, 6 tenues préréglées
 - [x] Vue arrière (X maintenue)
-- [ ] Demi-tour sur les itinéraires (aller rechercher les équipiers ; fait en monde ouvert)
+- [x] Demi-tour sur les itinéraires (U, en solo : aller rechercher les équipiers, qui continuent à leur allure)
 - [x] Photo du sommet enregistrable depuis l'écran de fin
 - [x] Poussière sur les chemins secs, pancartes dans la foule (dont « Allez <ton nom> ! »)
 - [ ] Trains déclenchés à un point précis

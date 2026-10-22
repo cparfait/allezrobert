@@ -85,6 +85,12 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #0a0e16; col
 .balance .bar span { position: absolute; top: 0; bottom: 0; left: 0; background: linear-gradient(90deg, #3b82f6, #60a5fa); }
 .balance .bar::after { content: ''; position: absolute; left: 50%; top: -2px; bottom: -2px; width: 2px; background: #fff; }
 
+.challenge { padding: 8px 16px 10px; min-width: 320px; text-align: center; border-left: 4px solid #a855f7; }
+.challenge .ch-head { display: flex; gap: 8px; justify-content: center; align-items: baseline; font-size: 12.5px; color: var(--ar-muted); }
+.challenge .ch-head b { background: #a855f7; color: #fff; padding: 1px 7px; border-radius: 4px; text-transform: uppercase; letter-spacing: .06em; font-size: 11.5px; }
+.challenge .ch-main { font-size: 22px; margin: 4px 0; }
+.challenge .bar { height: 5px; background: rgba(255,255,255,.12); border-radius: 3px; overflow: hidden; }
+.challenge .bar span { display: block; height: 100%; background: #a855f7; }
 .junction { padding: 10px 14px 8px; min-width: 340px; max-width: min(620px, 94vw); }
 .junction .jn-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 8px; }
 .junction .jn-head b { background: #f59e0b; color: #0a0e16; padding: 2px 8px; border-radius: 4px; text-transform: uppercase; letter-spacing: .06em; font-size: 13px; }

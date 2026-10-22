@@ -1,4 +1,5 @@
-import type { AvatarLook, CosmeticItem, RouteData } from '@allezrobert/shared';
+import type { AvatarLook, CosmeticItem, RouteData, RouteSegment } from '@allezrobert/shared';
+import { readKomRecord } from '../game/challenge.ts';
 import { COSMETICS, DEFAULT_BIKE, bikeSetupFor, levelProgress, type CosmeticSlot } from '@allezrobert/shared';
 import { WORKOUT_LIBRARY } from '@allezrobert/physics';
 import { t, setLang, getLang, type I18nKey } from '../i18n/index.ts';
@@ -8,6 +9,7 @@ import { music } from '../audio/music.ts';
 import { spotify, redirectUri } from '../audio/spotify.ts';
 import { loadProgress, equipItem, SLOT_LABEL } from './garage.ts';
 import { WORLD_LIST } from '../world/worlds.ts';
+import { OUTFITS } from './outfits.ts';
 import type { GarageView } from './poster.ts';
 import './menu.css';
 
@@ -52,6 +54,7 @@ const ICON = {
   workout: svg('<path d="M4 20v-6M9 20V8M14 20v-9M19 20V5"/>'),
   ftpTest: svg('<path d="M4 16a8 8 0 1 1 16 0"/><path d="m12 16 4-6"/><circle cx="12" cy="16" r="1.2"/>'),
   open: svg('<circle cx="12" cy="12" r="9"/><path d="m15.5 8.5-2 5-5 2 2-5z"/>'),
+  challenge: svg('<path d="M3 20 10 8l4 6 3-4 4 10z"/><path d="M14 4h4v3h-4z"/>'),
   trainer: svg('<circle cx="7" cy="15" r="4"/><path d="M7 15h7l3-7h2M13 8l1 7M3 21h18"/>'),
   power: svg('<path d="M13 2 5 14h6l-1 8 8-12h-6z"/>'),
   heartRate: svg('<path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10Z"/><path d="M7 12h3l1-2 2 4 1-2h3"/>'),
@@ -182,6 +185,7 @@ export class MainMenu {
       if (item.slot === 'jersey') look.jersey = item.color;
       if (item.slot === 'helmet') look.helmet = item.color;
       if (item.slot === 'bike') look.bike = item.color;
+      if (item.slot === 'socks') look.socks = item.color;
     }
     return look;
   }
@@ -214,6 +218,7 @@ export class MainMenu {
           ['race', 'race', 'Course en ligne, classement à l’arrivée.'],
           ['workout', 'workout', 'Séance structurée en mode ERG : séances intégrées ou fichier .zwo, .erg, .mrc.'],
           ['ftpTest', 'ftpTest', 'Test de 20 minutes pour estimer ta FTP.'],
+          ['challenge', 'challenge', 'Bats ton record sur une montée : départ lancé, fantôme de ton meilleur temps, écart en direct.'],
           ...(this.openWorld ? ([['open', 'open', 'Toutes les routes du monde : ← / → pour choisir ta direction à chaque carrefour, U pour faire demi-tour.']] as Array<[Settings['mode'], I18nKey, string]>) : []),
         ]
       : [
@@ -222,6 +227,7 @@ export class MainMenu {
           ['race', 'race', 'Online race, results at the finish.'],
           ['workout', 'workout', 'Structured session in ERG mode: built-in workouts or a .zwo, .erg, .mrc file.'],
           ['ftpTest', 'ftpTest', '20-minute test to estimate your FTP.'],
+          ['challenge', 'challenge', 'Beat your record on a climb: flying start, ghost of your best time, live gap.'],
           ...(this.openWorld ? ([['open', 'open', 'Every road of the world: ← / → to pick your way at each junction, U to turn around.']] as Array<[Settings['mode'], I18nKey, string]>) : []),
         ];
   }
@@ -313,6 +319,8 @@ export class MainMenu {
       ${
         s.mode === 'group' || s.mode === 'race'
           ? `<input id="m-invite" class="mm-input" placeholder="${L ? 'Code d’invitation (facultatif)' : 'Invite code (optional)'}" />`
+          : s.mode === 'challenge'
+            ? this.challengeHtml(r)
           : s.mode === 'workout'
             ? `<div class="mm-routes mm-presets">${WORKOUT_LIBRARY.map(
                 (w) =>
@@ -337,6 +345,21 @@ export class MainMenu {
       <div class="mm-conds"><span>${t(s.season)} · ${s.hour.toFixed(1).replace('.', L ? ',' : '.')} h · ${L ? 'nuages' : 'clouds'} ${Math.round(s.clouds * 100)} %${s.rain > 0.05 ? ` · ${L ? 'pluie' : 'rain'}` : ''}</span><button class="mm-link" data-tab="settings">${L ? 'Modifier' : 'Change'}</button></div>
     </section>
     <div class="mm-hero"><h1>Allez <em>Robert</em> !</h1><p>${L ? 'Rouler ensemble, chacun chez soi.' : 'Ride together, each from home.'}</p></div>`;
+  }
+
+  /** Mode défi : montées de l'itinéraire choisi, avec le record de chacune. */
+  private challengeHtml(r: RouteData | undefined): string {
+    const L = fr();
+    const koms = r?.segments.filter((g) => g.kind === 'kom') ?? [];
+    if (!r || !koms.length) return `<p class="mm-hint">${L ? 'Pas de montée chronométrée sur cet itinéraire : choisis-en un autre.' : 'No timed climb on this route: pick another one.'}</p>`;
+    if (!koms.some((k) => k.id === this.s.challengeSeg)) this.s.challengeSeg = (koms[0] as RouteSegment).id;
+    return `<div class="mm-routes mm-presets">${koms
+      .map((k) => {
+        const rec = readKomRecord(r.id, k.id);
+        const t = rec ? `${Math.floor(rec.timeS / 60)}:${String(Math.round(rec.timeS % 60)).padStart(2, '0')}` : L ? 'pas encore de record' : 'no record yet';
+        return `<button class="mm-route ${k.id === this.s.challengeSeg ? 'on' : ''}" data-kom="${esc(k.id)}"><b>${esc(k.name)}</b><span>${this.km(k.endM - k.startM)} km · ${k.avgGrade.toFixed(1).replace('.', L ? ',' : '.')} % · ${L ? 'record' : 'best'} ${t}</span></button>`;
+      })
+      .join('')}</div>`;
   }
 
   /** Carte de l'itinéraire (tracé coloré selon la pente) et profil d'altitude. */
@@ -423,6 +446,14 @@ export class MainMenu {
             <label class="field">${L ? 'Vélo' : 'Bike'}<input id="m-bike" type="color" value="${this.s.look.bike}" /></label>
             <label class="field">${L ? 'Peau' : 'Skin'}<input id="m-skin" type="color" value="${this.s.look.skin}" /></label>
             <label class="field">${L ? 'Cheveux' : 'Hair'}<input id="m-hair" type="color" value="${this.s.look.hair}" /></label>
+            <label class="field">${L ? 'Chaussures' : 'Shoes'}<input id="m-shoes" type="color" value="${this.s.look.shoes ?? '#f2f2f2'}" /></label>
+            <label class="field">${L ? 'Chaussettes' : 'Socks'}<input id="m-socks" type="color" value="${this.s.look.socks ?? '#f2f2f2'}" /></label>
+          </div>
+          <h3 class="mm-presets-title">${L ? 'Tenues préréglées' : 'Kit presets'}</h3>
+          <div class="mm-items mm-kits">${OUTFITS.map(
+            (o) =>
+              `<button class="mm-item" data-outfit="${o.id}"><i style="background:linear-gradient(90deg, ${o.look.jersey} 0 50%, ${o.look.jerseyAccent} 50% 100%)"></i><b>${esc(o.name[lang])}</b><span>${esc(o.hint[lang])}</span></button>`,
+          ).join('')}
           </div>`
         : `<div class="mm-items">${COSMETICS.filter((c) => c.slot === this.garageSlot)
             .map((c) => {
@@ -807,6 +838,13 @@ export class MainMenu {
         this.render();
       }),
     );
+    this.root.querySelectorAll<HTMLElement>('[data-kom]').forEach((el) =>
+      el.addEventListener('click', () => {
+        s.challengeSeg = el.dataset.kom as string;
+        changed();
+        this.render();
+      }),
+    );
     this.root.querySelectorAll<HTMLElement>('[data-preset]').forEach((el) =>
       el.addEventListener('click', () => {
         s.workoutPreset = el.dataset.preset as string;
@@ -891,7 +929,7 @@ export class MainMenu {
       zone.addEventListener('pointerup', up);
       zone.addEventListener('pointercancel', up);
     }
-    const color = (id: string, key: 'jersey' | 'jerseyAccent' | 'helmet' | 'bike' | 'skin' | 'hair') =>
+    const color = (id: string, key: 'jersey' | 'jerseyAccent' | 'helmet' | 'bike' | 'skin' | 'hair' | 'shoes' | 'socks') =>
       on<HTMLInputElement>(id, 'input', (el) => {
         s.look = { ...s.look, [key]: el.value };
         changed();
@@ -902,6 +940,18 @@ export class MainMenu {
     color('m-bike', 'bike');
     color('m-skin', 'skin');
     color('m-hair', 'hair');
+    color('m-shoes', 'shoes');
+    color('m-socks', 'socks');
+    this.root.querySelectorAll<HTMLElement>('[data-outfit]').forEach((el) =>
+      el.addEventListener('click', () => {
+        const o = OUTFITS.find((x) => x.id === el.dataset.outfit);
+        if (!o) return;
+        // Tenue complète : couleurs seulement, la peau, les cheveux et la carrure restent.
+        s.look = { ...s.look, ...o.look };
+        changed();
+        this.render();
+      }),
+    );
     // Profil.
     const num = (id: string, key: 'massKg' | 'ftpWatts' | 'heightCm' | 'aiRiders') =>
       on<HTMLInputElement>(id, 'change', (el) => {

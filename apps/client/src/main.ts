@@ -36,6 +36,7 @@ import { addXp, awardRide, loadProgress } from './ui/garage.ts';
 import { awardTrophies } from './game/trophies.ts';
 import { roadSurfaceAt, windShelterAt } from './world/conditions.ts';
 import { OpenNavigator } from './game/open.ts';
+import { KomChallenge, type ChallengeResult } from './game/challenge.ts';
 import { fetchMe, showLogin, applyProfile, logout, pushProfile, type Me } from './ui/account.ts';
 import { RideSequences } from './game/sequences.ts';
 import { GuestInputSource } from './game/guest.ts';
@@ -370,15 +371,19 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
         )
       : null;
   const track = nav ? nav.track : scene.track;
-  if (nav) {
-    const p0 = track.positionAt(0, 1.2);
+  // Défi KOM : départ lancé avant le pied de la montée choisie, fantôme du record.
+  const komSeg = s.mode === 'challenge' && !nav ? (track.route.segments.find((g) => g.kind === 'kom' && g.id === s.challengeSeg) ?? track.route.segments.find((g) => g.kind === 'kom')) : undefined;
+  const challenge = komSeg ? new KomChallenge(engine.scene, track, komSeg) : null;
+  let challengeResult: ChallengeResult | null = null;
+  if (nav || challenge) {
+    const p0 = track.positionAt(challenge?.startD ?? 0, 1.2);
     await world.preload(new THREE.Vector3(p0.x, p0.y, p0.z));
   }
   ui.innerHTML = '';
   // Le vélo roulé dépend de l'équipement porté au garage (masse, traînée, pneus, roues).
   const profile: RiderProfile = { id: 'local', displayName: s.name, massKg: s.massKg, heightCm: s.heightCm, ftpWatts: s.ftpWatts, bike: bikeSetupFor(loadProgress().equipped) };
   const params = new URLSearchParams(location.search);
-  const startD = nav ? 0 : Number(params.get('d') ?? 0);
+  const startD = nav ? 0 : challenge ? challenge.startD : Number(params.get('d') ?? 0);
   const ride = new RideSession({
     profile,
     track,
@@ -417,7 +422,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
       mp = null;
     }
   }
-  const aiCount = workout || mp ? 0 : Math.min(Math.max(s.aiRiders, 0), 19);
+  const aiCount = workout || mp || challenge ? 0 : Math.min(Math.max(s.aiRiders, 0), 19);
   const peloton = new Peloton(engine.scene, track, aiCount, startD, s.ftpWatts * (s.aiLevel ?? 1));
   const ghost = new Ghost(engine.scene, track, track.route.id, startD);
   peloton.onWait = (name) => name && hud.toast(getLang() === 'fr' ? `On attend ${name}` : `Waiting for ${name}`);
@@ -608,6 +613,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
         withGroup: peloton.riders.length > 0 || !!mp || ride.group.draftS > 0,
         guest: s.guest,
         trophies: trophies.map((t) => ({ name: t.name[getLang()], description: t.description[getLang()], xp: t.xp })),
+        ...(challengeResult ? { challenge: challengeResult } : {}),
         ...(xp
           ? {
               xp: {
@@ -645,6 +651,16 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
       },
     );
   };
+  if (challenge) {
+    challenge.onDone = (r) => {
+      challengeResult = r;
+      const L = getLang() === 'fr';
+      const t = `${Math.floor(r.timeS / 60)}:${String(Math.round(r.timeS % 60)).padStart(2, '0')}`;
+      hud.toast(r.isRecord ? (r.previousS === null ? `🏁 ${t} · ${L ? 'premier record' : 'first record'}` : `🏆 ${L ? 'Record battu' : 'New record'} : ${t} (−${Math.round(r.previousS - r.timeS)} s)`) : `🏁 ${t} · ${L ? 'record' : 'best'} ${Math.floor((r.previousS as number) / 60)}:${String(Math.round((r.previousS as number) % 60)).padStart(2, '0')}`);
+      // Quelques secondes pour savourer, puis l'écran de fin.
+      setTimeout(() => !ride.paused && finish(), 4000);
+    };
+  }
   const togglePause = () => {
     ride.paused = !ride.paused;
     if (ride.paused) showPause(ui, { onResume: togglePause, onFinish: finish });
@@ -659,11 +675,18 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
       e.preventDefault();
       nav.select(e.key === 'ArrowLeft' ? -1 : 1, ride.state.distM);
     }
-    if (nav && (e.key === 'u' || e.key === 'U')) {
-      // Demi-tour : on repart dans l'autre sens, à droite de la chaussée.
-      if (nav.uturn(ride.state.distM)) {
-        ride.state.speedMs = Math.min(ride.state.speedMs, 3);
-        hud.toast(getLang() === 'fr' ? '↶ Demi-tour' : '↶ U-turn');
+    if (e.key === 'u' || e.key === 'U') {
+      // Demi-tour : on repart dans l'autre sens, à droite de la chaussée. Monde ouvert : nouveau
+      // chemin ; itinéraire : on le remonte (pas en multijoueur, le serveur fait la course).
+      if (nav) {
+        if (nav.uturn(ride.state.distM)) {
+          ride.state.speedMs = Math.min(ride.state.speedMs, 3);
+          hud.toast(getLang() === 'fr' ? '↶ Demi-tour' : '↶ U-turn');
+        }
+      } else if (!mp && !workout) {
+        ride.uturn();
+        const L = getLang() === 'fr';
+        hud.toast(ride.dir < 0 ? (L ? '↶ Demi-tour : à contresens de l’itinéraire' : '↶ U-turn: riding the route backwards') : L ? '↷ Retour dans le sens de l’itinéraire' : '↷ Back on the route direction');
       }
     }
     if (e.key === 'x' || e.key === 'X') rig.lookBack = true;
@@ -750,12 +773,13 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     ride.update(dt, input, steer);
     if (!ride.paused) {
       ghost.update(dt, ride.elapsedS, ride.state.distM);
+      challenge?.update(dt, ride.state.distM - startD, ride.elapsedS);
       tutorial?.update({ shifted, gradePercent: ride.gradePercent, inSegment: !!ride.segment, draft: ride.draft, distM: ride.state.distM - startD });
       if (mp) {
         // Prédiction locale + correction douce vers la position autoritaire du serveur.
         ride.draft = mp.selfDraft();
         ride.state.distM += mp.reconcile(ride.state.distM, dt);
-      } else ride.draft = peloton.update(dt, { distM: ride.state.distM, lateral: ride.lateral, speedMs: ride.state.speedMs, watts: ride.inputs.watts, massKg: s.massKg, ftpWatts: s.ftpWatts });
+      } else ride.draft = peloton.update(dt, { distM: ride.state.distM, lateral: ride.lateral, speedMs: ride.state.speedMs, watts: ride.inputs.watts, massKg: s.massKg, ftpWatts: s.ftpWatts, reversed: ride.dir < 0 });
       // Relais : quelqu'un roule dans ma roue (0,5 à 4 m derrière, à moins d'un mètre de côté).
       const onWheel = (d: number, lat: number) => {
         const gap = ride.state.distM - d;
@@ -763,8 +787,11 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
       };
       ride.wheelFollowed = peloton.riders.some((r) => onWheel(r.state.distM, r.lateral)) || remoteRiders.some((r) => onWheel(r.unwrappedM, r.lateralM));
       // Abri derrière un tracteur ou une camionnette qui roule dans le même sens.
-      if (traffic) ride.draft = Math.max(ride.draft, traffic.draftFor(ride.state.distM, ride.lateral));
-      if (cyclists) ride.draft = Math.max(ride.draft, cyclists.update(dt, { distM: ride.state.distM, lateral: ride.lateral, speedMs: ride.state.speedMs }, engine.camera));
+      if (traffic && ride.dir > 0) ride.draft = Math.max(ride.draft, traffic.draftFor(ride.state.distM, ride.lateral));
+      if (cyclists) {
+        const d = cyclists.update(dt, { distM: ride.state.distM, lateral: ride.lateral, speedMs: ride.state.speedMs }, engine.camera);
+        if (ride.dir > 0) ride.draft = Math.max(ride.draft, d);
+      }
     }
     remoteRiders = mp ? mp.render(dt, engine.camera) : [];
     traffic?.update(dt, ride.state, [
@@ -774,9 +801,10 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     ]);
     track.positionAt(ride.state.distM, ride.lateral, sample);
     pos.set(sample.x, sample.y + 0.06, sample.z);
-    dir.set(sample.dirX, 0, sample.dirZ);
+    // Sens de marche : après un demi-tour, on remonte l'itinéraire.
+    dir.set(sample.dirX * ride.dir, 0, sample.dirZ * ride.dir);
     avatar.root.position.copy(pos);
-    const heading = Math.atan2(sample.dirX, sample.dirZ);
+    const heading = Math.atan2(sample.dirX, sample.dirZ) + (ride.dir < 0 ? Math.PI : 0);
     if (Number.isNaN(prevHeading)) prevHeading = heading;
     // Inclinaison en virage : ∝ v·(dψ/dt), bornée.
     let dh = heading - prevHeading;
@@ -787,7 +815,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     bank += (THREE.MathUtils.clamp(-yawRate * ride.state.speedMs * 0.08, -0.35, 0.35) - bank) * Math.min(1, dt * 3);
     avatar.root.rotation.set(0, 0, 0);
     avatar.root.rotateY(heading);
-    avatar.root.rotateX(-Math.atan(sample.grade / 100));
+    avatar.root.rotateX(-Math.atan((sample.grade * ride.dir) / 100));
     avatar.update(dt, ride.inputs.cadence, ride.state.speedMs, ride.pose, bank);
     // Chemin sec : poussière ; mouillé : presque rien.
     const sc = surfaceClass(ride.surface);
@@ -799,7 +827,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
 
     const eyeOk = rig.mode === 'cockpit' && !!avatar.eyeWorld;
     if (eyeOk) avatar.eyeWorld?.(eye, hands);
-    rig.update(dt, { position: pos, dir, distM: ride.state.distM, speedMs: ride.state.speedMs, ...(eyeOk ? { eye, hands } : {}) });
+    rig.update(dt, { position: pos, dir, distM: ride.state.distM, speedMs: ride.state.speedMs, sign: ride.dir, ...(eyeOk ? { eye, hands } : {}) });
     // Les tuiles se chargent autour de la caméra libre, où qu'elle aille ; sinon autour du coureur.
     world.update(dt, rig.mode === 'free' ? engine.camera.position : pos);
     headlight.intensity = world.nightFactor() * 120;
@@ -889,6 +917,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
         },
         s.massKg,
       );
+      hud.setChallenge(challenge ? challenge.info(ride.state.distM - startD) : null);
       if (workout) {
         const w = workout.position;
         const next = workout.workout.steps[w.stepIndex + 1];

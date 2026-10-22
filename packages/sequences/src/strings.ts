@@ -20,6 +20,7 @@ export const STRINGS = {
     'ride.workout': 'Entraînement',
     'ride.ftpTest': 'Test FTP',
     'ride.open': 'Monde ouvert',
+    'ride.challenge': 'Défi',
     // Intro
     'intro.distance': 'Distance',
     'intro.elevation': 'Dénivelé +',
@@ -81,6 +82,7 @@ export const STRINGS = {
     'ride.workout': 'Workout',
     'ride.ftpTest': 'FTP test',
     'ride.open': 'Open world',
+    'ride.challenge': 'Challenge',
     'intro.distance': 'Distance',
     'intro.elevation': 'Elevation gain',
     'intro.riders': 'Riders',

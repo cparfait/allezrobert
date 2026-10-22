@@ -8,8 +8,8 @@
 export const NET_TICK_HZ = 10;
 export const MAX_RIDERS_PER_ROOM = 20;
 
-/** `open` : monde ouvert, carrefours au choix (solo). */
-export type RideMode = 'free' | 'group' | 'race' | 'workout' | 'ftpTest' | 'open';
+/** `open` : monde ouvert, carrefours au choix (solo) ; `challenge` : battre son record sur une montée. */
+export type RideMode = 'free' | 'group' | 'race' | 'workout' | 'ftpTest' | 'open' | 'challenge';
 
 export interface RoomOptions {
   routeId: string;
@@ -70,6 +70,10 @@ export interface AvatarLook {
   helmet: string;
   bike: string;
   build: number; // 0 = fin, 1 = costaud
+  /** Couleur des chaussures (facultative pour les profils enregistrés avant). */
+  shoes?: string;
+  /** Couleur des chaussettes. */
+  socks?: string;
 }
 
 export const DEFAULT_LOOK: AvatarLook = {
@@ -81,6 +85,8 @@ export const DEFAULT_LOOK: AvatarLook = {
   helmet: '#f4f4f4',
   bike: '#c0392b',
   build: 0.4,
+  shoes: '#f2f2f2',
+  socks: '#f2f2f2',
 };
 
 /** Serveur → clients, à 10 Hz. */

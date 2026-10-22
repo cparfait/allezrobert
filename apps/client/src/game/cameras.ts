@@ -12,6 +12,8 @@ export interface CameraTarget {
   dir: THREE.Vector3;
   distM: number;
   speedMs: number;
+  /** Sens de marche sur l'itinéraire (−1 après un demi-tour) : « devant » = distM − x. */
+  sign?: 1 | -1;
   /** Yeux du coureur (repère monde), pour la vue subjective ; à défaut, position estimée. */
   eye?: THREE.Vector3;
   /** Milieu des mains sur les cocottes (repère monde) : la vue subjective garde le cintre en bas de l'image. */
@@ -132,7 +134,7 @@ export class CameraRig {
     switch (this.mode) {
       case 'chase': {
         // Derrière et au-dessus, regard vers un point devant le coureur (anticipe les virages).
-        const ahead = this.track.sample(t.distM + 18);
+        const ahead = this.track.sample(t.distM + 18 * (t.sign ?? 1));
         desired.copy(t.position).addScaledVector(t.dir, -5.2).add(new THREE.Vector3(0, 2.1, 0));
         look.set(ahead.x, ahead.y + 1.0, ahead.z).lerp(t.position.clone().add(new THREE.Vector3(0, 1.1, 0)), 0.55);
         stiffness = 5;
@@ -163,11 +165,11 @@ export class CameraRig {
         // Tangage : mains (cintre) calées en bas de l'image, en côte comme en descente (plongée bornée :
         // en danseuse elles descendent un peu) ; sans repère des mains, pente du vélo plus un tiers
         // de l'écart vers la route à 30 m.
-        const ahead = this.track.sample(t.distM + 30);
+        const ahead = this.track.sample(t.distM + 30 * (t.sign ?? 1));
         const dx = ahead.x - desired.x;
         const dz = ahead.z - desired.z;
         const hd = Math.hypot(dx, dz) || 1;
-        const bikePitch = Math.atan(this.track.sample(t.distM).grade / 100);
+        const bikePitch = Math.atan(this.track.sample(t.distM).grade * (t.sign ?? 1) / 100);
         // Regard baissé de COCKPIT_PITCH sous la pente du vélo (un tiers de l'écart avec la route à 30 m).
         const roadPitch = Math.atan2(ahead.y + 1.0 - desired.y, hd);
         const pitch = bikePitch + (roadPitch - bikePitch) / 3 - COCKPIT_PITCH;
@@ -179,7 +181,7 @@ export class CameraRig {
         // Caméra embarquée sur la poitrine : bras et cintre dans le champ, vibrations de la route.
         const shake = Math.sin(performance.now() * 0.031) * 0.006 * Math.min(t.speedMs / 8, 1);
         desired.copy(t.position).addScaledVector(t.dir, 0.42).add(new THREE.Vector3(0, 1.22 + shake, 0));
-        const ahead = this.track.sample(t.distM + 12);
+        const ahead = this.track.sample(t.distM + 12 * (t.sign ?? 1));
         look.set(ahead.x, ahead.y + 0.4, ahead.z);
         stiffness = 30;
         break;
@@ -194,22 +196,23 @@ export class CameraRig {
       }
       case 'tv': {
         // Plan fixe en bord de route, 60 à 90 m devant ; on change quand le coureur l'a dépassé.
-        if (!this.tvSpot || t.distM > this.tvSpot.untilD) {
+        const sg = t.sign ?? 1;
+        if (!this.tvSpot || (t.distM - this.tvSpot.untilD) * sg > 0) {
           // Plusieurs emplacements candidats ; on garde le premier qui voit la route sans bâtiment devant.
           for (let attempt = 0; attempt < 10; attempt++) {
-            const d = t.distM + 55 + Math.random() * 40;
+            const d = t.distM + (55 + Math.random() * 40) * sg;
             const side = attempt % 2 ? 1 : -1;
             const s = this.track.positionAt(d, side * (6 + Math.random() * 6));
             const y = this.ground(s.x, s.z, s.y) + 1.6 + Math.random() * 2.5 + attempt * 0.8;
             const pos = new THREE.Vector3(s.x, y, s.z);
-            const road = this.track.positionAt(d - 25, 0);
+            const road = this.track.positionAt(d - 25 * sg, 0);
             const dir = new THREE.Vector3(road.x, road.y + 1, road.z).sub(pos);
             const len = dir.length();
             this.ray.set(pos, dir.normalize());
             this.ray.far = len;
             const blocked = this.occluders.length > 0 && this.ray.intersectObjects(this.occluders, true).length > 0;
             if (!blocked || attempt === 9) {
-              this.tvSpot = { pos, untilD: d + 15 };
+              this.tvSpot = { pos, untilD: d + 15 * sg };
               break;
             }
           }

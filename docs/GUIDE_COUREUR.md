@@ -31,7 +31,7 @@ Le tutoriel (voix off, coupable) règle : la langue, ton profil (poids, taille, 
 | ↑ / ↓ | Vitesse suivante / précédente (24 rapports virtuels) |
 | PageUp / PageDown | Grand / petit plateau |
 | ← / → | Se décaler sur la chaussée (prendre la roue, doubler) ; en monde ouvert, à l'approche d'un carrefour : choisir la sortie |
-| U | Monde ouvert : demi-tour |
+| U | Demi-tour (en solo ; en monde ouvert, nouveau chemin) |
 | X (maintenue) | Regarder derrière soi |
 | C | Caméra : poursuite, cockpit, drone, réalisation TV, photo (souris pour orbiter) |
 | Espace / Échap | Pause (reprendre, terminer la sortie) |

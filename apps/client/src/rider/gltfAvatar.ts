@@ -257,6 +257,8 @@ function applyLookColor(m: THREE.MeshStandardNodeMaterial, look: AvatarLook): vo
     frame: look.bike,
     bar_tape: look.jerseyAccent,
     bottle: look.jerseyAccent,
+    shoe: look.shoes,
+    sock: look.socks,
   };
   const col = c[m.name];
   if (col) m.color.set(col);

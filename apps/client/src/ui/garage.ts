@@ -69,6 +69,7 @@ export function equipItem(item: CosmeticItem, s: Settings): void {
     if (item.slot === 'jersey') s.look = { ...s.look, jersey: item.color };
     if (item.slot === 'helmet') s.look = { ...s.look, helmet: item.color };
     if (item.slot === 'bike') s.look = { ...s.look, bike: item.color };
+    if (item.slot === 'socks') s.look = { ...s.look, socks: item.color };
   }
   saveSettings(s);
 }

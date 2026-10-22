@@ -133,8 +133,11 @@ export class Peloton {
    * @param player position et puissance du joueur (référence d'allure et d'aspiration)
    * @returns l'aspiration dont bénéficie le joueur (0–1)
    */
-  update(dt: number, player: { distM: number; lateral: number; speedMs: number; watts: number; massKg: number; ftpWatts?: number }): number {
+  update(dt: number, player: { distM: number; lateral: number; speedMs: number; watts: number; massKg: number; ftpWatts?: number; reversed?: boolean }): number {
     if (!this.riders.length) return 0;
+    // Joueur à contresens (demi-tour pour aller chercher quelqu'un) : le groupe continue à son
+    // allure, sans l'attendre ni l'abriter ; tout reprend quand il refait demi-tour.
+    if (player.reversed) return this.rideOn(dt);
     this.time += dt;
     // Allure : % de FTP imposé (équipiers) ou W/kg du joueur lissé sur ~20 s (le groupe roule « avec » lui).
     const target = this.paceFtpPct !== null && player.ftpWatts ? (player.ftpWatts * this.paceFtpPct) / Math.max(player.massKg, 1) : player.watts / Math.max(player.massKg, 1);
@@ -188,6 +191,41 @@ export class Peloton {
       r.lateral += (targetLat - r.lateral) * Math.min(1, dt * 0.8);
     });
     return factors[0] ?? 0;
+  }
+
+  /** Le groupe roule seul, à l'allure courante (joueur à contresens). */
+  private rideOn(dt: number): number {
+    this.time += dt;
+    const all = this.riders.map((r) => ({ distM: r.state.distM, lateralM: r.lateral, speedMs: r.state.speedMs }));
+    const factors = this.draft.compute(all);
+    const order = [...this.riders].sort((a, b) => b.state.distM - a.state.distM);
+    order.forEach((r, rank) => {
+      const i = this.riders.indexOf(r);
+      r.draft = factors[i] ?? 0;
+      const s = this.track.sample(r.state.distM, this.sample);
+      const ahead = order[rank - 1];
+      const env = { airDensity: airDensity(s.y, 14), windSpeedMs: 0 };
+      const out = r.ai.update(
+        {
+          gradePercent: s.grade,
+          speedMs: r.state.speedMs,
+          groupPaceWkg: this.paceWkg,
+          gapAheadM: ahead ? ahead.state.distM - r.state.distM - 1.8 : Infinity,
+          speedAheadMs: ahead?.state.speedMs ?? r.state.speedMs,
+          ...(ahead ? { lateralAheadM: ahead.lateral - r.lateral } : {}),
+          positionInGroup: rank,
+          groupSize: this.riders.length,
+          cdaFactor: 1 - r.draft,
+          env,
+        },
+        dt,
+      );
+      r.watts = out.watts;
+      r.cadence = out.cadence;
+      r.pose = r.poseCtl.update({ watts: out.watts, cadence: out.cadence, gradePercent: s.grade, ftpWatts: r.ftp, speedMs: r.state.speedMs }, dt);
+      stepRider(r.state, { watts: r.watts, gradePercent: s.grade, params: r.ai.params, env, cdaFactor: 1 - r.draft }, dt);
+    });
+    return 0;
   }
 
   /** Place les avatars ; les coureurs lointains ne sont pas animés (économie). */

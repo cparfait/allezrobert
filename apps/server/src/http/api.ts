@@ -32,6 +32,8 @@ const AvatarSchema = z.object({
   helmet: hex,
   bike: hex,
   build: z.number().min(0).max(1),
+  shoes: hex.optional(),
+  socks: hex.optional(),
 });
 
 const ProfilePatchSchema = z

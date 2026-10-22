@@ -24,7 +24,7 @@ export class RideSequences {
   }
 
   /** Intro et compte à rebours ; la promesse se résout au « go » (ou tout de suite en cas d'échec). */
-  async intro(opts: { season: Season; riders: number; rideType: 'free' | 'group' | 'race' | 'workout' | 'ftpTest' | 'open' }): Promise<void> {
+  async intro(opts: { season: Season; riders: number; rideType: 'free' | 'group' | 'race' | 'workout' | 'ftpTest' | 'open' | 'challenge' }): Promise<void> {
     if (!this.enabled) return;
     const profile = this.track.profile(80).map((p) => Math.round(p.y * 10) / 10);
     const r = this.track.route;

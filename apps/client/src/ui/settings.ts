@@ -43,6 +43,8 @@ export interface Settings {
   world: string;
   /** Séance intégrée choisie (mode entraînement), si aucun fichier n'est importé. */
   workoutPreset: string;
+  /** Mode défi : montée choisie (identifiant de segment KOM de l'itinéraire). */
+  challengeSeg: string;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -73,6 +75,7 @@ export const DEFAULT_SETTINGS: Settings = {
   inertia: 1,
   world: 'chevreuse',
   workoutPreset: 'sweet-spot-3x12',
+  challengeSeg: '',
 };
 
 const KEY = 'ar.settings';
