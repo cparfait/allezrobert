@@ -51,6 +51,70 @@ async function main(): Promise<void> {
   if (params.has('profiles')) return profileSheet(engine);
   if (params.has('calib')) return likenessCalibration(engine);
 
+  // ?shoes : chaussures en gros plan (tige, perforations, marquage) pour quatre tenues, pied gauche
+  // en bas (manivelle 0) : extérieur, trois quarts avant, dessus ; puis de côté à 3 m.
+  if (params.has('shoes')) {
+    const variants: Array<Partial<AvatarLook>> = [
+      { shoes: '#f2f2f2' },
+      { shoes: '#f2f2f2', shoeMark: 'vanrysel', shoeAccent: '#8a9099' },
+      { shoes: '#f2f2f2', shoeMark: 'vanrysel', shoeAccent: '#ff5fa2', socks: '#ffffff' },
+      { shoes: '#c8102e', shoeMark: 'sphyre', shoeAccent: '#111111' },
+    ];
+    const avs = variants.map((v) => {
+      const a = new GltfRiderAvatar({ ...DEFAULT_LOOK, ...v });
+      a.root.visible = false;
+      scene.add(a.root);
+      const priv = a as unknown as { crankAngle: number };
+      priv.crankAngle = 0;
+      a.update(0, 0.0001, 0, 'seated');
+      priv.crankAngle = 0;
+      a.update(1e-4, 0.0001, 0, 'seated');
+      return a;
+    });
+    const sheet = document.createElement('canvas');
+    sheet.width = 1920;
+    sheet.height = 360 * avs.length;
+    const g = sheet.getContext('2d') as CanvasRenderingContext2D;
+    // Pied gauche : centre de la chaussure ≈ (0,105 ; 0,15 ; −0,06).
+    const foot = new THREE.Vector3(0.105, 0.15, -0.06);
+    const views: Array<[THREE.Vector3, number]> = [
+      [new THREE.Vector3(0.62, 0.02, 0.0), 30],
+      [new THREE.Vector3(0.42, 0.25, 0.42), 30],
+      [new THREE.Vector3(0.18, 0.6, 0.05), 30],
+    ];
+    avs.forEach((a, i) => {
+      for (const o of avs) o.root.visible = o === a;
+      views.forEach(([off, fov], k) => {
+        camera.fov = fov;
+        camera.updateProjectionMatrix();
+        camera.position.copy(foot).add(off);
+        camera.lookAt(foot);
+        engine.renderManual();
+        g.drawImage(canvas, k * 640, i * 360, 640, 360);
+      });
+    });
+    const far = document.createElement('canvas');
+    far.width = 1280;
+    far.height = 720;
+    const fg = far.getContext('2d') as CanvasRenderingContext2D;
+    for (const o of avs) o.root.visible = o === avs[1];
+    camera.fov = 40;
+    camera.updateProjectionMatrix();
+    camera.position.set(3.0, 0.9, 0.1);
+    camera.lookAt(0, 0.62, 0.1);
+    engine.renderManual();
+    fg.drawImage(canvas, 0, 0);
+    const shots: Array<[string, string]> = [
+      ['shoes-client-sheet', sheet.toDataURL('image/jpeg', 0.9)],
+      ['shoes-client-far', far.toDataURL('image/jpeg', 0.9)],
+    ];
+    if (!params.has('noshot')) for (const [name, data] of shots) await fetch(`/__shot?name=${name}`, { method: 'POST', body: data });
+    (window as unknown as { __shoeShots: Array<[string, string]> }).__shoeShots = shots;
+    (window as unknown as { __avatarTestDone: boolean }).__avatarTestDone = true;
+    log.textContent += '\nterminé';
+    return;
+  }
+
   // ?kits : les trois vélos (route, gravel, VTT) côte à côte, de profil et de trois quarts.
   if (params.has('kits')) {
     const types = ['road', 'gravel', 'mtb'] as const;

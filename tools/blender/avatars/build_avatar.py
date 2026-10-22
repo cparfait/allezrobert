@@ -11,9 +11,10 @@ Allez Robert ! — avatar MPFB (docs/AVATARS.md, étapes 2 et 3).
     inverse en écarts à cette pose, comme pour cyclist.glb ;
   - zones de tenue (maillot, bande, cuissard, chaussettes) coupées par plans, ourlets nets ;
   - globes oculaires (aides MPFB) avec iris et pupille ;
-  - casque, casque chrono, lunettes, cheveux et chaussures repris de cyclist.glb, recalés sur la
-    nouvelle tête et les nouveaux pieds ; ils suivent les curseurs (cibles reportées depuis les
-    sommets du corps les plus proches) ;
+  - casque, casque chrono, lunettes et cheveux repris de cyclist.glb, recalés sur la nouvelle
+    tête ; ils suivent les curseurs (cibles reportées depuis les sommets du corps les plus proches) ;
+  - chaussures de cyclist.glb posées telles quelles sur les pédales, pied caché retiré
+    (avatars/reshoe.mjs, après l'export) ;
   - quantification et compression meshopt (avatars/compress.mjs ; --no-compress pour s'en passer).
 
 Usage (depuis la racine du dépôt) :
@@ -800,22 +801,9 @@ def import_accessories(rig, body):
         if n.startswith(('rider_helmet', 'rider_glasses', 'rider_hair')):
             mats = [m_head]
             groups = ['head']
-        elif n.startswith('rider_shoes'):
-            # Repère du pied : de la cheville vers la pointe (mesurée sur la chaussure pour
-            # l'ancien modèle, bout des orteils du squelette pour le nouveau).
-            mats, groups = [], []
-            wv = [o.matrix_world @ v.co for v in o.data.vertices]
-            for side, on, nn in (('l', 'foot_L', 'foot_l'), ('r', 'foot_R', 'foot_r')):
-                a0, _ = bone_w(old_arm, on)
-                sv = [w for w in wv if (w.x > 0) == (side == 'l')]
-                toe0 = min(sv, key=lambda w: w.y)  # avant = −Y (Blender)
-                a1 = rig.matrix_world @ rig.data.bones[nn].head_local
-                toe1 = rig.matrix_world @ rig.data.bones['ball_' + side].tail_local
-                d0, d1 = toe0 - a0, toe1 - a1
-                s = d1.length / max(d0.length, 1e-6)
-                mats.append(frame(a1, d1) @ Matrix.Scale(s, 4) @ frame(a0, d0).inverted())
-                groups.append(nn)
         else:
+            # Chaussures : posées sur les pédales par avatars/reshoe.mjs (même pose de repos, aucun
+            # recalage sur le pied MPFB, dont les orteils dépassent vers l'intérieur).
             continue
         # Transformation monde figée avant de détacher l'objet (sans parent, Blender garde la
         # matrice locale).
@@ -1282,6 +1270,8 @@ def main():
             subprocess.run(['pnpm', '--filter', '@allezrobert/blender-tools', 'compress:avatar', os.path.abspath(raw), os.path.abspath(out)], check=True)
             os.remove(raw)
             print(f'{name} compressé : {os.path.getsize(out) / 1e6:.2f} Mo')
+    # Chaussures de cyclist.glb / cyclist_lod1.glb, pied caché retiré (fichiers compressés).
+    subprocess.run(['pnpm', '--filter', '@allezrobert/blender-tools', 'reshoe:avatar', OUT, os.path.dirname(os.path.abspath(args.cyclist))], check=True)
     print('exporté', os.path.join(OUT, 'rider.glb'))
 
 

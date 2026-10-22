@@ -22,7 +22,7 @@ import { normalizeCode } from '../ride/registry.ts';
 import { activeRooms } from '../ride/RideRoom.ts';
 import { readHeartbeat } from '../render/worker.ts';
 import { normalizedPower } from '@allezrobert/physics';
-import { FACE_CODE_RE } from '@allezrobert/shared';
+import { FACE_CODE_RE, SHOE_MARKS, type ShoeMarkId } from '@allezrobert/shared';
 import type { ActivitySummaryRow } from '../db/repos.ts';
 
 const hex = z.string().regex(/^#[0-9a-fA-F]{6}$/);
@@ -37,6 +37,8 @@ const AvatarSchema = z.object({
   bikeModel: z.string().regex(/^[a-z0-9-]{1,64}$/).optional(),
   build: z.number().min(0).max(1),
   shoes: hex.optional(),
+  shoeAccent: hex.optional(),
+  shoeMark: z.enum(SHOE_MARKS.map((m) => m.id) as [ShoeMarkId, ...ShoeMarkId[]]).optional(),
   socks: hex.optional(),
   bikeType: z.enum(['road', 'gravel', 'mtb']).optional(),
   face: z.string().regex(FACE_CODE_RE).optional(),

@@ -1,6 +1,7 @@
 import type { AvatarLook, CosmeticItem, RouteData, RouteSegment, WorldCatalogue } from '@allezrobert/shared';
 import { readKomRecord } from '../game/challenge.ts';
-import { BIKE_GROUPS, BIKE_TEAMS, COSMETICS, DEFAULT_BIKE, bikeById, bikeSetupFor, levelProgress, type BikeCollection, type BikeType, type CosmeticSlot } from '@allezrobert/shared';
+import { BIKE_GROUPS, BIKE_TEAMS, COSMETICS, DEFAULT_BIKE, bikeById, bikeSetupFor, levelProgress, SHOE_MARKS, type BikeCollection, type BikeType, type CosmeticSlot } from '@allezrobert/shared';
+import { shoeAccentOf } from '../rider/shoeLook.ts';
 import { WORKOUT_LIBRARY } from '@allezrobert/physics';
 import { formatBytes, installPack, loadCatalogue, packState, removePack } from '../world/packs.ts';
 import { t, setLang, getLang, type I18nKey } from '../i18n/index.ts';
@@ -707,6 +708,8 @@ export class MainMenu {
             <label class="field">${L ? 'Peau' : 'Skin'}<input id="m-skin" type="color" value="${this.s.look.skin}" /></label>
             <label class="field">${L ? 'Cheveux' : 'Hair'}<input id="m-hair" type="color" value="${this.s.look.hair}" /></label>
             <label class="field">${L ? 'Chaussures' : 'Shoes'}<input id="m-shoes" type="color" value="${this.s.look.shoes ?? '#f2f2f2'}" /></label>
+            <label class="field">${L ? 'Marquage des chaussures' : 'Shoe logo'}<select id="m-shoe-mark"><option value="">${L ? 'Aucun' : 'None'}</option>${SHOE_MARKS.map((m) => `<option value="${m.id}" ${this.s.look.shoeMark === m.id ? 'selected' : ''}>${m.text}</option>`).join('')}</select></label>
+            <label class="field">${L ? 'Accent des chaussures' : 'Shoe accent'}<input id="m-shoe-accent" type="color" value="${this.s.look.shoeAccent ?? shoeAccentOf(this.s.look)}" /></label>
             <label class="field">${L ? 'Chaussettes' : 'Socks'}<input id="m-socks" type="color" value="${this.s.look.socks ?? '#f2f2f2'}" /></label>
           </div>
           <h3 class="mm-presets-title">${L ? 'Tenues préréglées' : 'Kit presets'}</h3>
@@ -1365,7 +1368,7 @@ export class MainMenu {
       zone.addEventListener('pointerup', up);
       zone.addEventListener('pointercancel', up);
     }
-    const color = (id: string, key: 'jersey' | 'jerseyAccent' | 'helmet' | 'bike' | 'skin' | 'hair' | 'shoes' | 'socks') =>
+    const color = (id: string, key: 'jersey' | 'jerseyAccent' | 'helmet' | 'bike' | 'skin' | 'hair' | 'shoes' | 'shoeAccent' | 'socks') =>
       on<HTMLInputElement>(id, 'input', (el) => {
         s.look = { ...s.look, [key]: el.value };
         changed();
@@ -1381,6 +1384,13 @@ export class MainMenu {
     });
     color('m-hair', 'hair');
     color('m-shoes', 'shoes');
+    color('m-shoe-accent', 'shoeAccent');
+    on<HTMLSelectElement>('m-shoe-mark', 'change', (el) => {
+      const mark = SHOE_MARKS.find((m) => m.id === el.value)?.id;
+      const { shoeMark: _old, ...rest } = s.look;
+      s.look = mark ? { ...rest, shoeMark: mark } : rest;
+      changed();
+    });
     color('m-socks', 'socks');
     this.root.querySelectorAll<HTMLElement>('[data-outfit]').forEach((el) =>
       el.addEventListener('click', () => {

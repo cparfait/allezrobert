@@ -1,4 +1,6 @@
 import * as THREE from 'three/webgpu';
+import { ShoeMaterial } from './shoeMaterial.ts';
+import { shoeDialOf } from './shoeLook.ts';
 import { GLTFLoader, type GLTF } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
@@ -104,7 +106,14 @@ const MATERIALS: Record<string, [string, number, number]> = {
   tire_wall: ['#a9825a', 0.85, 0],
   mouth: ['#4a1c1e', 0.75, 0],
   lashes: ['#2b2019', 0.8, 0],
-  shoe_sole: ['#1a1b1f', 0.6, 0],
+  shoe_sole: ['#151619', 0.3, 0],
+  // Chaussures (build_shoes) : doublure et col, molettes (couleur selon la tige), câble et bande
+  // réfléchissante, cale (corps rouge ; patins et têtes de vis gris).
+  shoe_lining: ['#141518', 0.85, 0],
+  shoe_dial: ['#f4f4f4', 0.3, 0],
+  shoe_reflect: ['#c9ccd1', 0.3, 0.5],
+  cleat: ['#c62828', 0.45, 0],
+  cleat_pad: ['#6e7278', 0.8, 0],
   helmet: ['#f4f4f4', 0.35, 0],
   helmet_detail: ['#1c1d22', 0.6, 0],
   lens: ['#20242c', 0.08, 0.6],
@@ -449,7 +458,15 @@ function underNode(o: THREE.Object3D, prefix: string): boolean {
   return false;
 }
 
+/** Tiges des chaussures : matériau à motifs (shoeMaterial.ts), retrouvé pour les changements de look. */
+const shoeMaterials = new WeakMap<THREE.Material, ShoeMaterial>();
+
 function makeMaterial(name: string, look: AvatarLook): THREE.MeshStandardNodeMaterial {
+  if (name === 'shoe') {
+    const sm = new ShoeMaterial(look);
+    shoeMaterials.set(sm.material, sm);
+    return sm.material;
+  }
   const def = MATERIALS[name] ?? ['#808080', 0.6, 0];
   const m = new THREE.MeshStandardNodeMaterial({ color: def[0], roughness: def[1], metalness: def[2] });
   m.name = name;
@@ -469,13 +486,14 @@ function skinLook(look: AvatarLook): SkinLook {
 }
 
 function applyLookColor(m: THREE.MeshStandardNodeMaterial, look: AvatarLook): void {
+  shoeMaterials.get(m)?.setLook(look);
   const c: Partial<Record<string, string>> = {
     skin: look.skin,
     jersey: look.jersey,
     jersey_accent: look.jerseyAccent,
     helmet: look.helmet,
     hair: look.hair,
-    shoe: look.shoes,
+    shoe_dial: shoeDialOf(look),
     sock: look.socks,
   };
   const col = c[m.name];

@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "compress:avatar": "node avatars/compress.mjs"
+    "compress:avatar": "node avatars/compress.mjs",
+    "reshoe:avatar": "node avatars/reshoe.mjs"
   },
   "devDependencies": {
     "@gltf-transform/core": "4.5.1",

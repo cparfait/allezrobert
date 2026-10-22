@@ -270,12 +270,18 @@ class MB:
         self.v = []
         self.f = []
         self.fm = []
+        # Coordonnées de texture par sommet (facultatives : chaussures), deux jeux.
+        self.uv = None
 
-    def add(self, verts, faces, mat):
+    def add(self, verts, faces, mat, uv=None):
         off = len(self.v)
         self.v.extend(to_bl(p) for p in verts)
         self.f.extend(tuple(i + off for i in f) for f in faces)
         self.fm.extend([mat] * len(faces))
+        if uv is not None or self.uv is not None:
+            if self.uv is None:
+                self.uv = [((0.0, 0.0), (-1.0, -1.0))] * off
+            self.uv.extend(uv if uv is not None else [((0.0, 0.0), (-1.0, -1.0))] * len(verts))
 
     def add_bl(self, verts_bl, faces, mats):
         off = len(self.v)
@@ -294,6 +300,17 @@ class MB:
             me.materials.append(MATS[m])
         idx = {m: i for i, m in enumerate(names)}
         me.polygons.foreach_set('material_index', [idx[m] for m in self.fm])
+        if self.uv is not None:
+            # Par coin de face (Blender) ; V inversé à l'export glTF, d'où 1 − v ici.
+            for k, uv_name in enumerate(('UVMap', 'UVMark')):
+                lay = me.uv_layers.new(name=uv_name)
+                vi = [0] * len(me.loops)
+                me.loops.foreach_get('vertex_index', vi)
+                flat = []
+                for i in vi:
+                    u, v = self.uv[i][k]
+                    flat += [u, 1.0 - v]
+                lay.data.foreach_set('uv', flat)
         me.update()
         if recalc:
             bm = bmesh.new()
@@ -403,8 +420,14 @@ MAT_DEFS = {
     'jersey_accent': ('#ffd23f', 0.7, 0.0),
     'shorts': ('#15171c', 0.55, 0.0),
     'sock': ('#f2f2f2', 0.8, 0.0),
-    'shoe': ('#f4f4f4', 0.4, 0.0),
-    'shoe_sole': ('#1a1b1f', 0.6, 0.0),
+    'shoe': ('#f4f4f4', 0.32, 0.0),
+    'shoe_sole': ('#151619', 0.3, 0.0),
+    # Chaussures : doublure et col, molettes, câble et bande réfléchissante, cale (corps, patins).
+    'shoe_lining': ('#141518', 0.85, 0.0),
+    'shoe_dial': ('#f4f4f4', 0.3, 0.0),
+    'shoe_reflect': ('#c9ccd1', 0.3, 0.5),
+    'cleat': ('#c62828', 0.45, 0.0),
+    'cleat_pad': ('#6e7278', 0.8, 0.0),
     'helmet': ('#f4f4f4', 0.35, 0.0),
     'helmet_detail': ('#1c1d22', 0.6, 0.0),
     'lens': ('#20242c', 0.08, 0.6),
@@ -1186,37 +1209,458 @@ def build_glasses(r):
     return ob
 
 
-def build_shoes(r):
+# ---------------------------------------------------------------------------------------------
+# Chaussures de route : tige d'une pièce, semelle carbone, deux molettes, cale route 3 trous
+# ---------------------------------------------------------------------------------------------
+# Repère du pied = repère de la pédale au repos (incliné de REST_PITCH, origine au centre du corps
+# de pédale, dont le dessus est à y ≈ 0,0105, cf. build_pedal) : x vers l'EXTÉRIEUR du pied
+# (miroir pour le pied droit), y normal au plateau, z vers l'avant. Le client garde le pied
+# solidaire de la pédale à tout angle de manivelle (gltfAvatar.ts) : la cale posée ici sur le
+# plateau y reste.
+#
+# Tige : surface S(z, phi) à sections en super-ellipse (phi = 0 bas extérieur, π/2 dessus, π bas
+# intérieur), percée d'une ouverture elliptique dans l'espace (z, phi). Le maillage est un anneau :
+# rayons de l'ouverture (col) au bord bas (semelle, couture du talon, pointe), d'où un col ovale
+# et lisse. Coordonnées de texture (matériau « shoe », motifs calculés par le client) :
+#   UVMap  : u = (z − talon) / 0,3 ; v = 0,5 + abscisse curviligne depuis le dessus / 0,3
+#            (v > 0,5 côté extérieur) : perforations, nervures ;
+#   UVMark : boîte du marquage latéral (0..1, lisible de l'extérieur sur les deux pieds), hors
+#            boîte ailleurs.
+CLEAT_Y = 0.0108           # dessous de la cale, sur le plateau de la pédale
+SOLE_Y = 0.0195            # dessous de la semelle sous l'avant-pied (= dessus de la cale)
+SOLE_T = 0.0072            # épaisseur de la semelle : bande noire au bas de la tige
+SHOE_Z = (-0.205, 0.086)   # talon, pointe
+SHOE_UV = 0.3              # mètres par unité de texture
+# Ouverture de la cheville : ellipse (z centre, demi-axe en z, demi-axe en phi).
+SHOE_OPEN = (-0.14, 0.044, 0.76)
+# Profil, du talon à la pointe : z, bord extérieur, bord intérieur (au bas), dessus (dans
+# l'ouverture : dessus virtuel, qui fixe la hauteur du col sur les côtés).
+SHOE_PROFILE = np.array([
+    [-0.205, 0.000, 0.000, 0.098],
+    [-0.199, 0.018, -0.018, 0.103],
+    [-0.188, 0.028, -0.027, 0.105],
+    [-0.170, 0.034, -0.032, 0.100],
+    [-0.140, 0.036, -0.033, 0.096],
+    [-0.115, 0.037, -0.033, 0.103],
+    [-0.096, 0.037, -0.033, 0.117],
+    [-0.060, 0.040, -0.035, 0.103],
+    [-0.020, 0.045, -0.042, 0.088],
+    [0.010, 0.046, -0.047, 0.077],
+    [0.035, 0.043, -0.048, 0.068],
+    [0.055, 0.035, -0.044, 0.061],
+    [0.068, 0.023, -0.034, 0.055],
+    [0.078, 0.011, -0.023, 0.049],
+    [0.086, -0.007, -0.007, 0.042],
+])
+# Niveaux de détail : stations de la semelle, rayons par demi-tour, rangées le long des rayons.
+SHOE_LOD = {
+    0: {'z': [-0.205, -0.2025, -0.198, -0.191, -0.182, -0.166, -0.150, -0.134, -0.118, -0.098, -0.078, -0.057,
+              -0.035, -0.013, 0.008, 0.028, 0.046, 0.06, 0.071, 0.079, 0.084, 0.086],
+        'half': 16, 'rows': [0.0, 0.07, 0.17, 0.31, 0.48, 0.66, 0.84, 1.0]},
+    1: {'z': [-0.205, -0.199, -0.182, -0.150, -0.118, -0.090, -0.055, -0.020, 0.014, 0.046, 0.071, 0.082, 0.086],
+        'half': 8, 'rows': [0.0, 0.3, 0.65, 1.0]},
+}
+# Marquage latéral : de z0 à z1, entre 10 et 32 mm (abscisse curviligne) au-dessus du bas de la tige.
+SHOE_MARK = (-0.128, 0.018, 0.010, 0.032)
+
+
+_TABLES = {}
+
+
+def _table(tab, col, z):
+    """Interpolation lisse (Catmull-Rom) d'une colonne d'un tableau indexé par z (colonne 0)."""
+    key = (id(tab), col)
+    if key not in _TABLES:
+        _TABLES[key] = catmull(tab[:, [0, col]], 16)
+    dense = _TABLES[key]
+    return float(np.interp(z, dense[:, 0], dense[:, 1]))
+
+
+def shoe_sole_y(z):
+    """Dessous de la semelle : plat sous l'avant-pied et le talon, pointe relevée."""
+    t = max(0.0, (z - 0.035) / (SHOE_Z[1] - 0.035))
+    return SOLE_Y + 0.0145 * t * t
+
+
+def shoe_profile(z):
+    """(centre, demi-largeur, bas de la tige, hauteur, exposant, rétrécissement) à l'abscisse z."""
+    xe, xi, top = (_table(SHOE_PROFILE, k, z) for k in (1, 2, 3))
+    y0 = shoe_sole_y(z) + SOLE_T - 0.002
+    # Autour de la cheville : flancs droits jusqu'au col (ouverture assez large).
+    w = float(smoothstep(-0.2, -0.17, z) * (1 - smoothstep(-0.112, -0.085, z)))
+    return (xe + xi) / 2, max((xe - xi) / 2, 0.0), y0, top - y0, 2.6 + 3.4 * w, 0.2 - 0.15 * w
+
+
+def shoe_point(z, phi):
+    """Point de la tige S(z, phi)."""
+    c, hw, y0, h, n, taper = shoe_profile(z)
+    ca, sa = math.cos(phi), math.sin(phi)
+    e = 2.0 / n
+    ux = math.copysign(abs(ca) ** e, ca)
+    uy = abs(sa) ** e
+    x = c + hw * ux * (1 - taper * uy * uy)
+    y = y0 + h * uy
+    # Talon bombé à mi-hauteur (rentré au bas et au col) ; dessus de la pointe fuyant vers l'arrière.
+    w = float(smoothstep(-0.17, SHOE_Z[0], z))
+    dz = w * (0.005 * max(0.0, 1 - uy / 0.4) ** 2 + 0.008 * max(0.0, (uy - 0.45) / 0.55) ** 2)
+    dz -= float(smoothstep(0.066, SHOE_Z[1], z)) * 0.007 * uy ** 1.5
+    return V(x, y, z + dz)
+
+
+def _surf_at(z, phi):
+    """Point et normale extérieure de la tige en (z, phi)."""
+    pz = shoe_point(z + 0.002, phi) - shoe_point(z - 0.002, phi)
+    pv = shoe_point(z, phi + 0.01) - shoe_point(z, phi - 0.01)
+    return shoe_point(z, phi), nrm(np.cross(pv, pz))
+
+
+def _arc(z, phi0, phi1, steps=24):
+    """Abscisse curviligne sur la section z, de phi0 à phi1."""
+    pts = [shoe_point(z, phi0 + (phi1 - phi0) * k / steps) for k in range(steps + 1)]
+    return float(sum(np.linalg.norm(b - a) for a, b in zip(pts[:-1], pts[1:])))
+
+
+def _shoe_border(half):
+    """Bord de l'anneau côté extérieur, de (talon, dessus) à (pointe, dessus) : couture du talon,
+    bas extérieur, pointe ; points répartis selon la longueur réelle."""
+    z0, z1 = SHOE_Z
+    segs = [((z0, math.pi / 2), (z0, 0.0)), ((z0, 0.0), (z1, 0.0)), ((z1, 0.0), (z1, math.pi / 2))]
+    lens = []
+    for a, b in segs:
+        pts = [shoe_point(a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t) for t in np.linspace(0, 1, 60)]
+        lens.append(sum(np.linalg.norm(q - p) for p, q in zip(pts[:-1], pts[1:])))
+    counts = [max(1, round(half * L / sum(lens))) for L in lens]
+    counts[1] += half - sum(counts)
+    out = []
+    for (a, b), n_ in zip(segs, counts):
+        # Répartition à longueur égale sur le segment.
+        ts = np.linspace(0, 1, 200)
+        pts = [shoe_point(a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t) for t in ts]
+        s = np.concatenate([[0], np.cumsum([np.linalg.norm(q - p) for p, q in zip(pts[:-1], pts[1:])])])
+        for k in range(n_):
+            t = float(np.interp(s[-1] * k / n_, s, ts))
+            out.append((a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t))
+    out.append((z1, math.pi / 2))
+    return out
+
+
+def shoe_upper(lod):
+    """Tige : (paramètres (z, phi) par rayon et rangée, faces). Rangée 0 = col."""
+    cfg = SHOE_LOD[lod]
+    zc, az, ap = SHOE_OPEN
+    lat = _shoe_border(cfg['half'])
+    border = lat + [(z, math.pi - ph) for z, ph in lat[-2:0:-1]]
+    rays = []
+    for zb, pb in border:
+        dz, dp = zb - zc, pb - math.pi / 2
+        k = 1.0 / math.sqrt((dz / az) ** 2 + (dp / ap) ** 2)
+        ze, pe = zc + dz * k, math.pi / 2 + dp * k
+        rays.append([(ze + (zb - ze) * r, pe + (pb - pe) * r) for r in cfg['rows']])
+    nr = len(cfg['rows'])
+    faces = []
+    for k in range(len(rays)):
+        k2 = (k + 1) % len(rays)
+        for m in range(nr - 1):
+            faces.append((k * nr + m, k * nr + m + 1, k2 * nr + m + 1, k2 * nr + m))
+    return rays, faces
+
+
+def _vertex_normals(P, faces):
+    """Normales aux sommets (somme des normales de faces, pondérées par l'aire)."""
+    acc = np.zeros_like(P)
+    for q in faces:
+        n = np.zeros(3)
+        for k in range(len(q)):
+            n += np.cross(P[q[k]], P[q[(k + 1) % len(q)]])
+        for i in q:
+            acc[i] += n
+    return acc / np.maximum(np.linalg.norm(acc, axis=1)[:, None], 1e-12)
+
+
+def _ring_prism(outline, y0, y1, mats, cap0=True, cap1=True):
+    """Prisme vertical (y0 → y1) sur un contour (x, z) convexe : sommets, faces, matériau par face."""
+    n = len(outline)
+    verts = [V(x, y0, z) for x, z in outline] + [V(x, y1, z) for x, z in outline]
+    faces, fm = [], []
+    for k in range(n):
+        k2 = (k + 1) % n
+        faces.append((k, n + k, n + k2, k2))
+        fm.append(mats[0])
+    cx = sum(p[0] for p in outline) / n
+    cz = sum(p[1] for p in outline) / n
+    if cap0:
+        verts.append(V(cx, y0, cz))
+        for k in range(n):
+            faces.append((2 * n, k, (k + 1) % n))
+            fm.append(mats[1])
+    if cap1:
+        verts.append(V(cx, y1, cz))
+        c1 = len(verts) - 1
+        for k in range(n):
+            faces.append((c1, n + (k + 1) % n, n + k))
+            fm.append(mats[2])
+    return verts, faces, fm
+
+
+def _hull_outline(circles, n):
+    """Contour (x, z) arrondi : enveloppe convexe de cercles (cx, cz, r), n points."""
+    out = []
+    for k in range(n):
+        a = 2 * math.pi * k / n
+        d = V(math.cos(a), math.sin(a))
+        best = max(circles, key=lambda c: c[0] * d[0] + c[1] * d[1] + c[2])
+        out.append((best[0] + best[2] * d[0], best[1] + best[2] * d[1]))
+    return out
+
+
+class _ShoePart:
+    """Géométrie d'une chaussure gauche (repère du pied), matériau par face, coordonnées par sommet."""
+
+    def __init__(self):
+        self.v, self.f, self.fm, self.uv = [], [], [], []
+
+    def add(self, verts, faces, mat, uv=None):
+        off = len(self.v)
+        self.v.extend(np.asarray(p, dtype=float) for p in verts)
+        self.uv.extend(uv if uv is not None else [((0.0, 0.0), (-1.0, -1.0))] * len(verts))
+        mats = mat if isinstance(mat, list) else [mat] * len(faces)
+        for fc, m in zip(faces, mats):
+            self.f.append(tuple(i + off for i in fc))
+            self.fm.append(m)
+
+
+def _disc(c, n_, u, radius, h, sides, mat_side, mat_top, y_off=0.0, top=True):
+    """Cylindre court posé sur la tige (molette) : axe n_, rayon, hauteur."""
+    w = np.cross(n_, u)
+    base = c + n_ * y_off
+    ring0 = [base + (u * math.cos(2 * math.pi * k / sides) + w * math.sin(2 * math.pi * k / sides)) * radius for k in range(sides)]
+    ring1 = [p + n_ * h for p in ring0]
+    verts = ring0 + ring1 + [base + n_ * h]
+    faces, fm = [], []
+    for k in range(sides):
+        k2 = (k + 1) % sides
+        faces.append((k, k2, sides + k2, sides + k))
+        fm.append(mat_side)
+        if top:
+            faces.append((2 * sides, sides + k, sides + k2))
+            fm.append(mat_top)
+    return verts, faces, fm
+
+
+def _tube_path(pts, radius, sides=3):
+    """Câble fin le long d'une polyligne (prisme triangulaire)."""
+    P = np.asarray(pts, dtype=float)
+    verts, faces = [], []
+    m = len(P)
+    for i in range(m):
+        t = nrm(P[min(i + 1, m - 1)] - P[max(i - 1, 0)])
+        a = nrm(np.cross(t, V(0, 1, 0)) if abs(t[1]) < 0.9 else np.cross(t, V(1, 0, 0)))
+        b = np.cross(t, a)
+        for k in range(sides):
+            ang = 2 * math.pi * k / sides
+            verts.append(P[i] + (a * math.cos(ang) + b * math.sin(ang)) * radius)
+    for i in range(m - 1):
+        for k in range(sides):
+            k2 = (k + 1) % sides
+            faces.append((i * sides + k, i * sides + k2, (i + 1) * sides + k2, (i + 1) * sides + k))
+    return verts, faces
+
+
+def shoe_left(lod):
+    """Chaussure gauche complète dans le repère du pied (x vers l'extérieur)."""
+    sp = _ShoePart()
+    rays, faces = shoe_upper(lod)
+    nr = len(rays[0])
+    params = [p for ray in rays for p in ray]
+    P = np.array([shoe_point(z, ph) for z, ph in params])
+    # Sens des faces : normales vers l'extérieur (dessus de l'empeigne vers le haut).
+    N = _vertex_normals(P, faces)
+    k_top = int(np.argmax(P[:, 1] - np.abs(P[:, 2] + 0.02) * 2))
+    if N[k_top][1] < 0:
+        faces = [tuple(reversed(f)) for f in faces]
+        N = -N
+
+    # --- Tige et ses coordonnées.
+    z0m, z1m, b0, b1 = SHOE_MARK
+    uvs = []
+    for (z, ph), p in zip(params, P):
+        u0 = (p[2] - SHOE_Z[0]) / SHOE_UV
+        a_top = _arc(z, math.pi / 2, ph, 12)
+        v0 = 0.5 + (a_top if ph < math.pi / 2 else -a_top) / SHOE_UV
+        if ph < math.pi / 2:
+            mark = ((z1m - p[2]) / (z1m - z0m), (_arc(z, 0.0, ph, 12) - b0) / (b1 - b0))
+        else:
+            mark = (-1.0, -1.0)
+        uvs.append(((u0, v0), mark))
+    sp.add(list(P), faces, 'shoe', uvs)
+
+    # --- Doublure (intérieur noir vu par l'ouverture, jusqu'à la languette) et col roulé.
+    if lod == 0:
+        inner = P - N * 0.0024
+        # Rangées proches du col seulement (le fond est caché par la jambe et la première).
+        # (rayons des flancs et du talon : toute la hauteur).
+        deep = [all(P[(i // nr) * nr + nr - 1][2] < -0.08 for i in f) for f in faces]
+        lf = [tuple(reversed(f)) for f, d in zip(faces, deep) if min(P[i][2] for i in f) < -0.04 and (d or min(i % nr for i in f) < 4)]
+        sp.add(list(inner), lf, 'shoe_lining')
+        nray = len(rays)
+        rim = [k * nr for k in range(nray)]
+        bead = [0.5 * (P[i] + inner[i]) + nrm(P[i] - P[i + 1]) * 0.0022 for i in rim]
+        off = len(sp.v)
+        sp.add([P[i] for i in rim] + bead + [inner[i] for i in rim], [], 'shoe_lining')
+        # Même sens que la tige le long du col (rayon k → k+1).
+        flip = faces[0][0] == 0 and faces[0][1] == 1
+        for k in range(nray):
+            k2 = (k + 1) % nray
+            q1 = (off + k, off + k2, off + nray + k2, off + nray + k)
+            q2 = (off + nray + k, off + nray + k2, off + 2 * nray + k2, off + 2 * nray + k)
+            for q in (q1, q2):
+                sp.f.append(q if flip else tuple(reversed(q)))
+                sp.fm.append('shoe_lining')
+
+    # --- Semelle : bande noire, dessous plat en carbone (bord arrondi), dessus = première de propreté.
+    zs = SHOE_LOD[lod]['z']
+    nu = len(zs)
+    ring = []
+    for i, z in enumerate(zs):
+        c, hw, y0 = shoe_profile(z)[:3]
+        yb = shoe_sole_y(z)
+        hw2 = hw + 0.0013 if 0 < i < nu - 1 else 0.0
+        # Même retrait au talon que le bas de la tige (shoe_point, uy = 0).
+        zz = z + 0.005 * float(smoothstep(-0.17, SHOE_Z[0], z))
+        zz += -0.0013 if i == 0 else 0.0013 if i == nu - 1 else 0.0
+        xl, xm = c + hw2, c - hw2
+        r = [V(xl, yb + SOLE_T, zz), V(xl, yb + 0.0018, zz), V(max(xl - 0.0022, c), yb, zz),
+             V(min(xm + 0.0022, c), yb, zz), V(xm, yb + 0.0018, zz), V(xm, yb + SOLE_T, zz)]
+        if lod == 1:
+            r = [r[0], r[2], r[3], r[5]]
+        ring.append(r)
+    nrr = len(ring[0])
+    sf, sm = [], []
+    for i in range(nu - 1):
+        for k in range(nrr):
+            k2 = (k + 1) % nrr
+            a, b = i * nrr + k, i * nrr + k2
+            sf.append((a, a + nrr, b + nrr, b))
+            sm.append('shoe_lining' if k == nrr - 1 else 'shoe_sole')
+    sp.add([p for r in ring for p in r], sf, sm)
+
+    # --- Talonnette (caoutchouc) sous le talon, butée arrière comprise.
+    hz = -0.1865
+    hp = [(0.021 * math.copysign(abs(math.cos(a)) ** 0.6, math.cos(a)), hz + 0.0165 * math.copysign(abs(math.sin(a)) ** 0.6, math.sin(a)))
+          for a in np.linspace(0, 2 * math.pi, 12 if lod == 0 else 8, endpoint=False)]
+    v, f, m = _ring_prism(hp, SOLE_Y - 0.0035, SOLE_Y + 0.0006, ['cleat_pad'] * 3, cap1=False)
+    sp.add(v, f, m)
+
+    # --- Cale route 3 trous (triangle arrondi, pointe vers l'avant) : corps rouge, patins gris.
+    circ = [(-0.0185, -0.021, 0.0085), (0.0185, -0.021, 0.0085), (0.0, 0.035, 0.0095)]
+    co = _hull_outline(circ, 18 if lod == 0 else 9)
+    v, f, m = _ring_prism(co, CLEAT_Y + (0.0012 if lod == 0 else 0.0), SOLE_Y + 0.0004, ['cleat'] * 3, cap1=False)
+    sp.add(v, f, m)
+    if lod == 0:
+        for (cx, cz, rr) in [(0.0, 0.033, 0.0085), (-0.0175, -0.02, 0.0072), (0.0175, -0.02, 0.0072)]:
+            pad = [(cx + rr * math.cos(a), cz + rr * math.sin(a)) for a in np.linspace(0, 2 * math.pi, 6, endpoint=False)]
+            v, f, m = _ring_prism(pad, CLEAT_Y, CLEAT_Y + 0.0016, ['cleat_pad'] * 3, cap1=False)
+            sp.add(v, f, m)
+        # Têtes des trois vis (dans leurs logements) : avant et paire arrière.
+        for (cx, cz) in [(0.0, 0.014), (-0.0118, -0.0105), (0.0118, -0.0105)]:
+            hx = [(cx + 0.0034 * math.cos(a), cz + 0.0034 * math.sin(a)) for a in np.linspace(0, 2 * math.pi, 6, endpoint=False)]
+            v, f, m = _ring_prism(hx, CLEAT_Y + 0.0007, CLEAT_Y + 0.0013, ['cleat_pad'] * 3, cap1=False)
+            v, f, m = v, f[len(hx):], m[len(hx):]
+            sp.add(v, f, m)
+        # Aération de la semelle carbone, devant la cale.
+        vent = [(-0.004 + 0.0085 * math.copysign(abs(math.cos(a)) ** 0.5, math.cos(a)), 0.055 + 0.0055 * math.copysign(abs(math.sin(a)) ** 0.5, math.sin(a)))
+                for a in np.linspace(0, 2 * math.pi, 8, endpoint=False)]
+        yv = shoe_sole_y(0.055) - 0.0003
+        v, f, m = _ring_prism(vent, yv, yv + 0.0004, ['shoe_lining'] * 3, cap1=False)
+        sp.add(v, f, m)
+
+    # --- Molettes (côté extérieur du cou-de-pied) : haute près de la cheville, basse au milieu du pied.
+    sides = 14 if lod == 0 else 8
+    for (z, ph, rad) in [(-0.083, 0.98, 0.0118), (-0.040, 1.02, 0.0108)]:
+        p, n_ = _surf_at(z, ph)
+        u = nrm(np.cross(n_, V(1, 0, 0)) if abs(n_[0]) < 0.9 else np.cross(n_, V(0, 1, 0)))
+        if lod == 0:
+            v, f, m = _disc(p, n_, u, rad + 0.0012, 0.0024, sides - 2, 'shoe_lining', 'shoe_lining', y_off=-0.001, top=False)
+            sp.add(v, f, m)
+            v, f, m = _disc(p, n_, u, rad, 0.0055, sides, 'shoe_dial', 'shoe_dial', y_off=0.0012)
+            sp.add(v, f, m)
+            # Anneau gravé (reflet du câble) sur le dessus.
+            w = np.cross(n_, u)
+            ctr = p + n_ * 0.0069
+            rv = []
+            for k in range(sides):
+                a = 2 * math.pi * k / sides
+                d = u * math.cos(a) + w * math.sin(a)
+                rv += [ctr + d * rad * 0.62, ctr + d * rad * 0.86]
+            rf = [(2 * k, 2 * k + 1, (2 * k + 3) % (2 * sides), (2 * k + 2) % (2 * sides)) for k in range(sides)]
+            sp.add(rv, rf, 'shoe_reflect')
+        else:
+            v, f, m = _disc(p, n_, u, rad, 0.005, sides, 'shoe_dial', 'shoe_dial', y_off=-0.0005)
+            sp.add(v, f, m)
+
+    if lod == 0:
+        # --- Câble croisé sur l'avant-pied et ses passants.
+        PL, PM = 1.08, 2.08
+        strands = [[(-0.040, PL), (-0.012, PM), (0.014, PL)], [(-0.034, PM), (-0.006, PL), (0.018, PM)]]
+        guides = set()
+        for st in strands:
+            path = []
+            for n_span, ((za, pa), (zb, pb)) in enumerate(zip(st[:-1], st[1:])):
+                for k in range(0 if n_span == 0 else 1, 4):
+                    t = k / 3
+                    p, n_ = _surf_at(za + (zb - za) * t, pa + (pb - pa) * t)
+                    path.append(p + n_ * 0.0011)
+            v, f = _tube_path(path, 0.0007)
+            sp.add(v, f, 'shoe_reflect')
+            guides.update(st)
+        for (z, ph) in sorted(guides):
+            p, n_ = _surf_at(z, ph)
+            a = nrm(np.cross(n_, V(0, 0, 1)))
+            v, f = box(p + n_ * 0.0006, (0.0018, 0.0008, 0.0028), (a, n_, nrm(np.cross(a, n_))))
+            sp.add(v, f[:2] + f[3:], 'shoe_lining')
+        # --- Tirette de languette, au bord avant du col, près de la molette haute.
+        p, n_ = _surf_at(SHOE_OPEN[0] + SHOE_OPEN[1] + 0.003, math.pi / 2)
+        up = nrm(n_ + V(0, 0, -0.9))
+        v, f = box(p + up * 0.0035, (0.0075, 0.0038, 0.0012), (V(1, 0, 0), up, nrm(np.cross(V(1, 0, 0), up))))
+        sp.add(v, f, 'shoe_lining')
+        # --- Bande réfléchissante au dos du talon.
+        tab_v, tab_f = [], []
+        phs = np.linspace(0.25, 1.05, 5)
+        for ph in phs:
+            pc = shoe_point(SHOE_Z[0], ph)
+            for xx in (-0.0065, 0.0065):
+                tab_v.append(pc + V(xx, 0, -0.0008 + xx * xx / 0.04))
+        for k in range(len(phs) - 1):
+            a = 2 * k
+            tab_f.append((a, a + 2, a + 3, a + 1))
+        sp.add(tab_v, tab_f, 'shoe_reflect')
+    return sp
+
+
+def build_shoes(r, lod=0):
+    """Deux chaussures (repère client, posées sur les pédales à la manivelle 0)."""
+    sp = shoe_left(lod)
     mb = MB()
-    zs = [-0.205, -0.19, -0.14, -0.08, -0.02, 0.03, 0.06, 0.077]
-    hw = [0.026, 0.034, 0.037, 0.040, 0.046, 0.045, 0.035, 0.016]
-    bot = [0.02, 0.016, 0.016, 0.016, 0.016, 0.017, 0.021, 0.03]
-    top = [0.085, 0.112, 0.116, 0.096, 0.072, 0.056, 0.046, 0.036]
     for tag, d in r.side.items():
         s = d.s
-
-        def T(p):
-            return d.pedal + rotx(np.asarray(p, dtype=float), REST_PITCH)
-
-        # Tige (upper).
-        path = [T(V(0, (bot[i] + top[i]) / 2, zs[i])) for i in range(len(zs))]
-        ry = [(top[i] - bot[i]) / 2 for i in range(len(zs))]
-        pth = catmull(path, 2)
-        v, f, _ = loft(pth, resample(hw, 2), resample(ry, 2), rotx(V(0, 1, 0), REST_PITCH), n=10, expo=2.8)
-        mb.add(v, f, 'shoe')
-        # Semelle rigide.
-        sp = [T(V(0, 0.0125, z)) for z in zs[:-1]] + [T(V(0, 0.018, zs[-1] - 0.002))]
-        v, f, _ = loft(sp, [w + 0.002 for w in hw[:-1]] + [hw[-1]], 0.0048, rotx(V(0, 1, 0), REST_PITCH), n=8, expo=4)
-        mb.add(v, f, 'shoe_sole')
-        # Cale.
-        v, f = box(T(V(0, 0.0105, 0.005)), (0.026, 0.004, 0.032), (V(1, 0, 0), rotx(V(0, 1, 0), REST_PITCH), rotx(V(0, 0, 1), REST_PITCH)))
-        mb.add(v, f, 'components')
-        # Molette de serrage.
-        dial = T(V(0.0, 0.101, -0.07))
-        v, f, _ = loft([dial - rotx(V(0, 0.006, 0), REST_PITCH), dial + rotx(V(0, 0.006, 0), REST_PITCH)], 0.014, 0.014, V(1, 0, 0), n=8)
-        mb.add(v, f, 'shoe_sole')
-    ob = mb.build('rider_shoes')
-    shade(ob, 45)
+        verts = [d.pedal + rotx(V(p[0] * s, p[1], p[2]), REST_PITCH) for p in sp.v]
+        faces = sp.f if s > 0 else [tuple(reversed(fc)) for fc in sp.f]
+        uv = sp.uv
+        if s < 0:
+            # Pied droit : marquage lu de l'arrière vers l'avant (vu de l'extérieur).
+            uv = [(a, (1.0 - b[0], b[1]) if b[0] > -0.5 else b) for a, b in sp.uv]
+        off = len(mb.v)
+        mb.add(verts, [], 'shoe', uv)
+        mb.f.extend(tuple(i + off for i in fc) for fc in faces)
+        mb.fm.extend(sp.fm)
+    ob = mb.build('rider_shoes' if lod == 0 else 'rider_shoes_lod1', recalc=False)
+    bm = bmesh.new()
+    bm.from_mesh(ob.data)
+    bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-6)
+    bmesh.ops.delete(bm, geom=[v for v in bm.verts if not v.link_faces], context='VERTS')
+    bm.to_mesh(ob.data)
+    bm.free()
+    shade(ob, 50)
     return ob
 
 
@@ -1465,9 +1909,10 @@ def with_children(objs):
     return out
 
 
-def export_glb(objs, path, children=True):
+def export_glb(objs, path, children=True, texcoords=False):
     """Exporte objs (et leurs enfants, sauf children=False : le squelette du coureur porte les
-    maillages des deux LOD, chaque fichier ne doit garder que les siens)."""
+    maillages des deux LOD, chaque fichier ne doit garder que les siens). texcoords : coordonnées
+    de texture (chaussures du coureur)."""
     for o in bpy.context.scene.objects:
         o.select_set(False)
     sel = with_children(objs) if children else list(objs)
@@ -1486,7 +1931,7 @@ def export_glb(objs, path, children=True):
         export_morph_normal=True,
         export_materials='EXPORT',
         export_normals=True,
-        export_texcoords=False,
+        export_texcoords=texcoords,
         export_vertex_color='NAME',
         export_vertex_color_name='zone',
         export_all_vertex_colors=False,
@@ -1692,10 +2137,11 @@ def main():
         shoes = build_shoes(r)
         acc0 = [hair, helmet, aero, glasses, shoes]
         acc1 = []
-        for o, tgt in ((hair, 160), (helmet, 400), (aero, 360), (glasses, 120), (shoes, 240)):
+        for o, tgt in ((hair, 160), (helmet, 400), (aero, 360), (glasses, 120)):
             c = copy_object(o, o.name + '_lod1')
             decimate_to(c, tgt)
             acc1.append(c)
+        acc1.append(build_shoes(r, lod=1))
         for o in acc0 + acc1:
             if o.name.startswith('rider_shoes'):
                 rigid_weights(o, lambda p: 'foot_L' if p[0] > 0 else 'foot_R')
@@ -1709,9 +2155,9 @@ def main():
         stats['cyclist_aero_helmet'] = tri_count(aero)
         stats['cyclist_lod1'] = tris_of(rider1)
         stats['cyclist_parts'] = {o.name: tri_count(o) for o in rider0 if o.type == 'MESH'}
-        export_glb(rider0, os.path.join(OUT, 'cyclist.glb'), children=False)
+        export_glb(rider0, os.path.join(OUT, 'cyclist.glb'), children=False, texcoords=True)
         swap_names(rider0[1:], rider1[1:])
-        export_glb(rider1, os.path.join(OUT, 'cyclist_lod1.glb'), children=False)
+        export_glb(rider1, os.path.join(OUT, 'cyclist_lod1.glb'), children=False, texcoords=True)
         swap_names(rider0[1:], rider1[1:])
         for o in rider1[1:]:
             o.hide_render = True

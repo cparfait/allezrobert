@@ -460,3 +460,22 @@ reprises de l'ancien modèle un peu grandes pour ce visage.
   ni envoyée ni conservée, seuls les réglages enregistrés, effaçables à tout moment par « Tête de
   base »). Vérifié dans le navigateur : rien dans le stockage local hormis les réglages, aucune
   requête hors du jeu.
+
+### Chaussures de route (faites)
+
+- Modèle : `build_shoes` (`tools/blender/build_cyclist.py`) : tige d'une pièce (surface à
+  sections en super-ellipse, maillée en anneau du col ovale à la semelle), doublure noire et col
+  roulé, semelle carbone à pointe relevée, talonnette, deux molettes côté extérieur, câble croisé
+  et passants, bande réfléchissante au talon, cale 3 trous (corps rouge, patins gris) posée sur
+  le plateau de la pédale. Niveau allégé construit (pas décimé). Matériaux : `shoe`,
+  `shoe_sole`, `shoe_lining`, `shoe_dial`, `shoe_reflect`, `cleat`, `cleat_pad`.
+- Client : `rider/shoeMaterial.ts` (perforations, nervures, marquage latéral calculés dans le
+  nuanceur à partir des coordonnées de texture du modèle), `rider/shoeLook.ts` (molettes
+  blanches ou noires selon la tige, accent par défaut). Look : `shoes`, `shoeAccent`,
+  `shoeMark` (`SHOE_MARKS`).
+- Avatar MPFB : `avatars/reshoe.mjs` pose les chaussures de `cyclist.glb` telles quelles (même
+  pose de repos sur les pédales) et retire le pied caché ; lancé par `build_avatar.py`, ou seul
+  après `build_cyclist.py --only rider` :
+  `pnpm --filter @allezrobert/blender-tools reshoe:avatar <dossier avatar> <dossier cyclist.glb>`.
+- Captures : `docs/screenshots/shoes-*.png`, `shoes-client-sheet.jpg` (banc
+  `avatar-test.html?shoes`).

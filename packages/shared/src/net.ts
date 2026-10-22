@@ -63,6 +63,13 @@ export interface RiderSnapshot {
   pose: 'seated' | 'standing' | 'coasting';
 }
 
+/** Marquages latéraux des chaussures (marques utilisées avec l'accord déclaré par le porteur du projet). */
+export const SHOE_MARKS = [
+  { id: 'vanrysel', text: 'VAN RYSEL' },
+  { id: 'sphyre', text: 'S-PHYRE' },
+] as const;
+export type ShoeMarkId = (typeof SHOE_MARKS)[number]['id'];
+
 export interface AvatarLook {
   skin: string;
   hair: string;
@@ -77,6 +84,10 @@ export interface AvatarLook {
   build: number; // 0 = fin, 1 = costaud
   /** Couleur des chaussures (facultative pour les profils enregistrés avant). */
   shoes?: string;
+  /** Couleur d'accent des chaussures (marquage latéral) ; absente : gris ou blanc selon la chaussure. */
+  shoeAccent?: string;
+  /** Marquage latéral des chaussures (SHOE_MARKS) ; absent : chaussure unie. */
+  shoeMark?: ShoeMarkId;
   /** Couleur des chaussettes. */
   socks?: string;
   /** Vélo affiché : route (défaut), gravel ou VTT (selon le vélo équipé au garage). */
