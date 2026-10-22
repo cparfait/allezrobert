@@ -554,7 +554,7 @@
     "brakes": "disc",
     "wheels": [
      "c50",
-     "c65"
+     "c50"
     ],
     "rimBrand": "enve"
    },
@@ -599,25 +599,22 @@
    },
    "livery": {
     "colors": [
-     "#f6f6f4",
      "#141414",
+     "#f6f6f4",
      "#d4001f"
     ],
-    "pattern": "fade",
+    "pattern": "split",
     "axis": "z",
-    "at": 0.35,
-    "width": 0.5,
-    "zones": {
-     "fork": 0
-    },
+    "at": 0.68,
+    "line": true,
     "rim": "#141414",
     "tape": "#141414"
    },
    "level": 22,
    "year": 2026,
    "desc": {
-    "fr": "Polyvalent léger de l’équipe, blanc qui plonge vers un arrière noir.",
-    "en": "The team’s light all-rounder, white fading into a black rear."
+    "fr": "Polyvalent léger de l’équipe, noir dominant avec des blocs blancs partant de la douille et des touches rouges.",
+    "en": "The team’s light all-rounder, mostly black with white blocks spreading from the head tube and red accents."
    }
   },
   {
@@ -676,16 +673,16 @@
    },
    "livery": {
     "colors": [
-     "#ffdc00",
      "#121212",
+     "#ffdc00",
      "#ffffff"
     ],
-    "pattern": "fade",
-    "axis": "z",
-    "at": 0.45,
-    "width": 0.35,
+    "pattern": "band",
+    "axis": "y",
+    "at": 0.72,
+    "width": 0.1,
     "zones": {
-     "rear": 1
+     "fork": 1
     },
     "rim": "#121212",
     "tape": "#121212"
@@ -719,9 +716,10 @@
      "#ffdc00",
      "#ffffff"
     ],
-    "pattern": "split",
+    "pattern": "band",
     "axis": "y",
-    "at": 0.5,
+    "at": 0.72,
+    "width": 0.1,
     "zones": {
      "fork": 1
     },
@@ -731,8 +729,8 @@
    "level": 18,
    "year": 2026,
    "desc": {
-    "fr": "Grimpeur léger aux tubes fins : noir dessous, jaune dessus.",
-    "en": "Light, slim-tubed climber: black below, yellow above."
+    "fr": "Grimpeur léger aux tubes fins : noir, fourche et tube horizontal jaunes.",
+    "en": "Light, slim-tubed climber: black, with yellow fork and top tube."
    }
   },
   {
@@ -746,7 +744,7 @@
    "params": {
     "brakes": "disc",
     "wheels": [
-     "tri",
+     "c65",
      "disc"
     ],
     "rimBrand": "reserve",
@@ -758,10 +756,13 @@
      "#ffdc00",
      "#ffffff"
     ],
-    "pattern": "fade",
-    "axis": "diag",
-    "at": 0.6,
-    "width": 0.3,
+    "pattern": "band",
+    "axis": "y",
+    "at": 0.74,
+    "width": 0.08,
+    "zones": {
+     "fork": 1
+    },
     "rim": "#121212",
     "tape": "#111111"
    },
@@ -790,23 +791,20 @@
    },
    "livery": {
     "colors": [
+     "#eceef0",
      "#0c1b33",
-     "#d4002a",
-     "#f2c500"
+     "#d4002a"
     ],
-    "pattern": "fade",
-    "axis": "z",
-    "at": 0.7,
-    "width": 0.45,
-    "line": true,
+    "pattern": "solid",
+    "finish": "metallic",
     "rim": "#e8e8e8",
-    "tape": "#d4002a"
+    "tape": "#0c1b33"
    },
    "level": 24,
    "year": 2026,
    "desc": {
-    "fr": "Le vélo de course polyvalent : bleu nuit et dégradé rouge vers la douille.",
-    "en": "The do-it-all race bike: midnight blue fading to red at the head tube."
+    "fr": "Le vélo de course polyvalent : blanc métallisé sobre, écusson Red Bull sur la douille.",
+    "en": "The do-it-all race bike: plain metallic white, Red Bull crest on the head tube."
    }
   },
   {
@@ -827,17 +825,14 @@
    },
    "livery": {
     "colors": [
+     "#eceef0",
      "#0c1b33",
-     "#d4002a",
-     "#f2c500"
+     "#d4002a"
     ],
-    "pattern": "band",
-    "axis": "y",
-    "at": 0.78,
-    "width": 0.12,
-    "line": true,
+    "pattern": "solid",
+    "finish": "metallic",
     "rim": "#e8e8e8",
-    "tape": "#d4002a"
+    "tape": "#0c1b33"
    },
    "level": 20,
    "year": 2026,
@@ -865,22 +860,20 @@
    },
    "livery": {
     "colors": [
+     "#eceef0",
      "#0c1b33",
-     "#f2c500",
      "#d4002a"
     ],
-    "pattern": "split",
-    "axis": "y",
-    "at": 0.62,
-    "line": true,
+    "pattern": "solid",
+    "finish": "metallic",
     "rim": "#e8e8e8",
     "tape": "#111111"
    },
    "level": 36,
    "year": 2026,
    "desc": {
-    "fr": "Chrono bleu nuit, dessus doré et liseré rouge.",
-    "en": "Midnight-blue TT bike, golden top and red pinstripe."
+    "fr": "Chrono blanc métallisé aux couleurs Red Bull.",
+    "en": "Metallic-white TT bike in Red Bull colours."
    }
   },
   {
@@ -978,22 +971,23 @@
    },
    "livery": {
     "colors": [
-     "#0050b5",
-     "#ffffff",
-     "#0a1a3a"
+     "#14244a",
+     "#f4f4f2",
+     "#0050b5"
     ],
     "pattern": "fade",
-    "axis": "y",
-    "at": 0.45,
-    "width": 0.5,
+    "axis": "z",
+    "at": 0.5,
+    "width": 0.4,
+    "finish": "pearl",
     "rim": "#ffffff",
     "tape": "#ffffff"
    },
    "level": 14,
    "year": 2026,
    "desc": {
-    "fr": "Le Tarmac du « Wolfpack » : bleu roi éclairci vers le haut.",
-    "en": "The Wolfpack’s Tarmac: royal blue brightening towards the top."
+    "fr": "Le Tarmac du « Wolfpack » : bleu marine fondu en blanc nacré moucheté.",
+    "en": "The Wolfpack’s Tarmac: navy blue blending into speckled pearl white."
    }
   },
   {
@@ -1007,7 +1001,7 @@
    "params": {
     "brakes": "disc",
     "wheels": [
-     "tri",
+     "c65",
      "disc"
     ],
     "rimBrand": "roval",
@@ -1015,14 +1009,15 @@
    },
    "livery": {
     "colors": [
-     "#ffffff",
-     "#0050b5",
-     "#0a1a3a"
+     "#14244a",
+     "#f4f4f2",
+     "#0050b5"
     ],
     "pattern": "fade",
     "axis": "z",
     "at": 0.5,
     "width": 0.6,
+    "finish": "pearl",
     "rim": "#ffffff",
     "tape": "#111111"
    },
@@ -1344,22 +1339,23 @@
    },
    "livery": {
     "colors": [
+     "#141414",
      "#ff3e8a",
-     "#1b1f4b",
-     "#ffffff"
+     "#c9ccd3"
     ],
     "pattern": "fade",
     "axis": "z",
-    "at": 0.4,
-    "width": 0.5,
-    "rim": "#1b1f4b",
-    "tape": "#1b1f4b"
+    "at": 0.8,
+    "width": 0.3,
+    "finish": "gloss",
+    "rim": "#e8e8e8",
+    "tape": "#141414"
    },
    "level": 8,
    "year": 2026,
    "desc": {
-    "fr": "Le rose d’EF qui fond dans le bleu nuit.",
-    "en": "EF pink melting into midnight blue."
+    "fr": "Le SuperSix d’EF, noir profond qui s’embrase de rose à l’avant.",
+    "en": "EF’s SuperSix, deep black catching fire in pink at the front."
    }
   },
   {
@@ -1377,25 +1373,27 @@
      "disc"
     ],
     "rimBrand": "vision",
-    "aeroHelmet": true
+    "aeroHelmet": true,
+    "bottles": false
    },
    "livery": {
     "colors": [
-     "#1b1f4b",
+     "#141414",
      "#ff3e8a",
-     "#ffffff"
+     "#c9ccd3"
     ],
     "pattern": "split",
     "axis": "y",
-    "at": 0.6,
-    "rim": "#1b1f4b",
+    "at": 0.62,
+    "finish": "gloss",
+    "rim": "#e8e8e8",
     "tape": "#111111"
    },
    "level": 21,
    "year": 2026,
    "desc": {
-    "fr": "Chrono bleu nuit, dessus rose.",
-    "en": "Midnight-blue TT bike with a pink top."
+    "fr": "Chrono noir, dessus rose.",
+    "en": "Black TT bike with a pink top."
    }
   },
   {
@@ -1416,22 +1414,26 @@
    },
    "livery": {
     "colors": [
-     "#0a2342",
-     "#36b6e8",
-     "#ffffff"
+     "#1c1d20",
+     "#3643ba",
+     "#9bd33a"
     ],
     "pattern": "fade",
-    "axis": "diag",
-    "at": 0.55,
-    "width": 0.35,
-    "rim": "#36b6e8",
-    "tape": "#36b6e8"
+    "axis": "z",
+    "at": 0.6,
+    "width": 0.4,
+    "zones": {
+     "fork": 1
+    },
+    "finish": "gloss",
+    "rim": "#ffffff",
+    "tape": "#1c1d20"
    },
    "level": 6,
    "year": 2026,
    "desc": {
-    "fr": "Aéro de Decathlon : marine illuminé de bleu ciel.",
-    "en": "Decathlon’s aero bike: navy lit with sky blue."
+    "fr": "Aéro de Decathlon : fourche bleue qui se fond dans le carbone brut.",
+    "en": "Decathlon’s aero bike: blue fork fading into raw carbon."
    }
   },
   {
@@ -1445,24 +1447,27 @@
    "params": {
     "brakes": "disc",
     "wheels": [
-     "c35",
-     "c35"
+     "c50",
+     "c50"
     ],
     "rimBrand": "swiss-side"
    },
    "livery": {
     "colors": [
-     "#0a2342",
-     "#36b6e8",
-     "#ffffff"
+     "#1c1d20",
+     "#3643ba",
+     "#9bd33a"
     ],
-    "pattern": "band",
+    "pattern": "fade",
     "axis": "z",
-    "at": 0.55,
-    "width": 0.1,
-    "line": true,
-    "rim": "#36b6e8",
-    "tape": "#36b6e8"
+    "at": 0.6,
+    "width": 0.4,
+    "zones": {
+     "fork": 1
+    },
+    "finish": "gloss",
+    "rim": "#ffffff",
+    "tape": "#1c1d20"
    },
    "level": 1,
    "year": 2026,
@@ -1486,26 +1491,31 @@
      "disc"
     ],
     "rimBrand": "swiss-side",
-    "aeroHelmet": true
+    "aeroHelmet": true,
+    "bottles": false
    },
    "livery": {
     "colors": [
-     "#36b6e8",
-     "#0a2342",
-     "#ffffff"
+     "#1c1d20",
+     "#3643ba",
+     "#9bd33a"
     ],
     "pattern": "fade",
     "axis": "z",
-    "at": 0.5,
-    "width": 0.5,
-    "rim": "#36b6e8",
+    "at": 0.6,
+    "width": 0.4,
+    "zones": {
+     "fork": 1
+    },
+    "finish": "gloss",
+    "rim": "#ffffff",
     "tape": "#111111"
    },
    "level": 9,
    "year": 2026,
    "desc": {
-    "fr": "Chrono bleu ciel vers marine.",
-    "en": "Sky blue to navy TT bike."
+    "fr": "Chrono en carbone brut, avant bleu Decathlon.",
+    "en": "Raw-carbon TT bike with a Decathlon-blue front."
    }
   },
   {
@@ -1526,22 +1536,23 @@
    },
    "livery": {
     "colors": [
-     "#0d1520",
-     "#2b7de9",
+     "#1c2b40",
+     "#5f7f9f",
      "#e9eef5"
     ],
-    "pattern": "split",
+    "pattern": "fade",
     "axis": "y",
-    "at": 0.4,
-    "line": true,
+    "at": 0.45,
+    "width": 0.6,
+    "finish": "iridescent",
     "rim": "#e8e8e8",
-    "tape": "#2b7de9"
+    "tape": "#1c2b40"
    },
    "level": 11,
    "year": 2026,
    "desc": {
-    "fr": "L’Aeroad d’Alpecin : noir bleuté, dessous bleu.",
-    "en": "Alpecin’s Aeroad: blue-black with a blue underside."
+    "fr": "L’Aeroad d’Alpecin, bleu acier caméléon.",
+    "en": "Alpecin’s Aeroad in colour-shifting steel blue."
    }
   },
   {
@@ -1562,22 +1573,23 @@
    },
    "livery": {
     "colors": [
-     "#0d1520",
-     "#2b7de9",
+     "#1c2b40",
+     "#5f7f9f",
      "#e9eef5"
     ],
     "pattern": "fade",
     "axis": "y",
-    "at": 0.35,
-    "width": 0.5,
+    "at": 0.45,
+    "width": 0.6,
+    "finish": "iridescent",
     "rim": "#e8e8e8",
-    "tape": "#2b7de9"
+    "tape": "#1c2b40"
    },
    "level": 3,
    "year": 2026,
    "desc": {
-    "fr": "L’Ultimate d’Alpecin, bleu qui monte du boîtier.",
-    "en": "Alpecin’s Ultimate, blue rising from the bottom bracket."
+    "fr": "L’Ultimate d’Alpecin, bleu caméléon qui s’éclaircit vers le haut.",
+    "en": "Alpecin’s Ultimate, colour-shifting blue lightening upwards."
    }
   },
   {
@@ -1591,30 +1603,32 @@
    "params": {
     "brakes": "disc",
     "wheels": [
-     "tri",
+     "c65",
      "disc"
     ],
     "rimBrand": "shimano",
-    "aeroHelmet": true
+    "aeroHelmet": true,
+    "bottles": false
    },
    "livery": {
     "colors": [
-     "#0d1520",
-     "#2b7de9",
+     "#1c2b40",
+     "#5f7f9f",
      "#e9eef5"
     ],
-    "pattern": "band",
-    "axis": "z",
-    "at": 0.3,
-    "width": 0.15,
+    "pattern": "fade",
+    "axis": "y",
+    "at": 0.45,
+    "width": 0.6,
+    "finish": "iridescent",
     "rim": "#e8e8e8",
     "tape": "#111111"
    },
    "level": 17,
    "year": 2026,
    "desc": {
-    "fr": "Chrono noir et bande bleue.",
-    "en": "Black TT bike with a blue band."
+    "fr": "Chrono bleu acier caméléon.",
+    "en": "Colour-shifting steel-blue TT bike."
    }
   },
   {
@@ -1635,22 +1649,39 @@
    },
    "livery": {
     "colors": [
-     "#0055a4",
-     "#ffffff",
-     "#e1001a"
+     "#e1251b",
+     "#1f2a5c",
+     "#ffffff"
     ],
-    "pattern": "split",
-    "axis": "z",
-    "at": 0.55,
-    "line": true,
+    "pattern": "stops",
+    "axis": "y",
+    "stops": [
+     {
+      "to": 0.2,
+      "color": "#1f2a5c"
+     },
+     {
+      "to": 0.72,
+      "color": "#e1251b"
+     },
+     {
+      "to": 0.86,
+      "color": "#c0c4c8"
+     },
+     {
+      "to": 1,
+      "color": "#ffffff"
+     }
+    ],
+    "finish": "gloss",
     "rim": "#ffffff",
-    "tape": "#ffffff"
+    "tape": "#1f2a5c"
    },
    "level": 13,
    "year": 2026,
    "desc": {
-    "fr": "Aéro de Groupama-FDJ : bleu, blanc, filet rouge.",
-    "en": "Groupama-FDJ’s aero bike: blue, white, red pinstripe."
+    "fr": "Aéro de Groupama-FDJ : rouge « Firelight » à cœur bleu amiral.",
+    "en": "Groupama-FDJ’s aero bike: Firelight red with an admiral-blue core."
    }
   },
   {
@@ -1671,22 +1702,39 @@
    },
    "livery": {
     "colors": [
-     "#ffffff",
-     "#0055a4",
-     "#e1001a"
+     "#e1251b",
+     "#1f2a5c",
+     "#ffffff"
     ],
-    "pattern": "fade",
+    "pattern": "stops",
     "axis": "y",
-    "at": 0.45,
-    "width": 0.5,
+    "stops": [
+     {
+      "to": 0.2,
+      "color": "#1f2a5c"
+     },
+     {
+      "to": 0.72,
+      "color": "#e1251b"
+     },
+     {
+      "to": 0.86,
+      "color": "#c0c4c8"
+     },
+     {
+      "to": 1,
+      "color": "#ffffff"
+     }
+    ],
+    "finish": "gloss",
     "rim": "#ffffff",
-    "tape": "#ffffff"
+    "tape": "#1f2a5c"
    },
    "level": 7,
    "year": 2026,
    "desc": {
-    "fr": "Grimpeur blanc et bleu de l’équipe française.",
-    "en": "The French team’s white and blue climber."
+    "fr": "Grimpeur rouge flamme de l’équipe française.",
+    "en": "The French team’s flame-red climber."
    }
   },
   {
@@ -1704,26 +1752,44 @@
      "disc"
     ],
     "rimBrand": "shimano",
-    "aeroHelmet": true
+    "aeroHelmet": true,
+    "bottles": false
    },
    "livery": {
     "colors": [
-     "#0055a4",
-     "#ffffff",
-     "#e1001a"
+     "#e1251b",
+     "#1f2a5c",
+     "#ffffff"
     ],
-    "pattern": "stripes",
-    "axis": "z",
-    "at": 0.62,
-    "width": 0.16,
+    "pattern": "stops",
+    "axis": "y",
+    "stops": [
+     {
+      "to": 0.2,
+      "color": "#1f2a5c"
+     },
+     {
+      "to": 0.72,
+      "color": "#e1251b"
+     },
+     {
+      "to": 0.86,
+      "color": "#c0c4c8"
+     },
+     {
+      "to": 1,
+      "color": "#ffffff"
+     }
+    ],
+    "finish": "gloss",
     "rim": "#ffffff",
     "tape": "#111111"
    },
    "level": 23,
    "year": 2026,
    "desc": {
-    "fr": "Chrono bleu à trois bandes tricolores.",
-    "en": "Blue TT bike with three tricolour bands."
+    "fr": "Chrono rouge flamme à base bleu amiral.",
+    "en": "Flame-red TT bike with an admiral-blue base."
    }
   },
   {
@@ -1744,22 +1810,23 @@
    },
    "livery": {
     "colors": [
-     "#e30613",
-     "#13213d",
+     "#1a1a1c",
+     "#c8102e",
      "#ffffff"
     ],
     "pattern": "fade",
     "axis": "z",
     "at": 0.4,
     "width": 0.5,
-    "rim": "#13213d",
-    "tape": "#13213d"
+    "finish": "gloss",
+    "rim": "#e8e8e8",
+    "tape": "#1a1a1c"
    },
    "level": 5,
    "year": 2026,
    "desc": {
-    "fr": "Aéro rouge qui s’assombrit vers l’arrière.",
-    "en": "Red aero bike darkening to the rear."
+    "fr": "Aéro rouge qui se fond dans le carbone vers l’arrière.",
+    "en": "Red aero bike fading into carbon towards the rear."
    }
   },
   {
@@ -1780,21 +1847,23 @@
    },
    "livery": {
     "colors": [
-     "#13213d",
-     "#e30613",
+     "#1a1a1c",
+     "#c8102e",
      "#ffffff"
     ],
-    "pattern": "split",
+    "pattern": "fade",
     "axis": "y",
-    "at": 0.55,
-    "rim": "#13213d",
-    "tape": "#13213d"
+    "at": 0.4,
+    "width": 0.5,
+    "finish": "gloss",
+    "rim": "#e8e8e8",
+    "tape": "#1a1a1c"
    },
    "level": 2,
    "year": 2026,
    "desc": {
-    "fr": "Grimpeur marine au dessus rouge.",
-    "en": "Navy climber with a red top."
+    "fr": "Grimpeur rouge, carbone apparent vers le bas.",
+    "en": "Red climber with carbon showing towards the bottom."
    }
   },
   {
@@ -1812,27 +1881,28 @@
      "disc"
     ],
     "rimBrand": "oquo",
-    "aeroHelmet": true
+    "aeroHelmet": true,
+    "bottles": false
    },
    "livery": {
     "colors": [
-     "#e30613",
-     "#13213d",
+     "#1a1a1c",
+     "#c8102e",
      "#ffffff"
     ],
-    "pattern": "band",
+    "pattern": "fade",
     "axis": "z",
     "at": 0.45,
-    "width": 0.14,
-    "line": true,
-    "rim": "#13213d",
+    "width": 0.5,
+    "finish": "gloss",
+    "rim": "#e8e8e8",
     "tape": "#111111"
    },
    "level": 11,
    "year": 2026,
    "desc": {
-    "fr": "Chrono rouge, bande marine.",
-    "en": "Red TT bike, navy band."
+    "fr": "Chrono rouge qui se fond dans le carbone.",
+    "en": "Red TT bike fading into carbon."
    }
   },
   {
@@ -1847,29 +1917,29 @@
     "brakes": "disc",
     "wheels": [
      "c50",
-     "c65"
+     "c50"
     ],
-    "rimBrand": "syncros"
+    "rimBrand": "zipp"
    },
    "livery": {
     "colors": [
-     "#0e1116",
-     "#00a6a6",
+     "#1b1d21",
+     "#1f6fe0",
      "#ff7a1a"
     ],
     "pattern": "fade",
-    "axis": "diag",
-    "at": 0.6,
-    "width": 0.3,
-    "line": true,
+    "axis": "z",
+    "at": 0.7,
+    "width": 0.35,
+    "finish": "raw",
     "rim": "#e8e8e8",
-    "tape": "#00a6a6"
+    "tape": "#1b1d21"
    },
    "level": 9,
    "year": 2026,
    "desc": {
-    "fr": "Le Foil anthracite, éclat turquoise et liseré orange.",
-    "en": "The anthracite Foil, teal glow and orange pinstripe."
+    "fr": "Le Foil de NSN, carbone apparent et avant bleu vif.",
+    "en": "NSN’s Foil, exposed carbon with a bright-blue front."
    }
   },
   {
@@ -1883,28 +1953,30 @@
    "params": {
     "brakes": "disc",
     "wheels": [
-     "c35",
-     "c35"
+     "c50",
+     "c50"
     ],
-    "rimBrand": "syncros"
+    "rimBrand": "zipp"
    },
    "livery": {
     "colors": [
-     "#00a6a6",
-     "#0e1116",
+     "#1b1d21",
+     "#1f6fe0",
      "#ff7a1a"
     ],
-    "pattern": "split",
-    "axis": "y",
-    "at": 0.5,
+    "pattern": "fade",
+    "axis": "z",
+    "at": 0.7,
+    "width": 0.35,
+    "finish": "raw",
     "rim": "#e8e8e8",
-    "tape": "#00a6a6"
+    "tape": "#1b1d21"
    },
    "level": 4,
    "year": 2026,
    "desc": {
-    "fr": "Grimpeur turquoise, dessous anthracite.",
-    "en": "Teal climber with an anthracite underside."
+    "fr": "Grimpeur en carbone apparent, avant bleu vif.",
+    "en": "Exposed-carbon climber with a bright-blue front."
    }
   },
   {
@@ -1921,27 +1993,29 @@
      "c65",
      "disc"
     ],
-    "rimBrand": "syncros",
-    "aeroHelmet": true
+    "rimBrand": "zipp",
+    "aeroHelmet": true,
+    "bottles": false
    },
    "livery": {
     "colors": [
-     "#0e1116",
-     "#ff7a1a",
-     "#00a6a6"
+     "#1b1d21",
+     "#1f6fe0",
+     "#ff7a1a"
     ],
-    "pattern": "band",
+    "pattern": "fade",
     "axis": "z",
-    "at": 0.6,
-    "width": 0.12,
+    "at": 0.7,
+    "width": 0.35,
+    "finish": "raw",
     "rim": "#e8e8e8",
     "tape": "#111111"
    },
    "level": 25,
    "year": 2026,
    "desc": {
-    "fr": "Chrono anthracite à bande orange.",
-    "en": "Anthracite TT bike with an orange band."
+    "fr": "Chrono en carbone apparent, avant bleu vif.",
+    "en": "Exposed-carbon TT bike with a bright-blue front."
    }
   },
   {
@@ -1962,22 +2036,23 @@
    },
    "livery": {
     "colors": [
-     "#00a3e0",
-     "#0b1f44",
-     "#ff6a13"
+     "#c9ccd3",
+     "#4b2a7b",
+     "#0b1f44"
     ],
     "pattern": "fade",
     "axis": "z",
-    "at": 0.35,
-    "width": 0.4,
-    "rim": "#0b1f44",
-    "tape": "#0b1f44"
+    "at": 0.5,
+    "width": 0.5,
+    "finish": "metallic",
+    "rim": "#e8e8e8",
+    "tape": "#4b2a7b"
    },
    "level": 7,
    "year": 2026,
    "desc": {
-    "fr": "Aéro bleu clair qui plonge vers le marine.",
-    "en": "Light-blue aero bike diving into navy."
+    "fr": "Aéro violet qui se fond dans l’argent vers l’arrière.",
+    "en": "Purple aero bike fading to silver at the rear."
    }
   },
   {
@@ -1998,16 +2073,17 @@
    },
    "livery": {
     "colors": [
-     "#0b1f44",
-     "#00a3e0",
-     "#ff6a13"
+     "#c9ccd3",
+     "#4b2a7b",
+     "#0b1f44"
     ],
-    "pattern": "split",
-    "axis": "y",
-    "at": 0.58,
-    "line": true,
-    "rim": "#0b1f44",
-    "tape": "#0b1f44"
+    "pattern": "fade",
+    "axis": "z",
+    "at": 0.5,
+    "width": 0.5,
+    "finish": "metallic",
+    "rim": "#e8e8e8",
+    "tape": "#4b2a7b"
    },
    "level": 1,
    "year": 2026,
@@ -2031,27 +2107,28 @@
      "disc"
     ],
     "rimBrand": "cadex",
-    "aeroHelmet": true
+    "aeroHelmet": true,
+    "bottles": false
    },
    "livery": {
     "colors": [
-     "#00a3e0",
-     "#0b1f44",
-     "#ff6a13"
+     "#c9ccd3",
+     "#4b2a7b",
+     "#0b1f44"
     ],
-    "pattern": "band",
+    "pattern": "fade",
     "axis": "z",
     "at": 0.5,
-    "width": 0.16,
-    "line": true,
-    "rim": "#0b1f44",
+    "width": 0.5,
+    "finish": "metallic",
+    "rim": "#e8e8e8",
     "tape": "#111111"
    },
    "level": 15,
    "year": 2026,
    "desc": {
-    "fr": "Chrono bleu clair, bande marine liserée d’orange.",
-    "en": "Light-blue TT bike, orange-edged navy band."
+    "fr": "Chrono violet qui se fond dans l’argent.",
+    "en": "Purple TT bike fading into silver."
    }
   },
   {
@@ -2072,22 +2149,20 @@
    },
    "livery": {
     "colors": [
+     "#2a2b2e",
      "#f5f5f5",
-     "#111111",
      "#ff6f00"
     ],
-    "pattern": "fade",
-    "axis": "z",
-    "at": 0.3,
-    "width": 0.4,
-    "rim": "#111111",
+    "pattern": "solid",
+    "finish": "raw",
+    "rim": "#f5f5f5",
     "tape": "#111111"
    },
    "level": 5,
    "year": 2026,
    "desc": {
-    "fr": "Le Xelius blanc à l’arrière noir, haubans décalés.",
-    "en": "The white Xelius with a black rear and offset stays."
+    "fr": "Le Xelius en carbone nu pailleté d’argent, haubans décalés.",
+    "en": "The silver-flecked raw-carbon Xelius with offset stays."
    }
   },
   {
@@ -2105,11 +2180,12 @@
      "disc"
     ],
     "rimBrand": "shimano",
-    "aeroHelmet": true
+    "aeroHelmet": true,
+    "bottles": false
    },
    "livery": {
     "colors": [
-     "#111111",
+     "#1a1a1c",
      "#f5f5f5",
      "#ff6f00"
     ],
@@ -2118,6 +2194,7 @@
     "at": 0.5,
     "width": 0.12,
     "line": true,
+    "finish": "raw",
     "rim": "#111111",
     "tape": "#111111"
    },
@@ -2146,22 +2223,27 @@
    },
    "livery": {
     "colors": [
+     "#141414",
      "#d7002a",
-     "#0b1a3a",
-     "#ffd200"
+     "#f5f5f5"
     ],
     "pattern": "split",
     "axis": "z",
-    "at": 0.45,
+    "at": 0.62,
     "line": true,
-    "rim": "#0b1a3a",
-    "tape": "#0b1a3a"
+    "zones": {
+     "fork": 1,
+     "head": 1
+    },
+    "finish": "matte",
+    "rim": "#ffffff",
+    "tape": "#111111"
    },
    "level": 6,
    "year": 2026,
    "desc": {
-    "fr": "Aéro rouge, arrière marine, filet jaune.",
-    "en": "Red aero bike, navy rear, yellow pinstripe."
+    "fr": "Aéro noir mat, avant rouge et filets blancs.",
+    "en": "Matte black aero bike, red front and white details."
    }
   },
   {
@@ -2182,22 +2264,27 @@
    },
    "livery": {
     "colors": [
+     "#141414",
      "#d7002a",
-     "#0b1a3a",
-     "#ffd200"
+     "#f5f5f5"
     ],
-    "pattern": "fade",
-    "axis": "y",
-    "at": 0.4,
-    "width": 0.4,
-    "rim": "#0b1a3a",
-    "tape": "#0b1a3a"
+    "pattern": "split",
+    "axis": "z",
+    "at": 0.62,
+    "line": true,
+    "zones": {
+     "fork": 1,
+     "head": 1
+    },
+    "finish": "matte",
+    "rim": "#ffffff",
+    "tape": "#111111"
    },
    "level": 3,
    "year": 2026,
    "desc": {
-    "fr": "Grimpeur rouge qui s’assombrit vers le bas.",
-    "en": "Red climber darkening towards the bottom."
+    "fr": "Grimpeur noir mat à l’avant rouge.",
+    "en": "Matte black climber with a red front."
    }
   },
   {
@@ -2211,30 +2298,36 @@
    "params": {
     "brakes": "disc",
     "wheels": [
-     "tri",
+     "c65",
      "disc"
     ],
     "rimBrand": "dt-swiss",
-    "aeroHelmet": true
+    "aeroHelmet": true,
+    "bottles": false
    },
    "livery": {
     "colors": [
-     "#0b1a3a",
+     "#141414",
      "#d7002a",
-     "#ffd200"
+     "#f5f5f5"
     ],
-    "pattern": "band",
+    "pattern": "split",
     "axis": "z",
-    "at": 0.55,
-    "width": 0.15,
-    "rim": "#0b1a3a",
+    "at": 0.62,
+    "line": true,
+    "zones": {
+     "fork": 1,
+     "head": 1
+    },
+    "finish": "matte",
+    "rim": "#ffffff",
     "tape": "#111111"
    },
    "level": 13,
    "year": 2026,
    "desc": {
-    "fr": "Chrono marine à bande rouge.",
-    "en": "Navy TT bike with a red band."
+    "fr": "Chrono noir mat à l’avant rouge.",
+    "en": "Matte black TT bike with a red front."
    }
   },
   {
@@ -2256,7 +2349,7 @@
    "livery": {
     "colors": [
      "#00a8e1",
-     "#0d1b2a",
+     "#111111",
      "#f5c400"
     ],
     "pattern": "fade",
@@ -2264,7 +2357,7 @@
     "at": 0.35,
     "width": 0.4,
     "line": true,
-    "rim": "#f5c400",
+    "rim": "#ffffff",
     "tape": "#f5c400"
    },
    "level": 4,
@@ -2328,17 +2421,16 @@
    },
    "livery": {
     "colors": [
+     "#1c1c1e",
      "#c8102e",
-     "#111111",
      "#ffffff"
     ],
-    "pattern": "fade",
+    "pattern": "band",
     "axis": "z",
-    "at": 0.45,
-    "width": 0.4,
-    "zones": {
-     "fork": 1
-    },
+    "at": 0.55,
+    "width": 0.14,
+    "line": true,
+    "finish": "raw",
     "rim": "#111111",
     "tape": "#111111"
    },
@@ -2360,29 +2452,31 @@
    "params": {
     "brakes": "disc",
     "wheels": [
-     "c50",
-     "c50"
+     "c65",
+     "c65"
     ],
-    "rimBrand": "corima"
+    "rimBrand": "campagnolo"
    },
    "livery": {
     "colors": [
-     "#e2001a",
-     "#ffffff",
+     "#f4f4f4",
+     "#d81e2b",
+     "#f4c300"
+    ],
+    "pattern": "blocks",
+    "extra": [
+     "#1d4fa3",
      "#111111"
     ],
-    "pattern": "split",
-    "axis": "y",
-    "at": 0.5,
-    "line": true,
+    "finish": "gloss",
     "rim": "#ffffff",
     "tape": "#ffffff"
    },
    "level": 12,
    "year": 2026,
    "desc": {
-    "fr": "Le 795 Blade de Cofidis : rouge dessus, blanc dessous.",
-    "en": "Cofidis’s 795 Blade: red above, white below."
+    "fr": "Le 795 Blade RS 3 « Iconic Prisme » de Cofidis : blanc, lignes noires, touches Mondrian.",
+    "en": "Cofidis’s 795 Blade RS 3 “Iconic Prisme”: white, black lines, Mondrian touches."
    }
   },
   {
@@ -2392,27 +2486,46 @@
    "collection": "mythiques",
    "group": "legendes-tour",
    "type": "tt",
-   "family": "lowpro",
+   "family": "lotus",
    "params": {
     "brakes": "rim",
     "wheels": [
-     "tri",
+     "c35",
      "disc"
     ],
     "rimBrand": "mavic",
-    "aeroHelmet": true
+    "aeroHelmet": true,
+    "bottles": false
    },
    "livery": {
     "colors": [
-     "#13317a",
-     "#3fb6d9",
-     "#f2f2f2"
+     "#f2f2f2",
+     "#f4c300",
+     "#1d3fa8"
     ],
-    "pattern": "fade",
-    "axis": "z",
-    "at": 0.55,
-    "width": 0.4,
+    "pattern": "stops",
+    "axis": "y",
+    "stops": [
+     {
+      "to": 0.3,
+      "color": "#1d3fa8"
+     },
+     {
+      "to": 0.68,
+      "color": "#f2f2f2"
+     },
+     {
+      "to": 1,
+      "color": "#d8262e"
+     }
+    ],
+    "zones": {
+     "head": 1,
+     "fork": 0
+    },
+    "finish": "gloss",
     "rim": "#f2f2f2",
+    "disc": "#f2f2f2",
     "tape": "#111111"
    },
    "level": 42,
@@ -2439,15 +2552,16 @@
    },
    "livery": {
     "colors": [
-     "#14204a",
-     "#ffffff",
+     "#1b2f6e",
+     "#c9ccd1",
      "#c8102e"
     ],
     "pattern": "fade",
     "axis": "y",
     "at": 0.5,
-    "width": 0.5,
-    "rim": "#c8102e",
+    "width": 0.4,
+    "finish": "metallic",
+    "rim": "#d9d9d9",
     "tape": "#f2f2f2"
    },
    "level": 26,
@@ -2474,14 +2588,16 @@
    },
    "livery": {
     "colors": [
-     "#e8e8ea",
-     "#6a2c91",
-     "#d81e2b"
+     "#f2f2f2",
+     "#d81e2b",
+     "#6a2c91"
     ],
-    "pattern": "stripes",
+    "pattern": "band",
     "axis": "z",
     "at": 0.55,
-    "width": 0.12,
+    "width": 0.22,
+    "line": true,
+    "finish": "gloss",
     "rim": "#d9d9d9",
     "tape": "#f2f2f2"
    },
@@ -2584,11 +2700,8 @@
      "#00a6e2",
      "#ffffff"
     ],
-    "pattern": "fade",
-    "axis": "y",
-    "at": 0.25,
-    "width": 0.25,
-    "line": true,
+    "pattern": "solid",
+    "finish": "matte",
     "rim": "#ffffff",
     "tape": "#111111"
    },
@@ -2616,21 +2729,21 @@
    },
    "livery": {
     "colors": [
-     "#0b1530",
+     "#111216",
      "#7a1f3d",
      "#ffffff"
     ],
-    "pattern": "fade",
-    "axis": "diag",
-    "at": 0.4,
-    "width": 0.35,
+    "pattern": "band",
+    "axis": "z",
+    "at": 0.5,
+    "width": 0.1,
     "rim": "#ffffff",
     "tape": "#111111"
    },
    "level": 41,
    "desc": {
-    "fr": "Le F12 bleu nuit et bordeaux de Bernal (2019).",
-    "en": "Bernal's midnight-blue and burgundy F12 (2019)."
+    "fr": "Le F12 noir et bordeaux de Bernal (2019).",
+    "en": "Bernal's black and burgundy F12 (2019)."
    }
   },
   {
@@ -2659,7 +2772,7 @@
     "axis": "z",
     "at": 0.45,
     "width": 0.12,
-    "rim": "#d81e2b",
+    "rim": "#ffffff",
     "tape": "#111111"
    },
    "level": 33,
@@ -2686,20 +2799,22 @@
    },
    "livery": {
     "colors": [
-     "#ffdc00",
      "#121212",
+     "#ffdc00",
      "#ffffff"
     ],
-    "pattern": "split",
-    "axis": "y",
-    "at": 0.62,
+    "pattern": "solid",
+    "zones": {
+     "fork": 1
+    },
+    "finish": "matte",
     "rim": "#ffffff",
     "tape": "#111111"
    },
    "level": 39,
    "desc": {
-    "fr": "Le R5 jaune du premier Tour de Vingegaard.",
-    "en": "The yellow R5 of Vingegaard's first Tour win."
+    "fr": "Le R5 noir à fourche jaune du premier Tour de Vingegaard.",
+    "en": "The black, yellow-forked R5 of Vingegaard's first Tour win."
    }
   },
   {
@@ -2757,7 +2872,7 @@
    },
    "livery": {
     "colors": [
-     "#c4161c",
+     "#b3131b",
      "#ffffff",
      "#e2e2e2"
     ],
@@ -2765,7 +2880,7 @@
     "axis": "z",
     "at": 0.35,
     "width": 0.08,
-    "finish": "metallic",
+    "finish": "gloss",
     "rim": "#d9d9d9",
     "tape": "#f2f2f2"
    },
@@ -2794,14 +2909,15 @@
    },
    "livery": {
     "colors": [
-     "#f2f2f2",
-     "#d81e2b",
-     "#1d4fa3"
+     "#b3131b",
+     "#ffffff",
+     "#d9d9d9"
     ],
-    "pattern": "fade",
-    "axis": "diag",
-    "at": 0.5,
-    "width": 0.6,
+    "pattern": "band",
+    "axis": "z",
+    "at": 0.6,
+    "width": 0.12,
+    "finish": "gloss",
     "rim": "#d9d9d9",
     "tape": "#f2f2f2"
    },
@@ -2822,21 +2938,23 @@
    "params": {
     "brakes": "rim",
     "wheels": [
-     "c35",
-     "c35"
+     "box",
+     "box"
     ],
     "rimBrand": "campagnolo"
    },
    "livery": {
     "colors": [
-     "#1a1a1a",
+     "#1d4fa3",
      "#d81e2b",
+     "#f4c300"
+    ],
+    "pattern": "blocks",
+    "extra": [
+     "#2e9b4a",
      "#ffffff"
     ],
-    "pattern": "split",
-    "axis": "y",
-    "at": 0.55,
-    "rim": "#ffffff",
+    "rim": "#d9d9d9",
     "tape": "#f2f2f2"
    },
    "level": 36,
@@ -2859,7 +2977,7 @@
      "c35",
      "c35"
     ],
-    "rimBrand": "campagnolo"
+    "rimBrand": "shimano"
    },
    "livery": {
     "colors": [
@@ -2933,7 +3051,7 @@
     "colors": [
      "#7fd1c7",
      "#ffd400",
-     "#e5007e"
+     "#ffffff"
     ],
     "pattern": "fade",
     "axis": "z",
@@ -2999,8 +3117,7 @@
      "box",
      "box"
     ],
-    "rimBrand": "campagnolo",
-    "toeClips": true
+    "rimBrand": "campagnolo"
    },
    "livery": {
     "colors": [
@@ -3074,14 +3191,19 @@
    },
    "livery": {
     "colors": [
-     "#d81e2b",
-     "#ffd400",
-     "#111111"
+     "#c8102e",
+     "#111111",
+     "#ffd400"
     ],
-    "pattern": "stripes",
-    "axis": "z",
-    "at": 0.55,
-    "width": 0.16,
+    "pattern": "band",
+    "axis": "y",
+    "at": 0.45,
+    "width": 0.22,
+    "line": true,
+    "zones": {
+     "head": 1
+    },
+    "finish": "gloss",
     "rim": "#d9d9d9",
     "tape": "#f2f2f2"
    },
@@ -3245,7 +3367,7 @@
      "c50",
      "c50"
     ],
-    "rimBrand": "zipp"
+    "rimBrand": "mavic"
    },
    "livery": {
     "colors": [
@@ -3257,7 +3379,7 @@
     "axis": "z",
     "at": 0.45,
     "width": 0.1,
-    "rim": "#ff7a00",
+    "rim": "#ffffff",
     "tape": "#111111"
    },
    "level": 22,
@@ -3412,7 +3534,7 @@
    "collection": "mythiques",
    "group": "classiques",
    "type": "classic",
-   "family": "steel",
+   "family": "retro",
    "params": {
     "brakes": "rim",
     "wheels": [
@@ -3454,8 +3576,9 @@
      "tri",
      "disc"
     ],
-    "rimBrand": "corima",
-    "aeroHelmet": true
+    "rimBrand": "mavic",
+    "aeroHelmet": true,
+    "bottles": false
    },
    "livery": {
     "colors": [
@@ -3493,7 +3616,8 @@
     ],
     "rimBrand": "corima",
     "aeroHelmet": true,
-    "track": true
+    "track": true,
+    "bottles": false
    },
    "livery": {
     "colors": [
@@ -3519,16 +3643,17 @@
    "collection": "mythiques",
    "group": "chrono",
    "type": "track",
-   "family": "lowpro",
+   "family": "lotus",
    "params": {
     "brakes": "none",
     "wheels": [
      "disc",
      "disc"
     ],
-    "rimBrand": "corima",
+    "rimBrand": "campagnolo",
     "aeroHelmet": true,
-    "track": true
+    "track": true,
+    "bottles": false
    },
    "livery": {
     "colors": [
@@ -3563,7 +3688,8 @@
      "disc"
     ],
     "rimBrand": "mavic",
-    "aeroHelmet": true
+    "aeroHelmet": true,
+    "bottles": false
    },
    "livery": {
     "colors": [
@@ -3598,7 +3724,9 @@
      "c65",
      "disc"
     ],
-    "rimBrand": "bontrager"
+    "rimBrand": "bontrager",
+    "aeroHelmet": true,
+    "bottles": false
    },
    "livery": {
     "colors": [
@@ -3633,7 +3761,9 @@
      "c65",
      "disc"
     ],
-    "rimBrand": "zipp"
+    "rimBrand": "zipp",
+    "aeroHelmet": true,
+    "bottles": false
    },
    "livery": {
     "colors": [
@@ -3710,9 +3840,8 @@
      "#00a6e2",
      "#ffffff"
     ],
-    "pattern": "split",
-    "axis": "y",
-    "at": 0.7,
+    "pattern": "solid",
+    "finish": "gloss",
     "rim": "#ffffff",
     "tape": "#111111"
    },
@@ -3775,13 +3904,11 @@
    "livery": {
     "colors": [
      "#111111",
-     "#7ac143",
+     "#1fbfa6",
      "#ffffff"
     ],
-    "pattern": "fade",
-    "axis": "diag",
-    "at": 0.5,
-    "width": 0.3,
+    "pattern": "solid",
+    "finish": "gloss",
     "rim": "#ffffff",
     "tape": "#111111"
    },
@@ -3851,6 +3978,7 @@
     "axis": "z",
     "at": 0.5,
     "width": 0.1,
+    "finish": "matte",
     "rim": "#ffffff",
     "tape": "#111111"
    },
@@ -4118,8 +4246,8 @@
    "params": {
     "brakes": "disc",
     "wheels": [
-     "c65",
-     "c65"
+     "c50",
+     "c50"
     ],
     "rimBrand": "enve"
    },
@@ -4129,12 +4257,9 @@
      "#141414",
      "#ffffff"
     ],
-    "pattern": "fade",
-    "axis": "z",
-    "at": 0.4,
-    "width": 0.3,
+    "pattern": "solid",
     "finish": "pearl",
-    "rim": "#ffffff",
+    "rim": "#f6c400",
     "tape": "#111111"
    },
    "level": 47,
@@ -4157,7 +4282,8 @@
      "c35",
      "c35"
     ],
-    "rimBrand": "look"
+    "rimBrand": "look",
+    "bottles": false
    },
    "livery": {
     "colors": [
@@ -4177,7 +4303,7 @@
     "tape": "#121212"
    },
    "level": 10,
-   "year": 2021,
+   "year": 2022,
    "desc": {
     "fr": "Grimpeur carbone LOOK, peinture caméléon vert-violet sur l’avant, Shimano Ultegra Di2 12 vitesses, roues LOOK Carbone R38D.",
     "en": "LOOK carbon climbing bike, green-purple chameleon paint up front, Shimano Ultegra Di2 12-speed, LOOK Carbon R38D wheels."

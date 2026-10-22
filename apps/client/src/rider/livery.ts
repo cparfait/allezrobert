@@ -1,7 +1,8 @@
 import * as THREE from 'three/webgpu';
-import { abs, attribute, clamp, color, float, floor, fract, hash, length, max, mix, mod, positionGeometry, select, smoothstep, uniform, vec2 } from 'three/tsl';
+import { abs, attribute, clamp, color, dot, float, floor, fract, hash, length, max, mix, mod, normalGeometry, positionGeometry, select, smoothstep, texture, uniform, vec2, vec3, vec4 } from 'three/tsl';
 import type { BikeLivery, LiveryAxis, LiveryFinish, LiveryPattern } from '@allezrobert/shared';
 import { colorUniform, type ColorUniform } from '../engine/tsl.ts';
+import { DECALS, type DecalBox } from './wordmarks.ts';
 
 /**
  * Peinture des cadres du catalogue (bikes.json) : même convention que livery_material de
@@ -13,7 +14,9 @@ import { colorUniform, type ColorUniform } from '../engine/tsl.ts';
  * finition, et changer de vélo ne recompile rien.
  */
 
-const PATTERNS: readonly LiveryPattern[] = ['solid', 'fade', 'split', 'band', 'stripes', 'rainbow', 'checker', 'blocks', 'dots'];
+const PATTERNS: readonly LiveryPattern[] = ['solid', 'fade', 'split', 'band', 'stripes', 'rainbow', 'checker', 'blocks', 'dots', 'stops'];
+/** Plages du motif « stops » (au plus). */
+const MAX_STOPS = 6;
 /** Poids (uz, uy, 1 − uy, ux) de l'abscisse du motif selon l'axe. */
 const AXES: Record<LiveryAxis, [number, number, number, number]> = {
   z: [1, 0, 0, 0],
@@ -35,6 +38,9 @@ const FINISH: Record<LiveryFinish, [number, number, number, number]> = {
 };
 
 type FloatNode = THREE.Node<'float'>;
+/** Texture vide (aucun décor). */
+const BLANK = new THREE.DataTexture(new Uint8Array(4), 1, 1);
+BLANK.needsUpdate = true;
 type Vec3Node = THREE.Node<'vec3'>;
 
 const lt = (a: FloatNode, b: FloatNode | number): FloatNode => select(a.lessThan(b), float(1), float(0));
@@ -60,6 +66,16 @@ export class LiveryMaterial {
   private readonly palette = uniform(3);
   private readonly zoneOn = uniform(new THREE.Vector3());
   private readonly raw = uniform(0);
+  /** Motif « stops » : fin de chaque plage le long de l'axe, et sa couleur. */
+  private readonly stopTo = Array.from({ length: MAX_STOPS }, () => uniform(2));
+  private readonly stopCols: ColorUniform[] = Array.from({ length: MAX_STOPS }, () => colorUniform());
+  /** Décors (mots-symboles) : boîtes de projection, texture, couleur imposée ou automatique. */
+  private readonly decalM = DECALS.map(() => uniform(new THREE.Matrix4()));
+  private readonly decalOn = uniform(new THREE.Vector4());
+  /** Échantillonnages de la texture des décors (un par boîte), mis à jour par setDecals. */
+  private readonly logoTaps: Array<{ value: THREE.Texture }> = [];
+  private readonly logoCol = colorUniform('#ffffff');
+  private readonly logoAuto = uniform(1);
 
   constructor(livery: BikeLivery) {
     this.material.name = 'frame';
@@ -85,6 +101,12 @@ export class LiveryMaterial {
       if (ci !== undefined) (this.zoneCols[i] as ColorUniform).set(c[Math.min(ci, c.length - 1)] as string);
       this.zoneOn.value.setComponent(i, ci !== undefined ? 1 : 0);
     });
+    const stops = (liv.stops ?? []).slice(0, MAX_STOPS);
+    for (let i = 0; i < MAX_STOPS; i++) {
+      const st = stops[i] ?? stops[stops.length - 1];
+      (this.stopTo[i] as { value: number }).value = i < stops.length - 1 ? (stops[i]?.to ?? 2) : 2;
+      (this.stopCols[i] as ColorUniform).set(st?.color ?? c[0] ?? '#808080');
+    }
     const finish = liv.finish ?? 'gloss';
     this.raw.value = finish === 'raw' ? 1 : 0;
     const [rough, metal, coat, film] = FINISH[finish];
@@ -95,6 +117,20 @@ export class LiveryMaterial {
     m.iridescence = film > 0 ? 1 : 0;
     m.iridescenceThicknessRange = [film, film];
     m.needsUpdate = true;
+  }
+
+  /**
+   * Mots-symboles du vélo : texture (lignes dans l'ordre de DECALS), boîtes de la famille, couleur
+   * du texte (sinon contraste automatique avec la peinture). Sans texture : aucun décor.
+   */
+  setDecals(map: THREE.Texture | null, boxes: readonly (DecalBox | null)[], logo?: string): void {
+    for (const t of this.logoTaps) t.value = map ?? BLANK;
+    boxes.forEach((b, i) => {
+      if (b) (this.decalM[i] as { value: THREE.Matrix4 }).value.copy(b.inverse);
+    });
+    this.decalOn.value.set(...([0, 1, 2, 3].map((i) => (map && boxes[i] ? 1 : 0)) as [number, number, number, number]));
+    this.logoAuto.value = logo ? 0 : 1;
+    if (logo) this.logoCol.set(logo);
   }
 
   dispose(): void {
@@ -134,7 +170,11 @@ export class LiveryMaterial {
     const blocks = mix(ramp(hash(seed), [c0, c1, c2, e0, e1], this.palette), color('#111111'), joint);
     const dots = mix(c0, c1, lt(length(vec2(fract(cz.div(0.04)).sub(0.5), fract(cy.div(0.04)).sub(0.5))), 0.3));
 
-    const byPattern = [solid, fade, split, band, stripes, rainbow, checker, blocks, dots];
+    // Plages franches le long de l'axe (la dernière va jusqu'au bout).
+    let stops = (this.stopCols[MAX_STOPS - 1] as ColorUniform).node as unknown as Vec3Node;
+    for (let i = MAX_STOPS - 2; i >= 0; i--) stops = select(v.lessThan(this.stopTo[i] as FloatNode), (this.stopCols[i] as ColorUniform).node as unknown as Vec3Node, stops);
+
+    const byPattern = [solid, fade, split, band, stripes, rainbow, checker, blocks, dots, stops];
     let col = byPattern[byPattern.length - 1] as Vec3Node;
     for (let i = byPattern.length - 2; i >= 0; i--) col = select(this.pattern.lessThan(i + 0.5), byPattern[i] as Vec3Node, col);
 
@@ -144,6 +184,26 @@ export class LiveryMaterial {
     col = mix(col, (this.zoneCols[0] as ColorUniform).node as unknown as Vec3Node, gt(zone.y, 0.5).mul(on.x));
     col = mix(col, (this.zoneCols[1] as ColorUniform).node as unknown as Vec3Node, gt(zone.z, 0.5).mul(on.y));
     col = mix(col, (this.zoneCols[2] as ColorUniform).node as unknown as Vec3Node, gt(zone.w, 0.5).mul(on.z));
+
+    // Mots-symboles projetés de part et d'autre des tubes (lisibles des deux côtés), seulement sur
+    // les faces tournées vers le côté (pas de traînées sur le dessus des tubes).
+    const side = smoothstep(0.12, 0.32, abs(normalGeometry.x));
+    const dOn = [this.decalOn.x, this.decalOn.y, this.decalOn.z, this.decalOn.w];
+    let ink: FloatNode = float(0);
+    this.decalM.forEach((m, i) => {
+      const q = m.mul(vec4(p, 1)).xyz;
+      const inside = lt(max(max(abs(q.x), abs(q.y)), abs(q.z)), 0.5);
+      const u0 = q.y.add(0.5);
+      const u = select(cx.greaterThan(0), float(1).sub(u0), u0);
+      const v = float(1).sub(float(i + 1).sub(float(0.5).sub(q.z)).div(DECALS.length));
+      const tap = texture(BLANK, vec2(u, v));
+      this.logoTaps.push(tap as unknown as { value: THREE.Texture });
+      ink = ink.add(tap.a.mul(inside).mul(dOn[i] as FloatNode));
+    });
+    ink = clamp(ink.mul(side), 0, 1);
+    const luma = dot(col, vec3(0.2126, 0.7152, 0.0722));
+    const auto = select(luma.greaterThan(0.25), color('#111214'), color('#f4f4f2')) as unknown as Vec3Node;
+    col = mix(col, mix(this.logoCol.node as unknown as Vec3Node, auto, this.logoAuto), ink);
 
     // Carbone brut : damier très fin, à peine teinté par la livrée.
     const weave = mod(floor(cx.mul(300)).add(floor(cy.mul(300))).add(floor(cz.mul(300))), 2);

@@ -2,6 +2,7 @@ import * as THREE from 'three/webgpu';
 import { GLTFLoader, type GLTF } from 'three/addons/loaders/GLTFLoader.js';
 import { BIKES, PLAIN_BIKE_FAMILY, type AvatarLook, type BikeBuild, type BikeFamily } from '@allezrobert/shared';
 import { LiveryMaterial } from './livery.ts';
+import { decalBoxes, wordmarkTexture } from './wordmarks.ts';
 
 /**
  * Vélos du catalogue assemblés à partir des modèles Blender (tools/blender/build_cyclist.py) :
@@ -35,6 +36,7 @@ const BIKE_MATERIALS: Record<string, [string, number, number]> = {
   tire: ['#121214', 0.85, 0],
   tire_wall: ['#1a1a1c', 0.8, 0],
   rim: ['#1e2024', 0.35, 0.1],
+  disc_face: ['#1e2024', 0.35, 0.1],
   rim_decal: ['#6a7079', 0.45, 0.1],
   chrome: ['#b9bcc2', 0.2, 1],
   bar_tape: ['#ffd23f', 0.75, 0],
@@ -153,7 +155,8 @@ export function assembleBike(build: BikeBuild, family: BikeFamily, lod: 0 | 1): 
     const n = o.name;
     if (n.startsWith('opt_brakes_disc')) o.visible = brakes === 'disc';
     else if (n.startsWith('opt_brakes_rim')) o.visible = brakes === 'rim';
-    else if (n.startsWith('opt_derailleur') || n.startsWith('opt_bottles')) o.visible = !track;
+    else if (n.startsWith('opt_derailleur')) o.visible = !track;
+    else if (n.startsWith('opt_bottles')) o.visible = !track && build.params.bottles !== false;
     else if (n.startsWith('opt_toeclips')) o.visible = toeClips;
   });
   const lib = wheels[lod].scene;
@@ -167,6 +170,12 @@ export function assembleBike(build: BikeBuild, family: BikeFamily, lod: 0 | 1): 
     w.name = `wheel_${pos}`;
     w.position.copy(axle.position);
     w.scale.copy(axle.scale);
+    // Roue lenticulaire : flancs peints de la couleur `disc` de la livrée (matériau à part).
+    if (type === 'disc')
+      w.traverse((o) => {
+        const m = (o as THREE.Mesh).material as THREE.Material | undefined;
+        if (m?.name === 'rim') o.userData.matKey = 'disc_face';
+      });
     const rotor = w.getObjectByName(`${src.name}_rotor`);
     if (rotor) rotor.visible = brakes === 'disc';
     group.add(w);
@@ -190,10 +199,13 @@ export class BikeMaterials {
   private build: BikeBuild;
   private look: AvatarLook;
 
-  constructor(build: BikeBuild, look: AvatarLook) {
+  constructor(build: BikeBuild, look: AvatarLook, family: BikeFamily) {
     this.build = build;
     this.look = look;
     this.livery = new LiveryMaterial(build.livery);
+    // Mots-symboles de la marque et de l'équipe (vélos du catalogue) dans les boîtes de la famille.
+    const boxes = decalBoxes(familyScene(family));
+    this.livery.setDecals(wordmarkTexture(build, boxes), boxes, build.livery.logo);
   }
 
   get(name: string): THREE.Material {
@@ -231,6 +243,7 @@ export class BikeMaterials {
     const liv = this.build.livery;
     const col: Partial<Record<string, string | undefined>> = {
       rim_decal: liv.rim,
+      disc_face: liv.disc,
       bar_tape: liv.tape ?? this.look.jerseyAccent,
       bottle: this.look.jerseyAccent,
     };

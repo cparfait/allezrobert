@@ -11,7 +11,7 @@ export type BikeFamily = 'aero' | 'climb' | 'tt' | 'retro' | 'retro_compact' | '
 export type WheelType = 'box' | 'c35' | 'c50' | 'c65' | 'disc' | 'tri';
 export type BikeType = 'aero' | 'climbing' | 'tt' | 'classic' | 'track';
 export type BikeCollection = 'saison-2026' | 'mythiques' | 'divers';
-export type LiveryPattern = 'solid' | 'fade' | 'split' | 'band' | 'stripes' | 'rainbow' | 'checker' | 'blocks' | 'dots';
+export type LiveryPattern = 'solid' | 'fade' | 'split' | 'band' | 'stripes' | 'rainbow' | 'checker' | 'blocks' | 'dots' | 'stops';
 /** Axe du motif : z = avant → arrière, y = bas → haut, x = gauche → droite, diag / anti = diagonales. */
 export type LiveryAxis = 'z' | 'y' | 'x' | 'diag' | 'anti';
 export type LiveryFinish = 'gloss' | 'matte' | 'metallic' | 'chrome' | 'pearl' | 'iridescent' | 'raw';
@@ -31,12 +31,18 @@ export interface BikeLivery {
   line?: boolean;
   /** Couleurs supplémentaires du motif « blocks ». */
   extra?: string[];
+  /** Motif « stops » : plages successives le long de l'axe, chacune jusqu'à `to` (0–1 ; la dernière jusqu'au bout). Au plus 6. */
+  stops?: Array<{ to: number; color: string }>;
   zones?: Partial<Record<FrameZone, number>>;
   finish?: LiveryFinish;
   /** Bande décor des jantes. */
   rim?: string;
   /** Guidoline. */
   tape?: string;
+  /** Flancs des roues lenticulaires (sinon carbone noir). */
+  disc?: string;
+  /** Couleur des mots-symboles (sinon contraste automatique avec la peinture). */
+  logo?: string;
 }
 
 export interface BikeParams {
@@ -48,6 +54,8 @@ export interface BikeParams {
   toeClips?: boolean;
   /** Vélo de piste : ni dérailleur ni bidons. */
   track?: boolean;
+  /** Bidons (par défaut : oui, sauf vélo de piste). */
+  bottles?: boolean;
 }
 
 export interface BikeModel {
@@ -126,6 +134,9 @@ export interface BikeBuild {
   family: BikeFamily;
   params: BikeParams;
   livery: BikeLivery;
+  /** Marque et équipe / collection (décors du cadre) ; absentes : vélo sans marque. */
+  brand?: string;
+  group?: string;
 }
 
 const PLAIN_PARAMS: BikeParams = { brakes: 'disc', wheels: ['c35', 'c35'] };

@@ -420,14 +420,14 @@ export class GltfRiderAvatar implements RiderAvatarLike {
       for (const lv of cur.levels) lv.group.removeFromParent();
       cur.materials.dispose();
     }
-    const materials = new BikeMaterials(build, look);
+    const materials = new BikeMaterials(build, look, family);
     const levels = [assembleBike(build, family, 0), assembleBike(build, family, 1)];
     const parts: BikeParts = { crank: [], wheels: [], pedals: { L: [], R: [] } };
     levels.forEach((lv, i) => {
       lv.group.traverse((o) => {
         const mesh = o as THREE.Mesh;
         if (!mesh.isMesh) return;
-        mesh.material = materials.get((mesh.material as THREE.Material).name);
+        mesh.material = materials.get((mesh.userData.matKey as string | undefined) ?? (mesh.material as THREE.Material).name);
         mesh.castShadow = this.shadows;
         mesh.receiveShadow = true;
       });

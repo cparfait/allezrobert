@@ -157,7 +157,9 @@ def decal_empty(name, center, direction, length, height, lateral):
     """Cadre de décor : axe local +Z le long du tube (sens de lecture), +Y en travers, +X latéral.
     Échelle = (étendue latérale, hauteur, longueur)."""
     d = nrm(direction)
-    th = math.atan2(-d[1], d[2])
+    # Rotation autour de X dans le repère BLENDER (Z en haut) : l'axe local Z doit suivre la
+    # direction du tube convertie, to_bl(d) = (x, −z, y), soit th = atan2(d_z, d_y) du repère client.
+    th = math.atan2(d[2], d[1])
     return make_empty(name, center, th, (lateral, height, length))
 
 
@@ -327,8 +329,9 @@ def add_hoods(mb, lod, classic=False):
         hp = catmull([V(0.2 * s, (h[1] + h[2]) / 2, h[0]) for h in hood], k)
         hsec = [ell_sec(nh, hwid[i], (htop[i] - hbot[i]) / 2, 2.5) for i in range(len(hz))]
         skin(mb, sweep_rings(hp, hsec, Y), 'components')
+        # Levier : lame plate (≈ 2 cm d'avant en arrière, 1 cm d'épaisseur) qui suit la courbe du cintre.
         lever = [V(0.2 * s, 0.874, 0.65), V(0.2 * s, 0.845, 0.653), V(0.201 * s, 0.81, 0.646), V(0.203 * s, 0.78, 0.629), V(0.206 * s, 0.758, 0.604)]
-        tube(mb, lever, 1, lambda t: ell_sec(6, lerp(0.0068, 0.005, t), lerp(0.0052, 0.0034, t), 2.4), Z, 'chrome' if classic else 'components')
+        tube(mb, lever, 2 if lod == 0 else 1, lambda t: ell_sec(8, lerp(0.0115, 0.0072, t), lerp(0.0058, 0.0042, t), 2.6), Z, 'chrome' if classic else 'components')
         if lod == 0 and not classic:
             pad = [V(0.197 * s, 0.858, 0.643), V(0.196 * s, 0.83, 0.643), V(0.197 * s, 0.808, 0.634)]
             tube(mb, pad, 1, lambda t: ell_sec(6, 0.0045, 0.0022, 2.4), Z, 'chrome')
@@ -486,9 +489,14 @@ def build_tt_cockpit(g, kind, lod, name='cockpit'):
     pad = TT_PAD.copy()
     for s in (1, -1):
         end = half[-1] * V(s, 1, 1)
-        # Leviers de frein au bout de la base.
-        lv = [end + V(0, -0.004, 0.008), end + V(0, -0.03, 0.02), end + V(0.002 * s, -0.06, 0.012)]
-        tube(mb, lv, 1, lambda t: ell_sec(6, 0.0055, 0.004, 2.4), Z, 'components')
+        # Leviers de frein dans les embouts de la base : corps cylindrique puis lame plate vers
+        # l'avant, légèrement plongeante (comme les leviers chrono intégrés aux cornes).
+        d = nrm(half[-1] - half[-2]) * V(s, 1, 1)
+        v, f, _ = loft([end - d * 0.004, end + d * 0.018], 0.0125, 0.0115, Y if abs(d[1]) < 0.9 else Z, n=n)
+        mb.add(v, f, 'components')
+        tip0 = end + d * 0.018
+        lv = [tip0, tip0 + V(0.001 * s, -0.004, 0.03), tip0 + V(0.002 * s, -0.012, 0.062), tip0 + V(0.002 * s, -0.02, 0.078)]
+        tube(mb, lv, per, lambda t: ell_sec(8, lerp(0.0095, 0.007, t), lerp(0.0045, 0.0035, t), 2.6), Y, 'components')
         # Repose-coude : coque + support + colonne vers la base.
         pc = V(pad[0] * s, pad[1] - 0.009, pad[2])
         v, f, _ = ellipsoid(pc, (V(1, 0, 0), V(0, 1, 0), V(0, 0, 1)), (0.04, 0.011, 0.055), 14 if lod == 0 else 8, 6 if lod == 0 else 4)
@@ -1081,15 +1089,16 @@ def build_family(fam, lod):
         tth = 2 * sty['tt'][2]
         fk = sty['fork'][0] if not sty['round'] else sty['fork'][2]
         dec = {
-            'decal_dt': (BB + g.dt_dir * dl * 0.56, g.dt_dir, dl * 0.5, dc * 0.75, 0.08),
-            'decal_tt': (lerp(g.st_top, g.ht_top, 0.5), nrm(g.ht_top - g.st_top), np.linalg.norm(g.ht_top - g.st_top) * 0.45, tth * 0.75, 0.06),
-            'decal_st': (BB + g.st_dir * g.st_len * 0.55, g.st_dir, g.st_len * 0.38, sc_ * 0.75, 0.06),
-            'decal_fork': (g.ht_bot - g.ht_up * 0.12, g.ht_up, 0.12, fk * 0.7, 2 * (HUB_HALF[0] + 0.02)),
+            # Hauteurs proches de celle du tube : les marques couvrent presque tout le flanc, comme en vrai.
+            'decal_dt': (BB + g.dt_dir * dl * 0.56, g.dt_dir, dl * 0.62, dc * 0.95, 0.08),
+            'decal_tt': (lerp(g.st_top, g.ht_top, 0.5), nrm(g.ht_top - g.st_top), np.linalg.norm(g.ht_top - g.st_top) * 0.5, tth * 0.92, 0.06),
+            'decal_st': (BB + g.st_dir * g.st_len * 0.55, g.st_dir, g.st_len * 0.42, sc_ * 0.92, 0.06),
+            'decal_fork': (g.ht_bot - g.ht_up * 0.12, g.ht_up, 0.14, fk * 0.9, 2 * (HUB_HALF[0] + 0.02)),
         }
     for k, (c, d, L_, H_, W_) in dec.items():
         e.append(decal_empty(k, c, d, float(L_), float(H_), float(W_)))
         dd = nrm(d)
-        info[k] = {'center': [round(float(x), 4) for x in c], 'rot_x': round(math.atan2(-dd[1], dd[2]), 4), 'scale': [round(float(W_), 4), round(float(H_), 4), round(float(L_), 4)]}
+        info[k] = {'center': [round(float(x), 4) for x in c], 'rot_x': round(math.atan2(dd[2], dd[1]), 4), 'scale': [round(float(W_), 4), round(float(H_), 4), round(float(L_), 4)]}
     num = g.st_top + g.st_dir * ((0.86 - g.st_top[1]) / g.st_dir[1]) + V(0, 0, -0.045)
     e.append(make_empty('anchor_number', num))
     info['anchor_number'] = [round(float(x), 4) for x in num]
