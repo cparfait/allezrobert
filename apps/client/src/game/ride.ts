@@ -26,6 +26,12 @@ export interface RideOptions {
   gearing?: VirtualGearing;
   /** Rapport réel monté sur le trainer (Cog 14 dents par défaut). */
   referenceRatio?: number;
+  /**
+   * Transmission réelle : `cog` (pignon unique, Zwift Cog) = vitesses virtuelles actives ;
+   * `cassette` = le coureur change de vitesse sur son vrai vélo (Di2…), le trainer reçoit la pente
+   * sans modulation et les commandes de vitesses ne changent rien. Défaut `cog`.
+   */
+  drivetrain?: 'cog' | 'cassette';
   /** Vent (m/s, d'où il vient en radians, 0 = nord). */
   wind?: { ms: number; from: number };
   startDistM?: number;
@@ -110,7 +116,21 @@ export class RideSession {
     return this.gears[this.gearIndex] as Gear;
   }
 
+  /** Vitesses virtuelles actives (Zwift Cog) ; faux avec une cassette réelle. */
+  get virtualShifting(): boolean {
+    return this.opts.drivetrain !== 'cassette';
+  }
+
+  /** Libellé du rapport pour le HUD : virtuel (« 50×17 ») ou réel (rapport lu sur la commande si elle le donne). */
+  get gearLabel(): string {
+    if (this.virtualShifting) return `${this.gear.chainring}×${this.gear.cog}`;
+    const g = this.inputs.realGear;
+    return g ? `${g.front}·${g.rear}` : 'cassette';
+  }
+
   shift(delta: number): void {
+    // Cassette réelle : le dérailleur change la vitesse du volant d'inertie, rien à simuler.
+    if (!this.virtualShifting) return;
     this.gearIndex = shiftGear(this.gearIndex, delta, this.gears);
   }
 
@@ -177,7 +197,7 @@ export class RideSession {
     const target = computeTrainerGrade({
       gradePercent: s.grade,
       speedMs: this.state.speedMs,
-      gearRatio: this.gear.ratio,
+      gearRatio: this.virtualShifting ? this.gear.ratio : this.referenceRatio,
       referenceRatio: this.referenceRatio,
       params: this.params,
       env,
@@ -197,8 +217,8 @@ export class RideSession {
       if (send !== null) source.sendTrainer({ kind: 'simulation', gradePercent: send, windSpeedMs: 0, crr: this.params.crr, cw: 0.5 * env.airDensity * this.params.cda });
     }
 
-    // Ventilateur : asservi à la vitesse (48 km/h = 100 %).
-    source.setFan?.(Math.min(100, (this.state.speedMs * 3.6 * 100) / 48));
+    // Ventilateur : consigne calculée par la source selon le mode choisi (vitesse, FC, pente, manuel).
+    source.updateFan?.({ speedKmh: this.state.speedMs * 3.6, gradePercent: s.grade, ...(this.inputs.hr !== undefined ? { heartRateBpm: this.inputs.hr } : {}) });
 
     this.updateSegments(now);
 

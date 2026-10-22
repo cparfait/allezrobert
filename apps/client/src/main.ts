@@ -363,6 +363,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     profile,
     track,
     trainerDifficulty: s.trainerDifficulty,
+    drivetrain: s.drivetrain,
     startDistM: startD,
     wind: { ms: s.windMs, from: 4.4 },
   });
@@ -676,7 +677,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
           avgWatts: ride.avgWatts(),
           np: ride.normalizedPower(),
           ftp: s.ftpWatts,
-          gearLabel: `${ride.gear.chainring}×${ride.gear.cog}`,
+          gearLabel: ride.gearLabel,
           gearIndex: ride.gearIndex,
           gearCount: ride.gears.length,
           ...(i.balanceLeft !== undefined ? { balanceLeft: i.balanceLeft } : {}),

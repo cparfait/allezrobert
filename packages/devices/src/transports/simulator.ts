@@ -13,6 +13,7 @@ import {
   HEADWIND,
   HEADWIND_MODE,
   SERVICE,
+  SHIMANO_DFLY,
   TARGET_SETTING_FEATURES,
   ZWIFT_CONTROLLER,
   ZWIFT_RIDE_ON,
@@ -36,7 +37,7 @@ import { SeededRandom } from '../random.ts';
 import { kindsFromServices } from '../gatt-util.ts';
 import type { DeviceLink, DiscoveredDevice, GattConnection, GattServiceInfo, NotificationHandler, ScanHandle, ScanOptions, Transport } from '../types.ts';
 
-export type SimDeviceKey = 'trainer' | 'pedals' | 'heartRate' | 'click' | 'headwind';
+export type SimDeviceKey = 'trainer' | 'pedals' | 'heartRate' | 'click' | 'headwind' | 'dfly';
 
 export interface SimulatorOptions {
   clock?: Clock;
@@ -55,6 +56,8 @@ export interface SimulatorOptions {
     ergResponseS?: number;
     notifyHz?: number;
     maxPowerW?: number;
+    /** false = le trainer n'annonce pas le spin-down (bit 15 absent) et refuse l'op code 0x13. Défaut true. */
+    spinDown?: boolean;
   };
   pedals?: {
     name?: string;
@@ -329,7 +332,7 @@ export class SimulatorTransport implements Transport {
       id: p.id,
       name: p.name,
       transport: 'simulator',
-      kinds: kindsFromServices(services, p.name, { zwiftControllers: true, headwind: true }),
+      kinds: kindsFromServices(services, p.name, { zwiftControllers: true, headwind: true, shimanoDfly: true }),
       services,
       rssi: Math.round(p.rssi + this.rng.normal(0, 2)),
       address: { key: p.key },
@@ -481,6 +484,8 @@ export class SimulatorTransport implements Transport {
         return this.buildClick();
       case 'headwind':
         return this.buildHeadwind();
+      case 'dfly':
+        return this.buildDfly();
     }
   }
 
@@ -502,7 +507,7 @@ export class SimulatorTransport implements Transport {
     const T = TARGET_SETTING_FEATURES;
     const maxPower = this.options.trainer?.maxPowerW ?? 2000;
     p.addCharacteristic(S, CHAR.fitnessMachineFeature, ['read'], {
-      read: () => encodeFitnessMachineFeature(F.cadence | F.resistanceLevel | F.powerMeasurement, T.resistanceTarget | T.powerTarget | T.indoorBikeSimulation | T.wheelCircumference | T.spinDownControl),
+      read: () => encodeFitnessMachineFeature(F.cadence | F.resistanceLevel | F.powerMeasurement, T.resistanceTarget | T.powerTarget | T.indoorBikeSimulation | T.wheelCircumference | (this.options.trainer?.spinDown === false ? 0 : T.spinDownControl)),
     });
     p.addCharacteristic(S, CHAR.supportedPowerRange, ['read'], { read: () => encodeSupportedPowerRange({ min: 0, max: maxPower, increment: 1 }) });
     p.addCharacteristic(S, CHAR.supportedResistanceLevelRange, ['read'], { read: () => encodeSupportedResistanceLevelRange({ min: 0, max: 10, increment: 0.1 }) });
@@ -565,6 +570,7 @@ export class SimulatorTransport implements Transport {
         respond(FTMS_RESULT.success);
         return;
       case 'spinDownControl':
+        if (this.options.trainer?.spinDown === false) return void respond(FTMS_RESULT.opCodeNotSupported);
         if (req.start) {
           respond(FTMS_RESULT.success, [0xd0, 0x07, 0xb8, 0x0b]); // 20–30 km/h
           status([0x14, 0x01]);
@@ -632,6 +638,37 @@ export class SimulatorTransport implements Transport {
       },
     });
     return p;
+  }
+
+  /**
+   * Di2 simulé en D-Fly : trame d'indication [compteur, canal 1…4]. Chaque événement modifie l'octet du
+   * canal (0x10 court, 0x20 long, 0x40 double, 0x00 relâché) ; les canaux non affectés valent 0xF0.
+   */
+  private buildDfly(): SimPeripheral {
+    const p = new SimPeripheral('dfly', 'RD-R7150 SIM', this.clock, -68);
+    p.addCharacteristic(SHIMANO_DFLY.service, SHIMANO_DFLY.channelCharacteristic, ['indicate']);
+    this.addBattery(p, 70);
+    return p;
+  }
+
+  private dflyChannels = [0x00, 0x00, 0xf0, 0xf0];
+  private dflyCounter = 0;
+
+  /** Appui sur un bouton D-Fly simulé (canal 1–4) : appui puis relâchement. */
+  pressDfly(channel: number, kind: 'short' | 'long' | 'double' = 'short'): void {
+    const p = this.peripheral('dfly');
+    const i = channel - 1;
+    if (i < 0 || i > 3) throw new Error(`D-Fly : canal ${channel} invalide (1–4)`);
+    const send = () => p.notify(SHIMANO_DFLY.service, SHIMANO_DFLY.channelCharacteristic, Uint8Array.of(this.dflyCounter++ & 0xff, ...this.dflyChannels));
+    this.dflyChannels[i] = { short: 0x10, long: 0x20, double: 0x40 }[kind];
+    send();
+    this.dflyChannels[i] = 0x00;
+    send();
+  }
+
+  /** Première trame D-Fly (état initial), comme l'envoie le Di2 juste après l'abonnement. */
+  dflyHello(): void {
+    this.peripheral('dfly').notify(SHIMANO_DFLY.service, SHIMANO_DFLY.channelCharacteristic, Uint8Array.of(this.dflyCounter++ & 0xff, ...this.dflyChannels));
   }
 
   /** Arrête la simulation et coupe toutes les liaisons. */

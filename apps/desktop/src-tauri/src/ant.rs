@@ -274,7 +274,12 @@ pub async fn ant_list_sticks() -> AppResult<Vec<NativeAntStick>> {
 }
 
 #[tauri::command]
-pub async fn ant_open(app: AppHandle, state: State<'_, AntState>, stick_id: Option<String>) -> AppResult<()> {
+pub async fn ant_open(
+    app: AppHandle,
+    state: State<'_, AntState>,
+    stick_id: Option<String>,
+    network_key: Option<Vec<u8>>,
+) -> AppResult<()> {
     let wanted = stick_id.filter(|s| !s.trim().is_empty());
     let mut guard = state.0.stick.lock().await;
     if let Some(open) = guard.as_ref() {
@@ -286,7 +291,13 @@ pub async fn ant_open(app: AppHandle, state: State<'_, AntState>, stick_id: Opti
         close_stick(previous).await;
     }
 
-    let key = load_network_key(&app)?;
+    // Clé saisie dans le jeu (onglet Capteurs) en priorité, sinon variable d'environnement ou fichier.
+    let key = match network_key {
+        Some(bytes) => proto::network_key_from_bytes(&bytes).ok_or_else(|| {
+            AppError(format!("Clé réseau ANT+ invalide : 8 octets attendus, {} reçus", bytes.len()))
+        })?,
+        None => load_network_key(&app)?,
+    };
     let sticks = find_sticks().await?;
     if sticks.is_empty() {
         return Err(AppError::new(NO_STICK));
@@ -535,6 +546,17 @@ pub async fn ant_send(
     payload.push(channel);
     payload.extend_from_slice(&data);
     stick.write(&AntMessage::new(id, payload)).await
+}
+
+/// Libère un canal (recherche abandonnée, appareil oublié). Sans effet si le canal est déjà fermé.
+#[tauri::command]
+pub async fn ant_close_channel(state: State<'_, AntState>, channel: u8) -> AppResult<()> {
+    let mut guard = state.0.stick.lock().await;
+    let stick = with_stick(&mut guard).await?;
+    if stick.open_channels.contains(&channel) {
+        stick.close_channel(channel).await;
+    }
+    Ok(())
 }
 
 #[tauri::command]

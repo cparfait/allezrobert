@@ -75,6 +75,8 @@ export class FecTrainer implements Profile, TrainerControl {
   private lastCmd: TrainerCommand | undefined;
   private lastWind: string | undefined;
   private speedKmh: number | undefined;
+  /** Étape de la calibration en cours (pages 1, 2 et 71), pour n'émettre que les changements. */
+  private calibrationStage: 'started' | 'requested' | 'stopPedaling' | undefined;
   private readonly options: FecTrainerOptions;
 
   constructor(options: FecTrainerOptions = {}) {
@@ -129,6 +131,7 @@ export class FecTrainer implements Profile, TrainerControl {
         await ch.sendPage(encodeFecBasicResistance(command.level));
         return;
       case 'spindown':
+        this.calibrationStage = 'started';
         this.ctx?.emit('calibration', { t: this.ctx.now(), status: 'started' });
         await ch.sendPage(encodeFecCalibrationRequest({ spinDown: true }));
         return;
@@ -156,7 +159,35 @@ export class FecTrainer implements Profile, TrainerControl {
         ...(p.cadenceRpm !== undefined ? { cadence: p.cadenceRpm } : {}),
         ...(this.speedKmh !== undefined ? { speedKmh: this.speedKmh } : {}),
       });
+    } else if ('kind' in p && p.kind === 'calibrationInProgress') {
+      // Page 2 : vitesse trop basse → accélérer jusqu'à la cible ; vitesse atteinte → roue libre.
+      if (!p.spinDownPending) return;
+      const status = p.speedCondition === 'ok' ? 'stopPedaling' : 'requested';
+      if (status === this.calibrationStage) return;
+      this.calibrationStage = status;
+      ctx.emit('calibration', {
+        t: ctx.now(),
+        status,
+        ...(p.targetSpeedKmh !== undefined ? { targetSpeedLowKmh: p.targetSpeedKmh, targetSpeedHighKmh: p.targetSpeedKmh } : {}),
+        ...(p.temperatureC !== undefined ? { temperatureC: p.temperatureC } : {}),
+      });
+    } else if ('kind' in p && p.kind === 'calibrationResponse') {
+      // Page 1 : résultat. Ignorée si aucune calibration n'est en cours (rediffusion éventuelle).
+      if (this.calibrationStage === undefined) return;
+      this.calibrationStage = undefined;
+      ctx.emit('calibration', {
+        t: ctx.now(),
+        status: p.spinDownSuccess ? 'success' : 'error',
+        ...(p.spinDownTimeMs !== undefined ? { spinDownTimeMs: p.spinDownTimeMs } : {}),
+        ...(p.temperatureC !== undefined ? { temperatureC: p.temperatureC } : {}),
+        ...(p.spinDownSuccess ? {} : { reason: 'Spin-down FE-C échoué (page 1 sans le bit de réussite)' }),
+      });
     } else if (p.page === 0x47 && 'lastReceivedCommandId' in p && p.status !== 'pass' && p.status !== 'pending' && p.status !== 'uninitialized') {
+      if (p.lastReceivedCommandId === 0x01 && this.calibrationStage !== undefined) {
+        this.calibrationStage = undefined;
+        ctx.emit('calibration', { t: ctx.now(), status: p.status === 'notSupported' ? 'unsupported' : 'error', reason: `FE-C : demande de calibration ${p.status}` });
+        return;
+      }
       ctx.warn('command-failed', `FE-C : commande 0x${p.lastReceivedCommandId.toString(16)} refusée (${p.status})`);
     }
   }

@@ -79,6 +79,11 @@ export interface ScanOptions {
   kinds?: DeviceKind[];
   timeoutMs?: number;
   experimental?: Partial<ExperimentalAdapters>;
+  /**
+   * Web Bluetooth : afficher tous les appareils dans le sélecteur (`acceptAllDevices`), pour ceux qui
+   * n'annoncent pas leur service (Di2, certains HEADWIND). Les autres transports listent déjà tout.
+   */
+  acceptAll?: boolean;
 }
 
 export interface ScanHandle {
@@ -91,6 +96,11 @@ export interface Transport {
   /** Lance une recherche ; `onFound` peut être appelé plusieurs fois pour le même appareil (mise à jour RSSI). */
   scan(options: ScanOptions, onFound: (device: DiscoveredDevice) => void): Promise<ScanHandle>;
   connect(device: DiscoveredDevice): Promise<DeviceLink>;
+  /**
+   * Reconnexion au démarrage sans geste utilisateur possible ? (Web Bluetooth : seulement si le
+   * navigateur conserve les autorisations, `navigator.bluetooth.getDevices()`). Absent = oui.
+   */
+  canRestoreWithoutGesture?(): Promise<boolean>;
   /** Choix de l'adaptateur Bluetooth (Bluetooth natif uniquement). */
   listAdapters?(): Promise<NativeAdapter[]>;
   selectAdapter?(adapterId: string): Promise<void>;
@@ -121,11 +131,22 @@ export interface DeviceWarning {
   details?: Record<string, unknown>;
 }
 
+/**
+ * Étapes d'une calibration (spin-down FTMS 0x13 / statut 0x14, ou FE-C pages 1 et 2) :
+ * started → requested (accélérer jusqu'à la vitesse cible) → stopPedaling (roue libre) → success | error.
+ * `unsupported` : le trainer ne propose pas le spin-down par ce protocole (le faire dans l'appli du fabricant).
+ */
 export interface CalibrationEvent {
   t: number;
   status: 'started' | 'requested' | 'stopPedaling' | 'success' | 'error' | 'unsupported';
   targetSpeedLowKmh?: number;
   targetSpeedHighKmh?: number;
+  /** FE-C : durée du spin-down mesurée (ms). */
+  spinDownTimeMs?: number;
+  /** FE-C : température rapportée par le trainer (°C). */
+  temperatureC?: number;
+  /** Explication lisible en cas d'erreur ou de refus. */
+  reason?: string;
 }
 
 /** Événements d'un appareil : ceux de @allezrobert/shared + avertissements, infos et calibration. */

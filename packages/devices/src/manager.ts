@@ -37,7 +37,7 @@ import {
 import { PowerMatchController, type PowerMatchOptions } from './power-match.ts';
 import type { ShifterSource } from './shifters.ts';
 import { PowerSmoother } from './smoothing.ts';
-import type { DeviceWarning, DiscoveredDevice, ScanHandle, Transport } from './types.ts';
+import type { CalibrationEvent, DeviceWarning, DiscoveredDevice, ScanHandle, Transport } from './types.ts';
 
 export type PowerSource = 'pedals' | 'trainer' | 'none';
 
@@ -74,6 +74,8 @@ export interface ManagerEvents {
   battery: { deviceId: string; percent: number };
   powerSource: PowerSource;
   warning: DeviceWarning;
+  /** Étapes de la calibration (spin-down) du trainer assigné. */
+  calibration: CalibrationEvent & { deviceId: string };
   log: string;
 }
 
@@ -95,6 +97,11 @@ export interface DeviceManagerOptions {
   /** Intervalle minimal entre deux corrections power match envoyées au trainer (ms). Défaut 1000. */
   powerMatchSendIntervalMs?: number;
 }
+
+type TrainerControlLike = NonNullable<Device['trainer']>;
+
+/** Profils qui émettent des événements `shift`. */
+const SHIFTER_PROFILES = new Set(['zwift-controller', 'shimano-dfly', 'sram-axs', 'ant-controls']);
 
 const SINGLE_ROLES = ['trainer', 'power', 'heartRate', 'cadence', 'fan'] as const;
 type SingleRole = (typeof SINGLE_ROLES)[number];
@@ -199,13 +206,13 @@ export class DeviceManager extends Emitter<ManagerEvents> {
    * Lance la recherche sur les transports demandés (tous par défaut). Web Bluetooth ouvre le sélecteur
    * du navigateur : appeler depuis un clic. La recherche s'arrête après `timeoutMs` (défaut 15 s).
    */
-  async scan(options: { kinds?: DeviceKind[]; transports?: TransportKind[]; timeoutMs?: number } = {}): Promise<void> {
+  async scan(options: { kinds?: DeviceKind[]; transports?: TransportKind[]; timeoutMs?: number; acceptAll?: boolean } = {}): Promise<void> {
     await this.stopScan();
     const targets = this.transports.filter((t) => !options.transports || options.transports.includes(t.kind));
     for (const t of targets) {
       if (!(await t.isAvailable().catch(() => false))) continue;
       try {
-        const h = await t.scan({ ...(options.kinds ? { kinds: options.kinds } : {}), ...(options.timeoutMs ? { timeoutMs: options.timeoutMs } : {}), experimental: this.config.experimental }, (d) => this.onFound(d));
+        const h = await t.scan({ ...(options.kinds ? { kinds: options.kinds } : {}), ...(options.timeoutMs ? { timeoutMs: options.timeoutMs } : {}), ...(options.acceptAll ? { acceptAll: true } : {}), experimental: this.config.experimental }, (d) => this.onFound(d));
         this.scans.push(h);
       } catch (e) {
         this.emit('log', `Recherche ${t.kind} impossible : ${(e as Error).message}`);
@@ -360,7 +367,8 @@ export class DeviceManager extends Emitter<ManagerEvents> {
     if (kinds.includes('heartRate')) set('heartRate');
     if (kinds.includes('cadence') && !kinds.includes('power') && !kinds.includes('trainer')) set('cadence');
     if (kinds.includes('fan') && dev.fan) set('fan');
-    if (kinds.includes('shifter') && !r.shifters.includes(dev.id)) this.assignRole('shifter', dev.id, false);
+    // Commande de vitesses : seulement si un profil de boutons est réellement branché (adaptateur activé).
+    if (kinds.includes('shifter') && !r.shifters.includes(dev.id) && dev.activeProfiles.some((p) => SHIFTER_PROFILES.has(p.name))) this.assignRole('shifter', dev.id, false);
     void this.persist();
   }
 
@@ -375,11 +383,15 @@ export class DeviceManager extends Emitter<ManagerEvents> {
     this.emit('roles', this.roles);
     for (const p of this.config.devices) {
       if (!p.autoConnect) continue;
-      if (!this.transports.some((t) => t.kind === p.transport)) continue;
-      if (p.transport === 'web-bluetooth') continue; // nécessite un geste utilisateur
+      const transport = this.transports.find((t) => t.kind === p.transport);
+      if (!transport) continue;
+      // Web Bluetooth : seulement si le navigateur a gardé l'autorisation (sinon geste utilisateur requis).
+      const silent = transport.canRestoreWithoutGesture ? await transport.canRestoreWithoutGesture().catch(() => false) : true;
+      if (!silent) continue;
       await this.connect(discoveredFromPaired(p), { persist: false }).catch((e: unknown) => {
         this.emit('log', `Reconnexion de ${p.name} impossible : ${(e as Error).message}`);
-        this.device(p.id)?.reconnectNow();
+        // Hors de portée ou éteint : nouvel essai différé. Web Bluetooth sans autorisation : rien à faire.
+        if (transport.kind !== 'web-bluetooth') this.device(p.id)?.reconnectNow();
       });
     }
   }
@@ -416,6 +428,32 @@ export class DeviceManager extends Emitter<ManagerEvents> {
     }
     this.ergTargetW = undefined;
     await dev.sendTrainer(command);
+  }
+
+  /**
+   * Spin-down du trainer assigné (FTMS 0x13 ou FE-C page 1). Le déroulé arrive par l'événement
+   * `calibration` : accélérer jusqu'à la vitesse cible, puis roue libre jusqu'au résultat.
+   */
+  async startCalibration(): Promise<void> {
+    const dev = this.trainerDevice;
+    if (!dev) throw new Error('Aucun home trainer assigné');
+    // Pas de power match pendant la calibration : la consigne ERG reprendra ensuite.
+    this.ergTargetW = undefined;
+    await dev.sendTrainer({ kind: 'spindown' });
+  }
+
+  /** Le trainer assigné propose-t-il le spin-down ? 'unknown' tant qu'il n'est pas connecté. */
+  calibrationSupport(): 'supported' | 'unsupported' | 'unknown' {
+    const t = this.trainerDevice?.trainer as (TrainerControlLike & { supportsSpinDown?: boolean }) | undefined;
+    if (!t) return 'unknown';
+    return t.supportsSpinDown === false ? 'unsupported' : 'supported';
+  }
+
+  /** Relance tout de suite la reconnexion d'un appareil (bouton « reconnecter »). */
+  reconnect(deviceId: string): void {
+    const dev = this.devicesById.get(deviceId);
+    if (dev) dev.reconnectNow();
+    else void this.connect(deviceId, { persist: false }).catch((e: unknown) => this.emit('log', `Reconnexion impossible : ${(e as Error).message}`));
   }
 
   async sendFan(command: FanCommand): Promise<void> {
@@ -491,6 +529,9 @@ export class DeviceManager extends Emitter<ManagerEvents> {
         this.emitDevices();
       }),
       dev.on('warning', (w) => this.emit('warning', w)),
+      dev.on('calibration', (c) => {
+        if (this.config.roles.trainer === id) this.emit('calibration', { ...c, deviceId: id });
+      }),
       dev.on('log', (m) => this.emit('log', m)),
       dev.on('info', () => this.emitDevices()),
     );
