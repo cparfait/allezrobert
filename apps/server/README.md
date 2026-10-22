@@ -17,6 +17,19 @@ npx tsc -p apps/server/tsconfig.json              # types
 Itinéraires : `ROUTES_DIR` (JSON `RouteData` de tools/terrain) ; sinon boucle procédurale de 10 km.
 Tests d'API sur un vrai PostgreSQL : `TEST_DATABASE_URL=postgres://… npx vitest run apps/server/test/api.test.ts`.
 
+### Voix en local (LiveKit) et voix off (Cartesia)
+
+```bash
+docker run -d --name allezrobert-livekit -p 7880:7880 -p 7881:7881 -p 7882:7882/udp livekit/livekit-server:latest --dev --bind 0.0.0.0 --node-ip 127.0.0.1
+```
+
+Puis dans `apps/server/.env` : `LIVEKIT_URL=ws://localhost:7880`, `LIVEKIT_API_KEY=devkey`, `LIVEKIT_API_SECRET=secret`
+(clés de développement publiques de LiveKit). `--node-ip 127.0.0.1` est indispensable sous Docker Windows,
+sinon WebRTC annonce l'IP interne du conteneur (« could not establish pc connection »).
+
+Voix off du tutoriel : `CARTESIA_API_KEY=…` dans `apps/server/.env` (jamais versionné). `POST /api/tts {text, lang}`
+renvoie un MP3 mis en cache dans `TTS_CACHE_DIR` ; voix réglables par `CARTESIA_VOICE_FR` / `CARTESIA_VOICE_EN`.
+
 ## Organisation
 
 | Fichier | Rôle |

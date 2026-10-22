@@ -9,7 +9,7 @@ export class VoiceChat {
   private room: Room | null = null;
   private readonly audioEls = new Map<string, HTMLMediaElement>();
   micOn = false;
-  /** Identifiants (compte) des coureurs qui parlent en ce moment. */
+  /** Noms affichés des coureurs qui parlent en ce moment. */
   speaking = new Set<string>();
   onState?: (state: 'connected' | 'disconnected' | 'unavailable', detail?: string) => void;
 
@@ -36,7 +36,7 @@ export class VoiceChat {
         this.audioEls.delete(key);
       });
       room.on(RoomEvent.ActiveSpeakersChanged, (speakers: Participant[]) => {
-        this.speaking = new Set(speakers.map((p) => p.identity.split(':')[0] as string));
+        this.speaking = new Set(speakers.map((p) => p.name || p.identity));
       });
       room.on(RoomEvent.Disconnected, () => this.onState?.('disconnected'));
       await room.connect(url, token);

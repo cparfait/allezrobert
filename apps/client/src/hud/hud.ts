@@ -11,6 +11,10 @@ export interface HudRider {
   isAI: boolean;
   isGuest: boolean;
   color: string;
+  /** Parle en ce moment dans le chat vocal. */
+  speaking?: boolean;
+  /** Coureur humain en ligne (peut recevoir un « Ride On »). */
+  online?: boolean;
 }
 
 export interface HudState {
@@ -98,11 +102,17 @@ export class Hud {
       <div class="panel segment hidden" data-k="segment"><div class="name" data-k="segName"></div><div class="num" data-k="segInfo"></div><div class="bar"><span data-k="segBar" style="width:0%"></span></div></div>
       <div class="panel workout hidden" data-k="workout"><div class="row" style="justify-content:space-between"><b data-k="wName"></b><span class="num" data-k="wRemain"></span></div><div class="num" data-k="wTarget" style="font-size:30px;font-weight:800"></div><div class="num" data-k="wStep" style="color:var(--ar-muted);font-size:13px"></div><canvas width="900" height="90" data-k="wChart"></canvas></div>
       <div class="devices-chip" data-k="devices"></div>
+      <div class="chat" data-k="chat"><div class="chat-log" data-k="chatLog"></div><input class="chat-input hidden" data-k="chatInput" maxlength="200" /></div>
+      <div class="voice-chip panel hidden" data-k="voice"></div>
       <div class="toasts"></div>
       <div class="panel profile"><canvas width="1800" height="160"></canvas></div>
       <div class="attribution">${attribution.join(' · ')}</div>
     `;
     root.querySelectorAll<HTMLElement>('[data-k]').forEach((e) => (this.el[e.dataset.k as string] = e));
+    (this.el.riders as HTMLElement).addEventListener('click', (ev) => {
+      const id = (ev.target as HTMLElement).closest<HTMLElement>('[data-rideon]')?.dataset.rideon;
+      if (id) this.onRideOn?.(id);
+    });
     this.profileCanvas = root.querySelector('.profile canvas') as HTMLCanvasElement;
     this.mapCanvas = root.querySelector('.minimap canvas') as HTMLCanvasElement;
     this.toasts = root.querySelector('.toasts') as HTMLElement;
@@ -165,6 +175,54 @@ export class Hud {
     ctx.fillStyle = '#ffd23f';
     ctx.fillRect(X(w.elapsedS) - 2, 0, 4, c.height);
   }
+
+  /** Message de chat (les 6 derniers restent affichés, puis s'estompent). */
+  addChat(name: string, text: string): void {
+    const log = this.el.chatLog as HTMLElement;
+    const line = document.createElement('div');
+    line.className = 'chat-line';
+    const b = document.createElement('b');
+    b.textContent = `${name} : `;
+    line.append(b, document.createTextNode(text));
+    log.appendChild(line);
+    while (log.childElementCount > 6) log.firstElementChild?.remove();
+    setTimeout(() => line.classList.add('old'), 20000);
+  }
+
+  /** Ouvre la saisie du chat (touche T) ; Entrée envoie, Échap annule. */
+  openChat(onSend: (text: string) => void): void {
+    const input = this.el.chatInput as HTMLInputElement;
+    input.classList.remove('hidden');
+    input.value = '';
+    input.focus();
+    const close = () => {
+      input.classList.add('hidden');
+      input.onkeydown = null;
+      input.blur();
+    };
+    input.onkeydown = (e) => {
+      e.stopPropagation();
+      if (e.key === 'Enter') {
+        const v = input.value.trim();
+        if (v) onSend(v);
+        close();
+      } else if (e.key === 'Escape') close();
+    };
+  }
+
+  /** État du micro du chat vocal (null = pas de voix). */
+  setVoice(state: null | { connected: boolean; micOn: boolean; detail?: string }): void {
+    const chip = this.el.voice as HTMLElement;
+    if (!state) {
+      chip.classList.add('hidden');
+      return;
+    }
+    chip.classList.remove('hidden');
+    chip.textContent = !state.connected ? `🎙 ${state.detail ?? 'voix indisponible'}` : state.micOn ? '🎙 micro ouvert (V)' : '🔇 micro coupé (V)';
+  }
+
+  /** Clic sur 👍 dans la liste des coureurs. */
+  onRideOn?: (riderId: string) => void;
 
   /** FTP courante (couleurs des zones). */
   ftp = 250;
@@ -235,7 +293,8 @@ export class Hud {
       .map((r) => {
         const gap = me && !r.me ? r.distM - me.distM : 0;
         const tag = r.me ? t('you') : r.isAI ? t('ai') : r.isGuest ? t('guest') : '';
-        return `<div class="row ${r.me ? 'me' : ''}"><span><b style="color:${r.color}">●</b> ${r.name}</span><span class="gap num">${r.me ? '' : `${gap > 0 ? '+' : ''}${Math.round(gap)} m`}</span><span class="gap">${tag}</span></div>`;
+        const rideOn = r.online && !r.me ? `<button class="rideon" data-rideon="${r.id}" title="Ride On">👍</button>` : '';
+        return `<div class="row ${r.me ? 'me' : ''}"><span><b style="color:${r.color}">●</b> ${r.name}${r.speaking ? ' 🔊' : ''} ${rideOn}</span><span class="gap num">${r.me ? '' : `${gap > 0 ? '+' : ''}${Math.round(gap)} m`}</span><span class="gap">${tag}</span></div>`;
       })
       .join('');
 

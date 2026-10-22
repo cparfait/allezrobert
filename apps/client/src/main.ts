@@ -30,6 +30,7 @@ import { Crowd } from './world/crowd.ts';
 import { TownSigns } from './world/signs.ts';
 import { Traffic } from './world/traffic.ts';
 import { Multiplayer } from './game/multiplayer.ts';
+import { VoiceChat } from './game/voice.ts';
 import type { InterpolatedRider } from './net/index.ts';
 
 const ui = document.getElementById('ui') as HTMLElement;
@@ -189,6 +190,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   }
   // Sortie de groupe / course : le serveur fait rouler tout le monde (IA comprises).
   let mp: Multiplayer | null = null;
+  let voice: VoiceChat | null = null;
   if (s.mode === 'group' || s.mode === 'race') {
     mp = new Multiplayer(engine.scene, track, s.name);
     try {
@@ -269,7 +271,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
       if (ev.kind === 'segmentEnd' && ev.riderId === net.selfId && !s.guest) {
         const seg = track.route.segments.find((x) => x.id === ev.segmentId);
         if (seg) sequences.segment({ seg, timeS: ev.timeMs / 1000, avgWatts: ride.avgWatts() }, s.name, track.route.id, ev.rank, net.roster.size);
-      } else if (ev.kind === 'chat') hud.toast(`${net.roster.get(ev.riderId)?.name ?? '?'} : ${ev.text}`);
+      } else if (ev.kind === 'chat') hud.addChat(net.roster.get(ev.riderId)?.name ?? '?', ev.text);
       else if (ev.kind === 'rideOn' && ev.to === net.selfId) hud.toast(`👍 Ride On — ${net.roster.get(ev.from)?.name ?? ''}`);
       else if (ev.kind === 'results') {
         const top = ev.results.filter((r) => r.rank > 0).sort((a, b) => a.rank - b.rank);
@@ -280,6 +282,14 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
         setTimeout(() => (ride.paused = false), Math.max(0, ev.startsAt - net.serverNow()));
       }
     });
+    // Chat vocal LiveKit (micro coupé à l'arrivée, V pour parler) et Ride On depuis la liste.
+    voice = new VoiceChat();
+    voice.onState = (st, detail) => hud.setVoice({ connected: st === 'connected', micOn: voice?.micOn ?? false, ...(detail ? { detail } : {}) });
+    void voice.connect(net.roomId);
+    hud.onRideOn = (id) => {
+      net.rideOn(id);
+      hud.toast(`👍 → ${net.roster.get(id)?.name ?? ''}`);
+    };
     mp.onCompanion((c) => {
       if (c.kind === 'shift') onShift(c.action);
       else if (c.kind === 'pause' || c.kind === 'resume') togglePause();
@@ -305,6 +315,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     engine.renderer.setAnimationLoop(null);
     clearInterval(sourcesTimer);
     void mp?.dispose();
+    void voice?.disconnect();
     tutorial?.stop();
     // Invité : ni XP compétitive, ni segments, ni FIT.
     const xp = s.guest ? undefined : awardRide({ distanceM: ride.state.distM - startD, elevationM: ride.elevationGainM, movingS: ride.elapsedS });
@@ -333,6 +344,11 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     if (e.key === 'c' || e.key === 'C') hud.toast(t(rig.cycle()));
     if (e.key === 'h' || e.key === 'H') hud.toggle();
     if (e.key === 'm' || e.key === 'M') audio.toggleMute();
+    if (mp && (e.key === 't' || e.key === 'T')) {
+      e.preventDefault();
+      hud.openChat((text) => mp?.net.chat(text));
+    }
+    if (voice && (e.key === 'v' || e.key === 'V')) void voice.toggleMic().then((on) => hud.setVoice({ connected: true, micOn: on }));
     // Équipiers : allure du groupe en % de FTP ([ / ]), ordre « ralentissez » (R).
     if ((e.key === '[' || e.key === ']') && peloton.riders.length) {
       peloton.paceFtpPct = Math.min(1.2, Math.max(0.5, (peloton.paceFtpPct ?? 0.75) + (e.key === ']' ? 0.05 : -0.05)));
@@ -467,7 +483,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
             { id: 'me', name: s.name, distM: ride.state.distM, x: pos.x, z: pos.z, me: true, isAI: false, isGuest: false, color: '#ffd23f' },
             ...remoteRiders.map((r) => {
               const p = track.sample(r.unwrappedM);
-              return { id: r.id, name: r.name, distM: r.unwrappedM, x: p.x, z: p.z, me: false, isAI: r.isAI, isGuest: r.isGuest, color: r.avatar.jersey };
+              return { id: r.id, name: r.name, distM: r.unwrappedM, x: p.x, z: p.z, me: false, isAI: r.isAI, isGuest: r.isGuest, color: r.avatar.jersey, online: !r.isAI, speaking: voice?.speaking.has(r.name) ?? false };
             }),
             ...peloton.riders.map((r) => {
               const p = track.sample(r.state.distM);
