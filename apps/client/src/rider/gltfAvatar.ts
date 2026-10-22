@@ -94,6 +94,8 @@ const MATERIALS: Record<string, [string, number, number]> = {
   shorts: ['#15171c', 0.55, 0],
   sock: ['#f2f2f2', 0.8, 0],
   shoe: ['#f2f2f2', 0.4, 0],
+  teeth: ['#e6dfcc', 0.35, 0],
+  mouth: ['#4a1c1e', 0.75, 0],
   shoe_sole: ['#1a1b1f', 0.6, 0],
   helmet: ['#f4f4f4', 0.35, 0],
   helmet_detail: ['#1c1d22', 0.6, 0],
@@ -821,6 +823,22 @@ export class GltfRiderAvatar implements RiderAvatarLike {
       const old = it.mesh.geometry;
       it.mesh.geometry = w.some(Boolean) ? bakeIdentity(it.base, id, w) : it.base;
       if (old !== it.base && old !== it.mesh.geometry) old.dispose();
+    }
+  }
+
+  /**
+   * Expressions (formes ARKit de l'avatar MPFB, docs/AVATARS.md § 5) : poids 0 → 1 par nom ;
+   * les noms absents du modèle sont ignorés.
+   */
+  setExpressions(weights: Readonly<Record<string, number>>): void {
+    for (const m of this.morphMeshes) {
+      const dict = m.morphTargetDictionary;
+      const inf = m.morphTargetInfluences;
+      if (!dict || !inf) continue;
+      for (const [k, v] of Object.entries(weights)) {
+        const i = dict[k];
+        if (i !== undefined) inf[i] = THREE.MathUtils.clamp(v, 0, 1);
+      }
     }
   }
 

@@ -230,6 +230,35 @@ async function sliderSheet(engine: Awaited<ReturnType<typeof createEngine>>): Pr
   g.font = '600 16px system-ui, sans-serif';
   const eye = a.eyeWorld(new THREE.Vector3());
   camera.fov = 30;
+  // &expr : formes d'expression (une par case, poids 1) au lieu des curseurs.
+  if (params.has('expr')) {
+    const names = new Set<string>();
+    a.root.traverse((o) => {
+      const d = (o as THREE.Mesh).morphTargetDictionary;
+      if (d) Object.keys(d).forEach((n) => names.add(n));
+    });
+    const ex = [...names];
+    const cols = 6;
+    sheet.width = cols * cw;
+    sheet.height = Math.ceil((ex.length + 1) / cols) * ch;
+    g.font = '600 16px system-ui, sans-serif';
+    for (const [i, name] of ['neutre', ...ex].entries()) {
+      a.setExpressions(Object.fromEntries(ex.map((n) => [n, n === name ? 1 : 0])));
+      camera.position.set(eye.x - 0.12, eye.y - 0.01, eye.z + 0.34);
+      camera.updateProjectionMatrix();
+      camera.lookAt(eye.x, eye.y - 0.05, eye.z);
+      engine.renderManual();
+      const x = (i % cols) * cw;
+      const y = Math.floor(i / cols) * ch;
+      g.drawImage(canvas, 390, 90, 500, 500, x, y, cw, ch);
+      g.fillStyle = '#000';
+      g.fillText(name, x + 8, y + 20);
+    }
+    document.body.replaceChildren(sheet);
+    sheet.style.cssText = 'display:block;width:100%;height:auto';
+    (window as unknown as { __avatarTestDone: boolean }).__avatarTestDone = true;
+    return;
+  }
   for (const [i, name] of list.entries()) {
     const body = BODY.has(name);
     for (const [j, v] of [-1, 0, 1].entries()) {

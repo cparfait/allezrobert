@@ -14,7 +14,7 @@ Allez Robert ! — avatar MPFB (docs/AVATARS.md, étapes 2 et 3).
   - casque, casque chrono, lunettes, cheveux et chaussures repris de cyclist.glb, recalés sur la
     nouvelle tête et les nouveaux pieds ; ils suivent les curseurs (cibles reportées depuis les
     sommets du corps les plus proches) ;
-  - compression meshopt et quantification (glTF-Transform, via npx ; --no-compress pour s'en passer).
+  - quantification et compression meshopt (avatars/compress.mjs ; --no-compress pour s'en passer).
 
 Usage (depuis la racine du dépôt) :
     blender -b --factory-startup --python tools/blender/avatars/build_avatar.py -- \\
@@ -44,7 +44,8 @@ ap = argparse.ArgumentParser()
 ap.add_argument('--mpfb', default='')
 ap.add_argument('--out', default='apps/client/public/models/avatar/')
 ap.add_argument('--cyclist', default='apps/client/public/models/cyclist.glb')
-# Compression meshopt + quantification par glTF-Transform (MIT, outil de fabrication seulement).
+# Quantification et compression meshopt (avatars/compress.mjs, glTF-Transform : MIT, outil de
+# fabrication seulement).
 ap.add_argument('--no-compress', action='store_true')
 args = ap.parse_args(argv)
 OUT = os.path.abspath(args.out)
@@ -179,6 +180,141 @@ def vgroup_members(ob, name, threshold=0.5):
     return out
 
 
+# Expressions ARKit (docs/AVATARS.md § 5), recréées à partir des unités d'expression MakeHuman
+# (CC0, moyenne des trois variantes d'origine) : nom → [(unité, poids)], masque. Masques : côté
+# gauche / droit du coureur (+X / −X), moitié haute / basse de la bouche. Les formes sans unité
+# (mâchoire latérale et en avant, bouche latérale, joues gonflées, regard) sont scriptées
+# (expression_shapes). Pas de langue (aide supprimée) : tongueOut est absent.
+EXPRESSIONS = {
+    'browDownLeft': ([('eyebrows-left-down', 1)], None),
+    'browDownRight': ([('eyebrows-right-down', 1)], None),
+    'browInnerUp': ([('eyebrows-left-inner-up', 1), ('eyebrows-right-inner-up', 1)], None),
+    'browOuterUpLeft': ([('eyebrows-left-extern-up', 1)], None),
+    'browOuterUpRight': ([('eyebrows-right-extern-up', 1)], None),
+    'cheekSquintLeft': ([('eye-left-slit', 0.5), ('mouth-corner-puller', 0.3)], 'cheekL'),
+    'cheekSquintRight': ([('eye-right-slit', 0.5), ('mouth-corner-puller', 0.3)], 'cheekR'),
+    'eyeBlinkLeft': ([('eye-left-closure', 1)], None),
+    'eyeBlinkRight': ([('eye-right-closure', 1)], None),
+    'eyeSquintLeft': ([('eye-left-slit', 0.7)], None),
+    'eyeSquintRight': ([('eye-right-slit', 0.7)], None),
+    'eyeWideLeft': ([('eye-left-opened-up', 1)], None),
+    'eyeWideRight': ([('eye-right-opened-up', 1)], None),
+    'jawOpen': ([('mouth-open', 1)], None),
+    'mouthClose': ([('mouth-compression', 0.6)], None),
+    'mouthFunnel': ([('mouth-protusion', 0.7), ('mouth-eversion', 0.5)], None),
+    'mouthPucker': ([('mouth-pursing', 1)], None),
+    'mouthSmileLeft': ([('mouth-corner-puller', 1)], 'L'),
+    'mouthSmileRight': ([('mouth-corner-puller', 1)], 'R'),
+    'mouthFrownLeft': ([('mouth-depression', 1)], 'L'),
+    'mouthFrownRight': ([('mouth-depression', 1)], 'R'),
+    'mouthDimpleLeft': ([('mouth-retraction', 0.7)], 'L'),
+    'mouthDimpleRight': ([('mouth-retraction', 0.7)], 'R'),
+    'mouthStretchLeft': ([('mouth-depression-retraction', 1), ('neck-platysma', 0.4)], 'L'),
+    'mouthStretchRight': ([('mouth-depression-retraction', 1), ('neck-platysma', 0.4)], 'R'),
+    'mouthRollLower': ([('mouth-compression', 0.8)], 'lower'),
+    'mouthRollUpper': ([('mouth-compression', 0.8)], 'upper'),
+    'mouthShrugLower': ([('mouth-elevation', 1)], 'lower'),
+    'mouthShrugUpper': ([('mouth-elevation', 1)], 'upper'),
+    'mouthPressLeft': ([('mouth-compression', 1)], 'L'),
+    'mouthPressRight': ([('mouth-compression', 1)], 'R'),
+    'mouthLowerDownLeft': ([('mouth-parling', 1)], 'lowerL'),
+    'mouthLowerDownRight': ([('mouth-parling', 1)], 'lowerR'),
+    'mouthUpperUpLeft': ([('mouth-upward-retraction', 1)], 'upperL'),
+    'mouthUpperUpRight': ([('mouth-upward-retraction', 1)], 'upperR'),
+    'noseSneerLeft': ([('nose-left-elevation', 1)], None),
+    'noseSneerRight': ([('nose-right-elevation', 1)], None),
+}
+
+
+MOUTH = []  # centre des lèvres (pose debout), pour l'intérieur de la bouche
+
+
+def smoothstep(a, b, x):
+    t = max(0.0, min(1.0, (x - a) / (b - a)))
+    return t * t * (3 - 2 * t)
+
+
+def expression_shapes(body, TS, LS):
+    """Ajoute les formes ARKit au corps (pose debout, avant la pose de course)."""
+    units = os.path.join(LS.get_mpfb_data('targets'), 'expression', 'units')
+    basis = body.data.shape_keys.key_blocks['Basis']
+    base = [d.co.copy() for d in basis.data]
+    head_w = [0.0] * len(base)
+    g = body.vertex_groups.get('head')
+    for v in body.data.vertices:
+        for ge in v.groups:
+            if g and ge.group == g.index:
+                head_w[v.index] = ge.weight
+    eye_idx = {s: sorted(vgroup_members(body, f'helper-{s}-eye')) for s in ('l', 'r')}
+    eye_c = {s: sum((base[i] for i in idx), Vector()) / len(idx) for s, idx in eye_idx.items()}
+
+    def unit_delta(name, w):
+        for o in ('african', 'asian', 'caucasian'):
+            TS.load_target(body, os.path.join(units, o, name + '.target.gz'), weight=w / 3, name='tmp_' + o + name)
+        k = body.shape_key_add(name='tmp_mix', from_mix=True)
+        d = [k.data[i].co - base[i] for i in range(len(base))]
+        for kb in list(body.data.shape_keys.key_blocks):
+            if kb.name.startswith('tmp_'):
+                body.shape_key_remove(kb)
+        return d
+
+    # Repères : centre de la bouche (lèvres pincées), commissures (sourire).
+    pur = unit_delta('mouth-pursing', 1)
+    wsum = sum(d.length for d in pur)
+    mouth = sum((base[i] * pur[i].length for i in range(len(base))), Vector()) / wsum
+    MOUTH[:] = [mouth]
+    print(f'bouche {tuple(round(c, 3) for c in mouth)}, yeux {tuple(round(c, 3) for c in eye_c["l"])}')
+
+    def mask(kind, co):
+        if kind is None:
+            return 1.0
+        side = smoothstep(mouth.x - 0.008, mouth.x + 0.008, co.x)
+        up = smoothstep(mouth.z - 0.004, mouth.z + 0.004, co.z)
+        cheek = smoothstep(mouth.z - 0.005, mouth.z + 0.02, co.z)
+        return {'L': side, 'R': 1 - side, 'upper': up, 'lower': 1 - up, 'upperL': up * side, 'upperR': up * (1 - side),
+                'lowerL': (1 - up) * side, 'lowerR': (1 - up) * (1 - side), 'cheekL': cheek * side, 'cheekR': cheek * (1 - side)}[kind]
+
+    def add(name, delta):
+        k = body.shape_key_add(name=name, from_mix=False)
+        for i, d in enumerate(delta):
+            k.data[i].co = base[i] + d
+        k.value = 0.0
+
+    for name, (parts, kind) in EXPRESSIONS.items():
+        tot = [Vector() for _ in base]
+        for u, w in parts:
+            for i, d in enumerate(unit_delta(u, w)):
+                tot[i] += d
+        add(name, [d * mask(kind, base[i]) for i, d in enumerate(tot)])
+
+    # Mâchoire : tout ce qui est sous la bouche et devant les oreilles, sur la tête.
+    jaw = [head_w[i] * smoothstep(mouth.z - 0.004, mouth.z - 0.03, c.z) * smoothstep(eye_c['l'].y + 0.1, eye_c['l'].y + 0.06, c.y)
+           for i, c in enumerate(base)]
+    add('jawForward', [Vector((0, -0.006, 0)) * w for w in jaw])
+    add('jawLeft', [Vector((0.007, 0, 0)) * w for w in jaw])
+    add('jawRight', [Vector((-0.007, 0, 0)) * w for w in jaw])
+    lips = [head_w[i] * math.exp(-((c - mouth).length / 0.022) ** 2) for i, c in enumerate(base)]
+    add('mouthLeft', [Vector((0.008, 0, 0)) * w for w in lips])
+    add('mouthRight', [Vector((-0.008, 0, 0)) * w for w in lips])
+    # Joues gonflées : bosse le long de la normale autour des deux joues.
+    nrm = [v.normal.copy() for v in body.data.vertices]
+    cheeks = [mouth + Vector((s * 0.03, 0.012, 0.012)) for s in (1, -1)]
+    add('cheekPuff', [nrm[i] * 0.009 * head_w[i] * max(math.exp(-((c - ch).length / 0.02) ** 2) for ch in cheeks) for i, c in enumerate(base)])
+    # Regard : rotation des globes autour de leur centre, paupières qui suivent un peu.
+    lids_up = {s: unit_delta(f'eye-{n}-opened-up', 0.3) for s, n in (('l', 'left'), ('r', 'right'))}
+    lids_dn = {s: unit_delta(f'eye-{n}-closure', 0.35) for s, n in (('l', 'left'), ('r', 'right'))}
+    for s, side in (('l', 'Left'), ('r', 'Right')):
+        inward = -1 if s == 'l' else 1  # vers le nez
+        for look, rot, lids in (('Up', Matrix.Rotation(math.radians(18), 3, 'X'), lids_up[s]),
+                                ('Down', Matrix.Rotation(math.radians(-20), 3, 'X'), lids_dn[s]),
+                                ('In', Matrix.Rotation(math.radians(22 * inward), 3, 'Z'), None),
+                                ('Out', Matrix.Rotation(math.radians(-22 * inward), 3, 'Z'), None)):
+            delta = list(lids) if lids else [Vector() for _ in base]
+            for i in eye_idx[s]:
+                delta[i] = rot @ (base[i] - eye_c[s]) + eye_c[s] - base[i]
+            add(f'eyeLook{look}{side}', delta)
+
+
 # ---------------------------------------------------------------------------------------------
 # Corps de base, curseurs, aides
 # ---------------------------------------------------------------------------------------------
@@ -239,12 +375,14 @@ def build_base(HS, TS, LS):
             back = sum(((inv[n] @ c1) * w for n, w in ws), Vector()) if ws else c1
             d.co = b0.co + imw.to_3x3() @ (back - c0)
         k.value = 0.0
+    expression_shapes(body, TS, LS)
     for m in list(body.modifiers):
         if m.type == 'MASK':
             body.modifiers.remove(m)
     # Globes oculaires à part ; les autres aides (cils, cheveux, collants, jupe…) sont supprimées.
     eyes_idx = vgroup_members(body, 'helper-l-eye') | vgroup_members(body, 'helper-r-eye')
-    keep = vgroup_members(body, 'body') | eyes_idx
+    mouth_idx = set().union(*(vgroup_members(body, g) for g in ('helper-upper-teeth', 'helper-lower-teeth', 'helper-tongue')))
+    keep = vgroup_members(body, 'body') | eyes_idx | mouth_idx
     set_active(body)
     bpy.ops.object.mode_set(mode='EDIT')
     bm = bmesh.from_edit_mesh(body.data)
@@ -397,7 +535,15 @@ def assign_kit(body, rig):
     pelvis_z = rig.data.bones['pelvis'].head_local.z
     chest_z = rig.data.bones['spine_03'].head_local.z
     vreg = [region_at(rig, dom[v.index] or 'pelvis', v.co, pelvis_z, chest_z) for v in me.vertices]
-    names = ['skin', 'jersey', 'jersey_accent', 'shorts', 'sock']
+    names = ['skin', 'jersey', 'jersey_accent', 'shorts', 'sock', 'teeth', 'mouth']
+    teeth = vgroup_members(body, 'helper-upper-teeth') | vgroup_members(body, 'helper-lower-teeth')
+    tongue = vgroup_members(body, 'helper-tongue')
+    mouth = MOUTH[0]
+
+    def inside_mouth(p):
+        c = p.center
+        return (abs(c.x - mouth.x) < 0.026 and abs(c.z - mouth.z) < 0.016 and c.y > mouth.y + 0.008
+                and c.y < mouth.y + 0.06 and p.normal.y > -0.3)
     me.materials.clear()
     for n in names:
         m = bpy.data.materials.get(n) or bpy.data.materials.new(n)
@@ -406,6 +552,13 @@ def assign_kit(body, rig):
     # rarement ; on prend la région de la face d'après son centre (mêmes règles que les sommets).
     mi = []
     for p in me.polygons:
+        vs = set(p.vertices)
+        if vs <= teeth:
+            mi.append(names.index('teeth'))
+            continue
+        if vs <= tongue or inside_mouth(p):
+            mi.append(names.index('mouth'))
+            continue
         rr = [vreg[i] for i in p.vertices]
         reg = region_at(rig, max(set([dom[i] for i in p.vertices if dom[i]] or ['pelvis']), key=[dom[i] for i in p.vertices].count), p.center, pelvis_z, chest_z)
         mi.append(names.index(reg if reg else max(set(rr), key=rr.count)))
@@ -686,12 +839,13 @@ def transfer_keys(body, objs):
     for i, c in enumerate(base):
         kd.insert(c, i)
     kd.balance()
-    deltas = {kb.name: [kb.data[i].co - base[i] for i in range(len(base))] for kb in list(keys)[1:]}
+    ident = [kb for kb in list(keys)[1:] if kb.name[-1] in '+-']
+    deltas = {kb.name: [kb.data[i].co - base[i] for i in range(len(base))] for kb in ident}
     for o in objs:
         n = 16 if o.name.startswith('rider_hair') else 24
         near = [[i for _, i, _ in kd.find_n(v.co, n)] for v in o.data.vertices]
         o.shape_key_add(name='Basis', from_mix=False)
-        for kb in list(keys)[1:]:
+        for kb in ident:
             d = deltas[kb.name]
             k = o.shape_key_add(name=kb.name, from_mix=False)
             for kd_, v, nb in zip(k.data, o.data.vertices, near):
@@ -711,7 +865,7 @@ def export(objs, path):
     bpy.context.view_layer.objects.active = objs[0]
     bpy.ops.export_scene.gltf(filepath=path, export_format='GLB', use_selection=True, export_yup=True,
                               export_apply=False, export_animations=False, export_skins=True, export_morph=True,
-                              export_morph_normal=True, export_try_sparse_sk=True, export_materials='EXPORT', export_normals=True,
+                              export_morph_normal=True, export_try_sparse_sk=False, export_materials='EXPORT', export_normals=True,
                               export_texcoords=True, export_cameras=False, export_lights=False, export_extras=False)
 
 
@@ -738,7 +892,7 @@ def main():
     raw = out if args.no_compress else os.path.join(OUT, 'rider.raw.glb')
     export([rig, body, eyes] + acc, raw)
     if not args.no_compress:
-        subprocess.run(['npx', '--yes', '@gltf-transform/cli@4.1.1', 'meshopt', raw, out], check=True)
+        subprocess.run(['pnpm', '--filter', '@allezrobert/blender-tools', 'compress:avatar', os.path.abspath(raw), os.path.abspath(out)], check=True)
         os.remove(raw)
         print(f'compressé : {os.path.getsize(out) / 1e6:.2f} Mo')
     print('exporté', os.path.join(OUT, 'rider.glb'))
