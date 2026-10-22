@@ -29,7 +29,7 @@
 
 /* Barre du haut */
 .mm-top { display: flex; align-items: center; gap: 22px; padding: 0 22px; border-bottom: 1px solid var(--mm-line); background: rgba(8, 11, 18, 0.72); backdrop-filter: blur(14px) saturate(1.2); }
-.mm-brand { font-size: 22px; font-weight: 800; letter-spacing: -0.02em; white-space: nowrap; }
+.mm-brand { appearance: none; border: 0; background: none; color: inherit; font: inherit; cursor: pointer; padding: 0; font-size: 22px; font-weight: 800; letter-spacing: -0.02em; white-space: nowrap; }
 .mm-brand em { color: var(--ar-accent); font-style: normal; }
 .mm-tabs { display: flex; align-items: stretch; height: 100%; gap: 2px; }
 .mm-tab { appearance: none; border: 0; background: none; color: #aeb7c3; font: inherit; font-weight: 700; font-size: 15px; letter-spacing: 0.02em; padding: 0 16px; cursor: pointer; position: relative; text-transform: uppercase; }
@@ -305,3 +305,11 @@
 .fe-photo-btn { display: inline-block; margin: 6px 8px 0 0; padding: 6px 12px; border-radius: 8px; background: #ffd23f; color: #111; font-weight: 700; cursor: pointer; }
 .fe-photo-btn[aria-disabled='true'] { opacity: 0.4; cursor: default; }
 #fe-photo-msg { font-size: 12px; color: rgba(255, 255, 255, 0.75); }
+
+/* Accueil : vidéo, titre et bouton Rouler seuls */
+.mm.mm-tab-home { display: block; }
+.mm-tab-home::before { background: linear-gradient(180deg, rgba(6, 9, 15, 0.35) 0, rgba(6, 9, 15, 0) 260px), linear-gradient(0deg, rgba(6, 9, 15, 0.55) 0, rgba(6, 9, 15, 0) 260px); }
+.mm-hero.mm-hero-home { position: absolute; top: 9vh; left: 0; right: 0; }
+.mm-hero.mm-hero-home h1 { font-size: clamp(64px, 8vw, 140px); }
+.mm-home-go { position: absolute; left: 50%; bottom: 8vh; transform: translateX(-50%); font-size: 26px; padding: 20px 64px; }
+.mm-home-go:hover span { transform: translateX(6px); }

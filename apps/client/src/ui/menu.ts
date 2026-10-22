@@ -48,7 +48,7 @@ function esc(s: string): string {
   return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] as string);
 }
 
-type Tab = 'ride' | 'friends' | 'garage' | 'devices' | 'profile' | 'settings';
+type Tab = 'home' | 'ride' | 'friends' | 'garage' | 'devices' | 'profile' | 'settings';
 type Role = Parameters<DevicePanel['pair']>[0];
 
 const fr = () => getLang() === 'fr';
@@ -140,7 +140,8 @@ export class MainMenu {
     if (!this.root.querySelector('.mm') || this.root.querySelector('.mm-modal')) return;
     const tag = (e.target as HTMLElement | null)?.tagName;
     if (tag === 'INPUT' || tag === 'SELECT') return;
-    if (e.key === 'Escape' && this.tab !== 'ride') this.go('ride');
+    // Échap : d'un onglet vers Rouler, de Rouler vers l'accueil.
+    if (e.key === 'Escape' && this.tab !== 'home') this.go(this.tab === 'ride' ? 'home' : 'ride');
   };
   onSettingsChange?: (s: Settings) => void;
   /** Relance le tutoriel (onboarding) depuis le menu. */
@@ -222,11 +223,11 @@ export class MainMenu {
     });
   }
 
-  show(tab: Tab = 'ride'): void {
+  show(tab: Tab = 'home'): void {
     document.addEventListener('keydown', this.onKey);
     this.friends.start();
     // Lien /?ami=CODE : l'onglet Amis propose la demande.
-    this.go(tab === 'ride' && this.friends.hasPendingCode() ? 'friends' : tab);
+    this.go((tab === 'home' || tab === 'ride') && this.friends.hasPendingCode() ? 'friends' : tab);
   }
 
   hide(): void {
@@ -364,7 +365,17 @@ export class MainMenu {
       .join('')
       .slice(0, 2)
       .toUpperCase();
+    // Accueil : rien que la vidéo, le titre et le bouton Rouler, qui ouvre le menu.
+    if (this.tab === 'home') {
+      this.root.innerHTML = `<div class="mm mm-tab-home">
+        <div class="mm-hero mm-hero-home"><h1>Allez <em>Robert</em> !</h1><p>${L ? 'Rouler ensemble, chacun chez soi.' : 'Ride together, each from home.'}</p></div>
+        <button class="mm-go mm-home-go" data-tab="ride">${t('ride')} <span>→</span></button>
+      </div>`;
+      this.bind();
+      return;
+    }
     const body: Record<Tab, () => string> = {
+      home: () => '',
       ride: () => this.rideHtml(),
       friends: () => this.friends.html(),
       garage: () => this.garageHtml(),
@@ -379,7 +390,7 @@ export class MainMenu {
     this.panelKey = key;
     this.root.innerHTML = `<div class="mm mm-tab-${this.tab}">
       <header class="mm-top">
-        <div class="mm-brand">Allez <em>Robert</em> !</div>
+        <button class="mm-brand" data-tab="home" title="${L ? 'Accueil' : 'Home'}">Allez <em>Robert</em> !</button>
         <nav class="mm-tabs">${tabs.map(([id, label]) => `<button class="mm-tab ${id === this.tab ? 'on' : ''}" data-tab="${id}">${esc(label)}${id === 'friends' ? this.friends.badgeHtml() : ''}</button>`).join('')}
           <button class="mm-tab subtle" id="m-tuto">${L ? 'Tutoriel' : 'Tutorial'}</button></nav>
         <div class="mm-right">
