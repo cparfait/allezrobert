@@ -25,6 +25,8 @@ export interface DevicePanel {
   adapters?(): Promise<Array<{ id: string; name: string; isDefault: boolean }>>;
   selectAdapter?(id: string): Promise<void>;
   onChange(cb: () => void): void;
+  /** Réglages avancés du matériel (calibration, ventilateur, adaptateurs, journal) : ui/hardware-panel.ts. */
+  renderExtras?(el: HTMLElement): void;
 }
 
 export interface MenuCallbacks {
@@ -707,8 +709,11 @@ export class MainMenu {
         .warnings()
         .map((w) => `<div class="warning">${esc(w)}</div>`)
         .join('')}
-      <div class="mm-note">${t('oneAppAtATime')}<br/>${t('edgeWarn')}</div>`;
+      <div class="mm-note">${t('oneAppAtATime')}<br/>${t('edgeWarn')}</div>
+      <div id="m-devextra"></div>`;
     this.bindSegs(box);
+    const extra = box.querySelector<HTMLElement>('#m-devextra');
+    if (extra) this.devices.renderExtras?.(extra);
     box.querySelectorAll<HTMLButtonElement>('[data-pair]').forEach((b) =>
       b.addEventListener('click', async () => {
         const transport = (box.querySelector('#m-transport') as HTMLElement).dataset.value ?? '';
