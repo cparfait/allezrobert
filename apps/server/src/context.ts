@@ -1,6 +1,6 @@
 /**
  * Assemblage des services du serveur (configuration, base, chiffrement, jetons, e-mail,
- * intégrations, registre des sorties, itinéraires) partagé par l'API HTTP et les salles.
+ * intégrations, registre des sorties, amis, itinéraires) partagé par l'API HTTP et les salles.
  */
 import type { Config } from './config.ts';
 import { DataCipher } from './crypto.ts';
@@ -10,6 +10,8 @@ import { TokenService } from './auth/tokens.ts';
 import { createMailer, type Mailer } from './auth/mailer.ts';
 import { UploadService } from './integrations/uploads.ts';
 import { RideRegistry } from './ride/registry.ts';
+import { FriendRepo } from './db/friends.ts';
+import { FriendHub } from './friends/hub.ts';
 import type { RouteStore } from './ride/routes.ts';
 import type { RideServices } from './ride/services.ts';
 import { parseCookies, SESSION_COOKIE } from './http/cookies.ts';
@@ -37,6 +39,8 @@ export interface AppContext {
   mailer: Mailer;
   uploads: UploadService;
   registry: RideRegistry;
+  /** Amis : dépôt SQL, présence et invitations à rouler (en mémoire). */
+  friends: FriendHub;
   routes: RouteStore;
   fetchFn: typeof fetch;
   log: Logger;
@@ -59,6 +63,7 @@ export function createContext(config: Config, db: Db, routes: RouteStore, opts: 
       : null;
   const uploads = new UploadService(repos, strava, fetchFn);
   const cache = new Map<string, number>();
+  const registry = new RideRegistry();
 
   return {
     config,
@@ -68,7 +73,8 @@ export function createContext(config: Config, db: Db, routes: RouteStore, opts: 
     tokens,
     mailer,
     uploads,
-    registry: new RideRegistry(),
+    registry,
+    friends: new FriendHub(new FriendRepo(db), registry),
     routes,
     fetchFn,
     log,
