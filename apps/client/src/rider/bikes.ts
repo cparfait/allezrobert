@@ -2,6 +2,7 @@ import * as THREE from 'three/webgpu';
 import { GLTFLoader, type GLTF } from 'three/addons/loaders/GLTFLoader.js';
 import { BIKES, PLAIN_BIKE_FAMILY, type AvatarLook, type BikeBuild, type BikeFamily } from '@allezrobert/shared';
 import { LiveryMaterial } from './livery.ts';
+import { RimDecalMaterial, measureBand, type RimBand } from './rimDecal.ts';
 import { decalBoxes, frameMarks, wordmarkTexture } from './wordmarks.ts';
 
 /**
@@ -170,12 +171,16 @@ export function assembleBike(build: BikeBuild, family: BikeFamily, lod: 0 | 1): 
     w.name = `wheel_${pos}`;
     w.position.copy(axle.position);
     w.scale.copy(axle.scale);
-    // Roue lenticulaire : flancs peints de la couleur `disc` de la livrée (matériau à part).
-    if (type === 'disc')
-      w.traverse((o) => {
-        const m = (o as THREE.Mesh).material as THREE.Material | undefined;
-        if (m?.name === 'rim') o.userData.matKey = 'disc_face';
-      });
+    w.traverse((o) => {
+      const m = (o as THREE.Mesh).material as THREE.Material | undefined;
+      // Roue lenticulaire : flancs peints de la couleur `disc` de la livrée (matériau à part).
+      if (type === 'disc' && m?.name === 'rim') o.userData.matKey = 'disc_face';
+      // Bande décor : nom de la marque des roues, matériau propre à la largeur de bande.
+      if (m?.name === 'rim_decal' && build.params.rimBrand) {
+        const b = measureBand((o as THREE.Mesh).geometry);
+        o.userData.matKey = `rim_decal:${type === 'box' ? 'box' : type === 'disc' ? 'disc' : 'carbon'}:${b.r0.toFixed(4)}:${b.r1.toFixed(4)}`;
+      }
+    });
     const rotor = w.getObjectByName(`${src.name}_rotor`);
     if (rotor) rotor.visible = brakes === 'disc';
     group.add(w);
@@ -210,6 +215,7 @@ export class BikeMaterials {
 
   get(name: string): THREE.Material {
     if (name === 'frame') return this.livery.material;
+    if (name.startsWith('rim_decal:')) return this.rimDecal(name);
     let m = this.byName.get(name);
     if (!m) {
       const def = BIKE_MATERIALS[name] ?? ['#808080', 0.6, 0];
@@ -226,23 +232,46 @@ export class BikeMaterials {
     return m;
   }
 
+  private readonly rims = new Map<string, RimDecalMaterial>();
+
+  /** Bande décor d'une roue avec le nom de la marque (clé : rim_decal:<fond>:<r0>:<r1>). */
+  private rimDecal(key: string): THREE.Material {
+    let r = this.rims.get(key);
+    if (!r) {
+      const [, base, r0, r1] = key.split(':');
+      r = new RimDecalMaterial({ base: base as RimBand['base'], r0: Number(r0), r1: Number(r1) }, this.build.params.rimBrand ?? '');
+      this.rims.set(key, r);
+      this.tintRim(r, base as RimBand['base']);
+    }
+    return r.material;
+  }
+
+  private tintRim(r: RimDecalMaterial, base: RimBand['base']): void {
+    r.set(this.build.livery.rim, base === 'disc' ? (this.build.livery.disc ?? BIKE_MATERIALS.disc_face?.[0]) : undefined);
+  }
+
   /** Même vélo, nouvelle livrée ou nouvelle tenue : couleurs mises à jour sans recompiler. */
   update(build: BikeBuild, look: AvatarLook): void {
     this.build = build;
     this.look = look;
     this.livery.set(build.livery);
     for (const m of this.byName.values()) this.tint(m);
+    for (const [key, r] of this.rims) this.tintRim(r, key.split(':')[1] as RimBand['base']);
   }
 
   dispose(): void {
     this.livery.dispose();
     for (const m of this.byName.values()) m.dispose();
+    for (const r of this.rims.values()) r.material.dispose();
   }
 
   private tint(m: THREE.MeshStandardNodeMaterial): void {
+    // Vélo d'avant les compteurs GPS : compteur du cintre masqué.
+    if (m.name === 'computer' || m.name === 'computer_screen') m.visible = this.build.params.computer !== false;
     const liv = this.build.livery;
     const col: Partial<Record<string, string | undefined>> = {
-      rim_decal: liv.rim,
+      // Bande décor sans marque de roue (vélo de base) : fondue dans la jante.
+      rim_decal: this.build.params.rimBrand ? liv.rim : BIKE_MATERIALS.rim?.[0],
       disc_face: liv.disc,
       tire_wall: liv.tireWall,
       saddle: liv.saddle,

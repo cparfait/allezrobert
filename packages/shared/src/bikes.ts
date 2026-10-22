@@ -67,6 +67,8 @@ export interface BikeParams {
   track?: boolean;
   /** Bidons (par défaut : oui, sauf vélo de piste). */
   bottles?: boolean;
+  /** Compteur GPS sur le cintre (par défaut : oui ; non pour les vélos d'avant les GPS). */
+  computer?: boolean;
 }
 
 export interface BikeModel {

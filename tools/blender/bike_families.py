@@ -867,16 +867,18 @@ def build_wheel_lib(typ, front, lod=0):
         half = [(0.0, 0.0105), (0.25, 0.0108), (0.6, 0.0102), (1.0, 0.0)]
         body = 'chrome'
     else:
-        half = [(0.0, 0.0122), (0.12, 0.0152), (0.4, 0.0154), (0.6, 0.015), (1.0, 0.0)]
+        half = [(0.0, 0.0122), (0.12, 0.0152), (0.4, 0.0154), (0.6, 0.015), (0.85, 0.0105), (1.0, 0.0)]
         if lod:
-            half = [(0.0, 0.0122), (0.45, 0.0154), (1.0, 0.0)]
+            half = [(0.0, 0.0122), (0.12, 0.0152), (0.85, 0.0105), (1.0, 0.0)]
         body = 'rim'
     if lod and typ == 'box':
         half = [(0.0, 0.0105), (0.45, 0.0108), (1.0, 0.0)]
     prof = [(r0 - t * (r0 - r1), w) for t, w in half] + [(r0 - t * (r0 - r1), -w) for t, w in reversed(half[:-1])]
     segm = []
-    lo, hi = (0.2, 0.7) if typ == 'box' else (0.39, 0.61)
-    if lod:
+    # Bande décor (inscriptions de la marque, rider/rimDecal.ts) : flancs, de 12 à 85 % de la
+    # hauteur de jante, comme les autocollants des vraies jantes.
+    lo, hi = (0.2, 0.7) if typ == 'box' else (0.1, 0.9)
+    if lod and typ == 'box':
         lo, hi = 0.15, 0.75
     for j in range(len(prof)):
         a, b = prof[j], prof[(j + 1) % len(prof)]

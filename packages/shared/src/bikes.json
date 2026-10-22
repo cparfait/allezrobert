@@ -3022,7 +3022,8 @@
     ],
     "rimBrand": "mavic",
     "aeroHelmet": true,
-    "bottles": false
+    "bottles": false,
+    "computer": false
    },
    "livery": {
     "colors": [
@@ -4164,7 +4165,8 @@
      "c50"
     ],
     "rimBrand": "zipp",
-    "bottles": false
+    "bottles": false,
+    "computer": false
    },
    "livery": {
     "colors": [
@@ -4533,7 +4535,8 @@
     ],
     "rimBrand": "mavic",
     "aeroHelmet": true,
-    "bottles": false
+    "bottles": false,
+    "computer": false
    },
    "livery": {
     "colors": [
@@ -4577,7 +4580,8 @@
     "rimBrand": "mavic",
     "aeroHelmet": true,
     "track": true,
-    "bottles": false
+    "bottles": false,
+    "computer": false
    },
    "livery": {
     "colors": [
@@ -4621,7 +4625,8 @@
     "rimBrand": "campagnolo",
     "aeroHelmet": true,
     "track": true,
-    "bottles": false
+    "bottles": false,
+    "computer": false
    },
    "livery": {
     "colors": [
@@ -4671,7 +4676,8 @@
     ],
     "rimBrand": "mavic",
     "aeroHelmet": true,
-    "bottles": false
+    "bottles": false,
+    "computer": false
    },
    "livery": {
     "colors": [

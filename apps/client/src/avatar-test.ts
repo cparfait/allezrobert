@@ -669,8 +669,14 @@ async function bikeSheet(engine: Awaited<ReturnType<typeof createEngine>>, list:
       camera.lookAt(0, 0.88, 0.5);
     } else if (params.get('view') === '3q') camera.position.set(sx * 2.2, 1.5, 2.6);
     else if (params.get('view') === 'back') camera.position.set(sx * 1.2, 1.9, -3.4);
+    else if (params.get('view') === 'wheel') {
+      // Gros plan de la roue arrière (inscriptions des jantes).
+      camera.position.set(sx * 2.3, 0.4, -0.45);
+      camera.updateProjectionMatrix();
+      camera.lookAt(0, 0.33, -0.45);
+    }
     else camera.position.set(sx * (riderOn ? 4.4 : 3.4) * Number(params.get('zoom') ?? 1), riderOn ? 0.95 : 0.62, 0.09);
-    if (!['face', 'portrait', 'cockpit', 'cockpitside'].includes(params.get('view') ?? '')) {
+    if (!['face', 'portrait', 'cockpit', 'cockpitside', 'wheel'].includes(params.get('view') ?? '')) {
       camera.updateProjectionMatrix();
       camera.lookAt(0, riderOn ? 0.85 : 0.56, 0.09);
     }
