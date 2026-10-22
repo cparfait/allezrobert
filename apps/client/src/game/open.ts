@@ -38,9 +38,11 @@ export class OpenNavigator {
   constructor(graph: RoadGraphData, start: { x: number; z: number }, name: string) {
     this.net = new RoadNet(graph);
     this.path = new OpenPath(this.net);
-    // Départ : route revêtue la plus proche, dans le sens autorisé.
+    // Départ : la voie sous le point de départ (à moins de 15 m), sinon la route revêtue la plus
+    // proche, dans le sens autorisé.
     const paved = (e: { surface: string; kind: string }) => /^(asphalt|paved|concrete|chipseal)/.test(e.surface) && e.kind !== 'service' && e.kind !== 'track';
-    const near = this.net.nearest(start.x, start.z, paved) ?? this.net.nearest(start.x, start.z);
+    const under = this.net.nearest(start.x, start.z);
+    const near = under && under.dist < 15 ? under : (this.net.nearest(start.x, start.z, paved) ?? under);
     if (!near) throw new Error('Graphe routier vide');
     const forward = this.net.allowed({ edge: near.edge, forward: true });
     const len = this.net.edge(near.edge).len;

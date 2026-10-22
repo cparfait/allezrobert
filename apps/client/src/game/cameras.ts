@@ -49,6 +49,8 @@ export class CameraRig {
   private droneAngle = 0;
   private photo = { yaw: 0, pitch: 0.2, dist: 6 };
   private dragging = false;
+  /** Regarder derrière soi (touche X maintenue) : caméra devant le coureur, tournée vers l'arrière. */
+  lookBack = false;
   /** Objets qui bloquent la vue (bâtiments) : la caméra TV cherche un plan dégagé. */
   occluders: THREE.Object3D[] = [];
   private readonly ray = new THREE.Raycaster();
@@ -117,6 +119,16 @@ export class CameraRig {
     const desired = new THREE.Vector3();
     const look = new THREE.Vector3();
     let stiffness = 6;
+    if (this.lookBack && this.mode !== 'tv' && this.mode !== 'photo' && this.mode !== 'drone') {
+      // Coup d'œil en arrière : qui arrive, l'équipier lâché, la voiture qui va doubler.
+      desired.copy(t.position).addScaledVector(t.dir, 5).add(new THREE.Vector3(0, 1.9, 0));
+      look.copy(t.position).addScaledVector(t.dir, -12).add(new THREE.Vector3(0, 1.0, 0));
+      this.smoothPos.lerp(desired, 1 - Math.exp(-dt * 10));
+      this.smoothLook.lerp(look, 1 - Math.exp(-dt * 10));
+      cam.position.copy(this.smoothPos);
+      cam.lookAt(this.smoothLook);
+      return;
+    }
     switch (this.mode) {
       case 'chase': {
         // Derrière et au-dessus, regard vers un point devant le coureur (anticipe les virages).

@@ -72,8 +72,8 @@ Idées seulement : ni nom, ni asset, ni code, ni physique de NCT Ride (la vitess
 | 3 | Monde vivant : trafic qui double en s'écartant, piétons, déclencheurs à une distance de route | 3 | fait (voitures, camionnettes, tracteur, piétons, cyclistes dans les deux sens) ; trains : à faire |
 | 4 | Son positionné depuis OSM (église → cloches, prairie → vaches, eau…) | 3 | fait |
 | 5 | Caméra « GoPro » sur la poitrine | 3 | fait |
-| 6 | Poussière sur les chemins, roulement selon le revêtement | 3 | roulement fait (Crr et son selon le tag OSM `surface`, pneus gravel) ; poussière : à faire |
-| 7 | Foule avec pancartes et photo automatique au sommet des segments, réutilisée dans la vidéo résumé | 5 | fait (foule animée, photo au sommet, en fond de l'image de partage) ; pancartes et vidéo résumé : à faire |
+| 6 | Poussière sur les chemins, roulement selon le revêtement | 3 | fait (Crr et son selon le tag OSM `surface`, pneus gravel et VTT, poussière derrière la roue sur chemin sec) |
+| 7 | Foule avec pancartes et photo automatique au sommet des segments, réutilisée dans la vidéo résumé | 5 | fait (foule animée avec pancartes, photo au sommet enregistrable, en fond de l'image de partage) ; vidéo résumé : à faire |
 | 8 | Image de fin de sortie à partager | 5 | fait |
 | 9 | Mondes génériques (emprise + itinéraires via tools/terrain) | 3 | pipeline générique fait ; montée célèbre à tester |
 | 10 | Contrôle visuel automatique du monde généré | 3 | fait (?worldcheck=1, toits inversés corrigés à la construction) ; détection automatique d'anomalies : à faire |
@@ -91,9 +91,11 @@ Idées seulement : ni nom, ni asset, ni code, ni physique de NCT Ride (la vitess
 - [ ] Mode défi (battre les KOM)
 - [x] VTT, roues carbone 40 / 50 / 88 mm (les hautes moins bonnes en côte), chaussettes hautes (−0,7 %) — modèle 3D du VTT à faire
 - [ ] Couleur des chaussures, tenues préréglées
-- [ ] Demi-tour sur les itinéraires (aller rechercher les équipiers), vue arrière
+- [x] Vue arrière (X maintenue)
+- [ ] Demi-tour sur les itinéraires (aller rechercher les équipiers ; fait en monde ouvert)
 - [x] Photo du sommet enregistrable depuis l'écran de fin
-- [ ] Trains déclenchés à un point précis, poussière sur les chemins, pancartes dans la foule
+- [x] Poussière sur les chemins secs, pancartes dans la foule (dont « Allez <ton nom> ! »)
+- [ ] Trains déclenchés à un point précis
 - [ ] Groupe : heure de départ et météo qui évolue
 
 ## Plus tard

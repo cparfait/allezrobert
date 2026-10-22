@@ -1,7 +1,8 @@
 import './hud/hud.css';
 import * as THREE from 'three/webgpu';
 import { RouteTrack, bikeSetupFor, type RiderProfile, type RouteData } from '@allezrobert/shared';
-import { surfaceRoughness } from '@allezrobert/physics';
+import { surfaceClass, surfaceRoughness } from '@allezrobert/physics';
+import { Dust } from './world/dust.ts';
 import { createEngine, type Engine } from './engine/renderer.ts';
 import { QUALITY_PRESETS, withUrlOverrides, type QualitySettings } from './engine/quality.ts';
 import { World } from './world/world.ts';
@@ -361,7 +362,12 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   // Monde ouvert : chemin construit au fil des carrefours (le même RouteTrack s'allonge).
   const nav =
     s.mode === 'open' && source.open
-      ? new OpenNavigator(source.open.graph, source.open.start, getLang() === 'fr' ? `Monde ouvert — ${source.name}` : `Open world — ${source.name}`)
+      ? new OpenNavigator(
+          source.open.graph,
+          // Départ ailleurs qu'au point par défaut : ?x=…&z=… (repère monde, m).
+          new URLSearchParams(location.search).has('x') ? { x: Number(new URLSearchParams(location.search).get('x')), z: Number(new URLSearchParams(location.search).get('z') ?? 0) } : source.open.start,
+          getLang() === 'fr' ? `Monde ouvert — ${source.name}` : `Open world — ${source.name}`,
+        )
       : null;
   const track = nav ? nav.track : scene.track;
   if (nav) {
@@ -418,12 +424,15 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   const rig = new CameraRig(engine.camera, track, (x, z) => world.terrain.heightAt(x, z), engine.renderer.domElement);
   rig.occluders = [world.buildings.group];
   // Public sur les côtes (une fois le terrain chargé autour du départ).
-  const crowd = new Crowd(track, (x, z) => world.terrain.heightAt(x, z));
+  const crowd = new Crowd(track, (x, z) => world.terrain.heightAt(x, z), s.name);
   engine.scene.add(crowd.mesh);
   engine.scene.add(new TownSigns(track, (x, z) => world.terrain.heightAt(x, z)).group);
   // Monde vivant : circulation et piétons (désactivable par ?traffic=0).
   const traffic = params.get('traffic') === '0' ? null : new Traffic(track);
   if (traffic) engine.scene.add(traffic.group);
+  // Poussière derrière la roue arrière sur les chemins.
+  const dust = new Dust();
+  engine.scene.add(dust.mesh);
   // Cyclistes croisés dans les deux sens (désactivables avec le trafic ou par ?cyclists=0).
   const cyclists = traffic && params.get('cyclists') !== '0' ? new AmbientCyclists(engine.scene, track, startD) : null;
   const hud = new Hud(hudRoot, track, source.attribution);
@@ -641,6 +650,9 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     if (ride.paused) showPause(ui, { onResume: togglePause, onFinish: finish });
     else ui.innerHTML = '';
   };
+  window.addEventListener('keyup', (e) => {
+    if (e.key === 'x' || e.key === 'X') rig.lookBack = false;
+  });
   window.addEventListener('keydown', (e) => {
     if ((e.target as HTMLElement | null)?.tagName === 'INPUT') return;
     if (nav && rig.mode !== 'free' && (e.key === 'ArrowLeft' || e.key === 'ArrowRight') && choosing()) {
@@ -654,6 +666,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
         hud.toast(getLang() === 'fr' ? '↶ Demi-tour' : '↶ U-turn');
       }
     }
+    if (e.key === 'x' || e.key === 'X') rig.lookBack = true;
     if (e.key === 'c' || e.key === 'C') {
       const m = rig.cycle();
       hud.toast(t(m === 'free' ? 'freeCam' : m));
@@ -776,8 +789,11 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     avatar.root.rotateY(heading);
     avatar.root.rotateX(-Math.atan(sample.grade / 100));
     avatar.update(dt, ride.inputs.cadence, ride.state.speedMs, ride.pose, bank);
+    // Chemin sec : poussière ; mouillé : presque rien.
+    const sc = surfaceClass(ride.surface);
+    dust.update(dt, !ride.paused && (sc === 'gravel' || sc === 'dirt' || sc === 'compacted') ? { pos, dir, speedMs: ride.state.speedMs, amount: ride.rain > 0.3 ? 0.15 : 1 } : null, engine.camera);
     // Vue subjective et caméra embarquée : on garde le vélo, les bras et les mains, mais pas la tête.
-    const onboard = rig.mode === 'cockpit' || rig.mode === 'gopro';
+    const onboard = (rig.mode === 'cockpit' || rig.mode === 'gopro') && !rig.lookBack;
     avatar.setHeadVisible(!onboard);
     peloton.render(dt, engine.camera);
 
