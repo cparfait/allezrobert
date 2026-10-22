@@ -342,6 +342,12 @@ export function mountApi(app: express.Application, ctx: AppContext): void {
     res.json({ roomId: e.roomId, inviteCode: e.inviteCode, name: e.name, routeId: e.routeId, mode: e.mode });
   });
 
+  /** Voix disponible : LiveKit configuré, et lien du salon Discord de repli (public, sans compte). */
+  api.get('/voice', (_req, res) => {
+    const c = ctx.config;
+    res.json({ livekit: !!(c.LIVEKIT_URL && c.LIVEKIT_API_KEY && c.LIVEKIT_API_SECRET), discordInvite: c.DISCORD_VOICE_INVITE ?? null });
+  });
+
   /** Jeton LiveKit pour la voix de la sortie (participants uniquement). */
   api.get('/rides/:roomId/voice-token', async (req: AuthedRequest, res) => {
     const u = requireUser(req);

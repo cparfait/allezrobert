@@ -35,7 +35,7 @@ import { Crowd } from './world/crowd.ts';
 import { TownSigns } from './world/signs.ts';
 import { Traffic, loadVehicleModels } from './world/traffic.ts';
 import { Multiplayer } from './game/multiplayer.ts';
-import { VoiceChat } from './game/voice.ts';
+import { VoiceChat, fetchVoiceConfig } from './game/voice.ts';
 import type { InterpolatedRider } from './net/index.ts';
 
 const ui = document.getElementById('ui') as HTMLElement;
@@ -465,7 +465,9 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     });
     // Chat vocal LiveKit (micro coupé à l'arrivée, V pour parler) et Ride On depuis la liste.
     voice = new VoiceChat();
-    voice.onState = (st, detail) => hud.setVoice({ connected: st === 'connected', micOn: voice?.micOn ?? false, ...(detail ? { detail } : {}) });
+    // Repli Discord : lien du salon proposé quand LiveKit est absent ou échoue.
+    const voiceCfg = fetchVoiceConfig();
+    voice.onState = (st, detail) => void voiceCfg.then((cfg) => hud.setVoice({ connected: st === 'connected', micOn: voice?.micOn ?? false, ...(detail ? { detail } : {}), discordUrl: cfg.discordInvite }));
     void voice.connect(net.roomId);
     hud.onRideOn = (id) => {
       net.rideOn(id);

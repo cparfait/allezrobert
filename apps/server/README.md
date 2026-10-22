@@ -27,6 +27,9 @@ Puis dans `apps/server/.env` : `LIVEKIT_URL=ws://localhost:7880`, `LIVEKIT_API_K
 (clés de développement publiques de LiveKit). `--node-ip 127.0.0.1` est indispensable sous Docker Windows,
 sinon WebRTC annonce l'IP interne du conteneur (« could not establish pc connection »).
 
+Repli de la voix : `DISCORD_VOICE_INVITE=https://discord.gg/…` (salon vocal Discord proposé dans le jeu quand
+LiveKit est absent ou échoue ; `GET /api/voice` → `{ livekit, discordInvite }`).
+
 Voix off du tutoriel : `CARTESIA_API_KEY=…` dans `apps/server/.env` (jamais versionné). `POST /api/tts {text, lang}`
 renvoie un MP3 mis en cache dans `TTS_CACHE_DIR` ; voix réglables par `CARTESIA_VOICE_FR` / `CARTESIA_VOICE_EN`.
 
@@ -212,6 +215,7 @@ Outils purs exportés aussi : `SnapshotBuffer`, `ClockSync`, `SelfReconciler`.
 | `GET /integrations`, `GET /integrations/strava/start` → `/callback`, `DELETE /integrations/strava`, `PUT /integrations/intervals {apiKey, athleteId?}`, `DELETE /integrations/intervals` | Liaisons |
 | `GET /rides/code/:code`, `GET /rides/current` | Code d'invitation → salle ; sortie en cours (compagnon) |
 | `GET /rides/:roomId/voice-token` | Jeton LiveKit (participants seulement), salle `ride-<roomId>` |
+| `GET /voice` | Voix disponible : `{ livekit, discordInvite }` (salon Discord de repli, public) |
 | `POST /renders {composition, activityId?, lang?, variables?}`, `GET /renders`, `GET /renders/:id`, `GET /renders/:id/file` | File de rendu vidéo (`summary`, `intro`, `kom`, `sprint`, `podium`, `tv`) |
 
 Sécurité : CORS limité à `CORS_ORIGINS`, contrôle de l'en-tête `Origin` sur les requêtes

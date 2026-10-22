@@ -50,6 +50,14 @@ export const ConfigSchema = z.object({
   LIVEKIT_URL: optionalString,
   LIVEKIT_API_KEY: optionalString,
   LIVEKIT_API_SECRET: optionalString,
+  /**
+   * Repli de la voix : lien d'invitation d'un salon Discord (https://discord.gg/… ou
+   * https://discord.com/invite/…), proposé dans le jeu quand LiveKit est absent ou échoue.
+   */
+  DISCORD_VOICE_INVITE: optionalString.refine(
+    (v) => v === undefined || /^https:\/\/(discord\.gg|(www\.)?discord(app)?\.com\/invite)\/[A-Za-z0-9-]{2,64}\/?$/.test(v),
+    'DISCORD_VOICE_INVITE : lien https://discord.gg/… ou https://discord.com/invite/… attendu',
+  ),
 
   /** Synthèse vocale (voix off du tutoriel) : clé Cartesia, uniquement côté serveur. */
   CARTESIA_API_KEY: optionalString,

@@ -222,8 +222,11 @@ export class Hud {
     };
   }
 
-  /** État du micro du chat vocal (null = pas de voix). */
-  setVoice(state: null | { connected: boolean; micOn: boolean; detail?: string }): void {
+  /**
+   * État du micro du chat vocal (null = pas de voix). `discordUrl` : salon Discord de repli,
+   * proposé quand la voix intégrée (LiveKit) est indisponible.
+   */
+  setVoice(state: null | { connected: boolean; micOn: boolean; detail?: string; discordUrl?: string | null }): void {
     const chip = this.el.voice as HTMLElement;
     if (!state) {
       chip.classList.add('hidden');
@@ -231,6 +234,15 @@ export class Hud {
     }
     chip.classList.remove('hidden');
     chip.textContent = !state.connected ? `🎙 ${state.detail ?? 'voix indisponible'}` : state.micOn ? '🎙 micro ouvert (V)' : '🔇 micro coupé (V)';
+    if (!state.connected && state.discordUrl) {
+      const a = document.createElement('a');
+      a.className = 'discord-link';
+      a.href = state.discordUrl;
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      a.textContent = 'Rejoindre le salon Discord';
+      chip.append(' · ', a);
+    }
   }
 
   /** Clic sur 👍 dans la liste des coureurs. */

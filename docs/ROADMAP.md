@@ -42,7 +42,7 @@ Chaque jalon n'est déclaré terminé qu'après vérification : tests (protocole
 
 - [x] Salles privées sur invitation, serveur autoritaire 10 Hz, drafting réseau, groupe soudé
 - [x] Comptes Google, Discord, lien magique ; profils (Google / Discord : identifiants OAuth à créer)
-- [x] Voix LiveKit, chat texte, « Ride On » (testés en local ; repli Discord : à faire)
+- [x] Voix LiveKit, chat texte, « Ride On » (testés en local) ; repli Discord par lien d'invitation (`DISCORD_VOICE_INVITE`, lien à créer par le propriétaire)
 - [x] Appli compagnon PWA ; mode invité sans matériel
 - [x] Test de charge à 20 coureurs (tick moyen 1,8 ms)
 
