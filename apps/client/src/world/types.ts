@@ -1,7 +1,10 @@
 import type { RoadGraphData, RouteData } from '@allezrobert/shared';
 
-/** Classes d'occupation du sol rastérisées par tuile (un octet par canal). */
-export const SPLAT_CHANNELS = ['forest', 'field', 'meadow', 'water', 'urban', 'road'] as const;
+/**
+ * Classes d'occupation du sol rastérisées par tuile (un octet par canal). `verge` : abords de
+ * l'itinéraire actif (l'orthophoto, où la chaussée apparaît floue, y est atténuée).
+ */
+export const SPLAT_CHANNELS = ['forest', 'field', 'meadow', 'water', 'urban', 'road', 'verge'] as const;
 export type SplatChannel = (typeof SPLAT_CHANNELS)[number];
 
 export type ForestKind = 'deciduous' | 'conifer' | 'mixed';
@@ -34,6 +37,12 @@ export interface TileBuilding {
   y?: number;
   colour?: string;
   material?: string;
+  /** Matériau du toit (BD TOPO) : tiles, slate, metal, concrete. */
+  roofMaterial?: string;
+  /** Faîtage parallèle au petit côté de l'emprise (mesuré au LiDAR). */
+  ridgeShort?: boolean;
+  /** Bâtiment BD TOPO (tuile enrichie) : matériaux régionaux plutôt que ceux d'Île-de-France. */
+  bdtopo?: boolean;
 }
 
 export interface TileFeatures {
@@ -47,6 +56,12 @@ export interface TileFeatures {
   /** Voies ferrées (morceaux découpés à la tuile ; `id` = voie OSM, pour les raccorder). */
   railways?: Array<{ id: number; kind: string; pts: number[]; tunnel?: boolean; bridge?: boolean }>;
   pois: Array<{ kind: string; name: string; x: number; y: number; z: number }>;
+  /** Arbres réels (LiDAR HD) : [x, z, hauteur, rayon du houppier, …]. */
+  trees?: number[];
+  /** Haies et buissons réels (LiDAR HD) : [x, z, hauteur, …]. */
+  shrubs?: number[];
+  /** Végétation réelle présente : pas de semis aléatoire sur la tuile. */
+  realVegetation?: boolean;
 }
 
 export function emptyFeatures(): TileFeatures {

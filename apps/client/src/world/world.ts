@@ -43,6 +43,7 @@ export class World {
     const open = !!source.open;
     const footprint = open ? null : new RouteFootprint(route.points, route.loop, route.roadWidthM / 2, SHOULDER);
     this.terrain.footprint = TMP_NOFIX ? null : footprint;
+    this.terrain.activeRoute = route.id;
     scene.add(this.terrain.group);
     this.road = new RoadMesh(route);
     this.road.mesh.visible = !open;
@@ -52,7 +53,9 @@ export class World {
     const half = route.roadWidthM / 2 + 4;
     const nearRoad = buildRoadProximity(route, half);
     const groundAt = (x: number, z: number) => this.terrain.heightAt(x, z);
-    this.vegetation = new Vegetation(q, envState.season, groundAt, nearRoad);
+    // Arbres réels (LiDAR) : seule la chaussée est interdite, les haies de bord de route restent.
+    const onRoadEdge = buildRoadProximity(route, route.roadWidthM / 2 + 0.6);
+    this.vegetation = new Vegetation(q, envState.season, groundAt, nearRoad, onRoadEdge);
     scene.add(this.vegetation.group);
     this.buildings = new Buildings(groundAt);
     scene.add(this.buildings.group);

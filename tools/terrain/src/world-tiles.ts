@@ -5,6 +5,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import type { Dem, DemStack } from './dem.ts';
+import { decorateTile, type TileEnrichment } from './enrich.ts';
 import { worldToL93 } from './frame.ts';
 import type { Box } from './geom.ts';
 import type { RoadGraph } from './graph.ts';
@@ -29,6 +30,8 @@ export interface WriteTilesOptions {
   orthoPx?: number;
   /** Profils 3D déjà calculés (sinon calculés ici). */
   roads3d?: Roads3d;
+  /** Données fines par tuile (voir enrich.ts). */
+  enrichment?: Map<string, TileEnrichment>;
   log: (s: string) => void;
 }
 
@@ -106,7 +109,8 @@ export async function writeWorldTiles(o: WriteTilesOptions): Promise<TileResult[
   let k = 0;
   for (const [tx, tz] of o.tiles) {
     const id = `${tx}_${tz}`;
-    const res = buildTile(tx, tz, o.hiTiles.has(id), o.dems, inputs, o.outDir, o.carveMode ?? 'max');
+    const fine = o.enrichment?.get(id);
+    const res = buildTile(tx, tz, o.hiTiles.has(id), o.dems, inputs, o.outDir, o.carveMode ?? 'max', fine ? (json, groundAt) => decorateTile(json, fine, groundAt) : undefined);
     tileResults.push(res);
     if (o.withOrtho) {
       const ok = await fetchOrtho(tx, tz, o.orthoPx ?? (o.hiTiles.has(id) ? 512 : 256), path.join(tilesDir, `${id}.ortho.jpg`));

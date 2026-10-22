@@ -2,7 +2,7 @@ import * as THREE from 'three/webgpu';
 import { texture, uv, normalWorld, positionWorld, mix, smoothstep, vec2, vec3, float, uniform, mx_noise_float, clamp } from 'three/tsl';
 import type { QualitySettings } from '../engine/quality.ts';
 import { colorUniform } from '../engine/tsl.ts';
-import type { LoadedTile, WorldSource } from './types.ts';
+import { SPLAT_CHANNELS, type LoadedTile, type WorldSource } from './types.ts';
 import { rasterizeSplat } from './splat.ts';
 import type { RouteFootprint } from './ribbon.ts';
 import type { Season } from './environment.ts';
@@ -55,6 +55,8 @@ export class TerrainManager {
    * du maillage ou la largeur creusée par le générateur).
    */
   footprint: RouteFootprint | null = null;
+  /** Itinéraire actif : sa chaussée est dessinée par le ruban, pas teintée dans le terrain. */
+  activeRoute: string | null = null;
   onTileLoaded?: (tile: LoadedTile) => void;
   onTileUnloaded?: (tile: LoadedTile) => void;
 
@@ -174,7 +176,7 @@ export class TerrainManager {
 
   private add(tile: LoadedTile, lod: number): void {
     if (this.disposed) return;
-    if (!tile.splat) tile.splat = rasterizeSplat(tile);
+    if (!tile.splat) tile.splat = rasterizeSplat(tile, this.activeRoute);
     const textures = this.splatTextures(tile);
     let ortho: THREE.Texture | null = null;
     if (tile.orthoUrl) {
@@ -292,13 +294,15 @@ export class TerrainManager {
     const { res, data } = tile.splat as { res: number; data: Uint8Array };
     const a = new Uint8Array(res * res * 4);
     const b = new Uint8Array(res * res * 4);
+    const C = SPLAT_CHANNELS.length;
     for (let i = 0; i < res * res; i++) {
-      a[i * 4] = data[i * 6] as number;
-      a[i * 4 + 1] = data[i * 6 + 1] as number;
-      a[i * 4 + 2] = data[i * 6 + 2] as number;
-      a[i * 4 + 3] = data[i * 6 + 3] as number;
-      b[i * 4] = data[i * 6 + 4] as number;
-      b[i * 4 + 1] = data[i * 6 + 5] as number;
+      a[i * 4] = data[i * C] as number;
+      a[i * 4 + 1] = data[i * C + 1] as number;
+      a[i * 4 + 2] = data[i * C + 2] as number;
+      a[i * 4 + 3] = data[i * C + 3] as number;
+      b[i * 4] = data[i * C + 4] as number;
+      b[i * 4 + 1] = data[i * C + 5] as number;
+      b[i * 4 + 2] = data[i * C + 6] as number;
       b[i * 4 + 3] = 255;
     }
     return [a, b].map((buf) => {
@@ -337,7 +341,10 @@ export class TerrainManager {
     col = mix(col, field.mul(furrow), s0.g);
     col = mix(col, meadow, s0.b);
     col = mix(col, forestFloor, s0.r);
-    col = mix(col, urban, s1.r.mul(0.8));
+    // zones bâties : jardins et cours, l'orthophoto en donne le détail (teinte modérée)
+    col = mix(col, urban, s1.r.mul(0.55));
+    // abords de l'itinéraire : herbe des bas-côtés
+    col = mix(col, meadow, smoothstep(0.2, 0.8, s1.b).mul(0.85));
     col = mix(col, water, s0.a);
     col = mix(col, asphalt, smoothstep(0.35, 0.75, s1.g));
     // Pentes fortes : terre et pierre apparentes.
@@ -350,7 +357,9 @@ export class TerrainManager {
       const lum = photo.dot(vec3(0.299, 0.587, 0.114));
       const seasonal = mix(vec3(lum, lum, lum), photo, this.orthoSat).mul(this.orthoTint.node).mul(1.08);
       const roadMask = smoothstep(0.35, 0.75, s1.g);
-      col = mix(col, seasonal, float(0.72).mul(float(1).sub(roadMask)));
+      // abords de l'itinéraire : la chaussée floue de la photo ne déborde pas sur les bas-côtés
+      const verge = smoothstep(0.2, 0.8, s1.b);
+      col = mix(col, seasonal, float(0.72).mul(float(1).sub(roadMask)).mul(float(1).sub(verge.mul(0.8))));
     }
     col = col.mul(detail);
     // Pluie : sol plus sombre ; givre : voile clair sur les surfaces planes.

@@ -8,6 +8,7 @@
  * - montées célèbres (« alpe-dhuez », « mont-ventoux ») : un itinéraire point à point construit
  *   sur OSM entre deux points publics ; aucune donnée Garmin n'est lue.
  */
+import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -61,6 +62,21 @@ export interface ClimbSpec {
   numberedHairpins?: { count: number; descending: boolean };
   landmarks?: ClimbLandmark[];
   reference: ClimbReference;
+  /** Marquage de la chaussée de l'itinéraire (défaut : rives et axe). */
+  markings?: 'full' | 'axis' | 'none';
+  /** Largeur de chaussée imposée (m), mesurée sur l'orthophoto, quand OSM n'a que le défaut par type. */
+  roadWidthM?: number;
+}
+
+/**
+ * Données IGN fines autour de l'itinéraire (tranche témoin) : arbres et haies détectés dans le
+ * modèle de hauteur LiDAR HD, bâtiments BD TOPO (hauteurs, matériaux) avec toits mesurés au LiDAR.
+ */
+export interface WorldEnrich {
+  /** Distance maximale à l'itinéraire (m) des tuiles enrichies (tuiles haute résolution seulement). */
+  radiusM: number;
+  lidarVegetation: boolean;
+  bdtopoBuildings: boolean;
 }
 
 interface WorldBase {
@@ -70,6 +86,9 @@ interface WorldBase {
   originL93: { x: number; y: number };
   /** Emprise maximale en indices de tuiles (bornes incluses). */
   corridorTiles: { txMin: number; txMax: number; tzMin: number; tzMax: number };
+  enrich?: WorldEnrich;
+  /** Monde privé (data/private/worlds) : sortie ignorée par git. */
+  private?: boolean;
 }
 
 export interface GarminWorld extends WorldBase {
@@ -174,6 +193,39 @@ export const WORLDS: Record<string, WorldConfig> = {
       },
     },
   },
+  neuville: {
+    kind: 'climb',
+    id: 'neuville',
+    name: 'Neuville — Le Roussel',
+    // Neuville (Puy-de-Dôme), entre Billom et Glaine-Montaigut
+    originL93: { x: 733000, y: 6517000 },
+    // itinéraire ≈ E 731,6–733,5 km, N 6 516,2–6 517,3 km, + 3 km autour
+    corridorTiles: { txMin: -6, txMax: 5, tzMin: -5, tzMax: 5 },
+    hiMarginM: 400,
+    loMarginM: 3000,
+    // chaîne des Puys à l'horizon ouest (≈ 35 km)
+    horizon: { halfSizeM: 40000, resM: 100 },
+    // tranche témoin : arbres et haies LiDAR HD, bâtiments et voies BD TOPO
+    enrich: { radiusM: 400, lidarVegetation: true, bdtopoBuildings: true },
+    climb: {
+      routeId: 'neuville-le-roussel',
+      routeName: 'Traversée du Roussel',
+      routeNameEn: 'Through Le Roussel',
+      // D 152, au carrefour de la D 20 (route de Ravel)
+      start: { lon: 3.429536, lat: 45.744881 },
+      climbStart: { lon: 3.4289, lat: 45.7454 },
+      // D 152 (route de Neuville), vers Les Boutoux
+      finish: { lon: 3.408, lat: 45.7541 },
+      end: { lon: 3.406787, lat: 45.754661 },
+      preferRefs: ['D 152'],
+      komId: 'section-roussel',
+      komName: 'Traversée du Roussel',
+      // petite départementale sans marquage ; chaussée de 4 m (BD TOPO), ≈ 4,8 m sur l'orthophoto
+      markings: 'none',
+      roadWidthM: 4.5,
+      reference: { lengthM: 2200, gainM: 0, avgGradePct: 0, sources: ['OSM : D 152, du carrefour de la D 20 à la route de Neuville'] },
+    },
+  },
   'mont-ventoux': {
     kind: 'climb',
     id: 'mont-ventoux',
@@ -251,6 +303,23 @@ export const WORLDS: Record<string, WorldConfig> = {
   },
 };
 
+/**
+ * Mondes privés (lieux personnels) : un fichier `data/private/worlds/<id>.json` par monde, même
+ * forme que `WORLDS`, jamais versionné (dépôt public).
+ */
+export const PRIVATE_WORLDS_DIR = path.join(REPO_ROOT, 'data', 'private', 'worlds');
+
+function privateWorlds(): Record<string, WorldConfig> {
+  if (!fs.existsSync(PRIVATE_WORLDS_DIR)) return {};
+  const out: Record<string, WorldConfig> = {};
+  for (const f of fs.readdirSync(PRIVATE_WORLDS_DIR)) {
+    if (!f.endsWith('.json')) continue;
+    const w = JSON.parse(fs.readFileSync(path.join(PRIVATE_WORLDS_DIR, f), 'utf8')) as WorldConfig;
+    out[w.id] = { ...w, private: true };
+  }
+  return out;
+}
+
 function selectWorld(): WorldConfig {
   const argv = process.argv.slice(2);
   let id = process.env.TERRAIN_WORLD ?? 'chevreuse';
@@ -259,8 +328,9 @@ function selectWorld(): WorldConfig {
     if (a === '--world' && argv[i + 1]) id = argv[i + 1]!;
     else if (a.startsWith('--world=')) id = a.slice('--world='.length);
   }
-  const w = WORLDS[id];
-  if (!w) throw new Error(`Monde inconnu « ${id} » (connus : ${Object.keys(WORLDS).join(', ')})`);
+  const all = { ...WORLDS, ...privateWorlds() };
+  const w = all[id];
+  if (!w) throw new Error(`Monde inconnu « ${id} » (connus : ${Object.keys(all).join(', ')})`);
   return w;
 }
 

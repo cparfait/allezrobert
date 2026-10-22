@@ -104,6 +104,9 @@ function toFeatures(t: WorldTile): TileFeatures {
       y: bd.y,
       ...(bd.colour ? { colour: bd.colour } : {}),
       ...(bd.material ? { material: bd.material } : {}),
+      ...(bd.roof.material ? { roofMaterial: bd.roof.material } : {}),
+      ...(bd.roof.ridge === 'short' ? { ridgeShort: true } : {}),
+      ...(bd.source === 'bdtopo' ? { bdtopo: true } : {}),
     })),
     forests: t.forests.map((f) => ({ rings: f.rings, kind: f.kind })),
     water: t.water.map((w) => ({ rings: w.rings, kind: w.kind, level: w.level })),
@@ -112,5 +115,6 @@ function toFeatures(t: WorldTile): TileFeatures {
     waterways: t.waterways.map((w) => ({ width: w.width, pts: w.pts, kind: w.kind, ...(w.tunnel ? { tunnel: true } : {}) })),
     railways: (t.railways ?? []).map((r) => ({ id: r.id, kind: r.kind, pts: r.pts, ...(r.tunnel ? { tunnel: true } : {}), ...(r.bridge ? { bridge: true } : {}) })),
     pois: t.pois.map((p) => ({ kind: p.kind, name: p.name, x: p.x, y: p.y, z: p.z })),
+    ...(t.enriched?.vegetation ? { trees: t.trees ?? [], shrubs: t.shrubs ?? [], realVegetation: true } : {}),
   };
 }

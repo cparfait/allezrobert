@@ -26,6 +26,9 @@ import { elevationGain, smoothRoadProfile } from './profile.ts';
 import { encodeGrid, tileStepM, type TileResult } from './tiles.ts';
 import { writeHorizon } from './horizon.ts';
 import { writeWorldTiles } from './world-tiles.ts';
+import { ATTRIBUTION_BDTOPO } from './bdtopo.ts';
+import { prepareEnrichment } from './enrich.ts';
+import { ATTRIBUTION_LIDAR } from './lidar.ts';
 
 if (WORLD.kind !== 'climb') throw new Error('build-climb : monde de type « climb » attendu');
 const W: ClimbWorld = WORLD;
@@ -109,6 +112,8 @@ async function main(): Promise<void> {
   const t0 = Date.now();
   fs.mkdirSync(path.join(OUT_DIR, 'routes'), { recursive: true });
   fs.mkdirSync(path.join(OUT_DIR, 'tiles'), { recursive: true });
+  // monde privé : rien de son dossier n'entre dans le dépôt (pas même world.json ni l'itinéraire)
+  if (W.private) fs.writeFileSync(path.join(OUT_DIR, '.gitignore'), '# Monde privé (data/private/worlds) : jamais versionné\n*\n');
   const analysisDir = path.join(CACHE_DIR, 'analysis');
   fs.mkdirSync(analysisDir, { recursive: true });
   const corridor = corridorRect();
@@ -152,6 +157,7 @@ async function main(): Promise<void> {
   });
   const via = routeViaEdges(g, must, cost);
   const edges = via.edges;
+  if (C.roadWidthM) for (const e of edges) g.edges[e]!.road.width = C.roadWidthM;
   const poly = pathPolyline(g, via.start, edges);
   const polyCum = cumulative(poly.pts);
   const polyLen = polyCum[polyCum.length - 1]!;
@@ -374,6 +380,7 @@ async function main(): Promise<void> {
     maxElevationM: r2(Math.max(...hs)),
     maxGradePct: r2(maxGrade(hs, step, 10)),
     hairpins,
+    ...(C.markings ? { markings: C.markings } : {}),
   };
   const routesDir = path.join(OUT_DIR, 'routes');
   for (const f of fs.readdirSync(routesDir)) if (f.endsWith('.json')) fs.unlinkSync(path.join(routesDir, f));
@@ -418,7 +425,18 @@ async function main(): Promise<void> {
   if (outside.length) log(`   ! ${outside.length} tuiles au bord du corridor : élargir corridorTiles pour garder ${W.loMarginM} m de marge partout`);
   if (!ROUTES_ONLY) {
     log(`5. Tuiles (${loTiles.length}, dont ${hiSet.size} en haute résolution)`);
+    const enrichment = W.enrich
+      ? await prepareEnrichment({
+          enrich: W.enrich,
+          tiles: loTiles.filter(([tx, tz]) => hiSet.has(tileId(tx, tz))),
+          routePts: pts,
+          roads: osm.roads,
+          dem,
+          log,
+        })
+      : undefined;
     tileResults = await writeWorldTiles({
+      ...(enrichment ? { enrichment } : {}),
       g,
       dem,
       dems: { lo, hi },
@@ -453,7 +471,12 @@ async function main(): Promise<void> {
       : tileResults.map((t) => ({ id: t.id, tx: t.tx, tz: t.tz, baseM: t.baseM, minM: t.minM, maxM: t.maxM, lods: t.lods as Array<'lo' | 'hi' | 'ortho'>, bytes: t.bytes, ...(t.stepM !== 0.01 ? { stepM: t.stepM } : {}) })),
     routes: [{ id: data.id, file: `routes/${data.id}.json`, name: data.name, lengthM: data.lengthM, elevationGainM: data.elevationGainM, loop: false, main: true }],
     mainRoute: data.id,
-    attribution: [...ATTRIBUTION, ...(WITH_ORTHO || prev?.attribution.includes(ATTRIBUTION_ORTHO) ? [ATTRIBUTION_ORTHO] : [])],
+    attribution: [
+      ...ATTRIBUTION,
+      ...(WITH_ORTHO || prev?.attribution.includes(ATTRIBUTION_ORTHO) ? [ATTRIBUTION_ORTHO] : []),
+      ...(W.enrich?.lidarVegetation || W.enrich?.bdtopoBuildings ? [ATTRIBUTION_LIDAR] : []),
+      ...(W.enrich?.bdtopoBuildings ? [ATTRIBUTION_BDTOPO] : []),
+    ],
     ...(horizon ? { horizon } : {}),
   };
   fs.writeFileSync(worldFile, JSON.stringify(meta, null, 1));

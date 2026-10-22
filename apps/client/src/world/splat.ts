@@ -13,7 +13,7 @@ const URBAN_KINDS = new Set(['residential', 'industrial', 'commercial', 'railway
  * (forêt, champ, prairie, eau, urbain, route), utilisée par le matériau du terrain
  * et le placement de la végétation. Les trous des polygones sont respectés (pair-impair).
  */
-export function rasterizeSplat(tile: LoadedTile): { res: number; data: Uint8Array } {
+export function rasterizeSplat(tile: LoadedTile, skipRoute: string | null = null): { res: number; data: Uint8Array } {
   const canvas = new OffscreenCanvas(RES, RES);
   const ctx = canvas.getContext('2d', { willReadFrequently: true }) as OffscreenCanvasRenderingContext2D;
   const scale = RES / tile.size;
@@ -75,9 +75,25 @@ export function rasterizeSplat(tile: LoadedTile): { res: number; data: Uint8Arra
       ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
       f.roads
-        .filter((r) => !r.tunnel)
+        // la chaussée de l'itinéraire actif est le ruban de RoadMesh : la teinter ici déborderait
+        // de ±4 m (un pixel ≈ 4 m) sur ses bas-côtés
+        .filter((r) => !r.tunnel && (!skipRoute || r.route !== skipRoute))
         .forEach((r) => {
           ctx.lineWidth = Math.max(r.width * scale, 1);
+          ctx.beginPath();
+          if (r.pts3) line(r.pts3, 3);
+          else line(r.pts);
+          ctx.stroke();
+        });
+    },
+    () => {
+      if (!skipRoute) return;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      f.roads
+        .filter((r) => r.route === skipRoute)
+        .forEach((r) => {
+          ctx.lineWidth = (r.width + 9) * scale;
           ctx.beginPath();
           if (r.pts3) line(r.pts3, 3);
           else line(r.pts);

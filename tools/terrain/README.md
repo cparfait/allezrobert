@@ -1,4 +1,4 @@
-# @allezrobert/terrain — mondes « Vallée de Chevreuse », « Alpe d'Huez », « Mont Ventoux »
+# @allezrobert/terrain — mondes « Vallée de Chevreuse », « Alpe d'Huez », « Mont Ventoux », « Neuville — Le Roussel »
 
 Chaîne hors ligne qui fabrique les mondes du jeu à partir du relief IGN, d'OpenStreetMap et (pour
 Chevreuse seulement) des sorties Garmin de l'auteur : itinéraires nettoyés, tuiles d'altitude avec
@@ -35,6 +35,8 @@ reconstruction ne sollicite plus les services. Ne jamais écrire sur C: (disque 
 | Routes, bâtiments, forêts, eau, lieux | OpenStreetMap via Overpass (`overpass.openstreetmap.fr` en premier, puis `overpass-api.de`, `overpass.private.coffee`, `maps.mail.ru`, `overpass.kumi.systems`) | ODbL 1.0 | « © les contributeurs OpenStreetMap (ODbL) » |
 | Orthophotos (indice de couleur du sol, facultatif) | IGN **BD ORTHO®** `ORTHOIMAGERY.ORTHOPHOTOS` (WMS-R, JPEG) | Licence Ouverte Etalab 2.0 | « © IGN — BD ORTHO® (Licence Ouverte Etalab 2.0) » |
 | Itinéraires | sorties Garmin (GPX) de `data/garmin/` — **privées**, jamais exportées | — | — |
+| Arbres, haies, formes des toits (tuiles enrichies) | IGN **LiDAR HD MNH / MNS** 50 cm (`IGNF_LIDAR-HD_MNH_…`, `IGNF_LIDAR-HD_MNS_…`) via WMS-R, blocs de 500 m | Licence Ouverte Etalab 2.0 | « © IGN — LiDAR HD MNS / MNH (Licence Ouverte Etalab 2.0) » |
+| Bâtiments, nature et largeur des voies (tuiles enrichies) | IGN **BD TOPO®** `BDTOPO_V3:batiment`, `BDTOPO_V3:troncon_de_route` via WFS | Licence Ouverte Etalab 2.0 | « © IGN — BD TOPO® (Licence Ouverte Etalab 2.0) » |
 
 Les chaînes d'attribution sont dans `world.json` (`attribution`) et dans chaque itinéraire ; le
 client doit les afficher. Les entités des tuiles sont une base dérivée d'OSM : si on les
@@ -296,6 +298,31 @@ Neuville, Glaine-Montaigut, Bongheat et Égliseneuve-près-Billom, en bordure de
 Résultat (22/10/2026) : 1 245 arêtes, 227 km roulables dont 114 km revêtus (0,7 Mo) ; « Tour de
 Neuville » 16,2 km, 346 m D+, 4 côtes ; 49 tuiles (relief 24,6 Mo, orthophotos 8,6 Mo), raccords
 de bords à 0,0 cm ; construction en 2 min 30 une fois les données en cache.
+
+## Mondes privés et tuiles enrichies (`src/enrich.ts`, `src/lidar.ts`, `src/bdtopo.ts`)
+
+- **Monde privé** : `data/private/worlds/<id>.json` (même forme que `WORLDS`, jamais versionné) ;
+  le dossier de sortie reçoit un `.gitignore` « `*` » (ni tuiles, ni `world.json`, ni itinéraire
+  dans le dépôt). Construction : `build:world -- --world <id>`. Champs propres aux montées
+  utiles ici : `markings` (`none` : petite départementale sans marquage), `roadWidthM` (largeur
+  mesurée, BD TOPO ou orthophoto).
+- **`enrich`** `{ radiusM, lidarVegetation, bdtopoBuildings }` : sur les tuiles haute résolution
+  à moins de `radiusM` de l'itinéraire, le JSON de la tuile reçoit :
+  - `trees` [x, z, hauteur, rayon, …] : maxima locaux du MNH lissé (fenêtre 1,2 m + 7 % de la
+    hauteur), rayon du houppier sur 8 directions ; hors bâtiments BD TOPO (dilatés de 1 m) ;
+  - `shrubs` [x, z, hauteur, …] : cellules de 1,5 m de végétation basse (0,6–2,5 m) hors
+    houppiers et chaussées. Les **cultures hautes** (maïs) sont écartées : composante connexe
+    > 900 m² dont > 40 % de cellules « intérieures » (une haie n'en a presque pas) ;
+  - `buildings` remplacés par la BD TOPO (emprises relevées sur les photos aériennes, une par
+    bâtiment réel) : `kind` d'après nature / usage / surface, `material` des murs et
+    `roof.material` d'après les codes des fichiers fonciers, toit mesuré dans le MNS (faîtage =
+    95e centile, égout = 8e centile, forme plat / deux pans / croupes / monopente, `roof.ridge:
+    'short'` si le faîtage suit le petit côté) ;
+  - voies OSM hors itinéraire : `surface` (`gravel` pour « Route empierrée », `ground` pour
+    « Chemin ») et `width` du tronçon BD TOPO apparié (distance médiane ≤ 4 m) ;
+  - `enriched` { vegetation, buildings, roads } : le client n'y sème plus d'arbres au hasard.
+- Le client place un arbre « réel » (tronc, branches, cartes de feuillage, `world/trees.ts`) par
+  sommet, à sa hauteur et à son houppier mesurés, en blocs de 125 m (détail jusqu'à 160 m).
 
 ## Limites connues
 
