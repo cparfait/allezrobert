@@ -1,4 +1,4 @@
-import type { RouteData, WorldMeta, WorldTile } from '@allezrobert/shared';
+import type { RoadGraphData, RouteData, WorldMeta, WorldTile } from '@allezrobert/shared';
 import type { LoadedTile, TileFeatures, WorldSource } from './types.ts';
 
 /**
@@ -15,6 +15,12 @@ export async function createFileWorld(id: string, meta: WorldMeta): Promise<Worl
       return (await res.json()) as RouteData;
     }),
   );
+  // Monde ouvert : graphe routier (≈ 1 Mo), chargé avec les itinéraires.
+  let open: WorldSource['open'];
+  if (meta.open) {
+    const res = await fetch(`${base}/${meta.open.graph}`);
+    if (res.ok) open = { graph: (await res.json()) as RoadGraphData, start: meta.open.start };
+  }
   // Itinéraire principal en premier (jalon 1).
   routes.sort((a, b) => (a.id === meta.mainRoute ? -1 : b.id === meta.mainRoute ? 1 : 0));
   const index = new Map(meta.tiles.map((t) => [t.id, t]));
@@ -31,6 +37,7 @@ export async function createFileWorld(id: string, meta: WorldMeta): Promise<Worl
     routes,
     attribution: meta.attribution,
     originL93: meta.originL93,
+    ...(open ? { open } : {}),
     hasTile(tx, tz) {
       const key = `${tx}_${tz}`;
       if (missing.has(key)) return false;

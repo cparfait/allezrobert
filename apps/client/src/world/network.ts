@@ -27,8 +27,12 @@ export class RoadNetwork {
    * `footprint` : emprise de l'itinéraire actif ; les routes qui la recouvrent (même route tracée
    * par OSM ou par un autre itinéraire, bouts de carrefour) y sont découpées au bord de chaussée.
    */
-  constructor(activeRoute: string, groundAt: (x: number, z: number) => number, footprint: RouteFootprint | null = null) {
+  /** Monde ouvert : les pistes cyclables sont roulables, donc dessinées. */
+  private readonly drawCycleways: boolean;
+
+  constructor(activeRoute: string, groundAt: (x: number, z: number) => number, footprint: RouteFootprint | null = null, drawCycleways = false) {
     this.activeRoute = activeRoute;
+    this.drawCycleways = drawCycleways;
     this.groundAt = groundAt;
     this.footprint = footprint;
     this.group.name = 'network';
@@ -82,7 +86,7 @@ export class RoadNetwork {
   addTile(tile: LoadedTile): void {
     if (this.tiles.has(tile.id)) return;
     const objs: THREE.Object3D[] = [];
-    const roads = tile.features.roads.filter((r) => r.pts3 && !r.tunnel && !SKIP.has(r.kind) && r.route !== this.activeRoute);
+    const roads = tile.features.roads.filter((r) => r.pts3 && !r.tunnel && (!SKIP.has(r.kind) || (this.drawCycleways && r.kind === 'cycleway')) && r.route !== this.activeRoute);
     if (roads.length) {
       const geo = buildRoads(roads, this.footprint);
       if (geo) {

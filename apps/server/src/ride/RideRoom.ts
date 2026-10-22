@@ -33,7 +33,7 @@ const finite = z.number().refine(Number.isFinite, 'nombre fini attendu');
 const CreateOptionsSchema = z
   .object({
     routeId: z.string().max(80).optional(),
-    mode: z.enum(['free', 'group', 'race', 'workout', 'ftpTest']).optional(),
+    mode: z.enum(['free', 'group', 'race', 'workout', 'ftpTest', 'open']).optional(),
     stickyGroup: z.boolean().optional(),
     allowGuests: z.boolean().optional(),
     draftingStrength: finite.optional(),

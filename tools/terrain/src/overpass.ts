@@ -3,6 +3,7 @@
  * recul exponentiel et cache des réponses brutes (data/cache/terrain/osm).
  */
 import fs from 'node:fs';
+import { USER_AGENT } from './config.ts';
 import { cachePath, fetchWithRetry, hashKey } from './net.ts';
 
 export const OVERPASS_MIRRORS = [
@@ -163,4 +164,105 @@ export async function fetchOsm(b: BBox, stepLon = 0.11, stepLat = 0.07, extra?: 
     for (const el of json.elements) byKey.set(`${el.type}/${el.id}`, el);
   }
   return [...byKey.values()];
+}
+
+/** Miroir Overpass joignable (petite requête, 20 s au plus par miroir), sinon null. */
+export async function reachableOverpass(): Promise<string | null> {
+  const q = '[out:json][timeout:10];node(45.0,3.0,45.0001,3.0001);out;';
+  for (const mirror of OVERPASS_MIRRORS) {
+    try {
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 20000);
+      const res = await fetch(mirror, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'User-Agent': USER_AGENT },
+        body: `data=${encodeURIComponent(q)}`,
+        signal: ctrl.signal,
+      }).finally(() => clearTimeout(timer));
+      if (res.ok && (await res.text()).trimStart().startsWith('{')) return mirror;
+    } catch {
+      // miroir injoignable : suivant
+    }
+  }
+  return null;
+}
+
+interface ApiNode {
+  type: 'node';
+  id: number;
+  lat: number;
+  lon: number;
+  tags?: Record<string, string>;
+}
+interface ApiWay {
+  type: 'way';
+  id: number;
+  nodes: number[];
+  tags?: Record<string, string>;
+}
+interface ApiRelation {
+  type: 'relation';
+  id: number;
+  members: Array<{ type: 'node' | 'way' | 'relation'; ref: number; role: string }>;
+  tags?: Record<string, string>;
+}
+
+/**
+ * Repli quand aucun miroir Overpass ne répond : API principale d'OpenStreetMap (`/api/0.6/map`),
+ * par blocs de `stepLon` × `stepLat` degrés (limite de 50 000 nœuds par appel), réponses brutes
+ * en cache. Les éléments sont convertis au format Overpass `out geom` : géométrie des voies
+ * reconstituée depuis les nœuds, membres des relations depuis les voies téléchargées (un membre
+ * hors emprise reste sans géométrie et l'anneau est ignoré, comme avec Overpass sur un bord).
+ */
+export async function fetchOsmApi(b: BBox, stepLon = 0.02, stepLat = 0.015): Promise<OsmElement[]> {
+  const chunks = splitBBox(b, stepLon, stepLat);
+  const nodes = new Map<number, ApiNode>();
+  const ways = new Map<number, ApiWay>();
+  const rels = new Map<number, ApiRelation>();
+  for (const [i, c] of chunks.entries()) {
+    const url = `https://api.openstreetmap.org/api/0.6/map.json?bbox=${c.west},${c.south},${c.east},${c.north}`;
+    const file = cachePath('osm-api', `map-${hashKey(url)}`, '.json');
+    let buf: Buffer;
+    if (fs.existsSync(file)) buf = fs.readFileSync(file);
+    else {
+      console.log(`  · API OSM bloc ${i + 1}/${chunks.length}`);
+      buf = await fetchWithRetry(url, { timeoutMs: 180000, validate: (x) => (x.subarray(0, 50).toString().trimStart().startsWith('{') ? null : x.subarray(0, 160).toString()) });
+      fs.writeFileSync(file, buf);
+    }
+    const json = JSON.parse(buf.toString('utf8')) as { elements: Array<ApiNode | ApiWay | ApiRelation> };
+    for (const el of json.elements) {
+      if (el.type === 'node') nodes.set(el.id, el);
+      else if (el.type === 'way') ways.set(el.id, el);
+      else rels.set(el.id, el);
+    }
+  }
+  const geomOf = (w: ApiWay) =>
+    w.nodes.map((id) => {
+      const n = nodes.get(id);
+      return n ? { lat: n.lat, lon: n.lon } : null;
+    });
+  const out: OsmElement[] = [];
+  for (const n of nodes.values()) if (n.tags && Object.keys(n.tags).length) out.push({ type: 'node', id: n.id, lat: n.lat, lon: n.lon, tags: n.tags });
+  for (const w of ways.values()) out.push({ type: 'way', id: w.id, nodes: w.nodes, geometry: geomOf(w), ...(w.tags ? { tags: w.tags } : {}) });
+  for (const r of rels.values()) {
+    if (r.tags?.type === 'boundary' || r.tags?.type === 'route') continue;
+    out.push({
+      type: 'relation',
+      id: r.id,
+      members: r.members.map((m) => {
+        if (m.type === 'way') {
+          const w = ways.get(m.ref);
+          return { ...m, ...(w ? { geometry: geomOf(w) } : {}) };
+        }
+        if (m.type === 'node') {
+          const n = nodes.get(m.ref);
+          return { ...m, ...(n ? { lat: n.lat, lon: n.lon } : {}) };
+        }
+        return { ...m };
+      }),
+      ...(r.tags ? { tags: r.tags } : {}),
+    });
+  }
+  console.log(`  API OSM : ${nodes.size} nœuds, ${ways.size} voies, ${rels.size} relations`);
+  return out;
 }

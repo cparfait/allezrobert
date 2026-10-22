@@ -155,6 +155,11 @@ export interface WorldMeta {
   attribution: string[];
   /** Relief lointain facultatif (mondes de montagne). */
   horizon?: WorldHorizon;
+  /**
+   * Monde ouvert : graphe routier roulable (`RoadGraphData`, fichier relatif au dossier du monde)
+   * et point de départ par défaut. Toutes les routes y sont creusées et dessinées.
+   */
+  open?: { graph: string; start: { x: number; z: number } };
 }
 
 /** Polygone : anneaux plats [x0,z0,x1,z1,…] ; le premier est l'extérieur, les suivants des trous. */

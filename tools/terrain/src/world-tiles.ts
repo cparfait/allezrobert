@@ -10,7 +10,7 @@ import type { Box } from './geom.ts';
 import type { RoadGraph } from './graph.ts';
 import { fetchOrtho } from './ortho.ts';
 import type { OsmWorld, Poi } from './osm.ts';
-import { buildRoads3d, type RouteOnGraph } from './roads3d.ts';
+import { buildRoads3d, type Roads3d, type RouteOnGraph } from './roads3d.ts';
 import { buildTile, TileBuckets, type CarveLine, type TileInputs, type TileResult, type TileRoad } from './tiles.ts';
 
 export interface WriteTilesOptions {
@@ -25,13 +25,17 @@ export interface WriteTilesOptions {
   outDir: string;
   withOrtho: boolean;
   carveMode?: 'max' | 'passes';
+  /** Côté des orthophotos (px) : défaut 512 en haute résolution, 256 sinon. */
+  orthoPx?: number;
+  /** Profils 3D déjà calculés (sinon calculés ici). */
+  roads3d?: Roads3d;
   log: (s: string) => void;
 }
 
 export async function writeWorldTiles(o: WriteTilesOptions): Promise<TileResult[]> {
   const { g, dem, osm, log } = o;
   const tileResults: TileResult[] = [];
-  const r3 = buildRoads3d(g, dem, o.routes);
+  const r3 = o.roads3d ?? buildRoads3d(g, dem, o.routes);
   log(`   ${r3.roads.length} tronçons de route 3D, ${r3.carve.length} couloirs creusés`);
   const inputs: TileInputs = {
     roads: new TileBuckets<TileRoad>(),
@@ -105,7 +109,7 @@ export async function writeWorldTiles(o: WriteTilesOptions): Promise<TileResult[
     const res = buildTile(tx, tz, o.hiTiles.has(id), o.dems, inputs, o.outDir, o.carveMode ?? 'max');
     tileResults.push(res);
     if (o.withOrtho) {
-      const ok = await fetchOrtho(tx, tz, o.hiTiles.has(id) ? 512 : 256, path.join(tilesDir, `${id}.ortho.jpg`));
+      const ok = await fetchOrtho(tx, tz, o.orthoPx ?? (o.hiTiles.has(id) ? 512 : 256), path.join(tilesDir, `${id}.ortho.jpg`));
       if (ok) {
         res.lods.push('ortho');
         res.bytes += fs.statSync(path.join(tilesDir, `${id}.ortho.jpg`)).size;

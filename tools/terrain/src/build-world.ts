@@ -60,6 +60,11 @@ if (WORLD.kind === 'climb') {
   await import('./build-climb.ts');
   process.exit(0);
 }
+if (WORLD.kind === 'open') {
+  // mondes ouverts : toutes les routes roulables, graphe routier exporté
+  await import('./build-open.ts');
+  process.exit(0);
+}
 const WITH_ORTHO = !args.has('--no-ortho');
 const ROUTES_ONLY = args.has('--routes-only');
 if (args.has('--offline')) setOffline(true);

@@ -233,6 +233,10 @@ export class Traffic {
       v.speed += Math.max(-4 * dt, Math.min(2 * dt, target - v.speed));
       v.lateral += (lateralTarget - v.lateral) * Math.min(1, dt * 0.9);
       v.d += v.sens * v.speed * dt;
+      // Itinéraire ouvert (monde ouvert, montée) : pas de véhicule au-delà des extrémités connues.
+      const outside = !this.track.route.loop && (v.d < 0 || v.d > L);
+      v.mesh.visible = !outside;
+      if (outside) continue;
       const p = this.track.positionAt(((v.d % L) + L) % L, v.lateral, this.sample);
       v.mesh.position.set(p.x, p.y + 0.02, p.z);
       v.mesh.rotation.set(0, Math.atan2(p.dirX, p.dirZ) + (v.sens < 0 ? Math.PI : 0), 0);

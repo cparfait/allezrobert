@@ -8,7 +8,8 @@
 export const NET_TICK_HZ = 10;
 export const MAX_RIDERS_PER_ROOM = 20;
 
-export type RideMode = 'free' | 'group' | 'race' | 'workout' | 'ftpTest';
+/** `open` : monde ouvert, carrefours au choix (solo). */
+export type RideMode = 'free' | 'group' | 'race' | 'workout' | 'ftpTest' | 'open';
 
 export interface RoomOptions {
   routeId: string;

@@ -39,6 +39,8 @@ export interface Settings {
    * vite les relances, comme le volant d'un home trainer.
    */
   inertia: number;
+  /** Monde choisi (dossier public/worlds/<id>) ; `?world=` dans l'adresse a priorité. */
+  world: string;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -67,6 +69,7 @@ export const DEFAULT_SETTINGS: Settings = {
   smoothing3s: false,
   guest: false,
   inertia: 1,
+  world: 'chevreuse',
 };
 
 const KEY = 'ar.settings';

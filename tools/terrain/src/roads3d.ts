@@ -24,8 +24,16 @@ function demAt(dem: DemStack, x: number, z: number): number {
   return dem.sample(l.e, l.n);
 }
 
-export function buildRoads3d(g: RoadGraph, dem: DemStack, routes: RouteOnGraph[]): { roads: TileRoad[]; carve: CarveLine[] } {
+export interface Roads3d {
+  roads: TileRoad[];
+  carve: CarveLine[];
+  /** Profil dense de chaque arête hors itinéraire (a → b), celui qui est creusé dans le terrain. */
+  edgePts: Map<number, Array<[number, number, number]>>;
+}
+
+export function buildRoads3d(g: RoadGraph, dem: DemStack, routes: RouteOnGraph[]): Roads3d {
   const roads: TileRoad[] = [];
+  const edgePts = new Map<number, Array<[number, number, number]>>();
   const carve: CarveLine[] = [];
   const routeEdges = new Set<number>();
   const nodeH = new Map<number, number>();
@@ -102,6 +110,7 @@ export function buildRoads3d(g: RoadGraph, dem: DemStack, routes: RouteOnGraph[]
   for (const e of g.edges) {
     if (routeEdges.has(e.id)) continue;
     const pts3 = edgeProfile(e, dem, nodeHeight(e.a), nodeHeight(e.b));
+    edgePts.set(e.id, pts3);
     const carved = CARVED.test(e.road.kind) && !e.road.bridge && !e.road.tunnel;
     const hw = e.road.width / 2;
     roads.push({
@@ -119,7 +128,7 @@ export function buildRoads3d(g: RoadGraph, dem: DemStack, routes: RouteOnGraph[]
     });
     if (carved) carve.push({ pts: pts3, halfWidth: hw, priority: 0 });
   }
-  return { roads, carve };
+  return { roads, carve, edgePts };
 }
 
 /**

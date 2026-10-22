@@ -87,7 +87,34 @@ export interface ClimbWorld extends WorldBase {
   horizon: { halfSizeM: number; resM: number };
 }
 
-export type WorldConfig = GarminWorld | ClimbWorld;
+/** Tour proposé dans un monde ouvert : boucle par des points de passage publics (villages). */
+export interface OpenTour {
+  routeId: string;
+  routeName: string;
+  routeNameEn: string;
+  /** Départ et arrivée (même point : boucle), puis points de passage dans l'ordre ; un nom désigne le lieu OSM (place=*). */
+  start: LonLat | string;
+  via: Array<LonLat | string>;
+  /** Montées chronométrées : pied et sommet. */
+  koms?: Array<{ id: string; name: string; from: LonLat; to: LonLat }>;
+}
+
+/**
+ * Monde ouvert : emprise rectangulaire entièrement en haute résolution (LiDAR HD), toutes les
+ * routes creusées et roulables, graphe routier exporté (`graph.json`) pour choisir sa route aux
+ * carrefours. Aucune donnée Garmin.
+ */
+export interface OpenWorld extends WorldBase {
+  kind: 'open';
+  /** Point de départ par défaut (centre du village). */
+  start: LonLat;
+  /** Côté des orthophotos par tuile de 1 km (px) : 1024 ≈ 1 m/px. */
+  orthoPx: number;
+  horizon: { halfSizeM: number; resM: number };
+  tours: OpenTour[];
+}
+
+export type WorldConfig = GarminWorld | ClimbWorld | OpenWorld;
 
 export const WORLDS: Record<string, WorldConfig> = {
   chevreuse: {
@@ -199,6 +226,28 @@ export const WORLDS: Record<string, WorldConfig> = {
         ],
       },
     },
+  },
+  limagne: {
+    kind: 'open',
+    id: 'limagne',
+    name: 'Limagne — Neuville',
+    // Neuville (63160), en bordure de la plaine de la Limagne, au pied du Livradois
+    originL93: { x: 733000, y: 6516000 },
+    // 7 × 7 km : E 729–736 km, N 6 512–6 519 km (Glaine-Montaigut, Neuville, Bongheat, Égliseneuve-près-Billom)
+    corridorTiles: { txMin: -4, txMax: 2, tzMin: -3, tzMax: 3 },
+    start: { lon: 3.4364, lat: 45.7453 },
+    orthoPx: 1024,
+    // Chaîne des Puys (Puy de Dôme à 31 km à l'ouest), Livradois et Forez à l'est
+    horizon: { halfSizeM: 45000, resM: 100 },
+    tours: [
+      {
+        routeId: 'tour-de-neuville',
+        routeName: 'Tour de Neuville',
+        routeNameEn: 'Neuville loop',
+        start: 'Neuville',
+        via: ['Glaine', 'Égliseneuve-près-Billom', 'Bongheat'],
+      },
+    ],
   },
 };
 

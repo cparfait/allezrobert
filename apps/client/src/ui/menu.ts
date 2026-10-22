@@ -6,6 +6,7 @@ import { saveSettings } from './settings.ts';
 import { music } from '../audio/music.ts';
 import { spotify, redirectUri } from '../audio/spotify.ts';
 import { loadProgress, equipItem, SLOT_LABEL } from './garage.ts';
+import { WORLD_LIST } from '../world/worlds.ts';
 import type { GarageView } from './poster.ts';
 import './menu.css';
 
@@ -49,6 +50,7 @@ const ICON = {
   race: svg('<path d="M5 21V4M5 4h12l-2 4 2 4H5"/>'),
   workout: svg('<path d="M4 20v-6M9 20V8M14 20v-9M19 20V5"/>'),
   ftpTest: svg('<path d="M4 16a8 8 0 1 1 16 0"/><path d="m12 16 4-6"/><circle cx="12" cy="16" r="1.2"/>'),
+  open: svg('<circle cx="12" cy="12" r="9"/><path d="m15.5 8.5-2 5-5 2 2-5z"/>'),
   trainer: svg('<circle cx="7" cy="15" r="4"/><path d="M7 15h7l3-7h2M13 8l1 7M3 21h18"/>'),
   power: svg('<path d="M13 2 5 14h6l-1 8 8-12h-6z"/>'),
   heartRate: svg('<path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10Z"/><path d="M7 12h3l1-2 2 4 1-2h3"/>'),
@@ -104,6 +106,10 @@ export class MainMenu {
   account: { name: string; level: number } | null = null;
   onLogin?: () => void;
   onLogout?: () => void;
+  /** Monde affiché et changement de monde (rechargement de la page). */
+  worldId = 'chevreuse';
+  openWorld = false;
+  onWorld?: (id: string) => void;
   onSettingsSaved?: (s: Settings) => void;
 
   constructor(root: HTMLElement, settings: Settings, routes: RouteData[], devices: DevicePanel, cb: MenuCallbacks) {
@@ -207,6 +213,7 @@ export class MainMenu {
           ['race', 'race', 'Course en ligne, classement à l’arrivée.'],
           ['workout', 'workout', 'Séance structurée (.zwo, .erg, .mrc) en mode ERG.'],
           ['ftpTest', 'ftpTest', 'Test de 20 minutes pour estimer ta FTP.'],
+          ...(this.openWorld ? ([['open', 'open', 'Toutes les routes du monde : ← / → pour choisir ta direction à chaque carrefour, U pour faire demi-tour.']] as Array<[Settings['mode'], I18nKey, string]>) : []),
         ]
       : [
           ['free', 'free', 'Ride at your own pace, with or without AI riders.'],
@@ -214,6 +221,7 @@ export class MainMenu {
           ['race', 'race', 'Online race, results at the finish.'],
           ['workout', 'workout', 'Structured session (.zwo, .erg, .mrc) in ERG mode.'],
           ['ftpTest', 'ftpTest', '20-minute test to estimate your FTP.'],
+          ...(this.openWorld ? ([['open', 'open', 'Every road of the world: ← / → to pick your way at each junction, U to turn around.']] as Array<[Settings['mode'], I18nKey, string]>) : []),
         ];
   }
 
@@ -310,6 +318,10 @@ export class MainMenu {
       }
       ${r ? this.routeCard(r) : ''}
       ${this.onExplore ? `<button id="m-explore" class="mm-explore">${ICON.explore}<span><b>${L ? 'Explorer la carte' : 'Explore the map'}</b><small>${L ? 'Caméra libre, sans rouler · Échap pour revenir' : 'Free camera, no riding · Esc to come back'}</small></span></button>` : ''}
+      <h3>${L ? 'Monde' : 'World'}</h3>
+      <div class="mm-routes mm-worlds">${WORLD_LIST.map(
+        (w) => `<button class="mm-route ${w.id === this.worldId ? 'on' : ''}" data-world="${esc(w.id)}"><b>${esc(w.name[getLang()])}</b><span>${esc(w.hint[getLang()])}</span></button>`,
+      ).join('')}</div>
       <h3>${L ? 'Itinéraires' : 'Routes'}</h3>
       <div class="mm-routes">${this.routes
         .map(
@@ -788,6 +800,12 @@ export class MainMenu {
         s.mode = el.dataset.mode as Settings['mode'];
         changed();
         this.render();
+      }),
+    );
+    this.root.querySelectorAll<HTMLElement>('[data-world]').forEach((el) =>
+      el.addEventListener('click', () => {
+        const id = el.dataset.world as string;
+        if (id !== this.worldId) this.onWorld?.(id);
       }),
     );
     this.root.querySelectorAll<HTMLElement>('[data-route]').forEach((el) =>

@@ -78,6 +78,21 @@ Idées seulement : ni nom, ni asset, ni code, ni physique de NCT Ride (la vitess
 | 9 | Mondes génériques (emprise + itinéraires via tools/terrain) | 3 | pipeline générique fait ; montée célèbre à tester |
 | 10 | Contrôle visuel automatique du monde généré | 3 | fait (?worldcheck=1, toits inversés corrigés à la construction) ; détection automatique d'anomalies : à faire |
 
+## Monde ouvert et retours de la vidéo NCT Ride (22/10/2026)
+
+- [x] Monde « Limagne — Neuville » (63) : 7 × 7 km, LiDAR HD, OSM, orthophotos 1 m/px, toutes les routes creusées
+- [x] Mode « Monde ouvert » : carrefours au choix (← / →, « Bifurcation dans X m »), demi-tour (U), profil et carte qui suivent le coureur
+- [ ] Mode ouvert en groupe (serveur : chemin partagé ou graphe complet)
+- [ ] Stats de fin de sortie complètes (courbe de puissance et records, zones, TSS · IF, calories, comparaison)
+- [ ] Panneau des coureurs réels à proximité (écarts, W/kg)
+- [ ] Cyclistes virtuels croisés dans les deux sens
+- [ ] Séances intégrées (seuil, sweet spot, pyramide, sprint, récupération active)
+- [ ] Trophées qui rapportent de l'XP ; mode défi (battre les KOM)
+- [ ] VTT, roues carbone 40 / 55 / 88 mm (les hautes moins bonnes en côte), chaussettes hautes, chaussures, tenues préréglées
+- [ ] Demi-tour sur les itinéraires (aller rechercher les équipiers), vue arrière
+- [ ] Trains déclenchés à un point précis, poussière sur les chemins, pancartes dans la foule, photo du sommet enregistrée
+- [ ] Groupe : heure de départ et météo qui évolue
+
 ## Plus tard
 
 - Apps natives Mac et iPad (Mac et compte Apple Developer requis)

@@ -20,23 +20,54 @@ export interface TrackSample {
  */
 export class RouteTrack {
   readonly route: RouteData;
-  readonly length: number;
+  /** Longueur (m) ; elle grandit quand un itinéraire ouvert est prolongé ({@link extend}). */
+  length: number;
   private readonly pts: RoutePoint[];
   /** Pente lissée par point (en %), calculée sur une fenêtre de ±gradeWindow mètres. */
-  private readonly grades: Float32Array;
+  private grades: Float32Array;
+  private readonly gradeWindowM: number;
 
   constructor(route: RouteData, gradeWindowM = 12) {
     if (route.points.length < 2) throw new Error('Itinéraire vide');
     this.route = route;
     this.pts = route.points;
+    this.gradeWindowM = gradeWindowM;
     this.length = route.loop ? route.lengthM : (this.pts[this.pts.length - 1] as RoutePoint).d;
     this.grades = new Float32Array(this.pts.length);
-    for (let i = 0; i < this.pts.length; i++) {
+    this.computeGrades(0);
+  }
+
+  private computeGrades(from: number): void {
+    const w = this.gradeWindowM;
+    for (let i = from; i < this.pts.length; i++) {
       const p = this.pts[i] as RoutePoint;
-      const a = this.sampleRaw(p.d - gradeWindowM);
-      const b = this.sampleRaw(p.d + gradeWindowM);
-      this.grades[i] = ((b.y - a.y) / (2 * gradeWindowM)) * 100;
+      const a = this.sampleRaw(p.d - w);
+      const b = this.sampleRaw(p.d + w);
+      this.grades[i] = ((b.y - a.y) / (2 * w)) * 100;
     }
+  }
+
+  /**
+   * Itinéraire ouvert seulement (mode ouvert) : remplace les points à partir de la distance
+   * `fromD` par `points` (distances croissantes, la première ≥ fromD) et met à jour longueur et
+   * pentes. Les points avant `fromD` ne bougent pas.
+   */
+  extend(points: RoutePoint[], fromD: number): void {
+    if (this.route.loop) throw new Error('extend : itinéraire en boucle');
+    const pts = this.pts;
+    while (pts.length > 1 && (pts[pts.length - 1] as RoutePoint).d >= fromD - 1e-9) pts.pop();
+    for (const p of points) if (p.d > (pts[pts.length - 1] as RoutePoint).d + 1e-9) pts.push(p);
+    if (this.grades.length < pts.length) {
+      const g = new Float32Array(Math.max(pts.length, this.grades.length * 2));
+      g.set(this.grades);
+      this.grades = g;
+    }
+    this.length = (pts[pts.length - 1] as RoutePoint).d;
+    this.route.lengthM = this.length;
+    // Les pentes dépendent des points à ±fenêtre : on recalcule depuis un peu avant fromD.
+    let i = pts.length - 1;
+    while (i > 0 && (pts[i] as RoutePoint).d > fromD - 2 * this.gradeWindowM) i--;
+    this.computeGrades(i);
   }
 
   /** Ramène une distance dans [0, length) pour une boucle, ou la borne sinon. */
@@ -93,7 +124,7 @@ export class RouteTrack {
     out.dirX = dx / len;
     out.dirZ = dz / len;
     const g0 = this.grades[i] as number;
-    const g1 = this.grades[(i + 1) % this.pts.length] as number;
+    const g1 = (i + 1 < this.pts.length ? this.grades[i + 1] : this.grades[this.route.loop ? 0 : i]) as number;
     out.grade = g0 + (g1 - g0) * t;
     out.d = d;
     return out;

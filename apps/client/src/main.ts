@@ -30,6 +30,7 @@ import { splatAt } from './world/splat.ts';
 import { Onboarding, RideTutorial } from './onboarding/onboarding.ts';
 import { awardRide, loadProgress } from './ui/garage.ts';
 import { roadSurfaceAt, windShelterAt } from './world/conditions.ts';
+import { OpenNavigator } from './game/open.ts';
 import { fetchMe, showLogin, applyProfile, logout, pushProfile, type Me } from './ui/account.ts';
 import { RideSequences } from './game/sequences.ts';
 import { GuestInputSource } from './game/guest.ts';
@@ -60,7 +61,9 @@ async function loadScene(settings: Settings): Promise<Scene3D> {
   bootStep(20, 'Démarrage du moteur 3D (WebGPU)');
   const engine = await createEngine(document.getElementById('scene') as HTMLCanvasElement, q);
   bootStep(35, 'Monde et itinéraires');
-  const source = await loadWorldSource(params.get('world') ?? 'chevreuse');
+  const source = await loadWorldSource(params.get('world') ?? settings.world ?? 'chevreuse');
+  // Le mode « monde ouvert » n'existe que dans un monde qui a un graphe routier.
+  if (settings.mode === 'open' && !source.open) settings.mode = 'free';
   const route = source.routes.find((r) => r.id === (params.get('route') ?? settings.routeId)) ?? (source.routes[0] as RouteData);
   const track = new RouteTrack(route);
   const world = new World(engine.scene, source, route, track, q, {
@@ -232,6 +235,18 @@ async function boot(): Promise<void> {
       void startRide(scene, s, s.guest ? new GuestInputSource(s.massKg) : devices.source(), extras);
     },
   });
+  menu.worldId = scene.source.id;
+  menu.openWorld = !!scene.source.open;
+  // Changement de monde : rechargement de la page sur le nouveau monde (premier itinéraire).
+  menu.onWorld = (id) => {
+    settings.world = id;
+    settings.routeId = '';
+    saveSettings(settings);
+    const url = new URL(location.href);
+    url.searchParams.set('world', id);
+    url.searchParams.delete('route');
+    location.href = url.toString();
+  };
   const onExploreKey = (e: KeyboardEvent) => {
     if (e.key !== 'Escape') return;
     e.preventDefault();
@@ -337,12 +352,22 @@ async function boot(): Promise<void> {
 }
 
 async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras: { workoutFile?: { name: string; content: string }; inviteCode?: string; tutorial?: boolean }): Promise<void> {
-  const { engine, world, track, source } = scene;
+  const { engine, world, source } = scene;
+  // Monde ouvert : chemin construit au fil des carrefours (le même RouteTrack s'allonge).
+  const nav =
+    s.mode === 'open' && source.open
+      ? new OpenNavigator(source.open.graph, source.open.start, getLang() === 'fr' ? `Monde ouvert — ${source.name}` : `Open world — ${source.name}`)
+      : null;
+  const track = nav ? nav.track : scene.track;
+  if (nav) {
+    const p0 = track.positionAt(0, 1.2);
+    await world.preload(new THREE.Vector3(p0.x, p0.y, p0.z));
+  }
   ui.innerHTML = '';
   // Le vélo roulé dépend de l'équipement porté au garage (masse, traînée, pneus, roues).
   const profile: RiderProfile = { id: 'local', displayName: s.name, massKg: s.massKg, heightCm: s.heightCm, ftpWatts: s.ftpWatts, bike: bikeSetupFor(loadProgress().equipped) };
   const params = new URLSearchParams(location.search);
-  const startD = Number(params.get('d') ?? 0);
+  const startD = nav ? 0 : Number(params.get('d') ?? 0);
   const ride = new RideSession({
     profile,
     track,
@@ -394,6 +419,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   const traffic = params.get('traffic') === '0' ? null : new Traffic(track);
   if (traffic) engine.scene.add(traffic.group);
   const hud = new Hud(hudRoot, track, source.attribution);
+  if (nav && source.open) hud.setOpen(source.open.graph);
   // Musique plus discrète en sortie ; titres Spotify annoncés dans le HUD.
   musicCtl.base = 0.6;
   music.setDuck(musicCtl.base);
@@ -414,6 +440,9 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   const keyboard = new KeyboardControls();
   // Caméra libre : les flèches déplacent la caméra, pas le coureur.
   keyboard.arrowsBlocked = () => rig.mode === 'free';
+  // Monde ouvert : à l'approche d'un carrefour, ← / → choisissent la sortie au lieu de déporter.
+  const choosing = () => !!nav?.next && !nav.next.locked && nav.next.d - ride.state.distM < 350;
+  keyboard.steerBlocked = choosing;
   const audio = new GameAudio();
   audio.start();
   audio.setVolume(s.volume);
@@ -525,6 +554,17 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   };
   window.addEventListener('keydown', (e) => {
     if ((e.target as HTMLElement | null)?.tagName === 'INPUT') return;
+    if (nav && rig.mode !== 'free' && (e.key === 'ArrowLeft' || e.key === 'ArrowRight') && choosing()) {
+      e.preventDefault();
+      nav.select(e.key === 'ArrowLeft' ? -1 : 1, ride.state.distM);
+    }
+    if (nav && (e.key === 'u' || e.key === 'U')) {
+      // Demi-tour : on repart dans l'autre sens, à droite de la chaussée.
+      if (nav.uturn(ride.state.distM)) {
+        ride.state.speedMs = Math.min(ride.state.speedMs, 3);
+        hud.toast(getLang() === 'fr' ? '↶ Demi-tour' : '↶ U-turn');
+      }
+    }
     if (e.key === 'c' || e.key === 'C') {
       const m = rig.cycle();
       hud.toast(t(m === 'free' ? 'freeCam' : m));
@@ -583,13 +623,17 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   let condAcc = Infinity;
   const frame = (dt: number, render: boolean, manual = false) => {
     const steer = keyboard.update(dt);
+    if (nav) {
+      nav.update(ride.state.distM);
+      track.route.roadWidthM = Math.max(3, nav.widthAt(ride.state.distM));
+    }
     // Conditions sous les roues, 4 fois par seconde : revêtement, abri du vent, pluie.
     condAcc += dt;
     if (condAcc > 0.25) {
       condAcc = 0;
       const here = track.positionAt(ride.state.distM, ride.lateral, sample);
       const t = world.terrain.getTile(...world.terrain.tileCoord(here.x, here.z));
-      ride.surface = track.surfaceAt(ride.state.distM) ?? roadSurfaceAt(t, here.x, here.z, ride.surface);
+      ride.surface = nav?.surfaceAt(ride.state.distM) ?? track.surfaceAt(ride.state.distM) ?? roadSurfaceAt(t, here.x, here.z, ride.surface);
       ride.shelter = windShelterAt(t, here.x, here.z, here.dirX, here.dirZ);
       ride.rain = world.env.state.weather.rain;
     }
@@ -706,6 +750,22 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
           ],
           ...(ride.segment ? { segment: { seg: ride.segment.seg, progress: ride.segment.progress, elapsedS: (ride.startT + ride.elapsedS * 1000 - ride.segment.startT) / 1000 } } : {}),
           devices: input.status(),
+          ...(nav
+            ? {
+                open: {
+                  distM: ride.state.distM,
+                  road: nav.roadName(ride.state.distM),
+                  junction: nav.next
+                    ? {
+                        inM: nav.next.d - ride.state.distM,
+                        selected: nav.next.selected,
+                        locked: nav.next.locked,
+                        choices: nav.next.choices.map((c) => ({ dir: c.dir, name: c.name, unpaved: !/^(asphalt|paved|concrete|chipseal)/.test(c.surface) })),
+                      }
+                    : null,
+                },
+              }
+            : {}),
         },
         s.massKg,
       );

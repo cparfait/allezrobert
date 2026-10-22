@@ -1,4 +1,4 @@
-import type { RouteData } from '@allezrobert/shared';
+import type { RoadGraphData, RouteData } from '@allezrobert/shared';
 
 /** Classes d'occupation du sol rastérisées par tuile (un octet par canal). */
 export const SPLAT_CHANNELS = ['forest', 'field', 'meadow', 'water', 'urban', 'road'] as const;
@@ -79,6 +79,8 @@ export interface WorldSource {
   attribution: string[];
   /** Origine Lambert-93, pour reconvertir les positions en GPS (export FIT). */
   originL93?: { x: number; y: number };
+  /** Monde ouvert : graphe routier roulable et départ par défaut (toutes les routes creusées). */
+  open?: { graph: RoadGraphData; start: { x: number; z: number } };
   hasTile(tx: number, tz: number): boolean;
   loadTile(tx: number, tz: number): Promise<LoadedTile | null>;
 }

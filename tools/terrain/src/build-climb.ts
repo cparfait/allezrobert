@@ -24,6 +24,7 @@ import { buildOsmWorld, parseNumber } from './osm.ts';
 import { fetchOsm, mountainClauses, type OsmNode } from './overpass.ts';
 import { elevationGain, smoothRoadProfile } from './profile.ts';
 import { encodeGrid, tileStepM, type TileResult } from './tiles.ts';
+import { writeHorizon } from './horizon.ts';
 import { writeWorldTiles } from './world-tiles.ts';
 
 if (WORLD.kind !== 'climb') throw new Error('build-climb : monde de type « climb » attendu');
@@ -430,7 +431,7 @@ async function main(): Promise<void> {
       carveMode: 'passes',
       log,
     });
-    horizon = await writeHorizon();
+    horizon = await writeHorizon(W.horizon.halfSizeM, W.horizon.resM, OUT_DIR, log);
   }
 
   const meta: WorldMeta = {
@@ -467,38 +468,6 @@ async function main(): Promise<void> {
   log('Bilan');
   log(`   ${meta.tiles.length} tuiles (${meta.tiles.filter((t) => t.lods.includes('hi')).length} hi, ${meta.tiles.filter((t) => t.stepM).length} à pas > 1 cm) : ${Object.entries(sizes).map(([e, s]) => `*${e} ${(s / 1e6).toFixed(1)} Mo`).join(', ')} — total ${(Object.values(sizes).reduce((a, b) => a + b, 0) / 1e6).toFixed(1)} Mo`);
   log(`   durée ${((Date.now() - t0) / 1000).toFixed(0)} s`);
-}
-
-/**
- * Relief lointain : grille unique de `horizon.resM` m sur ±`horizon.halfSizeM` autour de
- * l'origine (sommets visibles à l'horizon, au-delà des tuiles). Pas de 10 cm (dénivelé > 655 m).
- */
-async function writeHorizon(): Promise<WorldHorizon> {
-  const H = W.horizon.halfSizeM;
-  const res = W.horizon.resM;
-  const far = new Dem(`far`, res, 10000, 64);
-  await ensureRect(far, { minX: -H, minZ: -H, maxX: H, maxZ: H });
-  const nn = Math.round((2 * H) / res);
-  const N = nn + 1;
-  const h = new Float32Array(N * N);
-  let minM = Infinity;
-  let maxM = -Infinity;
-  for (let j = 0; j < N; j++)
-    for (let i = 0; i < N; i++) {
-      const l = worldToL93(-H + i * res, -H + j * res);
-      let v = far.sample(l.e, l.n);
-      if (!Number.isFinite(v)) v = 0;
-      h[j * N + i] = v;
-      minM = Math.min(minM, v);
-      maxM = Math.max(maxM, v);
-    }
-  const baseM = Math.floor(minM) - 1;
-  const stepM = Math.max(0.1, tileStepM(maxM - baseM));
-  const buf = encodeGrid({ n: nn, res, x0: -H, z0: -H, h }, baseM, stepM);
-  const file = 'tiles/horizon.u16';
-  fs.writeFileSync(path.join(OUT_DIR, file), buf);
-  log(`   horizon : ${N}×${N} à ${res} m (±${H / 1000} km), ${minM.toFixed(0)}–${maxM.toFixed(0)} m, ${(buf.length / 1e6).toFixed(2)} Mo`);
-  return { file, x0: -H, z0: -H, n: nn, resolutionM: res, baseM, stepM, minM: r2(minM), maxM: r2(maxM) };
 }
 
 try {

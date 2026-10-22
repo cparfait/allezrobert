@@ -275,6 +275,28 @@ donnée Garmin lue** (les règles de vie privée ci-dessus ne concernent que Che
 | `alpe-dhuez` | 14,24 km du giratoire D1091/D211 (720 m) au sommet de la D211 (1 851 m) : 1 130 m, 7,94 % ; max 11,5 %/100 m (16,5 %/10 m, carrefour de la station) | 13,8 km / 1 071–1 120 m / 7,9–8,1 % (Wikipédia), 14,454 km / 1 121 m / 7,9 % (alpedhuez.com), 14 km / 1 122 m / 8 % (climbfinder) | 21 numérotés (panneaux OSM, altitudes à ±6 m de celles des panneaux), rayon d'axe 5,5–13,4 m | 161 (16 en 2 m), 23,5 Mo + horizon 0,7 Mo |
 | `mont-ventoux` | 21,27 km de Bédoin (310 m) au sommet routier (1 890 m) : 1 580 m, 7,43 % ; max 11,8 %/100 m | 21,8 km / 1 617 m / 7,43 % (Wikipédia EN), 20,8 km / 1 594 m / 7,7 % (climbfinder), 21 km (itinéraire OSM) | 3 épingles (Saint-Estève km 6,0) | 285 (39 en 2 m), 46,3 Mo + horizon 1,0 Mo |
 
+## Monde ouvert « limagne » (Neuville, Puy-de-Dôme)
+
+`pnpm --filter @allezrobert/terrain build:world -- --world limagne` (`src/build-open.ts`, type
+`open` dans `src/config.ts`) : emprise de 7 × 7 km (E 729–736 km, N 6 512–6 519 km) autour de
+Neuville, Glaine-Montaigut, Bongheat et Égliseneuve-près-Billom, en bordure de la Limagne.
+
+- **Toujours** les trois sources : relief **LiDAR HD** 1 m (repli RGE ALTI) sur toute l'emprise,
+  toutes les tuiles en 2 m ; **OSM** pour la topographie (routes, chemins, bâti, cultures, eau) ;
+  **orthophotos** IGN à 1 024 px par tuile (≈ 1 m/px). Horizon à ±45 km (Chaîne des Puys, Forez).
+- OSM : Overpass si un miroir répond, sinon l'**API principale d'OpenStreetMap** (`/api/0.6/map`,
+  blocs de 0,02° × 0,015°, `fetchOsmApi`), convertie au format Overpass `out geom`.
+- Toutes les routes sont creusées (aucun itinéraire prioritaire) et **`graph.json`** décrit le
+  réseau roulable (`RoadGraphData` de `packages/shared`) : routes, rues, chemins agricoles et pistes
+  cyclables, sens uniques, revêtement, profil de chaque arête identique à celui qui est creusé,
+  altitude unique aux carrefours. Une arête qui sort de l'emprise (à 30 m du bord) n'est pas roulable.
+- Tours proposés (`tours`) : boucles par des villages nommés (lieux OSM), construites avec le
+  même chemin lissé que le mode ouvert (`OpenPath`), montées détectées sur le profil.
+
+Résultat (22/10/2026) : 1 245 arêtes, 227 km roulables dont 114 km revêtus (0,7 Mo) ; « Tour de
+Neuville » 16,2 km, 346 m D+, 4 côtes ; 49 tuiles (relief 24,6 Mo, orthophotos 8,6 Mo), raccords
+de bords à 0,0 cm ; construction en 2 min 30 une fois les données en cache.
+
 ## Limites connues
 
 - Bâtiments sans `height`/`building:levels` : hauteurs par défaut ; les `building:part`

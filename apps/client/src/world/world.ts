@@ -38,11 +38,14 @@ export class World {
     this.track = track;
     this.env = new Environment(scene, q, envState);
     this.terrain = new TerrainManager(source, q, envState.season);
-    // Emprise du ruban : terrain abaissé dessous, réseau OSM découpé à son bord.
-    const footprint = new RouteFootprint(route.points, route.loop, route.roadWidthM / 2, SHOULDER);
+    // Emprise du ruban : terrain abaissé dessous, réseau OSM découpé à son bord. Monde ouvert :
+    // toutes les routes sont déjà creusées et dessinées par le réseau, pas de ruban d'itinéraire.
+    const open = !!source.open;
+    const footprint = open ? null : new RouteFootprint(route.points, route.loop, route.roadWidthM / 2, SHOULDER);
     this.terrain.footprint = TMP_NOFIX ? null : footprint;
     scene.add(this.terrain.group);
     this.road = new RoadMesh(route);
+    this.road.mesh.visible = !open;
     scene.add(this.road.mesh);
 
     // Pas d'arbre sur la route ni à moins de 4 m du bord de chaussée.
@@ -53,7 +56,7 @@ export class World {
     scene.add(this.vegetation.group);
     this.buildings = new Buildings(groundAt);
     scene.add(this.buildings.group);
-    this.network = new RoadNetwork(route.id, groundAt, TMP_NOFIX ? null : footprint);
+    this.network = new RoadNetwork(open ? '' : route.id, groundAt, TMP_NOFIX ? null : footprint, open);
     scene.add(this.network.group);
     this.rain = new Rain();
     scene.add(this.rain.mesh);

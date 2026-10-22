@@ -1,5 +1,5 @@
-import type { RouteSegment, RouteTrack } from '@allezrobert/shared';
-import { t } from '../i18n/index.ts';
+import type { RoadGraphData, RouteSegment, RouteTrack } from '@allezrobert/shared';
+import { getLang, t } from '../i18n/index.ts';
 
 export interface HudRider {
   id: string;
@@ -40,6 +40,16 @@ export interface HudState {
   riders: HudRider[];
   segment?: { seg: RouteSegment; progress: number; elapsedS: number };
   devices: Array<{ label: string; state: 'ok' | 'warn' | 'off' }>;
+  /** Monde ouvert : position du coureur (m) sur le chemin et carrefour à venir. */
+  open?: { distM: number; road: string; junction: HudJunction | null };
+}
+
+/** Prochain carrefour en monde ouvert : sorties de gauche à droite, celle choisie surlignée. */
+export interface HudJunction {
+  inM: number;
+  choices: Array<{ dir: 'left' | 'straight' | 'right' | 'back'; name: string; unpaved: boolean }>;
+  selected: number;
+  locked: boolean;
 }
 
 const ZONES = [0.55, 0.75, 0.9, 1.05, 1.2, 1.5];
@@ -73,6 +83,14 @@ export class Hud {
   private readonly profile: Array<{ d: number; y: number }>;
   private readonly mapBounds: { minX: number; maxX: number; minZ: number; maxZ: number };
   private readonly toasts: HTMLElement;
+  /** Monde ouvert : réseau routier pour la mini-carte (profil et carte suivent le coureur). */
+  private openGraph: RoadGraphData | null = null;
+  private lastJunction = '';
+
+  /** Passe le HUD en monde ouvert (profil glissant, carte locale avec les routes alentour). */
+  setOpen(graph: RoadGraphData): void {
+    this.openGraph = graph;
+  }
 
   constructor(root: HTMLElement, track: RouteTrack, attribution: string[]) {
     this.root = root;
@@ -88,6 +106,7 @@ export class Hud {
           <div class="panel metric"><div class="label">${t('speed')}</div><div class="value num" data-k="speed">0,0</div><div class="sub">km/h</div></div>
         </div>
         <div class="panel grade-badge num" data-k="grade">0,0 %</div>
+        <div class="panel junction hidden" data-k="junction"></div>
         <div class="panel segment hidden" data-k="segment"><div class="name" data-k="segName"></div><div class="num" data-k="segInfo"></div><div class="bar"><span data-k="segBar" style="width:0%"></span></div></div>
         <div class="toasts"></div>
       </div>
@@ -310,8 +329,14 @@ export class Hud {
       })
       .join('');
 
-    this.drawProfile(s);
-    this.drawMap(s);
+    this.drawJunction(s);
+    if (this.openGraph && s.open) {
+      this.drawOpenProfile(s, s.open.distM);
+      this.drawOpenMap(s, s.open.distM);
+    } else {
+      this.drawProfile(s);
+      this.drawMap(s);
+    }
   }
 
   private drawProfile(s: HudState): void {
@@ -399,6 +424,142 @@ export class Hud {
     ctx.stroke();
     for (const r of s.riders) {
       const [x, y] = P(r.x, r.z);
+      ctx.fillStyle = r.me ? '#ffd23f' : r.color;
+      ctx.beginPath();
+      ctx.arc(x, y, r.me ? 10 : 7, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#0a0e16';
+      ctx.lineWidth = 3;
+      ctx.stroke();
+    }
+  }
+
+  /** Panneau « Bifurcation dans X m » : ← / → pour choisir, sortie retenue surlignée. */
+  private drawJunction(s: HudState): void {
+    const box = this.el.junction as HTMLElement;
+    const j = s.open?.junction;
+    if (!j || j.inM > 350) {
+      box.classList.add('hidden');
+      this.lastJunction = '';
+      return;
+    }
+    box.classList.remove('hidden');
+    const fr = getLang() === 'fr';
+    const arrow = { left: '↰', straight: '↑', right: '↱', back: '↶' } as const;
+    const label = (d: keyof typeof arrow) =>
+      fr ? { left: 'À gauche', straight: 'Tout droit', right: 'À droite', back: 'Demi-tour' }[d] : { left: 'Left', straight: 'Straight on', right: 'Right', back: 'Turn back' }[d];
+    const key = `${j.selected}|${j.locked}|${j.choices.map((c) => c.dir + c.name).join(',')}`;
+    const head = `<div class="jn-head"><b>${fr ? 'Bifurcation' : 'Junction'}</b><span class="num">${fr ? 'dans' : 'in'} ${Math.max(0, Math.round(j.inM / 10) * 10)} m</span></div>`;
+    if (key === this.lastJunction) {
+      const h = box.querySelector('.jn-head span');
+      if (h) h.textContent = `${fr ? 'dans' : 'in'} ${Math.max(0, Math.round(j.inM / 10) * 10)} m`;
+      return;
+    }
+    this.lastJunction = key;
+    box.innerHTML = `${head}<div class="jn-choices">${j.choices
+      .map(
+        (c, i) =>
+          `<div class="jn-choice ${i === j.selected ? 'on' : ''} ${j.locked && i !== j.selected ? 'off' : ''}"><i>${arrow[c.dir]}</i><b>${label(c.dir)}</b><span>${c.name ? c.name.replace(/[<>&]/g, '') : ''}${c.unpaved ? ' · 🌾' : ''}</span>${i === j.selected ? `<em>${fr ? 'je continue' : 'my way'}</em>` : ''}</div>`,
+      )
+      .join('')}</div><div class="jn-keys">${j.locked ? (fr ? 'choix retenu' : 'locked in') : fr ? '← → pour choisir · U demi-tour' : '← → to choose · U turn back'}</div>`;
+  }
+
+  /** Profil des 2 km autour du coureur (200 m derrière, 1,8 km devant). */
+  private drawOpenProfile(s: HudState, d: number): void {
+    const c = this.profileCanvas;
+    const ctx = c.getContext('2d') as CanvasRenderingContext2D;
+    const w = c.width;
+    const h = c.height;
+    ctx.clearRect(0, 0, w, h);
+    const d0 = Math.max(0, d - 200);
+    const d1 = Math.min(this.track.length, d0 + 2000);
+    const pts: Array<{ d: number; y: number }> = [];
+    for (let x = d0; x <= d1; x += 10) pts.push({ d: x, y: this.track.sample(x).y });
+    if (pts.length < 2) return;
+    const ys = pts.map((p) => p.y);
+    const minY = Math.min(...ys) - 5;
+    const maxY = Math.max(Math.max(...ys) + 5, minY + 30);
+    const X = (x: number) => ((x - d0) / 2000) * w;
+    const Y = (y: number) => h - 8 - ((y - minY) / (maxY - minY)) * (h - 24);
+    for (let i = 1; i < pts.length; i++) {
+      const a = pts[i - 1] as { d: number; y: number };
+      const b = pts[i] as { d: number; y: number };
+      const grade = ((b.y - a.y) / Math.max(b.d - a.d, 1)) * 100;
+      ctx.fillStyle = grade > 6 ? '#ef4444' : grade > 3 ? '#f97316' : grade > 1 ? '#eab308' : grade < -1 ? '#3b82f6' : '#64748b';
+      ctx.beginPath();
+      ctx.moveTo(X(a.d), h);
+      ctx.lineTo(X(a.d), Y(a.y));
+      ctx.lineTo(X(b.d), Y(b.y));
+      ctx.lineTo(X(b.d), h);
+      ctx.closePath();
+      ctx.fill();
+    }
+    const j = s.open?.junction;
+    if (j) {
+      ctx.strokeStyle = 'rgba(255,210,63,0.9)';
+      ctx.setLineDash([6, 6]);
+      ctx.beginPath();
+      ctx.moveTo(X(d + j.inM), 0);
+      ctx.lineTo(X(d + j.inM), h);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+    const y = this.track.sample(d).y;
+    ctx.fillStyle = '#ffd23f';
+    ctx.beginPath();
+    ctx.arc(X(d), Y(y), 9, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#0a0e16';
+    ctx.lineWidth = 3;
+    ctx.stroke();
+  }
+
+  /** Carte locale (1,6 km de côté, nord en haut) : routes alentour, chemin prévu, coureurs. */
+  private drawOpenMap(s: HudState, d: number): void {
+    const g = this.openGraph as RoadGraphData;
+    const c = this.mapCanvas;
+    const ctx = c.getContext('2d') as CanvasRenderingContext2D;
+    const w = c.width;
+    const h = c.height;
+    ctx.clearRect(0, 0, w, h);
+    const me = this.track.sample(d);
+    const half = 800;
+    const k = w / (2 * half);
+    const P = (x: number, z: number): [number, number] => [w / 2 + (x - me.x) * k, h / 2 + (z - me.z) * k];
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+    for (const e of g.edges) {
+      const p = e.pts;
+      // Rejet grossier : extrémités et milieu loin du cadre.
+      const mid = 3 * Math.floor(p.length / 6);
+      const near = [0, mid, p.length - 3].some((i) => Math.abs((p[i] as number) - me.x) < half * 1.5 && Math.abs((p[i + 2] as number) - me.z) < half * 1.5);
+      if (!near) continue;
+      ctx.strokeStyle = /^(asphalt|paved|concrete|chipseal)/.test(e.surface) ? 'rgba(226,232,240,0.45)' : 'rgba(202,170,110,0.45)';
+      ctx.lineWidth = e.kind.startsWith('primary') || e.kind.startsWith('secondary') ? 6 : 3.5;
+      ctx.beginPath();
+      for (let i = 0; i < p.length; i += 3) {
+        const [x, y] = P(p[i] as number, p[i + 2] as number);
+        if (i) ctx.lineTo(x, y);
+        else ctx.moveTo(x, y);
+      }
+      ctx.stroke();
+    }
+    // Chemin prévu devant (jusqu'à 1,2 km).
+    ctx.strokeStyle = '#ffd23f';
+    ctx.lineWidth = 6;
+    ctx.beginPath();
+    let first = true;
+    for (let x = d; x <= Math.min(this.track.length, d + 1200); x += 8) {
+      const q = this.track.sample(x);
+      const [px, py] = P(q.x, q.z);
+      if (first) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+      first = false;
+    }
+    ctx.stroke();
+    for (const r of s.riders) {
+      const [x, y] = P(r.x, r.z);
+      if (x < -20 || y < -20 || x > w + 20 || y > h + 20) continue;
       ctx.fillStyle = r.me ? '#ffd23f' : r.color;
       ctx.beginPath();
       ctx.arc(x, y, r.me ? 10 : 7, 0, Math.PI * 2);

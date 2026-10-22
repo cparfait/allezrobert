@@ -6,7 +6,7 @@
 import type { Lang } from './strings.ts';
 
 export type Season = 'printemps' | 'ete' | 'automne' | 'hiver';
-export type RideType = 'free' | 'group' | 'race' | 'workout' | 'ftpTest';
+export type RideType = 'free' | 'group' | 'race' | 'workout' | 'ftpTest' | 'open';
 
 /** Variables communes : langue et habillages de prévisualisation (désactivés en jeu). */
 export interface CommonVariables {

@@ -37,6 +37,8 @@ export class KeyboardControls {
   steer = 0;
   /** Flèches réservées à autre chose (caméra libre) : ni changement de vitesse ni direction. */
   arrowsBlocked: () => boolean = () => false;
+  /** ← / → réservées au choix d'un carrefour (monde ouvert) : pas de déplacement latéral. */
+  steerBlocked: () => boolean = () => false;
   private readonly keys = new Set<string>();
   private readonly listeners: Array<(a: ShiftAction) => void> = [];
   private readonly onDown = (e: KeyboardEvent) => {
@@ -62,7 +64,7 @@ export class KeyboardControls {
   }
 
   update(dt: number): number {
-    const target = this.arrowsBlocked() ? 0 : (this.keys.has('ArrowRight') ? 1 : 0) - (this.keys.has('ArrowLeft') ? 1 : 0);
+    const target = this.arrowsBlocked() || this.steerBlocked() ? 0 : (this.keys.has('ArrowRight') ? 1 : 0) - (this.keys.has('ArrowLeft') ? 1 : 0);
     this.steer += (target - this.steer) * Math.min(1, dt * 6);
     // Manette : stick gauche horizontal.
     const pad = navigator.getGamepads?.().find((g) => g);
