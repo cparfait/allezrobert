@@ -1,5 +1,5 @@
 import * as THREE from 'three/webgpu';
-import { BIKES, DEFAULT_LOOK, FACE_SLIDERS, encodeFace, type AvatarLook, type BikeModel, type FaceShape } from '@allezrobert/shared';
+import { BASE_PROFILES, BIKES, DEFAULT_LOOK, FACE_SLIDERS, encodeFace, profileLook, type AvatarLook, type BikeModel, type FaceShape } from '@allezrobert/shared';
 import { createEngine } from './engine/renderer.ts';
 import { QUALITY_PRESETS, type QualityLevel } from './engine/quality.ts';
 import { GltfRiderAvatar, type RiderPose } from './rider/gltfAvatar.ts';
@@ -48,6 +48,7 @@ async function main(): Promise<void> {
   if (params.has('bench')) return bench(engine);
   if (params.has('sliders')) return sliderSheet(engine);
   if (params.has('random')) return randomSheet(engine);
+  if (params.has('profiles')) return profileSheet(engine);
 
   const looks: AvatarLook[] = [
     DEFAULT_LOOK,
@@ -154,6 +155,49 @@ async function main(): Promise<void> {
     requestAnimationFrame(loop);
   };
   requestAnimationFrame(loop);
+}
+
+/**
+ * Planche des profils de base (?avatar=mpfb&profiles) : par profil, visage casqué et lunettes,
+ * puis sans casque de face, de trois quarts et de profil.
+ */
+async function profileSheet(engine: Awaited<ReturnType<typeof createEngine>>): Promise<void> {
+  const { scene, camera } = engine;
+  const cw = 300;
+  const views: Array<[string, boolean, [number, number, number]]> = [
+    ['casque', true, [-0.3, 0.05, 0.42]], ['face', false, [-0.04, 0.02, 0.5]], ['3/4', false, [-0.32, 0.03, 0.4]], ['profil', false, [-0.5, 0.02, 0.02]],
+  ];
+  const sheet = document.createElement('canvas');
+  sheet.width = views.length * cw;
+  sheet.height = BASE_PROFILES.length * cw;
+  const g = sheet.getContext('2d') as CanvasRenderingContext2D;
+  g.font = '600 18px system-ui, sans-serif';
+  camera.fov = 30;
+  for (const [r, p] of BASE_PROFILES.entries()) {
+    const a = new GltfRiderAvatar({ ...profileLook(p), bikeModel: 's26-04-cervelo-s5' });
+    a.update(0, 0, 0, 'seated');
+    a.update(1 / 60, 0.0001, 0, 'seated');
+    scene.add(a.root);
+    a.root.updateMatrixWorld(true);
+    const eye = a.eyeWorld(new THREE.Vector3());
+    for (const [c, [label, helmet, off]] of views.entries()) {
+      a.root.traverse((o) => {
+        if (/rider_(glasses|helmet)/.test(o.name)) o.visible = helmet && !o.name.startsWith('rider_helmet_aero');
+      });
+      camera.position.set(eye.x + off[0], eye.y + off[1], eye.z + off[2]);
+      camera.updateProjectionMatrix();
+      camera.lookAt(eye.x, eye.y - 0.05, eye.z - (label === 'profil' ? 0.02 : 0));
+      engine.renderManual();
+      g.drawImage(canvas, 340, 60, 600, 600, c * cw, r * cw, cw, cw);
+      g.fillStyle = '#000';
+      g.fillText(c === 0 ? `${p.name}, ${p.ageYears} ans` : label, c * cw + 8, r * cw + 22);
+    }
+    scene.remove(a.root);
+  }
+  document.body.replaceChildren(sheet);
+  sheet.style.cssText = 'display:block;width:100%;height:auto';
+  if (!params.has('noshot')) await fetch('/__shot?name=avatars-profils', { method: 'POST', body: sheet.toDataURL('image/jpeg', 0.88) });
+  (window as unknown as { __avatarTestDone: boolean }).__avatarTestDone = true;
 }
 
 /**
@@ -479,10 +523,12 @@ async function bikeSheet(engine: Awaited<ReturnType<typeof createEngine>>, list:
   g.textAlign = 'center';
   const left = params.get('side') === 'left';
   for (const [i, b] of models.entries()) {
-    const a = new GltfRiderAvatar({ ...DEFAULT_LOOK, bikeModel: b.id });
+    // &profile=lea : tenue d'un profil de base.
+    const prof = BASE_PROFILES.find((p) => p.id === params.get('profile'));
+    const a = new GltfRiderAvatar({ ...(prof ? profileLook(prof) : DEFAULT_LOOK), bikeModel: b.id });
     // &face=jawWidth:1,noseLength:-0.5 : curseurs de visage (avatar MPFB, ?avatar=mpfb).
     const face = Object.fromEntries((params.get('face') ?? '').split(',').filter(Boolean).map((kv) => [kv.split(':')[0] as string, Number(kv.split(':')[1])]));
-    a.setFace(face);
+    if (Object.keys(face).length) a.setFace(face);
     a.update(0, 0, 0, 'seated');
     a.update(1 / 60, 0.0001, 0, 'seated');
     const riderOn = params.has('rider');

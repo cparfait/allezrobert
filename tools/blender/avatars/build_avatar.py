@@ -227,6 +227,20 @@ EXPRESSIONS = {
 
 
 MOUTH = []  # centre des lèvres (pose debout), pour l'intérieur de la bouche
+LASHES = ('helper-l-eyelashes-1', 'helper-l-eyelashes-2', 'helper-r-eyelashes-1', 'helper-r-eyelashes-2')
+
+
+def LASH_GROUPS_MEMBERS(ob, upper_only=True):
+    """Cils du haut : sommets des aides de cils au-dessus du centre de chaque œil."""
+    out = set()
+    for g in LASHES:
+        idx = vgroup_members(ob, g)
+        if not idx or not upper_only:
+            out |= idx
+            continue
+        zc = sum(ob.data.vertices[i].co.z for i in idx) / len(idx)
+        out |= {i for i in idx if ob.data.vertices[i].co.z > zc + 0.0015}
+    return out
 
 
 def smoothstep(a, b, x):
@@ -399,7 +413,7 @@ def build_base(HS, TS, LS):
     bm.verts.ensure_lookup_table()
     # Indices recalculés après la séparation des yeux (ceux d'avant sont décalés). Langue gardée
     # (bouche ouverte) ; les dents d'aide de MakeHuman, grossières, sont retirées.
-    keep = vgroup_members(body, 'body') | vgroup_members(body, 'helper-tongue')
+    keep = vgroup_members(body, 'body') | vgroup_members(body, 'helper-tongue') | LASH_GROUPS_MEMBERS(body)
     gone = [v for v in bm.verts if v.index not in keep]
     bmesh.ops.delete(bm, geom=gone, context='VERTS')
     bmesh.update_edit_mesh(body.data)
@@ -537,7 +551,8 @@ def assign_kit(body, rig):
     pelvis_z = rig.data.bones['pelvis'].head_local.z
     chest_z = rig.data.bones['spine_03'].head_local.z
     vreg = [region_at(rig, dom[v.index] or 'pelvis', v.co, pelvis_z, chest_z) for v in me.vertices]
-    names = ['skin', 'jersey', 'jersey_accent', 'shorts', 'sock', 'mouth']
+    names = ['skin', 'jersey', 'jersey_accent', 'shorts', 'sock', 'mouth', 'lashes']
+    lashes = LASH_GROUPS_MEMBERS(body, upper_only=False)  # cils du bas déjà retirés
     tongue = vgroup_members(body, 'helper-tongue')
     mouth = MOUTH[0]
 
@@ -558,6 +573,9 @@ def assign_kit(body, rig):
     mi = []
     for p in me.polygons:
         vs = set(p.vertices)
+        if vs <= lashes:
+            mi.append(names.index('lashes'))
+            continue
         if vs <= tongue or inside_mouth(p):
             mi.append(names.index('mouth'))
             continue
@@ -858,6 +876,120 @@ def transfer_keys(body, objs):
 
 
 # ---------------------------------------------------------------------------------------------
+# Coiffures compatibles casque et moustache (profils, docs/AVATARS.md § 9)
+# ---------------------------------------------------------------------------------------------
+def hair_material():
+    return bpy.data.materials.get('hair') or bpy.data.materials.new('hair')
+
+
+def skin_to_head(ob, rig):
+    g = ob.vertex_groups.new(name='head')
+    g.add(range(len(ob.data.vertices)), 1.0, 'REPLACE')
+    ob.parent = rig
+    m = ob.modifiers.new('Armature', 'ARMATURE')
+    m.object = rig
+
+
+def build_hair_styles(body, rig):
+    """Queue de cheval et tresse (sortant sous le casque, dans la nuque), en pose debout, liées à
+    l'os de la tête ; moustache : copie de la peau au-dessus de la lèvre, décollée de 2 mm (suit
+    curseurs et expressions puisque ce sont les mêmes sommets et cibles)."""
+    head = [body.matrix_world @ v.co for v in body.data.vertices if v.co.z > MOUTH[0].z - 0.02]
+    back_y = max(c.y for c in head if abs(c.x) < 0.02 and c.z > MOUTH[0].z + 0.05)
+    eye_z = MOUTH[0].z + 0.072
+    out = []
+
+    def tube(name, path, radii, twist=0.0, lumps=0):
+        bm = bmesh.new()
+        rings = []
+        n = 10
+        pts = []
+        for i in range(len(path) - 1):
+            for k in range(6):
+                t = k / 6
+                pts.append((path[i].lerp(path[i + 1], t), radii[i] + (radii[i + 1] - radii[i]) * t))
+        pts.append((path[-1], radii[-1]))
+        for j, (p, r) in enumerate(pts):
+            nxt = pts[min(j + 1, len(pts) - 1)][0] - pts[max(j - 1, 0)][0]
+            d = nxt.normalized()
+            u = d.cross(Vector((1, 0, 0))).normalized()
+            w = d.cross(u)
+            if lumps:  # tresse : mèches qui se croisent
+                p = p + Vector((math.sin(j * math.pi / 3) * r * 0.35, 0, 0))
+                r = r * (0.85 + 0.15 * abs(math.cos(j * math.pi / 3)))
+            rings.append([bm.verts.new(p + (u * math.cos(a) + w * math.sin(a)) * r) for a in (2 * math.pi * q / n for q in range(n))])
+        for a, b in zip(rings, rings[1:]):
+            for q in range(n):
+                bm.faces.new((a[q], a[(q + 1) % n], b[(q + 1) % n], b[q]))
+        bm.faces.new(list(reversed(rings[0])))
+        bm.faces.new(rings[-1])
+        me = bpy.data.meshes.new(name)
+        bm.to_mesh(me)
+        bm.free()
+        ob = bpy.data.objects.new(name, me)
+        bpy.context.scene.collection.objects.link(ob)
+        me.materials.append(hair_material())
+        for p in me.polygons:
+            p.use_smooth = True
+        skin_to_head(ob, rig)
+        out.append(ob)
+
+    root = Vector((0, back_y - 0.012, eye_z - 0.035))
+    tube('rider_hair_ponytail', [root, root + Vector((0, 0.03, -0.035)), root + Vector((0, 0.04, -0.09)), root + Vector((0, 0.035, -0.15))],
+         [0.02, 0.022, 0.016, 0.006])
+    tube('rider_hair_braid', [root, root + Vector((0, 0.025, -0.04)), root + Vector((0, 0.03, -0.11)), root + Vector((0, 0.025, -0.2))],
+         [0.016, 0.015, 0.013, 0.007], lumps=1)
+    # Moustache : faces de peau au-dessus de la lèvre supérieure, retombant aux commissures.
+    m = MOUTH[0]
+    mo = body.copy()
+    mo.data = body.data.copy()
+    bpy.context.scene.collection.objects.link(mo)
+    mo.name = mo.data.name = 'rider_moustache'
+    me = mo.data
+
+    def in_zone(c):
+        ax = abs(c.x - m.x)
+        top = m.z + 0.017 - 0.006 * (ax / 0.028) ** 2
+        bottom = m.z + 0.003 - (0.012 * max(0.0, ax - 0.016) / 0.012 if ax > 0.016 else 0)
+        return ax < 0.029 and bottom < c.z < top and c.y < m.y + 0.012
+
+    keep = {p.index for p in me.polygons if in_zone(p.center) and p.normal.y < -0.2}
+    bm = bmesh.new()
+    bm.from_mesh(me)
+    bm.faces.ensure_lookup_table()
+    bmesh.ops.delete(bm, geom=[f for f in bm.faces if f.index not in keep], context='FACES')
+    bmesh.ops.delete(bm, geom=[v for v in bm.verts if not v.link_faces], context='VERTS')
+    bm.to_mesh(me)
+    bm.free()
+    me.materials.clear()
+    me.materials.append(hair_material())
+    # Décollée de la peau (même décalage sur toutes les cibles : écarts inchangés).
+    me.update()
+    nrm = [v.normal.copy() for v in me.vertices]
+    for kb in me.shape_keys.key_blocks:
+        for d, n in zip(kb.data, nrm):
+            d.co += n * 0.0022
+    for v, n in zip(me.vertices, nrm):
+        v.co += n * 0.0022
+    prune_keys(mo)
+    print(f'moustache : {len(me.polygons)} faces, {len(me.shape_keys.key_blocks) - 1} cibles')
+    out.append(mo)
+    return out
+
+
+def fix_material_names(objs):
+    """Matériaux dédoublés à l'import (« hair.001 ») ramenés à leur nom (le client s'en sert)."""
+    import re
+    for o in objs:
+        for slot in o.material_slots:
+            mt = slot.material
+            if mt and re.match(r'.*\.\d{3}$', mt.name):
+                base = bpy.data.materials.get(mt.name[:-4])
+                if base:
+                    slot.material = base
+
+
+# ---------------------------------------------------------------------------------------------
 # Niveaux de détail (docs/AVATARS.md § 8)
 # ---------------------------------------------------------------------------------------------
 # Suffixe, réduction du corps (depuis le niveau 0), des accessoires, ourlets protégés.
@@ -1130,10 +1262,13 @@ def main():
             m = o.modifiers.new('Armature', 'ARMATURE')
             m.object = rig
     bake_skin_textures(body, eyes, OUT)
+    styles = build_hair_styles(body, rig)
     pose_rider(rig)
-    apply_pose_as_rest(rig, [body, eyes])
+    apply_pose_as_rest(rig, [body, eyes] + styles)
     acc = import_accessories(rig, body)
-    transfer_keys(body, acc)
+    transfer_keys(body, acc + [o for o in styles if o.name.startswith('rider_hair')])
+    acc += styles
+    fix_material_names(acc)
     body = reduce_body(body)
     rig.name = rig.data.name = 'Armature'
     tris = sum(len(p.vertices) - 2 for p in body.data.polygons)

@@ -78,6 +78,8 @@ export interface AvatarLook {
   beard?: number;
   /** Taches de rousseur (0 → 1). */
   freckles?: number;
+  /** Moustache (de la couleur des cheveux). */
+  moustache?: boolean;
 }
 
 export const DEFAULT_LOOK: AvatarLook = {

@@ -97,6 +97,7 @@ const MATERIALS: Record<string, [string, number, number]> = {
   sock: ['#f2f2f2', 0.8, 0],
   shoe: ['#f2f2f2', 0.4, 0],
   mouth: ['#4a1c1e', 0.75, 0],
+  lashes: ['#2b2019', 0.8, 0],
   shoe_sole: ['#1a1b1f', 0.6, 0],
   helmet: ['#f4f4f4', 0.35, 0],
   helmet_detail: ['#1c1d22', 0.6, 0],
@@ -506,6 +507,8 @@ export class GltfRiderAvatar implements RiderAvatarLike {
   private faceKey = '[]';
   /** Expressions en sortie (modèle à formes ARKit seulement). */
   private faceAnim: FaceAnimator | null = null;
+  /** Coiffures (avatar MPFB) : 0 courts, 1 queue de cheval, 2 tresse, 3 rasé ; moustache. */
+  private readonly hair = { cap: [] as THREE.Object3D[], ponytail: [] as THREE.Object3D[], braid: [] as THREE.Object3D[], moustache: [] as THREE.Object3D[] };
   private skin: SkinMaterial | null = null;
   private ftpFrac = 0.7;
   private hrFrac: number | undefined;
@@ -638,6 +641,10 @@ export class GltfRiderAvatar implements RiderAvatarLike {
     });
     this.lod.traverse((o) => {
       const n = o.name;
+      if (/^rider_hair_ponytail/.test(n)) this.hair.ponytail.push(o);
+      else if (/^rider_hair_braid/.test(n)) this.hair.braid.push(o);
+      else if (/^rider_moustache/.test(n)) this.hair.moustache.push(o);
+      else if (/^rider_hair(_lod\d)?$/.test(n)) this.hair.cap.push(o);
       if (n.startsWith('rider_helmet_aero')) this.headgear.aero.push(o);
       else if (n.startsWith('rider_helmet')) this.headgear.road.push(o);
       else if (n.startsWith('rider_glasses')) this.headgear.glasses.push(o);
@@ -645,6 +652,7 @@ export class GltfRiderAvatar implements RiderAvatarLike {
     if (this.morphMeshes.some((m) => m.morphTargetDictionary?.jawOpen !== undefined)) this.faceAnim = new FaceAnimator();
     this.mountBike(bikeOfLook(look), look);
     this.setBuild(look.build);
+    this.applyHair(look);
     this.update(0, 0, 0, 'seated');
   }
 
@@ -989,6 +997,15 @@ export class GltfRiderAvatar implements RiderAvatarLike {
     });
   }
 
+  private applyHair(look: AvatarLook): void {
+    if (!this.hair.ponytail.length) return; // modèle sans coiffures (cyclist.glb)
+    const style = ((look.hairStyle % 4) + 4) % 4;
+    for (const o of this.hair.cap) o.visible = style !== 3;
+    for (const o of this.hair.ponytail) o.visible = style === 1;
+    for (const o of this.hair.braid) o.visible = style === 2;
+    for (const o of this.hair.moustache) o.visible = !!look.moustache;
+  }
+
   setEffort(ftpFrac: number, hrFrac?: number): void {
     this.ftpFrac = ftpFrac;
     this.hrFrac = hrFrac;
@@ -998,6 +1015,7 @@ export class GltfRiderAvatar implements RiderAvatarLike {
     this.look = look;
     for (const m of this.materials.values()) applyLookColor(m, look);
     this.skin?.setLook(skinLook(look));
+    this.applyHair(look);
     this.mountBike(bikeOfLook(look), look);
     this.setBuild(look.build);
   }

@@ -28,3 +28,19 @@ describe('curseurs de forme', () => {
     expect(decodeFace(undefined)).toEqual({});
   });
 });
+
+describe('profils de base', () => {
+  it('8 profils, tenues valides, âges cohérents', async () => {
+    const { BASE_PROFILES, profileLook, ageSlider } = await import('../src/profiles.ts');
+    expect(BASE_PROFILES).toHaveLength(8);
+    expect(ageSlider(25)).toBe(0);
+    expect(ageSlider(77)).toBeCloseTo(1);
+    expect(ageSlider(19)).toBeCloseTo(-1);
+    for (const p of BASE_PROFILES) {
+      const look = profileLook(p);
+      expect(look.face).toMatch(FACE_CODE_RE);
+      expect(decodeFace(look.face).age ?? 0).toBeCloseTo(ageSlider(p.ageYears), 1);
+      expect(look.skin).toMatch(/^#[0-9a-f]{6}$/i);
+    }
+  });
+});

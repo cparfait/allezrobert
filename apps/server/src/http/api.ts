@@ -38,6 +38,7 @@ const AvatarSchema = z.object({
   face: z.string().regex(FACE_CODE_RE).optional(),
   beard: z.number().min(0).max(1).optional(),
   freckles: z.number().min(0).max(1).optional(),
+  moustache: z.boolean().optional(),
 });
 
 const ProfilePatchSchema = z

@@ -402,3 +402,20 @@ reprises de l'ancien modèle un peu grandes pour ce visage.
 
   Reste à mesurer les fps sur une vraie carte graphique (poste local, `avatar-test.html?bench`).
 - Planche : `&sliders&lod` (5, 15 et 45 m au téléobjectif).
+
+### Étape 4 — profils de base (faite)
+
+- `packages/shared/src/profiles.ts` : Robert, Léa, Moussa, Aiko, Karim, Inès, Tom, Marta (§ 9),
+  chacun en curseurs (âge en années converti en curseur `age`), teint, cheveux, coiffure, barbe,
+  taches de rousseur, moustache. Traits féminins ajoutés quand `sex` < 0 (le curseur change
+  surtout la silhouette). Tests.
+- Coiffures compatibles casque (`AvatarLook.hairStyle`, avatar MPFB) : 0 courts, 1 queue de
+  cheval, 2 tresse (sortant sous le casque, dans la nuque), 3 rasé ; `AvatarLook.moustache` :
+  copie de la peau au-dessus de la lèvre, décollée de 2 mm (suit curseurs et expressions). Cils du
+  haut (aides MakeHuman). Pièces présentes aux trois niveaux de détail.
+- Coureurs IA : visage du profil correspondant à leur prénom (hommes / femmes alternés), curseurs
+  du visage variés de ± 0,25.
+- Planche : `avatar-test.html?avatar=mpfb&profiles` → `docs/screenshots/avatars-profils.jpg`
+  (casqué, puis sans casque de face, de trois quarts et de profil).
+- Limites : visages féminins encore un peu androgynes sous la calotte de cheveux courte ;
+  moustache unie (pas de poils).
