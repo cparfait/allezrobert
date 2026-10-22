@@ -42,6 +42,10 @@ Le **HUD** affiche la puissance moyenne 3 s (couleur de zone), FC, cadence, vite
 
 **Difficulté du home trainer** (50 % par défaut) : la pente ressentie est atténuée (et encore plus en descente), la vitesse du jeu reste réaliste.
 
+Le panneau **À proximité** liste jusqu'à quatre coureurs devant et quatre derrière : écart en secondes (à ta vitesse) et en mètres, W/kg. Le bouton en haut du panneau bascule entre les coureurs **réels** (joueurs en ligne, par défaut en groupe) et **tous** (coureurs IA compris).
+
+**Fin de sortie** (Échap → Terminer) : distance, temps, D+, vitesses, cardio, puissance moyenne et normalisée, TSS · IF, calories, comparaison avec ta dernière sortie sur le même itinéraire ; courbe de puissance avec tes records d'avant en pointillés (records battus listés à gauche), profil · puissance · cardio (survol pour lire les valeurs), temps par zone, segments, et en groupe le temps dans les roues, l'énergie économisée et les relais pris. Boutons : carte de sortie (image), `.fit` (Strava), `.gpx`, **Reprendre** (en solo), nouvelle sortie, quitter.
+
 ## 5. Modes
 
 - **Sortie libre** avec coureurs IA (nombre réglable), aspiration réaliste.

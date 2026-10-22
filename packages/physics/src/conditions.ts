@@ -61,13 +61,14 @@ const SURFACE_CRR: Record<Exclude<SurfaceClass, 'paved'>, number> = {
 /**
  * Coefficient de roulement selon le revêtement. `bikeCrr` est celui du vélo sur enrobé : un pneu
  * route plus résistant sur la route l'est aussi ailleurs (même rapport, jamais en dessous de la
- * valeur tabulée). Les pneus gravel, un peu plus lents sur l'enrobé (déjà dans `bikeCrr`),
- * perdent 20 % de moins que des pneus route hors enrobé.
+ * valeur tabulée). Les pneus gravel et VTT, plus lents sur l'enrobé (déjà dans `bikeCrr`),
+ * perdent hors enrobé 20 % (gravel) et 30 % (VTT) de moins que des pneus route.
  */
-export function surfaceCrr(surface: string | undefined, bikeCrr: number, tyre: 'road' | 'gravel' = 'road'): number {
+export function surfaceCrr(surface: string | undefined, bikeCrr: number, tyre: 'road' | 'gravel' | 'mtb' = 'road'): number {
   const c = surfaceClass(surface);
   if (c === 'paved') return bikeCrr;
   if (tyre === 'gravel') return SURFACE_CRR[c] * 0.8;
+  if (tyre === 'mtb') return SURFACE_CRR[c] * 0.7;
   return Math.max(SURFACE_CRR[c], SURFACE_CRR[c] * (bikeCrr / 0.0045));
 }
 

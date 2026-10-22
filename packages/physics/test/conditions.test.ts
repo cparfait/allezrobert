@@ -160,3 +160,19 @@ describe('dynamique', () => {
     expect(b.speedMs).toBeLessThan(a.speedMs);
   });
 });
+
+describe('VTT et roues', () => {
+  it('le VTT perd sur la route et gagne sur la terre', () => {
+    const vtt = bikeSetupFor({ bike: 'bike-vtt' });
+    const route = paramsFromBike(77, DEFAULT_BIKE);
+    const mtb = paramsFromBike(77, vtt);
+    expect(steadyStateSpeed(250, 0, mtb, env)).toBeLessThan(steadyStateSpeed(250, 0, route, env) - 0.5);
+    expect(surfaceCrr('dirt', vtt.crr, 'mtb')).toBeLessThan(surfaceCrr('dirt', DEFAULT_BIKE.crr, 'road'));
+  });
+  it('roues de 88 mm : meilleures sur le plat, moins bonnes en côte que les 40 mm', () => {
+    const p40 = paramsFromBike(70, bikeSetupFor({ wheels: 'wheels-carbone-40' }));
+    const p88 = paramsFromBike(70, bikeSetupFor({ wheels: 'wheels-carbone-88' }));
+    expect(steadyStateSpeed(250, 0, p88, env)).toBeGreaterThan(steadyStateSpeed(250, 0, p40, env));
+    expect(steadyStateSpeed(250, 9, p88, env)).toBeLessThan(steadyStateSpeed(250, 9, p40, env));
+  });
+});

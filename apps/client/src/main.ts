@@ -25,7 +25,10 @@ import { loadSettings, saveSettings, type Settings } from './ui/settings.ts';
 import { MainMenu } from './ui/menu.ts';
 import { bootStep, bootDone, bootError } from './ui/splash.ts';
 import { PosterScene, choosePosterSpot, POSTER_HOUR } from './ui/poster.ts';
-import { showPause, showSummary, rideToFit } from './ui/ridepanels.ts';
+import { showPause, rideToFit, rideToGpx, download, onlinePanel } from './ui/ridepanels.ts';
+import { showRideSummary } from './ui/summary.ts';
+import { compareAndStore, readPowerRecords, rideStats, updatePowerRecords } from './game/stats.ts';
+import { shareCard } from './ui/sharecard.ts';
 import { splatAt } from './world/splat.ts';
 import { Onboarding, RideTutorial } from './onboarding/onboarding.ts';
 import { awardRide, loadProgress } from './ui/garage.ts';
@@ -420,6 +423,8 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   if (traffic) engine.scene.add(traffic.group);
   const hud = new Hud(hudRoot, track, source.attribution);
   if (nav && source.open) hud.setOpen(source.open.graph);
+  // En groupe, le panneau « À proximité » montre d'abord les coureurs réels.
+  hud.riderFilter = mp ? 'real' : 'all';
   // Musique plus discrète en sortie ; titres Spotify annoncés dans le HUD.
   musicCtl.base = 0.6;
   music.setDuck(musicCtl.base);
@@ -524,27 +529,87 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     ghost.lap(ride.elapsedS, ride.state.distM);
   };
 
-  const finish = () => {
+  // Fin de sortie : écran de stats par-dessus la scène figée. « Reprendre » relance la sortie (solo) ;
+  // « Nouvelle sortie » et « Quitter » rendent la main au menu. XP, historique et records sont
+  // enregistrés à chaque fin (sans double compte si la sortie a été reprise).
+  const recordsBefore = readPowerRecords();
+  let credited: { distanceM: number; elevationM: number; movingS: number } | undefined;
+  const fileStem = () => `allez-robert-${new Date(ride.startT).toISOString().slice(0, 16).replace(/[:T]/g, '-')}`;
+  const fitBytes = () => rideToFit(ride, { name: `Allez Robert ! — ${track.route.name}`, massKg: s.massKg, ftp: s.ftpWatts, ...(source.originL93 ? { originL93: source.originL93 } : {}), skipStrava: s.skipStrava });
+  const teardown = (autostart: boolean) => {
     engine.renderer.setAnimationLoop(null);
     clearInterval(sourcesTimer);
     void mp?.dispose();
     void voice?.disconnect();
     tutorial?.stop();
-    // Invité : ni XP compétitive, ni segments, ni FIT.
-    const xp = s.guest ? undefined : awardRide({ distanceM: ride.state.distM - startD, elevationM: ride.elevationGainM, movingS: ride.elapsedS });
     audio.dispose();
+    input.sendTrainer({ kind: 'simulation', gradePercent: 0 });
+    const url = new URL(location.href);
+    if (autostart) url.searchParams.set('autostart', '1');
+    else url.searchParams.delete('autostart');
+    location.href = url.toString();
+  };
+  const finish = () => {
+    ride.paused = true;
     hud.setVisible(false);
     input.sendTrainer({ kind: 'simulation', gradePercent: 0 });
-    showSummary(
+    const done = { distanceM: ride.state.distM - startD, elevationM: ride.elevationGainM, movingS: ride.elapsedS };
+    // Invité : ni XP compétitive, ni segments, ni FIT.
+    const xp = s.guest ? undefined : awardRide(done, credited);
+    if (!s.guest) credited = done;
+    const stats = rideStats(ride.records, { ftp: s.ftpWatts, elevationGainM: ride.elevationGainM, elapsedS: ride.elapsedS });
+    const records = s.guest ? { previous: recordsBefore, beaten: [] } : updatePowerRecords(stats.curve, recordsBefore);
+    const previous = s.guest
+      ? null
+      : compareAndStore({ routeId: track.route.id, date: ride.startT, distanceM: stats.distanceM, movingS: stats.movingS, avgSpeedKmh: stats.avgSpeedKmh, avgWatts: stats.avgWatts, np: stats.np });
+    const L = getLang() === 'fr';
+    showRideSummary(
       ui,
-      ride,
-      () => rideToFit(ride, { name: `Allez Robert ! — ${track.route.name}`, massKg: s.massKg, ftp: s.ftpWatts, ...(source.originL93 ? { originL93: source.originL93 } : {}), skipStrava: s.skipStrava }),
-      () => {
-        const url = new URL(location.href);
-        url.searchParams.delete('autostart');
-        location.href = url.toString();
+      {
+        ride,
+        stats,
+        routeName: track.route.name,
+        ftp: s.ftpWatts,
+        massKg: s.massKg,
+        previous,
+        records,
+        withGroup: peloton.riders.length > 0 || !!mp || ride.group.draftS > 0,
+        guest: s.guest,
+        ...(xp
+          ? {
+              xp: {
+                gained: xp.total,
+                level: xp.level,
+                progress: xp.progress,
+                levelUp: xp.levelUp,
+                detail: `${Math.round((20 * done.distanceM) / 1000)} ${L ? 'distance' : 'distance'} · ${Math.round(done.elevationM)} ${L ? 'dénivelé' : 'climbing'} · ${Math.round((2 * done.movingS) / 60)} ${L ? 'temps' : 'time'}`,
+                unlocked: xp.unlocked.map((u) => u.name[getLang()]),
+              },
+            }
+          : {}),
       },
-      xp,
+      {
+        onShareCard: async () => {
+          const photo = ride.summitPhotos[0];
+          const blob = await shareCard(ride, { routeName: track.route.name, riderName: s.name, ftp: s.ftpWatts, ...(photo ? { photo } : {}) });
+          download(new Uint8Array(await blob.arrayBuffer()), `${fileStem()}.png`, 'image/png');
+        },
+        onFit: () => download(fitBytes(), `${fileStem()}.fit`),
+        onGpx: () => download(rideToGpx(ride, { name: `Allez Robert ! — ${track.route.name}`, ...(source.originL93 ? { originL93: source.originL93 } : {}) }), `${fileStem()}.gpx`, 'application/gpx+xml'),
+        // Multijoueur : le serveur a pu terminer la sortie, on ne reprend pas.
+        ...(mp
+          ? {}
+          : {
+              onResume: () => {
+                ui.innerHTML = '';
+                hud.setVisible(true);
+                ride.paused = false;
+              },
+            }),
+        onNewRide: () => teardown(true),
+        onQuit: () => teardown(false),
+        ...(s.guest ? {} : { onlineBox: (box: HTMLElement) => void onlinePanel(box, ride, fitBytes) }),
+      },
     );
   };
   const togglePause = () => {
@@ -647,6 +712,12 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
         ride.draft = mp.selfDraft();
         ride.state.distM += mp.reconcile(ride.state.distM, dt);
       } else ride.draft = peloton.update(dt, { distM: ride.state.distM, lateral: ride.lateral, speedMs: ride.state.speedMs, watts: ride.inputs.watts, massKg: s.massKg, ftpWatts: s.ftpWatts });
+      // Relais : quelqu'un roule dans ma roue (0,5 à 4 m derrière, à moins d'un mètre de côté).
+      const onWheel = (d: number, lat: number) => {
+        const gap = ride.state.distM - d;
+        return gap > 0.5 && gap < 4 && Math.abs(lat - ride.lateral) < 1;
+      };
+      ride.wheelFollowed = peloton.riders.some((r) => onWheel(r.state.distM, r.lateral)) || remoteRiders.some((r) => onWheel(r.unwrappedM, r.lateralM));
       // Abri derrière un tracteur ou une camionnette qui roule dans le même sens.
       if (traffic) ride.draft = Math.max(ride.draft, traffic.draftFor(ride.state.distM, ride.lateral));
     }
@@ -738,14 +809,15 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
           draftPct: ride.draft * 100,
           lap: ride.lap,
           riders: [
-            { id: 'me', name: s.name, distM: ride.state.distM, x: pos.x, z: pos.z, me: true, isAI: false, isGuest: false, color: '#ffd23f' },
+            { id: 'me', name: s.name, distM: ride.state.distM, x: pos.x, z: pos.z, me: true, isAI: false, isGuest: false, color: '#ffd23f', wkg: ride.watts3s() / s.massKg },
             ...remoteRiders.map((r) => {
               const p = track.sample(r.unwrappedM);
-              return { id: r.id, name: r.name, distM: r.unwrappedM, x: p.x, z: p.z, me: false, isAI: r.isAI, isGuest: r.isGuest, color: r.avatar.jersey, online: !r.isAI, speaking: voice?.speaking.has(r.name) ?? false };
+              const mass = mp?.net.roster.get(r.id)?.massKg ?? 75;
+              return { id: r.id, name: r.name, distM: r.unwrappedM, x: p.x, z: p.z, me: false, isAI: r.isAI, isGuest: r.isGuest, color: r.avatar.jersey, online: !r.isAI, speaking: voice?.speaking.has(r.name) ?? false, wkg: r.watts / mass };
             }),
             ...peloton.riders.map((r) => {
               const p = track.sample(r.state.distM);
-              return { id: r.id, name: r.name, distM: r.state.distM, x: p.x, z: p.z, me: false, isAI: true, isGuest: false, color: r.color };
+              return { id: r.id, name: r.name, distM: r.state.distM, x: p.x, z: p.z, me: false, isAI: true, isGuest: false, color: r.color, wkg: r.watts / r.massKg };
             }),
           ],
           ...(ride.segment ? { segment: { seg: ride.segment.seg, progress: ride.segment.progress, elapsedS: (ride.startT + ride.elapsedS * 1000 - ride.segment.startT) / 1000 } } : {}),

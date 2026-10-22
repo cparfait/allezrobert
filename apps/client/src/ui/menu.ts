@@ -451,7 +451,7 @@ export class MainMenu {
     const drag = Math.round((b.cda / DEFAULT_BIKE.cda - 1) * 1000) / 10;
     const num = (v: number, d = 1) => v.toFixed(d).replace('.', L ? ',' : '.');
     return `<p class="mm-hint mm-bikephys">${L ? 'En selle' : 'Riding'} : <b>${num(b.massKg)} kg</b> · ${L ? 'traînée' : 'drag'} <b>${drag > 0 ? '+' : ''}${num(drag)} %</b> · ${
-      b.tyre === 'gravel' ? (L ? 'pneus gravel' : 'gravel tyres') : L ? 'pneus route' : 'road tyres'
+      b.tyre === 'gravel' ? (L ? 'pneus gravel' : 'gravel tyres') : b.tyre === 'mtb' ? (L ? 'pneus VTT' : 'MTB tyres') : L ? 'pneus route' : 'road tyres'
     }</p>`;
   }
 

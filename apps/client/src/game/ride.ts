@@ -85,6 +85,12 @@ export class RideSession {
   crr: number;
   /** Vent de face ressenti à hauteur du coureur (m/s), au dernier pas. */
   windMs = 0;
+  /** En groupe : temps dans les roues (s), énergie économisée (J), relais pris. */
+  readonly group = { draftS: 0, savedJ: 0, pulls: 0 };
+  /** Quelqu'un est dans ma roue (tenu à jour par la boucle de jeu). */
+  wheelFollowed = false;
+  private pullS = 0;
+  private pullCounted = false;
   /** Puissance après lissage (volant d'inertie), celle qui fait avancer le vélo. */
   readonly smoothedPower = new PowerSmoother(0.5);
   lap = 1;
@@ -177,6 +183,22 @@ export class RideSession {
     this.crr = surfaceCrr(this.surface, this.params.crr, this.opts.profile.bike.tyre) * wetCrrFactor(this.rain);
     const cdaFactor = (1 - this.draft) * poseCdaFactor(this.pose, s.grade, this.state.speedMs);
     const prevDist = this.state.distM;
+    // Statistiques de groupe : aspiration et relais.
+    if (this.draft > 0.05) {
+      this.group.draftS += dt;
+      const va = this.state.speedMs + env.windSpeedMs;
+      this.group.savedJ += this.draft * 0.5 * env.airDensity * this.params.cda * va * Math.abs(va) * this.state.speedMs * dt;
+    }
+    if (this.wheelFollowed && this.draft < 0.05 && this.state.speedMs > 3) {
+      this.pullS += dt;
+      if (this.pullS >= 10 && !this.pullCounted) {
+        this.group.pulls++;
+        this.pullCounted = true;
+      }
+    } else {
+      this.pullS = 0;
+      this.pullCounted = false;
+    }
     stepRider(
       this.state,
       {
@@ -271,10 +293,13 @@ export class RideSession {
   private updateSegments(now: number): void {
     const track = this.opts.track;
     const d = track.wrap(this.state.distM);
+    // Distance depuis le début d'un segment : repliée sur une boucle, signée sinon (wrap bornerait
+    // les distances négatives à 0 et ouvrirait le segment dès le départ).
+    const relTo = (startM: number) => (track.route.loop ? track.wrap(d - startM) : d - startM);
     if (this.segment) {
       const seg = this.segment.seg;
       const len = seg.endM - seg.startM;
-      const rel = track.wrap(d - seg.startM);
+      const rel = relTo(seg.startM);
       this.segWatts += this.inputs.watts;
       this.segSamples++;
       if (rel > len || rel < 0) {
@@ -286,7 +311,7 @@ export class RideSession {
       return;
     }
     for (const seg of track.route.segments) {
-      const rel = track.wrap(d - seg.startM);
+      const rel = relTo(seg.startM);
       if (rel >= 0 && rel < 4) {
         this.segment = { seg, startT: now, progress: 0 };
         this.segWatts = 0;

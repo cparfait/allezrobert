@@ -120,7 +120,7 @@ export class SimRider {
   readonly state: RiderState;
   readonly pose = new PoseController();
   /** Pneus du vélo (résistance au roulement hors enrobé). */
-  readonly tyre: 'road' | 'gravel';
+  readonly tyre: 'road' | 'gravel' | 'mtb';
   readonly ai: AiRider | undefined;
   shareHr: boolean;
   lateralM = 0;

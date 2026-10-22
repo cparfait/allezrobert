@@ -26,6 +26,7 @@ import { buildOsmWorld } from './osm.ts';
 import { fetchOsm, fetchOsmApi, reachableOverpass } from './overpass.ts';
 import { detectClimbs, elevationGain } from './profile.ts';
 import { buildRoads3d } from './roads3d.ts';
+import { frenchDe } from './route.ts';
 import type { TileResult } from './tiles.ts';
 import { writeWorldTiles } from './world-tiles.ts';
 
@@ -284,7 +285,7 @@ function buildTour(tour: OpenTour, g: RoadGraph, net: RoadNet, edgeIndex: Map<nu
   // les côtes prennent le nom du lieu le plus proche de leur sommet
   for (const s of segments) {
     const near = landmarks.slice().sort((a, b) => Math.abs(a.d - s.endM) - Math.abs(b.d - s.endM))[0];
-    if (near && Math.abs(near.d - s.endM) < 1500) s.name = `Côte de ${near.name}`;
+    if (near && Math.abs(near.d - s.endM) < 1500) s.name = `Côte ${frenchDe(near.name)}`;
   }
   let maxGrade = 0;
   const w = Math.round(10 / step);

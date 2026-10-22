@@ -15,6 +15,8 @@ export interface HudRider {
   speaking?: boolean;
   /** Coureur humain en ligne (peut recevoir un « Ride On »). */
   online?: boolean;
+  /** Puissance rapportée au poids (W/kg), si connue. */
+  wkg?: number;
 }
 
 export interface HudState {
@@ -85,6 +87,8 @@ export class Hud {
   private readonly toasts: HTMLElement;
   /** Monde ouvert : réseau routier pour la mini-carte (profil et carte suivent le coureur). */
   private openGraph: RoadGraphData | null = null;
+  /** Panneau « À proximité » : coureurs réels seulement (multijoueur) ou tous (IA comprises). */
+  riderFilter: 'real' | 'all' = 'all';
   private lastJunction = '';
 
   /** Passe le HUD en monde ouvert (profil glissant, carte locale avec les routes alentour). */
@@ -141,6 +145,10 @@ export class Hud {
     `;
     root.querySelectorAll<HTMLElement>('[data-k]').forEach((e) => (this.el[e.dataset.k as string] = e));
     (this.el.riders as HTMLElement).addEventListener('click', (ev) => {
+      if ((ev.target as HTMLElement).closest('[data-rfilter]')) {
+        this.riderFilter = this.riderFilter === 'real' ? 'all' : 'real';
+        return;
+      }
       const id = (ev.target as HTMLElement).closest<HTMLElement>('[data-rideon]')?.dataset.rideon;
       if (id) this.onRideOn?.(id);
     });
@@ -317,17 +325,7 @@ export class Hud {
 
     (e.devices as HTMLElement).innerHTML = s.devices.map((d) => `<div class="${d.state}">${d.label}</div>`).join('');
 
-    const sorted = [...s.riders].sort((a, b) => b.distM - a.distM);
-    const me = sorted.find((r) => r.me);
-    (e.riders as HTMLElement).innerHTML = sorted
-      .slice(0, 12)
-      .map((r) => {
-        const gap = me && !r.me ? r.distM - me.distM : 0;
-        const tag = r.me ? t('you') : r.isAI ? t('ai') : r.isGuest ? t('guest') : '';
-        const rideOn = r.online && !r.me ? `<button class="rideon" data-rideon="${r.id}" title="Ride On">👍</button>` : '';
-        return `<div class="row ${r.me ? 'me' : ''}"><span><b style="color:${r.color}">●</b> ${r.name}${r.speaking ? ' 🔊' : ''} ${rideOn}</span><span class="gap num">${r.me ? '' : `${gap > 0 ? '+' : ''}${Math.round(gap)} m`}</span><span class="gap">${tag}</span></div>`;
-      })
-      .join('');
+    (e.riders as HTMLElement).innerHTML = this.nearbyHtml(s);
 
     this.drawJunction(s);
     if (this.openGraph && s.open) {
@@ -432,6 +430,36 @@ export class Hud {
       ctx.lineWidth = 3;
       ctx.stroke();
     }
+  }
+
+  /**
+   * « À proximité » (façon Zwift) : jusqu'à 4 coureurs devant et 4 derrière, écart en temps à ma
+   * vitesse (et en distance), W/kg. Filtre « réels » : seulement les joueurs en ligne.
+   */
+  private nearbyHtml(s: HudState): string {
+    const fr = getLang() === 'fr';
+    const me = s.riders.find((r) => r.me);
+    if (!me) return '';
+    const pool = s.riders.filter((r) => r.me || this.riderFilter === 'all' || (!r.isAI && !r.isGuest) || r.online).sort((a, b) => b.distM - a.distM);
+    const i = pool.indexOf(me);
+    const shown = pool.slice(Math.max(0, i - 4), i + 5);
+    const speed = Math.max(s.speedKmh / 3.6, 2);
+    const real = s.riders.filter((r) => !r.me && !r.isAI).length;
+    const head = `<div class="rd-head"><b>${fr ? 'À proximité' : 'Nearby'}</b><button class="rd-filter" data-rfilter title="${fr ? 'Coureurs réels ou tous' : 'Real riders or all'}">${
+      this.riderFilter === 'real' ? (fr ? `Réels (${real})` : `Real (${real})`) : fr ? 'Tous' : 'All'
+    }</button></div>`;
+    const rows = shown
+      .map((r) => {
+        const gap = r.distM - me.distM;
+        const tag = r.me ? t('you') : r.isAI ? t('ai') : r.isGuest ? t('guest') : '';
+        const rideOn = r.online && !r.me ? `<button class="rideon" data-rideon="${r.id}" title="Ride On">👍</button>` : '';
+        const sec = gap / speed;
+        const time = Math.abs(sec) >= 60 ? `${sec > 0 ? '+' : '−'}${Math.floor(Math.abs(sec) / 60)}:${String(Math.round(Math.abs(sec) % 60)).padStart(2, '0')}` : `${sec > 0 ? '+' : sec < 0 ? '−' : ''}${Math.round(Math.abs(sec))} s`;
+        const dist = Math.abs(gap) >= 1000 ? `${(Math.abs(gap) / 1000).toFixed(1).replace('.', fr ? ',' : '.')} km` : `${Math.round(Math.abs(gap))} m`;
+        return `<div class="row ${r.me ? 'me' : ''}"><span class="rd-name"><b style="color:${r.color}">●</b> ${r.name.replace(/[<>&]/g, '')}${r.speaking ? ' 🔊' : ''} ${rideOn}<small>${tag}</small></span><span class="num rd-wkg">${r.wkg !== undefined ? r.wkg.toFixed(1).replace('.', fr ? ',' : '.') : '—'}<small> W/kg</small></span><span class="num rd-gap">${r.me ? '' : `${time}<small>${dist}</small>`}</span></div>`;
+      })
+      .join('');
+    return head + rows;
   }
 
   /** Panneau « Bifurcation dans X m » : ← / → pour choisir, sortie retenue surlignée. */

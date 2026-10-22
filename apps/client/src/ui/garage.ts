@@ -23,15 +23,23 @@ function saveProgress(p: Progress): void {
   localStorage.setItem(KEY, JSON.stringify(p));
 }
 
-/** Crédite l'XP d'une sortie ; renvoie le gain, le niveau et les nouveaux déblocages. */
-export function awardRide(ride: { distanceM: number; elevationM: number; movingS: number }): { gained: number; level: number; levelUp: boolean; unlocked: CosmeticItem[] } {
+/**
+ * Crédite l'XP d'une sortie ; renvoie le gain, le niveau et les nouveaux déblocages. `already` :
+ * partie déjà créditée (sortie reprise puis terminée à nouveau), seul le surplus compte.
+ */
+export function awardRide(
+  ride: { distanceM: number; elevationM: number; movingS: number },
+  already?: { distanceM: number; elevationM: number; movingS: number },
+): { gained: number; total: number; level: number; progress: number; levelUp: boolean; unlocked: CosmeticItem[] } {
   const p = loadProgress();
   const before = levelProgress(p.xp).level;
-  const gained = xpForRide(ride);
+  const total = xpForRide(ride);
+  const gained = Math.max(0, total - (already ? xpForRide(already) : 0));
   p.xp += gained;
   saveProgress(p);
-  const after = levelProgress(p.xp).level;
-  return { gained, level: after, levelUp: after > before, unlocked: COSMETICS.filter((c) => c.level > before && c.level <= after) };
+  const lp = levelProgress(p.xp);
+  const after = lp.level;
+  return { gained, total, level: after, progress: lp.progress, levelUp: after > before, unlocked: COSMETICS.filter((c) => c.level > before && c.level <= after) };
 }
 
 export const SLOT_LABEL: Record<CosmeticSlot, { fr: string; en: string }> = {

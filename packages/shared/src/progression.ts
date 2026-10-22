@@ -44,7 +44,7 @@ export interface CosmeticPhysics {
   wheelInertia?: number;
   /** Multiplicateur de Crr sur enrobé. */
   crrFactor?: number;
-  tyre?: 'road' | 'gravel';
+  tyre?: 'road' | 'gravel' | 'mtb';
 }
 
 export interface CosmeticItem {
