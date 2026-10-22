@@ -84,15 +84,15 @@ Géométrie du HUD (`apps/client/src/hud/hud.css`) exprimée en px composition, 
 
 | Zone | x | y | l × h |
 | --- | --- | --- | --- |
-| Puissance · FC · cadence · pente · segment (haut centre) | 560 | 0 | 800 × 250 |
+| Puissance · FC · cadence · pente · segment (haut centre) | 560 | 0 | 800 × 260 |
 | Infos (haut gauche) | 0 | 0 | 260 × 160 |
 | Mini-carte (haut droite) | 1660 | 0 | 260 × 255 |
 | Coureurs proches (droite) | 1660 | 255 | 260 × 450 |
-| Vitesses / équilibre / capteurs (bas gauche) | 0 | 760 | 380 × 190 |
+| Micro / capteurs / vitesses / équilibre (bas gauche) | 0 | 720 | 400 × 230 |
 | **Profil de l'itinéraire (bas)** | 0 | 950 | 1920 × 130 |
 
 Zones occupées par les overlays (`SEQUENCES[nom].occupies`, test automatique « aucun recouvrement ») :
-intro x 440–1480 / y 290–720 ; segment x 560–1360 / y 282–496 ; podium x 460–1460 / y 262–920 ;
+intro carte x 440–1480 / y 262–692 et compte à rebours x 660–1260 / y 712–942 ; segment x 560–1360 / y 282–496 ; podium x 460–1460 / y 262–920 ;
 TV bandeau x 420–1220 / y 770–916 et écarts x 24–524 / y 276–540.
 
 Le HUD est en px CSS fixes alors que la composition est mise à l'échelle (contain) : dans une fenêtre

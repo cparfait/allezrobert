@@ -238,6 +238,73 @@
     }
   }
 
+  /**
+   * Titre long : une ligne si possible (police réduite jusqu'à `oneLineMinPx`), sinon retour à la
+   * ligne sur `maxLines` lignes au plus, police réduite jusqu'à `minPx` ; en dernier recours,
+   * coupe avec « … ». La largeur de l'élément est fixée à `maxWidth` ; aucun débordement possible.
+   * opts : { maxLines = 2, oneLineMinPx, wrapMaxPx, minPx = 16, lineHeight = 1.08, keepWords }.
+   */
+  function fitLines(el, maxWidth, opts) {
+    if (!el) return;
+    var o = opts || {};
+    var lines = o.maxLines || 2;
+    var lh = o.lineHeight || 1.08;
+    var min = o.minPx || 16;
+    var start = parseFloat(W.getComputedStyle(el).fontSize) || 16;
+    var s = el.style;
+    if (o.keepWords) {
+      // Pas de coupure après les traits d'union (« Dampierre-en-Yvelines » reste entier).
+      var words = (el.textContent || '').split(/(\s+)/);
+      el.textContent = '';
+      for (var w = 0; w < words.length; w++) {
+        if (!words[w]) continue;
+        if (/^\s+$/.test(words[w])) el.appendChild(document.createTextNode(' '));
+        else {
+          var span = document.createElement('span');
+          span.style.whiteSpace = 'nowrap';
+          span.textContent = words[w];
+          el.appendChild(span);
+        }
+      }
+    }
+    s.width = maxWidth + 'px';
+    s.maxWidth = maxWidth + 'px';
+    s.lineHeight = String(lh);
+    s.whiteSpace = 'nowrap';
+    var size = start;
+    var oneMin = o.oneLineMinPx || start;
+    var guard = 60;
+    // 1. Une seule ligne, tant que la police reste assez grande.
+    while (el.scrollWidth > maxWidth && size > oneMin && guard-- > 0) {
+      size = Math.max(oneMin, size * 0.95);
+      s.fontSize = size + 'px';
+    }
+    if (el.scrollWidth <= maxWidth) return;
+    // 2. Plusieurs lignes équilibrées.
+    s.whiteSpace = 'normal';
+    s.textWrap = 'balance';
+    size = Math.min(size, o.wrapMaxPx || size);
+    s.fontSize = size + 'px';
+    // Hauteur des boîtes de ligne (offsetHeight) : scrollHeight compte aussi le débord des glyphes.
+    var tooTall = function () {
+      return el.offsetHeight > Math.ceil(size * lh * lines) + 1 || el.scrollWidth > maxWidth;
+    };
+    while (tooTall() && size > min && guard-- > 0) {
+      size = Math.max(min, size * 0.94);
+      s.fontSize = size + 'px';
+    }
+    // 3. Dernier recours : coupe propre sur `lines` lignes.
+    if (tooTall()) {
+      s.display = '-webkit-box';
+      s.webkitBoxOrient = 'vertical';
+      s.webkitLineClamp = String(lines);
+      s.overflow = 'hidden';
+      s.overflowWrap = 'anywhere';
+      var spans = el.querySelectorAll('span');
+      for (var k = 0; k < spans.length; k++) spans[k].style.whiteSpace = 'normal';
+    }
+  }
+
   function text(id, value) {
     var el = typeof id === 'string' ? document.getElementById(id) : id;
     if (el) el.textContent = value;
@@ -323,6 +390,7 @@
     trace: trace,
     pointAt: pointAt,
     fit: fit,
+    fitLines: fitLines,
     text: text,
     el: el,
     seasonColor: seasonColor,

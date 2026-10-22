@@ -40,6 +40,16 @@ describe('catalogue', () => {
     for (const name of SEQUENCE_NAMES) expect(safeZoneViolations(name)).toEqual([]);
   });
 
+  it('intro : le compte à rebours ne recouvre pas la carte du parcours', () => {
+    const [card, countdown] = SEQUENCES.intro.occupies;
+    expect(card && countdown).toBeTruthy();
+    const sep = countdown!.y >= card!.y + card!.h || card!.y >= countdown!.y + countdown!.h || countdown!.x >= card!.x + card!.w || card!.x >= countdown!.x + countdown!.w;
+    expect(sep).toBe(true);
+    const html = read('compositions/intro/index.html');
+    expect(html).toMatch(/#intro-card \{\s*position: absolute;\s*left: 440px;\s*top: 262px;\s*width: 1040px;\s*height: 430px;/);
+    expect(html).toMatch(/#countdown \{\s*position: absolute;\s*left: 660px;\s*top: 712px;\s*width: 600px;\s*height: 230px;/);
+  });
+
   it('sérialise tableaux et objets en JSON, applique les préréglages', () => {
     const v = serializeVariables('sprint', { segment_name: 'S', time_s: 21.8, rank: 1, pr: false, kind: 'kom' }, 'en');
     expect(v).toMatchObject({ kind: 'sprint', lang: 'en', time_s: 21.8, pr: false });

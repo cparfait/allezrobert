@@ -177,11 +177,11 @@ export const COMPOSITION_SIZE = { width: 1920, height: 1080 } as const;
  * fenêtre 1080p — géométrie de apps/client/src/hud/hud.css).
  */
 export const SAFE_ZONES: Record<string, Rect> = {
-  powerTopCenter: { x: 560, y: 0, w: 800, h: 250 },
+  powerTopCenter: { x: 560, y: 0, w: 800, h: 260 },
   infoTopLeft: { x: 0, y: 0, w: 260, h: 160 },
   minimapTopRight: { x: 1660, y: 0, w: 260, h: 255 },
   ridersRight: { x: 1660, y: 255, w: 260, h: 450 },
-  gearsBottomLeft: { x: 0, y: 760, w: 380, h: 190 },
+  gearsBottomLeft: { x: 0, y: 720, w: 400, h: 230 },
   profileBottom: { x: 0, y: 950, w: 1920, h: 130 },
 };
 
@@ -192,9 +192,10 @@ export const SEQUENCES: Record<SequenceName, SequenceMeta> = {
     duration: 6,
     kind: 'overlay',
     cues: { countdown: 2.85, go: 5.1 },
+    // Carte du parcours, puis compte à rebours dans sa propre bande (sans recouvrement).
     occupies: [
-      { x: 440, y: 290, w: 1040, h: 430 },
-      { x: 660, y: 330, w: 600, h: 400 },
+      { x: 440, y: 262, w: 1040, h: 430 },
+      { x: 660, y: 712, w: 600, h: 230 },
     ],
   },
   kom: {

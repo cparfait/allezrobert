@@ -60,9 +60,9 @@ body {
   color: #fecaca;
 }
 
-.ar-sz-top { left: 560px; top: 0; width: 800px; height: 250px; }
+.ar-sz-top { left: 560px; top: 0; width: 800px; height: 260px; }
 .ar-sz-left { left: 0; top: 0; width: 260px; height: 160px; }
 .ar-sz-map { left: 1660px; top: 0; width: 260px; height: 255px; }
 .ar-sz-riders { left: 1660px; top: 255px; width: 260px; height: 450px; }
-.ar-sz-gears { left: 0; top: 760px; width: 380px; height: 190px; }
+.ar-sz-gears { left: 0; top: 720px; width: 400px; height: 230px; }
 .ar-sz-profile { left: 0; top: 950px; width: 1920px; height: 130px; }
