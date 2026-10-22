@@ -1,9 +1,9 @@
+import { withLikeness } from '../ui/faceEditorLogic.ts';
 import { DEFAULT_LOOK } from '@allezrobert/shared';
 import { getLang, setLang, t } from '../i18n/index.ts';
 import type { DevicePanel } from '../ui/menu.ts';
 import { saveSettings, type Settings } from '../ui/settings.ts';
 import { VoiceOver } from './voice.ts';
-import { likenessFromPhoto } from './likeness.ts';
 
 const STEPS = ['welcome', 'profile', 'avatar', 'devices', 'gears'] as const;
 type Step = (typeof STEPS)[number];
@@ -91,7 +91,7 @@ export class Onboarding {
           <label class="field">${fr ? 'Casque' : 'Helmet'}<input id="o-helmet" type="color" value="${this.s.look.helmet}"/></label>
           <label class="field">Vélo<input id="o-bike" type="color" value="${this.s.look.bike}"/></label></div>
           <div class="device" style="margin-top:12px"><div><b>${fr ? 'Ressemblance à partir d’une photo' : 'Likeness from a photo'}</b>
-            <div class="meta">${fr ? 'Teint et cheveux estimés sur ton ordinateur ; la photo n’est ni envoyée ni conservée. Uniquement une photo de toi.' : 'Skin and hair estimated on your computer; the photo is never uploaded nor stored. Only a photo of yourself.'}</div>
+            <div class="meta">${fr ? 'Visage, teint et cheveux estimés sur ton appareil ; la photo n’est ni envoyée ni conservée, seuls les réglages obtenus sont gardés (modifiables ou effaçables au garage). Uniquement une photo de toi.' : 'Face, skin and hair estimated on your device; the photo is never uploaded nor stored, only the resulting settings are kept (editable or erasable in the garage). Only a photo of yourself.'}</div>
             <label class="row" style="font-size:13px;margin-top:6px"><input type="checkbox" id="o-consent"/> ${fr ? 'J’accepte ce traitement local de ma photo' : 'I agree to this local processing of my photo'}</label></div>
             <label class="btn small" id="o-photo-label" style="opacity:.5">${fr ? 'Choisir une photo' : 'Choose a photo'}<input id="o-photo" type="file" accept="image/*" hidden disabled/></label></div>`;
         break;
@@ -190,8 +190,9 @@ export class Onboarding {
       const f = input.files?.[0];
       input.value = '';
       if (!f || !$<HTMLInputElement>('o-consent')?.checked) return;
+      const { likenessFromPhoto } = await import('./likeness.ts');
       const l = await likenessFromPhoto(f);
-      this.s.look = { ...this.s.look, skin: l.skin, hair: l.hair };
+      this.s.look = withLikeness(this.s.look, l);
       this.render();
     });
     $<HTMLSelectElement>('o-drive')?.addEventListener('change', (e) => (this.s.drivetrain = (e.target as HTMLSelectElement).value as Settings['drivetrain']));

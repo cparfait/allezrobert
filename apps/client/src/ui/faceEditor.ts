@@ -77,7 +77,7 @@ const HAIR_STYLES: Array<[number, string, string]> = [
 
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c] as string);
 
-export function faceEditorHtml(look: AvatarLook, tab: FaceTab, bareHead: boolean, canUndo: boolean): string {
+export function faceEditorHtml(look: AvatarLook, tab: FaceTab, bareHead: boolean, canUndo: boolean, photoOpen = false): string {
   const L = getLang() === 'fr';
   const shape = decodeFace(look.face);
   const sliders =
@@ -99,6 +99,16 @@ export function faceEditorHtml(look: AvatarLook, tab: FaceTab, bareHead: boolean
     <div class="fe-profiles" title="${L ? 'Partir d’un profil de base' : 'Start from a base profile'}">${BASE_PROFILES.map((p) => `<button data-feprofile="${p.id}" title="${esc(p.desc[L ? 'fr' : 'en'])}">${esc(p.name)}</button>`).join('')}</div>
     <div class="fe-tabs">${TABS.map(([id, fr, en]) => `<button data-fetab="${id}" class="${id === tab ? 'on' : ''}">${L ? fr : en}</button>`).join('')}</div>
     <div class="fe-sliders">${sliders}</div>
+    <details class="fe-photo"${photoOpen ? ' open' : ''}><summary>${L ? 'Ressemblance à partir d’une photo' : 'Likeness from a photo'}</summary>
+      <p>${
+        L
+          ? 'Une photo de <b>toi</b>, de face. Elle est analysée <b>sur cet appareil</b> : elle n’est ni envoyée ni conservée ; seuls les réglages obtenus (curseurs, teint, cheveux) sont enregistrés, et tu peux les retoucher ou les effacer (« Tête de base ») à tout moment.'
+          : 'A photo of <b>yourself</b>, facing the camera. It is analysed <b>on this device</b>: it is never uploaded nor stored; only the resulting settings (sliders, skin tone, hair) are saved, and you can adjust or erase them (“Base head”) at any time.'
+      }</p>
+      <label class="fe-check"><input id="fe-consent" type="checkbox" /> ${L ? 'J’accepte ce traitement local de ma photo' : 'I agree to this local processing of my photo'}</label>
+      <label class="fe-photo-btn" id="fe-photo-label" aria-disabled="true">${L ? 'Choisir une photo' : 'Choose a photo'}<input id="fe-photo" type="file" accept="image/*" hidden disabled /></label>
+      <span id="fe-photo-msg"></span>
+    </details>
     <div class="fe-actions">
       <label class="fe-check"><input id="fe-bare" type="checkbox" ${bareHead ? 'checked' : ''} /> ${L ? 'Sans casque ni lunettes' : 'No helmet or glasses'}</label>
       <button id="fe-random">${L ? 'Aléatoire' : 'Random'}</button>
@@ -112,4 +122,4 @@ function rangeHtml(id: string, label: string, value: number, min: number, max: n
   return `<label class="fe-range">${esc(label)}<input id="${id}" ${slider ? `data-feslider="${slider}"` : ''} type="range" min="${min}" max="${max}" step="0.02" value="${value.toFixed(2)}" /></label>`;
 }
 
-export { withBaseHead, withProfile, withRandomFace, withSlider } from './faceEditorLogic.ts';
+export { withBaseHead, withLikeness, withProfile, withRandomFace, withSlider } from './faceEditorLogic.ts';

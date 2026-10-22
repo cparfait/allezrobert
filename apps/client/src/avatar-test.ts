@@ -49,6 +49,7 @@ async function main(): Promise<void> {
   if (params.has('sliders')) return sliderSheet(engine);
   if (params.has('random')) return randomSheet(engine);
   if (params.has('profiles')) return profileSheet(engine);
+  if (params.has('calib')) return likenessCalibration(engine);
 
   const looks: AvatarLook[] = [
     DEFAULT_LOOK,
@@ -155,6 +156,111 @@ async function main(): Promise<void> {
     requestAnimationFrame(loop);
   };
   requestAnimationFrame(loop);
+}
+
+/**
+ * Ressemblance photo (?calib) : planche de validation (chaque profil de base rendu de face, et
+ * le visage retrouvé à partir de ses repères avec l'étalonnage livré) ; &raw : repères bruts de
+ * tous les rendus d'étalonnage, pour tools/blender/avatars/likeness_calib.py.
+ */
+async function likenessCalibration(engine: Awaited<ReturnType<typeof createEngine>>): Promise<void> {
+  const { scene, camera } = engine;
+  const { faceLandmarks } = await import('./onboarding/likeness.ts');
+  const { fitSliders } = await import('./onboarding/likenessFit.ts');
+  const a = new GltfRiderAvatar({ ...DEFAULT_LOOK, bikeModel: 's26-04-cervelo-s5' });
+  a.update(0, 0, 0, 'seated');
+  a.update(1 / 60, 0.0001, 0, 'seated');
+  a.setBareHead(true);
+  scene.add(a.root);
+  a.root.updateMatrixWorld(true);
+  const eye = a.eyeWorld(new THREE.Vector3());
+  camera.fov = 22;
+  camera.position.set(eye.x, eye.y + 0.01, eye.z + 0.7);
+  camera.updateProjectionMatrix();
+  camera.lookAt(eye.x, eye.y - 0.045, eye.z);
+  const crop = document.createElement('canvas');
+  crop.width = crop.height = 640;
+  const cg = crop.getContext('2d') as CanvasRenderingContext2D;
+  const t0 = performance.now();
+  a.setFace({});
+  engine.renderManual();
+  cg.drawImage(canvas, 320, 40, 640, 640, 0, 0, 640, 640);
+  const base = await faceLandmarks(crop);
+  if (!base) throw new Error('aucun visage détecté sur la tête de base');
+  console.log(`détection de la tête de base : ${(performance.now() - t0).toFixed(0)} ms`);
+  // &raw : repères bruts de tous les rendus (réglage de la méthode hors ligne).
+  if (params.has('raw')) {
+    const lmOf = async (shape: Record<string, number>, yaw = 0, pitch = 0): Promise<number[]> => {
+      a.setFace(shape);
+      camera.position.set(eye.x + Math.sin(yaw) * Math.cos(pitch) * 0.7, eye.y + 0.01 + Math.sin(pitch) * 0.7, eye.z + Math.cos(yaw) * Math.cos(pitch) * 0.7);
+      camera.lookAt(eye.x, eye.y - 0.045, eye.z);
+      engine.renderManual();
+      cg.drawImage(canvas, 320, 40, 640, 640, 0, 0, 640, 640);
+      const lm = await faceLandmarks(crop);
+      return lm ? lm.flatMap((q) => [+q.x.toFixed(5), +q.y.toFixed(5), +q.z.toFixed(5)]) : [];
+    };
+    const ids = FACE_SLIDERS.filter((x) => x.group !== 'body').map((x) => x.id);
+    const out: Record<string, number[]> = { base: await lmOf({}) };
+    for (const id of ids) {
+      out[`${id}+`] = await lmOf({ [id]: 0.8 });
+      out[`${id}-`] = await lmOf({ [id]: -0.8 });
+    }
+    // Poses de la tête de base (colonnes de nuisance de l'ajustement).
+    for (const [k, yw, pt] of [['yaw+', 0.3, 0], ['yaw-', -0.3, 0], ['pitch+', 0, 0.2], ['pitch-', 0, -0.2]] as const) out[`pose:${k}`] = await lmOf({}, yw, pt);
+    const truths: Record<string, Record<string, number>> = {};
+    for (const p of BASE_PROFILES) {
+      const truth = Object.fromEntries(ids.map((id) => [id, (p.shape as Record<string, number>)[id] ?? 0]));
+      truths[p.id] = truth;
+      out[`profile:${p.id}`] = await lmOf(truth);
+      out[`profileYaw:${p.id}`] = await lmOf(truth, 0.35, 0.08);
+    }
+    log.textContent = `RAW${JSON.stringify({ lm: out, truths })}RAW`;
+    (window as unknown as { __avatarTestDone: boolean }).__avatarTestDone = true;
+    return;
+  }
+  if (params.has('probe')) {
+    log.textContent = `PROBE ${base.length} repères`;
+    (window as unknown as { __avatarTestDone: boolean }).__avatarTestDone = true;
+    return;
+  }
+  // Validation visuelle : chaque profil (visage seul) rendu, repères détectés, curseurs retrouvés
+  // avec l'étalonnage livré, puis rendu du résultat à côté.
+  const { shapeVector } = await import('./onboarding/likenessFit.ts');
+  const cal = (await import('./onboarding/likenessCalib.json')).default as unknown as Parameters<typeof fitSliders>[1];
+  const ids = FACE_SLIDERS.filter((x) => x.group !== 'body').map((x) => x.id);
+  const cw = 256;
+  const sheet = document.createElement('canvas');
+  sheet.width = 4 * cw;
+  sheet.height = Math.ceil(BASE_PROFILES.length / 2) * cw;
+  const g = sheet.getContext('2d') as CanvasRenderingContext2D;
+  g.font = '600 15px system-ui, sans-serif';
+  for (const [i, p] of BASE_PROFILES.entries()) {
+    const truth = Object.fromEntries(ids.map((id) => [id, (p.shape as Record<string, number>)[id] ?? 0]));
+    a.setFace(truth);
+    // &yaw=0.35 : référence vue de biais (robustesse à la pose), le résultat est rendu de face.
+    const yaw = Number(params.get('yaw') ?? 0);
+    camera.position.set(eye.x + Math.sin(yaw) * 0.7, eye.y + 0.01, eye.z + Math.cos(yaw) * 0.7);
+    camera.lookAt(eye.x, eye.y - 0.045, eye.z);
+    engine.renderManual();
+    cg.drawImage(canvas, 320, 40, 640, 640, 0, 0, 640, 640);
+    camera.position.set(eye.x, eye.y + 0.01, eye.z + 0.7);
+    camera.lookAt(eye.x, eye.y - 0.045, eye.z);
+    const x = (i % 2) * 2 * cw;
+    const y = Math.floor(i / 2) * cw;
+    g.drawImage(crop, x, y, cw, cw);
+    const lm = await faceLandmarks(crop);
+    if (lm) {
+      a.setFace(fitSliders(shapeVector(lm, cal, 1), cal));
+      engine.renderManual();
+      g.drawImage(canvas, 320, 40, 640, 640, x + cw, y, cw, cw);
+    }
+    g.fillStyle = '#000';
+    g.fillText(`${p.name} (réf.)`, x + 6, y + 18);
+    g.fillText(lm ? 'retrouvé' : 'non détecté', x + cw + 6, y + 18);
+  }
+  document.body.replaceChildren(sheet);
+  sheet.style.cssText = 'display:block;width:100%;height:auto';
+  (window as unknown as { __avatarTestDone: boolean }).__avatarTestDone = true;
 }
 
 /**

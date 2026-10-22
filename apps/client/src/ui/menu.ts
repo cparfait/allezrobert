@@ -8,7 +8,7 @@ import { spotify, redirectUri } from '../audio/spotify.ts';
 import { loadProgress, equipItem, equipPlainBike, SLOT_LABEL } from './garage.ts';
 import type { GarageView } from './poster.ts';
 import { FriendsPanel } from './friends.ts';
-import { faceEditorHtml, withBaseHead, withProfile, withRandomFace, withSlider, type FaceTab } from './faceEditor.ts';
+import { faceEditorHtml, withBaseHead, withLikeness, withProfile, withRandomFace, withSlider, type FaceTab } from './faceEditor.ts';
 import type { FaceSlider } from '@allezrobert/shared';
 import { joinSettings } from './friendsLogic.ts';
 import './menu.css';
@@ -115,6 +115,7 @@ export class MainMenu {
   private faceTab: FaceTab = 'head';
   private bareHead = true;
   private readonly faceUndo: AvatarLook[] = [];
+  private photoOpen = false;
   private bikeFilter: BikeFilter = 'saison-2026';
   /** Panneau affiché (onglet, catégorie, filtre) : sa position de défilement survit à un nouveau rendu. */
   private panelKey = '';
@@ -475,7 +476,7 @@ export class MainMenu {
     ];
     const items =
       this.garageSlot === 'face'
-        ? faceEditorHtml(this.s.look, this.faceTab, this.bareHead, this.faceUndo.length > 0)
+        ? faceEditorHtml(this.s.look, this.faceTab, this.bareHead, this.faceUndo.length > 0, this.photoOpen)
         : this.garageSlot === 'colors'
         ? `<div class="mm-colors">
             <label class="field">${L ? 'Maillot' : 'Jersey'}<input id="m-jersey" type="color" value="${this.s.look.jersey}" /></label>
@@ -966,6 +967,30 @@ export class MainMenu {
       saveSettings(s);
       this.onSettingsSaved?.(s);
       this.render();
+    });
+    // Ressemblance photo : consentement à chaque fois, traitement local (onboarding/likeness.ts).
+    this.root.querySelector('.fe-photo')?.addEventListener('toggle', (e) => (this.photoOpen = (e.target as HTMLDetailsElement).open));
+    on<HTMLInputElement>('fe-consent', 'change', (el) => {
+      const input = this.root.querySelector<HTMLInputElement>('#fe-photo');
+      if (input) input.disabled = !el.checked;
+      this.root.querySelector('#fe-photo-label')?.setAttribute('aria-disabled', String(!el.checked));
+    });
+    on<HTMLInputElement>('fe-photo', 'change', async (el) => {
+      const f = el.files?.[0];
+      el.value = '';
+      if (!f || !this.root.querySelector<HTMLInputElement>('#fe-consent')?.checked) return;
+      const msg = this.root.querySelector<HTMLElement>('#fe-photo-msg');
+      const L = getLang() === 'fr';
+      if (msg) msg.textContent = L ? 'Analyse sur ton appareil…' : 'Analysing on your device…';
+      try {
+        const { likenessFromPhoto } = await import('../onboarding/likeness.ts');
+        const l = await likenessFromPhoto(f);
+        faceSet(withLikeness(s.look, l));
+        const m2 = this.root.querySelector<HTMLElement>('#fe-photo-msg');
+        if (m2) m2.textContent = l.face ? (L ? 'Visage, teint et cheveux appliqués ; photo oubliée.' : 'Face, skin and hair applied; photo discarded.') : L ? 'Aucun visage trouvé : teint et cheveux seulement.' : 'No face found: skin and hair only.';
+      } catch {
+        if (msg) msg.textContent = L ? 'Analyse impossible sur cet appareil.' : 'Analysis failed on this device.';
+      }
     });
     on<HTMLInputElement>('fe-bare', 'change', (el) => {
       this.bareHead = el.checked;

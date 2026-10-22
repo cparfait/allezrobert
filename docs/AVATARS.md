@@ -432,3 +432,31 @@ reprises de l'ancien modèle un peu grandes pour ce visage.
 - L'avatar MPFB devient l'avatar par défaut ; l'ancien coureur reste disponible avec
   `?avatar=classic`.
 - Capture : `docs/screenshots/avatars-editeur.jpg`.
+
+### Étape 5b — ressemblance à partir d'une photo (faite)
+
+- Détecteur de repères : MediaPipe Face Landmarker (Apache 2.0, licence vérifiée sur les fiches
+  des trois modèles ; aucune restriction géographique), **servi par le jeu** (modèle dans
+  `public/models/face/`, WebAssembly de `@mediapipe/tasks-vision` empaqueté par Vite) : aucune
+  requête vers un tiers. Chargé à la demande.
+- `onboarding/likeness.ts` : la photo est décodée en mémoire, passée au détecteur, échantillonnée
+  (teint : joues et front ; cheveux : au-dessus du front), puis effacée ; seuls les réglages
+  sortent. Sans visage détecté : teint et cheveux seulement (ancienne méthode).
+- `onboarding/likenessFit.ts` : 468 repères centrés, mis à l'échelle, alignés sur la forme de
+  référence (Procuste, méthode de Horn), symétrisés (chaque repère moyenné avec le miroir de son
+  homologue : la distorsion due au lacet s'annule au premier ordre), un sur trois ; régression
+  ridge bornée sur les 34 curseurs du visage, avec des colonnes de pose (lacet, tangage) qui
+  absorbent l'angle de vue. Étalonnage (`likenessCalib.json`, 165 Ko) fabriqué par
+  `tools/blender/avatars/likeness_calib.py` à partir des repères détectés sur des rendus de
+  l'avatar (`avatar-test.html?calib&raw`) : la photo et l'avatar passent par la même chaîne de
+  mesure. Implémentations Python et TypeScript vérifiées identiques.
+- Validation sur les 8 profils de base rendus (curseurs connus) : cosinus moyen entre curseurs
+  retrouvés et vrais (traits ≥ 0,3) de 0,67 de face et 0,59 vu à 20° de biais ; aucun curseur
+  saturé ; planche `docs/screenshots/avatars-ressemblance.jpg` (`avatar-test.html?calib&yaw=0.35`).
+  Les traits que le maillage du visage ne voit pas (cou, oreilles, pli de la paupière) restent
+  faibles : on les règle à la main.
+- Interface : garage → Visage → « Ressemblance à partir d'une photo » et étape « Avatar » du
+  tutoriel. Consentement coché à chaque photo (bouton désactivé sinon), texte explicite (photo
+  ni envoyée ni conservée, seuls les réglages enregistrés, effaçables à tout moment par « Tête de
+  base »). Vérifié dans le navigateur : rien dans le stockage local hormis les réglages, aucune
+  requête hors du jeu.
