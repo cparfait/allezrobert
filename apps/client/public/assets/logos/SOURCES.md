@@ -23,6 +23,7 @@ Téléchargés depuis Wikimedia Commons le 2026-10-22 après validation, nettoy�
 | bottecchia | Bottecchia wordmark.svg | [Commons](https://commons.wikimedia.org/wiki/File:Bottecchia_wordmark.svg) | Public domain | 7.4 Ko |
 | movistar | Movistar Team 2017 logo.svg | [Commons](https://commons.wikimedia.org/wiki/File:Movistar_Team_2017_logo.svg) | Public domain | 6.2 Ko (nettoyé) |
 | cofidis | Logo Cofidis 2026.svg | [Commons](https://commons.wikimedia.org/wiki/File:Logo_Cofidis_2026.svg) | Public domain | 2.8 Ko |
+| sram | SRAM logo.svg | [Commons](https://commons.wikimedia.org/wiki/File:SRAM_logo.svg) | Public domain | 3.0 Ko (nettoyé) |
 | continental | Continental logo.svg | [Commons](https://commons.wikimedia.org/wiki/File:Continental_logo.svg) | Public domain | 3.0 Ko |
 | pirelli | Pirelli - logo black (Italy, 1970).svg | [Commons](https://commons.wikimedia.org/wiki/File:Pirelli_-_logo_black_(Italy,_1970).svg) | Public domain | 1.7 Ko |
 | garmin | Garmin logo 2006.svg | [Commons](https://commons.wikimedia.org/wiki/File:Garmin_logo_2006.svg) | Public domain | 7.0 Ko |
