@@ -74,7 +74,7 @@ Idées seulement : ni nom, ni asset, ni code, ni physique de NCT Ride (la vitess
 | 4 | Son positionné depuis OSM (église → cloches, prairie → vaches, eau…) | 3 | fait |
 | 5 | Caméra « GoPro » sur la poitrine | 3 | fait |
 | 6 | Poussière sur les chemins, roulement selon le revêtement | 3 | à faire |
-| 7 | Foule avec pancartes et photo automatique au sommet des segments, réutilisée dans la vidéo résumé | 5 | fait (foule animée, photo au sommet, en fond de l'image de partage) ; pancartes et vidéo résumé : à faire |
+| 7 | Foule avec pancartes et photo automatique au sommet des segments, réutilisée dans la vidéo résumé | 5 | fait (foule animée, photo au sommet, en fond de l'image de partage, pancartes au sommet des KOM et sur les sprints : encouragements, prénom du coureur, « Allez Robert ! », textures dessinées sur canevas) ; photos dans la vidéo résumé : à faire |
 | 8 | Image de fin de sortie à partager | 5 | fait |
 | 9 | Mondes génériques (emprise + itinéraires via tools/terrain) | 3 | pipeline générique fait ; montée célèbre à tester |
 | 10 | Contrôle visuel automatique du monde généré | 3 | fait (?worldcheck=1, toits inversés corrigés à la construction) ; détection automatique d'anomalies : à faire |

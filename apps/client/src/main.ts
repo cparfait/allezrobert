@@ -409,8 +409,8 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   const rig = new CameraRig(engine.camera, track, (x, z) => world.terrain.heightAt(x, z), engine.renderer.domElement);
   rig.occluders = [world.buildings.group];
   // Public sur les côtes (une fois le terrain chargé autour du départ).
-  const crowd = new Crowd(track, (x, z) => world.terrain.heightAt(x, z));
-  engine.scene.add(crowd.mesh);
+  const crowd = new Crowd(track, (x, z) => world.terrain.heightAt(x, z), { riderName: s.name });
+  engine.scene.add(crowd.group);
   engine.scene.add(new TownSigns(track, (x, z) => world.terrain.heightAt(x, z)).group);
   // Monde vivant : circulation et piétons (désactivable par ?traffic=0).
   const traffic = params.get('traffic') === '0' ? null : new Traffic(track);
