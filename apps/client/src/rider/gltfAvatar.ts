@@ -1,24 +1,31 @@
 import * as THREE from 'three/webgpu';
 import { GLTFLoader, type GLTF } from 'three/addons/loaders/GLTFLoader.js';
+import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
-import type { AvatarLook } from '@allezrobert/shared';
+import { PLAIN_BIKE_FAMILY, bikeOfLook, decodeFace, type AvatarLook, type BikeBuild, type BikeFamily } from '@allezrobert/shared';
 import { RiderAvatar } from './avatar.ts';
 import { buildBikeKit, roadPartsReplaced, type BikeType } from './bikeKits.ts';
+import { FaceAnimator } from './face.ts';
+import { SkinMaterial, loadSkinTextures, skinTextures, type SkinLook } from './skin.ts';
+import { BikeMaterials, assembleBike, availableFamily, bikeAnchors, familyScene, loadBikeFamily, type AssembledBike, type BikeAnchors } from './bikes.ts';
 
 /**
  * Cycliste et vélo modélisés dans Blender (tools/blender/build_cyclist.py), squelette piloté
- * procéduralement. Même API publique que RiderAvatar.
+ * procéduralement. Même API publique que RiderAvatar. Le vélo est assemblé à partir du
+ * catalogue (bikes.ts) ; tant que sa famille de cadre n'est pas chargée, le vélo de base
+ * (même livrée) le remplace.
  *
  * Repère local : +z = avant, +y = haut, +x = gauche. La pose de repos des modèles est la pose
  * de conduite (assis, mains sur les cocottes, pieds sur les pédales à l'angle de manivelle 0) ;
  * on calcule donc toutes les rotations comme des écarts à cette pose :
  *  - jambes : cinématique inverse à deux os, cheville calée sur la pédale (manivelle à la cadence),
  *    pied incliné selon le coup de pédale (« ankling ») ; les pédales automatiques suivent le pied ;
- *  - bras : cinématique inverse vers les cocottes (mains fixes sur le cintre) ;
+ *  - bras : cinématique inverse vers les mains du vélo (cocottes, ou prolongateurs des vélos de
+ *    chrono, coudes vers les repose-coudes) ;
  *  - bassin / tronc : position assise, danseuse (bassin avancé, vélo qui balance, corps qui
  *    compense), roue libre (buste un peu relevé) ;
  *  - tête : regarde la route et compense en partie l'inclinaison du vélo.
- * LOD : niveau 1 (≈ 25 % des triangles) au-delà de LOD1_DISTANCE, lié au même squelette.
+ * LOD : niveaux simplifiés (FILES) au-delà de LOD_DISTANCES, liés au même squelette.
  */
 
 export type RiderPose = 'seated' | 'standing' | 'coasting';
@@ -29,25 +36,57 @@ export interface RiderAvatarLike {
   readonly label: THREE.Sprite | null;
   update(dt: number, cadence: number, speed: number, pose: RiderPose, bank?: number): void;
   setLook(look: AvatarLook): void;
+  /** Tête nue (aperçu de l'éditeur de visage). */
+  setBareHead?(on: boolean): void;
+  /** Effort du coureur (puissance / FTP, FC / FC max) : expressions du visage (avatar MPFB). */
+  setEffort?(ftpFrac: number, hrFrac?: number): void;
   setHeadVisible(on: boolean): void;
   setShadows(on: boolean): void;
   /** Position des yeux (repère monde) pour la vue subjective ; absente : position estimée par la caméra. */
   eyeWorld?(out: THREE.Vector3, hands?: THREE.Vector3): THREE.Vector3;
 }
 
+/** Rôles des os pilotés (noms de cyclist.glb) ; spine2 et les clavicules n'existent que dans certains squelettes. */
 const BONES = [
-  'hips', 'spine', 'chest', 'neck', 'head',
-  'upper_arm_L', 'forearm_L', 'hand_L', 'thigh_L', 'shin_L', 'foot_L',
-  'upper_arm_R', 'forearm_R', 'hand_R', 'thigh_R', 'shin_R', 'foot_R',
+  'hips', 'spine', 'spine2', 'chest', 'neck', 'head',
+  'clavicle_L', 'upper_arm_L', 'forearm_L', 'hand_L', 'thigh_L', 'shin_L', 'foot_L',
+  'clavicle_R', 'upper_arm_R', 'forearm_R', 'hand_R', 'thigh_R', 'shin_R', 'foot_R',
 ] as const;
 type BoneName = (typeof BONES)[number];
 type Side = 'L' | 'R';
 const SIDES: readonly Side[] = ['L', 'R'];
+const OPTIONAL_BONES: ReadonlySet<BoneName> = new Set(['spine2', 'clavicle_L', 'clavicle_R']);
 
-const FILES = ['cyclist.glb', 'cyclist_lod1.glb', 'bike.glb', 'bike_lod1.glb'] as const;
-/** Distance (m) au-delà de laquelle on affiche le LOD1. */
-const LOD1_DISTANCE = 30;
+/**
+ * Nom des os par squelette : cyclist.glb (build_cyclist.py) ou avatar MPFB, squelette « game_engine »
+ * (tools/blender/avatars/build_avatar.py, docs/AVATARS.md).
+ */
+const RIG_BONES: Record<'classic' | 'mpfb', Partial<Record<BoneName, string>>> = {
+  classic: Object.fromEntries(BONES.filter((b) => !OPTIONAL_BONES.has(b)).map((b) => [b, b])),
+  mpfb: {
+    hips: 'pelvis', spine: 'spine_01', spine2: 'spine_02', chest: 'spine_03', neck: 'neck_01', head: 'head',
+    clavicle_L: 'clavicle_l', upper_arm_L: 'upperarm_l', forearm_L: 'lowerarm_l', hand_L: 'hand_l', thigh_L: 'thigh_l', shin_L: 'calf_l', foot_L: 'foot_l',
+    clavicle_R: 'clavicle_r', upper_arm_R: 'upperarm_r', forearm_R: 'lowerarm_r', hand_R: 'hand_r', thigh_R: 'thigh_r', shin_R: 'calf_r', foot_R: 'foot_r',
+  },
+};
+
+/** Avatar MPFB (docs/AVATARS.md) par défaut ; l'ancien coureur (cyclist.glb) avec ?avatar=classic. */
+const MPFB = typeof location === 'undefined' || new URLSearchParams(location.search).get('avatar') !== 'classic';
+/**
+ * Fichiers du coureur par niveau de détail et distance (m) d'apparition de chaque niveau
+ * (avatar MPFB : 12,6 k, 5 k et 2,5 k triangles pour le corps).
+ */
+const FILES: readonly string[] = MPFB ? ['avatar/rider.glb', 'avatar/rider_lod1.glb', 'avatar/rider_lod2.glb'] : ['cyclist.glb', 'cyclist_lod1.glb'];
+const LOD_DISTANCES: readonly number[] = MPFB ? [0, 10, 30] : [0, 30];
 const WHEEL_R = 0.335;
+/**
+ * Position chrono, par unité de « tuck » (rad) : surtout le bassin qui bascule vers l'avant (dos
+ * plat), un peu la colonne et le thorax ; la tête se relève pour regarder la route.
+ */
+const TUCK_HIPS = 0.5;
+const TUCK_SPINE = 0.08;
+const TUCK_CHEST = 0.12;
+const TUCK_HEAD = 0.35;
 const X_AXIS = new THREE.Vector3(1, 0, 0);
 const Y_AXIS = new THREE.Vector3(0, 1, 0);
 const Z_AXIS = new THREE.Vector3(0, 0, 1);
@@ -63,27 +102,20 @@ const MATERIALS: Record<string, [string, number, number]> = {
   // Kits VTT et gravel (rider/bikeKits.ts) : poignées et selle, flancs beiges des pneus gravel.
   saddle_grip: ['#141518', 0.8, 0],
   tire_wall: ['#a9825a', 0.85, 0],
+  mouth: ['#4a1c1e', 0.75, 0],
+  lashes: ['#2b2019', 0.8, 0],
   shoe_sole: ['#1a1b1f', 0.6, 0],
   helmet: ['#f4f4f4', 0.35, 0],
   helmet_detail: ['#1c1d22', 0.6, 0],
   lens: ['#20242c', 0.08, 0.6],
+  visor: ['#2a3340', 0.05, 0.7],
   glasses_frame: ['#141518', 0.35, 0],
   hair: ['#3b2a1e', 0.8, 0],
-  frame: ['#c0392b', 0.3, 0.3],
   components: ['#18191c', 0.45, 0.2],
-  tire: ['#121214', 0.85, 0],
-  rim: ['#1e2024', 0.35, 0.1],
-  chrome: ['#b9bcc2', 0.2, 1],
-  // Vélo 2026 : bande décor des jantes, guidoline et bidons (accent du maillot), écran du compteur.
-  rim_decal: ['#6a7079', 0.45, 0.1],
-  bar_tape: ['#ffd23f', 0.75, 0],
-  bottle: ['#ffd23f', 0.5, 0],
-  computer_screen: ['#1b2a30', 0.15, 0],
-};
-
-/** Matériaux légèrement émissifs : couleur d'émission, intensité. */
-const EMISSIVE: Record<string, [string, number]> = {
-  computer_screen: ['#3f7f8f', 0.6],
+  // Avatar MPFB : globes oculaires.
+  eye: ['#eeebe4', 0.18, 0],
+  iris: ['#5a3d22', 0.2, 0],
+  pupil: ['#070707', 0.1, 0],
 };
 
 interface BoneRest {
@@ -107,10 +139,10 @@ interface ChainRest {
 }
 
 interface Templates {
-  rider0: GLTF;
-  rider1: GLTF;
-  bike0: GLTF;
-  bike1: GLTF;
+  /** Niveaux de détail du coureur (0 : complet, avec le squelette animé). */
+  riders: GLTF[];
+  /** Rôle → nom de l'os dans le fichier (rôles facultatifs absents si le squelette ne les a pas). */
+  names: Partial<Record<BoneName, string>>;
   bones: Record<BoneName, BoneRest>;
   armQ: THREE.Quaternion;
   armP: THREE.Vector3;
@@ -124,6 +156,8 @@ interface Templates {
   ankleFlat: Record<Side, THREE.Vector3>;
   /** Yeux par rapport à l'os de la tête, pose de repos (repère modèle). */
   eyeRest: THREE.Vector3;
+  /** Mains sur le vélo de base (= pose de repos) : les mains du coureur suivent l'écart. */
+  refHands: Record<Side, THREE.Vector3>;
 }
 
 let templates: Templates | null = null;
@@ -193,16 +227,186 @@ function chainRest(bones: Record<BoneName, BoneRest>, upper: BoneName, lower: Bo
   };
 }
 
-function buildTemplates(rider0: GLTF, rider1: GLTF, bike0: GLTF, bike1: GLTF): Templates {
-  const scene = rider0.scene;
+/**
+ * Cibles d'identité (curseurs de forme « nom+ » / « nom− », docs/AVATARS.md § 4) d'une géométrie,
+ * retirées des cibles animées : elles ne bougent pas pendant une sortie et sont appliquées une fois
+ * sur le processeur (setFace), sans coût au rendu.
+ */
+interface IdentityTargets {
+  names: string[];
+  pos: Float32Array[];
+  nrm: (Float32Array | null)[];
+}
+
+const IDENTITY = /[+-]$/;
+
+function toFloat(a: THREE.BufferAttribute | THREE.InterleavedBufferAttribute): Float32Array {
+  const out = new Float32Array(a.count * 3);
+  for (let i = 0; i < a.count; i++) {
+    out[i * 3] = a.getX(i);
+    out[i * 3 + 1] = a.getY(i);
+    out[i * 3 + 2] = a.getZ(i);
+  }
+  return out;
+}
+
+/**
+ * Attributs flottants, non entrelacés (positions, normales et cibles quantifiées par la
+ * compression du modèle) : three.js r186 (WebGPURenderer) applique mal les cibles animées sur des
+ * attributs quantifiés et entrelacés. Les valeurs restent dans l'espace quantifié du maillage
+ * (la transformation du nœud, intégrée à la liaison du squelette, les remet à l'échelle).
+ */
+function plainAttribute(a: THREE.BufferAttribute | THREE.InterleavedBufferAttribute): THREE.BufferAttribute {
+  const out = new Float32Array(a.count * a.itemSize);
+  for (let i = 0; i < a.count; i++) for (let c = 0; c < a.itemSize; c++) out[i * a.itemSize + c] = a.getComponent(i, c);
+  return new THREE.BufferAttribute(out, a.itemSize);
+}
+
+function plainAttributes(g: THREE.BufferGeometry): void {
+  for (const k of ['position', 'normal']) {
+    const a = g.getAttribute(k);
+    if (a && (a.normalized || (a as THREE.InterleavedBufferAttribute).isInterleavedBufferAttribute || !(a.array instanceof Float32Array))) g.setAttribute(k, plainAttribute(a));
+  }
+  const ma = g.morphAttributes as Record<string, Array<THREE.BufferAttribute | THREE.InterleavedBufferAttribute>>;
+  for (const k of Object.keys(ma)) ma[k] = (ma[k] ?? []).map(plainAttribute);
+}
+
+function extractIdentity(scene: THREE.Object3D): void {
+  const done = new Set<THREE.BufferGeometry>();
+  scene.traverse((o) => {
+    const mesh = o as THREE.Mesh;
+    const g = mesh.geometry as THREE.BufferGeometry | undefined;
+    const dict = mesh.morphTargetDictionary;
+    if (!mesh.isMesh || !g || !dict) return;
+    if (!done.has(g)) {
+      done.add(g);
+      plainAttributes(g);
+      const names = Object.keys(dict).sort((a, b) => (dict[a] as number) - (dict[b] as number));
+      const keep = names.map((n) => !IDENTITY.test(n));
+      if (keep.every(Boolean)) return;
+      const pos = g.morphAttributes.position ?? [];
+      const nrm = g.morphAttributes.normal;
+      const id: IdentityTargets = { names: [], pos: [], nrm: [] };
+      names.forEach((n, i) => {
+        if (keep[i]) return;
+        id.names.push(n);
+        id.pos.push(toFloat(pos[i] as THREE.BufferAttribute));
+        id.nrm.push(nrm?.[i] ? toFloat(nrm[i] as THREE.BufferAttribute) : null);
+      });
+      g.morphAttributes.position = pos.filter((_, i) => keep[i]);
+      if (nrm) g.morphAttributes.normal = nrm.filter((_, i) => keep[i]);
+      if (g.morphAttributes.position.length === 0) {
+        delete g.morphAttributes.position;
+        delete g.morphAttributes.normal;
+      }
+      g.userData.identity = id;
+      g.userData.animNames = names.filter((_, i) => keep[i]);
+    }
+    // Dictionnaire et poids recalculés sur les cibles animées restantes.
+    const anim = g.userData.animNames as string[] | undefined;
+    if (anim) {
+      mesh.morphTargetDictionary = Object.fromEntries(anim.map((n, i) => [n, i]));
+      mesh.morphTargetInfluences = anim.map(() => 0);
+      if (!anim.length) {
+        mesh.morphTargetDictionary = undefined;
+        mesh.morphTargetInfluences = undefined;
+      }
+    }
+  });
+}
+
+function smoothNormals(g: THREE.BufferGeometry): void {
+  const p = g.getAttribute('position');
+  const idx = g.index;
+  const n = new Float32Array(p.count * 3);
+  const key = (i: number): string => `${Math.round(p.getX(i) * 1e4)},${Math.round(p.getY(i) * 1e4)},${Math.round(p.getZ(i) * 1e4)}`;
+  const weld = new Map<string, number>();
+  const rep = new Int32Array(p.count);
+  for (let i = 0; i < p.count; i++) {
+    const k = key(i);
+    let r = weld.get(k);
+    if (r === undefined) weld.set(k, (r = i));
+    rep[i] = r;
+  }
+  const a = new THREE.Vector3();
+  const b = new THREE.Vector3();
+  const c = new THREE.Vector3();
+  const count = idx ? idx.count : p.count;
+  for (let f = 0; f < count; f += 3) {
+    const i0 = idx ? idx.getX(f) : f;
+    const i1 = idx ? idx.getX(f + 1) : f + 1;
+    const i2 = idx ? idx.getX(f + 2) : f + 2;
+    a.fromBufferAttribute(p, i0);
+    b.fromBufferAttribute(p, i1).sub(a);
+    c.fromBufferAttribute(p, i2).sub(a);
+    b.cross(c); // aire × normale
+    for (const i of [i0, i1, i2]) {
+      const r = rep[i] as number;
+      n[r * 3] = (n[r * 3] as number) + b.x;
+      n[r * 3 + 1] = (n[r * 3 + 1] as number) + b.y;
+      n[r * 3 + 2] = (n[r * 3 + 2] as number) + b.z;
+    }
+  }
+  for (let i = 0; i < p.count; i++) {
+    const r = rep[i] as number;
+    a.set(n[r * 3] as number, n[r * 3 + 1] as number, n[r * 3 + 2] as number).normalize();
+    a.toArray(n, i * 3);
+  }
+  g.setAttribute('normal', new THREE.BufferAttribute(n, 3));
+}
+
+/** Géométrie propre à l'avatar : base + Σ poids × cibles d'identité (positions et normales). */
+function bakeIdentity(base: THREE.BufferGeometry, id: IdentityTargets, w: readonly number[]): THREE.BufferGeometry {
+  // Index, UV, poids et cibles animées partagés avec le modèle : seules positions et normales sont propres.
+  const g = new THREE.BufferGeometry();
+  g.setIndex(base.index);
+  for (const [k, a] of Object.entries(base.attributes)) g.setAttribute(k, a);
+  g.morphAttributes = base.morphAttributes;
+  g.morphTargetsRelative = base.morphTargetsRelative;
+  for (const gr of base.groups) g.addGroup(gr.start, gr.count, gr.materialIndex);
+  g.userData = base.userData;
+  const p0 = base.getAttribute('position');
+  const n0 = base.getAttribute('normal');
+  const p = toFloat(p0);
+  const n = n0 ? toFloat(n0) : null;
+  w.forEach((k, t) => {
+    if (!k) return;
+    const dp = id.pos[t] as Float32Array;
+    for (let i = 0; i < p.length; i++) p[i] = (p[i] as number) + k * (dp[i] as number);
+    const dn = id.nrm[t];
+    if (n && dn) for (let i = 0; i < n.length; i++) n[i] = (n[i] as number) + k * (dn[i] as number);
+  });
+  g.setAttribute('position', new THREE.BufferAttribute(p, 3));
+  if (n && !id.nrm.some(Boolean)) {
+    // Cibles sans normales : normales recalculées, lissées à travers les coutures (sommets
+    // dédoublés aux bords d'UV et de matériaux, mêmes positions).
+    smoothNormals(g);
+    return g;
+  }
+  if (n) {
+    const na = new THREE.BufferAttribute(n, 3);
+    for (let i = 0; i < na.count; i++) _v1.fromBufferAttribute(na, i).normalize().toArray(n, i * 3);
+    g.setAttribute('normal', na);
+  }
+  return g;
+}
+
+function buildTemplates(riders: GLTF[]): Templates {
+  for (const r of riders) extractIdentity(r.scene);
+  const scene = (riders[0] as GLTF).scene;
   scene.updateMatrixWorld(true);
+  const names = RIG_BONES[scene.getObjectByName('pelvis') ? 'mpfb' : 'classic'];
+  const roleOf = new Map(Object.entries(names).map(([role, node]) => [node, role as BoneName]));
   const bones = {} as Record<BoneName, BoneRest>;
   let armature: THREE.Object3D | null = null;
   for (const name of BONES) {
-    const b = scene.getObjectByName(name);
-    if (!b) throw new Error(`os manquant dans cyclist.glb : ${name}`);
-    const parentName = b.parent?.name ?? '';
-    const parent = (BONES as readonly string[]).includes(parentName) ? (parentName as BoneName) : null;
+    const node = names[name];
+    const b = node ? scene.getObjectByName(node) : undefined;
+    if (!b) {
+      if (OPTIONAL_BONES.has(name) && !node) continue;
+      throw new Error(`os manquant dans le modèle du coureur : ${node ?? name}`);
+    }
+    const parent = roleOf.get(b.parent?.name ?? '') ?? null;
     if (!parent) armature = b.parent;
     const rest: BoneRest = { parent, localQ: b.quaternion.clone(), localP: b.position.clone(), modelQ: new THREE.Quaternion(), modelP: new THREE.Vector3() };
     decompose(b, rest.modelQ, rest.modelP);
@@ -212,12 +416,13 @@ function buildTemplates(rider0: GLTF, rider1: GLTF, bike0: GLTF, bike1: GLTF): T
   const armP = new THREE.Vector3();
   if (armature) decompose(armature, armQ, armP);
 
-  const bscene = bike0.scene;
+  // Pédalier et pédales : mêmes cotes pour toutes les familles (repère du vélo de base).
+  const bscene = familyScene(PLAIN_BIKE_FAMILY);
   bscene.updateMatrixWorld(true);
   const crankset = bscene.getObjectByName('crankset');
   const pl = bscene.getObjectByName('pedal_L');
   const pr = bscene.getObjectByName('pedal_R');
-  if (!crankset || !pl || !pr) throw new Error('bike.glb incomplet (crankset / pedal_L / pedal_R)');
+  if (!crankset || !pl || !pr) throw new Error(`${PLAIN_BIKE_FAMILY}.glb incomplet (crankset / pedal_L / pedal_R)`);
   const bb = crankset.position.clone();
   const pedalRest = { L: pl.position.clone(), R: pr.position.clone() };
   const crank = Math.hypot(pedalRest.L.y - bb.y, pedalRest.L.z - bb.z);
@@ -235,20 +440,32 @@ function buildTemplates(rider0: GLTF, rider1: GLTF, bike0: GLTF, bike1: GLTF): T
   const uh = new THREE.Vector3(0, 1, 0).applyQuaternion(bones.head.modelQ).normalize();
   const fh = new THREE.Vector3(0, 0, 1).addScaledVector(uh, -uh.z).normalize();
   const eyeRest = uh.multiplyScalar(0.06).addScaledVector(fh, 0.11);
-  return { rider0, rider1, bike0, bike1, bones, armQ, armP, legs, arms, bb, crank, pedalRest, pedalPitch, ankleFlat, eyeRest };
+  return { riders, names, bones, armQ, armP, legs, arms, bb, crank, pedalRest, pedalPitch, ankleFlat, eyeRest, refHands: bikeAnchors(PLAIN_BIKE_FAMILY).hands };
+}
+
+/** L'objet ou l'un de ses parents porte-t-il un nom commençant par `prefix` ? */
+function underNode(o: THREE.Object3D, prefix: string): boolean {
+  for (let p: THREE.Object3D | null = o; p; p = p.parent) if (p.name.startsWith(prefix)) return true;
+  return false;
 }
 
 function makeMaterial(name: string, look: AvatarLook): THREE.MeshStandardNodeMaterial {
   const def = MATERIALS[name] ?? ['#808080', 0.6, 0];
   const m = new THREE.MeshStandardNodeMaterial({ color: def[0], roughness: def[1], metalness: def[2] });
   m.name = name;
-  const em = EMISSIVE[name];
-  if (em) {
-    m.emissive.set(em[0]);
-    m.emissiveIntensity = em[1];
+  // Visière teintée : on devine les yeux derrière, le ciel s'y reflète (lunettes : verres opaques).
+  if (name === 'visor') {
+    m.transparent = true;
+    m.opacity = 0.7;
+    m.depthWrite = false;
   }
   applyLookColor(m, look);
   return m;
+}
+
+/** Réglages de peau d'une tenue : teint, rides selon l'âge, barbe de la couleur des cheveux. */
+function skinLook(look: AvatarLook): SkinLook {
+  return { tone: look.skin, age: Math.max(0, decodeFace(look.face).age ?? 0), beard: look.beard ?? 0, beardColor: look.hair, freckles: look.freckles ?? 0 };
 }
 
 function applyLookColor(m: THREE.MeshStandardNodeMaterial, look: AvatarLook): void {
@@ -258,9 +475,6 @@ function applyLookColor(m: THREE.MeshStandardNodeMaterial, look: AvatarLook): vo
     jersey_accent: look.jerseyAccent,
     helmet: look.helmet,
     hair: look.hair,
-    frame: look.bike,
-    bar_tape: look.jerseyAccent,
-    bottle: look.jerseyAccent,
     shoe: look.shoes,
     sock: look.socks,
   };
@@ -274,9 +488,19 @@ interface BikeParts {
   pedals: Record<Side, THREE.Object3D[]>;
 }
 
-/** Vélo affiché selon la tenue (route par défaut). */
+/** Vélo affiché selon la tenue (route par défaut) : VTT et gravel posent leur kit sur le cadre. */
 function bikeTypeOf(look: AvatarLook): BikeType {
   return look.bikeType ?? 'road';
+}
+
+/** Vélo monté sur l'avatar : modèle demandé, famille réellement affichée, pièces des deux LOD. */
+interface MountedBike {
+  key: string;
+  build: BikeBuild;
+  family: BikeFamily;
+  levels: AssembledBike[];
+  materials: BikeMaterials;
+  anchors: BikeAnchors;
 }
 
 export class GltfRiderAvatar implements RiderAvatarLike {
@@ -292,12 +516,34 @@ export class GltfRiderAvatar implements RiderAvatarLike {
   private readonly mP = {} as Record<BoneName, THREE.Vector3>;
   private readonly materials = new Map<string, THREE.MeshStandardNodeMaterial>();
   private readonly morphMeshes: THREE.Mesh[] = [];
+  /** Maillages à curseurs de forme et leur géométrie partagée (avant précalcul). */
+  private faceKey = '[]';
+  /** Expressions en sortie (modèle à formes ARKit seulement). */
+  private faceAnim: FaceAnimator | null = null;
+  /** Coiffures (avatar MPFB) : 0 courts, 1 queue de cheval, 2 tresse, 3 rasé ; moustache. */
+  private readonly hair = { cap: [] as THREE.Object3D[], ponytail: [] as THREE.Object3D[], braid: [] as THREE.Object3D[], moustache: [] as THREE.Object3D[] };
+  private skin: SkinMaterial | null = null;
+  private ftpFrac = 0.7;
+  private hrFrac: number | undefined;
+  private readonly identityMeshes: Array<{ mesh: THREE.Mesh; base: THREE.BufferGeometry }> = [];
   private readonly bike: BikeParts = { crank: [], wheels: [], pedals: { L: [], R: [] } };
-  /** Les deux niveaux de détail du vélo (pour y poser les kits VTT / gravel). */
-  private readonly bikeLevels: THREE.Object3D[] = [];
+  /** Groupes recevant le vélo : niveau 0, niveau 1. */
+  /** Vélo de chaque niveau de détail (au-delà du premier : le vélo simplifié). */
+  private readonly bikeSlots: THREE.Group[] = FILES.map(() => new THREE.Group());
+  private mounted: MountedBike | null = null;
+  /** Kits VTT / gravel (rider/bikeKits.ts) posés sur chaque niveau du vélo monté. */
   private readonly kits = new Map<BikeType, THREE.Group[]>();
   private bikeType: BikeType = 'road';
   private look: AvatarLook;
+  /** Cible des mains (repère modèle) et direction des coudes, selon le vélo monté. */
+  private readonly handTarget: Record<Side, THREE.Vector3> = { L: new THREE.Vector3(), R: new THREE.Vector3() };
+  private readonly elbowPole: Record<Side, THREE.Vector3> = { L: new THREE.Vector3(), R: new THREE.Vector3() };
+  /** Position chrono (vélo à prolongateurs ; 0 = buste de repos) : dos plongeant jusqu'à poser les coudes. */
+  private tuck = 0;
+  /** Casques route et chrono, lunettes (les deux LOD) : casque chrono à visière selon le vélo. */
+  private readonly headgear: Record<'road' | 'aero' | 'glasses', THREE.Object3D[]> = { road: [], aero: [], glasses: [] };
+  /** Casque et lunettes masqués (éditeur de visage). */
+  private bareHead = false;
   private crankAngle = Math.random() * Math.PI * 2;
   private wheelAngle = 0;
   private poseBlend = 0; // 0 assis → 1 danseuse
@@ -310,15 +556,20 @@ export class GltfRiderAvatar implements RiderAvatarLike {
   private readonly target = new THREE.Vector3();
   private readonly pedal = new THREE.Vector3();
 
-  /** Charge les quatre modèles (une seule fois). Renvoie false si indisponibles. */
-  static load(baseUrl = `${import.meta.env.BASE_URL}models/`): Promise<boolean> {
-    if (templates) return Promise.resolve(true);
-    if (loading) return loading;
-    loading = (async () => {
+  /**
+   * Charge le coureur et le vélo de base (une seule fois), plus les familles de cadres demandées
+   * (attendues aussi ; les autres se chargent à la demande). Renvoie false si le coureur ou le
+   * vélo de base manque.
+   */
+  static async load(families: readonly BikeFamily[] = [], baseUrl = `${import.meta.env.BASE_URL}models/`): Promise<boolean> {
+    const extra = Promise.all(families.map((f) => loadBikeFamily(f)));
+    loading ??= (async () => {
       try {
-        const loader = new GLTFLoader();
-        const [r0, r1, b0, b1] = await Promise.all(FILES.map((f) => loader.loadAsync(baseUrl + f)));
-        templates = buildTemplates(r0 as GLTF, r1 as GLTF, b0 as GLTF, b1 as GLTF);
+        const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
+        const skin = MPFB ? loadSkinTextures(`${baseUrl}avatar/`) : null;
+        const [riders, plain] = await Promise.all([Promise.all(FILES.map((f) => loader.loadAsync(baseUrl + f))), loadBikeFamily(PLAIN_BIKE_FAMILY), skin]);
+        if (!plain) throw new Error(`vélo de base (${PLAIN_BIKE_FAMILY}) indisponible`);
+        templates = buildTemplates(riders);
         return true;
       } catch (e) {
         console.warn('Avatar glTF indisponible, repli sur l’avatar procédural', e);
@@ -326,8 +577,13 @@ export class GltfRiderAvatar implements RiderAvatarLike {
         return false;
       }
     })();
-    return loading;
+    const ok = await loading;
+    await extra;
+    return ok;
   }
+
+  /** Facteur des distances de niveau de détail (préréglage graphique : 0,6 bas → 1,5 ultra). */
+  static lodScale = 1;
 
   /** Modèles chargés ? */
   static get ready(): boolean {
@@ -338,116 +594,185 @@ export class GltfRiderAvatar implements RiderAvatarLike {
     if (!templates) throw new Error('GltfRiderAvatar.load() doit être appelé (et attendu) avant la création');
     this.look = look;
     const t = (this.t = templates);
+    this.look = look;
     this.root.add(this.lean);
     this.lean.add(this.lod);
 
     // Niveau 0 : squelette cloné + vélo complet.
-    const rider0 = SkeletonUtils.clone(t.rider0.scene);
+    const rider0 = SkeletonUtils.clone((t.riders[0] as GLTF).scene);
     for (const name of BONES) {
-      const b = rider0.getObjectByName(name);
-      if (!b) throw new Error(`os manquant : ${name}`);
+      const node = t.names[name];
+      if (!node) continue;
+      const b = rider0.getObjectByName(node);
+      if (!b) throw new Error(`os manquant : ${node}`);
       this.bones[name] = b;
       this.mQ[name] = new THREE.Quaternion();
       this.mP[name] = new THREE.Vector3();
     }
-    const bike0 = t.bike0.scene.clone(true);
     const level0 = new THREE.Group();
-    level0.add(bike0, rider0);
-
-    // Niveau 1 : maillages simplifiés liés aux os du niveau 0 (un seul squelette à animer).
-    const level1 = new THREE.Group();
-    level1.add(t.bike1.scene.clone(true));
-    t.rider1.scene.updateMatrixWorld(true);
-    t.rider1.scene.traverse((o) => {
-      const sm = o as THREE.SkinnedMesh;
-      if (!sm.isSkinnedMesh) return;
-      const m = sm.clone();
-      const bones = sm.skeleton.bones.map((b) => (this.bones[b.name as BoneName] as THREE.Bone | undefined) ?? b);
-      m.bind(new THREE.Skeleton(bones, sm.skeleton.boneInverses), sm.bindMatrix);
-      sm.matrixWorld.decompose(m.position, m.quaternion, m.scale);
-      level1.add(m);
-    });
+    level0.add(this.bikeSlots[0] as THREE.Group, rider0);
 
     this.lod.addLevel(level0, 0, 0.1);
-    this.lod.addLevel(level1, LOD1_DISTANCE, 0.1);
+    // Niveaux suivants : maillages simplifiés liés aux os du niveau 0 (un seul squelette à animer).
+    t.riders.forEach((r, i) => {
+      if (i === 0) return;
+      const level = new THREE.Group();
+      level.add(this.bikeSlots[i] as THREE.Group);
+      r.scene.updateMatrixWorld(true);
+      r.scene.traverse((o) => {
+        const sm = o as THREE.SkinnedMesh;
+        if (!sm.isSkinnedMesh) return;
+        const m = sm.clone();
+        const bones = sm.skeleton.bones.map((b) => (rider0.getObjectByName(b.name) as THREE.Bone | undefined) ?? b);
+        m.bind(new THREE.Skeleton(bones, sm.skeleton.boneInverses), sm.bindMatrix);
+        sm.matrixWorld.decompose(m.position, m.quaternion, m.scale);
+        level.add(m);
+      });
+      this.lod.addLevel(level, (LOD_DISTANCES[i] ?? 30 * i) * GltfRiderAvatar.lodScale, 0.1);
+    });
 
-    // Matériaux (instances propres à l'avatar), ombres, sphères englobantes des maillages skinnés.
+    // Coureur : matériaux (instances propres à l'avatar), ombres, sphères englobantes des maillages skinnés.
     const bounds = new THREE.Sphere(new THREE.Vector3(0, 0.85, 0.05), 1.1);
     this.lod.traverse((o) => {
       const mesh = o as THREE.Mesh;
       if (!mesh.isMesh) return;
       const src = mesh.material as THREE.Material;
-      let mat = this.materials.get(src.name);
+      // Visière du casque chrono : verre plus clair que celui des lunettes.
+      const key = src.name === 'lens' && underNode(mesh, 'rider_helmet_aero') ? 'visor' : src.name;
+      let mat = this.materials.get(key);
       if (!mat) {
-        mat = makeMaterial(src.name, look);
-        this.materials.set(src.name, mat);
+        // Avatar MPFB : peau texturée (teint, rides, barbe, rougeur d'effort, sueur).
+        const tex = key === 'skin' && t.names.hips === 'pelvis' ? skinTextures() : null;
+        if (tex) {
+          this.skin = new SkinMaterial(tex, skinLook(look));
+          mat = this.skin.material;
+        } else mat = makeMaterial(key, look);
+        this.materials.set(key, mat);
       }
       mesh.material = mat;
       mesh.castShadow = true;
       mesh.receiveShadow = true;
       if ((mesh as THREE.SkinnedMesh).isSkinnedMesh) {
         (mesh as THREE.SkinnedMesh).boundingSphere = bounds.clone();
-        if (mesh.morphTargetDictionary && mesh.morphTargetDictionary.build !== undefined) this.morphMeshes.push(mesh);
+        if (mesh.morphTargetDictionary) this.morphMeshes.push(mesh);
+        if (mesh.geometry.userData.identity) this.identityMeshes.push({ mesh, base: mesh.geometry });
       }
     });
-    this.bikeLevels.push(bike0, level1);
-    for (const level of [bike0, level1]) {
-      const crank = level.getObjectByName('crankset');
-      if (crank) this.bike.crank.push(crank);
-      for (const w of ['wheel_front', 'wheel_rear']) {
-        const o = level.getObjectByName(w);
-        if (o) this.bike.wheels.push(o);
-      }
-      for (const s of SIDES) {
-        const p = level.getObjectByName(`pedal_${s}`);
-        if (p) this.bike.pedals[s].push(p);
-      }
-    }
+    this.lod.traverse((o) => {
+      const n = o.name;
+      if (/^rider_hair_ponytail/.test(n)) this.hair.ponytail.push(o);
+      else if (/^rider_hair_braid/.test(n)) this.hair.braid.push(o);
+      else if (/^rider_moustache/.test(n)) this.hair.moustache.push(o);
+      else if (/^rider_hair(_lod\d)?$/.test(n)) this.hair.cap.push(o);
+      if (n.startsWith('rider_helmet_aero')) this.headgear.aero.push(o);
+      else if (n.startsWith('rider_helmet')) this.headgear.road.push(o);
+      else if (n.startsWith('rider_glasses')) this.headgear.glasses.push(o);
+    });
+    if (this.morphMeshes.some((m) => m.morphTargetDictionary?.jawOpen !== undefined)) this.faceAnim = new FaceAnimator();
+    this.mountBike(bikeOfLook(look), look);
+    if (bikeTypeOf(look) !== 'road') this.setBikeType(bikeTypeOf(look));
     this.setBuild(look.build);
-    this.setBikeType(bikeTypeOf(look));
+    this.applyHair(look);
     this.update(0, 0, 0, 'seated');
   }
 
-  /** Vélo route, gravel ou VTT : kit construit à la demande, pièces route masquées. */
-  setBikeType(type: BikeType): void {
-    if (type !== 'road' && !this.kits.has(type)) {
-      const list: THREE.Group[] = [];
-      for (const level of this.bikeLevels) {
-        const kit = buildBikeKit(level, type);
-        if (!kit) continue;
-        kit.traverse((o) => {
-          const mesh = o as THREE.Mesh;
-          if (!mesh.isMesh) return;
-          const src = mesh.material as THREE.Material;
-          let mat = this.materials.get(src.name);
-          if (!mat) {
-            mat = makeMaterial(src.name, this.look);
-            this.materials.set(src.name, mat);
-          }
-          mesh.material = mat;
-          mesh.castShadow = this.shadows;
-          mesh.receiveShadow = true;
-        });
-        for (const w of ['wheel_front', 'wheel_rear']) {
-          const o = kit.getObjectByName(w);
-          if (o) this.bike.wheels.push(o);
-        }
-        list.push(kit);
-      }
-      this.kits.set(type, list);
+  /**
+   * Monte le vélo demandé (ses deux niveaux de détail). Famille pas encore chargée : vélo de
+   * base à la même livrée, remplacé dès que la famille arrive.
+   */
+  private mountBike(build: BikeBuild, look: AvatarLook): void {
+    const key = look.bikeModel ?? 'plain';
+    const family = availableFamily(build.family) ?? PLAIN_BIKE_FAMILY;
+    const cur = this.mounted;
+    if (cur && cur.key === key && cur.family === family) {
+      cur.build = build;
+      cur.materials.update(build, look);
+      return;
     }
-    this.bikeType = type;
-    for (const [t, list] of this.kits) for (const k of list) k.visible = t === type;
-    const hidden = new Set(roadPartsReplaced(type));
-    for (const level of this.bikeLevels) {
-      for (const child of level.children) {
-        if (child.name.startsWith('kit_')) continue;
-        // Le vélo route d'un niveau est soit la scène glTF (enfants nommés), soit son clone.
-        child.traverse((o) => {
-          if (['frame', 'wheel_front', 'wheel_rear'].includes(o.name) && !o.parent?.name.startsWith('kit_')) o.visible = !hidden.has(o.name);
+    if (cur) {
+      for (const lv of cur.levels) lv.group.removeFromParent();
+      cur.materials.dispose();
+    }
+    const materials = new BikeMaterials(build, look, family);
+    const levels = this.bikeSlots.map((_, i) => assembleBike(build, family, i === 0 ? 0 : 1));
+    const parts: BikeParts = { crank: [], wheels: [], pedals: { L: [], R: [] } };
+    levels.forEach((lv, i) => {
+      lv.group.traverse((o) => {
+        const mesh = o as THREE.Mesh;
+        if (!mesh.isMesh) return;
+        mesh.material = materials.get((mesh.userData.matKey as string | undefined) ?? (mesh.material as THREE.Material).name);
+        mesh.castShadow = this.shadows;
+        mesh.receiveShadow = true;
+      });
+      (this.bikeSlots[i] as THREE.Group).add(lv.group);
+      if (lv.crank) parts.crank.push(lv.crank);
+      parts.wheels.push(...lv.wheels);
+      for (const s of SIDES) {
+        const p = lv.pedals[s];
+        if (p) parts.pedals[s].push(p);
+      }
+    });
+    Object.assign(this.bike, parts);
+    const anchors = bikeAnchors(family);
+    this.mounted = { key, build, family, levels, materials, anchors };
+    // Mains : écart des ancres du vélo à celles du vélo de base (pose de repos) ; coudes tirés
+    // vers les repose-coudes s'il y en a, sinon pli de repos.
+    for (const s of SIDES) {
+      const c = this.t.arms[s];
+      const rest = this.t.bones[c.end].modelP;
+      this.handTarget[s].copy(rest).add(anchors.hands[s]).sub(this.t.refHands[s]);
+      const pad = anchors.pads?.[s];
+      if (pad) {
+        const sh = this.t.bones[c.upper].modelP;
+        const dir = _v1.subVectors(this.handTarget[s], sh).normalize();
+        const toPad = _v2.subVectors(pad, sh);
+        this.elbowPole[s].copy(toPad).addScaledVector(dir, -toPad.dot(dir)).normalize();
+      } else this.elbowPole[s].copy(c.pole);
+    }
+    this.tuck = anchors.pads ? this.solveTuck(anchors.pads) : 0;
+    // Casque chrono (modèles qui le demandent) : sa visière remplace les lunettes. Sans casque chrono
+    // dans le modèle du coureur (ancien cyclist.glb), casque route.
+    this.applyHeadgear(build);
+    if (this.bikeType !== 'road') this.setBikeType(this.bikeType);
+    if (family !== build.family) {
+      void loadBikeFamily(build.family).then((ok) => {
+        if (ok && this.mounted?.key === key) this.mountBike(this.mounted.build, this.look);
+      });
+    }
+  }
+
+  /**
+   * Bascule du buste qui met les épaules à une longueur de bras (os supérieur) au-dessus des
+   * repose-coudes : avec le pli des coudes tiré vers eux, les avant-bras s'y posent.
+   */
+  private solveTuck(pads: Record<Side, THREE.Vector3>): number {
+    const b = this.t.bones;
+    let best = 1;
+    let bestErr = Infinity;
+    // Bassin, colonne et thorax basculent autour de leurs origines (axes X parallèles), dans cet ordre.
+    const pivots: Array<[BoneName, number]> = [['hips', TUCK_HIPS], ['spine', TUCK_SPINE], ['chest', TUCK_CHEST]];
+    const pts = pivots.map(() => new THREE.Vector3());
+    for (let a = 0; a <= 2.5; a += 0.01) {
+      let err = 0;
+      for (const s of SIDES) {
+        const c = this.t.arms[s];
+        pivots.forEach(([name], i) => pts[i]?.copy(b[name].modelP));
+        const sh = _v2.copy(b[c.upper].modelP);
+        pivots.forEach(([, k], i) => {
+          const o = pts[i] as THREE.Vector3;
+          for (let j = i + 1; j < pts.length; j++) (pts[j] as THREE.Vector3).sub(o).applyAxisAngle(X_AXIS, k * a).add(o);
+          sh.sub(o).applyAxisAngle(X_AXIS, k * a).add(o);
         });
+        const pad = pads[s];
+        // Bras supérieur posé : épaule à l1 du coude et au-dessus de lui.
+        err += Math.abs(sh.distanceTo(pad) - c.l1) + Math.max(0, pad.y + 0.15 - sh.y);
+      }
+      if (err < bestErr) {
+        bestErr = err;
+        best = a;
       }
     }
+    return best;
   }
 
   /** Repère « modèle » (= groupe incliné) d'un os à partir de son parent et de sa rotation locale. */
@@ -469,10 +794,10 @@ export class GltfRiderAvatar implements RiderAvatarLike {
     this.fk(name);
   }
 
-  /** Pilote une chaîne à deux os vers une cible (repère modèle). */
-  private solveChain(c: ChainRest, target: THREE.Vector3): void {
+  /** Pilote une chaîne à deux os vers une cible (repère modèle) ; pli vers `pole` (sinon celui de repos). */
+  private solveChain(c: ChainRest, target: THREE.Vector3, pole = c.pole): void {
     const root = this.mP[c.upper];
-    solveTwoBone(root, target, c.l1, c.l2, c.pole, this.knee, this.bendN);
+    solveTwoBone(root, target, c.l1, c.l2, pole, this.knee, this.bendN);
     // Os supérieur : rotation qui amène le repère de repos (direction, normale du pli) sur le nouveau.
     frameQuat(_v3.subVectors(this.knee, root), this.bendN, _q1).multiply(c.invUpper);
     this.setModelQ(c.upper, _q2.multiplyQuaternions(_q1, this.t.bones[c.upper].modelQ));
@@ -488,6 +813,12 @@ export class GltfRiderAvatar implements RiderAvatarLike {
    * @param bank inclinaison dans les virages (rad)
    */
   update(dt: number, cadence: number, speed: number, pose: RiderPose, bank = 0): void {
+    // Visage : seulement au premier niveau de détail (au-delà, invisible).
+    if (this.faceAnim && dt > 0 && this.lod.getCurrentLevel() === 0) {
+      const inp = { ftpFrac: this.ftpFrac, cadence, speed, standing: pose === 'standing' };
+      this.setExpressions(this.faceAnim.update(dt, this.hrFrac === undefined ? inp : { ...inp, hrFrac: this.hrFrac }));
+      this.skin?.update(dt, this.faceAnim.effortLevel);
+    }
     const t = this.t;
     this.time += dt;
     this.crankAngle += (cadence / 60) * Math.PI * 2 * dt;
@@ -517,7 +848,8 @@ export class GltfRiderAvatar implements RiderAvatarLike {
     // --- Bassin
     const hipsR = t.bones.hips;
     const roll = 0.02 * Math.sin(a) * (1 - stand) * (1 - coast);
-    const tilt = -0.09 * stand - 0.05 * coast;
+    const tuck = this.tuck * (1 - 0.6 * stand);
+    const tilt = -0.09 * stand - 0.05 * coast + TUCK_HIPS * tuck;
     _q1.setFromAxisAngle(Z_AXIS, counter + roll);
     _q2.setFromAxisAngle(X_AXIS, tilt);
     _q3.multiplyQuaternions(_q1, _q2).multiply(hipsR.modelQ);
@@ -531,11 +863,18 @@ export class GltfRiderAvatar implements RiderAvatarLike {
     hips.position.copy(_v4).sub(t.armP).applyQuaternion(invArm);
     this.fk('hips');
 
-    // --- Colonne : le thorax compense le roulis du bassin (épaules stables).
+    // --- Colonne : le thorax compense le roulis du bassin (épaules stables) ; dos plongeant en
+    // position chrono (moins en danseuse).
     this.bones.spine.quaternion.copy(t.bones.spine.localQ);
     this.fk('spine');
-    _q1.multiplyQuaternions(this.mQ.spine, t.bones.chest.localQ);
+    if (tuck > 0) this.setModelQ('spine', _q3.setFromAxisAngle(X_AXIS, TUCK_SPINE * tuck).multiply(this.mQ.spine));
+    if (t.names.spine2) {
+      this.bones.spine2.quaternion.copy(t.bones.spine2.localQ);
+      this.fk('spine2');
+    }
+    _q1.multiplyQuaternions(this.mQ[t.bones.chest.parent ?? 'spine'], t.bones.chest.localQ);
     _q2.setFromAxisAngle(Z_AXIS, -roll * 0.9);
+    if (tuck > 0) _q2.multiply(_q3.setFromAxisAngle(X_AXIS, TUCK_CHEST * tuck));
     this.setModelQ('chest', _q3.multiplyQuaternions(_q2, _q1));
 
     // --- Tête : regarde devant, compense une partie de l'inclinaison ; le cou en prend la moitié.
@@ -543,6 +882,7 @@ export class GltfRiderAvatar implements RiderAvatarLike {
     this.fk('neck');
     const look = 0.06 * Math.sin(this.time * 0.37) * Math.sin(this.time * 0.13);
     _q1.setFromAxisAngle(Z_AXIS, -(0.7 * bank + rock + counter));
+    if (tuck > 0) _q1.multiply(_q3.setFromAxisAngle(X_AXIS, -TUCK_HEAD * tuck));
     _q2.setFromAxisAngle(Y_AXIS, look);
     const headTarget = _q3.multiplyQuaternions(_q1, _q2).multiply(t.bones.head.modelQ);
     _q1.multiplyQuaternions(this.mQ.neck, t.bones.head.localQ).invert(); // tête si cou au repos
@@ -551,12 +891,17 @@ export class GltfRiderAvatar implements RiderAvatarLike {
     this.setModelQ('neck', _q2.multiplyQuaternions(_q1, this.mQ.neck));
     this.setModelQ('head', headTarget);
 
-    // --- Bras : mains fixes sur les cocottes.
+    // --- Bras : mains fixes sur le cintre (ou les prolongateurs).
     for (const s of SIDES) {
       const c = t.arms[s];
+      const clav: BoneName = `clavicle_${s}`;
+      if (t.names[clav]) {
+        this.bones[clav].quaternion.copy(t.bones[clav].localQ);
+        this.fk(clav);
+      }
       this.bones[c.upper].quaternion.copy(t.bones[c.upper].localQ);
       this.fk(c.upper);
-      this.solveChain(c, this.target.copy(t.bones[c.end].modelP));
+      this.solveChain(c, this.target.copy(this.handTarget[s]), this.elbowPole[s]);
       this.setModelQ(c.end, t.bones[c.end].modelQ);
     }
 
@@ -582,7 +927,52 @@ export class GltfRiderAvatar implements RiderAvatarLike {
     }
   }
 
+  /**
+   * Curseurs de forme (avatar MPFB, docs/AVATARS.md § 4) : valeur −1 → 1 par curseur, appliquée
+   * aux cibles « nom+ » / « nom− », une fois, sur le processeur (géométrie propre à l'avatar ;
+   * tout à 0 : géométrie partagée du modèle).
+   */
+  setFace(values: Readonly<Record<string, number>>): void {
+    const key = JSON.stringify(Object.entries(values).filter(([, v]) => v).sort());
+    if (key === this.faceKey) return;
+    this.faceKey = key;
+    for (const it of this.identityMeshes) {
+      const id = it.base.userData.identity as IdentityTargets;
+      const w = id.names.map((n) => {
+        const x = THREE.MathUtils.clamp(values[n.slice(0, -1)] ?? 0, -1, 1);
+        return n.endsWith('+') ? Math.max(x, 0) : Math.max(-x, 0);
+      });
+      const old = it.mesh.geometry;
+      it.mesh.geometry = w.some(Boolean) ? bakeIdentity(it.base, id, w) : it.base;
+      if (old !== it.base && old !== it.mesh.geometry) old.dispose();
+    }
+  }
+
+  /**
+   * Expressions (formes ARKit de l'avatar MPFB, docs/AVATARS.md § 5) : poids 0 → 1 par nom ;
+   * les noms absents du modèle sont ignorés.
+   */
+  setExpressions(weights: Readonly<Record<string, number>>): void {
+    for (const m of this.morphMeshes) {
+      const dict = m.morphTargetDictionary;
+      const inf = m.morphTargetInfluences;
+      if (!dict || !inf) continue;
+      for (const [k, v] of Object.entries(weights)) {
+        const i = dict[k];
+        if (i !== undefined) inf[i] = THREE.MathUtils.clamp(v, 0, 1);
+      }
+    }
+  }
+
+  /**
+   * Morphologie de la tenue : cible « build » du coureur actuel ; avatar MPFB : curseurs de forme
+   * (`look.face`), la carrure `build` servant de musculature tant que la forme ne la fixe pas.
+   */
   private setBuild(build: number): void {
+    if (this.identityMeshes.length) {
+      const shape: Record<string, number> = { muscle: THREE.MathUtils.clamp((build - 0.4) / 0.6, -1, 1) };
+      this.setFace({ ...shape, ...decodeFace(this.look.face) });
+    }
     for (const m of this.morphMeshes) {
       const i = m.morphTargetDictionary?.build;
       if (i !== undefined && m.morphTargetInfluences) m.morphTargetInfluences[i] = THREE.MathUtils.clamp(build, 0, 1);
@@ -625,9 +1015,84 @@ export class GltfRiderAvatar implements RiderAvatarLike {
     });
   }
 
+  /** Casque route ou chrono selon le vélo, lunettes avec le casque route ; rien tête nue. */
+  private applyHeadgear(build: BikeBuild): void {
+    const aero = !!build.params.aeroHelmet && this.headgear.aero.length > 0;
+    for (const o of this.headgear.aero) o.visible = aero && !this.bareHead;
+    for (const o of this.headgear.road) o.visible = !aero && !this.bareHead;
+    for (const o of this.headgear.glasses) o.visible = !aero && !this.bareHead;
+  }
+
+  /** Tête nue (aperçu de l'éditeur de visage) ou casquée. */
+  setBareHead(on: boolean): void {
+    this.bareHead = on;
+    if (this.mounted) this.applyHeadgear(this.mounted.build);
+  }
+
+  private applyHair(look: AvatarLook): void {
+    if (!this.hair.ponytail.length) return; // modèle sans coiffures (cyclist.glb)
+    const style = ((look.hairStyle % 4) + 4) % 4;
+    for (const o of this.hair.cap) o.visible = style !== 3;
+    for (const o of this.hair.ponytail) o.visible = style === 1;
+    for (const o of this.hair.braid) o.visible = style === 2;
+    for (const o of this.hair.moustache) o.visible = !!look.moustache;
+  }
+
+  setEffort(ftpFrac: number, hrFrac?: number): void {
+    this.ftpFrac = ftpFrac;
+    this.hrFrac = hrFrac;
+  }
+
+  /**
+   * VTT ou gravel : kit (cadre, roues, selle, poignées) posé sur chaque niveau du vélo monté, à la
+   * place des pièces route correspondantes ; route : vélo du catalogue tel quel.
+   */
+  setBikeType(type: BikeType): void {
+    this.bikeType = type;
+    for (const list of this.kits.values()) for (const k of list) k.removeFromParent();
+    this.kits.clear();
+    const levels = this.mounted?.levels.map((lv) => lv.group) ?? [];
+    if (type !== 'road') {
+      const list: THREE.Group[] = [];
+      for (const level of levels) {
+        const kit = buildBikeKit(level, type);
+        if (!kit) continue;
+        kit.traverse((o) => {
+          const mesh = o as THREE.Mesh;
+          if (!mesh.isMesh) return;
+          const src = mesh.material as THREE.Material;
+          let mat = this.materials.get(src.name);
+          if (!mat) {
+            mat = makeMaterial(src.name, this.look);
+            this.materials.set(src.name, mat);
+          }
+          mesh.material = mat;
+          mesh.castShadow = this.shadows;
+          mesh.receiveShadow = true;
+        });
+        for (const w of ['wheel_front', 'wheel_rear']) {
+          const o = kit.getObjectByName(w);
+          if (o) this.bike.wheels.push(o);
+        }
+        list.push(kit);
+      }
+      this.kits.set(type, list);
+    }
+    const hidden = new Set(roadPartsReplaced(type));
+    for (const level of levels) {
+      level.traverse((o) => {
+        if (o.parent?.name.startsWith('kit_') || o.name.startsWith('kit_')) return;
+        if (['frame', 'wheel_front', 'wheel_rear'].includes(o.name)) o.visible = !hidden.has(o.name);
+      });
+    }
+  }
+
   setLook(look: AvatarLook): void {
     this.look = look;
     for (const m of this.materials.values()) applyLookColor(m, look);
+    this.skin?.setLook(skinLook(look));
+    this.applyHair(look);
+    this.mountBike(bikeOfLook(look), look);
     this.setBuild(look.build);
     if (bikeTypeOf(look) !== this.bikeType) this.setBikeType(bikeTypeOf(look));
   }

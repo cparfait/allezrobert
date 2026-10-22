@@ -1,5 +1,5 @@
 import * as THREE from 'three/webgpu';
-import { uv, attribute, mix, smoothstep, step, fract, vec3, float, uniform, mx_noise_float, positionWorld, clamp, abs, max, time, sin, normalWorld, cameraPosition } from 'three/tsl';
+import { uv, attribute, mix, smoothstep, step, fract, vec3, float, uniform, mx_noise_float, positionWorld, clamp, abs, max } from 'three/tsl';
 import type { LoadedTile, TileRoad } from './types.ts';
 import { asphaltGrain } from './asphalt.ts';
 import { ribbonIndex, sideRoadStrips, type RouteFootprint } from './ribbon.ts';
@@ -11,16 +11,14 @@ const SKIP = new Set(['footway', 'path', 'steps', 'cycleway', 'bridleway', 'pede
 
 /**
  * Réseau routier OSM (hors itinéraire actif, déjà dessiné par RoadMesh) en rubans 3D posés
- * sur le profil lissé fourni par le pipeline, et plans d'eau (étangs, rivières).
+ * sur le profil lissé fourni par le pipeline (l'eau est dans water.ts).
  */
 export class RoadNetwork {
   readonly group = new THREE.Group();
   readonly wetness = uniform(0);
   private readonly roadMat: THREE.MeshStandardNodeMaterial;
-  private readonly waterMat: THREE.MeshStandardNodeMaterial;
   private readonly tiles = new Map<string, THREE.Object3D[]>();
   private readonly activeRoute: string;
-  private readonly groundAt: (x: number, z: number) => number;
   private readonly footprint: RouteFootprint | null;
 
   /**
@@ -33,11 +31,10 @@ export class RoadNetwork {
   constructor(activeRoute: string, groundAt: (x: number, z: number) => number, footprint: RouteFootprint | null = null, drawCycleways = false) {
     this.activeRoute = activeRoute;
     this.drawCycleways = drawCycleways;
-    this.groundAt = groundAt;
+    void groundAt;
     this.footprint = footprint;
     this.group.name = 'network';
     this.roadMat = this.createRoadMaterial();
-    this.waterMat = this.createWaterMaterial();
   }
 
   private createRoadMaterial(): THREE.MeshStandardNodeMaterial {
@@ -68,21 +65,6 @@ export class RoadNetwork {
     return m;
   }
 
-  private createWaterMaterial(): THREE.MeshStandardNodeMaterial {
-    const m = new THREE.MeshStandardNodeMaterial();
-    // Eau calme d'étang : ondulations légères (normales perturbées), reflets du ciel par l'environnement.
-    const p = positionWorld.xz;
-    const w1 = sin(p.x.mul(0.8).add(time.mul(0.9))).mul(sin(p.y.mul(0.6).sub(time.mul(0.7))));
-    const w2 = mx_noise_float(vec3(p.mul(0.35), time.mul(0.15)));
-    m.normalNode = normalWorld.add(vec3(w1.mul(0.03), 0, w2.mul(0.05))).normalize();
-    const view = cameraPosition.sub(positionWorld).normalize();
-    const fresnel = float(1).sub(view.y.abs()).pow(3);
-    m.colorNode = mix(vec3(0.06, 0.1, 0.1), vec3(0.32, 0.42, 0.48), fresnel);
-    m.roughnessNode = float(0.06);
-    m.metalnessNode = float(0.15);
-    return m;
-  }
-
   addTile(tile: LoadedTile): void {
     if (this.tiles.has(tile.id)) return;
     const objs: THREE.Object3D[] = [];
@@ -95,46 +77,6 @@ export class RoadNetwork {
         mesh.name = `roads_${tile.id}`;
         objs.push(mesh);
       }
-    }
-    // Plans d'eau de la tuile fusionnés en un seul maillage (un appel de dessin).
-    const waterPos: number[] = [];
-    const waterIdx: number[] = [];
-    for (const w of tile.features.water) {
-      const outer = w.rings[0];
-      if (!outer || outer.length < 6) continue;
-      const level = w.level ?? lowestGround(outer, this.groundAt);
-      if (!Number.isFinite(level)) continue;
-      const toV2 = (r: number[]) => {
-        const out: THREE.Vector2[] = [];
-        for (let i = 0; i < r.length; i += 2) out.push(new THREE.Vector2(r[i] as number, r[i + 1] as number));
-        return out;
-      };
-      const contour = toV2(outer);
-      const holes = w.rings.slice(1).map(toV2);
-      const tris = THREE.ShapeUtils.triangulateShape(contour, holes);
-      const all = [...contour, ...holes.flat()];
-      const base = waterPos.length / 3;
-      for (const v of all) waterPos.push(v.x, level + 0.05, v.y);
-      for (const t of tris) {
-        const [i0, i1, i2] = [t[0] as number, t[1] as number, t[2] as number];
-        const p0 = all[i0] as THREE.Vector2;
-        const p1 = all[i1] as THREE.Vector2;
-        const p2 = all[i2] as THREE.Vector2;
-        // Orientation vers le haut quel que soit le sens du contour : composante y de (u × v) > 0.
-        const up = (p1.y - p0.y) * (p2.x - p0.x) - (p1.x - p0.x) * (p2.y - p0.y) > 0;
-        if (up) waterIdx.push(base + i0, base + i1, base + i2);
-        else waterIdx.push(base + i0, base + i2, base + i1);
-      }
-    }
-    if (waterIdx.length) {
-      const g = new THREE.BufferGeometry();
-      g.setAttribute('position', new THREE.Float32BufferAttribute(waterPos, 3));
-      g.setIndex(waterIdx);
-      g.computeVertexNormals();
-      const mesh = new THREE.Mesh(g, this.waterMat);
-      mesh.receiveShadow = true;
-      mesh.name = `water_${tile.id}`;
-      objs.push(mesh);
     }
     objs.forEach((o) => this.group.add(o));
     this.tiles.set(tile.id, objs);
@@ -149,12 +91,6 @@ export class RoadNetwork {
     }
     this.tiles.delete(tile.id);
   }
-}
-
-function lowestGround(ring: number[], groundAt: (x: number, z: number) => number): number {
-  let m = Infinity;
-  for (let i = 0; i < ring.length; i += 2) m = Math.min(m, groundAt(ring[i] as number, ring[i + 1] as number));
-  return m;
 }
 
 /** Rubans de toutes les routes d'une tuile, fusionnés (un seul appel de dessin). */

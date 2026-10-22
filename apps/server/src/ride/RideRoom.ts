@@ -54,6 +54,8 @@ const CreateOptionsSchema = z
         seed: finite.transform((v) => Math.round(Math.abs(v)) % 100000),
       })
       .optional(),
+    aiLevel: finite.optional(),
+    paceWkg: finite.optional(),
   })
   .passthrough();
 
@@ -80,7 +82,14 @@ const TelemetrySchema = z.object({
 const ChatSchema = z.object({ text: z.string().min(1).max(500) });
 const RideOnSchema = z.object({ to: z.string().min(1).max(40) });
 const StartSchema = z.object({ countdownS: finite.optional() }).optional();
-const HostOptionsSchema = z.object({ allowGuests: z.boolean().optional(), stickyGroup: z.boolean().optional(), draftingStrength: finite.optional() });
+const HostOptionsSchema = z.object({
+  allowGuests: z.boolean().optional(),
+  stickyGroup: z.boolean().optional(),
+  draftingStrength: finite.optional(),
+  paceWkg: finite.nullable().optional(),
+  leaderId: z.string().max(40).optional(),
+});
+const RegroupSchema = z.object({ active: z.boolean().optional() }).optional();
 const TargetSchema = z.object({ riderId: z.string().min(1).max(40) });
 const PingSchema = z.object({ t: finite });
 const CompanionSchema = z.discriminatedUnion('kind', [
@@ -240,7 +249,12 @@ export class RideRoom extends Room {
     if (!this.hostId && auth.userId) this.setHost(rider.id, false);
     if (!this.aiAdded) {
       this.aiAdded = true;
-      if (this.sim.options.aiRiders > 0) this.sim.addAiRiders(this.sim.options.aiRiders, now, rider.ftpWatts);
+      // IA au niveau du créateur (× aiLevel) : elles complètent le peloton quand on est peu nombreux.
+      if (this.sim.options.aiRiders > 0) this.sim.addAiRiders(this.sim.options.aiRiders, now, rider.ftpWatts * this.sim.options.aiLevel);
+    } else if (rider.kind !== 'ai') {
+      // Course au salon : une IA cède sa place à chaque humain qui arrive (taille du peloton constante).
+      const gone = this.sim.yieldAiSlot();
+      if (gone) this.broadcastEvent({ kind: 'leave', riderId: gone.id });
     }
     client.send(NET_MSG.welcome, this.welcome(auth.role, rider.id));
     this.broadcastRoster();
@@ -290,6 +304,7 @@ export class RideRoom extends Room {
       this.svc.registry.leave(this.roomId, ud.userId, ud.role);
     }
     this.broadcastEvent({ kind: 'leave', riderId });
+    if (this.sim.leaderId === riderId) this.broadcastEvent({ kind: 'options', options: this.sim.updateHostOptions({ leaderId: '' }) });
     if (this.hostId === riderId) this.migrateHost();
     this.broadcastRoster();
     this.notifyCompanions(ud.userId);
@@ -425,6 +440,16 @@ export class RideRoom extends Room {
       this.setHost(target.id, true);
     });
 
+    // Regroupement (sortie de groupe) : l'hôte ou le meneur le demande.
+    this.onMessage(NET_MSG.regroup, (client: Client, raw: unknown) => {
+      const ud = client.userData as ClientData | undefined;
+      const leader = this.sim.leaderId || this.hostId;
+      if (!ud?.riderId || (ud.riderId !== this.hostId && ud.riderId !== leader)) return;
+      const p = RegroupSchema.safeParse(raw);
+      const ev = this.sim.setRegroup((p.success ? p.data?.active : undefined) ?? !this.sim.regrouping, Date.now());
+      if (ev) this.broadcastEvent(ev);
+    });
+
     this.onMessage(NET_MSG.ping, (client: Client, raw: unknown) => {
       const p = PingSchema.safeParse(raw);
       if (p.success) client.send(NET_MSG.ping, { t: p.data.t, serverT: Date.now() });
@@ -532,6 +557,11 @@ export class RideRoom extends Room {
       roster: this.rosterMsg(),
     };
     if (this.sim.startsAt !== undefined) w.startsAt = this.sim.startsAt;
+    const results = this.sim.liveResults();
+    if (results) w.results = results;
+    if (this.sim.deadline !== undefined) w.deadline = this.sim.deadline;
+    w.hostOptions = this.sim.hostOptions();
+    if (this.sim.regrouping) w.regrouping = true;
     return w;
   }
 }

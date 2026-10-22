@@ -14,6 +14,7 @@ export * from './device.ts';
 export * from './manager.ts';
 export * from './pairing.ts';
 export * from './power-match.ts';
+export * from './fan-control.ts';
 export * from './smoothing.ts';
 export * from './shifters.ts';
 export * from './profiles/index.ts';

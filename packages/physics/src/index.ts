@@ -13,4 +13,5 @@ export * from './pose.ts';
 export * from './rng.ts';
 export * from './training.ts';
 export * from './ai.ts';
+export * from './regroup.ts';
 export * from './workout/index.ts';

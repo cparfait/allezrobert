@@ -10,6 +10,12 @@
  *     sous la roue ; option « groupe soudé » (`StickyGroupRegulator`) ;
  *  5. décalage latéral, tours, segments KOM/sprint, arrivée, posture d'avatar.
  *
+ * Sortie de groupe : allure annoncée (les IA la tiennent), meneur (référence de regroupement
+ * des IA), regroupement à la demande (élastique doux temporaire), alerte quand le groupe se
+ * scinde. Course : salon → compte à rebours → grille → course, primes KOM / sprint (ordre de
+ * passage), heure limite après le premier arrivé, abandons (DNF), hors délai, contrôle de
+ * puissance (`PowerGuard` : plafonnement, mise hors course si l'infraction dure).
+ *
  * Toutes les distances internes (`state.distM`) sont dépliées ; l'instantané diffuse la
  * distance dans le tour + le numéro de tour.
  */
@@ -41,10 +47,12 @@ import {
   DEFAULT_BIKE,
   DEFAULT_LOOK,
   MAX_RIDERS_PER_ROOM,
+  PRIME_POINTS,
   RouteTrack,
   type AvatarLook,
   type BikeSetup,
   type HostOptions,
+  type RaceStatus,
   type RideEventMsg,
   type RidePhase,
   type RideResult,
@@ -55,6 +63,7 @@ import {
   type TelemetryMsg,
   type TrackSample,
 } from '@allezrobert/shared';
+import { PowerGuard } from './power-guard.ts';
 
 export type RiderKind = 'human' | 'guest' | 'ai';
 
@@ -75,6 +84,7 @@ export interface SimRiderInit {
 export interface ResolvedRideOptions extends RideRoomOptions {
   laps: number;
   aiPaceWkg: number;
+  aiLevel: number;
 }
 
 export function resolveRideOptions(o: Partial<RideRoomOptions>, routeId: string): ResolvedRideOptions {
@@ -90,7 +100,9 @@ export function resolveRideOptions(o: Partial<RideRoomOptions>, routeId: string)
     aiRiders: Math.round(clamp(o.aiRiders, 0, MAX_RIDERS_PER_ROOM - 1, 0)),
     laps: Math.round(clamp(o.laps, 1, 50, 1)),
     aiPaceWkg: clamp(o.aiPaceWkg, 1, 6, 2.6),
+    aiLevel: clamp(o.aiLevel, 0.6, 1.3, 1),
   };
+  if (typeof o.paceWkg === 'number' && Number.isFinite(o.paceWkg)) r.paceWkg = clamp(o.paceWkg, 1, 6, 2.5);
   if (o.name) r.name = o.name.slice(0, 60);
   if (o.weather) r.weather = { ...o.weather };
   if (typeof o.startAt === 'number' && Number.isFinite(o.startAt)) r.startAt = o.startAt;
@@ -107,6 +119,14 @@ const LATERAL_SPEED_MS = 1.5;
 const FINISH_TIMEOUT_MS = 10 * 60_000;
 /** Hors course, une IA à plus de REGROUP_M des humains les attend ou les rejoint. */
 const REGROUP_M = 40;
+/** Regroupement : terminé quand l'écart tête – queue reste sous REGROUPED_M pendant 3 s. */
+const REGROUPED_M = 20;
+const REGROUP_MAX_MS = 180_000;
+/** Sortie de groupe : alerte « groupe scindé » au-delà de SPLIT_M entre humains (réarmée sous SPLIT_REARM_M). */
+const SPLIT_M = 150;
+const SPLIT_REARM_M = 60;
+/** Course : temps cumulé (s) de puissance invraisemblable avant la mise hors course. */
+const DQ_VIOLATION_S = 10;
 
 export class SimRider {
   readonly id: string;
@@ -143,6 +163,17 @@ export class SimRider {
   rank = 0;
   /** Arrivé après le départ d'une course : non classé. */
   lateJoin = false;
+  /** Contrôle de puissance (humains avec matériel). */
+  readonly guard: PowerGuard | undefined;
+  /** Dernière puissance reçue, avant contrôle. */
+  rawWatts = 0;
+  /** Mis hors course (puissance invraisemblable trop longtemps). */
+  dq = false;
+  /** Avertissement de puissance déjà envoyé. */
+  warned = false;
+  /** Points des primes KOM / sprint (course). */
+  komPts = 0;
+  sprintPts = 0;
   lap = 0;
   /** Distance dépliée au début du pas (détection des franchissements). */
   prevDist = 0;
@@ -164,6 +195,7 @@ export class SimRider {
     this.state = createRiderState();
     this.shareHr = init.shareHr ?? false;
     this.joinedAt = now;
+    this.guard = init.kind === 'human' ? new PowerGuard(this.riderMassKg) : undefined;
     if (init.kind === 'ai') {
       this.ai = new AiRider({
         id: init.id,
@@ -178,7 +210,7 @@ export class SimRider {
   }
 
   get eligible(): boolean {
-    return this.kind !== 'guest' && !this.lateJoin;
+    return this.kind !== 'guest' && !this.lateJoin && !this.dq;
   }
 }
 
@@ -226,6 +258,22 @@ export class RideSimulation {
   private finishedCount = 0;
   private firstFinishAt: number | undefined;
   private aiCount = 0;
+  /** Événements produits hors du pas (abandons) : diffusés au pas suivant. */
+  private readonly pendingEvents: RideEventMsg[] = [];
+  /** Primes : passages classés par segment et par tour (`segId:tour`). */
+  private readonly primeCounts = new Map<string, number>();
+  /** Abandons de la course (coureurs partis), gardés pour le classement. */
+  private readonly dnfs: RideResult[] = [];
+  /** Course : heure limite d'arrivée (epoch ms). */
+  deadline: number | undefined;
+  /** Sortie de groupe : meneur ('' = aucun, l'appelant passe l'hôte). */
+  leaderId = '';
+  /** Regroupement en cours jusqu'à cette heure (epoch ms). */
+  private regroupUntil: number | undefined;
+  private regroupOkS = 0;
+  private splitArmed = true;
+  /** Élastique doux du regroupement : pas de borne dure (aucune téléportation). */
+  private readonly regroupReg = new StickyGroupRegulator({ deadbandM: 10, maxGapM: 1e6, stiffness: 0.012, damping: 0.5, maxAccelMs2: 0.45 });
 
   constructor(route: RouteData, options: ResolvedRideOptions, now: number, opts: { guestMaxWkg?: number; seed?: number | string } = {}) {
     this.route = route;
@@ -248,6 +296,11 @@ export class RideSimulation {
 
   get length(): number {
     return this.track.length;
+  }
+
+  /** Allure de référence des IA (W/kg) : annoncée, sinon celle des humains, lissée. */
+  get groupPace(): number {
+    return this.groupPaceWkg;
   }
 
   get holding(): boolean {
@@ -319,9 +372,27 @@ export class RideSimulation {
   removeRider(id: string): boolean {
     const r = this.byId.get(id);
     if (!r) return false;
+    // Course en cours : un humain classable qui s'en va abandonne (DNF au classement).
+    if (this.options.mode === 'race' && this.phase === 'running' && r.kind !== 'ai' && r.eligible && r.finishMs === undefined) {
+      this.dnfs.push({ ...this.resultOf(r), rank: 0, timeMs: 0, status: 'dnf' });
+      this.pendingEvents.push({ kind: 'abandon', riderId: r.id, name: r.name });
+    }
     this.byId.delete(id);
     this.riders.splice(this.riders.indexOf(r), 1);
     return true;
+  }
+
+  /**
+   * Course au salon : une IA cède sa place quand un humain arrive, pour garder la taille du
+   * peloton demandée à la création (1 + `aiRiders`). Renvoie l'IA retirée.
+   */
+  yieldAiSlot(): SimRider | null {
+    if (this.options.mode !== 'race' || !this.holding) return null;
+    if (this.riders.length <= 1 + this.options.aiRiders) return null;
+    const ai = [...this.riders].reverse().find((r) => r.kind === 'ai');
+    if (!ai) return null;
+    this.removeRider(ai.id);
+    return ai;
   }
 
   setConnected(id: string, connected: boolean): void {
@@ -340,12 +411,50 @@ export class RideSimulation {
 
   updateHostOptions(patch: Partial<HostOptions>): HostOptions {
     if (typeof patch.allowGuests === 'boolean') this.options.allowGuests = patch.allowGuests;
+    if (patch.paceWkg === null) delete this.options.paceWkg;
+    else if (typeof patch.paceWkg === 'number' && Number.isFinite(patch.paceWkg)) this.options.paceWkg = Math.round(Math.min(Math.max(patch.paceWkg, 1), 6) * 10) / 10;
+    if (typeof patch.leaderId === 'string' && (patch.leaderId === '' || this.byId.get(patch.leaderId)?.kind === 'human')) this.leaderId = patch.leaderId;
     if (typeof patch.stickyGroup === 'boolean') this.options.stickyGroup = patch.stickyGroup;
     if (typeof patch.draftingStrength === 'number' && Number.isFinite(patch.draftingStrength)) {
       this.options.draftingStrength = Math.min(Math.max(patch.draftingStrength, 0), 1);
       this.draft.setStrength(this.options.draftingStrength);
     }
-    return { allowGuests: this.options.allowGuests, stickyGroup: this.options.stickyGroup, draftingStrength: this.options.draftingStrength };
+    return this.hostOptions();
+  }
+
+  hostOptions(): HostOptions {
+    return {
+      allowGuests: this.options.allowGuests,
+      stickyGroup: this.options.stickyGroup,
+      draftingStrength: this.options.draftingStrength,
+      paceWkg: this.options.paceWkg ?? null,
+      leaderId: this.leaderId,
+    };
+  }
+
+  get regrouping(): boolean {
+    return this.regroupUntil !== undefined;
+  }
+
+  /** Sortie de groupe : lance (ou arrête) un regroupement ; renvoie l'événement à diffuser. */
+  setRegroup(active: boolean, now: number): RideEventMsg | null {
+    if (this.options.mode === 'race' || this.holding) return null;
+    if (active === this.regrouping) return null;
+    this.regroupUntil = active ? now + REGROUP_MAX_MS : undefined;
+    this.regroupOkS = 0;
+    return { kind: 'regroup', active, spreadM: Math.round(this.spread()) };
+  }
+
+  /** Écart tête – queue (m) des coureurs encore en route. */
+  private spread(filter: (r: SimRider) => boolean = () => true): number {
+    let lo = Infinity;
+    let hi = -Infinity;
+    for (const r of this.riders) {
+      if (r.finishMs !== undefined || !filter(r)) continue;
+      lo = Math.min(lo, r.state.distM);
+      hi = Math.max(hi, r.state.distM);
+    }
+    return hi > lo ? hi - lo : 0;
   }
 
   /** Télémétrie d'un humain ou d'un invité (valeurs déjà bornées par le schéma). */
@@ -364,7 +473,8 @@ export class RideSimulation {
       r.guestThrottle = msg.guestThrottle === undefined ? undefined : Math.min(Math.max(msg.guestThrottle, 0), 1);
       r.cadence = msg.cadence;
     } else {
-      r.watts = msg.watts;
+      // Puissance retenue après contrôle (PowerGuard) au prochain pas.
+      r.rawWatts = msg.watts;
       r.cadence = msg.cadence;
     }
     r.hr = msg.hr !== undefined && msg.hr > 0 ? msg.hr : undefined;
@@ -400,10 +510,14 @@ export class RideSimulation {
       r.finishMs = undefined;
       r.rank = 0;
       r.lateJoin = false;
+      r.komPts = r.sprintPts = 0;
     });
     this.finishedCount = 0;
     this.firstFinishAt = undefined;
+    this.deadline = undefined;
     this.segmentBests.clear();
+    this.primeCounts.clear();
+    this.dnfs.length = 0;
   }
 
   /** Arrivée en cours de sortie : à l'arrière du groupe principal (ou sur la ligne). */
@@ -434,7 +548,7 @@ export class RideSimulation {
 
   /** Avance la simulation d'un pas `dt` (s) ; `now` = heure serveur (epoch ms) en fin de pas. */
   step(now: number, dt = 0.1): TickResult {
-    const events: RideEventMsg[] = [];
+    const events: RideEventMsg[] = this.pendingEvents.splice(0);
     const efforts: SegmentEffortOut[] = [];
     const tStart = now - dt * 1000;
 
@@ -475,6 +589,9 @@ export class RideSimulation {
     {
       const hs = riders.filter((r) => r.kind !== 'ai').map((r) => r.state.distM).sort((a, b) => a - b);
       if (hs.length) humanCenter = hs[Math.floor(hs.length / 2)]!;
+      // Sortie de groupe avec meneur : les IA se calent sur lui.
+      const leader = this.leaderId ? this.byId.get(this.leaderId) : undefined;
+      if (leader && leader.finishMs === undefined) humanCenter = leader.state.distM;
     }
 
     // 1. Consignes.
@@ -484,7 +601,19 @@ export class RideSimulation {
           r.watts *= 0.5;
           if (r.watts < 1) r.watts = 0;
           r.cadence = r.watts > 0 ? r.cadence : 0;
-        }
+        } else if (r.guard) {
+          const g = r.guard.filter(r.rawWatts, dt);
+          r.watts = g.watts;
+          if (g.windowS !== undefined && !r.warned) {
+            r.warned = true;
+            events.push({ kind: 'flag', riderId: r.id, action: 'warn', reason: `puissance plafonnée (moyenne sur ${g.windowS} s invraisemblable)` });
+          }
+          if (this.options.mode === 'race' && this.phase === 'running' && !r.dq && r.finishMs === undefined && r.guard.violationS > DQ_VIOLATION_S) {
+            r.dq = true;
+            r.rank = 0;
+            events.push({ kind: 'flag', riderId: r.id, action: 'dq', reason: 'puissance invraisemblable trop longtemps' });
+          }
+        } else r.watts = r.rawWatts;
       } else if (r.kind === 'guest') {
         if (r.guestThrottle !== undefined && now - r.lastTelemetryMs <= 1000) {
           r.watts = r.guestThrottle * this.guestMaxWkg * r.riderMassKg;
@@ -572,8 +701,38 @@ export class RideSimulation {
         v.r.state.speedMs = v.speedMs;
         v.r.assist = assist[i]!;
       });
+    } else if (this.regroupUntil !== undefined && !holding && n > 1) {
+      // Regroupement demandé : élastique doux (la tête est retenue, la queue aidée).
+      const view = this.stickyView;
+      view.length = 0;
+      for (const r of riders) view.push({ distM: r.state.distM, speedMs: r.state.speedMs, inGroup: r.finishMs === undefined, r });
+      this.regroupReg.apply(view, dt);
+      const assist = this.regroupReg.assist(view.length);
+      view.forEach((v, i) => {
+        v.r.state.distM = v.distM;
+        v.r.state.speedMs = v.speedMs;
+        v.r.assist = assist[i]!;
+      });
     } else {
       for (const r of riders) r.assist = 0;
+    }
+    if (this.regroupUntil !== undefined) {
+      const spread = this.spread();
+      this.regroupOkS = spread <= REGROUPED_M ? this.regroupOkS + dt : 0;
+      if (this.regroupOkS >= 3 || now >= this.regroupUntil || n < 2) {
+        this.regroupUntil = undefined;
+        events.push({ kind: 'regroup', active: false, spreadM: Math.round(spread) });
+      }
+    } else if (this.options.mode === 'group' && !this.options.stickyGroup && !holding) {
+      // Groupe scindé entre humains : alerte (une fois, réarmée quand l'écart se résorbe).
+      const humans = (r: SimRider) => r.kind === 'human' && r.connected;
+      if (riders.filter(humans).length >= 2) {
+        const gap = this.spread(humans);
+        if (this.splitArmed && gap > SPLIT_M) {
+          this.splitArmed = false;
+          events.push({ kind: 'split', gapM: Math.round(gap) });
+        } else if (gap < SPLIT_REARM_M) this.splitArmed = true;
+      }
     }
 
     // 5. Latéral, tours, segments, arrivée, posture.
@@ -596,7 +755,11 @@ export class RideSimulation {
           if (r.eligible) {
             this.finishedCount++;
             r.rank = this.finishedCount;
-            this.firstFinishAt ??= now;
+            if (this.firstFinishAt === undefined) {
+              this.firstFinishAt = now;
+              this.deadline = now + FINISH_TIMEOUT_MS;
+              events.push({ kind: 'deadline', at: this.deadline });
+            }
           }
           events.push({ kind: 'finish', riderId: r.id, rank: r.rank, timeMs: r.finishMs });
         }
@@ -646,8 +809,10 @@ export class RideSimulation {
       sum += r.watts / r.riderMassKg;
       k++;
     }
-    const target = k > 0 ? sum / k : this.options.aiPaceWkg;
-    const a = 1 - Math.exp(-dt / 15);
+    // Allure annoncée (sortie de groupe) : les IA la tiennent, quoi que fassent les humains.
+    const announced = this.options.paceWkg;
+    const target = announced ?? (k > 0 ? sum / k : this.options.aiPaceWkg);
+    const a = 1 - Math.exp(-dt / (announced !== undefined ? 5 : 15));
     this.groupPaceWkg += (Math.min(Math.max(target, 1.2), 5.5) - this.groupPaceWkg) * a;
   }
 
@@ -741,6 +906,7 @@ export class RideSimulation {
         if (pr) pbs.set(segId, elapsed);
       }
       events.push({ kind: 'segmentEnd', riderId: r.id, segmentId: segId, timeMs: elapsed, rank, pr });
+      this.awardPrime(r, segId, eff.endDist, events);
       if (r.kind === 'human' && r.userId && !r.lateJoin) efforts.push({ riderId: r.id, userId: r.userId, segmentId: segId, elapsedMs: elapsed });
     }
     // Départs de segments.
@@ -754,6 +920,22 @@ export class RideSimulation {
         events.push({ kind: 'segmentStart', riderId: r.id, segmentId: s.id });
       }
     }
+  }
+
+  /** Course : primes aux trois premiers à passer au sommet d'un KOM / sur la ligne d'un sprint. */
+  private awardPrime(r: SimRider, segId: string, endDist: number, events: RideEventMsg[]): void {
+    if (this.options.mode !== 'race' || this.phase !== 'running' || !r.eligible || r.finishMs !== undefined) return;
+    const seg = this.route.segments.find((s) => s.id === segId);
+    if (!seg || seg.kind === 'section') return;
+    const lap = this.route.loop ? Math.floor((endDist - 1e-6) / this.track.length) : 0;
+    const key = `${segId}:${lap}`;
+    const place = (this.primeCounts.get(key) ?? 0) + 1;
+    this.primeCounts.set(key, place);
+    const points = PRIME_POINTS[place - 1];
+    if (points === undefined) return;
+    if (seg.kind === 'kom') r.komPts += points;
+    else r.sprintPts += points;
+    events.push({ kind: 'prime', segmentId: segId, segmentKind: seg.kind, riderId: r.id, place, points, lap });
   }
 
   private writeRow(r: SimRider, pose = r.pose.pose): void {
@@ -775,16 +957,45 @@ export class RideSimulation {
     return this.riders.map((r) => r.row);
   }
 
-  results(): RideResult[] {
-    const list = this.riders.map((r) => ({
+  private statusOf(r: SimRider): RaceStatus {
+    if (r.dq) return 'dq';
+    if (r.kind === 'guest' || r.lateJoin) return 'unranked';
+    if (r.finishMs !== undefined && r.rank > 0) return 'finished';
+    return this.phase === 'finished' ? 'otl' : 'racing';
+  }
+
+  private resultOf(r: SimRider): RideResult {
+    const status = this.statusOf(r);
+    return {
       riderId: r.id,
       name: r.name,
-      rank: r.eligible && r.finishMs !== undefined ? r.rank : 0,
+      rank: status === 'finished' ? r.rank : 0,
       timeMs: r.finishMs ?? 0,
       isAI: r.kind === 'ai',
       isGuest: r.kind === 'guest',
-    }));
-    return list.sort((x, y) => (x.rank || 1e9) - (y.rank || 1e9) || x.timeMs - y.timeMs);
+      status,
+      komPts: r.komPts,
+      sprintPts: r.sprintPts,
+      distM: Math.round(Math.max(0, Math.min(r.state.distM, this.raceTarget()))),
+    };
+  }
+
+  /**
+   * Classement : arrivés (rang), puis en course / hors délai (distance), puis abandons,
+   * mises hors course et hors classement. Écart au vainqueur pour les arrivés.
+   */
+  results(): RideResult[] {
+    const order: Record<RaceStatus, number> = { finished: 0, racing: 1, otl: 2, dnf: 3, dq: 4, unranked: 5 };
+    const list = [...this.riders.map((r) => this.resultOf(r)), ...this.dnfs];
+    list.sort((x, y) => order[x.status!] - order[y.status!] || (x.rank || 1e9) - (y.rank || 1e9) || (y.distM ?? 0) - (x.distM ?? 0) || x.timeMs - y.timeMs);
+    const winner = list.find((x) => x.status === 'finished');
+    if (winner) for (const x of list) if (x.status === 'finished') x.gapMs = x.timeMs - winner.timeMs;
+    return list;
+  }
+
+  /** Course commencée : classement courant (accueil d'un coureur qui (re)joint). */
+  liveResults(): RideResult[] | undefined {
+    return this.options.mode === 'race' && (this.phase === 'running' || this.phase === 'finished') ? this.results() : undefined;
   }
 
   roster(hostId: string): RosterEntry[] {

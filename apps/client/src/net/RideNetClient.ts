@@ -237,6 +237,9 @@ export class RideNetClient {
           if (ev.startsAt !== undefined) this.welcome.startsAt = ev.startsAt;
         }
         if (ev.kind === 'countdown' && this.welcome) this.welcome.startsAt = ev.startsAt;
+        if (ev.kind === 'options' && this.welcome) this.welcome.hostOptions = ev.options;
+        if (ev.kind === 'deadline' && this.welcome) this.welcome.deadline = ev.at;
+        if (ev.kind === 'regroup' && this.welcome) this.welcome.regrouping = ev.active;
         if (ev.kind === 'error') this.emitter.emit('error', { code: ev.code, message: ev.message });
         this.emitter.emit('event', ev);
       });
@@ -413,6 +416,11 @@ export class RideNetClient {
   /** Hôte : invités autorisés, groupe soudé, intensité de l'aspiration. */
   setHostOptions(o: Partial<HostOptions>): void {
     this.room?.send(NET_MSG.options, o);
+  }
+
+  /** Hôte ou meneur (sortie de groupe) : lance / arrête un regroupement (sans argument : bascule). */
+  regroup(active?: boolean): void {
+    this.room?.send(NET_MSG.regroup, active === undefined ? {} : { active });
   }
 
   kick(riderId: string): void {

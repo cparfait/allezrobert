@@ -75,9 +75,20 @@ function isEditable(target: unknown): boolean {
   return el.isContentEditable === true || el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT';
 }
 
+/**
+ * Télécommandes HID (Bluetooth ou USB) : l'OS les voit comme des claviers (Web Bluetooth bloque le
+ * service HID 0x1812, et c'est très bien ainsi). Les télécommandes « multimédia » envoient en général
+ * piste suivante / précédente ; les « présentateurs » Page suivante / précédente ou les flèches.
+ * Correspondances par défaut ; les touches réelles d'une télécommande s'apprennent dans l'interface.
+ */
+export const DEFAULT_HID_REMOTE_BINDINGS: Readonly<Record<string, ShiftAction>> = Object.freeze({
+  MediaTrackNext: 'up',
+  MediaTrackPrevious: 'down',
+});
+
 export class KeyboardShifter extends Emitter<{ shift: ShiftEvent }> implements ShifterSource {
-  readonly id = 'keyboard';
-  readonly name = 'Clavier';
+  readonly id: string;
+  readonly name: string;
   readonly mapper: KeyboardShiftMapper;
   private readonly target: KeyTarget | undefined;
   private readonly clock: Clock;
@@ -89,8 +100,10 @@ export class KeyboardShifter extends Emitter<{ shift: ShiftEvent }> implements S
     }
   };
 
-  constructor(options: { target?: KeyTarget; bindings?: Record<string, ShiftAction>; clock?: Clock } = {}) {
+  constructor(options: { target?: KeyTarget; bindings?: Record<string, ShiftAction>; clock?: Clock; id?: string; name?: string } = {}) {
     super();
+    this.id = options.id ?? 'keyboard';
+    this.name = options.name ?? 'Clavier';
     this.mapper = new KeyboardShiftMapper(options.bindings);
     this.target = options.target ?? (globalThis as unknown as { window?: KeyTarget }).window;
     this.clock = options.clock ?? systemClock;

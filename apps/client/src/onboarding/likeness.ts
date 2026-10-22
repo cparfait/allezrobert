@@ -1,12 +1,54 @@
+import type { FaceLandmarker } from '@mediapipe/tasks-vision';
+import { fitSliders, shapeVector, type LikenessCalibration } from './likenessFit.ts';
+import calibration from './likenessCalib.json';
+
 /**
- * Ressemblance à partir d'une photo, V1 : estimation du teint et de la couleur des cheveux.
- * Traitement 100 % local (canvas du navigateur) : la photo n'est ni envoyée ni conservée.
- * Réservé à une photo de soi, avec consentement explicite (donnée personnelle).
- * Hypothèse de cadrage : visage centré, de face (photo d'identité ou selfie).
+ * Ressemblance à partir d'une photo (docs/AVATARS.md § 11) : teint, couleur des cheveux et
+ * curseurs de forme du visage.
+ *
+ * Donnée personnelle sensible : réservé à une photo de soi, avec consentement explicite.
+ * Traitement 100 % local : la photo est décodée en mémoire, passée au détecteur de repères
+ * (MediaPipe Face Landmarker, Apache 2.0, modèle et WebAssembly servis par le jeu lui-même :
+ * aucune requête vers un tiers), puis effacée ; elle n'est ni envoyée ni conservée. Seuls les
+ * réglages (curseurs, teint, cheveux) sortent de cette fonction.
+ *
+ * Sans visage détecté : teint et cheveux seulement, sur un cadrage de face supposé (V1).
  */
 export interface Likeness {
   skin: string;
   hair: string;
+  /** Curseurs du visage (absents si aucun visage n'a été détecté). */
+  face?: Record<string, number>;
+}
+
+let landmarker: Promise<FaceLandmarker> | null = null;
+
+/** Détecteur chargé à la demande (code, WebAssembly et modèle : ~10 Mo, une seule fois). */
+function getLandmarker(): Promise<FaceLandmarker> {
+  landmarker ??= (async () => {
+    const [{ FaceLandmarker }, loader, binary] = await Promise.all([
+      import('@mediapipe/tasks-vision'),
+      import('@mediapipe/tasks-vision/vision_wasm_internal.js?url'),
+      import('@mediapipe/tasks-vision/vision_wasm_internal.wasm?url'),
+    ]);
+    return FaceLandmarker.createFromOptions(
+      { wasmLoaderPath: loader.default, wasmBinaryPath: binary.default },
+      {
+        baseOptions: { modelAssetPath: `${import.meta.env.BASE_URL}models/face/face_landmarker.task`, delegate: 'CPU' },
+        runningMode: 'IMAGE',
+        numFaces: 1,
+      },
+    );
+  })();
+  landmarker.catch(() => (landmarker = null));
+  return landmarker;
+}
+
+/** Repères du visage d'une image (coordonnées normalisées), ou null. */
+export async function faceLandmarks(image: ImageBitmap | HTMLCanvasElement | OffscreenCanvas): Promise<Array<{ x: number; y: number; z: number }> | null> {
+  const lm = await getLandmarker();
+  const res = lm.detect(image as unknown as HTMLCanvasElement);
+  return res.faceLandmarks[0] ?? null;
 }
 
 function toHex(r: number, g: number, b: number): string {
@@ -31,6 +73,51 @@ function medianColor(data: Uint8ClampedArray, w: number, x0: number, y0: number,
 
 export async function likenessFromPhoto(file: File): Promise<Likeness> {
   const bitmap = await createImageBitmap(file);
+  try {
+    const lm = await faceLandmarks(bitmap).catch(() => null);
+    if (lm) return likenessFromLandmarks(bitmap, lm);
+  } catch {
+    // Repli : couleurs seules.
+  }
+  return colorsOnly(bitmap);
+}
+
+/** Teint (joues et front), cheveux (au-dessus du front) et curseurs, à partir des repères. */
+function likenessFromLandmarks(bitmap: ImageBitmap, lm: Array<{ x: number; y: number; z: number }>): Likeness {
+  const W = bitmap.width;
+  const H = bitmap.height;
+  const canvas = new OffscreenCanvas(W, H);
+  const ctx = canvas.getContext('2d', { willReadFrequently: true }) as OffscreenCanvasRenderingContext2D;
+  ctx.drawImage(bitmap, 0, 0);
+  bitmap.close();
+  const iod = Math.hypot(((lm[33]?.x ?? 0) - (lm[263]?.x ?? 0)) * W, ((lm[33]?.y ?? 0) - (lm[263]?.y ?? 0)) * H);
+  const patch = (i: number, dy = 0, r = 0.12): [number, number, number] => {
+    const c = lm[i] ?? { x: 0.5, y: 0.5 };
+    const cx = c.x * W;
+    const cy = c.y * H + dy * iod;
+    const h = Math.max(2, r * iod);
+    const x0 = Math.max(0, Math.round(cx - h));
+    const y0 = Math.max(0, Math.round(cy - h));
+    const x1 = Math.min(W, Math.round(cx + h));
+    const y1 = Math.min(H, Math.round(cy + h));
+    if (x1 <= x0 || y1 <= y0) return [128, 128, 128];
+    const { data } = ctx.getImageData(x0, y0, x1 - x0, y1 - y0);
+    const col = medianColor(data, x1 - x0, 0, 0, x1 - x0, y1 - y0);
+    data.fill(0);
+    return col;
+  };
+  // Joues (sous les pommettes) et front ; cheveux : au-dessus du haut du front.
+  const cheeks = [patch(50), patch(280), patch(151, 0, 0.1)];
+  const skin = [0, 1, 2].map((k) => cheeks.map((c) => c[k] as number).sort((a, b) => a - b)[1] as number) as [number, number, number];
+  const hair = patch(10, -0.35, 0.1);
+  const cal = calibration as LikenessCalibration;
+  const face = fitSliders(shapeVector(lm, cal, W / H), cal);
+  // Les pixels ne quittent pas cette fonction ; le canevas est vidé.
+  ctx.clearRect(0, 0, W, H);
+  return { skin: toHex(...skin), hair: toHex(...hair), face };
+}
+
+function colorsOnly(bitmap: ImageBitmap): Likeness {
   const size = 256;
   const canvas = new OffscreenCanvas(size, size);
   const ctx = canvas.getContext('2d') as OffscreenCanvasRenderingContext2D;

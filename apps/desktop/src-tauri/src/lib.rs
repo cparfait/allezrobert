@@ -53,6 +53,7 @@ pub fn run() {
             ant::ant_open,
             ant::ant_open_channel,
             ant::ant_send,
+            ant::ant_close_channel,
             ant::ant_close,
         ])
         .build(tauri::generate_context!())

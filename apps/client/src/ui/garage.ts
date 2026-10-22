@@ -1,4 +1,4 @@
-import { COSMETICS, levelProgress, xpForRide, type CosmeticItem, type CosmeticSlot } from '@allezrobert/shared';
+import { COSMETICS, bikeById, levelProgress, migrateCosmeticId, xpForRide, type CosmeticItem, type CosmeticSlot } from '@allezrobert/shared';
 import { saveSettings, type Settings } from './settings.ts';
 
 /** Progression locale (synchronisée avec le serveur une fois connecté). */
@@ -12,7 +12,12 @@ const KEY = 'ar.progress';
 export function loadProgress(): Progress {
   try {
     const raw = localStorage.getItem(KEY);
-    if (raw) return { xp: 0, equipped: {}, ...(JSON.parse(raw) as Partial<Progress>) };
+    if (raw) {
+      const p: Progress = { xp: 0, equipped: {}, ...(JSON.parse(raw) as Partial<Progress>) };
+      // Anciens vélos du garage (bike-alu…) → modèles du catalogue.
+      for (const [slot, id] of Object.entries(p.equipped)) p.equipped[slot as CosmeticSlot] = migrateCosmeticId(slot, id);
+      return p;
+    }
   } catch {
     // Progression illisible : on repart de zéro plutôt que de bloquer le jeu.
   }
@@ -60,7 +65,7 @@ export const SLOT_LABEL: Record<CosmeticSlot, { fr: string; en: string }> = {
   glasses: { fr: 'Lunettes', en: 'Glasses' },
 };
 
-/** Équipe un cosmétique débloqué ; les cosmétiques à couleur s'appliquent à l'avatar. */
+/** Équipe un cosmétique débloqué ; les cosmétiques à couleur et les vélos s'appliquent à l'avatar. */
 export function equipItem(item: CosmeticItem, s: Settings): void {
   const p = loadProgress();
   p.equipped[item.slot] = item.id;
@@ -71,7 +76,20 @@ export function equipItem(item: CosmeticItem, s: Settings): void {
     if (item.slot === 'bike') s.look = { ...s.look, bike: item.color };
     if (item.slot === 'socks') s.look = { ...s.look, socks: item.color };
   }
-  // Vélo équipé : le modèle affiché suit les pneus (route, gravel, VTT).
-  if (item.slot === 'bike') s.look = { ...s.look, bikeType: item.physics?.tyre ?? 'road' };
+  // Vélo équipé : modèle du catalogue (cadre, livrée) ou VTT / gravel ; le modèle affiché suit les pneus.
+  if (item.slot === 'bike') {
+    const { bikeModel: _old, ...rest } = s.look;
+    s.look = { ...rest, bikeType: item.physics?.tyre ?? 'road', ...(bikeById(item.id) ? { bikeModel: item.id } : {}) };
+  }
+  saveSettings(s);
+}
+
+/** Vélo sans marque, peint de la couleur choisie (ou de sa couleur actuelle) : plus de modèle du catalogue. */
+export function equipPlainBike(s: Settings, color?: string): void {
+  const p = loadProgress();
+  delete p.equipped.bike;
+  saveProgress(p);
+  const { bikeModel: _, ...look } = s.look;
+  s.look = { ...look, bike: color ?? look.bike };
   saveSettings(s);
 }

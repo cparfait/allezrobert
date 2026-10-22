@@ -1,5 +1,5 @@
 /**
- * API HTTP (montée sous /api) : profil, progression, sorties (FIT), segments, intégrations
+ * API HTTP (montée sous /api) : profil, progression, sorties (FIT), segments, amis, intégrations
  * Strava / intervals.icu, sorties en cours (codes d'invitation, compagnon), voix LiveKit,
  * file de rendu vidéo, export et suppression RGPD, santé.
  */
@@ -11,6 +11,7 @@ import { z } from 'zod';
 import type { AppContext } from '../context.ts';
 import { authRoutes } from './auth-routes.ts';
 import { ttsRoutes } from './tts.ts';
+import { friendRoutes } from './friends-routes.ts';
 import { clearSessionCookie, cors, errorHandler, HttpError, loadUser, originCheck, requireUser, type AuthedRequest } from './middleware.ts';
 import { COSMETICS, levelInfo, unlockedCosmetics, validateEquipped, xpForRide } from '../progression/xp.ts';
 import { decodeFit, FitImportError, stripHeartRate } from '../activities/fit-import.ts';
@@ -19,7 +20,9 @@ import { OAUTH_COOKIE, parseCookies, serializeCookie } from './cookies.ts';
 import { createLiveKitToken, voiceRoomName } from '../integrations/livekit.ts';
 import { normalizeCode } from '../ride/registry.ts';
 import { activeRooms } from '../ride/RideRoom.ts';
+import { readHeartbeat } from '../render/worker.ts';
 import { normalizedPower } from '@allezrobert/physics';
+import { FACE_CODE_RE } from '@allezrobert/shared';
 import type { ActivitySummaryRow } from '../db/repos.ts';
 
 const hex = z.string().regex(/^#[0-9a-fA-F]{6}$/);
@@ -31,10 +34,15 @@ const AvatarSchema = z.object({
   jerseyAccent: hex,
   helmet: hex,
   bike: hex,
+  bikeModel: z.string().regex(/^[a-z0-9-]{1,64}$/).optional(),
   build: z.number().min(0).max(1),
   shoes: hex.optional(),
   socks: hex.optional(),
   bikeType: z.enum(['road', 'gravel', 'mtb']).optional(),
+  face: z.string().regex(FACE_CODE_RE).optional(),
+  beard: z.number().min(0).max(1).optional(),
+  freckles: z.number().min(0).max(1).optional(),
+  moustache: z.boolean().optional(),
 });
 
 const ProfilePatchSchema = z
@@ -69,6 +77,7 @@ export function mountApi(app: express.Application, ctx: AppContext): void {
 
   api.use('/auth', authRoutes(ctx));
   api.use('/tts', ttsRoutes(ctx));
+  api.use('/friends', friendRoutes(ctx));
 
   /* ───────────── Santé ───────────── */
   api.get('/health', async (_req, res) => {
@@ -99,9 +108,11 @@ export function mountApi(app: express.Application, ctx: AppContext): void {
   api.put('/me/profile', async (req: AuthedRequest, res) => {
     const u = requireUser(req);
     const patch = ProfilePatchSchema.parse(req.body);
-    if (patch.equipped) {
+    // Équipement et modèle de vélo de l'avatar : existants et débloqués au niveau du compte.
+    const bikeModel = patch.avatar?.bikeModel;
+    if (patch.equipped || bikeModel) {
       const level = levelInfo((await ctx.repos.getProgression(u.userId)).xp).level;
-      const err = validateEquipped(patch.equipped, level);
+      const err = validateEquipped(patch.equipped ?? {}, level) ?? (bikeModel ? validateEquipped({ bike: bikeModel }, level) : null);
       if (err) throw new HttpError(400, err, 'cosmetic_locked');
     }
     const before = await ctx.repos.getProfile(u.userId);
@@ -118,6 +129,7 @@ export function mountApi(app: express.Application, ctx: AppContext): void {
     await ctx.uploads.unlinkStrava(u.userId).catch(() => undefined);
     const renders = await ctx.repos.listRenders(u.userId);
     await ctx.repos.deleteUser(u.userId);
+    ctx.friends.forgetUser(u.userId);
     ctx.forgetSession();
     for (const job of renders) if (job.outputFile) await rm(path.join(ctx.config.RENDERS_DIR, path.basename(job.outputFile)), { force: true });
     clearSessionCookie(ctx, res);
@@ -128,6 +140,8 @@ export function mountApi(app: express.Application, ctx: AppContext): void {
   api.get('/me/export', async (req: AuthedRequest, res) => {
     const u = requireUser(req);
     const data = await ctx.repos.exportUser(u.userId);
+    // Invitations à rouler en cours (en mémoire, 30 min au plus).
+    data.rideInvites = ctx.friends.exportFor(u.userId);
     res.setHeader('Content-Disposition', `attachment; filename="allezrobert-export-${new Date().toISOString().slice(0, 10)}.json"`);
     res.json(data);
   });
@@ -240,9 +254,18 @@ export function mountApi(app: express.Application, ctx: AppContext): void {
   });
 
   /* ───────────── Segments ───────────── */
-  api.get('/segments/:routeId/:segmentId/leaderboard', async (req, res) => {
-    const q = z.object({ limit: z.coerce.number().int().min(1).max(100).default(20) }).parse(req.query);
-    const board = await ctx.repos.segmentLeaderboard(String(req.params.routeId), String(req.params.segmentId), q.limit);
+  api.get('/segments/:routeId/:segmentId/leaderboard', async (req: AuthedRequest, res) => {
+    const q = z.object({ limit: z.coerce.number().int().min(1).max(100).default(20), scope: z.enum(['all', 'friends']).default('all') }).parse(req.query);
+    const routeId = String(req.params.routeId);
+    const segmentId = String(req.params.segmentId);
+    if (q.scope === 'friends') {
+      // Classement entre amis : soi et ses amis seulement (compte requis), sa ligne marquée.
+      const u = requireUser(req);
+      const board = await ctx.repos.segmentLeaderboard(routeId, segmentId, q.limit, u.userId);
+      res.json(board.map((b, i) => ({ rank: i + 1, name: b.name, bestMs: b.bestMs, efforts: b.efforts, me: b.userId === u.userId })));
+      return;
+    }
+    const board = await ctx.repos.segmentLeaderboard(routeId, segmentId, q.limit);
     // Pas d'identifiant interne exposé : rang, nom affiché, temps.
     res.json(board.map((b, i) => ({ rank: i + 1, name: b.name, bestMs: b.bestMs, efforts: b.efforts })));
   });
@@ -345,6 +368,12 @@ export function mountApi(app: express.Application, ctx: AppContext): void {
     res.json({ roomId: e.roomId, inviteCode: e.inviteCode, name: e.name, routeId: e.routeId, mode: e.mode });
   });
 
+  /** Voix disponible : LiveKit configuré, et lien du salon Discord de repli (public, sans compte). */
+  api.get('/voice', (_req, res) => {
+    const c = ctx.config;
+    res.json({ livekit: !!(c.LIVEKIT_URL && c.LIVEKIT_API_KEY && c.LIVEKIT_API_SECRET), discordInvite: c.DISCORD_VOICE_INVITE ?? null });
+  });
+
   /** Jeton LiveKit pour la voix de la sortie (participants uniquement). */
   api.get('/rides/:roomId/voice-token', async (req: AuthedRequest, res) => {
     const u = requireUser(req);
@@ -386,7 +415,14 @@ export function mountApi(app: express.Application, ctx: AppContext): void {
       payload = { kind: 'sequence', lang, variables: { lang, ...body.variables } };
     }
     const id = await ctx.repos.enqueueRender(u.userId, body.composition, payload);
+    ctx.renderWorker?.nudge();
     res.status(202).json({ id, status: 'queued' });
+  });
+
+  /** Rendu vidéo disponible ? (pouls du worker : conteneur renderer ou RENDER_INLINE). */
+  api.get('/renders/capabilities', async (_req, res) => {
+    const { available, heartbeat } = await readHeartbeat(ctx.config.RENDERS_DIR);
+    res.json({ available, engine: available ? (heartbeat?.engine ?? null) : null, inline: heartbeat?.inline ?? false });
   });
 
   api.get('/renders', async (req: AuthedRequest, res) => {

@@ -1,9 +1,28 @@
 import { Room, RoomEvent, Track, type RemoteTrack, type Participant } from 'livekit-client';
 import { apiBase } from '../ui/account.ts';
 
+/** Configuration publique de la voix (`GET /api/voice`). */
+export interface VoiceConfig {
+  livekit: boolean;
+  /** Lien d'invitation du salon Discord de repli (null si non configuré). */
+  discordInvite: string | null;
+}
+
+/** Lit la configuration de la voix du serveur (repli : rien de disponible). */
+export async function fetchVoiceConfig(): Promise<VoiceConfig> {
+  try {
+    const r = await fetch(`${apiBase()}/voice`, { credentials: 'include' });
+    if (r.ok) return (await r.json()) as VoiceConfig;
+  } catch {
+    // Serveur injoignable : ni LiveKit ni Discord.
+  }
+  return { livekit: false, discordInvite: null };
+}
+
 /**
  * Chat vocal de la sortie (LiveKit auto-hébergé, WebRTC). Micro coupé à l'arrivée ; V bascule
- * le micro. Les voix des autres coureurs sont jouées automatiquement. Repli : bouton Discord.
+ * le micro. Les voix des autres coureurs sont jouées automatiquement. Repli : salon Discord
+ * (lien configuré côté serveur, `DISCORD_VOICE_INVITE`) proposé quand LiveKit est absent ou échoue.
  */
 export class VoiceChat {
   private room: Room | null = null;

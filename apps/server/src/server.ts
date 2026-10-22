@@ -12,6 +12,8 @@ import { createContext, rideServicesFrom, type AppContext } from './context.ts';
 import { setRideServices } from './ride/services.ts';
 import { RideRoom } from './ride/RideRoom.ts';
 import { mountApi } from './http/api.ts';
+import { RenderWorker } from './render/worker.ts';
+import { renderWorkerOptions } from './render/options.ts';
 
 export interface RunningServer {
   ctx: AppContext;
@@ -56,12 +58,21 @@ export async function startServer(opts: StartOptions = {}): Promise<RunningServe
   const purge = setInterval(() => void ctx.repos.purgeExpired().catch(() => undefined), 3600_000);
   purge.unref();
 
+  // Worker vidéo intégré (sans conteneur renderer) : même file, même dossier de sortie.
+  let worker: RenderWorker | null = null;
+  if (config.RENDER_INLINE) {
+    worker = new RenderWorker({ queue: ctx.repos, ...renderWorkerOptions(config), log: (m) => ctx.log('info', `[rendu] ${m}`) });
+    ctx.renderWorker = worker;
+    void worker.start().catch((e) => ctx.log('error', `worker vidéo arrêté : ${(e as Error).message}`));
+  }
+
   return {
     ctx,
     gameServer,
     port: actualPort,
     async stop() {
       clearInterval(purge);
+      await worker?.stop();
       await gameServer.gracefullyShutdown(false);
       await db.close().catch(() => undefined);
     },

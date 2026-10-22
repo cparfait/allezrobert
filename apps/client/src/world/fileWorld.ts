@@ -131,7 +131,7 @@ function toFeatures(t: WorldTile): TileFeatures {
     fields: t.fields.map((f) => ({ rings: f.rings, kind: f.kind })),
     landuse: t.landuse.map((l) => ({ rings: l.rings, kind: l.kind })),
     waterways: t.waterways.map((w) => ({ width: w.width, pts: w.pts, kind: w.kind, ...(w.tunnel ? { tunnel: true } : {}) })),
-    railways: (t.railways ?? []).map((r) => ({ id: r.id, kind: r.kind, pts: r.pts, ...(r.tunnel ? { tunnel: true } : {}), ...(r.bridge ? { bridge: true } : {}) })),
+    railways: (t.railways ?? []).map((r) => ({ id: r.id, kind: r.kind, pts: r.pts, ...(r.name ? { name: r.name } : {}), ...(r.tunnel ? { tunnel: true } : {}), ...(r.bridge ? { bridge: true } : {}) })),
     pois: t.pois.map((p) => ({ kind: p.kind, name: p.name, x: p.x, y: p.y, z: p.z })),
     ...(t.enriched?.vegetation ? { trees: t.trees ?? [], shrubs: t.shrubs ?? [], realVegetation: true } : {}),
   };

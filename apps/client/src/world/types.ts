@@ -53,8 +53,8 @@ export interface TileFeatures {
   fields: Array<{ rings: Rings; kind: string }>;
   landuse: Array<{ rings: Rings; kind: string }>;
   waterways: Array<{ width: number; pts: number[]; kind?: string; tunnel?: boolean }>;
-  /** Voies ferrées (morceaux découpés à la tuile ; `id` = voie OSM, pour les raccorder). */
-  railways?: Array<{ id: number; kind: string; pts: number[]; tunnel?: boolean; bridge?: boolean }>;
+  /** Voies ferrées OSM (morceaux découpés à la tuile ; `id` = voie OSM, pour les raccorder ; l'altitude vient du terrain). */
+  railways?: Array<{ id: number; kind: string; pts: number[]; name?: string; tunnel?: boolean; bridge?: boolean }>;
   pois: Array<{ kind: string; name: string; x: number; y: number; z: number }>;
   /** Arbres réels (LiDAR HD) : [x, z, hauteur, rayon du houppier, …]. */
   trees?: number[];
@@ -65,7 +65,7 @@ export interface TileFeatures {
 }
 
 export function emptyFeatures(): TileFeatures {
-  return { roads: [], buildings: [], forests: [], water: [], fields: [], landuse: [], waterways: [], pois: [] };
+  return { roads: [], buildings: [], forests: [], water: [], fields: [], landuse: [], waterways: [], railways: [], pois: [] };
 }
 
 /** Tuile chargée, prête pour le rendu, en coordonnées monde. */

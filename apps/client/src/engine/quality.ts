@@ -19,6 +19,16 @@ export interface QualitySettings {
   /** Rayon (en tuiles) chargé autour du coureur. */
   tileRadius: number;
   terrainSegmentsPerTile: number;
+  /** Eau : pas de subdivision des plans d'eau (m, profondeur par sommet). */
+  waterMeshM: number;
+  /** Eau : vaguelettes détaillées (2 octaves + gouttes de pluie) plutôt qu'une seule octave. */
+  waterDetail: boolean;
+  /** Roseaux sur les berges (touffes par 10 m de rive). */
+  reedDensity: number;
+  /** Villages : murets, clôtures, haies, cheminées et faîtières (0 = aucun, 1 = complet). */
+  propDensity: number;
+  /** Particules de poussière sur les chemins non revêtus (0 = coupé). */
+  dustParticles: number;
 }
 
 export const QUALITY_PRESETS: Record<QualityLevel, QualitySettings> = {
@@ -37,6 +47,11 @@ export const QUALITY_PRESETS: Record<QualityLevel, QualitySettings> = {
     grassDensity: 0,
     tileRadius: 2,
     terrainSegmentsPerTile: 96,
+    waterMeshM: 12,
+    waterDetail: false,
+    reedDensity: 0,
+    propDensity: 0.4,
+    dustParticles: 0,
   },
   medium: {
     level: 'medium',
@@ -53,6 +68,11 @@ export const QUALITY_PRESETS: Record<QualityLevel, QualitySettings> = {
     grassDensity: 0.4,
     tileRadius: 3,
     terrainSegmentsPerTile: 128,
+    waterMeshM: 8,
+    waterDetail: false,
+    reedDensity: 0.5,
+    propDensity: 0.7,
+    dustParticles: 384,
   },
   high: {
     level: 'high',
@@ -69,6 +89,11 @@ export const QUALITY_PRESETS: Record<QualityLevel, QualitySettings> = {
     grassDensity: 0.8,
     tileRadius: 3,
     terrainSegmentsPerTile: 192,
+    waterMeshM: 5,
+    waterDetail: true,
+    reedDensity: 1,
+    propDensity: 1,
+    dustParticles: 768,
   },
   ultra: {
     level: 'ultra',
@@ -85,6 +110,11 @@ export const QUALITY_PRESETS: Record<QualityLevel, QualitySettings> = {
     grassDensity: 1.4,
     tileRadius: 4,
     terrainSegmentsPerTile: 224,
+    waterMeshM: 4,
+    waterDetail: true,
+    reedDensity: 1.5,
+    propDensity: 1,
+    dustParticles: 1536,
   },
 };
 

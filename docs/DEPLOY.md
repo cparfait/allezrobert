@@ -172,6 +172,27 @@ Sans SMTP, la connexion par e-mail est simplement désactivée en production.
 
 Seule une empreinte HMAC de l'e-mail est stockée (rapprochement des comptes) : jamais l'adresse.
 
+### 9 bis. Repli Discord pour la voix
+
+La voix des sorties passe par LiveKit (§13). Si LiveKit n'est pas configuré, ne répond pas
+(ports UDP fermés, conteneur arrêté) ou si le navigateur refuse WebRTC, le jeu propose de
+rejoindre un **salon vocal Discord** : aucun bot, aucune permission, juste un lien d'invitation.
+
+1. Dans Discord : créer (ou choisir) un serveur, puis un salon **vocal** « Allez Robert ! ».
+2. Clic droit sur le salon → « Inviter des personnes » → « Modifier le lien d'invitation » :
+   **Expire après : Jamais**, nombre d'utilisations : illimité → copier le lien
+   (`https://discord.gg/XXXXXXX`).
+3. Dans `deploy/.env` : `DISCORD_VOICE_INVITE=https://discord.gg/XXXXXXX`, puis
+   `./deploy.sh` (ou `docker compose up -d server`).
+4. Vérifier : `curl -s https://allezrobert.cparfait.ovh/api/voice` →
+   `{"livekit":true,"discordInvite":"https://discord.gg/XXXXXXX"}`.
+
+Dans le jeu, le lien apparaît dans la pastille de la voix (en bas à gauche) dès que LiveKit est
+indisponible, ainsi que dans le salon d'attente des courses et le panneau de la sortie de groupe.
+Le serveur n'accepte que des liens `https://discord.gg/…` ou `https://discord.com/invite/…`
+(démarrage refusé sinon). Le lien est public pour tout joueur : ne pas y mettre un serveur privé
+sans modération. Laisser vide pour désactiver le repli.
+
 ## 10. Strava et intervals.icu
 
 **Strava** — https://www.strava.com/settings/api → créer l'application (site
@@ -317,6 +338,6 @@ Mettre à jour en dehors des créneaux de sortie.
 | Certificat HTTPS absent | DNS pas encore propagé, port 80 fermé, AAAA erroné : `docker compose logs caddy` |
 | « Connexion requise » en boucle | horloge du VPS (`timedatectl`), `PUBLIC_URL`/`DOMAIN` incohérents, cookies bloqués |
 | Google : `redirect_uri_mismatch` | URL de rappel exacte (https, sans / final) dans la console Google |
-| Voix muette | 7881/tcp et 7882/udp ouverts (ufw + pare-feu OVH) ; `docker compose logs livekit` |
+| Voix muette | 7881/tcp et 7882/udp ouverts (ufw + pare-feu OVH) ; `docker compose logs livekit` ; en attendant, repli Discord (§9 bis) |
 | Rendus en échec | `docker compose logs renderer` ; mémoire (`docker stats`) ; `shm_size` |
 | Base injoignable | `docker compose logs postgres` ; espace disque (`df -h`) |
