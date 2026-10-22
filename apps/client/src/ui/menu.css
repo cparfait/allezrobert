@@ -235,3 +235,7 @@
   .mm-brand { display: none; }
   .mm-who, .mm-tab.subtle { display: none; }
 }
+
+/* Film d'accueil (menuLoop.ts) : sur l'image fixe, sous le HUD et le menu ; fondu à la première image. */
+.menu-loop { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; pointer-events: none; opacity: 0; transition: opacity 0.8s ease; }
+.menu-loop.on { opacity: 1; }

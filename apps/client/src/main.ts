@@ -24,6 +24,7 @@ import { loadSettings, saveSettings, type Settings } from './ui/settings.ts';
 import { MainMenu } from './ui/menu.ts';
 import { bootStep, bootDone, bootError } from './ui/splash.ts';
 import { PosterScene, choosePosterSpot, POSTER_HOUR } from './ui/poster.ts';
+import { MenuLoop } from './ui/menuLoop.ts';
 import { showPause, showSummary, rideToFit } from './ui/ridepanels.ts';
 import { splatAt } from './world/splat.ts';
 import { Onboarding, RideTutorial } from './onboarding/onboarding.ts';
@@ -129,6 +130,9 @@ async function boot(): Promise<void> {
   /** « Explorer la carte » depuis l'accueil : caméra libre, sans sortie. */
   let exploring = false;
   const poster = new PosterScene(scene.engine, scene.world, scene.track);
+  // Film d'accueil de la saison par-dessus l'image fixe, quand il a été rendu (tools/menu-loop).
+  const loop = inMenu ? new MenuLoop(scene.engine.renderer.domElement) : null;
+  loop?.setSeason(settings.season);
   let posterFrames = 0;
   const focus = new THREE.Vector3();
   const renderPoster = () => {
@@ -187,6 +191,7 @@ async function boot(): Promise<void> {
   const leaveMenu = (s: Settings) => {
     inMenu = false;
     poster.dispose();
+    loop?.dispose();
     applyEnv(s);
   };
 
@@ -238,6 +243,7 @@ async function boot(): Promise<void> {
   const startExplore = () => {
     if (exploring || !inMenu) return;
     menu.hide();
+    loop?.show(false);
     exploring = true;
     exploreT = performance.now();
     const cam = scene.engine.camera;
@@ -267,6 +273,7 @@ async function boot(): Promise<void> {
   menu.onSettingsChange = (s) => {
     if (!inMenu) return applyEnv(s);
     if (scene.world.env.state.season !== s.season) scene.world.setSeason(s.season);
+    loop?.setSeason(s.season);
     poster.build(s.look);
     poster.place(poster.d);
     renderPoster();
@@ -281,6 +288,7 @@ async function boot(): Promise<void> {
   };
   menu.onScene = (view, yaw) => {
     if (!inMenu) return;
+    loop?.show(view === 'poster');
     poster.setView(view, yaw);
     renderPoster();
   };
