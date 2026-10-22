@@ -593,6 +593,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   const pos = new THREE.Vector3();
   const dir = new THREE.Vector3();
   const sample = { x: 0, y: 0, z: 0, dirX: 1, dirZ: 0, grade: 0, d: 0 };
+  const dustSample = { x: 0, y: 0, z: 0, dirX: 1, dirZ: 0, grade: 0, d: 0 };
   const eye = new THREE.Vector3();
   const hands = new THREE.Vector3();
   let hudAcc = 0;
@@ -640,6 +641,14 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     const onboard = rig.mode === 'cockpit' || rig.mode === 'gopro';
     avatar.setHeadVisible(!onboard);
     peloton.render(dt, engine.camera);
+    // Poussière des roues sur les chemins non revêtus (coureur et coureurs IA), voir world/dust.ts.
+    if (!ride.paused) {
+      world.kickDust('me', pos.x, pos.y, pos.z, sample.dirX, sample.dirZ, ride.state.speedMs, dt);
+      for (const r of peloton.riders) {
+        const p = track.positionAt(r.state.distM, r.lateral, dustSample);
+        world.kickDust(r.id, p.x, p.y, p.z, p.dirX, p.dirZ, r.state.speedMs, dt);
+      }
+    }
 
     const eyeOk = rig.mode === 'cockpit' && !!avatar.eyeWorld;
     if (eyeOk) avatar.eyeWorld?.(eye, hands);

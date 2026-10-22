@@ -83,6 +83,15 @@ export function rasterizeSplat(tile: LoadedTile): { res: number; data: Uint8Arra
           else line(r.pts);
           ctx.stroke();
         });
+      // Voies ferrées : emprise du ballast (ni arbre ni herbe dessus).
+      ctx.lineWidth = 6 * scale;
+      (f.railways ?? [])
+        .filter((r) => !r.tunnel)
+        .forEach((r) => {
+          ctx.beginPath();
+          line(r.pts);
+          ctx.stroke();
+        });
     },
   ];
 
