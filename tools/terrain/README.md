@@ -324,6 +324,19 @@ de bords à 0,0 cm ; construction en 2 min 30 une fois les données en cache.
 - Le client place un arbre « réel » (tronc, branches, cartes de feuillage, `world/trees.ts`) par
   sommet, à sa hauteur et à son houppier mesurés, en blocs de 125 m (détail jusqu'à 160 m).
 
+## Packs de cartes (`src/packs.ts`)
+
+Le jeu n'embarque aucune tuile : chaque zone se télécharge depuis le menu (bloc **Zones**), d'un
+bloc, et reste sur l'appareil (Cache Storage du navigateur ou de WebView2). Sans pack, la zone se
+charge quand même au fil de la sortie depuis le serveur.
+
+- `tiles/pack.json` (avec les tuiles, non versionné) : fichiers et tailles, `version` = empreinte
+  des noms et tailles ; une zone téléchargée affiche « Mettre à jour » quand elle change.
+- `apps/client/public/worlds/index.json` (versionné, livré avec le jeu) : catalogue des zones
+  (nom, région `region` de `WORLDS`, parcours, taille du pack). Les mondes privés n'y figurent pas.
+- Régénérés à la fin de chaque `build:world` ; seuls : `pnpm --filter @allezrobert/terrain packs`
+  (sans tuiles locales, la taille déjà publiée est conservée).
+
 ## Limites connues
 
 - Bâtiments sans `height`/`building:levels` : hauteurs par défaut ; les `building:part`

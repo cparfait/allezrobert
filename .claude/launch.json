@@ -12,6 +12,19 @@
       "port": 5173
     },
     {
+      "name": "client-5175",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": [
+        "--filter",
+        "@allezrobert/client",
+        "exec",
+        "vite",
+        "--port",
+        "5175"
+      ],
+      "port": 5175
+    },
+    {
       "name": "sequences",
       "runtimeExecutable": "pnpm",
       "runtimeArgs": [

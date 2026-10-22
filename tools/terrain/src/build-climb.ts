@@ -28,6 +28,7 @@ import { writeHorizon } from './horizon.ts';
 import { writeWorldTiles } from './world-tiles.ts';
 import { ATTRIBUTION_BDTOPO } from './bdtopo.ts';
 import { prepareEnrichment } from './enrich.ts';
+import { WORLDS_ROOT, writeCatalogue } from './packs.ts';
 import { ATTRIBUTION_LIDAR } from './lidar.ts';
 
 if (WORLD.kind !== 'climb') throw new Error('build-climb : monde de type « climb » attendu');
@@ -491,6 +492,8 @@ async function main(): Promise<void> {
   log('Bilan');
   log(`   ${meta.tiles.length} tuiles (${meta.tiles.filter((t) => t.lods.includes('hi')).length} hi, ${meta.tiles.filter((t) => t.stepM).length} à pas > 1 cm) : ${Object.entries(sizes).map(([e, s]) => `*${e} ${(s / 1e6).toFixed(1)} Mo`).join(', ')} — total ${(Object.values(sizes).reduce((a, b) => a + b, 0) / 1e6).toFixed(1)} Mo`);
   log(`   durée ${((Date.now() - t0) / 1000).toFixed(0)} s`);
+  // pack de cartes et catalogue des zones (seulement pour le dossier publié du jeu)
+  if (path.resolve(OUT_DIR) === path.join(WORLDS_ROOT, W.id)) writeCatalogue(log);
 }
 
 try {

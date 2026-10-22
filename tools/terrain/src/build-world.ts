@@ -36,6 +36,7 @@ import {
   WORLD_NAME,
 } from './config.ts';
 import { Dem, DemStack } from './dem.ts';
+import { WORLDS_ROOT, writeCatalogue } from './packs.ts';
 import { corridorWgs84, OSM_CHUNK } from './corridor.ts';
 import { distPointRect, tileId, tileRect, wgs84BoxToRect, worldToL93, type Rect } from './frame.ts';
 import { resampleOpen, smooth1d, type Pt } from './geom.ts';
@@ -587,6 +588,8 @@ async function main(): Promise<void> {
   log(`   ${meta.tiles.length} tuiles (${meta.tiles.filter((t) => t.lods.includes('hi')).length} hi), ${(size / 1e6).toFixed(1)} Mo au total dans ${path.relative(process.cwd(), OUT_DIR)}`);
   log(`   audit vie privée : OK (aucun point à moins de ${PRIVACY_RADIUS_M} m d'un départ/arrivée)`);
   log(`   durée ${((Date.now() - t0) / 1000).toFixed(0)} s`);
+  // pack de cartes et catalogue des zones (seulement pour le dossier publié du jeu)
+  if (path.resolve(OUT_DIR) === path.join(WORLDS_ROOT, WORLD_ID)) writeCatalogue(log);
 }
 
 main().catch((err) => {

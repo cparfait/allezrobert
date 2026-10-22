@@ -1,0 +1,112 @@
+{
+ "formatVersion": 1,
+ "zones": [
+  {
+   "id": "alpe-dhuez",
+   "name": "Alpe d'Huez",
+   "region": "Isère · Oisans",
+   "routes": [
+    {
+     "id": "alpe-dhuez",
+     "name": "Montée de l'Alpe d'Huez",
+     "nameEn": "Alpe d'Huez climb",
+     "lengthM": 15010.87,
+     "elevationGainM": 1138.97,
+     "loop": false
+    }
+   ],
+   "pack": {
+    "version": "3ec00af31b43",
+    "bytes": 23497127,
+    "files": 500
+   }
+  },
+  {
+   "id": "chevreuse",
+   "name": "Vallée de Chevreuse",
+   "region": "Yvelines · Essonne",
+   "routes": [
+    {
+     "id": "chevreuse-boucle",
+     "name": "Boucle de Chevreuse par Dampierre-en-Yvelines et Saint-Forget",
+     "nameEn": "Chevreuse loop",
+     "lengthM": 10059.35,
+     "elevationGainM": 126.61,
+     "loop": true
+    },
+    {
+     "id": "boucle-toussus-le-noble-villiers-le-bacle",
+     "name": "Boucle de Toussus-le-Noble par Villiers-le-Bâcle et Châteaufort",
+     "nameEn": "Toussus-le-Noble loop via Villiers-le-Bâcle and Châteaufort",
+     "lengthM": 32232.26,
+     "elevationGainM": 189.72,
+     "loop": true
+    },
+    {
+     "id": "boucle-voisins-le-bretonneux-chevreuse",
+     "name": "Boucle de Voisins-le-Bretonneux par Chevreuse et Le Mesnil-Saint-Denis",
+     "nameEn": "Voisins-le-Bretonneux loop via Chevreuse and Le Mesnil-Saint-Denis",
+     "lengthM": 45974.51,
+     "elevationGainM": 379.29,
+     "loop": true
+    },
+    {
+     "id": "boucle-gif-sur-yvette-gometz-la-ville",
+     "name": "Boucle de Gif-sur-Yvette par Gometz-la-Ville et Limours",
+     "nameEn": "Gif-sur-Yvette loop via Gometz-la-Ville and Limours",
+     "lengthM": 50122.31,
+     "elevationGainM": 516.25,
+     "loop": true
+    },
+    {
+     "id": "boucle-voisins-le-bretonneux-les-molieres",
+     "name": "Boucle de Voisins-le-Bretonneux par Les Molières et Chevreuse",
+     "nameEn": "Voisins-le-Bretonneux loop via Les Molières and Chevreuse",
+     "lengthM": 76206.63,
+     "elevationGainM": 821.39,
+     "loop": true
+    }
+   ],
+   "pack": {
+    "version": "c0f8d4614447",
+    "bytes": 188023760,
+    "files": 1887
+   }
+  },
+  {
+   "id": "limagne",
+   "name": "Limagne — Neuville",
+   "routes": [
+    {
+     "id": "tour-de-neuville",
+     "name": "Tour de Neuville",
+     "nameEn": "Neuville loop",
+     "lengthM": 16156,
+     "elevationGainM": 345.7,
+     "loop": false
+    }
+   ],
+   "pack": null
+  },
+  {
+   "id": "mont-ventoux",
+   "name": "Mont Ventoux",
+   "region": "Vaucluse",
+   "routes": [
+    {
+     "id": "mont-ventoux-bedoin",
+     "name": "Mont Ventoux par Bédoin",
+     "nameEn": "Mont Ventoux from Bédoin",
+     "lengthM": 21822.76,
+     "elevationGainM": 1591.28,
+     "loop": false
+    }
+   ],
+   "pack": {
+    "version": "e4f7a8478a76",
+    "bytes": 46322684,
+    "files": 895
+   }
+  }
+ ]
+}

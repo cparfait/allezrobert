@@ -29,6 +29,7 @@ import { buildRoads3d } from './roads3d.ts';
 import { frenchDe } from './route.ts';
 import type { TileResult } from './tiles.ts';
 import { writeWorldTiles } from './world-tiles.ts';
+import { WORLDS_ROOT, writeCatalogue } from './packs.ts';
 
 if (WORLD.kind !== 'open') throw new Error('build-open : monde de type « open » attendu');
 const W: OpenWorld = WORLD;
@@ -209,6 +210,8 @@ async function main(): Promise<void> {
   log('Bilan');
   log(`   ${meta.tiles.length} tuiles : ${Object.entries(sizes).map(([e, s]) => `*${e} ${(s / 1e6).toFixed(1)} Mo`).join(', ')}`);
   log(`   durée ${((Date.now() - t0) / 1000).toFixed(0)} s`);
+  // pack de cartes et catalogue des zones (seulement pour le dossier publié du jeu)
+  if (path.resolve(OUT_DIR) === path.join(WORLDS_ROOT, W.id)) writeCatalogue(log);
 }
 
 /**
