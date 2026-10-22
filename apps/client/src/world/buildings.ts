@@ -3,6 +3,7 @@ import { attribute, uv, fract, floor, step, mix, vec2, vec3, float, uniform, mx_
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { rng, polygonArea } from '../engine/noise.ts';
 import type { LoadedTile } from './types.ts';
+import { orientedBox, planRoof, roofBuffers, flatRoof } from './roofs.ts';
 
 /** Textures photo CC0 (Poly Haven) des façades et toits, chargées une fois et partagées. */
 function loadTex(dir: string, file: string, srgb: boolean): THREE.Texture {
@@ -33,60 +34,12 @@ const ROOFS = ['#8a4a35', '#7d4331', '#94553d', '#6f3f30', '#86513c', '#7a4a3a']
 const SLATE = '#4f565f';
 const SHUTTERS = ['#7d8f9b', '#5f7d66', '#e8e4da', '#8a5a3c', '#4b6a8a', '#a7b8a0'];
 
-interface Obb {
-  cx: number;
-  cz: number;
-  ux: number;
-  uz: number;
-  hl: number; // demi-longueur selon u
-  hw: number; // demi-largeur selon v
-}
-
 /** Couleur OSM (« brick », « #c0a080 »…) avec repli si elle n'est pas reconnue. */
 function osmColour(value: string | undefined, fallback: string): string {
   if (!value) return fallback;
   const named: Record<string, string> = { brick: BRICK, stone: MEULIERE[0] as string, white: '#efe7d8', beige: '#d9ccb2', yellow: '#dccb92', grey: '#a3a39e', gray: '#a3a39e', red: BRICK, brown: '#8a6a4a' };
   if (named[value]) return named[value] as string;
   return /^#[0-9a-f]{3,8}$/i.test(value) ? value : fallback;
-}
-
-/** Rectangle orienté minimal (calipers sur les arêtes du polygone). */
-function orientedBox(pts: number[]): Obb {
-  let best: Obb | null = null;
-  let bestArea = Infinity;
-  const n = pts.length / 2;
-  for (let i = 0; i < n; i++) {
-    const j = (i + 1) % n;
-    let ux = (pts[j * 2] as number) - (pts[i * 2] as number);
-    let uz = (pts[j * 2 + 1] as number) - (pts[i * 2 + 1] as number);
-    const len = Math.hypot(ux, uz);
-    if (len < 0.5) continue;
-    ux /= len;
-    uz /= len;
-    let minU = Infinity;
-    let maxU = -Infinity;
-    let minV = Infinity;
-    let maxV = -Infinity;
-    for (let k = 0; k < n; k++) {
-      const x = pts[k * 2] as number;
-      const z = pts[k * 2 + 1] as number;
-      const u = x * ux + z * uz;
-      const v = -x * uz + z * ux;
-      minU = Math.min(minU, u);
-      maxU = Math.max(maxU, u);
-      minV = Math.min(minV, v);
-      maxV = Math.max(maxV, v);
-    }
-    const area = (maxU - minU) * (maxV - minV);
-    if (area < bestArea) {
-      bestArea = area;
-      const cu = (minU + maxU) / 2;
-      const cv = (minV + maxV) / 2;
-      best = { cx: cu * ux - cv * uz, cz: cu * uz + cv * ux, ux, uz, hl: (maxU - minU) / 2, hw: (maxV - minV) / 2 };
-    }
-  }
-  if (best && best.hl < best.hw) best = { cx: best.cx, cz: best.cz, ux: -best.uz, uz: best.ux, hl: best.hw, hw: best.hl };
-  return best ?? { cx: pts[0] as number, cz: pts[1] as number, ux: 1, uz: 0, hl: 3, hw: 3 };
 }
 
 /** Attributs par sommet : couleur de base, type (0 mur, 1 tuile, 2 ardoise), couleur des volets, ornements. */
@@ -139,64 +92,17 @@ function walls(pts: number[], base: number, height: number): THREE.BufferGeometr
   return g;
 }
 
-/** Toit à quatre pans (ou à deux pans + pignons) sur le rectangle orienté, avec débord de 40 cm. */
-function roofGeometry(b: Obb, eave: number, pitchDeg: number, hip: boolean): { roof: THREE.BufferGeometry; gables: THREE.BufferGeometry | null } {
-  const o = 0.4;
-  const hl = b.hl + o;
-  const hw = b.hw + o;
-  const rise = Math.tan((pitchDeg * Math.PI) / 180) * hw;
-  const ridgeHalf = hip ? Math.max(hl - hw, 0.2) : hl;
-  const P = (u: number, v: number, y: number): [number, number, number] => [b.cx + u * b.ux - v * b.uz, y, b.cz + u * b.uz + v * b.ux];
-  const c1 = P(-hl, -hw, eave);
-  const c2 = P(hl, -hw, eave);
-  const c3 = P(hl, hw, eave);
-  const c4 = P(-hl, hw, eave);
-  const r1 = P(-ridgeHalf, 0, eave + rise);
-  const r2 = P(ridgeHalf, 0, eave + rise);
-  const roofTris: Array<[number, number, number][]> = [
-    [c1, r1, c2],
-    [c2, r1, r2],
-    [c3, r2, c4],
-    [c4, r2, r1],
-  ];
-  if (hip) roofTris.push([c2, r2, c3], [c4, r1, c1]);
-  const build = (tris: Array<[number, number, number][]>, uvFor: (p: [number, number, number]) => [number, number]) => {
-    const pos: number[] = [];
-    const uvs: number[] = [];
-    for (const t0 of tris) {
-      // Contrôle automatique : un pan de toit doit regarder vers le haut (sinon « toit inversé »).
-      const [a, b, c] = t0 as [[number, number, number], [number, number, number], [number, number, number]];
-      const ny = (b[2] - a[2]) * (c[0] - a[0]) - (b[0] - a[0]) * (c[2] - a[2]);
-      const t = ny < 0 ? [a, c, b] : t0;
-      for (const p of t) {
-        pos.push(...p);
-        uvs.push(...uvFor(p));
-      }
-    }
-    const g = new THREE.BufferGeometry();
-    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-    g.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
-    g.computeVertexNormals();
-    return g;
-  };
-  // uv du toit : (le long du faîtage, distance horizontale au faîtage) → rangs de tuiles parallèles à l'égout.
-  const roof = build(roofTris, (p) => {
-    const du = (p[0] - b.cx) * b.ux + (p[2] - b.cz) * b.uz;
-    const dv = -(p[0] - b.cx) * b.uz + (p[2] - b.cz) * b.ux;
-    return [du, Math.abs(dv) / Math.cos((pitchDeg * Math.PI) / 180)];
-  });
-  // Pignons (murs triangulaires) : même enduit que les murs.
-  const gables = hip
-    ? null
-    : build(
-        [
-          [c2, r2, c3],
-          [c4, r1, c1],
-        ],
-        (p) => [(-(p[0] - b.cx) * b.uz + (p[2] - b.cz) * b.ux) + hw, p[1] - eave + 3],
-      );
-  return { roof, gables };
+/** Géométrie Three.js depuis des tableaux position/uv (triangles non indexés). */
+function toGeometry(pos: number[], uvs: number[]): THREE.BufferGeometry {
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+  g.computeVertexNormals();
+  return g;
 }
+
+/** Formes OSM traitées en croupes (les autres, hors terrasse, en deux pans si l'emprise s'y prête). */
+const HIPPED = new Set(['hipped', 'pyramidal', 'half-hipped', 'mansard', 'dome', 'round', 'onion', 'cone']);
 
 /**
  * Bâtiments d'une tuile fusionnés en un seul maillage, matériau procédural unique (TSL).
@@ -309,10 +215,16 @@ export class Buildings {
       const isUtility = ['shed', 'garage', 'garages', 'barn', 'greenhouse', 'roof', 'industrial', 'ruins'].includes(bld.kind);
       const box = orientedBox(bld.pts);
       const shape = bld.roof ?? 'gabled';
-      const flat = shape === 'flat' || box.hw > 20;
       const total = isChurch ? Math.max(bld.height, 14) : Math.max(bld.height || (bld.levels ?? 1.6) * 2.9 + 3, 3.5);
-      const roofH = flat ? 0.4 : Math.min(bld.roofHeight ?? Math.tan((42 * Math.PI) / 180) * box.hw, total * 0.6);
+      // Toit sur l'emprise réelle (squelette droit) : deux pans si elle est presque rectangulaire, croupes sinon.
+      const plan = shape === 'flat' || box.hw > 20 || bld.roofHeight === 0 ? null : planRoof(bld.pts, { overhang: 0.4, gableOverhang: 0.25, gabled: !HIPPED.has(shape), maxInset: 15 });
+      // Pente : hauteur de toit OSM sur la demi-largeur effective (là où les pans se rejoignent), bornée.
+      const halfW = plan ? Math.max(plan.tEnd - plan.overhang, 0.5) : 0;
+      const wantH = Math.min(bld.roofHeight ?? Math.tan((42 * Math.PI) / 180) * halfW, total * 0.6);
+      const pitch = plan ? Math.min(Math.max((Math.atan(wantH / halfW) * 180) / Math.PI, 15), 55) : 0;
+      const roofH = plan ? Math.tan((pitch * Math.PI) / 180) * halfW : 0;
       const wallH = Math.max(total - roofH, 2.4);
+      const wallTop = base + wallH + 0.3;
       // Matériau de façade : meulière (≈ 30 %), enduit clair, ou couleur OSM.
       const stones = !isUtility && !bld.colour && (bld.material === 'stone' || r() < 0.45);
       const wallColour = osmColour(bld.colour, stones ? (MEULIERE[Math.floor(r() * MEULIERE.length)] as string) : bld.material === 'brick' ? BRICK : (RENDERS[Math.floor(r() * RENDERS.length)] as string));
@@ -321,13 +233,18 @@ export class Buildings {
       const wallType = stones ? 1 : wallColour === BRICK ? 2 : 0;
       paint(w, c.set(wallColour), 0, acc, wallType, isUtility ? 0 : 1);
       parts.push(w);
-      const pitch = flat ? 3 : (Math.atan(roofH / Math.max(box.hw + 0.4, 0.5)) * 180) / Math.PI;
-      const hip = shape === 'hipped' || shape === 'pyramidal' || shape === 'half-hipped';
-      const { roof, gables } = roofGeometry(box, base + wallH + 0.3, pitch, hip);
       const slate = bld.material === 'slate' || shape === 'mansard' || isChurch;
-      paint(roof, c.set(slate ? SLATE : flat ? '#6f6c66' : (osmColour(undefined, ROOFS[Math.floor(r() * ROOFS.length)] as string))), slate || flat ? 2 : 1, acc, 0, 0);
-      parts.push(roof);
-      if (gables) {
+      const roofColour = slate ? SLATE : !plan ? '#6f6c66' : (ROOFS[Math.floor(r() * ROOFS.length)] as string);
+      const buf = plan ? roofBuffers(plan, wallTop, pitch) : null;
+      const roofPart = buf ? buf.roof : flatRoof(bld.pts, wallTop);
+      if (roofPart.pos.length) {
+        const roof = toGeometry(roofPart.pos, roofPart.uv);
+        paint(roof, c.set(roofColour), slate || !plan ? 2 : 1, acc, 0, 0);
+        parts.push(roof);
+      }
+      if (buf && buf.gables.pos.length) {
+        // Pignons (murs triangulaires) : même enduit que les murs.
+        const gables = toGeometry(buf.gables.pos, buf.gables.uv);
         paint(gables, c.set(wallColour), 0, acc, wallType, 0);
         parts.push(gables);
       }
