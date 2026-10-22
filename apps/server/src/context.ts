@@ -48,6 +48,8 @@ export interface AppContext {
   verifySessionToken(token: string | undefined): Promise<{ userId: string; sessionId: string; name: string } | null>;
   /** Invalide le cache de session (déconnexion, suppression de compte). */
   forgetSession(sessionId?: string): void;
+  /** Worker vidéo intégré (RENDER_INLINE) : réveillé à chaque nouvelle tâche. */
+  renderWorker?: { nudge(): void };
 }
 
 export function createContext(config: Config, db: Db, routes: RouteStore, opts: { fetchFn?: typeof fetch; log?: Logger; mailer?: Mailer } = {}): AppContext {
