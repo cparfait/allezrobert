@@ -10,6 +10,7 @@
     "typecheck": "tsc -p tsconfig.json",
     "build:world": "tsx src/build-world.ts",
     "build:routes": "tsx src/build-world.ts --routes-only --no-ortho",
+    "packs": "tsx src/build-packs.ts",
     "fetch:osm": "tsx src/fetch-osm.ts",
     "test": "vitest run --root ../.. tools/terrain"
   },

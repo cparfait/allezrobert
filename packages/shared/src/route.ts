@@ -234,3 +234,30 @@ export interface WorldTile {
   /** Données fines présentes : la végétation n'est alors plus semée au hasard. */
   enriched?: { vegetation?: boolean; buildings?: boolean };
 }
+
+/**
+ * Pack de cartes d'un monde (`worlds/<id>/tiles/pack.json`) : fichiers à télécharger pour jouer
+ * hors ligne, chemins relatifs au dossier du monde, tailles en octets. `version` change dès qu'un
+ * fichier change (empreinte des noms et tailles).
+ */
+export interface WorldPackManifest {
+  formatVersion: 1;
+  id: string;
+  version: string;
+  bytes: number;
+  files: Array<{ p: string; b: number }>;
+}
+
+/** Catalogue des zones jouables (`worlds/index.json`), livré avec le jeu. */
+export interface WorldCatalogue {
+  formatVersion: 1;
+  zones: Array<{
+    id: string;
+    name: string;
+    /** Département, pays (« Puy-de-Dôme · Limagne »). */
+    region?: string;
+    routes: Array<{ id: string; name: string; nameEn?: string; lengthM: number; elevationGainM: number; loop: boolean }>;
+    /** Pack téléchargeable ; null si les tuiles ne sont pas encore publiées. */
+    pack: { version: string; bytes: number; files: number } | null;
+  }>;
+}

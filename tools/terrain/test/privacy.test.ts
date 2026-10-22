@@ -50,7 +50,7 @@ describe.skipIf(!hasGarmin || !hasWorld)('vie privée des sorties', () => {
     if (!fs.existsSync(dir)) return;
     let worst = Infinity;
     let checked = 0;
-    for (const f of fs.readdirSync(dir).filter((f) => f.endsWith('.json'))) {
+    for (const f of fs.readdirSync(dir).filter((f) => f.endsWith('.json') && f !== 'pack.json')) {
       const t = JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8')) as { roads: Array<{ pts: number[] }>; buildings: Array<{ pts: number[] }> };
       for (const r of t.roads)
         for (let i = 0; i < r.pts.length; i += 3) {

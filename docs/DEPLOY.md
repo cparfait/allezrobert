@@ -199,6 +199,14 @@ Sans CI, `./deploy.sh build` construit les images directement sur le VPS (plus l
 
 ## 12. Tuiles du monde
 
+> **Packs de cartes** : chaque zone (`chevreuse`, `alpe-dhuez`, `mont-ventoux`, `neuville`…) se
+> déploie comme Chevreuse ci-dessous, en copiant tout son dossier `tiles/` (il contient
+> `pack.json`, la liste du pack). Le catalogue `worlds/index.json` est livré dans l'image web ; le
+> régénérer avec `pnpm --filter @allezrobert/terrain packs` avant le build si des tuiles ont changé.
+> L'application Windows télécharge les tuiles sur ce serveur : le Caddyfile autorise CORS sur
+> `/worlds/*/tiles/*`.
+
+
 Le jeu télécharge `/worlds/chevreuse/world.json` et `/worlds/chevreuse/routes/*.json` (inclus
 dans l'image web) et les tuiles `/worlds/chevreuse/tiles/*` (≈150 Mo : altitudes `.u16`,
 entités `.json`, orthophotos `.jpg`), qui ne sont **pas** dans l'image : Caddy les sert depuis

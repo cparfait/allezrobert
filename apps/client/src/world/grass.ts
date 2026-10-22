@@ -8,26 +8,45 @@ import { splatAt } from './splat.ts';
 import type { Season } from './environment.ts';
 
 const RADIUS = 60;
+/** Base (pied, ombragé) et pointe des brins par saison : verts sourds, pointes olive (pas de jaune vif). */
 const SEASON_GRASS: Record<Season, [string, string]> = {
-  spring: ['#4f7f2c', '#a9d36a'],
-  summer: ['#5b7a30', '#c9c46a'],
-  autumn: ['#5d6f2e', '#b3ad62'],
-  winter: ['#5f6447', '#a3a283'],
+  spring: ['#3d6324', '#86a84e'],
+  summer: ['#3e5a22', '#7d8f45'],
+  autumn: ['#45552a', '#8c8a52'],
+  winter: ['#4b5338', '#8a8a6c'],
 };
 
-/** Touffe : 3 brins croisés, sommets colorés de la base (sombre) à la pointe (claire). */
+/**
+ * Touffe : 7 brins effilés et courbés, de hauteurs différentes, ouverts en éventail depuis le pied
+ * (chaque brin : un quadrilatère puis une pointe, penchés vers l'extérieur). `tip` = 0 au pied,
+ * 1 à la pointe (couleur et balancement).
+ */
 function clumpGeometry(): THREE.BufferGeometry {
   const pos: number[] = [];
   const tip: number[] = [];
-  for (let k = 0; k < 3; k++) {
-    const a = (k / 3) * Math.PI;
-    const dx = Math.cos(a) * 0.035;
-    const dz = Math.sin(a) * 0.035;
-    const h = 0.2 + k * 0.05;
-    const lean = 0.05 * (k - 1);
-    // Brin = triangle effilé (base large, pointe fine).
-    pos.push(-dx, 0, -dz, dx, 0, dz, lean, h, lean * 0.5);
-    tip.push(0, 0, 1);
+  const r = rng(17);
+  const blades = 7;
+  for (let k = 0; k < blades; k++) {
+    const a = (k / blades) * Math.PI * 2 + r() * 0.6;
+    const ox = Math.cos(a) * (0.02 + r() * 0.05);
+    const oz = Math.sin(a) * (0.02 + r() * 0.05);
+    const h = 0.18 + r() * 0.3;
+    const w = 0.012 + r() * 0.01;
+    // largeur perpendiculaire à la direction d'ouverture
+    const px = -Math.sin(a) * w;
+    const pz = Math.cos(a) * w;
+    // courbure : le brin s'écarte de plus en plus vers la pointe
+    const lean = 0.35 + r() * 0.35;
+    const mx = ox + Math.cos(a) * h * lean * 0.35;
+    const mz = oz + Math.sin(a) * h * lean * 0.35;
+    const tx = ox + Math.cos(a) * h * lean;
+    const tz = oz + Math.sin(a) * h * lean;
+    const hm = h * 0.55;
+    // quadrilatère du bas (2 triangles), puis pointe
+    pos.push(ox - px, 0, oz - pz, ox + px, 0, oz + pz, mx + px * 0.7, hm, mz + pz * 0.7);
+    pos.push(ox - px, 0, oz - pz, mx + px * 0.7, hm, mz + pz * 0.7, mx - px * 0.7, hm, mz - pz * 0.7);
+    pos.push(mx - px * 0.7, hm, mz - pz * 0.7, mx + px * 0.7, hm, mz + pz * 0.7, tx, h * 0.92, tz);
+    tip.push(0, 0, 0.55, 0, 0.55, 0.55, 0.55, 0.55, 1);
   }
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
@@ -62,7 +81,10 @@ export class GrassField {
     const h = hash(instanceIndex);
     const sway = sin(time.mul(float(1.6).add(h.mul(0.8))).add(h.mul(30))).mul(this.wind).mul(tip).mul(0.12);
     m.positionNode = positionLocal.add(vec3(sway, 0, sway.mul(0.5)));
-    m.colorNode = varying(mix(this.base.node, this.tipCol.node, tip.mul(h.mul(0.4).add(0.6))).mul(h.mul(0.3).add(0.8)));
+    // une touffe sur huit plus sèche (paille), variation de teinte par touffe
+    const dry = hash(instanceIndex.add(31)).greaterThan(0.875).select(float(1), float(0));
+    const tipCol = mix(this.tipCol.node, vec3(0.42, 0.38, 0.22), dry.mul(0.7));
+    m.colorNode = varying(mix(this.base.node, tipCol, tip.pow(0.8)).mul(h.mul(0.25).add(0.82)));
     m.roughnessNode = float(0.85);
     // Normale verticale des deux côtés : les brins sont éclairés comme le sol (pas de faces sombres).
     m.normalNode = transformNormalToView(vec3(0, 1, 0));

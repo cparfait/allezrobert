@@ -1,5 +1,6 @@
 import type { RoadGraphData, RouteData, WorldMeta, WorldTile } from '@allezrobert/shared';
 import type { LoadedTile, TileFeatures, WorldSource } from './types.ts';
+import { worldFetch } from './packs.ts';
 
 /**
  * Monde généré par tools/terrain (IGN + OpenStreetMap), servi depuis public/worlds/<id>/ :
@@ -46,7 +47,7 @@ export async function createFileWorld(id: string, meta: WorldMeta): Promise<Worl
     },
     async loadTile(tx, tz) {
       const key = `${tx}_${tz}`;
-      const res = await fetch(`${base}/tiles/${key}.json`);
+      const res = await worldFetch(`${base}/tiles/${key}.json`);
       // 404 : tuile hors du monde, on n'y revient plus ; autre erreur (génération en cours) : on réessaiera.
       if (res.status === 404 || (res.ok && !(res.headers.get('content-type') ?? '').includes('json'))) {
         missing.add(key);
@@ -55,13 +56,14 @@ export async function createFileWorld(id: string, meta: WorldMeta): Promise<Worl
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const tile = (await res.json()) as WorldTile;
       const grid = tile.heights.hi ?? tile.heights.lo;
-      const bin = await fetch(`${base}/tiles/${grid.file}`);
+      const bin = await worldFetch(`${base}/tiles/${grid.file}`);
       if (!bin.ok) throw new Error(`HTTP ${bin.status}`);
       const raw = new Uint16Array(await bin.arrayBuffer());
       const heights = new Float32Array(raw.length);
       for (let i = 0; i < raw.length; i++) heights[i] = tile.heights.baseM + (raw[i] as number) * tile.heights.stepM;
       const idx = index.get(key);
       const hasOrtho = idx ? idx.lods.includes('ortho') : true;
+      const orthoUrl = hasOrtho ? await orthoSource(`${base}/tiles/${key}.ortho.jpg`) : null;
       return {
         id: key,
         tx,
@@ -72,10 +74,26 @@ export async function createFileWorld(id: string, meta: WorldMeta): Promise<Worl
         n: grid.n,
         heights,
         features: toFeatures(tile),
-        ...(hasOrtho ? { orthoUrl: `${base}/tiles/${key}.ortho.jpg` } : {}),
+        ...(orthoUrl ? { orthoUrl } : {}),
       } satisfies LoadedTile;
     },
   };
+}
+
+/**
+ * Orthophoto : depuis le pack installé (URL d'objet, libérée une fois l'image chargée par le
+ * terrain), sinon depuis le serveur des tuiles.
+ */
+async function orthoSource(path: string): Promise<string | null> {
+  try {
+    const r = await worldFetch(path);
+    if (!r.ok) return null;
+    const url = URL.createObjectURL(await r.blob());
+    setTimeout(() => URL.revokeObjectURL(url), 120000);
+    return url;
+  } catch {
+    return null;
+  }
 }
 
 function toFeatures(t: WorldTile): TileFeatures {

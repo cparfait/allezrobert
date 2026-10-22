@@ -88,6 +88,8 @@ interface WorldBase {
   corridorTiles: { txMin: number; txMax: number; tzMin: number; tzMax: number };
   /** Données fines IGN ; défaut QUALITY.enrich, `false` pour s'en passer. */
   enrich?: WorldEnrich | false;
+  /** Région affichée dans le menu (bloc « Zones »). */
+  region?: string;
   /** Monde privé (data/private/worlds) : sortie ignorée par git. */
   private?: boolean;
 }
@@ -156,6 +158,7 @@ export const WORLDS: Record<string, WorldConfig> = {
     kind: 'garmin',
     id: 'chevreuse',
     name: 'Vallée de Chevreuse',
+    region: 'Yvelines · Essonne',
     // près de Chevreuse
     originL93: { x: 629000, y: 6846000 },
     // ≈ lon 1,78–2,20, lat 48,62–48,75
@@ -165,6 +168,7 @@ export const WORLDS: Record<string, WorldConfig> = {
     kind: 'climb',
     id: 'alpe-dhuez',
     name: "Alpe d'Huez",
+    region: 'Isère · Oisans',
     // entre La Garde et Huez (milieu de la montée)
     originL93: { x: 940000, y: 6447000 },
     // itinéraire ≈ E 938,8–942,3 km, N 6 444,4–6 449,0 km, + 5 km de montagnes autour
@@ -214,6 +218,7 @@ export const WORLDS: Record<string, WorldConfig> = {
     kind: 'climb',
     id: 'mont-ventoux',
     name: 'Mont Ventoux',
+    region: 'Vaucluse',
     // entre Saint-Estève et le Chalet Reynard
     originL93: { x: 880000, y: 6342000 },
     // itinéraire ≈ E 874,3–885,5 km, N 6 338,3–6 345,0 km, + 5 km autour
@@ -268,6 +273,7 @@ export const WORLDS: Record<string, WorldConfig> = {
     kind: 'open',
     id: 'limagne',
     name: 'Limagne — Neuville',
+    region: 'Puy-de-Dôme · Limagne',
     // Neuville (63160), en bordure de la plaine de la Limagne, au pied du Livradois
     originL93: { x: 733000, y: 6516000 },
     // 7 × 7 km : E 729–736 km, N 6 512–6 519 km (Glaine-Montaigut, Neuville, Bongheat, Égliseneuve-près-Billom)

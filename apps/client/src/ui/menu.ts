@@ -1,7 +1,8 @@
-import type { AvatarLook, CosmeticItem, RouteData, RouteSegment } from '@allezrobert/shared';
+import type { AvatarLook, CosmeticItem, RouteData, RouteSegment, WorldCatalogue } from '@allezrobert/shared';
 import { readKomRecord } from '../game/challenge.ts';
 import { COSMETICS, DEFAULT_BIKE, bikeSetupFor, levelProgress, type CosmeticSlot } from '@allezrobert/shared';
 import { WORKOUT_LIBRARY } from '@allezrobert/physics';
+import { formatBytes, installPack, loadCatalogue, packState, removePack } from '../world/packs.ts';
 import { t, setLang, getLang, type I18nKey } from '../i18n/index.ts';
 import type { Settings } from './settings.ts';
 import { saveSettings } from './settings.ts';
@@ -115,6 +116,11 @@ export class MainMenu {
   openWorld = false;
   onWorld?: (id: string) => void;
   onSettingsSaved?: (s: Settings) => void;
+  /** Catalogue des zones (packs de cartes). */
+  private zones: WorldCatalogue['zones'] = [];
+  /** Téléchargements en cours : octets reçus / total, ou message d'erreur. */
+  private readonly downloads = new Map<string, { done: number; total: number; error?: string }>();
+  private lastProgressRender = 0;
 
   constructor(root: HTMLElement, settings: Settings, routes: RouteData[], devices: DevicePanel, cb: MenuCallbacks) {
     this.root = root;
@@ -123,6 +129,10 @@ export class MainMenu {
     this.devices = devices;
     this.cb = cb;
     if (!this.s.routeId || !routes.some((r) => r.id === this.s.routeId)) this.s.routeId = routes[0]?.id ?? '';
+    void loadCatalogue().then((cat) => {
+      this.zones = cat?.zones ?? [];
+      if (this.tab === 'ride' && this.root.querySelector('.mm')) this.render();
+    });
     devices.onChange(() => {
       if (this.tab === 'devices') this.renderDevices();
       this.renderStatus();
@@ -347,11 +357,8 @@ export class MainMenu {
       }
       ${r ? this.routeCard(r) : ''}
       ${this.onExplore ? `<button id="m-explore" class="mm-explore">${ICON.explore}<span><b>${L ? 'Explorer la carte' : 'Explore the map'}</b><small>${L ? 'Caméra libre, sans rouler · Échap pour revenir' : 'Free camera, no riding · Esc to come back'}</small></span></button>` : ''}
-      <h3>${L ? 'Monde' : 'World'}</h3>
-      <div class="mm-routes mm-worlds">${WORLD_LIST.map(
-        (w) => `<button class="mm-route ${w.id === this.worldId ? 'on' : ''}" data-world="${esc(w.id)}"><b>${esc(w.name[getLang()])}</b><span>${esc(w.hint[getLang()])}</span></button>`,
-      ).join('')}</div>
-      <h3>${L ? 'Itinéraires' : 'Routes'}</h3>
+      ${this.zonesHtml()}
+      <h3>${L ? 'Parcours' : 'Routes'}</h3>
       <div class="mm-routes">${this.routes
         .map(
           (x) => `<button class="mm-route ${x.id === s.routeId ? 'on' : ''}" data-route="${esc(x.id)}">
@@ -376,6 +383,54 @@ export class MainMenu {
         return `<button class="mm-route ${k.id === this.s.challengeSeg ? 'on' : ''}" data-kom="${esc(k.id)}"><b>${esc(k.name)}</b><span>${this.km(k.endM - k.startM)} km · ${k.avgGrade.toFixed(1).replace('.', L ? ',' : '.')} % · ${L ? 'record' : 'best'} ${t}</span></button>`;
       })
       .join('')}</div>`;
+  }
+
+  /**
+   * Bloc « Zones » : les mondes du menu (WORLD_LIST), la zone chargée surlignée, et pour chacune
+   * son pack de cartes (catalogue `worlds/index.json`) : télécharger (taille), progression,
+   * téléchargée / supprimer, mettre à jour. Sans pack, la zone se charge quand même depuis le
+   * serveur, au fil de la sortie.
+   */
+  private zonesHtml(): string {
+    const L = fr();
+    const lang = getLang();
+    const items = WORLD_LIST.map((w) => {
+        const z = this.zones.find((c) => c.id === w.id);
+        const st = packState(w.id, z?.pack?.version);
+        const dl = this.downloads.get(w.id);
+        const info = z?.routes.length ? ` · ${z.routes.length} ${L ? 'parcours' : z.routes.length > 1 ? 'routes' : 'route'}` : '';
+        let action = '';
+        if (dl && !dl.error) action = `<span class="mm-pack busy">${Math.floor((dl.done / Math.max(dl.total, 1)) * 100)} %</span>`;
+        else if (dl?.error) action = `<button class="mm-pack err" data-pack="${esc(w.id)}" title="${esc(dl.error)}">${L ? 'Réessayer' : 'Retry'}</button>`;
+        else if (st.kind === 'installed' && st.upToDate) action = `<span class="mm-pack ok">${L ? 'Téléchargée' : 'Downloaded'} ✓</span><button class="mm-link mm-unpack" data-unpack="${esc(w.id)}">${L ? 'Supprimer' : 'Remove'}</button>`;
+        else if (st.kind === 'installed') action = `<button class="mm-pack" data-pack="${esc(w.id)}">${L ? 'Mettre à jour' : 'Update'}${z?.pack ? ` · ${formatBytes(z.pack.bytes, L)}` : ''}</button>`;
+        else if (st.kind === 'absent' && z?.pack) action = `<button class="mm-pack" data-pack="${esc(w.id)}">↓ ${formatBytes(z.pack.bytes, L)}</button>`;
+        return `<div class="mm-zone ${w.id === this.worldId ? 'on' : ''}">
+          <button class="mm-zone-pick" data-world="${esc(w.id)}"><b>${esc(w.name[lang])}</b><span>${esc(w.hint[lang])}${info}</span></button>
+          <div class="mm-zone-pack">${action}</div></div>`;
+      }).join('');
+    return `<h3>${L ? 'Zones' : 'Areas'}</h3><div class="mm-zones">${items}</div>`;
+  }
+
+  private async downloadZone(id: string): Promise<void> {
+    if (this.downloads.has(id) && !this.downloads.get(id)?.error) return;
+    this.downloads.set(id, { done: 0, total: 1 });
+    this.render();
+    try {
+      await installPack(id, (done, total) => {
+        this.downloads.set(id, { done, total });
+        // rafraîchissement limité (un rendu complet du panneau par quart de seconde au plus)
+        const now = performance.now();
+        if (now - this.lastProgressRender > 250 && this.tab === 'ride') {
+          this.lastProgressRender = now;
+          this.render();
+        }
+      });
+      this.downloads.delete(id);
+    } catch (err) {
+      this.downloads.set(id, { done: 0, total: 1, error: String((err as Error).message ?? err) });
+    }
+    if (this.tab === 'ride') this.render();
   }
 
   /** Carte de l'itinéraire (tracé coloré selon la pente) et profil d'altitude. */
@@ -877,6 +932,13 @@ export class MainMenu {
       el.addEventListener('click', () => {
         const id = el.dataset.world as string;
         if (id !== this.worldId) this.onWorld?.(id);
+      }),
+    );
+    // Zones : télécharger ou supprimer le pack de cartes.
+    this.root.querySelectorAll<HTMLElement>('[data-pack]').forEach((el) => el.addEventListener('click', () => void this.downloadZone(el.dataset.pack as string)));
+    this.root.querySelectorAll<HTMLElement>('[data-unpack]').forEach((el) =>
+      el.addEventListener('click', () => {
+        void removePack(el.dataset.unpack as string).then(() => this.render());
       }),
     );
     this.root.querySelectorAll<HTMLElement>('[data-route]').forEach((el) =>
