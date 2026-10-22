@@ -1,14 +1,18 @@
 import type { RouteData } from '@allezrobert/shared';
+import { COSMETICS, levelProgress, type CosmeticSlot } from '@allezrobert/shared';
 import { t, setLang, getLang, type I18nKey } from '../i18n/index.ts';
 import type { Settings } from './settings.ts';
 import { saveSettings } from './settings.ts';
 import { music } from '../audio/music.ts';
-import { spotify } from '../audio/spotify.ts';
+import { spotify, redirectUri } from '../audio/spotify.ts';
+import { loadProgress, equipItem, SLOT_LABEL } from './garage.ts';
+import type { GarageView } from './poster.ts';
+import './menu.css';
 
 /** Ce que l'écran d'appairage sait faire, quel que soit le transport (implémenté avec @allezrobert/devices). */
 export interface DevicePanel {
   /** Appareils connus avec leur état lisible. */
-  list(): Array<{ id: string; name: string; role: string; state: string; detail?: string; ok: boolean }>;
+  list(): Array<{ id: string; name: string; role: string; roleIds?: string[]; kinds?: string[]; simulated?: boolean; state: string; detail?: string; ok: boolean }>;
   /** Transports disponibles sur cette plateforme. */
   transports(): Array<{ id: string; label: string }>;
   /** Lance l'appairage d'un rôle (Web Bluetooth ouvre le sélecteur du navigateur). */
@@ -31,13 +35,38 @@ function esc(s: string): string {
   return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] as string);
 }
 
-type Page = 'home' | 'ride' | 'devices' | 'profile' | 'settings';
+type Tab = 'ride' | 'garage' | 'devices' | 'profile' | 'settings';
+type Role = Parameters<DevicePanel['pair']>[0];
 
 const fr = () => getLang() === 'fr';
 
+/** Pictogrammes (traits, couleur héritée). */
+const svg = (d: string, size = 22) =>
+  `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
+const ICON = {
+  free: svg('<path d="M4 20 10 4M20 20 14 4M12 6v2M12 11v2M12 16v2"/>'),
+  group: svg('<circle cx="8" cy="8" r="3"/><circle cx="16" cy="9" r="2.5"/><path d="M2.5 20c.6-3.4 2.8-5 5.5-5s4.9 1.6 5.5 5M13.5 15.2c.8-.5 1.6-.7 2.5-.7 2.4 0 4.3 1.4 4.8 4.5"/>'),
+  race: svg('<path d="M5 21V4M5 4h12l-2 4 2 4H5"/>'),
+  workout: svg('<path d="M4 20v-6M9 20V8M14 20v-9M19 20V5"/>'),
+  ftpTest: svg('<path d="M4 16a8 8 0 1 1 16 0"/><path d="m12 16 4-6"/><circle cx="12" cy="16" r="1.2"/>'),
+  trainer: svg('<circle cx="7" cy="15" r="4"/><path d="M7 15h7l3-7h2M13 8l1 7M3 21h18"/>'),
+  power: svg('<path d="M13 2 5 14h6l-1 8 8-12h-6z"/>'),
+  heartRate: svg('<path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10Z"/><path d="M7 12h3l1-2 2 4 1-2h3"/>'),
+  shifter: svg('<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="M12 4v3M12 17v3M4 12h3M17 12h3"/>'),
+  fan: svg('<circle cx="12" cy="12" r="1.5"/><path d="M12 10.5C11 6 13 3 16 4s1 5-2.5 7M13.5 12.5c4.4 1 6.5 3.5 5 6s-5 .5-6.5-3M10.5 12c-4.5.2-7.3-1.7-6.6-4.5s4.6-1.6 6.4 1.9"/>'),
+  music: svg('<path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/>', 16),
+  next: svg('<path d="m5 4 10 8-10 8zM19 5v14"/>', 14),
+  rotate: svg('<path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/>', 16),
+};
+
+/** Gros plan du garage selon la catégorie choisie. */
+const SLOT_VIEW: Record<CosmeticSlot, GarageView> = { jersey: '3q', helmet: 'front', bike: 'side', wheels: 'bike', socks: 'bike', glasses: 'front' };
+
 /**
- * Menu principal en pages : un accueil avec les grandes entrées (Rouler, Capteurs, Profil,
- * Réglages, Garage, Tutoriel), chacune ouvrant sa propre page avec un retour (bouton ou Échap).
+ * Menu principal façon jeu : barre d'onglets en haut (Rouler, Garage, Capteurs, Profil,
+ * Réglages), lecteur de musique et compte à droite ; panneaux posés sur la scène 3D fixe.
+ * Onglet Rouler : modes en tuiles, carte et profil de l'itinéraire, départ. Garage : aperçu 3D
+ * du coureur (vues prédéfinies, rotation à la souris) piloté par onScene.
  */
 export class MainMenu {
   private readonly root: HTMLElement;
@@ -46,15 +75,21 @@ export class MainMenu {
   private readonly devices: DevicePanel;
   private readonly cb: MenuCallbacks;
   private workoutFile: { name: string; content: string } | undefined;
-  private page: Page = 'home';
+  private tab: Tab = 'ride';
+  private garageSlot: CosmeticSlot | 'colors' = 'jersey';
+  private view: GarageView = '3q';
+  private yaw = 0;
   private readonly onKey = (e: KeyboardEvent) => {
-    if (e.key === 'Escape' && this.page !== 'home' && this.root.querySelector('.menu')) this.go('home');
+    if (!this.root.querySelector('.mm') || this.root.querySelector('.mm-modal')) return;
+    const tag = (e.target as HTMLElement | null)?.tagName;
+    if (tag === 'INPUT' || tag === 'SELECT') return;
+    if (e.key === 'Escape' && this.tab !== 'ride') this.go('ride');
   };
   onSettingsChange?: (s: Settings) => void;
   /** Relance le tutoriel (onboarding) depuis le menu. */
   onTutorial?: () => void;
-  /** Ouvre le garage (progression, cosmétiques). */
-  onGarage?: () => void;
+  /** Cadrage 3D demandé par le menu : photo du groupe ou vue du garage (rotation en radians). */
+  onScene?: (view: 'poster' | GarageView, yaw: number) => void;
   /** Compte connecté (affiché dans le menu), connexion / déconnexion, synchro du profil. */
   account: { name: string; level: number } | null = null;
   onLogin?: () => void;
@@ -69,14 +104,14 @@ export class MainMenu {
     this.cb = cb;
     if (!this.s.routeId || !routes.some((r) => r.id === this.s.routeId)) this.s.routeId = routes[0]?.id ?? '';
     devices.onChange(() => {
-      if (this.page === 'devices') this.renderDevices();
-      else if (this.page === 'home') this.renderSummary();
+      if (this.tab === 'devices') this.renderDevices();
+      this.renderStatus();
     });
   }
 
-  show(page: Page = 'home'): void {
+  show(tab: Tab = 'ride'): void {
     document.addEventListener('keydown', this.onKey);
-    this.go(page);
+    this.go(tab);
   }
 
   hide(): void {
@@ -84,9 +119,10 @@ export class MainMenu {
     this.root.innerHTML = '';
   }
 
-  private go(page: Page): void {
-    this.page = page;
+  private go(tab: Tab): void {
+    this.tab = tab;
     this.render();
+    this.onScene?.(tab === 'garage' ? this.view : 'poster', tab === 'garage' ? this.yaw : 0);
   }
 
   private opt<T extends string>(value: T, current: string, label: string): string {
@@ -97,149 +133,269 @@ export class MainMenu {
     return getLang() === 'en' && r.nameEn ? r.nameEn : r.name;
   }
 
-  private routeMeta(r: RouteData): string {
-    return `${(r.lengthM / 1000).toFixed(1).replace('.', ',')} km · ${Math.round(r.elevationGainM)} m D+ · ${r.segments.length} segments${r.loop ? (fr() ? ' · boucle' : ' · loop') : ''}`;
+  private km(m: number): string {
+    return (m / 1000).toFixed(1).replace('.', fr() ? ',' : '.');
+  }
+
+  /** Durée indicative à allure d'endurance (≈ 26 km/h à plat, plus 1 h par 700 m de D+). */
+  private eta(r: RouteData): string {
+    const h = r.lengthM / 26000 + r.elevationGainM / 700;
+    const hh = Math.floor(h);
+    const mm = Math.round((h - hh) * 60);
+    return hh ? `${hh} h ${String(mm).padStart(2, '0')}` : `${mm} min`;
   }
 
   private modes(): Array<[Settings['mode'], I18nKey, string]> {
     return fr()
       ? [
           ['free', 'free', 'Rouler à son rythme, avec ou sans coureurs IA.'],
-          ['group', 'group', 'Rouler à plusieurs, le groupe reste ensemble.'],
-          ['race', 'race', 'Course en ligne avec classement à l’arrivée.'],
+          ['group', 'group', 'Rouler à plusieurs : le groupe reste ensemble.'],
+          ['race', 'race', 'Course en ligne, classement à l’arrivée.'],
           ['workout', 'workout', 'Séance structurée (.zwo, .erg, .mrc) en mode ERG.'],
           ['ftpTest', 'ftpTest', 'Test de 20 minutes pour estimer ta FTP.'],
         ]
       : [
           ['free', 'free', 'Ride at your own pace, with or without AI riders.'],
-          ['group', 'group', 'Ride together, the group stays as one.'],
-          ['race', 'race', 'Online race with results at the finish.'],
+          ['group', 'group', 'Ride together: the group stays as one.'],
+          ['race', 'race', 'Online race, results at the finish.'],
           ['workout', 'workout', 'Structured session (.zwo, .erg, .mrc) in ERG mode.'],
           ['ftpTest', 'ftpTest', '20-minute test to estimate your FTP.'],
         ];
   }
 
-  private accountBox(): string {
-    return this.account
-      ? `<div class="account-chip">● ${esc(this.account.name)} · ${fr() ? 'niveau' : 'level'} ${this.account.level} <button class="btn small" id="m-logout">${fr() ? 'Se déconnecter' : 'Sign out'}</button></div>`
-      : `<button class="btn small" id="m-login">${fr() ? 'Se connecter' : 'Sign in'}</button>`;
-  }
-
-  private head(title: string): string {
-    return `<div class="page-head"><button class="btn small" id="m-back">← ${fr() ? 'Accueil' : 'Home'}</button><h1>${title}</h1></div>`;
-  }
+  // ————————————————————————————————————————————— Cadre commun
 
   private render(): void {
-    const html: Record<Page, () => string> = {
-      home: () => this.homeHtml(),
+    const L = fr();
+    const tabs: Array<[Tab, string]> = [
+      ['ride', t('ride')],
+      ['garage', 'Garage'],
+      ['devices', t('devices')],
+      ['profile', t('profile')],
+      ['settings', t('settings')],
+    ];
+    const p = loadProgress();
+    const lp = levelProgress(p.xp);
+    const level = this.account?.level ?? lp.level;
+    const name = this.account?.name ?? this.s.name;
+    const initials = name
+      .split(/\s+/)
+      .map((w) => w[0] ?? '')
+      .join('')
+      .slice(0, 2)
+      .toUpperCase();
+    const body: Record<Tab, () => string> = {
       ride: () => this.rideHtml(),
-      devices: () => `<div class="menu"><div class="card panel page">${this.head(t('devices'))}<div id="m-devices"></div></div></div>`,
+      garage: () => this.garageHtml(),
+      devices: () =>
+        `<section class="mm-panel mm-center mm-wide"><header class="mm-head"><h2>${t('devices')}</h2><p>${L ? 'Associe ton home trainer et tes capteurs. Une seule appli à la fois par capteur Bluetooth.' : 'Pair your trainer and sensors. One app at a time per Bluetooth sensor.'}</p></header><div id="m-devices"></div></section>`,
       profile: () => this.profileHtml(),
       settings: () => this.settingsHtml(),
     };
-    this.root.innerHTML = html[this.page]();
-    if (this.page === 'devices') this.renderDevices();
-    if (this.page === 'home') this.renderSummary();
+    this.root.innerHTML = `<div class="mm mm-tab-${this.tab}">
+      <header class="mm-top">
+        <div class="mm-brand">Allez <em>Robert</em> !</div>
+        <nav class="mm-tabs">${tabs.map(([id, label]) => `<button class="mm-tab ${id === this.tab ? 'on' : ''}" data-tab="${id}">${esc(label)}</button>`).join('')}
+          <button class="mm-tab subtle" id="m-tuto">${L ? 'Tutoriel' : 'Tutorial'}</button></nav>
+        <div class="mm-right">
+          <div class="mm-music" id="m-music"></div>
+          <div class="mm-account">
+            <div class="mm-avatar" style="background:${this.s.look.jersey}">${esc(initials || 'R')}</div>
+            <div class="mm-who"><b>${esc(name)}</b>
+              <span>${L ? 'Niveau' : 'Level'} ${level}<i class="mm-xp"><i style="width:${(lp.progress * 100).toFixed(0)}%"></i></i></span></div>
+            ${this.account ? `<button class="mm-link" id="m-logout">${L ? 'Déconnexion' : 'Sign out'}</button>` : `<button class="mm-link" id="m-login">${L ? 'Se connecter' : 'Sign in'}</button>`}
+          </div>
+        </div>
+      </header>
+      ${body[this.tab]()}
+      <footer class="mm-foot">
+        <div class="mm-status" id="m-status"></div>
+        ${this.tab === 'ride' ? `<button id="m-start" class="mm-go">${t('ride')} <span>→</span></button>` : `<button class="mm-go ghost" data-tab="ride">← ${t('ride')}</button>`}
+      </footer>
+    </div>`;
+    if (this.tab === 'devices') this.renderDevices();
+    this.renderStatus();
     this.renderMusic();
     this.bind();
-    (this.root.querySelector('.nav-item, #m-back') as HTMLElement | null)?.focus({ preventScroll: true });
   }
 
-  private homeHtml(): string {
-    const nav: Array<[string, string, string]> = [
-      ['ride', t('ride'), fr() ? 'Choisir le mode et l’itinéraire' : 'Pick a mode and a route'],
-      ['devices', t('devices'), fr() ? 'Home trainer, puissance, cardio, vitesses' : 'Trainer, power, heart rate, shifters'],
-      ['profile', t('profile'), fr() ? 'Nom, poids, FTP, maillot et vélo' : 'Name, weight, FTP, jersey and bike'],
-      ['settings', t('settings'), fr() ? 'Graphismes, météo, home trainer, langue' : 'Graphics, weather, trainer, language'],
-      ['garage', 'Garage', fr() ? 'Progression et équipements' : 'Progress and gear'],
-      ['tuto', fr() ? 'Tutoriel' : 'Tutorial', fr() ? 'Découvrir les commandes' : 'Learn the controls'],
-    ];
-    return `<div class="menu"><div class="card panel home">
-      <div class="home-top"><div><h1>Allez <em>Robert</em> !</h1>
-        <p class="tagline">${fr() ? 'De Saclay à Rambouillet, entre amis.' : 'From Saclay to Rambouillet, with friends.'}</p></div>${this.accountBox()}</div>
-      <div class="home-grid">
-        <nav class="nav">${nav
-          .map(([id, label, sub], i) => `<button class="nav-item ${i === 0 ? 'primary' : ''}" data-nav="${id}"><span><b>${esc(label)}</b><span class="meta">${esc(sub)}</span></span></button>`)
-          .join('')}</nav>
-        <div class="summary" id="m-summary"></div>
-      </div>
-      <div id="m-music" class="music-bar"></div>
-      <p class="shortcuts">${t('shortcuts')}</p>
-    </div></div>`;
-  }
-
-  /** Résumé de la prochaine sortie sur l'accueil, avec le départ direct. */
-  private renderSummary(): void {
-    const box = this.root.querySelector('#m-summary');
+  /** Pied de page : état des capteurs (cliquable vers l'onglet Capteurs) et raccourcis. */
+  private renderStatus(): void {
+    const box = this.root.querySelector('#m-status');
     if (!box) return;
-    const r = this.routes.find((x) => x.id === this.s.routeId);
-    const mode = this.modes().find(([m]) => m === this.s.mode);
-    const connected = this.devices.list().filter((d) => d.ok);
-    const sim = this.devices.simulatorOn();
-    const devText = connected.length
-      ? connected.map((d) => esc(d.name)).join(', ')
+    const real = this.devices.list().filter((d) => d.ok && !d.simulated);
+    const sim = this.devices.simulatorOn() && !real.length;
+    const chips = real.length
+      ? real.map((d) => `<span class="mm-chip ok">${esc(d.name)}</span>`).join('')
       : sim
-        ? fr()
-          ? 'Simulateur (sans matériel)'
-          : 'Simulator (no hardware)'
-        : fr()
-          ? 'Aucun capteur connecté'
-          : 'No sensor connected';
-    box.innerHTML = `
-      <h2>${fr() ? 'Prochaine sortie' : 'Next ride'}</h2>
-      <div class="sum-route"><b>${r ? esc(this.routeName(r)) : '—'}</b><div class="meta">${r ? this.routeMeta(r) : ''}</div></div>
-      <div class="sum-line"><span>${t('mode')}</span><b>${mode ? esc(t(mode[1])) : ''}</b></div>
-      <div class="sum-line"><span>${t('devices')}</span><b class="${connected.length || sim ? '' : 'warn-text'}">${devText}</b></div>
-      <div class="sum-line"><span>${fr() ? 'Coureur' : 'Rider'}</span><b>${esc(this.s.name)} · ${this.s.massKg} kg · ${Math.round(this.s.ftpWatts)} W</b></div>
-      <button id="m-start" class="btn primary big">${t('ride')} →</button>`;
-    box.querySelector('#m-start')?.addEventListener('click', () => this.start());
+        ? `<span class="mm-chip sim">${fr() ? 'Simulateur (sans matériel)' : 'Simulator (no hardware)'}</span>`
+        : `<span class="mm-chip warn">${fr() ? 'Aucun capteur' : 'No sensor'}</span>`;
+    box.innerHTML = `<button class="mm-chips" title="${t('devices')}">${chips}</button><span class="mm-keys">${t('shortcuts')}</span>`;
+    box.querySelector('.mm-chips')?.addEventListener('click', () => this.go('devices'));
   }
+
+  // ————————————————————————————————————————————— Rouler
 
   private rideHtml(): string {
     const s = this.s;
-    const routeCards = this.routes
-      .map((r) => `<div class="route-card ${r.id === s.routeId ? 'selected' : ''}" data-route="${esc(r.id)}" tabindex="0"><b>${esc(this.routeName(r))}</b><div class="meta">${this.routeMeta(r)}</div></div>`)
-      .join('');
-    const modeCards = this.modes()
-      .map(([v, k, d]) => `<div class="route-card ${v === s.mode ? 'selected' : ''}" data-mode="${v}" tabindex="0"><b>${esc(t(k))}</b><div class="meta">${esc(d)}</div></div>`)
-      .join('');
-    return `<div class="menu"><div class="card panel page">
-      ${this.head(t('ride'))}
-      <h2>${t('mode')}</h2>
-      <div class="mode-grid">${modeCards}</div>
-      <div class="row" style="margin-top:10px">
-        <input id="m-invite" class="btn small ${s.mode === 'group' || s.mode === 'race' ? '' : 'hidden'}" placeholder="${fr() ? 'Code d’invitation (facultatif)' : 'Invite code (optional)'}" style="width:240px" />
-        <label class="btn small ${s.mode === 'workout' ? '' : 'hidden'}">${fr() ? 'Choisir une séance' : 'Choose a workout'} (.zwo / .erg / .mrc)<input id="m-workout" type="file" accept=".zwo,.erg,.mrc" hidden /></label>
-        <span id="m-wname" class="meta">${this.workoutFile ? esc(this.workoutFile.name) : ''}</span>
-      </div>
-      <h2>${t('route')}</h2>
-      <div class="route-grid">${routeCards}</div>
-      <div class="page-foot"><button id="m-start" class="btn primary big">${t('ride')} →</button></div>
-    </div></div>`;
+    const L = fr();
+    const r = this.routes.find((x) => x.id === s.routeId) ?? this.routes[0];
+    const mode = this.modes().find(([m]) => m === s.mode);
+    return `<section class="mm-panel mm-left">
+      <header class="mm-head"><h2>${L ? 'Que veux-tu faire ?' : 'What do you want to do?'}</h2></header>
+      <div class="mm-modes">${this.modes()
+        .map(([v, k]) => `<button class="mm-mode ${v === s.mode ? 'on' : ''}" data-mode="${v}">${ICON[v]}<span>${esc(t(k))}</span></button>`)
+        .join('')}</div>
+      <p class="mm-hint">${mode ? esc(mode[2]) : ''}</p>
+      ${
+        s.mode === 'group' || s.mode === 'race'
+          ? `<input id="m-invite" class="mm-input" placeholder="${L ? 'Code d’invitation (facultatif)' : 'Invite code (optional)'}" />`
+          : s.mode === 'workout'
+            ? `<label class="mm-file">${L ? 'Choisir une séance' : 'Choose a workout'} (.zwo / .erg / .mrc)<input id="m-workout" type="file" accept=".zwo,.erg,.mrc" hidden /><span id="m-wname">${this.workoutFile ? esc(this.workoutFile.name) : ''}</span></label>`
+            : ''
+      }
+      ${r ? this.routeCard(r) : ''}
+      <h3>${L ? 'Itinéraires' : 'Routes'}</h3>
+      <div class="mm-routes">${this.routes
+        .map(
+          (x) => `<button class="mm-route ${x.id === s.routeId ? 'on' : ''}" data-route="${esc(x.id)}">
+            <b>${esc(this.routeName(x))}</b><span>${this.km(x.lengthM)} km · ${Math.round(x.elevationGainM)} m D+</span></button>`,
+        )
+        .join('')}</div>
+      <div class="mm-conds"><span>${t(s.season)} · ${s.hour.toFixed(1).replace('.', L ? ',' : '.')} h · ${L ? 'nuages' : 'clouds'} ${Math.round(s.clouds * 100)} %${s.rain > 0.05 ? ` · ${L ? 'pluie' : 'rain'}` : ''}</span><button class="mm-link" data-tab="settings">${L ? 'Modifier' : 'Change'}</button></div>
+    </section>`;
   }
+
+  /** Carte de l'itinéraire (tracé coloré selon la pente) et profil d'altitude. */
+  private routeCard(r: RouteData): string {
+    const step = Math.max(1, Math.floor(r.points.length / 260));
+    const sel = r.points.filter((_, i) => i % step === 0);
+    let minX = Infinity;
+    let maxX = -Infinity;
+    let minZ = Infinity;
+    let maxZ = -Infinity;
+    for (const p of sel) {
+      minX = Math.min(minX, p.x);
+      maxX = Math.max(maxX, p.x);
+      minZ = Math.min(minZ, p.z);
+      maxZ = Math.max(maxZ, p.z);
+    }
+    const W = 360;
+    const H = 170;
+    const k = Math.min((W - 24) / (maxX - minX || 1), (H - 24) / (maxZ - minZ || 1));
+    const ox = (W - (maxX - minX) * k) / 2;
+    const oz = (H - (maxZ - minZ) * k) / 2;
+    const X = (x: number) => (ox + (x - minX) * k).toFixed(1);
+    const Z = (z: number) => (oz + (z - minZ) * k).toFixed(1);
+    const gradeColor = (g: number) => (g > 6 ? '#ef4444' : g > 3 ? '#f97316' : g > 1 ? '#facc15' : g < -2 ? '#60a5fa' : '#e5e7eb');
+    let lines = '';
+    for (let i = 1; i < sel.length; i++) {
+      const a = sel[i - 1] as (typeof sel)[number];
+      const b = sel[i] as (typeof sel)[number];
+      const g = ((b.y - a.y) / Math.max(1, b.d - a.d)) * 100;
+      lines += `<line x1="${X(a.x)}" y1="${Z(a.z)}" x2="${X(b.x)}" y2="${Z(b.z)}" stroke="${gradeColor(g)}"/>`;
+    }
+    const first = sel[0];
+    const PW = 360;
+    const PH = 56;
+    const ys = sel.map((p) => p.y);
+    const lo = Math.min(...ys);
+    const hi = Math.max(...ys);
+    const len = r.lengthM || 1;
+    const px = (d: number) => (d / len) * PW;
+    const py = (y: number) => (PH - 4 - ((y - lo) / (hi - lo || 1)) * (PH - 10)).toFixed(1);
+    const area = `M0,${PH} ${sel.map((p) => `L${px(p.d).toFixed(1)},${py(p.y)}`).join(' ')} L${PW},${PH} Z`;
+    return `<div class="mm-routecard">
+      <svg class="mm-map" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+        <g stroke-width="3.2" stroke-linecap="round">${lines}</g>
+        ${first ? `<circle cx="${X(first.x)}" cy="${Z(first.z)}" r="6" fill="var(--ar-accent)" stroke="#0a0e16" stroke-width="2.5"/>` : ''}
+      </svg>
+      <div class="mm-stats">
+        <div><b>${this.km(r.lengthM)}</b><span>km</span></div>
+        <div><b>${Math.round(r.elevationGainM)}</b><span>m D+</span></div>
+        <div><b>${r.maxGradePct !== undefined ? Math.round(r.maxGradePct) : '—'}</b><span>% max</span></div>
+        <div><b>${this.eta(r)}</b><span>${fr() ? 'durée env.' : 'est. time'}</span></div>
+      </div>
+      <svg class="mm-profile" viewBox="0 0 ${PW} ${PH}" preserveAspectRatio="none" aria-hidden="true">
+        <defs><linearGradient id="mm-prof" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffd23f" stop-opacity=".55"/><stop offset="1" stop-color="#ffd23f" stop-opacity=".04"/></linearGradient></defs>
+        ${r.segments.map((g) => `<rect x="${px(g.startM).toFixed(1)}" y="0" width="${Math.max(1, px(g.endM) - px(g.startM)).toFixed(1)}" height="${PH}" fill="${g.kind === 'kom' ? '#ef4444' : '#22c55e'}" opacity=".14"/>`).join('')}
+        <path d="${area}" fill="url(#mm-prof)" stroke="#ffd23f" stroke-width="1.2" vector-effect="non-scaling-stroke"/>
+      </svg>
+    </div>`;
+  }
+
+  // ————————————————————————————————————————————— Garage
+
+  private garageHtml(): string {
+    const L = fr();
+    const lang = getLang();
+    const p = loadProgress();
+    const lp = levelProgress(p.xp);
+    const slots = [...new Set(COSMETICS.map((c) => c.slot))];
+    const views: Array<[GarageView, string]> = [
+      ['3q', '3/4'],
+      ['side', L ? 'Profil' : 'Side'],
+      ['front', L ? 'Face' : 'Front'],
+      ['back', L ? 'Dos' : 'Back'],
+      ['bike', L ? 'Vélo' : 'Bike'],
+      ['cockpit', 'Cockpit'],
+    ];
+    const items =
+      this.garageSlot === 'colors'
+        ? `<div class="mm-colors">
+            <label class="field">${L ? 'Maillot' : 'Jersey'}<input id="m-jersey" type="color" value="${this.s.look.jersey}" /></label>
+            <label class="field">${L ? 'Bande du maillot' : 'Jersey stripe'}<input id="m-accent" type="color" value="${this.s.look.jerseyAccent}" /></label>
+            <label class="field">${L ? 'Casque' : 'Helmet'}<input id="m-helmet" type="color" value="${this.s.look.helmet}" /></label>
+            <label class="field">${L ? 'Vélo' : 'Bike'}<input id="m-bike" type="color" value="${this.s.look.bike}" /></label>
+            <label class="field">${L ? 'Peau' : 'Skin'}<input id="m-skin" type="color" value="${this.s.look.skin}" /></label>
+            <label class="field">${L ? 'Cheveux' : 'Hair'}<input id="m-hair" type="color" value="${this.s.look.hair}" /></label>
+          </div>`
+        : `<div class="mm-items">${COSMETICS.filter((c) => c.slot === this.garageSlot)
+            .map((c) => {
+              const locked = c.level > lp.level;
+              const on = p.equipped[c.slot] === c.id;
+              return `<button class="mm-item ${on ? 'on' : ''} ${locked ? 'locked' : ''}" data-item="${c.id}" ${locked ? 'disabled' : ''}>
+                <i style="background:${c.color ?? '#7a8594'}"></i><b>${esc(c.name[lang])}</b>
+                <span>${locked ? `🔒 ${L ? 'niveau' : 'level'} ${c.level}` : on ? (L ? 'Équipé' : 'Equipped') : L ? 'Disponible' : 'Available'}</span></button>`;
+            })
+            .join('')}</div>`;
+    return `<div class="mm-dragzone" id="m-dragzone"></div>
+      <div class="mm-views">${views.map(([v, label]) => `<button class="mm-view ${v === this.view ? 'on' : ''}" data-view="${v}">${label}</button>`).join('')}
+        <span class="mm-drag">${ICON.rotate} ${L ? 'Glisser pour tourner' : 'Drag to rotate'}</span></div>
+      <section class="mm-panel mm-side">
+        <header class="mm-head"><h2>${L ? 'Ton coureur' : 'Your rider'}</h2>
+          <div class="mm-level"><b>${L ? 'Niveau' : 'Level'} ${lp.level}</b><span>${p.xp} XP${lp.nextLevelXp ? ` / ${lp.nextLevelXp}` : ''}</span><i class="mm-xp big"><i style="width:${(lp.progress * 100).toFixed(1)}%"></i></i></div></header>
+        <div class="mm-slots">${slots.map((sl) => `<button class="mm-slot ${sl === this.garageSlot ? 'on' : ''}" data-slot="${sl}">${SLOT_LABEL[sl][lang]}</button>`).join('')}
+          <button class="mm-slot ${this.garageSlot === 'colors' ? 'on' : ''}" data-slot="colors">${L ? 'Couleurs' : 'Colours'}</button></div>
+        ${items}
+        <p class="mm-hint">${L ? 'Les équipements se débloquent en roulant (XP par kilomètre et par mètre de dénivelé).' : 'Gear unlocks as you ride (XP per kilometre and metre climbed).'}</p>
+      </section>`;
+  }
+
+  // ————————————————————————————————————————————— Profil et réglages
 
   private profileHtml(): string {
     const s = this.s;
-    return `<div class="menu"><div class="card panel page narrow">
-      ${this.head(t('profile'))}
-      <div class="grid3" style="margin-top:18px">
+    const L = fr();
+    const wkg = s.ftpWatts / s.massKg;
+    return `<section class="mm-panel mm-center">
+      <header class="mm-head"><h2>${t('profile')}</h2><p>${L ? 'Le poids et la taille servent à la physique (montées, prise au vent) ; la FTP règle les séances et les zones.' : 'Weight and height drive the physics (climbs, drag); FTP sets workouts and zones.'}</p></header>
+      <div class="mm-bigstats"><div><b>${wkg.toFixed(1).replace('.', L ? ',' : '.')}</b><span>W/kg</span></div><div><b>${Math.round(s.ftpWatts)}</b><span>W FTP</span></div><div><b>${s.massKg}</b><span>kg</span></div></div>
+      <div class="grid2b">
         <label class="field">${t('name')}<input id="m-name" value="${esc(s.name)}" /></label>
         <label class="field">${t('weight')}<input id="m-mass" type="number" min="30" max="200" step="0.5" value="${s.massKg}" /></label>
         <label class="field">${t('height')}<input id="m-height" type="number" min="120" max="220" value="${s.heightCm}" /></label>
         <label class="field">${t('ftp')}<input id="m-ftp" type="number" min="50" max="600" value="${s.ftpWatts}" /></label>
-        <label class="field">${fr() ? 'Maillot' : 'Jersey'}<input id="m-jersey" type="color" value="${s.look.jersey}" /></label>
-        <label class="field">${fr() ? 'Vélo' : 'Bike'}<input id="m-bike" type="color" value="${s.look.bike}" /></label>
       </div>
-      <p class="meta" style="margin-top:16px">${fr() ? 'Le poids et la taille servent à la physique (vitesse en montée, prise au vent) ; la FTP règle les séances et les zones.' : 'Weight and height drive the physics (climbing speed, drag); FTP sets workouts and zones.'}</p>
-    </div></div>`;
+    </section>`;
   }
 
   private settingsHtml(): string {
     const s = this.s;
     const L = fr();
-    return `<div class="menu"><div class="card panel page">
-      ${this.head(t('settings'))}
-      <h2>${L ? 'Graphismes et monde' : 'Graphics and world'}</h2>
+    return `<section class="mm-panel mm-center mm-wide">
+      <header class="mm-head"><h2>${t('settings')}</h2></header>
+      <h3>${L ? 'Graphismes et conditions de la sortie' : 'Graphics and ride conditions'}</h3>
       <div class="grid3">
         <label class="field">${t('quality')}<select id="m-quality">${(['low', 'medium', 'high', 'ultra'] as const).map((q) => this.opt(q, s.quality, t(q))).join('')}</select></label>
         <label class="field">${t('season')}<select id="m-season">${(['spring', 'summer', 'autumn', 'winter'] as const).map((q) => this.opt(q, s.season, t(q))).join('')}</select></label>
@@ -248,116 +404,166 @@ export class MainMenu {
         <label class="field">${L ? 'Pluie' : 'Rain'}<input id="m-rain" type="range" min="0" max="1" step="0.05" value="${s.rain}" /></label>
         <label class="field">${L ? 'Brouillard' : 'Fog'}<input id="m-fog" type="range" min="0" max="1" step="0.05" value="${s.fog}" /></label>
       </div>
-      <h2>${L ? 'Home trainer' : 'Smart trainer'}</h2>
+      <h3>${L ? 'Home trainer' : 'Smart trainer'}</h3>
       <div class="grid3">
         <label class="field">${t('difficulty')} <span id="m-diffv">${Math.round(s.trainerDifficulty * 100)} %</span><input id="m-diff" type="range" min="0" max="1" step="0.05" value="${s.trainerDifficulty}" /></label>
         <label class="field">Transmission<select id="m-drive">${this.opt('cog', s.drivetrain, L ? 'Zwift Cog (vitesses virtuelles)' : 'Zwift Cog (virtual shifting)')}${this.opt('cassette', s.drivetrain, L ? 'Cassette réelle' : 'Real cassette')}</select></label>
         <label class="field">${L ? 'Lissage puissance' : 'Power smoothing'}<select id="m-smooth">${this.opt('0', s.smoothing3s ? '1' : '0', L ? 'Non' : 'Off')}${this.opt('1', s.smoothing3s ? '1' : '0', '3 s')}</select></label>
       </div>
-      <h2>${L ? 'Coureurs IA' : 'AI riders'}</h2>
+      <h3>${L ? 'Coureurs IA' : 'AI riders'}</h3>
       <div class="grid3">
         <label class="field">${L ? 'Nombre' : 'Count'}<input id="m-ai" type="number" min="0" max="19" value="${s.aiRiders}" /></label>
         <label class="field">${L ? 'Niveau' : 'Level'}<select id="m-ailevel">${this.opt('0.8', String(s.aiLevel), '80 % FTP')}${this.opt('1', String(s.aiLevel), '100 % FTP')}${this.opt('1.15', String(s.aiLevel), '115 % FTP')}</select></label>
       </div>
-      <h2>${L ? 'Musique' : 'Music'}</h2>
-      <div id="m-music" class="music-bar"></div>
-      <h2>${L ? 'Langue et envoi des sorties' : 'Language and ride upload'}</h2>
+      <h3>${L ? 'Musique' : 'Music'}</h3>
+      <div id="m-music-settings" class="mm-musicset"></div>
+      <h3>${L ? 'Langue et envoi des sorties' : 'Language and ride upload'}</h3>
       <div class="grid3">
         <label class="field">${t('language')}<select id="m-lang">${this.opt('fr', s.lang, 'Français')}${this.opt('en', s.lang, 'English')}</select></label>
         <label class="field">Strava<select id="m-strava">${this.opt('skip', s.skipStrava ? 'skip' : 'send', L ? 'Ne pas envoyer (Garmin)' : 'Don’t upload (Garmin)')}${this.opt('send', s.skipStrava ? 'skip' : 'send', L ? 'Envoyer' : 'Upload')}</select></label>
       </div>
-    </div></div>`;
+    </section>`;
   }
 
-  /** Barre musique : musique du jeu (marche / arrêt, volume) et télécommande Spotify. */
+  // ————————————————————————————————————————————— Musique et Spotify
+
+  /** Lecteur compact de la barre du haut, et section complète dans les réglages. */
   renderMusic(): void {
-    const box = this.root.querySelector('#m-music');
-    if (!box) return;
     const L = fr();
-    const sp = !spotify.available
-      ? this.page === 'settings'
-        ? `<span class="meta">${L ? 'Spotify : renseigner VITE_SPOTIFY_CLIENT_ID (voir le README) pour pouvoir connecter son compte.' : 'Spotify: set VITE_SPOTIFY_CLIENT_ID (see README) to link an account.'}</span>`
-        : ''
-      : spotify.connected
-        ? `<span class="spotify"><span class="sp-dot">●</span> <span id="sp-now" class="meta">Spotify</span>
-            <button class="btn small" id="sp-prev" title="${L ? 'Précédent' : 'Previous'}">⏮</button><button class="btn small" id="sp-play" title="${L ? 'Lecture / pause' : 'Play / pause'}">⏯</button><button class="btn small" id="sp-next" title="${L ? 'Suivant' : 'Next'}">⏭</button>
-            ${this.page === 'settings' ? `<button class="btn small" id="sp-logout">${L ? 'Déconnecter Spotify' : 'Disconnect Spotify'}</button>` : ''}</span>`
-        : `<button class="btn small spotify-btn" id="sp-login">${L ? 'Connecter Spotify' : 'Connect Spotify'}</button>`;
-    box.innerHTML = `
-      <button class="btn small ${music.enabled ? 'on' : ''}" id="mu-toggle">♪ ${L ? 'Musique' : 'Music'} : ${music.enabled ? (L ? 'activée' : 'on') : L ? 'coupée' : 'off'}</button>
-      <input id="mu-vol" type="range" min="0" max="1" step="0.05" value="${music.volume}" title="${L ? 'Volume de la musique' : 'Music volume'}" ${music.enabled ? '' : 'disabled'} />
-      ${music.enabled && music.current ? `<span class="meta">♪ ${esc(music.current.title)}</span><button class="btn small" id="mu-next" title="${L ? 'Morceau suivant' : 'Next track'}">⏭</button>` : ''}
-      ${sp}`;
-    box.querySelector('#mu-toggle')?.addEventListener('click', () => {
-      music.toggle();
-      this.renderMusic();
-    });
-    box.querySelector('#mu-next')?.addEventListener('click', () => music.next());
-    box.querySelector('#mu-vol')?.addEventListener('input', (e) => music.setVolume(Number((e.target as HTMLInputElement).value)));
-    box.querySelector('#sp-login')?.addEventListener('click', () => void spotify.login());
-    box.querySelector('#sp-logout')?.addEventListener('click', () => {
-      spotify.logout();
-      this.renderMusic();
-    });
-    const refresh = () => setTimeout(() => void this.refreshNowPlaying(), 600);
-    box.querySelector('#sp-play')?.addEventListener('click', () => void spotify.togglePlay().then(refresh));
-    box.querySelector('#sp-next')?.addEventListener('click', () => void spotify.next().then(refresh));
-    box.querySelector('#sp-prev')?.addEventListener('click', () => void spotify.previous().then(refresh));
-    if (spotify.connected) void this.refreshNowPlaying();
+    const top = this.root.querySelector('#m-music');
+    if (top) {
+      const cur = music.enabled && music.current ? esc(music.current.title) : L ? 'Musique coupée' : 'Music off';
+      top.innerHTML = `<button class="mm-ico ${music.enabled || spotify.connected ? 'on' : ''}" id="mu-toggle" title="${L ? 'Musique marche / arrêt (B)' : 'Music on / off (B)'}">${ICON.music}</button>
+        <span class="mm-now" id="mu-now">${spotify.connected ? '<i class="sp">●</i> Spotify' : cur}</span>
+        <button class="mm-ico" id="mu-next" title="${L ? 'Morceau suivant (N)' : 'Next track (N)'}">${ICON.next}</button>
+        ${spotify.connected ? '' : `<button class="mm-spotify" id="sp-login" title="${L ? 'Connecter ton compte Spotify' : 'Connect your Spotify account'}"><i class="sp">●</i> Spotify</button>`}`;
+      top.querySelector('#mu-toggle')?.addEventListener('click', () => {
+        if (spotify.connected) void spotify.togglePlay().then(() => setTimeout(() => void this.refreshNowPlaying(), 600));
+        else music.toggle();
+        this.renderMusic();
+      });
+      top.querySelector('#mu-next')?.addEventListener('click', () => {
+        if (spotify.connected) void spotify.next().then(() => setTimeout(() => void this.refreshNowPlaying(), 600));
+        else music.next();
+      });
+      top.querySelector('#sp-login')?.addEventListener('click', () => this.spotifyConnect());
+      if (spotify.connected) void this.refreshNowPlaying();
+    }
+    const set = this.root.querySelector('#m-music-settings');
+    if (set) {
+      set.innerHTML = `<button class="btn small ${music.enabled ? 'on' : ''}" id="mu-toggle2">♪ ${L ? 'Musique du jeu' : 'Game music'} : ${music.enabled ? (L ? 'activée' : 'on') : L ? 'coupée' : 'off'}</button>
+        <label class="mm-vol">Volume<input id="mu-vol" type="range" min="0" max="1" step="0.05" value="${music.volume}" /></label>
+        ${spotify.connected ? `<button class="btn small" id="sp-logout">${L ? 'Déconnecter Spotify' : 'Disconnect Spotify'}</button>` : `<button class="btn small mm-spotify" id="sp-login2"><i class="sp">●</i> ${L ? 'Connecter Spotify' : 'Connect Spotify'}</button>`}`;
+      set.querySelector('#mu-toggle2')?.addEventListener('click', () => {
+        music.toggle();
+        this.renderMusic();
+      });
+      set.querySelector('#mu-vol')?.addEventListener('input', (e) => music.setVolume(Number((e.target as HTMLInputElement).value)));
+      set.querySelector('#sp-login2')?.addEventListener('click', () => this.spotifyConnect());
+      set.querySelector('#sp-logout')?.addEventListener('click', () => {
+        spotify.logout();
+        this.renderMusic();
+      });
+    }
   }
 
-  /** Met à jour le titre Spotify affiché (appelé aussi par le suivi périodique). */
+  /** Titre Spotify affiché (appelé aussi par le suivi périodique). */
   async refreshNowPlaying(): Promise<void> {
-    const el = this.root.querySelector('#sp-now');
+    if (!spotify.connected) return;
+    const el = this.root.querySelector('#mu-now');
     if (!el) return;
     const np = await spotify.nowPlaying();
-    el.textContent = np ? `${np.isPlaying ? '' : '⏸ '}${np.title} — ${np.artist}` : fr() ? 'Rien en lecture (lance Spotify sur un appareil)' : 'Nothing playing (start Spotify on a device)';
+    el.innerHTML = `<i class="sp">●</i> ${np ? `${np.isPlaying ? '' : '⏸ '}${esc(np.title)} — ${esc(np.artist)}` : fr() ? 'Spotify : rien en lecture' : 'Spotify: nothing playing'}`;
   }
 
-  private start(): void {
-    const invite = (this.root.querySelector('#m-invite') as HTMLInputElement | null)?.value.trim();
-    this.cb.onStart(this.s, { ...(this.workoutFile ? { workoutFile: this.workoutFile } : {}), ...(invite ? { inviteCode: invite } : {}) });
+  /** Connexion Spotify ; la première fois, assistant pour déclarer l'application (identifiant client). */
+  private spotifyConnect(): void {
+    if (spotify.available) {
+      void spotify.login();
+      return;
+    }
+    const L = fr();
+    const uri = redirectUri();
+    const local = /localhost/.test(uri);
+    const dlg = document.createElement('div');
+    dlg.className = 'mm-modal';
+    dlg.innerHTML = `<div class="mm-dialog">
+      <h2><i class="sp">●</i> ${L ? 'Connecter Spotify' : 'Connect Spotify'}</h2>
+      <p>${L ? 'Une seule fois : Spotify demande que le jeu soit déclaré comme « application » sur ton compte développeur (gratuit, 2 minutes).' : 'One time only: Spotify needs the game declared as an “app” on your developer account (free, 2 minutes).'}</p>
+      <ol>
+        <li>${L ? 'Ouvre' : 'Open'} <a href="https://developer.spotify.com/dashboard" target="_blank" rel="noopener">developer.spotify.com/dashboard</a> ${L ? 'et clique « Create app ».' : 'and click “Create app”.'}</li>
+        <li>${L ? 'Nom : « Allez Robert » ; API : coche « Web API ».' : 'Name: “Allez Robert”; API: tick “Web API”.'}</li>
+        <li>${L ? 'Redirect URI, à copier exactement :' : 'Redirect URI, copy exactly:'} <code>${esc(uri)}</code> <button class="mm-link" id="sp-copy">${L ? 'Copier' : 'Copy'}</button></li>
+        <li>${L ? 'Enregistre, puis colle ici le « Client ID » :' : 'Save, then paste the “Client ID” here:'}</li>
+      </ol>
+      <input id="sp-id" class="mm-input" placeholder="Client ID" autocomplete="off" spellcheck="false" />
+      ${local ? `<p class="warn-text">${L ? 'Spotify refuse les adresses « localhost » : en local, ouvre le jeu via http://127.0.0.1:5173 avant de te connecter.' : 'Spotify rejects “localhost” addresses: locally, open the game at http://127.0.0.1:5173 before signing in.'}</p>` : ''}
+      <p class="mm-hint">${L ? 'La musique sort de ton appli Spotify (ordinateur ou téléphone) ; lecture / pause et morceau suivant demandent un compte Premium.' : 'Music plays from your Spotify app (computer or phone); play / pause and next need Premium.'}</p>
+      <div class="mm-dialog-foot"><button class="btn" id="sp-cancel">${L ? 'Annuler' : 'Cancel'}</button><button class="btn primary" id="sp-ok">${L ? 'Se connecter à Spotify' : 'Sign in to Spotify'}</button></div>
+    </div>`;
+    this.root.appendChild(dlg);
+    const close = () => dlg.remove();
+    dlg.querySelector('#sp-cancel')?.addEventListener('click', close);
+    dlg.addEventListener('click', (e) => e.target === dlg && close());
+    dlg.addEventListener('keydown', (e) => e.key === 'Escape' && close());
+    dlg.querySelector('#sp-copy')?.addEventListener('click', () => void navigator.clipboard?.writeText(uri));
+    dlg.querySelector('#sp-ok')?.addEventListener('click', () => {
+      const input = dlg.querySelector('#sp-id') as HTMLInputElement;
+      if (!spotify.setClientId(input.value)) {
+        input.classList.add('bad');
+        input.focus();
+        return;
+      }
+      void spotify.login();
+    });
+    (dlg.querySelector('#sp-id') as HTMLInputElement).focus();
   }
+
+  // ————————————————————————————————————————————— Capteurs
 
   private renderDevices(): void {
     const box = this.root.querySelector('#m-devices');
     if (!box) return;
+    const L = fr();
     const list = this.devices.list();
     const transports = this.devices.transports();
-    const roles: Array<[Parameters<DevicePanel['pair']>[0], I18nKey]> = [
-      ['trainer', 'trainer'],
-      ['power', 'powerMeter'],
-      ['heartRate', 'hrm'],
-      ['shifter', 'shifter'],
-      ['fan', 'fan'],
+    const roles: Array<[Role, I18nKey, string]> = [
+      ['trainer', 'trainer', L ? 'Résistance pilotée (FTMS, FE-C)' : 'Controlled resistance (FTMS, FE-C)'],
+      ['power', 'powerMeter', L ? 'Pédales ou manivelle (Assioma…)' : 'Pedals or crank (Assioma…)'],
+      ['heartRate', 'hrm', L ? 'Ceinture ou montre (TICKR…)' : 'Strap or watch (TICKR…)'],
+      ['shifter', 'shifter', L ? 'Manettes (Click, AXS, D-Fly)' : 'Controllers (Click, AXS, D-Fly)'],
+      ['fan', 'fan', L ? 'Ventilateur connecté' : 'Smart fan'],
     ];
-    box.innerHTML = `
-      <div class="device-list" style="margin-top:18px">
-        ${list
-          .map(
-            (d) => `<div class="device"><div><b>${esc(d.name)}</b> <span class="meta">· ${esc(d.role)}</span><div class="meta">${esc(d.state)}${d.detail ? ` · ${esc(d.detail)}` : ''}</div></div>
-            <button class="btn small" data-forget="${esc(d.id)}">✕</button></div>`,
-          )
-          .join('')}
-        <div class="row">
-          <select id="m-transport" class="btn small">${transports.map((tr) => `<option value="${esc(tr.id)}">${esc(tr.label)}</option>`).join('')}</select>
-          ${roles.map(([role, k]) => `<button class="btn small" data-pair="${role}">+ ${t(k)}</button>`).join('')}
+    const tile = ([role, k, sub]: [Role, I18nKey, string]) => {
+      const ds = list.filter((d) => d.roleIds?.includes(role));
+      const ok = ds.some((d) => d.ok);
+      return `<div class="mm-dev ${ok ? 'ok' : ds.length ? 'pending' : ''}">
+        <div class="mm-dev-ico">${ICON[role as keyof typeof ICON] ?? ''}</div>
+        <div class="mm-dev-body"><b>${esc(t(k))}</b>
+          ${ds.length ? ds.map((d) => `<span class="mm-dev-name">${esc(d.name)} · ${esc(d.state)}${d.detail ? ` · ${esc(d.detail)}` : ''} <button class="mm-link" data-forget="${esc(d.id)}">${L ? 'oublier' : 'forget'}</button></span>`).join('') : `<span>${esc(sub)}</span>`}
         </div>
-        <label class="row" style="font-size:13px;color:var(--ar-muted)"><input type="checkbox" id="m-guest" ${this.s.guest ? 'checked' : ''}/> ${fr() ? 'Invité sans matériel (clavier / manette, hors classements)' : 'Guest without hardware (keyboard / gamepad, unranked)'}</label>
-        <label class="row" style="font-size:13px;color:var(--ar-muted)"><input type="checkbox" id="m-sim" ${this.devices.simulatorOn() ? 'checked' : ''}/> ${t('simulator')} (${fr() ? 'rouler sans matériel' : 'ride without hardware'})</label>
-        <div id="m-adapters"></div>
-        ${this.devices
-          .warnings()
-          .map((w) => `<div class="warning">${esc(w)}</div>`)
-          .join('')}
-        <div class="warning" style="background:rgba(59,130,246,.12);border-color:rgba(59,130,246,.35);color:#bfdbfe">${t('oneAppAtATime')}<br/>${t('edgeWarn')}</div>
+        <button class="btn small ${ok ? '' : 'primary'}" data-pair="${role}">${ok ? (L ? 'Changer' : 'Change') : L ? 'Associer' : 'Pair'}</button>
       </div>`;
+    };
+    box.innerHTML = `
+      <div class="mm-devgrid">${roles.map(tile).join('')}</div>
+      <div class="mm-devopts">
+        <label class="field">${L ? 'Connexion' : 'Connection'}<select id="m-transport">${transports.map((tr) => `<option value="${esc(tr.id)}">${esc(tr.label)}</option>`).join('')}</select></label>
+        <div id="m-adapters"></div>
+        <label class="mm-check"><input type="checkbox" id="m-sim" ${this.devices.simulatorOn() ? 'checked' : ''}/> ${t('simulator')} (${L ? 'rouler sans matériel' : 'ride without hardware'})</label>
+        <label class="mm-check"><input type="checkbox" id="m-guest" ${this.s.guest ? 'checked' : ''}/> ${L ? 'Invité sans matériel (clavier / manette, hors classements)' : 'Guest without hardware (keyboard / gamepad, unranked)'}</label>
+      </div>
+      ${this.devices
+        .warnings()
+        .map((w) => `<div class="warning">${esc(w)}</div>`)
+        .join('')}
+      <div class="mm-note">${t('oneAppAtATime')}<br/>${t('edgeWarn')}</div>`;
     box.querySelectorAll<HTMLButtonElement>('[data-pair]').forEach((b) =>
       b.addEventListener('click', async () => {
         const transport = (box.querySelector('#m-transport') as HTMLSelectElement).value;
         b.disabled = true;
         try {
-          await this.devices.pair(b.dataset.pair as Parameters<DevicePanel['pair']>[0], transport);
+          await this.devices.pair(b.dataset.pair as Role, transport);
         } catch (e) {
           alert(String((e as Error).message ?? e));
         } finally {
@@ -374,16 +580,24 @@ export class MainMenu {
     (box.querySelector('#m-sim') as HTMLInputElement).addEventListener('change', (e) => {
       this.devices.useSimulator((e.target as HTMLInputElement).checked);
       this.renderDevices();
+      this.renderStatus();
     });
     if (this.devices.adapters) {
       void this.devices.adapters().then((ads) => {
         const el = box.querySelector('#m-adapters');
         if (!el || ads.length < 2) return;
-        el.innerHTML = `<label class="field">Adaptateur Bluetooth<select id="m-adapter">${ads.map((a) => `<option value="${esc(a.id)}" ${a.isDefault ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}</select></label>`;
+        el.innerHTML = `<label class="field">${L ? 'Adaptateur Bluetooth' : 'Bluetooth adapter'}<select id="m-adapter">${ads.map((a) => `<option value="${esc(a.id)}" ${a.isDefault ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}</select></label>`;
         el.querySelector('select')?.addEventListener('change', (e) => void this.devices.selectAdapter?.((e.target as HTMLSelectElement).value));
       });
     }
   }
+
+  private start(): void {
+    const invite = (this.root.querySelector('#m-invite') as HTMLInputElement | null)?.value.trim();
+    this.cb.onStart(this.s, { ...(this.workoutFile ? { workoutFile: this.workoutFile } : {}), ...(invite ? { inviteCode: invite } : {}) });
+  }
+
+  // ————————————————————————————————————————————— Événements
 
   private bind(): void {
     const s = this.s;
@@ -396,37 +610,26 @@ export class MainMenu {
       this.onSettingsChange?.(s);
       this.onSettingsSaved?.(s);
     };
-    // Navigation.
-    this.root.querySelectorAll<HTMLElement>('[data-nav]').forEach((el) =>
-      el.addEventListener('click', () => {
-        const id = el.dataset.nav as string;
-        if (id === 'garage') this.onGarage?.();
-        else if (id === 'tuto') this.onTutorial?.();
-        else this.go(id as Page);
-      }),
-    );
-    on('m-back', 'click', () => this.go('home'));
+    this.root.querySelectorAll<HTMLElement>('[data-tab]').forEach((el) => el.addEventListener('click', () => this.go(el.dataset.tab as Tab)));
+    on('m-tuto', 'click', () => this.onTutorial?.());
     on('m-login', 'click', () => this.onLogin?.());
     on('m-logout', 'click', () => this.onLogout?.());
-    if (this.page === 'ride') on('m-start', 'click', () => this.start());
-    // Choix par cartes (souris, Entrée ou Espace).
-    const cards = (attr: 'route' | 'mode', apply: (v: string) => void) =>
-      this.root.querySelectorAll<HTMLElement>(`[data-${attr}]`).forEach((el) => {
-        const pick = () => {
-          apply(el.dataset[attr] as string);
-          changed();
-          this.render();
-        };
-        el.addEventListener('click', pick);
-        el.addEventListener('keydown', (e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            pick();
-          }
-        });
-      });
-    cards('route', (v) => (s.routeId = v));
-    cards('mode', (v) => (s.mode = v as Settings['mode']));
+    on('m-start', 'click', () => this.start());
+    // Rouler : modes et itinéraires.
+    this.root.querySelectorAll<HTMLElement>('[data-mode]').forEach((el) =>
+      el.addEventListener('click', () => {
+        s.mode = el.dataset.mode as Settings['mode'];
+        changed();
+        this.render();
+      }),
+    );
+    this.root.querySelectorAll<HTMLElement>('[data-route]').forEach((el) =>
+      el.addEventListener('click', () => {
+        s.routeId = el.dataset.route as string;
+        changed();
+        this.render();
+      }),
+    );
     on<HTMLInputElement>('m-workout', 'change', async (el) => {
       const f = el.files?.[0];
       if (!f) return;
@@ -434,11 +637,69 @@ export class MainMenu {
       const n = this.root.querySelector('#m-wname');
       if (n) n.textContent = f.name;
     });
+    // Garage : catégories, objets, vues et rotation de l'aperçu.
+    this.root.querySelectorAll<HTMLElement>('[data-slot]').forEach((el) =>
+      el.addEventListener('click', () => {
+        this.garageSlot = el.dataset.slot as CosmeticSlot | 'colors';
+        if (this.garageSlot !== 'colors') {
+          this.view = SLOT_VIEW[this.garageSlot];
+          this.yaw = 0;
+        }
+        this.render();
+        this.onScene?.(this.view, this.yaw);
+      }),
+    );
+    this.root.querySelectorAll<HTMLElement>('[data-item]').forEach((el) =>
+      el.addEventListener('click', () => {
+        const item = COSMETICS.find((c) => c.id === el.dataset.item);
+        if (!item) return;
+        equipItem(item, s);
+        changed();
+        this.render();
+      }),
+    );
+    this.root.querySelectorAll<HTMLElement>('[data-view]').forEach((el) =>
+      el.addEventListener('click', () => {
+        this.view = el.dataset.view as GarageView;
+        this.yaw = 0;
+        this.root.querySelectorAll('[data-view]').forEach((b) => b.classList.toggle('on', b === el));
+        this.onScene?.(this.view, this.yaw);
+      }),
+    );
+    const zone = this.root.querySelector<HTMLElement>('#m-dragzone');
+    if (zone) {
+      let lastX: number | null = null;
+      zone.addEventListener('pointerdown', (e) => {
+        lastX = e.clientX;
+        zone.setPointerCapture(e.pointerId);
+      });
+      zone.addEventListener('pointermove', (e) => {
+        if (lastX === null) return;
+        this.yaw -= (e.clientX - lastX) * 0.008;
+        lastX = e.clientX;
+        this.onScene?.(this.view, this.yaw);
+      });
+      const up = () => (lastX = null);
+      zone.addEventListener('pointerup', up);
+      zone.addEventListener('pointercancel', up);
+    }
+    const color = (id: string, key: 'jersey' | 'jerseyAccent' | 'helmet' | 'bike' | 'skin' | 'hair') =>
+      on<HTMLInputElement>(id, 'input', (el) => {
+        s.look = { ...s.look, [key]: el.value };
+        changed();
+      });
+    color('m-jersey', 'jersey');
+    color('m-accent', 'jerseyAccent');
+    color('m-helmet', 'helmet');
+    color('m-bike', 'bike');
+    color('m-skin', 'skin');
+    color('m-hair', 'hair');
     // Profil.
     const num = (id: string, key: 'massKg' | 'ftpWatts' | 'heightCm' | 'aiRiders') =>
       on<HTMLInputElement>(id, 'change', (el) => {
         s[key] = Number(el.value);
         changed();
+        if (this.tab === 'profile') this.render();
       });
     num('m-mass', 'massKg');
     num('m-ftp', 'ftpWatts');
@@ -447,14 +708,7 @@ export class MainMenu {
     on<HTMLInputElement>('m-name', 'change', (el) => {
       s.name = el.value.trim().slice(0, 24) || 'Robert';
       changed();
-    });
-    on<HTMLInputElement>('m-jersey', 'input', (el) => {
-      s.look = { ...s.look, jersey: el.value };
-      changed();
-    });
-    on<HTMLInputElement>('m-bike', 'input', (el) => {
-      s.look = { ...s.look, bike: el.value };
-      changed();
+      this.render();
     });
     // Réglages.
     on<HTMLSelectElement>('m-quality', 'change', (el) => {

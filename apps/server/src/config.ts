@@ -97,6 +97,8 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     .filter(Boolean);
   const publicOrigin = new URL(c.PUBLIC_URL).origin;
   if (!corsOrigins.includes(publicOrigin)) corsOrigins.push(publicOrigin);
+  // Développement : le client peut aussi être ouvert via 127.0.0.1 (adresse exigée par Spotify).
+  if (c.NODE_ENV !== 'production' && publicOrigin.includes('//localhost')) corsOrigins.push(publicOrigin.replace('//localhost', '//127.0.0.1'));
   const cookieSecure = c.COOKIE_SECURE === 'auto' ? c.PUBLIC_URL.startsWith('https://') : c.COOKIE_SECURE;
   return { ...c, PUBLIC_URL: c.PUBLIC_URL.replace(/\/$/, ''), apiPublicUrl, corsOrigins, cookieSecure };
 }

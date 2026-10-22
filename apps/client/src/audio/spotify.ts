@@ -4,13 +4,14 @@
  * lecture / pause, titre suivant / précédent. La musique sort de l'appli Spotify (ordinateur,
  * téléphone, enceinte), pas du jeu. Les commandes de lecture exigent un compte Premium.
  *
- * Configuration : VITE_SPOTIFY_CLIENT_ID (application créée sur developer.spotify.com) et, si
- * besoin, VITE_SPOTIFY_REDIRECT_URI (par défaut l'origine du jeu + « / », à déclarer à
- * l'identique dans l'application Spotify ; Spotify refuse « localhost », utiliser 127.0.0.1).
+ * Configuration : identifiant d'une application créée sur developer.spotify.com, saisi une fois
+ * dans le jeu (bouton « Connecter Spotify », gardé dans le navigateur) ou fourni au build par
+ * VITE_SPOTIFY_CLIENT_ID. Adresse de retour : VITE_SPOTIFY_REDIRECT_URI, sinon l'origine du
+ * jeu + « / », à déclarer à l'identique dans l'application Spotify (Spotify refuse « localhost »).
  */
 
 const env = (import.meta as unknown as { env: Record<string, string | undefined> }).env;
-const CLIENT_ID = env.VITE_SPOTIFY_CLIENT_ID ?? '';
+const clientId = () => env.VITE_SPOTIFY_CLIENT_ID ?? localStorage.getItem('ar.spotify.clientId') ?? '';
 const SCOPES = 'user-read-playback-state user-modify-playback-state user-read-currently-playing';
 const KEY = 'ar.spotify';
 
@@ -27,7 +28,7 @@ export interface NowPlaying {
   image?: string;
 }
 
-const redirectUri = () => env.VITE_SPOTIFY_REDIRECT_URI ?? `${location.origin}/`;
+export const redirectUri = () => env.VITE_SPOTIFY_REDIRECT_URI ?? `${location.origin}/`;
 
 function b64url(bytes: Uint8Array): string {
   return btoa(String.fromCharCode(...bytes))
@@ -57,7 +58,7 @@ async function tokenRequest(body: Record<string, string>): Promise<Tokens | null
   const r = await fetch('https://accounts.spotify.com/api/token', {
     method: 'POST',
     headers: { 'content-type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({ client_id: CLIENT_ID, ...body }),
+    body: new URLSearchParams({ client_id: clientId(), ...body }),
   }).catch(() => null);
   if (!r?.ok) return null;
   const j = (await r.json()) as { access_token: string; refresh_token?: string; expires_in: number };
@@ -70,7 +71,15 @@ async function tokenRequest(body: Record<string, string>): Promise<Tokens | null
 class SpotifyRemote {
   /** Le jeu a un identifiant d'application Spotify configuré. */
   get available(): boolean {
-    return CLIENT_ID !== '';
+    return clientId() !== '';
+  }
+
+  /** Identifiant saisi dans le jeu (32 caractères hexadécimaux). */
+  setClientId(id: string): boolean {
+    const v = id.trim();
+    if (!/^[0-9a-f]{32}$/i.test(v)) return false;
+    localStorage.setItem('ar.spotify.clientId', v);
+    return true;
   }
 
   get connected(): boolean {
@@ -85,7 +94,7 @@ class SpotifyRemote {
     sessionStorage.setItem('ar.spotify.state', state);
     const challenge = b64url(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier))));
     const q = new URLSearchParams({
-      client_id: CLIENT_ID,
+      client_id: clientId(),
       response_type: 'code',
       redirect_uri: redirectUri(),
       scope: SCOPES,

@@ -21,10 +21,11 @@ import { spotify } from './audio/spotify.ts';
 import { t, setLang, getLang } from './i18n/index.ts';
 import { loadSettings, saveSettings, type Settings } from './ui/settings.ts';
 import { MainMenu } from './ui/menu.ts';
+import { PosterScene, choosePosterSpot, POSTER_HOUR } from './ui/poster.ts';
 import { showPause, showSummary, rideToFit } from './ui/ridepanels.ts';
 import { splatAt } from './world/splat.ts';
 import { Onboarding, RideTutorial } from './onboarding/onboarding.ts';
-import { showGarage, awardRide } from './ui/garage.ts';
+import { awardRide } from './ui/garage.ts';
 import { fetchMe, showLogin, applyProfile, logout, pushProfile, type Me } from './ui/account.ts';
 import { RideSequences } from './game/sequences.ts';
 import { GuestInputSource } from './game/guest.ts';
@@ -76,24 +77,57 @@ async function boot(): Promise<void> {
   // Avatars Blender (glTF) chargés une fois ; repli procédural automatique en cas d'échec.
   const [scene] = await Promise.all([loadScene(settings), GltfRiderAvatar.load(), loadVehicleModels()]);
   const devices = createDeviceLayer();
-  const start = scene.track.positionAt(0, 1.2);
-  await scene.world.preload(new THREE.Vector3(start.x, start.y, start.z));
+  const autostart = new URLSearchParams(location.search).has('autostart');
+  const env = scene.world.env.state;
+  /** Ciel et lumière de la sortie (réglages du coureur). */
+  const applyEnv = (s: Settings) => {
+    env.hour = s.hour;
+    env.weather.clouds = s.clouds;
+    env.weather.rain = s.rain;
+    env.weather.fog = s.fog;
+    if (env.season !== s.season) scene.world.setSeason(s.season);
+  };
 
-  // Plan d'attente derrière le menu : orbite lente autour du départ.
-  let orbit = 0;
-  let inMenu = true;
+  // Image d'accueil fixe : un lieu ouvert de l'itinéraire, soleil du matin, le groupe face à l'objectif.
+  // Rendue sur quelques images (lissage temporel) puis plus rien ne bouge ; nouveau rendu au redimensionnement.
+  let inMenu = !autostart;
+  const poster = new PosterScene(scene.engine, scene.world, scene.track);
+  let posterFrames = 0;
   const focus = new THREE.Vector3();
+  const renderPoster = () => {
+    poster.frame();
+    env.hour = POSTER_HOUR;
+    env.weather.clouds = 0.15;
+    env.weather.rain = 0;
+    env.weather.fog = 0.08;
+    posterFrames = 24;
+  };
+  if (inMenu) {
+    if (env.season !== settings.season) scene.world.setSeason(settings.season);
+    const d = await choosePosterSpot(scene.world, scene.track, settings.season);
+    poster.build(settings.look);
+    focus.copy(poster.place(d));
+    await scene.world.preload(focus);
+    renderPoster();
+    window.addEventListener('resize', () => inMenu && renderPoster());
+  } else {
+    const start = scene.track.positionAt(0, 1.2);
+    await scene.world.preload(new THREE.Vector3(start.x, start.y, start.z));
+  }
   scene.engine.renderer.setAnimationLoop(() => {
-    if (!inMenu) return;
-    orbit += 0.0015;
-    const p = scene.track.positionAt(0, 0);
-    focus.set(p.x, p.y, p.z);
-    scene.engine.camera.position.set(p.x + Math.cos(orbit) * 40, p.y + 14, p.z + Math.sin(orbit) * 40);
-    scene.engine.camera.lookAt(p.x, p.y + 2, p.z);
+    if (!inMenu || posterFrames <= 0) return;
+    posterFrames--;
     scene.world.update(1 / 60, focus);
     scene.engine.exposure.value = scene.world.env.exposure();
+    scene.world.env.grade(scene.engine.grade);
     scene.engine.render();
   });
+  /** Sortie de l'accueil : retrait du groupe figé, réglages du coureur rétablis. */
+  const leaveMenu = (s: Settings) => {
+    inMenu = false;
+    poster.dispose();
+    applyEnv(s);
+  };
 
   // Suivi Spotify : la musique du jeu se tait quand Spotify joue ; titre annoncé au changement.
   setInterval(async () => {
@@ -120,7 +154,7 @@ async function boot(): Promise<void> {
         location.href = url.toString();
         return;
       }
-      inMenu = false;
+      leaveMenu(s);
       menu.hide();
       void startRide(scene, s, s.guest ? new GuestInputSource(s.massKg) : devices.source(), extras);
     },
@@ -130,15 +164,20 @@ async function boot(): Promise<void> {
     menu.renderMusic();
     musicCtl.onTrack?.(tr.title);
   };
+  // Accueil : seuls la saison et le maillot / vélo changent l'image ; le reste s'applique au départ.
   menu.onSettingsChange = (s) => {
-    const env = scene.world.env.state;
-    env.hour = s.hour;
-    env.weather.clouds = s.clouds;
-    env.weather.rain = s.rain;
-    env.weather.fog = s.fog;
+    if (!inMenu) return applyEnv(s);
     if (env.season !== s.season) scene.world.setSeason(s.season);
+    poster.build(s.look);
+    poster.place(poster.d);
+    renderPoster();
   };
-  menu.onGarage = () => showGarage(ui, settings, () => menu.show());
+  // Onglets : photo du groupe, ou aperçu du coureur dans le garage (vues et rotation).
+  menu.onScene = (view, yaw) => {
+    if (!inMenu) return;
+    poster.setView(view, yaw);
+    renderPoster();
+  };
   menu.onTutorial = () => {
     new Onboarding(ui, settings, devices.panel, (s, skipped) => {
       // Tutoriel passé : retour au menu ; terminé : première sortie commentée.
@@ -146,13 +185,12 @@ async function boot(): Promise<void> {
         menu.show();
         return;
       }
-      inMenu = false;
+      leaveMenu(s);
       ui.innerHTML = '';
       void startRide(scene, s, devices.source(), { tutorial: true });
     }).start();
   };
-  if (new URLSearchParams(location.search).has('autostart')) {
-    inMenu = false;
+  if (autostart) {
     void startRide(scene, settings, devices.source(), {});
   } else {
     // Compte : session existante, sinon écran de connexion (sauf choix « sans compte »).

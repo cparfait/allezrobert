@@ -6,7 +6,9 @@ import { createAvatar, type RiderAvatarLike } from '../rider/gltfAvatar.ts';
 /** Adresse du serveur : VITE_SERVER_URL (prod : https://allezrobert.cparfait.ovh/colyseus), sinon local. */
 export function serverEndpoint(): string {
   const env = (import.meta as unknown as { env: Record<string, string | undefined> }).env;
-  return env.VITE_SERVER_URL ?? (location.hostname === 'localhost' ? 'http://localhost:2567' : `${location.origin}/colyseus`);
+  // En local (localhost ou 127.0.0.1, adresse exigée par Spotify) : même nom d'hôte que la page, pour les cookies.
+  const local = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+  return env.VITE_SERVER_URL ?? (local ? `http://${location.hostname}:2567` : `${location.origin}/colyseus`);
 }
 
 /** Jeton de jeu : session existante (cookie), sinon connexion de développement (refusée en production). */
