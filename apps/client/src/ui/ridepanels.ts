@@ -3,6 +3,7 @@ import { worldToWgs84, type ActivityRecord } from '@allezrobert/shared';
 import { t, getLang } from '../i18n/index.ts';
 import { shareCard } from './sharecard.ts';
 import { apiBase, fetchMe } from './account.ts';
+import { renderRideInvite } from './friends.ts';
 import type { RideSession } from '../game/ride.ts';
 
 function fmt(s: number): string {
@@ -48,6 +49,8 @@ export interface PauseCallbacks {
   onFinish(): void;
   /** Libellé du bouton de fin (ex. « Abandonner la course »). */
   finishLabel?: string;
+  /** Sortie de groupe en cours : la pause propose d'y inviter des amis. */
+  roomId?: string;
 }
 
 export function showPause(root: HTMLElement, cb: PauseCallbacks): void {
@@ -56,9 +59,10 @@ export function showPause(root: HTMLElement, cb: PauseCallbacks): void {
     <div class="row" style="justify-content:center">
       <button class="btn primary" id="p-resume">${t('resume')}</button>
       <button class="btn" id="p-finish">${cb.finishLabel ?? t('finish')}</button>
-    </div></div></div>`;
+    </div><div id="p-friends"></div></div></div>`;
   (root.querySelector('#p-resume') as HTMLElement).onclick = cb.onResume;
   (root.querySelector('#p-finish') as HTMLElement).onclick = cb.onFinish;
+  if (cb.roomId) void renderRideInvite(root.querySelector('#p-friends') as HTMLElement, cb.roomId);
 }
 
 /** Résumé de fin de sortie : statistiques, segments, téléchargement du FIT. */

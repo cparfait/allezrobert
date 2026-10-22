@@ -7,6 +7,7 @@ import {
   COSMETICS as COSMETIC_ITEMS,
   MAX_LEVEL,
   levelForXp,
+  migrateCosmeticId,
   unlockedCosmetics as sharedUnlocked,
   xpForLevel,
   type CosmeticItem,
@@ -44,7 +45,8 @@ export function unlockedCosmetics(level: number): CosmeticItem[] {
 
 /** Vérifie que chaque objet équipé existe, correspond à l'emplacement et est débloqué. */
 export function validateEquipped(equipped: Record<string, string>, level: number): string | null {
-  for (const [slot, id] of Object.entries(equipped)) {
+  for (const [slot, raw] of Object.entries(equipped)) {
+    const id = migrateCosmeticId(slot, raw);
     const item = COSMETIC_ITEMS.find((i) => i.id === id);
     if (!item) return `Cosmétique inconnu : ${id}`;
     if (item.slot !== slot) return `${id} ne va pas dans l'emplacement ${slot}`;

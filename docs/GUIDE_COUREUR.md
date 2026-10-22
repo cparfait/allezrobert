@@ -73,10 +73,23 @@ Le **HUD** affiche la puissance moyenne 3 s (couleur de zone), FC, cadence, vite
 - **Voix** : chat vocal intégré (V pour le micro). S'il est indisponible, la pastille de la voix
   propose de **rejoindre le salon Discord** des sorties (s'il est configuré).
 
-## 6. Après la sortie
+## 6. Amis
+
+Onglet **Amis** du menu (compte requis : un invité sans compte roule seul ou avec un code d'invitation).
+
+- **Mon code ami** : 8 caractères faciles à dicter (ex. `K7QM-2XRA`, sans 0/O ni 1/I/L). « Copier », « Copier le lien » (`…/?ami=K7QM2XRA` : ouvre le jeu sur l'onglet Amis avec la demande prête à envoyer, même après la connexion) et « Nouveau code » (l'ancien code et les liens déjà partagés ne marchent plus).
+- **Ajouter** : saisis le code d'un ami (minuscules, espaces et tiret acceptés) ; il reçoit une demande qu'il **accepte** ou **refuse** (l'autre n'est pas prévenu d'un refus). Si vous vous êtes demandés mutuellement, l'amitié est faite tout de suite. Tu peux annuler une demande envoyée et **retirer** un ami (×).
+- **Présence** : chaque ami apparaît *hors ligne*, *en ligne* (menu ouvert) ou *en train de rouler* (itinéraire, mode, nombre de coureurs). La liste se met à jour toute seule toutes les 25 s environ.
+- **Rejoindre** : un clic sur « Rejoindre » à côté d'un ami qui roule, sans code : le jeu prend son itinéraire et son mode. Le serveur ne donne le code de la sortie qu'à ses amis.
+- **Inviter** : coche des amis puis « Partir et inviter » (une sortie de groupe est créée sur l'itinéraire choisi), ou, en cours de sortie de groupe, **Pause** → « Inviter des amis dans cette sortie ». L'ami voit un bandeau « X t'invite à rouler sur … — Rejoindre / Ignorer » dans son menu ; l'invitation tombe au bout de 30 min ou à la fin de la sortie.
+- **Pastille** rouge sur l'onglet : demandes reçues + invitations en attente.
+- **Classements entre amis** : temps des segments KOM / sprint de l'itinéraire choisi, entre toi et tes amis (ta ligne en jaune) ; « Records » sur un ami affiche ses meilleurs temps sur cet itinéraire.
+- **Données** : l'export du compte (RGPD) contient ton code et tes relations ; supprimer le compte efface code, amitiés, demandes et invitations.
+
+## 7. Après la sortie
 
 Résumé (distance, temps, D+, puissance moyenne, NP, kcal, segments), XP et niveau, et **fichier FIT** (balance G/D, positions GPS) à importer dans Garmin Connect, Strava ou intervals.icu.
 
-## 7. Réglages graphiques
+## 8. Réglages graphiques
 
 Bas / moyen / haut / ultra (ultra calibré pour une RTX 4090), saison, heure, nuages, pluie, brouillard. Paramètres d'URL utiles : `?quality=ultra`, `?season=winter`, `?hour=18`.

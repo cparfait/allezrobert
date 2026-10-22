@@ -5,6 +5,7 @@
  * plafonnée à 4 000 XP par sortie. Niveau L atteint à 250 × L × (L − 1) XP ; maximum 50.
  */
 import catalogJson from './cosmetics.json' with { type: 'json' };
+import { BIKES, migrateBikeId } from './bikes.ts';
 
 export const MAX_LEVEL = 50;
 export const MAX_XP_PER_RIDE = 4000;
@@ -39,9 +40,20 @@ export interface CosmeticItem {
   name: { fr: string; en: string };
   level: number;
   color?: string;
+  /** Vélos : couleurs de la livrée (vignette du garage). */
+  colors?: string[];
 }
 
-export const COSMETICS: CosmeticItem[] = (catalogJson as { items: CosmeticItem[] }).items;
+/** Cosmétiques de cosmetics.json, puis les vélos du catalogue (bikes.json) dans l'emplacement « bike ». */
+export const COSMETICS: CosmeticItem[] = [
+  ...(catalogJson as { items: CosmeticItem[] }).items,
+  ...BIKES.map((b): CosmeticItem => ({ id: b.id, slot: 'bike', name: { fr: b.name, en: b.name }, level: b.level, color: b.livery.colors[0], colors: b.livery.colors })),
+];
+
+/** Identifiant à jour d'un cosmétique équipé (anciens vélos du garage → modèles du catalogue). */
+export function migrateCosmeticId(slot: string, id: string): string {
+  return slot === 'bike' ? migrateBikeId(id) : id;
+}
 
 export function unlockedCosmetics(level: number): CosmeticItem[] {
   return COSMETICS.filter((c) => c.level <= level);

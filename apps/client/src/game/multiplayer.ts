@@ -105,7 +105,11 @@ export class Multiplayer {
       root.rotateX(-Math.atan(p.grade / 100));
       const dist = camera.position.distanceTo(root.position);
       root.visible = dist < 600;
-      if (dist < 250) rem.avatar.update(dt, r.cadence, r.speedMs, r.pose);
+      if (dist < 250) {
+        // FTP des autres coureurs inconnue ici : 250 W de référence.
+        rem.avatar.setEffort?.(r.watts / 250, r.hr !== undefined ? r.hr / 190 : undefined);
+        rem.avatar.update(dt, r.cadence, r.speedMs, r.pose);
+      }
       rem.avatar.setShadows(dist < 40);
     }
     for (const [id, rem] of this.remotes) {
