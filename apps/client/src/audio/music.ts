@@ -17,6 +17,8 @@ export const PLAYLIST: Track[] = [
 ];
 
 const BASE = '/music/';
+/** Morceau joué en premier à l'ouverture. */
+const FIRST_TRACK = 'echappee.mp3';
 const FADE_S = 1.2;
 
 function shuffled<T>(a: T[]): T[] {
@@ -131,6 +133,11 @@ export class BackgroundMusic {
     if (i >= this.order.length || this.order.length === 0) {
       const last = this.current;
       this.order = shuffled(PLAYLIST);
+      // Premier morceau de la session : toujours « Échappée », la suite au hasard.
+      if (!last) {
+        const first = PLAYLIST.find((t) => t.file === FIRST_TRACK);
+        if (first) this.order = [first, ...this.order.filter((t) => t !== first)];
+      }
       // Pas deux fois le même morceau d'affilée au changement de tour.
       if (last && this.order[0] === last && this.order.length > 1) this.order.push(this.order.shift() as Track);
       i = 0;
