@@ -1,4 +1,4 @@
-import type { RouteData } from '@allezrobert/shared';
+import type { AvatarLook, CosmeticItem, RouteData } from '@allezrobert/shared';
 import { COSMETICS, levelProgress, type CosmeticSlot } from '@allezrobert/shared';
 import { t, setLang, getLang, type I18nKey } from '../i18n/index.ts';
 import type { Settings } from './settings.ts';
@@ -97,6 +97,9 @@ export class MainMenu {
   onExplore?: () => void;
   /** Cadrage 3D demandé par le menu : photo du groupe ou vue du garage (rotation en radians). */
   onScene?: (view: 'poster' | GarageView, yaw: number) => void;
+  /** Aperçu d'un équipement (même verrouillé) sur le coureur du garage ; null : tenue équipée. */
+  onPreviewLook?: (look: AvatarLook | null) => void;
+  private previewId: string | null = null;
   /** Compte connecté (affiché dans le menu), connexion / déconnexion, synchro du profil. */
   account: { name: string; level: number } | null = null;
   onLogin?: () => void;
@@ -127,9 +130,53 @@ export class MainMenu {
   }
 
   private go(tab: Tab): void {
+    if (tab !== 'garage' && this.previewId) {
+      this.previewId = null;
+      this.onPreviewLook?.(null);
+    }
     this.tab = tab;
     this.render();
     this.onScene?.(tab === 'garage' ? this.view : 'poster', tab === 'garage' ? this.yaw : 0);
+  }
+
+  /** Croix de fermeture d'un panneau (retour à l'onglet Rouler, comme Échap). */
+  private closeBtn(): string {
+    return `<button class="mm-close" data-tab="ride" aria-label="${fr() ? 'Fermer' : 'Close'}" title="${fr() ? 'Fermer (Échap)' : 'Close (Esc)'}">×</button>`;
+  }
+
+  /** Choix en boutons segmentés (remplace les listes déroulantes du système). */
+  private seg(id: string, current: string, opts: Array<[string, string]>): string {
+    return `<div class="mm-seg" id="${id}" data-value="${esc(current)}" role="radiogroup">${opts
+      .map(([v, label]) => `<button type="button" role="radio" aria-checked="${v === current}" class="${v === current ? 'on' : ''}" data-v="${esc(v)}">${esc(label)}</button>`)
+      .join('')}</div>`;
+  }
+
+  /** Branche les boutons segmentés : valeur lue comme un <select> (propriété value + événement change). */
+  private bindSegs(scope: ParentNode): void {
+    scope.querySelectorAll<HTMLElement>('.mm-seg').forEach((box) => {
+      Object.defineProperty(box, 'value', { configurable: true, get: () => box.dataset.value ?? '' });
+      box.querySelectorAll<HTMLButtonElement>('[data-v]').forEach((b) =>
+        b.addEventListener('click', () => {
+          box.dataset.value = b.dataset.v ?? '';
+          box.querySelectorAll('[data-v]').forEach((x) => {
+            x.classList.toggle('on', x === b);
+            x.setAttribute('aria-checked', String(x === b));
+          });
+          box.dispatchEvent(new Event('change'));
+        }),
+      );
+    });
+  }
+
+  /** Tenue du coureur avec un équipement à couleur appliqué (aperçu). */
+  private lookWith(item: CosmeticItem): AvatarLook {
+    const look = { ...this.s.look };
+    if (item.color) {
+      if (item.slot === 'jersey') look.jersey = item.color;
+      if (item.slot === 'helmet') look.helmet = item.color;
+      if (item.slot === 'bike') look.bike = item.color;
+    }
+    return look;
   }
 
   private opt<T extends string>(value: T, current: string, label: string): string {
@@ -195,7 +242,7 @@ export class MainMenu {
       ride: () => this.rideHtml(),
       garage: () => this.garageHtml(),
       devices: () =>
-        `<section class="mm-panel mm-center mm-wide"><header class="mm-head"><h2>${t('devices')}</h2><p>${L ? 'Associe ton home trainer et tes capteurs. Une seule appli à la fois par capteur Bluetooth.' : 'Pair your trainer and sensors. One app at a time per Bluetooth sensor.'}</p></header><div id="m-devices"></div></section>`,
+        `<section class="mm-panel mm-center mm-wide">${this.closeBtn()}<header class="mm-head"><h2>${t('devices')}</h2><p>${L ? 'Associe ton home trainer et tes capteurs. Une seule appli à la fois par capteur Bluetooth.' : 'Pair your trainer and sensors. One app at a time per Bluetooth sensor.'}</p></header><div id="m-devices"></div></section>`,
       profile: () => this.profileHtml(),
       settings: () => this.settingsHtml(),
     };
@@ -364,21 +411,22 @@ export class MainMenu {
             .map((c) => {
               const locked = c.level > lp.level;
               const on = p.equipped[c.slot] === c.id;
-              return `<button class="mm-item ${on ? 'on' : ''} ${locked ? 'locked' : ''}" data-item="${c.id}" ${locked ? 'disabled' : ''}>
+              const prev = this.previewId === c.id;
+              return `<button class="mm-item ${on ? 'on' : ''} ${locked ? 'locked' : ''} ${prev ? 'preview' : ''}" data-item="${c.id}" title="${locked ? (L ? 'Cliquer pour l’essayer' : 'Click to try it on') : ''}">
                 <i style="background:${c.color ?? '#7a8594'}"></i><b>${esc(c.name[lang])}</b>
-                <span>${locked ? `🔒 ${L ? 'niveau' : 'level'} ${c.level}` : on ? (L ? 'Équipé' : 'Equipped') : L ? 'Disponible' : 'Available'}</span></button>`;
+                <span>${prev ? `👁 ${L ? 'Aperçu' : 'Preview'} · 🔒 ${L ? 'niveau' : 'level'} ${c.level}` : locked ? `🔒 ${L ? 'niveau' : 'level'} ${c.level}` : on ? (L ? 'Équipé' : 'Equipped') : L ? 'Disponible' : 'Available'}</span></button>`;
             })
             .join('')}</div>`;
     return `<div class="mm-dragzone" id="m-dragzone"></div>
       <div class="mm-views">${views.map(([v, label]) => `<button class="mm-view ${v === this.view ? 'on' : ''}" data-view="${v}">${label}</button>`).join('')}
         <span class="mm-drag">${ICON.rotate} ${L ? 'Glisser pour tourner' : 'Drag to rotate'}</span></div>
-      <section class="mm-panel mm-side">
+      <section class="mm-panel mm-side">${this.closeBtn()}
         <header class="mm-head"><h2>${L ? 'Ton coureur' : 'Your rider'}</h2>
           <div class="mm-level"><b>${L ? 'Niveau' : 'Level'} ${lp.level}</b><span>${p.xp} XP${lp.nextLevelXp ? ` / ${lp.nextLevelXp}` : ''}</span><i class="mm-xp big"><i style="width:${(lp.progress * 100).toFixed(1)}%"></i></i></div></header>
         <div class="mm-slots">${slots.map((sl) => `<button class="mm-slot ${sl === this.garageSlot ? 'on' : ''}" data-slot="${sl}">${SLOT_LABEL[sl][lang]}</button>`).join('')}
           <button class="mm-slot ${this.garageSlot === 'colors' ? 'on' : ''}" data-slot="colors">${L ? 'Couleurs' : 'Colours'}</button></div>
         ${items}
-        <p class="mm-hint">${L ? 'Les équipements se débloquent en roulant (XP par kilomètre et par mètre de dénivelé).' : 'Gear unlocks as you ride (XP per kilometre and metre climbed).'}</p>
+        <p class="mm-hint">${L ? 'Les équipements se débloquent en roulant (XP par kilomètre et par mètre de dénivelé). Clique un équipement verrouillé pour l’essayer.' : 'Gear unlocks as you ride (XP per kilometre and metre climbed). Click locked gear to try it on.'}</p>
       </section>`;
   }
 
@@ -388,7 +436,7 @@ export class MainMenu {
     const s = this.s;
     const L = fr();
     const wkg = s.ftpWatts / s.massKg;
-    return `<section class="mm-panel mm-center">
+    return `<section class="mm-panel mm-center">${this.closeBtn()}
       <header class="mm-head"><h2>${t('profile')}</h2><p>${L ? 'Le poids et la taille servent à la physique (montées, prise au vent) ; la FTP règle les séances et les zones.' : 'Weight and height drive the physics (climbs, drag); FTP sets workouts and zones.'}</p></header>
       <div class="mm-bigstats"><div><b>${wkg.toFixed(1).replace('.', L ? ',' : '.')}</b><span>W/kg</span></div><div><b>${Math.round(s.ftpWatts)}</b><span>W FTP</span></div><div><b>${s.massKg}</b><span>kg</span></div></div>
       <div class="grid2b">
@@ -403,12 +451,12 @@ export class MainMenu {
   private settingsHtml(): string {
     const s = this.s;
     const L = fr();
-    return `<section class="mm-panel mm-center mm-wide">
+    return `<section class="mm-panel mm-center mm-wide">${this.closeBtn()}
       <header class="mm-head"><h2>${t('settings')}</h2></header>
       <h3>${L ? 'Graphismes et conditions de la sortie' : 'Graphics and ride conditions'}</h3>
       <div class="grid3">
-        <label class="field">${t('quality')}<select id="m-quality">${(['low', 'medium', 'high', 'ultra'] as const).map((q) => this.opt(q, s.quality, t(q))).join('')}</select></label>
-        <label class="field">${t('season')}<select id="m-season">${(['spring', 'summer', 'autumn', 'winter'] as const).map((q) => this.opt(q, s.season, t(q))).join('')}</select></label>
+        <div class="field">${t('quality')}${this.seg('m-quality', s.quality, (['low', 'medium', 'high', 'ultra'] as const).map((q) => [q, t(q)]))}</div>
+        <div class="field">${t('season')}${this.seg('m-season', s.season, (['spring', 'summer', 'autumn', 'winter'] as const).map((q) => [q, t(q)]))}</div>
         <label class="field">${t('hour')} <span id="m-hourv">${s.hour.toFixed(1)} h</span><input id="m-hour" type="range" min="5" max="22" step="0.25" value="${s.hour}" /></label>
         <label class="field">${L ? 'Nuages' : 'Clouds'}<input id="m-clouds" type="range" min="0" max="1" step="0.05" value="${s.clouds}" /></label>
         <label class="field">${L ? 'Pluie' : 'Rain'}<input id="m-rain" type="range" min="0" max="1" step="0.05" value="${s.rain}" /></label>
@@ -417,20 +465,36 @@ export class MainMenu {
       <h3>${L ? 'Home trainer' : 'Smart trainer'}</h3>
       <div class="grid3">
         <label class="field">${t('difficulty')} <span id="m-diffv">${Math.round(s.trainerDifficulty * 100)} %</span><input id="m-diff" type="range" min="0" max="1" step="0.05" value="${s.trainerDifficulty}" /></label>
-        <label class="field">Transmission<select id="m-drive">${this.opt('cog', s.drivetrain, L ? 'Zwift Cog (vitesses virtuelles)' : 'Zwift Cog (virtual shifting)')}${this.opt('cassette', s.drivetrain, L ? 'Cassette réelle' : 'Real cassette')}</select></label>
-        <label class="field">${L ? 'Lissage puissance' : 'Power smoothing'}<select id="m-smooth">${this.opt('0', s.smoothing3s ? '1' : '0', L ? 'Non' : 'Off')}${this.opt('1', s.smoothing3s ? '1' : '0', '3 s')}</select></label>
+        <div class="field">Transmission${this.seg('m-drive', s.drivetrain, [
+          ['cog', L ? 'Vitesses virtuelles' : 'Virtual shifting'],
+          ['cassette', L ? 'Cassette réelle' : 'Real cassette'],
+        ])}</div>
+        <div class="field">${L ? 'Lissage puissance' : 'Power smoothing'}${this.seg('m-smooth', s.smoothing3s ? '1' : '0', [
+          ['0', L ? 'Non' : 'Off'],
+          ['1', '3 s'],
+        ])}</div>
       </div>
       <h3>${L ? 'Coureurs IA' : 'AI riders'}</h3>
       <div class="grid3">
         <label class="field">${L ? 'Nombre' : 'Count'}<input id="m-ai" type="number" min="0" max="19" value="${s.aiRiders}" /></label>
-        <label class="field">${L ? 'Niveau' : 'Level'}<select id="m-ailevel">${this.opt('0.8', String(s.aiLevel), '80 % FTP')}${this.opt('1', String(s.aiLevel), '100 % FTP')}${this.opt('1.15', String(s.aiLevel), '115 % FTP')}</select></label>
+        <div class="field">${L ? 'Niveau' : 'Level'}${this.seg('m-ailevel', String(s.aiLevel), [
+          ['0.8', '80 % FTP'],
+          ['1', '100 % FTP'],
+          ['1.15', '115 % FTP'],
+        ])}</div>
       </div>
       <h3>${L ? 'Musique' : 'Music'}</h3>
       <div id="m-music-settings" class="mm-musicset"></div>
       <h3>${L ? 'Langue et envoi des sorties' : 'Language and ride upload'}</h3>
       <div class="grid3">
-        <label class="field">${t('language')}<select id="m-lang">${this.opt('fr', s.lang, 'Français')}${this.opt('en', s.lang, 'English')}</select></label>
-        <label class="field">Strava<select id="m-strava">${this.opt('skip', s.skipStrava ? 'skip' : 'send', L ? 'Ne pas envoyer (Garmin)' : 'Don’t upload (Garmin)')}${this.opt('send', s.skipStrava ? 'skip' : 'send', L ? 'Envoyer' : 'Upload')}</select></label>
+        <div class="field">${t('language')}${this.seg('m-lang', s.lang, [
+          ['fr', 'Français'],
+          ['en', 'English'],
+        ])}</div>
+        <div class="field">Strava${this.seg('m-strava', s.skipStrava ? 'skip' : 'send', [
+          ['skip', L ? 'Ne pas envoyer' : 'Don’t upload'],
+          ['send', L ? 'Envoyer' : 'Upload'],
+        ])}</div>
       </div>
     </section>`;
   }
@@ -634,7 +698,7 @@ export class MainMenu {
     box.innerHTML = `
       <div class="mm-devgrid">${roles.map(tile).join('')}</div>
       <div class="mm-devopts">
-        <label class="field">${L ? 'Connexion' : 'Connection'}<select id="m-transport">${transports.map((tr) => `<option value="${esc(tr.id)}">${esc(tr.label)}</option>`).join('')}</select></label>
+        <div class="field">${L ? 'Connexion' : 'Connection'}${this.seg('m-transport', transports[0]?.id ?? '', transports.map((tr) => [tr.id, tr.label]))}</div>
         <div id="m-adapters"></div>
         <label class="mm-check"><input type="checkbox" id="m-sim" ${this.devices.simulatorOn() ? 'checked' : ''}/> ${t('simulator')} (${L ? 'rouler sans matériel' : 'ride without hardware'})</label>
         <label class="mm-check"><input type="checkbox" id="m-guest" ${this.s.guest ? 'checked' : ''}/> ${L ? 'Invité sans matériel (clavier / manette, hors classements)' : 'Guest without hardware (keyboard / gamepad, unranked)'}</label>
@@ -644,9 +708,10 @@ export class MainMenu {
         .map((w) => `<div class="warning">${esc(w)}</div>`)
         .join('')}
       <div class="mm-note">${t('oneAppAtATime')}<br/>${t('edgeWarn')}</div>`;
+    this.bindSegs(box);
     box.querySelectorAll<HTMLButtonElement>('[data-pair]').forEach((b) =>
       b.addEventListener('click', async () => {
-        const transport = (box.querySelector('#m-transport') as HTMLSelectElement).value;
+        const transport = (box.querySelector('#m-transport') as HTMLElement).dataset.value ?? '';
         b.disabled = true;
         try {
           await this.devices.pair(b.dataset.pair as Role, transport);
@@ -687,6 +752,7 @@ export class MainMenu {
 
   private bind(): void {
     const s = this.s;
+    this.bindSegs(this.root.querySelector('.mm-panel') ?? this.root);
     const on = <T extends HTMLElement>(id: string, ev: string, fn: (el: T) => void) => {
       const el = this.root.querySelector(`#${id}`) as T | null;
       el?.addEventListener(ev, () => fn(el));
@@ -740,6 +806,16 @@ export class MainMenu {
       el.addEventListener('click', () => {
         const item = COSMETICS.find((c) => c.id === el.dataset.item);
         if (!item) return;
+        const locked = item.level > levelProgress(loadProgress().xp).level;
+        if (locked) {
+          // Verrouillé : simple aperçu sur le coureur, rien n'est équipé ni enregistré.
+          this.previewId = this.previewId === item.id ? null : item.id;
+          this.onPreviewLook?.(this.previewId ? this.lookWith(item) : null);
+          this.render();
+          return;
+        }
+        this.previewId = null;
+        this.onPreviewLook?.(null);
         equipItem(item, s);
         changed();
         this.render();

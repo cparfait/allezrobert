@@ -162,7 +162,6 @@
 .mm-item:hover:not(:disabled) { background: rgba(255, 255, 255, 0.1); }
 .mm-item.on { border-color: var(--ar-accent); }
 .mm-item.on span { color: var(--ar-accent); font-weight: 700; }
-.mm-item.locked { opacity: 0.45; cursor: not-allowed; }
 .mm-colors { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 
 /* Capteurs */
@@ -189,6 +188,34 @@
 .mm-musicset { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
 .mm-musicset .btn.on { background: rgba(255, 210, 63, 0.16); color: var(--ar-accent); }
 .mm-vol { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #aeb7c3; }
+
+/* Croix de fermeture des panneaux */
+.mm-close { position: absolute; top: 14px; right: 14px; z-index: 2; width: 34px; height: 34px; border-radius: 50%; border: 0; display: grid; place-items: center;
+  font: inherit; font-size: 22px; line-height: 1; cursor: pointer; background: rgba(255, 255, 255, 0.07); color: #c9d1db; transition: background 0.15s, color 0.15s, transform 0.15s; }
+.mm-close:hover { background: rgba(255, 255, 255, 0.16); color: #fff; transform: rotate(90deg); }
+.mm-head { padding-right: 40px; }
+
+/* Choix en boutons segmentés */
+.mm-seg { display: flex; flex-wrap: wrap; gap: 4px; padding: 4px; border-radius: 12px; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.08); margin-top: 2px; }
+.mm-seg button { flex: 1 1 auto; appearance: none; border: 0; border-radius: 9px; padding: 8px 10px; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer;
+  background: none; color: #aeb7c3; white-space: nowrap; transition: background 0.15s, color 0.15s; }
+.mm-seg button:hover { color: #fff; background: rgba(255, 255, 255, 0.07); }
+.mm-seg button.on { background: var(--ar-accent); color: #0a0e16; box-shadow: 0 2px 10px rgba(255, 210, 63, 0.25); }
+.mm-seg button:focus-visible { outline: 2px solid rgba(255, 210, 63, 0.7); outline-offset: 1px; }
+
+/* Curseurs et champs aux couleurs du jeu */
+.mm input[type='range'] { -webkit-appearance: none; appearance: none; width: 100%; height: 6px; margin: 12px 0 6px; border-radius: 3px; background: rgba(255, 255, 255, 0.14); cursor: pointer; }
+.mm input[type='range']::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 18px; height: 18px; border-radius: 50%; background: var(--ar-accent); border: 3px solid #0a0e16; box-shadow: 0 0 0 2px rgba(255, 210, 63, 0.35); }
+.mm input[type='range']::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; background: var(--ar-accent); border: 3px solid #0a0e16; }
+.mm input[type='range']:hover::-webkit-slider-thumb { box-shadow: 0 0 0 5px rgba(255, 210, 63, 0.25); }
+.mm select { color-scheme: dark; }
+.mm select option { background: #11151d; color: #f5f7fa; }
+
+/* Aperçu d'un équipement verrouillé */
+.mm-item.locked { opacity: 0.6; cursor: pointer; }
+.mm-item.locked:hover { opacity: 0.85; }
+.mm-item.preview { opacity: 1; border-color: rgba(96, 165, 250, 0.8); background: rgba(96, 165, 250, 0.1); }
+.mm-item.preview span { color: #93c5fd; font-weight: 700; }
 
 /* Assistant Spotify */
 .mm-modal { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(4, 6, 10, 0.6); z-index: 20; }

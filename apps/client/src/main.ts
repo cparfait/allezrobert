@@ -264,6 +264,13 @@ async function boot(): Promise<void> {
     renderPoster();
   };
   // Onglets : photo du groupe, ou aperçu du coureur dans le garage (vues et rotation).
+  // Garage : aperçu d'un équipement (même verrouillé) sur le coureur, puis retour à la tenue équipée.
+  menu.onPreviewLook = (look) => {
+    if (!inMenu) return;
+    poster.build(look ?? settings.look);
+    poster.place(poster.d);
+    renderPoster();
+  };
   menu.onScene = (view, yaw) => {
     if (!inMenu) return;
     poster.setView(view, yaw);
