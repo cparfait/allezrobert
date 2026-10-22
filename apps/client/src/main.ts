@@ -184,6 +184,8 @@ async function boot(): Promise<void> {
     applyEnv(s);
   };
 
+  // Spotify lancé ou mis en pause depuis le jeu : la musique du jeu suit aussitôt.
+  spotify.onPlayState = (playing) => music.setDuck(playing ? 0 : musicCtl.base);
   // Suivi Spotify : la musique du jeu se tait quand Spotify joue ; titre annoncé au changement.
   setInterval(async () => {
     if (!spotify.connected || document.hidden) return music.setDuck(musicCtl.base);

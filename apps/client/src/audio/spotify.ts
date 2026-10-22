@@ -110,6 +110,9 @@ class SpotifyRemote {
     return sc.includes('streaming') && sc.includes('playlist-read-private');
   }
 
+  /** Prévenu dès que la lecture démarre ou s'arrête (la musique du jeu se coupe aussitôt). */
+  onPlayState?: (playing: boolean) => void;
+
   private player: SdkPlayer | null = null;
   private deviceId: string | null = null;
   private playerReady: Promise<string> | null = null;
@@ -130,6 +133,11 @@ class SpotifyRemote {
         const Player = w.Spotify?.Player;
         if (!Player) return reject(new Error('SDK Spotify indisponible'));
         const p = new Player({ name: PLAYER_NAME, volume: 0.7, getOAuthToken: (cb) => void this.token().then((t) => t && cb(t)) });
+        // Lecteur intégré : état réel (lecture / pause) dès qu'il change.
+        p.addListener('player_state_changed', (st) => {
+          const state = st as unknown as { paused?: boolean } | null;
+          if (state) this.onPlayState?.(!state.paused);
+        });
         p.addListener('ready', ({ device_id }) => {
           this.deviceId = device_id ?? null;
           if (device_id) resolve(device_id);
@@ -157,6 +165,7 @@ class SpotifyRemote {
 
   /** Transfère la lecture vers le jeu (à appeler depuis un clic : le navigateur exige un geste). */
   async playHere(): Promise<boolean> {
+    this.onPlayState?.(true);
     try {
       const id = await this.startPlayer();
       await this.player?.activateElement();
@@ -187,6 +196,7 @@ class SpotifyRemote {
 
   /** Lance une playlist dans le jeu (lecteur intégré, à défaut l'appareil actif). */
   async playContext(uri: string): Promise<boolean> {
+    this.onPlayState?.(true);
     let id: string | null = null;
     try {
       id = await this.startPlayer();
@@ -307,10 +317,12 @@ class SpotifyRemote {
   }
 
   async play(): Promise<void> {
+    this.onPlayState?.(true);
     await this.api('/me/player/play', 'PUT');
   }
 
   async pause(): Promise<void> {
+    this.onPlayState?.(false);
     await this.api('/me/player/pause', 'PUT');
   }
 
