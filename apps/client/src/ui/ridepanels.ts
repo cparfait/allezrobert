@@ -2,6 +2,7 @@ import { encodeActivity, buildActivity } from '@allezrobert/fit';
 import { worldToWgs84, type ActivityRecord } from '@allezrobert/shared';
 import { t, getLang } from '../i18n/index.ts';
 import { shareCard } from './sharecard.ts';
+import { apiBase, fetchMe } from './account.ts';
 import type { RideSession } from '../game/ride.ts';
 
 function fmt(s: number): string {
@@ -81,6 +82,7 @@ export function showSummary(root: HTMLElement, ride: RideSession, fit: () => Uin
     </div>
     ${xp ? `<div class="row" style="gap:12px;margin-bottom:6px"><b class="num" style="color:var(--ar-accent);font-size:20px">+${xp.gained} XP</b><span>${getLang() === 'fr' ? 'Niveau' : 'Level'} ${xp.level}${xp.levelUp ? ' 🎉' : ''}</span>${xp.unlocked.length ? `<span class="meta" style="color:var(--ar-muted)">${getLang() === 'fr' ? 'Débloqué' : 'Unlocked'} : ${xp.unlocked.map((u) => u.name[getLang()]).join(', ')}</span>` : ''}</div>` : ''}
     ${segs ? `<h2>Segments</h2><div class="device-list">${segs}</div>` : ''}
+    <div id="s-online"></div>
     <div class="row" style="justify-content:flex-end;margin-top:22px">
       <button class="btn" id="s-close">${getLang() === 'fr' ? 'Retour au menu' : 'Back to menu'}</button>
       <button class="btn" id="s-card">${getLang() === 'fr' ? 'Image à partager' : 'Share image'}</button>
@@ -94,10 +96,59 @@ export function showSummary(root: HTMLElement, ride: RideSession, fit: () => Uin
     download(fit(), name);
   };
   (root.querySelector('#s-close') as HTMLElement).onclick = onClose;
+  if (xp) void onlinePanel(root.querySelector('#s-online') as HTMLElement, ride, fit);
   (root.querySelector('#s-card') as HTMLElement).onclick = async () => {
     const st = JSON.parse(localStorage.getItem('ar.settings') ?? '{}') as { name?: string; ftpWatts?: number };
     const photo = ride.summitPhotos[0];
     const blob = await shareCard(ride, { routeName: ride.route.name, riderName: st.name ?? 'Robert', ftp: st.ftpWatts ?? 250, ...(photo ? { photo } : {}) });
     download(new Uint8Array(await blob.arrayBuffer()), `allez-robert-${new Date(ride.startT).toISOString().slice(0, 10)}.png`, 'image/png');
   };
+}
+
+/**
+ * Compte connecté : enregistrement de la sortie sur le serveur (XP, segments), envoi
+ * automatique vers Strava (sauf option « Garmin ») et intervals.icu s'ils sont reliés.
+ */
+async function onlinePanel(box: HTMLElement, ride: RideSession, fit: () => Uint8Array): Promise<void> {
+  const fr = getLang() === 'fr';
+  const me = await fetchMe();
+  if (!me) {
+    box.innerHTML = `<p class="meta" style="color:var(--ar-muted);font-size:13px">${fr ? 'Connecte-toi pour enregistrer la sortie sur ton compte et l’envoyer vers Strava / intervals.icu.' : 'Sign in to save the ride and send it to Strava / intervals.icu.'}</p>`;
+    return;
+  }
+  const api = (p: string, init?: RequestInit) => fetch(`${apiBase()}${p}`, { credentials: 'include', ...init });
+  const integ = (await api('/integrations').then((r) => (r.ok ? r.json() : null)).catch(() => null)) as null | {
+    strava: { available: boolean; connected: boolean; athleteName: string | null };
+    intervals: { connected: boolean };
+  };
+  const st = JSON.parse(localStorage.getItem('ar.settings') ?? '{}') as { skipStrava?: boolean };
+  box.innerHTML = `<h2>${fr ? 'Partager' : 'Share'}</h2><div class="device-list">
+    <div class="device"><div><b>${fr ? 'Mon compte' : 'My account'}</b><div class="meta" id="o-save-msg">${fr ? 'Enregistre la sortie, l’XP et les segments' : 'Saves the ride, XP and segments'}</div></div><button class="btn small primary" id="o-save">${fr ? 'Enregistrer' : 'Save'}</button></div>
+    <div class="device"><div><b>Strava</b><div class="meta">${!integ?.strava.available ? (fr ? 'non configuré sur le serveur' : 'not configured on the server') : integ.strava.connected ? `${fr ? 'relié' : 'linked'}${integ.strava.athleteName ? ` · ${integ.strava.athleteName}` : ''}${st.skipStrava ? (fr ? ' · envoi désactivé (Garmin)' : ' · upload off (Garmin)') : ''}` : fr ? 'non relié' : 'not linked'}</div></div>
+      ${integ?.strava.available && !integ.strava.connected ? `<button class="btn small" id="o-strava">${fr ? 'Relier' : 'Link'}</button>` : ''}</div>
+    <div class="device"><div><b>intervals.icu</b><div class="meta">${integ?.intervals.connected ? (fr ? 'relié' : 'linked') : fr ? 'clé API (Réglages → Developer settings)' : 'API key (Settings → Developer settings)'}</div></div>
+      ${integ?.intervals.connected ? '' : `<form id="o-int" class="row"><input id="o-intkey" type="password" placeholder="${fr ? 'clé API' : 'API key'}" class="btn small" style="width:160px;text-align:left"/><button class="btn small" type="submit">${fr ? 'Relier' : 'Link'}</button></form>`}</div>
+  </div>`;
+  box.querySelector('#o-strava')?.addEventListener('click', () => (location.href = `${apiBase()}/integrations/strava/start`));
+  box.querySelector('#o-int')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const key = (box.querySelector('#o-intkey') as HTMLInputElement).value.trim();
+    const r = await api('/integrations/intervals', { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ apiKey: key }) }).catch(() => null);
+    if (r?.ok) void onlinePanel(box, ride, fit);
+    else alert(fr ? 'intervals.icu a refusé cette clé.' : 'intervals.icu rejected this key.');
+  });
+  box.querySelector('#o-save')?.addEventListener('click', async (e) => {
+    const b = e.target as HTMLButtonElement;
+    b.disabled = true;
+    const q = new URLSearchParams({ name: `Allez Robert ! — ${ride.route.name}`.slice(0, 100), routeId: ride.route.id, skipStrava: st.skipStrava ? '1' : '0' });
+    const r = await api(`/activities?${q}`, { method: 'POST', headers: { 'content-type': 'application/octet-stream' }, body: fit() as BlobPart }).catch(() => null);
+    const msg = box.querySelector('#o-save-msg') as HTMLElement;
+    if (r?.ok) {
+      const j = (await r.json()) as { xpGained: number; progression: { level: number } };
+      msg.textContent = `${fr ? 'Enregistrée' : 'Saved'} · +${j.xpGained} XP · ${fr ? 'niveau' : 'level'} ${j.progression.level}${integ?.strava.connected && !st.skipStrava ? ' · Strava…' : ''}${integ?.intervals.connected ? ' · intervals.icu…' : ''}`;
+    } else {
+      msg.textContent = fr ? 'Enregistrement impossible pour le moment.' : 'Could not save right now.';
+      b.disabled = false;
+    }
+  });
 }

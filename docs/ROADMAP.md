@@ -40,11 +40,11 @@ Chaque jalon n'est déclaré terminé qu'après vérification : tests (protocole
 
 ## Jalon 4 — Multijoueur
 
-- [ ] Salles privées sur invitation, serveur autoritaire 10 Hz, drafting réseau, groupe soudé
-- [ ] Comptes Google, Discord, lien magique ; profils
-- [ ] Voix LiveKit, repli Discord ; chat texte ; « Ride On »
-- [ ] Appli compagnon PWA ; mode invité sans matériel
-- [ ] Test de charge à 20 coureurs
+- [x] Salles privées sur invitation, serveur autoritaire 10 Hz, drafting réseau, groupe soudé
+- [x] Comptes Google, Discord, lien magique ; profils (Google / Discord : identifiants OAuth à créer)
+- [x] Voix LiveKit, chat texte, « Ride On » (testés en local ; repli Discord : à faire)
+- [x] Appli compagnon PWA ; mode invité sans matériel
+- [x] Test de charge à 20 coureurs (tick moyen 1,8 ms)
 
 ## Jalon 5 — Jeu
 
@@ -52,13 +52,13 @@ Chaque jalon n'est déclaré terminé qu'après vérification : tests (protocole
 - [ ] Modes groupe et course (dépendent du jalon 4)
 - [x] Coureurs IA (relais, attaques, profils)
 - [x] Progression : XP, niveaux, garage, déblocages cosmétiques
-- [ ] Export Strava (option « ne pas envoyer » si l'Edge enregistre) et intervals.icu
+- [x] Export Strava (option « ne pas envoyer » si l'Edge enregistre) et intervals.icu (Strava : appli OAuth à créer)
 
 ## Jalon 6 — Mise en scène
 
 - [x] Séquences HyperFrames en jeu : intro et compte à rebours, KOM / sprint, arrivée et podium, habillage TV
 - [ ] Vidéo résumé MP4 rendue sur le VPS
-- [x] Onboarding guidé avec voix off FR / EN et sous-titres, rejouable
+- [x] Onboarding guidé avec voix off FR / EN (Cartesia) et sous-titres, rejouable
 
 ## Idées NCT Ride (ajoutées le 22/10/2026)
 
