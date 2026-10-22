@@ -49,6 +49,7 @@ async function main(): Promise<void> {
   if (params.has('sliders')) return sliderSheet(engine);
   if (params.has('random')) return randomSheet(engine);
   if (params.has('profiles')) return profileSheet(engine);
+  if (params.has('measure')) return measureHead();
   if (params.has('calib')) return likenessCalibration(engine);
 
   // ?shoes : chaussures en gros plan (tige, perforations, marquage) pour quatre tenues, pied gauche
@@ -363,6 +364,62 @@ async function likenessCalibration(engine: Awaited<ReturnType<typeof createEngin
   (window as unknown as { __avatarTestDone: boolean }).__avatarTestDone = true;
 }
 
+/** Mesures (m, repère du modèle au repos) : lunettes, cils (yeux), largeur du crâne à hauteur des yeux. */
+function measureHead(): void {
+  const a = new GltfRiderAvatar({ ...DEFAULT_LOOK });
+  a.root.updateMatrixWorld(true);
+  a.root.traverse((o) => (o as THREE.SkinnedMesh).isSkinnedMesh && (o as THREE.SkinnedMesh).skeleton.update());
+  const out: Record<string, string> = {};
+  const p = new THREE.Vector3();
+  let headInv: THREE.Matrix4 | null = null;
+  a.root.traverse((o) => {
+    if (!headInv && o.name === 'head' && (o as THREE.Bone).isBone) headInv = o.matrixWorld.clone().invert();
+  });
+  const boxes = new Map<string, THREE.Box3>();
+  let eyeY = 0;
+  const pts: Array<[string, THREE.Vector3]> = [];
+  a.root.traverse((o) => {
+    const m = o as THREE.SkinnedMesh;
+    if (!m.isSkinnedMesh || !m.visible) return;
+    const pos = m.geometry.getAttribute('position');
+    const groups = m.geometry.groups.length ? m.geometry.groups : [{ start: 0, count: m.geometry.index?.count ?? pos.count, materialIndex: 0 }];
+    const mats = Array.isArray(m.material) ? m.material : [m.material];
+    const idx = m.geometry.index;
+    for (const g of groups) {
+      const key = `${o.name}/${mats[g.materialIndex ?? 0]?.name}`;
+      const b = boxes.get(key) ?? new THREE.Box3();
+      for (let k = g.start; k < g.start + g.count; k++) {
+        const i = idx ? idx.getX(k) : k;
+        m.applyBoneTransform(i, p.fromBufferAttribute(pos, i)).applyMatrix4(m.matrixWorld);
+        if (params.has('local') && headInv) p.applyMatrix4(headInv);
+        b.expandByPoint(p);
+        if (key.endsWith('/skin')) pts.push([key, p.clone()]);
+      }
+      boxes.set(key, b);
+    }
+  });
+  const f = (v: THREE.Vector3) => `${v.x.toFixed(3)} ${v.y.toFixed(3)} ${v.z.toFixed(3)}`;
+  for (const [k, b] of boxes) if (/glasses|lashes|helmet\/|mouth/.test(k)) out[k] = `${f(b.min)} → ${f(b.max)}`;
+  const lashes = [...boxes].find(([k]) => k.endsWith('/lashes'))?.[1];
+  if (lashes) {
+    eyeY = (lashes.min.y + lashes.max.y) / 2;
+    let hw = 0, front = -9, back = 9;
+    for (const [, q] of pts) if (Math.abs(q.y - eyeY) < 0.01 && Math.abs(q.x) < 0.12) { hw = Math.max(hw, Math.abs(q.x)); front = Math.max(front, q.z); back = Math.min(back, q.z); }
+    out.headAtEyes = `demi-largeur ${hw.toFixed(3)} avant ${front.toFixed(3)} arrière ${back.toFixed(3)}`;
+  }
+  for (const n of ['hand_l', 'middle_01_l', 'middle_03_l', 'index_01_l', 'pinky_01_l', 'thumb_02_l', 'lowerarm_l']) {
+    const b = a.root.getObjectByName(n);
+    if (b) out[`bone ${n}`] = f(b.getWorldPosition(new THREE.Vector3()));
+  }
+  const bk = a.root.getObjectByName('bike');
+  for (const n of ['hand_L', 'pad_L']) {
+    const o = bk?.getObjectByName(n);
+    if (o) out[`ancre ${n}`] = f(o.getWorldPosition(new THREE.Vector3()));
+  }
+  log.textContent = JSON.stringify(out, null, 1);
+  (window as unknown as { __measure: unknown }).__measure = out;
+}
+
 /**
  * Planche des profils de base (?avatar=mpfb&profiles) : par profil, visage casqué et lunettes,
  * puis sans casque de face, de trois quarts et de profil.
@@ -371,7 +428,7 @@ async function profileSheet(engine: Awaited<ReturnType<typeof createEngine>>): P
   const { scene, camera } = engine;
   const cw = 300;
   const views: Array<[string, boolean, [number, number, number]]> = [
-    ['casque', true, [-0.3, 0.05, 0.42]], ['face', false, [-0.04, 0.02, 0.5]], ['3/4', false, [-0.32, 0.03, 0.4]], ['profil', false, [-0.5, 0.02, 0.02]],
+    ['casque', true, [-0.3, 0.05, 0.42]], ['face', false, [-0.04, 0.02, 0.5]], ['3/4', false, [-0.32, 0.03, 0.4]], ['profil', false, [-0.5, 0.02, 0.02]], ['profil casqué', true, [-0.5, 0.02, 0.02]], ['course', true, [-1.6, -0.25, 0.1]],
   ];
   const sheet = document.createElement('canvas');
   sheet.width = views.length * cw;
@@ -392,7 +449,7 @@ async function profileSheet(engine: Awaited<ReturnType<typeof createEngine>>): P
       });
       camera.position.set(eye.x + off[0], eye.y + off[1], eye.z + off[2]);
       camera.updateProjectionMatrix();
-      camera.lookAt(eye.x, eye.y - 0.05, eye.z - (label === 'profil' ? 0.02 : 0));
+      camera.lookAt(eye.x, eye.y - (label === 'course' ? 0.3 : 0.05), eye.z - (label.startsWith('profil') ? 0.02 : 0));
       engine.renderManual();
       g.drawImage(canvas, 340, 60, 600, 600, c * cw, r * cw, cw, cw);
       g.fillStyle = '#000';
