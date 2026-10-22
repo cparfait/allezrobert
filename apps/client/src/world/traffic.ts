@@ -36,14 +36,15 @@ function box(w: number, h: number, l: number, x: number, y: number, z: number): 
 /** Véhicule en primitives : caisse, vitrage, roues (repère : +z avant). */
 /**
  * Modèles de véhicules CC0 (Kenney Car Kit, voir ASSETS_LICENSES.md), chargés une fois.
- * Longueur réelle visée par modèle (m) : les modèles sont remis à l'échelle au chargement.
+ * Dimensions réelles visées (m, longueur × largeur × hauteur) : les modèles du kit sont trapus
+ * (une berline y fait 1,5 m de large pour 2,55 m de long), ils sont donc remis à l'échelle axe par axe.
  */
-const VEHICLE_MODELS: Array<{ file: string; kind: Kind; lengthM: number }> = [
-  { file: 'sedan.glb', kind: 'car', lengthM: 4.5 },
-  { file: 'hatchback-sports.glb', kind: 'car', lengthM: 4.1 },
-  { file: 'suv.glb', kind: 'car', lengthM: 4.6 },
-  { file: 'delivery.glb', kind: 'van', lengthM: 5.4 },
-  { file: 'tractor.glb', kind: 'tractor', lengthM: 4.2 },
+const VEHICLE_MODELS: Array<{ file: string; kind: Kind; size: [number, number, number] }> = [
+  { file: 'sedan.glb', kind: 'car', size: [4.5, 1.8, 1.45] },
+  { file: 'hatchback-sports.glb', kind: 'car', size: [4.1, 1.78, 1.42] },
+  { file: 'suv.glb', kind: 'car', size: [4.6, 1.9, 1.7] },
+  { file: 'delivery.glb', kind: 'van', size: [5.4, 2.0, 2.4] },
+  { file: 'tractor.glb', kind: 'tractor', size: [4.2, 2.3, 2.8] },
 ];
 const templates = new Map<string, THREE.Object3D>();
 
@@ -54,13 +55,20 @@ export async function loadVehicleModels(base = '/models/vehicles/'): Promise<boo
       VEHICLE_MODELS.map(async (m) => {
         const gltf = await loader.loadAsync(base + m.file);
         const root = gltf.scene;
-        // Échelle : la plus grande dimension horizontale devient la longueur réelle du véhicule.
+        // Échelle par axe : la caisse prend les dimensions réelles ; les roues gardent une échelle
+        // uniforme (celle de la hauteur) pour rester rondes, seule leur position suit la caisse.
         const box = new THREE.Box3().setFromObject(root);
         const size = box.getSize(new THREE.Vector3());
-        const s = m.lengthM / Math.max(size.x, size.z);
-        root.scale.setScalar(s);
+        const [L, W, H] = m.size;
+        const alongX = size.x > size.z;
+        const k = new THREE.Vector3(alongX ? L / size.x : W / size.x, H / size.y, alongX ? W / size.z : L / size.z);
+        for (const part of [...root.children]) {
+          part.position.multiply(k);
+          if (/^wheel/i.test(part.name)) part.scale.multiplyScalar(k.y);
+          else part.scale.multiply(k);
+        }
         // Avant du véhicule vers +z (sens de marche) si le modèle est allongé selon x.
-        if (size.x > size.z) root.rotation.y = -Math.PI / 2;
+        if (alongX) root.rotation.y = -Math.PI / 2;
         root.updateMatrixWorld(true);
         const b2 = new THREE.Box3().setFromObject(root);
         root.position.y -= b2.min.y;
