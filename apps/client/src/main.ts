@@ -104,6 +104,12 @@ async function boot(): Promise<void> {
   bootStep(12, 'Chargement des coureurs, des vélos et des voitures');
   // Avatars Blender (glTF) chargés une fois ; repli procédural automatique en cas d'échec.
   const [scene] = await Promise.all([loadScene(settings), GltfRiderAvatar.load(), loadVehicleModels()]);
+  // Film d'accueil (développement) : rendu image par image, sans menu (voir tools/menu-loop).
+  if (import.meta.env.DEV && new URLSearchParams(location.search).has('cinematic')) {
+    const { runCinematic } = await import('./ui/cinematic.ts');
+    bootDone();
+    return runCinematic(scene.engine, scene.world, scene.track);
+  }
   bootStep(50, 'Choix du lieu de la photo d’accueil');
   const devices = createDeviceLayer();
   const autostart = new URLSearchParams(location.search).has('autostart');

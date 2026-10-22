@@ -1,0 +1,13 @@
+{
+  "name": "@allezrobert/menu-loop",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Film d'accueil du menu : capture du mode cinématique du client et encodage des boucles par saison",
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "capture": "tsx src/capture.ts capture",
+    "encode": "tsx src/capture.ts encode",
+    "test": "vitest run --root ../.. tools/menu-loop"
+  }
+}

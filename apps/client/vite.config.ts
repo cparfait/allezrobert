@@ -8,10 +8,19 @@ const hmr = process.env.AR_HMR !== '0';
 /**
  * Développement uniquement : POST /__shot?name=xxx (corps = data URL PNG/JPEG) enregistre une
  * capture du canvas dans docs/screenshots/, pour examiner le rendu à chaque jalon.
+ * &dir=a/b : dossier sous out/ (non versionné), p. ex. les images du film d'accueil (menu-loop/<saison>).
  */
 function screenshots(): Plugin {
   const dir = resolve(import.meta.dirname, '../../docs/screenshots');
-  const checkDir = resolve(import.meta.dirname, '../../out/worldcheck');
+  const outRoot = resolve(import.meta.dirname, '../../out');
+  const checkDir = resolve(outRoot, 'worldcheck');
+  /** Sous-dossier de out/ demandé par ?dir= (segments assainis, jamais hors de out/) ; null sinon. */
+  const outSubdir = (url: URL): string | null => {
+    const raw = url.searchParams.get('dir');
+    if (!raw) return null;
+    const parts = raw.split('/').map((p) => p.replace(/[^a-z0-9_-]/gi, '_')).filter(Boolean);
+    return parts.length ? resolve(outRoot, ...parts) : null;
+  };
   return {
     name: 'ar-screenshots',
     apply: 'serve',
@@ -23,7 +32,7 @@ function screenshots(): Plugin {
         const chunks: Buffer[] = [];
         req.on('data', (c: Buffer) => chunks.push(c));
         req.on('end', () => {
-          const outDir = resolve(import.meta.dirname, '../../out');
+          const outDir = outSubdir(url) ?? outRoot;
           mkdirSync(outDir, { recursive: true });
           const file = resolve(outDir, name);
           writeFileSync(file, Buffer.concat(chunks));
@@ -49,7 +58,7 @@ function screenshots(): Plugin {
             return;
           }
           // Les captures du contrôle visuel vont dans out/ (non versionné).
-          const target = name.startsWith('worldcheck-') ? checkDir : dir;
+          const target = outSubdir(url) ?? (name.startsWith('worldcheck-') ? checkDir : dir);
           mkdirSync(target, { recursive: true });
           const file = resolve(target, `${name}.${m[1] === 'jpeg' ? 'jpg' : 'png'}`);
           writeFileSync(file, Buffer.from(m[2] as string, 'base64'));

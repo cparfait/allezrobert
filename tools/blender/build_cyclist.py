@@ -40,10 +40,11 @@ from mathutils import Vector
 argv = sys.argv[sys.argv.index('--') + 1:] if '--' in sys.argv else []
 ap = argparse.ArgumentParser()
 ap.add_argument('--out', default='apps/client/public/models/')
-ap.add_argument('--preview', default='docs/screenshots/avatar-preview.png')
+ap.add_argument('--preview', default='docs/screenshots/bikes.png')
 ap.add_argument('--no-preview', action='store_true')
 ap.add_argument('--blend', default='')
-ap.add_argument('--views', default='3q,side,front,head,back,hand,bside,b3q,bcock,bhood,bdrive,bfront,climb,lod1')
+ap.add_argument('--views', default='')  # (obsolète, conservé pour compatibilité)
+ap.add_argument('--only', default='', choices=['', 'rider', 'bikes'])
 args = ap.parse_args(argv)
 OUT = os.path.abspath(args.out)
 os.makedirs(OUT, exist_ok=True)
@@ -419,6 +420,26 @@ MAT_DEFS = {
     'bar_tape': ('#ffd23f', 0.75, 0.0),
     'computer_screen': ('#1b2a30', 0.15, 0.0),
     'bottle': ('#ffd23f', 0.5, 0.0),
+    # Catalogue de vélos : matériaux teintables séparément par le client.
+    'tire_wall': ('#1a1a1c', 0.8, 0.0),
+    'spokes': ('#151618', 0.4, 0.3),
+    'hub': ('#1c1d21', 0.4, 0.3),
+    'rotor': ('#b9bcc2', 0.25, 1.0),
+    'valve': ('#b9bcc2', 0.3, 1.0),
+    'saddle': ('#141518', 0.55, 0.0),
+    'saddle_lattice': ('#202226', 0.6, 0.0),
+    'crank': ('#18191c', 0.4, 0.2),
+    'chainring': ('#2a2c31', 0.35, 0.5),
+    'chain': ('#9a9da3', 0.3, 1.0),
+    'pulley': ('#1c1d21', 0.5, 0.0),
+    'cage': ('#18191c', 0.45, 0.1),
+    'computer': ('#1b1c20', 0.45, 0.0),
+    'caliper': ('#1c1d21', 0.4, 0.3),
+    'spacers': ('#18191c', 0.4, 0.2),
+    'topcap': ('#18191c', 0.4, 0.3),
+    'bolts': ('#b9bcc2', 0.3, 1.0),
+    'pad': ('#202124', 0.8, 0.0),
+    'cassette': ('#b9bcc2', 0.25, 1.0),
 }
 MATS = {}
 
@@ -1323,477 +1344,38 @@ def add_m(mb, verts, faces, mats):
     mb.fm.extend(mats)
 
 
-class Bike:
-    pass
-
-
-def bike_geometry():
-    g = Bike()
-    g.st_dir = nrm(SADDLE - BB)
-    g.st_top = BB + g.st_dir * 0.49          # nœud de selle (tube horizontal plongeant)
-    a = math.radians(73)
-    g.ht_up = V(0, math.sin(a), -math.cos(a))
-    g.pf = V(0, math.cos(a), math.sin(a))
-    A = FRONT_AXLE - g.pf * 0.045
-    s_bot = (0.655 - A[1]) / g.ht_up[1]
-    g.ht_bot = A + g.ht_up * s_bot
-    g.ht_top = g.ht_bot + g.ht_up * 0.17
-    g.steer_top = g.ht_top + g.ht_up * 0.03
-    g.bar = V(0, 0.866, 0.507)
-    g.dt_dir = nrm(g.ht_bot - BB)
-    nb = nrm(np.cross(g.dt_dir, V(1, 0, 0)))
-    g.dt_back = nb if nb[1] > 0 else -nb      # face arrière / haute du diagonal (porte-bidon)
-    st_f = V(0, 0, 1) - g.st_dir * g.st_dir[2]
-    g.st_front = nrm(st_f)                    # face avant du tube de selle
-    return g
-
-
-def build_frame(g, sty, voxel=0.0025, target=2400):
-    """Cadre + fourche : tubes balayés, union voxel, lissage, décimation (matériau « frame »)."""
-    mb = MB()
-    n = 20
-    Z, Y, X = V(0, 0, 1), V(0, 1, 0), V(1, 0, 0)
-    tr = sty['trunc']
-
-    def sec(chord, width, fo=0.0):
-        if sty['round']:
-            return ell_sec(n, width / 2, chord / 2, 2.0, fo)
-        return kamm_sec(n, chord, width, tr, fo)
-
-    st = g.st_dir
-    # Douille de direction : évasée en bas (tête de fourche intégrée), profil profond.
-    c0, c1, w0, w1 = sty['ht']
-    tube(mb, [g.ht_bot + g.ht_up * 0.004, g.ht_bot + g.ht_up * 0.04, g.ht_top],
-         1, lambda t: sec(c0 * 1.04 if t < 0.1 else lerp(c0, c1, t), max(w0, 0.056) if t < 0.1 else lerp(w0, w1, t), -0.006), Z, 'frame')
-    # Diagonal : large, bord d'attaque vers l'avant / le bas, culot vers les bidons.
-    c0, c1, w0, w1 = sty['dt']
-    tube(mb, [BB + V(0, -0.006, -0.004), g.ht_bot + g.ht_up * 0.055 - g.pf * 0.004],
-         1, lambda t: sec(lerp(c0, c1, t), lerp(w0, w1, t)), Z, 'frame')
-    # Tube de selle (prolongé au-dessus du nœud : tige aéro).
-    c0, c1, w0, w1 = sty['st']
-    tube(mb, [BB - st * 0.015, BB + st * 0.2, g.st_top + st * 0.035],
-         1, lambda t: sec(lerp(c0, c1, t), lerp(w0, w1, t)), Z, 'frame')
-    # Tube horizontal plongeant.
-    a0, a1, h0, h1 = sty['tt']
-    tube(mb, [g.ht_top - g.ht_up * 0.028, g.st_top + st * 0.012],
-         1, lambda t: ell_sec(n, lerp(a0, a1, t), lerp(h0, h1, t), 2.4), Y, 'frame')
-    # Boîtier de pédalier (BB86).
-    v, f, _ = loft([BB + V(0.043, 0, 0), BB - V(0.043, 0, 0)], 0.022, 0.022, V(0, 1, 0), n=16)
-    mb.add(v, f, 'frame')
-    hr = HUB_HALF[1]
-    hf = HUB_HALF[0]
-    sw, sh, sw1, sh1 = sty['cs']
-    for s in (1, -1):
-        drop = REAR_AXLE + V((hr + 0.002) * s, 0, 0)
-        # Bases (côté transmission : serrées près du boîtier pour dégager les plateaux).
-        tube(mb, [BB + V(0.025 * s, -0.003, -0.02), BB + V(0.029 * s, 0.003, -0.115), REAR_AXLE + V((hr - 0.012) * s, -0.008, 0.12),
-                  drop + V(0, -0.004, 0.012)], 3, lambda t: ell_sec(12, lerp(sw, sw1, t), lerp(sh, sh1, t), 2.2), Y, 'frame')
-        # Haubans abaissés : rejoignent le tube de selle bien sous le tube horizontal.
-        J = BB + st * 0.36
-        tube(mb, [J + V(0.013 * s, 0, -0.004), lerp(J, drop, 0.5) + V(0.043 * s - lerp(J, drop, 0.5)[0], 0.0, 0.0), drop + V(0, 0.014, 0.0)],
-             3, lambda t: (ell_sec(12, sty['ss'][1] / 2, sty['ss'][0] / 2) if sty['round'] else kamm_sec(12, sty['ss'][0], sty['ss'][1], tr)), Z, 'frame')
-        # Pattes arrière.
-        v, f, _ = loft([drop + V(0, -0.013, 0.02), drop + V(0, 0.014, -0.006)], 0.013, 0.0045, X, n=10)
-        mb.add(v, f, 'frame')
-        # Fourreaux de fourche (écartés de la roue), profil aéro.
-        fdrop = FRONT_AXLE + V((hf + 0.006) * s, 0.006, 0)
-        c0, c1, w0, w1 = sty['fork']
-        top = g.ht_bot + g.ht_up * 0.05 + V(0.016 * s, 0, 0) - g.pf * 0.004
-        mid = g.ht_bot - g.ht_up * 0.16 + V((hf + 0.0) * s, 0, 0) + g.pf * 0.008
-        tube(mb, [top, mid, fdrop], 3, lambda t: sec(lerp(c0, c1, t), lerp(w0, w1, t)), Z, 'frame')
-        v, f, _ = loft([fdrop + V(0, -0.012, 0.012), fdrop + V(0, 0.016, -0.004)], 0.012, 0.0045, X, n=10)
-        mb.add(v, f, 'frame')
-    ob = mb.build('frame_union')
-    remesh_union(ob, voxel, 5, 0.5)
-    decimate_to(ob, target)
-    shade(ob)
-    return ob
-
-
-def build_bottle(mb, g, base, axis, mount, lod, cage=True):
-    """Bidon (matériau « bottle », bouchon « components ») + porte-bidon ; mount = direction du tube."""
-    n = 10 if lod == 0 else 6
-    L = 0.205
-    ts = [0.0, 0.012, 0.1, 0.15, 0.172]
-    rs = [0.031, 0.0365, 0.0345, 0.0365, 0.033]
-    if lod:
-        ts, rs = [0.0, 0.012, 0.15, 0.172], [0.031, 0.0365, 0.0365, 0.033]
-    v, f, _ = loft([base + axis * t for t in ts], rs, rs, mount, n=n)
-    mb.add(v, f, 'bottle')
-    v, f, _ = loft([base + axis * t for t in (0.17, 0.19, 0.198, L)], [0.031, 0.025, 0.012, 0.008],
-                   [0.031, 0.025, 0.012, 0.008], mount, n=n)
-    mb.add(v, f, 'components')
-    if cage and lod == 0:
-        lat = nrm(np.cross(axis, mount))
-        for sgn in (1, -1):
-            rail = [base + axis * t + mount * 0.026 + lat * sgn * 0.027 for t in (0.004, 0.06, 0.12, 0.155)]
-            rail[0] = rail[0] - mount * 0.012
-            v, f, _ = loft(rail, 0.0035, 0.0018, lat * sgn, n=4)
-            mb.add(v, f, 'components')
-        v, f, _ = loft([base - axis * 0.004 + mount * 0.04, base - axis * 0.004 - mount * 0.012], 0.012, 0.0025, axis, n=4)
-        mb.add(v, f, 'components')
-        v, f, _ = loft([base + axis * 0.03 + mount * 0.034, base + axis * 0.14 + mount * 0.034], 0.009, 0.003, mount, n=4)
-        mb.add(v, f, 'components')
-
-
-def build_bike_parts(g, sty, lod=0):
-    """Pièces fixes (non fusionnées) : cockpit, compteur, selle, transmission, freins, bidons."""
-    mb = MB()
-    X, Y, Z = V(1, 0, 0), V(0, 1, 0), V(0, 0, 1)
-    n = 10 if lod == 0 else 6
-    per = 2 if lod == 0 else 1
-    # --- Couvercle de direction / entretoises aéro (même profil que la douille).
-    c1, w1 = sty['ht'][1], sty['ht'][3]
-    sec_ht = (lambda t: ell_sec(n + 4, w1 * 0.47, c1 * 0.47, 2.0, -0.006)) if sty['round'] else \
-        (lambda t: kamm_sec(n + 4, c1 * 0.94, w1 * 0.94, sty['trunc'], -0.006))
-    tube(mb, [g.ht_top - g.ht_up * 0.004, g.steer_top + g.ht_up * 0.002], 1, sec_ht, Z, 'components')
-    # --- Cintre-potence monobloc : potence profonde qui s'élargit vers le cintre.
-    tube(mb, [g.steer_top - g.ht_up * 0.012 - g.pf * 0.006, g.steer_top + V(0, 0.01, 0.055), g.bar + V(0, 0, -0.014)], per,
-         lambda t: ell_sec(n, lerp(0.0145, 0.024, t ** 2), lerp(0.016, 0.0105, t), 2.8), Y, 'components')
-    # Cintre : partie haute en aile (corde 46 mm), puis rampe vers l'avant ; le cintre plonge juste
-    # devant la cocotte (« reach » ≈ 80 mm), bas de cintre évasés. Guidoliné hors de la partie centrale.
-    half = [V(0.0, 0.866, 0.507), V(0.07, 0.866, 0.51), V(0.135, 0.867, 0.518), V(0.17, 0.869, 0.53), V(0.19, 0.871, 0.55),
-            V(0.198, 0.872, 0.572), V(0.201, 0.866, 0.594), V(0.204, 0.85, 0.608), V(0.207, 0.825, 0.614), V(0.211, 0.795, 0.608),
-            V(0.215, 0.77, 0.588), V(0.218, 0.754, 0.56), V(0.22, 0.748, 0.528), V(0.221, 0.748, 0.49)]
-    full = [p * V(-1, 1, 1) for p in reversed(half[1:])] + half
-    P = catmull(full, 2 if lod == 0 else 1)
-    nb = 8 if lod == 0 else 5
-    wing = kamm_sec(nb, 0.046, 0.011, 0.75)
-    rnd = ell_sec(nb, 0.0122, 0.0122)
-    w = smoothstep(0.12, 0.185, np.abs(P[:, 0]))
-    secs = [wing * (1 - wi) + rnd * wi for wi in w]
-    R = sweep_rings(P, secs, transported_refs(P, len(P) // 2, Z))
-    ia = int(np.argmax(P[:, 0] > -0.075))
-    ib = int(len(P) - 1 - np.argmax(P[::-1, 0] < 0.075))
-    skin(mb, R, 'bar_tape', 0, ia, cap0=True, cap1=False)
-    skin(mb, R, 'components', ia, ib, cap0=False, cap1=False)
-    skin(mb, R, 'bar_tape', ib, len(P) - 1, cap0=False, cap1=True)
-    # Cocottes (type Dura-Ace R9200 / Red AXS) : corps fixé sur la courbe avant du cintre, ≈ 105 mm
-    # de la rampe au bout du pommeau, dessus qui monte vers un pommeau arrondi ; profil latéral
-    # défini par (z, dessus, dessous, demi-largeur). La main du coureur repose sur le dessus.
-    HOOD = [(0.556, 0.887, 0.861, 0.0126), (0.578, 0.898, 0.855, 0.0138), (0.600, 0.905, 0.847, 0.0142),
-            (0.622, 0.910, 0.849, 0.0138), (0.638, 0.915, 0.857, 0.0122), (0.650, 0.920, 0.872, 0.0088),
-            (0.657, 0.922, 0.89, 0.0066), (0.661, 0.918, 0.903, 0.0042)]
-    if lod:
-        HOOD = [HOOD[i] for i in (0, 2, 4, 6, 7)]
-    k = 2 if lod == 0 else 1
-    hz = resample([h[0] for h in HOOD], k)
-    htop = resample([h[1] for h in HOOD], k)
-    hbot = resample([h[2] for h in HOOD], k)
-    hwid = resample([h[3] for h in HOOD], k)
-    nh = 8 if lod == 0 else 5
-    for s in (1, -1):
-        hp = catmull([V(0.2 * s, (h[1] + h[2]) / 2, h[0]) for h in HOOD], k)
-        hsec = [ell_sec(nh, hwid[i], (htop[i] - hbot[i]) / 2, 2.5) for i in range(len(hz))]
-        skin(mb, sweep_rings(hp, hsec, Y), 'components')
-        # Levier de frein : descend de l'avant de la cocotte en suivant la courbe du cintre (≈ 2 cm devant).
-        lever = [V(0.2 * s, 0.874, 0.65), V(0.2 * s, 0.845, 0.653), V(0.201 * s, 0.81, 0.646), V(0.203 * s, 0.78, 0.629),
-                 V(0.206 * s, 0.758, 0.604)]
-        tube(mb, lever, 1, lambda t: ell_sec(6, lerp(0.0068, 0.005, t), lerp(0.0052, 0.0034, t), 2.4), Z, 'components')
-        if lod == 0:
-            # Palette de vitesses (gris) juste derrière la lame, côté intérieur.
-            pad = [V(0.197 * s, 0.858, 0.643), V(0.196 * s, 0.83, 0.643), V(0.197 * s, 0.808, 0.634)]
-            tube(mb, pad, 1, lambda t: ell_sec(6, 0.0045, 0.0022, 2.4), Z, 'rim_decal')
-    # --- Compteur GPS sur support déporté (boîtier ≈ 60 × 105 × 16 mm, écran légèrement émissif).
-    tube(mb, [g.bar + V(0, -0.006, 0.012), g.bar + V(0, -0.002, 0.07)], 1, lambda t: ell_sec(8, 0.011, 0.0045, 2.6), Y, 'components')
-    tilt = math.radians(10)
-    du = V(0, math.sin(tilt), math.cos(tilt))
-    nu = V(0, math.cos(tilt), -math.sin(tilt))
-    cu = g.bar + V(0, 0.013, 0.08)
-    if lod == 0:
-        tube(mb, [cu - du * 0.053, cu - du * 0.05, cu + du * 0.05, cu + du * 0.053], 1,
-             lambda t: ell_sec(16, 0.027 if t in (0.0, 1.0) else 0.03, 0.0065 if t in (0.0, 1.0) else 0.0082, 4.0), nu, 'components')
-    else:
-        v, f = box(cu, (0.03, 0.008, 0.052), (X, nu, du))
-        mb.add(v, f, 'components')
-    v, f = box(cu + nu * 0.0084 + du * 0.006, (0.0245, 0.0005, 0.038), (X, nu, du))
-    mb.add(v, f, 'computer_screen')
-    # --- Selle à bec court (≈ 245 mm, ailes larges).
-    S = [(-0.33, 0.05, 0.95, 0.935), (-0.322, 0.068, 0.957, 0.93), (-0.29, 0.072, 0.96, 0.928), (-0.25, 0.065, 0.958, 0.928),
-         (-0.205, 0.047, 0.955, 0.93), (-0.165, 0.031, 0.954, 0.932), (-0.125, 0.025, 0.953, 0.933), (-0.098, 0.021, 0.951, 0.936),
-         (-0.088, 0.012, 0.946, 0.94)]
-    k = 2 if lod == 0 else 1
-    sp = catmull([V(0, (s[2] + s[3]) / 2, s[0]) for s in S], k)
-    v, f, _ = loft(sp, resample([s[1] for s in S], k), resample([(s[2] - s[3]) / 2 for s in S], k), Y, n=10 if lod == 0 else 6, expo=3.0)
-    mb.add(v, f, 'components')
-    # --- Tige de selle (aéro en D, couleur cadre) + chariot + rails carbone.
-    sp_top = BB + g.st_dir * ((0.915 - BB[1]) / g.st_dir[1])
-    if sty['round']:
-        tube(mb, [g.st_top - g.st_dir * 0.02, sp_top], 1, lambda t: ell_sec(n, 0.0136, 0.0136), Z, 'components')
-    else:
-        tube(mb, [g.st_top - g.st_dir * 0.02, sp_top], 1, lambda t: kamm_sec(n, sty['post'][0], sty['post'][1], sty['trunc']), Z, 'frame')
-    if lod == 0:
-        v, f = box(sp_top + V(0, 0.006, 0), (0.022, 0.008, 0.024))
-        mb.add(v, f, 'components')
-        for s in (1, -1):
-            rail = catmull([V(0.03 * s, 0.933, -0.31), V(0.034 * s, 0.914, -0.25), V(0.033 * s, 0.914, -0.16), V(0.016 * s, 0.936, -0.1)], 2)
-            v, f, _ = loft(rail, 0.0036, 0.0045, Y, n=4)
-            mb.add(v, f, 'components')
-    # --- Bidons (sur le culot du diagonal, devant le tube de selle).
-    build_bottle(mb, g, BB + g.dt_dir * 0.085 + g.dt_back * (sty['dt'][0] / 2 + 0.043), g.dt_dir, -g.dt_back, lod)
-    build_bottle(mb, g, BB + g.st_dir * 0.215 + g.st_front * (sty['st'][0] / 2 + 0.043), g.st_dir, -g.st_front, lod)
-    if lod == 0:
-        hr = HUB_HALF[1]
-        # --- Transmission fixe : chaîne, dérailleurs avant / arrière.
-        R1 = 0.105
-        ring = [V(CHAIN_X, BB[1] + R1 * math.sin(a), R1 * math.cos(a)) for a in np.linspace(math.pi / 2, -math.pi / 2, 14)]
-        UP = V(CHAIN_X, REAR_AXLE[1] - 0.052, REAR_AXLE[2] - 0.004)
-        LP = V(CHAIN_X, REAR_AXLE[1] - 0.122, REAR_AXLE[2] + 0.018)
-        PR = 0.019
-        cog = 0.041
-        chain = ring + [LP + V(0, -PR, 0.006), LP + V(0, -0.004, -PR), UP + V(0, 0.0, PR * 0.9), UP + V(0, PR * 0.8, -0.008),
-                        V(CHAIN_X, REAR_AXLE[1] - 0.012, REAR_AXLE[2] - cog), V(CHAIN_X, REAR_AXLE[1] + 0.028, REAR_AXLE[2] - 0.03),
-                        V(CHAIN_X, REAR_AXLE[1] + cog, REAR_AXLE[2])]
-        chain = chain + [ring[0]]
-        v, f, _ = loft(catmull(chain, 1), 0.0045, 0.0034, X, n=4)
-        mb.add(v, f, 'chrome')
-        for c in (LP, UP):
-            v, f, _ = loft([c + V(0.003, 0, 0), c - V(0.003, 0, 0)], PR, PR, Y, n=12)
-            mb.add(v, f, 'components')
-            # Vis de galet (visible sur la flasque extérieure).
-            v, f, _ = loft([c - V(0.0085, 0, 0), c - V(0.0105, 0, 0)], 0.0055, 0.0055, Y, n=6)
-            mb.add(v, f, 'chrome')
-        # Chape (deux flasques) et corps de dérailleur arrière (moteur électronique).
-        for dx, mat in ((-0.0075, 'components'), (0.0075, 'components')):
-            v, f, _ = loft([UP + V(dx, 0.004, 0.0), LP + V(dx, -0.004, 0.0)], 0.017, 0.0016, X, n=8)
-            mb.add(v, f, mat)
-        kb = REAR_AXLE + V(-(hr + 0.008), -0.012, -0.016)
-        kp = UP + V(-0.016, 0.006, -0.02)
-        v, f, _ = loft(catmull([kb, kb + V(-0.004, -0.014, -0.022), kp], 2), [0.012, 0.015, 0.014, 0.013, 0.011], [0.016, 0.018, 0.017, 0.015, 0.013], X, n=10, expo=2.6)
-        mb.add(v, f, 'components')
-        v, f, _ = loft([kb + V(0.006, 0, 0), kb - V(0.006, 0, 0)], 0.012, 0.012, Y, n=10)
-        mb.add(v, f, 'components')
-        # Dérailleur avant (moteur + flasque extérieure au-dessus du grand plateau).
-        fdb = BB + g.st_dir * 0.125 + V(-0.024, 0, 0) - g.st_front * 0.012
-        v, f = box(fdb, (0.011, 0.016, 0.014), (X, g.st_dir, g.st_front))
-        mb.add(v, f, 'components')
-        arc = [V(-0.053, BB[1] + 0.113 * math.cos(a), -0.113 * math.sin(a)) for a in np.linspace(math.radians(5), math.radians(42), 5)]
-        v, f, _ = loft(arc, 0.011, 0.0016, X, n=6)
-        mb.add(v, f, 'components')
-        v, f, _ = loft([fdb - V(0.004, 0, 0), arc[2] + V(0.006, 0.006, 0)], 0.007, 0.007, Y, n=6)
-        mb.add(v, f, 'components')
-        # --- Étriers flat mount (gauche) : avant derrière le fourreau, arrière sur la base.
-        # (angle dans le plan (y, z) : 0 = vers l'avant ; anc = patte de fixation sur le fourreau / la base.)
-        for axle, side, rr, ang, anc in ((FRONT_AXLE, ROTOR_X[0], ROTOR_R[0], math.radians(160), V(0.054, 0.05, -0.022)),
-                                         (REAR_AXLE, ROTOR_X[1], ROTOR_R[1], math.radians(28), V(0.062, -0.002, 0.075))):
-            rc = rr - 0.006
-            arcp = [axle + V(side, rc * math.sin(a), rc * math.cos(a)) for a in np.linspace(ang - 0.36, ang + 0.36, 5)]
-            v, f, _ = loft(arcp, [0.008, 0.012, 0.0125, 0.012, 0.008], 0.013, X, n=8, expo=3.0)
-            mb.add(v, f, 'components')
-            v, f, _ = loft([arcp[2] + V(0.006, 0, 0), axle + anc], 0.007, 0.006, X, n=6)
-            mb.add(v, f, 'components')
-        # Axes traversants (côté gauche : levier).
-        for axle, hh in ((FRONT_AXLE, HUB_HALF[0] + 0.011), (REAR_AXLE, HUB_HALF[1] + 0.008)):
-            v, f, _ = loft([axle + V(hh, 0, 0), axle + V(hh + 0.006, 0, 0)], 0.011, 0.011, Y, n=8)
-            mb.add(v, f, 'components')
-            v, f, _ = loft([axle - V(hh, 0, 0), axle - V(hh + 0.004, 0, 0)], 0.009, 0.009, Y, n=6)
-            mb.add(v, f, 'components')
-    ob = mb.build('parts')
-    return ob
-
-
-def build_wheel(name, axle, front, sty, lod=0):
-    mb = MB()
-    n = 36 if lod == 0 else 16
-    # Pneu 28 mm (tubeless) : section elliptique qui sort des crochets de la jante.
-    rc, ar, ax = WHEEL_R - 0.0135, 0.0135, 0.0143
-    kt = 6 if lod == 0 else 4
-    tire = [(rc + ar * math.cos(a), ax * math.sin(a)) for a in np.linspace(0, 2 * math.pi, kt + 1)[:-1]]
-    v, f = lathe(tire, n)
-    mb.add(v, f, 'tire')
-    # Jante carbone large (≈ 30 mm extérieur), profil en U arrondi, bande décor sur les flancs.
-    D = sty['rim'][0 if front else 1]
-    r0, r1 = 0.3135, 0.311 - D
-    half = [(0.0, 0.0122), (0.12, 0.0152), (0.4, 0.0154), (0.6, 0.015), (1.0, 0.0)]
-    if lod:
-        half = [(0.0, 0.0122), (0.4, 0.0154), (0.6, 0.015), (1.0, 0.0)]
-    prof = [(r0 - t * (r0 - r1), w) for t, w in half] + [(r0 - t * (r0 - r1), -w) for t, w in reversed(half[:-1])]
-    nh = len(half)
-    segm = []
-    for j in range(len(prof)):
-        a, b = prof[j], prof[(j + 1) % len(prof)]
-        rm = (a[0] + b[0]) / 2
-        tm = (r0 - rm) / (r0 - r1)
-        segm.append('rim_decal' if 0.39 < tm < 0.61 and abs(a[1]) > 0.01 and abs(b[1]) > 0.01 and a[1] * b[1] > 0 else 'rim')
-    v, f, mm = lathe_m(prof, segm, n)
-    add_m(mb, v, f, mm)
-    hh = HUB_HALF[0 if front else 1] - 0.002
-    # Flasques : symétriques à l'avant ; à l'arrière, côté transmission rentré sous la cassette.
-    flL = 0.034 if front else 0.036
-    flR = 0.034 if front else 0.021
-    hub = [(0.008, hh), (0.013, hh - 0.004), (0.014, flL + 0.004), (0.023, flL + 0.0015), (0.023, flL - 0.0015), (0.015, flL - 0.005),
-           (0.015, -flR + 0.005), (0.023, -flR + 0.0015), (0.023, -flR - 0.0015), (0.014, -flR - 0.004), (0.013, -hh + 0.004), (0.008, -hh)]
-    v, f = lathe(hub, 8 if lod == 0 else 6, closed=True)
-    mb.add(v, f, 'components')
-    if lod == 0:
-        # Rayons plats noirs (2 croisés), 20 avant / 24 arrière.
-        ns = 20 if front else 24
-        for k in range(ns):
-            a = 2 * math.pi * (k + 0.5) / ns
-            sx = flL if k % 2 else -flR
-            a2 = a + (0.13 if k % 2 else -0.13)
-            p0 = V(sx, 0.022 * math.cos(a2), 0.022 * math.sin(a2))
-            p1 = V(0.0, (r1 + 0.002) * math.cos(a), (r1 + 0.002) * math.sin(a))
-            v, f, _ = loft([p0, p1], 0.0012, 0.0005, V(1, 0, 0), n=4, cap=False)
-            mb.add(v, f, 'components')
-        # Disque (piste acier + araignée noire, center lock).
-        rx_ = ROTOR_X[0 if front else 1]
-        rr = ROTOR_R[0 if front else 1]
-        v, f = lathe([(rr - 0.016, rx_ + 0.0009), (rr, rx_ + 0.0009), (rr, rx_ - 0.0009), (rr - 0.016, rx_ - 0.0009)], 24)
-        mb.add(v, f, 'chrome')
-        for k in range(6):
-            a = 2 * math.pi * (k + 0.25) / 6
-            d = V(0, math.cos(a), math.sin(a))
-            d2 = V(0, math.cos(a + 0.35), math.sin(a + 0.35))
-            v, f, _ = loft([V(rx_, 0, 0) + d * 0.02, V(rx_, 0, 0) + d2 * (rr - 0.014)], [0.007, 0.005], 0.0011, V(1, 0, 0), n=4)
-            mb.add(v, f, 'components')
-        v, f = lathe([(0.017, rx_ + 0.003), (0.026, rx_ + 0.002), (0.026, rx_ - 0.002), (0.017, rx_ - 0.002)], 8)
-        mb.add(v, f, 'components')
-    if not front:
-        # Cassette 12 vitesses 11-34 (la plus grande à l'intérieur).
-        teeth = [34, 30, 27, 24, 21, 19, 17, 15, 14, 13, 12, 11]
-        if lod:
-            teeth = [34, 24, 17, 11]
-        pitch = 0.0037 if lod == 0 else 0.0123
-        if lod == 0:
-            teeth = teeth[:6] + teeth[6::2]   # 9 marches visibles (les petits pignons se confondent)
-            pitch = 0.041 / (len(teeth) - 1)
-        cas = [(0.016, -0.029)]
-        for i, tth in enumerate(teeth):
-            r = 0.0127 * tth / (2 * math.pi) + 0.0035
-            x = -0.031 - i * pitch
-            cas += [(r, x), (r, x - 0.0018 if lod == 0 else x - 0.006)]
-        cas += [(0.016, cas[-1][1])]
-        v, f = lathe(cas, 16 if lod == 0 else 10, closed=True)
-        mb.add(v, f, 'chrome')
-    # Coordonnées locales (origine = axe) → objet placé à l'axe.
-    ob = mb.build(name)
-    ob.location = Vector(to_bl(axle))
-    shade(ob, 40)
-    return ob
-
-
-def tooth_ring(mb, x0, x1, r_tip, r_root, r_in, teeth, mat_teeth, mat_body, r_mid=None):
-    """Plateau dentelé (face extérieure en x1) : bande dentée + voile ; r_mid sépare les matériaux."""
-    pts = [(r_tip if k % 2 == 0 else r_root, math.pi * k / teeth) for k in range(teeth * 2)]
-    nn = len(pts)
-    r_mid = r_mid or (r_root - 0.006)
-    verts = []
-    for x in (x0, x1):
-        for r, a in pts:
-            verts.append(V(x, r * math.cos(a), r * math.sin(a)))
-        for r, a in pts:
-            verts.append(V(x, r_mid * math.cos(a), r_mid * math.sin(a)))
-        for r, a in pts:
-            verts.append(V(x, r_in * math.cos(a), r_in * math.sin(a)))
-    faces, mats = [], []
-    o0, m0, i0, o1, m1, i1 = 0, nn, 2 * nn, 3 * nn, 4 * nn, 5 * nn
-    for k in range(nn):
-        k2 = (k + 1) % nn
-        # (face intérieure, côté cadre : une seule bande, peu visible)
-        faces += [(o0 + k, o0 + k2, m0 + k2, m0 + k), (m0 + k, m0 + k2, i0 + k2, i0 + k),
-                  (o1 + k, i1 + k, i1 + k2, o1 + k2),
-                  (o0 + k, o1 + k, o1 + k2, o0 + k2), (i0 + k, i0 + k2, i1 + k2, i1 + k)]
-        mats += [mat_teeth, mat_body, mat_body, mat_teeth, mat_body]
-    add_m(mb, verts, faces, mats)
-
-
-def build_crankset(lod=0):
-    """Pédalier 52/36 à quatre bras (capteur dans l'araignée), manivelles creuses."""
-    mb = MB()
-    if lod == 0:
-        tooth_ring(mb, -0.0475, -0.0445, 0.1065, 0.1015, 0.07, 28, 'chrome', 'components', 0.097)
-        v, f = lathe([(0.058, -0.0375), (0.0745, -0.0375), (0.0745, -0.0405), (0.058, -0.0405)], 24)
-        mb.add(v, f, 'components')
-    else:
-        v, f = lathe([(0.07, -0.0445), (0.105, -0.0445), (0.105, -0.0475), (0.07, -0.0475)], 16)
-        mb.add(v, f, 'components')
-        v, f = lathe([(0.058, -0.0375), (0.075, -0.0375), (0.075, -0.0405), (0.058, -0.0405)], 10)
-        mb.add(v, f, 'components')
-    # Araignée asymétrique (capteur de puissance : boîtier sous le bras arrière).
-    for k, a in enumerate((math.radians(30), math.radians(115), math.radians(210), math.radians(295))):
-        d = V(0, math.cos(a), math.sin(a))
-        v, f, _ = loft([V(-0.047, 0, 0) + d * 0.016, V(-0.047, 0, 0) + d * 0.075], [0.016, 0.009], 0.0045, V(1, 0, 0), n=6 if lod == 0 else 4)
-        mb.add(v, f, 'components')
-    if lod == 0:
-        v, f = lathe([(0.016, -0.042), (0.03, -0.042), (0.03, -0.05), (0.016, -0.05)], 12)
-        mb.add(v, f, 'components')
-        v, f = box(V(-0.04, 0.035, -0.022), (0.004, 0.012, 0.014), (V(1, 0, 0), nrm(V(0, 1, -0.6)), nrm(V(0, 0.6, 1))))
-        mb.add(v, f, 'rim_decal')
-    # Axe et manivelles (gauche vers le bas, droite vers le haut : angle 0).
-    v, f, _ = loft([V(0.07, 0, 0), V(-0.07, 0, 0)], 0.012, 0.012, V(0, 1, 0), n=12 if lod == 0 else 6)
-    mb.add(v, f, 'chrome')
-    for s in (1, -1):
-        dy = -1.0 if s > 0 else 1.0
-        arm = [V(0.058 * s, 0, 0), V(0.064 * s, dy * CRANK * 0.45, 0), V(PEDAL_AXIS_X * s - 0.004 * s, dy * CRANK, 0)]
-        v, f, _ = loft(arm, [0.02, 0.0135, 0.0125], [0.012, 0.0095, 0.008], V(1, 0, 0), n=12 if lod == 0 else 6, expo=3.0)
-        mb.add(v, f, 'components')
-        if lod == 0:
-            v, f, _ = loft([V(0.066 * s, 0, 0), V(0.072 * s, 0, 0)], 0.014, 0.014, V(0, 1, 0), n=10)
-            mb.add(v, f, 'components')
-    ob = mb.build('crankset')
-    ob.location = Vector(to_bl(BB))
-    shade(ob, 40)
-    return ob
-
-
-def build_pedal(tag, lod=0):
-    """Pédale automatique à capteur de puissance (capteur dans l'axe, petit boîtier côté manivelle)."""
-    s = 1 if tag == 'L' else -1
-    mb = MB()
-    # Origine = bout de manivelle (axe de pédale) ; corps centré à PEDAL_X.
-    off = (PEDAL_X - PEDAL_AXIS_X) * s
-    v, f, _ = loft([V(0, 0, 0), V(off + 0.022 * s, 0, 0)], 0.006, 0.006, V(0, 1, 0), n=8 if lod == 0 else 4)
-    mb.add(v, f, 'chrome')
-    # Boîtier du capteur (côté manivelle).
-    v, f, _ = loft([V(0.004 * s, 0, 0), V(0.012 * s, 0, 0), V(0.016 * s, 0, 0)], [0.012, 0.012, 0.009], [0.012, 0.012, 0.009], V(0, 1, 0), n=10 if lod == 0 else 5)
-    mb.add(v, f, 'components')
-    pts = [V(off, 0.001, -0.038), V(off, 0, -0.022), V(off, 0, 0.018), V(off, 0, 0.048), V(off, 0.002, 0.06)]
-    v, f, _ = loft(pts, [0.024, 0.033, 0.036, 0.029, 0.016], [0.008, 0.0105, 0.0105, 0.0085, 0.006], V(0, 1, 0), n=10 if lod == 0 else 6, expo=2.6)
-    mb.add(v, f, 'components')
-    if lod == 0:
-        # Plaque d'appui inox.
-        v, f = box(V(off, 0.0098, 0.0), (0.022, 0.0012, 0.026))
-        mb.add(v, f, 'chrome')
-    ob = mb.build(f'pedal_{tag}')
-    ang = 0.0 if s > 0 else math.pi
-    ob.location = Vector(to_bl(V(PEDAL_AXIS_X * s, BB[1] - math.cos(ang) * CRANK, -math.sin(ang) * CRANK)))
-    # Pédale automatique : solidaire de la chaussure → même inclinaison que le pied au repos.
-    ob.rotation_euler = (REST_PITCH, 0, 0)
-    shade(ob, 40)
-    return ob
-
-
-def build_bike(lod=0, style='aero'):
-    sty = BIKE_STYLES[style]
-    g = bike_geometry()
-    frame = build_frame(g, sty, 0.002 if lod == 0 else 0.004, 2250 if lod == 0 else 500)
-    parts = build_bike_parts(g, sty, lod)
-    vs, fs, ms = mesh_arrays(frame)
-    mb = MB()
-    mb.add_bl(vs, fs, ms)
-    vs, fs, ms = mesh_arrays(parts)
-    mb.add_bl(vs, fs, ms)
-    remove_obj(frame)
-    remove_obj(parts)
-    fr = mb.build('frame', recalc=False)
-    shade(fr, 50)
-    objs = [fr,
-            build_wheel('wheel_rear', REAR_AXLE, False, sty, lod),
-            build_wheel('wheel_front', FRONT_AXLE, True, sty, lod),
-            build_crankset(lod),
-            build_pedal('L', lod),
-            build_pedal('R', lod)]
-    return objs
+# ---------------------------------------------------------------------------------------------
+# Familles de vélos, roues, pièces (tools/blender/bike_families.py, exécuté ici)
+# ---------------------------------------------------------------------------------------------
+_HERE = os.path.dirname(os.path.abspath(__file__)) if '__file__' in globals() else os.path.dirname(os.path.abspath(sys.argv[sys.argv.index('--python') + 1]))
+exec(compile(open(os.path.join(_HERE, 'bike_families.py'), encoding='utf-8').read(), os.path.join(_HERE, 'bike_families.py'), 'exec'), globals())
+REPO = os.path.abspath(os.path.join(_HERE, '..', '..'))
 
 
 # ---------------------------------------------------------------------------------------------
 # Export / rendu
 # ---------------------------------------------------------------------------------------------
+def with_children(objs):
+    out = []
+    seen = set()
+
+    def rec(o):
+        if o.name in seen:
+            return
+        seen.add(o.name)
+        out.append(o)
+        for c in o.children:
+            rec(c)
+    for o in objs:
+        rec(o)
+    return out
+
+
 def export_glb(objs, path):
     for o in bpy.context.scene.objects:
         o.select_set(False)
-    for o in objs:
+    sel = with_children(objs)
+    for o in sel:
         o.select_set(True)
     bpy.context.view_layer.objects.active = objs[0]
     bpy.ops.export_scene.gltf(
@@ -1809,17 +1391,21 @@ def export_glb(objs, path):
         export_materials='EXPORT',
         export_normals=True,
         export_texcoords=False,
+        export_vertex_color='NAME',
+        export_vertex_color_name='zone',
+        export_all_vertex_colors=False,
+        export_active_vertex_color_when_no_material=False,
         export_cameras=False,
         export_lights=False,
         export_extras=False,
         export_draco_mesh_compression_enable=False,
     )
-    for o in objs:
+    for o in sel:
         o.select_set(False)
 
 
 def tris_of(objs):
-    return sum(tri_count(o) for o in objs if o.type == 'MESH')
+    return sum(tri_count(o) for o in with_children(objs) if o.type == 'MESH')
 
 
 def setup_preview_scene():
@@ -1857,16 +1443,120 @@ def setup_preview_scene():
     co = bpy.data.objects.new('cam', cam)
     sc.collection.objects.link(co)
     sc.camera = co
+    tm = bpy.data.materials.new('label')
+    tm.use_nodes = True
+    tm.node_tree.nodes['Principled BSDF'].inputs['Base Color'].default_value = (0.02, 0.02, 0.03, 1)
+    MATS['_label'] = tm
     return co, go
 
 
-def render_view(co, pos, target, lens, path):
+def render_view(co, pos, target, lens, path, res=None):
+    sc = bpy.context.scene
+    if res:
+        sc.render.resolution_x, sc.render.resolution_y = res
     co.location = Vector(to_bl(pos))
     d = Vector(to_bl(target)) - co.location
     co.rotation_euler = d.to_track_quat('-Z', 'Y').to_euler()
     co.data.lens = lens
-    bpy.context.scene.render.filepath = path
+    sc.render.filepath = path
     bpy.ops.render.render(write_still=True)
+
+
+def add_label(text, pos, size=0.06):
+    """Texte face à la caméra de profil (côté transmission, x < 0)."""
+    cu = bpy.data.curves.new('label', 'FONT')
+    cu.body = text
+    cu.size = size
+    cu.align_x = 'CENTER'
+    ob = bpy.data.objects.new('label', cu)
+    bpy.context.scene.collection.objects.link(ob)
+    ob.data.materials.append(MATS['_label'])
+    from mathutils import Matrix
+    m = Matrix(((0, 0, -1), (-1, 0, 0), (0, 1, 0)))
+    ob.rotation_euler = m.to_euler()
+    ob.location = Vector(to_bl(pos))
+    return ob
+
+
+def place_wheels(g, wheels, brakes):
+    objs = []
+    for typ, front in ((wheels[0], True), (wheels[1], False)):
+        w, rot = build_wheel_lib(typ, front, 0)
+        w.location = Vector(to_bl(g.fa if front else REAR_AXLE))
+        if front and g.wheel_scale_f != 1.0:
+            w.scale = (g.wheel_scale_f,) * 3
+        rot.hide_render = brakes != 'disc'
+        objs += [w, rot]
+    return objs
+
+
+def set_bike_options(objs, brakes='disc', track=False, toeclips=False):
+    for o in with_children(objs):
+        n = o.name
+        if n.startswith('opt_brakes_disc'):
+            o.hide_render = brakes != 'disc'
+        elif n.startswith('opt_brakes_rim'):
+            o.hide_render = brakes != 'rim'
+        elif n.startswith('opt_derailleur') or n.startswith('opt_bottles'):
+            o.hide_render = track
+        elif n.startswith('opt_toeclips'):
+            o.hide_render = not toeclips
+
+
+SIDE_VIEW = (V(-3.1, 0.6, 0.1), V(0, 0.56, 0.1), 50)
+
+
+def render_bike_side(co, objs, g, wheels, brakes, path, label=None, track=False, toeclips=False, res=(1200, 750)):
+    set_bike_options(objs, brakes, track, toeclips)
+    ws = place_wheels(g, wheels, brakes)
+    lab = add_label(label, V(0, 1.12, 0.1)) if label else None
+    pos, tgt, lens = SIDE_VIEW
+    render_view(co, pos, tgt, lens, path, res)
+    for o in ws:
+        remove_obj(o)
+    if lab:
+        cu = lab.data
+        bpy.data.objects.remove(lab)
+        bpy.data.curves.remove(cu)
+
+
+def compose_sheet(paths, cols, out):
+    imgs = [bpy.data.images.load(p) for p in paths]
+    w, h = imgs[0].size
+    rows = (len(imgs) + cols - 1) // cols
+    sheet = np.ones((rows * h, cols * w, 4), dtype=np.float32)
+    sheet[..., :3] = 0.92
+    for i, im in enumerate(imgs):
+        px = np.array(im.pixels[:], dtype=np.float32).reshape(h, w, 4)
+        rr = rows - 1 - i // cols  # pixels Blender : origine en bas
+        c = i % cols
+        sheet[rr * h:(rr + 1) * h, c * w:(c + 1) * w] = px
+    out_im = bpy.data.images.new('sheet', cols * w, rows * h, alpha=True)
+    out_im.pixels.foreach_set(sheet.ravel())
+    out_im.filepath_raw = out
+    out_im.file_format = 'PNG'
+    out_im.save()
+    for im in imgs:
+        bpy.data.images.remove(im)
+    bpy.data.images.remove(out_im)
+
+
+def swap_names(a, b):
+    """Échange les noms (objets et données) de deux listes parallèles d'objets."""
+    for x, y in zip(a, b):
+        nx, ny = x.name, y.name
+        x.name = '__tmp__'
+        y.name = nx
+        x.name = ny
+        if x.type == 'MESH' and y.type == 'MESH':
+            dx, dy = x.data.name, y.data.name
+            x.data.name = '__tmpd__'
+            y.data.name = dx
+            x.data.name = dy
+
+
+LIVERY_SHEET = ['s26-04-', 's26-01-', 's26-14-', 'myth-bianchi-specialissima-acier', 'myth-peugeot-px10', 'myth-lotus-110',
+                's26-06-', 'myth-look-kg86', 'myth-specialized-tarmac-sl7', 'myth-pinarello-espada', 'myth-giant-tcr-compact', 'myth-colnago-c40-mapei']
 
 
 # ---------------------------------------------------------------------------------------------
@@ -1877,127 +1567,163 @@ def main():
     make_materials()
     r = build_rig()
     stats = {}
-
-    # --- Cycliste
-    mb, prims = body_primitives(r)
-    raw = mb.build('body_raw')
-    remesh_union(raw, 0.0045, 12, 0.5)
-    print('body remesh tris', tri_count(raw))
-    ao = build_armature(r)
-    body0 = finalize_body(r, raw, 'rider_body', LOD0_BODY_TRIS, prims)
-    body1 = finalize_body(r, raw, 'rider_body_lod1', int(LOD0_BODY_TRIS * 0.2), prims)
-    remove_obj(raw)
-
-    hair = build_hair(r)
-    helmet = build_helmet(r)
-    glasses = build_glasses(r)
-    shoes = build_shoes(r)
-    acc0 = [hair, helmet, glasses, shoes]
-    acc1 = []
-    for o, tgt in ((hair, 160), (helmet, 400), (glasses, 120), (shoes, 240)):
-        c = copy_object(o, o.name + '_lod1')
-        decimate_to(c, tgt)
-        acc1.append(c)
-    for o in acc0 + acc1:
-        if o.name.startswith('rider_shoes'):
-            rigid_weights(o, lambda p: 'foot_L' if p[0] > 0 else 'foot_R')
-        else:
-            rigid_weights(o, lambda p: 'head')
-    for o in [body0, body1] + acc0 + acc1:
-        skin_to(o, ao)
-
-    rider0 = [ao, body0] + acc0
-    rider1 = [ao, body1] + acc1
-    stats['cyclist'] = tris_of(rider0)
-    stats['cyclist_lod1'] = tris_of(rider1)
-    stats['cyclist_parts'] = {o.name: tri_count(o) for o in rider0 if o.type == 'MESH'}
-
-    # --- Vélo
-    bike0 = build_bike(0)
-    stats['bike'] = tris_of(bike0)
-    stats['bike_parts'] = {o.name: tri_count(o) for o in bike0}
-
-    export_glb(rider0, os.path.join(OUT, 'cyclist.glb'))
-    export_glb(bike0, os.path.join(OUT, 'bike.glb'))
-
-    # Rendu de contrôle (LOD0).
-    if not args.no_preview:
-        prev = os.path.abspath(args.preview)
-        os.makedirs(os.path.dirname(prev), exist_ok=True)
-        base, ext = os.path.splitext(prev)
-        for o in rider1:
-            if o is not ao:
-                o.hide_render = True
+    only = args.only
+    preview = not args.no_preview
+    shots = os.path.abspath(os.path.dirname(args.preview))
+    os.makedirs(shots, exist_ok=True)
+    bout = os.path.join(OUT, 'bikes')
+    os.makedirs(bout, exist_ok=True)
+    co = None
+    if preview:
         co, ground = setup_preview_scene()
-        views = args.views.split(',')
-        if '3q' in views:
-            render_view(co, V(2.3, 1.4, 2.4), V(0, 0.85, 0.08), 35, prev)
-        if 'side' in views:
-            render_view(co, V(3.6, 0.85, 0.1), V(0, 0.8, 0.08), 40, base + '-side' + ext)
-        if 'front' in views:
-            render_view(co, V(0.7, 1.25, 3.4), V(0, 0.9, 0.2), 45, base + '-front' + ext)
-        if 'head' in views:
-            render_view(co, V(0.55, 1.62, 1.05), V(0, 1.5, 0.27), 70, base + '-head' + ext)
-        if 'back' in views:
-            render_view(co, V(-1.6, 1.7, -2.4), V(0, 0.9, 0.0), 40, base + '-back' + ext)
-        if 'hand' in views:
-            render_view(co, V(0.8, 1.05, 0.95), V(0.18, 0.88, 0.6), 45, base + '-cockpit-hand' + ext)
-        # Vues du vélo seul (côté transmission, 3/4, cockpit, profil de cocotte, transmission, face).
-        for o in [body0] + acc0:
-            o.hide_render = True
-        bike_views = {
-            'bside': (V(-3.0, 0.62, 0.09), V(0, 0.56, 0.09), 60),
-            'b3q': (V(1.7, 1.15, 1.9), V(0, 0.55, 0.08), 45),
-            'bcock': (V(0.42, 1.18, 1.02), V(0, 0.86, 0.56), 45),
-            'bdrive': (V(-0.95, 0.6, -0.05), V(0, 0.36, -0.2), 40),
-            'bfront': (V(0.25, 0.95, 3.2), V(0, 0.6, 0.3), 60),
-            'bhood': (V(0.95, 0.9, 0.56), V(0.2, 0.84, 0.59), 50),
-        }
-        for k, (pos, tgt, lens) in bike_views.items():
-            if k in views:
-                render_view(co, pos, tgt, lens, base + '-bike-' + k[1:] + ext)
-        for o in [body0] + acc0 + rider1:
-            o.hide_render = o in rider1 and o is not ao
 
-    # --- Variante grimpeur (bike_climb.glb) : mêmes noms d'objets → on retire d'abord le LOD0.
-    for o in bike0:
-        remove_obj(o)
-    climb0 = build_bike(0, 'climb')
-    stats['bike_climb'] = tris_of(climb0)
-    export_glb(climb0, os.path.join(OUT, 'bike_climb.glb'))
-    if not args.no_preview and 'climb' in args.views.split(','):
-        base, ext = os.path.splitext(os.path.abspath(args.preview))
-        for o in [body0] + acc0:
+    # --- Cycliste (LOD0 + LOD1, casques route et chrono)
+    rider0, rider1, ao = [], [], None
+    if only in ('', 'rider'):
+        mb, prims = body_primitives(r)
+        raw = mb.build('body_raw')
+        remesh_union(raw, 0.0045, 12, 0.5)
+        print('body remesh tris', tri_count(raw))
+        ao = build_armature(r)
+        body0 = finalize_body(r, raw, 'rider_body', LOD0_BODY_TRIS, prims)
+        body1 = finalize_body(r, raw, 'rider_body_lod1', int(LOD0_BODY_TRIS * 0.2), prims)
+        remove_obj(raw)
+        hair = build_hair(r)
+        helmet = build_helmet(r)
+        aero = build_rider_aero_helmet(r)
+        glasses = build_glasses(r)
+        shoes = build_shoes(r)
+        acc0 = [hair, helmet, aero, glasses, shoes]
+        acc1 = []
+        for o, tgt in ((hair, 160), (helmet, 400), (aero, 360), (glasses, 120), (shoes, 240)):
+            c = copy_object(o, o.name + '_lod1')
+            decimate_to(c, tgt)
+            acc1.append(c)
+        for o in acc0 + acc1:
+            if o.name.startswith('rider_shoes'):
+                rigid_weights(o, lambda p: 'foot_L' if p[0] > 0 else 'foot_R')
+            else:
+                rigid_weights(o, lambda p: 'head')
+        for o in [body0, body1] + acc0 + acc1:
+            skin_to(o, ao)
+        rider0 = [ao, body0] + acc0
+        rider1 = [ao, body1] + acc1
+        stats['cyclist'] = tris_of(rider0) - tri_count(aero)
+        stats['cyclist_aero_helmet'] = tri_count(aero)
+        stats['cyclist_lod1'] = tris_of(rider1)
+        stats['cyclist_parts'] = {o.name: tri_count(o) for o in rider0 if o.type == 'MESH'}
+        export_glb(rider0, os.path.join(OUT, 'cyclist.glb'))
+        swap_names(rider0[1:], rider1[1:])
+        export_glb(rider1, os.path.join(OUT, 'cyclist_lod1.glb'))
+        swap_names(rider0[1:], rider1[1:])
+        for o in rider1[1:]:
             o.hide_render = True
-        render_view(bpy.context.scene.camera, V(-3.0, 0.62, 0.09), V(0, 0.56, 0.09), 60, base + '-bike-climb' + ext)
-        for o in [body0] + acc0:
-            o.hide_render = False
-    for o in climb0:
-        remove_obj(o)
-    climb1 = build_bike(1, 'climb')
-    stats['bike_climb_lod1'] = tris_of(climb1)
-    export_glb(climb1, os.path.join(OUT, 'bike_climb_lod1.glb'))
-    for o in climb1:
-        remove_obj(o)
+        for o in rider0[1:]:
+            o.hide_render = True
 
-    # --- LOD1 : on retire le LOD0 et on reprend les mêmes noms d'objets.
-    for o in [body0] + acc0:
-        remove_obj(o)
-    for o in [body1] + acc1:
-        o.name = o.name.replace('_lod1', '')
-        o.data.name = o.name
-        o.hide_render = False
-    bike1 = build_bike(1)
-    stats['bike_lod1'] = tris_of(bike1)
-    stats['bike_lod1_parts'] = {o.name: tri_count(o) for o in bike1}
-    export_glb(rider1, os.path.join(OUT, 'cyclist_lod1.glb'))
-    export_glb(bike1, os.path.join(OUT, 'bike_lod1.glb'))
-    if not args.no_preview and 'lod1' in args.views.split(','):
-        base, ext = os.path.splitext(os.path.abspath(args.preview))
-        render_view(bpy.context.scene.camera, V(2.0, 1.25, 2.1), V(0, 0.78, 0.08), 40, base + '-lod1' + ext)
+    if only == 'rider':
+        print('STATS ' + json.dumps(stats))
+        return
+
+    with open(os.path.join(REPO, 'packages', 'shared', 'src', 'bikes.json'), encoding='utf-8') as f:
+        catalog = json.load(f)['bikes']
+
+    # --- Bibliothèque de roues
+    for lod in (0, 1):
+        ws = []
+        st = {}
+        for typ in WHEEL_TYPES:
+            for front in (True, False):
+                w, rot = build_wheel_lib(typ, front, lod)
+                ws.append(w)
+                st[w.name] = tri_count(w) + tri_count(rot)
+        export_glb(ws, os.path.join(bout, 'wheels.glb' if lod == 0 else 'wheels_lod1.glb'))
+        stats['wheels' if lod == 0 else 'wheels_lod1'] = st
+        for w in ws:
+            for c in list(w.children):
+                remove_obj(c)
+            remove_obj(w)
+
+    # --- Bibliothèque de pièces
+    for lod in (0, 1):
+        ps = build_parts_lib(lod)
+        stats['parts' if lod == 0 else 'parts_lod1'] = {o.name: tri_count(o) for o in ps}
+        export_glb(ps, os.path.join(bout, 'parts.glb' if lod == 0 else 'parts_lod1.glb'))
+        for o in ps:
+            remove_obj(o)
+
+    # --- Familles
+    anchors = {}
+    fam_shots = []
+    liv_shots = {}
+    rider_done = False
+    for fam in FAMILIES:
+        objs, info, g = build_family(fam, 0)
+        anchors[fam] = info
+        stats[fam] = tris_of(objs)
+        stats[fam + '_parts'] = {o.name: tri_count(o) for o in with_children(objs) if o.type == 'MESH'}
+        export_glb(objs, os.path.join(bout, f'{fam}.glb'))
+        if preview:
+            defw = {'tt': ['c65', 'disc'], 'lowpro': ['tri', 'disc'], 'lotus': ['tri', 'disc'], 'steel': ['box', 'box'],
+                    'retro': ['box', 'box'], 'retro_compact': ['box', 'box']}.get(fam, ['c50', 'c50'])
+            brakes = 'disc' if fam in ('aero', 'climb', 'tt') else 'rim'
+            p = os.path.join(shots, f'bikes-family-{fam}.png')
+            render_bike_side(co, objs, g, defw, brakes, p, label=fam, toeclips=(fam == 'steel'))
+            fam_shots.append(p)
+            ws = place_wheels(g, defw, brakes)
+            render_view(co, V(1.5, 1.35, 1.55), V(0, 0.68, 0.18), 40, os.path.join(shots, f'bikes-family-{fam}-3q.png'), (1200, 750))
+            for o in ws:
+                remove_obj(o)
+            fr = next(o for o in objs if o.name == 'frame')
+            slot = [i for i, m in enumerate(fr.data.materials) if m.name == 'frame'][0]
+            base_mat = fr.data.materials[slot]
+            for key in LIVERY_SHEET:
+                b = next((x for x in catalog if x['id'].startswith(key)), None)
+                if not b or b['family'] != fam:
+                    continue
+                mat = livery_material(b['livery'], 'liv_' + b['id'])
+                fr.data.materials[slot] = mat
+                pr = b['params']
+                p = os.path.join(shots, f"bikes-livery-{b['id']}.png")
+                render_bike_side(co, objs, g, pr['wheels'], pr['brakes'], p, label=b['name'], track=pr.get('track', False), toeclips=pr.get('toeClips', False))
+                liv_shots[key] = p
+                # Coureur sur le vélo (deux vues).
+                if rider0 and key in ('s26-04-', 'myth-peugeot-px10'):
+                    for o in rider0[1:]:
+                        o.hide_render = o.name.startswith('rider_helmet_aero')
+                    set_bike_options(objs, pr['brakes'], False, pr.get('toeClips', False))
+                    ws = place_wheels(g, pr['wheels'], pr['brakes'])
+                    tag = 'aero' if key == 's26-04-' else 'steel'
+                    render_view(co, V(2.3, 1.4, 2.4), V(0, 0.85, 0.08), 35, os.path.join(shots, f'bikes-rider-{tag}-3q.png'), (1600, 1000))
+                    render_view(co, V(-3.6, 0.85, 0.1), V(0, 0.8, 0.08), 40, os.path.join(shots, f'bikes-rider-{tag}-side.png'), (1600, 1000))
+                    if tag == 'aero':
+                        render_view(co, V(0.8, 1.05, 0.95), V(0.18, 0.88, 0.6), 45, os.path.join(shots, 'bikes-rider-cockpit-hand.png'), (1600, 1000))
+                        for o in rider0[1:]:
+                            o.hide_render = o.name.startswith('rider_helmet') and not o.name.startswith('rider_helmet_aero')
+                        render_view(co, V(0.75, 1.55, 0.9), V(0, 1.42, 0.2), 60, os.path.join(shots, 'bikes-rider-aero-helmet.png'), (1600, 1000))
+                    for o in ws:
+                        remove_obj(o)
+                    for o in rider0[1:]:
+                        o.hide_render = True
+                fr.data.materials[slot] = base_mat
+        for o in with_children(objs):
+            remove_obj(o) if o.type == 'MESH' else bpy.data.objects.remove(o)
+        objs1, _, _ = build_family(fam, 1)
+        stats[fam + '_lod1'] = tris_of(objs1)
+        export_glb(objs1, os.path.join(bout, f'{fam}_lod1.glb'))
+        for o in with_children(objs1):
+            remove_obj(o) if o.type == 'MESH' else bpy.data.objects.remove(o)
+    if preview:
+        compose_sheet(fam_shots, 3, os.path.join(shots, 'bikes-contact-sheet.png'))
+        order = [liv_shots[k] for k in LIVERY_SHEET if k in liv_shots]
+        compose_sheet(order, 4, os.path.join(shots, 'bikes-liveries.png'))
     if args.blend:
         bpy.ops.wm.save_as_mainfile(filepath=os.path.abspath(args.blend))
+    stats['anchors'] = anchors
+    os.makedirs(os.path.join(REPO, 'out'), exist_ok=True)
     stats['bones'] = r.bone_names
+    with open(os.path.join(REPO, 'out', 'bike_stats.json'), 'w', encoding='utf-8') as f:
+        json.dump(stats, f, indent=1)
     print('STATS ' + json.dumps(stats))
 
 

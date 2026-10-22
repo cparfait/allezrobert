@@ -2,6 +2,7 @@ import * as THREE from 'three/webgpu';
 import { uv, mix, smoothstep, step, fract, vec3, float, uniform, mx_noise_float, positionWorld, clamp, abs, max } from 'three/tsl';
 import type { RouteData, RoutePoint } from '@allezrobert/shared';
 import { asphaltGrain } from './asphalt.ts';
+import { ribbonEdges, ribbonIndex, roundCorners } from './ribbon.ts';
 
 /**
  * Ruban de chaussée de l'itinéraire, posé sur le terrain déjà creusé, avec marquages
@@ -51,56 +52,40 @@ export class RoadMesh {
   }
 }
 
-const SHOULDER = 1.2;
+/** Accotement gravillonné de part et d'autre de la chaussée (m). */
+export const SHOULDER = 1.2;
 
-function buildRibbon(points: RoutePoint[], width: number, loop: boolean): THREE.BufferGeometry {
+function buildRibbon(route: RoutePoint[], width: number, loop: boolean): THREE.BufferGeometry {
+  // Virages vifs démultipliés (bord extérieur arrondi), voir roundCorners.
+  const { pts: points, normals } = TMP_NOFIX ? { pts: route, normals: new Float64Array(0) } : roundCorners(route, loop);
   const n = points.length;
   const cols = 4; // gravier gauche | chaussée gauche | chaussée droite | gravier droit
   const offsets = [-(width / 2 + SHOULDER), -width / 2, width / 2, width / 2 + SHOULDER];
   const lift = [0.02, 0.06, 0.06, 0.02];
+  // Bords sans repli : dans les virages plus serrés que le décalage (demi-tours, angles de
+  // carrefour, épingles), le bord intérieur se resserre en éventail au lieu de déborder en pointe.
+  const edges = TMP_NOFIX ? tmpOld(route, offsets, loop) : ribbonEdges(points, offsets, loop, normals);
   const count = loop ? n + 1 : n;
   const pos = new Float32Array(count * cols * 3);
   const uvs = new Float32Array(count * cols * 2);
   const total = width + 2 * SHOULDER;
+  const last = points[n - 1] as RoutePoint;
   for (let k = 0; k < count; k++) {
     const i = k % n;
     const p = points[i] as RoutePoint;
-    const prev = points[(i - 1 + n) % n] as RoutePoint;
-    const next = points[(i + 1) % n] as RoutePoint;
-    let dx = next.x - prev.x;
-    let dz = next.z - prev.z;
-    if (!loop && i === 0) {
-      dx = next.x - p.x;
-      dz = next.z - p.z;
-    }
-    if (!loop && i === n - 1) {
-      dx = p.x - prev.x;
-      dz = p.z - prev.z;
-    }
-    const len = Math.hypot(dx, dz) || 1;
-    // Normale droite (−dirZ, dirX), cohérente avec RouteTrack.positionAt.
-    const rx = -dz / len;
-    const rz = dx / len;
-    const d = k === n ? (points[n - 1] as RoutePoint).d + Math.hypot(p.x - (points[n - 1] as RoutePoint).x, p.z - (points[n - 1] as RoutePoint).z) : p.d;
+    const d = k === n ? last.d + Math.hypot(p.x - last.x, p.z - last.z) : p.d;
     for (let c = 0; c < cols; c++) {
       const o = (k * cols + c) * 3;
-      const off = offsets[c] as number;
-      pos[o] = p.x + rx * off;
+      const e = edges[c] as Float64Array;
+      pos[o] = e[i * 2] as number;
       pos[o + 1] = p.y + (lift[c] as number);
-      pos[o + 2] = p.z + rz * off;
-      uvs[(k * cols + c) * 2] = (off + total / 2) / total;
+      pos[o + 2] = e[i * 2 + 1] as number;
+      uvs[(k * cols + c) * 2] = ((offsets[c] as number) + total / 2) / total;
       uvs[(k * cols + c) * 2 + 1] = d;
     }
   }
-  const index: number[] = [];
-  for (let k = 0; k < count - 1; k++)
-    for (let c = 0; c < cols - 1; c++) {
-      const a = k * cols + c;
-      const b = a + 1;
-      const a2 = a + cols;
-      const b2 = b + cols;
-      index.push(a, b, a2, b, b2, a2);
-    }
+  // (quadrilatère encore vrillé, demi-tour de deux points dans le tracé : triangles retournés écartés)
+  const index = TMP_NOFIX ? tmpIdx(cols, count) : ribbonIndex(pos, 3, cols, count, true);
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
   geo.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
@@ -109,3 +94,33 @@ function buildRibbon(points: RoutePoint[], width: number, loop: boolean): THREE.
   geo.computeBoundingSphere();
   return geo;
 }
+
+// TMP_ROADFIX_BEGIN
+export const TMP_NOFIX = typeof location !== 'undefined' && new URLSearchParams(location.search).has('noroadfix');
+function tmpOld(pts: RoutePoint[], offsets: number[], loop: boolean): Float64Array[] {
+  const n = pts.length;
+  return offsets.map((off) => {
+    const e = new Float64Array(n * 2);
+    for (let i = 0; i < n; i++) {
+      const p = pts[i] as RoutePoint;
+      const prev = pts[loop ? (i - 1 + n) % n : Math.max(i - 1, 0)] as RoutePoint;
+      const next = pts[loop ? (i + 1) % n : Math.min(i + 1, n - 1)] as RoutePoint;
+      const dx = next.x - prev.x;
+      const dz = next.z - prev.z;
+      const l = Math.hypot(dx, dz) || 1;
+      e[i * 2] = p.x - (dz / l) * off;
+      e[i * 2 + 1] = p.z + (dx / l) * off;
+    }
+    return e;
+  });
+}
+function tmpIdx(cols: number, count: number): number[] {
+  const index: number[] = [];
+  for (let k = 0; k < count - 1; k++)
+    for (let c = 0; c < cols - 1; c++) {
+      const a = k * cols + c;
+      index.push(a, a + 1, a + cols, a + 1, a + cols + 1, a + cols);
+    }
+  return index;
+}
+// TMP_ROADFIX_END

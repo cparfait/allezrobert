@@ -4,6 +4,7 @@ import type { QualitySettings } from '../engine/quality.ts';
 import { colorUniform } from '../engine/tsl.ts';
 import type { LoadedTile, WorldSource } from './types.ts';
 import { rasterizeSplat } from './splat.ts';
+import type { RouteFootprint } from './ribbon.ts';
 import type { Season } from './environment.ts';
 
 /** Couleurs du sol par saison (voir ART_DIRECTION.md). */
@@ -48,6 +49,12 @@ export class TerrainManager {
   private readonly orthoTint = colorUniform('#ffffff');
   private readonly orthoSat = uniform(1);
   private readonly loader = new THREE.TextureLoader();
+  /**
+   * Emprise de l'itinéraire actif : les sommets du maillage sous le ruban et sur une maille autour
+   * sont abaissés juste sous la chaussée (aucune facette ne la traverse, quelle que soit la finesse
+   * du maillage ou la largeur creusée par le générateur).
+   */
+  footprint: RouteFootprint | null = null;
   onTileLoaded?: (tile: LoadedTile) => void;
   onTileUnloaded?: (tile: LoadedTile) => void;
 
@@ -221,13 +228,23 @@ export class TerrainManager {
         (h[(j + 1) * w + i + 1] as number) * a * b
       );
     };
+    // Une maille en diagonale : portée au-delà de l'emprise des sommets dont les triangles la couvrent.
+    const fp = this.footprint && this.footprint.near(tile.x0 + s / 2, tile.z0 + s / 2, s * 0.75 + 20) ? this.footprint : null;
+    const reach = (s / seg) * Math.SQRT2 + 0.1;
+    // Sol sur l'axe de l'itinéraire (grille de la tuile), pour reconnaître les tunnels.
+    const axisGround = (x: number, z: number) => {
+      const u = (x - tile.x0) / s;
+      const v = (z - tile.z0) / s;
+      return u >= 0 && u <= 1 && v >= 0 && v <= 1 ? sampleH(u, v) : Number.NaN;
+    };
     for (let j = 0; j <= seg; j++)
       for (let i = 0; i <= seg; i++) {
         const k = j * vertsPerRow + i;
         const u = i / seg;
         const v = j / seg;
         pos[k * 3] = (u - 0.5) * s;
-        pos[k * 3 + 1] = sampleH(u, v);
+        const h = sampleH(u, v);
+        pos[k * 3 + 1] = fp ? fp.clampTerrain(tile.x0 + u * s, tile.z0 + v * s, h, reach, axisGround) : h;
         pos[k * 3 + 2] = (v - 0.5) * s;
         uvs[k * 2] = u;
         uvs[k * 2 + 1] = v;

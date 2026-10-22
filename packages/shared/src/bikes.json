@@ -1,0 +1,4140 @@
+{
+ "version": 1,
+ "note": "Noms de marques, de modèles et d’équipes utilisés avec l’accord indiqué par le propriétaire du projet (2026-10-22). Livrées et mots-symboles recréés procéduralement.",
+ "teams": [
+  {
+   "id": "uae",
+   "name": "UAE Team Emirates – XRG",
+   "colors": [
+    "#f6f6f4",
+    "#141414",
+    "#d4001f"
+   ],
+   "wordmark": "UAE TEAM EMIRATES",
+   "logo": "uae-team-emirates",
+   "rimBrand": "enve"
+  },
+  {
+   "id": "visma",
+   "name": "Team Visma | Lease a Bike",
+   "colors": [
+    "#ffdc00",
+    "#121212",
+    "#ffffff"
+   ],
+   "wordmark": "VISMA",
+   "logo": "visma-lease-a-bike",
+   "rimBrand": "reserve"
+  },
+  {
+   "id": "rbb",
+   "name": "Red Bull – BORA – hansgrohe",
+   "colors": [
+    "#0c1b33",
+    "#d4002a",
+    "#f2c500"
+   ],
+   "wordmark": "RED BULL BORA",
+   "logo": "red-bull-bora-hansgrohe",
+   "rimBrand": "roval"
+  },
+  {
+   "id": "lidl",
+   "name": "Lidl-Trek",
+   "colors": [
+    "#0b2a5b",
+    "#d71f26",
+    "#ffe100"
+   ],
+   "wordmark": "LIDL-TREK",
+   "logo": "lidl-trek",
+   "rimBrand": "bontrager"
+  },
+  {
+   "id": "sqs",
+   "name": "Soudal Quick-Step",
+   "colors": [
+    "#0050b5",
+    "#ffffff",
+    "#0a1a3a"
+   ],
+   "wordmark": "SOUDAL QUICK-STEP",
+   "logo": "soudal-quick-step",
+   "rimBrand": "roval"
+  },
+  {
+   "id": "ineos",
+   "name": "INEOS Grenadiers",
+   "colors": [
+    "#0b1530",
+    "#c8102e",
+    "#ffffff"
+   ],
+   "wordmark": "INEOS GRENADIERS",
+   "logo": "ineos-grenadiers",
+   "rimBrand": "shimano"
+  },
+  {
+   "id": "movistar",
+   "name": "Movistar Team",
+   "colors": [
+    "#06244a",
+    "#00b2a9",
+    "#ffffff"
+   ],
+   "wordmark": "MOVISTAR",
+   "logo": "movistar-team",
+   "rimBrand": "zipp"
+  },
+  {
+   "id": "bahrain",
+   "name": "Bahrain Victorious",
+   "colors": [
+    "#d71920",
+    "#0d1b3d",
+    "#c9a227"
+   ],
+   "wordmark": "BAHRAIN VICTORIOUS",
+   "logo": "bahrain-victorious",
+   "rimBrand": "vision"
+  },
+  {
+   "id": "ef",
+   "name": "EF Education – EasyPost",
+   "colors": [
+    "#ff3e8a",
+    "#1b1f4b",
+    "#ffffff"
+   ],
+   "wordmark": "EF EDUCATION",
+   "logo": "ef-education-easypost",
+   "rimBrand": "vision"
+  },
+  {
+   "id": "decathlon",
+   "name": "Decathlon CMA CGM",
+   "colors": [
+    "#0a2342",
+    "#36b6e8",
+    "#ffffff"
+   ],
+   "wordmark": "DECATHLON CMA CGM",
+   "logo": "decathlon-cma-cgm",
+   "rimBrand": "swiss-side"
+  },
+  {
+   "id": "alpecin",
+   "name": "Alpecin – Premier Tech",
+   "colors": [
+    "#0d1520",
+    "#2b7de9",
+    "#e9eef5"
+   ],
+   "wordmark": "ALPECIN",
+   "logo": "alpecin-premier-tech",
+   "rimBrand": "shimano"
+  },
+  {
+   "id": "fdj",
+   "name": "Groupama-FDJ United",
+   "colors": [
+    "#0055a4",
+    "#ffffff",
+    "#e1001a"
+   ],
+   "wordmark": "GROUPAMA-FDJ",
+   "logo": "groupama-fdj",
+   "rimBrand": "shimano"
+  },
+  {
+   "id": "lotto",
+   "name": "Lotto-Intermarché",
+   "colors": [
+    "#e30613",
+    "#13213d",
+    "#ffffff"
+   ],
+   "wordmark": "LOTTO",
+   "logo": "lotto-intermarche",
+   "rimBrand": "oquo"
+  },
+  {
+   "id": "nsn",
+   "name": "NSN Cycling Team",
+   "colors": [
+    "#0e1116",
+    "#00a6a6",
+    "#ff7a1a"
+   ],
+   "wordmark": "NSN",
+   "logo": "nsn-cycling",
+   "rimBrand": "syncros"
+  },
+  {
+   "id": "jayco",
+   "name": "Team Jayco AlUla",
+   "colors": [
+    "#00a3e0",
+    "#0b1f44",
+    "#ff6a13"
+   ],
+   "wordmark": "JAYCO ALULA",
+   "logo": "jayco-alula",
+   "rimBrand": "cadex"
+  },
+  {
+   "id": "picnic",
+   "name": "Team Picnic PostNL",
+   "colors": [
+    "#f5f5f5",
+    "#111111",
+    "#ff6f00"
+   ],
+   "wordmark": "PICNIC POSTNL",
+   "logo": "picnic-postnl",
+   "rimBrand": "shimano"
+  },
+  {
+   "id": "unox",
+   "name": "Uno-X Mobility",
+   "colors": [
+    "#d7002a",
+    "#0b1a3a",
+    "#ffd200"
+   ],
+   "wordmark": "UNO-X",
+   "logo": "uno-x-mobility",
+   "rimBrand": "dt-swiss"
+  },
+  {
+   "id": "astana",
+   "name": "XDS Astana Team",
+   "colors": [
+    "#00a8e1",
+    "#f5c400",
+    "#0d1b2a"
+   ],
+   "wordmark": "XDS ASTANA",
+   "logo": "xds-astana",
+   "rimBrand": "vision"
+  },
+  {
+   "id": "tudor",
+   "name": "Tudor Pro Cycling Team",
+   "colors": [
+    "#c8102e",
+    "#111111",
+    "#ffffff"
+   ],
+   "wordmark": "TUDOR",
+   "logo": "tudor-pro-cycling",
+   "rimBrand": "dt-swiss"
+  },
+  {
+   "id": "cofidis",
+   "name": "Cofidis",
+   "colors": [
+    "#e2001a",
+    "#ffffff",
+    "#111111"
+   ],
+   "wordmark": "COFIDIS",
+   "logo": "cofidis",
+   "rimBrand": "corima"
+  }
+ ],
+ "groups": [
+  {
+   "id": "legendes-tour",
+   "name": {
+    "fr": "Légendes du Tour",
+    "en": "Tour legends"
+   }
+  },
+  {
+   "id": "icones-70-90",
+   "name": {
+    "fr": "Icônes 1970–1990",
+    "en": "Icons 1970–1990"
+   }
+  },
+  {
+   "id": "classiques",
+   "name": {
+    "fr": "Classiques et champions",
+    "en": "Classics and champions"
+   }
+  },
+  {
+   "id": "chrono",
+   "name": {
+    "fr": "Machines de contre-la-montre",
+    "en": "Time-trial machines"
+   }
+  },
+  {
+   "id": "modernes",
+   "name": {
+    "fr": "Icônes modernes et collection",
+    "en": "Modern icons and collector"
+   }
+  }
+ ],
+ "brands": [
+  {
+   "id": "bianchi",
+   "name": "Bianchi",
+   "wordmark": "BIANCHI",
+   "font": "serif"
+  },
+  {
+   "id": "bmc",
+   "name": "BMC",
+   "wordmark": "BMC",
+   "font": "sans-bold"
+  },
+  {
+   "id": "bontrager",
+   "name": "Bontrager Aeolus",
+   "wordmark": "AEOLUS",
+   "font": "sans-bold"
+  },
+  {
+   "id": "bottecchia",
+   "name": "Bottecchia",
+   "wordmark": "BOTTECCHIA",
+   "font": "serif"
+  },
+  {
+   "id": "cadex",
+   "name": "CADEX",
+   "wordmark": "CADEX",
+   "font": "sans-bold"
+  },
+  {
+   "id": "campagnolo",
+   "name": "Campagnolo",
+   "wordmark": "CAMPAGNOLO",
+   "font": "serif"
+  },
+  {
+   "id": "cannondale",
+   "name": "Cannondale",
+   "wordmark": "CANNONDALE",
+   "font": "sans-bold"
+  },
+  {
+   "id": "canyon",
+   "name": "Canyon",
+   "wordmark": "CANYON",
+   "font": "sans-bold"
+  },
+  {
+   "id": "cervelo",
+   "name": "Cervélo",
+   "wordmark": "CERVÉLO",
+   "font": "sans-bold"
+  },
+  {
+   "id": "colnago",
+   "name": "Colnago",
+   "wordmark": "COLNAGO",
+   "font": "sans-bold"
+  },
+  {
+   "id": "corima",
+   "name": "Corima",
+   "wordmark": "CORIMA",
+   "font": "sans-bold"
+  },
+  {
+   "id": "de-rosa",
+   "name": "De Rosa",
+   "wordmark": "DE ROSA",
+   "font": "serif"
+  },
+  {
+   "id": "dt-swiss",
+   "name": "DT Swiss",
+   "wordmark": "DT SWISS",
+   "font": "sans-bold"
+  },
+  {
+   "id": "eddy-merckx",
+   "name": "Eddy Merckx",
+   "wordmark": "EDDY MERCKX",
+   "font": "sans-bold"
+  },
+  {
+   "id": "enve",
+   "name": "ENVE",
+   "wordmark": "ENVE",
+   "font": "sans-bold"
+  },
+  {
+   "id": "giant",
+   "name": "Giant",
+   "wordmark": "GIANT",
+   "font": "sans-bold"
+  },
+  {
+   "id": "gitane",
+   "name": "Gitane",
+   "wordmark": "GITANE",
+   "font": "script"
+  },
+  {
+   "id": "hed",
+   "name": "HED",
+   "wordmark": "HED",
+   "font": "sans-bold"
+  },
+  {
+   "id": "lapierre",
+   "name": "Lapierre",
+   "wordmark": "LAPIERRE",
+   "font": "sans-bold"
+  },
+  {
+   "id": "look",
+   "name": "LOOK",
+   "wordmark": "LOOK",
+   "font": "sans-bold"
+  },
+  {
+   "id": "lotus",
+   "name": "Lotus",
+   "wordmark": "LOTUS",
+   "font": "sans-bold"
+  },
+  {
+   "id": "mavic",
+   "name": "Mavic",
+   "wordmark": "MAVIC",
+   "font": "sans-bold"
+  },
+  {
+   "id": "oquo",
+   "name": "OQUO",
+   "wordmark": "OQUO",
+   "font": "sans-bold"
+  },
+  {
+   "id": "orbea",
+   "name": "Orbea",
+   "wordmark": "ORBEA",
+   "font": "sans-bold"
+  },
+  {
+   "id": "peugeot",
+   "name": "Peugeot",
+   "wordmark": "PEUGEOT",
+   "font": "serif"
+  },
+  {
+   "id": "pinarello",
+   "name": "Pinarello",
+   "wordmark": "PINARELLO",
+   "font": "sans-bold"
+  },
+  {
+   "id": "raleigh",
+   "name": "Raleigh",
+   "wordmark": "RALEIGH",
+   "font": "serif"
+  },
+  {
+   "id": "reserve",
+   "name": "Reserve",
+   "wordmark": "RESERVE",
+   "font": "sans-bold"
+  },
+  {
+   "id": "ridley",
+   "name": "Ridley",
+   "wordmark": "RIDLEY",
+   "font": "sans-bold"
+  },
+  {
+   "id": "roval",
+   "name": "Roval",
+   "wordmark": "ROVAL",
+   "font": "sans-bold"
+  },
+  {
+   "id": "scott",
+   "name": "Scott",
+   "wordmark": "SCOTT",
+   "font": "sans-bold"
+  },
+  {
+   "id": "shimano",
+   "name": "Shimano",
+   "wordmark": "SHIMANO",
+   "font": "sans-italic"
+  },
+  {
+   "id": "specialized",
+   "name": "Specialized",
+   "wordmark": "SPECIALIZED",
+   "font": "sans-italic"
+  },
+  {
+   "id": "swiss-side",
+   "name": "Swiss Side",
+   "wordmark": "SWISS SIDE",
+   "font": "sans-bold"
+  },
+  {
+   "id": "syncros",
+   "name": "Syncros",
+   "wordmark": "SYNCROS",
+   "font": "sans-bold"
+  },
+  {
+   "id": "trek",
+   "name": "Trek",
+   "wordmark": "TREK",
+   "font": "sans-bold"
+  },
+  {
+   "id": "van-rysel",
+   "name": "Van Rysel",
+   "wordmark": "VAN RYSEL",
+   "font": "sans-bold"
+  },
+  {
+   "id": "vision",
+   "name": "Vision",
+   "wordmark": "VISION",
+   "font": "sans-bold"
+  },
+  {
+   "id": "wilier",
+   "name": "Wilier Triestina",
+   "wordmark": "WILIER",
+   "font": "sans-italic"
+  },
+  {
+   "id": "x-lab",
+   "name": "X-Lab",
+   "wordmark": "X-LAB",
+   "font": "sans-bold"
+  },
+  {
+   "id": "zipp",
+   "name": "Zipp",
+   "wordmark": "ZIPP",
+   "font": "sans-bold"
+  }
+ ],
+ "legacy": {
+  "bike-alu": "myth-cannondale-caad9",
+  "bike-carbone": "s26-22-ef-supersix-evo",
+  "bike-acier-vintage": "myth-peugeot-px10",
+  "bike-grimpeur": "s26-08-rbb-sworks-aethos"
+ },
+ "bikes": [
+  {
+   "id": "s26-01-uae-y1rs",
+   "name": "Colnago Y1Rs",
+   "brand": "colnago",
+   "collection": "saison-2026",
+   "group": "uae",
+   "type": "aero",
+   "family": "aero",
+   "params": {
+    "brakes": "disc",
+    "wheels": [
+     "c50",
+     "c65"
+    ],
+    "rimBrand": "enve"
+   },
+   "livery": {
+    "colors": [
+     "#f6f6f4",
+     "#141414",
+     "#d4001f"
+    ],
+    "pattern": "split",
+    "axis": "y",
+    "at": 0.55,
+    "line": true,
+    "zones": {
+     "rear": 1
+    },
+    "rim": "#141414",
+    "tape": "#141414"
+   },
+   "level": 30,
+   "year": 2026,
+   "desc": {
+    "fr": "Le vélo aéro de Pogačar : tubes en V profonds, cockpit monobloc très en avant.",
+    "en": "Pogačar's aero bike: deep V-shaped tubes and a far-forward one-piece cockpit."
+   }
+  },
+  {
+   "id": "s26-02-uae-v5rs",
+   "name": "Colnago V5Rs",
+   "brand": "colnago",
+   "collection": "saison-2026",
+   "group": "uae",
+   "type": "climbing",
+   "family": "climb",
+   "params": {
+    "brakes": "disc",
+    "wheels": [
+     "c50",
+     "c50"
+    ],
+    "rimBrand": "enve"
+   },
+   "livery": {
+    "colors": [
+     "#f6f6f4",
+     "#141414",
+     "#d4001f"
+    ],
+    "pattern": "fade",
+    "axis": "z",
+    "at": 0.35,
+    "width": 0.5,
+    "zones": {
+     "fork": 0
+    },
+    "rim": "#141414",
+    "tape": "#141414"
+   },
+   "level": 22,
+   "year": 2026,
+   "desc": {
+    "fr": "Polyvalent léger de l’équipe, blanc qui plonge vers un arrière noir.",
+    "en": "The team’s light all-rounder, white fading into a black rear."
+   }
+  },
+  {
+   "id": "s26-03-uae-tt1",
+   "name": "Colnago TT1",
+   "brand": "colnago",
+   "collection": "saison-2026",
+   "group": "uae",
+   "type": "tt",
+   "family": "tt",
+   "params": {
+    "brakes": "disc",
+    "wheels": [
+     "c65",
+     "disc"
+    ],
+    "rimBrand": "enve",
+    "aeroHelmet": true
+   },
+   "livery": {
+    "colors": [
+     "#141414",
+     "#f6f6f4",
+     "#d4001f"
+    ],
+    "pattern": "band",
+    "axis": "z",
+    "at": 0.62,
+    "width": 0.18,
+    "line": true,
+    "rim": "#141414",
+    "tape": "#111111"
+   },
+   "level": 38,
+   "year": 2026,
+   "desc": {
+    "fr": "Chrono de l’équipe émiratie, noir avec bande blanche liserée de rouge.",
+    "en": "The Emirati team’s TT bike, black with a red-edged white band."
+   }
+  },
+  {
+   "id": "s26-04-visma-s5",
+   "name": "Cervélo S5",
+   "brand": "cervelo",
+   "collection": "saison-2026",
+   "group": "visma",
+   "type": "aero",
+   "family": "aero",
+   "params": {
+    "brakes": "disc",
+    "wheels": [
+     "c50",
+     "c65"
+    ],
+    "rimBrand": "reserve"
+   },
+   "livery": {
+    "colors": [
+     "#ffdc00",
+     "#121212",
+     "#ffffff"
+    ],
+    "pattern": "fade",
+    "axis": "z",
+    "at": 0.45,
+    "width": 0.35,
+    "zones": {
+     "rear": 1
+    },
+    "rim": "#121212",
+    "tape": "#121212"
+   },
+   "level": 28,
+   "year": 2026,
+   "desc": {
+    "fr": "Le S5 jaune et noir, potence en V et tubes Kamm très creusés.",
+    "en": "The yellow and black S5, V-stem and deeply scooped Kamm tubes."
+   }
+  },
+  {
+   "id": "s26-05-visma-r5",
+   "name": "Cervélo R5",
+   "brand": "cervelo",
+   "collection": "saison-2026",
+   "group": "visma",
+   "type": "climbing",
+   "family": "climb",
+   "params": {
+    "brakes": "disc",
+    "wheels": [
+     "c35",
+     "c35"
+    ],
+    "rimBrand": "reserve"
+   },
+   "livery": {
+    "colors": [
+     "#121212",
+     "#ffdc00",
+     "#ffffff"
+    ],
+    "pattern": "split",
+    "axis": "y",
+    "at": 0.5,
+    "zones": {
+     "fork": 1
+    },
+    "rim": "#121212",
+    "tape": "#121212"
+   },
+   "level": 18,
+   "year": 2026,
+   "desc": {
+    "fr": "Grimpeur léger aux tubes fins : noir dessous, jaune dessus.",
+    "en": "Light, slim-tubed climber: black below, yellow above."
+   }
+  },
+  {
+   "id": "s26-06-visma-p5",
+   "name": "Cervélo P5",
+   "brand": "cervelo",
+   "collection": "saison-2026",
+   "group": "visma",
+   "type": "tt",
+   "family": "tt",
+   "params": {
+    "brakes": "disc",
+    "wheels": [
+     "tri",
+     "disc"
+    ],
+    "rimBrand": "reserve",
+    "aeroHelmet": true
+   },
+   "livery": {
+    "colors": [
+     "#121212",
+     "#ffdc00",
+     "#ffffff"
+    ],
+    "pattern": "fade",
+    "axis": "diag",
+    "at": 0.6,
+    "width": 0.3,
+    "rim": "#121212",
+    "tape": "#111111"
+   },
+   "level": 34,
+   "year": 2026,
+   "desc": {
+    "fr": "Chrono des contre-la-montre du Tour, noir allumé de jaune à l’avant.",
+    "en": "The Tour TT weapon, black lit with yellow at the front."
+   }
+  },
+  {
+   "id": "s26-07-rbb-sworks-tarmac-sl8",
+   "name": "Specialized S-Works Tarmac SL8",
+   "brand": "specialized",
+   "collection": "saison-2026",
+   "group": "rbb",
+   "type": "climbing",
+   "family": "climb",
+   "params": {
+    "brakes": "disc",
+    "wheels": [
+     "c50",
+     "c50"
+    ],
+    "rimBrand": "roval"
+   },
+   "livery": {
+    "colors": [
+     "#0c1b33",
+     "#d4002a",
+     "#f2c500"
+    ],
+    "pattern": "fade",
+    "axis": "z",
+    "at": 0.7,
+    "width": 0.45,
+    "line": true,
+    "rim": "#e8e8e8",
+    "tape": "#d4002a"
+   },
+   "level": 24,
+   "year": 2026,
+   "desc": {
+    "fr": "Le vélo de course polyvalent : bleu nuit et dégradé rouge vers la douille.",
+    "en": "The do-it-all race bike: midnight blue fading to red at the head tube."
+   }
+  },
+  {
+   "id": "s26-08-rbb-sworks-aethos",
+   "name": "Specialized S-Works Aethos",
+   "brand": "specialized",
+   "collection": "saison-2026",
+   "group": "rbb",
+   "type": "climbing",
+   "family": "climb",
+   "params": {
+    "brakes": "disc",
+    "wheels": [
+     "c35",
+     "c35"
+    ],
+    "rimBrand": "roval"
+   },
+   "livery": {
+    "colors": [
+     "#0c1b33",
+     "#d4002a",
+     "#f2c500"
+    ],
+    "pattern": "band",
+    "axis": "y",
+    "at": 0.78,
+    "width": 0.12,
+    "line": true,
+    "rim": "#e8e8e8",
+    "tape": "#d4002a"
+   },
+   "level": 20,
+   "year": 2026,
+   "desc": {
+    "fr": "Cadre ultraléger aux tubes ronds, pour les cols.",
+    "en": "Ultralight round-tubed frame for the mountain passes."
+   }
+  },
+  {
+   "id": "s26-09-rbb-sworks-shiv-tt",
+   "name": "Specialized S-Works Shiv TT",
+   "brand": "specialized",
+   "collection": "saison-2026",
+   "group": "rbb",
+   "type": "tt",
+   "family": "tt",
+   "params": {
+    "brakes": "disc",
+    "wheels": [
+     "c65",
+     "disc"
+    ],
+    "rimBrand": "roval",
+    "aeroHelmet": true
+   },
+   "livery": {
+    "colors": [
+     "#0c1b33",
+     "#f2c500",
+     "#d4002a"
+    ],
+    "pattern": "split",
+    "axis": "y",
+    "at": 0.62,
+    "line": true,
+    "rim": "#e8e8e8",
+    "tape": "#111111"
+   },
+   "level": 36,
+   "year": 2026,
+   "desc": {
+    "fr": "Chrono bleu nuit, dessus doré et liseré rouge.",
+    "en": "Midnight-blue TT bike, golden top and red pinstripe."
+   }
+  },
+  {
+   "id": "s26-10-lidl-madone-slr-gen-8",
+   "name": "Trek Madone SLR Gen 8",
+   "brand": "trek",
+   "collection": "saison-2026",
+   "group": "lidl",
+   "type": "aero",
+   "family": "aero",
+   "params": {
+    "brakes": "disc",
+    "wheels": [
+     "c50",
+     "c50"
+    ],
+    "rimBrand": "bontrager"
+   },
+   "livery": {
+    "colors": [
+     "#0b2a5b",
+     "#d71f26",
+     "#ffe100"
+    ],
+    "pattern": "fade",
+    "axis": "diag",
+    "at": 0.6,
+    "width": 0.4,
+    "zones": {
+     "fork": 1
+    },
+    "rim": "#e8e8e8",
+    "tape": "#d71f26"
+   },
+   "level": 16,
+   "year": 2026,
+   "desc": {
+    "fr": "Aéro-léger de 8e génération, bleu profond virant au rouge.",
+    "en": "8th-generation aero-light bike, deep blue turning red."
+   }
+  },
+  {
+   "id": "s26-11-lidl-speed-concept-slr",
+   "name": "Trek Speed Concept SLR",
+   "brand": "trek",
+   "collection": "saison-2026",
+   "group": "lidl",
+   "type": "tt",
+   "family": "tt",
+   "params": {
+    "brakes": "disc",
+    "wheels": [
+     "c65",
+     "disc"
+    ],
+    "rimBrand": "bontrager",
+    "aeroHelmet": true
+   },
+   "livery": {
+    "colors": [
+     "#0b2a5b",
+     "#ffe100",
+     "#d71f26"
+    ],
+    "pattern": "band",
+    "axis": "z",
+    "at": 0.4,
+    "width": 0.14,
+    "line": true,
+    "rim": "#e8e8e8",
+    "tape": "#111111"
+   },
+   "level": 32,
+   "year": 2026,
+   "desc": {
+    "fr": "Le chrono de l’équipe, bleu avec une bande jaune.",
+    "en": "The team’s TT bike, blue with a yellow band."
+   }
+  },
+  {
+   "id": "s26-12-sqs-sworks-tarmac-sl8",
+   "name": "Specialized S-Works Tarmac SL8",
+   "brand": "specialized",
+   "collection": "saison-2026",
+   "group": "sqs",
+   "type": "climbing",
+   "family": "climb",
+   "params": {
+    "brakes": "disc",
+    "wheels": [
+     "c50",
+     "c50"
+    ],
+    "rimBrand": "roval"
+   },
+   "livery": {
+    "colors": [
+     "#0050b5",
+     "#ffffff",
+     "#0a1a3a"
+    ],
+    "pattern": "fade",
+    "axis": "y",
+    "at": 0.45,
+    "width": 0.5,
+    "rim": "#ffffff",
+    "tape": "#ffffff"
+   },
+   "level": 14,
+   "year": 2026,
+   "desc": {
+    "fr": "Le Tarmac du « Wolfpack » : bleu roi éclairci vers le haut.",
+    "en": "The Wolfpack’s Tarmac: royal blue brightening towards the top."
+   }
+  },
+  {
+   "id": "s26-13-sqs-sworks-shiv-tt",
+   "name": "Specialized S-Works Shiv TT",
+   "brand": "specialized",
+   "collection": "saison-2026",
+   "group": "sqs",
+   "type": "tt",
+   "family": "tt",
+   "params": {
+    "brakes": "disc",
+    "wheels": [
+     "tri",
+     "disc"
+    ],
+    "rimBrand": "roval",
+    "aeroHelmet": true
+   },
+   "livery": {
+    "colors": [
+     "#ffffff",
+     "#0050b5",
+     "#0a1a3a"
+    ],
+    "pattern": "fade",
+    "axis": "z",
+    "at": 0.5,
+    "width": 0.6,
+    "rim": "#ffffff",
+    "tape": "#111111"
+   },
+   "level": 26,
+   "year": 2026,
+   "desc": {
+    "fr": "Chrono blanc qui bleuit vers l’arrière, distinct de celui de Red Bull.",
+    "en": "White TT bike turning blue to the rear, unlike the Red Bull one."
+   }
+  },
+  {
+   "id": "s26-14-ineos-dogma-f",
+   "name": "Pinarello Dogma F",
+   "brand": "pinarello",
+   "collection": "saison-2026",
+   "group": "ineos",
+   "type": "aero",
+   "family": "aero",
+   "params": {
+    "brakes": "disc",
+    "wheels": [
+     "c50",
+     "c50"
+    ],
+    "rimBrand": "shimano"
+   },
+   "livery": {
+    "colors": [
+     "#0b1530",
+     "#c8102e",
+     "#ffffff"
+    ],
+    "pattern": "fade",
+    "axis": "diag",
+    "at": 0.35,
+    "width": 0.4,
+    "line": false,
+    "rim": "#e8e8e8",
+    "tape": "#c8102e"
+   },
+   "level": 40,
+   "year": 2026,
+   "desc": {
+    "fr": "Tubes asymétriques « Onda », bleu nuit qui s’embrase de rouge.",
+    "en": "Asymmetric “Onda” tubes, midnight blue catching fire in red."
+   }
+  },
+  {
+   "id": "s26-15-ineos-bolide",
+   "name": "Pinarello Bolide",
+   "brand": "pinarello",
+   "collection": "saison-2026",
+   "group": "ineos",
+   "type": "tt",
+   "family": "tt",
+   "params": {
+    "brakes": "disc",
+    "wheels": [
+     "c65",
+     "disc"
+    ],
+    "rimBrand": "shimano",
+    "aeroHelmet": true
+   },
+   "livery": {
+    "colors": [
+     "#0b1530",
+     "#c8102e",
+     "#ffffff"
+    ],
+    "pattern": "split",
+    "axis": "y",
+    "at": 0.55,
+    "line": true,
+    "rim": "#e8e8e8",
+    "tape": "#111111"
+   },
+   "level": 44,
+   "year": 2026,
+   "desc": {
+    "fr": "Le chrono des records de l’heure, dessous rouge.",
+    "en": "The hour-record TT bike, red underside."
+   }
+  },
+  {
+   "id": "s26-16-movistar-aeroad-cfr",
+   "name": "Canyon Aeroad CFR",
+   "brand": "canyon",
+   "collection": "saison-2026",
+   "group": "movistar",
+   "type": "aero",
+   "family": "aero",
+   "params": {
+    "brakes": "disc",
+    "wheels": [
+     "c50",
+     "c65"
+    ],
+    "rimBrand": "zipp"
+   },
+   "livery": {
+    "colors": [
+     "#06244a",
+     "#00b2a9",
+     "#ffffff"
+    ],
+    "pattern": "band",
+    "axis": "y",
+    "at": 0.36,
+    "width": 0.12,
+    "rim": "#e8e8e8",
+    "tape": "#00b2a9"
+   },
+   "level": 12,
+   "year": 2026,
+   "desc": {
+    "fr": "Aéro de Movistar : bleu marine et bande turquoise.",
+    "en": "Movistar’s aero bike: navy with a teal band."
+   }
+  },
+  {
+   "id": "s26-17-movistar-ultimate-cfr",
+   "name": "Canyon Ultimate CFR",
+   "brand": "canyon",
+   "collection": "saison-2026",
+   "group": "movistar",
+   "type": "climbing",
+   "family": "climb",
+   "params": {
+    "brakes": "disc",
+    "wheels": [
+     "c35",
+     "c35"
+    ],
+    "rimBrand": "zipp"
+   },
+   "livery": {
+    "colors": [
+     "#06244a",
+     "#00b2a9",
+     "#ffffff"
+    ],
+    "pattern": "fade",
+    "axis": "z",
+    "at": 0.85,
+    "width": 0.3,
+    "rim": "#e8e8e8",
+    "tape": "#00b2a9"
+   },
+   "level": 1,
+   "year": 2026,
+   "desc": {
+    "fr": "Le grimpeur de Movistar, disponible dès le départ.",
+    "en": "Movistar’s climber, available from the start."
+   }
+  },
+  {
+   "id": "s26-18-movistar-speedmax-cfr",
+   "name": "Canyon Speedmax CFR",
+   "brand": "canyon",
+   "collection": "saison-2026",
+   "group": "movistar",
+   "type": "tt",
+   "family": "tt",
+   "params": {
+    "brakes": "disc",
+    "wheels": [
+     "c65",
+     "disc"
+    ],
+    "rimBrand": "zipp",
+    "aeroHelmet": true
+   },
+   "livery": {
+    "colors": [
+     "#06244a",
+     "#00b2a9",
+     "#ffffff"
+    ],
+    "pattern": "split",
+    "axis": "y",
+    "at": 0.66,
+    "line": true,
+    "rim": "#e8e8e8",
+    "tape": "#111111"
+   },
+   "level": 10,
+   "year": 2026,
+   "desc": {
+    "fr": "Chrono marine au dessus turquoise.",
+    "en": "Navy TT bike with a teal top."
+   }
+  },
+  {
+   "id": "s26-19-bahrain-oltre-rc",
+   "name": "Bianchi Oltre RC",
+   "brand": "bianchi",
+   "collection": "saison-2026",
+   "group": "bahrain",
+   "type": "aero",
+   "family": "aero",
+   "params": {
+    "brakes": "disc",
+    "wheels": [
+     "c50",
+     "c65"
+    ],
+    "rimBrand": "vision"
+   },
+   "livery": {
+    "colors": [
+     "#d71920",
+     "#0d1b3d",
+     "#c9a227"
+    ],
+    "pattern": "split",
+    "axis": "z",
+    "at": 0.5,
+    "line": true,
+    "rim": "#0d1b3d",
+    "tape": "#0d1b3d"
+   },
+   "level": 19,
+   "year": 2026,
+   "desc": {
+    "fr": "Aéro de Bahrain : avant rouge, arrière marine, filet or.",
+    "en": "Bahrain’s aero bike: red front, navy rear, gold pinstripe."
+   }
+  },
+  {
+   "id": "s26-20-bahrain-specialissima-rc",
+   "name": "Bianchi Specialissima RC",
+   "brand": "bianchi",
+   "collection": "saison-2026",
+   "group": "bahrain",
+   "type": "climbing",
+   "family": "climb",
+   "params": {
+    "brakes": "disc",
+    "wheels": [
+     "c35",
+     "c35"
+    ],
+    "rimBrand": "vision"
+   },
+   "livery": {
+    "colors": [
+     "#0d1b3d",
+     "#d71920",
+     "#c9a227"
+    ],
+    "pattern": "fade",
+    "axis": "y",
+    "at": 0.6,
+    "width": 0.4,
+    "rim": "#0d1b3d",
+    "tape": "#0d1b3d"
+   },
+   "level": 15,
+   "year": 2026,
+   "desc": {
+    "fr": "Grimpeur léger marine, dessus rouge.",
+    "en": "Light navy climber with a red top."
+   }
+  },
+  {
+   "id": "s26-21-bahrain-aquila",
+   "name": "Bianchi Aquila",
+   "brand": "bianchi",
+   "collection": "saison-2026",
+   "group": "bahrain",
+   "type": "tt",
+   "family": "tt",
+   "params": {
+    "brakes": "disc",
+    "wheels": [
+     "tri",
+     "disc"
+    ],
+    "rimBrand": "vision",
+    "aeroHelmet": true
+   },
+   "livery": {
+    "colors": [
+     "#0d1b3d",
+     "#d71920",
+     "#c9a227"
+    ],
+    "pattern": "band",
+    "axis": "z",
+    "at": 0.7,
+    "width": 0.16,
+    "line": true,
+    "rim": "#0d1b3d",
+    "tape": "#111111"
+   },
+   "level": 27,
+   "year": 2026,
+   "desc": {
+    "fr": "Chrono marine, bande rouge et or.",
+    "en": "Navy TT bike, red and gold band."
+   }
+  },
+  {
+   "id": "s26-22-ef-supersix-evo",
+   "name": "Cannondale SuperSix EVO",
+   "brand": "cannondale",
+   "collection": "saison-2026",
+   "group": "ef",
+   "type": "climbing",
+   "family": "climb",
+   "params": {
+    "brakes": "disc",
+    "wheels": [
+     "c50",
+     "c50"
+    ],
+    "rimBrand": "vision"
+   },
+   "livery": {
+    "colors": [
+     "#ff3e8a",
+     "#1b1f4b",
+     "#ffffff"
+    ],
+    "pattern": "fade",
+    "axis": "z",
+    "at": 0.4,
+    "width": 0.5,
+    "rim": "#1b1f4b",
+    "tape": "#1b1f4b"
+   },
+   "level": 8,
+   "year": 2026,
+   "desc": {
+    "fr": "Le rose d’EF qui fond dans le bleu nuit.",
+    "en": "EF pink melting into midnight blue."
+   }
+  },
+  {
+   "id": "s26-23-ef-superslice",
+   "name": "Cannondale SuperSlice",
+   "brand": "cannondale",
+   "collection": "saison-2026",
+   "group": "ef",
+   "type": "tt",
+   "family": "tt",
+   "params": {
+    "brakes": "disc",
+    "wheels": [
+     "c65",
+     "disc"
+    ],
+    "rimBrand": "vision",
+    "aeroHelmet": true
+   },
+   "livery": {
+    "colors": [
+     "#1b1f4b",
+     "#ff3e8a",
+     "#ffffff"
+    ],
+    "pattern": "split",
+    "axis": "y",
+    "at": 0.6,
+    "rim": "#1b1f4b",
+    "tape": "#111111"
+   },
+   "level": 21,
+   "year": 2026,
+   "desc": {
+    "fr": "Chrono bleu nuit, dessus rose.",
+    "en": "Midnight-blue TT bike with a pink top."
+   }
+  },
+  {
+   "id": "s26-24-decathlon-rysel-rcrf",
+   "name": "Van Rysel RCR-F",
+   "brand": "van-rysel",
+   "collection": "saison-2026",
+   "group": "decathlon",
+   "type": "aero",
+   "family": "aero",
+   "params": {
+    "brakes": "disc",
+    "wheels": [
+     "c50",
+     "c65"
+    ],
+    "rimBrand": "swiss-side"
+   },
+   "livery": {
+    "colors": [
+     "#0a2342",
+     "#36b6e8",
+     "#ffffff"
+    ],
+    "pattern": "fade",
+    "axis": "diag",
+    "at": 0.55,
+    "width": 0.35,
+    "rim": "#36b6e8",
+    "tape": "#36b6e8"
+   },
+   "level": 6,
+   "year": 2026,
+   "desc": {
+    "fr": "Aéro de Decathlon : marine illuminé de bleu ciel.",
+    "en": "Decathlon’s aero bike: navy lit with sky blue."
+   }
+  },
+  {
+   "id": "s26-25-decathlon-rysel-rcr-pro",
+   "name": "Van Rysel RCR Pro",
+   "brand": "van-rysel",
+   "collection": "saison-2026",
+   "group": "decathlon",
+   "type": "climbing",
+   "family": "climb",
+   "params": {
+    "brakes": "disc",
+    "wheels": [
+     "c35",
+     "c35"
+    ],
+    "rimBrand": "swiss-side"
+   },
+   "livery": {
+    "colors": [
+     "#0a2342",
+     "#36b6e8",
+     "#ffffff"
+    ],
+    "pattern": "band",
+    "axis": "z",
+    "at": 0.55,
+    "width": 0.1,
+    "line": true,
+    "rim": "#36b6e8",
+    "tape": "#36b6e8"
+   },
+   "level": 1,
+   "year": 2026,
+   "desc": {
+    "fr": "Le polyvalent de Decathlon CMA CGM, disponible dès le départ.",
+    "en": "Decathlon CMA CGM’s all-rounder, available from the start."
+   }
+  },
+  {
+   "id": "s26-26-decathlon-rysel-xcr",
+   "name": "Van Rysel XCR",
+   "brand": "van-rysel",
+   "collection": "saison-2026",
+   "group": "decathlon",
+   "type": "tt",
+   "family": "tt",
+   "params": {
+    "brakes": "disc",
+    "wheels": [
+     "c65",
+     "disc"
+    ],
+    "rimBrand": "swiss-side",
+    "aeroHelmet": true
+   },
+   "livery": {
+    "colors": [
+     "#36b6e8",
+     "#0a2342",
+     "#ffffff"
+    ],
+    "pattern": "fade",
+    "axis": "z",
+    "at": 0.5,
+    "width": 0.5,
+    "rim": "#36b6e8",
+    "tape": "#111111"
+   },
+   "level": 9,
+   "year": 2026,
+   "desc": {
+    "fr": "Chrono bleu ciel vers marine.",
+    "en": "Sky blue to navy TT bike."
+   }
+  },
+  {
+   "id": "s26-27-alpecin-aeroad-cfr",
+   "name": "Canyon Aeroad CFR",
+   "brand": "canyon",
+   "collection": "saison-2026",
+   "group": "alpecin",
+   "type": "aero",
+   "family": "aero",
+   "params": {
+    "brakes": "disc",
+    "wheels": [
+     "c50",
+     "c65"
+    ],
+    "rimBrand": "shimano"
+   },
+   "livery": {
+    "colors": [
+     "#0d1520",
+     "#2b7de9",
+     "#e9eef5"
+    ],
+    "pattern": "split",
+    "axis": "y",
+    "at": 0.4,
+    "line": true,
+    "rim": "#e8e8e8",
+    "tape": "#2b7de9"
+   },
+   "level": 11,
+   "year": 2026,
+   "desc": {
+    "fr": "L’Aeroad d’Alpecin : noir bleuté, dessous bleu.",
+    "en": "Alpecin’s Aeroad: blue-black with a blue underside."
+   }
+  },
+  {
+   "id": "s26-28-alpecin-ultimate-cfr",
+   "name": "Canyon Ultimate CFR",
+   "brand": "canyon",
+   "collection": "saison-2026",
+   "group": "alpecin",
+   "type": "climbing",
+   "family": "climb",
+   "params": {
+    "brakes": "disc",
+    "wheels": [
+     "c35",
+     "c35"
+    ],
+    "rimBrand": "shimano"
+   },
+   "livery": {
+    "colors": [
+     "#0d1520",
+     "#2b7de9",
+     "#e9eef5"
+    ],
+    "pattern": "fade",
+    "axis": "y",
+    "at": 0.35,
+    "width": 0.5,
+    "rim": "#e8e8e8",
+    "tape": "#2b7de9"
+   },
+   "level": 3,
+   "year": 2026,
+   "desc": {
+    "fr": "L’Ultimate d’Alpecin, bleu qui monte du boîtier.",
+    "en": "Alpecin’s Ultimate, blue rising from the bottom bracket."
+   }
+  },
+  {
+   "id": "s26-29-alpecin-speedmax-cfr",
+   "name": "Canyon Speedmax CFR",
+   "brand": "canyon",
+   "collection": "saison-2026",
+   "group": "alpecin",
+   "type": "tt",
+   "family": "tt",
+   "params": {
+    "brakes": "disc",
+    "wheels": [
+     "tri",
+     "disc"
+    ],
+    "rimBrand": "shimano",
+    "aeroHelmet": true
+   },
+   "livery": {
+    "colors": [
+     "#0d1520",
+     "#2b7de9",
+     "#e9eef5"
+    ],
+    "pattern": "band",
+    "axis": "z",
+    "at": 0.3,
+    "width": 0.15,
+    "rim": "#e8e8e8",
+    "tape": "#111111"
+   },
+   "level": 17,
+   "year": 2026,
+   "desc": {
+    "fr": "Chrono noir et bande bleue.",
+    "en": "Black TT bike with a blue band."
+   }
+  },
+  {
+   "id": "s26-30-fdj-filante-slr-id2",
+   "name": "Wilier Filante SLR ID2",
+   "brand": "wilier",
+   "collection": "saison-2026",
+   "group": "fdj",
+   "type": "aero",
+   "family": "aero",
+   "params": {
+    "brakes": "disc",
+    "wheels": [
+     "c50",
+     "c65"
+    ],
+    "rimBrand": "shimano"
+   },
+   "livery": {
+    "colors": [
+     "#0055a4",
+     "#ffffff",
+     "#e1001a"
+    ],
+    "pattern": "split",
+    "axis": "z",
+    "at": 0.55,
+    "line": true,
+    "rim": "#ffffff",
+    "tape": "#ffffff"
+   },
+   "level": 13,
+   "year": 2026,
+   "desc": {
+    "fr": "Aéro de Groupama-FDJ : bleu, blanc, filet rouge.",
+    "en": "Groupama-FDJ’s aero bike: blue, white, red pinstripe."
+   }
+  },
+  {
+   "id": "s26-31-fdj-verticale-slr",
+   "name": "Wilier Verticale SLR",
+   "brand": "wilier",
+   "collection": "saison-2026",
+   "group": "fdj",
+   "type": "climbing",
+   "family": "climb",
+   "params": {
+    "brakes": "disc",
+    "wheels": [
+     "c35",
+     "c35"
+    ],
+    "rimBrand": "shimano"
+   },
+   "livery": {
+    "colors": [
+     "#ffffff",
+     "#0055a4",
+     "#e1001a"
+    ],
+    "pattern": "fade",
+    "axis": "y",
+    "at": 0.45,
+    "width": 0.5,
+    "rim": "#ffffff",
+    "tape": "#ffffff"
+   },
+   "level": 7,
+   "year": 2026,
+   "desc": {
+    "fr": "Grimpeur blanc et bleu de l’équipe française.",
+    "en": "The French team’s white and blue climber."
+   }
+  },
+  {
+   "id": "s26-32-fdj-supersonica-slr",
+   "name": "Wilier Supersonica SLR",
+   "brand": "wilier",
+   "collection": "saison-2026",
+   "group": "fdj",
+   "type": "tt",
+   "family": "tt",
+   "params": {
+    "brakes": "disc",
+    "wheels": [
+     "c65",
+     "disc"
+    ],
+    "rimBrand": "shimano",
+    "aeroHelmet": true
+   },
+   "livery": {
+    "colors": [
+     "#0055a4",
+     "#ffffff",
+     "#e1001a"
+    ],
+    "pattern": "stripes",
+    "axis": "z",
+    "at": 0.62,
+    "width": 0.16,
+    "rim": "#ffffff",
+    "tape": "#111111"
+   },
+   "level": 23,
+   "year": 2026,
+   "desc": {
+    "fr": "Chrono bleu à trois bandes tricolores.",
+    "en": "Blue TT bike with three tricolour bands."
+   }
+  },
+  {
+   "id": "s26-33-lotto-orca-aero",
+   "name": "Orbea Orca Aero",
+   "brand": "orbea",
+   "collection": "saison-2026",
+   "group": "lotto",
+   "type": "aero",
+   "family": "aero",
+   "params": {
+    "brakes": "disc",
+    "wheels": [
+     "c50",
+     "c65"
+    ],
+    "rimBrand": "oquo"
+   },
+   "livery": {
+    "colors": [
+     "#e30613",
+     "#13213d",
+     "#ffffff"
+    ],
+    "pattern": "fade",
+    "axis": "z",
+    "at": 0.4,
+    "width": 0.5,
+    "rim": "#13213d",
+    "tape": "#13213d"
+   },
+   "level": 5,
+   "year": 2026,
+   "desc": {
+    "fr": "Aéro rouge qui s’assombrit vers l’arrière.",
+    "en": "Red aero bike darkening to the rear."
+   }
+  },
+  {
+   "id": "s26-34-lotto-orca",
+   "name": "Orbea Orca",
+   "brand": "orbea",
+   "collection": "saison-2026",
+   "group": "lotto",
+   "type": "climbing",
+   "family": "climb",
+   "params": {
+    "brakes": "disc",
+    "wheels": [
+     "c35",
+     "c35"
+    ],
+    "rimBrand": "oquo"
+   },
+   "livery": {
+    "colors": [
+     "#13213d",
+     "#e30613",
+     "#ffffff"
+    ],
+    "pattern": "split",
+    "axis": "y",
+    "at": 0.55,
+    "rim": "#13213d",
+    "tape": "#13213d"
+   },
+   "level": 2,
+   "year": 2026,
+   "desc": {
+    "fr": "Grimpeur marine au dessus rouge.",
+    "en": "Navy climber with a red top."
+   }
+  },
+  {
+   "id": "s26-35-lotto-ordu",
+   "name": "Orbea Ordu",
+   "brand": "orbea",
+   "collection": "saison-2026",
+   "group": "lotto",
+   "type": "tt",
+   "family": "tt",
+   "params": {
+    "brakes": "disc",
+    "wheels": [
+     "tri",
+     "disc"
+    ],
+    "rimBrand": "oquo",
+    "aeroHelmet": true
+   },
+   "livery": {
+    "colors": [
+     "#e30613",
+     "#13213d",
+     "#ffffff"
+    ],
+    "pattern": "band",
+    "axis": "z",
+    "at": 0.45,
+    "width": 0.14,
+    "line": true,
+    "rim": "#13213d",
+    "tape": "#111111"
+   },
+   "level": 11,
+   "year": 2026,
+   "desc": {
+    "fr": "Chrono rouge, bande marine.",
+    "en": "Red TT bike, navy band."
+   }
+  },
+  {
+   "id": "s26-36-nsn-foil-rc",
+   "name": "Scott Foil RC",
+   "brand": "scott",
+   "collection": "saison-2026",
+   "group": "nsn",
+   "type": "aero",
+   "family": "aero",
+   "params": {
+    "brakes": "disc",
+    "wheels": [
+     "c50",
+     "c65"
+    ],
+    "rimBrand": "syncros"
+   },
+   "livery": {
+    "colors": [
+     "#0e1116",
+     "#00a6a6",
+     "#ff7a1a"
+    ],
+    "pattern": "fade",
+    "axis": "diag",
+    "at": 0.6,
+    "width": 0.3,
+    "line": true,
+    "rim": "#e8e8e8",
+    "tape": "#00a6a6"
+   },
+   "level": 9,
+   "year": 2026,
+   "desc": {
+    "fr": "Le Foil anthracite, éclat turquoise et liseré orange.",
+    "en": "The anthracite Foil, teal glow and orange pinstripe."
+   }
+  },
+  {
+   "id": "s26-37-nsn-addict-rc",
+   "name": "Scott Addict RC",
+   "brand": "scott",
+   "collection": "saison-2026",
+   "group": "nsn",
+   "type": "climbing",
+   "family": "climb",
+   "params": {
+    "brakes": "disc",
+    "wheels": [
+     "c35",
+     "c35"
+    ],
+    "rimBrand": "syncros"
+   },
+   "livery": {
+    "colors": [
+     "#00a6a6",
+     "#0e1116",
+     "#ff7a1a"
+    ],
+    "pattern": "split",
+    "axis": "y",
+    "at": 0.5,
+    "rim": "#e8e8e8",
+    "tape": "#00a6a6"
+   },
+   "level": 4,
+   "year": 2026,
+   "desc": {
+    "fr": "Grimpeur turquoise, dessous anthracite.",
+    "en": "Teal climber with an anthracite underside."
+   }
+  },
+  {
+   "id": "s26-38-nsn-plasma-rc-tt",
+   "name": "Scott Plasma RC TT",
+   "brand": "scott",
+   "collection": "saison-2026",
+   "group": "nsn",
+   "type": "tt",
+   "family": "tt",
+   "params": {
+    "brakes": "disc",
+    "wheels": [
+     "c65",
+     "disc"
+    ],
+    "rimBrand": "syncros",
+    "aeroHelmet": true
+   },
+   "livery": {
+    "colors": [
+     "#0e1116",
+     "#ff7a1a",
+     "#00a6a6"
+    ],
+    "pattern": "band",
+    "axis": "z",
+    "at": 0.6,
+    "width": 0.12,
+    "rim": "#e8e8e8",
+    "tape": "#111111"
+   },
+   "level": 25,
+   "year": 2026,
+   "desc": {
+    "fr": "Chrono anthracite à bande orange.",
+    "en": "Anthracite TT bike with an orange band."
+   }
+  },
+  {
+   "id": "s26-39-jayco-propel-advanced-sl",
+   "name": "Giant Propel Advanced SL",
+   "brand": "giant",
+   "collection": "saison-2026",
+   "group": "jayco",
+   "type": "aero",
+   "family": "aero",
+   "params": {
+    "brakes": "disc",
+    "wheels": [
+     "c50",
+     "c65"
+    ],
+    "rimBrand": "cadex"
+   },
+   "livery": {
+    "colors": [
+     "#00a3e0",
+     "#0b1f44",
+     "#ff6a13"
+    ],
+    "pattern": "fade",
+    "axis": "z",
+    "at": 0.35,
+    "width": 0.4,
+    "rim": "#0b1f44",
+    "tape": "#0b1f44"
+   },
+   "level": 7,
+   "year": 2026,
+   "desc": {
+    "fr": "Aéro bleu clair qui plonge vers le marine.",
+    "en": "Light-blue aero bike diving into navy."
+   }
+  },
+  {
+   "id": "s26-40-jayco-tcr-advanced-sl",
+   "name": "Giant TCR Advanced SL",
+   "brand": "giant",
+   "collection": "saison-2026",
+   "group": "jayco",
+   "type": "climbing",
+   "family": "climb",
+   "params": {
+    "brakes": "disc",
+    "wheels": [
+     "c35",
+     "c35"
+    ],
+    "rimBrand": "cadex"
+   },
+   "livery": {
+    "colors": [
+     "#0b1f44",
+     "#00a3e0",
+     "#ff6a13"
+    ],
+    "pattern": "split",
+    "axis": "y",
+    "at": 0.58,
+    "line": true,
+    "rim": "#0b1f44",
+    "tape": "#0b1f44"
+   },
+   "level": 1,
+   "year": 2026,
+   "desc": {
+    "fr": "Le TCR de Jayco AlUla, disponible dès le départ.",
+    "en": "Jayco AlUla’s TCR, available from the start."
+   }
+  },
+  {
+   "id": "s26-41-jayco-trinity-advanced-sl",
+   "name": "Giant Trinity Advanced SL",
+   "brand": "giant",
+   "collection": "saison-2026",
+   "group": "jayco",
+   "type": "tt",
+   "family": "tt",
+   "params": {
+    "brakes": "disc",
+    "wheels": [
+     "tri",
+     "disc"
+    ],
+    "rimBrand": "cadex",
+    "aeroHelmet": true
+   },
+   "livery": {
+    "colors": [
+     "#00a3e0",
+     "#0b1f44",
+     "#ff6a13"
+    ],
+    "pattern": "band",
+    "axis": "z",
+    "at": 0.5,
+    "width": 0.16,
+    "line": true,
+    "rim": "#0b1f44",
+    "tape": "#111111"
+   },
+   "level": 15,
+   "year": 2026,
+   "desc": {
+    "fr": "Chrono bleu clair, bande marine liserée d’orange.",
+    "en": "Light-blue TT bike, orange-edged navy band."
+   }
+  },
+  {
+   "id": "s26-42-picnic-xelius-drs",
+   "name": "Lapierre Xelius DRS",
+   "brand": "lapierre",
+   "collection": "saison-2026",
+   "group": "picnic",
+   "type": "climbing",
+   "family": "climb",
+   "params": {
+    "brakes": "disc",
+    "wheels": [
+     "c50",
+     "c50"
+    ],
+    "rimBrand": "shimano"
+   },
+   "livery": {
+    "colors": [
+     "#f5f5f5",
+     "#111111",
+     "#ff6f00"
+    ],
+    "pattern": "fade",
+    "axis": "z",
+    "at": 0.3,
+    "width": 0.4,
+    "rim": "#111111",
+    "tape": "#111111"
+   },
+   "level": 5,
+   "year": 2026,
+   "desc": {
+    "fr": "Le Xelius blanc à l’arrière noir, haubans décalés.",
+    "en": "The white Xelius with a black rear and offset stays."
+   }
+  },
+  {
+   "id": "s26-43-picnic-aerostorm-drs",
+   "name": "Lapierre Aerostorm DRS",
+   "brand": "lapierre",
+   "collection": "saison-2026",
+   "group": "picnic",
+   "type": "tt",
+   "family": "tt",
+   "params": {
+    "brakes": "disc",
+    "wheels": [
+     "c65",
+     "disc"
+    ],
+    "rimBrand": "shimano",
+    "aeroHelmet": true
+   },
+   "livery": {
+    "colors": [
+     "#111111",
+     "#f5f5f5",
+     "#ff6f00"
+    ],
+    "pattern": "band",
+    "axis": "y",
+    "at": 0.5,
+    "width": 0.12,
+    "line": true,
+    "rim": "#111111",
+    "tape": "#111111"
+   },
+   "level": 19,
+   "year": 2026,
+   "desc": {
+    "fr": "Chrono noir, bande blanche et orange.",
+    "en": "Black TT bike, white and orange band."
+   }
+  },
+  {
+   "id": "s26-44-unox-noah-fast",
+   "name": "Ridley Noah Fast",
+   "brand": "ridley",
+   "collection": "saison-2026",
+   "group": "unox",
+   "type": "aero",
+   "family": "aero",
+   "params": {
+    "brakes": "disc",
+    "wheels": [
+     "c50",
+     "c65"
+    ],
+    "rimBrand": "dt-swiss"
+   },
+   "livery": {
+    "colors": [
+     "#d7002a",
+     "#0b1a3a",
+     "#ffd200"
+    ],
+    "pattern": "split",
+    "axis": "z",
+    "at": 0.45,
+    "line": true,
+    "rim": "#0b1a3a",
+    "tape": "#0b1a3a"
+   },
+   "level": 6,
+   "year": 2026,
+   "desc": {
+    "fr": "Aéro rouge, arrière marine, filet jaune.",
+    "en": "Red aero bike, navy rear, yellow pinstripe."
+   }
+  },
+  {
+   "id": "s26-45-unox-falcn-rs",
+   "name": "Ridley Falcn RS",
+   "brand": "ridley",
+   "collection": "saison-2026",
+   "group": "unox",
+   "type": "climbing",
+   "family": "climb",
+   "params": {
+    "brakes": "disc",
+    "wheels": [
+     "c35",
+     "c35"
+    ],
+    "rimBrand": "dt-swiss"
+   },
+   "livery": {
+    "colors": [
+     "#d7002a",
+     "#0b1a3a",
+     "#ffd200"
+    ],
+    "pattern": "fade",
+    "axis": "y",
+    "at": 0.4,
+    "width": 0.4,
+    "rim": "#0b1a3a",
+    "tape": "#0b1a3a"
+   },
+   "level": 3,
+   "year": 2026,
+   "desc": {
+    "fr": "Grimpeur rouge qui s’assombrit vers le bas.",
+    "en": "Red climber darkening towards the bottom."
+   }
+  },
+  {
+   "id": "s26-46-unox-dean-fast",
+   "name": "Ridley Dean Fast",
+   "brand": "ridley",
+   "collection": "saison-2026",
+   "group": "unox",
+   "type": "tt",
+   "family": "tt",
+   "params": {
+    "brakes": "disc",
+    "wheels": [
+     "tri",
+     "disc"
+    ],
+    "rimBrand": "dt-swiss",
+    "aeroHelmet": true
+   },
+   "livery": {
+    "colors": [
+     "#0b1a3a",
+     "#d7002a",
+     "#ffd200"
+    ],
+    "pattern": "band",
+    "axis": "z",
+    "at": 0.55,
+    "width": 0.15,
+    "rim": "#0b1a3a",
+    "tape": "#111111"
+   },
+   "level": 13,
+   "year": 2026,
+   "desc": {
+    "fr": "Chrono marine à bande rouge.",
+    "en": "Navy TT bike with a red band."
+   }
+  },
+  {
+   "id": "s26-47-astana-ad9",
+   "name": "X-Lab AD9",
+   "brand": "x-lab",
+   "collection": "saison-2026",
+   "group": "astana",
+   "type": "aero",
+   "family": "aero",
+   "params": {
+    "brakes": "disc",
+    "wheels": [
+     "c50",
+     "c65"
+    ],
+    "rimBrand": "vision"
+   },
+   "livery": {
+    "colors": [
+     "#00a8e1",
+     "#0d1b2a",
+     "#f5c400"
+    ],
+    "pattern": "fade",
+    "axis": "z",
+    "at": 0.35,
+    "width": 0.4,
+    "line": true,
+    "rim": "#f5c400",
+    "tape": "#f5c400"
+   },
+   "level": 4,
+   "year": 2026,
+   "desc": {
+    "fr": "Aéro bleu ciel, arrière sombre et liseré or.",
+    "en": "Sky-blue aero bike, dark rear and gold pinstripe."
+   }
+  },
+  {
+   "id": "s26-48-astana-db01",
+   "name": "X-Lab DB01",
+   "brand": "x-lab",
+   "collection": "saison-2026",
+   "group": "astana",
+   "type": "tt",
+   "family": "tt",
+   "params": {
+    "brakes": "disc",
+    "wheels": [
+     "c65",
+     "disc"
+    ],
+    "rimBrand": "vision",
+    "aeroHelmet": true
+   },
+   "livery": {
+    "colors": [
+     "#00a8e1",
+     "#f5c400",
+     "#0d1b2a"
+    ],
+    "pattern": "split",
+    "axis": "y",
+    "at": 0.6,
+    "rim": "#f5c400",
+    "tape": "#111111"
+   },
+   "level": 17,
+   "year": 2026,
+   "desc": {
+    "fr": "Chrono bleu ciel au dessus jaune.",
+    "en": "Sky-blue TT bike with a yellow top."
+   }
+  },
+  {
+   "id": "s26-49-tudor-teammachine-r-01",
+   "name": "BMC Teammachine R 01",
+   "brand": "bmc",
+   "collection": "saison-2026",
+   "group": "tudor",
+   "type": "aero",
+   "family": "aero",
+   "params": {
+    "brakes": "disc",
+    "wheels": [
+     "c50",
+     "c50"
+    ],
+    "rimBrand": "dt-swiss"
+   },
+   "livery": {
+    "colors": [
+     "#c8102e",
+     "#111111",
+     "#ffffff"
+    ],
+    "pattern": "fade",
+    "axis": "z",
+    "at": 0.45,
+    "width": 0.4,
+    "zones": {
+     "fork": 1
+    },
+    "rim": "#111111",
+    "tape": "#111111"
+   },
+   "level": 29,
+   "year": 2026,
+   "desc": {
+    "fr": "Le nouveau Teammachine aéro de Tudor, rouge et noir.",
+    "en": "Tudor’s new aero Teammachine, red and black."
+   }
+  },
+  {
+   "id": "s26-50-cofidis-795-blade-rs",
+   "name": "LOOK 795 Blade RS",
+   "brand": "look",
+   "collection": "saison-2026",
+   "group": "cofidis",
+   "type": "aero",
+   "family": "aero",
+   "params": {
+    "brakes": "disc",
+    "wheels": [
+     "c50",
+     "c50"
+    ],
+    "rimBrand": "corima"
+   },
+   "livery": {
+    "colors": [
+     "#e2001a",
+     "#ffffff",
+     "#111111"
+    ],
+    "pattern": "split",
+    "axis": "y",
+    "at": 0.5,
+    "line": true,
+    "rim": "#ffffff",
+    "tape": "#ffffff"
+   },
+   "level": 12,
+   "year": 2026,
+   "desc": {
+    "fr": "Le 795 Blade de Cofidis : rouge dessus, blanc dessous.",
+    "en": "Cofidis’s 795 Blade: red above, white below."
+   }
+  },
+  {
+   "id": "myth-pinarello-espada",
+   "name": "Pinarello Espada",
+   "brand": "pinarello",
+   "collection": "mythiques",
+   "group": "legendes-tour",
+   "type": "tt",
+   "family": "lowpro",
+   "params": {
+    "brakes": "rim",
+    "wheels": [
+     "tri",
+     "disc"
+    ],
+    "rimBrand": "mavic",
+    "aeroHelmet": true
+   },
+   "livery": {
+    "colors": [
+     "#13317a",
+     "#3fb6d9",
+     "#f2f2f2"
+    ],
+    "pattern": "fade",
+    "axis": "z",
+    "at": 0.55,
+    "width": 0.4,
+    "rim": "#f2f2f2",
+    "tape": "#111111"
+   },
+   "level": 42,
+   "desc": {
+    "fr": "Le chrono profilé d’Induráin dans les contre-la-montre du Tour (1993–1995).",
+    "en": "Induráin's profiled TT machine in the Tour time trials (1993–1995)."
+   }
+  },
+  {
+   "id": "myth-trek-5900",
+   "name": "Trek 5900",
+   "brand": "trek",
+   "collection": "mythiques",
+   "group": "legendes-tour",
+   "type": "climbing",
+   "family": "retro",
+   "params": {
+    "brakes": "rim",
+    "wheels": [
+     "c35",
+     "c35"
+    ],
+    "rimBrand": "bontrager"
+   },
+   "livery": {
+    "colors": [
+     "#14204a",
+     "#ffffff",
+     "#c8102e"
+    ],
+    "pattern": "fade",
+    "axis": "y",
+    "at": 0.5,
+    "width": 0.5,
+    "rim": "#c8102e",
+    "tape": "#f2f2f2"
+   },
+   "level": 26,
+   "desc": {
+    "fr": "Carbone OCLV bleu marine des années 2000, Postal puis Discovery.",
+    "en": "2000s navy OCLV carbon, Postal then Discovery colours."
+   }
+  },
+  {
+   "id": "myth-bottecchia-1989",
+   "name": "Bottecchia 1989",
+   "brand": "bottecchia",
+   "collection": "mythiques",
+   "group": "legendes-tour",
+   "type": "classic",
+   "family": "steel",
+   "params": {
+    "brakes": "rim",
+    "wheels": [
+     "box",
+     "box"
+    ],
+    "rimBrand": "mavic"
+   },
+   "livery": {
+    "colors": [
+     "#e8e8ea",
+     "#6a2c91",
+     "#d81e2b"
+    ],
+    "pattern": "stripes",
+    "axis": "z",
+    "at": 0.55,
+    "width": 0.12,
+    "rim": "#d9d9d9",
+    "tape": "#f2f2f2"
+   },
+   "level": 31,
+   "desc": {
+    "fr": "L’acier de LeMond au Tour à huit secondes (1989).",
+    "en": "LeMond's steel bike from the eight-second Tour (1989)."
+   }
+  },
+  {
+   "id": "myth-look-kg86",
+   "name": "Look KG 86",
+   "brand": "look",
+   "collection": "mythiques",
+   "group": "legendes-tour",
+   "type": "classic",
+   "family": "retro",
+   "params": {
+    "brakes": "rim",
+    "wheels": [
+     "box",
+     "box"
+    ],
+    "rimBrand": "mavic"
+   },
+   "livery": {
+    "colors": [
+     "#ffffff",
+     "#d81e2b",
+     "#f4c300"
+    ],
+    "pattern": "blocks",
+    "extra": [
+     "#1d4fa3",
+     "#111111"
+    ],
+    "rim": "#d9d9d9",
+    "tape": "#f2f2f2"
+   },
+   "level": 35,
+   "desc": {
+    "fr": "Cadre carbone-kevlar et damier de La Vie Claire, LeMond 1986.",
+    "en": "Carbon-Kevlar frame in La Vie Claire blocks, LeMond 1986."
+   }
+  },
+  {
+   "id": "myth-pinarello-dogma-651",
+   "name": "Pinarello Dogma 65.1",
+   "brand": "pinarello",
+   "collection": "mythiques",
+   "group": "legendes-tour",
+   "type": "climbing",
+   "family": "climb",
+   "params": {
+    "brakes": "rim",
+    "wheels": [
+     "c50",
+     "c50"
+    ],
+    "rimBrand": "shimano"
+   },
+   "livery": {
+    "colors": [
+     "#0d0d0f",
+     "#00a6e2",
+     "#ffffff"
+    ],
+    "pattern": "band",
+    "axis": "z",
+    "at": 0.5,
+    "width": 0.06,
+    "rim": "#ffffff",
+    "tape": "#111111"
+   },
+   "level": 27,
+   "desc": {
+    "fr": "Le Dogma asymétrique de l’ère Sky (2013).",
+    "en": "The asymmetric Dogma of the Sky era (2013)."
+   }
+  },
+  {
+   "id": "myth-pinarello-dogma-f8",
+   "name": "Pinarello Dogma F8",
+   "brand": "pinarello",
+   "collection": "mythiques",
+   "group": "legendes-tour",
+   "type": "aero",
+   "family": "aero",
+   "params": {
+    "brakes": "rim",
+    "wheels": [
+     "c50",
+     "c50"
+    ],
+    "rimBrand": "shimano"
+   },
+   "livery": {
+    "colors": [
+     "#0d0d0f",
+     "#00a6e2",
+     "#ffffff"
+    ],
+    "pattern": "fade",
+    "axis": "y",
+    "at": 0.25,
+    "width": 0.25,
+    "line": true,
+    "rim": "#ffffff",
+    "tape": "#111111"
+   },
+   "level": 37,
+   "desc": {
+    "fr": "Le F8 de Froome, premier Dogma aérodynamique (2015).",
+    "en": "Froome's F8, the first aerodynamic Dogma (2015)."
+   }
+  },
+  {
+   "id": "myth-pinarello-dogma-f12",
+   "name": "Pinarello Dogma F12",
+   "brand": "pinarello",
+   "collection": "mythiques",
+   "group": "legendes-tour",
+   "type": "aero",
+   "family": "aero",
+   "params": {
+    "brakes": "rim",
+    "wheels": [
+     "c50",
+     "c50"
+    ],
+    "rimBrand": "shimano"
+   },
+   "livery": {
+    "colors": [
+     "#0b1530",
+     "#7a1f3d",
+     "#ffffff"
+    ],
+    "pattern": "fade",
+    "axis": "diag",
+    "at": 0.4,
+    "width": 0.35,
+    "rim": "#ffffff",
+    "tape": "#111111"
+   },
+   "level": 41,
+   "desc": {
+    "fr": "Le F12 bleu nuit et bordeaux de Bernal (2019).",
+    "en": "Bernal's midnight-blue and burgundy F12 (2019)."
+   }
+  },
+  {
+   "id": "myth-specialized-tarmac-sl7",
+   "name": "Specialized Tarmac SL7",
+   "brand": "specialized",
+   "collection": "mythiques",
+   "group": "legendes-tour",
+   "type": "climbing",
+   "family": "climb",
+   "params": {
+    "brakes": "disc",
+    "wheels": [
+     "c50",
+     "c50"
+    ],
+    "rimBrand": "roval"
+   },
+   "livery": {
+    "colors": [
+     "#f4f4f4",
+     "#0050b5",
+     "#d81e2b"
+    ],
+    "pattern": "rainbow",
+    "axis": "z",
+    "at": 0.45,
+    "width": 0.12,
+    "rim": "#d81e2b",
+    "tape": "#111111"
+   },
+   "level": 33,
+   "desc": {
+    "fr": "Le Tarmac blanc à bandes arc-en-ciel d’Alaphilippe champion du monde.",
+    "en": "Alaphilippe's white world-champion Tarmac with rainbow bands."
+   }
+  },
+  {
+   "id": "myth-cervelo-r5-2022",
+   "name": "Cervélo R5 (2022)",
+   "brand": "cervelo",
+   "collection": "mythiques",
+   "group": "legendes-tour",
+   "type": "climbing",
+   "family": "climb",
+   "params": {
+    "brakes": "disc",
+    "wheels": [
+     "c50",
+     "c50"
+    ],
+    "rimBrand": "reserve"
+   },
+   "livery": {
+    "colors": [
+     "#ffdc00",
+     "#121212",
+     "#ffffff"
+    ],
+    "pattern": "split",
+    "axis": "y",
+    "at": 0.62,
+    "rim": "#ffffff",
+    "tape": "#111111"
+   },
+   "level": 39,
+   "desc": {
+    "fr": "Le R5 jaune du premier Tour de Vingegaard.",
+    "en": "The yellow R5 of Vingegaard's first Tour win."
+   }
+  },
+  {
+   "id": "myth-colnago-v4rs",
+   "name": "Colnago V4Rs",
+   "brand": "colnago",
+   "collection": "mythiques",
+   "group": "legendes-tour",
+   "type": "climbing",
+   "family": "climb",
+   "params": {
+    "brakes": "disc",
+    "wheels": [
+     "c50",
+     "c50"
+    ],
+    "rimBrand": "enve"
+   },
+   "livery": {
+    "colors": [
+     "#f6f6f4",
+     "#141414",
+     "#d4001f"
+    ],
+    "pattern": "fade",
+    "axis": "z",
+    "at": 0.45,
+    "width": 0.3,
+    "line": true,
+    "rim": "#d4001f",
+    "tape": "#111111"
+   },
+   "level": 45,
+   "desc": {
+    "fr": "Le V4Rs de Pogačar, doublé Giro-Tour 2024.",
+    "en": "Pogačar's V4Rs, 2024 Giro–Tour double."
+   }
+  },
+  {
+   "id": "myth-colnago-mexico",
+   "name": "Colnago Mexico",
+   "brand": "colnago",
+   "collection": "mythiques",
+   "group": "icones-70-90",
+   "type": "classic",
+   "family": "steel",
+   "params": {
+    "brakes": "rim",
+    "wheels": [
+     "box",
+     "box"
+    ],
+    "rimBrand": "campagnolo",
+    "toeClips": true
+   },
+   "livery": {
+    "colors": [
+     "#c4161c",
+     "#ffffff",
+     "#e2e2e2"
+    ],
+    "pattern": "band",
+    "axis": "z",
+    "at": 0.35,
+    "width": 0.08,
+    "finish": "metallic",
+    "rim": "#d9d9d9",
+    "tape": "#f2f2f2"
+   },
+   "level": 20,
+   "desc": {
+    "fr": "Acier allégé né du record de l’heure de Merckx à Mexico.",
+    "en": "Lightened steel born from Merckx's Mexico hour record."
+   }
+  },
+  {
+   "id": "myth-colnago-master",
+   "name": "Colnago Master",
+   "brand": "colnago",
+   "collection": "mythiques",
+   "group": "icones-70-90",
+   "type": "classic",
+   "family": "steel",
+   "params": {
+    "brakes": "rim",
+    "wheels": [
+     "box",
+     "box"
+    ],
+    "rimBrand": "campagnolo",
+    "toeClips": true
+   },
+   "livery": {
+    "colors": [
+     "#f2f2f2",
+     "#d81e2b",
+     "#1d4fa3"
+    ],
+    "pattern": "fade",
+    "axis": "diag",
+    "at": 0.5,
+    "width": 0.6,
+    "rim": "#d9d9d9",
+    "tape": "#f2f2f2"
+   },
+   "level": 24,
+   "desc": {
+    "fr": "Tubes acier à profil en étoile, signature des années 80.",
+    "en": "Star-profile steel tubes, an 80s signature."
+   }
+  },
+  {
+   "id": "myth-colnago-c40",
+   "name": "Colnago C40",
+   "brand": "colnago",
+   "collection": "mythiques",
+   "group": "icones-70-90",
+   "type": "classic",
+   "family": "retro",
+   "params": {
+    "brakes": "rim",
+    "wheels": [
+     "c35",
+     "c35"
+    ],
+    "rimBrand": "campagnolo"
+   },
+   "livery": {
+    "colors": [
+     "#1a1a1a",
+     "#d81e2b",
+     "#ffffff"
+    ],
+    "pattern": "split",
+    "axis": "y",
+    "at": 0.55,
+    "rim": "#ffffff",
+    "tape": "#f2f2f2"
+   },
+   "level": 36,
+   "desc": {
+    "fr": "Pionnier du carbone à raccords : Roubaix 1995, Giro 1996.",
+    "en": "Lugged carbon pioneer: Roubaix 1995, Giro 1996."
+   }
+  },
+  {
+   "id": "myth-colnago-c50",
+   "name": "Colnago C50",
+   "brand": "colnago",
+   "collection": "mythiques",
+   "group": "icones-70-90",
+   "type": "classic",
+   "family": "retro",
+   "params": {
+    "brakes": "rim",
+    "wheels": [
+     "c35",
+     "c35"
+    ],
+    "rimBrand": "campagnolo"
+   },
+   "livery": {
+    "colors": [
+     "#ff7a00",
+     "#0b2a5b",
+     "#ffffff"
+    ],
+    "pattern": "fade",
+    "axis": "z",
+    "at": 0.5,
+    "width": 0.4,
+    "rim": "#ffffff",
+    "tape": "#f2f2f2"
+   },
+   "level": 28,
+   "desc": {
+    "fr": "Successeur du C40, couleurs orange et bleu des années 2000.",
+    "en": "C40 successor in 2000s orange and blue."
+   }
+  },
+  {
+   "id": "myth-bianchi-specialissima-acier",
+   "name": "Bianchi Specialissima acier",
+   "brand": "bianchi",
+   "collection": "mythiques",
+   "group": "icones-70-90",
+   "type": "classic",
+   "family": "steel",
+   "params": {
+    "brakes": "rim",
+    "wheels": [
+     "box",
+     "box"
+    ],
+    "rimBrand": "campagnolo",
+    "toeClips": true
+   },
+   "livery": {
+    "colors": [
+     "#7fd1c7",
+     "#111111",
+     "#f2f2f2"
+    ],
+    "pattern": "solid",
+    "rim": "#d9d9d9",
+    "tape": "#f2f2f2"
+   },
+   "level": 2,
+   "desc": {
+    "fr": "L’acier céleste de Coppi et Gimondi.",
+    "en": "The celeste steel of Coppi and Gimondi."
+   }
+  },
+  {
+   "id": "myth-bianchi-mega-pro-xl",
+   "name": "Bianchi Mega Pro XL",
+   "brand": "bianchi",
+   "collection": "mythiques",
+   "group": "icones-70-90",
+   "type": "classic",
+   "family": "retro",
+   "params": {
+    "brakes": "rim",
+    "wheels": [
+     "box",
+     "box"
+    ],
+    "rimBrand": "campagnolo"
+   },
+   "livery": {
+    "colors": [
+     "#7fd1c7",
+     "#ffd400",
+     "#e5007e"
+    ],
+    "pattern": "fade",
+    "axis": "z",
+    "at": 0.6,
+    "width": 0.3,
+    "rim": "#d9d9d9",
+    "tape": "#f2f2f2"
+   },
+   "level": 43,
+   "desc": {
+    "fr": "L’alu surdimensionné de Pantani, Giro-Tour 1998.",
+    "en": "Pantani's oversized aluminium, 1998 Giro–Tour."
+   }
+  },
+  {
+   "id": "myth-de-rosa-professional",
+   "name": "De Rosa Professional",
+   "brand": "de-rosa",
+   "collection": "mythiques",
+   "group": "icones-70-90",
+   "type": "classic",
+   "family": "steel",
+   "params": {
+    "brakes": "rim",
+    "wheels": [
+     "box",
+     "box"
+    ],
+    "rimBrand": "campagnolo",
+    "toeClips": true
+   },
+   "livery": {
+    "colors": [
+     "#c4161c",
+     "#ffffff",
+     "#1a1a1a"
+    ],
+    "pattern": "band",
+    "axis": "y",
+    "at": 0.8,
+    "width": 0.08,
+    "finish": "metallic",
+    "rim": "#d9d9d9",
+    "tape": "#f2f2f2"
+   },
+   "level": 14,
+   "desc": {
+    "fr": "Acier de Milan au cœur rouge, cadre des grands rouleurs.",
+    "en": "Milanese steel with a red heart, the rouleurs' frame."
+   }
+  },
+  {
+   "id": "myth-de-rosa-merak",
+   "name": "De Rosa Merak",
+   "brand": "de-rosa",
+   "collection": "mythiques",
+   "group": "icones-70-90",
+   "type": "classic",
+   "family": "steel",
+   "params": {
+    "brakes": "rim",
+    "wheels": [
+     "box",
+     "box"
+    ],
+    "rimBrand": "campagnolo",
+    "toeClips": true
+   },
+   "livery": {
+    "colors": [
+     "#f28c28",
+     "#1a1a1a",
+     "#ffffff"
+    ],
+    "pattern": "band",
+    "axis": "z",
+    "at": 0.55,
+    "width": 0.1,
+    "rim": "#d9d9d9",
+    "tape": "#f2f2f2"
+   },
+   "level": 30,
+   "desc": {
+    "fr": "Acier orange et noir des années Molteni de Merckx.",
+    "en": "Orange and black steel from Merckx's Molteni years."
+   }
+  },
+  {
+   "id": "myth-pinarello-montello",
+   "name": "Pinarello Montello",
+   "brand": "pinarello",
+   "collection": "mythiques",
+   "group": "icones-70-90",
+   "type": "classic",
+   "family": "steel",
+   "params": {
+    "brakes": "rim",
+    "wheels": [
+     "box",
+     "box"
+    ],
+    "rimBrand": "campagnolo",
+    "toeClips": true
+   },
+   "livery": {
+    "colors": [
+     "#8b0d1a",
+     "#f2f2f2",
+     "#c9a227"
+    ],
+    "pattern": "solid",
+    "finish": "metallic",
+    "rim": "#d9d9d9",
+    "tape": "#f2f2f2"
+   },
+   "level": 16,
+   "desc": {
+    "fr": "L’acier bordeaux métallisé de Trévise.",
+    "en": "Metallic burgundy steel from Treviso."
+   }
+  },
+  {
+   "id": "myth-raleigh-team-replica",
+   "name": "Raleigh Team Replica",
+   "brand": "raleigh",
+   "collection": "mythiques",
+   "group": "icones-70-90",
+   "type": "classic",
+   "family": "steel",
+   "params": {
+    "brakes": "rim",
+    "wheels": [
+     "box",
+     "box"
+    ],
+    "rimBrand": "campagnolo",
+    "toeClips": true
+   },
+   "livery": {
+    "colors": [
+     "#d81e2b",
+     "#ffd400",
+     "#111111"
+    ],
+    "pattern": "stripes",
+    "axis": "z",
+    "at": 0.55,
+    "width": 0.16,
+    "rim": "#d9d9d9",
+    "tape": "#f2f2f2"
+   },
+   "level": 1,
+   "desc": {
+    "fr": "La réplique TI-Raleigh rouge, jaune et noire, disponible dès le départ.",
+    "en": "The red, yellow and black TI-Raleigh replica, available from the start."
+   }
+  },
+  {
+   "id": "myth-colnago-c40-mapei",
+   "name": "Colnago C40 Mapei",
+   "brand": "colnago",
+   "collection": "mythiques",
+   "group": "classiques",
+   "type": "classic",
+   "family": "retro",
+   "params": {
+    "brakes": "rim",
+    "wheels": [
+     "box",
+     "box"
+    ],
+    "rimBrand": "campagnolo"
+   },
+   "livery": {
+    "colors": [
+     "#f4f4f4",
+     "#1d4fa3",
+     "#d81e2b"
+    ],
+    "pattern": "blocks",
+    "extra": [
+     "#ffd400",
+     "#2a9d3a"
+    ],
+    "rim": "#d9d9d9",
+    "tape": "#f2f2f2"
+   },
+   "level": 46,
+   "desc": {
+    "fr": "Les cubes Mapei de Ballerini, vainqueur à Roubaix en 1995.",
+    "en": "Ballerini's Mapei cubes, Roubaix winner in 1995."
+   }
+  },
+  {
+   "id": "myth-specialized-roubaix",
+   "name": "Specialized Roubaix",
+   "brand": "specialized",
+   "collection": "mythiques",
+   "group": "classiques",
+   "type": "climbing",
+   "family": "climb",
+   "params": {
+    "brakes": "rim",
+    "wheels": [
+     "c35",
+     "c35"
+    ],
+    "rimBrand": "roval"
+   },
+   "livery": {
+    "colors": [
+     "#0a1a3a",
+     "#0050b5",
+     "#ffffff"
+    ],
+    "pattern": "fade",
+    "axis": "z",
+    "at": 0.5,
+    "width": 0.5,
+    "rim": "#ffffff",
+    "tape": "#111111"
+   },
+   "level": 8,
+   "desc": {
+    "fr": "L’endurance carbone taillée pour les pavés.",
+    "en": "Carbon endurance bike built for the cobbles."
+   }
+  },
+  {
+   "id": "myth-trek-madone-1",
+   "name": "Trek Madone (1re génération)",
+   "brand": "trek",
+   "collection": "mythiques",
+   "group": "classiques",
+   "type": "climbing",
+   "family": "retro",
+   "params": {
+    "brakes": "rim",
+    "wheels": [
+     "c35",
+     "c35"
+    ],
+    "rimBrand": "bontrager"
+   },
+   "livery": {
+    "colors": [
+     "#14204a",
+     "#9aa4b8",
+     "#ffffff"
+    ],
+    "pattern": "fade",
+    "axis": "y",
+    "at": 0.7,
+    "width": 0.3,
+    "rim": "#ffffff",
+    "tape": "#f2f2f2"
+   },
+   "level": 18,
+   "desc": {
+    "fr": "Le premier Madone (2003), carbone OCLV bleu.",
+    "en": "The first Madone (2003), blue OCLV carbon."
+   }
+  },
+  {
+   "id": "myth-cervelo-soloist",
+   "name": "Cervélo Soloist",
+   "brand": "cervelo",
+   "collection": "mythiques",
+   "group": "classiques",
+   "type": "aero",
+   "family": "retro",
+   "params": {
+    "brakes": "rim",
+    "wheels": [
+     "c50",
+     "c50"
+    ],
+    "rimBrand": "zipp"
+   },
+   "livery": {
+    "colors": [
+     "#f2f2f2",
+     "#c8102e",
+     "#111111"
+    ],
+    "pattern": "split",
+    "axis": "y",
+    "at": 0.45,
+    "rim": "#111111",
+    "tape": "#f2f2f2"
+   },
+   "level": 10,
+   "desc": {
+    "fr": "L’alu aérodynamique de CSC, précurseur des vélos aéro.",
+    "en": "CSC’s aero aluminium bike, an aero-road forerunner."
+   }
+  },
+  {
+   "id": "myth-cervelo-s5-gen1",
+   "name": "Cervélo S5 (1re génération)",
+   "brand": "cervelo",
+   "collection": "mythiques",
+   "group": "classiques",
+   "type": "aero",
+   "family": "aero",
+   "params": {
+    "brakes": "rim",
+    "wheels": [
+     "c50",
+     "c50"
+    ],
+    "rimBrand": "zipp"
+   },
+   "livery": {
+    "colors": [
+     "#111111",
+     "#2b6cff",
+     "#ff7a00"
+    ],
+    "pattern": "band",
+    "axis": "z",
+    "at": 0.45,
+    "width": 0.1,
+    "rim": "#ff7a00",
+    "tape": "#111111"
+   },
+   "level": 22,
+   "desc": {
+    "fr": "Le premier S5 (2011), aéro à freins sur jante.",
+    "en": "The first S5 (2011), rim-brake aero."
+   }
+  },
+  {
+   "id": "myth-specialized-venge",
+   "name": "Specialized Venge",
+   "brand": "specialized",
+   "collection": "mythiques",
+   "group": "classiques",
+   "type": "aero",
+   "family": "aero",
+   "params": {
+    "brakes": "rim",
+    "wheels": [
+     "c50",
+     "c50"
+    ],
+    "rimBrand": "roval"
+   },
+   "livery": {
+    "colors": [
+     "#f4f4f4",
+     "#111111",
+     "#d81e2b"
+    ],
+    "pattern": "fade",
+    "axis": "z",
+    "at": 0.3,
+    "width": 0.3,
+    "rim": "#d81e2b",
+    "tape": "#111111"
+   },
+   "level": 25,
+   "desc": {
+    "fr": "Le Venge des sprints de Cavendish (2011).",
+    "en": "The Venge of Cavendish's sprints (2011)."
+   }
+  },
+  {
+   "id": "myth-giant-tcr-compact",
+   "name": "Giant TCR (compact, 1990s)",
+   "brand": "giant",
+   "collection": "mythiques",
+   "group": "classiques",
+   "type": "classic",
+   "family": "retro_compact",
+   "params": {
+    "brakes": "rim",
+    "wheels": [
+     "box",
+     "box"
+    ],
+    "rimBrand": "mavic"
+   },
+   "livery": {
+    "colors": [
+     "#ffd400",
+     "#111111",
+     "#e5007e"
+    ],
+    "pattern": "split",
+    "axis": "y",
+    "at": 0.5,
+    "rim": "#d9d9d9",
+    "tape": "#f2f2f2"
+   },
+   "level": 6,
+   "desc": {
+    "fr": "Le cadre compact à tube horizontal plongeant qui a tout changé (ONCE, 1997).",
+    "en": "The sloping compact frame that changed everything (ONCE, 1997)."
+   }
+  },
+  {
+   "id": "myth-cannondale-caad3",
+   "name": "Cannondale CAAD3",
+   "brand": "cannondale",
+   "collection": "mythiques",
+   "group": "classiques",
+   "type": "classic",
+   "family": "retro",
+   "params": {
+    "brakes": "rim",
+    "wheels": [
+     "box",
+     "box"
+    ],
+    "rimBrand": "mavic"
+   },
+   "livery": {
+    "colors": [
+     "#d81e2b",
+     "#ffffff",
+     "#111111"
+    ],
+    "pattern": "fade",
+    "axis": "z",
+    "at": 0.4,
+    "width": 0.4,
+    "rim": "#d9d9d9",
+    "tape": "#f2f2f2"
+   },
+   "level": 21,
+   "desc": {
+    "fr": "Alu surdimensionné de Saeco et Cipollini.",
+    "en": "Oversized aluminium of Saeco and Cipollini."
+   }
+  },
+  {
+   "id": "myth-cannondale-caad9",
+   "name": "Cannondale CAAD9",
+   "brand": "cannondale",
+   "collection": "mythiques",
+   "group": "classiques",
+   "type": "classic",
+   "family": "retro",
+   "params": {
+    "brakes": "rim",
+    "wheels": [
+     "c35",
+     "c35"
+    ],
+    "rimBrand": "mavic"
+   },
+   "livery": {
+    "colors": [
+     "#8cc63f",
+     "#0d4fa0",
+     "#ffffff"
+    ],
+    "pattern": "split",
+    "axis": "y",
+    "at": 0.55,
+    "line": true,
+    "rim": "#ffffff",
+    "tape": "#f2f2f2"
+   },
+   "level": 1,
+   "desc": {
+    "fr": "L’alu vert Liquigas des années 2000, disponible dès le départ.",
+    "en": "The 2000s Liquigas-green aluminium bike, available from the start."
+   }
+  },
+  {
+   "id": "myth-eddy-merckx-mx-leader",
+   "name": "Eddy Merckx MX Leader",
+   "brand": "eddy-merckx",
+   "collection": "mythiques",
+   "group": "classiques",
+   "type": "classic",
+   "family": "steel",
+   "params": {
+    "brakes": "rim",
+    "wheels": [
+     "box",
+     "box"
+    ],
+    "rimBrand": "campagnolo"
+   },
+   "livery": {
+    "colors": [
+     "#d81e2b",
+     "#ffffff",
+     "#1d4fa3"
+    ],
+    "pattern": "stripes",
+    "axis": "z",
+    "at": 0.5,
+    "width": 0.12,
+    "rim": "#d9d9d9",
+    "tape": "#f2f2f2"
+   },
+   "level": 23,
+   "desc": {
+    "fr": "Acier MAX surdimensionné, couleurs de Motorola.",
+    "en": "Oversized MAX steel in Motorola colours."
+   }
+  },
+  {
+   "id": "myth-lotus-110",
+   "name": "Lotus 110",
+   "brand": "lotus",
+   "collection": "mythiques",
+   "group": "chrono",
+   "type": "tt",
+   "family": "lotus",
+   "params": {
+    "brakes": "rim",
+    "wheels": [
+     "tri",
+     "disc"
+    ],
+    "rimBrand": "corima",
+    "aeroHelmet": true
+   },
+   "livery": {
+    "colors": [
+     "#111111",
+     "#f4c300",
+     "#2a9d3a"
+    ],
+    "pattern": "band",
+    "axis": "y",
+    "at": 0.7,
+    "width": 0.05,
+    "finish": "gloss",
+    "rim": "#2a9d3a",
+    "tape": "#111111"
+   },
+   "level": 48,
+   "desc": {
+    "fr": "Monocoque carbone de Boardman sur route (1994).",
+    "en": "Boardman's carbon monocoque on the road (1994)."
+   }
+  },
+  {
+   "id": "myth-lotus-108",
+   "name": "Lotus 108",
+   "brand": "lotus",
+   "collection": "mythiques",
+   "group": "chrono",
+   "type": "track",
+   "family": "lotus",
+   "params": {
+    "brakes": "none",
+    "wheels": [
+     "disc",
+     "disc"
+    ],
+    "rimBrand": "corima",
+    "aeroHelmet": true,
+    "track": true
+   },
+   "livery": {
+    "colors": [
+     "#111111",
+     "#f4c300",
+     "#2a9d3a"
+    ],
+    "pattern": "solid",
+    "finish": "gloss",
+    "rim": "#2a9d3a",
+    "tape": "#111111"
+   },
+   "level": 50,
+   "desc": {
+    "fr": "Le monocoque de piste, or olympique à Barcelone 1992 ; sans freins, pignon fixe.",
+    "en": "The track monocoque, Barcelona 1992 Olympic gold; no brakes, fixed gear."
+   }
+  },
+  {
+   "id": "myth-pinarello-espada-tt",
+   "name": "Pinarello Espada TT",
+   "brand": "pinarello",
+   "collection": "mythiques",
+   "group": "chrono",
+   "type": "track",
+   "family": "lowpro",
+   "params": {
+    "brakes": "none",
+    "wheels": [
+     "disc",
+     "disc"
+    ],
+    "rimBrand": "corima",
+    "aeroHelmet": true,
+    "track": true
+   },
+   "livery": {
+    "colors": [
+     "#13317a",
+     "#3fb6d9",
+     "#f2f2f2"
+    ],
+    "pattern": "split",
+    "axis": "y",
+    "at": 0.6,
+    "rim": "#f2f2f2",
+    "tape": "#111111"
+   },
+   "level": 49,
+   "desc": {
+    "fr": "La version des records : l’heure d’Induráin à Bordeaux (1994).",
+    "en": "The record version: Induráin's hour in Bordeaux (1994)."
+   }
+  },
+  {
+   "id": "myth-bottecchia-1989-tt",
+   "name": "Bottecchia 1989 TT",
+   "brand": "bottecchia",
+   "collection": "mythiques",
+   "group": "chrono",
+   "type": "tt",
+   "family": "lowpro",
+   "params": {
+    "brakes": "rim",
+    "wheels": [
+     "box",
+     "disc"
+    ],
+    "rimBrand": "mavic",
+    "aeroHelmet": true
+   },
+   "livery": {
+    "colors": [
+     "#e8e8ea",
+     "#6a2c91",
+     "#d81e2b"
+    ],
+    "pattern": "fade",
+    "axis": "z",
+    "at": 0.4,
+    "width": 0.4,
+    "rim": "#d9d9d9",
+    "tape": "#111111"
+   },
+   "level": 34,
+   "desc": {
+    "fr": "Cornes de vache et prolongateurs : les Champs-Élysées 1989.",
+    "en": "Cowhorn bars and clip-ons: the 1989 Champs-Élysées."
+   }
+  },
+  {
+   "id": "myth-trek-speed-concept-2010",
+   "name": "Trek Speed Concept",
+   "brand": "trek",
+   "collection": "mythiques",
+   "group": "chrono",
+   "type": "tt",
+   "family": "tt",
+   "params": {
+    "brakes": "rim",
+    "wheels": [
+     "c65",
+     "disc"
+    ],
+    "rimBrand": "bontrager"
+   },
+   "livery": {
+    "colors": [
+     "#111111",
+     "#d81e2b",
+     "#ffffff"
+    ],
+    "pattern": "split",
+    "axis": "y",
+    "at": 0.55,
+    "line": true,
+    "rim": "#ffffff",
+    "tape": "#111111"
+   },
+   "level": 14,
+   "desc": {
+    "fr": "Le premier Speed Concept à profils Kammtail (2010).",
+    "en": "The first Speed Concept with Kammtail profiles (2010)."
+   }
+  },
+  {
+   "id": "myth-cervelo-p3",
+   "name": "Cervélo P3",
+   "brand": "cervelo",
+   "collection": "mythiques",
+   "group": "chrono",
+   "type": "tt",
+   "family": "tt",
+   "params": {
+    "brakes": "rim",
+    "wheels": [
+     "c65",
+     "disc"
+    ],
+    "rimBrand": "zipp"
+   },
+   "livery": {
+    "colors": [
+     "#f2f2f2",
+     "#111111",
+     "#c8102e"
+    ],
+    "pattern": "split",
+    "axis": "z",
+    "at": 0.45,
+    "rim": "#c8102e",
+    "tape": "#111111"
+   },
+   "level": 10,
+   "desc": {
+    "fr": "Le chrono aluminium puis carbone qui a démocratisé l’aéro.",
+    "en": "The TT bike that took aero mainstream."
+   }
+  },
+  {
+   "id": "myth-pinarello-prince",
+   "name": "Pinarello Prince",
+   "brand": "pinarello",
+   "collection": "mythiques",
+   "group": "modernes",
+   "type": "climbing",
+   "family": "climb",
+   "params": {
+    "brakes": "rim",
+    "wheels": [
+     "c35",
+     "c35"
+    ],
+    "rimBrand": "campagnolo"
+   },
+   "livery": {
+    "colors": [
+     "#111111",
+     "#d81e2b",
+     "#ffffff"
+    ],
+    "pattern": "fade",
+    "axis": "z",
+    "at": 0.6,
+    "width": 0.3,
+    "rim": "#ffffff",
+    "tape": "#111111"
+   },
+   "level": 18,
+   "desc": {
+    "fr": "Le Prince carbone de la fin des années 2000.",
+    "en": "The late-2000s carbon Prince."
+   }
+  },
+  {
+   "id": "myth-pinarello-dogma-601",
+   "name": "Pinarello Dogma 60.1",
+   "brand": "pinarello",
+   "collection": "mythiques",
+   "group": "modernes",
+   "type": "climbing",
+   "family": "climb",
+   "params": {
+    "brakes": "rim",
+    "wheels": [
+     "c50",
+     "c50"
+    ],
+    "rimBrand": "shimano"
+   },
+   "livery": {
+    "colors": [
+     "#0d0d0f",
+     "#00a6e2",
+     "#ffffff"
+    ],
+    "pattern": "split",
+    "axis": "y",
+    "at": 0.7,
+    "rim": "#ffffff",
+    "tape": "#111111"
+   },
+   "level": 20,
+   "desc": {
+    "fr": "Le premier Dogma asymétrique (2010).",
+    "en": "The first asymmetric Dogma (2010)."
+   }
+  },
+  {
+   "id": "myth-specialized-tarmac-sl4",
+   "name": "Specialized Tarmac SL4",
+   "brand": "specialized",
+   "collection": "mythiques",
+   "group": "modernes",
+   "type": "climbing",
+   "family": "climb",
+   "params": {
+    "brakes": "rim",
+    "wheels": [
+     "c35",
+     "c35"
+    ],
+    "rimBrand": "roval"
+   },
+   "livery": {
+    "colors": [
+     "#f4f4f4",
+     "#111111",
+     "#d81e2b"
+    ],
+    "pattern": "split",
+    "axis": "y",
+    "at": 0.45,
+    "rim": "#d81e2b",
+    "tape": "#111111"
+   },
+   "level": 8,
+   "desc": {
+    "fr": "Le Tarmac SL4 (2012), référence des années 2010.",
+    "en": "The Tarmac SL4 (2012), a 2010s benchmark."
+   }
+  },
+  {
+   "id": "myth-specialized-tarmac-sl6",
+   "name": "Specialized Tarmac SL6",
+   "brand": "specialized",
+   "collection": "mythiques",
+   "group": "modernes",
+   "type": "climbing",
+   "family": "climb",
+   "params": {
+    "brakes": "rim",
+    "wheels": [
+     "c50",
+     "c50"
+    ],
+    "rimBrand": "roval"
+   },
+   "livery": {
+    "colors": [
+     "#111111",
+     "#7ac143",
+     "#ffffff"
+    ],
+    "pattern": "fade",
+    "axis": "diag",
+    "at": 0.5,
+    "width": 0.3,
+    "rim": "#ffffff",
+    "tape": "#111111"
+   },
+   "level": 12,
+   "desc": {
+    "fr": "Le SL6 noir et vert de l’ère Sagan.",
+    "en": "The black and green SL6 of the Sagan era."
+   }
+  },
+  {
+   "id": "myth-bmc-teammachine-slr01",
+   "name": "BMC Teammachine SLR01",
+   "brand": "bmc",
+   "collection": "mythiques",
+   "group": "modernes",
+   "type": "climbing",
+   "family": "climb",
+   "params": {
+    "brakes": "rim",
+    "wheels": [
+     "c35",
+     "c35"
+    ],
+    "rimBrand": "dt-swiss"
+   },
+   "livery": {
+    "colors": [
+     "#d81e2b",
+     "#111111",
+     "#ffffff"
+    ],
+    "pattern": "split",
+    "axis": "z",
+    "at": 0.5,
+    "rim": "#ffffff",
+    "tape": "#111111"
+   },
+   "level": 16,
+   "desc": {
+    "fr": "Le Teammachine rouge et noir, Tour 2011.",
+    "en": "The red and black Teammachine, 2011 Tour."
+   }
+  },
+  {
+   "id": "myth-scott-foil-gen1",
+   "name": "Scott Foil (1re génération)",
+   "brand": "scott",
+   "collection": "mythiques",
+   "group": "modernes",
+   "type": "aero",
+   "family": "aero",
+   "params": {
+    "brakes": "rim",
+    "wheels": [
+     "c50",
+     "c50"
+    ],
+    "rimBrand": "zipp"
+   },
+   "livery": {
+    "colors": [
+     "#111111",
+     "#d7e600",
+     "#ffffff"
+    ],
+    "pattern": "band",
+    "axis": "z",
+    "at": 0.5,
+    "width": 0.1,
+    "rim": "#ffffff",
+    "tape": "#111111"
+   },
+   "level": 11,
+   "desc": {
+    "fr": "Le premier Foil (2011), profils F01 tronqués.",
+    "en": "The first Foil (2011), truncated F01 profiles."
+   }
+  },
+  {
+   "id": "myth-canyon-aeroad-gen1",
+   "name": "Canyon Aeroad (1re génération)",
+   "brand": "canyon",
+   "collection": "mythiques",
+   "group": "modernes",
+   "type": "aero",
+   "family": "aero",
+   "params": {
+    "brakes": "rim",
+    "wheels": [
+     "c50",
+     "c50"
+    ],
+    "rimBrand": "zipp"
+   },
+   "livery": {
+    "colors": [
+     "#111111",
+     "#d81e2b",
+     "#ffffff"
+    ],
+    "pattern": "fade",
+    "axis": "z",
+    "at": 0.7,
+    "width": 0.3,
+    "rim": "#ffffff",
+    "tape": "#111111"
+   },
+   "level": 9,
+   "desc": {
+    "fr": "Le premier Aeroad CF (2011).",
+    "en": "The first Aeroad CF (2011)."
+   }
+  },
+  {
+   "id": "myth-canyon-ultimate-cf-slx",
+   "name": "Canyon Ultimate CF SLX",
+   "brand": "canyon",
+   "collection": "mythiques",
+   "group": "modernes",
+   "type": "climbing",
+   "family": "climb",
+   "params": {
+    "brakes": "rim",
+    "wheels": [
+     "c35",
+     "c35"
+    ],
+    "rimBrand": "zipp"
+   },
+   "livery": {
+    "colors": [
+     "#06244a",
+     "#7ac143",
+     "#ffffff"
+    ],
+    "pattern": "fade",
+    "axis": "y",
+    "at": 0.7,
+    "width": 0.3,
+    "rim": "#ffffff",
+    "tape": "#111111"
+   },
+   "level": 5,
+   "desc": {
+    "fr": "L’Ultimate des grimpeurs de Movistar (2014).",
+    "en": "Movistar climbers' Ultimate (2014)."
+   }
+  },
+  {
+   "id": "myth-bianchi-oltre-xr4",
+   "name": "Bianchi Oltre XR4",
+   "brand": "bianchi",
+   "collection": "mythiques",
+   "group": "modernes",
+   "type": "aero",
+   "family": "aero",
+   "params": {
+    "brakes": "rim",
+    "wheels": [
+     "c50",
+     "c50"
+    ],
+    "rimBrand": "vision"
+   },
+   "livery": {
+    "colors": [
+     "#7fd1c7",
+     "#111111",
+     "#ffffff"
+    ],
+    "pattern": "fade",
+    "axis": "z",
+    "at": 0.3,
+    "width": 0.3,
+    "rim": "#ffffff",
+    "tape": "#111111"
+   },
+   "level": 13,
+   "desc": {
+    "fr": "L’aéro céleste et noir à technologie Countervail.",
+    "en": "The celeste and black aero bike with Countervail."
+   }
+  },
+  {
+   "id": "myth-wilier-cento1",
+   "name": "Wilier Cento1",
+   "brand": "wilier",
+   "collection": "mythiques",
+   "group": "modernes",
+   "type": "climbing",
+   "family": "climb",
+   "params": {
+    "brakes": "rim",
+    "wheels": [
+     "c35",
+     "c35"
+    ],
+    "rimBrand": "campagnolo"
+   },
+   "livery": {
+    "colors": [
+     "#e5007e",
+     "#1d4fa3",
+     "#9be000"
+    ],
+    "pattern": "fade",
+    "axis": "z",
+    "at": 0.5,
+    "width": 0.5,
+    "rim": "#9be000",
+    "tape": "#111111"
+   },
+   "level": 7,
+   "desc": {
+    "fr": "Le Cento1 aux couleurs fuchsia et bleu de Lampre.",
+    "en": "The Cento1 in Lampre fuchsia and blue."
+   }
+  },
+  {
+   "id": "myth-look-kg196",
+   "name": "Look KG 196",
+   "brand": "look",
+   "collection": "mythiques",
+   "group": "modernes",
+   "type": "classic",
+   "family": "retro",
+   "params": {
+    "brakes": "rim",
+    "wheels": [
+     "box",
+     "box"
+    ],
+    "rimBrand": "mavic"
+   },
+   "livery": {
+    "colors": [
+     "#f2f2f2",
+     "#111111",
+     "#d81e2b"
+    ],
+    "pattern": "band",
+    "axis": "y",
+    "at": 0.75,
+    "width": 0.1,
+    "rim": "#d9d9d9",
+    "tape": "#f2f2f2"
+   },
+   "level": 24,
+   "desc": {
+    "fr": "Carbone à raccords alu de la fin des années 80.",
+    "en": "Late-80s carbon with aluminium lugs."
+   }
+  },
+  {
+   "id": "myth-peugeot-px10",
+   "name": "Peugeot PX-10",
+   "brand": "peugeot",
+   "collection": "mythiques",
+   "group": "modernes",
+   "type": "classic",
+   "family": "steel",
+   "params": {
+    "brakes": "rim",
+    "wheels": [
+     "box",
+     "box"
+    ],
+    "rimBrand": "mavic",
+    "toeClips": true
+   },
+   "livery": {
+    "colors": [
+     "#f4f4f4",
+     "#111111",
+     "#ffffff"
+    ],
+    "pattern": "checker",
+    "axis": "z",
+    "at": 0.5,
+    "width": 0.12,
+    "rim": "#d9d9d9",
+    "tape": "#f2f2f2"
+   },
+   "level": 3,
+   "desc": {
+    "fr": "Le classique de l’acier français, blanc à damier noir.",
+    "en": "The French steel classic, white with black chequers."
+   }
+  },
+  {
+   "id": "myth-gitane-tour-de-france",
+   "name": "Gitane Tour de France",
+   "brand": "gitane",
+   "collection": "mythiques",
+   "group": "modernes",
+   "type": "classic",
+   "family": "steel",
+   "params": {
+    "brakes": "rim",
+    "wheels": [
+     "box",
+     "box"
+    ],
+    "rimBrand": "mavic",
+    "toeClips": true
+   },
+   "livery": {
+    "colors": [
+     "#f4f4f4",
+     "#f4c300",
+     "#111111"
+    ],
+    "pattern": "stripes",
+    "axis": "z",
+    "at": 0.5,
+    "width": 0.14,
+    "rim": "#d9d9d9",
+    "tape": "#f2f2f2"
+   },
+   "level": 4,
+   "desc": {
+    "fr": "L’acier de Renault-Gitane, Hinault et Fignon.",
+    "en": "Renault-Gitane steel of Hinault and Fignon."
+   }
+  },
+  {
+   "id": "myth-colnago-y1rs-collection",
+   "name": "Colnago Y1Rs (collection)",
+   "brand": "colnago",
+   "collection": "mythiques",
+   "group": "modernes",
+   "type": "aero",
+   "family": "aero",
+   "params": {
+    "brakes": "disc",
+    "wheels": [
+     "c65",
+     "c65"
+    ],
+    "rimBrand": "enve"
+   },
+   "livery": {
+    "colors": [
+     "#f6c400",
+     "#141414",
+     "#ffffff"
+    ],
+    "pattern": "fade",
+    "axis": "z",
+    "at": 0.4,
+    "width": 0.3,
+    "finish": "pearl",
+    "rim": "#ffffff",
+    "tape": "#111111"
+   },
+   "level": 47,
+   "desc": {
+    "fr": "Édition collection du Y1Rs, jaune nacré.",
+    "en": "Collector edition Y1Rs in pearl yellow."
+   }
+  }
+ ]
+}
