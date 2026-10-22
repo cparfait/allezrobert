@@ -29,6 +29,11 @@ export interface RoomOptions {
   name?: string;
   /** Nombre de tours d'une course sur boucle (ajout, défaut 1). */
   laps?: number;
+  /**
+   * Équipement égalisé : même vélo pour tous (les pièces de l'atelier restent visibles mais ne
+   * changent rien). Défaut : actif en course, inactif ailleurs.
+   */
+  equalEquipment?: boolean;
 }
 
 /** Client → serveur, à 10 Hz. */
@@ -100,6 +105,8 @@ export interface AvatarLook {
   freckles?: number;
   /** Moustache (de la couleur des cheveux). */
   moustache?: boolean;
+  /** Pièces de l'atelier portées (tuning.ts), pour les voir sur le vélo ; validées par le serveur. */
+  tune?: string[];
 }
 
 export const DEFAULT_LOOK: AvatarLook = {

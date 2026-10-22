@@ -15,3 +15,4 @@ export * from './training.ts';
 export * from './ai.ts';
 export * from './regroup.ts';
 export * from './workout/index.ts';
+export * from './tuning.ts';

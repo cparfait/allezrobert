@@ -49,6 +49,8 @@ export interface Settings {
   weatherEvolves: boolean;
   /** Course sur une boucle : nombre de tours. */
   raceLaps: number;
+  /** Sortie créée : même vélo pour tous (absent : oui en course, non en groupe). */
+  equalEquipment?: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {

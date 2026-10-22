@@ -12,5 +12,6 @@ export * from './progression.ts';
 export * from './roadgraph.ts';
 export * from './weather.ts';
 export * from './bikes.ts';
+export * from './tuning.ts';
 export * from './face.ts';
 export * from './profiles.ts';

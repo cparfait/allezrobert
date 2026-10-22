@@ -83,6 +83,7 @@ export interface SimRiderInit {
 
 export interface ResolvedRideOptions extends RideRoomOptions {
   laps: number;
+  equalEquipment: boolean;
   aiPaceWkg: number;
   aiLevel: number;
 }
@@ -101,6 +102,8 @@ export function resolveRideOptions(o: Partial<RideRoomOptions>, routeId: string)
     laps: Math.round(clamp(o.laps, 1, 50, 1)),
     aiPaceWkg: clamp(o.aiPaceWkg, 1, 6, 2.6),
     aiLevel: clamp(o.aiLevel, 0.6, 1.3, 1),
+    // Course : équipement égalisé par défaut (l'hôte peut le couper à la création).
+    equalEquipment: typeof o.equalEquipment === 'boolean' ? o.equalEquipment : (o.mode ?? 'group') === 'race',
   };
   if (typeof o.paceWkg === 'number' && Number.isFinite(o.paceWkg)) r.paceWkg = clamp(o.paceWkg, 1, 6, 2.5);
   if (o.name) r.name = o.name.slice(0, 60);

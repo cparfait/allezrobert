@@ -5,10 +5,13 @@
  */
 import {
   COSMETICS as COSMETIC_ITEMS,
+  LEGACY_WHEELS,
   MAX_LEVEL,
+  isTuneSlot,
   levelForXp,
   migrateCosmeticId,
   unlockedCosmetics as sharedUnlocked,
+  validateTuneEquipped,
   xpForLevel,
   type CosmeticItem,
 } from '@allezrobert/shared';
@@ -43,14 +46,31 @@ export function unlockedCosmetics(level: number): CosmeticItem[] {
   return sharedUnlocked(level);
 }
 
-/** Vérifie que chaque objet équipé existe, correspond à l'emplacement et est débloqué. */
-export function validateEquipped(equipped: Record<string, string>, level: number): string | null {
+/**
+ * Vérifie que chaque objet équipé existe, correspond à l'emplacement et est débloqué ; pièces de
+ * l'atelier : possédées (`owned`, liste du serveur). Les anciennes roues (« wheels ») sont tolérées
+ * le temps de la migration vers l'atelier.
+ */
+export function validateEquipped(equipped: Record<string, string>, level: number, owned: readonly string[] = []): string | null {
+  const tune: Record<string, string> = {};
   for (const [slot, raw] of Object.entries(equipped)) {
+    if (slot === 'wheels' && raw in LEGACY_WHEELS) continue;
+    if (isTuneSlot(slot)) {
+      tune[slot] = raw;
+      continue;
+    }
     const id = migrateCosmeticId(slot, raw);
     const item = COSMETIC_ITEMS.find((i) => i.id === id);
     if (!item) return `Cosmétique inconnu : ${id}`;
     if (item.slot !== slot) return `${id} ne va pas dans l'emplacement ${slot}`;
     if (item.level > level) return `${id} se débloque au niveau ${item.level}`;
   }
-  return null;
+  return validateTuneEquipped(tune, owned);
+}
+
+/** Équipement réellement retenu pour la physique et l'affichage : objets invalides retirés. */
+export function sanitizeEquipped(equipped: Record<string, string>, level: number, owned: readonly string[]): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [slot, id] of Object.entries(equipped)) if (!validateEquipped({ [slot]: id }, level, owned) && slot !== 'wheels') out[slot] = id;
+  return out;
 }

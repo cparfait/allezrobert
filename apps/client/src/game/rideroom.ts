@@ -129,6 +129,12 @@ export class RideRoomUi {
     return route?.loop ? laps * route.lengthM : this.o.track.length;
   }
 
+  /** Rang d'arrivée du joueur (0 : non classé ou pas encore arrivé) — récompenses de l'atelier. */
+  selfRank(): number {
+    const me = this.known.get(this.net.selfId);
+    return me?.status === 'finished' ? me.rank : 0;
+  }
+
   /* ───────────── Événements ───────────── */
 
   private upsert(id: string, patch: Partial<RideResult>): RideResult {

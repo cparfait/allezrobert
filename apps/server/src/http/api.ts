@@ -22,7 +22,8 @@ import { normalizeCode } from '../ride/registry.ts';
 import { activeRooms } from '../ride/RideRoom.ts';
 import { readHeartbeat } from '../render/worker.ts';
 import { normalizedPower } from '@allezrobert/physics';
-import { FACE_CODE_RE, SHOE_MARKS, type ShoeMarkId } from '@allezrobert/shared';
+import { FACE_CODE_RE, SHOE_MARKS, completedKits, equippedTuneIds, tuneItem, type ShoeMarkId } from '@allezrobert/shared';
+import { buy, migrateLegacyWheels, rewardRide } from '../progression/atelier.ts';
 import type { ActivitySummaryRow } from '../db/repos.ts';
 
 const hex = z.string().regex(/^#[0-9a-fA-F]{6}$/);
@@ -45,6 +46,8 @@ const AvatarSchema = z.object({
   beard: z.number().min(0).max(1).optional(),
   freckles: z.number().min(0).max(1).optional(),
   moustache: z.boolean().optional(),
+  // Pièces de l'atelier affichées sur le vélo : connues et possédées (vérifié à l'enregistrement).
+  tune: z.array(z.string().regex(/^[a-z0-9-]{1,48}$/)).max(32).optional(),
 });
 
 const ProfilePatchSchema = z
@@ -67,6 +70,11 @@ const ProfilePatchSchema = z
 
 /** Séquences HyperFrames de packages/sequences (src/catalog.ts). */
 const RENDER_COMPOSITIONS = ['summary', 'intro', 'kom', 'sprint', 'podium', 'tv'] as const;
+
+/** Atelier tel que renvoyé au client : solde, pièces, événements, série, titres des ensembles complets. */
+function atelierView(a: { credits: number; owned: string[]; events: string[]; streak: { last: string; days: number } }) {
+  return { credits: a.credits, owned: a.owned, events: a.events, streak: a.streak, kits: completedKits(a.owned).map((k) => k.id) };
+}
 
 export function mountApi(app: express.Application, ctx: AppContext): void {
   app.set('trust proxy', 'loopback, linklocal, uniquelocal');
@@ -99,7 +107,8 @@ export function mountApi(app: express.Application, ctx: AppContext): void {
     const profile = await ctx.repos.getProfile(u.userId);
     if (!profile) throw new HttpError(401, 'Compte introuvable', 'unauthorized');
     const prog = await ctx.repos.getProgression(u.userId);
-    res.json({ id: u.userId, profile, progression: levelInfo(prog.xp) });
+    const atelier = await ctx.repos.getAtelier(u.userId);
+    res.json({ id: u.userId, profile, progression: levelInfo(prog.xp), atelier: atelierView(atelier) });
   });
 
   api.get('/me/profile', async (req: AuthedRequest, res) => {
@@ -110,12 +119,28 @@ export function mountApi(app: express.Application, ctx: AppContext): void {
   api.put('/me/profile', async (req: AuthedRequest, res) => {
     const u = requireUser(req);
     const patch = ProfilePatchSchema.parse(req.body);
-    // Équipement et modèle de vélo de l'avatar : existants et débloqués au niveau du compte.
+    // Équipement et modèle de vélo de l'avatar : existants et débloqués au niveau du compte ;
+    // pièces de l'atelier (équipées ou affichées) : possédées par le compte.
     const bikeModel = patch.avatar?.bikeModel;
-    if (patch.equipped || bikeModel) {
+    if (patch.equipped || bikeModel || patch.avatar?.tune) {
       const level = levelInfo((await ctx.repos.getProgression(u.userId)).xp).level;
-      const err = validateEquipped(patch.equipped ?? {}, level) ?? (bikeModel ? validateEquipped({ bike: bikeModel }, level) : null);
+      const atelier = await ctx.repos.getAtelier(u.userId);
+      if (patch.equipped) {
+        const migrated = migrateLegacyWheels(patch.equipped, atelier);
+        if (migrated) {
+          patch.equipped = migrated;
+          await ctx.repos.saveAtelier(ctx.db, u.userId, atelier);
+        }
+      }
+      const tune = patch.avatar?.tune ?? [];
+      const badTune = tune.find((id) => !tuneItem(id)?.slot || !atelier.owned.includes(id));
+      const err =
+        validateEquipped(patch.equipped ?? {}, level, atelier.owned) ??
+        (bikeModel ? validateEquipped({ bike: bikeModel }, level) : null) ??
+        (badTune ? `${badTune} n'est pas dans ton atelier` : null);
       if (err) throw new HttpError(400, err, 'cosmetic_locked');
+      // Pièces affichées = pièces équipées (jamais d'autres que celles qui roulent).
+      if (patch.avatar && patch.equipped) patch.avatar.tune = equippedTuneIds(patch.equipped);
     }
     const before = await ctx.repos.getProfile(u.userId);
     const profile = await ctx.repos.updateProfile(u.userId, patch);
@@ -153,7 +178,22 @@ export function mountApi(app: express.Application, ctx: AppContext): void {
     const u = requireUser(req);
     const prog = await ctx.repos.getProgression(u.userId);
     const info = levelInfo(prog.xp);
-    res.json({ ...info, rides: prog.rides, distanceM: prog.distanceM, elevationM: prog.elevationM, unlocked: unlockedCosmetics(info.level).map((i) => i.id) });
+    const atelier = await ctx.repos.getAtelier(u.userId);
+    res.json({ ...info, rides: prog.rides, distanceM: prog.distanceM, elevationM: prog.elevationM, unlocked: unlockedCosmetics(info.level).map((i) => i.id), atelier: atelierView(atelier) });
+  });
+
+  /* ───────────── Atelier : achats (règles et prix du serveur) ───────────── */
+  api.post('/shop/buy', async (req: AuthedRequest, res) => {
+    const u = requireUser(req);
+    const { id } = z.object({ id: z.string().regex(/^[a-z0-9-]{1,48}$/) }).parse(req.body);
+    const level = levelInfo((await ctx.repos.getProgression(u.userId)).xp).level;
+    const r = await buy(ctx.repos, u.userId, id, level);
+    if (!r.ok) {
+      const status = r.error === 'unknown' ? 404 : r.error === 'credits' ? 402 : r.error === 'owned' ? 409 : 403;
+      res.status(status).json({ error: r.error, missing: r.missing ?? 0, price: r.price, credits: r.balance });
+      return;
+    }
+    res.json({ ok: true, price: r.price, granted: r.granted, credits: r.balance, owned: r.owned });
   });
 
   api.get('/cosmetics', (_req, res) => {
@@ -208,11 +248,20 @@ export function mountApi(app: express.Application, ctx: AppContext): void {
       skipStrava,
     });
     await ctx.repos.addProgression(ctx.db, u.userId, xp, s.distanceM, s.elevationM);
+    // Crédits et récompenses : calculés ici à partir du FIT et des données du serveur (itinéraire connu, segments bouclés en salle).
+    const route = q.routeId ? ctx.routes.get(q.routeId) : undefined;
+    const reward = await rewardRide(ctx.repos, u.userId, {
+      distanceM: s.distanceM,
+      elevationM: s.elevationM,
+      startedAt: s.startedAt,
+      ...(route ? { routeId: route.data.id, routeLengthM: route.data.lengthM } : {}),
+      segments: q.rideId ? await ctx.repos.countRideEfforts(u.userId, q.rideId) : 0,
+    });
     const after = levelInfo((await ctx.repos.getProgression(u.userId)).xp);
     const newlyUnlocked = unlockedCosmetics(after.level).filter((i) => i.level > before.level).map((i) => i.id);
     // Envoi Strava / intervals.icu en arrière-plan (la réponse n'attend pas les services tiers).
     void ctx.uploads.autoUpload(u.userId, id, fit, q.name ?? 'Sortie Allez Robert !', skipStrava).catch((e) => ctx.log('warn', `envoi tiers : ${(e as Error).message}`));
-    res.status(201).json({ activity: await ctx.repos.getActivity(u.userId, id), xpGained: xp, progression: after, newlyUnlocked });
+    res.status(201).json({ activity: await ctx.repos.getActivity(u.userId, id), xpGained: xp, progression: after, newlyUnlocked, credits: reward });
   });
 
   api.get('/activities', async (req: AuthedRequest, res) => {

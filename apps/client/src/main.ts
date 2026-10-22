@@ -30,7 +30,10 @@ import { showRideSummary } from './ui/summary.ts';
 import { compareAndStore, readPowerRecords, rideStats, updatePowerRecords } from './game/stats.ts';
 import { shareCard } from './ui/sharecard.ts';
 import { Onboarding, RideTutorial } from './onboarding/onboarding.ts';
-import { addXp, awardRide, loadProgress } from './ui/garage.ts';
+import { addXp, awardRide, loadProgress, tunedBike } from './ui/garage.ts';
+import { AtelierHost } from './ui/atelier.ts';
+import { rimGlow } from './rider/rimDecal.ts';
+import { EQUALIZED_BIKE, paramsFromBike } from '@allezrobert/physics';
 import { awardTrophies } from './game/trophies.ts';
 import { roadSurfaceAt, windShelterAt } from './world/conditions.ts';
 import { OpenNavigator } from './game/open.ts';
@@ -278,7 +281,10 @@ async function boot(): Promise<void> {
   // Explorer la carte : caméra libre au-dessus du monde chargé ; les tuiles suivent la caméra.
   const explorer = new FreeFlyCamera(scene.engine.camera, scene.engine.renderer.domElement, (x, z) => scene.world.terrain.heightAt(x, z));
   let exploreT = 0;
+  // Atelier du garage : sa propre pièce et son rendu à la demande (ui/atelier.ts).
+  const atelier = new AtelierHost(scene.engine);
   scene.engine.renderer.setAnimationLoop(() => {
+    if (inMenu && !exploring && atelier.tick()) return;
     if (exploring) {
       const now = performance.now();
       const dt = Math.min((now - exploreT) / 1000, 0.1);
@@ -300,6 +306,7 @@ async function boot(): Promise<void> {
   /** Sortie de l'accueil : retrait du groupe figé, réglages du coureur rétablis. */
   const leaveMenu = (s: Settings) => {
     inMenu = false;
+    atelier.set(null);
     menuVideo.stop();
     poster.dispose();
     applyEnv(s);
@@ -455,8 +462,15 @@ async function boot(): Promise<void> {
     poster.place(poster.d);
     renderPoster();
   };
+  menu.onAtelier = (st) => {
+    if (!inMenu || exploring) return;
+    if (st) menuVideo.stop();
+    void modelsReady.then(() => atelier.set(st));
+  };
+  if (import.meta.env.DEV) (window as unknown as { __arAtelier: unknown }).__arAtelier = atelier;
   menu.onScene = (view, yaw) => {
     if (!inMenu || exploring) return;
+    atelier.set(null);
     // Accueil : la vidéo de la saison ; garage : vraie 3D (attend le paysage si besoin).
     if (view === 'poster' && menuVideo.show(settings.season)) return;
     menuVideo.stop();
@@ -483,7 +497,7 @@ async function boot(): Promise<void> {
     let me: Me | null = await fetchMe();
     if (me) applyProfile(me, settings);
     const afterLogin = () => {
-      menu.account = me ? { name: me.profile.displayName, level: me.progression.level } : null;
+      menu.account = me ? { name: me.profile.displayName, level: me.progression.level, ...(me.atelier ? { credits: me.atelier.credits } : {}) } : null;
       if (Onboarding.needed()) menu.onTutorial?.();
       else menu.show();
     };
@@ -503,7 +517,7 @@ async function boot(): Promise<void> {
     menu.onSettingsSaved = (st) => {
       if (!me) return;
       clearTimeout(pushTimer);
-      pushTimer = setTimeout(() => void pushProfile(st), 1500);
+      pushTimer = setTimeout(() => void pushProfile(st, me?.progression.level), 1500);
     };
     if (!me && !localStorage.getItem('ar.skipLogin')) menu.onLogin();
     else afterLogin();
@@ -532,8 +546,8 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     await world.preload(new THREE.Vector3(p0.x, p0.y, p0.z));
   }
   ui.innerHTML = '';
-  // Le vélo roulé dépend de l'équipement porté au garage (masse, traînée, pneus, roues).
-  const profile: RiderProfile = { id: 'local', displayName: s.name, massKg: s.massKg, heightCm: s.heightCm, ftpWatts: s.ftpWatts, bike: bikeSetupFor(loadProgress().equipped) };
+  // Le vélo roulé dépend de l'équipement porté au garage et des pièces de l'atelier (masse, traînée, pneus, roues).
+  const profile: RiderProfile = { id: 'local', displayName: s.name, massKg: s.massKg, heightCm: s.heightCm, ftpWatts: s.ftpWatts, bike: tunedBike() };
   const params = new URLSearchParams(location.search);
   const startD = nav ? 0 : challenge ? challenge.startD : Number(params.get('d') ?? 0);
   const ride = new RideSession({
@@ -571,7 +585,9 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   if (s.mode === 'group' || s.mode === 'race') {
     mp = new Multiplayer(engine.scene, track, s.name);
     try {
-      const code = await mp.connect({ ...(extras.inviteCode ? { inviteCode: extras.inviteCode } : {}), mode: s.mode, guest: s.guest, aiRiders: s.aiRiders, aiLevel: s.aiLevel, laps: s.raceLaps, trainerDifficulty: s.trainerDifficulty, name: s.name, weather: myWeather });
+      const code = await mp.connect({ ...(extras.inviteCode ? { inviteCode: extras.inviteCode } : {}), mode: s.mode, guest: s.guest, aiRiders: s.aiRiders, aiLevel: s.aiLevel, laps: s.raceLaps, trainerDifficulty: s.trainerDifficulty, name: s.name, weather: myWeather, ...(s.equalEquipment !== undefined ? { equalEquipment: s.equalEquipment } : {}) });
+      // Équipement égalisé : la prédiction locale roule le même vélo que le serveur.
+      if (mp.equalized) Object.assign(ride.params, { ...paramsFromBike(s.massKg, EQUALIZED_BIKE), inertiaFactor: ride.params.inertiaFactor });
       setTimeout(() => hud.toast(`${getLang() === 'fr' ? 'Code d’invitation' : 'Invite code'} : ${code}`), 500);
       if (mp.weather) rideWeather = mp.weather;
       // « Partir et inviter » depuis l'onglet Amis : invitations envoyées une fois la salle créée.
@@ -778,7 +794,15 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     input.sendTrainer({ kind: 'simulation', gradePercent: 0 });
     const done = { distanceM: ride.state.distM - startD, elevationM: ride.elevationGainM, movingS: ride.elapsedS };
     // Invité : ni XP compétitive, ni segments, ni FIT.
-    const xp = s.guest ? undefined : awardRide(done, credited);
+    const xp = s.guest
+      ? undefined
+      : awardRide(done, credited, {
+          segments: ride.segmentResults.length,
+          koms: ride.segmentResults.filter((r) => r.seg.kind === 'kom').length,
+          routeId: track.route.id,
+          routeFinished: !nav && reachedFinish(track.route.loop, ride.dir, ride.state.distM, track.length),
+          raceRank: room?.selfRank() ?? 0,
+        });
     if (!s.guest) credited = done;
     const stats = rideStats(ride.records, { ftp: s.ftpWatts, elevationGainM: ride.elevationGainM, elapsedS: ride.elapsedS });
     const records = s.guest ? { previous: recordsBefore, beaten: [] } : updatePowerRecords(stats.curve, recordsBefore);
@@ -827,6 +851,8 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
                 levelUp: xp.levelUp,
                 detail: `${Math.round((20 * done.distanceM) / 1000)} ${L ? 'distance' : 'distance'} · ${Math.round(done.elevationM)} ${L ? 'dénivelé' : 'climbing'} · ${Math.round((2 * done.movingS) / 60)} ${L ? 'temps' : 'time'}`,
                 unlocked: xp.unlocked.map((u) => u.name[getLang()]),
+                credits: xp.credits,
+                won: xp.won.map((u) => u.name[getLang()]),
               },
             }
           : {}),
@@ -989,6 +1015,8 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
         rainSeen ||= ride.rain > 0.2;
         nightSeen ||= world.nightFactor() > 0.6;
       }
+      // Jantes lumineuses de l'atelier : pulsation plus marquée la nuit.
+      rimGlow.night.value = 0.35 + 0.65 * world.nightFactor();
     }
     if (workout) ride.ergTarget = workout.update(ride.elapsedS, ride.inputs.watts);
     // Course au salon / compte à rebours : immobile sur la grille, à la place donnée par le serveur.

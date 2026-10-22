@@ -11,6 +11,8 @@ import { music } from '../audio/music.ts';
 import { spotify, redirectUri } from '../audio/spotify.ts';
 import { renderSoundSettings } from './soundSettings.ts';
 import { loadProgress, equipItem, equipPlainBike, SLOT_LABEL } from './garage.ts';
+import { AtelierPanel, COIN } from './atelierPanel.ts';
+import type { AtelierState } from './atelier.ts';
 import { WORLD_LIST } from '../world/worlds.ts';
 import { OUTFITS } from './outfits.ts';
 import type { GarageView } from './poster.ts';
@@ -83,7 +85,7 @@ const ICON = {
 };
 
 /** Gros plan du garage selon la catégorie choisie. */
-const SLOT_VIEW: Record<CosmeticSlot, GarageView> = { jersey: '3q', helmet: 'front', bike: 'side', wheels: 'bike', socks: 'bike', glasses: 'front' };
+const SLOT_VIEW: Record<CosmeticSlot, GarageView> = { jersey: '3q', helmet: 'front', bike: 'side', socks: 'bike', glasses: 'front' };
 
 /** Filtres de la liste des vélos du garage. */
 type BikeFilter = BikeCollection | 'unlocked';
@@ -123,7 +125,11 @@ export class MainMenu {
   private readonly cb: MenuCallbacks;
   private workoutFile: { name: string; content: string } | undefined;
   private tab: Tab = 'ride';
-  private garageSlot: CosmeticSlot | 'colors' | 'face' = 'jersey';
+  private garageSlot: CosmeticSlot | 'colors' | 'face' | 'atelier' = 'jersey';
+  /** Atelier (pièces du vélo, ensembles, crédits) : panneau et état de la scène 3D. */
+  private readonly atelier: AtelierPanel;
+  /** Atelier 3D (pièce procédurale, vélo sur pied) : état demandé, null pour le fermer. */
+  onAtelier?: (st: AtelierState | null) => void;
   /** Éditeur de visage : groupe de curseurs, tête nue dans l'aperçu, tenues précédentes (annulation). */
   private faceTab: FaceTab = 'head';
   private bareHead = true;
@@ -163,7 +169,7 @@ export class MainMenu {
   onPreviewLook?: (look: AvatarLook | null) => void;
   private previewId: string | null = null;
   /** Compte connecté (affiché dans le menu), connexion / déconnexion, synchro du profil. */
-  account: { name: string; level: number } | null = null;
+  account: { name: string; level: number; credits?: number } | null = null;
   onLogin?: () => void;
   onLogout?: () => void;
   /** Monde affiché et changement de monde (rechargement de la page). */
@@ -226,6 +232,16 @@ export class MainMenu {
       if (this.tab === 'devices') this.renderDevices();
       this.renderStatus();
     });
+    this.atelier = new AtelierPanel(settings, {
+      account: () => this.account,
+      scene: (st) => this.onAtelier?.(st),
+      changed: () => {
+        saveSettings(this.s);
+        this.onSettingsChange?.(this.s);
+        this.onSettingsSaved?.(this.s);
+      },
+      rerender: () => this.render(),
+    });
   }
 
   show(tab: Tab = 'home'): void {
@@ -236,6 +252,7 @@ export class MainMenu {
   }
 
   hide(): void {
+    if (this.garageSlot === 'atelier') this.atelier.leave();
     document.removeEventListener('keydown', this.onKey);
     this.friends.stop();
     this.root.innerHTML = '';
@@ -249,6 +266,9 @@ export class MainMenu {
     }
     this.tab = tab;
     this.render();
+    // Garage resté sur l'atelier : sa pièce 3D ; sinon la photo ou le coureur du garage.
+    if (tab === 'garage' && this.garageSlot === 'atelier') return this.atelier.emit();
+    if (this.garageSlot === 'atelier') this.atelier.leave();
     this.onScene?.(tab === 'garage' ? this.view : 'poster', tab === 'garage' ? this.yaw : 0);
   }
 
@@ -403,7 +423,7 @@ export class MainMenu {
           <div class="mm-account">
             <div class="mm-avatar" style="background:${this.s.look.jersey}">${esc(initials || 'R')}</div>
             <div class="mm-who"><b>${esc(name)}</b>
-              <span>${L ? 'Niveau' : 'Level'} ${level}<i class="mm-xp"><i style="width:${(lp.progress * 100).toFixed(0)}%"></i></i></span></div>
+              <span>${L ? 'Niveau' : 'Level'} ${level}<i class="mm-xp"><i style="width:${(lp.progress * 100).toFixed(0)}%"></i></i><em class="mm-credits" title="${L ? 'Crédits (atelier)' : 'Credits (workshop)'}">${COIN} ${(this.account?.credits ?? p.credits).toLocaleString(L ? 'fr-FR' : 'en-GB')}</em></span></div>
             ${this.account ? `<button class="mm-link" id="m-logout">${L ? 'Déconnexion' : 'Sign out'}</button>` : `<button class="mm-link" id="m-login">${L ? 'Se connecter' : 'Sign in'}</button>`}
           </div>
         </div>
@@ -465,7 +485,11 @@ export class MainMenu {
                 ['0', L ? 'Fixe' : 'Fixed'],
                 ['1', L ? 'Qui évolue' : 'Changing'],
               ])}</div>
-              <p class="mm-hint">${L ? 'Si tu crées la sortie, ton heure et ta météo s’appliquent à tout le groupe.' : 'If you create the ride, your time and weather apply to the whole group.'}</p>
+              <div class="field">${L ? 'Équipement égalisé' : 'Equal equipment'}${this.seg('m-equal', (s.equalEquipment ?? s.mode === 'race') ? '1' : '0', [
+                ['1', L ? 'Oui : même vélo pour tous' : 'Yes: same bike for all'],
+                ['0', L ? 'Non : pièces de l’atelier' : 'No: workshop parts'],
+              ])}</div>
+              <p class="mm-hint">${L ? 'Si tu crées la sortie, ton heure, ta météo et l’égalisation s’appliquent à tout le groupe.' : 'If you create the ride, your time, weather and equipment rule apply to the whole group.'}</p>
             </div>`
           : s.mode === 'challenge'
             ? this.challengeHtml(r)
@@ -687,6 +711,7 @@ export class MainMenu {
   // ————————————————————————————————————————————— Garage
 
   private garageHtml(): string {
+    if (this.garageSlot === 'atelier') return this.atelier.html();
     const L = fr();
     const lang = getLang();
     const p = loadProgress();
@@ -746,7 +771,8 @@ export class MainMenu {
           <div class="mm-level"><b>${L ? 'Niveau' : 'Level'} ${lp.level}</b><span>${p.xp} XP${lp.nextLevelXp ? ` / ${lp.nextLevelXp}` : ''}</span><i class="mm-xp big"><i style="width:${(lp.progress * 100).toFixed(1)}%"></i></i></div></header>
         <div class="mm-slots">${slots.map((sl) => `<button class="mm-slot ${sl === this.garageSlot ? 'on' : ''}" data-slot="${sl}">${SLOT_LABEL[sl][lang]}</button>`).join('')}
           <button class="mm-slot ${this.garageSlot === 'colors' ? 'on' : ''}" data-slot="colors">${L ? 'Couleurs' : 'Colours'}</button>
-          <button class="mm-slot ${this.garageSlot === 'face' ? 'on' : ''}" data-slot="face">${L ? 'Visage' : 'Face'}</button></div>
+          <button class="mm-slot ${this.garageSlot === 'face' ? 'on' : ''}" data-slot="face">${L ? 'Visage' : 'Face'}</button>
+          <button class="mm-slot at-open" data-slot="atelier">🔧 ${L ? 'Atelier' : 'Workshop'}</button></div>
         ${items}
         ${this.bikeSummary()}
         <p class="mm-hint">${L ? 'Les équipements se débloquent en roulant (XP par kilomètre et par mètre de dénivelé). Clique un équipement verrouillé pour l’essayer.' : 'Gear unlocks as you ride (XP per kilometre and metre climbed). Click locked gear to try it on.'}</p>
@@ -1319,7 +1345,13 @@ export class MainMenu {
     this.root.querySelectorAll<HTMLElement>('[data-slot]').forEach((el) =>
       el.addEventListener('click', () => {
         const was = this.garageSlot;
-        this.garageSlot = el.dataset.slot as CosmeticSlot | 'colors' | 'face';
+        this.garageSlot = el.dataset.slot as CosmeticSlot | 'colors' | 'face' | 'atelier';
+        if (this.garageSlot === 'atelier') {
+          this.render();
+          this.atelier.emit();
+          return;
+        }
+        if (was === 'atelier') this.atelier.leave();
         if (this.garageSlot === 'face') {
           this.view = 'face';
           this.yaw = 0;
@@ -1381,6 +1413,12 @@ export class MainMenu {
       });
       zone.addEventListener('pointermove', (e) => {
         if (lastX === null) return;
+        if (this.garageSlot === 'atelier') {
+          this.atelier.yaw -= (e.clientX - lastX) * 0.008;
+          lastX = e.clientX;
+          this.atelier.emit();
+          return;
+        }
         this.yaw -= (e.clientX - lastX) * 0.008;
         lastX = e.clientX;
         this.onScene?.(this.view, this.yaw);
@@ -1480,6 +1518,11 @@ export class MainMenu {
       s.aiLevel = Number(el.value);
       changed();
     });
+    on<HTMLSelectElement>('m-equal', 'change', (el) => {
+      s.equalEquipment = el.value === '1';
+      changed();
+    });
+    if (this.tab === 'garage' && this.garageSlot === 'atelier') this.atelier.bind(this.root);
     on<HTMLSelectElement>('m-evolve', 'change', (el) => {
       s.weatherEvolves = el.value === '1';
       changed();

@@ -6,12 +6,14 @@
  */
 import catalogJson from './bikes.json' with { type: 'json' };
 import type { AvatarLook } from './net.ts';
+import { applyTuneLook, type BikeExtras } from './tuning.ts';
 
 export type BikeFamily = 'aero' | 'climb' | 'tt' | 'retro' | 'retro_compact' | 'steel' | 'lowpro' | 'lotus';
 export type WheelType = 'box' | 'c35' | 'c50' | 'c65' | 'disc' | 'tri';
 export type BikeType = 'aero' | 'climbing' | 'tt' | 'classic' | 'track';
 export type BikeCollection = 'saison-2026' | 'mythiques' | 'divers';
-export type LiveryPattern = 'solid' | 'fade' | 'split' | 'band' | 'stripes' | 'rainbow' | 'checker' | 'blocks' | 'dots' | 'stops';
+/** « crystal » : facettes de cristal (atelier, livrée Glacier). */
+export type LiveryPattern = 'solid' | 'fade' | 'split' | 'band' | 'stripes' | 'rainbow' | 'checker' | 'blocks' | 'dots' | 'stops' | 'crystal';
 /** Axe du motif : z = avant → arrière, y = bas → haut, x = gauche → droite, diag / anti = diagonales. */
 export type LiveryAxis = 'z' | 'y' | 'x' | 'diag' | 'anti';
 export type LiveryFinish = 'gloss' | 'matte' | 'metallic' | 'chrome' | 'pearl' | 'iridescent' | 'raw';
@@ -150,13 +152,18 @@ export interface BikeBuild {
   /** Marque et équipe / collection (décors du cadre) ; absentes : vélo sans marque. */
   brand?: string;
   group?: string;
+  /** Pièces de l'atelier au-delà de la livrée (couleurs des pièces, jantes lumineuses, plaque). */
+  extras?: BikeExtras;
 }
 
 const PLAIN_PARAMS: BikeParams = { brakes: 'disc', wheels: ['c35', 'c35'] };
 
-/** Vélo d'une tenue : modèle du catalogue s'il est choisi, sinon vélo de base peint de `look.bike`. */
-export function bikeOfLook(look: Pick<AvatarLook, 'bike' | 'bikeModel'>): BikeBuild {
+/**
+ * Vélo d'une tenue : modèle du catalogue s'il est choisi, sinon vélo de base peint de `look.bike` ;
+ * puis les pièces de l'atelier portées (`look.tune`).
+ */
+export function bikeOfLook(look: Pick<AvatarLook, 'bike' | 'bikeModel' | 'tune'>): BikeBuild {
   const m = bikeById(look.bikeModel);
-  if (m) return m;
-  return { family: PLAIN_BIKE_FAMILY, params: PLAIN_PARAMS, livery: { colors: [look.bike], pattern: 'solid' } };
+  const base: BikeBuild = m ?? { family: PLAIN_BIKE_FAMILY, params: PLAIN_PARAMS, livery: { colors: [look.bike], pattern: 'solid' } };
+  return look.tune?.length ? applyTuneLook(base, look.tune) : base;
 }

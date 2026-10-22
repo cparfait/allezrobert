@@ -1,6 +1,7 @@
 import * as THREE from 'three/webgpu';
 import { GLTFLoader, type GLTF } from 'three/addons/loaders/GLTFLoader.js';
-import { BIKES, PLAIN_BIKE_FAMILY, type AvatarLook, type BikeBuild, type BikeFamily } from '@allezrobert/shared';
+import { atan, color, float, floor, materialColor, mix, mod, positionGeometry, sin, uniform, vec3 } from 'three/tsl';
+import { BIKES, PLAIN_BIKE_FAMILY, type AvatarLook, type BikeBuild, type BikeFamily, type TuneNumber } from '@allezrobert/shared';
 import { LiveryMaterial } from './livery.ts';
 import { RimDecalMaterial, measureBand, type RimBand } from './rimDecal.ts';
 import { decalBoxes, frameMarks, wordmarkTexture } from './wordmarks.ts';
@@ -61,7 +62,71 @@ const BIKE_MATERIALS: Record<string, [string, number, number]> = {
   topcap: ['#18191c', 0.4, 0.3],
   bolts: ['#b9bcc2', 0.3, 1],
   pad: ['#202124', 0.8, 0],
+  // Tige de selle (primitive « components » du nœud saddle), recolorable à part (atelier).
+  seatpost: ['#18191c', 0.4, 0.2],
 };
+
+/** Pièces dont la couleur peut venir de l'atelier (BikeExtras.parts). */
+const TUNABLE = new Set(['chain', 'chainring', 'crank', 'cassette', 'pulley', 'rotor', 'cage', 'topcap', 'spacers', 'bolts', 'computer', 'spokes', 'valve', 'seatpost']);
+/** Pièces qui peuvent passer en carbone apparent (tissage dans le nuanceur). */
+const CARBON_CAPABLE = new Set(['crank', 'seatpost']);
+
+const plateCache = new Map<string, THREE.CanvasTexture>();
+
+/** Texture d'une plaque de cadre : fond, liseré, numéro (à l'envers pour le 13 superstitieux). */
+function plateTexture(n: TuneNumber): THREE.CanvasTexture {
+  const key = JSON.stringify(n);
+  let tex = plateCache.get(key);
+  if (tex) return tex;
+  const cv = document.createElement('canvas');
+  cv.width = 256;
+  cv.height = 176;
+  const g = cv.getContext('2d') as CanvasRenderingContext2D;
+  g.fillStyle = n.bg;
+  g.fillRect(0, 0, cv.width, cv.height);
+  if (n.stripe) {
+    g.fillStyle = n.stripe;
+    g.fillRect(0, cv.height - 26, cv.width, 26);
+  }
+  g.strokeStyle = 'rgba(0,0,0,0.35)';
+  g.lineWidth = 6;
+  g.strokeRect(3, 3, cv.width - 6, cv.height - 6);
+  g.save();
+  g.translate(cv.width / 2, cv.height / 2 - (n.stripe ? 10 : 0));
+  if (n.flip) g.rotate(Math.PI);
+  g.fillStyle = n.fg;
+  g.textAlign = 'center';
+  g.textBaseline = 'middle';
+  g.font = '900 128px "Arial Black", "Helvetica Neue", Arial, sans-serif';
+  g.fillText(n.text, 0, 6);
+  g.restore();
+  tex = new THREE.CanvasTexture(cv);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 4;
+  plateCache.set(key, tex);
+  return tex;
+}
+
+/**
+ * Plaque de cadre sous la selle (ancre « anchor_number » des familles) : deux faces dos à dos,
+ * lisibles des deux côtés. Matériau propre (« number », surbrillance de l'atelier).
+ */
+function numberPlate(n: TuneNumber, at: THREE.Vector3): THREE.Group {
+  const g = new THREE.Group();
+  g.name = 'number_plate';
+  const mat = new THREE.MeshStandardNodeMaterial({ map: plateTexture(n), roughness: 0.55, metalness: 0 });
+  mat.name = 'number';
+  const geo = new THREE.PlaneGeometry(0.115, 0.08);
+  for (const side of [1, -1]) {
+    const m = new THREE.Mesh(geo, mat);
+    m.rotation.y = (side * Math.PI) / 2;
+    m.position.x = side * 0.0025;
+    m.userData.matKey = 'number';
+    g.add(m);
+  }
+  g.position.copy(at).add(new THREE.Vector3(0, -0.035, -0.045));
+  return g;
+}
 
 const EMISSIVE: Record<string, [string, number]> = {
   computer_screen: ['#3f7f8f', 0.6],
@@ -154,6 +219,9 @@ export function assembleBike(build: BikeBuild, family: BikeFamily, lod: 0 | 1): 
   const { brakes, track = false, toeClips = false } = build.params;
   group.traverse((o) => {
     const n = o.name;
+    // Tige de selle : matériau à part (pièces de l'atelier).
+    const mm = (o as THREE.Mesh).material as THREE.Material | undefined;
+    if (mm?.name === 'components' && (o.name === 'saddle' || o.parent?.name === 'saddle')) o.userData.matKey = 'seatpost';
     if (n.startsWith('opt_brakes_disc')) o.visible = brakes === 'disc';
     else if (n.startsWith('opt_brakes_rim')) o.visible = brakes === 'rim';
     else if (n.startsWith('opt_derailleur')) o.visible = !track;
@@ -186,6 +254,10 @@ export function assembleBike(build: BikeBuild, family: BikeFamily, lod: 0 | 1): 
     group.add(w);
     out.push(w);
   });
+  // Plaque de cadre (atelier) sous la selle.
+  const num = build.extras?.number;
+  const anchor = group.getObjectByName('anchor_number');
+  if (num && anchor && typeof document !== 'undefined') group.add(numberPlate(num, anchor.position));
   return {
     group,
     crank: group.getObjectByName('crankset') ?? null,
@@ -201,6 +273,10 @@ export function assembleBike(build: BikeBuild, family: BikeFamily, lod: 0 | 1): 
 export class BikeMaterials {
   private readonly livery: LiveryMaterial;
   private readonly byName = new Map<string, THREE.MeshStandardNodeMaterial>();
+  /** Interrupteurs des effets de l'atelier (flancs arc-en-ciel, carbone apparent), par matériau. */
+  private readonly fx = new Map<string, { value: number }>();
+  private readonly boxes: (ReturnType<typeof decalBoxes>[number])[];
+  private decalKey = '';
   private build: BikeBuild;
   private look: AvatarLook;
 
@@ -209,8 +285,17 @@ export class BikeMaterials {
     this.look = look;
     this.livery = new LiveryMaterial(build.livery);
     // Inscriptions du cadre (comme sur le vrai vélo) dans les boîtes de la famille.
-    const boxes = decalBoxes(familyScene(family));
-    this.livery.setDecals(wordmarkTexture(build, boxes), boxes, frameMarks(build));
+    this.boxes = decalBoxes(familyScene(family));
+    this.refreshDecals();
+  }
+
+  /** Inscriptions du cadre (marque, autocollants de l'atelier) : texture refaite si elles changent. */
+  private refreshDecals(): void {
+    const marks = frameMarks(this.build);
+    const key = JSON.stringify(marks);
+    if (key === this.decalKey) return;
+    this.decalKey = key;
+    this.livery.setDecals(wordmarkTexture(this.build, this.boxes), this.boxes, marks);
   }
 
   get(name: string): THREE.Material {
@@ -226,10 +311,46 @@ export class BikeMaterials {
         m.emissive.set(em[0]);
         m.emissiveIntensity = em[1];
       }
+      if (name === 'tire_wall') {
+        // Flancs arc-en-ciel : teinte selon l'angle autour de l'axe du moyeu (X).
+        const on = uniform(0);
+        const a = atan(positionGeometry.z, positionGeometry.y).mul(3);
+        const hue = vec3(sin(a), sin(a.add(2.094)), sin(a.add(4.188))).mul(0.5).add(0.5);
+        m.colorNode = mix(materialColor, hue, on);
+        this.fx.set(name, on);
+      } else if (CARBON_CAPABLE.has(name)) {
+        // Carbone apparent : tissage fin, un peu de la couleur de la pièce.
+        const on = uniform(0);
+        const p = positionGeometry;
+        const weave = mod(floor(p.x.mul(320)).add(floor(p.y.mul(320))).add(floor(p.z.mul(320))), 2);
+        const carbon = mix(mix(color('#141518'), color('#2c2d33'), weave), materialColor, float(0.15));
+        m.colorNode = mix(materialColor, carbon, on);
+        this.fx.set(name, on);
+      }
       this.byName.set(name, m);
       this.tint(m);
     }
     return m;
+  }
+
+  /**
+   * Surbrillance de l'atelier : lueur passagère (0–1) sur les matériaux nommés (« frame » : le
+   * cadre, « rim_decal » : toutes les bandes décor, « number » : la plaque).
+   */
+  highlight(names: readonly string[], amount: number): void {
+    const set = new Set(names);
+    this.livery.highlight(set.has('frame') ? amount : 0);
+    for (const [key, r] of this.rims) r.highlight(set.has('rim_decal') || set.has(key) ? amount : 0);
+    for (const m of this.byName.values()) {
+      const em = EMISSIVE[m.name];
+      if (set.has(m.name) && amount > 0) {
+        m.emissive.setRGB(1, 0.82, 0.25);
+        m.emissiveIntensity = 0.55 * amount;
+      } else if (em) {
+        m.emissive.set(em[0]);
+        m.emissiveIntensity = em[1];
+      } else m.emissiveIntensity = 0;
+    }
   }
 
   private readonly rims = new Map<string, RimDecalMaterial>();
@@ -248,6 +369,7 @@ export class BikeMaterials {
 
   private tintRim(r: RimDecalMaterial, base: RimBand['base']): void {
     r.set(this.build.livery.rim, base === 'disc' ? (this.build.livery.disc ?? BIKE_MATERIALS.disc_face?.[0]) : undefined);
+    r.setGlow(this.build.extras?.glow, !!this.build.extras?.holoRim);
   }
 
   /** Même vélo, nouvelle livrée ou nouvelle tenue : couleurs mises à jour sans recompiler. */
@@ -255,6 +377,7 @@ export class BikeMaterials {
     this.build = build;
     this.look = look;
     this.livery.set(build.livery);
+    this.refreshDecals();
     for (const m of this.byName.values()) this.tint(m);
     for (const [key, r] of this.rims) this.tintRim(r, key.split(':')[1] as RimBand['base']);
   }
@@ -269,6 +392,8 @@ export class BikeMaterials {
     // Vélo d'avant les compteurs GPS : compteur du cintre masqué.
     if (m.name === 'computer' || m.name === 'computer_screen') m.visible = this.build.params.computer !== false;
     const liv = this.build.livery;
+    const ex = this.build.extras;
+    const parts = (ex?.parts ?? {}) as Partial<Record<string, string>>;
     const col: Partial<Record<string, string | undefined>> = {
       // Bande décor sans marque de roue (vélo de base) : fondue dans la jante.
       rim_decal: this.build.params.rimBrand ? liv.rim : BIKE_MATERIALS.rim?.[0],
@@ -276,9 +401,18 @@ export class BikeMaterials {
       tire_wall: liv.tireWall,
       saddle: liv.saddle,
       bar_tape: liv.tape ?? this.look.jerseyAccent,
-      bottle: this.look.jerseyAccent,
+      bottle: parts.bottle ?? this.look.jerseyAccent,
     };
-    const c = col[m.name] ?? BIKE_MATERIALS[m.name]?.[0];
+    const def = BIKE_MATERIALS[m.name];
+    const c = col[m.name] ?? (TUNABLE.has(m.name) ? parts[m.name] : undefined) ?? def?.[0];
     if (c) m.color.set(c);
+    // Pièces anodisées / dorées de l'atelier : métal poli ; sinon valeurs du modèle.
+    const metal = !!ex?.metal?.includes(m.name as never);
+    if (def) {
+      m.metalness = metal ? 1 : def[2];
+      m.roughness = metal ? 0.22 : def[1];
+    }
+    const fx = this.fx.get(m.name);
+    if (fx) fx.value = m.name === 'tire_wall' ? (ex?.rainbowWall ? 1 : 0) : ex?.carbon?.includes(m.name as never) ? 1 : 0;
   }
 }

@@ -53,7 +53,10 @@ export class Multiplayer {
   /** Heure et météo de la sortie (choix de l'hôte), connues après l'entrée dans la salle. */
   weather: RideWeather | null = null;
 
-  async connect(opts: { inviteCode?: string; mode: RideMode; guest: boolean; aiRiders: number; aiLevel?: number; laps?: number; trainerDifficulty: number; name: string; weather: RideWeather }): Promise<string> {
+  /** Équipement égalisé dans cette salle (même vélo pour tous), connu après l'entrée. */
+  equalized = false;
+
+  async connect(opts: { inviteCode?: string; mode: RideMode; guest: boolean; aiRiders: number; aiLevel?: number; laps?: number; trainerDifficulty: number; name: string; weather: RideWeather; equalEquipment?: boolean }): Promise<string> {
     const role = opts.guest ? 'guest' : 'rider';
     const welcome = opts.inviteCode
       ? await this.net.joinByCode(opts.inviteCode, { role, displayName: opts.name })
@@ -69,10 +72,12 @@ export class Multiplayer {
             weather: opts.weather,
             ...(opts.aiLevel ? { aiLevel: opts.aiLevel } : {}),
             ...(opts.mode === 'race' && opts.laps ? { laps: opts.laps } : {}),
+            equalEquipment: opts.equalEquipment ?? opts.mode === 'race',
           },
           { role, displayName: opts.name },
         );
     this.weather = welcome.options.weather ?? null;
+    this.equalized = welcome.options.equalEquipment ?? welcome.options.mode === 'race';
     return welcome.inviteCode;
   }
 

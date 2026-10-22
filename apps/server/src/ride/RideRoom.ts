@@ -18,7 +18,9 @@ import {
   encodeSnapshot,
   type CompanionCommand,
   type RideEventMsg,
+  type RideResult,
   type RideRole,
+  type TuneEvent,
   type RosterMsg,
   type WelcomeMsg,
 } from '@allezrobert/shared';
@@ -27,6 +29,7 @@ import { normalizeCode } from './registry.ts';
 import { rideServices, type RideServices } from './services.ts';
 import { TickStats } from './tick-stats.ts';
 import { sanitizeName } from '../db/repos.ts';
+import { serverBike } from '../progression/atelier.ts';
 
 const finite = z.number().refine(Number.isFinite, 'nombre fini attendu');
 
@@ -56,6 +59,7 @@ const CreateOptionsSchema = z
       .optional(),
     aiLevel: finite.optional(),
     paceWkg: finite.optional(),
+    equalEquipment: z.boolean().optional(),
   })
   .passthrough();
 
@@ -220,13 +224,17 @@ export class RideRoom extends Room {
     if (!rider) {
       const profile = auth.userId ? await this.svc.loadProfile(auth.userId).catch(() => null) : null;
       const kind = auth.role === 'guest' ? 'guest' : 'human';
+      // Vélo recalculé par le serveur à partir des pièces possédées (jamais des valeurs du client) ;
+      // pièces affichées = pièces équipées. Invité : vélo par défaut.
+      const setup = profile && kind === 'human' ? serverBike(profile.equipped ?? {}, profile.level ?? 1, profile.owned ?? [], this.sim.options.equalEquipment) : null;
       const added = this.sim.addRider(
         {
           id: `r${++this.riderSeq}`,
           name: profile?.displayName ?? auth.name,
           kind,
           ...(auth.userId ? { userId: auth.userId } : {}),
-          ...(profile ? { avatar: profile.avatar, riderMassKg: profile.weightKg, ftpWatts: profile.ftpWatts } : {}),
+          ...(profile ? { avatar: { ...profile.avatar, tune: setup?.tune ?? [] }, riderMassKg: profile.weightKg, ftpWatts: profile.ftpWatts } : {}),
+          ...(setup ? { bike: setup.bike } : {}),
           shareHr: kind === 'human' && !!profile?.consentHr,
         },
         now,
@@ -323,15 +331,37 @@ export class RideRoom extends Room {
     const now = Date.now();
     const dt = Math.min(Math.max(deltaMs / 1000, 0.02), 0.25);
     const res = this.sim.step(now, dt);
-    for (const ev of res.events) this.broadcastEvent(ev);
+    for (const ev of res.events) {
+      this.broadcastEvent(ev);
+      if (ev.kind === 'results') this.rewardRace(ev.results);
+    }
     for (const e of res.efforts) {
       this.svc
         .recordEffort({ userId: e.userId, routeId: this.routeId, segmentId: e.segmentId, elapsedMs: e.elapsedMs, rideId: this.roomId })
         .catch((err) => this.svc.log('warn', `effort non enregistré : ${(err as Error).message}`));
+      // Montée chronométrée bouclée en salle : récompenses « kom » (1) et « kom-5 » (5).
+      if (this.sim.route.segments.find((s) => s.id === e.segmentId)?.kind === 'kom' && this.svc.rewardKom)
+        this.svc.rewardKom(e.userId).catch((err) => this.svc.log('warn', `récompense KOM : ${(err as Error).message}`));
     }
     const snap = encodeSnapshot(this.sim.tick, now, this.sim.rows(), this.snapBuf);
     this.broadcast(NET_MSG.snapshot, snap);
     this.tickStats.add(performance.now() - t0);
+  }
+
+  /** Comptes déjà récompensés pour le classement de cette course. */
+  private readonly raceRewarded = new Set<string>();
+
+  /** Podium et victoire (classement autoritaire de la course) : récompenses de l'atelier. */
+  private rewardRace(results: readonly RideResult[]): void {
+    if (this.sim.options.mode !== 'race' || !this.svc.rewardEvents) return;
+    for (const r of results) {
+      if (r.isAI || r.isGuest || r.status !== 'finished' || r.rank < 1 || r.rank > 3) continue;
+      const userId = this.sim.get(r.riderId)?.userId;
+      if (!userId || this.raceRewarded.has(userId)) continue;
+      this.raceRewarded.add(userId);
+      const events: TuneEvent[] = r.rank === 1 ? ['podium', 'win'] : ['podium'];
+      this.svc.rewardEvents(userId, events).catch((err) => this.svc.log('warn', `récompense de course : ${(err as Error).message}`));
+    }
   }
 
   /** Un tick manuel (tests) sans attendre l'horloge. */

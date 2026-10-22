@@ -1,5 +1,5 @@
 import * as THREE from 'three/webgpu';
-import { abs, attribute, clamp, color, dot, float, floor, fract, hash, length, max, mix, mod, normalGeometry, positionGeometry, select, smoothstep, texture, uniform, vec2, vec3, vec4 } from 'three/tsl';
+import { abs, attribute, clamp, color, dot, float, floor, fract, hash, length, max, min, mix, mod, normalGeometry, positionGeometry, select, sin, smoothstep, texture, time, uniform, vec2, vec3, vec4 } from 'three/tsl';
 import type { BikeLivery, LiveryAxis, LiveryFinish, LiveryPattern } from '@allezrobert/shared';
 import { colorUniform, type ColorUniform } from '../engine/tsl.ts';
 import { DECALS, type DecalBox } from './wordmarks.ts';
@@ -14,7 +14,7 @@ import { DECALS, type DecalBox } from './wordmarks.ts';
  * finition, et changer de vélo ne recompile rien.
  */
 
-const PATTERNS: readonly LiveryPattern[] = ['solid', 'fade', 'split', 'band', 'stripes', 'rainbow', 'checker', 'blocks', 'dots', 'stops'];
+const PATTERNS: readonly LiveryPattern[] = ['solid', 'fade', 'split', 'band', 'stripes', 'rainbow', 'checker', 'blocks', 'dots', 'stops', 'crystal'];
 /** Plages du motif « stops » (au plus). */
 const MAX_STOPS = 6;
 /** Poids (uz, uy, 1 − uy, ux) de l'abscisse du motif selon l'axe. */
@@ -76,12 +76,23 @@ export class LiveryMaterial {
   private readonly decalAuto = DECALS.map(() => uniform(1));
   /** Échantillonnages de la texture des inscriptions (un par boîte), mis à jour par setDecals. */
   private readonly logoTaps: Array<{ value: THREE.Texture }> = [];
+  /** Épaisseur du film irisé (nm) et miroitement animé (0–1). */
+  private readonly film = uniform(0);
+  private readonly shimmer = uniform(0);
 
   constructor(livery: BikeLivery) {
     this.material.name = 'frame';
     this.material.colorNode = this.colorNode();
     this.material.clearcoatRoughness = 0.05;
+    // Film irisé : épaisseur qui ondule doucement le long du cadre (miroitement), sans recompiler.
+    const wave = sin(time.mul(0.9).add(positionGeometry.z.mul(9)).add(positionGeometry.y.mul(5)));
+    this.material.iridescenceThicknessNode = this.film.mul(float(1).add(wave.mul(0.22).mul(this.shimmer)));
     this.set(livery);
+  }
+
+  /** Surbrillance de l'atelier (0–1) : lueur dorée passagère. */
+  highlight(amount: number): void {
+    this.material.emissive.setRGB(1, 0.82, 0.25).multiplyScalar(0.55 * amount);
   }
 
   set(liv: BikeLivery): void {
@@ -116,6 +127,8 @@ export class LiveryMaterial {
     m.clearcoat = coat;
     m.iridescence = film > 0 ? 1 : 0;
     m.iridescenceThicknessRange = [film, film];
+    this.film.value = film;
+    this.shimmer.value = finish === 'iridescent' ? 1 : 0;
     m.needsUpdate = true;
   }
 
@@ -177,7 +190,17 @@ export class LiveryMaterial {
     let stops = (this.stopCols[MAX_STOPS - 1] as ColorUniform).node as unknown as Vec3Node;
     for (let i = MAX_STOPS - 2; i >= 0; i--) stops = select(v.lessThan(this.stopTo[i] as FloatNode), (this.stopCols[i] as ColorUniform).node as unknown as Vec3Node, stops);
 
-    const byPattern = [solid, fade, split, band, stripes, rainbow, checker, blocks, dots, stops];
+    // Cristaux : facettes triangulaires de ~4 cm, teintes tirées au hasard, arêtes claires.
+    const ta = cz.mul(24).add(cy.mul(12));
+    const tb = cy.mul(20.8);
+    const fa = fract(ta);
+    const fb = fract(tb);
+    const upper = gt(fa.add(fb), 1);
+    const facet = hash(floor(ta).add(512).mul(977).add(floor(tb).add(512).mul(31)).add(upper.mul(7)));
+    const edge = lt(min(min(fa, fb), abs(float(1).sub(fa).sub(fb))), 0.035);
+    const crystal = mix(mix(c0, mix(c1, c2, gt(facet, 0.82)), gt(facet, 0.5)), color('#ffffff') as unknown as Vec3Node, edge.mul(0.6));
+
+    const byPattern = [solid, fade, split, band, stripes, rainbow, checker, blocks, dots, stops, crystal];
     let col = byPattern[byPattern.length - 1] as Vec3Node;
     for (let i = byPattern.length - 2; i >= 0; i--) col = select(this.pattern.lessThan(i + 0.5), byPattern[i] as Vec3Node, col);
 

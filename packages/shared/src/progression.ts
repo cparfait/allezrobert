@@ -33,7 +33,8 @@ export function levelProgress(xp: number): { level: number; progress: number; ne
   return { level, progress: next === null ? 1 : (xp - cur) / (next - cur), nextLevelXp: next };
 }
 
-export type CosmeticSlot = 'jersey' | 'helmet' | 'bike' | 'socks' | 'glasses' | 'wheels';
+/** Les roues sont passées à l'atelier (tuning.ts, emplacement « wheelset »). */
+export type CosmeticSlot = 'jersey' | 'helmet' | 'bike' | 'socks' | 'glasses';
 
 /** Effet d'un équipement sur la physique (relatif au vélo route aluminium par défaut). */
 export interface CosmeticPhysics {
@@ -124,10 +125,11 @@ function effectText(ph: CosmeticPhysics): { fr: string; en: string } {
   return { fr: fr.join(', '), en: en.join(', ') };
 }
 
-export function bikeSetupFor(equipped: Partial<Record<CosmeticSlot, string>>, base: BikeSetup = DEFAULT_BIKE): BikeSetup {
+export function bikeSetupFor(equipped: Readonly<Record<string, string | undefined>>, base: BikeSetup = DEFAULT_BIKE): BikeSetup {
   const bike: BikeSetup = { ...base };
   const names: string[] = [];
   for (const id of Object.values(equipped)) {
+    if (!id) continue;
     const item = COSMETICS.find((c) => c.id === migrateBikeId(id));
     const ph = item?.physics;
     if (!item || !ph) continue;

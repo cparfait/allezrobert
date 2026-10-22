@@ -1,6 +1,7 @@
 import { serverEndpoint } from '../game/multiplayer.ts';
 import { getLang } from '../i18n/index.ts';
 import { saveSettings, type Settings } from './settings.ts';
+import { applyServerAtelier, equippedForServer } from './garage.ts';
 
 /** Base de l'API du serveur (même hôte que les salles Colyseus). */
 export function apiBase(): string {
@@ -11,6 +12,8 @@ export interface Me {
   id: string;
   profile: { displayName: string; weightKg?: number; heightCm?: number; ftpWatts?: number; consentHr?: boolean; skipStrava?: boolean };
   progression: { level: number; xp: number };
+  /** Atelier du compte : solde, pièces possédées, événements, série, ensembles complets. */
+  atelier?: { credits: number; owned: string[]; events: string[]; streak: { last: string; days: number }; kits: string[] };
 }
 
 interface Providers {
@@ -54,14 +57,30 @@ export function applyProfile(me: Me, s: Settings): void {
   if (p.ftpWatts) s.ftpWatts = p.ftpWatts;
   if (p.skipStrava !== undefined) s.skipStrava = p.skipStrava;
   saveSettings(s);
+  // Atelier : le compte fait foi (crédits et pièces validés par le serveur).
+  if (me.atelier) applyServerAtelier(me.atelier, s);
+}
+
+/** Achat sur le compte (prix, niveau et solde vérifiés par le serveur). */
+export async function buyOnServer(id: string): Promise<{ ok: boolean; credits?: number; owned?: string[]; error?: string; missing?: number }> {
+  try {
+    const r = await api('/shop/buy', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id }) });
+    const body = (await r.json()) as { ok?: boolean; credits?: number; owned?: string[]; error?: string; missing?: number };
+    return { ...body, ok: r.ok && !!body.ok };
+  } catch {
+    return { ok: false, error: 'network' };
+  }
 }
 
 /** Envoie le profil local vers le compte (après modification dans le menu). */
-export async function pushProfile(s: Settings): Promise<void> {
+export async function pushProfile(s: Settings, level?: number): Promise<void> {
+  // Équipement (pièces de l'atelier possédées, cosmétiques débloqués au niveau du compte) : le serveur
+  // s'en sert pour le vélo roulé en salle.
+  const equipped = level !== undefined ? { equipped: equippedForServer(level) } : {};
   await api('/me/profile', {
     method: 'PUT',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ displayName: s.name, weightKg: s.massKg, heightCm: s.heightCm, ftpWatts: Math.round(s.ftpWatts), avatar: s.look, skipStrava: s.skipStrava, locale: s.lang }),
+    body: JSON.stringify({ displayName: s.name, weightKg: s.massKg, heightCm: s.heightCm, ftpWatts: Math.round(s.ftpWatts), avatar: s.look, skipStrava: s.skipStrava, locale: s.lang, ...equipped }),
   }).catch(() => undefined);
 }
 

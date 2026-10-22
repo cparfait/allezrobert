@@ -50,6 +50,16 @@ export interface ActivitySummaryRow {
   createdAt: Date;
 }
 
+/** Atelier d'un compte : crédits, pièces possédées, événements débloqués, série, cumuls. */
+export interface AtelierState {
+  credits: number;
+  owned: string[];
+  events: string[];
+  streak: { last: string; days: number };
+  routesDone: string[];
+  koms: number;
+}
+
 export interface RenderJob {
   id: string;
   userId: string;
@@ -419,6 +429,61 @@ export class Repos {
     }
   }
 
+  /* ───────────── Atelier (crédits, pièces, récompenses) ───────────── */
+
+  async getAtelier(userId: string, q: Queryable = this.db): Promise<AtelierState> {
+    const r = await q.query('SELECT credits, owned, events, streak_last, streak_days, routes_done, koms FROM progression WHERE user_id = $1', [userId]);
+    const row = r.rows[0];
+    if (!row) return { credits: 0, owned: [], events: [], streak: { last: '', days: 0 }, routesDone: [], koms: 0 };
+    return {
+      credits: toNum(row.credits),
+      owned: toJson<string[]>(row.owned, []),
+      events: toJson<string[]>(row.events, []),
+      streak: { last: row.streak_last ?? '', days: toNum(row.streak_days) },
+      routesDone: toJson<string[]>(row.routes_done, []),
+      koms: toNum(row.koms),
+    };
+  }
+
+  /** Enregistre l'état de l'atelier (ligne de progression créée au besoin). */
+  async saveAtelier(q: Queryable, userId: string, a: AtelierState): Promise<void> {
+    const params = [userId, Math.max(0, Math.round(a.credits)), JSON.stringify([...new Set(a.owned)]), JSON.stringify([...new Set(a.events)]), a.streak.last || null, a.streak.days, JSON.stringify([...new Set(a.routesDone)]), a.koms];
+    const r = await q.query(
+      'UPDATE progression SET credits = $2, owned = $3, events = $4, streak_last = $5, streak_days = $6, routes_done = $7, koms = $8, updated_at = now() WHERE user_id = $1',
+      params,
+    );
+    if ((r.rowCount ?? 0) === 0) {
+      await q.query('INSERT INTO progression (user_id, credits, owned, events, streak_last, streak_days, routes_done, koms) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)', params);
+    }
+  }
+
+  /**
+   * Achat : débite `price` seulement si le solde suffit (mise à jour conditionnelle, sûre même
+   * avec deux achats simultanés) et ajoute les pièces. false si le solde ne suffit plus.
+   */
+  async spendCredits(userId: string, price: number, granted: readonly string[]): Promise<boolean> {
+    return this.db.tx(async (q) => {
+      // Montant négatif ajouté (pg-mem évalue mal « credits - $2 »).
+      const r = await q.query('UPDATE progression SET credits = credits + $3, updated_at = now() WHERE user_id = $1 AND credits >= $2', [userId, Math.round(price), -Math.round(price)]);
+      if ((r.rowCount ?? 0) === 0) return false;
+      const a = await this.getAtelier(userId, q);
+      await q.query('UPDATE progression SET owned = $2 WHERE user_id = $1', [userId, JSON.stringify([...new Set([...a.owned, ...granted])])]);
+      return true;
+    });
+  }
+
+  /** Montées chronométrées bouclées en salle : cumul (récompenses « kom », « kom-5 »). */
+  async addKom(userId: string): Promise<number> {
+    await this.db.query('UPDATE progression SET koms = koms + 1 WHERE user_id = $1', [userId]);
+    return (await this.getAtelier(userId)).koms;
+  }
+
+  /** Nombre de segments bouclés pendant une sortie en salle (crédits de la sortie). */
+  async countRideEfforts(userId: string, rideId: string): Promise<number> {
+    const r = await this.db.query('SELECT COUNT(*) AS n FROM segment_efforts WHERE user_id = $1 AND ride_id = $2', [userId, rideId]);
+    return toNum(r.rows[0]?.n ?? 0);
+  }
+
   /* ───────────── Intégrations ───────────── */
 
   async setIntegration(userId: string, provider: 'strava' | 'intervals', secret: unknown, meta: Record<string, unknown>): Promise<void> {
@@ -548,6 +613,7 @@ export class Repos {
       identities: identities.map((i: any) => ({ provider: i.provider, linkedAt: i.created_at })),
       profile,
       progression: await this.getProgression(userId),
+      atelier: await this.getAtelier(userId),
       activities,
       activityFitBase64: fits,
       segmentEfforts: efforts,

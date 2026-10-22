@@ -1,5 +1,5 @@
 import * as THREE from 'three/webgpu';
-import { abs, atan, float, fract, length, mix, positionGeometry, sign, step, texture, uniform, vec2 } from 'three/tsl';
+import { abs, atan, float, fract, length, mix, positionGeometry, sign, sin, step, texture, time, uniform, vec2, vec3 } from 'three/tsl';
 
 /**
  * Inscriptions des jantes : le nom de la marque (`params.rimBrand`) écrit dans la bande décor des
@@ -12,6 +12,8 @@ import { abs, atan, float, fract, length, mix, positionGeometry, sign, step, tex
 /** Libellés des marques de roues (sinon : identifiant en capitales). */
 const RIM_WORDMARKS: Record<string, string> = {
   'dt-swiss': 'DT SWISS',
+  // Bande décor sans marque de roues (décors ou jantes lumineuses de l'atelier).
+  'allez-robert': 'ALLEZ ROBERT',
   'swiss-side': 'SWISS SIDE',
   shimano: 'DURA-ACE',
   campagnolo: 'CAMPAGNOLO',
@@ -76,6 +78,12 @@ export function measureBand(g: THREE.BufferGeometry): { r0: number; r1: number }
   return b;
 }
 
+/**
+ * Pulsation des jantes lumineuses : amplitude (0 le jour → 1 la nuit, réglée par la sortie) et
+ * surbrillance de l'atelier. Partagées par toutes les roues.
+ */
+export const rimGlow = { night: uniform(0.35) };
+
 const BASES: Record<RimBand['base'], [string, number, number]> = {
   carbon: ['#1e2024', 0.35, 0.1],
   box: ['#b9bcc2', 0.2, 1],
@@ -86,6 +94,11 @@ export class RimDecalMaterial {
   readonly material: THREE.MeshStandardNodeMaterial;
   private readonly textColor = uniform(new THREE.Color('#f2f2f2'));
   private readonly baseColor = uniform(new THREE.Color());
+  /** Liseré lumineux (atelier) : couleur et présence ; lettres holographiques ; surbrillance. */
+  private readonly glowColor = uniform(new THREE.Color('#000000'));
+  private readonly glowOn = uniform(0);
+  private readonly holo = uniform(0);
+  private readonly flash = uniform(0);
 
   constructor(band: RimBand, brand: string) {
     const { tex, aspect } = wordTexture(rimWordmark(brand));
@@ -108,15 +121,35 @@ export class RimDecalMaterial {
     const v = r.sub(mid).div(textH).add(0.5);
     const inside = step(abs(u.sub(0.5)), float(0.5)).mul(step(abs(v.sub(0.5)), float(0.5)));
     const a = texture(tex, vec2(u, v)).a.mul(inside);
-    m.colorNode = mix(this.baseColor, this.textColor, a);
-    m.metalnessNode = mix(float(metal), float(0), a);
+    // Holographique : teinte qui tourne avec l'angle sur la roue (et le temps).
+    const ang = atan(p.z, p.y).mul(2).add(time.mul(0.6));
+    const hue = vec3(sin(ang), sin(ang.add(2.094)), sin(ang.add(4.188))).mul(0.5).add(0.5);
+    const ink = mix(this.textColor, hue, this.holo);
+    m.colorNode = mix(this.baseColor, ink, a);
+    m.metalnessNode = mix(float(metal), mix(float(0), float(0.6), this.holo), a);
     m.roughnessNode = mix(float(rough), float(0.45), a);
+    // Liseré lumineux : la bande hors lettres émet (bloom), pulsation lente plus marquée la nuit.
+    const pulse = float(0.8).add(sin(time.mul(2.6)).mul(0.2).mul(rimGlow.night));
+    const glow = this.glowColor.mul(this.glowOn).mul(float(1).sub(a.mul(0.85))).mul(pulse).mul(float(0.7).add(rimGlow.night.mul(0.9)));
+    m.emissiveNode = glow.add(vec3(1, 0.82, 0.25).mul(this.flash.mul(0.6)));
     this.material = m;
   }
 
   set(text: string | undefined, base?: string): void {
     (this.textColor.value as THREE.Color).set(text ?? '#f2f2f2');
     if (base) (this.baseColor.value as THREE.Color).set(base);
+  }
+
+  /** Jantes lumineuses (couleur ou rien) et lettres holographiques. */
+  setGlow(color: string | undefined, holo = false): void {
+    (this.glowColor.value as THREE.Color).set(color ?? '#000000');
+    this.glowOn.value = color ? 1 : 0;
+    this.holo.value = holo ? 1 : 0;
+  }
+
+  /** Surbrillance de l'atelier (0–1). */
+  highlight(amount: number): void {
+    this.flash.value = amount;
   }
 }
 
