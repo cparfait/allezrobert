@@ -2,7 +2,7 @@ import './hud/hud.css';
 import * as THREE from 'three/webgpu';
 import { RouteTrack, DEFAULT_BIKE, type RiderProfile, type RouteData } from '@allezrobert/shared';
 import { createEngine, type Engine } from './engine/renderer.ts';
-import { QUALITY_PRESETS, withUrlOverrides } from './engine/quality.ts';
+import { QUALITY_PRESETS, withUrlOverrides, type QualitySettings } from './engine/quality.ts';
 import { World } from './world/world.ts';
 import { loadWorldSource } from './world/loader.ts';
 import type { WorldSource } from './world/types.ts';
