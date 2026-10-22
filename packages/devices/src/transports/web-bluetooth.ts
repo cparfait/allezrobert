@@ -98,6 +98,10 @@ export class WebBluetoothTransport implements Transport {
     if (exp.headwind) filters.push({ namePrefix: 'HEADWIND' });
     if (exp.sramAxs) filters.push({ namePrefix: 'SRAM' }, { manufacturerData: [{ companyIdentifier: SRAM_AXS.manufacturerId }] });
     const manufacturers = [...(exp.zwiftControllers ? [ZWIFT_CONTROLLER.manufacturerId] : []), ...(exp.sramAxs ? [SRAM_AXS.manufacturerId] : [])];
+    // Sans filtre exploitable (rôle sans adaptateur activé) ou à la demande : tous les appareils.
+    if (options.acceptAll || filters.length === 0) {
+      return { acceptAllDevices: true, optionalServices: ALL_KNOWN_SERVICES, ...(manufacturers.length ? { optionalManufacturerData: manufacturers } : {}) };
+    }
     return { filters, optionalServices: ALL_KNOWN_SERVICES, ...(manufacturers.length ? { optionalManufacturerData: manufacturers } : {}) };
   }
 

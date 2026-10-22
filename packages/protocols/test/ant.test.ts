@@ -22,7 +22,9 @@ import {
   decodePwrPage,
   encodeAntMessage,
   encodeFecBasicResistance,
+  encodeFecCalibrationInProgress,
   encodeFecCalibrationRequest,
+  encodeFecCalibrationResponse,
   encodeFecGeneralFeData,
   encodeFecSpecificTrainerData,
   encodeFecTargetPower,
@@ -154,6 +156,28 @@ describe('ANT+ FE-C', () => {
     expect(toHex(encodeFecWindResistance())).toBe('32 ff ff ff ff ff ff ff');
     expect(toHex(encodeFecUserConfiguration({ userWeightKg: 75, bikeWeightKg: 8.5, wheelDiameterM: 0.7 }))).toBe('37 4c 1d ff a0 0a 46 00');
     expect(toHex(encodeFecCalibrationRequest({ spinDown: true }))).toBe('01 80 00 00 00 00 00 00');
+  });
+
+  it('pages 1 et 2 côté trainer : réponse et calibration en cours (spin-down)', () => {
+    // Réponse : spin-down réussi, 21,5 °C → (21,5 + 25) × 2 = 93 = 0x5D, zéro invalide, 3500 ms = 0x0DAC.
+    expect(decodeFecPage(h('01 80 00 5D FF FF AC 0D'))).toEqual({
+      page: 0x01,
+      kind: 'calibrationResponse',
+      zeroOffsetSuccess: false,
+      spinDownSuccess: true,
+      temperatureC: 21.5,
+      spinDownTimeMs: 3500,
+    });
+    expect(decodeFecPage(h('01 00 00 FF FF FF FF FF'))).toEqual({ page: 0x01, kind: 'calibrationResponse', zeroOffsetSuccess: false, spinDownSuccess: false });
+    expect(toHex(encodeFecCalibrationResponse({ spinDownSuccess: true, temperatureC: 21.5, spinDownTimeMs: 3500 }))).toBe('01 80 00 5d ff ff ac 0d');
+    // En cours : spin-down en attente, température bonne (2 << 4), vitesse trop basse (1 << 6) → 0x60,
+    // 20 °C → 0x5A, vitesse cible 30 km/h = 8333 mm/s = 0x208D, durée visée invalide.
+    const p = decodeFecPage(h('02 80 60 5A 8D 20 FF FF'));
+    expect(p).toMatchObject({ page: 0x02, kind: 'calibrationInProgress', spinDownPending: true, zeroOffsetPending: false, temperatureCondition: 'ok', speedCondition: 'tooLow', temperatureC: 20 });
+    expect((p as { targetSpeedKmh: number }).targetSpeedKmh).toBeCloseTo(30, 2);
+    expect(p).not.toHaveProperty('targetSpinDownTimeMs');
+    expect(decodeFecPage(h('02 80 A0 5A 8D 20 B8 0B'))).toMatchObject({ speedCondition: 'ok', targetSpinDownTimeMs: 3000 });
+    expect(toHex(encodeFecCalibrationInProgress({ spinDownPending: true, temperatureCondition: 'ok', speedCondition: 'tooLow', temperatureC: 20, targetSpeedKmh: 30 }))).toBe('02 80 60 5a 8d 20 ff ff');
   });
 
   it('décodage des commandes (simulateur)', () => {

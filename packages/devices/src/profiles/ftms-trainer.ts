@@ -84,6 +84,11 @@ export class FtmsTrainer implements Profile, TrainerControl {
     return this.controlGranted;
   }
 
+  /** Spin-down annoncé (Target Setting Features, bit 15) ; vrai par défaut si la caractéristique est absente. */
+  get supportsSpinDown(): boolean {
+    return this.feature ? this.feature.targetSettings.spinDownControl : true;
+  }
+
   get lastCommand(): TrainerCommand | undefined {
     return this.lastCmd;
   }
@@ -189,10 +194,24 @@ export class FtmsTrainer implements Profile, TrainerControl {
         return;
       }
       case 'spindown': {
-        this.ctx.emit('calibration', { t: this.ctx.now(), status: 'started' });
-        const resp = await this.enqueue(encodeSpinDownControl('start'), FTMS_OPCODE.spinDownControl);
+        const ctx = this.ctx;
+        // Fitness Machine Feature, Target Setting bit 15 : spin-down non annoncé → inutile d'essayer.
+        if (this.feature && !this.supportsSpinDown) {
+          ctx.emit('calibration', { t: ctx.now(), status: 'unsupported', reason: 'Spin-down non annoncé par le trainer (FTMS 0x2ACC, bit 15)' });
+          return;
+        }
+        ctx.emit('calibration', { t: ctx.now(), status: 'started' });
+        let resp: FtmsControlPointResponse | undefined;
+        try {
+          resp = await this.enqueue(encodeSpinDownControl('start'), FTMS_OPCODE.spinDownControl);
+        } catch (e) {
+          const r = (e as FtmsError).response;
+          const unsupported = r?.result === FTMS_RESULT.opCodeNotSupported;
+          ctx.emit('calibration', { t: ctx.now(), status: unsupported ? 'unsupported' : 'error', reason: (e as Error).message });
+          return;
+        }
         if (resp?.spinDown) {
-          this.ctx.emit('calibration', { t: this.ctx.now(), status: 'requested', ...resp.spinDown });
+          ctx.emit('calibration', { t: ctx.now(), status: 'requested', ...resp.spinDown });
         }
         return;
       }
