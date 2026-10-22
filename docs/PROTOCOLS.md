@@ -261,8 +261,11 @@ La clé du réseau ANT+ est fournie par ANT Wireless (thisisant.com) aux adoptan
 licence ANT+. Cette licence n'en autorise pas la redistribution, et le dépôt est public : la clé
 **n'est donc pas codée en dur**. Elle est lue dans la configuration, par exemple la variable
 d'environnement `ANT_PLUS_NETWORK_KEY` ou un réglage de l'app desktop, avec `parseAntNetworkKey()`.
-Elle est ensuite passée à `ant_open({ stickId, networkKey })`. Si elle est absente, l'app desktop
-doit la connaître par sa propre configuration. Les tests utilisent une valeur fictive.
+Elle est ensuite passée à `ant_open({ stickId, networkKey })`, où elle est **prioritaire** (8 octets
+exactement). Si elle est absente, l'app desktop la lit dans `ANT_PLUS_NETWORK_KEY` ou dans le fichier
+`ant-plus-network-key.txt` de son dossier de configuration. Dans le jeu, elle se saisit dans
+Capteurs → Réglages avancés → ANT+ USB et Direct Connect (stockée sur le poste uniquement). Les
+tests utilisent une valeur fictive.
 
 ---
 
@@ -290,11 +293,23 @@ Paramètres de canal (`ANT_PLUS_PROFILES`) :
 | 51 (0x33) Track Resistance | jeu → trainer | octets 5–6 : (pente + 200 %) / 0,01 · octet 7 : Crr ×5·10⁻⁵ |
 | 55 (0x37) User Configuration | jeu → trainer | poids coureur 0,01 kg, poids vélo 0,05 kg, diamètre de roue, rapport |
 | 1 (0x01) Calibration Request | jeu → trainer | bit 7 spin-down, bit 6 zéro |
+| 1 (0x01) Calibration Response | trainer → jeu | octet 1 : bit 7 spin-down réussi, bit 6 zéro réussi · octet 3 température (0,5 °C, −25 °C) · octets 4–5 zero offset · octets 6–7 durée du spin-down (ms) ; 0xFF / 0xFFFF = invalide |
+| 2 (0x02) Calibration In Progress | trainer → jeu | octet 1 : bits 7 / 6 spin-down / zéro en attente · octet 2 : bits 4–5 température, bits 6–7 vitesse (1 trop basse → accélérer, 2 bonne → roue libre) · octet 3 température · octets 4–5 vitesse cible (0,001 m/s) · octets 6–7 durée visée (ms) |
 | 71 (0x47) Command Status | trainer → jeu | dernière commande, séquence, statut (0 OK, 1 échec, 2 non géré, 3 rejeté, 4 en attente) |
 | 80 / 81 / 82 | communes | fabricant, produit et n° de série, batterie |
 
 Les commandes partent en message acquitté (0x4F). Le mode simulation envoie la page 50
 uniquement si le vent change, puis la page 51.
+
+**Calibration** : `FecTrainer` envoie la page 1 (bit 7), puis traduit les pages 2 en étapes
+`requested` (vitesse trop basse) et `stopPedaling` (vitesse atteinte), et la page 1 reçue en
+`success` / `error` (avec la durée du spin-down). Une page 71 « non géré » pour la commande 0x01 donne
+`unsupported`. Pages 1 et 2 testées octet par octet (`protocols/test/ant.test.ts`).
+**À confirmer** : la disposition des pages 1 (réponse) et 2 a été écrite d'après le profil *Fitness
+Equipment* rev 5 sans pouvoir la recouper ici avec le document officiel (réservé aux adoptants ANT+)
+ni avec une capture réelle ; le test 6.3 de `docs/HARDWARE_TEST.md` la vérifiera. D'après les forums
+d'utilisateurs, les KICKR proposent le spin-down en Bluetooth et en FE-C, avec des vitesses cibles qui
+diffèrent d'un protocole à l'autre.
 
 **FE-C over BLE (Tacx)** : service `6e40fec1-b5a3-f393-e0a9-e50e24dcca9e`. Notifications sur
 `…fec2`, écriture sur `…fec3`. Les mêmes pages y circulent, encapsulées dans des messages ANT
@@ -322,7 +337,7 @@ Pages 1 (temps cumulé), 2 (fabricant), 3 (produit), 4 (battement précédent �
 
 Les messages `ant://message` ne portent pas le n° d'appareil. La recherche ouvre donc un canal
 « joker » par profil, qui s'appaire au premier capteur entendu (suffisant à la maison). Ce canal
-est réutilisé à la connexion. `ant_close_channel` est proposée comme commande optionnelle. Il
+est réutilisé à la connexion. `ant_close_channel` libère un canal (implémentée côté Rust). Il
 faudra ajouter le n° d'appareil (messages étendus 0x6E) si plusieurs capteurs du même type
 émettent à proximité.
 
@@ -437,10 +452,16 @@ automatiquement. Le retour des pédales est lui aussi automatique.
 - **Reconnexion automatique** avec des délais de 1, 2, 4, 8, 15 puis 30 s. Le profil FTMS
   redemande le contrôle et renvoie la dernière consigne.
 - **Capteur muet** : un appareil connecté sans données depuis 5 s passe à l'état `silent`, avec
-  l'avertissement `sensor-silent`. Il revient à `connected` dès la donnée suivante.
+  l'avertissement `sensor-silent`. Il revient à `connected` dès la donnée suivante. Pendant la
+  sortie, la puce du HUD commence par l'état (« MUET · … », « RECONNEXION… · … »).
+- **Reconnexion au démarrage** : tous les transports, et Web Bluetooth aussi quand le navigateur a
+  gardé l'autorisation (`navigator.bluetooth.getDevices()`, `Transport.canRestoreWithoutGesture`) ;
+  sinon un clic sur « Associer » reste nécessaire.
 - **Lissage 3 s** optionnel (`setSmoothing`). La valeur brute reste disponible (`rawWatts`).
-- **Calibration** : spindown FTMS (0x13 et statut 0x14) ou FE-C (page 1), via les événements
-  `calibration`.
+- **Calibration** : `DeviceManager.startCalibration()` ; spindown FTMS (0x13 et statut 0x14) ou
+  FE-C (pages 1 et 2), relayé par l'événement `calibration` du gestionnaire (avec `deviceId`).
+  Si le bit 15 de 0x2ACC est absent, ou si le trainer répond « Op Code not supported », l'étape est
+  `unsupported` (calibrer dans l'appli du fabricant). Interface : Capteurs → Réglages avancés.
 - **Appairages persistés** : JSON sérialisable (`PairingConfig`), avec un stockage injecté
   (`localStoragePairingStorage`, fichier Tauri…). La restauration reconnecte tout, sauf Web
   Bluetooth, qui exige un geste utilisateur.
@@ -461,7 +482,7 @@ de firmware. Chaque connexion émet l'avertissement `experimental-adapter`.
 | Zwift Play / Click (anciens firmwares chiffrés « Zap ») | `createZapUnlockStrategy()` (opt-in) : ECDH P-256 éphémère (WebCrypto), HKDF-SHA-256, AES-256-CCM (étiquette 4 o) ; repli automatique en clair si la manette ne renvoie pas de clé | vérification sur matériel (aucune capture publique avec clés) | Makinolo, ajchellew/zwiftplay |
 | Zwift Click v2 | palets séparés (0x0A droit, 0x0B gauche) : filtrage des boutons relayés par le gauche, « − » = descendre, RideOn toutes les 3 s (sinon veille au bout d'~1 min), détection du verrou (`ff 03 …` sans écho RideOn → `zwift-controller-locked`) | réponse au défi `ff 03` (clé détenue par Zwift) ; trame `ff 04 00` de « maintien du déverrouillage » (contournement de la fenêtre de 24 h : écartée) | qdomyos-zwift #4743, Torqa #271, ORQWA #306, BikeControl |
 | Zwift Ride v2 (firmware ≥ 1.3) | détection du service masqué (annonce Zwift sans service → `zwift-controller-locked`) ; une fois déverrouillé par l'appli Zwift, même décodage que le Ride | déverrouillage (clé Zwift, voir §10.2) | BikeControl #398 |
-| KICKR HEADWIND | `[04 mode]` (1 arrêt, 2 FC, 3 vitesse, 4 manuel), `[02 %]`, état `FD 01 % mode` ; pas de 25 % par défaut (seules valeurs observées) | vérification des valeurs intermédiaires, ANT+ | BikeControl (bêta) |
+| KICKR HEADWIND | `[04 mode]` (1 arrêt, 2 FC, 3 vitesse, 4 manuel), `[02 %]`, état `FD 01 % mode` ; pas de 25 % par défaut (seules valeurs observées). Le jeu n'utilise que le mode manuel : la consigne est calculée par `FanController` (vitesse du jeu, FC, pente, manuel, arrêt ; bande morte 5 points, 1 envoi / 2 s au plus) | vérification des valeurs intermédiaires, ANT+ | BikeControl (bêta) |
 | Shimano Di2 D-Fly | service `000018ef-5348-494d-414e-4f5f424c4500`, canaux 1–4 : 0x10 court, 0x20 long, 0x40 double, 0xF0 = canal non affecté (ignoré) | « mode boutons » et rapport engagé des Di2 12 v sans fil (service 0x18FF authentifié par le code E-TUBE, non publié) | BikeControl, kelvkk/shimano-di2-media-controls |
 | SRAM AXS | annonces (batterie mV/%, série, firmware) ; caractéristiques en clair (série, modèle, firmware + build, MicroAdjust, compteur) ; appairage SRAMBond v1 hors ligne (DH 128 bits + AES-EAX) ; rapport engagé `d905000b` déchiffré → `shift` avec `realGear` ; sans appairage : appuis anonymes clic simple / double | identité du bouton pressé (chiffrée, format non publié), SRAMBond v2, reconnexion « greet », réglages | GaborWnuk/sram-axs (MPL-2.0), tarekrached/esphome-sram-axs (MIT), BikeControl #234 |
 | ANT+ Controls | page 73 « Generic Command » (haut, bas, sélection, retour…) | — | ANT+ Controls profile |
@@ -473,6 +494,18 @@ commerciale (avant le tag `gpl3` : GPL-3.0). Nous n'en reprenons que des **faits
 ci-dessous, quelle que soit leur licence.
 
 ### 10.1 Utilisation
+
+Activation dans le jeu : Capteurs → Réglages avancés → Adaptateurs expérimentaux (persisté avec les
+appairages). Sans adaptateur activé, « Associer » une commande ou un ventilateur l'explique au lieu
+d'ouvrir un sélecteur vide. Web Bluetooth : l'option « afficher tous les appareils »
+(`ScanOptions.acceptAll` → `acceptAllDevices`) montre les appareils qui n'annoncent pas leur service
+(Di2, certains HEADWIND). Le rôle « vitesses » n'est attribué que si un profil de boutons est branché.
+
+**Commandes locales** (sans protocole propriétaire) : manette via l'API Gamepad (« standard mapping » :
+RB / LB et croix ↑ ↓ = pignon, RT / LT = plateau) ; télécommandes HID (Bluetooth ou USB, vues par
+l'OS comme des claviers — Web Bluetooth bloque d'ailleurs le service HID 0x1812) via `KeyboardShifter`
+avec un identifiant `hid` : piste suivante / précédente par défaut, autres touches apprises dans
+l'interface.
 
 - **Click v2** : le type de palet vient des données fabricant (`0x094A`, transmises par l'app desktop ;
   clé décimale `"2378"`). En Web Bluetooth, sans données fabricant, le nom « Zwift Click » et le service
@@ -591,20 +624,24 @@ d'une mesure de protection ; tout le reste est documenté ici et laissé de côt
 ## 11. Simulateur
 
 `SimulatorTransport` expose un trainer FTMS, des pédales CPS (type Assioma), un TICKR, un Zwift
-Click et un HEADWIND comme de **vrais serveurs GATT** : les octets passent par les mêmes encodeurs
-et décodeurs que le matériel. Ses caractéristiques :
+Click, un HEADWIND et un Di2 en D-Fly comme de **vrais serveurs GATT** : les octets passent par les
+mêmes encodeurs et décodeurs que le matériel. Ses caractéristiques :
 
 - modèle : ERG asservi sur la puissance *lue par le trainer* (biais d'étalonnage réglable),
   constante de temps de 1,5 s ; vitesse d'équilibre sur route ; FC du premier ordre (30 s) ;
 - bruit gaussien déterministe (`seed`), horloge injectable (`ManualClock` pour les tests) ;
 - injection de pannes : `dropConnection(clé, durée)`, `silence(clé, durée)`, `denyControl`
   (simule un Edge qui pilote déjà), `pedals.combinedMode = false` (Assioma sur une pédale),
-  `pressClick('plus' | 'minus')`.
+  `trainer.spinDown = false` (trainer sans spin-down FTMS), `pressClick('plus' | 'minus')`,
+  `pressDfly(canal, 'short' | 'long' | 'double')`.
+- dans le client en développement, `window.__arSim` donne accès au simulateur depuis la console.
 
 Les tests d'intégration (`packages/devices/test`) couvrent le flux FTMS complet, la reconnexion,
 le capteur muet, la convergence du power match, la cohabitation Edge, l'alerte Assioma, les
 transports natifs (pont Tauri factice adossé au simulateur, DirCon avec réponses découpées en
-morceaux), Web Bluetooth (faux `navigator.bluetooth`) et ANT+ (FE-C, PWR avec TE/PS, HR).
+morceaux), Web Bluetooth (faux `navigator.bluetooth`, reconnexion par `getDevices()`) et ANT+ (FE-C,
+PWR avec TE/PS, HR), la calibration FTMS et FE-C, le ventilateur asservi et le Di2 en D-Fly
+(`hardware-paths.test.ts`). Validation sur le vrai matériel : `docs/HARDWARE_TEST.md`.
 
 ---
 

@@ -16,17 +16,17 @@ Chaque jalon n'est déclaré terminé qu'après vérification : tests (protocole
 ## Jalon 1 — Premier coup de pédale
 
 - [x] Boucle d'environ 10 km en vallée de Chevreuse : relief IGN, routes OSM, tirée des sorties Garmin
-- [ ] KICKR CORE / CORE 2 en FTMS (simulation de pente), Assioma en CPS, TICKR en HRS — Web Bluetooth et Tauri
+- [x] KICKR CORE / CORE 2 en FTMS (simulation de pente), Assioma en CPS, TICKR en HRS — Web Bluetooth et Tauri — fait en simulation, à valider sur le vrai matériel (`docs/HARDWARE_TEST.md` §2–4) ; coque Tauri jamais compilée sous Windows depuis les derniers ajouts
 - [x] Physique de Martin, vitesse calculée par le jeu, pente envoyée au trainer (difficulté 50 %)
 - [x] HUD complet : puissance (3 s), FC, cadence, vitesse, distance, temps, pente, profil, mini-carte, balance G/D, rapport
 - [x] Export FIT (balance G/D) validé par le SDK Garmin — TE / PS : seulement via ANT+ PWR (le Bluetooth CPS ne les transmet pas)
 
 ## Jalon 2 — Matériel complet
 
-- [ ] Vitesses virtuelles (24 rapports, Cog ou cassette), Di2 105 12 v en priorité, Click v1/v2, Play, Ride, HID, clavier, manette, compagnon
-- [ ] KICKR HEADWIND asservi (vitesse, FC, pente, manuel)
-- [ ] ANT+ USB (FE-C, PWR, HR), Wahoo Direct Connect (mDNS + TCP)
-- [ ] Power match en ERG, calibration (spindown), reconnexion, capteur muet
+- [x] Vitesses virtuelles (24 rapports, Cog ou cassette), Di2 105 12 v en priorité, Click v1/v2, Play, Ride, HID, clavier, manette — fait en simulation, à valider sur le vrai matériel (`docs/HARDWARE_TEST.md` §7). Restent : rapport réellement engagé du Di2 (protocole E-TUBE non public), Click v2 gauche / Ride v2 sans l'appli Zwift, appli compagnon en sortie solo (elle ne rejoint que les sorties de groupe et les courses)
+- [x] KICKR HEADWIND asservi (vitesse, FC, pente, manuel, arrêt), consigne calculée par le jeu — fait en simulation, à valider sur le vrai matériel (`docs/HARDWARE_TEST.md` §10 ; protocole expérimental, pas de 25 %)
+- [x] ANT+ USB (FE-C, PWR, HR), Wahoo Direct Connect (mDNS + TCP, ajout par IP) — fait en simulation (pont Tauri factice), à valider sur le vrai matériel (`docs/HARDWARE_TEST.md` §8–9) ; limite : un seul capteur ANT+ par type (canal joker)
+- [x] Power match en ERG, calibration (spin-down FTMS et FE-C, guidée dans l'onglet Capteurs), reconnexion, capteur muet (visibles dans le HUD), journal matériel à copier — fait en simulation, à valider sur le vrai matériel (`docs/HARDWARE_TEST.md` §3, 5, 6) ; disposition des pages FE-C 1 et 2 à confirmer
 
 ## Jalon 3 — Beauté
 
