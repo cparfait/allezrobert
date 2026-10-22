@@ -2,6 +2,7 @@ import * as THREE from 'three/webgpu';
 import { AiRider, AI_PROFILES, DraftCalculator, PoseController, TeammateUTurn, createRiderState, paramsFromBike, powerForSpeed, stepRider, airDensity, type AiProfileName, type RiderState } from '@allezrobert/physics';
 import { BASE_PROFILES, DEFAULT_BIKE, DEFAULT_LOOK, FACE_SLIDERS, encodeFace, type AvatarLook, type FaceShape, type RouteTrack } from '@allezrobert/shared';
 import { createAvatar, type RiderAvatarLike } from '../rider/gltfAvatar.ts';
+import { crowdShoes } from '../rider/shoeLook.ts';
 import { crowdBike } from '../rider/bikes.ts';
 import { rng } from '../engine/noise.ts';
 
@@ -125,6 +126,7 @@ export class Peloton {
         skin: ['#f1c27d', '#e0ac69', '#c68642', '#8d5524', '#ffdbac'][i % 5] as string,
         helmet: ['#f4f4f4', '#111111', color][i % 3] as string,
         build: r(),
+        ...crowdShoes(i),
         ...botFace(i, r),
       };
       const avatar = createAvatar(look);
