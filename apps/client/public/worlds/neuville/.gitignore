@@ -1,3 +1,0 @@
-# Tuiles volumineuses régénérées par `pnpm --filter @allezrobert/terrain build:world` (non versionnées).
-# world.json et routes/*.json restent versionnés.
-tiles/

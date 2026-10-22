@@ -1,4 +1,4 @@
-# @allezrobert/terrain — mondes « Vallée de Chevreuse », « Alpe d'Huez », « Mont Ventoux », « Neuville — Le Roussel »
+# @allezrobert/terrain — mondes « Vallée de Chevreuse », « Alpe d'Huez », « Mont Ventoux », « Limagne — Neuville »
 
 Chaîne hors ligne qui fabrique les mondes du jeu à partir du relief IGN, d'OpenStreetMap et (pour
 Chevreuse seulement) des sorties Garmin de l'auteur : itinéraires nettoyés, tuiles d'altitude avec
