@@ -1,7 +1,7 @@
 # @allezrobert/terrain — monde « Vallée de Chevreuse »
 
 Chaîne hors ligne qui fabrique le monde du jeu à partir du relief IGN, d'OpenStreetMap et des
-sorties Garmin de l'auteur : itinéraires nettoyés (boucle du jalon 1 + boucles longues), tuiles
+sorties Garmin de l'auteur : itinéraires nettoyés (boucle du jalon 1 + une boucle par sortie), tuiles
 d'altitude avec routes déjà creusées dans le terrain, entités vectorielles par tuile.
 
 ```bash
@@ -13,7 +13,9 @@ npx vitest run tools/terrain                        # tests (projection, profils
 ```
 
 Options de `build-world.ts` : `--no-ortho` (pas d'orthophotos), `--offline` (cache seul, échoue
-si une donnée manque ; équivalent `TERRAIN_OFFLINE=1`), `--routes-only`.
+si une donnée manque ; équivalent `TERRAIN_OFFLINE=1`), `--routes-only`. `TERRAIN_OUT_DIR=<dossier>`
+construit le monde ailleurs (ex. `data/cache/terrain/stage-world`) pour le recopier d'un coup
+dans `apps/client/public/worlds/chevreuse/` sans priver le client de tuiles pendant ~4 min.
 
 Tout ce qui est téléchargé est conservé dans `data/cache/terrain/` (ignoré par git) : une
 reconstruction ne sollicite plus les services. Ne jamais écrire sur C: (disque plein).
@@ -184,9 +186,23 @@ découpés au bord de la tuile (Sutherland–Hodgman) et simplifiés (0,5 m hi, 
    Note rapide = 4·part roulée + 2·fréquence − 3·trafic − écart de longueur + villages + compacité
    + bonus côte/sprint (profil 10 m) ; puis les 40 meilleurs sont reconstruits finement et
    renotés avec les vrais segments ; une boucle sans KOM ni sprint est écartée.
-6. **Itinéraire** (`route.ts`) : voir ci-dessus ; départ placé hors segments, au plus près du
-   principal village traversé.
-7. **Tuiles** (`tiles.ts`, `roads3d.ts`) : profils 3D de toutes les routes OSM (altitude unique par
+6. **Itinéraires des sorties** (`ridematch.ts`) : un itinéraire par sortie Garmin, fidèle à la
+   trace. Partie gardée = plus long morceau contigu de la partie publique (`trimPrivate`) à plus de
+   300 m du bord du monde (≥ 10 km, sinon la sortie est ignorée). Recalage HMM (Viterbi façon
+   Newson & Krumm) : échantillons tous les 15 m, ≤ 6 arêtes candidates à ≤ 35 m, émission
+   ½ (d/6 m)² (+ pénalité trottoir / site propre / chemin), transition |distance routière − distance
+   à vol d'oiseau| / 8 m. Résultat : marche ordonnée d'arêtes entières (voies à plus de 100 m du
+   bord), demi-tours retirés (injouables), extrémités au carrefour le plus proche. Boucle refermée
+   par le plus court chemin cyclable entre la fin et le début (routes roulées un peu préférées,
+   grands axes un peu évités). Le rapport privé `data/cache/terrain/analysis/ride-routes.json`
+   donne, par sortie, distance/D+ Garmin, partie gardée, écart de recalage, demi-tours, fermeture.
+   Nom : « Boucle de <départ> par <A> et <B> » (communes les plus peuplées de la partie roulée).
+   Les sorties partent et reviennent hors du monde (≥ 3,4 km du bord) : seule la partie dans le
+   monde est reprise, la fermeture remplace l'approche depuis le domicile.
+7. **Itinéraire** (`route.ts`) : voir ci-dessus ; départ placé hors segments, au plus près du
+   principal village traversé (de la partie roulée pour une sortie). Là où l'itinéraire repasse
+   sur la même voie, une seule altitude (moyenne des passages, correction lissée).
+8. **Tuiles** (`tiles.ts`, `roads3d.ts`) : profils 3D de toutes les routes OSM (altitude unique par
    nœud, égale à celle de l'itinéraire s'il y passe → continuité aux carrefours), creusement, entités.
 
 ## Résultat actuel (octobre 2026)
@@ -196,11 +212,18 @@ découpés au bord de la tuile (Sutherland–Hodgman) et simplifiés (0,5 m hi, 
   des routes déjà roulées. Départ à Chevreuse ; D 58 (vallée de l'Yvette, 3,75 km) → D 91
   (2,8 km) → D 13 par le plateau (3,5 km). Segments : KOM « Côte des 17 Tournants » 1 358 m à
   5,4 % (pente max 7,8 %) ; sprint « Sprint de Saint-Forget » 500 m sur le plateau.
-- `grande-boucle-chevreuse` 26,2 km D+ 356 m (4 KOM dont « Côte de Buloyer », 2 sprints),
-  `boucle-rambouillet` 30,6 km D+ 268 m, `boucle-saclay` 28,1 km D+ 379 m.
-- 561 tuiles (corridor 33 × 17 km : lon ≈ 1,77–2,21, lat ≈ 48,61–48,76), dont 134 en 2 m.
-  Tailles : `.hi.u16` 67 Mo, `.lo.u16` 18 Mo, `.json` 52 Mo, `.ortho.jpg` 12 Mo — **≈ 150 Mo**
-  (non versionnés) ; `world.json` 96 Ko et `routes/` 2,3 Mo (versionnés).
+- Sorties Garmin (7) : 4 ont assez de parcours dans le monde. Partie gardée recalée à ≤ 0,5 %
+  près de la trace GPS (demi-tours compris).
+
+  | Itinéraire | Partie roulée gardée | Fermeture | Longueur | D+ |
+  | --- | --- | --- | --- | --- |
+  | `boucle-toussus-le-noble-villiers-le-bacle` | 20,0 km | 12,4 km | 32,2 km | 190 m |
+  | `boucle-voisins-le-bretonneux-chevreuse` | 37,4 km | 8,8 km | 46,0 km | 379 m |
+  | `boucle-gif-sur-yvette-gometz-la-ville` | 33,5 km (2,1 km de demi-tours retirés) | 17,0 km | 50,1 km | 516 m |
+  | `boucle-voisins-le-bretonneux-les-molieres` | 58,2 km | 18,3 km | 76,2 km | 821 m |
+- 561 tuiles (corridor 33 × 17 km : lon ≈ 1,77–2,21, lat ≈ 48,61–48,76), dont 204 en 2 m.
+  Tailles : `.hi.u16` 102 Mo, `.lo.u16` 18 Mo, `.json` 54 Mo, `.ortho.jpg` 14 Mo — **≈ 190 Mo**
+  (non versionnés) ; `world.json` 96 Ko et `routes/` 5,4 Mo (versionnés).
 - Cache : MNT ≈ 850 Mo (1 m sur ~205 km², 8 m sur le corridor), OSM 168 Mo, orthos 12 Mo.
 
 ## Limites connues

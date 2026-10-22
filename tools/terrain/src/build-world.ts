@@ -4,7 +4,7 @@
  *
  * 1. Traces Garmin (privées) → points sensibles, recalage, fréquentation des routes.
  * 2. OSM (Overpass, cache) + MNT IGN (WMS-R, cache).
- * 3. Boucle du jalon 1 (~10 km) + itinéraires plus longs.
+ * 3. Boucle du jalon 1 (~10 km) + un itinéraire par sortie Garmin (partie publique, fidèle à la trace).
  * 4. Tuiles d'altitude creusées + entités, world.json.
  * 5. Audit vie privée des sorties.
  */
@@ -26,7 +26,10 @@ import {
   ORIGIN_L93,
   OUT_DIR,
   PRIVACY_RADIUS_M,
+  RIDE_ROUTE_MIN_M,
+  RIDE_RUN_MARGIN_M,
   TILE_SIZE_M,
+  WORLD_EDGE_MARGIN_M,
   WORLD_ID,
   WORLD_NAME,
 } from './config.ts';
@@ -34,9 +37,9 @@ import { Dem, DemStack } from './dem.ts';
 import { corridorWgs84, OSM_CHUNK } from './corridor.ts';
 import { distPointRect, tileId, tileRect, wgs84BoxToRect, worldToL93, type Rect } from './frame.ts';
 import { resampleOpen, smooth1d, type Box, type Pt } from './geom.ts';
-import { loadRides, sensitivePoints, trimPrivate, type GpxPoint } from './gpx.ts';
-import { RoadGraph } from './graph.ts';
-import { enumerateCycles, scoreCycle, segmentBonus, type CycleScore, type LoopSearchOptions } from './loop.ts';
+import { loadRides, longestRun, rideStats, sensitivePoints, trimPrivate, type GpxPoint } from './gpx.ts';
+import { RoadGraph, type Edge } from './graph.ts';
+import { bikeable, busyWeight, cyclePolyline, enumerateCycles, scoreCycle, segmentBonus, type CycleScore, type LoopSearchOptions } from './loop.ts';
 import { matchRide } from './mapmatch.ts';
 import { setOffline } from './net.ts';
 import { fetchOrtho } from './ortho.ts';
@@ -45,7 +48,8 @@ import { fetchOsm } from './overpass.ts';
 import { assertCorridorSafe, auditWorldDir } from './privacy.ts';
 import { detectClimbs, detectSprints } from './profile.ts';
 import { buildRoads3d, type RouteOnGraph } from './roads3d.ts';
-import { buildRoute, climbName, slug, sprintName, type BuiltRoute } from './route.ts';
+import { closeWalk, matchWalk } from './ridematch.ts';
+import { buildRoute, climbName, frenchDe, slug, sprintName, type BuiltRoute } from './route.ts';
 import { buildTile, TileBuckets, type CarveLine, type TileInputs, type TileResult, type TileRoad } from './tiles.ts';
 
 const args = new Set(process.argv.slice(2));
@@ -54,50 +58,6 @@ const ROUTES_ONLY = args.has('--routes-only');
 if (args.has('--offline')) setOffline(true);
 
 const KEY_PLACES = ['Chevreuse', 'Saint-Rémy-lès-Chevreuse', 'Dampierre-en-Yvelines', 'Milon-la-Chapelle', 'Saint-Lambert', 'Senlisse', 'Saint-Forget', 'Choisel'];
-
-interface ExtraRouteSpec {
-  id: string;
-  name: string;
-  nameEn: string;
-  area: { west: number; south: number; east: number; north: number };
-  minLen: number;
-  maxLen: number;
-  targetLen: number;
-  keyPlaces: string[];
-}
-
-const EXTRA_ROUTES: ExtraRouteSpec[] = [
-  {
-    id: 'grande-boucle-chevreuse',
-    name: 'Grande boucle de la vallée de Chevreuse',
-    nameEn: 'Chevreuse valley grand loop',
-    area: { west: 1.93, south: 48.65, east: 2.16, north: 48.755 },
-    minLen: 20000,
-    maxLen: 30000,
-    targetLen: 25000,
-    keyPlaces: ['Chevreuse', 'Saint-Rémy-lès-Chevreuse', 'Dampierre-en-Yvelines', 'Cernay-la-Ville', 'Senlisse', 'Gif-sur-Yvette', 'Saint-Lambert', 'Magny-les-Hameaux'],
-  },
-  {
-    id: 'boucle-rambouillet',
-    name: 'Boucle de la forêt de Rambouillet',
-    nameEn: 'Rambouillet forest loop',
-    area: { west: 1.775, south: 48.615, east: 2.02, north: 48.73 },
-    minLen: 26000,
-    maxLen: 40000,
-    targetLen: 32000,
-    keyPlaces: ['Rambouillet', 'Les Essarts-le-Roi', 'Auffargis', 'Cernay-la-Ville', 'Le Perray-en-Yvelines', 'Vieille-Église-en-Yvelines', 'Saint-Léger-en-Yvelines', 'Poigny-la-Forêt', 'Dampierre-en-Yvelines'],
-  },
-  {
-    id: 'boucle-saclay',
-    name: 'Boucle du plateau de Saclay',
-    nameEn: 'Saclay plateau loop',
-    area: { west: 2.02, south: 48.665, east: 2.205, north: 48.755 },
-    minLen: 22000,
-    maxLen: 36000,
-    targetLen: 28000,
-    keyPlaces: ['Saclay', 'Saint-Aubin', 'Villiers-le-Bâcle', 'Gif-sur-Yvette', 'Châteaufort', 'Toussus-le-Noble', 'Magny-les-Hameaux', 'Saint-Rémy-lès-Chevreuse'],
-  },
-];
 
 function log(s: string): void {
   console.log(s);
@@ -311,6 +271,45 @@ function describeRoute(r: RouteData): string {
   return `${r.name} : ${(r.lengthM / 1000).toFixed(2)} km, D+ ${r.elevationGainM.toFixed(0)} m, ${r.points.length} points — ${segs}`;
 }
 
+function km(m: number): number {
+  return Math.round(m / 10) / 100;
+}
+
+/**
+ * Nom d'un itinéraire de sortie : « Boucle de <départ> par <A> et <B> », A et B étant les
+ * communes les plus peuplées traversées par la partie roulée (`ridden`), dans l'ordre de passage.
+ */
+function nameRideRoute(r: RouteData, pois: Poi[], ridden: Set<string>, used: Set<string>): { id: string; name: string; nameEn: string } {
+  const towns = new Map<string, Poi>();
+  for (const p of pois) if (/^(village|town)$/.test(p.kind) && p.name && !towns.has(p.name)) towns.set(p.name, p);
+  const seen = new Set<string>();
+  const order = (r.landmarks ?? []).filter((l) => towns.has(l.name) && ridden.has(l.name) && !seen.has(l.name) && seen.add(l.name));
+  if (!order.length) return { id: `boucle-${Math.round(r.lengthM / 1000)}-km`, name: `Boucle de ${Math.round(r.lengthM / 1000)} km`, nameEn: `${Math.round(r.lengthM / 1000)} km loop` };
+  const p0 = r.points[0]!;
+  const dist0 = (n: string) => Math.hypot(towns.get(n)!.x - p0.x, towns.get(n)!.z - p0.z);
+  const start = order.slice().sort((a, b) => dist0(a.name) - dist0(b.name))[0]!.name;
+  const rest = order.filter((l) => l.name !== start);
+  const pop = (n: string) => towns.get(n)!.population ?? 0;
+  let out = { id: '', name: '', nameEn: '' };
+  for (let k = 2; k <= 3; k++) {
+    const via = rest
+      .slice()
+      .sort((a, b) => pop(b.name) - pop(a.name))
+      .slice(0, k)
+      .sort((a, b) => a.d - b.d)
+      .map((l) => l.name);
+    const list = via.length > 1 ? `${via.slice(0, -1).join(', ')} et ${via[via.length - 1]}` : (via[0] ?? '');
+    const listEn = via.length > 1 ? `${via.slice(0, -1).join(', ')} and ${via[via.length - 1]}` : (via[0] ?? '');
+    out = {
+      id: slug(['boucle', start, ...via.slice(0, 1)].join(' ')),
+      name: list ? `Boucle ${frenchDe(start)} par ${list}` : `Boucle ${frenchDe(start)}`,
+      nameEn: listEn ? `${start} loop via ${listEn}` : `${start} loop`,
+    };
+    if (!used.has(out.name)) break;
+  }
+  return out;
+}
+
 async function main(): Promise<void> {
   const t0 = Date.now();
   fs.mkdirSync(path.join(OUT_DIR, 'routes'), { recursive: true });
@@ -395,39 +394,101 @@ async function main(): Promise<void> {
   log(`   fréquentation : ${(mainLoop.score.ridden * 100).toFixed(0)} % de la boucle déjà roulée ; trafic ${mainLoop.score.busy.toFixed(2)} ; pente max ${mainLoop.built.maxGradePct.toFixed(1)} % ; Δpente max ${(mainLoop.built.maxGradeChangePer20m * 100).toFixed(1)} %/20 m`);
   const picked: Array<{ built: BuiltRoute; main: boolean }> = [{ built: mainLoop.built, main: true }];
 
-  // 6. itinéraires plus longs
-  log('6. Itinéraires secondaires');
-  const avoid = new Set(mainLoop.built.edgeOf);
-  for (const spec of EXTRA_ROUTES) {
+  // 6. un itinéraire par sortie Garmin : partie publique recalée sur OSM, boucle refermée
+  log('6. Itinéraires des sorties Garmin');
+  const edgeInWorld = (e: Edge) =>
+    e.pts.every((p) => p[0] >= corridor.minX + WORLD_EDGE_MARGIN_M && p[0] <= corridor.maxX - WORLD_EDGE_MARGIN_M && p[1] >= corridor.minZ + WORLD_EDGE_MARGIN_M && p[1] <= corridor.maxZ - WORLD_EDGE_MARGIN_M);
+  const rideUsable = (e: Edge) => !/^(motorway|trunk)(_link)?$/.test(e.road.kind) && edgeInWorld(e);
+  // trottoirs, sites propres bus, chemins : seulement s'il n'y a pas de chaussée voisine
+  const ridePenalty = (e: Edge) => (/^(footway|pedestrian|busway|bridleway|corridor|platform)$/.test(e.road.kind) ? 4 : /^(path|track)$/.test(e.road.kind) ? 1.5 : e.road.kind === 'service' ? 0.5 : 0);
+  // fermeture : plus court chemin cyclable, routes roulées un peu préférées, grands axes un peu évités
+  const closureCost = (e: Edge) => (bikeable(e) && edgeInWorld(e) ? e.len * (1 + 0.6 * busyWeight(e.road.kind)) * (e.rides > 0 ? 0.85 : 1) : Infinity);
+  const runRect: Rect = { minX: corridor.minX + RIDE_RUN_MARGIN_M, minZ: corridor.minZ + RIDE_RUN_MARGIN_M, maxX: corridor.maxX - RIDE_RUN_MARGIN_M, maxZ: corridor.maxZ - RIDE_RUN_MARGIN_M };
+  const rideReport: Array<Record<string, unknown>> = [];
+  const rideRoutes: BuiltRoute[] = [];
+  const usedIds = new Set<string>([mainLoop.built.data.id]);
+  const usedNames = new Set<string>([mainLoop.built.data.name]);
+  for (const [i, r] of rides.entries()) {
+    const label = `sortie ${i + 1}`;
+    const garmin = rideStats(r.points);
+    const pub = new Set(trimPrivate(r.points, sensitive, PRIVACY_RADIUS_M));
+    const run = longestRun(r.points, (p) => pub.has(p) && inRect(p.x, p.z, runRect));
+    const runStats = rideStats(run);
+    const rep: Record<string, unknown> = { ride: label, file: r.file, garminKm: km(garmin.distanceM), garminGainM: Math.round(garmin.gainM), keptGpsKm: km(runStats.distanceM), keptGainM: Math.round(runStats.gainM) };
+    rideReport.push(rep);
+    if (runStats.distanceM < RIDE_ROUTE_MIN_M) {
+      log(`   ${label} : ${km(garmin.distanceM)} km, seulement ${km(runStats.distanceM)} km contigus dans le monde → pas d'itinéraire`);
+      rep.skipped = true;
+      continue;
+    }
     try {
-      const area = wgs84BoxToRect(spec.area);
-      const r = searchLoop(
-        g,
-        dem,
-        osm.pois,
-        { area, minLen: spec.minLen, maxLen: spec.maxLen, targetLen: spec.targetLen, keyPlaces: spec.keyPlaces, maxHubs: 110, pairsPerHub: 8, avoidEdges: avoid, seed: 7 },
-        spec.id,
-        spec.name,
-        spec.nameEn,
-        12,
-      );
-      if (!r) {
-        log(`   ${spec.id} : aucune boucle`);
+      const w = matchWalk(g, run, rideUsable, ridePenalty);
+      if (!w) throw new Error('recalage impossible');
+      const closed = closeWalk(g, w, closureCost);
+      if (!closed) throw new Error('boucle impossible à refermer');
+      // doublon d'une sortie déjà convertie (même parcours à 80 %) ?
+      const set = new Set(closed.cycle.edges);
+      const dup = rideRoutes.find((b) => {
+        const other = new Set(b.edgeOf);
+        let inter = 0;
+        for (const e of set) if (other.has(e)) inter++;
+        return inter / (set.size + other.size - inter) > 0.8;
+      });
+      if (dup) {
+        log(`   ${label} : même parcours que ${dup.data.id} → ignorée`);
+        rep.duplicateOf = dup.data.id;
         continue;
       }
-      // MNT fin le long de l'itinéraire puis reconstruction
-      for (const t of tilesNear(r.built.data.points, HI_RES_MARGIN_SECONDARY_M)) {
+      // MNT fin le long de la boucle
+      const poly = cyclePolyline(g, closed.cycle);
+      for (const t of tilesNear(poly.pts.map(([x, z]) => ({ x, z })), HI_RES_MARGIN_SECONDARY_M)) {
         const [tx, tz] = t.split('_').map(Number) as [number, number];
         await ensureHiForRect(hi, tileRect(tx, tz));
       }
-      const rebuilt = buildRoute(g, r.score.cycle, dem, osm.pois, { id: spec.id, name: spec.name, nameEn: spec.nameEn, maxKoms: 4, maxSprints: 2 });
-      picked.push({ built: rebuilt, main: false });
-      log(`   ${describeRoute(rebuilt.data)}`);
-      log(`   routes : ${roadRuns(g, rebuilt.edgeOf, rebuilt.data.stepM ?? 2)}`);
+      // départ : la commune la plus peuplée traversée par la partie réellement roulée
+      const walkPts = w.edges.flatMap((eid) => g.edges[eid]!.pts.filter((_, k) => k % 3 === 0));
+      const near = (p: Poi) => walkPts.some((q) => Math.hypot(q[0] - p.x, q[1] - p.z) < 300);
+      const startPoi = osm.pois
+        .filter((p) => /^(village|town)$/.test(p.kind) && p.name && near(p))
+        .sort((a, b) => (b.population ?? 0) - (a.population ?? 0))[0];
+      const built = buildRoute(g, closed.cycle, dem, osm.pois, { id: 'sortie', name: 'Boucle', maxKoms: 4, maxSprints: 2, ...(startPoi ? { startNear: [startPoi.x, startPoi.z] as Pt } : {}) });
+      // nom : seulement des communes de la partie roulée (pas de la fermeture)
+      const ridden = new Set(osm.pois.filter((p) => /^(village|town)$/.test(p.kind) && p.name && walkPts.some((q) => Math.hypot(q[0] - p.x, q[1] - p.z) < 400)).map((p) => p.name));
+      const named = nameRideRoute(built.data, osm.pois, ridden, usedNames);
+      let id = named.id;
+      for (let k = 2; usedIds.has(id); k++) id = `${named.id}-${k}`;
+      usedIds.add(id);
+      usedNames.add(named.name);
+      built.data.id = id;
+      built.data.name = named.name;
+      built.data.nameEn = named.nameEn;
+      rideRoutes.push(built);
+      Object.assign(rep, {
+        id,
+        matchedKm: km(w.matchedM),
+        matchErrPct: Math.round(((w.matchedM + w.spursM) / w.gpsLengthM - 1) * 1000) / 10,
+        uTurnsRemovedM: Math.round(w.spursM),
+        keptInLoopKm: km(closed.keptM),
+        closureKm: km(closed.closureM),
+        routeKm: km(built.data.lengthM),
+        routeGainM: Math.round(built.data.elevationGainM),
+      });
+      log(
+        `   ${label} : Garmin ${km(garmin.distanceM)} km D+ ${Math.round(garmin.gainM)} m ; partie conservée ${km(runStats.distanceM)} km (GPS) → ` +
+          `recalée ${km(w.matchedM)} km (écart ${(((w.matchedM + w.spursM) / w.gpsLengthM - 1) * 100).toFixed(1)} % avant retrait de ${Math.round(w.spursM)} m de demi-tours) ; ` +
+          `boucle = ${km(closed.keptM)} km roulés + ${km(closed.closureM)} km de fermeture`,
+      );
+      log(`   ${describeRoute(built.data)}`);
+      log(`   routes : ${roadRuns(g, built.edgeOf, built.data.stepM ?? 2)}`);
     } catch (err) {
-      log(`   ! ${spec.id} : ${(err as Error).message}`);
+      log(`   ! ${label} : ${(err as Error).message}`);
+      rep.error = (err as Error).message;
     }
   }
+  // rapport privé (noms de fichiers Garmin) : jamais dans les sorties versionnées
+  fs.writeFileSync(path.join(analysisDir, 'ride-routes.json'), JSON.stringify(rideReport, null, 1));
+  rideRoutes.sort((a, b) => a.data.lengthM - b.data.lengthM);
+  for (const b of rideRoutes) picked.push({ built: b, main: false });
 
   // contrôle vie privée des itinéraires avant écriture
   for (const p of picked) {

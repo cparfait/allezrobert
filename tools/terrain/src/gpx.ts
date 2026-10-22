@@ -91,3 +91,50 @@ export function trimPrivate(points: GpxPoint[], sensitive: Array<{ x: number; z:
     return sensitive.every((s) => Math.hypot(p.x - s.x, p.z - s.z) >= radius);
   });
 }
+
+/** Distance géodésique (haversine, sphère de 6 371 km) et dénivelé positif d'une trace. */
+export function rideStats(points: GpxPoint[], hysteresisM = 1): { distanceM: number; gainM: number } {
+  const R = 6371008.8;
+  const rad = Math.PI / 180;
+  let distanceM = 0;
+  for (let i = 1; i < points.length; i++) {
+    const a = points[i - 1]!;
+    const b = points[i]!;
+    const s = Math.sin(((b.lat - a.lat) * rad) / 2) ** 2 + Math.cos(a.lat * rad) * Math.cos(b.lat * rad) * Math.sin(((b.lon - a.lon) * rad) / 2) ** 2;
+    distanceM += 2 * R * Math.asin(Math.min(1, Math.sqrt(s)));
+  }
+  let gainM = 0;
+  let ref = NaN;
+  for (const p of points) {
+    if (!Number.isFinite(p.ele)) continue;
+    if (!Number.isFinite(ref) || p.ele < ref) ref = p.ele;
+    else if (p.ele - ref >= hysteresisM) {
+      gainM += p.ele - ref;
+      ref = p.ele;
+    }
+  }
+  return { distanceM, gainM };
+}
+
+/** Plus long morceau contigu (en distance) de points satisfaisant `keep`. */
+export function longestRun(points: GpxPoint[], keep: (p: GpxPoint, i: number) => boolean): GpxPoint[] {
+  let best: GpxPoint[] = [];
+  let bestLen = 0;
+  let cur: GpxPoint[] = [];
+  let curLen = 0;
+  points.forEach((p, i) => {
+    if (keep(p, i)) {
+      const last = cur[cur.length - 1];
+      if (last) curLen += Math.hypot(p.x - last.x, p.z - last.z);
+      cur.push(p);
+      if (curLen > bestLen) {
+        best = cur;
+        bestLen = curLen;
+      }
+    } else {
+      cur = [];
+      curLen = 0;
+    }
+  });
+  return best;
+}

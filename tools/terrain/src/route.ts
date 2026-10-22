@@ -26,7 +26,7 @@ export interface BuiltRoute {
 const PLACE_KINDS = /^(village|town|hamlet|suburb|neighbourhood|locality|isolated_dwelling|quarter|city)$/;
 
 /** « de » à la française : de Chevreuse, d'Orsigny, du Mesnil, des Molières, de la Madeleine. */
-const MASC = /^(Carrefour|Bois|Moulin|Pont|Château|Mont|Val|Petit|Grand|Parc|Port|Trou|Christ|Domaine|Hameau|Clos|Champ|Chêne|Gué|Buisson|Pavillon|Rond-Point|Plateau|Village|Bout|Haut|Fond|Marais|Pré|Vieux|Fort|Moulin|Étang|Prieuré|Manoir|Mesnil|Plessis|Vivier)\b/;
+const MASC = /^(Carrefour|Bois|Moulin|Pont|Château|Mont|Val|Petit|Grand|Parc|Port|Trou|Christ|Domaine|Hameau|Clos|Champ|Chêne|Gué|Buisson|Pavillon|Rond-Point|Plateau|Village|Bout|Haut|Fond|Marais|Pré|Vieux|Fort|Moulin|Étang|Prieuré|Manoir|Mesnil|Plessis|Vivier|Rocher)\b/;
 const FEM = /^(Plaine|Maison|Ferme|Croix|Mare|Butte|Forêt|Route|Vallée|Côte|Porte|Grange|Fontaine|Petite|Grande|Haute|Basse|Vieille|Tour|Chapelle|Garenne|Futaie|Queue|Lande|Source|Cour|Rue|Sente|Allée|Abbaye)\b/;
 
 export function frenchDe(name: string): string {
@@ -186,6 +186,8 @@ export function buildRoute(g: RoadGraph, cycle: DirectedCycle, dem: DemStack, po
   let hs = pre.h;
   let xs = pts.map((p) => p[0]);
   let zs = pts.map((p) => p[1]);
+  // passages multiples sur une même voie (sorties réelles) : une seule altitude par endroit
+  hs = harmonizeOverlaps(xs, zs, hs, edgeOf, step);
   let minI = 0;
   for (let i = 1; i < n; i++) if (hs[i]! < hs[minI]!) minI = i;
   const rot = <T>(a: T[], m: number) => [...a.slice(m), ...a.slice(0, m)];
@@ -354,4 +356,55 @@ export function interpolateMasked(v: number[], mask: boolean[]): number[] {
     out[i] = (v[a]! * db + v[b]! * da) / (da + db);
   }
   return out;
+}
+
+/**
+ * Altitude unique là où l'itinéraire repasse sur la même arête (répétitions, fermeture qui
+ * reprend une voie déjà roulée) : chaque point superposé (< 2,5 m, même arête, à plus de 60 m
+ * le long du parcours) est ramené vers la moyenne des passages. La correction est lissée
+ * (σ = 10 m) pour ne pas créer de marche aux entrées/sorties des tronçons communs ; quelques
+ * itérations suffisent. Les ponts et ce qu'ils enjambent sont des arêtes distinctes : intacts.
+ */
+export function harmonizeOverlaps(xs: number[], zs: number[], hs: number[], edgeOf: number[], step: number, iterations = 6): number[] {
+  const n = hs.length;
+  const cell = 4;
+  const grid = new Map<string, number[]>();
+  for (let i = 0; i < n; i++) {
+    const k = `${Math.floor(xs[i]! / cell)}_${Math.floor(zs[i]! / cell)}`;
+    let l = grid.get(k);
+    if (!l) grid.set(k, (l = []));
+    l.push(i);
+  }
+  const minGap = Math.round(60 / step);
+  const partners: number[][] = new Array(n);
+  let any = false;
+  for (let i = 0; i < n; i++) {
+    const cx = Math.floor(xs[i]! / cell);
+    const cz = Math.floor(zs[i]! / cell);
+    const out: number[] = [];
+    for (let dx = -1; dx <= 1; dx++)
+      for (let dz = -1; dz <= 1; dz++)
+        for (const j of grid.get(`${cx + dx}_${cz + dz}`) ?? []) {
+          const gap = Math.min(Math.abs(i - j), n - Math.abs(i - j));
+          if (gap < minGap || edgeOf[j] !== edgeOf[i]) continue;
+          if (Math.hypot(xs[j]! - xs[i]!, zs[j]! - zs[i]!) < 2.5) out.push(j);
+        }
+    if (out.length) any = true;
+    partners[i] = out;
+  }
+  if (!any) return hs;
+  let h = hs.slice();
+  for (let it = 0; it < iterations; it++) {
+    const corr = new Array<number>(n).fill(0);
+    for (let i = 0; i < n; i++) {
+      const p = partners[i]!;
+      if (!p.length) continue;
+      let s = h[i]!;
+      for (const j of p) s += h[j]!;
+      corr[i] = s / (p.length + 1) - h[i]!;
+    }
+    const sm = smooth1d(corr, 10 / step, true);
+    h = h.map((v, i) => v + sm[i]!);
+  }
+  return h;
 }

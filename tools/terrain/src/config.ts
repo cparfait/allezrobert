@@ -10,7 +10,8 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 export const REPO_ROOT = path.resolve(here, '../../..');
 export const CACHE_DIR = path.join(REPO_ROOT, 'data', 'cache', 'terrain');
 export const GARMIN_DIR = path.join(REPO_ROOT, 'data', 'garmin');
-export const OUT_DIR = path.join(REPO_ROOT, 'apps', 'client', 'public', 'worlds', 'chevreuse');
+/** Dossier du monde ; `TERRAIN_OUT_DIR` permet de construire à côté puis de basculer d'un coup. */
+export const OUT_DIR = process.env.TERRAIN_OUT_DIR ? path.resolve(process.env.TERRAIN_OUT_DIR) : path.join(REPO_ROOT, 'apps', 'client', 'public', 'worlds', 'chevreuse');
 
 export const WORLD_ID = 'chevreuse';
 export const WORLD_NAME = 'Vallée de Chevreuse';
@@ -43,6 +44,15 @@ export const HI_RES_MARGIN_SECONDARY_M = 300;
 
 /** Rayon d'exclusion autour des départs/arrivées des sorties Garmin (vie privée). */
 export const PRIVACY_RADIUS_M = 2000;
+
+/**
+ * Itinéraires tirés des sorties Garmin : on garde le plus long morceau contigu de la partie
+ * publique de chaque sortie situé à plus de RIDE_RUN_MARGIN_M du bord du monde (au moins
+ * RIDE_ROUTE_MIN_M), recalé sur des voies entièrement à plus de WORLD_EDGE_MARGIN_M du bord.
+ */
+export const RIDE_ROUTE_MIN_M = 10000;
+export const RIDE_RUN_MARGIN_M = 300;
+export const WORLD_EDGE_MARGIN_M = 100;
 
 /** Pas d'échantillonnage des itinéraires (m). */
 export const ROUTE_STEP_M = 2;
