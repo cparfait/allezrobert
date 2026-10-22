@@ -848,7 +848,8 @@ def build_pedal(tag, lod=0, kind='clipless', toeclips=False):
 def build_wheel_lib(typ, front, lod=0):
     name = f"wheel_{typ}_{'F' if front else 'R'}"
     mb = MB()
-    n = 28 if lod == 0 else 12
+    # Tour de roue : assez de facettes pour que pneu et jante restent ronds de près.
+    n = 64 if lod == 0 else 20
     X = V(1, 0, 0)
     # Pneu : bande de roulement + flancs.
     rc, ar, ax = WHEEL_R - 0.0135, 0.0135, 0.0143
