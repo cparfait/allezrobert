@@ -245,3 +245,25 @@
 .mm-bikefilter button { flex: 1; appearance: none; border: 0; border-radius: 8px; padding: 6px 8px; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; background: none; color: #aeb7c3; }
 .mm-bikefilter button:hover { color: #fff; }
 .mm-bikefilter button.on { background: rgba(255, 255, 255, 0.14); color: #fff; }
+
+/* Éditeur de visage (garage → Visage) */
+.fe { display: flex; flex-direction: column; gap: 10px; }
+.fe-profiles { display: flex; flex-wrap: wrap; gap: 6px; }
+.fe-profiles button, .fe-actions button { padding: 5px 10px; border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.18); background: rgba(255, 255, 255, 0.06); color: inherit; font: inherit; font-size: 13px; cursor: pointer; }
+.fe-profiles button:hover, .fe-actions button:hover:not(:disabled) { background: rgba(255, 210, 63, 0.16); border-color: #ffd23f; }
+.fe-actions button:disabled { opacity: 0.4; cursor: default; }
+.fe-tabs { display: flex; flex-wrap: wrap; gap: 4px; border-bottom: 1px solid rgba(255, 255, 255, 0.12); padding-bottom: 6px; }
+.fe-tabs button { padding: 4px 10px; border: 0; border-radius: 6px; background: transparent; color: rgba(255, 255, 255, 0.7); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+.fe-tabs button.on { background: #ffd23f; color: #111; }
+.fe-sliders { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 14px; max-height: 46vh; overflow-y: auto; padding-right: 4px; }
+.fe-sliders .field, .fe-sliders .fe-grid, .fe-sliders .fe-check { grid-column: 1 / -1; }
+.fe-seg { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.fe-seg button { padding: 5px 10px; border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.18); background: rgba(255, 255, 255, 0.06); color: inherit; font: inherit; font-size: 13px; cursor: pointer; }
+.fe-seg button.on { background: #ffd23f; border-color: #ffd23f; color: #111; font-weight: 700; }
+.fe-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.fe-range { display: flex; flex-direction: column; gap: 2px; font-size: 12px; color: rgba(255, 255, 255, 0.82); }
+.fe-range input { width: 100%; accent-color: #ffd23f; }
+.fe-check { display: flex; align-items: center; gap: 6px; font-size: 13px; }
+.fe-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.fe-actions .fe-check { margin-right: auto; }
+@media (max-width: 700px) { .fe-sliders { grid-template-columns: 1fr; } }

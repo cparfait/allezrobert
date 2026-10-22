@@ -8,6 +8,8 @@ import { spotify, redirectUri } from '../audio/spotify.ts';
 import { loadProgress, equipItem, equipPlainBike, SLOT_LABEL } from './garage.ts';
 import type { GarageView } from './poster.ts';
 import { FriendsPanel } from './friends.ts';
+import { faceEditorHtml, withBaseHead, withProfile, withRandomFace, withSlider, type FaceTab } from './faceEditor.ts';
+import type { FaceSlider } from '@allezrobert/shared';
 import { joinSettings } from './friendsLogic.ts';
 import './menu.css';
 
@@ -108,7 +110,11 @@ export class MainMenu {
   private readonly cb: MenuCallbacks;
   private workoutFile: { name: string; content: string } | undefined;
   private tab: Tab = 'ride';
-  private garageSlot: CosmeticSlot | 'colors' = 'jersey';
+  private garageSlot: CosmeticSlot | 'colors' | 'face' = 'jersey';
+  /** Éditeur de visage : groupe de curseurs, tête nue dans l'aperçu, tenues précédentes (annulation). */
+  private faceTab: FaceTab = 'head';
+  private bareHead = true;
+  private readonly faceUndo: AvatarLook[] = [];
   private bikeFilter: BikeFilter = 'saison-2026';
   /** Panneau affiché (onglet, catégorie, filtre) : sa position de défilement survit à un nouveau rendu. */
   private panelKey = '';
@@ -125,6 +131,12 @@ export class MainMenu {
   onTutorial?: () => void;
   /** « Explorer la carte » : survol libre du monde chargé, sans rouler (Échap pour revenir). */
   onExplore?: () => void;
+  /** Aperçu immédiat d'une tenue (éditeur de visage) sur le coureur du garage, sans reconstruire la scène. */
+  onLookLive?: (look: AvatarLook, bareHead: boolean) => void;
+  /** Éditeur de visage ouvert avec tête nue : l'aperçu garde casque et lunettes masqués. */
+  get bareHeadPreview(): boolean {
+    return this.tab === 'garage' && this.garageSlot === 'face' && this.bareHead;
+  }
   /** Cadrage 3D demandé par le menu : photo du groupe ou vue du garage (rotation en radians). */
   onScene?: (view: 'poster' | GarageView, yaw: number) => void;
   /** Aperçu d'un équipement (même verrouillé) sur le coureur du garage ; null : tenue équipée. */
@@ -462,7 +474,9 @@ export class MainMenu {
       ['cockpit', 'Cockpit'],
     ];
     const items =
-      this.garageSlot === 'colors'
+      this.garageSlot === 'face'
+        ? faceEditorHtml(this.s.look, this.faceTab, this.bareHead, this.faceUndo.length > 0)
+        : this.garageSlot === 'colors'
         ? `<div class="mm-colors">
             <label class="field">${L ? 'Maillot' : 'Jersey'}<input id="m-jersey" type="color" value="${this.s.look.jersey}" /></label>
             <label class="field">${L ? 'Bande du maillot' : 'Jersey stripe'}<input id="m-accent" type="color" value="${this.s.look.jerseyAccent}" /></label>
@@ -493,7 +507,8 @@ export class MainMenu {
         <header class="mm-head"><h2>${L ? 'Ton coureur' : 'Your rider'}</h2>
           <div class="mm-level"><b>${L ? 'Niveau' : 'Level'} ${lp.level}</b><span>${p.xp} XP${lp.nextLevelXp ? ` / ${lp.nextLevelXp}` : ''}</span><i class="mm-xp big"><i style="width:${(lp.progress * 100).toFixed(1)}%"></i></i></div></header>
         <div class="mm-slots">${slots.map((sl) => `<button class="mm-slot ${sl === this.garageSlot ? 'on' : ''}" data-slot="${sl}">${SLOT_LABEL[sl][lang]}</button>`).join('')}
-          <button class="mm-slot ${this.garageSlot === 'colors' ? 'on' : ''}" data-slot="colors">${L ? 'Couleurs' : 'Colours'}</button></div>
+          <button class="mm-slot ${this.garageSlot === 'colors' ? 'on' : ''}" data-slot="colors">${L ? 'Couleurs' : 'Colours'}</button>
+          <button class="mm-slot ${this.garageSlot === 'face' ? 'on' : ''}" data-slot="face">${L ? 'Visage' : 'Face'}</button></div>
         ${items}
         <p class="mm-hint">${L ? 'Les équipements se débloquent en roulant (XP par kilomètre et par mètre de dénivelé). Clique un équipement verrouillé pour l’essayer.' : 'Gear unlocks as you ride (XP per kilometre and metre climbed). Click locked gear to try it on.'}</p>
       </section>`;
@@ -885,16 +900,92 @@ export class MainMenu {
       const n = this.root.querySelector('#m-wname');
       if (n) n.textContent = f.name;
     });
+    // Éditeur de visage : aperçu immédiat pendant le glissement, enregistrement au relâcher.
+    const faceLive = (look: AvatarLook) => {
+      s.look = look;
+      this.onLookLive?.(look, this.bareHeadPreview);
+    };
+    const faceCommit = (before: AvatarLook) => {
+      this.faceUndo.push(before);
+      if (this.faceUndo.length > 30) this.faceUndo.shift();
+      saveSettings(s);
+      this.onSettingsSaved?.(s);
+      const undo = this.root.querySelector<HTMLButtonElement>('#fe-undo');
+      if (undo) undo.disabled = false;
+    };
+    const faceSet = (look: AvatarLook) => {
+      const before = s.look;
+      faceLive(look);
+      faceCommit(before);
+      this.render();
+    };
+    this.root.querySelectorAll<HTMLInputElement>('[data-feslider]').forEach((el) => {
+      let before: AvatarLook | null = null;
+      el.addEventListener('input', () => {
+        before ??= s.look;
+        faceLive(withSlider(s.look, el.dataset.feslider as FaceSlider, Number(el.value)));
+      });
+      el.addEventListener('change', () => {
+        if (before) faceCommit(before);
+        before = null;
+      });
+    });
+    const feNum = (id: string, key: 'beard' | 'freckles') =>
+      on<HTMLInputElement>(id, 'input', (el) => faceLive({ ...s.look, [key]: Number(el.value) }));
+    feNum('fe-beard', 'beard');
+    feNum('fe-freckles', 'freckles');
+    for (const id of ['fe-beard', 'fe-freckles', 'fe-skin', 'fe-hair']) {
+      let before: AvatarLook | null = null;
+      on<HTMLInputElement>(id, 'pointerdown', () => (before = s.look));
+      on<HTMLInputElement>(id, 'change', () => {
+        faceCommit(before ?? s.look);
+        before = null;
+      });
+    }
+    on<HTMLInputElement>('fe-skin', 'input', (el) => faceLive({ ...s.look, skin: el.value }));
+    on<HTMLInputElement>('fe-hair', 'input', (el) => faceLive({ ...s.look, hair: el.value }));
+    on<HTMLInputElement>('fe-moustache', 'change', (el) => faceSet({ ...s.look, moustache: el.checked }));
+    this.root.querySelectorAll<HTMLElement>('#fe-hairstyle [data-v]').forEach((el) =>
+      el.addEventListener('click', () => faceSet({ ...s.look, hairStyle: Number(el.dataset.v) })),
+    );
+    this.root.querySelectorAll<HTMLElement>('[data-feprofile]').forEach((el) =>
+      el.addEventListener('click', () => faceSet(withProfile(s.look, el.dataset.feprofile as string))),
+    );
+    this.root.querySelectorAll<HTMLElement>('[data-fetab]').forEach((el) =>
+      el.addEventListener('click', () => {
+        this.faceTab = el.dataset.fetab as FaceTab;
+        this.render();
+      }),
+    );
+    on('fe-random', 'click', () => faceSet(withRandomFace(s.look)));
+    on('fe-reset', 'click', () => faceSet(withBaseHead(s.look)));
+    on('fe-undo', 'click', () => {
+      const prev = this.faceUndo.pop();
+      if (!prev) return;
+      faceLive(prev);
+      saveSettings(s);
+      this.onSettingsSaved?.(s);
+      this.render();
+    });
+    on<HTMLInputElement>('fe-bare', 'change', (el) => {
+      this.bareHead = el.checked;
+      this.onLookLive?.(s.look, this.bareHeadPreview);
+    });
     // Garage : catégories, objets, vues et rotation de l'aperçu.
     this.root.querySelectorAll<HTMLElement>('[data-slot]').forEach((el) =>
       el.addEventListener('click', () => {
-        this.garageSlot = el.dataset.slot as CosmeticSlot | 'colors';
-        if (this.garageSlot !== 'colors') {
+        const was = this.garageSlot;
+        this.garageSlot = el.dataset.slot as CosmeticSlot | 'colors' | 'face';
+        if (this.garageSlot === 'face') {
+          this.view = 'face';
+          this.yaw = 0;
+        } else if (this.garageSlot !== 'colors') {
           this.view = SLOT_VIEW[this.garageSlot];
           this.yaw = 0;
         }
         this.render();
         this.onScene?.(this.view, this.yaw);
+        if ((was === 'face') !== (this.garageSlot === 'face')) this.onLookLive?.(s.look, this.bareHeadPreview);
       }),
     );
     this.root.querySelectorAll<HTMLElement>('[data-bikefilter]').forEach((el) =>

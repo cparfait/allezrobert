@@ -114,7 +114,7 @@ export async function choosePosterSpot(world: World, track: RouteTrack, season: 
 }
 
 /** Vues du garage autour du coureur du joueur (repère du vélo : +z vers l'avant, y en haut). */
-export type GarageView = '3q' | 'side' | 'front' | 'back' | 'bike' | 'cockpit';
+export type GarageView = '3q' | 'side' | 'front' | 'back' | 'bike' | 'cockpit' | 'face';
 const GARAGE_VIEWS: Record<GarageView, { cam: [number, number, number]; look: [number, number, number]; fov: number }> = {
   '3q': { cam: [2.3, 1.55, 2.7], look: [0, 0.95, 0.15], fov: 34 },
   side: { cam: [3.6, 1.05, 0.25], look: [0, 0.85, 0.25], fov: 34 },
@@ -122,6 +122,8 @@ const GARAGE_VIEWS: Record<GarageView, { cam: [number, number, number]; look: [n
   back: { cam: [-0.4, 1.5, -3.8], look: [0, 1.0, 0.1], fov: 32 },
   bike: { cam: [2.1, 0.7, 0.35], look: [0, 0.5, 0.2], fov: 36 },
   cockpit: { cam: [0.75, 1.45, 1.35], look: [0, 1.0, 0.5], fov: 36 },
+  // Éditeur de visage : gros plan de trois quarts sur la tête.
+  face: { cam: [0.75, 1.6, 2.0], look: [0, 1.38, 0.3], fov: 22 },
 };
 
 const PALETTE = ['#d7f205', '#111418', '#1e5bd8', '#d7f205', '#2b2f36', '#e8ecf0', '#c0392b', '#111418'];
@@ -226,6 +228,14 @@ export class PosterScene {
   setView(view: 'poster' | GarageView, yaw = 0): void {
     this.view = view;
     this.yaw = yaw;
+  }
+
+  /** Tenue du coureur du joueur mise à jour sur place (éditeur de visage : pas de reconstruction). */
+  setPlayerLook(look: AvatarLook, bareHead = false): void {
+    const a = this.riders[0];
+    if (!a) return;
+    a.setLook(look);
+    a.setBareHead?.(bareHead);
   }
 
   clear(): void {

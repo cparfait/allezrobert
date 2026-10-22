@@ -419,3 +419,16 @@ reprises de l'ancien modèle un peu grandes pour ce visage.
   (casqué, puis sans casque de face, de trois quarts et de profil).
 - Limites : visages féminins encore un peu androgynes sous la calotte de cheveux courte ;
   moustache unie (pas de poils).
+
+### Étape 5a — éditeur de visage (fait)
+
+- Garage → « Visage » (`apps/client/src/ui/faceEditor.ts`, logique dans `faceEditorLogic.ts`,
+  testée) : profils de base, curseurs groupés (Tête, Yeux, Nez, Bouche, Corps), « Peau,
+  cheveux » (teint, couleur des cheveux et de la barbe, coiffure, barbe, taches de rousseur,
+  moustache), tête nue ou casquée, aléatoire contrôlé (visage seulement, ± 0,35), annulation
+  (30 pas), retour à la tête de base. Aperçu 3D en gros plan, rotation au glisser ; le coureur
+  suit les curseurs sans reconstruire la scène, enregistrement au relâcher (et envoi au serveur
+  si connecté, comme le reste de la tenue).
+- L'avatar MPFB devient l'avatar par défaut ; l'ancien coureur reste disponible avec
+  `?avatar=classic`.
+- Capture : `docs/screenshots/avatars-editeur.jpg`.

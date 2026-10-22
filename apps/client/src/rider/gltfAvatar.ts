@@ -35,6 +35,8 @@ export interface RiderAvatarLike {
   readonly label: THREE.Sprite | null;
   update(dt: number, cadence: number, speed: number, pose: RiderPose, bank?: number): void;
   setLook(look: AvatarLook): void;
+  /** Tête nue (aperçu de l'éditeur de visage). */
+  setBareHead?(on: boolean): void;
   /** Effort du coureur (puissance / FTP, FC / FC max) : expressions du visage (avatar MPFB). */
   setEffort?(ftpFrac: number, hrFrac?: number): void;
   setHeadVisible(on: boolean): void;
@@ -67,11 +69,11 @@ const RIG_BONES: Record<'classic' | 'mpfb', Partial<Record<BoneName, string>>> =
   },
 };
 
-const MPFB = typeof location !== 'undefined' && new URLSearchParams(location.search).get('avatar') === 'mpfb';
+/** Avatar MPFB (docs/AVATARS.md) par défaut ; l'ancien coureur (cyclist.glb) avec ?avatar=classic. */
+const MPFB = typeof location === 'undefined' || new URLSearchParams(location.search).get('avatar') !== 'classic';
 /**
- * Fichiers du coureur par niveau de détail et distance (m) d'apparition de chaque niveau :
- * cyclist.glb, ou l'avatar MPFB en essai (?avatar=mpfb, docs/AVATARS.md : 28 k, 11 k et 3,4 k
- * triangles pour le corps).
+ * Fichiers du coureur par niveau de détail et distance (m) d'apparition de chaque niveau
+ * (avatar MPFB : 12,6 k, 5 k et 2,5 k triangles pour le corps).
  */
 const FILES: readonly string[] = MPFB ? ['avatar/rider.glb', 'avatar/rider_lod1.glb', 'avatar/rider_lod2.glb'] : ['cyclist.glb', 'cyclist_lod1.glb'];
 const LOD_DISTANCES: readonly number[] = MPFB ? [0, 10, 30] : [0, 30];
@@ -526,6 +528,8 @@ export class GltfRiderAvatar implements RiderAvatarLike {
   private tuck = 0;
   /** Casques route et chrono, lunettes (les deux LOD) : casque chrono à visière selon le vélo. */
   private readonly headgear: Record<'road' | 'aero' | 'glasses', THREE.Object3D[]> = { road: [], aero: [], glasses: [] };
+  /** Casque et lunettes masqués (éditeur de visage). */
+  private bareHead = false;
   private crankAngle = Math.random() * Math.PI * 2;
   private wheelAngle = 0;
   private poseBlend = 0; // 0 assis → 1 danseuse
@@ -712,10 +716,7 @@ export class GltfRiderAvatar implements RiderAvatarLike {
     this.tuck = anchors.pads ? this.solveTuck(anchors.pads) : 0;
     // Casque chrono (modèles qui le demandent) : sa visière remplace les lunettes. Sans casque chrono
     // dans le modèle du coureur (ancien cyclist.glb), casque route.
-    const aero = !!build.params.aeroHelmet && this.headgear.aero.length > 0;
-    for (const o of this.headgear.aero) o.visible = aero;
-    for (const o of this.headgear.road) o.visible = !aero;
-    for (const o of this.headgear.glasses) o.visible = !aero;
+    this.applyHeadgear(build);
     if (family !== build.family) {
       void loadBikeFamily(build.family).then((ok) => {
         if (ok && this.mounted?.key === key) this.mountBike(this.mounted.build, this.look);
@@ -995,6 +996,20 @@ export class GltfRiderAvatar implements RiderAvatarLike {
     this.root.traverse((o) => {
       if ((o as THREE.Mesh).isMesh) o.castShadow = on;
     });
+  }
+
+  /** Casque route ou chrono selon le vélo, lunettes avec le casque route ; rien tête nue. */
+  private applyHeadgear(build: BikeBuild): void {
+    const aero = !!build.params.aeroHelmet && this.headgear.aero.length > 0;
+    for (const o of this.headgear.aero) o.visible = aero && !this.bareHead;
+    for (const o of this.headgear.road) o.visible = !aero && !this.bareHead;
+    for (const o of this.headgear.glasses) o.visible = !aero && !this.bareHead;
+  }
+
+  /** Tête nue (aperçu de l'éditeur de visage) ou casquée. */
+  setBareHead(on: boolean): void {
+    this.bareHead = on;
+    if (this.mounted) this.applyHeadgear(this.mounted.build);
   }
 
   private applyHair(look: AvatarLook): void {

@@ -280,7 +280,14 @@ async function boot(): Promise<void> {
     if (scene.world.env.state.season !== s.season) scene.world.setSeason(s.season);
     loop?.setSeason(s.season);
     poster.build(s.look);
+    poster.setPlayerLook(s.look, menu.bareHeadPreview);
     poster.place(poster.d);
+    renderPoster();
+  };
+  // Éditeur de visage : le coureur du garage suit les curseurs sans reconstruire la scène.
+  menu.onLookLive = (look, bareHead) => {
+    if (!inMenu) return;
+    poster.setPlayerLook(look, bareHead);
     renderPoster();
   };
   // Onglets : photo du groupe, ou aperçu du coureur dans le garage (vues et rotation).
