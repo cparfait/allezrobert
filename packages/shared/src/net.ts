@@ -72,6 +72,8 @@ export interface AvatarLook {
   /** Modèle du catalogue de vélos (bikes.ts) ; absent : vélo de base de la couleur `bike`. */
   bikeModel?: string;
   build: number; // 0 = fin, 1 = costaud
+  /** Curseurs de forme du visage et du corps (face.ts, encodeFace) ; absent : tête de base. */
+  face?: string;
 }
 
 export const DEFAULT_LOOK: AvatarLook = {

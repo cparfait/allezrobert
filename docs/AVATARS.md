@@ -318,3 +318,22 @@ banc d'essai et en jeu, planche de captures et mesure des fps.
 Limites connues, pour l'étape 3 : peau unie (sans texture ni SSS), index de la main
 proche un peu tendu, poitrine du maillage par défaut à corriger par les macros, lunettes
 reprises de l'ancien modèle un peu grandes pour ce visage.
+
+### Étape 3a — tous les curseurs de forme (faite)
+
+- 42 curseurs (`packages/shared/src/face.ts`) : les 34 du visage (§ 4) et 8 de corps (sexe,
+  âge, poids, muscle, épaules, trois poids d'origine). Taille et longueur des jambes ne sont pas
+  des cibles : elles déplacent les articulations que la pose de course fige (à traiter par le
+  squelette côté client).
+- Cibles de corps : écart entre deux humains MPFB (macros modifiées), **ramené au squelette de
+  base** (chaque sommet replacé par l'inverse des déplacements de ses os) : le corps change de
+  forme sans changer de taille, mains et pieds restent sur le cintre et les pédales.
+- Cheveux, casque, lunettes et chaussures suivent les curseurs (cibles reportées depuis les
+  sommets du corps les plus proches, moyennées pour garder casque et lunettes rigides).
+- Client : les cibles d'identité sont retirées des cibles animées au chargement et appliquées
+  une fois sur le processeur (géométrie propre à l'avatar, index, UV et poids partagés) ; coût
+  de rendu nul. `AvatarLook.face` : 42 octets en base64url (56 caractères), validé par l'API.
+- Fichier : 81 cibles ; 12 Mo brut, **2,5 Mo** après quantification et compression meshopt
+  (glTF-Transform, décodeur meshopt de three.js).
+- Planches : `avatar-test.html?avatar=mpfb&sliders` (chaque curseur à −1, 0, +1) et
+  `&random=24` (têtes aléatoires passées par `look.face`, casque et lunettes en place).

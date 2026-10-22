@@ -10,3 +10,4 @@ export * from './track.ts';
 export * from './geo.ts';
 export * from './progression.ts';
 export * from './bikes.ts';
+export * from './face.ts';

@@ -1,5 +1,5 @@
 import * as THREE from 'three/webgpu';
-import { BIKES, DEFAULT_LOOK, type AvatarLook, type BikeModel } from '@allezrobert/shared';
+import { BIKES, DEFAULT_LOOK, FACE_SLIDERS, encodeFace, type AvatarLook, type BikeModel, type FaceShape } from '@allezrobert/shared';
 import { createEngine } from './engine/renderer.ts';
 import { QUALITY_PRESETS, type QualityLevel } from './engine/quality.ts';
 import { GltfRiderAvatar, type RiderPose } from './rider/gltfAvatar.ts';
@@ -46,6 +46,8 @@ async function main(): Promise<void> {
   if (!ok) return;
   if (params.has('bikes')) return bikeSheet(engine, params.get('bikes') ?? '');
   if (params.has('bench')) return bench(engine);
+  if (params.has('sliders')) return sliderSheet(engine);
+  if (params.has('random')) return randomSheet(engine);
 
   const looks: AvatarLook[] = [
     DEFAULT_LOOK,
@@ -152,6 +154,103 @@ async function main(): Promise<void> {
     requestAnimationFrame(loop);
   };
   requestAnimationFrame(loop);
+}
+
+/**
+ * Planche de têtes aléatoires (?avatar=mpfb&random=24[&seed=1][&nohelmet]) : tous les curseurs
+ * tirés entre −0,8 et 0,8, passés par la tenue (look.face encodé, comme en réseau) ; casque et
+ * lunettes en place pour repérer les interpénétrations.
+ */
+async function randomSheet(engine: Awaited<ReturnType<typeof createEngine>>): Promise<void> {
+  const { scene, camera } = engine;
+  const n = Number(params.get('random') || 24);
+  let seed = Number(params.get('seed') ?? 1);
+  const rnd = (): number => {
+    seed = (seed * 16807) % 2147483647;
+    return seed / 2147483647;
+  };
+  const cols = 6;
+  const cw = 240;
+  const sheet = document.createElement('canvas');
+  sheet.width = cols * cw;
+  sheet.height = Math.ceil(n / cols) * cw;
+  const g = sheet.getContext('2d') as CanvasRenderingContext2D;
+  camera.fov = 30;
+  for (let i = 0; i < n; i++) {
+    const shape: FaceShape = {};
+    for (const sl of FACE_SLIDERS) shape[sl.id] = sl.id.startsWith('origin') ? rnd() : (rnd() * 2 - 1) * 0.8;
+    const a = new GltfRiderAvatar({ ...DEFAULT_LOOK, bikeModel: 's26-04-cervelo-s5', face: encodeFace(shape) });
+    a.update(0, 0, 0, 'seated');
+    a.update(1 / 60, 0.0001, 0, 'seated');
+    if (params.has('nohelmet')) {
+      a.root.traverse((o) => {
+        if (/rider_(glasses|helmet)/.test(o.name)) o.visible = false;
+      });
+    }
+    scene.add(a.root);
+    const eye = a.eyeWorld(new THREE.Vector3());
+    camera.position.set(eye.x - 0.3, eye.y + 0.05, eye.z + 0.42);
+    camera.updateProjectionMatrix();
+    camera.lookAt(eye.x, eye.y - 0.05, eye.z);
+    engine.renderManual();
+    g.drawImage(canvas, 340, 60, 600, 600, (i % cols) * cw, Math.floor(i / cols) * cw, cw, cw);
+    scene.remove(a.root);
+  }
+  document.body.replaceChildren(sheet);
+  sheet.style.cssText = 'display:block;width:100%;height:auto';
+  (window as unknown as { __avatarTestDone: boolean }).__avatarTestDone = true;
+}
+
+/**
+ * Planche des curseurs de forme (?avatar=mpfb&sliders[=nom1,nom2…]) : pour chaque curseur, −1,
+ * base et +1, visage de trois quarts sans casque (curseurs de corps : buste entier).
+ */
+async function sliderSheet(engine: Awaited<ReturnType<typeof createEngine>>): Promise<void> {
+  const { scene, camera } = engine;
+  const a = new GltfRiderAvatar({ ...DEFAULT_LOOK, bikeModel: 's26-04-cervelo-s5' });
+  a.update(0, 0, 0, 'seated');
+  a.update(1 / 60, 0.0001, 0, 'seated');
+  a.root.traverse((o) => {
+    if (/rider_(glasses|helmet)/.test(o.name)) o.visible = false;
+  });
+  scene.add(a.root);
+  const all = new Set<string>();
+  a.root.traverse((o) => {
+    const id = (o as THREE.Mesh).geometry?.userData.identity as { names: string[] } | undefined;
+    id?.names.forEach((n) => all.add(n.slice(0, -1)));
+  });
+  const BODY = new Set(['sex', 'age', 'weight', 'muscle', 'shoulders', 'neckWidth', 'originAfrican', 'originAsian', 'originEuropean']);
+  const list = (params.get('sliders') || [...all].join(',')).split(',').filter((n) => all.has(n));
+  const cw = 300;
+  const ch = 300;
+  const sheet = document.createElement('canvas');
+  sheet.width = cw * 3 * 2;
+  sheet.height = ch * Math.ceil(list.length / 2);
+  const g = sheet.getContext('2d') as CanvasRenderingContext2D;
+  g.font = '600 16px system-ui, sans-serif';
+  const eye = a.eyeWorld(new THREE.Vector3());
+  camera.fov = 30;
+  for (const [i, name] of list.entries()) {
+    const body = BODY.has(name);
+    for (const [j, v] of [-1, 0, 1].entries()) {
+      a.setFace({ [name]: v });
+      if (body) camera.position.set(eye.x - 1.1, eye.y - 0.1, eye.z + 1.5);
+      else camera.position.set(eye.x - 0.2, eye.y + 0.01, eye.z + 0.3);
+      camera.updateProjectionMatrix();
+      camera.lookAt(eye.x, eye.y - (body ? 0.35 : 0.06), eye.z - (body ? 0.25 : 0));
+      engine.renderManual();
+      const x = ((i % 2) * 3 + j) * cw;
+      const y = Math.floor(i / 2) * ch;
+      if (body) g.drawImage(canvas, 280, 0, 720, 720, x, y, cw, ch);
+      else g.drawImage(canvas, 390, 90, 500, 500, x, y, cw, ch);
+      g.fillStyle = '#000';
+      g.fillText(j === 1 ? name : (v > 0 ? '+1' : '−1'), x + 8, y + 20);
+    }
+  }
+  a.setFace({});
+  document.body.replaceChildren(sheet);
+  sheet.style.cssText = 'display:block;width:100%;height:auto';
+  (window as unknown as { __avatarTestDone: boolean }).__avatarTestDone = true;
 }
 
 /**

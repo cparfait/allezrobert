@@ -21,6 +21,7 @@ import { createLiveKitToken, voiceRoomName } from '../integrations/livekit.ts';
 import { normalizeCode } from '../ride/registry.ts';
 import { activeRooms } from '../ride/RideRoom.ts';
 import { normalizedPower } from '@allezrobert/physics';
+import { FACE_CODE_RE } from '@allezrobert/shared';
 import type { ActivitySummaryRow } from '../db/repos.ts';
 
 const hex = z.string().regex(/^#[0-9a-fA-F]{6}$/);
@@ -34,6 +35,7 @@ const AvatarSchema = z.object({
   bike: hex,
   bikeModel: z.string().regex(/^[a-z0-9-]{1,64}$/).optional(),
   build: z.number().min(0).max(1),
+  face: z.string().regex(FACE_CODE_RE).optional(),
 });
 
 const ProfilePatchSchema = z

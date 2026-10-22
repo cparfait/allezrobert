@@ -1,16 +1,20 @@
 """
-Allez Robert ! — avatar MPFB, étape 2 de docs/AVATARS.md (preuve de bout en bout).
+Allez Robert ! — avatar MPFB (docs/AVATARS.md, étapes 2 et 3).
 
   - corps et tête de base MPFB 2 (maillage hm08), squelette game_engine et ses poids (CC0) ;
-  - 5 curseurs de visage exportés en cibles (morph targets) : jawWidth, cheekVolume, noseLength,
-    lipFullness, age (une cible « + » et une « − » chacun) ;
+  - curseurs de forme (§ 4, packages/shared/src/face.ts) exportés en cibles « nom+ » / « nom− » :
+    34 pour le visage (cibles MakeHuman) et 8 pour le corps (macros sexe, âge, poids, muscle,
+    origine : écart entre deux humains MPFB, ramené au squelette de base pour ne pas changer la
+    taille ni la longueur des membres) ; le client les applique une fois, sur le processeur ;
   - pose de conduite (bassin sur la selle, pieds sur les pédales à la manivelle 0, mains aux
     cocottes) appliquée comme pose de repos, cibles comprises : le client calcule sa cinématique
     inverse en écarts à cette pose, comme pour cyclist.glb ;
-  - zones de tenue (maillot, bande, cuissard, chaussettes) par sommet, d'après les poids des os ;
+  - zones de tenue (maillot, bande, cuissard, chaussettes) coupées par plans, ourlets nets ;
   - globes oculaires (aides MPFB) avec iris et pupille ;
   - casque, casque chrono, lunettes, cheveux et chaussures repris de cyclist.glb, recalés sur la
-    nouvelle tête et les nouveaux pieds (étape 3 : assets dédiés).
+    nouvelle tête et les nouveaux pieds ; ils suivent les curseurs (cibles reportées depuis les
+    sommets du corps les plus proches) ;
+  - compression meshopt et quantification (glTF-Transform, via npx ; --no-compress pour s'en passer).
 
 Usage (depuis la racine du dépôt) :
     blender -b --factory-startup --python tools/blender/avatars/build_avatar.py -- \\
@@ -26,6 +30,7 @@ import hashlib
 import math
 import os
 import sys
+import subprocess
 import urllib.request
 from importlib import import_module
 
@@ -39,6 +44,8 @@ ap = argparse.ArgumentParser()
 ap.add_argument('--mpfb', default='')
 ap.add_argument('--out', default='apps/client/public/models/avatar/')
 ap.add_argument('--cyclist', default='apps/client/public/models/cyclist.glb')
+# Compression meshopt + quantification par glTF-Transform (MIT, outil de fabrication seulement).
+ap.add_argument('--no-compress', action='store_true')
 args = ap.parse_args(argv)
 OUT = os.path.abspath(args.out)
 os.makedirs(OUT, exist_ok=True)
@@ -59,13 +66,65 @@ HIP = Vector((0.0, 1.03, -0.17))          # centre des hanches, assis sur la sel
 HOOD = Vector((0.2, 0.958, 0.54))         # prise des mains sur les cocottes
 SOLE = 0.03                               # épaisseur semelle + cale
 
-# Curseurs de l'étape 2 : nom → (cibles « + », cibles « − »), chemins relatifs à data/targets.
+# Curseurs de forme (docs/AVATARS.md § 4) : nom → (cibles « + », cibles « − »), chemins relatifs
+# à data/targets, éventuellement pondérés (chemin, poids). « l/r- » : les deux côtés.
+def _lr(*paths):
+    return [f'{d}/{s}-{n}' for d, n in (p.split('/') for p in paths) for s in ('l', 'r')]
+
+
 SLIDERS = {
-    'jawWidth': (['chin/chin-width-incr'], ['chin/chin-width-decr']),
-    'cheekVolume': (['cheek/l-cheek-volume-incr', 'cheek/r-cheek-volume-incr'], ['cheek/l-cheek-volume-decr', 'cheek/r-cheek-volume-decr']),
+    # Visage (34)
+    'jawWidth': (['chin/chin-bones-incr'], ['chin/chin-bones-decr']),
+    'jawHeight': (['chin/chin-jaw-drop-incr'], ['chin/chin-jaw-drop-decr']),
+    'jawAngle': ([('head/head-square', 0.6)], [('head/head-triangular', 0.6)]),
+    'chinProtrusion': (['chin/chin-prominent-incr', 'chin/chin-prognathism-incr'], ['chin/chin-prominent-decr', 'chin/chin-prognathism-decr']),
+    'chinHeight': (['chin/chin-height-incr'], ['chin/chin-height-decr']),
+    'chinWidth': (['chin/chin-width-incr'], ['chin/chin-width-decr', ('chin/chin-triangle', 0.5)]),
+    'chinCleft': (['chin/chin-cleft-incr'], ['chin/chin-cleft-decr']),
+    'cheekbones': (_lr('cheek/cheek-bones-incr'), _lr('cheek/cheek-bones-decr')),
+    'cheekVolume': (_lr('cheek/cheek-volume-incr'), _lr('cheek/cheek-volume-decr')),
+    'cheekHeight': (_lr('cheek/cheek-trans-up'), _lr('cheek/cheek-trans-down')),
+    'faceFat': (['head/head-fat-incr'], ['head/head-fat-decr']),
+    'headWidth': (['head/head-scale-horiz-incr'], ['head/head-scale-horiz-decr']),
+    'headLength': (['head/head-scale-vert-incr'], ['head/head-scale-vert-decr']),
+    'headDepth': (['head/head-scale-depth-incr', 'head/head-back-scale-depth-incr'], ['head/head-scale-depth-decr', 'head/head-back-scale-depth-decr']),
+    'foreheadSlope': (['forehead/forehead-trans-forward'], ['forehead/forehead-trans-backward']),
+    'browRidge': ([('forehead/forehead-nubian-incr', 0.6), 'eyebrows/eyebrows-trans-forward'], ['forehead/forehead-nubian-decr', 'eyebrows/eyebrows-trans-backward']),
+    'browHeight': (['eyebrows/eyebrows-trans-up'], ['eyebrows/eyebrows-trans-down']),
+    'browAngle': (['eyebrows/eyebrows-angle-up'], ['eyebrows/eyebrows-angle-down']),
+    'eyeSize': (_lr('eyes/eye-scale-incr'), _lr('eyes/eye-scale-decr')),
+    'eyeSpacing': (_lr('eyes/eye-trans-out'), _lr('eyes/eye-trans-in')),
+    'eyeHeight': (_lr('eyes/eye-trans-up'), _lr('eyes/eye-trans-down')),
+    'eyeTilt': (_lr('eyes/eye-corner1-down', 'eyes/eye-corner2-up'), _lr('eyes/eye-corner1-up', 'eyes/eye-corner2-down')),
+    'eyelidFold': (_lr('eyes/eye-epicanthus-in', 'eyes/eye-eyefold-down'), _lr('eyes/eye-epicanthus-out', 'eyes/eye-eyefold-up')),
     'noseLength': (['nose/nose-scale-vert-incr'], ['nose/nose-scale-vert-decr']),
+    'noseWidth': (['nose/nose-scale-horiz-incr', 'nose/nose-nostrils-width-incr'], ['nose/nose-scale-horiz-decr', 'nose/nose-nostrils-width-decr']),
+    'noseBridge': (['nose/nose-hump-incr', 'nose/nose-width1-incr'], ['nose/nose-hump-decr', 'nose/nose-width1-decr']),
+    'noseTip': (['nose/nose-point-up'], [('nose/nose-point-down', 0.5)]),
+    'nostrilFlare': (['nose/nose-flaring-incr'], ['nose/nose-flaring-decr']),
     'lipFullness': (['mouth/mouth-upperlip-volume-incr', 'mouth/mouth-lowerlip-volume-incr'], ['mouth/mouth-upperlip-volume-decr', 'mouth/mouth-lowerlip-volume-decr']),
-    'age': (['head/head-age-incr'], ['head/head-age-decr']),
+    'mouthWidth': (['mouth/mouth-scale-horiz-incr'], ['mouth/mouth-scale-horiz-decr']),
+    'mouthCorners': (['mouth/mouth-angles-up'], ['mouth/mouth-angles-down']),
+    'earSize': (_lr('ears/ear-scale-incr', 'ears/ear-scale-vert-incr'), _lr('ears/ear-scale-decr', 'ears/ear-scale-vert-decr')),
+    'earAngle': (_lr('ears/ear-flap-incr', 'ears/ear-wing-incr'), _lr('ears/ear-flap-decr', 'ears/ear-wing-decr')),
+    'neckWidth': (['neck/measure-neck-circ-incr', 'neck/neck-scale-horiz-incr'], ['neck/measure-neck-circ-decr', 'neck/neck-scale-horiz-decr']),
+    # Corps (cibles locales)
+    'shoulders': (['torso/measure-shoulder-dist-incr'], ['torso/measure-shoulder-dist-decr']),
+}
+
+# Macros de la base et curseurs de corps qui les font varier : nom → {« + » : macros, « − » : macros}.
+# Taille et longueur des jambes déplacent les articulations : elles sont traitées par le squelette
+# (client), pas par des cibles.
+BASE_MACRO = {'gender': 1.0, 'age': 0.5, 'muscle': 0.55, 'weight': 0.5, 'proportions': 0.5, 'height': 0.5,
+              'cupsize': 0.5, 'firmness': 0.5, 'race': {'asian': 0.33, 'caucasian': 0.34, 'african': 0.33}}
+MACRO_SLIDERS = {
+    'sex': {'-': {'gender': 0.0}},
+    'age': {'+': {'age': 0.9}, '-': {'age': 0.37}},          # ≈ 77 ans / ≈ 19 ans (base 25 ans)
+    'weight': {'+': {'weight': 0.9}, '-': {'weight': 0.15}},
+    'muscle': {'+': {'muscle': 1.0}, '-': {'muscle': 0.15}},
+    'originAfrican': {'+': {'race': {'african': 1.0, 'asian': 0.0, 'caucasian': 0.0}}},
+    'originAsian': {'+': {'race': {'african': 0.0, 'asian': 1.0, 'caucasian': 0.0}}},
+    'originEuropean': {'+': {'race': {'african': 0.0, 'asian': 0.0, 'caucasian': 1.0}}},
 }
 
 
@@ -124,9 +183,23 @@ def vgroup_members(ob, name, threshold=0.5):
 # Corps de base, curseurs, aides
 # ---------------------------------------------------------------------------------------------
 def build_base(HS, TS, LS):
-    macro = {'gender': 1.0, 'age': 0.5, 'muscle': 0.55, 'weight': 0.5, 'proportions': 0.5, 'height': 0.5,
-             'cupsize': 0.5, 'firmness': 0.5, 'race': {'asian': 0.33, 'caucasian': 0.34, 'african': 0.33}}
-    body = HS.create_human(macro_detail_dict=macro)
+    def macro_coords(over):
+        """Sommets (maillage complet, aides comprises) d'un humain aux macros de base modifiées,
+        et repères de repos de ses os (squelette recalé par MPFB sur cette morphologie)."""
+        m = dict(BASE_MACRO, **over)
+        h = HS.create_human(macro_detail_dict=m)
+        r = HS.add_builtin_rig(h, 'game_engine', import_weights=False)
+        TS.bake_targets(h)
+        co = [v.co.copy() for v in h.data.vertices]
+        mats = {b.name: (r.matrix_world @ b.matrix_local, b.length) for b in r.data.bones}
+        mw = h.matrix_world.copy()
+        for o in (h, r):
+            bpy.data.objects.remove(o, do_unlink=True)
+        return [mw @ c for c in co], mats
+
+    base_co = macro_coords({})
+    macro_keys = {name + sign: macro_coords(over) for name, sides in MACRO_SLIDERS.items() for sign, over in sides.items()}
+    body = HS.create_human(macro_detail_dict=dict(BASE_MACRO))
     rig = HS.add_builtin_rig(body, 'game_engine', import_weights=True)
     # Macros figées dans le maillage de base : les cibles des curseurs s'y ajoutent.
     TS.bake_targets(body)
@@ -134,12 +207,38 @@ def build_base(HS, TS, LS):
     for name, (plus, minus) in SLIDERS.items():
         for sign, paths in (('+', plus), ('-', minus)):
             for p in paths:
-                TS.load_target(body, os.path.join(targets_dir, p + '.target.gz'), weight=1.0, name='tmp_' + os.path.basename(p))
+                p, w = p if isinstance(p, tuple) else (p, 1.0)
+                TS.load_target(body, os.path.join(targets_dir, p + '.target.gz'), weight=w, name='tmp_' + os.path.basename(p))
             key = body.shape_key_add(name=name + sign, from_mix=True)
             key.value = 0.0
             for kb in list(body.data.shape_keys.key_blocks):
                 if kb.name.startswith('tmp_'):
                     body.shape_key_remove(kb)
+    # Curseurs de corps : écart entre l'humain aux macros modifiées et celui de base, ramené au
+    # squelette de base. Chaque sommet est replacé par l'inverse des déplacements de ses os
+    # (mélange linéaire selon ses poids) : la cible garde la forme (gras, muscles, silhouette)
+    # sans changer la taille ni la longueur des membres, que la pose de course fige.
+    basis = body.data.shape_keys.key_blocks['Basis']
+    gname = {g.index: g.name for g in body.vertex_groups}
+    weights = []
+    for v in body.data.vertices:
+        ws = [(gname[ge.group], ge.weight) for ge in v.groups if gname[ge.group] in rig.data.bones and ge.weight > 0]
+        tot = sum(w for _, w in ws) or 1.0
+        weights.append([(n, w / tot) for n, w in ws])
+    base_m = base_co[1]
+    imw = body.matrix_world.inverted()
+    for name, (co, mats) in macro_keys.items():
+        inv = {}
+        for bn, (m1, l1) in mats.items():
+            m0, l0 = base_m[bn]
+            s_ = l0 / max(l1, 1e-6)
+            inv[bn] = m0 @ Matrix.Scale(s_, 4) @ m1.inverted()
+        k = body.shape_key_add(name=name, from_mix=False)
+        for i, (d, b0, c0, c1) in enumerate(zip(k.data, basis.data, base_co[0], co)):
+            ws = weights[i]
+            back = sum(((inv[n] @ c1) * w for n, w in ws), Vector()) if ws else c1
+            d.co = b0.co + imw.to_3x3() @ (back - c0)
+        k.value = 0.0
     for m in list(body.modifiers):
         if m.type == 'MASK':
             body.modifiers.remove(m)
@@ -168,6 +267,15 @@ def build_base(HS, TS, LS):
     bpy.ops.object.mode_set(mode='OBJECT')
     body.name = body.data.name = 'rider_body'
     return body, eyes, rig
+
+
+def prune_keys(ob, eps=1e-5):
+    """Retire les cibles sans effet sur cet objet (les globes ne suivent que les curseurs des yeux)."""
+    keys = ob.data.shape_keys.key_blocks
+    base = keys['Basis']
+    for kb in list(keys)[1:]:
+        if all((d.co - b.co).length < eps for d, b in zip(kb.data, base.data)):
+            ob.shape_key_remove(kb)
 
 
 # ---------------------------------------------------------------------------------------------
@@ -568,6 +676,30 @@ def import_accessories(rig, body):
     return out
 
 
+def transfer_keys(body, objs):
+    """Cibles du corps reportées sur les accessoires : chaque sommet suit la moyenne des sommets
+    du corps les plus proches (cheveux : 4, casque, lunettes, chaussures : 24, pour rester rigides)."""
+    from mathutils import kdtree
+    keys = body.data.shape_keys.key_blocks
+    base = [v.co.copy() for v in keys['Basis'].data]
+    kd = kdtree.KDTree(len(base))
+    for i, c in enumerate(base):
+        kd.insert(c, i)
+    kd.balance()
+    deltas = {kb.name: [kb.data[i].co - base[i] for i in range(len(base))] for kb in list(keys)[1:]}
+    for o in objs:
+        n = 16 if o.name.startswith('rider_hair') else 24
+        near = [[i for _, i, _ in kd.find_n(v.co, n)] for v in o.data.vertices]
+        o.shape_key_add(name='Basis', from_mix=False)
+        for kb in list(keys)[1:]:
+            d = deltas[kb.name]
+            k = o.shape_key_add(name=kb.name, from_mix=False)
+            for kd_, v, nb in zip(k.data, o.data.vertices, near):
+                kd_.co = v.co + sum((d[i] for i in nb), Vector()) / len(nb)
+            k.value = 0.0
+        prune_keys(o)
+
+
 # ---------------------------------------------------------------------------------------------
 # Export
 # ---------------------------------------------------------------------------------------------
@@ -579,7 +711,7 @@ def export(objs, path):
     bpy.context.view_layer.objects.active = objs[0]
     bpy.ops.export_scene.gltf(filepath=path, export_format='GLB', use_selection=True, export_yup=True,
                               export_apply=False, export_animations=False, export_skins=True, export_morph=True,
-                              export_morph_normal=True, export_materials='EXPORT', export_normals=True,
+                              export_morph_normal=True, export_try_sparse_sk=True, export_materials='EXPORT', export_normals=True,
                               export_texcoords=True, export_cameras=False, export_lights=False, export_extras=False)
 
 
@@ -587,6 +719,7 @@ def main():
     bpy.ops.wm.read_factory_settings(use_empty=True)
     HS, TS, LS = ensure_mpfb()
     body, eyes, rig = build_base(HS, TS, LS)
+    prune_keys(eyes)
     assign_kit(body, rig)
     assign_eyes(eyes, rig)
     for o in (eyes,):
@@ -597,10 +730,17 @@ def main():
     pose_rider(rig)
     apply_pose_as_rest(rig, [body, eyes])
     acc = import_accessories(rig, body)
+    transfer_keys(body, acc)
     rig.name = rig.data.name = 'Armature'
     tris = sum(len(p.vertices) - 2 for p in body.data.polygons)
     print(f'corps : {len(body.data.vertices)} sommets, {tris} triangles, cibles : {[k.name for k in body.data.shape_keys.key_blocks]}')
-    export([rig, body, eyes] + acc, os.path.join(OUT, 'rider.glb'))
+    out = os.path.join(OUT, 'rider.glb')
+    raw = out if args.no_compress else os.path.join(OUT, 'rider.raw.glb')
+    export([rig, body, eyes] + acc, raw)
+    if not args.no_compress:
+        subprocess.run(['npx', '--yes', '@gltf-transform/cli@4.1.1', 'meshopt', raw, out], check=True)
+        os.remove(raw)
+        print(f'compressé : {os.path.getsize(out) / 1e6:.2f} Mo')
     print('exporté', os.path.join(OUT, 'rider.glb'))
 
 

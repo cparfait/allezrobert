@@ -1,7 +1,8 @@
 import * as THREE from 'three/webgpu';
 import { GLTFLoader, type GLTF } from 'three/addons/loaders/GLTFLoader.js';
+import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
-import { PLAIN_BIKE_FAMILY, bikeOfLook, type AvatarLook, type BikeBuild, type BikeFamily } from '@allezrobert/shared';
+import { PLAIN_BIKE_FAMILY, bikeOfLook, decodeFace, type AvatarLook, type BikeBuild, type BikeFamily } from '@allezrobert/shared';
 import { RiderAvatar } from './avatar.ts';
 import { BikeMaterials, assembleBike, availableFamily, bikeAnchors, familyScene, loadBikeFamily, type AssembledBike, type BikeAnchors } from './bikes.ts';
 
@@ -216,7 +217,105 @@ function chainRest(bones: Record<BoneName, BoneRest>, upper: BoneName, lower: Bo
   };
 }
 
+/**
+ * Cibles d'identité (curseurs de forme « nom+ » / « nom− », docs/AVATARS.md § 4) d'une géométrie,
+ * retirées des cibles animées : elles ne bougent pas pendant une sortie et sont appliquées une fois
+ * sur le processeur (setFace), sans coût au rendu.
+ */
+interface IdentityTargets {
+  names: string[];
+  pos: Float32Array[];
+  nrm: (Float32Array | null)[];
+}
+
+const IDENTITY = /[+-]$/;
+
+function toFloat(a: THREE.BufferAttribute | THREE.InterleavedBufferAttribute): Float32Array {
+  const out = new Float32Array(a.count * 3);
+  for (let i = 0; i < a.count; i++) {
+    out[i * 3] = a.getX(i);
+    out[i * 3 + 1] = a.getY(i);
+    out[i * 3 + 2] = a.getZ(i);
+  }
+  return out;
+}
+
+function extractIdentity(scene: THREE.Object3D): void {
+  const done = new Set<THREE.BufferGeometry>();
+  scene.traverse((o) => {
+    const mesh = o as THREE.Mesh;
+    const g = mesh.geometry as THREE.BufferGeometry | undefined;
+    const dict = mesh.morphTargetDictionary;
+    if (!mesh.isMesh || !g || !dict) return;
+    if (!done.has(g)) {
+      done.add(g);
+      const names = Object.keys(dict).sort((a, b) => (dict[a] as number) - (dict[b] as number));
+      const keep = names.map((n) => !IDENTITY.test(n));
+      if (keep.every(Boolean)) return;
+      const pos = g.morphAttributes.position ?? [];
+      const nrm = g.morphAttributes.normal;
+      const id: IdentityTargets = { names: [], pos: [], nrm: [] };
+      names.forEach((n, i) => {
+        if (keep[i]) return;
+        id.names.push(n);
+        id.pos.push(toFloat(pos[i] as THREE.BufferAttribute));
+        id.nrm.push(nrm?.[i] ? toFloat(nrm[i] as THREE.BufferAttribute) : null);
+      });
+      g.morphAttributes.position = pos.filter((_, i) => keep[i]);
+      if (nrm) g.morphAttributes.normal = nrm.filter((_, i) => keep[i]);
+      if (g.morphAttributes.position.length === 0) {
+        delete g.morphAttributes.position;
+        delete g.morphAttributes.normal;
+      }
+      g.userData.identity = id;
+      g.userData.animNames = names.filter((_, i) => keep[i]);
+    }
+    // Dictionnaire et poids recalculés sur les cibles animées restantes.
+    const anim = g.userData.animNames as string[] | undefined;
+    if (anim) {
+      mesh.morphTargetDictionary = Object.fromEntries(anim.map((n, i) => [n, i]));
+      mesh.morphTargetInfluences = anim.map(() => 0);
+      if (!anim.length) {
+        mesh.morphTargetDictionary = undefined;
+        mesh.morphTargetInfluences = undefined;
+      }
+    }
+  });
+}
+
+/** Géométrie propre à l'avatar : base + Σ poids × cibles d'identité (positions et normales). */
+function bakeIdentity(base: THREE.BufferGeometry, id: IdentityTargets, w: readonly number[]): THREE.BufferGeometry {
+  // Index, UV, poids et cibles animées partagés avec le modèle : seules positions et normales sont propres.
+  const g = new THREE.BufferGeometry();
+  g.setIndex(base.index);
+  for (const [k, a] of Object.entries(base.attributes)) g.setAttribute(k, a);
+  g.morphAttributes = base.morphAttributes;
+  g.morphTargetsRelative = base.morphTargetsRelative;
+  for (const gr of base.groups) g.addGroup(gr.start, gr.count, gr.materialIndex);
+  g.userData = base.userData;
+  const p0 = base.getAttribute('position');
+  const n0 = base.getAttribute('normal');
+  const p = toFloat(p0);
+  const n = n0 ? toFloat(n0) : null;
+  w.forEach((k, t) => {
+    if (!k) return;
+    const dp = id.pos[t] as Float32Array;
+    for (let i = 0; i < p.length; i++) p[i] = (p[i] as number) + k * (dp[i] as number);
+    const dn = id.nrm[t];
+    if (n && dn) for (let i = 0; i < n.length; i++) n[i] = (n[i] as number) + k * (dn[i] as number);
+  });
+  g.setAttribute('position', new THREE.BufferAttribute(p, 3));
+  if (n) {
+    const na = new THREE.BufferAttribute(n, 3);
+    for (let i = 0; i < na.count; i++) _v1.fromBufferAttribute(na, i).normalize().toArray(n, i * 3);
+    g.setAttribute('normal', na);
+  }
+  return g;
+}
+
 function buildTemplates(rider0: GLTF, rider1: GLTF): Templates {
+  extractIdentity(rider0.scene);
+  if (rider1 !== rider0) extractIdentity(rider1.scene);
   const scene = rider0.scene;
   scene.updateMatrixWorld(true);
   const names = RIG_BONES[scene.getObjectByName('pelvis') ? 'mpfb' : 'classic'];
@@ -328,6 +427,9 @@ export class GltfRiderAvatar implements RiderAvatarLike {
   private readonly mP = {} as Record<BoneName, THREE.Vector3>;
   private readonly materials = new Map<string, THREE.MeshStandardNodeMaterial>();
   private readonly morphMeshes: THREE.Mesh[] = [];
+  /** Maillages à curseurs de forme et leur géométrie partagée (avant précalcul). */
+  private faceKey = '[]';
+  private readonly identityMeshes: Array<{ mesh: THREE.Mesh; base: THREE.BufferGeometry }> = [];
   private readonly bike: BikeParts = { crank: [], wheels: [], pedals: { L: [], R: [] } };
   /** Groupes recevant le vélo : niveau 0, niveau 1. */
   private readonly bikeSlots: [THREE.Group, THREE.Group] = [new THREE.Group(), new THREE.Group()];
@@ -361,7 +463,7 @@ export class GltfRiderAvatar implements RiderAvatarLike {
     const extra = Promise.all(families.map((f) => loadBikeFamily(f)));
     loading ??= (async () => {
       try {
-        const loader = new GLTFLoader();
+        const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
         const [riders, plain] = await Promise.all([Promise.all(FILES.map((f) => loader.loadAsync(baseUrl + f))), loadBikeFamily(PLAIN_BIKE_FAMILY)]);
         if (!plain) throw new Error(`vélo de base (${PLAIN_BIKE_FAMILY}) indisponible`);
         const [r0, r1] = riders;
@@ -440,6 +542,7 @@ export class GltfRiderAvatar implements RiderAvatarLike {
       if ((mesh as THREE.SkinnedMesh).isSkinnedMesh) {
         (mesh as THREE.SkinnedMesh).boundingSphere = bounds.clone();
         if (mesh.morphTargetDictionary) this.morphMeshes.push(mesh);
+        if (mesh.geometry.userData.identity) this.identityMeshes.push({ mesh, base: mesh.geometry });
       }
     });
     this.lod.traverse((o) => {
@@ -701,25 +804,35 @@ export class GltfRiderAvatar implements RiderAvatarLike {
   }
 
   /**
-   * Curseurs de visage (avatar MPFB) : valeur −1 → 1 par curseur, appliquée aux cibles « nom+ » /
-   * « nom− » du modèle (étape 2 : cibles animées ; étape 3 : précalcul sur le processeur).
+   * Curseurs de forme (avatar MPFB, docs/AVATARS.md § 4) : valeur −1 → 1 par curseur, appliquée
+   * aux cibles « nom+ » / « nom− », une fois, sur le processeur (géométrie propre à l'avatar ;
+   * tout à 0 : géométrie partagée du modèle).
    */
   setFace(values: Readonly<Record<string, number>>): void {
-    for (const m of this.morphMeshes) {
-      const dict = m.morphTargetDictionary;
-      const inf = m.morphTargetInfluences;
-      if (!dict || !inf) continue;
-      for (const [k, v] of Object.entries(values)) {
-        const x = THREE.MathUtils.clamp(v, -1, 1);
-        const ip = dict[`${k}+`];
-        const im = dict[`${k}-`];
-        if (ip !== undefined) inf[ip] = Math.max(x, 0);
-        if (im !== undefined) inf[im] = Math.max(-x, 0);
-      }
+    const key = JSON.stringify(Object.entries(values).filter(([, v]) => v).sort());
+    if (key === this.faceKey) return;
+    this.faceKey = key;
+    for (const it of this.identityMeshes) {
+      const id = it.base.userData.identity as IdentityTargets;
+      const w = id.names.map((n) => {
+        const x = THREE.MathUtils.clamp(values[n.slice(0, -1)] ?? 0, -1, 1);
+        return n.endsWith('+') ? Math.max(x, 0) : Math.max(-x, 0);
+      });
+      const old = it.mesh.geometry;
+      it.mesh.geometry = w.some(Boolean) ? bakeIdentity(it.base, id, w) : it.base;
+      if (old !== it.base && old !== it.mesh.geometry) old.dispose();
     }
   }
 
+  /**
+   * Morphologie de la tenue : cible « build » du coureur actuel ; avatar MPFB : curseurs de forme
+   * (`look.face`), la carrure `build` servant de musculature tant que la forme ne la fixe pas.
+   */
   private setBuild(build: number): void {
+    if (this.identityMeshes.length) {
+      const shape: Record<string, number> = { muscle: THREE.MathUtils.clamp((build - 0.4) / 0.6, -1, 1) };
+      this.setFace({ ...shape, ...decodeFace(this.look.face) });
+    }
     for (const m of this.morphMeshes) {
       const i = m.morphTargetDictionary?.build;
       if (i !== undefined && m.morphTargetInfluences) m.morphTargetInfluences[i] = THREE.MathUtils.clamp(build, 0, 1);
