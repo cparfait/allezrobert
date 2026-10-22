@@ -33,7 +33,7 @@ valeurs publiées utilisées pour valider les montées (longueur, dénivelé, pe
 | Véhicules `sedan`, `hatchback-sports`, `suv`, `delivery`, `tractor` + `colormap.png` — `apps/client/public/models/vehicles/` | [Kenney Car Kit 3.1](https://kenney.nl/assets/car-kit) | CC0 1.0 (licence jointe) | Trafic |
 | Cycliste et vélos (`apps/client/public/models/*.glb`) | Générés par `tools/blender/build_cyclist.py` | Code du projet | Avatars |
 | Avatar et vélo procéduraux | Générés par le code (`apps/client/src/rider/avatar.ts`) | Code du projet | Coureurs (repli) |
-| Sons (vent, pneus, roue libre, oiseaux, pluie) | Synthèse WebAudio (`apps/client/src/audio`) | Code du projet | Ambiance sonore |
+| Tous les sons du jeu : vent, roulement (enrobé, pavés, gravier, terre), roue libre, dérailleur, souffle, oiseaux (merle, mésange, pouillot, alouette, coucou, pic, ramier, corneille, hulotte), grillons, feuillage, pluie, rumeur de village, chien, cloches, vaches, eau, public (applaudissements, « Allez ! », sifflets, cloches de vache), voitures et tracteurs | Synthèse procédurale WebAudio (`apps/client/src/audio`), tampons générés au lancement : **aucun fichier audio**, aucun échantillon enregistré, rien d'un autre jeu | Code du projet | Son du jeu |
 
 ## Musique et voix
 
