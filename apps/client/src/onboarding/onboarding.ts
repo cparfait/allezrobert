@@ -5,7 +5,8 @@ import type { DevicePanel } from '../ui/menu.ts';
 import { saveSettings, type Settings } from '../ui/settings.ts';
 import { VoiceOver } from './voice.ts';
 
-const STEPS = ['welcome', 'profile', 'avatar', 'devices', 'gears'] as const;
+// Premier lancement : tutoriel d'accueil, puis équipement (capteurs, vitesses), puis profil et avatar.
+const STEPS = ['welcome', 'devices', 'gears', 'profile', 'avatar'] as const;
 type Step = (typeof STEPS)[number];
 
 const SKINS = ['#f1c27d', '#e0ac69', '#c68642', '#8d5524', '#ffdbac', '#5c3a21'];
