@@ -47,9 +47,13 @@ export class FriendHub {
     }
   }
 
-  presenceOf(userId: string, now = Date.now()): FriendPresence {
+  /** Présence d'un compte vue par `viewerId` (pour signaler « roule avec toi »). */
+  presenceOf(userId: string, now = Date.now(), viewerId?: string): FriendPresence {
     const ride = this.registry.currentRideOf(userId);
-    if (ride) return { state: 'riding', ride: rideInfo(ride) };
+    if (ride) {
+      const same = !!viewerId && this.registry.currentRideOf(viewerId)?.roomId === ride.roomId;
+      return { state: 'riding', ride: rideInfo(ride), ...(same ? { withYou: true } : {}) };
+    }
     const seen = this.lastSeen.get(userId);
     return seen !== undefined && now - seen < FRIEND_ONLINE_WINDOW_S * 1000 ? { state: 'online' } : { state: 'offline' };
   }

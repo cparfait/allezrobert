@@ -200,6 +200,10 @@ describe('amis — présence et rejoindre', () => {
     const join = await a.json('POST', `/api/friends/${id}/join`);
     expect(join.status).toBe(200);
     expect(join.body).toEqual({ roomId: ride.roomId, inviteCode: ride.inviteCode, routeId: 'dev-boucle', mode: 'group' });
+    // A rejoint la même sortie : B « roule avec toi » (rien à rejoindre).
+    ctx.registry.join(ride.roomId, a.id, 'rider');
+    expect((await a.overview()).friends[0]!.presence).toMatchObject({ state: 'riding', withYou: true, ride: { riders: 2 } });
+    ctx.registry.leave(ride.roomId, a.id, 'rider');
     // Un non-ami ne voit rien : ni B dans sa liste, ni la sortie, même avec l'identifiant de la relation.
     const oe = await e.overview();
     expect(JSON.stringify(oe)).not.toContain('Pre-B');

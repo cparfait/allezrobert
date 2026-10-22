@@ -47,7 +47,8 @@ export interface FriendRideInfo {
   riders: number;
 }
 
-export type FriendPresence = { state: 'offline' } | { state: 'online' } | { state: 'riding'; ride: FriendRideInfo };
+/** `withYou` : l'ami roule dans la même sortie que soi (rien à rejoindre ni à inviter). */
+export type FriendPresence = { state: 'offline' } | { state: 'online' } | { state: 'riding'; ride: FriendRideInfo; withYou?: boolean };
 
 export interface FriendEntry {
   /** Identifiant de la relation d'amitié (pas celui du compte). */

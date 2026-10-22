@@ -58,7 +58,7 @@ export function friendRoutes(ctx: AppContext): express.Router {
       code,
       friends: rel
         .filter((x) => x.status === 'accepted')
-        .map((x) => ({ id: x.id, name: x.name, color: x.color, level: x.level, since: (x.acceptedAt ?? x.createdAt).toISOString(), presence: hub.presenceOf(x.otherId, now) })),
+        .map((x) => ({ id: x.id, name: x.name, color: x.color, level: x.level, since: (x.acceptedAt ?? x.createdAt).toISOString(), presence: hub.presenceOf(x.otherId, now, u.userId) })),
       incoming: rel.filter((x) => x.status === 'pending' && x.incoming).map((x) => ({ id: x.id, name: x.name, color: x.color, createdAt: x.createdAt.toISOString() })),
       outgoing: rel.filter((x) => x.status === 'pending' && !x.incoming).map((x) => ({ id: x.id, name: x.name, color: x.color, createdAt: x.createdAt.toISOString() })),
       invites: hub.invitesFor(u.userId, now).map((i) => ({ id: i.id, from: i.fromName, fromColor: i.fromColor, ride: i.ride, expiresAt: new Date(i.expiresAt).toISOString() })),
