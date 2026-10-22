@@ -6,7 +6,8 @@ Usage (depuis la racine du dépôt) :
 
 Options :
     --preview docs/screenshots/avatar-preview.png   rendu Eevee de contrôle (+ variantes -side, -front, -head, -lod1,
-                                                    vélo seul : -bike-side, -bike-3q, -bike-cock, -bike-drive, -bike-front, -bike-climb)
+                                                    vélo seul : -bike-side, -bike-3q, -bike-cock, -bike-hood, -bike-drive, -bike-front,
+                                                    -bike-climb ; gros plan main sur cocotte : -cockpit-hand)
     --views 3q,side,...                             sous-ensemble de vues à rendre
     --no-preview                                    pas de rendu
     --blend out/cyclist.blend                       sauvegarde du .blend (inspection)
@@ -42,7 +43,7 @@ ap.add_argument('--out', default='apps/client/public/models/')
 ap.add_argument('--preview', default='docs/screenshots/avatar-preview.png')
 ap.add_argument('--no-preview', action='store_true')
 ap.add_argument('--blend', default='')
-ap.add_argument('--views', default='3q,side,front,head,back,bside,b3q,bcock,bdrive,bfront,climb,lod1')
+ap.add_argument('--views', default='3q,side,front,head,back,hand,bside,b3q,bcock,bhood,bdrive,bfront,climb,lod1')
 args = ap.parse_args(argv)
 OUT = os.path.abspath(args.out)
 os.makedirs(OUT, exist_ok=True)
@@ -1238,6 +1239,24 @@ def sweep_rings(P, secs, ref):
     return np.stack([P[i] + S[i] * secs[i][:, :1] + F[i] * secs[i][:, 1:2] for i in range(m)])
 
 
+def transported_refs(P, i0, f0):
+    """Repère à rotation minimale : la corde vaut f0 à l'indice i0 puis est transportée le long de P
+    (évite les vrilles quand la tangente tourne, ex. cintre : ailes → cintre rond → bas de cintre)."""
+    P = np.asarray(P, dtype=float)
+    T = np.zeros_like(P)
+    T[1:-1] = P[2:] - P[:-2]
+    T[0] = P[1] - P[0]
+    T[-1] = P[-1] - P[-2]
+    T /= np.linalg.norm(T, axis=1)[:, None]
+    F = np.zeros_like(P)
+    F[i0] = nrm(f0 - np.dot(f0, T[i0]) * T[i0])
+    for rng, step in ((range(i0 + 1, len(P)), -1), (range(i0 - 1, -1, -1), 1)):
+        for i in rng:
+            prev = F[i + step]
+            F[i] = nrm(prev - np.dot(prev, T[i]) * T[i])
+    return F
+
+
 def skin(mb, R, mat, i0=0, i1=None, cap0=True, cap1=True):
     """Peau quadrangulée entre les anneaux i0..i1 (+ bouchons)."""
     i1 = len(R) - 1 if i1 is None else i1
@@ -1431,10 +1450,11 @@ def build_bike_parts(g, sty, lod=0):
     # --- Cintre-potence monobloc : potence profonde qui s'élargit vers le cintre.
     tube(mb, [g.steer_top - g.ht_up * 0.012 - g.pf * 0.006, g.steer_top + V(0, 0.01, 0.055), g.bar + V(0, 0, -0.014)], per,
          lambda t: ell_sec(n, lerp(0.0145, 0.024, t ** 2), lerp(0.016, 0.0105, t), 2.8), Y, 'components')
-    # Cintre : partie haute en aile (corde 46 mm), cintre rond guidoliné au niveau des cocottes et en bas.
-    half = [V(0.0, 0.866, 0.507), V(0.07, 0.866, 0.51), V(0.135, 0.867, 0.518), V(0.172, 0.869, 0.533), V(0.193, 0.872, 0.557),
-            V(0.2, 0.874, 0.585), V(0.202, 0.869, 0.612), V(0.205, 0.848, 0.632), V(0.209, 0.812, 0.637), V(0.213, 0.777, 0.622),
-            V(0.217, 0.755, 0.59), V(0.219, 0.747, 0.55), V(0.22, 0.747, 0.497)]
+    # Cintre : partie haute en aile (corde 46 mm), puis rampe vers l'avant ; le cintre plonge juste
+    # devant la cocotte (« reach » ≈ 80 mm), bas de cintre évasés. Guidoliné hors de la partie centrale.
+    half = [V(0.0, 0.866, 0.507), V(0.07, 0.866, 0.51), V(0.135, 0.867, 0.518), V(0.17, 0.869, 0.53), V(0.19, 0.871, 0.55),
+            V(0.198, 0.872, 0.572), V(0.201, 0.866, 0.594), V(0.204, 0.85, 0.608), V(0.207, 0.825, 0.614), V(0.211, 0.795, 0.608),
+            V(0.215, 0.77, 0.588), V(0.218, 0.754, 0.56), V(0.22, 0.748, 0.528), V(0.221, 0.748, 0.49)]
     full = [p * V(-1, 1, 1) for p in reversed(half[1:])] + half
     P = catmull(full, 2 if lod == 0 else 1)
     nb = 8 if lod == 0 else 5
@@ -1442,26 +1462,38 @@ def build_bike_parts(g, sty, lod=0):
     rnd = ell_sec(nb, 0.0122, 0.0122)
     w = smoothstep(0.12, 0.185, np.abs(P[:, 0]))
     secs = [wing * (1 - wi) + rnd * wi for wi in w]
-    refs = np.array([nrm(Z * (1 - wi) + X * wi) for wi in w])
-    R = sweep_rings(P, secs, refs)
+    R = sweep_rings(P, secs, transported_refs(P, len(P) // 2, Z))
     ia = int(np.argmax(P[:, 0] > -0.075))
     ib = int(len(P) - 1 - np.argmax(P[::-1, 0] < 0.075))
     skin(mb, R, 'bar_tape', 0, ia, cap0=True, cap1=False)
     skin(mb, R, 'components', ia, ib, cap0=False, cap1=False)
     skin(mb, R, 'bar_tape', ib, len(P) - 1, cap0=False, cap1=True)
+    # Cocottes (type Dura-Ace R9200 / Red AXS) : corps fixé sur la courbe avant du cintre, ≈ 105 mm
+    # de la rampe au bout du pommeau, dessus qui monte vers un pommeau arrondi ; profil latéral
+    # défini par (z, dessus, dessous, demi-largeur). La main du coureur repose sur le dessus.
+    HOOD = [(0.556, 0.887, 0.861, 0.0126), (0.578, 0.898, 0.855, 0.0138), (0.600, 0.905, 0.847, 0.0142),
+            (0.622, 0.910, 0.849, 0.0138), (0.638, 0.915, 0.857, 0.0122), (0.650, 0.920, 0.872, 0.0088),
+            (0.657, 0.922, 0.89, 0.0066), (0.661, 0.918, 0.903, 0.0042)]
+    if lod:
+        HOOD = [HOOD[i] for i in (0, 2, 4, 6, 7)]
+    k = 2 if lod == 0 else 1
+    hz = resample([h[0] for h in HOOD], k)
+    htop = resample([h[1] for h in HOOD], k)
+    hbot = resample([h[2] for h in HOOD], k)
+    hwid = resample([h[3] for h in HOOD], k)
+    nh = 8 if lod == 0 else 5
     for s in (1, -1):
-        # Cocotte de groupe électronique : posée sur le cintre, dessus plat, pommeau haut à l'avant.
-        hz = [0.556, 0.574, 0.6, 0.625, 0.642, 0.653]
-        hy = [0.881, 0.888, 0.895, 0.902, 0.909, 0.912]
-        hf = [0.009, 0.0155, 0.0185, 0.0195, 0.0165, 0.008]
-        hs = [0.0105, 0.0135, 0.0145, 0.014, 0.012, 0.0065]
-        tube(mb, [V(0.2 * s, y, z) for y, z in zip(hy, hz)], 1,
-             lambda t: ell_sec(n if lod == 0 else 5, float(np.interp(t, np.linspace(0, 1, 6), hs)), float(np.interp(t, np.linspace(0, 1, 6), hf)), 2.6), Y, 'components')
-        lever = [V(0.2 * s, 0.896, 0.644), V(0.2 * s, 0.852, 0.656), V(0.201 * s, 0.81, 0.652), V(0.203 * s, 0.78, 0.639), V(0.205 * s, 0.766, 0.626)]
-        tube(mb, lever, 1, lambda t: ell_sec(6, lerp(0.0065, 0.005, t), lerp(0.0048, 0.0035, t), 2.4), Z, 'components')
+        hp = catmull([V(0.2 * s, (h[1] + h[2]) / 2, h[0]) for h in HOOD], k)
+        hsec = [ell_sec(nh, hwid[i], (htop[i] - hbot[i]) / 2, 2.5) for i in range(len(hz))]
+        skin(mb, sweep_rings(hp, hsec, Y), 'components')
+        # Levier de frein : descend de l'avant de la cocotte en suivant la courbe du cintre (≈ 2 cm devant).
+        lever = [V(0.2 * s, 0.874, 0.65), V(0.2 * s, 0.845, 0.653), V(0.201 * s, 0.81, 0.646), V(0.203 * s, 0.78, 0.629),
+                 V(0.206 * s, 0.758, 0.604)]
+        tube(mb, lever, 1, lambda t: ell_sec(6, lerp(0.0068, 0.005, t), lerp(0.0052, 0.0034, t), 2.4), Z, 'components')
         if lod == 0:
-            pad = [V(0.197 * s, 0.86, 0.645), V(0.196 * s, 0.825, 0.642), V(0.197 * s, 0.8, 0.632)]
-            tube(mb, pad, 2, lambda t: ell_sec(6, 0.0045, 0.0022, 2.4), Z, 'chrome')
+            # Palette de vitesses (gris) juste derrière la lame, côté intérieur.
+            pad = [V(0.197 * s, 0.858, 0.643), V(0.196 * s, 0.83, 0.643), V(0.197 * s, 0.808, 0.634)]
+            tube(mb, pad, 1, lambda t: ell_sec(6, 0.0045, 0.0022, 2.4), Z, 'rim_decal')
     # --- Compteur GPS sur support déporté (boîtier ≈ 60 × 105 × 16 mm, écran légèrement émissif).
     tube(mb, [g.bar + V(0, -0.006, 0.012), g.bar + V(0, -0.002, 0.07)], 1, lambda t: ell_sec(8, 0.011, 0.0045, 2.6), Y, 'components')
     tilt = math.radians(10)
@@ -1735,7 +1767,7 @@ def build_pedal(tag, lod=0):
 def build_bike(lod=0, style='aero'):
     sty = BIKE_STYLES[style]
     g = bike_geometry()
-    frame = build_frame(g, sty, 0.002 if lod == 0 else 0.004, 2500 if lod == 0 else 520)
+    frame = build_frame(g, sty, 0.002 if lod == 0 else 0.004, 2250 if lod == 0 else 500)
     parts = build_bike_parts(g, sty, lod)
     vs, fs, ms = mesh_arrays(frame)
     mb = MB()
@@ -1908,7 +1940,9 @@ def main():
             render_view(co, V(0.55, 1.62, 1.05), V(0, 1.5, 0.27), 70, base + '-head' + ext)
         if 'back' in views:
             render_view(co, V(-1.6, 1.7, -2.4), V(0, 0.9, 0.0), 40, base + '-back' + ext)
-        # Vues du vélo seul (côté transmission, 3/4, cockpit, transmission, face).
+        if 'hand' in views:
+            render_view(co, V(0.8, 1.05, 0.95), V(0.18, 0.88, 0.6), 45, base + '-cockpit-hand' + ext)
+        # Vues du vélo seul (côté transmission, 3/4, cockpit, profil de cocotte, transmission, face).
         for o in [body0] + acc0:
             o.hide_render = True
         bike_views = {
@@ -1917,6 +1951,7 @@ def main():
             'bcock': (V(0.42, 1.18, 1.02), V(0, 0.86, 0.56), 45),
             'bdrive': (V(-0.95, 0.6, -0.05), V(0, 0.36, -0.2), 40),
             'bfront': (V(0.25, 0.95, 3.2), V(0, 0.6, 0.3), 60),
+            'bhood': (V(0.95, 0.9, 0.56), V(0.2, 0.84, 0.59), 50),
         }
         for k, (pos, tgt, lens) in bike_views.items():
             if k in views:
