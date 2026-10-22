@@ -1,19 +1,23 @@
 import * as THREE from 'three/webgpu';
 import { GLTFLoader, type GLTF } from 'three/addons/loaders/GLTFLoader.js';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
-import type { AvatarLook } from '@allezrobert/shared';
+import { PLAIN_BIKE_FAMILY, bikeOfLook, type AvatarLook, type BikeBuild, type BikeFamily } from '@allezrobert/shared';
 import { RiderAvatar } from './avatar.ts';
+import { BikeMaterials, assembleBike, availableFamily, bikeAnchors, familyScene, loadBikeFamily, type AssembledBike, type BikeAnchors } from './bikes.ts';
 
 /**
  * Cycliste et vélo modélisés dans Blender (tools/blender/build_cyclist.py), squelette piloté
- * procéduralement. Même API publique que RiderAvatar.
+ * procéduralement. Même API publique que RiderAvatar. Le vélo est assemblé à partir du
+ * catalogue (bikes.ts) ; tant que sa famille de cadre n'est pas chargée, le vélo de base
+ * (même livrée) le remplace.
  *
  * Repère local : +z = avant, +y = haut, +x = gauche. La pose de repos des modèles est la pose
  * de conduite (assis, mains sur les cocottes, pieds sur les pédales à l'angle de manivelle 0) ;
  * on calcule donc toutes les rotations comme des écarts à cette pose :
  *  - jambes : cinématique inverse à deux os, cheville calée sur la pédale (manivelle à la cadence),
  *    pied incliné selon le coup de pédale (« ankling ») ; les pédales automatiques suivent le pied ;
- *  - bras : cinématique inverse vers les cocottes (mains fixes sur le cintre) ;
+ *  - bras : cinématique inverse vers les mains du vélo (cocottes, ou prolongateurs des vélos de
+ *    chrono, coudes vers les repose-coudes) ;
  *  - bassin / tronc : position assise, danseuse (bassin avancé, vélo qui balance, corps qui
  *    compense), roue libre (buste un peu relevé) ;
  *  - tête : regarde la route et compense en partie l'inclinaison du vélo.
@@ -43,10 +47,13 @@ type BoneName = (typeof BONES)[number];
 type Side = 'L' | 'R';
 const SIDES: readonly Side[] = ['L', 'R'];
 
-const FILES = ['cyclist.glb', 'cyclist_lod1.glb', 'bike.glb', 'bike_lod1.glb'] as const;
+const FILES = ['cyclist.glb', 'cyclist_lod1.glb'] as const;
 /** Distance (m) au-delà de laquelle on affiche le LOD1. */
 const LOD1_DISTANCE = 30;
 const WHEEL_R = 0.335;
+/** Position chrono : bascule vers l'avant de la colonne et du thorax (rad). */
+const TUCK_SPINE = 0.3;
+const TUCK_CHEST = 0.42;
 const X_AXIS = new THREE.Vector3(1, 0, 0);
 const Y_AXIS = new THREE.Vector3(0, 1, 0);
 const Z_AXIS = new THREE.Vector3(0, 0, 1);
@@ -65,21 +72,7 @@ const MATERIALS: Record<string, [string, number, number]> = {
   lens: ['#20242c', 0.08, 0.6],
   glasses_frame: ['#141518', 0.35, 0],
   hair: ['#3b2a1e', 0.8, 0],
-  frame: ['#c0392b', 0.3, 0.3],
   components: ['#18191c', 0.45, 0.2],
-  tire: ['#121214', 0.85, 0],
-  rim: ['#1e2024', 0.35, 0.1],
-  chrome: ['#b9bcc2', 0.2, 1],
-  // Vélo 2026 : bande décor des jantes, guidoline et bidons (accent du maillot), écran du compteur.
-  rim_decal: ['#6a7079', 0.45, 0.1],
-  bar_tape: ['#ffd23f', 0.75, 0],
-  bottle: ['#ffd23f', 0.5, 0],
-  computer_screen: ['#1b2a30', 0.15, 0],
-};
-
-/** Matériaux légèrement émissifs : couleur d'émission, intensité. */
-const EMISSIVE: Record<string, [string, number]> = {
-  computer_screen: ['#3f7f8f', 0.6],
 };
 
 interface BoneRest {
@@ -105,8 +98,6 @@ interface ChainRest {
 interface Templates {
   rider0: GLTF;
   rider1: GLTF;
-  bike0: GLTF;
-  bike1: GLTF;
   bones: Record<BoneName, BoneRest>;
   armQ: THREE.Quaternion;
   armP: THREE.Vector3;
@@ -120,6 +111,8 @@ interface Templates {
   ankleFlat: Record<Side, THREE.Vector3>;
   /** Yeux par rapport à l'os de la tête, pose de repos (repère modèle). */
   eyeRest: THREE.Vector3;
+  /** Mains sur le vélo de base (= pose de repos) : les mains du coureur suivent l'écart. */
+  refHands: Record<Side, THREE.Vector3>;
 }
 
 let templates: Templates | null = null;
@@ -189,7 +182,7 @@ function chainRest(bones: Record<BoneName, BoneRest>, upper: BoneName, lower: Bo
   };
 }
 
-function buildTemplates(rider0: GLTF, rider1: GLTF, bike0: GLTF, bike1: GLTF): Templates {
+function buildTemplates(rider0: GLTF, rider1: GLTF): Templates {
   const scene = rider0.scene;
   scene.updateMatrixWorld(true);
   const bones = {} as Record<BoneName, BoneRest>;
@@ -208,12 +201,13 @@ function buildTemplates(rider0: GLTF, rider1: GLTF, bike0: GLTF, bike1: GLTF): T
   const armP = new THREE.Vector3();
   if (armature) decompose(armature, armQ, armP);
 
-  const bscene = bike0.scene;
+  // Pédalier et pédales : mêmes cotes pour toutes les familles (repère du vélo de base).
+  const bscene = familyScene(PLAIN_BIKE_FAMILY);
   bscene.updateMatrixWorld(true);
   const crankset = bscene.getObjectByName('crankset');
   const pl = bscene.getObjectByName('pedal_L');
   const pr = bscene.getObjectByName('pedal_R');
-  if (!crankset || !pl || !pr) throw new Error('bike.glb incomplet (crankset / pedal_L / pedal_R)');
+  if (!crankset || !pl || !pr) throw new Error(`${PLAIN_BIKE_FAMILY}.glb incomplet (crankset / pedal_L / pedal_R)`);
   const bb = crankset.position.clone();
   const pedalRest = { L: pl.position.clone(), R: pr.position.clone() };
   const crank = Math.hypot(pedalRest.L.y - bb.y, pedalRest.L.z - bb.z);
@@ -231,18 +225,13 @@ function buildTemplates(rider0: GLTF, rider1: GLTF, bike0: GLTF, bike1: GLTF): T
   const uh = new THREE.Vector3(0, 1, 0).applyQuaternion(bones.head.modelQ).normalize();
   const fh = new THREE.Vector3(0, 0, 1).addScaledVector(uh, -uh.z).normalize();
   const eyeRest = uh.multiplyScalar(0.06).addScaledVector(fh, 0.11);
-  return { rider0, rider1, bike0, bike1, bones, armQ, armP, legs, arms, bb, crank, pedalRest, pedalPitch, ankleFlat, eyeRest };
+  return { rider0, rider1, bones, armQ, armP, legs, arms, bb, crank, pedalRest, pedalPitch, ankleFlat, eyeRest, refHands: bikeAnchors(PLAIN_BIKE_FAMILY).hands };
 }
 
 function makeMaterial(name: string, look: AvatarLook): THREE.MeshStandardNodeMaterial {
   const def = MATERIALS[name] ?? ['#808080', 0.6, 0];
   const m = new THREE.MeshStandardNodeMaterial({ color: def[0], roughness: def[1], metalness: def[2] });
   m.name = name;
-  const em = EMISSIVE[name];
-  if (em) {
-    m.emissive.set(em[0]);
-    m.emissiveIntensity = em[1];
-  }
   applyLookColor(m, look);
   return m;
 }
@@ -254,9 +243,6 @@ function applyLookColor(m: THREE.MeshStandardNodeMaterial, look: AvatarLook): vo
     jersey_accent: look.jerseyAccent,
     helmet: look.helmet,
     hair: look.hair,
-    frame: look.bike,
-    bar_tape: look.jerseyAccent,
-    bottle: look.jerseyAccent,
   };
   const col = c[m.name];
   if (col) m.color.set(col);
@@ -266,6 +252,16 @@ interface BikeParts {
   crank: THREE.Object3D[];
   wheels: THREE.Object3D[];
   pedals: Record<Side, THREE.Object3D[]>;
+}
+
+/** Vélo monté sur l'avatar : modèle demandé, famille réellement affichée, pièces des deux LOD. */
+interface MountedBike {
+  key: string;
+  build: BikeBuild;
+  family: BikeFamily;
+  levels: AssembledBike[];
+  materials: BikeMaterials;
+  anchors: BikeAnchors;
 }
 
 export class GltfRiderAvatar implements RiderAvatarLike {
@@ -282,6 +278,15 @@ export class GltfRiderAvatar implements RiderAvatarLike {
   private readonly materials = new Map<string, THREE.MeshStandardNodeMaterial>();
   private readonly morphMeshes: THREE.Mesh[] = [];
   private readonly bike: BikeParts = { crank: [], wheels: [], pedals: { L: [], R: [] } };
+  /** Groupes recevant le vélo : niveau 0, niveau 1. */
+  private readonly bikeSlots: [THREE.Group, THREE.Group] = [new THREE.Group(), new THREE.Group()];
+  private mounted: MountedBike | null = null;
+  private look: AvatarLook;
+  /** Cible des mains (repère modèle) et direction des coudes, selon le vélo monté. */
+  private readonly handTarget: Record<Side, THREE.Vector3> = { L: new THREE.Vector3(), R: new THREE.Vector3() };
+  private readonly elbowPole: Record<Side, THREE.Vector3> = { L: new THREE.Vector3(), R: new THREE.Vector3() };
+  /** Position chrono (vélo à prolongateurs) : 0 → 1, dos plongeant. */
+  private tuck = 0;
   private crankAngle = Math.random() * Math.PI * 2;
   private wheelAngle = 0;
   private poseBlend = 0; // 0 assis → 1 danseuse
@@ -294,15 +299,21 @@ export class GltfRiderAvatar implements RiderAvatarLike {
   private readonly target = new THREE.Vector3();
   private readonly pedal = new THREE.Vector3();
 
-  /** Charge les quatre modèles (une seule fois). Renvoie false si indisponibles. */
-  static load(baseUrl = `${import.meta.env.BASE_URL}models/`): Promise<boolean> {
+  /**
+   * Charge le coureur et le vélo de base (une seule fois), plus les familles de cadres demandées
+   * (les autres se chargent à la demande). Renvoie false si le coureur ou le vélo de base manque.
+   */
+  static load(families: readonly BikeFamily[] = [], baseUrl = `${import.meta.env.BASE_URL}models/`): Promise<boolean> {
+    for (const f of families) void loadBikeFamily(f);
     if (templates) return Promise.resolve(true);
     if (loading) return loading;
     loading = (async () => {
       try {
         const loader = new GLTFLoader();
-        const [r0, r1, b0, b1] = await Promise.all(FILES.map((f) => loader.loadAsync(baseUrl + f)));
-        templates = buildTemplates(r0 as GLTF, r1 as GLTF, b0 as GLTF, b1 as GLTF);
+        const [riders, plain] = await Promise.all([Promise.all(FILES.map((f) => loader.loadAsync(baseUrl + f))), loadBikeFamily(PLAIN_BIKE_FAMILY)]);
+        if (!plain) throw new Error(`vélo de base (${PLAIN_BIKE_FAMILY}) indisponible`);
+        const [r0, r1] = riders;
+        templates = buildTemplates(r0 as GLTF, r1 as GLTF);
         return true;
       } catch (e) {
         console.warn('Avatar glTF indisponible, repli sur l’avatar procédural', e);
@@ -321,6 +332,7 @@ export class GltfRiderAvatar implements RiderAvatarLike {
   constructor(look: AvatarLook) {
     if (!templates) throw new Error('GltfRiderAvatar.load() doit être appelé (et attendu) avant la création');
     const t = (this.t = templates);
+    this.look = look;
     this.root.add(this.lean);
     this.lean.add(this.lod);
 
@@ -333,13 +345,12 @@ export class GltfRiderAvatar implements RiderAvatarLike {
       this.mQ[name] = new THREE.Quaternion();
       this.mP[name] = new THREE.Vector3();
     }
-    const bike0 = t.bike0.scene.clone(true);
     const level0 = new THREE.Group();
-    level0.add(bike0, rider0);
+    level0.add(this.bikeSlots[0], rider0);
 
     // Niveau 1 : maillages simplifiés liés aux os du niveau 0 (un seul squelette à animer).
     const level1 = new THREE.Group();
-    level1.add(t.bike1.scene.clone(true));
+    level1.add(this.bikeSlots[1]);
     t.rider1.scene.updateMatrixWorld(true);
     t.rider1.scene.traverse((o) => {
       const sm = o as THREE.SkinnedMesh;
@@ -354,7 +365,7 @@ export class GltfRiderAvatar implements RiderAvatarLike {
     this.lod.addLevel(level0, 0, 0.1);
     this.lod.addLevel(level1, LOD1_DISTANCE, 0.1);
 
-    // Matériaux (instances propres à l'avatar), ombres, sphères englobantes des maillages skinnés.
+    // Coureur : matériaux (instances propres à l'avatar), ombres, sphères englobantes des maillages skinnés.
     const bounds = new THREE.Sphere(new THREE.Vector3(0, 0.85, 0.05), 1.1);
     this.lod.traverse((o) => {
       const mesh = o as THREE.Mesh;
@@ -373,20 +384,70 @@ export class GltfRiderAvatar implements RiderAvatarLike {
         if (mesh.morphTargetDictionary && mesh.morphTargetDictionary.build !== undefined) this.morphMeshes.push(mesh);
       }
     });
-    for (const level of [bike0, level1]) {
-      const crank = level.getObjectByName('crankset');
-      if (crank) this.bike.crank.push(crank);
-      for (const w of ['wheel_front', 'wheel_rear']) {
-        const o = level.getObjectByName(w);
-        if (o) this.bike.wheels.push(o);
-      }
-      for (const s of SIDES) {
-        const p = level.getObjectByName(`pedal_${s}`);
-        if (p) this.bike.pedals[s].push(p);
-      }
-    }
+    this.mountBike(bikeOfLook(look), look);
     this.setBuild(look.build);
     this.update(0, 0, 0, 'seated');
+  }
+
+  /**
+   * Monte le vélo demandé (ses deux niveaux de détail). Famille pas encore chargée : vélo de
+   * base à la même livrée, remplacé dès que la famille arrive.
+   */
+  private mountBike(build: BikeBuild, look: AvatarLook): void {
+    const key = look.bikeModel ?? 'plain';
+    const family = availableFamily(build.family) ?? PLAIN_BIKE_FAMILY;
+    const cur = this.mounted;
+    if (cur && cur.key === key && cur.family === family) {
+      cur.build = build;
+      cur.materials.update(build, look);
+      return;
+    }
+    if (cur) {
+      for (const lv of cur.levels) lv.group.removeFromParent();
+      cur.materials.dispose();
+    }
+    const materials = new BikeMaterials(build, look);
+    const levels = [assembleBike(build, family, 0), assembleBike(build, family, 1)];
+    const parts: BikeParts = { crank: [], wheels: [], pedals: { L: [], R: [] } };
+    levels.forEach((lv, i) => {
+      lv.group.traverse((o) => {
+        const mesh = o as THREE.Mesh;
+        if (!mesh.isMesh) return;
+        mesh.material = materials.get((mesh.material as THREE.Material).name);
+        mesh.castShadow = this.shadows;
+        mesh.receiveShadow = true;
+      });
+      (this.bikeSlots[i] as THREE.Group).add(lv.group);
+      if (lv.crank) parts.crank.push(lv.crank);
+      parts.wheels.push(...lv.wheels);
+      for (const s of SIDES) {
+        const p = lv.pedals[s];
+        if (p) parts.pedals[s].push(p);
+      }
+    });
+    Object.assign(this.bike, parts);
+    const anchors = bikeAnchors(family);
+    this.mounted = { key, build, family, levels, materials, anchors };
+    // Mains : écart des ancres du vélo à celles du vélo de base (pose de repos) ; coudes tirés
+    // vers les repose-coudes s'il y en a, sinon pli de repos.
+    for (const s of SIDES) {
+      const c = this.t.arms[s];
+      const rest = this.t.bones[c.end].modelP;
+      this.handTarget[s].copy(rest).add(anchors.hands[s]).sub(this.t.refHands[s]);
+      const pad = anchors.pads?.[s];
+      if (pad) {
+        const sh = this.t.bones[c.upper].modelP;
+        const dir = _v1.subVectors(this.handTarget[s], sh).normalize();
+        const toPad = _v2.subVectors(pad, sh);
+        this.elbowPole[s].copy(toPad).addScaledVector(dir, -toPad.dot(dir)).normalize();
+      } else this.elbowPole[s].copy(c.pole);
+    }
+    this.tuck = anchors.pads ? 1 : 0;
+    if (family !== build.family) {
+      void loadBikeFamily(build.family).then((ok) => {
+        if (ok && this.mounted?.key === key) this.mountBike(this.mounted.build, this.look);
+      });
+    }
   }
 
   /** Repère « modèle » (= groupe incliné) d'un os à partir de son parent et de sa rotation locale. */
@@ -408,10 +469,10 @@ export class GltfRiderAvatar implements RiderAvatarLike {
     this.fk(name);
   }
 
-  /** Pilote une chaîne à deux os vers une cible (repère modèle). */
-  private solveChain(c: ChainRest, target: THREE.Vector3): void {
+  /** Pilote une chaîne à deux os vers une cible (repère modèle) ; pli vers `pole` (sinon celui de repos). */
+  private solveChain(c: ChainRest, target: THREE.Vector3, pole = c.pole): void {
     const root = this.mP[c.upper];
-    solveTwoBone(root, target, c.l1, c.l2, c.pole, this.knee, this.bendN);
+    solveTwoBone(root, target, c.l1, c.l2, pole, this.knee, this.bendN);
     // Os supérieur : rotation qui amène le repère de repos (direction, normale du pli) sur le nouveau.
     frameQuat(_v3.subVectors(this.knee, root), this.bendN, _q1).multiply(c.invUpper);
     this.setModelQ(c.upper, _q2.multiplyQuaternions(_q1, this.t.bones[c.upper].modelQ));
@@ -470,11 +531,15 @@ export class GltfRiderAvatar implements RiderAvatarLike {
     hips.position.copy(_v4).sub(t.armP).applyQuaternion(invArm);
     this.fk('hips');
 
-    // --- Colonne : le thorax compense le roulis du bassin (épaules stables).
+    // --- Colonne : le thorax compense le roulis du bassin (épaules stables) ; dos plongeant en
+    // position chrono (moins en danseuse).
+    const tuck = this.tuck * (1 - 0.6 * stand);
     this.bones.spine.quaternion.copy(t.bones.spine.localQ);
     this.fk('spine');
+    if (tuck > 0) this.setModelQ('spine', _q3.setFromAxisAngle(X_AXIS, TUCK_SPINE * tuck).multiply(this.mQ.spine));
     _q1.multiplyQuaternions(this.mQ.spine, t.bones.chest.localQ);
     _q2.setFromAxisAngle(Z_AXIS, -roll * 0.9);
+    if (tuck > 0) _q2.multiply(_q3.setFromAxisAngle(X_AXIS, TUCK_CHEST * tuck));
     this.setModelQ('chest', _q3.multiplyQuaternions(_q2, _q1));
 
     // --- Tête : regarde devant, compense une partie de l'inclinaison ; le cou en prend la moitié.
@@ -490,12 +555,12 @@ export class GltfRiderAvatar implements RiderAvatarLike {
     this.setModelQ('neck', _q2.multiplyQuaternions(_q1, this.mQ.neck));
     this.setModelQ('head', headTarget);
 
-    // --- Bras : mains fixes sur les cocottes.
+    // --- Bras : mains fixes sur le cintre (ou les prolongateurs).
     for (const s of SIDES) {
       const c = t.arms[s];
       this.bones[c.upper].quaternion.copy(t.bones[c.upper].localQ);
       this.fk(c.upper);
-      this.solveChain(c, this.target.copy(t.bones[c.end].modelP));
+      this.solveChain(c, this.target.copy(this.handTarget[s]), this.elbowPole[s]);
       this.setModelQ(c.end, t.bones[c.end].modelQ);
     }
 
@@ -565,7 +630,9 @@ export class GltfRiderAvatar implements RiderAvatarLike {
   }
 
   setLook(look: AvatarLook): void {
+    this.look = look;
     for (const m of this.materials.values()) applyLookColor(m, look);
+    this.mountBike(bikeOfLook(look), look);
     this.setBuild(look.build);
   }
 }
