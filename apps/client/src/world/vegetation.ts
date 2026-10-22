@@ -140,6 +140,11 @@ export class Vegetation {
   private readonly realMat: THREE.MeshStandardNodeMaterial;
   private readonly shrubMat: THREE.MeshStandardNodeMaterial;
   private readonly chunks = new Map<string, Chunk>();
+  /**
+   * Végétation réelle lointaine : au-delà de REAL_MID, une tuile dessine tous ses arbres en un seul
+   * appel (silhouettes) au lieu d'une soixantaine de blocs de 125 m ; ses blocs sont alors masqués.
+   */
+  private readonly realFar = new Map<string, { mesh: THREE.InstancedMesh; x0: number; z0: number; size: number; far: boolean }>();
   private q: QualitySettings;
   private readonly heightAt: (x: number, z: number) => number;
   /** Zones interdites (route principale). */
@@ -266,6 +271,7 @@ export class Vegetation {
       if (!list) b.set(kind, (list = []));
       list.push(m.clone());
     };
+    const farTrees: THREE.Matrix4[] = [];
     // pseudo-aléa stable par position (même arbre à chaque chargement)
     const seedAt = (x: number, z: number) => Math.abs(Math.sin(x * 12.9898 + z * 78.233) * 43758.5453) % 1;
     const trees = f.trees ?? [];
@@ -286,6 +292,7 @@ export class Vegetation {
       sc.set(sxz, h / TREE_H, sxz);
       m.compose(p, qn, sc);
       push(seed < 0.34 ? 'real0' : seed < 0.67 ? 'real1' : 'real2', x, z);
+      farTrees.push(m.clone());
     }
     const shrubs = f.shrubs ?? [];
     for (let i = 0; i + 2 < shrubs.length; i += 3) {
@@ -316,6 +323,38 @@ export class Vegetation {
         chunk.meshes.push({ kind, mesh: im });
       }
       this.chunks.set(chunk.key, chunk);
+    }
+    // silhouettes de toute la tuile, pour le lointain (un seul appel de dessin)
+    if (farTrees.length) {
+      const im = new THREE.InstancedMesh(this.geos.decid[2] as THREE.BufferGeometry, this.mats.decid, farTrees.length);
+      farTrees.forEach((mat, k) => im.setMatrixAt(k, mat));
+      im.instanceMatrix.needsUpdate = true;
+      im.computeBoundingSphere();
+      this.group.add(im);
+      this.realFar.set(tile.id, { mesh: im, x0: tile.x0, z0: tile.z0, size: tile.size, far: false });
+      this.setTileFar(tile.id, this.isFar(tile.x0, tile.z0, tile.size));
+    }
+  }
+
+  /** Tuile entièrement à plus de REAL_MID du coureur. */
+  private isFar(x0: number, z0: number, size: number): boolean {
+    const dx = Math.max(x0 - this.focus.x, 0, this.focus.x - (x0 + size));
+    const dz = Math.max(z0 - this.focus.z, 0, this.focus.z - (z0 + size));
+    return Math.hypot(dx, dz) > REAL_MID;
+  }
+
+  /** Bascule une tuile réelle entre silhouettes d'ensemble (loin) et blocs détaillés (près). */
+  private setTileFar(tileId: string, far: boolean): void {
+    const t = this.realFar.get(tileId);
+    if (!t) return;
+    t.far = far;
+    t.mesh.visible = far;
+    for (const c of this.chunks.values()) {
+      if (c.tileId !== tileId) continue;
+      for (const { kind, mesh } of c.meshes) {
+        if (far) mesh.visible = false;
+        else this.applyLod(kind, mesh, c.lod);
+      }
     }
   }
 
@@ -384,6 +423,12 @@ export class Vegetation {
   }
 
   removeTile(tile: LoadedTile): void {
+    const far = this.realFar.get(tile.id);
+    if (far) {
+      this.group.remove(far.mesh);
+      far.mesh.dispose();
+      this.realFar.delete(tile.id);
+    }
     for (const [key, c] of this.chunks) {
       if (c.tileId !== tile.id) continue;
       c.meshes.forEach(({ mesh }) => {
@@ -402,7 +447,12 @@ export class Vegetation {
       const lod = this.lodFor(c);
       if (lod === c.lod) continue;
       c.lod = lod;
+      if (c.real && this.realFar.get(c.tileId)?.far) continue;
       for (const { kind, mesh } of c.meshes) this.applyLod(kind, mesh, lod);
+    }
+    for (const [id, t] of this.realFar) {
+      const far = this.isFar(t.x0, t.z0, t.size);
+      if (far !== t.far) this.setTileFar(id, far);
     }
   }
 }

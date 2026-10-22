@@ -201,12 +201,13 @@ export async function prepareEnrichment(o: {
     const build = new Mask(eMin - M, nMax + M, TILE_SIZE_M + 2 * M);
     for (const b of bd) build.fillPolygon(b.rings[0]!, 1);
     const roadMask = new Mask(eMin - M, nMax + M, TILE_SIZE_M + 2 * M);
+    // cœur des chaussées : un « sommet » au milieu d'une route est une voûte d'arbres, pas un tronc
+    const roadCore = new Mask(eMin - M, nMax + M, TILE_SIZE_M + 2 * M);
     for (const r of o.roads) {
       if (/^(footway|path|steps|bridleway|track)$/.test(r.kind) && !r.paved) continue;
-      roadMask.stroke(
-        r.pts.map((p) => [p[0] + ORIGIN_L93.x, ORIGIN_L93.y - p[1]] as [number, number]),
-        r.width / 2 + 0.3,
-      );
+      const line = r.pts.map((p) => [p[0] + ORIGIN_L93.x, ORIGIN_L93.y - p[1]] as [number, number]);
+      roadMask.stroke(line, r.width / 2 + 0.3);
+      roadCore.stroke(line, Math.max(0.8, r.width / 2 - 0.5));
     }
     if (o.enrich.bdtopoBuildings) {
       const list: Array<Record<string, unknown>> = [];
@@ -224,7 +225,7 @@ export async function prepareEnrichment(o: {
     }
     if (o.enrich.lidarVegetation) {
       const mnh = await fetchRaster(LAYER_MNH, eMin - M, nMin - M, eMax + M, nMax + M);
-      const veg = detectVegetation(mnh, { eMin, nMin, eMax, nMax }, (e, n) => build.get(e, n));
+      const veg = detectVegetation(mnh, { eMin, nMin, eMax, nMax }, (e, n) => build.get(e, n) || roadCore.get(e, n));
       const trees: number[] = [];
       for (const t of veg.trees) trees.push(...toWorld([t.e, t.n]), r1(t.h), r1(t.r));
       const shrubs: number[] = [];
