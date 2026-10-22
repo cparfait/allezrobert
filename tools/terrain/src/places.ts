@@ -2,7 +2,8 @@
  * Lieux habités d'un monde ouvert (`places.json`) : noms des villes, villages et hameaux pour
  * la carte d'itinéraire du menu. Écrit par build-open ; pour un monde déjà construit, extrait
  * des tuiles sans rien reconstruire :
- *   pnpm --filter @allezrobert/terrain places -- --world limagne
+ *   pnpm --filter @allezrobert/terrain places -- --world limagne        (public/worlds/<id> de ce dépôt)
+ *   pnpm --filter @allezrobert/terrain places -- --dir <dossier du monde>  (monde construit ailleurs)
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -28,6 +29,8 @@ export function placesOf(pois: Array<{ kind: string; name?: string; x: number; z
 /** Extrait places.json des tuiles d'un monde déjà construit et le déclare dans world.json. */
 export function extractPlaces(worldDir: string): number {
   const metaFile = path.join(worldDir, 'world.json');
+  if (!fs.existsSync(metaFile)) throw new Error(`${worldDir} : pas de world.json — monde pas encore construit ici (build:world), ou ailleurs (--dir <dossier>)`);
+  if (!fs.existsSync(path.join(worldDir, 'tiles'))) throw new Error(`${worldDir} : pas de tuiles (tiles/) d'où tirer les noms`);
   const meta = JSON.parse(fs.readFileSync(metaFile, 'utf8')) as WorldMeta;
   if (!meta.open) throw new Error(`${worldDir} : pas un monde ouvert`);
   const tilesDir = path.join(worldDir, 'tiles');
@@ -46,9 +49,18 @@ export function extractPlaces(worldDir: string): number {
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  const i = process.argv.indexOf('--world');
-  const id = i >= 0 ? process.argv[i + 1] : undefined;
-  if (!id) throw new Error('--world <id> attendu');
-  const dir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../apps/client/public/worlds', id);
-  console.log(`${id} : ${extractPlaces(dir)} lieux nommés → ${PLACES_FILE}`);
+  const arg = (k: string) => {
+    const i = process.argv.indexOf(k);
+    return i >= 0 ? process.argv[i + 1] : undefined;
+  };
+  const id = arg('--world');
+  const dirArg = arg('--dir');
+  if (!id && !dirArg) throw new Error('--world <id> ou --dir <dossier du monde> attendu');
+  const dir = dirArg ? path.resolve(dirArg) : path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../apps/client/public/worlds', id as string);
+  try {
+    console.log(`${path.basename(dir)} : ${extractPlaces(dir)} lieux nommés → ${PLACES_FILE}`);
+  } catch (err) {
+    console.error((err as Error).message);
+    process.exit(1);
+  }
 }

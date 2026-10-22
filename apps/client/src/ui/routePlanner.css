@@ -37,10 +37,6 @@
   .rp { grid-template-columns: 1fr; }
   .rp-map { height: 46vh; }
 }
-/* Zone choisie en cours de chargement (fenêtre « Zones »), avant l'ouverture de ses parcours. */
-.mm-zonecard.busy { border-color: var(--ar-accent); opacity: 0.75; pointer-events: none; }
-.mm-zonecard.busy small { animation: rp-blink 0.9s ease-in-out infinite alternate; }
-@keyframes rp-blink { to { opacity: 0.35; } }
 .rp-head-links { display: flex; gap: 14px; margin-left: auto; margin-right: 14px; }
 /* Points de passage et noms des lieux (villes et villages toujours, hameaux une fois zoomé). */
 .rp-via circle, .rp-dot.rp-via { fill: #fff; background: #fff; }

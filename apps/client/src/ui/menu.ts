@@ -21,6 +21,8 @@ import { faceEditorHtml, withBaseHead, withLikeness, withProfile, withRandomFace
 import type { FaceSlider } from '@allezrobert/shared';
 import { joinSettings } from './friendsLogic.ts';
 import { RoutePlanner } from './routePlanner.ts';
+import { FranceMap, type MapZone } from './franceMap.ts';
+import { ZONE_SPOTS } from '../world/zoneMap.ts';
 import './menu.css';
 
 /** Ce que l'écran d'appairage sait faire, quel que soit le transport (implémenté avec @allezrobert/devices). */
@@ -181,19 +183,24 @@ export class MainMenu {
     this.worldId = worldId;
     this.openWorld = open;
     if (!routes.some((r) => r.id === this.s.routeId)) this.s.routeId = routes[0]?.id ?? '';
-    if (this.routesAfterWorld && this.picker === 'zones') this.picker = open ? 'map' : 'routes';
+    if (this.routesAfterWorld && this.picker === 'zones') this.picker = open ? 'zone' : 'routes';
     this.routesAfterWorld = false;
+    this.loadingZone = '';
     if (this.root.querySelector('.mm')) this.render();
   }
   openWorld = false;
   /** Zone choisie dans la fenêtre « Zones » : ses parcours s'ouvrent dès qu'elle est chargée. */
   private routesAfterWorld = false;
+  /** Nom de la zone en cours de chargement (affiché sur la carte de France). */
+  private loadingZone = '';
+  /** Carte de France de la fenêtre « Zones ». */
+  private readonly franceMap = new FranceMap();
   /** Itinéraire sur la carte d'une zone ouverte (fenêtre « Parcours ») : graphe donné par `planner.setOpen`. */
   readonly planner = new RoutePlanner();
   onWorld?: (id: string) => void;
   onSettingsSaved?: (s: Settings) => void;
   /** Fenêtre de choix ouverte au milieu de l'écran (boutons « Zone » et « Parcours »). */
-  private picker: 'zones' | 'routes' | 'map' | null = null;
+  private picker: 'zones' | 'zone' | 'routes' | 'map' | null = null;
   /** Catalogue des zones (packs de cartes). */
   private zones: WorldCatalogue['zones'] = [];
   /** Téléchargements en cours : octets reçus / total, ou message d'erreur. */
@@ -560,30 +567,27 @@ export class MainMenu {
       const w = WORLD_LIST.find((x) => x.id === this.worldId);
       return `<div class="mm-modal mm-picker-modal" data-picker-close>
       <div class="mm-dialog mm-picker" role="dialog" aria-modal="true">
-        <header><h2>${esc(w ? w.name[getLang()] : this.worldId)}</h2><span class="rp-head-links"><button class="mm-link" data-picker="zones">← ${L ? 'Zones' : 'Areas'}</button>${this.routes.length ? `<button class="mm-link" data-picker="routes">${L ? 'Parcours proposés' : 'Suggested routes'} →</button>` : ''}</span><button class="mm-x" data-picker-close aria-label="${L ? 'Fermer' : 'Close'}">×</button></header>
+        <header><h2>${esc(w ? w.name[getLang()] : this.worldId)}</h2><span class="rp-head-links"><button class="mm-link" data-picker="zone">← ${L ? 'Choix de la zone' : 'Area choices'}</button></span><button class="mm-x" data-picker-close aria-label="${L ? 'Fermer' : 'Close'}">×</button></header>
         ${this.planner.html((r) => this.routeCard(r))}
       </div></div>`;
     }
-    const zones = this.picker === 'zones';
-    const list = zones
-      ? `<div class="mm-cardgrid mm-zonegrid">${this.zonesHtml()}</div>`
-      : `<div class="mm-cardgrid">${this.routes
-          .map(
-            (x) => `<button class="mm-routepick ${x.id === this.s.routeId ? 'on' : ''}" data-route="${esc(x.id)}">
+    if (this.picker === 'zones') return this.franceHtml();
+    if (this.picker === 'zone') return this.zoneHtml();
+    // Parcours fixés de la zone (cartes), avec retour aux choix de la zone ou à la carte de France.
+    const w = WORLD_LIST.find((x) => x.id === this.worldId);
+    const list = `<div class="mm-cardgrid">${this.routes
+      .map(
+        (x) => `<button class="mm-routepick ${x.id === this.s.routeId ? 'on' : ''}" data-route="${esc(x.id)}">
             ${this.routeCard(x)}
             <span class="mm-routetag">${x.loop ? (L ? 'Boucle' : 'Loop') : L ? 'Aller simple' : 'One way'}${x.id === this.s.routeId ? ` · ${L ? 'choisi' : 'selected'}` : ''}</span></button>`,
-          )
-          .join('')}</div>
+      )
+      .join('')}</div>
         ${this.onExplore ? `<button id="m-explore" class="mm-explore">${ICON.explore}<span><b>${L ? 'Explorer la carte' : 'Explore the map'}</b><small>${L ? 'Caméra libre, sans rouler · Échap pour revenir' : 'Free camera, no riding · Esc to come back'}</small></span></button>` : ''}`;
-    const hint = zones
-      ? L
-        ? 'Télécharge une zone pour la garder sur cet appareil ; sinon elle se charge au fil de la sortie.'
-        : 'Download an area to keep it on this device; otherwise it loads as you ride.'
-      : '';
+    const pack = this.openWorld ? '' : this.packAction(this.worldId);
     return `<div class="mm-modal mm-picker-modal" data-picker-close>
       <div class="mm-dialog mm-picker" role="dialog" aria-modal="true">
-        <header><h2>${zones ? (L ? 'Zones' : 'Areas') : L ? 'Parcours' : 'Routes'}</h2><button class="mm-x" data-picker-close aria-label="${L ? 'Fermer' : 'Close'}">×</button></header>
-        ${hint ? `<p class="mm-hint">${hint}</p>` : ''}
+        <header><h2>${L ? 'Parcours' : 'Routes'}${w ? ` — ${esc(w.name[getLang()])}` : ''}</h2><span class="rp-head-links"><button class="mm-link" data-picker="${this.openWorld ? 'zone' : 'zones'}">← ${this.openWorld ? (L ? 'Choix de la zone' : 'Area choices') : L ? 'Carte de France' : 'Map of France'}</button></span><button class="mm-x" data-picker-close aria-label="${L ? 'Fermer' : 'Close'}">×</button></header>
+        ${pack ? `<div class="zc-pack">${L ? 'Cartes hors ligne' : 'Offline maps'} ${pack}</div>` : ''}
         ${list}
       </div></div>`;
   }
@@ -609,36 +613,74 @@ export class MainMenu {
   }
 
   /**
-   * Bloc « Zones » : les mondes du menu (WORLD_LIST), la zone chargée surlignée, et pour chacune
-   * son pack de cartes (catalogue `worlds/index.json`) : télécharger (taille), progression,
+   * Zones de la carte de France : une par point de ZONE_SPOTS (mondes du menu et mondes à venir).
+   * Publiée = présente dans le catalogue `worlds/index.json` (sans catalogue : celles de WORLD_LIST).
+   */
+  private mapZones(): MapZone[] {
+    const L = fr();
+    const lang = getLang();
+    return ZONE_SPOTS.map((spot) => {
+      const w = WORLD_LIST.find((x) => x.id === spot.id);
+      const z = this.zones.find((c) => c.id === spot.id);
+      const available = this.zones.length ? !!z : !!w;
+      const n = z?.routes.length ?? 0;
+      const info = [n ? `${n} ${L ? 'parcours' : n > 1 ? 'routes' : 'route'}` : '', spot.open ? (L ? 'monde ouvert' : 'open world') : '', w ? w.hint[lang] : ''].filter(Boolean).join(' · ');
+      return { id: spot.id, name: w ? w.name[lang] : spot.name[lang], region: spot.region[lang], x: spot.x, y: spot.y, available, current: spot.id === this.worldId, info };
+    });
+  }
+
+  /**
+   * Pack de cartes d'une zone (catalogue `worlds/index.json`) : télécharger (taille), progression,
    * téléchargée / supprimer, mettre à jour. Sans pack, la zone se charge quand même depuis le
    * serveur, au fil de la sortie.
    */
-  private zonesHtml(): string {
+  private packAction(id: string): string {
+    const L = fr();
+    const z = this.zones.find((c) => c.id === id);
+    const st = packState(id, z?.pack?.version);
+    const dl = this.downloads.get(id);
+    if (dl && !dl.error) return `<span class="mm-pack busy">${Math.floor((dl.done / Math.max(dl.total, 1)) * 100)} %</span>`;
+    if (dl?.error) return `<button class="mm-pack err" data-pack="${esc(id)}" title="${esc(dl.error)}">${L ? 'Réessayer' : 'Retry'}</button>`;
+    if (st.kind === 'installed' && st.upToDate) return `<span class="mm-pack ok">${L ? 'Téléchargée' : 'Downloaded'} ✓</span><button class="mm-link mm-unpack" data-unpack="${esc(id)}">${L ? 'Supprimer' : 'Remove'}</button>`;
+    if (st.kind === 'installed') return `<button class="mm-pack" data-pack="${esc(id)}">${L ? 'Mettre à jour' : 'Update'}${z?.pack ? ` · ${formatBytes(z.pack.bytes, L)}` : ''}</button>`;
+    if (st.kind === 'absent' && z?.pack) return `<button class="mm-pack" data-pack="${esc(id)}">↓ ${formatBytes(z.pack.bytes, L)}</button>`;
+    return '';
+  }
+
+  /** Fenêtre « Zones » : carte de France, un point par zone. */
+  private franceHtml(): string {
+    const L = fr();
+    return `<div class="mm-modal mm-picker-modal" data-picker-close>
+      <div class="mm-dialog mm-picker fm-dialog" role="dialog" aria-modal="true">
+        <header><h2>${L ? 'Où veux-tu rouler ?' : 'Where do you want to ride?'}</h2><button class="mm-x" data-picker-close aria-label="${L ? 'Fermer' : 'Close'}">×</button></header>
+        <p class="mm-hint">${this.loadingZone ? `${L ? 'Chargement de' : 'Loading'} ${esc(this.loadingZone)}…` : L ? 'Clique sur un point pour ouvrir la zone ; un point numéroté réunit plusieurs zones proches.' : 'Click a point to open the area; a numbered point groups several nearby areas.'}</p>
+        ${this.franceMap.html(this.mapZones())}
+      </div></div>`;
+  }
+
+  /** Fenêtre d'une zone ouverte : parcours fixés, parcours libre, parcours à dessiner. */
+  private zoneHtml(): string {
     const L = fr();
     const lang = getLang();
-    const items = WORLD_LIST.map((w) => {
-        const z = this.zones.find((c) => c.id === w.id);
-        const st = packState(w.id, z?.pack?.version);
-        const dl = this.downloads.get(w.id);
-        const info = z?.routes.length ? ` · ${z.routes.length} ${L ? 'parcours' : z.routes.length > 1 ? 'routes' : 'route'}` : '';
-        let action = '';
-        if (dl && !dl.error) action = `<span class="mm-pack busy">${Math.floor((dl.done / Math.max(dl.total, 1)) * 100)} %</span>`;
-        else if (dl?.error) action = `<button class="mm-pack err" data-pack="${esc(w.id)}" title="${esc(dl.error)}">${L ? 'Réessayer' : 'Retry'}</button>`;
-        else if (st.kind === 'installed' && st.upToDate) action = `<span class="mm-pack ok">${L ? 'Téléchargée' : 'Downloaded'} ✓</span><button class="mm-link mm-unpack" data-unpack="${esc(w.id)}">${L ? 'Supprimer' : 'Remove'}</button>`;
-        else if (st.kind === 'installed') action = `<button class="mm-pack" data-pack="${esc(w.id)}">${L ? 'Mettre à jour' : 'Update'}${z?.pack ? ` · ${formatBytes(z.pack.bytes, L)}` : ''}</button>`;
-        else if (st.kind === 'absent' && z?.pack) action = `<button class="mm-pack" data-pack="${esc(w.id)}">↓ ${formatBytes(z.pack.bytes, L)}</button>`;
-        const longest = z?.routes.length ? Math.max(...z.routes.map((x) => x.lengthM)) : 0;
-        return `<div class="mm-zone mm-zonecard ${w.id === this.worldId ? 'on' : ''}">
-          <button class="mm-zone-pick" data-world="${esc(w.id)}">
-            <small>${w.id === this.worldId ? (L ? 'Zone actuelle' : 'Current area') : L ? 'Zone' : 'Area'}</small>
-            <b>${esc(w.name[lang])}</b><span>${esc(w.hint[lang])}</span>
-            <span class="mm-zonestats">${z?.routes.length ? `<em>${z.routes.length}</em> ${L ? 'parcours' : z.routes.length > 1 ? 'routes' : 'route'}${longest ? ` · <em>${this.km(longest)}</em> km max` : ''}` : ''}${info && !z?.routes.length ? info : ''}</span>
-          </button>
-          <div class="mm-zone-pack">${action}</div></div>`;
-      }).join('');
-    void L;
-    return items;
+    const w = WORLD_LIST.find((x) => x.id === this.worldId);
+    const spot = ZONE_SPOTS.find((x) => x.id === this.worldId);
+    const n = this.routes.length;
+    const card = (id: string, icon: string, title: string, text: string) => `<button class="zc-choice" data-zc="${id}">${icon}<b>${title}</b><span>${text}</span></button>`;
+    const pack = this.packAction(this.worldId);
+    // Région, puis la description de la zone (sans répéter la région si elle y figure déjà).
+    const hint = w?.hint[lang] ?? '';
+    const region = spot?.region[lang] ?? '';
+    const zoneSub = [hint.includes(region) ? '' : region, hint].filter(Boolean).join(' · ');
+    return `<div class="mm-modal mm-picker-modal" data-picker-close>
+      <div class="mm-dialog mm-picker" role="dialog" aria-modal="true">
+        <header class="zc-head"><div><h2>${esc(w ? w.name[lang] : (spot?.name[lang] ?? this.worldId))}</h2><small>${esc(zoneSub)}</small></div><button class="mm-x" data-picker-close aria-label="${L ? 'Fermer' : 'Close'}">×</button></header>
+        <div class="zc-choices">
+          ${n ? card('routes', ICON.free, L ? 'Parcours' : 'Routes', L ? `${n} parcours déjà tracé${n > 1 ? 's' : ''} : boucles et itinéraires de la zone.` : `${n} ready-made route${n > 1 ? 's' : ''}: loops and rides of the area.`) : ''}
+          ${card('free', ICON.open, L ? 'Parcours libre' : 'Free ride', L ? 'Pars du départ de la zone et choisis ta route à chaque carrefour (← / →, U pour faire demi-tour).' : 'Start from the area’s start and pick your road at each junction (← / →, U to turn around).')}
+          ${card('draw', svg('<path d="M4 19c3-.5 3.5-6 7-6s3 5.5 6 5"/><circle cx="4" cy="19" r="1.6"/><circle cx="17" cy="18" r="1.6"/><path d="m15.5 3.5 3 3L12 13H9v-3z"/>'), L ? 'Parcours à dessiner' : 'Draw a route', L ? 'Sur la carte : ton départ, tes points de passage, ton arrivée ou une boucle.' : 'On the map: your start, waypoints, finish or a loop.')}
+        </div>
+        <div class="zc-pack"><button class="mm-link zc-back" data-picker="zones">← ${L ? 'Carte de France' : 'Map of France'}</button>${pack ? `${L ? 'Cartes hors ligne' : 'Offline maps'} ${pack}` : ''}</div>
+      </div></div>`;
   }
 
   private async downloadZone(id: string): Promise<void> {
@@ -1219,26 +1261,41 @@ export class MainMenu {
         this.render();
       }),
     );
-    this.root.querySelectorAll<HTMLElement>('[data-world]').forEach((el) =>
-      el.addEventListener('click', () => {
-        const id = el.dataset.world as string;
-        // Zone choisie : on enchaîne sur ses parcours (et la carte d'itinéraire des zones ouvertes).
+    // Carte de France : une zone choisie ouvre ses choix (zone ouverte) ou ses parcours.
+    if (this.picker === 'zones')
+      this.franceMap.bind(this.root, this.mapZones(), (id) => {
         if (id === this.worldId) {
-          this.picker = this.openWorld ? 'map' : 'routes';
+          this.picker = this.openWorld ? 'zone' : 'routes';
           this.render();
           return;
         }
+        if (this.loadingZone) return;
         this.routesAfterWorld = true;
-        el.closest('.mm-zonecard')?.classList.add('busy');
-        const tag = el.querySelector('small');
-        if (tag) tag.textContent = fr() ? 'Chargement…' : 'Loading…';
+        this.loadingZone = this.mapZones().find((z) => z.id === id)?.name ?? id;
+        const hint = this.root.querySelector('.fm-dialog .mm-hint');
+        if (hint) hint.textContent = `${fr() ? 'Chargement de' : 'Loading'} ${this.loadingZone}…`;
         this.onWorld?.(id);
+      });
+    // Zone ouverte : parcours fixés, parcours libre (départ par défaut), parcours à dessiner.
+    this.root.querySelectorAll<HTMLElement>('[data-zc]').forEach((el) =>
+      el.addEventListener('click', () => {
+        const c = el.dataset.zc;
+        if (c === 'free') {
+          s.mode = 'open';
+          this.picker = null;
+          changed();
+          this.start();
+          return;
+        }
+        this.picker = c === 'draw' ? 'map' : 'routes';
+        this.render();
       }),
     );
     // Boutons « Zone » / « Parcours » : fenêtre de choix au milieu de l'écran.
     this.root.querySelectorAll<HTMLElement>('[data-picker]').forEach((el) =>
       el.addEventListener('click', () => {
-        this.picker = el.dataset.picker as 'zones' | 'routes' | 'map';
+        this.picker = el.dataset.picker as 'zones' | 'zone' | 'routes' | 'map';
+        if (this.picker === 'zones' && el.closest('.mm-pickers')) this.franceMap.reset();
         this.render();
       }),
     );
