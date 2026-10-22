@@ -2,9 +2,11 @@ import type { RoadGraphData, RouteData } from '@allezrobert/shared';
 
 /**
  * Classes d'occupation du sol rastérisées par tuile (un octet par canal). `verge` : abords de
- * l'itinéraire actif (l'orthophoto, où la chaussée apparaît floue, y est atténuée).
+ * l'itinéraire actif (l'orthophoto, où la chaussée apparaît floue, y est atténuée). `alpine` :
+ * roche nue et éboulis ≈ 0,5, glacier = 1. `conifer` : forêts de résineux OSM (1) ou mixtes (0,5),
+ * pour la végétation seulement (les huit premiers canaux vont au matériau du terrain).
  */
-export const SPLAT_CHANNELS = ['forest', 'field', 'meadow', 'water', 'urban', 'road', 'verge'] as const;
+export const SPLAT_CHANNELS = ['forest', 'field', 'meadow', 'water', 'urban', 'road', 'verge', 'alpine', 'conifer'] as const;
 export type SplatChannel = (typeof SPLAT_CHANNELS)[number];
 
 export type ForestKind = 'deciduous' | 'conifer' | 'mixed';
@@ -87,6 +89,18 @@ export interface LoadedTile {
   splat?: { res: number; data: Uint8Array };
 }
 
+/**
+ * Relief lointain (horizon des montagnes) : grille grossière autour du monde, (n+1)² altitudes
+ * absolues (m), ligne j = z0 + j·resolutionM (du nord au sud), colonne i = x0 + i·resolutionM.
+ */
+export interface HorizonGrid {
+  x0: number;
+  z0: number;
+  n: number;
+  resolutionM: number;
+  heights: Float32Array;
+}
+
 export interface WorldSource {
   id: string;
   name: string;
@@ -100,4 +114,6 @@ export interface WorldSource {
   open?: { graph: RoadGraphData; start: { x: number; z: number } };
   hasTile(tx: number, tz: number): boolean;
   loadTile(tx: number, tz: number): Promise<LoadedTile | null>;
+  /** Relief lointain, s'il est fourni (world.json `horizon`). */
+  loadHorizon?(): Promise<HorizonGrid | null>;
 }

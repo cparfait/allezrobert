@@ -34,7 +34,9 @@ import { addXp, awardRide, loadProgress } from './ui/garage.ts';
 import { awardTrophies } from './game/trophies.ts';
 import { roadSurfaceAt, windShelterAt } from './world/conditions.ts';
 import { OpenNavigator } from './game/open.ts';
-import { KomChallenge, type ChallengeResult } from './game/challenge.ts';
+import { KomChallenge, readKomRecord, type ChallengeResult } from './game/challenge.ts';
+import { HairpinWatcher, hairpinToast, reachedFinish, summitStats } from './game/climb.ts';
+import { showSummit } from './ui/summit.ts';
 import { fetchMe, showLogin, applyProfile, logout, pushProfile, type Me } from './ui/account.ts';
 import { sendRideInvites } from './ui/friends.ts';
 import { RideSequences } from './game/sequences.ts';
@@ -116,7 +118,7 @@ function worldOverlay(label: string): HTMLElement {
 }
 
 /** Version des médias du menu (vidéos, images) : à augmenter quand on les régénère (cache navigateur). */
-const MENU_MEDIA_VERSION = 3;
+const MENU_MEDIA_VERSION = 4;
 
 /** Boucle vidéo de la saison en fond du menu (public/menu/loop-<saison>.webm), sur son image fixe. */
 function createMenuVideo(el: HTMLVideoElement | null) {
@@ -713,6 +715,34 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
       .intro({ season: s.season, riders: peloton.riders.length + 1, rideType: s.mode })
       .finally(() => (ride.paused = false));
   }
+  // Montée : annonce de chaque lacet numéroté ; arrivée au sommet d'un itinéraire aller simple.
+  const hairpins = new HairpinWatcher(nav ? undefined : track.route.hairpins);
+  let summitShown = false;
+  const reachSummit = () => {
+    summitShown = true;
+    ride.state.distM = track.length;
+    ride.state.speedMs = 0;
+    ride.paused = true;
+    hud.setVisible(false);
+    input.sendTrainer({ kind: 'simulation', gradePercent: 0 });
+    const kom = ride.segmentResults.filter((r) => r.seg.kind === 'kom').at(-1);
+    const stats = summitStats({
+      elapsedS: ride.elapsedS,
+      distanceM: ride.state.distM - startD,
+      elevationGainM: ride.elevationGainM,
+      avgWatts: ride.avgWatts(),
+      massKg: s.massKg,
+      ...(kom ? { kom: { name: kom.seg.name, timeS: kom.timeS, avgWatts: kom.avgWatts, climbM: track.sample(kom.seg.endM).y - track.sample(kom.seg.startM).y, recordS: readKomRecord(track.route.id, kom.seg.id)?.timeS ?? null } } : {}),
+    });
+    showSummit(ui, { routeName: track.route.name, altitudeM: track.sample(track.length).y, stats }, {
+      onSummary: () => finish(),
+      // XP, historique et records comptés comme à une fin normale, puis retour au menu.
+      onMenu: () => {
+        finish();
+        teardown(false);
+      },
+    });
+  };
   ride.onLap = (lap) => {
     hud.toast(`${t('lap')} ${lap}`);
     ghost.lap(ride.elapsedS, ride.state.distM);
@@ -965,7 +995,13 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
       const me = mp?.net.getSelfSnapshot();
       if (me) ride.state.distM = me.lap * track.length + me.distM;
     }
+    const prevD = ride.state.distM;
     ride.update(dt, input, steer);
+    if (!ride.paused && ride.dir > 0) {
+      const hp = hairpins.update(prevD, ride.state.distM);
+      if (hp) hud.toast(hairpinToast(hp, getLang() === 'fr'), true);
+      if (!summitShown && !nav && !mp && reachedFinish(track.route.loop, ride.dir, ride.state.distM, track.length)) reachSummit();
+    }
     if (!ride.paused) {
       ghost.update(dt, ride.elapsedS, ride.state.distM);
       challenge?.update(dt, ride.state.distM - startD, ride.elapsedS);

@@ -8,6 +8,7 @@ import type { LoadedTile } from './types.ts';
 import { splatAt } from './splat.ts';
 import type { Season } from './environment.ts';
 import { broadleafVariants, realTreeMaterial, shrubGeometry, TREE_H, TREE_R } from './trees.ts';
+import { alpineProfile, coniferBiasAt, larchShareAt, treeDensityAt, treeScaleAt } from './alpine.ts';
 
 /** Couleurs de feuillage par saison (feuillus) — palettes de ART_DIRECTION.md. */
 const LEAVES: Record<Season, [string, string, string]> = {
@@ -15,6 +16,22 @@ const LEAVES: Record<Season, [string, string, string]> = {
   summer: ['#4f7a32', '#6b8e3a', '#3f6a2b'],
   autumn: ['#c8762c', '#e0a33a', '#9b3d1f'],
   winter: ['#6e5d4f', '#6e5d4f', '#6e5d4f'],
+};
+
+/** Mélèzes : vert tendre au printemps, doré à l'automne, nus (gris-brun) en hiver. */
+const LARCH: Record<Season, [string, string]> = {
+  spring: ['#86a85a', '#9cbb68'],
+  summer: ['#5f8240', '#6f9048'],
+  autumn: ['#d39a35', '#e2b14a'],
+  winter: ['#76685a', '#6c5f52'],
+};
+
+/**
+ * Penchant régional pour les conifères, propre à un monde (en plus de l'altitude et des forêts
+ * de résineux OSM) : Chevreuse, pinèdes de la forêt de Rambouillet à l'ouest.
+ */
+const REGIONAL_CONIFERS: Record<string, (x: number, z: number) => number> = {
+  chevreuse: (x) => (x < -6000 ? 0.4 : 0),
 };
 
 /** Taille des blocs d'instanciation (m) : compromis entre appels de dessin et élimination hors champ. */
@@ -30,7 +47,7 @@ const REAL_MID = 700;
 /** Rapport hauteur / rayon de houppier au-delà duquel un arbre réel est élancé (peuplier, jeune arbre). */
 const SLENDER = 4.2;
 
-type Kind = 'decid' | 'conif' | 'real0' | 'real1' | 'real2' | 'shrub';
+type Kind = 'decid' | 'conif' | 'larch' | 'real0' | 'real1' | 'real2' | 'shrub';
 
 /** Marque chaque sommet : 0 = bois, 1 = feuillage (pour l'animation et la saison). */
 function tag(geo: THREE.BufferGeometry, leaf: number, shade: number, center?: THREE.Vector3): THREE.BufferGeometry {
@@ -134,10 +151,12 @@ export class Vegetation {
   private readonly leafA = colorUniform();
   private readonly leafB = colorUniform();
   private readonly leafC = colorUniform();
+  private readonly larchA = colorUniform();
+  private readonly larchB = colorUniform();
   /** 1 = feuillage complet, 0 = arbres nus (hiver). */
   private readonly leafAmount = uniform(1);
   private readonly geos: Record<Kind, Array<THREE.BufferGeometry | null>>;
-  private readonly mats: Record<'decid' | 'conif', THREE.MeshStandardNodeMaterial>;
+  private readonly mats: Record<'decid' | 'conif' | 'larch', THREE.MeshStandardNodeMaterial>;
   /** Arbres réels proches (cartes de feuillage) et haies / buissons. */
   private readonly realMat: THREE.MeshStandardNodeMaterial;
   private readonly shrubMat: THREE.MeshStandardNodeMaterial;
@@ -154,6 +173,15 @@ export class Vegetation {
   /** Arbres réels : seulement la chaussée et son bord immédiat (les haies de bord de route restent). */
   private readonly avoidReal: (x: number, z: number) => boolean;
   private readonly focus = new THREE.Vector3(1e9, 0, 1e9);
+  /** Monde : penchant régional pour les conifères et limite des arbres (voir alpine.ts). */
+  private regional: (x: number, z: number) => number = () => 0;
+  private treelineM = alpineProfile('').treelineM;
+
+  /** Règles propres au monde chargé (à fixer avant le chargement des tuiles). */
+  setWorld(id: string): void {
+    this.regional = REGIONAL_CONIFERS[id] ?? (() => 0);
+    this.treelineM = alpineProfile(id).treelineM;
+  }
 
   constructor(q: QualitySettings, season: Season, heightAt: (x: number, z: number) => number, avoid: (x: number, z: number) => boolean, avoidReal: (x: number, z: number) => boolean = avoid) {
     this.q = q;
@@ -168,13 +196,14 @@ export class Vegetation {
     this.geos = {
       decid,
       conif,
+      larch: conif,
       // trois feuillus détaillés ; au-delà de REAL_NEAR, la silhouette des feuillus semés
       real0: [real[0]!, decid[1]!, decid[2]!],
       real1: [real[1]!, decid[1]!, decid[2]!],
       real2: [real[2]!, decid[1]!, decid[2]!],
       shrub: [shrub, shrub, null],
     };
-    this.mats = { decid: this.material(false), conif: this.material(true) };
+    this.mats = { decid: this.material('decid'), conif: this.material('conif'), larch: this.material('larch') };
     const colours = { a: this.leafA.node, b: this.leafB.node, c: this.leafC.node, amount: this.leafAmount, wind: this.windStrength };
     this.realMat = realTreeMaterial(colours, true);
     this.shrubMat = realTreeMaterial(colours, false);
@@ -184,6 +213,7 @@ export class Vegetation {
   private materialFor(kind: Kind, lod: number): THREE.MeshStandardNodeMaterial {
     if (kind === 'shrub') return this.shrubMat;
     if (kind === 'conif') return this.mats.conif;
+    if (kind === 'larch') return this.mats.larch;
     if (kind === 'decid') return this.mats.decid;
     return lod === 0 ? this.realMat : this.mats.decid;
   }
@@ -205,13 +235,16 @@ export class Vegetation {
     this.leafB.set(b);
     this.leafC.set(c);
     this.leafAmount.value = season === 'winter' ? 0 : 1;
+    this.larchA.set(LARCH[season][0]);
+    this.larchB.set(LARCH[season][1]);
   }
 
   setQuality(q: QualitySettings): void {
     this.q = q;
   }
 
-  private material(conifer: boolean): THREE.MeshStandardNodeMaterial {
+  private material(kind: 'decid' | 'conif' | 'larch'): THREE.MeshStandardNodeMaterial {
+    const conifer = kind !== 'decid';
     const m = new THREE.MeshStandardNodeMaterial();
     const leaf = attribute<'float'>('leaf');
     const shade = attribute<'float'>('shade');
@@ -241,9 +274,12 @@ export class Vegetation {
     }
     m.positionNode = positionLocal.add(offset);
     const wood = color('#4a3a2c');
-    const leafCol = conifer
-      ? mix(color('#2f4a2c'), color('#3d5a33'), h)
-      : mix(mix(this.leafA.node, this.leafB.node, smoothstep(0.2, 0.8, h)), this.leafC.node, smoothstep(0.65, 0.95, h2));
+    const leafCol =
+      kind === 'larch'
+        ? mix(this.larchA.node, this.larchB.node, h)
+        : conifer
+          ? mix(color('#2f4a2c'), color('#3d5a33'), h)
+          : mix(mix(this.leafA.node, this.leafB.node, smoothstep(0.2, 0.8, h)), this.leafC.node, smoothstep(0.65, 0.95, h2));
     const col = mix(wood, leafCol, leaf).mul(shade).mul(h2.mul(0.25).add(0.85));
     m.colorNode = varying(col);
     m.roughnessNode = float(0.9);
@@ -374,7 +410,9 @@ export class Vegetation {
     }
     const r = rng(tile.tx * 73856093 + tile.tz * 19349663);
     const tries = Math.floor(((tile.size * tile.size) / 100) * this.q.treeDensity * 0.45);
-    const per = new Map<string, { decid: THREE.Matrix4[]; conif: THREE.Matrix4[] }>();
+    const per = new Map<string, { decid: THREE.Matrix4[]; conif: THREE.Matrix4[]; larch: THREE.Matrix4[] }>();
+    // pseudo-aléa stable par position, pour les règles d'altitude (la suite r() reste inchangée en plaine)
+    const seedAt = (x: number, z: number) => Math.abs(Math.sin(x * 12.9898 + z * 78.233) * 43758.5453) % 1;
     const m = new THREE.Matrix4();
     const qn = new THREE.Quaternion();
     const up = new THREE.Vector3(0, 1, 0);
@@ -390,7 +428,8 @@ export class Vegetation {
       const water = splatAt(tile, 3, x, z);
       const urban = splatAt(tile, 4, x, z);
       const road = splatAt(tile, 5, x, z);
-      if (water > 0.2 || road > 0.05) continue;
+      // Rien sur l'eau, la route, les éboulis, la roche nue ni les glaciers.
+      if (water > 0.2 || road > 0.05 || splatAt(tile, 7, x, z) > 0.2) continue;
       // Forêt dense ; arbres isolés et haies (bruit filaire) dans les prés ; jardins en zone bâtie.
       const hedge = Math.abs(fbm(x / 90, z / 90, 3)) < 0.03 ? 0.5 : 0;
       const prob = forest + meadow * (0.012 + hedge) + field * hedge * 0.6 + urban * 0.05;
@@ -398,23 +437,37 @@ export class Vegetation {
       if (this.avoid(x, z)) continue;
       const y = this.heightAt(x, z);
       if (!Number.isFinite(y)) continue;
-      const coniferBias = fbm(x / 1500 + 40, z / 1500, 3) + (x < -6000 ? 0.4 : 0);
-      const isConifer = forest > 0.5 && r() < 0.15 + Math.max(0, coniferBias) * 0.8;
-      const s = 0.85 + r() * 0.65;
+      // Altitude : forêt éclaircie à l'approche de la limite des arbres, rien au-delà ; ni arbre
+      // sur les parois (pente > 50°).
+      const seed = seedAt(x, z);
+      if (y > 1000) {
+        if (seed > treeDensityAt(y, this.treelineM)) continue;
+        const gx = this.heightAt(x + 3, z) - this.heightAt(x - 3, z);
+        const gz = this.heightAt(x, z + 3) - this.heightAt(x, z - 3);
+        if (Math.hypot(gx, gz) / 6 > 1.2) continue;
+      }
+      // Conifères : bruit régional, forêts de résineux OSM, règle propre au monde et étage
+      // montagnard (épicéas au-dessus de 1 200 m, arbres isolés des alpages compris).
+      const coniferBias = fbm(x / 1500 + 40, z / 1500, 3) + this.regional(x, z) + splatAt(tile, 8, x, z) * 0.9 + coniferBiasAt(y);
+      const isConifer = (forest > 0.5 || y > 1200) && r() < 0.15 + Math.max(0, coniferBias) * 0.8;
+      const isLarch = isConifer && seedAt(z, x) < larchShareAt(y, this.treelineM);
+      const s = (0.85 + r() * 0.65) * treeScaleAt(y, this.treelineM);
       p.set(x, y - 0.2, z);
       qn.setFromAxisAngle(up, r() * Math.PI * 2);
-      sc.set(s, s * (0.85 + r() * 0.35), s);
+      // mélèze : plus élancé et plus clair que l'épicéa
+      const slim = isLarch ? 0.72 : 1;
+      sc.set(s * slim, s * (0.85 + r() * 0.35), s * slim);
       m.compose(p, qn, sc);
       const key = `${Math.floor(x / CHUNK)}_${Math.floor(z / CHUNK)}`;
       let bucket = per.get(key);
-      if (!bucket) per.set(key, (bucket = { decid: [], conif: [] }));
-      (isConifer ? bucket.conif : bucket.decid).push(m.clone());
+      if (!bucket) per.set(key, (bucket = { decid: [], conif: [], larch: [] }));
+      (isLarch ? bucket.larch : isConifer ? bucket.conif : bucket.decid).push(m.clone());
     }
     for (const [key, bucket] of per) {
       const [cx, cz] = key.split('_').map(Number) as [number, number];
       const lod = this.lodFor({ cx, cz, size: CHUNK, real: false });
       const chunk: Chunk = { key: `${tile.id}:${key}`, tileId: tile.id, cx, cz, size: CHUNK, real: false, meshes: [], lod };
-      for (const kind of ['decid', 'conif'] as const) {
+      for (const kind of ['decid', 'conif', 'larch'] as const) {
         const list = bucket[kind];
         if (!list.length) continue;
         const im = new THREE.InstancedMesh(this.geos[kind][lod] as THREE.BufferGeometry, this.mats[kind], list.length);

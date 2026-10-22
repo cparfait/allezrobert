@@ -13,6 +13,8 @@ import { GrassField } from './grass.ts';
 import { WaterSystem } from './water.ts';
 import { Railways } from './railways.ts';
 import { Dust, surfaceUnder } from './dust.ts';
+import { FarTerrain } from './horizon.ts';
+import { alpineProfile } from './alpine.ts';
 import { soundSourcesForTile, type SoundSource } from '../audio/spatial.ts';
 import type { WorldSource } from './types.ts';
 
@@ -29,6 +31,9 @@ export class World {
   readonly water: WaterSystem;
   readonly railways: Railways;
   readonly dust: Dust;
+  /** Relief lointain (montagnes au-delà des tuiles), chargé en arrière-plan s'il existe. */
+  horizon: FarTerrain | null = null;
+  private disposed = false;
   /** Revêtement sous chaque émetteur de poussière (recalculé tous les 8 m). */
   private readonly surfaceCache = new Map<string, { x: number; z: number; unpaved: boolean }>();
   /** Contrôle visuel (?dust=force) : tout chemin est traité comme non revêtu. */
@@ -67,6 +72,7 @@ export class World {
     // Arbres réels (LiDAR) : seule la chaussée est interdite, les haies de bord de route restent.
     const onRoadEdge = buildRoadProximity(route, route.roadWidthM / 2 + 0.6);
     this.vegetation = new Vegetation(q, envState.season, groundAt, nearRoad, onRoadEdge);
+    this.vegetation.setWorld(source.id);
     scene.add(this.vegetation.group);
     this.buildings = new Buildings(groundAt, q.propDensity);
     scene.add(this.buildings.group);
@@ -84,6 +90,17 @@ export class World {
     scene.add(this.railways.group);
     this.dust = new Dust(q);
     scene.add(this.dust.sprite);
+
+    void source
+      .loadHorizon?.()
+      .then((grid) => {
+        if (!grid || this.disposed) return;
+        this.horizon = new FarTerrain(grid, source, q, this.env.state.season, alpineProfile(source.id));
+        this.horizon.requestFocus(this.focusTile[0] * source.tileSize + 1, this.focusTile[1] * source.tileSize + 1);
+        this.horizon.commitFocus();
+        scene.add(this.horizon.mesh);
+      })
+      .catch((err) => console.warn('Relief lointain indisponible', err));
 
     this.terrain.onTileLoaded = (tile) => {
       this.soundSources.set(tile.id, soundSourcesForTile(tile));
@@ -119,6 +136,7 @@ export class World {
     this.vegetation.setSeason(season);
     this.grass.setSeason(season);
     this.water.setSeason(season);
+    this.horizon?.setSeason(season);
   }
 
   setQuality(q: QualitySettings): void {
@@ -126,6 +144,7 @@ export class World {
     this.terrain.setQuality(q);
     this.vegetation.setQuality(q);
     this.water.setQuality(q);
+    this.horizon?.setQuality(q);
   }
 
   update(dt: number, focus: THREE.Vector3): void {
@@ -149,6 +168,11 @@ export class World {
     // L'eau reflète le ciel (zénith) et l'horizon (brume) du moment.
     this.water.skyColor.value.copy(this.env.hemi.color);
     this.water.horizonColor.value.copy(this.env.fog.color);
+    if (this.horizon) {
+      this.horizon.fogColor.value.copy(this.env.fog.color);
+      this.horizon.fogDensity.value = this.env.fog.density;
+      this.horizon.skyColor.value.copy(this.env.hemi.color);
+    }
     this.rain.update(w.rain, w.windMs, w.windFrom);
     this.buildings.night.value = this.nightFactor() > 0.35 ? 1 : 0;
     this.railways.night.value = this.nightFactor() > 0.25 ? 1 : 0;
@@ -172,7 +196,11 @@ export class World {
       this.lastFocusTile = key;
       this.focusTile = ft;
       this.updating = true;
-      this.terrain.update(focus).finally(() => (this.updating = false));
+      this.horizon?.requestFocus(focus.x, focus.z);
+      this.terrain.update(focus).finally(() => {
+        this.updating = false;
+        this.horizon?.commitFocus();
+      });
     }
   }
 
@@ -208,6 +236,11 @@ export class World {
   }
 
   dispose(): void {
+    this.disposed = true;
+    if (this.horizon) {
+      this.scene.remove(this.horizon.mesh);
+      this.horizon.dispose();
+    }
     this.terrain.disposeAll();
     this.env.dispose();
     this.road.mesh.geometry.dispose();

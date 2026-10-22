@@ -1,5 +1,5 @@
 import type { RoadGraphData, RouteData, WorldMeta, WorldTile } from '@allezrobert/shared';
-import type { LoadedTile, TileFeatures, WorldSource } from './types.ts';
+import type { HorizonGrid, LoadedTile, TileFeatures, WorldSource } from './types.ts';
 import { worldFetch } from './packs.ts';
 
 /**
@@ -44,6 +44,17 @@ export async function createFileWorld(id: string, meta: WorldMeta): Promise<Worl
       if (missing.has(key)) return false;
       // Index vide : génération en cours, on tente toutes les tuiles de l'emprise.
       return index.size ? index.has(key) : inBounds(tx, tz);
+    },
+    async loadHorizon(): Promise<HorizonGrid | null> {
+      const h = meta.horizon;
+      if (!h) return null;
+      const res = await worldFetch(`${base}/${h.file}`);
+      if (!res.ok) return null;
+      const raw = new Uint16Array(await res.arrayBuffer());
+      if (raw.length < (h.n + 1) * (h.n + 1)) return null;
+      const heights = new Float32Array(raw.length);
+      for (let i = 0; i < raw.length; i++) heights[i] = h.baseM + (raw[i] as number) * h.stepM;
+      return { x0: h.x0, z0: h.z0, n: h.n, resolutionM: h.resolutionM, heights };
     },
     async loadTile(tx, tz) {
       const key = `${tx}_${tz}`;

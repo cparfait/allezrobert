@@ -124,7 +124,7 @@ export class Hud {
           <span class="k">${t('np')}</span><span class="v num" data-k="np">0 W</span>
           <span class="k">${t('draft')}</span><span class="v num" data-k="draft">0 %</span>
           <span></span><span><div style="height:6px;width:110px;background:rgba(255,255,255,.12);border-radius:3px;overflow:hidden;margin-left:auto"><div data-k="draftBar" style="height:100%;width:0%;background:linear-gradient(90deg,#60a5fa,#22c55e)"></div></div></span>
-          <span class="k">${t('lap')}</span><span class="v num" data-k="lap">1</span>
+          ${track.route.loop ? `<span class="k">${t('lap')}</span><span class="v num" data-k="lap">1</span>` : ''}
         </div>
         <div class="hud-bl">
           <div class="voice-chip panel hidden" data-k="voice"></div>
@@ -306,9 +306,10 @@ export class Hud {
     this.root.classList.toggle('hidden');
   }
 
-  toast(text: string): void {
+  /** Annonce temporaire au centre ; `small` : discrète (passage d'un lacet). */
+  toast(text: string, small = false): void {
     const d = document.createElement('div');
-    d.className = 'panel toast';
+    d.className = small ? 'panel toast small' : 'panel toast';
     d.textContent = text;
     this.toasts.appendChild(d);
     setTimeout(() => d.remove(), 4200);
@@ -333,7 +334,8 @@ export class Hud {
     (e.np as HTMLElement).textContent = `${Math.round(s.np)} W`;
     (e.draft as HTMLElement).textContent = `${Math.round(s.draftPct)} %`;
     (e.draftBar as HTMLElement).style.width = `${Math.min(100, (s.draftPct / 50) * 100).toFixed(0)}%`;
-    (e.lap as HTMLElement).textContent = String(s.lap);
+    // pas de compteur de tours sur un itinéraire aller simple
+    if (e.lap) e.lap.textContent = String(s.lap);
     (e.gear as HTMLElement).textContent = s.gearLabel;
     const bars = e.gearbars as HTMLElement;
     if (bars.childElementCount !== s.gearCount) bars.innerHTML = '<i></i>'.repeat(s.gearCount);
