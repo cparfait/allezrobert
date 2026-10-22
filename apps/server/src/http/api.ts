@@ -36,6 +36,8 @@ const AvatarSchema = z.object({
   bikeModel: z.string().regex(/^[a-z0-9-]{1,64}$/).optional(),
   build: z.number().min(0).max(1),
   face: z.string().regex(FACE_CODE_RE).optional(),
+  beard: z.number().min(0).max(1).optional(),
+  freckles: z.number().min(0).max(1).optional(),
 });
 
 const ProfilePatchSchema = z

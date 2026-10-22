@@ -858,6 +858,114 @@ def transfer_keys(body, objs):
 
 
 # ---------------------------------------------------------------------------------------------
+# Textures de peau (docs/AVATARS.md § 6)
+# ---------------------------------------------------------------------------------------------
+VENDOR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'vendor', 'makehuman')
+SKIN_RES = 1024
+
+
+def bake_skin_textures(body, eyes, out_dir):
+    """skin_albedo.webp : peau MakeHuman jeune (CC0) divisée par sa teinte moyenne (variations
+    relatives, ×0,5 : 1 = gris moyen), multipliée par le teint dans le client ; skin_masks.webp :
+    R rougeur d'effort et sueur, G barbe, B rides (peau âgée / peau jeune, détail seul ;
+    0,5 = neutre), A taches de rousseur. Zones calculées en 3D (pose debout) puis reportées
+    dans l'espace UV par rastérisation des triangles."""
+    import numpy as np
+    from PIL import Image, ImageFilter
+    N = SKIN_RES
+    me = body.data
+    uv = me.uv_layers.active.data
+    pos = np.zeros((N, N, 3), np.float32)
+    cov = np.zeros((N, N), bool)
+    co = [v.co for v in me.vertices]
+    for p in me.polygons:
+        li = list(p.loop_indices)
+        for k in range(1, len(li) - 1):
+            tri = (li[0], li[k], li[k + 1])
+            u = np.array([[uv[l].uv.x * N, (1 - uv[l].uv.y) * N] for l in tri])
+            w = np.array([co[me.loops[l].vertex_index] for l in tri])
+            x0, y0 = np.floor(u.min(0)).astype(int)
+            x1, y1 = np.ceil(u.max(0)).astype(int)
+            x0, y0 = max(x0, 0), max(y0, 0)
+            x1, y1 = min(x1, N - 1), min(y1, N - 1)
+            if x1 < x0 or y1 < y0:
+                continue
+            ys, xs = np.mgrid[y0:y1 + 1, x0:x1 + 1]
+            P = np.stack([xs + 0.5, ys + 0.5], -1)
+            a, b, c = u
+            d = (b[1] - c[1]) * (a[0] - c[0]) + (c[0] - b[0]) * (a[1] - c[1])
+            if abs(d) < 1e-9:
+                continue
+            l1 = ((b[1] - c[1]) * (P[..., 0] - c[0]) + (c[0] - b[0]) * (P[..., 1] - c[1])) / d
+            l2 = ((c[1] - a[1]) * (P[..., 0] - c[0]) + (a[0] - c[0]) * (P[..., 1] - c[1])) / d
+            l3 = 1 - l1 - l2
+            m = (l1 >= -0.01) & (l2 >= -0.01) & (l3 >= -0.01)
+            if not m.any():
+                continue
+            q = l1[..., None] * w[0] + l2[..., None] * w[1] + l3[..., None] * w[2]
+            pos[ys[m], xs[m]] = q[m]
+            cov[ys[m], xs[m]] = True
+    mouth = np.array(MOUTH[0])
+    ev = [v.co for v in eyes.data.vertices]
+    eye_l = np.array(sum((c for c in ev if c.x > 0), Vector()) / max(1, sum(1 for c in ev if c.x > 0)))
+    eye_c = np.array([0.0, eye_l[1], eye_l[2]])
+
+    def blob(center, r):
+        d = np.linalg.norm(pos - np.array(center), axis=-1)
+        return np.exp(-(d / r) ** 2) * cov
+
+    def sstep(a, b, x):
+        t = np.clip((x - a) / (b - a), 0, 1)
+        return t * t * (3 - 2 * t)
+
+    flush = np.zeros((N, N), np.float32)
+    for sx in (1, -1):
+        flush = np.maximum(flush, blob(mouth + [sx * 0.036, 0.012, 0.024], 0.024))  # pommettes
+        flush = np.maximum(flush, 0.8 * blob(eye_c + [sx * 0.072, 0.075, -0.012], 0.02))  # oreilles
+    flush = np.maximum(flush, blob(mouth + [0, -0.012, 0.03], 0.013))  # nez
+    flush = np.maximum(flush, 0.6 * blob(eye_c + [0, -0.005, 0.055], 0.035))  # front
+    x, y, z = pos[..., 0], pos[..., 1], pos[..., 2]
+    beard = (sstep(mouth[2] + 0.03, mouth[2] + 0.012, z) * sstep(mouth[2] - 0.085, mouth[2] - 0.06, z)
+             * sstep(eye_l[1] + 0.08, eye_l[1] + 0.055, y) * cov)
+    beard *= 1 - 0.85 * blob(mouth + [0, 0.002, 0], 0.013)  # lèvres
+    beard *= 1 - sstep(0.025, 0.045, np.abs(x)) * sstep(mouth[2] + 0.0, mouth[2] + 0.02, z)  # haut des joues
+    # Taches de rousseur : petits points sur le nez et les pommettes.
+    rng = np.random.default_rng(7)
+    dots = np.zeros((N, N), np.float32)
+    zone = np.maximum(blob(mouth + [0, -0.008, 0.035], 0.03), np.maximum(blob(mouth + [0.035, 0.008, 0.03], 0.025), blob(mouth + [-0.035, 0.008, 0.03], 0.025)))
+    ys, xs = np.nonzero(zone > 0.2)
+    for i in rng.choice(len(ys), size=min(len(ys), 900), replace=False) if len(ys) else []:
+        cy, cx = ys[i], xs[i]
+        r = rng.uniform(0.8, 2.2)
+        yy, xx = np.mgrid[max(cy - 3, 0):min(cy + 4, N), max(cx - 3, 0):min(cx + 4, N)]
+        dots[yy, xx] = np.maximum(dots[yy, xx], np.clip(1 - np.hypot(yy - cy, xx - cx) / r, 0, 1) * rng.uniform(0.4, 1))
+    freckles = dots * zone
+    # Rides : détail (passe-haut) de la peau âgée moins celui de la peau jeune.
+    young = Image.open(os.path.join(VENDOR, 'young_lightskinned_male_diffuse.jpg')).convert('RGB').resize((N, N))
+    old = Image.open(os.path.join(VENDOR, 'old_lightskinned_male_diffuse.jpg')).convert('RGB').resize((N, N))
+
+    def hp(im):
+        l = np.asarray(im.convert('L'), np.float32) / 255
+        return l - np.asarray(im.convert('L').filter(ImageFilter.GaussianBlur(10)), np.float32) / 255
+
+    wr = np.clip(0.5 + (hp(old) - hp(young)) * 2.5, 0, 1)
+    ya = np.asarray(young, np.float32) / 255
+    # Référence du teint : la couleur la plus fréquente (fond de la texture, teinte de base voulue
+    # par MakeHuman) ; luminance relative, et teinte relative atténuée (garde lèvres et sourcils).
+    q = (np.asarray(young) // 4).reshape(-1, 3)
+    vals, counts = np.unique(q, axis=0, return_counts=True)
+    mean = (vals[counts.argmax()] * 4 + 2).astype(np.float32) / 255
+    lum = ya @ np.array([0.2126, 0.7152, 0.0722], np.float32)
+    mlum = float(mean @ np.array([0.2126, 0.7152, 0.0722], np.float32))
+    chroma = (ya / np.maximum(lum[..., None], 1e-3)) / (mean / mlum)
+    rel = np.clip((lum / mlum)[..., None] * (1 + (chroma - 1) * 0.7) * 0.5, 0, 1)
+    print(f'peau : teinte moyenne {tuple(np.round(mean * 255).astype(int))}')
+    Image.fromarray((rel * 255).astype(np.uint8)).save(os.path.join(out_dir, 'skin_albedo.webp'), quality=88)
+    masks = np.stack([flush, beard, wr, freckles], -1)
+    Image.fromarray((np.clip(masks, 0, 1) * 255).astype(np.uint8), 'RGBA').save(os.path.join(out_dir, 'skin_masks.webp'), lossless=True, exact=True)
+
+
+# ---------------------------------------------------------------------------------------------
 # Export
 # ---------------------------------------------------------------------------------------------
 def export(objs, path):
@@ -884,6 +992,7 @@ def main():
         if not any(m.type == 'ARMATURE' for m in o.modifiers):
             m = o.modifiers.new('Armature', 'ARMATURE')
             m.object = rig
+    bake_skin_textures(body, eyes, OUT)
     pose_rider(rig)
     apply_pose_as_rest(rig, [body, eyes])
     acc = import_accessories(rig, body)

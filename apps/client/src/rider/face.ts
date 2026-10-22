@@ -39,6 +39,11 @@ export class FaceAnimator {
   private blinkT = -1;
   private effort = 0;
 
+  /** Effort lissé (puissance / FTP), pour la peau (rougeur, sueur). */
+  get effortLevel(): number {
+    return this.effort;
+  }
+
   /** `random` : source pseudo-aléatoire (tests). */
   constructor(private readonly random: () => number = Math.random) {
     this.blinkIn = 1 + this.random() * 3;

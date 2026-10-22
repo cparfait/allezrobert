@@ -230,6 +230,44 @@ async function sliderSheet(engine: Awaited<ReturnType<typeof createEngine>>): Pr
   g.font = '600 16px system-ui, sans-serif';
   const eye = a.eyeWorld(new THREE.Vector3());
   camera.fov = 30;
+  // &skin : peau (teint, rides, barbe, taches de rousseur, rougeur d'effort et sueur).
+  if (params.has('skin')) {
+    const looks: Array<[string, Partial<AvatarLook>, number]> = [
+      ['base', {}, 0.6], ['teint foncé', { skin: '#6b4430' }, 0.6], ['âgé', { face: encodeFace({ age: 1 }) }, 0.6],
+      ['barbe', { beard: 1, hair: '#2a1d14' }, 0.6], ['rousseur', { skin: '#f0c8a8', freckles: 1, hair: '#b5652d' }, 0.6],
+      ['effort 20 min', {}, 1.35],
+    ];
+    sheet.width = 3 * cw;
+    sheet.height = 2 * ch;
+    g.font = '600 16px system-ui, sans-serif';
+    for (const [i, [label, lk, ftp]] of looks.entries()) {
+      const b = new GltfRiderAvatar({ ...DEFAULT_LOOK, bikeModel: 's26-04-cervelo-s5', ...lk });
+      b.root.traverse((o) => {
+        if (/rider_(glasses|helmet)/.test(o.name)) o.visible = false;
+      });
+      scene.remove(a.root);
+      scene.add(b.root);
+      b.setEffort(ftp);
+      for (let t = 0; t < 1200; t += 0.5) b.update(0.5, 90, 9, 'seated');
+      b.update(1 / 30, 0.0001, 9, 'seated');
+      b.root.updateMatrixWorld(true);
+      const e = b.eyeWorld(new THREE.Vector3());
+      camera.position.set(e.x - 0.16, e.y + 0.0, e.z + 0.42);
+      camera.updateProjectionMatrix();
+      camera.lookAt(e.x, e.y - 0.05, e.z);
+      engine.renderManual();
+      const x = (i % 3) * cw;
+      const y = Math.floor(i / 3) * ch;
+      g.drawImage(canvas, 390, 90, 500, 500, x, y, cw, ch);
+      g.fillStyle = '#000';
+      g.fillText(label, x + 8, y + 20);
+      scene.remove(b.root);
+    }
+    document.body.replaceChildren(sheet);
+    sheet.style.cssText = 'display:block;width:100%;height:auto';
+    (window as unknown as { __avatarTestDone: boolean }).__avatarTestDone = true;
+    return;
+  }
   // &effort : visage en sortie (FaceAnimator) dans quatre situations, après 10 s simulées.
   if (params.has('effort')) {
     const cases: Array<[string, number, number, RiderPose, number]> = [

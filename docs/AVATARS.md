@@ -359,3 +359,20 @@ reprises de l'ancien modèle un peu grandes pour ce visage.
   après la séparation des yeux).
 - Planches : `&sliders&expr` (chaque forme à 1), `&sliders&effort` (au train, au seuil, à bloc,
   sprint, descente).
+
+### Étape 3c — peau (faite)
+
+- Textures communes fabriquées par `build_avatar.py` (`bake_skin_textures`), à partir des peaux
+  MakeHuman CC0 (sous-ensemble réduit versionné dans `tools/blender/avatars/vendor/makehuman`) :
+  `skin_albedo.webp` (variations relatives de la peau jeune autour de la teinte de base : lèvres,
+  sourcils, ombres ; 64 Ko) et `skin_masks.webp` (R rougeur d'effort et sueur, G barbe, B rides =
+  détail de la peau âgée moins celui de la peau jeune, A taches de rousseur ; zones calculées en
+  3D puis reportées dans l'espace UV par rastérisation ; 570 Ko).
+- `apps/client/src/rider/skin.ts` (TSL) : teint × variations relatives, rides selon l'âge, barbe
+  en poils fins (bruit) de la couleur des cheveux, taches de rousseur ; en sortie, rougeur des
+  pommettes, du nez, des oreilles et du front avec l'effort, sueur (peau plus brillante) qui
+  s'installe en quelques minutes au-dessus du seuil et s'en va lentement.
+- `AvatarLook.beard` et `AvatarLook.freckles` (0 → 1), validés par l'API ; rides : curseur `age`.
+- Écarts au plan : textures en WebP (pas de KTX2 : pas d'encodeur Basis dans la chaîne actuelle),
+  pas de carte de normales de pores ni de transmission en lumière rasante ; yeux sans parallaxe.
+- Planche : `&sliders&skin` (base, teint foncé, âgé, barbe, taches de rousseur, effort 20 min).

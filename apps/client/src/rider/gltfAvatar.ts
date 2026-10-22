@@ -5,6 +5,7 @@ import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 import { PLAIN_BIKE_FAMILY, bikeOfLook, decodeFace, type AvatarLook, type BikeBuild, type BikeFamily } from '@allezrobert/shared';
 import { RiderAvatar } from './avatar.ts';
 import { FaceAnimator } from './face.ts';
+import { SkinMaterial, loadSkinTextures, skinTextures, type SkinLook } from './skin.ts';
 import { BikeMaterials, assembleBike, availableFamily, bikeAnchors, familyScene, loadBikeFamily, type AssembledBike, type BikeAnchors } from './bikes.ts';
 
 /**
@@ -458,6 +459,11 @@ function makeMaterial(name: string, look: AvatarLook): THREE.MeshStandardNodeMat
   return m;
 }
 
+/** Réglages de peau d'une tenue : teint, rides selon l'âge, barbe de la couleur des cheveux. */
+function skinLook(look: AvatarLook): SkinLook {
+  return { tone: look.skin, age: Math.max(0, decodeFace(look.face).age ?? 0), beard: look.beard ?? 0, beardColor: look.hair, freckles: look.freckles ?? 0 };
+}
+
 function applyLookColor(m: THREE.MeshStandardNodeMaterial, look: AvatarLook): void {
   const c: Partial<Record<string, string>> = {
     skin: look.skin,
@@ -503,6 +509,7 @@ export class GltfRiderAvatar implements RiderAvatarLike {
   private faceKey = '[]';
   /** Expressions en sortie (modèle à formes ARKit seulement). */
   private faceAnim: FaceAnimator | null = null;
+  private skin: SkinMaterial | null = null;
   private ftpFrac = 0.7;
   private hrFrac: number | undefined;
   private readonly identityMeshes: Array<{ mesh: THREE.Mesh; base: THREE.BufferGeometry }> = [];
@@ -540,7 +547,8 @@ export class GltfRiderAvatar implements RiderAvatarLike {
     loading ??= (async () => {
       try {
         const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
-        const [riders, plain] = await Promise.all([Promise.all(FILES.map((f) => loader.loadAsync(baseUrl + f))), loadBikeFamily(PLAIN_BIKE_FAMILY)]);
+        const skin = FILES[0].startsWith('avatar/') ? loadSkinTextures(`${baseUrl}avatar/`) : null;
+        const [riders, plain] = await Promise.all([Promise.all(FILES.map((f) => loader.loadAsync(baseUrl + f))), loadBikeFamily(PLAIN_BIKE_FAMILY), skin]);
         if (!plain) throw new Error(`vélo de base (${PLAIN_BIKE_FAMILY}) indisponible`);
         const [r0, r1] = riders;
         templates = buildTemplates(r0 as GLTF, r1 as GLTF);
@@ -609,7 +617,12 @@ export class GltfRiderAvatar implements RiderAvatarLike {
       const key = src.name === 'lens' && underNode(mesh, 'rider_helmet_aero') ? 'visor' : src.name;
       let mat = this.materials.get(key);
       if (!mat) {
-        mat = makeMaterial(key, look);
+        // Avatar MPFB : peau texturée (teint, rides, barbe, rougeur d'effort, sueur).
+        const tex = key === 'skin' && t.names.hips === 'pelvis' ? skinTextures() : null;
+        if (tex) {
+          this.skin = new SkinMaterial(tex, skinLook(look));
+          mat = this.skin.material;
+        } else mat = makeMaterial(key, look);
         this.materials.set(key, mat);
       }
       mesh.material = mat;
@@ -776,6 +789,7 @@ export class GltfRiderAvatar implements RiderAvatarLike {
     if (this.faceAnim && dt > 0 && this.lod.getCurrentLevel() === 0) {
       const inp = { ftpFrac: this.ftpFrac, cadence, speed, standing: pose === 'standing' };
       this.setExpressions(this.faceAnim.update(dt, this.hrFrac === undefined ? inp : { ...inp, hrFrac: this.hrFrac }));
+      this.skin?.update(dt, this.faceAnim.effortLevel);
     }
     const t = this.t;
     this.time += dt;
@@ -981,6 +995,7 @@ export class GltfRiderAvatar implements RiderAvatarLike {
   setLook(look: AvatarLook): void {
     this.look = look;
     for (const m of this.materials.values()) applyLookColor(m, look);
+    this.skin?.setLook(skinLook(look));
     this.mountBike(bikeOfLook(look), look);
     this.setBuild(look.build);
   }
