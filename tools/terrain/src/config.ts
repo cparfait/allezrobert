@@ -166,6 +166,39 @@ export const WORLDS: Record<string, WorldConfig> = {
       },
     },
   },
+  neuville: {
+    kind: 'climb',
+    id: 'neuville',
+    name: 'Neuville — Le Roussel',
+    // Neuville (Puy-de-Dôme), entre Billom et Glaine-Montaigut
+    originL93: { x: 733000, y: 6517000 },
+    // itinéraire ≈ E 731,6–733,5 km, N 6 516,2–6 517,3 km, + 3 km autour
+    corridorTiles: { txMin: -6, txMax: 5, tzMin: -5, tzMax: 5 },
+    hiMarginM: 400,
+    loMarginM: 3000,
+    // chaîne des Puys à l'horizon ouest (≈ 35 km)
+    horizon: { halfSizeM: 40000, resM: 100 },
+    // tranche témoin : arbres et haies LiDAR HD, bâtiments et voies BD TOPO
+    enrich: { radiusM: 400, lidarVegetation: true, bdtopoBuildings: true },
+    climb: {
+      routeId: 'neuville-le-roussel',
+      routeName: 'Traversée du Roussel',
+      routeNameEn: 'Through Le Roussel',
+      // D 152, au carrefour de la D 20 (route de Ravel)
+      start: { lon: 3.429536, lat: 45.744881 },
+      climbStart: { lon: 3.4289, lat: 45.7454 },
+      // D 152 (route de Neuville), vers Les Boutoux
+      finish: { lon: 3.408, lat: 45.7541 },
+      end: { lon: 3.406787, lat: 45.754661 },
+      preferRefs: ['D 152'],
+      komId: 'section-roussel',
+      komName: 'Traversée du Roussel',
+      // petite départementale sans marquage ; chaussée de 4 m (BD TOPO), ≈ 4,8 m sur l'orthophoto
+      markings: 'none',
+      roadWidthM: 4.5,
+      reference: { lengthM: 2200, gainM: 0, avgGradePct: 0, sources: ['OSM : D 152, du carrefour de la D 20 à la route de Neuville'] },
+    },
+  },
   'mont-ventoux': {
     kind: 'climb',
     id: 'mont-ventoux',
