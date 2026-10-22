@@ -34,6 +34,12 @@ export interface RiderPhysicsParams {
   wheelRadiusM: number;
   /** Prise en compte des pertes de roulements de roue de Martin. Vrai par défaut. */
   bearingLoss?: boolean;
+  /**
+   * Fraction de l'inertie (masse + roues) appliquée aux accélérations, 1 par défaut (réaliste).
+   * Plus bas, la vitesse du jeu suit plus vite les relances, comme le volant léger d'un home
+   * trainer ; les vitesses d'équilibre ne changent pas.
+   */
+  inertiaFactor?: number;
 }
 
 /** Conditions extérieures. */
@@ -209,7 +215,17 @@ export interface StepInputs {
   cdaFactor?: number;
   /** Frein 0–1 (décélération maximale {@link MAX_BRAKE_DECEL}). */
   brake?: number;
+  /** Coefficient de roulement du moment (revêtement, pluie) ; défaut `params.crr`. */
+  crr?: number;
+  /**
+   * Pied à terre : sans pédaler, sous cette vitesse (m/s) et en ralentissant, le coureur freine
+   * et s'arrête. Désactivé par défaut.
+   */
+  footDownBelowMs?: number;
 }
+
+/** Vitesse sous laquelle un coureur qui ne pédale plus pose le pied (4 km/h). */
+export const FOOT_DOWN_SPEED_MS = 4 / 3.6;
 
 /** Décélération maximale au freinage (m/s²). */
 export const MAX_BRAKE_DECEL = 6;
@@ -223,14 +239,15 @@ export const MAX_BRAKE_DECEL = 6;
  *    v₂ = (v₁ − dt/M·(F_autres + k·|v₁+w|·w)) / (1 + dt·k·|v₁+w|/M)  — inconditionnellement stable.
  * 3. Frein, puis v ≥ 0 (pas de recul : à l'arrêt en côte sans pédaler, le vélo reste immobile),
  *    puis seconde demi-injection d'énergie.
- * 4. Position intégrée avec la nouvelle vitesse (Euler symplectique).
+ * 4. Pied à terre : sans pédaler, sous `footDownBelowMs` et en ralentissant, arrêt complet.
+ * 5. Position intégrée avec la nouvelle vitesse (Euler symplectique).
  * Stable à dt = 1/60 s comme à 1/10 s. Mute et renvoie `state`.
  */
 export function stepRider(state: RiderState, inputs: StepInputs, dt: number): RiderState {
   if (dt <= 0) return state;
   const p = inputs.params;
   const env = inputs.env ?? DEFAULT_ENVIRONMENT;
-  const M = effectiveMass(p);
+  const M = effectiveMass(p) * Math.min(Math.max(p.inertiaFactor ?? 1, 0.2), 1);
   const v0 = state.speedMs;
   const pedal = Math.max(0, inputs.watts);
   const pw = pedal * p.drivetrainEfficiency;
@@ -243,7 +260,7 @@ export function stepRider(state: RiderState, inputs: StepInputs, dt: number): Ri
   const theta = Math.atan(inputs.gradePercent / 100);
   const mg = p.massKg * GRAVITY;
   const gravity = mg * Math.sin(theta);
-  const rolling = p.crr * mg * Math.cos(theta);
+  const rolling = (inputs.crr ?? p.crr) * mg * Math.cos(theta);
   // À l'arrêt sans pédaler : le vélo ne démarre que si la descente vainc le roulement.
   if (v1 <= 0 && -gravity <= rolling) {
     state.accelMs2 = 0;
@@ -261,9 +278,13 @@ export function stepRider(state: RiderState, inputs: StepInputs, dt: number): Ri
   const brake = inputs.brake ?? 0;
   if (brake > 0) vb -= Math.min(brake, 1) * MAX_BRAKE_DECEL * dt;
   if (vb < 0) vb = 0;
-  const v2 = Math.sqrt(vb * vb + halfE);
+  let v2 = Math.sqrt(vb * vb + halfE);
 
-  // 4. Position et cumuls.
+  // 4. Pied à terre.
+  const foot = inputs.footDownBelowMs ?? 0;
+  if (foot > 0 && pedal < 1 && v2 < foot && v2 <= v0) v2 = 0;
+
+  // 5. Position et cumuls.
   state.accelMs2 = (v2 - v0) / dt;
   state.speedMs = v2;
   state.distM += v2 * dt;

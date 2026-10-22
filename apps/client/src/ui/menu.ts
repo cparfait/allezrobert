@@ -1,5 +1,5 @@
 import type { AvatarLook, CosmeticItem, RouteData } from '@allezrobert/shared';
-import { COSMETICS, levelProgress, type CosmeticSlot } from '@allezrobert/shared';
+import { COSMETICS, DEFAULT_BIKE, bikeSetupFor, levelProgress, type CosmeticSlot } from '@allezrobert/shared';
 import { t, setLang, getLang, type I18nKey } from '../i18n/index.ts';
 import type { Settings } from './settings.ts';
 import { saveSettings } from './settings.ts';
@@ -414,6 +414,7 @@ export class MainMenu {
               const prev = this.previewId === c.id;
               return `<button class="mm-item ${on ? 'on' : ''} ${locked ? 'locked' : ''} ${prev ? 'preview' : ''}" data-item="${c.id}" title="${locked ? (L ? 'Cliquer pour l’essayer' : 'Click to try it on') : ''}">
                 <i style="background:${c.color ?? '#7a8594'}"></i><b>${esc(c.name[lang])}</b>
+                ${c.effect ? `<em class="mm-effect">${esc(c.effect[lang])}</em>` : ''}
                 <span>${prev ? `👁 ${L ? 'Aperçu' : 'Preview'} · 🔒 ${L ? 'niveau' : 'level'} ${c.level}` : locked ? `🔒 ${L ? 'niveau' : 'level'} ${c.level}` : on ? (L ? 'Équipé' : 'Equipped') : L ? 'Disponible' : 'Available'}</span></button>`;
             })
             .join('')}</div>`;
@@ -426,8 +427,20 @@ export class MainMenu {
         <div class="mm-slots">${slots.map((sl) => `<button class="mm-slot ${sl === this.garageSlot ? 'on' : ''}" data-slot="${sl}">${SLOT_LABEL[sl][lang]}</button>`).join('')}
           <button class="mm-slot ${this.garageSlot === 'colors' ? 'on' : ''}" data-slot="colors">${L ? 'Couleurs' : 'Colours'}</button></div>
         ${items}
+        ${this.bikeSummary()}
         <p class="mm-hint">${L ? 'Les équipements se débloquent en roulant (XP par kilomètre et par mètre de dénivelé). Clique un équipement verrouillé pour l’essayer.' : 'Gear unlocks as you ride (XP per kilometre and metre climbed). Click locked gear to try it on.'}</p>
       </section>`;
+  }
+
+  /** Vélo réellement roulé avec l'équipement porté : masse, traînée, pneus. */
+  private bikeSummary(): string {
+    const L = fr();
+    const b = bikeSetupFor(loadProgress().equipped);
+    const drag = Math.round((b.cda / DEFAULT_BIKE.cda - 1) * 1000) / 10;
+    const num = (v: number, d = 1) => v.toFixed(d).replace('.', L ? ',' : '.');
+    return `<p class="mm-hint mm-bikephys">${L ? 'En selle' : 'Riding'} : <b>${num(b.massKg)} kg</b> · ${L ? 'traînée' : 'drag'} <b>${drag > 0 ? '+' : ''}${num(drag)} %</b> · ${
+      b.tyre === 'gravel' ? (L ? 'pneus gravel' : 'gravel tyres') : L ? 'pneus route' : 'road tyres'
+    }</p>`;
   }
 
   // ————————————————————————————————————————————— Profil et réglages
@@ -465,6 +478,7 @@ export class MainMenu {
       <h3>${L ? 'Home trainer' : 'Smart trainer'}</h3>
       <div class="grid3">
         <label class="field">${t('difficulty')} <span id="m-diffv">${Math.round(s.trainerDifficulty * 100)} %</span><input id="m-diff" type="range" min="0" max="1" step="0.05" value="${s.trainerDifficulty}" /></label>
+        <label class="field" title="${L ? '100 % : masse et roues réelles. Plus bas, la vitesse suit plus vite les relances (volant du home trainer).' : '100%: real mass and wheels. Lower: speed follows accelerations faster (trainer flywheel).'}">${L ? 'Inertie' : 'Inertia'} <span id="m-inertiav">${Math.round(s.inertia * 100)} %</span><input id="m-inertia" type="range" min="0.6" max="1" step="0.05" value="${s.inertia}" /></label>
         <div class="field">Transmission${this.seg('m-drive', s.drivetrain, [
           ['cog', L ? 'Vitesses virtuelles' : 'Virtual shifting'],
           ['cassette', L ? 'Cassette réelle' : 'Real cassette'],
@@ -883,7 +897,7 @@ export class MainMenu {
       s.season = el.value as Settings['season'];
       changed();
     });
-    const range = (id: string, key: 'hour' | 'clouds' | 'rain' | 'fog' | 'trainerDifficulty', label?: string, fmt?: (v: number) => string) =>
+    const range = (id: string, key: 'hour' | 'clouds' | 'rain' | 'fog' | 'trainerDifficulty' | 'inertia', label?: string, fmt?: (v: number) => string) =>
       on<HTMLInputElement>(id, 'input', (el) => {
         s[key] = Number(el.value);
         const l = label ? this.root.querySelector(`#${label}`) : null;
@@ -895,6 +909,7 @@ export class MainMenu {
     range('m-rain', 'rain');
     range('m-fog', 'fog');
     range('m-diff', 'trainerDifficulty', 'm-diffv', (v) => `${Math.round(v * 100)} %`);
+    range('m-inertia', 'inertia', 'm-inertiav', (v) => `${Math.round(v * 100)} %`);
     on<HTMLSelectElement>('m-lang', 'change', (el) => {
       s.lang = el.value as Settings['lang'];
       setLang(s.lang);

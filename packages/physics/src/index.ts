@@ -5,6 +5,7 @@
  * le client (60 Hz) et le serveur (10 Hz).
  */
 export * from './model.ts';
+export * from './conditions.ts';
 export * from './drafting.ts';
 export * from './sticky-group.ts';
 export * from './gearing.ts';

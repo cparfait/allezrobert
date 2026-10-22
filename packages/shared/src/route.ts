@@ -37,6 +37,11 @@ export interface RouteData {
   attribution: string[];
   /** Largeur de chaussée OSM par tronçon (facultatif, produit par tools/terrain). */
   roadWidths?: Array<{ startM: number; endM: number; widthM: number }>;
+  /**
+   * Revêtement OSM (`surface` : asphalt, gravel, dirt…) par tronçon, facultatif ; absent :
+   * enrobé partout. Sert à la résistance au roulement et au son.
+   */
+  surfaces?: Array<{ startM: number; endM: number; surface: string }>;
   /** Villages et lieux-dits traversés (abscisse du point le plus proche). */
   landmarks?: Array<{ name: string; d: number }>;
   /** Pas d'échantillonnage effectif des points (m). */

@@ -47,3 +47,21 @@ describe('RouteTrack', () => {
     expect(p.z).toBeCloseTo(2);
   });
 });
+
+describe('RouteTrack.surfaceAt', () => {
+  it('renvoie le revêtement du tronçon, y compris après un tour', () => {
+    const route = {
+      ...squareLoop(1000, 0),
+      surfaces: [
+        { startM: 0, endM: 1500, surface: 'asphalt' },
+        { startM: 1500, endM: 2200, surface: 'gravel' },
+        { startM: 2200, endM: 4000, surface: 'asphalt' },
+      ],
+    };
+    const t = new RouteTrack(route);
+    expect(t.surfaceAt(100)).toBe('asphalt');
+    expect(t.surfaceAt(1800)).toBe('gravel');
+    expect(t.surfaceAt(4000 + 1800)).toBe('gravel');
+    expect(new RouteTrack(squareLoop(1000, 0)).surfaceAt(1800)).toBeUndefined();
+  });
+});

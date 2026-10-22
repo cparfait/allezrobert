@@ -60,6 +60,27 @@ Les paquets sont distribués en **sources TypeScript** (`exports: ./src/index.ts
 
 Modèle de Martin et al. (1998) : `P·η = (½ρ·CdA·(v+vw)² + Crr·m·g·cosθ + m·g·sinθ)·v + (m + I/r²)·v·dv/dt`. Drafting par réduction du CdA selon l'écart longitudinal et latéral, avec bonus de peloton ; option « groupe soudé » (régulateur élastique côté serveur). Détails et références dans `packages/physics`.
 
+Des watts à la vitesse, 14 paramètres (`packages/physics/src/conditions.ts`, `game/ride.ts`) :
+
+| # | Paramètre | Valeur / source |
+| --- | --- | --- |
+| 1 | Puissance mesurée | lissée par un passe-bas τ = 0,5 s (volant d'inertie du trainer) |
+| 2 | Transmission | η = 97,6 % (Martin 1998) |
+| 3 | Masse | coureur + vélo ; le garage change la masse (carbone −1,3 kg, acier +1,8 kg, gravel +1,2 kg…) |
+| 4 | Pente | relief LiDAR IGN, pente lissée sur ±12 m |
+| 5 | Revêtement | Crr par tag OSM `surface` : enrobé 0,0045, stabilisé 0,0075, pavés 0,010, gravier 0,0095, terre 0,012 ; pneus gravel −20 % hors enrobé |
+| 6 | Pluie | chaussée mouillée : Crr +12 % à pluie maximale |
+| 7 | Position | CdA 0,32 m² aux cocottes, × aire frontale de Bassett (1999) selon taille et poids ; danseuse +12 %, descente groupée −15 % |
+| 8 | Matériel | casque aéro −1,5 %, roues carbone −2,5 %, lenticulaire −4 %, cadre carbone −2 % |
+| 9 | Altitude | densité de l'air ISA à l'altitude de la route |
+| 10 | Vent | vent météo à 10 m ramené à 1 m (profil logarithmique, 60 %), atténué jusqu'aux deux tiers entre les maisons et en forêt |
+| 11 | Aspiration | coureurs : jusqu'à −38 % (−58 % au cœur d'un groupe) ; derrière une voiture −35 %, une camionnette ou un tracteur −45 % |
+| 12 | Inertie | m + I/r², réglable de 60 à 100 % (Réglages → Home trainer) |
+| 13 | Roue libre | roulement, roulements de roue (Martin éq. 9) et air freinent le vélo |
+| 14 | Arrêt | sous 4 km/h sans pédaler, pied à terre |
+
+À 250 W (77 kg + vélo 9 kg) : 36,6 km/h sur le plat, 41,3 km/h dans une roue, 33,1 km/h sur un chemin de terre, 29,5 km/h face à un vent de 20 km/h, 13,4 km/h à 7 % (tests `packages/physics/test/conditions.test.ts`). Le serveur de groupe applique le même revêtement, la posture et le pied à terre.
+
 ## Réseau et serveur
 
 - **Colyseus** (Node.js) : salles privées sur invitation, 10 coureurs par sortie, testé à 20. Choisi plutôt que Go parce que la physique et les types sont partagés en TypeScript avec le client.

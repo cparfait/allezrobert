@@ -1,6 +1,7 @@
 import './hud/hud.css';
 import * as THREE from 'three/webgpu';
-import { RouteTrack, DEFAULT_BIKE, type RiderProfile, type RouteData } from '@allezrobert/shared';
+import { RouteTrack, bikeSetupFor, type RiderProfile, type RouteData } from '@allezrobert/shared';
+import { surfaceRoughness } from '@allezrobert/physics';
 import { createEngine, type Engine } from './engine/renderer.ts';
 import { QUALITY_PRESETS, withUrlOverrides, type QualitySettings } from './engine/quality.ts';
 import { World } from './world/world.ts';
@@ -27,7 +28,8 @@ import { PosterScene, choosePosterSpot, POSTER_HOUR } from './ui/poster.ts';
 import { showPause, showSummary, rideToFit } from './ui/ridepanels.ts';
 import { splatAt } from './world/splat.ts';
 import { Onboarding, RideTutorial } from './onboarding/onboarding.ts';
-import { awardRide } from './ui/garage.ts';
+import { awardRide, loadProgress } from './ui/garage.ts';
+import { roadSurfaceAt, windShelterAt } from './world/conditions.ts';
 import { fetchMe, showLogin, applyProfile, logout, pushProfile, type Me } from './ui/account.ts';
 import { RideSequences } from './game/sequences.ts';
 import { GuestInputSource } from './game/guest.ts';
@@ -337,7 +339,8 @@ async function boot(): Promise<void> {
 async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras: { workoutFile?: { name: string; content: string }; inviteCode?: string; tutorial?: boolean }): Promise<void> {
   const { engine, world, track, source } = scene;
   ui.innerHTML = '';
-  const profile: RiderProfile = { id: 'local', displayName: s.name, massKg: s.massKg, heightCm: s.heightCm, ftpWatts: s.ftpWatts, bike: DEFAULT_BIKE };
+  // Le vélo roulé dépend de l'équipement porté au garage (masse, traînée, pneus, roues).
+  const profile: RiderProfile = { id: 'local', displayName: s.name, massKg: s.massKg, heightCm: s.heightCm, ftpWatts: s.ftpWatts, bike: bikeSetupFor(loadProgress().equipped) };
   const params = new URLSearchParams(location.search);
   const startD = Number(params.get('d') ?? 0);
   const ride = new RideSession({
@@ -346,6 +349,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     trainerDifficulty: s.trainerDifficulty,
     startDistM: startD,
     wind: { ms: s.windMs, from: 4.4 },
+    inertiaFactor: s.inertia,
   });
   const avatar = createAvatar(s.look);
   engine.scene.add(avatar.root);
@@ -576,8 +580,19 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   let remoteRiders: InterpolatedRider[] = [];
   let prevHeading = Number.NaN;
   let bank = 0;
+  let condAcc = Infinity;
   const frame = (dt: number, render: boolean, manual = false) => {
     const steer = keyboard.update(dt);
+    // Conditions sous les roues, 4 fois par seconde : revêtement, abri du vent, pluie.
+    condAcc += dt;
+    if (condAcc > 0.25) {
+      condAcc = 0;
+      const here = track.positionAt(ride.state.distM, ride.lateral, sample);
+      const t = world.terrain.getTile(...world.terrain.tileCoord(here.x, here.z));
+      ride.surface = track.surfaceAt(ride.state.distM) ?? roadSurfaceAt(t, here.x, here.z, ride.surface);
+      ride.shelter = windShelterAt(t, here.x, here.z, here.dirX, here.dirZ);
+      ride.rain = world.env.state.weather.rain;
+    }
     if (workout) ride.ergTarget = workout.update(ride.elapsedS, ride.inputs.watts);
     ride.update(dt, input, steer);
     if (!ride.paused) {
@@ -588,6 +603,8 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
         ride.draft = mp.selfDraft();
         ride.state.distM += mp.reconcile(ride.state.distM, dt);
       } else ride.draft = peloton.update(dt, { distM: ride.state.distM, lateral: ride.lateral, speedMs: ride.state.speedMs, watts: ride.inputs.watts, massKg: s.massKg, ftpWatts: s.ftpWatts });
+      // Abri derrière un tracteur ou une camionnette qui roule dans le même sens.
+      if (traffic) ride.draft = Math.max(ride.draft, traffic.draftFor(ride.state.distM, ride.lateral));
     }
     remoteRiders = mp ? mp.render(dt, engine.camera) : [];
     traffic?.update(dt, ride.state, [
@@ -636,7 +653,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
         cadence: ride.inputs.cadence,
         watts: ride.inputs.watts,
         ftp: s.ftpWatts,
-        roughness: 0.15,
+        roughness: surfaceRoughness(ride.surface),
         rain: world.env.state.weather.rain,
         forest: tile ? splatAt(tile, 0, pos.x + 30, pos.z) * 0.5 + splatAt(tile, 0, pos.x - 30, pos.z) * 0.5 : 0,
         crowd: ride.segment?.seg.kind === 'kom' ? 0.6 : 0,

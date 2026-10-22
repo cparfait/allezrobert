@@ -108,6 +108,22 @@ export class RouteTrack {
     return out;
   }
 
+  /** Revêtement à la distance `d` (tag OSM), ou undefined si l'itinéraire ne le précise pas. */
+  surfaceAt(d: number): string | undefined {
+    const list = this.route.surfaces;
+    if (!list?.length) return undefined;
+    const x = this.wrap(d);
+    let lo = 0;
+    let hi = list.length - 1;
+    while (lo < hi) {
+      const mid = (lo + hi + 1) >> 1;
+      if ((list[mid] as { startM: number }).startM <= x) lo = mid;
+      else hi = mid - 1;
+    }
+    const s = list[lo] as { startM: number; endM: number; surface: string };
+    return x >= s.startM && x <= s.endM ? s.surface : undefined;
+  }
+
   /** Profil d'altitude échantillonné (pour le HUD). */
   profile(samples: number): Array<{ d: number; y: number }> {
     const res: Array<{ d: number; y: number }> = [];

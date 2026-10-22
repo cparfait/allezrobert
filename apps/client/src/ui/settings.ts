@@ -34,6 +34,11 @@ export interface Settings {
   smoothing3s: boolean;
   /** Invité sans matériel : puissance virtuelle au clavier / à la manette. */
   guest: boolean;
+  /**
+   * Inertie du vélo virtuel (0,6–1) : 1 = masse et roues réelles ; plus bas, la vitesse suit plus
+   * vite les relances, comme le volant d'un home trainer.
+   */
+  inertia: number;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -61,6 +66,7 @@ export const DEFAULT_SETTINGS: Settings = {
   powerSource: 'pedals',
   smoothing3s: false,
   guest: false,
+  inertia: 1,
 };
 
 const KEY = 'ar.settings';

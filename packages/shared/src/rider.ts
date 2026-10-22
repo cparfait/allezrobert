@@ -27,6 +27,8 @@ export interface BikeSetup {
   /** Moment d'inertie des deux roues, kg·m². */
   wheelInertia: number;
   wheelRadiusM: number;
+  /** Pneus : route (défaut), gravel (crantés légers, meilleurs hors enrobé). */
+  tyre?: 'road' | 'gravel';
 }
 
 export const DEFAULT_BIKE: BikeSetup = {

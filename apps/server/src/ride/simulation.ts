@@ -22,6 +22,9 @@ import {
   StickyGroupRegulator,
   airDensity,
   createRiderState,
+  poseCdaFactor,
+  surfaceCrr,
+  FOOT_DOWN_SPEED_MS,
   effectiveMass,
   paramsFromBike,
   powerForSpeed,
@@ -116,6 +119,8 @@ export class SimRider {
   readonly params: RiderPhysicsParams;
   readonly state: RiderState;
   readonly pose = new PoseController();
+  /** Pneus du vélo (résistance au roulement hors enrobé). */
+  readonly tyre: 'road' | 'gravel';
   readonly ai: AiRider | undefined;
   shareHr: boolean;
   lateralM = 0;
@@ -154,6 +159,7 @@ export class SimRider {
     this.riderMassKg = init.riderMassKg ?? 75;
     this.ftpWatts = init.ftpWatts ?? 200;
     this.params = paramsFromBike(this.riderMassKg, init.bike ?? DEFAULT_BIKE);
+    this.tyre = init.bike?.tyre ?? 'road';
     this.state = createRiderState();
     this.shareHr = init.shareHr ?? false;
     this.joinedAt = now;
@@ -536,7 +542,20 @@ export class RideSimulation {
           r.watts = 2.2 * r.riderMassKg;
           r.cadence = 85;
         }
-        stepRider(r.state, { watts: r.watts, gradePercent: r.grade, params: r.params, env: this.env, cdaFactor: 1 - r.draft }, dt);
+        // Mêmes conditions que la prédiction locale du client : revêtement, posture, pied à terre.
+        stepRider(
+          r.state,
+          {
+            watts: r.watts,
+            gradePercent: r.grade,
+            params: r.params,
+            env: this.env,
+            cdaFactor: (1 - r.draft) * poseCdaFactor(r.pose.pose, r.grade, r.state.speedMs),
+            crr: surfaceCrr(this.track.surfaceAt(r.state.distM), r.params.crr, r.tyre),
+            footDownBelowMs: r.kind === 'ai' ? 0 : FOOT_DOWN_SPEED_MS,
+          },
+          dt,
+        );
       }
     }
 

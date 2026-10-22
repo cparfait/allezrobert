@@ -10,6 +10,14 @@ import {
   shiftGear,
   stepRider,
   airDensity,
+  bodyCdaFactor,
+  poseCdaFactor,
+  riderWind,
+  surfaceCrr,
+  trainerModelFor,
+  wetCrrFactor,
+  FOOT_DOWN_SPEED_MS,
+  PowerSmoother,
   PoseController,
   TrainerGradeSmoother,
   NormalizedPowerAccumulator,
@@ -26,9 +34,11 @@ export interface RideOptions {
   gearing?: VirtualGearing;
   /** Rapport réel monté sur le trainer (Cog 14 dents par défaut). */
   referenceRatio?: number;
-  /** Vent (m/s, d'où il vient en radians, 0 = nord). */
+  /** Vent météo à 10 m (m/s, d'où il vient en radians, 0 = nord). */
   wind?: { ms: number; from: number };
   startDistM?: number;
+  /** Fraction de l'inertie appliquée aux accélérations (0,6–1), 1 par défaut. */
+  inertiaFactor?: number;
 }
 
 export interface SegmentEffort {
@@ -63,8 +73,20 @@ export class RideSession {
   /** Consigne ERG imposée par une séance (W) ; null = simulation de pente. */
   ergTarget: number | null = null;
   private ergAcc = 0;
-  /** Économie due à l'aspiration (0–1), fournie par le serveur ou les coureurs IA proches. */
+  /** Économie due à l'aspiration (0–1), fournie par le serveur, les coureurs IA ou les véhicules proches. */
   draft = 0;
+  /** Revêtement OSM sous les roues (tenu à jour par la boucle de jeu). */
+  surface = 'asphalt';
+  /** Abri du vent 0–1 (rue de village, sous-bois). */
+  shelter = 0;
+  /** Pluie 0–1 (chaussée mouillée). */
+  rain = 0;
+  /** Coefficient de roulement effectif au dernier pas. */
+  crr: number;
+  /** Vent de face ressenti à hauteur du coureur (m/s), au dernier pas. */
+  windMs = 0;
+  /** Puissance après lissage (volant d'inertie), celle qui fait avancer le vélo. */
+  readonly smoothedPower = new PowerSmoother(0.5);
   lap = 1;
   readonly records: ActivityRecord[] = [];
   readonly startT = Date.now();
@@ -93,7 +115,10 @@ export class RideSession {
 
   constructor(opts: RideOptions) {
     this.opts = opts;
-    this.params = paramsFromProfile(opts.profile);
+    // Morphologie : le CdA du vélo vaut pour un coureur de 1,78 m et 75 kg.
+    const base = paramsFromProfile(opts.profile);
+    this.params = { ...base, cda: base.cda * bodyCdaFactor(opts.profile.heightCm, opts.profile.massKg), inertiaFactor: opts.inertiaFactor ?? 1 };
+    this.crr = this.params.crr;
     const gearing = opts.gearing ?? DEFAULT_GEARING;
     this.gears = buildGearTable(gearing);
     this.referenceRatio = opts.referenceRatio ?? gearing.referenceRatio;
@@ -147,9 +172,24 @@ export class RideSession {
     const track = this.opts.track;
     const s = track.sample(this.state.distM, this.sample);
     this.gradePercent = s.grade;
-    const env = { airDensity: airDensity(s.y, 14), windSpeedMs: this.headwind(s.dirX, s.dirZ) };
+    this.windMs = riderWind(this.headwind(s.dirX, s.dirZ), this.shelter);
+    const env = { airDensity: airDensity(s.y, 14), windSpeedMs: this.windMs };
+    this.crr = surfaceCrr(this.surface, this.params.crr, this.opts.profile.bike.tyre) * wetCrrFactor(this.rain);
+    const cdaFactor = (1 - this.draft) * poseCdaFactor(this.pose, s.grade, this.state.speedMs);
     const prevDist = this.state.distM;
-    stepRider(this.state, { watts: this.inputs.watts, gradePercent: s.grade, params: this.params, env, cdaFactor: 1 - this.draft }, dt);
+    stepRider(
+      this.state,
+      {
+        watts: this.smoothedPower.update(this.inputs.watts, dt),
+        gradePercent: s.grade,
+        params: this.params,
+        env,
+        cdaFactor,
+        crr: this.crr,
+        footDownBelowMs: FOOT_DOWN_SPEED_MS,
+      },
+      dt,
+    );
     // Tour de boucle.
     if (track.route.loop && Math.floor(this.state.distM / track.length) > Math.floor(prevDist / track.length)) {
       this.lap++;
@@ -179,9 +219,11 @@ export class RideSession {
       speedMs: this.state.speedMs,
       gearRatio: this.gear.ratio,
       referenceRatio: this.referenceRatio,
-      params: this.params,
+      // Le trainer simule le vélo sur enrobé sec : le revêtement et la pluie se sentent en plus.
+      params: this.crr === this.params.crr ? this.params : { ...this.params, crr: this.crr },
+      trainer: trainerModelFor(this.params, env),
       env,
-      cdaFactor: 1 - this.draft,
+      cdaFactor,
       trainerDifficulty: this.opts.trainerDifficulty,
     });
     if (this.ergTarget !== null) {

@@ -18,6 +18,7 @@ Chaque jalon n'est déclaré terminé qu'après vérification : tests (protocole
 - [x] Boucle d'environ 10 km en vallée de Chevreuse : relief IGN, routes OSM, tirée des sorties Garmin
 - [ ] KICKR CORE / CORE 2 en FTMS (simulation de pente), Assioma en CPS, TICKR en HRS — Web Bluetooth et Tauri
 - [x] Physique de Martin, vitesse calculée par le jeu, pente envoyée au trainer (difficulté 50 %)
+- [x] 14 paramètres des watts à la vitesse : lissage, masse et matériel du garage, revêtement, pluie, morphologie et posture, vent à 1 m et abri, aspiration derrière les véhicules, inertie réglable, pied à terre (`docs/ARCHITECTURE.md`)
 - [x] HUD complet : puissance (3 s), FC, cadence, vitesse, distance, temps, pente, profil, mini-carte, balance G/D, rapport
 - [x] Export FIT (balance G/D) validé par le SDK Garmin — TE / PS : seulement via ANT+ PWR (le Bluetooth CPS ne les transmet pas)
 
@@ -71,7 +72,7 @@ Idées seulement : ni nom, ni asset, ni code, ni physique de NCT Ride (la vitess
 | 3 | Monde vivant : trafic qui double en s'écartant, piétons, déclencheurs à une distance de route | 3 | fait (voitures, camionnettes, tracteur, piétons) ; trains : à faire |
 | 4 | Son positionné depuis OSM (église → cloches, prairie → vaches, eau…) | 3 | fait |
 | 5 | Caméra « GoPro » sur la poitrine | 3 | fait |
-| 6 | Poussière sur les chemins, roulement selon le revêtement | 3 | à faire |
+| 6 | Poussière sur les chemins, roulement selon le revêtement | 3 | roulement fait (Crr et son selon le tag OSM `surface`, pneus gravel) ; poussière : à faire |
 | 7 | Foule avec pancartes et photo automatique au sommet des segments, réutilisée dans la vidéo résumé | 5 | fait (foule animée, photo au sommet, en fond de l'image de partage) ; pancartes et vidéo résumé : à faire |
 | 8 | Image de fin de sortie à partager | 5 | fait |
 | 9 | Mondes génériques (emprise + itinéraires via tools/terrain) | 3 | pipeline générique fait ; montée célèbre à tester |

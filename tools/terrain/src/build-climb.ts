@@ -347,6 +347,13 @@ async function main(): Promise<void> {
     if (last && last.widthM === w) last.endM = r2((i + 1) * step);
     else roadWidths.push({ startM: r2(i * step), endM: r2((i + 1) * step), widthM: w });
   }
+  const surfaces: Array<{ startM: number; endM: number; surface: string }> = [];
+  for (let i = 0; i < n - 1; i++) {
+    const sf = g.edges[edgeOf[i]!]!.road.surface || 'asphalt';
+    const last = surfaces[surfaces.length - 1];
+    if (last && last.surface === sf) last.endM = r2((i + 1) * step);
+    else surfaces.push({ startM: r2(i * step), endM: r2((i + 1) * step), surface: sf });
+  }
   const data: RouteData = {
     id: C.routeId,
     name: C.routeName,
@@ -359,6 +366,7 @@ async function main(): Promise<void> {
     roadWidthM,
     attribution: [...ATTRIBUTION],
     roadWidths,
+    surfaces,
     landmarks,
     stepM: Math.round(step * 1000) / 1000,
     minElevationM: r2(Math.min(...hs)),

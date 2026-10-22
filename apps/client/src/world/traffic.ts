@@ -2,6 +2,7 @@ import * as THREE from 'three/webgpu';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import type { RouteTrack } from '@allezrobert/shared';
+import { vehicleDraftReduction } from '@allezrobert/physics';
 import { rng } from '../engine/noise.ts';
 import { Pedestrians } from './pedestrians.ts';
 
@@ -32,6 +33,9 @@ function box(w: number, h: number, l: number, x: number, y: number, z: number): 
  * Dimensions réelles visées (m, longueur × largeur × hauteur) : les modèles du kit sont trapus
  * (une berline y fait 1,5 m de large pour 2,55 m de long), ils sont donc remis à l'échelle axe par axe.
  */
+/** Longueur hors tout par gabarit (m), pour l'écart à l'arrière du véhicule. */
+const VEHICLE_LENGTH: Record<Kind, number> = { car: 4.4, van: 5.4, tractor: 4.2 };
+
 const VEHICLE_MODELS: Array<{ file: string; kind: Kind; size: [number, number, number] }> = [
   { file: 'sedan.glb', kind: 'car', size: [4.5, 1.8, 1.45] },
   { file: 'hatchback-sports.glb', kind: 'car', size: [4.1, 1.78, 1.42] },
@@ -179,6 +183,21 @@ export class Traffic {
 
   private laneOf(sens: 1 | -1): number {
     return sens * (this.track.route.roadWidthM / 4 + 0.2);
+  }
+
+  /**
+   * Aspiration (0–0,45) derrière le véhicule le plus abritant qui roule dans le même sens.
+   * `distM` repère l'avant du vélo, `distM` d'un véhicule son centre.
+   */
+  draftFor(distM: number, lateral: number): number {
+    let best = 0;
+    for (const v of this.vehicles) {
+      if (v.sens < 0 || v.speed < 2) continue;
+      const gap = v.d - VEHICLE_LENGTH[v.kind] / 2 - distM;
+      const r = vehicleDraftReduction(v.kind, gap, lateral - v.lateral);
+      if (r > best) best = r;
+    }
+    return best;
   }
 
   /** @param riders distances déroulées et décalages des coureurs (joueur compris) */

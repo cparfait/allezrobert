@@ -285,6 +285,14 @@ export function buildRoute(g: RoadGraph, cycle: DirectedCycle, dem: DemStack, po
     if (last && last.widthM === w) last.endM = round2((i + 1) * step);
     else roadWidths.push({ startM: round2(i * step), endM: round2((i + 1) * step), widthM: w });
   }
+  // revêtement OSM par tronçon (résistance au roulement, son)
+  const surfaces: Array<{ startM: number; endM: number; surface: string }> = [];
+  for (let i = 0; i < n; i++) {
+    const sf = g.edges[edgeOf[i]!]!.road.surface || 'asphalt';
+    const last = surfaces[surfaces.length - 1];
+    if (last && last.surface === sf) last.endM = round2((i + 1) * step);
+    else surfaces.push({ startM: round2(i * step), endM: round2((i + 1) * step), surface: sf });
+  }
   // villages traversés (repères HUD)
   const landmarks: Array<{ name: string; d: number }> = [];
   for (const p of pois) {
@@ -315,6 +323,7 @@ export function buildRoute(g: RoadGraph, cycle: DirectedCycle, dem: DemStack, po
     segments,
     roadWidthM,
     roadWidths,
+    surfaces,
     landmarks,
     stepM: round2(step * 1000) / 1000,
     minElevationM: round2(Math.min(...hs)),

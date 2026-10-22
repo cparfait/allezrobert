@@ -5,6 +5,7 @@
  * plafonnée à 4 000 XP par sortie. Niveau L atteint à 250 × L × (L − 1) XP ; maximum 50.
  */
 import catalogJson from './cosmetics.json' with { type: 'json' };
+import { DEFAULT_BIKE, type BikeSetup } from './rider.ts';
 
 export const MAX_LEVEL = 50;
 export const MAX_XP_PER_RIDE = 4000;
@@ -33,16 +34,55 @@ export function levelProgress(xp: number): { level: number; progress: number; ne
 
 export type CosmeticSlot = 'jersey' | 'helmet' | 'bike' | 'socks' | 'glasses' | 'wheels';
 
+/** Effet d'un équipement sur la physique (relatif au vélo route aluminium par défaut). */
+export interface CosmeticPhysics {
+  /** Masse ajoutée (kg, négative si plus léger). */
+  massKg?: number;
+  /** Multiplicateur de CdA. */
+  cdaFactor?: number;
+  /** Moment d'inertie des deux roues (kg·m²), remplace la valeur du vélo. */
+  wheelInertia?: number;
+  /** Multiplicateur de Crr sur enrobé. */
+  crrFactor?: number;
+  tyre?: 'road' | 'gravel';
+}
+
 export interface CosmeticItem {
   id: string;
   slot: CosmeticSlot;
   name: { fr: string; en: string };
   level: number;
   color?: string;
+  physics?: CosmeticPhysics;
+  /** Ce que l'équipement change (affiché au garage). */
+  effect?: { fr: string; en: string };
 }
 
 export const COSMETICS: CosmeticItem[] = (catalogJson as { items: CosmeticItem[] }).items;
 
 export function unlockedCosmetics(level: number): CosmeticItem[] {
   return COSMETICS.filter((c) => c.level <= level);
+}
+
+/**
+ * Vélo réellement roulé selon l'équipement porté : masse, CdA, Crr et inertie des roues.
+ * Les équipements sans effet physique (maillot, lunettes…) ne changent rien.
+ */
+export function bikeSetupFor(equipped: Partial<Record<CosmeticSlot, string>>, base: BikeSetup = DEFAULT_BIKE): BikeSetup {
+  const bike: BikeSetup = { ...base };
+  const names: string[] = [];
+  for (const id of Object.values(equipped)) {
+    const item = COSMETICS.find((c) => c.id === id);
+    const ph = item?.physics;
+    if (!item || !ph) continue;
+    if (ph.massKg) bike.massKg += ph.massKg;
+    if (ph.cdaFactor) bike.cda *= ph.cdaFactor;
+    if (ph.crrFactor) bike.crr *= ph.crrFactor;
+    if (ph.wheelInertia) bike.wheelInertia = ph.wheelInertia;
+    if (ph.tyre) bike.tyre = ph.tyre;
+    if (item.slot === 'bike') names.unshift(item.name.fr);
+  }
+  if (names.length) bike.name = names[0] as string;
+  bike.massKg = Math.round(bike.massKg * 100) / 100;
+  return bike;
 }
