@@ -1,5 +1,6 @@
 import * as THREE from 'three/webgpu';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import type { RouteTrack } from '@allezrobert/shared';
 import { rng } from '../engine/noise.ts';
 
@@ -33,7 +34,78 @@ function box(w: number, h: number, l: number, x: number, y: number, z: number): 
 }
 
 /** Véhicule en primitives : caisse, vitrage, roues (repère : +z avant). */
-function buildVehicle(kind: Kind, color: string): { group: THREE.Group; wheels: THREE.Object3D[] } {
+/**
+ * Modèles de véhicules CC0 (Kenney Car Kit, voir ASSETS_LICENSES.md), chargés une fois.
+ * Longueur réelle visée par modèle (m) : les modèles sont remis à l'échelle au chargement.
+ */
+const VEHICLE_MODELS: Array<{ file: string; kind: Kind; lengthM: number }> = [
+  { file: 'sedan.glb', kind: 'car', lengthM: 4.5 },
+  { file: 'hatchback-sports.glb', kind: 'car', lengthM: 4.1 },
+  { file: 'suv.glb', kind: 'car', lengthM: 4.6 },
+  { file: 'delivery.glb', kind: 'van', lengthM: 5.4 },
+  { file: 'tractor.glb', kind: 'tractor', lengthM: 4.2 },
+];
+const templates = new Map<string, THREE.Object3D>();
+
+export async function loadVehicleModels(base = '/models/vehicles/'): Promise<boolean> {
+  const loader = new GLTFLoader();
+  try {
+    await Promise.all(
+      VEHICLE_MODELS.map(async (m) => {
+        const gltf = await loader.loadAsync(base + m.file);
+        const root = gltf.scene;
+        // Échelle : la plus grande dimension horizontale devient la longueur réelle du véhicule.
+        const box = new THREE.Box3().setFromObject(root);
+        const size = box.getSize(new THREE.Vector3());
+        const s = m.lengthM / Math.max(size.x, size.z);
+        root.scale.setScalar(s);
+        // Avant du véhicule vers +z (sens de marche) si le modèle est allongé selon x.
+        if (size.x > size.z) root.rotation.y = -Math.PI / 2;
+        root.updateMatrixWorld(true);
+        const b2 = new THREE.Box3().setFromObject(root);
+        root.position.y -= b2.min.y;
+        root.traverse((o) => {
+          const mesh = o as THREE.Mesh;
+          if (!mesh.isMesh) return;
+          mesh.castShadow = true;
+          mesh.receiveShadow = true;
+          // Matériau WebGPU avec la même palette de couleurs (texture du kit).
+          const src = mesh.material as THREE.MeshStandardMaterial;
+          mesh.material = new THREE.MeshStandardNodeMaterial({ map: src.map ?? null, color: src.color, roughness: 0.45, metalness: 0.25 });
+        });
+        const wrap = new THREE.Group();
+        // Axe des essieux dans le repère du modèle : perpendiculaire à sa longueur.
+        wrap.userData.axle = size.x > size.z ? 'z' : 'x';
+        wrap.add(root);
+        templates.set(m.file, wrap);
+      }),
+    );
+    return true;
+  } catch (e) {
+    console.warn('Modèles de véhicules indisponibles, repli sur les primitives', e);
+    return false;
+  }
+}
+
+/** Instance d'un modèle chargé : les roues (nœuds « wheel-* ») tournent avec la vitesse. */
+function modelVehicle(kind: Kind, pick: number): { group: THREE.Group; wheels: THREE.Object3D[] } | null {
+  const candidates = VEHICLE_MODELS.filter((m) => m.kind === kind && templates.has(m.file));
+  const m = candidates[pick % Math.max(candidates.length, 1)];
+  if (!m) return null;
+  const group = (templates.get(m.file) as THREE.Object3D).clone(true) as THREE.Group;
+  const wheels: THREE.Object3D[] = [];
+  group.traverse((o) => {
+    if (/^wheel/i.test(o.name)) {
+      o.userData.axle = group.userData.axle;
+      wheels.push(o);
+    }
+  });
+  return { group, wheels };
+}
+
+function buildVehicle(kind: Kind, color: string, pick = 0): { group: THREE.Group; wheels: THREE.Object3D[] } {
+  const model = modelVehicle(kind, pick);
+  if (model) return model;
   const g = new THREE.Group();
   const paint = new THREE.MeshStandardNodeMaterial({ color, roughness: 0.35, metalness: 0.5 });
   const glass = new THREE.MeshStandardNodeMaterial({ color: '#1a2330', roughness: 0.1, metalness: 0.3 });
@@ -101,7 +173,7 @@ export class Traffic {
     const n = Math.round(6 * density);
     for (let i = 0; i < n; i++) {
       const kind: Kind = i === 0 ? 'tractor' : i % 4 === 0 ? 'van' : 'car';
-      const { group, wheels } = buildVehicle(kind, kind === 'tractor' ? '#2e7d32' : (CAR_COLORS[i % CAR_COLORS.length] as string));
+      const { group, wheels } = buildVehicle(kind, kind === 'tractor' ? '#2e7d32' : (CAR_COLORS[i % CAR_COLORS.length] as string), i);
       const sens: 1 | -1 = i % 2 ? -1 : 1;
       const cruise = kind === 'tractor' ? 7 : 13 + this.r() * 6;
       this.vehicles.push({ kind, mesh: group, wheels, d: (sens > 0 ? -150 : 300) - i * 180, sens, cruise, speed: cruise, lateral: this.laneOf(sens) });
@@ -159,7 +231,11 @@ export class Traffic {
       v.mesh.position.set(p.x, p.y + 0.02, p.z);
       v.mesh.rotation.set(0, Math.atan2(p.dirX, p.dirZ) + (v.sens < 0 ? Math.PI : 0), 0);
       v.mesh.rotateX(-Math.atan(p.grade / 100) * v.sens);
-      for (const w of v.wheels) w.rotation.x += (v.speed / (v.kind === 'tractor' ? 0.6 : 0.33)) * dt;
+      for (const w of v.wheels) {
+        const spin = (v.speed / (v.kind === 'tractor' ? 0.6 : 0.33)) * dt;
+        if (w.userData.axle === 'z') w.rotation.z -= spin;
+        else w.rotation.x += spin;
+      }
     }
     for (const w of this.walkers) {
       w.d += w.speed * dt;

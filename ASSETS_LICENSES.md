@@ -23,7 +23,10 @@ L'attribution est affichée en jeu (bas de l'écran) et dans `world.json`.
 
 | Asset | Source | Licence | Usage |
 | --- | --- | --- | --- |
-| Arbres, herbe, bâtiments, routes, ciel, pluie | Générés par le code (`apps/client/src/world`) | Code du projet | Monde |
+| Arbres, herbe, géométrie des bâtiments, routes, ciel, pluie | Générés par le code (`apps/client/src/world`) | Code du projet | Monde |
+| Textures `painted_plaster_wall` (Amal Kumar), `plaster_stone_wall_01` (Charlotte Baglioni), `brick_wall_09` (Rob Tuytel, Matterfield), `clay_roof_tiles` (Amal Kumar), `grey_roof_tiles_02` (Rob Tuytel), `asphalt_02` (Rob Tuytel) — `apps/client/public/assets/textures/` | [Poly Haven](https://polyhaven.com) | CC0 1.0 | Façades et toits (couleur + normales, 1K) |
+| Véhicules `sedan`, `hatchback-sports`, `suv`, `delivery`, `tractor` + `colormap.png` — `apps/client/public/models/vehicles/` | [Kenney Car Kit 3.1](https://kenney.nl/assets/car-kit) | CC0 1.0 (licence jointe) | Trafic |
+| Cycliste et vélos (`apps/client/public/models/*.glb`) | Générés par `tools/blender/build_cyclist.py` | Code du projet | Avatars |
 | Avatar et vélo procéduraux | Générés par le code (`apps/client/src/rider/avatar.ts`) | Code du projet | Coureurs (repli) |
 | Sons (vent, pneus, roue libre, oiseaux, pluie) | Synthèse WebAudio (`apps/client/src/audio`) | Code du projet | Ambiance sonore |
 

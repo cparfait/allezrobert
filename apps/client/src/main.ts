@@ -28,7 +28,7 @@ import { RideSequences } from './game/sequences.ts';
 import { GuestInputSource } from './game/guest.ts';
 import { Crowd } from './world/crowd.ts';
 import { TownSigns } from './world/signs.ts';
-import { Traffic } from './world/traffic.ts';
+import { Traffic, loadVehicleModels } from './world/traffic.ts';
 import { Multiplayer } from './game/multiplayer.ts';
 import { VoiceChat } from './game/voice.ts';
 import type { InterpolatedRider } from './net/index.ts';
@@ -66,7 +66,7 @@ async function boot(): Promise<void> {
   setLang(settings.lang);
   ui.innerHTML = `<div class="loading">${t('loading')}</div>`;
   // Avatars Blender (glTF) chargés une fois ; repli procédural automatique en cas d'échec.
-  const [scene] = await Promise.all([loadScene(settings), GltfRiderAvatar.load()]);
+  const [scene] = await Promise.all([loadScene(settings), GltfRiderAvatar.load(), loadVehicleModels()]);
   const devices = createDeviceLayer();
   const start = scene.track.positionAt(0, 1.2);
   await scene.world.preload(new THREE.Vector3(start.x, start.y, start.z));

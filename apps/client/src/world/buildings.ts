@@ -1,8 +1,25 @@
 import * as THREE from 'three/webgpu';
-import { attribute, uv, fract, floor, step, mix, vec3, float, uniform, mx_noise_float, positionWorld, smoothstep, max, min, abs, normalWorld } from 'three/tsl';
+import { attribute, uv, fract, floor, step, mix, vec2, vec3, float, uniform, mx_noise_float, positionWorld, smoothstep, max, abs, normalWorld, texture, normalMap } from 'three/tsl';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { rng, polygonArea } from '../engine/noise.ts';
 import type { LoadedTile } from './types.ts';
+
+/** Textures photo CC0 (Poly Haven) des façades et toits, chargées une fois et partagées. */
+function loadTex(dir: string, file: string, srgb: boolean): THREE.Texture {
+  const t = new THREE.TextureLoader().load(`/assets/textures/${dir}/${file}`);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.anisotropy = 8;
+  if (srgb) t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+const pbr = (dir: string) => ({ map: loadTex(dir, 'diffuse.jpg', true), normal: loadTex(dir, 'nor_gl.jpg', false) });
+const BUILDING_TEXTURES = {
+  render: pbr('painted_plaster_wall'),
+  stone: pbr('plaster_stone_wall_01'),
+  brick: pbr('brick_wall_09'),
+  tiles: pbr('clay_roof_tiles'),
+  slate: pbr('grey_roof_tiles_02'),
+};
 
 /**
  * Bâti d'Île-de-France rurale (voir ART_DIRECTION.md) : enduits clairs et meulière ocre,
@@ -211,17 +228,24 @@ export class Buildings {
     const isTile = step(float(0.5), kind).mul(step(kind, float(1.5)));
     const isSlate = step(float(1.5), kind);
 
-    // ── Murs ──
+    // ── Murs : textures photo CC0 (Poly Haven), à l'échelle réelle (uv en mètres) ──
+    // Type de mur (binfo.y) : 0 enduit, 1 pierres apparentes (proche de la meulière), 2 brique.
+    const wallType = info.y;
+    const isStone = step(float(0.5), wallType).mul(step(wallType, float(1.5)));
+    const isBrick = step(float(1.5), wallType);
+    const isRender = float(1).sub(isStone).sub(isBrick);
+    const T = BUILDING_TEXTURES;
+    const wallUv = (size: number) => vec2(u, v).div(size);
+    const render = texture(T.render.map, wallUv(2.0)).rgb;
+    const stone = texture(T.stone.map, wallUv(2.3)).rgb;
+    const brick = texture(T.brick.map, wallUv(2.0)).rgb;
+    // L'enduit (photo grise tachée) prend la teinte de chaque maison : couleur de base × variations de la photo.
+    const renderTinted = render.mul(base.div(vec3(0.31, 0.29, 0.28))).clamp(0, 1.5);
+    let wall = renderTinted.mul(isRender).add(stone.mul(isStone)).add(brick.mul(isBrick));
     const nBig = mx_noise_float(positionWorld.mul(0.35)).mul(0.5).add(0.5);
-    const nFine = mx_noise_float(positionWorld.mul(3.1)).mul(0.5).add(0.5);
-    // Meulière : moellons irréguliers à joints clairs (cellules de bruit), seulement si `stones`.
-    const cell = mx_noise_float(positionWorld.mul(2.2));
-    const joint = smoothstep(0.04, 0.0, abs(cell)).mul(info.y);
-    const stoneTone = mx_noise_float(floor(positionWorld.mul(2.2)).add(0.5)).mul(0.12).mul(info.y);
-    let wall = base.mul(nBig.mul(0.08).add(0.95)).mul(nFine.mul(0.06).add(0.97)).add(stoneTone);
-    wall = mix(wall, vec3(0.86, 0.83, 0.76), joint.mul(0.7));
+    wall = wall.mul(nBig.mul(0.1).add(0.95));
     // Soubassement plus sombre (0,6 m) et salissures en pied de mur.
-    wall = wall.mul(mix(float(0.72), float(1), smoothstep(0.55, 0.65, v))).mul(mix(float(0.88), float(1), smoothstep(0.0, 2.0, v)));
+    wall = wall.mul(mix(float(0.72), float(1), smoothstep(0.55, 0.65, v))).mul(mix(float(0.85), float(1), smoothstep(0.0, 2.0, v)));
     // Fenêtres : travées réparties sur la longueur, une par étage de 2,8 m, au-dessus de 0,9 m.
     const bays = max(facade.y, float(0.0001));
     const local = fract(u.div(facade.x).mul(bays));
@@ -245,22 +269,24 @@ export class Buildings {
     wall = mix(wall, vec3(0.93, 0.92, 0.88), inFrame.mul(float(1).sub(inWin)));
     wall = mix(wall, glassSky, inWin);
 
-    // ── Toits ──
-    const rows = v.mul(5.6); // tuile plate : pureau ≈ 18 cm
-    const rowIdx = floor(rows);
-    const tileX = fract(u.mul(5.8).add(rowIdx.mul(0.5)));
-    const rowShade = smoothstep(0.0, 0.18, fract(rows)).mul(0.22).add(0.78);
-    const gap = smoothstep(0.0, 0.06, min(tileX, float(1).sub(tileX))).mul(0.15).add(0.85);
-    const tileVar = mx_noise_float(vec3(floor(u.mul(5.8).add(rowIdx.mul(0.5))), rowIdx, 0)).mul(0.12).add(1);
-    const moss = smoothstep(0.55, 0.85, mx_noise_float(positionWorld.mul(0.6))).mul(0.25);
-    const tiles = mix(base.mul(rowShade).mul(gap).mul(tileVar), vec3(0.35, 0.38, 0.22), moss);
-    const slate = base.mul(smoothstep(0.0, 0.12, fract(v.mul(4))).mul(0.25).add(0.75)).mul(nFine.mul(0.1).add(0.95));
-
+    // ── Toits : tuiles en terre cuite et ardoise (textures photo), mousse par endroits ──
+    const roofUv = (size: number) => vec2(u, v).div(size);
+    const moss = smoothstep(0.6, 0.9, mx_noise_float(positionWorld.mul(0.5))).mul(0.3);
+    const tileTex = texture(T.tiles.map, roofUv(3.2)).rgb;
+    const tiles = mix(tileTex.mul(base.div(vec3(0.33, 0.13, 0.08)).clamp(0.7, 1.3)), vec3(0.3, 0.33, 0.18), moss);
+    const slate = texture(T.slate.map, roofUv(1.5)).rgb;
     let col = mix(wall, tiles, isTile);
     col = mix(col, slate, isSlate);
     m.colorNode = col;
     m.emissiveNode = vec3(1.0, 0.62, 0.3).mul(inWin.mul(lit).mul(isWall).mul(2.2));
     m.roughnessNode = mix(mix(float(0.93), float(0.15), inWin.mul(isWall)), float(0.75), isTile.add(isSlate).min(1)).sub(isSlate.mul(0.2));
+    // Relief : cartes de normales de la texture correspondante (sauf sur les vitres).
+    const nrm = (t: THREE.Texture, size: number) => texture(t, vec2(u, v).div(size)).rgb;
+    const wallN = nrm(T.render.normal, 2.0).mul(isRender).add(nrm(T.stone.normal, 2.3).mul(isStone)).add(nrm(T.brick.normal, 2.0).mul(isBrick));
+    const roofN = nrm(T.tiles.normal, 3.2).mul(isTile).add(nrm(T.slate.normal, 1.5).mul(isSlate));
+    const flatN = vec3(0.5, 0.5, 1);
+    const nCol = mix(mix(wallN, flatN, inWin.max(inFrame).max(inShutter)), roofN, isTile.add(isSlate).min(1));
+    m.normalNode = normalMap(nCol, vec2(0.8, 0.8));
     m.metalnessNode = float(0);
     // Les emprises OSM n'ont pas d'orientation garantie : on rend les deux faces.
     m.side = THREE.DoubleSide;
@@ -288,11 +314,12 @@ export class Buildings {
       const roofH = flat ? 0.4 : Math.min(bld.roofHeight ?? Math.tan((42 * Math.PI) / 180) * box.hw, total * 0.6);
       const wallH = Math.max(total - roofH, 2.4);
       // Matériau de façade : meulière (≈ 30 %), enduit clair, ou couleur OSM.
-      const stones = !isUtility && !bld.colour && (bld.material === 'stone' || r() < 0.3);
+      const stones = !isUtility && !bld.colour && (bld.material === 'stone' || r() < 0.45);
       const wallColour = osmColour(bld.colour, stones ? (MEULIERE[Math.floor(r() * MEULIERE.length)] as string) : bld.material === 'brick' ? BRICK : (RENDERS[Math.floor(r() * RENDERS.length)] as string));
       acc.set(SHUTTERS[Math.floor(r() * SHUTTERS.length)] as string);
       const w = walls(bld.pts, base, wallH + 0.3);
-      paint(w, c.set(wallColour), 0, acc, stones ? 1 : 0, isUtility ? 0 : 1);
+      const wallType = stones ? 1 : wallColour === BRICK ? 2 : 0;
+      paint(w, c.set(wallColour), 0, acc, wallType, isUtility ? 0 : 1);
       parts.push(w);
       const pitch = flat ? 3 : (Math.atan(roofH / Math.max(box.hw + 0.4, 0.5)) * 180) / Math.PI;
       const hip = shape === 'hipped' || shape === 'pyramidal' || shape === 'half-hipped';
@@ -301,7 +328,7 @@ export class Buildings {
       paint(roof, c.set(slate ? SLATE : flat ? '#6f6c66' : (osmColour(undefined, ROOFS[Math.floor(r() * ROOFS.length)] as string))), slate || flat ? 2 : 1, acc, 0, 0);
       parts.push(roof);
       if (gables) {
-        paint(gables, c.set(wallColour), 0, acc, stones ? 1 : 0, 0);
+        paint(gables, c.set(wallColour), 0, acc, wallType, 0);
         parts.push(gables);
       }
       if (isChurch) {
