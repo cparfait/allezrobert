@@ -55,7 +55,9 @@ export class Crowd {
     // Saut et bras agités, déphasés par spectateur.
     const jump = max(sin(time.mul(float(5).add(h.mul(3))).add(h.mul(20))), float(0)).mul(0.12).mul(h2.greaterThan(0.5).select(float(1), float(0.3)));
     const wave = sin(time.mul(9).add(h.mul(10))).mul(0.18).mul(part.equal(2).select(float(1), float(0)));
-    mat.positionNode = positionLocal.add(vec3(wave.mul(positionLocal.x.sign()), jump.add(abs(wave).mul(0.3)), 0));
+    // positionLocal inclut déjà la transformation d'instance : le côté du bras vient de l'attribut brut.
+    const raw = attribute<'vec3'>('position');
+    mat.positionNode = positionLocal.add(vec3(wave.mul(raw.x.sign()), jump.add(abs(wave).mul(0.3)), 0));
     // Maillots et vêtements variés : choix par paliers du hachage de l'instance.
     const step = (e: number) => h.greaterThan(e).select(float(1), float(0));
     const shirt = mix(mix(mix(mix(color('#e63946'), color('#ffd23f'), step(0.2)), color('#2a9d8f'), step(0.4)), color('#f4f4f4'), step(0.6)), color('#1f6feb'), step(0.8));

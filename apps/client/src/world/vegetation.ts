@@ -158,19 +158,23 @@ export class Vegetation {
     const shade = attribute<'float'>('shade');
     const h = hash(instanceIndex);
     const h2 = hash(instanceIndex.add(7));
-    // Balancement : proportionnel au carré de la hauteur, phase aléatoire par arbre, rafales lentes.
-    const y = positionLocal.y;
+    // Attention : dans un InstancedMesh, positionLocal contient déjà la transformation d'instance
+    // (position monde de l'arbre). Les calculs « locaux » partent donc de l'attribut brut.
+    const raw = attribute<'vec3'>('position');
+    // Balancement : proportionnel au carré de la hauteur propre de l'arbre (0 au pied), phase
+    // aléatoire par arbre, rafales lentes ; quelques centimètres en tête d'arbre.
+    const y = raw.y.max(0);
     const gust = sin(time.mul(0.35).add(h.mul(6.28))).mul(0.5).add(0.5);
-    const sway = sin(time.mul(float(1.3).add(h2.mul(0.6))).add(h.mul(40))).mul(this.windStrength).mul(y.mul(y).mul(0.0035)).mul(gust.mul(0.6).add(0.4));
-    const flutter = sin(time.mul(7).add(positionLocal.x.mul(3)).add(positionLocal.z.mul(2))).mul(0.05).mul(leaf).mul(this.windStrength);
-    let pos = positionLocal.add(vec3(sway.add(flutter), 0, sway.mul(0.6)));
+    const sway = sin(time.mul(float(1.3).add(h2.mul(0.6))).add(h.mul(40))).mul(this.windStrength).mul(y.mul(y).mul(0.0012)).mul(gust.mul(0.6).add(0.4));
+    const flutter = sin(time.mul(7).add(raw.x.mul(3)).add(raw.z.mul(2))).mul(0.03).mul(leaf).mul(this.windStrength);
+    let offset: THREE.Node<'vec3'> = vec3(sway.add(flutter), 0, sway.mul(0.6));
     if (!conifer) {
-      // Hiver : le houppier se rétracte vers le tronc et laisse les branches nues.
+      // Hiver : le houppier se rétracte vers le tronc (vers le centre du houppier) et laisse les branches nues.
       const crownCenter = vec3(0, 7.5, 0);
       const k = mix(float(1), this.leafAmount, leaf);
-      pos = mix(crownCenter.mul(leaf), pos, k.max(0.001));
+      offset = offset.add(crownCenter.sub(raw).mul(leaf).mul(float(1).sub(k)));
     }
-    m.positionNode = pos;
+    m.positionNode = positionLocal.add(offset);
     const wood = color('#4a3a2c');
     const leafCol = conifer
       ? mix(color('#2f4a2c'), color('#3d5a33'), h)

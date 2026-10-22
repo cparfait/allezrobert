@@ -10,14 +10,15 @@
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "@colyseus/sdk": "^0.18.5",
-    "three": "^0.186.1",
-    "@allezrobert/shared": "workspace:*",
-    "@allezrobert/physics": "workspace:*",
     "@allezrobert/devices": "workspace:*",
-    "@allezrobert/protocols": "workspace:*",
     "@allezrobert/fit": "workspace:*",
-    "@allezrobert/sequences": "workspace:*"
+    "@allezrobert/physics": "workspace:*",
+    "@allezrobert/protocols": "workspace:*",
+    "@allezrobert/sequences": "workspace:*",
+    "@allezrobert/shared": "workspace:*",
+    "@colyseus/sdk": "^0.18.5",
+    "livekit-client": "^2.23.0",
+    "three": "^0.186.1"
   },
   "devDependencies": {
     "@types/three": "^0.186.0",
