@@ -1,6 +1,6 @@
 /**
  * Vérification d'un monde construit : tailles, cohérence itinéraire ↔ terrain creusé,
- * continuité des bords de tuiles. `pnpm --filter @allezrobert/terrain verify:world`
+ * continuité des bords de tuiles. `npx tsx tools/terrain/src/verify-world.ts [--world <id>]`
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -28,7 +28,7 @@ function grid(tx: number, tz: number, lod: 'hi' | 'lo'): Grid | null {
   let g: Grid | null = null;
   if (t && t.lods.includes(lod)) {
     const buf = fs.readFileSync(path.join(tilesDir, `${t.id}${l.suffix}`));
-    g = { n: l.n, res: l.resolutionM, x0: tx * TILE_SIZE_M, z0: tz * TILE_SIZE_M, h: decodeGrid(buf, l.n, t.baseM) };
+    g = { n: l.n, res: l.resolutionM, x0: tx * TILE_SIZE_M, z0: tz * TILE_SIZE_M, h: decodeGrid(buf, l.n, t.baseM, t.stepM ?? meta.heightEncoding.stepM) };
   }
   cache.set(k, g);
   return g;
@@ -43,7 +43,7 @@ for (const r of meta.routes) {
   for (let i = 0; i < route.points.length; i++) {
     const p = route.points[i]!;
     const q = route.points[(i + 1) % route.points.length]!;
-    maxStep = Math.max(maxStep, Math.abs(q.y - p.y));
+    if (route.loop || i + 1 < route.points.length) maxStep = Math.max(maxStep, Math.abs(q.y - p.y));
     const tx = Math.floor(p.x / TILE_SIZE_M);
     const tz = Math.floor(p.z / TILE_SIZE_M);
     const g = grid(tx, tz, 'hi');

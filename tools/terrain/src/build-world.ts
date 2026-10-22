@@ -1,6 +1,7 @@
 /**
  * Construction complète du monde « chevreuse » :
  *   pnpm --filter @allezrobert/terrain build:world [-- --no-ortho] [-- --offline] [-- --routes-only]
+ * Montées célèbres (sans Garmin, voir build-climb.ts) : `-- --world alpe-dhuez`.
  *
  * 1. Traces Garmin (privées) → points sensibles, recalage, fréquentation des routes.
  * 2. OSM (Overpass, cache) + MNT IGN (WMS-R, cache).
@@ -29,6 +30,7 @@ import {
   RIDE_ROUTE_MIN_M,
   RIDE_RUN_MARGIN_M,
   TILE_SIZE_M,
+  WORLD,
   WORLD_EDGE_MARGIN_M,
   WORLD_ID,
   WORLD_NAME,
@@ -36,23 +38,28 @@ import {
 import { Dem, DemStack } from './dem.ts';
 import { corridorWgs84, OSM_CHUNK } from './corridor.ts';
 import { distPointRect, tileId, tileRect, wgs84BoxToRect, worldToL93, type Rect } from './frame.ts';
-import { resampleOpen, smooth1d, type Box, type Pt } from './geom.ts';
+import { resampleOpen, smooth1d, type Pt } from './geom.ts';
 import { loadRides, longestRun, rideStats, sensitivePoints, trimPrivate, type GpxPoint } from './gpx.ts';
 import { RoadGraph, type Edge } from './graph.ts';
 import { bikeable, busyWeight, cyclePolyline, enumerateCycles, scoreCycle, segmentBonus, type CycleScore, type LoopSearchOptions } from './loop.ts';
 import { matchRide } from './mapmatch.ts';
 import { setOffline } from './net.ts';
-import { fetchOrtho } from './ortho.ts';
 import { buildOsmWorld, type Poi } from './osm.ts';
 import { fetchOsm } from './overpass.ts';
 import { assertCorridorSafe, auditWorldDir } from './privacy.ts';
 import { detectClimbs, detectSprints } from './profile.ts';
-import { buildRoads3d, type RouteOnGraph } from './roads3d.ts';
+import type { RouteOnGraph } from './roads3d.ts';
 import { closeWalk, matchWalk } from './ridematch.ts';
 import { buildRoute, climbName, frenchDe, slug, sprintName, type BuiltRoute } from './route.ts';
-import { buildTile, TileBuckets, type CarveLine, type TileInputs, type TileResult, type TileRoad } from './tiles.ts';
+import type { TileResult } from './tiles.ts';
+import { writeWorldTiles } from './world-tiles.ts';
 
 const args = new Set(process.argv.slice(2));
+if (WORLD.kind === 'climb') {
+  // montées célèbres : chaîne séparée, sans données Garmin
+  await import('./build-climb.ts');
+  process.exit(0);
+}
 const WITH_ORTHO = !args.has('--no-ortho');
 const ROUTES_ONLY = args.has('--routes-only');
 if (args.has('--offline')) setOffline(true);
@@ -514,91 +521,10 @@ async function main(): Promise<void> {
       await ensureHiForRect(hi, tileRect(tx, tz));
     }
     const onGraph: RouteOnGraph[] = picked.map((p, i) => ({ route: p.built.data, edgeOf: p.built.edgeOf, priority: p.main ? 2 : 1 + 0 * i }));
-    const r3 = buildRoads3d(g, dem, onGraph);
-    log(`   ${r3.roads.length} tronçons de route 3D, ${r3.carve.length} couloirs creusés`);
-    const inputs: TileInputs = {
-      roads: new TileBuckets<TileRoad>(),
-      carve: new TileBuckets<CarveLine>(),
-      buildings: new TileBuckets(),
-      areas: new TileBuckets(),
-      lines: new TileBuckets(),
-      pois: new TileBuckets<Poi>(),
-    };
-    const box3 = (pts: Array<[number, number, number]>): Box => {
-      let minX = Infinity;
-      let minZ = Infinity;
-      let maxX = -Infinity;
-      let maxZ = -Infinity;
-      for (const p of pts) {
-        minX = Math.min(minX, p[0]);
-        maxX = Math.max(maxX, p[0]);
-        minZ = Math.min(minZ, p[2]);
-        maxZ = Math.max(maxZ, p[2]);
-      }
-      return { minX, minZ, maxX, maxZ };
-    };
-    for (const r of r3.roads) inputs.roads.add(box3(r.pts), r);
-    for (const c of r3.carve) {
-      // découpage des longs couloirs (itinéraires) en morceaux pour l'index par tuile
-      const chunk = 200;
-      const pts = c.closed ? [...c.pts, c.pts[0]!] : c.pts;
-      for (let i = 0; i < pts.length - 1; i += chunk) {
-        const part = pts.slice(i, Math.min(pts.length, i + chunk + 1));
-        inputs.carve.add(box3(part), { pts: part, halfWidth: c.halfWidth, priority: c.priority }, 30);
-      }
-    }
-    for (const b of osm.buildings) inputs.buildings.add({ minX: b.centroid[0], maxX: b.centroid[0], minZ: b.centroid[1], maxZ: b.centroid[1] }, b);
-    for (const a of osm.areas) {
-      const ext = a as typeof a & { level?: number };
-      if (a.cat === 'water') {
-        const ring = a.polygons[0]!.outer;
-        const stepI = Math.max(1, Math.floor(ring.length / 200));
-        const hs: number[] = [];
-        for (let i = 0; i < ring.length; i += stepI) {
-          const l = worldToL93(ring[i]![0], ring[i]![1]);
-          const v = dem.sample(l.e, l.n);
-          if (Number.isFinite(v)) hs.push(v);
-        }
-        hs.sort((x, y) => x - y);
-        ext.level = hs[Math.floor(hs.length * 0.1)] ?? 0;
-      }
-      inputs.areas.add(a.box, ext);
-    }
-    for (const l of osm.lines) {
-      let minX = Infinity;
-      let minZ = Infinity;
-      let maxX = -Infinity;
-      let maxZ = -Infinity;
-      for (const p of l.pts) {
-        minX = Math.min(minX, p[0]);
-        maxX = Math.max(maxX, p[0]);
-        minZ = Math.min(minZ, p[1]);
-        maxZ = Math.max(maxZ, p[1]);
-      }
-      inputs.lines.add({ minX, minZ, maxX, maxZ }, l);
-    }
-    for (const p of osm.pois) inputs.pois.add({ minX: p.x, maxX: p.x, minZ: p.z, maxZ: p.z }, p);
-
-    const tilesDir = path.join(OUT_DIR, 'tiles');
-    for (const f of fs.readdirSync(tilesDir)) fs.unlinkSync(path.join(tilesDir, f));
     const c = CORRIDOR_TILES;
-    const total = (c.txMax - c.txMin + 1) * (c.tzMax - c.tzMin + 1);
-    let k = 0;
-    for (let tx = c.txMin; tx <= c.txMax; tx++) {
-      for (let tz = c.tzMin; tz <= c.tzMax; tz++) {
-        const id = tileId(tx, tz);
-        const res = buildTile(tx, tz, hiTiles.has(id), { lo, hi }, inputs, OUT_DIR);
-        tileResults.push(res);
-        if (WITH_ORTHO) {
-          const ok = await fetchOrtho(tx, tz, hiTiles.has(id) ? 512 : 256, path.join(tilesDir, `${id}.ortho.jpg`));
-          if (ok) {
-            res.lods.push('ortho');
-            res.bytes += fs.statSync(path.join(tilesDir, `${id}.ortho.jpg`)).size;
-          }
-        }
-        if (++k % 25 === 0) log(`   ${k}/${total} tuiles`);
-      }
-    }
+    const order: Array<[number, number]> = [];
+    for (let tx = c.txMin; tx <= c.txMax; tx++) for (let tz = c.tzMin; tz <= c.tzMax; tz++) order.push([tx, tz]);
+    tileResults.push(...(await writeWorldTiles({ g, dem, dems: { lo, hi }, osm, routes: onGraph, tiles: order, hiTiles, outDir: OUT_DIR, withOrtho: WITH_ORTHO, log })));
   }
 
   // 8. world.json

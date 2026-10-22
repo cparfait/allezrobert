@@ -45,6 +45,25 @@ export interface RouteData {
   maxElevationM?: number;
   /** Pente maximale sur 10 m (%). */
   maxGradePct?: number;
+  /**
+   * Lacets (montées) : épingles d'au moins 150° détectées sur la géométrie, dans l'ordre du
+   * parcours. `number` = numéro officiel (Alpe d'Huez : 21 → 1) s'il existe ; `d` = sommet du
+   * virage ; `radiusM` = rayon minimal de l'axe de la chaussée ; `altitudeM` = altitude de la route.
+   */
+  hairpins?: RouteHairpin[];
+}
+
+export interface RouteHairpin {
+  number?: number;
+  name?: string;
+  d: number;
+  turnDeg: number;
+  radiusM: number;
+  altitudeM: number;
+  /** Altitude inscrite sur le panneau (OSM `ele`), si connue. */
+  signAltitudeM?: number;
+  /** Vainqueurs d'étape inscrits sur la plaque (OSM `inscription`), si connus. */
+  inscription?: string;
 }
 
 /*
@@ -78,6 +97,25 @@ export interface WorldTileIndex {
   /** Fichiers disponibles : 'lo' toujours, 'hi' près des itinéraires, 'ortho' si orthophoto. */
   lods: Array<WorldLodId | 'ortho'>;
   bytes: number;
+  /** Pas de quantification propre à la tuile (haute montagne, dénivelé > 655 m) ; défaut heightEncoding.stepM. */
+  stepM?: number;
+}
+
+/**
+ * Relief lointain (ligne d'horizon des montagnes) : une seule grille grossière autour du monde,
+ * même encodage que les tuiles (Uint16 petit-boutiste, ligne 0 = nord), h = baseM + q × stepM.
+ * Échantillon (i, j) au point monde (x0 + i·resolutionM, z0 + j·resolutionM), (n+1)² valeurs.
+ */
+export interface WorldHorizon {
+  file: string;
+  x0: number;
+  z0: number;
+  n: number;
+  resolutionM: number;
+  baseM: number;
+  stepM: number;
+  minM: number;
+  maxM: number;
 }
 
 export interface WorldRouteIndex {
@@ -110,6 +148,8 @@ export interface WorldMeta {
   /** Identifiant de l'itinéraire du jalon 1. */
   mainRoute: string;
   attribution: string[];
+  /** Relief lointain facultatif (mondes de montagne). */
+  horizon?: WorldHorizon;
 }
 
 /** Polygone : anneaux plats [x0,z0,x1,z1,…] ; le premier est l'extérieur, les suivants des trous. */
@@ -162,7 +202,7 @@ export interface WorldTile {
     holes?: number[][];
   }>;
   forests: Array<{ id: string; kind: 'deciduous' | 'conifer' | 'mixed'; name?: string; rings: WorldRings }>;
-  fields: Array<{ id: string; kind: string; name?: string; rings: WorldRings }>; // farmland, meadow, grass, orchard, vineyard, allotments, heath, scrub, wetland, bare, sand
+  fields: Array<{ id: string; kind: string; name?: string; rings: WorldRings }>; // farmland, meadow, grass, orchard, vineyard, allotments, heath, scrub, wetland, bare, sand, scree, glacier
   landuse: Array<{ id: string; kind: string; name?: string; rings: WorldRings }>; // residential, industrial, commercial, cemetery, farmyard, park, golf, pitch, garden, quarry, railway
   water: Array<{ id: string; kind: 'lake' | 'river' | 'pond' | 'reservoir'; name?: string; level: number; rings: WorldRings }>;
   waterways: Array<{ id: number; kind: string; width: number; name?: string; tunnel?: boolean; pts: number[] }>;

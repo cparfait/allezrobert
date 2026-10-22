@@ -162,6 +162,107 @@ export function carveGrid(g: Grid, lines: CarveLine[], shoulderOf: (hw: number) 
   }
 }
 
+/**
+ * Creusement « par passage » des itinéraires (montées en lacets) : là où deux branches d'un
+ * même itinéraire sont proches (intérieur d'un lacet), `carveGrid` prend l'altitude de la
+ * branche la plus proche, d'où une marche de plusieurs mètres à mi-distance des deux branches.
+ * Ici chaque minimum local de la distance le long de la polyligne (un « passage ») contribue :
+ * altitude visée = moyenne pondérée des passages, avec un poids qui tend vers l'infini sur la
+ * chaussée (plate à l'altitude de sa branche), raccord continu entre les branches.
+ * À appliquer après `carveGrid` des routes OSM : l'itinéraire passe par-dessus.
+ */
+export function carveGridPasses(g: Grid, lines: CarveLine[], shoulderOf: (hw: number) => number, minHalfWidth: number): void {
+  const N = g.n + 1;
+  const xMax = g.x0 + g.n * g.res;
+  const zMax = g.z0 + g.n * g.res;
+  // candidats par point de grille : [ligne, segment, distance, altitude, poids]
+  const cands = new Map<number, number[]>();
+  lines.forEach((L, li) => {
+    const hw = Math.max(L.halfWidth + 0.5, minHalfWidth);
+    const sh = shoulderOf(hw);
+    const R = hw + sh;
+    const m = L.pts.length;
+    const segs = L.closed ? m : m - 1;
+    for (let s = 0; s < segs; s++) {
+      const a = L.pts[s]!;
+      const b = L.pts[(s + 1) % m]!;
+      const minX = Math.min(a[0], b[0]) - R;
+      const maxX = Math.max(a[0], b[0]) + R;
+      const minZ = Math.min(a[2], b[2]) - R;
+      const maxZ = Math.max(a[2], b[2]) + R;
+      if (maxX < g.x0 || minX > xMax || maxZ < g.z0 || minZ > zMax) continue;
+      const i0 = Math.max(0, Math.ceil((minX - g.x0) / g.res));
+      const i1 = Math.min(g.n, Math.floor((maxX - g.x0) / g.res));
+      const j0 = Math.max(0, Math.ceil((minZ - g.z0) / g.res));
+      const j1 = Math.min(g.n, Math.floor((maxZ - g.z0) / g.res));
+      const dx = b[0] - a[0];
+      const dz = b[2] - a[2];
+      const l2 = dx * dx + dz * dz;
+      for (let j = j0; j <= j1; j++) {
+        const pz = g.z0 + j * g.res;
+        for (let i = i0; i <= i1; i++) {
+          const px = g.x0 + i * g.res;
+          let t = l2 > 0 ? ((px - a[0]) * dx + (pz - a[2]) * dz) / l2 : 0;
+          t = t < 0 ? 0 : t > 1 ? 1 : t;
+          const d = Math.hypot(px - a[0] - dx * t, pz - a[2] - dz * t);
+          if (d >= R) continue;
+          const w = d <= hw ? 1 : 1 - smoothstep((d - hw) / sh);
+          const k = j * N + i;
+          let c = cands.get(k);
+          if (!c) cands.set(k, (c = []));
+          c.push(li, s, d, a[1] + (b[1] - a[1]) * t, w);
+        }
+      }
+    }
+  });
+  for (const [k, c] of cands) {
+    const cnt = c.length / 5;
+    // tri par (ligne, segment) : les segments d'une ligne sont émis dans l'ordre, les lignes aussi
+    let W = 0;
+    let sw = 0;
+    let sh = 0;
+    for (let q = 0; q < cnt; q++) {
+      const li = c[q * 5]!;
+      const s = c[q * 5 + 1]!;
+      const d = c[q * 5 + 2]!;
+      const L = lines[li]!;
+      const segs = L.closed ? L.pts.length : L.pts.length - 1;
+      const adj = (q2: number, ds: number) => {
+        if (q2 < 0 || q2 >= cnt || c[q2 * 5] !== li) return false;
+        const s2 = c[q2 * 5 + 1]!;
+        return s2 === s + ds || (!!L.closed && (s2 - s - ds) % segs === 0);
+      };
+      const prevD = adj(q - 1, -1) ? c[(q - 1) * 5 + 2]! : Infinity;
+      const nextD = adj(q + 1, 1) ? c[(q + 1) * 5 + 2]! : Infinity;
+      if (!(prevD > d && nextD >= d)) continue; // pas un minimum local : même passage qu'un voisin
+      const w = c[q * 5 + 4]!;
+      const om = (w * w) / (1 - w + 1e-3);
+      W = Math.max(W, w);
+      sw += om;
+      sh += om * c[q * 5 + 3]!;
+    }
+    if (W > 0 && sw > 0) g.h[k] = g.h[k]! + (sh / sw - g.h[k]!) * W;
+  }
+}
+
+/**
+ * Recolle les morceaux consécutifs d'un même couloir (découpage pour l'index par tuile : le
+ * dernier point d'un morceau est le premier du suivant), sinon chaque raccord compterait
+ * comme un passage de plus dans `carveGridPasses`.
+ */
+export function mergeChunks(lines: CarveLine[]): CarveLine[] {
+  const out: CarveLine[] = [];
+  for (const L of lines) {
+    const prev = out[out.length - 1];
+    const a = prev?.pts[prev.pts.length - 1];
+    const b = L.pts[0];
+    if (prev && !prev.closed && !L.closed && a && b && a[0] === b[0] && a[1] === b[1] && a[2] === b[2] && prev.halfWidth === L.halfWidth && prev.priority === L.priority) {
+      prev.pts = [...prev.pts, ...L.pts.slice(1)];
+    } else out.push({ ...L, pts: L.pts.slice() });
+  }
+  return out;
+}
+
 /** Échantillonnage bilinéaire d'une grille en coordonnées monde (bornées à la grille). */
 export function gridSample(g: Grid, x: number, z: number): number {
   const N = g.n + 1;
@@ -177,20 +278,20 @@ export function gridSample(g: Grid, x: number, z: number): number {
   return (h[j * N + i]! * (1 - tx) + h[j * N + i + 1]! * tx) * (1 - tz) + (h[(j + 1) * N + i]! * (1 - tx) + h[(j + 1) * N + i + 1]! * tx) * tz;
 }
 
-export function encodeGrid(g: Grid, baseM: number): Buffer {
+export function encodeGrid(g: Grid, baseM: number, stepM = HEIGHT_STEP_M): Buffer {
   const N = g.n + 1;
   const buf = Buffer.alloc(N * N * 2);
   for (let k = 0; k < N * N; k++) {
-    const q = Math.round((g.h[k]! - baseM) / HEIGHT_STEP_M);
+    const q = Math.round((g.h[k]! - baseM) / stepM);
     buf.writeUInt16LE(Math.max(0, Math.min(65535, q)), k * 2);
   }
   return buf;
 }
 
-export function decodeGrid(buf: Buffer, n: number, baseM: number): Float32Array {
+export function decodeGrid(buf: Buffer, n: number, baseM: number, stepM = HEIGHT_STEP_M): Float32Array {
   const N = n + 1;
   const out = new Float32Array(N * N);
-  for (let k = 0; k < N * N; k++) out[k] = baseM + buf.readUInt16LE(k * 2) * HEIGHT_STEP_M;
+  for (let k = 0; k < N * N; k++) out[k] = baseM + buf.readUInt16LE(k * 2) * stepM;
   return out;
 }
 
@@ -206,6 +307,14 @@ function flatXYZ(pts: Array<[number, number, number]>): number[] {
   const out: number[] = [];
   for (const p of pts) out.push(r2(p[0]), r2(p[1]), r2(p[2]));
   return out;
+}
+
+/**
+ * Pas de quantification d'une tuile : 1 cm si le dénivelé de la tuile tient dans un Uint16
+ * (655 m), sinon le centimètre entier le plus petit qui le fait tenir (tuiles de haute montagne).
+ */
+export function tileStepM(rangeM: number): number {
+  return rangeM <= 650 ? HEIGHT_STEP_M : Math.ceil((rangeM / 65000) * 100) / 100;
 }
 
 /** Index « tuile → éléments » par emprise. */
@@ -248,6 +357,8 @@ export interface TileResult {
   maxM: number;
   lods: string[];
   bytes: number;
+  /** Pas de quantification des altitudes (m). */
+  stepM: number;
   counts: Record<string, number>;
 }
 
@@ -277,18 +388,27 @@ export function buildTile(
   dems: { lo: Dem; hi: Dem },
   inputs: TileInputs,
   outDir: string,
+  /** « passes » : itinéraires creusés par `carveGridPasses` (lacets), routes OSM par `carveGrid`. */
+  carveMode: 'max' | 'passes' = 'max',
 ): TileResult {
   const id = tileId(tx, tz);
   const rect = tileRect(tx, tz);
   const carve = inputs.carve.get(tx, tz);
+  const carveAll = (grid: Grid, shoulderOf: (hw: number) => number, minHw: number) => {
+    if (carveMode === 'max') carveGrid(grid, carve, shoulderOf, minHw);
+    else {
+      carveGrid(grid, carve.filter((c) => c.priority === 0), shoulderOf, minHw);
+      carveGridPasses(grid, mergeChunks(carve.filter((c) => c.priority > 0)), shoulderOf, minHw);
+    }
+  };
   // grilles
   // niveau lo : toujours depuis le MNT 8 m (bords identiques entre toutes les tuiles lo)
   const lo = sampleGrid(dems.lo, tx, tz, LOD_LO.n, false);
-  carveGrid(lo, carve, () => 14, 4);
+  carveAll(lo, () => 14, 4);
   let hiGrid: Grid | null = null;
   if (hi) {
     hiGrid = sampleGrid(dems.hi, tx, tz, LOD_HI.n, true);
-    carveGrid(hiGrid, carve, (hw) => 4 + hw, 0);
+    carveAll(hiGrid, (hw) => 4 + hw, 0);
   }
   const fine = hiGrid ?? lo;
   let minM = Infinity;
@@ -299,13 +419,14 @@ export function buildTile(
       if (v > maxM) maxM = v;
     }
   const baseM = Math.floor(minM) - 1;
+  const stepM = tileStepM(maxM - baseM);
   const tilesDir = path.join(outDir, 'tiles');
   let bytes = 0;
-  const loBuf = encodeGrid(lo, baseM);
+  const loBuf = encodeGrid(lo, baseM, stepM);
   fs.writeFileSync(path.join(tilesDir, `${id}.lo.u16`), loBuf);
   bytes += loBuf.length;
   if (hiGrid) {
-    const hb = encodeGrid(hiGrid, baseM);
+    const hb = encodeGrid(hiGrid, baseM, stepM);
     fs.writeFileSync(path.join(tilesDir, `${id}.hi.u16`), hb);
     bytes += hb.length;
   }
@@ -391,7 +512,7 @@ export function buildTile(
     bounds: rect,
     heights: {
       baseM,
-      stepM: HEIGHT_STEP_M,
+      stepM,
       encoding: 'uint16le',
       lo: { n: LOD_LO.n, resolutionM: LOD_LO.resM, file: `${id}.lo.u16` },
       ...(hiGrid ? { hi: { n: LOD_HI.n, resolutionM: LOD_HI.resM, file: `${id}.hi.u16` } } : {}),
@@ -418,6 +539,7 @@ export function buildTile(
     maxM: r2(maxM),
     lods: hiGrid ? ['lo', 'hi'] : ['lo'],
     bytes,
+    stepM,
     counts: { roads: roads.length, buildings: buildings.length, forests: forests.length, fields: fields.length, water: water.length },
   };
 }

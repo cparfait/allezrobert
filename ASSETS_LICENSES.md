@@ -9,8 +9,13 @@ Tout asset qui entre dans le dépôt ou dans le jeu est inscrit ici (source, lic
 | Altitudes (MNT LiDAR HD, RGE ALTI 1 m) | IGN — Géoplateforme | Licence Ouverte Etalab 2.0 (attribution « © IGN ») | Relief des tuiles du monde (générées, non versionnées) |
 | Orthophotos (ORTHOIMAGERY.ORTHOPHOTOS) | IGN — Géoplateforme | Licence Ouverte Etalab 2.0 | Couleur du sol (générées, non versionnées) |
 | Routes, bâtiments, forêts, eau, lieux | OpenStreetMap via Overpass | ODbL 1.0 (attribution « © les contributeurs OpenStreetMap ») | Entités des tuiles et itinéraires (`routes/*.json` versionnés) |
+| Montées célèbres : relief Alpe d'Huez (Isère) et mont Ventoux (Vaucluse) — MNT LiDAR HD 1 m (repli RGE ALTI 1 m) près de la route, 8 m sur le corridor, 100 m pour l'horizon (`tiles/horizon.u16`) | IGN — Géoplateforme (WMS-R `data.geopf.fr`) | Licence Ouverte Etalab 2.0 (attribution « © IGN ») | Tuiles et horizon des mondes `alpe-dhuez` et `mont-ventoux` (générés, non versionnés) |
+| Montées célèbres : orthophotos BD ORTHO® | IGN — Géoplateforme | Licence Ouverte Etalab 2.0 | Couleur du sol des mondes `alpe-dhuez` et `mont-ventoux` (générées, non versionnées) |
+| Montées célèbres : tracé (D211, D974), panneaux des 21 virages de l'Alpe d'Huez (nom, numéro, altitude, plaque des vainqueurs : tags `name`, `ref`, `ele`, `inscription`), lieux, éboulis, glaciers | OpenStreetMap via Overpass | ODbL 1.0 | `routes/alpe-dhuez.json` et `routes/mont-ventoux-bedoin.json` (versionnés : géométrie dérivée d'OSM, champ `hairpins`, repères) et entités des tuiles |
 
-L'attribution est affichée en jeu (bas de l'écran) et dans `world.json`.
+L'attribution est affichée en jeu (bas de l'écran) et dans `world.json` (`attribution`) et dans chaque itinéraire. Les
+valeurs publiées utilisées pour valider les montées (longueur, dénivelé, pente) ne sont que citées dans
+`tools/terrain/src/config.ts` (`reference.sources`) : aucune donnée n'en est reprise.
 
 ## Polices
 

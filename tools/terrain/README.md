@@ -1,11 +1,18 @@
-# @allezrobert/terrain — monde « Vallée de Chevreuse »
+# @allezrobert/terrain — mondes « Vallée de Chevreuse », « Alpe d'Huez », « Mont Ventoux »
 
-Chaîne hors ligne qui fabrique le monde du jeu à partir du relief IGN, d'OpenStreetMap et des
-sorties Garmin de l'auteur : itinéraires nettoyés (boucle du jalon 1 + une boucle par sortie), tuiles
-d'altitude avec routes déjà creusées dans le terrain, entités vectorielles par tuile.
+Chaîne hors ligne qui fabrique les mondes du jeu à partir du relief IGN, d'OpenStreetMap et (pour
+Chevreuse seulement) des sorties Garmin de l'auteur : itinéraires nettoyés, tuiles d'altitude avec
+routes déjà creusées dans le terrain, entités vectorielles par tuile.
+
+Le monde est choisi par `--world <id>` (ou `TERRAIN_WORLD=<id>`), `chevreuse` par défaut ; les
+paramètres de chaque monde (origine, corridor, montée) sont dans `src/config.ts` (`WORLDS`).
+Sortie : `apps/client/public/worlds/<id>/`, chargée par le client avec `?world=<id>`.
 
 ```bash
-pnpm --filter @allezrobert/terrain build:world      # tout (réseau la 1re fois, puis cache) ~4 min
+pnpm --filter @allezrobert/terrain build:world -- --world alpe-dhuez    # montée de l'Alpe d'Huez
+pnpm --filter @allezrobert/terrain build:world -- --world mont-ventoux  # Ventoux par Bédoin
+npx tsx tools/terrain/src/verify-world.ts --world alpe-dhuez
+pnpm --filter @allezrobert/terrain build:world      # Chevreuse : tout (réseau la 1re fois, puis cache) ~4 min
 pnpm --filter @allezrobert/terrain build:routes     # itinéraires seuls (garde les tuiles existantes)
 pnpm --filter @allezrobert/terrain fetch:osm        # remplit seulement le cache OSM
 npx tsx tools/terrain/src/verify-world.ts           # tailles, écart route/terrain, raccords de tuiles
@@ -225,6 +232,48 @@ découpés au bord de la tuile (Sutherland–Hodgman) et simplifiés (0,5 m hi, 
   Tailles : `.hi.u16` 102 Mo, `.lo.u16` 18 Mo, `.json` 54 Mo, `.ortho.jpg` 14 Mo — **≈ 190 Mo**
   (non versionnés) ; `world.json` 96 Ko et `routes/` 5,4 Mo (versionnés).
 - Cache : MNT ≈ 850 Mo (1 m sur ~205 km², 8 m sur le corridor), OSM 168 Mo, orthos 12 Mo.
+
+## Montées célèbres (`src/build-climb.ts`, `src/climb.ts`)
+
+Mondes `kind: 'climb'` de `WORLDS` : un seul itinéraire point à point (`loop: false`), **aucune
+donnée Garmin lue** (les règles de vie privée ci-dessus ne concernent que Chevreuse).
+
+1. **OSM** du corridor, avec en plus éboulis (`scree`), glaciers, cols, stèles et panneaux
+   `tourism=information` nommés « Virage … » (`mountainClauses`, requête distincte : le cache de
+   Chevreuse reste valable).
+2. **Tracé imposé** : chaque point de la config (départ, pied, passages, arrivée, fin) est rattaché
+   à l'arête OSM la plus proche (routes `preferRefs` d'abord) ; plus court chemin qui parcourt ces
+   arêtes dans l'ordre, sens uniques respectés (`routeViaEdges`), rogné aux projections du départ
+   et de la fin.
+3. **Plan fidèle aux lacets** : rééchantillonnage 1 m, lissage gaussien σ = 1,5 m seulement (pas de
+   Catmull-Rom), pas uniforme de 2 m ; écart au tracé OSM ≤ 0,5 m. Seuls les angles de carrefour
+   plus serrés que la demi-chaussée + 1 m sont arrondis localement (`relaxTightCorners`) ; les
+   épingles (rayon d'axe ≥ 5 m) sont intactes.
+4. **Profil** : altitude de la *plate-forme* de chaussée (`platformHeight` : profil en travers du
+   MNT 1 m sur ±5 m, fenêtre de ±2 m la plus plate), ponts/tunnels interpolés, lissage σ = 8 m,
+   variation de pente ≤ 6 %/20 m (montagne).
+5. **Lacets** (`hairpins` dans l'itinéraire, type `RouteHairpin`) : épingles ≥ 150° sur ≤ 120 m
+   détectées sur la géométrie ; pour l'Alpe d'Huez, les 21 panneaux OSM font foi (numéro `ref`,
+   nom, altitude `ele`, plaque `inscription` ; numéro manquant déduit des voisins), sommet = point
+   de courbure maximale à ±45 m du panneau, rayon minimal sur une corde de ±4 m. Repères HUD
+   (`landmarks`) : « Virage 21 · La Savoyâte »…, villages et hameaux, repères de la config.
+6. **KOM** du pied (`climbStart`) à l'arrivée (`finish`) ; bilan comparé aux valeurs publiées
+   (`reference`) dans le journal et dans `data/cache/terrain/analysis/<id>-report.json`.
+7. **Tuiles** seulement à moins de `loMarginM` (5 km) de la route, en 2 m à moins de `hiMarginM`
+   (400 m). Creusement « par passage » (`carveGridPasses`) : dans un lacet, les deux branches
+   proches contribuent toutes deux (moyenne pondérée, chaussée plate à l'altitude de sa branche)
+   au lieu d'une marche à mi-distance. Pas de quantification par tuile (`stepM`, 1 cm, 2 cm si la
+   tuile a plus de 650 m de dénivelé), indiqué dans le JSON de la tuile et dans `world.json`.
+8. **Horizon** (`world.json` → `horizon`, fichier `tiles/horizon.u16`) : grille unique de 100 m sur
+   ±30 km (Alpe) / ±35 km (Ventoux), même encodage que les tuiles, pas de 10 cm, pour la ligne de
+   crête au-delà des tuiles (Écrins, Grandes Rousses, Belledonne ; Alpilles, Luberon).
+
+### Résultat (octobre 2026)
+
+| Monde | Montée (KOM) | Réf. publiées | Lacets | Tuiles |
+| --- | --- | --- | --- | --- |
+| `alpe-dhuez` | 14,24 km du giratoire D1091/D211 (720 m) au sommet de la D211 (1 851 m) : 1 130 m, 7,94 % ; max 11,5 %/100 m (16,5 %/10 m, carrefour de la station) | 13,8 km / 1 071–1 120 m / 7,9–8,1 % (Wikipédia), 14,454 km / 1 121 m / 7,9 % (alpedhuez.com), 14 km / 1 122 m / 8 % (climbfinder) | 21 numérotés (panneaux OSM, altitudes à ±6 m de celles des panneaux), rayon d'axe 5,5–13,4 m | 161 (16 en 2 m), 23,5 Mo + horizon 0,7 Mo |
+| `mont-ventoux` | 21,27 km de Bédoin (310 m) au sommet routier (1 890 m) : 1 580 m, 7,43 % ; max 11,8 %/100 m | 21,8 km / 1 617 m / 7,43 % (Wikipédia EN), 20,8 km / 1 594 m / 7,7 % (climbfinder), 21 km (itinéraire OSM) | 3 épingles (Saint-Estève km 6,0) | 285 (39 en 2 m), 46,3 Mo + horizon 1,0 Mo |
 
 ## Limites connues
 

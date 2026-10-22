@@ -22,6 +22,7 @@ function gridGraph(n: number, S: number): RoadGraph {
     oneway: 0,
     bridge: false,
     tunnel: false,
+    roundabout: false,
     layer: 0,
     nodes,
     pts,

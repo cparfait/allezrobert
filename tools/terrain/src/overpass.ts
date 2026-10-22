@@ -54,8 +54,25 @@ const LANDUSE = 'forest|farmland|meadow|grass|orchard|vineyard|allotments|reside
 const NATURAL = 'wood|water|grassland|heath|scrub|wetland|bare_rock|sand';
 const LEISURE = 'park|golf_course|pitch|garden|nature_reserve|stadium|track';
 
-/** Requête « tout le monde » sur une emprise. */
-export function worldQuery(b: BBox): string {
+/**
+ * Clauses supplémentaires des mondes de montagne : éboulis, glaciers, cols, et les
+ * panneaux / stèles le long des routes (lacets numérotés de l'Alpe d'Huez, stèle Simpson…).
+ */
+export function mountainClauses(b: BBox): string {
+  const bb = `${b.south},${b.west},${b.north},${b.east}`;
+  return `  way["natural"~"^(scree|shingle|glacier)$"](${bb});
+  relation["natural"~"^(scree|shingle|glacier)$"](${bb});
+  node["natural"~"^(saddle|volcano)$"]["name"](${bb});
+  node["mountain_pass"="yes"](${bb});
+  node["tourism"="information"]["name"~"^[Vv]irage"](${bb});
+  node["historic"~"^(memorial|monument|wayside_cross|wayside_shrine)$"](${bb});
+  nwr["tourism"~"^(viewpoint|alpine_hut)$"]["name"](${bb});
+  nwr["amenity"="restaurant"]["name"~"[Cc]halet"](${bb});
+`;
+}
+
+/** Requête « tout le monde » sur une emprise (`extra` : clauses propres au monde). */
+export function worldQuery(b: BBox, extra?: (b: BBox) => string): string {
   const bb = `${b.south},${b.west},${b.north},${b.east}`;
   return `[out:json][timeout:300][maxsize:1073741824];
 (
@@ -78,11 +95,11 @@ export function worldQuery(b: BBox): string {
   nwr["amenity"="place_of_worship"](${bb});
   nwr["historic"~"^(castle|monument|church|manor|ruins|memorial)$"](${bb});
   node["man_made"~"^(tower|water_tower)$"](${bb});
-);
+${extra ? extra(b) : ''});
 out geom qt;`;
 }
 
-async function overpassOnce(query: string, label: string): Promise<Buffer> {
+export async function overpassOnce(query: string, label: string): Promise<Buffer> {
   let lastErr: unknown = null;
   for (let round = 0; round < 4; round++) {
     for (const mirror of OVERPASS_MIRRORS) {
@@ -130,11 +147,11 @@ export function splitBBox(b: BBox, stepLon: number, stepLat: number): BBox[] {
 }
 
 /** Télécharge (ou relit du cache) les éléments OSM d'une emprise, dédoublonnés. */
-export async function fetchOsm(b: BBox, stepLon = 0.11, stepLat = 0.07): Promise<OsmElement[]> {
+export async function fetchOsm(b: BBox, stepLon = 0.11, stepLat = 0.07, extra?: (b: BBox) => string): Promise<OsmElement[]> {
   const chunks = splitBBox(b, stepLon, stepLat);
   const byKey = new Map<string, OsmElement>();
   for (const [i, c] of chunks.entries()) {
-    const q = worldQuery(c);
+    const q = worldQuery(c, extra);
     const file = cachePath('osm', `world-${hashKey(q)}`, '.json');
     let buf: Buffer;
     if (fs.existsSync(file)) buf = fs.readFileSync(file);

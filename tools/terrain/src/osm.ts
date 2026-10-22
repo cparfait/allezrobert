@@ -18,6 +18,8 @@ export interface RoadWay {
   oneway: number;
   bridge: boolean;
   tunnel: boolean;
+  /** Anneau de giratoire (`junction=roundabout|circular`). */
+  roundabout: boolean;
   layer: number;
   nodes: number[];
   pts: Pt[];
@@ -238,7 +240,7 @@ function areaClass(tags: Record<string, string>): { cat: AreaFeature['cat']; kin
     plant_nursery: 'orchard',
   };
   if (lu && fieldKinds[lu]) return { cat: 'field', kind: fieldKinds[lu]! };
-  const natKinds: Record<string, string> = { grassland: 'meadow', heath: 'heath', scrub: 'scrub', wetland: 'wetland', bare_rock: 'bare', sand: 'sand' };
+  const natKinds: Record<string, string> = { grassland: 'meadow', heath: 'heath', scrub: 'scrub', wetland: 'wetland', bare_rock: 'bare', sand: 'sand', scree: 'scree', shingle: 'scree', glacier: 'glacier' };
   if (nat && natKinds[nat]) return { cat: 'field', kind: natKinds[nat]! };
   const luKinds: Record<string, string> = {
     residential: 'residential',
@@ -413,6 +415,7 @@ export function buildOsmWorld(elements: OsmElement[]): OsmWorld {
       else if (tags.historic) kind = tags.historic;
       else if (tags.man_made) kind = tags.man_made;
       else if (tags.natural === 'tree') kind = 'tree';
+      else if (tags.natural === 'saddle' || tags.mountain_pass === 'yes') kind = 'saddle';
       if (!kind || (!name && kind !== 'church')) continue;
       const poi: Poi = { id: `n${el.id}`, kind, name, x: Math.round(p.x * 10) / 10, z: Math.round(p.z * 10) / 10 };
       const ele = parseNumber(tags.ele);
@@ -444,6 +447,7 @@ export function buildOsmWorld(elements: OsmElement[]): OsmWorld {
           oneway,
           bridge: !!tags.bridge && tags.bridge !== 'no',
           tunnel: !!tags.tunnel && tags.tunnel !== 'no',
+          roundabout: tags.junction === 'roundabout' || tags.junction === 'circular',
           layer: parseNumber(tags.layer) ?? 0,
           nodes: el.nodes,
           pts,
