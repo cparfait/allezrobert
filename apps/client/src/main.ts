@@ -457,18 +457,8 @@ async function boot(): Promise<void> {
     });
   };
   menu.onTutorial = () => {
-    new Onboarding(ui, settings, devices.panel, (s, skipped) => {
-      // Tutoriel passé : retour au menu ; terminé : première sortie commentée.
-      if (skipped) {
-        menu.show();
-        return;
-      }
-      void withWorld(getLang() === 'fr' ? 'Préparation de la sortie…' : 'Preparing the ride…').then(() => {
-        leaveMenu(s);
-        ui.innerHTML = '';
-        return startRide(scene, s, devices.source(), { tutorial: true });
-      });
-    }).start();
+    // Tutoriel terminé ou passé : retour à l'accueil, sans lancer de sortie.
+    new Onboarding(ui, settings, devices.panel, () => menu.show('home')).start();
   };
   bootDone();
   if (autostart) {

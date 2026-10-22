@@ -57,6 +57,7 @@ export class Onboarding {
     else {
       this.voice.stop();
       localStorage.setItem('ar.onboarded', new Date().toISOString());
+      void this.voice.say('finish');
       this.done(this.s, false);
     }
   }
@@ -135,7 +136,7 @@ export class Onboarding {
       <div style="margin-bottom:14px">${dots}</div>${body}
       <div class="row" style="justify-content:space-between;margin-top:22px">
         <button class="btn" id="o-skip">${fr ? 'Passer le tutoriel' : 'Skip tutorial'}</button>
-        <div class="row">${i > 0 ? `<button class="btn" id="o-back">←</button>` : ''}<button class="btn primary" id="o-next">${i === STEPS.length - 1 ? (fr ? 'Première sortie →' : 'First ride →') : fr ? 'Suivant →' : 'Next →'}</button></div>
+        <div class="row">${i > 0 ? `<button class="btn" id="o-back">←</button>` : ''}<button class="btn primary" id="o-next">${i === STEPS.length - 1 ? (fr ? 'Terminer ✓' : 'Finish ✓') : fr ? 'Suivant →' : 'Next →'}</button></div>
       </div></div></div>`;
     this.bind();
   }
