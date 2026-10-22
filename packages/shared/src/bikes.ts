@@ -15,6 +15,8 @@ export type LiveryPattern = 'solid' | 'fade' | 'split' | 'band' | 'stripes' | 'r
 /** Axe du motif : z = avant → arrière, y = bas → haut, x = gauche → droite, diag / anti = diagonales. */
 export type LiveryAxis = 'z' | 'y' | 'x' | 'diag' | 'anti';
 export type LiveryFinish = 'gloss' | 'matte' | 'metallic' | 'chrome' | 'pearl' | 'iridescent' | 'raw';
+/** Emplacements des inscriptions : diagonal, horizontal, tube de selle, fourche, bases. */
+export type FrameMark = 'dt' | 'tt' | 'st' | 'fork' | 'cs';
 /** Zones du cadre repeintes d'une couleur de la livrée (attribut « zone » des modèles). */
 export type FrameZone = 'rear' | 'fork' | 'head';
 
@@ -41,8 +43,17 @@ export interface BikeLivery {
   tape?: string;
   /** Flancs des roues lenticulaires (sinon carbone noir). */
   disc?: string;
-  /** Couleur des mots-symboles (sinon contraste automatique avec la peinture). */
-  logo?: string;
+  /**
+   * Inscriptions du cadre, comme sur le vrai vélo : texte et couleur par emplacement (diagonal,
+   * horizontal, tube de selle, fourche, bases). Absent : la marque sur le diagonal seulement.
+   * Couleur absente : contraste automatique avec la peinture ; `stretch` élargit les lettres
+   * (caractères étendus, p. ex. LOOK : 1,6).
+   */
+  marks?: Partial<Record<FrameMark, { text: string; color?: string; stretch?: number }>>;
+  /** Flancs des pneus (sinon noirs), p. ex. « gumwall » beige. */
+  tireWall?: string;
+  /** Selle (sinon noire). */
+  saddle?: string;
 }
 
 export interface BikeParams {

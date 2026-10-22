@@ -1,8 +1,9 @@
 import * as THREE from 'three/webgpu';
-import { BIKE_BRANDS, BIKE_TEAMS, type BikeBuild } from '@allezrobert/shared';
+import { BIKE_BRANDS, type BikeBuild, type FrameMark } from '@allezrobert/shared';
 
 /**
- * Décors des cadres : mots-symboles de la marque et de l'équipe, dessinés une fois par vélo sur
+ * Inscriptions des cadres, comme sur le vrai vélo (livery.marks ; par défaut la marque sur le
+ * diagonal seulement), dessinées une fois par vélo sur
  * un canevas, puis projetés sur les tubes par le shader de livrée (livery.ts) dans les boîtes
  * decal_* des familles (tools/blender/bike_families.py).
  *
@@ -10,8 +11,9 @@ import { BIKE_BRANDS, BIKE_TEAMS, type BikeBuild } from '@allezrobert/shared';
  * X latéral ; échelle = (épaisseur latérale, longueur, hauteur).
  */
 
-/** Boîtes de décor dans l'ordre des lignes de la texture. */
-export const DECALS = ['decal_dt', 'decal_tt', 'decal_st', 'decal_fork'] as const;
+/** Emplacements et boîtes de décor, dans l'ordre des lignes de la texture. */
+export const MARKS: readonly FrameMark[] = ['dt', 'tt', 'st', 'fork', 'cs'];
+export const DECALS = MARKS.map((m) => `decal_${m}`);
 const ROW_W = 1024;
 const ROW_H = 128;
 
@@ -29,26 +31,29 @@ export interface DecalBox {
   aspect: number;
 }
 
-/** Textes de chaque boîte : diagonal = marque, horizontal = équipe (sinon marque), tube de selle et fourche = marque. */
-function texts(build: BikeBuild & { brand?: string; group?: string }): string[] | null {
+export type Mark = { text: string; color?: string; stretch?: number } | null;
+
+/** Inscription de chaque emplacement (null : rien) ; vélo sans marque : aucune. */
+export function frameMarks(build: BikeBuild): Mark[] {
   const brand = BIKE_BRANDS.find((b) => b.id === build.brand);
-  if (!brand) return null;
-  const team = BIKE_TEAMS.find((t) => t.id === build.group);
-  return [brand.wordmark, team?.wordmark ?? brand.wordmark, brand.wordmark, brand.wordmark];
+  if (!brand) return MARKS.map(() => null);
+  const marks = build.livery.marks ?? { dt: { text: brand.wordmark } };
+  return MARKS.map((m) => marks[m] ?? null);
 }
 
 const cache = new Map<string, THREE.CanvasTexture>();
 
 /**
- * Texture des mots-symboles (alpha = texte) d'un vélo de marque, ou null (vélo sans marque).
+ * Texture des inscriptions (alpha = texte) d'un vélo, ou null (aucune inscription).
  * Une ligne de 1024 × 128 par boîte ; les lettres sont élargies ou resserrées pour garder leurs
  * proportions une fois étirées sur la boîte.
  */
-export function wordmarkTexture(build: BikeBuild & { brand?: string; group?: string }, boxes: readonly (DecalBox | null)[]): THREE.CanvasTexture | null {
-  const t = texts(build);
-  if (!t || typeof document === 'undefined') return null;
+export function wordmarkTexture(build: BikeBuild, boxes: readonly (DecalBox | null)[]): THREE.CanvasTexture | null {
+  const marks = frameMarks(build);
+  const t = marks.map((m) => m?.text ?? '');
+  if (!t.some(Boolean) || typeof document === 'undefined') return null;
   const font = FONTS[BIKE_BRANDS.find((b) => b.id === build.brand)?.font ?? ''] ?? (FONTS['sans-bold'] as string);
-  const key = `${t.join('|')}|${font}|${boxes.map((b) => b?.aspect.toFixed(2) ?? '-').join(',')}`;
+  const key = `${t.join('|')}|${marks.map((m) => m?.stretch ?? 1).join(',')}|${font}|${boxes.map((b) => b?.aspect.toFixed(2) ?? '-').join(',')}`;
   const hit = cache.get(key);
   if (hit) return hit;
   const cv = document.createElement('canvas');
@@ -57,21 +62,30 @@ export function wordmarkTexture(build: BikeBuild & { brand?: string; group?: str
   const g = cv.getContext('2d') as CanvasRenderingContext2D;
   g.fillStyle = '#fff';
   g.textAlign = 'center';
-  g.textBaseline = 'middle';
+  // Ligne de base alphabétique : les mesures (ascendante, descendante) servent au cadrage.
+  g.textBaseline = 'alphabetic';
   t.forEach((text, i) => {
     const box = boxes[i];
-    if (!box) return;
+    if (!box || !text) return;
     // Étirement horizontal qui compense le rapport de la ligne (8:1) à celui de la boîte.
-    const k = ROW_W / ROW_H / box.aspect;
-    let px = ROW_H * 0.92;
+    const k = (ROW_W / ROW_H / box.aspect) * (marks[i]?.stretch ?? 1);
+    // Taille par la hauteur réelle des lettres (capitales ≈ 90 % de la ligne), puis par la longueur.
+    let px = ROW_H;
     g.font = font.replace('{px}', String(px));
-    const w = g.measureText(text).width * k;
-    if (w > ROW_W * 0.96) {
-      px *= (ROW_W * 0.96) / w;
+    let m = g.measureText(text);
+    const glyphH = m.actualBoundingBoxAscent + m.actualBoundingBoxDescent || px * 0.72;
+    px *= (ROW_H * 0.9) / glyphH;
+    g.font = font.replace('{px}', px.toFixed(1));
+    m = g.measureText(text);
+    if (m.width * k > ROW_W * 0.96) {
+      px *= (ROW_W * 0.96) / (m.width * k);
       g.font = font.replace('{px}', px.toFixed(1));
+      m = g.measureText(text);
     }
+    // Centrage sur la boîte englobante réelle des lettres.
+    const dy = (m.actualBoundingBoxAscent - m.actualBoundingBoxDescent) / 2;
     g.save();
-    g.translate(ROW_W / 2, ROW_H * (i + 0.5));
+    g.translate(ROW_W / 2, ROW_H * (i + 0.5) + dy);
     g.scale(k, 1);
     g.fillText(text, 0, 0);
     g.restore();

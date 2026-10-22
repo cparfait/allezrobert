@@ -69,13 +69,13 @@ export class LiveryMaterial {
   /** Motif « stops » : fin de chaque plage le long de l'axe, et sa couleur. */
   private readonly stopTo = Array.from({ length: MAX_STOPS }, () => uniform(2));
   private readonly stopCols: ColorUniform[] = Array.from({ length: MAX_STOPS }, () => colorUniform());
-  /** Décors (mots-symboles) : boîtes de projection, texture, couleur imposée ou automatique. */
+  /** Inscriptions : boîte de projection, présence, couleur imposée ou automatique, par emplacement. */
   private readonly decalM = DECALS.map(() => uniform(new THREE.Matrix4()));
-  private readonly decalOn = uniform(new THREE.Vector4());
-  /** Échantillonnages de la texture des décors (un par boîte), mis à jour par setDecals. */
+  private readonly decalOn = DECALS.map(() => uniform(0));
+  private readonly decalCol: ColorUniform[] = DECALS.map(() => colorUniform('#ffffff'));
+  private readonly decalAuto = DECALS.map(() => uniform(1));
+  /** Échantillonnages de la texture des inscriptions (un par boîte), mis à jour par setDecals. */
   private readonly logoTaps: Array<{ value: THREE.Texture }> = [];
-  private readonly logoCol = colorUniform('#ffffff');
-  private readonly logoAuto = uniform(1);
 
   constructor(livery: BikeLivery) {
     this.material.name = 'frame';
@@ -120,17 +120,20 @@ export class LiveryMaterial {
   }
 
   /**
-   * Mots-symboles du vélo : texture (lignes dans l'ordre de DECALS), boîtes de la famille, couleur
-   * du texte (sinon contraste automatique avec la peinture). Sans texture : aucun décor.
+   * Inscriptions du vélo : texture (lignes dans l'ordre de DECALS), boîtes de la famille, et par
+   * emplacement la présence d'un texte et sa couleur (absente : contraste automatique avec la
+   * peinture). Sans texture : aucune inscription.
    */
-  setDecals(map: THREE.Texture | null, boxes: readonly (DecalBox | null)[], logo?: string): void {
+  setDecals(map: THREE.Texture | null, boxes: readonly (DecalBox | null)[], marks: readonly ({ color?: string } | null)[]): void {
     for (const t of this.logoTaps) t.value = map ?? BLANK;
-    boxes.forEach((b, i) => {
+    DECALS.forEach((_, i) => {
+      const b = boxes[i];
+      const m = marks[i];
       if (b) (this.decalM[i] as { value: THREE.Matrix4 }).value.copy(b.inverse);
+      (this.decalOn[i] as { value: number }).value = map && b && m ? 1 : 0;
+      (this.decalAuto[i] as { value: number }).value = m?.color ? 0 : 1;
+      if (m?.color) (this.decalCol[i] as ColorUniform).set(m.color);
     });
-    this.decalOn.value.set(...([0, 1, 2, 3].map((i) => (map && boxes[i] ? 1 : 0)) as [number, number, number, number]));
-    this.logoAuto.value = logo ? 0 : 1;
-    if (logo) this.logoCol.set(logo);
   }
 
   dispose(): void {
@@ -187,23 +190,23 @@ export class LiveryMaterial {
 
     // Mots-symboles projetés de part et d'autre des tubes (lisibles des deux côtés), seulement sur
     // les faces tournées vers le côté (pas de traînées sur le dessus des tubes).
-    const side = smoothstep(0.12, 0.32, abs(normalGeometry.x));
-    const dOn = [this.decalOn.x, this.decalOn.y, this.decalOn.z, this.decalOn.w];
-    let ink: FloatNode = float(0);
+    // Faces tournées vers l'extérieur seulement (pas l'intérieur de la base ou du hauban d'en face).
+    const nx = normalGeometry.x;
+    const side = smoothstep(0.12, 0.32, abs(nx)).mul(select(cx.mul(nx).greaterThan(-1e-4), float(1), float(0)));
+    const luma = dot(col, vec3(0.2126, 0.7152, 0.0722));
+    const auto = select(luma.greaterThan(0.25), color('#111214'), color('#f4f4f2')) as unknown as Vec3Node;
     this.decalM.forEach((m, i) => {
       const q = m.mul(vec4(p, 1)).xyz;
       const inside = lt(max(max(abs(q.x), abs(q.y)), abs(q.z)), 0.5);
       const u0 = q.y.add(0.5);
-      const u = select(cx.greaterThan(0), float(1).sub(u0), u0);
+      const u = select(nx.greaterThan(0), float(1).sub(u0), u0);
       const v = float(1).sub(float(i + 1).sub(float(0.5).sub(q.z)).div(DECALS.length));
       const tap = texture(BLANK, vec2(u, v));
       this.logoTaps.push(tap as unknown as { value: THREE.Texture });
-      ink = ink.add(tap.a.mul(inside).mul(dOn[i] as FloatNode));
+      const ink = clamp(tap.a.mul(inside).mul(this.decalOn[i] as unknown as FloatNode).mul(side), 0, 1);
+      const inkCol = mix((this.decalCol[i] as ColorUniform).node as unknown as Vec3Node, auto, this.decalAuto[i] as unknown as FloatNode);
+      col = mix(col, inkCol, ink);
     });
-    ink = clamp(ink.mul(side), 0, 1);
-    const luma = dot(col, vec3(0.2126, 0.7152, 0.0722));
-    const auto = select(luma.greaterThan(0.25), color('#111214'), color('#f4f4f2')) as unknown as Vec3Node;
-    col = mix(col, mix(this.logoCol.node as unknown as Vec3Node, auto, this.logoAuto), ink);
 
     // Carbone brut : damier très fin, à peine teinté par la livrée.
     const weave = mod(floor(cx.mul(300)).add(floor(cy.mul(300))).add(floor(cz.mul(300))), 2);

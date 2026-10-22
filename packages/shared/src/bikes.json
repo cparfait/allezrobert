@@ -2526,7 +2526,17 @@
     "finish": "gloss",
     "rim": "#f2f2f2",
     "disc": "#f2f2f2",
-    "tape": "#111111"
+    "tape": "#111111",
+    "marks": {
+     "tt": {
+      "text": "PINARELLO",
+      "color": "#141414"
+     },
+     "fork": {
+      "text": "Miguel Indurain",
+      "color": "#141414"
+     }
+    }
    },
    "level": 42,
    "desc": {
@@ -4288,8 +4298,8 @@
    "livery": {
     "colors": [
      "#121417",
-     "#1f7a6e",
-     "#5b3a7a"
+     "#2e9483",
+     "#6a4a8c"
     ],
     "pattern": "fade",
     "axis": "z",
@@ -4300,7 +4310,20 @@
     },
     "finish": "iridescent",
     "rim": "#2a2d31",
-    "tape": "#121212"
+    "tape": "#121212",
+    "marks": {
+     "dt": {
+      "text": "LOOK",
+      "color": "#141618",
+      "stretch": 1.7
+     },
+     "cs": {
+      "text": "785 HUEZ RS",
+      "color": "#f2f2f2"
+     }
+    },
+    "tireWall": "#c9a36a",
+    "saddle": "#f0f0ee"
    },
    "level": 10,
    "year": 2022,

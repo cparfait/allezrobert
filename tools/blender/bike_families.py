@@ -1084,6 +1084,8 @@ def build_family(fam, lod):
             'decal_fork': (g.ht_bot - g.ht_up * 0.12 + V(0.04, 0, 0.005), g.ht_up, 0.13, 0.04, 0.12),
         }
     else:
+        cs0 = BB + V(0, 0.003, -0.115)
+        cs1 = REAR_AXLE + V(0, -0.008, 0.12)
         dc = sty['dt'][0] if not sty['round'] else sty['dt'][2]
         sc_ = sty['st'][0] if not sty['round'] else sty['st'][2]
         tth = 2 * sty['tt'][2]
@@ -1094,6 +1096,8 @@ def build_family(fam, lod):
             'decal_tt': (lerp(g.st_top, g.ht_top, 0.5), nrm(g.ht_top - g.st_top), np.linalg.norm(g.ht_top - g.st_top) * 0.5, tth * 0.92, 0.06),
             'decal_st': (BB + g.st_dir * g.st_len * 0.55, g.st_dir, g.st_len * 0.42, sc_ * 0.92, 0.06),
             'decal_fork': (g.ht_bot - g.ht_up * 0.12, g.ht_up, 0.14, fk * 0.9, 2 * (HUB_HALF[0] + 0.02)),
+            # Bases (nom du modèle, p. ex. « 785 HUEZ RS ») : lecture de l'arrière vers l'avant.
+            'decal_cs': (lerp(cs0, cs1, 0.5), nrm(cs0 - cs1), float(np.linalg.norm(cs0 - cs1)) * 0.62, 2 * lerp(sty['cs'][1], sty['cs'][3], 0.4) * 0.9, 0.12),
         }
     for k, (c, d, L_, H_, W_) in dec.items():
         e.append(decal_empty(k, c, d, float(L_), float(H_), float(W_)))

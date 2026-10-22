@@ -2,7 +2,7 @@ import * as THREE from 'three/webgpu';
 import { GLTFLoader, type GLTF } from 'three/addons/loaders/GLTFLoader.js';
 import { BIKES, PLAIN_BIKE_FAMILY, type AvatarLook, type BikeBuild, type BikeFamily } from '@allezrobert/shared';
 import { LiveryMaterial } from './livery.ts';
-import { decalBoxes, wordmarkTexture } from './wordmarks.ts';
+import { decalBoxes, frameMarks, wordmarkTexture } from './wordmarks.ts';
 
 /**
  * Vélos du catalogue assemblés à partir des modèles Blender (tools/blender/build_cyclist.py) :
@@ -203,9 +203,9 @@ export class BikeMaterials {
     this.build = build;
     this.look = look;
     this.livery = new LiveryMaterial(build.livery);
-    // Mots-symboles de la marque et de l'équipe (vélos du catalogue) dans les boîtes de la famille.
+    // Inscriptions du cadre (comme sur le vrai vélo) dans les boîtes de la famille.
     const boxes = decalBoxes(familyScene(family));
-    this.livery.setDecals(wordmarkTexture(build, boxes), boxes, build.livery.logo);
+    this.livery.setDecals(wordmarkTexture(build, boxes), boxes, frameMarks(build));
   }
 
   get(name: string): THREE.Material {
@@ -244,6 +244,8 @@ export class BikeMaterials {
     const col: Partial<Record<string, string | undefined>> = {
       rim_decal: liv.rim,
       disc_face: liv.disc,
+      tire_wall: liv.tireWall,
+      saddle: liv.saddle,
       bar_tape: liv.tape ?? this.look.jerseyAccent,
       bottle: this.look.jerseyAccent,
     };
