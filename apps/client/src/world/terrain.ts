@@ -150,7 +150,23 @@ export class TerrainManager {
     await Promise.all(jobs);
   }
 
+  private disposed = false;
+
+  /** Libère toutes les tuiles (changement d'itinéraire sans recharger la page). */
+  disposeAll(): void {
+    this.disposed = true;
+    for (const [key, e] of this.tiles) {
+      this.group.remove(e.mesh);
+      e.mesh.geometry.dispose();
+      (e.mesh.material as THREE.Material).dispose();
+      e.textures.forEach((t) => t.dispose());
+      this.tiles.delete(key);
+      this.onTileUnloaded?.(e.tile);
+    }
+  }
+
   private add(tile: LoadedTile, lod: number): void {
+    if (this.disposed) return;
     if (!tile.splat) tile.splat = rasterizeSplat(tile);
     const textures = this.splatTextures(tile);
     let ortho: THREE.Texture | null = null;

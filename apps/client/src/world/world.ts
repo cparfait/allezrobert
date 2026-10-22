@@ -130,8 +130,10 @@ export class World {
   }
 
   dispose(): void {
+    this.terrain.disposeAll();
     this.env.dispose();
-    this.scene.remove(this.terrain.group, this.road.mesh, this.vegetation.group, this.buildings.group, this.network.group);
+    this.road.mesh.geometry.dispose();
+    this.scene.remove(this.terrain.group, this.road.mesh, this.vegetation.group, this.buildings.group, this.network.group, this.grass.mesh, this.rain.mesh);
     void this.track;
   }
 }

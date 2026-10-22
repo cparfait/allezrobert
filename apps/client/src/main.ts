@@ -42,6 +42,7 @@ const hudRoot = document.getElementById('hud') as HTMLElement;
 
 interface Scene3D {
   quality: Settings['quality'];
+  q: QualitySettings;
   engine: Engine;
   source: WorldSource;
   world: World;
@@ -64,7 +65,30 @@ async function loadScene(settings: Settings): Promise<Scene3D> {
     season: (params.get('season') as Settings['season'] | null) ?? settings.season,
     weather: { clouds: settings.clouds, rain: settings.rain, fog: settings.fog, windMs: settings.windMs, windFrom: 4.4 },
   });
-  return { quality: (params.get('quality') as Settings['quality'] | null) ?? settings.quality, engine, source, world, route, track };
+  return { quality: (params.get('quality') as Settings['quality'] | null) ?? settings.quality, q, engine, source, world, route, track };
+}
+
+/**
+ * Changement d'itinéraire sans recharger la page (la musique du jeu et le lecteur Spotify
+ * intégré continuent) : le monde est reconstruit pour le nouvel itinéraire.
+ */
+async function switchRoute(scene: Scene3D, s: Settings): Promise<void> {
+  const route = scene.source.routes.find((r) => r.id === s.routeId);
+  if (!route) return;
+  scene.world.dispose();
+  scene.route = route;
+  scene.track = new RouteTrack(route);
+  scene.world = new World(scene.engine.scene, scene.source, route, scene.track, scene.q, {
+    hour: s.hour,
+    season: s.season,
+    weather: { clouds: s.clouds, rain: s.rain, fog: s.fog, windMs: s.windMs, windFrom: 4.4 },
+  });
+  const start = scene.track.positionAt(0, 1.2);
+  await scene.world.preload(new THREE.Vector3(start.x, start.y, start.z));
+  // Un rechargement ultérieur garde le bon itinéraire.
+  const url = new URL(location.href);
+  url.searchParams.set('route', route.id);
+  history.replaceState(null, '', url.toString());
 }
 
 /** Musique : volume de base (plus bas en sortie) et annonce des titres Spotify pendant la sortie. */
@@ -82,9 +106,9 @@ async function boot(): Promise<void> {
   bootStep(50, 'Choix du lieu de la photo d’accueil');
   const devices = createDeviceLayer();
   const autostart = new URLSearchParams(location.search).has('autostart');
-  const env = scene.world.env.state;
-  /** Ciel et lumière de la sortie (réglages du coureur). */
+  /** Ciel et lumière de la sortie (réglages du coureur) ; l'environnement suit le monde courant. */
   const applyEnv = (s: Settings) => {
+    const env = scene.world.env.state;
     env.hour = s.hour;
     env.weather.clouds = s.clouds;
     env.weather.rain = s.rain;
@@ -99,6 +123,7 @@ async function boot(): Promise<void> {
   let posterFrames = 0;
   const focus = new THREE.Vector3();
   const renderPoster = () => {
+    const env = scene.world.env.state;
     poster.frame();
     env.hour = POSTER_HOUR;
     env.weather.clouds = 0.15;
@@ -107,7 +132,7 @@ async function boot(): Promise<void> {
     posterFrames = 24;
   };
   if (inMenu) {
-    if (env.season !== settings.season) scene.world.setSeason(settings.season);
+    if (scene.world.env.state.season !== settings.season) scene.world.setSeason(settings.season);
     const d = await choosePosterSpot(scene.world, scene.track, settings.season);
     poster.build(settings.look);
     focus.copy(poster.place(d));
@@ -158,13 +183,21 @@ async function boot(): Promise<void> {
   const menu = new MainMenu(ui, settings, scene.source.routes, devices.panel, {
     onStart: (s, extras) => {
       saveSettings(s);
-      // Changement d'itinéraire ou de qualité graphique : rechargement propre de la scène.
-      if (s.routeId !== scene.route.id || s.quality !== scene.quality) {
+      // Changement de qualité graphique : rechargement propre de la page.
+      if (s.quality !== scene.quality) {
         const url = new URL(location.href);
         url.searchParams.set('route', s.routeId);
         url.searchParams.delete('quality');
         url.searchParams.set('autostart', '1');
         location.href = url.toString();
+        return;
+      }
+      // Changement d'itinéraire : monde reconstruit sur place, la musique continue.
+      if (s.routeId !== scene.route.id) {
+        menu.hide();
+        leaveMenu(s);
+        ui.innerHTML = `<div class="loading">${getLang() === 'fr' ? 'Chargement de l’itinéraire…' : 'Loading route…'}</div>`;
+        void switchRoute(scene, s).then(() => startRide(scene, s, s.guest ? new GuestInputSource(s.massKg) : devices.source(), extras));
         return;
       }
       leaveMenu(s);
@@ -180,7 +213,7 @@ async function boot(): Promise<void> {
   // Accueil : seuls la saison et le maillot / vélo changent l'image ; le reste s'applique au départ.
   menu.onSettingsChange = (s) => {
     if (!inMenu) return applyEnv(s);
-    if (env.season !== s.season) scene.world.setSeason(s.season);
+    if (scene.world.env.state.season !== s.season) scene.world.setSeason(s.season);
     poster.build(s.look);
     poster.place(poster.d);
     renderPoster();
