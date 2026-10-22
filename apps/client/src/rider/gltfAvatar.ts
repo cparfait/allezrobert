@@ -75,6 +75,7 @@ const MATERIALS: Record<string, [string, number, number]> = {
   helmet: ['#f4f4f4', 0.35, 0],
   helmet_detail: ['#1c1d22', 0.6, 0],
   lens: ['#20242c', 0.08, 0.6],
+  visor: ['#2a3340', 0.05, 0.7],
   glasses_frame: ['#141518', 0.35, 0],
   hair: ['#3b2a1e', 0.8, 0],
   components: ['#18191c', 0.45, 0.2],
@@ -233,10 +234,22 @@ function buildTemplates(rider0: GLTF, rider1: GLTF): Templates {
   return { rider0, rider1, bones, armQ, armP, legs, arms, bb, crank, pedalRest, pedalPitch, ankleFlat, eyeRest, refHands: bikeAnchors(PLAIN_BIKE_FAMILY).hands };
 }
 
+/** L'objet ou l'un de ses parents porte-t-il un nom commençant par `prefix` ? */
+function underNode(o: THREE.Object3D, prefix: string): boolean {
+  for (let p: THREE.Object3D | null = o; p; p = p.parent) if (p.name.startsWith(prefix)) return true;
+  return false;
+}
+
 function makeMaterial(name: string, look: AvatarLook): THREE.MeshStandardNodeMaterial {
   const def = MATERIALS[name] ?? ['#808080', 0.6, 0];
   const m = new THREE.MeshStandardNodeMaterial({ color: def[0], roughness: def[1], metalness: def[2] });
   m.name = name;
+  // Visière teintée : on devine les yeux derrière, le ciel s'y reflète (lunettes : verres opaques).
+  if (name === 'visor') {
+    m.transparent = true;
+    m.opacity = 0.7;
+    m.depthWrite = false;
+  }
   applyLookColor(m, look);
   return m;
 }
@@ -379,10 +392,12 @@ export class GltfRiderAvatar implements RiderAvatarLike {
       const mesh = o as THREE.Mesh;
       if (!mesh.isMesh) return;
       const src = mesh.material as THREE.Material;
-      let mat = this.materials.get(src.name);
+      // Visière du casque chrono : verre plus clair que celui des lunettes.
+      const key = src.name === 'lens' && underNode(mesh, 'rider_helmet_aero') ? 'visor' : src.name;
+      let mat = this.materials.get(key);
       if (!mat) {
-        mat = makeMaterial(src.name, look);
-        this.materials.set(src.name, mat);
+        mat = makeMaterial(key, look);
+        this.materials.set(key, mat);
       }
       mesh.material = mat;
       mesh.castShadow = true;

@@ -1172,12 +1172,13 @@ def build_rider_aero_helmet(r):
     # Visière enveloppante.
     vb = MB()
     nphi = 16
-    phis = np.linspace(-math.radians(78), math.radians(78), nphi)
+    phis = np.linspace(-math.radians(70), math.radians(70), nphi)
     rows = 3
     verts = []
     for ph in phis:
         for j in range(rows):
-            h = -0.07 + (0.02 + 0.07) * j / (rows - 1)
+            # Visière : du front au bout du nez (≈ 6,5 cm), galbée.
+            h = -0.052 + (0.013 + 0.052) * j / (rows - 1)
             fw = math.cos(ph) * 0.128 - 0.01 * (h / 0.04) ** 2
             verts.append(H(math.sin(ph) * 0.094, h, fw).tolist())
     faces = []

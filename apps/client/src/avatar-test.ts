@@ -154,7 +154,7 @@ async function main(): Promise<void> {
 /**
  * Planche des vélos du catalogue vus de profil, côté transmission (?bikes=id1,id2… par préfixes,
  * vide : la planche des livrées des aperçus Blender ; &rider : avec le coureur ; &side=left :
- * côté gauche ; &view=3q : de trois quarts avant ; &view=face : visage ; &view=cockpit : poste de pilotage). Enregistrée comme bikes-client-<nom>.jpg (&name=…), sauf avec ?noshot.
+ * côté gauche ; &view=3q : de trois quarts avant ; &view=face : visage ; &view=portrait : visage de face sans casque ; &view=cockpit : poste de pilotage). Enregistrée comme bikes-client-<nom>.jpg (&name=…), sauf avec ?noshot ; &each : chaque vélo aussi dans out/bikes-render/<id>.jpg.
  */
 const LIVERY_SHEET = ['s26-04-', 's26-01-', 's26-14-', 'myth-bianchi-specialissima-acier', 'myth-peugeot-px10', 'myth-lotus-110',
   's26-06-', 'myth-look-kg86', 'myth-specialized-tarmac-sl7', 'myth-pinarello-espada', 'myth-giant-tcr-compact', 'myth-colnago-c40-mapei'];
@@ -191,7 +191,16 @@ async function bikeSheet(engine: Awaited<ReturnType<typeof createEngine>>, list:
     scene.add(a.root);
     camera.fov = 30;
     const sx = left ? 1 : -1;
-    if (params.get('view') === 'face') {
+    if (params.get('view') === 'portrait') {
+      // Portrait de face, sans lunettes ni casque : le modelé du visage.
+      a.root.traverse((o) => {
+        if (/rider_(glasses|helmet)/.test(o.name)) o.visible = false;
+      });
+      const eye = a.eyeWorld(new THREE.Vector3());
+      camera.position.set(eye.x + sx * 0.12, eye.y + 0.02, eye.z + 0.55);
+      camera.updateProjectionMatrix();
+      camera.lookAt(eye.x, eye.y - 0.05, eye.z);
+    } else if (params.get('view') === 'face') {
       // Gros plan du visage : yeux du coureur (pose courante, position chrono comprise).
       const eye = a.eyeWorld(new THREE.Vector3());
       camera.position.set(eye.x + sx * 0.45, eye.y + 0.05, eye.z + 0.75);
@@ -207,7 +216,7 @@ async function bikeSheet(engine: Awaited<ReturnType<typeof createEngine>>, list:
       camera.lookAt(0, 0.88, 0.5);
     } else if (params.get('view') === '3q') camera.position.set(sx * 2.2, 1.5, 2.6);
     else camera.position.set(sx * (riderOn ? 4.4 : 3.4) * Number(params.get('zoom') ?? 1), riderOn ? 0.95 : 0.62, 0.09);
-    if (!['face', 'cockpit', 'cockpitside'].includes(params.get('view') ?? '')) {
+    if (!['face', 'portrait', 'cockpit', 'cockpitside'].includes(params.get('view') ?? '')) {
       camera.updateProjectionMatrix();
       camera.lookAt(0, riderOn ? 0.85 : 0.56, 0.09);
     }
@@ -215,6 +224,14 @@ async function bikeSheet(engine: Awaited<ReturnType<typeof createEngine>>, list:
     const x = (i % cols) * cw;
     const y = Math.floor(i / cols) * ch;
     g.drawImage(canvas, 160, 60, 960, 600, x, y, cw, ch);
+    // &each : chaque vélo enregistré à part (out/bikes-render/<id>.jpg), pour les planches photo / rendu.
+    if (params.has('each')) {
+      const one = document.createElement('canvas');
+      one.width = 960;
+      one.height = 600;
+      (one.getContext('2d') as CanvasRenderingContext2D).drawImage(canvas, 160, 60, 960, 600, 0, 0, 960, 600);
+      await fetch(`/__shot?name=${b.id}&dir=bikes-render`, { method: 'POST', body: one.toDataURL('image/jpeg', 0.9) });
+    }
     g.fillStyle = '#16181c';
     g.fillText(`${b.name} · ${b.family}`, x + cw / 2, y + 24);
     scene.remove(a.root);
