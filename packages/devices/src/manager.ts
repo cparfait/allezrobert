@@ -383,11 +383,15 @@ export class DeviceManager extends Emitter<ManagerEvents> {
     this.emit('roles', this.roles);
     for (const p of this.config.devices) {
       if (!p.autoConnect) continue;
-      if (!this.transports.some((t) => t.kind === p.transport)) continue;
-      if (p.transport === 'web-bluetooth') continue; // nécessite un geste utilisateur
+      const transport = this.transports.find((t) => t.kind === p.transport);
+      if (!transport) continue;
+      // Web Bluetooth : seulement si le navigateur a gardé l'autorisation (sinon geste utilisateur requis).
+      const silent = transport.canRestoreWithoutGesture ? await transport.canRestoreWithoutGesture().catch(() => false) : true;
+      if (!silent) continue;
       await this.connect(discoveredFromPaired(p), { persist: false }).catch((e: unknown) => {
         this.emit('log', `Reconnexion de ${p.name} impossible : ${(e as Error).message}`);
-        this.device(p.id)?.reconnectNow();
+        // Hors de portée ou éteint : nouvel essai différé. Web Bluetooth sans autorisation : rien à faire.
+        if (transport.kind !== 'web-bluetooth') this.device(p.id)?.reconnectNow();
       });
     }
   }

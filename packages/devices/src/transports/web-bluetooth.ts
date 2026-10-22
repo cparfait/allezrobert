@@ -123,6 +123,11 @@ export class WebBluetoothTransport implements Transport {
     return { stop: async () => undefined };
   }
 
+  /** Chrome / Edge récents : les appareils déjà autorisés se reconnectent sans rouvrir le sélecteur. */
+  async canRestoreWithoutGesture(): Promise<boolean> {
+    return !!this.bt?.getDevices;
+  }
+
   async connect(device: DiscoveredDevice): Promise<DeviceLink> {
     const rawId = String(device.address?.['deviceId'] ?? device.id.replace(PREFIX, ''));
     let dev = this.devices.get(rawId);

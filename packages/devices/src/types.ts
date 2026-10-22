@@ -96,6 +96,11 @@ export interface Transport {
   /** Lance une recherche ; `onFound` peut être appelé plusieurs fois pour le même appareil (mise à jour RSSI). */
   scan(options: ScanOptions, onFound: (device: DiscoveredDevice) => void): Promise<ScanHandle>;
   connect(device: DiscoveredDevice): Promise<DeviceLink>;
+  /**
+   * Reconnexion au démarrage sans geste utilisateur possible ? (Web Bluetooth : seulement si le
+   * navigateur conserve les autorisations, `navigator.bluetooth.getDevices()`). Absent = oui.
+   */
+  canRestoreWithoutGesture?(): Promise<boolean>;
   /** Choix de l'adaptateur Bluetooth (Bluetooth natif uniquement). */
   listAdapters?(): Promise<NativeAdapter[]>;
   selectAdapter?(adapterId: string): Promise<void>;

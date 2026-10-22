@@ -13,12 +13,13 @@ import {
   FanController,
   KeyboardShifter,
   ManualClock,
+  MemoryPairingStorage,
   SimulatorTransport,
   WebBluetoothTransport,
   fanTargetPercent,
   type CalibrationEvent,
 } from '../src/index.ts';
-import { FakeBridge, newClock, settle } from './helpers.ts';
+import { FakeBridge, fakeWebBluetooth, newClock, settle } from './helpers.ts';
 
 async function simManager(simOptions: ConstructorParameters<typeof SimulatorTransport>[0] = {}, experimental = {}) {
   const clock = newClock();
@@ -218,5 +219,32 @@ describe('Web Bluetooth : sélecteur « tous les appareils »', () => {
     const ftms = web.buildRequestOptions({ kinds: ['trainer'] });
     expect(ftms.acceptAllDevices).toBeUndefined();
     expect(ftms.filters?.[0]).toEqual({ services: ['00001826-0000-1000-8000-00805f9b34fb'] });
+  });
+});
+
+describe('Web Bluetooth : reconnexion au démarrage', () => {
+  it('appareil autorisé (getDevices) reconnecté sans sélecteur ; sans getDevices, ignoré', async () => {
+    const clock = newClock();
+    const sim = new SimulatorTransport({ clock, devices: ['heartRate'] });
+    const bt = fakeWebBluetooth(sim);
+    const storage = new MemoryPairingStorage();
+    const first = new DeviceManager({ transports: [new WebBluetoothTransport({ bluetooth: bt })], clock, storage });
+    await first.scan({ kinds: ['heartRate'] });
+    await settle(clock, first.connect(first.discovered[0]!));
+    await first.dispose();
+
+    // Rechargement de la page : nouveau transport, aucun appareil en mémoire.
+    const second = new DeviceManager({ transports: [new WebBluetoothTransport({ bluetooth: bt })], clock, storage });
+    const requests = (bt as { lastOptions?: unknown }).lastOptions;
+    await settle(clock, second.restore());
+    expect(second.device('web-bluetooth:bt-heartRate')?.state).toBe('connected');
+    expect((bt as { lastOptions?: unknown }).lastOptions).toBe(requests); // pas de nouveau sélecteur
+    await second.dispose();
+
+    const noPerm = { requestDevice: bt.requestDevice.bind(bt) };
+    const third = new DeviceManager({ transports: [new WebBluetoothTransport({ bluetooth: noPerm })], clock, storage });
+    await settle(clock, third.restore());
+    expect(third.devices).toHaveLength(0);
+    await third.dispose();
   });
 });
