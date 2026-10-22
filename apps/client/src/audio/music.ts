@@ -64,9 +64,7 @@ export class BackgroundMusic {
 
   /** Démarre au premier clic ou à la première touche (politique d'autoplay des navigateurs). */
   unlockOnGesture(): void {
-    const hint = document.getElementById('music-hint');
     const go = () => {
-      if (hint) hint.hidden = true;
       window.removeEventListener('pointerdown', go);
       window.removeEventListener('keydown', go);
       this.unlocked = true;
@@ -76,7 +74,7 @@ export class BackgroundMusic {
     window.addEventListener('keydown', go);
     if (!this.enabled) return;
     // Musique dès l'ouverture quand le navigateur l'autorise (site déjà écouté, appli de bureau) ;
-    // sinon petite invitation jusqu'au premier clic ou à la première touche.
+    // sinon elle démarre au premier clic ou à la première touche, sans rien afficher.
     this.start();
     void this.el
       .play()
@@ -84,9 +82,7 @@ export class BackgroundMusic {
         window.removeEventListener('pointerdown', go);
         window.removeEventListener('keydown', go);
       })
-      .catch(() => {
-        if (hint) hint.hidden = false;
-      });
+      .catch(() => undefined);
   }
 
   setEnabled(on: boolean): void {
