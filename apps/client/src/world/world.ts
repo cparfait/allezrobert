@@ -11,6 +11,8 @@ import { RoadNetwork } from './network.ts';
 import { Rain } from './weather.ts';
 import { GrassField } from './grass.ts';
 import { WaterSystem } from './water.ts';
+import { Railways } from './railways.ts';
+import { Dust, surfaceUnder } from './dust.ts';
 import { soundSourcesForTile, type SoundSource } from '../audio/spatial.ts';
 import type { WorldSource } from './types.ts';
 
@@ -25,12 +27,19 @@ export class World {
   readonly rain: Rain;
   readonly grass: GrassField;
   readonly water: WaterSystem;
+  readonly railways: Railways;
+  readonly dust: Dust;
+  /** Revêtement sous chaque émetteur de poussière (recalculé tous les 8 m). */
+  private readonly surfaceCache = new Map<string, { x: number; z: number; unpaved: boolean }>();
+  /** Contrôle visuel (?dust=force) : tout chemin est traité comme non revêtu. */
+  forceUnpaved = new URLSearchParams(location.search).get('dust') === 'force';
   readonly source: WorldSource;
   private readonly scene: THREE.Scene;
   private readonly track: RouteTrack;
   private lastFocusTile = '';
   private updating = false;
   private retryAcc = 0;
+  private lastHour = Number.NaN;
   /** Sources sonores positionnées par tuile (tags OSM). */
   readonly soundSources = new Map<string, SoundSource[]>();
 
@@ -64,6 +73,11 @@ export class World {
     scene.add(this.grass.mesh);
     this.water = new WaterSystem(q, envState.season, groundAt, nearRoad);
     scene.add(this.water.group);
+    this.railways = new Railways(q, groundAt);
+    this.railways.clock = envState.hour * 3600;
+    scene.add(this.railways.group);
+    this.dust = new Dust(q);
+    scene.add(this.dust.sprite);
 
     this.terrain.onTileLoaded = (tile) => {
       this.soundSources.set(tile.id, soundSourcesForTile(tile));
@@ -71,6 +85,7 @@ export class World {
       this.network.addTile(tile);
       this.vegetation.addTile(tile);
       this.water.addTile(tile);
+      this.railways.addTile(tile);
     };
     this.terrain.onTileUnloaded = (tile) => {
       this.soundSources.delete(tile.id);
@@ -78,6 +93,7 @@ export class World {
       this.network.removeTile(tile);
       this.vegetation.removeTile(tile);
       this.water.removeTile(tile);
+      this.railways.removeTile(tile);
     };
   }
 
@@ -129,6 +145,14 @@ export class World {
     this.water.horizonColor.value.copy(this.env.fog.color);
     this.rain.update(w.rain, w.windMs, w.windFrom);
     this.buildings.night.value = this.nightFactor() > 0.35 ? 1 : 0;
+    this.railways.night.value = this.nightFactor() > 0.25 ? 1 : 0;
+    // Horloge des trains : l'heure choisie (peut changer au menu) plus le temps écoulé.
+    if (Math.abs(this.railways.clock / 3600 - this.env.state.hour) > 1 && Math.abs(this.lastHour - this.env.state.hour) > 1e-6) this.railways.clock = this.env.state.hour * 3600;
+    this.lastHour = this.env.state.hour;
+    this.railways.update(dt);
+    this.dust.update(dt);
+    (this.dust.windDir.value as THREE.Vector2).set(wx, wz);
+    this.dust.windMs.value = w.windMs;
     // Streaming : à chaque changement de tuile, on recharge le voisinage.
     const ft = this.terrain.tileCoord(focus.x, focus.z);
     const key = ft.join('_');
@@ -146,6 +170,31 @@ export class World {
     }
   }
 
+  /** Chemin non revêtu sous (x, z) (route OSM la plus proche), mis en cache par émetteur. */
+  isUnpavedAt(id: string, x: number, z: number): boolean {
+    if (this.forceUnpaved) return true;
+    const c = this.surfaceCache.get(id);
+    if (c && Math.hypot(c.x - x, c.z - z) < 8) return c.unpaved;
+    const s = surfaceUnder(this.terrain.getTile(...this.terrain.tileCoord(x, z)), x, z);
+    const unpaved = s?.unpaved ?? false;
+    this.surfaceCache.set(id, { x, z, unpaved });
+    return unpaved;
+  }
+
+  /**
+   * Poussière derrière un vélo (ou un véhicule) qui roule sur un chemin non revêtu, par temps sec.
+   * `id` : identifiant stable de l'émetteur ; (dx, dz) : direction de marche.
+   */
+  kickDust(id: string, x: number, y: number, z: number, dx: number, dz: number, speedMs: number, dt: number): void {
+    if (this.env.state.weather.rain > 0.25 || !this.isUnpavedAt(id, x, z)) return;
+    this.dust.emit(id, x, y, z, dx, dz, speedMs, dt);
+  }
+
+  /** Rugosité du roulement pour le son (0,15 sur l'asphalte, 0,6 sur un chemin). */
+  rollingRoughness(x: number, z: number): number {
+    return this.isUnpavedAt('rolling', x, z) ? 0.6 : 0.15;
+  }
+
   /** 0 = plein jour, 1 = nuit noire (élévation du soleil). */
   nightFactor(): number {
     const el = this.env.sky.sunPosition.value.y;
@@ -156,7 +205,7 @@ export class World {
     this.terrain.disposeAll();
     this.env.dispose();
     this.road.mesh.geometry.dispose();
-    this.scene.remove(this.terrain.group, this.road.mesh, this.vegetation.group, this.buildings.group, this.network.group, this.grass.mesh, this.rain.mesh, this.water.group);
+    this.scene.remove(this.terrain.group, this.road.mesh, this.vegetation.group, this.buildings.group, this.network.group, this.grass.mesh, this.rain.mesh, this.water.group, this.railways.group, this.dust.sprite);
     void this.track;
   }
 }
