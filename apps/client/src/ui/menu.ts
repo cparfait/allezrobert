@@ -62,6 +62,20 @@ const fr = () => getLang() === 'fr';
 /** Pictogrammes (traits, couleur héritée). */
 const svg = (d: string, size = 22) =>
   `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
+/** Couleur et accroche de chaque mode (cartes « Que veux-tu faire ? »). */
+const MODE_COLORS: Partial<Record<Settings['mode'], string>> = {
+  free: '#ffd23f',
+  group: '#4ade80',
+  race: '#f87171',
+  workout: '#60a5fa',
+  ftpTest: '#c084fc',
+  challenge: '#fb923c',
+};
+const MODE_TAGS: Record<'fr' | 'en', Partial<Record<Settings['mode'], string>>> = {
+  fr: { free: 'Seul ou avec des IA', group: 'Avec tes amis', race: 'Classement', workout: 'Séances ERG', ftpTest: 'Test rampe', challenge: 'Records en côte' },
+  en: { free: 'Solo or with AI', group: 'With friends', race: 'Results', workout: 'ERG sessions', ftpTest: 'Ramp test', challenge: 'Climb records' },
+};
+
 const ICON = {
   free: svg('<path d="M4 20 10 4M20 20 14 4M12 6v2M12 11v2M12 16v2"/>'),
   group: svg('<circle cx="8" cy="8" r="3"/><circle cx="16" cy="9" r="2.5"/><path d="M2.5 20c.6-3.4 2.8-5 5.5-5s4.9 1.6 5.5 5M13.5 15.2c.8-.5 1.6-.7 2.5-.7 2.4 0 4.3 1.4 4.8 4.5"/>'),
@@ -183,7 +197,12 @@ export class MainMenu {
     this.worldId = worldId;
     this.openWorld = open;
     if (!routes.some((r) => r.id === this.s.routeId)) this.s.routeId = routes[0]?.id ?? '';
-    if (this.routesAfterWorld && this.picker === 'zones') this.picker = open ? 'zone' : 'routes';
+    if (this.routesAfterWorld && this.picker === 'zones') this.picker = 'zone';
+    // Autre zone : le parcours dessiné et le départ du libre de l'ancienne ne valent plus.
+    if (worldId !== this.drawnWorld) {
+      this.drawn = null;
+      this.freeStart = null;
+    }
     this.routesAfterWorld = false;
     this.loadingZone = '';
     if (this.root.querySelector('.mm')) this.render();
@@ -199,8 +218,14 @@ export class MainMenu {
   readonly planner = new RoutePlanner();
   onWorld?: (id: string) => void;
   onSettingsSaved?: (s: Settings) => void;
-  /** Fenêtre de choix ouverte au milieu de l'écran (boutons « Zone » et « Parcours »). */
+  /** Fenêtre de choix ouverte au milieu de l'écran (bouton « Choisir ma sortie »). */
   private picker: 'zones' | 'zone' | 'routes' | 'map' | null = null;
+  /** Parcours dessiné sur la carte (zone ouverte), roulé au départ s'il est le parcours choisi. */
+  private drawn: RouteData | null = null;
+  /** Départ choisi sur la carte pour le roulage libre (null : départ de la zone). */
+  private freeStart: { x: number; z: number } | null = null;
+  /** Zone du parcours dessiné et du départ du libre. */
+  private drawnWorld = '';
   /** Catalogue des zones (packs de cartes). */
   private zones: WorldCatalogue['zones'] = [];
   /** Téléchargements en cours : octets reçus / total, ou message d'erreur. */
@@ -366,7 +391,6 @@ export class MainMenu {
           ['workout', 'workout', 'Séance structurée en mode ERG : séances intégrées ou fichier .zwo, .erg, .mrc.'],
           ['ftpTest', 'ftpTest', 'Test rampe : paliers d’une minute jusqu’à épuisement, pour estimer ta FTP.'],
           ['challenge', 'challenge', 'Bats ton record sur une montée : départ lancé, fantôme de ton meilleur temps, écart en direct.'],
-          ...(this.openWorld ? ([['open', 'open', 'Toutes les routes du monde : ← / → pour choisir ta direction à chaque carrefour, U pour faire demi-tour.']] as Array<[Settings['mode'], I18nKey, string]>) : []),
         ]
       : [
           ['free', 'free', 'Ride at your own pace, with or without AI riders.'],
@@ -375,7 +399,6 @@ export class MainMenu {
           ['workout', 'workout', 'Structured session in ERG mode: built-in workouts or a .zwo, .erg, .mrc file.'],
           ['ftpTest', 'ftpTest', 'Ramp test: one-minute steps to exhaustion, to estimate your FTP.'],
           ['challenge', 'challenge', 'Beat your record on a climb: flying start, ghost of your best time, live gap.'],
-          ...(this.openWorld ? ([['open', 'open', 'Every road of the world: ← / → to pick your way at each junction, U to turn around.']] as Array<[Settings['mode'], I18nKey, string]>) : []),
         ];
   }
 
@@ -477,13 +500,19 @@ export class MainMenu {
     const s = this.s;
     const L = fr();
     const r = this.routes.find((x) => x.id === s.routeId) ?? this.routes[0];
-    const mode = this.modes().find(([m]) => m === s.mode);
+    // Roulage libre (choisi dans la fenêtre de la zone) : une sortie libre.
+    const shown = s.mode === 'open' ? 'free' : s.mode;
+    const mode = this.modes().find(([m]) => m === shown);
+    const tag = MODE_TAGS[L ? 'fr' : 'en'];
     return `<section class="mm-panel mm-left">
       <header class="mm-head"><h2>${L ? 'Que veux-tu faire ?' : 'What do you want to do?'}</h2></header>
       <div class="mm-modes">${this.modes()
-        .map(([v, k]) => `<button class="mm-mode ${v === s.mode ? 'on' : ''}" data-mode="${v}">${ICON[v]}<span>${esc(t(k))}</span></button>`)
+        .map(
+          ([v, k]) =>
+            `<button class="mm-mode ${v === shown ? 'on' : ''}" data-mode="${v}" style="--c:${MODE_COLORS[v] ?? '#ffd23f'}"><span class="mm-mode-ico">${ICON[v]}</span><b>${esc(t(k))}</b><small>${esc(tag[v] ?? '')}</small></button>`,
+        )
         .join('')}</div>
-      <p class="mm-hint">${mode ? esc(mode[2]) : ''}</p>
+      <p class="mm-hint">${s.mode === 'open' ? (L ? 'Parcours libre : ← / → pour choisir ta direction à chaque carrefour, U pour faire demi-tour.' : 'Free ride: ← / → to pick your way at each junction, U to turn around.') : mode ? esc(mode[2]) : ''}</p>
       ${
         s.mode === 'group' || s.mode === 'race'
           ? `<input id="m-invite" class="mm-input" placeholder="${L ? 'Code d’invitation (facultatif)' : 'Invite code (optional)'}" />${
@@ -545,17 +574,40 @@ export class MainMenu {
     </div>`;
   }
 
-  /** Deux boutons : la zone et le parcours choisis ; chacun ouvre sa liste au milieu de l'écran. */
+  /** Parcours dessiné, s'il est le parcours choisi (et pas en roulage libre). */
+  private get drawnChoice(): RouteData | null {
+    return this.s.mode !== 'open' && this.drawn && this.drawn.id === this.s.routeId ? this.drawn : null;
+  }
+
+  /**
+   * Un bouton (carte de France → zone → parcours, libre ou à dessiner), puis la carte de ce qui est
+   * choisi : tracé du parcours (sur les routes de la zone si elle est ouverte) ou départ du libre.
+   */
   private pickersHtml(r: RouteData | undefined): string {
     const L = fr();
     const lang = getLang();
     const w = WORLD_LIST.find((x) => x.id === this.worldId);
-    const zone = w ? w.name[lang] : this.worldId;
-    const chevron = '<i aria-hidden="true">›</i>';
-    return `<div class="mm-pickers">
-      <button class="mm-pick mm-pick-big" data-picker="zones" title="${esc(zone)}"><b>${L ? 'ZONES' : 'AREAS'}</b>${chevron}</button>
-      <button class="mm-pick mm-pick-big" data-picker="routes" title="${r ? esc(this.routeName(r)) : ''}"><b>${L ? 'PARCOURS' : 'ROUTES'}</b>${chevron}</button>
+    const zone = w ? w.name[lang] : (ZONE_SPOTS.find((x) => x.id === this.worldId)?.name[lang] ?? this.worldId);
+    const free = this.s.mode === 'open';
+    const drawn = this.drawnChoice;
+    const route = free ? null : (drawn ?? r ?? null);
+    const what = free ? (L ? 'Parcours libre' : 'Free ride') : drawn ? (L ? 'Parcours dessiné' : 'Drawn route') : route ? this.routeName(route) : '';
+    const stats = route
+      ? `${this.km(route.lengthM)} km · ${Math.round(route.elevationGainM)} m D+${route.loop ? (L ? ' · boucle' : ' · loop') : ''}`
+      : free
+        ? L
+          ? 'Choisis ta route à chaque carrefour'
+          : 'Pick your road at each junction'
+        : '';
+    const map = this.openWorld ? this.planner.preview(route, free ? this.freeStart : null) : '';
+    const body = map ? `<div class="mm-selmap">${map}</div>` : route ? this.routeCard(route) : '';
+    const pickers = `<div class="mm-pickers mm-pickers-one">
+      <button class="mm-pick mm-pick-big" data-picker="zones"><b>${L ? 'CHOISIR MA SORTIE' : 'CHOOSE MY RIDE'}</b><i aria-hidden="true">›</i></button>
     </div>`;
+    // Sans carte de la zone, la fiche du parcours porte déjà son nom et ses chiffres.
+    const head = map || !route ? `<b>${esc(what)}</b><span>${esc(stats)}</span>` : '';
+    return `${pickers}
+    ${what ? `<button class="mm-sel" data-picker="zone" title="${L ? 'Changer de parcours' : 'Change route'}"><span class="mm-sel-head"><small>${esc(zone)}</small>${head}</span>${body}</button>` : ''}`;
   }
 
   /** Fenêtre centrée : liste des zones (avec leurs packs) ou des parcours de la zone. */
@@ -583,11 +635,9 @@ export class MainMenu {
       )
       .join('')}</div>
         ${this.onExplore ? `<button id="m-explore" class="mm-explore">${ICON.explore}<span><b>${L ? 'Explorer la carte' : 'Explore the map'}</b><small>${L ? 'Caméra libre, sans rouler · Échap pour revenir' : 'Free camera, no riding · Esc to come back'}</small></span></button>` : ''}`;
-    const pack = this.openWorld ? '' : this.packAction(this.worldId);
     return `<div class="mm-modal mm-picker-modal" data-picker-close>
       <div class="mm-dialog mm-picker" role="dialog" aria-modal="true">
-        <header><h2>${L ? 'Parcours' : 'Routes'}${w ? ` — ${esc(w.name[getLang()])}` : ''}</h2><span class="rp-head-links"><button class="mm-link" data-picker="${this.openWorld ? 'zone' : 'zones'}">← ${this.openWorld ? (L ? 'Choix de la zone' : 'Area choices') : L ? 'Carte de France' : 'Map of France'}</button></span><button class="mm-x" data-picker-close aria-label="${L ? 'Fermer' : 'Close'}">×</button></header>
-        ${pack ? `<div class="zc-pack">${L ? 'Cartes hors ligne' : 'Offline maps'} ${pack}</div>` : ''}
+        <header><h2>${L ? 'Parcours' : 'Routes'}${w ? ` — ${esc(w.name[getLang()])}` : ''}</h2><span class="rp-head-links"><button class="mm-link" data-picker="zone">← ${L ? 'Choix de la zone' : 'Area choices'}</button></span><button class="mm-x" data-picker-close aria-label="${L ? 'Fermer' : 'Close'}">×</button></header>
         ${list}
       </div></div>`;
   }
@@ -658,14 +708,18 @@ export class MainMenu {
       </div></div>`;
   }
 
-  /** Fenêtre d'une zone ouverte : parcours fixés, parcours libre, parcours à dessiner. */
+  /** Fenêtre d'une zone : parcours fixés, parcours libre, parcours à dessiner (ces deux-là : zones ouvertes). */
   private zoneHtml(): string {
     const L = fr();
     const lang = getLang();
     const w = WORLD_LIST.find((x) => x.id === this.worldId);
     const spot = ZONE_SPOTS.find((x) => x.id === this.worldId);
     const n = this.routes.length;
-    const card = (id: string, icon: string, title: string, text: string) => `<button class="zc-choice" data-zc="${id}">${icon}<b>${title}</b><span>${text}</span></button>`;
+    const openOnly = L ? 'Seulement dans les zones ouvertes (toutes les routes roulables).' : 'Only in open areas (every road rideable).';
+    const card = (id: string, icon: string, title: string, text: string) =>
+      id !== 'routes' && !this.openWorld
+        ? `<button class="zc-choice zc-off" disabled>${icon}<b>${title}</b><span>${openOnly}</span></button>`
+        : `<button class="zc-choice" data-zc="${id}">${icon}<b>${title}</b><span>${text}</span></button>`;
     const pack = this.packAction(this.worldId);
     // Région, puis la description de la zone (sans répéter la région si elle y figure déjà).
     const hint = w?.hint[lang] ?? '';
@@ -1219,29 +1273,38 @@ export class MainMenu {
     on('m-tuto', 'click', () => this.onTutorial?.());
     on('m-login', 'click', () => this.onLogin?.());
     on('m-logout', 'click', () => this.onLogout?.());
-    on('m-start', 'click', () => this.start());
+    // Rouler : le parcours dessiné ou le départ du libre choisis sur la carte.
+    on('m-start', 'click', () => {
+      const drawn = this.drawnChoice;
+      this.start(drawn ? { customRoute: drawn } : s.mode === 'open' && this.freeStart ? { openStart: this.freeStart } : {});
+    });
     on('m-explore', 'click', () => this.onExplore?.());
     // Itinéraire sur la carte : parcours calculé (sortie libre sur ce tracé) ou roulage libre.
     if (this.picker === 'map' && this.openWorld)
       this.planner.bind(this.root, (r) => this.routeCard(r), {
         ride: (route) => {
+          this.drawn = route;
+          this.drawnWorld = this.worldId;
           s.routeId = route.id;
           if (s.mode !== 'free' && s.mode !== 'workout') s.mode = 'free';
           this.picker = null;
           changed();
-          this.start({ customRoute: route });
+          this.render();
         },
         free: (start) => {
           s.mode = 'open';
+          this.freeStart = start;
+          this.drawnWorld = this.worldId;
           this.picker = null;
           changed();
-          this.start(start ? { openStart: start } : {});
+          this.render();
         },
       });
     // Rouler : modes et itinéraires.
     this.root.querySelectorAll<HTMLElement>('[data-mode]').forEach((el) =>
       el.addEventListener('click', () => {
-        s.mode = el.dataset.mode as Settings['mode'];
+        const v = el.dataset.mode as Settings['mode'];
+        if (!(v === 'free' && s.mode === 'open')) s.mode = v;
         changed();
         this.render();
       }),
@@ -1261,11 +1324,11 @@ export class MainMenu {
         this.render();
       }),
     );
-    // Carte de France : une zone choisie ouvre ses choix (zone ouverte) ou ses parcours.
+    // Carte de France : une zone choisie ouvre ses choix (parcours, libre, à dessiner).
     if (this.picker === 'zones')
       this.franceMap.bind(this.root, this.mapZones(), (id) => {
         if (id === this.worldId) {
-          this.picker = this.openWorld ? 'zone' : 'routes';
+          this.picker = 'zone';
           this.render();
           return;
         }
@@ -1282,16 +1345,17 @@ export class MainMenu {
         const c = el.dataset.zc;
         if (c === 'free') {
           s.mode = 'open';
+          this.freeStart = null;
           this.picker = null;
           changed();
-          this.start();
+          this.render();
           return;
         }
         this.picker = c === 'draw' ? 'map' : 'routes';
         this.render();
       }),
     );
-    // Boutons « Zone » / « Parcours » : fenêtre de choix au milieu de l'écran.
+    // « Choisir ma sortie » et carte du choix : fenêtre de choix au milieu de l'écran.
     this.root.querySelectorAll<HTMLElement>('[data-picker]').forEach((el) =>
       el.addEventListener('click', () => {
         this.picker = el.dataset.picker as 'zones' | 'zone' | 'routes' | 'map';
@@ -1314,6 +1378,7 @@ export class MainMenu {
     this.root.querySelectorAll<HTMLElement>('[data-route]').forEach((el) =>
       el.addEventListener('click', () => {
         s.routeId = el.dataset.route as string;
+        if (s.mode === 'open') s.mode = 'free';
         this.picker = null;
         changed();
         this.render();

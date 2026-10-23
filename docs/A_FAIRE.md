@@ -52,6 +52,10 @@ ni vérifié à l'image** ; les derniers commits « wip » sont du travail non t
       pages FE-C de calibration sur la spécification ANT+.
 - [ ] Son : coureurs IA et trains muets ; FC max fixée à 190 (pas de réglage) ; pavés et gravier
       rarement entendus (itinéraires goudronnés).
+- [ ] Danseuse : retravailler la pose (buste au-dessus du cintre, vélo qui se balance, bras
+      tendus) et la déclencher en sortie quand le coureur se met debout : position assis / debout
+      des pédales à capteur qui la transmettent (dynamique de pédalage ANT+ « Cycling Dynamics »,
+      Garmin Rally / Vector ; à vérifier pour les Assioma), sinon cadence basse et forte puissance.
 - [ ] Vélos : cocottes et leviers de frein trop gros par rapport au cintre (familles route) ;
       les ramener à des proportions réelles.
 - [ ] Tenues : ajouter des gants (mitaines et gants longs) et des tenues à manches longues

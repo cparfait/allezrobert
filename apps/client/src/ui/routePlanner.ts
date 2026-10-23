@@ -169,6 +169,33 @@ export class RoutePlanner {
       .join('');
   }
 
+  /**
+   * Aperçu fixe de la zone (page principale du menu) : routes, lieux, et le tracé choisi ou le
+   * départ du roulage libre. '' sans monde ouvert.
+   */
+  preview(route: RouteData | null, start: { x: number; z: number } | null): string {
+    if (!this.open) return '';
+    const b = this.bounds;
+    // repères lisibles sur un aperçu d'environ 200 px de haut
+    const k = (b.w / 240).toFixed(3);
+    let line = '';
+    if (route) {
+      const step = Math.max(1, Math.floor(route.points.length / 1500));
+      line = `<path class="rp-route" d="${route.points
+        .filter((_, i) => i % step === 0 || i === route.points.length - 1)
+        .map((p, i) => `${i ? 'L' : 'M'}${p.x.toFixed(0)} ${p.z.toFixed(0)}`)
+        .join('')}"/>`;
+    }
+    const at = route?.points[0] ?? start ?? this.open.start;
+    const mk = `<g class="rp-mk rp-from" transform="translate(${at.x.toFixed(1)} ${at.z.toFixed(1)}) scale(${k})"><circle r="9"/><text y="4">D</text></g>`;
+    const towns = (this.open.places ?? [])
+      .filter((p) => p.kind !== 'hamlet')
+      .map((p) => `<g class="rp-place rp-village" transform="translate(${p.x.toFixed(0)} ${p.z.toFixed(0)}) scale(${k})"><circle r="3.2"/><text x="6" y="4">${esc(p.name)}</text></g>`)
+      .join('');
+    return `<svg class="rp-map rp-preview" viewBox="${b.x.toFixed(1)} ${b.z.toFixed(1)} ${b.w.toFixed(1)} ${b.h.toFixed(1)}" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+      <g class="rp-roads">${this.roads}</g>${line}<g class="rp-places">${towns}</g>${mk}</svg>`;
+  }
+
   /** Bloc complet : carte cliquable et panneau (consignes, chiffres, boutons). */
   html(routeCard: (r: RouteData) => string): string {
     if (!this.open) return '';

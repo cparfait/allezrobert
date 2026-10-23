@@ -433,3 +433,33 @@
 .at-gain em { font-style: normal; color: #f5a524; font-size: 11.5px; }
 .at-note { margin: 4px 0 0; font-size: 11px; color: #8d98a6; }
 @media (max-width: 1100px) { .at-stats { display: none; } .at-kit { grid-template-columns: 110px minmax(0, 1fr); } }
+
+/* Choisir ma sortie : un seul bouton, puis la carte de ce qui est choisi */
+.mm-pickers.mm-pickers-one { grid-template-columns: 1fr; }
+.mm-sel { appearance: none; display: block; width: 100%; margin: 0 0 6px; padding: 0; border-radius: 14px; border: 1px solid var(--mm-line); background: rgba(255, 255, 255, 0.04); color: inherit; font: inherit; text-align: left; cursor: pointer; overflow: hidden; transition: border-color 0.15s; }
+.mm-sel:hover { border-color: var(--ar-accent); }
+.mm-sel-head { display: flex; flex-direction: column; gap: 1px; padding: 10px 14px 8px; }
+.mm-sel-head small { font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ar-accent); }
+.mm-sel-head b { font-size: 15px; }
+.mm-sel-head span { font-size: 12px; color: #8d98a6; }
+.mm-sel .mm-routecard { margin: 0; border: 0; border-radius: 0; }
+.mm-selmap { background: #11161d; border-top: 1px solid var(--mm-line); }
+.mm-selmap .rp-map.rp-preview { height: 210px; pointer-events: none; }
+.zc-choice.zc-off { opacity: 0.45; cursor: not-allowed; }
+.zc-choice.zc-off:hover { border-color: var(--mm-line); transform: none; }
+
+/* Cartes de mode : couleur propre, pastille d'icône, nom et accroche */
+.mm-mode { --c: #ffd23f; position: relative; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 14px; padding: 12px 4px 10px; gap: 6px;
+  background: linear-gradient(165deg, color-mix(in srgb, var(--c) 13%, transparent), rgba(255, 255, 255, 0.025) 65%);
+  transition: transform 0.15s, border-color 0.15s, box-shadow 0.15s, background 0.15s; }
+.mm-mode .mm-mode-ico { width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center; color: var(--c);
+  background: color-mix(in srgb, var(--c) 18%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c) 40%, transparent); transition: background 0.15s, color 0.15s; }
+.mm-mode .mm-mode-ico svg { width: 20px; height: 20px; }
+.mm-mode b { font-size: 12.5px; color: #e8edf3; }
+.mm-mode small { font-size: 10px; font-weight: 600; color: #8d98a6; line-height: 1.2; }
+.mm-mode:hover { transform: translateY(-2px); border-color: color-mix(in srgb, var(--c) 50%, transparent); background: linear-gradient(165deg, color-mix(in srgb, var(--c) 20%, transparent), rgba(255, 255, 255, 0.04) 65%); }
+.mm-mode.on { border-color: var(--c); background: linear-gradient(165deg, color-mix(in srgb, var(--c) 30%, transparent), color-mix(in srgb, var(--c) 6%, transparent));
+  box-shadow: 0 8px 26px -10px color-mix(in srgb, var(--c) 80%, transparent), inset 0 0 0 1px var(--c); }
+.mm-mode.on .mm-mode-ico { background: var(--c); color: #0b0f16; box-shadow: 0 0 16px -2px color-mix(in srgb, var(--c) 70%, transparent); }
+.mm-mode.on small { color: color-mix(in srgb, var(--c) 70%, #ffffff); }
+.mm-mode.on .mm-mode-ico svg { color: #0b0f16; }
