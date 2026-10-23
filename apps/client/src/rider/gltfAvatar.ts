@@ -83,12 +83,13 @@ const FILES: readonly string[] = MPFB ? ['avatar/rider.glb', 'avatar/rider_lod1.
 const LOD_DISTANCES: readonly number[] = MPFB ? [0, 10, 30] : [0, 30];
 const WHEEL_R = 0.335;
 /**
- * Position chrono, par unité de « tuck » (rad) : surtout le bassin qui bascule vers l'avant (dos
- * plat), un peu la colonne et le thorax ; la tête se relève pour regarder la route.
+ * Buste penché (route et chrono), par unité de « tuck » (rad) : bassin, colonne et thorax se
+ * partagent la flexion (dos arrondi de cycliste ; par le seul bassin, il se creusait) ; la tête
+ * se relève pour regarder la route.
  */
-const TUCK_HIPS = 0.5;
-const TUCK_SPINE = 0.08;
-const TUCK_CHEST = 0.12;
+const TUCK_HIPS = 0.28;
+const TUCK_SPINE = 0.2;
+const TUCK_CHEST = 0.22;
 const TUCK_HEAD = 0.35;
 const X_AXIS = new THREE.Vector3(1, 0, 0);
 const Y_AXIS = new THREE.Vector3(0, 1, 0);
