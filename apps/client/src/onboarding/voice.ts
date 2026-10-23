@@ -1,30 +1,36 @@
 import { getLang } from '../i18n/index.ts';
-import { ONBOARDING_SCRIPT, plainText } from './script.ts';
+import { ONBOARDING_SCRIPT, plainText, spoken } from './script.ts';
 import { serverEndpoint } from '../game/multiplayer.ts';
 import { music } from '../audio/music.ts';
 
 /** Audio Cartesia déjà reçu (par texte et langue) : chaque réplique n'est téléchargée qu'une fois. */
 const audioCache = new Map<string, Promise<string | null>>();
 
-/** Texte prononcé : graphie phonétique des mots anglais en français (le sous-titre garde l'original). */
-function spoken(text: string, lang: 'fr' | 'en'): string {
-  if (lang !== 'fr') return text;
-  return text
-    .replace(/Garmin/g, 'Garmine')
-    .replace(/home[- ]trainers/gi, 'home traineurs')
-    .replace(/home[- ]trainer/gi, 'home traineur');
-}
+/**
+ * Répliques livrées avec le jeu (`public/voice/`, FR et EN, générées une fois pour toutes par
+ * `pnpm --filter @allezrobert/client voice`) : clé `langue|texte prononcé` → fichier. Seule une
+ * réplique modifiée sans régénération repart vers le serveur.
+ */
+let baked: Promise<Record<string, string>> | null = null;
+const bakedVoice = (): Promise<Record<string, string>> =>
+  (baked ??= fetch('/voice/index.json')
+    .then((r) => (r.ok ? (r.json() as Promise<Record<string, string>>) : {}))
+    .catch(() => ({})));
 
-/** Voix de qualité (Cartesia, via le serveur qui garde la clé) ; null si indisponible. */
+/** Voix de qualité (Cartesia) : fichier livré avec le jeu, sinon le serveur qui garde la clé ; null si indisponible. */
 function cartesiaUrl(display: string, lang: 'fr' | 'en'): Promise<string | null> {
   const text = spoken(display, lang);
   const key = `${lang}|${text}`;
   let p = audioCache.get(key);
   if (!p) {
-    const api = `${serverEndpoint().replace(/\/colyseus$/, '')}/api`;
-    p = fetch(`${api}/tts`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text, lang }) })
-      .then(async (r) => (r.ok ? URL.createObjectURL(await r.blob()) : null))
-      .catch(() => null);
+    p = bakedVoice().then((files) => {
+      const file = files[key];
+      if (file) return `/voice/${file}`;
+      const api = `${serverEndpoint().replace(/\/colyseus$/, '')}/api`;
+      return fetch(`${api}/tts`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text, lang }) })
+        .then(async (r) => (r.ok ? URL.createObjectURL(await r.blob()) : null))
+        .catch(() => null);
+    });
     audioCache.set(key, p);
   }
   return p;

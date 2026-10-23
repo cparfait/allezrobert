@@ -90,6 +90,15 @@ export const ONBOARDING_SCRIPT: Record<string, Line[]> = {
   ],
 };
 
+/** Texte prononcé : graphie phonétique des mots anglais en français (le sous-titre garde l'original). */
+export function spoken(text: string, lang: 'fr' | 'en'): string {
+  if (lang !== 'fr') return text;
+  return text
+    .replace(/\bGarmin\b/g, 'Garmine')
+    .replace(/\bhome[- ]trainers\b/gi, 'home traineurs')
+    .replace(/\bhome[- ]trainer\b/gi, 'home traineur');
+}
+
 /** Texte affiché (sous-titres, voix du système) : sans les balises Cartesia. */
 export function plainText(text: string): string {
   return text.replace(/<[^>]*>/g, '').replace(/\s{2,}/g, ' ').trim();
