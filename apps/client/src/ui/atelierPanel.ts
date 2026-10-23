@@ -202,9 +202,9 @@ export class AtelierPanel {
     this.host.scene({ look, focus: this.focus(), rider: this.rider, yaw: this.yaw, ...(pulse ? { pulse } : {}) });
   }
 
+  /** Sortie de l'atelier : la pièce sélectionnée le reste (de nouveau essayée au retour). */
   leave(): void {
     this.hover = null;
-    this.selected = null;
     this.host.scene(null);
   }
 
@@ -360,6 +360,8 @@ export class AtelierPanel {
 
   bind(root: HTMLElement): void {
     const q = <T extends HTMLElement>(sel: string) => root.querySelectorAll<T>(sel);
+    // Pièce sélectionnée (p. ex. au retour dans l'atelier) : visible dans la liste.
+    root.querySelector('.at-item.sel, .at-kit.sel')?.scrollIntoView({ block: 'nearest' });
     q('[data-atfam]').forEach((el) =>
       el.addEventListener('click', () => {
         this.family = el.dataset.atfam as TuneFamily;
@@ -400,6 +402,13 @@ export class AtelierPanel {
       });
       el.addEventListener('click', (e) => {
         if ((e.target as HTMLElement).closest('[data-atbuy],[data-atkit]')) return;
+        // Pièce possédée et pas encore montée : montée directement.
+        const t = tuneItem(id);
+        const p = loadProgress();
+        if (t && t.family !== 'kit' && t.slot && p.owned.includes(id) && p.equipped[t.slot] !== id && equipTune(t, this.s)) {
+          this.done(t, fr() ? `${t.name.fr} monté.` : `${t.name.en} fitted.`);
+          return;
+        }
         this.selected = this.selected === id ? null : id;
         this.msg = '';
         this.emit(this.pulseOf(id));
