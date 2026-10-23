@@ -2,7 +2,7 @@ import * as THREE from 'three/webgpu';
 import { BASE_PROFILES, BIKES, DEFAULT_LOOK, FACE_SLIDERS, encodeFace, profileLook, type AvatarLook, type BikeModel, type FaceShape } from '@allezrobert/shared';
 import { createEngine } from './engine/renderer.ts';
 import { QUALITY_PRESETS, type QualityLevel } from './engine/quality.ts';
-import { GltfRiderAvatar, TUCK, type RiderPose } from './rider/gltfAvatar.ts';
+import { GltfRiderAvatar, type RiderPose } from './rider/gltfAvatar.ts';
 
 /**
  * Banc d'essai (développement) : /avatar-test.html rend l'avatar glTF qui pédale sur un sol uni
@@ -44,21 +44,6 @@ async function main(): Promise<void> {
   // ?posecheck=/__pose/a.jpg,/__pose/b.jpg : mesures de posture sur des photos (dev/poseCheck.ts).
   if (params.has('posecheck')) return (await import('./dev/poseCheck.ts')).poseSheet((params.get('posecheck') ?? '').split(',').filter(Boolean));
   const ok = await GltfRiderAvatar.load();
-  if (params.has('neck')) GltfRiderAvatar.neckLift = Number(params.get('neck'));
-  if (params.has('mid')) GltfRiderAvatar.midBack = Number(params.get('mid'));
-  if (params.has('chestb')) GltfRiderAvatar.chestBack = Number(params.get('chestb'));
-  if (params.has('lumbar')) GltfRiderAvatar.lumbarRound = Number(params.get('lumbar'));
-  if (params.has('grip')) GltfRiderAvatar.gripBack = Number(params.get('grip'));
-  if (params.has('seat')) GltfRiderAvatar.seatBack = Number(params.get('seat'));
-  // &split=hanches,colonne,thorax : répartition de la bascule du buste.
-  if (params.has('split')) {
-    const [h, sp, c] = (params.get('split') ?? '').split(',').map(Number);
-    Object.assign(TUCK, { hips: h, spine: sp, chest: c });
-  }
-  if (params.has('tuck')) GltfRiderAvatar.roadTuck = Number(params.get('tuck'));
-  if (params.has('necklen')) GltfRiderAvatar.neckLength = Number(params.get('necklen'));
-  if (params.has('clavf')) GltfRiderAvatar.clavForward = Number(params.get('clavf'));
-  if (params.has('clavd')) GltfRiderAvatar.clavDown = Number(params.get('clavd'));
   log.textContent = ok ? 'modèles chargés' : 'ÉCHEC du chargement';
   if (!ok) return;
   if (params.has('bikes')) return bikeSheet(engine, params.get('bikes') ?? '');

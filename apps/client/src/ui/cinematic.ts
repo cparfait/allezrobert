@@ -203,10 +203,6 @@ export async function runCinematic(engine: Engine, world: World, track: RouteTra
   // Niveau de détail maximal à toute distance : au téléobjectif, un coureur lointain occupe une
   // grande part de l'image (et le visage ne s'anime qu'au premier niveau).
   GltfRiderAvatar.lodScale = 1000;
-  // Essais de pose (&neck=, &clavf=, &clavd= en radians).
-  if (params.has('neck')) GltfRiderAvatar.neckLift = Number(params.get('neck'));
-  if (params.has('clavf')) GltfRiderAvatar.clavForward = Number(params.get('clavf'));
-  if (params.has('clavd')) GltfRiderAvatar.clavDown = Number(params.get('clavd'));
   const riders: RiderAvatarLike[] = SLOTS.map((_, i) => {
     const a = createAvatar(lookFor(i));
     a.setShadows(true);
