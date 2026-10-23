@@ -77,6 +77,13 @@ export class RoutePlanner {
       minZ = Math.min(minZ, n[i + 2] as number);
       maxZ = Math.max(maxZ, n[i + 2] as number);
     }
+    // toute la zone roulable, même sans route (la mer d'une zone côtière, une forêt au bord)
+    for (const a of open.areas ?? []) {
+      minX = Math.min(minX, a.minX);
+      maxX = Math.max(maxX, a.maxX);
+      minZ = Math.min(minZ, a.minZ);
+      maxZ = Math.max(maxZ, a.maxZ);
+    }
     const m = Math.max(maxX - minX, maxZ - minZ) * 0.03;
     this.bounds = { x: minX - m, z: minZ - m, w: maxX - minX + 2 * m, h: maxZ - minZ + 2 * m };
     this.view = { ...this.bounds };
