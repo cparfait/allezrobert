@@ -1,7 +1,15 @@
 /** Mondes générés par tools/terrain (dossiers public/worlds/<id>/), dans l'ordre du menu. */
 export const WORLD_LIST: Array<{ id: string; name: { fr: string; en: string }; hint: { fr: string; en: string } }> = [
   { id: 'chevreuse', name: { fr: 'Vallée de Chevreuse', en: 'Chevreuse Valley' }, hint: { fr: 'Saclay, Chevreuse, Rambouillet', en: 'Saclay, Chevreuse, Rambouillet' } },
+  { id: 'longchamp', name: { fr: 'Paris — Longchamp', en: 'Paris — Longchamp' }, hint: { fr: 'L’anneau du bois de Boulogne', en: 'The Bois de Boulogne loop' } },
+  { id: 'vincennes', name: { fr: 'Paris — Vincennes', en: 'Paris — Vincennes' }, hint: { fr: 'Le tour de l’hippodrome', en: 'The racecourse loop' } },
   { id: 'limagne', name: { fr: 'Limagne — Neuville', en: 'Limagne — Neuville' }, hint: { fr: 'Monde ouvert, Puy-de-Dôme', en: 'Open world, Puy-de-Dôme' } },
+  { id: 'billom', name: { fr: 'Limagne — Billom', en: 'Limagne — Billom' }, hint: { fr: 'Boucle billomoise, vers l’Allier', en: 'Billom cycle network, to the Allier' } },
+  { id: 'comte', name: { fr: 'Comté — Châteaux perchés', en: 'Comté — Hilltop castles' }, hint: { fr: 'Laps, Saint-Babel, Sallèdes · 65 km', en: 'Laps, Saint-Babel, Sallèdes · 65 km' } },
+  { id: 'livradois', name: { fr: 'Livradois — Châteaux', en: 'Livradois — Castles' }, hint: { fr: 'Glaine, Trézioux, Lezoux · 81 km', en: 'Glaine, Trézioux, Lezoux · 81 km' } },
+  { id: 'puys', name: { fr: 'Chaîne des Puys', en: 'Chaîne des Puys' }, hint: { fr: 'Boucle des Dômes, Orcines · 83 km', en: 'Dômes loop, Orcines · 83 km' } },
+  { id: 'issoire', name: { fr: "Val d'Allier — Issoire", en: "Val d'Allier — Issoire" }, hint: { fr: 'Usson, Sauxillanges · 61 km', en: 'Usson, Sauxillanges · 61 km' } },
+  { id: 'sancy', name: { fr: 'Massif du Sancy', en: 'Sancy massif' }, hint: { fr: 'Tour du Sancy, Chaudefour · 75 km', en: 'Sancy loop, Chaudefour · 75 km' } },
   { id: 'alpe-dhuez', name: { fr: "Alpe d'Huez", en: "Alpe d'Huez" }, hint: { fr: '21 lacets', en: '21 hairpins' } },
   { id: 'mont-ventoux', name: { fr: 'Mont Ventoux', en: 'Mont Ventoux' }, hint: { fr: 'Par Bédoin', en: 'From Bédoin' } },
 ];

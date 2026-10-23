@@ -269,6 +269,134 @@ export const WORLDS: Record<string, WorldConfig> = {
       },
     },
   },
+  longchamp: {
+    kind: 'open',
+    id: 'longchamp',
+    name: 'Paris — Longchamp',
+    region: 'Paris · Bois de Boulogne',
+    // anneau cyclable de Longchamp (relation OSM 163270), l'entraînement des cyclistes parisiens
+    originL93: { x: 644000, y: 6862000 },
+    // 6 × 6 km autour de l'hippodrome
+    corridorTiles: { txMin: -3, txMax: 2, tzMin: -3, tzMax: 2 },
+    start: { lon: 2.23242, lat: 48.86356 },
+    orthoPx: 1024,
+    enrich: { radiusM: 50, lidarVegetation: true, bdtopoBuildings: true },
+    horizon: { halfSizeM: 20000, resM: 100 },
+    tours: [
+      {
+        routeId: 'anneau-de-longchamp',
+        routeName: "L'anneau de Longchamp",
+        routeNameEn: 'The Longchamp loop',
+        // points relevés sur l'anneau autour de l'hippodrome (vue aérienne), sens horaire
+        start: { lon: 2.23242, lat: 48.86356 },
+        via: [{ lon: 2.23763, lat: 48.86144 }, { lon: 2.23742, lat: 48.85676 }, { lon: 2.23709, lat: 48.85172 }, { lon: 2.23231, lat: 48.85223 }, { lon: 2.22883, lat: 48.85706 }],
+      },
+    ],
+  },
+  vincennes: {
+    kind: 'open',
+    id: 'vincennes',
+    name: 'Paris — Vincennes',
+    region: 'Paris · Bois de Vincennes',
+    // tour de l'hippodrome de Vincennes, dans le bois (routes de la Pyramide, de la Ferme…)
+    originL93: { x: 660000, y: 6858000 },
+    // 6 × 6 km autour de l'hippodrome
+    corridorTiles: { txMin: -3, txMax: 2, tzMin: -3, tzMax: 2 },
+    start: { lon: 2.44902, lat: 48.8275 },
+    orthoPx: 1024,
+    enrich: { radiusM: 50, lidarVegetation: true, bdtopoBuildings: true },
+    horizon: { halfSizeM: 20000, resM: 100 },
+    tours: [
+      {
+        routeId: 'tour-hippodrome-vincennes',
+        routeName: "Le tour de l'hippodrome de Vincennes",
+        routeNameEn: 'Vincennes racecourse loop',
+        // points relevés sur l'anneau autour de l'hippodrome (vue aérienne), sens horaire
+        start: { lon: 2.44902, lat: 48.8275 },
+        via: [{ lon: 2.45639, lat: 48.82529 }, { lon: 2.45533, lat: 48.82244 }, { lon: 2.44718, lat: 48.82043 }, { lon: 2.44446, lat: 48.82074 }, { lon: 2.44346, lat: 48.82487 }],
+      },
+    ],
+  },
+  puys: {
+    kind: 'open',
+    id: 'puys',
+    name: 'Chaîne des Puys',
+    region: 'Puy-de-Dôme · Volcans',
+    // circuit vélo « La boucle des Dômes » du Département (relation OSM 9298890, 83 km) : Orcines, Mazaye, Saint-Ours
+    originL93: { x: 694000, y: 6525000 },
+    // 20 × 20 km : E 684–704 km, N 6 515–6 535 km
+    corridorTiles: { txMin: -10, txMax: 9, tzMin: -10, tzMax: 9 },
+    start: { lon: 2.81743, lat: 45.86641 },
+    orthoPx: 1024,
+    enrich: { radiusM: 50, lidarVegetation: true, bdtopoBuildings: true },
+    horizon: { halfSizeM: 45000, resM: 100 },
+    tours: [
+      {
+        // points relevés sur le circuit balisé (tous les ≈ 7 km, dans l'ordre)
+        routeId: 'boucle-des-domes',
+        routeName: 'La boucle des Dômes par Orcines et Saint-Ours',
+        routeNameEn: 'The Dômes loop via Orcines and Saint-Ours',
+        start: { lon: 2.81743, lat: 45.86641 },
+        via: [{ lon: 2.83706, lat: 45.89544 }, { lon: 2.89221, lat: 45.86969 }, { lon: 2.89025, lat: 45.82844 }, { lon: 2.88216, lat: 45.7862 }, { lon: 2.94478, lat: 45.81045 }, { lon: 3.00957, lat: 45.80739 }, { lon: 3.0096, lat: 45.77327 }, { lon: 2.93365, lat: 45.76392 }, { lon: 2.86577, lat: 45.74867 }, { lon: 2.84285, lat: 45.78763 }, { lon: 2.8543, lat: 45.8434 }],
+      },
+    ],
+  },
+  issoire: {
+    kind: 'open',
+    id: 'issoire',
+    name: "Val d'Allier — Issoire",
+    region: "Puy-de-Dôme · Val d'Allier",
+    // circuit vélo « Châteaux et villages au pays de la reine Margot » (relation OSM 9288365, 62 km) : Usson, Sauxillanges
+    originL93: { x: 731000, y: 6491000 },
+    // 18 × 10 km : E 722–740 km, N 6 486–6 496 km
+    corridorTiles: { txMin: -9, txMax: 8, tzMin: -5, tzMax: 4 },
+    start: { lon: 3.29166, lat: 45.52324 },
+    orthoPx: 1024,
+    enrich: { radiusM: 50, lidarVegetation: true, bdtopoBuildings: true },
+    horizon: { halfSizeM: 45000, resM: 100 },
+    tours: [
+      {
+        // points relevés sur le circuit balisé (tous les ≈ 7 km, dans l'ordre)
+        routeId: 'pays-de-la-reine-margot',
+        routeName: 'Usson et Sauxillanges, au pays de la reine Margot',
+        routeNameEn: 'Usson and Sauxillanges, Queen Margot country',
+        start: { lon: 3.29166, lat: 45.52324 },
+        via: [{ lon: 3.33952, lat: 45.52297 }, { lon: 3.38277, lat: 45.55248 }, { lon: 3.44739, lat: 45.55565 }, { lon: 3.49606, lat: 45.54257 }, { lon: 3.46706, lat: 45.50026 }, { lon: 3.43041, lat: 45.49956 }, { lon: 3.3852, lat: 45.50619 }, { lon: 3.33723, lat: 45.48716 }],
+      },
+    ],
+  },
+  sancy: {
+    kind: 'open',
+    id: 'sancy',
+    name: 'Massif du Sancy',
+    region: 'Puy-de-Dôme · Monts Dore',
+    // circuits vélo « Tour du Sancy » (relation OSM 9256766, 78 km) et « La vallée de Chaudefour » (relation OSM 20370189, 38 km)
+    originL93: { x: 686000, y: 6491000 },
+    // 22 × 15 km : E 675–697 km, N 6 484–6 499 km
+    corridorTiles: { txMin: -11, txMax: 10, tzMin: -8, tzMax: 6 },
+    start: { lon: 2.79246, lat: 45.57967 },
+    orthoPx: 1024,
+    enrich: { radiusM: 50, lidarVegetation: true, bdtopoBuildings: true },
+    horizon: { halfSizeM: 45000, resM: 100 },
+    tours: [
+      {
+        // points relevés sur le circuit balisé (tous les ≈ 7 km, dans l'ordre)
+        routeId: 'tour-du-sancy',
+        routeName: "Le tour du Sancy par La Tour-d'Auvergne et Besse",
+        routeNameEn: "Sancy loop via La Tour-d'Auvergne and Besse",
+        start: { lon: 2.79246, lat: 45.57967 },
+        via: [{ lon: 2.75025, lat: 45.55761 }, { lon: 2.69341, lat: 45.53459 }, { lon: 2.72165, lat: 45.4905 }, { lon: 2.77884, lat: 45.46129 }, { lon: 2.85583, lat: 45.47633 }, { lon: 2.90037, lat: 45.48681 }, { lon: 2.92847, lat: 45.51512 }, { lon: 2.90017, lat: 45.54658 }, { lon: 2.87332, lat: 45.55967 }, { lon: 2.82011, lat: 45.57062 }],
+      },
+      {
+        // points relevés sur le circuit balisé
+        routeId: 'vallee-de-chaudefour',
+        routeName: 'La vallée de Chaudefour par Murol',
+        routeNameEn: 'Chaudefour valley via Murol',
+        start: { lon: 2.92806, lat: 45.57444 },
+        via: [{ lon: 2.8701, lat: 45.55575 }, { lon: 2.91587, lat: 45.5404 }],
+      },
+    ],
+  },
   limagne: {
     kind: 'open',
     id: 'limagne',
@@ -291,6 +419,135 @@ export const WORLDS: Record<string, WorldConfig> = {
         routeNameEn: 'Neuville loop',
         start: 'Neuville',
         via: ['Glaine', 'Égliseneuve-près-Billom', 'Bongheat'],
+      },
+    ],
+  },
+  billom: {
+    kind: 'open',
+    id: 'billom',
+    name: 'Limagne — Billom',
+    region: 'Puy-de-Dôme · Limagne',
+    // Billom (63160), cité médiévale au bord de la Limagne, et les liaisons balisées de la « Boucle
+    // billomoise » vers l'Allier (Pont-du-Château, Cournon, Mur-sur-Allier, Pérignat)
+    originL93: { x: 722000, y: 6515000 },
+    // 15 × 15 km : E 714–729 km, N 6 508–6 523 km
+    corridorTiles: { txMin: -8, txMax: 6, tzMin: -8, tzMax: 6 },
+    start: { lon: 3.3287, lat: 45.7272 },
+    orthoPx: 1024,
+    // toute l'emprise : arbres et haies LiDAR HD, bâtiments (hauteurs, toits) et voies BD TOPO
+    enrich: { radiusM: 50, lidarVegetation: true, bdtopoBuildings: true },
+    // Chaîne des Puys à l'ouest, Livradois et Forez à l'est
+    horizon: { halfSizeM: 45000, resM: 100 },
+    tours: [
+      {
+        routeId: 'tour-de-billom',
+        routeName: 'Boucle de Billom par Saint-Julien-de-Coppel et Montmorin',
+        routeNameEn: 'Billom loop via Saint-Julien-de-Coppel and Montmorin',
+        start: 'Billom',
+        via: ['Saint-Julien-de-Coppel', 'Montmorin', 'Reignat'],
+      },
+      {
+        // « Boucle billomoise » n° 1 (balisée, Pont-du-Château – Billom, 15.7 km) : aller par le tracé balisé, retour au plus court
+        routeId: 'boucle-billomoise-1',
+        routeName: 'Billom – Pont-du-Château par Vertaizon',
+        routeNameEn: 'Billom – Pont-du-Château via Vertaizon',
+        start: { lon: 3.33002, lat: 45.72318 },
+        via: [{ lon: 3.33478, lat: 45.72595 }, { lon: 3.32371, lat: 45.75799 }, { lon: 3.29349, lat: 45.78383 }, { lon: 3.25829, lat: 45.79483 }],
+      },
+      {
+        // « Boucle billomoise » n° 2 (balisée, Cournon – Billom, 14.5 km) : aller par le tracé balisé, retour au plus court
+        routeId: 'boucle-billomoise-2',
+        routeName: 'Billom – Le Cendre par Pérignat-sur-Allier',
+        routeNameEn: 'Billom – Le Cendre via Pérignat-sur-Allier',
+        start: { lon: 3.33002, lat: 45.72318 },
+        via: [{ lon: 3.28788, lat: 45.7246 }, { lon: 3.24669, lat: 45.72918 }, { lon: 3.22602, lat: 45.72967 }, { lon: 3.18922, lat: 45.724 }],
+      },
+      {
+        // « Boucle billomoise » n° 6 (balisée, Cournon – Billom, 11.7 km) : aller par le tracé balisé, retour au plus court
+        routeId: 'boucle-billomoise-6',
+        routeName: 'Billom – Pérignat-sur-Allier',
+        routeNameEn: 'Billom – Pérignat-sur-Allier',
+        start: { lon: 3.32418, lat: 45.71948 },
+        via: [{ lon: 3.29285, lat: 45.73309 }, { lon: 3.25665, lat: 45.73244 }, { lon: 3.21379, lat: 45.72943 }],
+      },
+      {
+        // « Boucle billomoise » n° 7 (balisée, Mur-sur-Allier – Billom, 12.6 km) : aller par le tracé balisé, retour au plus court
+        routeId: 'boucle-billomoise-7',
+        routeName: 'Billom – Mur-sur-Allier',
+        routeNameEn: 'Billom – Mur-sur-Allier',
+        start: { lon: 3.33478, lat: 45.72595 },
+        via: [{ lon: 3.31404, lat: 45.74585 }, { lon: 3.26987, lat: 45.74168 }, { lon: 3.24054, lat: 45.74894 }],
+      },
+      {
+        // « Boucle billomoise » n° 5 (balisée, Pérignat-sur-Allier – Chignat, 5.7 km) : aller par le tracé balisé, retour au plus court
+        routeId: 'boucle-billomoise-5',
+        routeName: 'Chauriat – Pérignat par Saint-Bonnet-lès-Allier',
+        routeNameEn: 'Chauriat – Pérignat via Saint-Bonnet-lès-Allier',
+        start: { lon: 3.27971, lat: 45.7519 },
+        via: [{ lon: 3.25594, lat: 45.74144 }, { lon: 3.23069, lat: 45.72951 }],
+      },
+    ],
+  },  comte: {
+    kind: 'open',
+    id: 'comte',
+    name: 'Comté — Villages et châteaux perchés',
+    region: 'Puy-de-Dôme · Comté',
+    // circuit vélo n° 8 du Département (« Planète Puy-de-Dôme », relation OSM 9263590, 63 km) :
+    // Vic-le-Comte, Busséol, Mirefleurs, Saint-Babel… ; emprise du circuit + 0,5 à 1,5 km
+    originL93: { x: 720000, y: 6507000 },
+    // 16 × 15 km : E 712–728 km, N 6 499–6 514 km
+    corridorTiles: { txMin: -8, txMax: 7, tzMin: -7, tzMax: 7 },
+    start: { lon: 3.27196, lat: 45.71128 },
+    orthoPx: 1024,
+    enrich: { radiusM: 50, lidarVegetation: true, bdtopoBuildings: true },
+    horizon: { halfSizeM: 45000, resM: 100 },
+    tours: [
+      {
+        routeId: 'circuit-de-la-comte',
+        routeName: 'Les châteaux perchés de la Comté',
+        routeNameEn: 'The hilltop castles of the Comté',
+        // départ et points de passage relevés sur le circuit balisé (tous les ≈ 7 km, dans l'ordre)
+        start: { lon: 3.27196, lat: 45.71128 },
+        via: [{ lon: 3.25918, lat: 45.66884 }, { lon: 3.19488, lat: 45.6558 }, { lon: 3.19436, lat: 45.62422 }, { lon: 3.24665, lat: 45.61453 }, { lon: 3.30297, lat: 45.60013 }, { lon: 3.29532, lat: 45.63989 }, { lon: 3.32841, lat: 45.65006 }, { lon: 3.32715, lat: 45.68532 }],
+      },
+    ],
+  },
+  livradois: {
+    kind: 'open',
+    id: 'livradois',
+    name: 'Livradois — Les châteaux du Livradois',
+    region: 'Puy-de-Dôme · Livradois',
+    // circuit vélo n° 4 du Département (« Planète Puy-de-Dôme », relation OSM 9266032, 78 km)
+    originL93: { x: 733000, y: 6519000 },
+    // 14 × 23 km : E 726–740 km, N 6 508–6 531 km
+    corridorTiles: { txMin: -7, txMax: 6, tzMin: -12, tzMax: 10 },
+    start: { lon: 3.41119, lat: 45.77036 },
+    orthoPx: 1024,
+    enrich: { radiusM: 50, lidarVegetation: true, bdtopoBuildings: true },
+    horizon: { halfSizeM: 45000, resM: 100 },
+    tours: [
+      {
+        routeId: 'circuit-du-livradois',
+        routeName: 'Les châteaux du Livradois',
+        routeNameEn: 'The castles of the Livradois',
+        start: { lon: 3.41119, lat: 45.77036 },
+        via: [{ lon: 3.39563, lat: 45.75725 }, { lon: 3.36052, lat: 45.72274 }, { lon: 3.37545, lat: 45.68595 }, { lon: 3.42426, lat: 45.67975 }, { lon: 3.46726, lat: 45.71882 }, { lon: 3.49657, lat: 45.76373 }, { lon: 3.47029, lat: 45.79497 }, { lon: 3.49392, lat: 45.84224 }, { lon: 3.45267, lat: 45.85719 }, { lon: 3.38947, lat: 45.84581 }, { lon: 3.41216, lat: 45.80447 }],
+      },
+      {
+        // « Boucle billomoise » n° 4 (balisée, Saint-Dier-d\'Auvergne – Billom, 18.1 km) : aller par le tracé balisé, retour au plus court
+        routeId: 'boucle-billomoise-4',
+        routeName: "Billom – Saint-Dier-d'Auvergne par Fayet-le-Château",
+        routeNameEn: "Billom – Saint-Dier-d'Auvergne via Fayet-le-Château",
+        start: { lon: 3.33922, lat: 45.72924 },
+        via: [{ lon: 3.37622, lat: 45.71625 }, { lon: 3.40266, lat: 45.70458 }, { lon: 3.42639, lat: 45.69158 }, { lon: 3.44326, lat: 45.67787 }, { lon: 3.48125, lat: 45.67599 }],
+      },
+      {
+        // « Boucle billomoise » n° 8 (balisée, Lezoux – Billom, 11.6 km) : aller par le tracé balisé, retour au plus court
+        routeId: 'boucle-billomoise-8',
+        routeName: 'Billom – Lezoux',
+        routeNameEn: 'Billom – Lezoux',
+        start: { lon: 3.34424, lat: 45.73393 },
+        via: [{ lon: 3.35565, lat: 45.76497 }, { lon: 3.36659, lat: 45.79767 }, { lon: 3.37945, lat: 45.82821 }],
       },
     ],
   },
