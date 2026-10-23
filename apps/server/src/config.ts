@@ -63,7 +63,7 @@ export const ConfigSchema = z.object({
   CARTESIA_API_KEY: optionalString,
   CARTESIA_MODEL: z.string().default('sonic-2'),
   /** Voix : Henri (« Express Host ») en français, Jameson (« Easygoing Support ») en anglais. */
-  CARTESIA_VOICE_FR: z.string().default('6b7162a4-aecd-4aae-a7fd-3f59a8e26137'),
+  CARTESIA_VOICE_FR: z.string().default('5def377d-908b-4540-8bd7-3c968fcae351'),
   CARTESIA_VOICE_EN: z.string().default('a5136bf9-224c-4d76-b823-52bd5efcffcc'),
   /** Cache disque des répliques synthétisées (une même phrase n'est générée qu'une fois). */
   TTS_CACHE_DIR: z.string().default('./tts-cache'),
