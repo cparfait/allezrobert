@@ -1,6 +1,6 @@
 import type { AvatarLook, CosmeticItem, RouteData, RouteSegment, WorldCatalogue } from '@allezrobert/shared';
 import { readKomRecord } from '../game/challenge.ts';
-import { BIKE_GROUPS, BIKE_TEAMS, COSMETICS, DEFAULT_BIKE, bikeById, bikeSetupFor, levelProgress, SHOE_MARKS, type BikeCollection, type BikeType, type CosmeticSlot } from '@allezrobert/shared';
+import { BIKE_BRANDS, BIKE_GROUPS, BIKE_TEAMS, COSMETICS, DEFAULT_BIKE, bikeById, bikeSetupFor, levelProgress, SHOE_MARKS, type BikeCollection, type BikeType, type CosmeticSlot } from '@allezrobert/shared';
 import { shoeAccentOf } from '../rider/shoeLook.ts';
 import { WORKOUT_LIBRARY } from '@allezrobert/physics';
 import { formatBytes, installPack, loadCatalogue, packState, removePack } from '../world/packs.ts';
@@ -128,6 +128,12 @@ const BIKE_TYPE_ORDER: BikeType[] = ['aero', 'climbing', 'classic', 'tt', 'track
 /** Équipe (saison 2026 : plusieurs équipes roulent le même modèle) ou collection d'un vélo. */
 function bikeFrom(group: string, lang: 'fr' | 'en'): string | undefined {
   return BIKE_TEAMS.find((t) => t.id === group)?.name ?? BIKE_GROUPS.find((g) => g.id === group)?.name[lang];
+}
+
+/** Marque d'un vélo (nom affiché), pour classer la liste. */
+function brandName(id: string): string {
+  const brand = bikeById(id)?.brand;
+  return BIKE_BRANDS.find((b) => b.id === brand)?.name ?? brand ?? '';
 }
 
 /**
@@ -992,12 +998,27 @@ export class MainMenu {
     return COSMETICS.filter((c) => c.slot === this.garageSlot);
   }
 
-  /** Vélos de la collection choisie (ou débloqués), par niveau puis par groupe. */
+  /** Vélos de la collection choisie (ou débloqués), par marque, puis par niveau et par groupe. */
   private bikesInCollection(level: number): CosmeticItem[] {
     const group = (id: string) => BIKE_GROUPS.findIndex((g) => g.id === bikeById(id)?.group);
     return COSMETICS.filter((c) => c.slot === 'bike')
       .filter((c) => (this.bikeFilter === 'unlocked' ? c.level <= level : bikeById(c.id)?.collection === this.bikeFilter))
-      .sort((a, b) => a.level - b.level || group(a.id) - group(b.id) || a.name.fr.localeCompare(b.name.fr));
+      .sort((a, b) => brandName(a.id).localeCompare(brandName(b.id), 'fr') || a.level - b.level || group(a.id) - group(b.id) || a.name.fr.localeCompare(b.name.fr));
+  }
+
+  /** Lignes des vélos (déjà triés par marque), un intertitre par marque. */
+  private bikeRowsByBrand(list: CosmeticItem[], row: (c: CosmeticItem) => string): string {
+    let out = '';
+    let last: string | undefined;
+    for (const c of list) {
+      const brand = brandName(c.id);
+      if (brand !== last) {
+        out += `<h5 class="mm-bl-brand">${esc(brand)}<span>${list.filter((x) => brandName(x.id) === brand).length}</span></h5>`;
+        last = brand;
+      }
+      out += row(c);
+    }
+    return out;
   }
 
   /**
@@ -1022,8 +1043,8 @@ export class MainMenu {
       ).join('')}</div>
       ${types.length > 1 ? `<div class="mm-biketypes" role="radiogroup">${chip('all', L ? 'Tous' : 'All', all.length)}${types.map((ty) => chip(ty, BIKE_TYPE[ty][L ? 0 : 1], all.filter((c) => bikeById(c.id)?.type === ty).length)).join('')}</div>` : ''}
       <div class="mm-bikelist">
-        ${open.length || plain ? `<h4 class="mm-bl-head">${L ? 'Disponibles' : 'Available'}<span>${open.length + (plain ? 1 : 0)}</span></h4>${plain ? this.plainBikeHtml() : ''}${open.map(row).join('')}` : ''}
-        ${locked.length ? `<h4 class="mm-bl-head">${L ? 'À débloquer en roulant' : 'Unlock by riding'}<span>${locked.length}</span></h4>${locked.map(row).join('')}` : ''}
+        ${open.length || plain ? `<h4 class="mm-bl-head">${L ? 'Disponibles' : 'Available'}<span>${open.length + (plain ? 1 : 0)}</span></h4>${plain ? this.plainBikeHtml() : ''}${this.bikeRowsByBrand(open, row)}` : ''}
+        ${locked.length ? `<h4 class="mm-bl-head">${L ? 'À débloquer en roulant' : 'Unlock by riding'}<span>${locked.length}</span></h4>${this.bikeRowsByBrand(locked, row)}` : ''}
       </div>`;
   }
 

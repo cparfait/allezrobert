@@ -1,9 +1,9 @@
 /**
- * Atelier : catalogue des 100 pièces et décors du vélo (tuning.json), ensembles (kits),
+ * Atelier : catalogue des 101 pièces et décors du vélo (tuning.json), ensembles (kits),
  * crédits et récompenses d'événements. Partagé client / serveur : le serveur valide les achats
  * et l'équipement avec ces mêmes fonctions (jamais avec des valeurs envoyées par le client).
  *
- * Familles : pièces techniques (25), peintures et livrées (25), roues et effets (15),
+ * Familles : pièces techniques (26), peintures et livrées (25), roues et effets (15),
  * accessoires (15), ensembles (10), récompenses d'événements (10, non achetables).
  * Chaque pièce a un emplacement (une seule par emplacement) ; un ensemble regroupe des pièces.
  * L'effet physique (`perf`) est appliqué et plafonné par @allezrobert/physics (tuning.ts).
