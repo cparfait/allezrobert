@@ -184,6 +184,34 @@
    "open": true
   },
   {
+   "id": "esterel",
+   "name": "Corniche de l'Estérel",
+   "region": "Var · Estérel",
+   "routes": [
+    {
+     "id": "corniche-de-l-esterel",
+     "name": "La corniche de l'Estérel par Agay et Valescure",
+     "nameEn": "Estérel corniche via Agay and Valescure",
+     "lengthM": 24258.81,
+     "elevationGainM": 291.02,
+     "loop": true
+    }
+   ],
+   "pack": {
+    "version": "ff87f74d76d1",
+    "bytes": 206981438,
+    "files": 469,
+    "gzBytes": 70757029
+   },
+   "l93": {
+    "minE": 1003000,
+    "minN": 6262000,
+    "maxE": 1016000,
+    "maxN": 6271000
+   },
+   "open": true
+  },
+  {
    "id": "etretat",
    "name": "Étretat — Côte d'Albâtre",
    "region": "Seine-Maritime · Pays de Caux",
@@ -192,16 +220,16 @@
      "id": "falaises-d-etretat",
      "name": "Les falaises d'Étretat par Bénouville et Le Tilleul",
      "nameEn": "Étretat cliffs via Bénouville and Le Tilleul",
-     "lengthM": 27079.1,
-     "elevationGainM": 350.31,
+     "lengthM": 22558.22,
+     "elevationGainM": 267.72,
      "loop": true
     }
    ],
    "pack": {
-    "version": "85faf22b630c",
-    "bytes": 103160285,
+    "version": "538d3658a7cb",
+    "bytes": 103311416,
     "files": 485,
-    "gzBytes": 40058966
+    "gzBytes": 40097086
    },
    "l93": {
     "minE": 495000,
@@ -395,6 +423,34 @@
    }
   },
   {
+   "id": "opale",
+   "name": "Côte d'Opale — Les deux caps",
+   "region": "Pas-de-Calais · Côte d'Opale",
+   "routes": [
+    {
+     "id": "les-deux-caps",
+     "name": "Les caps Blanc-Nez et Gris-Nez par Wissant",
+     "nameEn": "Cap Blanc-Nez and Cap Gris-Nez via Wissant",
+     "lengthM": 37616.04,
+     "elevationGainM": 576.14,
+     "loop": true
+    }
+   ],
+   "pack": {
+    "version": "819e6279ea7b",
+    "bytes": 121380053,
+    "files": 625,
+    "gzBytes": 41553452
+   },
+   "l93": {
+    "minE": 599000,
+    "minN": 7083000,
+    "maxE": 612000,
+    "maxN": 7095000
+   },
+   "open": true
+  },
+  {
    "id": "puys",
    "name": "Chaîne des Puys",
    "region": "Puy-de-Dôme · Volcans",
@@ -419,6 +475,34 @@
     "minN": 6515000,
     "maxE": 704000,
     "maxN": 6535000
+   },
+   "open": true
+  },
+  {
+   "id": "re",
+   "name": "Île de Ré",
+   "region": "Charente-Maritime · Île de Ré",
+   "routes": [
+    {
+     "id": "phare-des-baleines",
+     "name": "Le phare des Baleines par Ars-en-Ré et Les Portes",
+     "nameEn": "Phare des Baleines via Ars-en-Ré and Les Portes",
+     "lengthM": 19730.16,
+     "elevationGainM": 45.2,
+     "loop": true
+    }
+   ],
+   "pack": {
+    "version": "4d043c6b7f14",
+    "bytes": 130397678,
+    "files": 617,
+    "gzBytes": 36418933
+   },
+   "l93": {
+    "minE": 346000,
+    "minN": 6573000,
+    "maxE": 360000,
+    "maxN": 6584000
    },
    "open": true
   },

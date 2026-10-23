@@ -1,8 +1,14 @@
 /* Carte de France du menu (ui/franceMap.ts) et fenêtre d'une zone (trois choix). */
-.mm-picker.fm-dialog { width: min(760px, 94vw) !important; background: rgba(10, 14, 22, 0.42); backdrop-filter: blur(6px); border-color: rgba(255, 255, 255, 0.14); }
-.mm-picker-modal:has(.fm-dialog) { background: rgba(6, 9, 15, 0.18); }
+.mm-picker.fm-dialog { width: min(760px, 94vw) !important; background: rgba(10, 14, 22, 0.88); backdrop-filter: blur(6px); border-color: rgba(255, 255, 255, 0.14); }
+.mm-picker-modal:has(.fm-dialog) { background: rgba(6, 9, 15, 0.62); backdrop-filter: blur(4px); }
 .fm-box { position: relative; }
-.fm-map { display: block; width: 100%; height: min(66vh, 620px); }
+.fm-map { display: block; width: 100%; height: min(66vh, 620px); cursor: grab; touch-action: none; }
+.fm-map.fm-dragging { cursor: grabbing; }
+.fm-box .fm-land { fill: none; }
+.fm-zoomed .fm-land { fill: none; }
+.fm-rect { fill: rgba(255, 210, 63, 0.1); stroke: rgba(255, 210, 63, 0.8); stroke-width: 1.2px; stroke-dasharray: 4 3; vector-effect: non-scaling-stroke; pointer-events: none; }
+.fm-rect.fm-cur { fill: rgba(255, 210, 63, 0.16); stroke: var(--ar-accent); stroke-dasharray: none; }
+.fm-attr { position: absolute; left: 10px; bottom: 6px; font-size: 10px; color: #9aa4b2; pointer-events: none; }
 .fm-land { fill: rgba(255, 255, 255, 0.05); stroke: rgba(236, 239, 244, 0.75); stroke-width: 1.4px; vector-effect: non-scaling-stroke; stroke-linejoin: round; }
 .fm-pts > g { cursor: pointer; outline: none; }
 .fm-hit { fill: transparent; }

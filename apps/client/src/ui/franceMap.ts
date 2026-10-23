@@ -6,6 +6,7 @@
  */
 import { wgs84ToL93 } from '@allezrobert/shared';
 import { FRANCE_OUTLINE } from '../world/franceOutline.ts';
+import { BASEMAP_ATTRIBUTION, basemapImage } from './basemap.ts';
 import { getLang } from '../i18n/index.ts';
 import './franceMap.css';
 
@@ -21,6 +22,8 @@ export interface MapZone {
   current: boolean;
   /** Ligne d'information sous le nom (parcours, monde ouvert…). */
   info: string;
+  /** Emprise des tuiles, Lambert-93 (m) : rectangle dessiné sur la carte zoomée. */
+  rect?: { minE: number; minN: number; maxE: number; maxN: number };
 }
 
 interface View {
@@ -41,11 +44,29 @@ const PX_W = 620;
 const MERGE_PX = 26;
 
 const FULL: View = { x: 80, y: -7140, w: 1190, h: 1120 };
+/** Largeur de vue la plus petite (km) en zoomant à la molette, la plus grande en dézoomant. */
+const MIN_W = 12;
+const MAX_W = FULL.w * 1.3;
+
+/** Marge du fond de carte autour de la vue (fraction) : la boîte peut être plus large que le viewBox. */
+const BASEMAP_PAD = 0.25;
+
+/** Fond Plan IGN de la vue zoomée (repère SVG en km, y = −N). */
+function basemap(v: View): string {
+  const px = v.w * BASEMAP_PAD;
+  const py = v.h * BASEMAP_PAD;
+  const at = { x: v.x - px, y: v.y - py, w: v.w + 2 * px, h: v.h + 2 * py };
+  return basemapImage({ minE: at.x * 1000, minN: -(at.y + at.h) * 1000, maxE: (at.x + at.w) * 1000, maxN: -at.y * 1000 }, at, 1400);
+}
 
 export class FranceMap {
   private view: View = { ...FULL };
   private outline = '';
   private anim = 0;
+  /** Fond de carte de la vue précédente, gardé dessous le temps que le nouveau se charge. */
+  private lastBase = '';
+  /** Le dernier geste était un glissement (pas un clic sur un point). */
+  private dragged = false;
 
   /** Retour à la France entière (nouvelle ouverture de la fenêtre). */
   reset(): void {
@@ -54,6 +75,12 @@ export class FranceMap {
 
   private get zoomed(): boolean {
     return this.view.w < FULL.w * 0.6;
+  }
+
+  /** Vue déplacée ou zoomée (bouton « France entière »). */
+  private get moved(): boolean {
+    const v = this.view;
+    return Math.abs(v.w - FULL.w) > 1 || Math.abs(v.x - FULL.x) > 1 || Math.abs(v.y - FULL.y) > 1;
   }
 
   private outlinePath(): string {
@@ -113,16 +140,33 @@ export class FranceMap {
       .join('');
     return `<div class="fm-box${this.zoomed ? ' fm-zoomed' : ''}">
       <svg class="fm-map" viewBox="${v.x.toFixed(1)} ${v.y.toFixed(1)} ${v.w.toFixed(1)} ${v.h.toFixed(1)}" preserveAspectRatio="xMidYMid meet">
+        ${this.baseLayers(v)}
         <path class="fm-land" d="${this.outlinePath()}"/>
+        ${this.zoomed ? `<g class="fm-rects">${zones
+          .filter((z) => z.rect && z.available)
+          .map((z) => {
+            const r = z.rect!;
+            return `<rect class="fm-rect${z.current ? ' fm-cur' : ''}" x="${sx(r.minE).toFixed(2)}" y="${sy(r.maxN).toFixed(2)}" width="${((r.maxE - r.minE) / 1000).toFixed(2)}" height="${((r.maxN - r.minN) / 1000).toFixed(2)}"/>`;
+          })
+          .join('')}</g>` : ''}
         <g class="fm-pts">${pts}</g>
       </svg>
       <div class="fm-tip" hidden></div>
-      <button class="fm-back" data-fm-back ${this.zoomed ? '' : 'hidden'}>← ${L ? 'France entière' : 'Whole France'}</button>
+      <button class="fm-back" data-fm-back ${this.moved ? '' : 'hidden'}>← ${L ? 'France entière' : 'Whole France'}</button>
+      <div class="fm-attr">${BASEMAP_ATTRIBUTION}</div>
       <div class="fm-legend"><span><i class="fm-l-on"></i>${L ? 'disponible' : 'available'}</span><span><i class="fm-l-off"></i>${L ? 'bientôt' : 'coming soon'}</span></div>
     </div>`;
   }
 
-  /** Événements (survol, zoom sur un groupe, choix d'une zone) ; la carte se redessine sur place. */
+  /** Fond Plan IGN de la vue, par-dessus celui de la vue précédente (déjà chargé : pas de trou). */
+  private baseLayers(v: View): string {
+    const base = basemap(v);
+    const prev = this.lastBase && this.lastBase !== base ? this.lastBase : '';
+    this.lastBase = base;
+    return prev + base;
+  }
+
+  /** Événements (survol, zoom sur un groupe, choix d'une zone, glisser, molette) ; la carte se redessine sur place. */
   bind(scope: ParentNode, zones: MapZone[], onPick: (id: string) => void): void {
     const box = scope.querySelector<HTMLElement>('.fm-box');
     const svg = box?.querySelector<SVGSVGElement>('.fm-map');
@@ -135,6 +179,13 @@ export class FranceMap {
       if (!fresh) return;
       box.replaceWith(fresh);
       this.bind(fresh.parentNode ?? scope, zones, onPick);
+    };
+    /** Vue courante appliquée sans tout redessiner (glisser, molette, animation). */
+    const apply = () => {
+      const v = this.view;
+      svg.setAttribute('viewBox', `${v.x.toFixed(1)} ${v.y.toFixed(1)} ${v.w.toFixed(1)} ${v.h.toFixed(1)}`);
+      const k = this.k();
+      svg.querySelectorAll<SVGGElement>('.fm-pts > g').forEach((g) => g.setAttribute('transform', (g.getAttribute('transform') ?? '').replace(/scale\([^)]*\)/, `scale(${k})`)));
     };
     const zoomTo = (target: View) => {
       cancelAnimationFrame(this.anim);
@@ -155,10 +206,7 @@ export class FranceMap {
         const t = Math.min(1, (now - t0) / 380);
         const e = t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2;
         this.view = { x: from.x + (target.x - from.x) * e, y: from.y + (target.y - from.y) * e, w: from.w + (target.w - from.w) * e, h: from.h + (target.h - from.h) * e };
-        const v = this.view;
-        svg.setAttribute('viewBox', `${v.x.toFixed(1)} ${v.y.toFixed(1)} ${v.w.toFixed(1)} ${v.h.toFixed(1)}`);
-        const k = this.k();
-        svg.querySelectorAll<SVGGElement>('.fm-pts > g').forEach((g) => g.setAttribute('transform', (g.getAttribute('transform') ?? '').replace(/scale\([^)]*\)/, `scale(${k})`)));
+        apply();
         if (t < 1) this.anim = requestAnimationFrame(step);
         else {
           done = true;
@@ -188,6 +236,11 @@ export class FranceMap {
       el.addEventListener('pointerleave', () => (tip.hidden = true));
       el.addEventListener('blur', () => (tip.hidden = true));
       const act = () => {
+        // fin d'un glissement commencé sur un point : pas un clic
+        if (this.dragged) {
+          this.dragged = false;
+          return;
+        }
         const ids = el.getAttribute('data-ids');
         if (ids) {
           // Groupe : zoom sur l'emprise de ses zones, assez près pour les séparer (≥ 30 km de large).
@@ -212,5 +265,73 @@ export class FranceMap {
       });
     });
     box.querySelector('[data-fm-back]')?.addEventListener('click', () => zoomTo({ ...FULL }));
+
+    // Navigation libre : glisser pour se déplacer, molette pour zoomer (autour du pointeur) ; la
+    // carte (regroupements, noms, fond IGN) se redessine quand le geste s'arrête.
+    let settle = 0;
+    const settleRedraw = () => {
+      clearTimeout(settle);
+      settle = window.setTimeout(redraw, 280);
+    };
+    /** Unités SVG (km) par pixel écran (viewBox « meet » : l'axe le plus contraint). */
+    const kmPerPx = () => {
+      const r = svg.getBoundingClientRect();
+      return Math.max(this.view.w / Math.max(1, r.width), this.view.h / Math.max(1, r.height));
+    };
+    /** Le centre de la vue reste sur la France. */
+    const clampView = (v: View): View => {
+      const cx = Math.min(FULL.x + FULL.w, Math.max(FULL.x, v.x + v.w / 2));
+      const cy = Math.min(FULL.y + FULL.h, Math.max(FULL.y, v.y + v.h / 2));
+      return { x: cx - v.w / 2, y: cy - v.h / 2, w: v.w, h: v.h };
+    };
+    svg.addEventListener(
+      'wheel',
+      (e) => {
+        e.preventDefault();
+        cancelAnimationFrame(this.anim);
+        tip.hidden = true;
+        const v = this.view;
+        const r = svg.getBoundingClientRect();
+        const s = kmPerPx();
+        const px = v.x + v.w / 2 + (e.clientX - (r.left + r.width / 2)) * s;
+        const py = v.y + v.h / 2 + (e.clientY - (r.top + r.height / 2)) * s;
+        const w = Math.min(MAX_W, Math.max(MIN_W, v.w * Math.exp(e.deltaY * 0.0015)));
+        const f = w / v.w;
+        this.view = clampView({ x: px - (px - v.x) * f, y: py - (py - v.y) * f, w, h: v.h * f });
+        apply();
+        settleRedraw();
+      },
+      { passive: false },
+    );
+    let drag: { x: number; y: number; vx: number; vy: number } | null = null;
+    svg.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0) return;
+      drag = { x: e.clientX, y: e.clientY, vx: this.view.x, vy: this.view.y };
+      this.dragged = false;
+    });
+    svg.addEventListener('pointermove', (e) => {
+      if (!drag) return;
+      const dx = e.clientX - drag.x;
+      const dy = e.clientY - drag.y;
+      if (!this.dragged) {
+        if (Math.hypot(dx, dy) < 5) return;
+        this.dragged = true;
+        cancelAnimationFrame(this.anim);
+        tip.hidden = true;
+        svg.classList.add('fm-dragging');
+        svg.setPointerCapture(e.pointerId);
+      }
+      const s = kmPerPx();
+      this.view = clampView({ ...this.view, x: drag.vx - dx * s, y: drag.vy - dy * s });
+      apply();
+    });
+    const end = () => {
+      if (!drag) return;
+      drag = null;
+      svg.classList.remove('fm-dragging');
+      if (this.dragged) settleRedraw();
+    };
+    svg.addEventListener('pointerup', end);
+    svg.addEventListener('pointercancel', end);
   }
 }

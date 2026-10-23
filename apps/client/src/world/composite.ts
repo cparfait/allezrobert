@@ -99,6 +99,10 @@ export function createCompositeWorld(sources: WorldSource[]): WorldSource {
     bounds,
     attribution: [...new Set(parts.flatMap((p) => p.source.attribution))],
     zones: parts.map((p) => p.source.id),
+    areas: parts.map((p) => {
+      const b = p.source.bounds;
+      return { minX: b.minX + p.dx, minZ: b.minZ + p.dz, maxX: b.maxX + p.dx, maxZ: b.maxZ + p.dz };
+    }),
     ...(open ? { open } : {}),
     hasTile: (tx, tz) => owner(tx, tz) !== null,
     async loadTile(tx, tz) {

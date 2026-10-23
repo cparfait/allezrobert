@@ -120,6 +120,8 @@ export interface WorldSource {
   };
   /** Zones chargées ensemble (zone principale d'abord) ; absent : la seule zone `id`. */
   zones?: string[];
+  /** Emprises roulables (repère monde, m) : une par zone chargée ; absent : `bounds`. */
+  areas?: Array<{ minX: number; minZ: number; maxX: number; maxZ: number }>;
   /** Monde côtier : niveau de la mer (m), fonds marins en dessous. */
   sea?: { levelM: number };
   hasTile(tx: number, tz: number): boolean;

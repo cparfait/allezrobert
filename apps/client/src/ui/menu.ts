@@ -775,7 +775,7 @@ export class MainMenu {
       const available = this.zones.length ? !!z : !!w;
       const n = z?.routes.length ?? 0;
       const info = [n ? `${n} ${L ? 'parcours' : n > 1 ? 'routes' : 'route'}` : '', spot.open ? (L ? 'monde ouvert' : 'open world') : '', w ? w.hint[lang] : ''].filter(Boolean).join(' · ');
-      return { id: spot.id, name: w ? w.name[lang] : spot.name[lang], region: spot.region[lang], x: spot.x, y: spot.y, available, current: spot.id === this.worldId, info };
+      return { id: spot.id, name: w ? w.name[lang] : spot.name[lang], region: spot.region[lang], x: spot.x, y: spot.y, available, current: spot.id === this.worldId, info, ...(z?.l93 ? { rect: z.l93 } : {}) };
     });
   }
 
@@ -803,7 +803,7 @@ export class MainMenu {
     return `<div class="mm-modal mm-picker-modal" data-picker-close>
       <div class="mm-dialog mm-picker fm-dialog" role="dialog" aria-modal="true">
         <header><h2>${L ? 'Où veux-tu rouler ?' : 'Where do you want to ride?'}</h2><button class="mm-x" data-picker-close aria-label="${L ? 'Fermer' : 'Close'}">×</button></header>
-        <p class="mm-hint">${this.loadingZone ? `${L ? 'Chargement de' : 'Loading'} ${esc(this.loadingZone)}…` : L ? 'Clique sur un point pour ouvrir la zone ; un point numéroté réunit plusieurs zones proches.' : 'Click a point to open the area; a numbered point groups several nearby areas.'}</p>
+        <p class="mm-hint">${this.loadingZone ? `${L ? 'Chargement de' : 'Loading'} ${esc(this.loadingZone)}…` : L ? 'Clique sur un point pour ouvrir la zone ; un point numéroté réunit plusieurs zones proches. Glisse pour te déplacer, molette pour zoomer.' : 'Click a point to open the area; a numbered point groups several nearby areas. Drag to move, scroll to zoom.'}</p>
         ${this.franceMap.html(this.mapZones())}
       </div></div>`;
   }

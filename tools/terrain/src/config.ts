@@ -393,10 +393,11 @@ export const WORLDS: Record<string, WorldConfig> = {
         routeId: 'corniche-de-l-esterel',
         routeName: "La corniche de l'Estérel par Agay et Valescure",
         routeNameEn: 'Estérel corniche via Agay and Valescure',
+        climbNames: ['Côte des Golfs', "Côte de l'Aspé"],
         // port de Saint-Raphaël, route de la Corniche (D559) par Boulouris et le Dramont, Agay,
         // avenue du Gratadis et avenue des Golfs (D100), Valescure, boulevard du Cerceron
         start: { lon: 6.7656, lat: 43.4241 },
-        via: [{ lon: 6.7958, lat: 43.4141 }, { lon: 6.8254, lat: 43.4179 }, { lon: 6.8523, lat: 43.4192 }, { lon: 6.864, lat: 43.4343 }, { lon: 6.8529, lat: 43.4341 }, { lon: 6.8362, lat: 43.451 }, { lon: 6.8137, lat: 43.4477 }, { lon: 6.7893, lat: 43.4366 }],
+        via: [{ lon: 6.7958, lat: 43.4141 }, { lon: 6.8254, lat: 43.4179 }, { lon: 6.8523, lat: 43.4192 }, { lon: 6.8607, lat: 43.4341 }, { lon: 6.8529, lat: 43.4341 }, { lon: 6.8362, lat: 43.451 }, { lon: 6.8137, lat: 43.4477 }, { lon: 6.7893, lat: 43.4366 }],
       },
     ],
   },
@@ -419,8 +420,10 @@ export const WORLDS: Record<string, WorldConfig> = {
         routeId: 'les-deux-caps',
         routeName: 'Les caps Blanc-Nez et Gris-Nez par Wissant',
         routeNameEn: 'Cap Blanc-Nez and Cap Gris-Nez via Wissant',
+        // Escalles par la route traversante (le centre faisait un aller-retour) ; le cap Gris-Nez,
+        // route sans issue, se fait en aller-retour
         start: 'Wissant',
-        via: ['Escalles', 'Hervelinghen', 'Audembert', 'Audinghen', 'Le Gris-Nez', 'Tardinghen'],
+        via: [{ lon: 1.71192, lat: 50.91814 }, 'Hervelinghen', 'Audembert', 'Audinghen', 'Le Gris-Nez', 'Tardinghen'],
       },
     ],
   },
@@ -443,8 +446,10 @@ export const WORLDS: Record<string, WorldConfig> = {
         routeId: 'phare-des-baleines',
         routeName: 'Le phare des Baleines par Ars-en-Ré et Les Portes',
         routeNameEn: 'Phare des Baleines via Ars-en-Ré and Les Portes',
+        // Saint-Clément et Le Gillieux par la route traversante ; Les Portes, au bout de l'île, en
+        // aller-retour (La Couarde, plus au sud, faisait 3 km d'aller-retour sur la même route)
         start: 'Ars-en-Ré',
-        via: ['Saint-Clément-des-Baleines', 'Le Gillieux', 'Les Portes-en-Ré', 'La Couarde-sur-Mer'],
+        via: [{ lon: -1.54193, lat: 46.22857 }, { lon: -1.55119, lat: 46.23762 }, 'Les Portes-en-Ré'],
       },
     ],
   },

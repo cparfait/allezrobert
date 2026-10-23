@@ -409,7 +409,7 @@ async function boot(): Promise<void> {
   menu.worldId = scene.source.id;
   menu.loadedZones = scene.source.zones ?? [scene.source.id];
   menu.openWorld = !!scene.source.open;
-  menu.planner.setOpen(scene.source.open ?? null);
+  menu.planner.setOpen(scene.source.open ? { ...scene.source.open, areas: scene.source.areas ?? [scene.source.bounds], ...(scene.source.originL93 ? { originL93: scene.source.originL93 } : {}) } : null);
   // Changement de monde sans recharger la page : données du nouveau monde, paysage refait en arrière-plan.
   menu.onWorld = (id) => {
     settings.world = id;
@@ -439,7 +439,7 @@ async function boot(): Promise<void> {
       url.searchParams.set('world', id);
       url.searchParams.delete('route');
       history.replaceState(null, '', url.toString());
-      menu.planner.setOpen(source.open ?? null);
+      menu.planner.setOpen(source.open ? { ...source.open, areas: source.areas ?? [source.bounds], ...(source.originL93 ? { originL93: source.originL93 } : {}) } : null);
       menu.loadedZones = source.zones ?? [source.id];
       menu.setWorld(source.routes, source.id, !!source.open);
       void prepareWorld();

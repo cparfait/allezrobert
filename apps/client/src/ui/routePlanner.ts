@@ -7,6 +7,7 @@
  * Les villes, villages et hameaux (places.json) sont nommés sur la carte.
  */
 import { frenchOf, isPavedEdge, itineraryRoute, joinItineraries, planItinerary, RoadNet, snapToRoad, type Itinerary, type RoadGraphData, type RoadSnap, type RouteData, type WorldPlace } from '@allezrobert/shared';
+import { BASEMAP_ATTRIBUTION, basemapImage } from './basemap.ts';
 import { getLang } from '../i18n/index.ts';
 import './routePlanner.css';
 
@@ -17,6 +18,10 @@ export interface OpenMap {
   graph: RoadGraphData;
   start: { x: number; z: number };
   places?: WorldPlace[];
+  /** Origine du repère de la zone en Lambert-93 : fond de carte Plan IGN sous les routes. */
+  originL93?: { x: number; y: number };
+  /** Emprises roulables (repère monde, m), entourées d'un liseré sur la carte. */
+  areas?: Array<{ minX: number; minZ: number; maxX: number; maxZ: number }>;
 }
 
 export interface PlannerActions {
@@ -76,6 +81,42 @@ export class RoutePlanner {
     this.bounds = { x: minX - m, z: minZ - m, w: maxX - minX + 2 * m, h: maxZ - minZ + 2 * m };
     this.view = { ...this.bounds };
     this.roads = this.roadPaths(open.graph);
+  }
+
+  /**
+   * Contour de ce qu'on peut parcourir : réunion des emprises (kilomètres entiers), seuls les
+   * bords extérieurs sont tracés (pas de trait entre deux zones voisines).
+   */
+  private areaOutline(): string {
+    const areas = this.open?.areas;
+    if (!areas?.length) return '';
+    const T = 1000;
+    const cells = new Set<string>();
+    for (const a of areas)
+      for (let tx = Math.round(a.minX / T); tx < Math.round(a.maxX / T); tx++)
+        for (let tz = Math.round(a.minZ / T); tz < Math.round(a.maxZ / T); tz++) cells.add(`${tx}_${tz}`);
+    const has = (tx: number, tz: number) => cells.has(`${tx}_${tz}`);
+    let d = '';
+    for (const c of cells) {
+      const [tx, tz] = c.split('_').map(Number) as [number, number];
+      const x0 = tx * T;
+      const z0 = tz * T;
+      if (!has(tx, tz - 1)) d += `M${x0} ${z0}H${x0 + T}`;
+      if (!has(tx, tz + 1)) d += `M${x0} ${z0 + T}H${x0 + T}`;
+      if (!has(tx - 1, tz)) d += `M${x0} ${z0}V${z0 + T}`;
+      if (!has(tx + 1, tz)) d += `M${x0 + T} ${z0}V${z0 + T}`;
+    }
+    return `<path class="rp-area" d="${d}"/>`;
+  }
+
+  /** Fond Plan IGN sous toute l'emprise (avec marge : la boîte peut être plus large que la carte). */
+  private basemap(px: number): string {
+    const o = this.open?.originL93;
+    if (!o) return '';
+    const b = this.bounds;
+    const m = Math.max(b.w, b.h) * 0.25;
+    const at = { x: b.x - m, y: b.z - m, w: b.w + 2 * m, h: b.h + 2 * m };
+    return basemapImage({ minE: o.x + at.x, minN: o.y - (at.y + at.h), maxE: o.x + at.x + at.w, maxN: o.y - at.y }, at, px);
   }
 
   /** Parcours calculé, s'il y en a un. */
@@ -178,14 +219,8 @@ export class RoutePlanner {
     const b = this.bounds;
     // repères lisibles sur un aperçu d'environ 200 px de haut
     const k = (b.w / 240).toFixed(3);
-    let line = '';
-    if (route) {
-      const step = Math.max(1, Math.floor(route.points.length / 1500));
-      line = `<path class="rp-route" d="${route.points
-        .filter((_, i) => i % step === 0 || i === route.points.length - 1)
-        .map((p, i) => `${i ? 'L' : 'M'}${p.x.toFixed(0)} ${p.z.toFixed(0)}`)
-        .join('')}"/>`;
-    }
+    // pas de tracé du parcours sur l'aperçu : la zone, son fond et le départ seulement
+    const line = '';
     const at = route?.points[0] ?? start ?? this.open.start;
     const mk = `<g class="rp-mk rp-from" transform="translate(${at.x.toFixed(1)} ${at.z.toFixed(1)}) scale(${k})"><circle r="9"/><text y="4">D</text></g>`;
     // Aperçu de ≈ 200 px : villes et bourgs seulement (les villages, s'il n'y en a presque pas).
@@ -196,7 +231,7 @@ export class RoutePlanner {
       .map((p) => `<g class="rp-place rp-village" transform="translate(${p.x.toFixed(0)} ${p.z.toFixed(0)}) scale(${k})"><circle r="3.2"/><text x="6" y="4">${esc(p.name)}</text></g>`)
       .join('');
     return `<svg class="rp-map rp-preview" viewBox="${b.x.toFixed(1)} ${b.z.toFixed(1)} ${b.w.toFixed(1)} ${b.h.toFixed(1)}" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
-      <g class="rp-roads">${this.roads}</g>${line}<g class="rp-places">${towns}</g>${mk}</svg>`;
+      ${this.basemap(700)}${this.areaOutline()}<g class="rp-roads">${this.roads}</g>${line}<g class="rp-places">${towns}</g>${mk}</svg>`;
   }
 
   /** Bloc complet : carte cliquable et panneau (consignes, chiffres, boutons). */
@@ -260,9 +295,9 @@ export class RoutePlanner {
     return `<section class="rp" aria-label="${L ? 'Itinéraire sur la carte' : 'Route on the map'}">
       <div class="rp-mapbox">
         <svg class="rp-map${zoomed ? ' rp-zoomed' : ''}" viewBox="${v.x.toFixed(1)} ${v.z.toFixed(1)} ${v.w.toFixed(1)} ${v.h.toFixed(1)}" preserveAspectRatio="xMidYMid meet">
-          <g class="rp-roads">${this.roads}</g>${line}<g class="rp-places">${this.placeLabels()}</g>${marks}
+          ${this.basemap(1800)}${this.areaOutline()}<g class="rp-roads">${this.roads}</g>${line}<g class="rp-places">${this.placeLabels()}</g>${marks}
         </svg>
-        <div class="rp-legend"><span><i class="rp-l-major"></i>${L ? 'route' : 'road'}</span><span><i class="rp-l-track"></i>${L ? 'chemin' : 'track'}</span>${n ? '' : `<span><i class="rp-dot rp-home"></i>${L ? 'départ par défaut' : 'default start'}</span>`}</div>
+        <div class="rp-legend">${this.open?.originL93 ? `<span class="rp-attr">${BASEMAP_ATTRIBUTION}</span>` : ''}<span><i class="rp-l-major"></i>${L ? 'route' : 'road'}</span><span><i class="rp-l-track"></i>${L ? 'chemin' : 'track'}</span>${n ? '' : `<span><i class="rp-dot rp-home"></i>${L ? 'départ par défaut' : 'default start'}</span>`}</div>
       </div>
       <div class="rp-side">
         <h3>${L ? 'Ton itinéraire' : 'Your route'}</h3>
