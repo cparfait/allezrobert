@@ -52,6 +52,8 @@ ni vérifié à l'image** ; les derniers commits « wip » sont du travail non t
       pages FE-C de calibration sur la spécification ANT+.
 - [ ] Son : coureurs IA et trains muets ; FC max fixée à 190 (pas de réglage) ; pavés et gravier
       rarement entendus (itinéraires goudronnés).
+- [ ] Vélos : cocottes et leviers de frein trop gros par rapport au cintre (familles route) ;
+      les ramener à des proportions réelles.
 - [ ] Tenues : ajouter des gants (mitaines et gants longs) et des tenues à manches longues
       (maillot, veste, collant), choisis dans l'éditeur et variés dans le peloton.
 - [ ] Avatars : expression `tongueOut` absente ; visages féminins encore un peu androgynes ;

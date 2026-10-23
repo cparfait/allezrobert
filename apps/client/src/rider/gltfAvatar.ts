@@ -643,7 +643,20 @@ export class GltfRiderAvatar implements RiderAvatarLike {
   static lodScale = 1;
 
   /** Redressement du cou par rapport à la pose de repos (rad, avatar MPFB : cou de repos trop penché, tête en avant). */
-  static neckLift = 0.4;
+  static neckLift = 0.8;
+  /**
+   * Épaules avancées et abaissées vers le cintre (rad, clavicules de l'avatar MPFB) : figées au
+   * repos, elles laissaient le bras tirer la peau du haut du dos en bosse.
+   */
+  static clavForward = 0.2;
+  /** Longueur du cou (facteur sur la position de repos de la tête, avatar MPFB). */
+  static neckLength = 0.55;
+  /**
+   * Cintre route (avatar MPFB) : buste penché vers l'avant comme un cycliste sur les cocottes (dos
+   * vers 40° de l'horizontale, coudes fléchis), par la même bascule que la position chrono.
+   */
+  static roadTuck = 0.55;
+  static clavDown = 0.12;
 
   /** Modèles chargés ? */
   static get ready(): boolean {
@@ -669,6 +682,8 @@ export class GltfRiderAvatar implements RiderAvatarLike {
       this.mQ[name] = new THREE.Quaternion();
       this.mP[name] = new THREE.Vector3();
     }
+    // Cou raccourci : la tête se rapproche de la base du cou (position de repos de l'os).
+    if (t.names.hips === 'pelvis' && GltfRiderAvatar.neckLength !== 1) this.bones.head.position.multiplyScalar(GltfRiderAvatar.neckLength);
     // Mains qui tiennent le cintre : doigts fléchis une fois pour toutes (os non animés).
     rider0.traverse((o) => {
       const m = /^(index|middle|ring|pinky)_0[123]_[lr]$/.exec(o.name);
@@ -803,7 +818,7 @@ export class GltfRiderAvatar implements RiderAvatarLike {
         this.elbowPole[s].copy(toPad).addScaledVector(dir, -toPad.dot(dir)).normalize();
       } else this.elbowPole[s].copy(c.pole);
     }
-    this.tuck = anchors.pads ? this.solveTuck(anchors.pads) : 0;
+    this.tuck = anchors.pads ? this.solveTuck(anchors.pads) : this.t.names.hips === 'pelvis' ? GltfRiderAvatar.roadTuck : 0;
     // Casque chrono (modèles qui le demandent) : sa visière remplace les lunettes. Sans casque chrono
     // dans le modèle du coureur (ancien cyclist.glb), casque route.
     this.applyHeadgear(build);
@@ -955,7 +970,9 @@ export class GltfRiderAvatar implements RiderAvatarLike {
     this.bones.neck.quaternion.copy(t.bones.neck.localQ);
     this.fk('neck');
     // Cou de repos du modèle MPFB trop penché : redressé (la tête, orientée à part, garde le regard).
-    if (GltfRiderAvatar.neckLift && t.names.hips === 'pelvis') this.setModelQ('neck', _q1.setFromAxisAngle(X_AXIS, -GltfRiderAvatar.neckLift).multiply(this.mQ.neck));
+    // Position chrono (repose-coudes) : tête basse, rentrée entre les épaules, cou à peine redressé.
+    const lift = GltfRiderAvatar.neckLift * (this.mounted?.anchors.pads ? 0.15 : 1);
+    if (lift && t.names.hips === 'pelvis') this.setModelQ('neck', _q1.setFromAxisAngle(X_AXIS, -lift).multiply(this.mQ.neck));
     const look = 0.06 * Math.sin(this.time * 0.37) * Math.sin(this.time * 0.13);
     _q1.setFromAxisAngle(Z_AXIS, -(0.7 * bank + rock + counter));
     if (tuck > 0) _q1.multiply(_q3.setFromAxisAngle(X_AXIS, -TUCK_HEAD * tuck));
@@ -974,6 +991,13 @@ export class GltfRiderAvatar implements RiderAvatarLike {
       if (t.names[clav]) {
         this.bones[clav].quaternion.copy(t.bones[clav].localQ);
         this.fk(clav);
+        const fw = GltfRiderAvatar.clavForward;
+        const dn = GltfRiderAvatar.clavDown;
+        if ((fw || dn) && t.names.hips === 'pelvis') {
+          const k = s === 'L' ? 1 : -1;
+          _q1.setFromAxisAngle(Y_AXIS, -k * fw).multiply(_q3.setFromAxisAngle(Z_AXIS, -k * dn));
+          this.setModelQ(clav, _q1.multiply(this.mQ[clav]));
+        }
       }
       this.bones[c.upper].quaternion.copy(t.bones[c.upper].localQ);
       this.fk(c.upper);

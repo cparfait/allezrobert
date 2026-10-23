@@ -43,6 +43,10 @@ async function main(): Promise<void> {
 
   const ok = await GltfRiderAvatar.load();
   if (params.has('neck')) GltfRiderAvatar.neckLift = Number(params.get('neck'));
+  if (params.has('tuck')) GltfRiderAvatar.roadTuck = Number(params.get('tuck'));
+  if (params.has('necklen')) GltfRiderAvatar.neckLength = Number(params.get('necklen'));
+  if (params.has('clavf')) GltfRiderAvatar.clavForward = Number(params.get('clavf'));
+  if (params.has('clavd')) GltfRiderAvatar.clavDown = Number(params.get('clavd'));
   log.textContent = ok ? 'modèles chargés' : 'ÉCHEC du chargement';
   if (!ok) return;
   if (params.has('bikes')) return bikeSheet(engine, params.get('bikes') ?? '');
