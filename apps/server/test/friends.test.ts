@@ -302,6 +302,22 @@ describe('amis — classements', () => {
     expect(bests.body).toEqual([{ segmentId: 'col', bestMs: 280_000 }]);
     expect((await a.json('GET', `/api/friends/${id}/bests`)).status).toBe(400);
   });
+
+  it('filtre « amis » sur le temps du parcours entier', async () => {
+    const a = await login('Tour-A');
+    const b = await login('Tour-B');
+    const e = await login('Tour-Etranger');
+    await befriend(a, b);
+    for (const [u, ms] of [[a.id, 3_700_000], [b.id, 3_600_000], [b.id, 3_650_000], [e.id, 3_000_000]] as const) {
+      await ctx.repos.recordRouteTime({ userId: u, routeId: 'tour', elapsedMs: ms });
+    }
+    expect((await a.json('GET', '/api/routes/tour/leaderboard')).body.map((x: any) => x.name)).toEqual(['Tour-Etranger', 'Tour-B', 'Tour-A']);
+    expect((await a.json('GET', '/api/routes/tour/leaderboard?scope=friends')).body).toEqual([
+      { rank: 1, name: 'Tour-B', bestMs: 3_600_000, efforts: 2, me: false },
+      { rank: 2, name: 'Tour-A', bestMs: 3_700_000, efforts: 1, me: true },
+    ]);
+    expect((await e.json('GET', '/api/routes/tour/leaderboard?scope=friends')).body.map((x: any) => x.name)).toEqual(['Tour-Etranger']);
+  });
 });
 
 describe('amis — RGPD', () => {

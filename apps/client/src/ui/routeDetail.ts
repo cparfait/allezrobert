@@ -2,7 +2,7 @@
  * Fiche d'un parcours (clic sur une carte de la fenêtre « Parcours ») : grande carte avec les
  * montées et les villages, profil gradué, chiffres, tes records (meilleur tour, sorties, record
  * de chaque montée ou sprint) et ceux de tes amis et de tous, chargés depuis le serveur.
- * Les temps des amis n'existent que par montée / sprint (enregistrés lors des sorties de groupe).
+ * Les temps viennent des sorties de chacun (solo ou en groupe) : montées, sprints, parcours entier.
  */
 import type { RouteData, RouteSegment } from '@allezrobert/shared';
 import { readKomRecord } from '../game/challenge.ts';
@@ -197,6 +197,11 @@ export function routeDetailHtml(r: RouteData, name: string, opts: { loggedIn: bo
         </div>
         <h3>${L ? 'Tes records' : 'Your records'}</h3>
         <ul class="rd-mine">${mine}</ul>
+        <h3>${L ? 'Parcours entier' : 'Whole route'}</h3>
+        <div class="rd-route-board">
+          <div><span>${L ? 'Tes amis' : 'Your friends'}</span><div class="rd-rb-friends">${opts.loggedIn ? '<span class="rd-load">…</span>' : `<span class="rd-none">${L ? 'connecte-toi pour voir leurs temps' : 'sign in to see their times'}</span>`}</div></div>
+          <div><span>${L ? 'Meilleur temps' : 'Fastest'}</span><div class="rd-rb-top"><span class="rd-load">…</span></div></div>
+        </div>
         ${r.landmarks?.length ? `<h3>${L ? 'Villages traversés' : 'Villages on the way'}</h3>${placesList(r.landmarks)}` : ''}
         <button class="rd-go" data-rd="ride">${L ? 'Rouler ce parcours' : 'Ride this route'} →</button>
       </div>
@@ -206,7 +211,7 @@ export function routeDetailHtml(r: RouteData, name: string, opts: { loggedIn: bo
       segs.length
         ? `<h3>${L ? 'Montées et sprints chronométrés' : 'Timed climbs and sprints'}</h3>
       <table class="rd-table"><thead><tr><th></th><th>${L ? 'Segment' : 'Segment'}</th><th>${L ? 'Ton record' : 'Your best'}</th><th>${L ? 'Tes amis' : 'Your friends'}</th><th>${L ? 'Meilleur temps' : 'Fastest'}</th><th></th></tr></thead><tbody>${rows}</tbody></table>
-      <p class="mm-hint">${L ? 'Les temps des amis et le classement viennent des sorties de groupe ; les tiens aussi de tes sorties sur cet appareil.' : 'Friends’ times and the leaderboard come from group rides; yours also from your rides on this device.'}</p>`
+      <p class="mm-hint">${L ? 'Les temps sont envoyés à la fin de chaque sortie, solo ou en groupe, quand on roule avec un compte (pas en invité, ni pendant une séance ERG).' : 'Times are sent at the end of every ride, solo or in a group, when riding with an account (not as a guest, nor during an ERG workout).'}</p>`
         : `<p class="mm-hint">${L ? 'Pas de montée ni de sprint chronométré sur ce parcours.' : 'No timed climb or sprint on this route.'}</p>`
     }
   </div>`;
@@ -230,13 +235,30 @@ async function getJson<T>(path: string): Promise<T | null> {
 }
 
 /**
- * Temps du serveur pour chaque segment de la fiche : ton record (sorties de groupe), tes amis
+ * Temps du serveur pour le parcours entier et chaque segment de la fiche : ton record (sorties de groupe), tes amis
  * (3 meilleurs) et le meilleur temps de tous. Remplit le tableau sur place ; hors ligne, les
  * cases indiquent « hors ligne ».
  */
 export async function loadRouteBoards(root: ParentNode, r: RouteData, loggedIn: boolean): Promise<void> {
   const L = fr();
   const enc = encodeURIComponent;
+  // Parcours entier : amis (3 meilleurs, toi compris) et meilleur temps de tous.
+  void Promise.all([
+    getJson<Board[]>(`/routes/${enc(r.id)}/leaderboard?limit=1`),
+    loggedIn ? getJson<Board[]>(`/routes/${enc(r.id)}/leaderboard?scope=friends&limit=4`) : Promise.resolve(null),
+  ]).then(([all, friends]) => {
+    const top = root.querySelector<HTMLElement>('.rd-rb-top');
+    const t0 = all?.[0];
+    if (top) top.innerHTML = all === null ? `<span class="rd-none">${L ? 'hors ligne' : 'offline'}</span>` : t0 ? `<b>${formatTime(t0.bestMs / 1000)}</b> ${esc(t0.name)}` : `<span class="rd-none">${L ? 'personne encore' : 'nobody yet'}</span>`;
+    const fc = root.querySelector<HTMLElement>('.rd-rb-friends');
+    if (!fc || !loggedIn) return;
+    fc.innerHTML =
+      friends === null
+        ? `<span class="rd-none">${L ? 'hors ligne' : 'offline'}</span>`
+        : friends.some((x) => !x.me)
+          ? `<ol>${friends.slice(0, 4).map((x) => `<li class="${x.me ? 'rd-is-me' : ''}"><b>${formatTime(x.bestMs / 1000)}</b> ${x.me ? (L ? 'toi' : 'you') : esc(x.name)}</li>`).join('')}</ol>`
+          : `<span class="rd-none">${L ? 'aucun ami n’a encore roulé ce parcours' : 'no friend has ridden this route yet'}</span>`;
+  });
   const mineSrv = loggedIn ? await getJson<Array<{ segmentId: string; bestMs: number }>>(`/me/segments?routeId=${enc(r.id)}`) : null;
   await Promise.all(
     r.segments.map(async (s) => {

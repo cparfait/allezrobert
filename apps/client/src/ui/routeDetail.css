@@ -67,3 +67,9 @@
 .rd-dialog header h2 { margin-right: 10px; }
 .rd-dialog header { gap: 10px; flex-wrap: wrap; }
 .rd-dialog .rp-head-links .mm-link { white-space: nowrap; }
+.rd-route-board { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.rd-route-board > div { padding: 9px 12px; border-radius: 12px; background: rgba(255, 255, 255, 0.05); display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.rd-route-board > div > span { font-size: 11.5px; color: #8d98a6; }
+.rd-route-board ol { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 2px; font-size: 13px; }
+.rd-route-board b { font-variant-numeric: tabular-nums; }
+.rd-is-me b { color: var(--ar-accent); }

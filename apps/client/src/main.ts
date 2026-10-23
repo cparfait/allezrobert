@@ -40,6 +40,7 @@ import { awardTrophies } from './game/trophies.ts';
 import { roadSurfaceAt, windShelterAt } from './world/conditions.ts';
 import { OpenNavigator } from './game/open.ts';
 import { ITINERARY_PREFIX } from './ui/routePlanner.ts';
+import { postRideEfforts, RouteTimer } from './game/efforts.ts';
 import { waitBike } from './ui/waitBike.ts';
 import { KomChallenge, readKomRecord, type ChallengeResult } from './game/challenge.ts';
 import { HairpinWatcher, hairpinToast, reachedFinish, summitStats } from './game/climb.ts';
@@ -776,6 +777,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   let summitShown = false;
   const reachSummit = () => {
     summitShown = true;
+    routeTimer.finish(ride.elapsedS);
     ride.state.distM = track.length;
     ride.state.speedMs = 0;
     ride.paused = true;
@@ -799,7 +801,30 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
       },
     });
   };
+  // Temps classés (sortie solo, envoyés à la fin) : montées, sprints et parcours entier, pris du
+  // départ (0 m) jusqu'à l'arrivée ou sur un tour complet. Pas en invité, en groupe (la salle les
+  // enregistre), en séance ERG, en monde ouvert ni sur un itinéraire dessiné.
+  const ranked = !s.guest && !mp && !nav && !workout && !track.route.id.startsWith(ITINERARY_PREFIX);
+  const routeTimer = new RouteTimer(startD === 0 && !challenge);
+  let sentSegments = 0;
+  let sentRouteS: number | null = null;
+  const sendEfforts = () => {
+    if (!ranked) return;
+    const segs = ride.segmentResults.slice(sentSegments);
+    const best = routeTimer.bestS;
+    const routeNew = best !== null && best !== sentRouteS;
+    if (!segs.length && !routeNew) return;
+    sentSegments = ride.segmentResults.length;
+    if (routeNew) sentRouteS = best;
+    void postRideEfforts({
+      routeId: track.route.id,
+      rideId: String(ride.startT),
+      segments: segs.map((r) => ({ segmentId: r.seg.id, elapsedMs: Math.round(r.timeS * 1000) })),
+      ...(routeNew && best !== null ? { routeTimeMs: Math.round(best * 1000) } : {}),
+    });
+  };
   ride.onLap = (lap) => {
+    routeTimer.lap(ride.elapsedS);
     hud.toast(`${t('lap')} ${lap}`);
     ghost.lap(ride.elapsedS, ride.state.distM);
   };
@@ -842,6 +867,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
           raceRank: room?.selfRank() ?? 0,
         });
     if (!s.guest) credited = done;
+    sendEfforts();
     const stats = rideStats(ride.records, { ftp: s.ftpWatts, elevationGainM: ride.elevationGainM, elapsedS: ride.elapsedS });
     const records = s.guest ? { previous: recordsBefore, beaten: [] } : updatePowerRecords(stats.curve, recordsBefore);
     const previous = s.guest
