@@ -2,7 +2,7 @@ import * as THREE from 'three/webgpu';
 import { BASE_PROFILES, BIKES, DEFAULT_LOOK, FACE_SLIDERS, encodeFace, profileLook, type AvatarLook, type BikeModel, type FaceShape } from '@allezrobert/shared';
 import { createEngine } from './engine/renderer.ts';
 import { QUALITY_PRESETS, type QualityLevel } from './engine/quality.ts';
-import { GltfRiderAvatar, type RiderPose } from './rider/gltfAvatar.ts';
+import { GltfRiderAvatar, TUCK, type RiderPose } from './rider/gltfAvatar.ts';
 
 /**
  * Banc d'essai (développement) : /avatar-test.html rend l'avatar glTF qui pédale sur un sol uni
@@ -43,7 +43,13 @@ async function main(): Promise<void> {
 
   const ok = await GltfRiderAvatar.load();
   if (params.has('neck')) GltfRiderAvatar.neckLift = Number(params.get('neck'));
+  if (params.has('grip')) GltfRiderAvatar.gripBack = Number(params.get('grip'));
   if (params.has('seat')) GltfRiderAvatar.seatBack = Number(params.get('seat'));
+  // &split=hanches,colonne,thorax : répartition de la bascule du buste.
+  if (params.has('split')) {
+    const [h, sp, c] = (params.get('split') ?? '').split(',').map(Number);
+    Object.assign(TUCK, { hips: h, spine: sp, chest: c });
+  }
   if (params.has('tuck')) GltfRiderAvatar.roadTuck = Number(params.get('tuck'));
   if (params.has('necklen')) GltfRiderAvatar.neckLength = Number(params.get('necklen'));
   if (params.has('clavf')) GltfRiderAvatar.clavForward = Number(params.get('clavf'));
@@ -800,6 +806,25 @@ async function bikeSheet(engine: Awaited<ReturnType<typeof createEngine>>, list:
     if (Object.keys(face).length) a.setFace(face);
     a.update(0, 0, 0, 'seated');
     a.update(1 / 60, 0.0001, 0, 'seated');
+    // &angles : angles de la posture (degrés), dans window.__angles : buste (hanche → épaule) et cou
+    // (base du cou → tête) au-dessus de l'horizontale, extension du cou par rapport au buste,
+    // épaule (buste / bras), coude (180 = tendu).
+    if (params.has('angles')) {
+      a.root.updateMatrixWorld(true);
+      const P = (n: string) => (a.root.getObjectByName(n) as THREE.Object3D).getWorldPosition(new THREE.Vector3());
+      const hip = P('thigh_l');
+      const sh = P('upperarm_l');
+      const el = P('lowerarm_l');
+      const wr = P('hand_l');
+      const nk = P('neck_01');
+      const hd = P('head');
+      const elev = (u: THREE.Vector3, v: THREE.Vector3) => (Math.atan2(v.y - u.y, v.z - u.z) * 180) / Math.PI;
+      const ang = (o: THREE.Vector3, u: THREE.Vector3, v: THREE.Vector3) => (u.clone().sub(o).angleTo(v.clone().sub(o)) * 180) / Math.PI;
+      const torso = elev(hip, sh);
+      const neck = elev(nk, hd);
+      const res = { torso: +torso.toFixed(1), neck: +neck.toFixed(1), neckExt: +(neck - torso).toFixed(1), shoulder: +ang(sh, hip, el).toFixed(1), elbow: +ang(el, sh, wr).toFixed(1) };
+      ((window as unknown as { __angles: unknown[] }).__angles ??= []).push(res);
+    }
     const riderOn = params.has('rider');
     a.root.traverse((o) => {
       if ((o as THREE.SkinnedMesh).isSkinnedMesh) o.visible = riderOn;

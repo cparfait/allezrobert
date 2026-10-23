@@ -87,10 +87,7 @@ const WHEEL_R = 0.335;
  * partagent la flexion (dos arrondi de cycliste ; par le seul bassin, il se creusait) ; la tête
  * se relève pour regarder la route.
  */
-const TUCK_HIPS = 0.28;
-const TUCK_SPINE = 0.2;
-const TUCK_CHEST = 0.22;
-const TUCK_HEAD = 0.35;
+export const TUCK = { hips: 0.45, spine: 0.06, chest: 0.03, head: 0.35 };
 const X_AXIS = new THREE.Vector3(1, 0, 0);
 const Y_AXIS = new THREE.Vector3(0, 1, 0);
 const Z_AXIS = new THREE.Vector3(0, 0, 1);
@@ -644,22 +641,24 @@ export class GltfRiderAvatar implements RiderAvatarLike {
   static lodScale = 1;
 
   /** Redressement du cou par rapport à la pose de repos (rad, avatar MPFB : cou de repos trop penché, tête en avant). */
-  static neckLift = 0.8;
+  static neckLift = 0.55;
   /**
    * Épaules avancées et abaissées vers le cintre (rad, clavicules de l'avatar MPFB) : figées au
    * repos, elles laissaient le bras tirer la peau du haut du dos en bosse.
    */
   static clavForward = 0.2;
   /** Longueur du cou (facteur sur la position de repos de la tête, avatar MPFB). */
-  static neckLength = 0.55;
+  static neckLength = 1;
   /**
    * Cintre route (avatar MPFB) : buste penché vers l'avant comme un cycliste sur les cocottes (dos
    * vers 40° de l'horizontale, coudes fléchis), par la même bascule que la position chrono.
    */
-  static roadTuck = 0.55;
+  static roadTuck = 0.12;
   /** Assis au fond de la selle (m vers l'arrière, avatar MPFB, cintre route ; en chrono, sur le bec). */
-  static seatBack = 0.07;
-  static clavDown = 0.12;
+  static seatBack = 0.025;
+  /** Paume reculée sur la cocotte (m) : les bras gardent un peu de flexion. */
+  static gripBack = 0.055;
+  static clavDown = 0.05;
 
   /** Modèles chargés ? */
   static get ready(): boolean {
@@ -812,7 +811,7 @@ export class GltfRiderAvatar implements RiderAvatarLike {
       const pad = anchors.pads?.[s];
       const grip = this.t.wristFromPalm?.[s];
       // Cintre route : paume sur la cocotte. Prolongateurs : écart des ancres à celles du vélo de base.
-      if (grip && !anchors.pads) this.handTarget[s].set(s === 'L' ? HOOD_PALM.x : -HOOD_PALM.x, HOOD_PALM.y, HOOD_PALM.z).add(grip);
+      if (grip && !anchors.pads) this.handTarget[s].set(s === 'L' ? HOOD_PALM.x : -HOOD_PALM.x, HOOD_PALM.y, HOOD_PALM.z - GltfRiderAvatar.gripBack).add(grip);
       else this.handTarget[s].copy(rest).add(anchors.hands[s]).sub(this.t.refHands[s]);
       if (pad) {
         const sh = this.t.bones[c.upper].modelP;
@@ -842,7 +841,7 @@ export class GltfRiderAvatar implements RiderAvatarLike {
     let best = 1;
     let bestErr = Infinity;
     // Bassin, colonne et thorax basculent autour de leurs origines (axes X parallèles), dans cet ordre.
-    const pivots: Array<[BoneName, number]> = [['hips', TUCK_HIPS], ['spine', TUCK_SPINE], ['chest', TUCK_CHEST]];
+    const pivots: Array<[BoneName, number]> = [['hips', TUCK.hips], ['spine', TUCK.spine], ['chest', TUCK.chest]];
     const pts = pivots.map(() => new THREE.Vector3());
     for (let a = 0; a <= 2.5; a += 0.01) {
       let err = 0;
@@ -941,7 +940,7 @@ export class GltfRiderAvatar implements RiderAvatarLike {
     const hipsR = t.bones.hips;
     const roll = 0.02 * Math.sin(a) * (1 - stand) * (1 - coast);
     const tuck = this.tuck * (1 - 0.6 * stand);
-    const tilt = -0.09 * stand - 0.05 * coast + TUCK_HIPS * tuck;
+    const tilt = -0.09 * stand - 0.05 * coast + TUCK.hips * tuck;
     _q1.setFromAxisAngle(Z_AXIS, counter + roll);
     _q2.setFromAxisAngle(X_AXIS, tilt);
     _q3.multiplyQuaternions(_q1, _q2).multiply(hipsR.modelQ);
@@ -959,14 +958,14 @@ export class GltfRiderAvatar implements RiderAvatarLike {
     // position chrono (moins en danseuse).
     this.bones.spine.quaternion.copy(t.bones.spine.localQ);
     this.fk('spine');
-    if (tuck > 0) this.setModelQ('spine', _q3.setFromAxisAngle(X_AXIS, TUCK_SPINE * tuck).multiply(this.mQ.spine));
+    if (tuck > 0) this.setModelQ('spine', _q3.setFromAxisAngle(X_AXIS, TUCK.spine * tuck).multiply(this.mQ.spine));
     if (t.names.spine2) {
       this.bones.spine2.quaternion.copy(t.bones.spine2.localQ);
       this.fk('spine2');
     }
     _q1.multiplyQuaternions(this.mQ[t.bones.chest.parent ?? 'spine'], t.bones.chest.localQ);
     _q2.setFromAxisAngle(Z_AXIS, -roll * 0.9);
-    if (tuck > 0) _q2.multiply(_q3.setFromAxisAngle(X_AXIS, TUCK_CHEST * tuck));
+    if (tuck > 0) _q2.multiply(_q3.setFromAxisAngle(X_AXIS, TUCK.chest * tuck));
     this.setModelQ('chest', _q3.multiplyQuaternions(_q2, _q1));
 
     // --- Tête : regarde devant, compense une partie de l'inclinaison ; le cou en prend la moitié.
@@ -978,7 +977,7 @@ export class GltfRiderAvatar implements RiderAvatarLike {
     if (lift && t.names.hips === 'pelvis') this.setModelQ('neck', _q1.setFromAxisAngle(X_AXIS, -lift).multiply(this.mQ.neck));
     const look = 0.06 * Math.sin(this.time * 0.37) * Math.sin(this.time * 0.13);
     _q1.setFromAxisAngle(Z_AXIS, -(0.7 * bank + rock + counter));
-    if (tuck > 0) _q1.multiply(_q3.setFromAxisAngle(X_AXIS, -TUCK_HEAD * tuck));
+    if (tuck > 0) _q1.multiply(_q3.setFromAxisAngle(X_AXIS, -TUCK.head * tuck));
     _q2.setFromAxisAngle(Y_AXIS, look);
     const headTarget = _q3.multiplyQuaternions(_q1, _q2).multiply(t.bones.head.modelQ);
     _q1.multiplyQuaternions(this.mQ.neck, t.bones.head.localQ).invert(); // tête si cou au repos
