@@ -290,6 +290,34 @@
    }
   },
   {
+   "id": "sancy",
+   "name": "Massif du Sancy",
+   "region": "Puy-de-Dôme · Monts Dore",
+   "routes": [
+    {
+     "id": "tour-du-sancy",
+     "name": "Le tour du Sancy par La Tour-d'Auvergne et Besse",
+     "nameEn": "Sancy loop via La Tour-d'Auvergne and Besse",
+     "lengthM": 81814,
+     "elevationGainM": 1717.81,
+     "loop": false
+    },
+    {
+     "id": "vallee-de-chaudefour",
+     "name": "La vallée de Chaudefour par Murol",
+     "nameEn": "Chaudefour valley via Murol",
+     "lengthM": 24672,
+     "elevationGainM": 527.33,
+     "loop": false
+    }
+   ],
+   "pack": {
+    "version": "c36bf9e26f4b",
+    "bytes": 328886432,
+    "files": 1321
+   }
+  },
+  {
    "id": "vincennes",
    "name": "Paris — Vincennes",
    "region": "Paris · Bois de Vincennes",
