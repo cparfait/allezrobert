@@ -1,5 +1,5 @@
 import * as THREE from 'three/webgpu';
-import type { RouteData, RouteTrack } from '@allezrobert/shared';
+import { baseRouteId, type RouteData, type RouteTrack } from '@allezrobert/shared';
 import type { QualitySettings } from '../engine/quality.ts';
 import { Environment, type EnvironmentState, type Season } from './environment.ts';
 import { TerrainManager } from './terrain.ts';
@@ -59,7 +59,8 @@ export class World {
     const open = !!source.open;
     const footprint = open ? null : new RouteFootprint(route.points, route.loop, route.roadWidthM / 2, SHOULDER);
     this.terrain.footprint = footprint;
-    this.terrain.activeRoute = route.id;
+    // routes des tuiles : identifiant du parcours d'origine (sans sens ni départ)
+    this.terrain.activeRoute = baseRouteId(route.id);
     scene.add(this.terrain.group);
     this.road = new RoadMesh(route);
     this.road.mesh.visible = !open;
@@ -76,7 +77,7 @@ export class World {
     scene.add(this.vegetation.group);
     this.buildings = new Buildings(groundAt, q.propDensity);
     scene.add(this.buildings.group);
-    this.network = new RoadNetwork(open ? '' : route.id, groundAt, footprint, open);
+    this.network = new RoadNetwork(open ? '' : baseRouteId(route.id), groundAt, footprint, open);
     scene.add(this.network.group);
     this.rain = new Rain();
     scene.add(this.rain.mesh);

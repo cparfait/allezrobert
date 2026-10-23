@@ -1,5 +1,5 @@
 import type * as THREE from 'three/webgpu';
-import type { RouteSegment, RouteTrack } from '@allezrobert/shared';
+import { rankRouteId, type RouteSegment, type RouteTrack } from '@allezrobert/shared';
 import { ghostAvatar } from './ghost.ts';
 import type { RiderAvatarLike } from '../rider/gltfAvatar.ts';
 
@@ -86,7 +86,7 @@ export class KomChallenge {
   constructor(scene: THREE.Scene, track: RouteTrack, seg: RouteSegment) {
     this.track = track;
     this.seg = seg;
-    this.routeId = track.route.id;
+    this.routeId = rankRouteId(track.route.id);
     this.len = seg.endM > seg.startM ? seg.endM - seg.startM : seg.endM + track.length - seg.startM;
     let start = seg.startM - CHALLENGE_RUNUP_M;
     if (start < 0) start = track.route.loop ? start + track.length : 0;

@@ -73,3 +73,13 @@
 .rd-route-board ol { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 2px; font-size: 13px; }
 .rd-route-board b { font-variant-numeric: tabular-nums; }
 .rd-is-me b { color: var(--ar-accent); }
+/* Départ choisi sur la carte d'une boucle (clic sur le tracé, « D » glissé). */
+.rd-map-box { position: relative; min-width: 0; align-self: start; }
+.rd-map-movable { cursor: crosshair; touch-action: none; }
+.rd-map-movable .rd-start { cursor: grab; }
+.rd-map-movable.rd-dragging, .rd-map-movable.rd-dragging .rd-start { cursor: grabbing; }
+.rd-origin circle { fill: rgba(10, 14, 22, 0.75); stroke: rgba(34, 197, 94, 0.75); stroke-width: 1.6; stroke-dasharray: 2.5 2; }
+.rd-origin text { font: 800 8.5px system-ui, sans-serif; fill: rgba(134, 239, 172, 0.85); text-anchor: middle; }
+.rd-startbar { position: absolute; left: 10px; right: 10px; bottom: 10px; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 6px 12px; border-radius: 10px; background: rgba(8, 11, 18, 0.78); font-size: 12.5px; color: #c9d1db; pointer-events: none; }
+.rd-startbar b { color: #e6ebf2; }
+.rd-startbar button { pointer-events: auto; white-space: nowrap; }

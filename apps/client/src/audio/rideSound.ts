@@ -5,7 +5,7 @@
  *
  * Développement : ?surface=smooth|rough|cobbles|gravel|dirt force le revêtement entendu.
  */
-import type { RouteTrack } from '@allezrobert/shared';
+import { baseRouteId, type RouteTrack } from '@allezrobert/shared';
 import type { World } from '../world/world.ts';
 import type { RideSession } from '../game/ride.ts';
 import type { Traffic } from '../world/traffic.ts';
@@ -79,7 +79,7 @@ export class RideSound {
     this.surfaceAcc += dt;
     if (tile && this.surfaceAcc > 0.3) {
       this.surfaceAcc = 0;
-      this.surface = surfaceAt(tile.features.roads, pos.x, pos.z, track.route.id) ?? this.surface;
+      this.surface = surfaceAt(tile.features.roads, pos.x, pos.z, baseRouteId(track.route.id)) ?? this.surface;
     }
     this.landAcc += dt;
     if (tile && this.landAcc > 0.5) {

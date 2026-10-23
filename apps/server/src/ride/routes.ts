@@ -5,13 +5,18 @@
  */
 import { readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
-import { forwardRouteId, reverseRoute, RouteTrack, type RouteData, type RoutePoint, type RouteSummary } from '@allezrobert/shared';
+import { forwardRouteId, parseStartedRouteId, reverseRoute, rotateRoute, RouteTrack, type RouteData, type RoutePoint, type RouteSummary } from '@allezrobert/shared';
 
 export const FALLBACK_ROUTE_ID = 'dev-boucle';
+/** Parcours construits à la demande (sens inverse, départ choisi) gardés en mémoire. */
+const MAX_BUILT = 256;
 
 export class RouteStore {
   private readonly routes = new Map<string, { data: RouteData; track: RouteTrack; summary: RouteSummary }>();
-  /** Parcours roulés dans l'autre sens (« <id>-inverse »), construits à la demande, hors liste. */
+  /**
+   * Parcours roulés dans l'autre sens (« <id>-inverse ») ou depuis un autre départ de la boucle
+   * (« <id>[-inverse]-depart-<m> »), construits à la demande, hors liste.
+   */
   private readonly reversed = new Map<string, { data: RouteData; track: RouteTrack; summary: RouteSummary }>();
 
   get size(): number {
@@ -30,13 +35,18 @@ export class RouteStore {
   get(id: string): { data: RouteData; track: RouteTrack; summary: RouteSummary } | undefined {
     const hit = this.routes.get(id) ?? this.reversed.get(id);
     if (hit) return hit;
-    const fwd = forwardRouteId(id);
-    const base = fwd ? this.routes.get(fwd) : undefined;
+    const started = parseStartedRouteId(id);
+    const fwd = started ? null : forwardRouteId(id);
+    const base = started ? this.get(started.id) : fwd ? this.routes.get(fwd) : undefined;
     if (!base) return undefined;
-    const data = reverseRoute(base.data);
+    const data = started ? rotateRoute(base.data, started.startM) : reverseRoute(base.data);
+    // départ invalide (aller simple, départ d'origine, distance qui ne tombe pas sur un point) : inconnu
+    if (data.id !== id) return undefined;
     const track = new RouteTrack(data);
     const r = { data, track, summary: summarize(data, track) };
     this.reversed.set(id, r);
+    // départs au choix : autant d'identifiants que de points du tracé, on n'en garde que les derniers
+    if (this.reversed.size > MAX_BUILT) this.reversed.delete(this.reversed.keys().next().value as string);
     return r;
   }
 

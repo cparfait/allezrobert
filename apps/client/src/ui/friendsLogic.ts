@@ -4,6 +4,7 @@
  */
 import {
   forwardRouteId,
+  parseStartedRouteId,
   FRIEND_LINK_PARAM,
   isFriendCode,
   normalizeFriendCode,
@@ -114,14 +115,18 @@ export function initials(name: string): string {
 export function joinSettings(
   info: Pick<FriendJoinInfo, 'mode' | 'routeId'>,
   routeIds: readonly string[],
-  current: { mode: RideMode; routeId: string; reverse?: boolean },
-): { mode: 'group' | 'race'; routeId: string; reverse: boolean; routeKnown: boolean } {
-  // un ami sur un parcours inversé : même parcours, dans le même sens
-  const fwd = forwardRouteId(info.routeId);
-  const id = fwd && routeIds.includes(fwd) ? fwd : info.routeId;
+  current: { mode: RideMode; routeId: string; reverse?: boolean; startM?: number },
+): { mode: 'group' | 'race'; routeId: string; reverse: boolean; startM: number; routeKnown: boolean } {
+  // un ami parti d'un autre point de la boucle, ou sur un parcours inversé : même départ, même sens
+  const started = parseStartedRouteId(info.routeId);
+  const dirId = started?.id ?? info.routeId;
+  const fwd = forwardRouteId(dirId);
+  const id = fwd && routeIds.includes(fwd) ? fwd : dirId;
   const routeKnown = routeIds.includes(id);
   const mode = info.mode === 'race' ? 'race' : 'group';
-  return routeKnown ? { mode, routeId: id, reverse: id !== info.routeId, routeKnown } : { mode, routeId: current.routeId, reverse: !!current.reverse, routeKnown };
+  return routeKnown
+    ? { mode, routeId: id, reverse: id !== dirId, startM: started?.startM ?? 0, routeKnown }
+    : { mode, routeId: current.routeId, reverse: !!current.reverse, startM: current.startM ?? 0, routeKnown };
 }
 
 /** Message d'erreur de l'API (champ `error`) à afficher. */

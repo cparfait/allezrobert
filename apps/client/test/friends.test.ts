@@ -81,10 +81,13 @@ describe('amis — liste et présence', () => {
 describe('amis — rejoindre et erreurs', () => {
   it('rejoindre : mode groupe ou course, itinéraire de l’ami s’il est dans ce monde', () => {
     const cur = { mode: 'free' as const, routeId: 'r-locale' };
-    expect(joinSettings({ mode: 'race', routeId: 'r2' }, ['r1', 'r2'], cur)).toEqual({ mode: 'race', routeId: 'r2', reverse: false, routeKnown: true });
-    expect(joinSettings({ mode: 'group', routeId: 'ailleurs' }, ['r1'], cur)).toEqual({ mode: 'group', routeId: 'r-locale', reverse: false, routeKnown: false });
+    expect(joinSettings({ mode: 'race', routeId: 'r2' }, ['r1', 'r2'], cur)).toEqual({ mode: 'race', routeId: 'r2', reverse: false, startM: 0, routeKnown: true });
+    expect(joinSettings({ mode: 'group', routeId: 'ailleurs' }, ['r1'], cur)).toEqual({ mode: 'group', routeId: 'r-locale', reverse: false, startM: 0, routeKnown: false });
     // l'ami roule le parcours dans l'autre sens : on le rejoint dans ce sens
-    expect(joinSettings({ mode: 'group', routeId: 'r1-inverse' }, ['r1'], cur)).toEqual({ mode: 'group', routeId: 'r1', reverse: true, routeKnown: true });
+    expect(joinSettings({ mode: 'group', routeId: 'r1-inverse' }, ['r1'], cur)).toEqual({ mode: 'group', routeId: 'r1', reverse: true, startM: 0, routeKnown: true });
+    // l'ami est parti d'un autre point de la boucle : même départ (et même sens)
+    expect(joinSettings({ mode: 'group', routeId: 'r1-inverse-depart-5400' }, ['r1'], cur)).toEqual({ mode: 'group', routeId: 'r1', reverse: true, startM: 5400, routeKnown: true });
+    expect(joinSettings({ mode: 'group', routeId: 'r1-depart-120' }, ['r1'], cur)).toMatchObject({ routeId: 'r1', reverse: false, startM: 120 });
     expect(joinSettings({ mode: 'free', routeId: 'r1' }, ['r1'], cur).mode).toBe('group');
   });
 
