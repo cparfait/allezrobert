@@ -1,6 +1,6 @@
 /**
  * Assemblage des services du serveur (configuration, base, chiffrement, jetons, e-mail,
- * intégrations, registre des sorties, itinéraires) partagé par l'API HTTP et les salles.
+ * intégrations, registre des sorties, amis, itinéraires) partagé par l'API HTTP et les salles.
  */
 import type { Config } from './config.ts';
 import { DataCipher } from './crypto.ts';
@@ -10,9 +10,13 @@ import { TokenService } from './auth/tokens.ts';
 import { createMailer, type Mailer } from './auth/mailer.ts';
 import { UploadService } from './integrations/uploads.ts';
 import { RideRegistry } from './ride/registry.ts';
+import { FriendRepo } from './db/friends.ts';
+import { FriendHub } from './friends/hub.ts';
 import type { RouteStore } from './ride/routes.ts';
 import type { RideServices } from './ride/services.ts';
 import { parseCookies, SESSION_COOKIE } from './http/cookies.ts';
+import { levelForXp } from '@allezrobert/shared';
+import { rewardEvents } from './progression/atelier.ts';
 
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 export type Logger = (level: LogLevel, msg: string) => void;
@@ -37,6 +41,8 @@ export interface AppContext {
   mailer: Mailer;
   uploads: UploadService;
   registry: RideRegistry;
+  /** Amis : dépôt SQL, présence et invitations à rouler (en mémoire). */
+  friends: FriendHub;
   routes: RouteStore;
   fetchFn: typeof fetch;
   log: Logger;
@@ -44,6 +50,8 @@ export interface AppContext {
   verifySessionToken(token: string | undefined): Promise<{ userId: string; sessionId: string; name: string } | null>;
   /** Invalide le cache de session (déconnexion, suppression de compte). */
   forgetSession(sessionId?: string): void;
+  /** Worker vidéo intégré (RENDER_INLINE) : réveillé à chaque nouvelle tâche. */
+  renderWorker?: { nudge(): void };
 }
 
 export function createContext(config: Config, db: Db, routes: RouteStore, opts: { fetchFn?: typeof fetch; log?: Logger; mailer?: Mailer } = {}): AppContext {
@@ -59,6 +67,7 @@ export function createContext(config: Config, db: Db, routes: RouteStore, opts: 
       : null;
   const uploads = new UploadService(repos, strava, fetchFn);
   const cache = new Map<string, number>();
+  const registry = new RideRegistry();
 
   return {
     config,
@@ -68,7 +77,8 @@ export function createContext(config: Config, db: Db, routes: RouteStore, opts: 
     tokens,
     mailer,
     uploads,
-    registry: new RideRegistry(),
+    registry,
+    friends: new FriendHub(new FriendRepo(db), registry),
     routes,
     fetchFn,
     log,
@@ -114,7 +124,14 @@ export function rideServicesFrom(ctx: AppContext): RideServices {
     },
     async loadProfile(userId) {
       const p = await ctx.repos.getProfile(userId);
-      return p ? { displayName: p.displayName, weightKg: p.weightKg, ftpWatts: p.ftpWatts, avatar: p.avatar, consentHr: p.consentHr } : null;
+      if (!p) return null;
+      const [prog, atelier] = await Promise.all([ctx.repos.getProgression(userId), ctx.repos.getAtelier(userId)]);
+      return { displayName: p.displayName, weightKg: p.weightKg, ftpWatts: p.ftpWatts, avatar: p.avatar, consentHr: p.consentHr, equipped: p.equipped, owned: atelier.owned, level: levelForXp(prog.xp) };
+    },
+    rewardEvents: (userId, events) => rewardEvents(ctx.repos, userId, events),
+    async rewardKom(userId) {
+      const n = await ctx.repos.addKom(userId);
+      return rewardEvents(ctx.repos, userId, n >= 5 ? ['kom', 'kom-5'] : ['kom']);
     },
     async personalBests(userId, routeId) {
       return (await ctx.repos.personalBests(userId, routeId)).map((b) => [b.segmentId, b.bestMs] as [string, number]);

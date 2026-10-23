@@ -1,5 +1,5 @@
-import type { RoadGraphData, RouteData, WorldMeta, WorldTile } from '@allezrobert/shared';
-import type { LoadedTile, TileFeatures, WorldSource } from './types.ts';
+import type { RoadGraphData, RouteData, WorldMeta, WorldPlace, WorldTile } from '@allezrobert/shared';
+import type { HorizonGrid, LoadedTile, TileFeatures, WorldSource } from './types.ts';
 import { worldFetch } from './packs.ts';
 
 /**
@@ -16,11 +16,13 @@ export async function createFileWorld(id: string, meta: WorldMeta): Promise<Worl
       return (await res.json()) as RouteData;
     }),
   );
-  // Monde ouvert : graphe routier (≈ 1 Mo), chargé avec les itinéraires.
+  // Monde ouvert : graphe routier (≈ 1 Mo), chargé avec les itinéraires, et noms des lieux
+  // habités pour la carte d'itinéraire du menu (facultatifs).
   let open: WorldSource['open'];
   if (meta.open) {
-    const res = await fetch(`${base}/${meta.open.graph}`);
-    if (res.ok) open = { graph: (await res.json()) as RoadGraphData, start: meta.open.start };
+    const [res, pl] = await Promise.all([fetch(`${base}/${meta.open.graph}`), meta.open.places ? fetch(`${base}/${meta.open.places}`).catch(() => null) : null]);
+    const places = pl?.ok ? ((await pl.json().catch(() => null)) as WorldPlace[] | null) : null;
+    if (res.ok) open = { graph: (await res.json()) as RoadGraphData, start: meta.open.start, ...(places ? { places } : {}) };
   }
   // Itinéraire principal en premier (jalon 1).
   routes.sort((a, b) => (a.id === meta.mainRoute ? -1 : b.id === meta.mainRoute ? 1 : 0));
@@ -44,6 +46,17 @@ export async function createFileWorld(id: string, meta: WorldMeta): Promise<Worl
       if (missing.has(key)) return false;
       // Index vide : génération en cours, on tente toutes les tuiles de l'emprise.
       return index.size ? index.has(key) : inBounds(tx, tz);
+    },
+    async loadHorizon(): Promise<HorizonGrid | null> {
+      const h = meta.horizon;
+      if (!h) return null;
+      const res = await worldFetch(`${base}/${h.file}`);
+      if (!res.ok) return null;
+      const raw = new Uint16Array(await res.arrayBuffer());
+      if (raw.length < (h.n + 1) * (h.n + 1)) return null;
+      const heights = new Float32Array(raw.length);
+      for (let i = 0; i < raw.length; i++) heights[i] = h.baseM + (raw[i] as number) * h.stepM;
+      return { x0: h.x0, z0: h.z0, n: h.n, resolutionM: h.resolutionM, heights };
     },
     async loadTile(tx, tz) {
       const key = `${tx}_${tz}`;
@@ -131,7 +144,7 @@ function toFeatures(t: WorldTile): TileFeatures {
     fields: t.fields.map((f) => ({ rings: f.rings, kind: f.kind })),
     landuse: t.landuse.map((l) => ({ rings: l.rings, kind: l.kind })),
     waterways: t.waterways.map((w) => ({ width: w.width, pts: w.pts, kind: w.kind, ...(w.tunnel ? { tunnel: true } : {}) })),
-    railways: (t.railways ?? []).map((r) => ({ id: r.id, kind: r.kind, pts: r.pts, ...(r.tunnel ? { tunnel: true } : {}), ...(r.bridge ? { bridge: true } : {}) })),
+    railways: (t.railways ?? []).map((r) => ({ id: r.id, kind: r.kind, pts: r.pts, ...(r.name ? { name: r.name } : {}), ...(r.tunnel ? { tunnel: true } : {}), ...(r.bridge ? { bridge: true } : {}) })),
     pois: t.pois.map((p) => ({ kind: p.kind, name: p.name, x: p.x, y: p.y, z: p.z })),
     ...(t.enriched?.vegetation ? { trees: t.trees ?? [], shrubs: t.shrubs ?? [], realVegetation: true } : {}),
   };

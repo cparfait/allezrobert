@@ -6,6 +6,7 @@ import { SPLAT_CHANNELS, type LoadedTile, type WorldSource } from './types.ts';
 import { rasterizeSplat } from './splat.ts';
 import type { RouteFootprint } from './ribbon.ts';
 import type { Season } from './environment.ts';
+import { ALPINE_GROUND_M, ALPINE_MEADOW, SNOW_LINE_M, alpineProfile } from './alpine.ts';
 
 /** Couleurs du sol par saison (voir ART_DIRECTION.md). */
 const SEASON_GROUND: Record<Season, { forest: string; field: string; field2: string; meadow: string; urban: string; dirt: string }> = {
@@ -45,6 +46,11 @@ export class TerrainManager {
   readonly wetness = uniform(0);
   /** Neige / givre (hiver). */
   readonly frost = uniform(0);
+  /** Montagne : limite d'enneigement de la saison (m), alpage, roche du massif, limite des arbres. */
+  private readonly snowLine = uniform(SNOW_LINE_M.summer);
+  private readonly alpineMeadow = colorUniform(ALPINE_MEADOW.summer);
+  private readonly rockColor = colorUniform('#6d6860');
+  private readonly treeline = uniform(2150);
   /** Teinte appliquée à l'orthophoto (prise en été) selon la saison, et sa saturation. */
   private readonly orthoTint = colorUniform('#ffffff');
   private readonly orthoSat = uniform(1);
@@ -64,6 +70,9 @@ export class TerrainManager {
     this.source = source;
     this.q = q;
     this.group.name = 'terrain';
+    const alp = alpineProfile(source.id);
+    this.rockColor.set(alp.rock);
+    this.treeline.value = alp.treelineM;
     this.setSeason(season);
   }
 
@@ -71,6 +80,8 @@ export class TerrainManager {
     const c = SEASON_GROUND[season];
     for (const k of Object.keys(c) as Array<keyof typeof c>) this.seasonColors[k].set(c[k]);
     this.frost.value = season === 'winter' ? 0.25 : 0;
+    this.snowLine.value = SNOW_LINE_M[season];
+    this.alpineMeadow.set(ALPINE_MEADOW[season]);
     const tint: Record<Season, [string, number]> = { spring: ['#f4fff0', 1.05], summer: ['#fffbf2', 1], autumn: ['#fbead2', 0.9], winter: ['#dde2e6', 0.5] };
     this.orthoTint.set(tint[season][0]);
     this.orthoSat.value = tint[season][1];
@@ -303,7 +314,7 @@ export class TerrainManager {
       b[i * 4] = data[i * C + 4] as number;
       b[i * 4 + 1] = data[i * C + 5] as number;
       b[i * 4 + 2] = data[i * C + 6] as number;
-      b[i * 4 + 3] = 255;
+      b[i * 4 + 3] = data[i * C + 7] as number;
     }
     return [a, b].map((buf) => {
       const t = new THREE.DataTexture(buf, res, res, THREE.RGBAFormat);
@@ -328,11 +339,15 @@ export class TerrainManager {
     const n3 = mx_noise_float(wp.mul(0.4)).mul(0.5).add(0.5);
     const detail = n2.mul(0.18).add(n3.mul(0.12)).add(0.82);
 
-    const meadow = c.meadow.node.mul(n1.mul(0.25).add(0.85));
+    // Altitude : alpages au-dessus de ~1 500 m (pelouse rase, plus claire et plus sèche).
+    const alt = positionWorld.y;
+    const alpine = smoothstep(ALPINE_GROUND_M - 200, ALPINE_GROUND_M + 200, alt);
+    const meadow = mix(c.meadow.node, this.alpineMeadow.node, alpine).mul(n1.mul(0.25).add(0.85));
     const field = mix(c.field.node, c.field2.node, smoothstep(0.45, 0.6, n1));
     // Sillons des champs : bandes fines selon une orientation pseudo-aléatoire par parcelle.
     const furrow = mx_noise_float(wp.mul(vec2(0.9, 0.05))).mul(0.06).add(1);
-    const forestFloor = c.forest.node.mul(n2.mul(0.3).add(0.75));
+    // Sous-bois : aiguilles sombres des pessières en altitude.
+    const forestFloor = mix(c.forest.node, vec3(0.2, 0.22, 0.13), alpine.mul(0.6)).mul(n2.mul(0.3).add(0.75));
     const water = vec3(0.18, 0.26, 0.27);
     const urban = c.urban.node.mul(n3.mul(0.2).add(0.85));
     const asphalt = vec3(0.16, 0.165, 0.175);
@@ -361,13 +376,41 @@ export class TerrainManager {
       const verge = smoothstep(0.2, 0.8, s1.b);
       col = mix(col, seasonal, float(0.72).mul(float(1).sub(roadMask)).mul(float(1).sub(verge.mul(0.8))));
     }
+    // Montagne : roche grise sur les fortes pentes (plus tôt en altitude), au-dessus de la limite
+    // des arbres et sur les éboulis OSM ; glace sur les glaciers ; neige selon la saison. Appliqué
+    // après l'orthophoto (prise en été), atténué quand elle montre déjà la roche.
+    const ice = smoothstep(0.7, 0.9, s1.a);
+    const scree = smoothstep(0.15, 0.4, s1.a).mul(float(1).sub(ice));
+    const roadMask = smoothstep(0.35, 0.75, s1.g);
+    // (pas en plaine : talus des routes creusées et berges y restent en terre ; talus de
+    // l'itinéraire surtout herbeux)
+    const steep = smoothstep(mix(float(0.4), float(0.24), alpine), mix(float(0.6), float(0.44), alpine), slope)
+      .mul(smoothstep(250, 600, alt))
+      .mul(float(1).sub(smoothstep(0.2, 0.8, s1.b).mul(0.7)));
+    const highRock = smoothstep(this.treeline.add(100), this.treeline.add(700), alt).mul(0.6).mul(n1.mul(0.6).add(0.6));
+    const rockMask = clamp(steep.max(highRock).max(scree), 0, 1).mul(float(1).sub(roadMask));
+    // Roche : strates et taches (bruit étiré), éboulis plus clairs et grenus.
+    const strata = mx_noise_float(vec3(wp.x.mul(0.05), alt.mul(0.35), wp.y.mul(0.05))).mul(0.12).add(1);
+    const rock = this.rockColor.node.mul(n3.mul(0.25).add(0.82)).mul(strata).mul(scree.mul(0.12).add(1));
+    col = mix(col, rock, rockMask.mul(ortho ? 0.5 : 0.9));
+    const glacier = mix(vec3(0.78, 0.85, 0.9), vec3(0.62, 0.72, 0.8), smoothstep(0.55, 0.8, n3));
+    col = mix(col, glacier, ice.mul(ortho ? 0.7 : 0.9));
+    // Neige : limite de saison ± 150 m de bruit, 200 m plus bas sur les versants nord (normale vers −z) ;
+    // elle ne tient pas sur les parois raides et les routes sont déneigées.
+    const north = smoothstep(0.0, 0.5, normalWorld.z.negate());
+    const line = this.snowLine.sub(north.mul(200)).add(n1.sub(0.5).mul(300));
+    const snow = smoothstep(line.sub(120), line.add(180), alt)
+      .mul(float(1).sub(smoothstep(0.38, 0.62, slope)))
+      .mul(float(1).sub(roadMask))
+      .max(ice.mul(smoothstep(line.sub(400), line, alt)));
     col = col.mul(detail);
     // Pluie : sol plus sombre ; givre : voile clair sur les surfaces planes.
     col = col.mul(float(1).sub(this.wetness.mul(0.35)));
     col = mix(col, vec3(0.86, 0.9, 0.93), this.frost.mul(smoothstep(0.85, 0.98, normalWorld.y)).mul(n2));
+    col = mix(col, vec3(0.9, 0.93, 0.96).mul(n3.mul(0.06).add(0.96)), snow.mul(0.95));
     m.colorNode = col;
-    const rough = mix(float(0.95), float(0.55), smoothstep(0.35, 0.75, s1.g));
-    m.roughnessNode = clamp(rough.sub(this.wetness.mul(0.45)).sub(s0.a.mul(0.6)), 0.08, 1);
+    const rough = mix(float(0.95), float(0.55), roadMask);
+    m.roughnessNode = clamp(rough.sub(this.wetness.mul(0.45)).sub(s0.a.mul(0.6)).sub(ice.mul(0.4)).sub(snow.mul(0.25)), 0.08, 1);
     m.metalnessNode = float(0);
     return m;
   }

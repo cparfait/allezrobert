@@ -121,5 +121,9 @@ describe('progression', () => {
     expect(validateEquipped({ jersey: 'jersey-club-bleu' }, 1)).toBeNull();
     expect(validateEquipped({ jersey: 'jersey-pois' }, 3)).toMatch(/niveau 10/);
     expect(validateEquipped({ helmet: 'jersey-pois' }, 50)).toMatch(/emplacement/);
+    // Vélos du catalogue ; anciens identifiants du garage acceptés (migrés).
+    expect(validateEquipped({ bike: 'bike-alu' }, 1)).toBeNull();
+    expect(validateEquipped({ bike: 's26-01-uae-y1rs' }, 1)).toMatch(/niveau 30/);
+    expect(validateEquipped({ bike: 'bike-inconnu' }, 50)).toMatch(/inconnu/);
   });
 });

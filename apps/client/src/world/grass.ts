@@ -6,6 +6,7 @@ import type { QualitySettings } from '../engine/quality.ts';
 import type { LoadedTile } from './types.ts';
 import { splatAt } from './splat.ts';
 import type { Season } from './environment.ts';
+import { snowCoverAt } from './alpine.ts';
 
 const RADIUS = 60;
 /** Base (pied, ombragé) et pointe des brins par saison : verts sourds, pointes olive (pas de jaune vif). */
@@ -63,6 +64,8 @@ function clumpGeometry(): THREE.BufferGeometry {
 export class GrassField {
   readonly mesh: THREE.InstancedMesh;
   readonly wind = uniform(0.3);
+  /** Direction vers laquelle souffle le vent (x, z), unitaire. */
+  readonly windDir = uniform(new THREE.Vector2(0.6, 0.8));
   private readonly base = colorUniform();
   private readonly tipCol = colorUniform();
   private readonly max: number;
@@ -70,6 +73,7 @@ export class GrassField {
   private readonly tileAt: (x: number, z: number) => LoadedTile | undefined;
   private readonly heightAt: (x: number, z: number) => number;
   private readonly avoid: (x: number, z: number) => boolean;
+  private season: Season = 'summer';
 
   constructor(q: QualitySettings, season: Season, tileAt: (x: number, z: number) => LoadedTile | undefined, heightAt: (x: number, z: number) => number, avoid: (x: number, z: number) => boolean) {
     this.tileAt = tileAt;
@@ -79,8 +83,10 @@ export class GrassField {
     const m = new THREE.MeshStandardNodeMaterial({ side: THREE.DoubleSide });
     const tip = attribute<'float'>('tip');
     const h = hash(instanceIndex);
-    const sway = sin(time.mul(float(1.6).add(h.mul(0.8))).add(h.mul(30))).mul(this.wind).mul(tip).mul(0.12);
-    m.positionNode = positionLocal.add(vec3(sway, 0, sway.mul(0.5)));
+    // Brins couchés dans le sens du vent, avec des vagues de rafales qui parcourent la prairie.
+    const wave = sin(positionLocal.x.mul(this.windDir.x).add(positionLocal.z.mul(this.windDir.y)).mul(0.35).sub(time.mul(2.2)));
+    const sway = sin(time.mul(float(1.6).add(h.mul(0.8))).add(h.mul(30))).mul(0.4).add(wave.mul(0.35)).add(0.6).mul(this.wind).mul(tip).mul(0.12);
+    m.positionNode = positionLocal.add(vec3(this.windDir.x.mul(sway), 0, this.windDir.y.mul(sway)));
     // une touffe sur huit plus sèche (paille), variation de teinte par touffe
     const dry = hash(instanceIndex.add(31)).greaterThan(0.875).select(float(1), float(0));
     const tipCol = mix(this.tipCol.node, vec3(0.42, 0.38, 0.22), dry.mul(0.7));
@@ -97,6 +103,9 @@ export class GrassField {
   }
 
   setSeason(season: Season): void {
+    this.season = season;
+    // régénérer au prochain update (enneigement)
+    this.center.set(1e9, 0, 1e9);
     const [b, t] = SEASON_GRASS[season];
     this.base.set(b);
     this.tipCol.set(t);
@@ -129,11 +138,16 @@ export class GrassField {
       // abords de l'itinéraire actif : bas-côté herbeux dense et plus haut
       const verge = splatAt(tile, 6, x, z);
       // Herbe partout sauf chaussée et eau, plus dense dans les prés et sur les bas-côtés.
-      const density = road > 0.3 || water > 0.3 ? 0 : 0.35 + meadow * 0.65 - forest * 0.25 + field * 0.1 + verge * 0.8;
+      // ni sur la roche, les éboulis et les glaciers
+      const rock = splatAt(tile, 7, x, z);
+      const density = road > 0.3 || water > 0.3 || rock > 0.2 ? 0 : 0.35 + meadow * 0.65 - forest * 0.25 + field * 0.1 + verge * 0.8;
       if (r() > density) continue;
       if (this.avoid(x, z)) continue;
       const y = this.heightAt(x, z);
       if (!Number.isFinite(y)) continue;
+      // au-dessus de la limite d'enneigement : sous la neige
+      const snow = snowCoverAt(y, this.season);
+      if (snow > 0 && r() < snow) continue;
       const k = (0.6 + r() * 0.7) * (1 + verge * 0.6);
       p.set(x, y - 0.02, z);
       q.setFromAxisAngle(up, r() * Math.PI);

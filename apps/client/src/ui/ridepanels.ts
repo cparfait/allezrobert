@@ -1,8 +1,12 @@
+import { phoneIcon } from './companionQr.ts';
 import { encodeActivity, buildActivity } from '@allezrobert/fit';
 import { worldToWgs84, type ActivityRecord } from '@allezrobert/shared';
 import { t, getLang } from '../i18n/index.ts';
+import type { SummaryVideoPanel } from './summaryvideo.ts';
 import { apiBase, fetchMe } from './account.ts';
+import { renderRideInvite } from './friends.ts';
 import type { RideSession } from '../game/ride.ts';
+import { renderSoundSettings } from './soundSettings.ts';
 
 /** Construit le fichier FIT de la sortie (positions GPS reconstruites depuis le repère monde). */
 export function rideToFit(ride: RideSession, opts: { name: string; massKg: number; ftp: number; originL93?: { x: number; y: number }; skipStrava: boolean }): Uint8Array {
@@ -67,26 +71,39 @@ export function download(bytes: Uint8Array, filename: string, mime = 'applicatio
 export interface PauseCallbacks {
   onResume(): void;
   onFinish(): void;
+  /** Libellé du bouton de fin (ex. « Abandonner la course »). */
+  finishLabel?: string;
+  /** Sortie de groupe en cours : la pause propose d'y inviter des amis. */
+  roomId?: string;
+  /** Affiche le QR code de l'appli compagnon. */
+  onCompanion?(): void;
 }
 
 export function showPause(root: HTMLElement, cb: PauseCallbacks): void {
-  root.innerHTML = `<div class="pause-overlay"><div class="panel" style="padding:28px 34px;text-align:center;min-width:320px">
+  root.innerHTML = `<div class="pause-overlay"><div class="panel" style="padding:28px 34px;text-align:center;min-width:320px;max-width:min(720px,92vw)">
     <h2 style="margin:0 0 18px">${t('pause')}</h2>
     <div class="row" style="justify-content:center">
       <button class="btn primary" id="p-resume">${t('resume')}</button>
-      <button class="btn" id="p-finish">${t('finish')}</button>
-    </div></div></div>`;
+      <button class="btn" id="p-finish">${cb.finishLabel ?? t('finish')}</button>
+      ${cb.onCompanion ? `<button class="btn" id="p-companion">${phoneIcon(18)} ${getLang() === 'fr' ? 'Appli compagnon' : 'Companion app'}</button>` : ''}
+    </div><div id="p-friends"></div>
+    <div id="p-sound" style="margin-top:18px;text-align:left"></div></div></div>`;
+  renderSoundSettings(root.querySelector('#p-sound'));
   (root.querySelector('#p-resume') as HTMLElement).onclick = cb.onResume;
   (root.querySelector('#p-finish') as HTMLElement).onclick = cb.onFinish;
+  const cmp = root.querySelector<HTMLElement>('#p-companion');
+  if (cmp && cb.onCompanion) cmp.onclick = cb.onCompanion;
+  if (cb.roomId) void renderRideInvite(root.querySelector('#p-friends') as HTMLElement, cb.roomId);
 }
 
 /**
  * Compte connecté : enregistrement de la sortie sur le serveur (XP, segments), envoi
  * automatique vers Strava (sauf option « Garmin ») et intervals.icu s'ils sont reliés.
  */
-export async function onlinePanel(box: HTMLElement, ride: RideSession, fit: () => Uint8Array): Promise<void> {
+export async function onlinePanel(box: HTMLElement, ride: RideSession, fit: () => Uint8Array, video?: SummaryVideoPanel): Promise<void> {
   const fr = getLang() === 'fr';
   const me = await fetchMe();
+  video?.setLoggedIn(!!me);
   if (!me) {
     box.innerHTML = `<p class="meta" style="color:var(--ar-muted);font-size:13px">${fr ? 'Connecte-toi pour enregistrer la sortie sur ton compte et l’envoyer vers Strava / intervals.icu.' : 'Sign in to save the ride and send it to Strava / intervals.icu.'}</p>`;
     return;
@@ -109,7 +126,7 @@ export async function onlinePanel(box: HTMLElement, ride: RideSession, fit: () =
     e.preventDefault();
     const key = (box.querySelector('#o-intkey') as HTMLInputElement).value.trim();
     const r = await api('/integrations/intervals', { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ apiKey: key }) }).catch(() => null);
-    if (r?.ok) void onlinePanel(box, ride, fit);
+    if (r?.ok) void onlinePanel(box, ride, fit, video);
     else alert(fr ? 'intervals.icu a refusé cette clé.' : 'intervals.icu rejected this key.');
   });
   box.querySelector('#o-save')?.addEventListener('click', async (e) => {
@@ -119,7 +136,8 @@ export async function onlinePanel(box: HTMLElement, ride: RideSession, fit: () =
     const r = await api(`/activities?${q}`, { method: 'POST', headers: { 'content-type': 'application/octet-stream' }, body: fit() as BlobPart }).catch(() => null);
     const msg = box.querySelector('#o-save-msg') as HTMLElement;
     if (r?.ok) {
-      const j = (await r.json()) as { xpGained: number; progression: { level: number } };
+      const j = (await r.json()) as { xpGained: number; progression: { level: number }; activity?: { id: string } };
+      if (j.activity?.id) video?.setActivity(j.activity.id);
       msg.textContent = `${fr ? 'Enregistrée' : 'Saved'} · +${j.xpGained} XP · ${fr ? 'niveau' : 'level'} ${j.progression.level}${integ?.strava.connected && !st.skipStrava ? ' · Strava…' : ''}${integ?.intervals.connected ? ' · intervals.icu…' : ''}`;
     } else {
       msg.textContent = fr ? 'Enregistrement impossible pour le moment.' : 'Could not save right now.';

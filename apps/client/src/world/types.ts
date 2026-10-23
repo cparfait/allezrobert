@@ -1,10 +1,12 @@
-import type { RoadGraphData, RouteData } from '@allezrobert/shared';
+import type { RoadGraphData, RouteData, WorldPlace } from '@allezrobert/shared';
 
 /**
  * Classes d'occupation du sol rastérisées par tuile (un octet par canal). `verge` : abords de
- * l'itinéraire actif (l'orthophoto, où la chaussée apparaît floue, y est atténuée).
+ * l'itinéraire actif (l'orthophoto, où la chaussée apparaît floue, y est atténuée). `alpine` :
+ * roche nue et éboulis ≈ 0,5, glacier = 1. `conifer` : forêts de résineux OSM (1) ou mixtes (0,5),
+ * pour la végétation seulement (les huit premiers canaux vont au matériau du terrain).
  */
-export const SPLAT_CHANNELS = ['forest', 'field', 'meadow', 'water', 'urban', 'road', 'verge'] as const;
+export const SPLAT_CHANNELS = ['forest', 'field', 'meadow', 'water', 'urban', 'road', 'verge', 'alpine', 'conifer'] as const;
 export type SplatChannel = (typeof SPLAT_CHANNELS)[number];
 
 export type ForestKind = 'deciduous' | 'conifer' | 'mixed';
@@ -53,8 +55,8 @@ export interface TileFeatures {
   fields: Array<{ rings: Rings; kind: string }>;
   landuse: Array<{ rings: Rings; kind: string }>;
   waterways: Array<{ width: number; pts: number[]; kind?: string; tunnel?: boolean }>;
-  /** Voies ferrées (morceaux découpés à la tuile ; `id` = voie OSM, pour les raccorder). */
-  railways?: Array<{ id: number; kind: string; pts: number[]; tunnel?: boolean; bridge?: boolean }>;
+  /** Voies ferrées OSM (morceaux découpés à la tuile ; `id` = voie OSM, pour les raccorder ; l'altitude vient du terrain). */
+  railways?: Array<{ id: number; kind: string; pts: number[]; name?: string; tunnel?: boolean; bridge?: boolean }>;
   pois: Array<{ kind: string; name: string; x: number; y: number; z: number }>;
   /** Arbres réels (LiDAR HD) : [x, z, hauteur, rayon du houppier, …]. */
   trees?: number[];
@@ -65,7 +67,7 @@ export interface TileFeatures {
 }
 
 export function emptyFeatures(): TileFeatures {
-  return { roads: [], buildings: [], forests: [], water: [], fields: [], landuse: [], waterways: [], pois: [] };
+  return { roads: [], buildings: [], forests: [], water: [], fields: [], landuse: [], waterways: [], railways: [], pois: [] };
 }
 
 /** Tuile chargée, prête pour le rendu, en coordonnées monde. */
@@ -87,6 +89,18 @@ export interface LoadedTile {
   splat?: { res: number; data: Uint8Array };
 }
 
+/**
+ * Relief lointain (horizon des montagnes) : grille grossière autour du monde, (n+1)² altitudes
+ * absolues (m), ligne j = z0 + j·resolutionM (du nord au sud), colonne i = x0 + i·resolutionM.
+ */
+export interface HorizonGrid {
+  x0: number;
+  z0: number;
+  n: number;
+  resolutionM: number;
+  heights: Float32Array;
+}
+
 export interface WorldSource {
   id: string;
   name: string;
@@ -97,7 +111,9 @@ export interface WorldSource {
   /** Origine Lambert-93, pour reconvertir les positions en GPS (export FIT). */
   originL93?: { x: number; y: number };
   /** Monde ouvert : graphe routier roulable et départ par défaut (toutes les routes creusées). */
-  open?: { graph: RoadGraphData; start: { x: number; z: number } };
+  open?: { graph: RoadGraphData; start: { x: number; z: number }; places?: WorldPlace[] };
   hasTile(tx: number, tz: number): boolean;
   loadTile(tx: number, tz: number): Promise<LoadedTile | null>;
+  /** Relief lointain, s'il est fourni (world.json `horizon`). */
+  loadHorizon?(): Promise<HorizonGrid | null>;
 }

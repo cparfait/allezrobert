@@ -44,7 +44,8 @@ export class RoadMesh {
     const inPatch = step(0.68, hp).mul(step(vs, v)).mul(step(v, ve)).mul(step(u0, across)).mul(step(across, u1));
     const patchCol = vec3(0.17, 0.175, 0.18).mul(asphaltGrain());
     // Joints colmatés au bitume : joint longitudinal d'axe (ondulant, interrompu) et quelques
-    // fissures transversales, fins et sombres, plus brillants que l'enrobé.
+    // fissures transversales, fins et sombres, aussi mats que l'enrobé (plus brillants, ils
+    // renvoyaient le ciel au soleil rasant en trait clair).
     const wob = mx_noise_float(vec2(v.mul(0.06), 2)).mul(0.18);
     const seam = smoothstep(0.035, 0.012, abs(across.add(wob))).mul(step(0.55, mx_noise_float(vec2(v.mul(0.04), 11)).mul(0.5).add(0.5)));
     const tcell = floor(v.div(23));
@@ -86,7 +87,7 @@ export class RoadMesh {
     const wet = this.wetness;
     col = col.mul(float(1).sub(wet.mul(0.4).mul(onRoad)));
     m.colorNode = col;
-    const rough = mix(float(0.84).sub(wheelTrack), float(0.45), tar);
+    const rough = float(0.84).sub(wheelTrack);
     m.roughnessNode = clamp(mix(float(0.97), rough, onRoad).sub(wet.mul(0.6).mul(onRoad)), 0.06, 1);
     m.metalnessNode = float(0);
     m.opacityNode = step(ax, vergeOuter);
@@ -105,14 +106,14 @@ export const SHOULDER = 1.2;
 
 function buildRibbon(route: RoutePoint[], width: number, loop: boolean): THREE.BufferGeometry {
   // Virages vifs démultipliés (bord extérieur arrondi), voir roundCorners.
-  const { pts: points, normals } = TMP_NOFIX ? { pts: route, normals: new Float64Array(0) } : roundCorners(route, loop);
+  const { pts: points, normals } = roundCorners(route, loop);
   const n = points.length;
   const cols = 4; // gravier gauche | chaussée gauche | chaussée droite | gravier droit
   const offsets = [-(width / 2 + SHOULDER), -width / 2, width / 2, width / 2 + SHOULDER];
   const lift = [0.02, 0.06, 0.06, 0.02];
   // Bords sans repli : dans les virages plus serrés que le décalage (demi-tours, angles de
   // carrefour, épingles), le bord intérieur se resserre en éventail au lieu de déborder en pointe.
-  const edges = TMP_NOFIX ? tmpOld(route, offsets, loop) : ribbonEdges(points, offsets, loop, normals);
+  const edges = ribbonEdges(points, offsets, loop, normals);
   const count = loop ? n + 1 : n;
   const pos = new Float32Array(count * cols * 3);
   const uvs = new Float32Array(count * cols * 2);
@@ -133,7 +134,7 @@ function buildRibbon(route: RoutePoint[], width: number, loop: boolean): THREE.B
     }
   }
   // (quadrilatère encore vrillé, demi-tour de deux points dans le tracé : triangles retournés écartés)
-  const index = TMP_NOFIX ? tmpIdx(cols, count) : ribbonIndex(pos, 3, cols, count, true);
+  const index = ribbonIndex(pos, 3, cols, count, true);
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
   geo.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
@@ -143,32 +144,3 @@ function buildRibbon(route: RoutePoint[], width: number, loop: boolean): THREE.B
   return geo;
 }
 
-// TMP_ROADFIX_BEGIN
-export const TMP_NOFIX = typeof location !== 'undefined' && new URLSearchParams(location.search).has('noroadfix');
-function tmpOld(pts: RoutePoint[], offsets: number[], loop: boolean): Float64Array[] {
-  const n = pts.length;
-  return offsets.map((off) => {
-    const e = new Float64Array(n * 2);
-    for (let i = 0; i < n; i++) {
-      const p = pts[i] as RoutePoint;
-      const prev = pts[loop ? (i - 1 + n) % n : Math.max(i - 1, 0)] as RoutePoint;
-      const next = pts[loop ? (i + 1) % n : Math.min(i + 1, n - 1)] as RoutePoint;
-      const dx = next.x - prev.x;
-      const dz = next.z - prev.z;
-      const l = Math.hypot(dx, dz) || 1;
-      e[i * 2] = p.x - (dz / l) * off;
-      e[i * 2 + 1] = p.z + (dx / l) * off;
-    }
-    return e;
-  });
-}
-function tmpIdx(cols: number, count: number): number[] {
-  const index: number[] = [];
-  for (let k = 0; k < count - 1; k++)
-    for (let c = 0; c < cols - 1; c++) {
-      const a = k * cols + c;
-      index.push(a, a + 1, a + cols, a + 1, a + cols + 1, a + cols);
-    }
-  return index;
-}
-// TMP_ROADFIX_END

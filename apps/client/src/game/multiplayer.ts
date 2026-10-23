@@ -53,15 +53,31 @@ export class Multiplayer {
   /** Heure et météo de la sortie (choix de l'hôte), connues après l'entrée dans la salle. */
   weather: RideWeather | null = null;
 
-  async connect(opts: { inviteCode?: string; mode: RideMode; guest: boolean; aiRiders: number; trainerDifficulty: number; name: string; weather: RideWeather }): Promise<string> {
+  /** Équipement égalisé dans cette salle (même vélo pour tous), connu après l'entrée. */
+  equalized = false;
+
+  async connect(opts: { inviteCode?: string; mode: RideMode; guest: boolean; aiRiders: number; aiLevel?: number; laps?: number; trainerDifficulty: number; name: string; weather: RideWeather; equalEquipment?: boolean }): Promise<string> {
     const role = opts.guest ? 'guest' : 'rider';
     const welcome = opts.inviteCode
       ? await this.net.joinByCode(opts.inviteCode, { role, displayName: opts.name })
       : await this.net.create(
-          { routeId: this.track.route.id, mode: opts.mode, stickyGroup: opts.mode === 'group', allowGuests: true, draftingStrength: 1, trainerDifficulty: opts.trainerDifficulty, aiRiders: opts.aiRiders, weather: opts.weather },
+          {
+            routeId: this.track.route.id,
+            mode: opts.mode,
+            stickyGroup: opts.mode === 'group',
+            allowGuests: true,
+            draftingStrength: 1,
+            trainerDifficulty: opts.trainerDifficulty,
+            aiRiders: opts.aiRiders,
+            weather: opts.weather,
+            ...(opts.aiLevel ? { aiLevel: opts.aiLevel } : {}),
+            ...(opts.mode === 'race' && opts.laps ? { laps: opts.laps } : {}),
+            equalEquipment: opts.equalEquipment ?? opts.mode === 'race',
+          },
           { role, displayName: opts.name },
         );
     this.weather = welcome.options.weather ?? null;
+    this.equalized = welcome.options.equalEquipment ?? welcome.options.mode === 'race';
     return welcome.inviteCode;
   }
 
@@ -99,7 +115,11 @@ export class Multiplayer {
       root.rotateX(-Math.atan(p.grade / 100));
       const dist = camera.position.distanceTo(root.position);
       root.visible = dist < 600;
-      if (dist < 250) rem.avatar.update(dt, r.cadence, r.speedMs, r.pose);
+      if (dist < 250) {
+        // FTP des autres coureurs inconnue ici : 250 W de référence.
+        rem.avatar.setEffort?.(r.watts / 250, r.hr !== undefined ? r.hr / 190 : undefined);
+        rem.avatar.update(dt, r.cadence, r.speedMs, r.pose);
+      }
       rem.avatar.setShadows(dist < 40);
     }
     for (const [id, rem] of this.remotes) {

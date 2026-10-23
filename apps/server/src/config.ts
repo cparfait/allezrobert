@@ -50,12 +50,20 @@ export const ConfigSchema = z.object({
   LIVEKIT_URL: optionalString,
   LIVEKIT_API_KEY: optionalString,
   LIVEKIT_API_SECRET: optionalString,
+  /**
+   * Repli de la voix : lien d'invitation d'un salon Discord (https://discord.gg/… ou
+   * https://discord.com/invite/…), proposé dans le jeu quand LiveKit est absent ou échoue.
+   */
+  DISCORD_VOICE_INVITE: optionalString.refine(
+    (v) => v === undefined || /^https:\/\/(discord\.gg|(www\.)?discord(app)?\.com\/invite)\/[A-Za-z0-9-]{2,64}\/?$/.test(v),
+    'DISCORD_VOICE_INVITE : lien https://discord.gg/… ou https://discord.com/invite/… attendu',
+  ),
 
   /** Synthèse vocale (voix off du tutoriel) : clé Cartesia, uniquement côté serveur. */
   CARTESIA_API_KEY: optionalString,
   CARTESIA_MODEL: z.string().default('sonic-2'),
-  /** Voix : Henri (« Express Host ») en français, Jameson (« Easygoing Support ») en anglais. */
-  CARTESIA_VOICE_FR: z.string().default('6b7162a4-aecd-4aae-a7fd-3f59a8e26137'),
+  /** Voix : Laurent (« Dependable Anchor ») en français, Jameson (« Easygoing Support ») en anglais. */
+  CARTESIA_VOICE_FR: z.string().default('7345dfa5-ee04-44d2-abf4-29262b880ab4'),
   CARTESIA_VOICE_EN: z.string().default('a5136bf9-224c-4d76-b823-52bd5efcffcc'),
   /** Cache disque des répliques synthétisées (une même phrase n'est générée qu'une fois). */
   TTS_CACHE_DIR: z.string().default('./tts-cache'),
@@ -64,6 +72,11 @@ export const ConfigSchema = z.object({
   ROUTES_DIR: optionalString,
   /** Dossier des vidéos rendues (volume partagé avec le conteneur renderer). */
   RENDERS_DIR: z.string().default('./renders'),
+  /**
+   * Worker vidéo dans le processus du serveur (petit VPS sans conteneur renderer, développement) :
+   * HyperFrames si Chromium est là, sinon repli FFmpeg ; sans FFmpeg, aucun MP4.
+   */
+  RENDER_INLINE: bool.default(false),
 
   RECONNECT_GRACE_S: z.coerce.number().int().min(0).max(600).default(30),
   ALLOW_ANONYMOUS_GUESTS: bool.default(true),

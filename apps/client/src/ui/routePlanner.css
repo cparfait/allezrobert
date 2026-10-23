@@ -1,0 +1,48 @@
+/* Itinéraire sur la carte d'une zone ouverte (ui/routePlanner.ts), en tête de la fenêtre « Parcours ». */
+.rp { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(260px, 1fr); gap: 16px; margin: 4px 0 10px; }
+.rp-mapbox { position: relative; border-radius: 16px; overflow: hidden; border: 1px solid var(--mm-line); background: radial-gradient(ellipse at 50% 40%, rgba(80, 110, 70, 0.3), rgba(14, 20, 16, 0.6)); }
+.rp-map { display: block; width: 100%; height: min(52vh, 480px); cursor: crosshair; touch-action: none; user-select: none; }
+.rp-roads path { fill: none; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+.rp-major { stroke: rgba(236, 239, 244, 0.9); stroke-width: 1.8px; }
+.rp-minor { stroke: rgba(236, 239, 244, 0.5); stroke-width: 1.1px; }
+.rp-track { stroke: rgba(201, 186, 140, 0.55); stroke-width: 1px; stroke-dasharray: 3 3; }
+.rp-route { fill: none; stroke: var(--ar-accent); stroke-width: 4.5px; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; filter: drop-shadow(0 0 3px rgba(0, 0, 0, 0.6)); }
+.rp-mk circle { stroke: #0a0e16; stroke-width: 2.5px; }
+.rp-mk text { font: 800 11px system-ui, sans-serif; text-anchor: middle; fill: #0a0e16; pointer-events: none; }
+.rp-from circle, .rp-dot.rp-from { fill: #22c55e; background: #22c55e; }
+.rp-to circle, .rp-dot.rp-to { fill: #ef4444; background: #ef4444; }
+.rp-home circle { fill: #fff; r: 6px; }
+.rp-dot.rp-home { background: #fff; }
+.rp-legend { position: absolute; left: 10px; bottom: 8px; display: flex; gap: 12px; font-size: 11px; color: #c9d1db; pointer-events: none; text-shadow: 0 1px 2px #000; }
+.rp-legend span { display: flex; align-items: center; gap: 5px; }
+.rp-l-major, .rp-l-track { display: inline-block; width: 16px; height: 0; border-top: 2px solid rgba(236, 239, 244, 0.9); }
+.rp-l-track { border-top: 2px dashed rgba(201, 186, 140, 0.8); }
+.rp-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; border: 2px solid #0a0e16; flex: none; }
+.rp-side { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.rp-side h3 { margin: 0; font-size: 17px; }
+.rp-side .mm-hint { margin: 0; }
+.rp-err { margin: 0; color: #fca5a5; font-size: 13px; }
+.rp-pts { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: #c9d1db; }
+.rp-pts li { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.rp-pts b { color: var(--ar-fg); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rp-card .mm-routecard { margin: 0; }
+.rp-card .mm-map { display: none; }
+.rp-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: auto; padding-top: 6px; }
+.rp-btn { appearance: none; border: 1px solid var(--mm-line); border-radius: 12px; padding: 10px 14px; background: var(--mm-soft); color: var(--ar-fg); font: inherit; font-size: 13.5px; font-weight: 700; cursor: pointer; }
+.rp-btn:hover { border-color: var(--ar-accent); }
+.rp-btn.rp-go { background: var(--ar-accent); border-color: var(--ar-accent); color: #0a0e16; }
+.rp-btn.rp-go:hover { filter: brightness(1.08); }
+.rp-routes-title { margin: 6px 0 0; font-size: 15px; }
+@media (max-width: 820px) {
+  .rp { grid-template-columns: 1fr; }
+  .rp-map { height: 46vh; }
+}
+.rp-head-links { display: flex; gap: 14px; margin-left: auto; margin-right: 14px; }
+/* Points de passage et noms des lieux (villes et villages toujours, hameaux une fois zoomé). */
+.rp-via circle, .rp-dot.rp-via { fill: #fff; background: #fff; }
+.rp-via circle { r: 7px; }
+.rp-place { pointer-events: none; }
+.rp-place circle { fill: #0a0e16; stroke: rgba(236, 239, 244, 0.85); stroke-width: 1.2px; }
+.rp-place text { font: 700 12.5px system-ui, sans-serif; fill: #fff; paint-order: stroke; stroke: rgba(6, 9, 15, 0.85); stroke-width: 3px; stroke-linejoin: round; }
+.rp-hamlet text { font-size: 10.5px; font-weight: 600; fill: #d5dce5; }
+.rp-map:not(.rp-zoomed) .rp-hamlet { display: none; }

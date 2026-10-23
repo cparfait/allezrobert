@@ -4,6 +4,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { rng, polygonArea } from '../engine/noise.ts';
 import type { LoadedTile, TileRoad } from './types.ts';
 import { orientedBox, planRoof, roofBuffers, flatRoof } from './roofs.ts';
+import { meuliere } from './meuliere.ts';
 
 /** Textures photo CC0 (Poly Haven) des façades et toits, chargées une fois et partagées. */
 function loadTex(dir: string, file: string, srgb: boolean): THREE.Texture {
@@ -243,6 +244,80 @@ function toGeometry(pos: number[], uvs: number[]): THREE.BufferGeometry {
   return g;
 }
 
+/**
+ * Détails de toit d'une maison : faîtage en tuiles rondes (toit à deux pans) et souche de cheminée
+ * en meulière ou brique avec son chapeau, posée sur le faîtage. Seulement sur les emprises
+ * presque rectangulaires (le faîtage est alors l'axe du rectangle orienté).
+ */
+function houseDetails(pts: number[], box: ReturnType<typeof orientedBox>, plan: NonNullable<ReturnType<typeof planRoof>>, wallTop: number, pitch: number, roofColour: string, slate: boolean, r: () => number, density: number): THREE.BufferGeometry[] {
+  const out: THREE.BufferGeometry[] = [];
+  const rectangular = Math.abs(polygonArea(pts)) / (4 * box.hl * box.hw) > 0.88;
+  if (!rectangular || box.hw < 2) return out;
+  const tan = Math.tan((pitch * Math.PI) / 180);
+  const ridgeY = wallTop + (plan.tEnd - plan.overhang) * tan;
+  const vx = -box.uz;
+  const vz = box.ux;
+  const gabled = plan.gables.length > 0;
+  // Demi-longueur du faîtage : tout le rectangle (deux pans) ou réduite par les croupes.
+  const ridgeHalf = gabled ? box.hl + 0.25 : Math.max(box.hl - (plan.tEnd - plan.overhang), 0);
+  const c = new THREE.Color();
+  const acc = new THREE.Color('#000000');
+  if (gabled && ridgeHalf > 0.5 && !slate) {
+    const pos: number[] = [];
+    const uvs: number[] = [];
+    const a = [box.cx - box.ux * ridgeHalf, box.cz - box.uz * ridgeHalf];
+    const b = [box.cx + box.ux * ridgeHalf, box.cz + box.uz * ridgeHalf];
+    const top = ridgeY + 0.13;
+    const low = ridgeY - 0.04;
+    for (const side of [1, -1]) {
+      const ox = vx * 0.19 * side;
+      const oz = vz * 0.19 * side;
+      const q = [
+        [a[0]! + ox, low, a[1]! + oz, 0, 0],
+        [b[0]! + ox, low, b[1]! + oz, ridgeHalf * 2, 0],
+        [b[0]!, top, b[1]!, ridgeHalf * 2, 0.25],
+        [a[0]!, top, a[1]!, 0, 0.25],
+      ];
+      for (const k of side > 0 ? [0, 1, 2, 0, 2, 3] : [0, 2, 1, 0, 3, 2]) {
+        const v = q[k]!;
+        pos.push(v[0]!, v[1]!, v[2]!);
+        uvs.push(v[3]!, v[4]!);
+      }
+    }
+    const g = toGeometry(pos, uvs);
+    paint(g, c.set(roofColour).multiplyScalar(0.82), 1, acc, 0, 0);
+    out.push(g);
+  }
+  if (r() < 0.8 * density) {
+    // Souche de cheminée sur le faîtage (au tiers ou au pignon), 0,8 × 0,55 m, 0,9 m au-dessus.
+    const t = (r() < 0.5 ? -1 : 1) * Math.min(ridgeHalf * (0.35 + r() * 0.4), Math.max(ridgeHalf - 0.6, 0));
+    const cx = box.cx + box.ux * t;
+    const cz = box.cz + box.uz * t;
+    const hw = 0.4;
+    const hd = 0.28;
+    const ring = (e: number) => [
+      cx - box.ux * (hw + e) - vx * (hd + e), cz - box.uz * (hw + e) - vz * (hd + e),
+      cx + box.ux * (hw + e) - vx * (hd + e), cz + box.uz * (hw + e) - vz * (hd + e),
+      cx + box.ux * (hw + e) + vx * (hd + e), cz + box.uz * (hw + e) + vz * (hd + e),
+      cx - box.ux * (hw + e) + vx * (hd + e), cz - box.uz * (hw + e) + vz * (hd + e),
+    ];
+    const topY = ridgeY + 0.9;
+    const stack = walls(ring(0), wallTop - 0.2, topY - (wallTop - 0.2));
+    const brick = r() < 0.4;
+    paint(stack, c.set(brick ? BRICK : (MEULIERE[Math.floor(r() * MEULIERE.length)] as string)), 0, acc, brick ? 2 : 1, 0);
+    out.push(stack);
+    const capRing = ring(0.06);
+    const cap = walls(capRing, topY, 0.12);
+    paint(cap, c.set('#8d8a82'), 0, acc, 0, 0);
+    out.push(cap);
+    const lid = flatRoof(capRing, topY + 0.12);
+    const lidG = toGeometry(lid.pos, lid.uv);
+    paint(lidG, c.set('#5d5a55'), 2, acc, 0, 0);
+    out.push(lidG);
+  }
+  return out;
+}
+
 /** Formes OSM traitées en croupes (les autres, hors terrasse, en deux pans si l'emprise s'y prête). */
 const HIPPED = new Set(['hipped', 'pyramidal', 'half-hipped', 'mansard', 'dome', 'round', 'onion', 'cone']);
 
@@ -256,9 +331,12 @@ export class Buildings {
   private readonly material: THREE.MeshStandardNodeMaterial;
   private readonly tiles = new Map<string, THREE.Mesh>();
   private readonly groundAt: (x: number, z: number) => number;
+  /** Détails des maisons (cheminées, faîtières) : 0 = aucun, 1 = toutes les maisons qui s'y prêtent. */
+  props = 1;
 
-  constructor(groundAt: (x: number, z: number) => number) {
+  constructor(groundAt: (x: number, z: number) => number, props = 1) {
     this.groundAt = groundAt;
+    this.props = props;
     this.group.name = 'buildings';
     this.material = this.createMaterial();
   }
@@ -282,21 +360,23 @@ export class Buildings {
     const isMetal = step(float(2.5), kind);
 
     // ── Murs : textures photo CC0 (Poly Haven), à l'échelle réelle (uv en mètres) ──
-    // Type de mur (binfo.y) : 0 enduit, 1 pierres apparentes (proche de la meulière), 2 brique.
+    // Type de mur (binfo.y) : 0 enduit, 1 meulière (procédurale), 2 brique, 3 enduit à pierres vues.
     const wallType = info.y;
     const isStone = step(float(0.5), wallType).mul(step(wallType, float(1.5)));
-    const isBrick = step(float(1.5), wallType);
-    const isRender = float(1).sub(isStone).sub(isBrick);
+    const isBrick = step(float(1.5), wallType).mul(step(wallType, float(2.5)));
+    const isRubble = step(float(2.5), wallType);
+    const isRender = float(1).sub(isStone).sub(isBrick).sub(isRubble);
     const T = BUILDING_TEXTURES;
     const wallUv = (size: number) => vec2(u, v).div(size);
     const render = texture(T.render.map, wallUv(2.0)).rgb;
-    const stone = texture(T.stone.map, wallUv(2.3)).rgb;
+    const rubble = texture(T.stone.map, wallUv(2.3)).rgb;
     const brick = texture(T.brick.map, wallUv(2.0)).rgb;
+    // Meulière : moellons procéduraux, teinte de la maison (ocre plus ou moins rouge) en multiplicateur.
+    const meul = meuliere(vec2(u, v));
+    const stone = meul.color.mul(base.div(vec3(0.68, 0.53, 0.37)).clamp(0.8, 1.2));
     // L'enduit (photo grise tachée) prend la teinte de chaque maison : couleur de base × variations de la photo.
     const renderTinted = render.mul(base.div(vec3(0.31, 0.29, 0.28))).clamp(0, 1.5);
-    // Pierre : la photo (≈ meulière) prend la teinte de la pierre locale (arkose gris-beige en Auvergne).
-    const stoneTinted = stone.mul(base.div(vec3(0.48, 0.29, 0.14))).clamp(0, 1.4);
-    let wall = renderTinted.mul(isRender).add(stoneTinted.mul(isStone)).add(brick.mul(isBrick));
+    let wall = renderTinted.mul(isRender).add(stone.mul(isStone)).add(brick.mul(isBrick)).add(rubble.mul(isRubble));
     const nBig = mx_noise_float(positionWorld.mul(0.35)).mul(0.5).add(0.5);
     wall = wall.mul(nBig.mul(0.1).add(0.95));
     // Soubassement plus sombre (0,6 m) et salissures en pied de mur.
@@ -401,13 +481,21 @@ export class Buildings {
     const roofUv = (size: number) => vec2(u, v).div(size);
     const moss = smoothstep(0.6, 0.9, mx_noise_float(positionWorld.mul(0.5))).mul(0.3);
     const tileTex = texture(T.tiles.map, roofUv(3.2)).rgb;
+    // Tuile plate : chaque tuile (≈ 17 × 10,5 cm visibles, rangs décalés) a sa propre cuisson,
+    // plus quelques plaques de tuiles de remplacement plus claires et des lichens jaunes.
+    const tileRow = floor(v.div(0.105));
+    const tcell = floor(vec2(u.div(0.17).add(tileRow.mul(0.5)), tileRow));
+    const th = hash(tcell.x.add(5000).mul(1000).add(tcell.y.add(500)));
+    const patch = smoothstep(0.55, 0.75, mx_noise_float(positionWorld.mul(0.22)));
+    const lichenY = smoothstep(0.7, 0.85, mx_noise_float(positionWorld.mul(1.7))).mul(0.35);
+    const tileVar = th.mul(0.24).add(0.88).mul(mix(float(1), float(1.12), patch));
+    const tilesIdf = mix(tileTex.mul(base.div(vec3(0.33, 0.13, 0.08)).clamp(0.7, 1.3)).mul(tileVar), vec3(0.62, 0.58, 0.3), lichenY);
     // Tuiles vieillies (BD TOPO, binfo.y = 1 sur le toit) : seule la luminance de la photo (relief des
     // tuiles, moyenne 0,048 en linéaire) est gardée, teintée par une terre cuite passée mesurée sur
     // l'orthophoto (rose saumon peu saturé), avec lichens gris par plaques.
     const tileLum = tileTex.dot(vec3(0.2126, 0.7152, 0.0722)).div(0.048).clamp(0.45, 1.5);
     const lichen = smoothstep(0.45, 0.8, mx_noise_float(positionWorld.mul(0.9).add(3))).mul(0.25);
-    const weathered = mix(base.mul(tileLum), vec3(0.32, 0.31, 0.28).mul(tileLum), lichen);
-    const tilesIdf = tileTex.mul(base.div(vec3(0.33, 0.13, 0.08)).clamp(0.7, 1.8));
+    const weathered = mix(base.mul(tileLum).mul(tileVar), vec3(0.32, 0.31, 0.28).mul(tileLum), lichen);
     const tiles = mix(mix(tilesIdf, weathered, step(float(0.5), info.y)), vec3(0.3, 0.33, 0.18), moss);
     const slate = texture(T.slate.map, roofUv(1.5)).rgb;
     // Bac acier : ondes de 25 cm dans la pente, coulures et rouille légère par plaques.
@@ -422,7 +510,11 @@ export class Buildings {
     m.roughnessNode = mix(mix(mix(float(0.93), float(0.15), inWin.mul(isWall)), float(0.75), isTile.add(isSlate).min(1)).sub(isSlate.mul(0.2)), float(0.55), isMetal);
     // Relief : cartes de normales de la texture correspondante (sauf sur les vitres).
     const nrm = (t: THREE.Texture, size: number) => texture(t, vec2(u, v).div(size)).rgb;
-    const wallN = nrm(T.render.normal, 2.0).mul(isRender).add(nrm(T.stone.normal, 2.3).mul(isStone)).add(nrm(T.brick.normal, 2.0).mul(isBrick));
+    const wallN = nrm(T.render.normal, 2.0)
+      .mul(isRender)
+      .add(meul.normalTS.mul(0.5).add(0.5).mul(isStone))
+      .add(nrm(T.brick.normal, 2.0).mul(isBrick))
+      .add(nrm(T.stone.normal, 2.3).mul(isRubble));
     const roofN = nrm(T.tiles.normal, 3.2).mul(isTile).add(nrm(T.slate.normal, 1.5).mul(isSlate)).add(vec3(0.5, 0.5, 1).mul(isMetal));
     const flatN = vec3(0.5, 0.5, 1);
     const nCol = mix(mix(wallN, flatN, inWin.max(inFrame).max(inShutter)), roofN, isTile.add(isSlate).add(isMetal).min(1));
@@ -500,7 +592,9 @@ export class Buildings {
         }
       }
       const w = skillion ? slopedWalls(bld.pts, base, (x, z) => roofAt(x, z) - base) : walls(bld.pts, base, wallH + 0.3, style);
-      const wallType = stones ? 1 : brick ? 2 : 0;
+      // Granges, fermes et églises : enduit à pierres vues plutôt que meulière ou enduit lisse.
+      const rubble = !stones && !brick && !bld.colour && (bld.kind === 'barn' || bld.kind === 'farm' || isChurch) && r() < 0.7;
+      const wallType = stones ? 1 : rubble ? 3 : brick ? 2 : 0;
       paint(w, c.set(wallColour), 0, acc, wallType, isUtility ? 2 : 1);
       parts.push(w);
       const slate = roofMat === 'slate';
@@ -527,13 +621,14 @@ export class Buildings {
         paint(gables, c.set(wallColour), 0, acc, wallType, 0);
         parts.push(gables);
       }
+      if (plan && buf && !isChurch && !isUtility && this.props > 0) parts.push(...houseDetails(bld.pts, box, plan, wallTop, pitch, roofColour, slate, r, this.props));
       if (isChurch) {
         // Clocher : tour carrée en pierre et flèche d'ardoise à une extrémité.
         const tx = box.cx + box.ux * (box.hl - 2.5);
         const tz = box.cz + box.uz * (box.hl - 2.5);
         const th = wallH + 9;
         const tower = walls([tx - 2.25, tz - 2.25, tx + 2.25, tz - 2.25, tx + 2.25, tz + 2.25, tx - 2.25, tz + 2.25], base, th);
-        paint(tower, c.set(MEULIERE[1] as string), 0, acc.set('#5b5f66'), 1, 0);
+        paint(tower, c.set(MEULIERE[1] as string), 0, acc.set('#5b5f66'), 3, 0);
         parts.push(tower);
         const spire = new THREE.ConeGeometry(3.4, 11, 8).translate(tx, base + th + 5.5, tz).toNonIndexed();
         spire.deleteAttribute('uv');

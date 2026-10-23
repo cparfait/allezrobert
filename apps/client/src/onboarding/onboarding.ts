@@ -1,11 +1,12 @@
+import { withLikeness } from '../ui/faceEditorLogic.ts';
 import { DEFAULT_LOOK } from '@allezrobert/shared';
 import { getLang, setLang, t } from '../i18n/index.ts';
 import type { DevicePanel } from '../ui/menu.ts';
 import { saveSettings, type Settings } from '../ui/settings.ts';
 import { VoiceOver } from './voice.ts';
-import { likenessFromPhoto } from './likeness.ts';
 
-const STEPS = ['welcome', 'profile', 'avatar', 'devices', 'gears'] as const;
+// Premier lancement : tutoriel d'accueil, puis équipement (capteurs, vitesses), puis profil et avatar.
+const STEPS = ['welcome', 'devices', 'gears', 'profile', 'avatar'] as const;
 type Step = (typeof STEPS)[number];
 
 const SKINS = ['#f1c27d', '#e0ac69', '#c68642', '#8d5524', '#ffdbac', '#5c3a21'];
@@ -56,6 +57,7 @@ export class Onboarding {
     else {
       this.voice.stop();
       localStorage.setItem('ar.onboarded', new Date().toISOString());
+      void this.voice.say('finish');
       this.done(this.s, false);
     }
   }
@@ -91,7 +93,7 @@ export class Onboarding {
           <label class="field">${fr ? 'Casque' : 'Helmet'}<input id="o-helmet" type="color" value="${this.s.look.helmet}"/></label>
           <label class="field">Vélo<input id="o-bike" type="color" value="${this.s.look.bike}"/></label></div>
           <div class="device" style="margin-top:12px"><div><b>${fr ? 'Ressemblance à partir d’une photo' : 'Likeness from a photo'}</b>
-            <div class="meta">${fr ? 'Teint et cheveux estimés sur ton ordinateur ; la photo n’est ni envoyée ni conservée. Uniquement une photo de toi.' : 'Skin and hair estimated on your computer; the photo is never uploaded nor stored. Only a photo of yourself.'}</div>
+            <div class="meta">${fr ? 'Visage, teint et cheveux estimés sur ton appareil ; la photo n’est ni envoyée ni conservée, seuls les réglages obtenus sont gardés (modifiables ou effaçables au garage). Uniquement une photo de toi.' : 'Face, skin and hair estimated on your device; the photo is never uploaded nor stored, only the resulting settings are kept (editable or erasable in the garage). Only a photo of yourself.'}</div>
             <label class="row" style="font-size:13px;margin-top:6px"><input type="checkbox" id="o-consent"/> ${fr ? 'J’accepte ce traitement local de ma photo' : 'I agree to this local processing of my photo'}</label></div>
             <label class="btn small" id="o-photo-label" style="opacity:.5">${fr ? 'Choisir une photo' : 'Choose a photo'}<input id="o-photo" type="file" accept="image/*" hidden disabled/></label></div>`;
         break;
@@ -134,7 +136,7 @@ export class Onboarding {
       <div style="margin-bottom:14px">${dots}</div>${body}
       <div class="row" style="justify-content:space-between;margin-top:22px">
         <button class="btn" id="o-skip">${fr ? 'Passer le tutoriel' : 'Skip tutorial'}</button>
-        <div class="row">${i > 0 ? `<button class="btn" id="o-back">←</button>` : ''}<button class="btn primary" id="o-next">${i === STEPS.length - 1 ? (fr ? 'Première sortie →' : 'First ride →') : fr ? 'Suivant →' : 'Next →'}</button></div>
+        <div class="row">${i > 0 ? `<button class="btn" id="o-back">←</button>` : ''}<button class="btn primary" id="o-next">${i === STEPS.length - 1 ? (fr ? 'Terminer ✓' : 'Finish ✓') : fr ? 'Suivant →' : 'Next →'}</button></div>
       </div></div></div>`;
     this.bind();
   }
@@ -166,11 +168,15 @@ export class Onboarding {
       this.s.mode = 'ftpTest';
       this.next();
     });
-    const look = (id: string, key: 'jersey' | 'jerseyAccent' | 'helmet' | 'bike') => $<HTMLInputElement>(id)?.addEventListener('input', (e) => (this.s.look = { ...DEFAULT_LOOK, ...this.s.look, [key]: (e.target as HTMLInputElement).value }));
+    const look = (id: string, key: 'jersey' | 'jerseyAccent' | 'helmet') => $<HTMLInputElement>(id)?.addEventListener('input', (e) => (this.s.look = { ...DEFAULT_LOOK, ...this.s.look, [key]: (e.target as HTMLInputElement).value }));
     look('o-jersey', 'jersey');
     look('o-accent', 'jerseyAccent');
     look('o-helmet', 'helmet');
-    look('o-bike', 'bike');
+    // Couleur du vélo choisie : vélo de base peint de cette couleur (le modèle du garage est retiré).
+    $<HTMLInputElement>('o-bike')?.addEventListener('input', (e) => {
+      const { bikeModel: _, ...rest } = { ...DEFAULT_LOOK, ...this.s.look };
+      this.s.look = { ...rest, bike: (e.target as HTMLInputElement).value };
+    });
     $<HTMLInputElement>('o-build')?.addEventListener('input', (e) => (this.s.look = { ...this.s.look, build: Number((e.target as HTMLInputElement).value) }));
     this.root.querySelectorAll<HTMLButtonElement>('[data-skin]').forEach((b) => b.addEventListener('click', () => ((this.s.look = { ...this.s.look, skin: b.dataset.skin as string }), this.render())));
     this.root.querySelectorAll<HTMLButtonElement>('[data-hair]').forEach((b) => b.addEventListener('click', () => ((this.s.look = { ...this.s.look, hair: b.dataset.hair as string }), this.render())));
@@ -186,8 +192,9 @@ export class Onboarding {
       const f = input.files?.[0];
       input.value = '';
       if (!f || !$<HTMLInputElement>('o-consent')?.checked) return;
+      const { likenessFromPhoto } = await import('./likeness.ts');
       const l = await likenessFromPhoto(f);
-      this.s.look = { ...this.s.look, skin: l.skin, hair: l.hair };
+      this.s.look = withLikeness(this.s.look, l);
       this.render();
     });
     $<HTMLSelectElement>('o-drive')?.addEventListener('change', (e) => (this.s.drivetrain = (e.target as HTMLSelectElement).value as Settings['drivetrain']));

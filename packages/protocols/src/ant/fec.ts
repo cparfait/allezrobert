@@ -94,7 +94,47 @@ export interface FecCapabilities {
   simulationMode: boolean;
 }
 
+/**
+ * Page 1 (0x01) — Calibration Response (FE → affichage, §6.5.1, tableau « Calibration Response ») :
+ * octet 1 bit 6 = zéro réussi, bit 7 = spin-down réussi ; octet 2 réservé ; octet 3 température
+ * (0,5 °C, décalage −25 °C, 0xFF = invalide) ; octets 4–5 zero offset (0xFFFF = invalide) ;
+ * octets 6–7 durée du spin-down en ms (0xFFFF = invalide).
+ */
+export interface FecCalibrationResponse {
+  page: 0x01;
+  kind: 'calibrationResponse';
+  zeroOffsetSuccess: boolean;
+  spinDownSuccess: boolean;
+  temperatureC?: number;
+  zeroOffset?: number;
+  spinDownTimeMs?: number;
+}
+
+/** Condition de température ou de vitesse d'une calibration en cours (2 bits). */
+export type FecCalibrationCondition = 'notApplicable' | 'tooLow' | 'ok' | 'tooHigh';
+const CAL_CONDITIONS: readonly FecCalibrationCondition[] = ['notApplicable', 'tooLow', 'ok', 'tooHigh'];
+
+/**
+ * Page 2 (0x02) — Calibration In Progress (§6.5.2) : octet 1 bit 6 = zéro en attente, bit 7 = spin-down
+ * en attente ; octet 2 bits 4–5 condition de température, bits 6–7 condition de vitesse (1 trop basse :
+ * accélérer, 2 bonne : arrêter de pédaler) ; octet 3 température ; octets 4–5 vitesse cible (0,001 m/s) ;
+ * octets 6–7 durée de spin-down visée (ms).
+ */
+export interface FecCalibrationInProgress {
+  page: 0x02;
+  kind: 'calibrationInProgress';
+  zeroOffsetPending: boolean;
+  spinDownPending: boolean;
+  temperatureCondition: FecCalibrationCondition;
+  speedCondition: FecCalibrationCondition;
+  temperatureC?: number;
+  targetSpeedKmh?: number;
+  targetSpinDownTimeMs?: number;
+}
+
 export type FecPage =
+  | FecCalibrationResponse
+  | FecCalibrationInProgress
   | FecGeneralFeData
   | FecSpecificTrainerData
   | FecCommandStatus
@@ -113,10 +153,49 @@ const CMD_STATUS: Record<number, FecCommandStatus['status']> = {
   255: 'uninitialized',
 };
 
+/** Température FE-C : 0,5 °C, décalage −25 °C ; 0xFF = invalide. */
+function feTemperature(raw: number): number | undefined {
+  return raw === 0xff ? undefined : raw / 2 - 25;
+}
+
 export function decodeFecPage(data: ByteSource): FecPage {
   const r = new ByteReader(data);
   const page = r.u8();
   switch (page) {
+    case 0x01: {
+      const flags = r.u8();
+      r.u8(); // réservé
+      const temp = r.u8();
+      const zero = r.u16();
+      const time = r.u16();
+      return {
+        page,
+        kind: 'calibrationResponse',
+        zeroOffsetSuccess: (flags & 0x40) !== 0,
+        spinDownSuccess: (flags & 0x80) !== 0,
+        ...(feTemperature(temp) !== undefined ? { temperatureC: feTemperature(temp) as number } : {}),
+        ...(zero !== 0xffff ? { zeroOffset: zero } : {}),
+        ...(time !== 0xffff ? { spinDownTimeMs: time } : {}),
+      };
+    }
+    case 0x02: {
+      const flags = r.u8();
+      const cond = r.u8();
+      const temp = r.u8();
+      const speed = r.u16();
+      const time = r.u16();
+      return {
+        page,
+        kind: 'calibrationInProgress',
+        zeroOffsetPending: (flags & 0x40) !== 0,
+        spinDownPending: (flags & 0x80) !== 0,
+        temperatureCondition: CAL_CONDITIONS[(cond >> 4) & 0x03] as FecCalibrationCondition,
+        speedCondition: CAL_CONDITIONS[(cond >> 6) & 0x03] as FecCalibrationCondition,
+        ...(feTemperature(temp) !== undefined ? { temperatureC: feTemperature(temp) as number } : {}),
+        ...(speed !== 0xffff ? { targetSpeedKmh: (speed * 3.6) / 1000 } : {}),
+        ...(time !== 0xffff ? { targetSpinDownTimeMs: time } : {}),
+      };
+    }
     case 0x10: {
       const type = r.u8() & 0x1f;
       const elapsedTimeRaw = r.u8();
@@ -260,6 +339,43 @@ export function encodeFecUserConfiguration(c: FecUserConfiguration): Uint8Array 
 export function encodeFecCalibrationRequest(p: { spinDown?: boolean; zeroOffset?: boolean }): Uint8Array {
   const flags = (p.zeroOffset ? 0x40 : 0) | (p.spinDown ? 0x80 : 0);
   return Uint8Array.of(0x01, flags, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00);
+}
+
+function encodeTemperature(c: number | undefined): number {
+  return c === undefined ? 0xff : clamp(Math.round((c + 25) * 2), 0, 0xfe);
+}
+
+/** Page 1 (0x01) côté trainer — Calibration Response (simulateur, tests). */
+export function encodeFecCalibrationResponse(p: { spinDownSuccess?: boolean; zeroOffsetSuccess?: boolean; temperatureC?: number; zeroOffset?: number; spinDownTimeMs?: number }): Uint8Array {
+  return new ByteWriter()
+    .u8(0x01)
+    .u8((p.zeroOffsetSuccess ? 0x40 : 0) | (p.spinDownSuccess ? 0x80 : 0))
+    .u8(0x00)
+    .u8(encodeTemperature(p.temperatureC))
+    .u16(p.zeroOffset ?? 0xffff)
+    .u16(p.spinDownTimeMs ?? 0xffff)
+    .toBytes();
+}
+
+/** Page 2 (0x02) — Calibration In Progress (simulateur, tests). */
+export function encodeFecCalibrationInProgress(p: {
+  spinDownPending?: boolean;
+  zeroOffsetPending?: boolean;
+  temperatureCondition?: FecCalibrationCondition;
+  speedCondition?: FecCalibrationCondition;
+  temperatureC?: number;
+  targetSpeedKmh?: number;
+  targetSpinDownTimeMs?: number;
+}): Uint8Array {
+  const cond = (CAL_CONDITIONS.indexOf(p.temperatureCondition ?? 'notApplicable') << 4) | (CAL_CONDITIONS.indexOf(p.speedCondition ?? 'notApplicable') << 6);
+  return new ByteWriter()
+    .u8(0x02)
+    .u8((p.zeroOffsetPending ? 0x40 : 0) | (p.spinDownPending ? 0x80 : 0))
+    .u8(cond)
+    .u8(encodeTemperature(p.temperatureC))
+    .u16(p.targetSpeedKmh === undefined ? 0xffff : clamp(Math.round((p.targetSpeedKmh * 1000) / 3.6), 0, 0xfffe))
+    .u16(p.targetSpinDownTimeMs ?? 0xffff)
+    .toBytes();
 }
 
 /** Encodeurs symétriques des pages de données (simulateur, tests). */

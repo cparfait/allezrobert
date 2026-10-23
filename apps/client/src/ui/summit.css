@@ -1,0 +1,26 @@
+/* Arrivée au sommet (itinéraire aller simple), par-dessus la scène figée. */
+.smt { position: fixed; inset: 0; z-index: 30; display: grid; place-items: end center; padding: 0 20px 7vh; box-sizing: border-box; background: linear-gradient(180deg, rgba(8, 11, 18, 0) 30%, rgba(8, 11, 18, 0.78) 100%); color: #e8edf3; animation: smt-in 0.6s ease-out; }
+@keyframes smt-in { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: none; } }
+.smt-card { width: min(880px, 100%); background: rgba(10, 14, 22, 0.86); border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 14px; padding: 22px 26px 20px; backdrop-filter: blur(8px); box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45); }
+.smt-kicker { margin: 0; font-size: 12px; font-weight: 800; letter-spacing: 0.14em; text-transform: uppercase; color: #f5a524; }
+.smt-card h1 { margin: 4px 0 0; font-size: 34px; font-style: italic; font-weight: 800; letter-spacing: -0.01em; line-height: 1.1; }
+.smt-alt { margin: 2px 0 16px; color: #8d98a6; font-size: 15px; font-weight: 600; }
+.smt-tiles { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
+.smt-tile { background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 9px; padding: 10px 12px; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.smt-tile span { font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; color: #8d98a6; font-weight: 700; }
+.smt-tile b { font-size: 26px; font-weight: 800; font-style: italic; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.smt-tile small { font-size: 13px; font-weight: 700; color: #8d98a6; margin-left: 4px; font-style: normal; }
+.smt-kom { margin-top: 14px; padding: 12px 14px; border-radius: 10px; background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.08); }
+.smt-kom h3 { margin: 0 0 6px; display: flex; align-items: center; gap: 8px; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: #c7cfd9; font-weight: 800; }
+/* maillot à pois du meilleur grimpeur */
+.smt-dots { width: 16px; height: 16px; border-radius: 4px; background: #fff radial-gradient(circle, #d4202a 32%, transparent 36%) 0 0 / 6px 6px; flex: none; }
+.smt-kom-row { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
+.smt-kom-time { font-size: 30px; font-style: italic; font-weight: 800; color: #f5a524; }
+.smt-kom-row span { color: #c7cfd9; font-size: 15px; font-weight: 600; }
+.smt-rec { margin: 4px 0 0; color: #8d98a6; font-size: 13px; }
+.smt-rec.best { color: #22c55e; font-weight: 700; }
+.smt-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 16px; flex-wrap: wrap; }
+.smt-btn { background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.14); color: #e8edf3; border-radius: 8px; padding: 10px 18px; font: 700 14px system-ui, sans-serif; cursor: pointer; }
+.smt-btn:hover { background: rgba(255, 255, 255, 0.12); }
+.smt-btn.accent { background: #f5a524; border-color: #f5a524; color: #0a0e16; }
+@media (max-width: 700px) { .smt-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } .smt-card h1 { font-size: 26px; } }

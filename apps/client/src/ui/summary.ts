@@ -24,7 +24,7 @@ export interface SummaryData {
   /** Records de puissance d'avant la sortie (durée → W) et durées battues. */
   records: { previous: Record<number, number>; beaten: number[] };
   /** XP gagnée et niveau (absent pour un invité). */
-  xp?: { gained: number; level: number; progress: number; levelUp: boolean; detail: string; unlocked: string[] };
+  xp?: { gained: number; level: number; progress: number; levelUp: boolean; detail: string; unlocked: string[]; credits?: number; won?: string[] };
   /** Il y avait des équipiers, des coureurs IA ou d'autres joueurs. */
   withGroup: boolean;
   guest: boolean;
@@ -101,7 +101,7 @@ export function showRideSummary(root: HTMLElement, d: SummaryData, a: SummaryAct
         ${
           d.xp
             ? `<section class="sum-card sum-level"><div class="sum-lv"><b>${L ? 'Niveau' : 'Level'} ${d.xp.level}${d.xp.levelUp ? ' 🎉' : ''}</b><i class="sum-xp"><i style="width:${(d.xp.progress * 100).toFixed(0)}%"></i></i></div>
-              <p>+${d.xp.gained} XP <span>(${esc(d.xp.detail)})</span></p>${d.xp.unlocked.length ? `<p class="sum-unlock">${L ? 'Débloqué' : 'Unlocked'} : ${d.xp.unlocked.map(esc).join(', ')}</p>` : ''}</section>`
+              <p>+${d.xp.gained} XP <span>(${esc(d.xp.detail)})</span>${d.xp.credits ? ` · <b class="sum-credits">+${d.xp.credits} ${L ? 'crédits' : 'credits'}</b>` : ''}</p>${d.xp.unlocked.length ? `<p class="sum-unlock">${L ? 'Débloqué' : 'Unlocked'} : ${d.xp.unlocked.map(esc).join(', ')}</p>` : ''}${d.xp.won?.length ? `<p class="sum-unlock">🔧 ${L ? 'Atelier' : 'Workshop'} : ${d.xp.won.map(esc).join(', ')}</p>` : ''}</section>`
             : `<section class="sum-card"><p class="sum-muted">${L ? 'Invité : sortie hors classements, sans XP ni export.' : 'Guest: no rankings, XP or export.'}</p></section>`
         }
         ${

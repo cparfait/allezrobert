@@ -1,0 +1,198 @@
+import * as THREE from 'three/webgpu';
+import { Fn, positionLocal, normalWorld, cameraPosition, cameraProjectionMatrix, cameraViewMatrix, vec2, vec3, vec4, float, mix, smoothstep, uniform, mx_noise_float, exp, clamp, output, texture } from 'three/tsl';
+import { colorUniform } from '../engine/tsl.ts';
+import type { QualitySettings } from '../engine/quality.ts';
+import type { Season } from './environment.ts';
+import type { HorizonGrid, WorldSource } from './types.ts';
+import { ALPINE_GROUND_M, ALPINE_MEADOW, SNOW_LINE_M, type AlpineProfile } from './alpine.ts';
+
+/** Rayon terrestre apparent (réfraction comprise, k ≈ 0,13) : le relief lointain s'abaisse sous l'horizon. */
+const EARTH_R = 6371000 / (1 - 0.13);
+/**
+ * Profondeur écrite par le relief lointain : juste devant le ciel (z = w), derrière tout le reste
+ * dans la distance de vue. Le maillage n'est jamais découpé par le plan lointain de la caméra.
+ */
+const FAR_DEPTH = 1 - 1e-6;
+/** Couleurs du relief lointain (forêts et prés vus de loin) par saison. */
+const LOWLAND: Record<Season, [string, string]> = {
+  spring: ['#34462a', '#5f7a3c'],
+  summer: ['#30422a', '#5c703a'],
+  autumn: ['#4b4a2c', '#6e6e3e'],
+  winter: ['#3d3d34', '#66675a'],
+};
+
+/**
+ * Relief lointain (ligne d'horizon des montagnes, world.json `horizon`) : un maillage grossier
+ * (100 m) de ±30 km autour du monde, éclairé par le soleil, noyé dans une brume plus légère que
+ * celle du premier plan (perspective aérienne bleutée). Il est dessiné au-delà du plan lointain de
+ * la caméra et masqué là où les tuiles détaillées sont chargées.
+ */
+export class FarTerrain {
+  readonly mesh: THREE.Mesh;
+  /** Brume (couleur et densité de la scène) et teinte du ciel, recopiées à chaque image. */
+  readonly fogColor = colorUniform('#dfe8ef');
+  readonly fogDensity = uniform(0.00012);
+  readonly skyColor = colorUniform('#9cc3ec');
+  private readonly snowLine = uniform(SNOW_LINE_M.summer);
+  private readonly treeline = uniform(2150);
+  private readonly forest = colorUniform();
+  private readonly meadow = colorUniform();
+  private readonly alpineMeadow = colorUniform();
+  private readonly rock = colorUniform();
+  /** Disques des tuiles détaillées (x, z, rayon) : demandé (B) et dernier chargement terminé (A). */
+  private readonly diskA = uniform(new THREE.Vector3(0, 0, -1));
+  private readonly diskB = uniform(new THREE.Vector3(0, 0, -1));
+  private readonly maskTex: THREE.DataTexture;
+  private radius: number;
+  private readonly tileSize: number;
+
+  constructor(grid: HorizonGrid, source: WorldSource, q: QualitySettings, season: Season, profile: AlpineProfile) {
+    this.tileSize = source.tileSize;
+    this.radius = (q.tileRadius - 0.5) * source.tileSize;
+    this.rock.set(profile.rock);
+    this.treeline.value = profile.treelineM;
+    this.setSeason(season);
+
+    // Tuiles existantes de l'emprise : le relief lointain n'est masqué que là où elles se chargent.
+    const T = source.tileSize;
+    const b = source.bounds;
+    const tx0 = Math.floor(b.minX / T);
+    const tz0 = Math.floor(b.minZ / T);
+    const nx = Math.max(1, Math.ceil(b.maxX / T) - tx0);
+    const nz = Math.max(1, Math.ceil(b.maxZ / T) - tz0);
+    const mask = new Uint8Array(nx * nz * 4);
+    for (let j = 0; j < nz; j++) for (let i = 0; i < nx; i++) mask[(j * nx + i) * 4] = source.hasTile(tx0 + i, tz0 + j) ? 255 : 0;
+    this.maskTex = new THREE.DataTexture(mask, nx, nz, THREE.RGBAFormat);
+    this.maskTex.magFilter = this.maskTex.minFilter = THREE.NearestFilter;
+    this.maskTex.needsUpdate = true;
+
+    this.mesh = new THREE.Mesh(buildGeometry(grid, q.level === 'low' || q.level === 'medium' ? 2 : 1), this.material(tx0 * T, tz0 * T, nx * T, nz * T));
+    this.mesh.name = 'horizon';
+    this.mesh.frustumCulled = false;
+    this.mesh.castShadow = false;
+    this.mesh.receiveShadow = false;
+    this.mesh.matrixAutoUpdate = false;
+    // Juste après le ciel (renderOrder −2, voir environment.ts) et avant tout le reste : le ciel ne
+    // peut pas le recouvrir même si sa profondeur s'arrondit à 1.
+    this.mesh.renderOrder = -1;
+  }
+
+  setSeason(season: Season): void {
+    this.snowLine.value = SNOW_LINE_M[season];
+    this.forest.set(LOWLAND[season][0]);
+    this.meadow.set(LOWLAND[season][1]);
+    this.alpineMeadow.set(ALPINE_MEADOW[season]);
+  }
+
+  setQuality(q: QualitySettings): void {
+    this.radius = (q.tileRadius - 0.5) * this.tileSize;
+    (this.diskA.value as THREE.Vector3).z = Math.min((this.diskA.value as THREE.Vector3).z, this.radius);
+    (this.diskB.value as THREE.Vector3).z = this.radius;
+  }
+
+  /** Nouveau voisinage demandé autour de (x, z) : masqué seulement où l'ancien et le nouveau se recouvrent. */
+  requestFocus(x: number, z: number): void {
+    const T = this.tileSize;
+    (this.diskB.value as THREE.Vector3).set((Math.floor(x / T) + 0.5) * T, (Math.floor(z / T) + 0.5) * T, this.radius);
+  }
+
+  /** Les tuiles du voisinage demandé sont chargées. */
+  commitFocus(): void {
+    (this.diskA.value as THREE.Vector3).copy(this.diskB.value as THREE.Vector3);
+  }
+
+  private material(mx: number, mz: number, mw: number, mh: number): THREE.MeshStandardNodeMaterial {
+    const m = new THREE.MeshStandardNodeMaterial({ fog: false });
+    // Sommet : courbure terrestre (abaissement d²/2R autour de la caméra), profondeur collée au ciel.
+    m.vertexNode = Fn(() => {
+      const p = positionLocal;
+      const d = p.xz.sub(cameraPosition.xz);
+      const drop = d.dot(d).div(2 * EARTH_R);
+      const clip = cameraProjectionMatrix.mul(cameraViewMatrix).mul(vec4(p.x, p.y.sub(drop), p.z, 1)).toVar();
+      clip.z.assign(clip.w.mul(FAR_DEPTH));
+      return clip;
+    })();
+    const P = positionLocal;
+    const xz = P.xz;
+    // Masque : tuile détaillée existante et chargée (dans les deux disques) → on ne dessine pas.
+    const uvm = xz.sub(vec2(mx, mz)).div(vec2(mw, mh));
+    const inside = uvm.x.greaterThan(0).and(uvm.x.lessThan(1)).and(uvm.y.greaterThan(0)).and(uvm.y.lessThan(1));
+    const exists = texture(this.maskTex, uvm).r.greaterThan(0.5);
+    const inA = xz.sub(this.diskA.xy).length().lessThan(this.diskA.z);
+    const inB = xz.sub(this.diskB.xy).length().lessThan(this.diskB.z);
+    m.maskNode = inside.and(exists).and(inA).and(inB).not();
+
+    // Sol vu de loin : forêts et prés mêlés, alpages, roche au-dessus de la limite des arbres et
+    // sur les pentes fortes (adoucies à 100 m de maille), neige selon la saison et l'exposition.
+    const alt = P.y;
+    const slope = float(1).sub(normalWorld.y);
+    const n1 = mx_noise_float(xz.mul(0.0011)).mul(0.5).add(0.5);
+    const n2 = mx_noise_float(xz.mul(0.007)).mul(0.5).add(0.5);
+    // versants boisés, fonds de vallée en prés ; au-dessus de la forêt, alpages
+    const forestK = smoothstep(0.06, 0.2, slope).mul(n1.mul(0.5).add(0.6)).mul(float(1).sub(smoothstep(this.treeline.sub(300), this.treeline, alt)));
+    let col = mix(this.meadow.node, this.forest.node, clamp(forestK, 0, 1));
+    col = mix(col, this.alpineMeadow.node, smoothstep(ALPINE_GROUND_M - 200, ALPINE_GROUND_M + 400, alt).mul(float(1).sub(forestK.mul(0.8))));
+    // roche : au-dessus de la limite des arbres, et sur les pentes fortes hors de la forêt
+    const steepRock = smoothstep(0.22, 0.42, slope).mul(smoothstep(this.treeline.sub(800), this.treeline.sub(200), alt));
+    const rockK = clamp(smoothstep(this.treeline.add(50), this.treeline.add(650), alt).mul(0.85).max(steepRock), 0, 1);
+    col = mix(col, this.rock.node.mul(n2.mul(0.3).add(0.65)), rockK);
+    const north = smoothstep(0.0, 0.4, normalWorld.z.negate());
+    const line = this.snowLine.sub(north.mul(200)).add(n2.sub(0.5).mul(300));
+    const snow = smoothstep(line.sub(150), line.add(200), alt).mul(float(1).sub(smoothstep(0.42, 0.7, slope)));
+    col = mix(col, vec3(0.9, 0.93, 0.96), snow);
+    m.colorNode = col;
+    m.roughnessNode = float(0.95);
+    m.metalnessNode = float(0);
+
+    // Brume du lointain : exponentielle simple (la scène est en exp², trop opaque à 20 km),
+    // bleutée vers le ciel avec la distance (perspective aérienne).
+    const dist = P.sub(cameraPosition).length();
+    const fogF = clamp(float(1).sub(exp(this.fogDensity.mul(-0.4).mul(dist))), 0, 1);
+    // voile bleuté, un peu plus sombre que l'horizon du ciel : les chaînes lointaines se lisent en
+    // plans successifs (et non comme des névés)
+    const haze = mix(this.fogColor.node.mul(0.85), this.skyColor.node.mul(0.6), smoothstep(5000, 30000, dist));
+    m.outputNode = vec4(mix(output.rgb, haze, fogF), output.a);
+    return m;
+  }
+
+  dispose(): void {
+    this.mesh.geometry.dispose();
+    (this.mesh.material as THREE.Material).dispose();
+    this.maskTex.dispose();
+  }
+}
+
+/** Grille de la ligne d'horizon en coordonnées monde (un sommet sur `step`). */
+function buildGeometry(g: HorizonGrid, step: number): THREE.BufferGeometry {
+  const m = Math.floor(g.n / step);
+  const w = g.n + 1;
+  const pos = new Float32Array((m + 1) * (m + 1) * 3);
+  for (let j = 0; j <= m; j++)
+    for (let i = 0; i <= m; i++) {
+      const k = (j * (m + 1) + i) * 3;
+      pos[k] = g.x0 + i * step * g.resolutionM;
+      pos[k + 1] = g.heights[j * step * w + i * step] as number;
+      pos[k + 2] = g.z0 + j * step * g.resolutionM;
+    }
+  const index = new Uint32Array(m * m * 6);
+  let n = 0;
+  for (let j = 0; j < m; j++)
+    for (let i = 0; i < m; i++) {
+      const a = j * (m + 1) + i;
+      const b = a + 1;
+      const c = a + m + 1;
+      const d = c + 1;
+      index[n++] = a;
+      index[n++] = c;
+      index[n++] = b;
+      index[n++] = b;
+      index[n++] = c;
+      index[n++] = d;
+    }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  geo.setIndex(new THREE.BufferAttribute(index, 1));
+  geo.computeVertexNormals();
+  geo.computeBoundingSphere();
+  return geo;
+}

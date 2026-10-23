@@ -1,6 +1,6 @@
 /**
  * Dépôts SQL (pg) : comptes, sessions, profils, sorties, segments, progression,
- * intégrations, file de rendu. Les champs sensibles sont chiffrés par `DataCipher`.
+ * intégrations, file de rendu (amis : voir friends.ts). Les champs sensibles sont chiffrés par `DataCipher`.
  */
 import { randomUUID } from 'node:crypto';
 import { DEFAULT_LOOK, type AvatarLook } from '@allezrobert/shared';
@@ -48,6 +48,16 @@ export interface ActivitySummaryRow {
   stravaStatus: string | null;
   intervalsStatus: string | null;
   createdAt: Date;
+}
+
+/** Atelier d'un compte : crédits, pièces possédées, événements débloqués, série, cumuls. */
+export interface AtelierState {
+  credits: number;
+  owned: string[];
+  events: string[];
+  streak: { last: string; days: number };
+  routesDone: string[];
+  koms: number;
 }
 
 export interface RenderJob {
@@ -154,9 +164,11 @@ export class Repos {
   async deleteUser(userId: string): Promise<void> {
     await this.db.tx(async (q) => {
       // Suppressions explicites (en plus des ON DELETE CASCADE) pour ne dépendre d'aucun moteur.
-      for (const table of ['render_jobs', 'integrations', 'segment_efforts', 'activities', 'progression', 'profiles', 'sessions', 'auth_identities']) {
+      for (const table of ['render_jobs', 'integrations', 'segment_efforts', 'activities', 'progression', 'profiles', 'sessions', 'auth_identities', 'friend_codes']) {
         await q.query(`DELETE FROM ${table} WHERE user_id = $1`, [userId]);
       }
+      // Amitiés et demandes, dans les deux sens.
+      await q.query('DELETE FROM friendships WHERE user_a = $1 OR user_b = $1 OR requested_by = $1', [userId]);
       await q.query('DELETE FROM users WHERE id = $1', [userId]);
     });
   }
@@ -366,16 +378,24 @@ export class Repos {
     );
   }
 
-  /** Meilleur temps de chaque coureur sur un segment. */
-  async segmentLeaderboard(routeId: string, segmentId: string, limit = 20): Promise<Array<{ userId: string; name: string; bestMs: number; efforts: number }>> {
+  /**
+   * Meilleur temps de chaque coureur sur un segment ; avec `friendsOf`, seulement ce compte et
+   * ses amis (demandes acceptées).
+   */
+  async segmentLeaderboard(routeId: string, segmentId: string, limit = 20, friendsOf?: string): Promise<Array<{ userId: string; name: string; bestMs: number; efforts: number }>> {
+    const friends = friendsOf
+      ? `AND (e.user_id = $4
+              OR e.user_id IN (SELECT user_b FROM friendships WHERE user_a = $4 AND status = 'accepted')
+              OR e.user_id IN (SELECT user_a FROM friendships WHERE user_b = $4 AND status = 'accepted'))`
+      : '';
     const r = await this.db.query(
       `SELECT e.user_id, u.display_name, MIN(e.elapsed_ms) AS best_ms, COUNT(*) AS efforts
          FROM segment_efforts e JOIN users u ON u.id = e.user_id
-        WHERE e.route_id = $1 AND e.segment_id = $2
+        WHERE e.route_id = $1 AND e.segment_id = $2 ${friends}
         GROUP BY e.user_id, u.display_name
         ORDER BY best_ms ASC
         LIMIT $3`,
-      [routeId, segmentId, limit],
+      friendsOf ? [routeId, segmentId, limit, friendsOf] : [routeId, segmentId, limit],
     );
     return r.rows.map((row) => ({ userId: row.user_id, name: row.display_name, bestMs: toNum(row.best_ms), efforts: toNum(row.efforts) }));
   }
@@ -407,6 +427,61 @@ export class Repos {
     if ((r.rowCount ?? 0) === 0) {
       await q.query('INSERT INTO progression (user_id, xp, rides, distance_m, elevation_m) VALUES ($1, $2, 1, $3, $4)', [userId, xp, distanceM, elevationM]);
     }
+  }
+
+  /* ───────────── Atelier (crédits, pièces, récompenses) ───────────── */
+
+  async getAtelier(userId: string, q: Queryable = this.db): Promise<AtelierState> {
+    const r = await q.query('SELECT credits, owned, events, streak_last, streak_days, routes_done, koms FROM progression WHERE user_id = $1', [userId]);
+    const row = r.rows[0];
+    if (!row) return { credits: 0, owned: [], events: [], streak: { last: '', days: 0 }, routesDone: [], koms: 0 };
+    return {
+      credits: toNum(row.credits),
+      owned: toJson<string[]>(row.owned, []),
+      events: toJson<string[]>(row.events, []),
+      streak: { last: row.streak_last ?? '', days: toNum(row.streak_days) },
+      routesDone: toJson<string[]>(row.routes_done, []),
+      koms: toNum(row.koms),
+    };
+  }
+
+  /** Enregistre l'état de l'atelier (ligne de progression créée au besoin). */
+  async saveAtelier(q: Queryable, userId: string, a: AtelierState): Promise<void> {
+    const params = [userId, Math.max(0, Math.round(a.credits)), JSON.stringify([...new Set(a.owned)]), JSON.stringify([...new Set(a.events)]), a.streak.last || null, a.streak.days, JSON.stringify([...new Set(a.routesDone)]), a.koms];
+    const r = await q.query(
+      'UPDATE progression SET credits = $2, owned = $3, events = $4, streak_last = $5, streak_days = $6, routes_done = $7, koms = $8, updated_at = now() WHERE user_id = $1',
+      params,
+    );
+    if ((r.rowCount ?? 0) === 0) {
+      await q.query('INSERT INTO progression (user_id, credits, owned, events, streak_last, streak_days, routes_done, koms) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)', params);
+    }
+  }
+
+  /**
+   * Achat : débite `price` seulement si le solde suffit (mise à jour conditionnelle, sûre même
+   * avec deux achats simultanés) et ajoute les pièces. false si le solde ne suffit plus.
+   */
+  async spendCredits(userId: string, price: number, granted: readonly string[]): Promise<boolean> {
+    return this.db.tx(async (q) => {
+      // Montant négatif ajouté (pg-mem évalue mal « credits - $2 »).
+      const r = await q.query('UPDATE progression SET credits = credits + $3, updated_at = now() WHERE user_id = $1 AND credits >= $2', [userId, Math.round(price), -Math.round(price)]);
+      if ((r.rowCount ?? 0) === 0) return false;
+      const a = await this.getAtelier(userId, q);
+      await q.query('UPDATE progression SET owned = $2 WHERE user_id = $1', [userId, JSON.stringify([...new Set([...a.owned, ...granted])])]);
+      return true;
+    });
+  }
+
+  /** Montées chronométrées bouclées en salle : cumul (récompenses « kom », « kom-5 »). */
+  async addKom(userId: string): Promise<number> {
+    await this.db.query('UPDATE progression SET koms = koms + 1 WHERE user_id = $1', [userId]);
+    return (await this.getAtelier(userId)).koms;
+  }
+
+  /** Nombre de segments bouclés pendant une sortie en salle (crédits de la sortie). */
+  async countRideEfforts(userId: string, rideId: string): Promise<number> {
+    const r = await this.db.query('SELECT COUNT(*) AS n FROM segment_efforts WHERE user_id = $1 AND ride_id = $2', [userId, rideId]);
+    return toNum(r.rows[0]?.n ?? 0);
   }
 
   /* ───────────── Intégrations ───────────── */
@@ -465,7 +540,8 @@ export class Repos {
   async claimRender(): Promise<RenderJob | null> {
     return this.db.tx(async (q) => {
       const r = await q.query(
-        "SELECT * FROM render_jobs WHERE status = 'queued' ORDER BY created_at LIMIT 1 FOR UPDATE SKIP LOCKED",
+        // pg-mem (développement, worker intégré au serveur) ne connaît pas SKIP LOCKED : un seul worker.
+        `SELECT * FROM render_jobs WHERE status = 'queued' ORDER BY created_at LIMIT 1${this.db.kind === 'memory' ? '' : ' FOR UPDATE SKIP LOCKED'}`,
       );
       const row = r.rows[0];
       if (!row) return null;
@@ -485,6 +561,7 @@ export class Repos {
 
   /** Remet en file les tâches « running » abandonnées (worker redémarré). */
   async requeueStaleRenders(olderThanMin = 30): Promise<void> {
+    if (this.db.kind === 'memory') return; // un seul worker, dans le même processus
     await this.db.query(
       `UPDATE render_jobs SET status = 'queued' WHERE status = 'running' AND started_at < now() - ($1 || ' minutes')::interval AND attempts < 3`,
       [String(olderThanMin)],
@@ -521,17 +598,28 @@ export class Repos {
     const efforts = (await this.db.query('SELECT route_id, segment_id, elapsed_ms, ride_id, ridden_at FROM segment_efforts WHERE user_id = $1', [userId])).rows;
     const integrations = await this.listIntegrations(userId);
     const renders = await this.listRenders(userId);
+    const code = (await this.db.query('SELECT code FROM friend_codes WHERE user_id = $1', [userId])).rows[0]?.code ?? null;
+    const friendships = (
+      await this.db.query(
+        `SELECT f.status, f.requested_by, f.created_at, f.accepted_at, u.display_name
+           FROM friendships f JOIN users u ON u.id = (CASE WHEN f.user_a = $1 THEN f.user_b ELSE f.user_a END)
+          WHERE f.user_a = $1 OR f.user_b = $1`,
+        [userId],
+      )
+    ).rows.map((f: any) => ({ name: f.display_name, status: f.status, direction: f.requested_by === userId ? 'sent' : 'received', createdAt: f.created_at, acceptedAt: f.accepted_at }));
     return {
       exportedAt: new Date().toISOString(),
       user,
       identities: identities.map((i: any) => ({ provider: i.provider, linkedAt: i.created_at })),
       profile,
       progression: await this.getProgression(userId),
+      atelier: await this.getAtelier(userId),
       activities,
       activityFitBase64: fits,
       segmentEfforts: efforts,
       integrations: integrations.map((i) => ({ provider: i.provider, meta: i.meta, updatedAt: i.updatedAt })),
       renders,
+      friends: { code, relations: friendships },
       note: "L'adresse e-mail n'est pas stockée (seule une empreinte HMAC l'est). Les jetons des services tiers ne sont pas exportés.",
     };
   }

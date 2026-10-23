@@ -6,6 +6,7 @@
  */
 import catalogJson from './cosmetics.json' with { type: 'json' };
 import { DEFAULT_BIKE, type BikeSetup } from './rider.ts';
+import { BIKES, migrateBikeId, type BikeType } from './bikes.ts';
 
 export const MAX_LEVEL = 50;
 export const MAX_XP_PER_RIDE = 4000;
@@ -32,7 +33,8 @@ export function levelProgress(xp: number): { level: number; progress: number; ne
   return { level, progress: next === null ? 1 : (xp - cur) / (next - cur), nextLevelXp: next };
 }
 
-export type CosmeticSlot = 'jersey' | 'helmet' | 'bike' | 'socks' | 'glasses' | 'wheels';
+/** Les roues sont passées à l'atelier (tuning.ts, emplacement « wheelset »). */
+export type CosmeticSlot = 'jersey' | 'helmet' | 'bike' | 'socks' | 'glasses';
 
 /** Effet d'un équipement sur la physique (relatif au vélo route aluminium par défaut). */
 export interface CosmeticPhysics {
@@ -56,9 +58,41 @@ export interface CosmeticItem {
   physics?: CosmeticPhysics;
   /** Ce que l'équipement change (affiché au garage). */
   effect?: { fr: string; en: string };
+  /** Vélos : couleurs de la livrée (vignette du garage). */
+  colors?: string[];
 }
 
-export const COSMETICS: CosmeticItem[] = (catalogJson as { items: CosmeticItem[] }).items;
+/**
+ * Effet en selle des vélos du catalogue, selon leur type (aéro, grimpeur, chrono, classique, piste).
+ * Les modèles qui remplacent les anciens vélos du garage gardent exactement leurs valeurs.
+ */
+const BIKE_TYPE_PHYSICS: Record<BikeType, CosmeticPhysics> = {
+  aero: { massKg: -1.0, cdaFactor: 0.97 },
+  climbing: { massKg: -1.5 },
+  tt: { massKg: -0.5, cdaFactor: 0.93 },
+  classic: { massKg: 1.5, cdaFactor: 1.02 },
+  track: { massKg: -1.2, cdaFactor: 0.97 },
+};
+const LEGACY_BIKE_PHYSICS: Record<string, CosmeticPhysics | null> = {
+  'bike-alu': null,
+  'bike-carbone': { massKg: -1.3, cdaFactor: 0.98 },
+  'bike-acier-vintage': { massKg: 1.8, cdaFactor: 1.02 },
+  'bike-grimpeur': { massKg: -1.7 },
+};
+
+/** Cosmétiques de cosmetics.json, puis les vélos du catalogue (bikes.json) dans l'emplacement « bike ». */
+export const COSMETICS: CosmeticItem[] = [
+  ...(catalogJson as { items: CosmeticItem[] }).items,
+  ...BIKES.map((b): CosmeticItem => {
+    const physics = bikePhysics(b.id, b.type);
+    return { id: b.id, slot: 'bike', name: { fr: b.name, en: b.name }, level: b.level, color: b.livery.colors[0], colors: b.livery.colors, ...(physics ? { physics, effect: effectText(physics) } : {}) };
+  }),
+];
+
+/** Identifiant à jour d'un cosmétique équipé (anciens vélos du garage → modèles du catalogue). */
+export function migrateCosmeticId(slot: string, id: string): string {
+  return slot === 'bike' ? migrateBikeId(id) : id;
+}
 
 export function unlockedCosmetics(level: number): CosmeticItem[] {
   return COSMETICS.filter((c) => c.level <= level);
@@ -68,11 +102,35 @@ export function unlockedCosmetics(level: number): CosmeticItem[] {
  * Vélo réellement roulé selon l'équipement porté : masse, CdA, Crr et inertie des roues.
  * Les équipements sans effet physique (maillot, lunettes…) ne changent rien.
  */
-export function bikeSetupFor(equipped: Partial<Record<CosmeticSlot, string>>, base: BikeSetup = DEFAULT_BIKE): BikeSetup {
+function bikePhysics(id: string, type: BikeType): CosmeticPhysics | undefined {
+  for (const [legacy, ph] of Object.entries(LEGACY_BIKE_PHYSICS)) if (migrateBikeId(legacy) === id) return ph ?? undefined;
+  return BIKE_TYPE_PHYSICS[type];
+}
+
+/** Libellé de l'effet (garage) : masse et traînée. */
+function effectText(ph: CosmeticPhysics): { fr: string; en: string } {
+  const fr: string[] = [];
+  const en: string[] = [];
+  const sign = (v: number) => (v > 0 ? '+' : '−');
+  if (ph.massKg) {
+    const v = Math.abs(ph.massKg);
+    fr.push(`${sign(ph.massKg)}${String(v).replace('.', ',')} kg`);
+    en.push(`${sign(ph.massKg)}${v} kg`);
+  }
+  if (ph.cdaFactor && ph.cdaFactor !== 1) {
+    const pct = Math.round(Math.abs(ph.cdaFactor - 1) * 1000) / 10;
+    fr.push(`${sign(ph.cdaFactor - 1)}${String(pct).replace('.', ',')} % de traînée`);
+    en.push(`${sign(ph.cdaFactor - 1)}${pct}% drag`);
+  }
+  return { fr: fr.join(', '), en: en.join(', ') };
+}
+
+export function bikeSetupFor(equipped: Readonly<Record<string, string | undefined>>, base: BikeSetup = DEFAULT_BIKE): BikeSetup {
   const bike: BikeSetup = { ...base };
   const names: string[] = [];
   for (const id of Object.values(equipped)) {
-    const item = COSMETICS.find((c) => c.id === id);
+    if (!id) continue;
+    const item = COSMETICS.find((c) => c.id === migrateBikeId(id));
     const ph = item?.physics;
     if (!item || !ph) continue;
     if (ph.massKg) bike.massKg += ph.massKg;

@@ -53,18 +53,34 @@ interface Palette {
   sunColor: THREE.Color;
 }
 
+/**
+ * Air plus pur en altitude : facteur (0–1] appliqué à la brume de fond et au trouble du ciel,
+ * 1 jusqu'à 400 m (plaines), ≈ 0,6 à 1 500 m, ≈ 0,4 à 2 400 m. La brume météo n'en dépend pas.
+ */
+export function altitudeClarity(altitudeM: number): number {
+  return Math.exp(-Math.max(0, altitudeM - 400) / 2200);
+}
+
 /** Couleurs de lumière selon l'élévation du soleil et la saison (voir ART_DIRECTION.md). */
-function palette(el: number, season: Season, weather: Weather): Palette {
+function palette(el: number, season: Season, weather: Weather, clarity = 1): Palette {
   const day = THREE.MathUtils.smoothstep(el, -0.08, 0.35);
   const golden = 1 - THREE.MathUtils.smoothstep(el, 0.05, 0.4);
   const night = 1 - THREE.MathUtils.smoothstep(el, -0.15, 0.02);
   const sun = new THREE.Color().setRGB(1, 0.96, 0.9).lerp(new THREE.Color(1, 0.62, 0.32), golden * 0.85);
   if (season === 'winter') sun.lerp(new THREE.Color(0.9, 0.95, 1), 0.25);
-  const sky = new THREE.Color('#9cc3ec').lerp(new THREE.Color('#ffb98a'), golden * 0.45).lerp(new THREE.Color('#0d1a2e'), night);
+  // En altitude, ciel d'un bleu plus profond (moins d'air au-dessus de soi).
+  const sky = new THREE.Color('#9cc3ec')
+    .lerp(new THREE.Color('#6f9fdc'), (1 - clarity) * 0.9)
+    .lerp(new THREE.Color('#ffb98a'), golden * 0.45)
+    .lerp(new THREE.Color('#0d1a2e'), night);
   const groundTint: Record<Season, string> = { spring: '#6f7f45', summer: '#7a7448', autumn: '#7b5a35', winter: '#6b6b60' };
   const ground = new THREE.Color(groundTint[season]).multiplyScalar(0.35 + 0.65 * day);
   const fogBase: Record<Season, string> = { spring: '#dfe8ef', summer: '#e8e0cf', autumn: '#d9d2c3', winter: '#c9d1d6' };
-  const fog = new THREE.Color(fogBase[season]).lerp(new THREE.Color('#f2b483'), golden * 0.35).lerp(new THREE.Color('#0b1220'), night * 0.95);
+  // Brume plus bleue et moins laiteuse en altitude.
+  const fog = new THREE.Color(fogBase[season])
+    .lerp(new THREE.Color('#c4d5e6'), (1 - clarity) * 0.8)
+    .lerp(new THREE.Color('#f2b483'), golden * 0.35)
+    .lerp(new THREE.Color('#0b1220'), night * 0.95);
   // Météo couverte : lumière plus grise et plus diffuse.
   const overcast = Math.max(weather.clouds - 0.4, 0) / 0.6;
   sun.lerp(new THREE.Color('#c8ccd2'), overcast * 0.6);
@@ -87,6 +103,8 @@ export class Environment {
   private csm: CSMShadowNode | null = null;
   private readonly sunDir = new THREE.Vector3();
   private readonly scene: THREE.Scene;
+  /** Altitude lissée du coureur suivi (m), pour la clarté de l'air. */
+  private altitudeM = Number.NaN;
 
   constructor(scene: THREE.Scene, q: QualitySettings, state: EnvironmentState) {
     this.scene = scene;
@@ -97,6 +115,8 @@ export class Environment {
     this.sky.rayleigh.value = 1.6;
     this.sky.mieCoefficient.value = 0.004;
     this.sky.mieDirectionalG.value = 0.82;
+    // dessiné en premier : le relief lointain (horizon.ts) passe par-dessus
+    this.sky.renderOrder = -2;
     scene.add(this.sky);
     scene.add(this.nightSky.mesh);
 
@@ -129,12 +149,17 @@ export class Environment {
     const { hour, season, weather } = this.state;
     sunDirection(hour, season, this.sunDir);
     const el = Math.asin(this.sunDir.y);
-    const pal = palette(el, season, weather);
+    // Altitude du point suivi, lissée (quelques secondes) pour éviter tout saut de brume.
+    if (focus && Number.isFinite(focus.y)) this.altitudeM = Number.isFinite(this.altitudeM) ? this.altitudeM + (focus.y - this.altitudeM) * Math.min(1, _dt * 0.5) : focus.y;
+    const clarity = altitudeClarity(Number.isFinite(this.altitudeM) ? this.altitudeM : 0);
+    const pal = palette(el, season, weather, clarity);
 
     this.sky.sunPosition.value.copy(this.sunDir);
     this.sky.cloudCoverage.value = 0.15 + weather.clouds * 0.75;
     this.sky.cloudDensity.value = 0.25 + weather.clouds * 0.6;
-    this.sky.turbidity.value = 2.5 + weather.fog * 6 + weather.clouds * 3;
+    // Ciel moins trouble (plus profond) en altitude.
+    this.sky.turbidity.value = 1.6 + 0.9 * clarity + weather.fog * 6 + weather.clouds * 3;
+    this.sky.mieCoefficient.value = 0.004 * (0.5 + 0.5 * clarity);
 
     // Le soleil passe sous l'horizon : la lune prend le relais (lumière froide et faible).
     const isNight = this.sunDir.y < -0.02;
@@ -154,7 +179,7 @@ export class Environment {
     this.hemi.intensity = 0.25 + 1.1 * THREE.MathUtils.smoothstep(this.sunDir.y, -0.2, 0.3) + overcast * 0.5 + nightK * 0.35;
     if (nightK > 0) this.hemi.color.lerp(new THREE.Color('#3b4f7a'), nightK * 0.8);
     this.fog.color.copy(pal.fog);
-    this.fog.density = 0.00012 + weather.fog * 0.0022 + weather.rain * 0.0004;
+    this.fog.density = 0.00012 * clarity + weather.fog * 0.0022 + weather.rain * 0.0004;
   }
 
   /** Étalonnage conseillé selon saison, heure et météo (voir ART_DIRECTION.md). */

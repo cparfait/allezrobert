@@ -24,6 +24,7 @@ x-server-env: &server-env
   LIVEKIT_URL: wss://${LIVEKIT_DOMAIN:?LIVEKIT_DOMAIN manquant}
   LIVEKIT_API_KEY: ${LIVEKIT_API_KEY:-}
   LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:-}
+  DISCORD_VOICE_INVITE: ${DISCORD_VOICE_INVITE:-}
   ALLOW_ANONYMOUS_GUESTS: ${ALLOW_ANONYMOUS_GUESTS:-true}
   GUEST_MAX_WKG: ${GUEST_MAX_WKG:-3.5}
   RECONNECT_GRACE_S: ${RECONNECT_GRACE_S:-30}
@@ -58,6 +59,8 @@ services:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       # Tuiles du monde générées par tools/terrain puis copiées sur le VPS (docs/DEPLOY.md §12)
       - ${WORLDS_DIR:-./data/worlds}:/srv/worlds:ro
+      # Boucles vidéo du menu générées par tools/menu-loop puis copiées sur le VPS (docs/DEPLOY.md §12 bis)
+      - ${MENU_DIR:-./data/menu}:/srv/menu:ro
       - caddy_data:/data
       - caddy_config:/config
     depends_on:

@@ -1,0 +1,33 @@
+/* QR code de l'appli compagnon : fenêtre centrée (lancement de sortie, touche Q, pause) et bloc des Réglages. */
+.cmp-qr { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; background: rgba(10, 14, 22, 0.5); pointer-events: auto; color: var(--ar-fg, #fff); }
+.cmp-qr[hidden] { display: none; }
+.cmp-code svg { display: block; width: 100%; height: 100%; border-radius: 6px; }
+.cmp-state { display: flex; align-items: center; gap: 8px; }
+.cmp-state i { display: inline-block; flex: none; width: 9px; height: 9px; border-radius: 50%; background: #94a3b8; }
+.cmp-state i.ok { background: #22c55e; box-shadow: 0 0 6px #22c55e; }
+.cmp-state i.off { background: #ef4444; }
+.cmp-hint { font-size: 11.5px; color: var(--ar-muted, #b8c0cc); }
+.cmp-hint kbd { border: 1px solid rgba(255, 255, 255, 0.3); border-radius: 4px; padding: 0 5px; }
+
+.cmp-card { position: relative; width: min(380px, 92vw); padding: 22px 24px 16px; display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center; background: var(--ar-bg-strong, rgba(10, 14, 22, 0.86)); animation: cmp-in 0.25s ease-out; }
+.cmp-card b { font-size: 20px; }
+.cmp-card p { margin: 0; font-size: 13.5px; line-height: 1.45; color: var(--ar-muted, #b8c0cc); }
+.cmp-card .cmp-code { position: relative; width: min(240px, 64vw); aspect-ratio: 1; }
+.cmp-card .cmp-code.done svg { opacity: 0.25; }
+.cmp-card .cmp-code.done span { position: absolute; inset: 0; display: grid; place-items: center; font-size: 96px; color: #22c55e; font-weight: 800; }
+.cmp-card .cmp-state { color: var(--ar-fg, #fff); font-size: 13.5px; }
+.cmp-x { position: absolute; top: 10px; right: 10px; width: 30px; height: 30px; border-radius: 50%; border: 0; background: rgba(255, 255, 255, 0.1); color: #fff; font-size: 18px; line-height: 30px; padding: 0; cursor: pointer; }
+.cmp-url { font-size: 11px; color: var(--ar-muted, #b8c0cc); word-break: break-all; }
+.cmp-row { display: flex; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap; }
+.cmp-row .btn.ghost { background: none; color: var(--ar-muted, #b8c0cc); }
+@keyframes cmp-in { from { transform: scale(0.96); opacity: 0; } }
+
+/* Onglet Réglages. */
+.cmp-settings { display: flex; gap: 18px; align-items: flex-start; }
+.cmp-settings .cmp-code { flex: none; width: 132px; height: 132px; padding: 0; border: 0; background: none; cursor: zoom-in; }
+.cmp-settings .cmp-side { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.cmp-settings p { margin: 0; font-size: 13.5px; line-height: 1.45; }
+
+/* Pastille du téléphone (même style que les cartes de mode du menu). */
+.cmp-badge { width: 52px; height: 52px; border-radius: 50%; display: grid; place-items: center; color: var(--ar-accent, #ffd23f); background: rgba(255, 210, 63, 0.14); box-shadow: inset 0 0 0 1px rgba(255, 210, 63, 0.4), 0 0 22px -6px rgba(255, 210, 63, 0.6); }
+.cmp-ico { display: inline-block; vertical-align: -4px; }

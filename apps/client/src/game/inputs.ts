@@ -12,6 +12,8 @@ export interface RideInputs {
   psRight?: number;
   /** Direction demandée (−1 gauche … +1 droite). */
   steer: number;
+  /** Rapport réel engagé, quand la commande le transmet (SRAM AXS appairé) : plateau, pignon. */
+  realGear?: { front: number; rear: number };
 }
 
 /** Source d'entrées : capteurs réels (DeviceManager), simulateur, invité au clavier. */
@@ -19,8 +21,10 @@ export interface InputSource {
   read(): RideInputs;
   /** Commande envoyée au home trainer (pente simulée, ERG…). */
   sendTrainer(cmd: TrainerCommand): void;
-  /** Ventilateur asservi (HEADWIND), 0–100 %. */
+  /** Ventilateur (HEADWIND) : consigne manuelle 0–100 % (appli compagnon). */
   setFan?(percent: number): void;
+  /** Ventilateur asservi : appelé à chaque image, la source décide selon le mode et limite les envois. */
+  updateFan?(ctx: { speedKmh: number; gradePercent: number; heartRateBpm?: number }): void;
   onShift(cb: (a: ShiftAction) => void): void;
   /** Alertes matériel à afficher pendant la sortie (Garmin qui pilote le trainer, Assioma…). */
   onWarning?(cb: (message: string) => void): void;

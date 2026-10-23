@@ -4,7 +4,9 @@ import { SPLAT_CHANNELS } from './types.ts';
 const RES = 256;
 
 /** Occupations du sol OSM rangées par canal. */
-const FIELD_KINDS = new Set(['farmland', 'orchard', 'vineyard', 'allotments', 'farmyard', 'bare', 'sand']);
+const FIELD_KINDS = new Set(['farmland', 'orchard', 'vineyard', 'allotments', 'farmyard', 'sand']);
+/** Roche nue et éboulis (OSM natural=bare_rock, scree, shingle). */
+const ROCK_KINDS = new Set(['bare', 'scree']);
 const MEADOW_KINDS = new Set(['meadow', 'grass', 'heath', 'scrub', 'wetland', 'park', 'golf', 'pitch', 'cemetery', 'garden']);
 const URBAN_KINDS = new Set(['residential', 'industrial', 'commercial', 'railway', 'quarry', 'retail']);
 
@@ -85,6 +87,15 @@ export function rasterizeSplat(tile: LoadedTile, skipRoute: string | null = null
           else line(r.pts);
           ctx.stroke();
         });
+      // Voies ferrées : emprise du ballast (ni arbre ni herbe dessus).
+      ctx.lineWidth = 6 * scale;
+      (f.railways ?? [])
+        .filter((r) => !r.tunnel)
+        .forEach((r) => {
+          ctx.beginPath();
+          line(r.pts);
+          ctx.stroke();
+        });
     },
     () => {
       if (!skipRoute) return;
@@ -99,6 +110,20 @@ export function rasterizeSplat(tile: LoadedTile, skipRoute: string | null = null
           else line(r.pts);
           ctx.stroke();
         });
+    },
+    () => {
+      // Roche et éboulis à mi-intensité, glaciers pleins par-dessus (leur bord passe par la
+      // valeur de la roche : moraine).
+      ctx.globalAlpha = 0.5;
+      f.fields.filter((p) => ROCK_KINDS.has(p.kind)).forEach((p) => poly(p.rings));
+      ctx.globalAlpha = 1;
+      f.fields.filter((p) => p.kind === 'glacier').forEach((p) => poly(p.rings));
+    },
+    () => {
+      ctx.globalAlpha = 0.5;
+      f.forests.filter((p) => p.kind === 'mixed').forEach((p) => poly(p.rings));
+      ctx.globalAlpha = 1;
+      f.forests.filter((p) => p.kind === 'conifer').forEach((p) => poly(p.rings));
     },
   ];
 

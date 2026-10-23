@@ -13,7 +13,7 @@ export const ONBOARDING_SCRIPT: Record<string, Line[]> = {
       fr: "Bienvenue dans Allez Robert ! Un clin d'œil à Robert Marchand, recordman de l'heure à cent cinq ans, et à Robert Chassat. Ici, on roule ensemble, chacun chez soi.",
       en: 'Welcome to Allez Robert! A nod to Robert Marchand, who set the hour record at one hundred and five, and to Robert Chassat. Here we ride together, each from home.',
     },
-    { fr: 'En quelques minutes, on règle ton profil, ton avatar et tes capteurs, puis on part pour une première sortie.', en: "In a few minutes we'll set up your profile, avatar and sensors, then head out for a first ride." },
+    { fr: 'En quelques minutes, on règle ton équipement, puis ton profil et ton avatar, et on part pour une première sortie.', en: "In a few minutes we'll set up your equipment, then your profile and avatar, and head out for a first ride." },
   ],
   profile: [
     {
@@ -38,8 +38,9 @@ export const ONBOARDING_SCRIPT: Record<string, Line[]> = {
       en: 'Gears are virtual: twenty-four ratios handled by the game. With a Zwift Cog, shift with your Di2 levers, a Zwift Click, a gamepad or the arrow keys.',
     },
   ],
+  finish: [{ fr: 'Bonnes balades !', en: 'Happy riding!' }],
   ride: [
-    { fr: "C'est parti pour une boucle dans la vallée de Chevreuse. Pédale à ton rythme : la pente de la route se ressent dans le home trainer.", en: "Let's ride a loop in the Chevreuse valley. Pedal at your own pace: you'll feel the road gradient in the trainer." },
+    { fr: "C'est parti ! Pédale à ton rythme : la pente de la route se ressent dans le home trainer.", en: "Let's go! Pedal at your own pace: you'll feel the road gradient in the trainer." },
   ],
   firstShift: [{ fr: 'Bien joué, tu viens de changer de vitesse. Monte les pignons en côte pour garder une bonne cadence.', en: 'Nice, you just shifted. Shift to easier gears on climbs to keep a good cadence.' }],
   firstClimb: [{ fr: "Voici une côte. Reste assis, souple, et regarde le profil en bas de l'écran pour doser ton effort.", en: 'Here comes a climb. Stay seated and smooth, and watch the profile at the bottom of the screen to pace yourself.' }],

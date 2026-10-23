@@ -6,7 +6,7 @@
  * exactement creusé dans le terrain (a → b) ; les nœuds partagés ont une altitude unique, donc
  * les profils se raccordent aux carrefours.
  */
-import type { RoutePoint } from './route.ts';
+import type { RouteData, RoutePoint, RouteSegment, WorldPlace } from './route.ts';
 
 export interface RoadGraphEdge {
   /** Indices des nœuds d'extrémité. */
@@ -391,4 +391,391 @@ function sliceFrom(pts: V3[], along: number): V3[] {
 
 function round2(v: number): number {
   return Math.round(v * 100) / 100;
+}
+
+// ————————————————————————————————————————————— Itinéraire départ → arrivée
+
+/** Point de la carte rattaché au graphe : arête, position le long d'elle (m depuis a), position. */
+export interface RoadSnap {
+  edge: number;
+  along: number;
+  x: number;
+  z: number;
+}
+
+/** Arête d'un itinéraire, parcourue de `from` à `to` (m depuis son début dans le sens de parcours). */
+export interface ItineraryStep extends EdgeStep {
+  from: number;
+  to: number;
+}
+
+/** Itinéraire calculé : arêtes parcourues dans l'ordre (en entier sauf aux points de passage). */
+export interface Itinerary {
+  steps: ItineraryStep[];
+}
+
+const PAVED_SURFACE = /^(asphalt|paved|concrete|chipseal)/;
+
+/** Route revêtue (les chemins agricoles ne le sont jamais vraiment). */
+export function isPavedEdge(e: RoadGraphEdge): boolean {
+  return PAVED_SURFACE.test(e.surface) && e.kind !== 'track';
+}
+
+/**
+ * Coût d'une arête au mètre pour l'itinéraire : routes revêtues de préférence, chemins
+ * seulement s'ils évitent un grand détour, grands axes un peu évités.
+ */
+export function itineraryCost(e: RoadGraphEdge): number {
+  if (!isPavedEdge(e)) return 4;
+  if (/^service/.test(e.kind)) return 1.8;
+  if (/^primary/.test(e.kind)) return 1.4;
+  return 1;
+}
+
+/** Longueur en plan de chaque arête mesurée sur son profil (même métrique qu'OpenPath). */
+const polyLens = new WeakMap<RoadNet, Float64Array>();
+export function edgeLengths(net: RoadNet): Float64Array {
+  let l = polyLens.get(net);
+  if (l) return l;
+  const out = new Float64Array(net.data.edges.length);
+  net.data.edges.forEach((e, i) => {
+    let acc = 0;
+    for (let k = 3; k < e.pts.length; k += 3) acc += Math.hypot((e.pts[k] as number) - (e.pts[k - 3] as number), (e.pts[k + 2] as number) - (e.pts[k - 1] as number));
+    out[i] = acc;
+  });
+  l = out;
+  polyLens.set(net, l);
+  return l;
+}
+
+/** Position sur l'arête à `along` m de a. */
+function pointOnEdge(e: RoadGraphEdge, along: number): { x: number; z: number } {
+  const p = e.pts;
+  let acc = 0;
+  for (let k = 3; k < p.length; k += 3) {
+    const ax = p[k - 3] as number;
+    const az = p[k - 1] as number;
+    const l = Math.hypot((p[k] as number) - ax, (p[k + 2] as number) - az);
+    if (acc + l >= along) {
+      const t = l > 0 ? (along - acc) / l : 0;
+      return { x: ax + ((p[k] as number) - ax) * t, z: az + ((p[k + 2] as number) - az) * t };
+    }
+    acc += l;
+  }
+  return { x: p[p.length - 3] as number, z: p[p.length - 1] as number };
+}
+
+/**
+ * Rattache un point (x, z) à la route roulable la plus proche ; à moins de `nodeSnapM` d'un
+ * carrefour ou d'un bout de route, au nœud lui-même. `null` si rien à moins de `maxDistM`.
+ */
+export function snapToRoad(net: RoadNet, x: number, z: number, maxDistM = 400, nodeSnapM = 15): RoadSnap | null {
+  const near = net.nearest(x, z);
+  if (!near || near.dist > maxDistM) return null;
+  const len = edgeLengths(net)[near.edge] as number;
+  const along = near.along < nodeSnapM ? 0 : len - near.along < nodeSnapM ? len : near.along;
+  return { edge: near.edge, along, ...pointOnEdge(net.edge(near.edge), along) };
+}
+
+/** Tas binaire minimal (Dijkstra). */
+class MinHeap {
+  private readonly ids: number[] = [];
+  private readonly keys: number[] = [];
+  get size(): number {
+    return this.ids.length;
+  }
+  push(id: number, key: number): void {
+    const ids = this.ids;
+    const keys = this.keys;
+    let i = ids.length;
+    ids.push(id);
+    keys.push(key);
+    while (i > 0) {
+      const p = (i - 1) >> 1;
+      if ((keys[p] as number) <= key) break;
+      ids[i] = ids[p] as number;
+      keys[i] = keys[p] as number;
+      i = p;
+    }
+    ids[i] = id;
+    keys[i] = key;
+  }
+  pop(): { id: number; key: number } {
+    const ids = this.ids;
+    const keys = this.keys;
+    const top = { id: ids[0] as number, key: keys[0] as number };
+    const id = ids.pop() as number;
+    const key = keys.pop() as number;
+    const n = ids.length;
+    if (n) {
+      let i = 0;
+      for (;;) {
+        const l = 2 * i + 1;
+        if (l >= n) break;
+        const r = l + 1;
+        const c = r < n && (keys[r] as number) < (keys[l] as number) ? r : l;
+        if ((keys[c] as number) >= key) break;
+        ids[i] = ids[c] as number;
+        keys[i] = keys[c] as number;
+        i = c;
+      }
+      ids[i] = id;
+      keys[i] = key;
+    }
+    return top;
+  }
+}
+
+/**
+ * Plus court chemin (au sens de `cost`, routes revêtues de préférence) d'un point rattaché à
+ * un autre, dans les sens autorisés à vélo. `null` si l'arrivée est inaccessible.
+ */
+export function planItinerary(net: RoadNet, from: RoadSnap, to: RoadSnap, cost: (e: RoadGraphEdge) => number = itineraryCost): Itinerary | null {
+  const lens = edgeLengths(net);
+  const n = net.incident.length;
+  const dist = new Float64Array(n).fill(Infinity);
+  const prev: Array<EdgeStep | null> = new Array<EdgeStep | null>(n).fill(null);
+  const seeded = new Uint8Array(n);
+  const heap = new MinHeap();
+  const ef = net.edge(from.edge);
+  const lf = lens[from.edge] as number;
+  const et = net.edge(to.edge);
+  const lt = lens[to.edge] as number;
+  const seed = (node: number, d: number, step: EdgeStep) => {
+    if (!net.allowed(step) || d >= (dist[node] as number)) return;
+    dist[node] = d;
+    prev[node] = step;
+    seeded[node] = 1;
+    heap.push(node, d);
+  };
+  seed(ef.b, (lf - from.along) * cost(ef), { edge: from.edge, forward: true });
+  seed(ef.a, from.along * cost(ef), { edge: from.edge, forward: false });
+  // Départ et arrivée sur la même arête, dans le bon sens : sans passer par un carrefour.
+  let best = Infinity;
+  let end: { node: number; step: EdgeStep } | null = null;
+  if (from.edge === to.edge && to.along !== from.along) {
+    const step = { edge: from.edge, forward: to.along > from.along };
+    if (net.allowed(step)) {
+      best = Math.abs(to.along - from.along) * cost(ef);
+      end = { node: -1, step };
+    }
+  }
+  while (heap.size) {
+    const { id: u, key: d } = heap.pop();
+    if (d > (dist[u] as number)) continue;
+    if (d >= best) break;
+    // Arrivée : depuis un bout de l'arête d'arrivée jusqu'au point.
+    if (u === et.a && net.allowed({ edge: to.edge, forward: true }) && d + to.along * cost(et) < best) {
+      best = d + to.along * cost(et);
+      end = { node: u, step: { edge: to.edge, forward: true } };
+    }
+    if (u === et.b && net.allowed({ edge: to.edge, forward: false }) && d + (lt - to.along) * cost(et) < best) {
+      best = d + (lt - to.along) * cost(et);
+      end = { node: u, step: { edge: to.edge, forward: false } };
+    }
+    for (const ei of net.incident[u] ?? []) {
+      const e = net.edge(ei);
+      const w = (lens[ei] as number) * cost(e);
+      for (const forward of [true, false]) {
+        if ((forward ? e.a : e.b) !== u) continue;
+        const step = { edge: ei, forward };
+        if (!net.allowed(step)) continue;
+        const v = forward ? e.b : e.a;
+        const nd = d + w;
+        if (nd < (dist[v] as number)) {
+          dist[v] = nd;
+          prev[v] = step;
+          seeded[v] = 0;
+          heap.push(v, nd);
+        }
+      }
+    }
+  }
+  if (!end) return null;
+  const steps: EdgeStep[] = [end.step];
+  if (end.node >= 0) {
+    let node = end.node;
+    for (let guard = 0; guard <= n; guard++) {
+      const st = prev[node] as EdgeStep;
+      steps.unshift(st);
+      if (seeded[node]) break;
+      node = net.startNode(st);
+    }
+  }
+  const first = steps[0] as EdgeStep;
+  const last = steps[steps.length - 1] as EdgeStep;
+  let fromAlong = first.forward ? from.along : lf - from.along;
+  let toAlong = last.forward ? to.along : lt - to.along;
+  // Point posé sur un carrefour : pas d'arête parcourue sur 0 m au début ni à la fin.
+  if (steps.length > 1 && lf - fromAlong < 1e-6) {
+    steps.shift();
+    fromAlong = 0;
+  }
+  if (steps.length > 1 && toAlong < 1e-6) {
+    steps.pop();
+    toAlong = lens[(steps[steps.length - 1] as EdgeStep).edge] as number;
+  }
+  return {
+    steps: steps.map((st, i) => ({ ...st, from: i === 0 ? fromAlong : 0, to: i === steps.length - 1 ? toAlong : (lens[st.edge] as number) })),
+  };
+}
+
+/**
+ * Itinéraire par étapes (points de passage) : étapes mises bout à bout ; une arête continuée
+ * dans le même sens au point de passage n'en fait qu'une, sinon c'est un demi-tour sur place.
+ */
+export function joinItineraries(legs: Itinerary[]): Itinerary {
+  const out: ItineraryStep[] = [];
+  for (const leg of legs)
+    for (const st of leg.steps) {
+      if (st.to - st.from < 1e-6 && (out.length || leg.steps.length > 1)) continue;
+      const prev = out[out.length - 1];
+      if (prev && prev.edge === st.edge && prev.forward === st.forward && Math.abs(prev.to - st.from) < 1e-6) prev.to = st.to;
+      else out.push({ ...st });
+    }
+  return { steps: out };
+}
+
+/** « de » devant un nom de lieu : du Roussel, des Vigiers, de la Pireyre, d'Égliseneuve, de Glaine. */
+export function frenchOf(name: string): string {
+  if (/^Le /.test(name)) return `du ${name.slice(3)}`;
+  if (/^Les /.test(name)) return `des ${name.slice(4)}`;
+  if (/^La /.test(name)) return `de la ${name.slice(3)}`;
+  if (/^L['’]/.test(name)) return `de l’${name.slice(2)}`;
+  if (/^[AEIOUYÉÈÊÂÎÔaeiouyéèê]/.test(name)) return `d’${name}`;
+  return `de ${name}`;
+}
+
+/** Extrema avec hystérésis (zig-zag) : indices alternés min/max. */
+function zigzag(h: number[], hyst: number): Array<{ i: number; type: 'min' | 'max' }> {
+  const out: Array<{ i: number; type: 'min' | 'max' }> = [];
+  let minI = 0;
+  let maxI = 0;
+  let trend = 0; // 1 montée, −1 descente
+  for (let i = 1; i < h.length; i++) {
+    const v = h[i] as number;
+    if (trend >= 0 && v > (h[maxI] as number)) maxI = i;
+    if (trend <= 0 && v < (h[minI] as number)) minI = i;
+    if (trend <= 0 && v - (h[minI] as number) >= hyst) {
+      out.push({ i: minI, type: 'min' });
+      trend = 1;
+      maxI = i;
+    } else if (trend >= 0 && (h[maxI] as number) - v >= hyst) {
+      out.push({ i: maxI, type: 'max' });
+      trend = -1;
+      minI = i;
+    }
+  }
+  if (trend === 1) out.push({ i: maxI, type: 'max' });
+  else if (trend === -1) out.push({ i: minI, type: 'min' });
+  return out;
+}
+
+/** Montées d'un profil (pas `step`) : ≥ `minLen` m à ≥ `minGrade` %, approches plates rognées (comme tools/terrain). */
+export function detectProfileClimbs(h: number[], step: number, minLen = 500, minGrade = 3): Array<{ startIdx: number; endIdx: number; avgGrade: number }> {
+  const ext = zigzag(h, 4);
+  const look = Math.max(1, Math.round(50 / step));
+  const out: Array<{ startIdx: number; endIdx: number; avgGrade: number }> = [];
+  for (let k = 0; k + 1 < ext.length; k++) {
+    const a = ext[k] as { i: number; type: string };
+    const b = ext[k + 1] as { i: number; type: string };
+    if (a.type !== 'min' || b.type !== 'max') continue;
+    let s = a.i;
+    let e = b.i;
+    while (s + look < e && ((h[s + look] as number) - (h[s] as number)) / (look * step) < 0.015) s++;
+    while (e - look > s && ((h[e] as number) - (h[e - look] as number)) / (look * step) < 0.015) e--;
+    const len = (e - s) * step;
+    const avg = (((h[e] as number) - (h[s] as number)) / Math.max(len, 1)) * 100;
+    if (len >= minLen && avg >= minGrade) out.push({ startIdx: s, endIdx: e, avgGrade: avg });
+  }
+  return out;
+}
+
+/**
+ * Itinéraire en `RouteData` (aller simple), construit comme les tours proposés de
+ * tools/terrain : chemin lissé d'OpenPath (points tous les 2 m), revêtements et largeurs par
+ * tronçon, montées détectées sur le profil. `null` si le tracé fait moins de 50 m.
+ */
+export function itineraryRoute(net: RoadNet, it: Itinerary, meta: { id: string; name: string; nameEn?: string; climbName?: (i: number) => string; places?: WorldPlace[] }): RouteData | null {
+  const path = new OpenPath(net);
+  for (const st of it.steps) {
+    const rec = path.add({ edge: st.edge, forward: st.forward }, st.from);
+    // Arête quittée avant son bout : point de passage ou arrivée.
+    const d = rec.startD + Math.max(0, st.to - st.from);
+    if (d < rec.endD - 1e-6) path.cutAt(d);
+  }
+  const points = path.pointsFrom(0);
+  const lengthM = points[points.length - 1]?.d ?? 0;
+  if (points.length < 2 || lengthM < 50) return null;
+  const step = path.stepM;
+  const hs = points.map((p) => p.y);
+  const runs = <T extends string | number>(key: (e: RoadGraphEdge) => T) => {
+    const out: Array<{ startM: number; endM: number; v: T }> = [];
+    for (const s of path.steps) {
+      const v = key(net.edge(s.edge));
+      const prevRun = out[out.length - 1];
+      const endM = round2(Math.min(s.endD, lengthM));
+      if (prevRun && prevRun.v === v) prevRun.endM = endM;
+      else out.push({ startM: round2(s.startD), endM, v });
+    }
+    return out;
+  };
+  const surfaces = runs((e) => e.surface || 'asphalt').map((r) => ({ startM: r.startM, endM: r.endM, surface: r.v }));
+  const roadWidths = runs((e) => e.width).map((r) => ({ startM: r.startM, endM: r.endM, widthM: r.v }));
+  const widths = path.steps.map((s) => net.edge(s.edge).width).sort((a, b) => a - b);
+  const segments: RouteSegment[] = detectProfileClimbs(hs, step).map((c, i) => ({
+    id: `${meta.id}-kom-${i + 1}`,
+    kind: 'kom',
+    name: meta.climbName ? meta.climbName(i) : `Côte ${i + 1}`,
+    startM: round2(c.startIdx * step),
+    endM: round2(c.endIdx * step),
+    avgGrade: round2(c.avgGrade),
+  }));
+  // Villes et villages traversés (comme les tours de tools/terrain) ; les côtes prennent le nom
+  // du lieu le plus proche de leur sommet.
+  const landmarks: Array<{ name: string; d: number }> = [];
+  for (const p of meta.places ?? []) {
+    if (!/^(village|town|city|hamlet)$/.test(p.kind) || !p.name) continue;
+    let bi = -1;
+    let bd = /^(village|town|city)$/.test(p.kind) ? 400 : 200;
+    for (let i = 0; i < points.length; i += 2) {
+      const q = points[i] as RoutePoint;
+      const d = Math.hypot(q.x - p.x, q.z - p.z);
+      if (d < bd) {
+        bd = d;
+        bi = i;
+      }
+    }
+    if (bi >= 0) landmarks.push({ name: p.name, d: round2((points[bi] as RoutePoint).d) });
+  }
+  landmarks.sort((a, b) => a.d - b.d);
+  if (!meta.climbName)
+    for (const sg of segments) {
+      const near = landmarks.slice().sort((a, b) => Math.abs(a.d - sg.endM) - Math.abs(b.d - sg.endM))[0];
+      if (near && Math.abs(near.d - sg.endM) < 1500) sg.name = `Côte ${frenchOf(near.name)}`;
+    }
+  let gain = 0;
+  for (let i = 1; i < hs.length; i++) gain += Math.max(0, (hs[i] as number) - (hs[i - 1] as number));
+  let maxGrade = 0;
+  const w = Math.round(10 / step);
+  for (let i = 0; i + w < hs.length; i++) maxGrade = Math.max(maxGrade, Math.abs(((hs[i + w] as number) - (hs[i] as number)) / (w * step)) * 100);
+  return {
+    id: meta.id,
+    name: meta.name,
+    ...(meta.nameEn ? { nameEn: meta.nameEn } : {}),
+    loop: false,
+    lengthM: round2(lengthM),
+    elevationGainM: round2(gain),
+    points,
+    segments,
+    roadWidthM: widths[widths.length >> 1] ?? 5,
+    attribution: [...net.data.attribution],
+    roadWidths,
+    surfaces,
+    ...(landmarks.length ? { landmarks } : {}),
+    stepM: step,
+    minElevationM: round2(Math.min(...hs)),
+    maxElevationM: round2(Math.max(...hs)),
+    maxGradePct: round2(maxGrade),
+  };
 }

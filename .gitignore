@@ -19,6 +19,10 @@ out/
 renders/
 *.mp4
 !packages/sequences/**/*.mp4
+# Boucles vidéo du menu (15 à 30 Mo chacune) : régénérées par tools/menu-loop, copiées sur le
+# serveur à part (docs/DEPLOY.md) ; les images fixes still-<saison>.jpg restent versionnées.
+apps/client/public/menu/loop-*.mp4
+apps/client/public/menu/loop-*.webm
 .DS_Store
 Thumbs.db
 

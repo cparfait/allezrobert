@@ -103,7 +103,7 @@ function fitHasHr(bytes: Uint8Array): boolean {
 }
 
 beforeAll(async () => {
-  const config = testConfig({ DEV_LOGIN: 'true', STRAVA_CLIENT_ID: 'sid', STRAVA_CLIENT_SECRET: 'ssecret', GOOGLE_CLIENT_ID: 'gid', GOOGLE_CLIENT_SECRET: 'gsecret', LIVEKIT_URL: 'wss://lk.test', LIVEKIT_API_KEY: 'k', LIVEKIT_API_SECRET: 'livekit-secret-livekit-secret' });
+  const config = testConfig({ DEV_LOGIN: 'true', STRAVA_CLIENT_ID: 'sid', STRAVA_CLIENT_SECRET: 'ssecret', GOOGLE_CLIENT_ID: 'gid', GOOGLE_CLIENT_SECRET: 'gsecret', LIVEKIT_URL: 'wss://lk.test', LIVEKIT_API_KEY: 'k', LIVEKIT_API_SECRET: 'livekit-secret-livekit-secret', DISCORD_VOICE_INVITE: 'https://discord.gg/AllezRobert' });
   // TEST_DATABASE_URL=postgres://… : mêmes tests sur un vrai PostgreSQL (CI, Docker), base remise à zéro.
   const url = process.env.TEST_DATABASE_URL ?? 'memory';
   db = await createDb(url);
@@ -327,6 +327,69 @@ describe('API — sorties, segments, progression', () => {
     expect((await s.json('GET', '/api/rides/current')).body).toMatchObject({ roomId: 'abc', inviteCode: 'ZZZZZZ' });
     expect((await s.json('GET', '/api/rides/code/zzz-zzz')).body).toMatchObject({ roomId: 'abc' });
   });
+
+  it('voix : configuration publique (LiveKit, repli Discord) et lien Discord validé', async () => {
+    const s = new Session();
+    expect((await s.json('GET', '/api/voice')).body).toEqual({ livekit: true, discordInvite: 'https://discord.gg/AllezRobert' });
+    expect(() => testConfig({ DISCORD_VOICE_INVITE: 'https://example.com/piege' })).toThrow(/DISCORD_VOICE_INVITE/);
+    expect(testConfig({ DISCORD_VOICE_INVITE: 'https://discord.com/invite/abc-123' }).DISCORD_VOICE_INVITE).toBe('https://discord.com/invite/abc-123');
+    expect(testConfig({ DISCORD_VOICE_INVITE: '' }).DISCORD_VOICE_INVITE).toBeUndefined();
+  });
+});
+
+describe('API — atelier (crédits, achats, équipement)', () => {
+  it('crédits gagnés avec la sortie, achat validé par le serveur, montant manquant', async () => {
+    const s = await devLogin('Mécano');
+    const id = (await s.json('GET', '/api/me')).body.id as string;
+    const up = await s.json('POST', '/api/activities', sampleFit(false));
+    expect(up.status).toBe(201);
+    // 16,2 km, 180 m de D+, première sortie du jour (série d'un jour) : 16 + 9 + 5.
+    expect(up.body.credits.credits).toBe(30);
+    expect(up.body.credits.balance).toBe(30);
+    let prog = await s.json('GET', '/api/me/progression');
+    expect(prog.body.atelier.credits).toBe(30);
+    // Trop cher : refusé avec le montant manquant, rien n'est débité.
+    const poor = await s.json('POST', '/api/shop/buy', { id: 'tune-st-robert' });
+    expect(poor.status).toBe(402);
+    expect(poor.body).toMatchObject({ error: 'credits', missing: 120, credits: 30 });
+    // Récompense d'événement et pièce réservée à un ensemble : jamais à vendre.
+    expect((await s.json('POST', '/api/shop/buy', { id: 'tune-ev-win' })).status).toBe(403);
+    expect((await s.json('POST', '/api/shop/buy', { id: 'tune-pa-shadow' })).status).toBe(403);
+    expect((await s.json('POST', '/api/shop/buy', { id: 'tune-inconnue' })).status).toBe(404);
+    // Niveau insuffisant pour des roues de niveau 20.
+    const a = await ctx.repos.getAtelier(id);
+    await ctx.repos.saveAtelier(ctx.db, id, { ...a, credits: 5000 });
+    expect((await s.json('POST', '/api/shop/buy', { id: 'tune-wh-enve-34' })).body.error).toBe('level');
+    const ok = await s.json('POST', '/api/shop/buy', { id: 'tune-st-robert' });
+    expect(ok.status).toBe(200);
+    expect(ok.body).toMatchObject({ ok: true, price: 150, credits: 4850 });
+    expect(ok.body.owned).toContain('tune-st-robert');
+    expect((await s.json('POST', '/api/shop/buy', { id: 'tune-st-robert' })).status).toBe(409);
+    prog = await s.json('GET', '/api/me/progression');
+    expect(prog.body.atelier).toMatchObject({ credits: 4850, owned: ['tune-st-robert'] });
+  });
+
+  it('équipement : pièces possédées seulement, avatar.tune recalculé, anciennes roues migrées', async () => {
+    const s = await devLogin('Monteur');
+    const me = (await s.json('GET', '/api/me')).body;
+    const id = me.id as string;
+    const avatar = me.profile.avatar;
+    // Pièce non possédée : refusée, à l'équipement comme à l'affichage.
+    expect((await s.json('PUT', '/api/me/profile', { equipped: { valves: 'tune-va-rouge' } })).status).toBe(400);
+    expect((await s.json('PUT', '/api/me/profile', { avatar: { ...avatar, tune: ['tune-va-rouge'] } })).status).toBe(400);
+    const a = await ctx.repos.getAtelier(id);
+    await ctx.repos.saveAtelier(ctx.db, id, { ...a, owned: ['tune-va-rouge'] });
+    const put = await s.json('PUT', '/api/me/profile', { equipped: { valves: 'tune-va-rouge' }, avatar: { ...avatar, tune: [] } });
+    expect(put.status).toBe(200);
+    expect(put.body.avatar.tune).toEqual(['tune-va-rouge']);
+    // Mauvais emplacement.
+    expect((await s.json('PUT', '/api/me/profile', { equipped: { tape: 'tune-va-rouge' } })).status).toBe(400);
+    // Anciennes roues du garage : la paire de l'atelier est offerte et équipée.
+    const mig = await s.json('PUT', '/api/me/profile', { equipped: { wheels: 'wheels-carbone-88', valves: 'tune-va-rouge' } });
+    expect(mig.status).toBe(200);
+    expect(mig.body.equipped).toEqual({ wheelset: 'tune-wh-enve-67', valves: 'tune-va-rouge' });
+    expect((await ctx.repos.getAtelier(id)).owned).toContain('tune-wh-enve-67');
+  });
 });
 
 describe('API — RGPD', () => {
@@ -341,6 +404,7 @@ describe('API — RGPD', () => {
     expect(exp.body.activities).toHaveLength(1);
     expect(Object.keys(exp.body.activityFitBase64)).toHaveLength(1);
     expect(exp.body.segmentEfforts).toHaveLength(1);
+    expect(exp.body.atelier.credits).toBeGreaterThan(0);
     expect((await s.json('DELETE', '/api/me', {})).status).toBe(400);
     expect((await s.json('DELETE', '/api/me', { confirm: 'SUPPRIMER' })).status).toBe(204);
     for (const table of ['users', 'profiles', 'activities', 'segment_efforts', 'progression', 'sessions', 'auth_identities', 'render_jobs', 'integrations']) {

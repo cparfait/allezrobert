@@ -124,7 +124,7 @@ export class Hud {
           <span class="k">${t('np')}</span><span class="v num" data-k="np">0 W</span>
           <span class="k">${t('draft')}</span><span class="v num" data-k="draft">0 %</span>
           <span></span><span><div style="height:6px;width:110px;background:rgba(255,255,255,.12);border-radius:3px;overflow:hidden;margin-left:auto"><div data-k="draftBar" style="height:100%;width:0%;background:linear-gradient(90deg,#60a5fa,#22c55e)"></div></div></span>
-          <span class="k">${t('lap')}</span><span class="v num" data-k="lap">1</span>
+          ${track.route.loop ? `<span class="k">${t('lap')}</span><span class="v num" data-k="lap">1</span>` : ''}
         </div>
         <div class="hud-bl">
           <div class="voice-chip panel hidden" data-k="voice"></div>
@@ -237,6 +237,7 @@ export class Hud {
 
   /** Message de chat (les 6 derniers restent affichés, puis s'estompent). */
   addChat(name: string, text: string): void {
+    this.onChat?.(name, text);
     const log = this.el.chatLog as HTMLElement;
     const line = document.createElement('div');
     line.className = 'chat-line';
@@ -269,8 +270,11 @@ export class Hud {
     };
   }
 
-  /** État du micro du chat vocal (null = pas de voix). */
-  setVoice(state: null | { connected: boolean; micOn: boolean; detail?: string }): void {
+  /**
+   * État du micro du chat vocal (null = pas de voix). `discordUrl` : salon Discord de repli,
+   * proposé quand la voix intégrée (LiveKit) est indisponible.
+   */
+  setVoice(state: null | { connected: boolean; micOn: boolean; detail?: string; discordUrl?: string | null }): void {
     const chip = this.el.voice as HTMLElement;
     if (!state) {
       chip.classList.add('hidden');
@@ -278,10 +282,23 @@ export class Hud {
     }
     chip.classList.remove('hidden');
     chip.textContent = !state.connected ? `🎙 ${state.detail ?? 'voix indisponible'}` : state.micOn ? '🎙 micro ouvert (V)' : '🔇 micro coupé (V)';
+    if (!state.connected && state.discordUrl) {
+      const a = document.createElement('a');
+      a.className = 'discord-link';
+      a.href = state.discordUrl;
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      a.textContent = 'Rejoindre le salon Discord';
+      chip.append(' · ', a);
+    }
   }
 
   /** Clic sur 👍 dans la liste des coureurs. */
   onRideOn?: (riderId: string) => void;
+
+  /** Annonces et messages de chat, relayés vers l'appli compagnon. */
+  onToast?: (text: string) => void;
+  onChat?: (name: string, text: string) => void;
 
   /** FTP courante (couleurs des zones). */
   ftp = 250;
@@ -294,9 +311,15 @@ export class Hud {
     this.root.classList.toggle('hidden');
   }
 
-  toast(text: string): void {
+  get visible(): boolean {
+    return !this.root.classList.contains('hidden');
+  }
+
+  /** Annonce temporaire au centre ; `small` : discrète (passage d'un lacet). */
+  toast(text: string, small = false): void {
+    if (!small) this.onToast?.(text);
     const d = document.createElement('div');
-    d.className = 'panel toast';
+    d.className = small ? 'panel toast small' : 'panel toast';
     d.textContent = text;
     this.toasts.appendChild(d);
     setTimeout(() => d.remove(), 4200);
@@ -321,7 +344,8 @@ export class Hud {
     (e.np as HTMLElement).textContent = `${Math.round(s.np)} W`;
     (e.draft as HTMLElement).textContent = `${Math.round(s.draftPct)} %`;
     (e.draftBar as HTMLElement).style.width = `${Math.min(100, (s.draftPct / 50) * 100).toFixed(0)}%`;
-    (e.lap as HTMLElement).textContent = String(s.lap);
+    // pas de compteur de tours sur un itinéraire aller simple
+    if (e.lap) e.lap.textContent = String(s.lap);
     (e.gear as HTMLElement).textContent = s.gearLabel;
     const bars = e.gearbars as HTMLElement;
     if (bars.childElementCount !== s.gearCount) bars.innerHTML = '<i></i>'.repeat(s.gearCount);

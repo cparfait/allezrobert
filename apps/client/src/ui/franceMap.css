@@ -1,0 +1,45 @@
+/* Carte de France du menu (ui/franceMap.ts) et fenêtre d'une zone (trois choix). */
+.mm-picker.fm-dialog { width: min(760px, 94vw) !important; background: rgba(10, 14, 22, 0.42); backdrop-filter: blur(6px); border-color: rgba(255, 255, 255, 0.14); }
+.mm-picker-modal:has(.fm-dialog) { background: rgba(6, 9, 15, 0.18); }
+.fm-box { position: relative; }
+.fm-map { display: block; width: 100%; height: min(66vh, 620px); }
+.fm-land { fill: rgba(255, 255, 255, 0.05); stroke: rgba(236, 239, 244, 0.75); stroke-width: 1.4px; vector-effect: non-scaling-stroke; stroke-linejoin: round; }
+.fm-pts > g { cursor: pointer; outline: none; }
+.fm-hit { fill: transparent; }
+.fm-pt .fm-dot { fill: var(--ar-accent); stroke: #0a0e16; stroke-width: 2.5px; }
+.fm-pt.fm-cur .fm-dot { stroke: #fff; stroke-width: 3px; }
+.fm-pulse { fill: none; stroke: var(--ar-accent); stroke-width: 2px; transform-box: fill-box; transform-origin: center; animation: fm-pulse 1.8s ease-out infinite; }
+@keyframes fm-pulse { from { transform: scale(1); opacity: 0.9; } to { transform: scale(2.6); opacity: 0; } }
+.fm-pts > g:hover .fm-dot, .fm-pts > g:focus-visible .fm-dot { filter: brightness(1.15); stroke: #fff; }
+.fm-off { cursor: default !important; }
+.fm-off .fm-dot { fill: #6b7280; stroke: #1f2430; }
+.fm-cl .fm-dot { fill: var(--ar-accent); stroke: #0a0e16; stroke-width: 2.5px; }
+.fm-cl.fm-cur .fm-dot { stroke: #fff; }
+.fm-cl text { font: 800 12px system-ui, sans-serif; fill: #0a0e16; text-anchor: middle; pointer-events: none; }
+.fm-pt text { font: 700 12.5px system-ui, sans-serif; fill: #fff; paint-order: stroke; stroke: rgba(6, 9, 15, 0.85); stroke-width: 3px; stroke-linejoin: round; pointer-events: none; }
+.fm-off text { fill: #9ca3af; }
+.fm-tip { position: absolute; z-index: 2; max-width: 280px; padding: 8px 11px; border-radius: 10px; background: rgba(10, 14, 22, 0.94); border: 1px solid var(--mm-line); pointer-events: none; display: flex; flex-direction: column; gap: 2px; font-size: 12px; color: #c9d1db; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4); }
+.fm-tip[hidden] { display: none; }
+.fm-tip b { color: #fff; font-size: 13.5px; }
+.fm-back { position: absolute; left: 8px; top: 8px; appearance: none; border: 1px solid var(--mm-line); border-radius: 999px; padding: 6px 12px; background: rgba(10, 14, 22, 0.75); color: var(--ar-fg); font: inherit; font-size: 12.5px; font-weight: 700; cursor: pointer; }
+.fm-back:hover { border-color: var(--ar-accent); }
+.fm-back[hidden] { display: none; }
+.fm-legend { position: absolute; right: 10px; bottom: 6px; display: flex; gap: 12px; font-size: 11px; color: #c9d1db; pointer-events: none; }
+.fm-legend span { display: flex; align-items: center; gap: 5px; }
+.fm-legend i { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+.fm-l-on { background: var(--ar-accent); }
+.fm-l-off { background: #6b7280; }
+
+/* Fenêtre d'une zone : trois choix (parcours fixés, libre, à dessiner) et pack de cartes. */
+.zc-head { display: flex; align-items: center; gap: 12px; }
+.zc-head h2 { margin: 0; }
+.zc-head small { display: block; color: #8d98a6; font-size: 12.5px; margin-top: 2px; }
+.zc-head .mm-x { margin-left: auto; }
+.zc-choices { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin-top: 6px; }
+.zc-choice { appearance: none; display: flex; flex-direction: column; gap: 8px; align-items: flex-start; text-align: left; padding: 18px 18px 16px; border-radius: 16px; border: 1px solid var(--mm-line); background: rgba(255, 255, 255, 0.05); color: var(--ar-fg); font: inherit; cursor: pointer; transition: border-color 0.15s, transform 0.15s, background 0.15s; }
+.zc-choice:hover, .zc-choice:focus-visible { border-color: var(--ar-accent); background: rgba(255, 210, 63, 0.07); transform: translateY(-2px); outline: none; }
+.zc-choice svg { color: var(--ar-accent); }
+.zc-choice b { font-size: 17px; }
+.zc-choice span { font-size: 12.5px; color: #aab4c2; line-height: 1.4; }
+.zc-pack { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 12.5px; color: #8d98a6; }
+.zc-back { margin-right: auto; }

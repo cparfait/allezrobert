@@ -1,7 +1,7 @@
 {
   "name": "Allez Robert ! — Compagnon",
   "short_name": "Robert",
-  "description": "Carte, chat, vitesses virtuelles, caméra et ventilateur pendant ta sortie Allez Robert !",
+  "description": "Compteur, vitesses, carrefours, musique, chat et caméra pendant ta sortie Allez Robert ! — appairage par QR code.",
   "lang": "fr",
   "start_url": "./",
   "scope": "./",

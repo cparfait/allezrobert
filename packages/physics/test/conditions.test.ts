@@ -13,6 +13,7 @@ import {
   stepRider,
   surfaceClass,
   surfaceCrr,
+  tunedBikeSetup,
   vehicleDraftReduction,
   wetCrrFactor,
   windHeightFactor,
@@ -98,11 +99,11 @@ describe('équipement', () => {
   it('sans équipement : le vélo par défaut', () => {
     expect(bikeSetupFor({})).toEqual(DEFAULT_BIKE);
   });
-  it('vélo carbone, roue lenticulaire et casque aéro : plus léger et −7 % de traînée', () => {
+  it('vélo carbone et casque aéro : plus léger et −3,5 % de traînée (les roues sont à l’atelier)', () => {
     const b = bikeSetupFor({ bike: 'bike-carbone', wheels: 'wheels-lenticulaire', helmet: 'helmet-aero' });
-    expect(b.massKg).toBeCloseTo(DEFAULT_BIKE.massKg - 1.0, 6);
-    expect(b.cda / DEFAULT_BIKE.cda).toBeCloseTo(0.98 * 0.96 * 0.985, 6);
-    expect(b.wheelInertia).toBe(0.17);
+    expect(b.massKg).toBeCloseTo(DEFAULT_BIKE.massKg - 1.3, 6);
+    expect(b.cda / DEFAULT_BIKE.cda).toBeCloseTo(0.98 * 0.985, 6);
+    expect(b.wheelInertia).toBe(DEFAULT_BIKE.wheelInertia);
   });
   it('gravel : pneus crantés', () => {
     const b = bikeSetupFor({ bike: 'bike-gravel' });
@@ -169,9 +170,9 @@ describe('VTT et roues', () => {
     expect(steadyStateSpeed(250, 0, mtb, env)).toBeLessThan(steadyStateSpeed(250, 0, route, env) - 0.5);
     expect(surfaceCrr('dirt', vtt.crr, 'mtb')).toBeLessThan(surfaceCrr('dirt', DEFAULT_BIKE.crr, 'road'));
   });
-  it('roues de 88 mm : meilleures sur le plat, moins bonnes en côte que les 40 mm', () => {
-    const p40 = paramsFromBike(70, bikeSetupFor({ wheels: 'wheels-carbone-40' }));
-    const p88 = paramsFromBike(70, bikeSetupFor({ wheels: 'wheels-carbone-88' }));
+  it('roues de 65 mm : meilleures sur le plat, moins bonnes en côte que les 40 mm', () => {
+    const p40 = paramsFromBike(70, tunedBikeSetup(DEFAULT_BIKE, ['tune-wh-zipp-303']).bike);
+    const p88 = paramsFromBike(70, tunedBikeSetup(DEFAULT_BIKE, ['tune-wh-enve-67']).bike);
     expect(steadyStateSpeed(250, 0, p88, env)).toBeGreaterThan(steadyStateSpeed(250, 0, p40, env));
     expect(steadyStateSpeed(250, 9, p88, env)).toBeLessThan(steadyStateSpeed(250, 9, p40, env));
   });

@@ -24,6 +24,24 @@ si une donnée manque ; équivalent `TERRAIN_OFFLINE=1`), `--routes-only`. `TERR
 construit le monde ailleurs (ex. `data/cache/terrain/stage-world`) pour le recopier d'un coup
 dans `apps/client/public/worlds/chevreuse/` sans priver le client de tuiles pendant ~4 min.
 
+**Clone public (sans `data/garmin/`)** : `world.json` et les itinéraires sont versionnés, pas les
+tuiles. `build-tiles.ts` reconstruit les tuiles à partir des itinéraires versionnés (recalés sur le
+graphe OSM), sans toucher à `world.json` ni aux itinéraires ; le client ignore les tuiles absentes.
+
+```bash
+NODE_USE_ENV_PROXY=1 npx tsx tools/terrain/src/build-tiles.ts                    # tuiles à ≤ 1,5 km de la boucle principale (36 tuiles)
+npx tsx tools/terrain/src/build-tiles.ts --near boucle-voisins-le-bretonneux-chevreuse --radius 1000
+npx tsx tools/terrain/src/build-tiles.ts --all --no-ortho                         # tout le corridor
+```
+
+`NODE_USE_ENV_PROXY=1` : Node passe par le mandataire HTTPS du poste (`HTTPS_PROXY`), sinon
+`fetch` l'ignore. `TERRAIN_OVERPASS=<url>[,<url>…]` remplace la liste des miroirs Overpass (miroir
+en panne ou réseau filtré ; p. ex. `https://maps.mail.ru/osm/tools/overpass/api/interpreter`).
+`--osm-api` : si aucun miroir Overpass ne répond, les entités viennent de l'API principale d'OSM
+(`/api/0.6/map.json` par blocs de 0,02° × 0,014°, redécoupés si trop riches, puis
+`/relation/<id>/full.json` pour compléter les multipolygones), filtrées comme la requête Overpass
+(`src/osmapi.ts`) ; une trentaine de requêtes pour la boucle principale, toutes en cache.
+
 Tout ce qui est téléchargé est conservé dans `data/cache/terrain/` (ignoré par git) : une
 reconstruction ne sollicite plus les services. Ne jamais écrire sur C: (disque plein).
 

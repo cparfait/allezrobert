@@ -6,13 +6,16 @@ import fs from 'node:fs';
 import { USER_AGENT } from './config.ts';
 import { cachePath, fetchWithRetry, hashKey } from './net.ts';
 
-export const OVERPASS_MIRRORS = [
+const DEFAULT_MIRRORS = [
   'https://overpass.openstreetmap.fr/api/interpreter',
   'https://overpass-api.de/api/interpreter',
   'https://overpass.private.coffee/api/interpreter',
   'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
   'https://overpass.kumi.systems/api/interpreter',
 ];
+
+/** Miroirs essayés dans l'ordre ; `TERRAIN_OVERPASS=<url>[,<url>…]` les remplace (réseau filtré, miroir en panne). */
+export const OVERPASS_MIRRORS = process.env.TERRAIN_OVERPASS ? process.env.TERRAIN_OVERPASS.split(',').filter(Boolean) : DEFAULT_MIRRORS;
 
 export interface BBox {
   west: number;
@@ -147,9 +150,12 @@ export function splitBBox(b: BBox, stepLon: number, stepLat: number): BBox[] {
   return out;
 }
 
-/** Télécharge (ou relit du cache) les éléments OSM d'une emprise, dédoublonnés. */
-export async function fetchOsm(b: BBox, stepLon = 0.11, stepLat = 0.07, extra?: (b: BBox) => string): Promise<OsmElement[]> {
-  const chunks = splitBBox(b, stepLon, stepLat);
+/**
+ * Télécharge (ou relit du cache) les éléments OSM d'une emprise, dédoublonnés.
+ * `keep` : ne garde que certains blocs (même découpage, donc même cache, qu'une construction complète).
+ */
+export async function fetchOsm(b: BBox, stepLon = 0.11, stepLat = 0.07, extra?: (b: BBox) => string, keep?: (c: BBox) => boolean): Promise<OsmElement[]> {
+  const chunks = splitBBox(b, stepLon, stepLat).filter((c) => !keep || keep(c));
   const byKey = new Map<string, OsmElement>();
   for (const [i, c] of chunks.entries()) {
     const q = worldQuery(c, extra);

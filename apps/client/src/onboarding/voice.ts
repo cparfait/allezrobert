@@ -5,8 +5,18 @@ import { serverEndpoint } from '../game/multiplayer.ts';
 /** Audio Cartesia déjà reçu (par texte et langue) : chaque réplique n'est téléchargée qu'une fois. */
 const audioCache = new Map<string, Promise<string | null>>();
 
+/** Texte prononcé : graphie phonétique des mots anglais en français (le sous-titre garde l'original). */
+function spoken(text: string, lang: 'fr' | 'en'): string {
+  if (lang !== 'fr') return text;
+  return text
+    .replace(/Garmin/g, 'Garmine')
+    .replace(/home[- ]trainers/gi, 'home traineurs')
+    .replace(/home[- ]trainer/gi, 'home traineur');
+}
+
 /** Voix de qualité (Cartesia, via le serveur qui garde la clé) ; null si indisponible. */
-function cartesiaUrl(text: string, lang: 'fr' | 'en'): Promise<string | null> {
+function cartesiaUrl(display: string, lang: 'fr' | 'en'): Promise<string | null> {
+  const text = spoken(display, lang);
   const key = `${lang}|${text}`;
   let p = audioCache.get(key);
   if (!p) {
@@ -99,7 +109,7 @@ export class VoiceOver {
   /** Repli : synthèse vocale du système (Web Speech API). */
   private speakSystem(text: string, hide: () => void, res: () => void): void {
     {
-      const u = new SpeechSynthesisUtterance(text);
+      const u = new SpeechSynthesisUtterance(spoken(text, getLang() === 'fr' ? 'fr' : 'en'));
       const v = this.voice();
       if (v) u.voice = v;
       u.lang = getLang() === 'fr' ? 'fr-FR' : 'en-GB';

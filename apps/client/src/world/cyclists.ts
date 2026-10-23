@@ -2,6 +2,7 @@ import * as THREE from 'three/webgpu';
 import { DEFAULT_BIKE, DEFAULT_LOOK, type AvatarLook, type RouteTrack } from '@allezrobert/shared';
 import { draftReductionSingle, paramsFromBike, steadyStateSpeed, type RiderPhysicsParams } from '@allezrobert/physics';
 import { createAvatar, type RiderAvatarLike } from '../rider/gltfAvatar.ts';
+import { crowdShoes } from '../rider/shoeLook.ts';
 import { rng } from '../engine/noise.ts';
 
 /** Cycliste d'ambiance : il roule sur la même route, dans un sens ou dans l'autre. */
@@ -52,6 +53,7 @@ export class AmbientCyclists {
         helmet: ['#f4f4f4', '#111111', jersey][i % 3] as string,
         bike: ['#1d1d1f', '#c0392b', '#f4f4f4', '#2c3e50'][i % 4] as string,
         build: this.r(),
+        ...crowdShoes(i + 3),
       };
       const avatar = createAvatar(look);
       scene.add(avatar.root);

@@ -11,11 +11,12 @@
   "scripts": {
     "dev": "pnpm --filter @allezrobert/client dev",
     "dev:server": "pnpm --filter @allezrobert/server dev",
+    "dev:companion": "pnpm --filter @allezrobert/companion dev",
     "build": "pnpm -r --filter=!@allezrobert/desktop build",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "pnpm -r typecheck",
-    "lint": "pnpm -r lint"
+    "lint": "pnpm -r --if-present lint"
   },
   "devDependencies": {
     "@types/node": "^26.6.5",

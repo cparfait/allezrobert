@@ -1,35 +1,52 @@
 import * as THREE from 'three/webgpu';
 import type { AvatarLook, RouteTrack, TrackSample } from '@allezrobert/shared';
-import { DEFAULT_LOOK } from '@allezrobert/shared';
-import { createAvatar, type RiderAvatarLike } from '../rider/gltfAvatar.ts';
+import { BASE_PROFILES, DEFAULT_LOOK, FACE_SLIDERS, encodeFace, type FaceShape } from '@allezrobert/shared';
+import { GltfRiderAvatar, createAvatar, type RiderAvatarLike } from '../rider/gltfAvatar.ts';
+import { crowdShoes } from '../rider/shoeLook.ts';
+import { crowdBike } from '../rider/bikes.ts';
+import { rng } from '../engine/noise.ts';
 import { sunDirection } from '../world/environment.ts';
 import { splatAt } from '../world/splat.ts';
 import type { World } from '../world/world.ts';
 import type { Engine } from '../engine/renderer.ts';
+import { filmClock, freezeStreaming, waitForAssets, type ViewPoint } from './cinematicStream.ts';
 import { CINE_ENV, GROUP_SPEED, LOOP_S, SLOTS, XFADE_S, formation, frameCount, frontFraming, isCineSeason, shotAt, smooth, type CineSeason } from './cinematicPlan.ts';
 
 /**
  * Mode « cinématique » (développement uniquement) : film d'accueil rendu image par image à pas
  * fixe, sans dépendre de requestAnimationFrame (le panneau du navigateur peut être masqué).
  *
- *   /?cinematic=autumn&route=chevreuse-boucle&quality=ultra&fps=30&w=1920&h=1080&capture=1
+ *   /?cinematic=autumn&route=chevreuse-boucle&quality=ultra&fps=30&w=1920&h=1080&ss=2&sub=8&capture=1
  *
- * - capture=1 : chaque image part vers POST /__shot (dir=menu-loop/<saison>), puis un manifeste ;
- *   tools/menu-loop attend ce manifeste et encode la boucle (voir son README). &then=summer,winter
- *   enchaîne les saisons suivantes dans le même onglet.
+ * - capture=1 : chaque image part en PNG (sans perte) vers POST /__save (dir=menu-loop/<saison>),
+ *   puis un manifeste ; tools/menu-loop attend ce manifeste et encode la boucle (voir son README).
+ *   &then=summer,winter enchaîne les saisons suivantes dans le même onglet.
  * - stills=5,15.5 : quelques images seulement (out/menu-loop/stills-<saison>/), pour régler les plans.
  * - sans l'un ni l'autre : aperçu en continu.
  * - d=<m> : impose l'abscisse de départ de la tête (sinon CINE_D, sinon recherche automatique).
+ * - hour=<h> : autre heure que celle de la saison (essais d'éclairage).
+ * - ss=2 : suréchantillonnage, rendu à (w·ss)×(h·ss) puis réduit à w×h dans la page.
+ * - sub=8 : rendus de plus sur chaque image, scène immobile, pour que l'anticrénelage temporel
+ *   converge (48 au premier plan d'un raccord, où son historique repart de zéro).
+ * Le paysage est figé pour tout le trajet avant la première image (cinematicStream.ts) : pas
+ * d'apparition de tuiles, d'arbres ni d'herbe en cours de plan.
  */
 
 /** Abscisse de départ retenue par itinéraire (m, issue de la recherche automatique ; même tronçon pour les 4 saisons). */
 const CINE_D: Record<string, number> = { 'chevreuse-boucle': 5825 };
 
 const JERSEYS = ['#d7f205', '#111418', '#c0392b', '#e8ecf0', '#1e5bd8', '#2b2f36', '#f39c12', '#16a085', '#8e44ad'];
-const SKINS = ['#f1c27d', '#e0ac69', '#c68642', '#8d5524', '#ffdbac', '#e8b98f'];
-const HAIRS = ['#2a1b12', '#6b4a2b', '#b8894a', '#111111', '#8a8a8a'];
 const BIKES = ['#1d1d1f', '#e8ecf0', '#c0392b', '#2c3e50', '#16a085', '#f4f4f4', '#d35400'];
 const HELMETS = ['#f4f4f4', '#111111', '#1e5bd8', '#c0392b', '#f4f4f4'];
+/**
+ * Visages du groupe (avatar MPFB) : un profil de base par coureur (packages/shared/src/profiles.ts),
+ * Robert en tête ; les deux derniers reprennent un profil avec d'autres traits et un autre teint.
+ */
+const CAST = ['robert', 'moussa', 'lea', 'karim', 'aiko', 'tom', 'ines', 'marta', 'tom', 'moussa'];
+const RECAST: ReadonlyArray<Partial<AvatarLook>> = [
+  { skin: '#d9a47e', hair: '#5a3b22', beard: 0.6 },
+  { skin: '#7a4e34', hair: '#1a1a1a', beard: 0.3 },
+];
 
 const _s: TrackSample = { x: 0, y: 0, z: 0, dirX: 1, dirZ: 0, grade: 0, d: 0 };
 
@@ -99,19 +116,32 @@ async function chooseStart(world: World, track: RouteTrack, season: CineSeason):
   return best;
 }
 
+/**
+ * Tenue et visage du coureur i : profil de base, curseurs du visage un peu variés (comme les IA
+ * en sortie, game/peloton.ts), maillot et vélo de la palette du film. Tirages reproductibles.
+ */
 function lookFor(i: number): AvatarLook {
-  if (i === 0) return { ...DEFAULT_LOOK };
+  const r = rng(4242 + i * 7919);
+  const id = CAST[i % CAST.length] as string;
+  const p = BASE_PROFILES.find((b) => b.id === id) ?? BASE_PROFILES[0];
+  const shape: FaceShape = { ...p?.shape };
+  const spread = i >= 8 ? 0.8 : 0.45;
+  for (const sl of FACE_SLIDERS) {
+    if (sl.group === 'body') continue;
+    shape[sl.id] = Math.max(-1, Math.min(1, (shape[sl.id] ?? 0) + (r() - 0.5) * spread));
+  }
+  const { jersey: _j, jerseyAccent: _a, ...face } = p?.look ?? {};
+  const base: AvatarLook = { ...DEFAULT_LOOK, ...face, ...(i >= 8 ? RECAST[i - 8] : {}), face: encodeFace(shape) };
+  if (i === 0) return base;
   const j = i - 1;
-  const jersey = JERSEYS[j % JERSEYS.length] as string;
   return {
-    ...DEFAULT_LOOK,
-    jersey,
+    ...base,
+    jersey: JERSEYS[j % JERSEYS.length] as string,
     jerseyAccent: JERSEYS[(j + 4) % JERSEYS.length] as string,
-    skin: SKINS[j % SKINS.length] as string,
-    hair: HAIRS[j % HAIRS.length] as string,
-    hairStyle: j % 3,
     helmet: HELMETS[j % HELMETS.length] as string,
+    ...crowdShoes(j),
     bike: BIKES[j % BIKES.length] as string,
+    bikeModel: crowdBike(j),
     build: ((j * 37) % 10) / 10,
   };
 }
@@ -130,6 +160,9 @@ export async function runCinematic(engine: Engine, world: World, track: RouteTra
   const W = Number(params.get('w') ?? 1920);
   const H = Number(params.get('h') ?? 1080);
   const capture = params.get('capture') === '1';
+  const ss = Math.min(3, Math.max(1, Math.round(Number(params.get('ss') ?? 1))));
+  const sub = Math.max(0, Math.round(Number(params.get('sub') ?? 0)));
+  const cutSub = sub ? Math.max(48, sub) : 6;
   const stills = (params.get('stills') ?? '')
     .split(',')
     .filter(Boolean)
@@ -138,8 +171,8 @@ export async function runCinematic(engine: Engine, world: World, track: RouteTra
 
   // Canvas à la taille exacte de la vidéo, indépendamment de la fenêtre et de l'écran.
   const canvas = engine.renderer.domElement;
-  canvas.style.width = `${W}px`;
-  canvas.style.height = `${H}px`;
+  canvas.style.width = `${W * ss}px`;
+  canvas.style.height = `${H * ss}px`;
   engine.renderer.setPixelRatio(1);
   engine.resize();
   const status = document.createElement('div');
@@ -156,7 +189,7 @@ export async function runCinematic(engine: Engine, world: World, track: RouteTra
   const env = CINE_ENV[season];
   if (world.env.state.season !== season) world.setSeason(season);
   const ws = world.env.state;
-  ws.hour = env.hour;
+  ws.hour = params.has('hour') ? Number(params.get('hour')) : env.hour;
   ws.weather.clouds = env.clouds;
   ws.weather.rain = 0;
   ws.weather.fog = env.fog;
@@ -167,9 +200,18 @@ export async function runCinematic(engine: Engine, world: World, track: RouteTra
   state.d0 = d0;
   console.info(`[cinematic] ${season} : départ de la tête à d=${d0} m`);
 
+  // Niveau de détail maximal à toute distance : au téléobjectif, un coureur lointain occupe une
+  // grande part de l'image (et le visage ne s'anime qu'au premier niveau).
+  GltfRiderAvatar.lodScale = 1000;
+  // Essais de pose (&neck=, &clavf=, &clavd= en radians).
+  if (params.has('neck')) GltfRiderAvatar.neckLift = Number(params.get('neck'));
+  if (params.has('clavf')) GltfRiderAvatar.clavForward = Number(params.get('clavf'));
+  if (params.has('clavd')) GltfRiderAvatar.clavDown = Number(params.get('clavd'));
   const riders: RiderAvatarLike[] = SLOTS.map((_, i) => {
     const a = createAvatar(lookFor(i));
     a.setShadows(true);
+    // Effort d'endurance tranquille : respiration posée, aucune grimace.
+    a.setEffort?.(0.6 + 0.04 * (i % 4), 0.6 + 0.03 * (i % 3));
     engine.scene.add(a.root);
     return a;
   });
@@ -265,23 +307,36 @@ export async function runCinematic(engine: Engine, world: World, track: RouteTra
     return cam;
   };
 
+  /** Centre du groupe : soleil et ombres le suivent (world.update). */
   const focus = new THREE.Vector3();
-  let lastKey = '';
-  /** Tuiles chargées autour du groupe avant de rendre (attendues : rendu reproductible). */
-  const ensureTiles = async (t: number) => {
+  const setFocus = (t: number) => {
     const p = track.positionAt(leaderD(t) - 5, 1, _s);
     focus.set(p.x, p.y, p.z);
-    const key = world.terrain.tileCoord(p.x, p.z).join('_');
-    if (key !== lastKey) {
-      lastKey = key;
-      await world.preload(focus);
-    }
   };
+
+  // Paysage figé pour tout le film : points de vue (caméra et groupe) toutes les 0,5 s.
+  const views: ViewPoint[] = [];
+  for (let t = -1.5; t <= LOOP_S + XFADE_S + 0.5; t += 0.5) {
+    const c = cameraAt(t);
+    views.push({ x: c.pos.x, z: c.pos.z });
+    const g = track.positionAt(leaderD(t) - 5, 1, _s);
+    views.push({ x: g.x, z: g.z });
+  }
+  const mid = track.positionAt(leaderD((LOOP_S + XFADE_S) / 2) - 5, 1, _s);
+  const fixedFocus = new THREE.Vector3(mid.x, mid.y, mid.z);
+  const grassCenter = new THREE.Vector3();
+  freezeStreaming(world, fixedFocus, views, grassCenter);
+  const clock = filmClock(engine);
 
   const camera = engine.camera;
   const step = (t: number, dt: number) => {
+    setFocus(t);
+    // Horloge des shaders : temps du film (décalé : jamais négatif), arrêtée pendant les sous-rendus.
+    clock.time = 100 + t;
+    clock.delta = dt;
     placeRiders(t, dt);
     const c = cameraAt(t);
+    grassCenter.copy(c.pos);
     camera.position.copy(c.pos);
     camera.fov = c.fov;
     camera.updateProjectionMatrix();
@@ -292,53 +347,90 @@ export async function runCinematic(engine: Engine, world: World, track: RouteTra
     engine.renderManual();
   };
 
-  /** Rend la séquence [t0, t1) à pas fixe ; `onFrame` reçoit chaque image utile. */
-  const run = async (t0: number, n: number, onFrame: ((i: number, t: number) => Promise<void>) | null) => {
+  // Attente de la carte graphique entre deux images (pas de file de rendus sans fin).
+  const device = (engine.renderer.backend as { device?: { queue: { onSubmittedWorkDone(): Promise<void> } } }).device;
+  const settle = () => device?.queue.onSubmittedWorkDone() ?? Promise.resolve();
+
+  /**
+   * Rend la séquence [t0, t1) à pas fixe ; `onFrame` reçoit chaque image utile. `subFrames` :
+   * avec les sous-rendus de convergence (sans : mise en route rapide).
+   */
+  const run = async (t0: number, n: number, onFrame: ((i: number, t: number) => Promise<void>) | null, subFrames = true) => {
     const dt = 1 / fps;
     let prevShot = -1;
     for (let i = 0; i < n; i++) {
       const t = t0 + i * dt;
-      await ensureTiles(t);
       const idx = shotAt(t).index;
       step(t, dt);
-      // Raccord : quelques rendus de plus sur la même image (historique de l'anticrénelage temporel).
-      if (prevShot >= 0 && idx !== prevShot) for (let k = 0; k < 6; k++) step(t, 0);
+      // Sous-rendus de la même image (scène immobile) : l'anticrénelage temporel converge ; plus
+      // nombreux au raccord entre deux plans, où son historique repart de zéro.
+      const extra = !subFrames ? 0 : prevShot >= 0 && idx !== prevShot ? cutSub : sub;
+      for (let k = 0; k < extra; k++) step(t, 0);
       prevShot = idx;
       if (onFrame) await onFrame(i, t);
+      await settle();
     }
   };
 
-  const post = async (url: string, body: string) => {
-    const res = await fetch(url, { method: 'POST', body });
-    if (!res.ok) throw new Error(`${url} : HTTP ${res.status}`);
+  // Envoi au serveur de dev, avec nouvelles tentatives pendant 3 min : si le serveur tombe,
+  // tools/menu-loop le relance et la capture continue sans recommencer la saison.
+  const post = async (url: string, body: string | Blob) => {
+    for (let k = 0; ; k++) {
+      const res = await fetch(url, { method: 'POST', body }).catch(() => null);
+      if (res?.ok) return;
+      if (k >= 90) throw new Error(`${url} : ${res ? `HTTP ${res.status}` : 'serveur injoignable'}`);
+      await new Promise((r) => setTimeout(r, 2000));
+    }
   };
-  const jpeg = () => canvas.toDataURL('image/jpeg', 0.95);
+  // Image finale w×h : réduction du rendu suréchantillonné (filtre de qualité du navigateur),
+  // copiée tout de suite après le rendu ; l'encodage PNG (sans perte) se fait en parallèle.
+  const outCanvas = document.createElement('canvas');
+  outCanvas.width = W;
+  outCanvas.height = H;
+  const out2d = outCanvas.getContext('2d', { alpha: false }) as CanvasRenderingContext2D;
+  out2d.imageSmoothingEnabled = true;
+  out2d.imageSmoothingQuality = 'high';
+  const png = (): Promise<Blob> => {
+    out2d.drawImage(canvas, 0, 0, W, H);
+    return new Promise((res, rej) => outCanvas.toBlob((b) => (b ? res(b) : rej(new Error('toBlob a échoué'))), 'image/png'));
+  };
 
   try {
-    // Mise en route : tuiles, shaders et historique temporel (1 s rendue, non capturée).
+    // Mise en route : tuiles, shaders, visages (effort lissé sur quelques secondes) et historique
+    // temporel : 6 s rendues avant la première image, non capturées.
     say('cinematic : préchargement…');
-    await ensureTiles(-1);
+    setFocus(-1);
+    await world.preload(fixedFocus);
+    step(-1, 0);
+    await waitForAssets(world, say);
     await engine.renderer.compileAsync(engine.scene, camera).catch(() => undefined);
     if (stills.length) {
       for (const ts of stills) {
-        const warm = Math.round(0.5 * fps);
-        await run(ts - warm / fps, warm + 1, null);
+        await run(ts - 6, 5 * fps, null, false);
+        // Copie de l'image dans la même tâche que son rendu (après une attente, le canvas WebGPU est vide).
+        let shot: Promise<Blob> | null = null;
+        await run(ts - 1, fps + 1, async (i) => {
+          if (i === fps) shot = png();
+        });
         say(`cinematic : image t=${ts}`);
-        await post(`/__shot?dir=menu-loop/stills-${season}&name=${encodeURIComponent(`t${ts.toFixed(1).replace('.', '_')}`)}`, jpeg());
+        if (shot) await post(`/__save?dir=menu-loop/stills-${season}&name=${encodeURIComponent(`t${ts.toFixed(1).replace('.', '_')}.png`)}`, await shot);
       }
       state.finished = true;
       say(`cinematic : ${stills.length} images → out/menu-loop/stills-${season}/`);
       return;
     }
+    await run(-6, 5 * fps, null, false);
     await run(-1, fps, null);
     if (capture) {
       const inflight = new Set<Promise<void>>();
       const t0 = performance.now();
       await run(0, state.frames, async (i) => {
-        const p = post(`/__shot?dir=menu-loop/${season}&name=frame-${String(i).padStart(5, '0')}`, jpeg()).then(() => {
-          inflight.delete(p);
-          state.done++;
-        });
+        const p = png()
+          .then((blob) => post(`/__save?dir=menu-loop/${season}&name=frame-${String(i).padStart(5, '0')}.png`, blob))
+          .then(() => {
+            inflight.delete(p);
+            state.done++;
+          });
         inflight.add(p);
         if (inflight.size >= 4) await Promise.race(inflight);
         if (i % 15 === 0) {
@@ -347,7 +439,7 @@ export async function runCinematic(engine: Engine, world: World, track: RouteTra
         }
       });
       await Promise.all(inflight);
-      const manifest = { season, fps, width: W, height: H, frames: state.frames, loopS: LOOP_S, xfadeS: XFADE_S, routeId: track.route.id, d0, hour: env.hour, createdAt: new Date().toISOString() };
+      const manifest = { season, fps, width: W, height: H, format: 'png', ss, sub, frames: state.frames, loopS: LOOP_S, xfadeS: XFADE_S, routeId: track.route.id, d0, hour: env.hour, renderS: Math.round((performance.now() - t0) / 1000), createdAt: new Date().toISOString() };
       await post(`/__save?dir=menu-loop/${season}&name=manifest.json`, JSON.stringify(manifest, null, 2));
       state.finished = true;
       say(`cinematic ${season} : ${state.frames} images capturées`);
@@ -369,11 +461,9 @@ export async function runCinematic(engine: Engine, world: World, track: RouteTra
       if (busy) return;
       busy = true;
       const t = (i++ / fps) % (LOOP_S + XFADE_S);
-      void ensureTiles(t).then(() => {
-        step(t, 1 / fps);
-        say(`cinematic ${season} t=${t.toFixed(1)} s · ${shotAt(t).shot.kind}`);
-        busy = false;
-      });
+      step(t, 1 / fps);
+      say(`cinematic ${season} t=${t.toFixed(1)} s · ${shotAt(t).shot.kind}`);
+      busy = false;
     });
   } catch (err) {
     state.error = String(err);

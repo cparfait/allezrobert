@@ -158,6 +158,11 @@ impl AntDecoder {
 
 /// Analyse une clé réseau ANT+ (8 octets) écrite en hexadécimal : `B9A521FBBD72C345`,
 /// `B9 A5 21 …`, `0xB9,0xA5,…` sont acceptés.
+/// Clé réseau passée par le TypeScript (`ant_open({ networkKey })`) : exactement 8 octets.
+pub fn network_key_from_bytes(bytes: &[u8]) -> Option<[u8; 8]> {
+    bytes.try_into().ok()
+}
+
 pub fn parse_network_key(raw: &str) -> Option<[u8; 8]> {
     let cleaned: String = raw
         .replace("0x", "")
@@ -267,5 +272,12 @@ mod tests {
         assert_eq!(parse_network_key("[0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF]"), Some(expected));
         assert_eq!(parse_network_key("0123"), None);
         assert_eq!(parse_network_key("0123456789ABCDEG"), None);
+    }
+
+    #[test]
+    fn network_key_bytes() {
+        assert_eq!(network_key_from_bytes(&[1, 2, 3, 4, 5, 6, 7, 8]), Some([1, 2, 3, 4, 5, 6, 7, 8]));
+        assert_eq!(network_key_from_bytes(&[1, 2, 3]), None);
+        assert_eq!(network_key_from_bytes(&[0; 9]), None);
     }
 }

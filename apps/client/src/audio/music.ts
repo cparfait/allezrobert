@@ -11,14 +11,14 @@ export interface Track {
 }
 
 export const PLAYLIST: Track[] = [
-  { file: 'lofi.mp3', title: 'Lofi' },
-  { file: 'jazzy.mp3', title: 'Jazzy' },
-  { file: 'effort-constant.mp3', title: 'Effort constant' },
-  { file: 'effort-pur.mp3', title: 'Effort pur' },
-  { file: 'effort-pur-2.mp3', title: 'Effort pur (version longue)' },
+  { file: 'tempo.mp3', title: 'Tempo' },
+  { file: 'a-bloc.mp3', title: 'À bloc' },
+  { file: 'echappee.mp3', title: 'Échappée' },
 ];
 
 const BASE = '/music/';
+/** Morceau joué en premier à l'ouverture. */
+const FIRST_TRACK = 'echappee.mp3';
 const FADE_S = 1.2;
 
 function shuffled<T>(a: T[]): T[] {
@@ -64,7 +64,9 @@ export class BackgroundMusic {
 
   /** Démarre au premier clic ou à la première touche (politique d'autoplay des navigateurs). */
   unlockOnGesture(): void {
+    const hint = document.getElementById('music-hint');
     const go = () => {
+      if (hint) hint.hidden = true;
       window.removeEventListener('pointerdown', go);
       window.removeEventListener('keydown', go);
       this.unlocked = true;
@@ -72,6 +74,19 @@ export class BackgroundMusic {
     };
     window.addEventListener('pointerdown', go);
     window.addEventListener('keydown', go);
+    if (!this.enabled) return;
+    // Musique dès l'ouverture quand le navigateur l'autorise (site déjà écouté, appli de bureau) ;
+    // sinon petite invitation jusqu'au premier clic ou à la première touche.
+    this.start();
+    void this.el
+      .play()
+      .then(() => {
+        window.removeEventListener('pointerdown', go);
+        window.removeEventListener('keydown', go);
+      })
+      .catch(() => {
+        if (hint) hint.hidden = false;
+      });
   }
 
   setEnabled(on: boolean): void {
@@ -105,6 +120,12 @@ export class BackgroundMusic {
     this.fadeTo(0, () => this.load(this.index + 1));
   }
 
+  /** Morceau précédent (le premier de la liste repart du début). */
+  previous(): void {
+    if (!this.enabled) return;
+    this.fadeTo(0, () => this.load(Math.max(this.index - 1, 0)));
+  }
+
   private start(): void {
     this.unlocked = true;
     if (this.index < 0) this.load(0);
@@ -118,6 +139,11 @@ export class BackgroundMusic {
     if (i >= this.order.length || this.order.length === 0) {
       const last = this.current;
       this.order = shuffled(PLAYLIST);
+      // Premier morceau de la session : toujours « Échappée », la suite au hasard.
+      if (!last) {
+        const first = PLAYLIST.find((t) => t.file === FIRST_TRACK);
+        if (first) this.order = [first, ...this.order.filter((t) => t !== first)];
+      }
       // Pas deux fois le même morceau d'affilée au changement de tour.
       if (last && this.order[0] === last && this.order.length > 1) this.order.push(this.order.shift() as Track);
       i = 0;
