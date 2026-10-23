@@ -1258,10 +1258,9 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   };
   sendPairRoute();
   if (nav) setInterval(sendPairRoute, 5000);
-  void companionQr().offer();
   let phones = companion.presence.phones;
   companion.listen(() => {
-    if (companion.presence.phones > phones) hud.toast(getLang() === 'fr' ? '📱 Appli compagnon connectée' : '📱 Companion app connected', true);
+    if (companion.presence.phones > phones) hud.toast(getLang() === 'fr' ? 'Appli compagnon connectée' : 'Companion app connected', true);
     phones = companion.presence.phones;
   });
   hud.onToast = (text) => companion.sendEvent({ kind: 'toast', text });

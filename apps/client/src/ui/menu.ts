@@ -22,6 +22,7 @@ import { faceEditorHtml, withBaseHead, withLikeness, withProfile, withRandomFace
 import type { FaceSlider } from '@allezrobert/shared';
 import { joinSettings } from './friendsLogic.ts';
 import { RoutePlanner } from './routePlanner.ts';
+import { companionQr } from './companionQr.ts';
 import { FranceMap, type MapZone } from './franceMap.ts';
 import { ZONE_SPOTS } from '../world/zoneMap.ts';
 import './menu.css';
@@ -280,12 +281,12 @@ export class MainMenu {
         this.s.mode = j.mode;
         this.s.routeId = j.routeId;
         saveSettings(this.s);
-        this.cb.onStart(this.s, { inviteCode: info.inviteCode });
+        this.launch(this.s, { inviteCode: info.inviteCode });
       },
       rideWith: (ids) => {
         if (this.s.mode !== 'group' && this.s.mode !== 'race') this.s.mode = 'group';
         saveSettings(this.s);
-        this.cb.onStart(this.s, { inviteFriends: ids });
+        this.launch(this.s, { inviteFriends: ids });
       },
     });
     devices.onChange(() => {
@@ -1337,11 +1338,18 @@ export class MainMenu {
     }
   }
 
+  /** Départ d'une sortie : l'appli compagnon est d'abord proposée (tous les modes). */
+  private launch(...args: Parameters<MenuCallbacks['onStart']>): void {
+    void companionQr()
+      .beforeRide()
+      .then(() => this.cb.onStart(...args));
+  }
+
   private start(more: { customRoute?: RouteData; openStart?: { x: number; z: number } } = {}): void {
     const invite = (this.root.querySelector('#m-invite') as HTMLInputElement | null)?.value.trim();
     const laps = Number((this.root.querySelector('#m-laps') as HTMLInputElement | null)?.value);
     if (Number.isFinite(laps) && laps >= 1) this.s.raceLaps = Math.min(20, Math.round(laps));
-    this.cb.onStart(this.s, { ...(this.workoutFile ? { workoutFile: this.workoutFile } : {}), ...(invite ? { inviteCode: invite } : {}), ...more });
+    this.launch(this.s, { ...(this.workoutFile ? { workoutFile: this.workoutFile } : {}), ...(invite ? { inviteCode: invite } : {}), ...more });
   }
 
   // ————————————————————————————————————————————— Événements
@@ -1371,6 +1379,7 @@ export class MainMenu {
     // Itinéraire sur la carte : parcours calculé (sortie libre sur ce tracé) ou roulage libre.
     if (this.picker === 'map' && this.openWorld)
       this.planner.bind(this.root, (r) => this.routeCard(r), {
+        // « Rouler cet itinéraire » / « Rouler en libre » : la sortie part tout de suite.
         ride: (route) => {
           this.drawn = route;
           this.drawnWorld = this.worldId;
@@ -1378,7 +1387,7 @@ export class MainMenu {
           if (s.mode !== 'free' && s.mode !== 'workout') s.mode = 'free';
           this.picker = null;
           changed();
-          this.render();
+          this.start({ customRoute: route });
         },
         free: (start) => {
           s.mode = 'open';
@@ -1386,7 +1395,7 @@ export class MainMenu {
           this.drawnWorld = this.worldId;
           this.picker = null;
           changed();
-          this.render();
+          this.start(start ? { openStart: start } : {});
         },
       });
     // Rouler : modes et itinéraires.

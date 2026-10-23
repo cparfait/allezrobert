@@ -188,8 +188,11 @@ export class RoutePlanner {
     }
     const at = route?.points[0] ?? start ?? this.open.start;
     const mk = `<g class="rp-mk rp-from" transform="translate(${at.x.toFixed(1)} ${at.z.toFixed(1)}) scale(${k})"><circle r="9"/><text y="4">D</text></g>`;
-    const towns = (this.open.places ?? [])
-      .filter((p) => p.kind !== 'hamlet')
+    // Aperçu de ≈ 200 px : villes et bourgs seulement (les villages, s'il n'y en a presque pas).
+    const all = this.open.places ?? [];
+    const big = all.filter((p) => p.kind === 'city' || p.kind === 'town');
+    const towns = (big.length >= 3 ? big : all.filter((p) => p.kind !== 'hamlet'))
+      .slice(0, 10)
       .map((p) => `<g class="rp-place rp-village" transform="translate(${p.x.toFixed(0)} ${p.z.toFixed(0)}) scale(${k})"><circle r="3.2"/><text x="6" y="4">${esc(p.name)}</text></g>`)
       .join('');
     return `<svg class="rp-map rp-preview" viewBox="${b.x.toFixed(1)} ${b.z.toFixed(1)} ${b.w.toFixed(1)} ${b.h.toFixed(1)}" preserveAspectRatio="xMidYMid meet" aria-hidden="true">

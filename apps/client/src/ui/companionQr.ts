@@ -1,7 +1,8 @@
 /**
- * QR code de l'appli compagnon : rien en permanence à l'écran. Il est proposé au lancement
- * d'une sortie (si aucun téléphone n'est déjà appairé ; se ferme tout seul dès qu'un
- * téléphone se connecte), puis reste à portée : touche Q, écran de pause, onglet Réglages.
+ * QR code de l'appli compagnon : rien en permanence à l'écran. Il est proposé avant le départ
+ * de chaque sortie, quel que soit le mode (si aucun téléphone n'est déjà appairé ; la sortie part
+ * d'elle-même dès qu'un téléphone se connecte), puis reste à portée : touche Q, écran de pause,
+ * onglet Réglages.
  * Le téléphone qui le lit est appairé sans compte (voir game/companionLink.ts).
  */
 import './companionQr.css';
@@ -12,6 +13,11 @@ import { companion, type CompanionLink } from '../game/companionLink.ts';
 /** « Proposer le QR code au lancement d'une sortie » (activé par défaut). */
 const OFFER_KEY = 'ar.pair.offer';
 const OFFER_CLOSE_S = 40;
+
+/** Téléphone (trait fin, comme les icônes du menu) avec ondes de liaison. */
+export function phoneIcon(size = 20): string {
+  return `<svg class="cmp-ico" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="2.5" width="10.5" height="19" rx="2.4"/><path d="M8.8 18.4h2.9"/><path d="M18.6 8.6a3.6 3.6 0 0 1 0 4.8M21 6.4a7 7 0 0 1 0 9.2"/></svg>`;
+}
 
 /** QR code en SVG (modules noirs sur fond blanc, marge de 2 modules). */
 export function qrSvg(text: string): string {
@@ -42,6 +48,9 @@ export class CompanionQr {
   private open = false;
   /** Ouvert de lui-même au lancement de la sortie : se referme seul. */
   private offered = false;
+  /** Proposé avant le départ : la sortie attend sa fermeture (ou un téléphone connecté). */
+  private startWait: (() => void) | null = null;
+  private prestart = false;
   private closeTimer: ReturnType<typeof setTimeout> | undefined;
   url = '';
   svg = '';
@@ -87,11 +96,13 @@ export class CompanionQr {
     else this.show();
   }
 
-  show(offered = false): void {
+  show(offered = false, prestart = false): void {
     this.open = true;
     this.offered = offered;
+    this.prestart = prestart;
     clearTimeout(this.closeTimer);
-    if (offered) this.closeTimer = setTimeout(() => this.close(), OFFER_CLOSE_S * 1000);
+    // Avant le départ, pas de fermeture automatique : c'est le joueur qui lance la sortie.
+    if (offered && !prestart) this.closeTimer = setTimeout(() => this.close(), OFFER_CLOSE_S * 1000);
     this.el.hidden = false;
     this.render();
   }
@@ -102,6 +113,25 @@ export class CompanionQr {
     clearTimeout(this.closeTimer);
     this.el.hidden = true;
     this.el.innerHTML = '';
+    const go = this.startWait;
+    this.startWait = null;
+    go?.();
+  }
+
+  /**
+   * Avant le départ d'une sortie (tous les modes) : propose le QR code si aucun téléphone n'est
+   * appairé et que le joueur ne l'a pas refusé ; résolu quand il lance la sortie, ferme la
+   * fenêtre ou qu'un téléphone se connecte. Sans serveur (ou refusé) : tout de suite.
+   */
+  async beforeRide(): Promise<void> {
+    if (!offerEnabled()) return;
+    for (let i = 0; i < 6 && !this.link.connected; i++) await new Promise((r) => setTimeout(r, 250));
+    await this.urlReady;
+    if (!this.link.connected || this.link.presence.phones) return;
+    await new Promise<void>((res) => {
+      this.startWait = res;
+      this.show(true, true);
+    });
   }
 
   /**
@@ -135,13 +165,20 @@ export class CompanionQr {
     const done = this.offered && this.link.presence.phones > 0;
     this.el.innerHTML = `<div class="cmp-card panel" role="dialog" aria-label="${fr ? 'Appli compagnon' : 'Companion app'}">
       <button class="cmp-x" data-act="close" aria-label="${fr ? 'Fermer' : 'Close'}">×</button>
-      <b>📱 ${fr ? 'Appli compagnon' : 'Companion app'}</b>
+      <span class="cmp-badge">${phoneIcon(26)}</span>
+      <b>${this.prestart ? (fr ? 'Avant de partir : l’appli compagnon' : 'Before you go: the companion app') : fr ? 'Appli compagnon' : 'Companion app'}</b>
       <p>${fr ? 'Scanne ce code avec l’appareil photo de ton téléphone : compteur, vitesses, carrefours, musique et chat dans ta main. Sans compte.' : 'Scan this code with your phone camera: bike computer, gears, turns, music and chat in your hand. No account needed.'}</p>
       <div class="cmp-code ${done ? 'done' : ''}">${this.svg}${done ? '<span>✓</span>' : ''}</div>
       <p class="cmp-state">${statusHtml(this.link)}</p>
       <a class="cmp-url" href="${this.url}" target="_blank" rel="noopener">${this.url.replace(/^https?:\/\//, '').replace(/pair=[^&]+/, 'pair=…')}</a>
       <div class="cmp-row">
-        ${this.offered ? `<button class="btn primary" data-act="close">${fr ? 'Plus tard' : 'Later'}</button><button class="btn ghost" data-act="never">${fr ? 'Ne plus proposer' : 'Don’t offer again'}</button>` : `<button class="btn" data-act="new">${fr ? 'Nouveau code' : 'New code'}</button>`}
+        ${
+          this.prestart
+            ? `<button class="btn primary" data-act="close">${fr ? 'Lancer la sortie →' : 'Start the ride →'}</button><button class="btn ghost" data-act="never">${fr ? 'Ne plus proposer' : 'Don’t offer again'}</button>`
+            : this.offered
+              ? `<button class="btn primary" data-act="close">${fr ? 'Plus tard' : 'Later'}</button><button class="btn ghost" data-act="never">${fr ? 'Ne plus proposer' : 'Don’t offer again'}</button>`
+              : `<button class="btn" data-act="new">${fr ? 'Nouveau code' : 'New code'}</button>`
+        }
       </div>
       <small class="cmp-hint">${fr ? '<kbd>Q</kbd> affiche ce code à tout moment · aussi dans la pause et les Réglages' : '<kbd>Q</kbd> shows this code any time · also in pause and Settings'}</small>
     </div>`;

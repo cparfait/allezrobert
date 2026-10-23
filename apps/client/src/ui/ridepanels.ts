@@ -1,3 +1,4 @@
+import { phoneIcon } from './companionQr.ts';
 import { encodeActivity, buildActivity } from '@allezrobert/fit';
 import { worldToWgs84, type ActivityRecord } from '@allezrobert/shared';
 import { t, getLang } from '../i18n/index.ts';
@@ -84,7 +85,7 @@ export function showPause(root: HTMLElement, cb: PauseCallbacks): void {
     <div class="row" style="justify-content:center">
       <button class="btn primary" id="p-resume">${t('resume')}</button>
       <button class="btn" id="p-finish">${cb.finishLabel ?? t('finish')}</button>
-      ${cb.onCompanion ? `<button class="btn" id="p-companion">📱 ${getLang() === 'fr' ? 'Appli compagnon' : 'Companion app'}</button>` : ''}
+      ${cb.onCompanion ? `<button class="btn" id="p-companion">${phoneIcon(18)} ${getLang() === 'fr' ? 'Appli compagnon' : 'Companion app'}</button>` : ''}
     </div><div id="p-friends"></div>
     <div id="p-sound" style="margin-top:18px;text-align:left"></div></div></div>`;
   renderSoundSettings(root.querySelector('#p-sound'));
