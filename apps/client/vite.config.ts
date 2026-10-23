@@ -1,6 +1,7 @@
 import { defineConfig, type Plugin } from 'vite';
 import { mkdirSync, writeFileSync, rmSync, existsSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { networkInterfaces } from 'node:os';
 
 // AR_HMR=0 coupe le rechargement à chaud (utile quand d'autres processus modifient les paquets partagés).
 const hmr = process.env.AR_HMR !== '0';
@@ -86,8 +87,32 @@ function excludeWorldTiles(): Plugin {
   };
 }
 
+/**
+ * Développement uniquement : GET /__lan donne l'adresse IPv4 du poste sur le réseau local, pour
+ * le QR code de l'appli compagnon (le téléphone ne joint pas « localhost »).
+ */
+function lanAddress(): Plugin {
+  return {
+    name: 'ar-lan-address',
+    apply: 'serve',
+    configureServer(server) {
+      server.middlewares.use('/__lan', (_req, res) => {
+        const all = Object.values(networkInterfaces())
+          .flat()
+          .filter((a) => !!a && a.family === 'IPv4' && !a.internal)
+          .map((a) => a!.address);
+        // Réseaux domestiques d'abord (192.168, 10, 172.16–31), pas les adaptateurs virtuels en 169.254.
+        const score = (ip: string) => (ip.startsWith('192.168.') ? 0 : ip.startsWith('10.') ? 1 : /^172\.(1[6-9]|2\d|3[01])\./.test(ip) ? 2 : ip.startsWith('169.254.') ? 9 : 5);
+        const ip = all.sort((a, b) => score(a) - score(b))[0];
+        res.setHeader('content-type', 'application/json');
+        res.end(JSON.stringify({ ip: ip ?? null, all }));
+      });
+    },
+  };
+}
+
 export default defineConfig({
-  plugins: [screenshots(), excludeWorldTiles()],
+  plugins: [screenshots(), excludeWorldTiles(), lanAddress()],
   server: { port: 5173, strictPort: true, host: true, hmr },
   build: { target: 'es2022', sourcemap: true, chunkSizeWarningLimit: 2500 },
   clearScreen: false,

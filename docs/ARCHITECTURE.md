@@ -29,7 +29,7 @@ Seules les positions, la télémétrie agrégée et les résultats transitent pa
 | --- | --- |
 | `apps/client` | Jeu : rendu Three.js `WebGPURenderer` (repli WebGL2), HUD, menus, son, i18n FR/EN, modes de jeu |
 | `apps/desktop` | Coque Tauri 2 : Bluetooth natif (choix de l'adaptateur), Direct Connect, ANT+ USB ; empaquette `apps/client` |
-| `apps/companion` | PWA : carte, chat, vitesses virtuelles, caméra, pause, HEADWIND |
+| `apps/companion` | PWA appairée par QR code (solo ou groupe, sans compte) : compteur, vitesses, carrefours, musique, chat, carte, caméra, pause, ventilateur |
 | `apps/server` | Colyseus (salles autoritaires), API HTTP, PostgreSQL, jetons LiveKit, file de rendu vidéo, exports Strava / intervals.icu |
 | `packages/shared` | Types partagés : capteurs, profils, itinéraires, messages réseau, contrat natif |
 | `packages/protocols` | Encodage / décodage purs : FTMS, CPS, HRS, CSC, ANT+ (FE-C, PWR, HR), DirCon ; adaptateurs optionnels isolés |
@@ -96,6 +96,12 @@ Des watts à la vitesse, 14 paramètres (`packages/physics/src/conditions.ts`, `
 - **Présence et invitations** (`src/friends/hub.ts`, en mémoire comme le registre des sorties) : le menu interroge `GET /api/friends` toutes les 25 s tant qu'il est affiché ; être vu depuis moins de 70 s = en ligne, avoir une sortie dans le registre = en train de rouler. Choix d'une interrogation légère plutôt qu'un canal temps réel : il n'y a pas de salle Colyseus « accueil » (une salle = une sortie) et quelques secondes de retard sur un statut d'ami ne gênent pas. Une invitation vit 30 min au plus et disparaît avec la sortie.
 - **Client** : `apps/client/src/ui/friends.ts` (onglet, bandeau d'invitation, invitation depuis la pause), logique pure testée dans `friendsLogic.ts`.
 - **Fantôme d'un ami (pas encore fait)** : le fantôme actuel (`apps/client/src/game/ghost.ts`) ne vit que dans le navigateur (`localStorage` `ar.ghost.<itinéraire>`, distance depuis le début du tour échantillonnée chaque seconde) et n'est jamais envoyé au serveur. Le serveur garde bien les FIT chiffrés avec leur `route_id`, mais ni la distance de départ (`?d=`), ni le meilleur tour : il faudrait décoder chaque FIT pour le retrouver. Il faudrait donc : (1) à l'enregistrement d'une sortie, extraire côté serveur le meilleur tour complet (messages de tour du FIT + `distanceM` des enregistrements, 1 Hz) et le stocker sans FC ni GPS, p. ex. table `ghost_laps (user_id, route_id, lap_time_s, dist jsonb)` avec un meilleur tour par couple compte / itinéraire et suppression en cascade ; (2) `GET /api/friends/ghost?routeId=` qui renvoie le meilleur tour parmi les amis (nom, couleur, temps, série distance-temps), réservé aux amis ; (3) un `Ghost` alimenté par ce tour plutôt que par `localStorage`, avec le nom et la couleur de l'ami ; (4) une ligne dans l'export RGPD.
+
+## Appli compagnon (QR code)
+
+- **Appairage** : le jeu tire un jeton aléatoire (16 octets, `localStorage` `ar.pair`, renouvelable) et l'affiche en QR code : proposé au lancement d'une sortie (désactivable), touche Q, écran de pause, onglet Réglages. Le QR ouvre `/companion/?pair=…` (production) ; en développement `http://<IP locale>:5174/?pair=…&server=http://<IP locale>:2567` (IP donnée par `GET /__lan` du Vite du jeu ; lancer `pnpm dev:server`, `pnpm dev` et `pnpm dev:companion`, téléphone sur le même Wi-Fi). Le téléphone garde le jeton : il se raccroche seul à chaque sortie.
+- **Salle Colyseus `pair`** (`apps/server/src/ride/PairRoom.ts`, une salle par jeton via `filterBy(['pair'])`) : relais sans compte, indépendant des sorties, donc valable en solo. Un jeu (le plus récent remplace l'ancien après rechargement de page), 5 téléphones au plus ; commandes du téléphone validées (zod) puis relayées au jeu ; état (~4 Hz, seulement si un téléphone écoute), annonces et route (≤ 600 points entiers, sous la limite de 16 Ko par message) relayés aux téléphones ; dernier état et route gardés pour un téléphone qui arrive. Messages et types : `packages/shared/src/companion.ts`.
+- **Jeu** : `apps/client/src/game/companionLink.ts` (connexion, reconnexion, URL du QR), `apps/client/src/ui/companionQr.ts` (fenêtre du QR, bloc des Réglages) ; commandes appliquées dans `main.ts` comme les touches du clavier.
 
 ## Plateformes
 

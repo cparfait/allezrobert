@@ -237,6 +237,7 @@ export class Hud {
 
   /** Message de chat (les 6 derniers restent affichés, puis s'estompent). */
   addChat(name: string, text: string): void {
+    this.onChat?.(name, text);
     const log = this.el.chatLog as HTMLElement;
     const line = document.createElement('div');
     line.className = 'chat-line';
@@ -295,6 +296,10 @@ export class Hud {
   /** Clic sur 👍 dans la liste des coureurs. */
   onRideOn?: (riderId: string) => void;
 
+  /** Annonces et messages de chat, relayés vers l'appli compagnon. */
+  onToast?: (text: string) => void;
+  onChat?: (name: string, text: string) => void;
+
   /** FTP courante (couleurs des zones). */
   ftp = 250;
 
@@ -306,8 +311,13 @@ export class Hud {
     this.root.classList.toggle('hidden');
   }
 
+  get visible(): boolean {
+    return !this.root.classList.contains('hidden');
+  }
+
   /** Annonce temporaire au centre ; `small` : discrète (passage d'un lacet). */
   toast(text: string, small = false): void {
+    if (!small) this.onToast?.(text);
     const d = document.createElement('div');
     d.className = small ? 'panel toast small' : 'panel toast';
     d.textContent = text;

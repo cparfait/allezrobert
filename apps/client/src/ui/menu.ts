@@ -10,6 +10,7 @@ import { saveSettings } from './settings.ts';
 import { music } from '../audio/music.ts';
 import { spotify, redirectUri } from '../audio/spotify.ts';
 import { renderSoundSettings } from './soundSettings.ts';
+import { renderCompanionSettings } from './companionQr.ts';
 import { loadProgress, equipItem, equipPlainBike, SLOT_LABEL } from './garage.ts';
 import { AtelierPanel, COIN } from './atelierPanel.ts';
 import type { AtelierState } from './atelier.ts';
@@ -119,6 +120,28 @@ const BIKE_TYPE: Record<BikeType, [string, string]> = {
   track: ['Piste', 'Track'],
 };
 
+const BIKE_TYPE_ORDER: BikeType[] = ['aero', 'climbing', 'classic', 'tt', 'track'];
+
+/** Équipe (saison 2026 : plusieurs équipes roulent le même modèle) ou collection d'un vélo. */
+function bikeFrom(group: string, lang: 'fr' | 'en'): string | undefined {
+  return BIKE_TEAMS.find((t) => t.id === group)?.name ?? BIKE_GROUPS.find((g) => g.id === group)?.name[lang];
+}
+
+/**
+ * Silhouette de vélo aux couleurs de la livrée (cadre : 1re couleur, haubans et fourche : 2e,
+ * guidon : 3e), cernée de sombre pour rester lisible quelle que soit la couleur.
+ */
+function bikeIcon(colors: readonly string[], big = false): string {
+  const main = colors[0] ?? '#7a8594';
+  const acc = colors[1] ?? main;
+  const third = colors[2] ?? acc;
+  const tubes = (d: string, c: string) => `<path d="${d}" stroke="#141820" stroke-width="5.2"/><path d="${d}" stroke="${c}" stroke-width="3"/>`;
+  return `<svg class="mm-bikeicon${big ? ' big' : ''}" viewBox="0 0 64 40" aria-hidden="true" fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="14" cy="27" r="10" stroke="#20252e" stroke-width="2.6"/><circle cx="50" cy="27" r="10" stroke="#20252e" stroke-width="2.6"/>
+    ${tubes('M14 27 25 10M14 27h16M44 11l6 16', acc)}${tubes('M30 27 25 10h19L30 27', main)}${tubes('M44 11l1.5-4h5', third)}
+    <path d="M21 8.5h7" stroke="#141820" stroke-width="2.6"/></svg>`;
+}
+
 /** Vignette d'un équipement : couleur unie, ou bandes de la livrée pour un vélo. */
 function swatch(c: CosmeticItem): string {
   const cols = c.colors ?? [];
@@ -152,6 +175,7 @@ export class MainMenu {
   private readonly faceUndo: AvatarLook[] = [];
   private photoOpen = false;
   private bikeFilter: BikeFilter = 'saison-2026';
+  private bikeType: BikeType | 'all' = 'all';
   /** Panneau affiché (onglet, catégorie, filtre) : sa position de défilement survit à un nouveau rendu. */
   private panelKey = '';
   private view: GarageView = '3q';
@@ -444,7 +468,7 @@ export class MainMenu {
       settings: () => this.settingsHtml(),
     };
     // Liste longue (vélos) : même panneau, même position de défilement après un nouveau rendu.
-    const key = `${this.tab}/${this.garageSlot}/${this.bikeFilter}`;
+    const key = `${this.tab}/${this.garageSlot}/${this.bikeFilter}/${this.bikeType}`;
     const scroll = key === this.panelKey ? (this.root.querySelector('.mm-side')?.scrollTop ?? 0) : 0;
     this.panelKey = key;
     this.root.innerHTML = `<div class="mm mm-tab-${this.tab}">
@@ -475,6 +499,7 @@ export class MainMenu {
     this.renderStatus();
     this.renderMusic();
     renderSoundSettings(this.root.querySelector('#m-sound-settings'));
+    renderCompanionSettings(this.root.querySelector('#m-companion-settings'));
     this.bind();
     this.friends.mount(this.root, this.tab === 'friends');
   }
@@ -856,20 +881,17 @@ export class MainMenu {
               `<button class="mm-item" data-outfit="${o.id}"><i style="background:linear-gradient(90deg, ${o.look.jersey} 0 50%, ${o.look.jerseyAccent} 50% 100%)"></i><b>${esc(o.name[lang])}</b><span>${esc(o.hint[lang])}</span></button>`,
           ).join('')}
           </div>`
-        : `${this.garageSlot === 'bike' ? this.bikeFiltersHtml() : ''}<div class="mm-items">${this.garageSlot === 'bike' ? this.plainBikeHtml() : ''}${this.garageItems(lp.level)
+        : this.garageSlot === 'bike'
+        ? this.bikeListHtml(lp.level, p.equipped.bike)
+        : `<div class="mm-items">${this.garageItems(lp.level)
             .map((c) => {
               const locked = c.level > lp.level;
               const on = p.equipped[c.slot] === c.id;
               const prev = this.previewId === c.id;
-              const bike = c.slot === 'bike' ? bikeById(c.id) : undefined;
-              // Vélos : type, puis équipe (saison 2026 : plusieurs équipes roulent le même modèle) ou collection.
-              const from = bike ? (BIKE_TEAMS.find((t) => t.id === bike.group)?.name ?? BIKE_GROUPS.find((g) => g.id === bike.group)?.name[lang]) : undefined;
-              const kind = bike ? `${BIKE_TYPE[bike.type][L ? 0 : 1]}${from ? ` · ${from}` : ''} · ` : '';
-              const tip = bike ? bike.desc[lang] : '';
-              return `<button class="mm-item ${on ? 'on' : ''} ${locked ? 'locked' : ''} ${prev ? 'preview' : ''}" data-item="${c.id}" title="${esc([tip, locked ? (L ? 'Cliquer pour l’essayer' : 'Click to try it on') : ''].filter(Boolean).join(' — '))}">
-                <i style="background:${swatch(c)}"></i><b>${esc(c.name[lang])}</b>
-                ${c.effect ? `<em class="mm-effect">${esc(c.effect[lang])}</em>` : ''}
-                <span>${kind}${prev ? `👁 ${L ? 'Aperçu' : 'Preview'} · 🔒 ${L ? 'niveau' : 'level'} ${c.level}` : locked ? `🔒 ${L ? 'niveau' : 'level'} ${c.level}` : on ? (L ? 'Équipé' : 'Equipped') : L ? 'Disponible' : 'Available'}</span></button>`;
+              return `<button class="mm-item ${on ? 'on' : ''} ${locked ? 'locked' : ''} ${prev ? 'preview' : ''}" data-item="${c.id}" title="${locked ? (L ? 'Cliquer pour l’essayer' : 'Click to try it on') : ''}">
+                <i style="background:${swatch(c)}"></i>
+                <span class="mm-it-txt"><b>${esc(c.name[lang])}</b>${c.effect ? `<em class="mm-effect">${esc(c.effect[lang])}</em>` : ''}
+                <span class="mm-it-state">${prev ? `👁 ${L ? 'Aperçu' : 'Preview'} · 🔒 ${L ? 'niv.' : 'lvl'} ${c.level}` : locked ? `🔒 ${L ? 'niveau' : 'level'} ${c.level}` : on ? (L ? '✓ Équipé' : '✓ Equipped') : L ? 'Disponible' : 'Available'}</span></span></button>`;
             })
             .join('')}</div>`;
     return `<div class="mm-dragzone" id="m-dragzone"></div>
@@ -899,30 +921,95 @@ export class MainMenu {
     }</p>`;
   }
 
-  /** Équipements de l'emplacement choisi ; vélos : filtrés (collection ou débloqués), par niveau puis par groupe. */
-  private garageItems(level: number): CosmeticItem[] {
-    const items = COSMETICS.filter((c) => c.slot === this.garageSlot);
-    if (this.garageSlot !== 'bike') return items;
+  /** Équipements de l'emplacement choisi (hors vélos, voir bikesInCollection). */
+  private garageItems(_level: number): CosmeticItem[] {
+    return COSMETICS.filter((c) => c.slot === this.garageSlot);
+  }
+
+  /** Vélos de la collection choisie (ou débloqués), par niveau puis par groupe. */
+  private bikesInCollection(level: number): CosmeticItem[] {
     const group = (id: string) => BIKE_GROUPS.findIndex((g) => g.id === bikeById(id)?.group);
-    return items
+    return COSMETICS.filter((c) => c.slot === 'bike')
       .filter((c) => (this.bikeFilter === 'unlocked' ? c.level <= level : bikeById(c.id)?.collection === this.bikeFilter))
       .sort((a, b) => a.level - b.level || group(a.id) - group(b.id) || a.name.fr.localeCompare(b.name.fr));
+  }
+
+  /**
+   * Sélection du vélo : fiche du vélo regardé (aperçu d'un vélo verrouillé, sinon le vélo équipé),
+   * collection, type, puis une ligne par vélo : disponibles d'abord, à débloquer ensuite.
+   */
+  private bikeListHtml(level: number, equippedId: string | undefined): string {
+    const L = fr();
+    const all = this.bikesInCollection(level);
+    const types = BIKE_TYPE_ORDER.filter((ty) => all.some((c) => bikeById(c.id)?.type === ty));
+    const type = this.bikeType !== 'all' && types.includes(this.bikeType) ? this.bikeType : 'all';
+    const list = type === 'all' ? all : all.filter((c) => bikeById(c.id)?.type === type);
+    const plain = type === 'all';
+    const open = list.filter((c) => c.level <= level);
+    const locked = list.filter((c) => c.level > level);
+    const row = (c: CosmeticItem) => this.bikeRowHtml(c, level, equippedId);
+    const chip = (id: BikeType | 'all', label: string, n: number) =>
+      `<button class="${id === type ? 'on' : ''}" data-biketype="${id}" role="radio" aria-checked="${id === type}">${label}<span>${n}</span></button>`;
+    return `${this.bikeFocusHtml(equippedId)}
+      <div class="mm-bikefilter" role="radiogroup">${BIKE_FILTERS.map(
+        ([id, fr_, en]) => `<button class="${id === this.bikeFilter ? 'on' : ''}" data-bikefilter="${id}" role="radio" aria-checked="${id === this.bikeFilter}">${L ? fr_ : en}</button>`,
+      ).join('')}</div>
+      ${types.length > 1 ? `<div class="mm-biketypes" role="radiogroup">${chip('all', L ? 'Tous' : 'All', all.length)}${types.map((ty) => chip(ty, BIKE_TYPE[ty][L ? 0 : 1], all.filter((c) => bikeById(c.id)?.type === ty).length)).join('')}</div>` : ''}
+      <div class="mm-bikelist">
+        ${open.length || plain ? `<h4 class="mm-bl-head">${L ? 'Disponibles' : 'Available'}<span>${open.length + (plain ? 1 : 0)}</span></h4>${plain ? this.plainBikeHtml() : ''}${open.map(row).join('')}` : ''}
+        ${locked.length ? `<h4 class="mm-bl-head">${L ? 'À débloquer en roulant' : 'Unlock by riding'}<span>${locked.length}</span></h4>${locked.map(row).join('')}` : ''}
+      </div>`;
+  }
+
+  /** Une ligne de la liste des vélos : silhouette aux couleurs de la livrée, nom, type et équipe, effet, état. */
+  private bikeRowHtml(c: CosmeticItem, level: number, equippedId: string | undefined): string {
+    const L = fr();
+    const lang = getLang();
+    const bike = bikeById(c.id);
+    const locked = c.level > level;
+    const on = equippedId === c.id;
+    const prev = this.previewId === c.id;
+    const from = bike ? bikeFrom(bike.group, lang) : undefined;
+    const sub = bike ? `${BIKE_TYPE[bike.type][L ? 0 : 1]}${from ? ` · ${from}` : ''}` : '';
+    const state = prev ? `👁 ${L ? 'Aperçu' : 'Preview'}` : locked ? `🔒 ${L ? 'niv.' : 'lvl'} ${c.level}` : on ? `✓ ${L ? 'Équipé' : 'Equipped'}` : '';
+    return `<button class="mm-bike ${on ? 'on' : ''} ${locked ? 'locked' : ''} ${prev ? 'preview' : ''}" data-item="${c.id}" title="${esc([bike?.desc[lang] ?? '', locked ? (L ? 'Cliquer pour l’essayer' : 'Click to try it on') : ''].filter(Boolean).join(' — '))}">
+      ${bikeIcon(c.colors?.length ? c.colors : [c.color ?? '#7a8594'])}
+      <span class="mm-bike-txt"><b>${esc(c.name[lang])}</b><small>${esc(sub)}</small></span>
+      <span class="mm-bike-side">${c.effect ? `<em>${esc(c.effect[lang])}</em>` : ''}${state ? `<span class="mm-bike-state">${state}</span>` : ''}</span>
+    </button>`;
   }
 
   /** Vélo de départ sans marque, à la couleur choisie dans « Couleurs ». */
   private plainBikeHtml(): string {
     const L = fr();
     const on = !this.s.look.bikeModel;
-    return `<button class="mm-item ${on ? 'on' : ''}" data-plainbike title="${L ? 'Couleur au choix dans l’onglet Couleurs' : 'Pick its colour in the Colours tab'}">
-      <i style="background:${this.s.look.bike}"></i><b>${L ? 'Vélo sans marque' : 'Unbranded bike'}</b>
-      <span>${L ? 'Couleur au choix' : 'Your colour'} · ${on ? (L ? 'Équipé' : 'Equipped') : L ? 'Disponible' : 'Available'}</span></button>`;
+    return `<button class="mm-bike ${on ? 'on' : ''}" data-plainbike title="${L ? 'Couleur au choix dans l’onglet Couleurs' : 'Pick its colour in the Colours tab'}">
+      ${bikeIcon([this.s.look.bike])}
+      <span class="mm-bike-txt"><b>${L ? 'Vélo sans marque' : 'Unbranded bike'}</b><small>${L ? 'Couleur au choix (onglet Couleurs)' : 'Your colour (Colours tab)'}</small></span>
+      <span class="mm-bike-side">${on ? `<span class="mm-bike-state">✓ ${L ? 'Équipé' : 'Equipped'}</span>` : ''}</span></button>`;
   }
 
-  private bikeFiltersHtml(): string {
+  /** Fiche du vélo regardé : aperçu d'un vélo verrouillé, sinon le vélo équipé. */
+  private bikeFocusHtml(equippedId: string | undefined): string {
     const L = fr();
-    return `<div class="mm-bikefilter" role="radiogroup">${BIKE_FILTERS.map(
-      ([id, fr_, en]) => `<button class="${id === this.bikeFilter ? 'on' : ''}" data-bikefilter="${id}" role="radio" aria-checked="${id === this.bikeFilter}">${L ? fr_ : en}</button>`,
-    ).join('')}</div>`;
+    const lang = getLang();
+    const previewed = this.previewId ? COSMETICS.find((c) => c.id === this.previewId && c.slot === 'bike') : undefined;
+    const c = previewed ?? (equippedId ? COSMETICS.find((x) => x.id === equippedId) : undefined);
+    if (!c) {
+      return `<div class="mm-bikefocus">${bikeIcon([this.s.look.bike], true)}<div class="mm-bf-txt"><small>${L ? 'Ton vélo' : 'Your bike'}</small><b>${L ? 'Vélo sans marque' : 'Unbranded bike'}</b>
+        <p>${L ? 'Sa couleur se choisit dans l’onglet Couleurs. Les vélos des équipes se débloquent en roulant.' : 'Pick its colour in the Colours tab. Team bikes unlock as you ride.'}</p></div></div>`;
+    }
+    const bike = bikeById(c.id);
+    const from = bike ? bikeFrom(bike.group, lang) : undefined;
+    const tags = [bike ? BIKE_TYPE[bike.type][L ? 0 : 1] : '', from ?? '', bike?.year ? String(bike.year) : ''].filter(Boolean);
+    return `<div class="mm-bikefocus ${previewed ? 'preview' : ''}">${bikeIcon(c.colors?.length ? c.colors : [c.color ?? '#7a8594'], true)}
+      <div class="mm-bf-txt">
+        <small>${previewed ? (L ? `Aperçu · se débloque au niveau ${c.level}` : `Preview · unlocks at level ${c.level}`) : L ? 'Ton vélo' : 'Your bike'}</small>
+        <b>${esc(c.name[lang])}</b>
+        <span class="mm-bf-tags">${tags.map((x) => `<em>${esc(x)}</em>`).join('')}${c.effect ? `<em class="fx">${esc(c.effect[lang])}</em>` : ''}</span>
+        ${bike ? `<p>${esc(bike.desc[lang])}</p>` : ''}
+        ${previewed ? `<button class="mm-link" data-unpreview>${L ? '← Revenir à mon vélo' : '← Back to my bike'}</button>` : ''}
+      </div></div>`;
   }
 
   // ————————————————————————————————————————————— Profil et réglages
@@ -987,6 +1074,8 @@ export class MainMenu {
       <div id="m-music-settings" class="mm-musicset"></div>
       <h3>${L ? 'Son' : 'Sound'}</h3>
       <div id="m-sound-settings"></div>
+      <h3>${L ? 'Appli compagnon (téléphone)' : 'Companion app (phone)'}</h3>
+      <div id="m-companion-settings"></div>
       <h3>${L ? 'Langue et envoi des sorties' : 'Language and ride upload'}</h3>
       <div class="grid3">
         <div class="field">${t('language')}${this.seg('m-lang', s.lang, [
@@ -1515,6 +1604,17 @@ export class MainMenu {
         this.render();
       }),
     );
+    this.root.querySelectorAll<HTMLElement>('[data-biketype]').forEach((el) =>
+      el.addEventListener('click', () => {
+        this.bikeType = el.dataset.biketype as BikeType | 'all';
+        this.render();
+      }),
+    );
+    this.root.querySelector<HTMLElement>('[data-unpreview]')?.addEventListener('click', () => {
+      this.previewId = null;
+      this.onPreviewLook?.(null);
+      this.render();
+    });
     this.root.querySelector<HTMLElement>('[data-plainbike]')?.addEventListener('click', () => {
       this.previewId = null;
       this.onPreviewLook?.(null);

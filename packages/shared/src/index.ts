@@ -15,3 +15,4 @@ export * from './bikes.ts';
 export * from './tuning.ts';
 export * from './face.ts';
 export * from './profiles.ts';
+export * from './companion.ts';

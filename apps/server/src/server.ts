@@ -11,6 +11,8 @@ import { RouteStore } from './ride/routes.ts';
 import { createContext, rideServicesFrom, type AppContext } from './context.ts';
 import { setRideServices } from './ride/services.ts';
 import { RideRoom } from './ride/RideRoom.ts';
+import { PairRoom } from './ride/PairRoom.ts';
+import { PAIR_ROOM } from '@allezrobert/shared';
 import { mountApi } from './http/api.ts';
 import { RenderWorker } from './render/worker.ts';
 import { renderWorkerOptions } from './render/options.ts';
@@ -48,6 +50,8 @@ export async function startServer(opts: StartOptions = {}): Promise<RunningServe
     express: (app: express.Application) => mountApi(app, ctx),
   });
   gameServer.define('ride', RideRoom);
+  // Appli compagnon appairée par QR code (solo comme en groupe) : une salle par jeton.
+  gameServer.define(PAIR_ROOM, PairRoom).filterBy(['pair']);
 
   const port = opts.port ?? config.PORT;
   await gameServer.listen(port, config.HOST);

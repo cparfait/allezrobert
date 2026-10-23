@@ -190,6 +190,13 @@
 .mm-item b { font-size: 13px; line-height: 1.2; }
 .mm-item span { font-size: 11.5px; color: #8d98a6; }
 .mm-item .mm-effect { font-size: 11px; font-style: normal; color: #f5a524; line-height: 1.25; }
+/* Carte d'équipement : textes empilés dans la 2e colonne (nom, effet, état). */
+.mm-item .mm-it-txt { grid-row: span 2; display: flex; flex-direction: column; gap: 2px; min-width: 0; font-size: inherit; color: var(--ar-fg); }
+.mm-item .mm-it-state { font-size: 11.5px; color: #8d98a6; }
+.mm-item.on .mm-it-txt { color: var(--ar-fg); font-weight: inherit; }
+.mm-item.on .mm-it-state { color: var(--ar-accent); font-weight: 700; }
+.mm-item.preview .mm-it-txt { color: var(--ar-fg); }
+.mm-item.preview .mm-it-state { color: #93c5fd; font-weight: 700; }
 .mm-bikephys b { color: #e8edf3; }
 .mm-item:hover:not(:disabled) { background: rgba(255, 255, 255, 0.1); }
 .mm-item.on { border-color: var(--ar-accent); }
@@ -277,6 +284,46 @@
 .mm-bikefilter button { flex: 1; appearance: none; border: 0; border-radius: 8px; padding: 6px 8px; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; background: none; color: #aeb7c3; }
 .mm-bikefilter button:hover { color: #fff; }
 .mm-bikefilter button.on { background: rgba(255, 255, 255, 0.14); color: #fff; }
+
+/* Sélection du vélo : fiche, types, liste à une ligne par vélo */
+.mm-bikeicon { width: 56px; height: 35px; flex: none; border-radius: 9px; background: linear-gradient(180deg, #e9edf2, #cfd6de); padding: 2px 3px; box-sizing: border-box; }
+.mm-bikeicon.big { width: 112px; height: 70px; border-radius: 12px; padding: 4px 6px; }
+.mm-bikefocus { display: flex; gap: 14px; align-items: flex-start; padding: 12px; margin-bottom: 12px; border-radius: 14px; background: rgba(255, 210, 63, 0.07); border: 1px solid rgba(255, 210, 63, 0.35); }
+.mm-bikefocus.preview { background: rgba(96, 165, 250, 0.08); border-color: rgba(96, 165, 250, 0.6); }
+.mm-bf-txt { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.mm-bf-txt small { font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ar-accent); }
+.mm-bikefocus.preview .mm-bf-txt small { color: #93c5fd; }
+.mm-bf-txt b { font-size: 17px; line-height: 1.2; }
+.mm-bf-txt p { margin: 2px 0 0; font-size: 12px; line-height: 1.4; color: #aeb7c3; }
+.mm-bf-txt .mm-link { align-self: flex-start; padding: 2px 0; margin-top: 2px; }
+.mm-bf-tags { display: flex; flex-wrap: wrap; gap: 4px; }
+.mm-bf-tags em { font-style: normal; font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 999px; background: rgba(255, 255, 255, 0.08); color: #d8dee6; }
+.mm-bf-tags em.fx { background: rgba(245, 165, 36, 0.15); color: #f5a524; }
+.mm-biketypes { display: flex; flex-wrap: wrap; gap: 6px; margin: -2px 0 10px; }
+.mm-biketypes button { appearance: none; border: 1px solid var(--mm-line); border-radius: 999px; padding: 4px 10px; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; background: none; color: #aeb7c3; display: inline-flex; gap: 6px; align-items: baseline; }
+.mm-biketypes button span { font-size: 10.5px; color: #6f7a88; font-variant-numeric: tabular-nums; }
+.mm-biketypes button:hover { color: #fff; }
+.mm-biketypes button.on { background: #fff; border-color: #fff; color: #0a0e16; }
+.mm-biketypes button.on span { color: #5a6573; }
+.mm-bikelist { display: flex; flex-direction: column; gap: 6px; }
+.mm-bl-head { display: flex; align-items: baseline; gap: 8px; margin: 8px 2px 2px; font-size: 11.5px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: #8d98a6; }
+.mm-bl-head:first-child { margin-top: 0; }
+.mm-bl-head span { font-weight: 700; letter-spacing: 0; color: #5f6a78; }
+.mm-bike { appearance: none; width: 100%; display: flex; align-items: center; gap: 12px; padding: 7px 10px 7px 7px; border: 2px solid transparent; border-radius: 12px; font: inherit; text-align: left; cursor: pointer; background: var(--mm-soft); color: var(--ar-fg); }
+.mm-bike:hover { background: rgba(255, 255, 255, 0.1); }
+.mm-bike-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.mm-bike-txt b { font-size: 13.5px; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mm-bike-txt small { font-size: 11.5px; color: #8d98a6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mm-bike-side { flex: none; display: flex; flex-direction: column; align-items: flex-end; gap: 3px; }
+.mm-bike-side em { font-style: normal; font-size: 11px; font-weight: 700; color: #f5a524; white-space: nowrap; }
+.mm-bike-state { font-size: 11.5px; font-weight: 700; color: #8d98a6; white-space: nowrap; }
+.mm-bike.on { border-color: var(--ar-accent); background: rgba(255, 210, 63, 0.06); }
+.mm-bike.on .mm-bike-state { color: var(--ar-accent); }
+.mm-bike.locked .mm-bikeicon, .mm-bike.locked .mm-bike-txt { opacity: 0.55; }
+.mm-bike.locked:hover .mm-bikeicon, .mm-bike.locked:hover .mm-bike-txt { opacity: 0.85; }
+.mm-bike.preview { border-color: rgba(96, 165, 250, 0.8); background: rgba(96, 165, 250, 0.1); }
+.mm-bike.preview .mm-bikeicon, .mm-bike.preview .mm-bike-txt { opacity: 1; }
+.mm-bike.preview .mm-bike-state { color: #93c5fd; }
 
 /* Éditeur de visage (garage → Visage) */
 .fe { display: flex; flex-direction: column; gap: 10px; }

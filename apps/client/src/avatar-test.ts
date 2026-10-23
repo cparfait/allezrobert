@@ -765,7 +765,7 @@ async function bench(engine: Awaited<ReturnType<typeof createEngine>>): Promise<
 /**
  * Planche des vélos du catalogue vus de profil, côté transmission (?bikes=id1,id2… par préfixes,
  * vide : la planche des livrées des aperçus Blender ; &rider : avec le coureur ; &side=left :
- * côté gauche ; &view=3q : de trois quarts avant ; &view=back : de dos ; &view=face : visage ; &view=portrait : visage de face sans casque ; ?avatar=mpfb&face=jawWidth:1,… : avatar MPFB et ses curseurs ; &view=cockpit : poste de pilotage). Enregistrée comme bikes-client-<nom>.jpg (&name=…), sauf avec ?noshot ; &each : chaque vélo aussi dans out/bikes-render/<id>.jpg.
+ * côté gauche ; &view=3q : de trois quarts avant ; &view=upper : haut du corps de profil ; &view=back : de dos ; &view=face : visage ; &view=portrait : visage de face sans casque ; ?avatar=mpfb&face=jawWidth:1,… : avatar MPFB et ses curseurs ; &view=cockpit : poste de pilotage). Enregistrée comme bikes-client-<nom>.jpg (&name=…), sauf avec ?noshot ; &each : chaque vélo aussi dans out/bikes-render/<id>.jpg.
  */
 const LIVERY_SHEET = ['s26-04-', 's26-01-', 's26-14-', 'myth-bianchi-specialissima-acier', 'myth-peugeot-px10', 'myth-lotus-110',
   's26-06-', 'myth-look-kg86', 'myth-specialized-tarmac-sl7', 'myth-pinarello-espada', 'myth-giant-tcr-compact', 'myth-colnago-c40-mapei'];
@@ -822,6 +822,12 @@ async function bikeSheet(engine: Awaited<ReturnType<typeof createEngine>>, list:
       camera.position.set(eye.x + sx * 0.45, eye.y + 0.05, eye.z + 0.75);
       camera.updateProjectionMatrix();
       camera.lookAt(eye.x, eye.y - 0.06, eye.z);
+    } else if (params.get('view') === 'upper') {
+      // Haut du corps de profil (cou, tête, épaules) : réglage de la posture.
+      const eye = a.eyeWorld(new THREE.Vector3());
+      camera.position.set(eye.x + sx * 2.2, eye.y - 0.2, eye.z - 0.3);
+      camera.updateProjectionMatrix();
+      camera.lookAt(eye.x, eye.y - 0.2, eye.z - 0.3);
     } else if (params.get('view') === 'cockpitside') {
       camera.position.set(sx * 1.1, 0.95, 0.5);
       camera.updateProjectionMatrix();
@@ -839,7 +845,7 @@ async function bikeSheet(engine: Awaited<ReturnType<typeof createEngine>>, list:
       camera.lookAt(0, 0.33, -0.45);
     }
     else camera.position.set(sx * (riderOn ? 4.4 : 3.4) * Number(params.get('zoom') ?? 1), riderOn ? 0.95 : 0.62, 0.09);
-    if (!['face', 'portrait', 'cockpit', 'cockpitside', 'wheel'].includes(params.get('view') ?? '')) {
+    if (!['face', 'portrait', 'upper', 'cockpit', 'cockpitside', 'wheel'].includes(params.get('view') ?? '')) {
       camera.updateProjectionMatrix();
       camera.lookAt(0, riderOn ? 0.85 : 0.56, 0.09);
     }

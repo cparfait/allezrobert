@@ -1,6 +1,6 @@
 import './hud/hud.css';
 import * as THREE from 'three/webgpu';
-import { RouteTrack, bikeOfLook, bikeSetupFor, weatherAt, weatherSeed, type RideWeather, type RiderProfile, type RouteData } from '@allezrobert/shared';
+import { RouteTrack, decimateRoute, type PairState, type PhoneCommand, bikeOfLook, bikeSetupFor, weatherAt, weatherSeed, type RideWeather, type RiderProfile, type RouteData } from '@allezrobert/shared';
 import { createEngine, type Engine } from './engine/renderer.ts';
 import { QUALITY_PRESETS, withUrlOverrides, type QualitySettings } from './engine/quality.ts';
 import { World } from './world/world.ts';
@@ -19,6 +19,8 @@ import { createDeviceLayer } from './game/devices.ts';
 import { Hud } from './hud/hud.ts';
 import { RideSound } from './audio/rideSound.ts';
 import { music } from './audio/music.ts';
+import { companion } from './game/companionLink.ts';
+import { companionQr } from './ui/companionQr.ts';
 import { spotify } from './audio/spotify.ts';
 import { t, setLang, getLang } from './i18n/index.ts';
 import { loadSettings, saveSettings, type Settings } from './ui/settings.ts';
@@ -189,7 +191,33 @@ function createMenuVideo(el: HTMLVideoElement | null) {
 }
 
 /** Musique : volume de base (plus bas en sortie) et annonce des titres Spotify pendant la sortie. */
-const musicCtl = { base: 1, lastTitle: '', onTrack: null as ((label: string) => void) | null };
+const musicCtl = { base: 1, lastTitle: '', spotifyPlaying: false, onTrack: null as ((label: string) => void) | null };
+
+/** Musique vue par l'appli compagnon : Spotify s'il est connecté, sinon la musique du jeu. */
+function companionMusic(): NonNullable<PairState['music']> {
+  if (spotify.connected) return { source: 'spotify', playing: musicCtl.spotifyPlaying, title: musicCtl.lastTitle, volume: music.volume };
+  return { source: 'game', playing: music.playing, title: music.current?.title ?? '', volume: music.volume };
+}
+
+/** Commandes musique de l'appli compagnon (mêmes effets que B / N au clavier) ; vrai si traitée. */
+function companionMusicCommand(c: PhoneCommand): boolean {
+  if (c.kind !== 'music') return false;
+  const sp = spotify.connected;
+  if (c.action === 'toggle') {
+    if (sp) void spotify.toggleSmart().then((on) => (musicCtl.spotifyPlaying = on));
+    else music.toggle();
+  } else if (c.action === 'next') {
+    if (sp) void spotify.next();
+    else music.next();
+  } else if (c.action === 'previous') {
+    if (sp) void spotify.previous();
+    else music.previous();
+  } else if (c.action === 'volume' && c.volume !== undefined) {
+    if (sp) spotify.setHereVolume(c.volume);
+    music.setVolume(c.volume);
+  }
+  return true;
+}
 
 async function boot(): Promise<void> {
   // Retour de l'autorisation Spotify (?code&state), avant tout le reste.
@@ -211,6 +239,12 @@ async function boot(): Promise<void> {
     bootDone();
     return runCinematic(scene.engine, scene.world, scene.track);
   }
+  // Appli compagnon : lien ouvert dès l'accueil (le téléphone suit la musique) ; QR code sur Q,
+  // dans les Réglages et proposé au lancement d'une sortie.
+  companion.connect();
+  companionQr();
+  companion.provider = () => ({ phase: 'menu', music: companionMusic() });
+  companion.onCommand = (c) => void companionMusicCommand(c);
   const devices = createDeviceLayer();
   const autostart = new URLSearchParams(location.search).has('autostart');
   /** Ciel et lumière de la sortie (réglages du coureur) ; l'environnement suit le monde courant. */
@@ -313,11 +347,15 @@ async function boot(): Promise<void> {
   };
 
   // Spotify lancé ou mis en pause depuis le jeu : la musique du jeu suit aussitôt.
-  spotify.onPlayState = (playing) => music.setDuck(playing ? 0 : musicCtl.base);
+  spotify.onPlayState = (playing) => {
+    musicCtl.spotifyPlaying = playing;
+    music.setDuck(playing ? 0 : musicCtl.base);
+  };
   // Suivi Spotify : la musique du jeu se tait quand Spotify joue ; titre annoncé au changement.
   setInterval(async () => {
     if (!spotify.connected || document.hidden) return music.setDuck(musicCtl.base);
     const np = await spotify.nowPlaying();
+    musicCtl.spotifyPlaying = !!np?.isPlaying;
     music.setDuck(np?.isPlaying ? 0 : musicCtl.base);
     const label = np ? `${np.title} — ${np.artist}` : '';
     if (np?.isPlaying && label !== musicCtl.lastTitle) {
@@ -891,17 +929,57 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
       setTimeout(() => !ride.paused && finish(), 4000);
     };
   }
+  /** Écran de pause affiché (pas les autres arrêts : intro, salle d'attente, fin). */
+  let pauseOpen = false;
   const togglePause = () => {
     ride.paused = !ride.paused;
+    pauseOpen = ride.paused;
     // En pleine course, « Terminer » = abandonner (classé DNF).
     if (ride.paused)
       showPause(ui, {
         onResume: togglePause,
         onFinish: finish,
+        onCompanion: () => companionQr().show(),
         ...(mp?.net.roomId ? { roomId: mp.net.roomId } : {}),
         ...(room?.racing ? { finishLabel: getLang() === 'fr' ? 'Abandonner la course' : 'Abandon the race' } : {}),
       });
     else ui.innerHTML = '';
+  };
+  /**
+   * Demi-tour : on repart dans l'autre sens, à droite de la chaussée. Monde ouvert : nouveau
+   * chemin ; itinéraire : on le remonte (pas en multijoueur, le serveur fait la course).
+   */
+  const uturn = () => {
+    if (nav) {
+      if (nav.uturn(ride.state.distM)) {
+        ride.state.speedMs = Math.min(ride.state.speedMs, 3);
+        hud.toast(getLang() === 'fr' ? '↶ Demi-tour' : '↶ U-turn');
+      }
+    } else if (!mp && !workout) {
+      ride.uturn();
+      const L = getLang() === 'fr';
+      hud.toast(ride.dir < 0 ? (L ? '↶ Demi-tour : à contresens de l’itinéraire' : '↶ U-turn: riding the route backwards') : L ? '↷ Retour dans le sens de l’itinéraire' : '↷ Back on the route direction');
+    }
+  };
+  /** Équipiers : allure du groupe en % de FTP (±5 %). */
+  const changePace = (delta: number) => {
+    if (!peloton.riders.length) return;
+    peloton.paceFtpPct = Math.min(1.2, Math.max(0.5, (peloton.paceFtpPct ?? 0.75) + delta * 0.05));
+    hud.toast(`${getLang() === 'fr' ? 'Allure du groupe' : 'Group pace'} : ${Math.round(peloton.paceFtpPct * 100)} % FTP`);
+  };
+  const slowDown = () => {
+    if (!peloton.riders.length) return;
+    peloton.slowDown();
+    hud.toast(getLang() === 'fr' ? '« Ralentissez ! »' : '“Ease up!”');
+  };
+  /** Photo : rendu immédiat puis lecture du canvas (sans l'interface). */
+  const photo = () => {
+    engine.renderManual();
+    const a = document.createElement('a');
+    a.href = engine.renderer.domElement.toDataURL('image/png');
+    a.download = `allez-robert-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.png`;
+    a.click();
+    hud.toast('📷');
   };
   window.addEventListener('keyup', (e) => {
     if (e.key === 'x' || e.key === 'X') rig.lookBack = false;
@@ -912,20 +990,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
       e.preventDefault();
       nav.select(e.key === 'ArrowLeft' ? -1 : 1, ride.state.distM);
     }
-    if (e.key === 'u' || e.key === 'U') {
-      // Demi-tour : on repart dans l'autre sens, à droite de la chaussée. Monde ouvert : nouveau
-      // chemin ; itinéraire : on le remonte (pas en multijoueur, le serveur fait la course).
-      if (nav) {
-        if (nav.uturn(ride.state.distM)) {
-          ride.state.speedMs = Math.min(ride.state.speedMs, 3);
-          hud.toast(getLang() === 'fr' ? '↶ Demi-tour' : '↶ U-turn');
-        }
-      } else if (!mp && !workout) {
-        ride.uturn();
-        const L = getLang() === 'fr';
-        hud.toast(ride.dir < 0 ? (L ? '↶ Demi-tour : à contresens de l’itinéraire' : '↶ U-turn: riding the route backwards') : L ? '↷ Retour dans le sens de l’itinéraire' : '↷ Back on the route direction');
-      }
-    }
+    if (e.key === 'u' || e.key === 'U') uturn();
     if (e.key === 'x' || e.key === 'X') rig.lookBack = true;
     if (e.key === 'c' || e.key === 'C') {
       const m = rig.cycle();
@@ -948,23 +1013,9 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     }
     if (voice && (e.key === 'v' || e.key === 'V')) void voice.toggleMic().then((on) => hud.setVoice({ connected: true, micOn: on }));
     // Équipiers : allure du groupe en % de FTP ([ / ]), ordre « ralentissez » (R).
-    if ((e.key === '[' || e.key === ']') && peloton.riders.length) {
-      peloton.paceFtpPct = Math.min(1.2, Math.max(0.5, (peloton.paceFtpPct ?? 0.75) + (e.key === ']' ? 0.05 : -0.05)));
-      hud.toast(`${getLang() === 'fr' ? 'Allure du groupe' : 'Group pace'} : ${Math.round(peloton.paceFtpPct * 100)} % FTP`);
-    }
-    if ((e.key === 'r' || e.key === 'R') && peloton.riders.length) {
-      peloton.slowDown();
-      hud.toast(getLang() === 'fr' ? '« Ralentissez ! »' : '“Ease up!”');
-    }
-    if (e.key === 'p' || e.key === 'P') {
-      // Photo : rendu immédiat puis lecture du canvas (sans l'interface).
-      engine.renderManual();
-      const a = document.createElement('a');
-      a.href = engine.renderer.domElement.toDataURL('image/png');
-      a.download = `allez-robert-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.png`;
-      a.click();
-      hud.toast('📷');
-    }
+    if (e.key === '[' || e.key === ']') changePace(e.key === ']' ? 1 : -1);
+    if (e.key === 'r' || e.key === 'R') slowDown();
+    if (e.key === 'p' || e.key === 'P') photo();
     if (e.key === ' ' || e.key === 'Escape') {
       e.preventDefault();
       togglePause();
@@ -1193,6 +1244,134 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     timer.update();
     frame(Math.min(timer.getDelta(), 0.1), true);
   });
+
+  // Appli compagnon (QR code) : état de la sortie poussé au téléphone, ses commandes appliquées
+  // comme les touches du clavier. Marche en solo ; en groupe, chat et Ride On passent par la salle.
+  let fanPercent: number | undefined;
+  const sendPairRoute = () => {
+    const pts = track.route.points;
+    if (nav) {
+      // Monde ouvert : le chemin s'allonge, on n'envoie que les abords (1,5 km derrière, la suite devant).
+      const d = ride.state.distM;
+      companion.sendRoute({ name: track.route.name, loop: false, lengthM: track.length, open: true, points: decimateRoute(pts.filter((p) => p.d > d - 1500 && p.d < d + 1000)) });
+    } else companion.sendRoute({ name: track.route.name, loop: track.route.loop, lengthM: track.length, points: decimateRoute(pts) });
+  };
+  sendPairRoute();
+  if (nav) setInterval(sendPairRoute, 5000);
+  void companionQr().offer();
+  let phones = companion.presence.phones;
+  companion.listen(() => {
+    if (companion.presence.phones > phones) hud.toast(getLang() === 'fr' ? '📱 Appli compagnon connectée' : '📱 Companion app connected', true);
+    phones = companion.presence.phones;
+  });
+  hud.onToast = (text) => companion.sendEvent({ kind: 'toast', text });
+  hud.onChat = (who, text) => companion.sendEvent({ kind: 'chat', who, text });
+  companion.provider = (): PairState => {
+    const i = ride.inputs;
+    const d = ride.state.distM;
+    const me = { id: mp?.net.selfId || 'me', name: s.name, gapM: 0, wkg: ride.watts3s() / s.massKg, color: s.look.jersey, me: true };
+    const others = [
+      ...remoteRiders.map((r) => ({ id: r.id, name: r.name, gapM: r.unwrappedM - d, wkg: r.watts / (mp?.net.roster.get(r.id)?.massKg ?? 75), color: r.avatar.jersey, ai: r.isAI, online: !r.isAI })),
+      ...peloton.riders.map((r) => ({ id: r.id, name: r.name, gapM: r.state.distM - d, wkg: r.watts / r.massKg, color: r.color, ai: true })),
+    ];
+    // Les 11 plus proches, dans l'ordre de la course.
+    const riders = [me, ...others.sort((a, b) => Math.abs(a.gapM) - Math.abs(b.gapM)).slice(0, 11)].sort((a, b) => b.gapM - a.gapM);
+    const w = workout?.position;
+    const wNext = w && workout ? workout.workout.steps[w.stepIndex + 1] : undefined;
+    return {
+      phase: pauseOpen ? 'paused' : 'ride',
+      routeName: track.route.name,
+      ...(nav ? { road: nav.roadName(d), open: true } : {}),
+      multiplayer: !!mp,
+      team: peloton.riders.length > 0,
+      metrics: {
+        speedKmh: ride.state.speedMs * 3.6,
+        watts: i.watts,
+        watts3s: ride.watts3s(),
+        avgWatts: ride.avgWatts(),
+        np: ride.normalizedPower(),
+        cadence: i.cadence,
+        ...(i.hr !== undefined ? { hr: i.hr } : {}),
+        distM: d - startD,
+        elapsedS: ride.elapsedS,
+        elevationGainM: ride.elevationGainM,
+        gradePercent: ride.gradePercent,
+        altitudeM: track.sample(d).y,
+        routeM: nav ? d : track.wrap(d),
+        lap: ride.lap,
+        draftPct: ride.draft * 100,
+        ftp: s.ftpWatts,
+        wkg: ride.watts3s() / s.massKg,
+        // Énergie mécanique (kJ) ≈ calories dépensées (rendement musculaire ~24 %).
+        kcal: (ride.avgWatts() * ride.elapsedS) / 1000,
+        gearLabel: ride.gearLabel,
+        gearIndex: ride.gearIndex,
+        gearCount: ride.gears.length,
+        ...(i.balanceLeft !== undefined ? { balanceLeft: i.balanceLeft } : {}),
+      },
+      pos: { x: pos.x, z: pos.z, heading: Number.isFinite(prevHeading) ? prevHeading : 0 },
+      camera: rig.mode === 'free' ? 'chase' : rig.mode,
+      ...(fanPercent !== undefined ? { fanPercent } : {}),
+      hudVisible: hud.visible,
+      music: companionMusic(),
+      junction:
+        nav?.next && nav.next.d - d < 600
+          ? { inM: nav.next.d - d, selected: nav.next.selected, locked: nav.next.locked, choices: nav.next.choices.map((c) => ({ dir: c.dir, name: c.name, unpaved: !/^(asphalt|paved|concrete|chipseal)/.test(c.surface) })) }
+          : null,
+      segment: ride.segment ? { name: ride.segment.seg.name, kind: ride.segment.seg.kind, progress: ride.segment.progress, elapsedS: (ride.startT + ride.elapsedS * 1000 - ride.segment.startT) / 1000 } : null,
+      workout:
+        w && workout
+          ? { name: workout.workout.name, targetWatts: w.targetWatts, stepRemainingS: w.stepRemainingS, remainingS: w.remainingS, ...(wNext ? { next: `${Math.round(((wNext.powerStart + wNext.powerEnd) / 2) * (wNext.powerUnit === 'ftp' ? s.ftpWatts : 1))} W` } : {}) }
+          : null,
+      riders,
+    };
+  };
+  companion.onCommand = (c) => {
+    if (companionMusicCommand(c)) return;
+    const d = ride.state.distM;
+    switch (c.kind) {
+      case 'shift':
+        onShift(c.action);
+        break;
+      case 'pause':
+        if (!ride.paused) togglePause();
+        break;
+      case 'resume':
+        if (pauseOpen) togglePause();
+        break;
+      case 'camera':
+        rig.setMode(c.camera);
+        break;
+      case 'fan':
+        fanPercent = c.percent;
+        input.setFan?.(c.percent);
+        break;
+      case 'chat':
+        mp?.net.chat(c.text);
+        break;
+      case 'rideOn':
+        if (mp) hud.onRideOn?.(c.to);
+        break;
+      case 'turn':
+        if (nav?.next && choosing()) nav.select(c.index !== undefined ? c.index - nav.next.selected : (c.delta ?? 0), d);
+        break;
+      case 'uturn':
+        uturn();
+        break;
+      case 'hud':
+        hud.toggle();
+        break;
+      case 'photo':
+        photo();
+        break;
+      case 'slowDown':
+        slowDown();
+        break;
+      case 'pace':
+        changePace(c.delta);
+        break;
+    }
+  };
   // Crochet de test : avance la simulation à pas fixe (1/60 s) sans dépendre de l'affichage.
   const advance = (seconds: number) => {
     const n = Math.round(seconds * 60);

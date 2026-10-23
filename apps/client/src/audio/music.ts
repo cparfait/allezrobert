@@ -120,6 +120,12 @@ export class BackgroundMusic {
     this.fadeTo(0, () => this.load(this.index + 1));
   }
 
+  /** Morceau précédent (le premier de la liste repart du début). */
+  previous(): void {
+    if (!this.enabled) return;
+    this.fadeTo(0, () => this.load(Math.max(this.index - 1, 0)));
+  }
+
   private start(): void {
     this.unlocked = true;
     if (this.index < 0) this.load(0);

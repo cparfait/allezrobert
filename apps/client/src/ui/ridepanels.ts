@@ -74,6 +74,8 @@ export interface PauseCallbacks {
   finishLabel?: string;
   /** Sortie de groupe en cours : la pause propose d'y inviter des amis. */
   roomId?: string;
+  /** Affiche le QR code de l'appli compagnon. */
+  onCompanion?(): void;
 }
 
 export function showPause(root: HTMLElement, cb: PauseCallbacks): void {
@@ -82,11 +84,14 @@ export function showPause(root: HTMLElement, cb: PauseCallbacks): void {
     <div class="row" style="justify-content:center">
       <button class="btn primary" id="p-resume">${t('resume')}</button>
       <button class="btn" id="p-finish">${cb.finishLabel ?? t('finish')}</button>
+      ${cb.onCompanion ? `<button class="btn" id="p-companion">📱 ${getLang() === 'fr' ? 'Appli compagnon' : 'Companion app'}</button>` : ''}
     </div><div id="p-friends"></div>
     <div id="p-sound" style="margin-top:18px;text-align:left"></div></div></div>`;
   renderSoundSettings(root.querySelector('#p-sound'));
   (root.querySelector('#p-resume') as HTMLElement).onclick = cb.onResume;
   (root.querySelector('#p-finish') as HTMLElement).onclick = cb.onFinish;
+  const cmp = root.querySelector<HTMLElement>('#p-companion');
+  if (cmp && cb.onCompanion) cmp.onclick = cb.onCompanion;
   if (cb.roomId) void renderRideInvite(root.querySelector('#p-friends') as HTMLElement, cb.roomId);
 }
 

@@ -4,7 +4,7 @@
  * site : cache d'abord puis mise à jour en arrière-plan. Jamais de cache pour /api ni pour
  * les connexions temps réel (/colyseus).
  */
-const CACHE = 'ar-companion-v1';
+const CACHE = 'ar-companion-v2';
 const SHELL = ['./', './index.html', './manifest.webmanifest', './icons/icon.svg', './icons/icon-192.png'];
 
 self.addEventListener('install', (event) => {
