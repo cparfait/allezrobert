@@ -24,6 +24,7 @@ import { joinSettings } from './friendsLogic.ts';
 import { RoutePlanner } from './routePlanner.ts';
 import { companionQr } from './companionQr.ts';
 import { FranceMap, type MapZone } from './franceMap.ts';
+import { loadRouteBoards, routeDetailHtml } from './routeDetail.ts';
 import { ZONE_SPOTS } from '../world/zoneMap.ts';
 import './menu.css';
 
@@ -244,7 +245,13 @@ export class MainMenu {
   onWorld?: (id: string) => void;
   onSettingsSaved?: (s: Settings) => void;
   /** Fenêtre de choix ouverte au milieu de l'écran (bouton « Choisir ma sortie »). */
-  private picker: 'zones' | 'zone' | 'routes' | 'map' | null = null;
+  private picker: 'zones' | 'zone' | 'routes' | 'map' | 'route' | null = null;
+  /** Parcours ouvert dans sa fiche (fenêtre « route »). */
+  private detailId = '';
+  /** Fenêtre déjà affichée (l'animation d'ouverture ne se joue qu'au changement). */
+  private shownPicker: string | null = null;
+  /** Carte de parcours cliquée : la fiche s'ouvre en grandissant depuis elle. */
+  private fromRect: DOMRect | null = null;
   /** Parcours dessiné sur la carte (zone ouverte), roulé au départ s'il est le parcours choisi. */
   private drawn: RouteData | null = null;
   /** Départ choisi sur la carte pour le roulage libre (null : départ de la zone). */
@@ -650,6 +657,7 @@ export class MainMenu {
       </div></div>`;
     }
     if (this.picker === 'zones') return this.franceHtml();
+    if (this.picker === 'route') return this.routeDetailWindow();
     if (this.picker === 'zone') return this.zoneHtml();
     // Parcours fixés de la zone (cartes), avec retour aux choix de la zone ou à la carte de France.
     const w = WORLD_LIST.find((x) => x.id === this.worldId);
@@ -666,6 +674,46 @@ export class MainMenu {
         <header><h2>${L ? 'Parcours' : 'Routes'}${w ? ` — ${esc(w.name[getLang()])}` : ''}</h2><span class="rp-head-links"><button class="mm-link" data-picker="zone">← ${L ? 'Choix de la zone' : 'Area choices'}</button></span><button class="mm-x" data-picker-close aria-label="${L ? 'Fermer' : 'Close'}">×</button></header>
         ${list}
       </div></div>`;
+  }
+
+  /** Fiche d'un parcours : carte, profil, montées, records (les temps du serveur arrivent ensuite). */
+  private routeDetailWindow(): string {
+    const L = fr();
+    const r = this.routes.find((x) => x.id === this.detailId);
+    if (!r) return '';
+    return `<div class="mm-modal mm-picker-modal" data-picker-close>
+      <div class="mm-dialog mm-picker rd-dialog" role="dialog" aria-modal="true">
+        <header><h2>${esc(this.routeName(r))}</h2><span class="rd-head-tag">${r.loop ? (L ? 'Boucle' : 'Loop') : L ? 'Aller simple' : 'One way'}</span><span class="rp-head-links"><button class="mm-link" data-picker="routes">← ${L ? 'Parcours' : 'Routes'}</button>${r.id === this.s.routeId ? '' : `<button class="mm-link" data-rd="pick">${L ? 'Choisir sans partir' : 'Select without riding'}</button>`}</span><button class="mm-x" data-picker-close aria-label="${L ? 'Fermer' : 'Close'}">×</button></header>
+        ${routeDetailHtml(r, this.routeName(r), { loggedIn: !!this.account })}
+      </div></div>`;
+  }
+
+  /**
+   * Ouverture d'une fenêtre : la fiche d'un parcours grandit depuis la carte cliquée, les autres
+   * fenêtres apparaissent en fondu ; rien ne bouge quand la même fenêtre est seulement redessinée.
+   */
+  private animatePicker(): void {
+    const key = this.picker ? `${this.picker}:${this.picker === 'route' ? this.detailId : ''}` : null;
+    if (key === this.shownPicker) return;
+    this.shownPicker = key;
+    const dlg = this.root.querySelector<HTMLElement>('.mm-picker');
+    if (!dlg) return;
+    const from = this.fromRect;
+    this.fromRect = null;
+    if (this.picker === 'route' && from && dlg.animate && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      const to = dlg.getBoundingClientRect();
+      const dx = from.left + from.width / 2 - (to.left + to.width / 2);
+      const dy = from.top + from.height / 2 - (to.top + to.height / 2);
+      dlg.animate(
+        [
+          { transform: `translate(${dx}px, ${dy}px) scale(${from.width / to.width}, ${from.height / to.height})`, opacity: 0.4, borderRadius: '24px' },
+          { transform: 'none', opacity: 1 },
+        ],
+        { duration: 320, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)' },
+      );
+      return;
+    }
+    dlg.classList.add('mm-anim-in');
   }
 
   private closePicker(): void {
@@ -1456,7 +1504,7 @@ export class MainMenu {
     // « Choisir ma sortie » et carte du choix : fenêtre de choix au milieu de l'écran.
     this.root.querySelectorAll<HTMLElement>('[data-picker]').forEach((el) =>
       el.addEventListener('click', () => {
-        this.picker = el.dataset.picker as 'zones' | 'zone' | 'routes' | 'map';
+        this.picker = el.dataset.picker as 'zones' | 'zone' | 'routes' | 'map' | 'route';
         if (this.picker === 'zones' && el.closest('.mm-pickers')) this.franceMap.reset();
         this.render();
       }),
@@ -1473,15 +1521,43 @@ export class MainMenu {
         void removePack(el.dataset.unpack as string).then(() => this.render());
       }),
     );
+    // Carte de parcours : sa fiche s'ouvre (records, montées) ; on part ou on le choisit depuis elle.
     this.root.querySelectorAll<HTMLElement>('[data-route]').forEach((el) =>
       el.addEventListener('click', () => {
-        s.routeId = el.dataset.route as string;
-        if (s.mode === 'open') s.mode = 'free';
-        this.picker = null;
-        changed();
+        this.detailId = el.dataset.route as string;
+        this.fromRect = el.getBoundingClientRect();
+        this.picker = 'route';
         this.render();
       }),
     );
+    const pickRoute = () => {
+      s.routeId = this.detailId;
+      if (s.mode === 'open' || s.mode === 'ftpTest' || s.mode === 'challenge') s.mode = 'free';
+      this.picker = null;
+      changed();
+    };
+    this.root.querySelectorAll<HTMLElement>('[data-rd]').forEach((el) =>
+      el.addEventListener('click', () => {
+        pickRoute();
+        if (el.dataset.rd === 'ride') this.start();
+        else this.render();
+      }),
+    );
+    // Défi sur une montée de la fiche : mode défi KOM sur ce parcours, départ lancé.
+    this.root.querySelectorAll<HTMLElement>('[data-rd-kom]').forEach((el) =>
+      el.addEventListener('click', () => {
+        pickRoute();
+        s.mode = 'challenge';
+        s.challengeSeg = el.dataset.rdKom as string;
+        changed();
+        this.start();
+      }),
+    );
+    if (this.picker === 'route') {
+      const r = this.routes.find((x) => x.id === this.detailId);
+      if (r) void loadRouteBoards(this.root, r, !!this.account);
+    }
+    this.animatePicker();
     on<HTMLInputElement>('m-workout', 'change', async (el) => {
       const f = el.files?.[0];
       if (!f) return;

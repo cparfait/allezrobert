@@ -6,6 +6,12 @@ import type { Season } from '../world/environment.ts';
 
 const PR_KEY = (routeId: string, segId: string) => `ar.pr.${routeId}.${segId}`;
 
+/** Record personnel (s) sur une montée ou un sprint, enregistré sur cet appareil, ou null. */
+export function readSegmentPr(routeId: string, segId: string): number | null {
+  const v = Number(localStorage.getItem(PR_KEY(routeId, segId)) ?? 'NaN');
+  return Number.isFinite(v) ? v : null;
+}
+
 /**
  * Mise en scène HyperFrames pendant la sortie : intro + compte à rebours, KOM / sprint franchis,
  * podium, habillage de la caméra TV. Les séquences se superposent au canvas sans masquer
