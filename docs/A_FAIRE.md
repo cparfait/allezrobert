@@ -56,12 +56,15 @@ ni vérifié à l'image** ; les derniers commits « wip » sont du travail non t
       tendus) et la déclencher en sortie quand le coureur se met debout : position assis / debout
       des pédales à capteur qui la transmettent (dynamique de pédalage ANT+ « Cycling Dynamics »,
       Garmin Rally / Vector ; à vérifier pour les Assioma), sinon cadence basse et forte puissance.
-- [ ] Vélos : cocottes et leviers de frein trop gros par rapport au cintre (familles route) ;
-      les ramener à des proportions réelles.
+- [ ] Vélos : leviers de frein trop gros (familles route), les cocottes sont bonnes ; ramener
+      les leviers à des proportions réelles.
 - [ ] Tenues : ajouter des gants (mitaines et gants longs) et des tenues à manches longues
       (maillot, veste, collant), choisis dans l'éditeur et variés dans le peloton.
 - [ ] Avatars : expression `tongueOut` absente ; visages féminins encore un peu androgynes ;
       moustache unie ; ressemblance photo faible pour le cou, les oreilles, le pli de paupière.
+- [ ] Tutoriel (`apps/client/src/onboarding/`, `RideTutorial` en sortie) : l'illustrer et
+      l'animer (images, schémas des commandes, petites animations à chaque étape) au lieu
+      d'étapes en texte seul.
 - [ ] Idées du tableau de `docs/ROADMAP.md` encore ouvertes : photos du sommet dans la vidéo
       résumé, LUT d'étalonnage dédiées.
 - [ ] Le script `pnpm lint` (`pnpm -r --if-present lint`) ne vérifie rien : aucun paquet n'a de
