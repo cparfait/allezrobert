@@ -1,5 +1,5 @@
 import { getLang } from '../i18n/index.ts';
-import { ONBOARDING_SCRIPT } from './script.ts';
+import { ONBOARDING_SCRIPT, plainText } from './script.ts';
 import { serverEndpoint } from '../game/multiplayer.ts';
 
 /** Audio Cartesia déjà reçu (par texte et langue) : chaque réplique n'est téléchargée qu'une fois. */
@@ -72,8 +72,9 @@ export class VoiceOver {
     return this.queue;
   }
 
+  /** `text` peut contenir des balises Cartesia : envoyées à la synthèse, retirées de l'affichage. */
   private speak(text: string): Promise<void> {
-    this.subtitle.textContent = text;
+    this.subtitle.textContent = plainText(text);
     this.subtitle.classList.remove('hidden');
     const hide = () => this.subtitle.classList.add('hidden');
     if (!this.enabled || !('speechSynthesis' in window)) {
@@ -83,7 +84,7 @@ export class VoiceOver {
         setTimeout(() => {
           if (g === this.gen) hide();
           res();
-        }, Math.max(2500, text.length * 55)),
+        }, Math.max(2500, plainText(text).length * 55)),
       );
     }
     const g = this.gen;
@@ -109,7 +110,7 @@ export class VoiceOver {
   /** Repli : synthèse vocale du système (Web Speech API). */
   private speakSystem(text: string, hide: () => void, res: () => void): void {
     {
-      const u = new SpeechSynthesisUtterance(spoken(text, getLang() === 'fr' ? 'fr' : 'en'));
+      const u = new SpeechSynthesisUtterance(spoken(plainText(text), getLang() === 'fr' ? 'fr' : 'en'));
       const v = this.voice();
       if (v) u.voice = v;
       u.lang = getLang() === 'fr' ? 'fr-FR' : 'en-GB';
