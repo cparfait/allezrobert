@@ -11,6 +11,7 @@ pub mod ble;
 mod ble_windows;
 pub mod dircon;
 pub mod error;
+pub mod worlds;
 
 use tauri::{Manager, RunEvent};
 
@@ -31,6 +32,7 @@ pub fn run() {
                 .level_for("btleplug", log::LevelFilter::Warn)
                 .build(),
         )
+        .register_uri_scheme_protocol("worlds", |_ctx, request| worlds::handle(request))
         .manage(ble::BleState::default())
         .manage(dircon::DirconState::default())
         .manage(ant::AntState::default())
