@@ -159,7 +159,7 @@ export class Crowd {
     for (const seg of track.route.segments.filter((s) => s.kind === 'kom' || s.kind === 'sprint')) {
       const kom = seg.kind === 'kom';
       const from = Math.max(seg.startM, seg.endM - (kom ? 350 : 120));
-      for (let d = from; d < seg.endM; d += kom ? 3.2 : 4) {
+      for (let d = from; d < seg.endM; d += kom ? 6.5 : 8) {
         for (const side of [-1, 1]) {
           if (r() < (kom ? 0.35 : 0.5)) continue;
           const lateral = side * (half + 1.6 + r() * 3);

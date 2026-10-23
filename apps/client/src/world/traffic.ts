@@ -171,7 +171,7 @@ export class Traffic {
   constructor(track: RouteTrack, density = 1, groundAt?: (x: number, z: number) => number) {
     this.track = track;
     this.group.name = 'traffic';
-    const n = Math.round(6 * density);
+    const n = Math.round(3 * density);
     for (let i = 0; i < n; i++) {
       const kind: Kind = i === 0 ? 'tractor' : i % 4 === 0 ? 'van' : 'car';
       const { group, wheels } = buildVehicle(kind, kind === 'tractor' ? '#2e7d32' : (CAR_COLORS[i % CAR_COLORS.length] as string), i);
