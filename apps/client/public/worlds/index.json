@@ -154,6 +154,26 @@
    }
   },
   {
+   "id": "issoire",
+   "name": "Val d'Allier — Issoire",
+   "region": "Puy-de-Dôme · Val d'Allier",
+   "routes": [
+    {
+     "id": "pays-de-la-reine-margot",
+     "name": "Usson et Sauxillanges, au pays de la reine Margot",
+     "nameEn": "Usson and Sauxillanges, Queen Margot country",
+     "lengthM": 56552,
+     "elevationGainM": 1085.81,
+     "loop": false
+    }
+   ],
+   "pack": {
+    "version": "50633423c2c4",
+    "bytes": 192158421,
+    "files": 721
+   }
+  },
+  {
    "id": "limagne",
    "name": "Limagne — Neuville",
    "region": "Puy-de-Dôme · Limagne",
