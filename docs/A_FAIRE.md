@@ -56,12 +56,6 @@ ni vérifié à l'image** ; les derniers commits « wip » sont du travail non t
       tendus) et la déclencher en sortie quand le coureur se met debout : position assis / debout
       des pédales à capteur qui la transmettent (dynamique de pédalage ANT+ « Cycling Dynamics »,
       Garmin Rally / Vector ; à vérifier pour les Assioma), sinon cadence basse et forte puissance.
-- [ ] Vélos : leviers de frein trop gros (familles route), les cocottes sont bonnes. Dans
-      `tools/blender/bike_families.py` (`add_hoods`), le levier est un tube de 2,3 × 1,2 cm qui
-      descend presque au bas du cintre : en faire une lame plate (5 à 7 mm d'épaisseur, 18 mm
-      d'avant en arrière en haut, 10 mm en bas), plus courte (≈ 8 cm sous la cocotte), collée
-      derrière la courbe du cintre (photos Shimano / PRO fournies le 23/10), puis reconstruire les
-      familles de vélos.
 - [ ] Tenues : ajouter des gants (mitaines et gants longs) et des tenues à manches longues
       (maillot, veste, collant), choisis dans l'éditeur et variés dans le peloton.
 - [ ] Avatars : expression `tongueOut` absente ; visages féminins encore un peu androgynes ;

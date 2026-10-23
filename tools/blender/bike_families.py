@@ -329,9 +329,10 @@ def add_hoods(mb, lod, classic=False):
         hp = catmull([V(0.2 * s, (h[1] + h[2]) / 2, h[0]) for h in hood], k)
         hsec = [ell_sec(nh, hwid[i], (htop[i] - hbot[i]) / 2, 2.5) for i in range(len(hz))]
         skin(mb, sweep_rings(hp, hsec, Y), 'components')
-        # Levier : lame plate (≈ 2 cm d'avant en arrière, 1 cm d'épaisseur) qui suit la courbe du cintre.
-        lever = [V(0.2 * s, 0.874, 0.65), V(0.2 * s, 0.845, 0.653), V(0.201 * s, 0.81, 0.646), V(0.203 * s, 0.78, 0.629), V(0.206 * s, 0.758, 0.604)]
-        tube(mb, lever, 2 if lod == 0 else 1, lambda t: ell_sec(8, lerp(0.0115, 0.0072, t), lerp(0.0058, 0.0042, t), 2.6), Z, 'chrome' if classic else 'components')
+        # Levier : lame plate (18 mm d'avant en arrière en haut, 10 mm en bas, 5 mm d'épaisseur),
+        # ≈ 7 cm sous la cocotte, juste devant la courbe du cintre (Shimano / SRAM actuels).
+        lever = [V(0.2 * s, 0.873, 0.652), V(0.2 * s, 0.85, 0.649), V(0.202 * s, 0.825, 0.639), V(0.205 * s, 0.801, 0.628)]
+        tube(mb, lever, 2 if lod == 0 else 1, lambda t: ell_sec(8, lerp(0.009, 0.005, t), lerp(0.003, 0.0024, t), 2.6), Z, 'chrome' if classic else 'components')
         if lod == 0 and not classic:
             pad = [V(0.197 * s, 0.858, 0.643), V(0.196 * s, 0.83, 0.643), V(0.197 * s, 0.808, 0.634)]
             tube(mb, pad, 1, lambda t: ell_sec(6, 0.0045, 0.0022, 2.4), Z, 'chrome')
