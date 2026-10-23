@@ -266,8 +266,11 @@ async function main(): Promise<void> {
 function buildTour(tour: OpenTour, g: RoadGraph, net: RoadNet, edgeIndex: Map<number, number>, pois: Array<{ kind: string; name: string; x: number; z: number }>): RouteData {
   // routes revêtues, pistes cyclables et voies de service (anneau de Longchamp, bois de Vincennes :
   // fermés aux voitures) ; les voies de service sont un peu pénalisées (parkings, cours privées)
-  const usable = (e: Edge) => edgeIndex.has(e.id) && e.road.paved && /^(primary|secondary|tertiary|unclassified|residential|living_street|service|cycleway)(_link)?$/.test(e.road.kind);
-  const cost = (e: Edge) => (!usable(e) ? Infinity : /^(primary|secondary)/.test(e.road.kind) ? e.len * 1.6 : e.road.kind === 'service' ? e.len * 1.4 : e.len);
+  // pistes pavées (secteurs de Paris–Roubaix : la Trouée d'Arenberg est un « track » en pavés) comprises
+  const cobbledTrack = (e: Edge) => e.road.kind === 'track' && /^(sett|cobblestone)$/.test(e.road.surface);
+  const anyTrack = (e: Edge) => !!tour.allowTracks && e.road.kind === 'track' && edgeIndex.has(e.id);
+  const usable = (e: Edge) => (edgeIndex.has(e.id) && e.road.paved && (/^(primary|secondary|tertiary|unclassified|residential|living_street|service|cycleway)(_link)?$/.test(e.road.kind) || cobbledTrack(e))) || anyTrack(e);
+  const cost = (e: Edge) => (!usable(e) ? Infinity : e.road.kind === 'track' && !cobbledTrack(e) ? e.len * 3 : /^(primary|secondary)/.test(e.road.kind) ? e.len * 1.6 : e.road.kind === 'service' ? e.len * 1.4 : e.len);
   const place = (p: LonLat | string): [number, number] => {
     if (typeof p !== 'string') return toWorld(p);
     const poi = pois.find((q) => q.name === p && /^(village|town|hamlet|isolated_dwelling|locality)$/.test(q.kind));

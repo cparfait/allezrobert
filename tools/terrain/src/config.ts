@@ -96,8 +96,28 @@ interface WorldBase {
   sea?: boolean;
 }
 
+/**
+ * Côte célèbre ajoutée à un monde Garmin (défi KOM) : itinéraire montée puis redescente par la même
+ * route, départ lancé `start` quelques centaines de mètres avant le pied, une seule montée nommée.
+ */
+export interface FamousClimb {
+  routeId: string;
+  routeName: string;
+  routeNameEn: string;
+  /** Nom de la montée chronométrée. */
+  climbName: string;
+  start: LonLat;
+  foot: LonLat;
+  via?: LonLat[];
+  summit: LonLat;
+  /** Sources des chiffres de référence. */
+  reference?: string;
+}
+
 export interface GarminWorld extends WorldBase {
   kind: 'garmin';
+  /** Côtes célèbres hors des sorties Garmin, ajoutées comme itinéraires (défi KOM). */
+  climbs?: FamousClimb[];
 }
 
 export interface ClimbWorld extends WorldBase {
@@ -125,6 +145,8 @@ export interface OpenTour {
   koms?: Array<{ id: string; name: string; from: LonLat; to: LonLat }>;
   /** Noms des côtes détectées, dans l'ordre du parcours (sinon : lieu le plus proche du sommet). */
   climbNames?: string[];
+  /** Chemins (« track ») permis au tour, pénalisés : accès aux secteurs pavés par des pistes. */
+  allowTracks?: boolean;
 }
 
 /**
@@ -167,6 +189,51 @@ export const WORLDS: Record<string, WorldConfig> = {
     originL93: { x: 629000, y: 6846000 },
     // ≈ lon 1,78–2,20, lat 48,62–48,75
     corridorTiles: { txMin: -20, txMax: 12, tzMin: -6, tzMax: 10 },
+    // pieds et sommets relevés sur les routes OSM et le relief IGN, chiffres recoupés (climbfinder.com)
+    climbs: [
+      {
+        routeId: 'cote-de-la-madeleine',
+        routeName: 'La côte de la Madeleine',
+        routeNameEn: 'The Madeleine climb',
+        climbName: 'Côte de la Madeleine',
+        start: { lon: 2.04569, lat: 48.70664 },
+        foot: { lon: 2.04888, lat: 48.70744 },
+        summit: { lon: 2.04299, lat: 48.71154 },
+        reference: 'chemin de la Butte des Vignes, 0,7 km à 10 %, sommet 158 m (climbfinder)',
+      },
+      {
+        routeId: 'cote-de-chateaufort',
+        routeName: 'La côte de Châteaufort',
+        routeNameEn: 'The Châteaufort climb',
+        climbName: 'Côte de Châteaufort',
+        start: { lon: 2.09429, lat: 48.73266 },
+        foot: { lon: 2.09263, lat: 48.73026 },
+        summit: { lon: 2.09331, lat: 48.7245 },
+        reference: 'route de Versailles (D938), 0,9 km à 5,3 %, sommet 157 m (climbfinder)',
+      },
+      {
+        routeId: 'cote-des-vaux-de-cernay',
+        routeName: 'La côte des Vaux de Cernay',
+        routeNameEn: 'The Vaux de Cernay climb',
+        climbName: 'Côte des Vaux de Cernay',
+        start: { lon: 1.966, lat: 48.67897 },
+        foot: { lon: 1.96241, lat: 48.67526 },
+        via: [{ lon: 1.96025, lat: 48.67197 }],
+        summit: { lon: 1.95661, lat: 48.66948 },
+        reference: 'D91 des cascades des Vaux de Cernay vers Rambouillet, 122 → 170 m (relief IGN)',
+      },
+      {
+        routeId: 'cote-de-meridon',
+        routeName: 'La côte de Méridon',
+        routeNameEn: 'The Méridon climb',
+        climbName: 'Côte de Méridon',
+        start: { lon: 2.03723, lat: 48.70727 },
+        foot: { lon: 2.03613, lat: 48.70341 },
+        via: [{ lon: 2.03182, lat: 48.69806 }],
+        summit: { lon: 2.03672, lat: 48.69421 },
+        reference: 'route de Choisel puis route de Boullay-les-Troux, 1,4 km à 5 %, sommet 158 m (climbfinder)',
+      },
+    ],
   },
   'alpe-dhuez': {
     kind: 'climb',
@@ -372,6 +439,14 @@ export const WORLDS: Record<string, WorldConfig> = {
         start: 'Étretat',
         via: [{ lon: 0.24984, lat: 49.71681 }, { lon: 0.2757, lat: 49.71888 }, { lon: 0.28378, lat: 49.71601 }, { lon: 0.28252, lat: 49.69923 }, { lon: 0.26125, lat: 49.70086 }, { lon: 0.25045, lat: 49.68596 }, { lon: 0.24524, lat: 49.67664 }, { lon: 0.23391, lat: 49.68063 }, { lon: 0.21957, lat: 49.67958 }, { lon: 0.20487, lat: 49.68802 }],
       },
+      {
+        routeId: 'etretat-fecamp',
+        routeName: "D'Étretat vers Fécamp",
+        routeNameEn: "From Étretat towards Fécamp",
+        // parcours public Garmin Connect (#511947562) : points de passage tous les ~2,5 km, route reconstruite sur OSM
+        start: { lon: 0.20561, lat: 49.70704 },
+        via: [{ lon: 0.23535, lat: 49.71251 }, { lon: 0.2667, lat: 49.71865 }, { lon: 0.28593, lat: 49.72985 }, { lon: 0.29938, lat: 49.73579 }, { lon: 0.30994, lat: 49.73529 }],
+      },
     ],
   },
   esterel: {
@@ -425,6 +500,22 @@ export const WORLDS: Record<string, WorldConfig> = {
         start: 'Wissant',
         via: [{ lon: 1.71192, lat: 50.91814 }, 'Hervelinghen', 'Audembert', 'Audinghen', 'Le Gris-Nez', 'Tardinghen'],
       },
+      {
+        routeId: 'terre-des-2-caps',
+        routeName: "La terre des deux caps",
+        routeNameEn: "Land of the two capes",
+        // parcours public Garmin Connect (#522486107) : points de passage tous les ~2,5 km, route reconstruite sur OSM
+        start: { lon: 1.66187, lat: 50.88545 },
+        via: [{ lon: 1.69361, lat: 50.88931 }, { lon: 1.72442, lat: 50.88121 }, { lon: 1.73495, lat: 50.89614 }, { lon: 1.7288, lat: 50.91457 }, { lon: 1.75105, lat: 50.91313 }],
+      },
+      {
+        routeId: 'wissant-les-2-caps',
+        routeName: "Wissant et les deux caps",
+        routeNameEn: "Wissant and the two capes",
+        // parcours public Garmin Connect (#522485964) : points de passage tous les ~2,5 km, route reconstruite sur OSM
+        start: { lon: 1.6635, lat: 50.88669 },
+        via: [{ lon: 1.66987, lat: 50.86696 }, { lon: 1.63996, lat: 50.86129 }, { lon: 1.61933, lat: 50.85201 }, { lon: 1.59386, lat: 50.86367 }, { lon: 1.59037, lat: 50.86451 }, { lon: 1.60614, lat: 50.8469 }, { lon: 1.59488, lat: 50.83565 }],
+      },
     ],
   },
   re: {
@@ -450,6 +541,243 @@ export const WORLDS: Record<string, WorldConfig> = {
         // aller-retour (La Couarde, plus au sud, faisait 3 km d'aller-retour sur la même route)
         start: 'Ars-en-Ré',
         via: [{ lon: -1.54193, lat: 46.22857 }, { lon: -1.55119, lat: 46.23762 }, 'Les Portes-en-Ré'],
+      },
+      {
+        routeId: 'tour-d-ars-en-re',
+        routeName: "Le tour d'Ars-en-Ré",
+        routeNameEn: "Ars-en-Ré loop",
+        // parcours public Garmin Connect (#510402984) : points de passage tous les ~2,5 km, route reconstruite sur OSM
+        start: { lon: -1.52937, lat: 46.21108 },
+        via: [{ lon: -1.50665, lat: 46.20702 }, { lon: -1.47853, lat: 46.20388 }, { lon: -1.45441, lat: 46.20975 }, { lon: -1.43918, lat: 46.21507 }, { lon: -1.45655, lat: 46.2199 }, { lon: -1.47161, lat: 46.20575 }, { lon: -1.49807, lat: 46.20397 }, { lon: -1.52081, lat: 46.21068 }],
+      },
+      {
+        routeId: 'ile-de-re-grande-boucle',
+        routeName: "La grande boucle de l'île de Ré",
+        routeNameEn: "Île de Ré grand loop",
+        // parcours public Garmin Connect (#523954254) : points de passage tous les ~2,5 km, route reconstruite sur OSM
+        start: { lon: -1.43998, lat: 46.22103 },
+        via: [{ lon: -1.41807, lat: 46.22635 }, { lon: -1.43722, lat: 46.21704 }, { lon: -1.43209, lat: 46.20493 }, { lon: -1.43982, lat: 46.19609 }, { lon: -1.46687, lat: 46.20394 }, { lon: -1.4926, lat: 46.19799 }, { lon: -1.51674, lat: 46.20492 }, { lon: -1.53161, lat: 46.22171 }, { lon: -1.54983, lat: 46.23158 }, { lon: -1.54877, lat: 46.24243 }, { lon: -1.51867, lat: 46.24708 }, { lon: -1.49182, lat: 46.25286 }, { lon: -1.49925, lat: 46.2456 }, { lon: -1.51839, lat: 46.23298 }, { lon: -1.52469, lat: 46.22273 }, { lon: -1.50547, lat: 46.20645 }, { lon: -1.47707, lat: 46.2043 }, { lon: -1.4608, lat: 46.21541 }],
+      },
+      {
+        routeId: 'autour-du-bois-plage-en-re',
+        routeName: "Autour du Bois-Plage-en-Ré",
+        routeNameEn: "Around Le Bois-Plage-en-Ré",
+        // parcours public Garmin Connect (#510710761) : points de passage tous les ~2,5 km, route reconstruite sur OSM
+        start: { lon: -1.41093, lat: 46.18946 },
+        via: [{ lon: -1.43488, lat: 46.20282 }, { lon: -1.46455, lat: 46.21068 }, { lon: -1.48828, lat: 46.2011 }, { lon: -1.51493, lat: 46.20921 }, { lon: -1.51828, lat: 46.21609 }, { lon: -1.5339, lat: 46.23081 }, { lon: -1.55154, lat: 46.24286 }, { lon: -1.53583, lat: 46.24313 }, { lon: -1.50513, lat: 46.24764 }, { lon: -1.48455, lat: 46.23897 }, { lon: -1.48646, lat: 46.24635 }, { lon: -1.51787, lat: 46.24733 }, { lon: -1.54413, lat: 46.23899 }, { lon: -1.53052, lat: 46.22586 }, { lon: -1.51165, lat: 46.20943 }, { lon: -1.4841, lat: 46.20212 }, { lon: -1.46019, lat: 46.2112 }, { lon: -1.43924, lat: 46.21325 }, { lon: -1.44086, lat: 46.21901 }, { lon: -1.44035, lat: 46.205 }, { lon: -1.41706, lat: 46.19403 }, { lon: -1.41121, lat: 46.19399 }],
+      },
+    ],
+  },
+  roubaix: {
+    kind: 'open',
+    id: 'roubaix',
+    name: "Paris–Roubaix — Trouée d'Arenberg",
+    region: 'Nord · Pévèle',
+    // secteurs pavés de Paris–Roubaix dans l'ordre de la course : Haveluy, Arenberg, Hélesmes, Wandignies, Brillon, Sars, Orchies
+    originL93: { x: 727000, y: 7034000 },
+    corridorTiles: { txMin: -7, txMax: 5, tzMin: -7, tzMax: 7 },
+    start: { lon: 3.3926, lat: 50.3747 },
+    orthoPx: 1024,
+    enrich: { radiusM: 50, lidarVegetation: true, bdtopoBuildings: true },
+    horizon: { halfSizeM: 20000, resM: 100 },
+    tours: [
+      {
+        routeId: 'secteurs-paves',
+        routeName: "Les secteurs pavés d'Arenberg à Orchies",
+        routeNameEn: 'The cobbled sectors from Arenberg to Orchies',
+        // la Trouée d'Arenberg se rejoint par des pistes forestières
+        allowTracks: true,
+        // bouts de chaque secteur dans le sens de la course (pavés : surface=sett, la Trouée est une piste)
+        start: { lon: 3.3926, lat: 50.3747 },
+        via: [{ lon: 3.35826, lat: 50.35711 }, { lon: 3.37274, lat: 50.35509 }, { lon: 3.42386, lat: 50.38842 }, { lon: 3.40621, lat: 50.40541 }, { lon: 3.39573, lat: 50.35316 }, { lon: 3.37498, lat: 50.3547 }, { lon: 3.31675, lat: 50.36883 }, { lon: 3.31681, lat: 50.38769 }, { lon: 3.31564, lat: 50.39356 }, { lon: 3.32054, lat: 50.42112 }, { lon: 3.32505, lat: 50.42956 }, { lon: 3.33538, lat: 50.43885 }, { lon: 3.33858, lat: 50.43509 }, { lon: 3.3521, lat: 50.4347 }, { lon: 3.35962, lat: 50.43811 }, { lon: 3.3169, lat: 50.4335 }, { lon: 3.31675, lat: 50.44521 }, { lon: 3.3214, lat: 50.44634 }],
+      },
+    ],
+  },
+  montmartre: {
+    kind: 'open',
+    id: 'montmartre',
+    name: 'Paris — Montmartre',
+    region: 'Paris · Butte Montmartre',
+    // la butte de la course olympique 2024 : rue Lepic, rue Norvins, rue Caulaincourt
+    originL93: { x: 652000, y: 6866000 },
+    corridorTiles: { txMin: -3, txMax: 1, tzMin: -2, tzMax: 2 },
+    start: { lon: 2.3324, lat: 48.8838 },
+    orthoPx: 1024,
+    enrich: { radiusM: 50, lidarVegetation: true, bdtopoBuildings: true },
+    horizon: { halfSizeM: 20000, resM: 100 },
+    tours: [
+      {
+        routeId: 'butte-montmartre',
+        routeName: 'La butte Montmartre par la rue Lepic',
+        routeNameEn: 'Montmartre hill via rue Lepic',
+        climbNames: ['Rue Lepic'],
+        start: { lon: 2.3324, lat: 48.8838 },
+        via: [{ lon: 2.336, lat: 48.887 }, { lon: 2.3405, lat: 48.8865 }, { lon: 2.3427, lat: 48.8895 }, { lon: 2.337, lat: 48.8895 }, { lon: 2.3275, lat: 48.8834 }],
+      },
+    ],
+  },
+  tourmalet: {
+    kind: 'open',
+    id: 'tourmalet',
+    name: 'Col du Tourmalet',
+    region: 'Hautes-Pyrénées · Bigorre',
+    // les deux versants : Luz-Saint-Sauveur et Barèges à l'ouest, La Mongie et Sainte-Marie-de-Campan à l'est
+    originL93: { x: 464000, y: 6208000 },
+    corridorTiles: { txMin: -12, txMax: 10, tzMin: -8, tzMax: 8 },
+    start: { lon: -0.0035, lat: 42.8726 },
+    orthoPx: 1024,
+    enrich: { radiusM: 50, lidarVegetation: true, bdtopoBuildings: true },
+    horizon: { halfSizeM: 45000, resM: 100 },
+    tours: [
+      {
+        routeId: 'tourmalet-luz',
+        routeName: 'Le Tourmalet par Luz-Saint-Sauveur',
+        routeNameEn: 'Tourmalet from Luz-Saint-Sauveur',
+        // montée et descente par la même route (col sans autre issue vers l'ouest)
+        climbNames: ['Col du Tourmalet'],
+        start: 'Luz-Saint-Sauveur',
+        via: [{ lon: 0.14533, lat: 42.90886 }],
+      },
+      {
+        routeId: 'tourmalet-sainte-marie',
+        routeName: 'Le Tourmalet par Sainte-Marie-de-Campan',
+        routeNameEn: 'Tourmalet from Sainte-Marie-de-Campan',
+        climbNames: ['Col du Tourmalet'],
+        start: { lon: 0.2256, lat: 42.9838 },
+        via: [{ lon: 0.14533, lat: 42.90886 }],
+      },
+    ],
+  },
+  basque: {
+    kind: 'open',
+    id: 'basque',
+    name: 'Pays basque — Corniche',
+    region: 'Pyrénées-Atlantiques · Côte basque',
+    // corniche d'Urrugne (D912) de Ciboure vers Hendaye, Ascain et la Rhune ; emprise à l'est de la Bidassoa (pas de relief IGN en Espagne)
+    originL93: { x: 322000, y: 6266000 },
+    corridorTiles: { txMin: -8, txMax: 7, tzMin: -5, tzMax: 5 },
+    start: { lon: -1.6634, lat: 43.3887 },
+    orthoPx: 1024,
+    enrich: { radiusM: 50, lidarVegetation: true, bdtopoBuildings: true },
+    horizon: { halfSizeM: 30000, resM: 100 },
+    sea: true,
+    tours: [
+      {
+        routeId: 'corniche-basque',
+        routeName: 'La corniche basque par Ciboure, Urrugne et Ascain',
+        routeNameEn: 'Basque corniche via Ciboure, Urrugne and Ascain',
+        start: 'Saint-Jean-de-Luz',
+        via: ['Ciboure', { lon: -1.705, lat: 43.385 }, { lon: -1.735, lat: 43.378 }, 'Urrugne', { lon: -1.6206, lat: 43.3467 }],
+      },
+    ],
+  },
+  annecy: {
+    kind: 'open',
+    id: 'annecy',
+    name: "Lac d'Annecy",
+    region: 'Haute-Savoie · Bornes-Aravis',
+    // tour du lac par Sevrier, Duingt, Doussard, Talloires, Menthon-Saint-Bernard et Veyrier-du-Lac
+    originL93: { x: 948000, y: 6532000 },
+    corridorTiles: { txMin: -8, txMax: 6, tzMin: -9, tzMax: 8 },
+    start: { lon: 6.1294, lat: 45.8992 },
+    orthoPx: 1024,
+    enrich: { radiusM: 50, lidarVegetation: true, bdtopoBuildings: true },
+    horizon: { halfSizeM: 45000, resM: 100 },
+    tours: [
+      {
+        routeId: 'tour-du-lac-annecy',
+        routeName: "Le tour du lac d'Annecy",
+        routeNameEn: 'Lake Annecy loop',
+        start: 'Annecy',
+        via: ['Sevrier', 'Duingt', 'Doussard', 'Talloires', 'Menthon-Saint-Bernard', 'Veyrier-du-Lac'],
+      },
+    ],
+  },
+  fontainebleau: {
+    kind: 'open',
+    id: 'fontainebleau',
+    name: 'Forêt de Fontainebleau',
+    region: 'Seine-et-Marne · Gâtinais',
+    // routes forestières, Barbizon et Arbonne-la-Forêt, la Seine à Samois
+    originL93: { x: 675000, y: 6813000 },
+    corridorTiles: { txMin: -9, txMax: 7, tzMin: -6, tzMax: 6 },
+    start: { lon: 2.7003, lat: 48.4044 },
+    orthoPx: 1024,
+    enrich: { radiusM: 50, lidarVegetation: true, bdtopoBuildings: true },
+    horizon: { halfSizeM: 20000, resM: 100 },
+    tours: [
+      {
+        routeId: 'foret-de-fontainebleau',
+        routeName: 'La forêt de Fontainebleau par Barbizon et Arbonne',
+        routeNameEn: 'Fontainebleau forest via Barbizon and Arbonne',
+        start: 'Fontainebleau',
+        via: ['Barbizon', 'Arbonne-la-Forêt', 'Samois-sur-Seine'],
+      },
+    ],
+  },
+  'saint-cloud': {
+    kind: 'open',
+    id: 'saint-cloud',
+    name: 'Saint-Cloud — Marly',
+    region: 'Hauts-de-Seine · Yvelines',
+    // parc de Saint-Cloud, Vaucresson, forêt de Marly, Bougival et la côte de la Jonchère ; voisine de Longchamp et de Meudon
+    originL93: { x: 638000, y: 6862000 },
+    corridorTiles: { txMin: -6, txMax: 5, tzMin: -4, tzMax: 3 },
+    start: { lon: 2.2194, lat: 48.8443 },
+    orthoPx: 1024,
+    enrich: { radiusM: 50, lidarVegetation: true, bdtopoBuildings: true },
+    horizon: { halfSizeM: 20000, resM: 100 },
+    tours: [
+      {
+        routeId: 'saint-cloud-marly',
+        routeName: 'De Saint-Cloud à Marly par la côte de la Jonchère',
+        routeNameEn: 'Saint-Cloud to Marly via the Jonchère climb',
+        start: 'Saint-Cloud',
+        via: ['Garches', 'Vaucresson', 'Marly-le-Roi', 'Louveciennes', 'Bougival', 'Rueil-Malmaison'],
+      },
+    ],
+  },
+  'cote-de-nuits': {
+    kind: 'open',
+    id: 'cote-de-nuits',
+    name: 'Côte de Nuits — Grands crus',
+    region: "Côte-d'Or · Bourgogne",
+    // route des Grands Crus (Gevrey-Chambertin, Vougeot, Vosne-Romanée, Nuits-Saint-Georges), retour par les Hautes-Côtes
+    originL93: { x: 848000, y: 6678000 },
+    corridorTiles: { txMin: -6, txMax: 5, tzMin: -7, tzMax: 7 },
+    start: { lon: 4.9681, lat: 47.2264 },
+    orthoPx: 1024,
+    enrich: { radiusM: 50, lidarVegetation: true, bdtopoBuildings: true },
+    horizon: { halfSizeM: 30000, resM: 100 },
+    tours: [
+      {
+        routeId: 'route-des-grands-crus',
+        routeName: 'La route des Grands Crus et les Hautes-Côtes',
+        routeNameEn: 'The Grands Crus road and the Hautes-Côtes',
+        start: 'Gevrey-Chambertin',
+        via: ['Morey-Saint-Denis', 'Chambolle-Musigny', 'Vougeot', 'Vosne-Romanée', 'Nuits-Saint-Georges', 'Villars-Fontaine', 'Reulle-Vergy', 'Curley', 'Chambœuf'],
+      },
+    ],
+  },
+  alsace: {
+    kind: 'open',
+    id: 'alsace',
+    name: "Route des vins d'Alsace",
+    region: 'Haut-Rhin · Vignoble',
+    // villages du vignoble entre Ribeauvillé et Kaysersberg (Riquewihr, Hunawihr, Zellenberg, Sigolsheim)
+    originL93: { x: 1020000, y: 6794000 },
+    corridorTiles: { txMin: -6, txMax: 4, tzMin: -5, tzMax: 5 },
+    start: { lon: 7.2981, lat: 48.1665 },
+    orthoPx: 1024,
+    enrich: { radiusM: 50, lidarVegetation: true, bdtopoBuildings: true },
+    horizon: { halfSizeM: 45000, resM: 100 },
+    tours: [
+      {
+        routeId: 'route-des-vins',
+        routeName: 'La route des vins de Riquewihr à Kaysersberg',
+        routeNameEn: 'The wine road from Riquewihr to Kaysersberg',
+        start: 'Riquewihr',
+        via: ['Hunawihr', 'Ribeauvillé', 'Zellenberg', 'Beblenheim', 'Mittelwihr', 'Bennwihr', 'Sigolsheim', 'Kientzheim', 'Kaysersberg'],
       },
     ],
   },
@@ -530,6 +858,22 @@ export const WORLDS: Record<string, WorldConfig> = {
         routeNameEn: 'Chaudefour valley via Murol',
         start: { lon: 2.92806, lat: 45.57444 },
         via: [{ lon: 2.8701, lat: 45.55575 }, { lon: 2.91587, lat: 45.5404 }],
+      },
+      {
+        routeId: 'autour-du-mont-dore',
+        routeName: "Autour du Mont-Dore",
+        routeNameEn: "Around Le Mont-Dore",
+        // parcours public Garmin Connect (#524424271) : points de passage tous les ~2,5 km, route reconstruite sur OSM
+        start: { lon: 2.80926, lat: 45.57279 },
+        via: [{ lon: 2.81218, lat: 45.58 }, { lon: 2.82176, lat: 45.56912 }, { lon: 2.84473, lat: 45.55856 }, { lon: 2.86376, lat: 45.56077 }, { lon: 2.86685, lat: 45.55155 }, { lon: 2.86591, lat: 45.54256 }, { lon: 2.89299, lat: 45.54771 }, { lon: 2.91688, lat: 45.53945 }, { lon: 2.93064, lat: 45.52836 }, { lon: 2.92996, lat: 45.51378 }, { lon: 2.94225, lat: 45.52129 }, { lon: 2.94494, lat: 45.54054 }, { lon: 2.94275, lat: 45.55262 }, { lon: 2.94597, lat: 45.56989 }, { lon: 2.92138, lat: 45.57326 }, { lon: 2.89874, lat: 45.57185 }, { lon: 2.88372, lat: 45.57721 }, { lon: 2.88924, lat: 45.5866 }, { lon: 2.86559, lat: 45.59043 }],
+      },
+      {
+        routeId: 'autour-de-chambon-sur-lac',
+        routeName: "Autour de Chambon-sur-Lac",
+        routeNameEn: "Around Chambon-sur-Lac",
+        // parcours public Garmin Connect (#525243050) : points de passage tous les ~2,5 km, route reconstruite sur OSM
+        start: { lon: 2.82694, lat: 45.59035 },
+        via: [{ lon: 2.80513, lat: 45.58688 }, { lon: 2.81322, lat: 45.56788 }, { lon: 2.81745, lat: 45.57563 }, { lon: 2.82731, lat: 45.56452 }, { lon: 2.85067, lat: 45.5581 }, { lon: 2.8672, lat: 45.56236 }, { lon: 2.88894, lat: 45.56835 }, { lon: 2.8945, lat: 45.57401 }, { lon: 2.92137, lat: 45.57327 }, { lon: 2.92465, lat: 45.57365 }],
       },
     ],
   },
@@ -621,6 +965,14 @@ export const WORLDS: Record<string, WorldConfig> = {
         routeNameEn: 'Chauriat – Pérignat via Saint-Bonnet-lès-Allier',
         start: { lon: 3.27971, lat: 45.7519 },
         via: [{ lon: 3.25594, lat: 45.74144 }, { lon: 3.23069, lat: 45.72951 }],
+      },
+      {
+        routeId: 'perignat-neuville-billom',
+        routeName: "Pérignat, Neuville et Billom",
+        routeNameEn: "Pérignat, Neuville and Billom",
+        // parcours public Garmin Connect (#526086046) : points de passage tous les ~2,5 km, route reconstruite sur OSM
+        start: { lon: 3.37272, lat: 45.73047 },
+        via: [{ lon: 3.34849, lat: 45.72344 }, { lon: 3.31933, lat: 45.72751 }, { lon: 3.30122, lat: 45.74147 }, { lon: 3.28254, lat: 45.74985 }, { lon: 3.27185, lat: 45.73545 }, { lon: 3.27077, lat: 45.72193 }, { lon: 3.24291, lat: 45.72785 }, { lon: 3.23207, lat: 45.72886 }],
       },
     ],
   },  comte: {

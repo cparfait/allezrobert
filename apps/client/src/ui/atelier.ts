@@ -1,6 +1,7 @@
 import * as THREE from 'three/webgpu';
-import { color, emissive, float, fract, mrt, output, pass, positionWorld, step, uniform } from 'three/tsl';
+import { color, emissive, float, fract, mrt, normalView, output, packNormalToRGB, pass, positionWorld, sample, step, uniform, unpackRGBToNormal, vec4 } from 'three/tsl';
 import { bloom } from 'three/addons/tsl/display/BloomNode.js';
+import { ao } from 'three/addons/tsl/display/GTAONode.js';
 import type { AvatarLook, TuneSlot } from '@allezrobert/shared';
 import { createAvatar, type RiderAvatarLike } from '../rider/gltfAvatar.ts';
 import { onBikeFamilyLoaded } from '../rider/bikes.ts';
@@ -25,6 +26,8 @@ export interface AtelierState {
   yaw: number;
   /** Matériaux à faire briller brièvement (pièce qui vient d'être changée). */
   pulse?: readonly string[];
+  /** Cadrage imposé (bancs d'essai) : remplace celui de `focus`, sans rotation ni recul. */
+  view?: Shot;
 }
 
 /** Matériaux du vélo concernés par chaque emplacement (surbrillance). */
@@ -56,7 +59,7 @@ export const SLOT_PARTS: Record<TuneSlot, readonly string[]> = {
   chain: ['chain'],
 };
 
-type Shot = { cam: [number, number, number]; look: [number, number, number]; fov: number };
+export type Shot = { cam: [number, number, number]; look: [number, number, number]; fov: number };
 /** Cadrages (repère du vélo : +z avant, +x à gauche, côté transmission en −x). */
 const SHOTS: Record<'overview' | 'wheel' | 'cockpit' | 'drive' | 'rotor' | 'saddle' | 'frame' | 'bottles', Shot> = {
   overview: { cam: [2.7, 1.4, 2.15], look: [0, 0.66, 0], fov: 36 },
@@ -158,29 +161,34 @@ function posterTexture(): THREE.CanvasTexture {
   return tex;
 }
 
-/** Environnement des reflets (chrome, nacre) : murs chauds, fenêtre claire, néons du plafond. */
-function envTexture(): THREE.CanvasTexture {
-  const cv = document.createElement('canvas');
-  cv.width = 512;
-  cv.height = 256;
-  const g = cv.getContext('2d') as CanvasRenderingContext2D;
-  const grad = g.createLinearGradient(0, 0, 0, 256);
-  grad.addColorStop(0, '#5a4a3a');
-  grad.addColorStop(0.45, '#b08a62');
-  grad.addColorStop(0.55, '#6b5440');
-  grad.addColorStop(1, '#2a2420');
-  g.fillStyle = grad;
-  g.fillRect(0, 0, 512, 256);
-  g.fillStyle = '#fff6e6';
-  g.fillRect(60, 70, 90, 70);
-  g.fillStyle = '#ffe2b8';
-  for (const x of [200, 330, 440]) g.fillRect(x, 8, 40, 10);
-  g.fillStyle = '#cfe2ff';
-  g.fillRect(300, 80, 120, 60);
-  const tex = new THREE.CanvasTexture(cv);
-  tex.mapping = THREE.EquirectangularReflectionMapping;
-  tex.colorSpace = THREE.SRGBColorSpace;
-  return tex;
+/**
+ * Environnement de studio (reflets et lumière ambiante, préfiltré par PMREM) : pièce chaude et
+ * sombre, grande boîte à lumière avant droite (lumière principale), panneau au plafond, deux bandes
+ * de contre-jour derrière le coureur qui dessinent sa silhouette, fenêtre froide à droite.
+ */
+function studioEnvironment(renderer: THREE.WebGPURenderer): THREE.Texture {
+  const env = new THREE.Scene();
+  const room = new THREE.Mesh(new THREE.BoxGeometry(10, 6, 10), new THREE.MeshBasicNodeMaterial({ color: '#2e2620', side: THREE.BackSide }));
+  room.position.y = 2.6;
+  env.add(room);
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(10, 10), new THREE.MeshBasicNodeMaterial({ color: '#4a3c30' }));
+  floor.rotation.x = -Math.PI / 2;
+  env.add(floor);
+  const panel = (w: number, h: number, hex: string, power: number, pos: [number, number, number]) => {
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicNodeMaterial({ color: new THREE.Color(hex).multiplyScalar(power), side: THREE.DoubleSide }));
+    m.position.set(...pos);
+    m.lookAt(0, 1.1, 0);
+    env.add(m);
+  };
+  panel(2.4, 1.8, '#fff3e4', 7, [-2.4, 2.9, 2.4]); // boîte à lumière principale
+  panel(3, 3, '#ffeedd', 2.2, [0, 5.4, 0.3]); // plafond
+  panel(0.6, 3.2, '#e8f0ff', 9, [-2.4, 2.2, -3.2]); // contre-jour gauche
+  panel(0.6, 3.2, '#e8f0ff', 7, [2.4, 2.2, -3.2]); // contre-jour droit
+  panel(1.6, 1.2, '#cfe0ff', 2.5, [4.8, 2.0, -0.5]); // fenêtre
+  const pm = new THREE.PMREMGenerator(renderer);
+  const rt = pm.fromScene(env, 0.02);
+  pm.dispose();
+  return rt.texture;
 }
 
 /** Roue suspendue au râtelier : pneu, jante, rayons, moyeu. */
@@ -405,34 +413,57 @@ export class AtelierHost {
   private build(): void {
     if (this.pipeline) return;
     this.scene.background = new THREE.Color('#2a2420');
-    this.scene.environment = envTexture();
-    this.scene.environmentIntensity = 0.55;
+    this.scene.environment = studioEnvironment(this.engine.renderer);
+    this.scene.environmentIntensity = 0.4;
     this.scene.add(buildRoom());
-    this.scene.add(new THREE.HemisphereLight(0xffe7c7, 0x3a3027, 0.9));
-    const lamp = new THREE.SpotLight(0xffd6a0, 38, 9, 0.85, 0.55, 1.6);
+    this.scene.add(new THREE.HemisphereLight(0xffe7c7, 0x3a3027, 0.2));
+    // Éclairage de studio : lumière principale douce de côté (à droite du coureur, à l'opposé des
+    // caméras de l'atelier : le volume se lit), plafonnier (ombre au sol), contre-jours froids qui
+    // détachent la silhouette du fond, débouchage léger côté caméra.
+    const key = new THREE.SpotLight(0xfff1e2, 80, 12, 0.5, 1, 1.4);
+    key.position.set(-2.4, 3.0, 2.2);
+    key.target.position.set(0, 0.95, 0.1);
+    key.castShadow = true;
+    key.shadow.mapSize.set(2048, 2048);
+    key.shadow.bias = -0.0004;
+    key.shadow.radius = 6;
+    this.scene.add(key, key.target);
+    const lamp = new THREE.SpotLight(0xffd6a0, 10, 9, 0.85, 0.7, 1.6);
     lamp.position.set(0, 2.45, 0);
     lamp.target.position.set(0, 0, 0);
     lamp.castShadow = true;
     lamp.shadow.mapSize.set(2048, 2048);
     lamp.shadow.bias = -0.0004;
+    lamp.shadow.radius = 8;
     this.scene.add(lamp, lamp.target);
-    const benchLight = new THREE.PointLight(0xffc58a, 6, 4, 1.5);
+    for (const [x, power] of [[-1.6, 4], [1.6, 2.8]] as const) {
+      const rim = new THREE.DirectionalLight(0xe6eeff, power);
+      rim.position.set(x, 2.4, -3.0);
+      rim.target.position.set(0, 1.0, 0);
+      this.scene.add(rim, rim.target);
+    }
+    const benchLight = new THREE.PointLight(0xffc58a, 4, 4, 1.5);
     benchLight.position.set(-2.4, 1.9, -0.9);
     this.scene.add(benchLight);
-    const window_ = new THREE.DirectionalLight(0xdfeaff, 0.9);
-    window_.position.set(4, 2.5, -0.4);
-    this.scene.add(window_);
-    const fill = new THREE.PointLight(0xfff0dc, 4, 6, 1.2);
-    fill.position.set(2.2, 1.8, 2.2);
+    const fill = new THREE.PointLight(0xfff0dc, 2, 6, 1.2);
+    fill.position.set(2.4, 1.4, 2.4);
     this.scene.add(fill);
     this.stand = buildStand();
     this.scene.add(this.stand);
     this.pipeline = new THREE.RenderPipeline(this.engine.renderer);
     const scenePass = pass(this.scene, this.camera);
-    scenePass.setMRT(mrt({ output, emissive }));
+    scenePass.setMRT(mrt({ output, emissive, normal: packNormalToRGB(normalView) }));
+    scenePass.getTexture('normal').type = THREE.UnsignedByteType;
     const col = scenePass.getTextureNode('output');
+    // Occlusion ambiante (plis du tissu, aisselles, contact avec le sol), comme en jeu.
+    const normalTex = scenePass.getTextureNode('normal');
+    const aoPass = ao(scenePass.getTextureNode('depth'), sample((uvNode) => unpackRGBToNormal(normalTex.sample(uvNode))), this.camera);
+    aoPass.radius.value = 0.35;
+    aoPass.distanceExponent.value = 1;
+    aoPass.thickness.value = 1;
+    const occ = aoPass.getTextureNode().r.mul(0.7).add(0.3);
     const glow = bloom(scenePass.getTextureNode('emissive'), 0.55, 0.35, 0);
-    this.pipeline.outputNode = col.add(glow);
+    this.pipeline.outputNode = vec4(col.rgb.mul(occ), col.a).add(glow);
   }
 
   /** Nouvel état demandé par le menu (null : l'atelier se ferme). */
@@ -469,10 +500,24 @@ export class AtelierHost {
     this.frames = Math.max(this.frames, 3);
   }
 
-  /** Cadrage de l'emplacement demandé, tourné de `yaw` autour du vélo. */
+  /** Cadrage demandé : imposé (`view`) ou celui de l'emplacement. */
   private aim(snap: boolean): void {
     const st = this.state;
     if (!st) return;
+    if (st.view) {
+      this.goalPos.set(...st.view.cam);
+      this.goalLook.set(...st.view.look);
+      this.goalFov = st.view.fov;
+    } else this.aimShot(st);
+    if (snap) {
+      this.camPos.copy(this.goalPos);
+      this.camLook.copy(this.goalLook);
+      this.camFov = this.goalFov;
+    }
+  }
+
+  /** Cadrage de l'emplacement demandé, tourné de `yaw` autour du vélo. */
+  private aimShot(st: AtelierState): void {
     const shot = SHOTS[SLOT_SHOT[st.focus] ?? 'overview'];
     const lift = st.rider ? 0 : LIFT;
     const c = Math.cos(st.yaw);
@@ -483,11 +528,6 @@ export class AtelierHost {
     this.goalPos.set((x * c + z * s) * k, y + lift + (k - 1) * 0.4, (-x * s + z * c) * k);
     this.goalLook.set(shot.look[0], shot.look[1] + lift + (k - 1) * 0.25, shot.look[2]);
     this.goalFov = shot.fov;
-    if (snap) {
-      this.camPos.copy(this.goalPos);
-      this.camLook.copy(this.goalLook);
-      this.camFov = this.goalFov;
-    }
   }
 
   /** À appeler à chaque image de la boucle du menu ; rend si besoin. Renvoie vrai si l'atelier est ouvert. */

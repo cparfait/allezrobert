@@ -1,5 +1,5 @@
 import * as THREE from 'three/webgpu';
-import { BASE_PROFILES, BIKES, DEFAULT_LOOK, FACE_SLIDERS, encodeFace, profileLook, type AvatarLook, type BikeModel, type FaceShape } from '@allezrobert/shared';
+import { BASE_PROFILES, BIKES, COSMETICS, DEFAULT_LOOK, FACE_SLIDERS, encodeFace, jerseyLookOf, profileLook, type AvatarLook, type BikeModel, type FaceShape } from '@allezrobert/shared';
 import { createEngine } from './engine/renderer.ts';
 import { QUALITY_PRESETS, type QualityLevel } from './engine/quality.ts';
 import { GltfRiderAvatar, type RiderPose } from './rider/gltfAvatar.ts';
@@ -50,6 +50,9 @@ async function main(): Promise<void> {
   if (params.has('bench')) return bench(engine);
   if (params.has('sliders')) return sliderSheet(engine);
   if (params.has('random')) return randomSheet(engine);
+  if (params.has('tailles')) return sizeSheet(engine);
+  if (params.has('maillots')) return jerseySheet(engine);
+  if (params.has('pack')) return packSheet(engine, params.get('pack') ?? '');
   if (params.has('profiles')) return profileSheet(engine);
   if (params.has('measure')) return measureHead();
   if (params.has('calib')) return likenessCalibration(engine);
@@ -462,6 +465,129 @@ async function profileSheet(engine: Awaited<ReturnType<typeof createEngine>>): P
   document.body.replaceChildren(sheet);
   sheet.style.cssText = 'display:block;width:100%;height:auto';
   if (!params.has('noshot')) await fetch('/__shot?name=avatars-profils', { method: 'POST', body: sheet.toDataURL('image/jpeg', 0.88) });
+  (window as unknown as { __avatarTestDone: boolean }).__avatarTestDone = true;
+}
+
+/**
+ * Planche des tailles (?tailles) : coureurs de 1,60, 1,765 et 1,95 m sur le même vélo (taille de
+ * cadre adaptée, roues et manivelles identiques), de profil côte à côte puis de trois quarts avant,
+ * manivelle à l'horizontale → avatar-tailles.jpg.
+ */
+async function sizeSheet(engine: Awaited<ReturnType<typeof createEngine>>): Promise<void> {
+  const { scene, camera } = engine;
+  const heights = [160, 176.5, 195];
+  const riders = heights.map((h, i) => {
+    const a = new GltfRiderAvatar({ ...DEFAULT_LOOK, bikeModel: 's26-04-cervelo-s5', heightCm: h, jersey: ['#d62828', '#1f6feb', '#2a9d8f'][i] as string });
+    const priv = a as unknown as { crankAngle: number };
+    priv.crankAngle = Math.PI / 2;
+    a.update(0, 0.0001, 0, 'seated');
+    a.root.position.set(0, 0, (i - 1) * 2.2);
+    scene.add(a.root);
+    return a;
+  });
+  const sheet = document.createElement('canvas');
+  sheet.width = 1280;
+  sheet.height = 1440;
+  const g = sheet.getContext('2d') as CanvasRenderingContext2D;
+  // Profil (téléobjectif : pas de perspective entre les trois).
+  camera.fov = 5.2;
+  camera.position.set(42, 1.0, 0);
+  camera.updateProjectionMatrix();
+  camera.lookAt(0, 0.95, 0);
+  engine.renderManual();
+  g.drawImage(canvas, 0, 0, 1280, 720);
+  // Trois quarts avant, coureurs alignés de côté.
+  riders.forEach((r, i) => r.root.position.set((i - 1) * 1.1, 0, 0));
+  camera.fov = 30;
+  camera.position.set(3.2, 1.6, 5.2);
+  camera.updateProjectionMatrix();
+  camera.lookAt(0, 0.8, 0);
+  engine.renderManual();
+  g.drawImage(canvas, 0, 720, 1280, 720);
+  if (!params.has('noshot')) await fetch('/__shot?name=avatar-tailles', { method: 'POST', body: sheet.toDataURL('image/jpeg', 0.9) });
+  log.textContent += '\ntailles : terminé';
+  (window as unknown as { __avatarTestDone: boolean }).__avatarTestDone = true;
+}
+
+/**
+ * Planche d'un pack de maillots du garage (?pack=pays|distinctifs|equipes) : une vignette par
+ * maillot (tenue complète du catalogue), coureur de trois quarts avant → avatar-pack-<pack>.jpg.
+ */
+async function packSheet(engine: Awaited<ReturnType<typeof createEngine>>, pack: string): Promise<void> {
+  const { scene, camera } = engine;
+  const items = COSMETICS.filter((c) => c.slot === 'jersey' && c.pack === pack);
+  const cols = 5;
+  const cw = 320;
+  const ch = 400;
+  const sheet = document.createElement('canvas');
+  sheet.width = cols * cw;
+  sheet.height = Math.ceil(items.length / cols) * ch;
+  const g = sheet.getContext('2d') as CanvasRenderingContext2D;
+  g.font = '600 18px sans-serif';
+  g.textAlign = 'center';
+  camera.fov = 22;
+  camera.position.set(1.0, 1.75, 3.6);
+  camera.updateProjectionMatrix();
+  camera.lookAt(0, 1.0, 0.1);
+  for (const [i, item] of items.entries()) {
+    const helmet = item.jersey?.style === 'bandes' ? '#ffffff' : (item.color ?? '#ffffff');
+    const a = new GltfRiderAvatar({ ...DEFAULT_LOOK, bikeModel: 's26-04-cervelo-s5', helmet, ...jerseyLookOf(item) });
+    (a as unknown as { crankAngle: number }).crankAngle = Math.PI / 2;
+    a.update(0, 0.0001, 0, 'seated');
+    scene.add(a.root);
+    engine.renderManual();
+    const x = (i % cols) * cw;
+    const y = Math.floor(i / cols) * ch;
+    g.drawImage(canvas, 340, 0, 600, 750, x, y, cw, ch);
+    g.fillStyle = '#000a';
+    g.fillRect(x, y + ch - 30, cw, 30);
+    g.fillStyle = '#fff';
+    g.fillText(item.name.fr, x + cw / 2, y + ch - 9);
+    scene.remove(a.root);
+  }
+  if (!params.has('noshot')) await fetch(`/__shot?name=avatar-pack-${pack}`, { method: 'POST', body: sheet.toDataURL('image/jpeg', 0.9) });
+  log.textContent += `\npack ${pack} : ${items.length} maillots`;
+  (window as unknown as { __avatarTestDone: boolean }).__avatarTestDone = true;
+}
+
+/**
+ * Planche des maillots (?maillots) : jaune (uni), champion de France, champion du monde, uni
+ * rouge et dessin d'origine recoloré, de trois quarts avant puis de dos → avatar-maillots.jpg.
+ */
+async function jerseySheet(engine: Awaited<ReturnType<typeof createEngine>>): Promise<void> {
+  const { scene, camera } = engine;
+  const looks: Array<Partial<AvatarLook>> = [
+    { jersey: '#ffd200', jerseyAccent: '#ffd200', jerseyStyle: 'uni', helmet: '#ffd200' },
+    { jersey: '#ffffff', jerseyStyle: 'bandes', jerseyBands: ['#1f3c88', '#ffffff', '#d71920'], helmet: '#ffffff' },
+    { jersey: '#ffffff', jerseyStyle: 'bandes', jerseyBands: ['#0072ce', '#e4002b', '#111111', '#ffd100', '#009a44'], helmet: '#ffffff' },
+    { jersey: '#c62828', jerseyAccent: '#c62828', jerseyStyle: 'uni', helmet: '#111111', shoes: '#111111' },
+    { jersey: '#1f6feb', jerseyAccent: '#ffd23f', helmet: '#1f6feb' },
+  ];
+  const riders = looks.map((l, i) => {
+    const a = new GltfRiderAvatar({ ...DEFAULT_LOOK, bikeModel: 's26-04-cervelo-s5', ...l });
+    (a as unknown as { crankAngle: number }).crankAngle = Math.PI / 2;
+    a.update(0, 0.0001, 0, 'seated');
+    a.root.position.set((i - 2) * 0.95, 0, 0);
+    scene.add(a.root);
+    return a;
+  });
+  const sheet = document.createElement('canvas');
+  sheet.width = 1280;
+  sheet.height = 1440;
+  const g = sheet.getContext('2d') as CanvasRenderingContext2D;
+  camera.fov = 26;
+  camera.position.set(1.2, 1.9, 5.6);
+  camera.updateProjectionMatrix();
+  camera.lookAt(0, 0.95, 0);
+  engine.renderManual();
+  g.drawImage(canvas, 0, 0, 1280, 720);
+  camera.position.set(-1.2, 1.9, -5.0);
+  camera.lookAt(0, 0.95, 0);
+  engine.renderManual();
+  g.drawImage(canvas, 0, 720, 1280, 720);
+  if (!params.has('noshot')) await fetch('/__shot?name=avatar-maillots', { method: 'POST', body: sheet.toDataURL('image/jpeg', 0.9) });
+  log.textContent += '\nmaillots : terminé';
+  void riders;
   (window as unknown as { __avatarTestDone: boolean }).__avatarTestDone = true;
 }
 

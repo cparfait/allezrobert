@@ -350,6 +350,8 @@ export class RideSimulation {
         skin: ['#f1c27d', '#e0ac69', '#c68642', '#8d5524', '#ffdbac'][k % 5]!,
         hairStyle: k % 4,
         build: Math.round(this.rng.range(0.2, 0.7) * 100) / 100,
+        // Tailles de 160 à 195 cm, réparties sans tirage (suite aléatoire de la salle inchangée).
+        heightCm: 160 + ((k * 13) % 36),
       };
       const r = this.addRider(
         {

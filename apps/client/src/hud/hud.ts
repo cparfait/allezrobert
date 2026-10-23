@@ -1,5 +1,6 @@
 import type { RoadGraphData, RouteSegment, RouteTrack } from '@allezrobert/shared';
 import { getLang, t } from '../i18n/index.ts';
+import { ClimbPanel } from './climbPanel.ts';
 
 export interface HudRider {
   id: string;
@@ -90,6 +91,8 @@ export class Hud {
   /** Panneau « À proximité » : coureurs réels seulement (multijoueur) ou tous (IA comprises). */
   riderFilter: 'real' | 'all' = 'all';
   private lastJunction = '';
+  /** Montée en cours ou proche, façon ClimbPro. */
+  private readonly climb: ClimbPanel;
 
   /** Passe le HUD en monde ouvert (profil glissant, carte locale avec les routes alentour). */
   setOpen(graph: RoadGraphData): void {
@@ -142,6 +145,7 @@ export class Hud {
       </div>
       <div class="panel workout hidden" data-k="workout"><div class="row" style="justify-content:space-between"><b data-k="wName"></b><span class="num" data-k="wRemain"></span></div><div class="num" data-k="wTarget" style="font-size:30px;font-weight:800"></div><div class="num" data-k="wStep" style="color:var(--ar-muted);font-size:13px"></div><canvas width="900" height="90" data-k="wChart"></canvas></div>
       <div class="panel profile"><canvas width="1800" height="160"></canvas></div>
+      <div class="panel climbpro hidden" data-k="climbpro"></div>
       <div class="attribution">${attribution.join(' · ')}</div>
     `;
     root.querySelectorAll<HTMLElement>('[data-k]').forEach((e) => (this.el[e.dataset.k as string] = e));
@@ -157,6 +161,9 @@ export class Hud {
     this.mapCanvas = root.querySelector('.minimap canvas') as HTMLCanvasElement;
     this.toasts = root.querySelector('.toasts') as HTMLElement;
     this.profile = track.profile(600);
+    this.climb = new ClimbPanel(this.el.climbpro as HTMLElement, track, () => !!this.openGraph);
+    // L'appli compagnon affiche son propre bilan au sommet : pas de relais.
+    this.climb.onSummit = (text) => this.toast(text, false, false);
     const pts = track.route.points;
     this.mapBounds = {
       minX: Math.min(...pts.map((p) => p.x)),
@@ -315,9 +322,9 @@ export class Hud {
     return !this.root.classList.contains('hidden');
   }
 
-  /** Annonce temporaire au centre ; `small` : discrète (passage d'un lacet). */
-  toast(text: string, small = false): void {
-    if (!small) this.onToast?.(text);
+  /** Annonce temporaire au centre ; `small` : discrète (passage d'un lacet) ; `relay` : aussi sur l'appli compagnon. */
+  toast(text: string, small = false, relay = !small): void {
+    if (relay) this.onToast?.(text);
     const d = document.createElement('div');
     d.className = small ? 'panel toast small' : 'panel toast';
     d.textContent = text;
@@ -372,6 +379,9 @@ export class Hud {
     (e.riders as HTMLElement).innerHTML = this.nearbyHtml(s);
 
     this.drawJunction(s);
+    // Montée en cours ou proche : le panneau ClimbPro prend la place du profil du parcours.
+    const climbing = this.climb.update(this.openGraph && s.open ? s.open.distM : s.lapDistM, s.elapsedS);
+    this.root.classList.toggle('climbing', climbing);
     if (this.openGraph && s.open) {
       this.drawOpenProfile(s, s.open.distM);
       this.drawOpenMap(s, s.open.distM);

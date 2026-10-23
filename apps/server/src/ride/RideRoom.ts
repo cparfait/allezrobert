@@ -233,7 +233,7 @@ export class RideRoom extends Room {
           name: profile?.displayName ?? auth.name,
           kind,
           ...(auth.userId ? { userId: auth.userId } : {}),
-          ...(profile ? { avatar: { ...profile.avatar, tune: setup?.tune ?? [] }, riderMassKg: profile.weightKg, ftpWatts: profile.ftpWatts } : {}),
+          ...(profile ? { avatar: { ...profile.avatar, tune: setup?.tune ?? [], ...(profile.heightCm ? { heightCm: profile.heightCm } : {}) }, riderMassKg: profile.weightKg, ftpWatts: profile.ftpWatts } : {}),
           ...(setup ? { bike: setup.bike } : {}),
           shareHr: kind === 'human' && !!profile?.consentHr,
         },

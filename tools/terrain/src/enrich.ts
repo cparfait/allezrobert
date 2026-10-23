@@ -223,8 +223,11 @@ export async function prepareEnrichment(o: {
       res.stats.buildings = list.length;
       res.stats.roofsMeasured = measured;
     }
-    if (o.enrich.lidarVegetation) {
-      const mnh = await fetchRaster(LAYER_MNH, eMin - M, nMin - M, eMax + M, nMax + M);
+    const mnh = o.enrich.lidarVegetation ? await fetchRaster(LAYER_MNH, eMin - M, nMin - M, eMax + M, nMax + M) : null;
+    // LiDAR HD pas encore publié ici (absence = 0 m, comme un champ nu) : végétation semée d'après
+    // OSM plutôt qu'une tuile sans un arbre
+    if (mnh && mnh.coverage < 0.5) res.stats.lidarCoverage = Math.round(mnh.coverage * 100);
+    if (mnh && mnh.coverage >= 0.5) {
       const veg = detectVegetation(mnh, { eMin, nMin, eMax, nMax }, (e, n) => build.get(e, n) || roadCore.get(e, n));
       const trees: number[] = [];
       for (const t of veg.trees) trees.push(...toWorld([t.e, t.n]), r1(t.h), r1(t.r));

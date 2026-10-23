@@ -14,6 +14,8 @@ export interface AuthedUser {
 export interface RiderProfileInfo {
   displayName: string;
   weightKg: number;
+  /** Taille (cm) : coureur et taille de cadre affichés aux autres. */
+  heightCm?: number;
   ftpWatts: number;
   avatar: AvatarLook;
   consentHr: boolean;

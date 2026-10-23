@@ -223,6 +223,14 @@
      "lengthM": 22558.22,
      "elevationGainM": 267.72,
      "loop": true
+    },
+    {
+     "id": "etretat-fecamp",
+     "name": "D'Étretat vers Fécamp",
+     "nameEn": "From Étretat towards Fécamp",
+     "lengthM": 22124,
+     "elevationGainM": 320.07,
+     "loop": false
     }
    ],
    "pack": {
@@ -423,6 +431,34 @@
    }
   },
   {
+   "id": "montmartre",
+   "name": "Paris — Montmartre",
+   "region": "Paris · Butte Montmartre",
+   "routes": [
+    {
+     "id": "butte-montmartre",
+     "name": "La butte Montmartre par la rue Lepic",
+     "nameEn": "Montmartre hill via rue Lepic",
+     "lengthM": 5891.44,
+     "elevationGainM": 139.82,
+     "loop": true
+    }
+   ],
+   "pack": {
+    "version": "a1cc72589e23",
+    "bytes": 48603126,
+    "files": 101,
+    "gzBytes": 18294388
+   },
+   "l93": {
+    "minE": 649000,
+    "minN": 6863000,
+    "maxE": 654000,
+    "maxN": 6868000
+   },
+   "open": true
+  },
+  {
    "id": "opale",
    "name": "Côte d'Opale — Les deux caps",
    "region": "Pas-de-Calais · Côte d'Opale",
@@ -434,6 +470,22 @@
      "lengthM": 37616.04,
      "elevationGainM": 576.14,
      "loop": true
+    },
+    {
+     "id": "terre-des-2-caps",
+     "name": "La terre des deux caps",
+     "nameEn": "Land of the two capes",
+     "lengthM": 19512,
+     "elevationGainM": 319.62,
+     "loop": false
+    },
+    {
+     "id": "wissant-les-2-caps",
+     "name": "Wissant et les deux caps",
+     "nameEn": "Wissant and the two capes",
+     "lengthM": 26300,
+     "elevationGainM": 324.8,
+     "loop": false
     }
    ],
    "pack": {
@@ -490,13 +542,37 @@
      "lengthM": 19730.16,
      "elevationGainM": 45.2,
      "loop": true
+    },
+    {
+     "id": "tour-d-ars-en-re",
+     "name": "Le tour d'Ars-en-Ré",
+     "nameEn": "Ars-en-Ré loop",
+     "lengthM": 21182,
+     "elevationGainM": 44.46,
+     "loop": false
+    },
+    {
+     "id": "ile-de-re-grande-boucle",
+     "name": "La grande boucle de l'île de Ré",
+     "nameEn": "Île de Ré grand loop",
+     "lengthM": 51121.18,
+     "elevationGainM": 118.72,
+     "loop": true
+    },
+    {
+     "id": "autour-du-bois-plage-en-re",
+     "name": "Autour du Bois-Plage-en-Ré",
+     "nameEn": "Around Le Bois-Plage-en-Ré",
+     "lengthM": 48584,
+     "elevationGainM": 106.07,
+     "loop": false
     }
    ],
    "pack": {
-    "version": "4d043c6b7f14",
-    "bytes": 130397678,
-    "files": 617,
-    "gzBytes": 36418933
+    "version": "bebc7dc228a9",
+    "bytes": 113241948,
+    "files": 463,
+    "gzBytes": 19293843
    },
    "l93": {
     "minE": 346000,

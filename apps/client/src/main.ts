@@ -287,7 +287,7 @@ async function boot(): Promise<void> {
       if (inMenu) {
         if (scene.world.env.state.season !== settings.season) scene.world.setSeason(settings.season);
         const d = await choosePosterSpot(scene.world, scene.track, settings.season);
-        poster.build(settings.look);
+        poster.build({ ...settings.look, heightCm: settings.heightCm });
         focus.copy(poster.place(d));
         await scene.world.preload(focus);
         poster.frame();
@@ -486,22 +486,22 @@ async function boot(): Promise<void> {
     if (scene.world.env.state.season !== s.season) scene.world.setSeason(s.season);
     if (menuVideo.playing()) menuVideo.show(s.season);
     if (!worldReady) return;
-    poster.build(s.look);
-    poster.setPlayerLook(s.look, menu.bareHeadPreview);
+    poster.build({ ...s.look, heightCm: s.heightCm });
+    poster.setPlayerLook({ ...s.look, heightCm: s.heightCm }, menu.bareHeadPreview);
     poster.place(poster.d);
     renderPoster();
   };
   // Éditeur de visage : le coureur du garage suit les curseurs sans reconstruire la scène.
   menu.onLookLive = (look, bareHead) => {
     if (!inMenu) return;
-    poster.setPlayerLook(look, bareHead);
+    poster.setPlayerLook({ ...look, heightCm: settings.heightCm }, bareHead);
     renderPoster();
   };
   // Onglets : photo du groupe, ou aperçu du coureur dans le garage (vues et rotation).
   // Garage : aperçu d'un équipement (même verrouillé) sur le coureur, puis retour à la tenue équipée.
   menu.onPreviewLook = (look) => {
     if (!inMenu || !worldReady) return;
-    poster.build(look ?? settings.look);
+    poster.build({ ...(look ?? settings.look), heightCm: settings.heightCm });
     poster.place(poster.d);
     renderPoster();
   };
@@ -603,7 +603,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     inertiaFactor: s.inertia,
   });
   // Modèle du vélo (route, gravel, VTT) : celui du vélo équipé.
-  const avatar = createAvatar({ ...s.look, bikeType: profile.bike.tyre ?? 'road' });
+  const avatar = createAvatar({ ...s.look, heightCm: s.heightCm, bikeType: profile.bike.tyre ?? 'road' });
   engine.scene.add(avatar.root);
   // Phare avant (la nuit) : projecteur fixé au vélo, sans ombre portée (coût).
   const headlight = new THREE.SpotLight(0xfff1d6, 0, 60, 0.45, 0.6, 1.4);

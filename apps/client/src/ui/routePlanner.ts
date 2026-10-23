@@ -224,8 +224,8 @@ export class RoutePlanner {
   preview(route: RouteData | null, start: { x: number; z: number } | null): string {
     if (!this.open) return '';
     const b = this.bounds;
-    // repères lisibles sur un aperçu d'environ 200 px de haut
-    const k = (b.w / 240).toFixed(3);
+    // repères lisibles sur un aperçu d'environ 360 px (le plus grand côté de la zone)
+    const k = (Math.max(b.w, b.h) / 340).toFixed(3);
     // pas de tracé du parcours sur l'aperçu : la zone, son fond et le départ seulement
     const line = '';
     const at = route?.points[0] ?? start ?? this.open.start;

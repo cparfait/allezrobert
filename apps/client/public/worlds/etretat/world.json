@@ -1740,6 +1740,15 @@
    "elevationGainM": 267.72,
    "loop": true,
    "main": true
+  },
+  {
+   "id": "etretat-fecamp",
+   "file": "routes/etretat-fecamp.json",
+   "name": "D'Étretat vers Fécamp",
+   "lengthM": 22124,
+   "elevationGainM": 320.07,
+   "loop": false,
+   "main": false
   }
  ],
  "mainRoute": "falaises-d-etretat",

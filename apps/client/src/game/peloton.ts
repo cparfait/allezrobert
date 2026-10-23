@@ -128,6 +128,7 @@ export class Peloton {
         build: r(),
         ...crowdShoes(i),
         ...botFace(i, r),
+        heightCm: 160 + ((i * 13) % 36),
       };
       const avatar = createAvatar(look);
       scene.add(avatar.root);

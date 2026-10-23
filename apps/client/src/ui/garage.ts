@@ -12,6 +12,7 @@ import {
   levelProgress,
   migrateCosmeticId,
   nextStreak,
+  jerseyLookOf,
   purchase,
   rideEvents,
   tuneItem,
@@ -155,7 +156,7 @@ export function equipItem(item: CosmeticItem, s: Settings): void {
   p.equipped[item.slot] = item.id;
   saveProgress(p);
   if (item.color) {
-    if (item.slot === 'jersey') s.look = { ...s.look, jersey: item.color };
+    if (item.slot === 'jersey') s.look = { ...s.look, ...jerseyLookOf(item) };
     if (item.slot === 'helmet') s.look = { ...s.look, helmet: item.color };
     if (item.slot === 'bike') s.look = { ...s.look, bike: item.color };
     if (item.slot === 'socks') s.look = { ...s.look, socks: item.color };

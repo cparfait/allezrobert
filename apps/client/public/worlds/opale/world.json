@@ -2230,6 +2230,24 @@
    "elevationGainM": 576.14,
    "loop": true,
    "main": true
+  },
+  {
+   "id": "terre-des-2-caps",
+   "file": "routes/terre-des-2-caps.json",
+   "name": "La terre des deux caps",
+   "lengthM": 19512,
+   "elevationGainM": 319.62,
+   "loop": false,
+   "main": false
+  },
+  {
+   "id": "wissant-les-2-caps",
+   "file": "routes/wissant-les-2-caps.json",
+   "name": "Wissant et les deux caps",
+   "lengthM": 26300,
+   "elevationGainM": 324.8,
+   "loop": false,
+   "main": false
   }
  ],
  "mainRoute": "les-deux-caps",

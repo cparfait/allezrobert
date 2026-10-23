@@ -1,6 +1,6 @@
 import type { AvatarLook, CosmeticItem, RouteData, RouteSegment, WorldCatalogue } from '@allezrobert/shared';
 import { readKomRecord } from '../game/challenge.ts';
-import { BIKE_BRANDS, BIKE_GROUPS, BIKE_TEAMS, COSMETICS, DEFAULT_BIKE, bikeById, bikeSetupFor, levelProgress, SHOE_MARKS, type BikeCollection, type BikeType, type CosmeticSlot } from '@allezrobert/shared';
+import { BIKE_BRANDS, BIKE_GROUPS, BIKE_TEAMS, COSMETICS, DEFAULT_BIKE, bikeById, bikeSetupFor, jerseyLookOf, levelProgress, SHOE_MARKS, type BikeCollection, type BikeType, type CosmeticSlot } from '@allezrobert/shared';
 import { shoeAccentOf } from '../rider/shoeLook.ts';
 import { WORKOUT_LIBRARY } from '@allezrobert/physics';
 import { formatBytes, installPack, loadCatalogue, packState, removePack } from '../world/packs.ts';
@@ -386,7 +386,7 @@ export class MainMenu {
   private lookWith(item: CosmeticItem): AvatarLook {
     const look = { ...this.s.look };
     if (item.color) {
-      if (item.slot === 'jersey') look.jersey = item.color;
+      if (item.slot === 'jersey') Object.assign(look, jerseyLookOf(item));
       if (item.slot === 'helmet') look.helmet = item.color;
       if (item.slot === 'bike') look.bike = item.color;
       if (item.slot === 'socks') look.socks = item.color;
@@ -578,7 +578,7 @@ export class MainMenu {
               <p class="mm-hint">${L ? 'Si tu crées la sortie, ton heure, ta météo et l’égalisation s’appliquent à tout le groupe.' : 'If you create the ride, your time, weather and equipment rule apply to the whole group.'}</p>
             </div>`
           : s.mode === 'challenge'
-            ? this.challengeHtml(r)
+            ? this.challengeHtml(r, true)
           : s.mode === 'workout'
             ? `<div class="mm-routes mm-presets">${WORKOUT_LIBRARY.map(
                 (w) =>
@@ -747,17 +747,32 @@ export class MainMenu {
     this.render();
   }
 
-  /** Mode défi : montées de l'itinéraire choisi, avec le record de chacune. */
-  private challengeHtml(r: RouteData | undefined): string {
+  /**
+   * Mode défi : toutes les montées chronométrées de la zone (tous ses parcours, une fois chacune,
+   * celles du parcours choisi d'abord), avec le record de chacune ; en choisir une prend son parcours.
+   */
+  private challengeHtml(r: RouteData | undefined, onlySelected = false): string {
     const L = fr();
-    const koms = r?.segments.filter((g) => g.kind === 'kom') ?? [];
-    if (!r || !koms.length) return `<p class="mm-hint">${L ? 'Pas de montée chronométrée sur cet itinéraire : choisis-en un autre.' : 'No timed climb on this route: pick another one.'}</p>`;
-    if (!koms.some((k) => k.id === this.s.challengeSeg)) this.s.challengeSeg = (koms[0] as RouteSegment).id;
-    return `<div class="mm-routes mm-presets">${koms
-      .map((k) => {
-        const rec = readKomRecord(r.id, k.id);
+    const ordered = r ? [r, ...this.routes.filter((x) => x.id !== r.id)] : this.routes;
+    const seen = new Set<string>();
+    const koms: Array<{ route: RouteData; k: RouteSegment }> = [];
+    for (const route of ordered)
+      for (const k of route.segments)
+        if (k.kind === 'kom' && !seen.has(k.name)) {
+          seen.add(k.name);
+          koms.push({ route, k });
+        }
+    if (!koms.length) return `<p class="mm-hint">${L ? 'Pas de montée chronométrée dans cette zone : choisis-en une autre.' : 'No timed climb in this area: pick another one.'}</p>`;
+    const cur = r?.id;
+    if (!koms.some((c) => c.route.id === cur && c.k.id === this.s.challengeSeg)) this.s.challengeSeg = (koms[0] as (typeof koms)[number]).k.id;
+    // panneau de gauche : la côte choisie seulement (la liste complète est dans la fenêtre de la zone)
+    const shown = onlySelected ? koms.filter((c) => c.route.id === cur && c.k.id === this.s.challengeSeg) : koms;
+    return `<div class="mm-routes mm-presets">${shown
+      .map(({ route, k }) => {
+        const rec = readKomRecord(route.id, k.id);
         const t = rec ? `${Math.floor(rec.timeS / 60)}:${String(Math.round(rec.timeS % 60)).padStart(2, '0')}` : L ? 'pas encore de record' : 'no record yet';
-        return `<button class="mm-route ${k.id === this.s.challengeSeg ? 'on' : ''}" data-kom="${esc(k.id)}"><b>${esc(k.name)}</b><span>${this.km(k.endM - k.startM)} km · ${k.avgGrade.toFixed(1).replace('.', L ? ',' : '.')} % · ${L ? 'record' : 'best'} ${t}</span></button>`;
+        const on = route.id === cur && k.id === this.s.challengeSeg;
+        return `<button class="mm-route ${on ? 'on' : ''}" data-kom="${esc(k.id)}" data-kom-route="${esc(route.id)}"><b>${esc(k.name)}</b><span>${this.km(k.endM - k.startM)} km · ${k.avgGrade.toFixed(1).replace('.', L ? ',' : '.')} % · ${L ? 'record' : 'best'} ${t}</span></button>`;
       })
       .join('')}</div>`;
   }
@@ -838,15 +853,19 @@ export class MainMenu {
           })
           .join('')}</div></div>`
       : '';
-    return `<div class="mm-modal mm-picker-modal" data-picker-close>
-      <div class="mm-dialog mm-picker" role="dialog" aria-modal="true">
-        <header class="zc-head"><div><h2>${esc(w ? w.name[lang] : (spot?.name[lang] ?? this.worldId))}</h2><small>${esc(zoneSub)}</small></div><button class="mm-x" data-picker-close aria-label="${L ? 'Fermer' : 'Close'}">×</button></header>
-        <div class="zc-choices">
+    const kom = this.s.mode === 'challenge';
+    const choices = `<div class="zc-choices">
           ${n ? card('routes', ICON.free, L ? 'Parcours' : 'Routes', L ? `${n} parcours déjà tracé${n > 1 ? 's' : ''} : boucles et itinéraires de la zone.` : `${n} ready-made route${n > 1 ? 's' : ''}: loops and rides of the area.`) : ''}
           ${card('free', ICON.open, L ? 'Parcours libre' : 'Free ride', L ? 'Pars du départ de la zone et choisis ta route à chaque carrefour (← / →, U pour faire demi-tour).' : 'Start from the area’s start and pick your road at each junction (← / →, U to turn around).')}
           ${card('draw', svg('<path d="M4 19c3-.5 3.5-6 7-6s3 5.5 6 5"/><circle cx="4" cy="19" r="1.6"/><circle cx="17" cy="18" r="1.6"/><path d="m15.5 3.5 3 3L12 13H9v-3z"/>'), L ? 'Parcours à dessiner' : 'Draw a route', L ? 'Sur la carte : ton départ, tes points de passage, ton arrivée ou une boucle.' : 'On the map: your start, waypoints, finish or a loop.')}
-        </div>
-        ${nearHtml}
+        </div>`;
+    // Défi KOM : les côtes de la zone tout de suite (en choisir une prend son parcours)
+    const koms = kom ? `<p class="mm-hint">${L ? 'Choisis la côte à battre :' : 'Pick the climb to beat:'}</p>${this.challengeHtml(this.routes.find((x) => x.id === this.s.routeId))}` : '';
+    return `<div class="mm-modal mm-picker-modal" data-picker-close>
+      <div class="mm-dialog mm-picker" role="dialog" aria-modal="true">
+        <header class="zc-head"><div><h2>${esc(w ? w.name[lang] : (spot?.name[lang] ?? this.worldId))}</h2><small>${esc(zoneSub)}</small></div><button class="mm-x" data-picker-close aria-label="${L ? 'Fermer' : 'Close'}">×</button></header>
+        ${kom ? koms : choices}
+        ${kom ? '' : nearHtml}
         <div class="zc-pack"><button class="mm-link zc-back" data-picker="zones">← ${L ? 'Carte de France' : 'Map of France'}</button>${pack ? `${L ? 'Cartes hors ligne' : 'Offline maps'} ${pack}` : ''}</div>
       </div></div>`;
   }
@@ -1514,6 +1533,13 @@ export class MainMenu {
     this.root.querySelectorAll<HTMLElement>('[data-kom]').forEach((el) =>
       el.addEventListener('click', () => {
         s.challengeSeg = el.dataset.kom as string;
+        // montée d'un autre parcours de la zone : on prend ce parcours (dans son sens)
+        if (el.dataset.komRoute && el.dataset.komRoute !== s.routeId) {
+          s.routeId = el.dataset.komRoute;
+          s.reverse = false;
+        }
+        // choisie dans la fenêtre de la zone : la fenêtre se ferme
+        if (this.picker) this.picker = null;
         changed();
         this.render();
       }),

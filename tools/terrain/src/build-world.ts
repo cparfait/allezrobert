@@ -40,7 +40,8 @@ import {
 import { Dem, DemStack } from './dem.ts';
 import { WORLDS_ROOT, writeCatalogue } from './packs.ts';
 import { corridorWgs84, OSM_CHUNK } from './corridor.ts';
-import { distPointRect, tileId, tileRect, wgs84BoxToRect, worldToL93, type Rect } from './frame.ts';
+import { distPointRect, tileId, tileRect, wgs84BoxToRect, wgs84ToWorld, worldToL93, type Rect } from './frame.ts';
+import { routeViaEdges } from './climb.ts';
 import { resampleOpen, smooth1d, type Pt } from './geom.ts';
 import { loadRides, longestRun, rideStats, sensitivePoints, trimPrivate, type GpxPoint } from './gpx.ts';
 import { RoadGraph, type Edge } from './graph.ts';
@@ -509,6 +510,35 @@ async function main(): Promise<void> {
   fs.writeFileSync(path.join(analysisDir, 'ride-routes.json'), JSON.stringify(rideReport, null, 1));
   rideRoutes.sort((a, b) => a.data.lengthM - b.data.lengthM);
   for (const b of rideRoutes) picked.push({ built: b, main: false });
+
+  // 6 bis. côtes célèbres hors des sorties (défi KOM) : montée et redescente par la même route
+  for (const c of (WORLD.kind === 'garmin' ? WORLD.climbs : undefined) ?? []) {
+    try {
+      const pts = [c.start, c.foot, ...(c.via ?? []), c.summit].map((p) => wgs84ToWorld(p.lon, p.lat));
+      const must = pts.map((p) => nearestEdge(g, p.x, p.z, 200));
+      if (must.some((e) => e < 0)) throw new Error('point de passage sans route à moins de 200 m');
+      const up = routeViaEdges(g, must, (e) => e.len);
+      const edges = [...up.edges, ...up.edges.slice().reverse()];
+      const nodes = [up.start];
+      for (const eid of edges) nodes.push(g.other(g.edges[eid]!, nodes[nodes.length - 1]!));
+      const cycle = { start: up.start, edges, nodes };
+      for (const t of tilesNear(cyclePolyline(g, cycle).pts.map(([x, z]) => ({ x, z })), HI_RES_MARGIN_SECONDARY_M)) {
+        const [tx, tz] = t.split('_').map(Number) as [number, number];
+        await ensureHiForRect(hi, tileRect(tx, tz));
+      }
+      const built = buildRoute(g, cycle, dem, osm.pois, { id: c.routeId, name: c.routeName, nameEn: c.routeNameEn, maxKoms: 1, maxSprints: 0, startNear: [pts[0]!.x, pts[0]!.z] });
+      built.data.id = c.routeId;
+      built.data.name = c.routeName;
+      built.data.nameEn = c.routeNameEn;
+      const kom = built.data.segments.find((s) => s.kind === 'kom');
+      if (kom) kom.name = c.climbName;
+      built.data.segments = kom ? [kom] : [];
+      picked.push({ built, main: false });
+      log(`   côte : ${describeRoute(built.data)}${kom ? '' : ' (montée non détectée)'}`);
+    } catch (err) {
+      log(`   ! côte ${c.climbName} : ${(err as Error).message}`);
+    }
+  }
 
   // contrôle vie privée des itinéraires avant écriture
   for (const p of picked) {

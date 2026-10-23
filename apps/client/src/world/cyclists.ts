@@ -53,6 +53,7 @@ export class AmbientCyclists {
         bike: ['#1d1d1f', '#c0392b', '#f4f4f4', '#2c3e50'][i % 4] as string,
         build: this.r(),
         ...crowdShoes(i + 3),
+        heightCm: 160 + ((i * 17) % 36),
       };
       const avatar = createAvatar(look);
       scene.add(avatar.root);

@@ -4,7 +4,7 @@ import { createEngine } from './engine/renderer.ts';
 import { QUALITY_PRESETS } from './engine/quality.ts';
 import { GltfRiderAvatar } from './rider/gltfAvatar.ts';
 import { loadBikeFamily } from './rider/bikes.ts';
-import { AtelierHost, type AtelierState } from './ui/atelier.ts';
+import { AtelierHost, type AtelierState, type Shot } from './ui/atelier.ts';
 
 /**
  * Banc d'essai de l'atelier (développement) : /atelier-test.html rend l'atelier et le peloton
@@ -12,6 +12,10 @@ import { AtelierHost, type AtelierState } from './ui/atelier.ts';
  * à POST /__shot (docs/screenshots/). ?noshot pour juste regarder.
  *  - ?kits : chaque ensemble monté sur le pied d'atelier → kit-<id>.jpg, planche kit-planche.jpg ;
  *  - ?views : cadrages de l'atelier (roue, transmission, cockpit, selle, cadre, coureur) → atelier-*.jpg ;
+ *  - ?rendu=<suffixe> : coureur en selle, trois cadrages rapprochés (trois quarts avant, profil,
+ *    buste) → rendu-<cadrage>-<suffixe>.jpg, pour comparer le rendu avant / après un changement ;
+ *  - ?profil&n=nom[&zoom][&silhouette] : profil du coureur au téléobjectif, angles du dos et du cou
+ *    mesurés sur le squelette → profil-<nom>.jpg ;
  *  - ?peloton : 50 coureurs tous équipés différemment, vus de la caméra de poursuite → peloton-identite.jpg.
  */
 
@@ -115,7 +119,54 @@ async function main(): Promise<void> {
     }
     return done();
   }
-  log.textContent = '?kits, ?views ou ?peloton';
+  if (params.has('rendu')) {
+    const tag = (params.get('rendu') || 'essai').replace(/[^a-z0-9_-]/gi, '_');
+    const views: Array<[string, Shot]> = [
+      ['trois-quarts', { cam: [1.55, 1.95, 2.05], look: [0, 0.95, 0.12], fov: 30 }],
+      ['profil', { cam: [2.75, 1.25, 0.1], look: [0, 1.0, 0.05], fov: 32 }],
+      ['buste', { cam: [1.05, 1.62, 1.5], look: [0, 1.3, 0.28], fov: 28 }],
+    ];
+    const tune = ['tune-pa-eclair', 'tune-wh-dt-arc50', 'tune-rd-noir', 'tune-bo-rouge', 'tune-ty-gp5000'];
+    for (const [name, view] of views) {
+      const c = await render({ look: look(tune), focus: 'overview', rider: true, yaw: 0, view });
+      await shot(`rendu-${name}-${tag}`, c);
+    }
+    return done();
+  }
+  if (params.has('profil')) {
+    // Profil du coureur au téléobjectif, angles mesurés sur le squelette ; &zoom : buste et tête ;
+    // &silhouette : coureur et vélo en noir sur fond blanc (comparaison avec des photos).
+    const tune = ['tune-pa-eclair', 'tune-wh-dt-arc50', 'tune-rd-noir', 'tune-bo-rouge', 'tune-ty-gp5000'];
+    const view: Shot = params.has('zoom') ? { cam: [3.4, 1.32, 0.2], look: [0, 1.3, 0.16], fov: 12 } : { cam: [6, 1.2, 0.12], look: [0, 1.15, 0.12], fov: 13 };
+    const st: AtelierState = { look: look(tune), focus: 'overview', rider: true, yaw: 0, view };
+    host.set(st);
+    const h = host as unknown as { scene: THREE.Scene; avatar: { root: THREE.Object3D }; bikeRoot: THREE.Object3D };
+    if (params.has('silhouette')) {
+      for (const o of h.scene.children) o.visible = o === h.bikeRoot;
+      h.scene.background = new THREE.Color('#ffffff');
+      h.scene.overrideMaterial = new THREE.MeshBasicNodeMaterial({ color: '#000000' });
+    }
+    const c = await render(st);
+    const root = h.avatar.root;
+    root.updateMatrixWorld(true);
+    const P = (n: string) => (root.getObjectByName(n) as THREE.Object3D).getWorldPosition(new THREE.Vector3());
+    const ang = (a: THREE.Vector3, b: THREE.Vector3) => (Math.atan2(b.y - a.y, b.z - a.z) * 180) / Math.PI;
+    const pel = P('pelvis'), sp3 = P('spine_03'), nk = P('neck_01'), hd = P('head'), sh = P('upperarm_l');
+    const m = { dos: ang(pel, sp3), hautDuDos: ang(sp3, nk), cou: ang(nk, hd), devant: (hd.z - sh.z) * 100, dessus: (hd.y - sh.y) * 100 };
+    (window as unknown as { __mesure: unknown }).__mesure = m;
+    if (!params.has('silhouette')) {
+      const g = c.getContext('2d') as CanvasRenderingContext2D;
+      g.fillStyle = 'rgba(10,13,20,0.75)';
+      g.fillRect(20, 20, 640, 76);
+      g.fillStyle = '#fff';
+      g.font = '600 22px Arial';
+      g.fillText(`dos ${m.dos.toFixed(0)}° · haut du dos ${m.hautDuDos.toFixed(0)}° · cou ${m.cou.toFixed(0)}°`, 36, 52);
+      g.fillText(`tête / épaule : ${m.devant.toFixed(1)} cm devant, ${m.dessus.toFixed(1)} cm au-dessus`, 36, 84);
+    }
+    await shot(`profil-${params.get('n') ?? 'essai'}`, c);
+    return done();
+  }
+  log.textContent = '?kits, ?views, ?rendu, ?profil ou ?peloton';
 }
 
 /** Peloton de 50 : chacun ses pièces (ensembles, livrées, jantes lumineuses), caméra de poursuite. */

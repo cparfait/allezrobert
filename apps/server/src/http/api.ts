@@ -48,6 +48,9 @@ const AvatarSchema = z.object({
   moustache: z.boolean().optional(),
   // Pièces de l'atelier affichées sur le vélo : connues et possédées (vérifié à l'enregistrement).
   tune: z.array(z.string().regex(/^[a-z0-9-]{1,48}$/)).max(32).optional(),
+  heightCm: z.number().min(120).max(230).optional(),
+  jerseyStyle: z.enum(['uni', 'bandes']).optional(),
+  jerseyBands: z.array(hex).max(5).optional(),
 });
 
 const ProfilePatchSchema = z

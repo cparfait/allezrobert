@@ -7,6 +7,7 @@
 import catalogJson from './cosmetics.json' with { type: 'json' };
 import { DEFAULT_BIKE, type BikeSetup } from './rider.ts';
 import { BIKES, migrateBikeId, type BikeType } from './bikes.ts';
+import type { AvatarLook } from './net.ts';
 
 export const MAX_LEVEL = 50;
 export const MAX_XP_PER_RIDE = 4000;
@@ -60,6 +61,23 @@ export interface CosmeticItem {
   effect?: { fr: string; en: string };
   /** Vélos : couleurs de la livrée (vignette du garage). */
   colors?: string[];
+  /** Pack du garage (maillots : « pays », « distinctifs », « équipes »). */
+  pack?: string;
+  /** Maillots : accent, style (uni, bandes de poitrine) et bandes ; absent : dessin d'origine. */
+  jersey?: { accent?: string; style?: 'uni' | 'bandes'; bands?: string[] };
+}
+
+/**
+ * Tenue d'un maillot du catalogue : couleur, et style et bandes remplacés (un maillot simple
+ * remet le dessin d'origine) ; l'accent n'est changé que si le maillot en donne un.
+ */
+export function jerseyLookOf(item: CosmeticItem): Pick<AvatarLook, 'jersey' | 'jerseyStyle' | 'jerseyBands'> & Partial<Pick<AvatarLook, 'jerseyAccent'>> {
+  return {
+    jersey: item.color ?? '#ffffff',
+    ...(item.jersey?.accent ? { jerseyAccent: item.jersey.accent } : {}),
+    jerseyStyle: item.jersey?.style,
+    jerseyBands: item.jersey?.bands,
+  };
 }
 
 /**

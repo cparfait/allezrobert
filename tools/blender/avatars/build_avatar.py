@@ -21,6 +21,10 @@ Usage (depuis la racine du dépôt) :
     blender -b --factory-startup --python tools/blender/avatars/build_avatar.py -- \\
         [--mpfb chemin/add-on-mpfb-v2.0.18.zip] [--out apps/client/public/models/avatar/]
 
+Pillow doit être importable par le Python de Blender (textures de peau), par exemple :
+    <python de Blender> -m pip install --target out/blender-py pillow
+    PYTHONPATH=out/blender-py blender -b --factory-startup --python-use-system-env --python …
+
 MPFB (code GPL) n'est qu'un outil de génération : il est installé dans Blender depuis l'archive
 officielle d'extensions.blender.org (téléchargée et vérifiée si --mpfb est absent) ; rien de son
 code n'est livré avec le jeu. Les données produites (maillage, poids, cibles) sont en CC0.
@@ -31,6 +35,7 @@ import hashlib
 import math
 import os
 import sys
+import shutil
 import subprocess
 import urllib.request
 from importlib import import_module
@@ -56,6 +61,7 @@ MPFB_URL = ('https://extensions.blender.org/download/sha256:c075b3e9b94b8e5556a5
             'add-on-mpfb-v2.0.18.zip?repository=%2Fapi%2Fv1%2Fextensions%2F&blender_version_min=4.2.0')
 MPFB_SHA256 = 'c075b3e9b94b8e5556a5f03f4653602d02ea306de08126e8f55ed6dee28a2dad'
 MPFB_MODULE = 'bl_ext.user_default.mpfb'
+PNPM = shutil.which('pnpm') or 'pnpm'
 
 # Cotes du vélo (repère CLIENT : +x gauche, +y haut, +z avant) — identiques à build_cyclist.py.
 BB = Vector((0.0, 0.27, 0.0))
@@ -67,6 +73,18 @@ ANKLE_FLAT = Vector((0.0, 0.095, -0.13))  # cheville / axe de pédale, pied à p
 HIP = Vector((0.0, 1.03, -0.17))          # centre des hanches, assis sur la selle
 HOOD = Vector((0.2, 0.958, 0.54))         # prise des mains sur les cocottes
 SOLE = 0.03                               # épaisseur semelle + cale
+
+# Profil du buste (pose_rider), relevé sur des photos de coureurs de profil (screen/) : dos arrondi,
+# raide au bassin, presque à plat aux épaules ; oreille à peu près à la hauteur du haut du dos.
+SPINE_SHAPE = {'pelvis': 6.0, 'spine_01': 4.0, 'spine_02': 0.0, 'spine_03': -8.0}  # ° autour de l'inclinaison
+# Cou, épaules et coudes repris du coureur acheté (build_boutique.py), validés en jeu : cou plus
+# redressé (menton non écrasé), épaules avancées et basses (moins carrées), coudes vers l'arrière.
+NECK_DEG = 42.0                           # cou au-dessus de l'horizontale (°)
+SHOULDER_PROTRACT = 24.0                  # épaules avancées vers le guidon (°, clavicules)
+SHOULDER_RAISE = -6.0                     # épaules un peu abaissées (°)
+HEAD_PITCH = 8.0                          # tête inclinée vers la route (°)
+ARM_REACH = 0.70                          # épaule → poignet / longueur du bras : coudes fléchis
+ELBOW_POLE = Vector((0.36, 1.05, 0.30))   # direction des coudes (repère client, côté gauche)
 
 # Curseurs de forme (docs/AVATARS.md § 4) : nom → (cibles « + », cibles « − »), chemins relatifs
 # à data/targets, éventuellement pondérés (chemin, poids). « l/r- » : les deux côtés.
@@ -628,7 +646,7 @@ def empty(name, loc_client):
     return e
 
 
-def pose_rider(rig):
+def pose_rider(rig, body):
     set_active(rig)
     bpy.ops.object.mode_set(mode='POSE')
     pb = rig.pose.bones
@@ -640,32 +658,68 @@ def pose_rider(rig):
         b = pb[name]
         return rig.matrix_world @ (b.tail if tail else b.head)
 
-    # Bassin sur la selle, buste penché : bascule répartie entre bassin et colonne.
+    # --- Buste : profil calé sur des photos de coureurs de profil (screen/, docs/AVATARS.md) ---
+    # Chaque os de la colonne reçoit une direction absolue dans le plan sagittal (degrés au-dessus de
+    # l'horizontale, vers l'avant) : inclinaison générale L du buste + forme du dos (SPINE_SHAPE),
+    # dos arrondi qui s'aplatit en arrivant aux épaules. L est cherché pour que les mains tombent
+    # sur les cocottes (coudes fléchis, ARM_REACH), épaules avancées vers le guidon ; cou incliné
+    # de NECK_DEG, tête droite, regard vers la route (HEAD_PITCH).
     hip_bl = bl(HIP)
     pel = pb['pelvis']
+    spine = ('pelvis', 'spine_01', 'spine_02', 'spine_03')
+    head_rest = pb['head'].matrix.to_3x3().normalized()
 
-    def lean(theta):
-        pel.matrix_basis = Matrix.Identity(4)
+    def elevation(name):
+        b = pb[name]
+        d = b.tail - b.head
+        return math.degrees(math.atan2(d.z, -d.y))
+
+    def aim(name, deg):
+        """Oriente l'os vers `deg` (plan sagittal), en tournant autour de l'axe X passant par sa tête."""
         bpy.context.view_layer.update()
+        b = pb[name]
+        r = Matrix.Rotation(-math.radians(deg - elevation(name)), 4, 'X')
+        b.matrix = Matrix.Translation(b.head) @ r @ Matrix.Translation(-b.head) @ b.matrix
+        bpy.context.view_layer.update()
+
+    def torso(lean, neck_deg):
+        for n in spine + ('neck_01', 'head', 'clavicle_l', 'clavicle_r'):
+            pb[n].matrix_basis = Matrix.Identity(4)
+        bpy.context.view_layer.update()
+        # Bassin posé sur la selle (centre des hanches), puis orientations successives.
         m = pel.matrix.copy()
-        loc = m.to_translation()
-        rot = Matrix.Rotation(theta * 0.75, 4, 'X')
-        pel.matrix = Matrix.Translation(hip_bl) @ rot @ Matrix.Translation(-loc) @ m
-        for s in ('spine_01', 'spine_02', 'spine_03'):
-            pb[s].rotation_quaternion = Matrix.Rotation(theta * 0.25 / 3, 4, 'X').to_quaternion()
+        pel.matrix = Matrix.Translation(hip_bl - m.to_translation()) @ m
+        for n in spine:
+            aim(n, lean + SPINE_SHAPE[n])
+        # Épaules : clavicules avancées (rotation autour de la verticale) et un peu remontées.
+        for side, sg in (('l', 1), ('r', -1)):
+            c = pb['clavicle_' + side]
+            c.matrix_basis = Matrix.Identity(4)
+            bpy.context.view_layer.update()
+            r = Matrix.Rotation(-math.radians(SHOULDER_PROTRACT) * sg, 4, 'Z') @ Matrix.Rotation(-math.radians(SHOULDER_RAISE) * sg, 4, 'Y')
+            c.matrix = Matrix.Translation(c.head) @ r @ Matrix.Translation(-c.head) @ c.matrix
+            bpy.context.view_layer.update()
+        aim('neck_01', neck_deg)
+        # Tête droite (comme debout), inclinée vers la route.
+        h = pb['head']
+        h.matrix = Matrix.Translation(h.head) @ (Matrix.Rotation(math.radians(HEAD_PITCH), 3, 'X') @ head_rest).to_4x4()
         bpy.context.view_layer.update()
 
+    print('repos : ' + ', '.join(f'{n} {elevation(n):.0f}°' for n in spine + ('neck_01', 'head')))
     arm_len = (rig.data.bones['upperarm_l'].length + rig.data.bones['lowerarm_l'].length)
     wrist = {s: bl(Vector((HOOD.x * (1 if s == 'l' else -1), HOOD.y + 0.018, HOOD.z - 0.075))) for s in ('l', 'r')}
     best = None
-    for k in range(10, 76):
-        th = math.radians(k)
-        lean(th)
-        err = abs((world('upperarm_l') - wrist['l']).length - 0.93 * arm_len)
+    for k in range(5, 80):
+        torso(k, 30)
+        err = abs((world('upperarm_l') - wrist['l']).length - ARM_REACH * arm_len)
         if best is None or err < best[0]:
-            best = (err, th)
-    lean(best[1])
-    print(f'buste penché de {math.degrees(best[1]):.0f}°')
+            best = (err, k)
+    lean_deg = best[1]
+    print(f'portée : écart {100 * best[0]:.1f} cm')
+
+    torso(lean_deg, NECK_DEG)
+    print(f'buste : inclinaison {lean_deg}°, ' + ', '.join(f'{n} {elevation(n):.0f}°' for n in spine + ('neck_01',))
+          + f", tête {100 * (world('head').z - world('upperarm_l').z):+.1f} cm au-dessus de l'épaule, {100 * (world('upperarm_l').y - world('head').y):.1f} cm devant")
 
     # Jambes : IK vers les chevilles, genoux vers l'avant.
     for s in ('l', 'r'):
@@ -694,6 +748,17 @@ def pose_rider(rig):
         c = pb['lowerarm_' + s].constraints.new('IK')
         c.target = empty('ik_wrist_' + s, cl(wrist[s]))
         c.chain_count = 2
+        # Coudes vers l'arrière, un peu écartés (ELBOW_POLE) : angle de pôle cherché.
+        pole = Vector((ELBOW_POLE.x * (1 if s == 'l' else -1), ELBOW_POLE.y, ELBOW_POLE.z))
+        c.pole_target = empty('pole_elbow_' + s, pole)
+        best_pa, best_d = 0.0, 1e9
+        for pa in range(-180, 181, 10):
+            c.pole_angle = math.radians(pa)
+            bpy.context.view_layer.update()
+            d = (cl(world('lowerarm_' + s)) - pole).length
+            if d < best_d:
+                best_pa, best_d = pa, d
+        c.pole_angle = math.radians(best_pa)
         dt = pb['hand_' + s].constraints.new('DAMPED_TRACK')
         dt.target = empty('hood_' + s, Vector((HOOD.x * (1 if s == 'l' else -1), HOOD.y - 0.01, HOOD.z + 0.06)))
         dt.track_axis = 'TRACK_Y'
@@ -701,10 +766,6 @@ def pose_rider(rig):
         for f in ('index', 'middle', 'ring', 'pinky'):
             for j, ang in ((1, 35), (2, 55), (3, 35)):
                 pb[f'{f}_0{j}_{s}'].rotation_quaternion = Matrix.Rotation(math.radians(ang), 4, 'X').to_quaternion()
-    # Tête relevée vers la route : le cou et la tête compensent la bascule du buste.
-    for n, part in (('neck_01', 0.45), ('head', 0.4)):
-        pb[n].rotation_quaternion = Matrix.Rotation(-best[1] * part, 4, 'X').to_quaternion()
-    bpy.context.view_layer.update()
     for s in ('l', 'r'):
         print(f'cheville {s} : cible {tuple(round(c, 3) for c in bl(ankle_target(s)[0]))}, obtenue {tuple(round(c, 3) for c in world("foot_" + s))}')
     bpy.ops.object.mode_set(mode='OBJECT')
@@ -1251,7 +1312,7 @@ def main():
             m.object = rig
     bake_skin_textures(body, eyes, OUT)
     styles = build_hair_styles(body, rig)
-    pose_rider(rig)
+    pose_rider(rig, body)
     apply_pose_as_rest(rig, [body, eyes] + styles)
     acc = import_accessories(rig, body)
     transfer_keys(body, acc + [o for o in styles if o.name.startswith('rider_hair')])
@@ -1267,11 +1328,11 @@ def main():
         raw = out if args.no_compress else os.path.join(OUT, name + '.raw.glb')
         export([rig] + objs, raw)
         if not args.no_compress:
-            subprocess.run(['pnpm', '--filter', '@allezrobert/blender-tools', 'compress:avatar', os.path.abspath(raw), os.path.abspath(out)], check=True)
+            subprocess.run([PNPM, '--filter', '@allezrobert/blender-tools', 'compress:avatar', os.path.abspath(raw), os.path.abspath(out)], check=True)
             os.remove(raw)
             print(f'{name} compressé : {os.path.getsize(out) / 1e6:.2f} Mo')
     # Chaussures de cyclist.glb / cyclist_lod1.glb, pied caché retiré (fichiers compressés).
-    subprocess.run(['pnpm', '--filter', '@allezrobert/blender-tools', 'reshoe:avatar', OUT, os.path.dirname(os.path.abspath(args.cyclist))], check=True)
+    subprocess.run([PNPM, '--filter', '@allezrobert/blender-tools', 'reshoe:avatar', OUT, os.path.dirname(os.path.abspath(args.cyclist))], check=True)
     print('exporté', os.path.join(OUT, 'rider.glb'))
 
 

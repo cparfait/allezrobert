@@ -126,7 +126,7 @@ export function rideServicesFrom(ctx: AppContext): RideServices {
       const p = await ctx.repos.getProfile(userId);
       if (!p) return null;
       const [prog, atelier] = await Promise.all([ctx.repos.getProgression(userId), ctx.repos.getAtelier(userId)]);
-      return { displayName: p.displayName, weightKg: p.weightKg, ftpWatts: p.ftpWatts, avatar: p.avatar, consentHr: p.consentHr, equipped: p.equipped, owned: atelier.owned, level: levelForXp(prog.xp) };
+      return { displayName: p.displayName, weightKg: p.weightKg, heightCm: p.heightCm, ftpWatts: p.ftpWatts, avatar: p.avatar, consentHr: p.consentHr, equipped: p.equipped, owned: atelier.owned, level: levelForXp(prog.xp) };
     },
     rewardEvents: (userId, events) => rewardEvents(ctx.repos, userId, events),
     async rewardKom(userId) {

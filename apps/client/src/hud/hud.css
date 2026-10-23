@@ -73,6 +73,22 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #0a0e16; col
 
 .profile { position: absolute; left: 18px; right: 18px; bottom: 18px; height: 92px; padding: 6px 10px; }
 .profile canvas { width: 100%; height: 100%; }
+/* Montée façon ClimbPro : à la place du profil du parcours, un peu plus haute. */
+.hud.climbing { --hud-bottom: 164px; }
+.hud.climbing .profile { display: none; }
+.hud.climbing .attribution { bottom: 146px; }
+.climbpro { position: absolute; left: 18px; right: 18px; bottom: 18px; height: 120px; padding: 8px 12px 6px; display: grid; grid-template-columns: minmax(300px, 26%) minmax(0, 1fr); grid-template-rows: 100%; gap: 14px; overflow: hidden; border-left: 4px solid #f97316; }
+.climbpro .cp-info { display: flex; flex-direction: column; justify-content: space-between; min-width: 0; }
+.climbpro .cp-head { display: flex; align-items: baseline; gap: 10px; white-space: nowrap; }
+.climbpro .cp-head b { color: #f97316; text-transform: uppercase; letter-spacing: .06em; font-size: 13px; }
+.climbpro .cp-head span { color: var(--ar-muted); font-size: 13px; font-weight: 600; }
+.climbpro .cp-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.climbpro .cp-stats span { display: block; font-size: 10px; color: var(--ar-muted); text-transform: uppercase; letter-spacing: .08em; white-space: nowrap; }
+.climbpro .cp-stats b { font-size: 21px; font-weight: 800; white-space: nowrap; }
+.climbpro .cp-seg { display: flex; align-items: center; gap: 8px; font-size: 13.5px; font-weight: 700; white-space: nowrap; }
+.climbpro .cp-seg i { width: 12px; height: 12px; border-radius: 3px; flex: none; }
+.climbpro .cp-sum { color: var(--ar-muted); font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.climbpro canvas { display: block; width: 100%; height: 100%; min-width: 0; min-height: 0; }
 
 .gearbox { padding: 10px 14px; min-width: 150px; }
 .gearbox .value { font-size: 30px; font-weight: 700; }

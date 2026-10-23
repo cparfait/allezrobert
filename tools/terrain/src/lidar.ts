@@ -27,6 +27,8 @@ export interface Raster {
   w: number;
   h: number;
   data: Float32Array;
+  /** Part des pixels couverts par le LiDAR HD (0–1) : le reste n'est pas encore publié par l'IGN. */
+  coverage: number;
 }
 
 async function fetchBlock(layer: string, be: number, bn: number): Promise<Float32Array> {
@@ -62,8 +64,13 @@ export async function fetchRaster(layer: string, eMin: number, nMin: number, eMa
     }
   // valeurs d'absence (−99999…) : 0 pour le MNH, NaN pour le MNS
   const empty = layer === LAYER_MNH ? 0 : NaN;
-  for (let i = 0; i < data.length; i++) if (!(data[i]! > -50 && data[i]! < 5000)) data[i] = empty;
-  return { e0: b0 * BLOCK_M, n0: (c1 + 1) * BLOCK_M, res: LIDAR_RES, w, h, data };
+  let missing = 0;
+  for (let i = 0; i < data.length; i++)
+    if (!(data[i]! > -50 && data[i]! < 5000)) {
+      data[i] = empty;
+      missing++;
+    }
+  return { e0: b0 * BLOCK_M, n0: (c1 + 1) * BLOCK_M, res: LIDAR_RES, w, h, data, coverage: 1 - missing / Math.max(1, data.length) };
 }
 
 /** Valeur au plus proche pixel (NaN hors raster). */

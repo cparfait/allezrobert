@@ -45,10 +45,9 @@
    "maxM": -6,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 551152
+   "bytes": 534138
   },
   {
    "id": "-7_-4",
@@ -59,10 +58,9 @@
    "maxM": -6,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 554159
+   "bytes": 535108
   },
   {
    "id": "-7_-3",
@@ -73,10 +71,9 @@
    "maxM": -6,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 553347
+   "bytes": 534338
   },
   {
    "id": "-7_-2",
@@ -87,10 +84,9 @@
    "maxM": -6,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 553162
+   "bytes": 534138
   },
   {
    "id": "-7_-1",
@@ -101,10 +97,9 @@
    "maxM": -6,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 551148
+   "bytes": 534134
   },
   {
    "id": "-7_0",
@@ -115,10 +110,9 @@
    "maxM": -6,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 551140
+   "bytes": 534129
   },
   {
    "id": "-7_1",
@@ -129,10 +123,9 @@
    "maxM": -6,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 551143
+   "bytes": 534132
   },
   {
    "id": "-7_2",
@@ -143,10 +136,9 @@
    "maxM": -6,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 551143
+   "bytes": 534132
   },
   {
    "id": "-7_3",
@@ -157,10 +149,9 @@
    "maxM": -6,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 551143
+   "bytes": 534132
   },
   {
    "id": "-7_4",
@@ -171,10 +162,9 @@
    "maxM": -6,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 551143
+   "bytes": 534132
   },
   {
    "id": "-7_5",
@@ -185,10 +175,9 @@
    "maxM": -6,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 551143
+   "bytes": 534132
   },
   {
    "id": "-6_-5",
@@ -199,10 +188,9 @@
    "maxM": -6,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 553712
+   "bytes": 534642
   },
   {
    "id": "-6_-4",
@@ -213,10 +201,9 @@
    "maxM": -6,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 659463
+   "bytes": 534590
   },
   {
    "id": "-6_-3",
@@ -227,10 +214,9 @@
    "maxM": -1.3,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 688319
+   "bytes": 534682
   },
   {
    "id": "-6_-2",
@@ -241,10 +227,9 @@
    "maxM": -6,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 690403
+   "bytes": 534667
   },
   {
    "id": "-6_-1",
@@ -255,10 +240,9 @@
    "maxM": -6,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 555281
+   "bytes": 534273
   },
   {
    "id": "-6_0",
@@ -269,10 +253,9 @@
    "maxM": -6,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 553147
+   "bytes": 534129
   },
   {
    "id": "-6_1",
@@ -283,10 +266,9 @@
    "maxM": -6,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 551144
+   "bytes": 534132
   },
   {
    "id": "-6_2",
@@ -297,10 +279,9 @@
    "maxM": -6,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 551143
+   "bytes": 534132
   },
   {
    "id": "-6_3",
@@ -311,10 +292,9 @@
    "maxM": -6,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 551143
+   "bytes": 534132
   },
   {
    "id": "-6_4",
@@ -325,10 +305,9 @@
    "maxM": -6,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 551143
+   "bytes": 534132
   },
   {
    "id": "-6_5",
@@ -339,10 +318,9 @@
    "maxM": -6,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 551143
+   "bytes": 534132
   },
   {
    "id": "-5_-5",
@@ -353,10 +331,9 @@
    "maxM": -6,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 553379
+   "bytes": 534345
   },
   {
    "id": "-5_-4",
@@ -367,10 +344,9 @@
    "maxM": 0.3,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 684354
+   "bytes": 534514
   },
   {
    "id": "-5_-3",
@@ -381,10 +357,9 @@
    "maxM": 124.15,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 1014606
+   "bytes": 824419
   },
   {
    "id": "-5_-2",
@@ -395,10 +370,9 @@
    "maxM": 123.43,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 793909
+   "bytes": 618497
   },
   {
    "id": "-5_-1",
@@ -409,10 +383,9 @@
    "maxM": 148.08,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 649830
+   "bytes": 534794
   },
   {
    "id": "-5_0",
@@ -423,10 +396,9 @@
    "maxM": -5.76,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 718210
+   "bytes": 534223
   },
   {
    "id": "-5_1",
@@ -437,10 +409,9 @@
    "maxM": -6,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 555126
+   "bytes": 534132
   },
   {
    "id": "-5_2",
@@ -451,10 +422,9 @@
    "maxM": -6,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 553114
+   "bytes": 534132
   },
   {
    "id": "-5_3",
@@ -465,10 +435,9 @@
    "maxM": -6,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 551144
+   "bytes": 534132
   },
   {
    "id": "-5_4",
@@ -479,10 +448,9 @@
    "maxM": -6,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 551143
+   "bytes": 534132
   },
   {
    "id": "-5_5",
@@ -493,10 +461,9 @@
    "maxM": -6,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 551143
+   "bytes": 534132
   },
   {
    "id": "-4_-5",
@@ -507,10 +474,9 @@
    "maxM": -6,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 555184
+   "bytes": 534138
   },
   {
    "id": "-4_-4",
@@ -521,10 +487,9 @@
    "maxM": -0.12,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 653358
+   "bytes": 534385
   },
   {
    "id": "-4_-3",
@@ -535,10 +500,9 @@
    "maxM": 151.13,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 1516261
+   "bytes": 1307019
   },
   {
    "id": "-4_-2",
@@ -549,10 +513,9 @@
    "maxM": 8.72,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 1516391
+   "bytes": 1320963
   },
   {
    "id": "-4_-1",
@@ -563,10 +526,9 @@
    "maxM": 148.44,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 1202785
+   "bytes": 1004626
   },
   {
    "id": "-4_0",
@@ -577,10 +539,9 @@
    "maxM": 116.85,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 698065
+   "bytes": 534899
   },
   {
    "id": "-4_1",
@@ -591,10 +552,9 @@
    "maxM": -6,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 698749
+   "bytes": 534802
   },
   {
    "id": "-4_2",
@@ -605,10 +565,9 @@
    "maxM": -6,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 701510
+   "bytes": 534286
   },
   {
    "id": "-4_3",
@@ -619,10 +578,9 @@
    "maxM": -6,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 555088
+   "bytes": 534132
   },
   {
    "id": "-4_4",
@@ -633,10 +591,9 @@
    "maxM": -6,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 551146
+   "bytes": 534132
   },
   {
    "id": "-4_5",
@@ -647,10 +604,9 @@
    "maxM": -6,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 551143
+   "bytes": 534132
   },
   {
    "id": "-3_-5",
@@ -661,10 +617,9 @@
    "maxM": -6,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 666637
+   "bytes": 534138
   },
   {
    "id": "-3_-4",
@@ -675,10 +630,9 @@
    "maxM": -5.76,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 611473
+   "bytes": 534284
   },
   {
    "id": "-3_-3",
@@ -689,10 +643,9 @@
    "maxM": 132.07,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 1140246
+   "bytes": 987311
   },
   {
    "id": "-3_-2",
@@ -703,10 +656,9 @@
    "maxM": 5.55,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 1453342
+   "bytes": 1279280
   },
   {
    "id": "-3_-1",
@@ -717,10 +669,9 @@
    "maxM": 13.11,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 2148198
+   "bytes": 1929342
   },
   {
    "id": "-3_0",
@@ -731,10 +682,9 @@
    "maxM": 19.19,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 1304237
+   "bytes": 1123605
   },
   {
    "id": "-3_1",
@@ -745,10 +695,9 @@
    "maxM": 15.46,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 1243119
+   "bytes": 1042950
   },
   {
    "id": "-3_2",
@@ -759,10 +708,9 @@
    "maxM": 8.85,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 698229
+   "bytes": 539444
   },
   {
    "id": "-3_3",
@@ -773,10 +721,9 @@
    "maxM": -6,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 740985
+   "bytes": 534132
   },
   {
    "id": "-3_4",
@@ -787,10 +734,9 @@
    "maxM": -6,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 553157
+   "bytes": 534132
   },
   {
    "id": "-3_5",
@@ -801,10 +747,9 @@
    "maxM": -6,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 551143
+   "bytes": 534132
   },
   {
    "id": "-2_-5",
@@ -815,10 +760,9 @@
    "maxM": -5.76,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 648305
+   "bytes": 534246
   },
   {
    "id": "-2_-4",
@@ -829,10 +773,9 @@
    "maxM": 134.27,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 765191
+   "bytes": 648572
   },
   {
    "id": "-2_-3",
@@ -843,10 +786,9 @@
    "maxM": 16.85,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 1146987
+   "bytes": 987889
   },
   {
    "id": "-2_-2",
@@ -857,10 +799,9 @@
    "maxM": 5,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 941331
+   "bytes": 757660
   },
   {
    "id": "-2_-1",
@@ -871,10 +812,9 @@
    "maxM": 7.33,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 1449002
+   "bytes": 1264246
   },
   {
    "id": "-2_0",
@@ -885,10 +825,9 @@
    "maxM": 10.83,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 1996540
+   "bytes": 1804567
   },
   {
    "id": "-2_1",
@@ -899,10 +838,9 @@
    "maxM": 6.93,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 1944737
+   "bytes": 1709656
   },
   {
    "id": "-2_2",
@@ -913,10 +851,9 @@
    "maxM": 10.69,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 951759
+   "bytes": 772984
   },
   {
    "id": "-2_3",
@@ -927,10 +864,9 @@
    "maxM": -5.76,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 733152
+   "bytes": 534538
   },
   {
    "id": "-2_4",
@@ -941,10 +877,9 @@
    "maxM": -6,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 555105
+   "bytes": 534132
   },
   {
    "id": "-2_5",
@@ -955,10 +890,9 @@
    "maxM": -6,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 551143
+   "bytes": 534132
   },
   {
    "id": "-1_-5",
@@ -969,10 +903,9 @@
    "maxM": 127.46,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 654741
+   "bytes": 539707
   },
   {
    "id": "-1_-4",
@@ -983,10 +916,9 @@
    "maxM": 17.95,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 1440575
+   "bytes": 1253084
   },
   {
    "id": "-1_-3",
@@ -997,10 +929,9 @@
    "maxM": 16.35,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 1101366
+   "bytes": 929014
   },
   {
    "id": "-1_-2",
@@ -1011,10 +942,9 @@
    "maxM": 5.12,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 873479
+   "bytes": 705243
   },
   {
    "id": "-1_-1",
@@ -1025,10 +955,9 @@
    "maxM": 134.86,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 779001
+   "bytes": 617833
   },
   {
    "id": "-1_0",
@@ -1039,10 +968,9 @@
    "maxM": 137.02,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 937438
+   "bytes": 772823
   },
   {
    "id": "-1_1",
@@ -1053,10 +981,9 @@
    "maxM": 9.02,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 1766155
+   "bytes": 1510404
   },
   {
    "id": "-1_2",
@@ -1067,10 +994,9 @@
    "maxM": 10.9,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 1016447
+   "bytes": 865774
   },
   {
    "id": "-1_3",
@@ -1081,10 +1007,9 @@
    "maxM": 10.77,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 721299
+   "bytes": 537649
   },
   {
    "id": "-1_4",
@@ -1095,10 +1020,9 @@
    "maxM": -6,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 744400
+   "bytes": 534299
   },
   {
    "id": "-1_5",
@@ -1109,10 +1033,9 @@
    "maxM": -6,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 553151
+   "bytes": 534128
   },
   {
    "id": "0_-5",
@@ -1123,10 +1046,9 @@
    "maxM": 4.06,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 677392
+   "bytes": 535164
   },
   {
    "id": "0_-4",
@@ -1137,10 +1059,9 @@
    "maxM": 10.2,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 2139957
+   "bytes": 1870826
   },
   {
    "id": "0_-3",
@@ -1151,10 +1072,9 @@
    "maxM": 6.47,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 1440562
+   "bytes": 1238382
   },
   {
    "id": "0_-2",
@@ -1165,10 +1085,9 @@
    "maxM": 4.79,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 870431
+   "bytes": 705169
   },
   {
    "id": "0_-1",
@@ -1179,10 +1098,9 @@
    "maxM": 4.39,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 691330
+   "bytes": 548580
   },
   {
    "id": "0_0",
@@ -1193,10 +1111,9 @@
    "maxM": 138.7,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 734008
+   "bytes": 629166
   },
   {
    "id": "0_1",
@@ -1207,10 +1124,9 @@
    "maxM": 5.99,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 839755
+   "bytes": 682916
   },
   {
    "id": "0_2",
@@ -1221,10 +1137,9 @@
    "maxM": 7.4,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 991338
+   "bytes": 814800
   },
   {
    "id": "0_3",
@@ -1235,10 +1150,9 @@
    "maxM": 6.42,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 669061
+   "bytes": 545220
   },
   {
    "id": "0_4",
@@ -1249,10 +1163,9 @@
    "maxM": -6,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 684188
+   "bytes": 534289
   },
   {
    "id": "0_5",
@@ -1263,10 +1176,9 @@
    "maxM": -6,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 553242
+   "bytes": 534249
   },
   {
    "id": "1_-5",
@@ -1277,10 +1189,9 @@
    "maxM": -4.28,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 658747
+   "bytes": 534287
   },
   {
    "id": "1_-4",
@@ -1291,10 +1202,9 @@
    "maxM": 8.53,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 991501
+   "bytes": 836339
   },
   {
    "id": "1_-3",
@@ -1305,10 +1215,9 @@
    "maxM": 9.83,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 1329420
+   "bytes": 1133604
   },
   {
    "id": "1_-2",
@@ -1319,10 +1228,9 @@
    "maxM": 9.1,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 1479006
+   "bytes": 1264071
   },
   {
    "id": "1_-1",
@@ -1333,10 +1241,9 @@
    "maxM": 147.93,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 1001969
+   "bytes": 857057
   },
   {
    "id": "1_0",
@@ -1347,10 +1254,9 @@
    "maxM": 137.85,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 695007
+   "bytes": 572168
   },
   {
    "id": "1_1",
@@ -1361,10 +1267,9 @@
    "maxM": 136.98,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 826984
+   "bytes": 671868
   },
   {
    "id": "1_2",
@@ -1375,10 +1280,9 @@
    "maxM": 110.23,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 874995
+   "bytes": 738505
   },
   {
    "id": "1_3",
@@ -1389,10 +1293,9 @@
    "maxM": -5.76,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 629900
+   "bytes": 534348
   },
   {
    "id": "1_4",
@@ -1403,10 +1306,9 @@
    "maxM": -6,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 555168
+   "bytes": 534268
   },
   {
    "id": "1_5",
@@ -1417,10 +1319,9 @@
    "maxM": -6,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 551249
+   "bytes": 534237
   },
   {
    "id": "2_-5",
@@ -1431,10 +1332,9 @@
    "maxM": -6,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 683398
+   "bytes": 534132
   },
   {
    "id": "2_-4",
@@ -1445,10 +1345,9 @@
    "maxM": -6,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 664814
+   "bytes": 534483
   },
   {
    "id": "2_-3",
@@ -1459,10 +1358,9 @@
    "maxM": -0.51,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 661449
+   "bytes": 534696
   },
   {
    "id": "2_-2",
@@ -1473,10 +1371,9 @@
    "maxM": 147.83,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 783807
+   "bytes": 680372
   },
   {
    "id": "2_-1",
@@ -1487,10 +1384,9 @@
    "maxM": 147.88,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 661372
+   "bytes": 556405
   },
   {
    "id": "2_0",
@@ -1501,10 +1397,9 @@
    "maxM": 146.77,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 711528
+   "bytes": 572510
   },
   {
    "id": "2_1",
@@ -1515,10 +1410,9 @@
    "maxM": 5.36,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 1217778
+   "bytes": 1037216
   },
   {
    "id": "2_2",
@@ -1529,10 +1423,9 @@
    "maxM": 138.42,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 805127
+   "bytes": 705594
   },
   {
    "id": "2_3",
@@ -1543,10 +1436,9 @@
    "maxM": -6,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 611074
+   "bytes": 534258
   },
   {
    "id": "2_4",
@@ -1557,10 +1449,9 @@
    "maxM": -6,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 553144
+   "bytes": 534126
   },
   {
    "id": "2_5",
@@ -1571,10 +1462,9 @@
    "maxM": -6,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 551137
+   "bytes": 534126
   },
   {
    "id": "3_-5",
@@ -1585,10 +1475,9 @@
    "maxM": -6,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 553140
+   "bytes": 534132
   },
   {
    "id": "3_-4",
@@ -1599,10 +1488,9 @@
    "maxM": -6,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 555119
+   "bytes": 534132
   },
   {
    "id": "3_-3",
@@ -1613,10 +1501,9 @@
    "maxM": -6,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 741372
+   "bytes": 534317
   },
   {
    "id": "3_-2",
@@ -1627,10 +1514,9 @@
    "maxM": 0.05,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 639086
+   "bytes": 535762
   },
   {
    "id": "3_-1",
@@ -1641,10 +1527,9 @@
    "maxM": 145.53,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 767502
+   "bytes": 624384
   },
   {
    "id": "3_0",
@@ -1655,10 +1540,9 @@
    "maxM": 5.83,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 1050362
+   "bytes": 875170
   },
   {
    "id": "3_1",
@@ -1669,10 +1553,9 @@
    "maxM": 5.74,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 1086524
+   "bytes": 913875
   },
   {
    "id": "3_2",
@@ -1683,10 +1566,9 @@
    "maxM": 16.59,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 1105054
+   "bytes": 953728
   },
   {
    "id": "3_3",
@@ -1697,10 +1579,9 @@
    "maxM": -5.76,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 634581
+   "bytes": 534299
   },
   {
    "id": "3_4",
@@ -1711,10 +1592,9 @@
    "maxM": -6,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 555158
+   "bytes": 534126
   },
   {
    "id": "3_5",
@@ -1725,10 +1605,9 @@
    "maxM": -6,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 551137
+   "bytes": 534126
   },
   {
    "id": "4_-5",
@@ -1739,10 +1618,9 @@
    "maxM": -6,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 551143
+   "bytes": 534132
   },
   {
    "id": "4_-4",
@@ -1753,10 +1631,9 @@
    "maxM": -6,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 553108
+   "bytes": 534132
   },
   {
    "id": "4_-3",
@@ -1767,10 +1644,9 @@
    "maxM": -6,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 732201
+   "bytes": 534250
   },
   {
    "id": "4_-2",
@@ -1781,10 +1657,9 @@
    "maxM": -6,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 693360
+   "bytes": 535703
   },
   {
    "id": "4_-1",
@@ -1795,10 +1670,9 @@
    "maxM": 8.1,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 1054935
+   "bytes": 888645
   },
   {
    "id": "4_0",
@@ -1809,10 +1683,9 @@
    "maxM": 6.9,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 1537919
+   "bytes": 1339212
   },
   {
    "id": "4_1",
@@ -1823,10 +1696,9 @@
    "maxM": 5.59,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 1374921
+   "bytes": 1187856
   },
   {
    "id": "4_2",
@@ -1837,10 +1709,9 @@
    "maxM": 15.67,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 1849556
+   "bytes": 1611315
   },
   {
    "id": "4_3",
@@ -1851,10 +1722,9 @@
    "maxM": 149.66,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 852020
+   "bytes": 729809
   },
   {
    "id": "4_4",
@@ -1865,10 +1735,9 @@
    "maxM": -2.21,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 652335
+   "bytes": 534364
   },
   {
    "id": "4_5",
@@ -1879,10 +1748,9 @@
    "maxM": -6,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 555146
+   "bytes": 534126
   },
   {
    "id": "5_-5",
@@ -1893,10 +1761,9 @@
    "maxM": -6,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 551143
+   "bytes": 534132
   },
   {
    "id": "5_-4",
@@ -1907,10 +1774,9 @@
    "maxM": -6,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 551143
+   "bytes": 534132
   },
   {
    "id": "5_-3",
@@ -1921,10 +1787,9 @@
    "maxM": -6,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 555050
+   "bytes": 534132
   },
   {
    "id": "5_-2",
@@ -1935,10 +1800,9 @@
    "maxM": -6,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 632291
+   "bytes": 535143
   },
   {
    "id": "5_-1",
@@ -1949,10 +1813,9 @@
    "maxM": 82.69,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 1399868
+   "bytes": 1209465
   },
   {
    "id": "5_0",
@@ -1963,10 +1826,9 @@
    "maxM": 7.24,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 1676084
+   "bytes": 1467590
   },
   {
    "id": "5_1",
@@ -1977,10 +1839,9 @@
    "maxM": 5.51,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 725830
+   "bytes": 589212
   },
   {
    "id": "5_2",
@@ -1991,10 +1852,9 @@
    "maxM": 7.49,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 1742449
+   "bytes": 1538185
   },
   {
    "id": "5_3",
@@ -2005,10 +1865,9 @@
    "maxM": 117.14,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 2130360
+   "bytes": 1860436
   },
   {
    "id": "5_4",
@@ -2019,10 +1878,9 @@
    "maxM": 150.58,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 599245
+   "bytes": 535191
   },
   {
    "id": "5_5",
@@ -2033,10 +1891,9 @@
    "maxM": -6,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 620067
+   "bytes": 534245
   },
   {
    "id": "6_-5",
@@ -2047,10 +1904,9 @@
    "maxM": -6,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 551143
+   "bytes": 534132
   },
   {
    "id": "6_-4",
@@ -2061,10 +1917,9 @@
    "maxM": -6,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 551143
+   "bytes": 534132
   },
   {
    "id": "6_-3",
@@ -2075,10 +1930,9 @@
    "maxM": -6,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 553106
+   "bytes": 534132
   },
   {
    "id": "6_-2",
@@ -2089,10 +1943,9 @@
    "maxM": -6,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 657250
+   "bytes": 534236
   },
   {
    "id": "6_-1",
@@ -2103,10 +1956,9 @@
    "maxM": 8.85,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 976987
+   "bytes": 822658
   },
   {
    "id": "6_0",
@@ -2117,10 +1969,9 @@
    "maxM": 5.22,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 870837
+   "bytes": 721502
   },
   {
    "id": "6_1",
@@ -2131,10 +1982,9 @@
    "maxM": 0.52,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 627357
+   "bytes": 534701
   },
   {
    "id": "6_2",
@@ -2145,10 +1995,9 @@
    "maxM": 6.18,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 1251024
+   "bytes": 1083661
   },
   {
    "id": "6_3",
@@ -2159,10 +2008,9 @@
    "maxM": 12.78,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 2262793
+   "bytes": 2031973
   },
   {
    "id": "6_4",
@@ -2173,10 +2021,9 @@
    "maxM": 103.99,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 854669
+   "bytes": 734630
   },
   {
    "id": "6_5",
@@ -2187,10 +2034,9 @@
    "maxM": -6,
    "lods": [
     "lo",
-    "hi",
-    "ortho"
+    "hi"
    ],
-   "bytes": 616348
+   "bytes": 534316
   }
  ],
  "routes": [
@@ -2202,13 +2048,39 @@
    "elevationGainM": 45.2,
    "loop": true,
    "main": true
+  },
+  {
+   "id": "tour-d-ars-en-re",
+   "file": "routes/tour-d-ars-en-re.json",
+   "name": "Le tour d'Ars-en-Ré",
+   "lengthM": 21182,
+   "elevationGainM": 44.46,
+   "loop": false,
+   "main": false
+  },
+  {
+   "id": "ile-de-re-grande-boucle",
+   "file": "routes/ile-de-re-grande-boucle.json",
+   "name": "La grande boucle de l'île de Ré",
+   "lengthM": 51121.18,
+   "elevationGainM": 118.72,
+   "loop": true,
+   "main": false
+  },
+  {
+   "id": "autour-du-bois-plage-en-re",
+   "file": "routes/autour-du-bois-plage-en-re.json",
+   "name": "Autour du Bois-Plage-en-Ré",
+   "lengthM": 48584,
+   "elevationGainM": 106.07,
+   "loop": false,
+   "main": false
   }
  ],
  "mainRoute": "phare-des-baleines",
  "attribution": [
   "© IGN — RGE ALTI® / LiDAR HD (Licence Ouverte Etalab 2.0)",
   "© les contributeurs OpenStreetMap (ODbL)",
-  "© IGN — BD ORTHO® (Licence Ouverte Etalab 2.0)",
   "© IGN — LiDAR HD MNS / MNH (Licence Ouverte Etalab 2.0)",
   "© IGN — BD TOPO® (Licence Ouverte Etalab 2.0)"
  ],

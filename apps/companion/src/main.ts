@@ -6,13 +6,16 @@
  * Onglets : Compteur (champs façon compteur GPS, au choix, et profil des 3 km à venir),
  * Pilotage (vitesses, pause, caméra, photo, HUD, demi-tour, ventilateur, équipiers),
  * Musique, Chat (messages rapides, Ride On), Carte. Le choix aux carrefours (monde ouvert)
- * s'affiche par-dessus tous les onglets, avec vibration. Plein écran, portrait ou paysage.
+ * s'affiche par-dessus tous les onglets, avec vibration. À l'approche d'une montée, page façon
+ * ClimbPro (Garmin Edge) à la place du compteur et de la carte : tronçons colorés par pente,
+ * restant à grimper ; bandeau réduit sur les autres onglets. Plein écran, portrait ou paysage.
  */
 import './style.css';
 import { Client, type Room } from '@colyseus/sdk';
-import { PAIR_MSG, PAIR_ROOM, PAIR_TOKEN_RE, type CameraMode, type PairEvent, type PairPresence, type PairRoute, type PairState, type PhoneCommand } from '@allezrobert/shared';
+import { climbAhead, climbElevation, gradeColor, PAIR_MSG, PAIR_ROOM, PAIR_TOKEN_RE, type CameraMode, type Climb, type ClimbAhead, type PairEvent, type PairPresence, type PairRoute, type PairState, type PhoneCommand } from '@allezrobert/shared';
 import { detectLang, STRINGS, type Lang } from './i18n.ts';
-import { drawMap, drawProfile, RouteGeo } from './map.ts';
+import { climbsOf } from './climbs.ts';
+import { drawClimb, drawMap, drawProfile, RouteGeo } from './map.ts';
 
 type Tab = 'dash' | 'ctrl' | 'music' | 'chat' | 'map';
 type FieldId = keyof (typeof STRINGS)['fr']['fields'];
@@ -63,7 +66,16 @@ const S = {
   /** Champ en cours de choix (indice), null hors du sélecteur. */
   picking: null as number | null,
   orient: 'any' as 'any' | 'landscape' | 'portrait',
+  /** Montées de la route reçue, montée en cours ou à moins de `CLIMB_APPROACH_M` du pied. */
+  climbs: [] as Climb[],
+  climb: null as ClimbAhead | null,
+  /** Page de la montée fermée par le coureur (jusqu'au sommet). */
+  climbHidden: false,
+  /** Le coureur remonte la route à l'envers (demi-tour) : pas de montées. */
+  backwards: false,
 };
+/** La page de la montée s'ouvre 500 m avant le pied. */
+const CLIMB_APPROACH_M = 500;
 let room: Room | null = null;
 
 function loadFields(): FieldId[] {
@@ -188,6 +200,7 @@ function connect(): void {
       r.onMessage(PAIR_MSG.state, (st: PairState) => onState(st));
       r.onMessage(PAIR_MSG.route, (route: PairRoute) => {
         S.geo = new RouteGeo(route);
+        S.climbs = climbsOf(S.geo);
         refresh();
       });
       r.onMessage(PAIR_MSG.event, (ev: PairEvent) => onEvent(ev));
@@ -226,6 +239,15 @@ function onState(st: PairState): void {
 
 let toastTimer: ReturnType<typeof setTimeout> | undefined;
 
+function showToast(text: string): void {
+  const el = document.getElementById('toast');
+  if (!el) return;
+  el.textContent = text;
+  el.classList.add('on');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('on'), 3500);
+}
+
 function onEvent(ev: PairEvent): void {
   if (ev.kind === 'chat') {
     S.chat.push({ who: ev.who, text: ev.text });
@@ -233,13 +255,7 @@ function onEvent(ev: PairEvent): void {
   } else if (ev.kind === 'toast' || ev.kind === 'rideOn') {
     const text = ev.kind === 'toast' ? ev.text : `👍 Ride On — ${ev.from}`;
     S.chat.push({ who: '', text, sys: true });
-    const el = document.getElementById('toast');
-    if (el) {
-      el.textContent = text;
-      el.classList.add('on');
-      clearTimeout(toastTimer);
-      toastTimer = setTimeout(() => el.classList.remove('on'), 3500);
-    }
+    showToast(text);
   }
   if (S.chat.length > 80) S.chat.splice(0, S.chat.length - 80);
   if (S.tab !== 'chat' && ev.kind === 'chat') S.unread++;
@@ -264,6 +280,7 @@ function render(): void {
   app.innerHTML = `<div class="shell">
     <header class="bar" id="bar"></header>
     <div id="junction"></div>
+    <div id="climbmini"></div>
     <div class="toast" id="toast"></div>
     <main class="content" id="content"></main>
     <nav class="tabs" id="tabs"></nav>
@@ -314,7 +331,10 @@ function renderContent(): void {
     c.innerHTML = chatHtml();
     renderChatLog();
   } else if (!inRide) c.innerHTML = waitingHtml();
-  else if (S.tab === 'dash') c.innerHTML = `<section class="dash" id="dash"></section><section class="extra" id="extra"></section><section class="climb"><span>${esc(t.climb)}</span><canvas id="profile"></canvas></section>`;
+  else if (climbPageWanted()) {
+    c.dataset.tab = 'climb';
+    c.innerHTML = climbPageHtml();
+  } else if (S.tab === 'dash') c.innerHTML = `<section class="dash" id="dash"></section><section class="extra" id="extra"></section><section class="extra" id="climbstrip"></section><section class="climb"><span>${esc(t.climb)}</span><canvas id="profile"></canvas></section>`;
   else if (S.tab === 'ctrl') c.innerHTML = ctrlHtml();
   else if (S.tab === 'map')
     c.innerHTML = `<section class="mapbox"><canvas id="map"></canvas><button class="chip" data-act="follow">${esc(S.follow ? t.whole : t.follow)}</button></section><section class="mapprof"><canvas id="mapprofile"></canvas></section>`;
@@ -325,12 +345,14 @@ function renderContent(): void {
 function refresh(): void {
   renderBarLite();
   renderJunction();
+  if (updateClimb()) return;
   const st = S.st;
   if (S.tab === 'music') return updateMusic();
   if (S.tab === 'chat') return updateChatControls();
   if (!st || st.phase === 'menu' || !st.metrics) return;
   const m = st.metrics;
-  if (S.tab === 'dash') {
+  if (document.getElementById('cp')) updateClimbPage(m);
+  else if (S.tab === 'dash') {
     const dash = document.getElementById('dash');
     if (!dash) return renderContent();
     // Champs construits une fois, valeurs mises à jour sur place (un bouton remplacé sous le doigt perdrait le toucher).
@@ -347,6 +369,15 @@ function refresh(): void {
     });
     const extra = document.getElementById('extra');
     if (extra) extra.innerHTML = extraHtml(st);
+    const strip = document.getElementById('climbstrip');
+    if (strip) {
+      // Reconstruit seulement quand le texte change (le bouton reste sous le doigt).
+      const html = climbStripHtml(m);
+      if (strip.dataset.h !== html) {
+        strip.innerHTML = html;
+        strip.dataset.h = html;
+      }
+    }
     const prof = document.getElementById('profile') as HTMLCanvasElement | null;
     if (prof && S.geo) {
       const from = m.routeM - 300;
@@ -411,6 +442,182 @@ function renderJunction(): void {
       })
       .join('')}</div>
   </div>`;
+}
+
+/* ───────────── Montées (façon ClimbPro) ───────────── */
+
+/** Distance lisible : « 350 m », « 2,35 km ». */
+function fmtDist(m: number, d = 2): string {
+  m = Math.max(0, m);
+  return m < 1000 ? `${Math.round(m / 10) * 10} m` : `${nf(m / 1000, d)} km`;
+}
+
+/** Page de la montée affichée à la place du compteur ou de la carte ? */
+function climbPageWanted(): boolean {
+  return !!S.climb && !S.climbHidden && (S.tab === 'dash' || S.tab === 'map') && !!S.st && S.st.phase !== 'menu';
+}
+
+/** Barre des tronçons colorés, avec la position du coureur. */
+function climbBarHtml(c: Climb, pos: number | null): string {
+  return `<i class="cbar">${c.segments.map((s) => `<i style="flex:${s.to - s.from};background:${gradeColor(s.grade)}"></i>`).join('')}${
+    pos !== null ? `<b style="left:${Math.min(100, (Math.max(pos, 0) / c.lengthM) * 100).toFixed(1)}%"></b>` : ''
+  }</i>`;
+}
+
+/** Résumé d'une montée : « 3,2 km · 6,4 % moy. · max 9,1 % · +205 m ». */
+function climbSummary(c: Climb): string {
+  const ge = c.openEnd ? '≥ ' : '';
+  return `${ge}${nf(c.lengthM / 1000, 1)} km · ${nf(c.avgGrade, 1)} % ${t.climbAvg} · ${t.climbMax} ${nf(c.maxGrade, 1)} % · ${ge}+${nf(c.gainM)} m`;
+}
+
+/** Sommet de la montée suivie (m sur la route), départ du chrono au pied. */
+let climbEnd: number | null = null;
+let climbT0: { elapsedS: number; elev: number } | null = null;
+let lastRouteM: number | null = null;
+
+/**
+ * Montée en cours ou proche : vibration à l'approche, bilan au sommet, page affichée ou retirée,
+ * bandeau des autres onglets. Renvoie vrai si le contenu a été reconstruit (déjà rafraîchi).
+ */
+function updateClimb(): boolean {
+  const st = S.st;
+  const m = st && st.phase !== 'menu' ? st.metrics : undefined;
+  if (m && lastRouteM !== null) {
+    // Sens de marche, d'après l'évolution de la position (les sauts de tour de boucle sont ignorés).
+    const dm = m.routeM - lastRouteM;
+    if (dm < -1 && dm > -500) S.backwards = true;
+    else if (dm > 1 && dm < 500) S.backwards = false;
+  }
+  lastRouteM = m ? m.routeM : null;
+  const a = m && S.geo && !S.backwards ? climbAhead(S.climbs, m.routeM, { loop: S.geo.route.loop, lengthM: S.geo.route.lengthM }) : null;
+  S.climb = a && a.pos >= -CLIMB_APPROACH_M ? a : null;
+  const start = S.climb && m ? m.routeM - S.climb.pos : null;
+  // Changement de montée (ou plus de montée) : la précédente a-t-elle été gravie ?
+  if (climbEnd !== null && (start === null || start > climbEnd - 1)) {
+    if (m && m.routeM >= climbEnd - 30 && climbT0) {
+      const dt = m.elapsedS - climbT0.elapsedS;
+      const gain = Math.max(0, m.altitudeM - climbT0.elev);
+      const vam = dt > 0 ? Math.round((gain * 3600) / dt) : 0;
+      haptic([40, 30, 40, 30, 160]);
+      showToast(`⛰ ${t.climbSummit} ${fmtTime(dt)} · +${nf(gain)} m · VAM ${nf(vam)} m/h`);
+    }
+    S.climbHidden = false;
+    climbT0 = null;
+  }
+  if (start !== null && (climbEnd === null || start > climbEnd - 1)) haptic([60, 40, 60, 40, 60]);
+  if (S.climb && m && S.climb.pos >= 0 && !climbT0) climbT0 = { elapsedS: m.elapsedS, elev: m.altitudeM };
+  climbEnd = start !== null ? start + S.climb!.climb.lengthM : null;
+  renderClimbMini();
+  const c = document.getElementById('content');
+  if (c && m && (c.dataset.tab === 'climb') !== climbPageWanted()) {
+    renderContent();
+    return true;
+  }
+  return false;
+}
+
+function climbPageHtml(): string {
+  const f = (id: string, lbl: string) => `<div class="fld" id="${id}"><span class="lbl">${esc(lbl)}</span><b class="val">–</b><small></small></div>`;
+  return `<section class="cp" id="cp">
+    <header class="cp-head"><b id="cp-title"></b><span id="cp-status"></span><button class="ico" data-act="climb-close" aria-label="${esc(t.climbClose)}">✕</button></header>
+    <div class="cp-fields">${f('cp-left', t.climbLeft)}${f('cp-gain', t.climbGainLeft)}${f('cp-grade', t.fields.grade)}${f('cp-power', t.fields.power3s)}</div>
+    <div class="cp-prof"><canvas id="cp-canvas"></canvas></div>
+    <div class="cp-foot"><div class="seg-now" id="cp-seg"></div><div class="mut" id="cp-sum"></div></div>
+  </section>`;
+}
+
+function setText(id: string, text: string): void {
+  const el = document.getElementById(id);
+  if (el && el.textContent !== text) el.textContent = text;
+}
+
+function setField(id: string, v: string, u: string, color?: string): void {
+  const el = document.getElementById(id);
+  if (!el) return;
+  (el.children[1] as HTMLElement).textContent = v;
+  (el.children[2] as HTMLElement).textContent = u;
+  if (color) el.style.setProperty('--zc', color);
+  else el.style.removeProperty('--zc');
+}
+
+function updateClimbPage(m: Metrics): void {
+  const a = S.climb;
+  if (!a) return;
+  const c = a.climb;
+  const p = Math.min(Math.max(a.pos, 0), c.lengthM);
+  const leftM = c.lengthM - p;
+  const gainLeft = Math.max(0, c.topM - climbElevation(c, p));
+  const ge = c.openEnd ? '≥ ' : '';
+  setText('cp-title', `⛰ ${t.climbOf(a.index + 1, S.geo?.route.open ? 1 : S.climbs.length)}`);
+  setText('cp-status', a.pos < 0 ? t.climbIn(fmtDist(-a.pos)) : `${t.climbOn} · ${Math.round((p / c.lengthM) * 100)} %`);
+  const [lv, lu] = fmtDist(leftM).split(' ');
+  setField('cp-left', ge + lv!, lu!);
+  setField('cp-gain', ge + nf(gainLeft), 'm');
+  setField('cp-grade', nf(m.gradePercent, 1), '%', gradeColor(m.gradePercent));
+  setField('cp-power', nf(m.watts3s), 'W', zoneOf(m.watts3s, m.ftp).color);
+  // Tronçon en cours : pente, distance jusqu'au suivant ; pente moyenne de ce qui reste.
+  const seg = c.segments.find((s) => p < s.to) ?? c.segments[c.segments.length - 1]!;
+  const segHtml = `<i style="background:${gradeColor(seg.grade)}"></i><span>${esc(t.climbSeg)} ${nf(seg.grade, 1)} % · ${esc(fmtDist(seg.to - p))}</span>${
+    leftM > 50 ? `<span class="mut">${nf((gainLeft / leftM) * 100, 1)} % ${esc(t.climbAvgLeft)}</span>` : ''
+  }`;
+  const segEl = document.getElementById('cp-seg');
+  if (segEl && segEl.dataset.h !== segHtml) {
+    segEl.innerHTML = segHtml;
+    segEl.dataset.h = segHtml;
+  }
+  setText('cp-sum', `${climbSummary(c)} · ${t.climbTop} ${nf(c.topM)} m`);
+  const canvas = document.getElementById('cp-canvas') as HTMLCanvasElement | null;
+  if (canvas) drawClimb(canvas, c, a.pos, nf);
+}
+
+/** Bandeau du compteur : montée suivante, ou montée en cours dont la page a été fermée. */
+function climbStripHtml(m: Metrics): string {
+  if (S.climb) {
+    const c = S.climb.climb;
+    return S.climbHidden
+      ? `<button class="strip climb-s" data-act="climb-show"><b>⛰ ${esc(t.climbNow)}</b><span>${esc(climbSummary(c))}</span><span class="mut">${esc(t.climbShow)} ›</span>${climbBarHtml(c, null)}</button>`
+      : '';
+  }
+  if (!S.geo || S.backwards) return '';
+  const a = climbAhead(S.climbs, m.routeM, { loop: S.geo.route.loop, lengthM: S.geo.route.lengthM });
+  if (!a) return '';
+  const c = a.climb;
+  return `<div class="strip climb-s"><b>⛰ ${esc(t.climbNext)}</b><span>${esc(t.climbIn(fmtDist(-a.pos, 1)))}</span><span class="mut">${esc(climbSummary(c))}</span>${climbBarHtml(c, null)}</div>`;
+}
+
+/** Bandeau réduit de la montée sur les onglets sans la page (pilotage, musique, chat). */
+function renderClimbMini(): void {
+  const el = document.getElementById('climbmini');
+  if (!el) return;
+  const a = S.climb;
+  const show = !!a && S.tab !== 'dash' && S.tab !== 'map';
+  document.getElementById('content')?.classList.toggle('pad-climb', show);
+  if (!show || !a) {
+    if (el.innerHTML) el.innerHTML = '';
+    el.dataset.key = '';
+    return;
+  }
+  const c = a.climb;
+  const p = Math.min(Math.max(a.pos, 0), c.lengthM);
+  const gainLeft = Math.max(0, c.topM - climbElevation(c, p));
+  const ge = c.openEnd ? '≥ ' : '';
+  const text =
+    a.pos < 0
+      ? `${t.climbIn(fmtDist(-a.pos))} · ${nf(c.lengthM / 1000, 1)} km · ${nf(c.avgGrade, 1)} %`
+      : `${ge}${fmtDist(c.lengthM - p)} · ${ge}+${nf(gainLeft)} m · ${nf(S.st?.metrics?.gradePercent ?? 0, 1)} %`;
+  // Construit une fois par montée ; texte et repère mis à jour sur place (bouton sous le doigt).
+  const key = `${lang}|${c.segments.map((s) => s.grade.toFixed(1)).join(',')}`;
+  if (el.dataset.key !== key) {
+    el.dataset.key = key;
+    el.innerHTML = `<button class="cm" data-act="climb-show"><b>⛰</b><span class="cm-txt"></span>${climbBarHtml(c, 0)}</button>`;
+  }
+  const txt = el.querySelector('.cm-txt');
+  if (txt && txt.textContent !== text) txt.textContent = text;
+  const mark = el.querySelector<HTMLElement>('.cbar b');
+  if (mark) {
+    mark.hidden = a.pos < 0;
+    mark.style.left = `${((p / c.lengthM) * 100).toFixed(1)}%`;
+  }
 }
 
 function ctrlHtml(): string {
@@ -612,6 +819,19 @@ app.addEventListener('click', (e) => {
     r?.removeAllListeners();
     void r?.leave(true).catch(() => undefined);
     render();
+  } else if (d.act === 'climb-close') {
+    haptic(8);
+    S.climbHidden = true;
+    renderContent();
+  } else if (d.act === 'climb-show') {
+    haptic(8);
+    S.climbHidden = false;
+    if (S.tab !== 'dash' && S.tab !== 'map') {
+      S.tab = 'dash';
+      localStorage.setItem('ar-cmp-tab', S.tab);
+      renderTabs();
+    }
+    renderContent();
   } else if (d.act === 'close-sheet') closeSheet();
   else if (d.act === 'reset-fields') {
     S.fields = [...DEFAULT_FIELDS];

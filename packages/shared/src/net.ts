@@ -107,6 +107,19 @@ export interface AvatarLook {
   moustache?: boolean;
   /** Pièces de l'atelier portées (tuning.ts), pour les voir sur le vélo ; validées par le serveur. */
   tune?: string[];
+  /**
+   * Taille du coureur (cm), reprise du profil (heightCm) : coureur et taille de cadre affichés
+   * (de 160 à 195 cm) ; absente : taille du modèle.
+   */
+  heightCm?: number;
+  /**
+   * Style du maillot (modèle acheté) : absent, dessin d'origine aux couleurs jersey / jerseyAccent ;
+   * « uni » : couleur jersey partout ; « bandes » : uni, plus les bandes de poitrine jerseyBands
+   * (maillots de champion).
+   */
+  jerseyStyle?: 'uni' | 'bandes';
+  /** Bandes de poitrine, de haut en bas (5 au plus), avec jerseyStyle « bandes ». */
+  jerseyBands?: string[];
 }
 
 export const DEFAULT_LOOK: AvatarLook = {

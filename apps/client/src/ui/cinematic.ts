@@ -35,9 +35,25 @@ import { CINE_ENV, GROUP_SPEED, LOOP_S, SLOTS, XFADE_S, formation, frameCount, f
 /** Abscisse de départ retenue par itinéraire (m, issue de la recherche automatique ; même tronçon pour les 4 saisons). */
 const CINE_D: Record<string, number> = { 'chevreuse-boucle': 5825 };
 
-const JERSEYS = ['#d7f205', '#111418', '#c0392b', '#e8ecf0', '#1e5bd8', '#2b2f36', '#f39c12', '#16a085', '#8e44ad'];
 const BIKES = ['#1d1d1f', '#e8ecf0', '#c0392b', '#2c3e50', '#16a085', '#f4f4f4', '#d35400'];
-const HELMETS = ['#f4f4f4', '#111111', '#1e5bd8', '#c0392b', '#f4f4f4'];
+const BLACK = '#141414';
+const WHITE = '#f2f2f2';
+/**
+ * Tenues des 9 équipiers de Robert : maillots surtout unis (deux au dessin d'origine, deux
+ * couleurs), casques noirs, blancs, jaunes, rouges ou bleus, chaussures blanches ou noires, tailles
+ * de 1,60 à 1,94 m (cadres à la taille).
+ */
+const OUTFITS: ReadonlyArray<Partial<AvatarLook>> = [
+  { jersey: '#c0392b', jerseyStyle: 'uni', helmet: BLACK, shoes: BLACK, heightCm: 182 },
+  { jersey: '#1b2a4a', jerseyStyle: 'uni', helmet: WHITE, shoes: WHITE, heightCm: 168 },
+  { jersey: '#d7f205', jerseyStyle: 'uni', helmet: BLACK, shoes: WHITE, heightCm: 175 },
+  { jersey: '#111418', jerseyAccent: '#f39c12', helmet: '#f2c500', shoes: BLACK, heightCm: 190 },
+  { jersey: '#e8ecf0', jerseyStyle: 'uni', helmet: '#c62828', shoes: WHITE, heightCm: 163 },
+  { jersey: '#16a085', jerseyStyle: 'uni', helmet: WHITE, shoes: BLACK, heightCm: 186 },
+  { jersey: '#f39c12', jerseyStyle: 'uni', helmet: '#1e5bd8', shoes: WHITE, heightCm: 172 },
+  { jersey: '#8e44ad', jerseyAccent: '#e8ecf0', helmet: WHITE, shoes: WHITE, heightCm: 194 },
+  { jersey: '#2b2f36', jerseyStyle: 'uni', helmet: '#f2c500', shoes: BLACK, heightCm: 160 },
+];
 /**
  * Visages du groupe (avatar MPFB) : un profil de base par coureur (packages/shared/src/profiles.ts),
  * Robert en tête ; les deux derniers reprennent un profil avec d'autres traits et un autre teint.
@@ -134,12 +150,12 @@ function lookFor(i: number): AvatarLook {
   const base: AvatarLook = { ...DEFAULT_LOOK, ...face, ...(i >= 8 ? RECAST[i - 8] : {}), face: encodeFace(shape) };
   if (i === 0) return base;
   const j = i - 1;
+  const outfit = OUTFITS[j % OUTFITS.length] as Partial<AvatarLook>;
   return {
     ...base,
-    jersey: JERSEYS[j % JERSEYS.length] as string,
-    jerseyAccent: JERSEYS[(j + 4) % JERSEYS.length] as string,
-    helmet: HELMETS[j % HELMETS.length] as string,
     ...crowdShoes(j),
+    ...outfit,
+    jerseyAccent: outfit.jerseyAccent ?? (outfit.jersey as string),
     bike: BIKES[j % BIKES.length] as string,
     bikeModel: crowdBike(j),
     build: ((j * 37) % 10) / 10,
