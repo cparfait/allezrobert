@@ -111,7 +111,17 @@ export interface WorldSource {
   /** Origine Lambert-93, pour reconvertir les positions en GPS (export FIT). */
   originL93?: { x: number; y: number };
   /** Monde ouvert : graphe routier roulable et départ par défaut (toutes les routes creusées). */
-  open?: { graph: RoadGraphData; start: { x: number; z: number }; places?: WorldPlace[] };
+  open?: {
+    graph: RoadGraphData;
+    start: { x: number; z: number };
+    places?: WorldPlace[];
+    /** Graphe complet, arêtes au bord comprises (raccord des zones voisines). */
+    fullGraph?: RoadGraphData;
+  };
+  /** Zones chargées ensemble (zone principale d'abord) ; absent : la seule zone `id`. */
+  zones?: string[];
+  /** Monde côtier : niveau de la mer (m), fonds marins en dessous. */
+  sea?: { levelM: number };
   hasTile(tx: number, tz: number): boolean;
   loadTile(tx: number, tz: number): Promise<LoadedTile | null>;
   /** Relief lointain, s'il est fourni (world.json `horizon`). */

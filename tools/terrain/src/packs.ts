@@ -63,6 +63,8 @@ export function writeCatalogue(log: (s: string) => void = console.log): WorldCat
       ...(cfg?.region ? { region: cfg.region } : {}),
       routes,
       pack: pack ? { version: pack.version, bytes: pack.bytes, files: pack.files.length } : prev,
+      l93: { minE: meta.originL93.x + meta.bounds.minX, minN: meta.originL93.y - meta.bounds.maxZ, maxE: meta.originL93.x + meta.bounds.maxX, maxN: meta.originL93.y - meta.bounds.minZ },
+      ...(meta.open ? { open: true as const } : {}),
     });
     log(`   zone ${id} : ${routes.length} parcours, pack ${pack ? `${(pack.bytes / 1e6).toFixed(1)} Mo (${pack.files.length} fichiers)` : prev ? 'inchangé (pas de tuiles locales)' : 'absent'}`);
   }

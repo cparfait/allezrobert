@@ -92,6 +92,8 @@ interface WorldBase {
   region?: string;
   /** Monde privé (data/private/worlds) : sortie ignorée par git. */
   private?: boolean;
+  /** Bord de mer : l'absence de relief IGN (LiDAR et RGE ALTI) est la mer, pas un trou à boucher. */
+  sea?: boolean;
 }
 
 export interface GarminWorld extends WorldBase {
@@ -121,6 +123,8 @@ export interface OpenTour {
   via: Array<LonLat | string>;
   /** Montées chronométrées : pied et sommet. */
   koms?: Array<{ id: string; name: string; from: LonLat; to: LonLat }>;
+  /** Noms des côtes détectées, dans l'ordre du parcours (sinon : lieu le plus proche du sommet). */
+  climbNames?: string[];
 }
 
 /**
@@ -314,6 +318,131 @@ export const WORLDS: Record<string, WorldConfig> = {
         // points relevés sur l'anneau autour de l'hippodrome (vue aérienne), sens horaire
         start: { lon: 2.44902, lat: 48.8275 },
         via: [{ lon: 2.45639, lat: 48.82529 }, { lon: 2.45533, lat: 48.82244 }, { lon: 2.44718, lat: 48.82043 }, { lon: 2.44446, lat: 48.82074 }, { lon: 2.44346, lat: 48.82487 }],
+      },
+    ],
+  },
+  meudon: {
+    kind: 'open',
+    id: 'meudon',
+    name: 'Meudon — Clamart',
+    region: 'Hauts-de-Seine · Forêt de Meudon',
+    // forêts de Meudon et de Clamart, côte des Gardes (D181), Vélizy, Châtillon
+    originL93: { x: 644000, y: 6856000 },
+    // 10 × 7 km : E 639–649 km, N 6 852–6 859 km (Sèvres, Chaville, Meudon-la-Forêt, Clamart, Châtillon)
+    corridorTiles: { txMin: -5, txMax: 4, tzMin: -3, tzMax: 3 },
+    start: { lon: 2.23253, lat: 48.79566 },
+    orthoPx: 1024,
+    enrich: { radiusM: 50, lidarVegetation: true, bdtopoBuildings: true },
+    horizon: { halfSizeM: 20000, resM: 100 },
+    tours: [
+      {
+        routeId: 'boucle-foret-de-meudon',
+        routeName: 'La forêt de Meudon par la côte des Gardes',
+        routeNameEn: 'Meudon forest loop via the Côte des Gardes',
+        climbNames: ['Côte des Gardes'],
+        // départ avenue de Trivaux (étang de Trivaux), descente sur Meudon, côte des Gardes (D181)
+        // de Bas-Meudon au pavé des Gardes, retour par la forêt, Meudon-la-Forêt et le pavé Blanc ;
+        // points relevés sur le tracé routé, chacun sur la chaussée empruntée (pas de raquette)
+        start: { lon: 2.23253, lat: 48.79566 },
+        via: [{ lon: 2.2336, lat: 48.79989 }, { lon: 2.24719, lat: 48.816 }, { lon: 2.24602, lat: 48.81849 }, { lon: 2.22711, lat: 48.81663 }, { lon: 2.21736, lat: 48.81526 }, { lon: 2.21453, lat: 48.81399 }, { lon: 2.21794, lat: 48.80889 }, { lon: 2.22317, lat: 48.80823 }, { lon: 2.21981, lat: 48.80403 }, { lon: 2.2176, lat: 48.79877 }, { lon: 2.22082, lat: 48.79052 }, { lon: 2.2285, lat: 48.78666 }, { lon: 2.23489, lat: 48.78269 }, { lon: 2.23678, lat: 48.78881 }, { lon: 2.23222, lat: 48.79133 }],
+      },
+    ],
+  },
+  etretat: {
+    kind: 'open',
+    id: 'etretat',
+    name: "Étretat — Côte d'Albâtre",
+    region: 'Seine-Maritime · Pays de Caux',
+    // falaises d'Étretat (porte d'Aval, Manneporte), valleuses et plateau du pays de Caux
+    originL93: { x: 501000, y: 6959000 },
+    // 11 × 11 km : E 495–506 km, N 6 953–6 964 km (la mer à l'ouest et au nord)
+    corridorTiles: { txMin: -6, txMax: 4, tzMin: -5, tzMax: 5 },
+    start: { lon: 0.2032, lat: 49.7075 },
+    orthoPx: 1024,
+    enrich: { radiusM: 50, lidarVegetation: true, bdtopoBuildings: true },
+    horizon: { halfSizeM: 30000, resM: 100 },
+    sea: true,
+    tours: [
+      {
+        routeId: 'falaises-d-etretat',
+        routeName: "Les falaises d'Étretat par Bénouville et Le Tilleul",
+        routeNameEn: 'Étretat cliffs via Bénouville and Le Tilleul',
+        start: 'Étretat',
+        via: ['Bénouville', 'Vattetot-sur-Mer', 'Les Loges', 'Bordeaux-Saint-Clair', 'Pierrefiques', 'Le Tilleul'],
+      },
+    ],
+  },
+  esterel: {
+    kind: 'open',
+    id: 'esterel',
+    name: "Corniche de l'Estérel",
+    region: 'Var · Estérel',
+    // corniche d'Or (D559) entre Saint-Raphaël et Agay, roches rouges de l'Estérel, retour par Valescure (D100)
+    originL93: { x: 1010000, y: 6267000 },
+    // 13 × 9 km : E 1 003–1 016 km, N 6 262–6 271 km (la mer au sud)
+    corridorTiles: { txMin: -7, txMax: 5, tzMin: -4, tzMax: 4 },
+    start: { lon: 6.7656, lat: 43.4241 },
+    orthoPx: 1024,
+    enrich: { radiusM: 50, lidarVegetation: true, bdtopoBuildings: true },
+    horizon: { halfSizeM: 30000, resM: 100 },
+    sea: true,
+    tours: [
+      {
+        routeId: 'corniche-de-l-esterel',
+        routeName: "La corniche de l'Estérel par Agay et Valescure",
+        routeNameEn: 'Estérel corniche via Agay and Valescure',
+        // port de Saint-Raphaël, route de la Corniche (D559) par Boulouris et le Dramont, Agay,
+        // avenue du Gratadis et avenue des Golfs (D100), Valescure, boulevard du Cerceron
+        start: { lon: 6.7656, lat: 43.4241 },
+        via: [{ lon: 6.7958, lat: 43.4141 }, { lon: 6.8254, lat: 43.4179 }, { lon: 6.8523, lat: 43.4192 }, { lon: 6.864, lat: 43.4343 }, { lon: 6.8529, lat: 43.4341 }, { lon: 6.8362, lat: 43.451 }, { lon: 6.8137, lat: 43.4477 }, { lon: 6.7893, lat: 43.4366 }],
+      },
+    ],
+  },
+  opale: {
+    kind: 'open',
+    id: 'opale',
+    name: "Côte d'Opale — Les deux caps",
+    region: "Pas-de-Calais · Côte d'Opale",
+    // caps Blanc-Nez et Gris-Nez, baie de Wissant, bocage du Boulonnais
+    originL93: { x: 606000, y: 7089000 },
+    // 13 × 12 km : E 599–612 km, N 7 083–7 095 km (la Manche à l'ouest et au nord)
+    corridorTiles: { txMin: -7, txMax: 5, tzMin: -6, tzMax: 5 },
+    start: { lon: 1.6629, lat: 50.8854 },
+    orthoPx: 1024,
+    enrich: { radiusM: 50, lidarVegetation: true, bdtopoBuildings: true },
+    horizon: { halfSizeM: 30000, resM: 100 },
+    sea: true,
+    tours: [
+      {
+        routeId: 'les-deux-caps',
+        routeName: 'Les caps Blanc-Nez et Gris-Nez par Wissant',
+        routeNameEn: 'Cap Blanc-Nez and Cap Gris-Nez via Wissant',
+        start: 'Wissant',
+        via: ['Escalles', 'Hervelinghen', 'Audembert', 'Audinghen', 'Le Gris-Nez', 'Tardinghen'],
+      },
+    ],
+  },
+  re: {
+    kind: 'open',
+    id: 're',
+    name: 'Île de Ré',
+    region: 'Charente-Maritime · Île de Ré',
+    // pointe ouest de l'île : Ars-en-Ré, phare des Baleines, Les Portes, marais salants et pistes cyclables
+    originL93: { x: 353000, y: 6579000 },
+    // 14 × 11 km : E 346–360 km, N 6 573–6 584 km
+    corridorTiles: { txMin: -7, txMax: 6, tzMin: -5, tzMax: 5 },
+    start: { lon: -1.5158, lat: 46.2081 },
+    orthoPx: 1024,
+    enrich: { radiusM: 50, lidarVegetation: true, bdtopoBuildings: true },
+    horizon: { halfSizeM: 30000, resM: 100 },
+    sea: true,
+    tours: [
+      {
+        routeId: 'phare-des-baleines',
+        routeName: 'Le phare des Baleines par Ars-en-Ré et Les Portes',
+        routeNameEn: 'Phare des Baleines via Ars-en-Ré and Les Portes',
+        start: 'Ars-en-Ré',
+        via: ['Saint-Clément-des-Baleines', 'Le Gillieux', 'Les Portes-en-Ré', 'La Couarde-sur-Mer'],
       },
     ],
   },

@@ -67,6 +67,24 @@ interface TileWater {
   objects: THREE.Object3D[];
 }
 
+/** Teintes du corps de l'eau (profond, hauts-fonds) et amplitude des vaguelettes. */
+interface WaterPalette {
+  deep: [number, number, number];
+  shallow: [number, number, number];
+  ripple: number;
+}
+
+/** Étangs et rivières de la vallée : vert-brun, plus clair et plus brun sur les hauts-fonds. */
+const POND: WaterPalette = { deep: [0.035, 0.07, 0.065], shallow: [0.2, 0.19, 0.12], ripple: 1 };
+/** Mer : bleu-vert profond, turquoise sur les hauts-fonds, houle plus marquée. */
+const SEA: WaterPalette = { deep: [0.02, 0.075, 0.11], shallow: [0.09, 0.3, 0.29], ripple: 2.2 };
+/** Maille de la surface de la mer sur une tuile (m) et profondeur au-delà de laquelle elle est « profonde ». */
+const SEA_CELL_M = 10;
+const SEA_DEEP_M = 4;
+/** Mer lointaine (au-delà des tuiles) : marge autour du monde (m), juste sous la mer des tuiles. */
+const SEA_FAR_MARGIN_M = 40000;
+const SEA_FAR_DROP_M = 0.15;
+
 /**
  * Eau de la vallée (étangs, rivières, ruisseaux OSM) : plans d'eau subdivisés (profondeur par
  * sommet), rubans de rivière qui suivent la pente sans jamais remonter, matériau TSL commun —
@@ -86,6 +104,8 @@ export class WaterSystem {
   private readonly reedBase = colorUniform();
   private readonly reedTip = colorUniform();
   private readonly material: THREE.MeshStandardNodeMaterial;
+  /** Monde côtier : niveau de la mer, matériau et plan de la mer lointaine. */
+  private sea: { levelM: number; material: THREE.MeshStandardNodeMaterial; far: THREE.Mesh } | null = null;
   private readonly reedMaterial: THREE.MeshStandardNodeMaterial;
   private readonly reedGeo = reedGeometry();
   private readonly tiles = new Map<string, TileWater>();
@@ -113,14 +133,14 @@ export class WaterSystem {
     this.q = q;
   }
 
-  private createMaterial(detail: boolean): THREE.MeshStandardNodeMaterial {
+  private createMaterial(detail: boolean, palette: WaterPalette = POND): THREE.MeshStandardNodeMaterial {
     const m = new THREE.MeshStandardNodeMaterial();
     const depth = attribute<'float'>('wdepth');
     const flow = attribute<'vec2'>('wflow'); // vitesse du courant (m/s), nulle sur les étangs
     const p = positionWorld.xz;
     const wind = this.windDir;
     // Vaguelettes : bruit dérivé (vecteur) déplacé par le courant et dérivant sous le vent.
-    const ripple = this.windMs.mul(0.035).add(0.015).min(0.22);
+    const ripple = this.windMs.mul(0.035).add(0.015).min(0.22).mul(palette.ripple);
     const drift = flow.add(wind.mul(this.windMs.mul(0.05).add(0.05)));
     const p1 = p.sub(drift.mul(time)).mul(0.45);
     let pert: THREE.Node<'vec2'> = mx_noise_vec3(vec3(p1.x, p1.y, time.mul(0.25))).xz.mul(ripple);
@@ -145,9 +165,9 @@ export class WaterSystem {
     const fresnel = float(0.02).add(float(0.98).mul(float(1).sub(cosT).pow(5)));
     const refl = reflect(view.negate(), nWorld);
     const sky = mix(this.horizonColor.node, this.skyColor.node, smoothstep(0.0, 0.5, refl.y));
-    // Corps de l'eau : vert-brun des étangs de la vallée, plus clair et plus brun sur les hauts-fonds.
-    const deep = vec3(0.035, 0.07, 0.065);
-    const shallow = vec3(0.2, 0.19, 0.12);
+    // Corps de l'eau : teinte profonde, plus claire sur les hauts-fonds (palette étang ou mer).
+    const deep = vec3(...palette.deep);
+    const shallow = vec3(...palette.shallow);
     const body = mix(shallow, deep, smoothstep(0.05, 1.6, depth));
     // Écume et liseré clair au bord, irrégulier.
     const foamNoise = mx_noise_float(vec3(p.mul(1.3), time.mul(0.3))).mul(0.5).add(0.5);
@@ -170,6 +190,77 @@ export class WaterSystem {
     m.roughnessNode = float(0.8);
     m.normalNode = transformNormalToView(vec3(0, 1, 0));
     return m;
+  }
+
+  /**
+   * Monde côtier : la mer est une surface plane au niveau `levelM`. Chaque tuile qui descend
+   * sous ce niveau reçoit sa nappe maillée (profondeur par sommet : hauts-fonds, écume au rivage) ;
+   * au-delà, un grand plan à peine plus bas prolonge la mer jusqu'à l'horizon.
+   */
+  setSea(levelM: number, bounds: { minX: number; minZ: number; maxX: number; maxZ: number }): void {
+    if (this.sea) return;
+    const material = this.createMaterial(this.q.waterDetail, SEA);
+    const w = bounds.maxX - bounds.minX + 2 * SEA_FAR_MARGIN_M;
+    const h = bounds.maxZ - bounds.minZ + 2 * SEA_FAR_MARGIN_M;
+    const g = new THREE.PlaneGeometry(w, h, 64, 64);
+    g.rotateX(-Math.PI / 2);
+    g.translate((bounds.minX + bounds.maxX) / 2, levelM - SEA_FAR_DROP_M, (bounds.minZ + bounds.maxZ) / 2);
+    const nv = g.attributes.position!.count;
+    g.setAttribute('wdepth', new THREE.BufferAttribute(new Float32Array(nv).fill(SEA_DEEP_M), 1));
+    g.setAttribute('wflow', new THREE.BufferAttribute(new Float32Array(nv * 2), 2));
+    const far = new THREE.Mesh(g, material);
+    far.name = 'sea_far';
+    far.receiveShadow = true;
+    this.group.add(far);
+    this.sea = { levelM, material, far };
+  }
+
+  /** Nappe de mer d'une tuile : mailles dont un sommet au moins est sous le niveau de la mer. */
+  private seaMesh(tile: LoadedTile): THREE.Mesh | null {
+    const sea = this.sea;
+    if (!sea) return null;
+    let min = Infinity;
+    for (const v of tile.heights) if (v < min) min = v;
+    if (!(min < sea.levelM)) return null;
+    const n = Math.round(tile.size / SEA_CELL_M);
+    const step = tile.size / n;
+    const N = n + 1;
+    const pos = new Float32Array(N * N * 3);
+    const dep = new Float32Array(N * N);
+    const wet = new Uint8Array(N * N);
+    for (let j = 0; j < N; j++)
+      for (let i = 0; i < N; i++) {
+        const k = j * N + i;
+        const x = tile.x0 + i * step;
+        const z = tile.z0 + j * step;
+        const g = this.groundAt(x, z);
+        pos[k * 3] = x;
+        pos[k * 3 + 1] = sea.levelM;
+        pos[k * 3 + 2] = z;
+        dep[k] = Number.isFinite(g) ? Math.min(Math.max(sea.levelM - g, 0), SEA_DEEP_M) : SEA_DEEP_M;
+        wet[k] = !Number.isFinite(g) || g < sea.levelM ? 1 : 0;
+      }
+    const idx: number[] = [];
+    for (let j = 0; j < n; j++)
+      for (let i = 0; i < n; i++) {
+        const a = j * N + i;
+        const b = a + 1;
+        const c = a + N;
+        const d = c + 1;
+        if (wet[a]! | wet[b]! | wet[c]! | wet[d]!) idx.push(a, c, b, b, c, d);
+      }
+    if (!idx.length) return null;
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    geo.setAttribute('wdepth', new THREE.BufferAttribute(dep, 1));
+    geo.setAttribute('wflow', new THREE.BufferAttribute(new Float32Array(N * N * 2), 2));
+    geo.setIndex(idx);
+    geo.computeVertexNormals();
+    geo.computeBoundingSphere();
+    const mesh = new THREE.Mesh(geo, sea.material);
+    mesh.receiveShadow = true;
+    mesh.name = `sea_${tile.id}`;
+    return mesh;
   }
 
   addTile(tile: LoadedTile): void {
@@ -275,6 +366,8 @@ export class WaterSystem {
     }
 
     const objects: THREE.Object3D[] = [];
+    const seaMesh = this.seaMesh(tile);
+    if (seaMesh) objects.push(seaMesh);
     if (parts.length) {
       const merged = mergeGeometries(parts, false);
       if (merged) {

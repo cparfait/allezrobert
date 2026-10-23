@@ -4,6 +4,7 @@ import { BIKE_BRANDS, BIKE_GROUPS, BIKE_TEAMS, COSMETICS, DEFAULT_BIKE, bikeById
 import { shoeAccentOf } from '../rider/shoeLook.ts';
 import { WORKOUT_LIBRARY } from '@allezrobert/physics';
 import { formatBytes, installPack, loadCatalogue, packState, removePack } from '../world/packs.ts';
+import { compositeId, neighbourZones } from '../world/composite.ts';
 import { t, setLang, getLang, type I18nKey } from '../i18n/index.ts';
 import type { Settings } from './settings.ts';
 import { saveSettings } from './settings.ts';
@@ -223,6 +224,8 @@ export class MainMenu {
   onLogout?: () => void;
   /** Monde affiché et changement de monde (rechargement de la page). */
   worldId = 'chevreuse';
+  /** Zones chargées ensemble : la zone `worldId` puis les voisines ajoutées (parcours libre et à dessiner). */
+  loadedZones: string[] = [];
 
   /** Nouveau monde chargé sur place : parcours, identifiant, monde ouvert ; l'écran est refait. */
   setWorld(routes: RouteData[], worldId: string, open: boolean): void {
@@ -822,6 +825,19 @@ export class MainMenu {
     const hint = w?.hint[lang] ?? '';
     const region = spot?.region[lang] ?? '';
     const zoneSub = [hint.includes(region) ? '' : region, hint].filter(Boolean).join(' · ');
+    // zones voisines (qui touchent ou chevauchent celle-ci) : chargées avec elle pour le libre et le dessin
+    const near = this.openWorld ? neighbourZones({ formatVersion: 1, zones: this.zones }, this.worldId) : [];
+    const zoneName = (id: string) => WORLD_LIST.find((x) => x.id === id)?.name[lang] ?? ZONE_SPOTS.find((x) => x.id === id)?.name[lang] ?? id;
+    const nearHtml = near.length
+      ? `<div class="zc-near"><div><b>${L ? 'Zones voisines' : 'Neighbouring areas'}</b><span>${
+          this.loadingZone ? `${L ? 'Chargement…' : 'Loading…'}` : L ? 'Ajoute-les pour rouler ou dessiner d’une zone à l’autre (parcours libre et à dessiner).' : 'Add them to ride or draw from one area to the next (free ride and drawn routes).'
+        }</span></div><div class="zc-near-list">${near
+          .map((id) => {
+            const on = this.loadedZones.includes(id);
+            return `<button class="zc-near-chip${on ? ' on' : ''}" data-near="${esc(id)}" aria-pressed="${on}"${this.loadingZone ? ' disabled' : ''}>${on ? '✓ ' : '+ '}${esc(zoneName(id))}</button>`;
+          })
+          .join('')}</div></div>`
+      : '';
     return `<div class="mm-modal mm-picker-modal" data-picker-close>
       <div class="mm-dialog mm-picker" role="dialog" aria-modal="true">
         <header class="zc-head"><div><h2>${esc(w ? w.name[lang] : (spot?.name[lang] ?? this.worldId))}</h2><small>${esc(zoneSub)}</small></div><button class="mm-x" data-picker-close aria-label="${L ? 'Fermer' : 'Close'}">×</button></header>
@@ -830,6 +846,7 @@ export class MainMenu {
           ${card('free', ICON.open, L ? 'Parcours libre' : 'Free ride', L ? 'Pars du départ de la zone et choisis ta route à chaque carrefour (← / →, U pour faire demi-tour).' : 'Start from the area’s start and pick your road at each junction (← / →, U to turn around).')}
           ${card('draw', svg('<path d="M4 19c3-.5 3.5-6 7-6s3 5.5 6 5"/><circle cx="4" cy="19" r="1.6"/><circle cx="17" cy="18" r="1.6"/><path d="m15.5 3.5 3 3L12 13H9v-3z"/>'), L ? 'Parcours à dessiner' : 'Draw a route', L ? 'Sur la carte : ton départ, tes points de passage, ton arrivée ou une boucle.' : 'On the map: your start, waypoints, finish or a loop.')}
         </div>
+        ${nearHtml}
         <div class="zc-pack"><button class="mm-link zc-back" data-picker="zones">← ${L ? 'Carte de France' : 'Map of France'}</button>${pack ? `${L ? 'Cartes hors ligne' : 'Offline maps'} ${pack}` : ''}</div>
       </div></div>`;
   }
@@ -1524,6 +1541,20 @@ export class MainMenu {
         if (hint) hint.textContent = `${fr() ? 'Chargement de' : 'Loading'} ${this.loadingZone}…`;
         this.onWorld?.(id);
       });
+    // Zones voisines : ajoutées ou retirées, le monde est rechargé avec elles (même zone principale).
+    this.root.querySelectorAll<HTMLElement>('[data-near]').forEach((el) =>
+      el.addEventListener('click', () => {
+        if (this.loadingZone) return;
+        const id = el.dataset.near as string;
+        const near = neighbourZones({ formatVersion: 1, zones: this.zones }, this.worldId);
+        const on = new Set(this.loadedZones.filter((z) => z !== this.worldId));
+        if (on.has(id)) on.delete(id);
+        else on.add(id);
+        this.loadingZone = id;
+        this.render();
+        this.onWorld?.(compositeId([this.worldId, ...near.filter((z) => on.has(z))]));
+      }),
+    );
     // Zone ouverte : parcours fixés, parcours libre (départ par défaut), parcours à dessiner.
     this.root.querySelectorAll<HTMLElement>('[data-zc]').forEach((el) =>
       el.addEventListener('click', () => {

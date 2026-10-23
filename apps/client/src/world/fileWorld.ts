@@ -22,7 +22,12 @@ export async function createFileWorld(id: string, meta: WorldMeta): Promise<Worl
   if (meta.open) {
     const [res, pl] = await Promise.all([fetch(`${base}/${meta.open.graph}`), meta.open.places ? fetch(`${base}/${meta.open.places}`).catch(() => null) : null]);
     const places = pl?.ok ? ((await pl.json().catch(() => null)) as WorldPlace[] | null) : null;
-    if (res.ok) open = { graph: (await res.json()) as RoadGraphData, start: meta.open.start, ...(places ? { places } : {}) };
+    if (res.ok) {
+      // arêtes au bord du monde : seulement pour raccorder les zones voisines (pas de cul-de-sac au bord)
+      const full = (await res.json()) as RoadGraphData;
+      const graph = full.edges.some((e) => e.border) ? { ...full, edges: full.edges.filter((e) => !e.border) } : full;
+      open = { graph, fullGraph: full, start: meta.open.start, ...(places ? { places } : {}) };
+    }
   }
   // Itinéraire principal en premier (jalon 1).
   routes.sort((a, b) => (a.id === meta.mainRoute ? -1 : b.id === meta.mainRoute ? 1 : 0));
@@ -41,6 +46,7 @@ export async function createFileWorld(id: string, meta: WorldMeta): Promise<Worl
     attribution: meta.attribution,
     originL93: meta.originL93,
     ...(open ? { open } : {}),
+    ...(meta.sea ? { sea: meta.sea } : {}),
     hasTile(tx, tz) {
       const key = `${tx}_${tz}`;
       if (missing.has(key)) return false;

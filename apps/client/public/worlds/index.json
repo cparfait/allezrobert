@@ -19,6 +19,12 @@
     "version": "5464ee8550a1",
     "bytes": 46816476,
     "files": 508
+   },
+   "l93": {
+    "minE": 932000,
+    "minN": 6438000,
+    "maxE": 948000,
+    "maxN": 6455000
    }
   },
   {
@@ -79,7 +85,14 @@
     "version": "320f6ea26b71",
     "bytes": 255267140,
     "files": 901
-   }
+   },
+   "l93": {
+    "minE": 714000,
+    "minN": 6508000,
+    "maxE": 729000,
+    "maxN": 6523000
+   },
+   "open": true
   },
   {
    "id": "chevreuse",
@@ -131,6 +144,12 @@
     "version": "c0f8d4614447",
     "bytes": 188023760,
     "files": 1887
+   },
+   "l93": {
+    "minE": 609000,
+    "minN": 6835000,
+    "maxE": 642000,
+    "maxN": 6852000
    }
   },
   {
@@ -151,7 +170,14 @@
     "version": "49b3c5735197",
     "bytes": 269956850,
     "files": 961
-   }
+   },
+   "l93": {
+    "minE": 712000,
+    "minN": 6499000,
+    "maxE": 728000,
+    "maxN": 6514000
+   },
+   "open": true
   },
   {
    "id": "issoire",
@@ -171,7 +197,14 @@
     "version": "50633423c2c4",
     "bytes": 192158421,
     "files": 721
-   }
+   },
+   "l93": {
+    "minE": 722000,
+    "minN": 6486000,
+    "maxE": 740000,
+    "maxN": 6496000
+   },
+   "open": true
   },
   {
    "id": "limagne",
@@ -191,7 +224,14 @@
     "version": "f55c9b582f7a",
     "bytes": 49274628,
     "files": 197
-   }
+   },
+   "l93": {
+    "minE": 729000,
+    "minN": 6512000,
+    "maxE": 736000,
+    "maxN": 6519000
+   },
+   "open": true
   },
   {
    "id": "livradois",
@@ -227,7 +267,14 @@
     "version": "fb6457a45b59",
     "bytes": 332996999,
     "files": 1289
-   }
+   },
+   "l93": {
+    "minE": 726000,
+    "minN": 6508000,
+    "maxE": 740000,
+    "maxN": 6531000
+   },
+   "open": true
   },
   {
    "id": "longchamp",
@@ -247,7 +294,41 @@
     "version": "a170f04065d6",
     "bytes": 63292142,
     "files": 145
-   }
+   },
+   "l93": {
+    "minE": 641000,
+    "minN": 6859000,
+    "maxE": 647000,
+    "maxN": 6865000
+   },
+   "open": true
+  },
+  {
+   "id": "meudon",
+   "name": "Meudon — Clamart",
+   "region": "Hauts-de-Seine · Forêt de Meudon",
+   "routes": [
+    {
+     "id": "boucle-foret-de-meudon",
+     "name": "La forêt de Meudon par la côte des Gardes",
+     "nameEn": "Meudon forest loop via the Côte des Gardes",
+     "lengthM": 13320,
+     "elevationGainM": 188.34,
+     "loop": true
+    }
+   ],
+   "pack": {
+    "version": "911601b13d5c",
+    "bytes": 119205811,
+    "files": 281
+   },
+   "l93": {
+    "minE": 639000,
+    "minN": 6852000,
+    "maxE": 649000,
+    "maxN": 6859000
+   },
+   "open": true
   },
   {
    "id": "mont-ventoux",
@@ -267,6 +348,12 @@
     "version": "155134436562",
     "bytes": 122516591,
     "files": 916
+   },
+   "l93": {
+    "minE": 868000,
+    "minN": 6331000,
+    "maxE": 892000,
+    "maxN": 6351000
    }
   },
   {
@@ -287,7 +374,14 @@
     "version": "0c633b896247",
     "bytes": 451014689,
     "files": 1601
-   }
+   },
+   "l93": {
+    "minE": 684000,
+    "minN": 6515000,
+    "maxE": 704000,
+    "maxN": 6535000
+   },
+   "open": true
   },
   {
    "id": "sancy",
@@ -315,7 +409,14 @@
     "version": "c36bf9e26f4b",
     "bytes": 328886432,
     "files": 1321
-   }
+   },
+   "l93": {
+    "minE": 675000,
+    "minN": 6484000,
+    "maxE": 697000,
+    "maxN": 6499000
+   },
+   "open": true
   },
   {
    "id": "vincennes",
@@ -335,7 +436,14 @@
     "version": "7058821dc50c",
     "bytes": 68493325,
     "files": 145
-   }
+   },
+   "l93": {
+    "minE": 657000,
+    "minN": 6855000,
+    "maxE": 663000,
+    "maxN": 6861000
+   },
+   "open": true
   }
  ]
 }

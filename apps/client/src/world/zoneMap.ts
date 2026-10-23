@@ -22,6 +22,7 @@ export const ZONE_SPOTS: ZoneSpot[] = [
   { id: 'chevreuse', x: 625500, y: 6843500, open: false, region: IDF, name: { fr: 'Vallée de Chevreuse', en: 'Chevreuse Valley' } },
   { id: 'longchamp', x: 646000, y: 6861500, open: true, region: IDF, name: { fr: 'Paris — Longchamp', en: 'Paris — Longchamp' } },
   { id: 'vincennes', x: 662000, y: 6857500, open: true, region: IDF, name: { fr: 'Paris — Vincennes', en: 'Paris — Vincennes' } },
+  { id: 'meudon', x: 644000, y: 6855500, open: true, region: IDF, name: { fr: 'Meudon — Clamart', en: 'Meudon — Clamart' } },
   { id: 'limagne', x: 732500, y: 6515500, open: true, region: PDD, name: { fr: 'Limagne — Neuville', en: 'Limagne — Neuville' } },
   { id: 'billom', x: 722000, y: 6515000, open: true, region: PDD, name: { fr: 'Limagne — Billom', en: 'Limagne — Billom' } },
   { id: 'comte', x: 720000, y: 6506500, open: true, region: PDD, name: { fr: 'Comté — Châteaux perchés', en: 'Comté — Hilltop castles' } },
@@ -29,6 +30,10 @@ export const ZONE_SPOTS: ZoneSpot[] = [
   { id: 'puys', x: 694000, y: 6525000, open: true, region: PDD, name: { fr: 'Chaîne des Puys', en: 'Chaîne des Puys' } },
   { id: 'issoire', x: 731000, y: 6491000, open: true, region: PDD, name: { fr: "Val d'Allier — Issoire", en: "Val d'Allier — Issoire" } },
   { id: 'sancy', x: 686000, y: 6491000, open: true, region: PDD, name: { fr: 'Massif du Sancy', en: 'Sancy massif' } },
+  { id: 'etretat', x: 501000, y: 6959000, open: true, region: { fr: 'Seine-Maritime', en: 'Seine-Maritime' }, name: { fr: "Étretat — Côte d'Albâtre", en: 'Étretat — Alabaster Coast' } },
+  { id: 'opale', x: 606000, y: 7089000, open: true, region: { fr: 'Pas-de-Calais', en: 'Pas-de-Calais' }, name: { fr: "Côte d'Opale — Les deux caps", en: 'Opal Coast — The two capes' } },
+  { id: 're', x: 353000, y: 6579000, open: true, region: { fr: 'Charente-Maritime', en: 'Charente-Maritime' }, name: { fr: 'Île de Ré', en: 'Île de Ré' } },
+  { id: 'esterel', x: 1010000, y: 6267000, open: true, region: { fr: 'Var', en: 'Var' }, name: { fr: "Corniche de l'Estérel", en: 'Estérel corniche' } },
   { id: 'alpe-dhuez', x: 940000, y: 6446500, open: false, region: { fr: 'Isère · Oisans', en: 'Isère · Oisans' }, name: { fr: "Alpe d'Huez", en: "Alpe d'Huez" } },
   { id: 'mont-ventoux', x: 880000, y: 6341000, open: false, region: { fr: 'Vaucluse', en: 'Vaucluse' }, name: { fr: 'Mont Ventoux', en: 'Mont Ventoux' } },
 ];

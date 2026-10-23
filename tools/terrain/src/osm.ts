@@ -240,7 +240,7 @@ function areaClass(tags: Record<string, string>): { cat: AreaFeature['cat']; kin
     plant_nursery: 'orchard',
   };
   if (lu && fieldKinds[lu]) return { cat: 'field', kind: fieldKinds[lu]! };
-  const natKinds: Record<string, string> = { grassland: 'meadow', heath: 'heath', scrub: 'scrub', wetland: 'wetland', bare_rock: 'bare', sand: 'sand', scree: 'scree', shingle: 'scree', glacier: 'glacier' };
+  const natKinds: Record<string, string> = { grassland: 'meadow', heath: 'heath', scrub: 'scrub', wetland: 'wetland', bare_rock: 'bare', sand: 'sand', beach: 'sand', scree: 'scree', shingle: 'scree', glacier: 'glacier' };
   if (nat && natKinds[nat]) return { cat: 'field', kind: natKinds[nat]! };
   const luKinds: Record<string, string> = {
     residential: 'residential',

@@ -407,6 +407,7 @@ async function boot(): Promise<void> {
     },
   });
   menu.worldId = scene.source.id;
+  menu.loadedZones = scene.source.zones ?? [scene.source.id];
   menu.openWorld = !!scene.source.open;
   menu.planner.setOpen(scene.source.open ?? null);
   // Changement de monde sans recharger la page : données du nouveau monde, paysage refait en arrière-plan.
@@ -439,6 +440,7 @@ async function boot(): Promise<void> {
       url.searchParams.delete('route');
       history.replaceState(null, '', url.toString());
       menu.planner.setOpen(source.open ?? null);
+      menu.loadedZones = source.zones ?? [source.id];
       menu.setWorld(source.routes, source.id, !!source.open);
       void prepareWorld();
     })();

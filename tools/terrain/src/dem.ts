@@ -17,6 +17,19 @@ const WMS = 'https://data.geopf.fr/wms-r';
 /** Altitudes plausibles dans le corridor (le reste = absence de donnée ou bord contaminé). */
 const VALID_MIN = -50;
 const VALID_MAX = 5000;
+/** Fond marin des mondes côtiers (m) : sous la surface de la mer (0 m NGF) que dessine le client. */
+export const SEA_FLOOR_M = -6;
+
+let seaMode = false;
+/**
+ * Monde côtier : un pixel sans valeur ni dans le LiDAR ni dans le RGE ALTI est la mer (fond à
+ * SEA_FLOOR_M) au lieu d'être bouché par les terres voisines (falaises prolongées au large).
+ */
+export function setSeaMode(on: boolean): void {
+  seaMode = on;
+}
+
+const isValid = (v: number) => v > VALID_MIN && v < VALID_MAX;
 
 /**
  * Masque des pixels invalides : hors plage, puis dilaté de 2 pixels — le service rééchantillonne
@@ -113,7 +126,7 @@ export class Dem {
 
   /** Fichier fusionné (LiDAR + repli) d'un bloc. */
   private mergedFile(bx: number, by: number): string {
-    return cachePath(`dem/${this.label}-${this.res}m`, `${bx}_${by}`, '.f32');
+    return cachePath(`dem/${this.label}-${this.res}m${seaMode ? '-sea' : ''}`, `${bx}_${by}`, '.f32');
   }
 
   private async fetchLayer(layer: string, bx: number, by: number): Promise<Float32Array> {
@@ -163,6 +176,10 @@ export class Dem {
       for (let i = 0; i < lidar.length; i++) {
         if (mask[i] && !altiMask[i]) {
           lidar[i] = alti[i]!;
+          mask[i] = 0;
+        } else if (mask[i] && seaMode && !isValid(lidar[i]!) && !isValid(alti[i]!)) {
+          // vraie absence dans les deux sources (pas un pixel de bord dilaté) : la mer
+          lidar[i] = SEA_FLOOR_M;
           mask[i] = 0;
         }
       }
