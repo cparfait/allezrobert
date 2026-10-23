@@ -27,6 +27,11 @@ export type PackState = { kind: 'installed'; version: string; upToDate: boolean 
 interface Installed {
   version: string;
   bytes: number;
+  /**
+   * Version annoncée par le catalogue au moment de l'installation : si le serveur n'a pas (encore)
+   * cette version, la zone est quand même « à jour » pour ce catalogue (pas de mise à jour en boucle).
+   */
+  catalogue?: string;
 }
 
 function installed(): Record<string, Installed> {
@@ -59,7 +64,7 @@ export function packState(id: string, catalogueVersion: string | undefined): Pac
   if (!hasCaches()) return { kind: 'unavailable' };
   const i = installed()[id];
   if (!i) return { kind: 'absent' };
-  return { kind: 'installed', version: i.version, upToDate: !catalogueVersion || catalogueVersion === i.version };
+  return { kind: 'installed', version: i.version, upToDate: !catalogueVersion || catalogueVersion === i.version || catalogueVersion === i.catalogue };
 }
 
 /**
@@ -113,7 +118,8 @@ export async function installPack(id: string, onProgress: (done: number, total: 
     if (r) await final.put(req, r);
   }
   await caches.delete(tmpName);
-  setInstalled(id, { version: manifest.version, bytes: manifest.bytes });
+  const announced = (await loadCatalogue())?.zones.find((z) => z.id === id)?.pack?.version;
+  setInstalled(id, { version: manifest.version, bytes: manifest.bytes, ...(announced ? { catalogue: announced } : {}) });
 }
 
 /** Supprime le pack d'une zone de l'appareil. */

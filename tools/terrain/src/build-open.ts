@@ -250,8 +250,10 @@ async function main(): Promise<void> {
  * chemin lissé construit exactement comme en mode ouvert (mêmes arêtes, mêmes profils).
  */
 function buildTour(tour: OpenTour, g: RoadGraph, net: RoadNet, edgeIndex: Map<number, number>, pois: Array<{ kind: string; name: string; x: number; z: number }>): RouteData {
-  const usable = (e: Edge) => edgeIndex.has(e.id) && e.road.paved && /^(primary|secondary|tertiary|unclassified|residential|living_street)(_link)?$/.test(e.road.kind);
-  const cost = (e: Edge) => (!usable(e) ? Infinity : /^(primary|secondary)/.test(e.road.kind) ? e.len * 1.6 : e.len);
+  // routes revêtues, pistes cyclables et voies de service (anneau de Longchamp, bois de Vincennes :
+  // fermés aux voitures) ; les voies de service sont un peu pénalisées (parkings, cours privées)
+  const usable = (e: Edge) => edgeIndex.has(e.id) && e.road.paved && /^(primary|secondary|tertiary|unclassified|residential|living_street|service|cycleway)(_link)?$/.test(e.road.kind);
+  const cost = (e: Edge) => (!usable(e) ? Infinity : /^(primary|secondary)/.test(e.road.kind) ? e.len * 1.6 : e.road.kind === 'service' ? e.len * 1.4 : e.len);
   const place = (p: LonLat | string): [number, number] => {
     if (typeof p !== 'string') return toWorld(p);
     const poi = pois.find((q) => q.name === p && /^(village|town|hamlet|isolated_dwelling|locality)$/.test(q.kind));
@@ -259,10 +261,18 @@ function buildTour(tour: OpenTour, g: RoadGraph, net: RoadNet, edgeIndex: Map<nu
     return [poi.x, poi.z];
   };
   const wps = [tour.start, ...tour.via, tour.start].map(place);
-  const must = wps.map((p, i) => {
-    const e = nearestEdgeOf(g, p[0], p[1], 300, usable);
-    if (e < 0) throw new Error(`${tour.routeId} : point de passage ${i} sans route revêtue à moins de 300 m`);
-    return e;
+  // un point de passage sur un chemin (circuits balisés) : route revêtue la plus proche à 800 m,
+  // sinon le point est sauté ; seul le départ est obligatoire
+  const must: number[] = [];
+  wps.forEach((p, i) => {
+    let e = nearestEdgeOf(g, p[0], p[1], 300, usable);
+    if (e < 0) e = nearestEdgeOf(g, p[0], p[1], 800, usable);
+    if (e < 0) {
+      if (i === 0 || i === wps.length - 1) throw new Error(`${tour.routeId} : départ sans route revêtue à moins de 800 m`);
+      console.log(`   ! ${tour.routeId} : point de passage ${i} sans route revêtue à moins de 800 m, ignoré`);
+      return;
+    }
+    must.push(e);
   });
   const via = routeViaEdges(g, must, cost);
   const path = new OpenPath(net);

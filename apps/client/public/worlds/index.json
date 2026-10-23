@@ -22,6 +22,66 @@
    }
   },
   {
+   "id": "billom",
+   "name": "Limagne — Billom",
+   "region": "Puy-de-Dôme · Limagne",
+   "routes": [
+    {
+     "id": "tour-de-billom",
+     "name": "Boucle de Billom par Saint-Julien-de-Coppel et Montmorin",
+     "nameEn": "Billom loop via Saint-Julien-de-Coppel and Montmorin",
+     "lengthM": 21968,
+     "elevationGainM": 355.94,
+     "loop": false
+    },
+    {
+     "id": "boucle-billomoise-1",
+     "name": "Billom – Pont-du-Château par Vertaizon",
+     "nameEn": "Billom – Pont-du-Château via Vertaizon",
+     "lengthM": 26284,
+     "elevationGainM": 302.74,
+     "loop": false
+    },
+    {
+     "id": "boucle-billomoise-2",
+     "name": "Billom – Le Cendre par Pérignat-sur-Allier",
+     "nameEn": "Billom – Le Cendre via Pérignat-sur-Allier",
+     "lengthM": 27470,
+     "elevationGainM": 238.02,
+     "loop": false
+    },
+    {
+     "id": "boucle-billomoise-6",
+     "name": "Billom – Pérignat-sur-Allier",
+     "nameEn": "Billom – Pérignat-sur-Allier",
+     "lengthM": 23756,
+     "elevationGainM": 187.21,
+     "loop": false
+    },
+    {
+     "id": "boucle-billomoise-7",
+     "name": "Billom – Mur-sur-Allier",
+     "nameEn": "Billom – Mur-sur-Allier",
+     "lengthM": 22996,
+     "elevationGainM": 319.92,
+     "loop": false
+    },
+    {
+     "id": "boucle-billomoise-5",
+     "name": "Chauriat – Pérignat par Saint-Bonnet-lès-Allier",
+     "nameEn": "Chauriat – Pérignat via Saint-Bonnet-lès-Allier",
+     "lengthM": 11494,
+     "elevationGainM": 134.68,
+     "loop": false
+    }
+   ],
+   "pack": {
+    "version": "320f6ea26b71",
+    "bytes": 255267140,
+    "files": 901
+   }
+  },
+  {
    "id": "chevreuse",
    "name": "Vallée de Chevreuse",
    "region": "Yvelines · Essonne",
@@ -74,6 +134,26 @@
    }
   },
   {
+   "id": "comte",
+   "name": "Comté — Villages et châteaux perchés",
+   "region": "Puy-de-Dôme · Comté",
+   "routes": [
+    {
+     "id": "circuit-de-la-comte",
+     "name": "Les châteaux perchés de la Comté",
+     "nameEn": "The hilltop castles of the Comté",
+     "lengthM": 56626,
+     "elevationGainM": 1140.92,
+     "loop": false
+    }
+   ],
+   "pack": {
+    "version": "49b3c5735197",
+    "bytes": 269956850,
+    "files": 961
+   }
+  },
+  {
    "id": "limagne",
    "name": "Limagne — Neuville",
    "region": "Puy-de-Dôme · Limagne",
@@ -94,6 +174,62 @@
    }
   },
   {
+   "id": "livradois",
+   "name": "Livradois — Les châteaux du Livradois",
+   "region": "Puy-de-Dôme · Livradois",
+   "routes": [
+    {
+     "id": "circuit-du-livradois",
+     "name": "Les châteaux du Livradois",
+     "nameEn": "The castles of the Livradois",
+     "lengthM": 71420,
+     "elevationGainM": 1024.03,
+     "loop": false
+    },
+    {
+     "id": "boucle-billomoise-4",
+     "name": "Billom – Saint-Dier-d'Auvergne par Fayet-le-Château",
+     "nameEn": "Billom – Saint-Dier-d'Auvergne via Fayet-le-Château",
+     "lengthM": 36422,
+     "elevationGainM": 687.85,
+     "loop": false
+    },
+    {
+     "id": "boucle-billomoise-8",
+     "name": "Billom – Lezoux",
+     "nameEn": "Billom – Lezoux",
+     "lengthM": 27136,
+     "elevationGainM": 319.26,
+     "loop": false
+    }
+   ],
+   "pack": {
+    "version": "fb6457a45b59",
+    "bytes": 332996999,
+    "files": 1289
+   }
+  },
+  {
+   "id": "longchamp",
+   "name": "Paris — Longchamp",
+   "region": "Paris · Bois de Boulogne",
+   "routes": [
+    {
+     "id": "anneau-de-longchamp",
+     "name": "L'anneau de Longchamp",
+     "nameEn": "The Longchamp loop",
+     "lengthM": 3672,
+     "elevationGainM": 12.68,
+     "loop": false
+    }
+   ],
+   "pack": {
+    "version": "a170f04065d6",
+    "bytes": 63292142,
+    "files": 145
+   }
+  },
+  {
    "id": "mont-ventoux",
    "name": "Mont Ventoux",
    "region": "Vaucluse",
@@ -111,6 +247,46 @@
     "version": "155134436562",
     "bytes": 122516591,
     "files": 916
+   }
+  },
+  {
+   "id": "puys",
+   "name": "Chaîne des Puys",
+   "region": "Puy-de-Dôme · Volcans",
+   "routes": [
+    {
+     "id": "boucle-des-domes",
+     "name": "La boucle des Dômes par Orcines et Saint-Ours",
+     "nameEn": "The Dômes loop via Orcines and Saint-Ours",
+     "lengthM": 81144,
+     "elevationGainM": 1439.53,
+     "loop": false
+    }
+   ],
+   "pack": {
+    "version": "0c633b896247",
+    "bytes": 451014689,
+    "files": 1601
+   }
+  },
+  {
+   "id": "vincennes",
+   "name": "Paris — Vincennes",
+   "region": "Paris · Bois de Vincennes",
+   "routes": [
+    {
+     "id": "tour-hippodrome-vincennes",
+     "name": "Le tour de l'hippodrome de Vincennes",
+     "nameEn": "Vincennes racecourse loop",
+     "lengthM": 3832,
+     "elevationGainM": 18.65,
+     "loop": false
+    }
+   ],
+   "pack": {
+    "version": "7058821dc50c",
+    "bytes": 68493325,
+    "files": 145
    }
   }
  ]
