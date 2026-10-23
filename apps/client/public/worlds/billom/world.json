@@ -3192,9 +3192,9 @@
    "id": "tour-de-billom",
    "file": "routes/tour-de-billom.json",
    "name": "Boucle de Billom par Saint-Julien-de-Coppel et Montmorin",
-   "lengthM": 21968,
-   "elevationGainM": 355.94,
-   "loop": false,
+   "lengthM": 21955.02,
+   "elevationGainM": 355.75,
+   "loop": true,
    "main": true
   },
   {
@@ -3219,27 +3219,27 @@
    "id": "boucle-billomoise-6",
    "file": "routes/boucle-billomoise-6.json",
    "name": "Billom – Pérignat-sur-Allier",
-   "lengthM": 23756,
+   "lengthM": 23748.68,
    "elevationGainM": 187.21,
-   "loop": false,
+   "loop": true,
    "main": false
   },
   {
    "id": "boucle-billomoise-7",
    "file": "routes/boucle-billomoise-7.json",
    "name": "Billom – Mur-sur-Allier",
-   "lengthM": 22996,
+   "lengthM": 22904.93,
    "elevationGainM": 319.92,
-   "loop": false,
+   "loop": true,
    "main": false
   },
   {
    "id": "boucle-billomoise-5",
    "file": "routes/boucle-billomoise-5.json",
    "name": "Chauriat – Pérignat par Saint-Bonnet-lès-Allier",
-   "lengthM": 11494,
+   "lengthM": 11460.53,
    "elevationGainM": 134.68,
-   "loop": false,
+   "loop": true,
    "main": false
   }
  ],

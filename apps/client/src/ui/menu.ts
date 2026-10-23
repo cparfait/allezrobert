@@ -25,6 +25,7 @@ import { RoutePlanner } from './routePlanner.ts';
 import { companionQr } from './companionQr.ts';
 import { FranceMap, type MapZone } from './franceMap.ts';
 import { loadRouteBoards, routeDetailHtml } from './routeDetail.ts';
+import { canReverse, reversedOf, routeKey } from '../game/direction.ts';
 import { ZONE_SPOTS } from '../world/zoneMap.ts';
 import './menu.css';
 
@@ -248,6 +249,8 @@ export class MainMenu {
   private picker: 'zones' | 'zone' | 'routes' | 'map' | 'route' | null = null;
   /** Parcours ouvert dans sa fiche (fenêtre « route »). */
   private detailId = '';
+  /** Sens montré dans la fiche du parcours (choisi au départ). */
+  private detailReverse = false;
   /** Fenêtre déjà affichée (l'animation d'ouverture ne se joue qu'au changement). */
   private shownPicker: string | null = null;
   /** Carte de parcours cliquée : la fiche s'ouvre en grandissant depuis elle. */
@@ -281,12 +284,13 @@ export class MainMenu {
       loggedIn: () => !!this.account,
       login: () => this.onLogin?.(),
       routes,
-      currentRouteId: () => this.s.routeId,
+      currentRouteId: () => routeKey(this.s),
       join: (info) => {
         // Rejoindre un ami : son mode et son itinéraire (s'il existe dans ce monde), code fourni par le serveur.
         const j = joinSettings(info, this.routes.map((r) => r.id), this.s);
         this.s.mode = j.mode;
         this.s.routeId = j.routeId;
+        this.s.reverse = j.reverse;
         saveSettings(this.s);
         this.launch(this.s, { inviteCode: info.inviteCode });
       },
@@ -665,7 +669,7 @@ export class MainMenu {
       .map(
         (x) => `<button class="mm-routepick ${x.id === this.s.routeId ? 'on' : ''}" data-route="${esc(x.id)}">
             ${this.routeCard(x)}
-            <span class="mm-routetag">${x.loop ? (L ? 'Boucle' : 'Loop') : L ? 'Aller simple' : 'One way'}${x.id === this.s.routeId ? ` · ${L ? 'choisi' : 'selected'}` : ''}</span></button>`,
+            <span class="mm-routetag">${x.loop ? (L ? 'Boucle' : 'Loop') : L ? 'Aller simple' : 'One way'}${x.id === this.s.routeId ? ` · ${this.s.reverse ? (L ? 'choisi, sens inverse' : 'selected, reversed') : L ? 'choisi' : 'selected'}` : ''}</span></button>`,
       )
       .join('')}</div>
         ${this.onExplore ? `<button id="m-explore" class="mm-explore">${ICON.explore}<span><b>${L ? 'Explorer la carte' : 'Explore the map'}</b><small>${L ? 'Caméra libre, sans rouler · Échap pour revenir' : 'Free camera, no riding · Esc to come back'}</small></span></button>` : ''}`;
@@ -679,13 +683,26 @@ export class MainMenu {
   /** Fiche d'un parcours : carte, profil, montées, records (les temps du serveur arrivent ensuite). */
   private routeDetailWindow(): string {
     const L = fr();
-    const r = this.routes.find((x) => x.id === this.detailId);
-    if (!r) return '';
+    const base = this.routes.find((x) => x.id === this.detailId);
+    if (!base) return '';
+    const r = this.detailRoute(base);
+    const chosen = base.id === this.s.routeId && this.s.reverse === this.detailReverse;
+    const dir = canReverse(base)
+      ? this.seg('rd-dir', this.detailReverse ? '1' : '0', [
+          ['0', L ? 'Sens normal' : 'Normal'],
+          ['1', L ? 'Sens inverse' : 'Reversed'],
+        ])
+      : '';
     return `<div class="mm-modal mm-picker-modal" data-picker-close>
       <div class="mm-dialog mm-picker rd-dialog" role="dialog" aria-modal="true">
-        <header><h2>${esc(this.routeName(r))}</h2><span class="rd-head-tag">${r.loop ? (L ? 'Boucle' : 'Loop') : L ? 'Aller simple' : 'One way'}</span><span class="rp-head-links"><button class="mm-link" data-picker="routes">← ${L ? 'Parcours' : 'Routes'}</button>${r.id === this.s.routeId ? '' : `<button class="mm-link" data-rd="pick">${L ? 'Choisir sans partir' : 'Select without riding'}</button>`}</span><button class="mm-x" data-picker-close aria-label="${L ? 'Fermer' : 'Close'}">×</button></header>
+        <header><h2>${esc(this.routeName(base))}</h2><span class="rd-head-tag">${r.loop ? (L ? 'Boucle' : 'Loop') : L ? 'Aller simple' : 'One way'}</span>${dir}<span class="rp-head-links"><button class="mm-link" data-picker="routes">← ${L ? 'Parcours' : 'Routes'}</button>${chosen ? '' : `<button class="mm-link" data-rd="pick">${L ? 'Choisir sans partir' : 'Select without riding'}</button>`}</span><button class="mm-x" data-picker-close aria-label="${L ? 'Fermer' : 'Close'}">×</button></header>
         ${routeDetailHtml(r, this.routeName(r), { loggedIn: !!this.account })}
       </div></div>`;
+  }
+
+  /** Parcours de la fiche dans le sens choisi (records et montées de ce sens). */
+  private detailRoute(base: RouteData): RouteData {
+    return this.detailReverse && canReverse(base) ? reversedOf(base) : base;
   }
 
   /**
@@ -1432,6 +1449,7 @@ export class MainMenu {
           this.drawn = route;
           this.drawnWorld = this.worldId;
           s.routeId = route.id;
+          s.reverse = false;
           if (s.mode !== 'free' && s.mode !== 'workout') s.mode = 'free';
           this.picker = null;
           changed();
@@ -1525,6 +1543,7 @@ export class MainMenu {
     this.root.querySelectorAll<HTMLElement>('[data-route]').forEach((el) =>
       el.addEventListener('click', () => {
         this.detailId = el.dataset.route as string;
+        this.detailReverse = this.detailId === s.routeId && s.reverse;
         this.fromRect = el.getBoundingClientRect();
         this.picker = 'route';
         this.render();
@@ -1532,6 +1551,7 @@ export class MainMenu {
     );
     const pickRoute = () => {
       s.routeId = this.detailId;
+      s.reverse = this.detailReverse;
       if (s.mode === 'open' || s.mode === 'ftpTest' || s.mode === 'challenge') s.mode = 'free';
       this.picker = null;
       changed();
@@ -1555,7 +1575,14 @@ export class MainMenu {
     );
     if (this.picker === 'route') {
       const r = this.routes.find((x) => x.id === this.detailId);
-      if (r) void loadRouteBoards(this.root, r, !!this.account);
+      if (r) void loadRouteBoards(this.root, this.detailRoute(r), !!this.account);
+      // Sens du parcours : la fiche se refait pour l'autre sens (profil, montées, records).
+      this.root.querySelectorAll<HTMLElement>('#rd-dir [data-v]').forEach((el) =>
+        el.addEventListener('click', () => {
+          this.detailReverse = el.dataset.v === '1';
+          this.render();
+        }),
+      );
     }
     this.animatePicker();
     on<HTMLInputElement>('m-workout', 'change', async (el) => {

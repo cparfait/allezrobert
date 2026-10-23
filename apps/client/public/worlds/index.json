@@ -30,9 +30,9 @@
      "id": "tour-de-billom",
      "name": "Boucle de Billom par Saint-Julien-de-Coppel et Montmorin",
      "nameEn": "Billom loop via Saint-Julien-de-Coppel and Montmorin",
-     "lengthM": 21968,
-     "elevationGainM": 355.94,
-     "loop": false
+     "lengthM": 21955.02,
+     "elevationGainM": 355.75,
+     "loop": true
     },
     {
      "id": "boucle-billomoise-1",
@@ -54,25 +54,25 @@
      "id": "boucle-billomoise-6",
      "name": "Billom – Pérignat-sur-Allier",
      "nameEn": "Billom – Pérignat-sur-Allier",
-     "lengthM": 23756,
+     "lengthM": 23748.68,
      "elevationGainM": 187.21,
-     "loop": false
+     "loop": true
     },
     {
      "id": "boucle-billomoise-7",
      "name": "Billom – Mur-sur-Allier",
      "nameEn": "Billom – Mur-sur-Allier",
-     "lengthM": 22996,
+     "lengthM": 22904.93,
      "elevationGainM": 319.92,
-     "loop": false
+     "loop": true
     },
     {
      "id": "boucle-billomoise-5",
      "name": "Chauriat – Pérignat par Saint-Bonnet-lès-Allier",
      "nameEn": "Chauriat – Pérignat via Saint-Bonnet-lès-Allier",
-     "lengthM": 11494,
+     "lengthM": 11460.53,
      "elevationGainM": 134.68,
-     "loop": false
+     "loop": true
     }
    ],
    "pack": {
@@ -142,9 +142,9 @@
      "id": "circuit-de-la-comte",
      "name": "Les châteaux perchés de la Comté",
      "nameEn": "The hilltop castles of the Comté",
-     "lengthM": 56626,
+     "lengthM": 56602.38,
      "elevationGainM": 1140.92,
-     "loop": false
+     "loop": true
     }
    ],
    "pack": {
@@ -162,9 +162,9 @@
      "id": "pays-de-la-reine-margot",
      "name": "Usson et Sauxillanges, au pays de la reine Margot",
      "nameEn": "Usson and Sauxillanges, Queen Margot country",
-     "lengthM": 56552,
+     "lengthM": 56541.63,
      "elevationGainM": 1085.81,
-     "loop": false
+     "loop": true
     }
    ],
    "pack": {
@@ -202,25 +202,25 @@
      "id": "circuit-du-livradois",
      "name": "Les châteaux du Livradois",
      "nameEn": "The castles of the Livradois",
-     "lengthM": 71420,
-     "elevationGainM": 1024.03,
-     "loop": false
+     "lengthM": 71322.88,
+     "elevationGainM": 1021.07,
+     "loop": true
     },
     {
      "id": "boucle-billomoise-4",
      "name": "Billom – Saint-Dier-d'Auvergne par Fayet-le-Château",
      "nameEn": "Billom – Saint-Dier-d'Auvergne via Fayet-le-Château",
-     "lengthM": 36422,
+     "lengthM": 36421.34,
      "elevationGainM": 687.85,
-     "loop": false
+     "loop": true
     },
     {
      "id": "boucle-billomoise-8",
      "name": "Billom – Lezoux",
      "nameEn": "Billom – Lezoux",
-     "lengthM": 27136,
-     "elevationGainM": 319.26,
-     "loop": false
+     "lengthM": 27054.13,
+     "elevationGainM": 318.31,
+     "loop": true
     }
    ],
    "pack": {
@@ -238,9 +238,9 @@
      "id": "anneau-de-longchamp",
      "name": "L'anneau de Longchamp",
      "nameEn": "The Longchamp loop",
-     "lengthM": 3672,
+     "lengthM": 3581.62,
      "elevationGainM": 12.68,
-     "loop": false
+     "loop": true
     }
    ],
    "pack": {
@@ -278,9 +278,9 @@
      "id": "boucle-des-domes",
      "name": "La boucle des Dômes par Orcines et Saint-Ours",
      "nameEn": "The Dômes loop via Orcines and Saint-Ours",
-     "lengthM": 81144,
+     "lengthM": 81134.86,
      "elevationGainM": 1439.53,
-     "loop": false
+     "loop": true
     }
    ],
    "pack": {
@@ -298,17 +298,17 @@
      "id": "tour-du-sancy",
      "name": "Le tour du Sancy par La Tour-d'Auvergne et Besse",
      "nameEn": "Sancy loop via La Tour-d'Auvergne and Besse",
-     "lengthM": 81814,
-     "elevationGainM": 1717.81,
-     "loop": false
+     "lengthM": 81809.13,
+     "elevationGainM": 1717.76,
+     "loop": true
     },
     {
      "id": "vallee-de-chaudefour",
      "name": "La vallée de Chaudefour par Murol",
      "nameEn": "Chaudefour valley via Murol",
-     "lengthM": 24672,
+     "lengthM": 24669.04,
      "elevationGainM": 527.33,
-     "loop": false
+     "loop": true
     }
    ],
    "pack": {
@@ -326,9 +326,9 @@
      "id": "tour-hippodrome-vincennes",
      "name": "Le tour de l'hippodrome de Vincennes",
      "nameEn": "Vincennes racecourse loop",
-     "lengthM": 3832,
-     "elevationGainM": 18.65,
-     "loop": false
+     "lengthM": 3305.87,
+     "elevationGainM": 17.21,
+     "loop": true
     }
    ],
    "pack": {

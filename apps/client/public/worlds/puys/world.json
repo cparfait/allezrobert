@@ -5642,9 +5642,9 @@
    "id": "boucle-des-domes",
    "file": "routes/boucle-des-domes.json",
    "name": "La boucle des Dômes par Orcines et Saint-Ours",
-   "lengthM": 81144,
+   "lengthM": 81134.86,
    "elevationGainM": 1439.53,
-   "loop": false,
+   "loop": true,
    "main": true
   }
  ],

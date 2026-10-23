@@ -12,6 +12,7 @@
  * Présence et nouveautés : GET /api/friends toutes les 25 s tant que le menu est affiché
  * (interrogation légère plutôt qu'un canal temps réel : voir apps/server/src/friends/hub.ts).
  */
+import { findRoute } from '../game/direction.ts';
 import { formatFriendCode, FRIEND_INVITE_MAX, FRIENDS_POLL_S, type FriendJoinInfo, type FriendRequestResult, type FriendsOverview, type RouteData } from '@allezrobert/shared';
 import { getLang } from '../i18n/index.ts';
 import { apiBase } from './account.ts';
@@ -296,7 +297,7 @@ export class FriendsPanel {
   }
 
   private routeName = (id: string): string | undefined => {
-    const r = this.hooks.routes.find((x) => x.id === id);
+    const r = findRoute(this.hooks.routes, id);
     if (!r) return undefined;
     return getLang() === 'en' && r.nameEn ? r.nameEn : r.name;
   };
@@ -406,7 +407,7 @@ export class FriendsPanel {
   private async loadBoards(force = false): Promise<void> {
     const box = () => this.root?.querySelector<HTMLElement>('#fr-boards');
     const routeId = this.hooks.currentRouteId();
-    const route = this.hooks.routes.find((r) => r.id === routeId);
+    const route = findRoute(this.hooks.routes, routeId);
     const L = fr();
     if (!route) return;
     if (!force && this.boards && this.boards.routeId === routeId && Date.now() - this.boards.at < 60_000) {
@@ -452,7 +453,7 @@ export class FriendsPanel {
     }
     const L = fr();
     const routeId = this.hooks.currentRouteId();
-    const route = this.hooks.routes.find((r) => r.id === routeId);
+    const route = findRoute(this.hooks.routes, routeId);
     const r = await call<Array<{ segmentId: string; bestMs: number }>>('GET', `/friends/${encodeURIComponent(id)}/bests?routeId=${encodeURIComponent(routeId)}`);
     const where = esc(this.routeName(routeId) ?? routeId);
     let html: string;

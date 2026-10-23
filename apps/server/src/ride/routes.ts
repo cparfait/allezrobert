@@ -5,12 +5,14 @@
  */
 import { readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
-import { RouteTrack, type RouteData, type RoutePoint, type RouteSummary } from '@allezrobert/shared';
+import { forwardRouteId, reverseRoute, RouteTrack, type RouteData, type RoutePoint, type RouteSummary } from '@allezrobert/shared';
 
 export const FALLBACK_ROUTE_ID = 'dev-boucle';
 
 export class RouteStore {
   private readonly routes = new Map<string, { data: RouteData; track: RouteTrack; summary: RouteSummary }>();
+  /** Parcours roulés dans l'autre sens (« <id>-inverse »), construits à la demande, hors liste. */
+  private readonly reversed = new Map<string, { data: RouteData; track: RouteTrack; summary: RouteSummary }>();
 
   get size(): number {
     return this.routes.size;
@@ -22,16 +24,25 @@ export class RouteStore {
   }
 
   has(id: string): boolean {
-    return this.routes.has(id);
+    return !!this.get(id);
   }
 
   get(id: string): { data: RouteData; track: RouteTrack; summary: RouteSummary } | undefined {
-    return this.routes.get(id);
+    const hit = this.routes.get(id) ?? this.reversed.get(id);
+    if (hit) return hit;
+    const fwd = forwardRouteId(id);
+    const base = fwd ? this.routes.get(fwd) : undefined;
+    if (!base) return undefined;
+    const data = reverseRoute(base.data);
+    const track = new RouteTrack(data);
+    const r = { data, track, summary: summarize(data, track) };
+    this.reversed.set(id, r);
+    return r;
   }
 
   /** Itinéraire demandé, sinon le premier disponible (jamais indéfini). */
   resolve(id: string | undefined): { data: RouteData; track: RouteTrack; summary: RouteSummary } {
-    const r = (id && this.routes.get(id)) || this.routes.values().next().value;
+    const r = (id && this.get(id)) || this.routes.values().next().value;
     if (!r) throw new Error('Aucun itinéraire chargé');
     return r;
   }

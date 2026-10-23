@@ -25,5 +25,14 @@ describe('temps du parcours entier', () => {
     t.lap(3700); // 1 800 s
     t.lap(5600); // 1 900 s
     expect(t.bestS).toBe(1800);
+    expect(t.times).toEqual([1900, 1800, 1900]);
+  });
+
+  it('boucle : chaque tour rend son temps, et s’il bat les précédents', () => {
+    const t = new RouteTimer(false);
+    expect(t.lap(300)).toBeNull(); // tour commencé en cours de route
+    expect(t.lap(500)).toEqual({ timeS: 200, best: false });
+    expect(t.lap(690)).toEqual({ timeS: 190, best: true });
+    expect(t.lap(900)).toEqual({ timeS: 210, best: false });
   });
 });

@@ -40,7 +40,8 @@ import { awardTrophies } from './game/trophies.ts';
 import { roadSurfaceAt, windShelterAt } from './world/conditions.ts';
 import { OpenNavigator } from './game/open.ts';
 import { ITINERARY_PREFIX } from './ui/routePlanner.ts';
-import { postRideEfforts, RouteTimer } from './game/efforts.ts';
+import { findRoute, routeKey } from './game/direction.ts';
+import { fmtLapTime, postRideEfforts, RouteTimer } from './game/efforts.ts';
 import { waitBike } from './ui/waitBike.ts';
 import { KomChallenge, readKomRecord, type ChallengeResult } from './game/challenge.ts';
 import { HairpinWatcher, hairpinToast, reachedFinish, summitStats } from './game/climb.ts';
@@ -83,7 +84,7 @@ async function loadScene(settings: Settings): Promise<Scene3D> {
   const source = await loadWorldSource(params.get('world') ?? settings.world ?? 'chevreuse');
   // Le mode « monde ouvert » n'existe que dans un monde qui a un graphe routier.
   if (settings.mode === 'open' && !source.open) settings.mode = 'free';
-  const route = source.routes.find((r) => r.id === (params.get('route') ?? settings.routeId)) ?? (source.routes[0] as RouteData);
+  const route = findRoute(source.routes, params.get('route') ?? routeKey(settings)) ?? (source.routes[0] as RouteData);
   const track = new RouteTrack(route);
   const world = new World(engine.scene, source, route, track, q, {
     hour: Number(params.get('hour') ?? settings.hour),
@@ -98,7 +99,7 @@ async function loadScene(settings: Settings): Promise<Scene3D> {
  * intégré continuent) : le monde est reconstruit pour le nouvel itinéraire.
  */
 async function switchRoute(scene: Scene3D, s: Settings): Promise<void> {
-  const route = scene.source.routes.find((r) => r.id === s.routeId);
+  const route = findRoute(scene.source.routes, routeKey(s));
   if (!route) return;
   scene.world.dispose();
   scene.route = route;
@@ -378,14 +379,14 @@ async function boot(): Promise<void> {
       // Changement de qualité graphique : rechargement propre de la page.
       if (s.quality !== scene.quality) {
         const url = new URL(location.href);
-        url.searchParams.set('route', s.routeId);
+        url.searchParams.set('route', routeKey(s));
         url.searchParams.delete('quality');
         url.searchParams.set('autostart', '1');
         location.href = url.toString();
         return;
       }
       // Changement d'itinéraire : monde reconstruit sur place (sans attendre l'ancien), la musique continue.
-      if (s.routeId !== scene.route.id) {
+      if (routeKey(s) !== scene.route.id) {
         menu.hide();
         leaveMenu(s);
         const overlay = worldOverlay(getLang() === 'fr' ? 'Chargement de l’itinéraire…' : 'Loading route…');
@@ -412,6 +413,7 @@ async function boot(): Promise<void> {
   menu.onWorld = (id) => {
     settings.world = id;
     settings.routeId = '';
+    settings.reverse = false;
     saveSettings(settings);
     void (async () => {
       const source = await loadWorldSource(id);
@@ -801,32 +803,37 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
       },
     });
   };
-  // Temps classés (sortie solo, envoyés à la fin) : montées, sprints et parcours entier, pris du
-  // départ (0 m) jusqu'à l'arrivée ou sur un tour complet. Pas en invité, en groupe (la salle les
+  // Temps classés (sortie solo) : montées, sprints et parcours entier, pris du départ (0 m) jusqu'à
+  // l'arrivée ou sur chaque tour complet, envoyés à chaque tour et à la fin. Pas en invité, en groupe (la salle les
   // enregistre), en séance ERG, en monde ouvert ni sur un itinéraire dessiné.
   const ranked = !s.guest && !mp && !nav && !workout && !track.route.id.startsWith(ITINERARY_PREFIX);
   const routeTimer = new RouteTimer(startD === 0 && !challenge);
   let sentSegments = 0;
-  let sentRouteS: number | null = null;
+  let sentRouteTimes = 0;
+  // Un envoi par temps du parcours (chaque tour d'une boucle, dès la ligne passée), avec les
+  // montées et sprints faits depuis l'envoi précédent.
   const sendEfforts = () => {
     if (!ranked) return;
-    const segs = ride.segmentResults.slice(sentSegments);
-    const best = routeTimer.bestS;
-    const routeNew = best !== null && best !== sentRouteS;
-    if (!segs.length && !routeNew) return;
-    sentSegments = ride.segmentResults.length;
-    if (routeNew) sentRouteS = best;
-    void postRideEfforts({
-      routeId: track.route.id,
-      rideId: String(ride.startT),
-      segments: segs.map((r) => ({ segmentId: r.seg.id, elapsedMs: Math.round(r.timeS * 1000) })),
-      ...(routeNew && best !== null ? { routeTimeMs: Math.round(best * 1000) } : {}),
-    });
+    do {
+      const segs = ride.segmentResults.slice(sentSegments);
+      const routeS = routeTimer.times[sentRouteTimes];
+      if (!segs.length && routeS === undefined) return;
+      sentSegments = ride.segmentResults.length;
+      if (routeS !== undefined) sentRouteTimes++;
+      void postRideEfforts({
+        routeId: track.route.id,
+        rideId: String(ride.startT),
+        segments: segs.map((r) => ({ segmentId: r.seg.id, elapsedMs: Math.round(r.timeS * 1000) })),
+        ...(routeS !== undefined ? { routeTimeMs: Math.round(routeS * 1000) } : {}),
+      });
+    } while (sentRouteTimes < routeTimer.times.length);
   };
   ride.onLap = (lap) => {
-    routeTimer.lap(ride.elapsedS);
-    hud.toast(`${t('lap')} ${lap}`);
+    const done = routeTimer.lap(ride.elapsedS);
+    const fr = getLang() === 'fr';
+    hud.toast(done ? `${t('lap')} ${lap - 1} · ${fmtLapTime(done.timeS)}${done.best ? (fr ? ' · meilleur tour' : ' · best lap') : ''}` : `${t('lap')} ${lap}`);
     ghost.lap(ride.elapsedS, ride.state.distM);
+    sendEfforts();
   };
 
   // Fin de sortie : écran de stats par-dessus la scène figée. « Reprendre » relance la sortie (solo) ;

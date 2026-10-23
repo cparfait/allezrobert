@@ -20,6 +20,8 @@ export interface Settings {
   lang: Lang;
   trainerDifficulty: number;
   routeId: string;
+  /** Parcours roulé dans l'autre sens (classements et records à part). */
+  reverse: boolean;
   mode: RideMode;
   volume: number;
   /** Rapport réel monté sur le trainer : Zwift Cog (14 dents) ou cassette réelle. */
@@ -69,6 +71,7 @@ export const DEFAULT_SETTINGS: Settings = {
   lang: 'fr',
   trainerDifficulty: 0.5,
   routeId: '',
+  reverse: false,
   mode: 'free',
   volume: 0.7,
   drivetrain: 'cog',

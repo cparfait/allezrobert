@@ -10,6 +10,7 @@ export * from './track.ts';
 export * from './geo.ts';
 export * from './progression.ts';
 export * from './roadgraph.ts';
+export * from './reverse.ts';
 export * from './weather.ts';
 export * from './bikes.ts';
 export * from './tuning.ts';

@@ -15,6 +15,7 @@ import path from 'node:path';
 import { OpenPath, RoadNet, type RoadGraphData, type RoadGraphEdge, type RouteData, type RouteSegment, type WorldMeta } from '@allezrobert/shared';
 import { PLACES_FILE, placesOf } from './places.ts';
 import { ATTRIBUTION, ATTRIBUTION_ORTHO, CORRIDOR_TILES, LOD_HI, LOD_LO, ORIGIN_L93, OUT_DIR, TILE_SIZE_M, WORLD, worldEnrich, type LonLat, type OpenTour, type OpenWorld } from './config.ts';
+import { asCircuit } from './circuit.ts';
 import { nearestEdgeOf, routeViaEdges } from './climb.ts';
 import { corridorWgs84, OSM_CHUNK } from './corridor.ts';
 import { Dem, DemStack } from './dem.ts';
@@ -334,7 +335,8 @@ function buildTour(tour: OpenTour, g: RoadGraph, net: RoadNet, edgeIndex: Map<nu
   let maxGrade = 0;
   const w = Math.round(10 / step);
   for (let i = 0; i + w < hs.length; i++) maxGrade = Math.max(maxGrade, Math.abs((hs[i + w]! - hs[i]!) / (w * step)) * 100);
-  return {
+  // revenu au départ dans le même sens : publié en boucle (tours enchaînés)
+  return asCircuit({
     id: tour.routeId,
     name: tour.routeName,
     nameEn: tour.routeNameEn,
@@ -352,7 +354,7 @@ function buildTour(tour: OpenTour, g: RoadGraph, net: RoadNet, edgeIndex: Map<nu
     minElevationM: r2(Math.min(...hs)),
     maxElevationM: r2(Math.max(...hs)),
     maxGradePct: r2(maxGrade),
-  };
+  });
 }
 
 try {

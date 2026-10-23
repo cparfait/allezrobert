@@ -8,13 +8,18 @@ export interface RideEfforts {
   /** Identifie la sortie : un envoi répété (sortie reprise) n'est compté qu'une fois. */
   rideId: string;
   segments: Array<{ segmentId: string; elapsedMs: number }>;
+  /** Un temps du parcours entier : l'aller simple, ou un tour de boucle. */
   routeTimeMs?: number;
 }
 
-/** Parcours entier : du départ (à 0 m) jusqu'à l'arrivée, ou meilleur tour complet d'une boucle. */
+/**
+ * Parcours entier : du départ (à 0 m) jusqu'à l'arrivée, ou chaque tour complet d'une boucle (la
+ * ligne est au départ ; un tour commencé en cours de route ne compte pas).
+ */
 export class RouteTimer {
   private lapStartS: number | null;
-  private best: number | null = null;
+  /** Temps complets (s), dans l'ordre. */
+  readonly times: number[] = [];
 
   constructor(startedAtStart: boolean) {
     this.lapStartS = startedAtStart ? 0 : null;
@@ -26,19 +31,34 @@ export class RouteTimer {
     this.lapStartS = null;
   }
 
-  /** Tour bouclé : le tour compte s'il a été fait en entier, le suivant commence. */
-  lap(elapsedS: number): void {
-    if (this.lapStartS !== null) this.keep(elapsedS - this.lapStartS);
+  /**
+   * Tour bouclé : le tour compte s'il a été fait en entier, le suivant commence. Rend son temps
+   * et s'il bat les tours précédents de la sortie, ou null pour un tour incomplet.
+   */
+  lap(elapsedS: number): { timeS: number; best: boolean } | null {
+    const prev = this.bestS;
+    const s = this.lapStartS === null ? null : this.keep(elapsedS - this.lapStartS);
     this.lapStartS = elapsedS;
+    return s === null ? null : { timeS: s, best: prev !== null && s < prev };
   }
 
   get bestS(): number | null {
-    return this.best;
+    return this.times.length ? Math.min(...this.times) : null;
   }
 
-  private keep(s: number): void {
-    if (s > 0 && (this.best === null || s < this.best)) this.best = s;
+  private keep(s: number): number | null {
+    if (!(s > 0)) return null;
+    this.times.push(s);
+    return s;
   }
+}
+
+/** Temps d'un tour : m:ss, ou h:mm:ss. */
+export function fmtLapTime(s: number): string {
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = Math.floor(s % 60);
+  return h > 0 ? `${h}:${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}` : `${m}:${String(sec).padStart(2, '0')}`;
 }
 
 /** Envoi (sans attendre la réponse) ; vrai si le serveur a accepté. */
