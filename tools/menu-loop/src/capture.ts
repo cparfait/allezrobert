@@ -17,7 +17,7 @@
  * contrôle dans out/menu-loop/check-<saison>/.
  */
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync } from 'node:fs';
+import { closeSync, existsSync, mkdirSync, openSync, readFileSync, readdirSync, rmSync, statSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { checkPoints, DEFAULT_ENCODE, mp4Args, stillArgs, webmPasses, type EncodeOptions, type Manifest } from './encode.ts';
 
@@ -87,8 +87,11 @@ function chromePath(): string {
   return found;
 }
 
-/** Chrome dédié (WebGPU, profil à part, sans ralentissement des pages masquées), arrêté à la fin. */
-function launchChrome(url: string): ChildProcess {
+/**
+ * Chrome dédié (WebGPU, profil à part, sans ralentissement des pages masquées), arrêté à la fin.
+ * Journal (console de la page comprise) dans out/menu-loop/chrome-<saison>.log.
+ */
+function launchChrome(url: string, log: string): ChildProcess {
   const args = [
     `--user-data-dir=${resolve(OUT, 'chrome-profile')}`,
     '--no-first-run',
@@ -99,10 +102,15 @@ function launchChrome(url: string): ChildProcess {
     '--disable-renderer-backgrounding',
     '--disable-backgrounding-occluded-windows',
     '--window-size=1920,1080',
+    '--enable-logging=stderr',
+    '--v=0',
     ...(arg('headed') ? [] : ['--headless=new']),
     url,
   ];
-  const child = spawn(chromePath(), args, { stdio: 'ignore' });
+  mkdirSync(OUT, { recursive: true });
+  const fd = openSync(log, 'a');
+  const child = spawn(chromePath(), args, { stdio: ['ignore', fd, fd] });
+  closeSync(fd);
   process.on('exit', () => killTree(child));
   return child;
 }
@@ -113,15 +121,18 @@ function killTree(child: ChildProcess): void {
   else child.kill();
 }
 
-/** Serveur de dev dédié (sans rechargement à chaud), arrêté à la fin du script. */
+/** Serveur de dev dédié (sans rechargement à chaud), arrêté à la fin du script ; journal dans out/menu-loop/vite.log. */
 async function ownServer(): Promise<{ url: string; stop: () => void }> {
   const port = 5199;
+  mkdirSync(OUT, { recursive: true });
+  const fd = openSync(resolve(OUT, 'vite.log'), 'a');
   const child = spawn('pnpm', ['--filter', '@allezrobert/client', 'exec', 'vite', '--port', String(port), '--strictPort'], {
     cwd: ROOT,
     env: { ...process.env, AR_HMR: '0' },
-    stdio: 'ignore',
+    stdio: ['ignore', fd, fd],
     shell: process.platform === 'win32',
   });
+  closeSync(fd);
   const stop = () => killTree(child);
   process.on('exit', stop);
   const url = `http://localhost:${port}`;
@@ -133,8 +144,11 @@ async function ownServer(): Promise<{ url: string; stop: () => void }> {
   throw new Error(`Le serveur de dev ne répond pas sur ${url}`);
 }
 
-/** Attend le manifeste d'une saison (la page écrit les images puis le manifeste). */
-async function waitCapture(season: string, chrome: ChildProcess | null): Promise<void> {
+/**
+ * Attend le manifeste d'une saison (la page écrit les images puis le manifeste). `keepServer` :
+ * relance le serveur de dev s'il est tombé (la page retente ses envois pendant 3 min).
+ */
+async function waitCapture(season: string, chrome: ChildProcess | null, keepServer: () => Promise<void>): Promise<void> {
   const dir = resolve(OUT, season);
   const manifest = resolve(dir, 'manifest.json');
   let last = -1;
@@ -142,6 +156,7 @@ async function waitCapture(season: string, chrome: ChildProcess | null): Promise
   while (!existsSync(manifest)) {
     await sleep(5000);
     if (chrome && chrome.exitCode !== null) throw new Error(`[${season}] Chrome s'est arrêté (code ${chrome.exitCode})`);
+    await keepServer();
     const n = existsSync(dir) ? readdirSync(dir).filter((f) => f.endsWith('.png')).length : 0;
     if (n !== last) {
       last = n;
@@ -193,24 +208,54 @@ for (const season of seasons) if (!(SEASONS as readonly string[]).includes(seaso
 if (mode === 'encode') {
   for (const season of seasons) encode(season);
 } else {
-  const server = arg('url') ? { url: arg('url') as string, stop: () => undefined } : await ownServer();
-  if (!(await fetch(server.url).catch(() => null))?.ok) throw new Error(`Serveur de dev injoignable sur ${server.url} : lancer « pnpm dev » d'abord.`);
+  // Serveur : celui de --url, ou le nôtre (relancé s'il tombe entre deux tentatives).
+  let server = arg('url') ? { url: arg('url') as string, stop: () => undefined } : await ownServer();
+  const alive = async () => !!(await fetch(server.url, { signal: AbortSignal.timeout(20_000) }).catch(() => null))?.ok;
+  const keepServer = async () => {
+    if (arg('url') || (await alive())) return;
+    console.warn(`
+${new Date().toLocaleTimeString()} : serveur de dev arrêté, relance (journal : out/menu-loop/vite.log).`);
+    server.stop();
+    server = await ownServer();
+  };
+  if (!(await alive())) throw new Error(`Serveur de dev injoignable sur ${server.url} : lancer « pnpm dev » d'abord.`);
   for (const season of seasons) rmSync(resolve(OUT, season), { recursive: true, force: true });
-  const rest = seasons.slice(1);
-  const url = `${server.url}/?cinematic=${seasons[0]}&route=chevreuse-boucle&quality=ultra&fps=30&w=${w}&h=${h}&ss=${ss}&sub=${sub}&capture=1${rest.length ? `&then=${rest.join(',')}` : ''}`;
-  let chrome: ChildProcess | null = null;
-  if (browser === 'chrome') {
-    console.log(`Chrome dédié${arg('headed') ? '' : ' sans fenêtre'} : ${url}`);
-    chrome = launchChrome(url);
-  } else {
-    console.log(`Ouvrir dans un onglet d'un navigateur WebGPU (Chrome, Edge) ; il peut rester en arrière-plan :\n  ${url}`);
-    if (browser === 'open') openBrowser(url);
-  }
   const t0 = Date.now();
+  /** Saisons restant à capturer ; une capture interrompue reprend sa saison depuis le début. */
+  const pending = [...seasons];
+  const MAX_RETRIES = 3;
+  let retries = 0;
+  let chrome: ChildProcess | null = null;
   try {
-    for (const season of seasons) {
-      await waitCapture(season, chrome);
-      encode(season);
+    while (pending.length) {
+      const [first, ...rest] = pending as [string, ...string[]];
+      const url = `${server.url}/?cinematic=${first}&route=chevreuse-boucle&quality=ultra&fps=30&w=${w}&h=${h}&ss=${ss}&sub=${sub}&capture=1${rest.length ? `&then=${rest.join(',')}` : ''}`;
+      if (browser === 'chrome') {
+        console.log(`Chrome dédié${arg('headed') ? '' : ' sans fenêtre'} : ${url}`);
+        chrome = launchChrome(url, resolve(OUT, `chrome-${first}.log`));
+      } else {
+        console.log(`Ouvrir dans un onglet d'un navigateur WebGPU (Chrome, Edge) ; il peut rester en arrière-plan :
+  ${url}`);
+        if (browser === 'open') openBrowser(url);
+      }
+      try {
+        while (pending.length) {
+          const season = pending[0] as string;
+          await waitCapture(season, chrome, keepServer);
+          encode(season);
+          pending.shift();
+        }
+      } catch (err) {
+        // Onglet ou serveur tombé (carte graphique partagée, processus arrêté…) : on relance la saison.
+        if (chrome) killTree(chrome);
+        chrome = null;
+        if (browser !== 'chrome' || ++retries > MAX_RETRIES) throw err;
+        console.warn(`
+${String(err)} : nouvelle tentative ${retries}/${MAX_RETRIES} à partir de « ${pending[0]} »`);
+        rmSync(resolve(OUT, pending[0] as string), { recursive: true, force: true });
+        if (arg('url') && !(await alive())) throw new Error(`Serveur de dev injoignable sur ${server.url}`);
+        await keepServer();
+      }
     }
     console.log(`Terminé en ${Math.round((Date.now() - t0) / 60000)} min.`);
   } finally {

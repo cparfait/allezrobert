@@ -40,6 +40,12 @@ Options : `--season spring,winter`, `--url http://localhost:5173` (serveur exist
 `--mp4-max-kbps 3800` (plafond du MP4, 0 = CRF pur), `--no-webm`.
 `CHROME_PATH` désigne un autre navigateur Chromium.
 
+Une capture interrompue (onglet ou serveur tombé) reprend sa saison depuis le début, jusqu'à
+trois fois ; le serveur de dev est relancé s'il s'arrête (la page retente ses envois pendant
+3 min). Journaux : `out/menu-loop/vite.log` et `out/menu-loop/chrome-<saison>.log`. Prévoir
+≈5 Go libres par saison pour les PNG (un disque plein arrête le serveur : ENOSPC) ; ils peuvent
+être effacés une fois la saison encodée.
+
 ## Rendu
 
 - Préréglage graphique `ultra`, 1920×1080, 30 i/s, 61,5 s (1 845 images) par saison.

@@ -368,9 +368,15 @@ export async function runCinematic(engine: Engine, world: World, track: RouteTra
     }
   };
 
+  // Envoi au serveur de dev, avec nouvelles tentatives pendant 3 min : si le serveur tombe,
+  // tools/menu-loop le relance et la capture continue sans recommencer la saison.
   const post = async (url: string, body: string | Blob) => {
-    const res = await fetch(url, { method: 'POST', body });
-    if (!res.ok) throw new Error(`${url} : HTTP ${res.status}`);
+    for (let k = 0; ; k++) {
+      const res = await fetch(url, { method: 'POST', body }).catch(() => null);
+      if (res?.ok) return;
+      if (k >= 90) throw new Error(`${url} : ${res ? `HTTP ${res.status}` : 'serveur injoignable'}`);
+      await new Promise((r) => setTimeout(r, 2000));
+    }
   };
   // Image finale w×h : réduction du rendu suréchantillonné (filtre de qualité du navigateur),
   // copiée tout de suite après le rendu ; l'encodage PNG (sans perte) se fait en parallèle.
