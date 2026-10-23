@@ -44,8 +44,8 @@ export class RoadMesh {
     const inPatch = step(0.68, hp).mul(step(vs, v)).mul(step(v, ve)).mul(step(u0, across)).mul(step(across, u1));
     const patchCol = vec3(0.17, 0.175, 0.18).mul(asphaltGrain());
     // Joints colmatés au bitume : joint longitudinal d'axe (ondulant, interrompu) et quelques
-    // fissures transversales, fins et sombres, à peine plus satinés que l'enrobé (plus brillants,
-    // ils renvoyaient le soleil rasant en trait blanc).
+    // fissures transversales, fins et sombres, aussi mats que l'enrobé (plus brillants, ils
+    // renvoyaient le ciel au soleil rasant en trait clair).
     const wob = mx_noise_float(vec2(v.mul(0.06), 2)).mul(0.18);
     const seam = smoothstep(0.035, 0.012, abs(across.add(wob))).mul(step(0.55, mx_noise_float(vec2(v.mul(0.04), 11)).mul(0.5).add(0.5)));
     const tcell = floor(v.div(23));
@@ -87,7 +87,7 @@ export class RoadMesh {
     const wet = this.wetness;
     col = col.mul(float(1).sub(wet.mul(0.4).mul(onRoad)));
     m.colorNode = col;
-    const rough = mix(float(0.84).sub(wheelTrack), float(0.7), tar);
+    const rough = float(0.84).sub(wheelTrack);
     m.roughnessNode = clamp(mix(float(0.97), rough, onRoad).sub(wet.mul(0.6).mul(onRoad)), 0.06, 1);
     m.metalnessNode = float(0);
     m.opacityNode = step(ax, vergeOuter);
