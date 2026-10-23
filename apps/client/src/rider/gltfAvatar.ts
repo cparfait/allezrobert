@@ -643,14 +643,14 @@ export class GltfRiderAvatar implements RiderAvatarLike {
   static lodScale = 1;
 
   /** Redressement du cou par rapport à la pose de repos (rad, avatar MPFB : cou de repos trop penché, tête en avant). */
-  static neckLift = 0.55;
+  static neckLift = 0.3;
   /**
    * Épaules avancées et abaissées vers le cintre (rad, clavicules de l'avatar MPFB) : figées au
    * repos, elles laissaient le bras tirer la peau du haut du dos en bosse.
    */
   static clavForward = 0.2;
   /** Longueur du cou (facteur sur la position de repos de la tête, avatar MPFB). */
-  static neckLength = 0.8;
+  static neckLength = 0.65;
   /**
    * Cintre route (avatar MPFB) : buste penché vers l'avant comme un cycliste sur les cocottes (dos
    * vers 40° de l'horizontale, coudes fléchis), par la même bascule que la position chrono.
@@ -659,9 +659,12 @@ export class GltfRiderAvatar implements RiderAvatarLike {
   /** Assis au fond de la selle (m vers l'arrière, avatar MPFB, cintre route ; en chrono, sur le bec). */
   static seatBack = 0.025;
   /** Paume reculée sur la cocotte (m) : les bras gardent un peu de flexion. */
-  static gripBack = 0.07;
+  static gripBack = 0.08;
   /** Arrondi du bas du dos (rad, 35 % pour une morphologie masculine, 100 % féminine). */
-  static lumbarRound = 0.3;
+  static lumbarRound = 0.65;
+  /** Part de l'arrondi reprise par la deuxième vertèbre, et rendue par le thorax. */
+  static midBack = -0.8;
+  static chestBack = -1.1;
   static clavDown = 0.05;
 
   /** Modèles chargés ? */
@@ -969,10 +972,15 @@ export class GltfRiderAvatar implements RiderAvatarLike {
     if (t.names.spine2) {
       this.bones.spine2.quaternion.copy(t.bones.spine2.localQ);
       this.fk('spine2');
+      // Milieu du dos : même arrondi, réparti sur la deuxième vertèbre (dos bombé d'un bout à l'autre).
+      const mid = lumbar * GltfRiderAvatar.midBack;
+      if (mid) this.setModelQ('spine2', _q3.setFromAxisAngle(X_AXIS, mid).multiply(this.mQ.spine2));
     }
     _q1.multiplyQuaternions(this.mQ[t.bones.chest.parent ?? 'spine'], t.bones.chest.localQ);
     _q2.setFromAxisAngle(Z_AXIS, -roll * 0.9);
     if (tuck > 0) _q2.multiply(_q3.setFromAxisAngle(X_AXIS, TUCK.chest * tuck));
+    // Thorax : rend l'arrondi du bas et du milieu du dos (épaules à leur place, pas de bosse en haut).
+    if (lumbar) _q2.multiply(_q3.setFromAxisAngle(X_AXIS, -lumbar * GltfRiderAvatar.chestBack));
     this.setModelQ('chest', _q3.multiplyQuaternions(_q2, _q1));
 
     // --- Tête : regarde devant, compense une partie de l'inclinaison ; le cou en prend la moitié.

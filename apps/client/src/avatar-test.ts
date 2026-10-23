@@ -41,8 +41,12 @@ async function main(): Promise<void> {
   ground.receiveShadow = true;
   scene.add(ground);
 
+  // ?posecheck=/__pose/a.jpg,/__pose/b.jpg : mesures de posture sur des photos (dev/poseCheck.ts).
+  if (params.has('posecheck')) return (await import('./dev/poseCheck.ts')).poseSheet((params.get('posecheck') ?? '').split(',').filter(Boolean));
   const ok = await GltfRiderAvatar.load();
   if (params.has('neck')) GltfRiderAvatar.neckLift = Number(params.get('neck'));
+  if (params.has('mid')) GltfRiderAvatar.midBack = Number(params.get('mid'));
+  if (params.has('chestb')) GltfRiderAvatar.chestBack = Number(params.get('chestb'));
   if (params.has('lumbar')) GltfRiderAvatar.lumbarRound = Number(params.get('lumbar'));
   if (params.has('grip')) GltfRiderAvatar.gripBack = Number(params.get('grip'));
   if (params.has('seat')) GltfRiderAvatar.seatBack = Number(params.get('seat'));
@@ -823,7 +827,37 @@ async function bikeSheet(engine: Awaited<ReturnType<typeof createEngine>>, list:
       const ang = (o: THREE.Vector3, u: THREE.Vector3, v: THREE.Vector3) => (u.clone().sub(o).angleTo(v.clone().sub(o)) * 180) / Math.PI;
       const torso = elev(hip, sh);
       const neck = elev(nk, hd);
-      const res = { torso: +torso.toFixed(1), neck: +neck.toFixed(1), neckExt: +(neck - torso).toFixed(1), shoulder: +ang(sh, hip, el).toFixed(1), elbow: +ang(el, sh, wr).toFixed(1) };
+      // Profil du dos (mêmes conventions que dev/poseCheck.ts, sur la géométrie) : sommets du corps
+      // proches du plan médian, écart à la corde hanche → épaule côté dos, en % du torse.
+      const L = Math.hypot(sh.z - hip.z, sh.y - hip.y);
+      const ux = (sh.z - hip.z) / L;
+      const uy = (sh.y - hip.y) / L;
+      const nz = -uy;
+      const ny = ux;
+      const best = new Array(12).fill(-1);
+      const v = new THREE.Vector3();
+      a.root.traverse((o) => {
+        const m = o as THREE.SkinnedMesh;
+        if (!m.isSkinnedMesh || !m.visible || !/^rider_body(\d+)?(_\d+)?$/.test(m.name)) return;
+        const lvl = (m.parent as THREE.Object3D | null)?.visible !== false;
+        if (!lvl) return;
+        const pos = m.geometry.getAttribute('position');
+        for (let i = 0; i < pos.count; i++) {
+          m.applyBoneTransform(i, v.fromBufferAttribute(pos, i)).applyMatrix4(m.matrixWorld);
+          if (Math.abs(v.x - a.root.position.x) > 0.08) continue;
+          const t = ((v.z - hip.z) * ux + (v.y - hip.y) * uy) / L;
+          const k = Math.round((t - 0.08) / (0.84 / 11));
+          if (k < 0 || k > 11) continue;
+          const d = (v.z - hip.z) * nz + (v.y - hip.y) * ny;
+          if (d > best[k]) best[k] = d;
+        }
+      });
+      // cases vides : interpolées entre leurs voisines
+      for (let k = 0; k < 12; k++) if (best[k] < 0) best[k] = ((best[k - 1] ?? best[k + 1]) + (best[k + 1] >= 0 ? best[k + 1] : (best[k - 1] ?? 0))) / 2;
+      const b0 = best[0] as number;
+      const b1 = best[11] as number;
+      const back = best.map((d: number, k: number) => +(((d - (b0 + ((b1 - b0) * k) / 11)) / L) * 100).toFixed(1));
+      const res = { torso: +torso.toFixed(1), neck: +neck.toFixed(1), neckExt: +(neck - torso).toFixed(1), shoulder: +ang(sh, hip, el).toFixed(1), elbow: +ang(el, sh, wr).toFixed(1), back, headFwd: +((P('head').z - sh.z) / L).toFixed(2), headUp: +((P('head').y - sh.y) / L).toFixed(2) };
       ((window as unknown as { __angles: unknown[] }).__angles ??= []).push(res);
     }
     const riderOn = params.has('rider');
@@ -876,6 +910,19 @@ async function bikeSheet(engine: Awaited<ReturnType<typeof createEngine>>, list:
       camera.lookAt(0, riderOn ? 0.85 : 0.56, 0.09);
     }
     engine.renderManual();
+    // &analyze : mêmes mesures de posture que sur les photos (dev/poseCheck.ts), repères tracés.
+    if (params.has('analyze')) {
+      const copy = document.createElement('canvas');
+      copy.width = canvas.width;
+      copy.height = canvas.height;
+      const cg = copy.getContext('2d') as CanvasRenderingContext2D;
+      cg.drawImage(canvas, 0, 0);
+      const { measurePose } = await import('./dev/poseCheck.ts');
+      const m = await measurePose(copy, cg);
+      ((window as unknown as { __pose: unknown[] }).__pose ??= []).push({ bike: b.id, m });
+      await fetch(`/__shot?name=pose-${params.get('profile') ?? 'robert'}-${i}`, { method: 'POST', body: copy.toDataURL('image/jpeg', 0.9) });
+      engine.renderManual();
+    }
     const x = (i % cols) * cw;
     const y = Math.floor(i / cols) * ch;
     g.drawImage(canvas, 160, 60, 960, 600, x, y, cw, ch);
