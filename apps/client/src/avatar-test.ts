@@ -43,6 +43,7 @@ async function main(): Promise<void> {
 
   const ok = await GltfRiderAvatar.load();
   if (params.has('neck')) GltfRiderAvatar.neckLift = Number(params.get('neck'));
+  if (params.has('seat')) GltfRiderAvatar.seatBack = Number(params.get('seat'));
   if (params.has('tuck')) GltfRiderAvatar.roadTuck = Number(params.get('tuck'));
   if (params.has('necklen')) GltfRiderAvatar.neckLength = Number(params.get('necklen'));
   if (params.has('clavf')) GltfRiderAvatar.clavForward = Number(params.get('clavf'));

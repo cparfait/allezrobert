@@ -657,6 +657,8 @@ export class GltfRiderAvatar implements RiderAvatarLike {
    * vers 40° de l'horizontale, coudes fléchis), par la même bascule que la position chrono.
    */
   static roadTuck = 0.55;
+  /** Assis au fond de la selle (m vers l'arrière, avatar MPFB, cintre route ; en chrono, sur le bec). */
+  static seatBack = 0.07;
   static clavDown = 0.12;
 
   /** Modèles chargés ? */
@@ -945,7 +947,7 @@ export class GltfRiderAvatar implements RiderAvatarLike {
     _q3.multiplyQuaternions(_q1, _q2).multiply(hipsR.modelQ);
     _v4.copy(hipsR.modelP);
     _v4.y += 0.02 * stand + 0.004 * Math.sin(2 * a) * (1 - stand) * (1 - coast) - 0.01 * Math.abs(Math.cos(a)) * stand;
-    _v4.z += 0.13 * stand;
+    _v4.z += 0.13 * stand - (t.names.hips === 'pelvis' && !this.mounted?.anchors.pads ? GltfRiderAvatar.seatBack * (1 - stand) : 0);
     _v4.applyAxisAngle(Z_AXIS, counter);
     const hips = this.bones.hips;
     const invArm = _q1.copy(t.armQ).invert();
