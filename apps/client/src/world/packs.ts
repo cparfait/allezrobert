@@ -21,6 +21,13 @@ export const TILES_BASE = env.VITE_WORLDS_URL ?? (inTauri ? WORLDS_HOST : '');
 const KEY = 'ar.packs';
 const cacheName = (id: string) => `ar-pack-${id}`;
 const hasCaches = () => typeof caches !== 'undefined';
+/**
+ * Fichiers du pack gardés compressés (gzip) sur l'appareil : ≈ 2 × moins de place. Les images
+ * (déjà compressées) restent telles quelles. Marqueur d'en-tête : décompression à la lecture.
+ */
+const GZ_HEADER = 'x-ar-gz';
+const canGzip = () => typeof CompressionStream !== 'undefined' && typeof DecompressionStream !== 'undefined';
+const compressible = (p: string) => !/\.(jpe?g|png|webp)$/i.test(p);
 
 export type PackState = { kind: 'installed'; version: string; upToDate: boolean } | { kind: 'absent' } | { kind: 'unavailable' };
 
@@ -91,7 +98,11 @@ export async function installPack(id: string, onProgress: (done: number, total: 
           const r = await fetch(url, signal ? { signal } : {});
           if (!r.ok) throw new Error(`HTTP ${r.status} ${f.p}`);
           // clé = chemin local du fichier : le jeu le retrouve quelle que soit l'origine du téléchargement
-          await cache.put(`/worlds/${id}/${f.p}`, r);
+          if (r.body && canGzip() && compressible(f.p)) {
+            const type = r.headers.get('content-type') ?? 'application/octet-stream';
+            const gz = r.body.pipeThrough(new CompressionStream('gzip'));
+            await cache.put(`/worlds/${id}/${f.p}`, new Response(gz, { headers: { 'content-type': type, [GZ_HEADER]: '1' } }));
+          } else await cache.put(`/worlds/${id}/${f.p}`, r);
           lastErr = null;
           break;
         } catch (err) {
@@ -136,6 +147,10 @@ export async function worldFetch(path: string): Promise<Response> {
   const m = /^\/worlds\/([^/]+)\//.exec(path);
   if (m && hasCaches() && installed()[m[1] as string]) {
     const hit = await (await caches.open(cacheName(m[1] as string))).match(path);
+    if (hit?.headers.get(GZ_HEADER) && hit.body) {
+      const type = hit.headers.get('content-type') ?? 'application/octet-stream';
+      return new Response(hit.body.pipeThrough(new DecompressionStream('gzip')), { headers: { 'content-type': type } });
+    }
     if (hit) return hit;
   }
   return fetch(path.includes('/tiles/') ? `${TILES_BASE}${path}` : path);

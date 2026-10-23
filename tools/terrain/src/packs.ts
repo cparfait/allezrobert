@@ -10,6 +10,7 @@
  *   pnpm --filter @allezrobert/terrain packs     # régénère pack.json et le catalogue de tous les mondes
  */
 import { createHash } from 'node:crypto';
+import zlib from 'node:zlib';
 import fs from 'node:fs';
 import path from 'node:path';
 import type { WorldCatalogue, WorldMeta, WorldPackManifest } from '@allezrobert/shared';
@@ -29,7 +30,10 @@ export function writePackManifest(worldDir: string, id: string): WorldPackManife
   if (!files.length) return null;
   const h = createHash('sha1');
   for (const f of files) h.update(`${f.p}:${f.b}\n`);
-  const manifest: WorldPackManifest = { formatVersion: 1, id, version: h.digest('hex').slice(0, 12), bytes: files.reduce((s, f) => s + f.b, 0), files };
+  // taille téléchargée : fichiers compressés comme les sert Caddy (gzip/zstd) et les garde le jeu
+  let gzBytes = 0;
+  for (const f of files) gzBytes += /\.(jpe?g|png|webp)$/i.test(f.p) ? f.b : zlib.gzipSync(fs.readFileSync(path.join(worldDir, f.p)), { level: 6 }).length;
+  const manifest: WorldPackManifest = { formatVersion: 1, id, version: h.digest('hex').slice(0, 12), bytes: files.reduce((s, f) => s + f.b, 0), gzBytes, files };
   fs.writeFileSync(path.join(tilesDir, 'pack.json'), JSON.stringify(manifest));
   return manifest;
 }
@@ -62,7 +66,7 @@ export function writeCatalogue(log: (s: string) => void = console.log): WorldCat
       name: meta.name,
       ...(cfg?.region ? { region: cfg.region } : {}),
       routes,
-      pack: pack ? { version: pack.version, bytes: pack.bytes, files: pack.files.length } : prev,
+      pack: pack ? { version: pack.version, bytes: pack.bytes, files: pack.files.length, gzBytes: pack.gzBytes ?? pack.bytes } : prev,
       l93: { minE: meta.originL93.x + meta.bounds.minX, minN: meta.originL93.y - meta.bounds.maxZ, maxE: meta.originL93.x + meta.bounds.maxX, maxN: meta.originL93.y - meta.bounds.minZ },
       ...(meta.open ? { open: true as const } : {}),
     });

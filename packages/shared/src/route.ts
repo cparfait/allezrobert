@@ -188,6 +188,8 @@ export interface WorldTile {
     baseM: number;
     stepM: number;
     encoding: 'uint16le';
+    /** Valeurs codées en différences (voir heights.ts) ; absent : valeurs brutes. */
+    delta?: true;
     lo: { n: number; resolutionM: number; file: string };
     hi?: { n: number; resolutionM: number; file: string };
   };
@@ -256,6 +258,8 @@ export interface WorldPackManifest {
   id: string;
   version: string;
   bytes: number;
+  /** Taille téléchargée (fichiers compressés gzip, comme les sert le serveur et les garde l'appareil). */
+  gzBytes?: number;
   files: Array<{ p: string; b: number }>;
 }
 
@@ -269,7 +273,7 @@ export interface WorldCatalogue {
     region?: string;
     routes: Array<{ id: string; name: string; nameEn?: string; lengthM: number; elevationGainM: number; loop: boolean }>;
     /** Pack téléchargeable ; null si les tuiles ne sont pas encore publiées. */
-    pack: { version: string; bytes: number; files: number } | null;
+    pack: { version: string; bytes: number; files: number; gzBytes?: number } | null;
     /** Emprise des tuiles en Lambert-93 (m) : zones voisines (qui se touchent ou se chevauchent). */
     l93?: { minE: number; minN: number; maxE: number; maxN: number };
     /** Monde ouvert (graphe routier) : parcours libre et à dessiner, raccordable aux voisines. */

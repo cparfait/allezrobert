@@ -1,4 +1,4 @@
-import type { RoadGraphData, RouteData, WorldMeta, WorldPlace, WorldTile } from '@allezrobert/shared';
+import { deltaDecodeU16, type RoadGraphData, type RouteData, type WorldMeta, type WorldPlace, type WorldTile } from '@allezrobert/shared';
 import type { HorizonGrid, LoadedTile, TileFeatures, WorldSource } from './types.ts';
 import { worldFetch } from './packs.ts';
 
@@ -78,6 +78,7 @@ export async function createFileWorld(id: string, meta: WorldMeta): Promise<Worl
       const bin = await worldFetch(`${base}/tiles/${grid.file}`);
       if (!bin.ok) throw new Error(`HTTP ${bin.status}`);
       const raw = new Uint16Array(await bin.arrayBuffer());
+      if (tile.heights.delta) deltaDecodeU16(raw, grid.n);
       const heights = new Float32Array(raw.length);
       for (let i = 0; i < raw.length; i++) heights[i] = tile.heights.baseM + (raw[i] as number) * tile.heights.stepM;
       const idx = index.get(key);

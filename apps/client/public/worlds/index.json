@@ -16,9 +16,10 @@
     }
    ],
    "pack": {
-    "version": "5464ee8550a1",
-    "bytes": 46816476,
-    "files": 508
+    "version": "be19374ca9be",
+    "bytes": 46818569,
+    "files": 508,
+    "gzBytes": 27595649
    },
    "l93": {
     "minE": 932000,
@@ -82,9 +83,10 @@
     }
    ],
    "pack": {
-    "version": "320f6ea26b71",
-    "bytes": 255267140,
-    "files": 901
+    "version": "b0e7c50ec850",
+    "bytes": 255270065,
+    "files": 901,
+    "gzBytes": 110861059
    },
    "l93": {
     "minE": 714000,
@@ -141,9 +143,10 @@
     }
    ],
    "pack": {
-    "version": "c0f8d4614447",
-    "bytes": 188023760,
-    "files": 1887
+    "version": "562a86512d4a",
+    "bytes": 188031053,
+    "files": 1887,
+    "gzBytes": 75187563
    },
    "l93": {
     "minE": 609000,
@@ -167,15 +170,44 @@
     }
    ],
    "pack": {
-    "version": "49b3c5735197",
-    "bytes": 269956850,
-    "files": 961
+    "version": "521b576f4d9e",
+    "bytes": 269959970,
+    "files": 961,
+    "gzBytes": 123535560
    },
    "l93": {
     "minE": 712000,
     "minN": 6499000,
     "maxE": 728000,
     "maxN": 6514000
+   },
+   "open": true
+  },
+  {
+   "id": "etretat",
+   "name": "Étretat — Côte d'Albâtre",
+   "region": "Seine-Maritime · Pays de Caux",
+   "routes": [
+    {
+     "id": "falaises-d-etretat",
+     "name": "Les falaises d'Étretat par Bénouville et Le Tilleul",
+     "nameEn": "Étretat cliffs via Bénouville and Le Tilleul",
+     "lengthM": 27079.1,
+     "elevationGainM": 350.31,
+     "loop": true
+    }
+   ],
+   "pack": {
+    "version": "85faf22b630c",
+    "bytes": 103160285,
+    "files": 485,
+    "gzBytes": 40058966
+   },
+   "l93": {
+    "minE": 495000,
+    "minN": 6953000,
+    "maxE": 506000,
+    "maxN": 6964000
    },
    "open": true
   },
@@ -194,9 +226,10 @@
     }
    ],
    "pack": {
-    "version": "50633423c2c4",
-    "bytes": 192158421,
-    "files": 721
+    "version": "b627030a75d6",
+    "bytes": 192160761,
+    "files": 721,
+    "gzBytes": 92606772
    },
    "l93": {
     "minE": 722000,
@@ -221,9 +254,10 @@
     }
    ],
    "pack": {
-    "version": "f55c9b582f7a",
-    "bytes": 49274628,
-    "files": 197
+    "version": "083619653e2b",
+    "bytes": 49275265,
+    "files": 197,
+    "gzBytes": 24771670
    },
    "l93": {
     "minE": 729000,
@@ -264,9 +298,10 @@
     }
    ],
    "pack": {
-    "version": "fb6457a45b59",
-    "bytes": 332996999,
-    "files": 1289
+    "version": "012f05f3c366",
+    "bytes": 333001185,
+    "files": 1289,
+    "gzBytes": 157235648
    },
    "l93": {
     "minE": 726000,
@@ -291,9 +326,10 @@
     }
    ],
    "pack": {
-    "version": "a170f04065d6",
-    "bytes": 63292142,
-    "files": 145
+    "version": "c1cc5cdbe2f1",
+    "bytes": 63292610,
+    "files": 145,
+    "gzBytes": 24647059
    },
    "l93": {
     "minE": 641000,
@@ -318,9 +354,10 @@
     }
    ],
    "pack": {
-    "version": "911601b13d5c",
-    "bytes": 119205811,
-    "files": 281
+    "version": "4ca8b2c060ac",
+    "bytes": 119206721,
+    "files": 281,
+    "gzBytes": 47380875
    },
    "l93": {
     "minE": 639000,
@@ -345,9 +382,10 @@
     }
    ],
    "pack": {
-    "version": "155134436562",
-    "bytes": 122516591,
-    "files": 916
+    "version": "e40e3c97616b",
+    "bytes": 122520296,
+    "files": 916,
+    "gzBytes": 63078881
    },
    "l93": {
     "minE": 868000,
@@ -371,9 +409,10 @@
     }
    ],
    "pack": {
-    "version": "0c633b896247",
-    "bytes": 451014689,
-    "files": 1601
+    "version": "f170e40409c8",
+    "bytes": 451019889,
+    "files": 1601,
+    "gzBytes": 221464206
    },
    "l93": {
     "minE": 684000,
@@ -406,9 +445,10 @@
     }
    ],
    "pack": {
-    "version": "c36bf9e26f4b",
-    "bytes": 328886432,
-    "files": 1321
+    "version": "c5be7bfa7dfa",
+    "bytes": 328890722,
+    "files": 1321,
+    "gzBytes": 168427751
    },
    "l93": {
     "minE": 675000,
@@ -433,9 +473,10 @@
     }
    ],
    "pack": {
-    "version": "7058821dc50c",
-    "bytes": 68493325,
-    "files": 145
+    "version": "ee3b7648961c",
+    "bytes": 68493793,
+    "files": 145,
+    "gzBytes": 25668544
    },
    "l93": {
     "minE": 657000,

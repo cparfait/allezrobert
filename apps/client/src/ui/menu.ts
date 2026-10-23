@@ -792,8 +792,8 @@ export class MainMenu {
     if (dl && !dl.error) return `<span class="mm-pack busy">${Math.floor((dl.done / Math.max(dl.total, 1)) * 100)} %</span>`;
     if (dl?.error) return `<button class="mm-pack err" data-pack="${esc(id)}" title="${esc(dl.error)}">${L ? 'Réessayer' : 'Retry'}</button>`;
     if (st.kind === 'installed' && st.upToDate) return `<span class="mm-pack ok">${L ? 'Téléchargée' : 'Downloaded'} ✓</span><button class="mm-link mm-unpack" data-unpack="${esc(id)}">${L ? 'Supprimer' : 'Remove'}</button>`;
-    if (st.kind === 'installed') return `<button class="mm-pack" data-pack="${esc(id)}">${L ? 'Mettre à jour' : 'Update'}${z?.pack ? ` · ${formatBytes(z.pack.bytes, L)}` : ''}</button>`;
-    if (st.kind === 'absent' && z?.pack) return `<button class="mm-pack" data-pack="${esc(id)}">↓ ${formatBytes(z.pack.bytes, L)}</button>`;
+    if (st.kind === 'installed') return `<button class="mm-pack" data-pack="${esc(id)}">${L ? 'Mettre à jour' : 'Update'}${z?.pack ? ` · ${formatBytes(z.pack.gzBytes ?? z.pack.bytes, L)}` : ''}</button>`;
+    if (st.kind === 'absent' && z?.pack) return `<button class="mm-pack" data-pack="${esc(id)}">↓ ${formatBytes(z.pack.gzBytes ?? z.pack.bytes, L)}</button>`;
     return '';
   }
 

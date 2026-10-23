@@ -70,10 +70,22 @@ export function asCircuit(route: RouteData): RouteData {
     segments: runs(route.segments)!.filter((s) => s.endM - s.startM >= 200),
     ...(roadWidths ? { roadWidths } : {}),
     ...(surfaces ? { surfaces } : {}),
-    ...(route.landmarks ? { landmarks: route.landmarks.filter((l) => l.d < lengthM) } : {}),
+    // boucle : un repère vu au-delà de l'arrivée (le tracé repasse au départ) revient au départ
+    ...(route.landmarks ? { landmarks: wrapLandmarks(route.landmarks, lengthM) } : {}),
     ...(route.hairpins ? { hairpins: route.hairpins.filter((h) => h.d < lengthM) } : {}),
     ...(route.minElevationM !== undefined ? { minElevationM: r2(Math.min(...hs)) } : {}),
     ...(route.maxElevationM !== undefined ? { maxElevationM: r2(Math.max(...hs)) } : {}),
     ...(route.maxGradePct !== undefined ? { maxGradePct: r2(maxGrade) } : {}),
   };
+}
+
+/** Repères d'une boucle : au-delà de la longueur, ramenés au début du tour ; un seul par nom. */
+function wrapLandmarks(marks: Array<{ name: string; d: number }>, lengthM: number): Array<{ name: string; d: number }> {
+  const best = new Map<string, number>();
+  for (const l of marks) {
+    const d = l.d < lengthM ? l.d : r2(l.d - lengthM);
+    if (d >= lengthM) continue;
+    best.set(l.name, Math.min(best.get(l.name) ?? Infinity, d));
+  }
+  return [...best].map(([name, d]) => ({ name, d })).sort((a, b) => a.d - b.d);
 }

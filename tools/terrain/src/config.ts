@@ -367,8 +367,10 @@ export const WORLDS: Record<string, WorldConfig> = {
         routeId: 'falaises-d-etretat',
         routeName: "Les falaises d'Étretat par Bénouville et Le Tilleul",
         routeNameEn: 'Étretat cliffs via Bénouville and Le Tilleul',
+        // points relevés sur le tracé, chacun sur la route traversante (un nom de village mène à son
+        // centre, d'où des allers-retours à Vattetot, Bordeaux-Saint-Clair et Pierrefiques)
         start: 'Étretat',
-        via: ['Bénouville', 'Vattetot-sur-Mer', 'Les Loges', 'Bordeaux-Saint-Clair', 'Pierrefiques', 'Le Tilleul'],
+        via: [{ lon: 0.24984, lat: 49.71681 }, { lon: 0.2757, lat: 49.71888 }, { lon: 0.28378, lat: 49.71601 }, { lon: 0.28252, lat: 49.69923 }, { lon: 0.26125, lat: 49.70086 }, { lon: 0.25045, lat: 49.68596 }, { lon: 0.24524, lat: 49.67664 }, { lon: 0.23391, lat: 49.68063 }, { lon: 0.21957, lat: 49.67958 }, { lon: 0.20487, lat: 49.68802 }],
       },
     ],
   },
