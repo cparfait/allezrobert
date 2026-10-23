@@ -1,6 +1,7 @@
 import { getLang } from '../i18n/index.ts';
 import { ONBOARDING_SCRIPT, plainText } from './script.ts';
 import { serverEndpoint } from '../game/multiplayer.ts';
+import { music } from '../audio/music.ts';
 
 /** Audio Cartesia déjà reçu (par texte et langue) : chaque réplique n'est téléchargée qu'une fois. */
 const audioCache = new Map<string, Promise<string | null>>();
@@ -88,6 +89,9 @@ export class VoiceOver {
       );
     }
     const g = this.gen;
+    // Musique baissée dès la réplique demandée (le temps de télécharger l'audio compris).
+    music.talkOver(true);
+    const done = () => (hide(), music.talkOver(false));
     return cartesiaUrl(text, getLang() === 'fr' ? 'fr' : 'en').then(
       (url) =>
         new Promise<void>((res) => {
@@ -95,12 +99,12 @@ export class VoiceOver {
           if (url) {
             const audio = new Audio(url);
             this.current = audio;
-            audio.onended = () => (hide(), res());
-            audio.onerror = () => (hide(), res());
-            void audio.play().catch(() => (hide(), res()));
+            audio.onended = () => (done(), res());
+            audio.onerror = () => (done(), res());
+            void audio.play().catch(() => (done(), res()));
             return;
           }
-          this.speakSystem(text, hide, res);
+          this.speakSystem(text, done, res);
         }),
     );
   }
@@ -128,5 +132,6 @@ export class VoiceOver {
     this.current?.pause();
     this.current = null;
     this.subtitle.classList.add('hidden');
+    music.talkOver(false);
   }
 }

@@ -1,8 +1,8 @@
 /**
  * Musique de fond : playlist de morceaux originaux (public/music, voir ASSETS_LICENSES.md) jouée
  * dans un ordre aléatoire, enchaînée automatiquement, avec fondus. Activée par défaut, coupable
- * (ar.music = off), volume propre (ar.music.volume), atténuée en sortie et coupée quand Spotify
- * joue. Le navigateur n'autorise le son qu'après un geste de l'utilisateur : voir unlockOnGesture().
+ * (ar.music = off), volume propre (ar.music.volume), atténuée en sortie, sous la voix du tutoriel,
+ * et coupée quand Spotify joue. Le navigateur n'autorise le son qu'après un geste de l'utilisateur : voir unlockOnGesture().
  */
 
 export interface Track {
@@ -20,6 +20,12 @@ const BASE = '/music/';
 /** Morceau joué en premier à l'ouverture. */
 const FIRST_TRACK = 'echappee.mp3';
 const FADE_S = 1.2;
+/** Niveau de la musique sous la voix du tutoriel, et durées de la baisse et de la remontée. */
+const VOICE_DUCK = 0.25;
+const VOICE_DOWN_S = 0.3;
+const VOICE_UP_S = 1;
+/** Délai avant la remontée : la musique reste basse entre deux répliques qui s'enchaînent. */
+const VOICE_RELEASE_MS = 700;
 
 function shuffled<T>(a: T[]): T[] {
   const r = [...a];
@@ -35,6 +41,10 @@ export class BackgroundMusic {
   private order: Track[] = [];
   private index = -1;
   private duck = 1;
+  /** Atténuation sous la voix du tutoriel (indépendante de setDuck, que Spotify réécrit). */
+  private voice = 1;
+  private voiceTimer: ReturnType<typeof setInterval> | null = null;
+  private voiceRelease: ReturnType<typeof setTimeout> | null = null;
   /** Niveau du fondu en cours (0 → 1). */
   private fade = 0;
   private fadeTarget = 0;
@@ -114,6 +124,28 @@ export class BackgroundMusic {
     this.apply();
   }
 
+  /** Voix du tutoriel en cours : musique baissée en douceur, puis remontée après la dernière réplique. */
+  talkOver(on: boolean): void {
+    if (this.voiceRelease) clearTimeout(this.voiceRelease);
+    this.voiceRelease = null;
+    if (on) this.rampVoice(VOICE_DUCK, VOICE_DOWN_S);
+    else this.voiceRelease = setTimeout(() => this.rampVoice(1, VOICE_UP_S), VOICE_RELEASE_MS);
+  }
+
+  private rampVoice(target: number, seconds: number): void {
+    if (this.voiceTimer) clearInterval(this.voiceTimer);
+    const step = (0.05 * (1 - VOICE_DUCK)) / seconds;
+    this.voiceTimer = setInterval(() => {
+      const d = target - this.voice;
+      this.voice = Math.abs(d) <= step ? target : this.voice + Math.sign(d) * step;
+      this.apply();
+      if (this.voice === target) {
+        clearInterval(this.voiceTimer as ReturnType<typeof setInterval>);
+        this.voiceTimer = null;
+      }
+    }, 50);
+  }
+
   /** Morceau suivant (fondu enchaîné). */
   next(): void {
     if (!this.enabled) return;
@@ -159,7 +191,7 @@ export class BackgroundMusic {
   }
 
   private apply(): void {
-    this.el.volume = Math.max(0, Math.min(1, this.volume * this.duck * this.fade));
+    this.el.volume = Math.max(0, Math.min(1, this.volume * this.duck * this.voice * this.fade));
   }
 
   private fadeTo(target: number, done?: () => void): void {
