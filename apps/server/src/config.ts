@@ -61,8 +61,8 @@ export const ConfigSchema = z.object({
 
   /** Synthèse vocale (voix off du tutoriel) : clé Cartesia, uniquement côté serveur. */
   CARTESIA_API_KEY: optionalString,
-  /** sonic-3 : nécessaire pour les balises <emotion/>, <speed/>, <volume/> du script du tuto. */
-  CARTESIA_MODEL: z.string().default('sonic-3'),
+  /** sonic-3.6 (sonic-3 ou plus récent requis pour les balises <emotion/>, <speed/>, <volume/> du script du tuto). */
+  CARTESIA_MODEL: z.string().default('sonic-3.6'),
   /** Voix : Jules (« Polished Host ») en français, Jameson (« Easygoing Support ») en anglais. */
   CARTESIA_VOICE_FR: z.string().default('8f1e9d27-96ff-405e-9213-7432a784ac0b'),
   CARTESIA_VOICE_EN: z.string().default('a5136bf9-224c-4d76-b823-52bd5efcffcc'),

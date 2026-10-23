@@ -2,7 +2,7 @@
  * Script versionné de la voix off du tutoriel (FR / EN). Chaque réplique est lue par la
  * synthèse vocale et affichée en sous-titres. Modifier ici, jamais dans le code de l'écran.
  *
- * Balises Cartesia (sonic-3), retirées des sous-titres : `<emotion value="happy"/>`,
+ * Balises Cartesia (sonic-3 et plus récents), retirées des sous-titres : `<emotion value="happy"/>`,
  * `<speed ratio="1.1"/>` (0,6 à 1,5), `<volume ratio="1.2"/>` (0,5 à 2), `<break time="300ms"/>`.
  * Une seule émotion par réplique, en tête (les changements en cours de phrase sont instables),
  * et peu de pauses : la ponctuation suffit le plus souvent.
