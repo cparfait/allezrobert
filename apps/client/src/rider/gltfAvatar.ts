@@ -573,6 +573,8 @@ export class GltfRiderAvatar implements RiderAvatarLike {
   private readonly morphMeshes: THREE.Mesh[] = [];
   /** Maillages à curseurs de forme et leur géométrie partagée (avant précalcul). */
   private faceKey = '[]';
+  /** Morphologie féminine (0 → 1, curseur `sex`) : plus cambrée, son bas du dos s'arrondit davantage. */
+  private feminine = 0;
   /** Expressions en sortie (modèle à formes ARKit seulement). */
   private faceAnim: FaceAnimator | null = null;
   /** Coiffures (avatar MPFB) : 0 courts, 1 queue de cheval, 2 tresse, 3 rasé ; moustache. */
@@ -648,16 +650,18 @@ export class GltfRiderAvatar implements RiderAvatarLike {
    */
   static clavForward = 0.2;
   /** Longueur du cou (facteur sur la position de repos de la tête, avatar MPFB). */
-  static neckLength = 1;
+  static neckLength = 0.8;
   /**
    * Cintre route (avatar MPFB) : buste penché vers l'avant comme un cycliste sur les cocottes (dos
    * vers 40° de l'horizontale, coudes fléchis), par la même bascule que la position chrono.
    */
-  static roadTuck = 0.12;
+  static roadTuck = 0.4;
   /** Assis au fond de la selle (m vers l'arrière, avatar MPFB, cintre route ; en chrono, sur le bec). */
   static seatBack = 0.025;
   /** Paume reculée sur la cocotte (m) : les bras gardent un peu de flexion. */
-  static gripBack = 0.055;
+  static gripBack = 0.07;
+  /** Arrondi du bas du dos (rad, 35 % pour une morphologie masculine, 100 % féminine). */
+  static lumbarRound = 0.3;
   static clavDown = 0.05;
 
   /** Modèles chargés ? */
@@ -940,7 +944,10 @@ export class GltfRiderAvatar implements RiderAvatarLike {
     const hipsR = t.bones.hips;
     const roll = 0.02 * Math.sin(a) * (1 - stand) * (1 - coast);
     const tuck = this.tuck * (1 - 0.6 * stand);
-    const tilt = -0.09 * stand - 0.05 * coast + TUCK.hips * tuck;
+    // Bas du dos arrondi (rétroversion du bassin, avatar MPFB) : le bassin bascule en arrière et la
+    // colonne d'autant vers l'avant ; le buste garde son inclinaison, les lombaires ne se creusent pas.
+    const lumbar = t.names.hips === 'pelvis' && !this.mounted?.anchors.pads ? GltfRiderAvatar.lumbarRound * (0.35 + 0.65 * this.feminine) * (1 - stand) : 0;
+    const tilt = -0.09 * stand - 0.05 * coast + TUCK.hips * tuck - lumbar;
     _q1.setFromAxisAngle(Z_AXIS, counter + roll);
     _q2.setFromAxisAngle(X_AXIS, tilt);
     _q3.multiplyQuaternions(_q1, _q2).multiply(hipsR.modelQ);
@@ -958,7 +965,7 @@ export class GltfRiderAvatar implements RiderAvatarLike {
     // position chrono (moins en danseuse).
     this.bones.spine.quaternion.copy(t.bones.spine.localQ);
     this.fk('spine');
-    if (tuck > 0) this.setModelQ('spine', _q3.setFromAxisAngle(X_AXIS, TUCK.spine * tuck).multiply(this.mQ.spine));
+    if (tuck > 0 || lumbar) this.setModelQ('spine', _q3.setFromAxisAngle(X_AXIS, TUCK.spine * tuck + lumbar).multiply(this.mQ.spine));
     if (t.names.spine2) {
       this.bones.spine2.quaternion.copy(t.bones.spine2.localQ);
       this.fk('spine2');
@@ -1035,6 +1042,7 @@ export class GltfRiderAvatar implements RiderAvatarLike {
    * tout à 0 : géométrie partagée du modèle).
    */
   setFace(values: Readonly<Record<string, number>>): void {
+    this.feminine = Math.max(0, -(values.sex ?? 0));
     const key = JSON.stringify(Object.entries(values).filter(([, v]) => v).sort());
     if (key === this.faceKey) return;
     this.faceKey = key;

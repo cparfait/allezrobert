@@ -43,6 +43,7 @@ async function main(): Promise<void> {
 
   const ok = await GltfRiderAvatar.load();
   if (params.has('neck')) GltfRiderAvatar.neckLift = Number(params.get('neck'));
+  if (params.has('lumbar')) GltfRiderAvatar.lumbarRound = Number(params.get('lumbar'));
   if (params.has('grip')) GltfRiderAvatar.gripBack = Number(params.get('grip'));
   if (params.has('seat')) GltfRiderAvatar.seatBack = Number(params.get('seat'));
   // &split=hanches,colonne,thorax : répartition de la bascule du buste.
