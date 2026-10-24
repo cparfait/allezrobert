@@ -594,3 +594,7 @@
 .mm-enter .mm-views { animation: gr-up 0.6s 0.7s ease-out both; }
 .mm-enter .at-stats { animation: gr-up 0.6s 0.8s ease-out both; }
 @media (prefers-reduced-motion: reduce) { .mm-enter .gr-panel, .mm-enter .mm-views, .mm-enter .at-stats { animation: none; } }
+/* Heure et météo de la sortie (onglet Rouler). */
+.mm-weather { display: grid; gap: 8px; margin: 10px 0 4px; padding: 12px 14px; border-radius: 14px; background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.08); }
+.mm-weather .field { margin: 0; }
+.mm-weather .mm-seg button { flex: 1 1 auto; }

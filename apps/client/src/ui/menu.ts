@@ -115,6 +115,16 @@ const ICON = {
 /** Catégorie ouverte dans le garage. */
 type GarageSlot = CosmeticSlot | 'colors' | 'face' | 'atelier';
 
+/** Ciels proposés au départ d'une sortie (nuages, pluie, brouillard de 0 à 1). */
+const WEATHER_PRESETS: Array<[string, { clouds: number; rain: number; fog: number }]> = [
+  ['sun', { clouds: 0.1, rain: 0, fog: 0 }],
+  ['cloudy', { clouds: 0.65, rain: 0, fog: 0.05 }],
+  ['rain', { clouds: 0.9, rain: 0.7, fog: 0.1 }],
+  ['fog', { clouds: 0.5, rain: 0, fog: 0.7 }],
+];
+/** Forces de vent proposées (m/s) : calme, léger (≈ 11 km/h), moyen (≈ 22 km/h), fort (≈ 36 km/h). */
+const WIND_STEPS = [0, 3, 6, 10];
+
 /** Gros plan du garage selon la catégorie choisie. */
 const SLOT_VIEW: Record<CosmeticSlot, GarageView> = { jersey: '3q', helmet: 'front', bike: 'side', socks: 'bike', glasses: 'front' };
 
@@ -423,6 +433,38 @@ export class MainMenu {
   }
 
   /** Choix en boutons segmentés (remplace les listes déroulantes du système). */
+  /**
+   * Heure et météo de la sortie (onglet Rouler, tous les modes) : heure de départ, ciel, vent, météo
+   * fixe ou qui évolue. En groupe, celles du créateur s'appliquent à tous.
+   */
+  private weatherHtml(): string {
+    const s = this.s;
+    const L = fr();
+    // Préréglage le plus proche des curseurs (Réglages), s'il y en a un.
+    const near = WEATHER_PRESETS.map(([id, w]) => [id, Math.abs(w.clouds - s.clouds) + Math.abs(w.rain - s.rain) + Math.abs(w.fog - s.fog)] as const).sort((a, b) => a[1] - b[1])[0];
+    const sky = near && near[1] < 0.35 ? near[0] : '';
+    const wind = String(WIND_STEPS.reduce((best, v) => (Math.abs(v - s.windMs) < Math.abs(best - s.windMs) ? v : best), WIND_STEPS[0] as number));
+    return `<div class="mm-weather">
+      <label class="field">${L ? 'Heure de départ' : 'Start time'} <span id="m-hourv">${this.hourLabel(s.hour)}</span><input id="m-hour" type="range" min="5" max="22" step="0.25" value="${s.hour}" /></label>
+      <div class="field">${L ? 'Ciel' : 'Sky'}${this.seg('m-wx', sky, [
+        ['sun', L ? '☀ Soleil' : '☀ Sunny'],
+        ['cloudy', L ? '☁ Nuageux' : '☁ Cloudy'],
+        ['rain', L ? '🌧 Pluie' : '🌧 Rain'],
+        ['fog', L ? '🌫 Brouillard' : '🌫 Fog'],
+      ])}</div>
+      <div class="field">${L ? 'Vent' : 'Wind'}${this.seg('m-wind', wind, [
+        ['0', L ? 'Calme' : 'Calm'],
+        ['3', L ? 'Léger' : 'Light'],
+        ['6', L ? 'Moyen' : 'Moderate'],
+        ['10', L ? 'Fort' : 'Strong'],
+      ])}</div>
+      <div class="field">${L ? 'Météo' : 'Weather'}${this.seg('m-evolve', s.weatherEvolves ? '1' : '0', [
+        ['0', L ? 'Fixe' : 'Fixed'],
+        ['1', L ? 'Qui évolue' : 'Changing'],
+      ])}</div>
+    </div>`;
+  }
+
   private seg(id: string, current: string, opts: Array<[string, string]>): string {
     return `<div class="mm-seg" id="${id}" data-value="${esc(current)}" role="radiogroup">${opts
       .map(([v, label]) => `<button type="button" role="radio" aria-checked="${v === current}" class="${v === current ? 'on' : ''}" data-v="${esc(v)}">${esc(label)}</button>`)
@@ -643,6 +685,7 @@ export class MainMenu {
         )
         .join('')}</div>
       <p class="mm-hint">${s.mode === 'open' ? (L ? 'Parcours libre : ← / → pour choisir ta direction à chaque carrefour, U pour faire demi-tour.' : 'Free ride: ← / → to pick your way at each junction, U to turn around.') : mode ? esc(mode[2]) : ''}</p>
+      ${this.weatherHtml()}
       ${
         s.mode === 'group' || s.mode === 'race'
           ? `<input id="m-invite" class="mm-input" placeholder="${L ? 'Code d’invitation (facultatif)' : 'Invite code (optional)'}" />${
@@ -650,11 +693,6 @@ export class MainMenu {
               s.mode === 'race' && r?.loop ? `<label class="mm-input" style="display:flex;align-items:center;justify-content:space-between;gap:10px">${L ? 'Tours de la course' : 'Race laps'}<input id="m-laps" type="number" min="1" max="20" value="${s.raceLaps}" style="width:64px" /></label>` : ''
             }
             <div class="mm-groupopts">
-              <label class="field">${L ? 'Heure de départ' : 'Start time'} <span id="m-hourv">${this.hourLabel(s.hour)}</span><input id="m-hour" type="range" min="5" max="22" step="0.25" value="${s.hour}" /></label>
-              <div class="field">${L ? 'Météo' : 'Weather'}${this.seg('m-evolve', s.weatherEvolves ? '1' : '0', [
-                ['0', L ? 'Fixe' : 'Fixed'],
-                ['1', L ? 'Qui évolue' : 'Changing'],
-              ])}</div>
               <div class="field">${L ? 'Équipement égalisé' : 'Equal equipment'}${this.seg('m-equal', (s.equalEquipment ?? s.mode === 'race') ? '1' : '0', [
                 ['1', L ? 'Oui : même vélo pour tous' : 'Yes: same bike for all'],
                 ['0', L ? 'Non : pièces de l’atelier' : 'No: workshop parts'],
@@ -2162,6 +2200,16 @@ export class MainMenu {
       changed();
     });
     if (this.tab === 'garage' && this.garageSlot === 'atelier') this.atelier.bind(this.root);
+    on<HTMLSelectElement>('m-wx', 'change', (el) => {
+      const w = WEATHER_PRESETS.find(([id]) => id === el.value)?.[1];
+      if (!w) return;
+      Object.assign(s, w);
+      changed();
+    });
+    on<HTMLSelectElement>('m-wind', 'change', (el) => {
+      s.windMs = Number(el.value);
+      changed();
+    });
     on<HTMLSelectElement>('m-evolve', 'change', (el) => {
       s.weatherEvolves = el.value === '1';
       changed();
