@@ -1,0 +1,49 @@
+{
+  "kind": "open",
+  "id": "alsace",
+  "name": "Route des vins d'Alsace",
+  "region": "Haut-Rhin · Vignoble",
+  "originL93": {
+    "x": 1020000,
+    "y": 6794000
+  },
+  "corridorTiles": {
+    "txMin": -6,
+    "txMax": 4,
+    "tzMin": -5,
+    "tzMax": 5
+  },
+  "start": {
+    "lon": 7.299401291427496,
+    "lat": 48.163558974123724
+  },
+  "orthoPx": 1024,
+  "enrich": {
+    "radiusM": 50,
+    "lidarVegetation": true,
+    "bdtopoBuildings": true
+  },
+  "horizon": {
+    "halfSizeM": 45000,
+    "resM": 100
+  },
+  "tours": [
+    {
+      "routeId": "route-des-vins",
+      "routeName": "La route des vins de Riquewihr à Kaysersberg",
+      "routeNameEn": "The wine road from Riquewihr to Kaysersberg",
+      "start": "Riquewihr",
+      "via": [
+        "Hunawihr",
+        "Ribeauvillé",
+        "Zellenberg",
+        "Beblenheim",
+        "Mittelwihr",
+        "Bennwihr",
+        "Sigolsheim",
+        "Kientzheim",
+        "Kaysersberg"
+      ]
+    }
+  ]
+}

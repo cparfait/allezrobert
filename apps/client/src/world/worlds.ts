@@ -24,6 +24,7 @@ export const WORLD_LIST: Array<{ id: string; name: { fr: string; en: string }; h
   { id: 'saint-cloud', name: { fr: 'Saint-Cloud — Marly', en: 'Saint-Cloud — Marly' }, hint: { fr: 'Côte de la Jonchère, forêt de Marly', en: 'Jonchère climb, Marly forest' } },
   { id: 'cote-de-nuits', name: { fr: 'Côte de Nuits — Grands crus', en: 'Côte de Nuits — Grands crus' }, hint: { fr: 'Gevrey, Vougeot, Nuits-Saint-Georges', en: 'Gevrey, Vougeot, Nuits-Saint-Georges' } },
   { id: 'alsace', name: { fr: "Route des vins d'Alsace", en: 'Alsace wine road' }, hint: { fr: 'Riquewihr, Ribeauvillé, Kaysersberg', en: 'Riquewihr, Ribeauvillé, Kaysersberg' } },
+  { id: 'verrieres-velizy', name: { fr: 'Verrières -Vélizy', en: 'Verrières -Vélizy' }, hint: { fr: 'Essonne · Île-de-France', en: 'Essonne · Île-de-France' } },
   { id: 'alpe-dhuez', name: { fr: "Alpe d'Huez", en: "Alpe d'Huez" }, hint: { fr: '21 lacets', en: '21 hairpins' } },
   { id: 'mont-ventoux', name: { fr: 'Mont Ventoux', en: 'Mont Ventoux' }, hint: { fr: 'Par Bédoin', en: 'From Bédoin' } },
 ];

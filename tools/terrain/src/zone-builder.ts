@@ -1,0 +1,467 @@
+/**
+ * Constructeur de zone (outil local de développement, jamais déployé) :
+ *
+ *   pnpm zone-builder            # puis http://127.0.0.1:5199
+ *
+ * Lit les zones réelles (config.ts, zones JSON, worlds.ts, zoneMap.ts, worlds/index.json), permet
+ * d'en créer ou d'en modifier une sur le fond Plan IGN, écrit `tools/terrain/zones/<id>.json` (avec
+ * sauvegarde) et la ligne de menu des fichiers client, puis lance build:world, verify-world et packs
+ * avec journal en direct, annulation et reprise. Écoute 127.0.0.1 uniquement.
+ */
+import fs from 'node:fs';
+import http from 'node:http';
+import path from 'node:path';
+import { execFile, spawn, type ChildProcess } from 'node:child_process';
+import { ZONES_DIR, REPO_ROOT, allWorlds, type OpenWorld, type WorldConfig } from './config.ts';
+import { fromL93, toL93 } from './lambert93.ts';
+import { estimate, frameFromRect, readWorldLine, rectFromWorld, upsertSpotLine, upsertWorldLine, validate, zoneJson, type Pt, type ZoneDraft } from './zone-builder-lib.ts';
+
+const PORT = Number(process.env.ZONE_BUILDER_PORT ?? 5199);
+const HOST = '127.0.0.1';
+const PAGE = path.join(REPO_ROOT, 'tools', 'terrain', 'zone-builder', 'index.html');
+const WORLDS_TS = path.join(REPO_ROOT, 'apps', 'client', 'src', 'world', 'worlds.ts');
+const ZONEMAP_TS = path.join(REPO_ROOT, 'apps', 'client', 'src', 'world', 'zoneMap.ts');
+const PUBLIC_WORLDS = path.join(REPO_ROOT, 'apps', 'client', 'public', 'worlds');
+const STATE_DIR = path.join(REPO_ROOT, 'data', 'cache', 'zone-builder');
+const BACKUP_DIR = path.join(STATE_DIR, 'backups');
+const JOB_FILE = path.join(STATE_DIR, 'job.json');
+const LOG_FILE = path.join(STATE_DIR, 'job.log');
+
+const read = (f: string) => fs.readFileSync(f, 'utf8');
+const stamp = () => new Date().toISOString().replace(/[:.]/g, '-');
+
+function backup(file: string): void {
+  if (!fs.existsSync(file)) return;
+  fs.mkdirSync(BACKUP_DIR, { recursive: true });
+  fs.copyFileSync(file, path.join(BACKUP_DIR, `${stamp()}-${path.basename(file)}`));
+}
+
+/** Écriture sûre : sauvegarde, fichier temporaire, renommage. */
+function safeWrite(file: string, text: string): void {
+  backup(file);
+  const tmp = `${file}.tmp-${process.pid}`;
+  fs.writeFileSync(tmp, text);
+  fs.renameSync(tmp, file);
+}
+
+// ---- zones ---------------------------------------------------------------------------------
+
+function zoneSource(id: string): 'json' | 'config' | 'private' {
+  if (fs.existsSync(path.join(ZONES_DIR, `${id}.json`))) return 'json';
+  return allWorlds()[id]?.private ? 'private' : 'config';
+}
+
+function listZones() {
+  const worlds = read(WORLDS_TS);
+  const spots = read(ZONEMAP_TS);
+  let index: { zones?: Array<{ id: string }> } = {};
+  try {
+    index = JSON.parse(read(path.join(PUBLIC_WORLDS, 'index.json')));
+  } catch {
+    /* pas encore de catalogue */
+  }
+  const inIndex = new Set((index.zones ?? []).map((z) => z.id));
+  return Object.values(allWorlds()).map((w) => ({
+    id: w.id,
+    name: w.name,
+    region: w.region ?? '',
+    kind: w.kind,
+    editable: w.kind === 'open' && !w.private,
+    source: zoneSource(w.id),
+    built: fs.existsSync(path.join(PUBLIC_WORLDS, w.id, 'world.json')),
+    inCatalogue: inIndex.has(w.id),
+    inMenu: worlds.includes(`id: '${w.id}'`),
+    onMap: spots.includes(`id: '${w.id}'`),
+  }));
+}
+
+const asPt = (p: unknown): Pt => (typeof p === 'string' ? p : { lon: (p as { lon: number }).lon, lat: (p as { lat: number }).lat });
+
+function draftOf(w: OpenWorld): ZoneDraft {
+  const worlds = read(WORLDS_TS);
+  const spots = read(ZONEMAP_TS);
+  const wl = readWorldLine(worlds, w.id);
+  const sl = new RegExp(`\\{ id: '${w.id}',[^\\n]*region: \\{ fr: '((?:[^'\\\\]|\\\\.)*)', en: '((?:[^'\\\\]|\\\\.)*)'`).exec(spots);
+  return {
+    id: w.id,
+    nameFr: w.name,
+    nameEn: wl.nameEn ?? w.name,
+    regionFr: w.region ?? '',
+    regionEn: sl?.[2] ?? w.region ?? '',
+    hintFr: wl.hintFr ?? '',
+    hintEn: wl.hintEn ?? '',
+    sea: !!w.sea,
+    orthoPx: w.orthoPx,
+    rect: rectFromWorld(w.originL93, w.corridorTiles),
+    tours: w.tours.map((t) => {
+      const { routeId, routeName, routeNameEn, start, via, ...extra } = t;
+      return { routeId, nameFr: routeName, nameEn: routeNameEn, points: [start, ...via].map(asPt), extra: extra as Record<string, unknown> };
+    }),
+  };
+}
+
+function parseDraft(body: unknown): ZoneDraft {
+  const d = body as ZoneDraft;
+  const s = (v: unknown) => (typeof v === 'string' ? v : '');
+  const n = (v: unknown) => (Number.isFinite(Number(v)) ? Number(v) : 0);
+  return {
+    id: s(d.id),
+    nameFr: s(d.nameFr),
+    nameEn: s(d.nameEn),
+    regionFr: s(d.regionFr),
+    regionEn: s(d.regionEn),
+    hintFr: s(d.hintFr),
+    hintEn: s(d.hintEn),
+    sea: !!d.sea,
+    orthoPx: [512, 1024, 2048].includes(n(d.orthoPx)) ? n(d.orthoPx) : 1024,
+    rect: { minE: n(d.rect?.minE), minN: n(d.rect?.minN), maxE: n(d.rect?.maxE), maxN: n(d.rect?.maxN) },
+    tours: (Array.isArray(d.tours) ? d.tours : []).map((t) => ({
+      routeId: s(t.routeId),
+      nameFr: s(t.nameFr),
+      nameEn: s(t.nameEn),
+      points: (Array.isArray(t.points) ? t.points : []).map((p) => (typeof p === 'string' ? p : { lon: n((p as { lon: number }).lon), lat: n((p as { lat: number }).lat) })),
+      ...(t.extra && typeof t.extra === 'object' ? { extra: t.extra } : {}),
+    })),
+  };
+}
+
+function preview(draft: ZoneDraft, noOrtho: boolean) {
+  const frame = frameFromRect(draft.rect);
+  const errors = validate(draft, frame);
+  const est = estimate(frame, !noOrtho);
+  const existing = allWorlds()[draft.id];
+  if (existing && (existing.kind !== 'open' || existing.private)) errors.push(`« ${draft.id} » est un monde ${existing.private ? 'privé' : existing.kind} : non modifiable ici`);
+  return { frame, errors, estimate: est };
+}
+
+function saveZone(draft: ZoneDraft) {
+  if (jobRunning()) throw new Error('une construction est en cours : attendre sa fin ou l’annuler avant d’enregistrer');
+  const { frame, errors } = preview(draft, false);
+  if (errors.length) throw new Error(errors.join(' ; '));
+  const file = path.join(ZONES_DIR, `${draft.id}.json`);
+  const existing = allWorlds()[draft.id] as WorldConfig | undefined;
+  const raw = existing ? (JSON.parse(JSON.stringify(existing)) as Record<string, unknown>) : undefined;
+  const json = zoneJson(draft, frame, raw);
+  fs.mkdirSync(ZONES_DIR, { recursive: true });
+  // les trois fichiers sont calculés avant la première écriture : tout ou rien
+  const worlds = upsertWorldLine(read(WORLDS_TS), draft);
+  const spots = upsertSpotLine(read(ZONEMAP_TS), draft, frame);
+  safeWrite(file, `${JSON.stringify(json, null, 2)}\n`);
+  if (worlds) safeWrite(WORLDS_TS, worlds);
+  if (spots) safeWrite(ZONEMAP_TS, spots);
+  return { file: path.relative(REPO_ROOT, file), worlds: !!worlds, zoneMap: !!spots, backups: path.relative(REPO_ROOT, BACKUP_DIR) };
+}
+
+// ---- construction --------------------------------------------------------------------------
+
+interface Step {
+  name: string;
+  cmd: string;
+  status: 'pending' | 'running' | 'done' | 'failed' | 'cancelled';
+}
+interface Job {
+  id: string;
+  status: 'running' | 'done' | 'failed' | 'cancelled';
+  startedAt: string;
+  endedAt?: string;
+  pid?: number;
+  steps: Step[];
+}
+
+let job: Job | null = null;
+let child: ChildProcess | null = null;
+let cancelled = false;
+
+try {
+  job = JSON.parse(read(JOB_FILE)) as Job;
+  // reprise du serveur : un travail « en cours » dont le processus n'existe plus est interrompu
+  if (job.status === 'running' && !(job.pid && alive(job.pid))) {
+    job.status = 'failed';
+    for (const s of job.steps) if (s.status === 'running' || s.status === 'pending') s.status = 'failed';
+  }
+} catch {
+  job = null;
+}
+
+function alive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+const jobRunning = () => job?.status === 'running';
+
+function persist(): void {
+  fs.mkdirSync(STATE_DIR, { recursive: true });
+  fs.writeFileSync(JOB_FILE, JSON.stringify(job, null, 1));
+}
+
+function log(text: string): void {
+  fs.mkdirSync(STATE_DIR, { recursive: true });
+  fs.appendFileSync(LOG_FILE, text);
+}
+
+function killTree(pid: number): void {
+  if (process.platform === 'win32') execFile('taskkill', ['/pid', String(pid), '/T', '/F'], () => undefined);
+  else {
+    try {
+      process.kill(-pid, 'SIGTERM');
+    } catch {
+      try {
+        process.kill(pid, 'SIGTERM');
+      } catch {
+        /* déjà terminé */
+      }
+    }
+  }
+}
+
+/** Constructions lancées ailleurs (autre terminal, autre agent) : on ne démarre pas par-dessus. */
+function otherBuilds(): Promise<string[]> {
+  const pat = /build-world|build-open|build-tiles|build-climb|build-packs|verify-world/;
+  return new Promise((resolve) => {
+    const done = (out: string) => resolve(out.split(/\r?\n/).filter((l) => pat.test(l) && !/zone-builder/.test(l)).map((l) => l.trim().slice(0, 200)));
+    if (process.platform === 'win32') {
+      execFile('powershell', ['-NoProfile', '-Command', 'Get-CimInstance Win32_Process | ForEach-Object { "$($_.ProcessId) $($_.CommandLine)" }'], { maxBuffer: 16e6 }, (_e, out) => done(String(out ?? '')));
+    } else execFile('ps', ['-eo', 'pid,args'], { maxBuffer: 16e6 }, (_e, out) => done(String(out ?? '')));
+  });
+}
+
+async function startBuild(opts: { id: string; noOrtho: boolean; offline: boolean; graphOnly: boolean; verify: boolean; packs: boolean }): Promise<Job> {
+  if (jobRunning()) throw new Error('une construction de l’outil est déjà en cours');
+  if (!/^[a-z0-9]+(-[a-z0-9]+)*$/.test(opts.id)) throw new Error('identifiant invalide');
+  const w = allWorlds()[opts.id];
+  if (!w) throw new Error(`zone « ${opts.id} » inconnue : l’enregistrer d’abord`);
+  if (w.private) throw new Error('monde privé : hors de cet outil');
+  const others = await otherBuilds();
+  if (others.length) throw new Error(`une construction tourne déjà ailleurs, rien lancé :\n${others.join('\n')}`);
+  const flags = [opts.noOrtho && '--no-ortho', opts.offline && '--offline', opts.graphOnly && '--graph-only'].filter(Boolean).join(' ');
+  const steps: Step[] = [{ name: 'build:world', cmd: `pnpm --filter @allezrobert/terrain build:world -- --world ${opts.id}${flags ? ` ${flags}` : ''}`, status: 'pending' }];
+  if (opts.verify && !opts.graphOnly) steps.push({ name: 'verify-world', cmd: `pnpm --filter @allezrobert/terrain exec tsx src/verify-world.ts --world ${opts.id}`, status: 'pending' });
+  if (opts.packs) steps.push({ name: 'packs', cmd: 'pnpm --filter @allezrobert/terrain packs', status: 'pending' });
+  job = { id: opts.id, status: 'running', startedAt: new Date().toISOString(), steps };
+  cancelled = false;
+  fs.mkdirSync(STATE_DIR, { recursive: true });
+  fs.writeFileSync(LOG_FILE, `# ${job.startedAt} — zone ${opts.id}\n`);
+  persist();
+  void runSteps();
+  return job;
+}
+
+async function runSteps(): Promise<void> {
+  const j = job!;
+  for (const step of j.steps) {
+    if (cancelled) break;
+    step.status = 'running';
+    log(`\n$ ${step.cmd}\n`);
+    const ok = await new Promise<boolean>((resolve) => {
+      child = spawn(step.cmd, { shell: true, cwd: REPO_ROOT, detached: process.platform !== 'win32', env: { ...process.env, FORCE_COLOR: '0' } });
+      j.pid = child.pid;
+      persist();
+      child.stdout?.on('data', (b: Buffer) => log(b.toString()));
+      child.stderr?.on('data', (b: Buffer) => log(b.toString()));
+      child.on('error', (e) => {
+        log(`erreur : ${e.message}\n`);
+        resolve(false);
+      });
+      child.on('close', (code) => {
+        log(`-- ${step.name} : code ${code}\n`);
+        resolve(code === 0);
+      });
+    });
+    step.status = cancelled ? 'cancelled' : ok ? 'done' : 'failed';
+    persist();
+    if (!ok) break;
+  }
+  j.status = cancelled ? 'cancelled' : j.steps.every((s) => s.status === 'done') ? 'done' : 'failed';
+  for (const s of j.steps) if (s.status === 'pending') s.status = 'cancelled';
+  j.endedAt = new Date().toISOString();
+  j.pid = undefined;
+  child = null;
+  persist();
+  log(`\n# ${j.status}\n`);
+}
+
+function cancelBuild(): boolean {
+  if (!jobRunning()) return false;
+  cancelled = true;
+  const pid = job?.pid;
+  if (pid) killTree(pid);
+  return true;
+}
+
+function readLog(from: number): { text: string; size: number } {
+  try {
+    const size = fs.statSync(LOG_FILE).size;
+    const start = Math.min(from, size);
+    const fd = fs.openSync(LOG_FILE, 'r');
+    const buf = Buffer.alloc(Math.min(size - start, 2e6));
+    fs.readSync(fd, buf, 0, buf.length, start);
+    fs.closeSync(fd);
+    return { text: buf.toString('utf8'), size: start + buf.length };
+  } catch {
+    return { text: '', size: 0 };
+  }
+}
+
+// ---- tours automatiques et infos de zone (processus zone-plan.ts) ------------------------------
+
+interface Plan {
+  status: 'running' | 'done' | 'error' | 'cancelled';
+  lines: string[];
+  result?: unknown;
+  error?: string;
+  pid?: number;
+}
+let plan: Plan | null = null;
+
+async function startPlan(b: { draft: ZoneDraft; start?: { lon: number; lat: number }; targetKm: number; variants: number; seed: number; meta?: boolean }): Promise<Plan> {
+  if (jobRunning()) throw new Error('une construction est en cours : attendre sa fin avant de calculer des tours');
+  if (plan?.status === 'running') throw new Error('un calcul est déjà en cours (infos de zone ou tours)');
+  const others = process.env.ZONE_BUILDER_FORCE === '1' ? [] : await otherBuilds();
+  if (others.length) throw new Error(`une construction tourne ailleurs (le calcul partage le cache OSM), rien lancé :\n${others.join('\n')}`);
+  if (!(b.draft.rect.maxE > b.draft.rect.minE)) throw new Error('dessiner d’abord l’emprise');
+  const frame = frameFromRect(b.draft.rect);
+  if (frame.tiles > 400) throw new Error(`emprise de ${frame.tiles} tuiles : trop grande pour télécharger OSM ici (réduire)`);
+  const targetKm = Math.min(120, Math.max(5, Number(b.targetKm) || 25));
+  const variants = Math.min(6, Math.max(1, Math.round(Number(b.variants) || 3)));
+  fs.mkdirSync(STATE_DIR, { recursive: true });
+  const world = { kind: 'open', id: '__plan__', name: 'plan', originL93: frame.originL93, corridorTiles: frame.corridorTiles, start: fromL93(frame.center.x, frame.center.y), orthoPx: 512, horizon: { halfSizeM: 30000, resM: 100 }, ...(b.draft.sea ? { sea: true } : {}), tours: [] };
+  const worldFile = path.join(STATE_DIR, 'plan-world.json');
+  const reqFile = path.join(STATE_DIR, 'plan-request.json');
+  fs.writeFileSync(worldFile, JSON.stringify(world));
+  fs.writeFileSync(reqFile, JSON.stringify({ targetKm, variants, seed: Math.floor(Number(b.seed) || 1), ...(b.meta ? { meta: true, detectSea: true } : {}), ...(b.start ? { start: { lon: Number(b.start.lon), lat: Number(b.start.lat) } } : {}) }));
+  const p: Plan = { status: 'running', lines: [] };
+  plan = p;
+  const proc = spawn(`npx tsx src/zone-plan.ts ${JSON.stringify(reqFile)}`, { shell: true, cwd: path.join(REPO_ROOT, 'tools', 'terrain'), detached: process.platform !== 'win32', env: { ...process.env, TERRAIN_WORLD_JSON: worldFile, FORCE_COLOR: '0' } });
+  p.pid = proc.pid;
+  let buf = '';
+  const onData = (d: Buffer) => {
+    buf += d.toString();
+    let i: number;
+    while ((i = buf.indexOf('\n')) >= 0) {
+      const line = buf.slice(0, i).replace(/\r$/, '');
+      buf = buf.slice(i + 1);
+      if (line.startsWith('@@result ')) p.result = JSON.parse(line.slice(9));
+      else if (line.startsWith('@@error ')) p.error = line.slice(8);
+      else if (line.startsWith('@@progress ')) p.lines.push(line.slice(11));
+      else if (line.trim()) p.lines.push(line.trim().slice(0, 200));
+    }
+  };
+  proc.stdout?.on('data', onData);
+  proc.stderr?.on('data', onData);
+  proc.on('close', (code) => {
+    if (p.status === 'cancelled') return;
+    p.status = p.result ? 'done' : 'error';
+    if (!p.result && !p.error) p.error = `calcul interrompu (code ${code})`;
+    p.pid = undefined;
+  });
+  return p;
+}
+
+function cancelPlan(): boolean {
+  if (plan?.status !== 'running') return false;
+  plan.status = 'cancelled';
+  if (plan.pid) killTree(plan.pid);
+  return true;
+}
+
+// ---- HTTP ----------------------------------------------------------------------------------
+
+function send(res: http.ServerResponse, code: number, body: unknown, type = 'application/json; charset=utf-8'): void {
+  res.writeHead(code, { 'content-type': type, 'cache-control': 'no-store' });
+  res.end(typeof body === 'string' ? body : JSON.stringify(body));
+}
+
+function bodyOf(req: http.IncomingMessage): Promise<unknown> {
+  return new Promise((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    let n = 0;
+    req.on('data', (c: Buffer) => {
+      n += c.length;
+      if (n > 2e6) reject(new Error('corps trop gros'));
+      else chunks.push(c);
+    });
+    req.on('end', () => {
+      try {
+        resolve(chunks.length ? JSON.parse(Buffer.concat(chunks).toString('utf8')) : {});
+      } catch (e) {
+        reject(e);
+      }
+    });
+  });
+}
+
+const server = http.createServer(async (req, res) => {
+  try {
+    // local seulement : mauvais Host (rebinding DNS) ou origine étrangère refusés
+    const host = String(req.headers.host ?? '');
+    if (!/^(127\.0\.0\.1|localhost)(:\d+)?$/.test(host)) return send(res, 403, { error: 'hôte refusé' });
+    const url = new URL(req.url ?? '/', 'http://x');
+    if (req.method === 'POST') {
+      const origin = req.headers.origin;
+      if (req.headers['x-zone-builder'] !== '1' || (origin && !/^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/.test(origin))) return send(res, 403, { error: 'requête refusée' });
+    }
+    if (req.method === 'GET' && url.pathname === '/') return send(res, 200, read(PAGE), 'text/html; charset=utf-8');
+    if (req.method === 'GET' && url.pathname === '/api/zones') return send(res, 200, { zones: listZones(), job });
+    if (req.method === 'GET' && url.pathname === '/api/zone') {
+      const id = url.searchParams.get('id') ?? '';
+      const w = allWorlds()[id];
+      if (!w) return send(res, 404, { error: 'zone inconnue' });
+      if (w.kind !== 'open') return send(res, 400, { error: `zone de type « ${w.kind} » : non modifiable ici` });
+      return send(res, 200, { draft: draftOf(w), source: zoneSource(id), private: !!w.private });
+    }
+    if (req.method === 'GET' && url.pathname === '/api/job') {
+      const { text, size } = readLog(Number(url.searchParams.get('from') ?? 0));
+      return send(res, 200, { job, text, size });
+    }
+    if (req.method === 'GET' && url.pathname === '/api/geo') {
+      // conversions Lambert-93 ↔ WGS84 pour la page (une seule implémentation de la projection)
+      const e = Number(url.searchParams.get('e'));
+      const n = Number(url.searchParams.get('n'));
+      const lon = Number(url.searchParams.get('lon'));
+      const lat = Number(url.searchParams.get('lat'));
+      return send(res, 200, url.searchParams.has('e') ? fromL93(e, n) : toL93(lon, lat));
+    }
+    if (req.method === 'POST' && url.pathname === '/api/preview') {
+      const b = (await bodyOf(req)) as { draft: unknown; noOrtho?: boolean };
+      return send(res, 200, preview(parseDraft(b.draft), !!b.noOrtho));
+    }
+    if (req.method === 'POST' && url.pathname === '/api/save') {
+      const b = (await bodyOf(req)) as { draft: unknown };
+      return send(res, 200, saveZone(parseDraft(b.draft)));
+    }
+    if (req.method === 'POST' && url.pathname === '/api/build') {
+      const b = (await bodyOf(req)) as Record<string, unknown>;
+      const j = await startBuild({ id: String(b.id ?? ''), noOrtho: !!b.noOrtho, offline: !!b.offline, graphOnly: !!b.graphOnly, verify: b.verify !== false, packs: b.packs !== false });
+      return send(res, 200, { job: j });
+    }
+    if (req.method === 'GET' && url.pathname === '/api/plan') {
+      const from = Number(url.searchParams.get('from') ?? 0);
+      return send(res, 200, plan ? { status: plan.status, lines: plan.lines.slice(from), next: plan.lines.length, result: plan.result, error: plan.error } : { status: 'idle', lines: [], next: 0 });
+    }
+    if (req.method === 'POST' && url.pathname === '/api/plan') {
+      const b = (await bodyOf(req)) as { draft: unknown; start?: { lon: number; lat: number }; targetKm: number; variants: number; seed: number; meta?: boolean };
+      await startPlan({ ...b, draft: parseDraft(b.draft) });
+      return send(res, 200, { status: 'running' });
+    }
+    if (req.method === 'POST' && url.pathname === '/api/plan/cancel') return send(res, 200, { cancelled: cancelPlan() });
+    if (req.method === 'POST' && url.pathname === '/api/cancel') return send(res, 200, { cancelled: cancelBuild() });
+    send(res, 404, { error: 'introuvable' });
+  } catch (e) {
+    send(res, 400, { error: e instanceof Error ? e.message : String(e) });
+  }
+});
+
+server.listen(PORT, HOST, () => {
+  console.log(`Constructeur de zone : http://${HOST}:${PORT}  (Ctrl+C pour arrêter ; une construction en cours est arrêtée aussi)`);
+});
+
+process.on('SIGINT', () => {
+  cancelBuild();
+  cancelPlan();
+  process.exit(0);
+});

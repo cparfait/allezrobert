@@ -28,7 +28,7 @@ pnpm --filter @allezrobert/menu-loop encode -- --season autumn   # réencoder de
 Puis augmenter `MENU_MEDIA_VERSION` dans `apps/client/src/main.ts` (cache des navigateurs) et
 copier les vidéos sur le serveur.
 
-Le script lance son propre serveur de dev (port 5199, sans rechargement à chaud) et un Chrome
+Le script lance son propre serveur de dev (port 5199, modifiable avec `MENU_LOOP_PORT`, sans rechargement à chaud) et un Chrome
 sans fenêtre (WebGPU, profil dédié `out/menu-loop/chrome-profile`, pas de ralentissement des pages
 en arrière-plan) ; les saisons s'enchaînent dans le même onglet. Pour chaque saison il attend le
 manifeste écrit par la page, encode, écrit l'image fixe et extrait des images de contrôle (une

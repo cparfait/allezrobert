@@ -14,7 +14,7 @@ import zlib from 'node:zlib';
 import fs from 'node:fs';
 import path from 'node:path';
 import type { WorldCatalogue, WorldMeta, WorldPackManifest } from '@allezrobert/shared';
-import { REPO_ROOT, WORLDS } from './config.ts';
+import { REPO_ROOT, allWorlds } from './config.ts';
 
 export const WORLDS_ROOT = path.join(REPO_ROOT, 'apps', 'client', 'public', 'worlds');
 
@@ -60,7 +60,7 @@ export function writeCatalogue(log: (s: string) => void = console.log): WorldCat
       }
       return { id: r.id, name: r.name, ...(nameEn ? { nameEn } : {}), lengthM: r.lengthM, elevationGainM: r.elevationGainM, loop: r.loop };
     });
-    const cfg = WORLDS[id];
+    const cfg = allWorlds()[id];
     zones.push({
       id,
       name: meta.name,

@@ -161,13 +161,17 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #0a0e16; col
 .onboarding .ob-progress { display: flex; align-items: center; margin-bottom: 14px; }
 .onboarding .ob-progress span:last-child { margin-left: auto; font-size: 12px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ar-accent); }
 .ob-menu { background: radial-gradient(ellipse at 50% 22%, rgba(255, 210, 63, 0.13), transparent 58%), radial-gradient(ellipse at center, rgba(18, 26, 42, 0.55), rgba(6, 9, 15, 0.92)); }
-.ob-wrap { width: min(860px, 94vw); max-height: 96vh; display: flex; flex-direction: column; align-items: center; gap: 22px; }
+.ob-wrap { width: min(860px, 94vw); max-height: 96vh; display: flex; flex-direction: column; align-items: center; gap: 14px; }
 .ob-hero { text-align: center; flex: none; }
+/* Étape avatar : le coureur en 3D à gauche, la carte à droite. */
+.ob-menu.ob-preview { background: linear-gradient(90deg, transparent 35%, rgba(6, 9, 15, 0.78)); justify-items: end; padding-right: 3vw; box-sizing: border-box; }
+.ob-preview .ob-wrap { width: min(600px, 52vw); }
+.ob-preview .ob-hero { display: none; }
 .ob-hero img { display: block; height: clamp(110px, 24vh, 240px); width: auto; margin: 0 auto 6px; filter: drop-shadow(0 10px 28px rgba(255, 210, 63, 0.25)); }
-.menu .ob-hero h1 { font-size: 64px; text-shadow: 0 4px 24px rgba(0, 0, 0, 0.5); }
+.menu .ob-hero h1 { font-size: clamp(64px, 11vh, 104px); line-height: 1; text-shadow: 0 4px 24px rgba(0, 0, 0, 0.5); }
 .ob-hero .tagline { font-size: 18px; color: #c9d1db; margin: 4px 0 0; }
 .menu .card.onboarding { width: 100%; max-height: none; min-height: 0; flex: 0 1 auto; background: linear-gradient(180deg, #1c2536, #141b28); border: 1px solid rgba(255, 255, 255, 0.12); border-top: 4px solid var(--ar-accent); box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55); }
-.onboarding h2 { font-size: 30px; font-weight: 800; text-transform: none; letter-spacing: -0.01em; color: var(--ar-fg); margin: 10px 0 18px; padding-bottom: 10px; border-bottom: 3px solid var(--ar-accent); }
+.onboarding h2 { display: flex; align-items: center; gap: 12px; font-size: 30px; font-weight: 800; text-transform: none; letter-spacing: -0.01em; color: var(--ar-fg); margin: 10px 0 18px; padding-bottom: 10px; border-bottom: 3px solid var(--ar-accent); }
 .grid2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: 26px; }
 .grid3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
 .field { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--ar-muted); }
@@ -215,3 +219,11 @@ body:has(.ob-menu) .subtitle { bottom: 18px; }
 .voice-chip { padding: 6px 12px; font-size: 13px; pointer-events: auto; }
 .discord-link { color: #a5b4fc; font-weight: 700; text-decoration: none; white-space: nowrap; }
 .discord-link:hover { text-decoration: underline; }
+
+.ob-mini { height: 56px; width: auto; margin: -6px 0; filter: drop-shadow(0 4px 10px rgba(255, 210, 63, 0.3)); }
+/* Robert « parle » : halo qui pulse autour de lui tant qu'un sous-titre est affiché. */
+body:has(.subtitle:not(.hidden)) .ob-mini { animation: ob-talk 0.9s ease-in-out infinite; }
+@keyframes ob-talk {
+  0%, 100% { transform: scale(1); filter: drop-shadow(0 0 4px rgba(255, 210, 63, 0.55)) drop-shadow(0 0 10px rgba(255, 210, 63, 0.3)); }
+  50% { transform: scale(1.1) rotate(-2deg); filter: drop-shadow(0 0 9px rgba(255, 210, 63, 0.95)) drop-shadow(0 0 22px rgba(255, 210, 63, 0.6)); }
+}

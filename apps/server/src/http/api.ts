@@ -49,7 +49,11 @@ const AvatarSchema = z.object({
   // Pièces de l'atelier affichées sur le vélo : connues et possédées (vérifié à l'enregistrement).
   tune: z.array(z.string().regex(/^[a-z0-9-]{1,48}$/)).max(32).optional(),
   heightCm: z.number().min(120).max(230).optional(),
-  jerseyStyle: z.enum(['uni', 'bandes']).optional(),
+  jerseyStyle: z.enum(['uni', 'bandes', 'pois', 'manches', 'moitie', 'degrade', 'chevrons']).optional(),
+  sleeves: z.enum(['short', 'long']).optional(),
+  bottles: z.union([z.literal(0), z.literal(1), z.literal(2)]).optional(),
+  jerseyLogo: z.object({ id: z.string().regex(/^[a-z0-9-]{1,32}$/), tint: hex.optional(), w: z.number().min(0.05).max(0.3).optional(), y: z.number().min(0.2).max(0.9).optional() }).optional(),
+  jerseyDots: z.object({ r: z.number().min(1).max(10), step: z.number().min(4).max(40) }).optional(),
   jerseyBands: z.array(hex).max(5).optional(),
 });
 

@@ -317,6 +317,7 @@ export function createDeviceLayer(): DeviceLayer {
     // Case cochée = simulateur autorisé (il ne roule que s'il n'y a aucun vrai capteur).
     simulatorOn: () => localStorage.getItem('ar.sim') !== 'off',
     warnings: () => [...new Set(warnings.map((w) => w.message))],
+    di2Active: () => manager.experimental.shimanoDfly || manager.summaries().some((d) => d.kinds.includes('shifter') && /di2|d-?fly|shimano/i.test(d.name) && d.transport !== 'simulator'),
     adapters: async () => (isTauri() ? manager.listAdapters() : []),
     selectAdapter: (id) => manager.selectAdapter(id),
     onChange: (cb) => listeners.push(cb),

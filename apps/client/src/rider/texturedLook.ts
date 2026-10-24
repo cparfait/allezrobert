@@ -1,7 +1,8 @@
 import * as THREE from 'three/webgpu';
-import { attribute, clamp, dot, float, floor, max, mix, smoothstep, step, texture, uniform, uv, vec3 } from 'three/tsl';
+import { abs, attribute, clamp, dot, float, floor, max, mix, smoothstep, step, texture, uniform, uv, vec3 } from 'three/tsl';
 import type { AvatarLook } from '@allezrobert/shared';
 import { colorUniform } from '../engine/tsl.ts';
+import { jerseyPattern, jerseySleeve, type JerseyFrame } from './jerseyPattern.ts';
 
 /**
  * Matériaux du modèle acheté (tools/blender/avatars/build_boutique.py) : textures d'origine,
@@ -50,7 +51,7 @@ const BAND_MAX = 0.07;
 const MAX_BANDS = 5;
 
 /** Copie à nœuds d'un matériau « tex_* » chargé, recoloré s'il le permet. */
-export function texturedMaterial(src: THREE.MeshStandardMaterial, look: AvatarLook): THREE.MeshStandardNodeMaterial {
+export function texturedMaterial(src: THREE.MeshStandardMaterial, look: AvatarLook, frame: JerseyFrame | null = null): THREE.MeshStandardNodeMaterial {
   const m = new THREE.MeshStandardNodeMaterial();
   m.name = src.name;
   m.color.copy(src.color);
@@ -64,6 +65,17 @@ export function texturedMaterial(src: THREE.MeshStandardMaterial, look: AvatarLo
   m.transparent = src.transparent;
   m.opacity = src.opacity;
   m.depthWrite = !src.transparent;
+  // Bras : peau d'origine ; avec les manches longues, avant-bras couverts du tissu du maillot
+  // (couleur et motifs, jerseyPattern.ts), ombres de la peau gardées.
+  if (src.name === 'tex_arms' && src.map && frame) {
+    const skin = texture(src.map, uv()).rgb;
+    const sleeve = jerseySleeve(look, frame);
+    const shade = clamp(dot(skin, LUMA).div(0.45), 0.45, 1.3);
+    m.colorNode = mix(skin, sleeve.color.mul(shade), sleeve.weight);
+    setters.set(m, sleeve.set);
+    sleeve.set(look);
+    return m;
+  }
   const ref = src.userData.recolor_ref as number[] | undefined;
   if (!src.map || !ref) return m;
   const base = texture(src.map, uv()).rgb;
@@ -72,8 +84,11 @@ export function texturedMaterial(src: THREE.MeshStandardMaterial, look: AvatarLo
     const main = colorUniform(look.jersey);
     const accent = colorUniform(look.jerseyAccent);
     const mask = texture(jerseyMask, uv());
-    const wMain = mask.r;
-    const wAccent = mask.g;
+    // Manches longues : le liseré d'accent de la manche courte disparaît (zone de manche → couleur du maillot).
+    const longU = uniform(0);
+    const sleeveZone = frame ? step(frame.sleeveX, abs(attribute<'vec3'>('jpos', 'vec3').x)).mul(longU) : float(0);
+    const wMain = mask.r.add(mask.g.mul(sleeveZone));
+    const wAccent = mask.g.mul(float(1).sub(sleeveZone));
     const zoneRef = mix(float(ref[0]), float(ref[1]), wAccent.div(max(wMain.add(wAccent), 1e-3)));
     const shade = clamp(lum.div(zoneRef), 0, MAX_SHADE);
     const design = mix(mix(base, main.node.mul(shade), wMain), accent.node.mul(shade), wAccent);
@@ -84,16 +99,22 @@ export function texturedMaterial(src: THREE.MeshStandardMaterial, look: AvatarLo
     const nBands = uniform(0);
     const from = uniform(0.5);
     const height = uniform(0.05);
+    // Pois, manches, moitié, dégradé, chevrons : motifs du repère du torse (jerseyPattern.ts).
+    const pattern = frame ? jerseyPattern(look, frame) : null;
     const bandColors = Array.from({ length: MAX_BANDS }, () => colorUniform('#ffffff'));
     const rel = coords.x.sub(from).div(height);
     const idx = floor(rel);
     const inBand = step(0, rel).mul(step(rel, nBands)).mul(coords.y);
     let band: THREE.Node<'vec3'> = bandColors[0]!.node;
     for (let i = 1; i < MAX_BANDS; i++) band = mix(band, bandColors[i]!.node, step(i, idx));
-    m.colorNode = mix(mix(design, main.node.mul(detail), plain), band.mul(detail), inBand);
+    const flat = main.node.mul(detail);
+    const patterned = pattern ? pattern.color(flat, detail) : flat;
+    m.colorNode = mix(mix(design, patterned, plain), band.mul(detail), inBand);
     setters.set(m, (l) => {
       main.set(l.jersey);
       accent.set(l.jerseyAccent);
+      pattern?.set(l);
+      longU.value = l.sleeves === 'long' ? 1 : 0;
       plain.value = l.jerseyStyle ? 1 : 0;
       // Bandes données de haut en bas ; la première du shader est en bas.
       const b = l.jerseyStyle === 'bandes' ? (l.jerseyBands ?? []).slice(0, MAX_BANDS).reverse() : [];
@@ -118,6 +139,11 @@ export function texturedMaterial(src: THREE.MeshStandardMaterial, look: AvatarLo
     setters.set(m, (l) => shoe.set(l.shoes ?? '#f2f2f2'));
   }
   return m;
+}
+
+/** Enregistre la mise à jour d'un matériau à nœuds propre (tissu du maillot MPFB). */
+export function registerLookSetter(m: THREE.Material, fn: (look: AvatarLook) => void): void {
+  setters.set(m, fn);
 }
 
 /** Couleurs du coureur sur un matériau recoloré (sans effet sur les autres). */

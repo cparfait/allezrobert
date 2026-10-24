@@ -171,9 +171,9 @@ function makeKit(type: Exclude<BikeType, 'road'>): THREE.Group {
   return kit;
 }
 
-/** Nœuds du vélo route remplacés par un kit (cachés quand le kit est visible). */
+/** Nœuds du vélo route remplacés par un kit (cachés quand le kit est visible) ; VTT : le cintre route aussi, cintre plat du kit. */
 export function roadPartsReplaced(type: BikeType): string[] {
-  return type === 'mtb' ? ['frame', 'wheel_front', 'wheel_rear'] : type === 'gravel' ? ['wheel_front', 'wheel_rear'] : [];
+  return type === 'mtb' ? ['frame', 'wheel_front', 'wheel_rear', 'cockpit'] : type === 'gravel' ? ['wheel_front', 'wheel_rear'] : [];
 }
 
 export { BB as BIKE_BB };

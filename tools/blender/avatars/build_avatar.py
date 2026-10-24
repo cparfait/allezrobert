@@ -70,20 +70,26 @@ PEDAL_AXIS_X = 0.072
 FOOT_X = 0.105
 REST_PITCH = 0.35            # talon levé (rad), comme les pédales de bike_families
 ANKLE_FLAT = Vector((0.0, 0.095, -0.13))  # cheville / axe de pédale, pied à plat
-HIP = Vector((0.0, 1.03, -0.17))          # centre des hanches, assis sur la selle
+HIP = Vector((0.0, 1.02, -0.215))          # centre des hanches, assis sur la selle
 HOOD = Vector((0.2, 0.958, 0.54))         # prise des mains sur les cocottes
 SOLE = 0.03                               # épaisseur semelle + cale
 
 # Profil du buste (pose_rider), relevé sur des photos de coureurs de profil (screen/) : dos arrondi,
 # raide au bassin, presque à plat aux épaules ; oreille à peu près à la hauteur du haut du dos.
-SPINE_SHAPE = {'pelvis': 6.0, 'spine_01': 4.0, 'spine_02': 0.0, 'spine_03': -8.0}  # ° autour de l'inclinaison
+SPINE_SHAPE = {'pelvis': 3.0, 'spine_01': 2.0, 'spine_02': 0.0, 'spine_03': -6.0}  # ° autour de l'inclinaison
 # Cou, épaules et coudes repris du coureur acheté (build_boutique.py), validés en jeu : cou plus
 # redressé (menton non écrasé), épaules avancées et basses (moins carrées), coudes vers l'arrière.
-NECK_DEG = 42.0                           # cou au-dessus de l'horizontale (°)
+NECK_DEG = 44.0                           # cou au-dessus de l'horizontale (°)
 SHOULDER_PROTRACT = 24.0                  # épaules avancées vers le guidon (°, clavicules)
 SHOULDER_RAISE = -6.0                     # épaules un peu abaissées (°)
 HEAD_PITCH = 8.0                          # tête inclinée vers la route (°)
-ARM_REACH = 0.70                          # épaule → poignet / longueur du bras : coudes fléchis
+ARM_REACH = 0.83                          # épaule → poignet / longueur du bras : coudes fléchis
+BACK_DAMP = {'sex-': 1.0, 'muscle+': 0.7, 'age+': 0.7}  # atténuation de ces cibles sur le haut du dos (0 à 1)
+GLUTE_START = 0.06                        # saillie des fesses comptée à partir de 6 cm derrière l'os du bassin (m)
+GLUTE_FLAT = 0.6                          # part de cette saillie supprimée (0 à 1)
+HUMERUS_SCALE = 1.28                      # humérus × 1,28 : 0,25 → 0,32 m (adulte de 1,75 m ≈ 0,33 m)
+NECK_DAMP = {'sex-': 0.6}                 # atténuation de la cible « sex− » sur le cou (0 à 1)
+NECK_KEY_SCALE = {'neckWidth-': 0.5}      # « neckWidth− » : moitié de l'amplitude
 ELBOW_POLE = Vector((0.36, 1.05, 0.30))   # direction des coudes (repère client, côté gauche)
 
 # Curseurs de forme (docs/AVATARS.md § 4) : nom → (cibles « + », cibles « − »), chemins relatifs
@@ -348,6 +354,33 @@ def expression_shapes(body, TS, LS):
             add(f'eyeLook{look}{side}', delta)
 
 
+def flatten_glutes(body, base_m):
+    """Fesses moins proéminentes : la base MPFB a des fessiers très arrondis, qui font une grosse
+    saillie derrière la selle sur un coureur penché. Les sommets de l'arrière du bassin (au-delà de
+    GLUTE_START derrière l'os du bassin) sont ramenés vers l'avant de GLUTE_FLAT × leur saillie, de
+    la même quantité dans toutes les cibles (la base et les curseurs gardent leurs écarts)."""
+    pel = base_m['pelvis'][0].translation
+    mw = body.matrix_world
+    imw = mw.inverted()
+    blocks = list(body.data.shape_keys.key_blocks)
+    basis = blocks[0]
+    shifts = []
+    peak = 0.0
+    for v in basis.data:
+        c = mw @ v.co
+        dz = (c.z - pel.z) / 0.12                      # hauteur : de 12 cm sous l'os à 0
+        h = max(0.0, min(1.0, 1.0 + dz)) * max(0.0, min(1.0, (0.06 - (c.z - pel.z)) / 0.05)) if c.z < pel.z + 0.06 else 0.0
+        side = max(0.0, min(1.0, (0.24 - abs(c.x)) / 0.08))
+        prot = max(0.0, c.y - (pel.y + GLUTE_START))
+        peak = max(peak, prot * h * side)
+        shifts.append(Vector((0.0, -GLUTE_FLAT * prot * h * side, 0.0)))
+    print(f'fessiers : saillie maximale {100 * peak:.1f} cm, ramenée de {100 * GLUTE_FLAT * peak:.1f} cm')
+    for kb in blocks:
+        for d, sh in zip(kb.data, shifts):
+            d.co = d.co + imw.to_3x3() @ sh
+    body.data.update()
+
+
 # ---------------------------------------------------------------------------------------------
 # Corps de base, curseurs, aides
 # ---------------------------------------------------------------------------------------------
@@ -383,6 +416,13 @@ def build_base(HS, TS, LS):
             for kb in list(body.data.shape_keys.key_blocks):
                 if kb.name.startswith('tmp_'):
                     body.shape_key_remove(kb)
+    # Cou : un cou très fin et long fait « tortue » de profil sur un coureur penché ; la cible
+    # « neckWidth− » est atténuée (NECK_KEY_SCALE).
+    kbs = body.data.shape_keys.key_blocks
+    for kname, k_scale in NECK_KEY_SCALE.items():
+        if kname in kbs:
+            for d, b0 in zip(kbs[kname].data, kbs['Basis'].data):
+                d.co = b0.co + (d.co - b0.co) * k_scale
     # Curseurs de corps : écart entre l'humain aux macros modifiées et celui de base, ramené au
     # squelette de base. Chaque sommet est replacé par l'inverse des déplacements de ses os
     # (mélange linéaire selon ses poids) : la cible garde la forme (gras, muscles, silhouette)
@@ -396,6 +436,27 @@ def build_base(HS, TS, LS):
         weights.append([(n, w / tot) for n, w in ws])
     base_m = base_co[1]
     imw = body.matrix_world.inverted()
+
+    def neck_zone(c):
+        """0 à 1 : cou (de la base à la base du crâne), tout autour."""
+        lo = base_m['neck_01'][0].translation.z - 0.03
+        hi = base_m['head'][0].translation.z + 0.02
+        t = (c.z - lo) / max(hi - lo, 1e-6)
+        return min(max(t * 5.0, 0.0), 1.0) * min(max((1.0 - t) * 5.0, 0.0), 1.0) * min(max((0.14 - abs(c.x)) / 0.04, 0.0), 1.0)
+
+    def back_zone(c):
+        """0 à 1 : haut du dos (omoplates, trapèzes, base de la nuque), côté dos, près du plan médian.
+        La morphologie féminine y arrondit et remonte le dos ; le squelette est celui de la base
+        (pose de course fixe) : on y atténue la cible pour garder un dos plat, incliné."""
+        lo = base_m['spine_02'][0].translation.z
+        hi = base_m['neck_01'][0].translation.z + 0.06
+        mid = base_m['spine_03'][0].translation.y
+        t = (c.z - lo) / max(hi - lo, 1e-6)
+        h = min(max(t * 4.0, 0.0), 1.0) * min(max((1.0 - t) * 6.0, 0.0), 1.0)
+        back = min(max((c.y - mid) / 0.03, 0.0), 1.0)
+        side = min(max((0.26 - abs(c.x)) / 0.08, 0.0), 1.0)
+        return h * back * side
+
     for name, (co, mats) in macro_keys.items():
         inv = {}
         for bn, (m1, l1) in mats.items():
@@ -406,9 +467,15 @@ def build_base(HS, TS, LS):
         for i, (d, b0, c0, c1) in enumerate(zip(k.data, basis.data, base_co[0], co)):
             ws = weights[i]
             back = sum(((inv[n] @ c1) * w for n, w in ws), Vector()) if ws else c1
-            d.co = b0.co + imw.to_3x3() @ (back - c0)
+            dv = back - c0
+            if name in BACK_DAMP:
+                dv = dv * (1.0 - BACK_DAMP[name] * back_zone(c0))
+            if name in NECK_DAMP:
+                dv = dv * (1.0 - NECK_DAMP[name] * neck_zone(c0))
+            d.co = b0.co + imw.to_3x3() @ dv
         k.value = 0.0
     expression_shapes(body, TS, LS)
+    flatten_glutes(body, base_m)
     for m in list(body.modifiers):
         if m.type == 'MASK':
             body.modifiers.remove(m)
@@ -769,6 +836,59 @@ def pose_rider(rig, body):
     for s in ('l', 'r'):
         print(f'cheville {s} : cible {tuple(round(c, 3) for c in bl(ankle_target(s)[0]))}, obtenue {tuple(round(c, 3) for c in world("foot_" + s))}')
     bpy.ops.object.mode_set(mode='OBJECT')
+
+
+def lengthen_humerus(body, rig):
+    """Humérus rallongé de HUMERUS_SCALE − 1 : le haut du bras MPFB (0,25 m) est ≈ 22 % plus court que
+    celui d'un adulte de 1,75 m (≈ 0,33 m, Winter : 0,186 × taille). Os : le coude et tout ce qui est
+    en aval (avant-bras, main, doigts) reculent de Δ le long de l'humérus. Maillage et cibles : chaque
+    sommet suit ses poids (humérus : étirement linéaire de 0 à Δ de l'épaule au coude ; avant-bras,
+    main, doigts : Δ), donc pas de saut au coude et la peau, les manches et les UV s'étirent
+    seulement sur l'humérus."""
+    shifts = [Vector() for _ in body.data.vertices]
+    mw_b = body.matrix_world
+    imw_b = mw_b.inverted()
+    mw_r = rig.matrix_world
+    names = {g.index: g.name for g in body.vertex_groups}
+    moves = {}
+    for s in ('l', 'r'):
+        up = rig.data.bones['upperarm_' + s]
+        lo = rig.data.bones['lowerarm_' + s]
+        a = mw_r @ up.head_local
+        e = mw_r @ lo.head_local
+        d = (e - a)
+        delta = d * (HUMERUS_SCALE - 1.0)
+        distal = {lo.name} | {c.name for c in lo.children_recursive}
+        moves[s] = (up.name, distal, a, d, delta)
+        print(f'humérus {s} : {d.length:.3f} m → {d.length * HUMERUS_SCALE:.3f} m')
+    for i, v in enumerate(body.data.vertices):
+        co = mw_b @ v.co
+        tot = Vector()
+        for ge in v.groups:
+            n = names[ge.group]
+            for up_n, distal, a, d, delta in moves.values():
+                if n == up_n:
+                    t = min(max((co - a).dot(d) / max(d.length_squared, 1e-9), 0.0), 1.0)
+                    tot += delta * (t * ge.weight)
+                elif n in distal:
+                    tot += delta * ge.weight
+        shifts[i] = imw_b.to_3x3() @ tot
+    for kb in body.data.shape_keys.key_blocks:
+        for dd, sh in zip(kb.data, shifts):
+            dd.co = dd.co + sh
+    for v, sh in zip(body.data.vertices, shifts):
+        v.co = v.co + sh
+    set_active(rig)
+    bpy.ops.object.mode_set(mode='EDIT')
+    eb = rig.data.edit_bones
+    for s, (up_n, distal, a, d, delta) in moves.items():
+        dl = mw_r.inverted().to_3x3() @ delta
+        eb[up_n].tail = eb[up_n].tail + dl
+        for n in distal:
+            eb[n].head = eb[n].head + dl
+            eb[n].tail = eb[n].tail + dl
+    bpy.ops.object.mode_set(mode='OBJECT')
+    body.data.update()
 
 
 def apply_pose_as_rest(rig, meshes):
@@ -1305,6 +1425,7 @@ def main():
     prune_keys(eyes)
     assign_kit(body, rig)
     assign_eyes(eyes, rig)
+    lengthen_humerus(body, rig)
     for o in (eyes,):
         o.parent = rig
         if not any(m.type == 'ARMATURE' for m in o.modifiers):

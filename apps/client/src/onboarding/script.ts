@@ -15,8 +15,8 @@ export interface Line {
 export const ONBOARDING_SCRIPT: Record<string, Line[]> = {
   welcome: [
     {
-      fr: '<emotion value="excited"/>Bienvenue dans Allez Robert ! <break time="300ms"/>Un clin d\'œil à Robert Marchand, recordman de l\'heure à cent cinq ans, et à Robert Chassat, un passionné de vélo qui a su transmettre sa passion à tous ceux qui ont roulé avec lui. Ici, on roule ensemble, chacun chez soi !',
-      en: '<emotion value="excited"/>Welcome to Allez Robert! <break time="300ms"/>A nod to Robert Marchand, who set the hour record at one hundred and five, and to Robert Chassat, a cycling enthusiast who passed his passion on to everyone who rode with him. Here we ride together, each from home!',
+      fr: '<emotion value="excited"/>Bienvenue dans Allez Robert ! <break time="300ms"/>Un clin d\'œil à Robert Chassat, un passionné de vélo qui a su transmettre sa passion à tous ceux qui ont roulé avec lui, et à Robert Marchand, recordman de l\'heure à cent cinq ans. Ici, on roule ensemble, chacun chez soi !',
+      en: '<emotion value="excited"/>Welcome to Allez Robert! <break time="300ms"/>A nod to Robert Chassat, a cycling enthusiast who passed his passion on to everyone who rode with him, and to Robert Marchand, who set the hour record at one hundred and five. Here we ride together, each from home!',
     },
     {
       fr: '<emotion value="happy"/>En quelques minutes, on règle ton équipement, puis ton profil et ton avatar, et hop, on part pour une première sortie !',
@@ -31,27 +31,40 @@ export const ONBOARDING_SCRIPT: Record<string, Line[]> = {
   ],
   avatar: [
     {
-      fr: '<emotion value="happy"/>À toi de jouer : choisis les couleurs de ton maillot et de ton vélo. Et tu débloqueras d’autres tenues en roulant !',
-      en: "<emotion value=\"happy\"/>Your turn: pick your jersey and bike colours. And you'll unlock more kit as you ride!",
+      fr: '<emotion value="happy"/>À toi de jouer : choisis ton teint, tes cheveux, ou aucun si tu préfères, et quelques couleurs pour ton maillot, ton casque et ton vélo. Tu débloqueras bien d’autres tenues en roulant !',
+      en: "<emotion value=\"happy\"/>Your turn: pick your skin tone, your hair, or none if you prefer, and a few colours for your jersey, helmet and bike. You'll unlock many more outfits as you ride!",
     },
   ],
   devices: [
     {
-      fr: '<emotion value="enthusiastic"/>Place aux capteurs ! Réveille ton home trainer en pédalant un peu, puis appaire-le. <break time="250ms"/><speed ratio="0.95"/>Les pédales Assioma n\'acceptent qu\'une seule connexion Bluetooth : ferme Zwift, MyWhoosh ou l\'appli Favero sur ton téléphone. Et active le mode gauche plus droite combinés, sinon la puissance d\'une seule pédale serait doublée.',
-      en: '<emotion value="enthusiastic"/>Now the sensors! Wake your smart trainer by pedalling a little, then pair it. <break time="250ms"/><speed ratio="0.95"/>Assioma pedals accept only one Bluetooth connection: close Zwift, MyWhoosh or the Favero phone app. And enable combined left plus right mode, otherwise one pedal\'s power would be doubled.',
+      fr: '<emotion value="enthusiastic"/>Place aux capteurs ! Tu peux connecter ton home trainer, tes pédales ou ton capteur de puissance, une ceinture cardio, un capteur de cadence et tes commandes de vitesses. <break time="250ms"/>Réveille ton matériel en pédalant un peu, puis appaire-le.',
+      en: '<emotion value="enthusiastic"/>Now the sensors! You can connect your smart trainer, your pedals or power meter, a heart rate strap, a cadence sensor and your shifters. <break time="250ms"/>Wake your gear by pedalling a little, then pair it.',
     },
+  ],
+  assioma: [
     {
-      fr: '<emotion value="content"/>Si tu enregistres aussi la sortie sur ton Garmin, garde les capteurs en ANT+ vers le compteur, et ne le laisse jamais piloter le home trainer : c\'est le jeu qui s\'en charge.',
-      en: '<emotion value="content"/>If you also record on your Garmin, keep the sensors on ANT+ to the head unit, and never let it control the trainer: the game does that.',
+      fr: '<emotion value="content"/>Des pédales Assioma : elles n\'acceptent qu\'une seule connexion Bluetooth, ferme les autres applis. Et active le mode gauche plus droite combinés dans l\'appli Favero, sinon la puissance d\'une seule pédale serait doublée.',
+      en: '<emotion value="content"/>Assioma pedals: they accept only one Bluetooth connection, so close your other apps. And enable the combined left plus right mode in the Favero app, otherwise one pedal\'s power would be doubled.',
     },
   ],
   gears: [
     {
-      fr: '<emotion value="enthusiastic"/>Les vitesses sont virtuelles : vingt-quatre rapports, gérés par le jeu ! <speed ratio="0.85"/>Avec un Zwift Cog, tu changes avec tes manettes Di2, un Zwift Click, la manette ou les flèches du clavier.',
-      en: '<emotion value="enthusiastic"/>Gears are virtual: twenty-four ratios handled by the game! <speed ratio="0.9"/>With a Zwift Cog, shift with your Di2 levers, a Zwift Click, a gamepad or the arrow keys.',
+      fr: '<emotion value="enthusiastic"/>Les vitesses sont gérées par le jeu, sur ton home trainer. <speed ratio="0.9"/>Si tu changes de vitesse sur ton vrai vélo, indique le nombre de pignons de ta cassette pour que le jeu s\'adapte, et ton modèle de Di2 si tu en as un.',
+      en: '<emotion value="enthusiastic"/>Gears are handled by the game on your trainer. <speed ratio="0.9"/>If you shift on your real bike, tell us how many sprockets your cassette has so the game can adapt, and your Di2 model if you have one.',
     },
   ],
-  finish: [{ fr: '<emotion value="excited"/><volume ratio="1.15"/>Bonnes balades !', en: '<emotion value="excited"/><volume ratio="1.15"/>Happy riding!' }],
+  ftp: [
+    {
+      fr: '<emotion value="determined"/>Le test FTP, c\'est une rampe : tu pars de cent watts, et la puissance monte de vingt watts chaque minute. Garde une cadence régulière, entre quatre-vingt-cinq et quatre-vingt-quinze tours par minute. <break time="300ms"/>Quand tu ne tiens plus le palier, arrête-toi : ta FTP est calculée à partir de ta meilleure minute, et elle règle tes zones et tes séances. Repose-toi bien, allume un ventilateur, et garde un bidon à portée de main. Prêt ?',
+      en: '<emotion value="determined"/>The FTP test is a ramp: you start at one hundred watts, and the power rises by twenty watts every minute. Keep a steady cadence, between eighty-five and ninety-five rpm. <break time="300ms"/>When you can no longer hold the step, stop: your FTP is worked out from your best minute, and sets your zones and workouts. Be well rested, turn on a fan, and keep a bottle within reach. Ready?',
+    },
+  ],
+  finish: [
+    {
+      fr: '<emotion value="excited"/><volume ratio="1.15"/>Amuse-toi bien, seul ou entre amis. Bonnes balades !',
+      en: '<emotion value="excited"/><volume ratio="1.15"/>Have fun, on your own or with friends. Happy riding!',
+    },
+  ],
   ride: [
     {
       fr: '<emotion value="excited"/><speed ratio="1.05"/>C\'est parti ! <break time="200ms"/>Pédale à ton rythme : la pente de la route se ressent dans le home trainer.',

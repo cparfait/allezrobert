@@ -688,7 +688,7 @@ export const WORLDS: Record<string, WorldConfig> = {
         routeId: 'tour-du-lac-annecy',
         routeName: "Le tour du lac d'Annecy",
         routeNameEn: 'Lake Annecy loop',
-        start: 'Annecy',
+        start: { lon: 6.1294, lat: 45.8992 },
         via: ['Sevrier', 'Duingt', 'Doussard', 'Talloires', 'Menthon-Saint-Bernard', 'Veyrier-du-Lac'],
       },
     ],
@@ -1058,7 +1058,32 @@ function privateWorlds(): Record<string, WorldConfig> {
   return out;
 }
 
+/**
+ * Zones décrites en JSON (même forme que `WORLDS`) dans `tools/terrain/zones/<id>.json`, versionnées :
+ * écrites par l'outil graphique (`pnpm zone-builder`, voir docs/CONSTRUIRE_UNE_ZONE.md). Un fichier
+ * de même identifiant qu'une entrée de `WORLDS` la remplace.
+ */
+export const ZONES_DIR = path.join(REPO_ROOT, 'tools', 'terrain', 'zones');
+
+function fileWorlds(): Record<string, WorldConfig> {
+  if (!fs.existsSync(ZONES_DIR)) return {};
+  const out: Record<string, WorldConfig> = {};
+  for (const f of fs.readdirSync(ZONES_DIR).sort()) {
+    if (!f.endsWith('.json')) continue;
+    const w = JSON.parse(fs.readFileSync(path.join(ZONES_DIR, f), 'utf8')) as WorldConfig;
+    out[w.id] = w;
+  }
+  return out;
+}
+
+/** Tous les mondes connus : `WORLDS`, puis zones JSON (remplacent), puis mondes privés. */
+export function allWorlds(): Record<string, WorldConfig> {
+  return { ...WORLDS, ...fileWorlds(), ...privateWorlds() };
+}
+
 function selectWorld(): WorldConfig {
+  // zone temporaire (aperçu des tours de l'outil graphique) : TERRAIN_WORLD_JSON=<fichier>
+  if (process.env.TERRAIN_WORLD_JSON) return JSON.parse(fs.readFileSync(process.env.TERRAIN_WORLD_JSON, 'utf8')) as WorldConfig;
   const argv = process.argv.slice(2);
   let id = process.env.TERRAIN_WORLD ?? 'chevreuse';
   for (let i = 0; i < argv.length; i++) {
@@ -1066,7 +1091,7 @@ function selectWorld(): WorldConfig {
     if (a === '--world' && argv[i + 1]) id = argv[i + 1]!;
     else if (a.startsWith('--world=')) id = a.slice('--world='.length);
   }
-  const all = { ...WORLDS, ...privateWorlds() };
+  const all = allWorlds();
   const w = all[id];
   if (!w) throw new Error(`Monde inconnu « ${id} » (connus : ${Object.keys(all).join(', ')})`);
   return w;

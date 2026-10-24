@@ -63,7 +63,10 @@ export class VoiceOver {
   setEnabled(on: boolean): void {
     this.enabled = on;
     localStorage.setItem('ar.voice', on ? 'on' : 'off');
-    if (!on) speechSynthesis.cancel();
+    if (!on) {
+      speechSynthesis.cancel();
+      this.current?.pause();
+    }
   }
 
   /** Lit les répliques d'une clé du script, à la suite des précédentes. */

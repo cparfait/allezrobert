@@ -75,6 +75,8 @@ export const SHOE_MARKS = [
 ] as const;
 export type ShoeMarkId = (typeof SHOE_MARKS)[number]['id'];
 
+export type JerseyStyle = 'uni' | 'bandes' | 'pois' | 'manches' | 'moitie' | 'degrade' | 'chevrons';
+
 export interface AvatarLook {
   skin: string;
   hair: string;
@@ -115,9 +117,19 @@ export interface AvatarLook {
   /**
    * Style du maillot (modèle acheté) : absent, dessin d'origine aux couleurs jersey / jerseyAccent ;
    * « uni » : couleur jersey partout ; « bandes » : uni, plus les bandes de poitrine jerseyBands
-   * (maillots de champion).
+   * (maillots de champion) ; « pois » (jerseyDots, de la couleur jerseyAccent), « manches »,
+   * « moitie » (bas du maillot), « degrade » (vers l'ourlet) et « chevrons » : la seconde couleur
+   * est jerseyAccent.
    */
-  jerseyStyle?: 'uni' | 'bandes';
+  jerseyStyle?: JerseyStyle;
+  /** Pois du style « pois » : rayon et pas du treillis, en cm ; absent : 3,5 et 12. */
+  jerseyDots?: { r: number; step: number };
+  /** Bidons sur le vélo : 0, 1 (tube oblique) ou 2 (et tube de selle), dans la limite du cadre ; absent : ceux du modèle. */
+  bottles?: 0 | 1 | 2;
+  /** Manches du maillot : courtes (défaut) ou longues jusqu'au poignet, pour tous les maillots. */
+  sleeves?: 'short' | 'long';
+  /** Logo sur la poitrine et le dos (image logos/<id>.png), teinte facultative, largeur en m (0,16). */
+  jerseyLogo?: { id: string; tint?: string; w?: number; y?: number };
   /** Bandes de poitrine, de haut en bas (5 au plus), avec jerseyStyle « bandes ». */
   jerseyBands?: string[];
 }

@@ -1,5 +1,9 @@
 import * as THREE from 'three/webgpu';
-import { float, materialColor, mix, normalMap, texture, uv, vec3 } from 'three/tsl';
+import { abs, dot, float, floor, materialColor, mix, normalMap, positionGeometry, step, texture, uniform, uv, vec3 } from 'three/tsl';
+import type { AvatarLook } from '@allezrobert/shared';
+import { colorUniform } from '../engine/tsl.ts';
+import { jerseyPattern, jerseySleeveEdge, type JerseyFrame } from './jerseyPattern.ts';
+import { registerLookSetter } from './texturedLook.ts';
 
 /**
  * Tissu de la tenue de l'avatar MPFB (maillot, bande, cuissard, chaussettes) : deux cartes de
@@ -8,7 +12,32 @@ import { float, materialColor, mix, normalMap, texture, uv, vec3 } from 'three/t
  *  - cloth_normal : plis de la pose de conduite, poches, fermeture éclair, ourlets et coutures,
  *    dans l'espace UV du corps (commune à tous les coureurs et à tous les LOD) ;
  *  - knit_normal : maille du tissu, en mosaïque fine (s'efface avec les mipmaps au loin).
+ *
+ * Styles de maillot (look.jerseyStyle) : « uni » = la bande de poitrine et les poignets de manche
+ * prennent la couleur du maillot ; « bandes » = uni, plus les bandes de champion
+ * (look.jerseyBands, de haut en bas) tracées dans le shader sur la poitrine, perpendiculairement
+ * à l'axe du buste (JerseyAxis), sans toucher aux manches.
  */
+
+/** Axe du buste au repos (repère du maillage) : origine = haut de la ceinture de poitrine. */
+export interface JerseyAxis {
+  origin: THREE.Vector3;
+  dir: THREE.Vector3;
+}
+
+/** Bandes de champion : décalage du centre (m) sur l'axe du buste, hauteur maximale d'une bande, nombre maximal. */
+const BANDS_CENTER = 0.12;
+const BAND_TOTAL = 0.15;
+const BAND_MAX = 0.055;
+const MAX_BANDS = 5;
+/** Demi-largeur du torse (m) : au-delà, ce sont les manches, sans bandes. */
+const TORSO_HALF = 0.2;
+const clothSetters = new WeakMap<THREE.Material, (look: AvatarLook) => void>();
+
+/** Couleur de tissu d'une tenue (maillot, bande selon le style). */
+export function applyClothLook(m: THREE.Material, look: AvatarLook): void {
+  clothSetters.get(m)?.(look);
+}
 
 export interface ClothTextures {
   folds: THREE.Texture;
@@ -42,17 +71,17 @@ export function clothTextures(): ClothTextures | null {
 
 /** Réglages par pièce : rugosité, reflet de lycra, relief de la maille, plis. */
 const CLOTH: Record<string, { roughness: number; sheen: number; knit: number; folds: number }> = {
-  jersey: { roughness: 0.62, sheen: 0.35, knit: 0.35, folds: 1.7 },
-  jersey_accent: { roughness: 0.62, sheen: 0.35, knit: 0.35, folds: 1.7 },
-  // Lycra du cuissard : plus lisse, reflet gris doux en lumière rasante, maille plus fine.
-  shorts: { roughness: 0.5, sheen: 0.22, knit: 0.2, folds: 1 },
+  jersey: { roughness: 0.7, sheen: 0.3, knit: 0.18, folds: 1.1 },
+  jersey_accent: { roughness: 0.7, sheen: 0.3, knit: 0.18, folds: 1.1 },
+  // Lycra mat du cuissard : lisse, reflet doux et uniforme (plis légers, pas de brillance de vinyle).
+  shorts: { roughness: 0.8, sheen: 0.12, knit: 0.06, folds: 0.4 },
   sock: { roughness: 0.8, sheen: 0.2, knit: 0.5, folds: 0 },
 };
 
 export const isClothPart = (name: string): boolean => name in CLOTH;
 
 /** Matériau de tissu ; couleur par défaut, ensuite celle de la tenue (applyLookColor). */
-export function makeClothMaterial(name: string, tex: ClothTextures, color: THREE.ColorRepresentation): THREE.MeshPhysicalNodeMaterial {
+export function makeClothMaterial(name: string, tex: ClothTextures, color: THREE.ColorRepresentation, axis?: JerseyAxis, frame?: JerseyFrame | null, look?: AvatarLook): THREE.MeshPhysicalNodeMaterial {
   const c = CLOTH[name] ?? { roughness: 0.6, sheen: 0.5, knit: 0.3, folds: 1 };
   const m = new THREE.MeshPhysicalNodeMaterial({ color, roughness: c.roughness, metalness: 0 });
   m.name = name;
@@ -65,6 +94,37 @@ export function makeClothMaterial(name: string, tex: ClothTextures, color: THREE
   m.sheenNode = mix(materialColor.rgb, vec3(1), 0.25).mul(c.sheen);
   m.sheenRoughnessNode = float(0.45);
   // Tissu : reflet spéculaire faible (pas de vernis).
-  m.specularIntensity = 0.5;
+  m.specularIntensity = name === 'shorts' ? 0.2 : 0.35;
+  // Maillot : pois, manches, moitié, dégradé, chevrons et logo (jerseyPattern.ts, repère du torse) ;
+  // les bandes de champion ci-dessous se posent par-dessus.
+  const pattern = name === 'jersey' && frame && look ? jerseyPattern(look, frame) : null;
+  if (pattern) registerLookSetter(m, pattern.set);
+  // Bande d'accent : sans liseré à la limite de la manche courte quand les manches sont longues.
+  const edge = name === 'jersey_accent' && frame && look ? jerseySleeveEdge(look, frame) : null;
+  if (edge) registerLookSetter(m, edge.set);
+  const baseCol = (pattern ? pattern.color(materialColor.rgb) : edge ? mix(materialColor.rgb, edge.color, edge.weight) : materialColor.rgb) as THREE.Node<'vec3'>;
+  if (pattern || edge) m.colorNode = baseCol;
+  if (axis && (name === 'jersey' || name === 'jersey_accent')) {
+    // Bandes de champion : de bas en haut dans le shader (la première est la plus basse).
+    const nBands = uniform(0);
+    const height = uniform(0.03);
+    const from = uniform(BANDS_CENTER);
+    const colors = Array.from({ length: MAX_BANDS }, () => colorUniform('#ffffff'));
+    const s = dot(positionGeometry.sub(vec3(axis.origin)), vec3(axis.dir));
+    const rel = s.sub(from).div(height);
+    const idx = floor(rel);
+    const inBand = step(0, rel).mul(step(rel, nBands)).mul(step(abs(positionGeometry.x), TORSO_HALF));
+    let band: THREE.Node<'vec3'> = colors[0]!.node;
+    for (let i = 1; i < MAX_BANDS; i++) band = mix(band, colors[i]!.node, step(i, idx));
+    m.colorNode = mix(baseCol, band, inBand);
+    clothSetters.set(m, (l) => {
+      const b = l.jerseyStyle === 'bandes' ? (l.jerseyBands ?? []).slice(0, MAX_BANDS).reverse() : [];
+      const h = b.length ? Math.min(BAND_MAX, BAND_TOTAL / b.length) : 0.03;
+      nBands.value = b.length;
+      height.value = h;
+      from.value = BANDS_CENTER - (h * b.length) / 2;
+      b.forEach((c, i) => colors[i]?.set(c));
+    });
+  }
   return m;
 }

@@ -151,8 +151,87 @@ let wheels: Lods | null = null;
 let wheelsLoading: Promise<Lods> | null = null;
 const listeners = new Set<(family: BikeFamily) => void>();
 
+/**
+ * Bidons des cadres route : le fichier fusionne les deux bidons (tube de selle, tube oblique) et
+ * leurs porte-bidons dans les maillages « opt_bottles ». On les sépare une fois au chargement :
+ * « opt_bottle_up » (tube de selle, plus haut) et « opt_bottle_down » (tube oblique) ; un cadre
+ * qui n'a qu'un bidon (acier) n'a que « opt_bottle_down ». Les triangles sont répartis en deux
+ * groupes (k-moyennes sur leur centre dans le plan y-z), calculés sur le maillage du bidon.
+ */
+function splitBottles(scene: THREE.Object3D): void {
+  const parts: THREE.Mesh[] = [];
+  scene.traverse((o) => {
+    if ((o as THREE.Mesh).isMesh && o.name.startsWith('opt_bottles')) parts.push(o as THREE.Mesh);
+  });
+  if (!parts.length) return;
+  const centroid = (g: THREE.BufferGeometry, t: number): [number, number] => {
+    const p = g.getAttribute('position');
+    const ix = g.index;
+    let y = 0;
+    let z = 0;
+    for (let k = 0; k < 3; k++) {
+      const i = ix ? ix.getX(t * 3 + k) : t * 3 + k;
+      y += p.getY(i) / 3;
+      z += p.getZ(i) / 3;
+    }
+    return [y, z];
+  };
+  const triCount = (g: THREE.BufferGeometry) => (g.index ? g.index.count : g.getAttribute('position').count) / 3;
+  const ref = parts.find((m) => (m.material as THREE.Material).name === 'bottle') ?? (parts[0] as THREE.Mesh);
+  const cs = Array.from({ length: triCount(ref.geometry) }, (_, t) => centroid(ref.geometry, t));
+  let hi = cs[0] as [number, number];
+  let lo = cs[0] as [number, number];
+  for (const c of cs) {
+    if (c[0] > hi[0]) hi = c;
+    if (c[0] < lo[0]) lo = c;
+  }
+  const centers: Array<[number, number]> = [[...hi], [...lo]];
+  for (let it = 0; it < 8; it++) {
+    const sum = [
+      [0, 0, 0],
+      [0, 0, 0],
+    ];
+    for (const c of cs) {
+      const k = Math.hypot(c[0] - (centers[0] as number[])[0]!, c[1] - (centers[0] as number[])[1]!) <= Math.hypot(c[0] - (centers[1] as number[])[0]!, c[1] - (centers[1] as number[])[1]!) ? 0 : 1;
+      const s = sum[k] as number[];
+      s[0]! += c[0];
+      s[1]! += c[1];
+      s[2]! += 1;
+    }
+    sum.forEach((s, k) => {
+      if (s[2]) centers[k] = [(s[0] as number) / (s[2] as number), (s[1] as number) / (s[2] as number)];
+    });
+  }
+  const two = Math.hypot(centers[0]![0] - centers[1]![0], centers[0]![1] - centers[1]![1]) > 0.12;
+  for (const mesh of parts) {
+    const g = mesh.geometry;
+    const index = g.index ? Array.from(g.index.array) : Array.from({ length: g.getAttribute('position').count }, (_, i) => i);
+    const groups: number[][] = [[], []];
+    for (let t = 0; t < index.length / 3; t++) {
+      const c = centroid(g, t);
+      const k = two && Math.hypot(c[0] - centers[0]![0], c[1] - centers[0]![1]) <= Math.hypot(c[0] - centers[1]![0], c[1] - centers[1]![1]) ? 0 : 1;
+      (groups[k] as number[]).push(index[t * 3] as number, index[t * 3 + 1] as number, index[t * 3 + 2] as number);
+    }
+    ['up', 'down'].forEach((name, k) => {
+      const ids = groups[k] as number[];
+      if (!ids.length) return;
+      const sub = new THREE.BufferGeometry();
+      for (const [key, a] of Object.entries(g.attributes)) sub.setAttribute(key, a);
+      sub.setIndex(ids);
+      const m = new THREE.Mesh(sub, mesh.material);
+      m.name = `opt_bottle_${name}`;
+      m.castShadow = mesh.castShadow;
+      m.receiveShadow = mesh.receiveShadow;
+      mesh.parent?.add(m);
+    });
+    mesh.removeFromParent();
+  }
+}
+
 async function loadLods(name: string): Promise<Lods> {
   const [a, b] = await Promise.all([loader.loadAsync(`${base}${name}.glb`), loader.loadAsync(`${base}${name}_lod1.glb`)]);
+  splitBottles(a.scene);
+  splitBottles(b.scene);
   return [a as GLTF, b as GLTF];
 }
 
@@ -211,12 +290,21 @@ export function bikeAnchors(family: BikeFamily): BikeAnchors {
 }
 
 /** Assemble un vélo (famille chargée) : options visibles selon le modèle, roues posées aux axes. */
-export function assembleBike(build: BikeBuild, family: BikeFamily, lod: 0 | 1): AssembledBike {
+export function assembleBike(build: BikeBuild, family: BikeFamily, lod: 0 | 1, bottles?: number): AssembledBike {
   const lods = families.get(family);
   if (!lods || !wheels) throw new Error(`famille de vélo non chargée : ${family}`);
   const group = lods[lod].scene.clone(true);
   group.name = 'bike';
   const { brakes, track = false, toeClips = false } = build.params;
+  // Bidons : 0, 1 (tube oblique) ou 2 (et tube de selle), dans la limite du cadre ; défaut : ceux du modèle.
+  let hasUp = false;
+  let hasDown = false;
+  group.traverse((o) => {
+    if (o.name.startsWith('opt_bottle_up')) hasUp = true;
+    if (o.name.startsWith('opt_bottle_down')) hasDown = true;
+  });
+  const capacity = track || build.params.bottles === false ? 0 : (hasUp ? 1 : 0) + (hasDown ? 1 : 0);
+  const nBottles = Math.min(bottles ?? 2, capacity);
   group.traverse((o) => {
     const n = o.name;
     // Tige de selle : matériau à part (pièces de l'atelier).
@@ -225,6 +313,8 @@ export function assembleBike(build: BikeBuild, family: BikeFamily, lod: 0 | 1): 
     if (n.startsWith('opt_brakes_disc')) o.visible = brakes === 'disc';
     else if (n.startsWith('opt_brakes_rim')) o.visible = brakes === 'rim';
     else if (n.startsWith('opt_derailleur')) o.visible = !track;
+    else if (n.startsWith('opt_bottle_up')) o.visible = nBottles >= 2;
+    else if (n.startsWith('opt_bottle_down')) o.visible = nBottles >= 1;
     else if (n.startsWith('opt_bottles')) o.visible = !track && build.params.bottles !== false;
     else if (n.startsWith('opt_toeclips')) o.visible = toeClips;
   });
