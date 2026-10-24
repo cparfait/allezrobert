@@ -125,7 +125,9 @@ export class CompanionQr {
    */
   async beforeRide(): Promise<void> {
     if (!offerEnabled()) return;
-    for (let i = 0; i < 6 && !this.link.connected; i++) await new Promise((r) => setTimeout(r, 250));
+    // Page tout juste (re)chargée : quelques instants pour que la connexion au serveur s'établisse. Sinon, pas
+    // d'attente : le départ (et son écran de préparation) suit le clic aussitôt.
+    if (performance.now() < 8000) for (let i = 0; i < 6 && !this.link.connected; i++) await new Promise((r) => setTimeout(r, 250));
     await this.urlReady;
     if (!this.link.connected || this.link.presence.phones) return;
     await new Promise<void>((res) => {
