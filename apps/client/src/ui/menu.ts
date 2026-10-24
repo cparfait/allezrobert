@@ -661,7 +661,7 @@ export class MainMenu {
       this.root.innerHTML = `<div class="mm mm-tab-home ${this.prep ? 'is-prep' : ''}">
         <div class="mm-hero mm-hero-home"><h1>Allez <em>Robert</em> !</h1><p>${L ? 'Rouler ensemble, chacun chez soi.' : 'Ride together, each from home.'}</p></div>
         <button class="mm-go mm-home-go" data-tab="ride">${t('ride')} <span>→</span></button>
-        <div class="mm-home-wait" role="status" aria-label="${L ? 'Chargement en cours' : 'Loading'}"><div class="world-wait-bar"><i></i></div></div>
+        <div class="mm-home-wait" role="status"><div class="world-wait-bar"><i></i></div><p>${L ? 'Un instant, Robert prépare ta sortie…' : 'Hang on, Robert is getting your ride ready…'}</p></div>
       </div>`;
       this.root.querySelector('.mm-home-wait')?.prepend(waitBike());
       this.bind();
