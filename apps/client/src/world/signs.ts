@@ -122,7 +122,8 @@ export class TownSigns {
       const y = Number.isFinite(ground) ? ground : p.y;
       const sign = new THREE.Group();
       const post = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 2.3, 8), postMat);
-      post.position.y = 1.15;
+      // Poteau derrière la plaque (rayon 4 cm, dos de la plaque à 2 cm) : il ne doit pas la traverser.
+      post.position.set(0, 1.15, -0.03);
       const face = new THREE.Mesh(new THREE.PlaneGeometry(1.5, 0.56), new THREE.MeshStandardNodeMaterial({ map: signTexture(lm.name), roughness: 0.45 }));
       face.position.set(0, 2.05, 0.03);
       const back = new THREE.Mesh(new THREE.PlaneGeometry(1.5, 0.56), backMat);
@@ -151,7 +152,7 @@ export class TownSigns {
     const bottom = 0.85;
     for (const x of [-w * 0.32, w * 0.32]) {
       const post = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, bottom + ht - 0.1, 8), postMat);
-      post.position.set(x, (bottom + ht - 0.1) / 2, -0.03);
+      post.position.set(x, (bottom + ht - 0.1) / 2, -0.045);
       post.castShadow = true;
       sign.add(post);
     }
