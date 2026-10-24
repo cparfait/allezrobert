@@ -269,7 +269,8 @@ export class MainMenu {
   onScene?: (view: 'poster' | GarageView, yaw: number, bikeOnly?: boolean) => void;
   /** Aperçu d'un équipement (même verrouillé) sur le coureur du garage ; null : tenue équipée. */
   onPreviewLook?: (look: AvatarLook | null) => void;
-  private previewId: string | null = null;
+  /** Essais en cours au garage, un par emplacement (vélo, maillot…) : ils restent en place pendant qu'on en essaie d'autres. */
+  private readonly previews = new Map<CosmeticSlot, string>();
   /** Compte connecté (affiché dans le menu), connexion / déconnexion, synchro du profil. */
   account: { name: string; level: number; credits?: number } | null = null;
   onLogin?: () => void;
@@ -393,8 +394,8 @@ export class MainMenu {
 
   private go(tab: Tab): void {
     this.picker = null;
-    if (tab !== 'garage' && this.previewId) {
-      this.previewId = null;
+    if (tab !== 'garage' && this.previews.size) {
+      this.previews.clear();
       this.onPreviewLook?.(null);
     }
     this.tab = tab;
@@ -435,8 +436,22 @@ export class MainMenu {
   }
 
   /** Tenue du coureur avec un équipement à couleur appliqué (aperçu). */
-  private lookWith(item: CosmeticItem): AvatarLook {
-    const look = { ...this.s.look };
+  /** Tenue affichée au garage : celle équipée, avec les essais en cours par-dessus. */
+  currentLook(): AvatarLook {
+    let look = this.s.look;
+    for (const id of this.previews.values()) {
+      const item = COSMETICS.find((c) => c.id === id);
+      if (item) look = this.lookWith(item, look);
+    }
+    return look;
+  }
+
+  private sendPreview(): void {
+    this.onPreviewLook?.(this.previews.size ? this.currentLook() : null);
+  }
+
+  private lookWith(item: CosmeticItem, base: AvatarLook = this.s.look): AvatarLook {
+    const look = { ...base };
     if (item.color) {
       if (item.slot === 'jersey') Object.assign(look, jerseyLookOf(item));
       if (item.slot === 'helmet') look.helmet = item.color;
@@ -1098,7 +1113,7 @@ export class MainMenu {
     const lang = L ? 'fr' : 'en';
     const locked = c.level > level;
     const on = equipped === c.id;
-    const prev = this.previewId === c.id;
+    const prev = [...this.previews.values()].includes(c.id);
     return `<button class="mm-item ${on ? 'on' : ''} ${locked ? 'locked' : ''} ${prev ? 'preview' : ''}" data-item="${c.id}" title="${locked ? (L ? 'Cliquer pour l’essayer' : 'Click to try it on') : ''}">
                 <i style="background:${swatch(c)}"></i>
                 <span class="mm-it-txt"><b>${esc(c.name[lang])}</b>${c.effect ? `<em class="mm-effect">${esc(c.effect[lang])}</em>` : ''}
@@ -1214,7 +1229,7 @@ export class MainMenu {
     const bike = bikeById(c.id);
     const locked = c.level > level;
     const on = equippedId === c.id;
-    const prev = this.previewId === c.id;
+    const prev = [...this.previews.values()].includes(c.id);
     const from = bike ? bikeFrom(bike.group, lang) : undefined;
     const sub = bike ? `${BIKE_TYPE[bike.type][L ? 0 : 1]}${from ? ` · ${from}` : ''}` : '';
     const state = prev ? `👁 ${L ? 'Aperçu' : 'Preview'}` : locked ? `🔒 ${L ? 'niv.' : 'lvl'} ${c.level}` : on ? `✓ ${L ? 'Équipé' : 'Equipped'}` : '';
@@ -1239,7 +1254,7 @@ export class MainMenu {
   private bikeFocusHtml(equippedId: string | undefined): string {
     const L = fr();
     const lang = getLang();
-    const previewed = this.previewId ? COSMETICS.find((c) => c.id === this.previewId && c.slot === 'bike') : undefined;
+    const previewed = this.previews.has('bike') ? COSMETICS.find((c) => c.id === this.previews.get('bike')) : undefined;
     const c = previewed ?? (equippedId ? COSMETICS.find((x) => x.id === equippedId) : undefined);
     if (!c) {
       return `<div class="mm-bikefocus">${bikeIcon([this.s.look.bike], true)}<div class="mm-bf-txt"><small>${L ? 'Ton vélo' : 'Your bike'}</small><b>${L ? 'Vélo sans marque' : 'Unbranded bike'}</b>
@@ -1928,15 +1943,15 @@ export class MainMenu {
       }),
     );
     this.root.querySelector<HTMLElement>('[data-unpreview]')?.addEventListener('click', () => {
-      this.previewId = null;
-      this.onPreviewLook?.(null);
+      this.previews.delete('bike');
+      this.sendPreview();
       this.render();
     });
     this.root.querySelector<HTMLElement>('[data-plainbike]')?.addEventListener('click', () => {
-      this.previewId = null;
-      this.onPreviewLook?.(null);
+      this.previews.delete('bike');
       equipPlainBike(s);
       changed();
+      this.sendPreview();
       this.render();
     });
     this.root.querySelectorAll<HTMLElement>('[data-item]').forEach((el) =>
@@ -1946,15 +1961,16 @@ export class MainMenu {
         const locked = item.level > levelProgress(loadProgress().xp).level;
         if (locked) {
           // Verrouillé : simple aperçu sur le coureur, rien n'est équipé ni enregistré.
-          this.previewId = this.previewId === item.id ? null : item.id;
-          this.onPreviewLook?.(this.previewId ? this.lookWith(item) : null);
+          if (this.previews.get(item.slot) === item.id) this.previews.delete(item.slot);
+          else this.previews.set(item.slot, item.id);
+          this.sendPreview();
           this.render();
           return;
         }
-        this.previewId = null;
-        this.onPreviewLook?.(null);
+        this.previews.delete(item.slot);
         equipItem(item, s);
         changed();
+        this.sendPreview();
         this.render();
       }),
     );

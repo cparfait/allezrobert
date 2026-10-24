@@ -492,7 +492,7 @@ async function boot(): Promise<void> {
     if (!inMenu) return applyEnv(s);
     if (scene.world.env.state.season !== s.season) scene.world.setSeason(s.season);
     if (menuVideo.playing()) menuVideo.show(s.season);
-    if (garage) return showGarage(s.look);
+    if (garage) return showGarage(menu.currentLook());
     if (!worldReady) return;
     poster.build({ ...s.look, heightCm: s.heightCm });
     poster.setPlayerLook({ ...s.look, heightCm: s.heightCm }, menu.bareHeadPreview);
@@ -589,7 +589,7 @@ async function boot(): Promise<void> {
     if (view !== 'poster') {
       menuVideo.stop();
       garage = { view, yaw, ...(bikeOnly ? { bikeOnly } : {}) };
-      return showGarage(settings.look);
+      return showGarage(menu.currentLook());
     }
     garage = null;
     atelier.set(null);

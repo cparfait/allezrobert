@@ -111,7 +111,7 @@ function plateTexture(n: TuneNumber): THREE.CanvasTexture {
  * Plaque de cadre sous la selle (ancre « anchor_number » des familles) : deux faces dos à dos,
  * lisibles des deux côtés. Matériau propre (« number », surbrillance de l'atelier).
  */
-function numberPlate(n: TuneNumber, at: THREE.Vector3): THREE.Group {
+function numberPlate(n: TuneNumber, at: THREE.Vector3, postZ?: number): THREE.Group {
   const g = new THREE.Group();
   g.name = 'number_plate';
   const mat = new THREE.MeshStandardNodeMaterial({ map: plateTexture(n), roughness: 0.55, metalness: 0 });
@@ -125,7 +125,37 @@ function numberPlate(n: TuneNumber, at: THREE.Vector3): THREE.Group {
     g.add(m);
   }
   g.position.copy(at).add(new THREE.Vector3(0, -0.035, -0.045));
+  if (postZ !== undefined) {
+    // Plaque fixée derrière la tige de selle par un collier : bord avant contre la tige.
+    g.position.z = postZ - 0.0575 - 0.006;
+    const clamp = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.022, 0.016), new THREE.MeshStandardNodeMaterial({ color: '#16171a', roughness: 0.6 }));
+    clamp.position.z = 0.0575 + 0.002;
+    g.add(clamp);
+  }
   return g;
+}
+
+/**
+ * Arrière de la tige de selle (z, repère du vélo) à la hauteur `y` : sommets de la tige proches du plan
+ * médian, le plus en arrière. Les tiges diffèrent d'un modèle à l'autre (angle, recul) : la plaque s'y cale.
+ */
+function seatpostRearZ(group: THREE.Object3D, y: number): number | undefined {
+  group.updateMatrixWorld(true);
+  const inv = group.matrixWorld.clone().invert();
+  const m = new THREE.Matrix4();
+  const v = new THREE.Vector3();
+  let best: number | undefined;
+  group.traverse((o) => {
+    const mesh = o as THREE.Mesh;
+    if (!mesh.isMesh || o.userData.matKey !== 'seatpost') return;
+    m.multiplyMatrices(inv, mesh.matrixWorld);
+    const pos = mesh.geometry.getAttribute('position');
+    for (let i = 0; i < pos.count; i++) {
+      v.fromBufferAttribute(pos, i).applyMatrix4(m);
+      if (Math.abs(v.x) < 0.03 && Math.abs(v.y - y) < 0.015 && (best === undefined || v.z < best)) best = v.z;
+    }
+  });
+  return best;
 }
 
 const EMISSIVE: Record<string, [string, number]> = {
@@ -347,7 +377,7 @@ export function assembleBike(build: BikeBuild, family: BikeFamily, lod: 0 | 1, b
   // Plaque de cadre (atelier) sous la selle.
   const num = build.extras?.number;
   const anchor = group.getObjectByName('anchor_number');
-  if (num && anchor && typeof document !== 'undefined') group.add(numberPlate(num, anchor.position));
+  if (num && anchor && typeof document !== 'undefined') group.add(numberPlate(num, anchor.position, seatpostRearZ(group, anchor.position.y - 0.035)));
   return {
     group,
     crank: group.getObjectByName('crankset') ?? null,
