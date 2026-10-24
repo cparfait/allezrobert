@@ -638,9 +638,11 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   const challenge = komSeg ? new KomChallenge(engine.scene, track, komSeg) : null;
   let challengeResult: ChallengeResult | null = null;
   // L'accueil n'a préparé que le lieu de l'affiche : le paysage autour du départ doit être là avant le
-  // premier rendu, sinon le HUD s'affiche sur un ciel vide. Écran d'attente seulement si ça traîne.
-  const startOverlay = { el: null as HTMLElement | null };
-  const startOverlayTimer = setTimeout(() => (startOverlay.el = worldOverlay(getLang() === 'fr' ? 'Préparation de la sortie…' : 'Preparing the ride…')), 80);
+  // premier rendu, sinon le HUD s'affiche sur un ciel vide. L'écran d'attente reste jusqu'à la première image :
+  // c'est elle qui compile la chaîne de rendu complète (ombres, post-traitement) et fige le navigateur un moment.
+  const startOverlay = worldOverlay(getLang() === 'fr' ? 'Préparation de la sortie…' : 'Preparing the ride…');
+  startOverlay.style.background = 'rgb(6, 9, 15)';
+  startOverlay.style.backdropFilter = 'none';
   {
     const d0 = challenge?.startD ?? (nav ? 0 : Number(new URLSearchParams(location.search).get('d') ?? 0));
     const p0 = track.positionAt(d0, 1.2);
@@ -1337,8 +1339,10 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   // Pipelines des objets ajoutés pour la sortie (coureur, groupe, circulation) compilés avant la première image,
   // au lieu de figer la première image du jeu.
   await engine.renderer.compileAsync(engine.scene, engine.camera).catch(() => undefined);
-  clearTimeout(startOverlayTimer);
-  startOverlay.el?.remove();
+  // Laisse l'écran d'attente se peindre, puis fait la première image (lente) derrière lui.
+  await new Promise<void>((r) => setTimeout(r, 50));
+  engine.renderManual();
+  startOverlay.remove();
   engine.renderer.setAnimationLoop(() => {
     timer.update();
     frame(Math.min(timer.getDelta(), 0.1), true);
