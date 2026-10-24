@@ -36,6 +36,8 @@ import { BikeMaterials, assembleBike, availableFamily, bikeAnchors, familyScene,
 
 export type RiderPose = 'seated' | 'standing' | 'coasting';
 
+const RIDER_CAST_SHADOWS = false;
+
 /**
  * Pièce assez grande pour que son ombre se voie (corps, cadre, roues, casque…) : les petites pièces
  * (visserie, valves, yeux, lunettes, cales…) ne projettent pas d'ombre. Chaque pièce qui en projette est
@@ -43,6 +45,9 @@ export type RiderPose = 'seated' | 'standing' | 'coasting';
  * des appels de dessin.
  */
 function bigPart(mesh: THREE.Mesh): boolean {
+  // Coureurs : plus d'ombres portées (elles scintillaient, la carte d'ombres n'étant recalculée qu'une
+  // image sur deux) ; c'est aussi un gros gain d'appels de dessin.
+  if (!RIDER_CAST_SHADOWS) return false;
   const cached = mesh.userData.bigPart as boolean | undefined;
   if (cached !== undefined) return cached;
   let big: boolean;
