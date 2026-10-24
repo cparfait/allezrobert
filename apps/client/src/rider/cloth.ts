@@ -71,10 +71,11 @@ export function clothTextures(): ClothTextures | null {
 
 /** Réglages par pièce : rugosité, reflet de lycra, relief de la maille, plis. */
 const CLOTH: Record<string, { roughness: number; sheen: number; knit: number; folds: number }> = {
-  jersey: { roughness: 0.7, sheen: 0.3, knit: 0.18, folds: 1.1 },
-  jersey_accent: { roughness: 0.7, sheen: 0.3, knit: 0.18, folds: 1.1 },
-  // Lycra mat du cuissard : lisse, reflet doux et uniforme (plis légers, pas de brillance de vinyle).
-  shorts: { roughness: 0.8, sheen: 0.12, knit: 0.06, folds: 0.4 },
+  // Maillot et cuissard lisses, sans plis (jugés peu jolis) : seule la maille du tissu reste en relief.
+  jersey: { roughness: 0.7, sheen: 0.3, knit: 0.18, folds: 0 },
+  jersey_accent: { roughness: 0.7, sheen: 0.3, knit: 0.18, folds: 0 },
+  // Lycra mat du cuissard : lisse, reflet doux et uniforme (pas de brillance de vinyle).
+  shorts: { roughness: 0.8, sheen: 0.12, knit: 0.06, folds: 0 },
   sock: { roughness: 0.8, sheen: 0.2, knit: 0.5, folds: 0 },
 };
 
