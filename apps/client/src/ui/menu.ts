@@ -1202,7 +1202,7 @@ export class MainMenu {
     const L = fr();
     const cap = bottleCapacity(equippedId);
     if (cap === 0) return `<div class="field mm-bottles">${L ? 'Bidons' : 'Bottles'}<span class="mm-hint">${L ? 'Ce cadre ne porte pas de bidon.' : 'This frame carries no bottle.'}</span></div>`;
-    const cur = Math.min(this.s.look.bottles ?? cap, cap);
+    const cur = Math.min(this.s.look.bottles ?? 1, cap);
     const opts: Array<[string, string]> = [['0', L ? 'Aucun' : 'None'], ['1', '1'], ['2', '2']];
     return `<div class="field mm-bottles">${L ? 'Bidons' : 'Bottles'}${this.seg('m-bottles', String(cur), opts.slice(0, cap + 1))}</div>`;
   }

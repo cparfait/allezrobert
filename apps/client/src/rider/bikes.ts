@@ -304,7 +304,7 @@ export function assembleBike(build: BikeBuild, family: BikeFamily, lod: 0 | 1, b
     if (o.name.startsWith('opt_bottle_down')) hasDown = true;
   });
   const capacity = track || build.params.bottles === false ? 0 : (hasUp ? 1 : 0) + (hasDown ? 1 : 0);
-  const nBottles = Math.min(bottles ?? 2, capacity);
+  const nBottles = Math.min(bottles ?? 1, capacity);
   group.traverse((o) => {
     const n = o.name;
     // Tige de selle : matériau à part (pièces de l'atelier).
