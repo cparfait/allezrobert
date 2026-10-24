@@ -1,6 +1,6 @@
 import type { AvatarLook, CosmeticItem, RouteData, RouteSegment, WorldCatalogue } from '@allezrobert/shared';
 import { readKomRecord } from '../game/challenge.ts';
-import { BIKE_BRANDS, BIKE_GROUPS, BIKE_TEAMS, COSMETICS, DEFAULT_BIKE, bikeById, bottleCapacity, bikeSetupFor, jerseyLookOf, levelProgress, SHOE_MARKS, type BikeCollection, type BikeType, type CosmeticSlot } from '@allezrobert/shared';
+import { BIKE_BRANDS, BIKE_GROUPS, BIKE_TEAMS, COSMETICS, DEFAULT_BIKE, bikeById, lookSex, withSex, bottleCapacity, bikeSetupFor, jerseyLookOf, levelProgress, SHOE_MARKS, type BikeCollection, type BikeType, type CosmeticSlot } from '@allezrobert/shared';
 import { shoeAccentOf } from '../rider/shoeLook.ts';
 import { WORKOUT_LIBRARY } from '@allezrobert/physics';
 import { formatBytes, installPack, loadCatalogue, packState, removePack } from '../world/packs.ts';
@@ -1269,6 +1269,7 @@ export class MainMenu {
       <div class="mm-bigstats"><div><b>${wkg.toFixed(1).replace('.', L ? ',' : '.')}</b><span>W/kg</span></div><div><b>${Math.round(s.ftpWatts)}</b><span>W FTP</span></div><div><b>${s.massKg}</b><span>kg</span></div></div>
       <div class="grid2b">
         <label class="field">${t('name')}<input id="m-name" value="${esc(s.name)}" /></label>
+        <label class="field">${L ? 'Je suis' : 'I am'}<div class="row">${(['male', 'female'] as const).map((x) => `<button class="btn small ${lookSex(s.look) === x ? 'primary' : ''}" data-sex="${x}">${x === 'male' ? (L ? 'Un homme' : 'A man') : L ? 'Une femme' : 'A woman'}</button>`).join('')}</div></label>
         <label class="field">${t('weight')}<input id="m-mass" type="number" min="30" max="200" step="0.5" value="${s.massKg}" /></label>
         <label class="field">${t('height')}<input id="m-height" type="number" min="120" max="220" value="${s.heightCm}" /></label>
         <label class="field">${t('ftp')}<input id="m-ftp" type="number" min="50" max="600" value="${s.ftpWatts}" /></label>
@@ -2042,6 +2043,13 @@ export class MainMenu {
     num('m-ftp', 'ftpWatts');
     num('m-height', 'heightCm');
     num('m-ai', 'aiRiders');
+    this.root.querySelectorAll<HTMLElement>('[data-sex]').forEach((el) =>
+      el.addEventListener('click', () => {
+        s.look = withSex(s.look, el.dataset.sex as 'male' | 'female');
+        changed();
+        this.render();
+      }),
+    );
     on<HTMLInputElement>('m-name', 'change', (el) => {
       s.name = el.value.trim().slice(0, 24) || 'Robert';
       changed();

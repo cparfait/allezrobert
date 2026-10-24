@@ -55,8 +55,8 @@ export const ONBOARDING_SCRIPT: Record<string, Line[]> = {
   ],
   companion: [
     {
-      fr: '<emotion value="enthusiastic"/>Ton téléphone peut devenir ta télécommande : change de vitesse, choisis ta route aux carrefours, et pilote la musique. Scanne le code avec l\'appareil photo, sans créer de compte.',
-      en: '<emotion value="enthusiastic"/>Your phone can be your remote: shift gears, pick your way at junctions, and control the music. Scan the code with the camera, no account needed.',
+      fr: '<emotion value="enthusiastic"/>Ton téléphone peut devenir ta télécommande : change de vitesse et choisis ta route aux carrefours. Scanne le code avec l\'appareil photo, sans créer de compte.',
+      en: '<emotion value="enthusiastic"/>Your phone can be your remote: shift gears and pick your way at junctions. Scan the code with the camera, no account needed.',
     },
   ],
   ftp: [

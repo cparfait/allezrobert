@@ -3,7 +3,7 @@
  * coureurs IA. Chaque profil est un simple jeu de curseurs (face.ts) et de réglages de tenue ;
  * l'« air d'origine » est un mélange de trois poids, jamais une catégorie imposée.
  */
-import { encodeFace, type FaceShape } from './face.ts';
+import { decodeFace, encodeFace, type FaceShape } from './face.ts';
 import { DEFAULT_LOOK, type AvatarLook } from './net.ts';
 
 export interface BaseProfile {
@@ -91,4 +91,28 @@ export const BASE_PROFILES: readonly BaseProfile[] = [
 /** Tenue complète d'un profil (couleurs non précisées : celles de `base`). */
 export function profileLook(p: BaseProfile, base: AvatarLook = DEFAULT_LOOK): AvatarLook {
   return { ...base, ...p.look, face: encodeFace(p.shape) };
+}
+
+/** Homme ou femme d'après la tenue (curseur `sex` du visage). */
+export function lookSex(look: AvatarLook): 'male' | 'female' {
+  return (decodeFace(look.face).sex ?? 0) < -0.5 ? 'female' : 'male';
+}
+
+/**
+ * Passe l'avatar en homme ou en femme : curseur `sex` et traits féminins (retirés ou ajoutés sans
+ * toucher aux autres réglages du visage), barbe et moustache, coiffure par défaut.
+ */
+export function withSex(look: AvatarLook, sex: 'male' | 'female'): AvatarLook {
+  if (lookSex(look) === sex) return look;
+  const shape = decodeFace(look.face);
+  const delta = (sex === 'female' ? 1 : 0) - Math.max(0, -(shape.sex ?? 0));
+  for (const [n, v] of Object.entries(FEMININE) as Array<[keyof FaceShape, number]>) shape[n] = Math.max(-1, Math.min(1, (shape[n] ?? 0) + v * delta));
+  shape.sex = sex === 'female' ? -1 : 0;
+  const out: AvatarLook = { ...look, face: encodeFace(shape) };
+  if (sex === 'female') {
+    out.beard = 0;
+    out.moustache = false;
+    if (look.hairStyle === 0) out.hairStyle = 1;
+  } else if (look.hairStyle === 1 || look.hairStyle === 2) out.hairStyle = 0;
+  return out;
 }
