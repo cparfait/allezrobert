@@ -310,6 +310,8 @@ export class Vegetation {
     // Les arbres mesurés au LiDAR peuvent surplomber n'importe quelle route : aucun tronc sur la chaussée
     // d'une route ou d'une piste dessinée (l'itinéraire actif est déjà exclu par avoidReal).
     const onRoad = roadAvoidance(drawnRoads(f.roads ?? []));
+    // Taille des blocs d'instanciation selon la qualité : plus grands, moins d'appels de dessin.
+    const chunkM = this.q.realChunk || REAL_CHUNK;
     const per = new Map<string, Map<Kind, THREE.Matrix4[]>>();
     const m = new THREE.Matrix4();
     const qn = new THREE.Quaternion();
@@ -317,7 +319,7 @@ export class Vegetation {
     const sc = new THREE.Vector3();
     const p = new THREE.Vector3();
     const push = (kind: Kind, x: number, z: number) => {
-      const key = `${Math.floor(x / REAL_CHUNK)}_${Math.floor(z / REAL_CHUNK)}`;
+      const key = `${Math.floor(x / chunkM)}_${Math.floor(z / chunkM)}`;
       let b = per.get(key);
       if (!b) per.set(key, (b = new Map()));
       let list = b.get(kind);
@@ -365,7 +367,7 @@ export class Vegetation {
     }
     for (const [key, bucket] of per) {
       const [cx, cz] = key.split('_').map(Number) as [number, number];
-      const chunk: Chunk = { key: `${tile.id}:r${key}`, tileId: tile.id, cx, cz, size: REAL_CHUNK, real: true, meshes: [], lod: 0 };
+      const chunk: Chunk = { key: `${tile.id}:r${key}`, tileId: tile.id, cx, cz, size: chunkM, real: true, meshes: [], lod: 0 };
       chunk.lod = this.lodFor(chunk);
       for (const [kind, list] of bucket) {
         const im = new THREE.InstancedMesh(this.geos[kind][0] as THREE.BufferGeometry, this.materialFor(kind, 0), list.length);

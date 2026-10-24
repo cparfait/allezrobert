@@ -282,6 +282,8 @@ async function boot(): Promise<void> {
    * Lancé en arrière-plan une fois le menu affiché ; garage, exploration, tutoriel et départ l'attendent.
    */
   let worldReady: Promise<void> | null = null;
+  /** Vrai seulement quand la préparation est terminée : `worldReady` est une promesse déjà « vraie » pendant qu'elle court. */
+  let worldDone = false;
   const prepareWorld = (): Promise<void> =>
     (worldReady ??= (async () => {
       await modelsReady;
@@ -299,6 +301,7 @@ async function boot(): Promise<void> {
       }
       await scene.engine.renderer.compileAsync(scene.engine.scene, scene.engine.camera).catch(() => undefined);
       if (inMenu && !menuVideo.playing()) renderPoster();
+      worldDone = true;
     })());
   /** Attend le paysage avant une action 3D, avec un écran d'attente seulement s'il n'est pas prêt. */
   const withWorld = async (label: string): Promise<void> => {
@@ -420,6 +423,7 @@ async function boot(): Promise<void> {
       if (settings.mode === 'open' && !source.open) settings.mode = 'free';
       const pending = worldReady;
       worldReady = null;
+      worldDone = false;
       await pending?.catch(() => undefined);
       poster.dispose();
       scene.world.dispose();
@@ -516,7 +520,8 @@ async function boot(): Promise<void> {
     if (view === 'poster' && menuVideo.show(settings.season)) return;
     menuVideo.stop();
     poster.setView(view, yaw);
-    if (worldReady) return renderPoster();
+    // Garage : écran d'attente tant que le paysage n'est pas prêt (sans lui, le clic ne montrait rien).
+    if (worldDone) return renderPoster();
     void withWorld(getLang() === 'fr' ? 'Chargement du garage…' : 'Loading the garage…').then(() => {
       if (!inMenu || exploring) return;
       poster.setView(view, yaw);
@@ -651,6 +656,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   const aiCount = workout || mp || challenge ? 0 : Math.min(Math.max(s.aiRiders, 0), engine.quality.aiRidersMax);
   const peloton = new Peloton(engine.scene, track, aiCount, startD, s.ftpWatts * (s.aiLevel ?? 1));
   const ghost = new Ghost(engine.scene, track, track.route.id, startD);
+  peloton.shadowRiders = engine.quality.shadowRiders;
   peloton.onWait = (name) => name && hud.toast(getLang() === 'fr' ? `On attend ${name}` : `Waiting for ${name}`);
   peloton.onUTurn = (name) => hud.toast(getLang() === 'fr' ? `${name} fait demi-tour pour revenir au groupe` : `${name} turns back to rejoin the group`);
   const rig = new CameraRig(engine.camera, track, (x, z) => world.terrain.heightAt(x, z), engine.renderer.domElement);
@@ -674,6 +680,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   }
   // Cyclistes croisés dans les deux sens (désactivables avec le trafic ou par ?cyclists=0).
   const cyclists = traffic && params.get('cyclists') !== '0' ? new AmbientCyclists(engine.scene, track, startD) : null;
+  if (cyclists) cyclists.shadowRange = engine.quality.shadowRiders >= 8 ? 35 : engine.quality.shadowRiders > 0 ? 20 : 0;
   const hud = new Hud(hudRoot, track, source.attribution);
   if (nav && source.open) hud.setOpen(source.open.graph);
   // En groupe, le panneau « À proximité » montre d'abord les coureurs réels.

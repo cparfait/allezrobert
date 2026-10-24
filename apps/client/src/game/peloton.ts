@@ -1,3 +1,4 @@
+import { shadowCasters } from './shadowBudget.ts';
 import * as THREE from 'three/webgpu';
 import { AiRider, AI_PROFILES, DraftCalculator, PoseController, TeammateUTurn, createRiderState, paramsFromBike, powerForSpeed, stepRider, airDensity, type AiProfileName, type RiderState } from '@allezrobert/physics';
 import { BASE_PROFILES, DEFAULT_BIKE, DEFAULT_LOOK, FACE_SLIDERS, encodeFace, type AvatarLook, type FaceShape, type RouteTrack } from '@allezrobert/shared';
@@ -93,6 +94,8 @@ export class Peloton {
    * réglable en sortie ; null = le groupe suit l'allure du joueur.
    */
   paceFtpPct: number | null = null;
+  /** Nombre maximal de coureurs qui projettent une ombre (les plus proches ; voir shadowBudget.ts). */
+  shadowRiders = Number.POSITIVE_INFINITY;
   /** Ordre « ralentissez » : allure réduite jusqu'à cet instant (s de sortie). */
   private slowUntil = 0;
   private time = 0;
@@ -291,6 +294,7 @@ export class Peloton {
 
   /** Place les avatars ; les coureurs lointains ne sont pas animés (économie). */
   render(dt: number, camera: THREE.Camera): void {
+    const dists: number[] = [];
     for (const r of this.riders) {
       const p = this.track.positionAt(r.state.distM, r.lateral, this.sample);
       r.avatar.root.position.set(p.x, p.y + 0.06, p.z);
@@ -304,11 +308,13 @@ export class Peloton {
         r.avatar.setEffort?.(r.watts / r.ftp);
         r.avatar.update(dt, r.cadence, r.state.speedMs, r.pose);
       }
-      // Ombres portées seulement pour les coureurs proches (coût des cascades d'ombre).
-      r.avatar.setShadows(dist < 40);
+      dists.push(dist);
       r.label.position.set(p.x, p.y + 2.15, p.z);
       r.label.visible = dist > 7 && dist < 150;
     }
+    // Ombres portées : seulement les coureurs les plus proches (coût des cascades d'ombre).
+    const casters = shadowCasters(dists, this.shadowRiders, 40);
+    this.riders.forEach((r, i) => r.avatar.setShadows(casters[i] as boolean));
   }
 
   dispose(): void {

@@ -101,6 +101,11 @@ export class Environment {
   readonly nightSky = new NightSky();
   state: EnvironmentState;
   private csm: CSMShadowNode | null = null;
+  /** Ombres redessinées une image sur N ; entre deux, cartes d'ombre et caméras de cascade restent figées ensemble. */
+  private shadowEvery = 1;
+  private shadowTick = 0;
+  private shadowWarm = 0;
+  private shadowFrozen = false;
   private readonly sunDir = new THREE.Vector3();
   private readonly scene: THREE.Scene;
   /** Altitude lissée du coureur suivi (m), pour la clarté de l'air. */
@@ -142,10 +147,39 @@ export class Environment {
     this.csm = new CSMShadowNode(this.sun, { cascades: q.shadowCascades, maxFar: q.shadowFar, mode: 'practical', lightMargin: 120 });
     this.csm.fade = true;
     this.sun.shadow.shadowNode = this.csm;
+    this.shadowEvery = Math.max(1, Math.round(q.shadowEvery));
+    this.shadowTick = 0;
+    this.shadowWarm = 0;
+    this.shadowFrozen = false;
+    // Image sautée : on ne recalcule pas non plus les caméras des cascades, sinon la carte d'ombre (ancienne)
+    // serait lue avec des matrices neuves et les ombres glisseraient d'une image à l'autre.
+    const csm = this.csm as unknown as { updateBefore: (frame: unknown) => void };
+    const original = csm.updateBefore.bind(csm);
+    csm.updateBefore = (frame) => {
+      if (!this.shadowFrozen) original(frame);
+    };
+  }
+
+  /** Décide si les ombres sont redessinées à cette image (voir shadowEvery). */
+  private stepShadows(): void {
+    if (this.shadowEvery <= 1) {
+      if (this.shadowFrozen) this.setShadowFrozen(false);
+      return;
+    }
+    this.shadowWarm++;
+    this.shadowTick = (this.shadowTick + 1) % this.shadowEvery;
+    // Les premières images sont toujours complètes (cartes d'ombre à créer, cascades à cadrer).
+    this.setShadowFrozen(this.shadowWarm > 4 && this.shadowTick !== 0);
+  }
+
+  private setShadowFrozen(frozen: boolean): void {
+    this.shadowFrozen = frozen;
+    for (const l of (this.csm as unknown as { lights: Array<{ shadow: { autoUpdate: boolean } }> } | null)?.lights ?? []) l.shadow.autoUpdate = !frozen;
   }
 
   /** Avance l'environnement ; `focus` = position du coureur suivi (pour cadrer le soleil). */
   update(_dt: number, focus?: THREE.Vector3): void {
+    this.stepShadows();
     const { hour, season, weather } = this.state;
     sunDirection(hour, season, this.sunDir);
     const el = Math.asin(this.sunDir.y);

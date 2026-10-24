@@ -35,6 +35,12 @@ export interface QualitySettings {
   aiRidersMax: number;
   /** Circulation : facteur sur les 6 véhicules de base (0 = aucune circulation ni piéton). */
   trafficDensity: number;
+  /** Les ombres en cascade sont redessinées une image sur N (1 = chaque image) ; entre deux, cartes et caméras restent figées ensemble. */
+  shadowEvery: number;
+  /** Nombre maximal de coureurs (hors joueur) qui projettent une ombre : chacun coûte une centaine d'appels de dessin en cascade. */
+  shadowRiders: number;
+  /** Côté (m) des blocs d'instanciation de la végétation réelle : plus grand = moins d'appels de dessin. */
+  realChunk: number;
 }
 
 export const QUALITY_PRESETS: Record<QualityLevel, QualitySettings> = {
@@ -61,14 +67,17 @@ export const QUALITY_PRESETS: Record<QualityLevel, QualitySettings> = {
     dustParticles: 0,
     aiRidersMax: 2,
     trafficDensity: 0.34,
+    shadowEvery: 2,
+    shadowRiders: 0,
+    realChunk: 250,
   },
   medium: {
     level: 'medium',
     pixelRatio: 1,
     maxPixels: 1920 * 1080,
     shadowMapSize: 2048,
-    shadowCascades: 3,
-    shadowFar: 400,
+    shadowCascades: 2,
+    shadowFar: 250,
     ao: false,
     aoScale: 0.5,
     bloom: true,
@@ -85,14 +94,17 @@ export const QUALITY_PRESETS: Record<QualityLevel, QualitySettings> = {
     dustParticles: 384,
     aiRidersMax: 8,
     trafficDensity: 0.67,
+    shadowEvery: 2,
+    shadowRiders: 2,
+    realChunk: 250,
   },
   high: {
     level: 'high',
     pixelRatio: 1,
     maxPixels: 2560 * 1440,
     shadowMapSize: 2048,
-    shadowCascades: 4,
-    shadowFar: 600,
+    shadowCascades: 3,
+    shadowFar: 400,
     ao: true,
     aoScale: 0.5,
     bloom: true,
@@ -109,6 +121,9 @@ export const QUALITY_PRESETS: Record<QualityLevel, QualitySettings> = {
     dustParticles: 768,
     aiRidersMax: 19,
     trafficDensity: 1,
+    shadowEvery: 2,
+    shadowRiders: 3,
+    realChunk: 250,
   },
   ultra: {
     level: 'ultra',
@@ -133,6 +148,9 @@ export const QUALITY_PRESETS: Record<QualityLevel, QualitySettings> = {
     dustParticles: 1536,
     aiRidersMax: 19,
     trafficDensity: 1,
+    shadowEvery: 1,
+    shadowRiders: 19,
+    realChunk: 125,
   },
 };
 
@@ -144,9 +162,21 @@ export function detectDefaultQuality(): QualityLevel {
   return 'high';
 }
 
-/** Surcharges de débogage par l'URL : ?bloom=0&ao=0&taa=0. */
+/** Surcharges de débogage par l'URL : ?bloom=0&ao=0&taa=0, ?shadowevery=1 (ombres chaque image), ?shadowriders=N, ?cascades=N. */
 export function withUrlOverrides(q: QualitySettings): QualitySettings {
   const p = new URLSearchParams(location.search);
   const flag = (k: 'bloom' | 'ao' | 'taa') => (p.has(k) ? p.get(k) !== '0' : q[k]);
-  return { ...q, bloom: flag('bloom'), ao: flag('ao'), taa: flag('taa') };
+  const num = (param: string, fallback: number, min: number, max: number) => {
+    const n = Number(p.get(param));
+    return p.has(param) && Number.isFinite(n) ? Math.min(Math.max(Math.round(n), min), max) : fallback;
+  };
+  return {
+    ...q,
+    bloom: flag('bloom'),
+    ao: flag('ao'),
+    taa: flag('taa'),
+    shadowEvery: num('shadowevery', q.shadowEvery, 1, 8),
+    shadowRiders: num('shadowriders', q.shadowRiders, 0, 19),
+    shadowCascades: num('cascades', q.shadowCascades, 1, 4),
+  };
 }
