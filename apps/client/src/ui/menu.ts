@@ -42,6 +42,8 @@ export interface DevicePanel {
   useSimulator(on: boolean): void;
   simulatorOn(): boolean;
   warnings(): string[];
+  /** Commandes Di2 activées (adaptateur D-Fly) ou appairées. */
+  di2Active?(): boolean;
   /** Adaptateurs Bluetooth (app Windows) : intégré ou dongle. */
   adapters?(): Promise<Array<{ id: string; name: string; isDefault: boolean }>>;
   selectAdapter?(id: string): Promise<void>;
@@ -222,6 +224,8 @@ export class MainMenu {
   private workoutFile: { name: string; content: string } | undefined;
   private tab: Tab = 'ride';
   private garageSlot: GarageSlot = 'jersey';
+  /** Le garage est déjà ouvert (animation d'arrivée jouée). */
+  private garageEntered = false;
   /** Atelier (pièces du vélo, ensembles, crédits) : panneau et état de la scène 3D. */
   private readonly atelier: AtelierPanel;
   /** Atelier 3D (pièce procédurale, vélo sur pied) : état demandé, null pour le fermer. */
@@ -539,7 +543,10 @@ export class MainMenu {
     const key = `${this.tab}/${this.garageSlot}/${this.bikeFilter}/${this.bikeType}`;
     const scroll = key === this.panelKey ? ((this.root.querySelector('.gr-body') ?? this.root.querySelector('.mm-side'))?.scrollTop ?? 0) : 0;
     this.panelKey = key;
-    this.root.innerHTML = `<div class="mm mm-tab-${this.tab}">
+    // Arrivée dans le garage : le panneau glisse en place une seule fois (pas à chaque nouveau rendu).
+    const enter = this.tab === 'garage' && !this.garageEntered;
+    this.garageEntered = this.tab === 'garage';
+    this.root.innerHTML = `<div class="mm mm-tab-${this.tab}${enter ? ' mm-enter' : ''}">
       <header class="mm-top">
         <button class="mm-brand" data-tab="home" title="${L ? 'Accueil' : 'Home'}">Allez <em>Robert</em> !</button>
         <nav class="mm-tabs">${tabs.map(([id, label]) => `<button class="mm-tab ${id === this.tab ? 'on' : ''}" data-tab="${id}">${esc(label)}${id === 'friends' ? this.friends.badgeHtml() : ''}</button>`).join('')}

@@ -1,11 +1,12 @@
 import * as THREE from 'three/webgpu';
-import { color, emissive, float, fract, mrt, normalView, output, packNormalToRGB, pass, positionWorld, sample, step, uniform, unpackRGBToNormal, vec4 } from 'three/tsl';
+import { emissive, mrt, normalView, output, packNormalToRGB, pass, sample, unpackRGBToNormal, vec4 } from 'three/tsl';
 import { bloom } from 'three/addons/tsl/display/BloomNode.js';
 import { ao } from 'three/addons/tsl/display/GTAONode.js';
 import type { AvatarLook, TuneSlot } from '@allezrobert/shared';
 import { createAvatar, type RiderAvatarLike } from '../rider/gltfAvatar.ts';
 import { onBikeFamilyLoaded } from '../rider/bikes.ts';
 import type { Engine } from '../engine/renderer.ts';
+import { box, buildRoom, mat, rod } from './atelierRoom.ts';
 
 /**
  * Atelier du garage : le vélo du joueur sur un pied d'atelier, dans une pièce procédurale (établi,
@@ -105,64 +106,6 @@ const SLOT_SHOT: Record<TuneSlot | 'overview', keyof typeof SHOTS> = {
 /** Hauteur du vélo sur le pied d'atelier (roues décollées). */
 const LIFT = 0.24;
 
-const mat = (c: string, rough = 0.7, metal = 0): THREE.MeshStandardNodeMaterial => new THREE.MeshStandardNodeMaterial({ color: c, roughness: rough, metalness: metal });
-
-function box(w: number, h: number, d: number, m: THREE.Material, x: number, y: number, z: number): THREE.Mesh {
-  const o = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m);
-  o.position.set(x, y, z);
-  o.castShadow = true;
-  o.receiveShadow = true;
-  return o;
-}
-
-function cyl(r: number, h: number, m: THREE.Material, x: number, y: number, z: number, seg = 16): THREE.Mesh {
-  const o = new THREE.Mesh(new THREE.CylinderGeometry(r, r, h, seg), m);
-  o.position.set(x, y, z);
-  o.castShadow = true;
-  o.receiveShadow = true;
-  return o;
-}
-
-/** Tube de rayon r entre deux points. */
-function rod(a: THREE.Vector3, b: THREE.Vector3, r: number, m: THREE.Material): THREE.Mesh {
-  const d = new THREE.Vector3().subVectors(b, a);
-  const o = new THREE.Mesh(new THREE.CylinderGeometry(r, r, d.length(), 12), m);
-  o.position.copy(a).addScaledVector(d, 0.5);
-  o.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.normalize());
-  o.castShadow = true;
-  return o;
-}
-
-/** Texture d'affiche (canevas) : texte sur fond, pour le mur de l'atelier. */
-function posterTexture(): THREE.CanvasTexture {
-  const cv = document.createElement('canvas');
-  cv.width = 512;
-  cv.height = 720;
-  const g = cv.getContext('2d') as CanvasRenderingContext2D;
-  const grad = g.createLinearGradient(0, 0, 0, 720);
-  grad.addColorStop(0, '#1b2a4a');
-  grad.addColorStop(1, '#0d1220');
-  g.fillStyle = grad;
-  g.fillRect(0, 0, 512, 720);
-  g.fillStyle = '#ffd23f';
-  g.fillRect(0, 520, 512, 18);
-  g.fillStyle = '#e63946';
-  g.fillRect(0, 548, 512, 10);
-  g.textAlign = 'center';
-  g.fillStyle = '#ffd23f';
-  g.font = 'italic 900 86px "Arial Black", Arial, sans-serif';
-  g.fillText('ALLEZ', 256, 230);
-  g.fillText('ROBERT !', 256, 330);
-  g.fillStyle = '#f4f4f2';
-  g.font = '700 34px Arial, sans-serif';
-  g.fillText('ATELIER · DEPUIS 1972', 256, 420);
-  g.font = '600 26px Arial, sans-serif';
-  g.fillText('Châtillon · Chevreuse · Saclay', 256, 640);
-  const tex = new THREE.CanvasTexture(cv);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  return tex;
-}
-
 /**
  * Environnement de studio (reflets et lumière ambiante, préfiltré par PMREM) : pièce chaude et
  * sombre, grande boîte à lumière avant droite (lumière principale), panneau au plafond, deux bandes
@@ -170,7 +113,7 @@ function posterTexture(): THREE.CanvasTexture {
  */
 function studioEnvironment(renderer: THREE.WebGPURenderer): THREE.Texture {
   const env = new THREE.Scene();
-  const room = new THREE.Mesh(new THREE.BoxGeometry(10, 6, 10), new THREE.MeshBasicNodeMaterial({ color: '#2e2620', side: THREE.BackSide }));
+  const room = new THREE.Mesh(new THREE.BoxGeometry(10, 6, 10), new THREE.MeshBasicNodeMaterial({ color: '#6d6358', side: THREE.BackSide }));
   room.position.y = 2.6;
   env.add(room);
   const floor = new THREE.Mesh(new THREE.PlaneGeometry(10, 10), new THREE.MeshBasicNodeMaterial({ color: '#4a3c30' }));
@@ -193,172 +136,11 @@ function studioEnvironment(renderer: THREE.WebGPURenderer): THREE.Texture {
   return rt.texture;
 }
 
-/** Roue suspendue au râtelier : pneu, jante, rayons, moyeu. */
-function rackWheel(rim: string, deep: number): THREE.Group {
-  const g = new THREE.Group();
-  const tire = new THREE.Mesh(new THREE.TorusGeometry(0.325, 0.013, 10, 48), mat('#141416', 0.85));
-  const rimM = new THREE.Mesh(new THREE.TorusGeometry(0.3 - deep / 2, deep / 2, 8, 48), mat(rim, 0.35, 0.2));
-  rimM.scale.set(1, 1, 0.45);
-  g.add(tire, rimM);
-  const spokeM = mat('#b9bcc2', 0.3, 1);
-  for (let i = 0; i < 20; i++) {
-    const a = (i / 20) * Math.PI * 2;
-    const s = new THREE.Mesh(new THREE.CylinderGeometry(0.0012, 0.0012, 0.27 - deep, 4), spokeM);
-    s.position.set(Math.cos(a) * (0.15 - deep / 2), Math.sin(a) * (0.15 - deep / 2), 0);
-    s.rotation.z = a - Math.PI / 2;
-    g.add(s);
-  }
-  g.add(new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.1, 12).rotateX(Math.PI / 2), mat('#2a2c30', 0.4, 0.5)));
-  g.traverse((o) => ((o as THREE.Mesh).castShadow = true));
-  return g;
-}
-
-/** Pièce de l'atelier (repère : sol y = 0, vélo au centre, mur du fond en x = −3). */
-function buildRoom(): THREE.Group {
-  const room = new THREE.Group();
-  room.name = 'atelier_room';
-  // Sol béton ciré avec un léger damier de dalles, tapis caoutchouc sous le pied.
-  const tile = uniform(0.6);
-  const floorM = new THREE.MeshStandardNodeMaterial({ roughness: 0.55 });
-  const p = positionWorld;
-  const joint = step(0.985, fract(p.x.div(tile))).add(step(0.985, fract(p.z.div(tile)))).clamp(0, 1);
-  floorM.colorNode = color('#8a8178').mul(float(1).sub(joint.mul(0.25)));
-  const floor = new THREE.Mesh(new THREE.PlaneGeometry(7, 7), floorM);
-  floor.rotation.x = -Math.PI / 2;
-  floor.receiveShadow = true;
-  room.add(floor);
-  const mat_ = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 1.3), mat('#202224', 0.95));
-  mat_.rotation.x = -Math.PI / 2;
-  mat_.position.set(0, 0.003, 0);
-  mat_.receiveShadow = true;
-  room.add(mat_);
-  // Murs (enduit chaud) et plafond.
-  const wallM = mat('#d8c7ad', 0.9);
-  const walls: Array<[number, number, number, number, number]> = [
-    // largeur, x, z, rotation y
-    [7, -3.2, 0, Math.PI / 2, 0],
-    [7, 3.4, 0, -Math.PI / 2, 0],
-    [6.6, 0.1, -3.0, 0, 0],
-    [6.6, 0.1, 3.4, Math.PI, 0],
-  ];
-  for (const [w, x, z, ry] of walls) {
-    const m = new THREE.Mesh(new THREE.PlaneGeometry(w, 3.2), wallM);
-    m.position.set(x, 1.6, z);
-    m.rotation.y = ry;
-    m.receiveShadow = true;
-    room.add(m);
-  }
-  const ceil = new THREE.Mesh(new THREE.PlaneGeometry(7, 7), mat('#e6dccb', 0.95));
-  ceil.rotation.x = Math.PI / 2;
-  ceil.position.y = 3.2;
-  room.add(ceil);
-  // Plinthe sombre.
-  room.add(box(0.02, 0.12, 6.4, mat('#4a3b2e', 0.8), -3.19, 0.06, 0.2));
-
-  // Établi le long du mur du fond : plateau bois, pieds, étau, caisse à outils rouge.
-  const wood = mat('#a0703f', 0.75);
-  room.add(box(0.75, 0.06, 2.4, wood, -2.78, 0.92, -0.9));
-  for (const [x, z] of [[-3.05, -2.0], [-3.05, 0.2], [-2.5, -2.0], [-2.5, 0.2]] as const) room.add(box(0.06, 0.9, 0.06, mat('#3a3c40', 0.5, 0.6), x, 0.45, z));
-  room.add(box(0.7, 0.04, 2.3, wood, -2.78, 0.25, -0.9));
-  room.add(box(0.16, 0.12, 0.22, mat('#2f5d8a', 0.45, 0.6), -2.55, 1.01, -1.75));
-  room.add(box(0.36, 0.22, 0.6, mat('#c0262d', 0.4, 0.3), -2.82, 1.06, -0.25));
-  room.add(box(0.32, 0.03, 0.56, mat('#1a1b1e', 0.4, 0.6), -2.82, 1.18, -0.25));
-  // Pots de peinture et bombes sur l'établi.
-  ['#e63946', '#ffd23f', '#1e5bd8', '#2a9d8f'].forEach((c, i) => room.add(cyl(0.05, 0.12, mat(c, 0.5), -2.92, 1.01, -1.3 + i * 0.13)));
-  [0, 1, 2].forEach((i) => room.add(cyl(0.028, 0.2, mat(['#f4f4f2', '#111214', '#d4af37'][i] as string, 0.3, 0.4), -2.62, 1.05, -1.2 + i * 0.08, 12)));
-
-  // Panneau perforé et outils au-dessus de l'établi.
-  const pegM = new THREE.MeshStandardNodeMaterial({ roughness: 0.85 });
-  const holes = step(0.82, fract(p.z.mul(20))).mul(step(0.82, fract(p.y.mul(20))));
-  pegM.colorNode = color('#b98e5f').mul(float(1).sub(holes.mul(0.75)));
-  const peg = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 1.1), pegM);
-  peg.rotation.y = Math.PI / 2;
-  peg.position.set(-3.18, 1.75, -0.9);
-  peg.receiveShadow = true;
-  room.add(peg);
-  const steel = mat('#aab0b8', 0.3, 1);
-  // Clés plates de tailles croissantes, marteau, tournevis, pinces, démonte-pneus.
-  for (let i = 0; i < 7; i++) {
-    const L = 0.14 + i * 0.025;
-    const k = box(0.012, L, 0.022, steel, -3.15, 1.85 - L / 2 + 0.1, -1.95 + i * 0.075);
-    room.add(k);
-    const head = new THREE.Mesh(new THREE.TorusGeometry(0.018 + i * 0.002, 0.006, 6, 14), steel);
-    head.rotation.y = Math.PI / 2;
-    head.position.set(-3.15, 1.86 + 0.1, -1.95 + i * 0.075);
-    room.add(head);
-  }
-  room.add(box(0.03, 0.3, 0.025, mat('#6b4a2b', 0.7), -3.15, 1.65, -1.3));
-  room.add(box(0.035, 0.05, 0.14, steel, -3.15, 1.82, -1.3));
-  ['#e63946', '#ffd23f', '#1e5bd8', '#111214', '#2a9d8f'].forEach((c, i) => {
-    room.add(cyl(0.013, 0.1, mat(c, 0.45), -3.14, 1.7, -1.05 + i * 0.06, 10));
-    room.add(cyl(0.004, 0.12, steel, -3.14, 1.59, -1.05 + i * 0.06, 6));
-  });
-  for (const [z, c] of [[-0.6, '#d0021b'], [-0.48, '#1e5bd8'], [-0.36, '#ffd23f']] as const) {
-    room.add(box(0.01, 0.12, 0.025, mat(c, 0.5), -3.15, 1.7, z));
-  }
-  // Pompe à pied contre l'établi.
-  room.add(cyl(0.022, 0.62, mat('#d0021b', 0.4, 0.3), -2.35, 0.31, 0.55, 12));
-  room.add(box(0.2, 0.025, 0.08, mat('#1a1b1e', 0.6), -2.35, 0.012, 0.55));
-  const gauge = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.015, 16).rotateZ(Math.PI / 2), mat('#f4f4f2', 0.3));
-  gauge.position.set(-2.35, 0.2, 0.55);
-  room.add(gauge);
-
-  // Râtelier à roues sur le mur de gauche (z = −3).
-  room.add(box(2.0, 0.05, 0.06, mat('#3a3c40', 0.5, 0.6), 0.4, 2.35, -2.95));
-  ([['#1b1c1f', 0.05], ['#d4af37', 0.03], ['#1b1c1f', 0.065], ['#c0c6cf', 0.02]] as const).forEach(([c, deep], i) => {
-    const w = rackWheel(c, deep);
-    w.position.set(-0.4 + i * 0.55, 1.98, -2.88);
-    room.add(w);
-    room.add(cyl(0.008, 0.06, steel, -0.4 + i * 0.55, 2.31, -2.92, 8));
-  });
-  // Affiche et étagère de pneus.
-  const poster = new THREE.Mesh(new THREE.PlaneGeometry(0.62, 0.87), new THREE.MeshStandardNodeMaterial({ map: posterTexture(), roughness: 0.7 }));
-  poster.position.set(1.9, 1.75, -2.98);
-  room.add(poster);
-  room.add(box(1.0, 0.03, 0.3, wood, 2.8, 1.2, -2.85));
-  for (let i = 0; i < 3; i++) {
-    const t = new THREE.Mesh(new THREE.TorusGeometry(0.13, 0.03, 8, 24), mat('#141416', 0.85));
-    t.position.set(2.5 + i * 0.28, 1.35, -2.85);
-    t.castShadow = true;
-    room.add(t);
-  }
-
-  // Home trainer dans le coin : corps, volant, pieds, câble.
-  const tr = new THREE.Group();
-  tr.add(box(0.3, 0.42, 0.55, mat('#111214', 0.4, 0.2), 0, 0.33, 0));
-  const fly = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.05, 32).rotateZ(Math.PI / 2), mat('#2a2c30', 0.35, 0.8));
-  fly.position.set(0.17, 0.33, 0);
-  tr.add(fly);
-  tr.add(box(0.95, 0.04, 0.06, mat('#2a2c30', 0.5, 0.6), 0, 0.03, -0.18));
-  tr.add(box(0.95, 0.04, 0.06, mat('#2a2c30', 0.5, 0.6), 0, 0.03, 0.22));
-  tr.add(box(0.02, 0.05, 0.3, mat('#ffd23f', 0.5), -0.16, 0.45, 0));
-  tr.traverse((o) => ((o as THREE.Mesh).castShadow = true));
-  tr.position.set(2.6, 0, 2.6);
-  tr.rotation.y = 0.6;
-  room.add(tr);
-  // Fenêtre lumineuse sur le mur de droite (vue côté transmission).
-  const win = new THREE.Mesh(new THREE.PlaneGeometry(1.4, 1.0), new THREE.MeshStandardNodeMaterial({ color: '#000000', emissive: '#dfeaff', emissiveIntensity: 0.6 }));
-  win.rotation.y = -Math.PI / 2;
-  win.position.set(3.39, 1.8, -0.4);
-  room.add(win);
-  room.add(box(0.04, 1.06, 0.04, mat('#f4f4f2', 0.6), 3.37, 1.8, -0.4));
-
-  // Suspension : abat-jour et ampoule (émissive, diffuse un peu avec le bloom).
-  const shade = new THREE.Mesh(new THREE.ConeGeometry(0.26, 0.2, 24, 1, true), new THREE.MeshStandardNodeMaterial({ color: '#2f5d4a', roughness: 0.5, metalness: 0.3, side: THREE.DoubleSide }));
-  shade.position.set(0, 2.55, 0);
-  room.add(shade);
-  room.add(cyl(0.006, 0.55, mat('#111214'), 0, 2.92, 0, 6));
-  const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.05, 16, 12), new THREE.MeshStandardNodeMaterial({ color: '#000000', emissive: '#ffd9a0', emissiveIntensity: 3 }));
-  bulb.position.set(0, 2.47, 0);
-  room.add(bulb);
-  return room;
-}
-
 /** Pied d'atelier : trépied, colonne, bras, mâchoire sur la tige de selle. */
 function buildStand(): THREE.Group {
   const g = new THREE.Group();
   g.name = 'atelier_stand';
-  const red = mat('#c0262d', 0.4, 0.4);
+  const red = mat('#2457a6', 0.4, 0.4);
   const steel = mat('#3a3c40', 0.4, 0.8);
   // Colonne derrière le vélo, bras court jusqu'au tube de selle (≈ 0,70 m sur le vélo, + levée).
   const base = new THREE.Vector3(-0.42, 0, -0.66);
@@ -382,6 +164,9 @@ export class AtelierHost {
   private avatar: RiderAvatarLike | null = null;
   private readonly bikeRoot = new THREE.Group();
   private stand: THREE.Group | null = null;
+  /** Arrivée dans l'atelier : avancement 0 → 1 de l'entrée de caméra et de l'allumage des lumières. */
+  private intro = 1;
+  private readonly lamps: Array<[THREE.Light, number]> = [];
   private lookKey = '';
   private state: AtelierState | null = null;
   /** Images à rendre (0 : rien ne bouge). */
@@ -414,11 +199,11 @@ export class AtelierHost {
   /** Construction paresseuse : pièce, lumières, environnement, chaîne de rendu. */
   private build(): void {
     if (this.pipeline) return;
-    this.scene.background = new THREE.Color('#2a2420');
+    this.scene.background = new THREE.Color('#3a342e');
     this.scene.environment = studioEnvironment(this.engine.renderer);
-    this.scene.environmentIntensity = 0.4;
+    this.scene.environmentIntensity = 0.75;
     this.scene.add(buildRoom());
-    this.scene.add(new THREE.HemisphereLight(0xffe7c7, 0x3a3027, 0.2));
+    this.scene.add(new THREE.HemisphereLight(0xfff0dc, 0x6a5a48, 0.6));
     // Éclairage de studio : lumière principale douce de côté (à droite du coureur, à l'opposé des
     // caméras de l'atelier : le volume se lit), plafonnier (ombre au sol), contre-jours froids qui
     // détachent la silhouette du fond, débouchage léger côté caméra.
@@ -450,6 +235,9 @@ export class AtelierHost {
     const fill = new THREE.PointLight(0xfff0dc, 2, 6, 1.2);
     fill.position.set(2.4, 1.4, 2.4);
     this.scene.add(fill);
+    this.scene.traverse((o) => {
+      if ((o as THREE.Light).isLight) this.lamps.push([o as THREE.Light, (o as THREE.Light).intensity]);
+    });
     this.stand = buildStand();
     this.scene.add(this.stand);
     this.pipeline = new THREE.RenderPipeline(this.engine.renderer);
@@ -500,6 +288,7 @@ export class AtelierHost {
     const tune = st.look.tune ?? [];
     this.animated = tune.some((id) => /^tune-(gl-|ev-streak30|fi-irise|rd-holo|pa-aurore)/.test(id));
     this.aim(first);
+    if (first) this.intro = 0;
     this.frames = Math.max(this.frames, 3);
   }
 
@@ -543,10 +332,28 @@ export class AtelierHost {
     if (!this.state || !this.pipeline) return false;
     const dt = Math.min((now - (this.lastT || now)) / 1000, 0.1);
     this.lastT = now;
-    // Caméra : approche amortie du cadrage demandé.
+    // Arrivée : la caméra entre dans la pièce (arc depuis le fond, recul et hauteur qui se résorbent)
+    // pendant que les lumières s'allument ; ensuite, approche amortie du cadrage demandé.
+    if (this.intro < 1) {
+      this.intro = Math.min(1, this.intro + dt / 1.9);
+      const e = 1 - (1 - this.intro) ** 3;
+      const rest = 1 - e;
+      const off = this.goalPos.clone().sub(this.goalLook);
+      const ang = rest * 0.9;
+      const c = Math.cos(ang);
+      const s = Math.sin(ang);
+      off.set(off.x * c + off.z * s, off.y, -off.x * s + off.z * c).multiplyScalar(1 + rest * 0.85);
+      off.y += rest * 0.55;
+      this.camPos.copy(this.goalLook).add(off);
+      this.camLook.copy(this.goalLook);
+      this.camFov = this.goalFov + rest * 7;
+      const glow = 0.12 + 0.88 * Math.min(1, this.intro * 1.6) ** 2;
+      for (const [l, base] of this.lamps) l.intensity = base * glow;
+      this.frames = Math.max(this.frames, 1);
+    }
     const k = 1 - Math.exp(-dt * 7);
     const moving = this.camPos.distanceToSquared(this.goalPos) > 1e-6 || this.camLook.distanceToSquared(this.goalLook) > 1e-6 || Math.abs(this.camFov - this.goalFov) > 0.01;
-    if (moving) {
+    if (moving && this.intro >= 1) {
       this.camPos.lerp(this.goalPos, k);
       this.camLook.lerp(this.goalLook, k);
       this.camFov += (this.goalFov - this.camFov) * k;
@@ -577,7 +384,7 @@ export class AtelierHost {
     // Écran large : le vélo à gauche du panneau de l'atelier (à droite).
     if (cam.aspect > 1.2) {
       // Centre du vélo au milieu de l'espace libre à gauche du panneau (mesuré), repli : 7 % de la largeur.
-      const panel = document.querySelector('.mm-side')?.getBoundingClientRect();
+      const panel = document.querySelector('.mm-side, .ob-side')?.getBoundingClientRect();
       const free = panel && panel.left > w * 0.4 ? panel.left - 8 : w * 0.86;
       cam.setViewOffset(w, h, (w - free) / 2, 0, w, h);
     }
