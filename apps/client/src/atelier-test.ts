@@ -1,5 +1,5 @@
 import * as THREE from 'three/webgpu';
-import { BIKES, DEFAULT_LOOK, RARITY_LABEL, TUNE_ITEMS, TUNE_KITS, kitPrice, type AvatarLook, type TuneSlot } from '@allezrobert/shared';
+import { BIKES, DEFAULT_LOOK, encodeFace, RARITY_LABEL, TUNE_ITEMS, TUNE_KITS, kitPrice, type AvatarLook, type TuneSlot } from '@allezrobert/shared';
 import { createEngine } from './engine/renderer.ts';
 import { QUALITY_PRESETS } from './engine/quality.ts';
 import { GltfRiderAvatar } from './rider/gltfAvatar.ts';
@@ -53,7 +53,7 @@ async function main(): Promise<void> {
   if (!ok) return;
   if (params.has('peloton')) return peloton(engine);
   const host = new AtelierHost(engine);
-  const look = (tune: string[], extra: Partial<AvatarLook> = {}): AvatarLook => ({ ...DEFAULT_LOOK, ...(DEMO_BIKE ? { bikeModel: DEMO_BIKE } : {}), tune, ...extra });
+  const look = (tune: string[], extra: Partial<AvatarLook> = {}): AvatarLook => ({ ...DEFAULT_LOOK, ...(params.has('female') ? { face: encodeFace({ sex: -1 }) } : {}), ...(DEMO_BIKE ? { bikeModel: DEMO_BIKE } : {}), tune, ...extra });
   const render = async (st: AtelierState) => {
     host.set(st);
     // Familles et textures : quelques images pour que tout arrive.
