@@ -33,7 +33,7 @@ export interface QualitySettings {
   dustParticles: number;
   /** Nombre maximal de coureurs IA affichés (le réglage du joueur est plafonné). */
   aiRidersMax: number;
-  /** Circulation : facteur sur les 6 véhicules de base (0 = aucune circulation ni piéton). */
+  /** Densité du monde vivant (cyclistes croisés) : 0 = aucun. */
   trafficDensity: number;
   /** Les ombres en cascade sont redessinées une image sur N (1 = chaque image) ; entre deux, cartes et caméras restent figées ensemble. */
   shadowEvery: number;

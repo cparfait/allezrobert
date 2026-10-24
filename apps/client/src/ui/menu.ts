@@ -11,6 +11,7 @@ import { saveSettings } from './settings.ts';
 import { music } from '../audio/music.ts';
 import { spotify, redirectUri } from '../audio/spotify.ts';
 import { renderSoundSettings } from './soundSettings.ts';
+import { waitBike } from './waitBike.ts';
 import { renderCompanionSettings } from './companionQr.ts';
 import { loadProgress, equipItem, equipPlainBike, SLOT_LABEL } from './garage.ts';
 import { AtelierPanel, COIN } from './atelierPanel.ts';
@@ -330,7 +331,7 @@ export class MainMenu {
   /** Préparation en coulisse (paysage, garage) : « Rouler » masqué sur l'accueil. */
   set preparing(on: boolean) {
     this.prep = on;
-    // Tant que le jeu se prépare en coulisse, « Rouler » n'est pas proposé.
+    // Tant que le jeu se prépare en coulisse (téléchargement, cache), Robert sur son vélo patiente à la place de « Rouler ».
     this.root.querySelector('.mm-tab-home')?.classList.toggle('is-prep', on);
   }
 
@@ -660,7 +661,9 @@ export class MainMenu {
       this.root.innerHTML = `<div class="mm mm-tab-home ${this.prep ? 'is-prep' : ''}">
         <div class="mm-hero mm-hero-home"><h1>Allez <em>Robert</em> !</h1><p>${L ? 'Rouler ensemble, chacun chez soi.' : 'Ride together, each from home.'}</p></div>
         <button class="mm-go mm-home-go" data-tab="ride">${t('ride')} <span>→</span></button>
+        <div class="mm-home-wait" role="status" aria-label="${L ? 'Chargement en cours' : 'Loading'}"><div class="world-wait-bar"><i></i></div></div>
       </div>`;
+      this.root.querySelector('.mm-home-wait')?.prepend(waitBike());
       this.bind();
       return;
     }
