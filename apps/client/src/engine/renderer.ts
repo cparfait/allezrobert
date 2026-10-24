@@ -64,6 +64,9 @@ export async function createEngine(canvas: HTMLCanvasElement, q: QualitySettings
   let lastRendered = 0;
   let scenePass: ReturnType<typeof pass> | null = null;
   let scenePassMrt = false;
+  const aoNodes = new Map<number, ReturnType<ReturnType<typeof ao>['getTextureNode']>['r']>();
+  let bloomNode: ReturnType<typeof bloom> | null = null;
+  const variants = new Map<string, Vec4Node>();
   const perf = new PerfOverlay();
 
   const applyResolution = () => {
@@ -95,10 +98,15 @@ export async function createEngine(canvas: HTMLCanvasElement, q: QualitySettings
     dynamicRes,
     applyResolution,
     rebuildPipeline(settings: QualitySettings) {
+      // Couper un effet ne change ni la distance de vue ni la résolution : on évite de réallouer
+      // toutes les cibles de rendu (setPixelRatio redimensionne tout, même à ratio identique).
+      const resChanged = settings.pixelRatio !== current.pixelRatio || settings.maxPixels !== current.maxPixels;
       current = settings;
-      camera.far = settings.viewDistance;
-      camera.updateProjectionMatrix();
-      applyResolution();
+      if (camera.far !== settings.viewDistance) {
+        camera.far = settings.viewDistance;
+        camera.updateProjectionMatrix();
+      }
+      if (resChanged || !scenePass) applyResolution();
 
       // La passe de scène (et sa disposition MRT) survit aux changements d'effets : couper le bloom,
       // l'AO ou le TAA en cours de sortie ne refait que le post-traitement. Changer la disposition MRT
@@ -107,6 +115,9 @@ export async function createEngine(canvas: HTMLCanvasElement, q: QualitySettings
       if (!scenePass || (needMrt && !scenePassMrt)) {
         scenePass = pass(scene, camera);
         scenePassMrt = needMrt;
+        aoNodes.clear();
+        bloomNode = null;
+        variants.clear();
         if (needMrt) {
           scenePass.setMRT(
             mrt({
@@ -121,39 +132,52 @@ export async function createEngine(canvas: HTMLCanvasElement, q: QualitySettings
           normalTex.type = THREE.UnsignedByteType;
         }
       }
-      const color = scenePass.getTextureNode('output');
-      // Chaîne d'effets : le type du nœud change à chaque étape (texture → vec4 → TRAA).
-      let result: Vec4Node = color as unknown as Vec4Node;
+      // Un graphe par combinaison d'effets, mémorisé : rallumer ou recouper un effet déjà vu rebascule
+      // sur un graphe dont les passes (et leurs shaders) existent déjà. AO et bloom sont partagés.
+      const key = `${settings.ao ? settings.aoScale : 0}|${settings.bloom ? 1 : 0}|${settings.taa ? 1 : 0}`;
+      let result = variants.get(key);
+      if (!result) {
+        const sp = scenePass;
+        const color = sp.getTextureNode('output');
+        // Chaîne d'effets : le type du nœud change à chaque étape (texture → vec4 → TRAA).
+        let chain: Vec4Node = color as unknown as Vec4Node;
 
-      if (settings.ao) {
-        const depth = scenePass.getTextureNode('depth');
-        const normalColor = scenePass.getTextureNode('normal');
-        const normal = sample((uvNode) => unpackRGBToNormal(normalColor.sample(uvNode)));
-        const aoPass = ao(depth, normal, camera);
-        aoPass.resolutionScale = settings.aoScale;
-        aoPass.distanceExponent.value = 1;
-        aoPass.radius.value = 0.6;
-        aoPass.thickness.value = 1;
-        const aoValue = aoPass.getTextureNode().r;
-        // AO atténuée : on garde un monde lumineux (direction artistique).
-        result = vec4(color.rgb.mul(aoValue.mul(0.75).add(0.25)), color.a);
-      }
+        if (settings.ao) {
+          let aoValue = aoNodes.get(settings.aoScale);
+          if (!aoValue) {
+            const depth = sp.getTextureNode('depth');
+            const normalColor = sp.getTextureNode('normal');
+            const normal = sample((uvNode) => unpackRGBToNormal(normalColor.sample(uvNode)));
+            const aoPass = ao(depth, normal, camera);
+            aoPass.resolutionScale = settings.aoScale;
+            aoPass.distanceExponent.value = 1;
+            aoPass.radius.value = 0.6;
+            aoPass.thickness.value = 1;
+            aoValue = aoPass.getTextureNode().r;
+            aoNodes.set(settings.aoScale, aoValue);
+          }
+          // AO atténuée : on garde un monde lumineux (direction artistique).
+          chain = vec4(color.rgb.mul(aoValue.mul(0.75).add(0.25)), color.a);
+        }
 
-      if (settings.bloom) {
-        // Bloom sélectif : seules les surfaces émissives (fenêtres, phares, lampadaires) diffusent,
-        // le ciel HDR et le soleil restent nets (sinon voile laiteux sur toute l'image).
-        const b = bloom(scenePass.getTextureNode('emissive'), 0.9, 0.4, 0);
-        result = result.add(b) as unknown as Vec4Node;
-      }
+        if (settings.bloom) {
+          // Bloom sélectif : seules les surfaces émissives (fenêtres, phares, lampadaires) diffusent,
+          // le ciel HDR et le soleil restent nets (sinon voile laiteux sur toute l'image).
+          bloomNode ??= bloom(sp.getTextureNode('emissive'), 0.9, 0.4, 0);
+          chain = chain.add(bloomNode) as unknown as Vec4Node;
+        }
 
-      // Étalonnage avant le tone mapping : couleurs vives mais crédibles (direction artistique).
-      const tinted = result.rgb.mul(exposureNode).mul(vec3(tintNode as unknown as THREE.Node<'vec3'>));
-      result = vec4(vibrance(saturation(tinted, satNode), vibNode), float(1));
+        // Étalonnage avant le tone mapping : couleurs vives mais crédibles (direction artistique).
+        const tinted = chain.rgb.mul(exposureNode).mul(vec3(tintNode as unknown as THREE.Node<'vec3'>));
+        chain = vec4(vibrance(saturation(tinted, satNode), vibNode), float(1));
 
-      if (settings.taa) {
-        const depth = scenePass.getTextureNode('depth');
-        const vel = scenePass.getTextureNode('velocity');
-        result = traa(result, depth, vel, camera) as unknown as Vec4Node;
+        if (settings.taa) {
+          const depth = sp.getTextureNode('depth');
+          const vel = sp.getTextureNode('velocity');
+          chain = traa(chain, depth, vel, camera) as unknown as Vec4Node;
+        }
+        result = chain;
+        variants.set(key, result);
       }
       pipeline.outputNode = result;
       pipeline.needsUpdate = true;
