@@ -21,10 +21,11 @@ describe('carte de France des zones', () => {
     expect(new Set(ZONE_SPOTS.map((s) => s.id)).size).toBe(ZONE_SPOTS.length);
   });
 
-  it('chaque zone tombe dans le contour de la France métropolitaine', () => {
+  it('chaque zone tombe dans le contour de la France (continent, Corse ou île)', () => {
     for (const s of ZONE_SPOTS) {
       const p = l93ToWgs84(s.x, s.y);
-      expect(inside(p.lon, p.lat, FRANCE_OUTLINE[0]!), s.id).toBe(true);
+      // Continent, Corse ou île : un point en mer ou hors de France n'est dans aucun contour.
+      expect(FRANCE_OUTLINE.some((ring) => inside(p.lon, p.lat, ring)), s.id).toBe(true);
     }
   });
 
