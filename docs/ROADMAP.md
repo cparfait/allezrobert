@@ -71,7 +71,7 @@ Idées seulement : ni nom, ni asset, ni code, ni physique de NCT Ride (la vitess
 | --- | --- | --- | --- |
 | 1 | Équipiers IA pour rouler seul : allure à % de FTP réglable en sortie, relais, équipiers lâchés en côte et attendus, ordre « ralentissez », barre d'aspiration, aspiration partielle si décalé | 5, avancé juste après le jalon 1 | fait en solo ([ / ] allure, R ralentir, attente des lâchés, barre d’aspiration, demi-tour de l’équipier parti trop loin devant : `TeammateUTurn` dans packages/physics) |
 | 2 | IA avec réserve W′bal ; profils échappée / sprinteur / suiveur ; niveaux 80 / 100 / 115 % FTP | 5 | fait (W′bal, profils, niveau 80 / 100 / 115 % au menu) |
-| 3 | Monde vivant : trafic qui double en s'écartant, piétons, déclencheurs à une distance de route | 3 | fait (voitures, camionnettes, tracteur, piétons, cyclistes dans les deux sens, trains déclenchés) |
+| 3 | Monde vivant : trafic qui double en s'écartant, déclencheurs à une distance de route | 3 | fait (voitures, camionnettes, tracteur, piétons, cyclistes dans les deux sens, trains déclenchés) |
 | 4 | Son positionné depuis OSM (église → cloches, prairie → vaches, eau…) | 3 | fait |
 | 5 | Caméra « GoPro » sur la poitrine | 3 | fait |
 | 6 | Poussière sur les chemins, roulement selon le revêtement | 3 | fait (Crr et son selon le tag OSM `surface`, pneus gravel et VTT, poussière derrière la roue sur chemin sec, chaussée mouillée) |

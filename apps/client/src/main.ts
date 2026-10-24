@@ -54,7 +54,6 @@ import { RideSequences } from './game/sequences.ts';
 import { GuestInputSource } from './game/guest.ts';
 import { Crowd } from './world/crowd.ts';
 import { TownSigns } from './world/signs.ts';
-import { Pedestrians } from './world/pedestrians.ts';
 import { AmbientCyclists } from './world/cyclists.ts';
 import { Trains } from './world/trains.ts';
 import { Multiplayer } from './game/multiplayer.ts';
@@ -802,9 +801,8 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   const crowd = new Crowd(track, (x, z) => world.terrain.heightAt(x, z), { riderName: s.name });
   engine.scene.add(crowd.group);
   engine.scene.add(new TownSigns(track, (x, z) => world.terrain.heightAt(x, z)).group);
-  // Monde vivant : piétons sur les bas-côtés des villages (désactivable par ?traffic=0).
-  const pedestrians = params.get('traffic') === '0' || engine.quality.trafficDensity <= 0 ? null : new Pedestrians(track);
-  if (pedestrians) engine.scene.add(pedestrians.mesh);
+  // Monde vivant (cyclistes croisés) : désactivable par ?traffic=0.
+  const alive = params.get('traffic') !== '0' && engine.quality.trafficDensity > 0;
   // Trains : départ quand on approche de l'endroit où la route longe ou croise une voie.
   const trains = new Trains(track, (x, z) => world.terrain.heightAt(x, z), () => world.terrain.loadedTiles());
   engine.scene.add(trains.group);
@@ -816,7 +814,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     trains.addRail(pts);
   }
   // Cyclistes croisés dans les deux sens (désactivables avec le monde vivant ou par ?cyclists=0).
-  const cyclists = pedestrians && params.get('cyclists') !== '0' ? new AmbientCyclists(engine.scene, track, startD) : null;
+  const cyclists = alive && params.get('cyclists') !== '0' ? new AmbientCyclists(engine.scene, track, startD) : null;
   if (cyclists) cyclists.shadowRange = engine.quality.shadowRiders >= 8 ? 35 : engine.quality.shadowRiders > 0 ? 20 : 0;
   const hud = new Hud(hudRoot, track, source.attribution);
   if (nav && source.open) hud.setOpen(source.open.graph);
@@ -1320,7 +1318,6 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     lap('coureurs IA');
     remoteRiders = mp ? mp.render(dt, engine.camera) : [];
     if (!ride.paused) trains.update(dt, ride.state.distM, ride.dir, ride.state.speedMs);
-    pedestrians?.update(dt, ride.state.distM);
     lap('trains, piétons');
     track.positionAt(ride.state.distM, ride.lateral, sample);
     pos.set(sample.x, sample.y + 0.06, sample.z);
