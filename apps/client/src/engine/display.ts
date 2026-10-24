@@ -131,12 +131,16 @@ export function getFpsCap(): number {
   }
 }
 
-/** Résolution dynamique active par défaut ; ?dynres=0 ou localStorage ar.dynres=0 la coupe. */
+/**
+ * Résolution dynamique : désactivée par défaut (?dynres=1 ou localStorage ar.dynres=1 l'active). Mesuré :
+ * le jeu est limité par le processeur (GPU à 2-7 ms), baisser la résolution n'apporte rien, et chaque
+ * changement d'échelle réalloue les images intermédiaires du rendu, ce qui fait lui-même une saccade.
+ */
 export function dynamicResolutionEnabled(): boolean {
   try {
     const raw = new URLSearchParams(location.search).get('dynres') ?? localStorage.getItem('ar.dynres');
-    return raw !== '0';
+    return raw === '1';
   } catch {
-    return true;
+    return false;
   }
 }

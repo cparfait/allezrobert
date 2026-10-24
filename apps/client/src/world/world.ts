@@ -1,3 +1,4 @@
+import { frameStats } from '../engine/frameStats.ts';
 import * as THREE from 'three/webgpu';
 import type { RouteData, RouteTrack } from '@allezrobert/shared';
 import type { QualitySettings } from '../engine/quality.ts';
@@ -115,14 +116,14 @@ export class World {
     this.terrain.onTileLoaded = (tile, alive) => {
       this.soundSources.set(tile.id, soundSourcesForTile(tile));
       const priority = this.terrain.distTo(tile.tx, tile.tz);
-      for (const step of [
-        () => this.buildings.addTile(tile),
-        () => this.network.addTile(tile),
-        () => this.vegetation.addTile(tile),
-        () => this.water.addTile(tile),
-        () => this.railways.addTile(tile),
-      ])
-        this.terrain.work.defer(() => alive() && step(), priority);
+      for (const [label, step] of [
+        ['bâtiments', () => this.buildings.addTile(tile)],
+        ['routes', () => this.network.addTile(tile)],
+        ['végétation', () => this.vegetation.addTile(tile)],
+        ['eau', () => this.water.addTile(tile)],
+        ['rails', () => this.railways.addTile(tile)],
+      ] as const)
+        this.terrain.work.defer(() => alive() && step(), priority, label);
     };
     this.terrain.onTileUnloaded = (tile) => {
       this.soundSources.delete(tile.id);
@@ -187,7 +188,9 @@ export class World {
 
   update(dt: number, focus: THREE.Vector3): void {
     this.env.update(dt, focus);
+    const tv = frameStats.enabled ? performance.now() : 0;
     this.vegetation.update(focus);
+    if (frameStats.enabled) frameStats.add('végétation (détail)', performance.now() - tv);
     this.grass.update(focus);
     const w = this.env.state.weather;
     this.road.wetness.value = w.rain;

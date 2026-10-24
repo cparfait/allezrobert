@@ -1,6 +1,7 @@
 import { deltaDecodeU16, type RoadGraphData, type RouteData, type WorldMeta, type WorldPlace, type WorldTile } from '@allezrobert/shared';
 import type { HorizonGrid, LoadedTile, TileFeatures, WorldSource } from './types.ts';
 import { worldFetch } from './packs.ts';
+import { frameStats } from '../engine/frameStats.ts';
 
 /**
  * Monde généré par tools/terrain (IGN + OpenStreetMap), servi depuis public/worlds/<id>/ :
@@ -78,9 +79,11 @@ export async function createFileWorld(id: string, meta: WorldMeta): Promise<Worl
       const bin = await worldFetch(`${base}/tiles/${grid.file}`);
       if (!bin.ok) throw new Error(`HTTP ${bin.status}`);
       const raw = new Uint16Array(await bin.arrayBuffer());
+      const t0 = frameStats.enabled ? performance.now() : 0;
       if (tile.heights.delta) deltaDecodeU16(raw, grid.n);
       const heights = new Float32Array(raw.length);
       for (let i = 0; i < raw.length; i++) heights[i] = tile.heights.baseM + (raw[i] as number) * tile.heights.stepM;
+      if (frameStats.enabled) frameStats.add('décodage tuile', performance.now() - t0);
       const idx = index.get(key);
       const hasOrtho = idx ? idx.lods.includes('ortho') : true;
       const orthoUrl = hasOrtho ? await orthoSource(`${base}/tiles/${key}.ortho.jpg`) : null;
@@ -93,7 +96,7 @@ export async function createFileWorld(id: string, meta: WorldMeta): Promise<Worl
         size: T,
         n: grid.n,
         heights,
-        features: toFeatures(tile),
+        features: decodeFeatures(tile),
         ...(orthoUrl ? { orthoUrl } : {}),
       } satisfies LoadedTile;
     },
@@ -114,6 +117,13 @@ async function orthoSource(path: string): Promise<string | null> {
   } catch {
     return null;
   }
+}
+
+function decodeFeatures(t: WorldTile): TileFeatures {
+  const t0 = frameStats.enabled ? performance.now() : 0;
+  const f = toFeatures(t);
+  if (frameStats.enabled) frameStats.add('décodage tuile', performance.now() - t0);
+  return f;
 }
 
 function toFeatures(t: WorldTile): TileFeatures {

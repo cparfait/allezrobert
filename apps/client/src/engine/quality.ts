@@ -101,7 +101,8 @@ export const QUALITY_PRESETS: Record<QualityLevel, QualitySettings> = {
   high: {
     level: 'high',
     pixelRatio: 1,
-    maxPixels: 2560 * 1440,
+    // 4K : couvre un écran 32:9 de 5120 × 1440 sans réduire (image nette) ; les GPU modestes partent en medium.
+    maxPixels: 3840 * 2160,
     shadowMapSize: 2048,
     shadowCascades: 3,
     shadowFar: 400,
@@ -128,7 +129,7 @@ export const QUALITY_PRESETS: Record<QualityLevel, QualitySettings> = {
   ultra: {
     level: 'ultra',
     pixelRatio: 1,
-    maxPixels: 3840 * 2160,
+    maxPixels: Number.POSITIVE_INFINITY,
     shadowMapSize: 4096,
     shadowCascades: 4,
     shadowFar: 900,
