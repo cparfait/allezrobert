@@ -225,7 +225,7 @@ export class Onboarding {
       <div class="card panel onboarding ${side ? 'ob-side' : ''}">
       <div class="ob-progress">${dots}<span>${fr ? 'Étape' : 'Step'} ${i + 1} / ${STEPS.length}</span></div>${body}
       <div class="row" style="justify-content:space-between;margin-top:22px">
-        <button class="btn" id="o-skip">${fr ? 'Passer le tutoriel' : 'Skip tutorial'}</button>
+        ${i === STEPS.length - 1 ? '<span></span>' : `<button class="btn" id="o-skip">${fr ? 'Passer le tutoriel' : 'Skip tutorial'}</button>`}
         <div class="row">${i > 0 ? `<button class="btn" id="o-back">←</button>` : ''}${i === STEPS.length - 1 && this.wantFtp ? `<button class="btn" id="o-later">${fr ? 'Plus tard' : 'Later'}</button>` : ''}<button class="btn primary" id="o-next">${i === STEPS.length - 1 ? (this.wantFtp ? (fr ? 'Lancer le test FTP' : 'Start the FTP test') : fr ? 'Terminer ✓' : 'Finish ✓') : fr ? 'Suivant →' : 'Next →'}</button></div>
       </div></div></div></div></div>`;
     this.bind();

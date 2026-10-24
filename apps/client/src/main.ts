@@ -558,16 +558,20 @@ async function boot(): Promise<void> {
    */
   let atelierPrep: Promise<void> | null = null;
   const prepareAtelier = (): Promise<void> =>
-    (atelierPrep ??= modelsReady
-      .then(() => atelier.prepare({ ...settings.look, heightCm: settings.heightCm }))
-      .then(() => {
-        atelierBuilt = true;
-      })
-      .catch(() => undefined));
+    (atelierPrep ??= (async () => {
+      const t0 = performance.now();
+      await modelsReady;
+      const t1 = performance.now();
+      await atelier.prepare({ ...settings.look, heightCm: settings.heightCm });
+      atelierBuilt = true;
+      console.info(`[atelier] préparé : modèles ${Math.round(t1 - t0)} ms, pièce et shaders ${Math.round(performance.now() - t1)} ms`);
+    })().catch(() => undefined));
   const whenAtelierReady = (build: () => boolean): void => {
     if (!atelierBuilt && !atelierWait) atelierWait = worldOverlay(getLang() === 'fr' ? 'Chargement du garage…' : 'Loading the garage…');
     // Attend la préparation en coulisse (shaders compilés sans bloquer) plutôt que de tout refaire au premier rendu.
-    void prepareAtelier()
+    // Modèles chargés, puis au plus 3 s de préparation : si la compilation traîne, l'atelier s'affiche quand même (compilé au premier rendu).
+    void modelsReady
+      .then(() => Promise.race([prepareAtelier(), new Promise<void>((r) => setTimeout(r, 3000))]))
       .then(() => (atelierWait ? new Promise<void>((r) => setTimeout(r, 40)) : undefined)) // laisse l'écran d'attente se peindre
       .then(() => {
         if (build()) atelierBuilt = true;
