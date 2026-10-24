@@ -4,10 +4,11 @@ import { getLang, setLang, t } from '../i18n/index.ts';
 import type { DevicePanel } from '../ui/menu.ts';
 import { saveSettings, type Settings } from '../ui/settings.ts';
 import { VoiceOver } from './voice.ts';
+import { renderCompanionSettings } from '../ui/companionQr.ts';
 
 // Premier lancement : accueil, équipement (capteurs, vitesses), profil, avatar, puis la page finale
 // (test FTP si demandé, sinon le mot de la fin).
-const STEPS = ['welcome', 'devices', 'gears', 'profile', 'avatar', 'final'] as const;
+const STEPS = ['welcome', 'devices', 'gears', 'companion', 'profile', 'avatar', 'final'] as const;
 type Step = (typeof STEPS)[number];
 
 const SKINS = ['#f1c27d', '#e0ac69', '#c68642', '#8d5524', '#ffdbac', '#5c3a21'];
@@ -28,7 +29,8 @@ const DI2_MODELS: Array<[string, string, string]> = [
 
 /** Aperçu 3D du coureur derrière le tutoriel (étape avatar). */
 export interface AvatarPreview {
-  show(look: AvatarLook): void;
+  /** `bareHead` : tête nue (teint et cheveux visibles) ; faux pour voir le casque choisi. */
+  show(look: AvatarLook, bareHead?: boolean): void;
   hide(): void;
 }
 
@@ -45,6 +47,8 @@ export class Onboarding {
   private readonly done: (s: Settings, skipped: boolean) => void;
   private readonly preview: AvatarPreview | undefined;
   private previewOn = false;
+  /** Aperçu tête nue (peau, cheveux), sauf juste après le choix d'un casque, pour le voir. */
+  private bareHead = true;
   /** Test FTP demandé à l'étape profil : proposé sur la page finale. */
   private wantFtp = false;
   private assiomaSaid = false;
@@ -89,7 +93,7 @@ export class Onboarding {
   private syncPreview(): void {
     if (this.step === 'avatar') {
       this.previewOn = true;
-      this.preview?.show({ ...DEFAULT_LOOK, ...this.s.look });
+      this.preview?.show({ ...DEFAULT_LOOK, ...this.s.look }, this.bareHead);
     } else if (this.previewOn) {
       this.previewOn = false;
       this.preview?.hide();
@@ -191,9 +195,17 @@ export class Onboarding {
             <div class="field">${fr ? 'Commandes' : 'Controls'}<div style="color:var(--ar-fg);font-size:14px;line-height:1.6">Di2 · Zwift Click / Play / Ride · ${fr ? 'manette' : 'gamepad'} · ${fr ? 'clavier ↑ ↓' : 'keyboard ↑ ↓'} · ${fr ? 'appli compagnon' : 'companion app'}</div></div>
             ${cassette ? `<label class="field">${fr ? 'Nombre de vitesses de la cassette' : 'Cassette speeds'}<select id="o-speeds">${CASSETTE_SPEEDS.map((n) => `<option value="${n}" ${this.s.cassetteSpeeds === n ? 'selected' : ''}>${n}</option>`).join('')}</select></label>` : ''}
             ${di2 ? `<label class="field">${fr ? 'Commandes Di2 détectées : ton modèle' : 'Di2 detected: your model'}<select id="o-di2"><option value="" ${this.s.di2Model ? '' : 'selected'}>${fr ? 'Choisir…' : 'Choose…'}</option>${DI2_MODELS.map(([v, f, e]) => `<option value="${v}" ${this.s.di2Model === v ? 'selected' : ''}>${fr ? f : e}</option>`).join('')}</select></label>` : ''}
-          </div>`;
+          </div>
+          <p style="font-size:14px;line-height:1.5;margin:14px 0 0">📱 ${fr ? 'Sans commandes au guidon ? Les boutons + et − de l’<b>appli compagnon</b>, sur ton téléphone, changent aussi de vitesse (étape suivante).' : 'No shifters on the bars? The + and − buttons of the <b>companion app</b> on your phone shift gears too (next step).'}</p>`;
         break;
       }
+      case 'companion':
+        // Appli compagnon : son QR code (le même que dans les réglages), pour l'appairer tout de suite.
+        body = `<h2>${fr ? 'Appli compagnon' : 'Companion app'}</h2>
+          <p style="font-size:15px;line-height:1.55;margin:0 0 14px">${fr ? 'Ton téléphone devient ta télécommande : <b>change de vitesse</b> avec les boutons + et −, choisis ta route aux carrefours, garde l’œil sur ton compteur, pilote la musique et le chat.' : 'Your phone becomes your remote: <b>shift gears</b> with the + and − buttons, pick your way at junctions, keep an eye on your bike computer, control music and chat.'}</p>
+          <div id="o-companion"></div>
+          <p style="font-size:13px;color:var(--ar-muted);margin:10px 0 0">${fr ? 'Tu pourras le retrouver plus tard dans Réglages.' : 'You can find it later in Settings.'}</p>`;
+        break;
       case 'final':
         body = this.wantFtp
           ? `<h2>${fr ? 'Le test FTP' : 'The FTP test'}</h2>
@@ -219,6 +231,7 @@ export class Onboarding {
         <div class="row">${i > 0 ? `<button class="btn" id="o-back">←</button>` : ''}${i === STEPS.length - 1 && this.wantFtp ? `<button class="btn" id="o-later">${fr ? 'Plus tard' : 'Later'}</button>` : ''}<button class="btn primary" id="o-next">${i === STEPS.length - 1 ? (this.wantFtp ? (fr ? 'Lancer le test FTP' : 'Start the FTP test') : fr ? 'Terminer ✓' : 'Finish ✓') : fr ? 'Suivant →' : 'Next →'}</button></div>
       </div></div></div></div></div>`;
     this.bind();
+    if (this.step === 'companion') renderCompanionSettings(this.root.querySelector('#o-companion'));
     this.syncPreview();
   }
 
@@ -258,12 +271,15 @@ export class Onboarding {
     const setLook = (patch: Partial<AvatarLook>, redraw: boolean) => {
       this.s.look = { ...DEFAULT_LOOK, ...this.s.look, ...patch };
       if (redraw) this.render();
-      else this.preview?.show(this.s.look);
+      else this.preview?.show(this.s.look, this.bareHead);
     };
     const pick = (attr: 'skin' | 'hair' | 'jersey' | 'accent' | 'helmet' | 'bike') =>
       this.root.querySelectorAll<HTMLButtonElement>(`[data-${attr}]`).forEach((b) =>
         b.addEventListener('click', () => {
           const c = b.dataset[attr] as string;
+          // Casque : on le montre ; peau et cheveux : tête nue pour les voir.
+          if (attr === 'helmet') this.bareHead = false;
+          else if (attr === 'skin' || attr === 'hair') this.bareHead = true;
           if (attr === 'hair') return setLook({ hair: c, ...(this.s.look.hairStyle === 3 ? { hairStyle: 0 } : {}) }, true);
           // Couleur de vélo choisie : vélo de base peint de cette couleur (le modèle du garage est retiré).
           if (attr === 'bike') {
@@ -275,7 +291,12 @@ export class Onboarding {
         }),
       );
     for (const a of ['skin', 'hair', 'jersey', 'accent', 'helmet', 'bike'] as const) pick(a);
-    this.root.querySelectorAll<HTMLButtonElement>('[data-bald]').forEach((b) => b.addEventListener('click', () => setLook({ hairStyle: 3 }, true)));
+    this.root.querySelectorAll<HTMLButtonElement>('[data-bald]').forEach((b) =>
+      b.addEventListener('click', () => {
+        this.bareHead = true;
+        setLook({ hairStyle: 3 }, true);
+      }),
+    );
     $<HTMLInputElement>('o-build')?.addEventListener('input', (e) => setLook({ build: Number((e.target as HTMLInputElement).value) }, false));
     $<HTMLInputElement>('o-consent')?.addEventListener('change', (e) => {
       const ok = (e.target as HTMLInputElement).checked;

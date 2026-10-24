@@ -596,12 +596,12 @@ async function boot(): Promise<void> {
   menu.onTutorial = () => {
     // Tutoriel terminé ou passé : retour à l'accueil, sans lancer de sortie.
     const preview = {
-      show: (look: AvatarLook) => {
+      show: (look: AvatarLook, bareHead = true) => {
         if (!inMenu) return;
         menuVideo.stop();
         garage = { view: '3q', yaw: 0, far: 1.45 };
-        // Tête nue : teint et cheveux se voient sous le casque.
-        showGarage(look, true);
+        // Tête nue (teint et cheveux visibles), sauf quand on vient de choisir un casque.
+        showGarage(look, bareHead);
       },
       hide: () => {
         garage = null;

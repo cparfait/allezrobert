@@ -1169,11 +1169,13 @@ export class GltfRiderAvatar implements RiderAvatarLike {
 
   /**
    * Morphologie de la tenue : cible « build » du coureur actuel ; avatar MPFB : curseurs de forme
-   * (`look.face`), la carrure `build` servant de musculature tant que la forme ne la fixe pas.
+   * (`look.face`), la carrure `build` (0 = fin, 1 = costaud) servant de poids tant que la forme ne le
+   * fixe pas. Pas la musculature : à poids égal, plus de muscle donne une silhouette plus sèche (le
+   * curseur paraissait inversé).
    */
   private setBuild(build: number): void {
     if (this.identityMeshes.length) {
-      const shape: Record<string, number> = { muscle: THREE.MathUtils.clamp((build - 0.4) / 0.6, -1, 1) };
+      const shape: Record<string, number> = { weight: THREE.MathUtils.clamp((build - 0.4) / 0.6, -1, 1) };
       this.setFace({ ...shape, ...decodeFace(this.look.face) });
     }
     for (const m of this.morphMeshes) {
