@@ -1,5 +1,8 @@
 # Robert sur son home trainer (écran d'attente)
 
+Le jeu affiche l'image fixe `apps/client/public/robert-trainer.png` (plus légère qu'une vidéo pendant
+un chargement). La boucle animée ci-dessous reste disponible si besoin.
+
 Boucle vidéo de l'écran d'attente (`apps/client/public/robert-trainer.webm`, fond transparent) faite à
 partir de l'illustration `source.jpg`, animée avec [HyperFrames](https://github.com/heygen-com/hyperframes).
 
