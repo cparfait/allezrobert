@@ -104,7 +104,7 @@ const SLOT_SHOT: Record<TuneSlot | 'overview', keyof typeof SHOTS> = {
 };
 
 /** Hauteur du vélo sur le pied d'atelier (roues décollées). */
-const LIFT = 0.24;
+const LIFT = 0.5;
 
 /**
  * Environnement de studio (reflets et lumière ambiante, préfiltré par PMREM) : pièce chaude et
@@ -170,9 +170,9 @@ function buildStand(): THREE.Group {
   g.add(cyl(0.03, 0.05, black, mast.x, 0.24, mast.z, 16));
   // Bagues turquoise du réglage de hauteur, plateau à outils.
   g.add(cyl(0.027, 0.03, teal, mast.x, 0.34, mast.z, 16));
-  g.add(cyl(0.027, 0.03, teal, mast.x, 0.72, mast.z, 16));
-  g.add(box(0.24, 0.012, 0.17, black, mast.x + 0.02, 0.86, mast.z));
-  for (const s of [-1, 1]) g.add(box(0.24, 0.02, 0.008, black, mast.x + 0.02, 0.872, mast.z + s * 0.081));
+  g.add(cyl(0.027, 0.03, teal, mast.x, 0.78, mast.z, 16));
+  g.add(box(0.24, 0.012, 0.17, black, mast.x + 0.02, 0.92, mast.z));
+  for (const s of [-1, 1]) g.add(box(0.24, 0.02, 0.008, black, mast.x + 0.02, 0.932, mast.z + s * 0.081));
   // Té, bras horizontal, bouton de serrage, mâchoire à levier.
   g.add(box(0.06, 0.06, 0.06, black, mast.x, topY, mast.z));
   g.add(rod(new THREE.Vector3(mast.x, topY, mast.z), new THREE.Vector3(clamp.x - 0.05, topY, clamp.z), 0.016, black));
