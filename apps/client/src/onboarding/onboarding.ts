@@ -144,7 +144,7 @@ export class Onboarding {
         const sw = (attr: string, colors: string[], cur: string) => colors.map((c) => `<button class="btn small" data-${attr}="${c}" style="background:${c};width:30px;height:30px;padding:0;border:${cur.toLowerCase() === c ? '3px solid #ffd23f' : '1px solid rgba(255,255,255,.35)'}"></button>`).join('');
         const look = this.s.look;
         const bald = look.hairStyle === 3;
-        body = `<h2>Avatar</h2><div class="grid3">
+        body = `<h2>Avatar</h2><div class="grid3 ob-avatar-grid">
           <label class="field">${fr ? 'Peau' : 'Skin'}<div class="row">${sw('skin', SKINS, look.skin)}</div></label>
           <label class="field">${fr ? 'Cheveux' : 'Hair'}<div class="row">${sw('hair', HAIRS, bald ? '' : look.hair)}<button class="btn small ${bald ? 'primary' : ''}" data-bald="1">${fr ? 'Chauve' : 'Bald'}</button></div></label>
           <label class="field">${fr ? 'Morphologie' : 'Build'}<input id="o-build" type="range" min="0" max="1" step="0.05" value="${look.build}"/></label>
