@@ -72,6 +72,17 @@ export function renderPixelRatio(i: PixelRatioInput): number {
   return Math.max(MIN_PIXEL_RATIO, Math.min(base, fit) * Math.min(i.scale ?? 1, 1));
 }
 
+export const DEFAULT_UI_ASPECT_CAP: AspectCap = '21:9';
+
+/** Format maximal de la zone sûre de l'interface (HUD et menus) : la 3D remplit l'écran, les informations restent groupées au centre. */
+export function getUiAspectCap(): AspectCap {
+  return readChoice('ar.uiAspect', 'uiaspect', ASPECT_RATIO, DEFAULT_UI_ASPECT_CAP);
+}
+
+export function setUiAspectCap(v: AspectCap): void {
+  localStorage.setItem('ar.uiAspect', v);
+}
+
 /** Contraint le conteneur de l'application au format maximal et le centre ; le reste de la fenêtre reste sombre. */
 export function applyViewport(app: HTMLElement): { w: number; h: number } {
   const cap = getAspectCap();
@@ -87,7 +98,26 @@ export function applyViewport(app: HTMLElement): { w: number; h: number } {
     app.style.removeProperty('right');
     app.style.removeProperty('left');
   }
+  applyUiZone(app, w, h);
   return { w, h };
+}
+
+/** Borne et centre le HUD et les menus (enfants directs de l'application) dans leur zone sûre. */
+function applyUiZone(app: HTMLElement, appW: number, appH: number): void {
+  const { w } = viewportSize(appW, appH, getUiAspectCap());
+  app.querySelectorAll<HTMLElement>(':scope > .hud, :scope > .ui').forEach((el) => {
+    if (w < appW) {
+      el.style.left = '0';
+      el.style.right = '0';
+      el.style.margin = '0 auto';
+      el.style.width = `${w}px`;
+    } else {
+      el.style.removeProperty('width');
+      el.style.removeProperty('margin');
+      el.style.removeProperty('left');
+      el.style.removeProperty('right');
+    }
+  });
 }
 
 /** Limite d'images par seconde du rendu (0 = aucune) : sur un écran 240 Hz, inutile de dessiner 240 images. ?fps=60 ou localStorage ar.fpsCap. */
