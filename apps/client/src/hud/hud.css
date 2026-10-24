@@ -227,3 +227,12 @@ body:has(.subtitle:not(.hidden)) .ob-mini { animation: ob-talk 0.9s ease-in-out 
   0%, 100% { transform: scale(1); filter: drop-shadow(0 0 4px rgba(255, 210, 63, 0.55)) drop-shadow(0 0 10px rgba(255, 210, 63, 0.3)); }
   50% { transform: scale(1.1) rotate(-2deg); filter: drop-shadow(0 0 9px rgba(255, 210, 63, 0.95)) drop-shadow(0 0 22px rgba(255, 210, 63, 0.6)); }
 }
+
+/*
+ * Zone sûre de l'interface (engine/display.ts) : #hud et #ui sont bornés et centrés sur un écran très large.
+ * Les fonds assombris débordent de la zone pour ne pas laisser de couture visible de chaque côté.
+ */
+.menu { box-shadow: 0 0 0 100vw rgba(10, 14, 22, 0.8); }
+.pause-overlay { box-shadow: 0 0 0 100vw rgba(10, 14, 22, 0.55); }
+.loading { box-shadow: 0 0 0 100vw #0a0e16; }
+.mm-modal { box-shadow: 0 0 0 100vw rgba(4, 6, 10, 0.6); }
