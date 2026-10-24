@@ -271,6 +271,15 @@ export class MainMenu {
   onScene?: (view: 'poster' | GarageView, yaw: number, bikeOnly?: boolean) => void;
   /** Aperçu d'un équipement (même verrouillé) sur le coureur du garage ; null : tenue équipée. */
   onPreviewLook?: (look: AvatarLook | null) => void;
+  private prep = false;
+
+  /** Préparation en coulisse (paysage, garage) : petit message d'attente sous « Rouler » sur l'accueil. */
+  set preparing(on: boolean) {
+    this.prep = on;
+    const el = this.root.querySelector<HTMLElement>('.mm-home-wait');
+    if (el) el.hidden = !on;
+  }
+
   /** Essais en cours au garage, un par emplacement (vélo, maillot…) : ils restent en place pendant qu'on en essaie d'autres. */
   private readonly previews = new Map<CosmeticSlot, string>();
   /** Compte connecté (affiché dans le menu), connexion / déconnexion, synchro du profil. */
@@ -545,6 +554,7 @@ export class MainMenu {
       this.root.innerHTML = `<div class="mm mm-tab-home">
         <div class="mm-hero mm-hero-home"><h1>Allez <em>Robert</em> !</h1><p>${L ? 'Rouler ensemble, chacun chez soi.' : 'Ride together, each from home.'}</p></div>
         <button class="mm-go mm-home-go" data-tab="ride">${t('ride')} <span>→</span></button>
+        <p class="mm-home-wait" ${this.prep ? '' : 'hidden'}><i></i>${L ? 'Préparation du jeu…' : 'Getting the game ready…'}</p>
       </div>`;
       this.bind();
       return;

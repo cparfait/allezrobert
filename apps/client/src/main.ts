@@ -666,11 +666,13 @@ async function boot(): Promise<void> {
     await withWorld(getLang() === 'fr' ? 'Préparation de la sortie…' : 'Preparing the ride…');
     void startRide(scene, settings, devices.source(), {});
   } else {
-    // Le paysage et l'atelier se préparent pendant que le coureur choisit (sans bloquer le menu).
+    // Paysage puis atelier (l'un après l'autre : ensemble, ils figeaient l'accueil). Message d'attente
+    // sous « Rouler » pendant ce temps. Le tutoriel, lui, lance l'atelier tout de suite.
+    menu.preparing = true;
     setTimeout(() => {
-      void prepareWorld();
-      // L'atelier n'attend pas le paysage : prêt dès les modèles chargés (première ouverture du garage immédiate).
-      void prepareAtelier();
+      void prepareWorld()
+        .then(() => prepareAtelier())
+        .finally(() => (menu.preparing = false));
     }, 400);
     // Compte : session existante, sinon écran de connexion (sauf choix « sans compte »).
     let me: Me | null = await fetchMe();
