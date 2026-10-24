@@ -666,12 +666,13 @@ async function boot(): Promise<void> {
     await withWorld(getLang() === 'fr' ? 'Préparation de la sortie…' : 'Preparing the ride…');
     void startRide(scene, settings, devices.source(), {});
   } else {
-    // Paysage puis atelier (l'un après l'autre : ensemble, ils figeaient l'accueil). Message d'attente
-    // sous « Rouler » pendant ce temps. Le tutoriel, lui, lance l'atelier tout de suite.
+    // Paysage et atelier, l'un après l'autre (ensemble, ils figeaient l'accueil) ; Robert patiente à la
+    // place de « Rouler » pendant ce temps. Tutoriel à venir : l'atelier d'abord (étape Avatar), le
+    // paysage ensuite, il ne sert qu'à la fin.
     menu.preparing = true;
+    const atelierFirst = Onboarding.needed();
     setTimeout(() => {
-      void prepareWorld()
-        .then(() => prepareAtelier())
+      void (atelierFirst ? prepareAtelier().then(() => prepareWorld()) : prepareWorld().then(() => prepareAtelier()))
         .finally(() => (menu.preparing = false));
       // Sécurité : un chargement bloqué ne doit pas priver du bouton « Rouler ».
       setTimeout(() => (menu.preparing = false), 10000);
