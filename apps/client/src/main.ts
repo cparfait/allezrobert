@@ -608,7 +608,8 @@ async function boot(): Promise<void> {
         atelier.set(null);
       },
     };
-    new Onboarding(ui, settings, devices.panel, () => menu.show('home'), preview).start();
+    // Fin du tutoriel : directement le menu (onglet Rouler), sans repasser par la page d'accueil et son bouton.
+    new Onboarding(ui, settings, devices.panel, () => menu.show('ride'), preview).start();
   };
   bootDone();
   if (autostart) {
