@@ -227,6 +227,25 @@ body:has(.subtitle:not(.hidden)) .ob-mini { animation: ob-talk 0.9s ease-in-out 
   0%, 100% { transform: scale(1); filter: drop-shadow(0 0 4px rgba(255, 210, 63, 0.55)) drop-shadow(0 0 10px rgba(255, 210, 63, 0.3)); }
   50% { transform: scale(1.1) rotate(-2deg); filter: drop-shadow(0 0 9px rgba(255, 210, 63, 0.95)) drop-shadow(0 0 22px rgba(255, 210, 63, 0.6)); }
 }
+/*
+ * Robert du tutoriel : planche robert-tuto.png (bouche ouverte | bouche fermée). Au repos, bouche fermée ;
+ * pendant les sous-titres de la voix off, les deux images alternent à un rythme irrégulier (il parle).
+ */
+/* Assez grand pour voir la bouche bouger ; marges négatives : l'en-tête de la carte garde sa hauteur. */
+.ob-robert { display: inline-block; flex: none; height: 132px; width: auto; aspect-ratio: 237 / 474; margin: -24px 0 -12px; background: url('/robert-tuto.png') 100% 0 / 200% 100% no-repeat; }
+body:has(.subtitle:not(.hidden)) .ob-robert { animation: ob-talk 0.9s ease-in-out infinite, ob-mouth 1.1s steps(1, end) infinite; }
+@keyframes ob-mouth {
+  0% { background-position: 0 0; }
+  16% { background-position: 100% 0; }
+  28% { background-position: 0 0; }
+  47% { background-position: 100% 0; }
+  58% { background-position: 0 0; }
+  80% { background-position: 100% 0; }
+  90% { background-position: 0 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  body:has(.subtitle:not(.hidden)) .ob-robert { animation: none; }
+}
 
 /*
  * Zone sûre de l'interface (engine/display.ts) : #hud et #ui sont bornés et centrés sur un écran très large.
