@@ -82,7 +82,7 @@ const RIG_BONES: Record<'classic' | 'mpfb', Partial<Record<BoneName, string>>> =
  * coureur (cyclist.glb) avec ?avatar=classic.
  */
 const AVATAR_PARAM = typeof location === 'undefined' ? null : new URLSearchParams(location.search).get('avatar');
-export type AvatarKind = 'boutique' | 'mpfb' | 'classic';
+export type AvatarKind = 'boutique' | 'mpfb' | 'classic' | 'female';
 const AVATAR_KIND: AvatarKind = AVATAR_PARAM === 'classic' || AVATAR_PARAM === 'boutique' ? AVATAR_PARAM : 'mpfb';
 /**
  * Fichiers du coureur par niveau de détail et distance (m) d'apparition de chaque niveau
@@ -93,8 +93,10 @@ const FILES: Record<AvatarKind, readonly string[]> = {
   boutique: ['avatar/boutique/rider.glb', 'avatar/boutique/rider_lod1.glb', 'avatar/boutique/rider_lod2.glb'],
   mpfb: ['avatar/rider.glb', 'avatar/rider_lod1.glb', 'avatar/rider_lod2.glb'],
   classic: ['cyclist.glb', 'cyclist_lod1.glb'],
+  // Modèle MPFB féminin de base (build_avatar.py --variant female) : choisi pour les looks « sex < 0 ».
+  female: ['avatar/rider_female.glb', 'avatar/rider_female_lod1.glb', 'avatar/rider_female_lod2.glb'],
 };
-const LOD_DISTANCES: Record<AvatarKind, readonly number[]> = { boutique: [0, 10, 30], mpfb: [0, 10, 30], classic: [0, 30] };
+const LOD_DISTANCES: Record<AvatarKind, readonly number[]> = { boutique: [0, 10, 30], mpfb: [0, 10, 30], classic: [0, 30], female: [0, 10, 30] };
 const WHEEL_R = 0.335;
 /**
  * Taille du coureur (look.heightCm, profil du joueur) : modèle acheté construit à 1,765 m
@@ -105,6 +107,10 @@ const WHEEL_R = 0.335;
 const MODEL_HEIGHT_CM = 176.5;
 /** Avatar MPFB (build_avatar.py) : stature mesurée sur le squelette (jambe + tronc + cou + tête) ≈ 1,75 m. */
 const MPFB_HEIGHT_CM = 175;
+/** Avatar féminin (build_avatar.py --variant female, jambes à la longueur du vélo de référence) : stature mesurée ≈ 1,748 m. */
+const FEMALE_HEIGHT_CM = 175;
+/** Flexion du genou visée, pédale en bas (route : 145° ± 5°). */
+const KNEE_BOTTOM_DEG = 145;
 const HEIGHT_RANGE_CM: readonly [number, number] = [160, 195];
 /**
  * Position chrono, par unité de « tuck » (rad) : surtout le bassin qui bascule vers l'avant (dos
@@ -114,6 +120,8 @@ const TUCK_HIPS = 0.5;
 const TUCK_SPINE = 0.08;
 const TUCK_CHEST = 0.12;
 const TUCK_HEAD = 0.35;
+/** Relevé du cou (rad) d'une morphologie entièrement féminine : tête ≈ 3 cm plus en arrière. */
+const NECK_LIFT = -0.12;
 const X_AXIS = new THREE.Vector3(1, 0, 0);
 const Y_AXIS = new THREE.Vector3(0, 1, 0);
 const Z_AXIS = new THREE.Vector3(0, 0, 1);
@@ -665,6 +673,10 @@ export class GltfRiderAvatar implements RiderAvatarLike {
   private readonly morphMeshes: THREE.Mesh[] = [];
   /** Maillages à curseurs de forme et leur géométrie partagée (avant précalcul). */
   private faceKey = '[]';
+  /** Morphologie féminine (curseur « sex » < 0, de 0 à 1) : cou relevé, tête plus en arrière (NECK_LIFT). */
+  private feminine = 0;
+  /** Type de modèle utilisé (mpfb, female, boutique, classic). */
+  private readonly kind: AvatarKind;
   /** Expressions en sortie (modèle à formes ARKit seulement). */
   private faceAnim: FaceAnimator | null = null;
   /** Coiffures (avatar MPFB) : 0 courts, 1 queue de cheval, 2 tresse, 3 rasé ; moustache. */
@@ -690,6 +702,10 @@ export class GltfRiderAvatar implements RiderAvatarLike {
   private readonly elbowPole: Record<Side, THREE.Vector3> = { L: new THREE.Vector3(), R: new THREE.Vector3() };
   /** Position chrono (vélo à prolongateurs ; 0 = buste de repos) : dos plongeant jusqu'à poser les coudes. */
   private tuck = 0;
+  /** Décalage de selle et de bassin (m, repère du coureur) : voir saddleLiftFor. */
+  private saddleLift = 0;
+  private readonly tmpAnkle = new THREE.Vector3();
+  private readonly tmpPedal = new THREE.Vector3();
   /** Casques route et chrono, lunettes (les deux LOD) : casque chrono à visière selon le vélo. */
   private readonly headgear: Record<'road' | 'aero' | 'glasses', THREE.Object3D[]> = { road: [], aero: [], glasses: [] };
   /** Casque et lunettes masqués (éditeur de visage). */
@@ -711,11 +727,12 @@ export class GltfRiderAvatar implements RiderAvatarLike {
    * (attendues aussi ; les autres se chargent à la demande). Renvoie false si le coureur ou le
    * vélo de base manque.
    */
-  static async load(families: readonly BikeFamily[] = [], baseUrl = `${import.meta.env.BASE_URL}models/`, kinds: readonly AvatarKind[] = [AVATAR_KIND]): Promise<boolean> {
+  static async load(families: readonly BikeFamily[] = [], baseUrl = `${import.meta.env.BASE_URL}models/`, kinds: readonly AvatarKind[] = AVATAR_KIND === 'mpfb' ? ['mpfb', 'female'] : [AVATAR_KIND]): Promise<boolean> {
     const extra = Promise.all(families.map((f) => loadBikeFamily(f)));
     const ok = await Promise.all(kinds.map((k) => GltfRiderAvatar.loadKind(k, baseUrl)));
     await extra;
-    return ok.every(Boolean);
+    // Le modèle féminin est facultatif : sans lui, les looks féminins gardent l'avatar de base.
+    return ok.every((v, i) => v || kinds[i] === 'female');
   }
 
   private static loadKind(kind: AvatarKind, baseUrl: string): Promise<boolean> {
@@ -724,8 +741,8 @@ export class GltfRiderAvatar implements RiderAvatarLike {
       p = (async () => {
         try {
           const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
-          const skin = kind === 'mpfb' ? loadSkinTextures(`${baseUrl}avatar/`) : null;
-          const cloth = kind === 'mpfb' ? loadClothTextures(`${baseUrl}avatar/`) : null;
+          const skin = kind === 'mpfb' || kind === 'female' ? loadSkinTextures(`${baseUrl}avatar/`) : null;
+          const cloth = kind === 'mpfb' || kind === 'female' ? loadClothTextures(`${baseUrl}avatar/`) : null;
           const masks = kind === 'boutique' ? loadTexturedMasks(`${baseUrl}avatar/boutique/`) : null;
           const [riders, plain] = await Promise.all([Promise.all(FILES[kind].map((f) => loader.loadAsync(baseUrl + f))), loadBikeFamily(PLAIN_BIKE_FAMILY), skin, cloth, masks]);
           if (!plain) throw new Error(`vélo de base (${PLAIN_BIKE_FAMILY}) indisponible`);
@@ -755,7 +772,10 @@ export class GltfRiderAvatar implements RiderAvatarLike {
     return templates.has(kind);
   }
 
-  constructor(look: AvatarLook, kind: AvatarKind = AVATAR_KIND) {
+  constructor(look: AvatarLook, kindWanted: AvatarKind = AVATAR_KIND) {
+    // Look féminin (curseur « sex » < 0) : modèle féminin s'il est chargé (le modèle ne change plus ensuite).
+    const kind: AvatarKind = kindWanted === 'mpfb' && templates.has('female') && decodeFace(look.face).sex !== undefined && (decodeFace(look.face).sex as number) <= -0.25 ? 'female' : kindWanted;
+    this.kind = kind;
     const loaded = templates.get(kind);
     if (!loaded) throw new Error('GltfRiderAvatar.load() doit être appelé (et attendu) avant la création');
     this.look = look;
@@ -881,6 +901,7 @@ export class GltfRiderAvatar implements RiderAvatarLike {
         const toPad = _v2.subVectors(pad, sh);
         this.elbowPole[s].copy(toPad).addScaledVector(dir, -toPad.dot(dir)).normalize();
       } else this.elbowPole[s].copy(c.pole);
+      this.handTarget[s].y += this.saddleLift;
     }
   }
 
@@ -1056,6 +1077,7 @@ export class GltfRiderAvatar implements RiderAvatarLike {
     _q2.setFromAxisAngle(X_AXIS, tilt);
     _q3.multiplyQuaternions(_q1, _q2).multiply(hipsR.modelQ);
     _v4.copy(hipsR.modelP);
+    _v4.y += this.saddleLift;
     _v4.y += 0.02 * stand + 0.004 * Math.sin(2 * a) * (1 - stand) * (1 - coast) - 0.01 * Math.abs(Math.cos(a)) * stand;
     _v4.z += 0.13 * stand;
     _v4.applyAxisAngle(Z_AXIS, counter);
@@ -1090,7 +1112,10 @@ export class GltfRiderAvatar implements RiderAvatarLike {
     _q1.multiplyQuaternions(this.mQ.neck, t.bones.head.localQ).invert(); // tête si cou au repos
     _q2.multiplyQuaternions(headTarget, _q1); // écart restant
     _q1.slerpQuaternions(_id, _q2, 0.5);
-    this.setModelQ('neck', _q2.multiplyQuaternions(_q1, this.mQ.neck));
+    _q2.multiplyQuaternions(_q1, this.mQ.neck);
+    // Buste moins profond des profils féminins : la tête déborde plus devant le torse ; cou relevé, tête au regard inchangé (absolue).
+    if (this.feminine > 0) _q2.premultiply(_q3.setFromAxisAngle(X_AXIS, ((globalThis as unknown as { __lift?: number }).__lift ?? NECK_LIFT) * this.feminine));
+    this.setModelQ('neck', _q2);
     this.setModelQ('head', headTarget);
 
     // --- Bras : mains fixes sur le cintre (ou les prolongateurs).
@@ -1139,6 +1164,7 @@ export class GltfRiderAvatar implements RiderAvatarLike {
     const key = JSON.stringify(Object.entries(values).filter(([, v]) => v).sort());
     if (key === this.faceKey) return;
     this.faceKey = key;
+    this.feminine = this.kind === 'mpfb' ? THREE.MathUtils.clamp(-(values.sex ?? 0), 0, 1) : 0;
     for (const it of this.identityMeshes) {
       const id = it.base.userData.identity as IdentityTargets;
       const w = id.names.map((n) => {
@@ -1295,8 +1321,25 @@ export class GltfRiderAvatar implements RiderAvatarLike {
   /** Rapport de taille d'un look (modèles MPFB et acheté ; l'ancien coureur garde la sienne). */
   private sizeOf(look: AvatarLook): number {
     if (this.t.names.hips !== 'pelvis' || !look.heightCm) return 1;
-    const ref = this.t.textured.size ? MODEL_HEIGHT_CM : MPFB_HEIGHT_CM;
+    const ref = this.t.textured.size ? MODEL_HEIGHT_CM : this.kind === 'female' ? FEMALE_HEIGHT_CM : MPFB_HEIGHT_CM;
     return THREE.MathUtils.clamp(look.heightCm, HEIGHT_RANGE_CM[0], HEIGHT_RANGE_CM[1]) / ref;
+  }
+
+  /**
+   * Hauteur de selle : décalage vertical (repère du coureur) qui donne un genou à KNEE_BOTTOM_DEG
+   * pédale en bas (manivelle verticale), compte tenu des longueurs réelles du squelette et de la
+   * manivelle réelle (non mise à l'échelle avec le cadre).
+   */
+  private saddleLiftFor(k: number): number {
+    const t = this.t;
+    const leg = t.legs.R;
+    const thigh = t.bones[leg.upper].modelP;
+    const ankle = this.tmpAnkle.copy(t.ankleFlat.R).applyAxisAngle(X_AXIS, t.pedalPitch).add(this.tmpPedal.set(t.pedalRest.R.x, t.bb.y - t.crank / k, t.bb.z));
+    const target = Math.sqrt(leg.l1 * leg.l1 + leg.l2 * leg.l2 - 2 * leg.l1 * leg.l2 * Math.cos(THREE.MathUtils.degToRad(KNEE_BOTTOM_DEG)));
+    const dx = thigh.x - ankle.x;
+    const dz = thigh.z - ankle.z;
+    const dy = Math.sqrt(Math.max(target * target - dx * dx - dz * dz, 0));
+    return THREE.MathUtils.clamp(dy - (thigh.y - ankle.y), -0.04, 0.05);
   }
 
   /**
@@ -1307,6 +1350,18 @@ export class GltfRiderAvatar implements RiderAvatarLike {
     const k = this.size;
     this.lod.scale.setScalar(k);
     this.lod.position.set(0, WHEEL_R * (1 - k), 0);
+    // VTT : kit de cadre propre (selle et poignées fusionnées), pas de réglage de selle.
+    this.saddleLift = this.bikeType === 'mtb' ? 0 : this.saddleLiftFor(k);
+    this.aimHands();
+    // Selle et poste de pilotage (le bassin et les mains suivent, voir update et aimHands) relevés ou
+    // abaissés de saddleLift : jambe à ≈ 145° au point bas, buste et coudes inchangés.
+    for (const slot of this.bikeSlots) {
+      slot.traverse((o) => {
+        if (o.name !== 'saddle' && o.name !== 'cockpit') return;
+        o.userData.baseY ??= o.position.y;
+        o.position.y = (o.userData.baseY as number) + this.saddleLift;
+      });
+    }
     for (const o of [...this.bike.wheels, ...this.bike.crank, ...this.bike.pedals.L, ...this.bike.pedals.R]) {
       const base = (o.userData.baseScale ??= o.scale.clone()) as THREE.Vector3;
       o.scale.copy(base).divideScalar(k);
