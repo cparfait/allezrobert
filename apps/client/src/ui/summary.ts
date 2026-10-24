@@ -4,7 +4,7 @@ import { CURVE_DURATIONS, durationLabel, POWER_ZONES, type RideHistoryEntry, typ
 import './summary.css';
 
 /** Couleurs des séries (palette catégorielle validée sur fond sombre) et des zones (HUD). */
-const C_RIDE = '#d95926';
+const C_RIDE = '#ffd23f';
 const C_RECORD = '#3987e5';
 const C_HR = '#e66767';
 const C_ALT = '#64748b';
@@ -71,7 +71,7 @@ export function showRideSummary(root: HTMLElement, d: SummaryData, a: SummaryAct
     [L ? 'Temps' : 'Time', hms(s.movingS)],
     ['D+', `${Math.round(s.elevationGainM)} m`],
     [L ? 'Vitesse moy.' : 'Avg speed', `${num(s.avgSpeedKmh, 1)} km/h`, `max ${num(s.maxSpeedKmh, 1)}`],
-    [L ? 'Cardio moy.' : 'Avg HR', s.avgHr ? `${Math.round(s.avgHr)} bpm` : '— bpm', s.maxHr ? `max ${s.maxHr}` : ''],
+    [L ? 'Cardio moy.' : 'Avg HR', s.avgHr ? `${Math.round(s.avgHr)} bpm` : '— bpm', s.maxHr ? `max ${Math.round(s.maxHr)}` : ''],
     [L ? 'Puissance moy.' : 'Avg power', `${Math.round(s.avgWatts)} W`, `${num(s.avgWatts / d.massKg, 1)} W/kg`],
     [L ? 'Normalisée' : 'Normalized', `${Math.round(s.np)} W`, `max ${Math.round(s.maxWatts)} W`],
     ['TSS · IF', `${Math.round(s.tss)} · ${num(s.ifactor, 2)}`],
@@ -87,7 +87,7 @@ export function showRideSummary(root: HTMLElement, d: SummaryData, a: SummaryAct
   const beaten = d.records.beaten;
   root.innerHTML = `<div class="sum">
     <header class="sum-head">
-      <div><h1>${L ? 'Bravo, belle sortie !' : 'Well done, great ride!'}</h1><p>${esc(d.routeName)} · ${num(s.distanceM / 1000, 1)} km</p></div>
+      <div><h1>${L ? 'Bravo, <em>belle sortie</em> !' : 'Well done, <em>great ride</em>!'}</h1><p>${esc(d.routeName)} · ${num(s.distanceM / 1000, 1)} km</p></div>
       <nav class="sum-actions">
         <button class="sum-btn" id="s-card">${L ? 'Carte de sortie' : 'Ride card'}</button>
         ${d.guest ? '' : `<button class="sum-btn accent" id="s-fit">.fit (Strava)</button><button class="sum-btn" id="s-gpx">.gpx</button>`}
