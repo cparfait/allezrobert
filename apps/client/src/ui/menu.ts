@@ -327,12 +327,10 @@ export class MainMenu {
   /** Carte du choix (sous « Choisir ma sortie ») : seulement après un choix fait dans ce menu. */
   private selMap = false;
 
-  /** Préparation en coulisse (paysage, garage) : petit message d'attente sous « Rouler » sur l'accueil. */
+  /** Préparation en coulisse (paysage, garage) : « Rouler » masqué sur l'accueil. */
   set preparing(on: boolean) {
     this.prep = on;
-    const el = this.root.querySelector<HTMLElement>('.mm-home-wait');
-    if (el) el.hidden = !on;
-    // Tant que le jeu se prépare, « Rouler » est remplacé par le message d'attente.
+    // Tant que le jeu se prépare en coulisse, « Rouler » n'est pas proposé.
     this.root.querySelector('.mm-tab-home')?.classList.toggle('is-prep', on);
   }
 
@@ -662,7 +660,6 @@ export class MainMenu {
       this.root.innerHTML = `<div class="mm mm-tab-home ${this.prep ? 'is-prep' : ''}">
         <div class="mm-hero mm-hero-home"><h1>Allez <em>Robert</em> !</h1><p>${L ? 'Rouler ensemble, chacun chez soi.' : 'Ride together, each from home.'}</p></div>
         <button class="mm-go mm-home-go" data-tab="ride">${t('ride')} <span>→</span></button>
-        <p class="mm-home-wait" ${this.prep ? '' : 'hidden'}><i></i>${L ? 'Préparation du jeu…' : 'Getting the game ready…'}</p>
       </div>`;
       this.bind();
       return;

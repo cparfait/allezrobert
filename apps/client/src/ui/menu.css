@@ -363,12 +363,8 @@
 .mm-hero.mm-hero-home h1 { font-size: clamp(64px, 8vw, 140px); }
 .mm-home-go { position: absolute; left: 50%; bottom: 8vh; transform: translateX(-50%); font-size: 26px; padding: 20px 64px; }
 .mm-home-go:hover span { transform: translateX(6px); }
-.mm-home-wait { position: absolute; left: 50%; bottom: calc(8vh - 44px); transform: translateX(-50%); margin: 0; display: flex; align-items: center; gap: 10px; font-size: 13px; color: rgba(245, 247, 250, 0.8); text-shadow: 0 1px 6px rgba(0, 0, 0, 0.7); white-space: nowrap; }
-.mm-home-wait[hidden] { display: none; }
 .mm-tab-home.is-prep .mm-home-go { display: none; }
-.mm-tab-home.is-prep .mm-home-wait { bottom: calc(8vh + 24px); font-size: 15px; }
-.mm-home-wait i { display: block; width: 46px; height: 4px; border-radius: 2px; background: linear-gradient(90deg, transparent, var(--ar-accent), transparent) 0 0 / 50% 100% no-repeat, rgba(255, 255, 255, 0.18); animation: mm-wait 1.1s linear infinite; }
-@keyframes mm-wait { from { background-position: -100% 0, 0 0; } to { background-position: 200% 0, 0 0; } }
+.mm-tab-home.is-prep @keyframes mm-wait { from { background-position: -100% 0, 0 0; } to { background-position: 200% 0, 0 0; } }
 
 /* Fenêtres Zones / Parcours : grille de cartes */
 .mm-picker { width: min(1180px, 94vw) !important; max-height: 86vh; overflow: auto; }

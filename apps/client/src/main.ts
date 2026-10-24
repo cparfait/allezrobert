@@ -674,6 +674,8 @@ async function boot(): Promise<void> {
       void prepareWorld()
         .then(() => prepareAtelier())
         .finally(() => (menu.preparing = false));
+      // Sécurité : un chargement bloqué ne doit pas priver du bouton « Rouler ».
+      setTimeout(() => (menu.preparing = false), 10000);
     }, 400);
     // Compte : session existante, sinon écran de connexion (sauf choix « sans compte »).
     let me: Me | null = await fetchMe();
