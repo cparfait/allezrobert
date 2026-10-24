@@ -14,9 +14,9 @@
 - [ ] Autre chose ? (à définir)
 
 ## Atelier
-- [x] Mur plus réaliste.
-- [x] Vrais pneus avec marques.
-- [x] Un ou deux vrais vélos en fond.
+- [ ] Mur plus réaliste (essai retiré : abîmait le décor).
+- [ ] Vrais pneus avec marques (essai retiré).
+- [ ] Un ou deux vrais vélos en fond (essai retiré).
 
 ## Visage
 - [ ] Page du tutoriel : la tête de base (tête nue, vue de près) est déformée (crâne allongé et lisse, traits étirés). À corriger dans le modèle de tête du pipeline Blender, ou en cadrant moins près / avec des cheveux par défaut.

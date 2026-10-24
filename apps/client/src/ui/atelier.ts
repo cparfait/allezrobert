@@ -308,27 +308,6 @@ export class AtelierHost {
       a.root.position.set(-2.9, 1.3, 2.15);
       this.scene.add(a.root);
     }
-    // Deux vélos posés au sol, appuyés contre le mur de bois (fond) et celui de droite.
-    const leaning: Array<[number, number, number, number, number, number]> = [
-      // modèle, x, z, rotation y du vélo, axe d'inclinaison (x ou z), angle
-      [2, -0.7, -2.72, 0, 0, -0.1],
-      [7, 3.1, -1.7, Math.PI / 2, 1, -0.1],
-    ];
-    for (const [n, x, z, ry, axis, lean] of leaning) {
-      const bikeModel = crowdBike(n);
-      if (!bikeModel) continue;
-      const a = createAvatar({ ...DEFAULT_LOOK, bikeModel });
-      (a as RiderAvatarLike & { setRiderVisible?(on: boolean): void }).setRiderVisible?.(false);
-      a.update(0, 0, 0, 'coasting');
-      a.setShadows(false);
-      a.root.rotation.y = ry;
-      const pivot = new THREE.Group();
-      pivot.position.set(x, 0, z);
-      if (axis === 0) pivot.rotation.x = lean;
-      else pivot.rotation.z = lean;
-      pivot.add(a.root);
-      this.scene.add(pivot);
-    }
     // Roues carbone (profils 50 et 65 mm, lenticulaire) accrochées au mur du fond au-dessus du vélo.
     [['c50', 1.35], ['c65', 2.15], ['disc', 2.95]].forEach(([type, z]) => {
       const w = loneWheel(type as string, 'F');
@@ -414,16 +393,6 @@ export class AtelierHost {
       this.lookKey = JSON.stringify(look);
     }
     await this.engine.renderer.compileAsync(this.scene, this.camera).catch(() => undefined);
-    // Première image rendue en coulisse, toile masquée : compile aussi les passes d'image (ombres, occlusion,
-    // halo), que compileAsync ne couvre pas ; sinon c'est la première ouverture du garage qui fige.
-    if (!this.state) {
-      const canvas = this.engine.renderer.domElement;
-      const vis = canvas.style.visibility;
-      canvas.style.visibility = 'hidden';
-      this.render();
-      await new Promise<void>((r) => requestAnimationFrame(() => r()));
-      canvas.style.visibility = vis;
-    }
   }
 
   set(st: AtelierState | null): void {
