@@ -1227,6 +1227,14 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   let remoteRiders: InterpolatedRider[] = [];
   let prevHeading = Number.NaN;
   let bank = 0;
+  /**
+   * Demi-tour animé : le cap saute d'un demi-tour d'une image à l'autre (itinéraire remonté, chemin
+   * inversé du monde ouvert) ; le coureur affiché tourne en arc sur la chaussée pendant UTURN_S.
+   */
+  const UTURN_S = 1.8;
+  let turn: { t: number; fromHeading: number; delta: number; from: THREE.Vector3; fwdX: number; fwdZ: number } | null = null;
+  const shownPos = new THREE.Vector3(Number.NaN, 0, 0);
+  const shownDir = new THREE.Vector3();
   let condAcc = Infinity;
   // Pour les trophées : pluie et nuit rencontrées pendant la sortie.
   let rainSeen = false;
@@ -1315,18 +1323,43 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     pos.set(sample.x, sample.y + 0.06, sample.z);
     // Sens de marche : après un demi-tour, on remonte l'itinéraire.
     dir.set(sample.dirX * ride.dir, 0, sample.dirZ * ride.dir);
-    avatar.root.position.copy(pos);
     const heading = Math.atan2(sample.dirX, sample.dirZ) + (ride.dir < 0 ? Math.PI : 0);
     if (Number.isNaN(prevHeading)) prevHeading = heading;
+    if (Number.isNaN(shownPos.x)) shownPos.copy(pos);
     // Inclinaison en virage : ∝ v·(dψ/dt), bornée.
     let dh = heading - prevHeading;
     if (dh > Math.PI) dh -= Math.PI * 2;
     if (dh < -Math.PI) dh += Math.PI * 2;
+    if (Math.abs(dh) > 2.4) {
+      // Demi-tour : on tourne du côté où se trouve la nouvelle position (de l'autre côté de la chaussée).
+      const side = (pos.x - shownPos.x) * Math.cos(prevHeading) - (pos.z - shownPos.z) * Math.sin(prevHeading);
+      turn = { t: 0, fromHeading: prevHeading, delta: side >= 0 ? Math.PI : -Math.PI, from: shownPos.clone(), fwdX: Math.sin(prevHeading), fwdZ: Math.cos(prevHeading) };
+      dh = 0;
+    }
     prevHeading = heading;
     const yawRate = dt > 0 ? dh / dt : 0;
-    bank += (THREE.MathUtils.clamp(-yawRate * ride.state.speedMs * 0.08, -0.35, 0.35) - bank) * Math.min(1, dt * 3);
+    let lean = THREE.MathUtils.clamp(-yawRate * ride.state.speedMs * 0.08, -0.35, 0.35);
+    let shownHeading = heading;
+    shownPos.copy(pos);
+    if (turn) {
+      turn.t = Math.min(1, turn.t + dt / UTURN_S);
+      const t = turn.t;
+      const e = t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2;
+      shownHeading = turn.fromHeading + turn.delta * e;
+      // De l'ancienne position à la nouvelle, en arc vers l'avant (rayon : la moitié de l'écart, 2 m au moins).
+      const gap = Math.hypot(pos.x - turn.from.x, pos.z - turn.from.z);
+      const bulge = Math.sin(Math.PI * e) * Math.max(2, gap / 2);
+      shownPos.lerpVectors(turn.from, pos, e);
+      shownPos.x += turn.fwdX * bulge;
+      shownPos.z += turn.fwdZ * bulge;
+      lean = -Math.sign(turn.delta) * 0.28 * Math.sin(Math.PI * t);
+      if (turn.t >= 1) turn = null;
+    }
+    bank += (lean - bank) * Math.min(1, dt * 3);
+    shownDir.set(Math.sin(shownHeading), 0, Math.cos(shownHeading));
+    avatar.root.position.copy(shownPos);
     avatar.root.rotation.set(0, 0, 0);
-    avatar.root.rotateY(heading);
+    avatar.root.rotateY(shownHeading);
     avatar.root.rotateX(-Math.atan((sample.grade * ride.dir) / 100));
     avatar.setEffort?.(ride.inputs.watts / Math.max(50, s.ftpWatts), ride.inputs.hr !== undefined ? ride.inputs.hr / 190 : undefined);
     avatar.update(dt, ride.inputs.cadence, ride.state.speedMs, ride.pose, bank);
@@ -1347,7 +1380,8 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
 
     const eyeOk = rig.mode === 'cockpit' && !!avatar.eyeWorld;
     if (eyeOk) avatar.eyeWorld?.(eye, hands);
-    rig.update(dt, { position: pos, dir, distM: ride.state.distM, speedMs: ride.state.speedMs, sign: ride.dir, ...(eyeOk ? { eye, hands } : {}) });
+    // Pendant un demi-tour, la caméra suit le coureur affiché (elle tourne avec lui).
+    rig.update(dt, { position: turn ? shownPos : pos, dir: turn ? shownDir : dir, distM: ride.state.distM, speedMs: ride.state.speedMs, sign: ride.dir, ...(eyeOk ? { eye, hands } : {}) });
     lap('poussière, caméra');
     // Les tuiles se chargent autour de la caméra libre, où qu'elle aille ; sinon autour du coureur.
     world.update(dt, rig.mode === 'free' ? engine.camera.position : pos);
