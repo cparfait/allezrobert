@@ -148,6 +148,7 @@ export function showRideSummary(root: HTMLElement, d: SummaryData, a: SummaryAct
             : ''
         }
         <section class="sum-card" id="s-online"></section>
+        <img class="sum-robert" src="/robert-trainer.png" alt="" decoding="async">
       </aside>
       <main class="sum-main">
         <div class="sum-tiles">${tiles
