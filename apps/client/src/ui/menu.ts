@@ -231,6 +231,8 @@ export class MainMenu {
   private readonly atelier: AtelierPanel;
   /** Atelier 3D (pièce procédurale, vélo sur pied) : état demandé, null pour le fermer. */
   onAtelier?: (st: AtelierState | null) => void;
+  /** Pièce du vélo 3D sous le pointeur (coordonnées écran) : emplacement d'atelier, null si aucune. */
+  onAtelierPick?: (x: number, y: number) => import('@allezrobert/shared').TuneSlot | null;
   /** Éditeur de visage : groupe de curseurs, tête nue dans l'aperçu, tenues précédentes (annulation). */
   private faceTab: FaceTab = 'head';
   private bareHead = true;
@@ -1968,8 +1970,10 @@ export class MainMenu {
     const zone = this.root.querySelector<HTMLElement>('#m-dragzone');
     if (zone) {
       let lastX: number | null = null;
+      let downAt: [number, number] | null = null;
       zone.addEventListener('pointerdown', (e) => {
         lastX = e.clientX;
+        downAt = [e.clientX, e.clientY];
         zone.setPointerCapture(e.pointerId);
       });
       zone.addEventListener('pointermove', (e) => {
@@ -1984,7 +1988,15 @@ export class MainMenu {
         lastX = e.clientX;
         this.onScene?.(this.view, this.yaw, this.garageSlot === 'bike');
       });
-      const up = () => (lastX = null);
+      const up = (e: PointerEvent) => {
+        lastX = null;
+        // Simple clic (sans glisser) sur une pièce du vélo : la catégorie correspondante s'ouvre.
+        if (e.type === 'pointerup' && downAt && this.garageSlot === 'atelier' && Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]) < 5) {
+          const slot = this.onAtelierPick?.(e.clientX, e.clientY);
+          if (slot) this.atelier.focusSlot(slot);
+        }
+        downAt = null;
+      };
       zone.addEventListener('pointerup', up);
       zone.addEventListener('pointercancel', up);
     }

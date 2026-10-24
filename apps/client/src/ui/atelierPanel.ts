@@ -169,6 +169,19 @@ export class AtelierPanel {
     this.host = host;
   }
 
+  /** Pièce touchée sur le vélo 3D : ouvre la famille et l'emplacement correspondants (liste et cadrage). */
+  focusSlot(slot: TuneSlot): void {
+    const fam = (Object.keys(TUNE_SLOTS) as Array<keyof typeof TUNE_SLOTS>).find((f) => (TUNE_SLOTS[f] as readonly string[]).includes(slot));
+    if (!fam) return;
+    this.family = fam as TuneFamily;
+    this.slot = slot;
+    this.selected = null;
+    this.hover = null;
+    this.msg = '';
+    this.emit(SLOT_PARTS[slot]);
+    this.host.rerender();
+  }
+
   private level(): number {
     return this.host.account()?.level ?? levelProgress(loadProgress().xp).level;
   }

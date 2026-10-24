@@ -34,7 +34,7 @@ import { compareAndStore, readPowerRecords, rideStats, updatePowerRecords } from
 import { shareCard } from './ui/sharecard.ts';
 import { Onboarding, RideTutorial } from './onboarding/onboarding.ts';
 import { addXp, awardRide, loadProgress, tunedBike } from './ui/garage.ts';
-import { AtelierHost, type AtelierState } from './ui/atelier.ts';
+import { AtelierHost, slotOfPicked, type AtelierState } from './ui/atelier.ts';
 import { rimGlow } from './rider/rimDecal.ts';
 import { EQUALIZED_BIKE, paramsFromBike } from '@allezrobert/physics';
 import { awardTrophies } from './game/trophies.ts';
@@ -515,11 +515,16 @@ async function boot(): Promise<void> {
     poster.place(poster.d);
     renderPoster();
   };
+  menu.onAtelierPick = (x, y) => {
+    const names = atelier.pick(x, y);
+    return names ? slotOfPicked(names) : null;
+  };
   menu.onAtelier = (st) => {
     if (!inMenu || exploring) return;
     if (st) {
       menuVideo.stop();
       garage = null;
+      garageLook = null;
     }
     if (st) whenAtelierReady(() => (atelier.set(st), true));
     else void modelsReady.then(() => atelier.set(st));
@@ -543,8 +548,11 @@ async function boot(): Promise<void> {
         atelierWait = null;
       });
   };
+  /** Tenue ou vélo affiché (essai d'un équipement verrouillé compris) : la rotation à la souris le conserve. */
+  let garageLook: AvatarLook | null = null;
   const showGarage = (look: AvatarLook, bareHead = menu.bareHeadPreview) => {
     if (!garage) return;
+    garageLook = look;
     const v = GARAGE_VIEWS[garage.view];
     const c = Math.cos(garage.yaw);
     const sn = Math.sin(garage.yaw);
@@ -577,9 +585,10 @@ async function boot(): Promise<void> {
     if (view !== 'poster') {
       menuVideo.stop();
       garage = { view, yaw, ...(bikeOnly ? { bikeOnly } : {}) };
-      return showGarage(settings.look);
+      return showGarage(garageLook ?? settings.look);
     }
     garage = null;
+    garageLook = null;
     atelier.set(null);
     // Accueil : la vidéo de la saison (attend le paysage si l'image 3D sert).
     if (menuVideo.show(settings.season)) return;

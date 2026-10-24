@@ -103,6 +103,30 @@ const SLOT_SHOT: Record<TuneSlot | 'overview', keyof typeof SHOTS> = {
   bolts: 'bottles',
 };
 
+/** Emplacement d'atelier d'une pièce du vélo touchée (noms renvoyés par AtelierHost.pick), sinon null. */
+export function slotOfPicked(names: readonly string[]): TuneSlot | null {
+  const byMaterial: Record<string, TuneSlot> = {
+    tire: 'tyres', tire_wall: 'tyres', rim: 'wheelset', hub: 'wheelset', rim_decal: 'rimdecal', spokes: 'spokes', valve: 'valves',
+    rotor: 'rotors', caliper: 'rotors', cassette: 'cassette', chain: 'chain', chainring: 'crank', crank: 'crank', pulley: 'pulleys',
+    bar_tape: 'tape', computer: 'computer', computer_screen: 'computer', topcap: 'topcap', spacers: 'spacers', bolts: 'bolts',
+    saddle: 'saddle', seatpost: 'seatpost', frame: 'paint', bottle: 'bottles', cage: 'bottles',
+  };
+  const direct = byMaterial[names[0] ?? ''];
+  if (direct) return direct;
+  // Matériaux partagés (composants, chrome) : on lit le groupe de la pièce.
+  for (const n of names) {
+    if (n.startsWith('cockpit')) return 'cockpit';
+    if (n.startsWith('crankset') || n.startsWith('pedal')) return 'crank';
+    if (n.startsWith('opt_derailleur')) return 'groupset';
+    if (n.startsWith('opt_brakes') || n.includes('_rotor')) return 'rotors';
+    if (n.startsWith('opt_bottle')) return 'bottles';
+    if (n.startsWith('saddle')) return 'saddle';
+    if (n.startsWith('wheel_')) return 'wheelset';
+    if (n === 'frame' || n.startsWith('frame_')) return 'paint';
+  }
+  return null;
+}
+
 /** Hauteur du vélo sur le pied d'atelier (roues décollées). */
 const LIFT = 0.5;
 
@@ -219,6 +243,41 @@ export class AtelierHost {
     onBikeFamilyLoaded(() => {
       if (this.state) this.frames = Math.max(this.frames, 2);
     });
+  }
+
+  /**
+   * Pièce du vélo sous le pointeur (coordonnées écran) : noms du maillage touché, de son matériau
+   * et de ses parents, du plus précis au plus général ; null si rien du vélo n'est touché.
+   */
+  pick(clientX: number, clientY: number): string[] | null {
+    if (!this.state || !this.avatar) return null;
+    const canvas = this.engine.renderer.domElement;
+    const r = canvas.getBoundingClientRect();
+    const ndc = new THREE.Vector2(((clientX - r.left) / r.width) * 2 - 1, -((clientY - r.top) / r.height) * 2 + 1);
+    const ray = new THREE.Raycaster();
+    // Le décalage de vue (panneau à droite) change la projection : la caméra courante en tient compte.
+    this.camera.updateMatrixWorld();
+    ray.setFromCamera(ndc, this.camera);
+    const shown = (o: THREE.Object3D) => {
+      let inBike = false;
+      for (let p: THREE.Object3D | null = o; p; p = p.parent) {
+        if (!p.visible) return false;
+        if (p.name === 'bike') inBike = true;
+      }
+      return inBike;
+    };
+    // Le vélo seul (pas le coureur et ses maillages à squelette, bien plus lourds à tester).
+    const bike = this.avatar.root.getObjectByName('bike');
+    if (!bike) return null;
+    const h = ray.intersectObject(bike, true).find((x) => (x.object as THREE.Mesh).isMesh && shown(x.object));
+    if (!h) return null;
+    const names: string[] = [];
+    const mesh = h.object as THREE.Mesh;
+    const m = mesh.material as THREE.Material | undefined;
+    if (m?.name) names.push(m.name);
+    if (mesh.userData.matKey) names.push(String(mesh.userData.matKey));
+    for (let o: THREE.Object3D | null = mesh; o && o !== this.avatar.root; o = o.parent) if (o.name) names.push(o.name);
+    return names;
   }
 
   get active(): boolean {
