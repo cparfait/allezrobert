@@ -207,32 +207,3 @@ export class DraftCalculator {
 export function computeDraftFactors(riders: ArrayLike<DraftRider>, opts?: DraftOptions): Float64Array {
   return new DraftCalculator(opts).compute(riders).slice();
 }
-
-/** Gabarit d'un véhicule pour l'aspiration. */
-export type VehicleKind = 'car' | 'van' | 'tractor';
-
-const VEHICLE_WAKE: Record<VehicleKind, { max: number; halfWidthM: number }> = {
-  // Abri derrière un véhicule : sillage plus large et plus long que derrière un coureur ;
-  // culot carré (camionnette, tracteur et sa remorque) plus efficace qu'une berline.
-  car: { max: 0.35, halfWidthM: 1.0 },
-  van: { max: 0.45, halfWidthM: 1.15 },
-  tractor: { max: 0.45, halfWidthM: 1.2 },
-};
-
-/**
- * Réduction de CdA (0–0,45) derrière un véhicule qui roule dans le même sens.
- * @param gapM écart entre l'arrière du véhicule et la roue avant du coureur (m)
- * @param lateralM décalage latéral entre l'axe du véhicule et le coureur (m)
- * Pleine jusqu'à 1 m, décroissance exponentielle (λ = 8 m), nulle au-delà de 25 m.
- */
-export function vehicleDraftReduction(kind: VehicleKind, gapM: number, lateralM: number): number {
-  const w = VEHICLE_WAKE[kind];
-  if (gapM < 0 || gapM >= 25) return 0;
-  let f = gapM <= 1 ? 1 : Math.exp(-(gapM - 1) / 8);
-  if (gapM > 18) f *= 1 - smoothstep((gapM - 18) / 7);
-  const a = Math.abs(lateralM);
-  const inner = w.halfWidthM * 0.6;
-  const outer = w.halfWidthM + 0.6 + 0.03 * gapM;
-  const lat = a <= inner ? 1 : a >= outer ? 0 : 0.5 * (1 + Math.cos((Math.PI * (a - inner)) / (outer - inner)));
-  return w.max * f * lat;
-}

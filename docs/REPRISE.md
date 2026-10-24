@@ -43,7 +43,7 @@ Captures de contrôle : `docs/screenshots/avatars-*.jpg`, `bikes-*.jpg`.
 | Chantier | Contenu | État |
 | --- | --- | --- |
 | Matériel | audit et compléments : KICKR CORE (FTMS), Assioma (CPS), TICKR (HRS), vitesses virtuelles (Di2, Click, Play, Ride, HID, manette), HEADWIND asservi, ANT+ USB, Direct Connect, power match ERG, calibration, reconnexion ; `docs/HARDWARE_TEST.md` (tests à faire avec le vrai matériel) | **fusionné** — fait en simulation (calibration guidée, ventilateur asservi, manette et HID, adaptateurs Click / Di2 / HEADWIND activables, HUD « muet / reconnexion », réglages avancés dans l'onglet Capteurs) ; à valider avec le vrai matériel |
-| Son | ambiances (lieu, heure, saison, météo), roulement selon le revêtement, roue libre, souffle selon l'effort, public, trafic ; volumes par catégorie (Réglages et pause) | **fusionné** — synthèse sans fichier, niveaux mesurés au banc (`apps/client/scripts/audio-bench.mjs`), à écouter |
+| Son | ambiances (lieu, heure, saison, météo), roulement selon le revêtement, roue libre, souffle selon l'effort, public ; volumes par catégorie (Réglages et pause) | **fusionné** — synthèse sans fichier, niveaux mesurés au banc (`apps/client/scripts/audio-bench.mjs`), à écouter |
 | Monde et beauté | végétation au vent, villages, toits, eau, poussière sur les chemins, trains, détection automatique d'anomalies du monde, `docs/ART_DIRECTION.md` (points à valider par toi) | en cours |
 | Jeu | modes groupe et course complets, demi-tour des équipiers IA, pancartes de la foule, vidéo résumé MP4 sur le serveur, repli Discord pour la voix | en cours |
 

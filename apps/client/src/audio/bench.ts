@@ -46,14 +46,13 @@ const base: AudioState = {
   env: { hour: 10, season: 'spring', night: 0, rain: 0 },
   land: { forest: 0.2, urban: 0, open: 0.8 },
   crowd: 0,
-  vehicles: [],
   paused: false,
 };
 
-const SOLO_BIKE: Partial<SoundMix> = { ambience: 0, breath: 0, crowd: 0, traffic: 0, bike: 1, master: 1 };
-const SOLO_BREATH: Partial<SoundMix> = { ambience: 0, bike: 0, crowd: 0, traffic: 0, breath: 1, master: 1 };
-const SOLO_AMB: Partial<SoundMix> = { bike: 0, breath: 0, crowd: 0, traffic: 0, ambience: 1, master: 1 };
-const ALL_MAX:Partial<SoundMix> = { master: 1, ambience: 1, bike: 1, breath: 1, crowd: 1, traffic: 1 };
+const SOLO_BIKE: Partial<SoundMix> = { ambience: 0, breath: 0, crowd: 0, bike: 1, master: 1 };
+const SOLO_BREATH: Partial<SoundMix> = { ambience: 0, bike: 0, crowd: 0, breath: 1, master: 1 };
+const SOLO_AMB: Partial<SoundMix> = { bike: 0, breath: 0, crowd: 0, ambience: 1, master: 1 };
+const ALL_MAX:Partial<SoundMix> = { master: 1, ambience: 1, bike: 1, breath: 1, crowd: 1 };
 
 /** L'auditeur avance vers le sud (z croissant) à la vitesse du scénario. */
 const moving = (v: number) => (t: number) => ({ speedMs: v, z: v * t });
@@ -82,18 +81,6 @@ export const SCENARIOS: Scenario[] = [
   { name: 'souffle-seuil', seconds: 10, state: (t) => ({ ...moving(9)(t), watts: 260, hr: 172 }) },
   { name: 'public-kom', seconds: 10, state: (t) => ({ ...moving(5)(t), watts: 300, crowd: 1, mountain: true }) },
   {
-    name: 'trafic-depassement',
-    seconds: 10,
-    state: (t) => ({
-      ...moving(8)(t),
-      vehicles: [
-        // Voiture qui double à 17 m/s, partie 70 m derrière ; tracteur en face.
-        { id: 1, kind: 'car', x: -1.8, z: -70 + 17 * t, vx: 0, vz: 17 },
-        { id: 2, kind: 'tractor', x: 1.8, z: 160 - 7 * t, vx: 0, vz: -7 },
-      ],
-    }),
-  },
-  {
     name: 'pire-cas',
     seconds: 10,
     mix: ALL_MAX,
@@ -108,10 +95,6 @@ export const SCENARIOS: Scenario[] = [
       mountain: true,
       land: { forest: 1, urban: 1, open: 1 },
       env: { hour: 20, season: 'summer', night: 0.6, rain: 1 },
-      vehicles: [
-        { id: 1, kind: 'van', x: -1.5, z: 20 * t + 2 * Math.sin(t), vx: 0, vz: 20 },
-        { id: 2, kind: 'tractor', x: 1.5, z: 20 * t + 3, vx: 0, vz: 0 },
-      ],
     }),
   },
   { name: 'pause', seconds: 6, state: (t) => ({ ...moving(10)(t), paused: true, crowd: 1 }) },
@@ -129,12 +112,6 @@ export const SCENARIOS: Scenario[] = [
   { name: 'solo-ambiance-foret-vent', seconds: 10, mix: SOLO_AMB, state: () => ({ speedMs: 0, windMs: 8, land: { forest: 1, urban: 0, open: 0 }, env: { hour: 14, season: 'summer', night: 0, rain: 0 } }) },
   { name: 'solo-ambiance-pluie', seconds: 8, mix: SOLO_AMB, state: () => ({ speedMs: 0, env: { hour: 15, season: 'autumn', night: 0, rain: 0.8 } }) },
   { name: 'solo-public', seconds: 10, mix: { ...SOLO_AMB, ambience: 0, crowd: 1 }, state: () => ({ speedMs: 5, watts: 280, crowd: 1 }) },
-  {
-    name: 'solo-trafic',
-    seconds: 8,
-    mix: { ...SOLO_AMB, ambience: 0, traffic: 1 },
-    state: (t: number) => ({ ...moving(8)(t), vehicles: [{ id: 1, kind: 'car', x: -1.8, z: -50 + 17 * t, vx: 0, vz: 17 }] }),
-  },
   { name: 'solo-roue-libre-lente', seconds: 6, mix: SOLO_BIKE, state: (t: number) => ({ ...moving(3)(t), cadence: 0, watts: 0, windMs: 0 }) },
 ];
 

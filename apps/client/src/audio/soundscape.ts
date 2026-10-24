@@ -1,7 +1,7 @@
 /**
  * Logique du paysage sonore, sans WebAudio ni DOM (testée sous Node, voir test/soundscape.test.ts) :
  * revêtement → roulement, vent relatif, roue libre, souffle selon l'effort, ambiances selon le lieu,
- * l'heure, la saison et la météo, public près des sommets, voitures spatialisées.
+ * l'heure, la saison et la météo, public près des sommets.
  *
  * Toutes les grandeurs « gain » sont des amplitudes linéaires avant le bus de leur catégorie ; leur
  * somme reste bornée (voir le test « budget ») et le limiteur du bus général garde une marge.
@@ -289,17 +289,7 @@ export function crowdActivity(level: number, ftpFrac: number, mountain = false):
   };
 }
 
-// ————————————————————————————————————————————— Trafic
-
-export interface VehicleSound {
-  id: number;
-  kind: 'car' | 'van' | 'tractor';
-  x: number;
-  z: number;
-  /** Vitesse (m/s) dans le repère monde. */
-  vx: number;
-  vz: number;
-}
+// ————————————————————————————————————————————— Écoute
 
 export interface Listener {
   x: number;
@@ -310,19 +300,6 @@ export interface Listener {
   heading: number;
 }
 
-export interface VehicleVoice {
-  gain: number;
-  pan: number;
-  /** Rapport de fréquence de l'effet Doppler. */
-  doppler: number;
-  /** Absorption de l'air (passe-bas, Hz). */
-  lowpass: number;
-  dist: number;
-}
-
-export const VEHICLE_RANGE_M = 260;
-const SOUND_SPEED = 343;
-
 /** Panoramique d'une source : −1 gauche, +1 droite, selon le cap de l'auditeur. */
 export function panFor(dx: number, dz: number, heading: number): number {
   const d = Math.hypot(dx, dz);
@@ -331,22 +308,6 @@ export function panFor(dx: number, dz: number, heading: number): number {
   // z sud (direct) : en roulant vers le sud, l'ouest est à droite.
   const right = (dx * -Math.cos(heading) + dz * Math.sin(heading)) / d;
   return clamp(right, -1, 1);
-}
-
-/** Voix d'un véhicule : atténuation (1/d), panoramique, Doppler, air qui filtre les aigus au loin. */
-export function vehicleVoice(v: VehicleSound, l: Listener): VehicleVoice {
-  const dx = v.x - l.x;
-  const dz = v.z - l.z;
-  const d = Math.hypot(dx, dz);
-  const kindGain = v.kind === 'tractor' ? 1.25 : v.kind === 'van' ? 1.1 : 1;
-  const gain = d >= VEHICLE_RANGE_M ? 0 : Math.min(1, 8 / Math.max(d, 3)) * (1 - d / VEHICLE_RANGE_M) * kindGain;
-  // Vers l'auditeur : u = (l − v) / d.
-  const ux = d > 0.01 ? -dx / d : 0;
-  const uz = d > 0.01 ? -dz / d : 0;
-  const vs = v.vx * ux + v.vz * uz; // source qui s'approche
-  const vl = -(l.vx * ux + l.vz * uz); // auditeur qui s'approche
-  const doppler = clamp((SOUND_SPEED + vl) / (SOUND_SPEED - vs), 0.8, 1.25);
-  return { gain, pan: panFor(dx, dz, l.heading), doppler, lowpass: Math.max(500, 9000 / (1 + d / 50)), dist: d };
 }
 
 // ————————————————————————————————————————————— Ambiances

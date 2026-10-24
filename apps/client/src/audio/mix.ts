@@ -1,10 +1,10 @@
 /**
- * Mixage du son du jeu : un bus par catégorie (ambiance, vélo, souffle, public, trafic) sous un
+ * Mixage du son du jeu : un bus par catégorie (ambiance, vélo, souffle, public) sous un
  * volume général, réglés dans le menu Réglages et le menu pause, enregistrés localement
  * (`ar.sound`). La musique a ses propres réglages (music.ts).
  */
 
-export const BUSES = ['ambience', 'bike', 'breath', 'crowd', 'traffic'] as const;
+export const BUSES = ['ambience', 'bike', 'breath', 'crowd'] as const;
 export type Bus = (typeof BUSES)[number];
 
 export interface SoundMix {
@@ -13,12 +13,11 @@ export interface SoundMix {
   bike: number;
   breath: number;
   crowd: number;
-  traffic: number;
   /** Souffle du coureur activé (discret, coupable). */
   breathOn: boolean;
 }
 
-export const DEFAULT_MIX: SoundMix = { master: 0.8, ambience: 0.8, bike: 0.8, breath: 0.5, crowd: 0.8, traffic: 0.7, breathOn: true };
+export const DEFAULT_MIX: SoundMix = { master: 0.8, ambience: 0.8, bike: 0.8, breath: 0.5, crowd: 0.8, breathOn: true };
 
 export const BUS_LABELS: Record<Bus | 'master', { fr: string; en: string; hint: { fr: string; en: string } }> = {
   master: { fr: 'Général', en: 'Master', hint: { fr: 'Tous les sons du jeu (hors musique)', en: 'All game sounds (not music)' } },
@@ -26,7 +25,6 @@ export const BUS_LABELS: Record<Bus | 'master', { fr: string; en: string; hint: 
   bike: { fr: 'Vélo', en: 'Bike', hint: { fr: 'Roulement, roue libre, dérailleur, vent', en: 'Tyres, freewheel, shifting, wind' } },
   breath: { fr: 'Souffle', en: 'Breathing', hint: { fr: 'Respiration du coureur à l’effort', en: 'Rider breathing when pushing' } },
   crowd: { fr: 'Public', en: 'Crowd', hint: { fr: 'Spectateurs des côtes et des sprints', en: 'Spectators on climbs and sprints' } },
-  traffic: { fr: 'Trafic', en: 'Traffic', hint: { fr: 'Voitures, camionnettes, tracteurs', en: 'Cars, vans, tractors' } },
 };
 
 const KEY = 'ar.sound';
@@ -77,7 +75,7 @@ export interface MixContext {
 }
 
 /**
- * Gains des bus. En pause, le vélo, le souffle, le public et le trafic se taisent (la scène est
+ * Gains des bus. En pause, le vélo, le souffle, et le public se taisent (la scène est
  * figée) ; l'ambiance reste, atténuée, pour que le menu pause ne tombe pas dans le silence.
  */
 export function busGains(m: SoundMix, c: MixContext): Record<Bus | 'master', number> {
@@ -88,7 +86,6 @@ export function busGains(m: SoundMix, c: MixContext): Record<Bus | 'master', num
     bike: p ? 0 : m.bike,
     breath: p || !m.breathOn ? 0 : m.breath,
     crowd: p ? 0 : m.crowd,
-    traffic: p ? 0 : m.traffic,
   };
 }
 

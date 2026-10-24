@@ -1,11 +1,11 @@
 /**
  * Son procédural du jeu (WebAudio, aucun fichier) : moteur qui transforme l'état de la sortie en
  * couches continues (vent, roulement selon le revêtement, pluie, feuillage, grillons, rumeur du
- * village, public, voitures) et en événements (oiseaux, cloches, cliquets de roue libre,
+ * village, public) et en événements (oiseaux, cloches, cliquets de roue libre,
  * dérailleur, souffle, cris du public). La logique des niveaux est dans soundscape.ts (testée) ;
  * le mixage par bus dans mix.ts. La musique est à part (music.ts).
  *
- * Graphe : couches → bus de catégorie (ambiance, vélo, souffle, public, trafic) → général →
+ * Graphe : couches → bus de catégorie (ambiance, vélo, souffle, public) → général →
  * gain de compensation → compresseur doux (les scènes chargées) → écrêteur doux (crête
  * < −0,9 dBFS quoi qu'il arrive) → sortie. Niveaux mesurés : apps/client/scripts/audio-bench.mjs.
  */
@@ -24,13 +24,11 @@ import {
   isCoasting,
   panFor,
   tireMix,
-  vehicleVoice,
   windMix,
   type AmbienceMix,
   type BreathParams,
   type Season,
   type Surface,
-  type VehicleSound,
 } from './soundscape.ts';
 import { bells, bird, clap, cowbell, dogBark, fanWhistle, moo, shiftSound, shout, type BirdKind } from './voices.ts';
 
@@ -60,7 +58,6 @@ export interface AudioState {
   crowd: number;
   /** Montée de montagne : cloches de vache dans le public. */
   mountain?: boolean;
-  vehicles?: readonly VehicleSound[];
   /** Pause, intro : le vélo se tait, l'ambiance baisse. */
   paused?: boolean;
 }
@@ -69,19 +66,6 @@ interface Layer {
   gain: GainNode;
   filter: BiquadFilterNode;
   src: AudioBufferSourceNode;
-}
-
-interface TrafficVoice {
-  engine: OscillatorNode;
-  engine2: OscillatorNode;
-  lfo: OscillatorNode | null;
-  tire: AudioBufferSourceNode;
-  air: BiquadFilterNode;
-  tireFilter: BiquadFilterNode;
-  out: GainNode;
-  pan: StereoPannerNode;
-  base: number;
-  idle: number;
 }
 
 const SONGS: BirdKind[] = ['warble', 'tit', 'chiff'];
@@ -142,7 +126,6 @@ export class GameAudio {
   private cadence = 0;
   private sources: SoundSource[] = [];
   private readonly nextEvent = new Map<SoundSource, number>();
-  private readonly traffic = new Map<number, TrafficVoice>();
   private onVisibility: (() => void) | null = null;
   /** Dernières valeurs d'ambiance calculées (banc d'essai, débogage). */
   lastAmbience: AmbienceMix | null = null;
@@ -366,7 +349,6 @@ export class GameAudio {
     this.updateBreath(s, dt, coasting, now);
     this.updateAmbience(s, dt, now);
     this.updateCrowd(s, dt, now);
-    this.updateTraffic(s, dt);
   }
 
   /** Souffle : un cycle (inspiration, expiration) programmé à l'avance selon l'effort. */
@@ -512,100 +494,6 @@ export class GameAudio {
     for (let i = n(act.shouts); i > 0; i--) shout(c, out, now + Math.random() * 0.1, 0.5 + Math.random() * 0.5, side());
     for (let i = n(act.whistles); i > 0; i--) fanWhistle(c, out, now + 0.02, 0.6 + Math.random() * 0.4, side());
     for (let i = n(act.cowbells); i > 0; i--) cowbell(c, out, now + 0.02, 0.6 + Math.random() * 0.4, side());
-  }
-
-  /** Voitures : moteur + pneus, atténués, panoramiqués, effet Doppler. */
-  private updateTraffic(s: AudioState, dt: number): void {
-    const c = ctx(this);
-    const list = s.vehicles ?? [];
-    const seen = new Set<number>();
-    if (s.x !== undefined && s.z !== undefined) {
-      const listener = { x: s.x, z: s.z, vx: Math.sin(s.heading) * s.speedMs, vz: Math.cos(s.heading) * s.speedMs, heading: s.heading };
-      for (const veh of list) {
-        const vv = vehicleVoice(veh, listener);
-        let voice = this.traffic.get(veh.id);
-        if (!voice) {
-          if (vv.gain <= 0) continue;
-          voice = this.makeVehicle(veh.kind);
-          this.traffic.set(veh.id, voice);
-        }
-        seen.add(veh.id);
-        const speed = Math.hypot(veh.vx, veh.vz);
-        const f0 = veh.kind === 'tractor' ? voice.base : voice.base + speed * (veh.kind === 'van' ? 1.3 : 1.6);
-        this.set(voice.engine.frequency, f0 * vv.doppler, 0.08);
-        this.set(voice.engine2.frequency, f0 * 2.01 * vv.doppler, 0.08);
-        this.set(voice.tireFilter.frequency, (500 + speed * 25) * vv.doppler, 0.08);
-        this.set(voice.air.frequency, vv.lowpass, 0.08);
-        this.set(voice.pan.pan, vv.pan, 0.05);
-        this.set(voice.out.gain, vv.gain * 0.25, 0.06);
-        voice.idle = vv.gain > 0 ? 0 : voice.idle + dt;
-      }
-    }
-    // Véhicules disparus ou hors de portée depuis 2 s : on libère la voix.
-    for (const [id, voice] of this.traffic) {
-      if (!seen.has(id)) voice.idle += dt;
-      if (voice.idle > 2) {
-        this.set(voice.out.gain, 0, 0.05);
-        const end = c.currentTime + 0.3;
-        voice.engine.stop(end);
-        voice.engine2.stop(end);
-        voice.lfo?.stop(end);
-        voice.tire.stop(end);
-        this.traffic.delete(id);
-      }
-    }
-  }
-
-  private makeVehicle(kind: VehicleSound['kind']): TrafficVoice {
-    const c = ctx(this);
-    const out = c.createGain();
-    out.gain.value = 0;
-    const pan = c.createStereoPanner();
-    const air = c.createBiquadFilter();
-    air.type = 'lowpass';
-    air.frequency.value = 2000;
-    out.connect(air).connect(pan).connect(this.buses.traffic);
-    // Moteur : dent de scie + harmonique, filtrés bas ; tracteur : ronflement diesel haché.
-    const engineLp = c.createBiquadFilter();
-    engineLp.type = 'lowpass';
-    engineLp.frequency.value = kind === 'tractor' ? 420 : 650;
-    engineLp.Q.value = 1.5;
-    const engineGain = c.createGain();
-    engineGain.gain.value = kind === 'tractor' ? 0.9 : 0.45;
-    engineLp.connect(engineGain).connect(out);
-    const engine = c.createOscillator();
-    engine.type = 'sawtooth';
-    const engine2 = c.createOscillator();
-    engine2.type = 'square';
-    const e2g = c.createGain();
-    e2g.gain.value = 0.25;
-    engine.connect(engineLp);
-    engine2.connect(e2g).connect(engineLp);
-    let lfo: OscillatorNode | null = null;
-    if (kind === 'tractor') {
-      lfo = c.createOscillator();
-      lfo.frequency.value = 9 + Math.random() * 3;
-      const depth = c.createGain();
-      depth.gain.value = 0.45;
-      lfo.connect(depth).connect(engineGain.gain);
-      lfo.start();
-    }
-    const tire = c.createBufferSource();
-    tire.buffer = this.buf.pinkMono;
-    tire.loop = true;
-    const tireFilter = c.createBiquadFilter();
-    tireFilter.type = 'bandpass';
-    tireFilter.Q.value = 0.7;
-    tireFilter.frequency.value = 800;
-    const tireGain = c.createGain();
-    tireGain.gain.value = kind === 'tractor' ? 0.5 : 1.4;
-    tire.connect(tireFilter).connect(tireGain).connect(out);
-    const now = c.currentTime;
-    engine.start(now);
-    engine2.start(now);
-    tire.start(now, Math.random() * 3);
-    const base = kind === 'tractor' ? 30 + Math.random() * 6 : kind === 'van' ? 34 + Math.random() * 6 : 40 + Math.random() * 10;
-    return { engine, engine2, lfo, tire, air, tireFilter, out, pan, base, idle: 0 };
   }
 
   /** Arrêt avec un fondu court (fin de sortie). */
