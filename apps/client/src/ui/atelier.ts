@@ -4,7 +4,7 @@ import { bloom } from 'three/addons/tsl/display/BloomNode.js';
 import { ao } from 'three/addons/tsl/display/GTAONode.js';
 import { DEFAULT_LOOK, type AvatarLook, type TuneSlot } from '@allezrobert/shared';
 import { createAvatar, type RiderAvatarLike } from '../rider/gltfAvatar.ts';
-import { crowdBike, onBikeFamilyLoaded } from '../rider/bikes.ts';
+import { crowdBike, loneWheel, onBikeFamilyLoaded } from '../rider/bikes.ts';
 import type { Engine } from '../engine/renderer.ts';
 import { box, buildRoom, cyl, mat, rod } from './atelierRoom.ts';
 
@@ -239,6 +239,24 @@ export class AtelierHost {
       a.root.position.set(x, 1.3, 3.22);
       this.scene.add(a.root);
     }
+    // Quatrième vélo sur la lisse du mur du fond (le long de z), de profil.
+    const back = crowdBike(12);
+    if (back) {
+      const a = createAvatar({ ...DEFAULT_LOOK, bikeModel: back });
+      (a as RiderAvatarLike & { setRiderVisible?(on: boolean): void }).setRiderVisible?.(false);
+      a.update(0, 0, 0, 'coasting');
+      a.setShadows(false);
+      a.root.position.set(-2.9, 1.3, 2.15);
+      this.scene.add(a.root);
+    }
+    // Roues carbone (profils 50 et 65 mm, lenticulaire) accrochées au mur du fond au-dessus du vélo.
+    [['c50', 1.35], ['c65', 2.15], ['disc', 2.95]].forEach(([type, z]) => {
+      const w = loneWheel(type as string, 'F');
+      if (!w) return;
+      w.position.set(-3.1, 2.78, z as number);
+      w.traverse((o) => ((o as THREE.Mesh).castShadow = true));
+      this.scene.add(w);
+    });
   }
 
   /** Construction paresseuse : pièce, lumières, environnement, chaîne de rendu. */

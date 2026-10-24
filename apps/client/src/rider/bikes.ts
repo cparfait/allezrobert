@@ -261,6 +261,12 @@ export function bikeFamilyReady(family: BikeFamily): boolean {
   return families.has(family) && wheels !== null;
 }
 
+/** Roue seule de la bibliothèque (décor de l'atelier : roues carbone au mur) ; null tant que la bibliothèque n'est pas chargée. */
+export function loneWheel(type: string, pos: 'F' | 'R' = 'F'): THREE.Object3D | null {
+  const src = wheels?.[0].scene.getObjectByName(`wheel_${type}_${pos}`);
+  return src ? src.clone(true) : null;
+}
+
 /** Appelé à chaque famille chargée (p. ex. pour refaire l'image fixe de l'accueil). */
 export function onBikeFamilyLoaded(cb: (family: BikeFamily) => void): () => void {
   listeners.add(cb);

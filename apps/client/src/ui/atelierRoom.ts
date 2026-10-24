@@ -389,11 +389,7 @@ export function buildRoom(): THREE.Group {
   room.add(peg);
   const strip = new THREE.MeshStandardNodeMaterial({ color: '#000000', emissive: '#f4f7ff', emissiveIntensity: 2.2 });
   for (const z of [-1.7, -0.1]) room.add(box(0.05, 0.035, 0.9, strip, -3.1, 2.62, z));
-  const showWheel = rackWheel('#1b1c1f', 0.05);
-  showWheel.rotation.y = Math.PI / 2;
-  showWheel.scale.setScalar(0.85);
-  showWheel.position.set(-3.1, 2.04, -0.9);
-  room.add(showWheel);
+
 
   // Fût en acier dans l'angle, pompe à pied contre l'établi.
   const barrel = cyl(0.26, 0.85, mat('#9aa1a8', 0.35, 0.9), -2.6, 0.425, 2.4 - 5.0, 28);
@@ -434,6 +430,14 @@ export function buildRoom(): THREE.Group {
     room.add(box(0.05, 0.22, 0.012, rail, x, 1.18, 3.394));
     room.add(box(0.03, 0.03, 0.12, rail, x, 1.26, 3.34));
   }
+
+  // Mur du fond, côté coin : lisse pour un vélo et crochets pour trois roues carbone (placés par l'atelier).
+  room.add(box(0.14, 0.035, 3.0, rail, -3.13, 1.28, 2.15));
+  for (const z of [0.9, 1.7, 2.6, 3.3]) {
+    room.add(box(0.12, 0.22, 0.05, rail, -3.16, 1.18, z));
+    room.add(box(0.1, 0.03, 0.12, rail, -3.14, 1.26, z));
+  }
+  for (const z of [1.35, 2.15, 2.95]) room.add(cyl(0.012, 0.09, rail, -3.15, 3.09, z, 8).rotateZ(Math.PI / 2));
 
   // Home trainer dans le coin : corps, volant, pieds.
   const tr = new THREE.Group();
