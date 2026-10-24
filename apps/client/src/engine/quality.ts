@@ -4,6 +4,8 @@ export type QualityLevel = 'low' | 'medium' | 'high' | 'ultra';
 export interface QualitySettings {
   level: QualityLevel;
   pixelRatio: number;
+  /** Plafond de pixels rendus (largeur × hauteur) : au-delà, l'image est rendue plus petite puis agrandie. */
+  maxPixels: number;
   shadowMapSize: number;
   shadowCascades: number;
   shadowFar: number;
@@ -29,33 +31,41 @@ export interface QualitySettings {
   propDensity: number;
   /** Particules de poussière sur les chemins non revêtus (0 = coupé). */
   dustParticles: number;
+  /** Nombre maximal de coureurs IA affichés (le réglage du joueur est plafonné). */
+  aiRidersMax: number;
+  /** Circulation : facteur sur les 6 véhicules de base (0 = aucune circulation ni piéton). */
+  trafficDensity: number;
 }
 
 export const QUALITY_PRESETS: Record<QualityLevel, QualitySettings> = {
   low: {
     level: 'low',
     pixelRatio: 0.75,
+    maxPixels: 1280 * 720,
     shadowMapSize: 1024,
-    shadowCascades: 2,
-    shadowFar: 250,
+    shadowCascades: 1,
+    shadowFar: 120,
     ao: false,
     aoScale: 0.5,
     bloom: false,
     taa: false,
-    viewDistance: 2500,
-    treeDensity: 0.25,
+    viewDistance: 2000,
+    treeDensity: 0.2,
     grassDensity: 0,
     tileRadius: 2,
     terrainSegmentsPerTile: 96,
     waterMeshM: 12,
     waterDetail: false,
     reedDensity: 0,
-    propDensity: 0.4,
+    propDensity: 0.3,
     dustParticles: 0,
+    aiRidersMax: 2,
+    trafficDensity: 0.34,
   },
   medium: {
     level: 'medium',
     pixelRatio: 1,
+    maxPixels: 1920 * 1080,
     shadowMapSize: 2048,
     shadowCascades: 3,
     shadowFar: 400,
@@ -73,10 +83,13 @@ export const QUALITY_PRESETS: Record<QualityLevel, QualitySettings> = {
     reedDensity: 0.5,
     propDensity: 0.7,
     dustParticles: 384,
+    aiRidersMax: 8,
+    trafficDensity: 0.67,
   },
   high: {
     level: 'high',
     pixelRatio: 1,
+    maxPixels: 2560 * 1440,
     shadowMapSize: 2048,
     shadowCascades: 4,
     shadowFar: 600,
@@ -94,10 +107,13 @@ export const QUALITY_PRESETS: Record<QualityLevel, QualitySettings> = {
     reedDensity: 1,
     propDensity: 1,
     dustParticles: 768,
+    aiRidersMax: 19,
+    trafficDensity: 1,
   },
   ultra: {
     level: 'ultra',
     pixelRatio: 1,
+    maxPixels: 3840 * 2160,
     shadowMapSize: 4096,
     shadowCascades: 4,
     shadowFar: 900,
@@ -115,6 +131,8 @@ export const QUALITY_PRESETS: Record<QualityLevel, QualitySettings> = {
     reedDensity: 1.5,
     propDensity: 1,
     dustParticles: 1536,
+    aiRidersMax: 19,
+    trafficDensity: 1,
   },
 };
 
