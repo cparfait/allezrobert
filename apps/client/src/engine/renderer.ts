@@ -4,6 +4,9 @@ import { bloom } from 'three/addons/tsl/display/BloomNode.js';
 import { ao } from 'three/addons/tsl/display/GTAONode.js';
 import { traa } from 'three/addons/tsl/display/TRAANode.js';
 import type { QualitySettings } from './quality.ts';
+import { applyViewport, dynamicResolutionEnabled, getFpsCap, getResolutionCap, RESOLUTION_PIXELS, renderPixelRatio } from './display.ts';
+import { DynamicResolution } from './autoQuality.ts';
+import { PerfOverlay, perfRequested } from './perf.ts';
 import type { Vec4Node } from './tsl.ts';
 
 export interface Engine {
@@ -16,6 +19,12 @@ export interface Engine {
   exposure: { value: number };
   /** Étalonnage : saturation, vivacité et teinte multiplicative (lumière chaude ou froide). */
   grade: { saturation: number; vibrance: number; tint: THREE.Color };
+  /** Préréglage en cours (change à chaque `rebuildPipeline`). */
+  quality: QualitySettings;
+  /** Résolution dynamique : échelle de rendu courante, ajustée selon le temps d'image. */
+  dynamicRes: DynamicResolution;
+  /** Recalcule la résolution de rendu (plafond de pixels, format, échelle dynamique). */
+  applyResolution(): void;
   rebuildPipeline(q: QualitySettings): void;
   resize(): void;
   render(): void;
@@ -29,14 +38,14 @@ export interface Engine {
  */
 export async function createEngine(canvas: HTMLCanvasElement, q: QualitySettings): Promise<Engine> {
   const forceWebGL = new URLSearchParams(location.search).has('webgl');
-  const renderer = new THREE.WebGPURenderer({ canvas, antialias: false, forceWebGL, powerPreference: 'high-performance' });
+  // ?perf=1 : mesures GPU (requêtes d'horodatage) pour le panneau de performance (F3).
+  const renderer = new THREE.WebGPURenderer({ canvas, antialias: false, forceWebGL, powerPreference: 'high-performance', trackTimestamp: perfRequested() });
   await renderer.init();
   const backend = (renderer.backend as { isWebGPUBackend?: boolean }).isWebGPUBackend ? 'webgpu' : 'webgl2';
   renderer.toneMapping = THREE.AgXToneMapping;
   renderer.toneMappingExposure = 1.0;
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFShadowMap;
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2) * q.pixelRatio);
 
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(62, 16 / 9, 0.1, q.viewDistance);
@@ -48,6 +57,27 @@ export async function createEngine(canvas: HTMLCanvasElement, q: QualitySettings
   const vibNode = uniform(0.18);
   const tintNode = uniform(new THREE.Color(1, 1, 1));
   const pipeline = new THREE.RenderPipeline(renderer);
+  const dynamicRes = new DynamicResolution();
+  const dynEnabled = dynamicResolutionEnabled();
+  const fpsCap = getFpsCap();
+  let current = q;
+  let lastRendered = 0;
+  const perf = new PerfOverlay();
+
+  const applyResolution = () => {
+    const cssW = canvas.clientWidth || window.innerWidth;
+    const cssH = canvas.clientHeight || window.innerHeight;
+    const ratio = renderPixelRatio({
+      cssW,
+      cssH,
+      devicePixelRatio: window.devicePixelRatio,
+      presetRatio: current.pixelRatio,
+      presetMaxPixels: current.maxPixels,
+      userMaxPixels: RESOLUTION_PIXELS[getResolutionCap()],
+      scale: dynEnabled ? dynamicRes.scale : 1,
+    });
+    renderer.setPixelRatio(ratio);
+  };
 
   const engine: Engine = {
     renderer,
@@ -57,10 +87,16 @@ export async function createEngine(canvas: HTMLCanvasElement, q: QualitySettings
     backend,
     exposure,
     grade,
+    get quality() {
+      return current;
+    },
+    dynamicRes,
+    applyResolution,
     rebuildPipeline(settings: QualitySettings) {
+      current = settings;
       camera.far = settings.viewDistance;
       camera.updateProjectionMatrix();
-      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2) * settings.pixelRatio);
+      applyResolution();
 
       const scenePass = pass(scene, camera);
       const useMrt = settings.ao || settings.taa || settings.bloom;
@@ -115,6 +151,9 @@ export async function createEngine(canvas: HTMLCanvasElement, q: QualitySettings
       pipeline.needsUpdate = true;
     },
     resize() {
+      // Format maximal éventuel : le conteneur de l'application est borné et centré avant la mesure.
+      if (canvas.parentElement) applyViewport(canvas.parentElement);
+      applyResolution();
       const w = canvas.clientWidth || window.innerWidth;
       const h = canvas.clientHeight || window.innerHeight;
       renderer.setSize(w, h, false);
@@ -124,6 +163,12 @@ export async function createEngine(canvas: HTMLCanvasElement, q: QualitySettings
       camera.updateProjectionMatrix();
     },
     render() {
+      const now = performance.now();
+      if (fpsCap && now - lastRendered < 1000 / fpsCap - 1) return;
+      const dt = lastRendered ? now - lastRendered : 0;
+      lastRendered = now;
+      if (dynEnabled && dynamicRes.update(dt, now) !== null) applyResolution();
+      perf.frame(dt, engine);
       exposureNode.value = exposure.value;
       satNode.value = grade.saturation;
       vibNode.value = grade.vibrance;

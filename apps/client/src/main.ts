@@ -3,6 +3,7 @@ import * as THREE from 'three/webgpu';
 import { RouteTrack, decimateRoute, type PairState, type PhoneCommand, bikeOfLook, type AvatarLook, bikeSetupFor, weatherAt, weatherSeed, type RideWeather, type RiderProfile, type RouteData } from '@allezrobert/shared';
 import { createEngine, type Engine } from './engine/renderer.ts';
 import { QUALITY_PRESETS, withUrlOverrides, type QualitySettings } from './engine/quality.ts';
+import { detectHardwareQuality } from './engine/autoQuality.ts';
 import { World } from './world/world.ts';
 import { loadWorldSource } from './world/loader.ts';
 import type { WorldSource } from './world/types.ts';
@@ -226,6 +227,8 @@ async function boot(): Promise<void> {
   await spotify.handleRedirect();
   music.unlockOnGesture();
   const settings = loadSettings();
+  // Premier lancement ou qualité jamais choisie à la main : préréglage selon la carte graphique.
+  if (!localStorage.getItem('ar.quality') && !new URLSearchParams(location.search).has('quality')) settings.quality = await detectHardwareQuality();
   setLang(settings.lang);
   // Vélo affiché au garage et sur l'image d'accueil : celui qui est équipé (sauvegardes anciennes).
   settings.look = { ...settings.look, bikeType: bikeSetupFor(loadProgress().equipped).tyre ?? 'road' };
@@ -694,7 +697,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
       mp = null;
     }
   }
-  const aiCount = workout || mp || challenge ? 0 : Math.min(Math.max(s.aiRiders, 0), 19);
+  const aiCount = workout || mp || challenge ? 0 : Math.min(Math.max(s.aiRiders, 0), engine.quality.aiRidersMax);
   const peloton = new Peloton(engine.scene, track, aiCount, startD, s.ftpWatts * (s.aiLevel ?? 1));
   const ghost = new Ghost(engine.scene, track, track.route.id, startD);
   peloton.onWait = (name) => name && hud.toast(getLang() === 'fr' ? `On attend ${name}` : `Waiting for ${name}`);
@@ -706,7 +709,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   engine.scene.add(crowd.group);
   engine.scene.add(new TownSigns(track, (x, z) => world.terrain.heightAt(x, z)).group);
   // Monde vivant : circulation et piétons (désactivable par ?traffic=0).
-  const traffic = params.get('traffic') === '0' ? null : new Traffic(track);
+  const traffic = params.get('traffic') === '0' || engine.quality.trafficDensity <= 0 ? null : new Traffic(track, engine.quality.trafficDensity);
   if (traffic) engine.scene.add(traffic.group);
   // Trains : départ quand on approche de l'endroit où la route longe ou croise une voie.
   const trains = new Trains(track, (x, z) => world.terrain.heightAt(x, z), () => world.terrain.loadedTiles());
