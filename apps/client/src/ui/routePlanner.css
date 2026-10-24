@@ -2,6 +2,8 @@
 .rp { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(260px, 1fr); gap: 16px; margin: 4px 0 10px; }
 .rp-mapbox { position: relative; border-radius: 16px; overflow: hidden; border: 1px solid var(--mm-line); background: radial-gradient(ellipse at 50% 40%, rgba(80, 110, 70, 0.3), rgba(14, 20, 16, 0.6)); }
 .rp-map { display: block; width: 100%; height: min(52vh, 480px); cursor: crosshair; touch-action: none; user-select: none; }
+/* Liseré jaune fin autour de ce qu'on peut parcourir (le fond IGN déborde tout autour). */
+.rp-area { fill: none; stroke: var(--ar-accent, #ffd23f); stroke-width: 1.5px; vector-effect: non-scaling-stroke; stroke-linecap: square; pointer-events: none; }
 .rp-roads path { fill: none; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
 .rp-major { stroke: rgba(236, 239, 244, 0.9); stroke-width: 1.8px; }
 .rp-minor { stroke: rgba(236, 239, 244, 0.5); stroke-width: 1.1px; }

@@ -10,6 +10,9 @@ import { buildBikeKit, roadPartsReplaced, type BikeType } from './bikeKits.ts';
 import { FaceAnimator } from './face.ts';
 import { fitGlasses } from './glassesFit.ts';
 import { SkinMaterial, loadSkinTextures, skinTextures, type SkinLook } from './skin.ts';
+import { applyClothLook, clothTextures, isClothPart, loadClothTextures, makeClothMaterial, type JerseyAxis } from './cloth.ts';
+import { addFrameAttributes, addJerseyFrame, addSleeveMask, type JerseyFrame } from './jerseyPattern.ts';
+import { applyTexturedLook, loadTexturedMasks, texturedMaterial } from './texturedLook.ts';
 import { BikeMaterials, assembleBike, availableFamily, bikeAnchors, familyScene, loadBikeFamily, type AssembledBike, type BikeAnchors } from './bikes.ts';
 
 /**
@@ -73,15 +76,36 @@ const RIG_BONES: Record<'classic' | 'mpfb', Partial<Record<BoneName, string>>> =
   },
 };
 
-/** Avatar MPFB (docs/AVATARS.md) par défaut ; l'ancien coureur (cyclist.glb) avec ?avatar=classic. */
-const MPFB = typeof location === 'undefined' || new URLSearchParams(location.search).get('avatar') !== 'classic';
+/**
+ * Coureur affiché : avatar MPFB (docs/AVATARS.md) par défaut ; modèle acheté texturé
+ * (tools/blender/avatars/build_boutique.py), pour les tests, avec ?avatar=boutique ; l'ancien
+ * coureur (cyclist.glb) avec ?avatar=classic.
+ */
+const AVATAR_PARAM = typeof location === 'undefined' ? null : new URLSearchParams(location.search).get('avatar');
+export type AvatarKind = 'boutique' | 'mpfb' | 'classic';
+const AVATAR_KIND: AvatarKind = AVATAR_PARAM === 'classic' || AVATAR_PARAM === 'boutique' ? AVATAR_PARAM : 'mpfb';
 /**
  * Fichiers du coureur par niveau de détail et distance (m) d'apparition de chaque niveau
- * (avatar MPFB : 12,6 k, 5 k et 2,5 k triangles pour le corps).
+ * (avatar MPFB : 12,6 k, 5 k et 2,5 k triangles pour le corps ; modèle acheté : 47,8 k, 16,7 k
+ * et 7,1 k triangles en tout).
  */
-const FILES: readonly string[] = MPFB ? ['avatar/rider.glb', 'avatar/rider_lod1.glb', 'avatar/rider_lod2.glb'] : ['cyclist.glb', 'cyclist_lod1.glb'];
-const LOD_DISTANCES: readonly number[] = MPFB ? [0, 10, 30] : [0, 30];
+const FILES: Record<AvatarKind, readonly string[]> = {
+  boutique: ['avatar/boutique/rider.glb', 'avatar/boutique/rider_lod1.glb', 'avatar/boutique/rider_lod2.glb'],
+  mpfb: ['avatar/rider.glb', 'avatar/rider_lod1.glb', 'avatar/rider_lod2.glb'],
+  classic: ['cyclist.glb', 'cyclist_lod1.glb'],
+};
+const LOD_DISTANCES: Record<AvatarKind, readonly number[]> = { boutique: [0, 10, 30], mpfb: [0, 10, 30], classic: [0, 30] };
 const WHEEL_R = 0.335;
+/**
+ * Taille du coureur (look.heightCm, profil du joueur) : modèle acheté construit à 1,765 m
+ * (build_boutique.py), coureurs de 1,60 à 1,95 m. Coureur, cadre, poste de pilotage et selle
+ * suivent la taille (taille de cadre) ; roues, pédalier et pédales gardent leurs dimensions
+ * réelles. Point fixe : axe des roues à l'aplomb du pédalier (roues toujours au sol).
+ */
+const MODEL_HEIGHT_CM = 176.5;
+/** Avatar MPFB (build_avatar.py) : stature mesurée sur le squelette (jambe + tronc + cou + tête) ≈ 1,75 m. */
+const MPFB_HEIGHT_CM = 175;
+const HEIGHT_RANGE_CM: readonly [number, number] = [160, 195];
 /**
  * Position chrono, par unité de « tuck » (rad) : surtout le bassin qui bascule vers l'avant (dos
  * plat), un peu la colonne et le thorax ; la tête se relève pour regarder la route.
@@ -173,6 +197,15 @@ interface Templates {
    * route, la paume est posée sur la cocotte (HOOD_PALM) plutôt que d'appliquer l'écart d'ancres.
    */
   wristFromPalm: Record<Side, THREE.Vector3> | null;
+  /**
+   * Modèle acheté : matériaux « tex_* » du niveau 0, texturés, gardés tels quels (pas de couleurs
+   * de tenue) ; les niveaux suivants, exportés sans images, prennent les mêmes. Vide sinon.
+   */
+  textured: Map<string, THREE.MeshStandardMaterial>;
+  /** Avatar MPFB : axe du buste au repos (bandes des maillots de champion), repère du maillage. */
+  jerseyAxis: JerseyAxis | null;
+  /** Mesures du maillot (motifs et logos du shader : pois, manches, logo…) ; null sans maillot. */
+  jersey: JerseyFrame | null;
 }
 
 /**
@@ -180,13 +213,16 @@ interface Templates {
  * route partagent le même poste de pilotage : cocotte de z 0,554 à 0,670, sommet 0,917 m au bec,
  * dessus ≈ 0,90 m au milieu ; la paume repose dessus, les doigts tombent sur le côté.
  */
-const HOOD_PALM = new THREE.Vector3(0.2, 0.893, 0.6);
+const HOOD_PALM = new THREE.Vector3(0.2, 0.9, 0.565);
+/** VTT : milieu de la paume sur la poignée du cintre plat (bikeKits.ts : poignées à y 0,958, z 0,54, x de 0,165 à 0,3). */
+const MTB_PALM = new THREE.Vector3(0.235, 1.0, 0.535);
 /** Doigts refermés sur la cocotte (ou le prolongateur) : flexion par phalange (rad, axe X local) ; l'index, tendu au repos, plus. */
 const GRIP_CURL = 0.5;
 const GRIP_CURL_INDEX = 0.8;
 
-let templates: Templates | null = null;
-let loading: Promise<boolean> | null = null;
+/** Modèles chargés par type d'avatar (le film mêle l'avatar MPFB de Robert et le modèle acheté). */
+const templates = new Map<AvatarKind, Templates>();
+const loading = new Map<AvatarKind, Promise<boolean>>();
 
 // Temporaires (aucune allocation par image).
 const _v1 = new THREE.Vector3();
@@ -416,14 +452,65 @@ function bakeIdentity(base: THREE.BufferGeometry, id: IdentityTargets, w: readon
   return g;
 }
 
+/**
+ * Axe du buste (haut de la ceinture de poitrine, vers le cou) dans le repère des sommets du corps.
+ * Les sommets sont dans la pose de construction (debout) ; seul le squelette est en pose de
+ * conduite : l'origine des os vient donc des matrices inverses de liaison.
+ */
+function jerseyAxisOf(scene: THREE.Object3D): JerseyAxis | null {
+  let body: THREE.SkinnedMesh | undefined;
+  scene.traverse((o) => {
+    if (!body && (o as THREE.SkinnedMesh).isSkinnedMesh && /^rider_body/.test(o.name)) body = o as THREE.SkinnedMesh;
+  });
+  if (!body) return null;
+  const { bones, boneInverses } = body.skeleton;
+  const head = (name: string): THREE.Vector3 | null => {
+    const i = bones.findIndex((b) => b.name === name);
+    const inv = boneInverses[i];
+    return inv ? new THREE.Vector3().setFromMatrixPosition(new THREE.Matrix4().copy(body!.bindMatrixInverse).multiply(inv.clone().invert())) : null;
+  };
+  const origin = head('spine_03');
+  const neck = head('neck_01');
+  if (!origin || !neck) return null;
+  return { origin, dir: neck.sub(origin).normalize() };
+}
+
 function buildTemplates(riders: GLTF[]): Templates {
   for (const r of riders) extractIdentity(r.scene);
   const scene = (riders[0] as GLTF).scene;
   scene.updateMatrixWorld(true);
+  // Repère du torse des maillots (motifs du shader) ; mesures prises sur le niveau 0.
+  let jersey: JerseyFrame | null = null;
+  for (const r of riders) {
+    r.scene.updateMatrixWorld(true);
+    const jerseys: THREE.Mesh[] = [];
+    const arms: THREE.Mesh[] = [];
+    const accents: THREE.Mesh[] = [];
+    r.scene.traverse((o) => {
+      const mesh = o as THREE.Mesh;
+      const mat = mesh.isMesh ? (mesh.material as THREE.Material).name : '';
+      if (/^(tex_)?jersey$/.test(mat)) jerseys.push(mesh);
+      else if (mat === 'skin' || mat === 'tex_arms') arms.push(mesh);
+      else if (mat === 'jersey_accent') accents.push(mesh);
+    });
+    let frame: JerseyFrame | null = null;
+    for (const mesh of jerseys) frame ??= addJerseyFrame(mesh);
+    jersey ??= frame;
+    if (frame) for (const mesh of accents) addFrameAttributes(mesh, frame);
+    // Manches longues : « jsl » (tissu sur l'avant-bras) sur la peau des bras de ce niveau de détail.
+    const ref = jerseys.find((m) => (m as THREE.SkinnedMesh).isSkinnedMesh) as THREE.SkinnedMesh | undefined;
+    if (frame && ref) for (const mesh of arms) if ((mesh as THREE.SkinnedMesh).isSkinnedMesh) addSleeveMask(mesh as THREE.SkinnedMesh, ref, frame);
+  }
+  // Le modèle acheté reprend les noms d'os du squelette MPFB (build_boutique.py).
   const mpfb = !!scene.getObjectByName('pelvis');
+  const textured = new Map<string, THREE.MeshStandardMaterial>();
+  scene.traverse((o) => {
+    const m = (o as THREE.Mesh).material as THREE.MeshStandardMaterial | undefined;
+    if ((o as THREE.Mesh).isMesh && m?.name.startsWith('tex_')) textured.set(m.name, m);
+  });
   const names = RIG_BONES[mpfb ? 'mpfb' : 'classic'];
   // Lunettes reprises de l'ancien coureur, trop grandes pour la tête MPFB : remodelées (glassesFit.ts).
-  if (mpfb) {
+  if (mpfb && !textured.size) {
     for (const r of riders) {
       const glasses: THREE.Mesh[] = [];
       r.scene.traverse((o) => {
@@ -488,7 +575,7 @@ function buildTemplates(riders: GLTF[]): Templates {
   const uh = new THREE.Vector3(0, 1, 0).applyQuaternion(bones.head.modelQ).normalize();
   const fh = new THREE.Vector3(0, 0, 1).addScaledVector(uh, -uh.z).normalize();
   const eyeRest = uh.multiplyScalar(0.06).addScaledVector(fh, 0.11);
-  return { riders, names, bones, armQ, armP, legs, arms, bb, crank, pedalRest, pedalPitch, ankleFlat, eyeRest, refHands: bikeAnchors(PLAIN_BIKE_FAMILY).hands, wristFromPalm };
+  return { riders, names, bones, armQ, armP, legs, arms, bb, crank, pedalRest, pedalPitch, ankleFlat, eyeRest, refHands: bikeAnchors(PLAIN_BIKE_FAMILY).hands, wristFromPalm, textured, jerseyAxis: mpfb && !textured.size ? jerseyAxisOf(scene) : null, jersey };
 }
 
 /** L'objet ou l'un de ses parents porte-t-il un nom commençant par `prefix` ? */
@@ -526,10 +613,13 @@ function skinLook(look: AvatarLook): SkinLook {
 
 function applyLookColor(m: THREE.MeshStandardNodeMaterial, look: AvatarLook): void {
   shoeMaterials.get(m)?.setLook(look);
+  applyTexturedLook(m, look);
+  applyClothLook(m, look);
   const c: Partial<Record<string, string>> = {
     skin: look.skin,
     jersey: look.jersey,
-    jersey_accent: look.jerseyAccent,
+    // Maillot uni ou à bandes de champion : la bande de poitrine et les poignets prennent la couleur du maillot.
+    jersey_accent: look.jerseyStyle ? look.jersey : look.jerseyAccent,
     helmet: look.helmet,
     hair: look.hair,
     shoe_dial: shoeDialOf(look),
@@ -586,10 +676,13 @@ export class GltfRiderAvatar implements RiderAvatarLike {
   private readonly bike: BikeParts = { crank: [], wheels: [], pedals: { L: [], R: [] } };
   /** Groupes recevant le vélo : niveau 0, niveau 1. */
   /** Vélo de chaque niveau de détail (au-delà du premier : le vélo simplifié). */
-  private readonly bikeSlots: THREE.Group[] = FILES.map(() => new THREE.Group());
+  private readonly bikeSlots: THREE.Group[];
   private mounted: MountedBike | null = null;
   /** Kits VTT / gravel (rider/bikeKits.ts) posés sur chaque niveau du vélo monté. */
   private readonly kits = new Map<BikeType, THREE.Group[]>();
+  private readonly lodDistances: readonly number[];
+  /** Taille / taille du modèle (1 : 1,765 m) ; voir MODEL_HEIGHT_CM. */
+  private size = 1;
   private bikeType: BikeType = 'road';
   private look: AvatarLook;
   /** Cible des mains (repère modèle) et direction des coudes, selon le vélo monté. */
@@ -618,25 +711,35 @@ export class GltfRiderAvatar implements RiderAvatarLike {
    * (attendues aussi ; les autres se chargent à la demande). Renvoie false si le coureur ou le
    * vélo de base manque.
    */
-  static async load(families: readonly BikeFamily[] = [], baseUrl = `${import.meta.env.BASE_URL}models/`): Promise<boolean> {
+  static async load(families: readonly BikeFamily[] = [], baseUrl = `${import.meta.env.BASE_URL}models/`, kinds: readonly AvatarKind[] = [AVATAR_KIND]): Promise<boolean> {
     const extra = Promise.all(families.map((f) => loadBikeFamily(f)));
-    loading ??= (async () => {
-      try {
-        const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
-        const skin = MPFB ? loadSkinTextures(`${baseUrl}avatar/`) : null;
-        const [riders, plain] = await Promise.all([Promise.all(FILES.map((f) => loader.loadAsync(baseUrl + f))), loadBikeFamily(PLAIN_BIKE_FAMILY), skin]);
-        if (!plain) throw new Error(`vélo de base (${PLAIN_BIKE_FAMILY}) indisponible`);
-        templates = buildTemplates(riders);
-        return true;
-      } catch (e) {
-        console.warn('Avatar glTF indisponible, repli sur l’avatar procédural', e);
-        loading = null;
-        return false;
-      }
-    })();
-    const ok = await loading;
+    const ok = await Promise.all(kinds.map((k) => GltfRiderAvatar.loadKind(k, baseUrl)));
     await extra;
-    return ok;
+    return ok.every(Boolean);
+  }
+
+  private static loadKind(kind: AvatarKind, baseUrl: string): Promise<boolean> {
+    let p = loading.get(kind);
+    if (!p) {
+      p = (async () => {
+        try {
+          const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
+          const skin = kind === 'mpfb' ? loadSkinTextures(`${baseUrl}avatar/`) : null;
+          const cloth = kind === 'mpfb' ? loadClothTextures(`${baseUrl}avatar/`) : null;
+          const masks = kind === 'boutique' ? loadTexturedMasks(`${baseUrl}avatar/boutique/`) : null;
+          const [riders, plain] = await Promise.all([Promise.all(FILES[kind].map((f) => loader.loadAsync(baseUrl + f))), loadBikeFamily(PLAIN_BIKE_FAMILY), skin, cloth, masks]);
+          if (!plain) throw new Error(`vélo de base (${PLAIN_BIKE_FAMILY}) indisponible`);
+          templates.set(kind, buildTemplates(riders));
+          return true;
+        } catch (e) {
+          console.warn(`Avatar glTF « ${kind} » indisponible, repli sur l’avatar procédural`, e);
+          loading.delete(kind);
+          return false;
+        }
+      })();
+      loading.set(kind, p);
+    }
+    return p;
   }
 
   /** Facteur des distances de niveau de détail (préréglage graphique : 0,6 bas → 1,5 ultra). */
@@ -644,13 +747,21 @@ export class GltfRiderAvatar implements RiderAvatarLike {
 
   /** Modèles chargés ? */
   static get ready(): boolean {
-    return templates !== null;
+    return templates.has(AVATAR_KIND);
   }
 
-  constructor(look: AvatarLook) {
-    if (!templates) throw new Error('GltfRiderAvatar.load() doit être appelé (et attendu) avant la création');
+  /** Type d'avatar chargé (load(…, kinds)) ? */
+  static has(kind: AvatarKind): boolean {
+    return templates.has(kind);
+  }
+
+  constructor(look: AvatarLook, kind: AvatarKind = AVATAR_KIND) {
+    const loaded = templates.get(kind);
+    if (!loaded) throw new Error('GltfRiderAvatar.load() doit être appelé (et attendu) avant la création');
     this.look = look;
-    const t = (this.t = templates);
+    const t = (this.t = loaded);
+    this.lodDistances = LOD_DISTANCES[kind];
+    this.bikeSlots = t.riders.map(() => new THREE.Group());
     this.look = look;
     this.root.add(this.lean);
     this.lean.add(this.lod);
@@ -690,7 +801,7 @@ export class GltfRiderAvatar implements RiderAvatarLike {
         sm.matrixWorld.decompose(m.position, m.quaternion, m.scale);
         level.add(m);
       });
-      this.lod.addLevel(level, (LOD_DISTANCES[i] ?? 30 * i) * GltfRiderAvatar.lodScale, 0.1);
+      this.lod.addLevel(level, (this.lodDistances[i] ?? 30 * i) * GltfRiderAvatar.lodScale, 0.1);
     });
 
     // Coureur : matériaux (instances propres à l'avatar), ombres, sphères englobantes des maillages skinnés.
@@ -703,11 +814,20 @@ export class GltfRiderAvatar implements RiderAvatarLike {
       const key = src.name === 'lens' && underNode(mesh, 'rider_helmet_aero') ? 'visor' : src.name;
       let mat = this.materials.get(key);
       if (!mat) {
-        // Avatar MPFB : peau texturée (teint, rides, barbe, rougeur d'effort, sueur).
-        const tex = key === 'skin' && t.names.hips === 'pelvis' ? skinTextures() : null;
-        if (tex) {
-          this.skin = new SkinMaterial(tex, skinLook(look));
+        // Avatar MPFB : peau texturée (teint, rides, barbe, rougeur d'effort, sueur) et tissu
+        // de la tenue (plis, maille, reflet de lycra).
+        const mpfb = t.names.hips === 'pelvis';
+        const tex = key === 'skin' && mpfb ? skinTextures() : null;
+        const cloth = mpfb && isClothPart(key) ? clothTextures() : null;
+        const texSrc = t.textured.get(key);
+        if (texSrc) {
+          mat = texturedMaterial(texSrc, look, t.jersey);
+        } else if (tex) {
+          this.skin = new SkinMaterial(tex, skinLook(look), t.jersey, look);
           mat = this.skin.material;
+        } else if (cloth) {
+          mat = makeClothMaterial(key, cloth, MATERIALS[key]?.[0] ?? '#808080', t.jerseyAxis ?? undefined, t.jersey, look);
+          applyLookColor(mat, look);
         } else mat = makeMaterial(key, look);
         this.materials.set(key, mat);
       }
@@ -731,6 +851,7 @@ export class GltfRiderAvatar implements RiderAvatarLike {
       else if (n.startsWith('rider_glasses')) this.headgear.glasses.push(o);
     });
     if (this.morphMeshes.some((m) => m.morphTargetDictionary?.jawOpen !== undefined)) this.faceAnim = new FaceAnimator();
+    this.size = this.sizeOf(look);
     this.mountBike(bikeOfLook(look), look);
     if (bikeTypeOf(look) !== 'road') this.setBikeType(bikeTypeOf(look));
     this.setBuild(look.build);
@@ -739,12 +860,37 @@ export class GltfRiderAvatar implements RiderAvatarLike {
   }
 
   /**
+   * Cibles des mains et des coudes selon le vélo monté : paume sur la cocotte (route, gravel), sur la
+   * poignée du cintre plat (VTT), prolongateurs (chrono : écart des ancres à celles du vélo de base) ;
+   * coudes tirés vers les repose-coudes s'il y en a, sinon pli de repos.
+   */
+  private aimHands(): void {
+    const anchors = this.mounted?.anchors;
+    if (!anchors) return;
+    const palm = this.bikeType === 'mtb' && !anchors.pads ? MTB_PALM : HOOD_PALM;
+    for (const s of SIDES) {
+      const c = this.t.arms[s];
+      const rest = this.t.bones[c.end].modelP;
+      const pad = anchors.pads?.[s];
+      const grip = this.t.wristFromPalm?.[s];
+      if (grip && !anchors.pads) this.handTarget[s].set(s === 'L' ? palm.x : -palm.x, palm.y, palm.z).add(grip);
+      else this.handTarget[s].copy(rest).add(anchors.hands[s]).sub(this.t.refHands[s]);
+      if (pad) {
+        const sh = this.t.bones[c.upper].modelP;
+        const dir = _v1.subVectors(this.handTarget[s], sh).normalize();
+        const toPad = _v2.subVectors(pad, sh);
+        this.elbowPole[s].copy(toPad).addScaledVector(dir, -toPad.dot(dir)).normalize();
+      } else this.elbowPole[s].copy(c.pole);
+    }
+  }
+
+  /**
    * Monte le vélo demandé (ses deux niveaux de détail). Famille pas encore chargée : vélo de
    * base à la même livrée, remplacé dès que la famille arrive.
    */
   private mountBike(build: BikeBuild, look: AvatarLook): void {
     // Modèle, roues, marque des jantes et plaque de cadre changent la géométrie : vélo remonté.
-    const key = JSON.stringify([look.bikeModel ?? 'plain', build.params.wheels, build.params.rimBrand ?? '', build.extras?.number ?? null]);
+    const key = JSON.stringify([look.bikeModel ?? 'plain', build.params.wheels, build.params.rimBrand ?? '', build.extras?.number ?? null, look.bottles ?? null]);
     const family = availableFamily(build.family) ?? PLAIN_BIKE_FAMILY;
     const cur = this.mounted;
     if (cur && cur.key === key && cur.family === family) {
@@ -757,7 +903,7 @@ export class GltfRiderAvatar implements RiderAvatarLike {
       cur.materials.dispose();
     }
     const materials = new BikeMaterials(build, look, family);
-    const levels = this.bikeSlots.map((_, i) => assembleBike(build, family, i === 0 ? 0 : 1));
+    const levels = this.bikeSlots.map((_, i) => assembleBike(build, family, i === 0 ? 0 : 1, look.bottles));
     const parts: BikeParts = { crank: [], wheels: [], pedals: { L: [], R: [] } };
     levels.forEach((lv, i) => {
       lv.group.traverse((o) => {
@@ -783,28 +929,13 @@ export class GltfRiderAvatar implements RiderAvatarLike {
     Object.assign(this.bike, parts);
     const anchors = bikeAnchors(family);
     this.mounted = { key, build, family, levels, materials, anchors };
-    // Mains : écart des ancres du vélo à celles du vélo de base (pose de repos) ; coudes tirés
-    // vers les repose-coudes s'il y en a, sinon pli de repos.
-    for (const s of SIDES) {
-      const c = this.t.arms[s];
-      const rest = this.t.bones[c.end].modelP;
-      const pad = anchors.pads?.[s];
-      const grip = this.t.wristFromPalm?.[s];
-      // Cintre route : paume sur la cocotte. Prolongateurs : écart des ancres à celles du vélo de base.
-      if (grip && !anchors.pads) this.handTarget[s].set(s === 'L' ? HOOD_PALM.x : -HOOD_PALM.x, HOOD_PALM.y, HOOD_PALM.z).add(grip);
-      else this.handTarget[s].copy(rest).add(anchors.hands[s]).sub(this.t.refHands[s]);
-      if (pad) {
-        const sh = this.t.bones[c.upper].modelP;
-        const dir = _v1.subVectors(this.handTarget[s], sh).normalize();
-        const toPad = _v2.subVectors(pad, sh);
-        this.elbowPole[s].copy(toPad).addScaledVector(dir, -toPad.dot(dir)).normalize();
-      } else this.elbowPole[s].copy(c.pole);
-    }
+    this.aimHands();
     this.tuck = anchors.pads ? this.solveTuck(anchors.pads) : 0;
     // Casque chrono (modèles qui le demandent) : sa visière remplace les lunettes. Sans casque chrono
     // dans le modèle du coureur (ancien cyclist.glb), casque route.
     this.applyHeadgear(build);
     if (this.bikeType !== 'road') this.setBikeType(this.bikeType);
+    this.applySize();
     if (family !== build.family) {
       void loadBikeFamily(build.family).then((ok) => {
         if (ok && this.mounted?.key === key) this.mountBike(this.mounted.build, this.look);
@@ -981,7 +1112,8 @@ export class GltfRiderAvatar implements RiderAvatarLike {
       const c = t.legs[s];
       const as = a + (s === 'L' ? 0 : Math.PI);
       const rest = t.pedalRest[s];
-      this.pedal.set(rest.x, t.bb.y - Math.cos(as) * t.crank, t.bb.z - Math.sin(as) * t.crank);
+      const crank = t.crank / this.size;
+      this.pedal.set(rest.x, t.bb.y - Math.cos(as) * crank, t.bb.z - Math.sin(as) * crank);
       // Inclinaison du pied : talon plus haut en remontée (arrière), plus à plat en poussée (avant).
       let pitch = t.pedalPitch + 0.15 * Math.sin(as);
       pitch += (0.18 - pitch) * coast - 0.08 * stand;
@@ -1064,9 +1196,9 @@ export class GltfRiderAvatar implements RiderAvatarLike {
     const a = this.crankAngle;
     out.y += 0.006 * Math.sin(2 * a) * pedal * (1 - this.poseBlend * 0.5);
     out.x += 0.008 * Math.sin(a) * pedal * (1 + this.poseBlend);
-    this.lean.updateWorldMatrix(true, false);
-    if (hands) this.lean.localToWorld(hands.addVectors(this.mP.hand_L, this.mP.hand_R).multiplyScalar(0.5));
-    return this.lean.localToWorld(out);
+    this.lod.updateWorldMatrix(true, false);
+    if (hands) this.lod.localToWorld(hands.addVectors(this.mP.hand_L, this.mP.hand_R).multiplyScalar(0.5));
+    return this.lod.localToWorld(out);
   }
 
   /**
@@ -1153,8 +1285,31 @@ export class GltfRiderAvatar implements RiderAvatarLike {
     for (const level of levels) {
       level.traverse((o) => {
         if (o.parent?.name.startsWith('kit_') || o.name.startsWith('kit_')) return;
-        if (['frame', 'wheel_front', 'wheel_rear'].includes(o.name)) o.visible = !hidden.has(o.name);
+        if (['frame', 'wheel_front', 'wheel_rear', 'cockpit'].includes(o.name)) o.visible = !hidden.has(o.name);
       });
+    }
+    this.aimHands();
+    this.applySize();
+  }
+
+  /** Rapport de taille d'un look (modèles MPFB et acheté ; l'ancien coureur garde la sienne). */
+  private sizeOf(look: AvatarLook): number {
+    if (this.t.names.hips !== 'pelvis' || !look.heightCm) return 1;
+    const ref = this.t.textured.size ? MODEL_HEIGHT_CM : MPFB_HEIGHT_CM;
+    return THREE.MathUtils.clamp(look.heightCm, HEIGHT_RANGE_CM[0], HEIGHT_RANGE_CM[1]) / ref;
+  }
+
+  /**
+   * Coureur et vélo à la taille : tout le niveau de détail mis à l'échelle autour de l'axe des
+   * roues, puis roues, pédalier et pédales ramenés à leurs dimensions réelles (échelle inverse).
+   */
+  private applySize(): void {
+    const k = this.size;
+    this.lod.scale.setScalar(k);
+    this.lod.position.set(0, WHEEL_R * (1 - k), 0);
+    for (const o of [...this.bike.wheels, ...this.bike.crank, ...this.bike.pedals.L, ...this.bike.pedals.R]) {
+      const base = (o.userData.baseScale ??= o.scale.clone()) as THREE.Vector3;
+      o.scale.copy(base).divideScalar(k);
     }
   }
 
@@ -1170,8 +1325,10 @@ export class GltfRiderAvatar implements RiderAvatarLike {
 
   setLook(look: AvatarLook): void {
     this.look = look;
+    this.size = this.sizeOf(look);
     for (const m of this.materials.values()) applyLookColor(m, look);
     this.skin?.setLook(skinLook(look));
+    this.skin?.setJersey(look);
     this.applyHair(look);
     this.mountBike(bikeOfLook(look), look);
     this.setBuild(look.build);
@@ -1180,6 +1337,7 @@ export class GltfRiderAvatar implements RiderAvatarLike {
 }
 
 /** Avatar glTF si les modèles sont chargés (GltfRiderAvatar.load()), sinon l'avatar procédural. */
-export function createAvatar(look: AvatarLook): RiderAvatarLike {
+export function createAvatar(look: AvatarLook, kind: AvatarKind = AVATAR_KIND): RiderAvatarLike {
+  if (GltfRiderAvatar.has(kind)) return new GltfRiderAvatar(look, kind);
   return GltfRiderAvatar.ready ? new GltfRiderAvatar(look) : new RiderAvatar(look);
 }

@@ -1,5 +1,5 @@
 import * as THREE from 'three/webgpu';
-import { uv, attribute, mix, smoothstep, step, fract, vec3, float, uniform, mx_noise_float, positionWorld, clamp, abs, max } from 'three/tsl';
+import { uv, attribute, mix, smoothstep, step, fract, floor, hash, min, vec3, float, uniform, mx_noise_float, positionWorld, clamp, abs, max } from 'three/tsl';
 import type { LoadedTile, TileRoad } from './types.ts';
 import { asphaltGrain } from './asphalt.ts';
 import { ribbonIndex, sideRoadStrips, type RouteFootprint } from './ribbon.ts';
@@ -7,6 +7,8 @@ import { ribbonIndex, sideRoadStrips, type RouteFootprint } from './ribbon.ts';
 /** Routes revêtues avec marquage axial (départementales et plus). */
 const MARKED = new Set(['primary', 'secondary', 'tertiary', 'trunk', 'primary_link', 'secondary_link']);
 const UNPAVED = new Set(['unpaved', 'gravel', 'dirt', 'ground', 'compacted', 'fine_gravel', 'grass', 'sand']);
+/** Pavés (secteurs de Paris–Roubaix, vieilles rues) : mêmes valeurs OSM que la physique et le son. */
+const COBBLES = new Set(['sett', 'cobblestone', 'unhewn_cobblestone', 'cobblestone:flattened', 'paving_stones:sett']);
 const SKIP = new Set(['footway', 'path', 'steps', 'cycleway', 'bridleway', 'pedestrian', 'corridor', 'platform']);
 
 /**
@@ -39,7 +41,7 @@ export class RoadNetwork {
 
   private createRoadMaterial(): THREE.MeshStandardNodeMaterial {
     const m = new THREE.MeshStandardNodeMaterial();
-    const info = attribute<'vec3'>('roadInfo'); // demi-largeur, marquage axial, non revêtu
+    const info = attribute<'vec3'>('roadInfo'); // demi-largeur, marquage axial, revêtement (0 enrobé, 1 non revêtu, 2 pavés)
     const across = uv().x; // mètres depuis l'axe (signé)
     const along = uv().y;
     const half = info.x;
@@ -48,16 +50,30 @@ export class RoadNetwork {
     const n2 = mx_noise_float(positionWorld.xz.mul(0.08)).mul(0.5).add(0.5);
     const asphalt = vec3(0.24, 0.245, 0.26).mul(asphaltGrain()).mul(n2.mul(0.2).add(0.9));
     const gravel = vec3(0.5, 0.46, 0.38).mul(n.mul(0.35).add(0.7));
+    const unpaved = clamp(info.z, 0, 1).mul(step(info.z, 1.5));
+    const cobble = step(1.5, info.z);
+    // Pavés : rangées de 14 cm décalées d'un demi-pavé, pavés de 17 cm, joints sombres, teinte par pavé.
+    const rowF = along.div(0.14);
+    const row = floor(rowF);
+    const u = across.div(0.17).add(fract(row.mul(0.5)));
+    const fu = fract(u);
+    const fv = fract(rowF);
+    const jointM = min(min(fu, float(1).sub(fu)).mul(0.17), min(fv, float(1).sub(fv)).mul(0.14));
+    const inStone = smoothstep(0.01, 0.024, jointM);
+    const shade = hash(floor(u).add(row.mul(57)));
+    const stone = vec3(0.43, 0.41, 0.38).mul(shade.mul(0.4).add(0.72)).mul(n.mul(0.2).add(0.9));
+    const cobbles = mix(vec3(0.13, 0.12, 0.1), stone, inStone);
     const edge = smoothstep(half.sub(0.35), half.sub(0.3), ax).mul(smoothstep(half.sub(0.1), half.sub(0.15), ax)).mul(info.y);
     const dash = step(fract(along.div(13)), float(3 / 13));
     const center = smoothstep(0.08, 0.06, ax).mul(dash).mul(info.y);
-    const paint = max(edge, center).mul(n2.mul(0.25).add(0.75));
-    let col = mix(asphalt, gravel, info.z);
+    const paint = max(edge, center).mul(n2.mul(0.25).add(0.75)).mul(float(1).sub(cobble));
+    let col = mix(mix(asphalt, gravel, unpaved), cobbles, cobble);
     col = mix(col, vec3(0.9, 0.9, 0.86), paint);
     // Bords fondus dans le bas-côté (pas d'arête nette sur l'herbe).
-    col = col.mul(float(1).sub(this.wetness.mul(0.4).mul(float(1).sub(info.z))));
+    col = col.mul(float(1).sub(this.wetness.mul(0.4).mul(float(1).sub(unpaved))));
     m.colorNode = col;
-    m.roughnessNode = clamp(mix(float(0.8), float(0.97), info.z).sub(this.wetness.mul(0.55).mul(float(1).sub(info.z))), 0.06, 1);
+    // pavés mouillés : brillants entre les joints (le « Enfer du Nord » sous la pluie)
+    m.roughnessNode = clamp(mix(mix(float(0.8), float(0.97), unpaved), mix(float(0.62), float(0.9), float(1).sub(inStone)), cobble).sub(this.wetness.mul(0.55).mul(float(1).sub(unpaved))), 0.06, 1);
     m.metalnessNode = float(0);
     m.polygonOffset = true;
     m.polygonOffsetFactor = -2;
@@ -104,7 +120,7 @@ function buildRoads(roads: TileRoad[], footprint: RouteFootprint | null): THREE.
     if (p.length < 6) continue;
     const half = Math.max(r.width, 2.5) / 2;
     const marked = MARKED.has(r.kind) && r.width >= 5 ? 1 : 0;
-    const unpaved = UNPAVED.has(r.surface ?? '') || r.kind === 'track' ? 1 : 0;
+    const unpaved = COBBLES.has(r.surface ?? '') ? 2 : UNPAVED.has(r.surface ?? '') || r.kind === 'track' ? 1 : 0;
     // Bords à demi-largeur + 0,6 m de bas-côté fondu ; découpe contre l'itinéraire actif.
     const o = half + 0.6;
     for (const s of sideRoadStrips(p, o, half, footprint, 0.05)) {

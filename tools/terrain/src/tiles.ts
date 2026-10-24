@@ -4,6 +4,7 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
+import { deltaDecodeU16, deltaEncodeU16 } from '@allezrobert/shared';
 import { LOD_HI, LOD_LO, ORIGIN_L93, TILE_SIZE_M } from './config.ts';
 import type { Dem } from './dem.ts';
 import { tileId, tileRect, type Rect } from './frame.ts';
@@ -278,20 +279,24 @@ export function gridSample(g: Grid, x: number, z: number): number {
   return (h[j * N + i]! * (1 - tx) + h[j * N + i + 1]! * tx) * (1 - tz) + (h[(j + 1) * N + i]! * (1 - tx) + h[(j + 1) * N + i + 1]! * tx) * tz;
 }
 
-export function encodeGrid(g: Grid, baseM: number, stepM = HEIGHT_STEP_M): Buffer {
+/** Grille → Uint16 petit-boutiste ; `delta` : codée en différences (tuiles, voir shared/heights.ts). */
+export function encodeGrid(g: Grid, baseM: number, stepM = HEIGHT_STEP_M, delta = false): Buffer {
   const N = g.n + 1;
+  const q = new Uint16Array(N * N);
+  for (let k = 0; k < N * N; k++) q[k] = Math.max(0, Math.min(65535, Math.round((g.h[k]! - baseM) / stepM)));
+  if (delta) deltaEncodeU16(q, g.n);
   const buf = Buffer.alloc(N * N * 2);
-  for (let k = 0; k < N * N; k++) {
-    const q = Math.round((g.h[k]! - baseM) / stepM);
-    buf.writeUInt16LE(Math.max(0, Math.min(65535, q)), k * 2);
-  }
+  for (let k = 0; k < N * N; k++) buf.writeUInt16LE(q[k]!, k * 2);
   return buf;
 }
 
-export function decodeGrid(buf: Buffer, n: number, baseM: number, stepM = HEIGHT_STEP_M): Float32Array {
+export function decodeGrid(buf: Buffer, n: number, baseM: number, stepM = HEIGHT_STEP_M, delta = false): Float32Array {
   const N = n + 1;
+  const q = new Uint16Array(N * N);
+  for (let k = 0; k < N * N; k++) q[k] = buf.readUInt16LE(k * 2);
+  if (delta) deltaDecodeU16(q, n);
   const out = new Float32Array(N * N);
-  for (let k = 0; k < N * N; k++) out[k] = baseM + buf.readUInt16LE(k * 2) * stepM;
+  for (let k = 0; k < N * N; k++) out[k] = baseM + q[k]! * stepM;
   return out;
 }
 
@@ -424,11 +429,11 @@ export function buildTile(
   const stepM = tileStepM(maxM - baseM);
   const tilesDir = path.join(outDir, 'tiles');
   let bytes = 0;
-  const loBuf = encodeGrid(lo, baseM, stepM);
+  const loBuf = encodeGrid(lo, baseM, stepM, true);
   fs.writeFileSync(path.join(tilesDir, `${id}.lo.u16`), loBuf);
   bytes += loBuf.length;
   if (hiGrid) {
-    const hb = encodeGrid(hiGrid, baseM, stepM);
+    const hb = encodeGrid(hiGrid, baseM, stepM, true);
     fs.writeFileSync(path.join(tilesDir, `${id}.hi.u16`), hb);
     bytes += hb.length;
   }
@@ -516,6 +521,7 @@ export function buildTile(
       baseM,
       stepM,
       encoding: 'uint16le',
+      delta: true,
       lo: { n: LOD_LO.n, resolutionM: LOD_LO.resM, file: `${id}.lo.u16` },
       ...(hiGrid ? { hi: { n: LOD_HI.n, resolutionM: LOD_HI.resM, file: `${id}.hi.u16` } } : {}),
     },

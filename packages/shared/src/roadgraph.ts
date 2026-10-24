@@ -26,6 +26,11 @@ export interface RoadGraphEdge {
   len: number;
   /** Profil [x, y, z, …] de a vers b, extrémités comprises. */
   pts: number[];
+  /**
+   * Arête au bord du monde (à moins de 30 m du bord ou au-delà) : écartée quand on roule dans
+   * cette seule zone (pas de cul-de-sac au bord), gardée pour raccorder les zones voisines.
+   */
+  border?: 1;
 }
 
 export interface RoadGraphData {
@@ -34,6 +39,8 @@ export interface RoadGraphData {
   nodes: number[];
   edges: RoadGraphEdge[];
   attribution: string[];
+  /** Identifiant OSM de chaque nœud : raccord des graphes de zones voisines (nœuds communs). */
+  osm?: number[];
 }
 
 /** Parcours d'une arête dans un sens. */

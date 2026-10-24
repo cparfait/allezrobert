@@ -546,9 +546,9 @@
    "id": "tour-hippodrome-vincennes",
    "file": "routes/tour-hippodrome-vincennes.json",
    "name": "Le tour de l'hippodrome de Vincennes",
-   "lengthM": 3832,
-   "elevationGainM": 18.65,
-   "loop": false,
+   "lengthM": 3305.87,
+   "elevationGainM": 17.21,
+   "loop": true,
    "main": true
   }
  ],

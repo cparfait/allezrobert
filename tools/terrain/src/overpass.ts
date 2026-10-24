@@ -75,6 +75,17 @@ export function mountainClauses(b: BBox): string {
 `;
 }
 
+/**
+ * Clauses des mondes côtiers : plages (sable, galets). À part de la requête commune pour ne pas
+ * changer la clé de cache des mondes déjà construits.
+ */
+export function coastClauses(b: BBox): string {
+  const bb = `${b.south},${b.west},${b.north},${b.east}`;
+  return `  way["natural"="beach"](${bb});
+  relation["natural"="beach"](${bb});
+`;
+}
+
 /** Requête « tout le monde » sur une emprise (`extra` : clauses propres au monde). */
 export function worldQuery(b: BBox, extra?: (b: BBox) => string): string {
   const bb = `${b.south},${b.west},${b.north},${b.east}`;

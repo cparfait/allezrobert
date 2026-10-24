@@ -1,8 +1,9 @@
 import * as THREE from 'three/webgpu';
-import { BASE_PROFILES, BIKES, DEFAULT_LOOK, FACE_SLIDERS, encodeFace, profileLook, type AvatarLook, type BikeModel, type FaceShape } from '@allezrobert/shared';
+import { BASE_PROFILES, BIKES, COSMETICS, DEFAULT_LOOK, FACE_SLIDERS, encodeFace, jerseyLookOf, profileLook, type AvatarLook, type BikeModel, type FaceShape } from '@allezrobert/shared';
 import { createEngine } from './engine/renderer.ts';
 import { QUALITY_PRESETS, type QualityLevel } from './engine/quality.ts';
 import { GltfRiderAvatar, type RiderPose } from './rider/gltfAvatar.ts';
+import { preloadJerseyLogo } from './rider/jerseyPattern.ts';
 
 /**
  * Banc d'essai (développement) : /avatar-test.html rend l'avatar glTF qui pédale sur un sol uni
@@ -17,7 +18,7 @@ const params = new URLSearchParams(location.search);
 async function main(): Promise<void> {
   // &bench&quality=low|medium|high|ultra : préréglage complet (post-traitements compris).
   const preset = QUALITY_PRESETS[(params.get('quality') ?? 'high') as QualityLevel] ?? QUALITY_PRESETS.high;
-  const q = params.has('bench') ? preset : { ...QUALITY_PRESETS.high, ao: false, taa: false, bloom: false, pixelRatio: 1 };
+  const q = params.has('bench') || params.has('shorts') ? preset : { ...QUALITY_PRESETS.high, ao: false, taa: false, bloom: false, pixelRatio: 1 };
   const engine = await createEngine(canvas, q);
   const { scene, camera, renderer } = engine;
   renderer.setPixelRatio(1);
@@ -50,6 +51,11 @@ async function main(): Promise<void> {
   if (params.has('bench')) return bench(engine);
   if (params.has('sliders')) return sliderSheet(engine);
   if (params.has('random')) return randomSheet(engine);
+  if (params.has('tailles')) return sizeSheet(engine);
+  if (params.has('maillots')) return jerseySheet(engine);
+  if (params.has('pack')) return packSheet(engine, params.get('pack') ?? '');
+  if (params.has('sleeves')) return sleevesSheet(engine);
+  if (params.has('bidons')) return bottlesSheet(engine);
   if (params.has('profiles')) return profileSheet(engine);
   if (params.has('measure')) return measureHead();
   if (params.has('calib')) return likenessCalibration(engine);
@@ -193,6 +199,250 @@ async function main(): Promise<void> {
   const shots: Array<[string, string]> = [];
 
   step(2);
+  // ?hands : gros plans des mains droite et gauche des trois coureurs (assis, danseuse, roue libre)
+  // et distance paume → cintre mesurée en repère monde (window.__hands).
+  // ?shorts : cuissard du coureur assis, de près, à distance moyenne et au loin (grain, moiré) ;
+  // &bench&quality=ultra pour les réglages de la capture, &avatar=boutique pour l'autre modèle.
+  if (params.has('shorts')) {
+    const r = riders[0] as Rig;
+    far.root.visible = false;
+    for (const o of riders) o.a.root.visible = o === r;
+    r.a.root.updateMatrixWorld(true);
+    const sheet = document.createElement('canvas');
+    sheet.width = 1920;
+    sheet.height = 540;
+    const g = sheet.getContext('2d') as CanvasRenderingContext2D;
+    const c = new THREE.Vector3(r.a.root.position.x + 0.1, 0.98, -0.1);
+    [[1.0, 30], [3.0, 24], [8.0, 12]].forEach(([d, fov], k) => {
+      camera.fov = fov as number;
+      camera.position.set(c.x + 0.8 * (d as number), c.y + 0.2 * (d as number), c.z + 0.6 * (d as number));
+      camera.updateProjectionMatrix();
+      camera.lookAt(c);
+      for (let n = 0; n < 8; n++) engine.renderManual();
+      g.drawImage(canvas, 320, 0, 640, 540, k * 640, 0, 640, 540);
+    });
+    document.body.replaceChildren(sheet);
+    sheet.style.cssText = 'display:block;width:100%;height:auto';
+    if (!params.has('noshot')) await fetch(`/__shot?name=avatar-cuissard-${params.get('name') ?? 'essai'}`, { method: 'POST', body: sheet.toDataURL('image/jpeg', 0.92) });
+    (window as unknown as { __avatarTestDone: boolean }).__avatarTestDone = true;
+    return;
+  }
+  // ?film : les dix coureurs du film d'accueil (tenues de ui/cinematic.ts), de face puis de profil.
+  if (params.has('film')) {
+    const { lookFor } = await import('./ui/cinematic.ts');
+    for (const o of riders) o.a.root.visible = false;
+    far.root.visible = false;
+    const crew = Array.from({ length: 10 }, (_, i) => {
+      const a = new GltfRiderAvatar(lookFor(i));
+      a.root.position.set((i - 4.5) * 1.1, 0, 0);
+      scene.add(a.root);
+      for (let t = 0; t < 1; t += 1 / 60) a.update(1 / 60, 85, 9, 'seated', 0);
+      return a;
+    });
+    void crew;
+    const sheet = document.createElement('canvas');
+    sheet.width = 1920;
+    sheet.height = 1080;
+    const g = sheet.getContext('2d') as CanvasRenderingContext2D;
+    camera.fov = 22;
+    camera.position.set(0, 1.5, 11);
+    camera.updateProjectionMatrix();
+    camera.lookAt(0, 0.95, 0);
+    for (let n = 0; n < 4; n++) engine.renderManual();
+    g.drawImage(canvas, 0, 0, 1280, 720, 0, 0, 1920, 540);
+    camera.position.set(11, 1.5, 0.5);
+    camera.lookAt(0, 0.95, 0.5);
+    for (const [i, a] of crew.entries()) a.root.position.set(0, 0, (i - 4.5) * 1.1);
+    for (let n = 0; n < 4; n++) engine.renderManual();
+    g.drawImage(canvas, 0, 0, 1280, 720, 0, 540, 1920, 540);
+    document.body.replaceChildren(sheet);
+    sheet.style.cssText = 'display:block;width:100%;height:auto';
+    if (!params.has('noshot')) await fetch('/__shot?name=avatar-film-tenues', { method: 'POST', body: sheet.toDataURL('image/jpeg', 0.92) });
+    (window as unknown as { __avatarTestDone: boolean }).__avatarTestDone = true;
+    return;
+  }
+  // ?profil : profil strict zoomé du haut du corps (dos, nuque, tête) des coureurs du film puis de
+  // corpulences et tailles extrêmes ; &pose=standing|seated ; angles dans window.__profil.
+  if (params.has('profil')) {
+    const { lookFor } = await import('./ui/cinematic.ts');
+    const pose = (params.get('pose') ?? 'seated') as RiderPose;
+    // &morphs=a:1,b:-1 : un coureur par curseur de forme (valeur donnée), sur la tenue par défaut.
+    const morphs = (params.get('morphs') ?? '').split(',').filter(Boolean);
+    const looks: Array<[string, AvatarLook]> = morphs.length
+      ? [['base', { ...DEFAULT_LOOK, bikeModel: 's26-04-cervelo-s5' }], ...morphs.map((m): [string, AvatarLook] => [m, { ...DEFAULT_LOOK, bikeModel: 's26-04-cervelo-s5', face: encodeFace({ [m.split(':')[0] as string]: Number(m.split(':')[1]) } as FaceShape) }])]
+      : [
+      ...Array.from({ length: 10 }, (_, i): [string, AvatarLook] => [`film${i}`, lookFor(i)]),
+      ...([[160, 0], [160, 1], [175, 0], [175, 1], [195, 0], [195, 1]] as const).map(([h, b]): [string, AvatarLook] => [`${h}cm-b${b}`, { ...DEFAULT_LOOK, bikeModel: 's26-04-cervelo-s5', heightCm: h, build: b }]),
+    ];
+    // &only=film4,film6 : seulement ces coureurs.
+    const only = (params.get('only') ?? '').split(',').filter(Boolean);
+    if (only.length) looks.splice(0, looks.length, ...looks.filter(([n]) => only.includes(n)));
+    for (const o of riders) o.a.root.visible = false;
+    far.root.visible = false;
+    const cols = 4;
+    const cw = 480;
+    const ch = 360;
+    const sheet = document.createElement('canvas');
+    sheet.width = cols * cw;
+    sheet.height = Math.ceil(looks.length / cols) * ch;
+    const g = sheet.getContext('2d') as CanvasRenderingContext2D;
+    g.font = '600 16px sans-serif';
+    const out: unknown[] = [];
+    for (const [i, [name, look]] of looks.entries()) {
+      const a = new GltfRiderAvatar(look);
+      a.root.position.set(0, 0, 0);
+      scene.add(a.root);
+      for (let t = 0; t < 1; t += 1 / 60) a.update(1 / 60, pose === 'standing' ? 70 : 85, 9, pose, 0);
+      a.root.updateMatrixWorld(true);
+      const P = (n: string): THREE.Vector3 => (a.root.getObjectByName(n) as THREE.Object3D).getWorldPosition(new THREE.Vector3());
+      const hip = P('thigh_l');
+      const sh = P('upperarm_l');
+      const nk = P('neck_01');
+      const hd = P('head');
+      const elev = (u: THREE.Vector3, v: THREE.Vector3): number => (Math.atan2(v.y - u.y, v.z - u.z) * 180) / Math.PI;
+      // Angles de référence (docs/REFERENCE_POSTURE.md) : épaule (tronc / bras), coude, hanche (tronc / cuisse).
+      const ang3 = (o: THREE.Vector3, u: THREE.Vector3, v: THREE.Vector3): number => (u.clone().sub(o).angleTo(v.clone().sub(o)) * 180) / Math.PI;
+      const el = P('lowerarm_l');
+      const wr = P('hand_l');
+      const kn = P('calf_l');
+      (window as unknown as { __ang: Record<string, unknown> }).__ang ??= {};
+      ((window as unknown as { __ang: Record<string, unknown> }).__ang)[name] = { shoulder: +ang3(sh, hip, el).toFixed(1), elbow: +ang3(el, sh, wr).toFixed(1), hip: +ang3(hip, sh, kn).toFixed(1), neckVsBack: +(elev(nk, hd) - elev(hip, sh)).toFixed(1) };
+      out.push({ name, back: +elev(hip, sh).toFixed(1), neck: +elev(nk, hd).toFixed(1), shDz: +(sh.z - hip.z).toFixed(3), shDy: +(sh.y - hip.y).toFixed(3), headFwd: +(hd.z - sh.z).toFixed(3) });
+      camera.fov = Number(params.get('fov') ?? 9);
+      // &rear : trois quarts arrière (vue du peloton) au lieu du profil strict.
+      if (params.has('rear')) camera.position.set(-5.5, sh.y + 0.7, sh.z - 6.5);
+      else camera.position.set(-9, sh.y, sh.z - 0.15);
+      // &low : bas du dos, bassin et selle (au lieu des épaules).
+      const low = params.has('low');
+      if (low && !params.has('rear')) camera.position.set(-9, hip.y + 0.1, hip.z);
+      camera.updateProjectionMatrix();
+      camera.lookAt(0, low ? hip.y + 0.05 : sh.y - 0.05, low ? hip.z : sh.z - 0.15);
+      for (let n = 0; n < 3; n++) engine.renderManual();
+      g.drawImage(canvas, 240, 0, 800, 600, (i % cols) * cw, Math.floor(i / cols) * ch, cw, ch);
+      g.fillStyle = '#000';
+      g.fillRect((i % cols) * cw, Math.floor(i / cols) * ch, 90, 22);
+      g.fillStyle = '#fff';
+      g.fillText(name, (i % cols) * cw + 4, Math.floor(i / cols) * ch + 16);
+      scene.remove(a.root);
+    }
+    (window as unknown as { __profil: unknown }).__profil = out;
+    document.body.replaceChildren(sheet);
+    sheet.style.cssText = 'display:block;width:100%;height:auto';
+    if (!params.has('noshot')) await fetch(`/__shot?name=avatar-profil-${params.get('name') ?? 'essai'}`, { method: 'POST', body: sheet.toDataURL('image/jpeg', 0.92) });
+    (window as unknown as { __avatarTestDone: boolean }).__avatarTestDone = true;
+    return;
+  }
+  // ?refview : profil strict du coureur par défaut sur un vélo de route, avec les repères de mesure
+  // (hanche, épaule, coude, poignet, genou, cheville, oreille) et angles ; comparé à docs/REFERENCE_POSTURE.md.
+  if (params.has('refview')) {
+    for (const o of riders) o.a.root.visible = false;
+    far.root.visible = false;
+    const a = new GltfRiderAvatar({ ...DEFAULT_LOOK, bikeModel: 's26-04-cervelo-s5' });
+    scene.add(a.root);
+    const priv = a as unknown as { crankAngle: number };
+    priv.crankAngle = Math.PI + 0.25;
+    a.update(0, 0.0001, 0, 'seated');
+    priv.crankAngle = Math.PI + 0.25;
+    a.update(1e-4, 0.0001, 0, 'seated');
+    a.root.updateMatrixWorld(true);
+    camera.fov = 14;
+    camera.position.set(-6.5, 0.8, 0.1);
+    camera.updateProjectionMatrix();
+    camera.lookAt(0, 0.8, 0.1);
+    for (let n = 0; n < 4; n++) engine.renderManual();
+    const sheet = document.createElement('canvas');
+    sheet.width = 1280;
+    sheet.height = 720;
+    const g = sheet.getContext('2d') as CanvasRenderingContext2D;
+    g.drawImage(canvas, 0, 0, 1280, 720);
+    const P = (n: string): THREE.Vector3 => (a.root.getObjectByName(n) as THREE.Object3D).getWorldPosition(new THREE.Vector3());
+    const scr = (v: THREE.Vector3): [number, number] => {
+      const q = v.clone().project(camera);
+      return [((q.x + 1) / 2) * 1280, ((1 - q.y) / 2) * 720];
+    };
+    const pts: Record<string, THREE.Vector3> = { hip: P('thigh_r'), sh: P('upperarm_r'), el: P('lowerarm_r'), wr: P('hand_r'), kn: P('calf_r'), an: P('foot_r'), ear: P('head') };
+    g.lineWidth = 3;
+    g.strokeStyle = '#00e5ff';
+    g.beginPath();
+    for (const k of ['ear', 'sh', 'hip', 'kn', 'an']) g.lineTo(...scr(pts[k] as THREE.Vector3));
+    g.stroke();
+    g.beginPath();
+    for (const k of ['sh', 'el', 'wr']) g.lineTo(...scr(pts[k] as THREE.Vector3));
+    g.stroke();
+    g.fillStyle = '#ff3d00';
+    for (const v of Object.values(pts)) {
+      const [x, y] = scr(v);
+      g.beginPath();
+      g.arc(x, y, 6, 0, 7);
+      g.fill();
+    }
+    const ang3 = (o: THREE.Vector3, u: THREE.Vector3, v: THREE.Vector3): number => (u.clone().sub(o).angleTo(v.clone().sub(o)) * 180) / Math.PI;
+    const elev = (u: THREE.Vector3, v: THREE.Vector3): number => (Math.atan2(v.y - u.y, v.z - u.z) * 180) / Math.PI;
+    const info = { backDeg: +elev(pts.hip as THREE.Vector3, pts.sh as THREE.Vector3).toFixed(1), shoulderDeg: +ang3(pts.sh as THREE.Vector3, pts.hip as THREE.Vector3, pts.el as THREE.Vector3).toFixed(1), elbowDeg: +ang3(pts.el as THREE.Vector3, pts.sh as THREE.Vector3, pts.wr as THREE.Vector3).toFixed(1), hipDeg: +ang3(pts.hip as THREE.Vector3, pts.sh as THREE.Vector3, pts.kn as THREE.Vector3).toFixed(1), kneeDeg: +ang3(pts.kn as THREE.Vector3, pts.hip as THREE.Vector3, pts.an as THREE.Vector3).toFixed(1), neckElevDeg: +elev(P('neck_01'), pts.ear as THREE.Vector3).toFixed(1) };
+    g.font = '28px sans-serif';
+    g.fillStyle = '#000';
+    g.fillText(Object.entries(info).map(([k, v]) => `${k} ${v}`).join('  '), 20, 700);
+    (window as unknown as { __refview: unknown }).__refview = { ...info, pts: Object.fromEntries(Object.entries(pts).map(([k, v]) => [k, [+v.z.toFixed(3), +v.y.toFixed(3)]])) };
+    document.body.replaceChildren(sheet);
+    sheet.style.cssText = 'display:block;width:100%;height:auto';
+    if (!params.has('noshot')) await fetch(`/__shot?name=avatar-ref-${params.get('name') ?? 'essai'}`, { method: 'POST', body: sheet.toDataURL('image/jpeg', 0.92) });
+    (window as unknown as { __avatarTestDone: boolean }).__avatarTestDone = true;
+    return;
+  }
+  if (params.has('hands')) {
+    far.root.visible = false;
+    const sheet = document.createElement('canvas');
+    sheet.width = 1280;
+    sheet.height = 1440;
+    const g = sheet.getContext('2d') as CanvasRenderingContext2D;
+    const stats: unknown[] = [];
+    for (const [i, r] of riders.entries()) {
+      for (const o of riders) o.a.root.visible = o === r;
+      r.a.root.updateMatrixWorld(true);
+      const wp = (n: string): THREE.Vector3 => (r.a.root.getObjectByName(n) as THREE.Object3D).getWorldPosition(new THREE.Vector3());
+      const bars: THREE.Vector3[] = [];
+      r.a.root.traverse((o) => {
+        const m = o as THREE.Mesh;
+        if (!m.isMesh || (m as THREE.SkinnedMesh).isSkinnedMesh || !m.visible || o.parent?.name !== 'cockpit') return;
+        const p = m.geometry.getAttribute('position');
+        for (let k = 0; k < p.count; k += 2) bars.push(new THREE.Vector3().fromBufferAttribute(p, k).applyMatrix4(m.matrixWorld));
+      });
+      const row: Record<string, unknown> = { pose: r.pose };
+      for (const [si, s] of (['r', 'l'] as const).entries()) {
+        const palm = wp(`hand_${s}`).add(wp(`middle_01_${s}`)).multiplyScalar(0.5);
+        row[s] = +Math.min(...bars.map((b) => b.distanceTo(palm))).toFixed(3);
+        const sx = s === 'r' ? -1 : 1;
+        if (params.has('top')) {
+          // Vue de dessus (avant du vélo en haut) : position avant / arrière des deux paumes.
+          if (si === 0) {
+            const mid = wp('hand_l').add(wp('hand_r')).multiplyScalar(0.5);
+            camera.fov = 14;
+            camera.position.set(mid.x, mid.y + 1.6, mid.z);
+            camera.up.set(0, 0, 1);
+            camera.updateProjectionMatrix();
+            camera.lookAt(mid);
+            camera.up.set(0, 1, 0);
+            engine.renderManual();
+            g.drawImage(canvas, 240, 0, 800, 480, 0, i * 480, 1280, 480);
+          }
+        } else {
+          camera.fov = 18;
+          camera.position.set(palm.x + sx * 0.5, palm.y + 0.35, palm.z + 0.55);
+          camera.updateProjectionMatrix();
+          camera.lookAt(palm);
+          engine.renderManual();
+          g.drawImage(canvas, 240, 0, 800, 480, si * 640, i * 480, 640, 480);
+        }
+      }
+      stats.push(row);
+    }
+    (window as unknown as { __hands: unknown }).__hands = stats;
+    if (!params.has('noshot')) await fetch(`/__shot?name=avatar-mains-${params.has('top') ? 'dessus' : 'gros-plans'}`, { method: 'POST', body: sheet.toDataURL('image/jpeg', 0.9) });
+    document.body.replaceChildren(sheet);
+    sheet.style.cssText = 'display:block;width:100%;height:auto';
+    (window as unknown as { __avatarTestDone: boolean }).__avatarTestDone = true;
+    return;
+  }
   view([3.6, 1.7, 4.2], [0, 0.85, 0.2]);
   shots.push(['avatar-gltf-3q', grab()]);
   view([-3.2, 1.4, -3.6], [0, 0.9, 0.2]);
@@ -462,6 +712,140 @@ async function profileSheet(engine: Awaited<ReturnType<typeof createEngine>>): P
   document.body.replaceChildren(sheet);
   sheet.style.cssText = 'display:block;width:100%;height:auto';
   if (!params.has('noshot')) await fetch('/__shot?name=avatars-profils', { method: 'POST', body: sheet.toDataURL('image/jpeg', 0.88) });
+  (window as unknown as { __avatarTestDone: boolean }).__avatarTestDone = true;
+}
+
+/**
+ * Planche des tailles (?tailles) : coureurs de 1,60, 1,765 et 1,95 m sur le même vélo (taille de
+ * cadre adaptée, roues et manivelles identiques), de profil côte à côte puis de trois quarts avant,
+ * manivelle à l'horizontale → avatar-tailles.jpg.
+ */
+async function sizeSheet(engine: Awaited<ReturnType<typeof createEngine>>): Promise<void> {
+  const { scene, camera } = engine;
+  const heights = [160, params.get('avatar') === 'boutique' ? 176.5 : 175, 195];
+  const riders = heights.map((h, i) => {
+    const a = new GltfRiderAvatar({ ...DEFAULT_LOOK, bikeModel: 's26-04-cervelo-s5', heightCm: h, jersey: ['#d62828', '#1f6feb', '#2a9d8f'][i] as string });
+    const priv = a as unknown as { crankAngle: number };
+    priv.crankAngle = Math.PI / 2;
+    a.update(0, 0.0001, 0, 'seated');
+    a.root.position.set(0, 0, (i - 1) * 2.2);
+    scene.add(a.root);
+    return a;
+  });
+  const sheet = document.createElement('canvas');
+  sheet.width = 1280;
+  sheet.height = 1440;
+  const g = sheet.getContext('2d') as CanvasRenderingContext2D;
+  // Profil (téléobjectif : pas de perspective entre les trois).
+  camera.fov = 5.2;
+  camera.position.set(42, 1.0, 0);
+  camera.updateProjectionMatrix();
+  camera.lookAt(0, 0.95, 0);
+  engine.renderManual();
+  g.drawImage(canvas, 0, 0, 1280, 720);
+  // Trois quarts avant, coureurs alignés de côté.
+  riders.forEach((r, i) => r.root.position.set((i - 1) * 1.1, 0, 0));
+  camera.fov = 30;
+  camera.position.set(3.2, 1.6, 5.2);
+  camera.updateProjectionMatrix();
+  camera.lookAt(0, 0.8, 0);
+  engine.renderManual();
+  g.drawImage(canvas, 0, 720, 1280, 720);
+  if (!params.has('noshot')) await fetch('/__shot?name=avatar-tailles', { method: 'POST', body: sheet.toDataURL('image/jpeg', 0.9) });
+  log.textContent += '\ntailles : terminé';
+  (window as unknown as { __avatarTestDone: boolean }).__avatarTestDone = true;
+}
+
+/**
+ * Planche d'un pack de maillots du garage (?pack=pays|distinctifs|equipes|tour|pro ; &back : vu de dos) : une vignette par
+ * maillot (tenue complète du catalogue), coureur de trois quarts avant → avatar-pack-<pack>.jpg.
+ */
+async function packSheet(engine: Awaited<ReturnType<typeof createEngine>>, pack: string): Promise<void> {
+  const { scene, camera } = engine;
+  const items = COSMETICS.filter((c) => c.slot === 'jersey' && c.pack === pack);
+  const cols = 5;
+  const cw = 320;
+  const ch = 400;
+  const sheet = document.createElement('canvas');
+  sheet.width = cols * cw;
+  sheet.height = Math.ceil(items.length / cols) * ch;
+  const g = sheet.getContext('2d') as CanvasRenderingContext2D;
+  g.font = '600 18px sans-serif';
+  g.textAlign = 'center';
+  camera.fov = params.has('torso') ? 9 : 22; // &torso : buste en gros plan (bandes des maillots)
+  // Logos des maillots chargés avant le premier rendu ; &back : vu de dos.
+  await Promise.all(items.map((i) => (i.jersey?.logo ? preloadJerseyLogo(i.jersey.logo.id) : null)));
+  const back = params.has('back');
+  camera.position.set(back ? -1.0 : 1.0, 1.75, back ? -3.6 : 3.6);
+  camera.updateProjectionMatrix();
+  camera.lookAt(0, params.has('torso') ? 1.12 : 1.0, 0.1);
+  for (const [i, item] of items.entries()) {
+    const helmet = item.jersey?.style === 'bandes' ? '#ffffff' : (item.color ?? '#ffffff');
+    const a = new GltfRiderAvatar({ ...DEFAULT_LOOK, bikeModel: 's26-04-cervelo-s5', helmet, ...jerseyLookOf(item) });
+    (a as unknown as { crankAngle: number }).crankAngle = Math.PI / 2;
+    a.update(0, 0.0001, 0, 'seated');
+    scene.add(a.root);
+    engine.renderManual();
+    const x = (i % cols) * cw;
+    const y = Math.floor(i / cols) * ch;
+    g.drawImage(canvas, 340, 0, 600, 750, x, y, cw, ch);
+    g.fillStyle = '#000a';
+    g.fillRect(x, y + ch - 30, cw, 30);
+    g.fillStyle = '#fff';
+    g.fillText(item.name.fr, x + cw / 2, y + ch - 9);
+    scene.remove(a.root);
+  }
+  if (!params.has('noshot')) await fetch(`/__shot?name=avatar-pack-${pack}${back ? '-back' : ''}`, { method: 'POST', body: sheet.toDataURL('image/jpeg', 0.9) });
+  if (params.has('show')) {
+    document.body.replaceChildren(sheet);
+    sheet.style.cssText = 'display:block;width:100%;height:auto';
+  }
+  log.textContent += `\npack ${pack} : ${items.length} maillots`;
+  (window as unknown as { __avatarTestDone: boolean }).__avatarTestDone = true;
+}
+
+/**
+ * Planche des maillots (?maillots) : jaune (uni), champion de France, champion du monde, uni
+ * rouge et dessin d'origine recoloré, de trois quarts avant puis de dos → avatar-maillots.jpg.
+ */
+async function jerseySheet(engine: Awaited<ReturnType<typeof createEngine>>): Promise<void> {
+  const { scene, camera } = engine;
+  const looks: Array<Partial<AvatarLook>> = [
+    { jersey: '#ffd200', jerseyAccent: '#ffd200', jerseyStyle: 'uni', helmet: '#ffd200' },
+    { jersey: '#ffffff', jerseyStyle: 'bandes', jerseyBands: ['#1f3c88', '#ffffff', '#d71920'], helmet: '#ffffff' },
+    { jersey: '#ffffff', jerseyStyle: 'bandes', jerseyBands: ['#0072ce', '#e4002b', '#111111', '#ffd100', '#009a44'], helmet: '#ffffff' },
+    { jersey: '#c62828', jerseyAccent: '#c62828', jerseyStyle: 'uni', helmet: '#111111', shoes: '#111111' },
+    { jersey: '#1f6feb', jerseyAccent: '#ffd23f', helmet: '#1f6feb' },
+  ];
+  const riders = looks.map((l, i) => {
+    const a = new GltfRiderAvatar({ ...DEFAULT_LOOK, bikeModel: 's26-04-cervelo-s5', ...l });
+    (a as unknown as { crankAngle: number }).crankAngle = Math.PI / 2;
+    a.update(0, 0.0001, 0, 'seated');
+    a.root.position.set((i - 2) * 0.95, 0, 0);
+    scene.add(a.root);
+    return a;
+  });
+  const sheet = document.createElement('canvas');
+  sheet.width = 1280;
+  sheet.height = 1440;
+  const g = sheet.getContext('2d') as CanvasRenderingContext2D;
+  camera.fov = 26;
+  camera.position.set(1.2, 1.9, 5.6);
+  camera.updateProjectionMatrix();
+  camera.lookAt(0, 0.95, 0);
+  engine.renderManual();
+  g.drawImage(canvas, 0, 0, 1280, 720);
+  camera.position.set(-1.2, 1.9, -5.0);
+  camera.lookAt(0, 0.95, 0);
+  engine.renderManual();
+  g.drawImage(canvas, 0, 720, 1280, 720);
+  if (!params.has('noshot')) await fetch('/__shot?name=avatar-maillots', { method: 'POST', body: sheet.toDataURL('image/jpeg', 0.9) });
+  if (params.has('show')) {
+    document.body.replaceChildren(sheet);
+    sheet.style.cssText = 'display:block;width:100%;height:auto';
+  }
+  log.textContent += '\nmaillots : terminé';
+  void riders;
   (window as unknown as { __avatarTestDone: boolean }).__avatarTestDone = true;
 }
 
@@ -790,7 +1174,9 @@ async function bikeSheet(engine: Awaited<ReturnType<typeof createEngine>>, list:
   for (const [i, b] of models.entries()) {
     // &profile=lea : tenue d'un profil de base.
     const prof = BASE_PROFILES.find((p) => p.id === params.get('profile'));
-    const a = new GltfRiderAvatar({ ...(prof ? profileLook(prof) : DEFAULT_LOOK), bikeModel: b.id });
+    // &biketype=gravel|mtb : kit du vélo (VTT, gravel) ; &pose=standing|coasting : posture du coureur.
+    const bikeType = params.get('biketype');
+    const a = new GltfRiderAvatar({ ...(prof ? profileLook(prof) : DEFAULT_LOOK), bikeModel: b.id, ...(bikeType === 'gravel' || bikeType === 'mtb' ? { bikeType } : {}) });
     // &face=jawWidth:1,noseLength:-0.5 : curseurs de visage (avatar MPFB, ?avatar=mpfb).
     const face = Object.fromEntries((params.get('face') ?? '').split(',').filter(Boolean).map((kv) => [kv.split(':')[0] as string, Number(kv.split(':')[1])]));
     if (Object.keys(face).length) a.setFace(face);
@@ -881,6 +1267,18 @@ async function bikeSheet(engine: Awaited<ReturnType<typeof createEngine>>, list:
       camera.position.set(sx * 0.75, 1.15, 1.05);
       camera.updateProjectionMatrix();
       camera.lookAt(0, 0.88, 0.5);
+    } else if (params.get('view') === 'top') {
+      // Cintre vu d'en haut : les deux mains (symétrie gauche / droite).
+      camera.position.set(0, 2.1, 0.62);
+      camera.up.set(0, 0, 1);
+      camera.updateProjectionMatrix();
+      camera.lookAt(0, 0.9, 0.6);
+      camera.up.set(0, 1, 0);
+    } else if (params.get('view') === 'front') {
+      // Cintre vu de face (de l'avant du vélo).
+      camera.position.set(0, 1.0, 1.5);
+      camera.updateProjectionMatrix();
+      camera.lookAt(0, 0.9, 0.55);
     } else if (params.get('view') === '3q') camera.position.set(sx * 2.2, 1.5, 2.6);
     else if (params.get('view') === 'back') camera.position.set(sx * 1.2, 1.9, -3.4);
     else if (params.get('view') === 'wheel') {
@@ -890,7 +1288,7 @@ async function bikeSheet(engine: Awaited<ReturnType<typeof createEngine>>, list:
       camera.lookAt(0, 0.33, -0.45);
     }
     else camera.position.set(sx * (riderOn ? 4.4 : 3.4) * Number(params.get('zoom') ?? 1), riderOn ? 0.95 : 0.62, 0.09);
-    if (!['face', 'portrait', 'upper', 'cockpit', 'cockpitside', 'wheel'].includes(params.get('view') ?? '')) {
+    if (!['face', 'portrait', 'upper', 'cockpit', 'cockpitside', 'wheel', 'top', 'front'].includes(params.get('view') ?? '')) {
       camera.updateProjectionMatrix();
       camera.lookAt(0, riderOn ? 0.85 : 0.56, 0.09);
     }
@@ -933,3 +1331,117 @@ main().catch((e) => {
   log.textContent = String(e);
   console.error(e);
 });
+
+/**
+ * Planche des manches (?sleeves) : 6 maillots (uni, bandes, pois, jaune du Tour, Visma, Lidl–Trek),
+ * en manches courtes puis longues, de face, de trois quarts, de dos et mains sur le guidon
+ * → avatar-manches[-<avatar>].jpg (&noshot : pas d'enregistrement).
+ */
+async function sleevesSheet(engine: Awaited<ReturnType<typeof createEngine>>): Promise<void> {
+  const { scene, camera } = engine;
+  // &close : gros plans (dessus, trois quarts, dos, poignet) sur six maillots dont le bleu à bande dorée par défaut.
+  const close = params.has('close');
+  const ids = close ? ['default', 'jersey-pois', 'jersey-champion-france', 'jersey-pro-redbull-bora', 'jersey-pro-astana', 'jersey-pro-lidl-trek'] : ['jersey-leader-rouge', 'jersey-champion-france', 'jersey-pois', 'jersey-leader-jaune', 'jersey-pro-visma', 'jersey-pro-lidl-trek'];
+  const items = ids.map((id) => (id === 'default' ? ({ id, name: { fr: 'Bleu et bande dorée', en: 'Blue, gold band' }, slot: 'jersey', level: 1 } as (typeof COSMETICS)[number]) : COSMETICS.find((c) => c.id === id))).filter((c): c is NonNullable<typeof c> => !!c);
+  await Promise.all(items.map((i) => (i.jersey?.logo ? preloadJerseyLogo(i.jersey.logo.id) : null)));
+  const views: Array<{ fov: number; pos: [number, number, number]; at: [number, number, number] }> = close ? [
+    { fov: 14, pos: [1.6, 1.25, 1.9], at: [0, 1.0, 0.45] },
+    { fov: 22, pos: [0.1, 2.3, 1.0], at: [0, 1.0, 0.4] },
+    { fov: 20, pos: [-1.5, 1.35, -1.3], at: [0, 1.05, 0.1] },
+    { fov: 8, pos: [0.9, 1.1, 1.5], at: [0.15, 1.0, 0.55] },
+  ] : [
+    { fov: 24, pos: [1.0, 1.75, 3.6], at: [0, 1.0, 0.1] },
+    { fov: 24, pos: [2.4, 1.5, 2.8], at: [0, 1.0, 0.1] },
+    { fov: 24, pos: [-1.0, 1.75, -3.6], at: [0, 1.0, 0.1] },
+    { fov: 16, pos: [1.6, 1.25, 1.9], at: [0, 1.0, 0.45] },
+  ];
+  const cw = 400;
+  const ch = 300;
+  const sheet = document.createElement('canvas');
+  sheet.width = views.length * 2 * cw;
+  sheet.height = items.length * ch;
+  const g = sheet.getContext('2d') as CanvasRenderingContext2D;
+  g.font = '600 16px sans-serif';
+  for (const [row, item] of items.entries()) {
+    for (const [col, long] of [false, true].entries()) {
+      const a = new GltfRiderAvatar({ ...DEFAULT_LOOK, bikeModel: 's26-04-cervelo-s5', helmet: item.jersey?.style === 'bandes' ? '#ffffff' : (item.color ?? '#ffffff'), ...(item.id === 'default' ? {} : jerseyLookOf(item)), sleeves: long ? 'long' : 'short' });
+      (a as unknown as { crankAngle: number }).crankAngle = Math.PI / 2;
+      a.update(0, 0.0001, 0, 'seated');
+      scene.add(a.root);
+      for (const [vi, v] of views.entries()) {
+        camera.fov = v.fov;
+        camera.position.set(...v.pos);
+        camera.updateProjectionMatrix();
+        camera.lookAt(...v.at);
+        engine.renderManual();
+        const x = (col * views.length + vi) * cw;
+        g.drawImage(canvas, 0, 0, canvas.width, canvas.height, x, row * ch, cw, ch);
+        g.fillStyle = '#000a';
+        g.fillRect(x, row * ch + ch - 22, cw, 22);
+        g.fillStyle = '#fff';
+        g.fillText(`${item.name.fr} · ${long ? 'longues' : 'courtes'}`, x + 8, row * ch + ch - 6);
+      }
+      scene.remove(a.root);
+    }
+  }
+  const kind = params.get('avatar') ?? 'mpfb';
+  if (!params.has('noshot')) await fetch(`/__shot?name=avatar-manches-${close ? 'gros-plans-' : ''}${kind}${params.has('dir') ? '&dir=jerseys' : ''}`, { method: 'POST', body: sheet.toDataURL('image/jpeg', 0.88) });
+  log.textContent += '\nmanches : terminé';
+  (window as unknown as { __avatarTestDone: boolean }).__avatarTestDone = true;
+}
+
+/**
+ * Planche des bidons (?bidons) : route aéro, route acier, chrono, gravel, VTT avec 0, 1 et 2 bidons,
+ * de trois quarts (pédalier à 90°), de profil (pédalier à 0°) et en danseuse → avatar-bidons[-<avatar>].jpg.
+ */
+async function bottlesSheet(engine: Awaited<ReturnType<typeof createEngine>>): Promise<void> {
+  const { scene, camera } = engine;
+  const tt = BIKES.find((b) => b.family === 'tt' && !b.params.track);
+  const rows: Array<{ label: string; bike: string; type?: 'gravel' | 'mtb' }> = [
+    { label: 'route aéro', bike: 's26-04-cervelo-s5' },
+    { label: 'route acier', bike: BIKES.find((b) => b.family === 'steel')?.id ?? 's26-04-cervelo-s5' },
+    { label: 'chrono', bike: tt?.id ?? 's26-04-cervelo-s5' },
+    { label: 'gravel', bike: 's26-04-cervelo-s5', type: 'gravel' },
+    { label: 'VTT', bike: 's26-04-cervelo-s5', type: 'mtb' },
+  ];
+  const { loadBikeFamily } = await import('./rider/bikes.ts');
+  await Promise.all([...new Set(rows.map((r) => BIKES.find((x) => x.id === r.bike)?.family ?? 'aero'))].map((f) => loadBikeFamily(f)));
+  const views: Array<{ pos: [number, number, number]; at: [number, number, number]; crank: number; pose: RiderPose }> = [
+    { pos: [2.4, 1.4, 2.6], at: [0, 0.72, 0.1], crank: Math.PI / 2, pose: 'seated' },
+    { pos: [4.0, 0.95, 0.09], at: [0, 0.72, 0.1], crank: 0, pose: 'seated' },
+    { pos: [4.0, 0.95, 0.09], at: [0, 0.72, 0.1], crank: Math.PI / 3, pose: 'standing' },
+  ];
+  const cw = 360;
+  const ch = 270;
+  const sheet = document.createElement('canvas');
+  sheet.width = 3 * views.length * cw;
+  sheet.height = rows.length * ch;
+  const g = sheet.getContext('2d') as CanvasRenderingContext2D;
+  g.font = '600 15px sans-serif';
+  camera.fov = 26;
+  for (const [row, r] of rows.entries()) {
+    for (const n of [0, 1, 2] as const) {
+      const a = new GltfRiderAvatar({ ...DEFAULT_LOOK, bikeModel: r.bike, bottles: n, ...(r.type ? { bikeType: r.type } : {}) });
+      scene.add(a.root);
+      for (const [vi, v] of views.entries()) {
+        (a as unknown as { crankAngle: number }).crankAngle = v.crank;
+        a.update(0, 0.0001, 0, v.pose);
+        camera.position.set(...v.pos);
+        camera.updateProjectionMatrix();
+        camera.lookAt(...v.at);
+        engine.renderManual();
+        const x = (n * views.length + vi) * cw;
+        g.drawImage(canvas, 0, 0, canvas.width, canvas.height, x, row * ch, cw, ch);
+        g.fillStyle = '#000a';
+        g.fillRect(x, row * ch + ch - 22, cw, 22);
+        g.fillStyle = '#fff';
+        g.fillText(`${r.label} · ${n} bidon${n > 1 ? 's' : ''}`, x + 8, row * ch + ch - 6);
+      }
+      scene.remove(a.root);
+    }
+  }
+  const kind = params.get('avatar') ?? 'mpfb';
+  if (!params.has('noshot')) await fetch(`/__shot?name=avatar-bidons-${kind}&dir=bidons`, { method: 'POST', body: sheet.toDataURL('image/jpeg', 0.88) });
+  log.textContent += '\nbidons : terminé';
+  (window as unknown as { __avatarTestDone: boolean }).__avatarTestDone = true;
+}

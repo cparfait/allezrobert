@@ -84,6 +84,7 @@ export class World {
     this.grass = new GrassField(q, envState.season, (x, z) => this.terrain.getTile(...this.terrain.tileCoord(x, z)), groundAt, onAsphalt);
     scene.add(this.grass.mesh);
     this.water = new WaterSystem(q, envState.season, groundAt, nearRoad);
+    if (source.sea) this.water.setSea(source.sea.levelM, source.bounds);
     scene.add(this.water.group);
     this.railways = new Railways(q, groundAt);
     this.railways.clock = envState.hour * 3600;

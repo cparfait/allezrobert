@@ -96,14 +96,16 @@ export async function showLogin(root: HTMLElement, s: Settings, done: (me: Me | 
   const fr = getLang() === 'fr';
   const prov = await fetchProviders();
   const back = encodeURIComponent('/');
-  const btn = (id: string, label: string, color: string, on: boolean) =>
-    on ? `<button class="btn" id="${id}" style="width:100%;justify-content:center;background:${color};color:#fff;margin-bottom:10px">${label}</button>` : '';
+  const GOOGLE_G = '<svg viewBox="0 0 48 48" width="20" height="20" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>';
+  const DISCORD_LOGO = '<svg viewBox="0 0 127.14 96.36" width="22" height="17" fill="#fff" aria-hidden="true"><path d="M107.7 8.07A105.15 105.15 0 0 0 81.47 0a72.06 72.06 0 0 0-3.36 6.83 97.68 97.68 0 0 0-29.11 0A72.37 72.37 0 0 0 45.64 0 105.89 105.89 0 0 0 19.39 8.09C2.79 32.65-1.71 56.6.54 80.21a105.73 105.73 0 0 0 32.17 16.15 77.7 77.7 0 0 0 6.89-11.11 68.42 68.42 0 0 1-10.85-5.18c.91-.66 1.8-1.34 2.66-2a75.57 75.57 0 0 0 64.32 0c.87.71 1.76 1.39 2.66 2a68.68 68.68 0 0 1-10.87 5.19 77 77 0 0 0 6.89 11.1 105.25 105.25 0 0 0 32.19-16.14c2.64-27.38-4.51-51.11-18.9-72.15zM42.45 65.69C36.18 65.69 31 60 31 53s5-12.74 11.43-12.74S54 46 53.89 53s-5.05 12.69-11.44 12.69zm42.24 0C78.41 65.69 73.25 60 73.25 53s5-12.74 11.44-12.74S96.23 46 96.12 53s-5.04 12.69-11.43 12.69z"/></svg>';
+  const btn = (id: string, label: string, style: string, icon: string, on: boolean) =>
+    on ? `<button class="btn" id="${id}" style="width:100%;display:flex;align-items:center;justify-content:center;gap:10px;${style};margin-bottom:10px">${icon}${label}</button>` : '';
   root.innerHTML = `<div class="menu"><div class="card panel" style="max-width:520px">
     <h1>Allez <em>Robert</em> !</h1>
     <p class="tagline">${fr ? 'Connecte-toi pour rouler en groupe, garder ta progression et envoyer tes sorties.' : 'Sign in to ride with friends, keep your progress and upload rides.'}</p>
     ${
       prov
-        ? `${btn('l-google', 'Google', '#4285f4', prov.google)}${btn('l-discord', 'Discord', '#5865f2', prov.discord)}
+        ? `${btn('l-google', fr ? 'Continuer avec Google' : 'Continue with Google', 'background:#fff;color:#3c4043;border:1px solid #dadce0', GOOGLE_G, prov.google)}${btn('l-discord', fr ? 'Continuer avec Discord' : 'Continue with Discord', 'background:#5865f2;color:#fff', DISCORD_LOGO, prov.discord)}
       ${
         prov.email
           ? `<form id="l-magic" class="row" style="margin:6px 0 12px"><input id="l-email" type="email" required placeholder="${fr ? 'adresse e-mail' : 'email address'}" class="btn" style="flex:1;text-align:left;font-weight:400"/><button class="btn primary" type="submit">${fr ? 'Recevoir un lien' : 'Get a link'}</button></form><div id="l-msg" class="meta" style="color:var(--ar-muted);font-size:13px"></div>`
@@ -121,6 +123,12 @@ export async function showLogin(root: HTMLElement, s: Settings, done: (me: Me | 
   $('l-magic')?.addEventListener('submit', async (e) => {
     e.preventDefault();
     const email = ($('l-email') as HTMLInputElement).value.trim();
+    // Adresse vérifiée avant l'envoi : une seule arobase, un domaine avec un point, sans espace.
+    const msg0 = $('l-msg');
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
+      if (msg0) msg0.textContent = fr ? 'Adresse e-mail invalide : vérifie-la avant de recevoir le lien.' : 'Invalid email address: check it before getting the link.';
+      return;
+    }
     const r = await api('/auth/magic', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email, redirect: '/', locale: getLang() }) }).catch(() => null);
     const msg = $('l-msg');
     if (msg) msg.textContent = r && r.ok ? (fr ? 'Lien envoyé : ouvre ton e-mail sur cet ordinateur.' : 'Link sent: open your email on this computer.') : fr ? 'Envoi impossible pour le moment.' : 'Could not send the link right now.';

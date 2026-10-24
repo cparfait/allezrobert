@@ -35,7 +35,7 @@ interface ApiRelation {
 type ApiElement = ApiNode | ApiWay | ApiRelation;
 
 const LANDUSE = /^(forest|farmland|meadow|grass|orchard|vineyard|allotments|residential|industrial|commercial|retail|cemetery|recreation_ground|village_green|farmyard|plant_nursery|quarry|railway)$/;
-const NATURAL = /^(wood|water|grassland|heath|scrub|wetland|bare_rock|sand)$/;
+const NATURAL = /^(wood|water|grassland|heath|scrub|wetland|bare_rock|sand|beach)$/;
 const LEISURE = /^(park|golf_course|pitch|garden|nature_reserve|stadium|track)$/;
 
 /** Mêmes critères que `worldQuery` (overpass.ts) pour les voies et relations. */

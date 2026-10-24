@@ -11,6 +11,17 @@ interface GhostLap {
 
 const KEY = (routeId: string) => `ar.ghost.${routeId}`;
 
+/** Meilleur tour enregistré sur cet itinéraire (fiche du parcours dans le menu), ou null. */
+export function readGhostBest(routeId: string): { lapTimeS: number; date: string } | null {
+  try {
+    const raw = localStorage.getItem(KEY(routeId));
+    const g = raw ? (JSON.parse(raw) as GhostLap) : null;
+    return g ? { lapTimeS: g.lapTimeS, date: g.date } : null;
+  } catch {
+    return null;
+  }
+}
+
 /** Avatar translucide et sans ombre, pour distinguer un fantôme des vrais coureurs. */
 export function ghostAvatar(scene: THREE.Scene): RiderAvatarLike {
   const avatar = createAvatar({ skin: '#cfe8ff', hair: '#cfe8ff', hairStyle: 0, jersey: '#9ad7ff', jerseyAccent: '#ffffff', helmet: '#e6f6ff', bike: '#9ad7ff', build: 0.4 });

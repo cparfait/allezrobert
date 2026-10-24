@@ -5634,6 +5634,51 @@
     "fr": "Grimpeur carbone LOOK, peinture caméléon vert-violet sur l’avant, Shimano Ultegra Di2 12 vitesses, roues LOOK Carbone R38D.",
     "en": "LOOK carbon climbing bike, green-purple chameleon paint up front, Shimano Ultegra Di2 12-speed, LOOK Carbon R38D wheels."
    }
+  },
+  {
+   "id": "div-specialized-roubaix-sport-2020",
+   "name": "Specialized Roubaix Sport 2020",
+   "brand": "specialized",
+   "collection": "divers",
+   "group": "divers",
+   "type": "climbing",
+   "family": "climb",
+   "params": {
+    "brakes": "disc",
+    "wheels": [
+     "c35",
+     "c35"
+    ],
+    "rimBrand": "dt-swiss",
+    "bottles": false
+   },
+   "livery": {
+    "colors": [
+     "#121315",
+     "#4a4d53",
+     "#d7262e"
+    ],
+    "pattern": "solid",
+    "finish": "gloss",
+    "rim": "#f2f2f2",
+    "tape": "#141414",
+    "marks": {
+     "dt": {
+      "text": "SPECIALIZED",
+      "color": "#d7262e"
+     },
+     "cs": {
+      "text": "ROUBAIX",
+      "color": "#d7262e"
+     }
+    }
+   },
+   "level": 6,
+   "year": 2020,
+   "desc": {
+    "fr": "Endurance carbone noir brillant, inscriptions rouges, suspension Future Shock, Shimano 105 et freins à disque, roues DT Swiss R470db.",
+    "en": "Gloss black carbon endurance bike, red lettering, Future Shock suspension, Shimano 105 and disc brakes, DT Swiss R470db wheels."
+   }
   }
  ]
 }

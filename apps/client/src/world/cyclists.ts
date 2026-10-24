@@ -40,9 +40,8 @@ export class AmbientCyclists {
   constructor(scene: THREE.Scene, track: RouteTrack, startDistM: number) {
     this.track = track;
     const kinds: Array<{ sens: 1 | -1; watts: number; d: number }> = [
+      // Deux seulement (un par sens) : chaque cycliste est un avatar animé complet, coûteux.
       { sens: -1, watts: 170, d: 420 },
-      { sens: -1, watts: 230, d: 900 },
-      { sens: 1, watts: 120, d: 260 },
       { sens: 1, watts: 290, d: -220 },
     ];
     kinds.forEach((k, i) => {
@@ -56,6 +55,7 @@ export class AmbientCyclists {
         bike: ['#1d1d1f', '#c0392b', '#f4f4f4', '#2c3e50'][i % 4] as string,
         build: this.r(),
         ...crowdShoes(i + 3),
+        heightCm: 160 + ((i * 17) % 36),
       };
       const avatar = createAvatar(look);
       scene.add(avatar.root);

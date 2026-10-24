@@ -128,6 +128,18 @@ export const BIKE_FAMILIES: readonly BikeFamily[] = ['aero', 'climb', 'tt', 'ret
 
 const byId = new Map(BIKES.map((b) => [b.id, b]));
 
+/** Bidons que porte un cadre de chaque famille (porte-bidons du tube oblique, puis du tube de selle). */
+const FAMILY_BOTTLES: Record<BikeFamily, number> = { aero: 2, climb: 2, retro: 2, retro_compact: 2, steel: 2, tt: 0, lowpro: 0, lotus: 0 };
+
+/** Nombre maximal de bidons (0, 1 ou 2) d'un vélo ; sans modèle : le vélo de base. */
+export function bottleCapacity(id: string | undefined): 0 | 1 | 2 {
+  const m = id ? bikeById(id) : undefined;
+  if (id && !m) return 0;
+  const family = m?.family ?? PLAIN_BIKE_FAMILY;
+  if (m && (m.params.track || m.params.bottles === false)) return 0;
+  return FAMILY_BOTTLES[family] as 0 | 1 | 2;
+}
+
 /** Anciens vélos du garage (bike-alu…) → modèle du catalogue ; tout autre identifiant inchangé. */
 export function migrateBikeId(id: string): string {
   return catalog.legacy[id] ?? id;

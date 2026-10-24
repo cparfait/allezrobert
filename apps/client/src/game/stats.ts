@@ -105,6 +105,11 @@ function writeJson(key: string, v: unknown): void {
   }
 }
 
+/** Dernières sorties (20 au plus), de la plus ancienne à la plus récente. */
+export function readRideHistory(): RideHistoryEntry[] {
+  return readJson<RideHistoryEntry[]>(HISTORY_KEY, []);
+}
+
 /**
  * Dernière sortie comparable (même itinéraire, distance à ±30 %), puis enregistrement de celle-ci
  * dans l'historique (20 dernières). `date` identifie la sortie : la terminer à nouveau après

@@ -1,6 +1,8 @@
 import * as THREE from 'three/webgpu';
-import { float, mix, mx_noise_float, pow, smoothstep, texture, uniform, uv, vec3 } from 'three/tsl';
+import { float, mix, mx_noise_float, normalMap, pow, smoothstep, texture, uniform, uv, vec3 } from 'three/tsl';
+import type { AvatarLook } from '@allezrobert/shared';
 import { colorUniform, type ColorUniform } from '../engine/tsl.ts';
+import { jerseySleeve, type JerseyFrame, type SleeveNodes } from './jerseyPattern.ts';
 
 /**
  * Peau de l'avatar MPFB (docs/AVATARS.md § 6), commune à tous les coureurs : deux textures
@@ -9,7 +11,12 @@ import { colorUniform, type ColorUniform } from '../engine/tsl.ts';
  *  - skin_albedo : peau MakeHuman (CC0) divisée par sa teinte moyenne, × 0,5 (variations
  *    relatives : lèvres, sourcils, ombres), multipliée par le teint du coureur ;
  *  - skin_masks : R rougeur d'effort et sueur, G barbe, B rides (détail de la peau âgée ;
- *    0,5 = neutre), A taches de rousseur.
+ *    0,5 = neutre), A taches de rousseur ;
+ *  - skin_detail (facultative) : pores et ridules en mosaïque fine (avatars/bake_cloth.mjs), le
+ *    grain qui manque à une texture de 1024 px vue de près.
+ *
+ * Lumière : diffusion sous la peau simulée (MeshSSSNodeMaterial : oreilles et nez rougeoient en
+ * contre-jour), léger duvet (sheen), reflet moins brillant qu'un plastique.
  *
  * En sortie, la rougeur et la sueur suivent l'effort (SkinMaterial.update).
  */
@@ -17,6 +24,7 @@ import { colorUniform, type ColorUniform } from '../engine/tsl.ts';
 export interface SkinTextures {
   albedo: THREE.Texture;
   masks: THREE.Texture;
+  detail: THREE.Texture | null;
 }
 
 let textures: SkinTextures | null = null;
@@ -26,13 +34,19 @@ export async function loadSkinTextures(baseUrl: string): Promise<SkinTextures | 
   if (textures) return textures;
   try {
     const loader = new THREE.TextureLoader();
-    const [albedo, masks] = await Promise.all([loader.loadAsync(`${baseUrl}skin_albedo.webp`), loader.loadAsync(`${baseUrl}skin_masks.webp`)]);
-    for (const t of [albedo, masks]) {
+    const [albedo, masks, detail] = await Promise.all([
+      loader.loadAsync(`${baseUrl}skin_albedo.webp`),
+      loader.loadAsync(`${baseUrl}skin_masks.webp`),
+      loader.loadAsync(`${baseUrl}skin_detail.webp`).catch(() => null),
+    ]);
+    for (const t of [albedo, masks, detail]) {
+      if (!t) continue;
       t.colorSpace = THREE.NoColorSpace;
       t.flipY = false; // convention glTF
       t.anisotropy = 4;
     }
-    textures = { albedo, masks };
+    if (detail) detail.wrapS = detail.wrapT = THREE.RepeatWrapping;
+    textures = { albedo, masks, detail };
   } catch (e) {
     console.warn('Textures de peau indisponibles', e);
   }
@@ -57,7 +71,7 @@ export interface SkinLook {
 }
 
 export class SkinMaterial {
-  readonly material: THREE.MeshStandardNodeMaterial;
+  readonly material: THREE.MeshSSSNodeMaterial;
   private readonly tone: ColorUniform;
   private readonly beardColor: ColorUniform;
   private readonly age = uniform(0);
@@ -68,10 +82,13 @@ export class SkinMaterial {
   /** Sueur accumulée (0 → 1) : monte après quelques minutes au-dessus du seuil. */
   private sweatLevel = 0;
 
-  constructor(tex: SkinTextures, look: SkinLook) {
+  private readonly sleeve: SleeveNodes | null;
+
+  /** `jersey` : mesures du maillot ; avec elles, les manches longues sont peintes sur les avant-bras. */
+  constructor(tex: SkinTextures, look: SkinLook, jersey: JerseyFrame | null = null, avatar?: AvatarLook) {
     this.tone = colorUniform(look.tone);
     this.beardColor = colorUniform(look.beardColor);
-    const m = new THREE.MeshStandardNodeMaterial({ roughness: 0.6, metalness: 0 });
+    const m = new THREE.MeshSSSNodeMaterial({ roughness: 0.6, metalness: 0 });
     m.name = 'skin';
     const a = texture(tex.albedo, uv());
     const k = texture(tex.masks, uv());
@@ -87,11 +104,39 @@ export class SkinMaterial {
     col = mix(col, this.beardColor.node, k.g.mul(this.beard).mul(hairs).mul(0.85));
     // Effort : rougeur des pommettes, du nez, des oreilles et du front.
     col = mix(col, col.mul(vec3(1.18, 0.72, 0.7)), k.r.mul(this.flush));
+    // Manches longues : tissu du maillot (couleur, motifs) sur les avant-bras, sans grain de peau.
+    this.sleeve = jersey && avatar ? jerseySleeve(avatar, jersey) : null;
+    const cover = this.sleeve ? this.sleeve.weight : null;
+    if (this.sleeve && cover) col = mix(col, this.sleeve.color, cover);
     m.colorNode = col;
     // Sueur : peau plus brillante sur les mêmes zones (et un peu partout).
-    m.roughnessNode = mix(float(0.62), float(0.3), k.r.mul(0.7).add(0.3).mul(this.sweat));
+    const skinRough = mix(float(0.62), float(0.3), k.r.mul(0.7).add(0.3).mul(this.sweat));
+    m.roughnessNode = cover ? mix(skinRough, float(0.65), cover) : skinRough;
+    // Grain : pores et ridules (mosaïque de ~4 cm), plus marqués sur la peau âgée.
+    if (tex.detail) {
+      const grain = vec3(0.35).add(this.age.mul(0.2)).xy;
+      m.normalNode = normalMap(texture(tex.detail, uv().mul(45)), cover ? grain.mul(float(1).sub(cover)) : grain);
+    }
+    // Diffusion sous la peau : lumière rouge qui traverse les parties fines en contre-jour.
+    m.thicknessColorNode = col.mul(vec3(0.6, 0.22, 0.16)).mul(cover ? float(1).sub(cover) : float(1));
+    m.thicknessDistortionNode = float(0.25);
+    m.thicknessAmbientNode = float(0);
+    m.thicknessAttenuationNode = float(0.25);
+    m.thicknessPowerNode = float(4);
+    m.thicknessScaleNode = float(1.2);
+    // Duvet : voile clair et doux en lumière rasante.
+    // Manche : reflet de lycra du maillot (cloth.ts) à la place du duvet de la peau.
+    m.sheenNode = this.sleeve && cover ? mix(vec3(0.07, 0.06, 0.055), mix(this.sleeve.color, vec3(1), 0.25).mul(0.35), cover) : vec3(0.07, 0.06, 0.055);
+    m.sheenRoughnessNode = float(0.6);
+    m.specularIntensity = 0.7;
     this.material = m;
     this.setLook(look);
+    if (avatar) this.setJersey(avatar);
+  }
+
+  /** Tenue du coureur : manches (courtes ou longues), couleur et motif du maillot. */
+  setJersey(look: AvatarLook): void {
+    this.sleeve?.set(look);
   }
 
   setLook(look: SkinLook): void {

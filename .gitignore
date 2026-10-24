@@ -42,3 +42,7 @@ tts-cache/
 
 # Fichiers audio d'origine déposés à la racine (les versions du jeu sont dans apps/client/public/music)
 /*.mp3
+
+# Modèle 3D acheté (licence commerciale, dépôt public) : sources hors dépôt
+/zzModel3D/
+/cyclist-male-rigged.zip

@@ -4662,18 +4662,18 @@
    "id": "tour-du-sancy",
    "file": "routes/tour-du-sancy.json",
    "name": "Le tour du Sancy par La Tour-d'Auvergne et Besse",
-   "lengthM": 81814,
-   "elevationGainM": 1717.81,
-   "loop": false,
+   "lengthM": 81809.13,
+   "elevationGainM": 1717.76,
+   "loop": true,
    "main": true
   },
   {
    "id": "vallee-de-chaudefour",
    "file": "routes/vallee-de-chaudefour.json",
    "name": "La vallée de Chaudefour par Murol",
-   "lengthM": 24672,
+   "lengthM": 24669.04,
    "elevationGainM": 527.33,
-   "loop": false,
+   "loop": true,
    "main": false
   }
  ],

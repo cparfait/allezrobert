@@ -1,6 +1,6 @@
 import * as THREE from 'three/webgpu';
 import type { AvatarLook, RouteTrack, TrackSample } from '@allezrobert/shared';
-import { BASE_PROFILES, DEFAULT_LOOK, FACE_SLIDERS, encodeFace, type FaceShape } from '@allezrobert/shared';
+import { BASE_PROFILES, COSMETICS, DEFAULT_LOOK, FACE_SLIDERS, encodeFace, jerseyLookOf, type FaceShape } from '@allezrobert/shared';
 import { GltfRiderAvatar, createAvatar, type RiderAvatarLike } from '../rider/gltfAvatar.ts';
 import { crowdShoes } from '../rider/shoeLook.ts';
 import { crowdBike } from '../rider/bikes.ts';
@@ -35,9 +35,32 @@ import { CINE_ENV, GROUP_SPEED, LOOP_S, SLOTS, XFADE_S, formation, frameCount, f
 /** Abscisse de départ retenue par itinéraire (m, issue de la recherche automatique ; même tronçon pour les 4 saisons). */
 const CINE_D: Record<string, number> = { 'chevreuse-boucle': 5825 };
 
-const JERSEYS = ['#d7f205', '#111418', '#c0392b', '#e8ecf0', '#1e5bd8', '#2b2f36', '#f39c12', '#16a085', '#8e44ad'];
 const BIKES = ['#1d1d1f', '#e8ecf0', '#c0392b', '#2c3e50', '#16a085', '#f4f4f4', '#d35400'];
-const HELMETS = ['#f4f4f4', '#111111', '#1e5bd8', '#c0392b', '#f4f4f4'];
+const BLACK = '#141414';
+const WHITE = '#f2f2f2';
+/** Maillot du catalogue (packages/shared/src/cosmetics.json) : couleur, style, bandes, pois et logo. */
+function kit(id: string, extra: Partial<AvatarLook>): Partial<AvatarLook> {
+  const item = COSMETICS.find((c) => c.id === id);
+  if (!item) throw new Error(`maillot du catalogue introuvable : ${id}`);
+  return { ...jerseyLookOf(item), ...extra };
+}
+/**
+ * Tenues des 9 équipiers de Robert : mélange du catalogue (maillots du Tour jaune, vert, à pois et
+ * blanc ; équipes pro avec logo), deux ou trois en manches longues, quelques bidons en plus ou en
+ * moins ; deux maillots voisins ne se ressemblent jamais (l'ordre suit la formation) et le casque
+ * contraste avec le maillot. Tailles de 1,60 à 1,94 m (cadres à la taille).
+ */
+const OUTFITS: ReadonlyArray<Partial<AvatarLook>> = [
+  kit('jersey-leader-jaune', { helmet: BLACK, shoes: WHITE, heightCm: 182 }),
+  kit('jersey-pro-ineos', { helmet: WHITE, shoes: WHITE, heightCm: 168 }),
+  kit('jersey-pro-lidl-trek', { helmet: WHITE, shoes: BLACK, heightCm: 175, sleeves: 'long' }),
+  kit('jersey-pois', { helmet: '#c62828', shoes: WHITE, heightCm: 190, bottles: 2 }),
+  kit('jersey-pro-quickstep', { helmet: WHITE, shoes: WHITE, heightCm: 163 }),
+  kit('jersey-leader-vert', { helmet: BLACK, shoes: BLACK, heightCm: 186, bottles: 2 }),
+  kit('jersey-pro-redbull-bora', { helmet: '#f2c500', shoes: WHITE, heightCm: 172, sleeves: 'long', bottles: 1 }),
+  kit('jersey-leader-blanc', { helmet: '#c62828', shoes: BLACK, heightCm: 194 }),
+  kit('jersey-pro-astana', { helmet: WHITE, shoes: BLACK, heightCm: 160, sleeves: 'long' }),
+];
 /**
  * Visages du groupe (avatar MPFB) : un profil de base par coureur (packages/shared/src/profiles.ts),
  * Robert en tête ; les deux derniers reprennent un profil avec d'autres traits et un autre teint.
@@ -120,7 +143,7 @@ async function chooseStart(world: World, track: RouteTrack, season: CineSeason):
  * Tenue et visage du coureur i : profil de base, curseurs du visage un peu variés (comme les IA
  * en sortie, game/peloton.ts), maillot et vélo de la palette du film. Tirages reproductibles.
  */
-function lookFor(i: number): AvatarLook {
+export function lookFor(i: number): AvatarLook {
   const r = rng(4242 + i * 7919);
   const id = CAST[i % CAST.length] as string;
   const p = BASE_PROFILES.find((b) => b.id === id) ?? BASE_PROFILES[0];
@@ -134,12 +157,12 @@ function lookFor(i: number): AvatarLook {
   const base: AvatarLook = { ...DEFAULT_LOOK, ...face, ...(i >= 8 ? RECAST[i - 8] : {}), face: encodeFace(shape) };
   if (i === 0) return base;
   const j = i - 1;
+  const outfit = OUTFITS[j % OUTFITS.length] as Partial<AvatarLook>;
   return {
     ...base,
-    jersey: JERSEYS[j % JERSEYS.length] as string,
-    jerseyAccent: JERSEYS[(j + 4) % JERSEYS.length] as string,
-    helmet: HELMETS[j % HELMETS.length] as string,
     ...crowdShoes(j),
+    ...outfit,
+    jerseyAccent: outfit.jerseyAccent ?? (outfit.jersey as string),
     bike: BIKES[j % BIKES.length] as string,
     bikeModel: crowdBike(j),
     build: ((j * 37) % 10) / 10,

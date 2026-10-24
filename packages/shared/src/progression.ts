@@ -7,6 +7,7 @@
 import catalogJson from './cosmetics.json' with { type: 'json' };
 import { DEFAULT_BIKE, type BikeSetup } from './rider.ts';
 import { BIKES, migrateBikeId, type BikeType } from './bikes.ts';
+import type { AvatarLook, JerseyStyle } from './net.ts';
 
 export const MAX_LEVEL = 50;
 export const MAX_XP_PER_RIDE = 4000;
@@ -49,6 +50,15 @@ export interface CosmeticPhysics {
   tyre?: 'road' | 'gravel' | 'mtb';
 }
 
+/** Packs de maillots du garage : ordre et noms (un maillot sans pack va dans « Maillots »). */
+export const JERSEY_PACKS: ReadonlyArray<{ id: string; name: { fr: string; en: string } }> = [
+  { id: 'tour', name: { fr: 'Tour de France', en: 'Tour de France' } },
+  { id: 'pays', name: { fr: 'Champions nationaux', en: 'National champions' } },
+  { id: 'distinctifs', name: { fr: 'Maillots distinctifs', en: 'Leaders’ jerseys' } },
+  { id: 'equipes', name: { fr: 'Couleurs d’équipes', en: 'Team colours' } },
+  { id: 'pro', name: { fr: 'Équipes pro', en: 'Pro teams' } },
+];
+
 export interface CosmeticItem {
   id: string;
   slot: CosmeticSlot;
@@ -60,6 +70,25 @@ export interface CosmeticItem {
   effect?: { fr: string; en: string };
   /** Vélos : couleurs de la livrée (vignette du garage). */
   colors?: string[];
+  /** Pack du garage (maillots : « pays », « distinctifs », « équipes »). */
+  pack?: string;
+  /** Maillots : accent, style (uni, bandes de poitrine) et bandes ; absent : dessin d'origine. */
+  jersey?: { accent?: string; style?: JerseyStyle; bands?: string[]; dots?: { r: number; step: number }; logo?: { id: string; tint?: string; w?: number; y?: number } };
+}
+
+/**
+ * Tenue d'un maillot du catalogue : couleur, et style et bandes remplacés (un maillot simple
+ * remet le dessin d'origine) ; l'accent n'est changé que si le maillot en donne un.
+ */
+export function jerseyLookOf(item: CosmeticItem): Pick<AvatarLook, 'jersey' | 'jerseyStyle' | 'jerseyBands' | 'jerseyDots' | 'jerseyLogo'> & Partial<Pick<AvatarLook, 'jerseyAccent'>> {
+  return {
+    jersey: item.color ?? '#ffffff',
+    ...(item.jersey?.accent ? { jerseyAccent: item.jersey.accent } : {}),
+    jerseyStyle: item.jersey?.style,
+    jerseyBands: item.jersey?.bands,
+    jerseyDots: item.jersey?.dots,
+    jerseyLogo: item.jersey?.logo,
+  };
 }
 
 /**

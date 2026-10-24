@@ -15,16 +15,17 @@ import path from 'node:path';
 import { OpenPath, RoadNet, type RoadGraphData, type RoadGraphEdge, type RouteData, type RouteSegment, type WorldMeta } from '@allezrobert/shared';
 import { PLACES_FILE, placesOf } from './places.ts';
 import { ATTRIBUTION, ATTRIBUTION_ORTHO, CORRIDOR_TILES, LOD_HI, LOD_LO, ORIGIN_L93, OUT_DIR, TILE_SIZE_M, WORLD, worldEnrich, type LonLat, type OpenTour, type OpenWorld } from './config.ts';
+import { asCircuit } from './circuit.ts';
 import { nearestEdgeOf, routeViaEdges } from './climb.ts';
 import { corridorWgs84, OSM_CHUNK } from './corridor.ts';
-import { Dem, DemStack } from './dem.ts';
+import { Dem, DemStack, setSeaMode } from './dem.ts';
 import { tileRect, wgs84ToWorld, worldToL93, type Rect } from './frame.ts';
 import { simplify3 } from './geom.ts';
 import { RoadGraph, type Edge } from './graph.ts';
 import { writeHorizon } from './horizon.ts';
 import { setOffline } from './net.ts';
 import { buildOsmWorld } from './osm.ts';
-import { fetchOsm, fetchOsmApi, reachableOverpass } from './overpass.ts';
+import { coastClauses, fetchOsm, fetchOsmApi, reachableOverpass } from './overpass.ts';
 import { detectClimbs, elevationGain } from './profile.ts';
 import { buildRoads3d } from './roads3d.ts';
 import { ATTRIBUTION_BDTOPO } from './bdtopo.ts';
@@ -42,7 +43,10 @@ const ENRICH = worldEnrich(W);
 
 const args = new Set(process.argv.slice(2));
 const WITH_ORTHO = !args.has('--no-ortho');
+/** Seulement `graph.json` (raccord des zones voisines) : ni tours, ni tuiles, ni horizon. */
+const GRAPH_ONLY = args.has('--graph-only');
 if (args.has('--offline')) setOffline(true);
+if (W.sea) setSeaMode(true);
 
 /** Voies roulables en mode ouvert (chemins agricoles compris, pas les sentiers piétons). */
 const RIDEABLE = /^(primary|secondary|tertiary|unclassified|residential|living_street|service|track|cycleway)(_link)?$/;
@@ -89,7 +93,7 @@ async function main(): Promise<void> {
   const bbox = corridorWgs84();
   const mirror = await reachableOverpass();
   log(mirror ? `   Overpass : ${new URL(mirror).host}` : '   aucun miroir Overpass joignable : API OpenStreetMap');
-  const els = mirror ? await fetchOsm(bbox, OSM_CHUNK.lon, OSM_CHUNK.lat) : await fetchOsmApi(bbox);
+  const els = mirror ? await fetchOsm(bbox, OSM_CHUNK.lon, OSM_CHUNK.lat, W.sea ? coastClauses : undefined) : await fetchOsmApi(bbox);
   const osm = buildOsmWorld(els);
   log(`   ${els.length} éléments → ${osm.roads.length} voies, ${osm.buildings.length} bâtiments, ${osm.areas.length} surfaces, ${osm.lines.length} lignes, ${osm.pois.length} lieux`);
   const g = new RoadGraph(osm.roads, (r) => !['steps', 'elevator', 'corridor', 'bus_guideway'].includes(r.kind));
@@ -115,16 +119,21 @@ async function main(): Promise<void> {
   if (ENRICH) {
     log('3 bis. LiDAR HD (végétation, toits) et BD TOPO (bâtiments, voies)');
     const roadPts = g.edges.flatMap((e) => e.pts.filter((_, i) => i % 4 === 0));
-    enrichment = await prepareEnrichment({ enrich: ENRICH, tiles, routePts: roadPts, roads: osm.roads, dem, log });
+    // graphe seul : nature et largeur des voies BD TOPO, sans végétation ni bâtiments
+    const enrich = GRAPH_ONLY ? { ...ENRICH, lidarVegetation: false, bdtopoBuildings: false } : ENRICH;
+    enrichment = await prepareEnrichment({ enrich, tiles, routePts: roadPts, roads: osm.roads, dem, log });
   }
   const tileOf = (x: number, z: number) => `${Math.floor(x / TILE_SIZE_M)}_${Math.floor(z / TILE_SIZE_M)}`;
 
   // 4. graphe roulable
   log('4. Graphe roulable');
-  const inside = (pts: Array<[number, number, number]>) =>
-    pts.every((p) => p[0] > rect.minX + EDGE_MARGIN_M && p[0] < rect.maxX - EDGE_MARGIN_M && p[2] > rect.minZ + EDGE_MARGIN_M && p[2] < rect.maxZ - EDGE_MARGIN_M);
+  const within = (p: [number, number, number], m: number) => p[0] > rect.minX + m && p[0] < rect.maxX - m && p[2] > rect.minZ + m && p[2] < rect.maxZ - m;
+  const inside = (pts: Array<[number, number, number]>) => pts.every((p) => within(p, EDGE_MARGIN_M));
+  // arêtes au bord : exportées marquées (zones voisines), jamais prises par les tours
+  const touches = (pts: Array<[number, number, number]>) => pts.some((p) => within(p, 0));
   const nodeIndex = new Map<number, number>();
   const nodes: number[] = [];
+  const osmIds: number[] = [];
   const edges: RoadGraphEdge[] = [];
   const edgeIndex = new Map<number, number>();
   const nodeOf = (osmId: number, p: [number, number, number]) => {
@@ -133,13 +142,15 @@ async function main(): Promise<void> {
       i = nodes.length / 3;
       nodeIndex.set(osmId, i);
       nodes.push(r2(p[0]), r2(p[1]), r2(p[2]));
+      osmIds.push(osmId);
     }
     return i;
   };
   for (const e of g.edges) {
     if (!RIDEABLE.test(e.road.kind)) continue;
     const pts3 = r3.edgePts.get(e.id);
-    if (!pts3 || pts3.length < 2 || !inside(pts3)) continue;
+    if (!pts3 || pts3.length < 2 || !touches(pts3)) continue;
+    const border = !inside(pts3);
     const simple = simplify3(pts3, 0.1, 0.02);
     // revêtement et largeur BD TOPO (chemins empierrés, de terre) : physique et son du mode ouvert
     const mid = pts3[pts3.length >> 1]!;
@@ -148,7 +159,7 @@ async function main(): Promise<void> {
     const a = nodeOf(e.a, pts3[0]!);
     const b = nodeOf(e.b, pts3[pts3.length - 1]!);
     if (a === b) continue;
-    edgeIndex.set(e.id, edges.length);
+    if (!border) edgeIndex.set(e.id, edges.length);
     edges.push({
       a,
       b,
@@ -160,15 +171,17 @@ async function main(): Promise<void> {
       oneway: e.oneway as 0 | 1 | -1,
       len: r2(e.len),
       pts: simple.flatMap((p) => [r2(p[0]), r2(p[1]), r2(p[2])]),
+      ...(border ? { border: 1 as const } : {}),
     });
   }
-  const graph: RoadGraphData = { formatVersion: 1, nodes, edges, attribution: [...ATTRIBUTION] };
+  const graph: RoadGraphData = { formatVersion: 1, nodes, edges, attribution: [...ATTRIBUTION], osm: osmIds };
   const net = new RoadNet(graph);
   const graphFile = path.join(OUT_DIR, 'graph.json');
   fs.writeFileSync(graphFile, JSON.stringify(graph));
   const km = edges.reduce((s, e) => s + e.len, 0) / 1000;
   const paved = edges.filter((e) => /^(asphalt|paved|concrete|chipseal)/.test(e.surface)).reduce((s, e) => s + e.len, 0) / 1000;
-  log(`   ${edges.length} arêtes, ${nodes.length / 3} nœuds, ${km.toFixed(0)} km roulables (dont ${paved.toFixed(0)} km revêtus) — ${(fs.statSync(graphFile).size / 1e6).toFixed(1)} Mo`);
+  log(`   ${edges.length} arêtes (${edges.filter((e) => e.border).length} au bord), ${nodes.length / 3} nœuds, ${km.toFixed(0)} km roulables (dont ${paved.toFixed(0)} km revêtus) — ${(fs.statSync(graphFile).size / 1e6).toFixed(1)} Mo`);
+  if (GRAPH_ONLY) return;
 
   // 5. tours proposés
   log('5. Tours proposés');
@@ -229,6 +242,7 @@ async function main(): Promise<void> {
     ],
     horizon,
     open: { graph: 'graph.json', start: { x: r2(start[0]), z: r2(start[1]) }, places: PLACES_FILE },
+    ...(W.sea ? { sea: { levelM: 0 } } : {}),
   };
   fs.writeFileSync(path.join(OUT_DIR, 'world.json'), JSON.stringify(meta, null, 1));
 
@@ -252,8 +266,11 @@ async function main(): Promise<void> {
 function buildTour(tour: OpenTour, g: RoadGraph, net: RoadNet, edgeIndex: Map<number, number>, pois: Array<{ kind: string; name: string; x: number; z: number }>): RouteData {
   // routes revêtues, pistes cyclables et voies de service (anneau de Longchamp, bois de Vincennes :
   // fermés aux voitures) ; les voies de service sont un peu pénalisées (parkings, cours privées)
-  const usable = (e: Edge) => edgeIndex.has(e.id) && e.road.paved && /^(primary|secondary|tertiary|unclassified|residential|living_street|service|cycleway)(_link)?$/.test(e.road.kind);
-  const cost = (e: Edge) => (!usable(e) ? Infinity : /^(primary|secondary)/.test(e.road.kind) ? e.len * 1.6 : e.road.kind === 'service' ? e.len * 1.4 : e.len);
+  // pistes pavées (secteurs de Paris–Roubaix : la Trouée d'Arenberg est un « track » en pavés) comprises
+  const cobbledTrack = (e: Edge) => e.road.kind === 'track' && /^(sett|cobblestone)$/.test(e.road.surface);
+  const anyTrack = (e: Edge) => !!tour.allowTracks && e.road.kind === 'track' && edgeIndex.has(e.id);
+  const usable = (e: Edge) => (edgeIndex.has(e.id) && e.road.paved && (/^(primary|secondary|tertiary|unclassified|residential|living_street|service|cycleway)(_link)?$/.test(e.road.kind) || cobbledTrack(e))) || anyTrack(e);
+  const cost = (e: Edge) => (!usable(e) ? Infinity : e.road.kind === 'track' && !cobbledTrack(e) ? e.len * 3 : /^(primary|secondary)/.test(e.road.kind) ? e.len * 1.6 : e.road.kind === 'service' ? e.len * 1.4 : e.len);
   const place = (p: LonLat | string): [number, number] => {
     if (typeof p !== 'string') return toWorld(p);
     const poi = pois.find((q) => q.name === p && /^(village|town|hamlet|isolated_dwelling|locality)$/.test(q.kind));
@@ -331,10 +348,14 @@ function buildTour(tour: OpenTour, g: RoadGraph, net: RoadNet, edgeIndex: Map<nu
     const near = landmarks.slice().sort((a, b) => Math.abs(a.d - s.endM) - Math.abs(b.d - s.endM))[0];
     if (near && Math.abs(near.d - s.endM) < 1500) s.name = `Côte ${frenchDe(near.name)}`;
   }
+  tour.climbNames?.forEach((name, i) => {
+    if (segments[i]) segments[i]!.name = name;
+  });
   let maxGrade = 0;
   const w = Math.round(10 / step);
   for (let i = 0; i + w < hs.length; i++) maxGrade = Math.max(maxGrade, Math.abs((hs[i + w]! - hs[i]!) / (w * step)) * 100);
-  return {
+  // revenu au départ dans le même sens : publié en boucle (tours enchaînés)
+  return asCircuit({
     id: tour.routeId,
     name: tour.routeName,
     nameEn: tour.routeNameEn,
@@ -352,7 +373,7 @@ function buildTour(tour: OpenTour, g: RoadGraph, net: RoadNet, edgeIndex: Map<nu
     minElevationM: r2(Math.min(...hs)),
     maxElevationM: r2(Math.max(...hs)),
     maxGradePct: r2(maxGrade),
-  };
+  });
 }
 
 try {

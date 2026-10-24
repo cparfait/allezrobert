@@ -1,0 +1,116 @@
+{
+  "kind": "open",
+  "id": "roubaix",
+  "name": "Paris–Roubaix — Trouée d'Arenberg",
+  "region": "Nord · Pévèle",
+  "originL93": {
+    "x": 727000,
+    "y": 7034000
+  },
+  "corridorTiles": {
+    "txMin": -7,
+    "txMax": 5,
+    "tzMin": -7,
+    "tzMax": 7
+  },
+  "start": {
+    "lon": 3.3926,
+    "lat": 50.3747
+  },
+  "orthoPx": 1024,
+  "enrich": {
+    "radiusM": 50,
+    "lidarVegetation": true,
+    "bdtopoBuildings": true
+  },
+  "horizon": {
+    "halfSizeM": 20000,
+    "resM": 100
+  },
+  "tours": [
+    {
+      "routeId": "secteurs-paves",
+      "routeName": "Les secteurs pavés d'Arenberg à Orchies",
+      "routeNameEn": "The cobbled sectors from Arenberg to Orchies",
+      "allowTracks": true,
+      "start": {
+        "lon": 3.3926,
+        "lat": 50.3747
+      },
+      "via": [
+        {
+          "lon": 3.35826,
+          "lat": 50.35711
+        },
+        {
+          "lon": 3.37274,
+          "lat": 50.35509
+        },
+        {
+          "lon": 3.42386,
+          "lat": 50.38842
+        },
+        {
+          "lon": 3.40621,
+          "lat": 50.40541
+        },
+        {
+          "lon": 3.39573,
+          "lat": 50.35316
+        },
+        {
+          "lon": 3.37498,
+          "lat": 50.3547
+        },
+        {
+          "lon": 3.31675,
+          "lat": 50.36883
+        },
+        {
+          "lon": 3.31681,
+          "lat": 50.38769
+        },
+        {
+          "lon": 3.31564,
+          "lat": 50.39356
+        },
+        {
+          "lon": 3.32054,
+          "lat": 50.42112
+        },
+        {
+          "lon": 3.32505,
+          "lat": 50.42956
+        },
+        {
+          "lon": 3.33538,
+          "lat": 50.43885
+        },
+        {
+          "lon": 3.33858,
+          "lat": 50.43509
+        },
+        {
+          "lon": 3.3521,
+          "lat": 50.4347
+        },
+        {
+          "lon": 3.35962,
+          "lat": 50.43811
+        },
+        {
+          "lon": 3.3169,
+          "lat": 50.4335
+        },
+        {
+          "lon": 3.31675,
+          "lat": 50.44521
+        },
+        {
+          "lon": 3.3214,
+          "lat": 50.44634
+        }
+      ]
+    }
+  ]
+}

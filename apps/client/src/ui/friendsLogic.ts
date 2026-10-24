@@ -3,6 +3,7 @@
  * lien d'ajout `/?ami=CODE`, tri par présence, libellés, pastille, réglages pour rejoindre.
  */
 import {
+  forwardRouteId,
   FRIEND_LINK_PARAM,
   isFriendCode,
   normalizeFriendCode,
@@ -110,9 +111,17 @@ export function initials(name: string): string {
  * Réglages pour rejoindre la sortie d'un ami : mode groupe ou course (sinon groupe), et son
  * itinéraire s'il existe dans le monde chargé (sinon on garde l'itinéraire courant).
  */
-export function joinSettings(info: Pick<FriendJoinInfo, 'mode' | 'routeId'>, routeIds: readonly string[], current: { mode: RideMode; routeId: string }): { mode: 'group' | 'race'; routeId: string; routeKnown: boolean } {
-  const routeKnown = routeIds.includes(info.routeId);
-  return { mode: info.mode === 'race' ? 'race' : 'group', routeId: routeKnown ? info.routeId : current.routeId, routeKnown };
+export function joinSettings(
+  info: Pick<FriendJoinInfo, 'mode' | 'routeId'>,
+  routeIds: readonly string[],
+  current: { mode: RideMode; routeId: string; reverse?: boolean },
+): { mode: 'group' | 'race'; routeId: string; reverse: boolean; routeKnown: boolean } {
+  // un ami sur un parcours inversé : même parcours, dans le même sens
+  const fwd = forwardRouteId(info.routeId);
+  const id = fwd && routeIds.includes(fwd) ? fwd : info.routeId;
+  const routeKnown = routeIds.includes(id);
+  const mode = info.mode === 'race' ? 'race' : 'group';
+  return routeKnown ? { mode, routeId: id, reverse: id !== info.routeId, routeKnown } : { mode, routeId: current.routeId, reverse: !!current.reverse, routeKnown };
 }
 
 /** Message d'erreur de l'API (champ `error`) à afficher. */

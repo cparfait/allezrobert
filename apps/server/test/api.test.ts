@@ -283,6 +283,39 @@ describe('API — sorties, segments, progression', () => {
     expect((await a.json('GET', '/api/me/segments')).body).toEqual([{ routeId: 'r1', segmentId: 'kom', bestMs: 280_000 }]);
   });
 
+  it('temps d’une sortie solo : segments et parcours entier, contrôlés et sans doublon', async () => {
+    expect((await new Session().json('POST', '/api/efforts', { routeId: 'dev-boucle', segments: [] })).status).toBe(401);
+    const s = await devLogin('Solo');
+    // dev-boucle est connue du serveur : côte de 1 200 m, sprint de 300 m, boucle de ~10 km.
+    const post = (body: unknown) => s.json('POST', '/api/efforts', body);
+    const ok = await post({
+      routeId: 'dev-boucle',
+      rideId: 'sortie-1',
+      segments: [
+        { segmentId: 'dev-kom', elapsedMs: 240_000 },
+        { segmentId: 'dev-sprint', elapsedMs: 5_000 }, // 300 m en 5 s : 216 km/h, refusé
+        { segmentId: 'inconnu', elapsedMs: 60_000 }, // pas sur cet itinéraire, ignoré
+      ],
+      routeTimeMs: 1_500_000,
+    });
+    expect(ok.status).toBe(201);
+    expect(ok.body).toEqual({ segments: 1, route: true });
+    // Même envoi après une reprise de la sortie : rien de compté deux fois.
+    expect((await post({ routeId: 'dev-boucle', rideId: 'sortie-1', segments: [{ segmentId: 'dev-kom', elapsedMs: 240_000 }], routeTimeMs: 1_500_000 })).body).toEqual({ segments: 0, route: false });
+    // Parcours entier trop rapide (plus de 60 km/h de moyenne) : refusé.
+    expect((await post({ routeId: 'dev-boucle', routeTimeMs: 60_000 })).body.route).toBe(false);
+    // Itinéraire inconnu du serveur (autre zone) : accepté dans les bornes ; dessiné ou monde ouvert : non classé.
+    expect((await post({ routeId: 'zone-ailleurs', segments: [{ segmentId: 'cote-1', elapsedMs: 300_000 }], routeTimeMs: 3_600_000 })).body).toEqual({ segments: 1, route: true });
+    expect((await post({ routeId: 'itineraire-abc', routeTimeMs: 3_600_000 })).status).toBe(400);
+    expect((await post({ routeId: 'open', routeTimeMs: 3_600_000 })).status).toBe(400);
+    expect((await post({ routeId: 'dev-boucle', routeTimeMs: 1 })).status).toBe(400);
+    expect((await post({ routeId: '../x', routeTimeMs: 3_600_000 })).status).toBe(400);
+    expect((await s.json('GET', '/api/segments/dev-boucle/dev-kom/leaderboard')).body).toEqual([{ rank: 1, name: 'Solo', bestMs: 240_000, efforts: 1 }]);
+    expect((await s.json('GET', '/api/routes/dev-boucle/leaderboard')).body).toEqual([{ rank: 1, name: 'Solo', bestMs: 1_500_000, efforts: 1 }]);
+    expect((await s.json('GET', '/api/routes/dev-boucle/leaderboard?scope=friends')).body).toEqual([{ rank: 1, name: 'Solo', bestMs: 1_500_000, efforts: 1, me: true }]);
+    expect((await new Session().json('GET', '/api/routes/dev-boucle/leaderboard?scope=friends')).status).toBe(401);
+  });
+
   it('rendu vidéo : mise en file et suivi', async () => {
     const s = await devLogin('Monteur');
     expect((await s.json('POST', '/api/renders', { composition: 'summary' })).status).toBe(400);
@@ -398,16 +431,18 @@ describe('API — RGPD', () => {
     const id = (await s.json('GET', '/api/me')).body.id;
     await s.json('POST', '/api/activities', sampleFit(false));
     await ctx.repos.recordSegmentEffort({ userId: id, routeId: 'r1', segmentId: 'kom', elapsedMs: 1 });
+    await ctx.repos.recordRouteTime({ userId: id, routeId: 'r1', elapsedMs: 3_600_000 });
     await s.json('POST', '/api/renders', { composition: 'podium' });
     const exp = await s.json('GET', '/api/me/export');
     expect(exp.status).toBe(200);
     expect(exp.body.activities).toHaveLength(1);
     expect(Object.keys(exp.body.activityFitBase64)).toHaveLength(1);
     expect(exp.body.segmentEfforts).toHaveLength(1);
+    expect(exp.body.routeTimes).toHaveLength(1);
     expect(exp.body.atelier.credits).toBeGreaterThan(0);
     expect((await s.json('DELETE', '/api/me', {})).status).toBe(400);
     expect((await s.json('DELETE', '/api/me', { confirm: 'SUPPRIMER' })).status).toBe(204);
-    for (const table of ['users', 'profiles', 'activities', 'segment_efforts', 'progression', 'sessions', 'auth_identities', 'render_jobs', 'integrations']) {
+    for (const table of ['users', 'profiles', 'activities', 'segment_efforts', 'route_times', 'progression', 'sessions', 'auth_identities', 'render_jobs', 'integrations']) {
       const col = table === 'users' ? 'id' : 'user_id';
       const r = await db.query(`SELECT COUNT(*) AS n FROM ${table} WHERE ${col} = $1`, [id]);
       expect(Number(r.rows[0].n), table).toBe(0);

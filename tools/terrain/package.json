@@ -11,9 +11,11 @@
     "build:world": "tsx src/build-world.ts",
     "build:routes": "tsx src/build-world.ts --routes-only --no-ortho",
     "packs": "tsx src/build-packs.ts",
+    "close-loops": "tsx src/close-loops.ts",
     "fetch:osm": "tsx src/fetch-osm.ts",
     "test": "vitest run --root ../.. tools/terrain",
-    "places": "tsx src/places.ts"
+    "places": "tsx src/places.ts",
+    "zone-builder": "tsx src/zone-builder.ts"
   },
   "dependencies": {
     "@allezrobert/shared": "workspace:*"

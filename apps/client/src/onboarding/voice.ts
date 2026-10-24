@@ -1,29 +1,36 @@
 import { getLang } from '../i18n/index.ts';
-import { ONBOARDING_SCRIPT } from './script.ts';
+import { ONBOARDING_SCRIPT, plainText, spoken } from './script.ts';
 import { serverEndpoint } from '../game/multiplayer.ts';
+import { music } from '../audio/music.ts';
 
 /** Audio Cartesia déjà reçu (par texte et langue) : chaque réplique n'est téléchargée qu'une fois. */
 const audioCache = new Map<string, Promise<string | null>>();
 
-/** Texte prononcé : graphie phonétique des mots anglais en français (le sous-titre garde l'original). */
-function spoken(text: string, lang: 'fr' | 'en'): string {
-  if (lang !== 'fr') return text;
-  return text
-    .replace(/Garmin/g, 'Garmine')
-    .replace(/home[- ]trainers/gi, 'home traineurs')
-    .replace(/home[- ]trainer/gi, 'home traineur');
-}
+/**
+ * Répliques livrées avec le jeu (`public/voice/`, FR et EN, générées une fois pour toutes par
+ * `pnpm --filter @allezrobert/client voice`) : clé `langue|texte prononcé` → fichier. Seule une
+ * réplique modifiée sans régénération repart vers le serveur.
+ */
+let baked: Promise<Record<string, string>> | null = null;
+const bakedVoice = (): Promise<Record<string, string>> =>
+  (baked ??= fetch('/voice/index.json')
+    .then((r) => (r.ok ? (r.json() as Promise<Record<string, string>>) : {}))
+    .catch(() => ({})));
 
-/** Voix de qualité (Cartesia, via le serveur qui garde la clé) ; null si indisponible. */
+/** Voix de qualité (Cartesia) : fichier livré avec le jeu, sinon le serveur qui garde la clé ; null si indisponible. */
 function cartesiaUrl(display: string, lang: 'fr' | 'en'): Promise<string | null> {
   const text = spoken(display, lang);
   const key = `${lang}|${text}`;
   let p = audioCache.get(key);
   if (!p) {
-    const api = `${serverEndpoint().replace(/\/colyseus$/, '')}/api`;
-    p = fetch(`${api}/tts`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text, lang }) })
-      .then(async (r) => (r.ok ? URL.createObjectURL(await r.blob()) : null))
-      .catch(() => null);
+    p = bakedVoice().then((files) => {
+      const file = files[key];
+      if (file) return `/voice/${file}`;
+      const api = `${serverEndpoint().replace(/\/colyseus$/, '')}/api`;
+      return fetch(`${api}/tts`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text, lang }) })
+        .then(async (r) => (r.ok ? URL.createObjectURL(await r.blob()) : null))
+        .catch(() => null);
+    });
     audioCache.set(key, p);
   }
   return p;
@@ -56,7 +63,10 @@ export class VoiceOver {
   setEnabled(on: boolean): void {
     this.enabled = on;
     localStorage.setItem('ar.voice', on ? 'on' : 'off');
-    if (!on) speechSynthesis.cancel();
+    if (!on) {
+      speechSynthesis.cancel();
+      this.current?.pause();
+    }
   }
 
   /** Lit les répliques d'une clé du script, à la suite des précédentes. */
@@ -72,8 +82,9 @@ export class VoiceOver {
     return this.queue;
   }
 
+  /** `text` peut contenir des balises Cartesia : envoyées à la synthèse, retirées de l'affichage. */
   private speak(text: string): Promise<void> {
-    this.subtitle.textContent = text;
+    this.subtitle.textContent = plainText(text);
     this.subtitle.classList.remove('hidden');
     const hide = () => this.subtitle.classList.add('hidden');
     if (!this.enabled || !('speechSynthesis' in window)) {
@@ -83,10 +94,13 @@ export class VoiceOver {
         setTimeout(() => {
           if (g === this.gen) hide();
           res();
-        }, Math.max(2500, text.length * 55)),
+        }, Math.max(2500, plainText(text).length * 55)),
       );
     }
     const g = this.gen;
+    // Musique baissée dès la réplique demandée (le temps de télécharger l'audio compris).
+    music.talkOver(true);
+    const done = () => (hide(), music.talkOver(false));
     return cartesiaUrl(text, getLang() === 'fr' ? 'fr' : 'en').then(
       (url) =>
         new Promise<void>((res) => {
@@ -94,12 +108,12 @@ export class VoiceOver {
           if (url) {
             const audio = new Audio(url);
             this.current = audio;
-            audio.onended = () => (hide(), res());
-            audio.onerror = () => (hide(), res());
-            void audio.play().catch(() => (hide(), res()));
+            audio.onended = () => (done(), res());
+            audio.onerror = () => (done(), res());
+            void audio.play().catch(() => (done(), res()));
             return;
           }
-          this.speakSystem(text, hide, res);
+          this.speakSystem(text, done, res);
         }),
     );
   }
@@ -109,7 +123,7 @@ export class VoiceOver {
   /** Repli : synthèse vocale du système (Web Speech API). */
   private speakSystem(text: string, hide: () => void, res: () => void): void {
     {
-      const u = new SpeechSynthesisUtterance(spoken(text, getLang() === 'fr' ? 'fr' : 'en'));
+      const u = new SpeechSynthesisUtterance(spoken(plainText(text), getLang() === 'fr' ? 'fr' : 'en'));
       const v = this.voice();
       if (v) u.voice = v;
       u.lang = getLang() === 'fr' ? 'fr-FR' : 'en-GB';
@@ -127,5 +141,6 @@ export class VoiceOver {
     this.current?.pause();
     this.current = null;
     this.subtitle.classList.add('hidden');
+    music.talkOver(false);
   }
 }

@@ -28,7 +28,8 @@ function grid(tx: number, tz: number, lod: 'hi' | 'lo'): Grid | null {
   let g: Grid | null = null;
   if (t && t.lods.includes(lod)) {
     const buf = fs.readFileSync(path.join(tilesDir, `${t.id}${l.suffix}`));
-    g = { n: l.n, res: l.resolutionM, x0: tx * TILE_SIZE_M, z0: tz * TILE_SIZE_M, h: decodeGrid(buf, l.n, t.baseM, t.stepM ?? meta.heightEncoding.stepM) };
+    const delta = !!(JSON.parse(fs.readFileSync(path.join(tilesDir, `${t.id}.json`), 'utf8')) as { heights?: { delta?: boolean } }).heights?.delta;
+    g = { n: l.n, res: l.resolutionM, x0: tx * TILE_SIZE_M, z0: tz * TILE_SIZE_M, h: decodeGrid(buf, l.n, t.baseM, t.stepM ?? meta.heightEncoding.stepM, delta) };
   }
   cache.set(k, g);
   return g;

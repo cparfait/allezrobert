@@ -1,10 +1,26 @@
 import { SequencePlayer } from '@allezrobert/sequences';
-import type { RouteTrack } from '@allezrobert/shared';
+import type { RouteData, RouteTrack } from '@allezrobert/shared';
 import { getLang } from '../i18n/index.ts';
 import type { SegmentResult } from './ride.ts';
 import type { Season } from '../world/environment.ts';
 
 const PR_KEY = (routeId: string, segId: string) => `ar.pr.${routeId}.${segId}`;
+
+/** Lieux de départ et d'arrivée d'un itinéraire (repères à moins de 1,5 km des bouts), sinon vides. */
+export function routeEnds(r: RouteData): { start: string; finish: string } {
+  const marks = r.landmarks ?? [];
+  const first = marks[0];
+  const last = marks[marks.length - 1];
+  const start = first && first.d < 1500 ? first.name : '';
+  const finish = r.loop ? start : last && r.lengthM - last.d < 1500 ? last.name : '';
+  return { start, finish };
+}
+
+/** Record personnel (s) sur une montée ou un sprint, enregistré sur cet appareil, ou null. */
+export function readSegmentPr(routeId: string, segId: string): number | null {
+  const v = Number(localStorage.getItem(PR_KEY(routeId, segId)) ?? 'NaN');
+  return Number.isFinite(v) ? v : null;
+}
 
 /**
  * Mise en scène HyperFrames pendant la sortie : intro + compte à rebours, KOM / sprint franchis,
@@ -28,6 +44,7 @@ export class RideSequences {
     if (!this.enabled) return;
     const profile = this.track.profile(80).map((p) => Math.round(p.y * 10) / 10);
     const r = this.track.route;
+    const { start, finish } = opts.rideType === 'open' ? { start: '', finish: '' } : routeEnds(r);
     await new Promise<void>((resolve) => {
       let done = false;
       const go = () => {
@@ -47,6 +64,9 @@ export class RideSequences {
             season: ({ spring: 'printemps', summer: 'ete', autumn: 'automne', winter: 'hiver' } as const)[opts.season],
             ride_type: opts.rideType,
             profile,
+            // toujours fournis (même vides) : sinon la composition affiche ses lieux d'exemple
+            start_label: start,
+            finish_label: finish,
           },
           { onCue: (cue) => cue === 'go' && go() },
         )

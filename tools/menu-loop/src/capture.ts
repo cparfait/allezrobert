@@ -123,7 +123,7 @@ function killTree(child: ChildProcess): void {
 
 /** Serveur de dev dédié (sans rechargement à chaud), arrêté à la fin du script ; journal dans out/menu-loop/vite.log. */
 async function ownServer(): Promise<{ url: string; stop: () => void }> {
-  const port = 5199;
+  const port = Number(process.env.MENU_LOOP_PORT) || 5199;
   mkdirSync(OUT, { recursive: true });
   const fd = openSync(resolve(OUT, 'vite.log'), 'a');
   const child = spawn('pnpm', ['--filter', '@allezrobert/client', 'exec', 'vite', '--port', String(port), '--strictPort'], {

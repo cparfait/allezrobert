@@ -1,6 +1,6 @@
 import './hud/hud.css';
 import * as THREE from 'three/webgpu';
-import { RouteTrack, decimateRoute, type PairState, type PhoneCommand, bikeOfLook, bikeSetupFor, weatherAt, weatherSeed, type RideWeather, type RiderProfile, type RouteData } from '@allezrobert/shared';
+import { RouteTrack, decimateRoute, type PairState, type PhoneCommand, bikeOfLook, type AvatarLook, bikeSetupFor, weatherAt, weatherSeed, type RideWeather, type RiderProfile, type RouteData } from '@allezrobert/shared';
 import { createEngine, type Engine } from './engine/renderer.ts';
 import { QUALITY_PRESETS, withUrlOverrides, type QualitySettings } from './engine/quality.ts';
 import { detectHardwareQuality } from './engine/autoQuality.ts';
@@ -27,20 +27,22 @@ import { t, setLang, getLang } from './i18n/index.ts';
 import { loadSettings, saveSettings, type Settings } from './ui/settings.ts';
 import { MainMenu } from './ui/menu.ts';
 import { bootStep, bootDone, bootError } from './ui/splash.ts';
-import { PosterScene, choosePosterSpot, POSTER_HOUR } from './ui/poster.ts';
+import { PosterScene, choosePosterSpot, POSTER_HOUR, GARAGE_VIEWS, type GarageView } from './ui/poster.ts';
 import { showPause, rideToFit, rideToGpx, download, onlinePanel } from './ui/ridepanels.ts';
 import { showRideSummary } from './ui/summary.ts';
 import { compareAndStore, readPowerRecords, rideStats, updatePowerRecords } from './game/stats.ts';
 import { shareCard } from './ui/sharecard.ts';
 import { Onboarding, RideTutorial } from './onboarding/onboarding.ts';
 import { addXp, awardRide, loadProgress, tunedBike } from './ui/garage.ts';
-import { AtelierHost } from './ui/atelier.ts';
+import { AtelierHost, type AtelierState } from './ui/atelier.ts';
 import { rimGlow } from './rider/rimDecal.ts';
 import { EQUALIZED_BIKE, paramsFromBike } from '@allezrobert/physics';
 import { awardTrophies } from './game/trophies.ts';
 import { roadSurfaceAt, windShelterAt } from './world/conditions.ts';
 import { OpenNavigator } from './game/open.ts';
 import { ITINERARY_PREFIX } from './ui/routePlanner.ts';
+import { findRoute, routeKey } from './game/direction.ts';
+import { fmtLapTime, postRideEfforts, RouteTimer } from './game/efforts.ts';
 import { waitBike } from './ui/waitBike.ts';
 import { KomChallenge, readKomRecord, type ChallengeResult } from './game/challenge.ts';
 import { HairpinWatcher, hairpinToast, reachedFinish, summitStats } from './game/climb.ts';
@@ -83,7 +85,7 @@ async function loadScene(settings: Settings): Promise<Scene3D> {
   const source = await loadWorldSource(params.get('world') ?? settings.world ?? 'chevreuse');
   // Le mode « monde ouvert » n'existe que dans un monde qui a un graphe routier.
   if (settings.mode === 'open' && !source.open) settings.mode = 'free';
-  const route = source.routes.find((r) => r.id === (params.get('route') ?? settings.routeId)) ?? (source.routes[0] as RouteData);
+  const route = findRoute(source.routes, params.get('route') ?? routeKey(settings)) ?? (source.routes[0] as RouteData);
   const track = new RouteTrack(route);
   const world = new World(engine.scene, source, route, track, q, {
     hour: Number(params.get('hour') ?? settings.hour),
@@ -98,7 +100,7 @@ async function loadScene(settings: Settings): Promise<Scene3D> {
  * intégré continuent) : le monde est reconstruit pour le nouvel itinéraire.
  */
 async function switchRoute(scene: Scene3D, s: Settings): Promise<void> {
-  const route = scene.source.routes.find((r) => r.id === s.routeId);
+  const route = findRoute(scene.source.routes, routeKey(s));
   if (!route) return;
   scene.world.dispose();
   scene.route = route;
@@ -128,7 +130,7 @@ function worldOverlay(label: string): HTMLElement {
 }
 
 /** Version des médias du menu (vidéos, images) : à augmenter quand on les régénère (cache navigateur). */
-const MENU_MEDIA_VERSION = 7;
+const MENU_MEDIA_VERSION = 9;
 
 /** Boucle vidéo de la saison en fond du menu (public/menu/loop-<saison>.webm), sur son image fixe. */
 function createMenuVideo(el: HTMLVideoElement | null) {
@@ -290,7 +292,7 @@ async function boot(): Promise<void> {
       if (inMenu) {
         if (scene.world.env.state.season !== settings.season) scene.world.setSeason(settings.season);
         const d = await choosePosterSpot(scene.world, scene.track, settings.season);
-        poster.build(settings.look);
+        poster.build({ ...settings.look, heightCm: settings.heightCm });
         focus.copy(poster.place(d));
         await scene.world.preload(focus);
         poster.frame();
@@ -383,14 +385,14 @@ async function boot(): Promise<void> {
       // Changement de qualité graphique : rechargement propre de la page.
       if (s.quality !== scene.quality) {
         const url = new URL(location.href);
-        url.searchParams.set('route', s.routeId);
+        url.searchParams.set('route', routeKey(s));
         url.searchParams.delete('quality');
         url.searchParams.set('autostart', '1');
         location.href = url.toString();
         return;
       }
       // Changement d'itinéraire : monde reconstruit sur place (sans attendre l'ancien), la musique continue.
-      if (s.routeId !== scene.route.id) {
+      if (routeKey(s) !== scene.route.id) {
         menu.hide();
         leaveMenu(s);
         const overlay = worldOverlay(getLang() === 'fr' ? 'Chargement de l’itinéraire…' : 'Loading route…');
@@ -411,12 +413,14 @@ async function boot(): Promise<void> {
     },
   });
   menu.worldId = scene.source.id;
+  menu.loadedZones = scene.source.zones ?? [scene.source.id];
   menu.openWorld = !!scene.source.open;
-  menu.planner.setOpen(scene.source.open ?? null);
+  menu.planner.setOpen(scene.source.open ? { ...scene.source.open, areas: scene.source.areas ?? [scene.source.bounds], ...(scene.source.originL93 ? { originL93: scene.source.originL93 } : {}) } : null);
   // Changement de monde sans recharger la page : données du nouveau monde, paysage refait en arrière-plan.
   menu.onWorld = (id) => {
     settings.world = id;
     settings.routeId = '';
+    settings.reverse = false;
     saveSettings(settings);
     void (async () => {
       const source = await loadWorldSource(id);
@@ -442,7 +446,8 @@ async function boot(): Promise<void> {
       url.searchParams.set('world', id);
       url.searchParams.delete('route');
       history.replaceState(null, '', url.toString());
-      menu.planner.setOpen(source.open ?? null);
+      menu.planner.setOpen(source.open ? { ...source.open, areas: source.areas ?? [source.bounds], ...(source.originL93 ? { originL93: source.originL93 } : {}) } : null);
+      menu.loadedZones = source.zones ?? [source.id];
       menu.setWorld(source.routes, source.id, !!source.open);
       void prepareWorld();
     })();
@@ -487,50 +492,123 @@ async function boot(): Promise<void> {
     if (!inMenu) return applyEnv(s);
     if (scene.world.env.state.season !== s.season) scene.world.setSeason(s.season);
     if (menuVideo.playing()) menuVideo.show(s.season);
+    if (garage) return showGarage(s.look);
     if (!worldReady) return;
-    poster.build(s.look);
-    poster.setPlayerLook(s.look, menu.bareHeadPreview);
+    poster.build({ ...s.look, heightCm: s.heightCm });
+    poster.setPlayerLook({ ...s.look, heightCm: s.heightCm }, menu.bareHeadPreview);
     poster.place(poster.d);
     renderPoster();
   };
   // Éditeur de visage : le coureur du garage suit les curseurs sans reconstruire la scène.
   menu.onLookLive = (look, bareHead) => {
     if (!inMenu) return;
-    poster.setPlayerLook(look, bareHead);
+    if (garage) return showGarage(look, bareHead);
+    poster.setPlayerLook({ ...look, heightCm: settings.heightCm }, bareHead);
     renderPoster();
   };
   // Onglets : photo du groupe, ou aperçu du coureur dans le garage (vues et rotation).
   // Garage : aperçu d'un équipement (même verrouillé) sur le coureur, puis retour à la tenue équipée.
   menu.onPreviewLook = (look) => {
+    if (inMenu && garage) return showGarage(look ?? settings.look, menu.bareHeadPreview);
     if (!inMenu || !worldReady) return;
-    poster.build(look ?? settings.look);
+    poster.build({ ...(look ?? settings.look), heightCm: settings.heightCm });
     poster.place(poster.d);
     renderPoster();
   };
   menu.onAtelier = (st) => {
     if (!inMenu || exploring) return;
-    if (st) menuVideo.stop();
-    void modelsReady.then(() => atelier.set(st));
+    if (st) {
+      menuVideo.stop();
+      garage = null;
+    }
+    if (st) whenAtelierReady(() => (atelier.set(st), true));
+    else void modelsReady.then(() => atelier.set(st));
   };
   if (import.meta.env.DEV) (window as unknown as { __arAtelier: unknown }).__arAtelier = atelier;
-  menu.onScene = (view, yaw) => {
+  // Garage : le coureur sur son vélo dans l'atelier, sans paysage ni groupe : s'ouvre sans attendre le monde.
+  let garage: { view: GarageView; yaw: number; far?: number; bikeOnly?: boolean } | null = null;
+  // Première ouverture de l'atelier : les modèles se chargent puis la pièce se construit d'un coup, sans rien
+  // montrer. Un écran d'attente reste jusqu'à ce que ce soit fait (une seule fois, pas à chaque changement de vue).
+  let atelierBuilt = false;
+  let atelierWait: HTMLElement | null = null;
+  const whenAtelierReady = (build: () => boolean): void => {
+    if (!atelierBuilt && !atelierWait) atelierWait = worldOverlay(getLang() === 'fr' ? 'Chargement du garage…' : 'Loading the garage…');
+    void modelsReady
+      .then(() => (atelierWait ? new Promise<void>((r) => setTimeout(r, 40)) : undefined)) // laisse l'écran d'attente se peindre
+      .then(() => {
+        if (build()) atelierBuilt = true;
+      })
+      .finally(() => {
+        atelierWait?.remove();
+        atelierWait = null;
+      });
+  };
+  const showGarage = (look: AvatarLook, bareHead = menu.bareHeadPreview) => {
+    if (!garage) return;
+    const v = GARAGE_VIEWS[garage.view];
+    const c = Math.cos(garage.yaw);
+    const sn = Math.sin(garage.yaw);
+    // Recul (tutoriel) : coureur plus petit, pour laisser la place aux sous-titres.
+    const k = garage.far ?? 1;
+    // Choix du vélo : le vélo seul sur le pied d'atelier (sans coureur), vue d'ensemble tournante.
+    if (garage.bikeOnly) {
+      const only: AtelierState = { look: { ...look, heightCm: settings.heightCm }, focus: 'overview', rider: false, yaw: garage.yaw, bareHead: false };
+      whenAtelierReady(() => !!garage && (atelier.set(only), true));
+      return;
+    }
+    const st: AtelierState = {
+      look: { ...look, heightCm: settings.heightCm },
+      focus: 'overview',
+      rider: true,
+      yaw: 0,
+      bareHead,
+      view: { cam: [0, 0, 0], look: [v.look[0], v.look[1] - (k - 1) * 0.35, v.look[2]], fov: v.fov },
+    };
+    // La caméra reste dans la pièce (murs à x = −3,2 / 3,4 et z = −3 / 3,4) : elle recule moins et l'angle de champ
+    // s'élargit pour garder le même cadrage.
+    const cam: [number, number, number] = [(v.cam[0] * c + v.cam[2] * sn) * k, v.cam[1] + (k - 1) * 0.3, (-v.cam[0] * sn + v.cam[2] * c) * k];
+    const room = (val: number, neg: number, pos: number) => (val < 0 ? neg / -val : pos / val);
+    const fit = Math.min(1, room(cam[0], 2.8, 3.2), room(cam[2], 2.6, 3.2));
+    st.view = { cam: [cam[0] * fit, cam[1], cam[2] * fit], look: st.view!.look, fov: fit < 1 ? (2 * Math.atan(Math.tan((v.fov * Math.PI) / 360) / fit) * 180) / Math.PI : v.fov };
+    whenAtelierReady(() => !!garage && (atelier.set(st), true));
+  };
+  menu.onScene = (view, yaw, bikeOnly) => {
     if (!inMenu || exploring) return;
+    if (view !== 'poster') {
+      menuVideo.stop();
+      garage = { view, yaw, ...(bikeOnly ? { bikeOnly } : {}) };
+      return showGarage(settings.look);
+    }
+    garage = null;
     atelier.set(null);
-    // Accueil : la vidéo de la saison ; garage : vraie 3D (attend le paysage si besoin).
-    if (view === 'poster' && menuVideo.show(settings.season)) return;
+    // Accueil : la vidéo de la saison (attend le paysage si l'image 3D sert).
+    if (menuVideo.show(settings.season)) return;
     menuVideo.stop();
-    poster.setView(view, yaw);
-    // Garage : écran d'attente tant que le paysage n'est pas prêt (sans lui, le clic ne montrait rien).
+    poster.setView('poster', yaw);
+    // Écran d'attente tant que le paysage n'est pas prêt : `worldReady` est une promesse déjà « vraie » pendant qu'elle court.
     if (worldDone) return renderPoster();
-    void withWorld(getLang() === 'fr' ? 'Chargement du garage…' : 'Loading the garage…').then(() => {
-      if (!inMenu || exploring) return;
-      poster.setView(view, yaw);
+    void withWorld(getLang() === 'fr' ? 'Chargement de l’accueil…' : 'Loading the home screen…').then(() => {
+      if (!inMenu || exploring || garage) return;
+      poster.setView('poster', yaw);
       renderPoster();
     });
   };
   menu.onTutorial = () => {
     // Tutoriel terminé ou passé : retour à l'accueil, sans lancer de sortie.
-    new Onboarding(ui, settings, devices.panel, () => menu.show('home')).start();
+    const preview = {
+      show: (look: AvatarLook) => {
+        if (!inMenu) return;
+        menuVideo.stop();
+        garage = { view: '3q', yaw: 0, far: 1.45 };
+        // Tête nue : teint et cheveux se voient sous le casque.
+        showGarage(look, true);
+      },
+      hide: () => {
+        garage = null;
+        atelier.set(null);
+      },
+    };
+    new Onboarding(ui, settings, devices.panel, () => menu.show('home'), preview).start();
   };
   bootDone();
   if (autostart) {
@@ -608,12 +686,13 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     track,
     trainerDifficulty: s.trainerDifficulty,
     drivetrain: s.drivetrain,
+    cassetteSpeeds: s.cassetteSpeeds,
     startDistM: startD,
     wind: { ms: s.windMs, from: 4.4 },
     inertiaFactor: s.inertia,
   });
   // Modèle du vélo (route, gravel, VTT) : celui du vélo équipé.
-  const avatar = createAvatar({ ...s.look, bikeType: profile.bike.tyre ?? 'road' });
+  const avatar = createAvatar({ ...s.look, heightCm: s.heightCm, bikeType: profile.bike.tyre ?? 'road' });
   engine.scene.add(avatar.root);
   // Phare avant (la nuit) : projecteur fixé au vélo, sans ombre portée (coût).
   const headlight = new THREE.SpotLight(0xfff1d6, 0, 60, 0.45, 0.6, 1.4);
@@ -793,6 +872,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   let summitShown = false;
   const reachSummit = () => {
     summitShown = true;
+    routeTimer.finish(ride.elapsedS);
     ride.state.distM = track.length;
     ride.state.speedMs = 0;
     ride.paused = true;
@@ -816,9 +896,37 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
       },
     });
   };
+  // Temps classés (sortie solo) : montées, sprints et parcours entier, pris du départ (0 m) jusqu'à
+  // l'arrivée ou sur chaque tour complet, envoyés à chaque tour et à la fin. Pas en invité, en groupe (la salle les
+  // enregistre), en séance ERG, en monde ouvert ni sur un itinéraire dessiné.
+  const ranked = !s.guest && !mp && !nav && !workout && !track.route.id.startsWith(ITINERARY_PREFIX);
+  const routeTimer = new RouteTimer(startD === 0 && !challenge);
+  let sentSegments = 0;
+  let sentRouteTimes = 0;
+  // Un envoi par temps du parcours (chaque tour d'une boucle, dès la ligne passée), avec les
+  // montées et sprints faits depuis l'envoi précédent.
+  const sendEfforts = () => {
+    if (!ranked) return;
+    do {
+      const segs = ride.segmentResults.slice(sentSegments);
+      const routeS = routeTimer.times[sentRouteTimes];
+      if (!segs.length && routeS === undefined) return;
+      sentSegments = ride.segmentResults.length;
+      if (routeS !== undefined) sentRouteTimes++;
+      void postRideEfforts({
+        routeId: track.route.id,
+        rideId: String(ride.startT),
+        segments: segs.map((r) => ({ segmentId: r.seg.id, elapsedMs: Math.round(r.timeS * 1000) })),
+        ...(routeS !== undefined ? { routeTimeMs: Math.round(routeS * 1000) } : {}),
+      });
+    } while (sentRouteTimes < routeTimer.times.length);
+  };
   ride.onLap = (lap) => {
-    hud.toast(`${t('lap')} ${lap}`);
+    const done = routeTimer.lap(ride.elapsedS);
+    const fr = getLang() === 'fr';
+    hud.toast(done ? `${t('lap')} ${lap - 1} · ${fmtLapTime(done.timeS)}${done.best ? (fr ? ' · meilleur tour' : ' · best lap') : ''}` : `${t('lap')} ${lap}`);
     ghost.lap(ride.elapsedS, ride.state.distM);
+    sendEfforts();
   };
 
   // Fin de sortie : écran de stats par-dessus la scène figée. « Reprendre » relance la sortie (solo) ;
@@ -859,6 +967,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
           raceRank: room?.selfRank() ?? 0,
         });
     if (!s.guest) credited = done;
+    sendEfforts();
     const stats = rideStats(ride.records, { ftp: s.ftpWatts, elevationGainM: ride.elevationGainM, elapsedS: ride.elapsedS });
     const records = s.guest ? { previous: recordsBefore, beaten: [] } : updatePowerRecords(stats.curve, recordsBefore);
     const previous = s.guest

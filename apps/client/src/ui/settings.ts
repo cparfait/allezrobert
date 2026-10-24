@@ -20,10 +20,16 @@ export interface Settings {
   lang: Lang;
   trainerDifficulty: number;
   routeId: string;
+  /** Parcours roulé dans l'autre sens (classements et records à part). */
+  reverse: boolean;
   mode: RideMode;
   volume: number;
   /** Rapport réel monté sur le trainer : Zwift Cog (14 dents) ou cassette réelle. */
   drivetrain: 'cog' | 'cassette';
+  /** Nombre de pignons de la cassette réelle (affichage du rapport en jeu). */
+  cassetteSpeeds: number;
+  /** Modèle de commandes Di2 (tutoriel) : « dura-ace », « ultegra », « 105 », « grx », « other » ; vide : aucun. */
+  di2Model: string;
   /** Ne pas envoyer à Strava : le compteur Garmin enregistre déjà la sortie. */
   skipStrava: boolean;
   aiRiders: number;
@@ -69,9 +75,12 @@ export const DEFAULT_SETTINGS: Settings = {
   lang: 'fr',
   trainerDifficulty: 0.5,
   routeId: '',
+  reverse: false,
   mode: 'free',
   volume: 0.7,
   drivetrain: 'cog',
+  cassetteSpeeds: 12,
+  di2Model: '',
   skipStrava: true,
   aiRiders: 4,
   aiLevel: 1,

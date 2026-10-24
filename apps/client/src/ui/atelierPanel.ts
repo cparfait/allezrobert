@@ -202,9 +202,9 @@ export class AtelierPanel {
     this.host.scene({ look, focus: this.focus(), rider: this.rider, yaw: this.yaw, ...(pulse ? { pulse } : {}) });
   }
 
+  /** Sortie de l'atelier : la pièce sélectionnée le reste (de nouveau essayée au retour). */
   leave(): void {
     this.hover = null;
-    this.selected = null;
     this.host.scene(null);
   }
 
@@ -217,7 +217,7 @@ export class AtelierPanel {
 
   // ————————————————————————————————————————————— Affichage
 
-  html(): string {
+  html(header = '', nav = ''): string {
     const L = fr();
     const p = loadProgress();
     const level = this.level();
@@ -230,20 +230,19 @@ export class AtelierPanel {
             .map((t) => this.itemCard(t, p, level))
             .join('')}</div>`;
     return `<div class="mm-dragzone" id="m-dragzone"></div>
-      <section class="mm-panel mm-side at-panel">
-        <button class="mm-close" data-slot="jersey" aria-label="${L ? 'Fermer l’atelier' : 'Close the workshop'}" title="${L ? 'Retour au garage' : 'Back to the garage'}">×</button>
-        <header class="mm-head at-head"><h2>${L ? 'Atelier' : 'Workshop'}</h2>
-          <div class="at-wallet"><span class="at-balance">${COIN} <b>${credits(p.credits)}</b> ${L ? 'crédits' : 'credits'}</span><span class="at-lvl">${L ? 'Niveau' : 'Level'} ${level}</span></div>
-          <p>${L ? 'Survole une pièce pour l’essayer sur le vélo. Les crédits se gagnent en roulant.' : 'Hover a part to try it on the bike. Credits are earned by riding.'}</p></header>
-        <div class="mm-slots at-fams">${fams.map((f) => `<button class="mm-slot ${f === this.family ? 'on' : ''}" data-atfam="${f}">${L2(FAMILY_LABEL[f])}</button>`).join('')}</div>
-        ${slots.length ? `<div class="mm-bikefilter at-slots" role="radiogroup">${slots.map((sl) => `<button class="${sl === this.slot ? 'on' : ''}" data-atslot="${sl}" role="radio" aria-checked="${sl === this.slot}">${L2(TUNE_SLOT_LABEL[sl])}${p.equipped[sl] ? ' •' : ''}</button>`).join('')}</div>` : ''}
-        ${list}
-        ${this.detailHtml(p, level)}
-        <div class="at-foot">
-          <div class="mm-seg at-rider" data-value="${this.rider ? '1' : '0'}"><button type="button" class="${this.rider ? '' : 'on'}" data-atrider="0">${L ? 'Vélo seul' : 'Bike only'}</button><button type="button" class="${this.rider ? 'on' : ''}" data-atrider="1">${L ? 'Avec le coureur' : 'With rider'}</button></div>
-          <button class="at-reset" id="at-reset" title="${L ? 'Démonter toutes les pièces de l’atelier' : 'Remove every workshop part'}">${L ? 'Réinitialiser' : 'Reset'}</button>
+      <section class="mm-panel mm-side gr-panel at-panel">
+        <div class="gr-top">${header}${nav}
+          <div class="at-tabs">${fams.map((f) => `<button class="at-tab ${f === this.family ? 'on' : ''}" data-atfam="${f}">${L2(FAMILY_LABEL[f])}</button>`).join('')}</div>
+          ${slots.length ? `<div class="at-slots" role="radiogroup">${slots.map((sl) => `<button class="${sl === this.slot ? 'on' : ''}" data-atslot="${sl}" role="radio" aria-checked="${sl === this.slot}">${L2(TUNE_SLOT_LABEL[sl])}${p.equipped[sl] ? '<i class="at-dot"></i>' : ''}</button>`).join('')}</div>` : ''}
         </div>
-        ${this.msg ? `<p class="at-msg">${esc(this.msg)}</p>` : ''}
+        <div class="gr-body">${list}${this.msg ? `<p class="at-msg">${esc(this.msg)}</p>` : ''}</div>
+        <div class="gr-foot at-bottom">
+          ${this.detailHtml(p, level) || `<p class="at-hint">${L ? 'Survole une pièce pour l’essayer sur le vélo. Les crédits se gagnent en roulant.' : 'Hover a part to try it on the bike. Credits are earned by riding.'}</p>`}
+          <div class="at-foot">
+            <div class="mm-seg at-rider" data-value="${this.rider ? '1' : '0'}"><button type="button" class="${this.rider ? '' : 'on'}" data-atrider="0">${L ? 'Vélo seul' : 'Bike only'}</button><button type="button" class="${this.rider ? 'on' : ''}" data-atrider="1">${L ? 'Avec le coureur' : 'With rider'}</button></div>
+            <button class="at-reset" id="at-reset" title="${L ? 'Démonter toutes les pièces de l’atelier' : 'Remove every workshop part'}">${L ? 'Réinitialiser' : 'Reset'}</button>
+          </div>
+        </div>
       </section>
       ${this.statsHtml()}`;
   }
@@ -360,6 +359,8 @@ export class AtelierPanel {
 
   bind(root: HTMLElement): void {
     const q = <T extends HTMLElement>(sel: string) => root.querySelectorAll<T>(sel);
+    // Pièce sélectionnée (p. ex. au retour dans l'atelier) : visible dans la liste.
+    root.querySelector('.at-item.sel, .at-kit.sel')?.scrollIntoView({ block: 'nearest' });
     q('[data-atfam]').forEach((el) =>
       el.addEventListener('click', () => {
         this.family = el.dataset.atfam as TuneFamily;
@@ -400,6 +401,13 @@ export class AtelierPanel {
       });
       el.addEventListener('click', (e) => {
         if ((e.target as HTMLElement).closest('[data-atbuy],[data-atkit]')) return;
+        // Pièce possédée et pas encore montée : montée directement.
+        const t = tuneItem(id);
+        const p = loadProgress();
+        if (t && t.family !== 'kit' && t.slot && p.owned.includes(id) && p.equipped[t.slot] !== id && equipTune(t, this.s)) {
+          this.done(t, fr() ? `${t.name.fr} monté.` : `${t.name.en} fitted.`);
+          return;
+        }
         this.selected = this.selected === id ? null : id;
         this.msg = '';
         this.emit(this.pulseOf(id));

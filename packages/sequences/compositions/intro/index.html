@@ -309,6 +309,8 @@
         AR.text('lbl-finish-k', AR.t('intro.finish'));
         AR.text('lbl-start', v.start_label || '');
         AR.text('lbl-finish', v.finish_label || '');
+        // lieux inconnus (monde ouvert : l'itinéraire se fait aux carrefours) : pas de ligne Départ · Arrivée
+        if (!v.start_label && !v.finish_label) document.getElementById('prof-labels').style.display = 'none';
         AR.text('go-label', AR.t('intro.go'));
 
         var p = AR.profile(AR.json(v.profile, []), 960, 78, { padTop: 6 });

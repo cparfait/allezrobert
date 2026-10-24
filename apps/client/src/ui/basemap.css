@@ -1,0 +1,2 @@
+/* Fond Plan IGN des cartes du menu : assombri pour l’interface sombre, routes et villes lisibles. */
+.map-base { filter: invert(0.9) hue-rotate(180deg) grayscale(0.92) brightness(1.05) contrast(0.8); opacity: 0.5; }

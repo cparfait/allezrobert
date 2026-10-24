@@ -2562,9 +2562,9 @@
    "id": "pays-de-la-reine-margot",
    "file": "routes/pays-de-la-reine-margot.json",
    "name": "Usson et Sauxillanges, au pays de la reine Margot",
-   "lengthM": 56552,
+   "lengthM": 56541.63,
    "elevationGainM": 1085.81,
-   "loop": false,
+   "loop": true,
    "main": true
   }
  ],

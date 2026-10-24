@@ -5,6 +5,7 @@
  * Monde ouvert : la route n'est qu'une fenêtre autour du coureur, renvoyée au fil de la sortie.
  */
 import type { PairRider, PairRoute } from '@allezrobert/shared';
+import { drawClimbProfile, type Climb } from '@allezrobert/shared';
 
 export class RouteGeo {
   readonly xs: Float64Array;
@@ -245,4 +246,10 @@ export function drawProfile(canvas: HTMLCanvasElement, geo: RouteGeo, routeM: nu
   ctx.fillText(`${Math.round(maxY)} m`, w - 4, 11);
   ctx.textAlign = 'left';
   ctx.fillText(`${Math.round(minY)} m`, 4, 11);
+}
+
+/** Profil d'une montée façon ClimbPro (dessin partagé avec le HUD du jeu). */
+export function drawClimb(canvas: HTMLCanvasElement, c: Climb, pos: number, nf: (v: number, d?: number) => string): void {
+  const fc = fit(canvas);
+  if (fc) drawClimbProfile(fc.ctx, fc.w, fc.h, c, pos, nf);
 }

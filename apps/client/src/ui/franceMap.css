@@ -1,8 +1,14 @@
 /* Carte de France du menu (ui/franceMap.ts) et fenêtre d'une zone (trois choix). */
-.mm-picker.fm-dialog { width: min(760px, 94vw) !important; background: rgba(10, 14, 22, 0.42); backdrop-filter: blur(6px); border-color: rgba(255, 255, 255, 0.14); }
-.mm-picker-modal:has(.fm-dialog) { background: rgba(6, 9, 15, 0.18); }
+.mm-picker.fm-dialog { width: min(760px, 94vw) !important; background: rgba(10, 14, 22, 0.88); backdrop-filter: blur(6px); border-color: rgba(255, 255, 255, 0.14); }
+.mm-picker-modal:has(.fm-dialog) { background: rgba(6, 9, 15, 0.62); backdrop-filter: blur(4px); }
 .fm-box { position: relative; }
-.fm-map { display: block; width: 100%; height: min(66vh, 620px); }
+.fm-map { display: block; width: 100%; height: min(66vh, 620px); cursor: grab; touch-action: none; }
+.fm-map.fm-dragging { cursor: grabbing; }
+.fm-box .fm-land { fill: none; }
+.fm-zoomed .fm-land { fill: none; }
+.fm-rect { fill: rgba(255, 210, 63, 0.1); stroke: rgba(255, 210, 63, 0.8); stroke-width: 1.2px; stroke-dasharray: 4 3; vector-effect: non-scaling-stroke; pointer-events: none; }
+.fm-rect.fm-cur { fill: rgba(255, 210, 63, 0.16); stroke: var(--ar-accent); stroke-dasharray: none; }
+.fm-attr { position: absolute; left: 10px; bottom: 6px; font-size: 10px; color: #9aa4b2; pointer-events: none; }
 .fm-land { fill: rgba(255, 255, 255, 0.05); stroke: rgba(236, 239, 244, 0.75); stroke-width: 1.4px; vector-effect: non-scaling-stroke; stroke-linejoin: round; }
 .fm-pts > g { cursor: pointer; outline: none; }
 .fm-hit { fill: transparent; }
@@ -43,3 +49,12 @@
 .zc-choice span { font-size: 12.5px; color: #aab4c2; line-height: 1.4; }
 .zc-pack { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 12.5px; color: #8d98a6; }
 .zc-back { margin-right: auto; }
+.zc-near { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-top: 14px; padding: 12px 14px; border-radius: 14px; border: 1px solid var(--mm-line); background: rgba(255, 255, 255, 0.03); }
+.zc-near > div:first-child { display: flex; flex-direction: column; gap: 2px; flex: 1 1 240px; }
+.zc-near b { font-size: 14px; }
+.zc-near span { font-size: 12.5px; color: #aab4c2; }
+.zc-near-list { display: flex; gap: 8px; flex-wrap: wrap; }
+.zc-near-chip { appearance: none; padding: 7px 12px; border-radius: 999px; border: 1px solid var(--mm-line); background: transparent; color: var(--ar-fg); font: inherit; font-size: 13px; cursor: pointer; }
+.zc-near-chip:hover:not(:disabled) { border-color: var(--ar-accent); }
+.zc-near-chip.on { border-color: var(--ar-accent); background: rgba(255, 210, 63, 0.12); color: var(--ar-accent); }
+.zc-near-chip:disabled { opacity: 0.6; cursor: wait; }

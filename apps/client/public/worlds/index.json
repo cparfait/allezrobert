@@ -16,9 +16,16 @@
     }
    ],
    "pack": {
-    "version": "5464ee8550a1",
-    "bytes": 46816476,
-    "files": 508
+    "version": "be19374ca9be",
+    "bytes": 46818569,
+    "files": 508,
+    "gzBytes": 27595649
+   },
+   "l93": {
+    "minE": 932000,
+    "minN": 6438000,
+    "maxE": 948000,
+    "maxN": 6455000
    }
   },
   {
@@ -30,9 +37,9 @@
      "id": "tour-de-billom",
      "name": "Boucle de Billom par Saint-Julien-de-Coppel et Montmorin",
      "nameEn": "Billom loop via Saint-Julien-de-Coppel and Montmorin",
-     "lengthM": 21968,
-     "elevationGainM": 355.94,
-     "loop": false
+     "lengthM": 21955.02,
+     "elevationGainM": 355.75,
+     "loop": true
     },
     {
      "id": "boucle-billomoise-1",
@@ -54,32 +61,40 @@
      "id": "boucle-billomoise-6",
      "name": "Billom – Pérignat-sur-Allier",
      "nameEn": "Billom – Pérignat-sur-Allier",
-     "lengthM": 23756,
+     "lengthM": 23748.68,
      "elevationGainM": 187.21,
-     "loop": false
+     "loop": true
     },
     {
      "id": "boucle-billomoise-7",
      "name": "Billom – Mur-sur-Allier",
      "nameEn": "Billom – Mur-sur-Allier",
-     "lengthM": 22996,
+     "lengthM": 22904.93,
      "elevationGainM": 319.92,
-     "loop": false
+     "loop": true
     },
     {
      "id": "boucle-billomoise-5",
      "name": "Chauriat – Pérignat par Saint-Bonnet-lès-Allier",
      "nameEn": "Chauriat – Pérignat via Saint-Bonnet-lès-Allier",
-     "lengthM": 11494,
+     "lengthM": 11460.53,
      "elevationGainM": 134.68,
-     "loop": false
+     "loop": true
     }
    ],
    "pack": {
-    "version": "320f6ea26b71",
-    "bytes": 255267140,
-    "files": 901
-   }
+    "version": "b0e7c50ec850",
+    "bytes": 255270065,
+    "files": 901,
+    "gzBytes": 110861059
+   },
+   "l93": {
+    "minE": 714000,
+    "minN": 6508000,
+    "maxE": 729000,
+    "maxN": 6523000
+   },
+   "open": true
   },
   {
    "id": "chevreuse",
@@ -128,9 +143,16 @@
     }
    ],
    "pack": {
-    "version": "c0f8d4614447",
-    "bytes": 188023760,
-    "files": 1887
+    "version": "562a86512d4a",
+    "bytes": 188031053,
+    "files": 1887,
+    "gzBytes": 75187563
+   },
+   "l93": {
+    "minE": 609000,
+    "minN": 6835000,
+    "maxE": 642000,
+    "maxN": 6852000
    }
   },
   {
@@ -142,16 +164,88 @@
      "id": "circuit-de-la-comte",
      "name": "Les châteaux perchés de la Comté",
      "nameEn": "The hilltop castles of the Comté",
-     "lengthM": 56626,
+     "lengthM": 56602.38,
      "elevationGainM": 1140.92,
+     "loop": true
+    }
+   ],
+   "pack": {
+    "version": "521b576f4d9e",
+    "bytes": 269959970,
+    "files": 961,
+    "gzBytes": 123535560
+   },
+   "l93": {
+    "minE": 712000,
+    "minN": 6499000,
+    "maxE": 728000,
+    "maxN": 6514000
+   },
+   "open": true
+  },
+  {
+   "id": "esterel",
+   "name": "Corniche de l'Estérel",
+   "region": "Var · Estérel",
+   "routes": [
+    {
+     "id": "corniche-de-l-esterel",
+     "name": "La corniche de l'Estérel par Agay et Valescure",
+     "nameEn": "Estérel corniche via Agay and Valescure",
+     "lengthM": 23639.47,
+     "elevationGainM": 290.23,
+     "loop": true
+    }
+   ],
+   "pack": {
+    "version": "ff87f74d76d1",
+    "bytes": 206981438,
+    "files": 469,
+    "gzBytes": 70757029
+   },
+   "l93": {
+    "minE": 1003000,
+    "minN": 6262000,
+    "maxE": 1016000,
+    "maxN": 6271000
+   },
+   "open": true
+  },
+  {
+   "id": "etretat",
+   "name": "Étretat — Côte d'Albâtre",
+   "region": "Seine-Maritime · Pays de Caux",
+   "routes": [
+    {
+     "id": "falaises-d-etretat",
+     "name": "Les falaises d'Étretat par Bénouville et Le Tilleul",
+     "nameEn": "Étretat cliffs via Bénouville and Le Tilleul",
+     "lengthM": 22558.22,
+     "elevationGainM": 267.72,
+     "loop": true
+    },
+    {
+     "id": "etretat-fecamp",
+     "name": "D'Étretat vers Fécamp",
+     "nameEn": "From Étretat towards Fécamp",
+     "lengthM": 22124,
+     "elevationGainM": 320.07,
      "loop": false
     }
    ],
    "pack": {
-    "version": "49b3c5735197",
-    "bytes": 269956850,
-    "files": 961
-   }
+    "version": "538d3658a7cb",
+    "bytes": 103311416,
+    "files": 485,
+    "gzBytes": 40097086
+   },
+   "l93": {
+    "minE": 495000,
+    "minN": 6953000,
+    "maxE": 506000,
+    "maxN": 6964000
+   },
+   "open": true
   },
   {
    "id": "issoire",
@@ -162,16 +256,24 @@
      "id": "pays-de-la-reine-margot",
      "name": "Usson et Sauxillanges, au pays de la reine Margot",
      "nameEn": "Usson and Sauxillanges, Queen Margot country",
-     "lengthM": 56552,
+     "lengthM": 56541.63,
      "elevationGainM": 1085.81,
-     "loop": false
+     "loop": true
     }
    ],
    "pack": {
-    "version": "50633423c2c4",
-    "bytes": 192158421,
-    "files": 721
-   }
+    "version": "b627030a75d6",
+    "bytes": 192160761,
+    "files": 721,
+    "gzBytes": 92606772
+   },
+   "l93": {
+    "minE": 722000,
+    "minN": 6486000,
+    "maxE": 740000,
+    "maxN": 6496000
+   },
+   "open": true
   },
   {
    "id": "limagne",
@@ -188,10 +290,18 @@
     }
    ],
    "pack": {
-    "version": "f55c9b582f7a",
-    "bytes": 49274628,
-    "files": 197
-   }
+    "version": "083619653e2b",
+    "bytes": 49275265,
+    "files": 197,
+    "gzBytes": 24771670
+   },
+   "l93": {
+    "minE": 729000,
+    "minN": 6512000,
+    "maxE": 736000,
+    "maxN": 6519000
+   },
+   "open": true
   },
   {
    "id": "livradois",
@@ -202,32 +312,40 @@
      "id": "circuit-du-livradois",
      "name": "Les châteaux du Livradois",
      "nameEn": "The castles of the Livradois",
-     "lengthM": 71420,
-     "elevationGainM": 1024.03,
-     "loop": false
+     "lengthM": 71322.88,
+     "elevationGainM": 1021.07,
+     "loop": true
     },
     {
      "id": "boucle-billomoise-4",
      "name": "Billom – Saint-Dier-d'Auvergne par Fayet-le-Château",
      "nameEn": "Billom – Saint-Dier-d'Auvergne via Fayet-le-Château",
-     "lengthM": 36422,
+     "lengthM": 36421.34,
      "elevationGainM": 687.85,
-     "loop": false
+     "loop": true
     },
     {
      "id": "boucle-billomoise-8",
      "name": "Billom – Lezoux",
      "nameEn": "Billom – Lezoux",
-     "lengthM": 27136,
-     "elevationGainM": 319.26,
-     "loop": false
+     "lengthM": 27054.13,
+     "elevationGainM": 318.31,
+     "loop": true
     }
    ],
    "pack": {
-    "version": "fb6457a45b59",
-    "bytes": 332996999,
-    "files": 1289
-   }
+    "version": "012f05f3c366",
+    "bytes": 333001185,
+    "files": 1289,
+    "gzBytes": 157235648
+   },
+   "l93": {
+    "minE": 726000,
+    "minN": 6508000,
+    "maxE": 740000,
+    "maxN": 6531000
+   },
+   "open": true
   },
   {
    "id": "longchamp",
@@ -238,16 +356,52 @@
      "id": "anneau-de-longchamp",
      "name": "L'anneau de Longchamp",
      "nameEn": "The Longchamp loop",
-     "lengthM": 3672,
+     "lengthM": 3581.62,
      "elevationGainM": 12.68,
-     "loop": false
+     "loop": true
     }
    ],
    "pack": {
-    "version": "a170f04065d6",
-    "bytes": 63292142,
-    "files": 145
-   }
+    "version": "c1cc5cdbe2f1",
+    "bytes": 63292610,
+    "files": 145,
+    "gzBytes": 24647059
+   },
+   "l93": {
+    "minE": 641000,
+    "minN": 6859000,
+    "maxE": 647000,
+    "maxN": 6865000
+   },
+   "open": true
+  },
+  {
+   "id": "meudon",
+   "name": "Meudon — Clamart",
+   "region": "Hauts-de-Seine · Forêt de Meudon",
+   "routes": [
+    {
+     "id": "boucle-foret-de-meudon",
+     "name": "La forêt de Meudon par la côte des Gardes",
+     "nameEn": "Meudon forest loop via the Côte des Gardes",
+     "lengthM": 13320,
+     "elevationGainM": 188.34,
+     "loop": true
+    }
+   ],
+   "pack": {
+    "version": "4ca8b2c060ac",
+    "bytes": 119206721,
+    "files": 281,
+    "gzBytes": 47380875
+   },
+   "l93": {
+    "minE": 639000,
+    "minN": 6852000,
+    "maxE": 649000,
+    "maxN": 6859000
+   },
+   "open": true
   },
   {
    "id": "mont-ventoux",
@@ -264,10 +418,89 @@
     }
    ],
    "pack": {
-    "version": "155134436562",
-    "bytes": 122516591,
-    "files": 916
+    "version": "e40e3c97616b",
+    "bytes": 122520296,
+    "files": 916,
+    "gzBytes": 63078881
+   },
+   "l93": {
+    "minE": 868000,
+    "minN": 6331000,
+    "maxE": 892000,
+    "maxN": 6351000
    }
+  },
+  {
+   "id": "montmartre",
+   "name": "Paris — Montmartre",
+   "region": "Paris · Butte Montmartre",
+   "routes": [
+    {
+     "id": "butte-montmartre",
+     "name": "La butte Montmartre par la rue Lepic",
+     "nameEn": "Montmartre hill via rue Lepic",
+     "lengthM": 5891.44,
+     "elevationGainM": 139.82,
+     "loop": true
+    }
+   ],
+   "pack": {
+    "version": "a1cc72589e23",
+    "bytes": 48603126,
+    "files": 101,
+    "gzBytes": 18294388
+   },
+   "l93": {
+    "minE": 649000,
+    "minN": 6863000,
+    "maxE": 654000,
+    "maxN": 6868000
+   },
+   "open": true
+  },
+  {
+   "id": "opale",
+   "name": "Côte d'Opale — Les deux caps",
+   "region": "Pas-de-Calais · Côte d'Opale",
+   "routes": [
+    {
+     "id": "les-deux-caps",
+     "name": "Les caps Blanc-Nez et Gris-Nez par Wissant",
+     "nameEn": "Cap Blanc-Nez and Cap Gris-Nez via Wissant",
+     "lengthM": 37616.04,
+     "elevationGainM": 576.14,
+     "loop": true
+    },
+    {
+     "id": "terre-des-2-caps",
+     "name": "La terre des deux caps",
+     "nameEn": "Land of the two capes",
+     "lengthM": 19512,
+     "elevationGainM": 319.62,
+     "loop": false
+    },
+    {
+     "id": "wissant-les-2-caps",
+     "name": "Wissant et les deux caps",
+     "nameEn": "Wissant and the two capes",
+     "lengthM": 26300,
+     "elevationGainM": 324.8,
+     "loop": false
+    }
+   ],
+   "pack": {
+    "version": "819e6279ea7b",
+    "bytes": 121380053,
+    "files": 625,
+    "gzBytes": 41553452
+   },
+   "l93": {
+    "minE": 599000,
+    "minN": 7083000,
+    "maxE": 612000,
+    "maxN": 7095000
+   },
+   "open": true
   },
   {
    "id": "puys",
@@ -278,16 +511,76 @@
      "id": "boucle-des-domes",
      "name": "La boucle des Dômes par Orcines et Saint-Ours",
      "nameEn": "The Dômes loop via Orcines and Saint-Ours",
-     "lengthM": 81144,
+     "lengthM": 81134.86,
      "elevationGainM": 1439.53,
+     "loop": true
+    }
+   ],
+   "pack": {
+    "version": "f170e40409c8",
+    "bytes": 451019889,
+    "files": 1601,
+    "gzBytes": 221464206
+   },
+   "l93": {
+    "minE": 684000,
+    "minN": 6515000,
+    "maxE": 704000,
+    "maxN": 6535000
+   },
+   "open": true
+  },
+  {
+   "id": "re",
+   "name": "Île de Ré",
+   "region": "Charente-Maritime · Île de Ré",
+   "routes": [
+    {
+     "id": "phare-des-baleines",
+     "name": "Le phare des Baleines par Ars-en-Ré et Les Portes",
+     "nameEn": "Phare des Baleines via Ars-en-Ré and Les Portes",
+     "lengthM": 19730.16,
+     "elevationGainM": 45.2,
+     "loop": true
+    },
+    {
+     "id": "tour-d-ars-en-re",
+     "name": "Le tour d'Ars-en-Ré",
+     "nameEn": "Ars-en-Ré loop",
+     "lengthM": 21182,
+     "elevationGainM": 44.46,
+     "loop": false
+    },
+    {
+     "id": "ile-de-re-grande-boucle",
+     "name": "La grande boucle de l'île de Ré",
+     "nameEn": "Île de Ré grand loop",
+     "lengthM": 51121.18,
+     "elevationGainM": 118.72,
+     "loop": true
+    },
+    {
+     "id": "autour-du-bois-plage-en-re",
+     "name": "Autour du Bois-Plage-en-Ré",
+     "nameEn": "Around Le Bois-Plage-en-Ré",
+     "lengthM": 48584,
+     "elevationGainM": 106.07,
      "loop": false
     }
    ],
    "pack": {
-    "version": "0c633b896247",
-    "bytes": 451014689,
-    "files": 1601
-   }
+    "version": "bebc7dc228a9",
+    "bytes": 113241948,
+    "files": 463,
+    "gzBytes": 19293843
+   },
+   "l93": {
+    "minE": 346000,
+    "minN": 6573000,
+    "maxE": 360000,
+    "maxN": 6584000
+   },
+   "open": true
   },
   {
    "id": "sancy",
@@ -298,24 +591,32 @@
      "id": "tour-du-sancy",
      "name": "Le tour du Sancy par La Tour-d'Auvergne et Besse",
      "nameEn": "Sancy loop via La Tour-d'Auvergne and Besse",
-     "lengthM": 81814,
-     "elevationGainM": 1717.81,
-     "loop": false
+     "lengthM": 81809.13,
+     "elevationGainM": 1717.76,
+     "loop": true
     },
     {
      "id": "vallee-de-chaudefour",
      "name": "La vallée de Chaudefour par Murol",
      "nameEn": "Chaudefour valley via Murol",
-     "lengthM": 24672,
+     "lengthM": 24669.04,
      "elevationGainM": 527.33,
-     "loop": false
+     "loop": true
     }
    ],
    "pack": {
-    "version": "c36bf9e26f4b",
-    "bytes": 328886432,
-    "files": 1321
-   }
+    "version": "c5be7bfa7dfa",
+    "bytes": 328890722,
+    "files": 1321,
+    "gzBytes": 168427751
+   },
+   "l93": {
+    "minE": 675000,
+    "minN": 6484000,
+    "maxE": 697000,
+    "maxN": 6499000
+   },
+   "open": true
   },
   {
    "id": "vincennes",
@@ -326,16 +627,24 @@
      "id": "tour-hippodrome-vincennes",
      "name": "Le tour de l'hippodrome de Vincennes",
      "nameEn": "Vincennes racecourse loop",
-     "lengthM": 3832,
-     "elevationGainM": 18.65,
-     "loop": false
+     "lengthM": 3305.87,
+     "elevationGainM": 17.21,
+     "loop": true
     }
    ],
    "pack": {
-    "version": "7058821dc50c",
-    "bytes": 68493325,
-    "files": 145
-   }
+    "version": "ee3b7648961c",
+    "bytes": 68493793,
+    "files": 145,
+    "gzBytes": 25668544
+   },
+   "l93": {
+    "minE": 657000,
+    "minN": 6855000,
+    "maxE": 663000,
+    "maxN": 6861000
+   },
+   "open": true
   }
  ]
 }

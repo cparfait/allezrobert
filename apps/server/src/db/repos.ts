@@ -400,6 +400,41 @@ export class Repos {
     return r.rows.map((row) => ({ userId: row.user_id, name: row.display_name, bestMs: toNum(row.best_ms), efforts: toNum(row.efforts) }));
   }
 
+  /** Effort déjà enregistré pour cette sortie (envoi répété après une reprise) ? */
+  async hasSegmentEffort(userId: string, rideId: string, segmentId: string, elapsedMs: number): Promise<boolean> {
+    const r = await this.db.query('SELECT 1 FROM segment_efforts WHERE user_id = $1 AND ride_id = $2 AND segment_id = $3 AND elapsed_ms = $4 LIMIT 1', [userId, rideId, segmentId, Math.round(elapsedMs)]);
+    return r.rows.length > 0;
+  }
+
+  /** Temps sur un parcours entier (une ligne par passage). */
+  async recordRouteTime(e: { userId: string; routeId: string; elapsedMs: number; rideId?: string }): Promise<boolean> {
+    if (e.rideId) {
+      const dup = await this.db.query('SELECT 1 FROM route_times WHERE user_id = $1 AND ride_id = $2 AND elapsed_ms = $3 LIMIT 1', [e.userId, e.rideId, Math.round(e.elapsedMs)]);
+      if (dup.rows.length) return false;
+    }
+    await this.db.query('INSERT INTO route_times (id, user_id, route_id, elapsed_ms, ride_id) VALUES ($1,$2,$3,$4,$5)', [randomUUID(), e.userId, e.routeId, Math.round(e.elapsedMs), e.rideId ?? null]);
+    return true;
+  }
+
+  /** Meilleur temps de chaque coureur sur un parcours entier ; avec `friendsOf`, ce compte et ses amis. */
+  async routeLeaderboard(routeId: string, limit = 20, friendsOf?: string): Promise<Array<{ userId: string; name: string; bestMs: number; efforts: number }>> {
+    const friends = friendsOf
+      ? `AND (t.user_id = $3
+              OR t.user_id IN (SELECT user_b FROM friendships WHERE user_a = $3 AND status = 'accepted')
+              OR t.user_id IN (SELECT user_a FROM friendships WHERE user_b = $3 AND status = 'accepted'))`
+      : '';
+    const r = await this.db.query(
+      `SELECT t.user_id, u.display_name, MIN(t.elapsed_ms) AS best_ms, COUNT(*) AS efforts
+         FROM route_times t JOIN users u ON u.id = t.user_id
+        WHERE t.route_id = $1 ${friends}
+        GROUP BY t.user_id, u.display_name
+        ORDER BY best_ms ASC
+        LIMIT $2`,
+      friendsOf ? [routeId, limit, friendsOf] : [routeId, limit],
+    );
+    return r.rows.map((row) => ({ userId: row.user_id, name: row.display_name, bestMs: toNum(row.best_ms), efforts: toNum(row.efforts) }));
+  }
+
   /** Records personnels d'un coureur (par itinéraire si précisé). */
   async personalBests(userId: string, routeId?: string): Promise<Array<{ routeId: string; segmentId: string; bestMs: number }>> {
     const r = await this.db.query(
@@ -596,6 +631,7 @@ export class Repos {
       if (fit) fits[a.id] = fit.toString('base64');
     }
     const efforts = (await this.db.query('SELECT route_id, segment_id, elapsed_ms, ride_id, ridden_at FROM segment_efforts WHERE user_id = $1', [userId])).rows;
+    const routeTimes = (await this.db.query('SELECT route_id, elapsed_ms, ride_id, ridden_at FROM route_times WHERE user_id = $1', [userId])).rows;
     const integrations = await this.listIntegrations(userId);
     const renders = await this.listRenders(userId);
     const code = (await this.db.query('SELECT code FROM friend_codes WHERE user_id = $1', [userId])).rows[0]?.code ?? null;
@@ -617,6 +653,7 @@ export class Repos {
       activities,
       activityFitBase64: fits,
       segmentEfforts: efforts,
+      routeTimes,
       integrations: integrations.map((i) => ({ provider: i.provider, meta: i.meta, updatedAt: i.updatedAt })),
       renders,
       friends: { code, relations: friendships },

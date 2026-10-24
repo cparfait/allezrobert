@@ -40,6 +40,8 @@ export interface RideOptions {
    * sans modulation et les commandes de vitesses ne changent rien. Défaut `cog`.
    */
   drivetrain?: 'cog' | 'cassette';
+  /** Nombre de pignons de la cassette réelle (affiché avec le rapport lu sur la commande). */
+  cassetteSpeeds?: number;
   /** Vent météo à 10 m (m/s, d'où il vient en radians, 0 = nord). */
   wind?: { ms: number; from: number };
   startDistM?: number;
@@ -169,7 +171,7 @@ export class RideSession {
   get gearLabel(): string {
     if (this.virtualShifting) return `${this.gear.chainring}×${this.gear.cog}`;
     const g = this.inputs.realGear;
-    return g ? `${g.front}·${g.rear}` : 'cassette';
+    return g ? `${g.front}·${g.rear}${this.opts.cassetteSpeeds ? `/${this.opts.cassetteSpeeds}` : ''}` : 'cassette';
   }
 
   shift(delta: number): void {

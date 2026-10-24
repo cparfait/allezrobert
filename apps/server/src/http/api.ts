@@ -48,6 +48,13 @@ const AvatarSchema = z.object({
   moustache: z.boolean().optional(),
   // Pièces de l'atelier affichées sur le vélo : connues et possédées (vérifié à l'enregistrement).
   tune: z.array(z.string().regex(/^[a-z0-9-]{1,48}$/)).max(32).optional(),
+  heightCm: z.number().min(120).max(230).optional(),
+  jerseyStyle: z.enum(['uni', 'bandes', 'pois', 'manches', 'moitie', 'degrade', 'chevrons']).optional(),
+  sleeves: z.enum(['short', 'long']).optional(),
+  bottles: z.union([z.literal(0), z.literal(1), z.literal(2)]).optional(),
+  jerseyLogo: z.object({ id: z.string().regex(/^[a-z0-9-]{1,32}$/), tint: hex.optional(), w: z.number().min(0.05).max(0.3).optional(), y: z.number().min(0.2).max(0.9).optional() }).optional(),
+  jerseyDots: z.object({ r: z.number().min(1).max(10), step: z.number().min(4).max(40) }).optional(),
+  jerseyBands: z.array(hex).max(5).optional(),
 });
 
 const ProfilePatchSchema = z
@@ -324,6 +331,59 @@ export function mountApi(app: express.Application, ctx: AppContext): void {
   api.get('/me/segments', async (req: AuthedRequest, res) => {
     const u = requireUser(req);
     res.json(await ctx.repos.personalBests(u.userId, typeof req.query.routeId === 'string' ? req.query.routeId : undefined));
+  });
+
+  /*
+   * Temps d'une sortie solo, envoyés par le client à la fin (les sorties de groupe sont déjà
+   * enregistrées par la salle) : montées et sprints, parcours entier. Itinéraire connu du serveur :
+   * segment existant et vitesse moyenne plausible ; sinon bornes larges. Les itinéraires dessinés
+   * et le monde ouvert ne sont pas classés. Un même envoi répété (sortie reprise) ne compte qu'une fois.
+   */
+  api.post('/efforts', async (req: AuthedRequest, res) => {
+    const u = requireUser(req);
+    const id = z.string().min(1).max(80).regex(/^[\w.-]+$/);
+    const ms = z.number().int().min(5_000).max(86_400_000);
+    const body = z
+      .object({
+        routeId: id,
+        rideId: z.string().min(1).max(80).optional(),
+        segments: z.array(z.object({ segmentId: id, elapsedMs: ms })).max(60).default([]),
+        routeTimeMs: ms.optional(),
+      })
+      .parse(req.body);
+    if (body.routeId === 'open' || body.routeId.startsWith('itineraire-')) throw new HttpError(400, 'Itinéraire non classé', 'unranked_route');
+    const known = ctx.routes.get(body.routeId)?.data;
+    // Vitesse moyenne maximale admise : 90 km/h sur un segment, 60 km/h sur un parcours entier.
+    const plausible = (lengthM: number, elapsedMs: number, maxMs: number) => lengthM / (elapsedMs / 1000) <= maxMs;
+    let segments = 0;
+    for (const e of body.segments) {
+      if (known) {
+        const seg = known.segments.find((g) => g.id === e.segmentId);
+        if (!seg || !plausible(seg.endM - seg.startM, e.elapsedMs, 25)) continue;
+      }
+      if (body.rideId && (await ctx.repos.hasSegmentEffort(u.userId, body.rideId, e.segmentId, e.elapsedMs))) continue;
+      await ctx.repos.recordSegmentEffort({ userId: u.userId, routeId: body.routeId, segmentId: e.segmentId, elapsedMs: e.elapsedMs, ...(body.rideId ? { rideId: body.rideId } : {}) });
+      segments++;
+    }
+    let route = false;
+    if (body.routeTimeMs !== undefined && (!known || plausible(known.lengthM, body.routeTimeMs, 16.7))) {
+      route = await ctx.repos.recordRouteTime({ userId: u.userId, routeId: body.routeId, elapsedMs: body.routeTimeMs, ...(body.rideId ? { rideId: body.rideId } : {}) });
+    }
+    res.status(201).json({ segments, route });
+  });
+
+  /** Classement d'un parcours entier (meilleur temps par coureur) ; `scope=friends` : soi et ses amis. */
+  api.get('/routes/:routeId/leaderboard', async (req: AuthedRequest, res) => {
+    const q = z.object({ limit: z.coerce.number().int().min(1).max(100).default(20), scope: z.enum(['all', 'friends']).default('all') }).parse(req.query);
+    const routeId = String(req.params.routeId);
+    if (q.scope === 'friends') {
+      const u = requireUser(req);
+      const board = await ctx.repos.routeLeaderboard(routeId, q.limit, u.userId);
+      res.json(board.map((b, i) => ({ rank: i + 1, name: b.name, bestMs: b.bestMs, efforts: b.efforts, me: b.userId === u.userId })));
+      return;
+    }
+    const board = await ctx.repos.routeLeaderboard(routeId, q.limit);
+    res.json(board.map((b, i) => ({ rank: i + 1, name: b.name, bestMs: b.bestMs, efforts: b.efforts })));
   });
 
   api.get('/routes', (_req, res) => {

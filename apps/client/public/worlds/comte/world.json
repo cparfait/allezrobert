@@ -3402,9 +3402,9 @@
    "id": "circuit-de-la-comte",
    "file": "routes/circuit-de-la-comte.json",
    "name": "Les châteaux perchés de la Comté",
-   "lengthM": 56626,
+   "lengthM": 56602.38,
    "elevationGainM": 1140.92,
-   "loop": false,
+   "loop": true,
    "main": true
   }
  ],

@@ -24,6 +24,27 @@ si une donnée manque ; équivalent `TERRAIN_OFFLINE=1`), `--routes-only`. `TERR
 construit le monde ailleurs (ex. `data/cache/terrain/stage-world`) pour le recopier d'un coup
 dans `apps/client/public/worlds/chevreuse/` sans priver le client de tuiles pendant ~4 min.
 
+Mondes ouverts (`kind: 'open'`) : `--graph-only` ne réécrit que `graph.json` (quelques minutes
+depuis le cache, sans tuiles ni tours). Le graphe garde l'identifiant OSM de chaque nœud (`osm`)
+et exporte, marquées `border: 1`, les arêtes à moins de 30 m du bord ou au-delà : le client les
+écarte quand on roule dans la seule zone, et s'en sert pour raccorder les **zones voisines**
+chargées ensemble (`?world=meudon+longchamp`, voir `apps/client/src/world/composite.ts`). Les
+voisines se déduisent des emprises `l93` du catalogue `worlds/index.json`.
+
+**Altitudes en différences** : les `.hi.u16` / `.lo.u16` des tuiles sont codés en écarts à la
+valeur voisine (`heights.delta: true` dans la tuile, `packages/shared/src/heights.ts`) : ≈ 1,5 ×
+mieux compressés. Tuiles construites avant : `npx tsx tools/terrain/src/delta-heights.ts`
+(sans rien reconstruire, relançable). `pack.json` et le catalogue donnent aussi `gzBytes`, la
+taille réellement téléchargée (Caddy compresse) et gardée sur l'appareil (le jeu stocke les
+packs compressés). Déploiement : le client d'abord (il lit les deux formats), puis les tuiles.
+
+**Bord de mer** (`sea: true`) : là où ni le LiDAR HD ni le RGE ALTI n'ont de valeur, c'est la mer
+(fond à −6 m) au lieu d'un trou bouché par les terres voisines ; blocs MNT en cache à part
+(`dem/<lod>-sea`). `world.json` porte `sea: { levelM: 0 }` et le client dessine la surface de la
+mer (nappe par tuile, plan lointain jusqu'à l'horizon). Les plages OSM (`natural=beach`) sont
+demandées en plus pour ces mondes seulement (la requête des autres mondes, donc leur cache, ne
+change pas).
+
 **Clone public (sans `data/garmin/`)** : `world.json` et les itinéraires sont versionnés, pas les
 tuiles. `build-tiles.ts` reconstruit les tuiles à partir des itinéraires versionnés (recalés sur le
 graphe OSM), sans toucher à `world.json` ni aux itinéraires ; le client ignore les tuiles absentes.

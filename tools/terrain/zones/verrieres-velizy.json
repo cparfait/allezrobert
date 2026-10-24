@@ -1,0 +1,94 @@
+{
+  "kind": "open",
+  "id": "verrieres-velizy",
+  "name": "Verrières -Vélizy",
+  "region": "Essonne · Île-de-France",
+  "originL93": {
+    "x": 643000,
+    "y": 6851000
+  },
+  "corridorTiles": {
+    "txMin": -5,
+    "txMax": 4,
+    "tzMin": -5,
+    "tzMax": 4
+  },
+  "start": {
+    "lon": 2.27667,
+    "lat": 48.73021
+  },
+  "orthoPx": 1024,
+  "horizon": {
+    "halfSizeM": 30000,
+    "resM": 100
+  },
+  "tours": [
+    {
+      "routeId": "boucle-35-km-massy",
+      "routeName": "Boucle de 35 km depuis Massy",
+      "routeNameEn": "35 km loop from Massy",
+      "start": {
+        "lon": 2.27667,
+        "lat": 48.73021
+      },
+      "via": [
+        {
+          "lon": 2.25549,
+          "lat": 48.71736
+        },
+        {
+          "lon": 2.23644,
+          "lat": 48.71348
+        },
+        {
+          "lon": 2.20751,
+          "lat": 48.7176
+        },
+        {
+          "lon": 2.18137,
+          "lat": 48.71579
+        },
+        {
+          "lon": 2.1685,
+          "lat": 48.71507
+        },
+        {
+          "lon": 2.16317,
+          "lat": 48.73069
+        },
+        {
+          "lon": 2.16966,
+          "lat": 48.75389
+        },
+        {
+          "lon": 2.16307,
+          "lat": 48.76741
+        },
+        {
+          "lon": 2.17238,
+          "lat": 48.77928
+        },
+        {
+          "lon": 2.20594,
+          "lat": 48.77695
+        },
+        {
+          "lon": 2.23042,
+          "lat": 48.78019
+        },
+        {
+          "lon": 2.24045,
+          "lat": 48.77414
+        },
+        {
+          "lon": 2.24524,
+          "lat": 48.76255
+        },
+        {
+          "lon": 2.26164,
+          "lat": 48.74423
+        }
+      ]
+    }
+  ]
+}

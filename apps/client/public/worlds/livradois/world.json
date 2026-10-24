@@ -4550,27 +4550,27 @@
    "id": "circuit-du-livradois",
    "file": "routes/circuit-du-livradois.json",
    "name": "Les châteaux du Livradois",
-   "lengthM": 71420,
-   "elevationGainM": 1024.03,
-   "loop": false,
+   "lengthM": 71322.88,
+   "elevationGainM": 1021.07,
+   "loop": true,
    "main": true
   },
   {
    "id": "boucle-billomoise-4",
    "file": "routes/boucle-billomoise-4.json",
    "name": "Billom – Saint-Dier-d'Auvergne par Fayet-le-Château",
-   "lengthM": 36422,
+   "lengthM": 36421.34,
    "elevationGainM": 687.85,
-   "loop": false,
+   "loop": true,
    "main": false
   },
   {
    "id": "boucle-billomoise-8",
    "file": "routes/boucle-billomoise-8.json",
    "name": "Billom – Lezoux",
-   "lengthM": 27136,
-   "elevationGainM": 319.26,
-   "loop": false,
+   "lengthM": 27054.13,
+   "elevationGainM": 318.31,
+   "loop": true,
    "main": false
   }
  ],

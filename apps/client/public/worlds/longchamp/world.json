@@ -546,9 +546,9 @@
    "id": "anneau-de-longchamp",
    "file": "routes/anneau-de-longchamp.json",
    "name": "L'anneau de Longchamp",
-   "lengthM": 3672,
+   "lengthM": 3581.62,
    "elevationGainM": 12.68,
-   "loop": false,
+   "loop": true,
    "main": true
   }
  ],
