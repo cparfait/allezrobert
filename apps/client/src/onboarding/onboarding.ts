@@ -229,8 +229,28 @@ export class Onboarding {
         <div class="row">${i > 0 ? `<button class="btn" id="o-back">←</button>` : ''}${i === STEPS.length - 1 && this.wantFtp ? `<button class="btn" id="o-later">${fr ? 'Plus tard' : 'Later'}</button>` : ''}<button class="btn primary" id="o-next">${i === STEPS.length - 1 ? (this.wantFtp ? (fr ? 'Lancer le test FTP' : 'Start the FTP test') : fr ? 'Terminer ✓' : 'Finish ✓') : fr ? 'Suivant →' : 'Next →'}</button></div>
       </div></div></div></div></div>`;
     this.bind();
+    this.placeTail();
     if (this.step === 'companion') renderCompanionSettings(this.root.querySelector('#o-companion'), true);
     this.syncPreview();
+  }
+
+  private tailObserver: ResizeObserver | null = null;
+
+  /**
+   * Queue de la bulle : vers la bouche de Robert (aux deux tiers de sa hauteur), mais jamais au-dessus du haut de
+   * la carte (carte courte, comme la dernière étape) : Robert et la carte sont alignés par le bas.
+   */
+  private placeTail(): void {
+    const stage = this.root.querySelector<HTMLElement>('.ob-stage');
+    const card = stage?.querySelector<HTMLElement>('.card.onboarding');
+    const robert = stage?.querySelector<HTMLElement>('.ob-robert');
+    this.tailObserver?.disconnect();
+    if (!stage || !card || !robert || typeof ResizeObserver === 'undefined') return;
+    const place = () => stage.style.setProperty('--ob-tail', `${Math.max(20, Math.min(robert.offsetHeight * 0.66, card.offsetHeight - 70))}px`);
+    this.tailObserver = new ResizeObserver(place);
+    this.tailObserver.observe(card);
+    this.tailObserver.observe(robert);
+    place();
   }
 
   private bind(): void {
