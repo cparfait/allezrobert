@@ -6,7 +6,7 @@ import { DEFAULT_LOOK, type AvatarLook, type TuneSlot } from '@allezrobert/share
 import { createAvatar, type RiderAvatarLike } from '../rider/gltfAvatar.ts';
 import { crowdBike, onBikeFamilyLoaded } from '../rider/bikes.ts';
 import type { Engine } from '../engine/renderer.ts';
-import { box, buildRoom, mat, rod } from './atelierRoom.ts';
+import { box, buildRoom, cyl, mat, rod } from './atelierRoom.ts';
 
 /**
  * Atelier du garage : le vélo du joueur sur un pied d'atelier, dans une pièce procédurale (établi,
@@ -136,24 +136,53 @@ function studioEnvironment(renderer: THREE.WebGPURenderer): THREE.Texture {
   return rt.texture;
 }
 
-/** Pied d'atelier : trépied, colonne, bras, mâchoire sur la tige de selle. */
+/**
+ * Pied de réparation : trépied noir à entretoises et patins, mât télescopique à bagues turquoise,
+ * plateau à outils, bras horizontal et mâchoire à levier sur la tige de selle (vélo suspendu par la selle).
+ */
 function buildStand(): THREE.Group {
   const g = new THREE.Group();
   g.name = 'atelier_stand';
-  const red = mat('#2457a6', 0.4, 0.4);
-  const steel = mat('#3a3c40', 0.4, 0.8);
-  // Colonne derrière le vélo, bras court jusqu'au tube de selle (≈ 0,70 m sur le vélo, + levée).
-  const base = new THREE.Vector3(-0.42, 0, -0.66);
-  const hub = new THREE.Vector3(base.x, 0.28, base.z);
+  const black = mat('#17181b', 0.45, 0.6);
+  const rubber = mat('#0c0c0e', 0.9);
+  const teal = mat('#1fb5a3', 0.55);
+  const steel = mat('#aeb4bb', 0.3, 0.9);
+  // Mât juste à côté du tube de selle ; le bras part vers lui.
+  const clamp = new THREE.Vector3(-0.04, 0.7 + LIFT, -0.13);
+  const mast = new THREE.Vector3(-0.5, 0, clamp.z);
+  const topY = clamp.y + 0.05;
+  g.add(rod(new THREE.Vector3(mast.x, 0.2, mast.z), new THREE.Vector3(mast.x, topY, mast.z), 0.019, black));
+  // Trépied : trois jambes inclinées, patins en caoutchouc, entretoises entre elles.
+  const hub = new THREE.Vector3(mast.x, 0.24, mast.z);
+  const feet: THREE.Vector3[] = [];
   for (let i = 0; i < 3; i++) {
-    const a = (i / 3) * Math.PI * 2 + 0.4;
-    g.add(rod(hub, new THREE.Vector3(base.x + Math.cos(a) * 0.4, 0.01, base.z + Math.sin(a) * 0.4), 0.014, steel));
+    const a = (i / 3) * Math.PI * 2 + Math.PI / 2 + 0.35;
+    const foot = new THREE.Vector3(mast.x + Math.cos(a) * 0.52, 0.025, mast.z + Math.sin(a) * 0.52);
+    feet.push(foot);
+    g.add(rod(hub, foot, 0.013, black));
+    g.add(box(0.07, 0.03, 0.05, rubber, foot.x, 0.015, foot.z));
   }
-  const clamp = new THREE.Vector3(-0.05, 0.7 + LIFT, -0.13);
-  const top = new THREE.Vector3(base.x, clamp.y + 0.06, base.z);
-  g.add(rod(new THREE.Vector3(base.x, 0.02, base.z), top, 0.022, red));
-  g.add(rod(top, clamp, 0.018, red));
-  g.add(box(0.06, 0.07, 0.07, steel, clamp.x - 0.02, clamp.y, clamp.z));
+  for (let i = 0; i < 3; i++) {
+    const a = feet[i] as THREE.Vector3;
+    const b = feet[(i + 1) % 3] as THREE.Vector3;
+    g.add(rod(new THREE.Vector3(hub.x + (a.x - hub.x) * 0.55, 0.13, hub.z + (a.z - hub.z) * 0.55), new THREE.Vector3(hub.x + (b.x - hub.x) * 0.55, 0.13, hub.z + (b.z - hub.z) * 0.55), 0.007, black));
+  }
+  g.add(cyl(0.03, 0.05, black, mast.x, 0.24, mast.z, 16));
+  // Bagues turquoise du réglage de hauteur, plateau à outils.
+  g.add(cyl(0.027, 0.03, teal, mast.x, 0.34, mast.z, 16));
+  g.add(cyl(0.027, 0.03, teal, mast.x, 0.72, mast.z, 16));
+  g.add(box(0.24, 0.012, 0.17, black, mast.x + 0.02, 0.86, mast.z));
+  for (const s of [-1, 1]) g.add(box(0.24, 0.02, 0.008, black, mast.x + 0.02, 0.872, mast.z + s * 0.081));
+  // Té, bras horizontal, bouton de serrage, mâchoire à levier.
+  g.add(box(0.06, 0.06, 0.06, black, mast.x, topY, mast.z));
+  g.add(rod(new THREE.Vector3(mast.x, topY, mast.z), new THREE.Vector3(clamp.x - 0.05, topY, clamp.z), 0.016, black));
+  g.add(cyl(0.022, 0.03, black, mast.x - 0.05, topY, mast.z, 14).rotateZ(Math.PI / 2));
+  g.add(box(0.06, 0.05, 0.075, black, clamp.x - 0.03, topY, clamp.z));
+  g.add(box(0.016, 0.07, 0.085, steel, clamp.x + 0.015, topY, clamp.z)); // mâchoire côté vélo
+  g.add(rod(new THREE.Vector3(clamp.x - 0.03, topY + 0.03, clamp.z), new THREE.Vector3(clamp.x - 0.08, topY + 0.085, clamp.z), 0.007, steel)); // levier
+  g.traverse((o) => {
+    (o as THREE.Mesh).castShadow = true;
+  });
   return g;
 }
 

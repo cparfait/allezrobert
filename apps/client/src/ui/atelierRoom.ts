@@ -321,19 +321,11 @@ export function buildRoom(): THREE.Group {
   floor.rotation.x = -Math.PI / 2;
   floor.receiveShadow = true;
   room.add(floor);
-  const rubber = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 1.3), mat('#202224', 0.95));
-  rubber.rotation.x = -Math.PI / 2;
-  rubber.position.set(0, 0.003, 0);
-  rubber.receiveShadow = true;
-  room.add(rubber);
-  // Paillasson devant l'établi, lisible depuis la caméra d'ensemble.
-  const doorMat = new THREE.Group();
-  const dm = new THREE.Mesh(new THREE.PlaneGeometry(3.2, 1.6), tex(matTexture(), 0.95));
-  dm.rotation.x = -Math.PI / 2;
-  dm.receiveShadow = true;
-  doorMat.add(dm);
-  doorMat.position.set(0.1, 0.005, 2.6);
-  doorMat.rotation.y = Math.PI;
+  // Paillasson « Allez Robert ! » sous le vélo (dans le sens du vélo : le texte se lit depuis le côté caméra).
+  const doorMat = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 1.2), tex(matTexture(), 0.95));
+  doorMat.rotation.set(-Math.PI / 2, 0, Math.PI / 2, 'YXZ');
+  doorMat.position.set(0, 0.004, 0.05);
+  doorMat.receiveShadow = true;
   room.add(doorMat);
 
   // Murs : gris à lames verticales (fond, gauche, droite), bois blond côté étagères (z = −3).
