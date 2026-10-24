@@ -87,7 +87,7 @@ export function showPause(root: HTMLElement, cb: PauseCallbacks): void {
       <button class="btn" id="p-finish">${cb.finishLabel ?? t('finish')}</button>
       ${cb.onCompanion ? `<button class="btn" id="p-companion">${phoneIcon(18)} ${getLang() === 'fr' ? 'Appli compagnon' : 'Companion app'}</button>` : ''}
     </div><div id="p-friends"></div>
-    <div id="p-sound" style="margin-top:18px;text-align:left"></div></div></div>`;
+    <div style="margin-top:18px;text-align:left"><h3>${getLang() === 'fr' ? 'Son' : 'Sound'}</h3><div id="p-sound"></div></div></div></div>`;
   renderSoundSettings(root.querySelector('#p-sound'));
   (root.querySelector('#p-resume') as HTMLElement).onclick = cb.onResume;
   (root.querySelector('#p-finish') as HTMLElement).onclick = cb.onFinish;

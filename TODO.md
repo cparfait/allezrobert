@@ -4,7 +4,7 @@
 - [ ] Ajouter les vraies références connues pour chaque profondeur (Zipp, ENVE, DT Swiss, Roval…).
 
 ## Pause : rubrique « Son »
-- [ ] Ajouter une rubrique « Son » dans le menu pause, avec son propre titre, comme « Graphismes ».
+- [x] Ajouter une rubrique « Son » dans le menu pause, avec son propre titre, comme « Graphismes ».
 
 ## Gestion du peloton en groupe
 À préciser avec Christophe :
@@ -14,9 +14,9 @@
 - [ ] Autre chose ? (à définir)
 
 ## Atelier
-- [ ] Mur plus réaliste.
-- [ ] Vrais pneus avec marques.
-- [ ] Un ou deux vrais vélos en fond.
+- [x] Mur plus réaliste.
+- [x] Vrais pneus avec marques.
+- [x] Un ou deux vrais vélos en fond.
 
 ## Cheveux
 - [ ] Vraies coiffures via le pipeline Blender.
