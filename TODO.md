@@ -19,7 +19,7 @@
 - [x] Un ou deux vrais vélos en fond.
 
 ## Visage
-- [ ] La tête de base est déformée (crâne allongé et lisse, traits étirés) : à corriger dans le pipeline Blender / les curseurs du visage.
+- [ ] Page du tutoriel : la tête de base (tête nue, vue de près) est déformée (crâne allongé et lisse, traits étirés). À corriger dans le modèle de tête du pipeline Blender, ou en cadrant moins près / avec des cheveux par défaut.
 
 ## Cheveux
 - [ ] Vraies coiffures via le pipeline Blender.
