@@ -527,6 +527,11 @@ export class AtelierHost {
     const k = st.rider && SLOT_SHOT[st.focus] === 'overview' ? 1.25 : 1;
     this.goalPos.set((x * c + z * s) * k, y + lift + (k - 1) * 0.4, (-x * s + z * c) * k);
     this.goalLook.set(shot.look[0], shot.look[1] + lift + (k - 1) * 0.25, shot.look[2]);
+    // Gros plans : un peu de recul, pour que la pièce reste entière avec son environnement dans l'espace libre.
+    if (SLOT_SHOT[st.focus] !== 'overview') {
+      const back = 1.28;
+      this.goalPos.sub(this.goalLook).multiplyScalar(back).add(this.goalLook);
+    }
     this.goalFov = shot.fov;
   }
 
@@ -567,7 +572,12 @@ export class AtelierHost {
     const cam = this.camera;
     cam.aspect = w / h;
     // Écran large : le vélo à gauche du panneau de l'atelier (à droite).
-    if (cam.aspect > 1.2) cam.setViewOffset(w, h, w * 0.07, 0, w, h);
+    if (cam.aspect > 1.2) {
+      // Centre du vélo au milieu de l'espace libre à gauche du panneau (mesuré), repli : 7 % de la largeur.
+      const panel = document.querySelector('.mm-side')?.getBoundingClientRect();
+      const free = panel && panel.left > w * 0.4 ? panel.left - 8 : w * 0.86;
+      cam.setViewOffset(w, h, (w - free) / 2, 0, w, h);
+    }
     else cam.clearViewOffset();
     cam.fov = cam.aspect > 1.2 ? this.camFov : this.camFov * 1.45;
     cam.position.copy(this.camPos);
