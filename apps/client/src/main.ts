@@ -44,6 +44,7 @@ import { ITINERARY_PREFIX } from './ui/routePlanner.ts';
 import { findRoute, routeKey } from './game/direction.ts';
 import { fmtLapTime, postRideEfforts, RouteTimer } from './game/efforts.ts';
 import { waitBike } from './ui/waitBike.ts';
+import { frameStats } from './engine/frameStats.ts';
 import { KomChallenge, readKomRecord, type ChallengeResult } from './game/challenge.ts';
 import { HairpinWatcher, hairpinToast, reachedFinish, summitStats } from './game/climb.ts';
 import { showSummit } from './ui/summit.ts';
@@ -1121,6 +1122,17 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
         onResume: togglePause,
         onFinish: finish,
         onCompanion: () => companionQr().show(),
+        graphics: {
+          level: s.quality,
+          current: engine.quality.level,
+          onLevel: (l) => {
+            s.quality = l;
+            localStorage.setItem('ar.quality', l);
+            saveSettings(s);
+          },
+          effects: { ao: engine.quality.ao, bloom: engine.quality.bloom, taa: engine.quality.taa },
+          onEffect: (k) => engine.rebuildPipeline({ ...engine.quality, [k]: !engine.quality[k] }),
+        },
         ...(mp?.net.roomId ? { roomId: mp.net.roomId } : {}),
         ...(room?.racing ? { finishLabel: getLang() === 'fr' ? 'Abandonner la course' : 'Abandon the race' } : {}),
       });
@@ -1220,6 +1232,14 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   let rainSeen = false;
   let nightSeen = false;
   const frame = (dt: number, render: boolean, manual = false) => {
+    // Panneau F3 : temps de chaque poste de l'image (ce qui n'est pas mesuré compte en « autre »).
+    let tm = performance.now();
+    const lap = (label: string | null) => {
+      if (!frameStats.enabled) return;
+      const now = performance.now();
+      if (label) frameStats.add(label, now - tm);
+      tm = now;
+    };
     const steer = keyboard.update(dt);
     if (nav) {
       nav.update(ride.state.distM);
@@ -1257,8 +1277,10 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
       const me = mp?.net.getSelfSnapshot();
       if (me) ride.state.distM = me.lap * track.length + me.distM;
     }
+    lap('conditions');
     const prevD = ride.state.distM;
     ride.update(dt, input, steer);
+    lap('physique');
     if (!ride.paused && ride.dir > 0) {
       const hp = hairpins.update(prevD, ride.state.distM);
       if (hp) hud.toast(hairpinToast(hp, getLang() === 'fr'), true);
@@ -1284,9 +1306,11 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
         if (ride.dir > 0) ride.draft = Math.max(ride.draft, d);
       }
     }
+    lap('coureurs IA');
     remoteRiders = mp ? mp.render(dt, engine.camera) : [];
     if (!ride.paused) trains.update(dt, ride.state.distM, ride.dir, ride.state.speedMs);
     pedestrians?.update(dt, ride.state.distM);
+    lap('trains, piétons');
     track.positionAt(ride.state.distM, ride.lateral, sample);
     pos.set(sample.x, sample.y + 0.06, sample.z);
     // Sens de marche : après un demi-tour, on remonte l'itinéraire.
@@ -1309,7 +1333,9 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     // Vue subjective et caméra embarquée : on garde le vélo, les bras et les mains, mais pas la tête.
     const onboard = (rig.mode === 'cockpit' || rig.mode === 'gopro') && !rig.lookBack;
     avatar.setHeadVisible(!onboard);
+    lap('mon coureur');
     peloton.render(dt, engine.camera);
+    lap('coureurs IA (animation)');
     // Poussière des roues sur les chemins non revêtus (coureur et coureurs IA), voir world/dust.ts.
     if (!ride.paused) {
       world.kickDust('me', pos.x, pos.y, pos.z, sample.dirX, sample.dirZ, ride.state.speedMs, dt);
@@ -1322,16 +1348,22 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     const eyeOk = rig.mode === 'cockpit' && !!avatar.eyeWorld;
     if (eyeOk) avatar.eyeWorld?.(eye, hands);
     rig.update(dt, { position: pos, dir, distM: ride.state.distM, speedMs: ride.state.speedMs, sign: ride.dir, ...(eyeOk ? { eye, hands } : {}) });
+    lap('poussière, caméra');
     // Les tuiles se chargent autour de la caméra libre, où qu'elle aille ; sinon autour du coureur.
     world.update(dt, rig.mode === 'free' ? engine.camera.position : pos);
+    // Le monde mesure lui-même ses postes (tuiles, végétation) : pas de total ici, pour ne pas compter deux fois.
+    lap(null);
     headlight.intensity = world.nightFactor() * 120;
     if (!render) return;
     engine.exposure.value = world.env.exposure();
     world.env.grade(engine.grade);
     if (manual) engine.renderManual();
     else engine.render();
+    // Le rendu est mesuré à part (« rendu ») par le panneau.
+    lap(null);
 
     audio.update(dt, pos, heading);
+    lap('son');
 
     hudAcc += dt;
     if (hudAcc > 0.1) {
@@ -1413,6 +1445,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
           totalS: workout.durationS,
         });
       }
+      lap('affichage (HUD)');
     }
   };
   // Pipelines des objets ajoutés pour la sortie (coureur, groupe, circulation) compilés avant la première image,
