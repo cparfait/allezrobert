@@ -1,5 +1,5 @@
 import { withLikeness } from '../ui/faceEditorLogic.ts';
-import { DEFAULT_LOOK, type AvatarLook } from '@allezrobert/shared';
+import { DEFAULT_LOOK, lookSex, withSex, type AvatarLook } from '@allezrobert/shared';
 import { getLang, setLang, t } from '../i18n/index.ts';
 import type { DevicePanel } from '../ui/menu.ts';
 import { saveSettings, type Settings } from '../ui/settings.ts';
@@ -134,6 +134,7 @@ export class Onboarding {
       case 'profile':
         body = `<h2>${t('profile')}</h2><div class="grid3">
           <label class="field">${t('name')}<input id="o-name" value="${this.s.name.replace(/"/g, '&quot;')}"/></label>
+          <label class="field">${fr ? 'Je suis' : 'I am'}<div class="row">${(['male', 'female'] as const).map((x) => `<button class="btn small ${lookSex(this.s.look) === x ? 'primary' : ''}" data-sex="${x}">${x === 'male' ? (fr ? 'Un homme' : 'A man') : fr ? 'Une femme' : 'A woman'}</button>`).join('')}</div></label>
           <label class="field">${t('weight')}<input id="o-mass" type="number" min="30" max="200" step="0.5" value="${this.s.massKg}"/></label>
           <label class="field">${t('height')}<input id="o-height" type="number" min="120" max="220" value="${this.s.heightCm}"/></label>
           <label class="field">${t('ftp')}<input id="o-ftp" type="number" min="50" max="600" value="${this.s.ftpWatts}"/></label>
@@ -195,14 +196,12 @@ export class Onboarding {
             <div class="field">${fr ? 'Commandes' : 'Controls'}<div style="color:var(--ar-fg);font-size:14px;line-height:1.6">Di2 · Zwift Click / Play / Ride · ${fr ? 'manette' : 'gamepad'} · ${fr ? 'clavier ↑ ↓' : 'keyboard ↑ ↓'} · ${fr ? 'appli compagnon' : 'companion app'}</div></div>
             ${cassette ? `<label class="field">${fr ? 'Nombre de vitesses de la cassette' : 'Cassette speeds'}<select id="o-speeds">${CASSETTE_SPEEDS.map((n) => `<option value="${n}" ${this.s.cassetteSpeeds === n ? 'selected' : ''}>${n}</option>`).join('')}</select></label>` : ''}
             ${di2 ? `<label class="field">${fr ? 'Commandes Di2 détectées : ton modèle' : 'Di2 detected: your model'}<select id="o-di2"><option value="" ${this.s.di2Model ? '' : 'selected'}>${fr ? 'Choisir…' : 'Choose…'}</option>${DI2_MODELS.map(([v, f, e]) => `<option value="${v}" ${this.s.di2Model === v ? 'selected' : ''}>${fr ? f : e}</option>`).join('')}</select></label>` : ''}
-          </div>
-          <p style="font-size:14px;line-height:1.5;margin:14px 0 0">📱 ${fr ? 'Sans commandes au guidon ? Les boutons + et − de l’<b>appli compagnon</b>, sur ton téléphone, changent aussi de vitesse (étape suivante).' : 'No shifters on the bars? The + and − buttons of the <b>companion app</b> on your phone shift gears too (next step).'}</p>`;
+          </div>`;
         break;
       }
       case 'companion':
         // Appli compagnon : son QR code (le même que dans les réglages), pour l'appairer tout de suite.
         body = `<h2>${fr ? 'Appli compagnon' : 'Companion app'}</h2>
-          <p style="font-size:15px;line-height:1.55;margin:0 0 14px">${fr ? 'Ton téléphone devient ta télécommande : <b>change de vitesse</b> avec les boutons + et −, choisis ta route aux carrefours, garde l’œil sur ton compteur, pilote la musique et le chat.' : 'Your phone becomes your remote: <b>shift gears</b> with the + and − buttons, pick your way at junctions, keep an eye on your bike computer, control music and chat.'}</p>
           <div id="o-companion"></div>
           <p style="font-size:13px;color:var(--ar-muted);margin:10px 0 0">${fr ? 'Tu pourras le retrouver plus tard dans Réglages.' : 'You can find it later in Settings.'}</p>`;
         break;
@@ -216,8 +215,7 @@ export class Onboarding {
               <li><b>${fr ? 'Résultat' : 'Result'}</b> — ${fr ? 'FTP = 75 % de ta meilleure minute ; elle règle tes zones et tes séances.' : 'FTP = 75% of your best minute; it sets your zones and workouts.'}</li>
             </ol>
             <p style="font-size:13px;color:var(--ar-muted)">${fr ? 'Bien reposé, ventilateur allumé, bidon à portée de main.' : 'Be rested, fan on, bottle within reach.'}</p>`
-          : `<h2>${fr ? 'Tout est prêt !' : 'All set!'}</h2>
-            <p style="font-size:18px;line-height:1.5;margin:0">${fr ? 'Amuse-toi bien, seul ou entre amis. Bonnes balades !' : 'Have fun, on your own or with friends. Happy riding!'}</p>`;
+          : `<h2>${fr ? 'Tout est prêt !' : 'All set!'}</h2>`;
         break;
     }
     const side = this.step === 'avatar' && !!this.preview;
@@ -231,7 +229,7 @@ export class Onboarding {
         <div class="row">${i > 0 ? `<button class="btn" id="o-back">←</button>` : ''}${i === STEPS.length - 1 && this.wantFtp ? `<button class="btn" id="o-later">${fr ? 'Plus tard' : 'Later'}</button>` : ''}<button class="btn primary" id="o-next">${i === STEPS.length - 1 ? (this.wantFtp ? (fr ? 'Lancer le test FTP' : 'Start the FTP test') : fr ? 'Terminer ✓' : 'Finish ✓') : fr ? 'Suivant →' : 'Next →'}</button></div>
       </div></div></div></div></div>`;
     this.bind();
-    if (this.step === 'companion') renderCompanionSettings(this.root.querySelector('#o-companion'));
+    if (this.step === 'companion') renderCompanionSettings(this.root.querySelector('#o-companion'), true);
     this.syncPreview();
   }
 
@@ -291,6 +289,12 @@ export class Onboarding {
         }),
       );
     for (const a of ['skin', 'hair', 'jersey', 'accent', 'helmet', 'bike'] as const) pick(a);
+    this.root.querySelectorAll<HTMLButtonElement>('[data-sex]').forEach((b) =>
+      b.addEventListener('click', () => {
+        this.s.look = withSex({ ...DEFAULT_LOOK, ...this.s.look }, b.dataset.sex as 'male' | 'female');
+        this.render();
+      }),
+    );
     this.root.querySelectorAll<HTMLButtonElement>('[data-bald]').forEach((b) =>
       b.addEventListener('click', () => {
         this.bareHead = true;

@@ -65,7 +65,7 @@ export const SLOT_PARTS: Record<TuneSlot, readonly string[]> = {
 export type Shot = { cam: [number, number, number]; look: [number, number, number]; fov: number };
 /** Cadrages (repère du vélo : +z avant, +x à gauche, côté transmission en −x). */
 const SHOTS: Record<'overview' | 'wheel' | 'cockpit' | 'drive' | 'rotor' | 'saddle' | 'frame' | 'bottles', Shot> = {
-  overview: { cam: [2.7, 1.4, 2.15], look: [0, 0.66, 0], fov: 36 },
+  overview: { cam: [2.05, 1.3, 1.65], look: [0, 0.7, 0], fov: 36 },
   wheel: { cam: [1.5, 0.78, 1.55], look: [0, 0.48, 0.55], fov: 34 },
   cockpit: { cam: [0.95, 1.5, 1.5], look: [0, 1.0, 0.5], fov: 32 },
   drive: { cam: [-1.55, 0.92, 0.55], look: [0, 0.42, -0.12], fov: 34 },
@@ -454,12 +454,12 @@ export class AtelierHost {
     const s = Math.sin(st.yaw);
     const [x, y, z] = shot.cam;
     // Coureur affiché : un peu plus de recul.
-    const k = st.rider && SLOT_SHOT[st.focus] === 'overview' ? 1.25 : 1;
+    const k = st.rider && SLOT_SHOT[st.focus] === 'overview' ? 1.15 : 1;
     this.goalPos.set((x * c + z * s) * k, y + lift + (k - 1) * 0.4, (-x * s + z * c) * k);
     this.goalLook.set(shot.look[0], shot.look[1] + lift + (k - 1) * 0.25, shot.look[2]);
     // Gros plans : un peu de recul, pour que la pièce reste entière avec son environnement dans l'espace libre.
     if (SLOT_SHOT[st.focus] !== 'overview') {
-      const back = 1.28;
+      const back = 1.08;
       this.goalPos.sub(this.goalLook).multiplyScalar(back).add(this.goalLook);
     }
     this.goalFov = shot.fov;

@@ -129,6 +129,19 @@ function worldOverlay(label: string): HTMLElement {
   return el;
 }
 
+/** Écran opaque « Préparation de la sortie… » (cache le menu, puis le monde tant que la première image n'est pas prête). */
+function rideOverlay(): HTMLElement {
+  const el = worldOverlay(getLang() === 'fr' ? 'Préparation de la sortie…' : 'Preparing the ride…');
+  el.style.background = 'rgb(6, 9, 15)';
+  el.style.backdropFilter = 'none';
+  return el;
+}
+
+/** Attend que le navigateur ait peint (écran d'attente visible avant un calcul qui bloque). */
+function nextPaint(): Promise<void> {
+  return new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
+}
+
 /** Version des médias du menu (vidéos, images) : à augmenter quand on les régénère (cache navigateur). */
 const MENU_MEDIA_VERSION = 9;
 
@@ -391,25 +404,28 @@ async function boot(): Promise<void> {
         location.href = url.toString();
         return;
       }
+      // Écran de préparation affiché tout de suite, avant tout calcul ; il reste jusqu'à la première image de la sortie.
+      const overlay = rideOverlay();
       // Changement d'itinéraire : monde reconstruit sur place (sans attendre l'ancien), la musique continue.
       if (routeKey(s) !== scene.route.id) {
-        menu.hide();
-        leaveMenu(s);
-        const overlay = worldOverlay(getLang() === 'fr' ? 'Chargement de l’itinéraire…' : 'Loading route…');
-        void modelsReady
+        void nextPaint()
+          .then(() => {
+            menu.hide();
+            leaveMenu(s);
+            return modelsReady;
+          })
           .then(() => switchRoute(scene, s))
           .then(() => scene.engine.renderer.compileAsync(scene.engine.scene, scene.engine.camera).catch(() => undefined))
-          .then(() => {
-            overlay.remove();
-            return startRide(scene, s, s.guest ? new GuestInputSource(s.massKg) : devices.source(), extras);
-          });
+          .then(() => startRide(scene, s, s.guest ? new GuestInputSource(s.massKg) : devices.source(), extras, overlay));
         return;
       }
-      void withWorld(getLang() === 'fr' ? 'Préparation de la sortie…' : 'Preparing the ride…').then(() => {
-        leaveMenu(s);
-        menu.hide();
-        return startRide(scene, s, s.guest ? new GuestInputSource(s.massKg) : devices.source(), extras);
-      });
+      void nextPaint()
+        .then(() => prepareWorld())
+        .then(() => {
+          leaveMenu(s);
+          menu.hide();
+          return startRide(scene, s, s.guest ? new GuestInputSource(s.massKg) : devices.source(), extras, overlay);
+        });
     },
   });
   menu.worldId = scene.source.id;
@@ -492,7 +508,7 @@ async function boot(): Promise<void> {
     if (!inMenu) return applyEnv(s);
     if (scene.world.env.state.season !== s.season) scene.world.setSeason(s.season);
     if (menuVideo.playing()) menuVideo.show(s.season);
-    if (garage) return showGarage(s.look);
+    if (garage) return showGarage(menu.currentLook());
     if (!worldReady) return;
     poster.build({ ...s.look, heightCm: s.heightCm });
     poster.setPlayerLook({ ...s.look, heightCm: s.heightCm }, menu.bareHeadPreview);
@@ -597,7 +613,7 @@ async function boot(): Promise<void> {
     if (view !== 'poster') {
       menuVideo.stop();
       garage = { view, yaw, ...(bikeOnly ? { bikeOnly } : {}) };
-      return showGarage(garageLook ?? settings.look);
+      return showGarage(garageLook ?? menu.currentLook());
     }
     garage = null;
     garageLook = null;
@@ -671,7 +687,7 @@ async function boot(): Promise<void> {
   }
 }
 
-async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras: { workoutFile?: { name: string; content: string }; inviteCode?: string; inviteFriends?: string[]; tutorial?: boolean; openStart?: { x: number; z: number } }): Promise<void> {
+async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras: { workoutFile?: { name: string; content: string }; inviteCode?: string; inviteFriends?: string[]; tutorial?: boolean; openStart?: { x: number; z: number } }, overlay?: HTMLElement): Promise<void> {
   const { engine, world, source } = scene;
   // Monde ouvert : chemin construit au fil des carrefours (le même RouteTrack s'allonge).
   const nav =
@@ -691,9 +707,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   // L'accueil n'a préparé que le lieu de l'affiche : le paysage autour du départ doit être là avant le
   // premier rendu, sinon le HUD s'affiche sur un ciel vide. L'écran d'attente reste jusqu'à la première image :
   // c'est elle qui compile la chaîne de rendu complète (ombres, post-traitement) et fige le navigateur un moment.
-  const startOverlay = worldOverlay(getLang() === 'fr' ? 'Préparation de la sortie…' : 'Preparing the ride…');
-  startOverlay.style.background = 'rgb(6, 9, 15)';
-  startOverlay.style.backdropFilter = 'none';
+  const startOverlay = overlay ?? rideOverlay();
   {
     const d0 = challenge?.startD ?? (nav ? 0 : Number(new URLSearchParams(location.search).get('d') ?? 0));
     const p0 = track.positionAt(d0, 1.2);

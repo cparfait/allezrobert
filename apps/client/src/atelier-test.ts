@@ -63,6 +63,17 @@ async function main(): Promise<void> {
     host.renderManual();
     return copyCanvas();
   };
+  if (params.has('plaques')) {
+    // Plaque de cadre sur chaque famille de vélo : doit tenir à la tige de selle.
+    for (const fam of ['aero', 'climb', 'retro', 'steel', 'lotus', 'lowpro', 'tt', 'retro_compact']) {
+      const id = BIKES.find((b) => b.family === fam)?.id;
+      if (!id) continue;
+      await loadBikeFamily(fam as Parameters<typeof loadBikeFamily>[0]).catch(() => undefined);
+      const c = await render({ look: { ...DEFAULT_LOOK, bikeModel: id, tune: ['tune-nu-92'] }, focus: 'number', rider: false, yaw: 0 });
+      await shot(`plaque-${fam}`, c);
+    }
+    return done();
+  }
   if (params.has('kits')) {
     const sheet = document.createElement('canvas');
     sheet.width = 5 * 480;

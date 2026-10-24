@@ -117,11 +117,11 @@ export async function choosePosterSpot(world: World, track: RouteTrack, season: 
 /** Vues du garage autour du coureur du joueur (repère du vélo : +z vers l'avant, y en haut). */
 export type GarageView = '3q' | 'side' | 'front' | 'back' | 'bike' | 'cockpit' | 'face';
 export const GARAGE_VIEWS: Record<GarageView, { cam: [number, number, number]; look: [number, number, number]; fov: number }> = {
-  '3q': { cam: [3.0, 1.8, 3.6], look: [0, 0.9, 0.1], fov: 34 },
-  side: { cam: [3.6, 1.05, 0.25], look: [0, 0.85, 0.25], fov: 34 },
-  front: { cam: [0.35, 1.35, 3.9], look: [0, 1.0, 0], fov: 32 },
-  back: { cam: [-0.4, 1.5, -3.8], look: [0, 1.0, 0.1], fov: 32 },
-  bike: { cam: [2.1, 0.7, 0.35], look: [0, 0.5, 0.2], fov: 36 },
+  '3q': { cam: [2.3, 1.6, 2.75], look: [0, 0.9, 0.1], fov: 34 },
+  side: { cam: [2.8, 1.05, 0.25], look: [0, 0.85, 0.25], fov: 34 },
+  front: { cam: [0.3, 1.35, 3.0], look: [0, 1.0, 0], fov: 32 },
+  back: { cam: [-0.3, 1.5, -2.9], look: [0, 1.0, 0.1], fov: 32 },
+  bike: { cam: [1.75, 0.7, 0.35], look: [0, 0.5, 0.2], fov: 36 },
   cockpit: { cam: [0.75, 1.45, 1.35], look: [0, 1.0, 0.5], fov: 36 },
   // Éditeur de visage : gros plan de trois quarts sur la tête.
   face: { cam: [0.75, 1.6, 2.0], look: [0, 1.38, 0.3], fov: 22 },

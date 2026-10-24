@@ -125,7 +125,9 @@ export class CompanionQr {
    */
   async beforeRide(): Promise<void> {
     if (!offerEnabled()) return;
-    for (let i = 0; i < 6 && !this.link.connected; i++) await new Promise((r) => setTimeout(r, 250));
+    // Page tout juste (re)chargée : quelques instants pour que la connexion au serveur s'établisse. Sinon, pas
+    // d'attente : le départ (et son écran de préparation) suit le clic aussitôt.
+    if (performance.now() < 8000) for (let i = 0; i < 6 && !this.link.connected; i++) await new Promise((r) => setTimeout(r, 250));
     await this.urlReady;
     if (!this.link.connected || this.link.presence.phones) return;
     await new Promise<void>((res) => {
@@ -197,12 +199,17 @@ export function companionQr(): CompanionQr {
  * Bloc « Appli compagnon » de l'onglet Réglages : petit QR code, état, proposition au
  * lancement d'une sortie, nouveau code. Se met à jour tant qu'il est affiché.
  */
-export function renderCompanionSettings(el: Element | null): void {
+export function renderCompanionSettings(el: Element | null, simple = false): void {
   if (!el) return;
   const qr = companionQr();
   const link = companion;
   const fr = getLang() === 'fr';
   const draw = () => {
+    // Version tutoriel : le code et l'état de la connexion, sans boutons ni options.
+    if (simple) {
+      el.innerHTML = `<div class="cmp-settings cmp-simple"><div class="cmp-code">${qr.svg}</div><div class="cmp-side"><p>${fr ? 'Scanne ce code avec l’appareil photo de ton téléphone. Pas de compte à créer.' : 'Scan this code with your phone camera. No account needed.'}</p><p class="cmp-state">${statusHtml(link)}</p></div></div>`;
+      return;
+    }
     el.innerHTML = `<div class="cmp-settings">
       <button class="cmp-code" data-act="big" title="${fr ? 'Afficher en grand' : 'Show large'}">${qr.svg}</button>
       <div class="cmp-side">

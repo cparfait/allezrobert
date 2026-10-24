@@ -6,11 +6,12 @@
  *   pnpm dev:server                                  (dans un autre terminal)
  *   pnpm --filter @allezrobert/client voice          (AR_API=http://… pour un autre serveur)
  *
- * À relancer après chaque modification de src/onboarding/script.ts. Les fichiers qui ne
+ * À relancer après chaque modification de src/onboarding/script.ts : seules les répliques nouvelles ou
+ * modifiées sont synthétisées. Les fichiers qui ne
  * correspondent plus à aucune réplique sont supprimés.
  */
 import { createHash } from 'node:crypto';
-import { mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { ONBOARDING_SCRIPT, spoken } from '../src/onboarding/script.ts';
 
@@ -24,10 +25,12 @@ for (const lang of ['fr', 'en'] as const) {
     for (const line of lines) {
       const text = spoken(line[lang], lang);
       const file = `${lang}/${key}-${createHash('sha256').update(text).digest('hex').slice(0, 10)}.mp3`;
+      index[`${lang}|${text}`] = file;
+      // Réplique déjà générée (nom = empreinte du texte) : rien à refaire.
+      if (existsSync(resolve(root, file))) continue;
       const r = await fetch(`${api}/api/tts`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text, lang }) });
       if (!r.ok) throw new Error(`${file} : ${r.status} ${await r.text()}`);
       writeFileSync(resolve(root, file), Buffer.from(await r.arrayBuffer()));
-      index[`${lang}|${text}`] = file;
       console.log(file);
     }
   }
