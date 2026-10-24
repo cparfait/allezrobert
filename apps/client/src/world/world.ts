@@ -19,6 +19,9 @@ import { soundSourcesForTile, type SoundSource } from '../audio/spatial.ts';
 import type { WorldSource } from './types.ts';
 
 /** Assemble le monde : environnement, terrain streamé, route, végétation, bâtiments. */
+/** Temps accordé par image à la construction des tuiles arrivées (ms). */
+const WORK_BUDGET_MS = 4;
+
 export class World {
   readonly env: Environment;
   readonly terrain: TerrainManager;
@@ -43,6 +46,10 @@ export class World {
   private readonly track: RouteTrack;
   private lastFocusTile = '';
   private updating = false;
+  /** Sens de marche lissé (pour précharger les tuiles de devant) et dernière tuile préchargée. */
+  private readonly lastFocus = new THREE.Vector3(Number.NaN, 0, 0);
+  private readonly heading = new THREE.Vector2();
+  private prefetchKey = '';
   private retryAcc = 0;
   private lastHour = Number.NaN;
   /** Sources sonores positionnées par tuile (tags OSM). */
@@ -103,13 +110,19 @@ export class World {
       })
       .catch((err) => console.warn('Relief lointain indisponible', err));
 
-    this.terrain.onTileLoaded = (tile) => {
+    // Entités d'une tuile construites par étapes (bâtiments, routes, végétation…) dans le budget de
+    // chaque image, plutôt que toutes d'un coup au moment où la tuile arrive (saccades en roulant).
+    this.terrain.onTileLoaded = (tile, alive) => {
       this.soundSources.set(tile.id, soundSourcesForTile(tile));
-      this.buildings.addTile(tile);
-      this.network.addTile(tile);
-      this.vegetation.addTile(tile);
-      this.water.addTile(tile);
-      this.railways.addTile(tile);
+      const priority = this.terrain.distTo(tile.tx, tile.tz);
+      for (const step of [
+        () => this.buildings.addTile(tile),
+        () => this.network.addTile(tile),
+        () => this.vegetation.addTile(tile),
+        () => this.water.addTile(tile),
+        () => this.railways.addTile(tile),
+      ])
+        this.terrain.work.defer(() => alive() && step(), priority);
     };
     this.terrain.onTileUnloaded = (tile) => {
       this.soundSources.delete(tile.id);
@@ -128,7 +141,31 @@ export class World {
     this.focusTile = this.terrain.tileCoord(focus.x, focus.z);
     this.vegetation.update(focus);
     await this.terrain.update(focus);
+    // Avant le départ : tout est construit tout de suite (écran d'attente affiché).
+    this.terrain.work.flush();
     this.lastFocusTile = this.focusTile.join('_');
+  }
+
+  /**
+   * Préchargement : à mi-tuile du bord dans le sens de marche, les tuiles voulues autour du point
+   * situé devant sont téléchargées et décodées à l'avance ; en changeant de tuile, il ne reste qu'à
+   * les construire (par étapes).
+   */
+  private prefetchAhead(focus: THREE.Vector3): void {
+    if (Number.isFinite(this.lastFocus.x)) {
+      const dx = focus.x - this.lastFocus.x;
+      const dz = focus.z - this.lastFocus.z;
+      if (dx * dx + dz * dz > 1e-6 && dx * dx + dz * dz < 400) this.heading.multiplyScalar(0.95).add(new THREE.Vector2(dx, dz).multiplyScalar(0.05));
+    }
+    this.lastFocus.copy(focus);
+    const len = this.heading.length();
+    if (len < 1e-4) return;
+    const lead = this.terrain.tileSizeM * 0.5;
+    const ahead = new THREE.Vector3(focus.x + (this.heading.x / len) * lead, focus.y, focus.z + (this.heading.y / len) * lead);
+    const key = this.terrain.tileCoord(ahead.x, ahead.z).join('_');
+    if (key === this.prefetchKey || key === this.lastFocusTile) return;
+    this.prefetchKey = key;
+    this.terrain.prefetch(ahead);
   }
 
   setSeason(season: Season): void {
@@ -184,6 +221,9 @@ export class World {
     this.dust.update(dt);
     (this.dust.windDir.value as THREE.Vector2).set(wx, wz);
     this.dust.windMs.value = w.windMs;
+    // Construction étalée : quelques millisecondes par image pour les tuiles arrivées.
+    this.terrain.work.pump(WORK_BUDGET_MS);
+    this.prefetchAhead(focus);
     // Streaming : à chaque changement de tuile, on recharge le voisinage.
     const ft = this.terrain.tileCoord(focus.x, focus.z);
     const key = ft.join('_');

@@ -4,6 +4,7 @@ import type { QualitySettings } from '../engine/quality.ts';
 import { colorUniform } from '../engine/tsl.ts';
 import { SPLAT_CHANNELS, type LoadedTile, type WorldSource } from './types.ts';
 import { rasterizeSplat } from './splat.ts';
+import { WorkQueue } from './workQueue.ts';
 import type { RouteFootprint } from './ribbon.ts';
 import type { Season } from './environment.ts';
 import { ALPINE_GROUND_M, ALPINE_MEADOW, SNOW_LINE_M, alpineProfile } from './alpine.ts';
@@ -28,10 +29,27 @@ interface TileEntry {
  * (IGN ou procédurale), déjà « creusées » le long des routes ; le matériau mélange
  * forêt / champs / prairies / urbain / routes selon le raster d'occupation du sol.
  */
+/** Durée de vie d'une tuile décodée en cache : l'URL de son orthophoto est libérée 2 min après le téléchargement. */
+const CACHE_MS = 90_000;
+/** Nombre maximal de tuiles décodées gardées en cache. */
+const CACHE_MAX = 48;
+
 export class TerrainManager {
   readonly group = new THREE.Group();
   private readonly tiles = new Map<string, TileEntry>();
   private readonly loading = new Set<string>();
+  /**
+   * Construction étalée sur plusieurs images (tuiles reçues, changements de niveau de détail, entités
+   * des tuiles côté World) : World la fait avancer à chaque image dans un budget de temps.
+   */
+  readonly work = new WorkQueue();
+  /**
+   * Tuiles décodées gardées un moment : préchargées en avant du coureur, ou retrouvées après un
+   * demi-tour, elles ne sont ni retéléchargées ni redécodées au moment où on en a besoin.
+   */
+  private readonly cache = new Map<string, { p: Promise<LoadedTile | null>; t: number }>();
+  private readonly focus = new THREE.Vector3();
+  private wanted = new Set<string>();
   private readonly source: WorldSource;
   private q: QualitySettings;
   private readonly seasonColors = {
@@ -63,7 +81,8 @@ export class TerrainManager {
   footprint: RouteFootprint | null = null;
   /** Itinéraire actif : sa chaussée est dessinée par le ruban, pas teintée dans le terrain. */
   activeRoute: string | null = null;
-  onTileLoaded?: (tile: LoadedTile) => void;
+  /** `alive()` : faux dès que la tuile est déchargée (ou rechargée), pour les constructions différées. */
+  onTileLoaded?: (tile: LoadedTile, alive: () => boolean) => void;
   onTileUnloaded?: (tile: LoadedTile) => void;
 
   constructor(source: WorldSource, q: QualitySettings, season: Season) {
@@ -93,6 +112,11 @@ export class TerrainManager {
   }
 
   /** Tuile contenant un point monde. */
+  /** Côté d'une tuile (m). */
+  get tileSizeM(): number {
+    return this.source.tileSize;
+  }
+
   tileCoord(x: number, z: number): [number, number] {
     return [Math.floor(x / this.source.tileSize), Math.floor(z / this.source.tileSize)];
   }
@@ -127,9 +151,11 @@ export class TerrainManager {
 
   /** Charge les tuiles proches, décharge les lointaines, ajuste les niveaux de détail. */
   async update(focus: THREE.Vector3): Promise<void> {
+    this.focus.copy(focus);
     const [cx, cz] = this.tileCoord(focus.x, focus.z);
     const r = this.q.tileRadius;
     const wanted = new Set<string>();
+    this.wanted = wanted;
     const jobs: Array<Promise<void>> = [];
     for (let dz = -r; dz <= r; dz++)
       for (let dx = -r; dx <= r; dx++) {
@@ -139,18 +165,24 @@ export class TerrainManager {
         if (!this.source.hasTile(tx, tz)) continue;
         const key = `${tx}_${tz}`;
         wanted.add(key);
-        const ring = Math.max(Math.abs(dx), Math.abs(dz));
-        const lod = ring <= 1 ? 0 : ring <= 2 ? 1 : 2;
         const existing = this.tiles.get(key);
         if (existing) {
-          if (existing.lod !== lod) this.rebuild(existing, lod);
+          // Niveau de détail : maillage refait plus tard, dans le budget de l'image (plusieurs tuiles changent d'un coup).
+          if (existing.lod !== this.lodAt(tx, tz))
+            this.work.defer(() => {
+              const lod = this.lodAt(tx, tz);
+              if (this.tiles.get(key) === existing && existing.lod !== lod) this.rebuild(existing, lod);
+            }, this.distTo(tx, tz));
         } else if (!this.loading.has(key)) {
           this.loading.add(key);
           jobs.push(
-            this.source
-              .loadTile(tx, tz)
+            this.fetchTile(tx, tz)
               .then((tile) => {
-                if (tile) this.add(tile, lod);
+                // Construction différée : la tuile n'est plus voulue (coureur rapide) ou déjà là, on passe.
+                if (tile)
+                  this.work.defer(() => {
+                    if (!this.tiles.has(key) && this.wanted.has(key)) this.add(tile, this.lodAt(tx, tz));
+                  }, this.distTo(tx, tz));
               })
               .catch((err) => console.warn(`Tuile ${key} indisponible`, err))
               .finally(() => this.loading.delete(key)),
@@ -170,11 +202,61 @@ export class TerrainManager {
     await Promise.all(jobs);
   }
 
+  /** Niveau de détail d'une tuile selon son anneau autour du coureur (0 au centre). */
+  private lodAt(tx: number, tz: number): number {
+    const [cx, cz] = this.tileCoord(this.focus.x, this.focus.z);
+    const ring = Math.max(Math.abs(tx - cx), Math.abs(tz - cz));
+    return ring <= 1 ? 0 : ring <= 2 ? 1 : 2;
+  }
+
+  /** Distance (m) du coureur au centre de la tuile : priorité de construction (la plus proche d'abord). */
+  distTo(tx: number, tz: number): number {
+    const T = this.source.tileSize;
+    return Math.hypot((tx + 0.5) * T - this.focus.x, (tz + 0.5) * T - this.focus.z);
+  }
+
+  /** Tuile décodée, depuis le cache si elle y est encore (voir CACHE_MS). */
+  private fetchTile(tx: number, tz: number): Promise<LoadedTile | null> {
+    const key = `${tx}_${tz}`;
+    const now = performance.now();
+    for (const [k, c] of this.cache) if (now - c.t > CACHE_MS) this.cache.delete(k);
+    const hit = this.cache.get(key);
+    if (hit) return hit.p;
+    const p = this.source.loadTile(tx, tz);
+    this.cache.set(key, { p, t: now });
+    p.catch(() => this.cache.delete(key));
+    if (this.cache.size > CACHE_MAX) {
+      const oldest = this.cache.keys().next().value;
+      if (oldest !== undefined) this.cache.delete(oldest);
+    }
+    return p;
+  }
+
+  /**
+   * Préchargement : télécharge et décode dès maintenant les tuiles qui seront voulues autour de
+   * `point` (devant le coureur), sans les construire ; elles seront prêtes en arrivant.
+   */
+  prefetch(point: THREE.Vector3): void {
+    const [cx, cz] = this.tileCoord(point.x, point.z);
+    const r = this.q.tileRadius;
+    for (let dz = -r; dz <= r; dz++)
+      for (let dx = -r; dx <= r; dx++) {
+        if (dx * dx + dz * dz > (r + 0.5) * (r + 0.5)) continue;
+        const tx = cx + dx;
+        const tz = cz + dz;
+        const key = `${tx}_${tz}`;
+        if (this.tiles.has(key) || this.loading.has(key) || !this.source.hasTile(tx, tz)) continue;
+        void this.fetchTile(tx, tz).catch(() => undefined);
+      }
+  }
+
   private disposed = false;
 
   /** Libère toutes les tuiles (changement d'itinéraire sans recharger la page). */
   disposeAll(): void {
     this.disposed = true;
+    this.work.clear();
+    this.cache.clear();
     for (const [key, e] of this.tiles) {
       this.group.remove(e.mesh);
       e.mesh.geometry.dispose();
@@ -206,8 +288,10 @@ export class TerrainManager {
     mesh.castShadow = false;
     mesh.name = `tile_${tile.id}`;
     this.group.add(mesh);
-    this.tiles.set(`${tile.tx}_${tile.tz}`, { tile, mesh, lod, textures });
-    this.onTileLoaded?.(tile);
+    const key = `${tile.tx}_${tile.tz}`;
+    const entry: TileEntry = { tile, mesh, lod, textures };
+    this.tiles.set(key, entry);
+    this.onTileLoaded?.(tile, () => this.tiles.get(key) === entry);
   }
 
   private rebuild(e: TileEntry, lod: number): void {
