@@ -284,6 +284,8 @@ async function boot(): Promise<void> {
    * Lancé en arrière-plan une fois le menu affiché ; garage, exploration, tutoriel et départ l'attendent.
    */
   let worldReady: Promise<void> | null = null;
+  /** Vrai seulement quand la préparation est terminée : `worldReady` est une promesse déjà « vraie » pendant qu'elle court. */
+  let worldDone = false;
   const prepareWorld = (): Promise<void> =>
     (worldReady ??= (async () => {
       await modelsReady;
@@ -301,6 +303,7 @@ async function boot(): Promise<void> {
       }
       await scene.engine.renderer.compileAsync(scene.engine.scene, scene.engine.camera).catch(() => undefined);
       if (inMenu && !menuVideo.playing()) renderPoster();
+      worldDone = true;
     })());
   /** Attend le paysage avant une action 3D, avec un écran d'attente seulement s'il n'est pas prêt. */
   const withWorld = async (label: string): Promise<void> => {
@@ -424,6 +427,7 @@ async function boot(): Promise<void> {
       if (settings.mode === 'open' && !source.open) settings.mode = 'free';
       const pending = worldReady;
       worldReady = null;
+      worldDone = false;
       await pending?.catch(() => undefined);
       poster.dispose();
       scene.world.dispose();
@@ -517,11 +521,28 @@ async function boot(): Promise<void> {
       menuVideo.stop();
       garage = null;
     }
-    void modelsReady.then(() => atelier.set(st));
+    if (st) whenAtelierReady(() => (atelier.set(st), true));
+    else void modelsReady.then(() => atelier.set(st));
   };
   if (import.meta.env.DEV) (window as unknown as { __arAtelier: unknown }).__arAtelier = atelier;
   // Garage : le coureur sur son vélo dans l'atelier, sans paysage ni groupe : s'ouvre sans attendre le monde.
   let garage: { view: GarageView; yaw: number; far?: number; bikeOnly?: boolean } | null = null;
+  // Première ouverture de l'atelier : les modèles se chargent puis la pièce se construit d'un coup, sans rien
+  // montrer. Un écran d'attente reste jusqu'à ce que ce soit fait (une seule fois, pas à chaque changement de vue).
+  let atelierBuilt = false;
+  let atelierWait: HTMLElement | null = null;
+  const whenAtelierReady = (build: () => boolean): void => {
+    if (!atelierBuilt && !atelierWait) atelierWait = worldOverlay(getLang() === 'fr' ? 'Chargement du garage…' : 'Loading the garage…');
+    void modelsReady
+      .then(() => (atelierWait ? new Promise<void>((r) => setTimeout(r, 40)) : undefined)) // laisse l'écran d'attente se peindre
+      .then(() => {
+        if (build()) atelierBuilt = true;
+      })
+      .finally(() => {
+        atelierWait?.remove();
+        atelierWait = null;
+      });
+  };
   const showGarage = (look: AvatarLook, bareHead = menu.bareHeadPreview) => {
     if (!garage) return;
     const v = GARAGE_VIEWS[garage.view];
@@ -532,7 +553,7 @@ async function boot(): Promise<void> {
     // Choix du vélo : le vélo seul sur le pied d'atelier (sans coureur), vue d'ensemble tournante.
     if (garage.bikeOnly) {
       const only: AtelierState = { look: { ...look, heightCm: settings.heightCm }, focus: 'overview', rider: false, yaw: garage.yaw, bareHead: false };
-      void modelsReady.then(() => garage && atelier.set(only));
+      whenAtelierReady(() => !!garage && (atelier.set(only), true));
       return;
     }
     const st: AtelierState = {
@@ -549,7 +570,7 @@ async function boot(): Promise<void> {
     const room = (val: number, neg: number, pos: number) => (val < 0 ? neg / -val : pos / val);
     const fit = Math.min(1, room(cam[0], 2.8, 3.2), room(cam[2], 2.6, 3.2));
     st.view = { cam: [cam[0] * fit, cam[1], cam[2] * fit], look: st.view!.look, fov: fit < 1 ? (2 * Math.atan(Math.tan((v.fov * Math.PI) / 360) / fit) * 180) / Math.PI : v.fov };
-    void modelsReady.then(() => garage && atelier.set(st));
+    whenAtelierReady(() => !!garage && (atelier.set(st), true));
   };
   menu.onScene = (view, yaw, bikeOnly) => {
     if (!inMenu || exploring) return;
@@ -564,7 +585,8 @@ async function boot(): Promise<void> {
     if (menuVideo.show(settings.season)) return;
     menuVideo.stop();
     poster.setView('poster', yaw);
-    if (worldReady) return renderPoster();
+    // Écran d'attente tant que le paysage n'est pas prêt : `worldReady` est une promesse déjà « vraie » pendant qu'elle court.
+    if (worldDone) return renderPoster();
     void withWorld(getLang() === 'fr' ? 'Chargement de l’accueil…' : 'Loading the home screen…').then(() => {
       if (!inMenu || exploring || garage) return;
       poster.setView('poster', yaw);
@@ -713,6 +735,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   const aiCount = workout || mp || challenge ? 0 : Math.min(Math.max(s.aiRiders, 0), engine.quality.aiRidersMax);
   const peloton = new Peloton(engine.scene, track, aiCount, startD, s.ftpWatts * (s.aiLevel ?? 1));
   const ghost = new Ghost(engine.scene, track, track.route.id, startD);
+  peloton.shadowRiders = engine.quality.shadowRiders;
   peloton.onWait = (name) => name && hud.toast(getLang() === 'fr' ? `On attend ${name}` : `Waiting for ${name}`);
   peloton.onUTurn = (name) => hud.toast(getLang() === 'fr' ? `${name} fait demi-tour pour revenir au groupe` : `${name} turns back to rejoin the group`);
   const rig = new CameraRig(engine.camera, track, (x, z) => world.terrain.heightAt(x, z), engine.renderer.domElement);
@@ -736,6 +759,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   }
   // Cyclistes croisés dans les deux sens (désactivables avec le trafic ou par ?cyclists=0).
   const cyclists = traffic && params.get('cyclists') !== '0' ? new AmbientCyclists(engine.scene, track, startD) : null;
+  if (cyclists) cyclists.shadowRange = engine.quality.shadowRiders >= 8 ? 35 : engine.quality.shadowRiders > 0 ? 20 : 0;
   const hud = new Hud(hudRoot, track, source.attribution);
   if (nav && source.open) hud.setOpen(source.open.graph);
   // En groupe, le panneau « À proximité » montre d'abord les coureurs réels.

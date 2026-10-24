@@ -30,6 +30,8 @@ const SKINS = ['#f1c27d', '#e0ac69', '#c68642', '#8d5524', '#ffdbac'];
  * le trafic. On peut prendre la roue de ceux qui vont dans le même sens.
  */
 export class AmbientCyclists {
+  /** Distance (m) en dessous de laquelle un cycliste croisé projette une ombre (0 = jamais). */
+  shadowRange = 35;
   private readonly list: Cyclist[] = [];
   private readonly track: RouteTrack;
   private readonly r = rng(913);
@@ -112,7 +114,7 @@ export class AmbientCyclists {
       const dist = camera.position.distanceTo(a.root.position);
       a.root.visible = !outside && dist < 500;
       if (a.root.visible && dist < 200) a.update(dt, c.cadence, c.speed, watts > 0 ? 'seated' : 'coasting');
-      a.setShadows(dist < 35);
+      a.setShadows(dist < this.shadowRange);
 
       // Aspiration : derrière un cycliste qui roule dans le même sens.
       if (c.sens > 0 && !outside) {
