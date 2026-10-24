@@ -78,6 +78,16 @@ describe('DynamicResolution', () => {
     run(dyn, () => 5, 60, t);
     expect(dyn.scale).toBe(1);
   });
+  it('saccades de chargement sur un goulot processeur : la résolution revient à 100 %', () => {
+    // Temps d'image irrégulier (30 à 120 ms) sans lien avec la résolution, comme dans le jeu mesuré.
+    for (const seed of [1, 2, 3, 4, 5, 6, 7, 8]) {
+      let r = seed * 7919;
+      const rnd = () => ((r = (r * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
+      const dyn = new DynamicResolution(1000 / 60);
+      run(dyn, () => 30 + rnd() * rnd() * 90, 100);
+      expect(dyn.scale, `graine ${seed}`).toBe(1);
+    }
+  });
   it('ignore les images hors cadence (menu, onglet masqué)', () => {
     const dyn = new DynamicResolution(1000 / 60);
     for (let i = 0; i < 100; i++) dyn.update(900, i * 1000);
