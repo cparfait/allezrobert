@@ -2,9 +2,9 @@ import * as THREE from 'three/webgpu';
 import { emissive, mrt, normalView, output, packNormalToRGB, pass, sample, unpackRGBToNormal, vec4 } from 'three/tsl';
 import { bloom } from 'three/addons/tsl/display/BloomNode.js';
 import { ao } from 'three/addons/tsl/display/GTAONode.js';
-import type { AvatarLook, TuneSlot } from '@allezrobert/shared';
+import { DEFAULT_LOOK, type AvatarLook, type TuneSlot } from '@allezrobert/shared';
 import { createAvatar, type RiderAvatarLike } from '../rider/gltfAvatar.ts';
-import { onBikeFamilyLoaded } from '../rider/bikes.ts';
+import { crowdBike, onBikeFamilyLoaded } from '../rider/bikes.ts';
 import type { Engine } from '../engine/renderer.ts';
 import { box, buildRoom, mat, rod } from './atelierRoom.ts';
 
@@ -196,6 +196,22 @@ export class AtelierHost {
     return this.state !== null;
   }
 
+  /** Vélos du jeu (sans coureur) posés sur la lisse du mur de gauche, de profil, comme dans un vrai rack. */
+  private hangBikes(): void {
+    const slots: Array<[number, number]> = [[-1.6, 1], [0.1, 4], [1.8, 9]];
+    for (const [x, n] of slots) {
+      const bikeModel = crowdBike(n);
+      if (!bikeModel) continue;
+      const a = createAvatar({ ...DEFAULT_LOOK, bikeModel });
+      (a as RiderAvatarLike & { setRiderVisible?(on: boolean): void }).setRiderVisible?.(false);
+      a.update(0, 0, 0, 'coasting');
+      a.setShadows(false);
+      a.root.rotation.y = -Math.PI / 2;
+      a.root.position.set(x, 1.3, 3.22);
+      this.scene.add(a.root);
+    }
+  }
+
   /** Construction paresseuse : pièce, lumières, environnement, chaîne de rendu. */
   private build(): void {
     if (this.pipeline) return;
@@ -238,6 +254,7 @@ export class AtelierHost {
     this.scene.traverse((o) => {
       if ((o as THREE.Light).isLight) this.lamps.push([o as THREE.Light, (o as THREE.Light).intensity]);
     });
+    this.hangBikes();
     this.stand = buildStand();
     this.scene.add(this.stand);
     this.pipeline = new THREE.RenderPipeline(this.engine.renderer);
