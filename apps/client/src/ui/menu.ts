@@ -266,7 +266,7 @@ export class MainMenu {
     return this.tab === 'garage' && this.garageSlot === 'face' && this.bareHead;
   }
   /** Cadrage 3D demandé par le menu : photo du groupe ou vue du garage (rotation en radians). */
-  onScene?: (view: 'poster' | GarageView, yaw: number) => void;
+  onScene?: (view: 'poster' | GarageView, yaw: number, bikeOnly?: boolean) => void;
   /** Aperçu d'un équipement (même verrouillé) sur le coureur du garage ; null : tenue équipée. */
   onPreviewLook?: (look: AvatarLook | null) => void;
   private previewId: string | null = null;
@@ -402,7 +402,7 @@ export class MainMenu {
     // Garage resté sur l'atelier : sa pièce 3D ; sinon la photo ou le coureur du garage.
     if (tab === 'garage' && this.garageSlot === 'atelier') return this.atelier.emit();
     if (this.garageSlot === 'atelier') this.atelier.leave();
-    this.onScene?.(tab === 'garage' ? this.view : 'poster', tab === 'garage' ? this.yaw : 0);
+    this.onScene?.(tab === 'garage' ? this.view : 'poster', tab === 'garage' ? this.yaw : 0, tab === 'garage' && this.garageSlot === 'bike');
   }
 
   /** Croix de fermeture d'un panneau (retour à l'onglet Rouler, comme Échap). */
@@ -1910,7 +1910,7 @@ export class MainMenu {
           this.yaw = 0;
         }
         this.render();
-        this.onScene?.(this.view, this.yaw);
+        this.onScene?.(this.view, this.yaw, this.garageSlot === 'bike');
         if ((was === 'face') !== (this.garageSlot === 'face')) this.onLookLive?.(s.look, this.bareHeadPreview);
       }),
     );
@@ -1962,7 +1962,7 @@ export class MainMenu {
         this.view = el.dataset.view as GarageView;
         this.yaw = 0;
         this.root.querySelectorAll('[data-view]').forEach((b) => b.classList.toggle('on', b === el));
-        this.onScene?.(this.view, this.yaw);
+        this.onScene?.(this.view, this.yaw, this.garageSlot === 'bike');
       }),
     );
     const zone = this.root.querySelector<HTMLElement>('#m-dragzone');
@@ -1982,7 +1982,7 @@ export class MainMenu {
         }
         this.yaw -= (e.clientX - lastX) * 0.008;
         lastX = e.clientX;
-        this.onScene?.(this.view, this.yaw);
+        this.onScene?.(this.view, this.yaw, this.garageSlot === 'bike');
       });
       const up = () => (lastX = null);
       zone.addEventListener('pointerup', up);

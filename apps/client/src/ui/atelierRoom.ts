@@ -328,12 +328,12 @@ export function buildRoom(): THREE.Group {
   room.add(rubber);
   // Paillasson devant l'établi, lisible depuis la caméra d'ensemble.
   const doorMat = new THREE.Group();
-  const dm = new THREE.Mesh(new THREE.PlaneGeometry(1.7, 0.85), tex(matTexture(), 0.95));
+  const dm = new THREE.Mesh(new THREE.PlaneGeometry(3.2, 1.6), tex(matTexture(), 0.95));
   dm.rotation.x = -Math.PI / 2;
   dm.receiveShadow = true;
   doorMat.add(dm);
-  doorMat.position.set(1.7, 0.005, 0.95);
-  doorMat.rotation.y = 0.9;
+  doorMat.position.set(0.1, 0.005, 2.6);
+  doorMat.rotation.y = Math.PI;
   room.add(doorMat);
 
   // Murs : gris à lames verticales (fond, gauche, droite), bois blond côté étagères (z = −3).

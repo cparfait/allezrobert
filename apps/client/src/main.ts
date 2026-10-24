@@ -521,7 +521,7 @@ async function boot(): Promise<void> {
   };
   if (import.meta.env.DEV) (window as unknown as { __arAtelier: unknown }).__arAtelier = atelier;
   // Garage : le coureur sur son vélo dans l'atelier, sans paysage ni groupe : s'ouvre sans attendre le monde.
-  let garage: { view: GarageView; yaw: number; far?: number } | null = null;
+  let garage: { view: GarageView; yaw: number; far?: number; bikeOnly?: boolean } | null = null;
   const showGarage = (look: AvatarLook, bareHead = menu.bareHeadPreview) => {
     if (!garage) return;
     const v = GARAGE_VIEWS[garage.view];
@@ -529,6 +529,12 @@ async function boot(): Promise<void> {
     const sn = Math.sin(garage.yaw);
     // Recul (tutoriel) : coureur plus petit, pour laisser la place aux sous-titres.
     const k = garage.far ?? 1;
+    // Choix du vélo : le vélo seul sur le pied d'atelier (sans coureur), vue d'ensemble tournante.
+    if (garage.bikeOnly) {
+      const only: AtelierState = { look: { ...look, heightCm: settings.heightCm }, focus: 'overview', rider: false, yaw: garage.yaw, bareHead: false };
+      void modelsReady.then(() => garage && atelier.set(only));
+      return;
+    }
     const st: AtelierState = {
       look: { ...look, heightCm: settings.heightCm },
       focus: 'overview',
@@ -545,11 +551,11 @@ async function boot(): Promise<void> {
     st.view = { cam: [cam[0] * fit, cam[1], cam[2] * fit], look: st.view!.look, fov: fit < 1 ? (2 * Math.atan(Math.tan((v.fov * Math.PI) / 360) / fit) * 180) / Math.PI : v.fov };
     void modelsReady.then(() => garage && atelier.set(st));
   };
-  menu.onScene = (view, yaw) => {
+  menu.onScene = (view, yaw, bikeOnly) => {
     if (!inMenu || exploring) return;
     if (view !== 'poster') {
       menuVideo.stop();
-      garage = { view, yaw };
+      garage = { view, yaw, ...(bikeOnly ? { bikeOnly } : {}) };
       return showGarage(settings.look);
     }
     garage = null;
