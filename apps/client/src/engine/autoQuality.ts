@@ -71,12 +71,26 @@ export async function detectHardwareQuality(): Promise<QualityLevel> {
 
 /** Marches de la résolution dynamique, du plus net au plus flou. */
 const STEPS = [1, 0.85, 0.72, 0.6, 0.5];
+/** Images gardées pour comparer avant / après une baisse : la médiane résiste aux saccades (chargement, ramasse-miettes). */
+const WINDOW = 120;
+/** Images et durée minimales pour juger l'effet d'une baisse. */
+const SETTLE_FRAMES = 90;
+const SETTLE_MS = 3000;
+/** Une baisse doit réduire le temps d'image médian d'au moins 10 % pour être gardée. */
+const MIN_GAIN = 0.9;
+
+function median(a: readonly number[]): number {
+  const s = [...a].sort((x, y) => x - y);
+  return s[Math.floor(s.length / 2)] ?? 0;
+}
 
 /**
  * Résolution dynamique : ajuste l'échelle de rendu pour tenir la cadence visée. Alimentée par le temps
  * entre deux images ; ne touche à rien d'autre que le nombre de pixels. Garde-fous :
- * - si réduire la résolution n'améliore pas le temps d'image (limite côté processeur), on revient en arrière ;
- * - après un retour à la hausse aussitôt contredit, on attend longtemps avant de réessayer (pas de va-et-vient).
+ * - une baisse est mise à l'épreuve : si le temps d'image médian ne baisse pas d'au moins 10 % après
+ *   quelques secondes, le goulot n'est pas le nombre de pixels (processeur, chargement) : retour en arrière
+ *   et pas de nouvel essai avant 2 minutes ;
+ * - après une remontée aussitôt contredite, on attend longtemps avant de réessayer (pas de va-et-vient).
  */
 export class DynamicResolution {
   private step = 0;
@@ -86,7 +100,8 @@ export class DynamicResolution {
   private blockUpUntil = 0;
   private blockDownUntil = 0;
   private upSince = -1;
-  private pending: { emaBefore: number; prevStep: number } | null = null;
+  private recent: number[] = [];
+  private pending: { before: number; prevStep: number; at: number; frames: number[] } | null = null;
 
   constructor(
     private readonly targetMs = 1000 / 60,
@@ -101,6 +116,7 @@ export class DynamicResolution {
   reset(step = 0): void {
     this.step = Math.min(Math.max(step, 0), this.minStep);
     this.ema = 0;
+    this.recent = [];
     this.pending = null;
     this.upSince = -1;
   }
@@ -113,24 +129,29 @@ export class DynamicResolution {
       this.upSince = -1;
       return null;
     }
+    this.recent.push(frameMs);
+    if (this.recent.length > WINDOW) this.recent.shift();
+    this.pending?.frames.push(frameMs);
     this.ema = this.ema === 0 ? frameMs : this.ema * 0.92 + frameMs * 0.08;
-    if (nowMs - this.lastChange < 1500) return null;
 
     if (this.pending) {
-      const { emaBefore, prevStep } = this.pending;
+      const p = this.pending;
+      if (nowMs - p.at < SETTLE_MS || p.frames.length < SETTLE_FRAMES) return null;
       this.pending = null;
-      if (this.ema > emaBefore * 0.95) {
+      if (median(p.frames) > p.before * MIN_GAIN) {
         // La baisse de résolution n'a rien apporté : le goulot n'est pas le nombre de pixels.
-        this.step = prevStep;
-        this.blockDownUntil = nowMs + 60000;
+        this.step = p.prevStep;
+        this.blockDownUntil = nowMs + 120000;
         this.lastChange = nowMs;
+        this.recent = [];
         return this.scale;
       }
     }
+    if (nowMs - this.lastChange < 1500 || this.recent.length < 45) return null;
 
     if (this.ema > this.targetMs * 1.2 && this.step < this.minStep && nowMs >= this.blockDownUntil) {
       if (nowMs - this.lastUp < 10000) this.blockUpUntil = nowMs + 30000;
-      this.pending = { emaBefore: this.ema, prevStep: this.step };
+      this.pending = { before: median(this.recent), prevStep: this.step, at: nowMs, frames: [] };
       this.step++;
       this.lastChange = nowMs;
       this.upSince = -1;
@@ -145,6 +166,7 @@ export class DynamicResolution {
         this.lastUp = nowMs;
         this.upSince = -1;
         this.ema = 0;
+        this.recent = [];
         return this.scale;
       }
     } else this.upSince = -1;

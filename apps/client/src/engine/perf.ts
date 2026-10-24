@@ -1,3 +1,4 @@
+import type * as THREE from 'three/webgpu';
 import type { Engine } from './renderer.ts';
 
 /** ?perf=1 ouvre le panneau dès le départ et active les mesures GPU (nécessite le démarrage avec ce paramètre). */
@@ -10,6 +11,23 @@ export function perfRequested(): boolean {
 }
 
 const WINDOW = 180;
+
+/** Objets dessinables visibles sous `root` (un appel de dessin chacun, plus un par cascade d'ombres s'ils en projettent). */
+function countDrawables(root: THREE.Object3D): { meshes: number; casters: number } {
+  let meshes = 0;
+  let casters = 0;
+  const walk = (o: THREE.Object3D) => {
+    if (!o.visible) return;
+    const m = o as THREE.Mesh;
+    if (m.isMesh || (o as THREE.Points).isPoints || (o as THREE.Sprite).isSprite) {
+      meshes++;
+      if (o.castShadow) casters++;
+    }
+    for (const c of o.children) walk(c);
+  };
+  walk(root);
+  return { meshes, casters };
+}
 
 /**
  * Panneau de performance (F3) : cadence, temps d'image moyen / 95e centile / pire, temps GPU (avec ?perf=1),
@@ -92,6 +110,13 @@ export class PerfOverlay {
     const cpuRender = this.cpu.reduce((a, b) => a + b, 0) / this.cpu.length;
     const gpuMs = this.tracking ? info.render.timestamp : 0;
     const bound = gpuMs > avg * 0.8 ? 'GPU' : cpuRender > avg * 0.5 ? 'CPU : préparation du rendu' : gpuMs > 0 ? 'CPU : logique du jeu ou attente' : '?';
+    // Où se concentrent les objets dessinés : grands groupes de la scène, du plus chargé au moins chargé.
+    const groups = engine.scene.children
+      .map((c) => ({ name: c.name || c.type, ...countDrawables(c) }))
+      .filter((g) => g.meshes > 0)
+      .sort((a, b) => b.meshes + b.casters * engine.quality.shadowCascades - (a.meshes + a.casters * engine.quality.shadowCascades))
+      .slice(0, 6)
+      .map((g) => `  ${g.name.slice(0, 18).padEnd(18)} ${String(g.meshes).padStart(4)} obj  ${String(g.casters).padStart(4)} ombres`);
     this.el.textContent = [
       `${(1000 / avg).toFixed(0)} fps   ${avg.toFixed(1)} ms  p95 ${p95.toFixed(1)}  max ${max.toFixed(1)}`,
       `GPU ${gpu}   limite : ${bound}`,
@@ -100,6 +125,8 @@ export class PerfOverlay {
       `géométries ${info.memory.geometries}   textures ${info.memory.textures}`,
       `rendu ${canvas.width}×${canvas.height} (${px.toFixed(1)} Mpx)  échelle dyn. ${engine.dynamicRes.scale}`,
       `${engine.backend}  qualité ${q.level}  AO ${q.ao ? 'on' : 'off'}  bloom ${q.bloom ? 'on' : 'off'}  TAA ${q.taa ? 'on' : 'off'}`,
+      `ombres : ${q.shadowCascades} cascade(s) ${q.shadowMapSize} px  · objets par groupe :`,
+      ...groups,
       `F3 masquer · Alt+1 AO · Alt+2 bloom · Alt+3 TAA`,
     ].join('\n');
   }
