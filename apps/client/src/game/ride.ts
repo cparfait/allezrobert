@@ -98,6 +98,12 @@ export class RideSession {
   crr: number;
   /** Vent de face ressenti à hauteur du coureur (m/s), au dernier pas. */
   windMs = 0;
+  /** Vent latéral (m/s, positif : souffle vers la droite de la route dans le sens de marche). */
+  crossWindMs = 0;
+  /** Vent de face hors abri (m/s, négatif : vent de dos), pour les coureurs IA qui roulent sur la même route. */
+  headWindMs = 0;
+  /** Puissance économisée par l'aspiration en ce moment (W). */
+  draftSavedW = 0;
   /** En groupe : temps dans les roues (s), énergie économisée (J), relais pris. */
   readonly group = { draftS: 0, savedJ: 0, pulls: 0 };
   /** Quelqu'un est dans ma roue (tenu à jour par la boucle de jeu). */
@@ -195,8 +201,8 @@ export class RideSession {
   }
 
   /** Vent météo (m/s) qui change pendant la sortie (météo évolutive). */
-  setWind(ms: number): void {
-    this.opts.wind = { ms, from: this.opts.wind?.from ?? 4.4 };
+  setWind(ms: number, from?: number): void {
+    this.opts.wind = { ms, from: from ?? this.opts.wind?.from ?? 4.4 };
   }
 
   /** Vent apparent de face (m/s) selon la direction de la route. */
@@ -207,6 +213,13 @@ export class RideSession {
     const blowX = -Math.sin(w.from);
     const blowZ = Math.cos(w.from);
     return -(blowX * dirX + blowZ * dirZ) * w.ms;
+  }
+
+  /** Vent latéral (m/s) : composante vers la droite du sens de marche (droite de (x, z) = (−z, x)). */
+  private crosswind(dirX: number, dirZ: number): number {
+    const w = this.opts.wind;
+    if (!w || w.ms <= 0) return 0;
+    return (-Math.sin(w.from) * -dirZ + Math.cos(w.from) * dirX) * w.ms;
   }
 
   update(dt: number, source: InputSource, steer: number): void {
@@ -220,16 +233,21 @@ export class RideSession {
     // Pente dans le sens de marche (inversée après un demi-tour).
     const grade = s.grade * this.dir;
     this.gradePercent = grade;
-    this.windMs = riderWind(this.headwind(s.dirX * this.dir, s.dirZ * this.dir), this.shelter);
+    this.headWindMs = this.headwind(s.dirX * this.dir, s.dirZ * this.dir);
+    this.crossWindMs = this.crosswind(s.dirX * this.dir, s.dirZ * this.dir);
+    this.windMs = riderWind(this.headWindMs, this.shelter);
     const env = { airDensity: airDensity(s.y, 14), windSpeedMs: this.windMs };
     this.crr = surfaceCrr(this.surface, this.params.crr, this.opts.profile.bike.tyre) * wetCrrFactor(this.rain);
     const cdaFactor = (1 - this.draft) * poseCdaFactor(this.pose, grade, this.state.speedMs);
     const prevDist = this.state.distM;
     // Statistiques de groupe : aspiration et relais.
+    {
+      const va = this.state.speedMs + env.windSpeedMs;
+      this.draftSavedW = this.draft > 0.01 ? Math.max(0, this.draft * 0.5 * env.airDensity * this.params.cda * va * Math.abs(va) * this.state.speedMs) : 0;
+    }
     if (this.draft > 0.05) {
       this.group.draftS += dt;
-      const va = this.state.speedMs + env.windSpeedMs;
-      this.group.savedJ += this.draft * 0.5 * env.airDensity * this.params.cda * va * Math.abs(va) * this.state.speedMs * dt;
+      this.group.savedJ += this.draftSavedW * dt;
     }
     if (this.wheelFollowed && this.draft < 0.05 && this.state.speedMs > 3) {
       this.pullS += dt;

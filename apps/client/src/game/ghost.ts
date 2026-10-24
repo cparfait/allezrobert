@@ -1,5 +1,5 @@
 import * as THREE from 'three/webgpu';
-import type { RouteTrack } from '@allezrobert/shared';
+import type { AvatarLook, RouteTrack } from '@allezrobert/shared';
 import { createAvatar, type RiderAvatarLike } from '../rider/gltfAvatar.ts';
 
 interface GhostLap {
@@ -22,18 +22,27 @@ export function readGhostBest(routeId: string): { lapTimeS: number; date: string
   }
 }
 
-/** Avatar translucide et sans ombre, pour distinguer un fantôme des vrais coureurs. */
-export function ghostAvatar(scene: THREE.Scene): RiderAvatarLike {
-  const avatar = createAvatar({ skin: '#cfe8ff', hair: '#cfe8ff', hairStyle: 0, jersey: '#9ad7ff', jerseyAccent: '#ffffff', helmet: '#e6f6ff', bike: '#9ad7ff', build: 0.4 });
-  avatar.root.traverse((o) => {
-    const m = (o as THREE.Mesh).material as THREE.Material | undefined;
-    if (m) {
-      m.transparent = true;
-      m.opacity = 0.42;
-      m.depthWrite = false;
+/** Rend un avatar translucide et sans ombre (à refaire si son vélo est remonté : nouveaux matériaux). */
+export function ghostify(root: THREE.Object3D): void {
+  root.traverse((o) => {
+    const m = (o as THREE.Mesh).material as THREE.Material | THREE.Material[] | undefined;
+    for (const mm of Array.isArray(m) ? m : m ? [m] : []) {
+      if (mm.transparent && mm.opacity === 0.42) continue;
+      mm.transparent = true;
+      mm.opacity = 0.42;
+      mm.depthWrite = false;
     }
     o.castShadow = false;
   });
+}
+
+/**
+ * Fantôme : le coureur lui-même (mêmes tenue, vélo et visage), translucide et sans ombre, pour qu'on
+ * reconnaisse son propre record parmi les vrais coureurs.
+ */
+export function ghostAvatar(scene: THREE.Scene, look: AvatarLook): RiderAvatarLike {
+  const avatar = createAvatar(look);
+  ghostify(avatar.root);
   scene.add(avatar.root);
   return avatar;
 }
@@ -54,13 +63,15 @@ export class Ghost {
   private readonly sample = { x: 0, y: 0, z: 0, dirX: 1, dirZ: 0, grade: 0, d: 0 };
   onNewRecord?: (lapTimeS: number, previous: number | null) => void;
 
-  constructor(scene: THREE.Scene, track: RouteTrack, routeId: string, startD: number) {
+  private reGhost = 0;
+
+  constructor(scene: THREE.Scene, track: RouteTrack, routeId: string, startD: number, look: AvatarLook) {
     this.track = track;
     this.routeId = routeId;
     this.lapStartD = startD;
     const raw = localStorage.getItem(KEY(routeId));
     this.best = raw ? (JSON.parse(raw) as GhostLap) : null;
-    this.avatar = ghostAvatar(scene);
+    this.avatar = ghostAvatar(scene, look);
     this.avatar.root.visible = !!this.best;
   }
 
@@ -88,6 +99,12 @@ export class Ghost {
     this.avatar.root.rotateX(-Math.atan(p.grade / 100));
     const speed = (b - a) || 0;
     this.avatar.update(dt, speed > 0.5 ? 88 : 0, speed, 'seated');
+    // Vélo remonté entre-temps (famille de vélo chargée après coup) : ses matériaux redeviennent translucides.
+    this.reGhost += dt;
+    if (this.reGhost > 2) {
+      this.reGhost = 0;
+      ghostify(this.avatar.root);
+    }
   }
 
   /** Fin de tour : enregistre le record si battu, et relance le fantôme. */

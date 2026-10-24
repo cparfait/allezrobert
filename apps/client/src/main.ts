@@ -721,7 +721,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   const track = nav ? nav.track : scene.track;
   // Défi KOM : départ lancé avant le pied de la montée choisie, fantôme du record.
   const komSeg = s.mode === 'challenge' && !nav ? (track.route.segments.find((g) => g.kind === 'kom' && g.id === s.challengeSeg) ?? track.route.segments.find((g) => g.kind === 'kom')) : undefined;
-  const challenge = komSeg ? new KomChallenge(engine.scene, track, komSeg) : null;
+  const challenge = komSeg ? new KomChallenge(engine.scene, track, komSeg, { ...s.look, heightCm: s.heightCm }) : null;
   let challengeResult: ChallengeResult | null = null;
   // L'accueil n'a préparé que le lieu de l'affiche : le paysage autour du départ doit être là avant le
   // premier rendu, sinon le HUD s'affiche sur un ciel vide. L'écran d'attente reste jusqu'à la première image :
@@ -790,7 +790,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   }
   const aiCount = workout || mp || challenge ? 0 : Math.min(Math.max(s.aiRiders, 0), engine.quality.aiRidersMax);
   const peloton = new Peloton(engine.scene, track, aiCount, startD, s.ftpWatts * (s.aiLevel ?? 1));
-  const ghost = new Ghost(engine.scene, track, track.route.id, startD);
+  const ghost = new Ghost(engine.scene, track, track.route.id, startD, { ...s.look, heightCm: s.heightCm });
   peloton.shadowRiders = engine.quality.shadowRiders;
   peloton.onWait = (name) => name && hud.toast(getLang() === 'fr' ? `On attend ${name}` : `Waiting for ${name}`);
   peloton.onUTurn = (name) => hud.toast(getLang() === 'fr' ? `${name} fait demi-tour pour revenir au groupe` : `${name} turns back to rejoin the group`);
@@ -1265,7 +1265,8 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
       envState.weather.rain = wNow.rain;
       envState.weather.fog = wNow.fog;
       envState.weather.windMs = wNow.windMs;
-      ride.setWind(wNow.windMs);
+      envState.weather.windFrom = wNow.windFrom;
+      ride.setWind(wNow.windMs, wNow.windFrom);
       const here = track.positionAt(ride.state.distM, ride.lateral, sample);
       const t = world.terrain.getTile(...world.terrain.tileCoord(here.x, here.z));
       ride.surface = nav?.surfaceAt(ride.state.distM) ?? track.surfaceAt(ride.state.distM) ?? roadSurfaceAt(t, here.x, here.z, ride.surface);
@@ -1302,7 +1303,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
         // Prédiction locale + correction douce vers la position autoritaire du serveur.
         ride.draft = mp.selfDraft();
         ride.state.distM += mp.reconcile(ride.state.distM, dt);
-      } else ride.draft = peloton.update(dt, { distM: ride.state.distM, lateral: ride.lateral, speedMs: ride.state.speedMs, watts: ride.inputs.watts, massKg: s.massKg, ftpWatts: s.ftpWatts, reversed: ride.dir < 0 });
+      } else ride.draft = peloton.update(dt, { distM: ride.state.distM, lateral: ride.lateral, speedMs: ride.state.speedMs, watts: ride.inputs.watts, massKg: s.massKg, ftpWatts: s.ftpWatts, reversed: ride.dir < 0, headWindMs: ride.headWindMs, crossWindMs: ride.crossWindMs });
       // Relais : quelqu'un roule dans ma roue (0,5 à 4 m derrière, à moins d'un mètre de côté).
       const onWheel = (d: number, lat: number) => {
         const gap = ride.state.distM - d;
@@ -1404,6 +1405,24 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
       hudAcc = 0;
       // Habillage TV synchronisé avec la caméra « réalisation TV ».
       const rank = 1 + peloton.riders.filter((r) => r.state.distM > ride.state.distM).length;
+      // Roue juste devant (même voie à 1,5 m près, à moins de 30 m) : écart roue arrière → roue avant.
+      const wheelGap = (): number | null => {
+        let best: number | null = null;
+        const consider = (d: number, lat: number) => {
+          const gap = (d - ride.state.distM) * ride.dir - 1.75;
+          if (gap > -0.5 && gap < 30 && Math.abs(lat - ride.lateral) < 1.5 && (best === null || gap < best)) best = Math.max(0, gap);
+        };
+        for (const r of peloton.riders) consider(r.state.distM, r.lateral);
+        for (const r of remoteRiders) consider(r.unwrappedM, r.lateralM);
+        return best;
+      };
+      // Vent ressenti : d'où il vient pour le coureur ; par vent de côté, l'abri est sous le vent.
+      const windInfo = () => {
+        const h = ride.headWindMs;
+        const c = ride.crossWindMs;
+        const from: 'face' | 'dos' | 'gauche' | 'droite' = Math.abs(h) >= Math.abs(c) ? (h > 0 ? 'face' : 'dos') : c > 0 ? 'gauche' : 'droite';
+        return { kmh: Math.hypot(h, c) * 3.6, from, shelter: Math.abs(c) > 2 ? (c > 0 ? ('right' as const) : ('left' as const)) : null };
+      };
       room?.update({ distM: ride.state.distM, speedMs: ride.state.speedMs, wkg: ride.watts3s() / s.massKg });
       sequences.tv(rig.mode === 'tv', { riderName: s.name, color: s.look.jersey, position: rank, wkg: ride.watts3s() / s.massKg, watts: ride.watts3s() });
       const i = ride.inputs;
@@ -1427,6 +1446,10 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
           gearCount: ride.gears.length,
           ...(i.balanceLeft !== undefined ? { balanceLeft: i.balanceLeft } : {}),
           draftPct: ride.draft * 100,
+          draftW: ride.draftSavedW,
+          wheelGapM: wheelGap(),
+          wind: windInfo(),
+          altitudeM: sample.y,
           lap: ride.lap,
           riders: [
             { id: 'me', name: s.name, distM: ride.state.distM, x: pos.x, z: pos.z, me: true, isAI: false, isGuest: false, color: '#ffd23f', wkg: ride.watts3s() / s.massKg },

@@ -8,9 +8,11 @@ describe('météo partagée', () => {
     expect(weatherAt({ ...base, evolving: false }, 1800).hour).toBeCloseTo(10, 6);
     expect(weatherAt({ ...base, hour: 23.5, evolving: false }, 3600).hour).toBeCloseTo(0.5, 6);
   });
-  it('fixe : rien ne bouge sauf l’heure', () => {
+  it('fixe : ciel, pluie et brouillard ne bougent pas ; le vent garde sa force moyenne (rafales)', () => {
     const w = weatherAt({ ...base, evolving: false }, 5000);
-    expect([w.clouds, w.rain, w.fog, w.windMs]).toEqual([0.5, 0, 0.3, 4]);
+    expect([w.clouds, w.rain, w.fog]).toEqual([0.5, 0, 0.3]);
+    expect(w.windMs).toBeGreaterThan(4 * 0.6);
+    expect(w.windMs).toBeLessThan(4 * 1.7);
   });
   it('évolutive : déterministe, continue, bornée, et le brouillard se lève', () => {
     const a = weatherAt(base, 2400);
