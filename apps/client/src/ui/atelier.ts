@@ -393,6 +393,16 @@ export class AtelierHost {
       this.lookKey = JSON.stringify(look);
     }
     await this.engine.renderer.compileAsync(this.scene, this.camera).catch(() => undefined);
+    // Première image rendue en coulisse, toile masquée : compile aussi les passes d'image (ombres, occlusion,
+    // halo), que compileAsync ne couvre pas ; sinon c'est la première ouverture du garage qui fige.
+    if (!this.state) {
+      const canvas = this.engine.renderer.domElement;
+      const vis = canvas.style.visibility;
+      canvas.style.visibility = 'hidden';
+      this.render();
+      await new Promise<void>((r) => requestAnimationFrame(() => r()));
+      canvas.style.visibility = vis;
+    }
   }
 
   set(st: AtelierState | null): void {

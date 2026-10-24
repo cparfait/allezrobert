@@ -564,6 +564,8 @@ async function boot(): Promise<void> {
       const t1 = performance.now();
       await atelier.prepare({ ...settings.look, heightCm: settings.heightCm });
       atelierBuilt = true;
+      // L'image de préparation est restée dans la toile : l'accueil 3D (sans vidéo) se redessine.
+      if (inMenu && !garage && !exploring && worldDone && !menuVideo.playing()) renderPoster();
       console.info(`[atelier] préparé : modèles ${Math.round(t1 - t0)} ms, pièce et shaders ${Math.round(performance.now() - t1)} ms`);
     })().catch(() => undefined));
   const whenAtelierReady = (build: () => boolean): void => {
