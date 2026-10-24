@@ -279,7 +279,9 @@ export class RoutePlanner {
         .join('')}"/>`;
     }
     let marks = '';
-    if (!n) marks = this.marker(this.open.start.x, this.open.start.z, 'rp-home', '');
+    // Parcours libre : le départ par défaut est affiché comme le départ (D) ; un clic le déplace.
+    if (!n && this.onlyStart) marks = this.marker(this.open.start.x, this.open.start.z, 'rp-from', 'D');
+    else if (!n) marks = this.marker(this.open.start.x, this.open.start.z, 'rp-home', '');
     else {
       // points de passage numérotés, puis arrivée (sauf boucle fermée), puis départ par-dessus
       for (let i = 1; i < n - 1; i++) marks += this.marker((pts[i] as RoadSnap).x, (pts[i] as RoadSnap).z, 'rp-via', String(i));
@@ -293,8 +295,8 @@ export class RoutePlanner {
         ? `<p class="mm-hint">${
             !n
               ? L
-                ? 'Clique sur la carte pour choisir ton point de départ (molette : zoom, glisser : déplacer), ou pars du départ par défaut.'
-                : 'Click the map to pick your start (wheel: zoom, drag: pan), or leave from the default start.'
+                ? 'Ton départ (D) est celui de la zone. Clique ailleurs sur la carte pour le déplacer (molette : zoom, glisser : déplacer).'
+                : 'Your start (D) is the area’s default. Click elsewhere on the map to move it (wheel: zoom, drag: pan).'
               : L
                 ? 'Clique ailleurs pour déplacer ton départ. Ensuite, choisis ta route à chaque carrefour (← / →, U pour faire demi-tour).'
                 : 'Click elsewhere to move your start. Then pick your road at each junction (← / →, U to turn around).'
@@ -323,7 +325,10 @@ export class RoutePlanner {
       : '';
     const go = (id: string, label: string, cls = '') => `<button class="rp-btn ${cls}" data-plan="${id}">${label}</button>`;
     const actions = only
-      ? [n ? go('here', `${L ? 'Partir d’ici' : 'Start here'} →`, 'rp-go') : '', go('free', L ? 'Partir du départ par défaut' : 'Leave from the default start', n ? '' : 'rp-go')].join('')
+      ? [
+          n ? go('here', `${L ? 'Partir d’ici' : 'Start here'} →`, 'rp-go') : go('free', `${L ? 'Partir d’ici' : 'Start here'} →`, 'rp-go'),
+          n ? go('clear', L ? 'Revenir au départ par défaut' : 'Back to the default start') : '',
+        ].join('')
       : [
       r ? go('ride', `${L ? (this.closed ? 'Rouler cette boucle' : 'Rouler cet itinéraire') : this.closed ? 'Ride this loop' : 'Ride this route'} →`, 'rp-go') : '',
       n === 1 ? go('here', `${L ? 'Partir d’ici en libre' : 'Ride freely from here'} →`, 'rp-go') : '',

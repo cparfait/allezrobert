@@ -598,3 +598,16 @@
 .mm-weather { display: grid; gap: 8px; margin: 10px 0 4px; padding: 12px 14px; border-radius: 14px; background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.08); }
 .mm-weather .field { margin: 0; }
 .mm-weather .mm-seg button { flex: 1 1 auto; }
+
+/* Séances d'entraînement : cartes avec le profil des paliers. */
+.mm-wks { display: grid; gap: 8px; margin: 8px 0 6px; }
+.mm-wk { appearance: none; display: grid; gap: 5px; text-align: left; padding: 10px 12px 9px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.08); border-left: 4px solid var(--wk); background: rgba(255, 255, 255, 0.04); color: inherit; font: inherit; cursor: pointer; }
+.mm-wk:hover { background: rgba(255, 255, 255, 0.08); }
+.mm-wk.on { border-color: var(--ar-accent); border-left-color: var(--wk); background: rgba(255, 210, 63, 0.08); }
+.mm-wk-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.mm-wk-head b { font-size: 14.5px; }
+.mm-wk-head em { font-style: normal; font-size: 12px; color: var(--ar-muted); white-space: nowrap; }
+.mm-wk-desc { font-size: 12px; color: var(--ar-muted); line-height: 1.35; }
+.mm-wk-prof { width: 100%; height: 34px; display: block; }
+.mm-wk-prof line { stroke: rgba(255, 255, 255, 0.35); stroke-dasharray: 3 3; stroke-width: 1; vector-effect: non-scaling-stroke; }
+.mm-wk-stats { font-size: 11.5px; color: var(--ar-muted); font-variant-numeric: tabular-nums; }

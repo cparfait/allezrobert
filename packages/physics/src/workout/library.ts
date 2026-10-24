@@ -1,5 +1,5 @@
 /**
- * Séances intégrées (en % de FTP) : seuil, sweet spot, pyramide, sprints, VO2max, récupération
+ * Séances intégrées (en % de FTP) : endurance, seuil, sweet spot, pyramide, sprints, VO2max, récupération
  * active. Construites à la demande, mêmes étapes que les séances importées (.zwo, .erg, .mrc).
  */
 import type { Workout, WorkoutStep } from './model.ts';
@@ -43,10 +43,26 @@ function repeats(count: number, onS: number, onFtp: number, offS: number, offFtp
 
 export const WORKOUT_LIBRARY: LibraryWorkout[] = [
   {
+    id: 'endurance',
+    name: { fr: 'Endurance fondamentale', en: 'Endurance' },
+    description: { fr: '1 h en zone 2 (65 % de FTP), cadence souple : la base de tout.', en: '1 h in zone 2 (65% FTP), easy cadence: the foundation.' },
+    build: () => ({
+      name: 'Endurance fondamentale',
+      tags: ['endurance'],
+      steps: [warmup(8), step('steady', 2700, 0.65, 0.65, { cadence: 90, textEvents: [{ offsetS: 0, message: 'Zone 2 : régulier, en aisance respiratoire' }] }), cooldown(7)],
+    }),
+  },
+  {
     id: 'seuil-3x10',
     name: { fr: 'Seuil 3 × 10 min', en: 'Threshold 3 × 10 min' },
     description: { fr: '3 × 10 min à 98 % de FTP, 5 min de récupération. 1 h.', en: '3 × 10 min at 98% FTP, 5 min recovery. 1 h.' },
     build: () => ({ name: 'Seuil 3 × 10 min', tags: ['seuil'], steps: [warmup(), ...repeats(3, 600, 0.98, 300, 0.55, 'Seuil'), cooldown(5)] }),
+  },
+  {
+    id: 'seuil-2x20',
+    name: { fr: 'Seuil 2 × 20 min', en: 'Threshold 2 × 20 min' },
+    description: { fr: '2 × 20 min à 95 % de FTP, 5 min de récupération. 1 h 10.', en: '2 × 20 min at 95% FTP, 5 min recovery. 1 h 10.' },
+    build: () => ({ name: 'Seuil 2 × 20 min', tags: ['seuil'], steps: [warmup(), ...repeats(2, 1200, 0.95, 300, 0.55, 'Seuil'), cooldown(5)] }),
   },
   {
     id: 'sweet-spot-3x12',

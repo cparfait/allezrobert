@@ -115,6 +115,48 @@ const ICON = {
 /** Catégorie ouverte dans le garage. */
 type GarageSlot = CosmeticSlot | 'colors' | 'face' | 'atelier';
 
+/** Seuils des zones de puissance (× FTP) et leurs couleurs (Z1 à Z7). */
+const ZONE_LIMITS = [0.55, 0.75, 0.9, 1.05, 1.2, 1.5];
+const ZONE_COLORS = ['#9aa5b1', '#3b82f6', '#22c55e', '#eab308', '#f97316', '#ef4444', '#a855f7'];
+const zoneColorOf = (ftp: number) => ZONE_COLORS[ZONE_LIMITS.findIndex((z) => ftp < z) === -1 ? 6 : ZONE_LIMITS.findIndex((z) => ftp < z)] as string;
+
+/**
+ * Carte d'une séance : nom, durée, description, profil des paliers (hauteur = % de FTP, couleur = zone),
+ * puis durée, TSS et IF estimés (puissance normalisée calculée sur les paliers).
+ */
+function workoutCard(w: (typeof WORKOUT_LIBRARY)[number], on: boolean): string {
+  const lang = getLang();
+  const steps = w.build().steps;
+  const total = steps.reduce((a, st) => a + st.durationS, 0) || 1;
+  const H = 40;
+  const W = 300;
+  const y = (p: number) => (H - (Math.min(p, 1.6) / 1.6) * (H - 2)).toFixed(1);
+  let t = 0;
+  let p4 = 0;
+  let peak = 0;
+  const shapes = steps
+    .map((st) => {
+      const x0 = (t / total) * W;
+      const x1 = ((t + st.durationS) / total) * W;
+      t += st.durationS;
+      const mid = (st.powerStart + st.powerEnd) / 2;
+      p4 += mid ** 4 * st.durationS;
+      peak = Math.max(peak, st.powerStart, st.powerEnd);
+      return `<polygon points="${x0.toFixed(1)},${H} ${x0.toFixed(1)},${y(st.powerStart)} ${x1.toFixed(1)},${y(st.powerEnd)} ${x1.toFixed(1)},${H}" fill="${zoneColorOf(mid)}"/>`;
+    })
+    .join('');
+  const ifv = (p4 / total) ** 0.25;
+  const tss = Math.round((total / 3600) * ifv * ifv * 100);
+  const min = Math.round(total / 60);
+  const dur = min >= 60 ? `${Math.floor(min / 60)} h ${String(min % 60).padStart(2, '0')}` : `${min} min`;
+  return `<button class="mm-wk ${on ? 'on' : ''}" data-preset="${w.id}" style="--wk:${zoneColorOf(peak)}">
+    <span class="mm-wk-head"><b>${esc(w.name[lang])}</b><em>${dur}</em></span>
+    <span class="mm-wk-desc">${esc(w.description[lang])}</span>
+    <svg class="mm-wk-prof" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true"><line x1="0" x2="${W}" y1="${y(1)}" y2="${y(1)}"/>${shapes}</svg>
+    <span class="mm-wk-stats">${dur} · TSS ${tss} · IF ${ifv.toFixed(2).replace('.', lang === 'fr' ? ',' : '.')}</span>
+  </button>`;
+}
+
 /** Ciels proposés au départ d'une sortie (nuages, pluie, brouillard de 0 à 1). */
 const WEATHER_PRESETS: Array<[string, { clouds: number; rain: number; fog: number }]> = [
   ['sun', { clouds: 0.1, rain: 0, fog: 0 }],
@@ -282,6 +324,8 @@ export class MainMenu {
   /** Aperçu d'un équipement (même verrouillé) sur le coureur du garage ; null : tenue équipée. */
   onPreviewLook?: (look: AvatarLook | null) => void;
   private prep = false;
+  /** Carte du choix (sous « Choisir ma sortie ») : seulement après un choix fait dans ce menu. */
+  private selMap = false;
 
   /** Préparation en coulisse (paysage, garage) : petit message d'attente sous « Rouler » sur l'accueil. */
   set preparing(on: boolean) {
@@ -401,6 +445,8 @@ export class MainMenu {
 
   show(tab: Tab = 'home'): void {
     document.addEventListener('keydown', this.onKey);
+    // Au lancement du jeu et après une sortie : pas de carte du choix tant qu'on n'a rien choisi.
+    this.selMap = false;
     this.friends.start();
     // Lien /?ami=CODE : l'onglet Amis propose la demande.
     this.go((tab === 'home' || tab === 'ride') && this.friends.hasPendingCode() ? 'friends' : tab);
@@ -727,10 +773,7 @@ export class MainMenu {
           : s.mode === 'challenge'
             ? this.challengeHtml(r, true)
           : s.mode === 'workout'
-            ? `<div class="mm-routes mm-presets">${WORKOUT_LIBRARY.map(
-                (w) =>
-                  `<button class="mm-route ${!this.workoutFile && w.id === s.workoutPreset ? 'on' : ''}" data-preset="${w.id}"><b>${esc(w.name[getLang()])}</b><span>${esc(w.description[getLang()])}</span></button>`,
-              ).join('')}</div>
+            ? `<div class="mm-wks">${WORKOUT_LIBRARY.map((w) => workoutCard(w, !this.workoutFile && w.id === s.workoutPreset)).join('')}</div>
               <label class="mm-file">${L ? 'Ou importer une séance' : 'Or import a workout'} (.zwo / .erg / .mrc)<input id="m-workout" type="file" accept=".zwo,.erg,.mrc" hidden /><span id="m-wname">${this.workoutFile ? esc(this.workoutFile.name) : ''}</span></label>`
             : ''
       }
@@ -792,7 +835,8 @@ export class MainMenu {
           ? 'Choisis ta route à chaque carrefour'
           : 'Pick your road at each junction'
         : '';
-    const map = this.openWorld ? this.planner.preview(route, free ? this.freeStart : null) : '';
+    // Entraînement : pas de carte (la séance compte, pas le paysage) ; sinon seulement après un choix.
+    const map = this.openWorld && this.selMap && this.s.mode !== 'workout' ? this.planner.preview(route, free ? this.freeStart : null) : '';
     const body = map ? `<div class="mm-selmap">${map}</div>` : route ? this.routeCard(route) : '';
     const pickers = `<div class="mm-pickers mm-pickers-one">
       <button class="mm-pick mm-pick-big" data-picker="zones"><b>${L ? 'CHOISIR MA SORTIE' : 'CHOOSE MY RIDE'}</b><i aria-hidden="true">›</i></button>
@@ -1808,6 +1852,7 @@ export class MainMenu {
           return;
         }
         if (c === 'free') {
+          this.selMap = true;
           s.mode = 'open';
           this.freeStart = null;
           this.picker = null;
@@ -1851,6 +1896,7 @@ export class MainMenu {
       }),
     );
     const pickRoute = () => {
+      this.selMap = true;
       s.routeId = this.detailId;
       s.reverse = this.detailReverse;
       if (s.mode === 'open' || s.mode === 'ftpTest' || s.mode === 'challenge') s.mode = 'free';
