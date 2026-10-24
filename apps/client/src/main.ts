@@ -27,7 +27,7 @@ import { t, setLang, getLang } from './i18n/index.ts';
 import { loadSettings, saveSettings, type Settings } from './ui/settings.ts';
 import { MainMenu } from './ui/menu.ts';
 import { bootStep, bootDone, bootError } from './ui/splash.ts';
-import { PosterScene, choosePosterSpot, POSTER_HOUR, GARAGE_VIEWS, type GarageView } from './ui/poster.ts';
+import { PosterScene, POSTER_HOUR, GARAGE_VIEWS, type GarageView } from './ui/poster.ts';
 import { showPause, rideToFit, rideToGpx, download, onlinePanel } from './ui/ridepanels.ts';
 import { showRideSummary } from './ui/summary.ts';
 import { compareAndStore, readPowerRecords, rideStats, updatePowerRecords } from './game/stats.ts';
@@ -293,8 +293,9 @@ async function boot(): Promise<void> {
     posterFrames = 24;
   };
   /**
-   * Paysage du monde courant (tuiles, végétation, bâtiments), image d'accueil 3D et shaders.
-   * Lancé en arrière-plan une fois le menu affiché ; garage, exploration, tutoriel et départ l'attendent.
+   * Paysage autour du départ de l'itinéraire choisi (tuiles, végétation, bâtiments) et ses shaders.
+   * Rien n'est préparé au lancement (l'accueil est une vidéo) : seulement au clic sur « Rouler »
+   * (ou « Explorer la carte »), une fois la zone choisie.
    */
   let worldReady: Promise<void> | null = null;
   /** Vrai seulement quand la préparation est terminée : `worldReady` est une promesse déjà « vraie » pendant qu'elle court. */
@@ -302,20 +303,10 @@ async function boot(): Promise<void> {
   const prepareWorld = (): Promise<void> =>
     (worldReady ??= (async () => {
       await modelsReady;
-      if (inMenu) {
-        if (scene.world.env.state.season !== settings.season) scene.world.setSeason(settings.season);
-        const d = await choosePosterSpot(scene.world, scene.track, settings.season);
-        poster.build({ ...settings.look, heightCm: settings.heightCm });
-        focus.copy(poster.place(d));
-        await scene.world.preload(focus);
-        poster.frame();
-        scene.world.update(1 / 60, focus);
-      } else {
-        const start = scene.track.positionAt(0, 1.2);
-        await scene.world.preload(new THREE.Vector3(start.x, start.y, start.z));
-      }
+      if (scene.world.env.state.season !== settings.season) scene.world.setSeason(settings.season);
+      const start = scene.track.positionAt(0, 1.2);
+      await scene.world.preload(new THREE.Vector3(start.x, start.y, start.z));
       await scene.engine.renderer.compileAsync(scene.engine.scene, scene.engine.camera).catch(() => undefined);
-      if (inMenu && !menuVideo.playing()) renderPoster();
       worldDone = true;
     })());
   /** Attend le paysage avant une action 3D, avec un écran d'attente seulement s'il n'est pas prêt. */
@@ -465,7 +456,6 @@ async function boot(): Promise<void> {
       menu.planner.setOpen(source.open ? { ...source.open, areas: source.areas ?? [source.bounds], ...(source.originL93 ? { originL93: source.originL93 } : {}) } : null);
       menu.loadedZones = source.zones ?? [source.id];
       menu.setWorld(source.routes, source.id, !!source.open);
-      void prepareWorld();
     })();
   };
   const onExploreKey = (e: KeyboardEvent) => {
@@ -479,6 +469,10 @@ async function boot(): Promise<void> {
     menuVideo.stop();
     menu.hide();
     exploring = true;
+    // Vue de départ : au-dessus du début de l'itinéraire, dans son sens.
+    const p0 = scene.track.positionAt(0, 0);
+    scene.engine.camera.position.set(p0.x - p0.dirX * 60, p0.y + 40, p0.z - p0.dirZ * 60);
+    scene.engine.camera.lookAt(p0.x + p0.dirX * 80, p0.y, p0.z + p0.dirZ * 80);
     exploreT = performance.now();
     const cam = scene.engine.camera;
     cam.fov = cam.aspect > 2.5 ? 55 : 70;
@@ -553,7 +547,7 @@ async function boot(): Promise<void> {
   let atelierBuilt = false;
   let atelierWait: HTMLElement | null = null;
   /**
-   * Préparation en coulisse de l'atelier (pièce, coureur, shaders) une fois les modèles et le paysage
+   * Préparation en coulisse de l'atelier (pièce, coureur, shaders) dès le lancement, une fois les modèles
    * prêts : la première ouverture du garage ou de l'étape Avatar du tutoriel est alors immédiate.
    */
   let atelierPrep: Promise<void> | null = null;
@@ -666,17 +660,9 @@ async function boot(): Promise<void> {
     await withWorld(getLang() === 'fr' ? 'Préparation de la sortie…' : 'Preparing the ride…');
     void startRide(scene, settings, devices.source(), {});
   } else {
-    // Paysage et atelier, l'un après l'autre (ensemble, ils figeaient l'accueil) ; Robert patiente à la
-    // place de « Rouler » pendant ce temps. Tutoriel à venir : l'atelier d'abord (étape Avatar), le
-    // paysage ensuite, il ne sert qu'à la fin.
-    menu.preparing = true;
-    const atelierFirst = Onboarding.needed();
-    setTimeout(() => {
-      void (atelierFirst ? prepareAtelier().then(() => prepareWorld()) : prepareWorld().then(() => prepareAtelier()))
-        .finally(() => (menu.preparing = false));
-      // Sécurité : un chargement bloqué ne doit pas priver du bouton « Rouler ».
-      setTimeout(() => (menu.preparing = false), 10000);
-    }, 400);
+    // Au lancement, seulement l'atelier (garage et étape Avatar du tutoriel rapides) ; aucune zone :
+    // l'accueil est une vidéo, le paysage se prépare au clic sur « Rouler ».
+    setTimeout(() => void prepareAtelier(), 400);
     // Compte : session existante, sinon écran de connexion (sauf choix « sans compte »).
     let me: Me | null = await fetchMe();
     if (me) applyProfile(me, settings);

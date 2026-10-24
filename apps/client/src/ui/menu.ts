@@ -11,7 +11,6 @@ import { saveSettings } from './settings.ts';
 import { music } from '../audio/music.ts';
 import { spotify, redirectUri } from '../audio/spotify.ts';
 import { renderSoundSettings } from './soundSettings.ts';
-import { waitBike } from './waitBike.ts';
 import { renderCompanionSettings } from './companionQr.ts';
 import { loadProgress, equipItem, equipPlainBike, SLOT_LABEL } from './garage.ts';
 import { AtelierPanel, COIN } from './atelierPanel.ts';
@@ -324,16 +323,9 @@ export class MainMenu {
   onScene?: (view: 'poster' | GarageView, yaw: number, bikeOnly?: boolean) => void;
   /** Aperçu d'un équipement (même verrouillé) sur le coureur du garage ; null : tenue équipée. */
   onPreviewLook?: (look: AvatarLook | null) => void;
-  private prep = false;
   /** Carte du choix (sous « Choisir ma sortie ») : seulement après un choix fait dans ce menu. */
   private selMap = false;
 
-  /** Préparation en coulisse (paysage, garage) : « Rouler » masqué sur l'accueil. */
-  set preparing(on: boolean) {
-    this.prep = on;
-    // Tant que le jeu se prépare en coulisse (téléchargement, cache), Robert sur son vélo patiente à la place de « Rouler ».
-    this.root.querySelector('.mm-tab-home')?.classList.toggle('is-prep', on);
-  }
 
   /** Essais en cours au garage, un par emplacement (vélo, maillot…) : ils restent en place pendant qu'on en essaie d'autres. */
   private readonly previews = new Map<CosmeticSlot, string>();
@@ -658,12 +650,10 @@ export class MainMenu {
       .toUpperCase();
     // Accueil : rien que la vidéo, le titre et le bouton Rouler, qui ouvre le menu.
     if (this.tab === 'home') {
-      this.root.innerHTML = `<div class="mm mm-tab-home ${this.prep ? 'is-prep' : ''}">
+      this.root.innerHTML = `<div class="mm mm-tab-home">
         <div class="mm-hero mm-hero-home"><h1>Allez <em>Robert</em> !</h1><p>${L ? 'Rouler ensemble, chacun chez soi.' : 'Ride together, each from home.'}</p></div>
         <button class="mm-go mm-home-go" data-tab="ride">${t('ride')} <span>→</span></button>
-        <div class="mm-home-wait" role="status"><div class="world-wait-bar"><i></i></div><p>${L ? 'Un instant, Robert prépare ta sortie…' : 'Hang on, Robert is getting your ride ready…'}</p></div>
       </div>`;
-      this.root.querySelector('.mm-home-wait')?.prepend(waitBike());
       this.bind();
       return;
     }

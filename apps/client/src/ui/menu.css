@@ -363,11 +363,6 @@
 .mm-hero.mm-hero-home h1 { font-size: clamp(64px, 8vw, 140px); }
 .mm-home-go { position: absolute; left: 50%; bottom: 8vh; transform: translateX(-50%); font-size: 26px; padding: 20px 64px; }
 .mm-home-go:hover span { transform: translateX(6px); }
-.mm-home-wait { display: none; position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(340px, 80vw); text-align: center; }
-.mm-home-wait p { margin: 12px 0 0; font-size: 16px; font-weight: 600; color: #f5f7fa; text-shadow: 0 1px 6px rgba(0, 0, 0, 0.7); }
-.mm-home-wait .world-wait-bike { height: min(220px, 30vh); margin: 0 auto 10px; filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.5)); }
-.mm-tab-home.is-prep .mm-home-go { display: none; }
-.mm-tab-home.is-prep .mm-home-wait { display: block; }
 
 /* Fenêtres Zones / Parcours : grille de cartes */
 .mm-picker { width: min(1180px, 94vw) !important; max-height: 86vh; overflow: auto; }
