@@ -332,6 +332,8 @@ export class MainMenu {
     this.prep = on;
     const el = this.root.querySelector<HTMLElement>('.mm-home-wait');
     if (el) el.hidden = !on;
+    // Tant que le jeu se prépare, « Rouler » est remplacé par le message d'attente.
+    this.root.querySelector('.mm-tab-home')?.classList.toggle('is-prep', on);
   }
 
   /** Essais en cours au garage, un par emplacement (vélo, maillot…) : ils restent en place pendant qu'on en essaie d'autres. */
@@ -657,7 +659,7 @@ export class MainMenu {
       .toUpperCase();
     // Accueil : rien que la vidéo, le titre et le bouton Rouler, qui ouvre le menu.
     if (this.tab === 'home') {
-      this.root.innerHTML = `<div class="mm mm-tab-home">
+      this.root.innerHTML = `<div class="mm mm-tab-home ${this.prep ? 'is-prep' : ''}">
         <div class="mm-hero mm-hero-home"><h1>Allez <em>Robert</em> !</h1><p>${L ? 'Rouler ensemble, chacun chez soi.' : 'Ride together, each from home.'}</p></div>
         <button class="mm-go mm-home-go" data-tab="ride">${t('ride')} <span>→</span></button>
         <p class="mm-home-wait" ${this.prep ? '' : 'hidden'}><i></i>${L ? 'Préparation du jeu…' : 'Getting the game ready…'}</p>
