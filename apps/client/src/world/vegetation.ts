@@ -7,6 +7,7 @@ import { fbm, rng } from '../engine/noise.ts';
 import type { LoadedTile } from './types.ts';
 import { splatAt } from './splat.ts';
 import type { Season } from './environment.ts';
+import { drawnRoads, roadAvoidance } from './roadAvoid.ts';
 import { broadleafVariants, realTreeMaterial, shrubGeometry, TREE_H, TREE_R } from './trees.ts';
 import { alpineProfile, coniferBiasAt, larchShareAt, treeDensityAt, treeScaleAt } from './alpine.ts';
 
@@ -306,6 +307,9 @@ export class Vegetation {
    */
   private addRealTile(tile: LoadedTile): void {
     const f = tile.features;
+    // Les arbres mesurés au LiDAR peuvent surplomber n'importe quelle route : aucun tronc sur la chaussée
+    // d'une route ou d'une piste dessinée (l'itinéraire actif est déjà exclu par avoidReal).
+    const onRoad = roadAvoidance(drawnRoads(f.roads ?? []));
     const per = new Map<string, Map<Kind, THREE.Matrix4[]>>();
     const m = new THREE.Matrix4();
     const qn = new THREE.Quaternion();
@@ -329,7 +333,7 @@ export class Vegetation {
       const z = trees[i + 1] as number;
       const h = trees[i + 2] as number;
       const cr = trees[i + 3] as number;
-      if (this.avoidReal(x, z)) continue;
+      if (this.avoidReal(x, z) || onRoad(x, z, 0.6)) continue;
       const y = this.heightAt(x, z);
       if (!Number.isFinite(y)) continue;
       const seed = seedAt(x, z);
@@ -348,7 +352,7 @@ export class Vegetation {
       const x = shrubs[i] as number;
       const z = shrubs[i + 1] as number;
       const h = shrubs[i + 2] as number;
-      if (this.avoidReal(x, z)) continue;
+      if (this.avoidReal(x, z) || onRoad(x, z, 0.3)) continue;
       const y = this.heightAt(x, z);
       if (!Number.isFinite(y)) continue;
       const seed = seedAt(x + 0.37, z);
@@ -416,6 +420,8 @@ export class Vegetation {
     const r = rng(tile.tx * 73856093 + tile.tz * 19349663);
     const tries = Math.floor(((tile.size * tile.size) / 100) * this.q.treeDensity * 0.45);
     const per = new Map<string, { decid: THREE.Matrix4[]; conif: THREE.Matrix4[]; larch: THREE.Matrix4[] }>();
+    // Pas d'arbre sur une route ou une piste dessinée, en plus du masque de route rastérisé (peu précis).
+    const onRoad = roadAvoidance(drawnRoads(tile.features.roads ?? []));
     // pseudo-aléa stable par position, pour les règles d'altitude (la suite r() reste inchangée en plaine)
     const seedAt = (x: number, z: number) => Math.abs(Math.sin(x * 12.9898 + z * 78.233) * 43758.5453) % 1;
     const m = new THREE.Matrix4();
@@ -439,7 +445,7 @@ export class Vegetation {
       const hedge = Math.abs(fbm(x / 90, z / 90, 3)) < 0.03 ? 0.5 : 0;
       const prob = forest + meadow * (0.012 + hedge) + field * hedge * 0.6 + urban * 0.05;
       if (rr > prob) continue;
-      if (this.avoid(x, z)) continue;
+      if (this.avoid(x, z) || onRoad(x, z, 1.2)) continue;
       const y = this.heightAt(x, z);
       if (!Number.isFinite(y)) continue;
       // Altitude : forêt éclaircie à l'approche de la limite des arbres, rien au-delà ; ni arbre
