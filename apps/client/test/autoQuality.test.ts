@@ -28,6 +28,11 @@ describe('format et pixels', () => {
     expect(viewportSize(5120, 1440, '16:9')).toEqual({ w: 2560, h: 1440 });
     expect(viewportSize(1920, 1080, '21:9')).toEqual({ w: 1920, h: 1080 });
   });
+  it('zone sûre de l’interface : bornée au format, jamais plus large que la fenêtre', () => {
+    expect(viewportSize(5120, 1440, '21:9').w).toBe(3413);
+    expect(viewportSize(2560, 1440, '21:9').w).toBe(2560);
+    expect(viewportSize(3413, 1440, '16:9').w).toBe(2560);
+  });
   it('plafond de pixels sur 32:9', () => {
     const base = { cssW: 5120, cssH: 1440, devicePixelRatio: 1, presetRatio: 1, userMaxPixels: Infinity };
     const r = renderPixelRatio({ ...base, presetMaxPixels: 2560 * 1440 });

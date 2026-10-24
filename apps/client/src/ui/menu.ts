@@ -25,7 +25,7 @@ import { RoutePlanner } from './routePlanner.ts';
 import { companionQr } from './companionQr.ts';
 import { FranceMap, type MapZone } from './franceMap.ts';
 import { ZONE_SPOTS } from '../world/zoneMap.ts';
-import { getAspectCap, getResolutionCap, setAspectCap, setResolutionCap, type AspectCap, type ResolutionCap } from '../engine/display.ts';
+import { getAspectCap, getResolutionCap, getUiAspectCap, setAspectCap, setResolutionCap, setUiAspectCap, type AspectCap, type ResolutionCap } from '../engine/display.ts';
 import './menu.css';
 
 /** Ce que l'écran d'appairage sait faire, quel que soit le transport (implémenté avec @allezrobert/devices). */
@@ -1041,6 +1041,7 @@ export class MainMenu {
       <div class="grid3">
         <div class="field">${t('quality')}${this.seg('m-quality', s.quality, (['low', 'medium', 'high', 'ultra'] as const).map((q) => [q, t(q)]))}</div>
         <div class="field">${L ? 'Format de l\'image' : 'Picture format'}${this.seg('m-aspect', getAspectCap(), [['full', L ? 'Plein écran' : 'Full'], ['16:9', '16:9'], ['21:9', '21:9'], ['32:9', '32:9']])}</div>
+        <div class="field">${L ? 'Zone de l\'interface' : 'Interface area'}${this.seg('m-uiaspect', getUiAspectCap(), [['full', L ? 'Toute la largeur' : 'Full width'], ['16:9', '16:9'], ['21:9', '21:9']])}</div>
         <div class="field">${L ? 'Résolution max' : 'Max resolution'}${this.seg('m-maxres', getResolutionCap(), [['auto', 'Auto'], ['1080p', '1080p'], ['1440p', '1440p'], ['4k', '4K']])}</div>
         <div class="field">${t('season')}${this.seg('m-season', s.season, (['spring', 'summer', 'autumn', 'winter'] as const).map((q) => [q, t(q)]))}</div>
         <label class="field">${t('hour')} <span id="m-hourv">${this.hourLabel(s.hour)}</span><input id="m-hour" type="range" min="5" max="22" step="0.25" value="${s.hour}" /></label>
@@ -1743,6 +1744,10 @@ export class MainMenu {
     // Format et résolution : pris en compte tout de suite (le moteur écoute « resize »), sans recharger.
     on<HTMLSelectElement>('m-aspect', 'change', (el) => {
       setAspectCap(el.value as AspectCap);
+      window.dispatchEvent(new Event('resize'));
+    });
+    on<HTMLSelectElement>('m-uiaspect', 'change', (el) => {
+      setUiAspectCap(el.value as AspectCap);
       window.dispatchEvent(new Event('resize'));
     });
     on<HTMLSelectElement>('m-maxres', 'change', (el) => {
