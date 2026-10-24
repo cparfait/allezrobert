@@ -1,0 +1,45 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  html, body { margin: 0; background: transparent; }
+  #root { position: relative; width: 512px; height: 512px; overflow: hidden; background: transparent; }
+  #root img { position: absolute; left: 0; top: 0; width: 512px; height: 512px; }
+  .leg { visibility: hidden; }
+  #f0 { visibility: visible; }
+  #head { transform-origin: 270px 252px; }
+  #arm { transform-origin: 345px 258px; }
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="root" data-width="512" data-height="512" data-start="0" data-duration="1.5" data-fps="30">
+  <img class="leg" id="f0" src="robert/body_00.png"><img class="leg" id="f1" src="robert/body_01.png"><img class="leg" id="f2" src="robert/body_02.png">
+  <img class="leg" id="f3" src="robert/body_03.png"><img class="leg" id="f4" src="robert/body_04.png"><img class="leg" id="f5" src="robert/body_05.png">
+  <img class="leg" id="f6" src="robert/body_06.png"><img class="leg" id="f7" src="robert/body_07.png"><img class="leg" id="f8" src="robert/body_08.png">
+  <img class="leg" id="f9" src="robert/body_09.png"><img class="leg" id="f10" src="robert/body_10.png"><img class="leg" id="f11" src="robert/body_11.png">
+  <img id="arm" src="robert/arm.png">
+  <img id="head" src="robert/head.png">
+</div>
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
+<script>
+  // Boucle de 1,5 s : deux tours de pédalier (80 tr/min), le poing levé en rythme, la tête qui dodeline.
+  const tl = gsap.timeline({ paused: true });
+  const REV = 0.75, N = 12, LOOP = 1.5;
+  for (let k = 0; k < (LOOP / REV) * N; k++) {
+    const t = (k * REV) / N, cur = k % N, prev = (k + N - 1) % N;
+    if (k > 0) tl.set('#f' + prev, { visibility: 'hidden' }, t);
+    tl.set('#f' + cur, { visibility: 'visible' }, t);
+  }
+  for (let r = 0; r < LOOP / REV; r++) {
+    const t = r * REV;
+    tl.fromTo('#arm', { rotation: 0, y: 0 }, { rotation: -9, y: -4, duration: REV * 0.35, ease: 'power2.out' }, t);
+    tl.to('#arm', { rotation: 0, y: 0, duration: REV * 0.65, ease: 'power1.inOut' }, t + REV * 0.35);
+    tl.fromTo('#head', { rotation: -1.6, y: 0 }, { rotation: 1.6, y: 2, duration: REV / 2, ease: 'sine.inOut' }, t);
+    tl.to('#head', { rotation: -1.6, y: 0, duration: REV / 2, ease: 'sine.inOut' }, t + REV / 2);
+  }
+  window.__timelines = window.__timelines || {};
+  window.__timelines['root'] = tl;
+</script>
+</body>
+</html>
