@@ -53,6 +53,12 @@ export const ONBOARDING_SCRIPT: Record<string, Line[]> = {
       en: '<emotion value="enthusiastic"/>Gears are handled by the game on your trainer. <speed ratio="0.9"/>If you shift on your real bike, tell us how many sprockets your cassette has so the game can adapt, and your Di2 model if you have one.',
     },
   ],
+  companion: [
+    {
+      fr: '<emotion value="enthusiastic"/>Ton téléphone peut devenir ta télécommande : change de vitesse, choisis ta route aux carrefours, et pilote la musique. Scanne le code avec l\'appareil photo, sans créer de compte.',
+      en: '<emotion value="enthusiastic"/>Your phone can be your remote: shift gears, pick your way at junctions, and control the music. Scan the code with the camera, no account needed.',
+    },
+  ],
   ftp: [
     {
       fr: '<emotion value="determined"/>Le test FTP, c\'est une rampe : tu pars de cent watts, et la puissance monte de vingt watts chaque minute. Garde une cadence régulière, entre quatre-vingt-cinq et quatre-vingt-quinze tours par minute. <break time="300ms"/>Quand tu ne tiens plus le palier, arrête-toi : ta FTP est calculée à partir de ta meilleure minute, et elle règle tes zones et tes séances. Repose-toi bien, allume un ventilateur, et garde un bidon à portée de main. Prêt ?',

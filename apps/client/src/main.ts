@@ -536,6 +536,18 @@ async function boot(): Promise<void> {
   // montrer. Un écran d'attente reste jusqu'à ce que ce soit fait (une seule fois, pas à chaque changement de vue).
   let atelierBuilt = false;
   let atelierWait: HTMLElement | null = null;
+  /**
+   * Préparation en coulisse de l'atelier (pièce, coureur, shaders) une fois les modèles et le paysage
+   * prêts : la première ouverture du garage ou de l'étape Avatar du tutoriel est alors immédiate.
+   */
+  let atelierPrep: Promise<void> | null = null;
+  const prepareAtelier = (): Promise<void> =>
+    (atelierPrep ??= modelsReady
+      .then(() => atelier.prepare({ ...settings.look, heightCm: settings.heightCm }))
+      .then(() => {
+        atelierBuilt = true;
+      })
+      .catch(() => undefined));
   const whenAtelierReady = (build: () => boolean): void => {
     if (!atelierBuilt && !atelierWait) atelierWait = worldOverlay(getLang() === 'fr' ? 'Chargement du garage…' : 'Loading the garage…');
     void modelsReady
@@ -603,29 +615,31 @@ async function boot(): Promise<void> {
     });
   };
   menu.onTutorial = () => {
+    void prepareAtelier();
     // Tutoriel terminé ou passé : retour à l'accueil, sans lancer de sortie.
     const preview = {
-      show: (look: AvatarLook) => {
+      show: (look: AvatarLook, bareHead = true) => {
         if (!inMenu) return;
         menuVideo.stop();
         garage = { view: '3q', yaw: 0, far: 1.45 };
-        // Tête nue : teint et cheveux se voient sous le casque.
-        showGarage(look, true);
+        // Tête nue (teint et cheveux visibles), sauf quand on vient de choisir un casque.
+        showGarage(look, bareHead);
       },
       hide: () => {
         garage = null;
         atelier.set(null);
       },
     };
-    new Onboarding(ui, settings, devices.panel, () => menu.show('home'), preview).start();
+    // Fin du tutoriel : directement le menu (onglet Rouler), sans repasser par la page d'accueil et son bouton.
+    new Onboarding(ui, settings, devices.panel, () => menu.show('ride'), preview).start();
   };
   bootDone();
   if (autostart) {
     await withWorld(getLang() === 'fr' ? 'Préparation de la sortie…' : 'Preparing the ride…');
     void startRide(scene, settings, devices.source(), {});
   } else {
-    // Le paysage se prépare pendant que le coureur choisit (sans bloquer le menu).
-    setTimeout(() => void prepareWorld(), 400);
+    // Le paysage se prépare pendant que le coureur choisit (sans bloquer le menu), puis l'atelier.
+    setTimeout(() => void prepareWorld().then(() => prepareAtelier()), 400);
     // Compte : session existante, sinon écran de connexion (sauf choix « sans compte »).
     let me: Me | null = await fetchMe();
     if (me) applyProfile(me, settings);
