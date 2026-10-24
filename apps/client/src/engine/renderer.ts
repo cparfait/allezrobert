@@ -9,6 +9,32 @@ import { DynamicResolution } from './autoQuality.ts';
 import { PerfOverlay, perfRequested } from './perf.ts';
 import type { Vec4Node } from './tsl.ts';
 
+/** Compilations de passes en cours : le rendu attend (la cible de rendu est celle de la passe). */
+let compiling = 0;
+export const isCompiling = (): boolean => compiling > 0;
+
+/**
+ * Précompile les matériaux d'une passe de scène pour SA cible de rendu et SA disposition MRT : c'est avec
+ * elles que la scène est vraiment dessinée. `renderer.compileAsync(scene, camera)` seul compile pour
+ * l'écran, et tout est recompilé à la première image. `onProgress(fait, total)` suit les objets compilés.
+ */
+export async function compilePass(renderer: THREE.WebGPURenderer, p: ReturnType<typeof pass>, onProgress?: (done: number, total: number) => void): Promise<void> {
+  const target = renderer.getRenderTarget();
+  const m = renderer.getMRT();
+  compiling++;
+  renderer.setRenderTarget(p.renderTarget);
+  renderer.setMRT(p.getMRT());
+  try {
+    await renderer.compileAsync(p.scene, p.camera, null, onProgress ? (e) => onProgress(e.loaded, e.total) : null);
+  } catch {
+    // Compilation au premier rendu, comme avant.
+  } finally {
+    renderer.setRenderTarget(target);
+    renderer.setMRT(m);
+    compiling--;
+  }
+}
+
 export interface Engine {
   renderer: THREE.WebGPURenderer;
   pipeline: THREE.RenderPipeline;
@@ -26,6 +52,8 @@ export interface Engine {
   /** Recalcule la résolution de rendu (plafond de pixels, format, échelle dynamique). */
   applyResolution(): void;
   rebuildPipeline(q: QualitySettings): void;
+  /** Précompile la scène pour la passe réellement dessinée (voir `compilePass`). */
+  compileScene(onProgress?: (done: number, total: number) => void): Promise<void>;
   resize(): void;
   render(): void;
   /** Rendu hors boucle d'animation (tests, captures) : avance le compteur d'images des nœuds. */
@@ -182,6 +210,9 @@ export async function createEngine(canvas: HTMLCanvasElement, q: QualitySettings
       pipeline.outputNode = result;
       pipeline.needsUpdate = true;
     },
+    compileScene(onProgress) {
+      return scenePass ? compilePass(renderer, scenePass, onProgress) : Promise.resolve();
+    },
     resize() {
       // Format maximal éventuel : le conteneur de l'application est borné et centré avant la mesure.
       if (canvas.parentElement) applyViewport(canvas.parentElement);
@@ -195,6 +226,7 @@ export async function createEngine(canvas: HTMLCanvasElement, q: QualitySettings
       camera.updateProjectionMatrix();
     },
     render() {
+      if (compiling) return;
       const now = performance.now();
       if (fpsCap && now - lastRendered < 1000 / fpsCap - 1) return;
       const dt = lastRendered ? now - lastRendered : 0;
@@ -210,6 +242,7 @@ export async function createEngine(canvas: HTMLCanvasElement, q: QualitySettings
       perf.frame(dt, engine, performance.now() - t0);
     },
     renderManual() {
+      if (compiling) return;
       // Sans requestAnimationFrame (page masquée, tests), les passes « une fois par image »
       // ne se recalculent pas : on avance nous-mêmes le compteur, comme le fait la boucle d'animation.
       const nodes = (renderer as unknown as { _nodes: { nodeFrame: { update(): void; frameId: number } } })._nodes;

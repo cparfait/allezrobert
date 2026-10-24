@@ -5,7 +5,7 @@ import { ao } from 'three/addons/tsl/display/GTAONode.js';
 import { DEFAULT_LOOK, type AvatarLook, type TuneSlot } from '@allezrobert/shared';
 import { createAvatar, type RiderAvatarLike } from '../rider/gltfAvatar.ts';
 import { crowdBike, loneWheel, onBikeFamilyLoaded } from '../rider/bikes.ts';
-import type { Engine } from '../engine/renderer.ts';
+import { compilePass, isCompiling, type Engine } from '../engine/renderer.ts';
 import { box, buildRoom, cyl, mat, rod } from './atelierRoom.ts';
 
 /**
@@ -214,6 +214,8 @@ export class AtelierHost {
   private readonly scene = new THREE.Scene();
   private readonly camera = new THREE.PerspectiveCamera(36, 16 / 9, 0.05, 40);
   private pipeline: THREE.RenderPipeline | null = null;
+  /** Passe de scène de l'atelier : précompilée pour sa cible et son MRT. */
+  private scenePass: ReturnType<typeof pass> | null = null;
   private avatar: RiderAvatarLike | null = null;
   private readonly bikeRoot = new THREE.Group();
   private stand: THREE.Group | null = null;
@@ -365,6 +367,7 @@ export class AtelierHost {
     this.scene.add(this.stand);
     this.pipeline = new THREE.RenderPipeline(this.engine.renderer);
     const scenePass = pass(this.scene, this.camera);
+    this.scenePass = scenePass;
     scenePass.setMRT(mrt({ output, emissive, normal: packNormalToRGB(normalView) }));
     scenePass.getTexture('normal').type = THREE.UnsignedByteType;
     const col = scenePass.getTextureNode('output');
@@ -392,7 +395,7 @@ export class AtelierHost {
       this.bikeRoot.add(this.avatar.root);
       this.lookKey = JSON.stringify(look);
     }
-    await this.engine.renderer.compileAsync(this.scene, this.camera).catch(() => undefined);
+    if (this.scenePass) await compilePass(this.engine.renderer, this.scenePass);
   }
 
   set(st: AtelierState | null): void {
@@ -468,6 +471,7 @@ export class AtelierHost {
   /** À appeler à chaque image de la boucle du menu ; rend si besoin. Renvoie vrai si l'atelier est ouvert. */
   tick(now = performance.now()): boolean {
     if (!this.state || !this.pipeline) return false;
+    if (isCompiling()) return true;
     const dt = Math.min((now - (this.lastT || now)) / 1000, 0.1);
     this.lastT = now;
     // Arrivée : la caméra entre dans la pièce (arc depuis le fond, recul et hauteur qui se résorbent)

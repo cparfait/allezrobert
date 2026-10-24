@@ -99,7 +99,7 @@ async function loadScene(settings: Settings): Promise<Scene3D> {
  * Changement d'itinéraire sans recharger la page (la musique du jeu et le lecteur Spotify
  * intégré continuent) : le monde est reconstruit pour le nouvel itinéraire.
  */
-async function switchRoute(scene: Scene3D, s: Settings): Promise<void> {
+async function switchRoute(scene: Scene3D, s: Settings, onTile?: (done: number, total: number) => void): Promise<void> {
   const route = findRoute(scene.source.routes, routeKey(s));
   if (!route) return;
   scene.world.dispose();
@@ -111,7 +111,7 @@ async function switchRoute(scene: Scene3D, s: Settings): Promise<void> {
     weather: { clouds: s.clouds, rain: s.rain, fog: s.fog, windMs: s.windMs, windFrom: 4.4 },
   });
   const start = scene.track.positionAt(0, 1.2);
-  await scene.world.preload(new THREE.Vector3(start.x, start.y, start.z));
+  await scene.world.preload(new THREE.Vector3(start.x, start.y, start.z), onTile);
   // Un rechargement ultérieur garde le bon itinéraire.
   const url = new URL(location.href);
   url.searchParams.set('route', route.id);
@@ -128,6 +128,28 @@ function worldOverlay(label: string): HTMLElement {
   document.body.appendChild(el);
   return el;
 }
+
+/**
+ * Avancement d'un écran d'attente (0–1) : la barre animée devient une vraie barre de progression,
+ * le pourcentage s'affiche après le texte.
+ */
+function setWaitProgress(el: HTMLElement, p: number): void {
+  const bar = el.querySelector<HTMLElement>('.world-wait-bar i');
+  const label = el.querySelector<HTMLElement>('.world-wait-box > span');
+  const v = Math.max(0, Math.min(1, p));
+  if (bar) {
+    bar.style.animation = 'none';
+    bar.style.transition = 'width 0.25s ease-out';
+    bar.style.width = `${Math.max(3, v * 100)}%`;
+  }
+  if (label) {
+    label.dataset.text ??= label.textContent ?? '';
+    label.textContent = `${label.dataset.text} ${Math.round(v * 100)} %`;
+  }
+}
+
+/** Étapes de la préparation d'une sortie sur la barre : tuiles, puis shaders, puis objets de la sortie. */
+const tileStage = (el: HTMLElement, from: number, to: number) => (done: number, total: number) => setWaitProgress(el, from + (to - from) * (total ? done / total : 1));
 
 /** Écran opaque « Préparation de la sortie… » (cache le menu, puis le monde tant que la première image n'est pas prête). */
 function rideOverlay(): HTMLElement {
@@ -298,6 +320,8 @@ async function boot(): Promise<void> {
    * (ou « Explorer la carte »), une fois la zone choisie.
    */
   let worldReady: Promise<void> | null = null;
+  /** Écran d'attente qui suit la préparation du paysage en cours (barre de progression). */
+  let worldWait: HTMLElement | null = null;
   /** Vrai seulement quand la préparation est terminée : `worldReady` est une promesse déjà « vraie » pendant qu'elle court. */
   let worldDone = false;
   const prepareWorld = (): Promise<void> =>
@@ -305,8 +329,9 @@ async function boot(): Promise<void> {
       await modelsReady;
       if (scene.world.env.state.season !== settings.season) scene.world.setSeason(settings.season);
       const start = scene.track.positionAt(0, 1.2);
-      await scene.world.preload(new THREE.Vector3(start.x, start.y, start.z));
-      await scene.engine.renderer.compileAsync(scene.engine.scene, scene.engine.camera).catch(() => undefined);
+      // Barre : tuiles jusqu'à 55 %, shaders jusqu'à 85 % (le reste : objets de la sortie, dans startRide).
+      await scene.world.preload(new THREE.Vector3(start.x, start.y, start.z), (d, t) => worldWait && tileStage(worldWait, 0, 0.55)(d, t));
+      await scene.engine.compileScene((d, t) => worldWait && tileStage(worldWait, 0.55, 0.85)(d, t));
       worldDone = true;
     })());
   /** Attend le paysage avant une action 3D, avec un écran d'attente seulement s'il n'est pas prêt. */
@@ -316,7 +341,9 @@ async function boot(): Promise<void> {
     await Promise.race([p, new Promise((r) => setTimeout(r, 60))]);
     if (done) return;
     const overlay = worldOverlay(label);
+    worldWait = overlay;
     await p;
+    worldWait = null;
     overlay.remove();
   };
   window.addEventListener('resize', () => inMenu && !exploring && worldReady && !menuVideo.playing() && renderPoster());
@@ -405,14 +432,16 @@ async function boot(): Promise<void> {
             leaveMenu(s);
             return modelsReady;
           })
-          .then(() => switchRoute(scene, s))
-          .then(() => scene.engine.renderer.compileAsync(scene.engine.scene, scene.engine.camera).catch(() => undefined))
+          .then(() => switchRoute(scene, s, tileStage(overlay, 0, 0.55)))
+          .then(() => scene.engine.compileScene(tileStage(overlay, 0.55, 0.85)))
           .then(() => startRide(scene, s, s.guest ? new GuestInputSource(s.massKg) : devices.source(), extras, overlay));
         return;
       }
+      worldWait = overlay;
       void nextPaint()
         .then(() => prepareWorld())
         .then(() => {
+          worldWait = null;
           leaveMenu(s);
           menu.hide();
           return startRide(scene, s, s.guest ? new GuestInputSource(s.massKg) : devices.source(), extras, overlay);
@@ -718,7 +747,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   {
     const d0 = challenge?.startD ?? (nav ? 0 : Number(new URLSearchParams(location.search).get('d') ?? 0));
     const p0 = track.positionAt(d0, 1.2);
-    await world.preload(new THREE.Vector3(p0.x, p0.y, p0.z));
+    await world.preload(new THREE.Vector3(p0.x, p0.y, p0.z), (d, t) => t > 0 && tileStage(startOverlay, 0.55, 0.85)(d, t));
   }
   ui.innerHTML = '';
   // Le vélo roulé dépend de l'équipement porté au garage et des pièces de l'atelier (masse, traînée, pneus, roues).
@@ -1493,7 +1522,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   };
   // Pipelines des objets ajoutés pour la sortie (coureur, groupe, circulation) compilés avant la première image,
   // au lieu de figer la première image du jeu.
-  await engine.renderer.compileAsync(engine.scene, engine.camera).catch(() => undefined);
+  await engine.compileScene(tileStage(startOverlay, 0.85, 1));
   // Laisse l'écran d'attente se peindre, puis fait la première image (lente) derrière lui.
   await new Promise<void>((r) => setTimeout(r, 50));
   engine.renderManual();

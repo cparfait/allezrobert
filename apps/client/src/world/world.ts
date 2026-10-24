@@ -138,10 +138,10 @@ export class World {
   private focusTile: [number, number] = [0, 0];
 
   /** Charge le voisinage initial (à attendre avant le départ). */
-  async preload(focus: THREE.Vector3): Promise<void> {
+  async preload(focus: THREE.Vector3, onTile?: (done: number, total: number) => void): Promise<void> {
     this.focusTile = this.terrain.tileCoord(focus.x, focus.z);
     this.vegetation.update(focus);
-    await this.terrain.update(focus);
+    await this.terrain.update(focus, onTile);
     // Avant le départ : tout est construit tout de suite (écran d'attente affiché).
     this.terrain.work.flush();
     this.lastFocusTile = this.focusTile.join('_');

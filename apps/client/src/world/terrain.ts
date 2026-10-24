@@ -150,7 +150,8 @@ export class TerrainManager {
   }
 
   /** Charge les tuiles proches, décharge les lointaines, ajuste les niveaux de détail. */
-  async update(focus: THREE.Vector3): Promise<void> {
+  /** `onTile(fait, total)` : suivi du téléchargement des tuiles manquantes (écran d'attente). */
+  async update(focus: THREE.Vector3, onTile?: (done: number, total: number) => void): Promise<void> {
     this.focus.copy(focus);
     const [cx, cz] = this.tileCoord(focus.x, focus.z);
     const r = this.q.tileRadius;
@@ -198,6 +199,11 @@ export class TerrainManager {
         this.tiles.delete(key);
         this.onTileUnloaded?.(e.tile);
       }
+    }
+    if (onTile) {
+      let done = 0;
+      onTile(0, jobs.length);
+      for (const j of jobs) void j.finally(() => onTile(++done, jobs.length));
     }
     await Promise.all(jobs);
   }
