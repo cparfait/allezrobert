@@ -1,5 +1,5 @@
 /**
- * Contour simplifié de la France métropolitaine et de la Corse (lon, lat en degrés), pour la
+ * Contour simplifié de la France métropolitaine, de la Corse et de l'île de Ré (lon, lat en degrés), pour la
  * carte de choix des zones du menu. Tracé original fait pour Allez Robert à partir de repères
  * géographiques connus (villes côtières, caps, cols frontaliers), ≈ 130 points : précis à
  * quelques kilomètres, suffisant pour une carte de quelques centaines de pixels.
@@ -16,7 +16,10 @@ export const FRANCE_OUTLINE: Array<Array<[number, number]>> = [
     [7.13, 45.48], [7.13, 45.25], [6.93, 45.17], [6.63, 45.12], [6.72, 44.93], [7.0, 44.82], [6.95, 44.65], [6.85, 44.45],
     [7.0, 44.23], [7.4, 44.12], [7.68, 44.05], [7.53, 43.79],
     // Méditerranée
-    [7.27, 43.69], [7.13, 43.56], [6.93, 43.53], [6.77, 43.42], [6.67, 43.25], [6.36, 43.09], [6.15, 43.03], [5.93, 43.08],
+    [7.27, 43.69], [7.13, 43.56], [6.93, 43.53],
+    // Corniche de l'Estérel (Théoule, Trayas, Agay, Boulouris) : la côte avance ici de plusieurs kilomètres
+    [6.94, 43.51], [6.92, 43.47], [6.89, 43.44], [6.855, 43.41], [6.8, 43.41],
+    [6.77, 43.42], [6.67, 43.25], [6.36, 43.09], [6.15, 43.03], [5.93, 43.08],
     [5.6, 43.17], [5.36, 43.3], [5.05, 43.33], [4.83, 43.42], [4.43, 43.45], [4.15, 43.53], [3.7, 43.4], [3.47, 43.28],
     [3.15, 43.15], [3.05, 42.85], [3.04, 42.55], [3.17, 42.44],
     // Pyrénées
@@ -36,5 +39,10 @@ export const FRANCE_OUTLINE: Array<Array<[number, number]>> = [
   [
     [9.4, 43.01], [9.45, 42.7], [9.53, 42.4], [9.55, 42.1], [9.4, 41.85], [9.3, 41.6], [9.15, 41.38], [8.8, 41.55],
     [8.73, 41.92], [8.6, 42.13], [8.67, 42.35], [8.75, 42.57], [9.3, 42.68], [9.35, 43.01], [9.4, 43.01],
+  ],
+  // Île de Ré (tracé approximatif, à quelques kilomètres près comme le reste du contour).
+  [
+    [-1.565, 46.241], [-1.52, 46.25], [-1.46, 46.245], [-1.4, 46.225], [-1.33, 46.205], [-1.27, 46.17], [-1.265, 46.155],
+    [-1.3, 46.15], [-1.38, 46.17], [-1.45, 46.185], [-1.5, 46.205], [-1.545, 46.225], [-1.565, 46.241],
   ],
 ];
