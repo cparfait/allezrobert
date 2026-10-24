@@ -18,6 +18,9 @@
 - [x] Vrais pneus avec marques.
 - [x] Un ou deux vrais vélos en fond.
 
+## Visage
+- [ ] La tête de base est déformée (crâne allongé et lisse, traits étirés) : à corriger dans le pipeline Blender / les curseurs du visage.
+
 ## Cheveux
 - [ ] Vraies coiffures via le pipeline Blender.
 - [ ] **En attente** : exemples de coupes homme et femme (Christophe).
