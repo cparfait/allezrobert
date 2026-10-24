@@ -45,6 +45,7 @@ const REAL_CHUNK = 125;
 /** Végétation réelle : cartes de feuillage jusqu'à REAL_NEAR, silhouettes au-delà, buissons masqués après REAL_MID. */
 const REAL_NEAR = 160;
 const REAL_MID = 700;
+
 /** Rapport hauteur / rayon de houppier au-delà duquel un arbre réel est élancé (peuplier, jeune arbre). */
 const SLENDER = 4.2;
 
@@ -293,11 +294,16 @@ export class Vegetation {
     return m;
   }
 
+  /** Distance (m) jusqu'à laquelle la végétation réelle est détaillée (préréglage graphique). */
+  private get realMid(): number {
+    return this.q.vegDetailM || REAL_MID;
+  }
+
   private lodFor(c: Pick<Chunk, 'cx' | 'cz' | 'size' | 'real'>): number {
     const x = (c.cx + 0.5) * c.size;
     const z = (c.cz + 0.5) * c.size;
     const d = Math.hypot(x - this.focus.x, z - this.focus.z) - c.size * 0.7;
-    if (c.real) return d < REAL_NEAR ? 0 : d < REAL_MID ? 1 : 2;
+    if (c.real) return d < REAL_NEAR ? 0 : d < this.realMid ? 1 : 2;
     return d < LOD_NEAR ? 0 : d < LOD_MID ? 1 : 2;
   }
 
@@ -395,7 +401,7 @@ export class Vegetation {
   private isFar(x0: number, z0: number, size: number): boolean {
     const dx = Math.max(x0 - this.focus.x, 0, this.focus.x - (x0 + size));
     const dz = Math.max(z0 - this.focus.z, 0, this.focus.z - (z0 + size));
-    return Math.hypot(dx, dz) > REAL_MID;
+    return Math.hypot(dx, dz) > this.realMid;
   }
 
   /** Bascule une tuile réelle entre silhouettes d'ensemble (loin) et blocs détaillés (près). */

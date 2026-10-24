@@ -1,6 +1,6 @@
 import type * as THREE from 'three/webgpu';
-import type { RouteSegment, RouteTrack } from '@allezrobert/shared';
-import { ghostAvatar } from './ghost.ts';
+import type { AvatarLook, RouteSegment, RouteTrack } from '@allezrobert/shared';
+import { ghostAvatar, ghostify } from './ghost.ts';
 import type { RiderAvatarLike } from '../rider/gltfAvatar.ts';
 
 /** Record d'une montée : temps et distance parcourue depuis le pied, chaque seconde. */
@@ -83,7 +83,9 @@ export class KomChallenge {
   private readonly sample = { x: 0, y: 0, z: 0, dirX: 1, dirZ: 0, grade: 0, d: 0 };
   onDone?: (r: ChallengeResult) => void;
 
-  constructor(scene: THREE.Scene, track: RouteTrack, seg: RouteSegment) {
+  private reGhost = 0;
+
+  constructor(scene: THREE.Scene, track: RouteTrack, seg: RouteSegment, look: AvatarLook) {
     this.track = track;
     this.seg = seg;
     this.routeId = track.route.id;
@@ -93,7 +95,7 @@ export class KomChallenge {
     this.startD = start;
     this.runup = track.route.loop ? (seg.startM - start + track.length) % track.length : seg.startM - start;
     this.record = readKomRecord(this.routeId, seg.id);
-    this.ghost = this.record ? ghostAvatar(scene) : null;
+    this.ghost = this.record ? ghostAvatar(scene, look) : null;
     if (this.ghost) this.ghost.root.visible = false;
   }
 
@@ -137,6 +139,11 @@ export class KomChallenge {
         this.ghost.root.rotation.set(0, Math.atan2(p.dirX, p.dirZ), 0);
         this.ghost.root.rotateX(-Math.atan(p.grade / 100));
         this.ghost.update(dt, b > a ? 80 : 0, b - a, p.grade > 7 ? 'standing' : 'seated');
+        // Vélo remonté après coup (famille chargée) : de nouveau translucide.
+        if ((this.reGhost += dt) > 2) {
+          this.reGhost = 0;
+          ghostify(this.ghost.root);
+        }
       }
     }
   }

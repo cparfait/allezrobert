@@ -62,6 +62,8 @@ export async function createEngine(canvas: HTMLCanvasElement, q: QualitySettings
   const fpsCap = getFpsCap();
   let current = q;
   let lastRendered = 0;
+  let scenePass: ReturnType<typeof pass> | null = null;
+  let scenePassMrt = false;
   const perf = new PerfOverlay();
 
   const applyResolution = () => {
@@ -98,20 +100,26 @@ export async function createEngine(canvas: HTMLCanvasElement, q: QualitySettings
       camera.updateProjectionMatrix();
       applyResolution();
 
-      const scenePass = pass(scene, camera);
-      const useMrt = settings.ao || settings.taa || settings.bloom;
-      if (useMrt) {
-        scenePass.setMRT(
-          mrt({
-            output,
-            normal: packNormalToRGB(normalView),
-            velocity,
-            emissive,
-          }),
-        );
-        // Normales sur 8 bits par canal : suffisant pour l'AO et deux fois moins de bande passante.
-        const normalTex = scenePass.getTexture('normal');
-        normalTex.type = THREE.UnsignedByteType;
+      // La passe de scène (et sa disposition MRT) survit aux changements d'effets : couper le bloom,
+      // l'AO ou le TAA en cours de sortie ne refait que le post-traitement. Changer la disposition MRT
+      // recompilerait les matériaux de toute la scène (plusieurs secondes).
+      const needMrt = settings.ao || settings.taa || settings.bloom;
+      if (!scenePass || (needMrt && !scenePassMrt)) {
+        scenePass = pass(scene, camera);
+        scenePassMrt = needMrt;
+        if (needMrt) {
+          scenePass.setMRT(
+            mrt({
+              output,
+              normal: packNormalToRGB(normalView),
+              velocity,
+              emissive,
+            }),
+          );
+          // Normales sur 8 bits par canal : suffisant pour l'AO et deux fois moins de bande passante.
+          const normalTex = scenePass.getTexture('normal');
+          normalTex.type = THREE.UnsignedByteType;
+        }
       }
       const color = scenePass.getTextureNode('output');
       // Chaîne d'effets : le type du nœud change à chaque étape (texture → vec4 → TRAA).

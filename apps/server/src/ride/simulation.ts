@@ -37,6 +37,7 @@ import {
   stepRider,
   type AiContext,
   type AiProfileName,
+  type AiTactic,
   type AiSegmentInfo,
   type Environment,
   type RiderPhysicsParams,
@@ -79,6 +80,8 @@ export interface SimRiderInit {
   /** Diffuser la FC aux autres coureurs (consentement du profil). */
   shareHr?: boolean;
   aiProfile?: AiProfileName;
+  /** Tactique de course de l'IA (course : variées ; sortie de groupe : neutre). */
+  aiTactic?: AiTactic;
 }
 
 export interface ResolvedRideOptions extends RideRoomOptions {
@@ -207,6 +210,9 @@ export class SimRider {
         params: this.params,
         riderMassKg: this.riderMassKg,
         seed: rng.int(2 ** 31),
+        tactic: init.aiTactic ?? 'neutre',
+        // Course : forme du jour, chacun un peu au-dessus ou en dessous de sa FTP (tirée de sa graine).
+        ...(init.aiTactic && init.aiTactic !== 'neutre' ? { form: 'random' as const } : {}),
       });
     }
     this.row = { n, distM: 0, lateralM: 0, speedMs: 0, watts: 0, cadence: 0, draftPct: 0, lap: 0, pose: 'seated' };
@@ -231,6 +237,8 @@ export interface TickResult {
 
 const AI_NAMES = ['Bernard', 'Gilberte', 'Jacky', 'Mireille', 'Raymond', 'Josiane', 'Lucien', 'Paulette', 'Marcel', 'Simone', 'Roger', 'Odette', 'Fernand', 'Huguette', 'Gaston', 'Yvette', 'Maurice', 'Colette', 'René', 'Ginette'];
 const AI_PROFILE_CYCLE: AiProfileName[] = ['rouleur', 'puncheur', 'diesel', 'sprinter'];
+/** Tactiques de course, réparties dans le peloton (décalées des profils : un sprinteur peut être baroudeur). */
+const AI_TACTIC_CYCLE: AiTactic[] = ['equipier', 'baroudeur', 'attentiste', 'grimpeur', 'equipier', 'attentiste', 'baroudeur'];
 const JERSEYS = ['#e63946', '#2a9d8f', '#e9c46a', '#264653', '#f4a261', '#8d99ae', '#6a4c93', '#1982c4', '#8ac926', '#ff595e'];
 
 export class RideSimulation {
@@ -362,6 +370,7 @@ export class RideSimulation {
           riderMassKg: massKg,
           ftpWatts: Math.round(refFtp * this.rng.range(0.85, 1.1) * (massKg / 72)),
           aiProfile: AI_PROFILE_CYCLE[k % AI_PROFILE_CYCLE.length]!,
+          aiTactic: this.options.mode === 'race' ? AI_TACTIC_CYCLE[k % AI_TACTIC_CYCLE.length]! : 'neutre',
         },
         now,
       );
@@ -850,6 +859,8 @@ export class RideSimulation {
     };
     const seg = this.segmentInfo(me.distM);
     if (seg) ctx.segment = seg;
+    // Course : avancement (échappées tôt, final animé).
+    if (this.options.mode === 'race') ctx.raceProgress = Math.min(1, Math.max(0, me.distM / Math.max(1, this.raceTarget())));
     // Attaque : un coureur devant (≤ 80 m) nettement plus rapide que le groupe.
     let best: SimRider | undefined;
     for (let i = p - 1; i >= 0; i--) {

@@ -126,6 +126,27 @@ export class RoutePlanner {
     return basemapImage({ minE: o.x + at.x, minN: o.y - (at.y + at.h), maxE: o.x + at.x + at.w, maxN: o.y - at.y }, at, px);
   }
 
+  /**
+   * Parcours libre : la carte ne sert qu'à choisir le point de départ (un seul point, qu'un nouveau
+   * clic déplace), puis « Partir d'ici ».
+   */
+  get startOnly(): boolean {
+    return this.onlyStart;
+  }
+
+  set startOnly(on: boolean) {
+    if (on === this.onlyStart) return;
+    this.onlyStart = on;
+    // On garde au plus le départ déjà choisi.
+    if (on && this.points.length > 1) {
+      const first = this.points[0] as RoadSnap;
+      this.clear();
+      this.points.push(first);
+    }
+  }
+
+  private onlyStart = false;
+
   /** Parcours calculé, s'il y en a un. */
   get route(): RouteData | null {
     return this.result;
@@ -258,16 +279,29 @@ export class RoutePlanner {
         .join('')}"/>`;
     }
     let marks = '';
-    if (!n) marks = this.marker(this.open.start.x, this.open.start.z, 'rp-home', '');
+    // Parcours libre : le départ par défaut est affiché comme le départ (D) ; un clic le déplace.
+    if (!n && this.onlyStart) marks = this.marker(this.open.start.x, this.open.start.z, 'rp-from', 'D');
+    else if (!n) marks = this.marker(this.open.start.x, this.open.start.z, 'rp-home', '');
     else {
       // points de passage numérotés, puis arrivée (sauf boucle fermée), puis départ par-dessus
       for (let i = 1; i < n - 1; i++) marks += this.marker((pts[i] as RoadSnap).x, (pts[i] as RoadSnap).z, 'rp-via', String(i));
       if (n > 1 && !this.closed) marks += this.marker((pts[n - 1] as RoadSnap).x, (pts[n - 1] as RoadSnap).z, 'rp-to', 'A');
       marks += this.marker((pts[0] as RoadSnap).x, (pts[0] as RoadSnap).z, 'rp-from', 'D');
     }
+    const only = this.onlyStart;
     const hint = this.error
       ? `<p class="rp-err">${esc(this.error)}</p>`
-      : `<p class="mm-hint">${
+      : only
+        ? `<p class="mm-hint">${
+            !n
+              ? L
+                ? 'Ton départ (D) est celui de la zone. Clique ailleurs sur la carte pour le déplacer (molette : zoom, glisser : déplacer).'
+                : 'Your start (D) is the area’s default. Click elsewhere on the map to move it (wheel: zoom, drag: pan).'
+              : L
+                ? 'Clique ailleurs pour déplacer ton départ. Ensuite, choisis ta route à chaque carrefour (← / →, U pour faire demi-tour).'
+                : 'Click elsewhere to move your start. Then pick your road at each junction (← / →, U to turn around).'
+          }</p>`
+        : `<p class="mm-hint">${
           !n
             ? L
               ? 'Clique sur la carte pour choisir ton départ, puis tes points de passage (molette : zoom, glisser : déplacer).'
@@ -290,7 +324,12 @@ export class RoutePlanner {
         }${n > 1 ? (this.closed ? `<li><i class="rp-dot rp-from"></i>${L ? 'Retour au départ' : 'Back to the start'}</li>` : `<li><i class="rp-dot rp-to"></i>${L ? 'Arrivée' : 'Finish'} · <b>${esc(this.where(pts[n - 1] as RoadSnap))}</b></li>`) : ''}</ol>`
       : '';
     const go = (id: string, label: string, cls = '') => `<button class="rp-btn ${cls}" data-plan="${id}">${label}</button>`;
-    const actions = [
+    const actions = only
+      ? [
+          n ? go('here', `${L ? 'Partir d’ici' : 'Start here'} →`, 'rp-go') : go('free', `${L ? 'Partir d’ici' : 'Start here'} →`, 'rp-go'),
+          n ? go('clear', L ? 'Revenir au départ par défaut' : 'Back to the default start') : '',
+        ].join('')
+      : [
       r ? go('ride', `${L ? (this.closed ? 'Rouler cette boucle' : 'Rouler cet itinéraire') : this.closed ? 'Ride this loop' : 'Ride this route'} →`, 'rp-go') : '',
       n === 1 ? go('here', `${L ? 'Partir d’ici en libre' : 'Ride freely from here'} →`, 'rp-go') : '',
       n > 1 && !this.closed ? go('loop', `↺ ${L ? 'Revenir au départ' : 'Back to the start'}`) : '',
@@ -307,7 +346,7 @@ export class RoutePlanner {
         <div class="rp-legend">${this.open?.originL93 ? `<span class="rp-attr">${BASEMAP_ATTRIBUTION}</span>` : ''}<span><i class="rp-l-major"></i>${L ? 'route' : 'road'}</span><span><i class="rp-l-track"></i>${L ? 'chemin' : 'track'}</span>${n ? '' : `<span><i class="rp-dot rp-home"></i>${L ? 'départ par défaut' : 'default start'}</span>`}</div>
       </div>
       <div class="rp-side">
-        <h3>${L ? 'Ton itinéraire' : 'Your route'}</h3>
+        <h3>${only ? (L ? 'Ton point de départ' : 'Your start') : L ? 'Ton itinéraire' : 'Your route'}</h3>
         ${hint}${list}
         ${r ? `<div class="rp-card">${routeCard(r)}</div>` : ''}
         <div class="rp-actions">${actions}</div>
@@ -414,6 +453,12 @@ export class RoutePlanner {
     const snap = snapToRoad(this.net, x, z, Math.max(60, tolM));
     if (!snap) {
       this.error = fr() ? 'Clique plus près d’une route.' : 'Click closer to a road.';
+      return;
+    }
+    // Départ seulement (parcours libre) : un nouveau clic déplace le départ.
+    if (this.startOnly) {
+      this.clear();
+      this.points.push(snap);
       return;
     }
     // Boucle déjà fermée : un nouveau clic repart de zéro.

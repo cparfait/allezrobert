@@ -39,6 +39,13 @@ export interface HudState {
   gearCount: number;
   balanceLeft?: number;
   draftPct: number;
+  /** Puissance économisée par l'aspiration (W). */
+  draftW?: number;
+  /** Écart à la roue du coureur juste devant (m), null : personne à portée. */
+  wheelGapM?: number | null;
+  /** Vent ressenti : vitesse (km/h), d'où il vient par rapport au coureur, et côté de l'abri (vent de côté). */
+  wind?: { kmh: number; from: 'face' | 'dos' | 'gauche' | 'droite'; shelter: 'left' | 'right' | null };
+  altitudeM?: number;
   lap: number;
   riders: HudRider[];
   segment?: { seg: RouteSegment; progress: number; elapsedS: number };
@@ -56,6 +63,21 @@ export interface HudJunction {
 }
 
 const ZONES = [0.55, 0.75, 0.9, 1.05, 1.2, 1.5];
+/** Noms des zones de puissance (Coggan). */
+const ZONE_NAMES: Array<[string, string]> = [
+  ['Récup', 'Recovery'],
+  ['Endurance', 'Endurance'],
+  ['Tempo', 'Tempo'],
+  ['Seuil', 'Threshold'],
+  ['VO2max', 'VO2max'],
+  ['Anaérobie', 'Anaerobic'],
+  ['Sprint', 'Sprint'],
+];
+function zoneLabel(watts: number, ftp: number, fr: boolean): string {
+  const idx = ZONES.findIndex((z) => watts / Math.max(ftp, 1) < z);
+  const i = idx === -1 ? 6 : idx;
+  return `Z${i + 1} ${(ZONE_NAMES[i] as [string, string])[fr ? 0 : 1]}`;
+}
 function zoneColor(watts: number, ftp: number): string {
   const r = watts / Math.max(ftp, 1);
   const idx = ZONES.findIndex((z) => r < z);
@@ -127,6 +149,9 @@ export class Hud {
           <span class="k">${t('np')}</span><span class="v num" data-k="np">0 W</span>
           <span class="k">${t('draft')}</span><span class="v num" data-k="draft">0 %</span>
           <span></span><span><div style="height:6px;width:110px;background:rgba(255,255,255,.12);border-radius:3px;overflow:hidden;margin-left:auto"><div data-k="draftBar" style="height:100%;width:0%;background:linear-gradient(90deg,#60a5fa,#22c55e)"></div></div></span>
+          <span class="hud-note" data-k="draftNote"></span>
+          <span class="k">${getLang() === 'fr' ? 'Vent' : 'Wind'}</span><span class="v num" data-k="wind">–</span>
+          <span class="k">${getLang() === 'fr' ? 'Altitude' : 'Altitude'}</span><span class="v num" data-k="alt">–</span>
           ${track.route.loop ? `<span class="k">${t('lap')}</span><span class="v num" data-k="lap">1</span>` : ''}
         </div>
         <div class="hud-bl">
@@ -336,7 +361,8 @@ export class Hud {
     const e = this.el;
     const nf1 = (v: number) => v.toFixed(1).replace('.', ',');
     (e.watts as HTMLElement).textContent = String(Math.round(s.watts3s));
-    (e.wkg as HTMLElement).textContent = `${nf1(s.watts3s / massKg)} W/kg`;
+    const fr = getLang() === 'fr';
+    (e.wkg as HTMLElement).textContent = `${nf1(s.watts3s / massKg)} W/kg · ${zoneLabel(s.watts3s, s.ftp, fr)}`;
     (e.powerBox as HTMLElement).style.borderBottomColor = zoneColor(s.watts3s, s.ftp);
     (e.hr as HTMLElement).textContent = s.hr ? String(Math.round(s.hr)) : '--';
     (e.cad as HTMLElement).textContent = String(Math.round(s.cadence));
@@ -349,8 +375,20 @@ export class Hud {
     (e.gain as HTMLElement).textContent = `${Math.round(s.elevationGainM)} m`;
     (e.avg as HTMLElement).textContent = `${Math.round(s.avgWatts)} W`;
     (e.np as HTMLElement).textContent = `${Math.round(s.np)} W`;
-    (e.draft as HTMLElement).textContent = `${Math.round(s.draftPct)} %`;
+    // Aspiration : watts économisés et part de la résistance de l'air en moins, roue de devant, abri par vent de côté.
+    (e.draft as HTMLElement).textContent = s.draftW !== undefined && s.draftPct >= 1 ? `−${Math.round(s.draftW)} W · ${Math.round(s.draftPct)} %` : `${Math.round(s.draftPct)} %`;
     (e.draftBar as HTMLElement).style.width = `${Math.min(100, (s.draftPct / 50) * 100).toFixed(0)}%`;
+    if (s.wheelGapM !== undefined) {
+      const w = s.wind;
+      const side = w?.shelter ? (fr ? ` · abri à ${w.shelter === 'left' ? 'gauche' : 'droite'} de la roue` : ` · shelter on the ${w.shelter} of the wheel`) : '';
+      (e.draftNote as HTMLElement).textContent =
+        s.wheelGapM === null ? (fr ? 'Personne devant' : 'Nobody ahead') + side : `${fr ? 'Roue devant à' : 'Wheel ahead at'} ${nf1(s.wheelGapM)} m${side}`;
+    }
+    if (s.wind) {
+      const from = fr ? { face: 'de face', dos: 'de dos', gauche: 'de gauche', droite: 'de droite' }[s.wind.from] : { face: 'head', dos: 'tail', gauche: 'from left', droite: 'from right' }[s.wind.from];
+      (e.wind as HTMLElement).textContent = s.wind.kmh < 2 ? (fr ? 'calme' : 'calm') : `${Math.round(s.wind.kmh)} km/h ${from}`;
+    }
+    if (s.altitudeM !== undefined) (e.alt as HTMLElement).textContent = `${Math.round(s.altitudeM)} m`;
     // pas de compteur de tours sur un itinéraire aller simple
     if (e.lap) e.lap.textContent = String(s.lap);
     (e.gear as HTMLElement).textContent = s.gearLabel;

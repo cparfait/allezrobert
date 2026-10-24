@@ -18,6 +18,10 @@
  *   r₁    = maxSingle · fLong · fLat   (contribution d'un coureur devant)
  *   r     = r_best + (maxGroup − r_best) · (1 − exp(−k · Σ r_autres))   (bonus de groupe)
  * Le tout est multiplié par `strength` (option de salle `draftingStrength`, 0–1).
+ *
+ * Vent de côté : le sillage est poussé sous le vent, de `gap · vent latéral / vitesse` (l'air qui
+ * quitte le coureur de devant dérive pendant qu'il parcourt l'écart) ; l'abri se trouve alors de
+ * biais, d'où les bordures (échelons) des pelotons par vent de travers.
  */
 
 /** Coureur vu par le calcul d'aspiration. */
@@ -84,6 +88,15 @@ function resolve(o: DraftOptions | undefined): ResolvedDraftOptions {
   return o ? { ...DEFAULT_DRAFT_OPTIONS, ...o } : DEFAULT_DRAFT_OPTIONS;
 }
 
+/**
+ * Décalage latéral (m, positif vers la droite) du sillage d'un coureur à `gapM` derrière lui, par un
+ * vent latéral `crossMs` (positif : souffle vers la droite de la route) et à la vitesse `speedMs`.
+ */
+export function wakeShiftM(gapM: number, crossMs: number, speedMs: number): number {
+  if (gapM <= 0 || crossMs === 0) return 0;
+  return Math.min(Math.max((gapM * crossMs) / Math.max(speedMs, 3), -1.5), 1.5);
+}
+
 function smoothstep(x: number): number {
   const t = x <= 0 ? 0 : x >= 1 ? 1 : x;
   return t * t * (3 - 2 * t);
@@ -133,9 +146,16 @@ export class DraftCalculator {
   private bonus: Float64Array = new Float64Array(0);
   private out: Float64Array = new Float64Array(0);
   private readonly o: ResolvedDraftOptions;
+  /** Vent latéral (m/s, positif : souffle vers la droite de la route). */
+  private cross = 0;
 
   constructor(opts?: DraftOptions) {
     this.o = { ...DEFAULT_DRAFT_OPTIONS, ...opts };
+  }
+
+  /** Vent latéral courant (m/s, positif vers la droite de la route) : décale les sillages. */
+  setCrosswind(ms: number): void {
+    this.cross = Number.isFinite(ms) ? ms : 0;
   }
 
   /** Modifie l'intensité globale (option de salle). */
@@ -177,7 +197,8 @@ export class DraftCalculator {
         if (dd > reach) break;
         if (rj.speedMs < o.minShelterSpeedMs) continue;
         const gap = dd - o.bikeLengthM;
-        const r = o.maxSingle * longFactor(gap, o) * latFactor(rj.lateralM - ri.lateralM, gap, o);
+        const shift = wakeShiftM(gap, this.cross, rj.speedMs);
+        const r = o.maxSingle * longFactor(gap, o) * latFactor(rj.lateralM + shift - ri.lateralM, gap, o);
         if (r <= 0) continue;
         sum += r;
         if (r > best) best = r;

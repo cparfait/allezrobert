@@ -1,6 +1,6 @@
 import type { AvatarLook, CosmeticItem, RouteData, RouteSegment, WorldCatalogue } from '@allezrobert/shared';
 import { readKomRecord } from '../game/challenge.ts';
-import { BIKE_BRANDS, BIKE_GROUPS, BIKE_TEAMS, COSMETICS, DEFAULT_BIKE, bikeById, lookSex, withSex, bottleCapacity, bikeSetupFor, jerseyLookOf, levelProgress, SHOE_MARKS, type BikeCollection, type BikeType, type CosmeticSlot } from '@allezrobert/shared';
+import { BIKE_BRANDS, BIKE_GROUPS, BIKE_TEAMS, COSMETICS, DEFAULT_BIKE, bikeById, lookSex, tuneItem, withSex, bottleCapacity, bikeSetupFor, jerseyLookOf, levelProgress, SHOE_MARKS, type BikeCollection, type BikeType, type CosmeticSlot } from '@allezrobert/shared';
 import { shoeAccentOf } from '../rider/shoeLook.ts';
 import { WORKOUT_LIBRARY } from '@allezrobert/physics';
 import { formatBytes, installPack, loadCatalogue, packState, removePack } from '../world/packs.ts';
@@ -114,6 +114,58 @@ const ICON = {
 
 /** Catégorie ouverte dans le garage. */
 type GarageSlot = CosmeticSlot | 'colors' | 'face' | 'atelier';
+
+/** Seuils des zones de puissance (× FTP) et leurs couleurs (Z1 à Z7). */
+const ZONE_LIMITS = [0.55, 0.75, 0.9, 1.05, 1.2, 1.5];
+const ZONE_COLORS = ['#9aa5b1', '#3b82f6', '#22c55e', '#eab308', '#f97316', '#ef4444', '#a855f7'];
+const zoneColorOf = (ftp: number) => ZONE_COLORS[ZONE_LIMITS.findIndex((z) => ftp < z) === -1 ? 6 : ZONE_LIMITS.findIndex((z) => ftp < z)] as string;
+
+/**
+ * Carte d'une séance : nom, durée, description, profil des paliers (hauteur = % de FTP, couleur = zone),
+ * puis durée, TSS et IF estimés (puissance normalisée calculée sur les paliers).
+ */
+function workoutCard(w: (typeof WORKOUT_LIBRARY)[number], on: boolean): string {
+  const lang = getLang();
+  const steps = w.build().steps;
+  const total = steps.reduce((a, st) => a + st.durationS, 0) || 1;
+  const H = 40;
+  const W = 300;
+  const y = (p: number) => (H - (Math.min(p, 1.6) / 1.6) * (H - 2)).toFixed(1);
+  let t = 0;
+  let p4 = 0;
+  let peak = 0;
+  const shapes = steps
+    .map((st) => {
+      const x0 = (t / total) * W;
+      const x1 = ((t + st.durationS) / total) * W;
+      t += st.durationS;
+      const mid = (st.powerStart + st.powerEnd) / 2;
+      p4 += mid ** 4 * st.durationS;
+      peak = Math.max(peak, st.powerStart, st.powerEnd);
+      return `<polygon points="${x0.toFixed(1)},${H} ${x0.toFixed(1)},${y(st.powerStart)} ${x1.toFixed(1)},${y(st.powerEnd)} ${x1.toFixed(1)},${H}" fill="${zoneColorOf(mid)}"/>`;
+    })
+    .join('');
+  const ifv = (p4 / total) ** 0.25;
+  const tss = Math.round((total / 3600) * ifv * ifv * 100);
+  const min = Math.round(total / 60);
+  const dur = min >= 60 ? `${Math.floor(min / 60)} h ${String(min % 60).padStart(2, '0')}` : `${min} min`;
+  return `<button class="mm-wk ${on ? 'on' : ''}" data-preset="${w.id}" style="--wk:${zoneColorOf(peak)}">
+    <span class="mm-wk-head"><b>${esc(w.name[lang])}</b><em>${dur}</em></span>
+    <span class="mm-wk-desc">${esc(w.description[lang])}</span>
+    <svg class="mm-wk-prof" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true"><line x1="0" x2="${W}" y1="${y(1)}" y2="${y(1)}"/>${shapes}</svg>
+    <span class="mm-wk-stats">${dur} · TSS ${tss} · IF ${ifv.toFixed(2).replace('.', lang === 'fr' ? ',' : '.')}</span>
+  </button>`;
+}
+
+/** Ciels proposés au départ d'une sortie (nuages, pluie, brouillard de 0 à 1). */
+const WEATHER_PRESETS: Array<[string, { clouds: number; rain: number; fog: number }]> = [
+  ['sun', { clouds: 0.1, rain: 0, fog: 0 }],
+  ['cloudy', { clouds: 0.65, rain: 0, fog: 0.05 }],
+  ['rain', { clouds: 0.9, rain: 0.7, fog: 0.1 }],
+  ['fog', { clouds: 0.5, rain: 0, fog: 0.7 }],
+];
+/** Forces de vent proposées (m/s) : calme, léger (≈ 11 km/h), moyen (≈ 22 km/h), fort (≈ 36 km/h). */
+const WIND_STEPS = [0, 3, 6, 10];
 
 /** Gros plan du garage selon la catégorie choisie. */
 const SLOT_VIEW: Record<CosmeticSlot, GarageView> = { jersey: '3q', helmet: 'front', bike: 'side', socks: 'bike', glasses: 'front' };
@@ -271,6 +323,17 @@ export class MainMenu {
   onScene?: (view: 'poster' | GarageView, yaw: number, bikeOnly?: boolean) => void;
   /** Aperçu d'un équipement (même verrouillé) sur le coureur du garage ; null : tenue équipée. */
   onPreviewLook?: (look: AvatarLook | null) => void;
+  private prep = false;
+  /** Carte du choix (sous « Choisir ma sortie ») : seulement après un choix fait dans ce menu. */
+  private selMap = false;
+
+  /** Préparation en coulisse (paysage, garage) : petit message d'attente sous « Rouler » sur l'accueil. */
+  set preparing(on: boolean) {
+    this.prep = on;
+    const el = this.root.querySelector<HTMLElement>('.mm-home-wait');
+    if (el) el.hidden = !on;
+  }
+
   /** Essais en cours au garage, un par emplacement (vélo, maillot…) : ils restent en place pendant qu'on en essaie d'autres. */
   private readonly previews = new Map<CosmeticSlot, string>();
   /** Compte connecté (affiché dans le menu), connexion / déconnexion, synchro du profil. */
@@ -382,6 +445,8 @@ export class MainMenu {
 
   show(tab: Tab = 'home'): void {
     document.addEventListener('keydown', this.onKey);
+    // Au lancement du jeu et après une sortie : pas de carte du choix tant qu'on n'a rien choisi.
+    this.selMap = false;
     this.friends.start();
     // Lien /?ami=CODE : l'onglet Amis propose la demande.
     this.go((tab === 'home' || tab === 'ride') && this.friends.hasPendingCode() ? 'friends' : tab);
@@ -414,6 +479,56 @@ export class MainMenu {
   }
 
   /** Choix en boutons segmentés (remplace les listes déroulantes du système). */
+  /**
+   * Heure et météo de la sortie (onglet Rouler, tous les modes) : heure de départ, ciel, vent, météo
+   * fixe ou qui évolue. En groupe, celles du créateur s'appliquent à tous.
+   */
+  private weatherHtml(): string {
+    const s = this.s;
+    const L = fr();
+    // Préréglage le plus proche des curseurs (Réglages), s'il y en a un.
+    const near = WEATHER_PRESETS.map(([id, w]) => [id, Math.abs(w.clouds - s.clouds) + Math.abs(w.rain - s.rain) + Math.abs(w.fog - s.fog)] as const).sort((a, b) => a[1] - b[1])[0];
+    const sky = near && near[1] < 0.35 ? near[0] : '';
+    const wind = String(WIND_STEPS.reduce((best, v) => (Math.abs(v - s.windMs) < Math.abs(best - s.windMs) ? v : best), WIND_STEPS[0] as number));
+    return `<div class="mm-weather">
+      <label class="field">${L ? 'Heure de départ' : 'Start time'} <span id="m-hourv">${this.hourLabel(s.hour)}</span><input id="m-hour" type="range" min="5" max="22" step="0.25" value="${s.hour}" /></label>
+      <div class="field">${L ? 'Ciel' : 'Sky'}${this.seg('m-wx', sky, [
+        ['sun', L ? '☀ Soleil' : '☀ Sunny'],
+        ['cloudy', L ? '☁ Nuageux' : '☁ Cloudy'],
+        ['rain', L ? '🌧 Pluie' : '🌧 Rain'],
+        ['fog', L ? '🌫 Brouillard' : '🌫 Fog'],
+      ])}</div>
+      <div class="field">${L ? 'Vent' : 'Wind'}${this.seg('m-wind', wind, [
+        ['0', L ? 'Calme' : 'Calm'],
+        ['3', L ? 'Léger' : 'Light'],
+        ['6', L ? 'Moyen' : 'Moderate'],
+        ['10', L ? 'Fort' : 'Strong'],
+      ])}</div>
+      <div class="field">${L ? 'Météo' : 'Weather'}${this.seg('m-evolve', s.weatherEvolves ? '1' : '0', [
+        ['0', L ? 'Fixe' : 'Fixed'],
+        ['1', L ? 'Qui évolue' : 'Changing'],
+      ])}</div>
+    </div>`;
+  }
+
+  /** Niveau des coureurs IA, en part de la FTP du joueur (chacun varie ensuite autour, forme du jour comprise). */
+  private aiLevelSeg(): string {
+    const L = fr();
+    const levels: Array<[number, string, string]> = [
+      [0.7, 'Facile', 'Easy'],
+      [0.85, 'Modéré', 'Moderate'],
+      [1, 'À ton niveau', 'Your level'],
+      [1.15, 'Fort', 'Strong'],
+      [1.3, 'Pro', 'Pro'],
+    ];
+    const cur = levels.reduce((b, l) => (Math.abs(l[0] - this.s.aiLevel) < Math.abs(b[0] - this.s.aiLevel) ? l : b), levels[2] as [number, string, string]);
+    return this.seg(
+      'm-ailevel',
+      String(cur[0]),
+      levels.map(([v, f, e]) => [String(v), `${L ? f : e} · ${Math.round(v * 100)} %`]),
+    );
+  }
+
   private seg(id: string, current: string, opts: Array<[string, string]>): string {
     return `<div class="mm-seg" id="${id}" data-value="${esc(current)}" role="radiogroup">${opts
       .map(([v, label]) => `<button type="button" role="radio" aria-checked="${v === current}" class="${v === current ? 'on' : ''}" data-v="${esc(v)}">${esc(label)}</button>`)
@@ -465,6 +580,8 @@ export class MainMenu {
       look.bikeType = item.physics?.tyre ?? 'road';
       if (bikeById(item.id)) look.bikeModel = item.id;
       else delete look.bikeModel;
+      // Vélo essayé : avec sa propre livrée, sans la peinture de l'atelier.
+      if (look.tune?.length) look.tune = look.tune.filter((id) => tuneItem(id)?.slot !== 'paint');
     }
     return look;
   }
@@ -543,6 +660,7 @@ export class MainMenu {
       this.root.innerHTML = `<div class="mm mm-tab-home">
         <div class="mm-hero mm-hero-home"><h1>Allez <em>Robert</em> !</h1><p>${L ? 'Rouler ensemble, chacun chez soi.' : 'Ride together, each from home.'}</p></div>
         <button class="mm-go mm-home-go" data-tab="ride">${t('ride')} <span>→</span></button>
+        <p class="mm-home-wait" ${this.prep ? '' : 'hidden'}><i></i>${L ? 'Préparation du jeu…' : 'Getting the game ready…'}</p>
       </div>`;
       this.bind();
       return;
@@ -631,6 +749,7 @@ export class MainMenu {
         )
         .join('')}</div>
       <p class="mm-hint">${s.mode === 'open' ? (L ? 'Parcours libre : ← / → pour choisir ta direction à chaque carrefour, U pour faire demi-tour.' : 'Free ride: ← / → to pick your way at each junction, U to turn around.') : mode ? esc(mode[2]) : ''}</p>
+      ${this.weatherHtml()}
       ${
         s.mode === 'group' || s.mode === 'race'
           ? `<input id="m-invite" class="mm-input" placeholder="${L ? 'Code d’invitation (facultatif)' : 'Invite code (optional)'}" />${
@@ -638,11 +757,13 @@ export class MainMenu {
               s.mode === 'race' && r?.loop ? `<label class="mm-input" style="display:flex;align-items:center;justify-content:space-between;gap:10px">${L ? 'Tours de la course' : 'Race laps'}<input id="m-laps" type="number" min="1" max="20" value="${s.raceLaps}" style="width:64px" /></label>` : ''
             }
             <div class="mm-groupopts">
-              <label class="field">${L ? 'Heure de départ' : 'Start time'} <span id="m-hourv">${this.hourLabel(s.hour)}</span><input id="m-hour" type="range" min="5" max="22" step="0.25" value="${s.hour}" /></label>
-              <div class="field">${L ? 'Météo' : 'Weather'}${this.seg('m-evolve', s.weatherEvolves ? '1' : '0', [
-                ['0', L ? 'Fixe' : 'Fixed'],
-                ['1', L ? 'Qui évolue' : 'Changing'],
-              ])}</div>
+              ${
+                s.mode === 'race'
+                  ? `<label class="field">${L ? 'Coureurs IA' : 'AI riders'}<input id="m-ai" type="number" min="0" max="19" value="${s.aiRiders}" /></label>
+              <div class="field">${L ? 'Niveau des IA (part de ta FTP)' : 'AI level (share of your FTP)'}${this.aiLevelSeg()}</div>
+              <p class="mm-hint">${L ? 'Chaque IA a sa tactique (baroudeur, attentiste, grimpeur, équipier) et sa forme du jour ; une échappée reprise à bout de forces se paie.' : 'Each AI has its own tactic (breakaway artist, wheelsucker, climber, domestique) and form of the day; a spent breakaway pays for it.'}</p>`
+                  : ''
+              }
               <div class="field">${L ? 'Équipement égalisé' : 'Equal equipment'}${this.seg('m-equal', (s.equalEquipment ?? s.mode === 'race') ? '1' : '0', [
                 ['1', L ? 'Oui : même vélo pour tous' : 'Yes: same bike for all'],
                 ['0', L ? 'Non : pièces de l’atelier' : 'No: workshop parts'],
@@ -652,10 +773,7 @@ export class MainMenu {
           : s.mode === 'challenge'
             ? this.challengeHtml(r, true)
           : s.mode === 'workout'
-            ? `<div class="mm-routes mm-presets">${WORKOUT_LIBRARY.map(
-                (w) =>
-                  `<button class="mm-route ${!this.workoutFile && w.id === s.workoutPreset ? 'on' : ''}" data-preset="${w.id}"><b>${esc(w.name[getLang()])}</b><span>${esc(w.description[getLang()])}</span></button>`,
-              ).join('')}</div>
+            ? `<div class="mm-wks">${WORKOUT_LIBRARY.map((w) => workoutCard(w, !this.workoutFile && w.id === s.workoutPreset)).join('')}</div>
               <label class="mm-file">${L ? 'Ou importer une séance' : 'Or import a workout'} (.zwo / .erg / .mrc)<input id="m-workout" type="file" accept=".zwo,.erg,.mrc" hidden /><span id="m-wname">${this.workoutFile ? esc(this.workoutFile.name) : ''}</span></label>`
             : ''
       }
@@ -717,7 +835,8 @@ export class MainMenu {
           ? 'Choisis ta route à chaque carrefour'
           : 'Pick your road at each junction'
         : '';
-    const map = this.openWorld ? this.planner.preview(route, free ? this.freeStart : null) : '';
+    // Entraînement : pas de carte (la séance compte, pas le paysage) ; sinon seulement après un choix.
+    const map = this.openWorld && this.selMap && this.s.mode !== 'workout' ? this.planner.preview(route, free ? this.freeStart : null) : '';
     const body = map ? `<div class="mm-selmap">${map}</div>` : route ? this.routeCard(route) : '';
     const pickers = `<div class="mm-pickers mm-pickers-one">
       <button class="mm-pick mm-pick-big" data-picker="zones"><b>${L ? 'CHOISIR MA SORTIE' : 'CHOOSE MY RIDE'}</b><i aria-hidden="true">›</i></button>
@@ -1331,11 +1450,7 @@ export class MainMenu {
       <h3>${L ? 'Coureurs IA' : 'AI riders'}</h3>
       <div class="grid3">
         <label class="field">${L ? 'Nombre' : 'Count'}<input id="m-ai" type="number" min="0" max="19" value="${s.aiRiders}" /></label>
-        <div class="field">${L ? 'Niveau' : 'Level'}${this.seg('m-ailevel', String(s.aiLevel), [
-          ['0.8', '80 % FTP'],
-          ['1', '100 % FTP'],
-          ['1.15', '115 % FTP'],
-        ])}</div>
+        <div class="field">${L ? 'Niveau' : 'Level'}${this.aiLevelSeg()}</div>
       </div>
       <h3>${L ? 'Musique' : 'Music'}</h3>
       <div id="m-music-settings" class="mm-musicset"></div>
@@ -1729,7 +1844,15 @@ export class MainMenu {
     this.root.querySelectorAll<HTMLElement>('[data-zc]').forEach((el) =>
       el.addEventListener('click', () => {
         const c = el.dataset.zc;
+        // Parcours libre : la carte de la zone s'ouvre pour fixer le point de départ.
+        if (c === 'free' && this.openWorld) {
+          this.planner.startOnly = true;
+          this.picker = 'map';
+          this.render();
+          return;
+        }
         if (c === 'free') {
+          this.selMap = true;
           s.mode = 'open';
           this.freeStart = null;
           this.picker = null;
@@ -1737,6 +1860,7 @@ export class MainMenu {
           this.render();
           return;
         }
+        this.planner.startOnly = false;
         this.picker = c === 'draw' ? 'map' : 'routes';
         this.render();
       }),
@@ -1772,6 +1896,7 @@ export class MainMenu {
       }),
     );
     const pickRoute = () => {
+      this.selMap = true;
       s.routeId = this.detailId;
       s.reverse = this.detailReverse;
       if (s.mode === 'open' || s.mode === 'ftpTest' || s.mode === 'challenge') s.mode = 'free';
@@ -2142,6 +2267,16 @@ export class MainMenu {
       changed();
     });
     if (this.tab === 'garage' && this.garageSlot === 'atelier') this.atelier.bind(this.root);
+    on<HTMLSelectElement>('m-wx', 'change', (el) => {
+      const w = WEATHER_PRESETS.find(([id]) => id === el.value)?.[1];
+      if (!w) return;
+      Object.assign(s, w);
+      changed();
+    });
+    on<HTMLSelectElement>('m-wind', 'change', (el) => {
+      s.windMs = Number(el.value);
+      changed();
+    });
     on<HTMLSelectElement>('m-evolve', 'change', (el) => {
       s.weatherEvolves = el.value === '1';
       changed();

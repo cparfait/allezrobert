@@ -1,41 +1,44 @@
 /* Écran de fin de sortie (au-dessus de la scène figée). */
-.sum { position: fixed; inset: 0; z-index: 30; overflow-y: auto; background: rgba(8, 11, 18, 0.9); backdrop-filter: blur(6px); color: #e8edf3; padding: 22px 26px 30px; box-sizing: border-box; }
+.sum { position: fixed; inset: 0; z-index: 30; overflow-y: auto; display: flex; flex-direction: column; background: rgba(8, 11, 18, 0.9); backdrop-filter: blur(6px); color: var(--ar-fg); font-family: var(--font); padding: 22px 26px 30px; box-sizing: border-box; }
 .sum-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 18px; }
-.sum-head h1 { margin: 0; font-size: 30px; font-style: italic; font-weight: 800; letter-spacing: -0.01em; }
+.sum-head h1 { margin: 0; font-size: 30px; font-weight: 800; letter-spacing: -0.02em; }
+.sum-head h1 em { font-style: normal; color: var(--ar-accent); }
 .sum-head p { margin: 4px 0 0; color: #8d98a6; font-size: 14px; }
 .sum-actions { display: flex; gap: 8px; flex-wrap: wrap; }
-.sum-btn { background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.14); color: #e8edf3; border-radius: 6px; padding: 8px 14px; font: 600 13px system-ui, sans-serif; cursor: pointer; }
-.sum-btn:hover { background: rgba(255, 255, 255, 0.12); }
-.sum-btn.accent { background: #f5a524; border-color: #f5a524; color: #0a0e16; }
-.sum-body { display: grid; grid-template-columns: minmax(220px, 280px) 1fr; gap: 16px; }
+.sum-btn { background: rgba(255, 255, 255, 0.1); border: 0; color: var(--ar-fg); border-radius: 12px; padding: 9px 16px; font: 700 14px var(--font); cursor: pointer; }
+.sum-btn:hover { background: rgba(255, 255, 255, 0.18); }
+.sum-btn.accent { background: var(--ar-accent); color: #0a0e16; }
+.sum-btn.accent:hover { filter: brightness(1.08); }
+.sum-body { flex: 1 0 auto; display: grid; grid-template-columns: minmax(220px, 280px) 1fr; gap: 16px; }
 .sum-side { display: flex; flex-direction: column; gap: 12px; }
-.sum-card { background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 10px; padding: 12px 14px; }
+.sum-card { background: rgba(10, 13, 20, 0.78); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 18px; padding: 14px 16px; box-shadow: 0 12px 34px rgba(0, 0, 0, 0.3); }
 .sum-card h3 { margin: 0 0 8px; font-size: 11.5px; letter-spacing: 0.08em; text-transform: uppercase; color: #8d98a6; font-weight: 700; }
 .sum-card:empty { display: none; }
 .sum-lv { display: flex; flex-direction: column; gap: 6px; }
-.sum-lv b { font-size: 26px; font-weight: 800; color: #f5a524; font-style: italic; }
+.sum-lv b { font-size: 26px; font-weight: 800; color: var(--ar-accent); }
 .sum-xp { display: block; height: 6px; background: rgba(255, 255, 255, 0.1); border-radius: 3px; overflow: hidden; }
-.sum-xp i { display: block; height: 100%; background: #f5a524; }
+.sum-xp i { display: block; height: 100%; background: var(--ar-accent); border-radius: 3px; }
 .sum-level p { margin: 8px 0 0; font-size: 13px; }
 .sum-level p span, .sum-muted { color: #8d98a6; font-size: 13px; margin: 0; }
-.sum-unlock { color: #f5a524; }
+.sum-unlock { color: var(--ar-accent); }
 .sum-row { display: grid; grid-template-columns: 1fr auto auto; gap: 10px; align-items: baseline; font-size: 13px; padding: 4px 0; border-bottom: 1px solid rgba(255, 255, 255, 0.05); }
 .sum-row:last-child { border-bottom: 0; }
 .sum-row b { font-variant-numeric: tabular-nums; }
 .sum-row em { font-style: normal; color: #8d98a6; font-size: 12px; font-variant-numeric: tabular-nums; }
 .sum-main { min-width: 0; display: flex; flex-direction: column; gap: 14px; }
 .sum-tiles { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
-.sum-tile { background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 8px; padding: 9px 12px; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.sum-tile { background: rgba(10, 13, 20, 0.78); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 14px; padding: 11px 14px; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .sum-tile span { font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; color: #8d98a6; font-weight: 700; }
-.sum-tile b { font-size: 22px; font-weight: 800; font-style: italic; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sum-tile b { font-size: 24px; font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sum-tile small { color: #8d98a6; font-size: 11.5px; }
-.sum-charts { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
-.sum-chart { min-width: 0; }
+/* Les courbes prennent la hauteur libre de l'écran ; zones et segments gardent leur hauteur. */
+.sum-charts { flex: 1 0 auto; display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr auto; gap: 14px; }
+.sum-chart { min-width: 0; display: flex; flex-direction: column; }
 .sum-legend { display: flex; gap: 14px; font-size: 12px; color: #c7cfd9; margin-bottom: 6px; }
 .sum-legend i { display: inline-block; width: 14px; height: 3px; border-radius: 2px; margin-right: 6px; vertical-align: middle; }
 .sum-legend i.dash { height: 0; border-top: 2px dashed; background: none; }
-.sum-canvas { position: relative; height: 230px; }
-.sum-canvas.tall { height: 262px; }
+.sum-canvas { position: relative; flex: 1 0 auto; min-height: 230px; }
+.sum-canvas.tall { min-height: 262px; }
 .sum-canvas canvas { position: absolute; inset: 0; cursor: crosshair; }
 .sum-tip { position: absolute; top: 6px; pointer-events: none; background: rgba(10, 14, 22, 0.95); border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 6px; padding: 6px 9px; font-size: 12px; display: flex; flex-direction: column; gap: 2px; white-space: nowrap; }
 .sum-tip i { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
@@ -44,17 +47,20 @@
 .sum-zone span { color: #c7cfd9; font-weight: 700; }
 .sum-zone em { font-style: normal; color: #8d98a6; text-align: right; font-variant-numeric: tabular-nums; }
 .sum-zone b { text-align: right; font-variant-numeric: tabular-nums; }
-.sum-zbar { height: 12px; background: rgba(255, 255, 255, 0.05); border-radius: 3px; overflow: hidden; }
-.sum-zbar i { display: block; height: 100%; border-radius: 0 4px 4px 0; min-width: 2px; }
+.sum-zbar { height: 12px; background: rgba(255, 255, 255, 0.06); border-radius: 6px; overflow: hidden; }
+.sum-zbar i { display: block; height: 100%; border-radius: 0 6px 6px 0; min-width: 2px; }
+/* Robert, le guide du tutoriel, dans l'espace libre de la colonne de gauche (planche robert-tuto.png, bouche fermée). */
+.sum-robert { display: block; height: min(190px, 22vh); aspect-ratio: 237 / 474; margin: auto auto 0; background: url('/robert-tuto.png') 100% 0 / 200% 100% no-repeat; filter: drop-shadow(0 10px 14px rgba(0, 0, 0, 0.5)); }
 @media (max-width: 1100px) {
+  .sum-robert { display: none; }
   .sum-body { grid-template-columns: 1fr; }
   .sum-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .sum-charts { grid-template-columns: 1fr; }
+  .sum-charts { grid-template-columns: 1fr; grid-template-rows: none; }
 }
 .sum-tip[hidden] { display: none; }
 .sum-photos { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
 .sum-photos img { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 6px; display: block; border: 1px solid rgba(255, 255, 255, 0.1); }
 .sum-trophy span { display: flex; flex-direction: column; }
 .sum-trophy small { color: #8d98a6; font-size: 11.5px; }
-.sum-challenge b { font-size: 30px; font-weight: 800; font-style: italic; color: #c084fc; }
+.sum-challenge b { font-size: 30px; font-weight: 800; color: var(--ar-accent); }
 .sum-challenge p { margin: 4px 0 0; font-size: 13px; }

@@ -41,6 +41,8 @@ export interface QualitySettings {
   shadowRiders: number;
   /** Côté (m) des blocs d'instanciation de la végétation réelle : plus grand = moins d'appels de dessin. */
   realChunk: number;
+  /** Végétation réelle : arbres détaillés jusqu'à cette distance (m), silhouettes d'un seul bloc par tuile au-delà. */
+  vegDetailM: number;
 }
 
 export const QUALITY_PRESETS: Record<QualityLevel, QualitySettings> = {
@@ -70,6 +72,7 @@ export const QUALITY_PRESETS: Record<QualityLevel, QualitySettings> = {
     shadowEvery: 2,
     shadowRiders: 0,
     realChunk: 250,
+    vegDetailM: 400,
   },
   medium: {
     level: 'medium',
@@ -97,6 +100,7 @@ export const QUALITY_PRESETS: Record<QualityLevel, QualitySettings> = {
     shadowEvery: 2,
     shadowRiders: 2,
     realChunk: 250,
+    vegDetailM: 500,
   },
   high: {
     level: 'high',
@@ -125,6 +129,7 @@ export const QUALITY_PRESETS: Record<QualityLevel, QualitySettings> = {
     shadowEvery: 2,
     shadowRiders: 3,
     realChunk: 250,
+    vegDetailM: 550,
   },
   ultra: {
     level: 'ultra',
@@ -152,6 +157,7 @@ export const QUALITY_PRESETS: Record<QualityLevel, QualitySettings> = {
     shadowEvery: 1,
     shadowRiders: 19,
     realChunk: 125,
+    vegDetailM: 700,
   },
 };
 

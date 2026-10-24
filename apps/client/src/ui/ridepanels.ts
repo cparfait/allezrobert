@@ -7,6 +7,7 @@ import { apiBase, fetchMe } from './account.ts';
 import { renderRideInvite } from './friends.ts';
 import type { RideSession } from '../game/ride.ts';
 import { renderSoundSettings } from './soundSettings.ts';
+import type { QualityLevel } from '../engine/quality.ts';
 
 /** Construit le fichier FIT de la sortie (positions GPS reconstruites depuis le repère monde). */
 export function rideToFit(ride: RideSession, opts: { name: string; massKg: number; ftp: number; originL93?: { x: number; y: number }; skipStrava: boolean }): Uint8Array {
@@ -77,6 +78,56 @@ export interface PauseCallbacks {
   roomId?: string;
   /** Affiche le QR code de l'appli compagnon. */
   onCompanion?(): void;
+  /** Graphismes : préréglage (appliqué à la prochaine sortie) et effets d'image (tout de suite). */
+  graphics?: PauseGraphics;
+}
+
+export interface PauseGraphics {
+  /** Préréglage enregistré pour les prochaines sorties. */
+  level: QualityLevel;
+  /** Préréglage de la sortie en cours. */
+  current: QualityLevel;
+  onLevel(level: QualityLevel): void;
+  effects: { ao: boolean; bloom: boolean; taa: boolean };
+  onEffect(key: 'ao' | 'bloom' | 'taa'): void;
+}
+
+/** Bloc « Graphismes » de la pause, redessiné à chaque changement. */
+function renderGraphics(box: HTMLElement | null, g: PauseGraphics): void {
+  if (!box) return;
+  const fr = getLang() === 'fr';
+  const levels: Array<[QualityLevel, string]> = [
+    ['low', t('low')],
+    ['medium', t('medium')],
+    ['high', t('high')],
+    ['ultra', t('ultra')],
+  ];
+  const fx: Array<['ao' | 'bloom' | 'taa', string]> = [
+    ['ao', fr ? 'Ombrage des recoins' : 'Ambient occlusion'],
+    ['bloom', fr ? 'Halo lumineux' : 'Bloom'],
+    ['taa', fr ? 'Lissage' : 'Anti-aliasing'],
+  ];
+  const later = g.level !== g.current;
+  box.innerHTML = `<h3 style="margin:0 0 8px;font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--ar-muted)">${fr ? 'Graphismes' : 'Graphics'}</h3>
+    <div class="row" style="flex-wrap:wrap">${levels.map(([l, name]) => `<button class="btn small ${l === g.level ? 'primary' : ''}" data-q="${l}">${name}</button>`).join('')}</div>
+    <p style="margin:6px 0 12px;font-size:12.5px;color:var(--ar-muted)">${later ? (fr ? 'Qualité appliquée à la prochaine sortie.' : 'Quality applies from the next ride.') : fr ? 'Qualité graphique : changée, elle s’applique à la prochaine sortie.' : 'Graphics quality: a change applies from the next ride.'}</p>
+    <div class="row" style="flex-wrap:wrap">${fx.map(([k, name]) => `<button class="btn small ${g.effects[k] ? 'primary' : ''}" data-fx="${k}">${g.effects[k] ? '✓ ' : ''}${name}</button>`).join('')}</div>
+    <p style="margin:6px 0 0;font-size:12.5px;color:var(--ar-muted)">${fr ? 'Effets d’image : appliqués tout de suite ; les couper rend le jeu plus fluide.' : 'Image effects: applied at once; turning them off makes the game smoother.'}</p>`;
+  box.querySelectorAll<HTMLElement>('[data-q]').forEach((b) =>
+    b.addEventListener('click', () => {
+      g.level = b.dataset.q as QualityLevel;
+      g.onLevel(g.level);
+      renderGraphics(box, g);
+    }),
+  );
+  box.querySelectorAll<HTMLElement>('[data-fx]').forEach((b) =>
+    b.addEventListener('click', () => {
+      const k = b.dataset.fx as 'ao' | 'bloom' | 'taa';
+      g.effects[k] = !g.effects[k];
+      g.onEffect(k);
+      renderGraphics(box, g);
+    }),
+  );
 }
 
 export function showPause(root: HTMLElement, cb: PauseCallbacks): void {
@@ -87,7 +138,9 @@ export function showPause(root: HTMLElement, cb: PauseCallbacks): void {
       <button class="btn" id="p-finish">${cb.finishLabel ?? t('finish')}</button>
       ${cb.onCompanion ? `<button class="btn" id="p-companion">${phoneIcon(18)} ${getLang() === 'fr' ? 'Appli compagnon' : 'Companion app'}</button>` : ''}
     </div><div id="p-friends"></div>
-    <div style="margin-top:18px;text-align:left"><h3>${getLang() === 'fr' ? 'Son' : 'Sound'}</h3><div id="p-sound"></div></div></div></div>`;
+    ${cb.graphics ? '<div id="p-graphics" style="margin-top:18px;text-align:left"></div>' : ''}
+    <div style="margin-top:18px;text-align:left"><h3 style="margin:0 0 8px;font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--ar-muted)">${getLang() === 'fr' ? 'Son' : 'Sound'}</h3><div id="p-sound"></div></div></div></div>`;
+  if (cb.graphics) renderGraphics(root.querySelector('#p-graphics'), cb.graphics);
   renderSoundSettings(root.querySelector('#p-sound'));
   (root.querySelector('#p-resume') as HTMLElement).onclick = cb.onResume;
   (root.querySelector('#p-finish') as HTMLElement).onclick = cb.onFinish;

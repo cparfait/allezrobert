@@ -44,6 +44,7 @@ import { ITINERARY_PREFIX } from './ui/routePlanner.ts';
 import { findRoute, routeKey } from './game/direction.ts';
 import { fmtLapTime, postRideEfforts, RouteTimer } from './game/efforts.ts';
 import { waitBike } from './ui/waitBike.ts';
+import { frameStats } from './engine/frameStats.ts';
 import { KomChallenge, readKomRecord, type ChallengeResult } from './game/challenge.ts';
 import { HairpinWatcher, hairpinToast, reachedFinish, summitStats } from './game/climb.ts';
 import { showSummit } from './ui/summit.ts';
@@ -558,16 +559,27 @@ async function boot(): Promise<void> {
    */
   let atelierPrep: Promise<void> | null = null;
   const prepareAtelier = (): Promise<void> =>
-    (atelierPrep ??= modelsReady
-      .then(() => atelier.prepare({ ...settings.look, heightCm: settings.heightCm }))
-      .then(() => {
-        atelierBuilt = true;
-      })
-      .catch(() => undefined));
+    (atelierPrep ??= (async () => {
+      const t0 = performance.now();
+      await modelsReady;
+      const t1 = performance.now();
+      await atelier.prepare({ ...settings.look, heightCm: settings.heightCm });
+      atelierBuilt = true;
+      // L'image de préparation est restée dans la toile : l'accueil 3D (sans vidéo) se redessine.
+      if (inMenu && !garage && !exploring && worldDone && !menuVideo.playing()) renderPoster();
+      console.info(`[atelier] préparé : modèles ${Math.round(t1 - t0)} ms, pièce et shaders ${Math.round(performance.now() - t1)} ms`);
+    })().catch(() => undefined));
   const whenAtelierReady = (build: () => boolean): void => {
-    if (!atelierBuilt && !atelierWait) atelierWait = worldOverlay(getLang() === 'fr' ? 'Chargement du garage…' : 'Loading the garage…');
+    // Atelier déjà affiché une fois : tout est prêt, changement immédiat.
+    if (atelierBuilt) {
+      build();
+      return;
+    }
+    if (!atelierWait) atelierWait = worldOverlay(getLang() === 'fr' ? 'Chargement du garage…' : 'Loading the garage…');
     // Attend la préparation en coulisse (shaders compilés sans bloquer) plutôt que de tout refaire au premier rendu.
-    void prepareAtelier()
+    // Modèles chargés, puis au plus 3 s de préparation : si la compilation traîne, l'atelier s'affiche quand même (compilé au premier rendu).
+    void modelsReady
+      .then(() => Promise.race([prepareAtelier(), new Promise<void>((r) => setTimeout(r, 3000))]))
       .then(() => (atelierWait ? new Promise<void>((r) => setTimeout(r, 40)) : undefined)) // laisse l'écran d'attente se peindre
       .then(() => {
         if (build()) atelierBuilt = true;
@@ -655,8 +667,14 @@ async function boot(): Promise<void> {
     await withWorld(getLang() === 'fr' ? 'Préparation de la sortie…' : 'Preparing the ride…');
     void startRide(scene, settings, devices.source(), {});
   } else {
-    // Le paysage se prépare pendant que le coureur choisit (sans bloquer le menu), puis l'atelier.
-    setTimeout(() => void prepareWorld().then(() => prepareAtelier()), 400);
+    // Paysage puis atelier (l'un après l'autre : ensemble, ils figeaient l'accueil). Message d'attente
+    // sous « Rouler » pendant ce temps. Le tutoriel, lui, lance l'atelier tout de suite.
+    menu.preparing = true;
+    setTimeout(() => {
+      void prepareWorld()
+        .then(() => prepareAtelier())
+        .finally(() => (menu.preparing = false));
+    }, 400);
     // Compte : session existante, sinon écran de connexion (sauf choix « sans compte »).
     let me: Me | null = await fetchMe();
     if (me) applyProfile(me, settings);
@@ -703,7 +721,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   const track = nav ? nav.track : scene.track;
   // Défi KOM : départ lancé avant le pied de la montée choisie, fantôme du record.
   const komSeg = s.mode === 'challenge' && !nav ? (track.route.segments.find((g) => g.kind === 'kom' && g.id === s.challengeSeg) ?? track.route.segments.find((g) => g.kind === 'kom')) : undefined;
-  const challenge = komSeg ? new KomChallenge(engine.scene, track, komSeg) : null;
+  const challenge = komSeg ? new KomChallenge(engine.scene, track, komSeg, { ...s.look, heightCm: s.heightCm }) : null;
   let challengeResult: ChallengeResult | null = null;
   // L'accueil n'a préparé que le lieu de l'affiche : le paysage autour du départ doit être là avant le
   // premier rendu, sinon le HUD s'affiche sur un ciel vide. L'écran d'attente reste jusqu'à la première image :
@@ -772,7 +790,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   }
   const aiCount = workout || mp || challenge ? 0 : Math.min(Math.max(s.aiRiders, 0), engine.quality.aiRidersMax);
   const peloton = new Peloton(engine.scene, track, aiCount, startD, s.ftpWatts * (s.aiLevel ?? 1));
-  const ghost = new Ghost(engine.scene, track, track.route.id, startD);
+  const ghost = new Ghost(engine.scene, track, track.route.id, startD, { ...s.look, heightCm: s.heightCm });
   peloton.shadowRiders = engine.quality.shadowRiders;
   peloton.onWait = (name) => name && hud.toast(getLang() === 'fr' ? `On attend ${name}` : `Waiting for ${name}`);
   peloton.onUTurn = (name) => hud.toast(getLang() === 'fr' ? `${name} fait demi-tour pour revenir au groupe` : `${name} turns back to rejoin the group`);
@@ -1104,6 +1122,17 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
         onResume: togglePause,
         onFinish: finish,
         onCompanion: () => companionQr().show(),
+        graphics: {
+          level: s.quality,
+          current: engine.quality.level,
+          onLevel: (l) => {
+            s.quality = l;
+            localStorage.setItem('ar.quality', l);
+            saveSettings(s);
+          },
+          effects: { ao: engine.quality.ao, bloom: engine.quality.bloom, taa: engine.quality.taa },
+          onEffect: (k) => engine.rebuildPipeline({ ...engine.quality, [k]: !engine.quality[k] }),
+        },
         ...(mp?.net.roomId ? { roomId: mp.net.roomId } : {}),
         ...(room?.racing ? { finishLabel: getLang() === 'fr' ? 'Abandonner la course' : 'Abandon the race' } : {}),
       });
@@ -1198,11 +1227,27 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   let remoteRiders: InterpolatedRider[] = [];
   let prevHeading = Number.NaN;
   let bank = 0;
+  /**
+   * Demi-tour animé : le cap saute d'un demi-tour d'une image à l'autre (itinéraire remonté, chemin
+   * inversé du monde ouvert) ; le coureur affiché tourne en arc sur la chaussée pendant UTURN_S.
+   */
+  const UTURN_S = 1.8;
+  let turn: { t: number; fromHeading: number; delta: number; from: THREE.Vector3; fwdX: number; fwdZ: number } | null = null;
+  const shownPos = new THREE.Vector3(Number.NaN, 0, 0);
+  const shownDir = new THREE.Vector3();
   let condAcc = Infinity;
   // Pour les trophées : pluie et nuit rencontrées pendant la sortie.
   let rainSeen = false;
   let nightSeen = false;
   const frame = (dt: number, render: boolean, manual = false) => {
+    // Panneau F3 : temps de chaque poste de l'image (ce qui n'est pas mesuré compte en « autre »).
+    let tm = performance.now();
+    const lap = (label: string | null) => {
+      if (!frameStats.enabled) return;
+      const now = performance.now();
+      if (label) frameStats.add(label, now - tm);
+      tm = now;
+    };
     const steer = keyboard.update(dt);
     if (nav) {
       nav.update(ride.state.distM);
@@ -1220,7 +1265,8 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
       envState.weather.rain = wNow.rain;
       envState.weather.fog = wNow.fog;
       envState.weather.windMs = wNow.windMs;
-      ride.setWind(wNow.windMs);
+      envState.weather.windFrom = wNow.windFrom;
+      ride.setWind(wNow.windMs, wNow.windFrom);
       const here = track.positionAt(ride.state.distM, ride.lateral, sample);
       const t = world.terrain.getTile(...world.terrain.tileCoord(here.x, here.z));
       ride.surface = nav?.surfaceAt(ride.state.distM) ?? track.surfaceAt(ride.state.distM) ?? roadSurfaceAt(t, here.x, here.z, ride.surface);
@@ -1240,8 +1286,10 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
       const me = mp?.net.getSelfSnapshot();
       if (me) ride.state.distM = me.lap * track.length + me.distM;
     }
+    lap('conditions');
     const prevD = ride.state.distM;
     ride.update(dt, input, steer);
+    lap('physique');
     if (!ride.paused && ride.dir > 0) {
       const hp = hairpins.update(prevD, ride.state.distM);
       if (hp) hud.toast(hairpinToast(hp, getLang() === 'fr'), true);
@@ -1255,7 +1303,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
         // Prédiction locale + correction douce vers la position autoritaire du serveur.
         ride.draft = mp.selfDraft();
         ride.state.distM += mp.reconcile(ride.state.distM, dt);
-      } else ride.draft = peloton.update(dt, { distM: ride.state.distM, lateral: ride.lateral, speedMs: ride.state.speedMs, watts: ride.inputs.watts, massKg: s.massKg, ftpWatts: s.ftpWatts, reversed: ride.dir < 0 });
+      } else ride.draft = peloton.update(dt, { distM: ride.state.distM, lateral: ride.lateral, speedMs: ride.state.speedMs, watts: ride.inputs.watts, massKg: s.massKg, ftpWatts: s.ftpWatts, reversed: ride.dir < 0, headWindMs: ride.headWindMs, crossWindMs: ride.crossWindMs });
       // Relais : quelqu'un roule dans ma roue (0,5 à 4 m derrière, à moins d'un mètre de côté).
       const onWheel = (d: number, lat: number) => {
         const gap = ride.state.distM - d;
@@ -1267,32 +1315,61 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
         if (ride.dir > 0) ride.draft = Math.max(ride.draft, d);
       }
     }
+    lap('coureurs IA');
     remoteRiders = mp ? mp.render(dt, engine.camera) : [];
     if (!ride.paused) trains.update(dt, ride.state.distM, ride.dir, ride.state.speedMs);
     pedestrians?.update(dt, ride.state.distM);
+    lap('trains, piétons');
     track.positionAt(ride.state.distM, ride.lateral, sample);
     pos.set(sample.x, sample.y + 0.06, sample.z);
     // Sens de marche : après un demi-tour, on remonte l'itinéraire.
     dir.set(sample.dirX * ride.dir, 0, sample.dirZ * ride.dir);
-    avatar.root.position.copy(pos);
     const heading = Math.atan2(sample.dirX, sample.dirZ) + (ride.dir < 0 ? Math.PI : 0);
     if (Number.isNaN(prevHeading)) prevHeading = heading;
+    if (Number.isNaN(shownPos.x)) shownPos.copy(pos);
     // Inclinaison en virage : ∝ v·(dψ/dt), bornée.
     let dh = heading - prevHeading;
     if (dh > Math.PI) dh -= Math.PI * 2;
     if (dh < -Math.PI) dh += Math.PI * 2;
+    if (Math.abs(dh) > 2.4) {
+      // Demi-tour : on tourne du côté où se trouve la nouvelle position (de l'autre côté de la chaussée).
+      const side = (pos.x - shownPos.x) * Math.cos(prevHeading) - (pos.z - shownPos.z) * Math.sin(prevHeading);
+      turn = { t: 0, fromHeading: prevHeading, delta: side >= 0 ? Math.PI : -Math.PI, from: shownPos.clone(), fwdX: Math.sin(prevHeading), fwdZ: Math.cos(prevHeading) };
+      dh = 0;
+    }
     prevHeading = heading;
     const yawRate = dt > 0 ? dh / dt : 0;
-    bank += (THREE.MathUtils.clamp(-yawRate * ride.state.speedMs * 0.08, -0.35, 0.35) - bank) * Math.min(1, dt * 3);
+    let lean = THREE.MathUtils.clamp(-yawRate * ride.state.speedMs * 0.08, -0.35, 0.35);
+    let shownHeading = heading;
+    shownPos.copy(pos);
+    if (turn) {
+      turn.t = Math.min(1, turn.t + dt / UTURN_S);
+      const t = turn.t;
+      const e = t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2;
+      shownHeading = turn.fromHeading + turn.delta * e;
+      // De l'ancienne position à la nouvelle, en arc vers l'avant (rayon : la moitié de l'écart, 2 m au moins).
+      const gap = Math.hypot(pos.x - turn.from.x, pos.z - turn.from.z);
+      const bulge = Math.sin(Math.PI * e) * Math.max(2, gap / 2);
+      shownPos.lerpVectors(turn.from, pos, e);
+      shownPos.x += turn.fwdX * bulge;
+      shownPos.z += turn.fwdZ * bulge;
+      lean = -Math.sign(turn.delta) * 0.28 * Math.sin(Math.PI * t);
+      if (turn.t >= 1) turn = null;
+    }
+    bank += (lean - bank) * Math.min(1, dt * 3);
+    shownDir.set(Math.sin(shownHeading), 0, Math.cos(shownHeading));
+    avatar.root.position.copy(shownPos);
     avatar.root.rotation.set(0, 0, 0);
-    avatar.root.rotateY(heading);
+    avatar.root.rotateY(shownHeading);
     avatar.root.rotateX(-Math.atan((sample.grade * ride.dir) / 100));
     avatar.setEffort?.(ride.inputs.watts / Math.max(50, s.ftpWatts), ride.inputs.hr !== undefined ? ride.inputs.hr / 190 : undefined);
     avatar.update(dt, ride.inputs.cadence, ride.state.speedMs, ride.pose, bank);
     // Vue subjective et caméra embarquée : on garde le vélo, les bras et les mains, mais pas la tête.
     const onboard = (rig.mode === 'cockpit' || rig.mode === 'gopro') && !rig.lookBack;
     avatar.setHeadVisible(!onboard);
+    lap('mon coureur');
     peloton.render(dt, engine.camera);
+    lap('coureurs IA (animation)');
     // Poussière des roues sur les chemins non revêtus (coureur et coureurs IA), voir world/dust.ts.
     if (!ride.paused) {
       world.kickDust('me', pos.x, pos.y, pos.z, sample.dirX, sample.dirZ, ride.state.speedMs, dt);
@@ -1304,23 +1381,48 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
 
     const eyeOk = rig.mode === 'cockpit' && !!avatar.eyeWorld;
     if (eyeOk) avatar.eyeWorld?.(eye, hands);
-    rig.update(dt, { position: pos, dir, distM: ride.state.distM, speedMs: ride.state.speedMs, sign: ride.dir, ...(eyeOk ? { eye, hands } : {}) });
+    // Pendant un demi-tour, la caméra suit le coureur affiché (elle tourne avec lui).
+    rig.update(dt, { position: turn ? shownPos : pos, dir: turn ? shownDir : dir, distM: ride.state.distM, speedMs: ride.state.speedMs, sign: ride.dir, ...(eyeOk ? { eye, hands } : {}) });
+    lap('poussière, caméra');
     // Les tuiles se chargent autour de la caméra libre, où qu'elle aille ; sinon autour du coureur.
     world.update(dt, rig.mode === 'free' ? engine.camera.position : pos);
+    // Le monde mesure lui-même ses postes (tuiles, végétation) : pas de total ici, pour ne pas compter deux fois.
+    lap(null);
     headlight.intensity = world.nightFactor() * 120;
     if (!render) return;
     engine.exposure.value = world.env.exposure();
     world.env.grade(engine.grade);
     if (manual) engine.renderManual();
     else engine.render();
+    // Le rendu est mesuré à part (« rendu ») par le panneau.
+    lap(null);
 
     audio.update(dt, pos, heading);
+    lap('son');
 
     hudAcc += dt;
     if (hudAcc > 0.1) {
       hudAcc = 0;
       // Habillage TV synchronisé avec la caméra « réalisation TV ».
       const rank = 1 + peloton.riders.filter((r) => r.state.distM > ride.state.distM).length;
+      // Roue juste devant (même voie à 1,5 m près, à moins de 30 m) : écart roue arrière → roue avant.
+      const wheelGap = (): number | null => {
+        let best: number | null = null;
+        const consider = (d: number, lat: number) => {
+          const gap = (d - ride.state.distM) * ride.dir - 1.75;
+          if (gap > -0.5 && gap < 30 && Math.abs(lat - ride.lateral) < 1.5 && (best === null || gap < best)) best = Math.max(0, gap);
+        };
+        for (const r of peloton.riders) consider(r.state.distM, r.lateral);
+        for (const r of remoteRiders) consider(r.unwrappedM, r.lateralM);
+        return best;
+      };
+      // Vent ressenti : d'où il vient pour le coureur ; par vent de côté, l'abri est sous le vent.
+      const windInfo = () => {
+        const h = ride.headWindMs;
+        const c = ride.crossWindMs;
+        const from: 'face' | 'dos' | 'gauche' | 'droite' = Math.abs(h) >= Math.abs(c) ? (h > 0 ? 'face' : 'dos') : c > 0 ? 'gauche' : 'droite';
+        return { kmh: Math.hypot(h, c) * 3.6, from, shelter: Math.abs(c) > 2 ? (c > 0 ? ('right' as const) : ('left' as const)) : null };
+      };
       room?.update({ distM: ride.state.distM, speedMs: ride.state.speedMs, wkg: ride.watts3s() / s.massKg });
       sequences.tv(rig.mode === 'tv', { riderName: s.name, color: s.look.jersey, position: rank, wkg: ride.watts3s() / s.massKg, watts: ride.watts3s() });
       const i = ride.inputs;
@@ -1344,6 +1446,10 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
           gearCount: ride.gears.length,
           ...(i.balanceLeft !== undefined ? { balanceLeft: i.balanceLeft } : {}),
           draftPct: ride.draft * 100,
+          draftW: ride.draftSavedW,
+          wheelGapM: wheelGap(),
+          wind: windInfo(),
+          altitudeM: sample.y,
           lap: ride.lap,
           riders: [
             { id: 'me', name: s.name, distM: ride.state.distM, x: pos.x, z: pos.z, me: true, isAI: false, isGuest: false, color: '#ffd23f', wkg: ride.watts3s() / s.massKg },
@@ -1396,6 +1502,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
           totalS: workout.durationS,
         });
       }
+      lap('affichage (HUD)');
     }
   };
   // Pipelines des objets ajoutés pour la sortie (coureur, groupe, circulation) compilés avant la première image,

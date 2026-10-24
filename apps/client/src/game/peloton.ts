@@ -1,6 +1,6 @@
 import { shadowCasters } from './shadowBudget.ts';
 import * as THREE from 'three/webgpu';
-import { AiRider, AI_PROFILES, DraftCalculator, PoseController, TeammateUTurn, createRiderState, paramsFromBike, powerForSpeed, stepRider, airDensity, type AiProfileName, type RiderState } from '@allezrobert/physics';
+import { AiRider, AI_PROFILES, DraftCalculator, PoseController, TeammateUTurn, createRiderState, paramsFromBike, powerForSpeed, stepRider, airDensity, wakeShiftM, type AiProfileName, type RiderState } from '@allezrobert/physics';
 import { BASE_PROFILES, DEFAULT_BIKE, DEFAULT_LOOK, FACE_SLIDERS, encodeFace, type AvatarLook, type FaceShape, type RouteTrack } from '@allezrobert/shared';
 import { createAvatar, type RiderAvatarLike } from '../rider/gltfAvatar.ts';
 import { crowdShoes } from '../rider/shoeLook.ts';
@@ -88,6 +88,8 @@ export class Peloton {
   private readonly track: RouteTrack;
   private readonly scene: THREE.Scene;
   private readonly draft = new DraftCalculator();
+  private headWindMs = 0;
+  private crossWindMs = 0;
   private paceWkg = 2.6;
   /**
    * Équipiers (idée « rouler seul en semaine ») : allure imposée en % de la FTP du joueur,
@@ -167,8 +169,12 @@ export class Peloton {
    * @param player position et puissance du joueur (référence d'allure et d'aspiration)
    * @returns l'aspiration dont bénéficie le joueur (0–1)
    */
-  update(dt: number, player: { distM: number; lateral: number; speedMs: number; watts: number; massKg: number; ftpWatts?: number; reversed?: boolean }): number {
+  update(dt: number, player: { distM: number; lateral: number; speedMs: number; watts: number; massKg: number; ftpWatts?: number; reversed?: boolean; headWindMs?: number; crossWindMs?: number }): number {
     if (!this.riders.length) return 0;
+    // Même vent pour tout le groupe (la route est la même) : de face pour l'effort, de côté pour les sillages.
+    this.headWindMs = player.headWindMs ?? 0;
+    this.crossWindMs = player.crossWindMs ?? 0;
+    this.draft.setCrosswind(this.crossWindMs);
     // Joueur à contresens (demi-tour pour aller chercher quelqu'un) : le groupe continue à son
     // allure, sans l'attendre ni l'abriter ; tout reprend quand il refait demi-tour.
     if (player.reversed) return this.rideOn(dt);
@@ -196,7 +202,7 @@ export class Peloton {
     order.forEach((r, rank) => {
       r.draft = r.uturn.active ? 0 : (factors[this.riders.indexOf(r) + 1] ?? 0);
       const s = this.track.sample(r.state.distM, this.sample);
-      const env = { airDensity: airDensity(s.y, 14), windSpeedMs: 0 };
+      const env = { airDensity: airDensity(s.y, 14), windSpeedMs: this.headWindMs };
       // Demi-tour : l'équipier parti trop loin devant revient vers le groupe (sauf dans un segment disputé).
       const wasActive = r.uturn.active;
       const turn = r.uturn.update(
@@ -246,7 +252,9 @@ export class Peloton {
       r.cadence = out.cadence;
       r.pose = r.poseCtl.update({ watts: r.watts, cadence: out.cadence, gradePercent: s.grade, ftpWatts: r.ftp, speedMs: r.state.speedMs }, dt);
       stepRider(r.state, { watts: r.watts, gradePercent: s.grade, params: r.ai.params, env, cdaFactor: 1 - r.draft }, dt);
-      const targetLat = THREE.MathUtils.clamp((ahead?.lateral ?? 1) + out.lateralTargetM, -half, half);
+      // Vent de côté : l'abri est décalé sous le vent ; le coureur s'y place (bordure).
+      const shelter = ahead ? wakeShiftM(ahead.distM - r.state.distM - 1.75, this.crossWindMs, ahead.speedMs) : 0;
+      const targetLat = THREE.MathUtils.clamp((ahead?.lateral ?? 1) + out.lateralTargetM + shelter, -half, half);
       r.lateral += (targetLat - r.lateral) * Math.min(1, dt * 0.8);
     });
     return factors[0] ?? 0;
@@ -263,7 +271,7 @@ export class Peloton {
       r.draft = factors[i] ?? 0;
       const s = this.track.sample(r.state.distM, this.sample);
       const ahead = order[rank - 1];
-      const env = { airDensity: airDensity(s.y, 14), windSpeedMs: 0 };
+      const env = { airDensity: airDensity(s.y, 14), windSpeedMs: this.headWindMs };
       const out = r.ai.update(
         {
           gradePercent: s.grade,

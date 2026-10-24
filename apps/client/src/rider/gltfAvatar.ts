@@ -36,6 +36,34 @@ import { BikeMaterials, assembleBike, availableFamily, bikeAnchors, familyScene,
 
 export type RiderPose = 'seated' | 'standing' | 'coasting';
 
+const RIDER_CAST_SHADOWS = false;
+
+/**
+ * Pièce assez grande pour que son ombre se voie (corps, cadre, roues, casque…) : les petites pièces
+ * (visserie, valves, yeux, lunettes, cales…) ne projettent pas d'ombre. Chaque pièce qui en projette est
+ * redessinée dans chaque cascade d'ombres : sur un coureur d'une soixantaine de pièces, c'est l'essentiel
+ * des appels de dessin.
+ */
+function bigPart(mesh: THREE.Mesh): boolean {
+  // Coureurs : plus d'ombres portées (elles scintillaient, la carte d'ombres n'étant recalculée qu'une
+  // image sur deux) ; c'est aussi un gros gain d'appels de dessin.
+  if (!RIDER_CAST_SHADOWS) return false;
+  const cached = mesh.userData.bigPart as boolean | undefined;
+  if (cached !== undefined) return cached;
+  let big: boolean;
+  const name = `${mesh.parent?.name ?? ''} ${mesh.name}`;
+  // Coureur (maillage articulé, positions compressées : pas en mètres) : d'après le nom de la pièce.
+  if (/rider_/.test(name)) big = !/rider_(eyes|glasses|moustache)/.test(name);
+  else {
+    // Vélo et roues (en mètres) : rayon de la pièce d'au moins 10 cm.
+    const g = mesh.geometry;
+    if (!g.boundingSphere) g.computeBoundingSphere();
+    big = (g.boundingSphere?.radius ?? 1) >= 0.1;
+  }
+  mesh.userData.bigPart = big;
+  return big;
+}
+
 /** Interface commune aux avatars procédural et glTF. */
 export interface RiderAvatarLike {
   readonly root: THREE.Group;
@@ -852,7 +880,7 @@ export class GltfRiderAvatar implements RiderAvatarLike {
         this.materials.set(key, mat);
       }
       mesh.material = mat;
-      mesh.castShadow = true;
+      mesh.castShadow = bigPart(mesh);
       mesh.receiveShadow = true;
       if ((mesh as THREE.SkinnedMesh).isSkinnedMesh) {
         (mesh as THREE.SkinnedMesh).boundingSphere = bounds.clone();
@@ -932,11 +960,11 @@ export class GltfRiderAvatar implements RiderAvatarLike {
         if (!mesh.isMesh) return;
         // Plaque de cadre : matériau texturé propre.
         if (mesh.userData.matKey === 'number') {
-          mesh.castShadow = this.shadows;
+          mesh.castShadow = this.shadows && bigPart(mesh);
           return;
         }
         mesh.material = materials.get((mesh.userData.matKey as string | undefined) ?? (mesh.material as THREE.Material).name);
-        mesh.castShadow = this.shadows;
+        mesh.castShadow = this.shadows && bigPart(mesh);
         mesh.receiveShadow = true;
       });
       (this.bikeSlots[i] as THREE.Group).add(lv.group);
@@ -1242,7 +1270,7 @@ export class GltfRiderAvatar implements RiderAvatarLike {
     if (on === this.shadows) return;
     this.shadows = on;
     this.root.traverse((o) => {
-      if ((o as THREE.Mesh).isMesh) o.castShadow = on;
+      if ((o as THREE.Mesh).isMesh) o.castShadow = on && bigPart(o as THREE.Mesh);
     });
   }
 
@@ -1298,7 +1326,7 @@ export class GltfRiderAvatar implements RiderAvatarLike {
             this.materials.set(src.name, mat);
           }
           mesh.material = mat;
-          mesh.castShadow = this.shadows;
+          mesh.castShadow = this.shadows && bigPart(mesh);
           mesh.receiveShadow = true;
         });
         for (const w of ['wheel_front', 'wheel_rear']) {

@@ -363,6 +363,10 @@
 .mm-hero.mm-hero-home h1 { font-size: clamp(64px, 8vw, 140px); }
 .mm-home-go { position: absolute; left: 50%; bottom: 8vh; transform: translateX(-50%); font-size: 26px; padding: 20px 64px; }
 .mm-home-go:hover span { transform: translateX(6px); }
+.mm-home-wait { position: absolute; left: 50%; bottom: calc(8vh - 44px); transform: translateX(-50%); margin: 0; display: flex; align-items: center; gap: 10px; font-size: 13px; color: rgba(245, 247, 250, 0.8); text-shadow: 0 1px 6px rgba(0, 0, 0, 0.7); white-space: nowrap; }
+.mm-home-wait[hidden] { display: none; }
+.mm-home-wait i { display: block; width: 46px; height: 4px; border-radius: 2px; background: linear-gradient(90deg, transparent, var(--ar-accent), transparent) 0 0 / 50% 100% no-repeat, rgba(255, 255, 255, 0.18); animation: mm-wait 1.1s linear infinite; }
+@keyframes mm-wait { from { background-position: -100% 0, 0 0; } to { background-position: 200% 0, 0 0; } }
 
 /* Fenêtres Zones / Parcours : grille de cartes */
 .mm-picker { width: min(1180px, 94vw) !important; max-height: 86vh; overflow: auto; }
@@ -590,3 +594,20 @@
 .mm-enter .mm-views { animation: gr-up 0.6s 0.7s ease-out both; }
 .mm-enter .at-stats { animation: gr-up 0.6s 0.8s ease-out both; }
 @media (prefers-reduced-motion: reduce) { .mm-enter .gr-panel, .mm-enter .mm-views, .mm-enter .at-stats { animation: none; } }
+/* Heure et météo de la sortie (onglet Rouler). */
+.mm-weather { display: grid; gap: 8px; margin: 10px 0 4px; padding: 12px 14px; border-radius: 14px; background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.08); }
+.mm-weather .field { margin: 0; }
+.mm-weather .mm-seg button { flex: 1 1 auto; }
+
+/* Séances d'entraînement : cartes avec le profil des paliers. */
+.mm-wks { display: grid; gap: 8px; margin: 8px 0 6px; }
+.mm-wk { appearance: none; display: grid; gap: 5px; text-align: left; padding: 10px 12px 9px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.08); border-left: 4px solid var(--wk); background: rgba(255, 255, 255, 0.04); color: inherit; font: inherit; cursor: pointer; }
+.mm-wk:hover { background: rgba(255, 255, 255, 0.08); }
+.mm-wk.on { border-color: var(--ar-accent); border-left-color: var(--wk); background: rgba(255, 210, 63, 0.08); }
+.mm-wk-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.mm-wk-head b { font-size: 14.5px; }
+.mm-wk-head em { font-style: normal; font-size: 12px; color: var(--ar-muted); white-space: nowrap; }
+.mm-wk-desc { font-size: 12px; color: var(--ar-muted); line-height: 1.35; }
+.mm-wk-prof { width: 100%; height: 34px; display: block; }
+.mm-wk-prof line { stroke: rgba(255, 255, 255, 0.35); stroke-dasharray: 3 3; stroke-width: 1; vector-effect: non-scaling-stroke; }
+.mm-wk-stats { font-size: 11.5px; color: var(--ar-muted); font-variant-numeric: tabular-nums; }

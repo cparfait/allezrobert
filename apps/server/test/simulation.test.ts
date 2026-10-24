@@ -235,3 +235,21 @@ describe('RideSimulation — segments, tours et course', () => {
     expect(snap.riders.find((x) => x.id === 'x')!.hr).toBeUndefined();
   });
 });
+
+describe('RideSimulation — course contre les IA', () => {
+  it('tactiques variées : des attaques, reproductibles avec la même graine', () => {
+    const run = () => {
+      const s = sim({ mode: 'race', aiRiders: 7 }, 'course-ia');
+      s.addRider({ id: 'h', name: 'Humain', kind: 'human', userId: 'u1', riderMassKg: 72, ftpWatts: 250 }, T0);
+      s.addAiRiders(7, T0, 250);
+      const states = new Set<string>();
+      ride(s, 1200, T0, () => 230, () => {
+        for (const r of s.riders) if (r.ai) states.add(r.ai.state);
+      });
+      return { states, dist: s.riders.map((r) => Math.round(r.state.distM)) };
+    };
+    const a = run();
+    expect(a.states.has('attack')).toBe(true);
+    expect(run().dist).toEqual(a.dist);
+  });
+});
