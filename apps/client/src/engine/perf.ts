@@ -1,5 +1,6 @@
 import type * as THREE from 'three/webgpu';
 import type { Engine } from './renderer.ts';
+import { frameStats } from './frameStats.ts';
 
 /** ?perf=1 ouvre le panneau dès le départ et active les mesures GPU (nécessite le démarrage avec ce paramètre). */
 export function perfRequested(): boolean {
@@ -44,6 +45,8 @@ export class PerfOverlay {
   private frames = 0;
   private engine: Engine | null = null;
   private readonly tracking = perfRequested();
+  /** Dernières images lentes (saccades), la plus récente d'abord, avec ce qui a pris le temps. */
+  private readonly spikes: Array<{ at: number; text: string }> = [];
 
   constructor() {
     window.addEventListener('keydown', (e) => {
@@ -74,12 +77,32 @@ export class PerfOverlay {
     if (this.el) this.el.style.display = this.visible ? 'block' : 'none';
     this.samples.length = 0;
     this.cpu.length = 0;
+    this.spikes.length = 0;
+    frameStats.setEnabled(this.visible);
+  }
+
+  /** Note une image lente : sa durée, le temps de rendu et les postes mesurés les plus lourds. */
+  private recordSpike(dt: number, renderCpuMs: number, parts: Array<[string, number]>): void {
+    const top = parts.filter(([, ms]) => ms >= 1).sort((a, b) => b[1] - a[1]);
+    const measured = renderCpuMs + top.reduce((a, [, ms]) => a + ms, 0);
+    const items = [`rendu ${Math.round(renderCpuMs)}`, ...top.slice(0, 3).map(([l, ms]) => `${l} ${Math.round(ms)}`)];
+    const other = dt - measured;
+    if (other >= 5) items.push(`autre ${Math.round(other)}`);
+    this.spikes.unshift({ at: performance.now(), text: `${Math.round(dt)} ms : ${items.join(' · ')}` });
+    this.spikes.length = Math.min(this.spikes.length, 5);
   }
 
   /** Appelé après chaque image rendue (`dt` : ms depuis l'image précédente, 0 la première fois ; `renderCpuMs` : temps passé côté processeur à préparer et soumettre le rendu). */
   frame(dt: number, engine: Engine, renderCpuMs = 0): void {
     this.engine = engine;
-    if (!this.visible || !(dt > 0) || dt > 1000) return;
+    if (!this.visible || !(dt > 0)) return;
+    const parts = frameStats.take();
+    // Saccade : image bien plus longue que la moyenne (les blocages de plus d'une seconde compris).
+    if (this.samples.length >= 30 && !document.hidden && dt < 10000) {
+      const avg = this.samples.reduce((a, b) => a + b, 0) / this.samples.length;
+      if (dt > Math.max(60, avg * 2.5)) this.recordSpike(dt, renderCpuMs, parts);
+    }
+    if (dt > 1000) return;
     this.samples.push(dt);
     this.cpu.push(renderCpuMs);
     if (this.samples.length > WINDOW) {
@@ -127,6 +150,8 @@ export class PerfOverlay {
       `${engine.backend}  qualité ${q.level}  AO ${q.ao ? 'on' : 'off'}  bloom ${q.bloom ? 'on' : 'off'}  TAA ${q.taa ? 'on' : 'off'}`,
       `ombres : ${q.shadowCascades} cascade(s) ${q.shadowMapSize} px  · objets par groupe :`,
       ...groups,
+      `saccades récentes (ms ; autre = décodage, ramasse-miettes, attente GPU) :`,
+      ...(this.spikes.length ? this.spikes.map((k) => `  il y a ${Math.round((performance.now() - k.at) / 1000)} s  ${k.text}`) : ['  aucune']),
       `F3 masquer · Alt+1 AO · Alt+2 bloom · Alt+3 TAA`,
     ].join('\n');
   }

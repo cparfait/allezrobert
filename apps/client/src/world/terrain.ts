@@ -172,7 +172,7 @@ export class TerrainManager {
             this.work.defer(() => {
               const lod = this.lodAt(tx, tz);
               if (this.tiles.get(key) === existing && existing.lod !== lod) this.rebuild(existing, lod);
-            }, this.distTo(tx, tz));
+            }, this.distTo(tx, tz), 'terrain (détail)');
         } else if (!this.loading.has(key)) {
           this.loading.add(key);
           jobs.push(
@@ -182,7 +182,7 @@ export class TerrainManager {
                 if (tile)
                   this.work.defer(() => {
                     if (!this.tiles.has(key) && this.wanted.has(key)) this.add(tile, this.lodAt(tx, tz));
-                  }, this.distTo(tx, tz));
+                  }, this.distTo(tx, tz), 'terrain');
               })
               .catch((err) => console.warn(`Tuile ${key} indisponible`, err))
               .finally(() => this.loading.delete(key)),

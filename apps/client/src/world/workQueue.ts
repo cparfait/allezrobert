@@ -4,16 +4,19 @@
  * proche du coureur), dans un budget de temps par image. Au moins une tâche par appel, pour avancer
  * même quand une tâche dépasse le budget à elle seule.
  */
+import { frameStats } from '../engine/frameStats.ts';
+
 export class WorkQueue {
-  private readonly tasks: Array<{ run: () => void; priority: number; seq: number }> = [];
+  private readonly tasks: Array<{ run: () => void; priority: number; seq: number; label: string }> = [];
   private seq = 0;
 
   get size(): number {
     return this.tasks.length;
   }
 
-  defer(run: () => void, priority = 0): void {
-    this.tasks.push({ run, priority, seq: this.seq++ });
+  /** `label` : nom du poste pour le panneau de performance (F3). */
+  defer(run: () => void, priority = 0, label = 'construction'): void {
+    this.tasks.push({ run, priority, seq: this.seq++, label });
   }
 
   /** Exécute des tâches pendant au plus `budgetMs` (horloge injectable pour les tests). Renvoie le nombre de tâches faites. */
@@ -24,13 +27,15 @@ export class WorkQueue {
     const start = now();
     let done = 0;
     while (this.tasks.length && (done === 0 || now() - start < budgetMs)) {
-      const t = this.tasks.shift() as { run: () => void };
+      const t = this.tasks.shift() as { run: () => void; label: string };
       done++;
+      const t0 = frameStats.enabled ? performance.now() : 0;
       try {
         t.run();
       } catch (e) {
         console.warn('Tâche de chargement du monde en échec', e);
       }
+      if (frameStats.enabled) frameStats.add(t.label, performance.now() - t0);
     }
     return done;
   }
