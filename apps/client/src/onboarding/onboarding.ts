@@ -47,8 +47,11 @@ export class Onboarding {
   private readonly done: (s: Settings, skipped: boolean) => void;
   private readonly preview: AvatarPreview | undefined;
   private previewOn = false;
-  /** Aperçu tête nue (peau, cheveux), sauf juste après le choix d'un casque, pour le voir. */
-  private bareHead = true;
+  /**
+   * Aperçu tête nue : désactivé. Sans coiffures dans le modèle 3D, la tête nue montre un crâne lisse et
+   * déformé (TODO.md, rubrique Visage) : le coureur garde son casque pendant tout le tutoriel.
+   */
+  private readonly bareHead = false;
   /** Test FTP demandé à l'étape profil : proposé sur la page finale. */
   private wantFtp = false;
   private assiomaSaid = false;
@@ -295,9 +298,6 @@ export class Onboarding {
       this.root.querySelectorAll<HTMLButtonElement>(`[data-${attr}]`).forEach((b) =>
         b.addEventListener('click', () => {
           const c = b.dataset[attr] as string;
-          // Casque : on le montre ; peau et cheveux : tête nue pour les voir.
-          if (attr === 'helmet') this.bareHead = false;
-          else if (attr === 'skin' || attr === 'hair') this.bareHead = true;
           if (attr === 'hair') return setLook({ hair: c, ...(this.s.look.hairStyle === 3 ? { hairStyle: 0 } : {}) }, true);
           // Couleur de vélo choisie : vélo de base peint de cette couleur (le modèle du garage est retiré).
           if (attr === 'bike') {
@@ -317,7 +317,6 @@ export class Onboarding {
     );
     this.root.querySelectorAll<HTMLButtonElement>('[data-bald]').forEach((b) =>
       b.addEventListener('click', () => {
-        this.bareHead = true;
         setLook({ hairStyle: 3 }, true);
       }),
     );

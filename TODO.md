@@ -19,7 +19,8 @@
 - [ ] Un ou deux vrais vélos en fond (essai retiré).
 
 ## Visage
-- [ ] Page du tutoriel : la tête de base (tête nue, vue de près) est déformée (crâne allongé et lisse, traits étirés). À corriger dans le modèle de tête du pipeline Blender, ou en cadrant moins près / avec des cheveux par défaut.
+- [ ] Tête nue déformée (crâne lisse et allongé, traits étirés) : modèle de tête à reprendre dans le pipeline Blender, avec les coiffures.
+- [ ] En attendant, le tutoriel garde le casque (`onboarding.ts`, `bareHead`) : le remettre tête nue une fois la tête corrigée.
 
 ## Cheveux
 - [ ] Vraies coiffures via le pipeline Blender.
