@@ -1,5 +1,5 @@
 import * as THREE from 'three/webgpu';
-import { abs, attribute, clamp, dot, float, floor, fract, fwidth, length, mix, mod, smoothstep, step, texture, uniform, vec2, vec3 } from 'three/tsl';
+import { abs, attribute, clamp, dot, float, floor, fract, fwidth, length, max, mix, mod, smoothstep, step, texture, uniform, vec2, vec3 } from 'three/tsl';
 import type { AvatarLook } from '@allezrobert/shared';
 import { colorUniform } from '../engine/tsl.ts';
 
@@ -379,21 +379,29 @@ export function jerseySleeve(look: AvatarLook, frame: JerseyFrame): SleeveNodes 
 }
 
 /**
- * Bande d'accent du maillot MPFB (« jersey_accent ») : avec les manches longues, la partie qui
- * borde la manche courte (au-delà de sleeveX) prend la couleur et le motif du maillot.
+ * Bande d'accent du maillot MPFB (« jersey_accent ») :
+ * - avec les manches longues, la partie qui borde la manche courte (au-delà de sleeveX) prend la
+ *   couleur et le motif du maillot ;
+ * - sans style choisi (look.jerseyStyle absent, le maillot par défaut), la bande de poitrine
+ *   (en deçà de sleeveX) prend aussi la couleur du maillot : pas de bande sur le torse. Seul le
+ *   liseré au bout des manches courtes garde la couleur d'accent.
  */
 export function jerseySleeveEdge(look: AvatarLook, frame: JerseyFrame): { weight: THREE.Node<'float'>; color: Vec3Node; set(look: AvatarLook): void } {
   const main = colorUniform(look.jersey);
   const pattern = jerseyPattern(look, frame);
   const long = uniform(0);
+  const plain = uniform(0);
   const jp = attribute<'vec3'>('jpos', 'vec3');
+  // 1 au-delà de la limite torse / manche (bout de manche), 0 sur le torse.
+  const cuff = step(frame.sleeveX - 0.01, abs(jp.x));
   return {
-    weight: step(frame.sleeveX - 0.01, abs(jp.x)).mul(long) as THREE.Node<'float'>,
+    weight: max(cuff.mul(long), float(1).sub(cuff).mul(plain)) as THREE.Node<'float'>,
     color: pattern.color(main.node as Vec3Node),
     set: (l) => {
       main.set(l.jersey);
       pattern.set(l);
       long.value = l.sleeves === 'long' ? 1 : 0;
+      plain.value = l.jerseyStyle === undefined ? 1 : 0;
     },
   };
 }
