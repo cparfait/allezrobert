@@ -117,7 +117,7 @@ export async function choosePosterSpot(world: World, track: RouteTrack, season: 
 /** Vues du garage autour du coureur du joueur (repère du vélo : +z vers l'avant, y en haut). */
 export type GarageView = '3q' | 'side' | 'front' | 'back' | 'bike' | 'cockpit' | 'face';
 export const GARAGE_VIEWS: Record<GarageView, { cam: [number, number, number]; look: [number, number, number]; fov: number }> = {
-  '3q': { cam: [2.3, 1.55, 2.7], look: [0, 0.95, 0.15], fov: 34 },
+  '3q': { cam: [3.0, 1.8, 3.6], look: [0, 0.9, 0.1], fov: 34 },
   side: { cam: [3.6, 1.05, 0.25], look: [0, 0.85, 0.25], fov: 34 },
   front: { cam: [0.35, 1.35, 3.9], look: [0, 1.0, 0], fov: 32 },
   back: { cam: [-0.4, 1.5, -3.8], look: [0, 1.0, 0.1], fov: 32 },

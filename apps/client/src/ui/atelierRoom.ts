@@ -311,34 +311,47 @@ export function rackWheel(rim: string, deep: number): THREE.Group {
   return g;
 }
 
-/** VTT suspendu au mur (silhouette simple : cadre, deux roues crantées, guidon, selle), vu de profil. */
+/**
+ * VTT 29" vu de profil, à l'échelle réelle : empattement 1,14 m, roues de 71 cm, boîtier de pédalier
+ * 6 cm sous les axes, tube de selle à 73°, tube de direction à 69°. Origine : axe de roue, roue
+ * arrière à gauche (−x), roue avant à droite (+x).
+ */
 function hungBike(frame: string, accent: string): THREE.Group {
   const g = new THREE.Group();
-  const tireM = mat('#161618', 0.9);
-  const dark = mat(frame, 0.45, 0.5);
-  const acc = mat(accent, 0.5, 0.3);
-  for (const x of [-0.55, 0.55]) {
-    const t = new THREE.Mesh(new THREE.TorusGeometry(0.33, 0.045, 8, 40), tireM);
-    t.position.set(x, 0, 0);
-    g.add(t);
-    const rim = new THREE.Mesh(new THREE.TorusGeometry(0.28, 0.01, 6, 40), mat('#9aa0a6', 0.3, 0.8));
-    rim.position.set(x, 0, 0);
-    g.add(rim);
-    for (let i = 0; i < 10; i++) {
-      const a = (i / 10) * Math.PI;
-      g.add(rod(new THREE.Vector3(x + Math.cos(a) * 0.28, Math.sin(a) * 0.28, 0), new THREE.Vector3(x - Math.cos(a) * 0.28, -Math.sin(a) * 0.28, 0), 0.002, mat('#b9bcc2', 0.3, 1)));
-    }
-    g.add(new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.08, 10).rotateX(Math.PI / 2), mat('#2a2c30', 0.4, 0.5)).translateX(x));
-  }
+  const tireM = mat('#18181a', 0.92);
+  const dark = mat(frame, 0.4, 0.55);
+  const acc = mat(accent, 0.45, 0.3);
+  const metal = mat('#8b9199', 0.3, 0.9);
   const p = (x: number, y: number) => new THREE.Vector3(x, y, 0);
-  const bb = p(-0.12, -0.18);
-  const seat = p(-0.28, 0.32);
-  const head = p(0.34, 0.26);
-  g.add(rod(bb, seat, 0.02, dark), rod(bb, head, 0.024, dark), rod(seat, head, 0.02, acc), rod(p(-0.55, 0), bb, 0.014, dark), rod(p(-0.55, 0), seat, 0.014, dark));
-  g.add(rod(head, p(0.55, 0), 0.016, mat('#7a7f86', 0.3, 0.9))); // fourche
-  g.add(rod(head, p(0.38, 0.4), 0.014, dark), rod(p(0.3, 0.42), p(0.46, 0.42), 0.012, dark)); // potence + guidon
-  g.add(rod(seat, p(-0.3, 0.42), 0.012, dark), box(0.2, 0.035, 0.06, mat('#141416', 0.7), -0.31, 0.44, 0)); // tige + selle
-  g.add(new THREE.Mesh(new THREE.TorusGeometry(0.07, 0.008, 6, 20), mat('#2a2c30', 0.4, 0.7)).translateX(-0.12).translateY(-0.18));
+  const R = 0.57;
+  for (const x of [-R, R]) {
+    g.add(new THREE.Mesh(new THREE.TorusGeometry(0.325, 0.03, 10, 48), tireM).translateX(x));
+    g.add(new THREE.Mesh(new THREE.TorusGeometry(0.292, 0.008, 6, 48), metal).translateX(x));
+    for (let i = 0; i < 12; i++) {
+      const a = (i / 12) * Math.PI;
+      g.add(rod(p(x + Math.cos(a) * 0.29, Math.sin(a) * 0.29), p(x - Math.cos(a) * 0.29, -Math.sin(a) * 0.29), 0.0014, metal));
+    }
+    g.add(new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.1, 10).rotateX(Math.PI / 2), mat('#2a2c30', 0.4, 0.6)).translateX(x));
+  }
+  const bb = p(0, -0.06);
+  const seatTop = p(-0.14, 0.4);
+  const headTop = p(0.46, 0.46);
+  const headBot = p(0.5, 0.25);
+  const t = 0.017;
+  g.add(rod(bb, seatTop, t, dark)); // tube de selle
+  g.add(rod(seatTop, headTop, t + 0.003, acc)); // tube horizontal
+  g.add(rod(bb, headBot, t + 0.005, dark)); // tube diagonal
+  g.add(rod(headBot, headTop, t + 0.006, dark)); // tube de direction
+  g.add(rod(bb, p(-R, 0), 0.012, dark)); // bases
+  g.add(rod(p(-0.1, 0.33), p(-R, 0), 0.01, dark)); // haubans
+  g.add(rod(headBot, p(R, 0), 0.014, metal)); // fourche
+  g.add(rod(headTop, p(0.43, 0.56), 0.011, dark)); // potence
+  g.add(rod(p(0.43, 0.56), p(0.43, 0.56 + 0.0), 0.011, dark));
+  g.add(new THREE.Mesh(new THREE.CylinderGeometry(0.011, 0.011, 0.6, 8).rotateX(Math.PI / 2), dark).translateX(0.43).translateY(0.56)); // guidon droit
+  g.add(rod(seatTop, p(-0.17, 0.52), 0.008, metal)); // tige de selle
+  g.add(box(0.2, 0.03, 0.07, mat('#141416', 0.7), -0.2, 0.545, 0)); // selle
+  g.add(new THREE.Mesh(new THREE.TorusGeometry(0.065, 0.006, 6, 24), metal).translateY(-0.06)); // plateau
+  g.add(rod(p(0.0, -0.06), p(0.0 - 0.1, -0.2), 0.007, dark), rod(p(0, -0.06), p(0.1, 0.08), 0.007, dark)); // manivelles
   g.traverse((o) => ((o as THREE.Mesh).castShadow = true));
   return g;
 }
@@ -467,18 +480,22 @@ export function buildRoom(): THREE.Group {
     }
   }
 
-  // Trois vélos suspendus sur le mur de gauche (z = 3,4), à des hauteurs et angles différents.
-  const bikes: Array<[string, string, number, number, number]> = [
-    ['#2b2f35', '#c0762b', -0.6, 2.35, 0.12],
-    ['#232529', '#7f8a96', -0.45, 1.65, -0.05],
-    ['#2b2f35', '#d3b53a', -0.3, 0.95, 0.1],
+  // Trois vélos suspendus côte à côte sur le mur de gauche (z = 3,4), accrochés par le tube horizontal
+  // à un rail d'acier ; hauteurs légèrement décalées comme dans un vrai rack.
+  const rail = mat('#6d7279', 0.4, 0.8);
+  const bikes: Array<[string, string, number, number]> = [
+    ['#2b2f35', '#c0762b', -1.4, 1.95],
+    ['#23272c', '#8a95a1', 0.35, 1.7],
+    ['#2b2f35', '#c9a92f', 2.05, 1.95],
   ];
-  for (const [f, a, x, y, tilt] of bikes) {
+  for (const [f, a, x, y] of bikes) {
     const b = hungBike(f, a);
-    b.position.set(x, y, 3.26);
-    b.rotation.set(0, 0, tilt);
+    b.position.set(x, y, 3.25);
     room.add(b);
-    room.add(box(0.05, 0.04, 0.2, mat('#6d7279', 0.4, 0.8), x - 0.1, y - 0.1, 3.3));
+    // Crochet : platine murale, bras horizontal, appui sous le tube horizontal.
+    room.add(box(0.07, 0.1, 0.012, rail, x + 0.16, y + 0.46, 3.394));
+    room.add(box(0.02, 0.02, 0.15, rail, x + 0.16, y + 0.43, 3.32));
+    room.add(box(0.1, 0.012, 0.03, rail, x + 0.16, y + 0.436, 3.25));
   }
 
   // Home trainer dans le coin : corps, volant, pieds.

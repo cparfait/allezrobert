@@ -518,20 +518,28 @@ async function boot(): Promise<void> {
   };
   if (import.meta.env.DEV) (window as unknown as { __arAtelier: unknown }).__arAtelier = atelier;
   // Garage : le coureur sur son vélo dans l'atelier, sans paysage ni groupe : s'ouvre sans attendre le monde.
-  let garage: { view: GarageView; yaw: number } | null = null;
+  let garage: { view: GarageView; yaw: number; far?: number } | null = null;
   const showGarage = (look: AvatarLook, bareHead = menu.bareHeadPreview) => {
     if (!garage) return;
     const v = GARAGE_VIEWS[garage.view];
     const c = Math.cos(garage.yaw);
     const sn = Math.sin(garage.yaw);
+    // Recul (tutoriel) : coureur plus petit, pour laisser la place aux sous-titres.
+    const k = garage.far ?? 1;
     const st: AtelierState = {
       look: { ...look, heightCm: settings.heightCm },
       focus: 'overview',
       rider: true,
       yaw: 0,
       bareHead,
-      view: { cam: [v.cam[0] * c + v.cam[2] * sn, v.cam[1], -v.cam[0] * sn + v.cam[2] * c], look: v.look, fov: v.fov },
+      view: { cam: [0, 0, 0], look: [v.look[0], v.look[1] - (k - 1) * 0.35, v.look[2]], fov: v.fov },
     };
+    // La caméra reste dans la pièce (murs à x = −3,2 / 3,4 et z = −3 / 3,4) : elle recule moins et l'angle de champ
+    // s'élargit pour garder le même cadrage.
+    const cam: [number, number, number] = [(v.cam[0] * c + v.cam[2] * sn) * k, v.cam[1] + (k - 1) * 0.3, (-v.cam[0] * sn + v.cam[2] * c) * k];
+    const room = (val: number, neg: number, pos: number) => (val < 0 ? neg / -val : pos / val);
+    const fit = Math.min(1, room(cam[0], 2.8, 3.2), room(cam[2], 2.6, 3.2));
+    st.view = { cam: [cam[0] * fit, cam[1], cam[2] * fit], look: st.view!.look, fov: fit < 1 ? (2 * Math.atan(Math.tan((v.fov * Math.PI) / 360) / fit) * 180) / Math.PI : v.fov };
     void modelsReady.then(() => garage && atelier.set(st));
   };
   menu.onScene = (view, yaw) => {
@@ -556,7 +564,20 @@ async function boot(): Promise<void> {
   };
   menu.onTutorial = () => {
     // Tutoriel terminé ou passé : retour à l'accueil, sans lancer de sortie.
-    new Onboarding(ui, settings, devices.panel, () => menu.show('home')).start();
+    const preview = {
+      show: (look: AvatarLook) => {
+        if (!inMenu) return;
+        menuVideo.stop();
+        garage = { view: '3q', yaw: 0, far: 1.45 };
+        // Tête nue : teint et cheveux se voient sous le casque.
+        showGarage(look, true);
+      },
+      hide: () => {
+        garage = null;
+        atelier.set(null);
+      },
+    };
+    new Onboarding(ui, settings, devices.panel, () => menu.show('home'), preview).start();
   };
   bootDone();
   if (autostart) {
@@ -627,6 +648,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     track,
     trainerDifficulty: s.trainerDifficulty,
     drivetrain: s.drivetrain,
+    cassetteSpeeds: s.cassetteSpeeds,
     startDistM: startD,
     wind: { ms: s.windMs, from: 4.4 },
     inertiaFactor: s.inertia,
