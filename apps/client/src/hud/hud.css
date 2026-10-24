@@ -236,3 +236,6 @@ body:has(.subtitle:not(.hidden)) .ob-mini { animation: ob-talk 0.9s ease-in-out 
 .pause-overlay { box-shadow: 0 0 0 100vw rgba(10, 14, 22, 0.55); }
 .loading { box-shadow: 0 0 0 100vw #0a0e16; }
 .mm-modal { box-shadow: 0 0 0 100vw rgba(4, 6, 10, 0.6); }
+
+/* Tutoriel : titre « Allez Robert ! » remonté (jusqu'à 72 px, ~7 % de la hauteur) sans bouger la carte ; rien sur les fenêtres basses. */
+.ob-hero { transform: translateY(calc(clamp(0px, (100vh - 760px) / 3, 72px) * -1)); }
