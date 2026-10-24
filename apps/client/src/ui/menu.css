@@ -403,17 +403,12 @@
 /* Atelier du garage : panneau des pièces, ensembles, chiffres avant → après */
 .mm-credits { font-style: normal; display: inline-flex; align-items: center; gap: 4px; font-weight: 800; color: #ffe08a; font-variant-numeric: tabular-nums; }
 .at-coin { display: inline-block; vertical-align: -2px; }
-.mm-slot.at-open { background: rgba(255, 210, 63, 0.16); color: #ffe08a; }
-.mm-slot.at-open:hover { background: rgba(255, 210, 63, 0.28); color: #fff; }
 .mm-tab-garage .at-panel { grid-column: 1; width: min(480px, calc(100vw - 44px)); display: flex; flex-direction: column; gap: 10px; }
 .at-head { margin-bottom: 2px; }
 .at-wallet { display: flex; align-items: center; gap: 12px; margin-top: 8px; }
 .at-balance { display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; border-radius: 999px; background: rgba(255, 210, 63, 0.14); color: #ffe08a; font-size: 13px; }
 .at-balance b { font-size: 16px; font-variant-numeric: tabular-nums; }
 .at-lvl { font-size: 12px; color: #aeb7c3; font-weight: 700; }
-.at-fams { margin-bottom: 0; }
-.at-slots { flex-wrap: wrap; margin-bottom: 0; }
-.at-slots button { flex: 0 1 auto; }
 .at-items { display: flex; flex-direction: column; gap: 6px; }
 .at-item { appearance: none; border: 1px solid transparent; border-left: 4px solid var(--rar); border-radius: 12px; padding: 8px 10px; font: inherit; color: var(--ar-fg); text-align: left; cursor: pointer;
   background: var(--mm-soft); display: grid; grid-template-columns: 38px minmax(0, 1fr) auto; gap: 10px; align-items: center; transition: background 0.12s, transform 0.12s; }
