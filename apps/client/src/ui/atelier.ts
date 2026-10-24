@@ -26,6 +26,8 @@ export interface AtelierState {
   yaw: number;
   /** Matériaux à faire briller brièvement (pièce qui vient d'être changée). */
   pulse?: readonly string[];
+  /** Tête nue (éditeur de visage : casque retiré le temps de l'aperçu). */
+  bareHead?: boolean;
   /** Cadrage imposé (bancs d'essai) : remplace celui de `focus`, sans rotation ni recul. */
   view?: Shot;
 }
@@ -486,6 +488,7 @@ export class AtelierHost {
     }
     const av = this.avatar as RiderAvatarLike & { setRiderVisible?(on: boolean): void };
     av.setRiderVisible?.(st.rider);
+    (this.avatar as RiderAvatarLike).setBareHead?.(!!st.bareHead);
     // Coureur en selle : vélo au sol (pied replié) ; sinon sur le pied d'atelier, roues décollées.
     this.bikeRoot.position.y = st.rider ? 0 : LIFT;
     if (this.stand) this.stand.visible = !st.rider;

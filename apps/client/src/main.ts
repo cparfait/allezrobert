@@ -1,6 +1,6 @@
 import './hud/hud.css';
 import * as THREE from 'three/webgpu';
-import { RouteTrack, decimateRoute, type PairState, type PhoneCommand, bikeOfLook, bikeSetupFor, weatherAt, weatherSeed, type RideWeather, type RiderProfile, type RouteData } from '@allezrobert/shared';
+import { RouteTrack, decimateRoute, type PairState, type PhoneCommand, bikeOfLook, type AvatarLook, bikeSetupFor, weatherAt, weatherSeed, type RideWeather, type RiderProfile, type RouteData } from '@allezrobert/shared';
 import { createEngine, type Engine } from './engine/renderer.ts';
 import { QUALITY_PRESETS, withUrlOverrides, type QualitySettings } from './engine/quality.ts';
 import { World } from './world/world.ts';
@@ -26,14 +26,14 @@ import { t, setLang, getLang } from './i18n/index.ts';
 import { loadSettings, saveSettings, type Settings } from './ui/settings.ts';
 import { MainMenu } from './ui/menu.ts';
 import { bootStep, bootDone, bootError } from './ui/splash.ts';
-import { PosterScene, choosePosterSpot, POSTER_HOUR } from './ui/poster.ts';
+import { PosterScene, choosePosterSpot, POSTER_HOUR, GARAGE_VIEWS, type GarageView } from './ui/poster.ts';
 import { showPause, rideToFit, rideToGpx, download, onlinePanel } from './ui/ridepanels.ts';
 import { showRideSummary } from './ui/summary.ts';
 import { compareAndStore, readPowerRecords, rideStats, updatePowerRecords } from './game/stats.ts';
 import { shareCard } from './ui/sharecard.ts';
 import { Onboarding, RideTutorial } from './onboarding/onboarding.ts';
 import { addXp, awardRide, loadProgress, tunedBike } from './ui/garage.ts';
-import { AtelierHost } from './ui/atelier.ts';
+import { AtelierHost, type AtelierState } from './ui/atelier.ts';
 import { rimGlow } from './rider/rimDecal.ts';
 import { EQUALIZED_BIKE, paramsFromBike } from '@allezrobert/physics';
 import { awardTrophies } from './game/trophies.ts';
@@ -129,7 +129,7 @@ function worldOverlay(label: string): HTMLElement {
 }
 
 /** Version des médias du menu (vidéos, images) : à augmenter quand on les régénère (cache navigateur). */
-const MENU_MEDIA_VERSION = 7;
+const MENU_MEDIA_VERSION = 9;
 
 /** Boucle vidéo de la saison en fond du menu (public/menu/loop-<saison>.webm), sur son image fixe. */
 function createMenuVideo(el: HTMLVideoElement | null) {
@@ -485,6 +485,7 @@ async function boot(): Promise<void> {
     if (!inMenu) return applyEnv(s);
     if (scene.world.env.state.season !== s.season) scene.world.setSeason(s.season);
     if (menuVideo.playing()) menuVideo.show(s.season);
+    if (garage) return showGarage(s.look);
     if (!worldReady) return;
     poster.build({ ...s.look, heightCm: s.heightCm });
     poster.setPlayerLook({ ...s.look, heightCm: s.heightCm }, menu.bareHeadPreview);
@@ -494,12 +495,14 @@ async function boot(): Promise<void> {
   // Éditeur de visage : le coureur du garage suit les curseurs sans reconstruire la scène.
   menu.onLookLive = (look, bareHead) => {
     if (!inMenu) return;
+    if (garage) return showGarage(look, bareHead);
     poster.setPlayerLook({ ...look, heightCm: settings.heightCm }, bareHead);
     renderPoster();
   };
   // Onglets : photo du groupe, ou aperçu du coureur dans le garage (vues et rotation).
   // Garage : aperçu d'un équipement (même verrouillé) sur le coureur, puis retour à la tenue équipée.
   menu.onPreviewLook = (look) => {
+    if (inMenu && garage) return showGarage(look ?? settings.look, menu.bareHeadPreview);
     if (!inMenu || !worldReady) return;
     poster.build({ ...(look ?? settings.look), heightCm: settings.heightCm });
     poster.place(poster.d);
@@ -507,21 +510,47 @@ async function boot(): Promise<void> {
   };
   menu.onAtelier = (st) => {
     if (!inMenu || exploring) return;
-    if (st) menuVideo.stop();
+    if (st) {
+      menuVideo.stop();
+      garage = null;
+    }
     void modelsReady.then(() => atelier.set(st));
   };
   if (import.meta.env.DEV) (window as unknown as { __arAtelier: unknown }).__arAtelier = atelier;
+  // Garage : le coureur sur son vélo dans l'atelier, sans paysage ni groupe : s'ouvre sans attendre le monde.
+  let garage: { view: GarageView; yaw: number } | null = null;
+  const showGarage = (look: AvatarLook, bareHead = menu.bareHeadPreview) => {
+    if (!garage) return;
+    const v = GARAGE_VIEWS[garage.view];
+    const c = Math.cos(garage.yaw);
+    const sn = Math.sin(garage.yaw);
+    const st: AtelierState = {
+      look: { ...look, heightCm: settings.heightCm },
+      focus: 'overview',
+      rider: true,
+      yaw: 0,
+      bareHead,
+      view: { cam: [v.cam[0] * c + v.cam[2] * sn, v.cam[1], -v.cam[0] * sn + v.cam[2] * c], look: v.look, fov: v.fov },
+    };
+    void modelsReady.then(() => garage && atelier.set(st));
+  };
   menu.onScene = (view, yaw) => {
     if (!inMenu || exploring) return;
+    if (view !== 'poster') {
+      menuVideo.stop();
+      garage = { view, yaw };
+      return showGarage(settings.look);
+    }
+    garage = null;
     atelier.set(null);
-    // Accueil : la vidéo de la saison ; garage : vraie 3D (attend le paysage si besoin).
-    if (view === 'poster' && menuVideo.show(settings.season)) return;
+    // Accueil : la vidéo de la saison (attend le paysage si l'image 3D sert).
+    if (menuVideo.show(settings.season)) return;
     menuVideo.stop();
-    poster.setView(view, yaw);
+    poster.setView('poster', yaw);
     if (worldReady) return renderPoster();
-    void withWorld(getLang() === 'fr' ? 'Chargement du garage…' : 'Loading the garage…').then(() => {
-      if (!inMenu || exploring) return;
-      poster.setView(view, yaw);
+    void withWorld(getLang() === 'fr' ? 'Chargement de l’accueil…' : 'Loading the home screen…').then(() => {
+      if (!inMenu || exploring || garage) return;
+      poster.setView('poster', yaw);
       renderPoster();
     });
   };

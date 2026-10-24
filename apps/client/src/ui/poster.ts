@@ -116,7 +116,7 @@ export async function choosePosterSpot(world: World, track: RouteTrack, season: 
 
 /** Vues du garage autour du coureur du joueur (repère du vélo : +z vers l'avant, y en haut). */
 export type GarageView = '3q' | 'side' | 'front' | 'back' | 'bike' | 'cockpit' | 'face';
-const GARAGE_VIEWS: Record<GarageView, { cam: [number, number, number]; look: [number, number, number]; fov: number }> = {
+export const GARAGE_VIEWS: Record<GarageView, { cam: [number, number, number]; look: [number, number, number]; fov: number }> = {
   '3q': { cam: [2.3, 1.55, 2.7], look: [0, 0.95, 0.15], fov: 34 },
   side: { cam: [3.6, 1.05, 0.25], look: [0, 0.85, 0.25], fov: 34 },
   front: { cam: [0.35, 1.35, 3.9], look: [0, 1.0, 0], fov: 32 },
@@ -145,8 +145,12 @@ export class PosterScene {
     private readonly track: RouteTrack,
   ) {}
 
+  /** Dernière tenue du joueur : le groupe se reconstruit au retour sur la photo du groupe. */
+  private look: AvatarLook | null = null;
+
   build(playerLook: AvatarLook): void {
     this.clear();
+    this.look = playerLook;
     // [recul par rapport à la tête (m), décalage latéral (m), maillot]
     const slots: Array<[number, number]> = [
       [0, 1.9],
@@ -158,7 +162,10 @@ export class PosterScene {
       [31, 0.9],
       [52, 1.3],
     ];
+    // Garage : le coureur seul (les 7 autres ne sont jamais montrés, inutile de les construire).
+    const garage = this.view !== 'poster';
     slots.forEach(([back, lat], i) => {
+      if (garage && i > 0) return;
       const look: AvatarLook =
         i === 0
           ? playerLook
@@ -228,8 +235,14 @@ export class PosterScene {
   }
 
   setView(view: 'poster' | GarageView, yaw = 0): void {
+    const crowdChanged = (this.view === 'poster') !== (view === 'poster');
     this.view = view;
     this.yaw = yaw;
+    // Photo du groupe ↔ garage : le groupe se reconstruit (ou se réduit au coureur).
+    if (crowdChanged && this.look && this.riders.length) {
+      this.build(this.look);
+      this.place(this.d);
+    }
   }
 
   /** Tenue du coureur du joueur mise à jour sur place (éditeur de visage : pas de reconstruction). */
