@@ -208,17 +208,16 @@ export class Onboarding {
             <p style="font-size:18px;line-height:1.5;margin:0">${fr ? 'Amuse-toi bien, seul ou entre amis. Bonnes balades !' : 'Have fun, on your own or with friends. Happy riding!'}</p>`;
         break;
     }
-    // Robert (public/robert-tuto.png, deux images : bouche ouverte | fermée) : il parle pendant la voix off (hud.css).
-    body = body.replace('<h2>', '<h2><span class="ob-mini ob-robert" aria-hidden="true"></span>');
     const side = this.step === 'avatar' && !!this.preview;
     this.root.innerHTML = `<div class="menu ob-menu ${side ? 'ob-preview' : ''}"><div class="ob-wrap">
       <div class="ob-hero"><h1>Allez <em>Robert</em> !</h1><p class="tagline">${fr ? 'Rouler ensemble, chacun chez soi.' : 'Ride together, each from home.'}</p></div>
+      <div class="ob-stage">${side ? '' : '<span class="ob-robert" aria-hidden="true"></span>'}
       <div class="card panel onboarding ${side ? 'ob-side' : ''}">
       <div class="ob-progress">${dots}<span>${fr ? 'Étape' : 'Step'} ${i + 1} / ${STEPS.length}</span></div>${body}
       <div class="row" style="justify-content:space-between;margin-top:22px">
         <button class="btn" id="o-skip">${fr ? 'Passer le tutoriel' : 'Skip tutorial'}</button>
         <div class="row">${i > 0 ? `<button class="btn" id="o-back">←</button>` : ''}${i === STEPS.length - 1 && this.wantFtp ? `<button class="btn" id="o-later">${fr ? 'Plus tard' : 'Later'}</button>` : ''}<button class="btn primary" id="o-next">${i === STEPS.length - 1 ? (this.wantFtp ? (fr ? 'Lancer le test FTP' : 'Start the FTP test') : fr ? 'Terminer ✓' : 'Finish ✓') : fr ? 'Suivant →' : 'Next →'}</button></div>
-      </div></div></div></div>`;
+      </div></div></div></div></div>`;
     this.bind();
     this.syncPreview();
   }
