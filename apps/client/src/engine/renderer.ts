@@ -168,12 +168,14 @@ export async function createEngine(canvas: HTMLCanvasElement, q: QualitySettings
       const dt = lastRendered ? now - lastRendered : 0;
       lastRendered = now;
       if (dynEnabled && dynamicRes.update(dt, now) !== null) applyResolution();
-      perf.frame(dt, engine);
       exposureNode.value = exposure.value;
       satNode.value = grade.saturation;
       vibNode.value = grade.vibrance;
       (tintNode.value as THREE.Color).copy(grade.tint);
+      const t0 = performance.now();
       pipeline.render();
+      // Lu après le rendu : le moteur remet ses compteurs à zéro au début de chaque image.
+      perf.frame(dt, engine, performance.now() - t0);
     },
     renderManual() {
       // Sans requestAnimationFrame (page masquée, tests), les passes « une fois par image »
