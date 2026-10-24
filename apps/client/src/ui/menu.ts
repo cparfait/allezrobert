@@ -465,6 +465,24 @@ export class MainMenu {
     </div>`;
   }
 
+  /** Niveau des coureurs IA, en part de la FTP du joueur (chacun varie ensuite autour, forme du jour comprise). */
+  private aiLevelSeg(): string {
+    const L = fr();
+    const levels: Array<[number, string, string]> = [
+      [0.7, 'Facile', 'Easy'],
+      [0.85, 'Modéré', 'Moderate'],
+      [1, 'À ton niveau', 'Your level'],
+      [1.15, 'Fort', 'Strong'],
+      [1.3, 'Pro', 'Pro'],
+    ];
+    const cur = levels.reduce((b, l) => (Math.abs(l[0] - this.s.aiLevel) < Math.abs(b[0] - this.s.aiLevel) ? l : b), levels[2] as [number, string, string]);
+    return this.seg(
+      'm-ailevel',
+      String(cur[0]),
+      levels.map(([v, f, e]) => [String(v), `${L ? f : e} · ${Math.round(v * 100)} %`]),
+    );
+  }
+
   private seg(id: string, current: string, opts: Array<[string, string]>): string {
     return `<div class="mm-seg" id="${id}" data-value="${esc(current)}" role="radiogroup">${opts
       .map(([v, label]) => `<button type="button" role="radio" aria-checked="${v === current}" class="${v === current ? 'on' : ''}" data-v="${esc(v)}">${esc(label)}</button>`)
@@ -693,6 +711,13 @@ export class MainMenu {
               s.mode === 'race' && r?.loop ? `<label class="mm-input" style="display:flex;align-items:center;justify-content:space-between;gap:10px">${L ? 'Tours de la course' : 'Race laps'}<input id="m-laps" type="number" min="1" max="20" value="${s.raceLaps}" style="width:64px" /></label>` : ''
             }
             <div class="mm-groupopts">
+              ${
+                s.mode === 'race'
+                  ? `<label class="field">${L ? 'Coureurs IA' : 'AI riders'}<input id="m-ai" type="number" min="0" max="19" value="${s.aiRiders}" /></label>
+              <div class="field">${L ? 'Niveau des IA (part de ta FTP)' : 'AI level (share of your FTP)'}${this.aiLevelSeg()}</div>
+              <p class="mm-hint">${L ? 'Chaque IA a sa tactique (baroudeur, attentiste, grimpeur, équipier) et sa forme du jour ; une échappée reprise à bout de forces se paie.' : 'Each AI has its own tactic (breakaway artist, wheelsucker, climber, domestique) and form of the day; a spent breakaway pays for it.'}</p>`
+                  : ''
+              }
               <div class="field">${L ? 'Équipement égalisé' : 'Equal equipment'}${this.seg('m-equal', (s.equalEquipment ?? s.mode === 'race') ? '1' : '0', [
                 ['1', L ? 'Oui : même vélo pour tous' : 'Yes: same bike for all'],
                 ['0', L ? 'Non : pièces de l’atelier' : 'No: workshop parts'],
@@ -1381,11 +1406,7 @@ export class MainMenu {
       <h3>${L ? 'Coureurs IA' : 'AI riders'}</h3>
       <div class="grid3">
         <label class="field">${L ? 'Nombre' : 'Count'}<input id="m-ai" type="number" min="0" max="19" value="${s.aiRiders}" /></label>
-        <div class="field">${L ? 'Niveau' : 'Level'}${this.seg('m-ailevel', String(s.aiLevel), [
-          ['0.8', '80 % FTP'],
-          ['1', '100 % FTP'],
-          ['1.15', '115 % FTP'],
-        ])}</div>
+        <div class="field">${L ? 'Niveau' : 'Level'}${this.aiLevelSeg()}</div>
       </div>
       <h3>${L ? 'Musique' : 'Music'}</h3>
       <div id="m-music-settings" class="mm-musicset"></div>
