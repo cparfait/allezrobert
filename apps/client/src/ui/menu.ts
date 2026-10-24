@@ -1,6 +1,6 @@
 import type { AvatarLook, CosmeticItem, RouteData, RouteSegment, WorldCatalogue } from '@allezrobert/shared';
 import { readKomRecord } from '../game/challenge.ts';
-import { BIKE_BRANDS, BIKE_GROUPS, BIKE_TEAMS, COSMETICS, DEFAULT_BIKE, bikeById, lookSex, withSex, bottleCapacity, bikeSetupFor, jerseyLookOf, levelProgress, SHOE_MARKS, type BikeCollection, type BikeType, type CosmeticSlot } from '@allezrobert/shared';
+import { BIKE_BRANDS, BIKE_GROUPS, BIKE_TEAMS, COSMETICS, DEFAULT_BIKE, bikeById, lookSex, tuneItem, withSex, bottleCapacity, bikeSetupFor, jerseyLookOf, levelProgress, SHOE_MARKS, type BikeCollection, type BikeType, type CosmeticSlot } from '@allezrobert/shared';
 import { shoeAccentOf } from '../rider/shoeLook.ts';
 import { WORKOUT_LIBRARY } from '@allezrobert/physics';
 import { formatBytes, installPack, loadCatalogue, packState, removePack } from '../world/packs.ts';
@@ -465,6 +465,8 @@ export class MainMenu {
       look.bikeType = item.physics?.tyre ?? 'road';
       if (bikeById(item.id)) look.bikeModel = item.id;
       else delete look.bikeModel;
+      // Vélo essayé : avec sa propre livrée, sans la peinture de l'atelier.
+      if (look.tune?.length) look.tune = look.tune.filter((id) => tuneItem(id)?.slot !== 'paint');
     }
     return look;
   }
@@ -1729,6 +1731,13 @@ export class MainMenu {
     this.root.querySelectorAll<HTMLElement>('[data-zc]').forEach((el) =>
       el.addEventListener('click', () => {
         const c = el.dataset.zc;
+        // Parcours libre : la carte de la zone s'ouvre pour fixer le point de départ.
+        if (c === 'free' && this.openWorld) {
+          this.planner.startOnly = true;
+          this.picker = 'map';
+          this.render();
+          return;
+        }
         if (c === 'free') {
           s.mode = 'open';
           this.freeStart = null;
@@ -1737,6 +1746,7 @@ export class MainMenu {
           this.render();
           return;
         }
+        this.planner.startOnly = false;
         this.picker = c === 'draw' ? 'map' : 'routes';
         this.render();
       }),

@@ -165,6 +165,14 @@ export function equipItem(item: CosmeticItem, s: Settings): void {
   if (item.slot === 'bike') {
     const { bikeModel: _old, ...rest } = s.look;
     s.look = { ...rest, bikeType: item.physics?.tyre ?? 'road', ...(bikeById(item.id) ? { bikeModel: item.id } : {}) };
+    // Nouveau vélo : il se montre avec sa propre livrée ; la peinture de l'atelier est démontée (toujours
+    // possédée, elle se remonte à l'atelier).
+    if (p.equipped.paint) {
+      delete p.equipped.paint;
+      saveProgress(p);
+      syncLook(p, s);
+      return;
+    }
   }
   saveSettings(s);
 }
