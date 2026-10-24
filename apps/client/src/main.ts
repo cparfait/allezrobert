@@ -561,7 +561,8 @@ async function boot(): Promise<void> {
       .catch(() => undefined));
   const whenAtelierReady = (build: () => boolean): void => {
     if (!atelierBuilt && !atelierWait) atelierWait = worldOverlay(getLang() === 'fr' ? 'Chargement du garage…' : 'Loading the garage…');
-    void modelsReady
+    // Attend la préparation en coulisse (shaders compilés sans bloquer) plutôt que de tout refaire au premier rendu.
+    void prepareAtelier()
       .then(() => (atelierWait ? new Promise<void>((r) => setTimeout(r, 40)) : undefined)) // laisse l'écran d'attente se peindre
       .then(() => {
         if (build()) atelierBuilt = true;
