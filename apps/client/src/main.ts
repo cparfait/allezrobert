@@ -567,7 +567,12 @@ async function boot(): Promise<void> {
       console.info(`[atelier] préparé : modèles ${Math.round(t1 - t0)} ms, pièce et shaders ${Math.round(performance.now() - t1)} ms`);
     })().catch(() => undefined));
   const whenAtelierReady = (build: () => boolean): void => {
-    if (!atelierBuilt && !atelierWait) atelierWait = worldOverlay(getLang() === 'fr' ? 'Chargement du garage…' : 'Loading the garage…');
+    // Atelier déjà affiché une fois : tout est prêt, changement immédiat.
+    if (atelierBuilt) {
+      build();
+      return;
+    }
+    if (!atelierWait) atelierWait = worldOverlay(getLang() === 'fr' ? 'Chargement du garage…' : 'Loading the garage…');
     // Attend la préparation en coulisse (shaders compilés sans bloquer) plutôt que de tout refaire au premier rendu.
     // Modèles chargés, puis au plus 3 s de préparation : si la compilation traîne, l'atelier s'affiche quand même (compilé au premier rendu).
     void modelsReady
@@ -659,8 +664,12 @@ async function boot(): Promise<void> {
     await withWorld(getLang() === 'fr' ? 'Préparation de la sortie…' : 'Preparing the ride…');
     void startRide(scene, settings, devices.source(), {});
   } else {
-    // Le paysage se prépare pendant que le coureur choisit (sans bloquer le menu), puis l'atelier.
-    setTimeout(() => void prepareWorld().then(() => prepareAtelier()), 400);
+    // Le paysage et l'atelier se préparent pendant que le coureur choisit (sans bloquer le menu).
+    setTimeout(() => {
+      void prepareWorld();
+      // L'atelier n'attend pas le paysage : prêt dès les modèles chargés (première ouverture du garage immédiate).
+      void prepareAtelier();
+    }, 400);
     // Compte : session existante, sinon écran de connexion (sauf choix « sans compte »).
     let me: Me | null = await fetchMe();
     if (me) applyProfile(me, settings);
