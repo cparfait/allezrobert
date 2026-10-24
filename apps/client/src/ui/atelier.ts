@@ -274,6 +274,21 @@ export class AtelierHost {
   }
 
   /** Nouvel état demandé par le menu (null : l'atelier se ferme). */
+  /**
+   * Prépare la pièce et le coureur à l'avance, sans les afficher : construction et compilation des
+   * shaders en coulisse, pour que la première ouverture du garage ou de l'aperçu du tutoriel soit
+   * immédiate (pièce et coureur restent gardés ensuite).
+   */
+  async prepare(look: AvatarLook): Promise<void> {
+    this.build();
+    if (!this.avatar) {
+      this.avatar = createAvatar(look);
+      this.bikeRoot.add(this.avatar.root);
+      this.lookKey = JSON.stringify(look);
+    }
+    await this.engine.renderer.compileAsync(this.scene, this.camera).catch(() => undefined);
+  }
+
   set(st: AtelierState | null): void {
     if (!st) {
       this.state = null;
