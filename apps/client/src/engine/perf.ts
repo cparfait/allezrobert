@@ -21,6 +21,7 @@ export class PerfOverlay {
   private el: HTMLElement | null = null;
   private visible = false;
   private readonly samples: number[] = [];
+  private readonly cpu: number[] = [];
   private sinceDraw = 0;
   private frames = 0;
   private engine: Engine | null = null;
@@ -38,6 +39,7 @@ export class PerfOverlay {
         const q = this.engine.quality;
         this.engine.rebuildPipeline({ ...q, [key]: !q[key] });
         this.samples.length = 0;
+        this.cpu.length = 0;
       }
     });
     if (this.tracking) this.toggle();
@@ -53,14 +55,19 @@ export class PerfOverlay {
     }
     if (this.el) this.el.style.display = this.visible ? 'block' : 'none';
     this.samples.length = 0;
+    this.cpu.length = 0;
   }
 
-  /** Appelé à chaque image rendue (`dt` : ms depuis l'image précédente, 0 la première fois). */
-  frame(dt: number, engine: Engine): void {
+  /** Appelé après chaque image rendue (`dt` : ms depuis l'image précédente, 0 la première fois ; `renderCpuMs` : temps passé côté processeur à préparer et soumettre le rendu). */
+  frame(dt: number, engine: Engine, renderCpuMs = 0): void {
     this.engine = engine;
     if (!this.visible || !(dt > 0) || dt > 1000) return;
     this.samples.push(dt);
-    if (this.samples.length > WINDOW) this.samples.shift();
+    this.cpu.push(renderCpuMs);
+    if (this.samples.length > WINDOW) {
+      this.samples.shift();
+      this.cpu.shift();
+    }
     this.sinceDraw += dt;
     this.frames++;
     if (this.tracking && this.frames % 15 === 0) void engine.renderer.resolveTimestampsAsync('render').catch(() => undefined);
@@ -82,10 +89,13 @@ export class PerfOverlay {
     const gpu = this.tracking ? (info.render.timestamp > 0 ? `${info.render.timestamp.toFixed(1)} ms` : '…') : 'off (?perf=1)';
     const q = engine.quality;
     const px = (canvas.width * canvas.height) / 1e6;
-    const bound = this.tracking && info.render.timestamp > 0 ? (info.render.timestamp > avg * 0.8 ? 'GPU' : 'CPU / synchro') : '?';
+    const cpuRender = this.cpu.reduce((a, b) => a + b, 0) / this.cpu.length;
+    const gpuMs = this.tracking ? info.render.timestamp : 0;
+    const bound = gpuMs > avg * 0.8 ? 'GPU' : cpuRender > avg * 0.5 ? 'CPU : préparation du rendu' : gpuMs > 0 ? 'CPU : logique du jeu ou attente' : '?';
     this.el.textContent = [
       `${(1000 / avg).toFixed(0)} fps   ${avg.toFixed(1)} ms  p95 ${p95.toFixed(1)}  max ${max.toFixed(1)}`,
       `GPU ${gpu}   limite : ${bound}`,
+      `CPU rendu ${cpuRender.toFixed(1)} ms   hors rendu ${Math.max(avg - cpuRender, 0).toFixed(1)} ms (jeu, attente)`,
       `appels ${info.render.drawCalls}   triangles ${(info.render.triangles / 1e6).toFixed(2)} M`,
       `géométries ${info.memory.geometries}   textures ${info.memory.textures}`,
       `rendu ${canvas.width}×${canvas.height} (${px.toFixed(1)} Mpx)  échelle dyn. ${engine.dynamicRes.scale}`,
