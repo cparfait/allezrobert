@@ -364,7 +364,6 @@
 .mm-home-go { position: absolute; left: 50%; bottom: 8vh; transform: translateX(-50%); font-size: 26px; padding: 20px 64px; }
 .mm-home-go:hover span { transform: translateX(6px); }
 .mm-tab-home.is-prep .mm-home-go { display: none; }
-.mm-tab-home.is-prep @keyframes mm-wait { from { background-position: -100% 0, 0 0; } to { background-position: 200% 0, 0 0; } }
 
 /* Fenêtres Zones / Parcours : grille de cartes */
 .mm-picker { width: min(1180px, 94vw) !important; max-height: 86vh; overflow: auto; }
