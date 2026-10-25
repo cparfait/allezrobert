@@ -14,6 +14,7 @@ WORKDIR /app
 # (paquets du monorepo shared / physics / fit copiés dans node_modules, rien d'autre).
 FROM base AS deps
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
+COPY patches ./patches
 RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store pnpm fetch --prod
 COPY . .
 RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \

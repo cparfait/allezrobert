@@ -12,6 +12,9 @@
 **/.env.*
 !**/.env.example
 data
+# Données du VPS (tuiles des zones, installateurs, sauvegardes) : jamais dans les images
+deploy/data
+deploy/backups
 out
 renders
 docs
