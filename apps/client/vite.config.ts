@@ -82,7 +82,8 @@ function excludeWorldTiles(): Plugin {
       if (process.env.AR_BUNDLE_TILES === '1') return;
       const worlds = resolve(import.meta.dirname, 'dist/worlds');
       if (!existsSync(worlds)) return;
-      for (const w of readdirSync(worlds)) rmSync(resolve(worlds, w, 'tiles'), { recursive: true, force: true });
+      // dossiers seulement : worlds/index.json est un fichier (ENOTDIR sous Linux)
+      for (const w of readdirSync(worlds, { withFileTypes: true })) if (w.isDirectory()) rmSync(resolve(worlds, w.name, 'tiles'), { recursive: true, force: true });
     },
   };
 }
