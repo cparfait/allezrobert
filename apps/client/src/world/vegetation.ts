@@ -7,7 +7,7 @@ import { fbm, rng } from '../engine/noise.ts';
 import type { LoadedTile } from './types.ts';
 import { splatAt } from './splat.ts';
 import type { Season } from './environment.ts';
-import { drawnRoads, roadAvoidance } from './roadAvoid.ts';
+import { drawnRoads, roadAvoidance, roadClearance, type AvoidRoad } from './roadAvoid.ts';
 import { broadleafVariants, realTreeMaterial, shrubGeometry, TREE_H, TREE_R } from './trees.ts';
 import { alpineProfile, coniferBiasAt, larchShareAt, treeDensityAt, treeScaleAt } from './alpine.ts';
 
@@ -50,6 +50,45 @@ const REAL_MID = 700;
 
 /** Rapport hauteur / rayon de houppier au-delà duquel un arbre réel est élancé (peuplier, jeune arbre). */
 const SLENDER = 4.2;
+/** Débord des cartes de feuillage au-delà du rayon de houppier nominal (TREE_R). */
+const CROWN_EXTENT = 1.15;
+/** Rayon horizontal des houppiers semés à l'échelle 1 (feuillu, conifère) et du buisson nominal (m). */
+const SEEDED_CROWN = { decid: 4.6, conif: 2.9 };
+const SHRUB_R = 1.2;
+/** Écart minimal entre le bord d'un houppier et le bord de chaussée (m), tronc compris. */
+const CROWN_GAP = 0.3;
+const TRUNK_GAP = 1;
+/** Déplacement maximal d'un arbre réel pour dégager la route (m). */
+const MAX_SHIFT = 1.5;
+
+type Clearance = (x: number, z: number) => { d: number; nx: number; nz: number } | null;
+
+/** Dégagement le plus faible de deux index de routes (tuile, itinéraire actif). */
+function nearestClearance(a: Clearance, b: Clearance | null): Clearance {
+  if (!b) return a;
+  return (x, z) => {
+    const ca = a(x, z);
+    const cb = b(x, z);
+    return !ca ? cb : !cb ? ca : ca.d <= cb.d ? ca : cb;
+  };
+}
+
+/**
+ * Place un houppier de rayon `r` centré en (x, z) hors des routes : décalé d'au plus `maxShift` m
+ * en s'éloignant de la route la plus proche, puis rayon réduit à la place restante. Renvoie
+ * [x, z, rayon] ou null si le tronc serait au bord de la chaussée.
+ */
+function fitCrown(clear: Clearance, x: number, z: number, r: number, maxShift: number): [number, number, number] | null {
+  const c = clear(x, z);
+  if (!c || c.d >= r + CROWN_GAP) return [x, z, r];
+  const s = Math.min(r + CROWN_GAP - c.d, maxShift);
+  const nx = x + c.nx * s;
+  const nz = z + c.nz * s;
+  const c1 = clear(nx, nz);
+  if (!c1) return [nx, nz, r];
+  if (c1.d < TRUNK_GAP) return null;
+  return [nx, nz, Math.min(r, c1.d - CROWN_GAP)];
+}
 
 type Kind = 'decid' | 'conif' | 'larch' | 'real0' | 'real1' | 'real2' | 'shrub';
 
@@ -182,6 +221,8 @@ export class Vegetation {
   private readonly avoid: (x: number, z: number) => boolean;
   /** Arbres réels : seulement la chaussée et son bord immédiat (les haies de bord de route restent). */
   private readonly avoidReal: (x: number, z: number) => boolean;
+  /** Dégagement par rapport au ruban de l'itinéraire actif (absent en monde ouvert). */
+  private readonly routeClear: Clearance | null;
   private readonly focus = new THREE.Vector3(1e9, 0, 1e9);
   /** Monde : penchant régional pour les conifères et limite des arbres (voir alpine.ts). */
   private regional: (x: number, z: number) => number = () => 0;
@@ -193,11 +234,12 @@ export class Vegetation {
     this.treelineM = alpineProfile(id).treelineM;
   }
 
-  constructor(q: QualitySettings, season: Season, heightAt: (x: number, z: number) => number, avoid: (x: number, z: number) => boolean, avoidReal: (x: number, z: number) => boolean = avoid) {
+  constructor(q: QualitySettings, season: Season, heightAt: (x: number, z: number) => number, avoid: (x: number, z: number) => boolean, avoidReal: (x: number, z: number) => boolean = avoid, routeRoads: AvoidRoad[] = []) {
     this.q = q;
     this.heightAt = heightAt;
     this.avoid = avoid;
     this.avoidReal = avoidReal;
+    this.routeClear = routeRoads.length ? roadClearance(routeRoads) : null;
     this.group.name = 'vegetation';
     const decid = [0, 1, 2].map(deciduousGeometry);
     const conif = [0, 1, 2].map(coniferGeometry);
@@ -324,6 +366,8 @@ export class Vegetation {
     // Les arbres mesurés au LiDAR peuvent surplomber n'importe quelle route : aucun tronc sur la chaussée
     // d'une route ou d'une piste dessinée (l'itinéraire actif est déjà exclu par avoidReal).
     const onRoad = roadAvoidance(drawnRoads(f.roads ?? []));
+    // ni houppier ni buisson au-dessus de la chaussée : arbre écarté de la route, houppier rétréci au besoin
+    const clear = nearestClearance(roadClearance(drawnRoads(f.roads ?? [])), this.routeClear);
     // Taille des blocs d'instanciation selon la qualité : plus grands, moins d'appels de dessin.
     const chunkM = this.q.realChunk || REAL_CHUNK;
     const per = new Map<string, Map<Kind, THREE.Matrix4[]>>();
@@ -345,17 +389,24 @@ export class Vegetation {
     const seedAt = (x: number, z: number) => Math.abs(Math.sin(x * 12.9898 + z * 78.233) * 43758.5453) % 1;
     const trees = f.trees ?? [];
     for (let i = 0; i + 3 < trees.length; i += 4) {
-      const x = trees[i] as number;
-      const z = trees[i + 1] as number;
-      const h = trees[i + 2] as number;
+      const x0 = trees[i] as number;
+      const z0 = trees[i + 1] as number;
+      const h0 = trees[i + 2] as number;
       const cr = trees[i + 3] as number;
-      if (this.avoidReal(x, z) || onRoad(x, z, 0.6)) continue;
-      const y = this.heightAt(x, z);
-      if (!Number.isFinite(y)) continue;
-      const seed = seedAt(x, z);
+      if (this.avoidReal(x0, z0) || onRoad(x0, z0, 0.6)) continue;
       // houppier mesuré ; un arbre élancé (peuplier, jeune arbre) reste un feuillus étroit, borné
       // pour ne pas devenir une aiguille
-      const sxz = Math.max(cr, 0.8, h / SLENDER / 1.6) / TREE_R;
+      const crown = Math.max(cr, 0.8, h0 / SLENDER / 1.6) * CROWN_EXTENT;
+      const fit = fitCrown(clear, x0, z0, crown, MAX_SHIFT);
+      // houppier réduit de plus de moitié : l'arbre serait une perche, on ne le garde pas
+      if (!fit || fit[2] < Math.max(0.8, crown * 0.45)) continue;
+      const [x, z, room] = fit;
+      // houppier rétréci : arbre un peu moins haut, pour garder une silhouette d'arbre
+      const h = h0 * (0.6 + 0.4 * (room / crown));
+      const y = this.heightAt(x, z);
+      if (!Number.isFinite(y)) continue;
+      const seed = seedAt(x0, z0);
+      const sxz = room / CROWN_EXTENT / TREE_R;
       p.set(x, y - 0.15, z);
       qn.setFromAxisAngle(up, seed * Math.PI * 2);
       sc.set(sxz, h / TREE_H, sxz);
@@ -365,16 +416,20 @@ export class Vegetation {
     }
     const shrubs = f.shrubs ?? [];
     for (let i = 0; i + 2 < shrubs.length; i += 3) {
-      const x = shrubs[i] as number;
-      const z = shrubs[i + 1] as number;
+      const x0 = shrubs[i] as number;
+      const z0 = shrubs[i + 1] as number;
       const h = shrubs[i + 2] as number;
-      if (this.avoidReal(x, z) || onRoad(x, z, 0.3)) continue;
+      if (this.avoidReal(x0, z0) || onRoad(x0, z0, 0.3)) continue;
+      const seed = seedAt(x0 + 0.37, z0);
+      const w = 0.95 + seed * 0.35;
+      // haie de bord de route : reculée d'au plus 1 m, sinon écartée si elle mord la chaussée
+      const fit = fitCrown(clear, x0 + (seed - 0.5) * 0.6, z0 + (seed - 0.5) * 0.6, SHRUB_R * w, 1);
+      if (!fit || fit[2] < SHRUB_R * w * 0.8) continue;
+      const [x, z] = fit;
       const y = this.heightAt(x, z);
       if (!Number.isFinite(y)) continue;
-      const seed = seedAt(x + 0.37, z);
-      p.set(x + (seed - 0.5) * 0.6, y - 0.05, z + (seed - 0.5) * 0.6);
+      p.set(x, y - 0.05, z);
       qn.setFromAxisAngle(up, seed * Math.PI * 2);
-      const w = 0.95 + seed * 0.35;
       sc.set(w, h, w);
       m.compose(p, qn, sc);
       push('shrub', x, z);
@@ -462,6 +517,7 @@ export class Vegetation {
     const per = new Map<string, { decid: THREE.Matrix4[]; conif: THREE.Matrix4[]; larch: THREE.Matrix4[] }>();
     // Pas d'arbre sur une route ou une piste dessinée, en plus du masque de route rastérisé (peu précis).
     const onRoad = roadAvoidance(drawnRoads(tile.features.roads ?? []));
+    const clear = nearestClearance(roadClearance(drawnRoads(tile.features.roads ?? [])), this.routeClear);
     // pseudo-aléa stable par position, pour les règles d'altitude (la suite r() reste inchangée en plaine)
     const seedAt = (x: number, z: number) => Math.abs(Math.sin(x * 12.9898 + z * 78.233) * 43758.5453) % 1;
     const m = new THREE.Matrix4();
@@ -508,6 +564,9 @@ export class Vegetation {
       // mélèze : plus élancé et plus clair que l'épicéa
       const slim = isLarch ? 0.72 : 1;
       sc.set(s * slim, s * (0.85 + r() * 0.35), s * slim);
+      // Houppier entier hors de la chaussée (après les tirages : le reste du semis ne change pas).
+      const cl = clear(x, z);
+      if (cl && cl.d < (isConifer ? SEEDED_CROWN.conif : SEEDED_CROWN.decid) * sc.x + CROWN_GAP) continue;
       m.compose(p, qn, sc);
       const key = `${Math.floor(x / CHUNK)}_${Math.floor(z / CHUNK)}`;
       let bucket = per.get(key);

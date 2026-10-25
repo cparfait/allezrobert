@@ -79,7 +79,9 @@ export class World {
     const groundAt = (x: number, z: number) => this.terrain.heightAt(x, z);
     // Arbres réels (LiDAR) : seule la chaussée est interdite, les haies de bord de route restent.
     const onRoadEdge = buildRoadProximity(route, route.roadWidthM / 2 + 0.6);
-    this.vegetation = new Vegetation(q, envState.season, groundAt, nearRoad, onRoadEdge);
+    // Ruban de l'itinéraire (hors monde ouvert) : aucun houppier au-dessus, comme pour les routes OSM.
+    const routeRoads = open ? [] : [{ pts: route.points.flatMap((p) => [p.x, p.z]), half: route.roadWidthM / 2 + SHOULDER }];
+    this.vegetation = new Vegetation(q, envState.season, groundAt, nearRoad, onRoadEdge, routeRoads);
     this.vegetation.setWorld(source.id);
     scene.add(this.vegetation.group);
     this.buildings = new Buildings(groundAt, q.propDensity);

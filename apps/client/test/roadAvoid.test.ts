@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { drawnRoads, roadAvoidance } from '../src/world/roadAvoid.ts';
+import { drawnRoads, roadAvoidance, roadClearance } from '../src/world/roadAvoid.ts';
 import type { TileRoad } from '../src/world/types.ts';
 
 const road = (pts: number[], over: Partial<TileRoad> = {}): TileRoad => ({ kind: 'residential', width: 6, pts, ...over });
@@ -39,5 +39,24 @@ describe('roadAvoidance', () => {
   });
   it('aucune route : rien n’est refusé', () => {
     expect(roadAvoidance([])(10, 10)).toBe(false);
+  });
+});
+
+describe('roadClearance', () => {
+  it('distance au bord de chaussée et direction qui s’en éloigne', () => {
+    const clear = roadClearance(drawnRoads([road([0, 0, 100, 0])])); // demi-largeur 3 + 0,6
+    const c = clear(50, 8);
+    expect(c?.d).toBeCloseTo(4.4);
+    expect(c?.nx).toBeCloseTo(0);
+    expect(c?.nz).toBeCloseTo(1);
+    expect(clear(50, -5)?.nz).toBeCloseTo(-1);
+    expect(clear(50, 1)?.d).toBeCloseTo(-2.6); // sur la chaussée
+  });
+  it('la route la plus proche l’emporte ; rien au-delà de la portée', () => {
+    const clear = roadClearance(drawnRoads([road([0, 0, 100, 0]), road([0, 20, 100, 20])]));
+    expect(clear(50, 14)?.nz).toBeCloseTo(-1);
+    expect(clear(50, 14)?.d).toBeCloseTo(2.4);
+    expect(roadClearance(drawnRoads([road([0, 0, 100, 0])]))(50, 40)).toBeNull();
+    expect(roadClearance([])(0, 0)).toBeNull();
   });
 });
