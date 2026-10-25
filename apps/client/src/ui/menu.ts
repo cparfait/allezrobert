@@ -693,7 +693,7 @@ export class MainMenu {
         <nav class="mm-tabs">${tabs.map(([id, label]) => `<button class="mm-tab ${id === this.tab ? 'on' : ''}" data-tab="${id}">${esc(label)}${id === 'friends' ? this.friends.badgeHtml() : ''}</button>`).join('')}
           <button class="mm-tab subtle" id="m-tuto">${L ? 'Tutoriel' : 'Tutorial'}</button></nav>
         <div class="mm-right">
-          ${this.tab === 'ride' ? '' : '<div class="mm-music" id="m-music"></div>'}
+          <div class="mm-music" id="m-music"></div>
           <div class="mm-account">
             <div class="mm-avatar" style="background:${this.s.look.jersey}">${esc(initials || 'R')}</div>
             <div class="mm-who"><b>${esc(name)}</b>
@@ -807,7 +807,7 @@ export class MainMenu {
           : `<h3 class="mm-where">${L ? 'Où rouler ?' : 'Where to ride?'}</h3>${this.pickersHtml(r)}`
       }
     </section>
-    <div class="mm-hero"><div class="mm-music mm-hero-music" id="m-music"></div><h1>Allez <em>Robert</em> !</h1><p>${L ? 'Rouler ensemble, chacun chez soi.' : 'Ride together, each from home.'}</p></div>
+    <div class="mm-hero"><h1>Allez <em>Robert</em> !</h1><p>${L ? 'Rouler ensemble, chacun chez soi.' : 'Ride together, each from home.'}</p></div>
     ${this.pickerHtml()}`;
   }
 
