@@ -454,7 +454,7 @@ async function main(): Promise<void> {
       carveMode: 'passes',
       log,
     });
-    horizon = await writeHorizon(W.horizon.halfSizeM, W.horizon.resM, OUT_DIR, log);
+    horizon = await writeHorizon(W.horizon.halfSizeM, W.horizon.resM, OUT_DIR, log, WITH_ORTHO);
   }
 
   const meta: WorldMeta = {

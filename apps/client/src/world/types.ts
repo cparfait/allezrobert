@@ -99,6 +99,8 @@ export interface HorizonGrid {
   n: number;
   resolutionM: number;
   heights: Float32Array;
+  /** Orthophoto grossière du même carré (ligne 0 au nord), si le monde en a une. */
+  orthoBlob?: Blob;
 }
 
 export interface WorldSource {

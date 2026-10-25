@@ -42,8 +42,7 @@ le bundle du jeu). Il remplace les étapes 1, 2, 3, 4 et 5 ci-dessous :
   orthos), mode *Points du tour* (clic : le 1er point est le départ, les suivants sont les `via`),
   mode *Choisir le départ*. Un tour posé à la main s'affiche en ligne droite ; la vraie route est
   calculée sur OSM à la construction.
-- **Remplit le formulaire seul** dès que l'emprise est dessinée : orthos (1024 px, 512 au-delà de
-  150 tuiles), région (géocodage inverse du centre par `geo.api.gouv.fr` : « Département · Région »,
+- **Remplit le formulaire seul** dès que l'emprise est dessinée : orthos (1024 px), région (géocodage inverse du centre par `geo.api.gouv.fr` : « Département · Région »,
   avec les accents), « bord de mer » (présence de `natural=coastline` dans l'emprise), nom et
   identifiant d'après le plus gros lieu de l'emprise (population puis proximité du centre), accroche
   fr et en (trois lieux marquants, « bord de mer », longueur et D+ du tour retenu, comme les accroches

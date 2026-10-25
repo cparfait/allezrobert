@@ -9,6 +9,11 @@ import type { RouteFootprint } from './ribbon.ts';
 import type { Season } from './environment.ts';
 import { ALPINE_GROUND_M, ALPINE_MEADOW, SNOW_LINE_M, alpineProfile } from './alpine.ts';
 
+/** Orthophotos (prises en été) selon la saison : teinte et saturation. Partagé avec le relief lointain. */
+export const ORTHO_SEASON: Record<Season, [string, number]> = { spring: ['#f4fff0', 1.05], summer: ['#fffbf2', 1], autumn: ['#fbead2', 0.9], winter: ['#dde2e6', 0.5] };
+/** Part de l'orthophoto dans la couleur du sol (le détail procédural reste visible de près). */
+export const ORTHO_WEIGHT = 0.72;
+
 /** Couleurs du sol par saison (voir ART_DIRECTION.md). */
 const SEASON_GROUND: Record<Season, { forest: string; field: string; field2: string; meadow: string; urban: string; dirt: string }> = {
   spring: { forest: '#4d5a2c', field: '#8a9a4b', field2: '#d9c93a', meadow: '#7fa448', urban: '#8f8c78', dirt: '#7a6a4c' },
@@ -100,9 +105,8 @@ export class TerrainManager {
     this.frost.value = season === 'winter' ? 0.25 : 0;
     this.snowLine.value = SNOW_LINE_M[season];
     this.alpineMeadow.set(ALPINE_MEADOW[season]);
-    const tint: Record<Season, [string, number]> = { spring: ['#f4fff0', 1.05], summer: ['#fffbf2', 1], autumn: ['#fbead2', 0.9], winter: ['#dde2e6', 0.5] };
-    this.orthoTint.set(tint[season][0]);
-    this.orthoSat.value = tint[season][1];
+    this.orthoTint.set(ORTHO_SEASON[season][0]);
+    this.orthoSat.value = ORTHO_SEASON[season][1];
   }
 
   setQuality(q: QualitySettings): void {
@@ -509,7 +513,7 @@ export class TerrainManager {
       const roadMask = smoothstep(0.35, 0.75, s1.g);
       // abords de l'itinéraire : la chaussée floue de la photo ne déborde pas sur les bas-côtés
       const verge = smoothstep(0.2, 0.8, s1.b);
-      col = mix(col, seasonal, float(0.72).mul(float(1).sub(roadMask)).mul(float(1).sub(verge.mul(0.8))));
+      col = mix(col, seasonal, float(ORTHO_WEIGHT).mul(float(1).sub(roadMask)).mul(float(1).sub(verge.mul(0.8))));
     }
     // Montagne : roche grise sur les fortes pentes (plus tôt en altitude), au-dessus de la limite
     // des arbres et sur les éboulis OSM ; glace sur les glaciers ; neige selon la saison. Appliqué

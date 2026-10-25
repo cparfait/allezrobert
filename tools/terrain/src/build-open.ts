@@ -215,7 +215,7 @@ async function main(): Promise<void> {
     ...(enrichment ? { enrichment } : {}),
     log,
   });
-  const horizon = await writeHorizon(W.horizon.halfSizeM, W.horizon.resM, OUT_DIR, log);
+  const horizon = await writeHorizon(W.horizon.halfSizeM, W.horizon.resM, OUT_DIR, log, WITH_ORTHO);
   const start = toWorld(W.start);
   const meta: WorldMeta = {
     formatVersion: 1,

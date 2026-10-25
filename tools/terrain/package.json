@@ -15,9 +15,13 @@
     "fetch:osm": "tsx src/fetch-osm.ts",
     "test": "vitest run --root ../.. tools/terrain",
     "places": "tsx src/places.ts",
-    "zone-builder": "tsx src/zone-builder.ts"
+    "zone-builder": "tsx src/zone-builder.ts",
+    "regen:orthos": "tsx src/regen-orthos.ts"
   },
   "dependencies": {
     "@allezrobert/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "sharp": "0.35.5"
   }
 }

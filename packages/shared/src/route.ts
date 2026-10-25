@@ -123,6 +123,8 @@ export interface WorldHorizon {
   stepM: number;
   minM: number;
   maxM: number;
+  /** Orthophoto grossière du même carré (ligne 0 au nord), fichier relatif au dossier du monde. */
+  ortho?: string;
 }
 
 export interface WorldRouteIndex {

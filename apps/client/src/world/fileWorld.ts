@@ -63,7 +63,8 @@ export async function createFileWorld(id: string, meta: WorldMeta): Promise<Worl
       if (raw.length < (h.n + 1) * (h.n + 1)) return null;
       const heights = new Float32Array(raw.length);
       for (let i = 0; i < raw.length; i++) heights[i] = h.baseM + (raw[i] as number) * h.stepM;
-      return { x0: h.x0, z0: h.z0, n: h.n, resolutionM: h.resolutionM, heights };
+      const orthoBlob = h.ortho ? await orthoSource(`${base}/${h.ortho}`) : null;
+      return { x0: h.x0, z0: h.z0, n: h.n, resolutionM: h.resolutionM, heights, ...(orthoBlob ? { orthoBlob } : {}) };
     },
     async loadTile(tx, tz) {
       const key = `${tx}_${tz}`;

@@ -7,11 +7,12 @@ import path from 'node:path';
 import type { WorldHorizon } from '@allezrobert/shared';
 import { Dem } from './dem.ts';
 import { worldToL93 } from './frame.ts';
+import { fetchHorizonOrtho } from './ortho.ts';
 import { encodeGrid, tileStepM } from './tiles.ts';
 
 const r2 = (v: number) => Math.round(v * 100) / 100;
 
-export async function writeHorizon(halfSizeM: number, resM: number, outDir: string, log: (s: string) => void): Promise<WorldHorizon> {
+export async function writeHorizon(halfSizeM: number, resM: number, outDir: string, log: (s: string) => void, withOrtho = true): Promise<WorldHorizon> {
   const H = halfSizeM;
   const res = resM;
   const far = new Dem(`far`, res, 10000, 64);
@@ -38,5 +39,9 @@ export async function writeHorizon(halfSizeM: number, resM: number, outDir: stri
   const file = 'tiles/horizon.u16';
   fs.writeFileSync(path.join(outDir, file), buf);
   log(`   horizon : ${N}×${N} à ${res} m (±${H / 1000} km), ${minM.toFixed(0)}–${maxM.toFixed(0)} m, ${(buf.length / 1e6).toFixed(2)} Mo`);
-  return { file, x0: -H, z0: -H, n: nn, resolutionM: res, baseM, stepM, minM: r2(minM), maxM: r2(maxM) };
+  // Vue aérienne grossière du même carré : les champs et forêts lointains gardent leurs vraies couleurs.
+  const ortho = 'tiles/horizon.ortho.jpg';
+  const withPhoto = withOrtho && (await fetchHorizonOrtho(H, path.join(outDir, ortho)));
+  if (withPhoto) log(`   horizon : orthophoto ${(fs.statSync(path.join(outDir, ortho)).size / 1e6).toFixed(2)} Mo`);
+  return { file, x0: -H, z0: -H, n: nn, resolutionM: res, baseM, stepM, minM: r2(minM), maxM: r2(maxM), ...(withPhoto ? { ortho } : {}) };
 }

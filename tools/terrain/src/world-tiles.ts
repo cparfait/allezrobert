@@ -9,7 +9,7 @@ import { decorateTile, type TileEnrichment } from './enrich.ts';
 import { worldToL93 } from './frame.ts';
 import type { Box } from './geom.ts';
 import type { RoadGraph } from './graph.ts';
-import { fetchOrtho } from './ortho.ts';
+import { fetchOrtho, harmonizeOrthos, orthoCacheFile, type HarmonizeTile } from './ortho.ts';
 import type { OsmWorld, Poi } from './osm.ts';
 import { buildRoads3d, type Roads3d, type RouteOnGraph } from './roads3d.ts';
 import { buildTile, TileBuckets, type CarveLine, type TileInputs, type TileResult, type TileRoad } from './tiles.ts';
@@ -26,9 +26,9 @@ export interface WriteTilesOptions {
   outDir: string;
   withOrtho: boolean;
   carveMode?: 'max' | 'passes';
-  /** Côté des orthophotos (px) des tuiles haute résolution : défaut 512. */
+  /** Côté des orthophotos (px) des tuiles haute résolution : défaut 1 024. */
   orthoPx?: number;
-  /** Côté des orthophotos (px) des tuiles basse résolution : défaut 256. */
+  /** Côté des orthophotos (px) des tuiles basse résolution : défaut 1 024 (même netteté partout). */
   orthoPxLo?: number;
   /** Profils 3D déjà calculés (sinon calculés ici). */
   roads3d?: Roads3d;
@@ -109,19 +109,31 @@ export async function writeWorldTiles(o: WriteTilesOptions): Promise<TileResult[
   for (const f of fs.readdirSync(tilesDir)) fs.unlinkSync(path.join(tilesDir, f));
   const total = o.tiles.length;
   let k = 0;
+  const orthos: Array<{ res: TileResult; tile: HarmonizeTile }> = [];
+  let sea = 0;
   for (const [tx, tz] of o.tiles) {
     const id = `${tx}_${tz}`;
     const fine = o.enrichment?.get(id);
     const res = buildTile(tx, tz, o.hiTiles.has(id), o.dems, inputs, o.outDir, o.carveMode ?? 'max', fine ? (json, groundAt) => decorateTile(json, fine, groundAt) : undefined);
     tileResults.push(res);
     if (o.withOrtho) {
-      const ok = await fetchOrtho(tx, tz, o.hiTiles.has(id) ? (o.orthoPx ?? 512) : (o.orthoPxLo ?? 256), path.join(tilesDir, `${id}.ortho.jpg`));
-      if (ok) {
+      const px = o.hiTiles.has(id) ? (o.orthoPx ?? 1024) : (o.orthoPxLo ?? 1024);
+      const out = path.join(tilesDir, `${id}.ortho.jpg`);
+      const r = await fetchOrtho(tx, tz, px, out);
+      if (r === 'ok') {
         res.lods.push('ortho');
-        res.bytes += fs.statSync(path.join(tilesDir, `${id}.ortho.jpg`)).size;
-      }
+        orthos.push({ res, tile: { id, tx, tz, raw: orthoCacheFile(tx, tz, px), out } });
+      } else if (r === 'sea') sea++;
     }
     if (++k % 25 === 0) log(`   ${k}/${total} tuiles`);
+  }
+  if (orthos.length) {
+    if (sea) log(`   ${sea} tuile(s) en pleine mer sans orthophoto`);
+    await harmonizeOrthos(
+      orthos.map((x) => x.tile),
+      log,
+    );
+    for (const { res, tile } of orthos) res.bytes += fs.statSync(tile.out).size;
   }
   return tileResults;
 }

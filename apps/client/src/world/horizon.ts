@@ -5,6 +5,7 @@ import type { QualitySettings } from '../engine/quality.ts';
 import type { Season } from './environment.ts';
 import type { HorizonGrid, WorldSource } from './types.ts';
 import { ALPINE_GROUND_M, ALPINE_MEADOW, SNOW_LINE_M, type AlpineProfile } from './alpine.ts';
+import { ORTHO_SEASON, ORTHO_WEIGHT } from './terrain.ts';
 
 /** Rayon terrestre apparent (réfraction comprise, k ≈ 0,13) : le relief lointain s'abaisse sous l'horizon. */
 const EARTH_R = 6371000 / (1 - 0.13);
@@ -43,6 +44,12 @@ export class FarTerrain {
   private readonly diskA = uniform(new THREE.Vector3(0, 0, -1));
   private readonly diskB = uniform(new THREE.Vector3(0, 0, -1));
   private readonly maskTex: THREE.DataTexture;
+  /** Orthophoto grossière du carré (world.json `horizon.ortho`), prise en compte dès son décodage. */
+  private readonly orthoTex = new THREE.Texture();
+  private readonly photoOn = uniform(0);
+  private readonly orthoTint = colorUniform('#ffffff');
+  private readonly orthoSat = uniform(1);
+  private disposed = false;
   private radius: number;
   private readonly tileSize: number;
 
@@ -66,7 +73,24 @@ export class FarTerrain {
     this.maskTex.magFilter = this.maskTex.minFilter = THREE.NearestFilter;
     this.maskTex.needsUpdate = true;
 
-    this.mesh = new THREE.Mesh(buildGeometry(grid, q.level === 'low' || q.level === 'medium' ? 2 : 1), this.material(tx0 * T, tz0 * T, nx * T, nz * T));
+    if (grid.orthoBlob) {
+      // Décodée hors du fil principal, comme les orthophotos des tuiles (terrain.ts).
+      const tex = this.orthoTex;
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.flipY = false;
+      tex.anisotropy = 4;
+      tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping;
+      void createImageBitmap(grid.orthoBlob)
+        .then((bmp) => {
+          if (this.disposed) return bmp.close();
+          tex.image = bmp;
+          tex.needsUpdate = true;
+          this.photoOn.value = 1;
+        })
+        .catch(() => undefined);
+    }
+
+    this.mesh = new THREE.Mesh(buildGeometry(grid, q.level === 'low' || q.level === 'medium' ? 2 : 1), this.material(tx0 * T, tz0 * T, nx * T, nz * T, grid));
     this.mesh.name = 'horizon';
     this.mesh.frustumCulled = false;
     this.mesh.castShadow = false;
@@ -82,6 +106,8 @@ export class FarTerrain {
     this.forest.set(LOWLAND[season][0]);
     this.meadow.set(LOWLAND[season][1]);
     this.alpineMeadow.set(ALPINE_MEADOW[season]);
+    this.orthoTint.set(ORTHO_SEASON[season][0]);
+    this.orthoSat.value = ORTHO_SEASON[season][1];
   }
 
   setQuality(q: QualitySettings): void {
@@ -101,7 +127,7 @@ export class FarTerrain {
     (this.diskA.value as THREE.Vector3).copy(this.diskB.value as THREE.Vector3);
   }
 
-  private material(mx: number, mz: number, mw: number, mh: number): THREE.MeshStandardNodeMaterial {
+  private material(mx: number, mz: number, mw: number, mh: number, grid: HorizonGrid): THREE.MeshStandardNodeMaterial {
     const m = new THREE.MeshStandardNodeMaterial({ fog: false });
     // Sommet : courbure terrestre (abaissement d²/2R autour de la caméra), profondeur collée au ciel.
     m.vertexNode = Fn(() => {
@@ -136,6 +162,13 @@ export class FarTerrain {
     const steepRock = smoothstep(0.22, 0.42, slope).mul(smoothstep(this.treeline.sub(800), this.treeline.sub(200), alt));
     const rockK = clamp(smoothstep(this.treeline.add(50), this.treeline.add(650), alt).mul(0.85).max(steepRock), 0, 1);
     col = mix(col, this.rock.node.mul(n2.mul(0.3).add(0.65)), rockK);
+    // Vue aérienne : vraies couleurs des champs, forêts et villes au loin, avec la même teinte de saison
+    // et la même part que sur les tuiles détaillées (pas de rupture à leur limite).
+    const size = grid.n * grid.resolutionM;
+    const photo = texture(this.orthoTex, xz.sub(vec2(grid.x0, grid.z0)).div(size)).rgb;
+    const lum = photo.dot(vec3(0.299, 0.587, 0.114));
+    const seasonal = mix(vec3(lum, lum, lum), photo, this.orthoSat).mul(this.orthoTint.node).mul(1.08);
+    col = mix(col, seasonal, this.photoOn.mul(ORTHO_WEIGHT));
     const north = smoothstep(0.0, 0.4, normalWorld.z.negate());
     const line = this.snowLine.sub(north.mul(200)).add(n2.sub(0.5).mul(300));
     const snow = smoothstep(line.sub(150), line.add(200), alt).mul(float(1).sub(smoothstep(0.42, 0.7, slope)));
@@ -156,6 +189,9 @@ export class FarTerrain {
   }
 
   dispose(): void {
+    this.disposed = true;
+    this.orthoTex.dispose();
+    (this.orthoTex.image as ImageBitmap | undefined)?.close?.();
     this.mesh.geometry.dispose();
     (this.mesh.material as THREE.Material).dispose();
     this.maskTex.dispose();

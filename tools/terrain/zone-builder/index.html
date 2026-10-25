@@ -406,7 +406,7 @@ async function autofill() {
   if (!draft || !(draft.rect.maxE > draft.rect.minE)) return;
   const seq = ++autoSeq, say = (t) => { if (seq === autoSeq) $('autoMsg').innerHTML = t; };
   await refresh();
-  if (frame) setField('orthoPx', frame.tiles > 150 ? 512 : 1024);
+  if (frame) setField('orthoPx', 1024);
   const r = draft.rect, c = await geo({ e: (r.minE + r.maxE) / 2, n: (r.minN + r.maxN) / 2 });
   let reg = await regionOf(c.lon, c.lat); setField('regionFr', reg); setField('regionEn', reg);
   say('Lieux et côte : lecture d’OpenStreetMap…');

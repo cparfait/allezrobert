@@ -73,7 +73,11 @@ ouvert) sauf réglage contraire du monde :
 
 - relief **LiDAR HD** en 2 m à moins de **800 m** des itinéraires (boucle principale de Chevreuse :
   2 km), 8 m au-delà ;
-- **orthophotos** IGN à **1 024 px** par tuile de 1 km en 2 m (≈ 1 m/px), 512 px ailleurs ;
+- **orthophotos** IGN à **1 024 px** par tuile de 1 km (≈ 1 m/px), partout. Les tuiles en pleine mer
+  (image blanche, hors couverture IGN) n'en ont pas ; les couleurs sont harmonisées entre tuiles
+  voisines (gains par coin, `harmonizeOrthos` dans `src/ortho.ts`) ; le relief lointain reçoit une
+  mosaïque de 2 048 px (`tiles/horizon.ortho.jpg`, ≈ 30 m/px). Pour des mondes déjà construits :
+  `pnpm --filter @allezrobert/terrain regen:orthos <monde>… | --all`, puis `packs` ;
 - **enrichissement** à moins de **600 m** des itinéraires (`enrich`, `false` pour s'en passer) :
   arbres et haies du MNH LiDAR HD, bâtiments BD TOPO aux toits mesurés dans le MNS, nature et
   largeur des voies BD TOPO. Compter ≈ 12 s et ≈ 35 Mo de cache LiDAR par tuile enrichie.
@@ -132,7 +136,8 @@ routes/<id>.json           itinéraires (RouteData)       versionnés
 tiles/<tx>_<tz>.json       entités (WorldTile)           non versionné (.gitignore local)
 tiles/<tx>_<tz>.lo.u16     altitudes 8 m, 126×126        non versionné
 tiles/<tx>_<tz>.hi.u16     altitudes 2 m, 501×501        non versionné (tuiles proches des itinéraires)
-tiles/<tx>_<tz>.ortho.jpg  orthophoto 256² (lo) ou 512² (hi) px, nord en haut   non versionné
+tiles/<tx>_<tz>.ortho.jpg  orthophoto 1 024² px harmonisée, nord en haut (aucune en mer)   non versionné
+tiles/horizon.ortho.jpg    orthophoto 2 048² px du relief lointain             non versionné
 ```
 
 Les types TypeScript sont dans `packages/shared/src/route.ts` (`RouteData`, `WorldMeta`,
@@ -313,8 +318,7 @@ donnée Garmin lue** (les règles de vie privée ci-dessus ne concernent que Che
 6. **KOM** du pied (`climbStart`) à l'arrivée (`finish`) ; bilan comparé aux valeurs publiées
    (`reference`) dans le journal et dans `data/cache/terrain/analysis/<id>-report.json`.
 7. **Tuiles** seulement à moins de `loMarginM` (5 km) de la route, en 2 m à moins de `hiMarginM`
-   (800 m). Orthophotos `orthoPx` : 1 024 px par tuile de 1 km en 2 m (≈ 1 m/px), 512 px au-delà
-   (≈ 2 m/px). Enrichissement `enrich` à moins de 600 m de la route : arbres et haies du MNH
+   (800 m). Orthophotos `orthoPx` : 1 024 px par tuile de 1 km (≈ 1 m/px). Enrichissement `enrich` à moins de 600 m de la route : arbres et haies du MNH
    LiDAR HD, bâtiments BD TOPO aux toits mesurés dans le MNS, nature et largeur des voies. Creusement « par passage » (`carveGridPasses`) : dans un lacet, les deux branches
    proches contribuent toutes deux (moyenne pondérée, chaussée plate à l'altitude de sa branche)
    au lieu d'une marche à mi-distance. Pas de quantification par tuile (`stepM`, 1 cm, 2 cm si la

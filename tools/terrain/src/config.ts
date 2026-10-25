@@ -169,13 +169,14 @@ export type WorldConfig = GarminWorld | ClimbWorld | OpenWorld;
 /**
  * Qualité standard de tous les mondes (22/10/2026), sauf réglage contraire dans le monde :
  * - relief en 2 m (LiDAR HD) à moins de 800 m des itinéraires (vue depuis les lacets, drone, TV) ;
- * - orthophotos IGN à 1 024 px par tuile de 1 km en 2 m (≈ 1 m/px), 512 px au-delà (≈ 2 m/px) ;
+ * - orthophotos IGN à 1 024 px par tuile de 1 km (≈ 1 m/px), partout : à 512 px au-delà des tuiles
+ *   en 2 m, le sol changeait visiblement de netteté d'une tuile à l'autre (25/10/2026) ;
  * - enrichissement à moins de 600 m des itinéraires : arbres et haies du MNH LiDAR HD, bâtiments
  *   BD TOPO aux toits mesurés dans le MNS, nature et largeur des voies BD TOPO.
  */
 export const QUALITY = {
   hiMarginM: 800,
-  orthoPx: { hi: 1024, lo: 512 },
+  orthoPx: { hi: 1024, lo: 1024 },
   enrich: { radiusM: 600, lidarVegetation: true, bdtopoBuildings: true } as WorldEnrich,
 };
 
