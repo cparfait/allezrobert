@@ -1456,6 +1456,8 @@ export class MainMenu {
             <label class="field">${L ? 'Marquage des chaussures' : 'Shoe logo'}<select id="m-shoe-mark"><option value="">${L ? 'Aucun' : 'None'}</option>${SHOE_MARKS.map((m) => `<option value="${m.id}" ${this.s.look.shoeMark === m.id ? 'selected' : ''}>${m.text}</option>`).join('')}</select></label>
             <label class="field">${L ? 'Accent des chaussures' : 'Shoe accent'}<input id="m-shoe-accent" type="color" value="${this.s.look.shoeAccent ?? shoeAccentOf(this.s.look)}" /></label>
             <label class="field">${L ? 'Chaussettes' : 'Socks'}<input id="m-socks" type="color" value="${this.s.look.socks ?? '#f2f2f2'}" /></label>
+            ${this.sockHeightToggle()}
+            ${this.legsToggle()}
           </div>
           <h3 class="mm-presets-title">${L ? 'Tenues préréglées' : 'Kit presets'}</h3>
           <div class="mm-items mm-kits">${OUTFITS.map(
@@ -1466,8 +1468,8 @@ export class MainMenu {
         : this.garageSlot === 'bike'
         ? this.bikeListHtml(lp.level, p.equipped.bike)
         : this.garageSlot === 'jersey'
-        ? `${this.sleevesToggle()}${this.jerseyPacksHtml(lp.level, p.equipped.jersey)}`
-        : `<div class="mm-items">${this.garageItems(lp.level)
+        ? `${this.sleevesToggle()}${this.legsToggle()}${this.jerseyPacksHtml(lp.level, p.equipped.jersey)}`
+        : `${this.garageSlot === 'socks' ? this.sockHeightToggle() : ''}<div class="mm-items">${this.garageItems(lp.level)
             .map((c) => this.itemHtml(c, lp.level, p.equipped[c.slot]))
             .join('')}</div>`;
     return `<div class="mm-dragzone" id="m-dragzone"></div>
@@ -1519,6 +1521,24 @@ export class MainMenu {
                 <i style="background:${swatch(c)}"></i>
                 <span class="mm-it-txt"><b>${esc(c.name[lang])}</b>${c.effect ? `<em class="mm-effect">${esc(c.effect[lang])}</em>` : ''}
                 <span class="mm-it-state">${prev ? `👁 ${L ? 'Aperçu' : 'Preview'} · 🔒 ${L ? 'niv.' : 'lvl'} ${c.level}` : locked ? `🔒 ${L ? 'niveau' : 'level'} ${c.level}` : on ? (L ? '✓ Équipé' : '✓ Equipped') : L ? 'Disponible' : 'Available'}</span></span></button>`;
+  }
+
+  /** Cuissard court ou long (look.legs) ; aperçu immédiat. */
+  private legsToggle(): string {
+    const L = fr();
+    return `<div class="field mm-sleeves">${L ? 'Cuissard' : 'Shorts'}${this.seg('m-legs', this.s.look.legs ?? 'short', [
+      ['short', L ? 'Courts' : 'Short'],
+      ['long', L ? 'Longs' : 'Long'],
+    ])}</div>`;
+  }
+
+  /** Chaussettes basses ou hautes (look.sockHeight) ; aperçu immédiat. */
+  private sockHeightToggle(): string {
+    const L = fr();
+    return `<div class="field mm-sleeves">${L ? 'Hauteur des chaussettes' : 'Sock height'}${this.seg('m-sock-height', this.s.look.sockHeight ?? 'low', [
+      ['low', L ? 'Basses' : 'Low'],
+      ['high', L ? 'Hautes' : 'High'],
+    ])}</div>`;
   }
 
   /** Manches courtes ou longues, pour tous les maillots (look.sleeves) ; aperçu immédiat. */
@@ -2504,6 +2524,14 @@ export class MainMenu {
     on<HTMLElement>('m-bottles', 'change', (el) => {
       const n = Number((el as unknown as { value: string }).value);
       s.look = { ...s.look, bottles: n === 0 || n === 1 || n === 2 ? n : 2 };
+      changed();
+    });
+    on<HTMLElement>('m-legs', 'change', (el) => {
+      s.look = { ...s.look, legs: (el as unknown as { value: string }).value === 'long' ? 'long' : 'short' };
+      changed();
+    });
+    on<HTMLElement>('m-sock-height', 'change', (el) => {
+      s.look = { ...s.look, sockHeight: (el as unknown as { value: string }).value === 'high' ? 'high' : 'low' };
       changed();
     });
     on<HTMLElement>('m-sleeves', 'change', (el) => {
