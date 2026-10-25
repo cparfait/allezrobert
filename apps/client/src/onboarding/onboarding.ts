@@ -1,4 +1,5 @@
 import { withLikeness } from '../ui/faceEditorLogic.ts';
+import { enhanceSelects } from '../ui/dropdown.ts';
 import { DEFAULT_LOOK, lookSex, withSex, type AvatarLook } from '@allezrobert/shared';
 import { getLang, setLang, t } from '../i18n/index.ts';
 import type { DevicePanel } from '../ui/menu.ts';
@@ -232,6 +233,7 @@ export class Onboarding {
         <div class="row">${i > 0 ? `<button class="btn" id="o-back">←</button>` : ''}${i === STEPS.length - 1 && this.wantFtp ? `<button class="btn" id="o-later">${fr ? 'Plus tard' : 'Later'}</button>` : ''}<button class="btn primary" id="o-next">${i === STEPS.length - 1 ? (this.wantFtp ? (fr ? 'Lancer le test FTP' : 'Start the FTP test') : fr ? 'Terminer ✓' : 'Finish ✓') : fr ? 'Suivant →' : 'Next →'}</button></div>
       </div></div></div></div></div>`;
     this.bind();
+    enhanceSelects(this.root);
     this.placeTail();
     if (this.step === 'companion') renderCompanionSettings(this.root.querySelector('#o-companion'), true);
     this.syncPreview();

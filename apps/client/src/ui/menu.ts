@@ -12,6 +12,7 @@ import { music } from '../audio/music.ts';
 import { spotify, redirectUri } from '../audio/spotify.ts';
 import { renderStravaLink } from './stravaLink.ts';
 import { flagSvg } from './flagSvg.ts';
+import { enhanceSelects } from './dropdown.ts';
 import { renderSoundSettings } from './soundSettings.ts';
 import { renderCompanionSettings } from './companionQr.ts';
 import { HUD_BLOCKS } from '../hud/hud.ts';
@@ -806,6 +807,7 @@ export class MainMenu {
       });
     }
     this.bind();
+    enhanceSelects(this.root);
     this.friends.mount(this.root, this.tab === 'friends');
   }
 
@@ -2019,6 +2021,7 @@ export class MainMenu {
         if (!el || ads.length < 2) return;
         el.innerHTML = `<label class="field">${L ? 'Adaptateur Bluetooth' : 'Bluetooth adapter'}<select id="m-adapter">${ads.map((a) => `<option value="${esc(a.id)}" ${a.isDefault ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}</select></label>`;
         el.querySelector('select')?.addEventListener('change', (e) => void this.devices.selectAdapter?.((e.target as HTMLSelectElement).value));
+        enhanceSelects(el);
       });
     }
   }
