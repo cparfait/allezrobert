@@ -22,6 +22,8 @@
   button:hover { border-color:var(--acc); }
   button.primary { background:var(--acc); color:#1a1200; border-color:var(--acc); font-weight:600; }
   button.on { border-color:var(--acc); color:var(--acc); }
+  button.stop:not(:disabled) { border-color:var(--bad); color:var(--bad); }
+  button.stop:not(:disabled):hover { background:var(--bad); color:#1a0000; }
   button:disabled { opacity:.4; cursor:default; }
   .zone { padding:4px 6px; border-radius:4px; cursor:pointer; display:flex; justify-content:space-between; gap:6px; }
   .zone:hover, .zone.sel { background:#2a323c; }
@@ -113,7 +115,7 @@
   <h2>Reconstruire tous les mondes</h2>
   <p style="color:var(--dim);margin:2px 0 6px">build:world de chaque monde publié, l’un après l’autre (un échec n’arrête pas la suite), puis packs. Options « Sans orthophotos » et « Hors ligne » ci-dessus prises en compte. L’état reste affiché même si l’outil est relancé ; « Reprendre » garde les mondes déjà faits.</p>
   <label>Sauf (identifiants séparés par des virgules, facultatif)</label><input id="rebuildExcept" type="text" placeholder="ex. chevreuse, montmartre" list="zoneIds"><datalist id="zoneIds"></datalist>
-  <div class="row" style="margin-top:6px"><button id="rebuildAll">Tout reconstruire</button><button id="rebuildResume">Reprendre</button></div>
+  <div class="row" style="margin-top:6px"><button id="rebuildAll">Tout reconstruire</button><button id="rebuildResume">Reprendre</button><button id="rebuildCancel" class="stop" disabled>Annuler</button></div>
   <div id="rebuildOut"></div>
 
   <div id="srvPanel" hidden>
@@ -138,6 +140,7 @@
   </div>
 
   <h2>Journal</h2>
+  <div class="row" style="margin-bottom:6px"><button id="cancelJournal" class="stop" disabled>Annuler le travail en cours</button></div>
   <div id="steps"></div>
   <pre id="log">—</pre>
   <p style="color:var(--dim)">Reprise : relancer la construction, tout ce qui est déjà téléchargé est en cache (data/cache/terrain).</p>
@@ -366,7 +369,20 @@ async function save() {
 $('save').onclick = () => { if (draft) save().catch((e) => ($('msg').innerHTML = `<span class="err">${esc(e.message)}</span>`)); };
 $('saveBuild').onclick = async () => { if (!draft) return; try { await save(); await startBuild(); } catch (e) { $('msg').innerHTML = `<span class="err">${esc(e.message)}</span>`; } };
 $('buildOnly').onclick = async () => { if (!draft || !draft.id) return; try { await startBuild(); } catch (e) { $('msg').innerHTML = `<span class="err">${esc(e.message).replace(/\n/g, '<br>')}</span>`; } };
-$('cancel').onclick = () => api('/api/cancel', {}).then(poll);
+async function cancelJob() {
+  const j = lastJob;
+  if (!j || j.status !== 'running') return;
+  const cur = j.steps.find((st) => st.status === 'running');
+  let msg = 'Annuler le travail en cours (' + (cur ? cur.name : j.id) + ') ?';
+  if (cur && /application/.test(cur.name)) msg += '\n\n⚠ Une mise à jour du serveur interrompue peut le laisser à moitié mis à jour : relance-la ensuite pour la terminer.';
+  else if (cur && /envoi/.test(cur.name)) msg += '\n\nL’envoi d’une zone est sans risque : l’ancienne version reste en place sur le serveur.';
+  else if (j.rebuildAll) msg += '\n\n« Reprendre » repartira de la zone interrompue, sans refaire celles qui sont terminées.';
+  if (!confirm(msg)) return;
+  await api('/api/cancel', {}).then(poll);
+}
+$('cancel').onclick = cancelJob;
+$('rebuildCancel').onclick = cancelJob;
+$('cancelJournal').onclick = cancelJob;
 async function startBuild() { logPos = 0; $('log').textContent = ''; const r = await api('/api/build', buildOpts()); showJob(r.job); poll(); }
 async function startRebuild(resume) { logPos = 0; $('log').textContent = ''; const r = await api('/api/rebuild-all', { noOrtho: $('noOrtho').checked, offline: $('offline').checked, resume, exclude: $('rebuildExcept').value.split(/[\s,;]+/).filter(Boolean) }); showJob(r.job); poll(); }
 $('rebuildAll').onclick = async () => { const except = $('rebuildExcept').value.trim(); if (!confirm('Reconstruire tous les mondes publiés' + (except ? ' sauf : ' + except : '') + ' ? Compter plusieurs heures.')) return; try { await startRebuild(false); } catch (e) { $('rebuildOut').innerHTML = `<span class="err">${esc(e.message).replace(/\n/g, '<br>')}</span>`; } };
@@ -427,7 +443,7 @@ const ICON = { pending: '·', running: '▶', done: '✓', failed: '✗', cancel
 function showJob(j) {
   lastJob = j; if (!j) { $('steps').textContent = ''; return; }
   $('steps').innerHTML = `<div>Zone <b>${esc(j.id)}</b> — ${esc(j.status)}</div>` + j.steps.map((s) => `<div class="${s.status === 'failed' ? 'err' : s.status === 'done' ? 'good' : ''}">${ICON[s.status]} ${esc(s.name)}</div>`).join('');
-  const running = j.status === 'running'; $('cancel').disabled = !running; $('save').disabled = running; $('saveBuild').disabled = running; $('buildOnly').disabled = running; $('verifyOne').disabled = running; $('verifyAll').disabled = running; $('rebuildAll').disabled = running; if (running) $('rebuildResume').disabled = true;
+  const running = j.status === 'running'; $('cancel').disabled = !running; $('rebuildCancel').disabled = !running; $('cancelJournal').disabled = !running; $('save').disabled = running; $('saveBuild').disabled = running; $('buildOnly').disabled = running; $('verifyOne').disabled = running; $('verifyAll').disabled = running; $('rebuildAll').disabled = running; if (running) $('rebuildResume').disabled = true;
   if (j.status === 'done' && !j.keepGoing) $('msg').innerHTML = `<span class="good">Terminé. Le jeu : <code>?world=${esc(j.id)}</code> (menu → Monde).</span>`;
 }
 async function poll() {
