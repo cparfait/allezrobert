@@ -85,8 +85,8 @@ const MODE_COLORS: Partial<Record<Settings['mode'], string>> = {
   challenge: '#fb923c',
 };
 const MODE_TAGS: Record<'fr' | 'en', Partial<Record<Settings['mode'], string>>> = {
-  fr: { free: 'Seul ou avec des IA', group: 'Avec tes amis', race: 'Classement', workout: 'Séances ERG', ftpTest: 'Test rampe', challenge: 'Records en côte' },
-  en: { free: 'Solo or with AI', group: 'With friends', race: 'Results', workout: 'ERG sessions', ftpTest: 'Ramp test', challenge: 'Climb records' },
+  fr: { free: 'En solo', group: 'Avec tes amis', race: 'Classement', workout: 'Séances ERG', ftpTest: 'Test rampe', challenge: 'Records en côte' },
+  en: { free: 'On your own', group: 'With friends', race: 'Results', workout: 'ERG sessions', ftpTest: 'Ramp test', challenge: 'Climb records' },
 };
 
 const ICON = {
@@ -696,7 +696,7 @@ export class MainMenu {
   private modes(): Array<[Settings['mode'], I18nKey, string]> {
     return fr()
       ? [
-          ['free', 'free', 'Rouler à son rythme, avec ou sans coureurs IA.'],
+          ['free', 'free', 'Rouler seul, à son rythme.'],
           ['group', 'group', 'Rouler à plusieurs : le groupe reste ensemble.'],
           ['race', 'race', 'Course en ligne, classement à l’arrivée.'],
           ['workout', 'workout', 'Séance structurée en mode ERG : séances intégrées ou fichier .zwo, .erg, .mrc.'],
@@ -704,7 +704,7 @@ export class MainMenu {
           ['challenge', 'challenge', 'Bats ton record sur une montée : départ lancé, fantôme de ton meilleur temps, écart en direct.'],
         ]
       : [
-          ['free', 'free', 'Ride at your own pace, with or without AI riders.'],
+          ['free', 'free', 'Ride on your own, at your own pace.'],
           ['group', 'group', 'Ride together: the group stays as one.'],
           ['race', 'race', 'Online race, results at the finish.'],
           ['workout', 'workout', 'Structured session in ERG mode: built-in workouts or a .zwo, .erg, .mrc file.'],
