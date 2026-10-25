@@ -63,6 +63,7 @@ import { VoiceChat, fetchVoiceConfig } from './game/voice.ts';
 import { RideRoomUi } from './game/rideroom.ts';
 import { showStartGate } from './game/startGate.ts';
 import { PlaceFinder } from './game/place.ts';
+import { TILES_BASE } from './world/packs.ts';
 import type { DevicePanel } from './ui/menu.ts';
 import type { InterpolatedRider } from './net/index.ts';
 
@@ -222,7 +223,7 @@ function nextPaint(): Promise<void> {
 }
 
 /** Version des médias du menu (vidéos, images) : à augmenter quand on les régénère (cache navigateur). */
-const MENU_MEDIA_VERSION = 9;
+const MENU_MEDIA_VERSION = 10;
 
 /** Boucle vidéo de la saison en fond du menu (public/menu/loop-<saison>.webm), sur son image fixe. */
 function createMenuVideo(el: HTMLVideoElement | null) {
@@ -274,7 +275,8 @@ function createMenuVideo(el: HTMLVideoElement | null) {
       if (!el || failed) return true;
       // H.264 (décodé par toutes les cartes graphiques) sinon VP9 ; repli sur l'autre format en cas d'erreur.
       const ext = useWebm || !el.canPlayType('video/mp4; codecs="avc1.640028"') ? 'webm' : 'mp4';
-      const src = `/menu/loop-${season}.${ext}?v=${MENU_MEDIA_VERSION}`;
+      // Application Windows : les boucles (trop lourdes pour l'installateur) viennent du serveur ; web : même origine.
+      const src = `${TILES_BASE}/menu/loop-${season}.${ext}?v=${MENU_MEDIA_VERSION}`;
       if (current !== src) {
         current = src;
         el.classList.remove('on');
