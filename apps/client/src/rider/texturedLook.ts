@@ -115,7 +115,7 @@ export function texturedMaterial(src: THREE.MeshStandardMaterial, look: AvatarLo
       accent.set(l.jerseyAccent);
       pattern?.set(l);
       longU.value = l.sleeves === 'long' ? 1 : 0;
-      plain.value = l.jerseyStyle ? 1 : 0;
+      plain.value = 1; // pas de zones d'accent du dessin d'origine (bandes) : maillot uni ou à motif
       // Bandes données de haut en bas ; la première du shader est en bas.
       const b = l.jerseyStyle === 'bandes' ? (l.jerseyBands ?? []).slice(0, MAX_BANDS).reverse() : [];
       const h = b.length ? Math.min(BAND_MAX, BANDS_TOTAL / b.length) : 0.05;

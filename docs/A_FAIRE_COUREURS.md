@@ -32,13 +32,17 @@
 
 ## À faire
 
-1. **Vérifier en jeu l'avatar MPFB corrigé** dans les situations non testées : sortie réelle,
-   vélo de chrono (prolongateurs), VTT et gravel, peloton.
-2. **Décider si la taille (1,60 à 1,95 m) doit s'appliquer à l'avatar MPFB.** Il faut alors
-   mesurer sa taille de référence et l'ouvrir dans `sizeOf` (aujourd'hui limité au modèle acheté).
-3. **Décider si les styles de maillot (uni, bandes de champion) doivent exister sur l'avatar MPFB.**
-   Sinon, les packs « pays » apparaîtront comme de simples maillots blancs.
-4. **Garage** : regrouper les maillots par `pack` et afficher les bandes dans la vignette.
+1. **Fait (banc d'essai, 24/10)** : avatar MPFB corrigé vérifié sur route, chrono (prolongateurs),
+   gravel, VTT, danseuse et peloton (`atelier-test.html?peloton`). Mains exactement sur les cibles à
+   moins de 0,1 mm, gauche/droite symétriques, sur les 102 vélos du catalogue. Défaut trouvé et
+   corrigé : sur le VTT les mains restaient sur les cocottes du cintre route (caché désormais, mains
+   sur les poignées du cintre plat). Reste à vérifier **en sortie réelle** (caméra, roulis).
+2. **Fait** : la taille (1,60 à 1,95 m) s'applique aussi à l'avatar MPFB (stature de référence
+   175 cm, `MPFB_HEIGHT_CM` dans `gltfAvatar.ts`) ; `avatar-test.html?tailles`.
+3. **Fait** : styles de maillot sur MPFB. « Uni » : bande de poitrine et poignets prennent la couleur
+   du maillot. « Bandes » : bandes de champion tracées dans le shader (`cloth.ts`), sur la poitrine
+   (`avatar-test.html?pack=pays&torso&show`).
+4. **Fait** : garage, maillots regroupés par `pack` (en-têtes), vignette à bandes (`menu.ts`).
 5. **Régénérer les vidéos du menu** avec l'avatar MPFB et les nouvelles tenues :
    ```bash
    pnpm --filter @allezrobert/menu-loop capture
@@ -61,7 +65,7 @@
 ## Bancs d'essai utiles
 
 - `avatar-test.html` : pédalage, danseuse, LOD.
-- `avatar-test.html?tailles` : 1,60 / 1,765 / 1,95 m (modèle acheté).
-- `avatar-test.html?maillots` et `?pack=pays|distinctifs|equipes` : maillots (modèle acheté).
+- `avatar-test.html?tailles` : 1,60 / 1,75 / 1,95 m (MPFB ; `&female` : modèle féminin).
+- `avatar-test.html?maillots` et `?pack=pays|distinctifs|equipes|pro|tour` : maillots (MPFB par défaut ; `&female`, `&long`, `&bottles` ; le modèle acheté seulement avec `&avatar=boutique`). Anciennes planches du modèle acheté : `docs/screenshots/ancien-boutique/`.
 - `atelier-test.html?rendu=<nom>` : trois quarts, profil et buste dans l'atelier.
 - Ajouter `&avatar=boutique` ou `&avatar=mpfb` pour choisir le modèle.

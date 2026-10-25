@@ -53,6 +53,13 @@ ap.add_argument('--cyclist', default='apps/client/public/models/cyclist.glb')
 # Quantification et compression meshopt (avatars/compress.mjs, glTF-Transform : MIT, outil de
 # fabrication seulement).
 ap.add_argument('--no-compress', action='store_true')
+# Variante : « male » (modèle de base) ou « female » (modèle féminin de base, fichiers rider_female*.glb une fois renommés).
+ap.add_argument('--variant', default='male', choices=['male', 'female'])
+ap.add_argument('--height', type=float, default=-1.0)   # macro MPFB « height » (variante féminine)
+ap.add_argument('--cup', type=float, default=-1.0)      # macro MPFB « cupsize »
+ap.add_argument('--humerus', type=float, default=-1.0)  # remplace HUMERUS_SCALE
+ap.add_argument('--reach', type=float, default=-1.0)     # remplace ARM_REACH
+ap.add_argument('--forearm', type=float, default=1.0)   # facteur de longueur de l'avant-bras
 args = ap.parse_args(argv)
 OUT = os.path.abspath(args.out)
 os.makedirs(OUT, exist_ok=True)
@@ -88,6 +95,7 @@ BACK_DAMP = {'sex-': 1.0, 'muscle+': 0.7, 'age+': 0.7}  # atténuation de ces ci
 GLUTE_START = 0.06                        # saillie des fesses comptée à partir de 6 cm derrière l'os du bassin (m)
 GLUTE_FLAT = 0.6                          # part de cette saillie supprimée (0 à 1)
 HUMERUS_SCALE = 1.28                      # humérus × 1,28 : 0,25 → 0,32 m (adulte de 1,75 m ≈ 0,33 m)
+BELLY_DAMP = {'sex-': 0.6}   # atténuation du ventre rentré (déplacement vers le dos) des cibles, 0 à 1
 NECK_DAMP = {'sex-': 0.6}                 # atténuation de la cible « sex− » sur le cou (0 à 1)
 NECK_KEY_SCALE = {'neckWidth-': 0.5}      # « neckWidth− » : moitié de l'amplitude
 ELBOW_POLE = Vector((0.36, 1.05, 0.30))   # direction des coudes (repère client, côté gauche)
@@ -144,7 +152,7 @@ SLIDERS = {
 BASE_MACRO = {'gender': 1.0, 'age': 0.5, 'muscle': 0.55, 'weight': 0.5, 'proportions': 0.5, 'height': 0.5,
               'cupsize': 0.5, 'firmness': 0.5, 'race': {'asian': 0.33, 'caucasian': 0.34, 'african': 0.33}}
 MACRO_SLIDERS = {
-    'sex': {'-': {'gender': 0.0}},
+    'sex': {'-': {'gender': 0.0, 'cupsize': 0.75}},
     'age': {'+': {'age': 0.9}, '-': {'age': 0.37}},          # ≈ 77 ans / ≈ 19 ans (base 25 ans)
     'weight': {'+': {'weight': 0.9}, '-': {'weight': 0.15}},
     'muscle': {'+': {'muscle': 1.0}, '-': {'muscle': 0.15}},
@@ -152,6 +160,16 @@ MACRO_SLIDERS = {
     'originAsian': {'+': {'race': {'african': 0.0, 'asian': 1.0, 'caucasian': 0.0}}},
     'originEuropean': {'+': {'race': {'african': 0.0, 'asian': 0.0, 'caucasian': 1.0}}},
 }
+
+
+if args.variant == 'female':
+    # Modèle féminin : base entièrement féminine ; le curseur « sex » n'existe plus (ni ses atténuations).
+    BASE_MACRO['gender'] = 0.0
+    if args.height >= 0:
+        BASE_MACRO['height'] = args.height
+    if args.cup >= 0:
+        BASE_MACRO['cupsize'] = args.cup
+    MACRO_SLIDERS.pop('sex', None)
 
 
 def bl(v):
@@ -437,6 +455,17 @@ def build_base(HS, TS, LS):
     base_m = base_co[1]
     imw = body.matrix_world.inverted()
 
+    def belly_zone(c):
+        """0 à 1 : face avant du torse, de la taille à la poitrine (ventre, dessous de la poitrine)."""
+        lo = base_m['pelvis'][0].translation.z
+        hi = base_m['spine_03'][0].translation.z + 0.05
+        mid = base_m['spine_03'][0].translation.y
+        t = (c.z - lo) / max(hi - lo, 1e-6)
+        h = min(max(t * 4.0, 0.0), 1.0) * min(max((1.0 - t) * 4.0, 0.0), 1.0)
+        front = min(max((mid - 0.01 - c.y) / 0.03, 0.0), 1.0)
+        side = min(max((0.20 - abs(c.x)) / 0.08, 0.0), 1.0)
+        return h * front * side
+
     def neck_zone(c):
         """0 à 1 : cou (de la base à la base du crâne), tout autour."""
         lo = base_m['neck_01'][0].translation.z - 0.03
@@ -472,6 +501,8 @@ def build_base(HS, TS, LS):
                 dv = dv * (1.0 - BACK_DAMP[name] * back_zone(c0))
             if name in NECK_DAMP:
                 dv = dv * (1.0 - NECK_DAMP[name] * neck_zone(c0))
+            if name in BELLY_DAMP and dv.y > 0.0:
+                dv.y = dv.y * (1.0 - BELLY_DAMP[name] * belly_zone(c0))   # +Y = vers le dos : ventre rentré
             d.co = b0.co + imw.to_3x3() @ dv
         k.value = 0.0
     expression_shapes(body, TS, LS)
@@ -778,7 +809,7 @@ def pose_rider(rig, body):
     best = None
     for k in range(5, 80):
         torso(k, 30)
-        err = abs((world('upperarm_l') - wrist['l']).length - ARM_REACH * arm_len)
+        err = abs((world('upperarm_l') - wrist['l']).length - (args.reach if args.reach > 0 else ARM_REACH) * arm_len)
         if best is None or err < best[0]:
             best = (err, k)
     lean_deg = best[1]
@@ -845,22 +876,32 @@ def lengthen_humerus(body, rig):
     sommet suit ses poids (humérus : étirement linéaire de 0 à Δ de l'épaule au coude ; avant-bras,
     main, doigts : Δ), donc pas de saut au coude et la peau, les manches et les UV s'étirent
     seulement sur l'humérus."""
+    hs = args.humerus if args.humerus > 0 else HUMERUS_SCALE
+    zs = [(body.matrix_world @ v.co).z for v in body.data.vertices]
+    bl_ = rig.data.bones
+    print('mesures : stature %.3f m, fémur %.3f, tibia %.3f, humérus %.3f, avant-bras %.3f, clavicule %.3f' % (
+        max(zs) - min(zs), bl_['thigh_l'].length, bl_['calf_l'].length, bl_['upperarm_l'].length, bl_['lowerarm_l'].length, bl_['clavicle_l'].length))
     shifts = [Vector() for _ in body.data.vertices]
     mw_b = body.matrix_world
     imw_b = mw_b.inverted()
     mw_r = rig.matrix_world
     names = {g.index: g.name for g in body.vertex_groups}
     moves = {}
+    moves2 = {}
     for s in ('l', 'r'):
         up = rig.data.bones['upperarm_' + s]
         lo = rig.data.bones['lowerarm_' + s]
         a = mw_r @ up.head_local
         e = mw_r @ lo.head_local
         d = (e - a)
-        delta = d * (HUMERUS_SCALE - 1.0)
+        delta = d * (hs - 1.0)
         distal = {lo.name} | {c.name for c in lo.children_recursive}
         moves[s] = (up.name, distal, a, d, delta)
-        print(f'humérus {s} : {d.length:.3f} m → {d.length * HUMERUS_SCALE:.3f} m')
+        hand = rig.data.bones['hand_' + s]
+        w_ = mw_r @ hand.head_local
+        d2 = w_ - e
+        moves2[s] = (lo.name, {hand.name} | {c.name for c in hand.children_recursive}, e, d2, d2 * (args.forearm - 1.0))
+        print(f'humérus {s} : {d.length:.3f} m → {d.length * hs:.3f} m')
     for i, v in enumerate(body.data.vertices):
         co = mw_b @ v.co
         tot = Vector()
@@ -872,6 +913,14 @@ def lengthen_humerus(body, rig):
                     tot += delta * (t * ge.weight)
                 elif n in distal:
                     tot += delta * ge.weight
+        for lo_n, dist2, a2, d2, delta2 in moves2.values():
+            for ge in v.groups:
+                n = names[ge.group]
+                if n == lo_n:
+                    t2 = min(max((co - a2).dot(d2) / max(d2.length_squared, 1e-9), 0.0), 1.0)
+                    tot += delta2 * (t2 * ge.weight)
+                elif n in dist2:
+                    tot += delta2 * ge.weight
         shifts[i] = imw_b.to_3x3() @ tot
     for kb in body.data.shape_keys.key_blocks:
         for dd, sh in zip(kb.data, shifts):
@@ -887,6 +936,12 @@ def lengthen_humerus(body, rig):
         for n in distal:
             eb[n].head = eb[n].head + dl
             eb[n].tail = eb[n].tail + dl
+        lo_n, dist2, a2, d2, delta2 = moves2[s]
+        dl2 = mw_r.inverted().to_3x3() @ delta2
+        eb[lo_n].tail = eb[lo_n].tail + dl2
+        for n in dist2:
+            eb[n].head = eb[n].head + dl2
+            eb[n].tail = eb[n].tail + dl2
     bpy.ops.object.mode_set(mode='OBJECT')
     body.data.update()
 

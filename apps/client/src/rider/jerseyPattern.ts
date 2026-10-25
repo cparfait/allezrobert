@@ -401,7 +401,7 @@ export function jerseySleeveEdge(look: AvatarLook, frame: JerseyFrame): { weight
       main.set(l.jersey);
       pattern.set(l);
       long.value = l.sleeves === 'long' ? 1 : 0;
-      plain.value = l.jerseyStyle === undefined ? 1 : 0;
+      plain.value = 1; // jamais de bande d'accent sur le torse (maillot uni, à pois, à motif…) : couleur et motif du maillot
     },
   };
 }

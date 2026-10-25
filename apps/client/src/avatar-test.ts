@@ -266,6 +266,7 @@ async function main(): Promise<void> {
   if (params.has('profil')) {
     const { lookFor } = await import('./ui/cinematic.ts');
     const pose = (params.get('pose') ?? 'seated') as RiderPose;
+    if (params.has('lift')) (globalThis as unknown as { __lift: number }).__lift = Number(params.get('lift'));
     // &morphs=a:1,b:-1 : un coureur par curseur de forme (valeur donnée), sur la tenue par défaut.
     const morphs = (params.get('morphs') ?? '').split(',').filter(Boolean);
     const looks: Array<[string, AvatarLook]> = morphs.length
@@ -337,7 +338,7 @@ async function main(): Promise<void> {
   if (params.has('refview')) {
     for (const o of riders) o.a.root.visible = false;
     far.root.visible = false;
-    const a = new GltfRiderAvatar({ ...DEFAULT_LOOK, bikeModel: 's26-04-cervelo-s5' });
+    const a = new GltfRiderAvatar({ ...DEFAULT_LOOK, bikeModel: 's26-04-cervelo-s5', ...(params.has('female') ? { face: encodeFace({ sex: -1 }) } : {}), ...(params.has('h') ? { heightCm: Number(params.get('h')) } : {}) });
     scene.add(a.root);
     const priv = a as unknown as { crankAngle: number };
     priv.crankAngle = Math.PI + 0.25;
@@ -724,7 +725,7 @@ async function sizeSheet(engine: Awaited<ReturnType<typeof createEngine>>): Prom
   const { scene, camera } = engine;
   const heights = [160, params.get('avatar') === 'boutique' ? 176.5 : 175, 195];
   const riders = heights.map((h, i) => {
-    const a = new GltfRiderAvatar({ ...DEFAULT_LOOK, bikeModel: 's26-04-cervelo-s5', heightCm: h, jersey: ['#d62828', '#1f6feb', '#2a9d8f'][i] as string });
+    const a = new GltfRiderAvatar({ ...DEFAULT_LOOK, bikeModel: 's26-04-cervelo-s5', heightCm: h, jersey: ['#d62828', '#1f6feb', '#2a9d8f'][i] as string, ...(params.has('female') ? { face: encodeFace({ sex: -1 }) } : {}) });
     const priv = a as unknown as { crankAngle: number };
     priv.crankAngle = Math.PI / 2;
     a.update(0, 0.0001, 0, 'seated');
@@ -751,7 +752,7 @@ async function sizeSheet(engine: Awaited<ReturnType<typeof createEngine>>): Prom
   camera.lookAt(0, 0.8, 0);
   engine.renderManual();
   g.drawImage(canvas, 0, 720, 1280, 720);
-  if (!params.has('noshot')) await fetch('/__shot?name=avatar-tailles', { method: 'POST', body: sheet.toDataURL('image/jpeg', 0.9) });
+  if (!params.has('noshot')) await fetch(`/__shot?name=avatar-tailles${params.has('female') ? '-femme' : ''}`, { method: 'POST', body: sheet.toDataURL('image/jpeg', 0.9) });
   log.textContent += '\ntailles : terminé';
   (window as unknown as { __avatarTestDone: boolean }).__avatarTestDone = true;
 }
@@ -781,7 +782,7 @@ async function packSheet(engine: Awaited<ReturnType<typeof createEngine>>, pack:
   camera.lookAt(0, params.has('torso') ? 1.12 : 1.0, 0.1);
   for (const [i, item] of items.entries()) {
     const helmet = item.jersey?.style === 'bandes' ? '#ffffff' : (item.color ?? '#ffffff');
-    const a = new GltfRiderAvatar({ ...DEFAULT_LOOK, bikeModel: 's26-04-cervelo-s5', helmet, ...jerseyLookOf(item) });
+    const a = new GltfRiderAvatar({ ...DEFAULT_LOOK, bikeModel: 's26-04-cervelo-s5', helmet, ...jerseyLookOf(item), ...(params.has('female') ? { face: encodeFace({ sex: -1 }) } : {}), ...(params.has('long') ? { sleeves: 'long' as const } : {}), ...(params.has('bottles') ? { bottles: 2 as const } : {}) });
     (a as unknown as { crankAngle: number }).crankAngle = Math.PI / 2;
     a.update(0, 0.0001, 0, 'seated');
     scene.add(a.root);
@@ -795,7 +796,7 @@ async function packSheet(engine: Awaited<ReturnType<typeof createEngine>>, pack:
     g.fillText(item.name.fr, x + cw / 2, y + ch - 9);
     scene.remove(a.root);
   }
-  if (!params.has('noshot')) await fetch(`/__shot?name=avatar-pack-${pack}${back ? '-back' : ''}`, { method: 'POST', body: sheet.toDataURL('image/jpeg', 0.9) });
+  if (!params.has('noshot')) await fetch(`/__shot?name=avatar-pack-${pack}${back ? '-back' : ''}${params.has('female') ? '-femme' : ''}${params.has('long') ? '-manches-longues' : ''}${params.has('bottles') ? '-bidons' : ''}`, { method: 'POST', body: sheet.toDataURL('image/jpeg', 0.9) });
   if (params.has('show')) {
     document.body.replaceChildren(sheet);
     sheet.style.cssText = 'display:block;width:100%;height:auto';
@@ -816,12 +817,13 @@ async function jerseySheet(engine: Awaited<ReturnType<typeof createEngine>>): Pr
     { jersey: '#ffffff', jerseyStyle: 'bandes', jerseyBands: ['#0072ce', '#e4002b', '#111111', '#ffd100', '#009a44'], helmet: '#ffffff' },
     { jersey: '#c62828', jerseyAccent: '#c62828', jerseyStyle: 'uni', helmet: '#111111', shoes: '#111111' },
     { jersey: '#1f6feb', jerseyAccent: '#ffd23f', helmet: '#1f6feb' },
+    { jersey: '#ffffff', jerseyAccent: '#d7141a', jerseyStyle: 'pois', helmet: '#d7141a' },
   ];
   const riders = looks.map((l, i) => {
-    const a = new GltfRiderAvatar({ ...DEFAULT_LOOK, bikeModel: 's26-04-cervelo-s5', ...l });
+    const a = new GltfRiderAvatar({ ...DEFAULT_LOOK, bikeModel: 's26-04-cervelo-s5', ...(params.has('female') ? { face: encodeFace({ sex: -1 }) } : {}), ...l });
     (a as unknown as { crankAngle: number }).crankAngle = Math.PI / 2;
     a.update(0, 0.0001, 0, 'seated');
-    a.root.position.set((i - 2) * 0.95, 0, 0);
+    a.root.position.set((i - 2.5) * 0.95, 0, 0);
     scene.add(a.root);
     return a;
   });
@@ -839,7 +841,7 @@ async function jerseySheet(engine: Awaited<ReturnType<typeof createEngine>>): Pr
   camera.lookAt(0, 0.95, 0);
   engine.renderManual();
   g.drawImage(canvas, 0, 720, 1280, 720);
-  if (!params.has('noshot')) await fetch('/__shot?name=avatar-maillots', { method: 'POST', body: sheet.toDataURL('image/jpeg', 0.9) });
+  if (!params.has('noshot')) await fetch(`/__shot?name=avatar-maillots${params.has('female') ? '-femme' : ''}`, { method: 'POST', body: sheet.toDataURL('image/jpeg', 0.9) });
   if (params.has('show')) {
     document.body.replaceChildren(sheet);
     sheet.style.cssText = 'display:block;width:100%;height:auto';
@@ -1127,7 +1129,7 @@ async function bench(engine: Awaited<ReturnType<typeof createEngine>>): Promise<
   const avg = frames.reduce((s, f) => s + f, 0) / frames.length;
   const worst = sorted.slice(0, Math.max(1, Math.floor(frames.length / 100)));
   const res = {
-    avatar: params.get('avatar') ?? 'classic',
+    avatar: params.get('avatar') ?? 'mpfb',
     quality: params.get('quality') ?? 'high',
     frames: frames.length,
     fps: +(1000 / avg).toFixed(1),
@@ -1176,12 +1178,16 @@ async function bikeSheet(engine: Awaited<ReturnType<typeof createEngine>>, list:
     const prof = BASE_PROFILES.find((p) => p.id === params.get('profile'));
     // &biketype=gravel|mtb : kit du vélo (VTT, gravel) ; &pose=standing|coasting : posture du coureur.
     const bikeType = params.get('biketype');
-    const a = new GltfRiderAvatar({ ...(prof ? profileLook(prof) : DEFAULT_LOOK), bikeModel: b.id, ...(bikeType === 'gravel' || bikeType === 'mtb' ? { bikeType } : {}) });
+    const a = new GltfRiderAvatar({ ...(prof ? profileLook(prof) : DEFAULT_LOOK), bikeModel: b.id, ...(bikeType === 'gravel' || bikeType === 'mtb' ? { bikeType } : {}), ...(params.has('female') ? { face: encodeFace({ sex: -1 }) } : {}), ...(params.has('h') ? { heightCm: Number(params.get('h')) } : {}), ...(params.has('look') ? JSON.parse(params.get('look') as string) : {}) });
     // &face=jawWidth:1,noseLength:-0.5 : curseurs de visage (avatar MPFB, ?avatar=mpfb).
     const face = Object.fromEntries((params.get('face') ?? '').split(',').filter(Boolean).map((kv) => [kv.split(':')[0] as string, Number(kv.split(':')[1])]));
     if (Object.keys(face).length) a.setFace(face);
-    a.update(0, 0, 0, 'seated');
-    a.update(1 / 60, 0.0001, 0, 'seated');
+    const bpose = (params.get('pose') ?? 'seated') as RiderPose;
+    if (bpose === 'standing') for (let t = 0; t < 1.5; t += 1 / 60) a.update(1 / 60, 70, 9, 'standing', 0);
+    else {
+      a.update(0, 0, 0, 'seated');
+      a.update(1 / 60, 0.0001, 0, 'seated');
+    }
     // &angles : angles de la posture (degrés), dans window.__angles : buste (hanche → épaule) et cou
     // (base du cou → tête) au-dessus de l'horizontale, extension du cou par rapport au buste,
     // épaule (buste / bras), coude (180 = tendu).
