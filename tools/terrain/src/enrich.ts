@@ -125,28 +125,49 @@ function centroid(r: Array<[number, number]>): [number, number] {
 
 const toWorld = (p: [number, number]): [number, number] => [r2(p[0] - ORIGIN_L93.x), r2(-(p[1] - ORIGIN_L93.y))];
 
+/**
+ * Hauteur BD TOPO ramenée au point bas de l'emprise (référence des hauteurs de la tuile) et plafond
+ * du faîtage mesuré au LiDAR. La `hauteur` BD TOPO part du sol amont (≈ altitude maximale du toit −
+ * altitude maximale du sol) : en pente, il faut y ajouter la dénivelée sous l'emprise, sans quoi le
+ * faîtage LiDAR (mesuré depuis le point bas) dépasse le plafond et une mesure juste est écartée.
+ * `slope` = sol le plus haut − sol le plus bas aux sommets de l'emprise (m).
+ */
+export function bdTopoHeightFromLow(hauteur: number | null, slope: number): { height: number | null; ridgeCap: number } {
+  if (hauteur === null) return { height: null, ridgeCap: Infinity };
+  const s = Number.isFinite(slope) ? Math.max(0, slope) : 0;
+  // un arbre qui surplombe le toit gonfle le faîtage : 1,5 m de tolérance au-dessus de la hauteur BD TOPO
+  return { height: hauteur + s, ridgeCap: hauteur + s + 1.5 };
+}
+
 /** Bâtiment BD TOPO → entrée `buildings[]` de la tuile (sans `y`, posé par `decorateTile`). */
 function toTileBuilding(b: BdTopoBuilding, mns: Raster | null, dem: DemStack): { o: Record<string, unknown>; measured: boolean } {
   const outer = b.rings[0]!;
   const area = ringArea(outer);
   const kind = buildingKind(b, area);
   let ground = Infinity;
-  for (const p of outer) ground = Math.min(ground, dem.sample(p[0], p[1]));
+  let groundHi = -Infinity;
+  for (const p of outer) {
+    const g = dem.sample(p[0], p[1]);
+    if (!Number.isFinite(g)) continue;
+    ground = Math.min(ground, g);
+    groundHi = Math.max(groundHi, g);
+  }
   if (!Number.isFinite(ground)) ground = b.groundAltM ?? 0;
+  const bd = bdTopoHeightFromLow(b.height, groundHi - ground);
   const wall = wallMaterial(b.wallCode);
   const roofMat = roofMaterial(b.roofCode) ?? (/barn|industrial|commercial/.test(kind) ? 'metal' : 'tiles');
   const m = mns ? measureRoof(mns, outer, ground) : null;
-  // un arbre qui surplombe le toit gonfle le faîtage : borné par la hauteur BD TOPO quand elle existe
-  const capH = b.height !== null ? b.height + 1.5 : Infinity;
   let height: number;
   let roof: Record<string, unknown>;
-  if (m && m.ridgeH <= capH && m.ridgeH < 40) {
+  // un arbre qui surplombe le toit gonfle le faîtage : borné par la hauteur BD TOPO (pente comprise) quand elle existe
+  if (m && m.ridgeH <= bd.ridgeCap && m.ridgeH < 40) {
     height = m.ridgeH;
     const rh = m.shape === 'flat' ? 0 : Math.max(0.4, m.ridgeH - m.eaveH);
     roof = { shape: m.shape, height: r2(rh), material: roofMat, ...(m.ridgeAlongLong ? {} : { ridge: 'short' }) };
   } else {
     const ob = orientedRect(outer);
-    height = b.height ?? (b.levels ?? 1) * 2.9 + 2;
+    // hauteurs comptées depuis le point bas de l'emprise, comme le faîtage LiDAR
+    height = bd.height ?? (b.levels ?? 1) * 2.9 + 2 + (Number.isFinite(groundHi) ? groundHi - ground : 0);
     // défaut régional (Limagne, Livradois) : tuile à faible pente, croupes sur les maisons
     const rh = roofMat === 'metal' ? Math.tan((12 * Math.PI) / 180) * ob.hw : Math.tan((24 * Math.PI) / 180) * ob.hw;
     roof = { shape: kind === 'house' ? 'hipped' : 'gabled', height: r2(Math.min(rh, height * 0.5)), material: roofMat };
