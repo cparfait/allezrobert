@@ -1,0 +1,17 @@
+{
+  "world": "montmartre",
+  "label": "Paris — Montmartre",
+  "notes": "Profil suggéré par style-profile (BD TOPO : 36 608 bâtiments, médiane 6 niveaux, murs inconnus 53 %, pierre 34 %, brique 7 %, béton 4 %) puis relu : enduit et bois → faubourien, petites maisons du vieux village → maison de faubourg.",
+  "skipKinds": ["shed", "garage", "garages", "barn", "greenhouse", "roof", "industrial", "ruins", "church", "chapel", "tower", "castle"],
+  "rules": [
+    { "when": { "material": ["concrete"] }, "pick": { "moderne": 1 } },
+    { "when": { "minLevels": 10 }, "pick": { "moderne": 1 } },
+    { "when": { "material": ["brick"] }, "pick": { "brique": 1 } },
+    { "when": { "material": ["stone"], "minLevels": 5 }, "pick": { "haussmann": 0.85, "faubourien": 0.15 } },
+    { "when": { "material": ["stone"], "minLevels": 3 }, "pick": { "faubourien": 0.7, "haussmann": 0.3 } },
+    { "when": { "material": ["render", "wood"], "minLevels": 3 }, "pick": { "faubourien": 1 } },
+    { "when": { "minLevels": 5 }, "pick": { "haussmann": 0.6, "faubourien": 0.4 } },
+    { "when": { "minLevels": 3 }, "pick": { "faubourien": 1 } },
+    { "when": {}, "pick": { "maison_faubourg": 1 } }
+  ]
+}

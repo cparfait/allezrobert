@@ -16,7 +16,8 @@
     "test": "vitest run --root ../.. tools/terrain",
     "places": "tsx src/places.ts",
     "zone-builder": "tsx src/zone-builder.ts",
-    "regen:orthos": "tsx src/regen-orthos.ts"
+    "regen:orthos": "tsx src/regen-orthos.ts",
+    "style-profile": "tsx src/style-profile.ts"
   },
   "dependencies": {
     "@allezrobert/shared": "workspace:*"

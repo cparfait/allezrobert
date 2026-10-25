@@ -1,0 +1,182 @@
+{
+  "formatVersion": 1,
+  "archetypes": {
+    "haussmann": {
+      "label": "Immeuble haussmannien",
+      "wall": "ashlar",
+      "walls": ["#dcd0b8", "#d6c9ae", "#e0d5c0", "#d2c3a5", "#d9cdb2", "#cfc2a8"],
+      "shutters": [],
+      "roof": { "type": "mansard_zinc", "colours": ["#7f8a90", "#86908f", "#78838a", "#8c9496"] },
+      "facade": {
+        "bayM": 2.9,
+        "floorM": 3.0,
+        "groundFloorM": 4.4,
+        "window": [1.15, 2.15],
+        "sillM": 0.05,
+        "frameM": 0.14,
+        "balconies": "continuous",
+        "stringCourses": true,
+        "cornice": true,
+        "glazingBars": true,
+        "shopfronts": 0.7
+      },
+      "chimneys": 3,
+      "dormers": true
+    },
+    "faubourien": {
+      "label": "Immeuble faubourien (plâtre)",
+      "wall": "render",
+      "walls": ["#e4ddcf", "#dcd2bf", "#e8e1d2", "#d4c8b0", "#e2d4bb", "#d8cdb9"],
+      "shutters": ["#c9c3b5", "#b7b2a6", "#8f9a9c", "#d8d2c4"],
+      "roof": { "type": "zinc", "colours": ["#7f8a90", "#8a8f8f", "#808a8c"] },
+      "facade": {
+        "bayM": 2.6,
+        "floorM": 2.8,
+        "groundFloorM": 3.4,
+        "window": [1.0, 1.75],
+        "sillM": 0.45,
+        "frameM": 0.1,
+        "balconies": "balconettes",
+        "stringCourses": true,
+        "cornice": true,
+        "glazingBars": true,
+        "shopfronts": 0.5
+      },
+      "chimneys": 2,
+      "dormers": true
+    },
+    "brique": {
+      "label": "Immeuble de brique (1900–1930)",
+      "wall": "brick",
+      "walls": ["#a35f45", "#9a5640", "#ad6a4d", "#8f5240", "#b2714f"],
+      "shutters": [],
+      "roof": { "type": "mechanical_tile", "colours": ["#9a5a40", "#8c5038", "#a0614a"] },
+      "facade": {
+        "bayM": 3.0,
+        "floorM": 2.9,
+        "groundFloorM": 3.2,
+        "window": [1.3, 1.7],
+        "sillM": 0.6,
+        "frameM": 0.18,
+        "balconies": "none",
+        "stringCourses": true,
+        "cornice": true,
+        "glazingBars": true,
+        "shopfronts": 0.3
+      },
+      "chimneys": 2,
+      "dormers": false
+    },
+    "moderne": {
+      "label": "Immeuble moderne (béton, après 1950)",
+      "wall": "concrete",
+      "walls": ["#cfcac0", "#c4beb3", "#d8d4cb", "#bab5ab", "#e0ddd5"],
+      "shutters": [],
+      "roof": { "type": "terrace", "colours": ["#6f6c66", "#76726b"] },
+      "facade": {
+        "bayM": 3.0,
+        "floorM": 2.75,
+        "groundFloorM": 3.6,
+        "window": [2.2, 1.5],
+        "sillM": 0.9,
+        "frameM": 0,
+        "balconies": "none",
+        "stringCourses": false,
+        "cornice": false,
+        "glazingBars": false,
+        "shopfronts": 0.4
+      },
+      "chimneys": 0,
+      "dormers": false
+    },
+    "maison_faubourg": {
+      "label": "Maison de faubourg (village de Montmartre)",
+      "wall": "render",
+      "walls": ["#e9dfc9", "#efe4cf", "#e3cfa9", "#e8d8c0", "#f0e8da", "#dcc7a5"],
+      "shutters": ["#5f7d66", "#7d8f9b", "#e8e4da", "#4b6a8a", "#8a5a3c"],
+      "roof": { "type": "mechanical_tile", "colours": ["#94553d", "#8a4a35", "#7d4331"] },
+      "facade": {
+        "bayM": 3.1,
+        "floorM": 2.8,
+        "groundFloorM": 0,
+        "window": [1.0, 1.35],
+        "sillM": 0.9,
+        "frameM": 0.1,
+        "balconies": "none",
+        "stringCourses": false,
+        "cornice": false,
+        "glazingBars": true,
+        "shopfronts": 0
+      },
+      "chimneys": 1,
+      "dormers": false
+    },
+    "meuliere": {
+      "label": "Pavillon en meulière (Île-de-France)",
+      "wall": "meuliere",
+      "walls": ["#b8936a", "#a98660", "#c29f74"],
+      "shutters": ["#7d8f9b", "#5f7d66", "#e8e4da", "#8a5a3c", "#4b6a8a", "#a7b8a0"],
+      "roof": { "type": "flat_tile", "colours": ["#8a4a35", "#7d4331", "#94553d", "#6f3f30", "#86513c", "#7a4a3a"] },
+      "facade": {
+        "bayM": 3.1,
+        "floorM": 2.8,
+        "groundFloorM": 0,
+        "window": [1.0, 1.35],
+        "sillM": 0.9,
+        "frameM": 0.08,
+        "balconies": "none",
+        "stringCourses": false,
+        "cornice": false,
+        "glazingBars": false,
+        "shopfronts": 0
+      },
+      "chimneys": 1,
+      "dormers": false
+    },
+    "enduit_idf": {
+      "label": "Maison enduite (Île-de-France rurale)",
+      "wall": "render",
+      "walls": ["#e8dfcf", "#e2d6c0", "#d9ccb2", "#efe7d8", "#d6c3a0"],
+      "shutters": ["#7d8f9b", "#5f7d66", "#e8e4da", "#8a5a3c", "#4b6a8a", "#a7b8a0"],
+      "roof": { "type": "flat_tile", "colours": ["#8a4a35", "#7d4331", "#94553d", "#6f3f30", "#86513c", "#7a4a3a"] },
+      "facade": {
+        "bayM": 3.1,
+        "floorM": 2.8,
+        "groundFloorM": 0,
+        "window": [1.0, 1.35],
+        "sillM": 0.9,
+        "frameM": 0.08,
+        "balconies": "none",
+        "stringCourses": false,
+        "cornice": false,
+        "glazingBars": false,
+        "shopfronts": 0
+      },
+      "chimneys": 1,
+      "dormers": false
+    },
+    "pierre_auvergne": {
+      "label": "Maison de pays (Limagne, Livradois)",
+      "wall": "render",
+      "walls": ["#d9c4a0", "#d2b48c", "#cdb79e", "#e0cdb0", "#c9a882", "#d9b8a0", "#e3d6c2"],
+      "shutters": ["#6b4a35", "#7d8a7a", "#5d7380", "#7e3a33", "#d9d2c2", "#4f6b5a", "#8c6a4a"],
+      "roof": { "type": "canal_tile", "colours": ["#a87a6a", "#9d7062", "#b18574", "#94695c", "#a67d6e", "#b38a78"] },
+      "facade": {
+        "bayM": 3.1,
+        "floorM": 2.8,
+        "groundFloorM": 0,
+        "window": [0.8, 1.35],
+        "sillM": 0.9,
+        "frameM": 0.16,
+        "balconies": "none",
+        "stringCourses": false,
+        "cornice": false,
+        "glazingBars": false,
+        "shopfronts": 0
+      },
+      "ornaments": { "genoise": true, "quoins": true },
+      "chimneys": 1,
+      "dormers": false
+    }
+  }
+}

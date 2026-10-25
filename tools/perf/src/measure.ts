@@ -159,13 +159,35 @@ try {
     const P = (window as unknown as { __perf: { frames: number; gaps: Array<{ t: number; d: number }>; gpu: Record<string, { c: number; ms: number; max: number }>; shaders: Set<string>; before: number } }).__perf;
     return { frames: P.frames, gaps: P.gaps, gpu: P.gpu, shadersDuring: P.shaders.size - P.before, shadersBefore: P.before } satisfies Probe;
   });
+  // Scène en fin de mesure : appels de dessin et triangles de la dernière image, maillages du bâti
+  // (sommets et octets des attributs : coût mémoire des façades).
+  const scene = await page.evaluate(() => {
+    type Geo = { attributes: Record<string, { count: number; array: ArrayLike<number> & { BYTES_PER_ELEMENT: number } }> };
+    type Obj = { isMesh?: boolean; geometry?: Geo; children: Obj[] };
+    const ar = (window as unknown as { __ar?: { engine?: { renderer?: { info?: { render?: { drawCalls: number; triangles: number } } } }; world?: { buildings?: { group: Obj } } } }).__ar;
+    const info = ar?.engine?.renderer?.info?.render;
+    let meshes = 0;
+    let vertices = 0;
+    let bytes = 0;
+    const walk = (o: Obj) => {
+      if (o.isMesh && o.geometry) {
+        meshes++;
+        vertices += o.geometry.attributes.position?.count ?? 0;
+        for (const a of Object.values(o.geometry.attributes)) bytes += a.array.length * a.array.BYTES_PER_ELEMENT;
+      }
+      for (const c of o.children) walk(c);
+    };
+    if (ar?.world?.buildings) walk(ar.world.buildings.group);
+    return { drawCalls: info?.drawCalls ?? -1, triangles: info?.triangles ?? -1, buildings: { meshes, vertices, mb: Math.round(bytes / 1e5) / 10 } };
+  });
   if (arg('trace')) await page.tracing.stop();
   if (cdp) writeFileSync(`${stem}.cpuprofile`, JSON.stringify((await cdp.send('Profiler.stop')).profile));
   await page.screenshot({ path: `${stem}.jpg`, quality: 70 });
   const summary = summarize(probe, seconds);
-  writeFileSync(`${stem}.json`, JSON.stringify({ world, quality, seconds, summary, probe }, null, 1));
+  writeFileSync(`${stem}.json`, JSON.stringify({ world, quality, seconds, summary, scene, probe }, null, 1));
   console.log(`shaders compilés avant la mesure (chargement, départ) : ${probe.shadersBefore}`);
   console.log(formatSummary(summary));
+  console.log(`scène : ${scene.drawCalls} appels de dessin, ${(scene.triangles / 1e6).toFixed(2)} M triangles · bâti : ${scene.buildings.meshes} maillages, ${(scene.buildings.vertices / 1e6).toFixed(2)} M sommets, ${scene.buildings.mb} Mo d'attributs`);
   console.log('pires saccades (ms depuis le début : durée) :', [...probe.gaps].sort((a, b) => b.d - a.d).slice(0, 8).map((g) => `${g.t}:${g.d}`).join(' '));
   console.log(`bilan : ${stem}.json${cdp ? ' (+ .cpuprofile)' : ''}${arg('trace') ? ' (+ .trace.json)' : ''}`);
   const over = overBudget(summary);

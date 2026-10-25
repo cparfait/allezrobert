@@ -85,6 +85,7 @@ export class World {
     this.vegetation.setWorld(source.id);
     scene.add(this.vegetation.group);
     this.buildings = new Buildings(groundAt, q.propDensity);
+    this.buildings.setWorld(source.id);
     scene.add(this.buildings.group);
     this.network = new RoadNetwork(open ? '' : route.id, groundAt, footprint, open);
     scene.add(this.network.group);

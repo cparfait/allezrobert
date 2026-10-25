@@ -32,6 +32,27 @@ Trois règles :
 
 Matériaux constants : meulière `#a8835a` / `#7d5d3b`, tuile plate `#9c4a2f` / `#7a3825`, enduit `#e6dccb`, asphalte `#3c3d40` (sec) / `#2a2b2e` (mouillé, spéculaire fort), marquages `#f2f2ec`.
 
+## Archétypes de bâti
+
+Source : `packages/shared/src/styles/archetypes.json`. Chaque monde qui a un profil
+(`packages/shared/src/styles/worlds/<monde>.json`) donne un archétype à chaque bâtiment d'après ses
+attributs réels (BD TOPO : matériau des murs et du toit, niveaux, hauteur). Les annexes et les
+édifices gardent le rendu historique. On reconnaît d'abord la silhouette, puis la couleur, puis
+le détail : travées, étages, rez-de-chaussée et balcons priment sur la texture.
+
+| Archétype | Murs | Toit | Façade (signature à 35 km/h) |
+| --- | --- | --- | --- |
+| `haussmann` | pierre de taille `#dcd0b8` → `#cfc2a8`, assises de 50 cm | zinc `#7f8a90` (mansarde à l'étape 2) | rez-de-chaussée de 4,4 m à refends et vitrines, portes-fenêtres de 2,15 m sans volets, balcons filants aux 2e et 5e étages, bandeaux, corniche |
+| `faubourien` | plâtre `#e4ddcf` → `#d4c8b0` | zinc ou tuile mécanique | étages de 2,8 m, persiennes grises, balconnets en fonte, vitrines sur rue |
+| `brique` | brique `#a35f45` → `#8f5240` | tuile mécanique `#9a5a40` | larges baies à encadrement clair, bandeaux, corniche |
+| `moderne` | béton `#cfcac0`, panneaux de 3 m | terrasse | bandeaux de fenêtres de 2,2 m, sans volets ni modénature |
+| `maison_faubourg` | enduit pastel `#e9dfc9` → `#dcc7a5` | tuile mécanique | maison basse à volets peints (vieux village de Montmartre) |
+| `meuliere`, `enduit_idf`, `pierre_auvergne` | rendu historique d'Île-de-France et de Limagne, décrit en archétypes | tuile plate / canal | réservés aux profils de l'étape 6 |
+
+Profils de monde : **Montmartre** (pierre et 5 niveaux ou plus → haussmannien à 85 %, brique →
+`brique`, béton ou 10 niveaux et plus → `moderne`, 3 à 4 niveaux → faubourien, petites maisons →
+`maison_faubourg`).
+
 ## Ciels et heures
 
 - **Aube** : bleu froid → rose saumon à l'horizon, brume dans les vallées, soleil bas.

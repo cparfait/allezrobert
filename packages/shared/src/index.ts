@@ -19,3 +19,4 @@ export * from './profiles.ts';
 export * from './companion.ts';
 export * from './heights.ts';
 export * from './climbs.ts';
+export * from './archetypes.ts';
