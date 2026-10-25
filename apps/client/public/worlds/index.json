@@ -29,6 +29,90 @@
    }
   },
   {
+   "id": "alsace",
+   "name": "Route des vins d'Alsace",
+   "region": "Haut-Rhin · Vignoble",
+   "routes": [
+    {
+     "id": "route-des-vins",
+     "name": "La route des vins de Riquewihr à Kaysersberg",
+     "nameEn": "The wine road from Riquewihr to Kaysersberg",
+     "lengthM": 24832,
+     "elevationGainM": 404.82,
+     "loop": false
+    }
+   ],
+   "pack": {
+    "version": "8eddab839427",
+    "bytes": 153245104,
+    "files": 485,
+    "gzBytes": 69901429
+   },
+   "l93": {
+    "minE": 1014000,
+    "minN": 6788000,
+    "maxE": 1025000,
+    "maxN": 6799000
+   },
+   "open": true
+  },
+  {
+   "id": "annecy",
+   "name": "Lac d'Annecy",
+   "region": "Haute-Savoie · Bornes-Aravis",
+   "routes": [
+    {
+     "id": "tour-du-lac-annecy",
+     "name": "Le tour du lac d'Annecy",
+     "nameEn": "Lake Annecy loop",
+     "lengthM": 43042,
+     "elevationGainM": 528.03,
+     "loop": false
+    }
+   ],
+   "pack": {
+    "version": "27c46da6be7f",
+    "bytes": 322321059,
+    "files": 1081,
+    "gzBytes": 156308928
+   },
+   "l93": {
+    "minE": 940000,
+    "minN": 6523000,
+    "maxE": 955000,
+    "maxN": 6541000
+   },
+   "open": true
+  },
+  {
+   "id": "basque",
+   "name": "Pays basque — Corniche",
+   "region": "Pyrénées-Atlantiques · Côte basque",
+   "routes": [
+    {
+     "id": "corniche-basque",
+     "name": "La corniche basque par Ciboure, Urrugne et Ascain",
+     "nameEn": "Basque corniche via Ciboure, Urrugne and Ascain",
+     "lengthM": 31028.19,
+     "elevationGainM": 621.13,
+     "loop": true
+    }
+   ],
+   "pack": {
+    "version": "359da444a1dd",
+    "bytes": 198936287,
+    "files": 705,
+    "gzBytes": 79143888
+   },
+   "l93": {
+    "minE": 314000,
+    "minN": 6260000,
+    "maxE": 330000,
+    "maxN": 6271000
+   },
+   "open": true
+  },
+  {
    "id": "billom",
    "name": "Limagne — Billom",
    "region": "Puy-de-Dôme · Limagne",
@@ -53,16 +137,16 @@
      "id": "boucle-billomoise-2",
      "name": "Billom – Le Cendre par Pérignat-sur-Allier",
      "nameEn": "Billom – Le Cendre via Pérignat-sur-Allier",
-     "lengthM": 27470,
-     "elevationGainM": 238.02,
+     "lengthM": 27666,
+     "elevationGainM": 240.05,
      "loop": false
     },
     {
      "id": "boucle-billomoise-6",
      "name": "Billom – Pérignat-sur-Allier",
      "nameEn": "Billom – Pérignat-sur-Allier",
-     "lengthM": 23748.68,
-     "elevationGainM": 187.21,
+     "lengthM": 23939.09,
+     "elevationGainM": 189.05,
      "loop": true
     },
     {
@@ -80,13 +164,21 @@
      "lengthM": 11460.53,
      "elevationGainM": 134.68,
      "loop": true
+    },
+    {
+     "id": "perignat-neuville-billom",
+     "name": "Pérignat, Neuville et Billom",
+     "nameEn": "Pérignat, Neuville and Billom",
+     "lengthM": 33794,
+     "elevationGainM": 460.23,
+     "loop": false
     }
    ],
    "pack": {
-    "version": "b0e7c50ec850",
-    "bytes": 255270065,
+    "version": "c9c9b16863aa",
+    "bytes": 255270066,
     "files": 901,
-    "gzBytes": 110861059
+    "gzBytes": 110861443
    },
    "l93": {
     "minE": 714000,
@@ -140,13 +232,45 @@
      "lengthM": 76206.63,
      "elevationGainM": 821.39,
      "loop": true
+    },
+    {
+     "id": "cote-de-la-madeleine",
+     "name": "La côte de la Madeleine",
+     "nameEn": "The Madeleine climb",
+     "lengthM": 2319.53,
+     "elevationGainM": 79.12,
+     "loop": true
+    },
+    {
+     "id": "cote-de-chateaufort",
+     "name": "La côte de Châteaufort",
+     "nameEn": "The Châteaufort climb",
+     "lengthM": 2735.06,
+     "elevationGainM": 70.36,
+     "loop": true
+    },
+    {
+     "id": "cote-des-vaux-de-cernay",
+     "name": "La côte des Vaux de Cernay",
+     "nameEn": "The Vaux de Cernay climb",
+     "lengthM": 3069.83,
+     "elevationGainM": 67,
+     "loop": true
+    },
+    {
+     "id": "cote-de-meridon",
+     "name": "La côte de Méridon",
+     "nameEn": "The Méridon climb",
+     "lengthM": 3970.49,
+     "elevationGainM": 87.86,
+     "loop": true
     }
    ],
    "pack": {
-    "version": "562a86512d4a",
-    "bytes": 188031053,
-    "files": 1887,
-    "gzBytes": 75187563
+    "version": "ebd33e0b8455",
+    "bytes": 333212351,
+    "files": 1937,
+    "gzBytes": 145706959
    },
    "l93": {
     "minE": 609000,
@@ -180,6 +304,34 @@
     "minN": 6499000,
     "maxE": 728000,
     "maxN": 6514000
+   },
+   "open": true
+  },
+  {
+   "id": "cote-de-nuits",
+   "name": "Côte de Nuits — Grands crus",
+   "region": "Côte-d'Or · Bourgogne",
+   "routes": [
+    {
+     "id": "route-des-grands-crus",
+     "name": "La route des Grands Crus et les Hautes-Côtes",
+     "nameEn": "The Grands Crus road and the Hautes-Côtes",
+     "lengthM": 34420,
+     "elevationGainM": 493.84,
+     "loop": false
+    }
+   ],
+   "pack": {
+    "version": "c6a36d6bd744",
+    "bytes": 187347688,
+    "files": 721,
+    "gzBytes": 80321031
+   },
+   "l93": {
+    "minE": 842000,
+    "minN": 6670000,
+    "maxE": 854000,
+    "maxN": 6685000
    },
    "open": true
   },
@@ -244,6 +396,34 @@
     "minN": 6953000,
     "maxE": 506000,
     "maxN": 6964000
+   },
+   "open": true
+  },
+  {
+   "id": "fontainebleau",
+   "name": "Forêt de Fontainebleau",
+   "region": "Seine-et-Marne · Gâtinais",
+   "routes": [
+    {
+     "id": "foret-de-fontainebleau",
+     "name": "La forêt de Fontainebleau par Barbizon et Arbonne",
+     "nameEn": "Fontainebleau forest via Barbizon and Arbonne",
+     "lengthM": 40502,
+     "elevationGainM": 252.46,
+     "loop": false
+    }
+   ],
+   "pack": {
+    "version": "b932a6867efe",
+    "bytes": 275721288,
+    "files": 885,
+    "gzBytes": 119567179
+   },
+   "l93": {
+    "minE": 666000,
+    "minN": 6806000,
+    "maxE": 683000,
+    "maxN": 6819000
    },
    "open": true
   },
@@ -583,6 +763,62 @@
    "open": true
   },
   {
+   "id": "roubaix",
+   "name": "Paris–Roubaix — Trouée d'Arenberg",
+   "region": "Nord · Pévèle",
+   "routes": [
+    {
+     "id": "secteurs-paves",
+     "name": "Les secteurs pavés d'Arenberg à Orchies",
+     "nameEn": "The cobbled sectors from Arenberg to Orchies",
+     "lengthM": 66528.97,
+     "elevationGainM": 200.8,
+     "loop": true
+    }
+   ],
+   "pack": {
+    "version": "11b2beb3c802",
+    "bytes": 184098251,
+    "files": 781,
+    "gzBytes": 69650151
+   },
+   "l93": {
+    "minE": 720000,
+    "minN": 7026000,
+    "maxE": 733000,
+    "maxN": 7041000
+   },
+   "open": true
+  },
+  {
+   "id": "saint-cloud",
+   "name": "Saint-Cloud — Marly",
+   "region": "Hauts-de-Seine · Yvelines",
+   "routes": [
+    {
+     "id": "saint-cloud-marly",
+     "name": "De Saint-Cloud à Marly par la côte de la Jonchère",
+     "nameEn": "Saint-Cloud to Marly via the Jonchère climb",
+     "lengthM": 28922,
+     "elevationGainM": 558.01,
+     "loop": false
+    }
+   ],
+   "pack": {
+    "version": "ead1c893b29c",
+    "bytes": 159280669,
+    "files": 385,
+    "gzBytes": 64846504
+   },
+   "l93": {
+    "minE": 632000,
+    "minN": 6858000,
+    "maxE": 644000,
+    "maxN": 6866000
+   },
+   "open": true
+  },
+  {
    "id": "sancy",
    "name": "Massif du Sancy",
    "region": "Puy-de-Dôme · Monts Dore",
@@ -615,6 +851,70 @@
     "minN": 6484000,
     "maxE": 697000,
     "maxN": 6499000
+   },
+   "open": true
+  },
+  {
+   "id": "tourmalet",
+   "name": "Col du Tourmalet",
+   "region": "Hautes-Pyrénées · Bigorre",
+   "routes": [
+    {
+     "id": "tourmalet-luz",
+     "name": "Le Tourmalet par Luz-Saint-Sauveur",
+     "nameEn": "Tourmalet from Luz-Saint-Sauveur",
+     "lengthM": 36978,
+     "elevationGainM": 1427.47,
+     "loop": false
+    },
+    {
+     "id": "tourmalet-sainte-marie",
+     "name": "Le Tourmalet par Sainte-Marie-de-Campan",
+     "nameEn": "Tourmalet from Sainte-Marie-de-Campan",
+     "lengthM": 36352,
+     "elevationGainM": 1329.72,
+     "loop": false
+    }
+   ],
+   "pack": {
+    "version": "e1a9e9e173c7",
+    "bytes": 412742531,
+    "files": 1565,
+    "gzBytes": 217118847
+   },
+   "l93": {
+    "minE": 452000,
+    "minN": 6199000,
+    "maxE": 475000,
+    "maxN": 6216000
+   },
+   "open": true
+  },
+  {
+   "id": "verrieres-velizy",
+   "name": "Verrières -Vélizy",
+   "region": "Essonne · Île-de-France",
+   "routes": [
+    {
+     "id": "boucle-35-km-massy",
+     "name": "Boucle de 35 km depuis Massy",
+     "nameEn": "35 km loop from Massy",
+     "lengthM": 35586,
+     "elevationGainM": 346.53,
+     "loop": false
+    }
+   ],
+   "pack": {
+    "version": "44b317638a8b",
+    "bytes": 147973112,
+    "files": 401,
+    "gzBytes": 60273418
+   },
+   "l93": {
+    "minE": 638000,
+    "minN": 6846000,
+    "maxE": 648000,
+    "maxN": 6856000
    },
    "open": true
   },
