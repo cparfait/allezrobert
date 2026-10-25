@@ -97,6 +97,10 @@ export interface AvatarLook {
   shoeMark?: ShoeMarkId;
   /** Couleur des chaussettes. */
   socks?: string;
+  /** Hauteur des chaussettes : basses (défaut, au-dessus de la cheville) ou hautes (mi-mollet). */
+  sockHeight?: 'low' | 'high';
+  /** Cuissard : court (défaut) ou long, jusqu'à la cheville. */
+  legs?: 'short' | 'long';
   /** Vélo affiché : route (défaut), gravel ou VTT (selon le vélo équipé au garage). */
   bikeType?: 'road' | 'gravel' | 'mtb';
   /** Curseurs de forme du visage et du corps (face.ts, encodeFace) ; absent : tête de base. */

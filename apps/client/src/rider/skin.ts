@@ -1,9 +1,9 @@
 import * as THREE from 'three/webgpu';
-import { float, mix, mx_noise_float, normalMap, pow, smoothstep, texture, uniform, uv, vec3 } from 'three/tsl';
+import { abs, attribute, exp, float, max, sin, mix, step, mx_noise_float, normalMap, pow, smoothstep, texture, uniform, uv, vec3 } from 'three/tsl';
 import type { AvatarLook } from '@allezrobert/shared';
 import { loadTexture } from '../engine/textures.ts';
 import { colorUniform, type ColorUniform } from '../engine/tsl.ts';
-import { jerseySleeve, type JerseyFrame, type SleeveNodes } from './jerseyPattern.ts';
+import { jerseySleeve, SOCK_HIGH_T, SUIT_THIGH_T, type JerseyFrame, type SleeveNodes } from './jerseyPattern.ts';
 
 /**
  * Peau de l'avatar MPFB (docs/AVATARS.md § 6), commune à tous les coureurs : deux textures
@@ -78,6 +78,9 @@ export class SkinMaterial {
   private sweatLevel = 0;
 
   private readonly sleeve: SleeveNodes | null;
+  private readonly sockColor = colorUniform('#f2f2f2');
+  private readonly sockHigh = uniform(0);
+  private readonly suit = uniform(0);
 
   /** `jersey` : mesures du maillot ; avec elles, les manches longues sont peintes sur les avant-bras. */
   constructor(tex: SkinTextures, look: SkinLook, jersey: JerseyFrame | null = null, avatar?: AvatarLook) {
@@ -101,12 +104,31 @@ export class SkinMaterial {
     col = mix(col, col.mul(vec3(1.18, 0.72, 0.7)), k.r.mul(this.flush));
     // Manches longues : tissu du maillot (couleur, motifs) sur les avant-bras, sans grain de peau.
     this.sleeve = jersey && avatar ? jerseySleeve(avatar, jersey) : null;
-    const cover = this.sleeve ? this.sleeve.weight : null;
-    if (this.sleeve && cover) col = mix(col, this.sleeve.color, cover);
+    // Chaussettes hautes : tissu peint sur le mollet au-dessus des chaussettes basses du maillage
+    // (« jsl » ≤ −2 : −2 − u, voir addSleeveMask).
+    const jsl = attribute<'float'>('jsl', 'float');
+    // u : position continue sur la jambe (0 hanche, 1 genou, 2 cheville).
+    const leg = step(jsl, float(-1.99));
+    const u = float(-2).sub(jsl);
+    const sock = jersey && avatar ? leg.mul(step(1 + SOCK_HIGH_T, u)).mul(this.sockHigh) : null;
+    // Cuissard long : cuisse sous l'ourlet du cuissard et tout le mollet, en lycra du cuissard.
+    const suit = jersey && avatar ? leg.mul(step(SUIT_THIGH_T, u)).mul(this.suit) : null;
+    const sleeveCover = this.sleeve ? this.sleeve.weight : null;
+    const legCover = suit && sock ? max(suit, sock) : suit ?? sock;
+    const cover = sleeveCover && legCover ? max(sleeveCover, legCover) : sleeveCover ?? legCover;
+    // Couleur du tissu : cuissard long puis chaussette sur la jambe, maillot sur le bras.
+    // Plis du lycra tiré au creux du genou : fines lignes en travers de la jambe, qui s'estompent
+    // en s'éloignant de l'articulation (u = 1), un peu plus claires que le tissu.
+    const kneeZone = exp(u.sub(1).div(0.14).pow(2).negate());
+    const creases = abs(sin(u.mul(95).add(sin(uv().x.mul(40)).mul(0.6)))).pow(5).mul(kneeZone);
+    const suitCol = vec3(0.0052, 0.0059, 0.0078).add(creases.mul(0.012));
+    const legCol = suit && sock ? mix(suitCol, this.sockColor.node, sock) : sock ? this.sockColor.node : suitCol;
+    const clothCol = this.sleeve && sleeveCover && legCover ? mix(legCol, this.sleeve.color, sleeveCover) : this.sleeve ? this.sleeve.color : legCol;
+    if (cover) col = mix(col, clothCol, cover);
     m.colorNode = col;
     // Sueur : peau plus brillante sur les mêmes zones (et un peu partout).
     const skinRough = mix(float(0.62), float(0.3), k.r.mul(0.7).add(0.3).mul(this.sweat));
-    m.roughnessNode = cover ? mix(skinRough, float(0.65), cover) : skinRough;
+    m.roughnessNode = cover ? mix(skinRough, float(legCover ? 0.85 : 0.65), cover) : skinRough;
     // Grain : pores et ridules (mosaïque de ~4 cm), plus marqués sur la peau âgée.
     if (tex.detail) {
       const grain = vec3(0.35).add(this.age.mul(0.2)).xy;
@@ -120,8 +142,8 @@ export class SkinMaterial {
     m.thicknessPowerNode = float(4);
     m.thicknessScaleNode = float(1.2);
     // Duvet : voile clair et doux en lumière rasante.
-    // Manche : reflet de lycra du maillot (cloth.ts) à la place du duvet de la peau.
-    m.sheenNode = this.sleeve && cover ? mix(vec3(0.07, 0.06, 0.055), mix(this.sleeve.color, vec3(1), 0.25).mul(0.35), cover) : vec3(0.07, 0.06, 0.055);
+    // Manche, chaussette : reflet de lycra du tissu (cloth.ts) à la place du duvet de la peau.
+    m.sheenNode = cover ? mix(vec3(0.07, 0.06, 0.055), mix(clothCol, vec3(1), 0.25).mul(legCover ? mix(float(0.35), float(0.1), legCover) : 0.35), cover) : vec3(0.07, 0.06, 0.055);
     m.sheenRoughnessNode = float(0.6);
     m.specularIntensity = 0.7;
     this.material = m;
@@ -132,6 +154,9 @@ export class SkinMaterial {
   /** Tenue du coureur : manches (courtes ou longues), couleur et motif du maillot. */
   setJersey(look: AvatarLook): void {
     this.sleeve?.set(look);
+    this.sockColor.set(look.socks ?? '#f2f2f2');
+    this.sockHigh.value = look.sockHeight === 'high' ? 1 : 0;
+    this.suit.value = look.legs === 'long' ? 1 : 0;
   }
 
   setLook(look: SkinLook): void {
