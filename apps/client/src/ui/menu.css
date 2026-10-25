@@ -669,3 +669,75 @@
   .mm-bigstats { gap: 8px; }
 }
 
+
+/* Réglages › Zones et cartes hors ligne. */
+.zs-list { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; max-height: 46vh; overflow-y: auto; padding-right: 4px; }
+.zs-row { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 8px 12px; border-radius: 10px; background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.06); }
+.zs-row.cur { border-color: rgba(255, 210, 63, 0.4); }
+.zs-name { display: flex; flex-direction: column; min-width: 0; }
+.zs-name b { font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.zs-name small { color: #8d98a6; font-size: 11.5px; }
+.zs-mid { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.zs-state { font-size: 12.5px; color: #8d98a6; }
+.zs-state.ok { color: #7fd18b; font-weight: 600; }
+.zs-state.warn, .zs-state.busy { color: var(--ar-accent); font-weight: 600; }
+.zs-state.err { color: #fca5a5; font-weight: 600; }
+.zs-bar { display: block; height: 4px; border-radius: 2px; background: rgba(255, 255, 255, 0.12); overflow: hidden; }
+.zs-bar i { display: block; height: 100%; background: var(--ar-accent); }
+.zs-act { display: flex; gap: 6px; justify-content: flex-end; }
+.zs-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 10px; font-size: 12.5px; color: #aeb7c3; }
+@media (max-width: 700px) { .zs-row { grid-template-columns: 1fr auto; } .zs-mid { grid-column: 1 / -1; grid-row: 2; } .zs-act { grid-row: 1; grid-column: 2; } }
+
+/* ───────────── Sans contours : les champs et les cartes se distinguent par leur fond, pas par un filet ───────────── */
+.mm-panel, .mm-dialog, .mm-routecard, .mm-sel, .mm-ftptest, .mm-weather, .mm-dev, .mm-note, .mm-explore, .mm-seg, .mm-x, .mm-view, .mm-pack:not(.err),
+.mm-go.ghost, .mm-biketypes button, .gr-sub, .fe-photo, .fe-profiles button, .fe-actions button, .fe-seg button, .at-detail, .at-reset, .zs-row,
+.mm-mode, .mm-wk, .mm-home-music, .mm-input { border-color: transparent; }
+.mm-wk { border-left-color: var(--wk); }
+.mm-mode.on, .mm-wk.on, .zs-row.cur { box-shadow: inset 0 0 0 1.5px var(--c, var(--ar-accent)); }
+.mm-panel, .mm-dialog { box-shadow: 0 18px 50px rgba(0, 0, 0, 0.45); }
+.mm-input, .mm-panel .field input:not([type='range']):not([type='color']):not([type='checkbox']), .mm-panel .field select, .mm-dialog input { border: 0; background: rgba(255, 255, 255, 0.07); }
+.mm-input:focus-visible, .mm-panel .field input:focus-visible, .mm-panel .field select:focus-visible, .mm-dialog input:focus-visible, .mm-stepper:focus-within { outline: 0; box-shadow: 0 0 0 2px var(--ar-accent); }
+/* Champs numériques : − / + aux couleurs de l'appli, sans flèches du navigateur. */
+.mm-stepper input[type='number'] { -moz-appearance: textfield; appearance: textfield; }
+.mm-stepper input[type='number']::-webkit-inner-spin-button, .mm-stepper input[type='number']::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.mm-stepper { display: inline-flex; align-items: stretch; border-radius: 12px; background: rgba(255, 255, 255, 0.07); overflow: hidden; }
+.mm-stepper button { appearance: none; border: 0; width: 38px; background: rgba(255, 255, 255, 0.05); color: var(--ar-accent); font: inherit; font-size: 20px; font-weight: 700; line-height: 1; cursor: pointer; transition: background 0.12s, color 0.12s; }
+.mm-stepper button:hover { background: var(--ar-accent); color: #0a0e16; }
+.mm-stepper button:active { filter: brightness(0.92); }
+.mm-stepper input, .mm-panel .field .mm-stepper input { width: 64px; min-width: 0; text-align: center; background: transparent; border: 0; border-radius: 0; padding: 9px 4px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.mm-panel .field .mm-stepper { display: flex; }
+.mm-panel .field .mm-stepper input { flex: 1; width: auto; }
+.mm-steprow { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 10px; padding: 6px 6px 6px 14px; border-radius: 12px; background: rgba(255, 255, 255, 0.05); font-size: 14px; }
+
+/* Défi KOM : fenêtre centrale, tableau des montées et des records, filtre par zone. */
+.mm-picker.kom-dialog { width: min(980px, 94vw) !important; background: rgba(10, 14, 22, 0.9); backdrop-filter: blur(6px); }
+.mm-picker-modal:has(.kom-dialog) { background: rgba(6, 9, 15, 0.62); backdrop-filter: blur(4px); }
+.kom-filter { display: flex; flex-wrap: wrap; gap: 6px; }
+.kom-chip { appearance: none; border: 0; border-radius: 999px; padding: 6px 14px; font: inherit; font-size: 12.5px; font-weight: 700; cursor: pointer; background: rgba(255, 255, 255, 0.07); color: #c9d1db; transition: background 0.12s, color 0.12s; }
+.kom-chip:hover { background: rgba(255, 255, 255, 0.14); color: #fff; }
+.kom-chip.on { background: var(--ar-accent); color: #0a0e16; }
+.kom-wrap { overflow: auto; border-radius: 14px; background: rgba(255, 255, 255, 0.035); min-height: 0; }
+.kom-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.kom-table thead th { position: sticky; top: 0; z-index: 1; padding: 10px 14px; text-align: left; font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: #8d98a6; background: rgba(18, 24, 36, 0.96); box-shadow: inset 0 -2px 0 var(--ar-accent); white-space: nowrap; }
+.kom-table th.num, .kom-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.kom-table tbody tr { cursor: pointer; transition: background 0.12s; }
+.kom-table tbody tr:nth-child(even) { background: rgba(255, 255, 255, 0.025); }
+.kom-table tbody tr:hover, .kom-table tbody tr:focus-visible { background: rgba(255, 210, 63, 0.1); outline: 0; }
+.kom-table tbody tr.on { background: rgba(255, 210, 63, 0.16); box-shadow: inset 4px 0 0 var(--ar-accent); }
+.kom-table td { padding: 10px 14px; vertical-align: middle; }
+.kom-name { display: flex; flex-direction: column; min-width: 180px; }
+.kom-name b { font-size: 14.5px; color: #fff; }
+.kom-name small, .kom-zone, .kom-date { color: #8d98a6; font-size: 12px; }
+.kom-rec b { font-family: var(--mono); font-size: 16px; color: var(--ar-accent); }
+.kom-none { color: #5b6573; }
+.kom-go { text-align: right; font-size: 12px; font-weight: 800; color: var(--ar-accent); white-space: nowrap; }
+.kom-table tr.on .kom-go { color: #7fd18b; }
+.kom-empty { padding: 28px 14px; text-align: center; color: #8d98a6; }
+.kom-foot { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; font-size: 12px; color: #8d98a6; }
+@media (max-width: 700px) { .kom-table .kom-zone, .kom-table .kom-date, .kom-table th:nth-child(2), .kom-table th:nth-child(6) { display: none; } .kom-table td, .kom-table thead th { padding: 9px 8px; } }
+
+/* Onglet Rouler (écran large) : lecteur au-dessus du titre ; la liste des playlists s'ouvre devant le titre. */
+.mm-hero-music { display: inline-flex; margin: 0 0 18px; pointer-events: auto; position: relative; z-index: 6; background: rgba(10, 14, 22, 0.78); box-shadow: 0 6px 22px rgba(0, 0, 0, 0.35); padding: 5px 8px 5px 6px; backdrop-filter: blur(6px); }
+.mm-hero-music .mm-now { color: #f1f4f8; }
+.mm-hero-music .mm-pop { left: 50%; right: auto; transform: translateX(-50%); }
+.mm-hero h1, .mm-hero p { position: relative; z-index: 1; }

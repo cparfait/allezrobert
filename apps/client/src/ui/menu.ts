@@ -3,7 +3,7 @@ import { readKomRecord } from '../game/challenge.ts';
 import { COUNTRIES, flagEmoji, BIKE_BRANDS, BIKE_GROUPS, BIKE_TEAMS, COSMETICS, DEFAULT_BIKE, bikeById, lookSex, tuneItem, withSex, bottleCapacity, bikeSetupFor, jerseyLookOf, levelProgress, SHOE_MARKS, type BikeCollection, type BikeType, type CosmeticSlot } from '@allezrobert/shared';
 import { shoeAccentOf } from '../rider/shoeLook.ts';
 import { WORKOUT_LIBRARY } from '@allezrobert/physics';
-import { formatBytes, installPack, loadCatalogue, packState, removePack } from '../world/packs.ts';
+import { formatBytes, installPack, installedPacks, loadCatalogue, packState, removePack } from '../world/packs.ts';
 import { compositeId, neighbourZones } from '../world/composite.ts';
 import { t, setLang, getLang, type I18nKey } from '../i18n/index.ts';
 import type { Settings } from './settings.ts';
@@ -330,6 +330,7 @@ export class MainMenu {
   onPreviewLook?: (look: AvatarLook | null) => void;
   /** Carte du choix (sous « Choisir ma sortie ») : seulement après un choix fait dans ce menu. */
   private selMap = false;
+  private mq: MediaQueryList | null = null;
 
 
   /** Essais en cours au garage, un par emplacement (vélo, maillot…) : ils restent en place pendant qu'on en essaie d'autres. */
@@ -343,11 +344,55 @@ export class MainMenu {
   /** Zones chargées ensemble : la zone `worldId` puis les voisines ajoutées (parcours libre et à dessiner). */
   loadedZones: string[] = [];
 
+  /** Montées chronométrées connues par zone (mémorisées à chaque zone chargée) : le tableau des records les liste toutes. */
+  private komIndex(): Record<string, Array<{ routeId: string; routeName: string; segId: string; name: string; lengthM: number; grade: number }>> {
+    try {
+      return JSON.parse(localStorage.getItem('ar.komIndex') ?? '{}') as ReturnType<MainMenu['komIndex']>;
+    } catch {
+      return {};
+    }
+  }
+
+  private indexClimbs(): void {
+    const seen = new Set<string>();
+    const list: ReturnType<MainMenu['komIndex']>[string] = [];
+    for (const route of this.routes)
+      for (const k of route.segments)
+        if (k.kind === 'kom' && !seen.has(k.name)) {
+          seen.add(k.name);
+          list.push({ routeId: route.id, routeName: this.routeName(route), segId: k.id, name: k.name, lengthM: k.endM - k.startM, grade: k.avgGrade });
+        }
+    if (!list.length || !this.worldId) return;
+    const all = this.komIndex();
+    all[this.worldId] = list;
+    try {
+      localStorage.setItem('ar.komIndex', JSON.stringify(all));
+    } catch {
+      // Stockage indisponible : le tableau ne montrera que la zone affichée.
+    }
+  }
+
+  /** Nom d'une zone (catalogue du jeu, sinon carte de France). */
+  private zoneLabel(id: string): string {
+    const lang = getLang();
+    return WORLD_LIST.find((x) => x.id === id)?.name[lang] ?? ZONE_SPOTS.find((x) => x.id === id)?.name[lang] ?? id;
+  }
+
   /** Nouveau monde chargé sur place : parcours, identifiant, monde ouvert ; l'écran est refait. */
   setWorld(routes: RouteData[], worldId: string, open: boolean): void {
     this.routes = routes;
     this.worldId = worldId;
     this.openWorld = open;
+    this.indexClimbs();
+    // Montée choisie dans une autre zone : sélectionnée dès que sa zone est chargée.
+    if (this.pendingKom && routes.some((r) => r.id === this.pendingKom?.routeId)) {
+      this.s.mode = 'challenge';
+      this.s.routeId = this.pendingKom.routeId;
+      this.s.reverse = false;
+      this.s.challengeSeg = this.pendingKom.segId;
+      saveSettings(this.s);
+      this.pendingKom = null;
+    }
     if (!routes.some((r) => r.id === this.s.routeId)) this.s.routeId = routes[0]?.id ?? '';
     if (this.routesAfterWorld && this.picker === 'zones') this.picker = 'zone';
     // Autre zone : le parcours dessiné et le départ du libre de l'ancienne ne valent plus.
@@ -371,7 +416,10 @@ export class MainMenu {
   onWorld?: (id: string) => void;
   onSettingsSaved?: (s: Settings) => void;
   /** Fenêtre de choix ouverte au milieu de l'écran (bouton « Choisir ma sortie »). */
-  private picker: 'zones' | 'zone' | 'routes' | 'map' | 'route' | 'workouts' | null = null;
+  private picker: 'zones' | 'zone' | 'routes' | 'map' | 'route' | 'workouts' | 'koms' | null = null;
+  /** Fenêtre « Défi KOM » : zone filtrée ('' = toutes) et montée d'une autre zone à choisir une fois cette zone chargée. */
+  private komZone = '';
+  private pendingKom: { routeId: string; segId: string } | null = null;
   /** Parcours ouvert dans sa fiche (fenêtre « route »). */
   private detailId = '';
   /** Sens montré dans la fiche du parcours (choisi au départ). */
@@ -401,6 +449,7 @@ export class MainMenu {
     this.devices = devices;
     this.cb = cb;
     if (!this.s.routeId || !routes.some((r) => r.id === this.s.routeId)) this.s.routeId = routes[0]?.id ?? '';
+    this.indexClimbs();
     void loadCatalogue().then((cat) => {
       this.zones = cat?.zones ?? [];
       if (this.tab === 'ride' && this.root.querySelector('.mm')) this.render();
@@ -448,6 +497,10 @@ export class MainMenu {
 
   show(tab: Tab = 'home'): void {
     document.addEventListener('keydown', this.onKey);
+    if (!this.mq) {
+      this.mq = matchMedia('(max-width: 900px)');
+      this.mq.addEventListener('change', () => this.root.querySelector('.mm') && this.tab === 'ride' && this.render());
+    }
     // Au lancement du jeu et après une sortie : pas de carte du choix tant qu'on n'a rien choisi.
     this.selMap = false;
     this.friends.start();
@@ -479,6 +532,29 @@ export class MainMenu {
   /** Croix de fermeture d'un panneau (retour à l'onglet Rouler, comme Échap). */
   private closeBtn(): string {
     return `<button class="mm-close" data-tab="ride" aria-label="${fr() ? 'Fermer' : 'Close'}" title="${fr() ? 'Fermer (Échap)' : 'Close (Esc)'}">×</button>`;
+  }
+
+  /** Champ numérique avec − et + aux couleurs de l'appli (remplace les flèches du navigateur). */
+  private stepper(id: string, min: number, max: number, value: number, step = 1): string {
+    return `<div class="mm-stepper" data-stepper><button type="button" data-step="-1" aria-label="−" tabindex="-1">−</button><input id="${id}" type="number" inputmode="decimal" min="${min}" max="${max}" step="${step}" value="${value}" /><button type="button" data-step="1" aria-label="+" tabindex="-1">+</button></div>`;
+  }
+
+  /** Branche les − / + : la valeur reste dans [min, max] et le champ émet « change » comme s'il avait été saisi. */
+  private bindSteppers(scope: ParentNode): void {
+    scope.querySelectorAll<HTMLElement>('[data-stepper]').forEach((box) => {
+      const input = box.querySelector('input') as HTMLInputElement;
+      box.querySelectorAll<HTMLButtonElement>('[data-step]').forEach((b) =>
+        b.addEventListener('click', () => {
+          const step = Number(input.step) || 1;
+          const min = Number(input.min);
+          const max = Number(input.max);
+          const v = Math.min(max, Math.max(min, Math.round(((Number(input.value) || min) + Number(b.dataset.step) * step) / step) * step));
+          input.value = String(Number(v.toFixed(2)));
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+          input.dispatchEvent(new Event('change', { bubbles: true }));
+        }),
+      );
+    });
   }
 
   /** Choix en boutons segmentés (remplace les listes déroulantes du système). */
@@ -693,7 +769,7 @@ export class MainMenu {
         <nav class="mm-tabs">${tabs.map(([id, label]) => `<button class="mm-tab ${id === this.tab ? 'on' : ''}" data-tab="${id}">${esc(label)}${id === 'friends' ? this.friends.badgeHtml() : ''}</button>`).join('')}
           <button class="mm-tab subtle" id="m-tuto">${L ? 'Tutoriel' : 'Tutorial'}</button></nav>
         <div class="mm-right">
-          <div class="mm-music" id="m-music"></div>
+          ${this.musicInHero() ? '' : '<div class="mm-music" id="m-music"></div>'}
           <div class="mm-account">
             <div class="mm-avatar" style="background:${this.s.look.jersey}">${esc(initials || 'R')}</div>
             <div class="mm-who"><b>${esc(name)}</b>
@@ -717,6 +793,7 @@ export class MainMenu {
     renderSoundSettings(this.root.querySelector('#m-sound-settings'));
     renderCompanionSettings(this.root.querySelector('#m-companion-settings'));
     renderStravaLink(this.root.querySelector('#m-strava-link'), !!this.account);
+    this.renderZonesSettings();
     renderExpertSettings(this.root.querySelector('#m-expert-settings'));
     // Rubriques repliables des Réglages : on retient celles qui sont ouvertes (l'écran est redessiné à chaque changement).
     for (const d of this.root.querySelectorAll<HTMLDetailsElement>('details.set-sec')) {
@@ -770,12 +847,12 @@ export class MainMenu {
         s.mode === 'group' || s.mode === 'race'
           ? `<input id="m-invite" class="mm-input" placeholder="${L ? 'Code d’invitation (facultatif)' : 'Invite code (optional)'}" />${
               // Course sur une boucle : nombre de tours (créateur de la course).
-              s.mode === 'race' && r?.loop ? `<label class="mm-input" style="display:flex;align-items:center;justify-content:space-between;gap:10px">${L ? 'Tours de la course' : 'Race laps'}<input id="m-laps" type="number" min="1" max="20" value="${s.raceLaps}" style="width:64px" /></label>` : ''
+              s.mode === 'race' && r?.loop ? `<div class="mm-steprow"><span>${L ? 'Tours de la course' : 'Race laps'}</span>${this.stepper('m-laps', 1, 20, s.raceLaps)}</div>` : ''
             }
             <div class="mm-groupopts">
               ${
                 s.mode === 'race'
-                  ? `<label class="field">${L ? 'Coureurs IA' : 'AI riders'}<input id="m-ai" type="number" min="0" max="19" value="${s.aiRiders}" /></label>
+                  ? `<div class="mm-steprow"><span>${L ? 'Coureurs IA' : 'AI riders'}</span>${this.stepper('m-ai', 0, 19, s.aiRiders)}</div>
               <div class="field">${L ? 'Niveau des IA (part de ta FTP)' : 'AI level (share of your FTP)'}${this.aiLevelSeg()}</div>
               <p class="mm-hint">${L ? 'Chaque IA a sa tactique (baroudeur, attentiste, grimpeur, équipier) et sa forme du jour ; une échappée reprise à bout de forces se paie.' : 'Each AI has its own tactic (breakaway artist, wheelsucker, climber, domestique) and form of the day; a spent breakaway pays for it.'}</p>`
                   : ''
@@ -796,7 +873,7 @@ export class MainMenu {
               <p class="mm-hint">${L ? 'Si tu crées la sortie, ton heure, ta météo et l’égalisation s’appliquent à tout le groupe.' : 'If you create the ride, your time, weather and equipment rule apply to the whole group.'}</p>
             </div>`
           : s.mode === 'challenge'
-            ? this.challengeHtml(r, true)
+            ? this.challengeChoiceHtml(r)
           : s.mode === 'workout'
             ? this.workoutChoiceHtml()
             : ''
@@ -804,11 +881,18 @@ export class MainMenu {
       ${
         s.mode === 'ftpTest'
           ? this.ftpTestHtml()
-          : `<h3 class="mm-where">${L ? 'Où rouler ?' : 'Where to ride?'}</h3>${this.pickersHtml(r)}`
+          : s.mode === 'workout' || s.mode === 'challenge'
+            ? ''
+            : `<h3 class="mm-where">${L ? 'Où rouler ?' : 'Where to ride?'}</h3>${this.pickersHtml(r)}`
       }
     </section>
-    <div class="mm-hero"><h1>Allez <em>Robert</em> !</h1><p>${L ? 'Rouler ensemble, chacun chez soi.' : 'Ride together, each from home.'}</p></div>
+    <div class="mm-hero">${this.musicInHero() ? '<div class="mm-music mm-hero-music" id="m-music"></div>' : ''}<h1>Allez <em>Robert</em> !</h1><p>${L ? 'Rouler ensemble, chacun chez soi.' : 'Ride together, each from home.'}</p></div>
     ${this.pickerHtml()}`;
+  }
+
+  /** Lecteur au-dessus du titre (onglet Rouler, écran large) ; sinon dans la barre du haut (petits écrans, autres onglets). */
+  private musicInHero(): boolean {
+    return this.tab === 'ride' && !matchMedia('(max-width: 900px)').matches;
   }
 
   /** Séance choisie (carte seule, un clic rouvre la liste au milieu de l'écran) ou fichier importé. */
@@ -910,6 +994,7 @@ export class MainMenu {
     }
     if (this.picker === 'zones') return this.franceHtml();
     if (this.picker === 'workouts') return this.workoutsHtml();
+    if (this.picker === 'koms') return this.komsHtml();
     if (this.picker === 'route') return this.routeDetailWindow();
     if (this.picker === 'zone') return this.zoneHtml();
     // Parcours fixés de la zone (cartes), avec retour aux choix de la zone ou à la carte de France.
@@ -987,6 +1072,77 @@ export class MainMenu {
     this.render();
   }
 
+  /** Montées chronométrées de la zone affichée (toutes ses routes, une fois chacune, celle du parcours choisi d'abord). */
+  private zoneClimbs(r: RouteData | undefined): Array<{ route: RouteData; k: RouteSegment }> {
+    const ordered = r ? [r, ...this.routes.filter((x) => x.id !== r.id)] : this.routes;
+    const seen = new Set<string>();
+    const koms: Array<{ route: RouteData; k: RouteSegment }> = [];
+    for (const route of ordered)
+      for (const k of route.segments)
+        if (k.kind === 'kom' && !seen.has(k.name)) {
+          seen.add(k.name);
+          koms.push({ route, k });
+        }
+    return koms;
+  }
+
+  /** Panneau de gauche du mode Défi KOM : la montée choisie et son record, un clic rouvre le tableau. */
+  private challengeChoiceHtml(r: RouteData | undefined): string {
+    const L = fr();
+    const koms = this.zoneClimbs(r);
+    if (!koms.length) return `<p class="mm-hint">${L ? 'Pas de montée chronométrée dans cette zone : choisis-en une autre.' : 'No timed climb in this area: pick another one.'}</p><button class="mm-link" data-picker="koms">${L ? 'Voir toutes les montées' : 'See all climbs'}</button>`;
+    const cur = koms.find((c) => c.k.id === this.s.challengeSeg && c.route.id === this.s.routeId) ?? (koms[0] as (typeof koms)[number]);
+    this.s.challengeSeg = cur.k.id;
+    const rec = readKomRecord(cur.route.id, cur.k.id);
+    const t = rec ? `${Math.floor(rec.timeS / 60)}:${String(Math.round(rec.timeS % 60)).padStart(2, '0')}` : L ? 'pas encore de record' : 'no record yet';
+    return `<div class="mm-routes mm-presets"><button class="mm-route on" data-picker="koms"><b>${esc(cur.k.name)}</b><span>${this.km(cur.k.endM - cur.k.startM)} km · ${cur.k.avgGrade.toFixed(1).replace('.', L ? ',' : '.')} % · ${L ? 'record' : 'best'} ${t}</span></button></div>
+      <button class="mm-link" data-picker="koms">${L ? 'Changer de montée · voir les records' : 'Change climb · see records'}</button>`;
+  }
+
+  /** Fenêtre centrale « Défi KOM » : tableau des montées et de tes records, filtre par zone. */
+  private komsHtml(): string {
+    const L = fr();
+    const lang = getLang();
+    // Zones connues : celle affichée (toujours à jour) et celles déjà visitées.
+    this.indexClimbs();
+    const index = this.komIndex();
+    const zoneIds = Object.keys(index).sort((a, b) => (a === this.worldId ? -1 : b === this.worldId ? 1 : this.zoneLabel(a).localeCompare(this.zoneLabel(b), lang)));
+    const filter = this.komZone && index[this.komZone] ? this.komZone : '';
+    const rows = zoneIds
+      .filter((z) => !filter || z === filter)
+      .flatMap((z) => (index[z] ?? []).map((c) => ({ zone: z, ...c, rec: readKomRecord(c.routeId, c.segId) })));
+    const fmt = (s: number) => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, '0')}`;
+    const chips = [['', L ? 'Toutes les zones' : 'All areas'] as const, ...zoneIds.map((z) => [z, this.zoneLabel(z)] as const)]
+      .map(([z, label]) => `<button class="kom-chip${z === filter ? ' on' : ''}" data-komzone="${esc(z)}">${esc(label)}</button>`)
+      .join('');
+    const body = rows.length
+      ? rows
+          .map((c) => {
+            const on = c.routeId === this.s.routeId && c.segId === this.s.challengeSeg && this.s.mode === 'challenge';
+            const date = c.rec ? new Date(c.rec.date).toLocaleDateString(L ? 'fr-FR' : 'en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '';
+            return `<tr class="${on ? 'on' : ''}" tabindex="0" data-kom="${esc(c.segId)}" data-kom-route="${esc(c.routeId)}" data-kom-zone="${esc(c.zone)}">
+              <td class="kom-name"><b>${esc(c.name)}</b><small>${esc(c.routeName)}</small></td>
+              <td class="kom-zone">${esc(this.zoneLabel(c.zone))}</td>
+              <td class="num">${this.km(c.lengthM)} km</td>
+              <td class="num">${c.grade.toFixed(1).replace('.', L ? ',' : '.')} %</td>
+              <td class="num kom-rec">${c.rec ? `<b>${fmt(c.rec.timeS)}</b>` : `<span class="kom-none">—</span>`}</td>
+              <td class="kom-date">${date}</td>
+              <td class="kom-go">${on ? (L ? 'Choisie' : 'Selected') : L ? 'Défier ›' : 'Challenge ›'}</td>
+            </tr>`;
+          })
+          .join('')
+      : `<tr><td colspan="7" class="kom-empty">${L ? 'Aucune montée chronométrée connue pour le moment.' : 'No timed climb known yet.'}</td></tr>`;
+    const records = rows.filter((c) => c.rec).length;
+    return `<div class="mm-modal mm-picker-modal" data-picker-close>
+      <div class="mm-dialog mm-picker kom-dialog" role="dialog" aria-modal="true">
+        <header><h2>${L ? 'Défi KOM' : 'KOM challenge'}</h2><button class="mm-x" data-picker-close aria-label="${L ? 'Fermer' : 'Close'}">×</button></header>
+        <p class="mm-hint">${L ? 'Choisis une montée : départ lancé, fantôme de ton meilleur temps et écart en direct. Clique sur une ligne pour la défier.' : 'Pick a climb: flying start, ghost of your best time and live gap. Click a row to take it on.'}</p>
+        <div class="kom-filter" role="group" aria-label="${L ? 'Filtrer par zone' : 'Filter by area'}">${chips}</div>
+        <div class="kom-wrap"><table class="kom-table"><thead><tr><th>${L ? 'Montée' : 'Climb'}</th><th>${L ? 'Zone' : 'Area'}</th><th class="num">${L ? 'Longueur' : 'Length'}</th><th class="num">${L ? 'Pente moy.' : 'Avg grade'}</th><th class="num">${L ? 'Mon record' : 'My best'}</th><th>${L ? 'Date' : 'Date'}</th><th></th></tr></thead><tbody>${body}</tbody></table></div>
+        <div class="kom-foot"><span>${rows.length} ${L ? (rows.length > 1 ? 'montées' : 'montée') : rows.length > 1 ? 'climbs' : 'climb'} · ${records} ${L ? (records > 1 ? 'records' : 'record') : records > 1 ? 'records' : 'record'}</span><span>${L ? 'Les montées d’une zone apparaissent après sa première visite.' : 'A zone’s climbs appear after you first visit it.'}</span></div>
+      </div></div>`;
+  }
+
   /**
    * Mode défi : toutes les montées chronométrées de la zone (tous ses parcours, une fois chacune,
    * celles du parcours choisi d'abord), avec le record de chacune ; en choisir une prend son parcours.
@@ -1046,7 +1202,7 @@ export class MainMenu {
     const dl = this.downloads.get(id);
     if (dl && !dl.error) return `<span class="mm-pack busy">${Math.floor((dl.done / Math.max(dl.total, 1)) * 100)} %</span>`;
     if (dl?.error) return `<button class="mm-pack err" data-pack="${esc(id)}" title="${esc(dl.error)}">${L ? 'Réessayer' : 'Retry'}</button>`;
-    if (st.kind === 'installed' && st.upToDate) return `<span class="mm-pack ok">${L ? 'Téléchargée' : 'Downloaded'} ✓</span><button class="mm-link mm-unpack" data-unpack="${esc(id)}">${L ? 'Supprimer' : 'Remove'}</button>`;
+    if (st.kind === 'installed' && st.upToDate) return `<span class="mm-pack ok">${L ? 'Téléchargée' : 'Downloaded'} ✓</span>`;
     if (st.kind === 'installed') return `<button class="mm-pack" data-pack="${esc(id)}">${L ? 'Mettre à jour' : 'Update'}${z?.pack ? ` · ${formatBytes(z.pack.gzBytes ?? z.pack.bytes, L)}` : ''}</button>`;
     if (st.kind === 'absent' && z?.pack) return `<button class="mm-pack" data-pack="${esc(id)}">↓ ${formatBytes(z.pack.gzBytes ?? z.pack.bytes, L)}</button>`;
     return '';
@@ -1119,9 +1275,10 @@ export class MainMenu {
         this.downloads.set(id, { done, total });
         // rafraîchissement limité (un rendu complet du panneau par quart de seconde au plus)
         const now = performance.now();
-        if (now - this.lastProgressRender > 250 && this.tab === 'ride') {
+        if (now - this.lastProgressRender > 250) {
           this.lastProgressRender = now;
-          this.render();
+          if (this.tab === 'ride') this.render();
+          else this.renderZonesSettings();
         }
       });
       this.downloads.delete(id);
@@ -1129,6 +1286,69 @@ export class MainMenu {
       this.downloads.set(id, { done: 0, total: 1, error: String((err as Error).message ?? err) });
     }
     if (this.tab === 'ride') this.render();
+    else this.renderZonesSettings();
+  }
+
+  /**
+   * Réglages › « Zones et cartes » : seul endroit où l'on gère les téléchargements (état, taille, télécharger,
+   * mettre à jour, supprimer, espace utilisé). La fenêtre de choix d'une zone ne fait que télécharger.
+   */
+  private renderZonesSettings(): void {
+    const box = this.root.querySelector<HTMLElement>('#m-zones-settings');
+    if (!box) return;
+    const L = fr();
+    const lang = getLang();
+    const zones = this.zones.filter((z) => z.pack);
+    if (!zones.length) {
+      box.innerHTML = `<p class="mm-hint">${L ? 'Catalogue des zones indisponible (hors ligne ?).' : 'Zone catalogue unavailable (offline?).'}</p>`;
+      return;
+    }
+    const nameOf = (id: string) => WORLD_LIST.find((x) => x.id === id)?.name[lang] ?? ZONE_SPOTS.find((x) => x.id === id)?.name[lang] ?? id;
+    const sizeOf = (z: (typeof zones)[number]) => formatBytes(z.pack?.gzBytes ?? z.pack?.bytes ?? 0, L);
+    const rows = zones
+      .map((z) => {
+        const st = packState(z.id, z.pack?.version);
+        const dl = this.downloads.get(z.id);
+        const have = st.kind === 'installed';
+        let state: string;
+        let actions = '';
+        if (dl && !dl.error) {
+          const pct = Math.floor((dl.done / Math.max(dl.total, 1)) * 100);
+          state = `<span class="zs-state busy">${L ? 'Téléchargement' : 'Downloading'} ${pct} %</span><i class="zs-bar"><i style="width:${pct}%"></i></i>`;
+        } else if (dl?.error) {
+          state = `<span class="zs-state err" title="${esc(dl.error)}">${L ? 'Échec du téléchargement' : 'Download failed'}</span>`;
+          actions = `<button class="btn small primary" data-zpack="${esc(z.id)}">${L ? 'Réessayer' : 'Retry'}</button>`;
+        } else if (st.kind === 'installed' && st.upToDate) {
+          state = `<span class="zs-state ok">${L ? 'Téléchargée' : 'Downloaded'} ✓</span>`;
+          actions = `<button class="btn small" data-zunpack="${esc(z.id)}">${L ? 'Supprimer' : 'Remove'}</button>`;
+        } else if (st.kind === 'installed') {
+          state = `<span class="zs-state warn">${L ? 'Mise à jour disponible' : 'Update available'}</span>`;
+          actions = `<button class="btn small primary" data-zpack="${esc(z.id)}">${L ? 'Mettre à jour' : 'Update'}</button><button class="btn small" data-zunpack="${esc(z.id)}">${L ? 'Supprimer' : 'Remove'}</button>`;
+        } else {
+          state = `<span class="zs-state">${L ? 'Non téléchargée' : 'Not downloaded'}</span>`;
+          actions = `<button class="btn small primary" data-zpack="${esc(z.id)}">${L ? 'Télécharger' : 'Download'}</button>`;
+        }
+        return { have, html: `<div class="zs-row${z.id === this.worldId ? ' cur' : ''}"><div class="zs-name"><b>${esc(nameOf(z.id))}</b><small>${sizeOf(z)}${z.id === this.worldId ? ` · ${L ? 'zone affichée' : 'current area'}` : ''}</small></div><div class="zs-mid">${state}</div><div class="zs-act">${actions}</div></div>` };
+      })
+      .sort((a, b) => Number(b.have) - Number(a.have));
+    const mine = installedPacks();
+    const total = mine.reduce((sum, p) => sum + (zones.find((z) => z.id === p.id)?.pack?.gzBytes ?? p.bytes), 0);
+    const used = mine.length ? `${L ? 'Espace utilisé' : 'Space used'} : <b>${formatBytes(total, L)}</b> · ${mine.length} ${L ? (mine.length > 1 ? 'zones' : 'zone') : mine.length > 1 ? 'areas' : 'area'}` : L ? 'Aucune zone téléchargée' : 'No area downloaded';
+    box.innerHTML = `<p class="mm-hint">${L ? 'Une zone téléchargée se charge tout de suite et fonctionne sans connexion ; sinon elle se charge pendant la sortie. Les cartes sont stockées sur cet appareil.' : 'A downloaded area loads instantly and works offline; otherwise it streams in during the ride. Maps are stored on this device.'}</p>
+      <div class="zs-list">${rows.map((r) => r.html).join('')}</div>
+      <div class="zs-foot"><span>${used}</span>${mine.length ? `<button class="btn small" data-zunpack-all>${L ? 'Tout supprimer' : 'Remove all'}</button>` : ''}</div>`;
+    box.querySelectorAll<HTMLElement>('[data-zpack]').forEach((el) => el.addEventListener('click', () => void this.downloadZone(el.dataset.zpack as string)));
+    box.querySelectorAll<HTMLElement>('[data-zunpack]').forEach((el) =>
+      el.addEventListener('click', () => {
+        const id = el.dataset.zunpack as string;
+        if (!confirm(L ? `Supprimer la zone « ${nameOf(id)} » de cet appareil ? Tu pourras la télécharger de nouveau.` : `Remove “${nameOf(id)}” from this device? You can download it again.`)) return;
+        void removePack(id).then(() => this.renderZonesSettings());
+      }),
+    );
+    box.querySelector('[data-zunpack-all]')?.addEventListener('click', () => {
+      if (!confirm(L ? 'Supprimer toutes les zones téléchargées de cet appareil ?' : 'Remove every downloaded area from this device?')) return;
+      void Promise.all(installedPacks().map((p) => removePack(p.id))).then(() => this.renderZonesSettings());
+    });
   }
 
   /** Carte de l'itinéraire (tracé coloré selon la pente) et profil d'altitude. */
@@ -1456,9 +1676,9 @@ export class MainMenu {
         <label class="field">${t('name')}<input id="m-name" value="${esc(s.name)}" /></label>
         <label class="field">${L ? 'Je suis' : 'I am'}<div class="row">${(['male', 'female'] as const).map((x) => `<button class="btn small ${lookSex(s.look) === x ? 'primary' : ''}" data-sex="${x}">${x === 'male' ? (L ? 'Un homme' : 'A man') : L ? 'Une femme' : 'A woman'}</button>`).join('')}</div></label>
         <label class="field">${L ? 'Nationalité' : 'Nationality'}<select id="m-nation"><option value="">—</option>${COUNTRIES.map((c) => `<option value="${c.code}" ${s.look.nationality === c.code ? 'selected' : ''}>${flagEmoji(c.code)} ${esc(c[L ? 'fr' : 'en'])}</option>`).join('')}</select></label>
-        <label class="field">${t('weight')}<input id="m-mass" type="number" min="30" max="200" step="0.5" value="${s.massKg}" /></label>
-        <label class="field">${t('height')}<input id="m-height" type="number" min="120" max="220" value="${s.heightCm}" /></label>
-        <label class="field">${t('ftp')}<input id="m-ftp" type="number" min="50" max="600" value="${s.ftpWatts}" /></label>
+        <div class="field">${t('weight')}${this.stepper('m-mass', 30, 200, s.massKg, 0.5)}</div>
+        <div class="field">${t('height')}${this.stepper('m-height', 120, 220, s.heightCm)}</div>
+        <div class="field">${t('ftp')}${this.stepper('m-ftp', 50, 600, s.ftpWatts)}</div>
       </div>
     </section>`;
   }
@@ -1512,7 +1732,7 @@ export class MainMenu {
         ])}</div>
       </div>`;
     const ai = `<div class="grid3">
-        <label class="field">${L ? 'Nombre' : 'Count'}<input id="m-ai" type="number" min="0" max="19" value="${s.aiRiders}" /></label>
+        <div class="mm-steprow"><span>${L ? 'Nombre' : 'Count'}</span>${this.stepper('m-ai', 0, 19, s.aiRiders)}</div>
         <div class="field">${L ? 'Niveau' : 'Level'}${this.aiLevelSeg()}</div>
       </div>`;
     const lang = `<div class="grid3">
@@ -1539,6 +1759,7 @@ export class MainMenu {
       ${sec('sound', L ? 'Son' : 'Sound', '<div id="m-sound-settings"></div>')}
       ${sec('hud', L ? 'Affichage en sortie' : 'In-ride display', hud)}
       ${sec('companion', L ? 'Appli compagnon (téléphone)' : 'Companion app (phone)', '<div id="m-companion-settings"></div>')}
+      ${sec('zones', L ? 'Zones et cartes hors ligne' : 'Areas and offline maps', '<div id="m-zones-settings"></div>')}
       ${sec('lang', L ? 'Langue et envoi des sorties' : 'Language and ride upload', lang)}
       ${sec('expert', L ? 'Mode expert : créer mes zones' : 'Expert mode: build my own zones', '<div id="m-expert-settings"></div>')}
     </section>`;
@@ -1811,6 +2032,7 @@ export class MainMenu {
   private bind(): void {
     const s = this.s;
     this.bindSegs(this.root.querySelector('.mm-panel') ?? this.root);
+    this.bindSteppers(this.root);
     const on = <T extends HTMLElement>(id: string, ev: string, fn: (el: T) => void) => {
       const el = this.root.querySelector(`#${id}`) as T | null;
       el?.addEventListener(ev, () => fn(el));
@@ -1860,12 +2082,23 @@ export class MainMenu {
         if (!(v === 'free' && s.mode === 'open')) s.mode = v;
         // Entraînement : la liste des séances s'ouvre au milieu de l'écran, comme la carte de France.
         if (v === 'workout') this.picker = 'workouts';
+        if (v === 'challenge') this.picker = 'koms';
         changed();
         this.render();
       }),
     );
     this.root.querySelectorAll<HTMLElement>('[data-kom]').forEach((el) =>
       el.addEventListener('click', () => {
+        // Montée d'une autre zone : la zone se charge, la montée est choisie à son arrivée.
+        if (el.dataset.komZone && el.dataset.komZone !== this.worldId && this.onWorld) {
+          this.pendingKom = { routeId: el.dataset.komRoute as string, segId: el.dataset.kom as string };
+          this.picker = null;
+          this.loadingZone = this.zoneLabel(el.dataset.komZone);
+          s.mode = 'challenge';
+          this.onWorld(el.dataset.komZone);
+          return;
+        }
+        s.mode = 'challenge';
         s.challengeSeg = el.dataset.kom as string;
         // montée d'un autre parcours de la zone : on prend ce parcours (dans son sens)
         if (el.dataset.komRoute && el.dataset.komRoute !== s.routeId) {
@@ -1878,6 +2111,13 @@ export class MainMenu {
         this.render();
       }),
     );
+    this.root.querySelectorAll<HTMLElement>('[data-komzone]').forEach((el) =>
+      el.addEventListener('click', () => {
+        this.komZone = el.dataset.komzone ?? '';
+        this.render();
+      }),
+    );
+    this.root.querySelectorAll<HTMLElement>('tr[data-kom]').forEach((el) => el.addEventListener('keydown', (e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), el.click())));
     this.root.querySelectorAll<HTMLElement>('[data-preset]').forEach((el) =>
       el.addEventListener('click', () => {
         s.workoutPreset = el.dataset.preset as string;
@@ -1944,7 +2184,7 @@ export class MainMenu {
     // « Choisir ma sortie » et carte du choix : fenêtre de choix au milieu de l'écran.
     this.root.querySelectorAll<HTMLElement>('[data-picker]').forEach((el) =>
       el.addEventListener('click', () => {
-        this.picker = el.dataset.picker as 'zones' | 'zone' | 'routes' | 'map' | 'route' | 'workouts';
+        this.picker = el.dataset.picker as 'zones' | 'zone' | 'routes' | 'map' | 'route' | 'workouts' | 'koms';
         if (this.picker === 'zones' && el.closest('.mm-pickers')) this.franceMap.reset();
         this.render();
       }),
@@ -1956,11 +2196,6 @@ export class MainMenu {
     );
     // Zones : télécharger ou supprimer le pack de cartes.
     this.root.querySelectorAll<HTMLElement>('[data-pack]').forEach((el) => el.addEventListener('click', () => void this.downloadZone(el.dataset.pack as string)));
-    this.root.querySelectorAll<HTMLElement>('[data-unpack]').forEach((el) =>
-      el.addEventListener('click', () => {
-        void removePack(el.dataset.unpack as string).then(() => this.render());
-      }),
-    );
     // Carte de parcours : sa fiche s'ouvre (records, montées) ; on part ou on le choisit depuis elle.
     this.root.querySelectorAll<HTMLElement>('[data-route]').forEach((el) =>
       el.addEventListener('click', () => {

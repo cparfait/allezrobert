@@ -348,3 +348,8 @@ body:has(.subtitle:not(.hidden)) .ob-robert { animation: ob-mouth 1.1s steps(1, 
   .ob-preview .ob-wrap { width: calc(100vw - 16px); }
   .ob-menu.ob-preview { background: linear-gradient(180deg, transparent 20%, rgba(6, 9, 15, 0.82)); justify-items: center; align-items: end; padding-right: 0; }
 }
+
+/* Sans contours dans le HUD et les champs communs. */
+.panel, .tile, .hud-loc { border-color: transparent; }
+.field input, .field select { border: 0; }
+.field input:focus-visible, .field select:focus-visible { outline: 0; box-shadow: 0 0 0 2px var(--ar-accent); }
