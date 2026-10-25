@@ -141,7 +141,10 @@ function step(emit, label, cmd, args, { stdin } = {}) {
   }
   return new Promise((res) => {
     const p = spawn(cmd, args, { cwd: root, windowsHide: true, stdio: [stdin ? 'pipe' : 'ignore', 'pipe', 'pipe'] });
-    const feed = (d) => String(d).split(/\r?\n|\r/).forEach((l) => l.trim() && emit(`  ${l}`));
+    // Le serveur répond avec un terminal (ssh -tt) : docker compose colore et redessine sa progression ; on retire ces codes.
+    // eslint-disable-next-line no-control-regex
+    const ansi = /\x1b\[[0-9;?]*[ -/]*[@-~]|\x1b[()][A-Z0-9]|\x1b[=>]/g;
+    const feed = (d) => String(d).replace(ansi, '').split(/\r?\n|\r/).forEach((l) => l.trim() && emit(`  ${l}`));
     p.stdout.on('data', feed);
     p.stderr.on('data', feed);
     p.on('error', (e) => {
