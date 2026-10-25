@@ -115,6 +115,27 @@
   <div class="row"><button id="rebuildAll">Tout reconstruire</button><button id="rebuildResume">Reprendre</button></div>
   <div id="rebuildOut"></div>
 
+  <div id="srvPanel" hidden>
+  <h2>Serveur (VPS)</h2>
+  <p style="color:var(--dim);margin:2px 0 6px">Outil du développeur : met à jour le serveur Linux par SSH. Rien de tout cela n’est dans le jeu.</p>
+  <div id="srvState" style="color:var(--dim)">Lecture de l’état du serveur…</div>
+  <div class="chk"><input id="sendAfter" type="checkbox"><span>Après « Enregistrer + construire » : envoyer la zone au serveur</span></div>
+  <div class="row"><button id="srvSendOne" class="primary">Envoyer cette zone</button><button id="srvSendNew">Nouvelles et modifiées</button><button id="srvSendAll">Toutes les zones</button></div>
+  <div class="row" style="margin-top:6px"><button id="srvMenu">Vidéos du menu</button><button id="srvRefresh">Actualiser</button></div>
+  <h2 style="margin-top:10px">Application</h2>
+  <div class="row"><div><label>Branche à déployer</label><input id="srvBranch" type="text" placeholder="(celle en place)"></div><div><label>Images Docker</label><select id="srvMode"><option value="build">Construites sur le serveur</option><option value="pull">Publiées par la CI (main)</option></select></div></div>
+  <div class="chk"><input id="srvPush" type="checkbox"><span>Envoyer d’abord mes commits vers GitHub (git push)</span></div>
+  <div class="row"><button id="srvUpdate" class="primary">Mettre à jour l’application (git pull + Docker)</button></div>
+  <details style="margin:8px 0"><summary style="cursor:pointer;color:var(--dim)">Connexion au serveur</summary>
+    <label>Serveur (utilisateur@hôte)</label><input id="cfgHost" type="text">
+    <div class="row"><div><label>Port SSH</label><input id="cfgPort" type="text"></div><div><label>Adresse publique</label><input id="cfgUrl" type="text"></div></div>
+    <label>Clé SSH</label><input id="cfgKey" type="text"><label>Dossier du dépôt sur le serveur</label><input id="cfgRepo" type="text">
+    <div class="row" style="margin-top:6px"><button id="cfgSave">Enregistrer la connexion</button><button id="cfgKeyInstall" title="Une fenêtre s’ouvre : SSH y demande le mot de passe du serveur, une seule fois">Installer ma clé SSH sur le serveur</button></div>
+    <div style="color:var(--dim);margin-top:4px">Les envois se font par clé SSH, sans mot de passe. Si le serveur n’accepte pas encore ta clé, ce bouton l’y installe (mot de passe demandé une fois, dans une fenêtre noire).</div>
+    <div id="cfgMsg" style="color:var(--dim)"></div>
+  </details>
+  </div>
+
   <h2>Journal</h2>
   <div id="steps"></div>
   <pre id="log">—</pre>
@@ -314,7 +335,8 @@ async function loadZones() {
   const r = await api('/api/zones'); zones = r.zones;
   $('zones').innerHTML = zones.map((z) => `<div class="zone ${draft && draft.id === z.id && !isNew ? 'sel' : ''}" data-id="${z.id}" data-ok="${z.editable}" title="${esc(z.region)}">
     <span>${esc(z.name)}<br><small>${z.id} · ${z.kind}${z.source === 'json' ? ' · JSON' : ''}</small></span>
-    <span>${z.built ? '<span class="tag ok">construite</span>' : '<span class="tag">non construite</span>'}${z.inMenu ? '' : '<span class="tag">hors menu</span>'}${z.editable ? '' : '<span class="tag">fixe</span>'}</span></div>`).join('');
+    <span>${z.built ? '<span class="tag ok">construite</span>' : '<span class="tag">non construite</span>'}${srvTag(z)}${z.inMenu ? '' : '<span class="tag">hors menu</span>'}${z.editable ? '' : '<span class="tag">fixe</span>'}</span></div>`).join('');
+  deployOn = !!r.deploy; $('srvPanel').hidden = !deployOn;
   showJob(r.job);
 }
 $('zones').addEventListener('click', async (e) => {
@@ -330,7 +352,7 @@ $('newZone').onclick = () => { draft = emptyDraft(); isNew = true; tourIdx = 0; 
 $('reload').onclick = loadZones;
 
 // ---------- enregistrer / construire / journal ----------
-const buildOpts = () => ({ id: draft.id, noOrtho: $('noOrtho').checked, offline: $('offline').checked, graphOnly: $('graphOnly').checked, verify: $('verify').checked, packs: $('packs').checked });
+const buildOpts = () => ({ id: draft.id, noOrtho: $('noOrtho').checked, offline: $('offline').checked, graphOnly: $('graphOnly').checked, verify: $('verify').checked, packs: $('packs').checked, send: $('sendAfter').checked });
 const clean = () => JSON.parse(JSON.stringify(draft, (k, v) => ((k === 'x' || k === 'y') && typeof v === 'number') || k === 'poly' || k === 'stats' ? undefined : v));
 async function save() {
   fromForm();
@@ -413,7 +435,7 @@ async function poll() {
       const r = await api('/api/job?from=' + logPos);
       if (r.text) { const pre = $('log'); const stick = pre.scrollTop + pre.clientHeight >= pre.scrollHeight - 20; pre.textContent += r.text; logPos = r.size; if (stick) pre.scrollTop = pre.scrollHeight; }
       showJob(r.job); showVerify(r.verify); showRebuild(r.rebuild);
-      if (!r.job || r.job.status !== 'running') { loadZones(); break; }
+      if (!r.job || r.job.status !== 'running') { loadZones(); if (r.job && r.job.steps.some((st) => /envoi|serveur|application|vidéos/.test(st.name))) srvLoad(); break; }
       await new Promise((res) => setTimeout(res, 1000));
     }
   } finally { polling = false; }
@@ -517,6 +539,58 @@ $('planOut').addEventListener('click', async (e) => {
 $('planGo').onclick = () => runPlan(false); $('planAgain').onclick = () => runPlan(true);
 $('planCancel').onclick = () => api('/api/plan/cancel', {});
 
+// ---------- serveur (VPS) : envoi des zones, vidéos du menu, mise à jour de l'application ----------
+let srv = null;
+let deployOn = false;
+const mb = (n) => (n >= 1e9 ? (n / 1e9).toFixed(1) + ' Go' : Math.round(n / 1e6) + ' Mo');
+function srvOf(id) {
+  if (!srv || !srv.remote.ok) return '?';
+  const z = srv.local.find((q) => q.id === id); if (!z) return '?';
+  const v = srv.remote.zones[id];
+  return v === undefined ? 'new' : v === z.version ? 'ok' : 'old';
+}
+function srvTag(z) {
+  const st = srvOf(z.id);
+  return st === 'ok' ? '<span class="tag ok">serveur ✓</span>' : st === 'old' ? '<span class="tag" style="color:var(--acc);border-color:var(--acc)">serveur ≠</span>' : st === 'new' ? '<span class="tag">pas sur le serveur</span>' : '';
+}
+async function srvLoad() {
+  if (!deployOn) return;
+  $('srvState').textContent = 'Lecture de l’état du serveur…';
+  try { srv = await api('/api/deploy/state'); } catch (e) { $('srvState').innerHTML = '<span class="err">' + esc(e.message) + '</span>'; return; }
+  const c = srv.config;
+  for (const [id, k] of [['cfgHost', 'host'], ['cfgPort', 'port'], ['cfgUrl', 'url'], ['cfgKey', 'key'], ['cfgRepo', 'repo']]) if (document.activeElement !== $(id)) $(id).value = c[k];
+  if (!$('srvBranch').value) $('srvBranch').value = srv.git.branch;
+  const g = srv.git; const r = srv.remote;
+  const nNew = srv.local.filter((z) => srvOf(z.id) === 'new').length, nOld = srv.local.filter((z) => srvOf(z.id) === 'old').length;
+  const cur = draft && draft.id && srv.local.find((z) => z.id === draft.id);
+  $('srvState').innerHTML =
+    (r.ok ? `Serveur : branche <b>${esc(r.branch)}</b> · ${esc(r.head)}<br>Zones : ${nNew} absente(s), ${nOld} différente(s) · vidéos du menu : ${r.menu} fichier(s)` : `<span class="err">Serveur : ${esc(r.error.split('\n')[0])}</span>`) +
+    `<br>Local : branche <b>${esc(g.branch)}</b>` + (g.dirty ? ` · <span class="warn">${g.dirty} fichier(s) non commité(s)</span>` : '') + (g.ahead ? ` · <span class="warn">${g.ahead} commit(s) non poussé(s)</span>` : '') +
+    (cur ? `<br>Zone <b>${esc(cur.id)}</b> (${mb(cur.bytes)}) : ${{ ok: 'à jour sur le serveur', old: 'différente sur le serveur', new: 'absente du serveur (nouvelle)', '?': 'état inconnu' }[srvOf(cur.id)]}` : '');
+  loadZones();
+}
+async function srvRun(body, label) {
+  if (!confirm(label)) return;
+  logPos = 0; $('log').textContent = '';
+  try { const r = await api('/api/deploy/run', body); showJob(r.job); poll(); } catch (e) { $('msg').innerHTML = `<span class="err">${esc(e.message)}</span>`; }
+}
+function srvIds(filter) { return (srv ? srv.local : []).filter((z) => filter(srvOf(z.id))).map((z) => z.id); }
+function srvSend(ids, what) {
+  if (!ids.length) return alert('Aucune zone à envoyer.');
+  const tot = srv.local.filter((z) => ids.includes(z.id)).reduce((n, z) => n + z.bytes, 0);
+  srvRun({ action: 'send-zones', ids }, `${what} : ${ids.length} zone(s), ${mb(tot)} à envoyer vers le serveur. Continuer ?`);
+}
+$('srvSendOne').onclick = () => { if (!draft || !draft.id) return alert('Choisis ou enregistre d’abord une zone.'); if (!srv || !srv.local.find((z) => z.id === draft.id)) return alert('Cette zone n’a pas encore de tuiles construites (pack.json) : la construire d’abord.'); srvSend([draft.id], 'Envoi de la zone ' + draft.id); };
+$('srvSendNew').onclick = () => srvSend(srvIds((st) => st !== 'ok'), 'Envoi des nouvelles et modifiées');
+$('srvSendAll').onclick = () => srvSend(srv ? srv.local.map((z) => z.id) : [], 'Envoi de toutes les zones');
+$('srvMenu').onclick = () => srvRun({ action: 'send-menu' }, 'Envoyer les vidéos du menu (≈250 Mo) vers le serveur ?');
+$('srvUpdate').onclick = () => srvRun({ action: 'update-app', branch: $('srvBranch').value.trim(), mode: $('srvMode').value, push: $('srvPush').checked }, 'Mettre à jour l’application sur le serveur ?\n\n• git pull' + ($('srvBranch').value.trim() ? ' (branche ' + $('srvBranch').value.trim() + ')' : '') + '\n• deploy.sh : sauvegarde, images Docker, migrations, redémarrage.');
+$('srvRefresh').onclick = srvLoad;
+$('cfgKeyInstall').onclick = () => srvRun({ action: 'install-key' }, 'Installer ta clé SSH sur le serveur ?\n\nUne fenêtre noire va s’ouvrir : SSH y demandera le mot de passe du serveur (une seule fois).');
+$('cfgSave').onclick = async () => { const r = await api('/api/deploy/config', { host: $('cfgHost').value, port: $('cfgPort').value, key: $('cfgKey').value, repo: $('cfgRepo').value, url: $('cfgUrl').value }); $('cfgMsg').innerHTML = r.ok ? '<span class="good">Enregistré.</span>' : `<span class="err">${esc(r.error)}</span>`; if (r.ok) srvLoad(); };
+const _showJob = showJob;
+showJob = (j) => { _showJob(j); const running = !!j && j.status === 'running'; for (const id of ['srvSendOne', 'srvSendNew', 'srvSendAll', 'srvMenu', 'srvUpdate', 'cfgKeyInstall']) $(id).disabled = running; };
+
 // ---------- démarrage ----------
 (async () => {
   resize(); setMode('pan'); showAuto();
@@ -524,6 +598,7 @@ $('planCancel').onclick = () => api('/api/plan/cancel', {});
   // emprises des zones connues : catalogue du jeu, s'il est servi, sinon rien
   for (const z of zones.filter((q) => q.editable)) { try { const w = await api('/api/zone?id=' + z.id); const r = w.draft.rect; z.l93 = r; } catch { /* non ouverte */ } }
   draw();
+  srvLoad();
   const r = await api('/api/job?from=0'); showRebuild(r.rebuild); if (r.job) { $('log').textContent = r.text || '—'; logPos = r.size; showJob(r.job); if (r.job.status === 'running') poll(); }
 })();
 </script>

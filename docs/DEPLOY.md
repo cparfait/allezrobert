@@ -373,21 +373,27 @@ Mettre à jour en dehors des créneaux de sortie.
 | Rendus en échec | `docker compose logs renderer` ; mémoire (`docker stats`) ; `shm_size` |
 | Base injoignable | `docker compose logs postgres` ; espace disque (`df -h`) |
 
-## Annexe — Outil de déploiement graphique
+## Annexe — Déploiement depuis le PC (constructeur de zone ou outil autonome)
 
-Outil séparé du jeu, à lancer depuis le PC de développement : `deploy/Deploy.bat` (double-clic), `pnpm deploy:gui`
-ou `node deploy/deploy-gui.mjs`. Une page locale s'ouvre dans le navigateur (`127.0.0.1`, jeton aléatoire) et pilote
-le serveur Linux par SSH :
+Réservé au propriétaire du serveur : ni le jeu, ni l'installateur, ni les images Docker n'en contiennent rien. Deux
+façons de s'en servir, avec le même noyau (`deploy/deploy-core.mjs`) qui pilote le serveur Linux par SSH :
 
-- **Application** : `git pull` sur le VPS puis `deploy.sh` (sauvegarde, images, migrations, démarrage, contrôle),
-  avec choix de la branche, images construites sur le VPS ou publiées par la CI, et `git push` préalable.
-- **Zones** : état de chaque zone sur le serveur (absente = nouvelle, à jour, différente), envoi de la
-  sélection, de toutes les zones ou des seules nouvelles / modifiées (tar compressé + ssh, échange atomique).
-- **Vidéos du menu** : envoi de `loop-*.mp4 / .webm`.
-- **Connexion** : hôte, port, clé SSH, dossier du dépôt, adresse publique (enregistrés dans
-  `deploy/.deploy-gui.json`, ignoré par git). SSH est non interactif : la clé publique doit être dans
-  `~/.ssh/authorized_keys` du serveur.
+- **Dans le constructeur de zone** (`pnpm zone-builder`, panneau « Serveur (VPS) » à droite) : envoyer la zone en
+  cours, les nouvelles et modifiées, ou toutes ; option « envoyer la zone après la construction » ; vidéos du menu ;
+  mise à jour de l'application. Le panneau n'apparaît que si `deploy/.deploy-gui.json` existe (le constructeur de
+  zone sert aussi aux joueurs en mode expert : ils ne le voient pas). Première activation :
+  `ZONE_BUILDER_DEPLOY=1 pnpm zone-builder`, puis « Enregistrer la connexion ».
+- **Outil autonome** : `deploy/Deploy.bat` (double-clic) ou `pnpm deploy:gui`, page locale `127.0.0.1` à jeton.
 
-Essai à blanc (affiche les commandes sans rien exécuter) : `DEPLOY_GUI_DRY=1 node deploy/deploy-gui.mjs`.
-Ordre d'une mise à jour de zone : envoyer les tuiles, commiter `world.json` / `index.json` de la zone, puis
-mettre à jour l'application.
+Fonctions : `git pull` sur le VPS puis `deploy.sh` (sauvegarde, images, migrations, démarrage, contrôle) avec choix de
+la branche, images construites sur le VPS ou publiées par la CI, `git push` préalable ; état de chaque zone sur le
+serveur (absente = nouvelle, à jour, différente) ; envoi en tar compressé + ssh avec échange atomique ; vidéos du menu.
+
+Connexion : hôte, port, clé SSH, dossier du dépôt, adresse publique, enregistrés dans `deploy/.deploy-gui.json`
+(ignoré par git). SSH est non interactif : la clé publique doit être dans `~/.ssh/authorized_keys` du serveur. Si le
+serveur demande un mot de passe, le bouton **« Installer ma clé SSH sur le serveur »** ouvre une fenêtre noire où SSH
+le demande une seule fois ; ensuite plus rien à taper (le mot de passe n'est jamais saisi ni journalisé par l'outil).
+
+Essai à blanc (affiche les commandes sans rien exécuter) : `DEPLOY_GUI_DRY=1`. Ligne de commande :
+`node deploy/deploy-core.mjs run <demande.json>`. Ordre d'une mise à jour de zone : envoyer les tuiles, commiter
+`world.json` / `index.json` de la zone, puis mettre à jour l'application.

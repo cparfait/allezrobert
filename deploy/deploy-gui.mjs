@@ -1,247 +1,19 @@
-// Outil de déploiement graphique (sans dépendance) : une petite page locale, ouverte dans le navigateur,
+// Outil de déploiement graphique autonome (sans dépendance) : une petite page locale, ouverte dans le navigateur,
 // pour mettre à jour le VPS (git pull + docker, voir deploy.sh) et envoyer les zones (toutes, une seule,
-// ou une nouvelle) et les vidéos du menu depuis le PC.
+// ou une nouvelle) et les vidéos du menu depuis le PC. La même chose est dans le panneau « Serveur » du
+// constructeur de zone (pnpm zone-builder). Logique commune : deploy/deploy-core.mjs.
 //
 //   Windows : double-clic sur deploy/Deploy.bat      ou      pnpm deploy:gui      ou      node deploy/deploy-gui.mjs
 //
 // Sécurité : la page n'écoute que sur 127.0.0.1 et exige un jeton aléatoire (aucun autre site ne peut piloter
-// l'outil) ; les commandes sont lancées sans shell (arguments séparés), noms de zones et de branches validés ;
-// SSH tourne en mode non interactif (clé requise, jamais de mot de passe saisi ici).
-// Essai à blanc : DEPLOY_GUI_DRY=1 affiche les commandes au lieu de les exécuter.
+// l'outil). Outil du développeur : il n'est ni dans le jeu, ni dans l'installateur, ni dans les images Docker.
 import { spawn } from 'node:child_process';
 import { createServer } from 'node:http';
 import { randomBytes } from 'node:crypto';
-import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
-import { homedir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { writeFileSync } from 'node:fs';
+import { configFile, DRY, job, loadConfig, localGit, localZones, remoteState, validConfig } from './deploy-core.mjs';
 
-const root = resolve(import.meta.dirname, '..');
-const worlds = join(root, 'apps/client/public/worlds');
-const menuDir = join(root, 'apps/client/public/menu');
-const configFile = join(import.meta.dirname, '.deploy-gui.json');
-const DRY = process.env.DEPLOY_GUI_DRY === '1';
 const token = randomBytes(18).toString('hex');
-
-const DEFAULTS = {
-  host: 'debian@allezrobert.cparfait.ovh',
-  port: 22222,
-  key: join(homedir(), '.ssh', 'id_ed25519_openssh'),
-  repo: '/home/debian/docker/allezrobert',
-  url: 'https://allezrobert.cparfait.ovh',
-};
-
-function loadConfig() {
-  try {
-    return { ...DEFAULTS, ...JSON.parse(readFileSync(configFile, 'utf8')) };
-  } catch {
-    return { ...DEFAULTS };
-  }
-}
-
-const SAFE = {
-  host: /^[A-Za-z0-9._-]+@[A-Za-z0-9.-]+$/,
-  repo: /^\/[A-Za-z0-9._/-]+$/,
-  zone: /^[a-z0-9-]+$/,
-  branch: /^[A-Za-z0-9._/-]+$/,
-  url: /^https:\/\/[A-Za-z0-9.-]+$/,
-};
-
-function validConfig(c) {
-  return SAFE.host.test(c.host) && Number.isInteger(c.port) && c.port > 0 && c.port < 65536 && SAFE.repo.test(c.repo) && SAFE.url.test(c.url) && typeof c.key === 'string' && c.key.length > 0;
-}
-
-/* ───────────── État local ───────────── */
-
-function run(cmd, args, opts = {}) {
-  return new Promise((res) => {
-    const p = spawn(cmd, args, { cwd: root, windowsHide: true, ...opts });
-    let out = '';
-    p.stdout?.on('data', (d) => (out += d));
-    p.stderr?.on('data', (d) => (out += d));
-    p.on('error', (e) => res({ code: -1, out: String(e.message) }));
-    p.on('close', (code) => res({ code, out: out.trim() }));
-  });
-}
-
-function dirSize(dir) {
-  let n = 0;
-  for (const e of readdirSync(dir, { withFileTypes: true })) {
-    const p = join(dir, e.name);
-    n += e.isDirectory() ? dirSize(p) : statSync(p).size;
-  }
-  return n;
-}
-
-function localZones() {
-  if (!existsSync(worlds)) return [];
-  const out = [];
-  for (const id of readdirSync(worlds)) {
-    const pack = join(worlds, id, 'tiles', 'pack.json');
-    if (!SAFE.zone.test(id) || !existsSync(pack)) continue;
-    let version = '';
-    try {
-      version = JSON.parse(readFileSync(pack, 'utf8')).version ?? '';
-    } catch {
-      /* pack illisible : version inconnue */
-    }
-    out.push({ id, version, bytes: dirSize(join(worlds, id, 'tiles')) });
-  }
-  return out.sort((a, b) => a.id.localeCompare(b.id));
-}
-
-async function localGit() {
-  const branch = (await run('git', ['rev-parse', '--abbrev-ref', 'HEAD'])).out;
-  const last = (await run('git', ['log', '-1', '--format=%h %s'])).out;
-  const dirty = (await run('git', ['status', '--short', '--', '.', ':!apps/client/public/worlds'])).out.split('\n').filter(Boolean).length;
-  const worldsDirty = (await run('git', ['status', '--short', '--', 'apps/client/public/worlds'])).out.split('\n').filter(Boolean).length;
-  const ahead = (await run('git', ['rev-list', '--count', '@{u}..HEAD'])).out;
-  return { branch, last, dirty, worldsDirty, ahead: /^\d+$/.test(ahead) ? Number(ahead) : null };
-}
-
-/* ───────────── SSH ───────────── */
-
-function sshArgs(c, { tty = false } = {}) {
-  return ['-i', c.key, '-p', String(c.port), '-o', 'BatchMode=yes', '-o', 'ServerAliveInterval=30', '-o', 'StrictHostKeyChecking=accept-new', ...(tty ? ['-tt'] : []), c.host];
-}
-
-const q = (s) => `'${String(s).replace(/'/g, `'\\''`)}'`;
-
-async function remoteState(c) {
-  const script = [
-    `cd ${q(c.repo)} 2>/dev/null || { echo NOREPO; exit 0; }`,
-    'echo "branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null)"',
-    'echo "head=$(git log -1 --format="%h %s" 2>/dev/null)"',
-    'for p in deploy/data/worlds/*/tiles/pack.json; do [ -f "$p" ] || continue; id=$(basename $(dirname $(dirname "$p"))); v=$(grep -o "\\"version\\": *\\"[^\\"]*\\"" "$p" | head -1 | sed "s/.*: *\\"//; s/\\"$//"); echo "zone $id $v"; done',
-    'echo "menu=$(ls deploy/data/menu/loop-* 2>/dev/null | wc -l)"',
-  ].join('; ');
-  const r = await run('ssh', [...sshArgs(c), script]);
-  if (r.code !== 0) return { ok: false, error: r.out || `ssh a échoué (code ${r.code})` };
-  if (r.out.includes('NOREPO')) return { ok: false, error: `Le dossier ${c.repo} n'existe pas sur le serveur.` };
-  const zones = {};
-  let branch = '';
-  let head = '';
-  let menu = 0;
-  for (const line of r.out.split('\n')) {
-    const m = /^zone (\S+) ?(.*)$/.exec(line.trim());
-    if (m) zones[m[1]] = m[2];
-    else if (line.startsWith('branch=')) branch = line.slice(7).trim();
-    else if (line.startsWith('head=')) head = line.slice(5).trim();
-    else if (line.startsWith('menu=')) menu = Number(line.slice(5)) || 0;
-  }
-  return { ok: true, branch, head, zones, menu };
-}
-
-/* ───────────── Tâches (journal en direct) ───────────── */
-
-/** Lance une commande, relaie sa sortie ligne à ligne ; renvoie le code de sortie. */
-function step(emit, label, cmd, args, { stdin } = {}) {
-  emit(`\n▶ ${label}`);
-  if (DRY) {
-    emit(`  [essai à blanc] ${cmd} ${args.map((a) => (/\s/.test(a) ? JSON.stringify(a) : a)).join(' ')}`);
-    return Promise.resolve(0);
-  }
-  return new Promise((res) => {
-    const p = spawn(cmd, args, { cwd: root, windowsHide: true, stdio: [stdin ? 'pipe' : 'ignore', 'pipe', 'pipe'] });
-    const feed = (d) => String(d).split(/\r?\n|\r/).forEach((l) => l.trim() && emit(`  ${l}`));
-    p.stdout.on('data', feed);
-    p.stderr.on('data', feed);
-    p.on('error', (e) => {
-      emit(`  ✗ ${e.message}`);
-      res(-1);
-    });
-    p.on('close', (code) => res(code ?? -1));
-    if (stdin) stdin(p);
-  });
-}
-
-/** tar local (compressé) → ssh → tar distant : une zone entière dans un dossier temporaire, puis échange. */
-async function sendZone(emit, c, id) {
-  const src = join(worlds, id, 'tiles');
-  const dir = `${c.repo}/deploy/data/worlds/${id}`;
-  const ssh = (cmd) => ['ssh', [...sshArgs(c), cmd]];
-  emit(`\n══ Zone « ${id} »`);
-  if (!existsSync(join(src, 'pack.json'))) return emit(`  ✗ ${src}/pack.json introuvable`), false;
-  if ((await step(emit, 'Préparation sur le serveur', ...ssh(`rm -rf ${q(`${dir}/tiles.new`)} && mkdir -p ${q(`${dir}/tiles.new`)}`))) !== 0) return false;
-  emit('▶ Envoi des tuiles (compressées)…');
-  let sent = 0;
-  let code;
-  if (DRY) {
-    emit(`  [essai à blanc] tar -czf - -C ${src} . | ssh … "tar -xzf - -C ${dir}/tiles.new"`);
-    code = 0;
-  } else {
-    code = await new Promise((res) => {
-      const tar = spawn('tar', ['-czf', '-', '-C', src, '.'], { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
-      const sh = spawn('ssh', [...sshArgs(c), `tar -xzf - -C ${q(`${dir}/tiles.new`)}`], { windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] });
-      let last = Date.now();
-      tar.stdout.on('data', (d) => {
-        sent += d.length;
-        if (Date.now() - last > 3000) {
-          last = Date.now();
-          emit(`  … ${(sent / 1e6).toFixed(0)} Mo envoyés`);
-        }
-      });
-      tar.stdout.pipe(sh.stdin);
-      tar.stderr.on('data', (d) => emit(`  tar : ${String(d).trim()}`));
-      sh.stderr.on('data', (d) => emit(`  ssh : ${String(d).trim()}`));
-      tar.on('error', (e) => (emit(`  ✗ tar : ${e.message}`), res(-1)));
-      sh.on('error', (e) => (emit(`  ✗ ssh : ${e.message}`), res(-1)));
-      sh.on('close', (cd) => res(cd ?? -1));
-    });
-  }
-  if (code !== 0) return emit(`  ✗ envoi interrompu (code ${code}) : la version précédente du serveur n'a pas été touchée`), false;
-  emit(`  ✓ ${(sent / 1e6).toFixed(0)} Mo envoyés`);
-  if ((await step(emit, 'Mise en place (échange atomique)', ...ssh(`cd ${q(dir)} && rm -rf tiles.old && if [ -d tiles ]; then mv tiles tiles.old; fi && mv tiles.new tiles && rm -rf tiles.old`))) !== 0) return false;
-  if (!DRY) {
-    const ok = await fetch(`${c.url}/worlds/${id}/tiles/pack.json`, { method: 'HEAD' }).then((r) => r.ok).catch(() => false);
-    emit(ok ? `  ✓ ${c.url}/worlds/${id}/tiles/pack.json répond` : `  ⚠ ${c.url}/worlds/${id}/tiles/pack.json ne répond pas encore (cache ou proxy ?)`);
-  }
-  return true;
-}
-
-async function job(action, body, emit) {
-  const c = loadConfig();
-  if (!validConfig(c)) return emit('✗ Réglages de connexion invalides.'), 1;
-  const ssh = (cmd, opts) => ['ssh', [...sshArgs(c, opts), cmd]];
-  let fail = 0;
-
-  if (action === 'update-app') {
-    const branch = String(body.branch || '').trim();
-    if (branch && !SAFE.branch.test(branch)) return emit('✗ Nom de branche invalide.'), 1;
-    const mode = body.mode === 'build' ? 'build' : 'pull';
-    if (body.push && (await step(emit, 'Envoi des commits locaux vers GitHub (git push)', 'git', ['push'])) !== 0) return 1;
-    const checkout = branch ? `git fetch origin && git checkout ${q(branch)} && ` : '';
-    const cmd = `cd ${q(c.repo)} && ${checkout}git pull --ff-only && cd deploy && ./deploy.sh ${mode}`;
-    fail = await step(emit, `Serveur : git pull puis déploiement Docker (${mode === 'build' ? 'images construites sur le serveur' : 'images publiées par la CI'})`, ...ssh(cmd, { tty: true }));
-    emit(fail === 0 ? '\n✓ Application mise à jour.' : '\n✗ La mise à jour a échoué : lis le journal ci-dessus.');
-    return fail === 0 ? 0 : 1;
-  }
-
-  if (action === 'send-zones') {
-    const ids = Array.isArray(body.ids) ? body.ids.filter((i) => SAFE.zone.test(i)) : [];
-    if (!ids.length) return emit('✗ Aucune zone choisie.'), 1;
-    let done = 0;
-    for (const id of ids) if (await sendZone(emit, c, id)) done++;
-    emit(`\n${done === ids.length ? '✓' : '⚠'} ${done} zone(s) sur ${ids.length} envoyée(s).`);
-    if (done) emit('Si une zone a changé de contenu : commiter son world.json / index.json, puis « Mettre à jour l’application » pour que le catalogue annonce la nouvelle version.');
-    return done === ids.length ? 0 : 1;
-  }
-
-  if (action === 'send-menu') {
-    const files = existsSync(menuDir) ? readdirSync(menuDir).filter((f) => /^loop-.*\.(mp4|webm)$/.test(f)) : [];
-    if (!files.length) return emit('✗ Aucune vidéo loop-* dans apps/client/public/menu.'), 1;
-    fail = await step(emit, 'Dossier du serveur', ...ssh(`mkdir -p ${q(`${c.repo}/deploy/data/menu`)}`));
-    if (fail === 0)
-      fail = await step(emit, `Envoi de ${files.length} vidéos (scp)`, 'scp', ['-i', c.key, '-P', String(c.port), '-o', 'BatchMode=yes', ...files.map((f) => join(menuDir, f)), `${c.host}:${c.repo}/deploy/data/menu/`]);
-    if (fail === 0 && !DRY) {
-      const ok = await fetch(`${c.url}/menu/loop-spring.mp4`, { method: 'HEAD' }).then((r) => r.ok).catch(() => false);
-      emit(ok ? '  ✓ loop-spring.mp4 répond sur le site' : '  ⚠ loop-spring.mp4 ne répond pas encore');
-    }
-    return fail === 0 ? 0 : 1;
-  }
-
-  emit('✗ Action inconnue.');
-  return 1;
-}
 
 /* ───────────── Serveur local ───────────── */
 
@@ -272,8 +44,8 @@ details summary{cursor:pointer;color:var(--mut)}
 <div class="row"><button class="p" id="update">Mettre à jour l’application (git pull + Docker)</button></div>
 <p class="mut" style="margin:6px 0 0">Sur le serveur : <code>git pull</code> puis <code>deploy.sh</code> (sauvegarde, images, migrations, démarrage, contrôle de santé).</p></div>
 <div class="card"><h2>Vidéos du menu</h2><div id="menubox" class="mut"></div><div class="row"><button id="sendmenu">Envoyer les vidéos du menu</button></div></div>
-<div class="card"><h2>Connexion au serveur</h2><div class="cfg" id="cfg"></div><div class="row"><button id="savecfg">Enregistrer</button><button id="test">Tester la connexion</button></div>
-<details><summary>Si la connexion demande un mot de passe</summary><p class="mut">Cet outil n’en saisit jamais. Installe ta clé publique une fois (dans un terminal) : <code>type %USERPROFILE%\\.ssh\\id_ed25519_openssh.pub | ssh -p PORT utilisateur@hôte "cat >> ~/.ssh/authorized_keys"</code></p></details></div>
+<div class="card"><h2>Connexion au serveur</h2><div class="cfg" id="cfg"></div><div class="row"><button id="savecfg">Enregistrer</button><button id="test">Tester la connexion</button><button id="installkey">Installer ma clé SSH sur le serveur</button></div>
+<details open><summary>Si le serveur demande un mot de passe</summary><p class="mut">Les envois se font par clé SSH : cet outil ne saisit jamais de mot de passe. Le bouton « Installer ma clé SSH sur le serveur » ouvre une fenêtre noire où SSH demande le mot de passe, une seule fois ; ensuite plus rien à taper.</p></details></div>
 </div><div>
 <div class="card"><h2>Zones</h2><div id="zonesbox" class="mut">Lecture…</div>
 <div class="row"><button class="p" id="sendsel">Envoyer la sélection</button><button id="sendnew">Envoyer les nouvelles et modifiées</button><button id="sendall">Tout envoyer</button><button id="refresh">Actualiser</button></div>
@@ -309,6 +81,7 @@ $('sendnew').onclick=()=>go(local.zones.filter(z=>status(z)[0]!=='ok').map(z=>z.
 $('refresh').onclick=load;$('sendmenu').onclick=()=>confirm('Envoyer les vidéos du menu (≈250 Mo) vers le serveur ?')&&stream('send-menu',{});
 $('update').onclick=()=>{const g=local.git;let m='Mettre à jour l’application sur le serveur ?\\n\\n• git pull'+($('branch').value?' (branche '+$('branch').value+')':'')+'\\n• deploy.sh : sauvegarde, images Docker, migrations, redémarrage.';if(g.dirty||g.ahead)m+='\\n\\n⚠ Des modifications locales ne sont pas poussées'+($('push').checked?' (elles le seront si les fichiers sont commités)':'')+'.';if(confirm(m))stream('update-app',{branch:$('branch').value.trim(),mode:$('mode').value,push:$('push').checked})};
 $('savecfg').onclick=async()=>{const o={};document.querySelectorAll('[data-k]').forEach(i=>o[i.dataset.k]=i.dataset.k==='port'?Number(i.value):i.value);const r=await api('config',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(o)});log(r.ok?'Réglages enregistrés.':'✗ '+r.error);load()};
+$('installkey').onclick=()=>confirm('Installer ta clé SSH sur le serveur ?\\n\\nUne fenêtre noire va s’ouvrir : SSH y demandera le mot de passe du serveur (une seule fois).')&&stream('install-key',{});
 $('test').onclick=async()=>{$('log').textContent='Test de la connexion…\\n';const r=await api('remote');log(r.ok?'✓ Connexion réussie. Branche du serveur : '+r.branch:'✗ '+r.error)};
 load();
 </script></body></html>`;
