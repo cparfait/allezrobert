@@ -108,11 +108,11 @@ function renderGraphics(box: HTMLElement | null, g: PauseGraphics): void {
     ['taa', fr ? 'Lissage' : 'Anti-aliasing'],
   ];
   const later = g.level !== g.current;
-  box.innerHTML = `<h3 style="margin:0 0 8px;font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--ar-muted)">${fr ? 'Graphismes' : 'Graphics'}</h3>
+  box.innerHTML = `<h3 class="pause-h">${fr ? 'Graphismes' : 'Graphics'}</h3>
     <div class="row" style="flex-wrap:wrap">${levels.map(([l, name]) => `<button class="btn small ${l === g.level ? 'primary' : ''}" data-q="${l}">${name}</button>`).join('')}</div>
-    <p style="margin:6px 0 12px;font-size:12.5px;color:var(--ar-muted)">${later ? (fr ? 'Qualité appliquée à la prochaine sortie.' : 'Quality applies from the next ride.') : fr ? 'Qualité graphique : changée, elle s’applique à la prochaine sortie.' : 'Graphics quality: a change applies from the next ride.'}</p>
+    <p class="pause-note" style="margin-bottom:14px">${later ? (fr ? 'Qualité appliquée à la prochaine sortie.' : 'Quality applies from the next ride.') : fr ? 'Qualité graphique : changée, elle s’applique à la prochaine sortie.' : 'Graphics quality: a change applies from the next ride.'}</p>
     <div class="row" style="flex-wrap:wrap">${fx.map(([k, name]) => `<button class="btn small ${g.effects[k] ? 'primary' : ''}" data-fx="${k}">${g.effects[k] ? '✓ ' : ''}${name}</button>`).join('')}</div>
-    <p style="margin:6px 0 0;font-size:12.5px;color:var(--ar-muted)">${fr ? 'Effets d’image : appliqués tout de suite ; les couper rend le jeu plus fluide.' : 'Image effects: applied at once; turning them off makes the game smoother.'}</p>`;
+    <p class="pause-note">${fr ? 'Effets d’image : appliqués tout de suite ; les couper rend le jeu plus fluide.' : 'Image effects: applied at once; turning them off makes the game smoother.'}</p>`;
   box.querySelectorAll<HTMLElement>('[data-q]').forEach((b) =>
     b.addEventListener('click', () => {
       g.level = b.dataset.q as QualityLevel;
@@ -130,16 +130,47 @@ function renderGraphics(box: HTMLElement | null, g: PauseGraphics): void {
   );
 }
 
+/** Raccourcis clavier de la sortie, une touche par ligne (menu pause). */
+function shortcutsHtml(): string {
+  const fr = getLang() === 'fr';
+  const keys: [string[], string, string][] = [
+    [['↑', '↓'], 'Vitesses', 'Gears'],
+    [['←', '→'], 'Direction aux carrefours', 'Steer at junctions'],
+    [['C'], 'Caméra', 'Camera'],
+    [['X'], 'Regarder derrière (maintenu)', 'Look back (hold)'],
+    [['U'], 'Demi-tour', 'U-turn'],
+    [['P'], 'Photo', 'Photo'],
+    [['H'], 'Afficher / masquer l’interface', 'Show / hide interface'],
+    [['B'], 'Musique', 'Music'],
+    [['N'], 'Morceau suivant', 'Next track'],
+    [['M'], 'Couper le son', 'Mute sound'],
+    [['Q'], 'Code de l’appli compagnon', 'Companion app code'],
+    [[fr ? 'Espace' : 'Space', fr ? 'Échap' : 'Esc'], 'Pause / reprendre', 'Pause / resume'],
+  ];
+  return `<div class="pause-keys">${keys.map(([k, f, e]) => `<span>${k.map((x) => `<kbd>${x}</kbd>`).join(' ')}</span><span>${fr ? f : e}</span>`).join('')}</div>`;
+}
+
 export function showPause(root: HTMLElement, cb: PauseCallbacks): void {
-  root.innerHTML = `<div class="pause-overlay"><div class="panel" style="padding:28px 34px;text-align:center;min-width:320px;max-width:min(720px,92vw)">
-    <h2 style="margin:0 0 18px">${t('pause')}</h2>
-    <div class="row" style="justify-content:center">
-      <button class="btn primary" id="p-resume">${t('resume')}</button>
-      <button class="btn" id="p-finish">${cb.finishLabel ?? t('finish')}</button>
-      ${cb.onCompanion ? `<button class="btn" id="p-companion">${phoneIcon(18)} ${getLang() === 'fr' ? 'Appli compagnon' : 'Companion app'}</button>` : ''}
-    </div><div id="p-friends"></div>
-    ${cb.graphics ? '<div id="p-graphics" style="margin-top:18px;text-align:left"></div>' : ''}
-    <div style="margin-top:18px;text-align:left"><h3 style="margin:0 0 8px;font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--ar-muted)">${getLang() === 'fr' ? 'Son' : 'Sound'}</h3><div id="p-sound"></div></div></div></div>`;
+  const fr = getLang() === 'fr';
+  root.innerHTML = `<div class="pause-overlay"><div class="pause-card">
+    <header class="pause-top">
+      <div><h2>${t('pause')}</h2><p>${fr ? 'La sortie est arrêtée : le chrono et la distance attendent ton retour.' : 'The ride is stopped: time and distance wait for you.'}</p></div>
+      <div class="pause-actions">
+        ${cb.onCompanion ? `<button class="btn" id="p-companion">${phoneIcon(18)} ${fr ? 'Appli compagnon' : 'Companion app'}</button>` : ''}
+        <button class="btn pause-quit" id="p-finish">${cb.finishLabel ?? t('finish')}</button>
+        <button class="btn primary pause-go" id="p-resume">▶ ${t('resume')}</button>
+      </div>
+    </header>
+    <div id="p-friends"></div>
+    <div class="pause-grid">
+      <div class="pause-col">
+        ${cb.graphics ? '<section class="pause-sec" id="p-graphics"></section>' : ''}
+        <section class="pause-sec"><h3 class="pause-h">${fr ? 'Son' : 'Sound'}</h3><div id="p-sound"></div></section>
+      </div>
+      <section class="pause-sec"><h3 class="pause-h">${fr ? 'Raccourcis clavier' : 'Keyboard shortcuts'}</h3>${shortcutsHtml()}</section>
+    </div>
+    <p class="pause-foot">${fr ? '<kbd>Espace</kbd> ou <kbd>Échap</kbd> pour reprendre' : '<kbd>Space</kbd> or <kbd>Esc</kbd> to resume'}</p>
+  </div></div>`;
   if (cb.graphics) renderGraphics(root.querySelector('#p-graphics'), cb.graphics);
   renderSoundSettings(root.querySelector('#p-sound'));
   (root.querySelector('#p-resume') as HTMLElement).onclick = cb.onResume;

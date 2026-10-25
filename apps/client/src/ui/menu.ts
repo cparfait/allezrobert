@@ -720,7 +720,7 @@ export class MainMenu {
     this.friends.mount(this.root, this.tab === 'friends');
   }
 
-  /** Pied de page : état des capteurs (cliquable vers l'onglet Capteurs) et raccourcis. */
+  /** Pied de page : état des capteurs (cliquable vers l'onglet Capteurs). Les raccourcis sont dans le menu pause. */
   private renderStatus(): void {
     const box = this.root.querySelector('#m-status');
     if (!box) return;
@@ -731,7 +731,7 @@ export class MainMenu {
       : sim
         ? `<span class="mm-chip sim">${fr() ? 'Simulateur (sans matériel)' : 'Simulator (no hardware)'}</span>`
         : `<span class="mm-chip warn">${fr() ? 'Aucun capteur' : 'No sensor'}</span>`;
-    box.innerHTML = `<button class="mm-chips" title="${t('devices')}">${chips}</button><span class="mm-keys">${t('shortcuts')}</span>`;
+    box.innerHTML = `<button class="mm-chips" title="${t('devices')}">${chips}</button>`;
     box.querySelector('.mm-chips')?.addEventListener('click', () => this.go('devices'));
   }
 
