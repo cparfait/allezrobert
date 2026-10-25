@@ -1743,10 +1743,6 @@ export class MainMenu {
           ['1', '3 s'],
         ])}</div>
       </div>`;
-    const ai = `<div class="grid3">
-        <div class="mm-steprow"><span>${L ? 'Nombre' : 'Count'}</span>${this.stepper('m-ai', 0, 19, s.aiRiders)}</div>
-        <div class="field">${L ? 'Niveau' : 'Level'}${this.aiLevelSeg()}</div>
-      </div>`;
     const lang = `<div class="grid3">
         <div class="field">${t('language')}${this.seg('m-lang', s.lang, [
           ['fr', 'Français'],
@@ -1766,7 +1762,6 @@ export class MainMenu {
       <header class="mm-head"><h2>${t('settings')}</h2></header>
       ${sec('graphics', L ? 'Graphismes et conditions de la sortie' : 'Graphics and ride conditions', graphics)}
       ${sec('trainer', L ? 'Home trainer' : 'Smart trainer', trainer)}
-      ${sec('ai', L ? 'Coureurs IA' : 'AI riders', ai)}
       ${sec('music', L ? 'Musique' : 'Music', '<div id="m-music-settings" class="mm-musicset"></div>')}
       ${sec('sound', L ? 'Son' : 'Sound', '<div id="m-sound-settings"></div>')}
       ${sec('hud', L ? 'Affichage en sortie' : 'In-ride display', hud)}
