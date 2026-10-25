@@ -98,6 +98,8 @@ function signAtlas(designs: SignDesign[]): THREE.CanvasTexture {
 export interface CrowdOptions {
   /** Prénom du coureur, écrit sur certaines pancartes. */
   riderName?: string;
+  /** Densité (1 : un spectateur tous les 3,2 m sur les KOM, 4 m sur les sprints, de chaque côté) ; voir `QualitySettings.crowdDensity`. */
+  density?: number;
 }
 
 /**
@@ -152,6 +154,7 @@ export class Crowd {
     const up = new THREE.Vector3(0, 1, 0);
     // Pancartes : 10 cases pour les KOM, 6 pour les sprints.
     const name = opts.riderName ?? 'Robert';
+    const density = Math.min(Math.max(opts.density ?? 0.5, 0.1), 1);
     const komDesigns = signDesigns(name, 'kom', 10, r);
     const sprintDesigns = signDesigns(name, 'sprint', 6, r);
     let komNext = 0;
@@ -159,7 +162,7 @@ export class Crowd {
     for (const seg of track.route.segments.filter((s) => s.kind === 'kom' || s.kind === 'sprint')) {
       const kom = seg.kind === 'kom';
       const from = Math.max(seg.startM, seg.endM - (kom ? 350 : 120));
-      for (let d = from; d < seg.endM; d += kom ? 6.5 : 8) {
+      for (let d = from; d < seg.endM; d += (kom ? 3.25 : 4) / density) {
         for (const side of [-1, 1]) {
           if (r() < (kom ? 0.35 : 0.5)) continue;
           const lateral = side * (half + 1.6 + r() * 3);

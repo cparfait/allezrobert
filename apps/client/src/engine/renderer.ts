@@ -3,12 +3,14 @@ import { pass, mrt, output, emissive, normalView, velocity, vec4, vec3, packNorm
 import { bloom } from 'three/addons/tsl/display/BloomNode.js';
 import { ao } from 'three/addons/tsl/display/GTAONode.js';
 import { traa } from 'three/addons/tsl/display/TRAANode.js';
+import { smaa } from 'three/addons/tsl/display/SMAANode.js';
 import type { QualitySettings } from './quality.ts';
 import { applyViewport, dynamicResolutionEnabled, getFpsCap, getResolutionCap, RESOLUTION_PIXELS, renderPixelRatio } from './display.ts';
 import { DynamicResolution } from './autoQuality.ts';
 import { PerfOverlay, perfRequested } from './perf.ts';
 import type { Vec4Node } from './tsl.ts';
 import { instrumentDevice, pipelineStats } from './pipelineStats.ts';
+import { initTextureLoading } from './textures.ts';
 
 /** Compilations de passes en cours : le rendu attend (la cible de rendu est celle de la passe). */
 let compiling = 0;
@@ -156,6 +158,7 @@ export async function createEngine(canvas: HTMLCanvasElement, q: QualitySettings
   // ?perf=1 : mesures GPU (requêtes d'horodatage) pour le panneau de performance (F3).
   const renderer = new THREE.WebGPURenderer({ canvas, antialias: false, forceWebGL, powerPreference: 'high-performance', trackTimestamp: perfRequested() });
   await renderer.init();
+  initTextureLoading(renderer);
   const backend = (renderer.backend as { isWebGPUBackend?: boolean }).isWebGPUBackend ? 'webgpu' : 'webgl2';
   if (backend === 'webgpu') instrumentDevice((renderer.backend as unknown as { device: GPUDevice }).device);
   sharedSceneContext(renderer, () => scenePass?.renderTarget ?? null);
@@ -347,7 +350,7 @@ export async function createEngine(canvas: HTMLCanvasElement, q: QualitySettings
       }
       // Un graphe par combinaison d'effets, mémorisé : rallumer ou recouper un effet déjà vu rebascule
       // sur un graphe dont les passes (et leurs shaders) existent déjà. AO et bloom sont partagés.
-      const key = `${settings.ao ? settings.aoScale : 0}|${settings.bloom ? 1 : 0}|${settings.taa ? 1 : 0}`;
+      const key = `${settings.ao ? settings.aoScale : 0}|${settings.bloom ? 1 : 0}|${settings.taa ? 1 : settings.smaa ? 2 : 0}`;
       let result = variants.get(key);
       if (!result) {
         const sp = scenePass;
@@ -388,6 +391,9 @@ export async function createEngine(canvas: HTMLCanvasElement, q: QualitySettings
           const depth = sp.getTextureNode('depth');
           const vel = sp.getTextureNode('velocity');
           chain = traa(chain, depth, vel, camera) as unknown as Vec4Node;
+        } else if (settings.smaa) {
+          // Sans TAA (préréglages Bas et Moyen) : SMAA, bien moins cher, pour ne pas laisser l'image crénelée.
+          chain = smaa(chain) as unknown as Vec4Node;
         }
         result = chain;
         variants.set(key, result);

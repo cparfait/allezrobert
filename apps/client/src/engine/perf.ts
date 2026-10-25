@@ -158,7 +158,7 @@ export class PerfOverlay {
       `shaders : ${pipelineStats.sync} en direct, ${pipelineStats.async} à l'avance · en sortie ${pipelineStats.inRide ? `${pipelineStats.syncInRide} en direct (objectif 0)` : '—'}` +
         (pipelineStats.pending ? ` · ${pipelineStats.pending} objet(s) en préparation` : ''),
       `rendu ${canvas.width}×${canvas.height} (${px.toFixed(1)} Mpx)  échelle dyn. ${engine.dynamicRes.scale}`,
-      `${engine.backend}  qualité ${q.level}  AO ${q.ao ? 'on' : 'off'}  bloom ${q.bloom ? 'on' : 'off'}  TAA ${q.taa ? 'on' : 'off'}`,
+      `${engine.backend}  qualité ${q.level}  AO ${q.ao ? 'on' : 'off'}  bloom ${q.bloom ? 'on' : 'off'}  AA ${q.taa ? 'TAA' : q.smaa ? 'SMAA' : 'off'}`,
       `ombres : ${q.shadowCascades} cascade(s) ${q.shadowMapSize} px  · objets par groupe :`,
       ...groups,
       `saccades récentes (ms ; autre = décodage, ramasse-miettes, attente GPU) :`,

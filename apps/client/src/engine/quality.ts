@@ -13,6 +13,8 @@ export interface QualitySettings {
   aoScale: number;
   bloom: boolean;
   taa: boolean;
+  /** Anticrénelage SMAA quand le TAA est coupé (léger, ne traite pas le scintillement). */
+  smaa: boolean;
   /** Distance de vue (m). */
   viewDistance: number;
   /** Densité de végétation (arbres par 100 m² de forêt). */
@@ -35,6 +37,8 @@ export interface QualitySettings {
   aiRidersMax: number;
   /** Densité du monde vivant (cyclistes croisés) : 0 = aucun. */
   trafficDensity: number;
+  /** Public sur les côtes et les sprints (1 : un spectateur tous les 3,2 à 4 m de chaque côté). */
+  crowdDensity: number;
   /** Les ombres en cascade sont redessinées une image sur N (1 = chaque image) ; entre deux, cartes et caméras restent figées ensemble. */
   shadowEvery: number;
   /** Nombre maximal de coureurs (hors joueur) qui projettent une ombre : chacun coûte une centaine d'appels de dessin en cascade. */
@@ -57,6 +61,7 @@ export const QUALITY_PRESETS: Record<QualityLevel, QualitySettings> = {
     aoScale: 0.5,
     bloom: false,
     taa: false,
+    smaa: true,
     viewDistance: 2000,
     treeDensity: 0.2,
     grassDensity: 0,
@@ -69,6 +74,7 @@ export const QUALITY_PRESETS: Record<QualityLevel, QualitySettings> = {
     dustParticles: 0,
     aiRidersMax: 2,
     trafficDensity: 0.34,
+    crowdDensity: 0.5,
     shadowEvery: 2,
     shadowRiders: 0,
     realChunk: 250,
@@ -85,6 +91,7 @@ export const QUALITY_PRESETS: Record<QualityLevel, QualitySettings> = {
     aoScale: 0.5,
     bloom: true,
     taa: false,
+    smaa: true,
     viewDistance: 4000,
     treeDensity: 0.5,
     grassDensity: 0.4,
@@ -97,6 +104,7 @@ export const QUALITY_PRESETS: Record<QualityLevel, QualitySettings> = {
     dustParticles: 384,
     aiRidersMax: 8,
     trafficDensity: 0.67,
+    crowdDensity: 0.75,
     shadowEvery: 2,
     shadowRiders: 2,
     realChunk: 250,
@@ -114,6 +122,7 @@ export const QUALITY_PRESETS: Record<QualityLevel, QualitySettings> = {
     aoScale: 0.5,
     bloom: true,
     taa: true,
+    smaa: false,
     viewDistance: 5000,
     treeDensity: 0.8,
     grassDensity: 0.8,
@@ -126,6 +135,7 @@ export const QUALITY_PRESETS: Record<QualityLevel, QualitySettings> = {
     dustParticles: 768,
     aiRidersMax: 19,
     trafficDensity: 1,
+    crowdDensity: 1,
     shadowEvery: 2,
     shadowRiders: 3,
     realChunk: 250,
@@ -142,6 +152,7 @@ export const QUALITY_PRESETS: Record<QualityLevel, QualitySettings> = {
     aoScale: 1,
     bloom: true,
     taa: true,
+    smaa: false,
     viewDistance: 7000,
     treeDensity: 1.1,
     grassDensity: 1.4,
@@ -154,6 +165,7 @@ export const QUALITY_PRESETS: Record<QualityLevel, QualitySettings> = {
     dustParticles: 1536,
     aiRidersMax: 19,
     trafficDensity: 1,
+    crowdDensity: 1,
     shadowEvery: 1,
     shadowRiders: 19,
     realChunk: 125,
@@ -169,10 +181,10 @@ export function detectDefaultQuality(): QualityLevel {
   return 'high';
 }
 
-/** Surcharges de débogage par l'URL : ?bloom=0&ao=0&taa=0, ?shadowevery=1 (ombres chaque image), ?shadowriders=N, ?cascades=N. */
+/** Surcharges de débogage par l'URL : ?bloom=0&ao=0&taa=0&smaa=0, ?shadowevery=1 (ombres chaque image), ?shadowriders=N, ?cascades=N. */
 export function withUrlOverrides(q: QualitySettings): QualitySettings {
   const p = new URLSearchParams(location.search);
-  const flag = (k: 'bloom' | 'ao' | 'taa') => (p.has(k) ? p.get(k) !== '0' : q[k]);
+  const flag = (k: 'bloom' | 'ao' | 'taa' | 'smaa') => (p.has(k) ? p.get(k) !== '0' : q[k]);
   const num = (param: string, fallback: number, min: number, max: number) => {
     const n = Number(p.get(param));
     return p.has(param) && Number.isFinite(n) ? Math.min(Math.max(Math.round(n), min), max) : fallback;
@@ -182,6 +194,7 @@ export function withUrlOverrides(q: QualitySettings): QualitySettings {
     bloom: flag('bloom'),
     ao: flag('ao'),
     taa: flag('taa'),
+    smaa: flag('smaa'),
     shadowEvery: num('shadowevery', q.shadowEvery, 1, 8),
     shadowRiders: num('shadowriders', q.shadowRiders, 0, 19),
     shadowCascades: num('cascades', q.shadowCascades, 1, 4),
