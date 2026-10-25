@@ -344,12 +344,15 @@ $('verifyOne').onclick = async () => { if (!draft || !draft.id) return; try { aw
 $('verifyAll').onclick = async () => { try { await startVerify(null); } catch (e) { $('verifyOut').innerHTML = `<span class="err">${esc(e.message).replace(/\n/g, '<br>')}</span>`; } };
 function showVerify(rows) {
   if (!rows || !rows.length) return;
-  const bad = rows.filter((z) => z.status === 'failed' || z.error || z.routes.some((r) => r.warn.length));
+  const isBad = (z) => z.status === 'failed' || z.error || z.routes.some((r) => r.warn.length) || (z.start && !z.start.ok);
+  const bad = rows.filter(isBad);
   let h = `<div style="margin:6px 0"><b>${rows.length}</b> zone(s) vérifiée(s), <b class="${bad.length ? 'err' : 'good'}">${bad.length}</b> à regarder.</div>`;
   for (const z of rows) {
-    const flagged = z.status === 'failed' || z.error || z.routes.some((r) => r.warn.length);
+    const flagged = isBad(z);
     h += `<details ${flagged ? 'open' : ''} style="margin:3px 0"><summary class="${flagged ? 'err' : 'good'}">${flagged ? '⚠' : '✓'} ${esc(z.zone)}${z.status === 'running' ? ' …' : ''}${z.edgeMaxCm != null ? ` · raccords ${z.edgeMaxCm} cm` : ''}</summary>`;
     if (z.error) h += `<div class="err">${esc(z.error)}</div>`;
+    // départ du roulage libre : le jeu pose le coureur sur la route la plus proche, quelle qu'elle soit
+    if (z.start) h += `<div class="${z.start.ok ? '' : 'err'}" style="margin-left:14px">départ libre : ${esc(z.start.text)}${z.start.ok ? '' : '<br>piste, ruelle ou point à côté de la route : reconstruire la zone (le départ est recalé sur une vraie route)'}</div>`;
     for (const r of z.routes) h += `<div class="${r.warn.length ? 'err' : ''}" style="margin-left:14px">${esc(r.route)} · ${r.km} km · moyen ${r.meanCm} cm · max ${r.maxCm} cm · Δy ${r.dyCm} cm${r.warn.length ? '<br>' + r.warn.map(esc).join('<br>') : ''}</div>`;
     h += '</details>';
   }

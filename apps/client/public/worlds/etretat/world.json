@@ -1759,8 +1759,8 @@
  "open": {
   "graph": "graph.json",
   "start": {
-   "x": -2816.83,
-   "z": -1070.52
+   "x": -2778.95,
+   "z": -1062.38
   },
   "places": "places.json"
  },

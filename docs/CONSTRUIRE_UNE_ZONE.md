@@ -6,8 +6,11 @@ l'IGN, les routes d'OpenStreetMap creusées dans le terrain, des orthophotos, et
 ensuite que des fichiers.
 
 Ce guide couvre les zones de type `open` (Ré, Estérel, Étretat, Sancy, Billom…). Les montées
-(`kind: 'climb'`, Alpe d'Huez, Ventoux) et Chevreuse (`kind: 'garmin'`) ont leur propre chaîne,
-voir `tools/terrain/README.md`.
+(`kind: 'climb'`, Alpe d'Huez, Ventoux) et Chevreuse (`kind: 'garmin'`) calculent leurs itinéraires avec
+leur propre chaîne, voir `tools/terrain/README.md` ; leur bloc `open: { start }` dans `config.ts` les
+construit ensuite en monde ouvert comme les autres zones (`build:world`), itinéraires publiés gardés
+tels quels et creusés en priorité. Refaire un de ces itinéraires : `build:world -- --world <id>
+--routes-only`, puis `build:world -- --world <id>`.
 
 ## Vue d'ensemble
 
@@ -198,7 +201,12 @@ npx tsx tools/terrain/src/verify-world.ts --world ma-zone
 pnpm dev        # puis http://localhost:5173/?world=ma-zone
 ```
 
-`verify-world` contrôle les tailles, l'écart route/terrain et les raccords de tuiles. Dans le jeu :
+`verify-world` contrôle les tailles, l'écart route/terrain, les raccords de tuiles et le **départ du
+roulage libre** : le jeu pose le coureur sur la route du graphe la plus proche du départ, quelle qu'elle
+soit ; `build:world` recale donc `start` sur une vraie route à moins de 300 m (départementale, rue
+d'au moins 4 m, allée large et nommée fermée aux voitures), et `verify-world` signale « à revoir »
+une piste, une ruelle ou un point à côté de la route (`src/open-start.ts`). L'outil graphique affiche
+ce contrôle dans *Vérifier les zones*. Dans le jeu :
 menu **Monde → ma zone**, rouler le tour, ouvrir la carte d'itinéraire (le tracé doit suivre de
 vraies routes, sans aller-retour parasite ni saut) et regarder le profil d'altitude.
 
@@ -239,8 +247,8 @@ Deux fichiers côté client :
   `bounds` dans `world.json`.
 
 Les deux listes doivent contenir les mêmes identifiants que `WORLDS` (plus les zones privées
-voulues) : vérifier qu'aucune zone déclarée dans `config.ts` n'est absente. Les montées et
-Chevreuse y figurent avec `open: false`. Puis relancer `pnpm typecheck` et `pnpm test`.
+voulues) : vérifier qu'aucune zone déclarée dans `config.ts` n'est absente. Toutes les zones,
+montées et Chevreuse comprises, y figurent avec `open: true`. Puis relancer `pnpm typecheck` et `pnpm test`.
 
 ## 6. Déployer
 

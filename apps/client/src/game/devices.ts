@@ -345,6 +345,7 @@ class ManagerInputSource implements InputSource {
   private readonly offs: Array<() => void> = [];
   private readonly shiftCbs: Array<(a: ShiftAction) => void> = [];
   private inputs: RideInputs = { watts: 0, cadence: 0, steer: 0 };
+  private lastHrT = 0;
   private lastPowerT = 0;
   private readonly fan = new FanController(loadHardwarePrefs().fan);
   private readonly onKey = (e: KeyboardEvent) => {
@@ -374,7 +375,10 @@ class ManagerInputSource implements InputSource {
         }
       }),
       manager.on('cadence', (c) => (this.inputs.cadence = c.cadence)),
-      manager.on('heartRate', (h) => (this.inputs.hr = h.bpm)),
+      manager.on('heartRate', (h) => {
+        this.inputs.hr = h.bpm;
+        this.lastHrT = performance.now();
+      }),
       manager.on('shift', (s) => {
         if (s.realGear) this.inputs.realGear = { ...s.realGear };
         this.shiftCbs.forEach((cb) => cb(s.action));
@@ -398,6 +402,8 @@ class ManagerInputSource implements InputSource {
       this.inputs.watts = 0;
       this.inputs.cadence = 0;
     }
+    // Plus de mesure cardiaque depuis 5 s (ceinture perdue ou déconnectée) : pas de dernière valeur périmée.
+    if (this.inputs.hr !== undefined && performance.now() - this.lastHrT > 5000) delete this.inputs.hr;
     return this.inputs;
   }
 

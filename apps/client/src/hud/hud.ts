@@ -397,7 +397,7 @@ export class Hud {
     const fr = getLang() === 'fr';
     (e.wkg as HTMLElement).textContent = `${nf1(s.watts3s / massKg)} W/kg · ${zoneLabel(s.watts3s, s.ftp, fr)}`;
     (e.powerBox as HTMLElement).style.borderBottomColor = zoneColor(s.watts3s, s.ftp);
-    (e.hr as HTMLElement).textContent = s.hr ? String(Math.round(s.hr)) : '--';
+    (e.hr as HTMLElement).textContent = s.hr ? String(Math.round(s.hr)) : 'N/A';
     (e.cad as HTMLElement).textContent = String(Math.round(s.cadence));
     (e.speed as HTMLElement).textContent = nf1(s.speedKmh);
     const g = s.gradePercent;

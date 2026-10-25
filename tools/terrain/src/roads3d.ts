@@ -6,7 +6,7 @@
 import type { RouteData } from '@allezrobert/shared';
 import type { DemStack } from './dem.ts';
 import { worldToL93 } from './frame.ts';
-import { resampleOpen, simplify3, smooth1d, type Pt } from './geom.ts';
+import { GridIndex, resampleOpen, simplify3, smooth1d, type Pt } from './geom.ts';
 import type { Edge, RoadGraph } from './graph.ts';
 import type { CarveLine, TileRoad } from './tiles.ts';
 
@@ -27,11 +27,12 @@ function demAt(dem: DemStack, x: number, z: number): number {
 export interface Roads3d {
   roads: TileRoad[];
   carve: CarveLine[];
-  /** Profil dense de chaque arête hors itinéraire (a → b), celui qui est creusé dans le terrain. */
+  /** Profil dense de chaque arête hors itinéraire (a → b), celui qui est creusé dans le terrain ; aussi des
+   * arêtes des itinéraires avec `routeEdgeProfiles` (calées sur l'itinéraire). */
   edgePts: Map<number, Array<[number, number, number]>>;
 }
 
-export function buildRoads3d(g: RoadGraph, dem: DemStack, routes: RouteOnGraph[]): Roads3d {
+export function buildRoads3d(g: RoadGraph, dem: DemStack, routes: RouteOnGraph[], opts: { routeEdgeProfiles?: boolean } = {}): Roads3d {
   const roads: TileRoad[] = [];
   const edgePts = new Map<number, Array<[number, number, number]>>();
   const carve: CarveLine[] = [];
@@ -107,14 +108,11 @@ export function buildRoads3d(g: RoadGraph, dem: DemStack, routes: RouteOnGraph[]
     return h;
   };
   // 3. arêtes OSM
-  for (const e of g.edges) {
-    if (routeEdges.has(e.id)) continue;
-    const pts3 = edgeProfile(e, dem, nodeHeight(e.a), nodeHeight(e.b));
-    edgePts.set(e.id, pts3);
+  const addRoad = (e: Edge, pts3: Array<[number, number, number]>, id: string) => {
     const carved = CARVED.test(e.road.kind) && !e.road.bridge && !e.road.tunnel;
     const hw = e.road.width / 2;
     roads.push({
-      id: `w${e.road.id}`,
+      id,
       kind: e.road.kind,
       ...(e.road.name ? { name: e.road.name } : {}),
       ...(e.road.ref ? { ref: e.road.ref } : {}),
@@ -127,6 +125,49 @@ export function buildRoads3d(g: RoadGraph, dem: DemStack, routes: RouteOnGraph[]
       pts: simplify3(pts3, 0.2, 0.03),
     });
     if (carved) carve.push({ pts: pts3, halfWidth: hw, priority: 0 });
+  };
+  for (const e of g.edges) {
+    if (routeEdges.has(e.id)) continue;
+    const pts3 = edgeProfile(e, dem, nodeHeight(e.a), nodeHeight(e.b));
+    edgePts.set(e.id, pts3);
+    addRoad(e, pts3, `w${e.road.id}`);
+  }
+  // 4. arêtes suivies par un itinéraire (monde ouvert autour d'itinéraires gardés) : profil calé sur
+  // l'itinéraire là où il le suit (fondu au-delà de 12 m), rendu et creusé seulement hors de lui
+  if (opts.routeEdgeProfiles && routeEdges.size) {
+    const near = new GridIndex<[number, number, number]>(25);
+    for (const r of routes) for (const p of r.route.points) near.insertBox({ minX: p.x, minZ: p.z, maxX: p.x, maxZ: p.z }, [p.x, p.y, p.z]);
+    for (const eid of routeEdges) {
+      const e = g.edges[eid]!;
+      const pts3 = edgeProfile(e, dem, nodeHeight(e.a), nodeHeight(e.b));
+      const off = pts3.map((p) => {
+        let bd = Infinity;
+        let by = 0;
+        for (const q of near.query(p[0], p[2], 25)) {
+          const d = Math.hypot(q[0] - p[0], q[2] - p[2]);
+          if (d < bd) {
+            bd = d;
+            by = q[1];
+          }
+        }
+        const w = bd <= 12 ? 1 : bd >= 25 ? 0 : (25 - bd) / 13;
+        p[1] += (by - p[1]) * w;
+        return bd > 8;
+      });
+      edgePts.set(eid, pts3);
+      // morceaux hors itinéraire (bouts d'arête avant le départ, après l'arrivée), d'un point de plus de chaque côté
+      for (let i = 0; i < pts3.length; ) {
+        if (!off[i]) {
+          i++;
+          continue;
+        }
+        let j = i;
+        while (j + 1 < pts3.length && off[j + 1]) j++;
+        const run = pts3.slice(Math.max(0, i - 1), Math.min(pts3.length, j + 2));
+        if (run.length >= 2) addRoad(e, run, `w${e.road.id}:${i}`);
+        i = j + 1;
+      }
+    }
   }
   return { roads, carve, edgePts };
 }

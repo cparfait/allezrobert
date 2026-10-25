@@ -1,6 +1,6 @@
 /**
  * Son d'une sortie : rassemble l'état utile au moteur audio (revêtement sous les roues d'après
- * les tags OSM des tuiles, occupation du sol, heure, saison, météo, public, effort,
+ * les tags OSM des tuiles, occupation du sol, heure, saison, météo, public, trafic, effort,
  * changements de vitesse, pause) et le transmet à GameAudio à chaque image.
  *
  * Développement : ?surface=smooth|rough|cobbles|gravel|dirt force le revêtement entendu.
@@ -8,6 +8,7 @@
 import type { RouteTrack } from '@allezrobert/shared';
 import type { World } from '../world/world.ts';
 import type { RideSession } from '../game/ride.ts';
+import type { Traffic } from '../world/traffic.ts';
 import { splatAt } from '../world/splat.ts';
 import { GameAudio } from './audio.ts';
 import { getMix, onMixChange } from './mix.ts';
@@ -18,6 +19,7 @@ export interface RideSoundDeps {
   world: World;
   track: RouteTrack;
   ride: RideSession;
+  traffic: Traffic | null;
   ftpWatts: number;
   maxHr?: number;
 }
@@ -72,7 +74,7 @@ export class RideSound {
   }
 
   update(dt: number, pos: { x: number; z: number }, heading: number): void {
-    const { world, track, ride } = this.d;
+    const { world, track, ride, traffic } = this.d;
     const tile = world.terrain.getTile(...world.terrain.tileCoord(pos.x, pos.z));
     this.surfaceAcc += dt;
     if (tile && this.surfaceAcc > 0.3) {
@@ -135,6 +137,7 @@ export class RideSound {
         land: this.land,
         crowd: crowdLevel(track.wrap(ride.state.distM), route.segments, track.length, route.loop),
         mountain: (route.maxElevationM ?? 0) > 900,
+        vehicles: traffic?.audible() ?? [],
         paused: ride.paused,
       },
       dt,

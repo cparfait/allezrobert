@@ -16,6 +16,7 @@ import {
   surfaceAt,
   surfaceFromOsm,
   tireMix,
+  vehicleVoice,
   windMix,
   type AmbienceInput,
   type Surface,
@@ -215,13 +216,30 @@ describe('public', () => {
   });
 });
 
-describe('panoramique', () => {
+describe('trafic', () => {
+  const listener = { x: 0, z: 0, vx: 0, vz: 8, heading: 0 }; // roule vers le sud à 8 m/s
+
   it('panoramique : en roulant vers le sud, l’ouest est à droite', () => {
     expect(panFor(-10, 0, 0)).toBeCloseTo(1, 5);
     expect(panFor(10, 0, 0)).toBeCloseTo(-1, 5);
     // Vers l'est (cap π/2) : le sud est à droite.
     expect(panFor(0, 10, Math.PI / 2)).toBeCloseTo(1, 5);
     expect(panFor(0, 10, 0)).toBeCloseTo(0, 5);
+  });
+
+  it('voiture qui double : plus aiguë en arrivant, plus grave en s’éloignant, forte au passage', () => {
+    const behind = vehicleVoice({ id: 1, kind: 'car', x: 1.5, z: -30, vx: 0, vz: 17 }, listener);
+    const beside = vehicleVoice({ id: 1, kind: 'car', x: 1.5, z: 0, vx: 0, vz: 17 }, listener);
+    const ahead = vehicleVoice({ id: 1, kind: 'car', x: 1.5, z: 30, vx: 0, vz: 17 }, listener);
+    expect(behind.doppler).toBeGreaterThan(1);
+    expect(ahead.doppler).toBeLessThan(1);
+    expect(beside.gain).toBeGreaterThan(behind.gain * 3);
+    expect(beside.gain).toBeLessThanOrEqual(1);
+    expect(beside.lowpass).toBeGreaterThan(behind.lowpass);
+  });
+
+  it('inaudible hors de portée', () => {
+    expect(vehicleVoice({ id: 2, kind: 'tractor', x: 0, z: 400, vx: 0, vz: -7 }, listener).gain).toBe(0);
   });
 });
 

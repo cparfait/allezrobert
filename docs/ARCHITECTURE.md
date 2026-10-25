@@ -74,7 +74,7 @@ Des watts à la vitesse, 14 paramètres (`packages/physics/src/conditions.ts`, `
 | 8 | Matériel | casque aéro −1,5 %, roues carbone −2,5 %, lenticulaire −4 %, cadre carbone −2 % |
 | 9 | Altitude | densité de l'air ISA à l'altitude de la route |
 | 10 | Vent | vent météo à 10 m ramené à 1 m (profil logarithmique, 60 %), atténué jusqu'aux deux tiers entre les maisons et en forêt |
-| 11 | Aspiration | coureurs : jusqu'à −38 % (−58 % au cœur d'un groupe) |
+| 11 | Aspiration | coureurs : jusqu'à −38 % (−58 % au cœur d'un groupe) ; derrière une voiture −35 %, une camionnette ou un tracteur −45 % |
 | 12 | Inertie | m + I/r², réglable de 60 à 100 % (Réglages → Home trainer) |
 | 13 | Roue libre | roulement, roulements de roue (Martin éq. 9) et air freinent le vélo |
 | 14 | Arrêt | sous 4 km/h sans pédaler, pied à terre |

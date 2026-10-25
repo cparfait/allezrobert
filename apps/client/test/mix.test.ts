@@ -17,7 +17,7 @@ describe('mixage', () => {
     saveMix({ ...DEFAULT_MIX, crowd: 0.2, breathOn: false }, st);
     expect(loadMix(st).crowd).toBe(0.2);
     expect(loadMix(st).breathOn).toBe(false);
-    expect(loadMix(memory({ 'ar.sound': '{"bike":7,"crowd":"x"}' }))).toMatchObject({ bike: 1, crowd: DEFAULT_MIX.crowd });
+    expect(loadMix(memory({ 'ar.sound': '{"bike":7,"traffic":-1,"crowd":"x"}' }))).toMatchObject({ bike: 1, traffic: 0, crowd: DEFAULT_MIX.crowd });
     expect(loadMix(memory({ 'ar.sound': '{oups' }))).toEqual(DEFAULT_MIX);
   });
 
@@ -29,7 +29,7 @@ describe('mixage', () => {
     const run = busGains(DEFAULT_MIX, { paused: false, muted: false });
     const pause = busGains(DEFAULT_MIX, { paused: true, muted: false });
     for (const b of BUSES) expect(run[b]).toBe(DEFAULT_MIX[b]);
-    expect(pause.bike + pause.breath + pause.crowd).toBe(0);
+    expect(pause.bike + pause.breath + pause.crowd + pause.traffic).toBe(0);
     expect(pause.ambience).toBeCloseTo(DEFAULT_MIX.ambience / 2, 6);
     expect(busGains(DEFAULT_MIX, { paused: false, muted: true }).master).toBe(0);
   });

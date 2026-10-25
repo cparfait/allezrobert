@@ -34,6 +34,8 @@ const COCKPIT_BACK = 0.28;
 const COCKPIT_UP = 0.08;
 const COCKPIT_PITCH = 0.38;
 const COCKPIT_FOV = 80;
+/** Orbite de la caméra photo et du drone : toujours dans l'arc derrière le coureur (rad de part et d'autre). */
+const PHOTO_MAX_YAW = 1.2;
 
 /**
  * Caméras : poursuite (par défaut), cockpit (vue subjective), caméra embarquée, drone,
@@ -52,7 +54,7 @@ export class CameraRig {
   private initialized = false;
   private tvSpot: { pos: THREE.Vector3; untilD: number } | null = null;
   private droneAngle = 0;
-  private photo = { yaw: 0, pitch: 0.2, dist: 6 };
+  private photo = { yaw: 0, pitch: 0.15, dist: 3 };
   private dragging = false;
   /** Regarder derrière soi (touche X maintenue) : caméra devant le coureur, tournée vers l'arrière. */
   lookBack = false;
@@ -82,12 +84,12 @@ export class CameraRig {
     window.addEventListener('pointerup', () => (this.dragging = false));
     window.addEventListener('pointermove', (e) => {
       if (!this.dragging) return;
-      this.photo.yaw -= e.movementX * 0.005;
+      this.photo.yaw = THREE.MathUtils.clamp(this.photo.yaw - e.movementX * 0.005, -PHOTO_MAX_YAW, PHOTO_MAX_YAW);
       this.photo.pitch = THREE.MathUtils.clamp(this.photo.pitch + e.movementY * 0.004, -0.2, 1.3);
     });
     dom.addEventListener('wheel', (e) => {
       if (this.mode !== 'photo') return;
-      this.photo.dist = THREE.MathUtils.clamp(this.photo.dist * (1 + Math.sign(e.deltaY) * 0.1), 1.5, 40);
+      this.photo.dist = THREE.MathUtils.clamp(this.photo.dist * (1 + Math.sign(e.deltaY) * 0.1), 0.8, 25);
     });
   }
 
@@ -205,9 +207,11 @@ export class CameraRig {
         break;
       }
       case 'drone': {
-        this.droneAngle += dt * 0.06;
+        // Balayage lent de part et d'autre de l'axe, jamais devant le coureur.
+        this.droneAngle += dt * 0.2;
         const r = 28;
-        desired.set(t.position.x + Math.cos(this.droneAngle) * r, t.position.y + 16, t.position.z + Math.sin(this.droneAngle) * r);
+        const a = Math.atan2(t.dir.x, t.dir.z) + Math.PI + Math.sin(this.droneAngle) * PHOTO_MAX_YAW;
+        desired.set(t.position.x + Math.sin(a) * r, t.position.y + 16, t.position.z + Math.cos(a) * r);
         look.copy(t.position).add(new THREE.Vector3(0, 1, 0));
         stiffness = 2;
         break;
@@ -242,9 +246,14 @@ export class CameraRig {
         break;
       }
       case 'photo': {
+        // Sans main sur la souris, la caméra revient derrière le coureur.
+        if (!this.dragging) {
+          this.photo.yaw -= this.photo.yaw * (1 - Math.exp(-dt * 1.5));
+          this.photo.pitch += (0.15 - this.photo.pitch) * (1 - Math.exp(-dt * 0.8));
+        }
         const { yaw, pitch, dist } = this.photo;
         const base = Math.atan2(t.dir.x, t.dir.z) + Math.PI + yaw;
-        desired.set(t.position.x + Math.sin(base) * Math.cos(pitch) * dist, t.position.y + 1 + Math.sin(pitch) * dist, t.position.z + Math.cos(base) * Math.cos(pitch) * dist);
+        desired.set(t.position.x + Math.sin(base) * Math.cos(pitch) * dist, t.position.y + 0.9 + Math.sin(pitch) * dist, t.position.z + Math.cos(base) * Math.cos(pitch) * dist);
         look.copy(t.position).add(new THREE.Vector3(0, 1, 0));
         stiffness = 12;
         break;

@@ -62,6 +62,11 @@ import { ATTRIBUTION_LIDAR } from './lidar.ts';
 import { ATTRIBUTION_BDTOPO } from './bdtopo.ts';
 
 const args = new Set(process.argv.slice(2));
+if (WORLD.kind !== 'open' && WORLD.open && !args.has('--routes-only')) {
+  // monde ouvert autour des itinéraires déjà publiés (gardés tels quels) ; --routes-only les refait
+  await import('./build-open.ts');
+  process.exit(0);
+}
 if (WORLD.kind === 'climb') {
   // montées célèbres : chaîne séparée, sans données Garmin
   await import('./build-climb.ts');

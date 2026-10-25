@@ -14,6 +14,7 @@ import {
   surfaceClass,
   surfaceCrr,
   tunedBikeSetup,
+  vehicleDraftReduction,
   wetCrrFactor,
   windHeightFactor,
 } from '../src/index.ts';
@@ -85,6 +86,12 @@ describe('air', () => {
     expect(poseCdaFactor('standing', 8, 4)).toBeGreaterThan(1);
     expect(poseCdaFactor('coasting', -6, 15)).toBeLessThan(1);
     expect(poseCdaFactor('coasting', 0, 8)).toBe(1);
+  });
+  it('aspiration derrière un tracteur : jusqu’à −45 %, nulle à 25 m ou décalé', () => {
+    expect(vehicleDraftReduction('tractor', 0.5, 0)).toBeCloseTo(0.45, 6);
+    expect(vehicleDraftReduction('tractor', 25, 0)).toBe(0);
+    expect(vehicleDraftReduction('tractor', 3, 3)).toBe(0);
+    expect(vehicleDraftReduction('car', 2, 0)).toBeLessThan(vehicleDraftReduction('van', 2, 0));
   });
 });
 

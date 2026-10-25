@@ -74,6 +74,14 @@
         "deploy/site-preview.mjs"
       ],
       "port": 8090
+    },
+    {
+      "name": "zone-builder",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": [
+        "zone-builder"
+      ],
+      "port": 5199
     }
   ]
 }

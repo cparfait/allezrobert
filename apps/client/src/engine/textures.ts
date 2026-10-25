@@ -29,6 +29,12 @@ export function initTextureLoading(renderer: THREE.WebGPURenderer): void {
   for (const t of pending.splice(0)) t.start();
 }
 
+/** Chargeur KTX2 partagé pour les glTF (`GLTFLoader.setKTX2Loader`) ; null si ?ktx2=0. */
+export async function sharedKtx2Loader(): Promise<KTX2Loader | null> {
+  await rendererReady;
+  return ktx2;
+}
+
 export interface TextureOptions {
   colorSpace?: THREE.ColorSpace;
   /** Image d'origine seulement (le .ktx2 n'a pas de flipY) ; défaut de three.js : true. */

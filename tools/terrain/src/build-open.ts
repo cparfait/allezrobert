@@ -9,12 +9,17 @@
  *    qui est creusé, les carrefours partagent une altitude unique.
  * 5. Tours proposés (boucles par des villages) construits sur ce graphe, comme le mode ouvert.
  * 6. Tuiles, orthophotos IGN (≈ 1 m/px), horizon, world.json.
+ *
+ * Monde `garmin` ou `climb` avec un bloc `open` (Chevreuse, Alpe d’Huez, Ventoux) : même chaîne, sans
+ * tours ; les itinéraires déjà publiés (`routes/*.json`, entrées de `world.json`) sont gardés tels
+ * quels, recalés sur le graphe et creusés en priorité, et le graphe suit leur profil là où ils passent.
  */
 import fs from 'node:fs';
 import path from 'node:path';
 import { OpenPath, RoadNet, type RoadGraphData, type RoadGraphEdge, type RouteData, type RouteSegment, type WorldMeta } from '@allezrobert/shared';
+import { startOnRoad } from './open-start.ts';
 import { PLACES_FILE, placesOf } from './places.ts';
-import { ATTRIBUTION, ATTRIBUTION_ORTHO, CORRIDOR_TILES, LOD_HI, LOD_LO, ORIGIN_L93, OUT_DIR, TILE_SIZE_M, WORLD, worldEnrich, type LonLat, type OpenTour, type OpenWorld } from './config.ts';
+import { ATTRIBUTION, ATTRIBUTION_ORTHO, CORRIDOR_TILES, GARMIN_DIR, LOD_HI, LOD_LO, ORIGIN_L93, OUT_DIR, PRIVACY_RADIUS_M, QUALITY, TILE_SIZE_M, WORLD, worldEnrich, type LonLat, type OpenTour } from './config.ts';
 import { asCircuit } from './circuit.ts';
 import { nearestEdgeOf, routeViaEdges } from './climb.ts';
 import { corridorWgs84, OSM_CHUNK } from './corridor.ts';
@@ -27,7 +32,10 @@ import { setOffline } from './net.ts';
 import { buildOsmWorld } from './osm.ts';
 import { coastClauses, fetchOsm, fetchOsmApi, reachableOverpass } from './overpass.ts';
 import { detectClimbs, elevationGain } from './profile.ts';
-import { buildRoads3d } from './roads3d.ts';
+import { loadRides, sensitivePoints } from './gpx.ts';
+import { matchRide } from './mapmatch.ts';
+import { auditWorldDir } from './privacy.ts';
+import { buildRoads3d, type RouteOnGraph } from './roads3d.ts';
 import { ATTRIBUTION_BDTOPO } from './bdtopo.ts';
 import { bdTopoRoadAttrs, prepareEnrichment, type TileEnrichment } from './enrich.ts';
 import { ATTRIBUTION_LIDAR } from './lidar.ts';
@@ -36,8 +44,14 @@ import type { TileResult } from './tiles.ts';
 import { writeWorldTiles } from './world-tiles.ts';
 import { WORLDS_ROOT, writeCatalogue } from './packs.ts';
 
-if (WORLD.kind !== 'open') throw new Error('build-open : monde de type « open » attendu');
-const W: OpenWorld = WORLD;
+if (WORLD.kind !== 'open' && !WORLD.open) throw new Error('build-open : monde de type « open » ou avec un bloc « open » attendu');
+const W = WORLD;
+/** Monde garmin ou montée ouvert autour de ses itinéraires publiés : gardés, pas de tours. */
+const KEEP = W.kind !== 'open';
+const TOURS: OpenTour[] = W.kind === 'open' ? W.tours : [];
+const START: LonLat = W.kind === 'open' ? W.start : W.open!.start;
+const ORTHO_PX = W.kind === 'open' ? W.orthoPx : QUALITY.orthoPx.hi;
+const HORIZON = W.kind === 'garmin' ? { halfSizeM: 30000, resM: 100 } : W.horizon;
 /** Données fines IGN (qualité standard sauf réglage du monde). */
 const ENRICH = worldEnrich(W);
 
@@ -99,6 +113,24 @@ async function main(): Promise<void> {
   const g = new RoadGraph(osm.roads, (r) => !['steps', 'elevator', 'corridor', 'bus_guideway'].includes(r.kind));
   log(`   graphe OSM : ${g.edges.length} arêtes, ${g.adj.size} nœuds`);
 
+  // 1 bis. itinéraires publiés gardés (monde garmin ou montée) : recalés sur le graphe
+  const prevMeta: WorldMeta | null = KEEP ? (JSON.parse(fs.readFileSync(path.join(OUT_DIR, 'world.json'), 'utf8')) as WorldMeta) : null;
+  const kept: RouteOnGraph[] = [];
+  for (const ref of prevMeta?.routes ?? []) {
+    const data = JSON.parse(fs.readFileSync(path.join(OUT_DIR, ref.file), 'utf8')) as RouteData;
+    const m = matchRide(g, data.points.map((p) => ({ lat: 0, lon: 0, ele: p.y, t: NaN, x: p.x, z: p.z })));
+    if (!m.matched.length) throw new Error(`${ref.id} : itinéraire hors du réseau OSM`);
+    const edgeOf: number[] = [];
+    let k = 0;
+    for (let i = 0; i < data.points.length; i++) {
+      while (k + 1 < m.matched.length && m.matched[k + 1]!.idx <= i) k++;
+      edgeOf.push(m.matched[k]!.edge);
+    }
+    kept.push({ route: data, edgeOf, priority: ref.main ? 2 : 1 });
+    const far = m.matched.filter((p) => p.d > 8).length;
+    log(`   itinéraire gardé ${data.name} : ${new Set(edgeOf).size} arêtes${far ? `, ${far} points à plus de 8 m d’une route OSM` : ''}`);
+  }
+
   // 2. MNT
   log('2. MNT IGN (LiDAR HD sur toute l’emprise)');
   const lo = new Dem('lo', LOD_LO.resM, 8000);
@@ -110,7 +142,7 @@ async function main(): Promise<void> {
 
   // 3. profils 3D
   log('3. Profils des routes');
-  const r3 = buildRoads3d(g, dem, []);
+  const r3 = buildRoads3d(g, dem, kept, { routeEdgeProfiles: true });
   log(`   ${r3.roads.length} tronçons, ${r3.carve.length} couloirs creusés`);
 
   // 3 bis. données fines IGN sur toute l'emprise : arbres et haies (MNH LiDAR HD), bâtiments
@@ -186,7 +218,7 @@ async function main(): Promise<void> {
   // 5. tours proposés
   log('5. Tours proposés');
   const routes: RouteData[] = [];
-  for (const tour of W.tours) {
+  for (const tour of TOURS) {
     const route = buildTour(tour, g, net, edgeIndex, osm.pois);
     routes.push(route);
     fs.writeFileSync(path.join(OUT_DIR, 'routes', `${route.id}.json`), JSON.stringify(route));
@@ -199,24 +231,30 @@ async function main(): Promise<void> {
   log(`   ${places.length} lieux nommés (${PLACES_FILE})`);
 
   // 6. tuiles
-  log(`6. Tuiles (${tiles.length}, toutes en haute résolution${WITH_ORTHO ? `, orthophotos ${W.orthoPx} px` : ''})`);
+  log(`6. Tuiles (${tiles.length}, toutes en haute résolution${WITH_ORTHO ? `, orthophotos ${ORTHO_PX} px` : ''})`);
   const tileResults: TileResult[] = await writeWorldTiles({
     g,
     dem,
     dems: { lo, hi },
     osm,
-    routes: [],
+    routes: kept,
     roads3d: r3,
+    // lacets des montées : itinéraire creusé par passes, comme build-climb
+    ...(W.kind === 'climb' ? { carveMode: 'passes' as const } : {}),
     tiles,
     hiTiles: hiSet,
     outDir: OUT_DIR,
     withOrtho: WITH_ORTHO,
-    orthoPx: W.orthoPx,
+    orthoPx: ORTHO_PX,
     ...(enrichment ? { enrichment } : {}),
     log,
   });
-  const horizon = await writeHorizon(W.horizon.halfSizeM, W.horizon.resM, OUT_DIR, log, WITH_ORTHO);
-  const start = toWorld(W.start);
+  const horizon = await writeHorizon(HORIZON.halfSizeM, HORIZON.resM, OUT_DIR, log, WITH_ORTHO);
+  // départ recalé sur une vraie route proche (le jeu prend l’arête la plus proche, même une piste)
+  const [sx, sz] = toWorld(START);
+  const onRoad = startOnRoad(edges, sx, sz);
+  const start: [number, number] = onRoad ? [onRoad.x, onRoad.z] : [sx, sz];
+  log(onRoad ? `   départ libre : ${onRoad.edge.name ?? onRoad.edge.ref ?? onRoad.edge.kind} (${onRoad.edge.kind}, ${onRoad.edge.width} m), à ${onRoad.dist.toFixed(0)} m du point demandé` : '   ! départ libre : aucune route de départ correcte à moins de 300 m');
   const meta: WorldMeta = {
     formatVersion: 1,
     id: W.id,
@@ -232,19 +270,26 @@ async function main(): Promise<void> {
       { id: 'hi', resolutionM: LOD_HI.resM, n: LOD_HI.n, suffix: '.hi.u16' },
     ],
     tiles: tileResults.map((t) => ({ id: t.id, tx: t.tx, tz: t.tz, baseM: t.baseM, minM: t.minM, maxM: t.maxM, lods: t.lods as Array<'lo' | 'hi' | 'ortho'>, bytes: t.bytes, ...(t.stepM !== 0.01 ? { stepM: t.stepM } : {}) })),
-    routes: routes.map((r, i) => ({ id: r.id, file: `routes/${r.id}.json`, name: r.name, lengthM: r.lengthM, elevationGainM: r.elevationGainM, loop: r.loop, main: i === 0 })),
-    mainRoute: routes[0]?.id ?? '',
-    attribution: [
+    routes: prevMeta?.routes ?? routes.map((r, i) => ({ id: r.id, file: `routes/${r.id}.json`, name: r.name, lengthM: r.lengthM, elevationGainM: r.elevationGainM, loop: r.loop, main: i === 0 })),
+    mainRoute: prevMeta?.mainRoute ?? routes[0]?.id ?? '',
+    attribution: [...new Set([
+      ...(prevMeta?.attribution ?? []),
       ...ATTRIBUTION,
       ...(WITH_ORTHO ? [ATTRIBUTION_ORTHO] : []),
       ...(ENRICH?.lidarVegetation || ENRICH?.bdtopoBuildings ? [ATTRIBUTION_LIDAR] : []),
       ...(ENRICH?.bdtopoBuildings ? [ATTRIBUTION_BDTOPO] : []),
-    ],
+    ])],
     horizon,
     open: { graph: 'graph.json', start: { x: r2(start[0]), z: r2(start[1]) }, places: PLACES_FILE },
     ...(W.sea ? { sea: { levelM: 0 } } : {}),
   };
   fs.writeFileSync(path.join(OUT_DIR, 'world.json'), JSON.stringify(meta, null, 1));
+  // monde des sorties Garmin : même garde-fou vie privée que build-world (tuiles, emprise, itinéraires)
+  if (W.kind === 'garmin' && fs.existsSync(GARMIN_DIR)) {
+    const violations = auditWorldDir(OUT_DIR, sensitivePoints(loadRides(GARMIN_DIR)), PRIVACY_RADIUS_M);
+    if (violations.length) throw new Error(`Vie privée : ${violations.map((v) => `${v.what} (${v.distanceM} m)`).join(', ')}`);
+    log('   vie privée : aucune sortie à moins de 2 km d’un départ ou d’une arrivée');
+  }
 
   const sizes: Record<string, number> = {};
   const tilesDir = path.join(OUT_DIR, 'tiles');

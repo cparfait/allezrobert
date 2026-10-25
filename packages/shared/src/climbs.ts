@@ -84,7 +84,7 @@ export function detectClimbs(elevAt: (d: number) => number, from: number, to: nu
     const len = (t - s) * STEP;
     const gain = e[t]! - e[s]!;
     const avg = len > 0 ? (gain / len) * 100 : 0;
-    if (len >= 500 && avg >= 3 && len * avg >= 1500) {
+    if (len >= 300 && avg >= 3 && len * avg >= 900) {
       climbs.push(makeClimb(e.slice(s, t + 1), from + s * STEP, !!opts.openEnd && top >= n - 4));
       i = top;
     } else i = s0 + 1;

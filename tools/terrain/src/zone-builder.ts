@@ -301,6 +301,8 @@ interface VerifyRow {
   status: Step['status'];
   routes: VerifyRoute[];
   edgeMaxCm: number | null;
+  /** Départ du roulage libre (route où le jeu pose le coureur) ; `ok` faux : piste, ruelle, à côté de la route. */
+  start?: { ok: boolean; text: string };
   error?: string;
 }
 
@@ -326,7 +328,8 @@ function verifySummary(j: Job | null): VerifyRow[] | null {
     }
     const edges = [...out.matchAll(/raccord des bords \S+ : écart max ([\d.]+) cm/g)].map((e) => Number(e[1]));
     const err = /Error:[^\n]*/.exec(out)?.[0];
-    rows.push({ zone: s.name.startsWith('verify ') ? s.name.slice(7) : j.id, status: s.status, routes, edgeMaxCm: edges.length ? Math.max(...edges) : null, ...(err ? { error: err.slice(0, 200) } : {}) });
+    const st = /^départ libre : (ok|à revoir) — (.*?)\r?$/m.exec(out);
+    rows.push({ zone: s.name.startsWith('verify ') ? s.name.slice(7) : j.id, status: s.status, routes, edgeMaxCm: edges.length ? Math.max(...edges) : null, ...(st ? { start: { ok: st[1] === 'ok', text: st[2] as string } } : {}), ...(err ? { error: err.slice(0, 200) } : {}) });
   }
   return rows;
 }

@@ -6,7 +6,8 @@
   "scripts": {
     "compress:avatar": "node avatars/compress.mjs",
     "reshoe:avatar": "node avatars/reshoe.mjs",
-    "ktx2:textures": "node textures/to-ktx2.mjs"
+    "ktx2:textures": "node textures/to-ktx2.mjs",
+    "vehicles:optimize": "node vehicles/optimize.mjs"
   },
   "devDependencies": {
     "@gltf-transform/core": "4.5.1",

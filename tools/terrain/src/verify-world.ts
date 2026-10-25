@@ -4,8 +4,9 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
-import type { RouteData, WorldMeta } from '@allezrobert/shared';
+import type { RoadGraphData, RouteData, WorldMeta } from '@allezrobert/shared';
 import { OUT_DIR, TILE_SIZE_M } from './config.ts';
+import { goodStartEdge, startEdgeOf } from './open-start.ts';
 import { decodeGrid, gridSample, type Grid } from './tiles.ts';
 
 const meta = JSON.parse(fs.readFileSync(path.join(OUT_DIR, 'world.json'), 'utf8')) as WorldMeta;
@@ -18,6 +19,15 @@ for (const f of fs.readdirSync(tilesDir)) {
 }
 console.log(`world.json : ${meta.tiles.length} tuiles, ${meta.routes.length} itinéraires`);
 for (const [ext, s] of Object.entries(sizes)) console.log(`  *${ext} : ${(s / 1e6).toFixed(1)} Mo`);
+
+// départ du roulage libre : le jeu pose le coureur sur l’arête la plus proche (piste, ruelle comprises)
+if (meta.open) {
+  const graph = JSON.parse(fs.readFileSync(path.join(OUT_DIR, meta.open.graph), 'utf8')) as RoadGraphData;
+  const s = startEdgeOf(graph.edges, meta.open.start.x, meta.open.start.z);
+  const ok = !!s && goodStartEdge(s.edge) && s.dist < 15;
+  const what = s ? `${s.edge.name ?? s.edge.ref ?? 'sans nom'} (${s.edge.kind}, ${s.edge.width} m) à ${s.dist.toFixed(0)} m` : 'aucune route';
+  console.log(`départ libre : ${ok ? 'ok' : 'à revoir'} — ${what}`);
+}
 
 const cache = new Map<string, Grid | null>();
 function grid(tx: number, tz: number, lod: 'hi' | 'lo'): Grid | null {

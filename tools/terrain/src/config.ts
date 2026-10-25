@@ -114,10 +114,22 @@ export interface FamousClimb {
   reference?: string;
 }
 
+/**
+ * Monde ouvert construit autour des itinéraires existants d'un monde `garmin` ou `climb` : toute
+ * l'emprise en haute résolution, toutes les routes creusées, `graph.json` et `places.json`
+ * (build-open). Les itinéraires déjà publiés (`routes/*.json`) sont gardés tels quels et creusés en
+ * priorité ; les refaire : `build:world -- --world <id> --routes-only`, puis `build:world`.
+ */
+export interface OpenOverlay {
+  /** Départ par défaut du roulage libre. */
+  start: LonLat;
+}
+
 export interface GarminWorld extends WorldBase {
   kind: 'garmin';
   /** Côtes célèbres hors des sorties Garmin, ajoutées comme itinéraires (défi KOM). */
   climbs?: FamousClimb[];
+  open?: OpenOverlay;
 }
 
 export interface ClimbWorld extends WorldBase {
@@ -131,6 +143,7 @@ export interface ClimbWorld extends WorldBase {
   horizon: { halfSizeM: number; resM: number };
   /** Côté des orthophotos (px par tuile de 1 km) : tuiles 2 m et tuiles 8 m. Défaut QUALITY.orthoPx. */
   orthoPx?: { hi: number; lo: number };
+  open?: OpenOverlay;
 }
 
 /** Tour proposé dans un monde ouvert : boucle par des points de passage publics (villages). */
@@ -190,6 +203,8 @@ export const WORLDS: Record<string, WorldConfig> = {
     originL93: { x: 629000, y: 6846000 },
     // ≈ lon 1,78–2,20, lat 48,62–48,75
     corridorTiles: { txMin: -20, txMax: 12, tzMin: -6, tzMax: 10 },
+    // monde ouvert autour des sorties : roulage libre depuis le centre de Chevreuse
+    open: { start: { lon: 2.03885, lat: 48.70675 } },
     // pieds et sommets relevés sur les routes OSM et le relief IGN, chiffres recoupés (climbfinder.com)
     climbs: [
       {
@@ -245,6 +260,8 @@ export const WORLDS: Record<string, WorldConfig> = {
     originL93: { x: 940000, y: 6447000 },
     // itinéraire ≈ E 938,8–942,3 km, N 6 444,4–6 449,0 km, + 5 km de montagnes autour
     corridorTiles: { txMin: -8, txMax: 7, tzMin: -8, tzMax: 8 },
+    // monde ouvert autour de la montée : roulage libre depuis le pied (D1091)
+    open: { start: { lon: 6.03455, lat: 45.06135 } },
     // qualité standard (QUALITY) : bande de 2 m, vue aérienne ≈ 1 m/px, LiDAR HD et BD TOPO
     hiMarginM: QUALITY.hiMarginM,
     loMarginM: 5000,
@@ -295,6 +312,9 @@ export const WORLDS: Record<string, WorldConfig> = {
     originL93: { x: 880000, y: 6342000 },
     // itinéraire ≈ E 874,3–885,5 km, N 6 338,3–6 345,0 km, + 5 km autour
     corridorTiles: { txMin: -12, txMax: 11, tzMin: -9, tzMax: 10 },
+    // monde ouvert autour de la montée : roulage libre depuis le début de l’itinéraire (D974, Bédoin) ;
+    // le départ de la montée tombe à 58 m, dans les ruelles du vieux village
+    open: { start: { lon: 5.17955, lat: 44.12267 } },
     // qualité standard (QUALITY) : bande de 2 m, vue aérienne ≈ 1 m/px, LiDAR HD et BD TOPO
     hiMarginM: QUALITY.hiMarginM,
     loMarginM: 5000,

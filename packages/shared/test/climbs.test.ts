@@ -29,7 +29,7 @@ describe('détection des montées', () => {
   });
 
   it('ignore les bosses trop courtes ou trop douces', () => {
-    expect(detectClimbs(profile([[500, 0], [300, 8], [500, 0]]), 0, 1300)).toHaveLength(0);
+    expect(detectClimbs(profile([[500, 0], [120, 8], [500, 0]]), 0, 1200)).toHaveLength(0);
     expect(detectClimbs(profile([[500, 0], [3000, 2], [500, 0]]), 0, 4000)).toHaveLength(0);
   });
 

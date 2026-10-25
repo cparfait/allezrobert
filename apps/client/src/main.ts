@@ -14,6 +14,7 @@ import { FreeFlyCamera } from './game/freecam.ts';
 import { RideSession } from './game/ride.ts';
 import { KeyboardControls, type InputSource } from './game/inputs.ts';
 import { Peloton } from './game/peloton.ts';
+import { separateRiders, type Body } from './game/collision.ts';
 import { WorkoutController } from './game/workout.ts';
 import { Ghost } from './game/ghost.ts';
 import { createDeviceLayer } from './game/devices.ts';
@@ -55,6 +56,7 @@ import { GuestInputSource } from './game/guest.ts';
 import { Crowd } from './world/crowd.ts';
 import { TownSigns } from './world/signs.ts';
 import { AmbientCyclists } from './world/cyclists.ts';
+import { Traffic, loadVehicleModels } from './world/traffic.ts';
 import { Trains } from './world/trains.ts';
 import { Multiplayer } from './game/multiplayer.ts';
 import { VoiceChat, fetchVoiceConfig } from './game/voice.ts';
@@ -322,6 +324,8 @@ async function boot(): Promise<void> {
   bootStep(20, 'Chargement du jeu');
   // Avatars Blender (glTF) : chargés en parallèle, attendus seulement quand la 3D sert.
   const modelsReady = GltfRiderAvatar.load([bikeOfLook(settings.look).family, ...CROWD_FAMILIES]);
+  // Voitures : en tâche de fond, attendues au départ d'une sortie (facultatives).
+  if (new URLSearchParams(location.search).get('traffic') !== '0') void loadVehicleModels();
   // Léger : moteur, liste des mondes et des parcours. Le paysage (tuiles, shaders) se charge après le menu.
   const scene = await loadScene(settings);
   // Film d'accueil (développement) : rendu image par image, sans menu (voir tools/menu-loop).
@@ -870,8 +874,12 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   const crowd = new Crowd(track, (x, z) => world.terrain.heightAt(x, z), { riderName: s.name, density: engine.quality.crowdDensity });
   engine.scene.add(crowd.group);
   engine.scene.add(new TownSigns(track, (x, z) => world.terrain.heightAt(x, z)).group);
-  // Monde vivant (cyclistes croisés) : désactivable par ?traffic=0.
+  // Monde vivant (circulation, cyclistes croisés) : désactivable par ?traffic=0.
   const alive = params.get('traffic') !== '0' && engine.quality.trafficDensity > 0;
+  // Voitures (modèles chargés à la demande ; primitives si indisponibles).
+  if (alive) await loadVehicleModels();
+  const traffic = alive ? new Traffic(track, engine.quality.trafficDensity, startD, GltfRiderAvatar.lodScale) : null;
+  if (traffic) engine.scene.add(traffic.group);
   // Trains : départ quand on approche de l'endroit où la route longe ou croise une voie.
   const trains = new Trains(track, (x, z) => world.terrain.heightAt(x, z), () => world.terrain.loadedTiles());
   engine.scene.add(trains.group);
@@ -913,8 +921,8 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   // Monde ouvert : à l'approche d'un carrefour, ← / → choisissent la sortie au lieu de déporter.
   const choosing = () => !!nav?.next && !nav.next.locked && nav.next.d - ride.state.distM < 350;
   keyboard.steerBlocked = choosing;
-  // Son de la sortie (ambiances, roulement, roue libre, souffle, public) : audio/rideSound.ts.
-  const audio = new RideSound({ world, track, ride, ftpWatts: s.ftpWatts });
+  // Son de la sortie (ambiances, roulement, roue libre, souffle, public, trafic) : audio/rideSound.ts.
+  const audio = new RideSound({ world, track, ride, traffic, ftpWatts: s.ftpWatts });
   // Sons positionnés (églises, prés, eau) : la liste suit les tuiles chargées.
   const refreshSources = () => audio.setSources([...world.soundSources.values()].flat());
   refreshSources();
@@ -1384,6 +1392,25 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
         return gap > 0.5 && gap < 4 && Math.abs(lat - ride.lateral) < 1;
       };
       ride.wheelFollowed = peloton.riders.some((r) => onWheel(r.state.distM, r.lateral)) || remoteRiders.some((r) => onWheel(r.unwrappedM, r.lateralM));
+      // Collisions : ni le joueur ni les IA ne traversent un autre coureur (les coureurs distants, imposés par le serveur, ne bougent pas).
+      if (ride.dir > 0) {
+        const mobile = peloton.riders.filter((r) => !r.uturn.active);
+        const me: Body = { distM: ride.state.distM, lateral: ride.lateral, speedMs: ride.state.speedMs };
+        const ais: Body[] = mobile.map((r) => ({ distM: r.state.distM, lateral: r.lateral, speedMs: r.state.speedMs }));
+        const far: Body[] = remoteRiders.map((r) => ({ distM: r.unwrappedM, lateral: r.lateralM, speedMs: r.speedMs, fixed: true }));
+        separateRiders([me, ...ais, ...far], track.route.roadWidthM / 2 - 0.5, dt);
+        ride.state.distM = me.distM;
+        ride.state.speedMs = me.speedMs;
+        ride.lateral = me.lateral;
+        mobile.forEach((r, i) => {
+          const b = ais[i] as Body;
+          r.state.distM = b.distM;
+          r.state.speedMs = b.speedMs;
+          r.lateral = b.lateral;
+        });
+      }
+      // Abri derrière un tracteur ou une camionnette qui roule dans le même sens.
+      if (traffic && ride.dir > 0) ride.draft = Math.max(ride.draft, traffic.draftFor(ride.state.distM, ride.lateral));
       if (cyclists) {
         const d = cyclists.update(dt, { distM: ride.state.distM, lateral: ride.lateral, speedMs: ride.state.speedMs }, engine.camera);
         if (ride.dir > 0) ride.draft = Math.max(ride.draft, d);
@@ -1391,8 +1418,15 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     }
     lap('coureurs IA');
     remoteRiders = mp ? mp.render(dt, engine.camera) : [];
-    if (!ride.paused) trains.update(dt, ride.state.distM, ride.dir, ride.state.speedMs);
-    lap('trains, piétons');
+    if (!ride.paused) {
+      trains.update(dt, ride.state.distM, ride.dir, ride.state.speedMs);
+      traffic?.update(dt, ride.state, [
+        { distM: ride.state.distM, lateral: ride.lateral, speedMs: ride.state.speedMs },
+        ...peloton.riders.map((r) => ({ distM: r.state.distM, lateral: r.lateral, speedMs: r.state.speedMs })),
+        ...remoteRiders.map((r) => ({ distM: r.unwrappedM, lateral: r.lateralM, speedMs: r.speedMs })),
+      ]);
+    }
+    lap('trains, trafic');
     track.positionAt(ride.state.distM, ride.lateral, sample);
     pos.set(sample.x, sample.y + 0.06, sample.z);
     // Sens de marche : après un demi-tour, on remonte l'itinéraire.
@@ -1747,7 +1781,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     const res = await fetch(`/__shot?name=${encodeURIComponent(name)}`, { method: 'POST', body: url });
     return res.text();
   };
-  (window as unknown as { __ar: unknown }).__ar = { engine, world, ride, rig, track, peloton, input, finish, advance, hud, shot, avatar, audio, room };
+  (window as unknown as { __ar: unknown }).__ar = { engine, world, ride, rig, track, peloton, traffic, input, finish, advance, hud, shot, avatar, audio, room };
   // Contrôle visuel du monde (?worldcheck=1, développement) : une capture tous les 500 m de l'itinéraire.
   if (params.has('worldcheck')) {
     void (async () => {

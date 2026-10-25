@@ -16,17 +16,18 @@
     }
    ],
    "pack": {
-    "version": "289758bf540e",
-    "bytes": 71516483,
-    "files": 509,
-    "gzBytes": 52293563
+    "version": "8dd86f4d75c7",
+    "bytes": 337261869,
+    "files": 1090,
+    "gzBytes": 176155359
    },
    "l93": {
     "minE": 932000,
     "minN": 6438000,
     "maxE": 948000,
     "maxN": 6455000
-   }
+   },
+   "open": true
   },
   {
    "id": "alsace",
@@ -598,17 +599,18 @@
     }
    ],
    "pack": {
-    "version": "52fbc9159317",
-    "bytes": 169668903,
-    "files": 917,
-    "gzBytes": 110227488
+    "version": "d2f5cd13b8c8",
+    "bytes": 860140365,
+    "files": 1922,
+    "gzBytes": 360296595
    },
    "l93": {
     "minE": 868000,
     "minN": 6331000,
     "maxE": 892000,
     "maxN": 6351000
-   }
+   },
+   "open": true
   },
   {
    "id": "montmartre",
