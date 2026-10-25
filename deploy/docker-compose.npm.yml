@@ -1,0 +1,27 @@
+# Surcharge : Allez Robert ! derrière Nginx Proxy Manager (NPM) déjà installé sur le VPS.
+# NPM garde les ports 80/443 et les certificats ; Caddy ne publie plus aucun port et écoute en
+# HTTP sur :80, joignable par NPM via le réseau Docker partagé « proxy ».
+#
+# Activation (deploy/.env) :
+#   COMPOSE_FILE=docker-compose.yml:docker-compose.npm.yml
+#   PROXY_NETWORK=proxy            # nom du réseau partagé avec le conteneur NPM
+# Dans NPM, les deux hôtes (site et LiveKit) pointent sur allezrobert-web:80.
+# Voir docs/DEPLOY_NPM.md.
+
+services:
+  caddy:
+    ports: !reset []
+    environment:
+      # HTTP seulement, routage par nom d'hôte : NPM fait le HTTPS devant.
+      DOMAIN: "http://${DOMAIN}:80"
+      LIVEKIT_DOMAIN: "http://${LIVEKIT_DOMAIN}:80"
+    networks:
+      default:
+      proxy:
+        aliases:
+          - allezrobert-web
+
+networks:
+  proxy:
+    external: true
+    name: ${PROXY_NETWORK:-proxy}

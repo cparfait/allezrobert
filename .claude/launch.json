@@ -66,6 +66,14 @@
         "dev"
       ],
       "port": 5174
+    },
+    {
+      "name": "site",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "deploy/site-preview.mjs"
+      ],
+      "port": 8090
     }
   ]
 }

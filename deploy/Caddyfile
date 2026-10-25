@@ -1,7 +1,20 @@
 # Caddy : HTTPS automatique (Let's Encrypt) pour le jeu, l'API, les salles et la voix.
 # Variables (fichier deploy/.env) : DOMAIN, LIVEKIT_DOMAIN, ACME_EMAIL.
+# Derrière Nginx Proxy Manager (docker-compose.npm.yml), Caddy écoute en HTTP sur :80 et NPM
+# fait le HTTPS : DOMAIN et LIVEKIT_DOMAIN sont alors réécrits en http://… (docs/DEPLOY_NPM.md).
+#
+# Plan du site :
+#   /                    site de présentation (deploy/site, volume)
+#   /telechargement/*    installateurs Windows (deploy/data/downloads, volume)
+#   /jouer               jeu web (client) ; ses fichiers restent à la racine (/assets, /worlds…)
+#   /companion/          appli compagnon (PWA)
+#   /api/*, /colyseus/*  serveur
 {
 	email {$ACME_EMAIL}
+	servers {
+		# Derrière un proxy (NPM) : garder l'IP réelle du joueur dans X-Forwarded-For.
+		trusted_proxies static private_ranges
+	}
 }
 
 {$DOMAIN:allezrobert.cparfait.ovh} {
@@ -72,14 +85,52 @@
 		file_server
 	}
 
-	# Jeu (client web).
+	# Site de présentation : la page d'accueil et ses fichiers (/site/…).
+	@home path / /index.html
+	handle @home {
+		root * /srv/site
+		header Cache-Control "no-cache"
+		rewrite * /index.html
+		file_server
+	}
+	handle_path /site/* {
+		root * /srv/site
+		header Cache-Control "public, max-age=86400"
+		file_server
+	}
+
+	# Installateurs Windows, publiés par deploy/publish-desktop.sh (docs/BUILD_EXE.md).
+	# Les noms versionnés ne changent jamais ; allez-robert-setup.exe et version.json suivent
+	# la dernière version (pas de cache long).
+	redir /telechargement /telechargement/ 308
+	handle_path /telechargement/* {
+		root * /srv/downloads
+		@installer path *.exe *.msi
+		header @installer Content-Disposition "attachment"
+		@latest path /version.json /allez-robert-setup.exe /allez-robert.msi
+		header @latest Cache-Control "no-cache"
+		header /version.json Access-Control-Allow-Origin "*"
+		file_server {
+			browse
+		}
+	}
+
+	# Jeu web : /jouer ouvre le jeu ; ses fichiers (/assets, /worlds, /models…) restent servis
+	# depuis la racine, d'où le repli final sur le client.
+	redir /jouer/ /jouer 308
+	handle /jouer {
+		root * /srv/client
+		header Cache-Control "no-cache"
+		rewrite * /index.html
+		file_server
+	}
+
+	# Fichiers du jeu (client web).
 	handle {
 		root * /srv/client
 		@assets path /assets/*
 		header @assets Cache-Control "public, max-age=31536000, immutable"
-		@index path / /index.html
-		header @index Cache-Control "no-cache"
-		try_files {path} /index.html
+		try_files {path}
 		file_server
 	}
 }

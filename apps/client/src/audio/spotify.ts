@@ -45,7 +45,7 @@ export interface NowPlaying {
 }
 
 /** Adresse de retour à déclarer chez Spotify ; « localhost » y est refusé, d'où 127.0.0.1 en local. */
-export const redirectUri = () => env.VITE_SPOTIFY_REDIRECT_URI ?? `${location.origin.replace('//localhost', '//127.0.0.1')}/`;
+export const redirectUri = () => env.VITE_SPOTIFY_REDIRECT_URI ?? `${location.origin.replace('//localhost', '//127.0.0.1')}${location.pathname}`;
 
 function b64url(bytes: Uint8Array): string {
   return btoa(String.fromCharCode(...bytes))

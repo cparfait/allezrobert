@@ -174,7 +174,7 @@ export async function onlinePanel(box: HTMLElement, ride: RideSession, fit: () =
     <div class="device"><div><b>intervals.icu</b><div class="meta">${integ?.intervals.connected ? (fr ? 'relié' : 'linked') : fr ? 'clé API (Réglages → Developer settings)' : 'API key (Settings → Developer settings)'}</div></div>
       ${integ?.intervals.connected ? '' : `<form id="o-int" class="row"><input id="o-intkey" type="password" placeholder="${fr ? 'clé API' : 'API key'}" class="btn small" style="width:160px;text-align:left"/><button class="btn small" type="submit">${fr ? 'Relier' : 'Link'}</button></form>`}</div>
   </div>`;
-  box.querySelector('#o-strava')?.addEventListener('click', () => (location.href = `${apiBase()}/integrations/strava/start`));
+  box.querySelector('#o-strava')?.addEventListener('click', () => (location.href = `${apiBase()}/integrations/strava/start?redirect=${encodeURIComponent(location.pathname)}`));
   box.querySelector('#o-int')?.addEventListener('submit', async (e) => {
     e.preventDefault();
     const key = (box.querySelector('#o-intkey') as HTMLInputElement).value.trim();

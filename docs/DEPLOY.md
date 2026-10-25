@@ -4,11 +4,16 @@ Guide pas à pas pour mettre en ligne le serveur, le jeu web, l'appli compagnon 
 `allezrobert.cparfait.ovh`. Tout se fait par toi, sur ton VPS : le dépôt ne contient aucun
 secret, et rien n'a accès au VPS depuis l'extérieur.
 
+> **Nginx Proxy Manager déjà en place sur le VPS ?** Suivre plutôt [DEPLOY_NPM.md](DEPLOY_NPM.md)
+> (NPM fait le HTTPS, Caddy reste en interne). Application Windows : [BUILD_EXE.md](BUILD_EXE.md).
+
 ## 1. Ce qui tourne sur le VPS
 
 ```
 Internet ──► 80/443 tcp, 443 udp ──► caddy (HTTPS auto, Let's Encrypt)
-                                       ├── /            jeu web (statique)
+                                       ├── /            site de présentation (deploy/site)
+                                       ├── /telechargement/  installateurs Windows (data/downloads)
+                                       ├── /jouer       jeu web (statique)
                                        ├── /companion/  appli compagnon (PWA, statique)
                                        ├── /api/*       ──► server:2567 (API HTTP)
                                        └── /colyseus/*  ──► server:2567 (salles temps réel, WebSocket)

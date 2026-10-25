@@ -9,7 +9,8 @@ x-server-env: &server-env
   PORT: "2567"
   HOST: 0.0.0.0
   PUBLIC_URL: https://${DOMAIN:?DOMAIN manquant}
-  CORS_ORIGINS: https://${DOMAIN}
+  # Origines autorisées : le site, plus l'application Windows (http://tauri.localhost) via .env.
+  CORS_ORIGINS: ${CORS_ORIGINS:-https://${DOMAIN}}
   DATABASE_URL: postgres://allezrobert:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD manquant}@postgres:5432/allezrobert
   SESSION_SECRET: ${SESSION_SECRET:?SESSION_SECRET manquant}
   DATA_ENCRYPTION_KEY: ${DATA_ENCRYPTION_KEY:?DATA_ENCRYPTION_KEY manquant}
@@ -61,6 +62,10 @@ services:
       - ${WORLDS_DIR:-./data/worlds}:/srv/worlds:ro
       # Boucles vidéo du menu générées par tools/menu-loop puis copiées sur le VPS (docs/DEPLOY.md §12 bis)
       - ${MENU_DIR:-./data/menu}:/srv/menu:ro
+      # Site de présentation (versionné dans deploy/site) et installateurs Windows publiés par
+      # deploy/publish-desktop.sh (docs/BUILD_EXE.md)
+      - ./site:/srv/site:ro
+      - ${DOWNLOADS_DIR:-./data/downloads}:/srv/downloads:ro
       - caddy_data:/data
       - caddy_config:/config
     depends_on:

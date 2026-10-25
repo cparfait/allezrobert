@@ -1,0 +1,121 @@
+/* Site de présentation d'Allez Robert ! — couleurs du jeu (jaune maillot, nuit bleutée). */
+:root {
+  --jaune: #ffd23f;
+  --nuit: #0a0e16;
+  --nuit-2: #121826;
+  --nuit-3: #1b2335;
+  --texte: #eef1f7;
+  --gris: #9aa4b8;
+  --rayon: 14px;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  margin: 0;
+  background: var(--nuit);
+  color: var(--texte);
+  font: 17px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+a { color: var(--jaune); }
+img { max-width: 100%; display: block; }
+h1, h2, h3 { line-height: 1.2; margin: 0 0 .5em; }
+h2 { font-size: clamp(1.6rem, 3vw, 2.2rem); }
+h3 { font-size: 1.15rem; }
+.meta { color: var(--gris); font-size: .9rem; }
+.lead { font-size: 1.15rem; color: #d5dbe7; }
+.narrow { max-width: 46rem; }
+
+.top {
+  position: sticky; top: 0; z-index: 10;
+  display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+  padding: .7rem clamp(1rem, 4vw, 3rem);
+  background: rgba(10, 14, 22, .85);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid rgba(255, 255, 255, .06);
+}
+.brand { display: flex; align-items: center; gap: .5rem; color: var(--texte); font-weight: 800; text-decoration: none; font-size: 1.1rem; }
+.top nav { display: flex; align-items: center; gap: 1.2rem; }
+.top nav a:not(.btn) { color: var(--texte); text-decoration: none; opacity: .8; }
+.top nav a:not(.btn):hover { opacity: 1; }
+
+.btn {
+  display: inline-block;
+  padding: .8rem 1.4rem;
+  border-radius: 999px;
+  background: var(--jaune);
+  color: var(--nuit);
+  font-weight: 700;
+  text-decoration: none;
+  border: 2px solid var(--jaune);
+  transition: transform .15s ease, box-shadow .15s ease;
+}
+.btn:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(255, 210, 63, .25); }
+.btn.ghost { background: transparent; color: var(--texte); border-color: rgba(255, 255, 255, .35); }
+.btn.ghost:hover { border-color: var(--texte); box-shadow: none; }
+.btn.small { padding: .4rem 1rem; font-size: .95rem; }
+.btn.big { font-size: 1.15rem; padding: 1rem 1.8rem; margin: .4rem 0 .8rem; }
+
+.hero {
+  position: relative;
+  display: flex; align-items: center; justify-content: space-between; gap: 2rem;
+  min-height: min(88vh, 760px);
+  padding: 4rem clamp(1rem, 6vw, 5rem);
+  background:
+    linear-gradient(90deg, rgba(10, 14, 22, .92) 0%, rgba(10, 14, 22, .65) 45%, rgba(10, 14, 22, .1) 100%),
+    url("/site/img/hero.jpg") center / cover no-repeat;
+}
+.hero-text { max-width: 40rem; }
+.kicker { text-transform: uppercase; letter-spacing: .12em; font-size: .85rem; color: var(--jaune); font-weight: 700; margin: 0 0 .8rem; }
+.hero h1 { font-size: clamp(2rem, 5vw, 3.4rem); font-weight: 850; }
+.cta { display: flex; flex-wrap: wrap; gap: .8rem; margin: 1.6rem 0 .8rem; }
+.robert { width: clamp(150px, 20vw, 262px); height: auto; filter: drop-shadow(0 12px 30px rgba(0, 0, 0, .5)); }
+
+.band { padding: 5rem clamp(1rem, 6vw, 5rem); }
+.band.alt { background: var(--nuit-2); }
+
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.5rem; margin-top: 2rem; }
+.card { background: var(--nuit-2); border-radius: var(--rayon); overflow: hidden; border: 1px solid rgba(255, 255, 255, .06); }
+.card img { aspect-ratio: 16 / 9; width: 100%; object-fit: cover; }
+.card h3, .card p { padding: 0 1.2rem; }
+.card h3 { margin-top: 1.1rem; }
+.card p { color: #c9d0dd; margin-bottom: 1.3rem; }
+
+.features { list-style: none; padding: 0; margin: 2.5rem 0 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: .8rem 2rem; }
+.features li { padding-left: 1.4rem; position: relative; color: #c9d0dd; }
+.features li::before { content: ""; position: absolute; left: 0; top: .6em; width: .55rem; height: .55rem; border-radius: 50%; background: var(--jaune); }
+.features strong { color: var(--texte); }
+
+.zones { display: flex; flex-wrap: wrap; gap: .6rem; margin-top: 2rem; }
+.zone { background: var(--nuit-3); border-radius: 999px; padding: .45rem 1rem; border-left: 3px solid var(--jaune); font-weight: 600; font-size: .95rem; }
+.zone.etc { border-left-color: transparent; color: var(--gris); font-weight: 400; }
+
+.steps { list-style: none; counter-reset: step; padding: 0; margin: 2rem 0 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1.5rem; }
+.steps li { counter-increment: step; background: var(--nuit-2); border-radius: var(--rayon); padding: 1.4rem 1.3rem; position: relative; }
+.steps li::before { content: counter(step); display: grid; place-items: center; width: 2.2rem; height: 2.2rem; border-radius: 50%; background: var(--jaune); color: var(--nuit); font-weight: 800; margin-bottom: .8rem; }
+.steps p { color: #c9d0dd; margin: 0; }
+
+.reqs { margin-top: 2.5rem; background: var(--nuit-2); border-radius: var(--rayon); padding: 1.4rem 1.6rem; }
+.reqs ul { margin: 0; padding-left: 1.2rem; color: #c9d0dd; }
+
+.download { background: linear-gradient(180deg, var(--nuit) 0%, var(--nuit-2) 100%); }
+.dl-box { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); gap: 2rem; align-items: center; margin-top: 1.5rem; }
+.dl-box > img { border-radius: var(--rayon); aspect-ratio: 16 / 9; object-fit: cover; width: 100%; }
+.dl-version { font-size: 1.2rem; font-weight: 700; margin: 0; }
+#dl-sha { word-break: break-all; font-family: ui-monospace, Consolas, monospace; font-size: .78rem; }
+
+footer { padding: 2.5rem clamp(1rem, 6vw, 5rem); border-top: 1px solid rgba(255, 255, 255, .06); text-align: center; }
+footer p { margin: .3rem 0; }
+
+@media (max-width: 760px) {
+  .top nav a:not(.btn) { display: none; }
+  .hero { flex-direction: column-reverse; align-items: flex-start; min-height: 0; padding-top: 2.5rem;
+    background: linear-gradient(180deg, rgba(10, 14, 22, .7), rgba(10, 14, 22, .95)), url("/site/img/hero.jpg") center / cover no-repeat; }
+  .robert { width: 120px; }
+  .dl-box { grid-template-columns: 1fr; }
+  .band { padding: 3.5rem 1.2rem; }
+}
