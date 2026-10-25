@@ -33,6 +33,12 @@ const MODELS: ModelSpec[] = [
   { file: 'berline', kind: 'car', cruise: [14, 20], repaint: true, weight: 3 },
   { file: 'suv', kind: 'car', cruise: [13, 19], repaint: true, weight: 2 },
   { file: 'porsche-911', kind: 'car', cruise: [17, 24], repaint: true, weight: 1 },
+  { file: 'nissan-silvia', kind: 'car', cruise: [15, 21], repaint: true, weight: 1.5 },
+  { file: 'bmw-733i', kind: 'car', cruise: [14, 20], repaint: false, weight: 1.5 },
+  { file: 'mercedes-c230', kind: 'car', cruise: [14, 20], repaint: false, weight: 1.5 },
+  { file: 'lamborghini-aventador', kind: 'car', cruise: [17, 25], repaint: true, weight: 0.8 },
+  { file: 'mclaren-720s', kind: 'car', cruise: [17, 25], repaint: true, weight: 0.8 },
+  { file: 'de-tomaso-p72', kind: 'car', cruise: [16, 23], repaint: false, weight: 0.6 },
   { file: 'utilitaire', kind: 'van', cruise: [13, 17], repaint: false, weight: 1.5 },
   { file: 'tractor', kind: 'tractor', cruise: [6.5, 8.5], repaint: false, weight: 0 },
 ];
