@@ -148,6 +148,29 @@ const TUCK_HIPS = 0.5;
 const TUCK_SPINE = 0.08;
 const TUCK_CHEST = 0.12;
 const TUCK_HEAD = 0.35;
+/**
+ * Positions sur un cintre route (bascule en unités de « tuck », ajoutée à la position assise validée
+ * sur les cocottes, dos ≈ 41° : « détendue »), d'après la planche des quatre positions (angle du dos,
+ * hanche → épaule) : course, mains en bas du cintre (dos ≈ 20°) ; aéro en descente, dos à plat, tête
+ * basse, mains en bas du cintre, avant-bras presque à l'horizontale ; très détendue à petite allure, mains en
+ * haut du cintre, buste relevé (≈ 46° : au-delà, les bras tendus n'atteignent plus un cintre route).
+ */
+const DROPS_BEND = 0.62;
+const AERO_BEND = 1.0;
+const RELAX_BEND = -0.06;
+/** Ischions sur la selle par rapport à l'os du bassin (mesuré : selle 6 cm sous lui et 6 cm derrière). */
+const SEAT_FROM_HIPS = { y: -0.06, z: -0.06 };
+/** Tête en position de course (rad par unité, > 0 : vers le bas) : basse, dans l'alignement du dos, regard sous la visière. */
+const RACE_HEAD = 0.12;
+/** Vitesses (m/s) : bas du cintre au-dessus de DROPS_IN, retour aux cocottes sous DROPS_OUT ; aéro en roue libre au-delà de AERO_FROM → AERO_FULL. */
+const DROPS_IN = 12;
+const DROPS_OUT = 10;
+const AERO_FROM = 10;
+const AERO_FULL = 13;
+/** Très détendue : sous RELAX_IN (≈ 20 km/h), en roue libre ou sans forcer (< RELAX_EFFORT × FTP) ; quittée au-delà de RELAX_OUT. */
+const RELAX_IN = 5.5;
+const RELAX_OUT = 6.5;
+const RELAX_EFFORT = 0.45;
 /** Relevé du cou (rad) d'une morphologie entièrement féminine : tête ≈ 3 cm plus en arrière. */
 const NECK_LIFT = -0.12;
 const X_AXIS = new THREE.Vector3(1, 0, 0);
@@ -252,6 +275,10 @@ interface Templates {
 const HOOD_PALM = new THREE.Vector3(0.2, 0.9, 0.565);
 /** VTT : milieu de la paume sur la poignée du cintre plat (bikeKits.ts : poignées à y 0,958, z 0,54, x de 0,165 à 0,3). */
 const MTB_PALM = new THREE.Vector3(0.235, 1.0, 0.535);
+/** Bas du cintre route : milieu de la paume sur la partie droite du crochet (ruban mesuré : bas à y 0,746, de z 0,49 à 0,56). */
+const DROP_PALM = new THREE.Vector3(0.215, 0.772, 0.532);
+/** Haut du cintre : paume sur le cintre de part et d'autre de la potence (cintre à z ≈ 0,515, dessus ≈ 0,885 m). */
+const TOP_PALM = new THREE.Vector3(0.12, 0.895, 0.505);
 /** Doigts refermés sur la cocotte (ou le prolongateur) : flexion par phalange (rad, axe X local) ; l'index, tendu au repos, plus. */
 const GRIP_CURL = 0.5;
 const GRIP_CURL_INDEX = 0.8;
@@ -728,6 +755,13 @@ export class GltfRiderAvatar implements RiderAvatarLike {
   /** Cible des mains (repère modèle) et direction des coudes, selon le vélo monté. */
   private readonly handTarget: Record<Side, THREE.Vector3> = { L: new THREE.Vector3(), R: new THREE.Vector3() };
   private readonly elbowPole: Record<Side, THREE.Vector3> = { L: new THREE.Vector3(), R: new THREE.Vector3() };
+  /** Mains en bas et en haut du cintre (repère modèle) ; null si le vélo n'en a pas (VTT, prolongateurs). */
+  private barTargets: { drop: Record<Side, THREE.Vector3>; top: Record<Side, THREE.Vector3> } | null = null;
+  private dropsOn = false;
+  private relaxOn = false;
+  private dropsBlend = 0;
+  private aeroBlend = 0;
+  private relaxBlend = 0;
   /** Position chrono (vélo à prolongateurs ; 0 = buste de repos) : dos plongeant jusqu'à poser les coudes. */
   private tuck = 0;
   /** Décalage de selle et de bassin (m, repère du coureur) : voir saddleLiftFor. */
@@ -952,6 +986,9 @@ export class GltfRiderAvatar implements RiderAvatarLike {
     const anchors = this.mounted?.anchors;
     if (!anchors) return;
     const palm = this.bikeType === 'mtb' && !anchors.pads ? MTB_PALM : HOOD_PALM;
+    const drops = this.bikeType !== 'mtb' && !anchors.pads;
+    const pair = (): Record<Side, THREE.Vector3> => ({ L: new THREE.Vector3(), R: new THREE.Vector3() });
+    this.barTargets = drops ? { drop: pair(), top: pair() } : null;
     for (const s of SIDES) {
       const c = this.t.arms[s];
       const rest = this.t.bones[c.end].modelP;
@@ -966,6 +1003,11 @@ export class GltfRiderAvatar implements RiderAvatarLike {
         this.elbowPole[s].copy(toPad).addScaledVector(dir, -toPad.dot(dir)).normalize();
       } else this.elbowPole[s].copy(c.pole);
       this.handTarget[s].y += this.saddleLift;
+      // Bas et haut du cintre : même écart à la cocotte que celui des paumes.
+      const sx = s === 'L' ? 1 : -1;
+      const bar = this.barTargets;
+      bar?.drop[s].set(sx * (DROP_PALM.x - HOOD_PALM.x), DROP_PALM.y - HOOD_PALM.y, DROP_PALM.z - HOOD_PALM.z).add(this.handTarget[s]);
+      bar?.top[s].set(sx * (TOP_PALM.x - HOOD_PALM.x), TOP_PALM.y - HOOD_PALM.y, TOP_PALM.z - HOOD_PALM.z).add(this.handTarget[s]);
     }
   }
 
@@ -1122,6 +1164,22 @@ export class GltfRiderAvatar implements RiderAvatarLike {
     const a = this.crankAngle;
     const stand = this.poseBlend;
     const coast = this.coastBlend * (1 - stand);
+    // Bas du cintre à vitesse de course, aéro en roue libre rapide (descente), très détendue à
+    // petite allure (avec hystérésis).
+    const coasting = pose === 'coasting' || cadence < 5;
+    const bars = this.barTargets !== null && pose !== 'standing';
+    this.dropsOn = bars && (speed > DROPS_IN || (this.dropsOn && speed > DROPS_OUT));
+    this.relaxOn = bars && (speed < RELAX_IN || (this.relaxOn && speed < RELAX_OUT)) && (coasting || this.ftpFrac < RELAX_EFFORT);
+    const aeroOn = bars && coasting ? THREE.MathUtils.smoothstep(speed, AERO_FROM, AERO_FULL) : 0;
+    const k2 = 1 - Math.exp(-dt * 2.5);
+    this.dropsBlend += ((this.dropsOn ? 1 : 0) - this.dropsBlend) * k2;
+    this.aeroBlend += (aeroOn - this.aeroBlend) * k2;
+    this.relaxBlend += ((this.relaxOn ? 1 : 0) - this.relaxBlend) * k2;
+    const aero = this.aeroBlend * (1 - stand);
+    // Aéro : mains en bas du cintre aussi (dos à plat, épaules au-dessus du crochet : avant-bras à l'horizontale).
+    const dropHands = Math.max(this.dropsBlend * (1 - stand), aero);
+    const drops = this.dropsBlend * (1 - stand) * (1 - aero);
+    const relax = this.relaxBlend * (1 - stand) * (1 - aero);
 
     // Vélo : en danseuse il balance à l'opposé de la jambe qui appuie ; le corps compense en partie.
     const rock = -Math.sin(a) * 0.11 * stand;
@@ -1135,7 +1193,8 @@ export class GltfRiderAvatar implements RiderAvatarLike {
     // --- Bassin
     const hipsR = t.bones.hips;
     const roll = 0.02 * Math.sin(a) * (1 - stand) * (1 - coast);
-    const tuck = this.tuck * (1 - 0.6 * stand);
+    const race = DROPS_BEND * drops + AERO_BEND * aero + RELAX_BEND * relax;
+    const tuck = this.tuck * (1 - 0.6 * stand) + race;
     const tilt = -0.09 * stand - 0.05 * coast + TUCK_HIPS * tuck;
     _q1.setFromAxisAngle(Z_AXIS, counter + roll);
     _q2.setFromAxisAngle(X_AXIS, tilt);
@@ -1144,6 +1203,13 @@ export class GltfRiderAvatar implements RiderAvatarLike {
     _v4.y += this.saddleLift;
     _v4.y += 0.02 * stand + 0.004 * Math.sin(2 * a) * (1 - stand) * (1 - coast) - 0.01 * Math.abs(Math.cos(a)) * stand;
     _v4.z += 0.13 * stand;
+    if (race !== 0) {
+      // Bascule de course autour des ischions posés sur la selle (pas de l'os du bassin) : les fesses restent assises.
+      const r = TUCK_HIPS * race;
+      const { y, z } = SEAT_FROM_HIPS;
+      _v4.y += -y * Math.cos(r) + z * Math.sin(r) + y;
+      _v4.z += -y * Math.sin(r) - z * Math.cos(r) + z;
+    }
     _v4.applyAxisAngle(Z_AXIS, counter);
     const hips = this.bones.hips;
     const invArm = _q1.copy(t.armQ).invert();
@@ -1155,14 +1221,14 @@ export class GltfRiderAvatar implements RiderAvatarLike {
     // position chrono (moins en danseuse).
     this.bones.spine.quaternion.copy(t.bones.spine.localQ);
     this.fk('spine');
-    if (tuck > 0) this.setModelQ('spine', _q3.setFromAxisAngle(X_AXIS, TUCK_SPINE * tuck).multiply(this.mQ.spine));
+    if (tuck !== 0) this.setModelQ('spine', _q3.setFromAxisAngle(X_AXIS, TUCK_SPINE * tuck).multiply(this.mQ.spine));
     if (t.names.spine2) {
       this.bones.spine2.quaternion.copy(t.bones.spine2.localQ);
       this.fk('spine2');
     }
     _q1.multiplyQuaternions(this.mQ[t.bones.chest.parent ?? 'spine'], t.bones.chest.localQ);
     _q2.setFromAxisAngle(Z_AXIS, -roll * 0.9);
-    if (tuck > 0) _q2.multiply(_q3.setFromAxisAngle(X_AXIS, TUCK_CHEST * tuck));
+    if (tuck !== 0) _q2.multiply(_q3.setFromAxisAngle(X_AXIS, TUCK_CHEST * tuck));
     this.setModelQ('chest', _q3.multiplyQuaternions(_q2, _q1));
 
     // --- Tête : regarde devant, compense une partie de l'inclinaison ; le cou en prend la moitié.
@@ -1170,7 +1236,9 @@ export class GltfRiderAvatar implements RiderAvatarLike {
     this.fk('neck');
     const look = 0.06 * Math.sin(this.time * 0.37) * Math.sin(this.time * 0.13);
     _q1.setFromAxisAngle(Z_AXIS, -(0.7 * bank + rock + counter));
-    if (tuck > 0) _q1.multiply(_q3.setFromAxisAngle(X_AXIS, -TUCK_HEAD * tuck));
+    // Tête : relevée vers la route en chrono ; en position de course, basse dans l'alignement du dos ;
+    // buste relevé : regard inchangé.
+    if (tuck !== 0) _q1.multiply(_q3.setFromAxisAngle(X_AXIS, -TUCK_HEAD * (tuck - race) + RACE_HEAD * Math.max(race, 0)));
     _q2.setFromAxisAngle(Y_AXIS, look);
     const headTarget = _q3.multiplyQuaternions(_q1, _q2).multiply(t.bones.head.modelQ);
     _q1.multiplyQuaternions(this.mQ.neck, t.bones.head.localQ).invert(); // tête si cou au repos
@@ -1192,7 +1260,11 @@ export class GltfRiderAvatar implements RiderAvatarLike {
       }
       this.bones[c.upper].quaternion.copy(t.bones[c.upper].localQ);
       this.fk(c.upper);
-      this.solveChain(c, this.target.copy(this.handTarget[s]), this.elbowPole[s]);
+      this.target.copy(this.handTarget[s]);
+      const bar = this.barTargets;
+      if (bar && dropHands > 0) this.target.lerp(bar.drop[s], dropHands);
+      if (bar && relax > 0) this.target.lerp(bar.top[s], relax);
+      this.solveChain(c, this.target, this.elbowPole[s]);
       this.setModelQ(c.end, t.bones[c.end].modelQ);
     }
 

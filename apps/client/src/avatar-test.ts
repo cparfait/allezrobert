@@ -262,10 +262,12 @@ async function main(): Promise<void> {
     return;
   }
   // ?profil : profil strict zoomé du haut du corps (dos, nuque, tête) des coureurs du film puis de
-  // corpulences et tailles extrêmes ; &pose=standing|seated ; angles dans window.__profil.
+  // corpulences et tailles extrêmes ; &pose=standing|seated|coasting ; angles dans window.__profil.
   if (params.has('profil')) {
     const { lookFor } = await import('./ui/cinematic.ts');
     const pose = (params.get('pose') ?? 'seated') as RiderPose;
+    // &speed=m/s : bas du cintre au-delà de 12 m/s, position aéro en roue libre (pose=coasting) au-delà de 10.
+    const speed = Number(params.get('speed') ?? 9);
     if (params.has('lift')) (globalThis as unknown as { __lift: number }).__lift = Number(params.get('lift'));
     // &morphs=a:1,b:-1 : un coureur par curseur de forme (valeur donnée), sur la tenue par défaut.
     const morphs = (params.get('morphs') ?? '').split(',').filter(Boolean);
@@ -293,7 +295,7 @@ async function main(): Promise<void> {
       const a = new GltfRiderAvatar(look);
       a.root.position.set(0, 0, 0);
       scene.add(a.root);
-      for (let t = 0; t < 1; t += 1 / 60) a.update(1 / 60, pose === 'standing' ? 70 : 85, 9, pose, 0);
+      for (let t = 0; t < 2; t += 1 / 60) a.update(1 / 60, pose === 'standing' ? 70 : pose === 'coasting' ? 0 : 85, speed, pose, 0);
       a.root.updateMatrixWorld(true);
       const P = (n: string): THREE.Vector3 => (a.root.getObjectByName(n) as THREE.Object3D).getWorldPosition(new THREE.Vector3());
       const hip = P('thigh_l');
@@ -307,7 +309,7 @@ async function main(): Promise<void> {
       const wr = P('hand_l');
       const kn = P('calf_l');
       (window as unknown as { __ang: Record<string, unknown> }).__ang ??= {};
-      ((window as unknown as { __ang: Record<string, unknown> }).__ang)[name] = { shoulder: +ang3(sh, hip, el).toFixed(1), elbow: +ang3(el, sh, wr).toFixed(1), hip: +ang3(hip, sh, kn).toFixed(1), neckVsBack: +(elev(nk, hd) - elev(hip, sh)).toFixed(1) };
+      ((window as unknown as { __ang: Record<string, unknown> }).__ang)[name] = { shoulder: +ang3(sh, hip, el).toFixed(1), elbow: +ang3(el, sh, wr).toFixed(1), forearm: +elev(el, wr).toFixed(1), hip: +ang3(hip, sh, kn).toFixed(1), neckVsBack: +(elev(nk, hd) - elev(hip, sh)).toFixed(1) };
       out.push({ name, back: +elev(hip, sh).toFixed(1), neck: +elev(nk, hd).toFixed(1), shDz: +(sh.z - hip.z).toFixed(3), shDy: +(sh.y - hip.y).toFixed(3), headFwd: +(hd.z - sh.z).toFixed(3) });
       camera.fov = Number(params.get('fov') ?? 9);
       // &rear : trois quarts arrière (vue du peloton) au lieu du profil strict.
