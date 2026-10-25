@@ -198,12 +198,22 @@ class SpotifyRemote {
   async search(query: string): Promise<Array<{ uri: string; type: 'track' | 'playlist'; name: string; sub: string; image?: string }>> {
     const q = query.trim();
     if (!q) return (await this.playlists()).map((p) => ({ uri: p.uri, type: 'playlist' as const, name: p.name, sub: `${p.tracks}`, ...(p.image ? { image: p.image } : {}) }));
-    const r = await this.api(`/search?${new URLSearchParams({ q, type: 'track,playlist', limit: '10' })}`);
-    if (!r || r.status !== 200) throw new Error(r ? `Spotify ${r.status}` : 'Spotify injoignable');
-    const j = (await r.json()) as {
+    type SearchJson = {
       tracks?: { items: Array<{ uri: string; name: string; artists?: Array<{ name: string }>; album?: { images?: Array<{ url: string }> } } | null> };
-      playlists?: { items: Array<{ uri: string; name: string; owner?: { display_name?: string }; images?: Array<{ url: string }> | null; tracks?: { total: number } } | null> };
+      playlists?: { items: Array<{ uri: string; name: string; owner?: { display_name?: string }; images?: Array<{ url: string }> | null } | null> };
     };
+    // Un type par requête : si Spotify refuse l'un (limites du mode développement), l'autre reste utilisable.
+    const ask = async (type: 'track' | 'playlist'): Promise<SearchJson | null> => {
+      const r = await this.api(`/search?${new URLSearchParams({ q, type, limit: '10' })}`);
+      if (!r || r.status !== 200) {
+        console.warn(`Spotify : recherche « ${type} » refusée`, r?.status, await r?.text().catch(() => ''));
+        return null;
+      }
+      return (await r.json()) as SearchJson;
+    };
+    const [tr, pl] = await Promise.all([ask('track'), ask('playlist')]);
+    if (!tr && !pl) throw new Error('Spotify : recherche impossible');
+    const j: SearchJson = { ...(tr?.tracks ? { tracks: tr.tracks } : {}), ...(pl?.playlists ? { playlists: pl.playlists } : {}) };
     const out: Array<{ uri: string; type: 'track' | 'playlist'; name: string; sub: string; image?: string }> = [];
     for (const t of j.tracks?.items ?? []) {
       if (!t) continue;

@@ -1496,11 +1496,18 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     remoteRiders = mp ? mp.render(dt, engine.camera) : [];
     if (!ride.paused) {
       trains.update(dt, ride.state.distM, ride.dir, ride.state.speedMs);
+      if (traffic) {
+        const push = traffic.yieldPush(ride.state.distM, ride.lateral, ride.dir);
+        if (push) {
+          const half = track.route.roadWidthM / 2 - 0.5;
+          ride.lateral = Math.max(-half, Math.min(half, ride.lateral + push * dt));
+        }
+      }
       traffic?.update(dt, ride.state, [
         { distM: ride.state.distM, lateral: ride.lateral, speedMs: ride.state.speedMs },
         ...peloton.riders.map((r) => ({ distM: r.state.distM, lateral: r.lateral, speedMs: r.state.speedMs })),
         ...remoteRiders.map((r) => ({ distM: r.unwrappedM, lateral: r.lateralM, speedMs: r.speedMs })),
-      ]);
+      ], ride.dir);
     }
     lap('trains, trafic');
     track.positionAt(ride.state.distM, ride.lateral, sample);

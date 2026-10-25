@@ -17,6 +17,7 @@ const HAIRS = ['#1f1a17', '#3b2a1e', '#6a4e35', '#b88a52', '#d9c08a', '#9a9a9a']
 /** Quelques couleurs de départ : le reste se débloque en roulant (garage). */
 const JERSEYS = ['#1f6feb', '#d62828', '#ffffff', '#2a9d8f', '#f4a261', '#111111'];
 const ACCENTS = ['#ffd23f', '#ffffff', '#111111', '#d62828', '#1f6feb', '#2a9d8f'];
+const SHOES = ['#f2f2f2', '#111418', '#1e5bd8', '#c0392b', '#d7f205', '#ff7a1a'];
 const HELMETS = ['#f4f4f4', '#111111', '#1f6feb', '#d62828', '#ffd23f'];
 const BIKES = ['#c0392b', '#111111', '#e8ecf0', '#1f6feb', '#2e7d32'];
 const CASSETTE_SPEEDS = [8, 9, 10, 11, 12, 13];
@@ -155,6 +156,7 @@ export class Onboarding {
           <label class="field">${fr ? 'Maillot' : 'Jersey'}<div class="row">${sw('jersey', JERSEYS, look.jersey)}</div></label>
           <label class="field">${fr ? 'Seconde couleur du maillot' : 'Jersey second colour'}<div class="row">${sw('accent', ACCENTS, look.jerseyAccent)}</div></label>
           <label class="field">${fr ? 'Casque' : 'Helmet'}<div class="row">${sw('helmet', HELMETS, look.helmet)}</div></label>
+          <label class="field">${fr ? 'Chaussures' : 'Shoes'}<div class="row">${sw('shoes', SHOES, look.shoes ?? '#f2f2f2')}</div></label>
           <label class="field">${fr ? 'Vélo' : 'Bike'}<div class="row">${sw('bike', BIKES, look.bike)}</div></label></div>
           <p class="meta" style="font-size:13px;color:var(--ar-muted)">${fr ? 'Maillots, casques et vélos se débloquent en roulant : retrouve-les au garage.' : 'Jerseys, helmets and bikes unlock as you ride: find them in the garage.'}</p>
           <div class="device" style="margin-top:12px"><div><b>${fr ? 'Ressemblance à partir d’une photo' : 'Likeness from a photo'}</b>
@@ -296,7 +298,7 @@ export class Onboarding {
       if (redraw) this.render();
       else this.preview?.show(this.s.look, this.bareHead);
     };
-    const pick = (attr: 'skin' | 'hair' | 'jersey' | 'accent' | 'helmet' | 'bike') =>
+    const pick = (attr: 'skin' | 'hair' | 'jersey' | 'accent' | 'helmet' | 'bike' | 'shoes') =>
       this.root.querySelectorAll<HTMLButtonElement>(`[data-${attr}]`).forEach((b) =>
         b.addEventListener('click', () => {
           const c = b.dataset[attr] as string;
@@ -310,7 +312,7 @@ export class Onboarding {
           setLook({ [attr === 'accent' ? 'jerseyAccent' : attr]: c }, true);
         }),
       );
-    for (const a of ['skin', 'hair', 'jersey', 'accent', 'helmet', 'bike'] as const) pick(a);
+    for (const a of ['skin', 'hair', 'jersey', 'accent', 'helmet', 'bike', 'shoes'] as const) pick(a);
     this.root.querySelectorAll<HTMLButtonElement>('[data-sex]').forEach((b) =>
       b.addEventListener('click', () => {
         this.s.look = withSex({ ...DEFAULT_LOOK, ...this.s.look }, b.dataset.sex as 'male' | 'female');
