@@ -1,19 +1,20 @@
 import * as THREE from 'three/webgpu';
-import { attribute, uv, fract, floor, step, mix, vec2, vec3, float, uniform, mx_noise_float, positionWorld, smoothstep, max, min, abs, hash, normalWorld, texture, normalMap } from 'three/tsl';
+import { attribute, uv, fract, floor, step, mix, vec2, vec3, float, uniform, mx_noise_float, positionWorld, smoothstep, max, min, abs, hash, normalWorld, normalMap } from 'three/tsl';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { rng, polygonArea } from '../engine/noise.ts';
 import type { LoadedTile, TileRoad } from './types.ts';
 import { orientedBox, planRoof, roofBuffers, flatRoof } from './roofs.ts';
 import { meuliere } from './meuliere.ts';
 import { FootprintIndex } from './footprints.ts';
+import { LazyTexture } from '../engine/textures.ts';
 
 /** Textures photo CC0 (Poly Haven) des façades et toits, chargées une fois et partagées. */
-function loadTex(dir: string, file: string, srgb: boolean): THREE.Texture {
-  const t = new THREE.TextureLoader().load(`/assets/textures/${dir}/${file}`);
-  t.wrapS = t.wrapT = THREE.RepeatWrapping;
-  t.anisotropy = 8;
-  if (srgb) t.colorSpace = THREE.SRGBColorSpace;
-  return t;
+function loadTex(dir: string, file: string, srgb: boolean): LazyTexture {
+  return new LazyTexture(`/assets/textures/${dir}/${file}`, {
+    wrap: THREE.RepeatWrapping,
+    anisotropy: 8,
+    ...(srgb ? { colorSpace: THREE.SRGBColorSpace } : {}),
+  });
 }
 const pbr = (dir: string) => ({ map: loadTex(dir, 'diffuse.jpg', true), normal: loadTex(dir, 'nor_gl.jpg', false) });
 const BUILDING_TEXTURES = {
@@ -371,9 +372,9 @@ export class Buildings {
     const isRender = float(1).sub(isStone).sub(isBrick).sub(isRubble);
     const T = BUILDING_TEXTURES;
     const wallUv = (size: number) => vec2(u, v).div(size);
-    const render = texture(T.render.map, wallUv(2.0)).rgb;
-    const rubble = texture(T.stone.map, wallUv(2.3)).rgb;
-    const brick = texture(T.brick.map, wallUv(2.0)).rgb;
+    const render = T.render.map.sample(wallUv(2.0)).rgb;
+    const rubble = T.stone.map.sample(wallUv(2.3)).rgb;
+    const brick = T.brick.map.sample(wallUv(2.0)).rgb;
     // Meulière : moellons procéduraux, teinte de la maison (ocre plus ou moins rouge) en multiplicateur.
     const meul = meuliere(vec2(u, v));
     const stone = meul.color.mul(base.div(vec3(0.68, 0.53, 0.37)).clamp(0.8, 1.2));
@@ -483,7 +484,7 @@ export class Buildings {
     // ── Toits : tuiles en terre cuite et ardoise (textures photo), mousse par endroits ──
     const roofUv = (size: number) => vec2(u, v).div(size);
     const moss = smoothstep(0.6, 0.9, mx_noise_float(positionWorld.mul(0.5))).mul(0.3);
-    const tileTex = texture(T.tiles.map, roofUv(3.2)).rgb;
+    const tileTex = T.tiles.map.sample(roofUv(3.2)).rgb;
     // Tuile plate : chaque tuile (≈ 17 × 10,5 cm visibles, rangs décalés) a sa propre cuisson,
     // plus quelques plaques de tuiles de remplacement plus claires et des lichens jaunes.
     const tileRow = floor(v.div(0.105));
@@ -500,7 +501,7 @@ export class Buildings {
     const lichen = smoothstep(0.45, 0.8, mx_noise_float(positionWorld.mul(0.9).add(3))).mul(0.25);
     const weathered = mix(base.mul(tileLum).mul(tileVar), vec3(0.32, 0.31, 0.28).mul(tileLum), lichen);
     const tiles = mix(mix(tilesIdf, weathered, step(float(0.5), info.y)), vec3(0.3, 0.33, 0.18), moss);
-    const slate = texture(T.slate.map, roofUv(1.5)).rgb;
+    const slate = T.slate.map.sample(roofUv(1.5)).rgb;
     // Bac acier : ondes de 25 cm dans la pente, coulures et rouille légère par plaques.
     const rib = abs(fract(u.div(0.25)).sub(0.5)).mul(2);
     const rust = smoothstep(0.55, 0.85, mx_noise_float(positionWorld.mul(0.25))).mul(0.35);
@@ -512,7 +513,7 @@ export class Buildings {
     m.emissiveNode = vec3(1.0, 0.62, 0.3).mul(inWin.mul(lit).mul(isWall).mul(2.2));
     m.roughnessNode = mix(mix(mix(float(0.93), float(0.15), inWin.mul(isWall)), float(0.75), isTile.add(isSlate).min(1)).sub(isSlate.mul(0.2)), float(0.55), isMetal);
     // Relief : cartes de normales de la texture correspondante (sauf sur les vitres).
-    const nrm = (t: THREE.Texture, size: number) => texture(t, vec2(u, v).div(size)).rgb;
+    const nrm = (t: LazyTexture, size: number) => t.sample(vec2(u, v).div(size)).rgb;
     const wallN = nrm(T.render.normal, 2.0)
       .mul(isRender)
       .add(meul.normalTS.mul(0.5).add(0.5).mul(isStone))
@@ -536,17 +537,25 @@ export class Buildings {
     const acc = new THREE.Color();
     for (const bld of tile.features.buildings) {
       if (bld.pts.length < 6) continue;
-      let base = bld.y ?? Infinity;
-      if (!Number.isFinite(base)) for (let i = 0; i < bld.pts.length; i += 2) base = Math.min(base, this.groundAt(bld.pts[i] as number, bld.pts[i + 1] as number));
+      // Sol affiché sous l'emprise : la hauteur des données part du point bas (`y`), mais en pente le
+      // côté amont est plus haut et y enterrait les murs.
+      let groundLo = Infinity;
+      let groundHi = -Infinity;
+      for (let i = 0; i < bld.pts.length; i += 2) {
+        const g = this.groundAt(bld.pts[i] as number, bld.pts[i + 1] as number);
+        if (!Number.isFinite(g)) continue;
+        groundLo = Math.min(groundLo, g);
+        groundHi = Math.max(groundHi, g);
+      }
+      let base = Math.min(bld.y ?? Infinity, groundLo);
       if (!Number.isFinite(base)) continue;
+      const rise = Number.isFinite(groundHi) ? Math.min(groundHi - base, 8) : 0;
       base -= 0.3;
       const isChurch = bld.kind === 'church' || bld.kind === 'chapel';
       const isUtility = ['shed', 'garage', 'garages', 'barn', 'greenhouse', 'roof', 'industrial', 'ruins'].includes(bld.kind);
       const box = orientedBox(bld.pts);
       const shape = bld.roof ?? 'gabled';
       const total = isChurch ? Math.max(bld.height, 14) : Math.max(bld.height || (bld.levels ?? 1.6) * 2.9 + 3, 3.5);
-      // Emprise pour la collision de la caméra (prisme toit compris ; le clocher dépasse, sans gêne).
-      this.footprints.add(tile.id, bld.pts, base, base + total + 0.3);
       // BD TOPO : matériau du toit connu (le bac acier a une pente plus faible que la tuile).
       const roofMat = bld.roofMaterial ?? (bld.material === 'slate' || shape === 'mansard' || isChurch ? 'slate' : undefined);
       const metal = roofMat === 'metal' || roofMat === 'concrete';
@@ -563,8 +572,15 @@ export class Buildings {
       const wantH = Math.min(bld.roofHeight ?? Math.tan((42 * Math.PI) / 180) * halfW, total * 0.6);
       const pitch = plan ? Math.min(Math.max((Math.atan(wantH / halfW) * 180) / Math.PI, minPitch), 55) : 0;
       const roofH = plan ? Math.tan((pitch * Math.PI) / 180) * halfW : skillion ? Math.min(bld.roofHeight as number, total * 0.5) : 0;
-      const wallH = Math.max(total - roofH, 2.4);
+      // Égout au moins à hauteur d'étage au-dessus du sol amont : hauteurs LiDAR / BD TOPO souvent basses
+      // (≈ 2 m pour un plain-pied) : 2,7 m au rez-de-chaussée, 2,6 m par niveau en plus, plafonné à trois niveaux et à 1,25 × la hauteur
+      // mesurée (nombre d'étages parfois incohérent : « 11 étages » pour 14 m).
+      const levels = Math.min(Math.max(Math.round(bld.levels ?? 1), 1), 3);
+      const minEave = isUtility || isChurch ? 2.4 : Math.max(2.7, Math.min(2.7 + (levels - 1) * 2.6, total * 1.25));
+      const wallH = Math.max(total - roofH, minEave + rise);
       const wallTop = base + wallH + 0.3;
+      // Emprise pour la collision de la caméra (prisme toit compris ; le clocher dépasse, sans gêne).
+      this.footprints.add(tile.id, bld.pts, base, wallTop + roofH);
       // Matériau de façade : connu (BD TOPO, OSM) sinon tiré au sort (meulière ≈ 45 % hors annexes), ou couleur OSM.
       const stones = !bld.colour && (bld.material === 'stone' || (!bld.material && !isUtility && r() < 0.45));
       const brick = bld.material === 'brick';
