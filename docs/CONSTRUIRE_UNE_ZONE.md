@@ -24,9 +24,75 @@ Prérequis : `pnpm install`, accès Internet à la première construction (IGN e
 cache dans `data/cache/terrain/` ; une reconstruction ne sollicite presque plus les services.
 Ne jamais écrire sur `C:` s'il est plein : le cache et la sortie y vivent.
 
+## Le plus simple : l'outil graphique
+
+```bash
+pnpm zone-builder        # puis http://127.0.0.1:5199  (ZONE_BUILDER_PORT=<port> pour changer)
+```
+
+Outil **local de développement** (écoute `127.0.0.1` uniquement, jamais déployé, aucune entrée dans
+le bundle du jeu). Il remplace les étapes 1, 2, 3, 4 et 5 ci-dessous :
+
+- **Lit les zones réelles** : `config.ts`, `tools/terrain/zones/*.json`, `worlds.ts`, `zoneMap.ts`,
+  `worlds/index.json` ; la colonne de gauche indique pour chacune si elle est construite, au menu, sur
+  la carte. Les emprises existantes sont dessinées en bleu.
+- **Crée ou modifie** une zone de type `open` (clic sur une zone existante pour la modifier) sur le
+  fond Plan IGN : mode *Emprise* (rectangle, calé sur des tuiles de 1 km ; origine, `corridorTiles`,
+  nombre de tuiles, temps et cache estimés), formulaire (identifiant, noms, région, accroche, mer,
+  orthos), mode *Points du tour* (clic : le 1er point est le départ, les suivants sont les `via`),
+  mode *Choisir le départ*. Un tour posé à la main s'affiche en ligne droite ; la vraie route est
+  calculée sur OSM à la construction.
+- **Remplit le formulaire seul** dès que l'emprise est dessinée : orthos (1024 px, 512 au-delà de
+  150 tuiles), région (géocodage inverse du centre par `geo.api.gouv.fr` : « Département · Région »,
+  avec les accents), « bord de mer » (présence de `natural=coastline` dans l'emprise), nom et
+  identifiant d'après le plus gros lieu de l'emprise (population puis proximité du centre), accroche
+  fr et en (trois lieux marquants, « bord de mer », longueur et D+ du tour retenu, comme les accroches
+  de `worlds.ts`). Chaque champ porte un repère « auto » ; dès qu'on en modifie un à la main il n'est
+  plus jamais écrasé, et *Recalculer* rend la main à l'automatique. Les zones existantes sont chargées
+  sans rien écraser. Sans réseau, les champs restent vides, rien ne bloque.
+- **Propose des tours automatiquement** (section *Tour automatique*) : longueur visée (15, 25, 40 ou
+  60 km), nombre de variantes, départ par défaut = le plus gros lieu de l'emprise (*Choisir le départ*
+  pour le fixer au clic). Le serveur télécharge OSM (mêmes blocs Overpass que `build:world` : le cache
+  sert ensuite à la construction ; miroirs de `TERRAIN_OVERPASS`, progression affichée), construit le
+  graphe, cherche des boucles sur des routes revêtues nommées (pas de pistes), sans aller-retour
+  (au plus 15 % de tronçons doublés), dans l'emprise, avec un point de passage tous les ~2,5 km ; il
+  affiche le **tracé réel** sur la carte, avec longueur, D+ (si le MNT est déjà en cache : il n'est
+  jamais téléchargé pour l'aperçu), part de chaque type de route. *Régénérer* donne d'autres
+  variantes, *Utiliser ce tour* l'ajoute à la zone (les `via` générés vont dans le JSON, modifiables à
+  la main). Le tracé proposé utilise les mêmes coûts que `build:world` : c'est celui qui sera
+  construit. Si aucune boucle propre n'existe, il propose un compromis signalé, sinon explique
+  (emprise trop étroite, lac, relief : agrandir ou changer de départ). Le calcul refuse de démarrer
+  pendant une construction (même d'un autre terminal) pour ne pas écrire dans le cache en même temps.
+- **Écrit de façon sûre** : la zone va dans `tools/terrain/zones/<id>.json` (même forme que `WORLDS`,
+  versionné, chargé par `config.ts` ; un fichier de même `id` qu'une entrée de `WORLDS` la remplace,
+  supprimer le fichier revient à l'original). Les champs que l'outil ne gère pas (`horizon`,
+  `enrich`, `koms`, `climbNames`, `allowTracks`) sont conservés. Pour une zone **nouvelle**, une ligne
+  est ajoutée à `WORLD_LIST` (`worlds.ts`) et à `ZONE_SPOTS` (`zoneMap.ts`) ; pour une zone existante,
+  seul le centre de `ZONE_SPOTS` est mis à jour (noms et accroches du menu : à retoucher dans ces
+  fichiers). Chaque fichier est sauvegardé avant écriture dans `data/cache/zone-builder/backups/`,
+  écrit par fichier temporaire puis renommage, et rien n'est écrit si une des trois cibles est illisible.
+- **Construit** : *Enregistrer + construire* enchaîne `build:world`, `verify-world` et `packs`
+  (cases à cocher : sans orthos, hors ligne, graphe seul). Journal en direct, bouton *Annuler*
+  (arrête tout l'arbre de processus). *Construire / reprendre* relance : le cache
+  `data/cache/terrain/` fait repartir où l'on s'était arrêté ; la page retrouve le journal après
+  rechargement. Une seule construction à la fois : l'outil refuse de démarrer si une construction tourne déjà, y compris
+  lancée depuis un autre terminal (et d'enregistrer pendant la sienne).
+- À la fin, la zone est dans le menu du jeu et se charge avec `?world=<id>` : rien d'autre à faire
+  (relancer `pnpm dev` si le serveur de développement ne s'est pas rafraîchi). Il reste à
+  `pnpm typecheck && pnpm test` avant de commiter, et à déployer les tuiles (§6).
+
+Limites : zones `open` seulement (pas les montées ni Chevreuse), pas de zone privée, tours par noms
+de lieux OSM listés mais non placés sur la carte (à saisir en `{lon, lat}` si besoin). Emprise de
+plus de 400 tuiles refusée pour le calcul. Le D+ des boucles proposées est une estimation sur le MNT à
+8 m ; le profil exact vient de la construction. Le préfixe `ZONE_BUILDER_FORCE=1` désactive le garde-fou
+« construction en cours » (tests uniquement).
+
+Le reste du guide décrit ce que l'outil fait, pour le faire à la main ou comprendre un échec.
+
 ## 1. Déclarer la zone dans `config.ts`
 
-Ajouter une entrée dans `WORLDS` (`tools/terrain/src/config.ts`) en copiant une zone proche, par
+Ajouter une entrée dans `WORLDS` (`tools/terrain/src/config.ts`) ou un fichier JSON de même forme
+`tools/terrain/zones/<id>.json` (c'est ce que fait l'outil graphique) en copiant une zone proche, par
 exemple `re` ou `esterel` (bord de mer) ou `billom` (campagne). Champs :
 
 ```ts
@@ -38,10 +104,10 @@ ma-zone: {
   originL93: { x: 733000, y: 6516000 },// Lambert-93, multiples de 1 000 m (centre approximatif)
   corridorTiles: { txMin: -7, txMax: 5, tzMin: -5, tzMax: 5 },
   start: { lon: 3.41, lat: 45.73 },    // départ par défaut (centre d'un village)
-  orthoPx: 1024,
-  enrich: { radiusM: 50, lidarVegetation: true, bdtopoBuildings: true },
+  orthoPx: 1024,                       // côté des orthophotos par tuile de 1 km
+  // enrich: facultatif (défaut QUALITY.enrich : rayon 600 m, arbres LiDAR, bâtiments BD TOPO) ; false = sans
   horizon: { halfSizeM: 30000, resM: 100 },
-  sea: true,                           // seulement au bord de la mer
+  sea: true,                           // facultatif, seulement au bord de la mer
   tours: [ … ],
 },
 ```
@@ -51,6 +117,9 @@ ma-zone: {
 - **Emprise** : `corridorTiles` compte en tuiles de 1 km autour de l'origine. `tx` = est (+), `tz` = sud (+).
   Exemple `txMin: -7, txMax: 5` = de 7 km à l'ouest à 6 km à l'est (13 km). Compter environ
   **12 s et 35 Mo de cache par tuile enrichie** ; viser 100 à 150 tuiles au plus.
+- **Champs facultatifs de `WorldBase`** : `enrich` (réglage ou `false`), `region`, `sea`, `private`.
+  Un monde privé (lieu personnel) se déclare en JSON dans `data/private/worlds/<id>.json`, même forme
+  que `WORLDS`, jamais versionné.
 - **Mer** : `sea: true` remplace les trous du relief par la mer au lieu des terres voisines.
 
 ### Écrire un tour
@@ -63,6 +132,8 @@ ma-zone: {
   start: { lon: 3.41, lat: 45.73 },    // ou un nom de lieu OSM : 'Billom'
   via: [{ lon: 3.43, lat: 45.75 }, 'Glaine-Montaigut', { lon: 3.40, lat: 45.77 }],
   climbNames: ['Côte de X'],           // facultatif : noms des côtes dans l'ordre
+  // facultatifs : koms: [{ id, name, from, to }] (montées chronométrées),
+  //               allowTracks: true (pistes permises, pénalisées : secteurs pavés)
 }
 ```
 
@@ -102,6 +173,11 @@ Options utiles :
 - `--offline` : cache seul, échoue si une donnée manque ;
 - `--graph-only` : ne réécrit que `graph.json` (quelques minutes, sans tuiles ni tours).
 
+Variables d'environnement : `TERRAIN_WORLD=<id>` (équivalent de `--world`), `TERRAIN_OFFLINE=1`
+(équivalent de `--offline`), `TERRAIN_OUT_DIR=<dossier>` (construire à côté puis basculer d'un coup,
+utile si `C:` est plein). `--routes-only` (script `build:routes`) ne concerne que les mondes
+`garmin`, pas les zones `open`.
+
 Temps : environ 3 minutes la première fois pour une zone de 7 × 7 km, plusieurs dizaines de
 minutes pour une zone de 13 × 11 km avec orthophotos. Le journal détaille chaque étape (OSM, MNT
 LiDAR, enrichissement, graphe, tours, tuiles, horizon).
@@ -136,8 +212,8 @@ Problèmes fréquents :
   dans une zone coupée par la limite de l'emprise ; le déplacer ou agrandir `corridorTiles`.
 - **Aller-retour sur la même route** : normal pour une impasse ; le tour est publié en boucle quand
   il revient au départ dans le même sens (`circuit.ts`).
-- **Overpass en panne** : `TERRAIN_OVERPASS=<url>` pour un autre miroir, ou `--osm-api` pour l'API
-  principale d'OSM. Derrière un proxy d'entreprise : `NODE_USE_ENV_PROXY=1`.
+- **Overpass en panne** : `TERRAIN_OVERPASS=<url>[,<url>…]` pour d'autres miroirs (`--osm-api` existe
+  seulement pour `build-tiles.ts`, pas pour `build:world`). Derrière un proxy d'entreprise : `NODE_USE_ENV_PROXY=1`.
 
 ## 4. Catalogue et packs
 
@@ -163,7 +239,9 @@ Deux fichiers côté client :
   région, nom) pour la placer sur la carte de France. Le centre se déduit de `originL93` et de
   `bounds` dans `world.json`.
 
-Puis relancer `pnpm typecheck` et `pnpm test`.
+Les deux listes doivent contenir les mêmes identifiants que `WORLDS` (plus les zones privées
+voulues) : vérifier qu'aucune zone déclarée dans `config.ts` n'est absente. Les montées et
+Chevreuse y figurent avec `open: false`. Puis relancer `pnpm typecheck` et `pnpm test`.
 
 ## 6. Déployer
 

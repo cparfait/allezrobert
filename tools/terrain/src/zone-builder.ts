@@ -158,6 +158,8 @@ interface Step {
   name: string;
   cmd: string;
   status: 'pending' | 'running' | 'done' | 'failed' | 'cancelled';
+  /** Sortie du pas (vérifications seulement : sert au tableau de résultats). */
+  out?: string;
 }
 interface Job {
   id: string;
@@ -166,6 +168,8 @@ interface Job {
   endedAt?: string;
   pid?: number;
   steps: Step[];
+  /** Vérification de zones : un pas en échec n'arrête pas les suivants. */
+  keepGoing?: boolean;
 }
 
 let job: Job | null = null;
@@ -251,6 +255,82 @@ async function startBuild(opts: { id: string; noOrtho: boolean; offline: boolean
   return job;
 }
 
+/** Zones construites (dossier avec world.json), prêtes à être vérifiées. */
+function builtZoneIds(): string[] {
+  try {
+    return fs
+      .readdirSync(PUBLIC_WORLDS, { withFileTypes: true })
+      .filter((d) => d.isDirectory() && fs.existsSync(path.join(PUBLIC_WORLDS, d.name, 'world.json')))
+      .map((d) => d.name)
+      .filter((id) => !!allWorlds()[id]);
+  } catch {
+    return [];
+  }
+}
+
+/** Vérification seule (verify-world) d'une ou de toutes les zones construites, sans rien reconstruire. */
+async function startVerify(ids: string[] | 'all'): Promise<Job> {
+  if (jobRunning()) throw new Error('un travail de l’outil est déjà en cours');
+  const built = builtZoneIds();
+  const list = ids === 'all' ? built : ids;
+  if (!list.length) throw new Error('aucune zone construite à vérifier');
+  for (const id of list) if (!built.includes(id)) throw new Error(`zone « ${id} » inconnue ou non construite`);
+  const others = await otherBuilds();
+  if (others.length) throw new Error(`une construction tourne déjà ailleurs, rien lancé :\n${others.join('\n')}`);
+  const steps: Step[] = list.map((id) => ({ name: `verify ${id}`, cmd: `pnpm --filter @allezrobert/terrain exec tsx src/verify-world.ts --world ${id}`, status: 'pending' as const }));
+  job = { id: list.length === 1 ? (list[0] as string) : 'toutes-les-zones', status: 'running', startedAt: new Date().toISOString(), steps, keepGoing: true };
+  cancelled = false;
+  fs.mkdirSync(STATE_DIR, { recursive: true });
+  fs.writeFileSync(LOG_FILE, `# ${job.startedAt} — vérification de ${list.length} zone(s)\n`);
+  persist();
+  void runSteps();
+  return job;
+}
+
+interface VerifyRoute {
+  route: string;
+  km: number;
+  meanCm: number;
+  maxCm: number;
+  dyCm: number;
+  /** Alertes lisibles : route décalée du terrain en moyenne, ou grand écart ponctuel (pont, tunnel, erreur). */
+  warn: string[];
+}
+interface VerifyRow {
+  zone: string;
+  status: Step['status'];
+  routes: VerifyRoute[];
+  edgeMaxCm: number | null;
+  error?: string;
+}
+
+/** Résultats de verify-world rangés par zone, à partir de la sortie des pas de vérification. */
+function verifySummary(j: Job | null): VerifyRow[] | null {
+  if (!j || !j.steps.some((s) => s.name.startsWith('verify'))) return null;
+  const rows: VerifyRow[] = [];
+  for (const s of j.steps) {
+    if (!s.name.startsWith('verify')) continue;
+    const out = s.out ?? '';
+    const routes: VerifyRoute[] = [];
+    for (const line of out.split(/\r?\n/)) {
+      const m = /^(\S+) : ([\d.]+) km.*écart terrain hi\/route : moyen ([\d.]+) cm, max ([\d.]+) cm sur \d+ points ; Δy max entre points ([\d.]+) cm/.exec(line);
+      if (!m) continue;
+      const meanCm = Number(m[3]);
+      const maxCm = Number(m[4]);
+      const dyCm = Number(m[5]);
+      const warn: string[] = [];
+      if (meanCm > 5) warn.push(`route décalée du terrain en moyenne (${meanCm} cm) : coureurs enfoncés ou en l'air`);
+      if (maxCm > 300) warn.push(`écart ponctuel de ${(maxCm / 100).toFixed(1)} m : pont, tunnel ou route mal posée`);
+      if (dyCm > 100) warn.push(`marche de ${dyCm} cm entre deux points : saut de hauteur`);
+      routes.push({ route: m[1] as string, km: Number(m[2]), meanCm, maxCm, dyCm, warn });
+    }
+    const edges = [...out.matchAll(/raccord des bords \S+ : écart max ([\d.]+) cm/g)].map((e) => Number(e[1]));
+    const err = /Error:[^\n]*/.exec(out)?.[0];
+    rows.push({ zone: s.name.startsWith('verify ') ? s.name.slice(7) : j.id, status: s.status, routes, edgeMaxCm: edges.length ? Math.max(...edges) : null, ...(err ? { error: err.slice(0, 200) } : {}) });
+  }
+  return rows;
+}
+
 async function runSteps(): Promise<void> {
   const j = job!;
   for (const step of j.steps) {
@@ -261,8 +341,12 @@ async function runSteps(): Promise<void> {
       child = spawn(step.cmd, { shell: true, cwd: REPO_ROOT, detached: process.platform !== 'win32', env: { ...process.env, FORCE_COLOR: '0' } });
       j.pid = child.pid;
       persist();
-      child.stdout?.on('data', (b: Buffer) => log(b.toString()));
-      child.stderr?.on('data', (b: Buffer) => log(b.toString()));
+      const keep = (b: Buffer) => {
+        log(b.toString());
+        if (step.name.startsWith('verify') && (step.out?.length ?? 0) < 20000) step.out = (step.out ?? '') + b.toString();
+      };
+      child.stdout?.on('data', keep);
+      child.stderr?.on('data', keep);
       child.on('error', (e) => {
         log(`erreur : ${e.message}\n`);
         resolve(false);
@@ -274,7 +358,7 @@ async function runSteps(): Promise<void> {
     });
     step.status = cancelled ? 'cancelled' : ok ? 'done' : 'failed';
     persist();
-    if (!ok) break;
+    if (!ok && !j.keepGoing) break;
   }
   j.status = cancelled ? 'cancelled' : j.steps.every((s) => s.status === 'done') ? 'done' : 'failed';
   for (const s of j.steps) if (s.status === 'pending') s.status = 'cancelled';
@@ -416,7 +500,7 @@ const server = http.createServer(async (req, res) => {
     }
     if (req.method === 'GET' && url.pathname === '/api/job') {
       const { text, size } = readLog(Number(url.searchParams.get('from') ?? 0));
-      return send(res, 200, { job, text, size });
+      return send(res, 200, { job, text, size, verify: verifySummary(job) });
     }
     if (req.method === 'GET' && url.pathname === '/api/geo') {
       // conversions Lambert-93 ↔ WGS84 pour la page (une seule implémentation de la projection)
@@ -437,6 +521,12 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'POST' && url.pathname === '/api/build') {
       const b = (await bodyOf(req)) as Record<string, unknown>;
       const j = await startBuild({ id: String(b.id ?? ''), noOrtho: !!b.noOrtho, offline: !!b.offline, graphOnly: !!b.graphOnly, verify: b.verify !== false, packs: b.packs !== false });
+      return send(res, 200, { job: j });
+    }
+    if (req.method === 'POST' && url.pathname === '/api/verify') {
+      const b = (await bodyOf(req)) as { ids?: unknown };
+      const ids = Array.isArray(b.ids) ? b.ids.map(String) : 'all';
+      const j = await startVerify(ids);
       return send(res, 200, { job: j });
     }
     if (req.method === 'GET' && url.pathname === '/api/plan') {

@@ -122,7 +122,7 @@ async function switchRoute(scene: Scene3D, s: Settings, onTile?: (done: number, 
 function worldOverlay(label: string): HTMLElement {
   const el = document.createElement('div');
   el.className = 'world-wait';
-  el.innerHTML = `<div class="world-wait-box"><div class="world-wait-bar"><i></i></div><span>${label}</span></div>`;
+  el.innerHTML = `<div class="world-wait-box"><div class="world-wait-bar"><i></i></div><span>${label}</span><small class="world-wait-tip"></small></div>`;
   // Petit coureur qui pédale au-dessus de la barre.
   el.firstElementChild?.prepend(waitBike());
   document.body.appendChild(el);
@@ -144,8 +144,57 @@ function setWaitProgress(el: HTMLElement, p: number): void {
   }
   if (label) {
     label.dataset.text ??= label.textContent ?? '';
-    label.textContent = `${label.dataset.text} ${Math.round(v * 100)} %`;
+    // Écran de sortie : le texte dit où en est la préparation (terrain, puis graphismes, puis finitions).
+    const base = el.dataset.stages ? waitStage(v) : label.dataset.text;
+    label.textContent = `${base} ${Math.round(v * 100)} %`;
   }
+}
+
+/** Étape en cours de la préparation d'une sortie, d'après l'avancement (voir `tileStage` : 0–0,55 terrain, 0,55–0,85 shaders, au-delà finitions). */
+function waitStage(p: number): string {
+  const fr = getLang() === 'fr';
+  if (p < 0.55) return fr ? 'Chargement du terrain…' : 'Loading the terrain…';
+  if (p < 0.85) return fr ? 'Préparation des graphismes…' : 'Preparing the graphics…';
+  return fr ? 'Derniers réglages…' : 'Final touches…';
+}
+
+/** Petites phrases qui défilent pendant l'attente (sortie). */
+const WAIT_TIPS: Record<'fr' | 'en', string[]> = {
+  fr: [
+    'Le garage change ton maillot, ton casque, ton vélo et même le nombre de bidons.',
+    'Les effets d’image se règlent depuis la pause : les couper rend le jeu plus fluide.',
+    'Relief LiDAR HD de l’IGN, routes d’OpenStreetMap : les paysages sont ceux du vrai terrain.',
+    'Le vent couche l’herbe et fait bouger les arbres : regarde dans quel sens il souffle.',
+    'Tes sorties se règlent à ta taille : la selle suit la longueur de tes jambes.',
+    'Le peloton se relaie : abrite-toi derrière un équipier pour économiser des watts.',
+  ],
+  en: [
+    'The garage changes your jersey, helmet, bike and even the number of bottles.',
+    'Image effects are set from the pause screen: turning them off makes the game smoother.',
+    'IGN LiDAR HD relief and OpenStreetMap roads: the landscapes follow the real terrain.',
+    'Wind lays the grass down and sways the trees: notice which way it blows.',
+    'Your bike fits your size: the saddle follows your leg length.',
+    'The bunch takes turns: tuck behind a teammate to save watts.',
+  ],
+};
+
+/** Fait défiler les phrases de `WAIT_TIPS` dans l'écran d'attente, jusqu'à ce qu'il disparaisse. */
+function rotateTips(el: HTMLElement): void {
+  const tip = el.querySelector<HTMLElement>('.world-wait-tip');
+  if (!tip) return;
+  const list = WAIT_TIPS[getLang() === 'fr' ? 'fr' : 'en'];
+  let i = Math.floor(Math.random() * list.length);
+  const show = () => {
+    if (!el.isConnected) return clearInterval(timer);
+    tip.style.opacity = '0';
+    setTimeout(() => {
+      tip.textContent = list[i++ % list.length] as string;
+      tip.style.opacity = '1';
+    }, 350);
+  };
+  tip.textContent = list[i++ % list.length] as string;
+  tip.style.opacity = '1';
+  const timer = setInterval(show, 4500);
 }
 
 /** Étapes de la préparation d'une sortie sur la barre : tuiles, puis shaders, puis objets de la sortie. */
@@ -154,8 +203,11 @@ const tileStage = (el: HTMLElement, from: number, to: number) => (done: number, 
 /** Écran opaque « Préparation de la sortie… » (cache le menu, puis le monde tant que la première image n'est pas prête). */
 function rideOverlay(): HTMLElement {
   const el = worldOverlay(getLang() === 'fr' ? 'Préparation de la sortie…' : 'Preparing the ride…');
-  el.style.background = 'rgb(6, 9, 15)';
+  // Même fond que l'écran de chargement du jeu (index.html, #splash) : lueur chaude sur fond sombre, sans bleu en plus.
+  el.style.background = 'radial-gradient(ellipse at 70% 30%, rgba(255, 196, 92, 0.22), transparent 55%), linear-gradient(180deg, #1a2333 0%, #0a0e16 70%)';
   el.style.backdropFilter = 'none';
+  el.dataset.stages = '1';
+  rotateTips(el);
   return el;
 }
 
@@ -1248,10 +1300,14 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
    * Demi-tour animé : le cap saute d'un demi-tour d'une image à l'autre (itinéraire remonté, chemin
    * inversé du monde ouvert) ; le coureur affiché tourne en arc sur la chaussée pendant UTURN_S.
    */
-  const UTURN_S = 1.8;
+  const UTURN_S = 3.4;
   let turn: { t: number; fromHeading: number; delta: number; from: THREE.Vector3; fwdX: number; fwdZ: number } | null = null;
   const shownPos = new THREE.Vector3(Number.NaN, 0, 0);
   const shownDir = new THREE.Vector3();
+  /** Caméra pendant un demi-tour : elle reste en place pendant que le vélo poursuit sa route et fait son arc, puis pivote doucement. */
+  const camPos = new THREE.Vector3();
+  const camDir = new THREE.Vector3();
+  let camTurn = false;
   let condAcc = Infinity;
   // Pour les trophées : pluie et nuit rencontrées pendant la sortie.
   let rainSeen = false;
@@ -1370,8 +1426,16 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
       shownPos.x += turn.fwdX * bulge;
       shownPos.z += turn.fwdZ * bulge;
       lean = -Math.sign(turn.delta) * 0.28 * Math.sin(Math.PI * t);
+      // Caméra : immobile le premier tiers du demi-tour (l'image « s'arrête », le vélo continue devant), puis elle
+      // rejoint doucement la nouvelle position et le nouveau cap (arrivée sur `pos` et `dir` : pas de saut à la fin).
+      const c = Math.min(1, Math.max(0, (t - 0.3) / 0.7));
+      const cs = c * c * (3 - 2 * c);
+      camPos.lerpVectors(turn.from, pos, cs);
+      const camHeading = turn.fromHeading + turn.delta * cs;
+      camDir.set(Math.sin(camHeading), 0, Math.cos(camHeading));
+      camTurn = true;
       if (turn.t >= 1) turn = null;
-    }
+    } else camTurn = false;
     bank += (lean - bank) * Math.min(1, dt * 3);
     shownDir.set(Math.sin(shownHeading), 0, Math.cos(shownHeading));
     avatar.root.position.copy(shownPos);
@@ -1397,8 +1461,8 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
 
     const eyeOk = rig.mode === 'cockpit' && !!avatar.eyeWorld;
     if (eyeOk) avatar.eyeWorld?.(eye, hands);
-    // Pendant un demi-tour, la caméra suit le coureur affiché (elle tourne avec lui).
-    rig.update(dt, { position: turn ? shownPos : pos, dir: turn ? shownDir : dir, distM: ride.state.distM, speedMs: ride.state.speedMs, sign: ride.dir, ...(eyeOk ? { eye, hands } : {}) });
+    // Pendant un demi-tour, la caméra reste d'abord en place puis pivote doucement (voir camPos / camDir).
+    rig.update(dt, { position: camTurn ? camPos : pos, dir: camTurn ? camDir : dir, distM: ride.state.distM, speedMs: ride.state.speedMs, sign: ride.dir, ...(eyeOk ? { eye, hands } : {}) });
     lap('poussière, caméra');
     // Les tuiles se chargent autour de la caméra libre, où qu'elle aille ; sinon autour du coureur.
     world.update(dt, rig.mode === 'free' ? engine.camera.position : pos);

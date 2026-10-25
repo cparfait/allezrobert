@@ -380,7 +380,7 @@ export class FriendsPanel {
     const n = this.selected.size;
     const r = this.routeName(this.hooks.currentRouteId()) ?? '';
     return `<span>${n ? (L ? `${n} ami${n > 1 ? 's' : ''} coché${n > 1 ? 's' : ''}` : `${n} friend${n > 1 ? 's' : ''} selected`) : L ? 'Coche des amis pour les inviter' : 'Tick friends to invite them'}<small>${L ? `Sortie de groupe sur ${esc(r)} ; ils reçoivent l’invitation dans leur menu.` : `Group ride on ${esc(r)}; they get the invite in their menu.`}</small></span>
-      <button class="btn small primary" data-fr="ride-with" ${n ? '' : 'disabled'}>${L ? 'Partir et inviter' : 'Ride and invite'} →</button>`;
+      <button class="btn small primary" data-fr="ride-with" ${n ? '' : 'disabled'}>${L ? 'Partir et inviter' : 'Ride and invite'}</button>`;
   }
 
   private paintInviteBar(): void {

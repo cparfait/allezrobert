@@ -176,7 +176,7 @@ export class CompanionQr {
       <div class="cmp-row">
         ${
           this.prestart
-            ? `<button class="btn primary" data-act="close">${fr ? 'Lancer la sortie →' : 'Start the ride →'}</button><button class="btn ghost" data-act="never">${fr ? 'Ne plus proposer' : 'Don’t offer again'}</button>`
+            ? `<button class="btn primary" data-act="close">${fr ? 'Lancer la sortie' : 'Start the ride'}</button><button class="btn ghost" data-act="never">${fr ? 'Ne plus proposer' : 'Don’t offer again'}</button>`
             : this.offered
               ? `<button class="btn primary" data-act="close">${fr ? 'Plus tard' : 'Later'}</button><button class="btn ghost" data-act="never">${fr ? 'Ne plus proposer' : 'Don’t offer again'}</button>`
               : `<button class="btn" data-act="new">${fr ? 'Nouveau code' : 'New code'}</button>`

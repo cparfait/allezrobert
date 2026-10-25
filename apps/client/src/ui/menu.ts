@@ -12,6 +12,7 @@ import { music } from '../audio/music.ts';
 import { spotify, redirectUri } from '../audio/spotify.ts';
 import { renderSoundSettings } from './soundSettings.ts';
 import { renderCompanionSettings } from './companionQr.ts';
+import { renderExpertSettings } from './expertZones.ts';
 import { loadProgress, equipItem, equipPlainBike, SLOT_LABEL } from './garage.ts';
 import { AtelierPanel, COIN } from './atelierPanel.ts';
 import type { AtelierState } from './atelier.ts';
@@ -483,7 +484,8 @@ export class MainMenu {
     const near = WEATHER_PRESETS.map(([id, w]) => [id, Math.abs(w.clouds - s.clouds) + Math.abs(w.rain - s.rain) + Math.abs(w.fog - s.fog)] as const).sort((a, b) => a[1] - b[1])[0];
     const sky = near && near[1] < 0.35 ? near[0] : '';
     const wind = String(WIND_STEPS.reduce((best, v) => (Math.abs(v - s.windMs) < Math.abs(best - s.windMs) ? v : best), WIND_STEPS[0] as number));
-    return `<div class="mm-weather">
+    // Replié par défaut : le titre rappelle l'heure choisie ; l'état ouvert / fermé est mémorisé comme dans les Réglages.
+    return `<details class="set-sec" data-sec="weather" ${this.settingsOpen.has('weather') ? 'open' : ''}><summary>${L ? 'Heure et météo de la sortie' : 'Ride time and weather'} <span style="text-transform:none;letter-spacing:0;font-weight:500;opacity:.8;margin-left:auto">${this.hourLabel(s.hour)}</span></summary><div class="set-body"><div class="mm-weather">
       <label class="field">${L ? 'Heure de départ' : 'Start time'} <span id="m-hourv">${this.hourLabel(s.hour)}</span><input id="m-hour" type="range" min="5" max="22" step="0.25" value="${s.hour}" /></label>
       <div class="field">${L ? 'Ciel' : 'Sky'}${this.seg('m-wx', sky, [
         ['sun', L ? '☀ Soleil' : '☀ Sunny'],
@@ -501,7 +503,7 @@ export class MainMenu {
         ['0', L ? 'Fixe' : 'Fixed'],
         ['1', L ? 'Qui évolue' : 'Changing'],
       ])}</div>
-    </div>`;
+    </div></div></details>`;
   }
 
   /** Niveau des coureurs IA, en part de la FTP du joueur (chacun varie ensuite autour, forme du jour comprise). */
@@ -652,7 +654,7 @@ export class MainMenu {
     if (this.tab === 'home') {
       this.root.innerHTML = `<div class="mm mm-tab-home">
         <div class="mm-hero mm-hero-home"><h1>Allez <em>Robert</em> !</h1><p>${L ? 'Rouler ensemble, chacun chez soi.' : 'Ride together, each from home.'}</p></div>
-        <button class="mm-go mm-home-go" data-tab="ride">${t('ride')} <span>→</span></button>
+        <button class="mm-go mm-home-go" data-tab="ride">${t('ride')}</button>
       </div>`;
       this.bind();
       return;
@@ -693,7 +695,7 @@ export class MainMenu {
       <div id="m-friendbar"></div>
       <footer class="mm-foot">
         <div class="mm-status" id="m-status"></div>
-        ${this.tab === 'ride' ? `<button id="m-start" class="mm-go">${t('ride')} <span>→</span></button>` : `<button class="mm-go ghost" data-tab="ride">← ${t('ride')}</button>`}
+        ${this.tab === 'ride' ? `<button id="m-start" class="mm-go">${t('ride')}</button>` : `<button class="mm-go ghost" data-tab="ride">← ${t('ride')}</button>`}
       </footer>
     </div>`;
     if (this.tab === 'devices') this.renderDevices();
@@ -703,6 +705,16 @@ export class MainMenu {
     this.renderMusic();
     renderSoundSettings(this.root.querySelector('#m-sound-settings'));
     renderCompanionSettings(this.root.querySelector('#m-companion-settings'));
+    renderExpertSettings(this.root.querySelector('#m-expert-settings'));
+    // Rubriques repliables des Réglages : on retient celles qui sont ouvertes (l'écran est redessiné à chaque changement).
+    for (const d of this.root.querySelectorAll<HTMLDetailsElement>('details.set-sec')) {
+      d.addEventListener('toggle', () => {
+        const id = d.dataset.sec ?? '';
+        if (d.open) this.settingsOpen.add(id);
+        else this.settingsOpen.delete(id);
+        localStorage.setItem('ar.settingsOpen2', JSON.stringify([...this.settingsOpen]));
+      });
+    }
     this.bind();
     this.friends.mount(this.root, this.tab === 'friends');
   }
@@ -831,7 +843,7 @@ export class MainMenu {
     const map = this.openWorld && this.selMap && this.s.mode !== 'workout' ? this.planner.preview(route, free ? this.freeStart : null) : '';
     const body = map ? `<div class="mm-selmap">${map}</div>` : route ? this.routeCard(route) : '';
     const pickers = `<div class="mm-pickers mm-pickers-one">
-      <button class="mm-pick mm-pick-big" data-picker="zones"><b>${L ? 'CHOISIR MA SORTIE' : 'CHOOSE MY RIDE'}</b><i aria-hidden="true">›</i></button>
+      <button class="mm-pick mm-pick-big" data-picker="zones"><b>${L ? 'CHOISIR MA SORTIE' : 'CHOOSE MY RIDE'}</b></button>
     </div>`;
     // Sans carte de la zone, la fiche du parcours porte déjà son nom et ses chiffres.
     const head = map || !route ? `<b>${esc(what)}</b><span>${esc(stats)}</span>` : '';
@@ -1405,13 +1417,28 @@ export class MainMenu {
     </section>`;
   }
 
+  /** Rubriques repliables de l'onglet Réglages ouvertes en ce moment (mémorisées, pour résister aux réaffichages). */
+  private settingsOpen = new Set<string>(
+    (() => {
+      try {
+        // Tout est replié au départ : l'utilisateur ouvre ce dont il a besoin.
+        return JSON.parse(localStorage.getItem('ar.settingsOpen2') ?? '[]') as string[];
+      } catch {
+        return [];
+      }
+    })(),
+  );
+
+  /** Rubrique repliable de l'onglet Réglages : titre cliquable, contenu replié ou non. */
+  private settingsSection(id: string, title: string, body: string): string {
+    return `<details class="set-sec" data-sec="${id}" ${this.settingsOpen.has(id) ? 'open' : ''}><summary>${title}</summary><div class="set-body">${body}</div></details>`;
+  }
+
   private settingsHtml(): string {
     const s = this.s;
     const L = fr();
-    return `<section class="mm-panel mm-center mm-wide">${this.closeBtn()}
-      <header class="mm-head"><h2>${t('settings')}</h2></header>
-      <h3>${L ? 'Graphismes et conditions de la sortie' : 'Graphics and ride conditions'}</h3>
-      <div class="grid3">
+    const sec = (id: string, title: string, body: string) => this.settingsSection(id, title, body);
+    const graphics = `<div class="grid3">
         <div class="field">${t('quality')}${this.seg('m-quality', s.quality, (['low', 'medium', 'high', 'ultra'] as const).map((q) => [q, t(q)]))}</div>
         <div class="field">${L ? 'Format de l\'image' : 'Picture format'}${this.seg('m-aspect', getAspectCap(), [['full', L ? 'Plein écran' : 'Full'], ['16:9', '16:9'], ['21:9', '21:9'], ['32:9', '32:9']])}</div>
         <div class="field">${L ? 'Zone de l\'interface' : 'Interface area'}${this.seg('m-uiaspect', getUiAspectCap(), [['full', L ? 'Toute la largeur' : 'Full width'], ['16:9', '16:9'], ['21:9', '21:9']])}</div>
@@ -1425,9 +1452,8 @@ export class MainMenu {
           ['0', L ? 'Fixe' : 'Fixed'],
           ['1', L ? 'Qui évolue' : 'Changing'],
         ])}</div>
-      </div>
-      <h3>${L ? 'Home trainer' : 'Smart trainer'}</h3>
-      <div class="grid3">
+      </div>`;
+    const trainer = `<div class="grid3">
         <label class="field">${t('difficulty')} <span id="m-diffv">${Math.round(s.trainerDifficulty * 100)} %</span><input id="m-diff" type="range" min="0" max="1" step="0.05" value="${s.trainerDifficulty}" /></label>
         <label class="field" title="${L ? '100 % : masse et roues réelles. Plus bas, la vitesse suit plus vite les relances (volant du home trainer).' : '100%: real mass and wheels. Lower: speed follows accelerations faster (trainer flywheel).'}">${L ? 'Inertie' : 'Inertia'} <span id="m-inertiav">${Math.round(s.inertia * 100)} %</span><input id="m-inertia" type="range" min="0.6" max="1" step="0.05" value="${s.inertia}" /></label>
         <div class="field">Transmission${this.seg('m-drive', s.drivetrain, [
@@ -1438,20 +1464,12 @@ export class MainMenu {
           ['0', L ? 'Non' : 'Off'],
           ['1', '3 s'],
         ])}</div>
-      </div>
-      <h3>${L ? 'Coureurs IA' : 'AI riders'}</h3>
-      <div class="grid3">
+      </div>`;
+    const ai = `<div class="grid3">
         <label class="field">${L ? 'Nombre' : 'Count'}<input id="m-ai" type="number" min="0" max="19" value="${s.aiRiders}" /></label>
         <div class="field">${L ? 'Niveau' : 'Level'}${this.aiLevelSeg()}</div>
-      </div>
-      <h3>${L ? 'Musique' : 'Music'}</h3>
-      <div id="m-music-settings" class="mm-musicset"></div>
-      <h3>${L ? 'Son' : 'Sound'}</h3>
-      <div id="m-sound-settings"></div>
-      <h3>${L ? 'Appli compagnon (téléphone)' : 'Companion app (phone)'}</h3>
-      <div id="m-companion-settings"></div>
-      <h3>${L ? 'Langue et envoi des sorties' : 'Language and ride upload'}</h3>
-      <div class="grid3">
+      </div>`;
+    const lang = `<div class="grid3">
         <div class="field">${t('language')}${this.seg('m-lang', s.lang, [
           ['fr', 'Français'],
           ['en', 'English'],
@@ -1460,7 +1478,18 @@ export class MainMenu {
           ['skip', L ? 'Ne pas envoyer' : 'Don’t upload'],
           ['send', L ? 'Envoyer' : 'Upload'],
         ])}</div>
-      </div>
+      </div>`;
+    // Rubriques repliables (la première ouverte au départ, l'état est mémorisé) ; le mode expert est tout en bas.
+    return `<section class="mm-panel mm-center mm-wide">${this.closeBtn()}
+      <header class="mm-head"><h2>${t('settings')}</h2></header>
+      ${sec('graphics', L ? 'Graphismes et conditions de la sortie' : 'Graphics and ride conditions', graphics)}
+      ${sec('trainer', L ? 'Home trainer' : 'Smart trainer', trainer)}
+      ${sec('ai', L ? 'Coureurs IA' : 'AI riders', ai)}
+      ${sec('music', L ? 'Musique' : 'Music', '<div id="m-music-settings" class="mm-musicset"></div>')}
+      ${sec('sound', L ? 'Son' : 'Sound', '<div id="m-sound-settings"></div>')}
+      ${sec('companion', L ? 'Appli compagnon (téléphone)' : 'Companion app (phone)', '<div id="m-companion-settings"></div>')}
+      ${sec('lang', L ? 'Langue et envoi des sorties' : 'Language and ride upload', lang)}
+      ${sec('expert', L ? 'Mode expert : créer mes zones' : 'Expert mode: build my own zones', '<div id="m-expert-settings"></div>')}
     </section>`;
   }
 

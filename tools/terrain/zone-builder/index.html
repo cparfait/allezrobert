@@ -105,6 +105,11 @@
   <div class="row" style="margin-top:6px"><button id="buildOnly">Construire / reprendre</button><button id="cancel">Annuler</button></div>
   <div id="msg"></div>
 
+  <h2>Vérifier les zones</h2>
+  <p style="color:var(--dim);margin:2px 0 6px">verify-world sans rien reconstruire : écart route/terrain (coureurs enfoncés ou en l’air), sauts de hauteur, raccords de tuiles.</p>
+  <div class="row"><button id="verifyOne">Vérifier cette zone</button><button id="verifyAll">Vérifier toutes les zones construites</button></div>
+  <div id="verifyOut"></div>
+
   <h2>Journal</h2>
   <div id="steps"></div>
   <pre id="log">—</pre>
@@ -334,14 +339,30 @@ $('saveBuild').onclick = async () => { if (!draft) return; try { await save(); a
 $('buildOnly').onclick = async () => { if (!draft || !draft.id) return; try { await startBuild(); } catch (e) { $('msg').innerHTML = `<span class="err">${esc(e.message).replace(/\n/g, '<br>')}</span>`; } };
 $('cancel').onclick = () => api('/api/cancel', {}).then(poll);
 async function startBuild() { logPos = 0; $('log').textContent = ''; const r = await api('/api/build', buildOpts()); showJob(r.job); poll(); }
+async function startVerify(ids) { logPos = 0; $('log').textContent = ''; $('verifyOut').textContent = ''; const r = await api('/api/verify', ids ? { ids } : {}); showJob(r.job); poll(); }
+$('verifyOne').onclick = async () => { if (!draft || !draft.id) return; try { await startVerify([draft.id]); } catch (e) { $('verifyOut').innerHTML = `<span class="err">${esc(e.message).replace(/\n/g, '<br>')}</span>`; } };
+$('verifyAll').onclick = async () => { try { await startVerify(null); } catch (e) { $('verifyOut').innerHTML = `<span class="err">${esc(e.message).replace(/\n/g, '<br>')}</span>`; } };
+function showVerify(rows) {
+  if (!rows || !rows.length) return;
+  const bad = rows.filter((z) => z.status === 'failed' || z.error || z.routes.some((r) => r.warn.length));
+  let h = `<div style="margin:6px 0"><b>${rows.length}</b> zone(s) vérifiée(s), <b class="${bad.length ? 'err' : 'good'}">${bad.length}</b> à regarder.</div>`;
+  for (const z of rows) {
+    const flagged = z.status === 'failed' || z.error || z.routes.some((r) => r.warn.length);
+    h += `<details ${flagged ? 'open' : ''} style="margin:3px 0"><summary class="${flagged ? 'err' : 'good'}">${flagged ? '⚠' : '✓'} ${esc(z.zone)}${z.status === 'running' ? ' …' : ''}${z.edgeMaxCm != null ? ` · raccords ${z.edgeMaxCm} cm` : ''}</summary>`;
+    if (z.error) h += `<div class="err">${esc(z.error)}</div>`;
+    for (const r of z.routes) h += `<div class="${r.warn.length ? 'err' : ''}" style="margin-left:14px">${esc(r.route)} · ${r.km} km · moyen ${r.meanCm} cm · max ${r.maxCm} cm · Δy ${r.dyCm} cm${r.warn.length ? '<br>' + r.warn.map(esc).join('<br>') : ''}</div>`;
+    h += '</details>';
+  }
+  $('verifyOut').innerHTML = h;
+}
 
 let logPos = 0, polling = false, lastJob = null;
 const ICON = { pending: '·', running: '▶', done: '✓', failed: '✗', cancelled: '■' };
 function showJob(j) {
   lastJob = j; if (!j) { $('steps').textContent = ''; return; }
   $('steps').innerHTML = `<div>Zone <b>${esc(j.id)}</b> — ${esc(j.status)}</div>` + j.steps.map((s) => `<div class="${s.status === 'failed' ? 'err' : s.status === 'done' ? 'good' : ''}">${ICON[s.status]} ${esc(s.name)}</div>`).join('');
-  const running = j.status === 'running'; $('cancel').disabled = !running; $('save').disabled = running; $('saveBuild').disabled = running; $('buildOnly').disabled = running;
-  if (j.status === 'done') $('msg').innerHTML = `<span class="good">Terminé. Le jeu : <code>?world=${esc(j.id)}</code> (menu → Monde).</span>`;
+  const running = j.status === 'running'; $('cancel').disabled = !running; $('save').disabled = running; $('saveBuild').disabled = running; $('buildOnly').disabled = running; $('verifyOne').disabled = running; $('verifyAll').disabled = running;
+  if (j.status === 'done' && !j.keepGoing) $('msg').innerHTML = `<span class="good">Terminé. Le jeu : <code>?world=${esc(j.id)}</code> (menu → Monde).</span>`;
 }
 async function poll() {
   if (polling) return; polling = true;
@@ -349,7 +370,7 @@ async function poll() {
     for (;;) {
       const r = await api('/api/job?from=' + logPos);
       if (r.text) { const pre = $('log'); const stick = pre.scrollTop + pre.clientHeight >= pre.scrollHeight - 20; pre.textContent += r.text; logPos = r.size; if (stick) pre.scrollTop = pre.scrollHeight; }
-      showJob(r.job);
+      showJob(r.job); showVerify(r.verify);
       if (!r.job || r.job.status !== 'running') { loadZones(); break; }
       await new Promise((res) => setTimeout(res, 1000));
     }
