@@ -1,6 +1,7 @@
 /**
  * Construction complète du monde « chevreuse » :
  *   pnpm --filter @allezrobert/terrain build:world [-- --no-ortho] [-- --offline] [-- --routes-only]
+ * Tous les mondes publiés (index.json), l'un après l'autre : `-- --all` (options transmises).
  * Montées célèbres (sans Garmin, voir build-climb.ts) : `-- --world alpe-dhuez`.
  *
  * 1. Traces Garmin (privées) → points sensibles, recalage, fréquentation des routes.
@@ -9,6 +10,7 @@
  * 4. Tuiles d'altitude creusées + entités, world.json.
  * 5. Audit vie privée des sorties.
  */
+import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import type { RouteData, WorldMeta } from '@allezrobert/shared';
@@ -62,6 +64,24 @@ import { ATTRIBUTION_LIDAR } from './lidar.ts';
 import { ATTRIBUTION_BDTOPO } from './bdtopo.ts';
 
 const args = new Set(process.argv.slice(2));
+if (args.has('--all')) {
+  // Tous les mondes publiés (index.json), un processus par monde (WORLD est fixé à l'import de config.ts) ;
+  // les autres options sont transmises. Un échec n'arrête pas la suite : bilan à la fin.
+  const catalogue = JSON.parse(fs.readFileSync(path.join(WORLDS_ROOT, 'index.json'), 'utf8')) as { zones: Array<{ id: string }> };
+  const rest = process.argv.slice(2).filter((a) => a !== '--all');
+  const failed: string[] = [];
+  const t0 = Date.now();
+  for (const [i, { id }] of catalogue.zones.entries()) {
+    console.log(`
+=== ${i + 1}/${catalogue.zones.length} : ${id} ===`);
+    const r = spawnSync(process.execPath, [...process.execArgv, process.argv[1] as string, '--world', id, ...rest], { stdio: 'inherit', env: { ...process.env, TERRAIN_WORLD: id } });
+    if (r.status !== 0) failed.push(id);
+  }
+  const min = Math.round((Date.now() - t0) / 60000);
+  console.log(`
+${catalogue.zones.length - failed.length}/${catalogue.zones.length} mondes construits en ${min} min${failed.length ? ` ; échecs : ${failed.join(', ')}` : ''}`);
+  process.exit(failed.length ? 1 : 0);
+}
 if (WORLD.kind !== 'open' && WORLD.open && !args.has('--routes-only')) {
   // monde ouvert autour des itinéraires déjà publiés (gardés tels quels) ; --routes-only les refait
   await import('./build-open.ts');

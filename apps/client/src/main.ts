@@ -226,7 +226,6 @@ function createMenuVideo(el: HTMLVideoElement | null) {
   let failed = false;
   let useWebm = false;
   let current = '';
-  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
   // Image fixe de la saison, affichée tout de suite sous la vidéo (et seule si la vidéo échoue).
   const still = document.getElementById('menu-still');
   const showStill = (season: Settings['season'] | null) => {
@@ -253,10 +252,13 @@ function createMenuVideo(el: HTMLVideoElement | null) {
     });
   }
   return {
-    /** Affiche la boucle ; false si impossible (fichier absent, mouvement réduit). */
+    /**
+     * Affiche la boucle ; false si impossible (fichier absent). Jouée même avec « réduire les animations »
+     * du système (coupé par défaut sur bien des PC Windows) : c'est le décor du menu, pas une animation d'interface.
+     */
     show(season: Settings['season']): boolean {
       showStill(season);
-      if (!el || failed || reduced) return true;
+      if (!el || failed) return true;
       // H.264 (décodé par toutes les cartes graphiques) sinon VP9 ; repli sur l'autre format en cas d'erreur.
       const ext = useWebm || !el.canPlayType('video/mp4; codecs="avc1.640028"') ? 'webm' : 'mp4';
       const src = `/menu/loop-${season}.${ext}?v=${MENU_MEDIA_VERSION}`;

@@ -26,6 +26,8 @@ const STATE_DIR = path.join(REPO_ROOT, 'data', 'cache', 'zone-builder');
 const BACKUP_DIR = path.join(STATE_DIR, 'backups');
 const JOB_FILE = path.join(STATE_DIR, 'job.json');
 const LOG_FILE = path.join(STATE_DIR, 'job.log');
+/** État de la dernière reconstruction de tous les mondes (gardé quand un autre travail remplace job.json). */
+const REBUILD_FILE = path.join(STATE_DIR, 'rebuild-all.json');
 
 const read = (f: string) => fs.readFileSync(f, 'utf8');
 const stamp = () => new Date().toISOString().replace(/[:.]/g, '-');
@@ -160,6 +162,10 @@ interface Step {
   status: 'pending' | 'running' | 'done' | 'failed' | 'cancelled';
   /** Sortie du pas (vérifications seulement : sert au tableau de résultats). */
   out?: string;
+  startedAt?: string;
+  endedAt?: string;
+  /** Monde reconstruit par ce pas (reconstruction de tous les mondes). */
+  zone?: string;
 }
 interface Job {
   id: string;
@@ -170,6 +176,8 @@ interface Job {
   steps: Step[];
   /** Vérification de zones : un pas en échec n'arrête pas les suivants. */
   keepGoing?: boolean;
+  /** Reconstruction de tous les mondes publiés (état gardé dans REBUILD_FILE). */
+  rebuildAll?: boolean;
 }
 
 let job: Job | null = null;
@@ -201,6 +209,52 @@ const jobRunning = () => job?.status === 'running';
 function persist(): void {
   fs.mkdirSync(STATE_DIR, { recursive: true });
   fs.writeFileSync(JOB_FILE, JSON.stringify(job, null, 1));
+  if (job?.rebuildAll) fs.writeFileSync(REBUILD_FILE, JSON.stringify(job, null, 1));
+}
+
+/** Dernière reconstruction de tous les mondes (en cours ou terminée), null si jamais lancée. */
+function rebuildState(): Job | null {
+  if (job?.rebuildAll) return job;
+  try {
+    const j = JSON.parse(read(REBUILD_FILE)) as Job;
+    if (j.status === 'running') {
+      // serveur relancé pendant la reconstruction : elle s'est arrêtée
+      j.status = 'failed';
+      for (const st of j.steps) if (st.status === 'running' || st.status === 'pending') st.status = 'cancelled';
+    }
+    return j;
+  } catch {
+    return null;
+  }
+}
+
+/** Mondes publiés (catalogue index.json) que l'outil sait reconstruire (hors mondes privés). */
+function publishedZoneIds(): string[] {
+  const all = allWorlds();
+  const cat = JSON.parse(read(path.join(PUBLIC_WORLDS, 'index.json'))) as { zones: Array<{ id: string }> };
+  return cat.zones.map((z) => z.id).filter((id) => all[id] && !all[id]!.private);
+}
+
+/**
+ * Reconstruit tous les mondes publiés, l'un après l'autre (un échec n'arrête pas la suite), puis les
+ * packs. `resume` : reprend la dernière reconstruction en gardant les mondes déjà faits.
+ */
+async function startRebuildAll(opts: { noOrtho: boolean; offline: boolean; resume: boolean }): Promise<Job> {
+  if (jobRunning()) throw new Error('un travail de l’outil est déjà en cours');
+  const others = await otherBuilds();
+  if (others.length) throw new Error(`une construction tourne déjà ailleurs, rien lancé :\n${others.join('\n')}`);
+  const prev = opts.resume ? rebuildState() : null;
+  const doneBefore = new Map((prev?.steps ?? []).filter((st) => st.zone && st.status === 'done').map((st) => [st.zone as string, st]));
+  const flags = [opts.noOrtho && '--no-ortho', opts.offline && '--offline'].filter(Boolean).join(' ');
+  const steps: Step[] = publishedZoneIds().map((id) => doneBefore.get(id) ?? { name: `build ${id}`, zone: id, cmd: `pnpm --filter @allezrobert/terrain build:world -- --world ${id}${flags ? ` ${flags}` : ''}`, status: 'pending' });
+  steps.push({ name: 'packs', cmd: 'pnpm --filter @allezrobert/terrain packs', status: 'pending' });
+  job = { id: 'tous-les-mondes', status: 'running', startedAt: prev && opts.resume ? prev.startedAt : new Date().toISOString(), steps, keepGoing: true, rebuildAll: true };
+  cancelled = false;
+  fs.mkdirSync(STATE_DIR, { recursive: true });
+  fs.writeFileSync(LOG_FILE, `# ${new Date().toISOString()} — reconstruction de ${steps.length - 1} monde(s)${doneBefore.size ? `, ${doneBefore.size} déjà faits gardés` : ''}\n`);
+  persist();
+  void runSteps();
+  return job;
 }
 
 function log(text: string): void {
@@ -338,7 +392,10 @@ async function runSteps(): Promise<void> {
   const j = job!;
   for (const step of j.steps) {
     if (cancelled) break;
+    if (step.status === 'done') continue; // déjà fait (reprise)
     step.status = 'running';
+    step.startedAt = new Date().toISOString();
+    step.endedAt = undefined;
     log(`\n$ ${step.cmd}\n`);
     const ok = await new Promise<boolean>((resolve) => {
       child = spawn(step.cmd, { shell: true, cwd: REPO_ROOT, detached: process.platform !== 'win32', env: { ...process.env, FORCE_COLOR: '0' } });
@@ -360,6 +417,7 @@ async function runSteps(): Promise<void> {
       });
     });
     step.status = cancelled ? 'cancelled' : ok ? 'done' : 'failed';
+    step.endedAt = new Date().toISOString();
     persist();
     if (!ok && !j.keepGoing) break;
   }
@@ -503,7 +561,7 @@ const server = http.createServer(async (req, res) => {
     }
     if (req.method === 'GET' && url.pathname === '/api/job') {
       const { text, size } = readLog(Number(url.searchParams.get('from') ?? 0));
-      return send(res, 200, { job, text, size, verify: verifySummary(job) });
+      return send(res, 200, { job, text, size, verify: verifySummary(job), rebuild: rebuildState() });
     }
     if (req.method === 'GET' && url.pathname === '/api/geo') {
       // conversions Lambert-93 ↔ WGS84 pour la page (une seule implémentation de la projection)
@@ -524,6 +582,11 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'POST' && url.pathname === '/api/build') {
       const b = (await bodyOf(req)) as Record<string, unknown>;
       const j = await startBuild({ id: String(b.id ?? ''), noOrtho: !!b.noOrtho, offline: !!b.offline, graphOnly: !!b.graphOnly, verify: b.verify !== false, packs: b.packs !== false });
+      return send(res, 200, { job: j });
+    }
+    if (req.method === 'POST' && url.pathname === '/api/rebuild-all') {
+      const b = (await bodyOf(req)) as Record<string, unknown>;
+      const j = await startRebuildAll({ noOrtho: !!b.noOrtho, offline: !!b.offline, resume: !!b.resume });
       return send(res, 200, { job: j });
     }
     if (req.method === 'POST' && url.pathname === '/api/verify') {
