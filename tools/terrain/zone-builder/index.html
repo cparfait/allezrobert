@@ -112,7 +112,8 @@
 
   <h2>Reconstruire tous les mondes</h2>
   <p style="color:var(--dim);margin:2px 0 6px">build:world de chaque monde publié, l’un après l’autre (un échec n’arrête pas la suite), puis packs. Options « Sans orthophotos » et « Hors ligne » ci-dessus prises en compte. L’état reste affiché même si l’outil est relancé ; « Reprendre » garde les mondes déjà faits.</p>
-  <div class="row"><button id="rebuildAll">Tout reconstruire</button><button id="rebuildResume">Reprendre</button></div>
+  <label>Sauf (identifiants séparés par des virgules, facultatif)</label><input id="rebuildExcept" type="text" placeholder="ex. chevreuse, montmartre" list="zoneIds"><datalist id="zoneIds"></datalist>
+  <div class="row" style="margin-top:6px"><button id="rebuildAll">Tout reconstruire</button><button id="rebuildResume">Reprendre</button></div>
   <div id="rebuildOut"></div>
 
   <div id="srvPanel" hidden>
@@ -337,6 +338,7 @@ async function loadZones() {
     <span>${esc(z.name)}<br><small>${z.id} · ${z.kind}${z.source === 'json' ? ' · JSON' : ''}</small></span>
     <span>${z.built ? '<span class="tag ok">construite</span>' : '<span class="tag">non construite</span>'}${srvTag(z)}${z.inMenu ? '' : '<span class="tag">hors menu</span>'}${z.editable ? '' : '<span class="tag">fixe</span>'}</span></div>`).join('');
   deployOn = !!r.deploy; $('srvPanel').hidden = !deployOn;
+  $('zoneIds').innerHTML = zones.filter((z) => z.built).map((z) => `<option value="${z.id}">`).join('');
   showJob(r.job);
 }
 $('zones').addEventListener('click', async (e) => {
@@ -366,8 +368,8 @@ $('saveBuild').onclick = async () => { if (!draft) return; try { await save(); a
 $('buildOnly').onclick = async () => { if (!draft || !draft.id) return; try { await startBuild(); } catch (e) { $('msg').innerHTML = `<span class="err">${esc(e.message).replace(/\n/g, '<br>')}</span>`; } };
 $('cancel').onclick = () => api('/api/cancel', {}).then(poll);
 async function startBuild() { logPos = 0; $('log').textContent = ''; const r = await api('/api/build', buildOpts()); showJob(r.job); poll(); }
-async function startRebuild(resume) { logPos = 0; $('log').textContent = ''; const r = await api('/api/rebuild-all', { noOrtho: $('noOrtho').checked, offline: $('offline').checked, resume }); showJob(r.job); poll(); }
-$('rebuildAll').onclick = async () => { if (!confirm('Reconstruire tous les mondes publiés ? Compter plusieurs heures.')) return; try { await startRebuild(false); } catch (e) { $('rebuildOut').innerHTML = `<span class="err">${esc(e.message).replace(/\n/g, '<br>')}</span>`; } };
+async function startRebuild(resume) { logPos = 0; $('log').textContent = ''; const r = await api('/api/rebuild-all', { noOrtho: $('noOrtho').checked, offline: $('offline').checked, resume, exclude: $('rebuildExcept').value.split(/[\s,;]+/).filter(Boolean) }); showJob(r.job); poll(); }
+$('rebuildAll').onclick = async () => { const except = $('rebuildExcept').value.trim(); if (!confirm('Reconstruire tous les mondes publiés' + (except ? ' sauf : ' + except : '') + ' ? Compter plusieurs heures.')) return; try { await startRebuild(false); } catch (e) { $('rebuildOut').innerHTML = `<span class="err">${esc(e.message).replace(/\n/g, '<br>')}</span>`; } };
 $('rebuildResume').onclick = async () => { try { await startRebuild(true); } catch (e) { $('rebuildOut').innerHTML = `<span class="err">${esc(e.message).replace(/\n/g, '<br>')}</span>`; } };
 /** Durée lisible (s → « 1 h 05 », « 12 min », « 40 s »). */
 function dur(sec) { sec = Math.max(0, Math.round(sec)); if (sec >= 3600) return `${Math.floor(sec / 3600)} h ${String(Math.round((sec % 3600) / 60)).padStart(2, '0')}`; if (sec >= 60) return `${Math.round(sec / 60)} min`; return `${sec} s`; }

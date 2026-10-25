@@ -248,14 +248,21 @@ function publishedZoneIds(): string[] {
  * Reconstruit tous les mondes publiés, l'un après l'autre (un échec n'arrête pas la suite), puis les
  * packs. `resume` : reprend la dernière reconstruction en gardant les mondes déjà faits.
  */
-async function startRebuildAll(opts: { noOrtho: boolean; offline: boolean; resume: boolean }): Promise<Job> {
+async function startRebuildAll(opts: { noOrtho: boolean; offline: boolean; resume: boolean; exclude?: string[] }): Promise<Job> {
   if (jobRunning()) throw new Error('un travail de l’outil est déjà en cours');
   const others = await otherBuilds();
   if (others.length) throw new Error(`une construction tourne déjà ailleurs, rien lancé :\n${others.join('\n')}`);
   const prev = opts.resume ? rebuildState() : null;
   const doneBefore = new Map((prev?.steps ?? []).filter((st) => st.zone && st.status === 'done').map((st) => [st.zone as string, st]));
   const flags = [opts.noOrtho && '--no-ortho', opts.offline && '--offline'].filter(Boolean).join(' ');
-  const steps: Step[] = publishedZoneIds().map((id) => doneBefore.get(id) ?? { name: `build ${id}`, zone: id, cmd: `pnpm --filter @allezrobert/terrain build:world -- --world ${id}${flags ? ` ${flags}` : ''}`, status: 'pending' });
+  // « Sauf » : zones laissées telles quelles (les identifiants inconnus sont refusés, pour éviter une faute de frappe silencieuse).
+  const published = publishedZoneIds();
+  const exclude = (opts.exclude ?? []).filter(Boolean);
+  const unknown = exclude.filter((id) => !published.includes(id));
+  if (unknown.length) throw new Error(`zone(s) inconnue(s) dans « Sauf » : ${unknown.join(', ')}`);
+  const todo = published.filter((id) => !exclude.includes(id));
+  if (!todo.length) throw new Error('toutes les zones sont exclues : rien à reconstruire');
+  const steps: Step[] = todo.map((id) => doneBefore.get(id) ?? { name: `build ${id}`, zone: id, cmd: `pnpm --filter @allezrobert/terrain build:world -- --world ${id}${flags ? ` ${flags}` : ''}`, status: 'pending' });
   steps.push({ name: 'packs', cmd: 'pnpm --filter @allezrobert/terrain packs', status: 'pending' });
   job = { id: 'tous-les-mondes', status: 'running', startedAt: prev && opts.resume ? prev.startedAt : new Date().toISOString(), steps, keepGoing: true, rebuildAll: true };
   cancelled = false;
@@ -631,7 +638,8 @@ const server = http.createServer(async (req, res) => {
     }
     if (req.method === 'POST' && url.pathname === '/api/rebuild-all') {
       const b = (await bodyOf(req)) as Record<string, unknown>;
-      const j = await startRebuildAll({ noOrtho: !!b.noOrtho, offline: !!b.offline, resume: !!b.resume });
+      const exclude = Array.isArray(b.exclude) ? b.exclude.map(String).filter((i) => /^[a-z0-9-]+$/.test(i)) : [];
+      const j = await startRebuildAll({ noOrtho: !!b.noOrtho, offline: !!b.offline, resume: !!b.resume, exclude });
       return send(res, 200, { job: j });
     }
     if (req.method === 'POST' && url.pathname === '/api/verify') {
