@@ -25,12 +25,15 @@ const _up = new THREE.Vector3(0, 1, 0);
  * Vue subjective depuis les yeux (mesuré sur le modèle : mains 54 cm sous les yeux et 19 cm
  * devant, soit ≈ 70° sous l'horizontale). Caméra COCKPIT_BACK m en retrait des yeux, regard
  * baissé de COCKPIT_PITCH rad, focale verticale COCKPIT_FOV proche du champ utile de l'œil :
- * route et horizon en haut, cintre, mains et compteur en bas, comme en roulant.
+ * la route au loin d'abord (horizon vers le quart supérieur de l'image), le cockpit en bas.
+ * Caméra reculée derrière les yeux (tête masquée ; plus loin, les épaules entrent dans le
+ * cadre) : les mains passent à ≈ 53° sous l'horizontale et restent au-dessus du profil du
+ * parcours. Baissé de 32° depuis les yeux, le regard ne montrait que le sol.
  */
-const COCKPIT_BACK = 0.08;
-const COCKPIT_UP = 0.02;
-const COCKPIT_PITCH = 0.56;
-const COCKPIT_FOV = 76;
+const COCKPIT_BACK = 0.28;
+const COCKPIT_UP = 0.08;
+const COCKPIT_PITCH = 0.38;
+const COCKPIT_FOV = 80;
 
 /**
  * Caméras : poursuite (par défaut), cockpit (vue subjective), caméra embarquée, drone,
