@@ -892,7 +892,8 @@ export class MainMenu {
 
   /** Lecteur au-dessus du titre (onglet Rouler, écran large) ; sinon dans la barre du haut (petits écrans, autres onglets). */
   private musicInHero(): boolean {
-    return this.tab === 'ride' && !matchMedia('(max-width: 900px)').matches;
+    // Le lecteur reste dans la barre du haut (jamais au-dessus du titre) ; seul l'accueil, sans barre, le pose en coin.
+    return false;
   }
 
   /** Séance choisie (carte seule, un clic rouvre la liste au milieu de l'écran) ou fichier importé. */

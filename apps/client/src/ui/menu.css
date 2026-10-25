@@ -617,8 +617,8 @@
 .mm-wk-stats { font-size: 11.5px; color: var(--ar-muted); font-variant-numeric: tabular-nums; }
 
 /* Accueil : lecteur de musique / Spotify au-dessus du titre. */
-.mm-home-music { position: absolute; top: 3.5vh; left: 50%; transform: translateX(-50%); z-index: 5; backdrop-filter: blur(6px); }
-.mm-home-music .mm-pop { left: 50%; right: auto; transform: translateX(-50%); }
+.mm-home-music { position: absolute; top: 14px; right: 18px; z-index: 5; backdrop-filter: blur(6px); }
+.mm-home-music .mm-pop { right: 0; left: auto; }
 .mm-hero.mm-hero-home { top: 12vh; }
 
 /* Lecteur d'accueil (pas de barre du haut) : même fond sombre que sur les onglets. */
@@ -741,3 +741,5 @@
 .mm-hero-music .mm-now { color: #f1f4f8; }
 .mm-hero-music .mm-pop { left: 50%; right: auto; transform: translateX(-50%); }
 .mm-hero h1, .mm-hero p { position: relative; z-index: 1; }
+
+@media (max-width: 700px) { .mm-home-music { right: 10px; top: 10px; } }
