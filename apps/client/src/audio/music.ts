@@ -2,7 +2,8 @@
  * Musique de fond : playlist de morceaux originaux (public/music, voir ASSETS_LICENSES.md) jouée
  * dans un ordre aléatoire, enchaînée automatiquement, avec fondus. Activée par défaut, coupable
  * (ar.music = off), volume propre (ar.music.volume), atténuée en sortie, sous la voix du tutoriel,
- * et coupée quand Spotify joue. Le navigateur n'autorise le son qu'après un geste de l'utilisateur : voir unlockOnGesture().
+ * et cédée à Spotify : dès que l'utilisateur lance Spotify, la musique du jeu reste coupée (même si
+ * Spotify est mis en pause ou si on change d'écran) jusqu'à ce qu'il la rallume lui-même. Le navigateur n'autorise le son qu'après un geste de l'utilisateur : voir unlockOnGesture().
  */
 
 export interface Track {
@@ -17,6 +18,7 @@ export const PLAYLIST: Track[] = [
 ];
 
 const BASE = '/music/';
+const EXTERNAL_KEY = 'ar.music.spotify';
 /** Morceau joué en premier à l'ouverture. */
 const FIRST_TRACK = 'echappee.mp3';
 const FADE_S = 1.2;
@@ -51,6 +53,8 @@ export class BackgroundMusic {
   private fadeTimer: ReturnType<typeof setInterval> | null = null;
   private unlocked = false;
   enabled = localStorage.getItem('ar.music') !== 'off';
+  /** Spotify a la main (lancé par l'utilisateur) : la musique du jeu ne redémarre pas toute seule. */
+  private external = localStorage.getItem(EXTERNAL_KEY) === '1';
   volume = Number(localStorage.getItem('ar.music.volume') ?? 0.5);
   /** Prévenu au changement de morceau (menu, HUD). */
   onTrack?: (t: Track) => void;
@@ -65,7 +69,20 @@ export class BackgroundMusic {
   }
 
   get playing(): boolean {
-    return this.enabled && this.unlocked && !this.el.paused;
+    return this.enabled && !this.external && this.unlocked && !this.el.paused;
+  }
+
+  /** Spotify a la main : la musique du jeu se tait en fondu et ne revient pas d'elle-même ; faux : elle peut repartir. */
+  yieldToExternal(on: boolean): void {
+    if (on === this.external) return;
+    this.external = on;
+    localStorage.setItem(EXTERNAL_KEY, on ? '1' : '0');
+    if (on) this.fadeTo(0, () => this.el.pause());
+    else if (this.enabled && this.unlocked) this.start();
+  }
+
+  get yielded(): boolean {
+    return this.external;
   }
 
   get current(): Track | null {
@@ -80,11 +97,11 @@ export class BackgroundMusic {
       window.removeEventListener('pointerdown', go);
       window.removeEventListener('keydown', go);
       this.unlocked = true;
-      if (this.enabled) this.start();
+      if (this.enabled && !this.external) this.start();
     };
     window.addEventListener('pointerdown', go);
     window.addEventListener('keydown', go);
-    if (!this.enabled) return;
+    if (!this.enabled || this.external) return;
     // Musique dès l'ouverture quand le navigateur l'autorise (site déjà écouté, appli de bureau) ;
     // sinon petite invitation jusqu'au premier clic ou à la première touche.
     this.start();
@@ -102,6 +119,9 @@ export class BackgroundMusic {
   setEnabled(on: boolean): void {
     this.enabled = on;
     localStorage.setItem('ar.music', on ? 'on' : 'off');
+    // Rallumer la musique du jeu à la main reprend la main à Spotify.
+    if (on) this.external = false;
+    localStorage.setItem(EXTERNAL_KEY, this.external ? '1' : '0');
     if (on) this.start();
     else this.fadeTo(0, () => this.el.pause());
   }
@@ -148,13 +168,13 @@ export class BackgroundMusic {
 
   /** Morceau suivant (fondu enchaîné). */
   next(): void {
-    if (!this.enabled) return;
+    if (!this.enabled || this.external) return;
     this.fadeTo(0, () => this.load(this.index + 1));
   }
 
   /** Morceau précédent (le premier de la liste repart du début). */
   previous(): void {
-    if (!this.enabled) return;
+    if (!this.enabled || this.external) return;
     this.fadeTo(0, () => this.load(Math.max(this.index - 1, 0)));
   }
 

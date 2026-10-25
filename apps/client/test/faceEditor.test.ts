@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_LOOK, decodeFace } from '@allezrobert/shared';
+import { DEFAULT_LOOK, decodeFace, withSex } from '@allezrobert/shared';
 import { withBaseHead, withProfile, withRandomFace, withSlider } from '../src/ui/faceEditorLogic.ts';
 
 describe('éditeur de visage', () => {
@@ -31,5 +31,18 @@ describe('éditeur de visage', () => {
     const z = withBaseHead(r);
     expect(z.face).toBeUndefined();
     expect(z.moustache).toBeUndefined();
+  });
+});
+
+describe('pilosité selon le sexe', () => {
+  it('pas de barbe ni de moustache pour une femme (aléatoire, profil, photo)', () => {
+    const woman = withSex(DEFAULT_LOOK, 'female');
+    const r = withRandomFace({ ...woman, beard: 0.5, moustache: true });
+    expect(r.beard).toBe(0);
+    expect(r.moustache).toBe(false);
+    // Un homme garde sa barbe et sa moustache.
+    const man = withRandomFace({ ...DEFAULT_LOOK, beard: 0.5, moustache: true });
+    expect(man.beard).toBe(0.5);
+    expect(man.moustache).toBe(true);
   });
 });

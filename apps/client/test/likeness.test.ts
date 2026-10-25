@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_LOOK, decodeFace, encodeFace } from '@allezrobert/shared';
-import { alignTo, fitSliders, normalizedShape, type Landmark } from '../src/onboarding/likenessFit.ts';
+import { alignTo, fitSliders, normalizedShape, tameSliders, type Landmark } from '../src/onboarding/likenessFit.ts';
 import { withLikeness } from '../src/ui/faceEditorLogic.ts';
 
 describe('ressemblance : ajustement', () => {
@@ -43,5 +43,16 @@ describe('ressemblance : ajustement', () => {
     expect(s.jawWidth).toBeCloseTo(0.4, 1);
     expect(s.noseLength).toBeCloseTo(-0.3, 1);
     expect(r.skin).toBe('#aa8866');
+  });
+});
+
+describe('ressemblance : pas de tête déformée', () => {
+  it('plafonne et ramène les curseurs vers la tête de base', () => {
+    const t = tameSliders({ headWidth: 1, headLength: -1, faceFat: 1, noseLength: -1, eyeSize: 0.2 });
+    expect(Math.abs(t.headWidth as number)).toBeLessThanOrEqual(0.3);
+    expect(Math.abs(t.headLength as number)).toBeLessThanOrEqual(0.3);
+    expect(t.faceFat).toBeLessThanOrEqual(0.45);
+    expect(Math.abs(t.noseLength as number)).toBeLessThanOrEqual(0.7);
+    expect(t.eyeSize).toBeCloseTo(0.16, 2);
   });
 });

@@ -194,6 +194,51 @@ class SpotifyRemote {
     });
   }
 
+  /** Recherche de morceaux et de playlists (10 de chaque au plus) ; texte vide : les playlists du compte. */
+  async search(query: string): Promise<Array<{ uri: string; type: 'track' | 'playlist'; name: string; sub: string; image?: string }>> {
+    const q = query.trim();
+    if (!q) return (await this.playlists()).map((p) => ({ uri: p.uri, type: 'playlist' as const, name: p.name, sub: `${p.tracks}`, ...(p.image ? { image: p.image } : {}) }));
+    const r = await this.api(`/search?${new URLSearchParams({ q, type: 'track,playlist', limit: '10' })}`);
+    if (!r || r.status !== 200) throw new Error(r ? `Spotify ${r.status}` : 'Spotify injoignable');
+    const j = (await r.json()) as {
+      tracks?: { items: Array<{ uri: string; name: string; artists?: Array<{ name: string }>; album?: { images?: Array<{ url: string }> } } | null> };
+      playlists?: { items: Array<{ uri: string; name: string; owner?: { display_name?: string }; images?: Array<{ url: string }> | null; tracks?: { total: number } } | null> };
+    };
+    const out: Array<{ uri: string; type: 'track' | 'playlist'; name: string; sub: string; image?: string }> = [];
+    for (const t of j.tracks?.items ?? []) {
+      if (!t) continue;
+      const image = t.album?.images?.at(-1)?.url;
+      out.push({ uri: t.uri, type: 'track', name: t.name, sub: t.artists?.map((a) => a.name).join(', ') ?? '', ...(image ? { image } : {}) });
+    }
+    for (const p of j.playlists?.items ?? []) {
+      if (!p) continue;
+      const image = p.images?.at(-1)?.url;
+      out.push({ uri: p.uri, type: 'playlist', name: p.name, sub: p.owner?.display_name ?? '', ...(image ? { image } : {}) });
+    }
+    return out;
+  }
+
+  /** Lance un morceau (ou un album, une playlist, un artiste) : dans le jeu si le lecteur est prêt. */
+  async playUri(uri: string): Promise<boolean> {
+    if (!uri.startsWith('spotify:track:')) return this.playContext(uri);
+    this.onPlayState?.(true);
+    let id: string | null = null;
+    try {
+      id = await this.startPlayer();
+    } catch {
+      id = null;
+    }
+    const tok = await this.token();
+    if (!tok) return false;
+    const r = await fetch(`https://api.spotify.com/v1/me/player/play${id ? `?device_id=${id}` : ''}`, {
+      method: 'PUT',
+      headers: { Authorization: `Bearer ${tok}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ uris: [uri] }),
+    });
+    if (r.status === 403) this.playerError = 'Compte Spotify Premium nécessaire';
+    return r.ok;
+  }
+
   /** Lance une playlist dans le jeu (lecteur intégré, à défaut l'appareil actif). */
   async playContext(uri: string): Promise<boolean> {
     this.onPlayState?.(true);

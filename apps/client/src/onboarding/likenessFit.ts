@@ -206,3 +206,37 @@ function solve(A: number[][], b: number[]): number[] {
     return Math.abs(d) < 1e-12 ? 0 : (row[n] as number) / d;
   });
 }
+
+/**
+ * Plafond de chaque curseur issu d'une photo : l'ajustement seul, sur des repères imparfaits (angle,
+ * focale, expression), donnait des têtes énormes et déformées. Les curseurs du crâne et du volume
+ * restent proches de la tête de base ; les traits (yeux, nez, bouche) gardent plus de liberté.
+ */
+const TAME_LIMIT: Record<string, number> = {
+  headWidth: 0.3,
+  headLength: 0.3,
+  headDepth: 0.3,
+  foreheadSlope: 0.4,
+  earSize: 0.4,
+  earAngle: 0.4,
+  neckWidth: 0.4,
+  faceFat: 0.45,
+  cheekVolume: 0.45,
+  jawWidth: 0.55,
+  jawHeight: 0.55,
+  chinHeight: 0.5,
+  chinWidth: 0.5,
+};
+const TAME_DEFAULT = 0.7;
+/** Part de l'écart à la tête de base conservée (1 = fidèle à l'ajustement). */
+const TAME_SHRINK = 0.8;
+
+/** Curseurs ramenés vers la tête de base et plafonnés (voir TAME_LIMIT). */
+export function tameSliders(face: Record<string, number>): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const [k, v] of Object.entries(face)) {
+    const lim = TAME_LIMIT[k] ?? TAME_DEFAULT;
+    out[k] = Math.round(Math.max(-lim, Math.min(lim, v * TAME_SHRINK)) * 100) / 100;
+  }
+  return out;
+}

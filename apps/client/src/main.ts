@@ -61,6 +61,10 @@ import { Trains } from './world/trains.ts';
 import { Multiplayer } from './game/multiplayer.ts';
 import { VoiceChat, fetchVoiceConfig } from './game/voice.ts';
 import { RideRoomUi } from './game/rideroom.ts';
+import { showStartGate } from './game/startGate.ts';
+import { PlaceFinder } from './game/place.ts';
+import { detectFlagEmoji } from './ui/flags.ts';
+import type { DevicePanel } from './ui/menu.ts';
 import type { InterpolatedRider } from './net/index.ts';
 
 const ui = document.getElementById('ui') as HTMLElement;
@@ -243,10 +247,20 @@ function createMenuVideo(el: HTMLVideoElement | null) {
         void el.play().catch(() => undefined);
         return;
       }
+      // Les deux formats ont échoué : image fixe seule (nouvel essai à la prochaine saison / au prochain accueil).
       failed = true;
       el.hidden = true;
+      console.warn('Boucle vidéo du menu illisible :', current, el.error?.message ?? el.error?.code);
     });
     el.addEventListener('playing', () => el.classList.add('on'));
+    // Lecture refusée (autoplay du navigateur) ou coupée (économie d'énergie, onglet masqué) : on relance dès le
+    // premier geste, et à chaque pause involontaire tant que la boucle est affichée.
+    const resume = () => {
+      if (!el.hidden && !document.hidden && el.paused) void el.play().catch(() => undefined);
+    };
+    for (const ev of ['pointerdown', 'keydown']) window.addEventListener(ev, resume, { passive: true });
+    el.addEventListener('pause', () => setTimeout(resume, 300));
+    el.addEventListener('stalled', () => setTimeout(resume, 1000));
     document.addEventListener('visibilitychange', () => {
       if (!el.hidden) void (document.hidden ? el.pause() : el.play().catch(() => undefined));
     });
@@ -293,8 +307,27 @@ function companionMusic(): NonNullable<PairState['music']> {
   return { source: 'game', playing: music.playing, title: music.current?.title ?? '', volume: music.volume };
 }
 
+/** Recherche Spotify demandée par le téléphone : résultats renvoyés en événement (la recherche vide liste les playlists du compte). */
+async function companionMusicSearch(query: string): Promise<void> {
+  if (!spotify.connected) return companion.sendEvent({ kind: 'musicResults', query, items: [], error: 'not_connected' });
+  try {
+    const items = await spotify.search(query);
+    companion.sendEvent({ kind: 'musicResults', query, items: items.slice(0, 20).map((i) => ({ ...i, name: i.name.slice(0, 80), sub: i.sub.slice(0, 60) })) });
+  } catch {
+    companion.sendEvent({ kind: 'musicResults', query, items: [], error: 'failed' });
+  }
+}
+
 /** Commandes musique de l'appli compagnon (mêmes effets que B / N au clavier) ; vrai si traitée. */
 function companionMusicCommand(c: PhoneCommand): boolean {
+  if (c.kind === 'musicSearch') {
+    void companionMusicSearch(c.query);
+    return true;
+  }
+  if (c.kind === 'musicPlay') {
+    if (spotify.connected) void spotify.playUri(c.uri).then((ok) => ok && (musicCtl.spotifyPlaying = true));
+    return true;
+  }
   if (c.kind !== 'music') return false;
   const sp = spotify.connected;
   if (c.action === 'toggle') {
@@ -315,7 +348,10 @@ function companionMusicCommand(c: PhoneCommand): boolean {
 
 async function boot(): Promise<void> {
   // Retour de l'autorisation Spotify (?code&state), avant tout le reste.
+  detectFlagEmoji();
   await spotify.handleRedirect();
+  // Spotify déconnecté entre-temps : la musique du jeu reprend sa place.
+  if (!spotify.connected) music.yieldToExternal(false);
   music.unlockOnGesture();
   const settings = loadSettings();
   // Premier lancement ou qualité jamais choisie à la main : préréglage selon la carte graphique.
@@ -344,6 +380,7 @@ async function boot(): Promise<void> {
   companion.provider = () => ({ phase: 'menu', music: companionMusic() });
   companion.onCommand = (c) => void companionMusicCommand(c);
   const devices = createDeviceLayer();
+  devicePanel = devices.panel;
   const autostart = new URLSearchParams(location.search).has('autostart');
   /** Ciel et lumière de la sortie (réglages du coureur) ; l'environnement suit le monde courant. */
   const applyEnv = (s: Settings) => {
@@ -444,16 +481,17 @@ async function boot(): Promise<void> {
   };
 
   // Spotify lancé ou mis en pause depuis le jeu : la musique du jeu suit aussitôt.
+  // Une fois Spotify lancé, la musique du jeu ne revient pas d'elle-même (pause, changement d'écran, accueil).
   spotify.onPlayState = (playing) => {
     musicCtl.spotifyPlaying = playing;
-    music.setDuck(playing ? 0 : musicCtl.base);
+    if (playing) music.yieldToExternal(true);
   };
   // Suivi Spotify : la musique du jeu se tait quand Spotify joue ; titre annoncé au changement.
   setInterval(async () => {
-    if (!spotify.connected || document.hidden) return music.setDuck(musicCtl.base);
+    if (!spotify.connected || document.hidden) return;
     const np = await spotify.nowPlaying();
     musicCtl.spotifyPlaying = !!np?.isPlaying;
-    music.setDuck(np?.isPlaying ? 0 : musicCtl.base);
+    if (np?.isPlaying) music.yieldToExternal(true);
     const label = np ? `${np.title} — ${np.artist}` : '';
     if (np?.isPlaying && label !== musicCtl.lastTitle) {
       musicCtl.lastTitle = label;
@@ -755,8 +793,11 @@ async function boot(): Promise<void> {
     if (me) applyProfile(me, settings);
     const afterLogin = () => {
       menu.account = me ? { name: me.profile.displayName, level: me.progression.level, ...(me.atelier ? { credits: me.atelier.credits } : {}) } : null;
+      // Retour de la liaison Strava : on revient sur la rubrique des Réglages qui l'affiche.
+      const fromStrava = new URLSearchParams(location.search).has('strava');
+      if (fromStrava) menu.openSettingsSection('lang');
       if (Onboarding.needed()) menu.onTutorial?.();
-      else menu.show();
+      else menu.show(fromStrava ? 'settings' : 'home');
     };
     menu.onLogin = () =>
       void showLogin(ui, settings, (m) => {
@@ -780,6 +821,9 @@ async function boot(): Promise<void> {
     else afterLogin();
   }
 }
+
+/** Matériel du poste, repris par la salle d'attente des courses (posé au démarrage). */
+let devicePanel: DevicePanel | null = null;
 
 async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras: { workoutFile?: { name: string; content: string }; inviteCode?: string; inviteFriends?: string[]; tutorial?: boolean; openStart?: { x: number; z: number } }, overlay?: HTMLElement): Promise<void> {
   const { engine, world, source } = scene;
@@ -848,7 +892,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   if (s.mode === 'group' || s.mode === 'race') {
     mp = new Multiplayer(engine.scene, track, s.name);
     try {
-      const code = await mp.connect({ ...(extras.inviteCode ? { inviteCode: extras.inviteCode } : {}), mode: s.mode, guest: s.guest, aiRiders: s.aiRiders, aiLevel: s.aiLevel, laps: s.raceLaps, trainerDifficulty: s.trainerDifficulty, name: s.name, weather: myWeather, ...(s.equalEquipment !== undefined ? { equalEquipment: s.equalEquipment } : {}) });
+      const code = await mp.connect({ ...(extras.inviteCode ? { inviteCode: extras.inviteCode } : {}), mode: s.mode, guest: s.guest, aiRiders: s.aiRiders, aiLevel: s.aiLevel, ...(s.groupTargetKmh ? { targetKmh: s.groupTargetKmh } : {}), laps: s.raceLaps, trainerDifficulty: s.trainerDifficulty, name: s.name, weather: myWeather, ...(s.equalEquipment !== undefined ? { equalEquipment: s.equalEquipment } : {}) });
       // Équipement égalisé : la prédiction locale roule le même vélo que le serveur.
       if (mp.equalized) Object.assign(ride.params, { ...paramsFromBike(s.massKg, EQUALIZED_BIKE), inertiaFactor: ride.params.inertiaFactor });
       setTimeout(() => hud.toast(`${getLang() === 'fr' ? 'Code d’invitation' : 'Invite code'} : ${code}`), 500);
@@ -896,6 +940,9 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   const cyclists = alive && params.get('cyclists') !== '0' ? new AmbientCyclists(engine.scene, track, startD) : null;
   if (cyclists) cyclists.shadowRange = engine.quality.shadowRiders >= 8 ? 35 : engine.quality.shadowRiders > 0 ? 20 : 0;
   const hud = new Hud(hudRoot, track, source.attribution);
+  // Mini-carte : fond Plan IGN quand le monde est calé en Lambert-93 ; bandeau « lieu » (commune, route).
+  if (source.originL93) hud.setBasemap(source.originL93);
+  const placeFinder = new PlaceFinder(source.open?.places, track.route.landmarks, track.length, !!track.route.loop);
   hud.setHidden(s.hudHidden ?? []);
   if (nav && source.open) hud.setOpen(source.open.graph);
   // En groupe, le panneau « À proximité » montre d'abord les coureurs réels.
@@ -960,7 +1007,16 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   if (mp) {
     const net = mp.net;
     const voiceCfg = fetchVoiceConfig();
-    room = new RideRoomUi({ hudRoot, net, track, mode: s.mode === 'race' ? 'race' : 'group', lang: getLang(), toast: (m) => hud.toast(m), voice: voiceCfg });
+    room = new RideRoomUi({
+      hudRoot,
+      net,
+      track,
+      mode: s.mode === 'race' ? 'race' : 'group',
+      lang: getLang(),
+      toast: (m) => hud.toast(m),
+      voice: voiceCfg,
+      ...(devicePanel ? { gear: { panel: devicePanel, phones: () => (companion.connected ? companion.presence.phones : null) } } : {}),
+    });
     // Course pas lancée : le coureur reste sur la grille (le serveur le tient immobile).
     room.onHoldChange = (hold) => (ride.paused = hold);
     room.onLeave = () => finish();
@@ -997,12 +1053,28 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   }
   // Départ : intro + compte à rebours HyperFrames, la sortie démarre au « go » (?nointro pour les tests).
   // Course en ligne : le départ est donné par le serveur (compte à rebours synchronisé), pas par l'intro.
-  if (!params.has('nointro') && !(mp && s.mode === 'race')) {
+  const playIntro = () => {
     ride.paused = true;
     void sequences
       .intro({ season: s.season, riders: peloton.riders.length + 1, rideType: s.mode })
       .finally(() => (ride.paused = false));
-  }
+  };
+  if (s.mode === 'race' && !mp && devicePanel && !params.has('nointro') && !params.has('autostart')) {
+    // Course sans salle en ligne : une fois dans la zone, la session attend le bouton (matériel visible et relançable).
+    ride.paused = true;
+    const panel = devicePanel;
+    showStartGate(hudRoot.parentElement ?? hudRoot, {
+      gear: { panel, phones: () => (companion.connected ? companion.presence.phones : null) },
+      fr: getLang() === 'fr',
+      routeName: track.route.name,
+      watch: (cb) => {
+        panel.onChange(cb);
+        companion.listen(cb);
+      },
+      onStart: playIntro,
+      onLeave: () => finish(),
+    });
+  } else if (!params.has('nointro') && !(mp && s.mode === 'race')) playIntro();
   // Montée : annonce de chaque lacet numéroté ; arrivée au sommet d'un itinéraire aller simple.
   const hairpins = new HairpinWatcher(nav ? undefined : track.route.hairpins);
   let summitShown = false;
@@ -1568,16 +1640,21 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
           wind: windInfo(),
           altitudeM: sample.y,
           lap: ride.lap,
+          ...(() => {
+            const town = placeFinder.at(pos.x, pos.z, track.route.loop ? ride.state.distM % Math.max(track.length, 1) : ride.state.distM);
+            const road = nav?.roadName(ride.state.distM);
+            return town ? { place: { town, ...(road ? { road } : {}) } } : road ? { place: { town: road } } : {};
+          })(),
           riders: [
-            { id: 'me', name: s.name, distM: ride.state.distM, x: pos.x, z: pos.z, me: true, isAI: false, isGuest: false, color: '#ffd23f', wkg: ride.watts3s() / s.massKg },
+            { id: 'me', name: s.name, distM: ride.state.distM, x: pos.x, z: pos.z, me: true, isAI: false, isGuest: false, color: '#ffd23f', wkg: ride.watts3s() / s.massKg, ...(s.look.nationality ? { nationality: s.look.nationality } : {}) },
             ...remoteRiders.map((r) => {
               const p = track.sample(r.unwrappedM);
               const mass = mp?.net.roster.get(r.id)?.massKg ?? 75;
-              return { id: r.id, name: r.name, distM: r.unwrappedM, x: p.x, z: p.z, me: false, isAI: r.isAI, isGuest: r.isGuest, color: r.avatar.jersey, online: !r.isAI, speaking: voice?.speaking.has(r.name) ?? false, wkg: r.watts / mass };
+              return { id: r.id, name: r.name, distM: r.unwrappedM, x: p.x, z: p.z, me: false, isAI: r.isAI, isGuest: r.isGuest, color: r.avatar.jersey, online: !r.isAI, speaking: voice?.speaking.has(r.name) ?? false, wkg: r.watts / mass, ...(r.avatar.nationality ? { nationality: r.avatar.nationality } : {}) };
             }),
             ...peloton.riders.map((r) => {
               const p = track.sample(r.state.distM);
-              return { id: r.id, name: r.name, distM: r.state.distM, x: p.x, z: p.z, me: false, isAI: true, isGuest: false, color: r.color, wkg: r.watts / r.massKg };
+              return { id: r.id, name: r.name, distM: r.state.distM, x: p.x, z: p.z, me: false, isAI: true, isGuest: false, color: r.color, wkg: r.watts / r.massKg, nationality: r.nationality };
             }),
           ],
           ...(ride.segment ? { segment: { seg: ride.segment.seg, progress: ride.segment.progress, elapsedS: (ride.startT + ride.elapsedS * 1000 - ride.segment.startT) / 1000 } } : {}),

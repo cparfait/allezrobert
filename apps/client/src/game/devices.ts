@@ -282,12 +282,13 @@ export function createDeviceLayer(): DeviceLayer {
       const tr = transport as TransportKind;
       const needed = ROLE_ADAPTERS[role];
       const exp = manager.experimental;
+      // Commande de vitesses (Di2 D-Fly, Zwift Click / Play / Ride, SRAM AXS) ou ventilateur HEADWIND : demander
+      // l'appairage vaut activation de l'adaptateur, sans passer par les réglages avancés.
       if (needed && !needed.some((k) => exp[k])) {
-        throw new Error(
-          role === 'fan'
-            ? 'Activez d’abord l’adaptateur expérimental « KICKR HEADWIND » (Réglages avancés, plus bas).'
-            : 'Activez d’abord l’adaptateur expérimental de votre commande (Zwift Click / Play / Ride, Di2 D-Fly, SRAM AXS…) dans les réglages avancés, plus bas. Clavier, manette et télécommande HID marchent sans appairage.',
-        );
+        const flags: Partial<ExperimentalAdapters> = role === 'fan' ? { headwind: true } : { zwiftControllers: true, shimanoDfly: true, sramAxs: true, ...(isTauri() ? { antControls: true } : {}) };
+        manager.setExperimental(flags);
+        log(`adaptateurs activés pour l'appairage ${role} : ${JSON.stringify(flags)}`);
+        changed();
       }
       log(`appairage ${role} via ${tr}${showAllDevices ? ' (tous les appareils)' : ''}`);
       if (tr === 'web-bluetooth') {
@@ -308,6 +309,7 @@ export function createDeviceLayer(): DeviceLayer {
     forget: (id) => {
       void manager.forget(id).then(changed);
     },
+    reconnect: (id) => hardware.reconnect(id),
     useSimulator: (on) => {
       // Choix mémorisé : décoché, le simulateur ne se relance plus tout seul au départ.
       localStorage.setItem('ar.sim', on ? 'on' : 'off');

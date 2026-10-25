@@ -114,6 +114,26 @@ describe('RideSimulation — physique et aspiration', () => {
     expect(s2.riders.map((r) => Math.round(r.state.distM))).toEqual(s.riders.map((r) => Math.round(r.state.distM)));
   });
 
+  it('vitesse moyenne visée : les IA se rapprochent de la cible, qui se règle en route', () => {
+    const mean = (kmh: number | null, seconds: number) => {
+      const s = sim({ mode: 'group', aiRiders: 4, ...(kmh ? { targetKmh: kmh } : {}) }, 'target-seed');
+      // Seules les IA roulent : avec un humain, le groupe se cale sur lui (regroupement).
+      s.addAiRiders(4, T0, 260);
+      ride(s, seconds, T0, () => null);
+      const ais = s.riders.filter((r) => r.kind === 'ai');
+      return (ais.reduce((a, r) => a + r.state.distM / r.state.timeS, 0) / ais.length) * 3.6;
+    };
+    const slow = mean(24, 900);
+    const fast = mean(34, 900);
+    expect(fast - slow).toBeGreaterThan(8);
+    expect(Math.abs(slow - 24)).toBeLessThan(5);
+    expect(Math.abs(fast - 34)).toBeLessThan(6);
+    // Hôte : la cible se modifie, et se libère.
+    const s = sim({ mode: 'group', targetKmh: 28 });
+    expect(s.updateHostOptions({ targetKmh: 31.4 }).targetKmh).toBe(31.5);
+    expect(s.updateHostOptions({ targetKmh: null }).targetKmh).toBeNull();
+  });
+
   it('groupe soudé : le plus faible reste dans le groupe', () => {
     for (const sticky of [true, false]) {
       const s = sim({ mode: 'group', stickyGroup: sticky });

@@ -10,7 +10,7 @@
  */
 import { CloseCode, Room, ServerError, type Client } from '@colyseus/core';
 import { z } from 'zod';
-import { PAIR_MAX_PHONES, PAIR_MSG, PAIR_TOKEN_RE, type PairPresence, type PairRole, type PhoneCommand } from '@allezrobert/shared';
+import { PAIR_MAX_PHONES, PAIR_MSG, PAIR_TOKEN_RE, SPOTIFY_URI_RE, type PairPresence, type PairRole, type PhoneCommand } from '@allezrobert/shared';
 
 const finite = z.number().refine(Number.isFinite, 'nombre fini attendu');
 
@@ -27,6 +27,8 @@ const PhoneCommandSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('turn'), delta: z.union([z.literal(-1), z.literal(1)]).optional(), index: z.number().int().min(0).max(16).optional() }),
   z.object({ kind: z.literal('uturn') }),
   z.object({ kind: z.literal('music'), action: z.enum(['toggle', 'next', 'previous', 'volume']), volume: finite.transform((v) => Math.min(Math.max(v, 0), 1)).optional() }),
+  z.object({ kind: z.literal('musicSearch'), query: z.string().trim().max(100) }),
+  z.object({ kind: z.literal('musicPlay'), uri: z.string().regex(SPOTIFY_URI_RE) }),
   z.object({ kind: z.literal('hud') }),
   z.object({ kind: z.literal('photo') }),
   z.object({ kind: z.literal('slowDown') }),

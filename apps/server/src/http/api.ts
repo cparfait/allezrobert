@@ -22,7 +22,7 @@ import { normalizeCode } from '../ride/registry.ts';
 import { activeRooms } from '../ride/RideRoom.ts';
 import { readHeartbeat } from '../render/worker.ts';
 import { normalizedPower } from '@allezrobert/physics';
-import { FACE_CODE_RE, SHOE_MARKS, completedKits, equippedTuneIds, tuneItem, type ShoeMarkId } from '@allezrobert/shared';
+import { COUNTRY_CODE_RE, FACE_CODE_RE, SHOE_MARKS, completedKits, equippedTuneIds, tuneItem, type ShoeMarkId } from '@allezrobert/shared';
 import { buy, migrateLegacyWheels, rewardRide } from '../progression/atelier.ts';
 import type { ActivitySummaryRow } from '../db/repos.ts';
 
@@ -46,6 +46,7 @@ const AvatarSchema = z.object({
   beard: z.number().min(0).max(1).optional(),
   freckles: z.number().min(0).max(1).optional(),
   moustache: z.boolean().optional(),
+  nationality: z.string().regex(COUNTRY_CODE_RE).optional(),
   // Pièces de l'atelier affichées sur le vélo : connues et possédées (vérifié à l'enregistrement).
   tune: z.array(z.string().regex(/^[a-z0-9-]{1,48}$/)).max(32).optional(),
   heightCm: z.number().min(120).max(230).optional(),

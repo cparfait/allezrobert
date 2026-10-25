@@ -107,6 +107,8 @@ export interface AvatarLook {
   freckles?: number;
   /** Moustache (de la couleur des cheveux). */
   moustache?: boolean;
+  /** Nationalité (code ISO 3166-1 alpha-2, countries.ts) : drapeau montré aux autres coureurs. */
+  nationality?: string;
   /** Pièces de l'atelier portées (tuning.ts), pour les voir sur le vélo ; validées par le serveur. */
   tune?: string[];
   /**
@@ -233,6 +235,8 @@ export interface RideRoomOptions extends RoomOptions {
   aiLevel?: number;
   /** Sortie de groupe : allure annoncée (W/kg) ; absente = libre. */
   paceWkg?: number;
+  /** Sortie de groupe avec IA : vitesse moyenne visée (km/h) ; absente = libre. */
+  targetKmh?: number;
 }
 
 /** Options modifiables par l'hôte en cours de sortie. */
@@ -242,6 +246,8 @@ export interface HostOptions {
   draftingStrength: number;
   /** Sortie de groupe : allure annoncée par le meneur (W/kg), null = libre. Les IA la tiennent. */
   paceWkg: number | null;
+  /** Sortie de groupe : vitesse moyenne visée par les IA (km/h), null = libre. */
+  targetKmh: number | null;
   /** Sortie de groupe : meneur (identifiant de coureur) ; '' = l'hôte. */
   leaderId: string;
 }

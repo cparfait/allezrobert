@@ -7,7 +7,7 @@
     ".": "./src/index.ts"
   },
   "scripts": {
-    "dev": "tsx watch --env-file-if-exists=.env src/main.ts",
+    "dev": "tsx watch --include .env --env-file-if-exists=.env src/main.ts",
     "start": "tsx src/main.ts",
     "worker": "tsx src/worker/render-worker.ts",
     "migrate": "tsx src/db/migrate-cli.ts",

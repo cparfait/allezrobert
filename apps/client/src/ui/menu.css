@@ -162,7 +162,7 @@
 .mm-hero h1 em { color: var(--ar-accent); font-style: normal; }
 .mm-hero p { margin: 14px 0 0; font-size: clamp(16px, 1.5vw, 24px); font-weight: 600; color: rgba(255, 255, 255, 0.92); letter-spacing: 0.01em; text-shadow: 0 2px 12px rgba(0, 0, 0, 0.55); }
 .mm-rc-title { padding: 10px 12px 0; font-size: 15px; font-weight: 800; line-height: 1.25; }
-@media (max-width: 900px) { .mm-hero { display: none; } }
+@media (max-width: 900px) { .mm-hero:not(.mm-hero-home) { display: none; } }
 
 /* Pied : capteurs et départ */
 .mm-foot { grid-row: 3; display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 0 22px 14px; }
@@ -615,3 +615,53 @@
 .mm-wk-prof { width: 100%; height: 34px; display: block; }
 .mm-wk-prof line { stroke: rgba(255, 255, 255, 0.35); stroke-dasharray: 3 3; stroke-width: 1; vector-effect: non-scaling-stroke; }
 .mm-wk-stats { font-size: 11.5px; color: var(--ar-muted); font-variant-numeric: tabular-nums; }
+
+/* Accueil : lecteur de musique / Spotify au-dessus du titre. */
+.mm-home-music { position: absolute; top: 3.5vh; left: 50%; transform: translateX(-50%); z-index: 5; backdrop-filter: blur(6px); }
+.mm-home-music .mm-pop { left: 50%; right: auto; transform: translateX(-50%); }
+.mm-hero.mm-hero-home { top: 12vh; }
+
+/* Onglet Rouler : le lecteur sort de la barre du haut et se pose au-dessus du titre. */
+.mm-hero-music { display: inline-flex; margin: 0 0 18px; pointer-events: auto; backdrop-filter: blur(6px); }
+.mm-hero-music .mm-pop { left: 50%; right: auto; transform: translateX(-50%); }
+.mm-hero-music, .mm-home-music { background: rgba(10, 14, 22, 0.78); border: 1px solid rgba(255, 255, 255, 0.12); box-shadow: 0 6px 22px rgba(0, 0, 0, 0.35); padding: 5px 8px 5px 6px; }
+.mm-hero-music .mm-now, .mm-home-music .mm-now { color: #f1f4f8; }
+
+/* ───────────── Mobile (téléphone) : en-tête sur deux lignes, panneaux pleine largeur, modes en grille ───────────── */
+@media (max-width: 700px) {
+  .mm { grid-template-rows: 92px minmax(0, 1fr) 66px; }
+  .mm-top { flex-wrap: wrap; align-content: center; gap: 2px 8px; padding: 4px 10px 0; }
+  .mm-brand { display: block !important; font-size: 19px; order: 1; }
+  .mm-right { order: 2; margin-left: auto; gap: 8px; }
+  .mm-top .mm-music, .mm-right .mm-credits { display: none; }
+  .mm-tabs { order: 3; flex: 1 1 100%; height: 40px; overflow-x: auto; scrollbar-width: none; gap: 0; }
+  .mm-tabs::-webkit-scrollbar { display: none; }
+  .mm-tab { flex: none; padding: 0 12px; font-size: 13px; }
+  .mm-tab.on::after { left: 8px; right: 8px; }
+  .mm-account { gap: 6px; }
+  .mm-left, .mm-side, .mm-center, .mm-center.mm-wide { justify-self: center; margin: 8px 0 0; width: calc(100vw - 16px); max-height: calc(100% - 8px); padding: 14px; border-radius: 16px; }
+  .mm-left:has(.mm-selmap) { height: calc(100% - 8px); }
+  .mm-head h2 { font-size: 20px; }
+  .mm-modes { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; grid-auto-flow: row !important; gap: 6px; }
+  .mm-mode { padding: 9px 3px 7px; }
+  .mm-mode small { display: none; }
+  .mm-mode b { font-size: 12px; }
+  .mm-foot { padding: 0 10px 10px; gap: 8px; }
+  .mm-go { font-size: 17px; padding: 12px 26px; }
+  .mm-go.ghost { font-size: 13px; padding: 10px 14px; }
+  .mm-chip { padding: 6px 9px; font-size: 11.5px; }
+  .mm-hero.mm-hero-home { top: 14vh; padding: 0 12px; }
+  .mm-hero.mm-hero-home h1 { font-size: clamp(46px, 15vw, 72px); }
+  .mm-hero.mm-hero-home p { font-size: 16px; margin-top: 8px; }
+  .mm-home-go { font-size: 21px; padding: 14px 44px; bottom: 6vh; }
+  .mm-home-music { max-width: calc(100vw - 20px); top: 2.5vh; }
+  .mm-home-music .mm-now { max-width: 120px; }
+  .mm-picker { width: calc(100vw - 14px) !important; max-height: 90vh !important; padding: 14px !important; }
+  .mm-picker.fm-dialog, .mm-picker.wk-dialog, .mm-picker.rd-dialog { width: calc(100vw - 14px) !important; }
+  .mm-wks-grid { grid-template-columns: 1fr; }
+  .mm-dialog { width: calc(100vw - 20px); padding: 16px; }
+  .mm-items { grid-template-columns: 1fr; }
+  .set-sec .grid3, .grid2b { grid-template-columns: 1fr; }
+  .mm-bigstats { gap: 8px; }
+}
+

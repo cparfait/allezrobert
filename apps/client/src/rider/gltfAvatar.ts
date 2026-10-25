@@ -4,7 +4,7 @@ import { shoeDialOf } from './shoeLook.ts';
 import { GLTFLoader, type GLTF } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
-import { PLAIN_BIKE_FAMILY, bikeOfLook, decodeFace, type AvatarLook, type BikeBuild, type BikeFamily } from '@allezrobert/shared';
+import { PLAIN_BIKE_FAMILY, bikeOfLook, decodeFace, lookSex, type AvatarLook, type BikeBuild, type BikeFamily } from '@allezrobert/shared';
 import { RiderAvatar } from './avatar.ts';
 import { buildBikeKit, roadPartsReplaced, type BikeType } from './bikeKits.ts';
 import { FaceAnimator } from './face.ts';
@@ -272,6 +272,8 @@ interface Templates {
  * route partagent le même poste de pilotage : cocotte de z 0,554 à 0,670, sommet 0,917 m au bec,
  * dessus ≈ 0,90 m au milieu ; la paume repose dessus, les doigts tombent sur le côté.
  */
+/** Part de l'écart latéral du pli de coude de repos conservée sur route / VTT (1 = pli du modèle, coudes très ouverts vus de dos). */
+const ELBOW_FLARE = 0.45;
 const HOOD_PALM = new THREE.Vector3(0.2, 0.9, 0.565);
 /** VTT : milieu de la paume sur la poignée du cintre plat (bikeKits.ts : poignées à y 0,958, z 0,54, x de 0,165 à 0,3). */
 const MTB_PALM = new THREE.Vector3(0.235, 1.0, 0.535);
@@ -671,7 +673,7 @@ function makeMaterial(name: string, look: AvatarLook): THREE.MeshStandardNodeMat
 
 /** Réglages de peau d'une tenue : teint, rides selon l'âge, barbe de la couleur des cheveux. */
 function skinLook(look: AvatarLook): SkinLook {
-  return { tone: look.skin, age: Math.max(0, decodeFace(look.face).age ?? 0), beard: look.beard ?? 0, beardColor: look.hair, freckles: look.freckles ?? 0 };
+  return { tone: look.skin, age: Math.max(0, decodeFace(look.face).age ?? 0), beard: lookSex(look) === 'female' ? 0 : (look.beard ?? 0), beardColor: look.hair, freckles: look.freckles ?? 0 };
 }
 
 function applyLookColor(m: THREE.MeshStandardNodeMaterial, look: AvatarLook): void {
@@ -1001,7 +1003,12 @@ export class GltfRiderAvatar implements RiderAvatarLike {
         const dir = _v1.subVectors(this.handTarget[s], sh).normalize();
         const toPad = _v2.subVectors(pad, sh);
         this.elbowPole[s].copy(toPad).addScaledVector(dir, -toPad.dot(dir)).normalize();
-      } else this.elbowPole[s].copy(c.pole);
+      } else {
+        // Pli de repos, resserré : de dos (caméra de suivi), les coudes ne partent pas en V vers l'extérieur.
+        this.elbowPole[s].copy(c.pole);
+        this.elbowPole[s].x *= ELBOW_FLARE;
+        this.elbowPole[s].normalize();
+      }
       this.handTarget[s].y += this.saddleLift;
       // Bas et haut du cintre : même écart à la cocotte que celui des paumes.
       const sx = s === 'L' ? 1 : -1;
@@ -1402,7 +1409,7 @@ export class GltfRiderAvatar implements RiderAvatarLike {
     for (const o of this.hair.cap) o.visible = style !== 3;
     for (const o of this.hair.ponytail) o.visible = style === 1;
     for (const o of this.hair.braid) o.visible = style === 2;
-    for (const o of this.hair.moustache) o.visible = !!look.moustache;
+    for (const o of this.hair.moustache) o.visible = !!look.moustache && lookSex(look) === 'male';
   }
 
   setEffort(ftpFrac: number, hrFrac?: number): void {

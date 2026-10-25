@@ -1,17 +1,15 @@
 import { shadowCasters } from './shadowBudget.ts';
 import * as THREE from 'three/webgpu';
 import { AiRider, AI_PROFILES, DraftCalculator, PoseController, TeammateUTurn, createRiderState, paramsFromBike, powerForSpeed, stepRider, airDensity, wakeShiftM, type AiProfileName, type RiderState } from '@allezrobert/physics';
-import { BASE_PROFILES, DEFAULT_BIKE, DEFAULT_LOOK, FACE_SLIDERS, encodeFace, type AvatarLook, type FaceShape, type RouteTrack } from '@allezrobert/shared';
+import { BASE_PROFILES, DEFAULT_BIKE, aiIdentity, DEFAULT_LOOK, FACE_SLIDERS, encodeFace, type AvatarLook, type FaceShape, type RouteTrack } from '@allezrobert/shared';
 import { createAvatar, type RiderAvatarLike } from '../rider/gltfAvatar.ts';
 import { crowdShoes } from '../rider/shoeLook.ts';
 import { crowdBike } from '../rider/bikes.ts';
 import { rng } from '../engine/noise.ts';
 
-/** Noms des coureurs IA (clins d'œil locaux, aucun nom réel). */
-const NAMES = ['Lucien', 'Marcelle', 'Fernand', 'Odette', 'Gaston', 'Simone', 'Raymond', 'Paulette', 'Émile', 'Yvette', 'Marius', 'Germaine', 'Albert', 'Huguette', 'Léon', 'Jeannine', 'Maurice', 'Suzanne', 'René'];
 const JERSEYS = ['#e63946', '#2a9d8f', '#f4a261', '#8d99ae', '#06d6a0', '#ef476f', '#118ab2', '#ffd166', '#6a4c93', '#90be6d', '#f3722c', '#277da1'];
 const PROFILES: AiProfileName[] = ['rouleur', 'diesel', 'puncheur', 'sprinter'];
-/** Visages des IA (avatar MPFB) : profils de base selon le prénom (NAMES alterne hommes et femmes). */
+/** Visages des IA (avatar MPFB) : profils de base selon le prénom (un coureur sur deux est une femme, comme son prénom). */
 const MEN = ['robert', 'moussa', 'karim', 'tom'];
 const WOMEN = ['lea', 'aiko', 'ines', 'marta'];
 
@@ -32,6 +30,8 @@ function botFace(i: number, r: () => number): Partial<AvatarLook> {
 export interface PelotonRider {
   id: string;
   name: string;
+  /** Nationalité (code ISO) : celle de son « Prénom NOM ». */
+  nationality: string;
   color: string;
   state: RiderState;
   lateral: number;
@@ -122,8 +122,11 @@ export class Peloton {
       // FTP de chaque IA autour du niveau choisi (± 10 %).
       const ftp = Math.round(ftpRef * (0.9 + r() * 0.2));
       const color = JERSEYS[i % JERSEYS.length] as string;
+      // Un sur deux est une femme (voir botFace) : prénom, nom et nationalité cohérents.
+      const identity = aiIdentity(i, i % 2 === 1);
       const look: AvatarLook = {
         ...DEFAULT_LOOK,
+        nationality: identity.nationality,
         jersey: color,
         jerseyAccent: JERSEYS[(i + 5) % JERSEYS.length] as string,
         bike: ['#1d1d1f', '#c0392b', '#f4f4f4', '#2c3e50', '#16a085'][i % 5] as string,
@@ -137,13 +140,14 @@ export class Peloton {
       };
       const avatar = createAvatar(look);
       scene.add(avatar.root);
-      const name = NAMES[i % NAMES.length] as string;
+      const name = identity.name;
       const label = nameSprite(name, color);
       scene.add(label);
       const params = paramsFromBike(massKg, DEFAULT_BIKE);
       this.riders.push({
         id: `ai-${i}`,
         name,
+        nationality: identity.nationality,
         color,
         // Départ groupé : en file indienne juste devant et derrière le joueur.
         state: createRiderState({ distM: startDistM + (i % 2 ? 1 : -1) * (2 + Math.floor(i / 2) * 2.2), speedMs: 0 }),

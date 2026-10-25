@@ -309,11 +309,12 @@ async function main(): Promise<void> {
       const wr = P('hand_l');
       const kn = P('calf_l');
       (window as unknown as { __ang: Record<string, unknown> }).__ang ??= {};
-      ((window as unknown as { __ang: Record<string, unknown> }).__ang)[name] = { shoulder: +ang3(sh, hip, el).toFixed(1), elbow: +ang3(el, sh, wr).toFixed(1), forearm: +elev(el, wr).toFixed(1), hip: +ang3(hip, sh, kn).toFixed(1), neckVsBack: +(elev(nk, hd) - elev(hip, sh)).toFixed(1) };
+      ((window as unknown as { __ang: Record<string, unknown> }).__ang)[name] = { shoulder: +ang3(sh, hip, el).toFixed(1), elbow: +ang3(el, sh, wr).toFixed(1), forearm: +elev(el, wr).toFixed(1), elbowOutCm: +((Math.abs(el.x) - Math.abs(sh.x)) * 100).toFixed(1), handOutCm: +((Math.abs(wr.x) - Math.abs(sh.x)) * 100).toFixed(1), hip: +ang3(hip, sh, kn).toFixed(1), neckVsBack: +(elev(nk, hd) - elev(hip, sh)).toFixed(1) };
       out.push({ name, back: +elev(hip, sh).toFixed(1), neck: +elev(nk, hd).toFixed(1), shDz: +(sh.z - hip.z).toFixed(3), shDy: +(sh.y - hip.y).toFixed(3), headFwd: +(hd.z - sh.z).toFixed(3) });
       camera.fov = Number(params.get('fov') ?? 9);
       // &rear : trois quarts arrière (vue du peloton) au lieu du profil strict.
-      if (params.has('rear')) camera.position.set(-5.5, sh.y + 0.7, sh.z - 6.5);
+      if (params.has('behind')) camera.position.set(0, sh.y + 0.9, sh.z - 7); // &behind : derrière, un peu au-dessus (caméra de suivi)
+      else if (params.has('rear')) camera.position.set(-5.5, sh.y + 0.7, sh.z - 6.5);
       else camera.position.set(-9, sh.y, sh.z - 0.15);
       // &low : bas du dos, bassin et selle (au lieu des épaules).
       const low = params.has('low');

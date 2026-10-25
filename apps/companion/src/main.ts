@@ -12,7 +12,7 @@
  */
 import './style.css';
 import { Client, type Room } from '@colyseus/sdk';
-import { climbAhead, climbElevation, gradeColor, PAIR_MSG, PAIR_ROOM, PAIR_TOKEN_RE, type CameraMode, type Climb, type ClimbAhead, type PairEvent, type PairPresence, type PairRoute, type PairState, type PhoneCommand } from '@allezrobert/shared';
+import { climbAhead, climbElevation, gradeColor, PAIR_MSG, PAIR_ROOM, PAIR_TOKEN_RE, type CameraMode, type Climb, type ClimbAhead, type PairEvent, type PairMusicItem, type PairPresence, type PairRoute, type PairState, type PhoneCommand } from '@allezrobert/shared';
 import { detectLang, STRINGS, type Lang } from './i18n.ts';
 import { climbsOf } from './climbs.ts';
 import { drawClimb, drawMap, drawProfile, RouteGeo } from './map.ts';
@@ -73,6 +73,8 @@ const S = {
   climbHidden: false,
   /** Le coureur remonte la route à l'envers (demi-tour) : pas de montées. */
   backwards: false,
+  /** Dernière recherche Spotify : texte, état et résultats reçus du jeu. */
+  music: { query: '', state: 'idle' as 'idle' | 'loading' | 'done' | 'error', items: [] as PairMusicItem[], error: '' },
 };
 /** La page de la montée s'ouvre 500 m avant le pied. */
 const CLIMB_APPROACH_M = 500;
@@ -249,6 +251,11 @@ function showToast(text: string): void {
 }
 
 function onEvent(ev: PairEvent): void {
+  if (ev.kind === 'musicResults') {
+    S.music = { query: ev.query, state: ev.error ? 'error' : 'done', items: ev.items, error: ev.error ?? '' };
+    if (S.tab === 'music') renderMusicResults();
+    return;
+  }
   if (ev.kind === 'chat') {
     S.chat.push({ who: ev.who, text: ev.text });
     haptic(20);
@@ -675,7 +682,35 @@ function musicHtml(): string {
       <button class="btn round" data-music="next" aria-label="${esc(t.nextTrack)}">⏭</button>
     </div>
     <label class="slider"><span>${esc(t.volume)}</span><input type="range" min="0" max="1" step="0.05" id="mu-vol"/><output id="mu-volv"></output></label>
+    <div class="mu-search" id="mu-search" hidden>
+      <form class="row" data-form="music"><input name="q" maxlength="100" autocomplete="off" enterkeyhint="search" placeholder="${esc(t.musicSearch)}" value="${esc(S.music.query)}"/><button class="btn">${esc(t.musicSearchGo)}</button></form>
+      <button class="seg" data-act="music-mine">${esc(t.musicMine)}</button>
+      <ul class="mu-results" id="mu-results"></ul>
+    </div>
   </section>`;
+}
+
+/** Résultats de la recherche Spotify : un appui lance le morceau ou la playlist dans le jeu. */
+function renderMusicResults(): void {
+  const ul = document.getElementById('mu-results');
+  if (!ul) return;
+  const m = S.music;
+  if (m.state === 'loading') ul.innerHTML = `<li class="mu-info">${esc(t.musicSearching)}</li>`;
+  else if (m.state === 'error') ul.innerHTML = `<li class="mu-info">${esc(m.error === 'not_connected' ? t.musicNotConnected : t.musicFailed)}</li>`;
+  else if (m.state === 'done' && !m.items.length) ul.innerHTML = `<li class="mu-info">${esc(t.musicNone)}</li>`;
+  else
+    ul.innerHTML = m.items
+      .map(
+        (i, n) =>
+          `<li><button data-mplay="${n}">${i.image ? `<img src="${esc(i.image)}" alt="" loading="lazy"/>` : '<i></i>'}<span><b>${esc(i.name)}</b><small>${esc(i.type === 'track' ? t.musicTrack : t.musicPlaylist)}${i.sub ? ` · ${esc(i.sub)}` : ''}</small></span></button></li>`,
+      )
+      .join('');
+}
+
+function musicSearch(query: string): void {
+  S.music = { query, state: 'loading', items: [], error: '' };
+  renderMusicResults();
+  send({ kind: 'musicSearch', query });
 }
 
 let volTouched = 0;
@@ -690,6 +725,12 @@ function updateMusic(): void {
   if (title) title.textContent = mu ? (mu.playing ? mu.title || '…' : mu.title ? `${mu.title} (${t.stop.toLowerCase()})` : t.musicOff) : '–';
   const play = document.getElementById('mu-play');
   if (play) play.textContent = mu?.playing ? '⏸' : '▶';
+  const search = document.getElementById('mu-search');
+  if (search) {
+    const show = mu?.source === 'spotify';
+    if (search.hidden && show) renderMusicResults();
+    search.hidden = !show;
+  }
   const vol = document.getElementById('mu-vol') as HTMLInputElement | null;
   if (vol && mu && document.activeElement !== vol && Date.now() - volTouched > 1500) {
     vol.value = String(mu.volume);
@@ -787,7 +828,7 @@ async function rotate(): Promise<void> {
 }
 
 app.addEventListener('click', (e) => {
-  const el = (e.target as HTMLElement).closest<HTMLElement>('[data-act],[data-tab],[data-cmd],[data-cam],[data-turn],[data-music],[data-quick],[data-rideon],[data-field],[data-pick]');
+  const el = (e.target as HTMLElement).closest<HTMLElement>('[data-act],[data-tab],[data-cmd],[data-cam],[data-turn],[data-music],[data-mplay],[data-quick],[data-rideon],[data-field],[data-pick]');
   if (!el) return;
   const d = el.dataset;
   if (d.tab) {
@@ -847,6 +888,18 @@ app.addEventListener('click', (e) => {
   } else if (d.turn !== undefined) {
     haptic(25);
     send({ kind: 'turn', index: Number(d.turn) });
+  } else if (d.mplay !== undefined) {
+    const item = S.music.items[Number(d.mplay)];
+    if (item) {
+      haptic(25);
+      send({ kind: 'musicPlay', uri: item.uri });
+      showToast(item.name);
+    }
+  } else if (d.act === 'music-mine') {
+    haptic();
+    const q = document.querySelector<HTMLInputElement>('.mu-search input[name=q]');
+    if (q) q.value = '';
+    musicSearch('');
   } else if (d.music) {
     haptic();
     send({ kind: 'music', action: d.music as 'toggle' | 'next' | 'previous' });
@@ -902,7 +955,9 @@ app.addEventListener('submit', (e) => {
   e.preventDefault();
   const form = e.target as HTMLFormElement;
   const data = new FormData(form);
-  if (form.dataset.form === 'chat') {
+  if (form.dataset.form === 'music') {
+    musicSearch(String(data.get('q') ?? '').trim());
+  } else if (form.dataset.form === 'chat') {
     const text = String(data.get('text') ?? '').trim();
     if (text && S.st?.multiplayer) send({ kind: 'chat', text });
     form.reset();

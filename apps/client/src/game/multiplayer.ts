@@ -56,7 +56,7 @@ export class Multiplayer {
   /** Équipement égalisé dans cette salle (même vélo pour tous), connu après l'entrée. */
   equalized = false;
 
-  async connect(opts: { inviteCode?: string; mode: RideMode; guest: boolean; aiRiders: number; aiLevel?: number; laps?: number; trainerDifficulty: number; name: string; weather: RideWeather; equalEquipment?: boolean }): Promise<string> {
+  async connect(opts: { inviteCode?: string; mode: RideMode; guest: boolean; aiRiders: number; aiLevel?: number; targetKmh?: number; laps?: number; trainerDifficulty: number; name: string; weather: RideWeather; equalEquipment?: boolean }): Promise<string> {
     const role = opts.guest ? 'guest' : 'rider';
     const welcome = opts.inviteCode
       ? await this.net.joinByCode(opts.inviteCode, { role, displayName: opts.name })
@@ -71,6 +71,7 @@ export class Multiplayer {
             aiRiders: opts.aiRiders,
             weather: opts.weather,
             ...(opts.aiLevel ? { aiLevel: opts.aiLevel } : {}),
+            ...(opts.mode === 'group' && opts.targetKmh ? { targetKmh: opts.targetKmh } : {}),
             ...(opts.mode === 'race' && opts.laps ? { laps: opts.laps } : {}),
             equalEquipment: opts.equalEquipment ?? opts.mode === 'race',
           },

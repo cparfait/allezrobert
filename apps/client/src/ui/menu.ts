@@ -1,6 +1,6 @@
 import type { AvatarLook, CosmeticItem, RouteData, RouteSegment, WorldCatalogue } from '@allezrobert/shared';
 import { readKomRecord } from '../game/challenge.ts';
-import { BIKE_BRANDS, BIKE_GROUPS, BIKE_TEAMS, COSMETICS, DEFAULT_BIKE, bikeById, lookSex, tuneItem, withSex, bottleCapacity, bikeSetupFor, jerseyLookOf, levelProgress, SHOE_MARKS, type BikeCollection, type BikeType, type CosmeticSlot } from '@allezrobert/shared';
+import { COUNTRIES, flagEmoji, BIKE_BRANDS, BIKE_GROUPS, BIKE_TEAMS, COSMETICS, DEFAULT_BIKE, bikeById, lookSex, tuneItem, withSex, bottleCapacity, bikeSetupFor, jerseyLookOf, levelProgress, SHOE_MARKS, type BikeCollection, type BikeType, type CosmeticSlot } from '@allezrobert/shared';
 import { shoeAccentOf } from '../rider/shoeLook.ts';
 import { WORKOUT_LIBRARY } from '@allezrobert/physics';
 import { formatBytes, installPack, loadCatalogue, packState, removePack } from '../world/packs.ts';
@@ -10,6 +10,7 @@ import type { Settings } from './settings.ts';
 import { saveSettings } from './settings.ts';
 import { music } from '../audio/music.ts';
 import { spotify, redirectUri } from '../audio/spotify.ts';
+import { renderStravaLink } from './stravaLink.ts';
 import { renderSoundSettings } from './soundSettings.ts';
 import { renderCompanionSettings } from './companionQr.ts';
 import { HUD_BLOCKS } from '../hud/hud.ts';
@@ -42,6 +43,8 @@ export interface DevicePanel {
   /** Lance l'appairage d'un rôle (Web Bluetooth ouvre le sélecteur du navigateur). */
   pair(role: 'trainer' | 'power' | 'heartRate' | 'cadence' | 'shifter' | 'fan', transport: string): Promise<void>;
   forget(id: string): void;
+  /** Relance tout de suite la connexion d'un appareil appairé (salle d'attente, onglet Capteurs). */
+  reconnect?(id: string): void;
   useSimulator(on: boolean): void;
   simulatorOn(): boolean;
   warnings(): string[];
@@ -126,7 +129,7 @@ const zoneColorOf = (ftp: number) => ZONE_COLORS[ZONE_LIMITS.findIndex((z) => ft
  * Carte d'une séance : nom, durée, description, profil des paliers (hauteur = % de FTP, couleur = zone),
  * puis durée, TSS et IF estimés (puissance normalisée calculée sur les paliers).
  */
-function workoutCard(w: (typeof WORKOUT_LIBRARY)[number], on: boolean): string {
+function workoutCard(w: (typeof WORKOUT_LIBRARY)[number], on: boolean, opens?: string): string {
   const lang = getLang();
   const steps = w.build().steps;
   const total = steps.reduce((a, st) => a + st.durationS, 0) || 1;
@@ -151,7 +154,7 @@ function workoutCard(w: (typeof WORKOUT_LIBRARY)[number], on: boolean): string {
   const tss = Math.round((total / 3600) * ifv * ifv * 100);
   const min = Math.round(total / 60);
   const dur = min >= 60 ? `${Math.floor(min / 60)} h ${String(min % 60).padStart(2, '0')}` : `${min} min`;
-  return `<button class="mm-wk ${on ? 'on' : ''}" data-preset="${w.id}" style="--wk:${zoneColorOf(peak)}">
+  return `<button class="mm-wk ${on ? 'on' : ''}" ${opens ? `data-picker="${opens}"` : `data-preset="${w.id}"`} style="--wk:${zoneColorOf(peak)}">
     <span class="mm-wk-head"><b>${esc(w.name[lang])}</b><em>${dur}</em></span>
     <span class="mm-wk-desc">${esc(w.description[lang])}</span>
     <svg class="mm-wk-prof" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true"><line x1="0" x2="${W}" y1="${y(1)}" y2="${y(1)}"/>${shapes}</svg>
@@ -368,7 +371,7 @@ export class MainMenu {
   onWorld?: (id: string) => void;
   onSettingsSaved?: (s: Settings) => void;
   /** Fenêtre de choix ouverte au milieu de l'écran (bouton « Choisir ma sortie »). */
-  private picker: 'zones' | 'zone' | 'routes' | 'map' | 'route' | null = null;
+  private picker: 'zones' | 'zone' | 'routes' | 'map' | 'route' | 'workouts' | null = null;
   /** Parcours ouvert dans sa fiche (fenêtre « route »). */
   private detailId = '';
   /** Sens montré dans la fiche du parcours (choisi au départ). */
@@ -436,6 +439,11 @@ export class MainMenu {
       },
       rerender: () => this.render(),
     });
+  }
+
+  /** Ouvre une rubrique des Réglages (retour de Strava : la rubrique d'envoi des sorties). */
+  openSettingsSection(id: string): void {
+    this.settingsOpen.add(id);
   }
 
   show(tab: Tab = 'home'): void {
@@ -654,9 +662,11 @@ export class MainMenu {
     // Accueil : rien que la vidéo, le titre et le bouton Rouler, qui ouvre le menu.
     if (this.tab === 'home') {
       this.root.innerHTML = `<div class="mm mm-tab-home">
+        <div class="mm-music mm-home-music" id="m-music"></div>
         <div class="mm-hero mm-hero-home"><h1>Allez <em>Robert</em> !</h1><p>${L ? 'Rouler ensemble, chacun chez soi.' : 'Ride together, each from home.'}</p></div>
         <button class="mm-go mm-home-go" data-tab="ride">${t('ride')}</button>
       </div>`;
+      this.renderMusic();
       this.bind();
       return;
     }
@@ -683,7 +693,7 @@ export class MainMenu {
         <nav class="mm-tabs">${tabs.map(([id, label]) => `<button class="mm-tab ${id === this.tab ? 'on' : ''}" data-tab="${id}">${esc(label)}${id === 'friends' ? this.friends.badgeHtml() : ''}</button>`).join('')}
           <button class="mm-tab subtle" id="m-tuto">${L ? 'Tutoriel' : 'Tutorial'}</button></nav>
         <div class="mm-right">
-          <div class="mm-music" id="m-music"></div>
+          ${this.tab === 'ride' ? '' : '<div class="mm-music" id="m-music"></div>'}
           <div class="mm-account">
             <div class="mm-avatar" style="background:${this.s.look.jersey}">${esc(initials || 'R')}</div>
             <div class="mm-who"><b>${esc(name)}</b>
@@ -706,6 +716,7 @@ export class MainMenu {
     this.renderMusic();
     renderSoundSettings(this.root.querySelector('#m-sound-settings'));
     renderCompanionSettings(this.root.querySelector('#m-companion-settings'));
+    renderStravaLink(this.root.querySelector('#m-strava-link'), !!this.account);
     renderExpertSettings(this.root.querySelector('#m-expert-settings'));
     // Rubriques repliables des Réglages : on retient celles qui sont ouvertes (l'écran est redessiné à chaque changement).
     for (const d of this.root.querySelectorAll<HTMLDetailsElement>('details.set-sec')) {
@@ -769,6 +780,15 @@ export class MainMenu {
               <p class="mm-hint">${L ? 'Chaque IA a sa tactique (baroudeur, attentiste, grimpeur, équipier) et sa forme du jour ; une échappée reprise à bout de forces se paie.' : 'Each AI has its own tactic (breakaway artist, wheelsucker, climber, domestique) and form of the day; a spent breakaway pays for it.'}</p>`
                   : ''
               }
+              ${
+                s.mode === 'group'
+                  ? `<div class="field">${L ? 'Vitesse moyenne visée (IA)' : 'Target average speed (AI)'}${this.seg('m-target', String(s.groupTargetKmh), [
+                      ['0', L ? 'Libre' : 'Free'],
+                      ...[22, 25, 28, 30, 32, 35].map((v): [string, string] => [String(v), `${v} km/h`]),
+                    ])}</div>
+              <p class="mm-hint">${L ? 'Les IA règlent leur effort pour tenir cette moyenne sur la sortie ; l’organisateur peut l’augmenter en route.' : 'AI riders pace themselves to hold this average over the ride; the host can raise it on the road.'}</p>`
+                  : ''
+              }
               <div class="field">${L ? 'Équipement égalisé' : 'Equal equipment'}${this.seg('m-equal', (s.equalEquipment ?? s.mode === 'race') ? '1' : '0', [
                 ['1', L ? 'Oui : même vélo pour tous' : 'Yes: same bike for all'],
                 ['0', L ? 'Non : pièces de l’atelier' : 'No: workshop parts'],
@@ -778,8 +798,7 @@ export class MainMenu {
           : s.mode === 'challenge'
             ? this.challengeHtml(r, true)
           : s.mode === 'workout'
-            ? `<div class="mm-wks">${WORKOUT_LIBRARY.map((w) => workoutCard(w, !this.workoutFile && w.id === s.workoutPreset)).join('')}</div>
-              <label class="mm-file">${L ? 'Ou importer une séance' : 'Or import a workout'} (.zwo / .erg / .mrc)<input id="m-workout" type="file" accept=".zwo,.erg,.mrc" hidden /><span id="m-wname">${this.workoutFile ? esc(this.workoutFile.name) : ''}</span></label>`
+            ? this.workoutChoiceHtml()
             : ''
       }
       ${
@@ -788,8 +807,32 @@ export class MainMenu {
           : `<h3 class="mm-where">${L ? 'Où rouler ?' : 'Where to ride?'}</h3>${this.pickersHtml(r)}`
       }
     </section>
-    <div class="mm-hero"><h1>Allez <em>Robert</em> !</h1><p>${L ? 'Rouler ensemble, chacun chez soi.' : 'Ride together, each from home.'}</p></div>
+    <div class="mm-hero"><div class="mm-music mm-hero-music" id="m-music"></div><h1>Allez <em>Robert</em> !</h1><p>${L ? 'Rouler ensemble, chacun chez soi.' : 'Ride together, each from home.'}</p></div>
     ${this.pickerHtml()}`;
+  }
+
+  /** Séance choisie (carte seule, un clic rouvre la liste au milieu de l'écran) ou fichier importé. */
+  private workoutChoiceHtml(): string {
+    const L = fr();
+    const w = WORKOUT_LIBRARY.find((x) => x.id === this.s.workoutPreset) ?? WORKOUT_LIBRARY[0];
+    const current = this.workoutFile
+      ? `<button class="mm-wk on" data-picker="workouts" style="--wk:#9aa5b1"><span class="mm-wk-head"><b>${esc(this.workoutFile.name)}</b></span><span class="mm-wk-desc">${L ? 'Séance importée' : 'Imported workout'}</span></button>`
+      : w
+        ? workoutCard(w, true, 'workouts')
+        : '';
+    return `<div class="mm-wks">${current}</div>
+      <button class="mm-link" data-picker="workouts">${L ? 'Changer de séance' : 'Change workout'}</button>`;
+  }
+
+  /** Fenêtre « Séances » au milieu de l'écran, comme la carte de France : séances intégrées et import de fichier. */
+  private workoutsHtml(): string {
+    const L = fr();
+    return `<div class="mm-modal mm-picker-modal" data-picker-close>
+      <div class="mm-dialog mm-picker wk-dialog" role="dialog" aria-modal="true">
+        <header><h2>${L ? 'Choisis ta séance' : 'Choose your workout'}</h2><button class="mm-x" data-picker-close aria-label="${L ? 'Fermer' : 'Close'}">×</button></header>
+        <div class="mm-wks mm-wks-grid">${WORKOUT_LIBRARY.map((w) => workoutCard(w, !this.workoutFile && w.id === this.s.workoutPreset)).join('')}</div>
+        <label class="mm-file">${L ? 'Ou importer une séance' : 'Or import a workout'} (.zwo / .erg / .mrc)<input id="m-workout" type="file" accept=".zwo,.erg,.mrc" hidden /><span id="m-wname">${this.workoutFile ? esc(this.workoutFile.name) : ''}</span></label>
+      </div></div>`;
   }
 
   /** Test FTP : déroulé du test rampe (pas de choix de zone ni de parcours). */
@@ -866,6 +909,7 @@ export class MainMenu {
       </div></div>`;
     }
     if (this.picker === 'zones') return this.franceHtml();
+    if (this.picker === 'workouts') return this.workoutsHtml();
     if (this.picker === 'route') return this.routeDetailWindow();
     if (this.picker === 'zone') return this.zoneHtml();
     // Parcours fixés de la zone (cartes), avec retour aux choix de la zone ou à la carte de France.
@@ -1411,6 +1455,7 @@ export class MainMenu {
       <div class="grid2b">
         <label class="field">${t('name')}<input id="m-name" value="${esc(s.name)}" /></label>
         <label class="field">${L ? 'Je suis' : 'I am'}<div class="row">${(['male', 'female'] as const).map((x) => `<button class="btn small ${lookSex(s.look) === x ? 'primary' : ''}" data-sex="${x}">${x === 'male' ? (L ? 'Un homme' : 'A man') : L ? 'Une femme' : 'A woman'}</button>`).join('')}</div></label>
+        <label class="field">${L ? 'Nationalité' : 'Nationality'}<select id="m-nation"><option value="">—</option>${COUNTRIES.map((c) => `<option value="${c.code}" ${s.look.nationality === c.code ? 'selected' : ''}>${flagEmoji(c.code)} ${esc(c[L ? 'fr' : 'en'])}</option>`).join('')}</select></label>
         <label class="field">${t('weight')}<input id="m-mass" type="number" min="30" max="200" step="0.5" value="${s.massKg}" /></label>
         <label class="field">${t('height')}<input id="m-height" type="number" min="120" max="220" value="${s.heightCm}" /></label>
         <label class="field">${t('ftp')}<input id="m-ftp" type="number" min="50" max="600" value="${s.ftpWatts}" /></label>
@@ -1479,7 +1524,8 @@ export class MainMenu {
           ['skip', L ? 'Ne pas envoyer' : 'Don’t upload'],
           ['send', L ? 'Envoyer' : 'Upload'],
         ])}</div>
-      </div>`;
+      </div>
+      <div id="m-strava-link"></div>`;
     // Blocs du HUD : décocher ce que son matériel ne mesure pas (cardio, cadence…).
     const hidden = new Set(s.hudHidden);
     const hud = `<p class="mm-hint">${L ? 'Décoche ce que ton matériel ne mesure pas ou ce que tu ne veux pas voir.' : 'Untick what your hardware does not measure or what you do not want to see.'}</p><div class="grid3">${HUD_BLOCKS.map((b) => `<label class="mm-check"><input type="checkbox" data-hudblock="${b.id}" ${hidden.has(b.id) ? '' : 'checked'}/> ${L ? b.fr : b.en}</label>`).join('')}</div>`;
@@ -1549,7 +1595,7 @@ export class MainMenu {
     }
     const set = this.root.querySelector('#m-music-settings');
     if (set) {
-      set.innerHTML = `<button class="btn small ${music.enabled ? 'on' : ''}" id="mu-toggle2">♪ ${L ? 'Musique du jeu' : 'Game music'} : ${music.enabled ? (L ? 'activée' : 'on') : L ? 'coupée' : 'off'}</button>
+      set.innerHTML = `<button class="btn small ${music.enabled ? 'on' : ''}" id="mu-toggle2">♪ ${L ? 'Musique du jeu' : 'Game music'} : ${music.enabled ? (music.yielded ? (L ? 'laisse la place à Spotify' : 'yields to Spotify') : L ? 'activée' : 'on') : L ? 'coupée' : 'off'}</button>
         <label class="mm-vol">Volume<input id="mu-vol" type="range" min="0" max="1" step="0.05" value="${music.volume}" /></label>
         ${spotify.connected ? `<button class="btn small" id="sp-logout">${L ? 'Déconnecter Spotify' : 'Disconnect Spotify'}</button>` : `<button class="btn small mm-spotify" id="sp-login2"><i class="sp">●</i> ${L ? 'Connecter Spotify' : 'Connect Spotify'}</button>`}`;
       set.querySelector('#mu-toggle2')?.addEventListener('click', () => {
@@ -1560,6 +1606,7 @@ export class MainMenu {
       set.querySelector('#sp-login2')?.addEventListener('click', () => this.spotifyConnect());
       set.querySelector('#sp-logout')?.addEventListener('click', () => {
         spotify.logout();
+        music.yieldToExternal(false);
         this.renderMusic();
       });
     }
@@ -1811,6 +1858,8 @@ export class MainMenu {
       el.addEventListener('click', () => {
         const v = el.dataset.mode as Settings['mode'];
         if (!(v === 'free' && s.mode === 'open')) s.mode = v;
+        // Entraînement : la liste des séances s'ouvre au milieu de l'écran, comme la carte de France.
+        if (v === 'workout') this.picker = 'workouts';
         changed();
         this.render();
       }),
@@ -1833,6 +1882,7 @@ export class MainMenu {
       el.addEventListener('click', () => {
         s.workoutPreset = el.dataset.preset as string;
         this.workoutFile = undefined;
+        if (this.picker === 'workouts') this.picker = null;
         changed();
         this.render();
       }),
@@ -1894,7 +1944,7 @@ export class MainMenu {
     // « Choisir ma sortie » et carte du choix : fenêtre de choix au milieu de l'écran.
     this.root.querySelectorAll<HTMLElement>('[data-picker]').forEach((el) =>
       el.addEventListener('click', () => {
-        this.picker = el.dataset.picker as 'zones' | 'zone' | 'routes' | 'map' | 'route';
+        this.picker = el.dataset.picker as 'zones' | 'zone' | 'routes' | 'map' | 'route' | 'workouts';
         if (this.picker === 'zones' && el.closest('.mm-pickers')) this.franceMap.reset();
         this.render();
       }),
@@ -1962,8 +2012,8 @@ export class MainMenu {
       const f = el.files?.[0];
       if (!f) return;
       this.workoutFile = { name: f.name, content: await f.text() };
-      const n = this.root.querySelector('#m-wname');
-      if (n) n.textContent = f.name;
+      if (this.picker === 'workouts') this.picker = null;
+      this.render();
     });
     // Éditeur de visage : aperçu immédiat pendant le glissement, enregistrement au relâcher.
     const faceLive = (look: AvatarLook) => {
@@ -2047,8 +2097,14 @@ export class MainMenu {
       const L = getLang() === 'fr';
       if (msg) msg.textContent = L ? 'Analyse sur ton appareil…' : 'Analysing on your device…';
       try {
-        const { likenessFromPhoto } = await import('../onboarding/likeness.ts');
-        const l = await likenessFromPhoto(f);
+        // Repères détectés, à corriger à la main dans une fenêtre avant l'ajustement de l'avatar.
+        const { likenessWithEditing } = await import('./landmarkEditor.ts');
+        const l = await likenessWithEditing(f);
+        if (!l) {
+          const m3 = this.root.querySelector<HTMLElement>('#fe-photo-msg');
+          if (m3) m3.textContent = L ? 'Annulé ; photo oubliée.' : 'Cancelled; photo discarded.';
+          return;
+        }
         faceSet(withLikeness(s.look, l));
         const m2 = this.root.querySelector<HTMLElement>('#fe-photo-msg');
         if (m2) m2.textContent = l.face ? (L ? 'Visage, teint et cheveux appliqués ; photo oubliée.' : 'Face, skin and hair applied; photo discarded.') : L ? 'Aucun visage trouvé : teint et cheveux seulement.' : 'No face found: skin and hair only.';
@@ -2234,6 +2290,12 @@ export class MainMenu {
       changed();
       this.render();
     });
+    // Nationalité : drapeau montré aux autres coureurs (À proximité, classement des courses).
+    on<HTMLSelectElement>('m-nation', 'change', (el) => {
+      const { nationality: _old, ...rest } = s.look;
+      s.look = el.value ? { ...rest, nationality: el.value } : rest;
+      changed();
+    });
     // Réglages.
     on<HTMLSelectElement>('m-quality', 'change', (el) => {
       s.quality = el.value as Settings['quality'];
@@ -2282,6 +2344,10 @@ export class MainMenu {
     });
     on<HTMLSelectElement>('m-strava', 'change', (el) => {
       s.skipStrava = el.value === 'skip';
+      changed();
+    });
+    on<HTMLSelectElement>('m-target', 'change', (el) => {
+      s.groupTargetKmh = Number(el.value);
       changed();
     });
     on<HTMLSelectElement>('m-ailevel', 'change', (el) => {

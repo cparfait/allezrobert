@@ -1,7 +1,8 @@
 import './rideroom.css';
-import type { RideEventMsg, RideResult, RouteTrack } from '@allezrobert/shared';
+import { flagEmoji, type RideEventMsg, type RideResult, type RouteTrack } from '@allezrobert/shared';
 import type { RideNetClient } from '../net/index.ts';
 import type { VoiceConfig } from './voice.ts';
+import { bindGear, gearHtml, gearKey, type GearSource } from './gearList.ts';
 import { countdownLabel, formatGap, formatRaceTime, liveStandings, paceBand, selfRaceInfo, statusLabel, type LiveRider, type StandingRow } from './race.ts';
 
 const esc = (s: string): string => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
@@ -24,6 +25,8 @@ export interface RideRoomUiOptions {
   lang: 'fr' | 'en';
   toast: (text: string) => void;
   voice: Promise<VoiceConfig>;
+  /** Matériel du poste, listé dans la salle d'attente de la course (état, reconnexion). */
+  gear?: GearSource;
 }
 
 /**
@@ -73,6 +76,9 @@ export class RideRoomUi {
       const act = (e.target as HTMLElement).closest<HTMLElement>('[data-act]')?.dataset.act;
       if (act === 'slower') this.adjustPace(-0.1);
       else if (act === 'faster') this.adjustPace(0.1);
+      else if (act === 'tslower') this.adjustTarget(-1);
+      else if (act === 'tfaster') this.adjustTarget(1);
+      else if (act === 'tfree') this.net.setHostOptions({ targetKmh: null });
       else if (act === 'free') this.net.setHostOptions({ paceWkg: null });
       else if (act === 'regroup') this.net.regroup();
     });
@@ -121,6 +127,12 @@ export class RideRoomUi {
 
   private name(id: string): string {
     return this.net.roster.get(id)?.name ?? this.known.get(id)?.name ?? '?';
+  }
+
+  /** Drapeau du coureur (nationalité de sa fiche), suivi d'une espace ; vide si inconnue. */
+  private flag(id: string): string {
+    const f = flagEmoji(this.net.roster.get(id)?.avatar.nationality);
+    return f ? `<span class="flag">${f}</span> ` : '';
   }
 
   private targetM(): number {
@@ -211,6 +223,12 @@ export class RideRoomUi {
     if ((e.key === '[' || e.key === ']') && this.net.isHost) this.adjustPace(e.key === ']' ? 0.1 : -0.1);
   }
 
+  /** Hôte : vitesse moyenne visée +/− 1 km/h (part de celle annoncée, ou de 28 km/h si elle est libre). */
+  private adjustTarget(delta: number): void {
+    const cur = this.w?.hostOptions?.targetKmh ?? 28;
+    this.net.setHostOptions({ targetKmh: Math.min(50, Math.max(15, cur + delta)) });
+  }
+
   private adjustPace(delta: number): void {
     const cur = this.w?.hostOptions?.paceWkg ?? 2.5;
     this.net.setHostOptions({ paceWkg: Math.round(Math.min(6, Math.max(1, cur + delta)) * 10) / 10 });
@@ -285,7 +303,7 @@ export class RideRoomUi {
       <div class="mp-standings">${top
         .map((r) => {
           const cls = r.id === this.net.selfId ? 'me' : '';
-          return `<span class="num ${cls}">${r.pos}</span><span class="${cls}">${esc(r.name)}</span><span class="num muted">${gapCell(r)}</span>`;
+          return `<span class="num ${cls}">${r.pos}</span><span class="${cls}">${this.flag(r.id)}${esc(r.name)}</span><span class="num muted">${gapCell(r)}</span>`;
         })
         .join('')}</div>`);
   }
@@ -295,7 +313,7 @@ export class RideRoomUi {
     const w = this.w!;
     const riders = [...this.net.roster.values()];
     const host = this.net.roster.get(this.net.hostId)?.name ?? '';
-    const key = `${riders.map((r) => `${r.id}${r.connected ? 1 : 0}`).join(',')}|${this.net.hostId}|${this.discord}`;
+    const key = `${riders.map((r) => `${r.id}${r.connected ? 1 : 0}`).join(',')}|${this.net.hostId}|${this.discord}|${this.o.gear ? gearKey(this.o.gear) : ''}`;
     if (key === this.lobbyKey && this.overlay.querySelector('.mp-lobby')) return;
     this.lobbyKey = key;
     const laps = w.route.loop ? (w.options.laps ?? 1) : 1;
@@ -305,14 +323,16 @@ export class RideRoomUi {
       <div class="sub">${esc(w.route.name)} · ${dist} km${laps > 1 ? ` · ${laps} ${fr ? 'tours' : 'laps'}` : ''} · ${fr ? 'primes KOM et sprint' : 'KOM and sprint primes'}</div>
       <div class="mp-line"><span>${fr ? 'Code d’invitation' : 'Invite code'}</span><span class="mp-code">${esc(w.inviteCode)}</span></div>
       <div class="mp-roster">${riders
-        .map((r) => `<span>${esc(r.name)}${r.id === this.net.selfId ? (fr ? ' (toi)' : ' (you)') : ''}</span><span class="tag">${r.isHost ? (fr ? 'organisateur' : 'host') : r.isAI ? 'IA' : r.isGuest ? (fr ? 'invité · non classé' : 'guest · unranked') : r.connected ? (fr ? 'prêt' : 'ready') : fr ? 'reconnexion…' : 'reconnecting…'}</span>`)
+        .map((r) => `<span>${this.flag(r.id)}${esc(r.name)}${r.id === this.net.selfId ? (fr ? ' (toi)' : ' (you)') : ''}</span><span class="tag">${r.isHost ? (fr ? 'organisateur' : 'host') : r.isAI ? 'IA' : r.isGuest ? (fr ? 'invité · non classé' : 'guest · unranked') : r.connected ? (fr ? 'prêt' : 'ready') : fr ? 'reconnexion…' : 'reconnecting…'}</span>`)
         .join('')}</div>
+      ${this.o.gear ? gearHtml(this.o.gear, fr) : ''}
       <div class="sub">${this.net.isHost ? (fr ? 'Les IA complètent le peloton ; chaque ami qui arrive prend la place d’une IA.' : 'AI riders fill the field; each friend who joins takes an AI’s place.') : fr ? `En attente du départ donné par ${esc(host)}…` : `Waiting for ${esc(host)} to start…`}</div>
       <div class="mp-btns">
         ${this.net.isHost ? `<button class="mp-btn primary" data-act="start">${fr ? 'Donner le départ (10 s)' : 'Start the race (10 s)'}</button>` : ''}
         ${this.discord ? `<a class="mp-btn discord" href="${esc(this.discord)}" target="_blank" rel="noopener noreferrer">${fr ? 'Salon Discord' : 'Discord channel'}</a>` : ''}
         <button class="mp-btn" data-act="leave">${fr ? 'Quitter' : 'Leave'}</button>
       </div></div>`;
+    if (this.o.gear) bindGear(this.overlay, this.o.gear);
     this.overlay.querySelector('[data-act="start"]')?.addEventListener('click', () => this.net.startCountdown(10));
     this.overlay.querySelector('[data-act="leave"]')?.addEventListener('click', () => this.onLeave?.());
   }
@@ -346,7 +366,7 @@ export class RideRoomUi {
         const cls = r.riderId === this.net.selfId ? 'me' : '';
         const jersey = (r.komPts ?? 0) > 0 && r.komPts === komLeader ? ' ⛰' : '';
         const green = (r.sprintPts ?? 0) > 0 && r.sprintPts === sprintLeader ? ' ⚡' : '';
-        return `<tr class="${cls}"><td class="num">${r.rank > 0 ? r.rank : '–'}</td><td>${esc(r.name)}${r.isAI ? ' <span style="color:var(--ar-muted)">IA</span>' : ''}${jersey}${green}</td><td class="num">${st === 'finished' ? formatRaceTime(r.timeMs) : esc(statusLabel(st, this.o.lang))}</td><td class="num">${st === 'finished' && r.gapMs !== undefined ? formatGap(r.gapMs) : r.distM !== undefined && st !== 'unranked' ? `${km(r.distM)} km` : ''}</td>${hasPts ? `<td class="num">${r.komPts ?? 0}</td><td class="num">${r.sprintPts ?? 0}</td>` : ''}</tr>`;
+        return `<tr class="${cls}"><td class="num">${r.rank > 0 ? r.rank : '–'}</td><td>${this.flag(r.riderId)}${esc(r.name)}${r.isAI ? ' <span style="color:var(--ar-muted)">IA</span>' : ''}${jersey}${green}</td><td class="num">${st === 'finished' ? formatRaceTime(r.timeMs) : esc(statusLabel(st, this.o.lang))}</td><td class="num">${st === 'finished' && r.gapMs !== undefined ? formatGap(r.gapMs) : r.distM !== undefined && st !== 'unranked' ? `${km(r.distM)} km` : ''}</td>${hasPts ? `<td class="num">${r.komPts ?? 0}</td><td class="num">${r.sprintPts ?? 0}</td>` : ''}</tr>`;
       })
       .join('')}</tbody></table>`;
   }
@@ -376,6 +396,7 @@ export class RideRoomUi {
     const w = this.w;
     if (!w) return;
     const pace = w.hostOptions?.paceWkg ?? null;
+    const target = w.hostOptions?.targetKmh ?? null;
     const leaderId = this.leaderId;
     const leader = leaderId && leaderId !== this.net.selfId ? this.net.getInterpolated(leaderId) : null;
     const me = this.net.selfId;
@@ -384,12 +405,14 @@ export class RideRoomUi {
     const nf = (v: number) => v.toFixed(1).replace('.', fr ? ',' : '.');
     setHtml(this.body, `<h4><span>${fr ? 'Sortie de groupe' : 'Group ride'}</span><span>${w.options.stickyGroup ? (fr ? 'groupe soudé' : 'sticky') : ''}</span></h4>
       ${w.regrouping ? `<div class="mp-banner">${fr ? 'Regroupement en cours' : 'Regrouping'}</div>` : ''}
+      ${target !== null ? `<div class="mp-line"><span>${fr ? 'Moyenne visée (IA)' : 'Target average (AI)'}</span><b class="num">${nf(target).replace(/[,.]0$/, '')} km/h</b></div>` : ''}
       <div class="mp-line"><span>${fr ? 'Allure annoncée' : 'Announced pace'}</span><b class="num">${pace !== null ? `${nf(pace)} W/kg` : fr ? 'libre' : 'free'}</b></div>
       <div class="mp-line"><span>${fr ? 'Ton allure (3 s)' : 'Your pace (3 s)'}</span><span class="mp-pace num ${pace !== null ? band : ''}">${nf(self.wkg)}</span></div>
       <div class="mp-line"><span>${fr ? 'Meneur' : 'Leader'}</span><b>★ ${esc(this.name(leaderId))}${leader ? ` · ${leader.unwrappedM - self.distM >= 0 ? '+' : '−'}${Math.round(Math.abs(leader.unwrappedM - self.distM))} m` : leaderId === me ? (fr ? ' (toi)' : ' (you)') : ''}</b></div>`);
     setHtml(
       this.btns,
       `
+        ${this.net.isHost ? `<button class="mp-btn" data-act="tslower" title="${fr ? 'Moyenne visée −1 km/h' : 'Target −1 km/h'}">−1 km/h</button><button class="mp-btn" data-act="tfaster" title="${fr ? 'Moyenne visée +1 km/h' : 'Target +1 km/h'}">+1 km/h</button>${target !== null ? `<button class="mp-btn" data-act="tfree">${fr ? 'Moyenne libre' : 'No target'}</button>` : ''}` : ''}
         ${this.net.isHost ? `<button class="mp-btn" data-act="slower" title="[">−</button><button class="mp-btn" data-act="faster" title="]">+</button><button class="mp-btn" data-act="free">${fr ? 'Libre' : 'Free'}</button>` : ''}
         ${canRegroup ? `<button class="mp-btn ${w.regrouping ? '' : 'primary'}" data-act="regroup">${w.regrouping ? (fr ? 'Arrêter (G)' : 'Stop (G)') : fr ? 'Regrouper (G)' : 'Regroup (G)'}</button>` : ''}
         ${this.discord ? `<a class="mp-btn discord" href="${esc(this.discord)}" target="_blank" rel="noopener noreferrer">Discord</a>` : ''}`,

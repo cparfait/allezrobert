@@ -333,8 +333,9 @@ export class Onboarding {
       const f = input.files?.[0];
       input.value = '';
       if (!f || !$<HTMLInputElement>('o-consent')?.checked) return;
-      const { likenessFromPhoto } = await import('./likeness.ts');
-      const l = await likenessFromPhoto(f);
+      const { likenessWithEditing } = await import('../ui/landmarkEditor.ts');
+      const l = await likenessWithEditing(f);
+      if (!l) return;
       this.s.look = withLikeness(this.s.look, l);
       this.render();
     });

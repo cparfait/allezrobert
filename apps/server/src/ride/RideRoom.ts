@@ -59,6 +59,7 @@ const CreateOptionsSchema = z
       .optional(),
     aiLevel: finite.optional(),
     paceWkg: finite.optional(),
+    targetKmh: finite.optional(),
     equalEquipment: z.boolean().optional(),
   })
   .passthrough();
@@ -91,6 +92,7 @@ const HostOptionsSchema = z.object({
   stickyGroup: z.boolean().optional(),
   draftingStrength: finite.optional(),
   paceWkg: finite.nullable().optional(),
+  targetKmh: finite.nullable().optional(),
   leaderId: z.string().max(40).optional(),
 });
 const RegroupSchema = z.object({ active: z.boolean().optional() }).optional();
