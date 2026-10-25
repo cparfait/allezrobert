@@ -13,6 +13,7 @@
     "dev:server": "pnpm --filter @allezrobert/server dev",
     "zone-builder": "pnpm --filter @allezrobert/terrain zone-builder",
     "dev:companion": "pnpm --filter @allezrobert/companion dev",
+    "dev:all": "pnpm --parallel --filter @allezrobert/client --filter @allezrobert/server --filter @allezrobert/companion dev",
     "build": "pnpm -r --filter=!@allezrobert/desktop build",
     "test": "vitest run",
     "test:watch": "vitest",

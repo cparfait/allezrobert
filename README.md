@@ -30,6 +30,7 @@ Sans tuiles générées, le client bascule sur un monde procédural de développ
 | `pnpm dev` | Client (Chrome / Edge pour le Web Bluetooth) |
 | `pnpm --filter @allezrobert/desktop dev` | App Windows (Bluetooth natif, Direct Connect, ANT+) |
 | `pnpm dev:server` | Serveur multijoueur (Colyseus) |
+| `pnpm dev:all` | Client + serveur + appli compagnon d'un coup (nécessaire au QR code du compagnon) |
 | `pnpm test` | Tous les tests (protocoles octet par octet, physique, FIT, terrain, serveur) |
 | `pnpm typecheck` | Vérification des types |
 

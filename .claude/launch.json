@@ -2,6 +2,14 @@
   "version": "0.0.1",
   "configurations": [
     {
+      "name": "jeu-complet",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": [
+        "dev:all"
+      ],
+      "port": 5173
+    },
+    {
       "name": "client",
       "runtimeExecutable": "pnpm",
       "runtimeArgs": [
