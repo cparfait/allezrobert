@@ -740,11 +740,9 @@ export class MainMenu {
     // Accueil : rien que la vidéo, le titre et le bouton Rouler, qui ouvre le menu.
     if (this.tab === 'home') {
       this.root.innerHTML = `<div class="mm mm-tab-home">
-        <div class="mm-music mm-home-music" id="m-music"></div>
         <div class="mm-hero mm-hero-home"><h1>Allez <em>Robert</em> !</h1><p>${L ? 'Rouler ensemble, chacun chez soi.' : 'Ride together, each from home.'}</p></div>
         <button class="mm-go mm-home-go" data-tab="ride">${t('ride')}</button>
       </div>`;
-      this.renderMusic();
       this.bind();
       return;
     }
