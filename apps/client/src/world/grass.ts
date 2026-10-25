@@ -9,6 +9,13 @@ import type { Season } from './environment.ts';
 import { snowCoverAt } from './alpine.ts';
 
 const RADIUS = 60;
+/** Essais de placement par image pendant une regénération (≈ 12 ms ; une vingtaine d'images pour la densité la plus forte). */
+const GRASS_TRIES_PER_FRAME = 6000;
+const _m = new THREE.Matrix4();
+const _q = new THREE.Quaternion();
+const _s = new THREE.Vector3();
+const _p = new THREE.Vector3();
+const _up = new THREE.Vector3(0, 1, 0);
 /** Base (pied, ombragé) et pointe des brins par saison : verts sourds, pointes olive (pas de jaune vif). */
 const SEASON_GRASS: Record<Season, [string, string]> = {
   spring: ['#3d6324', '#86a84e'],
@@ -74,6 +81,13 @@ export class GrassField {
   private readonly heightAt: (x: number, z: number) => number;
   private readonly avoid: (x: number, z: number) => boolean;
   private season: Season = 'summer';
+  /**
+   * Regénération en cours, étalée sur quelques images : jusqu'à 48 000 touffes refaites d'un coup tous les
+   * 12 m figeaient l'image (≈ 55 ms). Les touffes affichées restent en place jusqu'à la fin.
+   */
+  private job: { focus: THREE.Vector3; r: () => number; i: number; n: number } | null = null;
+  /** Matrices de la regénération en cours (gardé d'une fois à l'autre : 3 Mo). */
+  private staging: Float32Array | null = null;
 
   constructor(q: QualitySettings, season: Season, tileAt: (x: number, z: number) => LoadedTile | undefined, heightAt: (x: number, z: number) => number, avoid: (x: number, z: number) => boolean) {
     this.tileAt = tileAt;
@@ -106,6 +120,7 @@ export class GrassField {
     this.season = season;
     // régénérer au prochain update (enneigement)
     this.center.set(1e9, 0, 1e9);
+    this.job = null;
     const [b, t] = SEASON_GRASS[season];
     this.base.set(b);
     this.tipCol.set(t);
@@ -113,17 +128,33 @@ export class GrassField {
 
   update(focus: THREE.Vector3): void {
     if (!this.max) return;
-    if (Math.hypot(focus.x - this.center.x, focus.z - this.center.z) < 12) return;
-    this.center.copy(focus);
-    const r = rng(Math.floor(focus.x / 12) * 7349 + Math.floor(focus.z / 12) * 1931);
-    const m = new THREE.Matrix4();
-    const q = new THREE.Quaternion();
-    const s = new THREE.Vector3();
-    const p = new THREE.Vector3();
-    const up = new THREE.Vector3(0, 1, 0);
-    let n = 0;
+    if (!this.job && Math.hypot(focus.x - this.center.x, focus.z - this.center.z) >= 12) {
+      this.center.copy(focus);
+      const r = rng(Math.floor(focus.x / 12) * 7349 + Math.floor(focus.z / 12) * 1931);
+      this.job = { focus: focus.clone(), r, i: 0, n: 0 };
+      this.staging ??= new Float32Array(this.max * 16);
+      // Premier remplissage (départ, changement de saison) : tout de suite, sous l'écran d'attente.
+      if (this.mesh.count === 0) return this.advance(Infinity);
+    }
+    if (this.job) this.advance(GRASS_TRIES_PER_FRAME);
+  }
+
+  /** Avance la regénération de `budget` essais ; à la fin, les nouvelles touffes remplacent les anciennes. */
+  private advance(budget: number): void {
+    const job = this.job;
+    if (!job) return;
+    const { focus, r } = job;
+    const staging = this.staging as Float32Array;
+    const m = _m;
+    const q = _q;
+    const s = _s;
+    const p = _p;
+    const up = _up;
+    let n = job.n;
     const tries = this.max * 2;
-    for (let i = 0; i < tries && n < this.max; i++) {
+    const end = Math.min(tries, job.i + budget);
+    let i = job.i;
+    for (; i < end && n < this.max; i++) {
       const a = r() * Math.PI * 2;
       const d = Math.sqrt(r()) * RADIUS;
       const x = focus.x + Math.cos(a) * d;
@@ -153,9 +184,14 @@ export class GrassField {
       q.setFromAxisAngle(up, r() * Math.PI);
       s.set(k, k * (0.8 + r() * 0.6), k);
       m.compose(p, q, s);
-      this.mesh.setMatrixAt(n++, m);
+      m.toArray(staging, n++ * 16);
     }
+    job.i = i;
+    job.n = n;
+    if (i < tries && n < this.max) return;
+    (this.mesh.instanceMatrix.array as Float32Array).set(staging.subarray(0, n * 16));
     this.mesh.count = n;
     this.mesh.instanceMatrix.needsUpdate = true;
+    this.job = null;
   }
 }

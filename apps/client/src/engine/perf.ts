@@ -1,6 +1,7 @@
 import type * as THREE from 'three/webgpu';
 import type { Engine } from './renderer.ts';
 import { frameStats } from './frameStats.ts';
+import { pipelineStats } from './pipelineStats.ts';
 
 /** ?perf=1 ouvre le panneau dès le départ et active les mesures GPU (nécessite le démarrage avec ce paramètre). */
 export function perfRequested(): boolean {
@@ -47,6 +48,8 @@ export class PerfOverlay {
   private readonly tracking = perfRequested();
   /** Dernières images lentes (saccades), la plus récente d'abord, avec ce qui a pris le temps. */
   private readonly spikes: Array<{ at: number; text: string }> = [];
+  /** Pipelines compilés en direct pendant l'image précédente. */
+  private lastSync = 0;
 
   constructor() {
     window.addEventListener('keydown', (e) => {
@@ -82,10 +85,12 @@ export class PerfOverlay {
   }
 
   /** Note une image lente : sa durée, le temps de rendu et les postes mesurés les plus lourds. */
-  private recordSpike(dt: number, renderCpuMs: number, parts: Array<[string, number]>): void {
+  private recordSpike(dt: number, renderCpuMs: number, parts: Array<[string, number]>, compiled: number): void {
     const top = parts.filter(([, ms]) => ms >= 1).sort((a, b) => b[1] - a[1]);
     const measured = renderCpuMs + top.reduce((a, [, ms]) => a + ms, 0);
     const items = [`rendu ${Math.round(renderCpuMs)}`, ...top.slice(0, 3).map(([l, ms]) => `${l} ${Math.round(ms)}`)];
+    // Shader compilé en direct pendant l'image précédente : le processus GPU l'a compilé avant d'afficher.
+    if (compiled) items.unshift(`COMPIL. SHADER ×${compiled}`);
     const other = dt - measured;
     if (other >= 5) items.push(`autre ${Math.round(other)}`);
     this.spikes.unshift({ at: performance.now(), text: `${Math.round(dt)} ms : ${items.join(' · ')}` });
@@ -95,12 +100,16 @@ export class PerfOverlay {
   /** Appelé après chaque image rendue (`dt` : ms depuis l'image précédente, 0 la première fois ; `renderCpuMs` : temps passé côté processeur à préparer et soumettre le rendu). */
   frame(dt: number, engine: Engine, renderCpuMs = 0): void {
     this.engine = engine;
+    // Shaders compilés en direct depuis l'image d'avant : c'est eux qui retardent celle-ci.
+    const compiled = this.lastSync;
+    this.lastSync = pipelineStats.frameSync;
+    pipelineStats.frameSync = 0;
     if (!this.visible || !(dt > 0)) return;
     const parts = frameStats.take();
     // Saccade : image bien plus longue que la moyenne (les blocages de plus d'une seconde compris).
     if (this.samples.length >= 30 && !document.hidden && dt < 10000) {
       const avg = this.samples.reduce((a, b) => a + b, 0) / this.samples.length;
-      if (dt > Math.max(60, avg * 2.5)) this.recordSpike(dt, renderCpuMs, parts);
+      if (dt > Math.max(60, avg * 2.5)) this.recordSpike(dt, renderCpuMs, parts, compiled);
     }
     if (dt > 1000) return;
     this.samples.push(dt);
@@ -146,6 +155,8 @@ export class PerfOverlay {
       `CPU rendu ${cpuRender.toFixed(1)} ms   hors rendu ${Math.max(avg - cpuRender, 0).toFixed(1)} ms (jeu, attente)`,
       `appels ${info.render.drawCalls}   triangles ${(info.render.triangles / 1e6).toFixed(2)} M`,
       `géométries ${info.memory.geometries}   textures ${info.memory.textures}`,
+      `shaders : ${pipelineStats.sync} en direct, ${pipelineStats.async} à l'avance · en sortie ${pipelineStats.inRide ? `${pipelineStats.syncInRide} en direct (objectif 0)` : '—'}` +
+        (pipelineStats.pending ? ` · ${pipelineStats.pending} objet(s) en préparation` : ''),
       `rendu ${canvas.width}×${canvas.height} (${px.toFixed(1)} Mpx)  échelle dyn. ${engine.dynamicRes.scale}`,
       `${engine.backend}  qualité ${q.level}  AO ${q.ao ? 'on' : 'off'}  bloom ${q.bloom ? 'on' : 'off'}  TAA ${q.taa ? 'on' : 'off'}`,
       `ombres : ${q.shadowCascades} cascade(s) ${q.shadowMapSize} px  · objets par groupe :`,

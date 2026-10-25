@@ -812,7 +812,8 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   peloton.onWait = (name) => name && hud.toast(getLang() === 'fr' ? `On attend ${name}` : `Waiting for ${name}`);
   peloton.onUTurn = (name) => hud.toast(getLang() === 'fr' ? `${name} fait demi-tour pour revenir au groupe` : `${name} turns back to rejoin the group`);
   const rig = new CameraRig(engine.camera, track, (x, z) => world.terrain.heightAt(x, z), engine.renderer.domElement);
-  rig.occluders = [world.buildings.group];
+  const footprints = world.buildings.footprints;
+  rig.occlusion = (a, b) => footprints.firstHit(a.x, a.y, a.z, b.x, b.y, b.z);
   // Public sur les côtes (une fois le terrain chargé autour du départ).
   const crowd = new Crowd(track, (x, z) => world.terrain.heightAt(x, z), { riderName: s.name });
   engine.scene.add(crowd.group);
@@ -1523,9 +1524,16 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   // Pipelines des objets ajoutés pour la sortie (coureur, groupe, circulation) compilés avant la première image,
   // au lieu de figer la première image du jeu.
   await engine.compileScene(tileStage(startOverlay, 0.85, 1));
-  // Laisse l'écran d'attente se peindre, puis fait la première image (lente) derrière lui.
+  // Laisse l'écran d'attente se peindre, puis fait les premières images (lentes) derrière lui : la première
+  // compile la passe de scène, les suivantes les ombres (redessinées une image sur deux) et le post-traitement.
   await new Promise<void>((r) => setTimeout(r, 50));
-  engine.renderManual();
+  for (let i = 0; i < 4; i++) engine.renderManual();
+  // Désormais, ce qui arrive dans la scène (tuiles, cyclistes) est compilé à l'avance avant d'être dessiné.
+  engine.watchNewObjects(true);
+  // Coureurs : niveau de détail choisi d'après la caméra de la sortie, niveaux masqués non recalculés.
+  GltfRiderAvatar.camera = engine.camera;
+  // Repère pour les outils de mesure (tools/perf) : la sortie commence.
+  performance.mark('ar:ride-start');
   startOverlay.remove();
   engine.renderer.setAnimationLoop(() => {
     timer.update();

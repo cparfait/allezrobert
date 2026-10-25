@@ -54,8 +54,11 @@ export class CameraRig {
   /** Regarder derrière soi (touche X maintenue) : caméra devant le coureur, tournée vers l'arrière. */
   lookBack = false;
   /** Objets qui bloquent la vue (bâtiments) : la caméra TV cherche un plan dégagé. */
-  occluders: THREE.Object3D[] = [];
-  private readonly ray = new THREE.Raycaster();
+  /**
+   * Obstacles entre deux points (bâtiments) : fraction du segment a → b au premier obstacle, null si dégagé.
+   * Branché sur les emprises des bâtiments (voir FootprintIndex).
+   */
+  occlusion: ((a: THREE.Vector3, b: THREE.Vector3) => number | null) | null = null;
   private collideTick = 0;
   private collideScale = 1;
 
@@ -139,14 +142,11 @@ export class CameraRig {
         look.set(ahead.x, ahead.y + 1.0, ahead.z).lerp(t.position.clone().add(new THREE.Vector3(0, 1.1, 0)), 0.55);
         stiffness = 5;
         // Collision : un mur entre le coureur et la caméra rapproche la caméra (une image sur trois).
-        if (this.occluders.length && (this.collideTick = (this.collideTick + 1) % 3) === 0) {
+        if (this.occlusion && (this.collideTick = (this.collideTick + 1) % 3) === 0) {
           const head = t.position.clone().add(new THREE.Vector3(0, 1.3, 0));
-          const toCam = desired.clone().sub(head);
-          const len = toCam.length();
-          this.ray.set(head, toCam.normalize());
-          this.ray.far = len;
-          const hit = this.ray.intersectObjects(this.occluders, true)[0];
-          this.collideScale = hit ? Math.max(0.25, (hit.distance - 0.6) / len) : 1;
+          const len = desired.distanceTo(head);
+          const hit = this.occlusion(head, desired);
+          this.collideScale = hit !== null ? Math.max(0.25, (hit * len - 0.6) / len) : 1;
         }
         if (this.collideScale < 1) {
           const head = t.position.clone().add(new THREE.Vector3(0, 1.3, 0));
@@ -206,11 +206,7 @@ export class CameraRig {
             const y = this.ground(s.x, s.z, s.y) + 1.6 + Math.random() * 2.5 + attempt * 0.8;
             const pos = new THREE.Vector3(s.x, y, s.z);
             const road = this.track.positionAt(d - 25 * sg, 0);
-            const dir = new THREE.Vector3(road.x, road.y + 1, road.z).sub(pos);
-            const len = dir.length();
-            this.ray.set(pos, dir.normalize());
-            this.ray.far = len;
-            const blocked = this.occluders.length > 0 && this.ray.intersectObjects(this.occluders, true).length > 0;
+            const blocked = !!this.occlusion && this.occlusion(pos, new THREE.Vector3(road.x, road.y + 1, road.z)) !== null;
             if (!blocked || attempt === 9) {
               this.tvSpot = { pos, untilD: d + 15 * sg };
               break;

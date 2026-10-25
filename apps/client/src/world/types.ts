@@ -83,8 +83,8 @@ export interface LoadedTile {
   n: number;
   heights: Float32Array;
   features: TileFeatures;
-  /** Orthophoto IGN de la tuile (URL), facultative. */
-  orthoUrl?: string;
+  /** Orthophoto IGN de la tuile (JPEG encore compressé : décodé hors du fil principal à l'affichage), facultative. */
+  orthoBlob?: Blob;
   /** Raster d'occupation du sol (res×res, 6 canaux entrelacés), calculé côté client. */
   splat?: { res: number; data: Uint8Array };
 }

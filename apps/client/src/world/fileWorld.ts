@@ -86,7 +86,7 @@ export async function createFileWorld(id: string, meta: WorldMeta): Promise<Worl
       if (frameStats.enabled) frameStats.add('décodage tuile', performance.now() - t0);
       const idx = index.get(key);
       const hasOrtho = idx ? idx.lods.includes('ortho') : true;
-      const orthoUrl = hasOrtho ? await orthoSource(`${base}/tiles/${key}.ortho.jpg`) : null;
+      const orthoBlob = hasOrtho ? await orthoSource(`${base}/tiles/${key}.ortho.jpg`) : null;
       return {
         id: key,
         tx,
@@ -97,23 +97,20 @@ export async function createFileWorld(id: string, meta: WorldMeta): Promise<Worl
         n: grid.n,
         heights,
         features: decodeFeatures(tile),
-        ...(orthoUrl ? { orthoUrl } : {}),
+        ...(orthoBlob ? { orthoBlob } : {}),
       } satisfies LoadedTile;
     },
   };
 }
 
 /**
- * Orthophoto : depuis le pack installé (URL d'objet, libérée une fois l'image chargée par le
- * terrain), sinon depuis le serveur des tuiles.
+ * Orthophoto : depuis le pack installé, sinon depuis le serveur des tuiles. Gardée compressée (≈ 120 Ko)
+ * dans le cache des tuiles ; le terrain la décode au moment de l'afficher.
  */
-async function orthoSource(path: string): Promise<string | null> {
+async function orthoSource(path: string): Promise<Blob | null> {
   try {
     const r = await worldFetch(path);
-    if (!r.ok) return null;
-    const url = URL.createObjectURL(await r.blob());
-    setTimeout(() => URL.revokeObjectURL(url), 120000);
-    return url;
+    return r.ok ? await r.blob() : null;
   } catch {
     return null;
   }

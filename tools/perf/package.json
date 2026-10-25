@@ -1,0 +1,15 @@
+{
+  "name": "@allezrobert/perf",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Mesure de fluidité d'une sortie (saccades, shaders compilés en roulant) dans un Chrome sans fenêtre",
+  "scripts": {
+    "measure": "tsx src/measure.ts",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run --root ../.. tools/perf"
+  },
+  "devDependencies": {
+    "puppeteer-core": "25.15.0"
+  }
+}

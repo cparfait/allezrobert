@@ -39,6 +39,8 @@ const REGIONAL_CONIFERS: Record<string, (x: number, z: number) => number> = {
 const CHUNK = 500;
 /** Distances de bascule des niveaux de détail (m). */
 const LOD_NEAR = 300;
+/** Blocs d'arbres qui changent de niveau de détail par image (voir `pendingLod`). */
+const LOD_PER_FRAME = 2;
 const LOD_MID = 1100;
 /** Blocs plus petits pour la végétation réelle (LiDAR) : beaucoup plus dense, détail proche. */
 const REAL_CHUNK = 125;
@@ -168,6 +170,12 @@ export class Vegetation {
    * appel (silhouettes) au lieu d'une soixantaine de blocs de 125 m ; ses blocs sont alors masqués.
    */
   private readonly realFar = new Map<string, { mesh: THREE.InstancedMesh; x0: number; z0: number; size: number; far: boolean }>();
+  /**
+   * Changements de niveau de détail en attente, appliqués quelques-uns par image : chacun oblige three.js
+   * à reconstruire le graphe de nœuds du bloc à l'image suivante (≈ 10 ms), et une tuile qui passe de
+   * « loin » à « près » en bascule une centaine d'un coup (plus d'une demi-seconde figée).
+   */
+  private readonly pendingLod = new Map<THREE.InstancedMesh, { kind: Kind; lod: number; tileId: string }>();
   private q: QualitySettings;
   private readonly heightAt: (x: number, z: number) => number;
   /** Zones interdites (route principale). */
@@ -393,7 +401,7 @@ export class Vegetation {
       im.computeBoundingSphere();
       this.group.add(im);
       this.realFar.set(tile.id, { mesh: im, x0: tile.x0, z0: tile.z0, size: tile.size, far: false });
-      this.setTileFar(tile.id, this.isFar(tile.x0, tile.z0, tile.size));
+      this.setTileFar(tile.id, this.isFar(tile.x0, tile.z0, tile.size), true);
     }
   }
 
@@ -404,19 +412,43 @@ export class Vegetation {
     return Math.hypot(dx, dz) > this.realMid;
   }
 
-  /** Bascule une tuile réelle entre silhouettes d'ensemble (loin) et blocs détaillés (près). */
-  private setTileFar(tileId: string, far: boolean): void {
+  /**
+   * Bascule une tuile réelle entre silhouettes d'ensemble (loin) et blocs détaillés (près). Vers « près »,
+   * les blocs apparaissent par étapes (voir `pendingLod`) et les silhouettes restent jusqu'au dernier ;
+   * `now` : tout de suite (tuile construite au chargement).
+   */
+  private setTileFar(tileId: string, far: boolean, now = false): void {
     const t = this.realFar.get(tileId);
     if (!t) return;
     t.far = far;
-    t.mesh.visible = far;
+    if (far || now) t.mesh.visible = far;
     for (const c of this.chunks.values()) {
       if (c.tileId !== tileId) continue;
       for (const { kind, mesh } of c.meshes) {
-        if (far) mesh.visible = false;
-        else this.applyLod(kind, mesh, c.lod);
+        if (far) {
+          mesh.visible = false;
+          this.pendingLod.delete(mesh);
+        } else if (now) this.applyLod(kind, mesh, c.lod);
+        else this.pendingLod.set(mesh, { kind, lod: c.lod, tileId });
       }
     }
+  }
+
+  /** Applique quelques changements de niveau de détail en attente ; masque les silhouettes des tuiles prêtes. */
+  private drainLod(): void {
+    if (!this.pendingLod.size) return;
+    let n = 0;
+    for (const [mesh, p] of this.pendingLod) {
+      if (n >= LOD_PER_FRAME) break;
+      this.pendingLod.delete(mesh);
+      // Bloc déchargé, ou tuile repassée au loin entre-temps.
+      if (!mesh.parent || this.realFar.get(p.tileId)?.far) continue;
+      this.applyLod(p.kind, mesh, p.lod);
+      n++;
+    }
+    const waiting = new Set<string>();
+    for (const p of this.pendingLod.values()) waiting.add(p.tileId);
+    for (const [id, t] of this.realFar) if (!t.far && t.mesh.visible && !waiting.has(id)) t.mesh.visible = false;
   }
 
   /** Place les arbres d'une tuile (déterministe) et crée ses blocs instanciés. */
@@ -521,6 +553,7 @@ export class Vegetation {
 
   /** Met à jour les niveaux de détail quand le coureur s'est déplacé de plus de 40 m. */
   update(focus: THREE.Vector3): void {
+    this.drainLod();
     if (Math.hypot(focus.x - this.focus.x, focus.z - this.focus.z) < 40) return;
     this.focus.copy(focus);
     for (const c of this.chunks.values()) {
@@ -528,7 +561,7 @@ export class Vegetation {
       if (lod === c.lod) continue;
       c.lod = lod;
       if (c.real && this.realFar.get(c.tileId)?.far) continue;
-      for (const { kind, mesh } of c.meshes) this.applyLod(kind, mesh, lod);
+      for (const { kind, mesh } of c.meshes) this.pendingLod.set(mesh, { kind, lod, tileId: c.tileId });
     }
     for (const [id, t] of this.realFar) {
       const far = this.isFar(t.x0, t.z0, t.size);

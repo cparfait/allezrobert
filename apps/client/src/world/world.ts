@@ -111,6 +111,9 @@ export class World {
       })
       .catch((err) => console.warn('Relief lointain indisponible', err));
 
+    // Décor fixe (rien n'y bouge après sa pose) : matrices calculées une fois, plus à chaque image.
+    for (const g of [this.terrain.group, this.buildings.group, this.network.group, this.vegetation.group, this.water.group, this.railways.group]) freezeStatic(g);
+
     // Entités d'une tuile construites par étapes (bâtiments, routes, végétation…) dans le budget de
     // chaque image, plutôt que toutes d'un coup au moment où la tuile arrive (saccades en roulant).
     this.terrain.onTileLoaded = (tile, alive) => {
@@ -291,6 +294,29 @@ export class World {
     this.scene.remove(this.terrain.group, this.road.mesh, this.vegetation.group, this.buildings.group, this.network.group, this.grass.mesh, this.rain.mesh, this.water.group, this.railways.group, this.dust.sprite);
     void this.track;
   }
+}
+
+/**
+ * Groupe de décor fixe : ses objets ne sont jamais déplacés après leur ajout. À l'ajout, leurs matrices
+ * sont calculées une fois et figées (`matrixAutoUpdate = false`) : three.js ne les recompose plus à chaque
+ * image (les blocs de végétation, plus de mille, coûtaient une bonne part du temps d'image).
+ * Les instances (arbres, wagons) restent mobiles : elles vivent dans les attributs, pas dans la matrice.
+ */
+export function freezeStatic(group: THREE.Object3D): void {
+  group.updateMatrixWorld(true);
+  group.matrixAutoUpdate = false;
+  const add = group.add.bind(group);
+  group.add = (...objects: THREE.Object3D[]) => {
+    add(...objects);
+    for (const o of objects) {
+      o.traverse((c) => {
+        c.updateMatrix();
+        c.matrixAutoUpdate = false;
+      });
+      o.updateMatrixWorld(true);
+    }
+    return group;
+  };
 }
 
 /** Test rapide « trop près de la route » via une grille de hachage des points de l'itinéraire. */

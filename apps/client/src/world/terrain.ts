@@ -72,7 +72,6 @@ export class TerrainManager {
   /** Teinte appliquée à l'orthophoto (prise en été) selon la saison, et sa saturation. */
   private readonly orthoTint = colorUniform('#ffffff');
   private readonly orthoSat = uniform(1);
-  private readonly loader = new THREE.TextureLoader();
   /**
    * Emprise de l'itinéraire actif : les sommets du maillage sous le ruban et sur une maille autour
    * sont abaissés juste sous la chaussée (aucune facette ne la traverse, quelle que soit la finesse
@@ -278,9 +277,23 @@ export class TerrainManager {
     if (!tile.splat) tile.splat = rasterizeSplat(tile, this.activeRoute);
     const textures = this.splatTextures(tile);
     let ortho: THREE.Texture | null = null;
-    if (tile.orthoUrl) {
-      // Orthophoto IGN : chargée en arrière-plan, le matériau la prend en compte dès réception.
-      ortho = this.loader.load(tile.orthoUrl, undefined, undefined, () => undefined);
+    if (tile.orthoBlob) {
+      // Orthophoto IGN : décodée hors du fil principal (createImageBitmap) ; le matériau la prend en
+      // compte dès réception. Une image décodée par le navigateur au moment de l'envoi au GPU
+      // coûtait 5 à 13 ms à l'image où la tuile apparaissait.
+      const tex = new THREE.Texture();
+      ortho = tex;
+      void createImageBitmap(tile.orthoBlob)
+        .then((bmp) => {
+          if (tex.userData.disposed) return bmp.close();
+          tex.image = bmp;
+          tex.needsUpdate = true;
+        })
+        .catch(() => undefined);
+      tex.addEventListener('dispose', () => {
+        tex.userData.disposed = true;
+        (tex.image as ImageBitmap | undefined)?.close?.();
+      });
       ortho.colorSpace = THREE.SRGBColorSpace;
       ortho.flipY = false;
       ortho.anisotropy = 8;
@@ -352,21 +365,29 @@ export class TerrainManager {
         uvs[k * 2] = u;
         uvs[k * 2 + 1] = v;
       }
-    const index: number[] = [];
+    // Tableaux typés et normales tirées des hauteurs voisines (grille régulière) : `computeVertexNormals`
+    // de three.js, générique, prenait ≈ 75 ms par tuile en qualité haute (saccade au changement de détail).
+    const border: number[] = [];
+    for (let i = 0; i < seg; i++) border.push(i);
+    for (let j = 0; j < seg; j++) border.push(j * vertsPerRow + seg);
+    for (let i = seg; i > 0; i--) border.push(seg * vertsPerRow + i);
+    for (let j = seg; j > 0; j--) border.push(j * vertsPerRow);
+    const index = new Uint32Array(seg * seg * 6 + border.length * 6);
+    let w = 0;
     for (let j = 0; j < seg; j++)
       for (let i = 0; i < seg; i++) {
         const a = j * vertsPerRow + i;
         const b = a + 1;
         const c = a + vertsPerRow;
         const d = c + 1;
-        index.push(a, c, b, b, c, d);
+        index[w++] = a;
+        index[w++] = c;
+        index[w++] = b;
+        index[w++] = b;
+        index[w++] = c;
+        index[w++] = d;
       }
     // Jupe : contour de la grille parcouru dans le sens horaire, dupliqué 6 m plus bas.
-    const border: number[] = [];
-    for (let i = 0; i < seg; i++) border.push(i);
-    for (let j = 0; j < seg; j++) border.push(j * vertsPerRow + seg);
-    for (let i = seg; i > 0; i--) border.push(seg * vertsPerRow + i);
-    for (let j = seg; j > 0; j--) border.push(j * vertsPerRow);
     border.forEach((src, n) => {
       const k = mainCount + n;
       pos[k * 3] = pos[src * 3] as number;
@@ -380,13 +401,37 @@ export class TerrainManager {
       const b = border[(n + 1) % border.length] as number;
       const a2 = mainCount + n;
       const b2 = mainCount + ((n + 1) % border.length);
-      index.push(a, b, a2, b, b2, a2);
+      index[w++] = a;
+      index[w++] = b;
+      index[w++] = a2;
+      index[w++] = b;
+      index[w++] = b2;
+      index[w++] = a2;
     }
+    // Normale (−∂h/∂x, 1, −∂h/∂z) par différences centrées (décentrées au bord) ; la jupe prend celle de son sommet.
+    const normals = new Float32Array((mainCount + skirtCount) * 3);
+    const step = s / seg;
+    const hAt = (i: number, j: number) => pos[(j * vertsPerRow + i) * 3 + 1] as number;
+    for (let j = 0; j <= seg; j++)
+      for (let i = 0; i <= seg; i++) {
+        const i0 = Math.max(i - 1, 0);
+        const i1 = Math.min(i + 1, seg);
+        const j0 = Math.max(j - 1, 0);
+        const j1 = Math.min(j + 1, seg);
+        const dx = (hAt(i1, j) - hAt(i0, j)) / ((i1 - i0) * step);
+        const dz = (hAt(i, j1) - hAt(i, j0)) / ((j1 - j0) * step);
+        const inv = 1 / Math.sqrt(dx * dx + 1 + dz * dz);
+        const k = (j * vertsPerRow + i) * 3;
+        normals[k] = -dx * inv;
+        normals[k + 1] = inv;
+        normals[k + 2] = -dz * inv;
+      }
+    border.forEach((src, n) => normals.copyWithin((mainCount + n) * 3, src * 3, src * 3 + 3));
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    geo.setAttribute('normal', new THREE.BufferAttribute(normals, 3));
     geo.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
-    geo.setIndex(index);
-    geo.computeVertexNormals();
+    geo.setIndex(new THREE.BufferAttribute(index, 1));
     geo.computeBoundingSphere();
     return geo;
   }

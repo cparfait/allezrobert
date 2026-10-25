@@ -5,6 +5,7 @@ import { rng, polygonArea } from '../engine/noise.ts';
 import type { LoadedTile, TileRoad } from './types.ts';
 import { orientedBox, planRoof, roofBuffers, flatRoof } from './roofs.ts';
 import { meuliere } from './meuliere.ts';
+import { FootprintIndex } from './footprints.ts';
 
 /** Textures photo CC0 (Poly Haven) des façades et toits, chargées une fois et partagées. */
 function loadTex(dir: string, file: string, srgb: boolean): THREE.Texture {
@@ -330,6 +331,8 @@ export class Buildings {
   readonly night = uniform(0);
   private readonly material: THREE.MeshStandardNodeMaterial;
   private readonly tiles = new Map<string, THREE.Mesh>();
+  /** Emprises des bâtiments chargés (collision de la caméra, sans lancer de rayon sur les triangles). */
+  readonly footprints = new FootprintIndex();
   private readonly groundAt: (x: number, z: number) => number;
   /** Détails des maisons (cheminées, faîtières) : 0 = aucun, 1 = toutes les maisons qui s'y prêtent. */
   props = 1;
@@ -542,6 +545,8 @@ export class Buildings {
       const box = orientedBox(bld.pts);
       const shape = bld.roof ?? 'gabled';
       const total = isChurch ? Math.max(bld.height, 14) : Math.max(bld.height || (bld.levels ?? 1.6) * 2.9 + 3, 3.5);
+      // Emprise pour la collision de la caméra (prisme toit compris ; le clocher dépasse, sans gêne).
+      this.footprints.add(tile.id, bld.pts, base, base + total + 0.3);
       // BD TOPO : matériau du toit connu (le bac acier a une pente plus faible que la tuile).
       const roofMat = bld.roofMaterial ?? (bld.material === 'slate' || shape === 'mansard' || isChurch ? 'slate' : undefined);
       const metal = roofMat === 'metal' || roofMat === 'concrete';
@@ -652,6 +657,7 @@ export class Buildings {
   }
 
   removeTile(tile: LoadedTile): void {
+    this.footprints.removeTile(tile.id);
     const m = this.tiles.get(tile.id);
     if (!m) return;
     this.group.remove(m);

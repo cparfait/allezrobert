@@ -789,6 +789,12 @@ export class GltfRiderAvatar implements RiderAvatarLike {
 
   /** Facteur des distances de niveau de détail (préréglage graphique : 0,6 bas → 1,5 ultra). */
   static lodScale = 1;
+  /**
+   * Caméra de la scène : le niveau de détail est choisi avant le calcul des matrices, et les niveaux
+   * masqués (plus d'une centaine d'objets chacun) ne sont plus recalculés à chaque image.
+   * Sans caméra (outils, garage), le fonctionnement par défaut de three.js.
+   */
+  static camera: THREE.Camera | null = null;
 
   /** Modèles chargés ? */
   static get ready(): boolean {
@@ -798,6 +804,34 @@ export class GltfRiderAvatar implements RiderAvatarLike {
   /** Type d'avatar chargé (load(…, kinds)) ? */
   static has(kind: AvatarKind): boolean {
     return templates.has(kind);
+  }
+
+  /**
+   * Niveaux de détail : choix du niveau avant le calcul des matrices (avec la caméra de l'image
+   * précédente), puis matrices des seuls niveaux affichés. Le niveau 0 porte les os, partagés par
+   * tous les niveaux : il est toujours tenu à jour. Un niveau masqué garde `matrixWorldNeedsUpdate`
+   * et se recalcule entièrement à son retour.
+   */
+  private skipHiddenLevels(level0: THREE.Object3D): void {
+    const lod = this.lod;
+    lod.updateMatrixWorld = function (this: THREE.LOD, force?: boolean) {
+      const camera = GltfRiderAvatar.camera;
+      if (!camera) return THREE.LOD.prototype.updateMatrixWorld.call(this, force);
+      this.autoUpdate = false;
+      if (this.matrixAutoUpdate) this.updateMatrix();
+      let f = !!force;
+      if (this.matrixWorldNeedsUpdate || f) {
+        if (this.parent === null) this.matrixWorld.copy(this.matrix);
+        else this.matrixWorld.multiplyMatrices(this.parent.matrixWorld, this.matrix);
+        this.matrixWorldNeedsUpdate = false;
+        f = true;
+      }
+      this.update(camera);
+      for (const child of this.children) {
+        if (child.visible || child === level0) child.updateMatrixWorld(f);
+        else child.matrixWorldNeedsUpdate = true;
+      }
+    };
   }
 
   constructor(look: AvatarLook, kindWanted: AvatarKind = AVATAR_KIND) {
@@ -851,6 +885,8 @@ export class GltfRiderAvatar implements RiderAvatarLike {
       });
       this.lod.addLevel(level, (this.lodDistances[i] ?? 30 * i) * GltfRiderAvatar.lodScale, 0.1);
     });
+
+    this.skipHiddenLevels(level0);
 
     // Coureur : matériaux (instances propres à l'avatar), ombres, sphères englobantes des maillages skinnés.
     const bounds = new THREE.Sphere(new THREE.Vector3(0, 0.85, 0.05), 1.1);
