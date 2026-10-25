@@ -1,6 +1,7 @@
 import * as THREE from 'three/webgpu';
 import { abs, dot, float, floor, materialColor, mix, normalMap, positionGeometry, step, texture, uniform, uv, vec3 } from 'three/tsl';
 import type { AvatarLook } from '@allezrobert/shared';
+import { loadTexture } from '../engine/textures.ts';
 import { colorUniform } from '../engine/tsl.ts';
 import { jerseyPattern, jerseySleeveEdge, type JerseyFrame } from './jerseyPattern.ts';
 import { registerLookSetter } from './texturedLook.ts';
@@ -50,13 +51,8 @@ let textures: ClothTextures | null = null;
 export async function loadClothTextures(baseUrl: string): Promise<ClothTextures | null> {
   if (textures) return textures;
   try {
-    const loader = new THREE.TextureLoader();
-    const [folds, knit] = await Promise.all([loader.loadAsync(`${baseUrl}cloth_normal.webp`), loader.loadAsync(`${baseUrl}knit_normal.webp`)]);
-    for (const t of [folds, knit]) {
-      t.colorSpace = THREE.NoColorSpace;
-      t.flipY = false; // convention glTF
-      t.anisotropy = 8;
-    }
+    const o = { colorSpace: THREE.NoColorSpace, flipY: false /* convention glTF */, anisotropy: 8 };
+    const [folds, knit] = await Promise.all([loadTexture(`${baseUrl}cloth_normal.webp`, o), loadTexture(`${baseUrl}knit_normal.webp`, o)]);
     knit.wrapS = knit.wrapT = THREE.RepeatWrapping;
     textures = { folds, knit };
   } catch (e) {

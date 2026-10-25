@@ -1,6 +1,7 @@
 import * as THREE from 'three/webgpu';
 import { abs, attribute, clamp, dot, float, floor, max, mix, smoothstep, step, texture, uniform, uv, vec3 } from 'three/tsl';
 import type { AvatarLook } from '@allezrobert/shared';
+import { loadTexture } from '../engine/textures.ts';
 import { colorUniform } from '../engine/tsl.ts';
 import { jerseyPattern, jerseySleeve, type JerseyFrame } from './jerseyPattern.ts';
 
@@ -26,11 +27,7 @@ let jerseyMask: THREE.Texture | null = null;
 export async function loadTexturedMasks(dir: string): Promise<void> {
   if (jerseyMask) return;
   try {
-    const t = await new THREE.TextureLoader().loadAsync(`${dir}jersey_mask.webp`);
-    t.colorSpace = THREE.NoColorSpace;
-    t.flipY = false; // convention glTF
-    t.anisotropy = 4;
-    jerseyMask = t;
+    jerseyMask = await loadTexture(`${dir}jersey_mask.webp`, { colorSpace: THREE.NoColorSpace, flipY: false /* convention glTF */, anisotropy: 4 });
   } catch (e) {
     console.warn('Masque du maillot indisponible', e);
   }

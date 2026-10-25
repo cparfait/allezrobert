@@ -1,6 +1,7 @@
 import * as THREE from 'three/webgpu';
 import { float, mix, mx_noise_float, normalMap, pow, smoothstep, texture, uniform, uv, vec3 } from 'three/tsl';
 import type { AvatarLook } from '@allezrobert/shared';
+import { loadTexture } from '../engine/textures.ts';
 import { colorUniform, type ColorUniform } from '../engine/tsl.ts';
 import { jerseySleeve, type JerseyFrame, type SleeveNodes } from './jerseyPattern.ts';
 
@@ -33,18 +34,12 @@ let textures: SkinTextures | null = null;
 export async function loadSkinTextures(baseUrl: string): Promise<SkinTextures | null> {
   if (textures) return textures;
   try {
-    const loader = new THREE.TextureLoader();
+    const o = { colorSpace: THREE.NoColorSpace, flipY: false /* convention glTF */, anisotropy: 4 };
     const [albedo, masks, detail] = await Promise.all([
-      loader.loadAsync(`${baseUrl}skin_albedo.webp`),
-      loader.loadAsync(`${baseUrl}skin_masks.webp`),
-      loader.loadAsync(`${baseUrl}skin_detail.webp`).catch(() => null),
+      loadTexture(`${baseUrl}skin_albedo.webp`, o),
+      loadTexture(`${baseUrl}skin_masks.webp`, o),
+      loadTexture(`${baseUrl}skin_detail.webp`, o).catch(() => null),
     ]);
-    for (const t of [albedo, masks, detail]) {
-      if (!t) continue;
-      t.colorSpace = THREE.NoColorSpace;
-      t.flipY = false; // convention glTF
-      t.anisotropy = 4;
-    }
     if (detail) detail.wrapS = detail.wrapT = THREE.RepeatWrapping;
     textures = { albedo, masks, detail };
   } catch (e) {

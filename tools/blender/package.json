@@ -5,12 +5,15 @@
   "type": "module",
   "scripts": {
     "compress:avatar": "node avatars/compress.mjs",
-    "reshoe:avatar": "node avatars/reshoe.mjs"
+    "reshoe:avatar": "node avatars/reshoe.mjs",
+    "ktx2:textures": "node textures/to-ktx2.mjs"
   },
   "devDependencies": {
     "@gltf-transform/core": "4.5.1",
     "@gltf-transform/extensions": "4.5.1",
     "@gltf-transform/functions": "4.5.1",
-    "meshoptimizer": "0.22.0"
+    "ktx2-encoder": "0.6.0",
+    "meshoptimizer": "0.22.0",
+    "sharp": "0.35.5"
   }
 }
