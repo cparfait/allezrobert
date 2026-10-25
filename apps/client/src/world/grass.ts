@@ -9,6 +9,8 @@ import type { Season } from './environment.ts';
 import { snowCoverAt } from './alpine.ts';
 
 const RADIUS = 60;
+/** Côté (m) des blocs du monde où l'herbe est semée : mêmes touffes aux mêmes endroits à chaque regénération. */
+const BLOCK = 12;
 /** Essais de placement par image pendant une regénération (≈ 12 ms ; une vingtaine d'images pour la densité la plus forte). */
 const GRASS_TRIES_PER_FRAME = 6000;
 const _m = new THREE.Matrix4();
@@ -85,7 +87,7 @@ export class GrassField {
    * Regénération en cours, étalée sur quelques images : jusqu'à 48 000 touffes refaites d'un coup tous les
    * 12 m figeaient l'image (≈ 55 ms). Les touffes affichées restent en place jusqu'à la fin.
    */
-  private job: { focus: THREE.Vector3; r: () => number; i: number; n: number } | null = null;
+  private job: { focus: THREE.Vector3; blocks: Array<{ bx: number; bz: number; d: number }>; bi: number; ti: number; r: (() => number) | null; n: number } | null = null;
   /** Matrices de la regénération en cours (gardé d'une fois à l'autre : 3 Mo). */
   private staging: Float32Array | null = null;
 
@@ -130,8 +132,22 @@ export class GrassField {
     if (!this.max) return;
     if (!this.job && Math.hypot(focus.x - this.center.x, focus.z - this.center.z) >= 12) {
       this.center.copy(focus);
-      const r = rng(Math.floor(focus.x / 12) * 7349 + Math.floor(focus.z / 12) * 1931);
-      this.job = { focus: focus.clone(), r, i: 0, n: 0 };
+      // Les touffes sont ancrées au monde : blocs fixes de BLOCK m, chacun avec sa graine. Une regénération
+      // refait donc les mêmes touffes aux mêmes endroits (l'herbe ne bouge plus quand on avance) ; seule la
+      // bordure du rayon change. Blocs triés du plus proche au plus loin : si le plafond est atteint, ce
+      // sont les plus lointains qui manquent.
+      const blocks: Array<{ bx: number; bz: number; d: number }> = [];
+      const bx0 = Math.floor((focus.x - RADIUS) / BLOCK);
+      const bx1 = Math.floor((focus.x + RADIUS) / BLOCK);
+      const bz0 = Math.floor((focus.z - RADIUS) / BLOCK);
+      const bz1 = Math.floor((focus.z + RADIUS) / BLOCK);
+      for (let bx = bx0; bx <= bx1; bx++)
+        for (let bz = bz0; bz <= bz1; bz++) {
+          const d = Math.hypot((bx + 0.5) * BLOCK - focus.x, (bz + 0.5) * BLOCK - focus.z);
+          if (d <= RADIUS + BLOCK * 0.71) blocks.push({ bx, bz, d });
+        }
+      blocks.sort((a, b) => a.d - b.d);
+      this.job = { focus: focus.clone(), blocks, bi: 0, ti: 0, r: null, n: 0 };
       this.staging ??= new Float32Array(this.max * 16);
       // Premier remplissage (départ, changement de saison) : tout de suite, sous l'écran d'attente.
       if (this.mesh.count === 0) return this.advance(Infinity);
@@ -143,7 +159,7 @@ export class GrassField {
   private advance(budget: number): void {
     const job = this.job;
     if (!job) return;
-    const { focus, r } = job;
+    const { focus, blocks } = job;
     const staging = this.staging as Float32Array;
     const m = _m;
     const q = _q;
@@ -151,44 +167,60 @@ export class GrassField {
     const p = _p;
     const up = _up;
     let n = job.n;
-    const tries = this.max * 2;
-    const end = Math.min(tries, job.i + budget);
-    let i = job.i;
-    for (; i < end && n < this.max; i++) {
-      const a = r() * Math.PI * 2;
-      const d = Math.sqrt(r()) * RADIUS;
-      const x = focus.x + Math.cos(a) * d;
-      const z = focus.z + Math.sin(a) * d;
-      const tile = this.tileAt(x, z);
-      if (!tile) continue;
-      const meadow = splatAt(tile, 2, x, z);
-      const field = splatAt(tile, 1, x, z);
-      const forest = splatAt(tile, 0, x, z);
-      const road = splatAt(tile, 5, x, z);
-      const water = splatAt(tile, 3, x, z);
-      // abords de l'itinéraire actif : bas-côté herbeux dense et plus haut
-      const verge = splatAt(tile, 6, x, z);
-      // Herbe partout sauf chaussée et eau, plus dense dans les prés et sur les bas-côtés.
-      // ni sur la roche, les éboulis et les glaciers
-      const rock = splatAt(tile, 7, x, z);
-      const density = road > 0.3 || water > 0.3 || rock > 0.2 ? 0 : 0.35 + meadow * 0.65 - forest * 0.25 + field * 0.1 + verge * 0.8;
-      if (r() > density) continue;
-      if (this.avoid(x, z)) continue;
-      const y = this.heightAt(x, z);
-      if (!Number.isFinite(y)) continue;
-      // au-dessus de la limite d'enneigement : sous la neige
-      const snow = snowCoverAt(y, this.season);
-      if (snow > 0 && r() < snow) continue;
-      const k = (0.6 + r() * 0.7) * (1 + verge * 0.6);
-      p.set(x, y - 0.02, z);
-      q.setFromAxisAngle(up, r() * Math.PI);
-      s.set(k, k * (0.8 + r() * 0.6), k);
-      m.compose(p, q, s);
-      m.toArray(staging, n++ * 16);
+    // Essais par bloc : 2 × le plafond réparti sur l'aire du disque (comme avant, où les essais étaient tirés au hasard).
+    const triesPerBlock = Math.ceil((2 * this.max * BLOCK * BLOCK) / (Math.PI * RADIUS * RADIUS));
+    let spent = 0;
+    while (job.bi < blocks.length && n < this.max && spent < budget) {
+      const blk = blocks[job.bi] as { bx: number; bz: number };
+      job.r ??= rng(((blk.bx * 73856093) ^ (blk.bz * 19349663)) | 0);
+      const r = job.r;
+      for (; job.ti < triesPerBlock && spent < budget && n < this.max; job.ti++, spent++) {
+        // Tous les tirages à chaque essai, acceptés ou non : la suite du bloc ne dépend pas du foyer ni du terrain.
+        const ux = r();
+        const uz = r();
+        const uDensity = r();
+        const uSnow = r();
+        const uSize = r();
+        const uTurn = r();
+        const uHeight = r();
+        const x = (blk.bx + ux) * BLOCK;
+        const z = (blk.bz + uz) * BLOCK;
+        if (Math.hypot(x - focus.x, z - focus.z) > RADIUS) continue;
+        const tile = this.tileAt(x, z);
+        if (!tile) continue;
+        const meadow = splatAt(tile, 2, x, z);
+        const field = splatAt(tile, 1, x, z);
+        const forest = splatAt(tile, 0, x, z);
+        const road = splatAt(tile, 5, x, z);
+        const water = splatAt(tile, 3, x, z);
+        // abords de l'itinéraire actif : bas-côté herbeux dense et plus haut
+        const verge = splatAt(tile, 6, x, z);
+        // Herbe partout sauf chaussée et eau, plus dense dans les prés et sur les bas-côtés.
+        // ni sur la roche, les éboulis et les glaciers
+        const rock = splatAt(tile, 7, x, z);
+        const density = road > 0.3 || water > 0.3 || rock > 0.2 ? 0 : 0.35 + meadow * 0.65 - forest * 0.25 + field * 0.1 + verge * 0.8;
+        if (uDensity > density) continue;
+        if (this.avoid(x, z)) continue;
+        const y = this.heightAt(x, z);
+        if (!Number.isFinite(y)) continue;
+        // au-dessus de la limite d'enneigement : sous la neige
+        const snow = snowCoverAt(y, this.season);
+        if (snow > 0 && uSnow < snow) continue;
+        const k = (0.6 + uSize * 0.7) * (1 + verge * 0.6);
+        p.set(x, y - 0.02, z);
+        q.setFromAxisAngle(up, uTurn * Math.PI);
+        s.set(k, k * (0.8 + uHeight * 0.6), k);
+        m.compose(p, q, s);
+        m.toArray(staging, n++ * 16);
+      }
+      if (job.ti >= triesPerBlock) {
+        job.bi++;
+        job.ti = 0;
+        job.r = null;
+      }
     }
-    job.i = i;
     job.n = n;
-    if (i < tries && n < this.max) return;
+    if (job.bi < blocks.length && n < this.max) return;
     (this.mesh.instanceMatrix.array as Float32Array).set(staging.subarray(0, n * 16));
     this.mesh.count = n;
     this.mesh.instanceMatrix.needsUpdate = true;

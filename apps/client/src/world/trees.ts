@@ -151,7 +151,10 @@ export function broadleafGeometry(seed: number): THREE.BufferGeometry {
   const crown = new THREE.Vector3(0, TREE_H * 0.62, 0);
   const crY = TREE_H * 0.36; // demi-hauteur du houppier
   const forkY = TREE_H * (0.32 + r() * 0.1);
-  cylinder(b, new THREE.Vector3(0, -0.3, 0), new THREE.Vector3((r() - 0.5) * 0.3, forkY, (r() - 0.5) * 0.3), 0.3, 0.2, 7);
+  // Le tronc monte jusqu'au départ de la branche la plus haute (fourche + 1,2 m) et finit au rayon de ces
+  // branches, sur l'axe : avant, il s'arrêtait à la fourche et les branches partaient dans le vide
+  // au-dessus (tronc « coupé » dès que le feuillage ne le cachait plus).
+  cylinder(b, new THREE.Vector3(0, -0.3, 0), new THREE.Vector3((r() - 0.5) * 0.2, forkY + 1.3, (r() - 0.5) * 0.2), 0.3, 0.13, 7);
   const fork = new THREE.Vector3(0, forkY, 0);
   const tips: THREE.Vector3[] = [];
   const nb = 7 + Math.floor(r() * 3);

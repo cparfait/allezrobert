@@ -12,6 +12,8 @@ import { instrumentDevice, pipelineStats } from './pipelineStats.ts';
 
 /** Compilations de passes en cours : le rendu attend (la cible de rendu est celle de la passe). */
 let compiling = 0;
+/** Durée maximale (ms) d'une précompilation de la scène avant de lancer la sortie quand même (voir `compilePass`). */
+const COMPILE_TIMEOUT_MS = 45_000;
 /**
  * three.js range ses objets de rendu par contexte (cible, MRT, profondeur d'appel). La passe de scène est
  * dessinée en appel imbriqué (profondeur 1 dans la chaîne de post-traitement, 2 avec le TAA), mais
@@ -89,7 +91,22 @@ export async function compilePass(renderer: THREE.WebGPURenderer, p: ReturnType<
   renderer.setRenderTarget(p.renderTarget);
   renderer.setMRT(p.getMRT());
   try {
-    await withAllLevels(p.scene, () => withoutCulling(renderer, p.scene, () => renderer.compileAsync(p.scene, p.camera, null, onProgress ? (e) => onProgress(e.loaded, e.total) : null)));
+    // Garde-fou : si une compilation ne se termine pas (shader refusé, objet qui bloque), on ne reste pas
+    // indéfiniment sur « Derniers réglages » : au-delà de COMPILE_TIMEOUT_MS la sortie démarre, le reste se
+    // compile au fil des images, comme avant la précompilation.
+    const done = withAllLevels(p.scene, () => withoutCulling(renderer, p.scene, () => renderer.compileAsync(p.scene, p.camera, null, onProgress ? (e) => onProgress(e.loaded, e.total) : null)));
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const late = new Promise<void>((resolve) => {
+      timer = setTimeout(() => {
+        console.warn(`[compilation] ${COMPILE_TIMEOUT_MS / 1000} s dépassées : la sortie démarre, le reste se compile en roulant`);
+        resolve();
+      }, COMPILE_TIMEOUT_MS);
+    });
+    try {
+      await Promise.race([done, late]);
+    } finally {
+      clearTimeout(timer);
+    }
   } catch {
     // Compilation au premier rendu, comme avant.
   } finally {
@@ -305,7 +322,9 @@ export async function createEngine(canvas: HTMLCanvasElement, q: QualitySettings
       // La passe de scène (et sa disposition MRT) survit aux changements d'effets : couper le bloom,
       // l'AO ou le TAA en cours de sortie ne refait que le post-traitement. Changer la disposition MRT
       // recompilerait les matériaux de toute la scène (plusieurs secondes).
-      const needMrt = settings.ao || settings.taa || settings.bloom;
+      // Toujours en MRT, même sans aucun effet (préréglage Bas) : activer un effet en cours de sortie ne
+      // recompile alors plus les matériaux de toute la scène (plusieurs secondes de blocage au clic).
+      const needMrt = true;
       if (!scenePass || (needMrt && !scenePassMrt)) {
         scenePass = pass(scene, camera);
         scenePassMrt = needMrt;
