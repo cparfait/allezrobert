@@ -12,7 +12,7 @@ import type { VehicleSound } from '../audio/soundscape.ts';
  * déroulée + décalage latéral). Les voitures doublent en s'écartant (et patientent si quelqu'un
  * arrive en face), d'autres roulent en sens inverse, le tracteur se traîne.
  *
- * Modèles réalistes (BlenderKit, voir ASSETS_LICENSES.md) exportés par tools/blender/vehicles :
+ * Modèles réalistes (Sketchfab, CC BY 4.0, voir ASSETS_LICENSES.md) préparés par tools/blender/vehicles :
  * `<nom>.glb` (proche) et `<nom>.far.glb` (lointain, simplifié), Meshopt + KTX2, à l'échelle réelle,
  * avant vers +z, roues = nœuds « wheel* » centrés sur leur axe. Sans fichiers : primitives.
  */
@@ -29,11 +29,11 @@ interface ModelSpec {
 }
 
 const MODELS: ModelSpec[] = [
-  { file: 'peugeot-208', kind: 'car', cruise: [13, 19], repaint: true, weight: 3 },
-  { file: 'skoda-octavia', kind: 'car', cruise: [14, 20], repaint: true, weight: 2 },
-  { file: 'renault-captur', kind: 'car', cruise: [13, 19], repaint: true, weight: 2 },
+  { file: 'citadine', kind: 'car', cruise: [12, 17], repaint: true, weight: 2 },
+  { file: 'berline', kind: 'car', cruise: [14, 20], repaint: true, weight: 3 },
+  { file: 'suv', kind: 'car', cruise: [13, 19], repaint: true, weight: 2 },
   { file: 'porsche-911', kind: 'car', cruise: [17, 24], repaint: true, weight: 1 },
-  { file: 'peugeot-expert', kind: 'van', cruise: [13, 17], repaint: false, weight: 1.5 },
+  { file: 'utilitaire', kind: 'van', cruise: [13, 17], repaint: false, weight: 1.5 },
   { file: 'tractor', kind: 'tractor', cruise: [6.5, 8.5], repaint: false, weight: 0 },
 ];
 
