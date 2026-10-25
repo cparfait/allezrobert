@@ -333,8 +333,6 @@ body:has(.subtitle:not(.hidden)) .ob-robert { animation: ob-mouth 1.1s steps(1, 
 /* Tutoriel : titre « Allez Robert ! » remonté (jusqu'à 72 px, ~7 % de la hauteur) sans bouger la carte ; rien sur les fenêtres basses. */
 .ob-hero { transform: translateY(calc(clamp(0px, (100vh - 760px) / 3, 72px) * -1)); }
 .rd-flag { font-size: 13px; line-height: 1; }
-/* Sans drapeaux en émoji (Windows) : le code pays en pastille. */
-.no-flag-emoji .rd-flag, .no-flag-emoji .flag { display: inline-block; font: 700 9px/1 var(--font); letter-spacing: 0.06em; padding: 2px 4px; border-radius: 3px; background: rgba(255, 255, 255, 0.14); color: #d8dee6; vertical-align: 1px; }
 
 /* ───────────── Mobile : sous-titres pleine largeur en bas, tutoriel resserré ───────────── */
 @media (max-width: 700px) {
@@ -353,3 +351,5 @@ body:has(.subtitle:not(.hidden)) .ob-robert { animation: ob-mouth 1.1s steps(1, 
 .panel, .tile, .hud-loc { border-color: transparent; }
 .field input, .field select { border: 0; }
 .field input:focus-visible, .field select:focus-visible { outline: 0; box-shadow: 0 0 0 2px var(--ar-accent); }
+
+.rd-flag, .flag { display: inline-flex; vertical-align: middle; }

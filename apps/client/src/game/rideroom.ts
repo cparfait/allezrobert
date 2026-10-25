@@ -1,5 +1,6 @@
 import './rideroom.css';
-import { flagEmoji, type RideEventMsg, type RideResult, type RouteTrack } from '@allezrobert/shared';
+import type { RideEventMsg, RideResult, RouteTrack } from '@allezrobert/shared';
+import { flagSvg } from '../ui/flagSvg.ts';
 import type { RideNetClient } from '../net/index.ts';
 import type { VoiceConfig } from './voice.ts';
 import { bindGear, gearHtml, gearKey, type GearSource } from './gearList.ts';
@@ -131,7 +132,7 @@ export class RideRoomUi {
 
   /** Drapeau du coureur (nationalité de sa fiche), suivi d'une espace ; vide si inconnue. */
   private flag(id: string): string {
-    const f = flagEmoji(this.net.roster.get(id)?.avatar.nationality);
+    const f = flagSvg(this.net.roster.get(id)?.avatar.nationality, 11);
     return f ? `<span class="flag">${f}</span> ` : '';
   }
 

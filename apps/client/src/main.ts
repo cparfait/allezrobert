@@ -63,7 +63,6 @@ import { VoiceChat, fetchVoiceConfig } from './game/voice.ts';
 import { RideRoomUi } from './game/rideroom.ts';
 import { showStartGate } from './game/startGate.ts';
 import { PlaceFinder } from './game/place.ts';
-import { detectFlagEmoji } from './ui/flags.ts';
 import type { DevicePanel } from './ui/menu.ts';
 import type { InterpolatedRider } from './net/index.ts';
 
@@ -348,7 +347,6 @@ function companionMusicCommand(c: PhoneCommand): boolean {
 
 async function boot(): Promise<void> {
   // Retour de l'autorisation Spotify (?code&state), avant tout le reste.
-  detectFlagEmoji();
   await spotify.handleRedirect();
   // Spotify déconnecté entre-temps : la musique du jeu reprend sa place.
   if (!spotify.connected) music.yieldToExternal(false);

@@ -1,6 +1,6 @@
 import type { AvatarLook, CosmeticItem, RouteData, RouteSegment, WorldCatalogue } from '@allezrobert/shared';
 import { readKomRecord } from '../game/challenge.ts';
-import { COUNTRIES, flagEmoji, BIKE_BRANDS, BIKE_GROUPS, BIKE_TEAMS, COSMETICS, DEFAULT_BIKE, bikeById, lookSex, tuneItem, withSex, bottleCapacity, bikeSetupFor, jerseyLookOf, levelProgress, SHOE_MARKS, type BikeCollection, type BikeType, type CosmeticSlot } from '@allezrobert/shared';
+import { COUNTRIES, BIKE_BRANDS, BIKE_GROUPS, BIKE_TEAMS, COSMETICS, DEFAULT_BIKE, bikeById, lookSex, tuneItem, withSex, bottleCapacity, bikeSetupFor, jerseyLookOf, levelProgress, SHOE_MARKS, type BikeCollection, type BikeType, type CosmeticSlot } from '@allezrobert/shared';
 import { shoeAccentOf } from '../rider/shoeLook.ts';
 import { WORKOUT_LIBRARY } from '@allezrobert/physics';
 import { formatBytes, installPack, installedPacks, loadCatalogue, packState, removePack } from '../world/packs.ts';
@@ -11,6 +11,7 @@ import { saveSettings } from './settings.ts';
 import { music } from '../audio/music.ts';
 import { spotify, redirectUri } from '../audio/spotify.ts';
 import { renderStravaLink } from './stravaLink.ts';
+import { flagSvg } from './flagSvg.ts';
 import { renderSoundSettings } from './soundSettings.ts';
 import { renderCompanionSettings } from './companionQr.ts';
 import { HUD_BLOCKS } from '../hud/hud.ts';
@@ -838,7 +839,7 @@ export class MainMenu {
       <div class="mm-modes">${this.modes()
         .map(
           ([v, k]) =>
-            `<button class="mm-mode ${v === shown ? 'on' : ''}" data-mode="${v}" style="--c:${MODE_COLORS[v] ?? '#ffd23f'}"><span class="mm-mode-ico">${ICON[v]}</span><b>${esc(t(k))}</b><small>${esc(tag[v] ?? '')}</small></button>`,
+            `<button class="mm-mode ${v === shown ? 'on' : ''}" data-mode="${v}" style="--c:${MODE_COLORS[v] ?? '#ffd23f'}"><span class="mm-mode-ico">${ICON[v]}</span><b>${esc(t(k))}</b></button>`,
         )
         .join('')}</div>
       <p class="mm-hint">${s.mode === 'open' ? (L ? 'Parcours libre : ← / → pour choisir ta direction à chaque carrefour, U pour faire demi-tour.' : 'Free ride: ← / → to pick your way at each junction, U to turn around.') : mode ? esc(mode[2]) : ''}</p>
@@ -888,6 +889,14 @@ export class MainMenu {
     </section>
     <div class="mm-hero">${this.musicInHero() ? '<div class="mm-music mm-hero-music" id="m-music"></div>' : ''}<h1>Allez <em>Robert</em> !</h1><p>${L ? 'Rouler ensemble, chacun chez soi.' : 'Ride together, each from home.'}</p></div>
     ${this.pickerHtml()}`;
+  }
+
+  /** Liste déroulante des nationalités, drapeau devant chaque pays (le <select> du navigateur n'affiche pas d'images). */
+  private nationHtml(): string {
+    const L = fr();
+    const cur = COUNTRIES.find((c) => c.code === this.s.look.nationality);
+    const item = (code: string, label: string) => `<button type="button" role="option" class="mm-dd-opt${code === (cur?.code ?? '') ? ' on' : ''}" data-nation="${code}">${code ? flagSvg(code, 15) : '<i class="mm-dd-none"></i>'}<span>${esc(label)}</span></button>`;
+    return `<div class="mm-dd" id="m-nation"><button type="button" class="mm-dd-btn" aria-haspopup="listbox">${cur ? flagSvg(cur.code, 15) : '<i class="mm-dd-none"></i>'}<span>${esc(cur ? cur[L ? 'fr' : 'en'] : L ? 'Choisir mon pays' : 'Choose my country')}</span><em>▾</em></button><div class="mm-dd-list" role="listbox" hidden>${item('', L ? 'Aucune' : 'None')}${COUNTRIES.map((c) => item(c.code, c[L ? 'fr' : 'en'])).join('')}</div></div>`;
   }
 
   /** Lecteur au-dessus du titre (onglet Rouler, écran large) ; sinon dans la barre du haut (petits écrans, autres onglets). */
@@ -1676,7 +1685,7 @@ export class MainMenu {
       <div class="grid2b">
         <label class="field">${t('name')}<input id="m-name" value="${esc(s.name)}" /></label>
         <label class="field">${L ? 'Je suis' : 'I am'}<div class="row">${(['male', 'female'] as const).map((x) => `<button class="btn small ${lookSex(s.look) === x ? 'primary' : ''}" data-sex="${x}">${x === 'male' ? (L ? 'Un homme' : 'A man') : L ? 'Une femme' : 'A woman'}</button>`).join('')}</div></label>
-        <label class="field">${L ? 'Nationalité' : 'Nationality'}<select id="m-nation"><option value="">—</option>${COUNTRIES.map((c) => `<option value="${c.code}" ${s.look.nationality === c.code ? 'selected' : ''}>${flagEmoji(c.code)} ${esc(c[L ? 'fr' : 'en'])}</option>`).join('')}</select></label>
+        <div class="field">${L ? 'Nationalité' : 'Nationality'}${this.nationHtml()}</div>
         <div class="field">${t('weight')}${this.stepper('m-mass', 30, 200, s.massKg, 0.5)}</div>
         <div class="field">${t('height')}${this.stepper('m-height', 120, 220, s.heightCm)}</div>
         <div class="field">${t('ftp')}${this.stepper('m-ftp', 50, 600, s.ftpWatts)}</div>
@@ -2527,11 +2536,44 @@ export class MainMenu {
       this.render();
     });
     // Nationalité : drapeau montré aux autres coureurs (À proximité, classement des courses).
-    on<HTMLSelectElement>('m-nation', 'change', (el) => {
-      const { nationality: _old, ...rest } = s.look;
-      s.look = el.value ? { ...rest, nationality: el.value } : rest;
-      changed();
-    });
+    const dd = this.root.querySelector<HTMLElement>('#m-nation');
+    if (dd) {
+      const list = dd.querySelector<HTMLElement>('.mm-dd-list') as HTMLElement;
+      const close = () => {
+        list.hidden = true;
+        list.style.cssText = '';
+        dd.appendChild(list);
+        document.removeEventListener('pointerdown', outside, true);
+        document.removeEventListener('scroll', close, true);
+      };
+      const outside = (e: Event) => {
+        if (!dd.contains(e.target as Node) && !list.contains(e.target as Node)) close();
+      };
+      dd.querySelector('.mm-dd-btn')?.addEventListener('click', () => {
+        if (!list.hidden) return close();
+        // Posée sur l'écran (et non dans le panneau, qui la rognerait) juste sous le champ.
+        const r = (dd.querySelector('.mm-dd-btn') as HTMLElement).getBoundingClientRect();
+        // Sorti du panneau (son flou crée un repère qui rognerait la liste) : posé sur la page.
+        document.body.appendChild(list);
+        list.style.cssText = `position:fixed;z-index:90;left:${r.left}px;top:${r.bottom + 6}px;width:${r.width}px;max-height:${Math.max(160, Math.min(340, innerHeight - r.bottom - 16))}px`;
+        list.hidden = false;
+        list.querySelector('.on')?.scrollIntoView({ block: 'center' });
+        document.addEventListener('pointerdown', outside, true);
+        // Le défilement de la page ferme la liste, mais pas celui qu'on provoque pour montrer le pays choisi.
+        setTimeout(() => !list.hidden && document.addEventListener('scroll', close, true), 200);
+      });
+      dd.querySelectorAll<HTMLElement>('[data-nation]').forEach((o) =>
+        o.addEventListener('click', () => {
+          const { nationality: _old, ...rest } = s.look;
+          const code = o.dataset.nation ?? '';
+          s.look = code ? { ...rest, nationality: code } : rest;
+          close();
+          changed();
+          this.render();
+        }),
+      );
+      dd.addEventListener('keydown', (e) => e.key === 'Escape' && (e.stopPropagation(), close()));
+    }
     // Réglages.
     on<HTMLSelectElement>('m-quality', 'change', (el) => {
       s.quality = el.value as Settings['quality'];
