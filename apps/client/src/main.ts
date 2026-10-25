@@ -10,6 +10,7 @@ import type { WorldSource } from './world/types.ts';
 import { GltfRiderAvatar, createAvatar } from './rider/gltfAvatar.ts';
 import { CROWD_FAMILIES, onBikeFamilyLoaded } from './rider/bikes.ts';
 import { CameraRig } from './game/cameras.ts';
+import { buzzLevel } from './game/roadBuzz.ts';
 import { FreeFlyCamera } from './game/freecam.ts';
 import { RideSession } from './game/ride.ts';
 import { KeyboardControls, type InputSource } from './game/inputs.ts';
@@ -1572,7 +1573,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     const eyeOk = rig.mode === 'cockpit' && !!avatar.eyeWorld;
     if (eyeOk) avatar.eyeWorld?.(eye, hands);
     // Pendant un demi-tour, la caméra reste d'abord en place puis pivote doucement (voir camPos / camDir).
-    rig.update(dt, { position: camTurn ? camPos : pos, dir: camTurn ? camDir : dir, distM: ride.state.distM, speedMs: ride.state.speedMs, sign: ride.dir, ...(eyeOk ? { eye, hands } : {}) });
+    rig.update(dt, { position: camTurn ? camPos : pos, dir: camTurn ? camDir : dir, distM: ride.state.distM, speedMs: ride.state.speedMs, sign: ride.dir, buzz: buzzLevel(ride.surface), ...(eyeOk ? { eye, hands } : {}) });
     lap('poussière, caméra');
     // Les tuiles se chargent autour de la caméra libre, où qu'elle aille ; sinon autour du coureur.
     world.update(dt, rig.mode === 'free' ? engine.camera.position : pos);
