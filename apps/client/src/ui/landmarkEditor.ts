@@ -48,7 +48,9 @@ const COLORS: Record<Handle['group'], string> = { eyes: '#38bdf8', brows: '#a78b
 /** Contours tracés entre les points pour aider à voir la forme du visage. */
 const CONTOURS: number[][] = [[234, 172, 152, 397, 454], [70, 107], [336, 300], [33, 133], [362, 263], [61, 13, 291, 14, 61], [168, 1]];
 
-const SIGMA = 0.55;
+/** Portée d'un déplacement, en part de la distance entre les yeux : seuls les repères tout proches du point suivent. */
+const SIGMA = 0.2;
+const HANDLE_IDS = new Set(HANDLES.map((h) => h.i));
 
 /**
  * Ouvre la retouche pour une photo analysée ; renvoie la ressemblance recalculée avec les repères
@@ -67,7 +69,7 @@ export function editLandmarks(session: PhotoSession): Promise<Likeness | null> {
   overlay.className = 'lme-modal';
   overlay.innerHTML = `<div class="lme-dialog" role="dialog" aria-modal="true">
     <h2>${fr ? 'Ajuste les points de ton visage' : 'Adjust your face points'}</h2>
-    <p>${fr ? 'Glisse chaque point à sa place sur la photo (coins des yeux, bout du nez, coins de la bouche, menton, mâchoire). Les points voisins suivent. Ta photo reste sur cet appareil et est effacée à la fermeture.' : 'Drag each point to its place on the photo (eye corners, nose tip, mouth corners, chin, jaw). Neighbouring points follow. Your photo stays on this device and is erased when you close this window.'}</p>
+    <p>${fr ? 'Glisse chaque point à sa place sur la photo (coins des yeux, bout du nez, coins de la bouche, menton, mâchoire). Chaque point se déplace seul. Ta photo reste sur cet appareil et est effacée à la fermeture.' : 'Drag each point to its place on the photo (eye corners, nose tip, mouth corners, chin, jaw). Each point moves on its own. Your photo stays on this device and is erased when you close this window.'}</p>
     <div class="lme-stage" style="aspect-ratio:${pw} / ${ph};width:min(100%, calc(62vh * ${(pw / ph).toFixed(3)}))"><svg class="lme-svg" viewBox="0 0 ${pw} ${ph}"></svg></div>
     <div class="lme-legend"><span style="--c:${COLORS.eyes}">${fr ? 'Yeux' : 'Eyes'}</span><span style="--c:${COLORS.brows}">${fr ? 'Sourcils' : 'Brows'}</span><span style="--c:${COLORS.nose}">${fr ? 'Nez' : 'Nose'}</span><span style="--c:${COLORS.mouth}">${fr ? 'Bouche' : 'Mouth'}</span><span style="--c:${COLORS.face}">${fr ? 'Visage' : 'Face'}</span></div>
     <div class="lme-foot"><button class="btn" data-act="reset">${fr ? 'Revenir à la détection' : 'Back to detection'}</button><button class="btn" data-act="cancel">${fr ? 'Annuler' : 'Cancel'}</button><button class="btn primary" data-act="ok">${fr ? 'Valider' : 'Apply'}</button></div>
@@ -87,12 +89,14 @@ export function editLandmarks(session: PhotoSession): Promise<Likeness | null> {
     svg.innerHTML = lines + dots;
   };
 
-  /** Déplace le repère `h` de (dx, dy) normalisés ; ses voisins suivent selon leur distance (gaussienne). */
+  /** Déplace le repère `h` de (dx, dy) normalisés ; les repères du maillage tout proches suivent (gaussienne serrée). */
   const moveBy = (h: number, dx: number, dy: number) => {
     const o = orig[h] as Landmark;
     for (let i = 0; i < cur.length; i++) {
+      // Les autres points posés par l'utilisateur ne bougent jamais : chacun se règle seul.
+      if (i !== h && HANDLE_IDS.has(i)) continue;
       const d = Math.hypot((orig[i] as Landmark).x - o.x, (orig[i] as Landmark).y - o.y);
-      const w = Math.exp(-((d / sigma) ** 2));
+      const w = i === h ? 1 : Math.exp(-((d / sigma) ** 2));
       if (w < 0.01) continue;
       (cur[i] as Landmark).x += dx * w;
       (cur[i] as Landmark).y += dy * w;
