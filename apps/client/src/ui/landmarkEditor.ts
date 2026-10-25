@@ -1,6 +1,7 @@
 import './landmarkEditor.css';
 import { getLang } from '../i18n/index.ts';
 import type { Landmark, Likeness, PhotoSession } from '../onboarding/likeness.ts';
+import { moveLandmark } from '../onboarding/likenessFit.ts';
 
 /**
  * Retouche manuelle des repères du visage avant l'ajustement de l'avatar : le détecteur se trompe
@@ -50,7 +51,6 @@ const CONTOURS: number[][] = [[234, 172, 152, 397, 454], [70, 107], [336, 300], 
 
 /** Portée d'un déplacement, en part de la distance entre les yeux : seuls les repères tout proches du point suivent. */
 const SIGMA = 0.2;
-const HANDLE_IDS = new Set(HANDLES.map((h) => h.i));
 
 /**
  * Ouvre la retouche pour une photo analysée ; renvoie la ressemblance recalculée avec les repères
@@ -89,19 +89,7 @@ export function editLandmarks(session: PhotoSession): Promise<Likeness | null> {
     svg.innerHTML = lines + dots;
   };
 
-  /** Déplace le repère `h` de (dx, dy) normalisés ; les repères du maillage tout proches suivent (gaussienne serrée). */
-  const moveBy = (h: number, dx: number, dy: number) => {
-    const o = orig[h] as Landmark;
-    for (let i = 0; i < cur.length; i++) {
-      // Les autres points posés par l'utilisateur ne bougent jamais : chacun se règle seul.
-      if (i !== h && HANDLE_IDS.has(i)) continue;
-      const d = Math.hypot((orig[i] as Landmark).x - o.x, (orig[i] as Landmark).y - o.y);
-      const w = i === h ? 1 : Math.exp(-((d / sigma) ** 2));
-      if (w < 0.01) continue;
-      (cur[i] as Landmark).x += dx * w;
-      (cur[i] as Landmark).y += dy * w;
-    }
-  };
+  const moveBy = (h: number, dx: number, dy: number) => moveLandmark(orig, cur, h, dx, dy, sigma);
 
   let drag: { i: number; x: number; y: number } | null = null;
   const toNorm = (e: PointerEvent): [number, number] => {

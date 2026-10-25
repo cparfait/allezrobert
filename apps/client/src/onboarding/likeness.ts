@@ -1,5 +1,6 @@
 import type { FaceLandmarker } from '@mediapipe/tasks-vision';
-import { fitSliders, shapeVector, tameSliders, type LikenessCalibration } from './likenessFit.ts';
+import { STIFFNESS, fitSliders, pointWeights, shapeVector, tameSliders, type LikenessCalibration, type TameOptions } from './likenessFit.ts';
+import { beardFromImage } from './beard.ts';
 import calibration from './likenessCalib.json';
 
 /**
@@ -22,6 +23,8 @@ export interface Likeness {
   hair: string;
   /** Curseurs du visage (absents si aucun visage n'a été détecté). */
   face?: Record<string, number>;
+  /** Barbe (0 = rasé → 1 = barbe courte), d'après le menton et le bas des joues. */
+  beard?: number;
 }
 
 /** Repère de visage (coordonnées normalisées de l'image). */
@@ -142,6 +145,25 @@ export async function likenessFromPhoto(file: File): Promise<Likeness> {
   }
 }
 
+export interface FitOptions extends TameOptions {
+  /** Multiplicateur de la régularisation de l'étalonnage. */
+  lambdaMul: number;
+  /** Poids fort au voisinage des points posés à la main, faible ailleurs (voir pointWeights). */
+  weighted: boolean;
+  /** Curseurs de volume mou et de traits devinés plus difficiles à écarter (voir STIFFNESS). */
+  stiff: boolean;
+}
+
+/** Réglage de l'ajustement d'après photo. */
+export const DEFAULT_FIT: FitOptions = { lambdaMul: 3, weighted: true, stiff: true, shrink: 0.9, limitScale: 1.3 };
+
+/** Curseurs du visage d'après les repères d'une photo (largeur / hauteur de l'image : `aspect`). */
+export function faceFromLandmarks(lm: readonly Landmark[], aspect: number, opts: FitOptions = DEFAULT_FIT, beard = 0): Record<string, number> {
+  const cal = calibration as LikenessCalibration;
+  // Ajustement régularisé, puis curseurs plafonnés : pas de tête déformée.
+  return tameSliders(fitSliders(shapeVector(lm, cal, aspect), cal, cal.lambda * opts.lambdaMul, opts.weighted ? pointWeights(cal, beard) : undefined, opts.stiff ? STIFFNESS : undefined), opts);
+}
+
 /** Teint (joues et front), cheveux (au-dessus du front) et curseurs, à partir des repères. */
 function likenessFromLandmarks(ctx: OffscreenCanvasRenderingContext2D, W: number, H: number, lm: readonly Landmark[]): Likeness {
   const iod = Math.hypot(((lm[33]?.x ?? 0) - (lm[263]?.x ?? 0)) * W, ((lm[33]?.y ?? 0) - (lm[263]?.y ?? 0)) * H);
@@ -164,10 +186,9 @@ function likenessFromLandmarks(ctx: OffscreenCanvasRenderingContext2D, W: number
   const cheeks = [patch(50), patch(280), patch(151, 0, 0.1)];
   const skin = [0, 1, 2].map((k) => cheeks.map((c) => c[k] as number).sort((a, b) => a - b)[1] as number) as [number, number, number];
   const hair = patch(10, -0.35, 0.1);
-  const cal = calibration as LikenessCalibration;
-  // Ajustement plus régularisé qu'à l'étalonnage, puis curseurs plafonnés : pas de tête déformée.
-  const face = tameSliders(fitSliders(shapeVector(lm, cal, W / H), cal, cal.lambda * 8));
-  return { skin: toHex(...skin), hair: toHex(...hair), face };
+  const beard = beardFromImage(ctx, lm, W, H);
+  const face = faceFromLandmarks(lm, W / H, DEFAULT_FIT, beard);
+  return { skin: toHex(...skin), hair: toHex(...hair), face, beard };
 }
 
 function colorsOnly(bitmap: ImageBitmap): Likeness {

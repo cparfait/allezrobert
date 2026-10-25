@@ -38,14 +38,14 @@ export function withRandomFace(look: AvatarLook, random: () => number = Math.ran
 
 /**
  * Résultat de la ressemblance photo appliqué : curseurs du visage (ceux du corps sont gardés),
- * teint et cheveux.
+ * teint, cheveux et barbe (si la photo a permis de la mesurer).
  */
-export function withLikeness(look: AvatarLook, l: { skin: string; hair: string; face?: Record<string, number> }): AvatarLook {
+export function withLikeness(look: AvatarLook, l: { skin: string; hair: string; face?: Record<string, number>; beard?: number }): AvatarLook {
   const shape = decodeFace(look.face);
   for (const s of FACE_SLIDERS) {
     if (s.group !== 'body' && l.face && s.id in l.face) shape[s.id] = l.face[s.id] as number;
   }
-  return withoutFacialHairIfFemale({ ...look, skin: l.skin, hair: l.hair, face: encodeFace(shape) });
+  return withoutFacialHairIfFemale({ ...look, skin: l.skin, hair: l.hair, face: encodeFace(shape), ...(l.beard === undefined ? {} : { beard: l.beard }) });
 }
 
 /** Tête de base : curseurs, barbe, rousseur et moustache retirés. */
