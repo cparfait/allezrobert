@@ -10,6 +10,7 @@
   },
   "scripts": {
     "dev": "pnpm dev:all",
+    "deploy:gui": "node deploy/deploy-gui.mjs",
     "dev:client": "pnpm --filter @allezrobert/client dev",
     "dev:server": "pnpm --filter @allezrobert/server dev",
     "zone-builder": "pnpm --filter @allezrobert/terrain zone-builder",

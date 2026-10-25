@@ -372,3 +372,22 @@ Mettre à jour en dehors des créneaux de sortie.
 | Voix muette | 7881/tcp et 7882/udp ouverts (ufw + pare-feu OVH) ; `docker compose logs livekit` ; en attendant, repli Discord (§9 bis) |
 | Rendus en échec | `docker compose logs renderer` ; mémoire (`docker stats`) ; `shm_size` |
 | Base injoignable | `docker compose logs postgres` ; espace disque (`df -h`) |
+
+## Annexe — Outil de déploiement graphique
+
+Outil séparé du jeu, à lancer depuis le PC de développement : `deploy/Deploy.bat` (double-clic), `pnpm deploy:gui`
+ou `node deploy/deploy-gui.mjs`. Une page locale s'ouvre dans le navigateur (`127.0.0.1`, jeton aléatoire) et pilote
+le serveur Linux par SSH :
+
+- **Application** : `git pull` sur le VPS puis `deploy.sh` (sauvegarde, images, migrations, démarrage, contrôle),
+  avec choix de la branche, images construites sur le VPS ou publiées par la CI, et `git push` préalable.
+- **Zones** : état de chaque zone sur le serveur (absente = nouvelle, à jour, différente), envoi de la
+  sélection, de toutes les zones ou des seules nouvelles / modifiées (tar compressé + ssh, échange atomique).
+- **Vidéos du menu** : envoi de `loop-*.mp4 / .webm`.
+- **Connexion** : hôte, port, clé SSH, dossier du dépôt, adresse publique (enregistrés dans
+  `deploy/.deploy-gui.json`, ignoré par git). SSH est non interactif : la clé publique doit être dans
+  `~/.ssh/authorized_keys` du serveur.
+
+Essai à blanc (affiche les commandes sans rien exécuter) : `DEPLOY_GUI_DRY=1 node deploy/deploy-gui.mjs`.
+Ordre d'une mise à jour de zone : envoyer les tuiles, commiter `world.json` / `index.json` de la zone, puis
+mettre à jour l'application.
