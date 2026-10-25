@@ -60,7 +60,14 @@ export class CameraRig {
    */
   occlusion: ((a: THREE.Vector3, b: THREE.Vector3) => number | null) | null = null;
   private collideTick = 0;
+  /** Rapprochement visé (mur entre le coureur et la caméra) et rapprochement appliqué, lissé. */
+  private collideTarget = 1;
   private collideScale = 1;
+  /**
+   * Poursuite : cap de la caméra (rad), lissé. Placée derrière le cap instantané, la caméra
+   * balayait un arc de 5 m en un quart de seconde dans les virages serrés.
+   */
+  private chaseYaw = 0;
 
   constructor(camera: THREE.PerspectiveCamera, track: RouteTrack, groundAt: (x: number, z: number) => number, dom: HTMLElement) {
     this.camera = camera;
@@ -138,7 +145,12 @@ export class CameraRig {
       case 'chase': {
         // Derrière et au-dessus, regard vers un point devant le coureur (anticipe les virages).
         const ahead = this.track.sample(t.distM + 18 * (t.sign ?? 1));
-        desired.copy(t.position).addScaledVector(t.dir, -5.2).add(new THREE.Vector3(0, 2.1, 0));
+        // Cap lissé (≈ 0,4 s, par le plus court chemin) : la caméra suit le virage sans fouetter.
+        const yaw = Math.atan2(t.dir.x, t.dir.z);
+        if (!this.initialized) this.chaseYaw = yaw;
+        const dYaw = Math.atan2(Math.sin(yaw - this.chaseYaw), Math.cos(yaw - this.chaseYaw));
+        this.chaseYaw += dYaw * (1 - Math.exp(-dt * 2.5));
+        desired.set(t.position.x - Math.sin(this.chaseYaw) * 5.2, t.position.y + 2.1, t.position.z - Math.cos(this.chaseYaw) * 5.2);
         look.set(ahead.x, ahead.y + 1.0, ahead.z).lerp(t.position.clone().add(new THREE.Vector3(0, 1.1, 0)), 0.55);
         stiffness = 5;
         // Collision : un mur entre le coureur et la caméra rapproche la caméra (une image sur trois).
@@ -146,8 +158,11 @@ export class CameraRig {
           const head = t.position.clone().add(new THREE.Vector3(0, 1.3, 0));
           const len = desired.distanceTo(head);
           const hit = this.occlusion(head, desired);
-          this.collideScale = hit !== null ? Math.max(0.25, (hit * len - 0.6) / len) : 1;
+          this.collideTarget = hit !== null ? Math.max(0.25, (hit * len - 0.6) / len) : 1;
         }
+        // Vite vers le coureur (ne pas traverser le mur), lentement en reculant (pas de va-et-vient).
+        const rate = this.collideTarget < this.collideScale ? 14 : 1.5;
+        this.collideScale += (this.collideTarget - this.collideScale) * (1 - Math.exp(-dt * rate));
         if (this.collideScale < 1) {
           const head = t.position.clone().add(new THREE.Vector3(0, 1.3, 0));
           desired.sub(head).multiplyScalar(this.collideScale).add(head);
@@ -244,7 +259,8 @@ export class CameraRig {
     // Vues embarquées : la caméra est solidaire du coureur (un retard ferait « nager » le cintre).
     if (this.mode === 'cockpit' || this.mode === 'gopro') this.smoothPos.copy(desired);
     else this.smoothPos.lerp(desired, k);
-    this.smoothLook.lerp(look, Math.min(1, k * 1.5));
+    // Poursuite : le regard suit au même rythme que la position (plus vite, il pivotait d'un coup en virage).
+    this.smoothLook.lerp(look, Math.min(1, this.mode === 'chase' ? k : k * 1.5));
     cam.position.copy(this.smoothPos);
     cam.lookAt(this.smoothLook);
   }
