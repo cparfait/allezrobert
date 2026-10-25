@@ -198,6 +198,8 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #0a0e16; col
 .pause-overlay { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(10, 14, 22, 0.55); }
 .loading { position: absolute; inset: 0; display: grid; place-items: center; font-size: 20px; color: var(--ar-muted); background: #0a0e16; }
 .hidden { display: none !important; }
+/* Blocs masqués dans les Réglages (« Affichage en sortie »). */
+.hud .hud-off { display: none !important; }
 
 /* Entre les colonnes gauche (≈ 390 px) et droite (≈ 360 px) : jamais sous le rapport ni le chat. */
 .workout { position: absolute; left: 50%; transform: translateX(-50%); bottom: var(--hud-bottom); width: min(560px, calc(100vw - 800px)); min-width: 300px; padding: 10px 14px; }

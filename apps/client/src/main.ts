@@ -886,6 +886,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   const cyclists = alive && params.get('cyclists') !== '0' ? new AmbientCyclists(engine.scene, track, startD) : null;
   if (cyclists) cyclists.shadowRange = engine.quality.shadowRiders >= 8 ? 35 : engine.quality.shadowRiders > 0 ? 20 : 0;
   const hud = new Hud(hudRoot, track, source.attribution);
+  hud.setHidden(s.hudHidden ?? []);
   if (nav && source.open) hud.setOpen(source.open.graph);
   // En groupe, le panneau « À proximité » montre d'abord les coureurs réels.
   hud.riderFilter = mp ? 'real' : 'all';

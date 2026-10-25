@@ -12,6 +12,7 @@ import { music } from '../audio/music.ts';
 import { spotify, redirectUri } from '../audio/spotify.ts';
 import { renderSoundSettings } from './soundSettings.ts';
 import { renderCompanionSettings } from './companionQr.ts';
+import { HUD_BLOCKS } from '../hud/hud.ts';
 import { renderExpertSettings } from './expertZones.ts';
 import { loadProgress, equipItem, equipPlainBike, SLOT_LABEL } from './garage.ts';
 import { AtelierPanel, COIN } from './atelierPanel.ts';
@@ -1479,6 +1480,9 @@ export class MainMenu {
           ['send', L ? 'Envoyer' : 'Upload'],
         ])}</div>
       </div>`;
+    // Blocs du HUD : décocher ce que son matériel ne mesure pas (cardio, cadence…).
+    const hidden = new Set(s.hudHidden);
+    const hud = `<p class="mm-hint">${L ? 'Décoche ce que ton matériel ne mesure pas ou ce que tu ne veux pas voir.' : 'Untick what your hardware does not measure or what you do not want to see.'}</p><div class="grid3">${HUD_BLOCKS.map((b) => `<label class="mm-check"><input type="checkbox" data-hudblock="${b.id}" ${hidden.has(b.id) ? '' : 'checked'}/> ${L ? b.fr : b.en}</label>`).join('')}</div>`;
     // Rubriques repliables (la première ouverte au départ, l'état est mémorisé) ; le mode expert est tout en bas.
     return `<section class="mm-panel mm-center mm-wide">${this.closeBtn()}
       <header class="mm-head"><h2>${t('settings')}</h2></header>
@@ -1487,6 +1491,7 @@ export class MainMenu {
       ${sec('ai', L ? 'Coureurs IA' : 'AI riders', ai)}
       ${sec('music', L ? 'Musique' : 'Music', '<div id="m-music-settings" class="mm-musicset"></div>')}
       ${sec('sound', L ? 'Son' : 'Sound', '<div id="m-sound-settings"></div>')}
+      ${sec('hud', L ? 'Affichage en sortie' : 'In-ride display', hud)}
       ${sec('companion', L ? 'Appli compagnon (téléphone)' : 'Companion app (phone)', '<div id="m-companion-settings"></div>')}
       ${sec('lang', L ? 'Langue et envoi des sorties' : 'Language and ride upload', lang)}
       ${sec('expert', L ? 'Mode expert : créer mes zones' : 'Expert mode: build my own zones', '<div id="m-expert-settings"></div>')}
@@ -2302,6 +2307,13 @@ export class MainMenu {
       s.weatherEvolves = el.value === '1';
       changed();
     });
+    this.root.querySelectorAll<HTMLInputElement>('[data-hudblock]').forEach((el) =>
+      el.addEventListener('change', () => {
+        const id = el.dataset.hudblock as string;
+        s.hudHidden = el.checked ? s.hudHidden.filter((x) => x !== id) : [...new Set([...s.hudHidden, id])];
+        changed();
+      }),
+    );
     on<HTMLSelectElement>('m-smooth', 'change', (el) => {
       s.smoothing3s = el.value === '1';
       changed();

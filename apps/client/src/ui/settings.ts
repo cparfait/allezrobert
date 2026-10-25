@@ -57,6 +57,8 @@ export interface Settings {
   raceLaps: number;
   /** Sortie créée : même vélo pour tous (absent : oui en course, non en groupe). */
   equalEquipment?: boolean;
+  /** Blocs du HUD masqués en sortie (identifiants de HUD_BLOCKS) : selon le matériel du coureur. */
+  hudHidden: string[];
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -93,6 +95,7 @@ export const DEFAULT_SETTINGS: Settings = {
   challengeSeg: '',
   weatherEvolves: false,
   raceLaps: 1,
+  hudHidden: [],
 };
 
 const KEY = 'ar.settings';

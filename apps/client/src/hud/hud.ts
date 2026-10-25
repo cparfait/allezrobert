@@ -62,6 +62,33 @@ export interface HudJunction {
   locked: boolean;
 }
 
+/**
+ * Blocs du HUD que le coureur peut masquer (Réglages, « Affichage en sortie ») : tout le monde n'a
+ * pas de ceinture cardio, de capteur de cadence ou de pédales double face.
+ */
+export const HUD_BLOCKS = [
+  { id: 'hr', fr: 'Fréquence cardiaque', en: 'Heart rate' },
+  { id: 'power', fr: 'Puissance', en: 'Power' },
+  { id: 'cadence', fr: 'Cadence', en: 'Cadence' },
+  { id: 'speed', fr: 'Vitesse', en: 'Speed' },
+  { id: 'grade', fr: 'Pente', en: 'Gradient' },
+  { id: 'time', fr: 'Temps', en: 'Time' },
+  { id: 'dist', fr: 'Distance', en: 'Distance' },
+  { id: 'gain', fr: 'Dénivelé', en: 'Elevation gain' },
+  { id: 'avg', fr: 'Puissance moyenne', en: 'Average power' },
+  { id: 'np', fr: 'NP', en: 'NP' },
+  { id: 'draft', fr: 'Aspiration', en: 'Draft' },
+  { id: 'wind', fr: 'Vent', en: 'Wind' },
+  { id: 'alt', fr: 'Altitude', en: 'Altitude' },
+  { id: 'lap', fr: 'Tours', en: 'Laps' },
+  { id: 'gear', fr: 'Rapport', en: 'Gear' },
+  { id: 'balance', fr: 'Équilibre gauche / droite', en: 'Left / right balance' },
+  { id: 'map', fr: 'Mini-carte', en: 'Mini-map' },
+  { id: 'riders', fr: 'Coureurs à proximité', en: 'Nearby riders' },
+  { id: 'profile', fr: 'Profil du parcours', en: 'Route profile' },
+] as const;
+export type HudBlockId = (typeof HUD_BLOCKS)[number]['id'];
+
 const ZONES = [0.55, 0.75, 0.9, 1.05, 1.2, 1.5];
 /** Noms des zones de puissance (Coggan). */
 const ZONE_NAMES: Array<[string, string]> = [
@@ -129,12 +156,12 @@ export class Hud {
     root.innerHTML = `
       <div class="hud-center">
         <div class="hud-top">
-          <div class="panel metric hr"><div class="label">${t('heartRate')}</div><div class="value num" data-k="hr">--</div><div class="sub">bpm</div></div>
-          <div class="panel metric power" data-k="powerBox"><div class="label">${t('power')} 3 s</div><div class="value num"><span data-k="watts">0</span><span class="unit">W</span></div><div class="sub num" data-k="wkg">0,0 W/kg</div></div>
-          <div class="panel metric"><div class="label">${t('cadence')}</div><div class="value num" data-k="cad">0</div><div class="sub">tr/min</div></div>
-          <div class="panel metric"><div class="label">${t('speed')}</div><div class="value num" data-k="speed">0,0</div><div class="sub">km/h</div></div>
+          <div class="panel metric hr" data-hud="hr"><div class="label">${t('heartRate')}</div><div class="value num" data-k="hr">--</div><div class="sub">bpm</div></div>
+          <div class="panel metric power" data-k="powerBox" data-hud="power"><div class="label">${t('power')} 3 s</div><div class="value num"><span data-k="watts">0</span><span class="unit">W</span></div><div class="sub num" data-k="wkg">0,0 W/kg</div></div>
+          <div class="panel metric" data-hud="cadence"><div class="label">${t('cadence')}</div><div class="value num" data-k="cad">0</div><div class="sub">tr/min</div></div>
+          <div class="panel metric" data-hud="speed"><div class="label">${t('speed')}</div><div class="value num" data-k="speed">0,0</div><div class="sub">km/h</div></div>
         </div>
-        <div class="panel grade-badge num" data-k="grade">0,0 %</div>
+        <div class="panel grade-badge num" data-k="grade" data-hud="grade">0,0 %</div>
         <div class="panel junction hidden" data-k="junction"></div>
         <div class="panel challenge hidden" data-k="challenge"></div>
         <div class="panel segment hidden" data-k="segment"><div class="name" data-k="segName"></div><div class="num" data-k="segInfo"></div><div class="bar"><span data-k="segBar" style="width:0%"></span></div></div>
@@ -142,34 +169,34 @@ export class Hud {
       </div>
       <div class="hud-col hud-col-left">
         <div class="panel hud-left">
-          <span class="k">${t('time')}</span><span class="v num" data-k="time">0:00</span>
-          <span class="k">${t('distance')}</span><span class="v num" data-k="dist">0,00 km</span>
-          <span class="k">${t('elevation')}</span><span class="v num" data-k="gain">0 m</span>
-          <span class="k">${t('avgPower')}</span><span class="v num" data-k="avg">0 W</span>
-          <span class="k">${t('np')}</span><span class="v num" data-k="np">0 W</span>
-          <span class="k">${t('draft')}</span><span class="v num" data-k="draft">0 %</span>
-          <span></span><span><div style="height:6px;width:110px;background:rgba(255,255,255,.12);border-radius:3px;overflow:hidden;margin-left:auto"><div data-k="draftBar" style="height:100%;width:0%;background:linear-gradient(90deg,#60a5fa,#22c55e)"></div></div></span>
-          <span class="hud-note" data-k="draftNote"></span>
-          <span class="k">${getLang() === 'fr' ? 'Vent' : 'Wind'}</span><span class="v num" data-k="wind">–</span>
-          <span class="k">${getLang() === 'fr' ? 'Altitude' : 'Altitude'}</span><span class="v num" data-k="alt">–</span>
-          ${track.route.loop ? `<span class="k">${t('lap')}</span><span class="v num" data-k="lap">1</span>` : ''}
+          <span class="k" data-hud="time">${t('time')}</span><span class="v num" data-k="time" data-hud="time">0:00</span>
+          <span class="k" data-hud="dist">${t('distance')}</span><span class="v num" data-k="dist" data-hud="dist">0,00 km</span>
+          <span class="k" data-hud="gain">${t('elevation')}</span><span class="v num" data-k="gain" data-hud="gain">0 m</span>
+          <span class="k" data-hud="avg">${t('avgPower')}</span><span class="v num" data-k="avg" data-hud="avg">0 W</span>
+          <span class="k" data-hud="np">${t('np')}</span><span class="v num" data-k="np" data-hud="np">0 W</span>
+          <span class="k" data-hud="draft">${t('draft')}</span><span class="v num" data-k="draft" data-hud="draft">0 %</span>
+          <span data-hud="draft"></span><span data-hud="draft"><div style="height:6px;width:110px;background:rgba(255,255,255,.12);border-radius:3px;overflow:hidden;margin-left:auto"><div data-k="draftBar" style="height:100%;width:0%;background:linear-gradient(90deg,#60a5fa,#22c55e)"></div></div></span>
+          <span class="hud-note" data-k="draftNote" data-hud="draft"></span>
+          <span class="k" data-hud="wind">${getLang() === 'fr' ? 'Vent' : 'Wind'}</span><span class="v num" data-k="wind" data-hud="wind">–</span>
+          <span class="k" data-hud="alt">${getLang() === 'fr' ? 'Altitude' : 'Altitude'}</span><span class="v num" data-k="alt" data-hud="alt">–</span>
+          ${track.route.loop ? `<span class="k" data-hud="lap">${t('lap')}</span><span class="v num" data-k="lap" data-hud="lap">1</span>` : ''}
         </div>
         <div class="hud-bl">
           <div class="voice-chip panel hidden" data-k="voice"></div>
           <div class="devices-chip" data-k="devices"></div>
           <div class="hud-drive">
-            <div class="panel gearbox"><div class="label metric-label" style="font-size:11px;color:var(--ar-muted);text-transform:uppercase;letter-spacing:.08em">${t('gear')}</div><div class="value num" data-k="gear">34×17</div><div class="bars" data-k="gearbars"></div></div>
-            <div class="panel balance hidden" data-k="balanceBox"><div style="font-size:11px;color:var(--ar-muted);text-transform:uppercase;letter-spacing:.08em">${t('balance')}</div><div class="num" data-k="balance" style="font-size:20px;font-weight:700">50 / 50</div><div class="bar"><span data-k="balanceBar" style="width:50%"></span></div></div>
+            <div class="panel gearbox" data-hud="gear"><div class="label metric-label" style="font-size:11px;color:var(--ar-muted);text-transform:uppercase;letter-spacing:.08em">${t('gear')}</div><div class="value num" data-k="gear">34×17</div><div class="bars" data-k="gearbars"></div></div>
+            <div class="panel balance hidden" data-k="balanceBox" data-hud="balance"><div style="font-size:11px;color:var(--ar-muted);text-transform:uppercase;letter-spacing:.08em">${t('balance')}</div><div class="num" data-k="balance" style="font-size:20px;font-weight:700">50 / 50</div><div class="bar"><span data-k="balanceBar" style="width:50%"></span></div></div>
           </div>
         </div>
       </div>
       <div class="hud-col hud-col-right">
-        <div class="panel minimap"><canvas width="460" height="460"></canvas></div>
-        <div class="panel riders" data-k="riders"></div>
+        <div class="panel minimap" data-hud="map"><canvas width="460" height="460"></canvas></div>
+        <div class="panel riders" data-k="riders" data-hud="riders"></div>
         <div class="chat" data-k="chat"><div class="chat-log" data-k="chatLog"></div><input class="chat-input hidden" data-k="chatInput" maxlength="200" /></div>
       </div>
       <div class="panel workout hidden" data-k="workout"><div class="row" style="justify-content:space-between"><b data-k="wName"></b><span class="num" data-k="wRemain"></span></div><div class="num" data-k="wTarget" style="font-size:30px;font-weight:800"></div><div class="num" data-k="wStep" style="color:var(--ar-muted);font-size:13px"></div><canvas width="900" height="90" data-k="wChart"></canvas></div>
-      <div class="panel profile"><canvas width="1800" height="160"></canvas></div>
+      <div class="panel profile" data-hud="profile"><canvas width="1800" height="160"></canvas></div>
       <div class="panel climbpro hidden" data-k="climbpro"></div>
       <div class="attribution">${attribution.join(' · ')}</div>
     `;
@@ -334,6 +361,12 @@ export class Hud {
 
   /** FTP courante (couleurs des zones). */
   ftp = 250;
+
+  /** Blocs masqués par le coureur (voir HUD_BLOCKS). */
+  setHidden(ids: readonly string[]): void {
+    const off = new Set(ids);
+    this.root.querySelectorAll<HTMLElement>('[data-hud]').forEach((e) => e.classList.toggle('hud-off', off.has(e.dataset.hud as string)));
+  }
 
   setVisible(v: boolean): void {
     this.root.classList.toggle('hidden', !v);
