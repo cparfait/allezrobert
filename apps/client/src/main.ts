@@ -1716,22 +1716,22 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
             return town ? { place: { town, ...(road ? { road } : {}) } } : road ? { place: { town: road } } : {};
           })(),
           riders: [
-            { id: 'me', name: s.name, distM: ride.state.distM, x: pos.x, z: pos.z, me: true, isAI: false, isGuest: false, color: '#ffd23f', wkg: ride.watts3s() / s.massKg, ...(s.look.nationality ? { nationality: s.look.nationality } : {}) },
+            { id: 'me', name: s.name, distM: ride.state.distM, x: pos.x, z: pos.z, me: true, isAI: false, isGuest: false, color: '#ffd23f', km: ride.state.distM / 1000, wkg: ride.watts3s() / s.massKg, ...(s.look.nationality ? { nationality: s.look.nationality } : {}) },
             ...remoteRiders.map((r) => {
               const p = track.sample(r.unwrappedM);
               const mass = mp?.net.roster.get(r.id)?.massKg ?? 75;
-              return { id: r.id, name: r.name, distM: r.unwrappedM, x: p.x, z: p.z, me: false, isAI: r.isAI, isGuest: r.isGuest, color: r.avatar.jersey, online: !r.isAI, speaking: voice?.speaking.has(r.name) ?? false, wkg: r.watts / mass, ...(r.avatar.nationality ? { nationality: r.avatar.nationality } : {}) };
+              return { id: r.id, name: r.name, distM: r.unwrappedM, x: p.x, z: p.z, me: false, isAI: r.isAI, isGuest: r.isGuest, color: r.avatar.jersey, online: !r.isAI, speaking: voice?.speaking.has(r.name) ?? false, km: r.unwrappedM / 1000, wkg: r.watts / mass, ...(r.avatar.nationality ? { nationality: r.avatar.nationality } : {}) };
             }),
             ...(cyclists
               ? cyclists.roster(ride.state.distM, 400).map((c) => {
                   const mine = s.ftpWatts / s.massKg;
                   const follow: 'easy' | 'ok' | 'hard' = c.wkg > mine * 1.0 ? 'hard' : c.wkg < mine * 0.6 ? 'easy' : 'ok';
-                  return { id: c.id, name: c.name, distM: c.distM, x: c.x, z: c.z, me: false, isAI: true, isGuest: false, color: c.color, wkg: c.wkg, ambient: { level: c.level, follow } };
+                  return { id: c.id, name: c.name, distM: c.distM, x: c.x, z: c.z, me: false, isAI: true, isGuest: false, color: c.color, wkg: c.wkg, km: c.km, ambient: { level: c.level, follow } };
                 })
               : []),
             ...peloton.riders.map((r) => {
               const p = track.sample(r.state.distM);
-              return { id: r.id, name: r.name, distM: r.state.distM, x: p.x, z: p.z, me: false, isAI: true, isGuest: false, color: r.color, wkg: r.watts / r.massKg, nationality: r.nationality };
+              return { id: r.id, name: r.name, distM: r.state.distM, x: p.x, z: p.z, me: false, isAI: true, isGuest: false, color: r.color, km: r.state.distM / 1000, wkg: r.watts / r.massKg, nationality: r.nationality };
             }),
           ],
           ...(ride.segment ? { segment: { seg: ride.segment.seg, progress: ride.segment.progress, elapsedS: (ride.startT + ride.elapsedS * 1000 - ride.segment.startT) / 1000 } } : {}),

@@ -34,6 +34,8 @@ export interface HudRider {
   nationality?: string;
   /** Cycliste d'ambiance : niveau, et ce que ça donne pour le joueur (rattrapé, suivable, trop fort). */
   ambient?: { level: string; follow: 'easy' | 'ok' | 'hard' };
+  /** Kilomètres roulés pendant la sortie (réels pour les joueurs, simulés pour les cyclistes d'ambiance). */
+  km?: number;
 }
 
 export interface HudState {
@@ -745,7 +747,7 @@ export class Hud {
         const sec = gap / speed;
         const time = Math.abs(sec) >= 60 ? `${sec > 0 ? '+' : '−'}${Math.floor(Math.abs(sec) / 60)}:${String(Math.round(Math.abs(sec) % 60)).padStart(2, '0')}` : `${sec > 0 ? '+' : sec < 0 ? '−' : ''}${Math.round(Math.abs(sec))} s`;
         const dist = Math.abs(gap) >= 1000 ? `${(Math.abs(gap) / 1000).toFixed(1).replace('.', fr ? ',' : '.')} km` : `${Math.round(Math.abs(gap))} m`;
-        return `<div class="row ${r.me ? 'me' : ''}"><span class="rd-name"><b style="color:${r.color}">●</b> ${flagSvg(r.nationality, 11) ? `<span class="rd-flag" title="${countryName(r.nationality, fr ? 'fr' : 'en')}">${flagSvg(r.nationality, 11)}</span> ` : ''}${r.name.replace(/[<>&]/g, '')}${r.speaking ? ' 🔊' : ''} ${rideOn}<small>${tag}</small></span><span class="num rd-wkg">${r.wkg !== undefined ? r.wkg.toFixed(1).replace('.', fr ? ',' : '.') : '—'}<small> W/kg</small></span><span class="num rd-gap">${r.me ? '' : `${time}<small>${dist}</small>`}</span></div>`;
+        return `<div class="row ${r.me ? 'me' : ''}"><span class="rd-name"><b style="color:${r.color}">●</b> ${flagSvg(r.nationality, 11) ? `<span class="rd-flag" title="${countryName(r.nationality, fr ? 'fr' : 'en')}">${flagSvg(r.nationality, 11)}</span> ` : ''}${r.name.replace(/[<>&]/g, '')}${r.speaking ? ' 🔊' : ''} ${rideOn}<small>${tag}${r.km !== undefined ? `${tag ? ' · ' : ''}${r.km.toFixed(1).replace('.', fr ? ',' : '.')} km` : ''}</small></span><span class="num rd-wkg">${r.wkg !== undefined ? r.wkg.toFixed(1).replace('.', fr ? ',' : '.') : '—'}<small> W/kg</small></span><span class="num rd-gap">${r.me ? '' : `${time}<small>${dist}</small>`}</span></div>`;
       })
       .join('');
     return head + rows;

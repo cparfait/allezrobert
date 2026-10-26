@@ -39,10 +39,15 @@ interface Unit {
   level: number;
   massKg: number;
   color: string;
+  /** Kilomètres déjà roulés au départ (simulés d'après le niveau) et parcourus depuis. */
+  kmBase: number;
+  travelledM: number;
 }
 
 const JERSEYS = ['#264653', '#e76f51', '#2a9d8f', '#e9c46a', '#d62828', '#3a86ff', '#8338ec', '#fb5607'];
 const SKINS = ['#f1c27d', '#e0ac69', '#c68642', '#8d5524', '#ffdbac'];
+/** Kilomètres déjà roulés quand on les croise, selon le niveau (simulé). */
+const KM_BASE: ReadonlyArray<readonly [number, number]> = [[3, 22], [12, 48], [25, 75], [40, 115]];
 const HELMETS = ['#f4f4f4', '#111111', '#c1121f', '#1d4ed8', '#fde047', '#15803d', '#94a3b8', '#f97316'];
 /** Maillots de club : couleur principale, accent. */
 const CLUBS: Array<[string, string]> = [
@@ -161,6 +166,7 @@ export class AmbientCyclists {
     }
     const mass = lv.mass[0] + this.r() * (lv.mass[1] - lv.mass[0]);
     const length = Math.abs((members[members.length - 1] as Member).off);
+    const kmRange = KM_BASE[li] ?? [10, 40];
     this.units.push({
       members,
       d,
@@ -177,6 +183,8 @@ export class AmbientCyclists {
       level: li,
       massKg: mass,
       color: firstJersey,
+      kmBase: kmRange[0] + this.r() * (kmRange[1] - kmRange[0]),
+      travelledM: 0,
     });
   }
 
@@ -251,6 +259,7 @@ export class AmbientCyclists {
       }
       c.lateral += (lateralTarget - c.lateral) * Math.min(1, dt * rate);
       c.d += c.sens * c.speed * dt;
+      c.travelledM += c.speed * dt;
       c.cadence = watts > 0 ? Math.min(105, 74 + c.watts / 12) : 0;
 
       // Aspiration : derrière un cycliste qui roule dans le même sens (celui de queue du groupe).
@@ -281,8 +290,8 @@ export class AmbientCyclists {
    * Cyclistes qui vont dans le sens du joueur à moins de `rangeM` : nom, niveau, W/kg et centre du
    * groupe, pour « À proximité » (savoir si on peut les suivre).
    */
-  roster(playerDistM: number, rangeM: number): Array<{ id: string; name: string; level: string; levelIdx: number; distM: number; x: number; z: number; color: string; wkg: number }> {
-    const out: Array<{ id: string; name: string; level: string; levelIdx: number; distM: number; x: number; z: number; color: string; wkg: number }> = [];
+  roster(playerDistM: number, rangeM: number): Array<{ id: string; name: string; level: string; levelIdx: number; distM: number; x: number; z: number; color: string; wkg: number; km: number }> {
+    const out: Array<{ id: string; name: string; level: string; levelIdx: number; distM: number; x: number; z: number; color: string; wkg: number; km: number }> = [];
     const L = this.track.length;
     for (const c of this.units) {
       if (c.sens < 0) continue;
@@ -291,7 +300,7 @@ export class AmbientCyclists {
       const p = this.track.sample(this.track.route.loop ? ((mid % L) + L) % L : Math.min(Math.max(mid, 0), L), this.sample);
       const n = c.members.length;
       const lv = LEVELS[c.level] as (typeof LEVELS)[number];
-      out.push({ id: c.id, name: n > 1 ? `Groupe de ${n}` : 'Cycliste', level: lv.name, levelIdx: c.level, distM: mid, x: p.x, z: p.z, color: c.color, wkg: c.watts / c.massKg });
+      out.push({ id: c.id, name: n > 1 ? `Groupe de ${n}` : 'Cycliste', level: lv.name, levelIdx: c.level, distM: mid, x: p.x, z: p.z, color: c.color, wkg: c.watts / c.massKg, km: c.kmBase + c.travelledM / 1000 });
     }
     return out;
   }
