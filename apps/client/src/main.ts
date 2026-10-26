@@ -1721,6 +1721,13 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
               const mass = mp?.net.roster.get(r.id)?.massKg ?? 75;
               return { id: r.id, name: r.name, distM: r.unwrappedM, x: p.x, z: p.z, me: false, isAI: r.isAI, isGuest: r.isGuest, color: r.avatar.jersey, online: !r.isAI, speaking: voice?.speaking.has(r.name) ?? false, wkg: r.watts / mass, ...(r.avatar.nationality ? { nationality: r.avatar.nationality } : {}) };
             }),
+            ...(cyclists
+              ? cyclists.roster(ride.state.distM, 400).map((c) => {
+                  const mine = s.ftpWatts / s.massKg;
+                  const follow: 'easy' | 'ok' | 'hard' = c.wkg > mine * 1.0 ? 'hard' : c.wkg < mine * 0.6 ? 'easy' : 'ok';
+                  return { id: c.id, name: c.name, distM: c.distM, x: c.x, z: c.z, me: false, isAI: true, isGuest: false, color: c.color, wkg: c.wkg, ambient: { level: c.level, follow } };
+                })
+              : []),
             ...peloton.riders.map((r) => {
               const p = track.sample(r.state.distM);
               return { id: r.id, name: r.name, distM: r.state.distM, x: p.x, z: p.z, me: false, isAI: true, isGuest: false, color: r.color, wkg: r.watts / r.massKg, nationality: r.nationality };

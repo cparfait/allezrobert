@@ -32,6 +32,8 @@ export interface HudRider {
   wkg?: number;
   /** Nationalité (code ISO) : drapeau devant le nom. */
   nationality?: string;
+  /** Cycliste d'ambiance : niveau, et ce que ça donne pour le joueur (rattrapé, suivable, trop fort). */
+  ambient?: { level: string; follow: 'easy' | 'ok' | 'hard' };
 }
 
 export interface HudState {
@@ -736,7 +738,9 @@ export class Hud {
     const rows = shown
       .map((r) => {
         const gap = r.distM - me.distM;
-        const tag = r.me ? t('you') : r.isAI ? t('ai') : r.isGuest ? t('guest') : '';
+        const tag = r.ambient
+          ? `${r.ambient.level} ${r.ambient.follow === 'ok' ? (fr ? '· à suivre ✓' : '· can follow ✓') : r.ambient.follow === 'hard' ? (fr ? '· trop fort ✗' : '· too strong ✗') : fr ? '· plus lent' : '· slower'}`
+          : r.me ? t('you') : r.isAI ? t('ai') : r.isGuest ? t('guest') : '';
         const rideOn = r.online && !r.me ? `<button class="rideon" data-rideon="${r.id}" title="Ride On">👍</button>` : '';
         const sec = gap / speed;
         const time = Math.abs(sec) >= 60 ? `${sec > 0 ? '+' : '−'}${Math.floor(Math.abs(sec) / 60)}:${String(Math.round(Math.abs(sec) % 60)).padStart(2, '0')}` : `${sec > 0 ? '+' : sec < 0 ? '−' : ''}${Math.round(Math.abs(sec))} s`;
