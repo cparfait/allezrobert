@@ -10,6 +10,7 @@ import type { Settings } from './settings.ts';
 import { saveSettings } from './settings.ts';
 import { music } from '../audio/music.ts';
 import { spotify, redirectUri } from '../audio/spotify.ts';
+import { musicSource, setMusicSource } from '../audio/musicSource.ts';
 import { renderStravaLink } from './stravaLink.ts';
 import { flagSvg } from './flagSvg.ts';
 import { enhanceSelects } from './dropdown.ts';
@@ -1809,7 +1810,7 @@ export class MainMenu {
   renderMusic(): void {
     const L = fr();
     const top = this.root.querySelector('#m-music');
-    if (top && spotify.connected) {
+    if (top && musicSource() === 'spotify') {
       // Spotify piloté depuis le jeu : lecture ici, titre, commandes, playlists, volume.
       top.innerHTML = `<img class="mm-cover" id="sp-cover" alt="" hidden />
         <span class="mm-now" id="mu-now"><i class="sp">●</i> Spotify</span>
@@ -1817,7 +1818,7 @@ export class MainMenu {
         <button class="mm-ico on" id="sp-play" title="${L ? 'Lecture / pause (B)' : 'Play / pause (B)'}">${ICON.play}</button>
         <button class="mm-ico" id="sp-next" title="${L ? 'Suivant (N)' : 'Next (N)'}">${ICON.next}</button>
         <button class="mm-ico" id="sp-lists" title="${L ? 'Mes playlists' : 'My playlists'}">${ICON.list}</button>
-        <button class="mm-ico" id="sp-game" title="${L ? 'Arrêter Spotify et remettre la musique du jeu' : 'Stop Spotify and bring back the game music'}">${ICON.music}</button>
+        <button class="mm-ico" id="sp-game" title="${L ? 'Passer à la musique du jeu (arrête Spotify)' : 'Switch to the game music (stops Spotify)'}">${ICON.music}</button>
         ${
           spotify.canPlayHere
             ? `<button class="mm-spotify" id="sp-here" title="${L ? 'Faire jouer Spotify par le jeu' : 'Play Spotify in the game'}">${L ? 'Écouter ici' : 'Play here'}</button>`
@@ -1839,26 +1840,26 @@ export class MainMenu {
         });
       });
       top.querySelector('#sp-lists')?.addEventListener('click', () => void this.spotifyPlaylists());
-      top.querySelector('#sp-game')?.addEventListener('click', () => void this.backToGameMusic());
+      top.querySelector('#sp-game')?.addEventListener('click', () => void this.switchSource('game'));
       void this.refreshNowPlaying();
     } else if (top) {
       const cur = music.enabled && music.current ? esc(music.current.title) : L ? 'Musique coupée' : 'Music off';
       top.innerHTML = `<button class="mm-ico ${music.enabled ? 'on' : ''}" id="mu-toggle" title="${L ? 'Musique marche / arrêt (B)' : 'Music on / off (B)'}">${music.enabled ? ICON.music : ICON.musicOff}</button>
         <span class="mm-now" id="mu-now">${cur}</span>
         <button class="mm-ico" id="mu-next" title="${L ? 'Morceau suivant (N)' : 'Next track (N)'}">${ICON.next}</button>
-        <button class="mm-spotify" id="sp-login" title="${L ? 'Connecter ton compte Spotify' : 'Connect your Spotify account'}"><i class="sp">●</i> Spotify</button>`;
+        <button class="mm-spotify" id="sp-login" title="${spotify.connected ? (L ? 'Passer à Spotify' : 'Switch to Spotify') : L ? 'Connecter ton compte Spotify' : 'Connect your Spotify account'}"><i class="sp">●</i> Spotify</button>`;
       top.querySelector('#mu-toggle')?.addEventListener('click', () => {
         music.toggle();
         this.renderMusic();
       });
       top.querySelector('#mu-next')?.addEventListener('click', () => music.next());
-      top.querySelector('#sp-login')?.addEventListener('click', () => this.spotifyConnect());
+      top.querySelector('#sp-login')?.addEventListener('click', () => (spotify.connected ? void this.switchSource('spotify') : this.spotifyConnect()));
     }
     const set = this.root.querySelector('#m-music-settings');
     if (set) {
       set.innerHTML = `<button class="btn small ${music.enabled ? 'on' : ''}" id="mu-toggle2">♪ ${L ? 'Musique du jeu' : 'Game music'} : ${music.enabled ? (music.yielded ? (L ? 'laisse la place à Spotify' : 'yields to Spotify') : L ? 'activée' : 'on') : L ? 'coupée' : 'off'}</button>
         <label class="mm-vol">Volume<input id="mu-vol" type="range" min="0" max="1" step="0.05" value="${music.volume}" /></label>
-        ${spotify.connected ? `<button class="btn small" id="sp-game2">${L ? 'Arrêter Spotify, remettre la musique du jeu' : 'Stop Spotify, back to game music'}</button>` : ''}
+        ${spotify.connected ? `<span class="mm-seg-inline"><button class="btn small ${musicSource() === 'game' ? 'primary' : ''}" id="src-game">${L ? 'Source : musique du jeu' : 'Source: game music'}</button><button class="btn small ${musicSource() === 'spotify' ? 'primary' : ''}" id="src-spotify">${L ? 'Source : Spotify' : 'Source: Spotify'}</button></span>` : ''}
         ${spotify.connected ? `<button class="btn small" id="sp-logout">${L ? 'Déconnecter Spotify' : 'Disconnect Spotify'}</button>` : `<button class="btn small mm-spotify" id="sp-login2"><i class="sp">●</i> ${L ? 'Connecter Spotify' : 'Connect Spotify'}</button>`}`;
       set.querySelector('#mu-toggle2')?.addEventListener('click', () => {
         music.toggle();
@@ -1866,7 +1867,8 @@ export class MainMenu {
       });
       set.querySelector('#mu-vol')?.addEventListener('input', (e) => music.setVolume(Number((e.target as HTMLInputElement).value)));
       set.querySelector('#sp-login2')?.addEventListener('click', () => this.spotifyConnect());
-      set.querySelector('#sp-game2')?.addEventListener('click', () => void this.backToGameMusic());
+      set.querySelector('#src-game')?.addEventListener('click', () => void this.switchSource('game'));
+      set.querySelector('#src-spotify')?.addEventListener('click', () => void this.switchSource('spotify'));
       set.querySelector('#sp-logout')?.addEventListener('click', () => {
         spotify.logout();
         music.yieldToExternal(false);
@@ -1875,10 +1877,9 @@ export class MainMenu {
     }
   }
 
-  /** Coupe Spotify (sans le déconnecter) et rend la main à la musique du jeu. */
-  private async backToGameMusic(): Promise<void> {
-    await spotify.pause();
-    music.setEnabled(true);
+  /** Bascule entre la musique du jeu et Spotify (sans déconnecter le compte). */
+  private async switchSource(to: 'game' | 'spotify'): Promise<void> {
+    await setMusicSource(to);
     this.renderMusic();
   }
 

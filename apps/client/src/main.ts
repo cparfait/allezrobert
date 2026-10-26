@@ -25,6 +25,7 @@ import { music } from './audio/music.ts';
 import { companion } from './game/companionLink.ts';
 import { companionQr } from './ui/companionQr.ts';
 import { spotify } from './audio/spotify.ts';
+import { musicSource, noteSpotifyPlaying } from './audio/musicSource.ts';
 import { t, setLang, getLang } from './i18n/index.ts';
 import { loadSettings, saveSettings, type Settings } from './ui/settings.ts';
 import { MainMenu } from './ui/menu.ts';
@@ -328,11 +329,11 @@ function companionMusicCommand(c: PhoneCommand): boolean {
     return true;
   }
   if (c.kind === 'musicPlay') {
-    if (spotify.connected) void spotify.playUri(c.uri).then((ok) => ok && (musicCtl.spotifyPlaying = true));
+    if (spotify.connected) void spotify.playUri(c.uri).then((ok) => ok && ((musicCtl.spotifyPlaying = true), noteSpotifyPlaying()));
     return true;
   }
   if (c.kind !== 'music') return false;
-  const sp = spotify.connected;
+  const sp = musicSource() === 'spotify';
   if (c.action === 'toggle') {
     if (sp) void spotify.toggleSmart().then((on) => (musicCtl.spotifyPlaying = on));
     else music.toggle();
@@ -486,14 +487,20 @@ async function boot(): Promise<void> {
   // Une fois Spotify lancé, la musique du jeu ne revient pas d'elle-même (pause, changement d'écran, accueil).
   spotify.onPlayState = (playing) => {
     musicCtl.spotifyPlaying = playing;
-    if (playing) music.yieldToExternal(true);
+    if (playing) {
+      music.yieldToExternal(true);
+      noteSpotifyPlaying();
+    }
   };
   // Suivi Spotify : la musique du jeu se tait quand Spotify joue ; titre annoncé au changement.
   setInterval(async () => {
     if (!spotify.connected || document.hidden) return;
     const np = await spotify.nowPlaying();
     musicCtl.spotifyPlaying = !!np?.isPlaying;
-    if (np?.isPlaying) music.yieldToExternal(true);
+    if (np?.isPlaying) {
+      music.yieldToExternal(true);
+      noteSpotifyPlaying();
+    }
     const label = np ? `${np.title} — ${np.artist}` : '';
     if (np?.isPlaying && label !== musicCtl.lastTitle) {
       musicCtl.lastTitle = label;
@@ -1392,11 +1399,11 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     if (e.key === 'm' || e.key === 'M') audio.toggleMute();
     // Musique : B lecture / arrêt (Spotify s'il est connecté, sinon musique du jeu), N morceau suivant.
     if (e.key === 'b' || e.key === 'B') {
-      if (spotify.connected) void spotify.toggleSmart().then((on) => hud.toast(on ? '♪ Spotify ▶' : '♪ Spotify ⏸'));
+      if (musicSource() === 'spotify') void spotify.toggleSmart().then((on) => hud.toast(on ? '♪ Spotify ▶' : '♪ Spotify ⏸'));
       else hud.toast(music.toggle() ? (getLang() === 'fr' ? '♪ Musique activée' : '♪ Music on') : getLang() === 'fr' ? '♪ Musique coupée' : '♪ Music off');
     }
     if (e.key === 'n' || e.key === 'N') {
-      if (spotify.connected) void spotify.next();
+      if (musicSource() === 'spotify') void spotify.next();
       else music.next();
     }
     if (mp && (e.key === 't' || e.key === 'T')) {
