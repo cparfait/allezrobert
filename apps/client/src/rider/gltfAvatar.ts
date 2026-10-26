@@ -13,7 +13,7 @@ import { SkinMaterial, loadSkinTextures, skinTextures, type SkinLook } from './s
 import { applyClothLook, clothTextures, isClothPart, loadClothTextures, makeClothMaterial, type JerseyAxis } from './cloth.ts';
 import { addFrameAttributes, addJerseyFrame, addSleeveMask, type JerseyFrame } from './jerseyPattern.ts';
 import { applyTexturedLook, loadTexturedMasks, texturedMaterial } from './texturedLook.ts';
-import { BikeMaterials, assembleBike, availableFamily, bikeAnchors, familyScene, loadBikeFamily, type AssembledBike, type BikeAnchors } from './bikes.ts';
+import { BikeMaterials, assembleBike, availableFamily, bikeAnchors, bikeFamilyReady, familyScene, loadBikeFamily, type AssembledBike, type BikeAnchors, type FamilyKey } from './bikes.ts';
 
 /**
  * Cycliste et vélo modélisés dans Blender (tools/blender/build_cyclist.py), squelette piloté
@@ -707,7 +707,7 @@ function bikeTypeOf(look: AvatarLook): BikeType {
 interface MountedBike {
   key: string;
   build: BikeBuild;
-  family: BikeFamily;
+  family: FamilyKey;
   levels: AssembledBike[];
   materials: BikeMaterials;
   anchors: BikeAnchors;
@@ -1017,8 +1017,11 @@ export class GltfRiderAvatar implements RiderAvatarLike {
    */
   private mountBike(build: BikeBuild, look: AvatarLook): void {
     // Modèle, roues, marque des jantes et plaque de cadre changent la géométrie : vélo remonté.
-    const key = JSON.stringify([look.bikeModel ?? 'plain', build.params.wheels, build.params.rimBrand ?? '', build.extras?.number ?? null, look.bottles ?? null]);
-    const family = availableFamily(build.family) ?? PLAIN_BIKE_FAMILY;
+    // Vélo gravel : modèle gravel.glb (cadre, roues, cintre, selle) à la livrée du vélo choisi ; sinon kit gravel sur le vélo route (bikeKits.ts).
+    const wantsGravel = bikeTypeOf(look) === 'gravel';
+    const gravel = wantsGravel && bikeFamilyReady('gravel');
+    const key = JSON.stringify([look.bikeModel ?? 'plain', build.params.wheels, build.params.rimBrand ?? '', build.extras?.number ?? null, look.bottles ?? null, gravel]);
+    const family: FamilyKey = gravel ? 'gravel' : (availableFamily(build.family) ?? PLAIN_BIKE_FAMILY);
     const cur = this.mounted;
     if (cur && cur.key === key && cur.family === family) {
       cur.build = build;
@@ -1063,7 +1066,12 @@ export class GltfRiderAvatar implements RiderAvatarLike {
     this.applyHeadgear(build);
     if (this.bikeType !== 'road') this.setBikeType(this.bikeType);
     this.applySize();
-    if (family !== build.family) {
+    if (wantsGravel && !gravel) {
+      void loadBikeFamily('gravel').then((ok) => {
+        if (ok && this.mounted?.key === key) this.mountBike(this.mounted.build, this.look);
+      });
+    }
+    if (family !== 'gravel' && family !== build.family) {
       void loadBikeFamily(build.family).then((ok) => {
         if (ok && this.mounted?.key === key) this.mountBike(this.mounted.build, this.look);
       });
@@ -1419,7 +1427,9 @@ export class GltfRiderAvatar implements RiderAvatarLike {
     for (const list of this.kits.values()) for (const k of list) k.removeFromParent();
     this.kits.clear();
     const levels = this.mounted?.levels.map((lv) => lv.group) ?? [];
-    if (type !== 'road') {
+    // Gravel avec son propre modèle monté : rien à poser sur le vélo.
+    const kitted = type !== 'road' && !(type === 'gravel' && this.mounted?.family === 'gravel');
+    if (kitted) {
       const list: THREE.Group[] = [];
       for (const level of levels) {
         const kit = buildBikeKit(level, type);
@@ -1445,7 +1455,7 @@ export class GltfRiderAvatar implements RiderAvatarLike {
       }
       this.kits.set(type, list);
     }
-    const hidden = new Set(roadPartsReplaced(type));
+    const hidden = new Set(kitted ? roadPartsReplaced(type) : []);
     for (const level of levels) {
       level.traverse((o) => {
         if (o.parent?.name.startsWith('kit_') || o.name.startsWith('kit_')) return;
