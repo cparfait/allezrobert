@@ -9,7 +9,7 @@ flottants, roues de tailles différentes et pneus de 7,5 à 10 cm. Il est remis 
     portée des mains du coureur ;
   - le pédalier du jeu (BB à 0,27 m) est plus bas de 6,5 cm sous les axes que celui du modèle (boîtier à hauteur d'axe) :
     le vélo est mis « en suspension écrasée » (bras oscillant relevé autour de son pivot, fourche raccourcie) ;
-  - roues refaites : jante et moyeu du modèle, pneu à crampons, rayons, disque de frein et cassette procéduraux ;
+  - roues refaites : jante et moyeu du modèle, pneu lisse, rayons, disque de frein et cassette procéduraux ;
   - cadre (matériau « frame »), fourche, cintre (« bar_tape » pour les poignées), selle ; câbles, chaîne d'origine,
     pédalier, galets, boulons et logos supprimés. Les pédales, le pédalier et les inscriptions viennent de la famille de base.
 
@@ -353,7 +353,7 @@ transform(G['saddle'], Matrix.Translation(Vector((0, -SADDLE_Z - sc_.y, SADDLE_T
 print('SELLE', [round(v, 3) for v in bbox(G['saddle'])[0]], [round(v, 3) for v in bbox(G['saddle'])[1]])
 
 # ---------------------------------------------------------------------------------------------
-# 3. Roues : jante et moyeu du modèle, pneu à crampons, rayons, disque et cassette refaits
+# 3. Roues : jante et moyeu du modèle, pneu lisse, rayons, disque et cassette refaits
 # ---------------------------------------------------------------------------------------------
 def make_tire(tag, c):
     n_around = 72 if LOD == 0 else 28
@@ -380,14 +380,6 @@ def make_tire(tag, c):
             am = (j + 0.5) / kt * math.tau
             f.material_index = 0 if math.cos(am) > 0.2 else 1
             f.smooth = True
-    # Crampons : un au centre, deux aux épaules en alternance.
-    n_k = 36 if LOD == 0 else 16
-    for i in range(n_k):
-        t = i / n_k * math.tau
-        for lat in ((0.0,) if LOD else ((0.0,) if i % 2 else (-0.024, 0.024))):
-            m = Matrix.Translation(c) @ Matrix.Rotation(t, 4, 'X') @ Matrix.Translation((lat, 0, R_OUT - 0.004)) \
-                @ Matrix.Diagonal((0.017, 0.016, 0.011, 1.0))
-            bmesh.ops.create_cube(bm, size=1.0, matrix=m)
     bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
     bm.to_mesh(me)
     bm.free()
