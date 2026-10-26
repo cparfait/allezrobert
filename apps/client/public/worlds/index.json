@@ -430,6 +430,318 @@
    "open": true
   },
   {
+   "id": "idf-boulogne-billancourt",
+   "name": "Île-de-France — Boulogne-Billancourt",
+   "region": "Hauts-de-Seine · Île-de-France",
+   "routes": [
+    {
+     "id": "boucle-20-km",
+     "name": "Boucle de 20 km depuis Boulogne-Billancourt",
+     "nameEn": "20 km loop from Boulogne-Billancourt",
+     "lengthM": 18924,
+     "elevationGainM": 240.52,
+     "loop": false
+    },
+    {
+     "id": "boucle-30-km",
+     "name": "Boucle de 30 km depuis Boulogne-Billancourt",
+     "nameEn": "30 km loop from Boulogne-Billancourt",
+     "lengthM": 28746,
+     "elevationGainM": 380.37,
+     "loop": false
+    },
+    {
+     "id": "boucle-40-km",
+     "name": "Boucle de 40 km depuis Boulogne-Billancourt",
+     "nameEn": "40 km loop from Boulogne-Billancourt",
+     "lengthM": 39836,
+     "elevationGainM": 453.87,
+     "loop": false
+    },
+    {
+     "id": "boucle-50-km",
+     "name": "Boucle de 50 km depuis Boulogne-Billancourt",
+     "nameEn": "50 km loop from Boulogne-Billancourt",
+     "lengthM": 50362,
+     "elevationGainM": 634.56,
+     "loop": false
+    }
+   ],
+   "pack": {
+    "version": "0f0f9a664c72",
+    "bytes": 439870631,
+    "files": 1026,
+    "gzBytes": 175372769
+   },
+   "l93": {
+    "minE": 640000,
+    "minN": 6844000,
+    "maxE": 656000,
+    "maxN": 6860000
+   },
+   "open": true
+  },
+  {
+   "id": "idf-creteil",
+   "name": "Île-de-France — Créteil",
+   "region": "Val-de-Marne · Île-de-France",
+   "routes": [
+    {
+     "id": "boucle-20-km",
+     "name": "Boucle de 20 km depuis Créteil",
+     "nameEn": "20 km loop from Créteil",
+     "lengthM": 20082,
+     "elevationGainM": 142.07,
+     "loop": false
+    },
+    {
+     "id": "boucle-30-km",
+     "name": "Boucle de 30 km depuis Créteil",
+     "nameEn": "30 km loop from Créteil",
+     "lengthM": 30290,
+     "elevationGainM": 265.3,
+     "loop": false
+    },
+    {
+     "id": "boucle-40-km",
+     "name": "Boucle de 40 km depuis Créteil",
+     "nameEn": "40 km loop from Créteil",
+     "lengthM": 37858,
+     "elevationGainM": 370.13,
+     "loop": false
+    },
+    {
+     "id": "boucle-50-km",
+     "name": "Boucle de 50 km depuis Créteil",
+     "nameEn": "50 km loop from Créteil",
+     "lengthM": 50630,
+     "elevationGainM": 396.79,
+     "loop": false
+    }
+   ],
+   "pack": {
+    "version": "d409cd3e445a",
+    "bytes": 441158823,
+    "files": 1026,
+    "gzBytes": 171196421
+   },
+   "l93": {
+    "minE": 656000,
+    "minN": 6844000,
+    "maxE": 672000,
+    "maxN": 6860000
+   },
+   "open": true
+  },
+  {
+   "id": "idf-montreuil",
+   "name": "Île-de-France — Montreuil",
+   "region": "Seine-Saint-Denis · Île-de-France",
+   "routes": [
+    {
+     "id": "boucle-20-km",
+     "name": "Boucle de 20 km depuis Montreuil",
+     "nameEn": "20 km loop from Montreuil",
+     "lengthM": 20072,
+     "elevationGainM": 190.94,
+     "loop": false
+    },
+    {
+     "id": "boucle-30-km",
+     "name": "Boucle de 30 km depuis Montreuil",
+     "nameEn": "30 km loop from Montreuil",
+     "lengthM": 29364,
+     "elevationGainM": 310.88,
+     "loop": false
+    },
+    {
+     "id": "boucle-40-km",
+     "name": "Boucle de 40 km depuis Montreuil",
+     "nameEn": "40 km loop from Montreuil",
+     "lengthM": 40856,
+     "elevationGainM": 331.4,
+     "loop": false
+    },
+    {
+     "id": "boucle-50-km",
+     "name": "Boucle de 50 km depuis Montreuil",
+     "nameEn": "50 km loop from Montreuil",
+     "lengthM": 49066,
+     "elevationGainM": 427.25,
+     "loop": false
+    }
+   ],
+   "pack": {
+    "version": "89a2d177cf3b",
+    "bytes": 464865290,
+    "files": 1026,
+    "gzBytes": 176715989
+   },
+   "l93": {
+    "minE": 656000,
+    "minN": 6860000,
+    "maxE": 672000,
+    "maxN": 6876000
+   },
+   "open": true
+  },
+  {
+   "id": "idf-paris",
+   "name": "Île-de-France — Paris",
+   "region": "Paris · Île-de-France",
+   "routes": [
+    {
+     "id": "boucle-20-km",
+     "name": "Boucle de 20 km depuis Paris",
+     "nameEn": "20 km loop from Paris",
+     "lengthM": 18828.84,
+     "elevationGainM": 115.82,
+     "loop": true
+    },
+    {
+     "id": "boucle-30-km",
+     "name": "Boucle de 30 km depuis Paris",
+     "nameEn": "30 km loop from Paris",
+     "lengthM": 29860.64,
+     "elevationGainM": 209.99,
+     "loop": true
+    },
+    {
+     "id": "boucle-40-km",
+     "name": "Boucle de 40 km depuis Paris",
+     "nameEn": "40 km loop from Paris",
+     "lengthM": 38533.85,
+     "elevationGainM": 318.53,
+     "loop": true
+    },
+    {
+     "id": "boucle-50-km",
+     "name": "Boucle de 50 km depuis Paris",
+     "nameEn": "50 km loop from Paris",
+     "lengthM": 51155.56,
+     "elevationGainM": 361.57,
+     "loop": true
+    }
+   ],
+   "pack": {
+    "version": "de970b1f0331",
+    "bytes": 491832164,
+    "files": 1026,
+    "gzBytes": 189445421
+   },
+   "l93": {
+    "minE": 640000,
+    "minN": 6860000,
+    "maxE": 656000,
+    "maxN": 6876000
+   },
+   "open": true
+  },
+  {
+   "id": "idf-rueil-malmaison",
+   "name": "Île-de-France — Rueil-Malmaison",
+   "region": "Hauts-de-Seine · Île-de-France",
+   "routes": [
+    {
+     "id": "boucle-20-km",
+     "name": "Boucle de 20 km depuis Rueil-Malmaison",
+     "nameEn": "20 km loop from Rueil-Malmaison",
+     "lengthM": 19804,
+     "elevationGainM": 138.18,
+     "loop": false
+    },
+    {
+     "id": "boucle-30-km",
+     "name": "Boucle de 30 km depuis Rueil-Malmaison",
+     "nameEn": "30 km loop from Rueil-Malmaison",
+     "lengthM": 32112,
+     "elevationGainM": 432.86,
+     "loop": false
+    },
+    {
+     "id": "boucle-40-km",
+     "name": "Boucle de 40 km depuis Rueil-Malmaison",
+     "nameEn": "40 km loop from Rueil-Malmaison",
+     "lengthM": 41445.11,
+     "elevationGainM": 654.96,
+     "loop": true
+    },
+    {
+     "id": "boucle-50-km",
+     "name": "Boucle de 50 km depuis Rueil-Malmaison",
+     "nameEn": "50 km loop from Rueil-Malmaison",
+     "lengthM": 50018.28,
+     "elevationGainM": 736.92,
+     "loop": true
+    }
+   ],
+   "pack": {
+    "version": "548798b347c5",
+    "bytes": 379725419,
+    "files": 1026,
+    "gzBytes": 159516036
+   },
+   "l93": {
+    "minE": 624000,
+    "minN": 6860000,
+    "maxE": 640000,
+    "maxN": 6876000
+   },
+   "open": true
+  },
+  {
+   "id": "idf-versailles",
+   "name": "Île-de-France — Versailles",
+   "region": "Yvelines · Île-de-France",
+   "routes": [
+    {
+     "id": "boucle-20-km",
+     "name": "Boucle de 20 km depuis Versailles",
+     "nameEn": "20 km loop from Versailles",
+     "lengthM": 18862.51,
+     "elevationGainM": 263.63,
+     "loop": true
+    },
+    {
+     "id": "boucle-30-km",
+     "name": "Boucle de 30 km depuis Versailles",
+     "nameEn": "30 km loop from Versailles",
+     "lengthM": 30085.52,
+     "elevationGainM": 281.59,
+     "loop": true
+    },
+    {
+     "id": "boucle-40-km",
+     "name": "Boucle de 40 km depuis Versailles",
+     "nameEn": "40 km loop from Versailles",
+     "lengthM": 39599.86,
+     "elevationGainM": 400.56,
+     "loop": true
+    },
+    {
+     "id": "boucle-50-km",
+     "name": "Boucle de 50 km depuis Versailles",
+     "nameEn": "50 km loop from Versailles",
+     "lengthM": 50701.1,
+     "elevationGainM": 433.19,
+     "loop": true
+    }
+   ],
+   "pack": {
+    "version": "737b6f24fa30",
+    "bytes": 345507882,
+    "files": 1026,
+    "gzBytes": 146449119
+   },
+   "l93": {
+    "minE": 624000,
+    "minN": 6844000,
+    "maxE": 640000,
+    "maxN": 6860000
+   },
+   "open": true
+  },
+  {
    "id": "issoire",
    "name": "Val d'Allier — Issoire",
    "region": "Puy-de-Dôme · Val d'Allier",
