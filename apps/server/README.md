@@ -96,7 +96,21 @@ salle par zone et par tranche de 20 coureurs, créée par `joinOrCreate('public'
   et heure (Paris) fixées par le serveur, `welcome.public = true`.
 - 6 IA d'ambiance (`PUBLIC_AMBIENT_AI`) : chaque humain qui arrive en remplace une.
 - Pleine (20) : `lock()` ; une place libérée : `unlock()`. Le 21ᵉ coureur ouvre une autre salle.
-- Chat, Ride On et voix comme dans une sortie privée (anti-flood du chat : 5 messages / 10 s).
+- **Carte et amis** (`src/http/public-routes.ts`, `/api/public`) : `GET /zones` (affluence, amis présents) ; `GET /zones/:routeId`
+  (positions des coureurs en ligne : anonymes, sauf les amis, nommés, avec l'identifiant de leur relation) ; `POST /pick
+  {routeId, friendId?}` (salle conseillée : celle où l'on roule déjà, puis celle des amis, puis la plus fréquentée non pleine ;
+  avec `friendId` : la salle de cet ami et son coureur `near`, 404 s'il ne roule plus ici, 409 salle pleine).
+  Zones ouvertes : `PUBLIC_ROUTES` (défaut `anneau-de-longchamp`).
+- **Rejoindre un ami** : option d'entrée `near` (identifiant de coureur). Le coureur est placé tout de suite dans sa roue (même
+  sens, même voie, 4 m derrière, à sa vitesse) puis **replacé quand son jeu envoie `ready`** (`NET_MSG.ready`, première image
+  jouée) : le chargement du monde et la compilation des ombres durent une à deux minutes pendant lesquelles il roule en roue
+  libre alors que l'ami avance.
+- **Conversations de proximité** : le chat n'est envoyé qu'aux coureurs à moins de `PUBLIC_CHAT_RADIUS_M` (50 m le long de
+  la route, quel que soit le sens ; compagnons compris). Voix LiveKit : identité vocale anonyme = identifiant de coureur de
+  la salle (`GET /rides/:roomId/voice-token`), pas celui du compte ; le jeu règle le volume de chaque voix selon la distance
+  (pleine jusqu'à 15 m, muette à 40 m : `PUBLIC_VOICE_NEAR_M` / `PUBLIC_VOICE_FAR_M`, annoncés dans `welcome.proximity`).
+  Ce réglage est côté client : il ne protège pas contre un client modifié (le serveur LiveKit enverrait alors tout le monde).
+  Ride On n'est pas limité par la distance. Anti-flood du chat : 5 messages / 10 s.
 - Pas de segments chronométrés ni de classement (`sim.segmentsEnabled = false`).
 - **Demi-tour** (message `uturn`, `RideNetClient.uturn()`, 3 s entre deux) : le coureur repart du même endroit
   en sens inverse, presque à l'arrêt. Sa distance est alors mesurée sur l'itinéraire inversé (`L − d`) ; le

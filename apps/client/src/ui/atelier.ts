@@ -8,6 +8,7 @@ import { loadBikeFamily, loneWheel, onBikeFamilyLoaded } from '../rider/bikes.ts
 import { compilePass, isCompiling, type Engine } from '../engine/renderer.ts';
 import { box, buildRoom, cyl, mat, rod, WALL_WHEELS } from './atelierRoom.ts';
 import { buildPosters, POSTER_RIDERS, RIDER_BOX, type PosterArt } from './atelierPosters.ts';
+import { buildTools } from './atelierTools.ts';
 
 /**
  * Atelier du garage : le vélo du joueur sur un pied d'atelier, dans une pièce procédurale (établi,
@@ -406,8 +407,8 @@ export class AtelierHost {
       ['myth-pinarello-dogma-651', -0.7, -2.62, Math.PI / 2, 0, -0.1],
       ['myth-cervelo-s5-gen1', 3.02, -1.7, 0, 1, -0.1],
       ['myth-bianchi-specialissima-acier', 3.02, 0.9, 0, 1, -0.1],
-      // VTT au sol contre le mur de bois, sous le gravel.
-      ['vtt', 1.9, -2.62, Math.PI / 2, 0, -0.1],
+      // VTT au sol contre le mur de bois, sous le gravel : cintre large (≈ 78 cm), le bout du cintre touche le mur.
+      ['vtt', 1.9, -2.5, Math.PI / 2, 0, -0.08],
     ];
     for (const [bikeModel, x, z, ry, axis, lean] of leaning) {
       const a = createAvatar(bikeModel === 'vtt' ? { ...DEFAULT_LOOK, bikeModel: undefined, bikeType: 'mtb', bike: '#d9531e' } : { ...DEFAULT_LOOK, bikeModel });
@@ -440,7 +441,7 @@ export class AtelierHost {
     this.scene.environment = studioEnvironment(this.engine.renderer);
     this.scene.environmentIntensity = 0.75;
     const posters = buildPosters();
-    this.scene.add(buildRoom(), posters.group);
+    this.scene.add(buildRoom(), posters.group, buildTools());
     this.scene.add(new THREE.HemisphereLight(0xfff0dc, 0x6a5a48, 0.6));
     // Éclairage de studio : lumière principale douce de côté (à droite du coureur, à l'opposé des
     // caméras de l'atelier : le volume se lit), plafonnier (ombre au sol), contre-jours froids qui

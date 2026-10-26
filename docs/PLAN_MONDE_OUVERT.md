@@ -29,8 +29,8 @@ où qu'il roule. Pas de départ, pas d'hôte, pas de classement.
 ## Décisions par défaut (modifiables)
 
 - Comptes obligatoires (pas d'invités anonymes) : responsabilité du pseudo, signalement possible.
-- **Chat, « Ride On » et voix (micro) actifs** dans les salles publiques, comme dans une sortie privée
-  (anti-flood du chat en place). Signalement et blocage deviennent d'autant plus nécessaires (S5).
+- **Chat, « Ride On » et voix (micro) actifs** dans les salles publiques, **limités aux coureurs proches** (chat : 50 m,
+  filtré par le serveur ; voix : volume selon la distance, 15 à 40 m). Signalement et blocage restent nécessaires (S5).
 - Segments et classements : désactivés (efforts non enregistrés). XP et export FIT conservés.
 - IA d'ambiance : 6 au départ, chacune cède sa place à un humain qui arrive (salle jamais vide à l'arrivée).
 - Météo et heure : fixées par le serveur à la création (heure de Paris), identiques pour tous.
@@ -113,6 +113,17 @@ Limite connue : présence, registre et invitations sont en mémoire ; un redéma
 2. S4 + C1–C3 (entrée au menu, deux joueurs se voient).
 3. C4 (ami dans une autre zone) + C5.
 4. S5 (signalement) avant toute ouverture au public.
+
+## État (27 octobre 2026)
+
+Fait : S1 à S4 (serveur), C1 à C5b côté jeu : Longchamp chargé par défaut ; carte « Monde ouvert » dans l'onglet Rouler
+(affluence, amis présents) ; **fenêtre centrale** au clic (tracé sur le Plan IGN, coureurs en ligne rafraîchis toutes les 3 s,
+amis nommés avec « Rejoindre » = apparition dans leur roue, « Rejoindre le peloton ») ; salle publique sans intro ni hôte ;
+demi-tour (touche U) et coureurs à contresens dessinés sur l'itinéraire inversé ; chat de proximité (serveur) et voix de proximité
+(volume selon la distance, client) ; micro et sortie audio au choix dans Réglages › Son et dans le menu pause.
+
+Reste : S5 (signalement, blocage), vérification en navigateur du placement `ready` près d'un ami (couvert par les tests serveur),
+voix de proximité imposée par le serveur (API LiveKit) si le contournement par un client modifié compte, plusieurs zones publiques.
 
 ## Hors v1
 
