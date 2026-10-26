@@ -14,7 +14,7 @@ import type { WorldCatalogue, WorldPackManifest } from '@allezrobert/shared';
 const WORLDS_HOST = 'https://allezrobert.cparfait.ovh';
 
 const env = (import.meta as unknown as { env?: Record<string, string | undefined> }).env ?? {};
-const inTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+export const inTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 /** Préfixe des tuiles : `VITE_WORLDS_URL`, sinon le VPS dans l'application Windows, sinon la même origine. */
 export const TILES_BASE = env.VITE_WORLDS_URL ?? (inTauri ? WORLDS_HOST : '');
 

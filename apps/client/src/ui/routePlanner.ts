@@ -130,6 +130,9 @@ export class RoutePlanner {
    * Parcours libre : la carte ne sert qu'à choisir le point de départ (un seul point, qu'un nouveau
    * clic déplace), puis « Partir d'ici ».
    */
+  /** Course : le parcours est tracé d'avance, pas de roulage libre. */
+  noFree = false;
+
   get startOnly(): boolean {
     return this.onlyStart;
   }
@@ -331,11 +334,11 @@ export class RoutePlanner {
         ].join('')
       : [
       r ? go('ride', `${L ? (this.closed ? 'Rouler cette boucle' : 'Rouler cet itinéraire') : this.closed ? 'Ride this loop' : 'Ride this route'} →`, 'rp-go') : '',
-      n === 1 ? go('here', `${L ? 'Partir d’ici en libre' : 'Ride freely from here'} →`, 'rp-go') : '',
+      n === 1 && !this.noFree ? go('here', `${L ? 'Partir d’ici en libre' : 'Ride freely from here'} →`, 'rp-go') : '',
       n > 1 && !this.closed ? go('loop', `↺ ${L ? 'Revenir au départ' : 'Back to the start'}`) : '',
       n ? go('undo', `↶ ${L ? 'Annuler le dernier point' : 'Undo last point'}`) : '',
       n ? go('clear', L ? 'Effacer' : 'Clear') : '',
-      go('free', L ? 'Rouler en libre' : 'Free ride', n ? '' : 'rp-go'),
+      this.noFree ? '' : go('free', L ? 'Rouler en libre' : 'Free ride', n ? '' : 'rp-go'),
     ].join('');
     const zoomed = v.w < this.bounds.w * HAMLET_ZOOM;
     return `<section class="rp" aria-label="${L ? 'Itinéraire sur la carte' : 'Route on the map'}">

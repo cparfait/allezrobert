@@ -1215,7 +1215,10 @@ export class MainMenu {
     const z = this.zones.find((c) => c.id === id);
     const st = packState(id, z?.pack?.version);
     const dl = this.downloads.get(id);
-    if (dl && !dl.error) return `<span class="mm-pack busy">${Math.floor((dl.done / Math.max(dl.total, 1)) * 100)} %</span>`;
+    if (dl && !dl.error) {
+      const pct = Math.floor((dl.done / Math.max(dl.total, 1)) * 100);
+      return `<span class="mm-pack busy"><i class="mm-pack-bar"><i style="width:${pct}%"></i></i>${pct} %</span>`;
+    }
     if (dl?.error) return `<button class="mm-pack err" data-pack="${esc(id)}" title="${esc(dl.error)}">${L ? 'Réessayer' : 'Retry'}</button>`;
     if (st.kind === 'installed' && st.upToDate) return `<span class="mm-pack ok">${L ? 'Téléchargée' : 'Downloaded'} ✓</span>`;
     if (st.kind === 'installed') return `<button class="mm-pack" data-pack="${esc(id)}">${L ? 'Mettre à jour' : 'Update'}${z?.pack ? ` · ${formatBytes(z.pack.gzBytes ?? z.pack.bytes, L)}` : ''}</button>`;
@@ -1242,8 +1245,11 @@ export class MainMenu {
     const spot = ZONE_SPOTS.find((x) => x.id === this.worldId);
     const n = this.routes.length;
     const openOnly = L ? 'Seulement dans les zones ouvertes (toutes les routes roulables).' : 'Only in open areas (every road rideable).';
+    const fixedOnly = L ? 'Pas en course : le parcours est fixe (tu peux le dessiner).' : 'Not in a race: the course is fixed (you can draw it).';
     const card = (id: string, icon: string, title: string, text: string) =>
-      id !== 'routes' && !this.openWorld
+      id === 'free' && this.s.mode === 'race'
+        ? `<button class="zc-choice zc-off" disabled>${icon}<b>${title}</b><span>${fixedOnly}</span></button>`
+        : id !== 'routes' && !this.openWorld
         ? `<button class="zc-choice zc-off" disabled>${icon}<b>${title}</b><span>${openOnly}</span></button>`
         : `<button class="zc-choice" data-zc="${id}">${icon}<b>${title}</b><span>${text}</span></button>`;
     const pack = this.packAction(this.worldId);
@@ -2068,25 +2074,69 @@ export class MainMenu {
   }
 
   /**
-   * Application Windows : pas de départ tant que la carte de la zone n'est pas téléchargée
-   * (le téléchargement démarre tout seul). Dans le navigateur, la zone se charge depuis le serveur.
+   * Pas de départ tant que la carte de la zone n'est pas téléchargée (le téléchargement démarre
+   * tout seul), application Windows comme navigateur. Sans stockage hors ligne, la zone se charge depuis le serveur.
    */
-  private zoneReady(): boolean {
-    if (!inTauri) return true;
+  private zoneReady(args: Parameters<MenuCallbacks['onStart']>): boolean {
     const z = this.zones.find((c) => c.id === this.worldId);
     if (!z?.pack) return true;
-    const st = packState(z.id, z.pack.version);
-    if (st.kind !== 'absent') return true;
+    if (packState(z.id, z.pack.version).kind !== 'absent') return true;
     const busy = this.downloads.get(z.id);
     if (!busy || busy.error) void this.downloadZone(z.id);
-    const L = fr();
-    alert(L ? `La zone « ${this.zoneLabel(z.id)} » n'est pas encore téléchargée. Le téléchargement démarre : tu pourras rouler quand il sera terminé (Réglages › Zones et cartes).` : `The "${this.zoneLabel(z.id)}" area isn't downloaded yet. The download has started: you can ride once it finishes (Settings › Zones and maps).`);
+    this.showZoneDownload(z.id, () => this.launch(...args));
     return false;
+  }
+
+  /** Écran d'attente du téléchargement d'une zone : barre et pourcentage lus sur la même valeur ; départ automatique à la fin. */
+  private showZoneDownload(id: string, then: () => void): void {
+    const L = fr();
+    document.querySelector('.world-wait.zone-dl')?.remove();
+    const el = document.createElement('div');
+    el.className = 'world-wait zone-dl';
+    const tip = inTauri
+      ? ''
+      : L
+        ? 'Astuce : l’application Windows télécharge les zones plus vite et les garde sur ton ordinateur. <a href="/#telecharger" target="_blank" rel="noopener" style="color:#ffd23f">Télécharger l’application</a>'
+        : 'Tip: the Windows app downloads areas faster and keeps them on your computer. <a href="/#telecharger" target="_blank" rel="noopener" style="color:#ffd23f">Get the app</a>';
+    el.innerHTML = `<div class="world-wait-box"><div class="world-wait-bar"><i style="animation:none;width:0%"></i></div><span></span><small class="world-wait-tip">${tip}</small><button class="btn small" style="margin-top:14px">${L ? 'Annuler' : 'Cancel'}</button></div>`;
+    document.body.appendChild(el);
+    const bar = el.querySelector<HTMLElement>('.world-wait-bar i') as HTMLElement;
+    const label = el.querySelector<HTMLElement>('.world-wait-box > span') as HTMLElement;
+    const name = this.zoneLabel(id);
+    const stop = () => {
+      clearInterval(timer);
+      el.remove();
+    };
+    el.querySelector('button')?.addEventListener('click', stop);
+    const tick = () => {
+      const dl = this.downloads.get(id);
+      if (dl?.error) {
+        bar.style.width = '0%';
+        label.textContent = `${L ? 'Échec du téléchargement' : 'Download failed'} : ${dl.error}`;
+        const retry = el.querySelector('button');
+        if (retry) {
+          retry.textContent = L ? 'Fermer' : 'Close';
+        }
+        clearInterval(timer);
+        return;
+      }
+      if (!dl) {
+        stop();
+        if (packState(id, this.zones.find((c) => c.id === id)?.pack?.version).kind === 'installed') then();
+        return;
+      }
+      const pct = Math.floor((dl.done / Math.max(dl.total, 1)) * 100);
+      bar.style.transition = 'none';
+      bar.style.width = `${pct}%`;
+      label.textContent = `${L ? 'Téléchargement de' : 'Downloading'} ${name} ${pct} %`;
+    };
+    const timer = setInterval(tick, 150);
+    tick();
   }
 
   /** Départ d'une sortie : l'appli compagnon est d'abord proposée (tous les modes). */
   private launch(...args: Parameters<MenuCallbacks['onStart']>): void {
-    if (!this.zoneReady()) return;
+    if (!this.zoneReady(args)) return;
     void companionQr()
       .beforeRide()
       .then(() => this.cb.onStart(...args));
@@ -2125,6 +2175,7 @@ export class MainMenu {
     });
     on('m-explore', 'click', () => this.onExplore?.());
     // Itinéraire sur la carte : parcours calculé (sortie libre sur ce tracé) ou roulage libre.
+    this.planner.noFree = s.mode === 'race';
     if (this.picker === 'map' && this.openWorld)
       this.planner.bind(this.root, (r) => this.routeCard(r), {
         // « Rouler cet itinéraire » / « Rouler en libre » : la sortie part tout de suite.
@@ -2133,7 +2184,7 @@ export class MainMenu {
           this.drawnWorld = this.worldId;
           s.routeId = route.id;
           s.reverse = false;
-          if (s.mode !== 'free' && s.mode !== 'workout') s.mode = 'free';
+          if (s.mode !== 'free' && s.mode !== 'workout' && s.mode !== 'race') s.mode = 'free';
           this.picker = null;
           changed();
           this.start({ customRoute: route });

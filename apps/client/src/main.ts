@@ -148,14 +148,14 @@ function setWaitProgress(el: HTMLElement, p: number): void {
   const v = Math.max(0, Math.min(1, p));
   if (bar) {
     bar.style.animation = 'none';
-    bar.style.transition = 'width 0.25s ease-out';
-    bar.style.width = `${Math.max(3, v * 100)}%`;
+    bar.style.transition = 'none';
+    bar.style.width = `${Math.floor(v * 100)}%`;
   }
   if (label) {
     label.dataset.text ??= label.textContent ?? '';
     // Écran de sortie : le texte dit où en est la préparation (terrain, puis graphismes, puis finitions).
     const base = el.dataset.stages ? waitStage(v) : label.dataset.text;
-    label.textContent = `${base} ${Math.round(v * 100)} %`;
+    label.textContent = `${base} ${Math.floor(v * 100)} %`;
   }
 }
 
