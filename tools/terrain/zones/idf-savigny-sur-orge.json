@@ -1,0 +1,291 @@
+{
+  "kind": "open",
+  "id": "idf-savigny-sur-orge",
+  "name": "Île-de-France — Savigny-sur-Orge",
+  "region": "Essonne · Île-de-France",
+  "originL93": {
+    "x": 648000,
+    "y": 6836000
+  },
+  "corridorTiles": {
+    "txMin": -8,
+    "txMax": 7,
+    "tzMin": -8,
+    "tzMax": 7
+  },
+  "start": {
+    "lon": 2.34831,
+    "lat": 48.6856
+  },
+  "orthoPx": 1024,
+  "horizon": {
+    "halfSizeM": 30000,
+    "resM": 100
+  },
+  "tours": [
+    {
+      "routeId": "boucle-20-km",
+      "routeName": "Boucle de 20 km depuis Savigny-sur-Orge",
+      "routeNameEn": "20 km loop from Savigny-sur-Orge",
+      "start": {
+        "lon": 2.34831,
+        "lat": 48.6856
+      },
+      "via": [
+        {
+          "lon": 2.35514,
+          "lat": 48.66971
+        },
+        {
+          "lon": 2.37241,
+          "lat": 48.65514
+        },
+        {
+          "lon": 2.37662,
+          "lat": 48.64069
+        },
+        {
+          "lon": 2.35219,
+          "lat": 48.63528
+        },
+        {
+          "lon": 2.32234,
+          "lat": 48.64184
+        },
+        {
+          "lon": 2.31548,
+          "lat": 48.6533
+        },
+        {
+          "lon": 2.3358,
+          "lat": 48.66902
+        },
+        {
+          "lon": 2.34956,
+          "lat": 48.68182
+        }
+      ]
+    },
+    {
+      "routeId": "boucle-30-km",
+      "routeName": "Boucle de 30 km depuis Savigny-sur-Orge",
+      "routeNameEn": "30 km loop from Savigny-sur-Orge",
+      "start": {
+        "lon": 2.34858,
+        "lat": 48.68579
+      },
+      "via": [
+        {
+          "lon": 2.3734,
+          "lat": 48.69
+        },
+        {
+          "lon": 2.39631,
+          "lat": 48.68647
+        },
+        {
+          "lon": 2.3825,
+          "lat": 48.68153
+        },
+        {
+          "lon": 2.3817,
+          "lat": 48.66434
+        },
+        {
+          "lon": 2.39887,
+          "lat": 48.65082
+        },
+        {
+          "lon": 2.38956,
+          "lat": 48.63078
+        },
+        {
+          "lon": 2.38606,
+          "lat": 48.62141
+        },
+        {
+          "lon": 2.36121,
+          "lat": 48.61574
+        },
+        {
+          "lon": 2.35832,
+          "lat": 48.63503
+        },
+        {
+          "lon": 2.33806,
+          "lat": 48.64577
+        },
+        {
+          "lon": 2.33998,
+          "lat": 48.6592
+        },
+        {
+          "lon": 2.34772,
+          "lat": 48.67618
+        }
+      ]
+    },
+    {
+      "routeId": "boucle-40-km",
+      "routeName": "Boucle de 40 km depuis Savigny-sur-Orge",
+      "routeNameEn": "40 km loop from Savigny-sur-Orge",
+      "start": {
+        "lon": 2.34858,
+        "lat": 48.68579
+      },
+      "via": [
+        {
+          "lon": 2.33248,
+          "lat": 48.66804
+        },
+        {
+          "lon": 2.31136,
+          "lat": 48.6518
+        },
+        {
+          "lon": 2.30301,
+          "lat": 48.63359
+        },
+        {
+          "lon": 2.29781,
+          "lat": 48.62395
+        },
+        {
+          "lon": 2.26795,
+          "lat": 48.63347
+        },
+        {
+          "lon": 2.24415,
+          "lat": 48.64104
+        },
+        {
+          "lon": 2.21731,
+          "lat": 48.64457
+        },
+        {
+          "lon": 2.19741,
+          "lat": 48.6552
+        },
+        {
+          "lon": 2.20104,
+          "lat": 48.66744
+        },
+        {
+          "lon": 2.22983,
+          "lat": 48.67803
+        },
+        {
+          "lon": 2.25286,
+          "lat": 48.68916
+        },
+        {
+          "lon": 2.26549,
+          "lat": 48.68057
+        },
+        {
+          "lon": 2.28708,
+          "lat": 48.66944
+        },
+        {
+          "lon": 2.31412,
+          "lat": 48.67372
+        },
+        {
+          "lon": 2.33845,
+          "lat": 48.67931
+        }
+      ]
+    },
+    {
+      "routeId": "boucle-50-km",
+      "routeName": "Boucle de 50 km depuis Savigny-sur-Orge",
+      "routeNameEn": "50 km loop from Savigny-sur-Orge",
+      "start": {
+        "lon": 2.34858,
+        "lat": 48.68579
+      },
+      "via": [
+        {
+          "lon": 2.36779,
+          "lat": 48.67428
+        },
+        {
+          "lon": 2.3882,
+          "lat": 48.6576
+        },
+        {
+          "lon": 2.3966,
+          "lat": 48.6538
+        },
+        {
+          "lon": 2.3946,
+          "lat": 48.64198
+        },
+        {
+          "lon": 2.38964,
+          "lat": 48.62447
+        },
+        {
+          "lon": 2.39653,
+          "lat": 48.61071
+        },
+        {
+          "lon": 2.37202,
+          "lat": 48.60011
+        },
+        {
+          "lon": 2.35967,
+          "lat": 48.57659
+        },
+        {
+          "lon": 2.34174,
+          "lat": 48.58943
+        },
+        {
+          "lon": 2.30932,
+          "lat": 48.59122
+        },
+        {
+          "lon": 2.2818,
+          "lat": 48.59061
+        },
+        {
+          "lon": 2.29119,
+          "lat": 48.59769
+        },
+        {
+          "lon": 2.27562,
+          "lat": 48.61641
+        },
+        {
+          "lon": 2.25571,
+          "lat": 48.63103
+        },
+        {
+          "lon": 2.26782,
+          "lat": 48.63317
+        },
+        {
+          "lon": 2.27464,
+          "lat": 48.65619
+        },
+        {
+          "lon": 2.27768,
+          "lat": 48.67302
+        },
+        {
+          "lon": 2.28275,
+          "lat": 48.66926
+        },
+        {
+          "lon": 2.30948,
+          "lat": 48.67129
+        },
+        {
+          "lon": 2.3323,
+          "lat": 48.68064
+        }
+      ]
+    }
+  ]
+}

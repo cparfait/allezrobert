@@ -1,0 +1,291 @@
+{
+  "kind": "open",
+  "id": "idf-evry-courcouronnes",
+  "name": "Île-de-France — Évry-Courcouronnes",
+  "region": "Essonne · Île-de-France",
+  "originL93": {
+    "x": 664000,
+    "y": 6836000
+  },
+  "corridorTiles": {
+    "txMin": -8,
+    "txMax": 7,
+    "tzMin": -8,
+    "tzMax": 7
+  },
+  "start": {
+    "lon": 2.43155,
+    "lat": 48.62877
+  },
+  "orthoPx": 1024,
+  "horizon": {
+    "halfSizeM": 30000,
+    "resM": 100
+  },
+  "tours": [
+    {
+      "routeId": "boucle-20-km",
+      "routeName": "Boucle de 20 km depuis Évry-Courcouronnes",
+      "routeNameEn": "20 km loop from Évry-Courcouronnes",
+      "start": {
+        "lon": 2.43155,
+        "lat": 48.62877
+      },
+      "via": [
+        {
+          "lon": 2.41393,
+          "lat": 48.6416
+        },
+        {
+          "lon": 2.4127,
+          "lat": 48.65497
+        },
+        {
+          "lon": 2.41561,
+          "lat": 48.67255
+        },
+        {
+          "lon": 2.42706,
+          "lat": 48.67415
+        },
+        {
+          "lon": 2.4317,
+          "lat": 48.6583
+        },
+        {
+          "lon": 2.45153,
+          "lat": 48.64925
+        },
+        {
+          "lon": 2.46602,
+          "lat": 48.64958
+        },
+        {
+          "lon": 2.45199,
+          "lat": 48.63389
+        }
+      ]
+    },
+    {
+      "routeId": "boucle-30-km",
+      "routeName": "Boucle de 30 km depuis Évry-Courcouronnes",
+      "routeNameEn": "30 km loop from Évry-Courcouronnes",
+      "start": {
+        "lon": 2.43155,
+        "lat": 48.62877
+      },
+      "via": [
+        {
+          "lon": 2.41393,
+          "lat": 48.6416
+        },
+        {
+          "lon": 2.41458,
+          "lat": 48.6568
+        },
+        {
+          "lon": 2.41052,
+          "lat": 48.67358
+        },
+        {
+          "lon": 2.42398,
+          "lat": 48.6878
+        },
+        {
+          "lon": 2.45176,
+          "lat": 48.6915
+        },
+        {
+          "lon": 2.46026,
+          "lat": 48.6902
+        },
+        {
+          "lon": 2.48664,
+          "lat": 48.67544
+        },
+        {
+          "lon": 2.48112,
+          "lat": 48.65912
+        },
+        {
+          "lon": 2.46666,
+          "lat": 48.64811
+        },
+        {
+          "lon": 2.46889,
+          "lat": 48.64001
+        },
+        {
+          "lon": 2.4479,
+          "lat": 48.6343
+        }
+      ]
+    },
+    {
+      "routeId": "boucle-40-km",
+      "routeName": "Boucle de 40 km depuis Évry-Courcouronnes",
+      "routeNameEn": "40 km loop from Évry-Courcouronnes",
+      "start": {
+        "lon": 2.43155,
+        "lat": 48.62877
+      },
+      "via": [
+        {
+          "lon": 2.4538,
+          "lat": 48.63413
+        },
+        {
+          "lon": 2.46257,
+          "lat": 48.65039
+        },
+        {
+          "lon": 2.48335,
+          "lat": 48.66192
+        },
+        {
+          "lon": 2.49401,
+          "lat": 48.68385
+        },
+        {
+          "lon": 2.52312,
+          "lat": 48.68006
+        },
+        {
+          "lon": 2.54238,
+          "lat": 48.66658
+        },
+        {
+          "lon": 2.55033,
+          "lat": 48.65125
+        },
+        {
+          "lon": 2.55714,
+          "lat": 48.6356
+        },
+        {
+          "lon": 2.54341,
+          "lat": 48.62352
+        },
+        {
+          "lon": 2.52229,
+          "lat": 48.61258
+        },
+        {
+          "lon": 2.50249,
+          "lat": 48.60605
+        },
+        {
+          "lon": 2.49407,
+          "lat": 48.59001
+        },
+        {
+          "lon": 2.49212,
+          "lat": 48.60389
+        },
+        {
+          "lon": 2.46889,
+          "lat": 48.6151
+        },
+        {
+          "lon": 2.44501,
+          "lat": 48.62899
+        }
+      ]
+    },
+    {
+      "routeId": "boucle-50-km",
+      "routeName": "Boucle de 50 km depuis Évry-Courcouronnes",
+      "routeNameEn": "50 km loop from Évry-Courcouronnes",
+      "start": {
+        "lon": 2.43155,
+        "lat": 48.62877
+      },
+      "via": [
+        {
+          "lon": 2.4538,
+          "lat": 48.63413
+        },
+        {
+          "lon": 2.4792,
+          "lat": 48.63474
+        },
+        {
+          "lon": 2.50702,
+          "lat": 48.64419
+        },
+        {
+          "lon": 2.50824,
+          "lat": 48.64348
+        },
+        {
+          "lon": 2.53134,
+          "lat": 48.63686
+        },
+        {
+          "lon": 2.55563,
+          "lat": 48.62254
+        },
+        {
+          "lon": 2.57758,
+          "lat": 48.60945
+        },
+        {
+          "lon": 2.56016,
+          "lat": 48.60394
+        },
+        {
+          "lon": 2.53668,
+          "lat": 48.60921
+        },
+        {
+          "lon": 2.51256,
+          "lat": 48.6152
+        },
+        {
+          "lon": 2.48566,
+          "lat": 48.61353
+        },
+        {
+          "lon": 2.48356,
+          "lat": 48.59291
+        },
+        {
+          "lon": 2.4844,
+          "lat": 48.56938
+        },
+        {
+          "lon": 2.51485,
+          "lat": 48.55858
+        },
+        {
+          "lon": 2.51293,
+          "lat": 48.56096
+        },
+        {
+          "lon": 2.48001,
+          "lat": 48.56446
+        },
+        {
+          "lon": 2.45031,
+          "lat": 48.56784
+        },
+        {
+          "lon": 2.44307,
+          "lat": 48.5742
+        },
+        {
+          "lon": 2.43968,
+          "lat": 48.59055
+        },
+        {
+          "lon": 2.42806,
+          "lat": 48.60817
+        },
+        {
+          "lon": 2.42937,
+          "lat": 48.62608
+        }
+      ]
+    }
+  ]
+}

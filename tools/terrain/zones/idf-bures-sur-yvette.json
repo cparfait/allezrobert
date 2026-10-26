@@ -1,0 +1,283 @@
+{
+  "kind": "open",
+  "id": "idf-bures-sur-yvette",
+  "name": "Île-de-France — Bures-sur-Yvette",
+  "region": "Essonne · Île-de-France",
+  "originL93": {
+    "x": 632000,
+    "y": 6836000
+  },
+  "corridorTiles": {
+    "txMin": -8,
+    "txMax": 7,
+    "tzMin": -8,
+    "tzMax": 7
+  },
+  "start": {
+    "lon": 2.15919,
+    "lat": 48.6916
+  },
+  "orthoPx": 1024,
+  "horizon": {
+    "halfSizeM": 30000,
+    "resM": 100
+  },
+  "tours": [
+    {
+      "routeId": "boucle-20-km",
+      "routeName": "Boucle de 20 km depuis Bures-sur-Yvette",
+      "routeNameEn": "20 km loop from Bures-sur-Yvette",
+      "start": {
+        "lon": 2.15919,
+        "lat": 48.6916
+      },
+      "via": [
+        {
+          "lon": 2.13691,
+          "lat": 48.67748
+        },
+        {
+          "lon": 2.1352,
+          "lat": 48.66226
+        },
+        {
+          "lon": 2.15805,
+          "lat": 48.64545
+        },
+        {
+          "lon": 2.15805,
+          "lat": 48.64545
+        },
+        {
+          "lon": 2.13181,
+          "lat": 48.64117
+        },
+        {
+          "lon": 2.10859,
+          "lat": 48.64759
+        },
+        {
+          "lon": 2.11945,
+          "lat": 48.66833
+        },
+        {
+          "lon": 2.14208,
+          "lat": 48.68035
+        }
+      ]
+    },
+    {
+      "routeId": "boucle-30-km",
+      "routeName": "Boucle de 30 km depuis Bures-sur-Yvette",
+      "routeNameEn": "30 km loop from Bures-sur-Yvette",
+      "start": {
+        "lon": 2.15919,
+        "lat": 48.6916
+      },
+      "via": [
+        {
+          "lon": 2.13691,
+          "lat": 48.67748
+        },
+        {
+          "lon": 2.16749,
+          "lat": 48.66943
+        },
+        {
+          "lon": 2.13706,
+          "lat": 48.67319
+        },
+        {
+          "lon": 2.14464,
+          "lat": 48.65464
+        },
+        {
+          "lon": 2.1249,
+          "lat": 48.64107
+        },
+        {
+          "lon": 2.11458,
+          "lat": 48.6589
+        },
+        {
+          "lon": 2.10405,
+          "lat": 48.67572
+        },
+        {
+          "lon": 2.11796,
+          "lat": 48.68838
+        },
+        {
+          "lon": 2.12979,
+          "lat": 48.67842
+        },
+        {
+          "lon": 2.1547,
+          "lat": 48.68863
+        }
+      ]
+    },
+    {
+      "routeId": "boucle-40-km",
+      "routeName": "Boucle de 40 km depuis Bures-sur-Yvette",
+      "routeNameEn": "40 km loop from Bures-sur-Yvette",
+      "start": {
+        "lon": 2.15919,
+        "lat": 48.6916
+      },
+      "via": [
+        {
+          "lon": 2.13691,
+          "lat": 48.67748
+        },
+        {
+          "lon": 2.1352,
+          "lat": 48.66226
+        },
+        {
+          "lon": 2.15805,
+          "lat": 48.64545
+        },
+        {
+          "lon": 2.16039,
+          "lat": 48.63514
+        },
+        {
+          "lon": 2.13147,
+          "lat": 48.62673
+        },
+        {
+          "lon": 2.1097,
+          "lat": 48.61579
+        },
+        {
+          "lon": 2.09981,
+          "lat": 48.63394
+        },
+        {
+          "lon": 2.07934,
+          "lat": 48.6387
+        },
+        {
+          "lon": 2.05516,
+          "lat": 48.64255
+        },
+        {
+          "lon": 2.06733,
+          "lat": 48.64461
+        },
+        {
+          "lon": 2.06728,
+          "lat": 48.65787
+        },
+        {
+          "lon": 2.08168,
+          "lat": 48.67221
+        },
+        {
+          "lon": 2.09813,
+          "lat": 48.68351
+        },
+        {
+          "lon": 2.11615,
+          "lat": 48.68101
+        },
+        {
+          "lon": 2.14077,
+          "lat": 48.67881
+        }
+      ]
+    },
+    {
+      "routeId": "boucle-50-km",
+      "routeName": "Boucle de 50 km depuis Bures-sur-Yvette",
+      "routeNameEn": "50 km loop from Bures-sur-Yvette",
+      "start": {
+        "lon": 2.15919,
+        "lat": 48.6916
+      },
+      "via": [
+        {
+          "lon": 2.13691,
+          "lat": 48.67748
+        },
+        {
+          "lon": 2.16749,
+          "lat": 48.66943
+        },
+        {
+          "lon": 2.16812,
+          "lat": 48.66398
+        },
+        {
+          "lon": 2.14375,
+          "lat": 48.67342
+        },
+        {
+          "lon": 2.1352,
+          "lat": 48.66226
+        },
+        {
+          "lon": 2.15261,
+          "lat": 48.64279
+        },
+        {
+          "lon": 2.1597,
+          "lat": 48.62361
+        },
+        {
+          "lon": 2.17215,
+          "lat": 48.62256
+        },
+        {
+          "lon": 2.16147,
+          "lat": 48.60205
+        },
+        {
+          "lon": 2.15575,
+          "lat": 48.59246
+        },
+        {
+          "lon": 2.13983,
+          "lat": 48.60249
+        },
+        {
+          "lon": 2.1091,
+          "lat": 48.60165
+        },
+        {
+          "lon": 2.08474,
+          "lat": 48.60299
+        },
+        {
+          "lon": 2.07024,
+          "lat": 48.62371
+        },
+        {
+          "lon": 2.0693,
+          "lat": 48.64698
+        },
+        {
+          "lon": 2.06481,
+          "lat": 48.66308
+        },
+        {
+          "lon": 2.08639,
+          "lat": 48.67234
+        },
+        {
+          "lon": 2.10627,
+          "lat": 48.67916
+        },
+        {
+          "lon": 2.12979,
+          "lat": 48.67842
+        },
+        {
+          "lon": 2.1547,
+          "lat": 48.68863
+        }
+      ]
+    }
+  ]
+}

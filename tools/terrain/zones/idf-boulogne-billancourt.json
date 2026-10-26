@@ -1,0 +1,279 @@
+{
+  "kind": "open",
+  "id": "idf-boulogne-billancourt",
+  "name": "Île-de-France — Boulogne-Billancourt",
+  "region": "Hauts-de-Seine · Île-de-France",
+  "originL93": {
+    "x": 648000,
+    "y": 6852000
+  },
+  "corridorTiles": {
+    "txMin": -8,
+    "txMax": 7,
+    "tzMin": -8,
+    "tzMax": 7
+  },
+  "start": {
+    "lon": 2.2424,
+    "lat": 48.83581
+  },
+  "orthoPx": 1024,
+  "horizon": {
+    "halfSizeM": 30000,
+    "resM": 100
+  },
+  "tours": [
+    {
+      "routeId": "boucle-20-km",
+      "routeName": "Boucle de 20 km depuis Boulogne-Billancourt",
+      "routeNameEn": "20 km loop from Boulogne-Billancourt",
+      "start": {
+        "lon": 2.2424,
+        "lat": 48.83581
+      },
+      "via": [
+        {
+          "lon": 2.26627,
+          "lat": 48.83088
+        },
+        {
+          "lon": 2.29297,
+          "lat": 48.82705
+        },
+        {
+          "lon": 2.30047,
+          "lat": 48.8123
+        },
+        {
+          "lon": 2.27944,
+          "lat": 48.7966
+        },
+        {
+          "lon": 2.25185,
+          "lat": 48.79453
+        },
+        {
+          "lon": 2.24817,
+          "lat": 48.80772
+        },
+        {
+          "lon": 2.24725,
+          "lat": 48.82704
+        }
+      ]
+    },
+    {
+      "routeId": "boucle-30-km",
+      "routeName": "Boucle de 30 km depuis Boulogne-Billancourt",
+      "routeNameEn": "30 km loop from Boulogne-Billancourt",
+      "start": {
+        "lon": 2.2424,
+        "lat": 48.83581
+      },
+      "via": [
+        {
+          "lon": 2.24678,
+          "lat": 48.81477
+        },
+        {
+          "lon": 2.2331,
+          "lat": 48.79887
+        },
+        {
+          "lon": 2.22055,
+          "lat": 48.78581
+        },
+        {
+          "lon": 2.18863,
+          "lat": 48.78572
+        },
+        {
+          "lon": 2.20907,
+          "lat": 48.78751
+        },
+        {
+          "lon": 2.21855,
+          "lat": 48.79787
+        },
+        {
+          "lon": 2.21434,
+          "lat": 48.81307
+        },
+        {
+          "lon": 2.21933,
+          "lat": 48.82906
+        },
+        {
+          "lon": 2.19414,
+          "lat": 48.83411
+        },
+        {
+          "lon": 2.21613,
+          "lat": 48.8322
+        },
+        {
+          "lon": 2.23756,
+          "lat": 48.83171
+        }
+      ]
+    },
+    {
+      "routeId": "boucle-40-km",
+      "routeName": "Boucle de 40 km depuis Boulogne-Billancourt",
+      "routeNameEn": "40 km loop from Boulogne-Billancourt",
+      "start": {
+        "lon": 2.2424,
+        "lat": 48.83581
+      },
+      "via": [
+        {
+          "lon": 2.26627,
+          "lat": 48.83088
+        },
+        {
+          "lon": 2.29297,
+          "lat": 48.82705
+        },
+        {
+          "lon": 2.30805,
+          "lat": 48.81081
+        },
+        {
+          "lon": 2.3019,
+          "lat": 48.79183
+        },
+        {
+          "lon": 2.31314,
+          "lat": 48.77435
+        },
+        {
+          "lon": 2.29711,
+          "lat": 48.75643
+        },
+        {
+          "lon": 2.26875,
+          "lat": 48.74935
+        },
+        {
+          "lon": 2.23819,
+          "lat": 48.74786
+        },
+        {
+          "lon": 2.23844,
+          "lat": 48.76665
+        },
+        {
+          "lon": 2.22468,
+          "lat": 48.78493
+        },
+        {
+          "lon": 2.21232,
+          "lat": 48.80039
+        },
+        {
+          "lon": 2.19237,
+          "lat": 48.79747
+        },
+        {
+          "lon": 2.19626,
+          "lat": 48.80493
+        },
+        {
+          "lon": 2.21386,
+          "lat": 48.81406
+        },
+        {
+          "lon": 2.22838,
+          "lat": 48.82888
+        }
+      ]
+    },
+    {
+      "routeId": "boucle-50-km",
+      "routeName": "Boucle de 50 km depuis Boulogne-Billancourt",
+      "routeNameEn": "50 km loop from Boulogne-Billancourt",
+      "start": {
+        "lon": 2.2424,
+        "lat": 48.83581
+      },
+      "via": [
+        {
+          "lon": 2.26792,
+          "lat": 48.82786
+        },
+        {
+          "lon": 2.29005,
+          "lat": 48.8162
+        },
+        {
+          "lon": 2.28853,
+          "lat": 48.7993
+        },
+        {
+          "lon": 2.28705,
+          "lat": 48.78076
+        },
+        {
+          "lon": 2.28689,
+          "lat": 48.7707
+        },
+        {
+          "lon": 2.28026,
+          "lat": 48.7494
+        },
+        {
+          "lon": 2.24791,
+          "lat": 48.74049
+        },
+        {
+          "lon": 2.22221,
+          "lat": 48.74995
+        },
+        {
+          "lon": 2.19589,
+          "lat": 48.75126
+        },
+        {
+          "lon": 2.20682,
+          "lat": 48.75352
+        },
+        {
+          "lon": 2.21378,
+          "lat": 48.76312
+        },
+        {
+          "lon": 2.2103,
+          "lat": 48.7792
+        },
+        {
+          "lon": 2.18863,
+          "lat": 48.78572
+        },
+        {
+          "lon": 2.20907,
+          "lat": 48.78751
+        },
+        {
+          "lon": 2.21855,
+          "lat": 48.79787
+        },
+        {
+          "lon": 2.21434,
+          "lat": 48.81307
+        },
+        {
+          "lon": 2.19838,
+          "lat": 48.82601
+        },
+        {
+          "lon": 2.19245,
+          "lat": 48.82731
+        },
+        {
+          "lon": 2.22324,
+          "lat": 48.82681
+        }
+      ]
+    }
+  ]
+}

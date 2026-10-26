@@ -15,6 +15,8 @@ export type ForestKind = 'deciduous' | 'conifer' | 'mixed';
 export type Rings = number[][];
 
 export interface TileRoad {
+  /** Identifiant du pipeline (`route:<itinéraire>:<voie OSM>` pour les routes d'un itinéraire). */
+  id?: string;
   kind: string;
   width: number;
   /** Polyligne plate x,z. */

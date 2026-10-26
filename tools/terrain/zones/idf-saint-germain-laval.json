@@ -1,0 +1,275 @@
+{
+  "kind": "open",
+  "id": "idf-saint-germain-laval",
+  "name": "Île-de-France — Saint-Germain-Laval",
+  "region": "Seine-et-Marne · Île-de-France",
+  "originL93": {
+    "x": 696000,
+    "y": 6820000
+  },
+  "corridorTiles": {
+    "txMin": -8,
+    "txMax": 7,
+    "tzMin": -8,
+    "tzMax": 7
+  },
+  "start": {
+    "lon": 3.00309,
+    "lat": 48.4137
+  },
+  "orthoPx": 1024,
+  "horizon": {
+    "halfSizeM": 30000,
+    "resM": 100
+  },
+  "tours": [
+    {
+      "routeId": "boucle-20-km",
+      "routeName": "Boucle de 20 km depuis Saint-Germain-Laval",
+      "routeNameEn": "20 km loop from Saint-Germain-Laval",
+      "start": {
+        "lon": 3.00309,
+        "lat": 48.4137
+      },
+      "via": [
+        {
+          "lon": 3.00709,
+          "lat": 48.43108
+        },
+        {
+          "lon": 2.99388,
+          "lat": 48.4568
+        },
+        {
+          "lon": 3.00377,
+          "lat": 48.46696
+        },
+        {
+          "lon": 3.0413,
+          "lat": 48.46004
+        },
+        {
+          "lon": 3.04832,
+          "lat": 48.44051
+        },
+        {
+          "lon": 3.02666,
+          "lat": 48.42952
+        },
+        {
+          "lon": 3.00755,
+          "lat": 48.41554
+        }
+      ]
+    },
+    {
+      "routeId": "boucle-30-km",
+      "routeName": "Boucle de 30 km depuis Saint-Germain-Laval",
+      "routeNameEn": "30 km loop from Saint-Germain-Laval",
+      "start": {
+        "lon": 3.00309,
+        "lat": 48.4137
+      },
+      "via": [
+        {
+          "lon": 2.97998,
+          "lat": 48.41937
+        },
+        {
+          "lon": 2.94159,
+          "lat": 48.41462
+        },
+        {
+          "lon": 2.93342,
+          "lat": 48.41923
+        },
+        {
+          "lon": 2.94565,
+          "lat": 48.43317
+        },
+        {
+          "lon": 2.94513,
+          "lat": 48.45884
+        },
+        {
+          "lon": 2.91718,
+          "lat": 48.45396
+        },
+        {
+          "lon": 2.93912,
+          "lat": 48.45863
+        },
+        {
+          "lon": 2.98277,
+          "lat": 48.47072
+        },
+        {
+          "lon": 2.99388,
+          "lat": 48.4568
+        },
+        {
+          "lon": 3.00215,
+          "lat": 48.43501
+        },
+        {
+          "lon": 3.00029,
+          "lat": 48.42399
+        }
+      ]
+    },
+    {
+      "routeId": "boucle-40-km",
+      "routeName": "Boucle de 40 km depuis Saint-Germain-Laval",
+      "routeNameEn": "40 km loop from Saint-Germain-Laval",
+      "start": {
+        "lon": 3.00309,
+        "lat": 48.4137
+      },
+      "via": [
+        {
+          "lon": 2.97998,
+          "lat": 48.41937
+        },
+        {
+          "lon": 2.94159,
+          "lat": 48.41462
+        },
+        {
+          "lon": 2.91581,
+          "lat": 48.41856
+        },
+        {
+          "lon": 2.88454,
+          "lat": 48.4186
+        },
+        {
+          "lon": 2.88021,
+          "lat": 48.42279
+        },
+        {
+          "lon": 2.87973,
+          "lat": 48.45615
+        },
+        {
+          "lon": 2.86281,
+          "lat": 48.47488
+        },
+        {
+          "lon": 2.87571,
+          "lat": 48.4815
+        },
+        {
+          "lon": 2.91858,
+          "lat": 48.49965
+        },
+        {
+          "lon": 2.95238,
+          "lat": 48.49789
+        },
+        {
+          "lon": 2.98075,
+          "lat": 48.49781
+        },
+        {
+          "lon": 2.9821,
+          "lat": 48.48519
+        },
+        {
+          "lon": 2.99339,
+          "lat": 48.46248
+        },
+        {
+          "lon": 3.0054,
+          "lat": 48.43856
+        }
+      ]
+    },
+    {
+      "routeId": "boucle-50-km",
+      "routeName": "Boucle de 50 km depuis Saint-Germain-Laval",
+      "routeNameEn": "50 km loop from Saint-Germain-Laval",
+      "start": {
+        "lon": 3.00309,
+        "lat": 48.4137
+      },
+      "via": [
+        {
+          "lon": 2.97998,
+          "lat": 48.41937
+        },
+        {
+          "lon": 2.94639,
+          "lat": 48.4272
+        },
+        {
+          "lon": 2.94475,
+          "lat": 48.45093
+        },
+        {
+          "lon": 2.92867,
+          "lat": 48.47012
+        },
+        {
+          "lon": 2.92867,
+          "lat": 48.47012
+        },
+        {
+          "lon": 2.93835,
+          "lat": 48.47972
+        },
+        {
+          "lon": 2.94597,
+          "lat": 48.50797
+        },
+        {
+          "lon": 2.9709,
+          "lat": 48.51206
+        },
+        {
+          "lon": 2.98239,
+          "lat": 48.52786
+        },
+        {
+          "lon": 3.01554,
+          "lat": 48.52245
+        },
+        {
+          "lon": 3.02153,
+          "lat": 48.53017
+        },
+        {
+          "lon": 3.03735,
+          "lat": 48.5138
+        },
+        {
+          "lon": 3.04933,
+          "lat": 48.48924
+        },
+        {
+          "lon": 3.01864,
+          "lat": 48.47677
+        },
+        {
+          "lon": 3.00377,
+          "lat": 48.46696
+        },
+        {
+          "lon": 3.0413,
+          "lat": 48.46004
+        },
+        {
+          "lon": 3.04832,
+          "lat": 48.44051
+        },
+        {
+          "lon": 3.02666,
+          "lat": 48.42952
+        },
+        {
+          "lon": 3.00755,
+          "lat": 48.41554
+        }
+      ]
+    }
+  ]
+}

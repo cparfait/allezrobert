@@ -54,6 +54,7 @@ export class RideRoomUi {
   private wasHolding = false;
   private lobbyKey = '';
   private resultsShown = false;
+  private arrivalClosed = false;
   private finalResults: RideResult[] | null = null;
   private lastStandings: StandingRow[] = [];
   /** Le coureur doit rester immobile (salle d'attente, compte à rebours). */
@@ -62,6 +63,8 @@ export class RideRoomUi {
   onLeave?: () => void;
   /** Résultats finaux reçus (podium). */
   onResults?: (results: RideResult[]) => void;
+  /** Le coureur franchit la ligne en tête (bras levés). */
+  onWin?: () => void;
 
   constructor(o: RideRoomUiOptions) {
     this.o = o;
@@ -163,6 +166,8 @@ export class RideRoomUi {
     switch (ev.kind) {
       case 'finish': {
         this.upsert(ev.riderId, { rank: ev.rank, timeMs: ev.timeMs, status: ev.rank > 0 ? 'finished' : 'unranked' });
+        if (ev.riderId === me && ev.rank === 1) this.onWin?.();
+        this.refreshArrival();
         if (ev.riderId === me) this.o.toast(ev.rank > 0 ? (fr ? `Arrivée ! ${ev.rank}${ev.rank === 1 ? 'er' : 'e'} en ${formatRaceTime(ev.timeMs)}` : `Finished! #${ev.rank} in ${formatRaceTime(ev.timeMs)}`) : fr ? 'Arrivée (hors classement)' : 'Finished (unranked)');
         else if (ev.rank === 1) this.o.toast(fr ? `🏁 ${this.name(ev.riderId)} remporte la course` : `🏁 ${this.name(ev.riderId)} wins the race`);
         break;
@@ -175,6 +180,7 @@ export class RideRoomUi {
         this.showResults(ev.results);
         break;
       case 'prime': {
+        queueMicrotask(() => this.refreshArrival());
         const r = this.known.get(ev.riderId);
         this.upsert(ev.riderId, ev.segmentKind === 'kom' ? { komPts: (r?.komPts ?? 0) + ev.points } : { sprintPts: (r?.sprintPts ?? 0) + ev.points });
         const seg = this.o.track.route.segments.find((s) => s.id === ev.segmentId)?.name ?? '';
@@ -335,6 +341,48 @@ export class RideRoomUi {
       </div></div>`;
     if (this.o.gear) bindGear(this.overlay, this.o.gear);
     this.overlay.querySelector('[data-act="start"]')?.addEventListener('click', () => this.net.startCountdown(10));
+    this.overlay.querySelector('[data-act="leave"]')?.addEventListener('click', () => this.onLeave?.());
+  }
+
+  /** Le coureur a franchi la ligne : il ne pédale plus (roue libre) et attend les autres. */
+  get finished(): boolean {
+    const r = this.known.get(this.net.selfId);
+    return this.o.mode === 'race' && !!r && (r.status === 'finished' || r.rank > 0);
+  }
+
+  /** Classement du moment sous forme de résultats (arrivés d'abord, puis les coureurs encore en course). */
+  private liveResults(): RideResult[] {
+    return this.lastStandings
+      .filter((r) => r.status === 'finished' || r.status === 'racing')
+      .map((r) => {
+        const out: RideResult = { riderId: r.id, name: r.name, rank: r.pos, timeMs: r.timeMs ?? 0, isAI: r.isAI, isGuest: false, status: r.status, komPts: r.komPts, sprintPts: r.sprintPts };
+        if (r.gapMs !== undefined) out.gapMs = r.gapMs;
+        return out;
+      });
+  }
+
+  /**
+   * Écran d'arrivée : dès que le coureur franchit la ligne, le classement s'affiche et se met à
+   * jour à chaque arrivée et chaque prime, jusqu'aux résultats finaux (dernier arrivé ou heure limite).
+   */
+  private refreshArrival(): void {
+    if (!this.finished || this.arrivalClosed || this.finalResults) return;
+    const fr = this.fr;
+    const mine = this.known.get(this.net.selfId);
+    const rows = this.liveResults();
+    const waiting = rows.filter((r) => r.status === 'racing' && !r.isAI).length;
+    this.overlay.innerHTML = `<div class="panel mp-modal">
+      <h2>${fr ? 'Arrivée !' : 'Finish!'}${mine && mine.rank > 0 ? ` ${mine.rank}${fr ? (mine.rank === 1 ? 'er' : 'e') : ''} · ${formatRaceTime(mine.timeMs)}` : ''}</h2>
+      <div class="sub">${esc(this.o.track.route.name)} · ${waiting > 0 ? (fr ? `en attente de ${waiting} coureur${waiting > 1 ? 's' : ''}…` : `waiting for ${waiting} rider${waiting > 1 ? 's' : ''}…`) : fr ? 'classement provisoire' : 'provisional standings'}</div>
+      ${this.resultsTable(rows)}
+      <div class="mp-btns" style="justify-content:flex-end">
+        <button class="mp-btn" data-act="close">${fr ? 'Masquer' : 'Hide'}</button>
+        <button class="mp-btn primary" data-act="leave">${fr ? 'Terminer la sortie' : 'End ride'}</button>
+      </div></div>`;
+    this.overlay.querySelector('[data-act="close"]')?.addEventListener('click', () => {
+      this.arrivalClosed = true;
+      this.overlay.innerHTML = '';
+    });
     this.overlay.querySelector('[data-act="leave"]')?.addEventListener('click', () => this.onLeave?.());
   }
 

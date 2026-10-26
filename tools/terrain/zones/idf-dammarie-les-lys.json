@@ -1,0 +1,279 @@
+{
+  "kind": "open",
+  "id": "idf-dammarie-les-lys",
+  "name": "Île-de-France — Dammarie-les-Lys",
+  "region": "Seine-et-Marne · Île-de-France",
+  "originL93": {
+    "x": 664000,
+    "y": 6820000
+  },
+  "corridorTiles": {
+    "txMin": -8,
+    "txMax": 7,
+    "tzMin": -8,
+    "tzMax": 7
+  },
+  "start": {
+    "lon": 2.61794,
+    "lat": 48.51364
+  },
+  "orthoPx": 1024,
+  "horizon": {
+    "halfSizeM": 30000,
+    "resM": 100
+  },
+  "tours": [
+    {
+      "routeId": "boucle-24-km",
+      "routeName": "Boucle de 24 km depuis Dammarie-les-Lys",
+      "routeNameEn": "24 km loop from Dammarie-les-Lys",
+      "start": {
+        "lon": 2.61794,
+        "lat": 48.51364
+      },
+      "via": [
+        {
+          "lon": 2.59424,
+          "lat": 48.49877
+        },
+        {
+          "lon": 2.59133,
+          "lat": 48.48537
+        },
+        {
+          "lon": 2.58863,
+          "lat": 48.46613
+        },
+        {
+          "lon": 2.55525,
+          "lat": 48.47495
+        },
+        {
+          "lon": 2.54368,
+          "lat": 48.49504
+        },
+        {
+          "lon": 2.53587,
+          "lat": 48.51036
+        },
+        {
+          "lon": 2.56826,
+          "lat": 48.52048
+        },
+        {
+          "lon": 2.58843,
+          "lat": 48.51737
+        }
+      ]
+    },
+    {
+      "routeId": "boucle-30-km",
+      "routeName": "Boucle de 30 km depuis Dammarie-les-Lys",
+      "routeNameEn": "30 km loop from Dammarie-les-Lys",
+      "start": {
+        "lon": 2.61794,
+        "lat": 48.51364
+      },
+      "via": [
+        {
+          "lon": 2.58677,
+          "lat": 48.50552
+        },
+        {
+          "lon": 2.55865,
+          "lat": 48.49991
+        },
+        {
+          "lon": 2.53719,
+          "lat": 48.50187
+        },
+        {
+          "lon": 2.54062,
+          "lat": 48.52131
+        },
+        {
+          "lon": 2.53027,
+          "lat": 48.53489
+        },
+        {
+          "lon": 2.528,
+          "lat": 48.54177
+        },
+        {
+          "lon": 2.55143,
+          "lat": 48.54077
+        },
+        {
+          "lon": 2.58208,
+          "lat": 48.54697
+        },
+        {
+          "lon": 2.55502,
+          "lat": 48.54198
+        },
+        {
+          "lon": 2.55849,
+          "lat": 48.52987
+        },
+        {
+          "lon": 2.58334,
+          "lat": 48.52216
+        }
+      ]
+    },
+    {
+      "routeId": "boucle-40-km",
+      "routeName": "Boucle de 40 km depuis Dammarie-les-Lys",
+      "routeNameEn": "40 km loop from Dammarie-les-Lys",
+      "start": {
+        "lon": 2.61794,
+        "lat": 48.51364
+      },
+      "via": [
+        {
+          "lon": 2.59424,
+          "lat": 48.49877
+        },
+        {
+          "lon": 2.59133,
+          "lat": 48.48537
+        },
+        {
+          "lon": 2.59467,
+          "lat": 48.46041
+        },
+        {
+          "lon": 2.56792,
+          "lat": 48.44563
+        },
+        {
+          "lon": 2.54417,
+          "lat": 48.45203
+        },
+        {
+          "lon": 2.5217,
+          "lat": 48.46852
+        },
+        {
+          "lon": 2.49622,
+          "lat": 48.47323
+        },
+        {
+          "lon": 2.47276,
+          "lat": 48.47888
+        },
+        {
+          "lon": 2.48286,
+          "lat": 48.50062
+        },
+        {
+          "lon": 2.50073,
+          "lat": 48.51287
+        },
+        {
+          "lon": 2.51752,
+          "lat": 48.53534
+        },
+        {
+          "lon": 2.52535,
+          "lat": 48.54441
+        },
+        {
+          "lon": 2.55057,
+          "lat": 48.53246
+        },
+        {
+          "lon": 2.57812,
+          "lat": 48.52709
+        },
+        {
+          "lon": 2.60019,
+          "lat": 48.51279
+        }
+      ]
+    },
+    {
+      "routeId": "boucle-50-km",
+      "routeName": "Boucle de 50 km depuis Dammarie-les-Lys",
+      "routeNameEn": "50 km loop from Dammarie-les-Lys",
+      "start": {
+        "lon": 2.61794,
+        "lat": 48.51364
+      },
+      "via": [
+        {
+          "lon": 2.59193,
+          "lat": 48.4978
+        },
+        {
+          "lon": 2.56729,
+          "lat": 48.48269
+        },
+        {
+          "lon": 2.56859,
+          "lat": 48.47219
+        },
+        {
+          "lon": 2.53807,
+          "lat": 48.47614
+        },
+        {
+          "lon": 2.50632,
+          "lat": 48.47345
+        },
+        {
+          "lon": 2.47886,
+          "lat": 48.47833
+        },
+        {
+          "lon": 2.48106,
+          "lat": 48.49703
+        },
+        {
+          "lon": 2.46491,
+          "lat": 48.51902
+        },
+        {
+          "lon": 2.44629,
+          "lat": 48.53066
+        },
+        {
+          "lon": 2.47725,
+          "lat": 48.52672
+        },
+        {
+          "lon": 2.48802,
+          "lat": 48.54556
+        },
+        {
+          "lon": 2.51297,
+          "lat": 48.54483
+        },
+        {
+          "lon": 2.53886,
+          "lat": 48.53569
+        },
+        {
+          "lon": 2.56252,
+          "lat": 48.54328
+        },
+        {
+          "lon": 2.5765,
+          "lat": 48.54577
+        },
+        {
+          "lon": 2.54806,
+          "lat": 48.53663
+        },
+        {
+          "lon": 2.56933,
+          "lat": 48.52943
+        },
+        {
+          "lon": 2.59374,
+          "lat": 48.51442
+        }
+      ]
+    }
+  ]
+}

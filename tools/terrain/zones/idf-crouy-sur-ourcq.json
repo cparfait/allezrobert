@@ -1,0 +1,267 @@
+{
+  "kind": "open",
+  "id": "idf-crouy-sur-ourcq",
+  "name": "Île-de-France — Crouy-sur-Ourcq",
+  "region": "Seine-et-Marne · Île-de-France",
+  "originL93": {
+    "x": 712000,
+    "y": 6884000
+  },
+  "corridorTiles": {
+    "txMin": -8,
+    "txMax": 7,
+    "tzMin": -8,
+    "tzMax": 7
+  },
+  "start": {
+    "lon": 3.08166,
+    "lat": 49.08633
+  },
+  "orthoPx": 1024,
+  "horizon": {
+    "halfSizeM": 30000,
+    "resM": 100
+  },
+  "tours": [
+    {
+      "routeId": "boucle-20-km",
+      "routeName": "Boucle de 20 km depuis Crouy-sur-Ourcq",
+      "routeNameEn": "20 km loop from Crouy-sur-Ourcq",
+      "start": {
+        "lon": 3.08166,
+        "lat": 49.08633
+      },
+      "via": [
+        {
+          "lon": 3.0765,
+          "lat": 49.09844
+        },
+        {
+          "lon": 3.09031,
+          "lat": 49.11393
+        },
+        {
+          "lon": 3.10555,
+          "lat": 49.10968
+        },
+        {
+          "lon": 3.14017,
+          "lat": 49.10812
+        },
+        {
+          "lon": 3.15166,
+          "lat": 49.08979
+        },
+        {
+          "lon": 3.12965,
+          "lat": 49.07434
+        },
+        {
+          "lon": 3.10982,
+          "lat": 49.08038
+        }
+      ]
+    },
+    {
+      "routeId": "boucle-30-km",
+      "routeName": "Boucle de 30 km depuis Crouy-sur-Ourcq",
+      "routeNameEn": "30 km loop from Crouy-sur-Ourcq",
+      "start": {
+        "lon": 3.08166,
+        "lat": 49.08633
+      },
+      "via": [
+        {
+          "lon": 3.09848,
+          "lat": 49.09552
+        },
+        {
+          "lon": 3.12435,
+          "lat": 49.10202
+        },
+        {
+          "lon": 3.14218,
+          "lat": 49.09426
+        },
+        {
+          "lon": 3.13964,
+          "lat": 49.08085
+        },
+        {
+          "lon": 3.14876,
+          "lat": 49.06657
+        },
+        {
+          "lon": 3.15686,
+          "lat": 49.04192
+        },
+        {
+          "lon": 3.1342,
+          "lat": 49.03054
+        },
+        {
+          "lon": 3.10047,
+          "lat": 49.03719
+        },
+        {
+          "lon": 3.10452,
+          "lat": 49.05765
+        },
+        {
+          "lon": 3.09627,
+          "lat": 49.07685
+        }
+      ]
+    },
+    {
+      "routeId": "boucle-40-km",
+      "routeName": "Boucle de 40 km depuis Crouy-sur-Ourcq",
+      "routeNameEn": "40 km loop from Crouy-sur-Ourcq",
+      "start": {
+        "lon": 3.08166,
+        "lat": 49.08633
+      },
+      "via": [
+        {
+          "lon": 3.09671,
+          "lat": 49.09358
+        },
+        {
+          "lon": 3.14218,
+          "lat": 49.09426
+        },
+        {
+          "lon": 3.16487,
+          "lat": 49.10741
+        },
+        {
+          "lon": 3.1782,
+          "lat": 49.1251
+        },
+        {
+          "lon": 3.19729,
+          "lat": 49.10691
+        },
+        {
+          "lon": 3.22067,
+          "lat": 49.08942
+        },
+        {
+          "lon": 3.21117,
+          "lat": 49.08411
+        },
+        {
+          "lon": 3.21959,
+          "lat": 49.06469
+        },
+        {
+          "lon": 3.2088,
+          "lat": 49.05835
+        },
+        {
+          "lon": 3.17525,
+          "lat": 49.05137
+        },
+        {
+          "lon": 3.15626,
+          "lat": 49.04145
+        },
+        {
+          "lon": 3.1358,
+          "lat": 49.05752
+        },
+        {
+          "lon": 3.11726,
+          "lat": 49.07606
+        },
+        {
+          "lon": 3.08973,
+          "lat": 49.08226
+        }
+      ]
+    },
+    {
+      "routeId": "boucle-50-km",
+      "routeName": "Boucle de 50 km depuis Crouy-sur-Ourcq",
+      "routeNameEn": "50 km loop from Crouy-sur-Ourcq",
+      "start": {
+        "lon": 3.08166,
+        "lat": 49.08633
+      },
+      "via": [
+        {
+          "lon": 3.0765,
+          "lat": 49.09844
+        },
+        {
+          "lon": 3.09391,
+          "lat": 49.11433
+        },
+        {
+          "lon": 3.11831,
+          "lat": 49.1098
+        },
+        {
+          "lon": 3.15487,
+          "lat": 49.10232
+        },
+        {
+          "lon": 3.17436,
+          "lat": 49.11808
+        },
+        {
+          "lon": 3.21067,
+          "lat": 49.12265
+        },
+        {
+          "lon": 3.23455,
+          "lat": 49.11011
+        },
+        {
+          "lon": 3.26333,
+          "lat": 49.11312
+        },
+        {
+          "lon": 3.24876,
+          "lat": 49.11257
+        },
+        {
+          "lon": 3.23749,
+          "lat": 49.09944
+        },
+        {
+          "lon": 3.2538,
+          "lat": 49.07695
+        },
+        {
+          "lon": 3.23883,
+          "lat": 49.05293
+        },
+        {
+          "lon": 3.21814,
+          "lat": 49.05401
+        },
+        {
+          "lon": 3.18948,
+          "lat": 49.0568
+        },
+        {
+          "lon": 3.15686,
+          "lat": 49.04192
+        },
+        {
+          "lon": 3.1412,
+          "lat": 49.053
+        },
+        {
+          "lon": 3.12564,
+          "lat": 49.07048
+        },
+        {
+          "lon": 3.09764,
+          "lat": 49.08124
+        }
+      ]
+    }
+  ]
+}

@@ -49,6 +49,8 @@ import {
   DEFAULT_LOOK,
   MAX_RIDERS_PER_ROOM,
   PRIME_POINTS,
+  climbCategory,
+  komPoints,
   RouteTrack,
   type AvatarLook,
   type BikeSetup,
@@ -978,7 +980,7 @@ export class RideSimulation {
     const key = `${segId}:${lap}`;
     const place = (this.primeCounts.get(key) ?? 0) + 1;
     this.primeCounts.set(key, place);
-    const points = PRIME_POINTS[place - 1];
+    const points = (seg.kind === 'kom' ? komPoints(climbCategory(seg)) : PRIME_POINTS)[place - 1];
     if (points === undefined) return;
     if (seg.kind === 'kom') r.komPts += points;
     else r.sprintPts += points;

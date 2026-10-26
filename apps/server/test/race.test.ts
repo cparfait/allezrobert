@@ -102,15 +102,13 @@ describe('Course', () => {
     const primes = events.filter((e) => e.kind === 'prime') as Array<Extract<RideEventMsg, { kind: 'prime' }>>;
     const kom = primes.filter((p) => p.segmentKind === 'kom');
     expect(kom.map((p) => [p.riderId, p.place, p.points])).toEqual([
-      ['a', 1, 5],
-      ['b', 2, 3],
-      ['c', 3, 1],
+      ['a', 1, 1],
     ]);
     const res = (events.find((e) => e.kind === 'results') as Extract<RideEventMsg, { kind: 'results' }>).results;
     expect(res.map((r) => r.riderId)).toEqual(['a', 'b', 'c', 'd']);
     expect(res[0]).toMatchObject({ status: 'finished', rank: 1, gapMs: 0 });
     expect(res[1]!.gapMs).toBeGreaterThan(0);
-    expect(res.find((r) => r.riderId === 'a')!.komPts).toBeGreaterThanOrEqual(5);
+    expect(res.find((r) => r.riderId === 'a')!.komPts).toBeGreaterThanOrEqual(1);
     expect(res.find((r) => r.riderId === 'd')!.komPts).toBe(0);
     // Heure limite annoncée à la première arrivée.
     const dl = events.find((e) => e.kind === 'deadline') as Extract<RideEventMsg, { kind: 'deadline' }>;

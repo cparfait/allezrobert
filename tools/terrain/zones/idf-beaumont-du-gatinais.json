@@ -1,0 +1,275 @@
+{
+  "kind": "open",
+  "id": "idf-beaumont-du-gatinais",
+  "name": "Île-de-France — Beaumont-du-Gâtinais",
+  "region": "Seine-et-Marne · Île-de-France",
+  "originL93": {
+    "x": 664000,
+    "y": 6788000
+  },
+  "corridorTiles": {
+    "txMin": -8,
+    "txMax": 7,
+    "tzMin": -8,
+    "tzMax": 7
+  },
+  "start": {
+    "lon": 2.48952,
+    "lat": 48.14375
+  },
+  "orthoPx": 1024,
+  "horizon": {
+    "halfSizeM": 30000,
+    "resM": 100
+  },
+  "tours": [
+    {
+      "routeId": "boucle-20-km",
+      "routeName": "Boucle de 20 km depuis Beaumont-du-Gâtinais",
+      "routeNameEn": "20 km loop from Beaumont-du-Gâtinais",
+      "start": {
+        "lon": 2.48952,
+        "lat": 48.14375
+      },
+      "via": [
+        {
+          "lon": 2.46313,
+          "lat": 48.14604
+        },
+        {
+          "lon": 2.44747,
+          "lat": 48.16317
+        },
+        {
+          "lon": 2.46886,
+          "lat": 48.16929
+        },
+        {
+          "lon": 2.49019,
+          "lat": 48.18592
+        },
+        {
+          "lon": 2.49865,
+          "lat": 48.17262
+        },
+        {
+          "lon": 2.51039,
+          "lat": 48.16882
+        },
+        {
+          "lon": 2.49374,
+          "lat": 48.15474
+        }
+      ]
+    },
+    {
+      "routeId": "boucle-30-km",
+      "routeName": "Boucle de 30 km depuis Beaumont-du-Gâtinais",
+      "routeNameEn": "30 km loop from Beaumont-du-Gâtinais",
+      "start": {
+        "lon": 2.48952,
+        "lat": 48.14375
+      },
+      "via": [
+        {
+          "lon": 2.4744,
+          "lat": 48.14998
+        },
+        {
+          "lon": 2.47422,
+          "lat": 48.17383
+        },
+        {
+          "lon": 2.50004,
+          "lat": 48.18613
+        },
+        {
+          "lon": 2.53179,
+          "lat": 48.19079
+        },
+        {
+          "lon": 2.53258,
+          "lat": 48.17678
+        },
+        {
+          "lon": 2.55873,
+          "lat": 48.15325
+        },
+        {
+          "lon": 2.56983,
+          "lat": 48.15153
+        },
+        {
+          "lon": 2.59889,
+          "lat": 48.1427
+        },
+        {
+          "lon": 2.5622,
+          "lat": 48.14134
+        },
+        {
+          "lon": 2.52868,
+          "lat": 48.13932
+        },
+        {
+          "lon": 2.4976,
+          "lat": 48.14249
+        }
+      ]
+    },
+    {
+      "routeId": "boucle-40-km",
+      "routeName": "Boucle de 40 km depuis Beaumont-du-Gâtinais",
+      "routeNameEn": "40 km loop from Beaumont-du-Gâtinais",
+      "start": {
+        "lon": 2.48952,
+        "lat": 48.14375
+      },
+      "via": [
+        {
+          "lon": 2.46313,
+          "lat": 48.14604
+        },
+        {
+          "lon": 2.44747,
+          "lat": 48.16317
+        },
+        {
+          "lon": 2.4168,
+          "lat": 48.16128
+        },
+        {
+          "lon": 2.43939,
+          "lat": 48.16886
+        },
+        {
+          "lon": 2.42465,
+          "lat": 48.18868
+        },
+        {
+          "lon": 2.41576,
+          "lat": 48.20235
+        },
+        {
+          "lon": 2.42119,
+          "lat": 48.21883
+        },
+        {
+          "lon": 2.43242,
+          "lat": 48.2405
+        },
+        {
+          "lon": 2.45607,
+          "lat": 48.2321
+        },
+        {
+          "lon": 2.46714,
+          "lat": 48.2141
+        },
+        {
+          "lon": 2.4882,
+          "lat": 48.20245
+        },
+        {
+          "lon": 2.50278,
+          "lat": 48.19278
+        },
+        {
+          "lon": 2.47881,
+          "lat": 48.17759
+        },
+        {
+          "lon": 2.47264,
+          "lat": 48.15759
+        },
+        {
+          "lon": 2.48695,
+          "lat": 48.1419
+        }
+      ]
+    },
+    {
+      "routeId": "boucle-50-km",
+      "routeName": "Boucle de 50 km depuis Beaumont-du-Gâtinais",
+      "routeNameEn": "50 km loop from Beaumont-du-Gâtinais",
+      "start": {
+        "lon": 2.48952,
+        "lat": 48.14375
+      },
+      "via": [
+        {
+          "lon": 2.46313,
+          "lat": 48.14604
+        },
+        {
+          "lon": 2.44747,
+          "lat": 48.16317
+        },
+        {
+          "lon": 2.46039,
+          "lat": 48.1817
+        },
+        {
+          "lon": 2.47318,
+          "lat": 48.20314
+        },
+        {
+          "lon": 2.49141,
+          "lat": 48.21846
+        },
+        {
+          "lon": 2.5228,
+          "lat": 48.22636
+        },
+        {
+          "lon": 2.55209,
+          "lat": 48.23581
+        },
+        {
+          "lon": 2.58283,
+          "lat": 48.24155
+        },
+        {
+          "lon": 2.61395,
+          "lat": 48.2441
+        },
+        {
+          "lon": 2.60536,
+          "lat": 48.22375
+        },
+        {
+          "lon": 2.60172,
+          "lat": 48.20187
+        },
+        {
+          "lon": 2.59357,
+          "lat": 48.18481
+        },
+        {
+          "lon": 2.62047,
+          "lat": 48.17762
+        },
+        {
+          "lon": 2.61416,
+          "lat": 48.15949
+        },
+        {
+          "lon": 2.60181,
+          "lat": 48.14227
+        },
+        {
+          "lon": 2.56766,
+          "lat": 48.14103
+        },
+        {
+          "lon": 2.53236,
+          "lat": 48.13988
+        },
+        {
+          "lon": 2.50184,
+          "lat": 48.14179
+        }
+      ]
+    }
+  ]
+}

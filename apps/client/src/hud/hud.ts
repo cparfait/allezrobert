@@ -1,4 +1,4 @@
-import { countryName, type RoadGraphData, type RouteSegment, type RouteTrack } from '@allezrobert/shared';
+import { climbCategory, climbCategoryLabel, countryName, type RoadGraphData, type RouteSegment, type RouteTrack } from '@allezrobert/shared';
 import { flagSvg } from '../ui/flagSvg.ts';
 import { getLang, t } from '../i18n/index.ts';
 import { BASEMAP_ATTRIBUTION, basemapUrl } from '../ui/basemap.ts';
@@ -503,7 +503,7 @@ export class Hud {
     if (s.segment) {
       segEl.classList.remove('hidden');
       segEl.classList.toggle('sprint', s.segment.seg.kind === 'sprint');
-      (e.segName as HTMLElement).textContent = `${s.segment.seg.kind === 'kom' ? t('kom') : t('sprint')} · ${s.segment.seg.name}`;
+      (e.segName as HTMLElement).textContent = `${s.segment.seg.kind === 'kom' ? `${t('kom')} (${climbCategoryLabel(climbCategory(s.segment.seg), getLang() === 'fr')})` : t('sprint')} · ${s.segment.seg.name}`;
       const remain = (s.segment.seg.endM - s.segment.seg.startM) * (1 - s.segment.progress);
       (e.segInfo as HTMLElement).textContent = `${fmtTime(s.segment.elapsedS)} · ${Math.round(remain)} m`;
       (e.segBar as HTMLElement).style.width = `${(s.segment.progress * 100).toFixed(1)}%`;

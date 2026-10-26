@@ -1,0 +1,275 @@
+{
+  "kind": "open",
+  "id": "idf-la-ferte-gaucher",
+  "name": "Île-de-France — La Ferté-Gaucher",
+  "region": "Seine-et-Marne · Île-de-France",
+  "originL93": {
+    "x": 728000,
+    "y": 6852000
+  },
+  "corridorTiles": {
+    "txMin": -8,
+    "txMax": 7,
+    "tzMin": -8,
+    "tzMax": 7
+  },
+  "start": {
+    "lon": 3.30256,
+    "lat": 48.79045
+  },
+  "orthoPx": 1024,
+  "horizon": {
+    "halfSizeM": 30000,
+    "resM": 100
+  },
+  "tours": [
+    {
+      "routeId": "boucle-20-km",
+      "routeName": "Boucle de 20 km depuis La Ferté-Gaucher",
+      "routeNameEn": "20 km loop from La Ferté-Gaucher",
+      "start": {
+        "lon": 3.30256,
+        "lat": 48.79045
+      },
+      "via": [
+        {
+          "lon": 3.29193,
+          "lat": 48.8057
+        },
+        {
+          "lon": 3.29775,
+          "lat": 48.8135
+        },
+        {
+          "lon": 3.31627,
+          "lat": 48.81193
+        },
+        {
+          "lon": 3.35212,
+          "lat": 48.81432
+        },
+        {
+          "lon": 3.36575,
+          "lat": 48.80351
+        },
+        {
+          "lon": 3.35462,
+          "lat": 48.79434
+        },
+        {
+          "lon": 3.33162,
+          "lat": 48.7781
+        },
+        {
+          "lon": 3.30563,
+          "lat": 48.78748
+        }
+      ]
+    },
+    {
+      "routeId": "boucle-30-km",
+      "routeName": "Boucle de 30 km depuis La Ferté-Gaucher",
+      "routeNameEn": "30 km loop from La Ferté-Gaucher",
+      "start": {
+        "lon": 3.30256,
+        "lat": 48.79045
+      },
+      "via": [
+        {
+          "lon": 3.31624,
+          "lat": 48.80557
+        },
+        {
+          "lon": 3.3283,
+          "lat": 48.82619
+        },
+        {
+          "lon": 3.34184,
+          "lat": 48.82365
+        },
+        {
+          "lon": 3.37361,
+          "lat": 48.81572
+        },
+        {
+          "lon": 3.39724,
+          "lat": 48.80304
+        },
+        {
+          "lon": 3.39524,
+          "lat": 48.78396
+        },
+        {
+          "lon": 3.38656,
+          "lat": 48.76632
+        },
+        {
+          "lon": 3.36027,
+          "lat": 48.76791
+        },
+        {
+          "lon": 3.33894,
+          "lat": 48.76193
+        },
+        {
+          "lon": 3.31356,
+          "lat": 48.76276
+        },
+        {
+          "lon": 3.30557,
+          "lat": 48.78523
+        }
+      ]
+    },
+    {
+      "routeId": "boucle-40-km",
+      "routeName": "Boucle de 40 km depuis La Ferté-Gaucher",
+      "routeNameEn": "40 km loop from La Ferté-Gaucher",
+      "start": {
+        "lon": 3.30256,
+        "lat": 48.79045
+      },
+      "via": [
+        {
+          "lon": 3.322,
+          "lat": 48.79881
+        },
+        {
+          "lon": 3.35212,
+          "lat": 48.81432
+        },
+        {
+          "lon": 3.38001,
+          "lat": 48.82955
+        },
+        {
+          "lon": 3.39108,
+          "lat": 48.80811
+        },
+        {
+          "lon": 3.41256,
+          "lat": 48.7904
+        },
+        {
+          "lon": 3.4458,
+          "lat": 48.7937
+        },
+        {
+          "lon": 3.46145,
+          "lat": 48.78388
+        },
+        {
+          "lon": 3.45854,
+          "lat": 48.75884
+        },
+        {
+          "lon": 3.43759,
+          "lat": 48.74702
+        },
+        {
+          "lon": 3.42016,
+          "lat": 48.73703
+        },
+        {
+          "lon": 3.38018,
+          "lat": 48.7358
+        },
+        {
+          "lon": 3.35541,
+          "lat": 48.75587
+        },
+        {
+          "lon": 3.33318,
+          "lat": 48.77164
+        },
+        {
+          "lon": 3.30998,
+          "lat": 48.78265
+        }
+      ]
+    },
+    {
+      "routeId": "boucle-50-km",
+      "routeName": "Boucle de 50 km depuis La Ferté-Gaucher",
+      "routeNameEn": "50 km loop from La Ferté-Gaucher",
+      "start": {
+        "lon": 3.30256,
+        "lat": 48.79045
+      },
+      "via": [
+        {
+          "lon": 3.29193,
+          "lat": 48.8057
+        },
+        {
+          "lon": 3.29495,
+          "lat": 48.82279
+        },
+        {
+          "lon": 3.30639,
+          "lat": 48.83467
+        },
+        {
+          "lon": 3.30639,
+          "lat": 48.83467
+        },
+        {
+          "lon": 3.29495,
+          "lat": 48.82279
+        },
+        {
+          "lon": 3.30425,
+          "lat": 48.80767
+        },
+        {
+          "lon": 3.33194,
+          "lat": 48.81282
+        },
+        {
+          "lon": 3.36224,
+          "lat": 48.81797
+        },
+        {
+          "lon": 3.38145,
+          "lat": 48.82961
+        },
+        {
+          "lon": 3.42441,
+          "lat": 48.83146
+        },
+        {
+          "lon": 3.42247,
+          "lat": 48.83464
+        },
+        {
+          "lon": 3.44007,
+          "lat": 48.81804
+        },
+        {
+          "lon": 3.45526,
+          "lat": 48.80106
+        },
+        {
+          "lon": 3.43286,
+          "lat": 48.79
+        },
+        {
+          "lon": 3.40172,
+          "lat": 48.77701
+        },
+        {
+          "lon": 3.37569,
+          "lat": 48.77329
+        },
+        {
+          "lon": 3.35254,
+          "lat": 48.78467
+        },
+        {
+          "lon": 3.30998,
+          "lat": 48.78265
+        }
+      ]
+    }
+  ]
+}

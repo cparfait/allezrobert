@@ -1,0 +1,271 @@
+{
+  "kind": "open",
+  "id": "idf-mantes-la-ville",
+  "name": "Île-de-France — Mantes-la-Ville",
+  "region": "Yvelines · Île-de-France",
+  "originL93": {
+    "x": 600000,
+    "y": 6868000
+  },
+  "corridorTiles": {
+    "txMin": -8,
+    "txMax": 7,
+    "tzMin": -8,
+    "tzMax": 7
+  },
+  "start": {
+    "lon": 1.71022,
+    "lat": 48.97536
+  },
+  "orthoPx": 1024,
+  "horizon": {
+    "halfSizeM": 30000,
+    "resM": 100
+  },
+  "tours": [
+    {
+      "routeId": "boucle-20-km",
+      "routeName": "Boucle de 20 km depuis Mantes-la-Ville",
+      "routeNameEn": "20 km loop from Mantes-la-Ville",
+      "start": {
+        "lon": 1.71022,
+        "lat": 48.97536
+      },
+      "via": [
+        {
+          "lon": 1.71671,
+          "lat": 48.95995
+        },
+        {
+          "lon": 1.71139,
+          "lat": 48.94549
+        },
+        {
+          "lon": 1.69396,
+          "lat": 48.94498
+        },
+        {
+          "lon": 1.68368,
+          "lat": 48.94393
+        },
+        {
+          "lon": 1.67586,
+          "lat": 48.96443
+        },
+        {
+          "lon": 1.68229,
+          "lat": 48.94936
+        },
+        {
+          "lon": 1.70407,
+          "lat": 48.95272
+        }
+      ]
+    },
+    {
+      "routeId": "boucle-30-km",
+      "routeName": "Boucle de 30 km depuis Mantes-la-Ville",
+      "routeNameEn": "30 km loop from Mantes-la-Ville",
+      "start": {
+        "lon": 1.71022,
+        "lat": 48.97536
+      },
+      "via": [
+        {
+          "lon": 1.70698,
+          "lat": 48.95518
+        },
+        {
+          "lon": 1.69058,
+          "lat": 48.9366
+        },
+        {
+          "lon": 1.68488,
+          "lat": 48.91925
+        },
+        {
+          "lon": 1.65656,
+          "lat": 48.9232
+        },
+        {
+          "lon": 1.63381,
+          "lat": 48.93529
+        },
+        {
+          "lon": 1.62588,
+          "lat": 48.95084
+        },
+        {
+          "lon": 1.64092,
+          "lat": 48.96991
+        },
+        {
+          "lon": 1.65485,
+          "lat": 48.96237
+        },
+        {
+          "lon": 1.68229,
+          "lat": 48.94936
+        },
+        {
+          "lon": 1.70407,
+          "lat": 48.95272
+        }
+      ]
+    },
+    {
+      "routeId": "boucle-40-km",
+      "routeName": "Boucle de 40 km depuis Mantes-la-Ville",
+      "routeNameEn": "40 km loop from Mantes-la-Ville",
+      "start": {
+        "lon": 1.71022,
+        "lat": 48.97536
+      },
+      "via": [
+        {
+          "lon": 1.70897,
+          "lat": 48.95531
+        },
+        {
+          "lon": 1.72093,
+          "lat": 48.9412
+        },
+        {
+          "lon": 1.72729,
+          "lat": 48.92877
+        },
+        {
+          "lon": 1.72517,
+          "lat": 48.9084
+        },
+        {
+          "lon": 1.70221,
+          "lat": 48.90479
+        },
+        {
+          "lon": 1.66202,
+          "lat": 48.8963
+        },
+        {
+          "lon": 1.63164,
+          "lat": 48.8971
+        },
+        {
+          "lon": 1.61506,
+          "lat": 48.9187
+        },
+        {
+          "lon": 1.60591,
+          "lat": 48.93722
+        },
+        {
+          "lon": 1.60768,
+          "lat": 48.95512
+        },
+        {
+          "lon": 1.64092,
+          "lat": 48.96991
+        },
+        {
+          "lon": 1.65485,
+          "lat": 48.96237
+        },
+        {
+          "lon": 1.68229,
+          "lat": 48.94936
+        },
+        {
+          "lon": 1.70407,
+          "lat": 48.95272
+        }
+      ]
+    },
+    {
+      "routeId": "boucle-50-km",
+      "routeName": "Boucle de 50 km depuis Mantes-la-Ville",
+      "routeNameEn": "50 km loop from Mantes-la-Ville",
+      "start": {
+        "lon": 1.71022,
+        "lat": 48.97536
+      },
+      "via": [
+        {
+          "lon": 1.71671,
+          "lat": 48.95995
+        },
+        {
+          "lon": 1.72951,
+          "lat": 48.9433
+        },
+        {
+          "lon": 1.72948,
+          "lat": 48.94232
+        },
+        {
+          "lon": 1.73169,
+          "lat": 48.92281
+        },
+        {
+          "lon": 1.73654,
+          "lat": 48.90069
+        },
+        {
+          "lon": 1.73706,
+          "lat": 48.8841
+        },
+        {
+          "lon": 1.71528,
+          "lat": 48.87023
+        },
+        {
+          "lon": 1.70257,
+          "lat": 48.88845
+        },
+        {
+          "lon": 1.67482,
+          "lat": 48.88774
+        },
+        {
+          "lon": 1.65442,
+          "lat": 48.88383
+        },
+        {
+          "lon": 1.63748,
+          "lat": 48.89396
+        },
+        {
+          "lon": 1.6187,
+          "lat": 48.90783
+        },
+        {
+          "lon": 1.61541,
+          "lat": 48.9232
+        },
+        {
+          "lon": 1.60304,
+          "lat": 48.94248
+        },
+        {
+          "lon": 1.61677,
+          "lat": 48.9579
+        },
+        {
+          "lon": 1.64756,
+          "lat": 48.96116
+        },
+        {
+          "lon": 1.67638,
+          "lat": 48.95607
+        },
+        {
+          "lon": 1.69396,
+          "lat": 48.94498
+        },
+        {
+          "lon": 1.7087,
+          "lat": 48.9624
+        }
+      ]
+    }
+  ]
+}

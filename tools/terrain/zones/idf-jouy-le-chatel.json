@@ -1,0 +1,267 @@
+{
+  "kind": "open",
+  "id": "idf-jouy-le-chatel",
+  "name": "Île-de-France — Jouy-le-Châtel",
+  "region": "Seine-et-Marne · Île-de-France",
+  "originL93": {
+    "x": 712000,
+    "y": 6836000
+  },
+  "corridorTiles": {
+    "txMin": -8,
+    "txMax": 7,
+    "tzMin": -8,
+    "tzMax": 7
+  },
+  "start": {
+    "lon": 3.13617,
+    "lat": 48.66717
+  },
+  "orthoPx": 1024,
+  "horizon": {
+    "halfSizeM": 30000,
+    "resM": 100
+  },
+  "tours": [
+    {
+      "routeId": "boucle-20-km",
+      "routeName": "Boucle de 20 km depuis Jouy-le-Châtel",
+      "routeNameEn": "20 km loop from Jouy-le-Châtel",
+      "start": {
+        "lon": 3.13617,
+        "lat": 48.66717
+      },
+      "via": [
+        {
+          "lon": 3.14585,
+          "lat": 48.68691
+        },
+        {
+          "lon": 3.157,
+          "lat": 48.6913
+        },
+        {
+          "lon": 3.19145,
+          "lat": 48.69257
+        },
+        {
+          "lon": 3.21912,
+          "lat": 48.6774
+        },
+        {
+          "lon": 3.20067,
+          "lat": 48.6714
+        },
+        {
+          "lon": 3.18582,
+          "lat": 48.6759
+        },
+        {
+          "lon": 3.15456,
+          "lat": 48.65833
+        }
+      ]
+    },
+    {
+      "routeId": "boucle-30-km",
+      "routeName": "Boucle de 30 km depuis Jouy-le-Châtel",
+      "routeNameEn": "30 km loop from Jouy-le-Châtel",
+      "start": {
+        "lon": 3.13617,
+        "lat": 48.66717
+      },
+      "via": [
+        {
+          "lon": 3.15456,
+          "lat": 48.65833
+        },
+        {
+          "lon": 3.18246,
+          "lat": 48.65918
+        },
+        {
+          "lon": 3.20463,
+          "lat": 48.64484
+        },
+        {
+          "lon": 3.20186,
+          "lat": 48.62116
+        },
+        {
+          "lon": 3.17135,
+          "lat": 48.61088
+        },
+        {
+          "lon": 3.13081,
+          "lat": 48.60864
+        },
+        {
+          "lon": 3.10877,
+          "lat": 48.61515
+        },
+        {
+          "lon": 3.10252,
+          "lat": 48.63149
+        },
+        {
+          "lon": 3.10955,
+          "lat": 48.6384
+        },
+        {
+          "lon": 3.12285,
+          "lat": 48.65744
+        }
+      ]
+    },
+    {
+      "routeId": "boucle-40-km",
+      "routeName": "Boucle de 40 km depuis Jouy-le-Châtel",
+      "routeNameEn": "40 km loop from Jouy-le-Châtel",
+      "start": {
+        "lon": 3.13617,
+        "lat": 48.66717
+      },
+      "via": [
+        {
+          "lon": 3.12285,
+          "lat": 48.65744
+        },
+        {
+          "lon": 3.12768,
+          "lat": 48.64025
+        },
+        {
+          "lon": 3.16523,
+          "lat": 48.6219
+        },
+        {
+          "lon": 3.19405,
+          "lat": 48.61552
+        },
+        {
+          "lon": 3.18721,
+          "lat": 48.61093
+        },
+        {
+          "lon": 3.17186,
+          "lat": 48.59115
+        },
+        {
+          "lon": 3.15265,
+          "lat": 48.56964
+        },
+        {
+          "lon": 3.10498,
+          "lat": 48.56077
+        },
+        {
+          "lon": 3.08274,
+          "lat": 48.56215
+        },
+        {
+          "lon": 3.07884,
+          "lat": 48.58046
+        },
+        {
+          "lon": 3.07267,
+          "lat": 48.60454
+        },
+        {
+          "lon": 3.06971,
+          "lat": 48.62702
+        },
+        {
+          "lon": 3.07071,
+          "lat": 48.65288
+        },
+        {
+          "lon": 3.1074,
+          "lat": 48.65842
+        }
+      ]
+    },
+    {
+      "routeId": "boucle-50-km",
+      "routeName": "Boucle de 50 km depuis Jouy-le-Châtel",
+      "routeNameEn": "50 km loop from Jouy-le-Châtel",
+      "start": {
+        "lon": 3.13617,
+        "lat": 48.66717
+      },
+      "via": [
+        {
+          "lon": 3.15456,
+          "lat": 48.65833
+        },
+        {
+          "lon": 3.18246,
+          "lat": 48.65918
+        },
+        {
+          "lon": 3.20463,
+          "lat": 48.64484
+        },
+        {
+          "lon": 3.20186,
+          "lat": 48.62116
+        },
+        {
+          "lon": 3.17916,
+          "lat": 48.60266
+        },
+        {
+          "lon": 3.18663,
+          "lat": 48.5839
+        },
+        {
+          "lon": 3.18961,
+          "lat": 48.56626
+        },
+        {
+          "lon": 3.15324,
+          "lat": 48.55905
+        },
+        {
+          "lon": 3.14368,
+          "lat": 48.57203
+        },
+        {
+          "lon": 3.11817,
+          "lat": 48.58967
+        },
+        {
+          "lon": 3.08256,
+          "lat": 48.592
+        },
+        {
+          "lon": 3.06711,
+          "lat": 48.5917
+        },
+        {
+          "lon": 3.07267,
+          "lat": 48.60454
+        },
+        {
+          "lon": 3.06971,
+          "lat": 48.62702
+        },
+        {
+          "lon": 3.07071,
+          "lat": 48.65288
+        },
+        {
+          "lon": 3.06753,
+          "lat": 48.65238
+        },
+        {
+          "lon": 3.09749,
+          "lat": 48.65697
+        },
+        {
+          "lon": 3.12918,
+          "lat": 48.66711
+        }
+      ]
+    }
+  ]
+}

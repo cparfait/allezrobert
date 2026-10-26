@@ -1,0 +1,291 @@
+{
+  "kind": "open",
+  "id": "idf-villeparisis",
+  "name": "Île-de-France — Villeparisis",
+  "region": "Seine-et-Marne · Île-de-France",
+  "originL93": {
+    "x": 680000,
+    "y": 6868000
+  },
+  "corridorTiles": {
+    "txMin": -8,
+    "txMax": 7,
+    "tzMin": -8,
+    "tzMax": 7
+  },
+  "start": {
+    "lon": 2.62017,
+    "lat": 48.94042
+  },
+  "orthoPx": 1024,
+  "horizon": {
+    "halfSizeM": 30000,
+    "resM": 100
+  },
+  "tours": [
+    {
+      "routeId": "boucle-20-km",
+      "routeName": "Boucle de 20 km depuis Villeparisis",
+      "routeNameEn": "20 km loop from Villeparisis",
+      "start": {
+        "lon": 2.62017,
+        "lat": 48.94042
+      },
+      "via": [
+        {
+          "lon": 2.64311,
+          "lat": 48.93025
+        },
+        {
+          "lon": 2.66029,
+          "lat": 48.92912
+        },
+        {
+          "lon": 2.6564,
+          "lat": 48.91892
+        },
+        {
+          "lon": 2.65268,
+          "lat": 48.90453
+        },
+        {
+          "lon": 2.62366,
+          "lat": 48.91621
+        },
+        {
+          "lon": 2.65029,
+          "lat": 48.91555
+        },
+        {
+          "lon": 2.63513,
+          "lat": 48.93345
+        }
+      ]
+    },
+    {
+      "routeId": "boucle-30-km",
+      "routeName": "Boucle de 30 km depuis Villeparisis",
+      "routeNameEn": "30 km loop from Villeparisis",
+      "start": {
+        "lon": 2.62017,
+        "lat": 48.94042
+      },
+      "via": [
+        {
+          "lon": 2.64311,
+          "lat": 48.93025
+        },
+        {
+          "lon": 2.66029,
+          "lat": 48.92912
+        },
+        {
+          "lon": 2.66725,
+          "lat": 48.94924
+        },
+        {
+          "lon": 2.65956,
+          "lat": 48.9687
+        },
+        {
+          "lon": 2.66584,
+          "lat": 48.96649
+        },
+        {
+          "lon": 2.69821,
+          "lat": 48.96716
+        },
+        {
+          "lon": 2.69852,
+          "lat": 48.96022
+        },
+        {
+          "lon": 2.69626,
+          "lat": 48.9404
+        },
+        {
+          "lon": 2.71168,
+          "lat": 48.92652
+        },
+        {
+          "lon": 2.68876,
+          "lat": 48.91473
+        },
+        {
+          "lon": 2.66251,
+          "lat": 48.91696
+        },
+        {
+          "lon": 2.65061,
+          "lat": 48.92034
+        },
+        {
+          "lon": 2.62212,
+          "lat": 48.93968
+        }
+      ]
+    },
+    {
+      "routeId": "boucle-40-km",
+      "routeName": "Boucle de 40 km depuis Villeparisis",
+      "routeNameEn": "40 km loop from Villeparisis",
+      "start": {
+        "lon": 2.62017,
+        "lat": 48.94042
+      },
+      "via": [
+        {
+          "lon": 2.64311,
+          "lat": 48.93025
+        },
+        {
+          "lon": 2.66029,
+          "lat": 48.92912
+        },
+        {
+          "lon": 2.66725,
+          "lat": 48.94924
+        },
+        {
+          "lon": 2.67467,
+          "lat": 48.96506
+        },
+        {
+          "lon": 2.69852,
+          "lat": 48.96022
+        },
+        {
+          "lon": 2.69626,
+          "lat": 48.9404
+        },
+        {
+          "lon": 2.7244,
+          "lat": 48.93213
+        },
+        {
+          "lon": 2.7276,
+          "lat": 48.93745
+        },
+        {
+          "lon": 2.71358,
+          "lat": 48.91849
+        },
+        {
+          "lon": 2.71268,
+          "lat": 48.89844
+        },
+        {
+          "lon": 2.69982,
+          "lat": 48.91034
+        },
+        {
+          "lon": 2.67482,
+          "lat": 48.91278
+        },
+        {
+          "lon": 2.65268,
+          "lat": 48.90453
+        },
+        {
+          "lon": 2.65061,
+          "lat": 48.92034
+        },
+        {
+          "lon": 2.62212,
+          "lat": 48.93968
+        }
+      ]
+    },
+    {
+      "routeId": "boucle-50-km",
+      "routeName": "Boucle de 50 km depuis Villeparisis",
+      "routeNameEn": "50 km loop from Villeparisis",
+      "start": {
+        "lon": 2.62017,
+        "lat": 48.94042
+      },
+      "via": [
+        {
+          "lon": 2.64311,
+          "lat": 48.93025
+        },
+        {
+          "lon": 2.66029,
+          "lat": 48.92912
+        },
+        {
+          "lon": 2.68719,
+          "lat": 48.94365
+        },
+        {
+          "lon": 2.69626,
+          "lat": 48.9404
+        },
+        {
+          "lon": 2.72264,
+          "lat": 48.92464
+        },
+        {
+          "lon": 2.7405,
+          "lat": 48.91751
+        },
+        {
+          "lon": 2.71917,
+          "lat": 48.92397
+        },
+        {
+          "lon": 2.71316,
+          "lat": 48.90082
+        },
+        {
+          "lon": 2.70232,
+          "lat": 48.88217
+        },
+        {
+          "lon": 2.7081,
+          "lat": 48.865
+        },
+        {
+          "lon": 2.69099,
+          "lat": 48.8617
+        },
+        {
+          "lon": 2.66331,
+          "lat": 48.86109
+        },
+        {
+          "lon": 2.64352,
+          "lat": 48.85674
+        },
+        {
+          "lon": 2.63706,
+          "lat": 48.87654
+        },
+        {
+          "lon": 2.6249,
+          "lat": 48.88445
+        },
+        {
+          "lon": 2.65875,
+          "lat": 48.88141
+        },
+        {
+          "lon": 2.69138,
+          "lat": 48.88208
+        },
+        {
+          "lon": 2.67367,
+          "lat": 48.89897
+        },
+        {
+          "lon": 2.66251,
+          "lat": 48.91696
+        },
+        {
+          "lon": 2.63873,
+          "lat": 48.93256
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,279 @@
+{
+  "kind": "open",
+  "id": "idf-donnemarie-dontilly",
+  "name": "Île-de-France — Donnemarie-Dontilly",
+  "region": "Seine-et-Marne · Île-de-France",
+  "originL93": {
+    "x": 712000,
+    "y": 6820000
+  },
+  "corridorTiles": {
+    "txMin": -8,
+    "txMax": 7,
+    "tzMin": -8,
+    "tzMax": 7
+  },
+  "start": {
+    "lon": 3.12071,
+    "lat": 48.48171
+  },
+  "orthoPx": 1024,
+  "horizon": {
+    "halfSizeM": 30000,
+    "resM": 100
+  },
+  "tours": [
+    {
+      "routeId": "boucle-20-km",
+      "routeName": "Boucle de 20 km depuis Donnemarie-Dontilly",
+      "routeNameEn": "20 km loop from Donnemarie-Dontilly",
+      "start": {
+        "lon": 3.12071,
+        "lat": 48.48171
+      },
+      "via": [
+        {
+          "lon": 3.10198,
+          "lat": 48.49697
+        },
+        {
+          "lon": 3.10563,
+          "lat": 48.51329
+        },
+        {
+          "lon": 3.13065,
+          "lat": 48.52567
+        },
+        {
+          "lon": 3.15224,
+          "lat": 48.53294
+        },
+        {
+          "lon": 3.16358,
+          "lat": 48.51113
+        },
+        {
+          "lon": 3.13956,
+          "lat": 48.50013
+        },
+        {
+          "lon": 3.13257,
+          "lat": 48.47989
+        }
+      ]
+    },
+    {
+      "routeId": "boucle-30-km",
+      "routeName": "Boucle de 30 km depuis Donnemarie-Dontilly",
+      "routeNameEn": "30 km loop from Donnemarie-Dontilly",
+      "start": {
+        "lon": 3.12071,
+        "lat": 48.48171
+      },
+      "via": [
+        {
+          "lon": 3.13952,
+          "lat": 48.48643
+        },
+        {
+          "lon": 3.14787,
+          "lat": 48.50615
+        },
+        {
+          "lon": 3.16719,
+          "lat": 48.51092
+        },
+        {
+          "lon": 3.19081,
+          "lat": 48.50875
+        },
+        {
+          "lon": 3.20331,
+          "lat": 48.50937
+        },
+        {
+          "lon": 3.22864,
+          "lat": 48.49898
+        },
+        {
+          "lon": 3.23069,
+          "lat": 48.48325
+        },
+        {
+          "lon": 3.22595,
+          "lat": 48.46308
+        },
+        {
+          "lon": 3.20244,
+          "lat": 48.46048
+        },
+        {
+          "lon": 3.17701,
+          "lat": 48.44955
+        },
+        {
+          "lon": 3.15562,
+          "lat": 48.46033
+        },
+        {
+          "lon": 3.12969,
+          "lat": 48.47745
+        }
+      ]
+    },
+    {
+      "routeId": "boucle-40-km",
+      "routeName": "Boucle de 40 km depuis Donnemarie-Dontilly",
+      "routeNameEn": "40 km loop from Donnemarie-Dontilly",
+      "start": {
+        "lon": 3.12071,
+        "lat": 48.48171
+      },
+      "via": [
+        {
+          "lon": 3.13952,
+          "lat": 48.48643
+        },
+        {
+          "lon": 3.14787,
+          "lat": 48.50615
+        },
+        {
+          "lon": 3.16879,
+          "lat": 48.51902
+        },
+        {
+          "lon": 3.20149,
+          "lat": 48.52994
+        },
+        {
+          "lon": 3.20715,
+          "lat": 48.53203
+        },
+        {
+          "lon": 3.20003,
+          "lat": 48.51117
+        },
+        {
+          "lon": 3.2249,
+          "lat": 48.50057
+        },
+        {
+          "lon": 3.24946,
+          "lat": 48.4957
+        },
+        {
+          "lon": 3.25979,
+          "lat": 48.47755
+        },
+        {
+          "lon": 3.24504,
+          "lat": 48.46453
+        },
+        {
+          "lon": 3.22263,
+          "lat": 48.45515
+        },
+        {
+          "lon": 3.19874,
+          "lat": 48.4394
+        },
+        {
+          "lon": 3.16972,
+          "lat": 48.44166
+        },
+        {
+          "lon": 3.15752,
+          "lat": 48.46024
+        },
+        {
+          "lon": 3.13212,
+          "lat": 48.47611
+        }
+      ]
+    },
+    {
+      "routeId": "boucle-50-km",
+      "routeName": "Boucle de 50 km depuis Donnemarie-Dontilly",
+      "routeNameEn": "50 km loop from Donnemarie-Dontilly",
+      "start": {
+        "lon": 3.12071,
+        "lat": 48.48171
+      },
+      "via": [
+        {
+          "lon": 3.14677,
+          "lat": 48.48216
+        },
+        {
+          "lon": 3.17355,
+          "lat": 48.49075
+        },
+        {
+          "lon": 3.19628,
+          "lat": 48.50766
+        },
+        {
+          "lon": 3.21802,
+          "lat": 48.51242
+        },
+        {
+          "lon": 3.23416,
+          "lat": 48.50947
+        },
+        {
+          "lon": 3.2502,
+          "lat": 48.49313
+        },
+        {
+          "lon": 3.25193,
+          "lat": 48.46672
+        },
+        {
+          "lon": 3.24759,
+          "lat": 48.44999
+        },
+        {
+          "lon": 3.26303,
+          "lat": 48.4304
+        },
+        {
+          "lon": 3.23787,
+          "lat": 48.4204
+        },
+        {
+          "lon": 3.22735,
+          "lat": 48.41483
+        },
+        {
+          "lon": 3.22333,
+          "lat": 48.42747
+        },
+        {
+          "lon": 3.19874,
+          "lat": 48.4394
+        },
+        {
+          "lon": 3.16972,
+          "lat": 48.44166
+        },
+        {
+          "lon": 3.14049,
+          "lat": 48.43713
+        },
+        {
+          "lon": 3.12063,
+          "lat": 48.42855
+        },
+        {
+          "lon": 3.11519,
+          "lat": 48.44932
+        },
+        {
+          "lon": 3.12539,
+          "lat": 48.47304
+        }
+      ]
+    }
+  ]
+}

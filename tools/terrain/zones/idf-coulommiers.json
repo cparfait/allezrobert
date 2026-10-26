@@ -1,0 +1,287 @@
+{
+  "kind": "open",
+  "id": "idf-coulommiers",
+  "name": "Île-de-France — Coulommiers",
+  "region": "Seine-et-Marne · Île-de-France",
+  "originL93": {
+    "x": 712000,
+    "y": 6852000
+  },
+  "corridorTiles": {
+    "txMin": -8,
+    "txMax": 7,
+    "tzMin": -8,
+    "tzMax": 7
+  },
+  "start": {
+    "lon": 3.09183,
+    "lat": 48.80962
+  },
+  "orthoPx": 1024,
+  "horizon": {
+    "halfSizeM": 30000,
+    "resM": 100
+  },
+  "tours": [
+    {
+      "routeId": "boucle-20-km",
+      "routeName": "Boucle de 20 km depuis Coulommiers",
+      "routeNameEn": "20 km loop from Coulommiers",
+      "start": {
+        "lon": 3.09183,
+        "lat": 48.80962
+      },
+      "via": [
+        {
+          "lon": 3.12023,
+          "lat": 48.80917
+        },
+        {
+          "lon": 3.132,
+          "lat": 48.79342
+        },
+        {
+          "lon": 3.1395,
+          "lat": 48.79381
+        },
+        {
+          "lon": 3.12541,
+          "lat": 48.77732
+        },
+        {
+          "lon": 3.10532,
+          "lat": 48.76155
+        },
+        {
+          "lon": 3.0986,
+          "lat": 48.77558
+        },
+        {
+          "lon": 3.09796,
+          "lat": 48.79997
+        }
+      ]
+    },
+    {
+      "routeId": "boucle-30-km",
+      "routeName": "Boucle de 30 km depuis Coulommiers",
+      "routeNameEn": "30 km loop from Coulommiers",
+      "start": {
+        "lon": 3.09193,
+        "lat": 48.80973
+      },
+      "via": [
+        {
+          "lon": 3.12023,
+          "lat": 48.80917
+        },
+        {
+          "lon": 3.15213,
+          "lat": 48.81188
+        },
+        {
+          "lon": 3.15602,
+          "lat": 48.79088
+        },
+        {
+          "lon": 3.16,
+          "lat": 48.77372
+        },
+        {
+          "lon": 3.14211,
+          "lat": 48.75642
+        },
+        {
+          "lon": 3.11786,
+          "lat": 48.74008
+        },
+        {
+          "lon": 3.10962,
+          "lat": 48.75348
+        },
+        {
+          "lon": 3.08081,
+          "lat": 48.76676
+        },
+        {
+          "lon": 3.07425,
+          "lat": 48.78408
+        },
+        {
+          "lon": 3.0973,
+          "lat": 48.78565
+        },
+        {
+          "lon": 3.09495,
+          "lat": 48.80607
+        }
+      ]
+    },
+    {
+      "routeId": "boucle-40-km",
+      "routeName": "Boucle de 40 km depuis Coulommiers",
+      "routeNameEn": "40 km loop from Coulommiers",
+      "start": {
+        "lon": 3.09193,
+        "lat": 48.80973
+      },
+      "via": [
+        {
+          "lon": 3.12023,
+          "lat": 48.80917
+        },
+        {
+          "lon": 3.1535,
+          "lat": 48.81415
+        },
+        {
+          "lon": 3.17667,
+          "lat": 48.80468
+        },
+        {
+          "lon": 3.19873,
+          "lat": 48.79519
+        },
+        {
+          "lon": 3.17024,
+          "lat": 48.78679
+        },
+        {
+          "lon": 3.15654,
+          "lat": 48.77252
+        },
+        {
+          "lon": 3.14034,
+          "lat": 48.75411
+        },
+        {
+          "lon": 3.134,
+          "lat": 48.73194
+        },
+        {
+          "lon": 3.14294,
+          "lat": 48.72707
+        },
+        {
+          "lon": 3.11786,
+          "lat": 48.74008
+        },
+        {
+          "lon": 3.08264,
+          "lat": 48.74656
+        },
+        {
+          "lon": 3.0616,
+          "lat": 48.7424
+        },
+        {
+          "lon": 3.07444,
+          "lat": 48.74657
+        },
+        {
+          "lon": 3.08695,
+          "lat": 48.76238
+        },
+        {
+          "lon": 3.09815,
+          "lat": 48.77982
+        },
+        {
+          "lon": 3.09515,
+          "lat": 48.80494
+        }
+      ]
+    },
+    {
+      "routeId": "boucle-50-km",
+      "routeName": "Boucle de 50 km depuis Coulommiers",
+      "routeNameEn": "50 km loop from Coulommiers",
+      "start": {
+        "lon": 3.09193,
+        "lat": 48.80973
+      },
+      "via": [
+        {
+          "lon": 3.12023,
+          "lat": 48.80917
+        },
+        {
+          "lon": 3.1535,
+          "lat": 48.81415
+        },
+        {
+          "lon": 3.18313,
+          "lat": 48.81641
+        },
+        {
+          "lon": 3.1922,
+          "lat": 48.81017
+        },
+        {
+          "lon": 3.20296,
+          "lat": 48.79756
+        },
+        {
+          "lon": 3.20999,
+          "lat": 48.77933
+        },
+        {
+          "lon": 3.22045,
+          "lat": 48.75895
+        },
+        {
+          "lon": 3.24723,
+          "lat": 48.7617
+        },
+        {
+          "lon": 3.21298,
+          "lat": 48.75554
+        },
+        {
+          "lon": 3.19905,
+          "lat": 48.73345
+        },
+        {
+          "lon": 3.20506,
+          "lat": 48.71062
+        },
+        {
+          "lon": 3.17913,
+          "lat": 48.71525
+        },
+        {
+          "lon": 3.15579,
+          "lat": 48.71197
+        },
+        {
+          "lon": 3.14817,
+          "lat": 48.72283
+        },
+        {
+          "lon": 3.12957,
+          "lat": 48.74288
+        },
+        {
+          "lon": 3.10506,
+          "lat": 48.75637
+        },
+        {
+          "lon": 3.07506,
+          "lat": 48.75991
+        },
+        {
+          "lon": 3.06913,
+          "lat": 48.75926
+        },
+        {
+          "lon": 3.09554,
+          "lat": 48.76967
+        },
+        {
+          "lon": 3.0978,
+          "lat": 48.7868
+        }
+      ]
+    }
+  ]
+}

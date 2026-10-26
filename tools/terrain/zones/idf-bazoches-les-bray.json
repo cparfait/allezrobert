@@ -1,0 +1,288 @@
+{
+  "kind": "open",
+  "id": "idf-bazoches-les-bray",
+  "name": "Île-de-France — Bazoches-lès-Bray",
+  "region": "Seine-et-Marne · Île-de-France",
+  "originL93": {
+    "x": 712000,
+    "y": 6804000
+  },
+  "corridorTiles": {
+    "txMin": -8,
+    "txMax": 7,
+    "tzMin": -8,
+    "tzMax": 7
+  },
+  "start": {
+    "lon": 3.19009,
+    "lat": 48.39806
+  },
+  "orthoPx": 1024,
+  "enrich": {
+    "radiusM": 50,
+    "lidarVegetation": true,
+    "bdtopoBuildings": true
+  },
+  "horizon": {
+    "halfSizeM": 30000,
+    "resM": 100
+  },
+  "tours": [
+    {
+      "routeId": "boucle-20-km",
+      "routeName": "Boucle de 20 km depuis Bazoches-lès-Bray",
+      "routeNameEn": "20 km loop from Bazoches-lès-Bray",
+      "start": {
+        "lon": 3.19009,
+        "lat": 48.39806
+      },
+      "via": [
+        {
+          "lon": 3.22281,
+          "lat": 48.40346
+        },
+        {
+          "lon": 3.23466,
+          "lat": 48.38732
+        },
+        {
+          "lon": 3.22314,
+          "lat": 48.36734
+        },
+        {
+          "lon": 3.19482,
+          "lat": 48.35613
+        },
+        {
+          "lon": 3.16554,
+          "lat": 48.33983
+        },
+        {
+          "lon": 3.15089,
+          "lat": 48.35391
+        },
+        {
+          "lon": 3.16939,
+          "lat": 48.37387
+        },
+        {
+          "lon": 3.1809,
+          "lat": 48.39548
+        }
+      ]
+    },
+    {
+      "routeId": "boucle-30-km",
+      "routeName": "Boucle de 30 km depuis Bazoches-lès-Bray",
+      "routeNameEn": "30 km loop from Bazoches-lès-Bray",
+      "start": {
+        "lon": 3.19009,
+        "lat": 48.39806
+      },
+      "via": [
+        {
+          "lon": 3.22281,
+          "lat": 48.40346
+        },
+        {
+          "lon": 3.23466,
+          "lat": 48.38732
+        },
+        {
+          "lon": 3.24305,
+          "lat": 48.37565
+        },
+        {
+          "lon": 3.2528,
+          "lat": 48.38743
+        },
+        {
+          "lon": 3.24305,
+          "lat": 48.37565
+        },
+        {
+          "lon": 3.22129,
+          "lat": 48.36319
+        },
+        {
+          "lon": 3.19482,
+          "lat": 48.35613
+        },
+        {
+          "lon": 3.16554,
+          "lat": 48.33983
+        },
+        {
+          "lon": 3.15089,
+          "lat": 48.35391
+        },
+        {
+          "lon": 3.16939,
+          "lat": 48.37387
+        },
+        {
+          "lon": 3.1809,
+          "lat": 48.39548
+        }
+      ]
+    },
+    {
+      "routeId": "boucle-40-km",
+      "routeName": "Boucle de 40 km depuis Bazoches-lès-Bray",
+      "routeNameEn": "40 km loop from Bazoches-lès-Bray",
+      "start": {
+        "lon": 3.19009,
+        "lat": 48.39806
+      },
+      "via": [
+        {
+          "lon": 3.22281,
+          "lat": 48.40346
+        },
+        {
+          "lon": 3.23466,
+          "lat": 48.38732
+        },
+        {
+          "lon": 3.23256,
+          "lat": 48.35948
+        },
+        {
+          "lon": 3.25348,
+          "lat": 48.34423
+        },
+        {
+          "lon": 3.24557,
+          "lat": 48.34448
+        },
+        {
+          "lon": 3.20417,
+          "lat": 48.3462
+        },
+        {
+          "lon": 3.17277,
+          "lat": 48.33436
+        },
+        {
+          "lon": 3.15106,
+          "lat": 48.33066
+        },
+        {
+          "lon": 3.14244,
+          "lat": 48.31514
+        },
+        {
+          "lon": 3.13811,
+          "lat": 48.32552
+        },
+        {
+          "lon": 3.13329,
+          "lat": 48.34354
+        },
+        {
+          "lon": 3.11981,
+          "lat": 48.35847
+        },
+        {
+          "lon": 3.14265,
+          "lat": 48.36135
+        },
+        {
+          "lon": 3.16459,
+          "lat": 48.36841
+        },
+        {
+          "lon": 3.17726,
+          "lat": 48.38931
+        }
+      ]
+    },
+    {
+      "routeId": "boucle-50-km",
+      "routeName": "Boucle de 50 km depuis Bazoches-lès-Bray",
+      "routeNameEn": "50 km loop from Bazoches-lès-Bray",
+      "start": {
+        "lon": 3.19009,
+        "lat": 48.39806
+      },
+      "via": [
+        {
+          "lon": 3.22281,
+          "lat": 48.40346
+        },
+        {
+          "lon": 3.23466,
+          "lat": 48.38732
+        },
+        {
+          "lon": 3.2295,
+          "lat": 48.36851
+        },
+        {
+          "lon": 3.23152,
+          "lat": 48.34542
+        },
+        {
+          "lon": 3.22543,
+          "lat": 48.32286
+        },
+        {
+          "lon": 3.23145,
+          "lat": 48.307
+        },
+        {
+          "lon": 3.21199,
+          "lat": 48.2912
+        },
+        {
+          "lon": 3.1876,
+          "lat": 48.29813
+        },
+        {
+          "lon": 3.15861,
+          "lat": 48.31085
+        },
+        {
+          "lon": 3.12803,
+          "lat": 48.31528
+        },
+        {
+          "lon": 3.11056,
+          "lat": 48.32232
+        },
+        {
+          "lon": 3.09796,
+          "lat": 48.33456
+        },
+        {
+          "lon": 3.07276,
+          "lat": 48.34685
+        },
+        {
+          "lon": 3.09081,
+          "lat": 48.35158
+        },
+        {
+          "lon": 3.09431,
+          "lat": 48.36825
+        },
+        {
+          "lon": 3.09634,
+          "lat": 48.39006
+        },
+        {
+          "lon": 3.11983,
+          "lat": 48.39425
+        },
+        {
+          "lon": 3.14968,
+          "lat": 48.39535
+        },
+        {
+          "lon": 3.17883,
+          "lat": 48.39505
+        }
+      ]
+    }
+  ]
+}

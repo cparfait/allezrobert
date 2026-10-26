@@ -1,0 +1,283 @@
+{
+  "kind": "open",
+  "id": "idf-fontenay-tresigny",
+  "name": "Île-de-France — Fontenay-Trésigny",
+  "region": "Seine-et-Marne · Île-de-France",
+  "originL93": {
+    "x": 696000,
+    "y": 6852000
+  },
+  "corridorTiles": {
+    "txMin": -8,
+    "txMax": 7,
+    "tzMin": -8,
+    "tzMax": 7
+  },
+  "start": {
+    "lon": 2.86923,
+    "lat": 48.69991
+  },
+  "orthoPx": 1024,
+  "horizon": {
+    "halfSizeM": 30000,
+    "resM": 100
+  },
+  "tours": [
+    {
+      "routeId": "boucle-20-km",
+      "routeName": "Boucle de 20 km depuis Fontenay-Trésigny",
+      "routeNameEn": "20 km loop from Fontenay-Trésigny",
+      "start": {
+        "lon": 2.86923,
+        "lat": 48.69991
+      },
+      "via": [
+        {
+          "lon": 2.87221,
+          "lat": 48.71894
+        },
+        {
+          "lon": 2.89092,
+          "lat": 48.7296
+        },
+        {
+          "lon": 2.9274,
+          "lat": 48.73368
+        },
+        {
+          "lon": 2.95162,
+          "lat": 48.72799
+        },
+        {
+          "lon": 2.94154,
+          "lat": 48.70895
+        },
+        {
+          "lon": 2.91207,
+          "lat": 48.70194
+        },
+        {
+          "lon": 2.88717,
+          "lat": 48.70279
+        },
+        {
+          "lon": 2.87063,
+          "lat": 48.70169
+        }
+      ]
+    },
+    {
+      "routeId": "boucle-30-km",
+      "routeName": "Boucle de 30 km depuis Fontenay-Trésigny",
+      "routeNameEn": "30 km loop from Fontenay-Trésigny",
+      "start": {
+        "lon": 2.86921,
+        "lat": 48.69995
+      },
+      "via": [
+        {
+          "lon": 2.86896,
+          "lat": 48.7184
+        },
+        {
+          "lon": 2.86648,
+          "lat": 48.74318
+        },
+        {
+          "lon": 2.89124,
+          "lat": 48.75325
+        },
+        {
+          "lon": 2.91398,
+          "lat": 48.76569
+        },
+        {
+          "lon": 2.93299,
+          "lat": 48.75837
+        },
+        {
+          "lon": 2.94828,
+          "lat": 48.74003
+        },
+        {
+          "lon": 2.96797,
+          "lat": 48.72859
+        },
+        {
+          "lon": 2.95799,
+          "lat": 48.7177
+        },
+        {
+          "lon": 2.91552,
+          "lat": 48.70218
+        },
+        {
+          "lon": 2.88717,
+          "lat": 48.70279
+        },
+        {
+          "lon": 2.87063,
+          "lat": 48.70169
+        }
+      ]
+    },
+    {
+      "routeId": "boucle-40-km",
+      "routeName": "Boucle de 40 km depuis Fontenay-Trésigny",
+      "routeNameEn": "40 km loop from Fontenay-Trésigny",
+      "start": {
+        "lon": 2.86921,
+        "lat": 48.69995
+      },
+      "via": [
+        {
+          "lon": 2.87221,
+          "lat": 48.71894
+        },
+        {
+          "lon": 2.87847,
+          "lat": 48.7373
+        },
+        {
+          "lon": 2.86474,
+          "lat": 48.75072
+        },
+        {
+          "lon": 2.84435,
+          "lat": 48.74217
+        },
+        {
+          "lon": 2.86506,
+          "lat": 48.75741
+        },
+        {
+          "lon": 2.86475,
+          "lat": 48.76043
+        },
+        {
+          "lon": 2.88722,
+          "lat": 48.75321
+        },
+        {
+          "lon": 2.91398,
+          "lat": 48.76569
+        },
+        {
+          "lon": 2.92091,
+          "lat": 48.78411
+        },
+        {
+          "lon": 2.93573,
+          "lat": 48.77672
+        },
+        {
+          "lon": 2.94498,
+          "lat": 48.74851
+        },
+        {
+          "lon": 2.9513,
+          "lat": 48.73075
+        },
+        {
+          "lon": 2.94743,
+          "lat": 48.71049
+        },
+        {
+          "lon": 2.91552,
+          "lat": 48.70218
+        },
+        {
+          "lon": 2.88717,
+          "lat": 48.70279
+        },
+        {
+          "lon": 2.87063,
+          "lat": 48.70169
+        }
+      ]
+    },
+    {
+      "routeId": "boucle-50-km",
+      "routeName": "Boucle de 50 km depuis Fontenay-Trésigny",
+      "routeNameEn": "50 km loop from Fontenay-Trésigny",
+      "start": {
+        "lon": 2.86921,
+        "lat": 48.69995
+      },
+      "via": [
+        {
+          "lon": 2.87221,
+          "lat": 48.71894
+        },
+        {
+          "lon": 2.87847,
+          "lat": 48.7373
+        },
+        {
+          "lon": 2.86474,
+          "lat": 48.75072
+        },
+        {
+          "lon": 2.84435,
+          "lat": 48.74217
+        },
+        {
+          "lon": 2.86506,
+          "lat": 48.75741
+        },
+        {
+          "lon": 2.86601,
+          "lat": 48.7798
+        },
+        {
+          "lon": 2.87145,
+          "lat": 48.80031
+        },
+        {
+          "lon": 2.89032,
+          "lat": 48.82206
+        },
+        {
+          "lon": 2.92199,
+          "lat": 48.8143
+        },
+        {
+          "lon": 2.94497,
+          "lat": 48.80524
+        },
+        {
+          "lon": 2.95295,
+          "lat": 48.78609
+        },
+        {
+          "lon": 2.96951,
+          "lat": 48.76214
+        },
+        {
+          "lon": 2.98083,
+          "lat": 48.74384
+        },
+        {
+          "lon": 2.98457,
+          "lat": 48.72421
+        },
+        {
+          "lon": 2.97055,
+          "lat": 48.70713
+        },
+        {
+          "lon": 2.94265,
+          "lat": 48.70328
+        },
+        {
+          "lon": 2.89733,
+          "lat": 48.7022
+        },
+        {
+          "lon": 2.86994,
+          "lat": 48.70945
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,271 @@
+{
+  "kind": "open",
+  "id": "idf-magny-en-vexin",
+  "name": "Île-de-France — Magny-en-Vexin",
+  "region": "Val-d'Oise · Île-de-France",
+  "originL93": {
+    "x": 616000,
+    "y": 6900000
+  },
+  "corridorTiles": {
+    "txMin": -8,
+    "txMax": 7,
+    "tzMin": -8,
+    "tzMax": 7
+  },
+  "start": {
+    "lon": 1.80536,
+    "lat": 49.16104
+  },
+  "orthoPx": 1024,
+  "horizon": {
+    "halfSizeM": 30000,
+    "resM": 100
+  },
+  "tours": [
+    {
+      "routeId": "boucle-20-km",
+      "routeName": "Boucle de 20 km depuis Magny-en-Vexin",
+      "routeNameEn": "20 km loop from Magny-en-Vexin",
+      "start": {
+        "lon": 1.80536,
+        "lat": 49.16104
+      },
+      "via": [
+        {
+          "lon": 1.80592,
+          "lat": 49.15002
+        },
+        {
+          "lon": 1.83388,
+          "lat": 49.13375
+        },
+        {
+          "lon": 1.83183,
+          "lat": 49.1337
+        },
+        {
+          "lon": 1.80641,
+          "lat": 49.12931
+        },
+        {
+          "lon": 1.77747,
+          "lat": 49.13636
+        },
+        {
+          "lon": 1.76515,
+          "lat": 49.13544
+        },
+        {
+          "lon": 1.78446,
+          "lat": 49.1544
+        }
+      ]
+    },
+    {
+      "routeId": "boucle-30-km",
+      "routeName": "Boucle de 30 km depuis Magny-en-Vexin",
+      "routeNameEn": "30 km loop from Magny-en-Vexin",
+      "start": {
+        "lon": 1.80536,
+        "lat": 49.16104
+      },
+      "via": [
+        {
+          "lon": 1.78053,
+          "lat": 49.15324
+        },
+        {
+          "lon": 1.77217,
+          "lat": 49.14895
+        },
+        {
+          "lon": 1.77674,
+          "lat": 49.16562
+        },
+        {
+          "lon": 1.74969,
+          "lat": 49.16985
+        },
+        {
+          "lon": 1.76877,
+          "lat": 49.17397
+        },
+        {
+          "lon": 1.75417,
+          "lat": 49.19415
+        },
+        {
+          "lon": 1.74681,
+          "lat": 49.20734
+        },
+        {
+          "lon": 1.77574,
+          "lat": 49.22025
+        },
+        {
+          "lon": 1.79387,
+          "lat": 49.21262
+        },
+        {
+          "lon": 1.80034,
+          "lat": 49.19473
+        },
+        {
+          "lon": 1.82572,
+          "lat": 49.18605
+        },
+        {
+          "lon": 1.80846,
+          "lat": 49.16487
+        }
+      ]
+    },
+    {
+      "routeId": "boucle-40-km",
+      "routeName": "Boucle de 40 km depuis Magny-en-Vexin",
+      "routeNameEn": "40 km loop from Magny-en-Vexin",
+      "start": {
+        "lon": 1.80536,
+        "lat": 49.16104
+      },
+      "via": [
+        {
+          "lon": 1.78294,
+          "lat": 49.16026
+        },
+        {
+          "lon": 1.76884,
+          "lat": 49.17546
+        },
+        {
+          "lon": 1.75271,
+          "lat": 49.19563
+        },
+        {
+          "lon": 1.78117,
+          "lat": 49.2013
+        },
+        {
+          "lon": 1.79293,
+          "lat": 49.22154
+        },
+        {
+          "lon": 1.78995,
+          "lat": 49.22801
+        },
+        {
+          "lon": 1.81757,
+          "lat": 49.22507
+        },
+        {
+          "lon": 1.84805,
+          "lat": 49.24352
+        },
+        {
+          "lon": 1.84991,
+          "lat": 49.24336
+        },
+        {
+          "lon": 1.84678,
+          "lat": 49.22534
+        },
+        {
+          "lon": 1.86402,
+          "lat": 49.20525
+        },
+        {
+          "lon": 1.87958,
+          "lat": 49.18935
+        },
+        {
+          "lon": 1.88456,
+          "lat": 49.17641
+        },
+        {
+          "lon": 1.85736,
+          "lat": 49.16066
+        },
+        {
+          "lon": 1.82755,
+          "lat": 49.15779
+        }
+      ]
+    },
+    {
+      "routeId": "boucle-50-km",
+      "routeName": "Boucle de 50 km depuis Magny-en-Vexin",
+      "routeNameEn": "50 km loop from Magny-en-Vexin",
+      "start": {
+        "lon": 1.80536,
+        "lat": 49.16104
+      },
+      "via": [
+        {
+          "lon": 1.8131,
+          "lat": 49.18063
+        },
+        {
+          "lon": 1.83033,
+          "lat": 49.19898
+        },
+        {
+          "lon": 1.81104,
+          "lat": 49.20767
+        },
+        {
+          "lon": 1.81757,
+          "lat": 49.22507
+        },
+        {
+          "lon": 1.84678,
+          "lat": 49.22534
+        },
+        {
+          "lon": 1.88679,
+          "lat": 49.2228
+        },
+        {
+          "lon": 1.90883,
+          "lat": 49.23386
+        },
+        {
+          "lon": 1.92165,
+          "lat": 49.20873
+        },
+        {
+          "lon": 1.94537,
+          "lat": 49.18727
+        },
+        {
+          "lon": 1.95366,
+          "lat": 49.17522
+        },
+        {
+          "lon": 1.92785,
+          "lat": 49.16042
+        },
+        {
+          "lon": 1.90314,
+          "lat": 49.14623
+        },
+        {
+          "lon": 1.89605,
+          "lat": 49.13026
+        },
+        {
+          "lon": 1.88597,
+          "lat": 49.14857
+        },
+        {
+          "lon": 1.85487,
+          "lat": 49.15759
+        },
+        {
+          "lon": 1.82755,
+          "lat": 49.15779
+        }
+      ]
+    }
+  ]
+}
