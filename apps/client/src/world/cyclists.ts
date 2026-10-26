@@ -149,8 +149,9 @@ export class AmbientCyclists {
       scene.add(avatar.root);
       // Loisir en duo côte à côte, club en file serrée (roue dans la roue au-delà de 25 km/h).
       const row = pairs ? Math.floor(k / 2) : k;
-      const gap = li >= 2 ? 1.5 + this.r() * 0.4 : 2.2 + this.r() * 0.8;
-      members.push({ avatar, off: -row * gap, latOff: pairs && k % 2 ? -0.75 * sens : 0, cadenceOff: Math.round((this.r() - 0.5) * 8) });
+      // Le vélo fait 1,75 m : sous 2,1 m entre les centres, les roues se chevauchent.
+      const gap = li >= 2 ? 2.25 + this.r() * 0.35 : pairs ? 3.1 + this.r() * 0.5 : 2.9 + this.r() * 0.9;
+      members.push({ avatar, off: -row * gap, latOff: pairs && k % 2 ? -1.0 * sens : 0, cadenceOff: Math.round((this.r() - 0.5) * 8) });
     }
     const mass = lv.mass[0] + this.r() * (lv.mass[1] - lv.mass[0]);
     const length = Math.abs((members[members.length - 1] as Member).off);
