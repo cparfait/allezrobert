@@ -953,7 +953,8 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   const crowd = new Crowd(track, (x, z) => world.terrain.heightAt(x, z), { riderName: s.name, density: engine.quality.crowdDensity });
   engine.scene.add(crowd.group);
   engine.scene.add(new TownSigns(track, (x, z) => world.terrain.heightAt(x, z)).group);
-  engine.scene.add(new FinishBanners(track, (x, z) => world.terrain.heightAt(x, z)).group);
+  const banners = new FinishBanners(track, (x, z) => world.terrain.heightAt(x, z));
+  engine.scene.add(banners.group);
   // Monde vivant (circulation, cyclistes croisés) : désactivable par ?traffic=0.
   const alive = params.get('traffic') !== '0' && engine.quality.trafficDensity > 0;
   // Voitures (modèles chargés à la demande ; primitives si indisponibles).
@@ -1500,6 +1501,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     }
     lap('conditions');
     const prevD = ride.state.distM;
+    banners.setLap(ride.lap, s.mode === 'race' ? s.raceLaps : undefined);
     // Ligne franchie en course : plus de pédalage, le coureur roule sur sa lancée.
     ride.update(dt, room?.finished ? coastInput : input, steer);
     lap('physique');

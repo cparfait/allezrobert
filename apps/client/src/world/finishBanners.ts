@@ -90,14 +90,33 @@ function flameGeometry(): THREE.BufferGeometry {
  */
 export class FinishBanners {
   readonly group = new THREE.Group();
+  /** Panneau côté arrivée de l'arche d'une boucle : « ARRIVÉE » au dernier tour, sinon les kilomètres parcourus. */
+  private loopFront: { mat: THREE.MeshStandardNodeMaterial; ratio: number; text: string } | null = null;
+  private lapLengthM = 0;
+
+  /**
+   * Boucle de plusieurs tours : à chaque passage de la ligne, « ARRIVÉE » seulement au dernier tour ;
+   * avant, la distance parcourue (`lap` = tour en cours, 1 à `laps`). `laps` absent : sortie libre, jamais « ARRIVÉE ».
+   */
+  setLap(lap: number, laps?: number): void {
+    const lf = this.loopFront;
+    if (!lf) return;
+    const text = laps !== undefined && lap >= laps ? 'ARRIVÉE' : `${((lap * this.lapLengthM) / 1000).toFixed(1).replace('.', ',')} KM`;
+    if (text === lf.text) return;
+    lf.text = text;
+    lf.mat.map?.dispose();
+    lf.mat.map = bannerTexture('finish', lf.ratio, undefined, text);
+    lf.mat.needsUpdate = true;
+  }
 
   constructor(track: RouteTrack, groundAt: (x: number, z: number) => number) {
     this.group.name = 'finish-banners';
     const len = track.length;
+    this.lapLengthM = len;
     // Boucle : une seule arche, départ et arrivée ; sinon une arche de départ 6 m après la ligne de départ.
     const loop = track.route.loop;
-    const spots: Array<{ d: number; kind: Kind; summit?: Summit; label?: string }> = [{ d: len - 0.5, kind: 'finish', label: loop ? 'DÉPART · ARRIVÉE' : 'ARRIVÉE' }];
-    if (!loop) spots.push({ d: 6, kind: 'start', label: 'DÉPART' });
+    const spots: Array<{ d: number; kind: Kind; summit?: Summit; label?: string; backLabel?: string }> = [{ d: len - 0.5, kind: 'finish', label: 'ARRIVÉE', backLabel: loop ? 'DÉPART' : 'ARRIVÉE' }];
+    if (!loop) spots.push({ d: 6, kind: 'start', label: 'DÉPART', backLabel: 'DÉPART' });
     if (len > 3000) spots.push({ d: len - 1000, kind: 'km1' });
     if (len > 15000) spots.push({ d: len - 10000, kind: 'km10' });
     // Sommet de chaque côte, comme les banderoles du Grand Prix de la montagne.
@@ -112,7 +131,7 @@ export class FinishBanners {
     const flameMat = new THREE.MeshStandardNodeMaterial({ color: '#d4141c', roughness: 0.6, side: THREE.DoubleSide });
     const TUBE = 0.5; // rayon du boudin gonflable
     const tubeColor: Record<Kind, string> = { finish: '#1f5fbf', start: '#1f5fbf', km1: '#c8102e', km10: '#1f5fbf', summit: '#f4f4f4' };
-    for (const { d, kind, summit, label } of spots) {
+    for (const { d, kind, summit, label, backLabel } of spots) {
       const p = track.positionAt(d, 0);
       const ground = groundAt(p.x, p.z);
       const y = Number.isFinite(ground) ? ground : p.y;
@@ -140,10 +159,13 @@ export class FinishBanners {
       const bw = hw * 1.6;
       const bh = kind === 'finish' || kind === 'start' || kind === 'summit' ? 1.5 : 1.3;
       const bannerMat = new THREE.MeshStandardNodeMaterial({ map: bannerTexture(kind, bw / bh, summit, label), roughness: 0.7 });
+      if (kind === 'finish' && loop) this.loopFront = { mat: bannerMat, ratio: bw / bh, text: label ?? '' };
+      // Verso : sur une boucle, les coureurs qui viennent de partir voient « DÉPART », ceux qui arrivent « ARRIVÉE ».
+      const backMat = backLabel && backLabel !== label ? new THREE.MeshStandardNodeMaterial({ map: bannerTexture(kind, bw / bh, summit, backLabel), roughness: 0.7 }) : bannerMat;
       const py = H - TUBE - bh / 2 - 0.1;
       const front = new THREE.Mesh(new THREE.PlaneGeometry(bw, bh), bannerMat);
       front.position.set(0, py, TUBE + 0.02);
-      const back = new THREE.Mesh(new THREE.PlaneGeometry(bw, bh), bannerMat);
+      const back = new THREE.Mesh(new THREE.PlaneGeometry(bw, bh), backMat);
       back.position.set(0, py, -TUBE - 0.02);
       back.rotation.y = Math.PI;
       g.add(front, back);
