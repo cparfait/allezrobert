@@ -115,8 +115,8 @@ export const TIRE_PROFILES: Record<Surface, TireProfile> = {
   smooth: { roar: 1, roarHz: 0, q: 1.1, hiss: 0.15, hissHz: 4200, crunch: 0, cobble: 0 },
   rough: { roar: 1.45, roarHz: 70, q: 0.8, hiss: 0.8, hissHz: 3400, crunch: 0.15, cobble: 0 },
   cobbles: { roar: 1.3, roarHz: 30, q: 0.6, hiss: 0.4, hissHz: 3000, crunch: 0.08, cobble: 1 },
-  gravel: { roar: 1.2, roarHz: 100, q: 0.5, hiss: 0.55, hissHz: 1900, crunch: 0.5, cobble: 0 },
-  dirt: { roar: 0.7, roarHz: -40, q: 0.6, hiss: 0.25, hissHz: 1700, crunch: 0.18, cobble: 0 },
+  gravel: { roar: 0.8, roarHz: 60, q: 0.6, hiss: 0.25, hissHz: 1700, crunch: 0, cobble: 0 },
+  dirt: { roar: 0.6, roarHz: -40, q: 0.6, hiss: 0.15, hissHz: 1500, crunch: 0, cobble: 0 },
 };
 
 /** Espacement moyen des pavés (m). */

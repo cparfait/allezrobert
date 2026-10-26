@@ -71,16 +71,17 @@ describe('roulement', () => {
     }
   });
 
-  it('est plus présent sur revêtement rugueux, pavés et gravier que sur enrobé lisse', () => {
+  it('est plus présent sur revêtement rugueux, et pavés que sur enrobé lisse ; discret sur les chemins', () => {
     for (const v of [4, 8, 12]) {
       const smooth = tireTotal('smooth', v);
       expect(tireTotal('rough', v)).toBeGreaterThan(smooth * 1.4);
       expect(tireTotal('cobbles', v)).toBeGreaterThan(tireTotal('rough', v));
-      expect(tireTotal('gravel', v)).toBeGreaterThan(tireTotal('rough', v));
+      // Chemins : roulement discret, sans craquement (trop fort et irréaliste).
+      expect(tireTotal('gravel', v)).toBeLessThan(tireTotal('rough', v));
     }
     expect(tireMix('smooth', 10).crunch.gain).toBe(0);
     expect(tireMix('smooth', 10).cobble.gain).toBe(0);
-    expect(tireMix('gravel', 10).crunch.gain).toBeGreaterThan(0.2);
+    expect(tireMix('gravel', 10).crunch.gain).toBe(0);
   });
 
   it('pavés : un impact tous les 16 cm', () => {
