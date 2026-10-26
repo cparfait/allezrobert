@@ -39,7 +39,7 @@ export class World {
   horizon: FarTerrain | null = null;
   private disposed = false;
   /** Revêtement sous chaque émetteur de poussière (recalculé tous les 8 m). */
-  private readonly surfaceCache = new Map<string, { x: number; z: number; unpaved: boolean }>();
+  private readonly surfaceCache = new Map<string, { x: number; z: number; unpaved: boolean; dusty: boolean }>();
   /** Contrôle visuel (?dust=force) : tout chemin est traité comme non revêtu. */
   forceUnpaved = new URLSearchParams(location.search).get('dust') === 'force';
   readonly source: WorldSource;
@@ -254,15 +254,24 @@ export class World {
     }
   }
 
-  /** Chemin non revêtu sous (x, z) (route OSM la plus proche), mis en cache par émetteur. */
-  isUnpavedAt(id: string, x: number, z: number): boolean {
-    if (this.forceUnpaved) return true;
+  /** Revêtement sous (x, z) (route OSM la plus proche), mis en cache par émetteur. */
+  private surfaceFor(id: string, x: number, z: number): { unpaved: boolean; dusty: boolean } {
     const c = this.surfaceCache.get(id);
-    if (c && Math.hypot(c.x - x, c.z - z) < 8) return c.unpaved;
+    if (c && Math.hypot(c.x - x, c.z - z) < 8) return c;
     const s = surfaceUnder(this.terrain.getTile(...this.terrain.tileCoord(x, z)), x, z);
-    const unpaved = s?.unpaved ?? false;
-    this.surfaceCache.set(id, { x, z, unpaved });
-    return unpaved;
+    const e = { x, z, unpaved: s?.unpaved ?? false, dusty: s?.dusty ?? false };
+    this.surfaceCache.set(id, e);
+    return e;
+  }
+
+  /** Chemin non revêtu sous (x, z). */
+  isUnpavedAt(id: string, x: number, z: number): boolean {
+    return this.forceUnpaved || this.surfaceFor(id, x, z).unpaved;
+  }
+
+  /** Terre, sable ou gravier sous (x, z) : seuls revêtements qui soulèvent de la poussière. */
+  isDustyAt(id: string, x: number, z: number): boolean {
+    return this.forceUnpaved || this.surfaceFor(id, x, z).dusty;
   }
 
   /**
@@ -270,7 +279,7 @@ export class World {
    * `id` : identifiant stable de l'émetteur ; (dx, dz) : direction de marche.
    */
   kickDust(id: string, x: number, y: number, z: number, dx: number, dz: number, speedMs: number, dt: number): void {
-    if (this.env.state.weather.rain > 0.25 || !this.isUnpavedAt(id, x, z)) return;
+    if (this.env.state.weather.rain > 0.25 || !this.isDustyAt(id, x, z)) return;
     this.dust.emit(id, x, y, z, dx, dz, speedMs, dt);
   }
 

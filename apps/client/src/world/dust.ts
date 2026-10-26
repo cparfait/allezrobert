@@ -1,10 +1,12 @@
 import * as THREE from 'three/webgpu';
-import { instancedBufferAttribute, float, vec3, uniform, smoothstep, uv, mix, hash, instanceIndex } from 'three/tsl';
+import { instancedBufferAttribute, float, vec3, uniform, smoothstep, uv, mix, hash, instanceIndex, atan, sin } from 'three/tsl';
 import type { QualitySettings } from '../engine/quality.ts';
 import type { LoadedTile } from './types.ts';
 
 /** Revêtements OSM non goudronnés (poussière, roulement plus rugueux). */
 export const UNPAVED_SURFACES = new Set(['unpaved', 'gravel', 'fine_gravel', 'dirt', 'ground', 'compacted', 'earth', 'sand', 'grass', 'pebblestone', 'mud']);
+/** Seuls la terre, le sable et le gravier soulèvent de la poussière (pas l'herbe, les chemins verts ou la boue). */
+export const DUSTY_SURFACES = new Set(['dirt', 'earth', 'sand', 'gravel', 'fine_gravel', 'pebblestone']);
 const LIFE = 2.6;
 
 /** Revêtement d'une route OSM : `unpaved` si le tag l'indique ou si c'est une piste sans revêtement. */
@@ -32,15 +34,15 @@ function distToPolyline(x: number, z: number, pts: number[]): number {
  * Revêtement sous un point : la route OSM la plus proche (≤ demi-largeur + 1,5 m) de la tuile.
  * `null` hors de toute route.
  */
-export function surfaceUnder(tile: LoadedTile | undefined, x: number, z: number): { unpaved: boolean; kind: string } | null {
+export function surfaceUnder(tile: LoadedTile | undefined, x: number, z: number): { unpaved: boolean; dusty: boolean; kind: string } | null {
   if (!tile) return null;
-  let best: { unpaved: boolean; kind: string } | null = null;
+  let best: { unpaved: boolean; dusty: boolean; kind: string } | null = null;
   let bd = Infinity;
   for (const r of tile.features.roads) {
     const d = distToPolyline(x, z, r.pts) - r.width / 2;
     if (d < 1.5 && d < bd) {
       bd = d;
-      best = { unpaved: isUnpaved(r.kind, r.surface), kind: r.kind };
+      best = { unpaved: isUnpaved(r.kind, r.surface), dusty: !!r.surface && DUSTY_SURFACES.has(r.surface), kind: r.kind };
     }
   }
   return best;
@@ -88,11 +90,15 @@ export class Dust {
     m.positionNode = P.xyz.add(V.xyz.mul(drag)).add(drift).add(rise);
     m.scaleNode = float(0.25).add(k.mul(V.w)).mul(age.lessThan(LIFE).select(float(1), float(0)));
     // Disque doux, opacité qui monte vite puis s'éteint.
-    const r = uv().sub(0.5).length();
+    const c = uv().sub(0.5);
+    const h = hash(instanceIndex);
+    // Contour irrégulier : le rayon varie avec l'angle (lobes différents pour chaque particule).
+    const ang = atan(c.y, c.x);
+    const lobes = sin(ang.mul(3).add(h.mul(6.28))).mul(0.18).add(sin(ang.mul(5).add(h.mul(17))).mul(0.12)).add(sin(ang.mul(2).sub(h.mul(9))).mul(0.1));
+    const r = c.length().mul(float(1).add(lobes));
     // smoothstep(a, b, x) exige a < b en WGSL : bords inversés = résultat indéfini (carrés en mosaïque).
     const soft = float(1).sub(smoothstep(0, 0.5, r));
     const fade = smoothstep(0, 0.12, age).mul(float(1).sub(smoothstep(0.35, 1, k)));
-    const h = hash(instanceIndex);
     m.colorNode = mix(this.tint, this.tint.mul(0.85), h);
     const alpha = soft.mul(fade).mul(0.1);
     m.opacityNode = alpha;
