@@ -127,6 +127,8 @@ export interface SummaryVariables extends Omit<CommonVariables, 'preview_backdro
   calories_kcal: number;
   leaderboard?: LeaderboardEntry[] | string;
   segments?: SegmentHighlight[] | string;
+  /** Photos prises au sommet (images `data:image/jpeg`, 3 au plus). */
+  photos?: string[] | string;
   accent?: string;
 }
 

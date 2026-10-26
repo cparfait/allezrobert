@@ -41,6 +41,8 @@ export interface RideSummaryInput {
   records?: RideRecordLike[];
   leaderboard?: LeaderboardEntry[];
   segments?: SegmentHighlight[];
+  /** Photos du sommet (images `data:image/jpeg`), 3 au plus. */
+  photos?: string[];
 }
 
 export function downsample<T>(arr: readonly T[], max: number): T[] {
@@ -173,6 +175,7 @@ export function summaryVariablesFromRide(input: RideSummaryInput): SummaryVariab
     calories_kcal: Math.round(caloriesKcal),
     leaderboard: (input.leaderboard ?? []).slice(0, 8),
     segments: (input.segments ?? []).slice(0, 3),
+    photos: (input.photos ?? []).filter((p) => p.startsWith('data:image/')).slice(0, 3),
     ...(input.accent ? { accent: input.accent } : {}),
   };
 }

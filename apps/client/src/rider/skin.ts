@@ -22,6 +22,10 @@ import { jerseySleeve, SOCK_HIGH_T, SUIT_THIGH_T, type JerseyFrame, type SleeveN
  * En sortie, la rougeur et la sueur suivent l'effort (SkinMaterial.update).
  */
 
+/** Début de la main sur l'attribut « jsl » (poignet = 2) et fin des mitaines (≈ 10 cm au-delà, bras ≈ 58 cm). */
+const GLOVE_T = 1.99;
+const MITT_END_T = 2.17;
+
 export interface SkinTextures {
   albedo: THREE.Texture;
   masks: THREE.Texture;
@@ -81,6 +85,9 @@ export class SkinMaterial {
   private readonly sockColor = colorUniform('#f2f2f2');
   private readonly sockHigh = uniform(0);
   private readonly suit = uniform(0);
+  private readonly gloveColor = colorUniform('#16161a');
+  private readonly gloveFull = uniform(0);
+  private readonly gloveMitt = uniform(0);
 
   /** `jersey` : mesures du maillot ; avec elles, les manches longues sont peintes sur les avant-bras. */
   constructor(tex: SkinTextures, look: SkinLook, jersey: JerseyFrame | null = null, avatar?: AvatarLook) {
@@ -113,9 +120,12 @@ export class SkinMaterial {
     const sock = jersey && avatar ? leg.mul(step(1 + SOCK_HIGH_T, u)).mul(this.sockHigh) : null;
     // Cuissard long : cuisse sous l'ourlet du cuissard et tout le mollet, en lycra du cuissard.
     const suit = jersey && avatar ? leg.mul(step(SUIT_THIGH_T, u)).mul(this.suit) : null;
+    // Gants : la main commence à jsl ≥ 2 (poignet) ; les mitaines s'arrêtent aux articulations (≈ 10 cm de la main).
+    const glove = jersey && avatar ? step(GLOVE_T, jsl).mul(max(this.gloveFull, this.gloveMitt.mul(step(jsl, MITT_END_T)))) : null;
     const sleeveCover = this.sleeve ? this.sleeve.weight : null;
     const legCover = suit && sock ? max(suit, sock) : suit ?? sock;
-    const cover = sleeveCover && legCover ? max(sleeveCover, legCover) : sleeveCover ?? legCover;
+    const cover0 = sleeveCover && legCover ? max(sleeveCover, legCover) : sleeveCover ?? legCover;
+    const cover = glove && cover0 ? max(cover0, glove) : cover0;
     // Couleur du tissu : cuissard long puis chaussette sur la jambe, maillot sur le bras.
     // Plis du lycra tiré au creux du genou : fines lignes en travers de la jambe, qui s'estompent
     // en s'éloignant de l'articulation (u = 1), un peu plus claires que le tissu.
@@ -123,7 +133,8 @@ export class SkinMaterial {
     const creases = abs(sin(u.mul(95).add(sin(uv().x.mul(40)).mul(0.6)))).pow(5).mul(kneeZone);
     const suitCol = vec3(0.0052, 0.0059, 0.0078).add(creases.mul(0.012));
     const legCol = suit && sock ? mix(suitCol, this.sockColor.node, sock) : sock ? this.sockColor.node : suitCol;
-    const clothCol = this.sleeve && sleeveCover && legCover ? mix(legCol, this.sleeve.color, sleeveCover) : this.sleeve ? this.sleeve.color : legCol;
+    const clothCol0 = this.sleeve && sleeveCover && legCover ? mix(legCol, this.sleeve.color, sleeveCover) : this.sleeve ? this.sleeve.color : legCol;
+    const clothCol = glove ? mix(clothCol0, this.gloveColor.node, glove) : clothCol0;
     if (cover) col = mix(col, clothCol, cover);
     m.colorNode = col;
     // Sueur : peau plus brillante sur les mêmes zones (et un peu partout).
@@ -157,6 +168,9 @@ export class SkinMaterial {
     this.sockColor.set(look.socks ?? '#f2f2f2');
     this.sockHigh.value = look.sockHeight === 'high' ? 1 : 0;
     this.suit.value = look.legs === 'long' ? 1 : 0;
+    this.gloveColor.set(look.gloveColor ?? '#16161a');
+    this.gloveFull.value = look.gloves === 'full' ? 1 : 0;
+    this.gloveMitt.value = look.gloves === 'mitts' ? 1 : 0;
   }
 
   setLook(look: SkinLook): void {

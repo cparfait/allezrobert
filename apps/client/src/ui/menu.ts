@@ -1458,6 +1458,8 @@ export class MainMenu {
             <label class="field">${L ? 'Chaussettes' : 'Socks'}<input id="m-socks" type="color" value="${this.s.look.socks ?? '#f2f2f2'}" /></label>
             ${this.sockHeightToggle()}
             ${this.legsToggle()}
+            ${this.glovesToggle()}
+            <label class="field">${L ? 'Couleur des gants' : 'Glove colour'}<input id="m-glove-color" type="color" value="${this.s.look.gloveColor ?? '#16161a'}" /></label>
           </div>
           <h3 class="mm-presets-title">${L ? 'Tenues préréglées' : 'Kit presets'}</h3>
           <div class="mm-items mm-kits">${OUTFITS.map(
@@ -1468,7 +1470,7 @@ export class MainMenu {
         : this.garageSlot === 'bike'
         ? this.bikeListHtml(lp.level, p.equipped.bike)
         : this.garageSlot === 'jersey'
-        ? `${this.sleevesToggle()}${this.legsToggle()}${this.jerseyPacksHtml(lp.level, p.equipped.jersey)}`
+        ? `${this.sleevesToggle()}${this.legsToggle()}${this.glovesToggle()}${this.jerseyPacksHtml(lp.level, p.equipped.jersey)}`
         : `${this.garageSlot === 'socks' ? this.sockHeightToggle() : ''}<div class="mm-items">${this.garageItems(lp.level)
             .map((c) => this.itemHtml(c, lp.level, p.equipped[c.slot]))
             .join('')}</div>`;
@@ -1529,6 +1531,16 @@ export class MainMenu {
     return `<div class="field mm-sleeves">${L ? 'Cuissard' : 'Shorts'}${this.seg('m-legs', this.s.look.legs ?? 'short', [
       ['short', L ? 'Courts' : 'Short'],
       ['long', L ? 'Longs' : 'Long'],
+    ])}</div>`;
+  }
+
+  /** Gants : aucun, mitaines ou gants longs (look.gloves) ; aperçu immédiat. */
+  private glovesToggle(): string {
+    const L = fr();
+    return `<div class="field mm-sleeves">${L ? 'Gants' : 'Gloves'}${this.seg('m-gloves', this.s.look.gloves ?? 'none', [
+      ['none', L ? 'Sans' : 'None'],
+      ['mitts', L ? 'Mitaines' : 'Mitts'],
+      ['full', L ? 'Longs' : 'Full'],
     ])}</div>`;
   }
 
@@ -2532,6 +2544,15 @@ export class MainMenu {
     });
     on<HTMLElement>('m-sock-height', 'change', (el) => {
       s.look = { ...s.look, sockHeight: (el as unknown as { value: string }).value === 'high' ? 'high' : 'low' };
+      changed();
+    });
+    on<HTMLElement>('m-gloves', 'change', (el) => {
+      const v = (el as unknown as { value: string }).value;
+      s.look = { ...s.look, gloves: v === 'mitts' || v === 'full' ? v : 'none' };
+      changed();
+    });
+    on<HTMLInputElement>('m-glove-color', 'input', (el) => {
+      s.look = { ...s.look, gloveColor: el.value };
       changed();
     });
     on<HTMLElement>('m-sleeves', 'change', (el) => {

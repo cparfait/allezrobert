@@ -101,6 +101,10 @@ export interface AvatarLook {
   sockHeight?: 'low' | 'high';
   /** Cuissard : court (défaut) ou long, jusqu'à la cheville. */
   legs?: 'short' | 'long';
+  /** Gants : aucun (défaut), mitaines (doigts nus, jusqu'aux articulations) ou gants longs (toute la main). */
+  gloves?: 'none' | 'mitts' | 'full';
+  /** Couleur des gants ; absente : noir. */
+  gloveColor?: string;
   /** Vélo affiché : route (défaut), gravel ou VTT (selon le vélo équipé au garage). */
   bikeType?: 'road' | 'gravel' | 'mtb';
   /** Curseurs de forme du visage et du corps (face.ts, encodeFace) ; absent : tête de base. */

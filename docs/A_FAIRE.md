@@ -22,9 +22,9 @@ ni vérifié à l'image** ; les derniers commits « wip » sont du travail non t
       (départ groupé, classement, arrivée, podium, primes, abandon).
 - [ ] Demi-tour des équipiers IA, pancartes du public, repli Discord : commités ; à vérifier
       en jeu.
-- [ ] Vidéo résumé MP4 (`apps/server/src/render/`, `apps/client/src/ui/summaryvideo.ts`, non
-      terminé) : terminer le rendu (ffmpeg), la file d'attente, l'écran de fin ; documenter dans
-      `docs/DEPLOY.md`.
+- [x] Vidéo résumé MP4 : rendu FFmpeg (repli, testé : 18 s avec 2 photos), file, écran de fin et
+      photos du sommet (scène HyperFrames « Au sommet » non rendue faute de Chromium ici) ;
+      documenté dans `docs/DEPLOY.md` § 12 ter.
 - [ ] Mettre à jour `docs/ROADMAP.md`, `docs/GUIDE_COUREUR.md`, `ASSETS_LICENSES.md` pour ces
       deux chantiers.
 
@@ -45,7 +45,7 @@ ni vérifié à l'image** ; les derniers commits « wip » sont du travail non t
 
 ## 3. Reste de la feuille de route
 
-- [ ] Fantôme d'un ami (décrit dans `docs/ARCHITECTURE.md`, « Amis »).
+- [x] Fantôme d'un ami (`PUT /api/ghost/:routeId`, `GET /api/friends/ghost`) : à voir en jeu à deux comptes.
 - [ ] Rapport réellement engagé du Di2 (protocole E-TUBE non public) ; appli compagnon en
       sortie solo.
 - [ ] Spin-down : confirmer que le KICKR CORE l'annonce en FTMS ; confirmer la disposition des

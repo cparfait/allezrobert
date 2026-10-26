@@ -1,17 +1,16 @@
 # TODO
 
 ## Roues carbone 40 / 55 / 88 mm
-- [ ] Ajouter les vraies références connues pour chaque profondeur (Zipp, ENVE, DT Swiss, Roval…).
+- [x] Vraies références ajoutées à l'atelier (Roval Alpinist / Rapide, Zipp 404 / 808, Campagnolo Bora WTO 60, ENVE SES 7.8). Reste : un vrai modèle 3D de jante ≥ 80 mm (le plus haut profil dessiné est le 65 mm).
 
 ## Pause : rubrique « Son »
 - [x] Ajouter une rubrique « Son » dans le menu pause, avec son propre titre, comme « Graphismes ».
 
 ## Gestion du peloton en groupe
-À préciser avec Christophe :
-- [ ] Forme du peloton (en file, à deux de front, en éventail).
-- [ ] Relais qui tournent.
-- [ ] Pouvoir demander aux IA de rouler plus vite, plus doucement, ou de t'attendre.
-- [ ] Autre chose ? (à définir)
+Décidé et fait (touche F : auto / file indienne / deux files tournantes / bordure ; K : « attendez-moi » ; R : ralentir ; [ ] : allure) — à valider en jeu par Christophe :
+- [x] Forme du peloton (`packages/physics/src/formation.ts`).
+- [x] Relais qui tournent (deux files, la rapide remonte, la lente se laisse glisser).
+- [x] Ordres aux IA : plus vite ([ ]), plus doucement (R), m'attendre (K) ; aussi sur l'appli compagnon.
 
 ## Atelier
 - [ ] Mur plus réaliste (essai retiré : abîmait le décor).

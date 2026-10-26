@@ -33,6 +33,8 @@ const PhoneCommandSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('photo') }),
   z.object({ kind: z.literal('slowDown') }),
   z.object({ kind: z.literal('pace'), delta: z.union([z.literal(-1), z.literal(1)]) }),
+  z.object({ kind: z.literal('waitMe') }),
+  z.object({ kind: z.literal('formation') }),
   z.object({ kind: z.literal('sync') }),
 ]);
 

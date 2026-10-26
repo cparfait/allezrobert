@@ -22,7 +22,7 @@ import { normalizeCode } from '../ride/registry.ts';
 import { activeRooms } from '../ride/RideRoom.ts';
 import { readHeartbeat } from '../render/worker.ts';
 import { normalizedPower } from '@allezrobert/physics';
-import { COUNTRY_CODE_RE, FACE_CODE_RE, SHOE_MARKS, completedKits, equippedTuneIds, tuneItem, type ShoeMarkId } from '@allezrobert/shared';
+import { COUNTRY_CODE_RE, GHOST_MAX_S, FACE_CODE_RE, SHOE_MARKS, completedKits, equippedTuneIds, tuneItem, type ShoeMarkId } from '@allezrobert/shared';
 import { buy, migrateLegacyWheels, rewardRide } from '../progression/atelier.ts';
 import type { ActivitySummaryRow } from '../db/repos.ts';
 
@@ -54,6 +54,8 @@ const AvatarSchema = z.object({
   heightCm: z.number().min(120).max(230).optional(),
   jerseyStyle: z.enum(['uni', 'bandes', 'pois', 'manches', 'moitie', 'degrade', 'chevrons']).optional(),
   sleeves: z.enum(['short', 'long']).optional(),
+  gloves: z.enum(['none', 'mitts', 'full']).optional(),
+  gloveColor: hex.optional(),
   bottles: z.union([z.literal(0), z.literal(1), z.literal(2)]).optional(),
   jerseyLogo: z.object({ id: z.string().regex(/^[a-z0-9-]{1,32}$/), tint: hex.optional(), w: z.number().min(0.05).max(0.3).optional(), y: z.number().min(0.2).max(0.9).optional() }).optional(),
   jerseyDots: z.object({ r: z.number().min(1).max(10), step: z.number().min(4).max(40) }).optional(),
@@ -92,7 +94,7 @@ export function mountApi(app: express.Application, ctx: AppContext): void {
   const api = express.Router();
   api.use(cors(ctx));
   api.use(originCheck(ctx));
-  api.use(express.json({ limit: '256kb' }));
+  api.use(express.json({ limit: '1mb' }));
   api.use(loadUser(ctx));
 
   api.use('/auth', authRoutes(ctx));
@@ -503,6 +505,22 @@ export function mountApi(app: express.Application, ctx: AppContext): void {
     res.json(grant);
   });
 
+  /* ───────────── Fantôme : meilleur tour du coureur (vu par ses amis) ───────────── */
+  api.put('/ghost/:routeId', async (req: AuthedRequest, res) => {
+    const u = requireUser(req);
+    const routeId = z.string().min(1).max(80).parse(req.params.routeId);
+    const body = z.object({ lapTimeS: z.number().finite().min(30).max(GHOST_MAX_S), dist: z.array(z.number().finite().min(0).max(1_000_000)).min(30).max(GHOST_MAX_S + 5) }).strict().parse(req.body);
+    // Une valeur par seconde, croissante, de la durée du tour : sinon ce n'est pas un tour.
+    const d = body.dist;
+    if (d[0]! > 50 || d.some((v, i) => i > 0 && v < d[i - 1]!) || Math.abs(d.length - body.lapTimeS) > 5) throw new HttpError(400, 'Tour invalide', 'invalid');
+    const known = ctx.routes.get(routeId);
+    if (!known) throw new HttpError(404, 'Itinéraire inconnu', 'not_found');
+    // Vitesse moyenne plausible (≤ 16,7 m/s = 60 km/h) comme pour les temps d'itinéraire.
+    if ((d[d.length - 1]! - d[0]!) / body.lapTimeS > 16.7) throw new HttpError(400, 'Tour invalide', 'invalid');
+    const saved = await ctx.repos.putGhostLap(u.userId, routeId, Math.round(body.lapTimeS * 1000), d.map((v) => Math.round(v * 10) / 10));
+    res.json({ saved });
+  });
+
   /* ───────────── Rendu vidéo ───────────── */
   api.post('/renders', async (req: AuthedRequest, res) => {
     const u = requireUser(req);
@@ -512,6 +530,8 @@ export function mountApi(app: express.Application, ctx: AppContext): void {
         activityId: z.string().uuid().optional(),
         lang: z.enum(['fr', 'en']).optional(),
         variables: z.record(z.string().max(64), z.union([z.string().max(500), z.number(), z.boolean()])).default({}),
+        /** Photos du sommet (vidéo résumé) : JPEG réduits côté client, 3 au plus. */
+        photos: z.array(z.string().regex(/^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/).max(280_000)).max(3).default([]),
       })
       .parse(req.body);
     if ((await ctx.repos.countPendingRenders(u.userId)) >= 3) throw new HttpError(429, 'Trois rendus au plus en attente', 'rate_limited');
@@ -524,7 +544,7 @@ export function mountApi(app: express.Application, ctx: AppContext): void {
       const a = await ctx.repos.getActivity(u.userId, body.activityId);
       const fit = await ctx.repos.getActivityFit(u.userId, body.activityId);
       if (!a || !fit) throw new HttpError(404, 'Sortie introuvable', 'not_found');
-      payload = { kind: 'summary', lang, input: rideSummaryInput(ctx, a, fit, profile?.displayName ?? u.name, lang, body.variables) };
+      payload = { kind: 'summary', lang, input: { ...rideSummaryInput(ctx, a, fit, profile?.displayName ?? u.name, lang, body.variables), ...(body.photos.length ? { photos: body.photos } : {}) } };
     } else {
       payload = { kind: 'sequence', lang, variables: { lang, ...body.variables } };
     }

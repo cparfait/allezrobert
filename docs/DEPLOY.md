@@ -284,6 +284,22 @@ le menu affiche simplement l'image fixe de la saison.
 Application Windows : `pnpm --filter @allezrobert/desktop build` embarque ce qui se trouve dans
 `apps/client/public/menu/` au moment du build ; générer (ou copier) les vidéos avant.
 
+## 12 ter. Vidéo résumé MP4 (rendu sur le serveur)
+
+Le bouton « Créer la vidéo (MP4) » de l'écran de fin met un rendu en file (table `render_jobs`) ; un *worker* le traite, l'écran de fin suit l'état (en file → en cours → terminé) puis affiche la vidéo et le lien de téléchargement.
+
+| Mode | Prérequis | Résultat |
+| --- | --- | --- |
+| **HyperFrames** (conteneur `renderer`) | Node 22, FFmpeg, Chromium (image `-renderer`) | 1920×1080, 28 s, 1 à 3 min |
+| **Repli FFmpeg** (automatique si HyperFrames est absent ou échoue) | FFmpeg seul (`apt install ffmpeg fonts-dejavu-core`) | 1280×720, 12 s, ~15 s |
+| Sans FFmpeg | — | « Rendu MP4 indisponible » : le jeu joue le résumé animé dans le navigateur |
+
+- `RENDER_INLINE=true` : le serveur de jeu traite lui-même la file (petit VPS, pas de conteneur `renderer`). Sinon `COMPOSE_PROFILES=renderer`.
+- Variables : `RENDERS_DIR` (volume `renders`), `RENDER_QUALITY` (`draft`, `looks`, `delivery`), `RENDER_TIMEOUT_S` (900), `RENDER_POLL_S` (5), `FFMPEG_PATH` si FFmpeg n'est pas dans le `PATH`.
+- Trois rendus au plus en attente par compte ; la vidéo se régénère, les MP4 ne sont pas sauvegardés.
+- **Photos du sommet** : le client réduit les photos prises sur les KOM (3 au plus, JPEG ≤ 200 Ko) et les joint à la demande (`photos`, corps JSON limité à 1 Mo). HyperFrames les place dans une scène « Au sommet » (à la place du classement en solo, sinon des meilleurs moments) ; le repli FFmpeg ajoute une diapositive de 3 s par photo.
+- Vérifier : `GET /api/renders/capabilities` renvoie `{"available":true,"engine":"hyperframes"|"ffmpeg"}` ; sinon `docker compose logs renderer` (ou les journaux du serveur en mode inline).
+
 ## 13. Premier déploiement
 
 ```bash

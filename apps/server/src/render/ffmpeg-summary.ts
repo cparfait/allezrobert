@@ -23,11 +23,15 @@ export interface FallbackSummaryInput {
   stats?: Partial<{ distanceKm: number; durationS: number; elevationM: number; avgPowerW: number; npW: number }>;
   records?: Array<{ altitudeM?: number; distanceM?: number }>;
   elevation?: number[];
+  /** Photos du sommet (images `data:image/jpeg;base64,…`), 3 au plus : une diapositive chacune. */
+  photos?: string[];
 }
 
 export const FALLBACK_W = 1280;
 export const FALLBACK_H = 720;
 export const FALLBACK_DURATION_S = 12;
+/** Durée d'une diapositive de photo du sommet (s). */
+export const PHOTO_SLIDE_S = 3;
 const BG: [number, number, number] = [14, 20, 36];
 const ACCENT: [number, number, number] = [255, 210, 63];
 const PROFILE = { x: 90, y: 420, w: 1100, h: 220 };
@@ -143,7 +147,7 @@ function q(v: string): string {
 }
 
 /** Graphe de filtres (écrit dans un fichier : pas d'échappement par le shell). */
-export function filterGraph(texts: TextItem[], textFiles: string[], caps: Pick<RenderCapabilities, 'drawtext'>): string {
+export function filterGraph(texts: TextItem[], textFiles: string[], caps: Pick<RenderCapabilities, 'drawtext'>, photoCount = 0): string {
   const f: string[] = [];
   // Dévoilement du profil de 2,5 s à 7,5 s : un cache de la couleur du fond glisse vers la droite.
   f.push(`overlay=x='${PROFILE.x}+${PROFILE.w + 4}*min(max((t-2.5)/5\\,0)\\,1)':y=${PROFILE.y - 6}:eval=frame:shortest=1`);
@@ -156,7 +160,16 @@ export function filterGraph(texts: TextItem[], textFiles: string[], caps: Pick<R
     });
   }
   f.push('fade=t=in:st=0:d=0.4', `fade=t=out:st=${FALLBACK_DURATION_S - 0.8}:d=0.8`, 'format=yuv420p');
-  return `color=c=0x0e1424:s=${PROFILE.w + 10}x${PROFILE.h + 12}:r=30[cache];[0:v][cache]${f.join(',')}[v]`;
+  const head = `color=c=0x0e1424:s=${PROFILE.w + 10}x${PROFILE.h + 12}:r=30[cache];[0:v][cache]${f.join(',')}`;
+  if (photoCount <= 0) return `${head}[v]`;
+  // Photos du sommet : une diapositive par image (entrées 1..n), enchaînées après le résumé.
+  const slides = Array.from(
+    { length: photoCount },
+    (_, i) =>
+      `[${i + 1}:v]scale=${FALLBACK_W}:${FALLBACK_H}:force_original_aspect_ratio=decrease,pad=${FALLBACK_W}:${FALLBACK_H}:(ow-iw)/2:(oh-ih)/2:color=0x0e1424,setsar=1,fps=30,fade=t=in:st=0:d=0.5,fade=t=out:st=${PHOTO_SLIDE_S - 0.5}:d=0.5,format=yuv420p[p${i}]`,
+  );
+  const labels = ['[m]', ...Array.from({ length: photoCount }, (_, i) => `[p${i}]`)].join('');
+  return `${head}[m];${slides.join(';')};${labels}concat=n=${photoCount + 1}:v=1:a=0[v]`;
 }
 
 function runFfmpeg(bin: string, args: string[], timeoutS: number): Promise<void> {
@@ -187,12 +200,20 @@ export async function renderFallbackSummary(input: FallbackSummaryInput, output:
     const files = texts.map((_, i) => path.join(dir, `t${i}.txt`));
     await Promise.all(texts.map((t, i) => writeFile(files[i]!, t.text)));
     const graphFile = path.join(dir, 'graph.txt');
-    await writeFile(graphFile, filterGraph(texts, files, caps));
+    const photoFiles: string[] = [];
+    for (const [i, src] of (input.photos ?? []).slice(0, 3).entries()) {
+      const m = /^data:image\/(?:jpeg|png|webp);base64,([A-Za-z0-9+/=]+)$/.exec(src);
+      if (!m) continue;
+      const f = path.join(dir, `photo${i}.img`);
+      await writeFile(f, Buffer.from(m[1]!, 'base64'));
+      photoFiles.push(f);
+    }
+    await writeFile(graphFile, filterGraph(texts, files, caps, photoFiles.length));
     await mkdir(path.dirname(output), { recursive: true });
     const codec = caps.libx264 ? ['-c:v', 'libx264', '-preset', 'veryfast', '-crf', '22'] : ['-c:v', 'mpeg4', '-q:v', '4'];
     await runFfmpeg(
       caps.ffmpeg,
-      ['-hide_banner', '-loglevel', 'error', '-y', '-loop', '1', '-framerate', '30', '-t', String(FALLBACK_DURATION_S), '-i', path.join(dir, 'bg.ppm'), '-filter_complex_script', graphFile, '-map', '[v]', ...codec, '-r', '30', '-movflags', '+faststart', output],
+      ['-hide_banner', '-loglevel', 'error', '-y', '-loop', '1', '-framerate', '30', '-t', String(FALLBACK_DURATION_S), '-i', path.join(dir, 'bg.ppm'), ...photoFiles.flatMap((f) => ['-loop', '1', '-framerate', '30', '-t', String(PHOTO_SLIDE_S), '-i', f]), '-filter_complex_script', graphFile, '-map', '[v]', ...codec, '-r', '30', '-movflags', '+faststart', output],
       opts.timeoutS ?? 300,
     );
     const st = await stat(output);

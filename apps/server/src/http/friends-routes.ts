@@ -15,6 +15,7 @@ import {
   FRIENDS_POLL_S,
   isFriendCode,
   normalizeFriendCode,
+  type FriendGhostLap,
   type FriendJoinInfo,
   type FriendRequestResult,
   type FriendsOverview,
@@ -176,6 +177,28 @@ export function friendRoutes(ctx: AppContext): express.Router {
     const ride = hub.currentRide(rel.otherId);
     if (!ride) throw new HttpError(404, `${rel.name} ne roule pas en ce moment`, 'not_riding');
     res.json(joinInfo(ride));
+  });
+
+  /**
+   * Fantôme d'un ami : son meilleur tour sur l'itinéraire (celui de l'ami indiqué par l'identifiant de
+   * la relation, sinon le plus rapide de tous les amis). 404 si aucun ami n'a encore de tour.
+   */
+  r.get('/ghost', async (req: AuthedRequest, res) => {
+    const u = requireUser(req);
+    const q = z.object({ routeId: z.string().min(1).max(80), friendId: IdSchema.optional() }).parse(req.query);
+    let ids: string[];
+    if (q.friendId) {
+      const rel = await repo.relation(q.friendId, u.userId);
+      if (!rel || rel.status !== 'accepted') throw notFound();
+      ids = [rel.otherId];
+    } else {
+      ids = await repo.friendIdsOf(u.userId);
+    }
+    const g = await ctx.repos.bestGhostLap(ids, q.routeId);
+    if (!g) throw notFound();
+    const body: FriendGhostLap = { name: g.name, lapTimeS: g.lapTimeMs / 1000, dist: g.dist, date: g.recordedAt.toISOString(), look: g.avatar };
+    res.setHeader('Cache-Control', 'no-store');
+    res.json(body);
   });
 
   /** Records personnels d'un ami sur un itinéraire (segments KOM / sprint). */

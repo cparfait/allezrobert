@@ -646,7 +646,7 @@ function ctrlHtml(): string {
     <label class="slider"><span>${esc(t.fan)}</span><input type="range" min="0" max="100" step="5" value="${st.fanPercent ?? 0}" id="c-fan"/><output id="c-fanv">${st.fanPercent ?? 0} %</output></label>
     ${
       st.team
-        ? `<h2>${esc(t.team)}</h2><div class="row3"><button class="btn big" data-cmd="pace-down">${esc(t.paceDown)}</button><button class="btn big" data-cmd="slowdown">${esc(t.slowDown)}</button><button class="btn big" data-cmd="pace-up">${esc(t.paceUp)}</button></div>`
+        ? `<h2>${esc(t.team)}</h2><div class="row3"><button class="btn big" data-cmd="pace-down">${esc(t.paceDown)}</button><button class="btn big" data-cmd="slowdown">${esc(t.slowDown)}</button><button class="btn big" data-cmd="pace-up">${esc(t.paceUp)}</button></div><div class="row3"><button class="btn big" data-cmd="waitme">${esc(t.waitMe)}</button><button class="btn big" data-cmd="formation">${esc(t.formation)}</button></div>`
         : ''
     }
   </section>`;
@@ -924,6 +924,8 @@ app.addEventListener('click', (e) => {
     else if (d.cmd === 'hud') send({ kind: 'hud' });
     else if (d.cmd === 'uturn') send({ kind: 'uturn' });
     else if (d.cmd === 'slowdown') send({ kind: 'slowDown' });
+    else if (d.cmd === 'waitme') send({ kind: 'waitMe' });
+    else if (d.cmd === 'formation') send({ kind: 'formation' });
     else if (d.cmd === 'pace-up') send({ kind: 'pace', delta: 1 });
     else if (d.cmd === 'pace-down') send({ kind: 'pace', delta: -1 });
   }

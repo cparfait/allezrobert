@@ -63,6 +63,9 @@ export type PhoneCommand =
   /** Équipiers IA : « ralentissez », ou allure du groupe ±5 % FTP. */
   | { kind: 'slowDown' }
   | { kind: 'pace'; delta: -1 | 1 }
+  /** « Attendez-moi » et forme du peloton (auto, file, deux files, bordure). */
+  | { kind: 'waitMe' }
+  | { kind: 'formation' }
   /** Demande de l'état complet et de la route (arrivée, retour au premier plan). */
   | { kind: 'sync' };
 

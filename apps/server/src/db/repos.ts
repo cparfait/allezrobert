@@ -435,6 +435,38 @@ export class Repos {
     return r.rows.map((row) => ({ userId: row.user_id, name: row.display_name, bestMs: toNum(row.best_ms), efforts: toNum(row.efforts) }));
   }
 
+  /* ───────────── Fantômes (meilleur tour) ───────────── */
+
+  /** Enregistre le meilleur tour d'un coureur sur un itinéraire ; renvoie faux s'il n'est pas meilleur que l'actuel. */
+  async putGhostLap(userId: string, routeId: string, lapTimeMs: number, dist: number[]): Promise<boolean> {
+    const cur = (await this.db.query('SELECT lap_time_ms FROM ghost_laps WHERE user_id = $1 AND route_id = $2', [userId, routeId])).rows[0];
+    if (cur && toNum(cur.lap_time_ms) <= lapTimeMs) return false;
+    if (cur) await this.db.query('UPDATE ghost_laps SET lap_time_ms = $3, dist = $4, recorded_at = now() WHERE user_id = $1 AND route_id = $2', [userId, routeId, lapTimeMs, JSON.stringify(dist)]);
+    else await this.db.query('INSERT INTO ghost_laps (user_id, route_id, lap_time_ms, dist) VALUES ($1,$2,$3,$4)', [userId, routeId, lapTimeMs, JSON.stringify(dist)]);
+    return true;
+  }
+
+  /** Meilleur tour parmi une liste de coureurs (les amis) sur un itinéraire, avec son nom et son avatar. */
+  async bestGhostLap(userIds: readonly string[], routeId: string): Promise<{ userId: string; name: string; avatar: AvatarLook; lapTimeMs: number; dist: number[]; recordedAt: Date } | null> {
+    let best: { userId: string; name: string; avatar: AvatarLook; lapTimeMs: number; dist: number[]; recordedAt: Date } | null = null;
+    for (const id of userIds) {
+      const r = (
+        await this.db.query(
+          `SELECT g.lap_time_ms, g.dist, g.recorded_at, u.display_name, p.avatar
+             FROM ghost_laps g JOIN users u ON u.id = g.user_id LEFT JOIN profiles p ON p.user_id = g.user_id
+            WHERE g.user_id = $1 AND g.route_id = $2`,
+          [id, routeId],
+        )
+      ).rows[0];
+      if (!r) continue;
+      const lapTimeMs = toNum(r.lap_time_ms);
+      if (best && best.lapTimeMs <= lapTimeMs) continue;
+      const dist = (typeof r.dist === 'string' ? JSON.parse(r.dist) : r.dist) as number[];
+      best = { userId: id, name: r.display_name as string, avatar: (typeof r.avatar === 'string' ? JSON.parse(r.avatar) : r.avatar) as AvatarLook, lapTimeMs, dist, recordedAt: new Date(r.recorded_at) };
+    }
+    return best;
+  }
+
   /** Records personnels d'un coureur (par itinéraire si précisé). */
   async personalBests(userId: string, routeId?: string): Promise<Array<{ routeId: string; segmentId: string; bestMs: number }>> {
     const r = await this.db.query(
@@ -632,6 +664,7 @@ export class Repos {
     }
     const efforts = (await this.db.query('SELECT route_id, segment_id, elapsed_ms, ride_id, ridden_at FROM segment_efforts WHERE user_id = $1', [userId])).rows;
     const routeTimes = (await this.db.query('SELECT route_id, elapsed_ms, ride_id, ridden_at FROM route_times WHERE user_id = $1', [userId])).rows;
+    const ghostLaps = (await this.db.query('SELECT route_id, lap_time_ms, dist, recorded_at FROM ghost_laps WHERE user_id = $1', [userId])).rows;
     const integrations = await this.listIntegrations(userId);
     const renders = await this.listRenders(userId);
     const code = (await this.db.query('SELECT code FROM friend_codes WHERE user_id = $1', [userId])).rows[0]?.code ?? null;
@@ -654,6 +687,7 @@ export class Repos {
       activityFitBase64: fits,
       segmentEfforts: efforts,
       routeTimes,
+      ghostLaps,
       integrations: integrations.map((i) => ({ provider: i.provider, meta: i.meta, updatedAt: i.updatedAt })),
       renders,
       friends: { code, relations: friendships },

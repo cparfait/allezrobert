@@ -19,6 +19,7 @@
     {"id":"calories_kcal","type":"number","label":"Calories","default":1098,"min":0,"step":1,"unit":"kcal"},
     {"id":"leaderboard","type":"string","label":"Classement (JSON : [{name, time_s, team_color, me}])","default":"[{\"name\":\"Robert\",\"time_s\":5123,\"team_color\":\"#ef4444\"},{\"name\":\"Christophe P.\",\"time_s\":5135.6,\"team_color\":\"#3b82f6\",\"me\":true},{\"name\":\"Mathilde\",\"time_s\":5170.2,\"team_color\":\"#22c55e\"},{\"name\":\"Julien\",\"time_s\":5244,\"team_color\":\"#a855f7\"},{\"name\":\"Sophie\",\"time_s\":5302.8,\"team_color\":\"#f97316\"},{\"name\":\"Karim\",\"time_s\":5419,\"team_color\":\"#eab308\"}]"},
     {"id":"segments","type":"string","label":"Meilleurs moments (JSON : [{kind, name, time_s, rank, rank_total, pr, pr_delta_s}])","default":"[{\"kind\":\"kom\",\"name\":\"Côte de la Madeleine\",\"time_s\":263.4,\"rank\":2,\"rank_total\":12,\"pr\":true,\"pr_delta_s\":4.2},{\"kind\":\"sprint\",\"name\":\"Sprint de Dampierre\",\"time_s\":21.8,\"rank\":1,\"rank_total\":12,\"pr\":false},{\"kind\":\"kom\",\"name\":\"Côte des 17 Tournants\",\"time_s\":402.1,\"rank\":4,\"rank_total\":12,\"pr\":true,\"pr_delta_s\":11}]"},
+    {"id":"photos","type":"string","label":"Photos au sommet (JSON : liste d'images data:image/jpeg, 3 au plus)","default":"[]"},
     {"id":"accent","type":"color","label":"Accent","default":"#ffd23f"}
   ]'
 >
@@ -374,6 +375,29 @@
         color: var(--ar-muted);
       }
 
+      /* S5 bis — photos au sommet */
+      .gal {
+        position: absolute;
+        left: 120px;
+        top: 230px;
+        width: 1680px;
+        height: 640px;
+        display: flex;
+        gap: 30px;
+        justify-content: center;
+        align-items: center;
+      }
+      .gal .ph {
+        flex: 1;
+        max-width: 740px;
+        height: 560px;
+        border-radius: 22px;
+        border: 2px solid rgba(255, 255, 255, 0.14);
+        background-size: cover;
+        background-position: center;
+        box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5);
+      }
+
       /* S5 — meilleurs moments */
       .cards {
         position: absolute;
@@ -568,6 +592,11 @@
         <div class="cards" id="cards"></div>
       </section>
 
+      <section class="scene" id="s-photos">
+        <div class="scene-title" id="p-title">Au sommet</div>
+        <div class="gal" id="gal"></div>
+      </section>
+
       <section class="scene" id="s-outro">
         <div class="center">
           <div class="bye" id="o-bye">À la prochaine !</div>
@@ -607,6 +636,7 @@
         AR.text('st-title', AR.t('sum.stats'));
         AR.text('b-title', AR.t('sum.leaderboard'));
         AR.text('h-title', AR.t('sum.highlights'));
+        AR.text('p-title', AR.t('sum.photos'));
         AR.text('o-bye', AR.t('sum.outro'));
 
         // --- Tracé et profil ------------------------------------------------------------
@@ -706,6 +736,22 @@
         });
         if (!segs.length) document.getElementById('s-high').style.display = 'none';
 
+        // --- Photos au sommet -----------------------------------------------------------
+        var photos = AR.json(v.photos, []).filter(function (p) { return typeof p === 'string' && p.indexOf('data:image/') === 0; }).slice(0, 3);
+        var galEl = document.getElementById('gal');
+        photos.forEach(function (src, i) {
+          var ph = AR.el('div', 'ph');
+          ph.style.backgroundImage = 'url(' + src + ')';
+          ph.style.transform = 'rotate(' + (photos.length > 1 ? (i - (photos.length - 1) / 2) * 1.6 : 0) + 'deg)';
+          galEl.appendChild(ph);
+        });
+        // Les photos prennent la place du classement (vide en solo) puis celle des meilleurs moments.
+        var boardOn = board.length > 0;
+        var highOn = segs.length > 0;
+        var photoSlot = photos.length ? (!boardOn ? 'a' : !highOn ? 'b' : null) : null;
+        if (!boardOn && photoSlot !== 'a') document.getElementById('s-board').style.display = 'none';
+        if (!photoSlot) document.getElementById('s-photos').style.display = 'none';
+
         // --- Timeline (28 s) ------------------------------------------------------------
         var tl = gsap.timeline({ paused: true });
         // Fond vivant : dérive lente des halos (transform uniquement)
@@ -773,10 +819,20 @@
         });
 
         // S4 — classement (16.5 → 21.5)
-        scene('#s-board', 16.5, 21.5);
-        tl.fromTo('#b-title', { opacity: 0, x: -20 }, { opacity: 1, x: 0, duration: 0.4 }, 16.7);
-        tl.fromTo('#board .brow', { opacity: 0, x: 60 }, { opacity: 1, x: 0, duration: 0.45, stagger: 0.12, ease: 'power3.out' }, 16.8);
-        tl.fromTo('#board .brow.me', { scale: 1 }, { scale: 1.03, duration: 0.35, yoyo: true, repeat: 1, ease: 'power1.inOut' }, 18.6);
+        function photoScene(start, end) {
+          scene('#s-photos', start, end);
+          tl.fromTo('#p-title', { opacity: 0, x: -20 }, { opacity: 1, x: 0, duration: 0.4 }, start + 0.2);
+          tl.fromTo('#gal .ph', { opacity: 0, y: 70, scale: 0.92 }, { opacity: 1, y: 0, scale: 1, duration: 0.6, stagger: 0.3, ease: 'power3.out' }, start + 0.3);
+          tl.fromTo('#gal .ph', { scale: 1 }, { scale: 1.04, duration: end - start - 1.4, stagger: 0.1, ease: 'none' }, start + 1.4);
+        }
+        if (photoSlot === 'a') {
+          photoScene(16.5, 21.5);
+        } else if (boardOn) {
+          scene('#s-board', 16.5, 21.5);
+          tl.fromTo('#b-title', { opacity: 0, x: -20 }, { opacity: 1, x: 0, duration: 0.4 }, 16.7);
+          tl.fromTo('#board .brow', { opacity: 0, x: 60 }, { opacity: 1, x: 0, duration: 0.45, stagger: 0.12, ease: 'power3.out' }, 16.8);
+          tl.fromTo('#board .brow.me', { scale: 1 }, { scale: 1.03, duration: 0.35, yoyo: true, repeat: 1, ease: 'power1.inOut' }, 18.6);
+        }
 
         // S5 — meilleurs moments (21.5 → 26)
         if (segs.length) {
@@ -787,8 +843,10 @@
         }
 
         // S6 — fin (26 → 28)
-        scene('#s-outro', segs.length ? 26 : 21.5, null);
-        tl.fromTo('#o-bye', { opacity: 0, y: 30 }, { opacity: 1, y: 0, duration: 0.6, ease: 'power3.out' }, segs.length ? 26.1 : 21.6);
+        if (photoSlot === 'b') photoScene(21.5, 26);
+        var slotB = segs.length || photoSlot === 'b';
+        scene('#s-outro', slotB ? 26 : 21.5, null);
+        tl.fromTo('#o-bye', { opacity: 0, y: 30 }, { opacity: 1, y: 0, duration: 0.6, ease: 'power3.out' }, slotB ? 26.1 : 21.6);
         tl.to('#chrome, #progress-wrap', { opacity: 0, duration: 0.4 }, 26.2);
         tl.fromTo('#fade', { opacity: 0 }, { opacity: 1, duration: 0.6, ease: 'power1.in' }, 27.4);
 

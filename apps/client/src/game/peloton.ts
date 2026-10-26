@@ -1,6 +1,6 @@
 import { shadowCasters } from './shadowBudget.ts';
 import * as THREE from 'three/webgpu';
-import { AiRider, AI_PROFILES, DraftCalculator, PoseController, TeammateUTurn, createRiderState, paramsFromBike, powerForSpeed, stepRider, airDensity, wakeShiftM, type AiProfileName, type RiderState } from '@allezrobert/physics';
+import { AiRider, AI_PROFILES, DraftCalculator, FORMATION_PREFS, LANE_PACE, LaneRotator, laneOffsets, resolveFormation, type Formation, type FormationPref, PoseController, TeammateUTurn, createRiderState, paramsFromBike, powerForSpeed, stepRider, airDensity, wakeShiftM, type AiProfileName, type RiderState } from '@allezrobert/physics';
 import { BASE_PROFILES, DEFAULT_BIKE, aiIdentity, DEFAULT_LOOK, FACE_SLIDERS, encodeFace, type AvatarLook, type FaceShape, type RouteTrack } from '@allezrobert/shared';
 import { createAvatar, type RiderAvatarLike } from '../rider/gltfAvatar.ts';
 import { crowdShoes } from '../rider/shoeLook.ts';
@@ -107,9 +107,46 @@ export class Peloton {
   /** Un équipier fait demi-tour pour revenir au groupe (annonce dans le HUD). */
   onUTurn?: (name: string) => void;
 
+  /** Forme demandée (touche F) et forme effective (route, vent, nombre d'équipiers). */
+  formationPref: FormationPref = 'auto';
+  private formationNow: Formation = 'single';
+  private formationCheckAt = 0;
+  private readonly lanes = new LaneRotator();
+  /** Ordre « attendez-moi » : les équipiers devant moi lèvent le pied jusqu'à cet instant (s de sortie). */
+  private waitUntil = 0;
+  /** Changement de forme effective (annonce dans le HUD). */
+  onFormation?: (formation: Formation, pref: FormationPref) => void;
+
+  get formation(): Formation {
+    return this.formationNow;
+  }
+
   /** Ordre « ralentissez » : −15 % pendant une minute. */
   slowDown(): void {
     this.slowUntil = this.time + 60;
+  }
+
+  /** Ordre « attendez-moi » : pendant 90 s, ceux qui sont devant moi me laissent revenir. */
+  waitForMe(): void {
+    this.waitUntil = this.time + 90;
+  }
+
+  /** Forme suivante : auto → file indienne → deux files → bordure. */
+  cycleFormation(): FormationPref {
+    this.formationPref = FORMATION_PREFS[(FORMATION_PREFS.indexOf(this.formationPref) + 1) % FORMATION_PREFS.length] as FormationPref;
+    this.formationCheckAt = 0;
+    return this.formationPref;
+  }
+
+  /** Réévalue la forme effective (toutes les 2 s : pas de va-et-vient quand le vent tourne). */
+  private updateFormation(): void {
+    if (this.time < this.formationCheckAt) return;
+    this.formationCheckAt = this.time + 2;
+    const f = resolveFormation(this.formationPref, { roadWidthM: this.track.route.roadWidthM, crossWindMs: this.crossWindMs, riders: this.riders.length });
+    if (f === this.formationNow) return;
+    this.formationNow = f;
+    if (f === 'double') this.lanes.assign(this.riders.map((r) => ({ id: r.id, distM: r.state.distM })));
+    this.onFormation?.(f, this.formationPref);
   }
   private readonly sample = { x: 0, y: 0, z: 0, dirX: 1, dirZ: 0, grade: 0, d: 0 };
 
@@ -194,6 +231,12 @@ export class Peloton {
       this.onWait?.(waiting);
     }
     const easing = (this.time < this.slowUntil ? 0.85 : 1) * (waiting ? 0.85 : 1);
+    this.updateFormation();
+    const double = this.formationNow === 'double';
+    const halfRoad = Math.max(1.2, this.track.route.roadWidthM / 2 - 0.5);
+    const laneAt = laneOffsets(halfRoad);
+    if (double) this.lanes.update(this.riders.filter((r) => !r.uturn.active).map((r) => ({ id: r.id, distM: r.state.distM })), [{ distM: player.distM }], dt);
+    const waitingForMe = this.time < this.waitUntil;
 
     // Équipier à contresens (demi-tour) : hors aspiration (écarté latéralement) et jamais « roue devant ».
     const all = [
@@ -229,7 +272,10 @@ export class Peloton {
       r.heading = 0;
       // Coureur juste devant (IA dans le sens de marche, ou joueur).
       let ahead: { distM: number; speedMs: number; lateral: number } | null = null;
-      for (const o of [...this.riders.filter((x) => !x.uturn.active).map((x) => ({ distM: x.state.distM, speedMs: x.state.speedMs, lateral: x.lateral })), { distM: player.distM, speedMs: player.speedMs, lateral: player.lateral }]) {
+      const myLane = this.lanes.laneOf(r.id);
+      // Deux files : on suit le coureur de sa propre file (ou le joueur), pas celui de l'autre file.
+      const peers = this.riders.filter((x) => x !== r && !x.uturn.active && (!double || this.lanes.laneOf(x.id) === myLane));
+      for (const o of [...peers.map((x) => ({ distM: x.state.distM, speedMs: x.state.speedMs, lateral: x.lateral })), { distM: player.distM, speedMs: player.speedMs, lateral: player.lateral }]) {
         if (o.distM > r.state.distM + 0.01 && (!ahead || o.distM < ahead.distM)) ahead = o;
       }
       const out = r.ai.update(
@@ -237,7 +283,8 @@ export class Peloton {
           gradePercent: s.grade,
           speedMs: r.state.speedMs,
           // Élastique autour du joueur : on ralentit devant lui, on accélère derrière (sortie solo).
-          groupPaceWkg: this.paceWkg * easing * (1 - THREE.MathUtils.clamp((r.state.distM - player.distM - 4) / 50, -0.3, 0.45)),
+          groupPaceWkg:
+            this.paceWkg * easing * (double ? LANE_PACE[myLane] : 1) * (waitingForMe && r.state.distM > player.distM + 6 ? 0.78 : 1) * (1 - THREE.MathUtils.clamp((r.state.distM - player.distM - 4) / 50, -0.3, 0.45)),
           gapAheadM: ahead ? ahead.distM - r.state.distM - 1.8 : Infinity,
           speedAheadMs: ahead?.speedMs ?? r.state.speedMs,
           ...(ahead ? { lateralAheadM: ahead.lateral - r.lateral } : {}),
@@ -257,8 +304,9 @@ export class Peloton {
       r.pose = r.poseCtl.update({ watts: r.watts, cadence: out.cadence, gradePercent: s.grade, ftpWatts: r.ftp, speedMs: r.state.speedMs }, dt);
       stepRider(r.state, { watts: r.watts, gradePercent: s.grade, params: r.ai.params, env, cdaFactor: 1 - r.draft }, dt);
       // Vent de côté : l'abri est décalé sous le vent ; le coureur s'y place (bordure).
-      const shelter = ahead ? wakeShiftM(ahead.distM - r.state.distM - 1.75, this.crossWindMs, ahead.speedMs) : 0;
-      const targetLat = THREE.MathUtils.clamp((ahead?.lateral ?? 1) + out.lateralTargetM + shelter, -half, half);
+      const shelter = ahead && this.formationNow !== 'single' ? wakeShiftM(ahead.distM - r.state.distM - 1.75, this.crossWindMs, ahead.speedMs) : 0;
+      const base = double ? laneAt[myLane] : (ahead?.lateral ?? 1);
+      const targetLat = THREE.MathUtils.clamp(base + (double ? 0 : out.lateralTargetM) + shelter, -half, half);
       r.lateral += (targetLat - r.lateral) * Math.min(1, dt * 0.8);
     });
     return factors[0] ?? 0;

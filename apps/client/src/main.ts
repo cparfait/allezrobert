@@ -1,6 +1,6 @@
 import './hud/hud.css';
 import * as THREE from 'three/webgpu';
-import { RouteTrack, decimateRoute, type PairState, type PhoneCommand, bikeOfLook, type AvatarLook, bikeSetupFor, weatherAt, weatherSeed, type RideWeather, type RiderProfile, type RouteData } from '@allezrobert/shared';
+import { DEFAULT_LOOK, RouteTrack, decimateRoute, type PairState, type PhoneCommand, bikeOfLook, type AvatarLook, bikeSetupFor, weatherAt, weatherSeed, type RideWeather, type RiderProfile, type RouteData } from '@allezrobert/shared';
 import { createEngine, type Engine } from './engine/renderer.ts';
 import { QUALITY_PRESETS, withUrlOverrides, type QualitySettings } from './engine/quality.ts';
 import { detectHardwareQuality } from './engine/autoQuality.ts';
@@ -17,7 +17,7 @@ import { KeyboardControls, type InputSource } from './game/inputs.ts';
 import { Peloton } from './game/peloton.ts';
 import { separateRiders, type Body } from './game/collision.ts';
 import { WorkoutController } from './game/workout.ts';
-import { Ghost } from './game/ghost.ts';
+import { FriendGhost, Ghost, fetchFriendGhost, uploadGhost } from './game/ghost.ts';
 import { createDeviceLayer } from './game/devices.ts';
 import { Hud } from './hud/hud.ts';
 import { RideSound } from './audio/rideSound.ts';
@@ -55,6 +55,7 @@ import { sendRideInvites } from './ui/friends.ts';
 import { RideSequences } from './game/sequences.ts';
 import { GuestInputSource } from './game/guest.ts';
 import { Crowd } from './world/crowd.ts';
+import { FinishBanners } from './world/finishBanners.ts';
 import { TownSigns } from './world/signs.ts';
 import { AmbientCyclists } from './world/cyclists.ts';
 import { Traffic, loadVehicleModels } from './world/traffic.ts';
@@ -912,9 +913,32 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   const aiCount = workout || mp || challenge || (s.mode !== 'group' && s.mode !== 'race') ? 0 : Math.min(Math.max(s.aiRiders, 0), engine.quality.aiRidersMax);
   const peloton = new Peloton(engine.scene, track, aiCount, startD, s.ftpWatts * (s.aiLevel ?? 1));
   const ghost = new Ghost(engine.scene, track, track.route.id, startD, { ...s.look, heightCm: s.heightCm });
+  // Fantôme d'un ami (compte connecté, tour complet depuis le départ) : son meilleur tour sur cette boucle.
+  // Et son propre record est envoyé au serveur pour que ses amis le retrouvent.
+  const ghostable = !s.guest && !mp && !nav && !workout && !challenge && startD === 0 && !track.route.id.startsWith(ITINERARY_PREFIX);
+  let friendGhost: FriendGhost | null = null;
+  let disposed = false;
+  if (ghostable) {
+    ghost.onSaved = (lap) => void uploadGhost(track.route.id, lap);
+    const mine = ghost.bestLap();
+    if (mine) void uploadGhost(track.route.id, mine);
+    void fetchFriendGhost(track.route.id).then((g) => {
+      if (!g || disposed) return;
+      friendGhost = new FriendGhost(engine.scene, track, g, { ...DEFAULT_LOOK, ...g.look });
+      const L = getLang() === 'fr';
+      hud.toast(`${L ? 'Fantôme de' : 'Ghost of'} ${g.name} · ${Math.floor(g.lapTimeS / 60)}:${String(Math.round(g.lapTimeS % 60)).padStart(2, '0')}`);
+    });
+  }
   peloton.shadowRiders = engine.quality.shadowRiders;
   peloton.onWait = (name) => name && hud.toast(getLang() === 'fr' ? `On attend ${name}` : `Waiting for ${name}`);
+  peloton.onFormation = (f, pref) => {
+    const L = getLang() === 'fr';
+    const label = { single: L ? 'file indienne' : 'single file', double: L ? 'deux files tournantes' : 'double paceline', echelon: L ? 'bordure' : 'echelon' }[f];
+    hud.toast(`${L ? 'Peloton' : 'Group'} : ${label}${pref === 'auto' ? (L ? ' (auto)' : ' (auto)') : ''}`);
+  };
   peloton.onUTurn = (name) => hud.toast(getLang() === 'fr' ? `${name} fait demi-tour pour revenir au groupe` : `${name} turns back to rejoin the group`);
+  // Source d'entrées après la ligne : mêmes capteurs, mais sans puissance ni pédalage.
+  const coastInput: InputSource = Object.create(input, { read: { value: () => ({ ...input.read(), watts: 0, cadence: 0 }) } });
   const rig = new CameraRig(engine.camera, track, (x, z) => world.terrain.heightAt(x, z), engine.renderer.domElement);
   const footprints = world.buildings.footprints;
   rig.occlusion = (a, b) => footprints.firstHit(a.x, a.y, a.z, b.x, b.y, b.z);
@@ -922,6 +946,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   const crowd = new Crowd(track, (x, z) => world.terrain.heightAt(x, z), { riderName: s.name, density: engine.quality.crowdDensity });
   engine.scene.add(crowd.group);
   engine.scene.add(new TownSigns(track, (x, z) => world.terrain.heightAt(x, z)).group);
+  engine.scene.add(new FinishBanners(track, (x, z) => world.terrain.heightAt(x, z)).group);
   // Monde vivant (circulation, cyclistes croisés) : désactivable par ?traffic=0.
   const alive = params.get('traffic') !== '0' && engine.quality.trafficDensity > 0;
   // Voitures (modèles chargés à la demande ; primitives si indisponibles).
@@ -1022,6 +1047,11 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     // Course pas lancée : le coureur reste sur la grille (le serveur le tient immobile).
     room.onHoldChange = (hold) => (ride.paused = hold);
     room.onLeave = () => finish();
+    // Vainqueur : bras levés en V au passage de la ligne, quelques secondes.
+    room.onWin = () => {
+      avatar.setCelebrating?.(true);
+      setTimeout(() => avatar.setCelebrating?.(false), 7000);
+    };
     // Télémétrie à 10 Hz : puissance mesurée (ou virtuelle pour un invité), rapport, direction.
     net.startTelemetry(() => ({ watts: ride.inputs.watts, cadence: ride.inputs.cadence, ...(ride.inputs.hr !== undefined ? { hr: ride.inputs.hr } : {}), gear: ride.gearIndex, steer: ride.lateral }));
     net.on('event', (ev) => {
@@ -1136,6 +1166,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     const fr = getLang() === 'fr';
     hud.toast(done ? `${t('lap')} ${lap - 1} · ${fmtLapTime(done.timeS)}${done.best ? (fr ? ' · meilleur tour' : ' · best lap') : ''}` : `${t('lap')} ${lap}`);
     ghost.lap(ride.elapsedS, ride.state.distM);
+    friendGhost?.lap(ride.elapsedS);
     sendEfforts();
   };
 
@@ -1147,6 +1178,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   const fileStem = () => `allez-robert-${new Date(ride.startT).toISOString().slice(0, 16).replace(/[:T]/g, '-')}`;
   const fitBytes = () => rideToFit(ride, { name: `Allez Robert ! — ${track.route.name}`, massKg: s.massKg, ftp: s.ftpWatts, ...(source.originL93 ? { originL93: source.originL93 } : {}), skipStrava: s.skipStrava });
   const teardown = (autostart: boolean) => {
+    disposed = true;
     engine.renderer.setAnimationLoop(null);
     const raceHtml = room?.summaryHtml() ?? '';
     room?.dispose();
@@ -1319,6 +1351,19 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     peloton.slowDown();
     hud.toast(getLang() === 'fr' ? '« Ralentissez ! »' : '“Ease up!”');
   };
+  /** « Attendez-moi » : les équipiers devant moi me laissent revenir (90 s). */
+  const waitMe = () => {
+    if (!peloton.riders.length) return;
+    peloton.waitForMe();
+    hud.toast(getLang() === 'fr' ? '« Attendez-moi ! »' : '“Wait for me!”');
+  };
+  /** Forme du peloton : auto → file indienne → deux files → bordure. */
+  const cycleFormation = () => {
+    if (!peloton.riders.length) return;
+    const pref = peloton.cycleFormation();
+    const L = getLang() === 'fr';
+    hud.toast(`${L ? 'Forme demandée' : 'Formation'} : ${{ auto: 'auto', single: L ? 'file indienne' : 'single file', double: L ? 'deux files' : 'double paceline', echelon: L ? 'bordure' : 'echelon' }[pref]}`);
+  };
   /** Photo : rendu immédiat puis lecture du canvas (sans l'interface). */
   const photo = () => {
     engine.renderManual();
@@ -1362,6 +1407,8 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     // Équipiers : allure du groupe en % de FTP ([ / ]), ordre « ralentissez » (R).
     if (e.key === '[' || e.key === ']') changePace(e.key === ']' ? 1 : -1);
     if (e.key === 'r' || e.key === 'R') slowDown();
+    if (e.key === 'k' || e.key === 'K') waitMe();
+    if (e.key === 'f' || e.key === 'F') cycleFormation();
     if (e.key === 'p' || e.key === 'P') photo();
     if (e.key === ' ' || e.key === 'Escape') {
       e.preventDefault();
@@ -1446,7 +1493,8 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     }
     lap('conditions');
     const prevD = ride.state.distM;
-    ride.update(dt, input, steer);
+    // Ligne franchie en course : plus de pédalage, le coureur roule sur sa lancée.
+    ride.update(dt, room?.finished ? coastInput : input, steer);
     lap('physique');
     if (!ride.paused && ride.dir > 0) {
       const hp = hairpins.update(prevD, ride.state.distM);
@@ -1455,6 +1503,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     }
     if (!ride.paused) {
       ghost.update(dt, ride.elapsedS, ride.state.distM);
+      friendGhost?.update(dt, ride.elapsedS);
       challenge?.update(dt, ride.state.distM - startD, ride.elapsedS);
       tutorial?.update({ shifted, gradePercent: ride.gradePercent, inSegment: !!ride.segment, draft: ride.draft, distM: ride.state.distM - startD });
       if (mp) {
@@ -1850,6 +1899,12 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
         break;
       case 'pace':
         changePace(c.delta);
+        break;
+      case 'waitMe':
+        waitMe();
+        break;
+      case 'formation':
+        cycleFormation();
         break;
     }
   };

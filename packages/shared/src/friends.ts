@@ -91,6 +91,21 @@ export interface FriendsOverview {
   pollS: number;
 }
 
+/** Meilleur tour d'un ami sur un itinéraire (GET /api/friends/ghost) : le fantôme à rattraper. */
+export interface FriendGhostLap {
+  name: string;
+  lapTimeS: number;
+  /** Distance parcourue (m) depuis le début du tour, une valeur par seconde. */
+  dist: number[];
+  /** Date du tour (ISO 8601). */
+  date: string;
+  /** Apparence de l'ami (celle qu'il montre dans les sorties de groupe). */
+  look: import('./net.ts').AvatarLook;
+}
+
+/** Longueur maximale d'un tour de fantôme (s) : 4 h. */
+export const GHOST_MAX_S = 14_400;
+
 /** Réponse des routes « rejoindre » : de quoi se connecter à la salle. */
 export interface FriendJoinInfo {
   roomId: string;

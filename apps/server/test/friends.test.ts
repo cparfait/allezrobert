@@ -347,3 +347,50 @@ describe('amis — RGPD', () => {
     ctx.registry.unregister(ride.roomId);
   });
 });
+
+describe('amis — fantôme', () => {
+  const lap = (secs: number, speed: number) => Array.from({ length: secs + 1 }, (_, i) => i * speed);
+
+  it('un ami voit le meilleur tour de ses amis, pas celui d’un étranger ; le plus rapide gagne', async () => {
+    const a = await login('Ghost-A');
+    const b = await login('Ghost-B');
+    const c = await login('Ghost-C');
+    const e = await login('Ghost-Etranger');
+    await befriend(a, b);
+    await befriend(a, c);
+    const route = 'dev-boucle';
+    expect((await a.json('GET', `/api/friends/ghost?routeId=${route}`)).status).toBe(404);
+    expect((await b.json('PUT', `/api/ghost/${route}`, { lapTimeS: 600, dist: lap(600, 8) })).body).toEqual({ saved: true });
+    expect((await c.json('PUT', `/api/ghost/${route}`, { lapTimeS: 500, dist: lap(500, 9) })).body).toEqual({ saved: true });
+    expect((await e.json('PUT', `/api/ghost/${route}`, { lapTimeS: 300, dist: lap(300, 10) })).body).toEqual({ saved: true });
+    const g = await a.json('GET', `/api/friends/ghost?routeId=${route}`);
+    expect(g.status).toBe(200);
+    expect(g.body).toMatchObject({ name: 'Ghost-C', lapTimeS: 500 });
+    expect(g.body.dist).toHaveLength(501);
+    // Un tour moins bon ne remplace pas le record.
+    expect((await c.json('PUT', `/api/ghost/${route}`, { lapTimeS: 520, dist: lap(520, 8) })).body).toEqual({ saved: false });
+    // Un ami précis (identifiant de la relation) ; un non-ami : 404.
+    const rel = (await a.overview()).friends.find((f) => f.name === 'Ghost-B')!;
+    expect((await a.json('GET', `/api/friends/ghost?routeId=${route}&friendId=${rel.id}`)).body.name).toBe('Ghost-B');
+    expect((await e.json('GET', `/api/friends/ghost?routeId=${route}`)).status).toBe(404);
+  });
+
+  it('refuse les tours invalides et sans compte', async () => {
+    const a = await login('Ghost-V');
+    const route = 'dev-boucle';
+    expect((await a.json('PUT', `/api/ghost/${route}`, { lapTimeS: 100, dist: lap(100, 100) })).status).toBe(400); // 360 km/h
+    expect((await a.json('PUT', `/api/ghost/${route}`, { lapTimeS: 100, dist: [...lap(50, 5), ...lap(50, 5).map((v) => v - 100)] })).status).toBe(400); // décroissant
+    expect((await a.json('PUT', `/api/ghost/${route}`, { lapTimeS: 400, dist: lap(100, 5) })).status).toBe(400); // durée incohérente
+    expect((await a.json('PUT', '/api/ghost/inconnue', { lapTimeS: 100, dist: lap(100, 5) })).status).toBe(404);
+    expect((await new Session().json('PUT', `/api/ghost/${route}`, { lapTimeS: 100, dist: lap(100, 5) })).status).toBe(401);
+  });
+
+  it('export et suppression du compte', async () => {
+    const a = await login('Ghost-R');
+    await a.json('PUT', '/api/ghost/dev-boucle', { lapTimeS: 100, dist: lap(100, 5) });
+    expect((await a.json('GET', '/api/me/export')).body.ghostLaps).toHaveLength(1);
+    await a.json('DELETE', '/api/me', { confirm: 'SUPPRIMER' });
+    const r = await db.query('SELECT COUNT(*) AS n FROM ghost_laps WHERE user_id = $1', [a.id]);
+    expect(Number(r.rows[0].n)).toBe(0);
+  });
+});

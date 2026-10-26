@@ -1631,7 +1631,7 @@ async function sleevesSheet(engine: Awaited<ReturnType<typeof createEngine>>): P
   g.font = '600 16px sans-serif';
   for (const [row, item] of items.entries()) {
     for (const [col, long] of [false, true].entries()) {
-      const a = new GltfRiderAvatar({ ...DEFAULT_LOOK, bikeModel: 's26-04-cervelo-s5', helmet: item.jersey?.style === 'bandes' ? '#ffffff' : (item.color ?? '#ffffff'), ...(item.id === 'default' ? {} : jerseyLookOf(item)), sleeves: long ? 'long' : 'short' });
+      const a = new GltfRiderAvatar({ ...DEFAULT_LOOK, bikeModel: 's26-04-cervelo-s5', helmet: item.jersey?.style === 'bandes' ? '#ffffff' : (item.color ?? '#ffffff'), ...(item.id === 'default' ? {} : jerseyLookOf(item)), sleeves: long ? 'long' : 'short', ...(params.has('gloves') ? { gloves: params.get('gloves') === 'mitts' ? ('mitts' as const) : ('full' as const), gloveColor: params.get('glovecolor') ? `#${params.get('glovecolor')}` : '#16161a' } : {}) });
       (a as unknown as { crankAngle: number }).crankAngle = Math.PI / 2;
       a.update(0, 0.0001, 0, 'seated');
       scene.add(a.root);
@@ -1653,6 +1653,10 @@ async function sleevesSheet(engine: Awaited<ReturnType<typeof createEngine>>): P
   }
   const kind = params.get('avatar') ?? 'mpfb';
   if (!params.has('noshot')) await fetch(`/__shot?name=avatar-manches-${close ? 'gros-plans-' : ''}${kind}${params.has('dir') ? '&dir=jerseys' : ''}`, { method: 'POST', body: sheet.toDataURL('image/jpeg', 0.88) });
+  if (params.has('show')) {
+    sheet.style.cssText = 'position:fixed;left:0;top:0;width:100vw;height:auto;z-index:99;background:#222';
+    document.body.appendChild(sheet);
+  }
   log.textContent += '\nmanches : terminé';
   (window as unknown as { __avatarTestDone: boolean }).__avatarTestDone = true;
 }

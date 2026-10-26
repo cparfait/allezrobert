@@ -85,6 +85,14 @@ describe('vidéo résumé de repli (FFmpeg seul)', () => {
     // Sans drawtext : la vidéo garde le profil animé, sans texte.
     expect(filterGraph(texts, [], { drawtext: false })).not.toContain('drawtext');
   });
+
+  it('photos du sommet : une diapositive par photo, enchaînées après le résumé', () => {
+    const g = filterGraph([], [], { drawtext: false }, 2);
+    expect(g).toContain('[1:v]scale=');
+    expect(g).toContain('[2:v]scale=');
+    expect(g).toContain('[m][p0][p1]concat=n=3:v=1:a=0[v]');
+    expect(filterGraph([], [], { drawtext: false }, 0).endsWith('[v]')).toBe(true);
+  });
 });
 
 describe('worker de rendu', () => {
