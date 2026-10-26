@@ -15,7 +15,7 @@ ni vérifié à l'image** ; les derniers commits « wip » sont du travail non t
       reconstruites depuis les itinéraires (sans Garmin).
 - [ ] Trains : les modules (voies OSM, horaires) existent ; brancher l'affichage d'un train qui
       passe et vérifier.
-- [ ] Poussière sur les chemins (`world/dust.ts`, non terminé) : terminer, brancher, vérifier.
+- [x] Poussière sur les chemins (`world/dust.ts`) : branchée, vérifiée à l'image (`?dust=force`), bord du disque corrigé.
 - [ ] Détection automatique d'anomalies du monde (`?worldcheck=1`) : à faire.
 - [ ] `docs/ART_DIRECTION.md` : mise à jour et « points à valider » non faites.
 - [ ] Modes groupe et course : serveur et interface commités ; tester à plusieurs pages

@@ -742,6 +742,58 @@
    "open": true
   },
   {
+   "id": "idf-savigny-sur-orge",
+   "name": "Île-de-France — Savigny-sur-Orge",
+   "region": "Essonne · Île-de-France",
+   "routes": [
+    {
+     "id": "boucle-20-km",
+     "name": "Boucle de 20 km depuis Savigny-sur-Orge",
+     "nameEn": "20 km loop from Savigny-sur-Orge",
+     "lengthM": 20698,
+     "elevationGainM": 165.64,
+     "loop": false
+    },
+    {
+     "id": "boucle-30-km",
+     "name": "Boucle de 30 km depuis Savigny-sur-Orge",
+     "nameEn": "30 km loop from Savigny-sur-Orge",
+     "lengthM": 31602,
+     "elevationGainM": 222.45,
+     "loop": false
+    },
+    {
+     "id": "boucle-40-km",
+     "name": "Boucle de 40 km depuis Savigny-sur-Orge",
+     "nameEn": "40 km loop from Savigny-sur-Orge",
+     "lengthM": 38902,
+     "elevationGainM": 443.42,
+     "loop": false
+    },
+    {
+     "id": "boucle-50-km",
+     "name": "Boucle de 50 km depuis Savigny-sur-Orge",
+     "nameEn": "50 km loop from Savigny-sur-Orge",
+     "lengthM": 51494,
+     "elevationGainM": 425.99,
+     "loop": false
+    }
+   ],
+   "pack": {
+    "version": "c9d0fd9cc4f5",
+    "bytes": 361255691,
+    "files": 1026,
+    "gzBytes": 146668060
+   },
+   "l93": {
+    "minE": 640000,
+    "minN": 6828000,
+    "maxE": 656000,
+    "maxN": 6844000
+   },
+   "open": true
+  },
+  {
    "id": "idf-versailles",
    "name": "Île-de-France — Versailles",
    "region": "Yvelines · Île-de-France",

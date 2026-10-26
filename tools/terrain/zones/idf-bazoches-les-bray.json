@@ -18,11 +18,6 @@
     "lat": 48.39806
   },
   "orthoPx": 1024,
-  "enrich": {
-    "radiusM": 50,
-    "lidarVegetation": true,
-    "bdtopoBuildings": true
-  },
   "horizon": {
     "halfSizeM": 30000,
     "resM": 100
