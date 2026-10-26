@@ -242,7 +242,7 @@ export class GameAudio {
       wind: layer(b.pink, B.bike, 'lowpass', 400),
       roar: layer(b.pinkMono, B.bike, 'bandpass', 250, 0.9),
       hiss: layer(b.whiteMono, B.bike, 'highpass', 4000),
-      crunch: layer(b.crackle, B.bike, 'bandpass', 2500, 0.6),
+      crunch: layer(b.crackle, B.bike, 'bandpass', 1800, 0.45),
       cobble: layer(b.cobbles, B.bike, 'lowpass', 1400),
       spray: layer(b.white, B.bike, 'bandpass', 5000, 0.5),
       windAmb: layer(b.pink, B.ambience, 'lowpass', 380),

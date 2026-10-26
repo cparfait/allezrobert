@@ -115,8 +115,8 @@ export const TIRE_PROFILES: Record<Surface, TireProfile> = {
   smooth: { roar: 1, roarHz: 0, q: 1.1, hiss: 0.15, hissHz: 4200, crunch: 0, cobble: 0 },
   rough: { roar: 1.45, roarHz: 70, q: 0.8, hiss: 0.8, hissHz: 3400, crunch: 0.15, cobble: 0 },
   cobbles: { roar: 1.3, roarHz: 30, q: 0.6, hiss: 0.4, hissHz: 3000, crunch: 0.08, cobble: 1 },
-  gravel: { roar: 1.5, roarHz: 140, q: 0.5, hiss: 1.1, hissHz: 2600, crunch: 1, cobble: 0 },
-  dirt: { roar: 0.75, roarHz: -40, q: 0.6, hiss: 0.35, hissHz: 2200, crunch: 0.4, cobble: 0 },
+  gravel: { roar: 1.2, roarHz: 100, q: 0.5, hiss: 0.55, hissHz: 1900, crunch: 0.5, cobble: 0 },
+  dirt: { roar: 0.7, roarHz: -40, q: 0.6, hiss: 0.25, hissHz: 1700, crunch: 0.18, cobble: 0 },
 };
 
 /** Espacement moyen des pavés (m). */
@@ -133,7 +133,7 @@ export function tireMix(surface: Surface, speedMs: number, wet = 0): TireMix {
   return {
     roar: { gain: 0.09 * p.roar * roll * sp ** 0.8, freq: Math.max(60, 110 + v * 22 + p.roarHz), q: p.q },
     hiss: { gain: 0.05 * p.hiss * roll * Math.min(1.4, v / 10), freq: p.hissHz },
-    crunch: { gain: 0.4 * p.crunch * roll * Math.min(1.2, Math.sqrt(v / 8)), rate: clamp(0.35 + v / 9, 0.35, 2.4) },
+    crunch: { gain: 0.4 * p.crunch * roll * Math.min(1.2, Math.sqrt(v / 8)), rate: clamp(0.35 + v / 12, 0.35, 1.3) },
     cobble: { gain: 0.16 * p.cobble * roll * Math.min(1, v / 5), rate: v / COBBLE_SPACING_M },
     spray: 0.05 * clamp(wet, 0, 1) * roll * Math.min(1.3, v / 10) * (paved ? 1 : 0.5),
   };

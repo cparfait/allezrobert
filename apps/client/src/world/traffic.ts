@@ -6,6 +6,7 @@ import { vehicleDraftReduction, type VehicleKind } from '@allezrobert/physics';
 import { rng } from '../engine/noise.ts';
 import { sharedKtx2Loader } from '../engine/textures.ts';
 import type { VehicleSound } from '../audio/soundscape.ts';
+import { UNPAVED_SURFACES } from './dust.ts';
 
 /**
  * Circulation : voitures, utilitaire et tracteur dans le même repère que les coureurs (distance
@@ -207,6 +208,8 @@ interface Vehicle {
   /** Vitesse dans le repère monde (m/s), pour le son (Doppler). */
   vx: number;
   vz: number;
+  /** Sur un chemin non revêtu : masqué, muet, sans aspiration. */
+  onTrack?: boolean;
 }
 
 /** Véhicules pour une densité donnée (`QualitySettings.trafficDensity`, 0–1) : 2 à 6. */
@@ -264,7 +267,7 @@ export class Traffic {
   draftFor(distM: number, lateral: number): number {
     let best = 0;
     for (const v of this.vehicles) {
-      if (v.sens < 0 || v.speed < 2) continue;
+      if (v.sens < 0 || v.speed < 2 || v.onTrack) continue;
       const r = vehicleDraftReduction(v.kind, v.d - v.length / 2 - distM, lateral - v.lateral);
       if (r > best) best = r;
     }
@@ -316,8 +319,11 @@ export class Traffic {
       v.d += v.sens * v.speed * dt;
       // Itinéraire ouvert (monde ouvert, montée) : pas de véhicule au-delà des extrémités connues.
       const outside = !this.track.route.loop && (v.d < 0 || v.d > L);
-      v.mesh.visible = !outside;
-      if (outside) continue;
+      // Pas de voiture sur un chemin non revêtu : le véhicule disparaît tant qu'il y est.
+      const surface = outside ? undefined : this.track.surfaceAt(((v.d % L) + L) % L);
+      v.onTrack = surface !== undefined && UNPAVED_SURFACES.has(surface);
+      v.mesh.visible = !outside && !v.onTrack;
+      if (outside || v.onTrack) continue;
       const p = this.track.positionAt(((v.d % L) + L) % L, v.lateral, this.sample);
       v.mesh.position.set(p.x, p.y + 0.02, p.z);
       v.vx = p.dirX * v.sens * v.speed;
@@ -344,6 +350,6 @@ export class Traffic {
 
   /** Véhicules pour le son (position, vitesse) ; `id` stable = rang du véhicule. */
   audible(): VehicleSound[] {
-    return this.vehicles.map((v, id) => ({ id, kind: v.kind, x: v.mesh.position.x, z: v.mesh.position.z, vx: v.vx, vz: v.vz }));
+    return this.vehicles.flatMap((v, id) => (v.onTrack ? [] : [{ id, kind: v.kind, x: v.mesh.position.x, z: v.mesh.position.z, vx: v.vx, vz: v.vz }]));
   }
 }

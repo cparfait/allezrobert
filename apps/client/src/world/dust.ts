@@ -59,7 +59,7 @@ export class Dust {
   /** Horloge des particules (s), avancée par update(). */
   private readonly now = uniform(0);
   /** Couleur de la terre (ocre clair), réglée selon la saison. */
-  readonly tint = uniform(new THREE.Color('#b9a17c'));
+  readonly tint = uniform(new THREE.Color('#d2c19a'));
   private readonly max: number;
   private readonly p0: THREE.InstancedBufferAttribute;
   private readonly v0: THREE.InstancedBufferAttribute;
@@ -90,11 +90,11 @@ export class Dust {
     // Disque doux, opacité qui monte vite puis s'éteint.
     const r = uv().sub(0.5).length();
     // smoothstep(a, b, x) exige a < b en WGSL : bords inversés = résultat indéfini (carrés en mosaïque).
-    const soft = float(1).sub(smoothstep(0.1, 0.5, r));
+    const soft = float(1).sub(smoothstep(0, 0.5, r));
     const fade = smoothstep(0, 0.12, age).mul(float(1).sub(smoothstep(0.35, 1, k)));
     const h = hash(instanceIndex);
-    m.colorNode = mix(this.tint, this.tint.mul(0.8), h);
-    const alpha = soft.mul(fade).mul(0.22);
+    m.colorNode = mix(this.tint, this.tint.mul(0.85), h);
+    const alpha = soft.mul(fade).mul(0.1);
     m.opacityNode = alpha;
     // Les quads entièrement transparents sont écartés : sinon ils assombrissent le fond en carrés.
     m.maskNode = alpha.greaterThan(0.004);
@@ -111,7 +111,7 @@ export class Dust {
    */
   emit(id: string, x: number, y: number, z: number, dx: number, dz: number, speed: number, dt: number): void {
     if (this.sprite.count === 0 || speed < 1.5) return;
-    let a = (this.acc.get(id) ?? 0) + dt * speed * 1.4;
+    let a = (this.acc.get(id) ?? 0) + dt * speed * 3.5;
     while (a >= 1) {
       a -= 1;
       const i = this.next;
