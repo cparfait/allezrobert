@@ -1,0 +1,3690 @@
+{
+ "formatVersion": 1,
+ "id": "idf-goussainville",
+ "name": "Île-de-France — Goussainville",
+ "crs": "EPSG:2154",
+ "originL93": {
+  "x": 664000,
+  "y": 6884000
+ },
+ "bounds": {
+  "minX": -8000,
+  "minZ": -8000,
+  "maxX": 8000,
+  "maxZ": 8000
+ },
+ "tileSizeM": 1000,
+ "heightResolutionM": 2,
+ "heightEncoding": {
+  "type": "uint16le",
+  "stepM": 0.01,
+  "rowOrder": "north-to-south",
+  "colOrder": "west-to-east"
+ },
+ "lods": [
+  {
+   "id": "lo",
+   "resolutionM": 8,
+   "n": 125,
+   "suffix": ".lo.u16"
+  },
+  {
+   "id": "hi",
+   "resolutionM": 2,
+   "n": 500,
+   "suffix": ".hi.u16"
+  }
+ ],
+ "tiles": [
+  {
+   "id": "-8_-8",
+   "tx": -8,
+   "tz": -8,
+   "baseM": 51,
+   "minM": 52.97,
+   "maxM": 105.63,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 1215390
+  },
+  {
+   "id": "-8_-7",
+   "tx": -8,
+   "tz": -7,
+   "baseM": 67,
+   "minM": 68.1,
+   "maxM": 131.72,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 1092875
+  },
+  {
+   "id": "-8_-6",
+   "tx": -8,
+   "tz": -6,
+   "baseM": 67,
+   "minM": 68.34,
+   "maxM": 140.52,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 999399
+  },
+  {
+   "id": "-8_-5",
+   "tx": -8,
+   "tz": -5,
+   "baseM": 111,
+   "minM": 112.95,
+   "maxM": 175.14,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 868252
+  },
+  {
+   "id": "-8_-4",
+   "tx": -8,
+   "tz": -4,
+   "baseM": 122,
+   "minM": 123.8,
+   "maxM": 164.64,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 919229
+  },
+  {
+   "id": "-8_-3",
+   "tx": -8,
+   "tz": -3,
+   "baseM": 125,
+   "minM": 126.97,
+   "maxM": 139.33,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 615299
+  },
+  {
+   "id": "-8_-2",
+   "tx": -8,
+   "tz": -2,
+   "baseM": 117,
+   "minM": 118.67,
+   "maxM": 135.21,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 1079320
+  },
+  {
+   "id": "-8_-1",
+   "tx": -8,
+   "tz": -1,
+   "baseM": 108,
+   "minM": 109.56,
+   "maxM": 123.89,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 677014
+  },
+  {
+   "id": "-8_0",
+   "tx": -8,
+   "tz": 0,
+   "baseM": 98,
+   "minM": 99.15,
+   "maxM": 128.56,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 1030923
+  },
+  {
+   "id": "-8_1",
+   "tx": -8,
+   "tz": 1,
+   "baseM": 88,
+   "minM": 89.72,
+   "maxM": 129.61,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 983620
+  },
+  {
+   "id": "-8_2",
+   "tx": -8,
+   "tz": 2,
+   "baseM": 86,
+   "minM": 87.51,
+   "maxM": 121.98,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 856235
+  },
+  {
+   "id": "-8_3",
+   "tx": -8,
+   "tz": 3,
+   "baseM": 75,
+   "minM": 76.91,
+   "maxM": 113.39,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 901817
+  },
+  {
+   "id": "-8_4",
+   "tx": -8,
+   "tz": 4,
+   "baseM": 85,
+   "minM": 86,
+   "maxM": 108.9,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 974699
+  },
+  {
+   "id": "-8_5",
+   "tx": -8,
+   "tz": 5,
+   "baseM": 69,
+   "minM": 70.93,
+   "maxM": 94.04,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 1487784
+  },
+  {
+   "id": "-8_6",
+   "tx": -8,
+   "tz": 6,
+   "baseM": 61,
+   "minM": 62.12,
+   "maxM": 87.11,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 1522489
+  },
+  {
+   "id": "-8_7",
+   "tx": -8,
+   "tz": 7,
+   "baseM": 43,
+   "minM": 44.79,
+   "maxM": 75.67,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 2096305
+  },
+  {
+   "id": "-7_-8",
+   "tx": -7,
+   "tz": -8,
+   "baseM": 43,
+   "minM": 44.69,
+   "maxM": 78.94,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 1529757
+  },
+  {
+   "id": "-7_-7",
+   "tx": -7,
+   "tz": -7,
+   "baseM": 55,
+   "minM": 56.21,
+   "maxM": 114.91,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 1709595
+  },
+  {
+   "id": "-7_-6",
+   "tx": -7,
+   "tz": -6,
+   "baseM": 54,
+   "minM": 55.75,
+   "maxM": 132.08,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 1305835
+  },
+  {
+   "id": "-7_-5",
+   "tx": -7,
+   "tz": -5,
+   "baseM": 64,
+   "minM": 65.61,
+   "maxM": 136.96,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 1118228
+  },
+  {
+   "id": "-7_-4",
+   "tx": -7,
+   "tz": -4,
+   "baseM": 103,
+   "minM": 104.78,
+   "maxM": 149.07,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 841632
+  },
+  {
+   "id": "-7_-3",
+   "tx": -7,
+   "tz": -3,
+   "baseM": 121,
+   "minM": 122.29,
+   "maxM": 179.62,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 715383
+  },
+  {
+   "id": "-7_-2",
+   "tx": -7,
+   "tz": -2,
+   "baseM": 119,
+   "minM": 120.32,
+   "maxM": 178.84,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 961504
+  },
+  {
+   "id": "-7_-1",
+   "tx": -7,
+   "tz": -1,
+   "baseM": 110,
+   "minM": 111.22,
+   "maxM": 131.52,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 734379
+  },
+  {
+   "id": "-7_0",
+   "tx": -7,
+   "tz": 0,
+   "baseM": 93,
+   "minM": 94.66,
+   "maxM": 126.59,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 674546
+  },
+  {
+   "id": "-7_1",
+   "tx": -7,
+   "tz": 1,
+   "baseM": 86,
+   "minM": 87.75,
+   "maxM": 126.18,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 674563
+  },
+  {
+   "id": "-7_2",
+   "tx": -7,
+   "tz": 2,
+   "baseM": 89,
+   "minM": 90.55,
+   "maxM": 110.22,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 723298
+  },
+  {
+   "id": "-7_3",
+   "tx": -7,
+   "tz": 3,
+   "baseM": 69,
+   "minM": 70.04,
+   "maxM": 104.34,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 873811
+  },
+  {
+   "id": "-7_4",
+   "tx": -7,
+   "tz": 4,
+   "baseM": 71,
+   "minM": 72.72,
+   "maxM": 95.65,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 660510
+  },
+  {
+   "id": "-7_5",
+   "tx": -7,
+   "tz": 5,
+   "baseM": 72,
+   "minM": 73.26,
+   "maxM": 96.98,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 1323216
+  },
+  {
+   "id": "-7_6",
+   "tx": -7,
+   "tz": 6,
+   "baseM": 64,
+   "minM": 65.13,
+   "maxM": 81.44,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 2331511
+  },
+  {
+   "id": "-7_7",
+   "tx": -7,
+   "tz": 7,
+   "baseM": 54,
+   "minM": 55.13,
+   "maxM": 72.32,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 2824488
+  },
+  {
+   "id": "-6_-8",
+   "tx": -6,
+   "tz": -8,
+   "baseM": 40,
+   "minM": 41.31,
+   "maxM": 106,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 1842422
+  },
+  {
+   "id": "-6_-7",
+   "tx": -6,
+   "tz": -7,
+   "baseM": 43,
+   "minM": 44.47,
+   "maxM": 81.81,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 1339528
+  },
+  {
+   "id": "-6_-6",
+   "tx": -6,
+   "tz": -6,
+   "baseM": 50,
+   "minM": 51.5,
+   "maxM": 78.99,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 1043150
+  },
+  {
+   "id": "-6_-5",
+   "tx": -6,
+   "tz": -5,
+   "baseM": 57,
+   "minM": 58.74,
+   "maxM": 124.09,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 834575
+  },
+  {
+   "id": "-6_-4",
+   "tx": -6,
+   "tz": -4,
+   "baseM": 77,
+   "minM": 78.57,
+   "maxM": 137.71,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 832637
+  },
+  {
+   "id": "-6_-3",
+   "tx": -6,
+   "tz": -3,
+   "baseM": 113,
+   "minM": 114.32,
+   "maxM": 184.19,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 835497
+  },
+  {
+   "id": "-6_-2",
+   "tx": -6,
+   "tz": -2,
+   "baseM": 118,
+   "minM": 119.11,
+   "maxM": 188.84,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 896080
+  },
+  {
+   "id": "-6_-1",
+   "tx": -6,
+   "tz": -1,
+   "baseM": 110,
+   "minM": 111.23,
+   "maxM": 131.02,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 646859
+  },
+  {
+   "id": "-6_0",
+   "tx": -6,
+   "tz": 0,
+   "baseM": 107,
+   "minM": 108.72,
+   "maxM": 124.5,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 716901
+  },
+  {
+   "id": "-6_1",
+   "tx": -6,
+   "tz": 1,
+   "baseM": 105,
+   "minM": 106.47,
+   "maxM": 119.95,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 677282
+  },
+  {
+   "id": "-6_2",
+   "tx": -6,
+   "tz": 2,
+   "baseM": 90,
+   "minM": 91.4,
+   "maxM": 115.07,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 866381
+  },
+  {
+   "id": "-6_3",
+   "tx": -6,
+   "tz": 3,
+   "baseM": 68,
+   "minM": 69.49,
+   "maxM": 102.79,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 785384
+  },
+  {
+   "id": "-6_4",
+   "tx": -6,
+   "tz": 4,
+   "baseM": 63,
+   "minM": 64.84,
+   "maxM": 89.81,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 715582
+  },
+  {
+   "id": "-6_5",
+   "tx": -6,
+   "tz": 5,
+   "baseM": 67,
+   "minM": 68.78,
+   "maxM": 86.23,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 828171
+  },
+  {
+   "id": "-6_6",
+   "tx": -6,
+   "tz": 6,
+   "baseM": 58,
+   "minM": 59.65,
+   "maxM": 77.13,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 1845353
+  },
+  {
+   "id": "-6_7",
+   "tx": -6,
+   "tz": 7,
+   "baseM": 42,
+   "minM": 43.33,
+   "maxM": 74.13,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 2063002
+  },
+  {
+   "id": "-5_-8",
+   "tx": -5,
+   "tz": -8,
+   "baseM": 45,
+   "minM": 46.04,
+   "maxM": 120.21,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 1330089
+  },
+  {
+   "id": "-5_-7",
+   "tx": -5,
+   "tz": -7,
+   "baseM": 44,
+   "minM": 45.15,
+   "maxM": 91.44,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 992324
+  },
+  {
+   "id": "-5_-6",
+   "tx": -5,
+   "tz": -6,
+   "baseM": 48,
+   "minM": 49.64,
+   "maxM": 106.26,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 1097182
+  },
+  {
+   "id": "-5_-5",
+   "tx": -5,
+   "tz": -5,
+   "baseM": 52,
+   "minM": 53.66,
+   "maxM": 102.81,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 1085812
+  },
+  {
+   "id": "-5_-4",
+   "tx": -5,
+   "tz": -4,
+   "baseM": 73,
+   "minM": 74.29,
+   "maxM": 134.16,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 865540
+  },
+  {
+   "id": "-5_-3",
+   "tx": -5,
+   "tz": -3,
+   "baseM": 100,
+   "minM": 101.4,
+   "maxM": 148.3,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 1130486
+  },
+  {
+   "id": "-5_-2",
+   "tx": -5,
+   "tz": -2,
+   "baseM": 117,
+   "minM": 118.56,
+   "maxM": 165.52,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 919955
+  },
+  {
+   "id": "-5_-1",
+   "tx": -5,
+   "tz": -1,
+   "baseM": 100,
+   "minM": 101.31,
+   "maxM": 140.72,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 806969
+  },
+  {
+   "id": "-5_0",
+   "tx": -5,
+   "tz": 0,
+   "baseM": 92,
+   "minM": 93.52,
+   "maxM": 118.08,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 1225978
+  },
+  {
+   "id": "-5_1",
+   "tx": -5,
+   "tz": 1,
+   "baseM": 98,
+   "minM": 99.11,
+   "maxM": 117.52,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 928765
+  },
+  {
+   "id": "-5_2",
+   "tx": -5,
+   "tz": 2,
+   "baseM": 95,
+   "minM": 96.4,
+   "maxM": 110.55,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 1320941
+  },
+  {
+   "id": "-5_3",
+   "tx": -5,
+   "tz": 3,
+   "baseM": 78,
+   "minM": 79.16,
+   "maxM": 106.74,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 965471
+  },
+  {
+   "id": "-5_4",
+   "tx": -5,
+   "tz": 4,
+   "baseM": 59,
+   "minM": 60.19,
+   "maxM": 97.01,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 1064489
+  },
+  {
+   "id": "-5_5",
+   "tx": -5,
+   "tz": 5,
+   "baseM": 70,
+   "minM": 71.56,
+   "maxM": 87.27,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 891800
+  },
+  {
+   "id": "-5_6",
+   "tx": -5,
+   "tz": 6,
+   "baseM": 60,
+   "minM": 61.71,
+   "maxM": 81.56,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 977319
+  },
+  {
+   "id": "-5_7",
+   "tx": -5,
+   "tz": 7,
+   "baseM": 42,
+   "minM": 43.34,
+   "maxM": 72.53,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 1779258
+  },
+  {
+   "id": "-4_-8",
+   "tx": -4,
+   "tz": -8,
+   "baseM": 45,
+   "minM": 46.58,
+   "maxM": 83.91,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 1245957
+  },
+  {
+   "id": "-4_-7",
+   "tx": -4,
+   "tz": -7,
+   "baseM": 45,
+   "minM": 46.59,
+   "maxM": 117.94,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 1078199
+  },
+  {
+   "id": "-4_-6",
+   "tx": -4,
+   "tz": -6,
+   "baseM": 56,
+   "minM": 57.16,
+   "maxM": 115.06,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 936906
+  },
+  {
+   "id": "-4_-5",
+   "tx": -4,
+   "tz": -5,
+   "baseM": 55,
+   "minM": 56.66,
+   "maxM": 101.96,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 1200218
+  },
+  {
+   "id": "-4_-4",
+   "tx": -4,
+   "tz": -4,
+   "baseM": 80,
+   "minM": 81.16,
+   "maxM": 135.74,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 984372
+  },
+  {
+   "id": "-4_-3",
+   "tx": -4,
+   "tz": -3,
+   "baseM": 112,
+   "minM": 113.6,
+   "maxM": 148.31,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 704870
+  },
+  {
+   "id": "-4_-2",
+   "tx": -4,
+   "tz": -2,
+   "baseM": 124,
+   "minM": 125.97,
+   "maxM": 172.8,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 872755
+  },
+  {
+   "id": "-4_-1",
+   "tx": -4,
+   "tz": -1,
+   "baseM": 102,
+   "minM": 103.07,
+   "maxM": 143.07,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 836313
+  },
+  {
+   "id": "-4_0",
+   "tx": -4,
+   "tz": 0,
+   "baseM": 82,
+   "minM": 83.03,
+   "maxM": 114.33,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 1091288
+  },
+  {
+   "id": "-4_1",
+   "tx": -4,
+   "tz": 1,
+   "baseM": 82,
+   "minM": 83.23,
+   "maxM": 111.14,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 1637426
+  },
+  {
+   "id": "-4_2",
+   "tx": -4,
+   "tz": 2,
+   "baseM": 75,
+   "minM": 76.67,
+   "maxM": 105.79,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 2122585
+  },
+  {
+   "id": "-4_3",
+   "tx": -4,
+   "tz": 3,
+   "baseM": 75,
+   "minM": 76.67,
+   "maxM": 98.49,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 1365668
+  },
+  {
+   "id": "-4_4",
+   "tx": -4,
+   "tz": 4,
+   "baseM": 56,
+   "minM": 57.97,
+   "maxM": 91.16,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 1040953
+  },
+  {
+   "id": "-4_5",
+   "tx": -4,
+   "tz": 5,
+   "baseM": 54,
+   "minM": 55.69,
+   "maxM": 84.33,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 1115749
+  },
+  {
+   "id": "-4_6",
+   "tx": -4,
+   "tz": 6,
+   "baseM": 48,
+   "minM": 49.39,
+   "maxM": 97.03,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 1211352
+  },
+  {
+   "id": "-4_7",
+   "tx": -4,
+   "tz": 7,
+   "baseM": 45,
+   "minM": 46.99,
+   "maxM": 100.44,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 1326940
+  },
+  {
+   "id": "-3_-8",
+   "tx": -3,
+   "tz": -8,
+   "baseM": 56,
+   "minM": 57.22,
+   "maxM": 132,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 1222551
+  },
+  {
+   "id": "-3_-7",
+   "tx": -3,
+   "tz": -7,
+   "baseM": 55,
+   "minM": 56.85,
+   "maxM": 129.02,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 912293
+  },
+  {
+   "id": "-3_-6",
+   "tx": -3,
+   "tz": -6,
+   "baseM": 62,
+   "minM": 63.61,
+   "maxM": 127.51,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 789910
+  },
+  {
+   "id": "-3_-5",
+   "tx": -3,
+   "tz": -5,
+   "baseM": 59,
+   "minM": 60.82,
+   "maxM": 104.5,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 1121551
+  },
+  {
+   "id": "-3_-4",
+   "tx": -3,
+   "tz": -4,
+   "baseM": 76,
+   "minM": 77.59,
+   "maxM": 137.24,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 797071
+  },
+  {
+   "id": "-3_-3",
+   "tx": -3,
+   "tz": -3,
+   "baseM": 123,
+   "minM": 124.07,
+   "maxM": 139.74,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 599830
+  },
+  {
+   "id": "-3_-2",
+   "tx": -3,
+   "tz": -2,
+   "baseM": 114,
+   "minM": 115.5,
+   "maxM": 138.26,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 863223
+  },
+  {
+   "id": "-3_-1",
+   "tx": -3,
+   "tz": -1,
+   "baseM": 105,
+   "minM": 106.47,
+   "maxM": 131,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 655133
+  },
+  {
+   "id": "-3_0",
+   "tx": -3,
+   "tz": 0,
+   "baseM": 81,
+   "minM": 82.92,
+   "maxM": 119.73,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 708595
+  },
+  {
+   "id": "-3_1",
+   "tx": -3,
+   "tz": 1,
+   "baseM": 72,
+   "minM": 73.37,
+   "maxM": 114.67,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 1745547
+  },
+  {
+   "id": "-3_2",
+   "tx": -3,
+   "tz": 2,
+   "baseM": 69,
+   "minM": 70.45,
+   "maxM": 100.35,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 2535885
+  },
+  {
+   "id": "-3_3",
+   "tx": -3,
+   "tz": 3,
+   "baseM": 58,
+   "minM": 59.81,
+   "maxM": 91.65,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 1447305
+  },
+  {
+   "id": "-3_4",
+   "tx": -3,
+   "tz": 4,
+   "baseM": 56,
+   "minM": 57.83,
+   "maxM": 107.55,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 1621140
+  },
+  {
+   "id": "-3_5",
+   "tx": -3,
+   "tz": 5,
+   "baseM": 53,
+   "minM": 54.05,
+   "maxM": 98.2,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 1896808
+  },
+  {
+   "id": "-3_6",
+   "tx": -3,
+   "tz": 6,
+   "baseM": 48,
+   "minM": 49.73,
+   "maxM": 99.86,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 1306288
+  },
+  {
+   "id": "-3_7",
+   "tx": -3,
+   "tz": 7,
+   "baseM": 60,
+   "minM": 61.53,
+   "maxM": 102,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 992123
+  },
+  {
+   "id": "-2_-8",
+   "tx": -2,
+   "tz": -8,
+   "baseM": 84,
+   "minM": 85.22,
+   "maxM": 131.97,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 1304478
+  },
+  {
+   "id": "-2_-7",
+   "tx": -2,
+   "tz": -7,
+   "baseM": 84,
+   "minM": 85.9,
+   "maxM": 134.53,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 809626
+  },
+  {
+   "id": "-2_-6",
+   "tx": -2,
+   "tz": -6,
+   "baseM": 96,
+   "minM": 97.44,
+   "maxM": 130.42,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 683928
+  },
+  {
+   "id": "-2_-5",
+   "tx": -2,
+   "tz": -5,
+   "baseM": 65,
+   "minM": 66,
+   "maxM": 113.3,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 1355564
+  },
+  {
+   "id": "-2_-4",
+   "tx": -2,
+   "tz": -4,
+   "baseM": 94,
+   "minM": 95.52,
+   "maxM": 139.05,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 832820
+  },
+  {
+   "id": "-2_-3",
+   "tx": -2,
+   "tz": -3,
+   "baseM": 125,
+   "minM": 126.43,
+   "maxM": 143.98,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 639928
+  },
+  {
+   "id": "-2_-2",
+   "tx": -2,
+   "tz": -2,
+   "baseM": 103,
+   "minM": 104.9,
+   "maxM": 138.72,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 758319
+  },
+  {
+   "id": "-2_-1",
+   "tx": -2,
+   "tz": -1,
+   "baseM": 89,
+   "minM": 90.01,
+   "maxM": 136.86,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 802088
+  },
+  {
+   "id": "-2_0",
+   "tx": -2,
+   "tz": 0,
+   "baseM": 81,
+   "minM": 82.43,
+   "maxM": 123.46,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 1013020
+  },
+  {
+   "id": "-2_1",
+   "tx": -2,
+   "tz": 1,
+   "baseM": 67,
+   "minM": 68.54,
+   "maxM": 111.7,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 876083
+  },
+  {
+   "id": "-2_2",
+   "tx": -2,
+   "tz": 2,
+   "baseM": 63,
+   "minM": 64.16,
+   "maxM": 105.37,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 1364268
+  },
+  {
+   "id": "-2_3",
+   "tx": -2,
+   "tz": 3,
+   "baseM": 61,
+   "minM": 62.79,
+   "maxM": 106.76,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 869844
+  },
+  {
+   "id": "-2_4",
+   "tx": -2,
+   "tz": 4,
+   "baseM": 79,
+   "minM": 80.2,
+   "maxM": 109.57,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 1017981
+  },
+  {
+   "id": "-2_5",
+   "tx": -2,
+   "tz": 5,
+   "baseM": 58,
+   "minM": 59.69,
+   "maxM": 115.01,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 1113575
+  },
+  {
+   "id": "-2_6",
+   "tx": -2,
+   "tz": 6,
+   "baseM": 59,
+   "minM": 60.89,
+   "maxM": 97.12,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 851372
+  },
+  {
+   "id": "-2_7",
+   "tx": -2,
+   "tz": 7,
+   "baseM": 77,
+   "minM": 78.65,
+   "maxM": 96.9,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 667831
+  },
+  {
+   "id": "-1_-8",
+   "tx": -1,
+   "tz": -8,
+   "baseM": 93,
+   "minM": 94.76,
+   "maxM": 131.94,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 1298546
+  },
+  {
+   "id": "-1_-7",
+   "tx": -1,
+   "tz": -7,
+   "baseM": 116,
+   "minM": 117.2,
+   "maxM": 135.87,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 1065999
+  },
+  {
+   "id": "-1_-6",
+   "tx": -1,
+   "tz": -6,
+   "baseM": 96,
+   "minM": 97.08,
+   "maxM": 130.05,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 868882
+  },
+  {
+   "id": "-1_-5",
+   "tx": -1,
+   "tz": -5,
+   "baseM": 72,
+   "minM": 73.93,
+   "maxM": 123.03,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 1889391
+  },
+  {
+   "id": "-1_-4",
+   "tx": -1,
+   "tz": -4,
+   "baseM": 83,
+   "minM": 84.46,
+   "maxM": 137.4,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 1579130
+  },
+  {
+   "id": "-1_-3",
+   "tx": -1,
+   "tz": -3,
+   "baseM": 123,
+   "minM": 124.65,
+   "maxM": 141.42,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 1296734
+  },
+  {
+   "id": "-1_-2",
+   "tx": -1,
+   "tz": -2,
+   "baseM": 113,
+   "minM": 114.03,
+   "maxM": 136.55,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 684434
+  },
+  {
+   "id": "-1_-1",
+   "tx": -1,
+   "tz": -1,
+   "baseM": 95,
+   "minM": 96.93,
+   "maxM": 128.49,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 1806810
+  },
+  {
+   "id": "-1_0",
+   "tx": -1,
+   "tz": 0,
+   "baseM": 86,
+   "minM": 87.28,
+   "maxM": 120.84,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 1812833
+  },
+  {
+   "id": "-1_1",
+   "tx": -1,
+   "tz": 1,
+   "baseM": 68,
+   "minM": 69.69,
+   "maxM": 111.5,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 1657690
+  },
+  {
+   "id": "-1_2",
+   "tx": -1,
+   "tz": 2,
+   "baseM": 68,
+   "minM": 69.6,
+   "maxM": 112.83,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 905932
+  },
+  {
+   "id": "-1_3",
+   "tx": -1,
+   "tz": 3,
+   "baseM": 87,
+   "minM": 88.34,
+   "maxM": 114.48,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 780694
+  },
+  {
+   "id": "-1_4",
+   "tx": -1,
+   "tz": 4,
+   "baseM": 95,
+   "minM": 96.15,
+   "maxM": 115.92,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 758184
+  },
+  {
+   "id": "-1_5",
+   "tx": -1,
+   "tz": 5,
+   "baseM": 69,
+   "minM": 70.59,
+   "maxM": 111.06,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 1100360
+  },
+  {
+   "id": "-1_6",
+   "tx": -1,
+   "tz": 6,
+   "baseM": 68,
+   "minM": 69.95,
+   "maxM": 97.61,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 766143
+  },
+  {
+   "id": "-1_7",
+   "tx": -1,
+   "tz": 7,
+   "baseM": 78,
+   "minM": 79.35,
+   "maxM": 97.66,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 773487
+  },
+  {
+   "id": "0_-8",
+   "tx": 0,
+   "tz": -8,
+   "baseM": 75,
+   "minM": 76.64,
+   "maxM": 118.15,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 1133607
+  },
+  {
+   "id": "0_-7",
+   "tx": 0,
+   "tz": -7,
+   "baseM": 98,
+   "minM": 99.31,
+   "maxM": 127.55,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 879516
+  },
+  {
+   "id": "0_-6",
+   "tx": 0,
+   "tz": -6,
+   "baseM": 111,
+   "minM": 112.22,
+   "maxM": 127.56,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 1298795
+  },
+  {
+   "id": "0_-5",
+   "tx": 0,
+   "tz": -5,
+   "baseM": 82,
+   "minM": 83.19,
+   "maxM": 128.54,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 1767165
+  },
+  {
+   "id": "0_-4",
+   "tx": 0,
+   "tz": -4,
+   "baseM": 87,
+   "minM": 88.15,
+   "maxM": 135.69,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 1015549
+  },
+  {
+   "id": "0_-3",
+   "tx": 0,
+   "tz": -3,
+   "baseM": 121,
+   "minM": 122.63,
+   "maxM": 141.01,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 800361
+  },
+  {
+   "id": "0_-2",
+   "tx": 0,
+   "tz": -2,
+   "baseM": 111,
+   "minM": 112.7,
+   "maxM": 132.55,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 677319
+  },
+  {
+   "id": "0_-1",
+   "tx": 0,
+   "tz": -1,
+   "baseM": 99,
+   "minM": 100.98,
+   "maxM": 125.58,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 828967
+  },
+  {
+   "id": "0_0",
+   "tx": 0,
+   "tz": 0,
+   "baseM": 96,
+   "minM": 97.41,
+   "maxM": 116.78,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 971710
+  },
+  {
+   "id": "0_1",
+   "tx": 0,
+   "tz": 1,
+   "baseM": 73,
+   "minM": 74.09,
+   "maxM": 109.64,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 993005
+  },
+  {
+   "id": "0_2",
+   "tx": 0,
+   "tz": 2,
+   "baseM": 81,
+   "minM": 82.25,
+   "maxM": 115.26,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 758122
+  },
+  {
+   "id": "0_3",
+   "tx": 0,
+   "tz": 3,
+   "baseM": 102,
+   "minM": 103.77,
+   "maxM": 115.77,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 750557
+  },
+  {
+   "id": "0_4",
+   "tx": 0,
+   "tz": 4,
+   "baseM": 94,
+   "minM": 95.55,
+   "maxM": 112.52,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 830318
+  },
+  {
+   "id": "0_5",
+   "tx": 0,
+   "tz": 5,
+   "baseM": 86,
+   "minM": 87.83,
+   "maxM": 110.87,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 1620444
+  },
+  {
+   "id": "0_6",
+   "tx": 0,
+   "tz": 6,
+   "baseM": 76,
+   "minM": 77.49,
+   "maxM": 102.65,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 1198037
+  },
+  {
+   "id": "0_7",
+   "tx": 0,
+   "tz": 7,
+   "baseM": 76,
+   "minM": 77.55,
+   "maxM": 95.95,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 1270267
+  },
+  {
+   "id": "1_-8",
+   "tx": 1,
+   "tz": -8,
+   "baseM": 66,
+   "minM": 67.95,
+   "maxM": 102.79,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 2017070
+  },
+  {
+   "id": "1_-7",
+   "tx": 1,
+   "tz": -7,
+   "baseM": 78,
+   "minM": 79.19,
+   "maxM": 120.35,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 798246
+  },
+  {
+   "id": "1_-6",
+   "tx": 1,
+   "tz": -6,
+   "baseM": 97,
+   "minM": 98.53,
+   "maxM": 128.47,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 1005007
+  },
+  {
+   "id": "1_-5",
+   "tx": 1,
+   "tz": -5,
+   "baseM": 105,
+   "minM": 106.56,
+   "maxM": 146.34,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 1214177
+  },
+  {
+   "id": "1_-4",
+   "tx": 1,
+   "tz": -4,
+   "baseM": 109,
+   "minM": 111,
+   "maxM": 141.2,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 1043822
+  },
+  {
+   "id": "1_-3",
+   "tx": 1,
+   "tz": -3,
+   "baseM": 116,
+   "minM": 117.66,
+   "maxM": 142.92,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 806696
+  },
+  {
+   "id": "1_-2",
+   "tx": 1,
+   "tz": -2,
+   "baseM": 111,
+   "minM": 112.76,
+   "maxM": 134.46,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 754429
+  },
+  {
+   "id": "1_-1",
+   "tx": 1,
+   "tz": -1,
+   "baseM": 105,
+   "minM": 106.41,
+   "maxM": 129.19,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 790253
+  },
+  {
+   "id": "1_0",
+   "tx": 1,
+   "tz": 0,
+   "baseM": 92,
+   "minM": 93.71,
+   "maxM": 113.08,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 681773
+  },
+  {
+   "id": "1_1",
+   "tx": 1,
+   "tz": 1,
+   "baseM": 77,
+   "minM": 78.71,
+   "maxM": 105.73,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 761415
+  },
+  {
+   "id": "1_2",
+   "tx": 1,
+   "tz": 2,
+   "baseM": 83,
+   "minM": 84.23,
+   "maxM": 114.79,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 710855
+  },
+  {
+   "id": "1_3",
+   "tx": 1,
+   "tz": 3,
+   "baseM": 104,
+   "minM": 105.65,
+   "maxM": 119.04,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 722445
+  },
+  {
+   "id": "1_4",
+   "tx": 1,
+   "tz": 4,
+   "baseM": 97,
+   "minM": 98.35,
+   "maxM": 115.13,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 1013841
+  },
+  {
+   "id": "1_5",
+   "tx": 1,
+   "tz": 5,
+   "baseM": 90,
+   "minM": 91.36,
+   "maxM": 121,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 1161808
+  },
+  {
+   "id": "1_6",
+   "tx": 1,
+   "tz": 6,
+   "baseM": 83,
+   "minM": 84.65,
+   "maxM": 103.21,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 1005013
+  },
+  {
+   "id": "1_7",
+   "tx": 1,
+   "tz": 7,
+   "baseM": 76,
+   "minM": 77.53,
+   "maxM": 99.64,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 960976
+  },
+  {
+   "id": "2_-8",
+   "tx": 2,
+   "tz": -8,
+   "baseM": 65,
+   "minM": 66.67,
+   "maxM": 111.35,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 1045912
+  },
+  {
+   "id": "2_-7",
+   "tx": 2,
+   "tz": -7,
+   "baseM": 78,
+   "minM": 79.53,
+   "maxM": 124.33,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 1106630
+  },
+  {
+   "id": "2_-6",
+   "tx": 2,
+   "tz": -6,
+   "baseM": 93,
+   "minM": 94.2,
+   "maxM": 139.29,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 1035704
+  },
+  {
+   "id": "2_-5",
+   "tx": 2,
+   "tz": -5,
+   "baseM": 119,
+   "minM": 120.18,
+   "maxM": 154.03,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 1407888
+  },
+  {
+   "id": "2_-4",
+   "tx": 2,
+   "tz": -4,
+   "baseM": 112,
+   "minM": 113.27,
+   "maxM": 153.94,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 806382
+  },
+  {
+   "id": "2_-3",
+   "tx": 2,
+   "tz": -3,
+   "baseM": 114,
+   "minM": 115.29,
+   "maxM": 147.86,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 639439
+  },
+  {
+   "id": "2_-2",
+   "tx": 2,
+   "tz": -2,
+   "baseM": 99,
+   "minM": 100.95,
+   "maxM": 133.55,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 833041
+  },
+  {
+   "id": "2_-1",
+   "tx": 2,
+   "tz": -1,
+   "baseM": 92,
+   "minM": 93.01,
+   "maxM": 123.66,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 1264153
+  },
+  {
+   "id": "2_0",
+   "tx": 2,
+   "tz": 0,
+   "baseM": 87,
+   "minM": 88.73,
+   "maxM": 113.23,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 808880
+  },
+  {
+   "id": "2_1",
+   "tx": 2,
+   "tz": 1,
+   "baseM": 82,
+   "minM": 83.74,
+   "maxM": 118.11,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 784984
+  },
+  {
+   "id": "2_2",
+   "tx": 2,
+   "tz": 2,
+   "baseM": 87,
+   "minM": 88.99,
+   "maxM": 132.88,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 824697
+  },
+  {
+   "id": "2_3",
+   "tx": 2,
+   "tz": 3,
+   "baseM": 104,
+   "minM": 105.79,
+   "maxM": 119.15,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 738208
+  },
+  {
+   "id": "2_4",
+   "tx": 2,
+   "tz": 4,
+   "baseM": 92,
+   "minM": 93.91,
+   "maxM": 124.56,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 915521
+  },
+  {
+   "id": "2_5",
+   "tx": 2,
+   "tz": 5,
+   "baseM": 88,
+   "minM": 89.62,
+   "maxM": 109.66,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 1140758
+  },
+  {
+   "id": "2_6",
+   "tx": 2,
+   "tz": 6,
+   "baseM": 86,
+   "minM": 87.13,
+   "maxM": 108.33,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 762355
+  },
+  {
+   "id": "2_7",
+   "tx": 2,
+   "tz": 7,
+   "baseM": 73,
+   "minM": 74.13,
+   "maxM": 100.07,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 1160428
+  },
+  {
+   "id": "3_-8",
+   "tx": 3,
+   "tz": -8,
+   "baseM": 67,
+   "minM": 68.67,
+   "maxM": 102.4,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 1168434
+  },
+  {
+   "id": "3_-7",
+   "tx": 3,
+   "tz": -7,
+   "baseM": 88,
+   "minM": 89.27,
+   "maxM": 124.2,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 719295
+  },
+  {
+   "id": "3_-6",
+   "tx": 3,
+   "tz": -6,
+   "baseM": 108,
+   "minM": 109.35,
+   "maxM": 132.17,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 773178
+  },
+  {
+   "id": "3_-5",
+   "tx": 3,
+   "tz": -5,
+   "baseM": 118,
+   "minM": 119.5,
+   "maxM": 170.64,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 1121494
+  },
+  {
+   "id": "3_-4",
+   "tx": 3,
+   "tz": -4,
+   "baseM": 132,
+   "minM": 133.75,
+   "maxM": 159.98,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 945110
+  },
+  {
+   "id": "3_-3",
+   "tx": 3,
+   "tz": -3,
+   "baseM": 113,
+   "minM": 114.6,
+   "maxM": 144.16,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 816105
+  },
+  {
+   "id": "3_-2",
+   "tx": 3,
+   "tz": -2,
+   "baseM": 99,
+   "minM": 100.82,
+   "maxM": 130.48,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 929015
+  },
+  {
+   "id": "3_-1",
+   "tx": 3,
+   "tz": -1,
+   "baseM": 92,
+   "minM": 93.08,
+   "maxM": 123.52,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 886133
+  },
+  {
+   "id": "3_0",
+   "tx": 3,
+   "tz": 0,
+   "baseM": 88,
+   "minM": 89.49,
+   "maxM": 123.58,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 770360
+  },
+  {
+   "id": "3_1",
+   "tx": 3,
+   "tz": 1,
+   "baseM": 93,
+   "minM": 94.45,
+   "maxM": 118.23,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 864065
+  },
+  {
+   "id": "3_2",
+   "tx": 3,
+   "tz": 2,
+   "baseM": 106,
+   "minM": 107.87,
+   "maxM": 133.01,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 807231
+  },
+  {
+   "id": "3_3",
+   "tx": 3,
+   "tz": 3,
+   "baseM": 109,
+   "minM": 110.39,
+   "maxM": 119.37,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 691062
+  },
+  {
+   "id": "3_4",
+   "tx": 3,
+   "tz": 4,
+   "baseM": 95,
+   "minM": 96.71,
+   "maxM": 121.19,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 1023949
+  },
+  {
+   "id": "3_5",
+   "tx": 3,
+   "tz": 5,
+   "baseM": 88,
+   "minM": 89.67,
+   "maxM": 111.05,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 1078124
+  },
+  {
+   "id": "3_6",
+   "tx": 3,
+   "tz": 6,
+   "baseM": 84,
+   "minM": 85.99,
+   "maxM": 106.08,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 705555
+  },
+  {
+   "id": "3_7",
+   "tx": 3,
+   "tz": 7,
+   "baseM": 71,
+   "minM": 72.96,
+   "maxM": 101.33,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 1251181
+  },
+  {
+   "id": "4_-8",
+   "tx": 4,
+   "tz": -8,
+   "baseM": 71,
+   "minM": 72.32,
+   "maxM": 106.28,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 1085047
+  },
+  {
+   "id": "4_-7",
+   "tx": 4,
+   "tz": -7,
+   "baseM": 97,
+   "minM": 98.15,
+   "maxM": 117.17,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 665693
+  },
+  {
+   "id": "4_-6",
+   "tx": 4,
+   "tz": -6,
+   "baseM": 104,
+   "minM": 105.89,
+   "maxM": 149.63,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 991302
+  },
+  {
+   "id": "4_-5",
+   "tx": 4,
+   "tz": -5,
+   "baseM": 113,
+   "minM": 114.47,
+   "maxM": 189.43,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 1458813
+  },
+  {
+   "id": "4_-4",
+   "tx": 4,
+   "tz": -4,
+   "baseM": 125,
+   "minM": 126.28,
+   "maxM": 170.75,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 1869792
+  },
+  {
+   "id": "4_-3",
+   "tx": 4,
+   "tz": -3,
+   "baseM": 116,
+   "minM": 117.78,
+   "maxM": 138.56,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 768135
+  },
+  {
+   "id": "4_-2",
+   "tx": 4,
+   "tz": -2,
+   "baseM": 104,
+   "minM": 105.39,
+   "maxM": 144.68,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 1713776
+  },
+  {
+   "id": "4_-1",
+   "tx": 4,
+   "tz": -1,
+   "baseM": 110,
+   "minM": 111.98,
+   "maxM": 144.96,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 973141
+  },
+  {
+   "id": "4_0",
+   "tx": 4,
+   "tz": 0,
+   "baseM": 104,
+   "minM": 105.64,
+   "maxM": 129.89,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 757763
+  },
+  {
+   "id": "4_1",
+   "tx": 4,
+   "tz": 1,
+   "baseM": 110,
+   "minM": 111.4,
+   "maxM": 127.4,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 738112
+  },
+  {
+   "id": "4_2",
+   "tx": 4,
+   "tz": 2,
+   "baseM": 108,
+   "minM": 109.09,
+   "maxM": 126.36,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 702432
+  },
+  {
+   "id": "4_3",
+   "tx": 4,
+   "tz": 3,
+   "baseM": 99,
+   "minM": 100.71,
+   "maxM": 119.38,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 690765
+  },
+  {
+   "id": "4_4",
+   "tx": 4,
+   "tz": 4,
+   "baseM": 95,
+   "minM": 96.39,
+   "maxM": 126.9,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 1175807
+  },
+  {
+   "id": "4_5",
+   "tx": 4,
+   "tz": 5,
+   "baseM": 92,
+   "minM": 93.36,
+   "maxM": 116.92,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 1028116
+  },
+  {
+   "id": "4_6",
+   "tx": 4,
+   "tz": 6,
+   "baseM": 90,
+   "minM": 91.73,
+   "maxM": 109.82,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 702004
+  },
+  {
+   "id": "4_7",
+   "tx": 4,
+   "tz": 7,
+   "baseM": 80,
+   "minM": 81.86,
+   "maxM": 103.04,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 758235
+  },
+  {
+   "id": "5_-8",
+   "tx": 5,
+   "tz": -8,
+   "baseM": 64,
+   "minM": 65.55,
+   "maxM": 103.19,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 1105817
+  },
+  {
+   "id": "5_-7",
+   "tx": 5,
+   "tz": -7,
+   "baseM": 89,
+   "minM": 90.81,
+   "maxM": 109.24,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 725921
+  },
+  {
+   "id": "5_-6",
+   "tx": 5,
+   "tz": -6,
+   "baseM": 95,
+   "minM": 96.66,
+   "maxM": 128.18,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 1479486
+  },
+  {
+   "id": "5_-5",
+   "tx": 5,
+   "tz": -5,
+   "baseM": 104,
+   "minM": 105.42,
+   "maxM": 203.72,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 1190789
+  },
+  {
+   "id": "5_-4",
+   "tx": 5,
+   "tz": -4,
+   "baseM": 119,
+   "minM": 120.05,
+   "maxM": 199.28,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 1100407
+  },
+  {
+   "id": "5_-3",
+   "tx": 5,
+   "tz": -3,
+   "baseM": 113,
+   "minM": 114.99,
+   "maxM": 142.32,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 717897
+  },
+  {
+   "id": "5_-2",
+   "tx": 5,
+   "tz": -2,
+   "baseM": 112,
+   "minM": 113.94,
+   "maxM": 145.53,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 1072100
+  },
+  {
+   "id": "5_-1",
+   "tx": 5,
+   "tz": -1,
+   "baseM": 105,
+   "minM": 106.85,
+   "maxM": 144.54,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 716872
+  },
+  {
+   "id": "5_0",
+   "tx": 5,
+   "tz": 0,
+   "baseM": 100,
+   "minM": 101.82,
+   "maxM": 132.44,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 808304
+  },
+  {
+   "id": "5_1",
+   "tx": 5,
+   "tz": 1,
+   "baseM": 102,
+   "minM": 103.99,
+   "maxM": 126.53,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 699613
+  },
+  {
+   "id": "5_2",
+   "tx": 5,
+   "tz": 2,
+   "baseM": 112,
+   "minM": 113.84,
+   "maxM": 126.88,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 895396
+  },
+  {
+   "id": "5_3",
+   "tx": 5,
+   "tz": 3,
+   "baseM": 98,
+   "minM": 99.87,
+   "maxM": 122.83,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 811557
+  },
+  {
+   "id": "5_4",
+   "tx": 5,
+   "tz": 4,
+   "baseM": 96,
+   "minM": 97.06,
+   "maxM": 114.1,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 1020392
+  },
+  {
+   "id": "5_5",
+   "tx": 5,
+   "tz": 5,
+   "baseM": 90,
+   "minM": 91.34,
+   "maxM": 113.32,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 861243
+  },
+  {
+   "id": "5_6",
+   "tx": 5,
+   "tz": 6,
+   "baseM": 88,
+   "minM": 89.32,
+   "maxM": 106.86,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 671279
+  },
+  {
+   "id": "5_7",
+   "tx": 5,
+   "tz": 7,
+   "baseM": 79,
+   "minM": 80.65,
+   "maxM": 98.37,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 669081
+  },
+  {
+   "id": "6_-8",
+   "tx": 6,
+   "tz": -8,
+   "baseM": 62,
+   "minM": 63.62,
+   "maxM": 99.94,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 1097505
+  },
+  {
+   "id": "6_-7",
+   "tx": 6,
+   "tz": -7,
+   "baseM": 73,
+   "minM": 74.45,
+   "maxM": 107.68,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 1395531
+  },
+  {
+   "id": "6_-6",
+   "tx": 6,
+   "tz": -6,
+   "baseM": 94,
+   "minM": 95.74,
+   "maxM": 113.85,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 1032105
+  },
+  {
+   "id": "6_-5",
+   "tx": 6,
+   "tz": -5,
+   "baseM": 101,
+   "minM": 102.34,
+   "maxM": 159.16,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 728191
+  },
+  {
+   "id": "6_-4",
+   "tx": 6,
+   "tz": -4,
+   "baseM": 111,
+   "minM": 112.51,
+   "maxM": 162.25,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 915413
+  },
+  {
+   "id": "6_-3",
+   "tx": 6,
+   "tz": -3,
+   "baseM": 113,
+   "minM": 114.76,
+   "maxM": 156.87,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 889613
+  },
+  {
+   "id": "6_-2",
+   "tx": 6,
+   "tz": -2,
+   "baseM": 102,
+   "minM": 103.92,
+   "maxM": 140.89,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 1368944
+  },
+  {
+   "id": "6_-1",
+   "tx": 6,
+   "tz": -1,
+   "baseM": 96,
+   "minM": 97.25,
+   "maxM": 126.3,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 943936
+  },
+  {
+   "id": "6_0",
+   "tx": 6,
+   "tz": 0,
+   "baseM": 93,
+   "minM": 94.7,
+   "maxM": 121.79,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 728886
+  },
+  {
+   "id": "6_1",
+   "tx": 6,
+   "tz": 1,
+   "baseM": 97,
+   "minM": 98.05,
+   "maxM": 118.05,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 661090
+  },
+  {
+   "id": "6_2",
+   "tx": 6,
+   "tz": 2,
+   "baseM": 109,
+   "minM": 110.85,
+   "maxM": 121.86,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 648218
+  },
+  {
+   "id": "6_3",
+   "tx": 6,
+   "tz": 3,
+   "baseM": 103,
+   "minM": 104.16,
+   "maxM": 124.87,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 996271
+  },
+  {
+   "id": "6_4",
+   "tx": 6,
+   "tz": 4,
+   "baseM": 91,
+   "minM": 92.45,
+   "maxM": 114.77,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 1168059
+  },
+  {
+   "id": "6_5",
+   "tx": 6,
+   "tz": 5,
+   "baseM": 80,
+   "minM": 81.71,
+   "maxM": 107.84,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 873730
+  },
+  {
+   "id": "6_6",
+   "tx": 6,
+   "tz": 6,
+   "baseM": 89,
+   "minM": 90.85,
+   "maxM": 100.94,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 687069
+  },
+  {
+   "id": "6_7",
+   "tx": 6,
+   "tz": 7,
+   "baseM": 77,
+   "minM": 78.74,
+   "maxM": 99.83,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 692489
+  },
+  {
+   "id": "7_-8",
+   "tx": 7,
+   "tz": -8,
+   "baseM": 63,
+   "minM": 64.67,
+   "maxM": 99.56,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 959000
+  },
+  {
+   "id": "7_-7",
+   "tx": 7,
+   "tz": -7,
+   "baseM": 73,
+   "minM": 74.84,
+   "maxM": 105.11,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 1041757
+  },
+  {
+   "id": "7_-6",
+   "tx": 7,
+   "tz": -6,
+   "baseM": 89,
+   "minM": 90.65,
+   "maxM": 107.1,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 720630
+  },
+  {
+   "id": "7_-5",
+   "tx": 7,
+   "tz": -5,
+   "baseM": 95,
+   "minM": 96.48,
+   "maxM": 118.08,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 761727
+  },
+  {
+   "id": "7_-4",
+   "tx": 7,
+   "tz": -4,
+   "baseM": 102,
+   "minM": 103.65,
+   "maxM": 145.41,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 929292
+  },
+  {
+   "id": "7_-3",
+   "tx": 7,
+   "tz": -3,
+   "baseM": 106,
+   "minM": 107.59,
+   "maxM": 147.8,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 1025713
+  },
+  {
+   "id": "7_-2",
+   "tx": 7,
+   "tz": -2,
+   "baseM": 100,
+   "minM": 101.06,
+   "maxM": 135.95,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 1260935
+  },
+  {
+   "id": "7_-1",
+   "tx": 7,
+   "tz": -1,
+   "baseM": 94,
+   "minM": 95.68,
+   "maxM": 115.34,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 1250553
+  },
+  {
+   "id": "7_0",
+   "tx": 7,
+   "tz": 0,
+   "baseM": 89,
+   "minM": 90.19,
+   "maxM": 115.4,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 845412
+  },
+  {
+   "id": "7_1",
+   "tx": 7,
+   "tz": 1,
+   "baseM": 89,
+   "minM": 90.15,
+   "maxM": 116.77,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 669458
+  },
+  {
+   "id": "7_2",
+   "tx": 7,
+   "tz": 2,
+   "baseM": 100,
+   "minM": 101.49,
+   "maxM": 118.01,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 630021
+  },
+  {
+   "id": "7_3",
+   "tx": 7,
+   "tz": 3,
+   "baseM": 107,
+   "minM": 108.6,
+   "maxM": 118.95,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 661539
+  },
+  {
+   "id": "7_4",
+   "tx": 7,
+   "tz": 4,
+   "baseM": 97,
+   "minM": 98.77,
+   "maxM": 114.66,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 760142
+  },
+  {
+   "id": "7_5",
+   "tx": 7,
+   "tz": 5,
+   "baseM": 78,
+   "minM": 79.23,
+   "maxM": 114.87,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 1300048
+  },
+  {
+   "id": "7_6",
+   "tx": 7,
+   "tz": 6,
+   "baseM": 75,
+   "minM": 76.3,
+   "maxM": 101.92,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 727923
+  },
+  {
+   "id": "7_7",
+   "tx": 7,
+   "tz": 7,
+   "baseM": 68,
+   "minM": 69.76,
+   "maxM": 98.12,
+   "lods": [
+    "lo",
+    "hi",
+    "ortho"
+   ],
+   "bytes": 1015940
+  }
+ ],
+ "routes": [
+  {
+   "id": "boucle-20-km",
+   "file": "routes/boucle-20-km.json",
+   "name": "Boucle de 20 km depuis Goussainville",
+   "lengthM": 19452,
+   "elevationGainM": 216.34,
+   "loop": false,
+   "main": true
+  },
+  {
+   "id": "boucle-30-km",
+   "file": "routes/boucle-30-km.json",
+   "name": "Boucle de 30 km depuis Goussainville",
+   "lengthM": 29890,
+   "elevationGainM": 259.1,
+   "loop": false,
+   "main": false
+  },
+  {
+   "id": "boucle-40-km",
+   "file": "routes/boucle-40-km.json",
+   "name": "Boucle de 40 km depuis Goussainville",
+   "lengthM": 41634,
+   "elevationGainM": 326.82,
+   "loop": false,
+   "main": false
+  },
+  {
+   "id": "boucle-50-km",
+   "file": "routes/boucle-50-km.json",
+   "name": "Boucle de 50 km depuis Goussainville",
+   "lengthM": 50308,
+   "elevationGainM": 507.83,
+   "loop": false,
+   "main": false
+  }
+ ],
+ "mainRoute": "boucle-20-km",
+ "attribution": [
+  "© IGN — RGE ALTI® / LiDAR HD (Licence Ouverte Etalab 2.0)",
+  "© les contributeurs OpenStreetMap (ODbL)",
+  "© IGN — BD ORTHO® (Licence Ouverte Etalab 2.0)",
+  "© IGN — LiDAR HD MNS / MNH (Licence Ouverte Etalab 2.0)",
+  "© IGN — BD TOPO® (Licence Ouverte Etalab 2.0)"
+ ],
+ "horizon": {
+  "file": "tiles/horizon.u16",
+  "x0": -30000,
+  "z0": -30000,
+  "n": 600,
+  "resolutionM": 100,
+  "baseM": 17,
+  "stepM": 0.1,
+  "minM": 18.36,
+  "maxM": 230.07,
+  "ortho": "tiles/horizon.ortho.jpg"
+ },
+ "open": {
+  "graph": "graph.json",
+  "start": {
+   "x": -2963.83,
+   "z": 3029.51
+  },
+  "places": "places.json"
+ }
+}

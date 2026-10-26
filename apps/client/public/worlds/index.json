@@ -534,6 +534,58 @@
    "open": true
   },
   {
+   "id": "idf-goussainville",
+   "name": "Île-de-France — Goussainville",
+   "region": "Val-d'Oise · Île-de-France",
+   "routes": [
+    {
+     "id": "boucle-20-km",
+     "name": "Boucle de 20 km depuis Goussainville",
+     "nameEn": "20 km loop from Goussainville",
+     "lengthM": 19452,
+     "elevationGainM": 216.34,
+     "loop": false
+    },
+    {
+     "id": "boucle-30-km",
+     "name": "Boucle de 30 km depuis Goussainville",
+     "nameEn": "30 km loop from Goussainville",
+     "lengthM": 29890,
+     "elevationGainM": 259.1,
+     "loop": false
+    },
+    {
+     "id": "boucle-40-km",
+     "name": "Boucle de 40 km depuis Goussainville",
+     "nameEn": "40 km loop from Goussainville",
+     "lengthM": 41634,
+     "elevationGainM": 326.82,
+     "loop": false
+    },
+    {
+     "id": "boucle-50-km",
+     "name": "Boucle de 50 km depuis Goussainville",
+     "nameEn": "50 km loop from Goussainville",
+     "lengthM": 50308,
+     "elevationGainM": 507.83,
+     "loop": false
+    }
+   ],
+   "pack": {
+    "version": "a3851882be55",
+    "bytes": 266478756,
+    "files": 1026,
+    "gzBytes": 111235984
+   },
+   "l93": {
+    "minE": 656000,
+    "minN": 6876000,
+    "maxE": 672000,
+    "maxN": 6892000
+   },
+   "open": true
+  },
+  {
    "id": "idf-montreuil",
    "name": "Île-de-France — Montreuil",
    "region": "Seine-Saint-Denis · Île-de-France",
