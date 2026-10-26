@@ -165,6 +165,7 @@ export class Hud {
   private readonly el: Record<string, HTMLElement> = {};
   private readonly profileCanvas: HTMLCanvasElement;
   private readonly mapCanvas: HTMLCanvasElement;
+  private places: readonly { name: string; kind: string; x: number; z: number }[] = [];
   /** Origine Lambert-93 du monde : active le fond de carte (Plan IGN) de la mini-carte. */
   private basemapOrigin: { x: number; y: number } | null = null;
   /** Fond de carte affiché (image chargée, emprise en repère du monde) et celui en cours de chargement. */
@@ -633,6 +634,41 @@ export class Hud {
     }
   }
 
+  /** Communes affichées sur la mini-carte. */
+  setPlaces(places: readonly { name: string; kind: string; x: number; z: number }[] | undefined): void {
+    this.places = places ?? [];
+  }
+
+  /** Noms de communes sur la mini-carte : les plus grandes d'abord, sans chevauchement. */
+  private drawPlaceNames(ctx: CanvasRenderingContext2D, w: number, h: number, view: { minX: number; maxX: number; minZ: number; maxZ: number }, P: (x: number, z: number) => [number, number]): void {
+    const rank: Record<string, number> = { city: 0, town: 1, village: 2, suburb: 2, hamlet: 3 };
+    const size = [24, 21, 18, 16];
+    const inView = this.places.filter((p) => p.x >= view.minX && p.x <= view.maxX && p.z >= view.minZ && p.z <= view.maxZ);
+    inView.sort((a, b) => (rank[a.kind] ?? 3) - (rank[b.kind] ?? 3));
+    const boxes: Array<[number, number, number, number]> = [];
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.lineJoin = 'round';
+    for (const p of inView) {
+      const r = Math.min(rank[p.kind] ?? 3, 3);
+      if (r === 3 && boxes.length >= 14) continue;
+      ctx.font = `600 ${size[r]}px system-ui, sans-serif`;
+      const [x, y] = P(p.x, p.z);
+      const tw = ctx.measureText(p.name).width;
+      const bx: [number, number, number, number] = [x - tw / 2 - 3, y - (size[r] as number) / 2 - 2, x + tw / 2 + 3, y + (size[r] as number) / 2 + 2];
+      if (bx[0] < 2 || bx[2] > w - 2 || bx[1] < 2 || bx[3] > h - 2) continue;
+      if (boxes.some((o) => bx[0] < o[2] && bx[2] > o[0] && bx[1] < o[3] && bx[3] > o[1])) continue;
+      boxes.push(bx);
+      ctx.strokeStyle = 'rgba(8,12,20,0.85)';
+      ctx.lineWidth = 5;
+      ctx.strokeText(p.name, x, y);
+      ctx.fillStyle = r === 0 ? '#ffffff' : r === 1 ? '#f1f5f9' : '#cbd5e1';
+      ctx.fillText(p.name, x, y);
+    }
+    ctx.textAlign = 'start';
+    ctx.textBaseline = 'alphabetic';
+  }
+
   private drawMap(s: HudState): void {
     const c = this.mapCanvas;
     const ctx = c.getContext('2d') as CanvasRenderingContext2D;
@@ -668,6 +704,7 @@ export class Hud {
     ctx.lineWidth = 5;
     path();
     ctx.stroke();
+    this.drawPlaceNames(ctx, w, h, view, P);
     for (const r of s.riders) {
       const [x, y] = P(r.x, r.z);
       ctx.fillStyle = r.me ? '#ffd23f' : r.color;

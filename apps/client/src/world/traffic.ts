@@ -208,7 +208,7 @@ interface Vehicle {
   /** Vitesse dans le repère monde (m/s), pour le son (Doppler). */
   vx: number;
   vz: number;
-  /** Sur un chemin non revêtu : masqué, muet, sans aspiration. */
+  /** Sur un chemin non revêtu ou (tracteur) près d'une commune : masqué, muet, sans aspiration. */
   onTrack?: boolean;
 }
 
@@ -222,6 +222,8 @@ export class Traffic {
   private readonly vehicles: Vehicle[] = [];
   private readonly track: RouteTrack;
   private readonly r = rng(77);
+  /** Communes (bourgs, villes) près desquelles les tracteurs n'apparaissent pas. */
+  private urban: ReadonlyArray<{ x: number; z: number }> = [];
   private readonly sample = { x: 0, y: 0, z: 0, dirX: 1, dirZ: 0, grade: 0, d: 0 };
 
   /** @param lodScale facteur des distances de niveau de détail (préréglage graphique) */
@@ -254,6 +256,10 @@ export class Traffic {
       this.vehicles.push({ kind: built.kind, mesh: built.group, wheels: built.wheels, length: built.length, wheelRadius: built.wheelRadius, d, sens, cruise, speed: cruise, lateral: this.laneOf(sens), vx: 0, vz: 0 });
       this.group.add(built.group);
     }
+  }
+
+  setPlaces(places: ReadonlyArray<{ kind: string; x: number; z: number }> | undefined): void {
+    this.urban = (places ?? []).filter((p) => p.kind === 'town' || p.kind === 'city' || p.kind === 'village' || p.kind === 'suburb');
   }
 
   private laneOf(sens: 1 | -1): number {
@@ -322,6 +328,11 @@ export class Traffic {
       // Pas de voiture sur un chemin non revêtu : le véhicule disparaît tant qu'il y est.
       const surface = outside ? undefined : this.track.surfaceAt(((v.d % L) + L) % L);
       v.onTrack = surface !== undefined && UNPAVED_SURFACES.has(surface);
+      // Pas de tracteur près d'une commune : il disparaît à moins de 1,2 km d'un bourg ou d'une ville.
+      if (v.kind === 'tractor' && !v.onTrack && !outside && this.urban.length) {
+        const q = this.track.positionAt(((v.d % L) + L) % L, 0, this.sample);
+        v.onTrack = this.urban.some((u) => (u.x - q.x) ** 2 + (u.z - q.z) ** 2 < 1200 * 1200);
+      }
       v.mesh.visible = !outside && !v.onTrack;
       if (outside || v.onTrack) continue;
       const p = this.track.positionAt(((v.d % L) + L) % L, v.lateral, this.sample);

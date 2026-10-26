@@ -960,6 +960,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   // Voitures (modèles chargés à la demande ; primitives si indisponibles).
   if (alive) await loadVehicleModels();
   const traffic = alive ? new Traffic(track, engine.quality.trafficDensity, startD, GltfRiderAvatar.lodScale) : null;
+  traffic?.setPlaces(source.open?.places);
   if (traffic) engine.scene.add(traffic.group);
   // Trains : départ quand on approche de l'endroit où la route longe ou croise une voie.
   const trains = new Trains(track, (x, z) => world.terrain.heightAt(x, z), () => world.terrain.loadedTiles());
@@ -977,6 +978,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   const hud = new Hud(hudRoot, track, source.attribution);
   // Mini-carte : fond Plan IGN quand le monde est calé en Lambert-93 ; bandeau « lieu » (commune, route).
   if (source.originL93) hud.setBasemap(source.originL93);
+  hud.setPlaces(source.open?.places);
   const placeFinder = new PlaceFinder(source.open?.places, track.route.landmarks, track.length, !!track.route.loop);
   hud.setHidden(s.hudHidden ?? []);
   if (nav && source.open) hud.setOpen(source.open.graph);
