@@ -1,0 +1,299 @@
+{
+  "kind": "open",
+  "id": "idf-rueil-malmaison",
+  "name": "Île-de-France — Rueil-Malmaison",
+  "region": "Hauts-de-Seine · Île-de-France",
+  "originL93": {
+    "x": 632000,
+    "y": 6868000
+  },
+  "corridorTiles": {
+    "txMin": -8,
+    "txMax": 7,
+    "tzMin": -8,
+    "tzMax": 7
+  },
+  "start": {
+    "lon": 2.17951,
+    "lat": 48.87236
+  },
+  "orthoPx": 1024,
+  "horizon": {
+    "halfSizeM": 30000,
+    "resM": 100
+  },
+  "tours": [
+    {
+      "routeId": "boucle-20-km",
+      "routeName": "Boucle de 20 km depuis Rueil-Malmaison",
+      "routeNameEn": "20 km loop from Rueil-Malmaison",
+      "start": {
+        "lon": 2.17951,
+        "lat": 48.87236
+      },
+      "via": [
+        {
+          "lon": 2.1671,
+          "lat": 48.88756
+        },
+        {
+          "lon": 2.14892,
+          "lat": 48.88038
+        },
+        {
+          "lon": 2.13476,
+          "lat": 48.88658
+        },
+        {
+          "lon": 2.13958,
+          "lat": 48.90329
+        },
+        {
+          "lon": 2.16323,
+          "lat": 48.91037
+        },
+        {
+          "lon": 2.16021,
+          "lat": 48.89862
+        },
+        {
+          "lon": 2.17061,
+          "lat": 48.89333
+        },
+        {
+          "lon": 2.1701,
+          "lat": 48.88413
+        }
+      ]
+    },
+    {
+      "routeId": "boucle-30-km",
+      "routeName": "Boucle de 30 km depuis Rueil-Malmaison",
+      "routeNameEn": "30 km loop from Rueil-Malmaison",
+      "start": {
+        "lon": 2.17951,
+        "lat": 48.87236
+      },
+      "via": [
+        {
+          "lon": 2.15865,
+          "lat": 48.86389
+        },
+        {
+          "lon": 2.14078,
+          "lat": 48.85683
+        },
+        {
+          "lon": 2.12241,
+          "lat": 48.86155
+        },
+        {
+          "lon": 2.09989,
+          "lat": 48.8729
+        },
+        {
+          "lon": 2.10384,
+          "lat": 48.89005
+        },
+        {
+          "lon": 2.10887,
+          "lat": 48.91025
+        },
+        {
+          "lon": 2.1156,
+          "lat": 48.89834
+        },
+        {
+          "lon": 2.14241,
+          "lat": 48.9107
+        },
+        {
+          "lon": 2.15099,
+          "lat": 48.92554
+        },
+        {
+          "lon": 2.16447,
+          "lat": 48.90855
+        },
+        {
+          "lon": 2.17037,
+          "lat": 48.90144
+        },
+        {
+          "lon": 2.1701,
+          "lat": 48.88413
+        }
+      ]
+    },
+    {
+      "routeId": "boucle-40-km",
+      "routeName": "Boucle de 40 km depuis Rueil-Malmaison",
+      "routeNameEn": "40 km loop from Rueil-Malmaison",
+      "start": {
+        "lon": 2.17951,
+        "lat": 48.87236
+      },
+      "via": [
+        {
+          "lon": 2.16301,
+          "lat": 48.85515
+        },
+        {
+          "lon": 2.13853,
+          "lat": 48.84949
+        },
+        {
+          "lon": 2.12728,
+          "lat": 48.85656
+        },
+        {
+          "lon": 2.10318,
+          "lat": 48.86684
+        },
+        {
+          "lon": 2.0719,
+          "lat": 48.86518
+        },
+        {
+          "lon": 2.07205,
+          "lat": 48.87094
+        },
+        {
+          "lon": 2.0701,
+          "lat": 48.88696
+        },
+        {
+          "lon": 2.05896,
+          "lat": 48.90259
+        },
+        {
+          "lon": 2.07472,
+          "lat": 48.90157
+        },
+        {
+          "lon": 2.09637,
+          "lat": 48.90898
+        },
+        {
+          "lon": 2.1157,
+          "lat": 48.92263
+        },
+        {
+          "lon": 2.12316,
+          "lat": 48.93093
+        },
+        {
+          "lon": 2.15008,
+          "lat": 48.94334
+        },
+        {
+          "lon": 2.16494,
+          "lat": 48.93396
+        },
+        {
+          "lon": 2.17287,
+          "lat": 48.9164
+        },
+        {
+          "lon": 2.17397,
+          "lat": 48.9038
+        },
+        {
+          "lon": 2.16429,
+          "lat": 48.88798
+        }
+      ]
+    },
+    {
+      "routeId": "boucle-50-km",
+      "routeName": "Boucle de 50 km depuis Rueil-Malmaison",
+      "routeNameEn": "50 km loop from Rueil-Malmaison",
+      "start": {
+        "lon": 2.17951,
+        "lat": 48.87236
+      },
+      "via": [
+        {
+          "lon": 2.16301,
+          "lat": 48.85515
+        },
+        {
+          "lon": 2.13853,
+          "lat": 48.84949
+        },
+        {
+          "lon": 2.13083,
+          "lat": 48.84683
+        },
+        {
+          "lon": 2.11466,
+          "lat": 48.85836
+        },
+        {
+          "lon": 2.08645,
+          "lat": 48.85387
+        },
+        {
+          "lon": 2.06087,
+          "lat": 48.84733
+        },
+        {
+          "lon": 2.06443,
+          "lat": 48.85298
+        },
+        {
+          "lon": 2.07205,
+          "lat": 48.87094
+        },
+        {
+          "lon": 2.0701,
+          "lat": 48.88696
+        },
+        {
+          "lon": 2.05896,
+          "lat": 48.90259
+        },
+        {
+          "lon": 2.02843,
+          "lat": 48.89532
+        },
+        {
+          "lon": 2.03973,
+          "lat": 48.91319
+        },
+        {
+          "lon": 2.05683,
+          "lat": 48.92939
+        },
+        {
+          "lon": 2.06391,
+          "lat": 48.91697
+        },
+        {
+          "lon": 2.07992,
+          "lat": 48.90052
+        },
+        {
+          "lon": 2.10423,
+          "lat": 48.89785
+        },
+        {
+          "lon": 2.13334,
+          "lat": 48.90915
+        },
+        {
+          "lon": 2.15051,
+          "lat": 48.91736
+        },
+        {
+          "lon": 2.15264,
+          "lat": 48.89649
+        },
+        {
+          "lon": 2.1701,
+          "lat": 48.88413
+        }
+      ]
+    }
+  ]
+}

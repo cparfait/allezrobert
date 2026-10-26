@@ -114,7 +114,7 @@ export async function showLogin(root: HTMLElement, s: Settings, done: (me: Me | 
       }
       ${prov.dev ? `<form id="l-dev" class="row" style="margin-top:12px"><input id="l-devname" value="${esc(s.name)}" class="btn" style="flex:1;text-align:left;font-weight:400"/><button class="btn" type="submit">${fr ? 'Connexion locale (dev)' : 'Local sign-in (dev)'}</button></form>` : ''}
       ${!prov.google && !prov.discord ? `<p class="meta" style="color:var(--ar-muted);font-size:13px">${fr ? 'Google et Discord apparaîtront une fois leurs identifiants OAuth configurés sur le serveur.' : 'Google and Discord appear once their OAuth credentials are set on the server.'}</p>` : ''}`
-        : `<div class="warning">${fr ? 'Serveur injoignable : tu peux rouler seul sans compte.' : 'Server unreachable: you can ride solo without an account.'}</div>`
+        : `<div class="warning">${fr ? 'Serveur injoignable : tu peux rouler seul sans compte.' : 'Server unreachable: you can ride solo without an account.'}${import.meta.env.DEV ? `<br><small>${fr ? 'Google, Discord et le compagnon demandent le serveur : lance <code>pnpm dev</code> (client + serveur + compagnon) à la racine du projet.' : 'Google, Discord and the companion need the server: run <code>pnpm dev</code> (client + server + companion) at the project root.'}</small>` : ''}</div>`
     }
     <button class="btn" id="l-skip" style="width:100%;margin-top:14px">${fr ? 'Continuer sans compte (sortie solo)' : 'Continue without account (solo ride)'}</button>
   </div></div>`;

@@ -14,6 +14,7 @@ pnpm --filter @allezrobert/terrain build:world -- --world mont-ventoux  # Ventou
 npx tsx tools/terrain/src/verify-world.ts --world alpe-dhuez
 pnpm --filter @allezrobert/terrain build:world      # Chevreuse : tout (réseau la 1re fois, puis cache) ~4 min
 pnpm --filter @allezrobert/terrain build:routes     # itinéraires seuls (garde les tuiles existantes)
+pnpm --filter @allezrobert/terrain build:world -- --all   # tous les mondes publiés (index.json), l'un après l'autre
 pnpm --filter @allezrobert/terrain fetch:osm        # remplit seulement le cache OSM
 npx tsx tools/terrain/src/verify-world.ts           # tailles, écart route/terrain, raccords de tuiles
 npx vitest run tools/terrain                        # tests (projection, profils, creusement, vie privée)

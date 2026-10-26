@@ -1,0 +1,283 @@
+{
+  "kind": "open",
+  "id": "idf-vert-saint-denis",
+  "name": "Île-de-France — Vert-Saint-Denis",
+  "region": "Seine-et-Marne · Île-de-France",
+  "originL93": {
+    "x": 680000,
+    "y": 6836000
+  },
+  "corridorTiles": {
+    "txMin": -8,
+    "txMax": 7,
+    "tzMin": -8,
+    "tzMax": 7
+  },
+  "start": {
+    "lon": 2.62407,
+    "lat": 48.5655
+  },
+  "orthoPx": 1024,
+  "horizon": {
+    "halfSizeM": 30000,
+    "resM": 100
+  },
+  "tours": [
+    {
+      "routeId": "boucle-20-km",
+      "routeName": "Boucle de 20 km depuis Vert-Saint-Denis",
+      "routeNameEn": "20 km loop from Vert-Saint-Denis",
+      "start": {
+        "lon": 2.62407,
+        "lat": 48.5655
+      },
+      "via": [
+        {
+          "lon": 2.6374,
+          "lat": 48.57812
+        },
+        {
+          "lon": 2.64227,
+          "lat": 48.5917
+        },
+        {
+          "lon": 2.66854,
+          "lat": 48.58955
+        },
+        {
+          "lon": 2.69752,
+          "lat": 48.58844
+        },
+        {
+          "lon": 2.7009,
+          "lat": 48.57271
+        },
+        {
+          "lon": 2.67053,
+          "lat": 48.56632
+        },
+        {
+          "lon": 2.6531,
+          "lat": 48.55316
+        },
+        {
+          "lon": 2.62846,
+          "lat": 48.56603
+        }
+      ]
+    },
+    {
+      "routeId": "boucle-30-km",
+      "routeName": "Boucle de 30 km depuis Vert-Saint-Denis",
+      "routeNameEn": "30 km loop from Vert-Saint-Denis",
+      "start": {
+        "lon": 2.62407,
+        "lat": 48.5655
+      },
+      "via": [
+        {
+          "lon": 2.6494,
+          "lat": 48.57448
+        },
+        {
+          "lon": 2.66651,
+          "lat": 48.58505
+        },
+        {
+          "lon": 2.66711,
+          "lat": 48.60149
+        },
+        {
+          "lon": 2.67871,
+          "lat": 48.5946
+        },
+        {
+          "lon": 2.70786,
+          "lat": 48.58241
+        },
+        {
+          "lon": 2.71561,
+          "lat": 48.57792
+        },
+        {
+          "lon": 2.7286,
+          "lat": 48.55932
+        },
+        {
+          "lon": 2.70943,
+          "lat": 48.56812
+        },
+        {
+          "lon": 2.67782,
+          "lat": 48.56522
+        },
+        {
+          "lon": 2.6636,
+          "lat": 48.55665
+        },
+        {
+          "lon": 2.64517,
+          "lat": 48.55987
+        }
+      ]
+    },
+    {
+      "routeId": "boucle-40-km",
+      "routeName": "Boucle de 40 km depuis Vert-Saint-Denis",
+      "routeNameEn": "40 km loop from Vert-Saint-Denis",
+      "start": {
+        "lon": 2.62407,
+        "lat": 48.5655
+      },
+      "via": [
+        {
+          "lon": 2.6374,
+          "lat": 48.57812
+        },
+        {
+          "lon": 2.62599,
+          "lat": 48.60413
+        },
+        {
+          "lon": 2.62814,
+          "lat": 48.63017
+        },
+        {
+          "lon": 2.62928,
+          "lat": 48.64861
+        },
+        {
+          "lon": 2.66012,
+          "lat": 48.64798
+        },
+        {
+          "lon": 2.69659,
+          "lat": 48.65298
+        },
+        {
+          "lon": 2.71463,
+          "lat": 48.64166
+        },
+        {
+          "lon": 2.71554,
+          "lat": 48.63799
+        },
+        {
+          "lon": 2.73066,
+          "lat": 48.61823
+        },
+        {
+          "lon": 2.74958,
+          "lat": 48.59306
+        },
+        {
+          "lon": 2.76511,
+          "lat": 48.58672
+        },
+        {
+          "lon": 2.72793,
+          "lat": 48.59135
+        },
+        {
+          "lon": 2.70673,
+          "lat": 48.57715
+        },
+        {
+          "lon": 2.69781,
+          "lat": 48.55902
+        },
+        {
+          "lon": 2.67297,
+          "lat": 48.56547
+        },
+        {
+          "lon": 2.6494,
+          "lat": 48.57448
+        }
+      ]
+    },
+    {
+      "routeId": "boucle-50-km",
+      "routeName": "Boucle de 50 km depuis Vert-Saint-Denis",
+      "routeNameEn": "50 km loop from Vert-Saint-Denis",
+      "start": {
+        "lon": 2.62407,
+        "lat": 48.5655
+      },
+      "via": [
+        {
+          "lon": 2.6374,
+          "lat": 48.57812
+        },
+        {
+          "lon": 2.62599,
+          "lat": 48.60413
+        },
+        {
+          "lon": 2.62814,
+          "lat": 48.63017
+        },
+        {
+          "lon": 2.62928,
+          "lat": 48.64861
+        },
+        {
+          "lon": 2.66012,
+          "lat": 48.64798
+        },
+        {
+          "lon": 2.69659,
+          "lat": 48.65298
+        },
+        {
+          "lon": 2.72487,
+          "lat": 48.65557
+        },
+        {
+          "lon": 2.71243,
+          "lat": 48.64935
+        },
+        {
+          "lon": 2.71937,
+          "lat": 48.62979
+        },
+        {
+          "lon": 2.73881,
+          "lat": 48.606
+        },
+        {
+          "lon": 2.75563,
+          "lat": 48.58821
+        },
+        {
+          "lon": 2.7771,
+          "lat": 48.58553
+        },
+        {
+          "lon": 2.75905,
+          "lat": 48.56987
+        },
+        {
+          "lon": 2.73316,
+          "lat": 48.5612
+        },
+        {
+          "lon": 2.72129,
+          "lat": 48.57193
+        },
+        {
+          "lon": 2.69249,
+          "lat": 48.58987
+        },
+        {
+          "lon": 2.66651,
+          "lat": 48.58505
+        },
+        {
+          "lon": 2.6494,
+          "lat": 48.57448
+        }
+      ]
+    }
+  ]
+}

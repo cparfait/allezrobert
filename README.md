@@ -20,14 +20,15 @@ Prérequis : Node.js ≥ 22, pnpm 10 ; pour l'app Windows : Rust + outils MSVC +
 ```bash
 pnpm install
 pnpm --filter @allezrobert/terrain build:world   # génère les tuiles du monde (≈ 150 Mo, 3–4 min)
-pnpm dev                                          # client sur http://localhost:5173
+pnpm dev                                          # client (5173) + serveur (2567) + compagnon (5174)
 ```
 
 Sans tuiles générées, le client bascule sur un monde procédural de développement.
 
 | Commande | Rôle |
 | --- | --- |
-| `pnpm dev` | Client (Chrome / Edge pour le Web Bluetooth) |
+| `pnpm dev` | Client + serveur + compagnon d'un coup (Chrome / Edge pour le Web Bluetooth) |
+| `pnpm dev:client` | Client seul |
 | `pnpm --filter @allezrobert/desktop dev` | App Windows (Bluetooth natif, Direct Connect, ANT+) |
 | `pnpm dev:server` | Serveur multijoueur (Colyseus) |
 | `pnpm dev:all` | Client + serveur + appli compagnon d'un coup (nécessaire au QR code du compagnon) |

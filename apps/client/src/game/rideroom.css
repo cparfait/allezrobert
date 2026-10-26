@@ -33,3 +33,16 @@
 .mp-results td.num, .mp-results th.num { text-align: right; }
 .mp-countdown { font: 900 min(28vh, 220px) / 1 var(--font); color: #fff; text-shadow: 0 6px 40px rgba(0, 0, 0, 0.55); letter-spacing: -0.02em; }
 .mp-countdown.go { color: var(--ar-accent); font-size: min(18vh, 150px); }
+
+/* Équipements dans la salle d'attente. */
+.mp-gear { margin: 12px 0 4px; padding-top: 10px; border-top: 1px solid rgba(255, 255, 255, 0.08); }
+.mp-gear h3 { margin: 0 0 6px; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ar-muted); font-weight: 600; }
+.mp-gear-grid { display: grid; grid-template-columns: 10px 1fr auto auto; gap: 6px 10px; align-items: center; font-size: 13.5px; }
+.mp-gear-name { display: flex; flex-direction: column; min-width: 0; }
+.mp-gear-name small { color: var(--ar-muted); font-size: 11.5px; }
+.mp-gear-dot { width: 9px; height: 9px; border-radius: 50%; background: #6b7280; }
+.mp-gear-dot.ok { background: #22c55e; }
+.mp-gear-dot.warn { background: #eab308; }
+.mp-gear-state { font-size: 12px; color: var(--ar-muted); }
+.mp-gear-state.ok { color: #22c55e; }
+.mp-gear-state.warn { color: #eab308; }

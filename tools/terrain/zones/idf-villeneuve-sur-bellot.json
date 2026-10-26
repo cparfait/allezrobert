@@ -1,0 +1,271 @@
+{
+  "kind": "open",
+  "id": "idf-villeneuve-sur-bellot",
+  "name": "Île-de-France — Villeneuve-sur-Bellot",
+  "region": "Seine-et-Marne · Île-de-France",
+  "originL93": {
+    "x": 728000,
+    "y": 6868000
+  },
+  "corridorTiles": {
+    "txMin": -8,
+    "txMax": 7,
+    "tzMin": -8,
+    "tzMax": 7
+  },
+  "start": {
+    "lon": 3.33188,
+    "lat": 48.87461
+  },
+  "orthoPx": 1024,
+  "horizon": {
+    "halfSizeM": 30000,
+    "resM": 100
+  },
+  "tours": [
+    {
+      "routeId": "boucle-20-km",
+      "routeName": "Boucle de 20 km depuis Villeneuve-sur-Bellot",
+      "routeNameEn": "20 km loop from Villeneuve-sur-Bellot",
+      "start": {
+        "lon": 3.33188,
+        "lat": 48.87461
+      },
+      "via": [
+        {
+          "lon": 3.32335,
+          "lat": 48.89295
+        },
+        {
+          "lon": 3.3309,
+          "lat": 48.90797
+        },
+        {
+          "lon": 3.36834,
+          "lat": 48.90151
+        },
+        {
+          "lon": 3.39555,
+          "lat": 48.89397
+        },
+        {
+          "lon": 3.38705,
+          "lat": 48.87626
+        },
+        {
+          "lon": 3.36668,
+          "lat": 48.87536
+        },
+        {
+          "lon": 3.34076,
+          "lat": 48.8692
+        }
+      ]
+    },
+    {
+      "routeId": "boucle-30-km",
+      "routeName": "Boucle de 30 km depuis Villeneuve-sur-Bellot",
+      "routeNameEn": "30 km loop from Villeneuve-sur-Bellot",
+      "start": {
+        "lon": 3.33188,
+        "lat": 48.87461
+      },
+      "via": [
+        {
+          "lon": 3.32335,
+          "lat": 48.89295
+        },
+        {
+          "lon": 3.31628,
+          "lat": 48.90991
+        },
+        {
+          "lon": 3.31268,
+          "lat": 48.9273
+        },
+        {
+          "lon": 3.34273,
+          "lat": 48.93538
+        },
+        {
+          "lon": 3.3623,
+          "lat": 48.94629
+        },
+        {
+          "lon": 3.38784,
+          "lat": 48.93366
+        },
+        {
+          "lon": 3.39539,
+          "lat": 48.91149
+        },
+        {
+          "lon": 3.3992,
+          "lat": 48.89625
+        },
+        {
+          "lon": 3.38905,
+          "lat": 48.87754
+        },
+        {
+          "lon": 3.3771,
+          "lat": 48.87106
+        },
+        {
+          "lon": 3.34711,
+          "lat": 48.87206
+        }
+      ]
+    },
+    {
+      "routeId": "boucle-40-km",
+      "routeName": "Boucle de 40 km depuis Villeneuve-sur-Bellot",
+      "routeNameEn": "40 km loop from Villeneuve-sur-Bellot",
+      "start": {
+        "lon": 3.33188,
+        "lat": 48.87461
+      },
+      "via": [
+        {
+          "lon": 3.32335,
+          "lat": 48.89295
+        },
+        {
+          "lon": 3.30644,
+          "lat": 48.91142
+        },
+        {
+          "lon": 3.32297,
+          "lat": 48.93049
+        },
+        {
+          "lon": 3.34273,
+          "lat": 48.93538
+        },
+        {
+          "lon": 3.37416,
+          "lat": 48.9226
+        },
+        {
+          "lon": 3.39237,
+          "lat": 48.90058
+        },
+        {
+          "lon": 3.41148,
+          "lat": 48.91173
+        },
+        {
+          "lon": 3.40743,
+          "lat": 48.90071
+        },
+        {
+          "lon": 3.43738,
+          "lat": 48.89589
+        },
+        {
+          "lon": 3.4451,
+          "lat": 48.87921
+        },
+        {
+          "lon": 3.43723,
+          "lat": 48.86401
+        },
+        {
+          "lon": 3.4205,
+          "lat": 48.85419
+        },
+        {
+          "lon": 3.40261,
+          "lat": 48.8639
+        },
+        {
+          "lon": 3.36668,
+          "lat": 48.87536
+        },
+        {
+          "lon": 3.34076,
+          "lat": 48.8692
+        }
+      ]
+    },
+    {
+      "routeId": "boucle-50-km",
+      "routeName": "Boucle de 50 km depuis Villeneuve-sur-Bellot",
+      "routeNameEn": "50 km loop from Villeneuve-sur-Bellot",
+      "start": {
+        "lon": 3.33188,
+        "lat": 48.87461
+      },
+      "via": [
+        {
+          "lon": 3.32335,
+          "lat": 48.89295
+        },
+        {
+          "lon": 3.30644,
+          "lat": 48.91142
+        },
+        {
+          "lon": 3.32297,
+          "lat": 48.93049
+        },
+        {
+          "lon": 3.35073,
+          "lat": 48.93968
+        },
+        {
+          "lon": 3.37521,
+          "lat": 48.94598
+        },
+        {
+          "lon": 3.40365,
+          "lat": 48.95764
+        },
+        {
+          "lon": 3.42,
+          "lat": 48.95519
+        },
+        {
+          "lon": 3.43451,
+          "lat": 48.93901
+        },
+        {
+          "lon": 3.46607,
+          "lat": 48.92101
+        },
+        {
+          "lon": 3.48036,
+          "lat": 48.90708
+        },
+        {
+          "lon": 3.4609,
+          "lat": 48.8934
+        },
+        {
+          "lon": 3.44155,
+          "lat": 48.87629
+        },
+        {
+          "lon": 3.43723,
+          "lat": 48.86401
+        },
+        {
+          "lon": 3.41731,
+          "lat": 48.84629
+        },
+        {
+          "lon": 3.38089,
+          "lat": 48.8469
+        },
+        {
+          "lon": 3.35,
+          "lat": 48.85713
+        },
+        {
+          "lon": 3.33589,
+          "lat": 48.8695
+        }
+      ]
+    }
+  ]
+}

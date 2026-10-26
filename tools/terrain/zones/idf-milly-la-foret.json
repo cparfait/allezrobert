@@ -1,0 +1,271 @@
+{
+  "kind": "open",
+  "id": "idf-milly-la-foret",
+  "name": "Île-de-France — Milly-la-Forêt",
+  "region": "Essonne · Île-de-France",
+  "originL93": {
+    "x": 664000,
+    "y": 6804000
+  },
+  "corridorTiles": {
+    "txMin": -8,
+    "txMax": 7,
+    "tzMin": -8,
+    "tzMax": 7
+  },
+  "start": {
+    "lon": 2.47707,
+    "lat": 48.39626
+  },
+  "orthoPx": 1024,
+  "horizon": {
+    "halfSizeM": 30000,
+    "resM": 100
+  },
+  "tours": [
+    {
+      "routeId": "boucle-20-km",
+      "routeName": "Boucle de 20 km depuis Milly-la-Forêt",
+      "routeNameEn": "20 km loop from Milly-la-Forêt",
+      "start": {
+        "lon": 2.47707,
+        "lat": 48.39626
+      },
+      "via": [
+        {
+          "lon": 2.47369,
+          "lat": 48.3848
+        },
+        {
+          "lon": 2.4451,
+          "lat": 48.37617
+        },
+        {
+          "lon": 2.43352,
+          "lat": 48.38227
+        },
+        {
+          "lon": 2.42788,
+          "lat": 48.38847
+        },
+        {
+          "lon": 2.42918,
+          "lat": 48.39708
+        },
+        {
+          "lon": 2.4555,
+          "lat": 48.40331
+        }
+      ]
+    },
+    {
+      "routeId": "boucle-30-km",
+      "routeName": "Boucle de 30 km depuis Milly-la-Forêt",
+      "routeNameEn": "30 km loop from Milly-la-Forêt",
+      "start": {
+        "lon": 2.47707,
+        "lat": 48.39626
+      },
+      "via": [
+        {
+          "lon": 2.49401,
+          "lat": 48.38722
+        },
+        {
+          "lon": 2.51363,
+          "lat": 48.36846
+        },
+        {
+          "lon": 2.51846,
+          "lat": 48.35222
+        },
+        {
+          "lon": 2.50409,
+          "lat": 48.33383
+        },
+        {
+          "lon": 2.49063,
+          "lat": 48.31988
+        },
+        {
+          "lon": 2.46727,
+          "lat": 48.32951
+        },
+        {
+          "lon": 2.45007,
+          "lat": 48.34912
+        },
+        {
+          "lon": 2.41989,
+          "lat": 48.36739
+        },
+        {
+          "lon": 2.43895,
+          "lat": 48.38714
+        },
+        {
+          "lon": 2.46935,
+          "lat": 48.39933
+        }
+      ]
+    },
+    {
+      "routeId": "boucle-40-km",
+      "routeName": "Boucle de 40 km depuis Milly-la-Forêt",
+      "routeNameEn": "40 km loop from Milly-la-Forêt",
+      "start": {
+        "lon": 2.47707,
+        "lat": 48.39626
+      },
+      "via": [
+        {
+          "lon": 2.49401,
+          "lat": 48.38722
+        },
+        {
+          "lon": 2.51363,
+          "lat": 48.36846
+        },
+        {
+          "lon": 2.51152,
+          "lat": 48.35081
+        },
+        {
+          "lon": 2.50026,
+          "lat": 48.35693
+        },
+        {
+          "lon": 2.46449,
+          "lat": 48.34968
+        },
+        {
+          "lon": 2.44918,
+          "lat": 48.32903
+        },
+        {
+          "lon": 2.42825,
+          "lat": 48.31818
+        },
+        {
+          "lon": 2.42598,
+          "lat": 48.33034
+        },
+        {
+          "lon": 2.44365,
+          "lat": 48.34307
+        },
+        {
+          "lon": 2.43366,
+          "lat": 48.35864
+        },
+        {
+          "lon": 2.41792,
+          "lat": 48.35862
+        },
+        {
+          "lon": 2.41574,
+          "lat": 48.37046
+        },
+        {
+          "lon": 2.43895,
+          "lat": 48.38714
+        },
+        {
+          "lon": 2.42303,
+          "lat": 48.39589
+        },
+        {
+          "lon": 2.42455,
+          "lat": 48.39695
+        },
+        {
+          "lon": 2.46705,
+          "lat": 48.40156
+        }
+      ]
+    },
+    {
+      "routeId": "boucle-50-km",
+      "routeName": "Boucle de 50 km depuis Milly-la-Forêt",
+      "routeNameEn": "50 km loop from Milly-la-Forêt",
+      "start": {
+        "lon": 2.47707,
+        "lat": 48.39626
+      },
+      "via": [
+        {
+          "lon": 2.49401,
+          "lat": 48.38722
+        },
+        {
+          "lon": 2.51363,
+          "lat": 48.36846
+        },
+        {
+          "lon": 2.53999,
+          "lat": 48.35784
+        },
+        {
+          "lon": 2.56288,
+          "lat": 48.36049
+        },
+        {
+          "lon": 2.56294,
+          "lat": 48.34067
+        },
+        {
+          "lon": 2.56745,
+          "lat": 48.3193
+        },
+        {
+          "lon": 2.54993,
+          "lat": 48.2983
+        },
+        {
+          "lon": 2.5194,
+          "lat": 48.29886
+        },
+        {
+          "lon": 2.49172,
+          "lat": 48.30553
+        },
+        {
+          "lon": 2.44835,
+          "lat": 48.30434
+        },
+        {
+          "lon": 2.42399,
+          "lat": 48.29836
+        },
+        {
+          "lon": 2.41609,
+          "lat": 48.31871
+        },
+        {
+          "lon": 2.43456,
+          "lat": 48.3355
+        },
+        {
+          "lon": 2.45007,
+          "lat": 48.34912
+        },
+        {
+          "lon": 2.42345,
+          "lat": 48.35983
+        },
+        {
+          "lon": 2.41989,
+          "lat": 48.36739
+        },
+        {
+          "lon": 2.43895,
+          "lat": 48.38714
+        },
+        {
+          "lon": 2.46935,
+          "lat": 48.39933
+        }
+      ]
+    }
+  ]
+}

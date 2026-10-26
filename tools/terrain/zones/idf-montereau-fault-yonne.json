@@ -1,0 +1,283 @@
+{
+  "kind": "open",
+  "id": "idf-montereau-fault-yonne",
+  "name": "Île-de-France — Montereau-Fault-Yonne",
+  "region": "Seine-et-Marne · Île-de-France",
+  "originL93": {
+    "x": 696000,
+    "y": 6804000
+  },
+  "corridorTiles": {
+    "txMin": -8,
+    "txMax": 7,
+    "tzMin": -8,
+    "tzMax": 7
+  },
+  "start": {
+    "lon": 2.96192,
+    "lat": 48.38869
+  },
+  "orthoPx": 1024,
+  "horizon": {
+    "halfSizeM": 30000,
+    "resM": 100
+  },
+  "tours": [
+    {
+      "routeId": "boucle-20-km",
+      "routeName": "Boucle de 20 km depuis Montereau-Fault-Yonne",
+      "routeNameEn": "20 km loop from Montereau-Fault-Yonne",
+      "start": {
+        "lon": 2.96192,
+        "lat": 48.38869
+      },
+      "via": [
+        {
+          "lon": 2.98897,
+          "lat": 48.37956
+        },
+        {
+          "lon": 3.0218,
+          "lat": 48.38043
+        },
+        {
+          "lon": 3.00864,
+          "lat": 48.38274
+        },
+        {
+          "lon": 2.98656,
+          "lat": 48.37021
+        },
+        {
+          "lon": 2.98056,
+          "lat": 48.35112
+        },
+        {
+          "lon": 2.97441,
+          "lat": 48.34378
+        },
+        {
+          "lon": 2.96738,
+          "lat": 48.36721
+        }
+      ]
+    },
+    {
+      "routeId": "boucle-30-km",
+      "routeName": "Boucle de 30 km depuis Montereau-Fault-Yonne",
+      "routeNameEn": "30 km loop from Montereau-Fault-Yonne",
+      "start": {
+        "lon": 2.96207,
+        "lat": 48.38839
+      },
+      "via": [
+        {
+          "lon": 2.96055,
+          "lat": 48.37246
+        },
+        {
+          "lon": 2.99083,
+          "lat": 48.3617
+        },
+        {
+          "lon": 3.01392,
+          "lat": 48.34645
+        },
+        {
+          "lon": 3.012,
+          "lat": 48.33476
+        },
+        {
+          "lon": 2.98729,
+          "lat": 48.32162
+        },
+        {
+          "lon": 2.99189,
+          "lat": 48.32391
+        },
+        {
+          "lon": 2.97921,
+          "lat": 48.34583
+        },
+        {
+          "lon": 2.95403,
+          "lat": 48.33667
+        },
+        {
+          "lon": 2.91634,
+          "lat": 48.3393
+        },
+        {
+          "lon": 2.91416,
+          "lat": 48.3506
+        },
+        {
+          "lon": 2.93948,
+          "lat": 48.37031
+        },
+        {
+          "lon": 2.9586,
+          "lat": 48.38731
+        }
+      ]
+    },
+    {
+      "routeId": "boucle-40-km",
+      "routeName": "Boucle de 40 km depuis Montereau-Fault-Yonne",
+      "routeNameEn": "40 km loop from Montereau-Fault-Yonne",
+      "start": {
+        "lon": 2.96207,
+        "lat": 48.38839
+      },
+      "via": [
+        {
+          "lon": 2.98897,
+          "lat": 48.37956
+        },
+        {
+          "lon": 3.0218,
+          "lat": 48.38043
+        },
+        {
+          "lon": 3.00864,
+          "lat": 48.38274
+        },
+        {
+          "lon": 2.98656,
+          "lat": 48.37021
+        },
+        {
+          "lon": 3.00037,
+          "lat": 48.35629
+        },
+        {
+          "lon": 3.01459,
+          "lat": 48.3373
+        },
+        {
+          "lon": 3.02401,
+          "lat": 48.3227
+        },
+        {
+          "lon": 3.02401,
+          "lat": 48.3227
+        },
+        {
+          "lon": 2.99289,
+          "lat": 48.32005
+        },
+        {
+          "lon": 2.98353,
+          "lat": 48.34028
+        },
+        {
+          "lon": 2.95792,
+          "lat": 48.34119
+        },
+        {
+          "lon": 2.93114,
+          "lat": 48.33423
+        },
+        {
+          "lon": 2.9337,
+          "lat": 48.35392
+        },
+        {
+          "lon": 2.9441,
+          "lat": 48.37466
+        }
+      ]
+    },
+    {
+      "routeId": "boucle-50-km",
+      "routeName": "Boucle de 50 km depuis Montereau-Fault-Yonne",
+      "routeNameEn": "50 km loop from Montereau-Fault-Yonne",
+      "start": {
+        "lon": 2.96207,
+        "lat": 48.38839
+      },
+      "via": [
+        {
+          "lon": 2.96055,
+          "lat": 48.37246
+        },
+        {
+          "lon": 2.99083,
+          "lat": 48.3617
+        },
+        {
+          "lon": 3.01392,
+          "lat": 48.34645
+        },
+        {
+          "lon": 3.01567,
+          "lat": 48.33192
+        },
+        {
+          "lon": 2.99238,
+          "lat": 48.31636
+        },
+        {
+          "lon": 2.98354,
+          "lat": 48.29807
+        },
+        {
+          "lon": 2.96025,
+          "lat": 48.28564
+        },
+        {
+          "lon": 2.93995,
+          "lat": 48.29828
+        },
+        {
+          "lon": 2.9143,
+          "lat": 48.31259
+        },
+        {
+          "lon": 2.89272,
+          "lat": 48.30221
+        },
+        {
+          "lon": 2.88198,
+          "lat": 48.31577
+        },
+        {
+          "lon": 2.86876,
+          "lat": 48.33123
+        },
+        {
+          "lon": 2.88523,
+          "lat": 48.34
+        },
+        {
+          "lon": 2.91416,
+          "lat": 48.3506
+        },
+        {
+          "lon": 2.93948,
+          "lat": 48.37031
+        },
+        {
+          "lon": 2.9586,
+          "lat": 48.38731
+        },
+        {
+          "lon": 2.93688,
+          "lat": 48.39695
+        },
+        {
+          "lon": 2.90639,
+          "lat": 48.38191
+        },
+        {
+          "lon": 2.90742,
+          "lat": 48.38719
+        },
+        {
+          "lon": 2.93688,
+          "lat": 48.39695
+        }
+      ]
+    }
+  ]
+}

@@ -22,6 +22,40 @@ export interface RouteSegment {
   avgGrade: number;
 }
 
+/** Catégorie d'une côte, comme dans les courses par étapes (4 = la plus facile, 0 = hors catégorie). */
+export type ClimbCategory = 4 | 3 | 2 | 1 | 0;
+
+/** Seuils de difficulté (longueur en m × pente moyenne en %) des catégories 4, 3, 2, 1 puis hors catégorie. */
+const CATEGORY_THRESHOLDS = [8000, 16000, 32000, 64000, 80000] as const;
+
+export function climbCategory(seg: Pick<RouteSegment, 'startM' | 'endM' | 'avgGrade'>): ClimbCategory {
+  const score = (seg.endM - seg.startM) * Math.max(seg.avgGrade, 0);
+  if (score >= CATEGORY_THRESHOLDS[4]) return 0;
+  if (score >= CATEGORY_THRESHOLDS[3]) return 1;
+  if (score >= CATEGORY_THRESHOLDS[2]) return 2;
+  if (score >= CATEGORY_THRESHOLDS[1]) return 3;
+  return 4;
+}
+
+/** Libellé court : « HC », « 1re cat. »… (`fr`) ou « HC », « Cat. 1 »… */
+export function climbCategoryLabel(cat: ClimbCategory, fr = true): string {
+  if (cat === 0) return fr ? 'Hors catégorie' : 'Beyond category';
+  return fr ? `${cat === 1 ? '1re' : `${cat}e`} catégorie` : `Cat. ${cat}`;
+}
+
+/** Points du classement de la montagne selon la catégorie, du 1er au dernier à marquer. */
+const KOM_POINTS: Record<ClimbCategory, readonly number[]> = {
+  0: [20, 15, 12, 10, 8, 6, 4, 2],
+  1: [10, 8, 6, 4, 2, 1],
+  2: [5, 3, 2, 1],
+  3: [2, 1],
+  4: [1],
+};
+
+export function komPoints(cat: ClimbCategory): readonly number[] {
+  return KOM_POINTS[cat];
+}
+
 export interface RouteData {
   id: string;
   name: string;

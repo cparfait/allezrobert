@@ -1,0 +1,287 @@
+{
+  "kind": "open",
+  "id": "idf-aubergenville",
+  "name": "Île-de-France — Aubergenville",
+  "region": "Yvelines · Île-de-France",
+  "originL93": {
+    "x": 616000,
+    "y": 6868000
+  },
+  "corridorTiles": {
+    "txMin": -8,
+    "txMax": 7,
+    "tzMin": -8,
+    "tzMax": 7
+  },
+  "start": {
+    "lon": 1.84443,
+    "lat": 48.96055
+  },
+  "orthoPx": 1024,
+  "horizon": {
+    "halfSizeM": 30000,
+    "resM": 100
+  },
+  "tours": [
+    {
+      "routeId": "boucle-20-km",
+      "routeName": "Boucle de 20 km depuis Aubergenville",
+      "routeNameEn": "20 km loop from Aubergenville",
+      "start": {
+        "lon": 1.84443,
+        "lat": 48.96055
+      },
+      "via": [
+        {
+          "lon": 1.83355,
+          "lat": 48.94407
+        },
+        {
+          "lon": 1.82462,
+          "lat": 48.9531
+        },
+        {
+          "lon": 1.79674,
+          "lat": 48.95282
+        },
+        {
+          "lon": 1.80463,
+          "lat": 48.95834
+        },
+        {
+          "lon": 1.80511,
+          "lat": 48.97498
+        },
+        {
+          "lon": 1.81047,
+          "lat": 48.96683
+        },
+        {
+          "lon": 1.83474,
+          "lat": 48.9585
+        },
+        {
+          "lon": 1.83452,
+          "lat": 48.97499
+        },
+        {
+          "lon": 1.85158,
+          "lat": 48.96268
+        }
+      ]
+    },
+    {
+      "routeId": "boucle-30-km",
+      "routeName": "Boucle de 30 km depuis Aubergenville",
+      "routeNameEn": "30 km loop from Aubergenville",
+      "start": {
+        "lon": 1.84443,
+        "lat": 48.96055
+      },
+      "via": [
+        {
+          "lon": 1.83355,
+          "lat": 48.94407
+        },
+        {
+          "lon": 1.8426,
+          "lat": 48.92451
+        },
+        {
+          "lon": 1.84246,
+          "lat": 48.90664
+        },
+        {
+          "lon": 1.80468,
+          "lat": 48.90536
+        },
+        {
+          "lon": 1.77692,
+          "lat": 48.91541
+        },
+        {
+          "lon": 1.77438,
+          "lat": 48.92396
+        },
+        {
+          "lon": 1.79355,
+          "lat": 48.94024
+        },
+        {
+          "lon": 1.79658,
+          "lat": 48.96004
+        },
+        {
+          "lon": 1.76816,
+          "lat": 48.9628
+        },
+        {
+          "lon": 1.79876,
+          "lat": 48.961
+        },
+        {
+          "lon": 1.83474,
+          "lat": 48.9585
+        }
+      ]
+    },
+    {
+      "routeId": "boucle-40-km",
+      "routeName": "Boucle de 40 km depuis Aubergenville",
+      "routeNameEn": "40 km loop from Aubergenville",
+      "start": {
+        "lon": 1.84443,
+        "lat": 48.96055
+      },
+      "via": [
+        {
+          "lon": 1.83355,
+          "lat": 48.94407
+        },
+        {
+          "lon": 1.8426,
+          "lat": 48.92451
+        },
+        {
+          "lon": 1.85829,
+          "lat": 48.90966
+        },
+        {
+          "lon": 1.88523,
+          "lat": 48.90701
+        },
+        {
+          "lon": 1.87166,
+          "lat": 48.8965
+        },
+        {
+          "lon": 1.85969,
+          "lat": 48.88153
+        },
+        {
+          "lon": 1.82581,
+          "lat": 48.88139
+        },
+        {
+          "lon": 1.79794,
+          "lat": 48.86946
+        },
+        {
+          "lon": 1.76691,
+          "lat": 48.87982
+        },
+        {
+          "lon": 1.77886,
+          "lat": 48.89947
+        },
+        {
+          "lon": 1.78392,
+          "lat": 48.91981
+        },
+        {
+          "lon": 1.76458,
+          "lat": 48.92899
+        },
+        {
+          "lon": 1.79064,
+          "lat": 48.92886
+        },
+        {
+          "lon": 1.81312,
+          "lat": 48.94791
+        },
+        {
+          "lon": 1.84726,
+          "lat": 48.96071
+        }
+      ]
+    },
+    {
+      "routeId": "boucle-50-km",
+      "routeName": "Boucle de 50 km depuis Aubergenville",
+      "routeNameEn": "50 km loop from Aubergenville",
+      "start": {
+        "lon": 1.84443,
+        "lat": 48.96055
+      },
+      "via": [
+        {
+          "lon": 1.86526,
+          "lat": 48.96391
+        },
+        {
+          "lon": 1.89911,
+          "lat": 48.96855
+        },
+        {
+          "lon": 1.92635,
+          "lat": 48.97734
+        },
+        {
+          "lon": 1.92379,
+          "lat": 48.96082
+        },
+        {
+          "lon": 1.93337,
+          "lat": 48.943
+        },
+        {
+          "lon": 1.95726,
+          "lat": 48.93994
+        },
+        {
+          "lon": 1.94682,
+          "lat": 48.92594
+        },
+        {
+          "lon": 1.92618,
+          "lat": 48.91175
+        },
+        {
+          "lon": 1.93878,
+          "lat": 48.897
+        },
+        {
+          "lon": 1.93301,
+          "lat": 48.88284
+        },
+        {
+          "lon": 1.95067,
+          "lat": 48.86981
+        },
+        {
+          "lon": 1.92584,
+          "lat": 48.8851
+        },
+        {
+          "lon": 1.91255,
+          "lat": 48.86744
+        },
+        {
+          "lon": 1.87659,
+          "lat": 48.87385
+        },
+        {
+          "lon": 1.855,
+          "lat": 48.885
+        },
+        {
+          "lon": 1.86351,
+          "lat": 48.90051
+        },
+        {
+          "lon": 1.84242,
+          "lat": 48.91796
+        },
+        {
+          "lon": 1.83499,
+          "lat": 48.93978
+        },
+        {
+          "lon": 1.84339,
+          "lat": 48.95806
+        }
+      ]
+    }
+  ]
+}

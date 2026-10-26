@@ -55,6 +55,18 @@ describe('salle pair', () => {
     phone.send(PAIR_MSG.cmd, { kind: 'fan', percent: 180 });
     expect(await fan).toEqual({ kind: 'fan', percent: 100 });
 
+    // Recherche Spotify : relayée au jeu ; URI de lecture invalide refusée, résultats renvoyés au téléphone.
+    const search = next<PhoneCommand>(game, PAIR_MSG.cmd);
+    phone.send(PAIR_MSG.cmd, { kind: 'musicPlay', uri: 'https://evil.example/x' });
+    phone.send(PAIR_MSG.cmd, { kind: 'musicSearch', query: '  daft punk ' });
+    expect(await search).toEqual({ kind: 'musicSearch', query: 'daft punk' });
+    const play = next<PhoneCommand>(game, PAIR_MSG.cmd);
+    phone.send(PAIR_MSG.cmd, { kind: 'musicPlay', uri: 'spotify:track:4uLU6hMCjMI75M1A2tKUQC' });
+    expect(await play).toEqual({ kind: 'musicPlay', uri: 'spotify:track:4uLU6hMCjMI75M1A2tKUQC' });
+    const results = next<{ kind: string; items: unknown[] }>(phone, PAIR_MSG.event);
+    game.send(PAIR_MSG.event, { kind: 'musicResults', query: 'daft punk', items: [{ uri: 'spotify:track:4uLU6hMCjMI75M1A2tKUQC', type: 'track', name: 'One More Time', sub: 'Daft Punk' }] });
+    expect((await results).items).toHaveLength(1);
+
     // Jeu → téléphone : état relayé.
     const st = next<PairState>(phone, PAIR_MSG.state);
     game.send(PAIR_MSG.state, { phase: 'ride', routeName: 'Billom' } satisfies PairState);

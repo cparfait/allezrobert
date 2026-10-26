@@ -4,7 +4,7 @@ import { shoeDialOf } from './shoeLook.ts';
 import { GLTFLoader, type GLTF } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
-import { PLAIN_BIKE_FAMILY, bikeOfLook, decodeFace, type AvatarLook, type BikeBuild, type BikeFamily } from '@allezrobert/shared';
+import { PLAIN_BIKE_FAMILY, bikeOfLook, decodeFace, lookSex, type AvatarLook, type BikeBuild, type BikeFamily } from '@allezrobert/shared';
 import { RiderAvatar } from './avatar.ts';
 import { buildBikeKit, roadPartsReplaced, type BikeType } from './bikeKits.ts';
 import { FaceAnimator } from './face.ts';
@@ -70,6 +70,8 @@ export interface RiderAvatarLike {
   readonly label: THREE.Sprite | null;
   update(dt: number, cadence: number, speed: number, pose: RiderPose, bank?: number): void;
   setLook(look: AvatarLook): void;
+  /** Bras levés en V (victoire à la ligne d'arrivée). */
+  setCelebrating?(on: boolean): void;
   /** Tête nue (aperçu de l'éditeur de visage). */
   setBareHead?(on: boolean): void;
   /** Effort du coureur (puissance / FTP, FC / FC max) : expressions du visage (avatar MPFB). */
@@ -272,6 +274,8 @@ interface Templates {
  * route partagent le même poste de pilotage : cocotte de z 0,554 à 0,670, sommet 0,917 m au bec,
  * dessus ≈ 0,90 m au milieu ; la paume repose dessus, les doigts tombent sur le côté.
  */
+/** Part de l'écart latéral du pli de coude de repos conservée sur route / VTT (1 = pli du modèle, coudes très ouverts vus de dos). */
+const ELBOW_FLARE = 0.45;
 const HOOD_PALM = new THREE.Vector3(0.2, 0.9, 0.565);
 /** VTT : milieu de la paume sur la poignée du cintre plat (bikeKits.ts : poignées à y 0,958, z 0,54, x de 0,165 à 0,3). */
 const MTB_PALM = new THREE.Vector3(0.235, 1.0, 0.535);
@@ -671,7 +675,7 @@ function makeMaterial(name: string, look: AvatarLook): THREE.MeshStandardNodeMat
 
 /** Réglages de peau d'une tenue : teint, rides selon l'âge, barbe de la couleur des cheveux. */
 function skinLook(look: AvatarLook): SkinLook {
-  return { tone: look.skin, age: Math.max(0, decodeFace(look.face).age ?? 0), beard: look.beard ?? 0, beardColor: look.hair, freckles: look.freckles ?? 0 };
+  return { tone: look.skin, age: Math.max(0, decodeFace(look.face).age ?? 0), beard: lookSex(look) === 'female' ? 0 : (look.beard ?? 0), beardColor: look.hair, freckles: look.freckles ?? 0 };
 }
 
 function applyLookColor(m: THREE.MeshStandardNodeMaterial, look: AvatarLook): void {
@@ -756,6 +760,8 @@ export class GltfRiderAvatar implements RiderAvatarLike {
   private readonly handTarget: Record<Side, THREE.Vector3> = { L: new THREE.Vector3(), R: new THREE.Vector3() };
   private readonly elbowPole: Record<Side, THREE.Vector3> = { L: new THREE.Vector3(), R: new THREE.Vector3() };
   /** Mains en bas et en haut du cintre (repère modèle) ; null si le vélo n'en a pas (VTT, prolongateurs). */
+  private celebrating = false;
+  private celebrateBlend = 0;
   private barTargets: { drop: Record<Side, THREE.Vector3>; top: Record<Side, THREE.Vector3> } | null = null;
   private dropsOn = false;
   private relaxOn = false;
@@ -1001,7 +1007,12 @@ export class GltfRiderAvatar implements RiderAvatarLike {
         const dir = _v1.subVectors(this.handTarget[s], sh).normalize();
         const toPad = _v2.subVectors(pad, sh);
         this.elbowPole[s].copy(toPad).addScaledVector(dir, -toPad.dot(dir)).normalize();
-      } else this.elbowPole[s].copy(c.pole);
+      } else {
+        // Pli de repos, resserré : de dos (caméra de suivi), les coudes ne partent pas en V vers l'extérieur.
+        this.elbowPole[s].copy(c.pole);
+        this.elbowPole[s].x *= ELBOW_FLARE;
+        this.elbowPole[s].normalize();
+      }
       this.handTarget[s].y += this.saddleLift;
       // Bas et haut du cintre : même écart à la cocotte que celui des paumes.
       const sx = s === 'L' ? 1 : -1;
@@ -1149,6 +1160,10 @@ export class GltfRiderAvatar implements RiderAvatarLike {
    * @param pose position du coureur
    * @param bank inclinaison dans les virages (rad)
    */
+  setCelebrating(on: boolean): void {
+    this.celebrating = on;
+  }
+
   update(dt: number, cadence: number, speed: number, pose: RiderPose, bank = 0): void {
     // Visage : seulement au premier niveau de détail (au-delà, invisible).
     if (this.faceAnim && dt > 0 && this.lod.getCurrentLevel() === 0) {
@@ -1171,6 +1186,7 @@ export class GltfRiderAvatar implements RiderAvatarLike {
     this.crankAngle %= Math.PI * 2;
     const a = this.crankAngle;
     const stand = this.poseBlend;
+    this.celebrateBlend += ((this.celebrating ? 1 : 0) - this.celebrateBlend) * (1 - Math.exp(-dt * 6));
     const coast = this.coastBlend * (1 - stand);
     // Bas du cintre à vitesse de course, aéro en roue libre rapide (descente), très détendue à
     // petite allure (avec hystérésis).
@@ -1272,7 +1288,15 @@ export class GltfRiderAvatar implements RiderAvatarLike {
       const bar = this.barTargets;
       if (bar && dropHands > 0) this.target.lerp(bar.drop[s], dropHands);
       if (bar && relax > 0) this.target.lerp(bar.top[s], relax);
-      this.solveChain(c, this.target, this.elbowPole[s]);
+      let pole = this.elbowPole[s];
+      if (this.celebrateBlend > 0.01) {
+        // Victoire : bras tendus en V au-dessus de la tête.
+        const sx = s === 'L' ? 1 : -1;
+        _v1.set(sx * 0.5, 0.85, 0.1).normalize().multiplyScalar((c.l1 + c.l2) * 0.97).add(t.bones[c.upper].modelP);
+        this.target.lerp(_v1, this.celebrateBlend);
+        pole = _v2.set(sx, 0, 0.3).normalize().lerp(pole, 1 - this.celebrateBlend);
+      }
+      this.solveChain(c, this.target, pole);
       this.setModelQ(c.end, t.bones[c.end].modelQ);
     }
 
@@ -1410,7 +1434,7 @@ export class GltfRiderAvatar implements RiderAvatarLike {
     for (const o of this.hair.cap) o.visible = style !== 3;
     for (const o of this.hair.ponytail) o.visible = style === 1;
     for (const o of this.hair.braid) o.visible = style === 2;
-    for (const o of this.hair.moustache) o.visible = !!look.moustache;
+    for (const o of this.hair.moustache) o.visible = !!look.moustache && lookSex(look) === 'male';
   }
 
   setEffort(ftpFrac: number, hrFrac?: number): void {

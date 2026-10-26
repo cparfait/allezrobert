@@ -1,0 +1,1108 @@
+{
+  "formatVersion": 1,
+  "cellKm": 16,
+  "gridOffsetKm": {
+    "e": 10,
+    "n": 0
+  },
+  "region": {
+    "tiles": 12070,
+    "km2": 12070,
+    "uncoveredKm2": 41,
+    "bboxL93": {
+      "minE": 586000,
+      "minN": 6780000,
+      "maxE": 742000,
+      "maxN": 6906000
+    }
+  },
+  "zones": [
+    {
+      "id": "idf-saint-clair-sur-epte",
+      "name": "Île-de-France — Saint-Clair-sur-Epte",
+      "col": 1,
+      "row": 7,
+      "rect": {
+        "minE": 592000,
+        "minN": 6892000,
+        "maxE": 608000,
+        "maxN": 6908000
+      },
+      "tiles": 256,
+      "regionTiles": 59,
+      "regionShare": 0.23,
+      "main": "Saint-Clair-sur-Epte",
+      "population": 964,
+      "overlaps": []
+    },
+    {
+      "id": "idf-magny-en-vexin",
+      "name": "Île-de-France — Magny-en-Vexin",
+      "col": 2,
+      "row": 7,
+      "rect": {
+        "minE": 608000,
+        "minN": 6892000,
+        "maxE": 624000,
+        "maxN": 6908000
+      },
+      "tiles": 256,
+      "regionTiles": 92,
+      "regionShare": 0.36,
+      "main": "Magny-en-Vexin",
+      "population": 5779,
+      "overlaps": []
+    },
+    {
+      "id": "idf-marines",
+      "name": "Île-de-France — Marines",
+      "col": 3,
+      "row": 7,
+      "rect": {
+        "minE": 624000,
+        "minN": 6892000,
+        "maxE": 640000,
+        "maxN": 6908000
+      },
+      "tiles": 256,
+      "regionTiles": 112,
+      "regionShare": 0.44,
+      "main": "Marines",
+      "population": 3594,
+      "overlaps": []
+    },
+    {
+      "id": "idf-persan",
+      "name": "Île-de-France — Persan",
+      "col": 4,
+      "row": 7,
+      "rect": {
+        "minE": 640000,
+        "minN": 6892000,
+        "maxE": 656000,
+        "maxN": 6908000
+      },
+      "tiles": 256,
+      "regionTiles": 71,
+      "regionShare": 0.28,
+      "main": "Persan",
+      "population": 14359,
+      "overlaps": []
+    },
+    {
+      "id": "idf-blaru",
+      "name": "Île-de-France — Blaru",
+      "col": 0,
+      "row": 6,
+      "rect": {
+        "minE": 576000,
+        "minN": 6876000,
+        "maxE": 592000,
+        "maxN": 6892000
+      },
+      "tiles": 256,
+      "regionTiles": 40,
+      "regionShare": 0.16,
+      "main": "Blaru",
+      "population": 907,
+      "overlaps": []
+    },
+    {
+      "id": "idf-mantes-la-jolie",
+      "name": "Île-de-France — Mantes-la-Jolie",
+      "col": 1,
+      "row": 6,
+      "rect": {
+        "minE": 592000,
+        "minN": 6876000,
+        "maxE": 608000,
+        "maxN": 6892000
+      },
+      "tiles": 256,
+      "regionTiles": 220,
+      "regionShare": 0.86,
+      "main": "Mantes-la-Jolie",
+      "population": 43526,
+      "overlaps": []
+    },
+    {
+      "id": "idf-les-mureaux",
+      "name": "Île-de-France — Les Mureaux",
+      "col": 2,
+      "row": 6,
+      "rect": {
+        "minE": 608000,
+        "minN": 6876000,
+        "maxE": 624000,
+        "maxN": 6892000
+      },
+      "tiles": 256,
+      "regionTiles": 256,
+      "regionShare": 1,
+      "main": "Les Mureaux",
+      "population": 34632,
+      "overlaps": []
+    },
+    {
+      "id": "idf-cergy",
+      "name": "Île-de-France — Cergy",
+      "col": 3,
+      "row": 6,
+      "rect": {
+        "minE": 624000,
+        "minN": 6876000,
+        "maxE": 640000,
+        "maxN": 6892000
+      },
+      "tiles": 256,
+      "regionTiles": 256,
+      "regionShare": 1,
+      "main": "Cergy",
+      "population": 70906,
+      "overlaps": []
+    },
+    {
+      "id": "idf-sarcelles",
+      "name": "Île-de-France — Sarcelles",
+      "col": 4,
+      "row": 6,
+      "rect": {
+        "minE": 640000,
+        "minN": 6876000,
+        "maxE": 656000,
+        "maxN": 6892000
+      },
+      "tiles": 256,
+      "regionTiles": 256,
+      "regionShare": 1,
+      "main": "Sarcelles",
+      "population": 59173,
+      "overlaps": []
+    },
+    {
+      "id": "idf-goussainville",
+      "name": "Île-de-France — Goussainville",
+      "col": 5,
+      "row": 6,
+      "rect": {
+        "minE": 656000,
+        "minN": 6876000,
+        "maxE": 672000,
+        "maxN": 6892000
+      },
+      "tiles": 256,
+      "regionTiles": 228,
+      "regionShare": 0.89,
+      "main": "Goussainville",
+      "population": 31301,
+      "overlaps": []
+    },
+    {
+      "id": "idf-dammartin-en-goele",
+      "name": "Île-de-France — Dammartin-en-Goële",
+      "col": 6,
+      "row": 6,
+      "rect": {
+        "minE": 672000,
+        "minN": 6876000,
+        "maxE": 688000,
+        "maxN": 6892000
+      },
+      "tiles": 256,
+      "regionTiles": 174,
+      "regionShare": 0.68,
+      "main": "Dammartin-en-Goële",
+      "population": 11907,
+      "overlaps": []
+    },
+    {
+      "id": "idf-lizy-sur-ourcq",
+      "name": "Île-de-France — Lizy-sur-Ourcq",
+      "col": 7,
+      "row": 6,
+      "rect": {
+        "minE": 688000,
+        "minN": 6876000,
+        "maxE": 704000,
+        "maxN": 6892000
+      },
+      "tiles": 256,
+      "regionTiles": 174,
+      "regionShare": 0.68,
+      "main": "Lizy-sur-Ourcq",
+      "population": 3627,
+      "overlaps": []
+    },
+    {
+      "id": "idf-crouy-sur-ourcq",
+      "name": "Île-de-France — Crouy-sur-Ourcq",
+      "col": 8,
+      "row": 6,
+      "rect": {
+        "minE": 704000,
+        "minN": 6876000,
+        "maxE": 720000,
+        "maxN": 6892000
+      },
+      "tiles": 256,
+      "regionTiles": 125,
+      "regionShare": 0.49,
+      "main": "Crouy-sur-Ourcq",
+      "population": 1811,
+      "overlaps": []
+    },
+    {
+      "id": "idf-mantes-la-ville",
+      "name": "Île-de-France — Mantes-la-Ville",
+      "col": 1,
+      "row": 5,
+      "rect": {
+        "minE": 592000,
+        "minN": 6860000,
+        "maxE": 608000,
+        "maxN": 6876000
+      },
+      "tiles": 256,
+      "regionTiles": 230,
+      "regionShare": 0.9,
+      "main": "Mantes-la-Ville",
+      "population": 22332,
+      "overlaps": []
+    },
+    {
+      "id": "idf-aubergenville",
+      "name": "Île-de-France — Aubergenville",
+      "col": 2,
+      "row": 5,
+      "rect": {
+        "minE": 608000,
+        "minN": 6860000,
+        "maxE": 624000,
+        "maxN": 6876000
+      },
+      "tiles": 256,
+      "regionTiles": 256,
+      "regionShare": 1,
+      "main": "Aubergenville",
+      "population": 12723,
+      "overlaps": []
+    },
+    {
+      "id": "idf-rueil-malmaison",
+      "name": "Île-de-France — Rueil-Malmaison",
+      "col": 3,
+      "row": 5,
+      "rect": {
+        "minE": 624000,
+        "minN": 6860000,
+        "maxE": 640000,
+        "maxN": 6876000
+      },
+      "tiles": 256,
+      "regionTiles": 256,
+      "regionShare": 1,
+      "main": "Rueil-Malmaison",
+      "population": 82874,
+      "overlaps": [
+        "saint-cloud"
+      ]
+    },
+    {
+      "id": "idf-paris",
+      "name": "Île-de-France — Paris",
+      "col": 4,
+      "row": 5,
+      "rect": {
+        "minE": 640000,
+        "minN": 6860000,
+        "maxE": 656000,
+        "maxN": 6876000
+      },
+      "tiles": 256,
+      "regionTiles": 256,
+      "regionShare": 1,
+      "main": "Paris",
+      "population": 2103778,
+      "overlaps": [
+        "longchamp",
+        "montmartre",
+        "saint-cloud"
+      ]
+    },
+    {
+      "id": "idf-montreuil",
+      "name": "Île-de-France — Montreuil",
+      "col": 5,
+      "row": 5,
+      "rect": {
+        "minE": 656000,
+        "minN": 6860000,
+        "maxE": 672000,
+        "maxN": 6876000
+      },
+      "tiles": 256,
+      "regionTiles": 256,
+      "regionShare": 1,
+      "main": "Montreuil",
+      "population": 111934,
+      "overlaps": [
+        "vincennes"
+      ]
+    },
+    {
+      "id": "idf-villeparisis",
+      "name": "Île-de-France — Villeparisis",
+      "col": 6,
+      "row": 5,
+      "rect": {
+        "minE": 672000,
+        "minN": 6860000,
+        "maxE": 688000,
+        "maxN": 6876000
+      },
+      "tiles": 256,
+      "regionTiles": 256,
+      "regionShare": 1,
+      "main": "Villeparisis",
+      "population": 26946,
+      "overlaps": []
+    },
+    {
+      "id": "idf-meaux",
+      "name": "Île-de-France — Meaux",
+      "col": 7,
+      "row": 5,
+      "rect": {
+        "minE": 688000,
+        "minN": 6860000,
+        "maxE": 704000,
+        "maxN": 6876000
+      },
+      "tiles": 256,
+      "regionTiles": 256,
+      "regionShare": 1,
+      "main": "Meaux",
+      "population": 56905,
+      "overlaps": []
+    },
+    {
+      "id": "idf-la-ferte-sous-jouarre",
+      "name": "Île-de-France — La Ferté-sous-Jouarre",
+      "col": 8,
+      "row": 5,
+      "rect": {
+        "minE": 704000,
+        "minN": 6860000,
+        "maxE": 720000,
+        "maxN": 6876000
+      },
+      "tiles": 256,
+      "regionTiles": 249,
+      "regionShare": 0.97,
+      "main": "La Ferté-sous-Jouarre",
+      "population": 10254,
+      "overlaps": []
+    },
+    {
+      "id": "idf-villeneuve-sur-bellot",
+      "name": "Île-de-France — Villeneuve-sur-Bellot",
+      "col": 9,
+      "row": 5,
+      "rect": {
+        "minE": 720000,
+        "minN": 6860000,
+        "maxE": 736000,
+        "maxN": 6876000
+      },
+      "tiles": 256,
+      "regionTiles": 93,
+      "regionShare": 0.36,
+      "main": "Villeneuve-sur-Bellot",
+      "population": 1151,
+      "overlaps": []
+    },
+    {
+      "id": "idf-houdan",
+      "name": "Île-de-France — Houdan",
+      "col": 1,
+      "row": 4,
+      "rect": {
+        "minE": 592000,
+        "minN": 6844000,
+        "maxE": 608000,
+        "maxN": 6860000
+      },
+      "tiles": 256,
+      "regionTiles": 182,
+      "regionShare": 0.71,
+      "main": "Houdan",
+      "population": 3721,
+      "overlaps": []
+    },
+    {
+      "id": "idf-plaisir",
+      "name": "Île-de-France — Plaisir",
+      "col": 2,
+      "row": 4,
+      "rect": {
+        "minE": 608000,
+        "minN": 6844000,
+        "maxE": 624000,
+        "maxN": 6860000
+      },
+      "tiles": 256,
+      "regionTiles": 256,
+      "regionShare": 1,
+      "main": "Plaisir",
+      "population": 31811,
+      "overlaps": [
+        "chevreuse"
+      ]
+    },
+    {
+      "id": "idf-versailles",
+      "name": "Île-de-France — Versailles",
+      "col": 3,
+      "row": 4,
+      "rect": {
+        "minE": 624000,
+        "minN": 6844000,
+        "maxE": 640000,
+        "maxN": 6860000
+      },
+      "tiles": 256,
+      "regionTiles": 256,
+      "regionShare": 1,
+      "main": "Versailles",
+      "population": 84095,
+      "overlaps": [
+        "chevreuse",
+        "meudon",
+        "saint-cloud",
+        "verrieres-velizy"
+      ]
+    },
+    {
+      "id": "idf-boulogne-billancourt",
+      "name": "Île-de-France — Boulogne-Billancourt",
+      "col": 4,
+      "row": 4,
+      "rect": {
+        "minE": 640000,
+        "minN": 6844000,
+        "maxE": 656000,
+        "maxN": 6860000
+      },
+      "tiles": 256,
+      "regionTiles": 256,
+      "regionShare": 1,
+      "main": "Boulogne-Billancourt",
+      "population": 119019,
+      "overlaps": [
+        "chevreuse",
+        "longchamp",
+        "meudon",
+        "saint-cloud",
+        "verrieres-velizy"
+      ]
+    },
+    {
+      "id": "idf-creteil",
+      "name": "Île-de-France — Créteil",
+      "col": 5,
+      "row": 4,
+      "rect": {
+        "minE": 656000,
+        "minN": 6844000,
+        "maxE": 672000,
+        "maxN": 6860000
+      },
+      "tiles": 256,
+      "regionTiles": 256,
+      "regionShare": 1,
+      "main": "Créteil",
+      "population": 93397,
+      "overlaps": [
+        "vincennes"
+      ]
+    },
+    {
+      "id": "idf-bussy-saint-georges",
+      "name": "Île-de-France — Bussy-Saint-Georges",
+      "col": 6,
+      "row": 4,
+      "rect": {
+        "minE": 672000,
+        "minN": 6844000,
+        "maxE": 688000,
+        "maxN": 6860000
+      },
+      "tiles": 256,
+      "regionTiles": 256,
+      "regionShare": 1,
+      "main": "Bussy-Saint-Georges",
+      "population": 27498,
+      "overlaps": []
+    },
+    {
+      "id": "idf-fontenay-tresigny",
+      "name": "Île-de-France — Fontenay-Trésigny",
+      "col": 7,
+      "row": 4,
+      "rect": {
+        "minE": 688000,
+        "minN": 6844000,
+        "maxE": 704000,
+        "maxN": 6860000
+      },
+      "tiles": 256,
+      "regionTiles": 256,
+      "regionShare": 1,
+      "main": "Fontenay-Trésigny",
+      "population": 5994,
+      "overlaps": []
+    },
+    {
+      "id": "idf-coulommiers",
+      "name": "Île-de-France — Coulommiers",
+      "col": 8,
+      "row": 4,
+      "rect": {
+        "minE": 704000,
+        "minN": 6844000,
+        "maxE": 720000,
+        "maxN": 6860000
+      },
+      "tiles": 256,
+      "regionTiles": 256,
+      "regionShare": 1,
+      "main": "Coulommiers",
+      "population": 16374,
+      "overlaps": []
+    },
+    {
+      "id": "idf-la-ferte-gaucher",
+      "name": "Île-de-France — La Ferté-Gaucher",
+      "col": 9,
+      "row": 4,
+      "rect": {
+        "minE": 720000,
+        "minN": 6844000,
+        "maxE": 736000,
+        "maxN": 6860000
+      },
+      "tiles": 256,
+      "regionTiles": 206,
+      "regionShare": 0.8,
+      "main": "La Ferté-Gaucher",
+      "population": 4743,
+      "overlaps": []
+    },
+    {
+      "id": "idf-hermeray",
+      "name": "Île-de-France — Hermeray",
+      "col": 1,
+      "row": 3,
+      "rect": {
+        "minE": 592000,
+        "minN": 6828000,
+        "maxE": 608000,
+        "maxN": 6844000
+      },
+      "tiles": 256,
+      "regionTiles": 89,
+      "regionShare": 0.35,
+      "main": "Hermeray",
+      "population": 1007,
+      "overlaps": []
+    },
+    {
+      "id": "idf-rambouillet",
+      "name": "Île-de-France — Rambouillet",
+      "col": 2,
+      "row": 3,
+      "rect": {
+        "minE": 608000,
+        "minN": 6828000,
+        "maxE": 624000,
+        "maxN": 6844000
+      },
+      "tiles": 256,
+      "regionTiles": 252,
+      "regionShare": 0.98,
+      "main": "Rambouillet",
+      "population": 27724,
+      "overlaps": [
+        "chevreuse"
+      ]
+    },
+    {
+      "id": "idf-bures-sur-yvette",
+      "name": "Île-de-France — Bures-sur-Yvette",
+      "col": 3,
+      "row": 3,
+      "rect": {
+        "minE": 624000,
+        "minN": 6828000,
+        "maxE": 640000,
+        "maxN": 6844000
+      },
+      "tiles": 256,
+      "regionTiles": 256,
+      "regionShare": 1,
+      "main": "Bures-sur-Yvette",
+      "population": 9548,
+      "overlaps": [
+        "chevreuse"
+      ]
+    },
+    {
+      "id": "idf-savigny-sur-orge",
+      "name": "Île-de-France — Savigny-sur-Orge",
+      "col": 4,
+      "row": 3,
+      "rect": {
+        "minE": 640000,
+        "minN": 6828000,
+        "maxE": 656000,
+        "maxN": 6844000
+      },
+      "tiles": 256,
+      "regionTiles": 256,
+      "regionShare": 1,
+      "main": "Savigny-sur-Orge",
+      "population": 37601,
+      "overlaps": [
+        "chevreuse"
+      ]
+    },
+    {
+      "id": "idf-evry-courcouronnes",
+      "name": "Île-de-France — Évry-Courcouronnes",
+      "col": 5,
+      "row": 3,
+      "rect": {
+        "minE": 656000,
+        "minN": 6828000,
+        "maxE": 672000,
+        "maxN": 6844000
+      },
+      "tiles": 256,
+      "regionTiles": 256,
+      "regionShare": 1,
+      "main": "Évry-Courcouronnes",
+      "population": 66919,
+      "overlaps": []
+    },
+    {
+      "id": "idf-vert-saint-denis",
+      "name": "Île-de-France — Vert-Saint-Denis",
+      "col": 6,
+      "row": 3,
+      "rect": {
+        "minE": 672000,
+        "minN": 6828000,
+        "maxE": 688000,
+        "maxN": 6844000
+      },
+      "tiles": 256,
+      "regionTiles": 256,
+      "regionShare": 1,
+      "main": "Vert-Saint-Denis",
+      "population": 9291,
+      "overlaps": []
+    },
+    {
+      "id": "idf-nangis",
+      "name": "Île-de-France — Nangis",
+      "col": 7,
+      "row": 3,
+      "rect": {
+        "minE": 688000,
+        "minN": 6828000,
+        "maxE": 704000,
+        "maxN": 6844000
+      },
+      "tiles": 256,
+      "regionTiles": 256,
+      "regionShare": 1,
+      "main": "Nangis",
+      "population": 8867,
+      "overlaps": []
+    },
+    {
+      "id": "idf-jouy-le-chatel",
+      "name": "Île-de-France — Jouy-le-Châtel",
+      "col": 8,
+      "row": 3,
+      "rect": {
+        "minE": 704000,
+        "minN": 6828000,
+        "maxE": 720000,
+        "maxN": 6844000
+      },
+      "tiles": 256,
+      "regionTiles": 256,
+      "regionShare": 1,
+      "main": "Jouy-le-Châtel",
+      "population": 1630,
+      "overlaps": []
+    },
+    {
+      "id": "idf-provins",
+      "name": "Île-de-France — Provins",
+      "col": 9,
+      "row": 3,
+      "rect": {
+        "minE": 720000,
+        "minN": 6828000,
+        "maxE": 736000,
+        "maxN": 6844000
+      },
+      "tiles": 256,
+      "regionTiles": 236,
+      "regionShare": 0.92,
+      "main": "Provins",
+      "population": 11632,
+      "overlaps": []
+    },
+    {
+      "id": "idf-ablis",
+      "name": "Île-de-France — Ablis",
+      "col": 2,
+      "row": 2,
+      "rect": {
+        "minE": 608000,
+        "minN": 6812000,
+        "maxE": 624000,
+        "maxN": 6828000
+      },
+      "tiles": 256,
+      "regionTiles": 159,
+      "regionShare": 0.62,
+      "main": "Ablis",
+      "population": 3913,
+      "overlaps": []
+    },
+    {
+      "id": "idf-etampes",
+      "name": "Île-de-France — Étampes",
+      "col": 3,
+      "row": 2,
+      "rect": {
+        "minE": 624000,
+        "minN": 6812000,
+        "maxE": 640000,
+        "maxN": 6828000
+      },
+      "tiles": 256,
+      "regionTiles": 256,
+      "regionShare": 1,
+      "main": "Étampes",
+      "population": 26857,
+      "overlaps": []
+    },
+    {
+      "id": "idf-ballancourt-sur-essonne",
+      "name": "Île-de-France — Ballancourt-sur-Essonne",
+      "col": 4,
+      "row": 2,
+      "rect": {
+        "minE": 640000,
+        "minN": 6812000,
+        "maxE": 656000,
+        "maxN": 6828000
+      },
+      "tiles": 256,
+      "regionTiles": 256,
+      "regionShare": 1,
+      "main": "Ballancourt-sur-Essonne",
+      "population": 8191,
+      "overlaps": []
+    },
+    {
+      "id": "idf-dammarie-les-lys",
+      "name": "Île-de-France — Dammarie-les-Lys",
+      "col": 5,
+      "row": 2,
+      "rect": {
+        "minE": 656000,
+        "minN": 6812000,
+        "maxE": 672000,
+        "maxN": 6828000
+      },
+      "tiles": 256,
+      "regionTiles": 256,
+      "regionShare": 1,
+      "main": "Dammarie-les-Lys",
+      "population": 23559,
+      "overlaps": [
+        "fontainebleau"
+      ]
+    },
+    {
+      "id": "idf-melun",
+      "name": "Île-de-France — Melun",
+      "col": 6,
+      "row": 2,
+      "rect": {
+        "minE": 672000,
+        "minN": 6812000,
+        "maxE": 688000,
+        "maxN": 6828000
+      },
+      "tiles": 256,
+      "regionTiles": 256,
+      "regionShare": 1,
+      "main": "Melun",
+      "population": 45995,
+      "overlaps": [
+        "fontainebleau"
+      ]
+    },
+    {
+      "id": "idf-saint-germain-laval",
+      "name": "Île-de-France — Saint-Germain-Laval",
+      "col": 7,
+      "row": 2,
+      "rect": {
+        "minE": 688000,
+        "minN": 6812000,
+        "maxE": 704000,
+        "maxN": 6828000
+      },
+      "tiles": 256,
+      "regionTiles": 256,
+      "regionShare": 1,
+      "main": "Saint-Germain-Laval",
+      "population": 2888,
+      "overlaps": []
+    },
+    {
+      "id": "idf-donnemarie-dontilly",
+      "name": "Île-de-France — Donnemarie-Dontilly",
+      "col": 8,
+      "row": 2,
+      "rect": {
+        "minE": 704000,
+        "minN": 6812000,
+        "maxE": 720000,
+        "maxN": 6828000
+      },
+      "tiles": 256,
+      "regionTiles": 256,
+      "regionShare": 1,
+      "main": "Donnemarie-Dontilly",
+      "population": 2706,
+      "overlaps": []
+    },
+    {
+      "id": "idf-sourdun",
+      "name": "Île-de-France — Sourdun",
+      "col": 9,
+      "row": 2,
+      "rect": {
+        "minE": 720000,
+        "minN": 6812000,
+        "maxE": 736000,
+        "maxN": 6828000
+      },
+      "tiles": 256,
+      "regionTiles": 176,
+      "regionShare": 0.69,
+      "main": "Sourdun",
+      "population": 1541,
+      "overlaps": []
+    },
+    {
+      "id": "idf-angerville",
+      "name": "Île-de-France — Angerville",
+      "col": 3,
+      "row": 1,
+      "rect": {
+        "minE": 624000,
+        "minN": 6796000,
+        "maxE": 640000,
+        "maxN": 6812000
+      },
+      "tiles": 256,
+      "regionTiles": 190,
+      "regionShare": 0.74,
+      "main": "Angerville",
+      "population": 4428,
+      "overlaps": []
+    },
+    {
+      "id": "idf-maisse",
+      "name": "Île-de-France — Maisse",
+      "col": 4,
+      "row": 1,
+      "rect": {
+        "minE": 640000,
+        "minN": 6796000,
+        "maxE": 656000,
+        "maxN": 6812000
+      },
+      "tiles": 256,
+      "regionTiles": 153,
+      "regionShare": 0.6,
+      "main": "Maisse",
+      "population": 2797,
+      "overlaps": []
+    },
+    {
+      "id": "idf-milly-la-foret",
+      "name": "Île-de-France — Milly-la-Forêt",
+      "col": 5,
+      "row": 1,
+      "rect": {
+        "minE": 656000,
+        "minN": 6796000,
+        "maxE": 672000,
+        "maxN": 6812000
+      },
+      "tiles": 256,
+      "regionTiles": 251,
+      "regionShare": 0.98,
+      "main": "Milly-la-Forêt",
+      "population": 4562,
+      "overlaps": [
+        "fontainebleau"
+      ]
+    },
+    {
+      "id": "idf-moret-loing-et-orvanne",
+      "name": "Île-de-France — Moret-Loing-et-Orvanne",
+      "col": 6,
+      "row": 1,
+      "rect": {
+        "minE": 672000,
+        "minN": 6796000,
+        "maxE": 688000,
+        "maxN": 6812000
+      },
+      "tiles": 256,
+      "regionTiles": 256,
+      "regionShare": 1,
+      "main": "Moret-Loing-et-Orvanne",
+      "population": 12810,
+      "overlaps": [
+        "fontainebleau"
+      ]
+    },
+    {
+      "id": "idf-montereau-fault-yonne",
+      "name": "Île-de-France — Montereau-Fault-Yonne",
+      "col": 7,
+      "row": 1,
+      "rect": {
+        "minE": 688000,
+        "minN": 6796000,
+        "maxE": 704000,
+        "maxN": 6812000
+      },
+      "tiles": 256,
+      "regionTiles": 238,
+      "regionShare": 0.93,
+      "main": "Montereau-Fault-Yonne",
+      "population": 22279,
+      "overlaps": []
+    },
+    {
+      "id": "idf-bazoches-les-bray",
+      "name": "Île-de-France — Bazoches-lès-Bray",
+      "col": 8,
+      "row": 1,
+      "rect": {
+        "minE": 704000,
+        "minN": 6796000,
+        "maxE": 720000,
+        "maxN": 6812000
+      },
+      "tiles": 256,
+      "regionTiles": 75,
+      "regionShare": 0.29,
+      "main": "Bazoches-lès-Bray",
+      "population": 878,
+      "overlaps": []
+    },
+    {
+      "id": "idf-villenauxe-la-petite",
+      "name": "Île-de-France — Villenauxe-la-Petite",
+      "col": 9,
+      "row": 1,
+      "rect": {
+        "minE": 720000,
+        "minN": 6796000,
+        "maxE": 736000,
+        "maxN": 6812000
+      },
+      "tiles": 256,
+      "regionTiles": 33,
+      "regionShare": 0.13,
+      "main": "Villenauxe-la-Petite",
+      "population": 453,
+      "overlaps": []
+    },
+    {
+      "id": "idf-beaumont-du-gatinais",
+      "name": "Île-de-France — Beaumont-du-Gâtinais",
+      "col": 5,
+      "row": 0,
+      "rect": {
+        "minE": 656000,
+        "minN": 6780000,
+        "maxE": 672000,
+        "maxN": 6796000
+      },
+      "tiles": 256,
+      "regionTiles": 142,
+      "regionShare": 0.55,
+      "main": "Beaumont-du-Gâtinais",
+      "population": 1129,
+      "overlaps": []
+    },
+    {
+      "id": "idf-nemours",
+      "name": "Île-de-France — Nemours",
+      "col": 6,
+      "row": 0,
+      "rect": {
+        "minE": 672000,
+        "minN": 6780000,
+        "maxE": 688000,
+        "maxN": 6796000
+      },
+      "tiles": 256,
+      "regionTiles": 220,
+      "regionShare": 0.86,
+      "main": "Nemours",
+      "population": 12889,
+      "overlaps": []
+    },
+    {
+      "id": "idf-egreville",
+      "name": "Île-de-France — Égreville",
+      "col": 7,
+      "row": 0,
+      "rect": {
+        "minE": 688000,
+        "minN": 6780000,
+        "maxE": 704000,
+        "maxN": 6796000
+      },
+      "tiles": 256,
+      "regionTiles": 136,
+      "regionShare": 0.53,
+      "main": "Égreville",
+      "population": 2186,
+      "overlaps": []
+    }
+  ],
+  "totals": {
+    "zones": 58,
+    "tiles": 14848,
+    "hoursBuildEstimate": 49,
+    "cacheGoEstimate": 508
+  }
+}

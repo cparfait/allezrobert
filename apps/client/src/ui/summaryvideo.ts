@@ -16,6 +16,28 @@ interface RenderJobView {
   fileUrl: string | null;
 }
 
+/** Photo du sommet réduite (1280 px, JPEG) pour rester sous ~250 Ko dans la requête de rendu. */
+async function shrinkPhoto(src: string): Promise<string | null> {
+  try {
+    const bmp = await createImageBitmap(await (await fetch(src)).blob());
+    const k = Math.min(1, 1280 / bmp.width);
+    const c = new OffscreenCanvas(Math.round(bmp.width * k), Math.round(bmp.height * k));
+    c.getContext('2d')!.drawImage(bmp, 0, 0, c.width, c.height);
+    for (const q of [0.78, 0.6, 0.45]) {
+      const blob = await c.convertToBlob({ type: 'image/jpeg', quality: q });
+      if (blob.size <= 200_000) {
+        const bytes = new Uint8Array(await blob.arrayBuffer());
+        let bin = '';
+        for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+        return `data:image/jpeg;base64,${btoa(bin)}`;
+      }
+    }
+  } catch {
+    /* photo ignorée */
+  }
+  return null;
+}
+
 const esc = (s: string): string => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 
 /** Entrée du résumé animé à partir de la sortie locale (aucune FC). */
@@ -134,11 +156,12 @@ export class SummaryVideoPanel {
     if (!this.activityId) return;
     this.state = 'queued';
     this.draw();
+    const photos = (await Promise.all(this.ride.summitPhotos.slice(0, 3).map(shrinkPhoto))).filter((p): p is string => !!p);
     const r = await fetch(`${apiBase()}/renders`, {
       method: 'POST',
       credentials: 'include',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ composition: 'summary', activityId: this.activityId, lang: getLang() }),
+      body: JSON.stringify({ composition: 'summary', activityId: this.activityId, lang: getLang(), photos }),
     }).catch(() => null);
     if (!r?.ok) {
       this.state = 'failed';
@@ -167,7 +190,7 @@ export class SummaryVideoPanel {
     const app = document.getElementById('app') ?? document.body;
     this.player?.dispose();
     this.player = new SequencePlayer(app, { lang: getLang(), zIndex: 60 });
-    const vars = summaryVariablesFromRide(rideSummaryFromSession(this.ride, this.riderName));
+    const vars = summaryVariablesFromRide({ ...rideSummaryFromSession(this.ride, this.riderName), photos: this.ride.summitPhotos.slice(0, 3) });
     await this.player.play('summary', vars).catch(() => undefined);
     this.player?.dispose();
     this.player = null;

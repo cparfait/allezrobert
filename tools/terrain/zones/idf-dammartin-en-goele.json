@@ -1,0 +1,283 @@
+{
+  "kind": "open",
+  "id": "idf-dammartin-en-goele",
+  "name": "Île-de-France — Dammartin-en-Goële",
+  "region": "Seine-et-Marne · Île-de-France",
+  "originL93": {
+    "x": 680000,
+    "y": 6884000
+  },
+  "corridorTiles": {
+    "txMin": -8,
+    "txMax": 7,
+    "tzMin": -8,
+    "tzMax": 7
+  },
+  "start": {
+    "lon": 2.67883,
+    "lat": 49.05047
+  },
+  "orthoPx": 1024,
+  "horizon": {
+    "halfSizeM": 30000,
+    "resM": 100
+  },
+  "tours": [
+    {
+      "routeId": "boucle-20-km",
+      "routeName": "Boucle de 20 km depuis Dammartin-en-Goële",
+      "routeNameEn": "20 km loop from Dammartin-en-Goële",
+      "start": {
+        "lon": 2.67883,
+        "lat": 49.05047
+      },
+      "via": [
+        {
+          "lon": 2.69553,
+          "lat": 49.03452
+        },
+        {
+          "lon": 2.70501,
+          "lat": 49.01283
+        },
+        {
+          "lon": 2.68095,
+          "lat": 49.0087
+        },
+        {
+          "lon": 2.64595,
+          "lat": 49.00295
+        },
+        {
+          "lon": 2.64308,
+          "lat": 49.00212
+        },
+        {
+          "lon": 2.65961,
+          "lat": 49.00876
+        },
+        {
+          "lon": 2.63926,
+          "lat": 49.03303
+        },
+        {
+          "lon": 2.66806,
+          "lat": 49.0464
+        }
+      ]
+    },
+    {
+      "routeId": "boucle-30-km",
+      "routeName": "Boucle de 30 km depuis Dammartin-en-Goële",
+      "routeNameEn": "30 km loop from Dammartin-en-Goële",
+      "start": {
+        "lon": 2.67883,
+        "lat": 49.05047
+      },
+      "via": [
+        {
+          "lon": 2.6802,
+          "lat": 49.06831
+        },
+        {
+          "lon": 2.67327,
+          "lat": 49.08419
+        },
+        {
+          "lon": 2.69839,
+          "lat": 49.08682
+        },
+        {
+          "lon": 2.73238,
+          "lat": 49.08806
+        },
+        {
+          "lon": 2.74787,
+          "lat": 49.09332
+        },
+        {
+          "lon": 2.75035,
+          "lat": 49.08467
+        },
+        {
+          "lon": 2.74204,
+          "lat": 49.0641
+        },
+        {
+          "lon": 2.73873,
+          "lat": 49.04986
+        },
+        {
+          "lon": 2.74623,
+          "lat": 49.03219
+        },
+        {
+          "lon": 2.71894,
+          "lat": 49.04044
+        },
+        {
+          "lon": 2.68741,
+          "lat": 49.0378
+        }
+      ]
+    },
+    {
+      "routeId": "boucle-40-km",
+      "routeName": "Boucle de 40 km depuis Dammartin-en-Goële",
+      "routeNameEn": "40 km loop from Dammartin-en-Goële",
+      "start": {
+        "lon": 2.67883,
+        "lat": 49.05047
+      },
+      "via": [
+        {
+          "lon": 2.69123,
+          "lat": 49.0708
+        },
+        {
+          "lon": 2.70746,
+          "lat": 49.092
+        },
+        {
+          "lon": 2.68499,
+          "lat": 49.10671
+        },
+        {
+          "lon": 2.69765,
+          "lat": 49.09679
+        },
+        {
+          "lon": 2.72983,
+          "lat": 49.08752
+        },
+        {
+          "lon": 2.75579,
+          "lat": 49.09846
+        },
+        {
+          "lon": 2.78315,
+          "lat": 49.10783
+        },
+        {
+          "lon": 2.81358,
+          "lat": 49.10073
+        },
+        {
+          "lon": 2.82336,
+          "lat": 49.08312
+        },
+        {
+          "lon": 2.81373,
+          "lat": 49.06292
+        },
+        {
+          "lon": 2.80707,
+          "lat": 49.03981
+        },
+        {
+          "lon": 2.77596,
+          "lat": 49.02776
+        },
+        {
+          "lon": 2.74804,
+          "lat": 49.03025
+        },
+        {
+          "lon": 2.71894,
+          "lat": 49.04044
+        },
+        {
+          "lon": 2.68741,
+          "lat": 49.0378
+        }
+      ]
+    },
+    {
+      "routeId": "boucle-50-km",
+      "routeName": "Boucle de 50 km depuis Dammartin-en-Goële",
+      "routeNameEn": "50 km loop from Dammartin-en-Goële",
+      "start": {
+        "lon": 2.67883,
+        "lat": 49.05047
+      },
+      "via": [
+        {
+          "lon": 2.6802,
+          "lat": 49.06831
+        },
+        {
+          "lon": 2.66324,
+          "lat": 49.08004
+        },
+        {
+          "lon": 2.66056,
+          "lat": 49.08202
+        },
+        {
+          "lon": 2.68476,
+          "lat": 49.09305
+        },
+        {
+          "lon": 2.68605,
+          "lat": 49.11628
+        },
+        {
+          "lon": 2.68612,
+          "lat": 49.1147
+        },
+        {
+          "lon": 2.69765,
+          "lat": 49.09679
+        },
+        {
+          "lon": 2.72983,
+          "lat": 49.08752
+        },
+        {
+          "lon": 2.75506,
+          "lat": 49.10051
+        },
+        {
+          "lon": 2.77066,
+          "lat": 49.11548
+        },
+        {
+          "lon": 2.74373,
+          "lat": 49.12426
+        },
+        {
+          "lon": 2.77409,
+          "lat": 49.11241
+        },
+        {
+          "lon": 2.7937,
+          "lat": 49.10628
+        },
+        {
+          "lon": 2.82464,
+          "lat": 49.09911
+        },
+        {
+          "lon": 2.82152,
+          "lat": 49.07678
+        },
+        {
+          "lon": 2.79763,
+          "lat": 49.05736
+        },
+        {
+          "lon": 2.75799,
+          "lat": 49.05258
+        },
+        {
+          "lon": 2.72803,
+          "lat": 49.05227
+        },
+        {
+          "lon": 2.69247,
+          "lat": 49.06021
+        }
+      ]
+    }
+  ]
+}

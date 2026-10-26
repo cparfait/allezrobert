@@ -1,0 +1,275 @@
+{
+  "kind": "open",
+  "id": "idf-moret-loing-et-orvanne",
+  "name": "Île-de-France — Moret-Loing-et-Orvanne",
+  "region": "Seine-et-Marne · Île-de-France",
+  "originL93": {
+    "x": 680000,
+    "y": 6804000
+  },
+  "corridorTiles": {
+    "txMin": -8,
+    "txMax": 7,
+    "tzMin": -8,
+    "tzMax": 7
+  },
+  "start": {
+    "lon": 2.82295,
+    "lat": 48.35506
+  },
+  "orthoPx": 1024,
+  "horizon": {
+    "halfSizeM": 30000,
+    "resM": 100
+  },
+  "tours": [
+    {
+      "routeId": "boucle-20-km",
+      "routeName": "Boucle de 20 km depuis Moret-Loing-et-Orvanne",
+      "routeNameEn": "20 km loop from Moret-Loing-et-Orvanne",
+      "start": {
+        "lon": 2.82295,
+        "lat": 48.35506
+      },
+      "via": [
+        {
+          "lon": 2.82522,
+          "lat": 48.37108
+        },
+        {
+          "lon": 2.79696,
+          "lat": 48.37695
+        },
+        {
+          "lon": 2.78749,
+          "lat": 48.38785
+        },
+        {
+          "lon": 2.79309,
+          "lat": 48.40624
+        },
+        {
+          "lon": 2.81761,
+          "lat": 48.39612
+        },
+        {
+          "lon": 2.81734,
+          "lat": 48.39362
+        },
+        {
+          "lon": 2.8169,
+          "lat": 48.37925
+        },
+        {
+          "lon": 2.82834,
+          "lat": 48.36282
+        }
+      ]
+    },
+    {
+      "routeId": "boucle-30-km",
+      "routeName": "Boucle de 30 km depuis Moret-Loing-et-Orvanne",
+      "routeNameEn": "30 km loop from Moret-Loing-et-Orvanne",
+      "start": {
+        "lon": 2.82295,
+        "lat": 48.35506
+      },
+      "via": [
+        {
+          "lon": 2.81556,
+          "lat": 48.33335
+        },
+        {
+          "lon": 2.7836,
+          "lat": 48.33438
+        },
+        {
+          "lon": 2.76434,
+          "lat": 48.35183
+        },
+        {
+          "lon": 2.75816,
+          "lat": 48.37126
+        },
+        {
+          "lon": 2.74919,
+          "lat": 48.38395
+        },
+        {
+          "lon": 2.76964,
+          "lat": 48.39556
+        },
+        {
+          "lon": 2.79172,
+          "lat": 48.40647
+        },
+        {
+          "lon": 2.80376,
+          "lat": 48.38994
+        },
+        {
+          "lon": 2.82814,
+          "lat": 48.38554
+        },
+        {
+          "lon": 2.82433,
+          "lat": 48.3738
+        }
+      ]
+    },
+    {
+      "routeId": "boucle-40-km",
+      "routeName": "Boucle de 40 km depuis Moret-Loing-et-Orvanne",
+      "routeNameEn": "40 km loop from Moret-Loing-et-Orvanne",
+      "start": {
+        "lon": 2.82295,
+        "lat": 48.35506
+      },
+      "via": [
+        {
+          "lon": 2.81556,
+          "lat": 48.33335
+        },
+        {
+          "lon": 2.7836,
+          "lat": 48.33438
+        },
+        {
+          "lon": 2.76366,
+          "lat": 48.31893
+        },
+        {
+          "lon": 2.74984,
+          "lat": 48.33401
+        },
+        {
+          "lon": 2.72245,
+          "lat": 48.34032
+        },
+        {
+          "lon": 2.71817,
+          "lat": 48.35285
+        },
+        {
+          "lon": 2.72435,
+          "lat": 48.37715
+        },
+        {
+          "lon": 2.70352,
+          "lat": 48.39269
+        },
+        {
+          "lon": 2.71229,
+          "lat": 48.39986
+        },
+        {
+          "lon": 2.74575,
+          "lat": 48.40534
+        },
+        {
+          "lon": 2.77835,
+          "lat": 48.40538
+        },
+        {
+          "lon": 2.79172,
+          "lat": 48.40647
+        },
+        {
+          "lon": 2.81217,
+          "lat": 48.39529
+        },
+        {
+          "lon": 2.81234,
+          "lat": 48.38114
+        },
+        {
+          "lon": 2.82822,
+          "lat": 48.36577
+        }
+      ]
+    },
+    {
+      "routeId": "boucle-50-km",
+      "routeName": "Boucle de 50 km depuis Moret-Loing-et-Orvanne",
+      "routeNameEn": "50 km loop from Moret-Loing-et-Orvanne",
+      "start": {
+        "lon": 2.82295,
+        "lat": 48.35506
+      },
+      "via": [
+        {
+          "lon": 2.81556,
+          "lat": 48.33335
+        },
+        {
+          "lon": 2.78265,
+          "lat": 48.33251
+        },
+        {
+          "lon": 2.775,
+          "lat": 48.31702
+        },
+        {
+          "lon": 2.75763,
+          "lat": 48.31905
+        },
+        {
+          "lon": 2.74675,
+          "lat": 48.33441
+        },
+        {
+          "lon": 2.71529,
+          "lat": 48.32417
+        },
+        {
+          "lon": 2.69901,
+          "lat": 48.32886
+        },
+        {
+          "lon": 2.69542,
+          "lat": 48.34656
+        },
+        {
+          "lon": 2.68036,
+          "lat": 48.36233
+        },
+        {
+          "lon": 2.671,
+          "lat": 48.37249
+        },
+        {
+          "lon": 2.68831,
+          "lat": 48.37406
+        },
+        {
+          "lon": 2.70079,
+          "lat": 48.39682
+        },
+        {
+          "lon": 2.72357,
+          "lat": 48.40496
+        },
+        {
+          "lon": 2.75312,
+          "lat": 48.40507
+        },
+        {
+          "lon": 2.78477,
+          "lat": 48.40033
+        },
+        {
+          "lon": 2.79036,
+          "lat": 48.40122
+        },
+        {
+          "lon": 2.7989,
+          "lat": 48.38009
+        },
+        {
+          "lon": 2.82522,
+          "lat": 48.37108
+        }
+      ]
+    }
+  ]
+}

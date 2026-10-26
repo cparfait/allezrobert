@@ -1,0 +1,283 @@
+{
+  "kind": "open",
+  "id": "idf-bussy-saint-georges",
+  "name": "Île-de-France — Bussy-Saint-Georges",
+  "region": "Seine-et-Marne · Île-de-France",
+  "originL93": {
+    "x": 680000,
+    "y": 6852000
+  },
+  "corridorTiles": {
+    "txMin": -8,
+    "txMax": 7,
+    "tzMin": -8,
+    "tzMax": 7
+  },
+  "start": {
+    "lon": 2.70897,
+    "lat": 48.82914
+  },
+  "orthoPx": 1024,
+  "horizon": {
+    "halfSizeM": 30000,
+    "resM": 100
+  },
+  "tours": [
+    {
+      "routeId": "boucle-20-km",
+      "routeName": "Boucle de 20 km depuis Bussy-Saint-Georges",
+      "routeNameEn": "20 km loop from Bussy-Saint-Georges",
+      "start": {
+        "lon": 2.70897,
+        "lat": 48.82914
+      },
+      "via": [
+        {
+          "lon": 2.73068,
+          "lat": 48.83354
+        },
+        {
+          "lon": 2.7551,
+          "lat": 48.83167
+        },
+        {
+          "lon": 2.78253,
+          "lat": 48.81912
+        },
+        {
+          "lon": 2.77988,
+          "lat": 48.80898
+        },
+        {
+          "lon": 2.74583,
+          "lat": 48.80255
+        },
+        {
+          "lon": 2.71188,
+          "lat": 48.79611
+        },
+        {
+          "lon": 2.70408,
+          "lat": 48.80144
+        },
+        {
+          "lon": 2.70676,
+          "lat": 48.82145
+        }
+      ]
+    },
+    {
+      "routeId": "boucle-30-km",
+      "routeName": "Boucle de 30 km depuis Bussy-Saint-Georges",
+      "routeNameEn": "30 km loop from Bussy-Saint-Georges",
+      "start": {
+        "lon": 2.70897,
+        "lat": 48.82914
+      },
+      "via": [
+        {
+          "lon": 2.73068,
+          "lat": 48.83354
+        },
+        {
+          "lon": 2.75339,
+          "lat": 48.83414
+        },
+        {
+          "lon": 2.77625,
+          "lat": 48.82182
+        },
+        {
+          "lon": 2.79046,
+          "lat": 48.82711
+        },
+        {
+          "lon": 2.78837,
+          "lat": 48.80623
+        },
+        {
+          "lon": 2.76908,
+          "lat": 48.79165
+        },
+        {
+          "lon": 2.77558,
+          "lat": 48.77091
+        },
+        {
+          "lon": 2.77558,
+          "lat": 48.77091
+        },
+        {
+          "lon": 2.76908,
+          "lat": 48.79165
+        },
+        {
+          "lon": 2.74943,
+          "lat": 48.8035
+        },
+        {
+          "lon": 2.71505,
+          "lat": 48.79611
+        },
+        {
+          "lon": 2.69901,
+          "lat": 48.81048
+        }
+      ]
+    },
+    {
+      "routeId": "boucle-40-km",
+      "routeName": "Boucle de 40 km depuis Bussy-Saint-Georges",
+      "routeNameEn": "40 km loop from Bussy-Saint-Georges",
+      "start": {
+        "lon": 2.70897,
+        "lat": 48.82914
+      },
+      "via": [
+        {
+          "lon": 2.73068,
+          "lat": 48.83354
+        },
+        {
+          "lon": 2.7551,
+          "lat": 48.83167
+        },
+        {
+          "lon": 2.7572,
+          "lat": 48.80947
+        },
+        {
+          "lon": 2.77019,
+          "lat": 48.78757
+        },
+        {
+          "lon": 2.7725,
+          "lat": 48.76785
+        },
+        {
+          "lon": 2.75374,
+          "lat": 48.76453
+        },
+        {
+          "lon": 2.73329,
+          "lat": 48.75018
+        },
+        {
+          "lon": 2.70685,
+          "lat": 48.75604
+        },
+        {
+          "lon": 2.67932,
+          "lat": 48.75864
+        },
+        {
+          "lon": 2.66446,
+          "lat": 48.7749
+        },
+        {
+          "lon": 2.6561,
+          "lat": 48.79518
+        },
+        {
+          "lon": 2.64109,
+          "lat": 48.80074
+        },
+        {
+          "lon": 2.66837,
+          "lat": 48.79084
+        },
+        {
+          "lon": 2.70267,
+          "lat": 48.79464
+        },
+        {
+          "lon": 2.69901,
+          "lat": 48.81048
+        }
+      ]
+    },
+    {
+      "routeId": "boucle-50-km",
+      "routeName": "Boucle de 50 km depuis Bussy-Saint-Georges",
+      "routeNameEn": "50 km loop from Bussy-Saint-Georges",
+      "start": {
+        "lon": 2.70897,
+        "lat": 48.82914
+      },
+      "via": [
+        {
+          "lon": 2.73068,
+          "lat": 48.83354
+        },
+        {
+          "lon": 2.7551,
+          "lat": 48.83167
+        },
+        {
+          "lon": 2.78253,
+          "lat": 48.81912
+        },
+        {
+          "lon": 2.78563,
+          "lat": 48.80176
+        },
+        {
+          "lon": 2.77019,
+          "lat": 48.78757
+        },
+        {
+          "lon": 2.77526,
+          "lat": 48.76425
+        },
+        {
+          "lon": 2.7624,
+          "lat": 48.74287
+        },
+        {
+          "lon": 2.75757,
+          "lat": 48.74342
+        },
+        {
+          "lon": 2.7263,
+          "lat": 48.74284
+        },
+        {
+          "lon": 2.70106,
+          "lat": 48.73568
+        },
+        {
+          "lon": 2.67053,
+          "lat": 48.7289
+        },
+        {
+          "lon": 2.67011,
+          "lat": 48.74658
+        },
+        {
+          "lon": 2.66504,
+          "lat": 48.76618
+        },
+        {
+          "lon": 2.65558,
+          "lat": 48.7869
+        },
+        {
+          "lon": 2.63807,
+          "lat": 48.78695
+        },
+        {
+          "lon": 2.6697,
+          "lat": 48.79073
+        },
+        {
+          "lon": 2.70267,
+          "lat": 48.79464
+        },
+        {
+          "lon": 2.69901,
+          "lat": 48.81048
+        }
+      ]
+    }
+  ]
+}

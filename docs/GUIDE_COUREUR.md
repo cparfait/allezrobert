@@ -41,6 +41,8 @@ Le tutoriel (voix off, coupable) règle : la langue, ton profil (poids, taille, 
 | T / V | Chat texte / micro (sorties à plusieurs) |
 | [ / ] | Allure : des équipiers IA (solo) ou annoncée au groupe (organisateur d'une sortie de groupe) |
 | R | « Ralentissez ! » aux équipiers IA (solo) |
+| K | « Attendez-moi ! » : les équipiers devant toi lèvent le pied pendant 90 s (solo) |
+| F | Forme du peloton d'équipiers : auto, file indienne, deux files tournantes, bordure (solo) |
 | G | Regroupement (sortie de groupe : organisateur ou meneur) |
 
 Le **HUD** affiche la puissance moyenne 3 s (couleur de zone), FC, cadence, vitesse, pente, temps, distance, D+, NP, aspiration, rapport, balance G/D, le profil de l'itinéraire et la mini-carte.

@@ -1,0 +1,275 @@
+{
+  "kind": "open",
+  "id": "idf-villenauxe-la-petite",
+  "name": "Île-de-France — Villenauxe-la-Petite",
+  "region": "Seine-et-Marne · Île-de-France",
+  "originL93": {
+    "x": 728000,
+    "y": 6804000
+  },
+  "corridorTiles": {
+    "txMin": -8,
+    "txMax": 7,
+    "tzMin": -8,
+    "tzMax": 7
+  },
+  "start": {
+    "lon": 3.31073,
+    "lat": 48.40075
+  },
+  "orthoPx": 1024,
+  "horizon": {
+    "halfSizeM": 30000,
+    "resM": 100
+  },
+  "tours": [
+    {
+      "routeId": "boucle-20-km",
+      "routeName": "Boucle de 20 km depuis Villenauxe-la-Petite",
+      "routeNameEn": "20 km loop from Villenauxe-la-Petite",
+      "start": {
+        "lon": 3.31073,
+        "lat": 48.40075
+      },
+      "via": [
+        {
+          "lon": 3.33505,
+          "lat": 48.3997
+        },
+        {
+          "lon": 3.34973,
+          "lat": 48.38413
+        },
+        {
+          "lon": 3.34738,
+          "lat": 48.35996
+        },
+        {
+          "lon": 3.32339,
+          "lat": 48.35836
+        },
+        {
+          "lon": 3.32339,
+          "lat": 48.35836
+        },
+        {
+          "lon": 3.29923,
+          "lat": 48.35341
+        },
+        {
+          "lon": 3.28003,
+          "lat": 48.37094
+        },
+        {
+          "lon": 3.29743,
+          "lat": 48.39263
+        }
+      ]
+    },
+    {
+      "routeId": "boucle-30-km",
+      "routeName": "Boucle de 30 km depuis Villenauxe-la-Petite",
+      "routeNameEn": "30 km loop from Villenauxe-la-Petite",
+      "start": {
+        "lon": 3.31073,
+        "lat": 48.40075
+      },
+      "via": [
+        {
+          "lon": 3.33505,
+          "lat": 48.3997
+        },
+        {
+          "lon": 3.34888,
+          "lat": 48.3859
+        },
+        {
+          "lon": 3.36202,
+          "lat": 48.36662
+        },
+        {
+          "lon": 3.34018,
+          "lat": 48.35504
+        },
+        {
+          "lon": 3.33441,
+          "lat": 48.33702
+        },
+        {
+          "lon": 3.31976,
+          "lat": 48.32911
+        },
+        {
+          "lon": 3.30275,
+          "lat": 48.34631
+        },
+        {
+          "lon": 3.28393,
+          "lat": 48.36327
+        },
+        {
+          "lon": 3.28899,
+          "lat": 48.38252
+        },
+        {
+          "lon": 3.30626,
+          "lat": 48.40266
+        }
+      ]
+    },
+    {
+      "routeId": "boucle-40-km",
+      "routeName": "Boucle de 40 km depuis Villenauxe-la-Petite",
+      "routeNameEn": "40 km loop from Villenauxe-la-Petite",
+      "start": {
+        "lon": 3.31073,
+        "lat": 48.40075
+      },
+      "via": [
+        {
+          "lon": 3.33505,
+          "lat": 48.3997
+        },
+        {
+          "lon": 3.34973,
+          "lat": 48.38413
+        },
+        {
+          "lon": 3.36959,
+          "lat": 48.36886
+        },
+        {
+          "lon": 3.38706,
+          "lat": 48.37829
+        },
+        {
+          "lon": 3.40484,
+          "lat": 48.35258
+        },
+        {
+          "lon": 3.39129,
+          "lat": 48.33404
+        },
+        {
+          "lon": 3.37917,
+          "lat": 48.31099
+        },
+        {
+          "lon": 3.36474,
+          "lat": 48.31172
+        },
+        {
+          "lon": 3.33881,
+          "lat": 48.32634
+        },
+        {
+          "lon": 3.30794,
+          "lat": 48.33347
+        },
+        {
+          "lon": 3.30516,
+          "lat": 48.35077
+        },
+        {
+          "lon": 3.27979,
+          "lat": 48.36494
+        },
+        {
+          "lon": 3.29186,
+          "lat": 48.38371
+        },
+        {
+          "lon": 3.30626,
+          "lat": 48.40266
+        }
+      ]
+    },
+    {
+      "routeId": "boucle-50-km",
+      "routeName": "Boucle de 50 km depuis Villenauxe-la-Petite",
+      "routeNameEn": "50 km loop from Villenauxe-la-Petite",
+      "start": {
+        "lon": 3.31073,
+        "lat": 48.40075
+      },
+      "via": [
+        {
+          "lon": 3.33505,
+          "lat": 48.3997
+        },
+        {
+          "lon": 3.34973,
+          "lat": 48.38413
+        },
+        {
+          "lon": 3.36959,
+          "lat": 48.36886
+        },
+        {
+          "lon": 3.39332,
+          "lat": 48.38188
+        },
+        {
+          "lon": 3.42486,
+          "lat": 48.38419
+        },
+        {
+          "lon": 3.42959,
+          "lat": 48.40324
+        },
+        {
+          "lon": 3.43706,
+          "lat": 48.38612
+        },
+        {
+          "lon": 3.44927,
+          "lat": 48.37107
+        },
+        {
+          "lon": 3.46325,
+          "lat": 48.36986
+        },
+        {
+          "lon": 3.43652,
+          "lat": 48.35932
+        },
+        {
+          "lon": 3.40536,
+          "lat": 48.34811
+        },
+        {
+          "lon": 3.39061,
+          "lat": 48.33117
+        },
+        {
+          "lon": 3.38619,
+          "lat": 48.32106
+        },
+        {
+          "lon": 3.35919,
+          "lat": 48.31353
+        },
+        {
+          "lon": 3.32624,
+          "lat": 48.32887
+        },
+        {
+          "lon": 3.30094,
+          "lat": 48.33966
+        },
+        {
+          "lon": 3.2903,
+          "lat": 48.35915
+        },
+        {
+          "lon": 3.28263,
+          "lat": 48.37508
+        },
+        {
+          "lon": 3.29719,
+          "lat": 48.39472
+        }
+      ]
+    }
+  ]
+}

@@ -10,7 +10,7 @@ Véhicule du trafic : .blend (BlenderKit) → .glb prêt pour vehicles/optimize.
 
 Usage :
   blender -b <fichier.blend> --python export_vehicle.py -- <sortie.glb> [--inspect] [--flip]
-         [--drop MOTIF] [--wheels MOTIF] [--paint MOTIF] [--length M]
+         [--drop MOTIF] [--wheels MOTIF] [--paint MOTIF] [--length M] [--split-wheels] [--wheel-islands]
   blender -b --python export_vehicle.py -- <sortie.glb> --import <source.glb> […]  (Sketchfab)
 """
 import re
@@ -118,6 +118,37 @@ if target_len:
     k = float(target_len) / (hi.y - lo.y)
     for o in meshes():
         o.data.transform(Matrix.Scale(k, 4))
+
+# --wheel-islands : modèle d'un seul maillage dont les roues sont des îlots (disques) : on sépare tout par
+# îlots, puis les disques posés au sol (rond dans le plan longueur × hauteur, mince en largeur) deviennent des roues.
+if '--wheel-islands' in argv:
+    for o in meshes():
+        bpy.ops.object.select_all(action='DESELECT')
+        o.select_set(True)
+        bpy.context.view_layer.objects.active = o
+        bpy.ops.object.mode_set(mode='EDIT')
+        bpy.ops.mesh.select_all(action='SELECT')
+        bpy.ops.mesh.separate(type='LOOSE')
+        bpy.ops.object.mode_set(mode='OBJECT')
+    _lo, _hi = world_box(meshes())
+    H = _hi.z - _lo.z
+    for i, o in enumerate(meshes()):
+        lo, hi = world_box([o])
+        e = hi - lo
+        if lo.z < 0.06 * H and e.z > 0.18 * H and abs(e.y - e.z) < 0.2 * e.z and e.x < e.y:
+            o.name = f'wheel_island_{i}'
+
+# --split-wheels : pneus et jantes de plusieurs roues fusionnés en un seul objet (essieu ou côté entier) :
+# on les sépare par îlots de géométrie, puis chaque îlot est rangé dans son quart ci-dessous.
+if '--split-wheels' in argv:
+    for o in [m for m in meshes() if matches(m, WHEEL) and not FIXED.search(m.name)]:
+        bpy.ops.object.select_all(action='DESELECT')
+        o.select_set(True)
+        bpy.context.view_layer.objects.active = o
+        bpy.ops.object.mode_set(mode='EDIT')
+        bpy.ops.mesh.select_all(action='SELECT')
+        bpy.ops.mesh.separate(type='LOOSE')
+        bpy.ops.object.mode_set(mode='OBJECT')
 
 # Roues : pièces dont le nom correspond, regroupées par quart (gauche/droite × avant/arrière).
 wheel_parts = {}

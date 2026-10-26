@@ -241,6 +241,18 @@
    "wordmark": "COFIDIS",
    "logo": "cofidis",
    "rimBrand": "corima"
+  },
+  {
+   "id": "totalenergies",
+   "name": "TotalEnergies",
+   "colors": [
+    "#f4f4f4",
+    "#d0112b",
+    "#111111"
+   ],
+   "wordmark": "TOTALENERGIES",
+   "logo": "totalenergies",
+   "rimBrand": "newmen"
   }
  ],
  "groups": [
@@ -533,6 +545,18 @@
    "name": "Zipp",
    "wordmark": "ZIPP",
    "font": "sans-bold"
+  },
+  {
+   "id": "cube",
+   "name": "Cube",
+   "wordmark": "CUBE",
+   "font": "sans-bold"
+  },
+  {
+   "id": "newmen",
+   "name": "Newmen",
+   "wordmark": "NEWMEN",
+   "font": "sans-bold"
   }
  ],
  "legacy": {
@@ -649,7 +673,7 @@
   },
   {
    "id": "s26-03-uae-tt1",
-   "name": "Colnago TT1",
+   "name": "Colnago TT2",
    "brand": "colnago",
    "collection": "saison-2026",
    "group": "uae",
@@ -987,7 +1011,7 @@
   },
   {
    "id": "s26-10-lidl-madone-slr-gen-8",
-   "name": "Trek Madone SLR Gen 8",
+   "name": "Trek Madone SLR 9 Gen 8 · The First 50 ICON",
    "brand": "trek",
    "collection": "saison-2026",
    "group": "lidl",
@@ -996,54 +1020,49 @@
    "params": {
     "brakes": "disc",
     "wheels": [
-     "c50",
-     "c50"
+     "c65",
+     "c65"
     ],
     "rimBrand": "bontrager"
    },
    "livery": {
     "colors": [
-     "#2a3f8f",
-     "#f2f2f0",
-     "#d0112b"
+     "#101114",
+     "#2a5cc8",
+     "#f28c28"
     ],
-    "pattern": "stops",
-    "axis": "z",
-    "stops": [
-     {
-      "to": 0.44,
-      "color": "#2a3f8f"
-     },
-     {
-      "to": 0.54,
-      "color": "#d0112b"
-     },
-     {
-      "to": 1,
-      "color": "#f2f2f0"
-     }
+    "pattern": "blocks",
+    "extra": [
+     "#ffd23f",
+     "#2e9e4a",
+     "#d0112b",
+     "#f4f4f0"
     ],
     "finish": "gloss",
-    "rim": "#f2f2f2",
-    "tape": "#141414",
+    "rim": "#f4f4f0",
+    "tape": "#f4f4f0",
     "marks": {
      "dt": {
       "text": "TREK",
-      "color": "#1f2f6e",
+      "color": "#ffd23f",
       "stretch": 1.3
      },
      "tt": {
-      "text": "PROJECT ONE",
-      "color": "#1f2f6e",
+      "text": "THE FIRST 50",
+      "color": "#f4f4f0",
       "stretch": 0.9
+     },
+     "fork": {
+      "text": "TREK",
+      "color": "#f4f4f0"
      }
     }
    },
    "level": 16,
    "year": 2026,
    "desc": {
-    "fr": "Aéro-léger de 8e génération : arrière bleu, avant blanc, touche rouge au centre.",
-    "en": "8th-generation aero-light bike: blue rear, white front, a red slash in the middle."
+    "fr": "Livrée anniversaire des 50 ans de Trek : cadre noir couvert d'autocollants multicolores (bleu à pois, orange, jaune, vert, rouge), roues Aeolus.",
+    "en": "The 50th-anniversary Trek livery: black frame covered in multicoloured stickers (blue polka dots, orange, yellow, green, red), Aeolus wheels."
    }
   },
   {
@@ -2962,7 +2981,7 @@
   },
   {
    "id": "s26-50-cofidis-795-blade-rs",
-   "name": "LOOK 795 Blade RS",
+   "name": "LOOK 795 Blade RS Iconic Prism",
    "brand": "look",
    "collection": "saison-2026",
    "group": "cofidis",
@@ -2979,15 +2998,15 @@
    },
    "livery": {
     "colors": [
-     "#17171a",
-     "#e3262b",
-     "#f2e23a"
+     "#16141c",
+     "#7a3cff",
+     "#00c2ff"
     ],
-    "pattern": "band",
-    "axis": "z",
-    "at": 0.385,
-    "width": 0.05,
-    "finish": "gloss",
+    "pattern": "fade",
+    "axis": "diag",
+    "at": 0.5,
+    "width": 0.7,
+    "finish": "iridescent",
     "rim": "#e8e8e8",
     "tape": "#f2f2f2",
     "tireWall": "#c9a36a",
@@ -3002,8 +3021,8 @@
    "level": 12,
    "year": 2026,
    "desc": {
-    "fr": "Le 795 Blade RS de Cofidis 2026 : noir, tube de selle rouge, filets jaunes et bleus.",
-    "en": "Cofidis's 2026 795 Blade RS: black, red seat tube, yellow and blue pinstripes."
+    "fr": "Le 795 Blade RS 3 de Cofidis en livrée Iconic Prism : peinture irisée qui vire du violet au bleu selon la lumière.",
+    "en": "Cofidis's 795 Blade RS 3 in the Iconic Prism livery: colour-shifting paint from purple to blue."
    }
   },
   {
@@ -5678,6 +5697,404 @@
    "desc": {
     "fr": "Endurance carbone noir brillant, inscriptions rouges, suspension Future Shock, Shimano 105 et freins à disque, roues DT Swiss R470db.",
     "en": "Gloss black carbon endurance bike, red lettering, Future Shock suspension, Shimano 105 and disc brakes, DT Swiss R470db wheels."
+   }
+  },
+  {
+   "id": "s26-51-unox-noah-fast-jaune",
+   "name": "Ridley Noah Fast · édition maillot jaune",
+   "brand": "ridley",
+   "collection": "saison-2026",
+   "group": "unox",
+   "type": "aero",
+   "family": "aero",
+   "params": {
+    "brakes": "disc",
+    "wheels": [
+     "c50",
+     "c65"
+    ],
+    "rimBrand": "dt-swiss"
+   },
+   "livery": {
+    "colors": [
+     "#121212",
+     "#ffd200",
+     "#f2f2f2"
+    ],
+    "pattern": "split",
+    "axis": "diag",
+    "at": 0.68,
+    "zones": {
+     "fork": 1,
+     "head": 1
+    },
+    "finish": "matte",
+    "rim": "#ffd200",
+    "tape": "#111111",
+    "marks": {
+     "dt": {
+      "text": "RIDLEY",
+      "color": "#f2f2f2",
+      "stretch": 1.1
+     },
+     "fork": {
+      "text": "RIDLEY",
+      "color": "#121212"
+     }
+    }
+   },
+   "level": 7,
+   "year": 2026,
+   "desc": {
+    "fr": "Édition limitée noir et jaune du Noah Fast, pour le maillot jaune de Torstein Træen.",
+    "en": "Limited black-and-yellow Noah Fast, marking Torstein Træen's yellow jersey."
+   }
+  },
+  {
+   "id": "s26-52-picnic-xelius-drs-80",
+   "name": "Lapierre Xelius DRS 80th Anniversary",
+   "brand": "lapierre",
+   "collection": "saison-2026",
+   "group": "picnic",
+   "type": "climbing",
+   "family": "climb",
+   "params": {
+    "brakes": "disc",
+    "wheels": [
+     "c50",
+     "c50"
+    ],
+    "rimBrand": "ursus",
+    "bottles": false
+   },
+   "livery": {
+    "colors": [
+     "#1a2f6b",
+     "#f2f2f2",
+     "#d0112b"
+    ],
+    "pattern": "stops",
+    "axis": "z",
+    "stops": [
+     {
+      "to": 0.4,
+      "color": "#1a2f6b"
+     },
+     {
+      "to": 0.55,
+      "color": "#f2f2f2"
+     },
+     {
+      "to": 1,
+      "color": "#d0112b"
+     }
+    ],
+    "finish": "gloss",
+    "rim": "#f2f2f2",
+    "tape": "#111111",
+    "marks": {
+     "dt": {
+      "text": "LAPIERRE 80",
+      "color": "#f2f2f2",
+      "stretch": 1.0
+     },
+     "fork": {
+      "text": "1946",
+      "color": "#f2f2f2"
+     }
+    }
+   },
+   "level": 6,
+   "year": 2026,
+   "desc": {
+    "fr": "Édition des 80 ans de Lapierre (fondée à Dijon en 1946), aux couleurs du 14 juillet.",
+    "en": "Lapierre's 80th-anniversary edition (founded in Dijon in 1946), in Bastille Day colours."
+   }
+  },
+  {
+   "id": "s26-53-tudor-teammachine-slr-01",
+   "name": "BMC Teammachine SLR 01",
+   "brand": "bmc",
+   "collection": "saison-2026",
+   "group": "tudor",
+   "type": "climbing",
+   "family": "climb",
+   "params": {
+    "brakes": "disc",
+    "wheels": [
+     "c50",
+     "c50"
+    ],
+    "rimBrand": "dt-swiss"
+   },
+   "livery": {
+    "colors": [
+     "#26272b",
+     "#ec3b12",
+     "#ffffff"
+    ],
+    "pattern": "fade",
+    "axis": "diag",
+    "at": 0.78,
+    "width": 0.1,
+    "zones": {
+     "head": 1,
+     "fork": 0
+    },
+    "finish": "raw",
+    "rim": "#f2f2f2",
+    "tape": "#111111",
+    "marks": {
+     "dt": {
+      "text": "BMC",
+      "color": "#f2f2f2",
+      "stretch": 1.3
+     }
+    }
+   },
+   "level": 10,
+   "year": 2026,
+   "desc": {
+    "fr": "Le Teammachine SLR 01 de Tudor pour la montagne, noir et rouge.",
+    "en": "Tudor's mountain Teammachine SLR 01, black and red."
+   }
+  },
+  {
+   "id": "s26-54-tudor-timemachine-mpc",
+   "name": "BMC Timemachine Mpc",
+   "brand": "bmc",
+   "collection": "saison-2026",
+   "group": "tudor",
+   "type": "tt",
+   "family": "tt",
+   "params": {
+    "brakes": "disc",
+    "wheels": [
+     "c65",
+     "disc"
+    ],
+    "rimBrand": "dt-swiss",
+    "aeroHelmet": true,
+    "bottles": false
+   },
+   "livery": {
+    "colors": [
+     "#26272b",
+     "#ec3b12",
+     "#ffffff"
+    ],
+    "pattern": "fade",
+    "axis": "diag",
+    "at": 0.78,
+    "width": 0.1,
+    "zones": {
+     "head": 1,
+     "fork": 0
+    },
+    "finish": "raw",
+    "rim": "#f2f2f2",
+    "tape": "#111111",
+    "disc": "#1a1a1a",
+    "marks": {
+     "dt": {
+      "text": "BMC",
+      "color": "#f2f2f2",
+      "stretch": 1.3
+     }
+    }
+   },
+   "level": 24,
+   "year": 2026,
+   "desc": {
+    "fr": "Le chrono de Tudor, noir et rouge.",
+    "en": "Tudor's time-trial bike, black and red."
+   }
+  },
+  {
+   "id": "s26-55-tudor-teammachine-masterpiece",
+   "name": "BMC Teammachine R Masterpiece",
+   "brand": "bmc",
+   "collection": "saison-2026",
+   "group": "tudor",
+   "type": "aero",
+   "family": "aero",
+   "params": {
+    "brakes": "disc",
+    "wheels": [
+     "c50",
+     "c50"
+    ],
+    "rimBrand": "dt-swiss"
+   },
+   "livery": {
+    "colors": [
+     "#0e0e10",
+     "#c9ced3",
+     "#ffffff"
+    ],
+    "pattern": "solid",
+    "zones": {
+     "fork": 0
+    },
+    "finish": "raw",
+    "rim": "#c9ced3",
+    "tape": "#111111",
+    "marks": {
+     "dt": {
+      "text": "BMC",
+      "color": "#c9ced3",
+      "stretch": 1.3
+     },
+     "tt": {
+      "text": "MASTERPIECE",
+      "color": "#c9ced3",
+      "stretch": 0.9
+     }
+    }
+   },
+   "level": 30,
+   "year": 2026,
+   "desc": {
+    "fr": "Édition Masterpiece sans peinture, carbone noir avec graphismes argent.",
+    "en": "Paint-free Masterpiece edition: black carbon with silver graphics."
+   }
+  },
+  {
+   "id": "s26-56-totalenergies-litening-aero",
+   "name": "Cube Litening Aero C:68X",
+   "brand": "cube",
+   "collection": "saison-2026",
+   "group": "totalenergies",
+   "type": "aero",
+   "family": "aero",
+   "params": {
+    "brakes": "disc",
+    "wheels": [
+     "c50",
+     "c65"
+    ],
+    "rimBrand": "newmen"
+   },
+   "livery": {
+    "colors": [
+     "#f4f4f2",
+     "#d0112b",
+     "#111111"
+    ],
+    "pattern": "checker",
+    "axis": "z",
+    "zones": {
+     "fork": 2
+    },
+    "finish": "gloss",
+    "rim": "#f2f2f2",
+    "tape": "#111111",
+    "marks": {
+     "dt": {
+      "text": "CUBE",
+      "color": "#111111",
+      "stretch": 1.3
+     }
+    }
+   },
+   "level": 8,
+   "year": 2026,
+   "desc": {
+    "fr": "Le Litening Aero de TotalEnergies : blanc, damiers noirs et rouges comme le maillot Peugeot des années 80.",
+    "en": "TotalEnergies' Litening Aero: white with black-and-red checkers echoing the 80s Peugeot jersey."
+   }
+  },
+  {
+   "id": "s26-57-totalenergies-litening-air",
+   "name": "Cube Litening Air C:68X",
+   "brand": "cube",
+   "collection": "saison-2026",
+   "group": "totalenergies",
+   "type": "climbing",
+   "family": "climb",
+   "params": {
+    "brakes": "disc",
+    "wheels": [
+     "c50",
+     "c50"
+    ],
+    "rimBrand": "newmen"
+   },
+   "livery": {
+    "colors": [
+     "#f4f4f2",
+     "#d0112b",
+     "#111111"
+    ],
+    "pattern": "checker",
+    "axis": "z",
+    "zones": {
+     "fork": 2
+    },
+    "finish": "gloss",
+    "rim": "#f2f2f2",
+    "tape": "#111111",
+    "marks": {
+     "dt": {
+      "text": "CUBE",
+      "color": "#111111",
+      "stretch": 1.3
+     }
+    }
+   },
+   "level": 8,
+   "year": 2026,
+   "desc": {
+    "fr": "Le Litening Air de TotalEnergies pour la montagne, mêmes damiers.",
+    "en": "TotalEnergies' mountain Litening Air, same checkers."
+   }
+  },
+  {
+   "id": "s26-58-totalenergies-aerium-tt",
+   "name": "Cube Aerium TT",
+   "brand": "cube",
+   "collection": "saison-2026",
+   "group": "totalenergies",
+   "type": "tt",
+   "family": "tt",
+   "params": {
+    "brakes": "disc",
+    "wheels": [
+     "c65",
+     "disc"
+    ],
+    "rimBrand": "newmen",
+    "aeroHelmet": true,
+    "bottles": false
+   },
+   "livery": {
+    "colors": [
+     "#f4f4f2",
+     "#d0112b",
+     "#111111"
+    ],
+    "pattern": "checker",
+    "axis": "z",
+    "zones": {
+     "fork": 2
+    },
+    "finish": "gloss",
+    "rim": "#f2f2f2",
+    "tape": "#111111",
+    "marks": {
+     "dt": {
+      "text": "CUBE",
+      "color": "#111111",
+      "stretch": 1.3
+     }
+    },
+    "disc": "#1a1a1a"
+   },
+   "level": 20,
+   "year": 2026,
+   "desc": {
+    "fr": "Le chrono de TotalEnergies, à damiers.",
+    "en": "TotalEnergies' checkered time-trial bike."
    }
   }
  ]

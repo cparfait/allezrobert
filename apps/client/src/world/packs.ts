@@ -133,6 +133,11 @@ export async function installPack(id: string, onProgress: (done: number, total: 
   setInstalled(id, { version: manifest.version, bytes: manifest.bytes, ...(announced ? { catalogue: announced } : {}) });
 }
 
+/** Zones téléchargées sur cet appareil, avec la taille de leur pack (octets non compressés annoncés par le manifeste). */
+export function installedPacks(): Array<{ id: string; bytes: number }> {
+  return Object.entries(installed()).map(([id, v]) => ({ id, bytes: v.bytes }));
+}
+
 /** Supprime le pack d'une zone de l'appareil. */
 export async function removePack(id: string): Promise<void> {
   if (hasCaches()) await caches.delete(cacheName(id));

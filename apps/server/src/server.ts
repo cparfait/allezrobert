@@ -59,6 +59,10 @@ export async function startServer(opts: StartOptions = {}): Promise<RunningServe
   const actualPort = typeof addr === 'object' && addr ? addr.port : port;
   ctx.log('info', `Allez Robert ! serveur sur http://${config.HOST}:${actualPort} (API /api, salles Colyseus « ride »)`);
 
+  // Connexions disponibles, pour voir d'un coup d'œil ce que le .env a (ou n'a pas) activé.
+  const on = (id?: string, secret?: string) => (id && secret ? 'activé' : 'absent du .env');
+  ctx.log('info', `connexions : Google ${on(config.GOOGLE_CLIENT_ID, config.GOOGLE_CLIENT_SECRET)} · Discord ${on(config.DISCORD_CLIENT_ID, config.DISCORD_CLIENT_SECRET)} · Strava ${on(config.STRAVA_CLIENT_ID, config.STRAVA_CLIENT_SECRET)} · lien magique ${ctx.mailer.enabled ? 'activé' : 'journal seulement'}`);
+
   const purge = setInterval(() => void ctx.repos.purgeExpired().catch(() => undefined), 3600_000);
   purge.unref();
 

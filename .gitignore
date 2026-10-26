@@ -46,3 +46,6 @@ tts-cache/
 # Modèle 3D acheté (licence commerciale, dépôt public) : sources hors dépôt
 /zzModel3D/
 /cyclist-male-rigged.zip
+
+# Réglages de l'outil de déploiement graphique (hôte, clé SSH…)
+deploy/.deploy-gui.json

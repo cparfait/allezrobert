@@ -1,0 +1,2148 @@
+{
+  "idf-rambouillet": {
+    "start": "Rambouillet",
+    "tours": [
+      {
+        "km": 20,
+        "lengthKm": 19.5,
+        "gainM": null,
+        "overlapPct": 11,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 30,
+        "lengthKm": 31.7,
+        "gainM": null,
+        "overlapPct": 6,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 40,
+        "lengthKm": 40.8,
+        "gainM": null,
+        "overlapPct": 12,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 50,
+        "lengthKm": 49.1,
+        "gainM": null,
+        "overlapPct": 8,
+        "ok": true,
+        "degraded": false
+      }
+    ]
+  },
+  "idf-ablis": {
+    "start": "Ablis",
+    "tours": [
+      {
+        "km": 20,
+        "lengthKm": 19.2,
+        "gainM": null,
+        "overlapPct": 6,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 30,
+        "lengthKm": 29.6,
+        "gainM": null,
+        "overlapPct": 11,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 40,
+        "lengthKm": 41.4,
+        "gainM": null,
+        "overlapPct": 8,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 50,
+        "lengthKm": 49.2,
+        "gainM": null,
+        "overlapPct": 2,
+        "ok": true,
+        "degraded": false
+      }
+    ]
+  },
+  "idf-angerville": {
+    "start": "Angerville",
+    "tours": [
+      {
+        "km": 20,
+        "lengthKm": 20.5,
+        "gainM": null,
+        "overlapPct": 1,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 30,
+        "lengthKm": 31.2,
+        "gainM": null,
+        "overlapPct": 11,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 40,
+        "lengthKm": 40.3,
+        "gainM": null,
+        "overlapPct": 3,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 50,
+        "lengthKm": 51.1,
+        "gainM": null,
+        "overlapPct": 0,
+        "ok": true,
+        "degraded": false
+      }
+    ]
+  },
+  "idf-aubergenville": {
+    "start": "Aubergenville",
+    "tours": [
+      {
+        "km": 20,
+        "lengthKm": 20,
+        "gainM": null,
+        "overlapPct": 15,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 30,
+        "lengthKm": 29.8,
+        "gainM": null,
+        "overlapPct": 6,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 40,
+        "lengthKm": 38.9,
+        "gainM": null,
+        "overlapPct": 4,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 50,
+        "lengthKm": 51.3,
+        "gainM": null,
+        "overlapPct": 10,
+        "ok": true,
+        "degraded": false
+      }
+    ]
+  },
+  "idf-ballancourt-sur-essonne": {
+    "start": "Ballancourt-sur-Essonne",
+    "tours": [
+      {
+        "km": 20,
+        "lengthKm": 18.8,
+        "gainM": null,
+        "overlapPct": 1,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 30,
+        "lengthKm": 31.2,
+        "gainM": null,
+        "overlapPct": 1,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 40,
+        "lengthKm": 39.4,
+        "gainM": null,
+        "overlapPct": 5,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 50,
+        "lengthKm": 49.2,
+        "gainM": null,
+        "overlapPct": 4,
+        "ok": true,
+        "degraded": false
+      }
+    ]
+  },
+  "idf-bazoches-les-bray": {
+    "start": "Bazoches-lès-Bray",
+    "tours": [
+      {
+        "km": 20,
+        "lengthKm": 22.1,
+        "gainM": null,
+        "overlapPct": 0,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 30,
+        "lengthKm": 28.8,
+        "gainM": null,
+        "overlapPct": 12,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 40,
+        "lengthKm": 40.8,
+        "gainM": null,
+        "overlapPct": 12,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 50,
+        "lengthKm": 50.4,
+        "gainM": null,
+        "overlapPct": 3,
+        "ok": true,
+        "degraded": false
+      }
+    ]
+  },
+  "idf-beaumont-du-gatinais": {
+    "start": "Beaumont-du-Gâtinais",
+    "tours": [
+      {
+        "km": 20,
+        "lengthKm": 19,
+        "gainM": null,
+        "overlapPct": 9,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 30,
+        "lengthKm": 28.1,
+        "gainM": null,
+        "overlapPct": 3,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 40,
+        "lengthKm": 39.6,
+        "gainM": null,
+        "overlapPct": 8,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 50,
+        "lengthKm": 48.1,
+        "gainM": null,
+        "overlapPct": 3,
+        "ok": true,
+        "degraded": false
+      }
+    ]
+  },
+  "idf-blaru": {
+    "start": "Blaru",
+    "tours": [
+      {
+        "km": 20,
+        "lengthKm": 19.7,
+        "gainM": null,
+        "overlapPct": 13,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 30,
+        "lengthKm": 29.2,
+        "gainM": null,
+        "overlapPct": 15,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 40,
+        "lengthKm": 39.3,
+        "gainM": null,
+        "overlapPct": 13,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 50,
+        "lengthKm": 50.1,
+        "gainM": null,
+        "overlapPct": 1,
+        "ok": true,
+        "degraded": false
+      }
+    ]
+  },
+  "idf-boulogne-billancourt": {
+    "start": "Boulogne-Billancourt",
+    "tours": [
+      {
+        "km": 20,
+        "lengthKm": 18.9,
+        "gainM": 164,
+        "overlapPct": 3,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 30,
+        "lengthKm": 28.8,
+        "gainM": 301,
+        "overlapPct": 11,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 40,
+        "lengthKm": 40.1,
+        "gainM": 337,
+        "overlapPct": 5,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 50,
+        "lengthKm": 50.3,
+        "gainM": 487,
+        "overlapPct": 5,
+        "ok": true,
+        "degraded": false
+      }
+    ]
+  },
+  "idf-bures-sur-yvette": {
+    "start": "Bures-sur-Yvette",
+    "tours": [
+      {
+        "km": 20,
+        "lengthKm": 19.9,
+        "gainM": null,
+        "overlapPct": 18,
+        "ok": true,
+        "degraded": true
+      },
+      {
+        "km": 30,
+        "lengthKm": 27.8,
+        "gainM": null,
+        "overlapPct": 14,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 40,
+        "lengthKm": 40.1,
+        "gainM": null,
+        "overlapPct": 11,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 50,
+        "lengthKm": 48.4,
+        "gainM": null,
+        "overlapPct": 11,
+        "ok": true,
+        "degraded": false
+      }
+    ]
+  },
+  "idf-bussy-saint-georges": {
+    "start": "Bussy-Saint-Georges",
+    "tours": [
+      {
+        "km": 20,
+        "lengthKm": 20.3,
+        "gainM": null,
+        "overlapPct": 1,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 30,
+        "lengthKm": 31.4,
+        "gainM": null,
+        "overlapPct": 15,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 40,
+        "lengthKm": 40.7,
+        "gainM": null,
+        "overlapPct": 3,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 50,
+        "lengthKm": 48.2,
+        "gainM": null,
+        "overlapPct": 5,
+        "ok": true,
+        "degraded": false
+      }
+    ]
+  },
+  "idf-cergy": {
+    "start": "Cergy",
+    "tours": [
+      {
+        "km": 20,
+        "lengthKm": 20.1,
+        "gainM": null,
+        "overlapPct": 6,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 30,
+        "lengthKm": 29.3,
+        "gainM": null,
+        "overlapPct": 8,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 40,
+        "lengthKm": 39.4,
+        "gainM": null,
+        "overlapPct": 3,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 50,
+        "lengthKm": 48.4,
+        "gainM": null,
+        "overlapPct": 6,
+        "ok": true,
+        "degraded": false
+      }
+    ]
+  },
+  "idf-coulommiers": {
+    "start": "Coulommiers",
+    "tours": [
+      {
+        "km": 20,
+        "lengthKm": 19.6,
+        "gainM": null,
+        "overlapPct": 7,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 30,
+        "lengthKm": 28.7,
+        "gainM": null,
+        "overlapPct": 1,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 40,
+        "lengthKm": 42,
+        "gainM": null,
+        "overlapPct": 13,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 50,
+        "lengthKm": 50.9,
+        "gainM": null,
+        "overlapPct": 9,
+        "ok": true,
+        "degraded": false
+      }
+    ]
+  },
+  "idf-creteil": {
+    "start": "Créteil",
+    "tours": [
+      {
+        "km": 20,
+        "lengthKm": 20.1,
+        "gainM": null,
+        "overlapPct": 5,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 30,
+        "lengthKm": 30.3,
+        "gainM": null,
+        "overlapPct": 2,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 40,
+        "lengthKm": 37.9,
+        "gainM": null,
+        "overlapPct": 0,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 50,
+        "lengthKm": 50.9,
+        "gainM": null,
+        "overlapPct": 13,
+        "ok": true,
+        "degraded": false
+      }
+    ]
+  },
+  "idf-crouy-sur-ourcq": {
+    "start": "Crouy-sur-Ourcq",
+    "tours": [
+      {
+        "km": 20,
+        "lengthKm": 20.1,
+        "gainM": null,
+        "overlapPct": 5,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 30,
+        "lengthKm": 31.4,
+        "gainM": null,
+        "overlapPct": 1,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 40,
+        "lengthKm": 38.2,
+        "gainM": null,
+        "overlapPct": 4,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 50,
+        "lengthKm": 50.5,
+        "gainM": null,
+        "overlapPct": 7,
+        "ok": true,
+        "degraded": false
+      }
+    ]
+  },
+  "idf-dammarie-les-lys": {
+    "start": "Dammarie-les-Lys",
+    "tours": [
+      {
+        "km": 20,
+        "lengthKm": 23.7,
+        "gainM": null,
+        "overlapPct": 0,
+        "ok": false,
+        "degraded": false
+      },
+      {
+        "km": 30,
+        "lengthKm": 30.2,
+        "gainM": null,
+        "overlapPct": 13,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 40,
+        "lengthKm": 40,
+        "gainM": null,
+        "overlapPct": 1,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 50,
+        "lengthKm": 48.7,
+        "gainM": null,
+        "overlapPct": 10,
+        "ok": true,
+        "degraded": false
+      }
+    ]
+  },
+  "idf-dammartin-en-goele": {
+    "start": "Dammartin-en-Goële",
+    "tours": [
+      {
+        "km": 20,
+        "lengthKm": 20.2,
+        "gainM": null,
+        "overlapPct": 12,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 30,
+        "lengthKm": 30,
+        "gainM": null,
+        "overlapPct": 6,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 40,
+        "lengthKm": 41.1,
+        "gainM": null,
+        "overlapPct": 7,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 50,
+        "lengthKm": 48.7,
+        "gainM": null,
+        "overlapPct": 10,
+        "ok": true,
+        "degraded": false
+      }
+    ]
+  },
+  "idf-donnemarie-dontilly": {
+    "start": "Donnemarie-Dontilly",
+    "tours": [
+      {
+        "km": 20,
+        "lengthKm": 20,
+        "gainM": null,
+        "overlapPct": 1,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 30,
+        "lengthKm": 29.5,
+        "gainM": null,
+        "overlapPct": 1,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 40,
+        "lengthKm": 38.7,
+        "gainM": null,
+        "overlapPct": 1,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 50,
+        "lengthKm": 47.2,
+        "gainM": null,
+        "overlapPct": 4,
+        "ok": true,
+        "degraded": false
+      }
+    ]
+  },
+  "idf-egreville": {
+    "start": "Égreville",
+    "tours": [
+      {
+        "km": 20,
+        "lengthKm": 19.6,
+        "gainM": null,
+        "overlapPct": 1,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 30,
+        "lengthKm": 29.7,
+        "gainM": null,
+        "overlapPct": 2,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 40,
+        "lengthKm": 38.3,
+        "gainM": null,
+        "overlapPct": 3,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 50,
+        "lengthKm": 50.3,
+        "gainM": null,
+        "overlapPct": 11,
+        "ok": true,
+        "degraded": false
+      }
+    ]
+  },
+  "idf-etampes": {
+    "start": "Étampes",
+    "tours": [
+      {
+        "km": 20,
+        "lengthKm": 20.9,
+        "gainM": null,
+        "overlapPct": 8,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 30,
+        "lengthKm": 23.3,
+        "gainM": null,
+        "overlapPct": 15,
+        "ok": false,
+        "degraded": false
+      },
+      {
+        "km": 40,
+        "lengthKm": 42.2,
+        "gainM": null,
+        "overlapPct": 3,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 50,
+        "lengthKm": 47.1,
+        "gainM": null,
+        "overlapPct": 1,
+        "ok": true,
+        "degraded": false
+      }
+    ]
+  },
+  "idf-evry-courcouronnes": {
+    "start": "Évry-Courcouronnes",
+    "tours": [
+      {
+        "km": 20,
+        "lengthKm": 20.1,
+        "gainM": null,
+        "overlapPct": 2,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 30,
+        "lengthKm": 27.9,
+        "gainM": null,
+        "overlapPct": 6,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 40,
+        "lengthKm": 40.2,
+        "gainM": null,
+        "overlapPct": 4,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 50,
+        "lengthKm": 50.5,
+        "gainM": null,
+        "overlapPct": 3,
+        "ok": true,
+        "degraded": false
+      }
+    ]
+  },
+  "idf-fontenay-tresigny": {
+    "start": "Fontenay-Trésigny",
+    "tours": [
+      {
+        "km": 20,
+        "lengthKm": 20.6,
+        "gainM": null,
+        "overlapPct": 8,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 30,
+        "lengthKm": 30,
+        "gainM": null,
+        "overlapPct": 10,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 40,
+        "lengthKm": 40.1,
+        "gainM": null,
+        "overlapPct": 11,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 50,
+        "lengthKm": 49.6,
+        "gainM": null,
+        "overlapPct": 7,
+        "ok": true,
+        "degraded": false
+      }
+    ]
+  },
+  "idf-goussainville": {
+    "start": "Goussainville",
+    "tours": [
+      {
+        "km": 20,
+        "lengthKm": 19.5,
+        "gainM": null,
+        "overlapPct": 2,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 30,
+        "lengthKm": 30,
+        "gainM": null,
+        "overlapPct": 2,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 40,
+        "lengthKm": 41.4,
+        "gainM": null,
+        "overlapPct": 12,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 50,
+        "lengthKm": 50.3,
+        "gainM": null,
+        "overlapPct": 1,
+        "ok": true,
+        "degraded": false
+      }
+    ]
+  },
+  "idf-hermeray": {
+    "start": "Hermeray",
+    "tours": [
+      {
+        "km": 20,
+        "lengthKm": 21,
+        "gainM": null,
+        "overlapPct": 6,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 30,
+        "lengthKm": 30.2,
+        "gainM": null,
+        "overlapPct": 5,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 40,
+        "lengthKm": 38.4,
+        "gainM": null,
+        "overlapPct": 2,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 50,
+        "lengthKm": 49.6,
+        "gainM": null,
+        "overlapPct": 15,
+        "ok": true,
+        "degraded": false
+      }
+    ]
+  },
+  "idf-houdan": {
+    "start": "Houdan",
+    "tours": [
+      {
+        "km": 20,
+        "lengthKm": 19.9,
+        "gainM": null,
+        "overlapPct": 11,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 30,
+        "lengthKm": 31.2,
+        "gainM": null,
+        "overlapPct": 10,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 40,
+        "lengthKm": 41.6,
+        "gainM": null,
+        "overlapPct": 1,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 50,
+        "lengthKm": 48.9,
+        "gainM": null,
+        "overlapPct": 9,
+        "ok": true,
+        "degraded": false
+      }
+    ]
+  },
+  "idf-jouy-le-chatel": {
+    "start": "Jouy-le-Châtel",
+    "tours": [
+      {
+        "km": 20,
+        "lengthKm": 21.6,
+        "gainM": null,
+        "overlapPct": 8,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 30,
+        "lengthKm": 28.7,
+        "gainM": null,
+        "overlapPct": 2,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 40,
+        "lengthKm": 40.2,
+        "gainM": null,
+        "overlapPct": 2,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 50,
+        "lengthKm": 47.6,
+        "gainM": null,
+        "overlapPct": 3,
+        "ok": true,
+        "degraded": false
+      }
+    ]
+  },
+  "idf-la-ferte-gaucher": {
+    "start": "La Ferté-Gaucher",
+    "tours": [
+      {
+        "km": 20,
+        "lengthKm": 20.9,
+        "gainM": null,
+        "overlapPct": 6,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 30,
+        "lengthKm": 30.1,
+        "gainM": null,
+        "overlapPct": 1,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 40,
+        "lengthKm": 40.9,
+        "gainM": null,
+        "overlapPct": 1,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 50,
+        "lengthKm": 47.5,
+        "gainM": null,
+        "overlapPct": 13,
+        "ok": true,
+        "degraded": false
+      }
+    ]
+  },
+  "idf-la-ferte-sous-jouarre": {
+    "start": "La Ferté-sous-Jouarre",
+    "tours": [
+      {
+        "km": 20,
+        "lengthKm": 19.6,
+        "gainM": null,
+        "overlapPct": 5,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 30,
+        "lengthKm": 28.6,
+        "gainM": null,
+        "overlapPct": 3,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 40,
+        "lengthKm": 39,
+        "gainM": null,
+        "overlapPct": 7,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 50,
+        "lengthKm": 49.8,
+        "gainM": null,
+        "overlapPct": 9,
+        "ok": true,
+        "degraded": false
+      }
+    ]
+  },
+  "idf-les-mureaux": {
+    "start": "Les Mureaux",
+    "tours": [
+      {
+        "km": 20,
+        "lengthKm": 21,
+        "gainM": null,
+        "overlapPct": 15,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 30,
+        "lengthKm": 32.3,
+        "gainM": null,
+        "overlapPct": 4,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 40,
+        "lengthKm": 38.6,
+        "gainM": null,
+        "overlapPct": 8,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 50,
+        "lengthKm": 49.4,
+        "gainM": null,
+        "overlapPct": 4,
+        "ok": true,
+        "degraded": false
+      }
+    ]
+  },
+  "idf-lizy-sur-ourcq": {
+    "start": "Lizy-sur-Ourcq",
+    "tours": [
+      {
+        "km": 20,
+        "lengthKm": 20,
+        "gainM": null,
+        "overlapPct": 13,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 30,
+        "lengthKm": 29.3,
+        "gainM": null,
+        "overlapPct": 10,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 40,
+        "lengthKm": 38.5,
+        "gainM": null,
+        "overlapPct": 13,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 50,
+        "lengthKm": 51.9,
+        "gainM": null,
+        "overlapPct": 8,
+        "ok": true,
+        "degraded": false
+      }
+    ]
+  },
+  "idf-magny-en-vexin": {
+    "start": "Magny-en-Vexin",
+    "tours": [
+      {
+        "km": 20,
+        "lengthKm": 19.3,
+        "gainM": null,
+        "overlapPct": 7,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 30,
+        "lengthKm": 30,
+        "gainM": null,
+        "overlapPct": 10,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 40,
+        "lengthKm": 40,
+        "gainM": null,
+        "overlapPct": 10,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 50,
+        "lengthKm": 46.4,
+        "gainM": null,
+        "overlapPct": 1,
+        "ok": true,
+        "degraded": false
+      }
+    ]
+  },
+  "idf-maisse": {
+    "start": "Maisse",
+    "tours": [
+      {
+        "km": 20,
+        "lengthKm": 19.8,
+        "gainM": null,
+        "overlapPct": 8,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 30,
+        "lengthKm": 27.9,
+        "gainM": null,
+        "overlapPct": 13,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 40,
+        "lengthKm": 41.7,
+        "gainM": null,
+        "overlapPct": 14,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 50,
+        "lengthKm": 49.5,
+        "gainM": null,
+        "overlapPct": 5,
+        "ok": true,
+        "degraded": false
+      }
+    ]
+  },
+  "idf-mantes-la-jolie": {
+    "start": "Mantes-la-Jolie",
+    "tours": [
+      {
+        "km": 20,
+        "lengthKm": 21,
+        "gainM": null,
+        "overlapPct": 26,
+        "ok": true,
+        "degraded": true
+      },
+      {
+        "km": 30,
+        "lengthKm": 31.6,
+        "gainM": null,
+        "overlapPct": 15,
+        "ok": true,
+        "degraded": true
+      },
+      {
+        "km": 40,
+        "lengthKm": 40.5,
+        "gainM": null,
+        "overlapPct": 23,
+        "ok": true,
+        "degraded": true
+      },
+      {
+        "km": 50,
+        "lengthKm": 52.8,
+        "gainM": null,
+        "overlapPct": 5,
+        "ok": true,
+        "degraded": false
+      }
+    ]
+  },
+  "idf-mantes-la-ville": {
+    "start": "Mantes-la-Ville",
+    "tours": [
+      {
+        "km": 20,
+        "lengthKm": 18.8,
+        "gainM": null,
+        "overlapPct": 23,
+        "ok": true,
+        "degraded": true
+      },
+      {
+        "km": 30,
+        "lengthKm": 28.6,
+        "gainM": null,
+        "overlapPct": 10,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 40,
+        "lengthKm": 39.9,
+        "gainM": null,
+        "overlapPct": 4,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 50,
+        "lengthKm": 48.2,
+        "gainM": null,
+        "overlapPct": 2,
+        "ok": true,
+        "degraded": false
+      }
+    ]
+  },
+  "idf-marines": {
+    "start": "Marines",
+    "tours": [
+      {
+        "km": 20,
+        "lengthKm": 21.9,
+        "gainM": null,
+        "overlapPct": 2,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 30,
+        "lengthKm": 30.3,
+        "gainM": null,
+        "overlapPct": 9,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 40,
+        "lengthKm": 39.4,
+        "gainM": null,
+        "overlapPct": 2,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 50,
+        "lengthKm": 50.8,
+        "gainM": null,
+        "overlapPct": 6,
+        "ok": true,
+        "degraded": false
+      }
+    ]
+  },
+  "idf-meaux": {
+    "start": "Meaux",
+    "tours": [
+      {
+        "km": 20,
+        "lengthKm": 21.3,
+        "gainM": null,
+        "overlapPct": 4,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 30,
+        "lengthKm": 30.6,
+        "gainM": null,
+        "overlapPct": 14,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 40,
+        "lengthKm": 41.9,
+        "gainM": null,
+        "overlapPct": 8,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 50,
+        "lengthKm": 50.5,
+        "gainM": null,
+        "overlapPct": 7,
+        "ok": true,
+        "degraded": false
+      }
+    ]
+  },
+  "idf-melun": {
+    "start": "Melun",
+    "tours": [
+      {
+        "km": 20,
+        "lengthKm": 20.6,
+        "gainM": null,
+        "overlapPct": 6,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 30,
+        "lengthKm": 29.2,
+        "gainM": null,
+        "overlapPct": 7,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 40,
+        "lengthKm": 39.6,
+        "gainM": null,
+        "overlapPct": 15,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 50,
+        "lengthKm": 50.6,
+        "gainM": null,
+        "overlapPct": 1,
+        "ok": true,
+        "degraded": false
+      }
+    ]
+  },
+  "idf-milly-la-foret": {
+    "start": "Milly-la-Forêt",
+    "tours": [
+      {
+        "km": 20,
+        "lengthKm": 17.6,
+        "gainM": null,
+        "overlapPct": 5,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 30,
+        "lengthKm": 28.7,
+        "gainM": null,
+        "overlapPct": 1,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 40,
+        "lengthKm": 42.6,
+        "gainM": null,
+        "overlapPct": 7,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 50,
+        "lengthKm": 49.7,
+        "gainM": null,
+        "overlapPct": 3,
+        "ok": true,
+        "degraded": false
+      }
+    ]
+  },
+  "idf-montereau-fault-yonne": {
+    "start": "Montereau-Fault-Yonne",
+    "tours": [
+      {
+        "km": 20,
+        "lengthKm": 19.4,
+        "gainM": null,
+        "overlapPct": 13,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 30,
+        "lengthKm": 30.1,
+        "gainM": null,
+        "overlapPct": 3,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 40,
+        "lengthKm": 36,
+        "gainM": null,
+        "overlapPct": 10,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 50,
+        "lengthKm": 53.6,
+        "gainM": null,
+        "overlapPct": 11,
+        "ok": true,
+        "degraded": false
+      }
+    ]
+  },
+  "idf-montreuil": {
+    "start": "Montreuil",
+    "tours": [
+      {
+        "km": 20,
+        "lengthKm": 20.1,
+        "gainM": null,
+        "overlapPct": 1,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 30,
+        "lengthKm": 29.4,
+        "gainM": null,
+        "overlapPct": 1,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 40,
+        "lengthKm": 40.9,
+        "gainM": null,
+        "overlapPct": 2,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 50,
+        "lengthKm": 49.2,
+        "gainM": null,
+        "overlapPct": 3,
+        "ok": true,
+        "degraded": false
+      }
+    ]
+  },
+  "idf-moret-loing-et-orvanne": {
+    "start": "Moret-Loing-et-Orvanne",
+    "tours": [
+      {
+        "km": 20,
+        "lengthKm": 20,
+        "gainM": null,
+        "overlapPct": 7,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 30,
+        "lengthKm": 28.3,
+        "gainM": null,
+        "overlapPct": 1,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 40,
+        "lengthKm": 40,
+        "gainM": null,
+        "overlapPct": 0,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 50,
+        "lengthKm": 47.6,
+        "gainM": null,
+        "overlapPct": 1,
+        "ok": true,
+        "degraded": false
+      }
+    ]
+  },
+  "idf-nangis": {
+    "start": "Nangis",
+    "tours": [
+      {
+        "km": 20,
+        "lengthKm": 19.5,
+        "gainM": null,
+        "overlapPct": 3,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 30,
+        "lengthKm": 28.7,
+        "gainM": null,
+        "overlapPct": 12,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 40,
+        "lengthKm": 38.8,
+        "gainM": null,
+        "overlapPct": 1,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 50,
+        "lengthKm": 50.6,
+        "gainM": null,
+        "overlapPct": 13,
+        "ok": true,
+        "degraded": false
+      }
+    ]
+  },
+  "idf-nemours": {
+    "start": "Nemours",
+    "tours": [
+      {
+        "km": 20,
+        "lengthKm": 20.1,
+        "gainM": null,
+        "overlapPct": 13,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 30,
+        "lengthKm": 28.6,
+        "gainM": null,
+        "overlapPct": 5,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 40,
+        "lengthKm": 40.6,
+        "gainM": null,
+        "overlapPct": 5,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 50,
+        "lengthKm": 50.9,
+        "gainM": null,
+        "overlapPct": 13,
+        "ok": true,
+        "degraded": false
+      }
+    ]
+  },
+  "idf-paris": {
+    "start": "Paris",
+    "tours": [
+      {
+        "km": 20,
+        "lengthKm": 18.9,
+        "gainM": null,
+        "overlapPct": 4,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 30,
+        "lengthKm": 29.9,
+        "gainM": null,
+        "overlapPct": 2,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 40,
+        "lengthKm": 38.6,
+        "gainM": null,
+        "overlapPct": 0,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 50,
+        "lengthKm": 51,
+        "gainM": null,
+        "overlapPct": 1,
+        "ok": true,
+        "degraded": false
+      }
+    ]
+  },
+  "idf-persan": {
+    "start": "Persan",
+    "tours": [
+      {
+        "km": 20,
+        "lengthKm": 18.6,
+        "gainM": null,
+        "overlapPct": 1,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 30,
+        "lengthKm": 31.5,
+        "gainM": null,
+        "overlapPct": 8,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 40,
+        "lengthKm": 42,
+        "gainM": null,
+        "overlapPct": 9,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 50,
+        "lengthKm": 49.3,
+        "gainM": null,
+        "overlapPct": 14,
+        "ok": true,
+        "degraded": false
+      }
+    ]
+  },
+  "idf-plaisir": {
+    "start": "Plaisir",
+    "tours": [
+      {
+        "km": 20,
+        "lengthKm": 20.1,
+        "gainM": null,
+        "overlapPct": 4,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 30,
+        "lengthKm": 30.8,
+        "gainM": null,
+        "overlapPct": 2,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 40,
+        "lengthKm": 40.3,
+        "gainM": null,
+        "overlapPct": 1,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 50,
+        "lengthKm": 49.4,
+        "gainM": null,
+        "overlapPct": 1,
+        "ok": true,
+        "degraded": false
+      }
+    ]
+  },
+  "idf-provins": {
+    "start": "Provins",
+    "tours": [
+      {
+        "km": 20,
+        "lengthKm": 19.3,
+        "gainM": null,
+        "overlapPct": 14,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 30,
+        "lengthKm": 30,
+        "gainM": null,
+        "overlapPct": 8,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 40,
+        "lengthKm": 40.4,
+        "gainM": null,
+        "overlapPct": 8,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 50,
+        "lengthKm": 46.9,
+        "gainM": null,
+        "overlapPct": 7,
+        "ok": true,
+        "degraded": false
+      }
+    ]
+  },
+  "idf-rueil-malmaison": {
+    "start": "Rueil-Malmaison",
+    "tours": [
+      {
+        "km": 20,
+        "lengthKm": 19.9,
+        "gainM": null,
+        "overlapPct": 7,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 30,
+        "lengthKm": 32.1,
+        "gainM": null,
+        "overlapPct": 6,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 40,
+        "lengthKm": 41.2,
+        "gainM": null,
+        "overlapPct": 1,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 50,
+        "lengthKm": 49.9,
+        "gainM": null,
+        "overlapPct": 6,
+        "ok": true,
+        "degraded": false
+      }
+    ]
+  },
+  "idf-saint-clair-sur-epte": {
+    "start": "Saint-Clair-sur-Epte",
+    "tours": [
+      {
+        "km": 20,
+        "lengthKm": 20.1,
+        "gainM": null,
+        "overlapPct": 3,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 30,
+        "lengthKm": 30.3,
+        "gainM": null,
+        "overlapPct": 13,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 40,
+        "lengthKm": 38.9,
+        "gainM": null,
+        "overlapPct": 3,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 50,
+        "lengthKm": 50,
+        "gainM": null,
+        "overlapPct": 2,
+        "ok": true,
+        "degraded": false
+      }
+    ]
+  },
+  "idf-saint-germain-laval": {
+    "start": "Saint-Germain-Laval",
+    "tours": [
+      {
+        "km": 20,
+        "lengthKm": 19.3,
+        "gainM": null,
+        "overlapPct": 3,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 30,
+        "lengthKm": 30.3,
+        "gainM": null,
+        "overlapPct": 9,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 40,
+        "lengthKm": 41.2,
+        "gainM": null,
+        "overlapPct": 5,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 50,
+        "lengthKm": 50.3,
+        "gainM": null,
+        "overlapPct": 5,
+        "ok": true,
+        "degraded": false
+      }
+    ]
+  },
+  "idf-sarcelles": {
+    "start": "Sarcelles",
+    "tours": [
+      {
+        "km": 20,
+        "lengthKm": 21.2,
+        "gainM": null,
+        "overlapPct": 13,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 30,
+        "lengthKm": 30.5,
+        "gainM": null,
+        "overlapPct": 3,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 40,
+        "lengthKm": 40.8,
+        "gainM": null,
+        "overlapPct": 3,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 50,
+        "lengthKm": 51.1,
+        "gainM": null,
+        "overlapPct": 12,
+        "ok": true,
+        "degraded": false
+      }
+    ]
+  },
+  "idf-savigny-sur-orge": {
+    "start": "Savigny-sur-Orge",
+    "tours": [
+      {
+        "km": 20,
+        "lengthKm": 20.6,
+        "gainM": null,
+        "overlapPct": 2,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 30,
+        "lengthKm": 31.5,
+        "gainM": null,
+        "overlapPct": 2,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 40,
+        "lengthKm": 38.9,
+        "gainM": null,
+        "overlapPct": 1,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 50,
+        "lengthKm": 51.3,
+        "gainM": null,
+        "overlapPct": 4,
+        "ok": true,
+        "degraded": false
+      }
+    ]
+  },
+  "idf-sourdun": {
+    "start": "Sourdun",
+    "tours": [
+      {
+        "km": 20,
+        "lengthKm": 19.7,
+        "gainM": null,
+        "overlapPct": 12,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 30,
+        "lengthKm": 30.1,
+        "gainM": null,
+        "overlapPct": 6,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 40,
+        "lengthKm": 37.7,
+        "gainM": null,
+        "overlapPct": 7,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 50,
+        "lengthKm": 50.1,
+        "gainM": null,
+        "overlapPct": 11,
+        "ok": true,
+        "degraded": false
+      }
+    ]
+  },
+  "idf-versailles": {
+    "start": "Versailles",
+    "tours": [
+      {
+        "km": 20,
+        "lengthKm": 19,
+        "gainM": 210,
+        "overlapPct": 14,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 30,
+        "lengthKm": 30.2,
+        "gainM": 237,
+        "overlapPct": 3,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 40,
+        "lengthKm": 39.6,
+        "gainM": 330,
+        "overlapPct": 0,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 50,
+        "lengthKm": 50.7,
+        "gainM": 330,
+        "overlapPct": 8,
+        "ok": true,
+        "degraded": false
+      }
+    ]
+  },
+  "idf-vert-saint-denis": {
+    "start": "Vert-Saint-Denis",
+    "tours": [
+      {
+        "km": 20,
+        "lengthKm": 21.9,
+        "gainM": null,
+        "overlapPct": 3,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 30,
+        "lengthKm": 29.3,
+        "gainM": null,
+        "overlapPct": 11,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 40,
+        "lengthKm": 44.4,
+        "gainM": null,
+        "overlapPct": 8,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 50,
+        "lengthKm": 50.2,
+        "gainM": null,
+        "overlapPct": 5,
+        "ok": true,
+        "degraded": false
+      }
+    ]
+  },
+  "idf-villenauxe-la-petite": {
+    "start": "Villenauxe-la-Petite",
+    "tours": [
+      {
+        "km": 20,
+        "lengthKm": 22.9,
+        "gainM": null,
+        "overlapPct": 8,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 30,
+        "lengthKm": 27.9,
+        "gainM": null,
+        "overlapPct": 2,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 40,
+        "lengthKm": 39.2,
+        "gainM": null,
+        "overlapPct": 2,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 50,
+        "lengthKm": 52.6,
+        "gainM": null,
+        "overlapPct": 8,
+        "ok": true,
+        "degraded": false
+      }
+    ]
+  },
+  "idf-villeneuve-sur-bellot": {
+    "start": "Villeneuve-sur-Bellot",
+    "tours": [
+      {
+        "km": 20,
+        "lengthKm": 19.7,
+        "gainM": null,
+        "overlapPct": 4,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 30,
+        "lengthKm": 30.1,
+        "gainM": null,
+        "overlapPct": 3,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 40,
+        "lengthKm": 40.8,
+        "gainM": null,
+        "overlapPct": 3,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 50,
+        "lengthKm": 47.7,
+        "gainM": null,
+        "overlapPct": 2,
+        "ok": true,
+        "degraded": false
+      }
+    ]
+  },
+  "idf-villeparisis": {
+    "start": "Villeparisis",
+    "tours": [
+      {
+        "km": 20,
+        "lengthKm": 19.8,
+        "gainM": null,
+        "overlapPct": 30,
+        "ok": true,
+        "degraded": true
+      },
+      {
+        "km": 30,
+        "lengthKm": 30.4,
+        "gainM": null,
+        "overlapPct": 11,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 40,
+        "lengthKm": 40.1,
+        "gainM": null,
+        "overlapPct": 14,
+        "ok": true,
+        "degraded": false
+      },
+      {
+        "km": 50,
+        "lengthKm": 51.6,
+        "gainM": null,
+        "overlapPct": 11,
+        "ok": true,
+        "degraded": false
+      }
+    ]
+  }
+}

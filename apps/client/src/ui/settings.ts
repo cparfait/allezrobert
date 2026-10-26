@@ -35,6 +35,8 @@ export interface Settings {
   aiRiders: number;
   /** Niveau des coureurs IA en fraction de la FTP du joueur (0,8 / 1 / 1,15). */
   aiLevel: number;
+  /** Sortie de groupe avec IA : vitesse moyenne visée (km/h) ; 0 = libre (allure des coureurs). */
+  groupTargetKmh: number;
   /** Source de puissance de référence quand pédales et trainer sont présents. */
   powerSource: 'pedals' | 'trainer';
   smoothing3s: boolean;
@@ -86,6 +88,7 @@ export const DEFAULT_SETTINGS: Settings = {
   skipStrava: true,
   aiRiders: 4,
   aiLevel: 1,
+  groupTargetKmh: 0,
   powerSource: 'pedals',
   smoothing3s: false,
   guest: false,

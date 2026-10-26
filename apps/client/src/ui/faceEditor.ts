@@ -1,4 +1,4 @@
-import { BASE_PROFILES, FACE_SLIDERS, decodeFace, type AvatarLook, type FaceShape, type FaceSlider } from '@allezrobert/shared';
+import { BASE_PROFILES, FACE_SLIDERS, decodeFace, lookSex, type AvatarLook, type FaceShape, type FaceSlider } from '@allezrobert/shared';
 import { getLang } from '../i18n/index.ts';
 
 /**
@@ -80,18 +80,20 @@ const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&l
 export function faceEditorHtml(look: AvatarLook, tab: FaceTab, bareHead: boolean, canUndo: boolean, photoOpen = false): string {
   const L = getLang() === 'fr';
   const shape = decodeFace(look.face);
+  // Barbe et moustache : seulement pour les hommes.
+  const male = lookSex(look) === 'male';
   const sliders =
     tab === 'skin'
       ? `<div class="fe-grid">
           <label class="field">${L ? 'Teint' : 'Skin tone'}<input id="fe-skin" type="color" value="${look.skin}" /></label>
-          <label class="field">${L ? 'Cheveux, barbe' : 'Hair, beard'}<input id="fe-hair" type="color" value="${look.hair}" /></label>
+          <label class="field">${L ? (male ? 'Cheveux, barbe' : 'Cheveux') : male ? 'Hair, beard' : 'Hair'}<input id="fe-hair" type="color" value="${look.hair}" /></label>
         </div>
         <div class="field">${L ? 'Coiffure (sous le casque)' : 'Hairstyle (under the helmet)'}<div class="fe-seg" id="fe-hairstyle">${HAIR_STYLES.map(
           ([v, fr, en]) => `<button data-v="${v}" class="${(((look.hairStyle % 4) + 4) % 4) === v ? 'on' : ''}">${L ? fr : en}</button>`,
         ).join('')}</div></div>
-        ${rangeHtml('fe-beard', L ? 'Barbe' : 'Beard', look.beard ?? 0, 0, 1)}
+        ${male ? rangeHtml('fe-beard', L ? 'Barbe' : 'Beard', look.beard ?? 0, 0, 1) : ''}
         ${rangeHtml('fe-freckles', L ? 'Taches de rousseur' : 'Freckles', look.freckles ?? 0, 0, 1)}
-        <label class="fe-check"><input id="fe-moustache" type="checkbox" ${look.moustache ? 'checked' : ''} /> ${L ? 'Moustache' : 'Moustache'}</label>`
+        ${male ? `<label class="fe-check"><input id="fe-moustache" type="checkbox" ${look.moustache ? 'checked' : ''} /> ${L ? 'Moustache' : 'Moustache'}</label>` : ''}`
       : FACE_SLIDERS.filter((s) => s.group === tab)
           .map((s) => rangeHtml(`fe-s-${s.id}`, LABELS[s.id][L ? 0 : 1], sliderValue(s.id, shape), ONE_SIDED.has(s.id) ? 0 : -1, 1, s.id))
           .join('');

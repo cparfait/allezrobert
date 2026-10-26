@@ -1,6 +1,18 @@
-import type { RoadGraphData, RouteSegment, RouteTrack } from '@allezrobert/shared';
+import { climbCategory, climbCategoryLabel, countryName, type RoadGraphData, type RouteSegment, type RouteTrack } from '@allezrobert/shared';
+import { flagSvg } from '../ui/flagSvg.ts';
 import { getLang, t } from '../i18n/index.ts';
+import { BASEMAP_ATTRIBUTION, basemapUrl } from '../ui/basemap.ts';
 import { ClimbPanel } from './climbPanel.ts';
+
+/** Image du fond de carte et emprise qu'elle couvre (repère du monde, m). */
+interface BaseTile {
+  img: HTMLImageElement;
+  ready: boolean;
+  minX: number;
+  minZ: number;
+  maxX: number;
+  maxZ: number;
+}
 
 export interface HudRider {
   id: string;
@@ -18,6 +30,8 @@ export interface HudRider {
   online?: boolean;
   /** Puissance rapportée au poids (W/kg), si connue. */
   wkg?: number;
+  /** Nationalité (code ISO) : drapeau devant le nom. */
+  nationality?: string;
 }
 
 export interface HudState {
@@ -50,6 +64,8 @@ export interface HudState {
   riders: HudRider[];
   segment?: { seg: RouteSegment; progress: number; elapsedS: number };
   devices: Array<{ label: string; state: 'ok' | 'warn' | 'off' }>;
+  /** Lieu traversé : commune la plus proche et, si on la connaît, la route. */
+  place?: { town: string; road?: string };
   /** Monde ouvert : position du coureur (m) sur le chemin et carrefour à venir. */
   open?: { distM: number; road: string; junction: HudJunction | null };
 }
@@ -90,6 +106,24 @@ export const HUD_BLOCKS = [
 export type HudBlockId = (typeof HUD_BLOCKS)[number]['id'];
 
 const ZONES = [0.55, 0.75, 0.9, 1.05, 1.2, 1.5];
+
+/** Compteur de puissance : arc de 270° gradué en zones (0 à 160 % de la FTP). */
+const DIAL_R = 66;
+const DIAL_C = 2 * Math.PI * DIAL_R;
+const DIAL_L = DIAL_C * 0.75;
+const DIAL_MAX = 1.6;
+const DIAL_ZONES: Array<[number, number]> = [[0, 0.55], [0.55, 0.75], [0.75, 0.9], [0.9, 1.05], [1.05, 1.2], [1.2, 1.5], [1.5, 1.6]];
+/** Repère de la FTP (100 %) sur l'arc : angle de l'écran, l'arc partant à 135°. */
+const DIAL_FTP_ANGLE = ((135 + (1 / DIAL_MAX) * 270) * Math.PI) / 180;
+
+const ico = (d: string) => `<svg class="ico" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
+const ICONS = {
+  heart: ico('<path d="M12 20s-7-4.4-9-9a5 5 0 0 1 9-3 5 5 0 0 1 9 3c-2 4.600-9 9-9 9Z"/>'),
+  cadence: ico('<path d="M21 12a9 9 0 1 1-3-6.700L21 8"/><path d="M21 3v5h-5"/>'),
+  speed: ico('<path d="M4 18a9 9 0 1 1 16 0"/><path d="m12 14 4-5"/>'),
+  grade: ico('<path d="m3 19 6-11 4 6 3-4 5 9Z"/>'),
+  pin: ico('<path d="M12 21s7-6.200 7-11a7 7 0 0 0-14 0c0 4.800 7 11 7 11Z"/><circle cx="12" cy="10" r="2.500"/>'),
+};
 /** Noms des zones de puissance (Coggan). */
 const ZONE_NAMES: Array<[string, string]> = [
   ['Récup', 'Recovery'],
@@ -131,6 +165,11 @@ export class Hud {
   private readonly el: Record<string, HTMLElement> = {};
   private readonly profileCanvas: HTMLCanvasElement;
   private readonly mapCanvas: HTMLCanvasElement;
+  /** Origine Lambert-93 du monde : active le fond de carte (Plan IGN) de la mini-carte. */
+  private basemapOrigin: { x: number; y: number } | null = null;
+  /** Fond de carte affiché (image chargée, emprise en repère du monde) et celui en cours de chargement. */
+  private base: BaseTile | null = null;
+  private baseLoading: BaseTile | null = null;
   private readonly track: RouteTrack;
   private readonly profile: Array<{ d: number; y: number }>;
   private readonly mapBounds: { minX: number; maxX: number; minZ: number; maxZ: number };
@@ -156,12 +195,32 @@ export class Hud {
     root.innerHTML = `
       <div class="hud-center">
         <div class="hud-top">
-          <div class="panel metric hr" data-hud="hr"><div class="label">${t('heartRate')}</div><div class="value num" data-k="hr">--</div><div class="sub">bpm</div></div>
-          <div class="panel metric power" data-k="powerBox" data-hud="power"><div class="label">${t('power')} 3 s</div><div class="value num"><span data-k="watts">0</span><span class="unit">W</span></div><div class="sub num" data-k="wkg">0,0 W/kg</div></div>
-          <div class="panel metric" data-hud="cadence"><div class="label">${t('cadence')}</div><div class="value num" data-k="cad">0</div><div class="sub">tr/min</div></div>
-          <div class="panel metric" data-hud="speed"><div class="label">${t('speed')}</div><div class="value num" data-k="speed">0,0</div><div class="sub">km/h</div></div>
+          <div class="tile-col">
+            <div class="tile hr" data-hud="hr"><div class="label">${ICONS.heart}${t('heartRate')}</div><div class="value num"><span data-k="hr">--</span><span class="unit">bpm</span></div></div>
+            <div class="tile cad" data-hud="cadence"><div class="label">${ICONS.cadence}${t('cadence')}</div><div class="value num"><span data-k="cad">0</span><span class="unit">${getLang() === 'fr' ? 'tr/min' : 'rpm'}</span></div></div>
+          </div>
+          <div class="dial" data-k="powerBox" data-hud="power">
+            <svg class="dial-svg" viewBox="0 0 160 160" aria-hidden="true">
+              <g transform="rotate(135 80 80)">
+                <circle class="dial-back" cx="80" cy="80" r="${DIAL_R}" stroke-dasharray="${DIAL_L.toFixed(1)} ${DIAL_C.toFixed(1)}"/>
+                ${DIAL_ZONES.map(([lo, hi], i) => `<circle class="dial-zone" cx="80" cy="80" r="${DIAL_R}" stroke="${ZONE_HEX[i]}" stroke-dasharray="${(((hi - lo) / DIAL_MAX) * DIAL_L - 1.5).toFixed(1)} ${DIAL_C.toFixed(1)}" stroke-dashoffset="${((-lo / DIAL_MAX) * DIAL_L).toFixed(1)}"/>`).join('')}
+                <circle class="dial-fill" data-k="dialFill" cx="80" cy="80" r="${DIAL_R}" stroke-dasharray="0.01 ${DIAL_C.toFixed(1)}"/>
+              </g>
+              <line class="dial-ftp" x1="${(80 + 58 * Math.cos(DIAL_FTP_ANGLE)).toFixed(1)}" y1="${(80 + 58 * Math.sin(DIAL_FTP_ANGLE)).toFixed(1)}" x2="${(80 + 77 * Math.cos(DIAL_FTP_ANGLE)).toFixed(1)}" y2="${(80 + 77 * Math.sin(DIAL_FTP_ANGLE)).toFixed(1)}"/>
+            </svg>
+            <div class="dial-in">
+              <div class="label">${t('power')} 3 s</div>
+              <div class="value num" data-k="watts">0</div>
+              <div class="unit">W</div>
+              <div class="sub num" data-k="wkg">0,0 W/kg</div>
+            </div>
+          </div>
+          <div class="tile-col">
+            <div class="tile spd" data-hud="speed"><div class="label">${ICONS.speed}${t('speed')}</div><div class="value num"><span data-k="speed">0,0</span><span class="unit">km/h</span></div></div>
+            <div class="tile grade" data-hud="grade"><div class="label">${ICONS.grade}${getLang() === 'fr' ? 'Pente' : 'Grade'}</div><div class="value num" data-k="grade">0,0 %</div></div>
+          </div>
         </div>
-        <div class="panel grade-badge num" data-k="grade" data-hud="grade">0,0 %</div>
+        <div class="panel hud-loc hidden" data-k="loc"></div>
         <div class="panel junction hidden" data-k="junction"></div>
         <div class="panel challenge hidden" data-k="challenge"></div>
         <div class="panel segment hidden" data-k="segment"><div class="name" data-k="segName"></div><div class="num" data-k="segInfo"></div><div class="bar"><span data-k="segBar" style="width:0%"></span></div></div>
@@ -394,9 +453,14 @@ export class Hud {
     const e = this.el;
     const nf1 = (v: number) => v.toFixed(1).replace('.', ',');
     (e.watts as HTMLElement).textContent = String(Math.round(s.watts3s));
+    // Arc du compteur : proportion de la FTP, couleur de la zone en cours.
+    const dialFrac = Math.min(DIAL_MAX, Math.max(0, s.watts3s / Math.max(s.ftp, 1))) / DIAL_MAX;
+    const dial = e.dialFill as unknown as SVGElement;
+    dial.setAttribute('stroke-dasharray', `${Math.max(0.01, dialFrac * DIAL_L).toFixed(1)} ${DIAL_C.toFixed(1)}`);
+    dial.setAttribute('stroke', zoneColorHex(s.watts3s, s.ftp));
+    (e.powerBox as HTMLElement).style.setProperty('--zone', zoneColorHex(s.watts3s, s.ftp));
     const fr = getLang() === 'fr';
     (e.wkg as HTMLElement).textContent = `${nf1(s.watts3s / massKg)} W/kg · ${zoneLabel(s.watts3s, s.ftp, fr)}`;
-    (e.powerBox as HTMLElement).style.borderBottomColor = zoneColor(s.watts3s, s.ftp);
     (e.hr as HTMLElement).textContent = s.hr ? String(Math.round(s.hr)) : 'N/A';
     (e.cad as HTMLElement).textContent = String(Math.round(s.cadence));
     (e.speed as HTMLElement).textContent = nf1(s.speedKmh);
@@ -439,11 +503,19 @@ export class Hud {
     if (s.segment) {
       segEl.classList.remove('hidden');
       segEl.classList.toggle('sprint', s.segment.seg.kind === 'sprint');
-      (e.segName as HTMLElement).textContent = `${s.segment.seg.kind === 'kom' ? t('kom') : t('sprint')} · ${s.segment.seg.name}`;
+      (e.segName as HTMLElement).textContent = `${s.segment.seg.kind === 'kom' ? `${t('kom')} (${climbCategoryLabel(climbCategory(s.segment.seg), getLang() === 'fr')})` : t('sprint')} · ${s.segment.seg.name}`;
       const remain = (s.segment.seg.endM - s.segment.seg.startM) * (1 - s.segment.progress);
       (e.segInfo as HTMLElement).textContent = `${fmtTime(s.segment.elapsedS)} · ${Math.round(remain)} m`;
       (e.segBar as HTMLElement).style.width = `${(s.segment.progress * 100).toFixed(1)}%`;
     } else segEl.classList.add('hidden');
+
+    const loc = e.loc as HTMLElement;
+    const placeKey = s.place ? `${s.place.town}|${s.place.road ?? ''}` : '';
+    if (loc.dataset.k2 !== placeKey) {
+      loc.dataset.k2 = placeKey;
+      loc.classList.toggle('hidden', !s.place);
+      if (s.place) loc.innerHTML = `${ICONS.pin}<b>${s.place.town.replace(/[<>&]/g, '')}</b>${s.place.road ? `<span>${s.place.road.replace(/[<>&]/g, '')}</span>` : ''}`;
+    }
 
     (e.devices as HTMLElement).innerHTML = s.devices.map((d) => `<div class="${d.state}">${d.label}</div>`).join('');
 
@@ -514,6 +586,53 @@ export class Hud {
     }
   }
 
+  /** Active le fond de carte (Plan IGN, Lambert-93) de la mini-carte ; son attribution rejoint celle du bas d'écran. */
+  setBasemap(origin: { x: number; y: number }): void {
+    this.basemapOrigin = origin;
+    const attr = this.root.querySelector('.attribution');
+    if (attr && !attr.textContent?.includes(BASEMAP_ATTRIBUTION)) attr.textContent = `${attr.textContent ? `${attr.textContent} · ` : ''}${BASEMAP_ATTRIBUTION}`;
+  }
+
+  /** Charge (une fois) le fond couvrant l'emprise demandée, tant que le courant ne la couvre pas assez. */
+  private ensureBase(area: { minX: number; minZ: number; maxX: number; maxZ: number }, need: { minX: number; minZ: number; maxX: number; maxZ: number }, px: number): void {
+    const o = this.basemapOrigin;
+    if (!o) return;
+    const covers = (t: BaseTile | null) => !!t && t.minX <= need.minX && t.maxX >= need.maxX && t.minZ <= need.minZ && t.maxZ >= need.maxZ;
+    if (covers(this.base) || (this.baseLoading && covers(this.baseLoading))) return;
+    const tile: BaseTile = { img: new Image(), ready: false, ...area };
+    // Plan IGN : E = origine.x + x, N = origine.y − z (z croît vers le sud).
+    tile.img.onload = () => {
+      tile.ready = true;
+      if (this.baseLoading === tile) {
+        this.base = tile;
+        this.baseLoading = null;
+      }
+    };
+    tile.img.onerror = () => {
+      if (this.baseLoading === tile) this.baseLoading = null;
+    };
+    this.baseLoading = tile;
+    tile.img.src = basemapUrl({ minE: o.x + area.minX, minN: o.y - area.maxZ, maxE: o.x + area.maxX, maxN: o.y - area.minZ }, px);
+  }
+
+  /** Dessine le fond de carte sous les tracés (assombri), si chargé. */
+  private drawBase(ctx: CanvasRenderingContext2D, P: (x: number, z: number) => [number, number]): void {
+    const t = this.base;
+    if (!t?.ready) return;
+    const [x0, y0] = P(t.minX, t.minZ);
+    const [x1, y1] = P(t.maxX, t.maxZ);
+    const hasFilter = (ctx as unknown as { filter?: string }).filter !== undefined;
+    ctx.save();
+    ctx.globalAlpha = 0.8;
+    if (hasFilter) ctx.filter = 'invert(0.9) hue-rotate(180deg) grayscale(0.9) brightness(1.05) contrast(0.85)';
+    ctx.drawImage(t.img, x0, y0, x1 - x0, y1 - y0);
+    ctx.restore();
+    if (!hasFilter) {
+      ctx.fillStyle = 'rgba(10, 14, 22, 0.55)';
+      ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+    }
+  }
+
   private drawMap(s: HudState): void {
     const c = this.mapCanvas;
     const ctx = c.getContext('2d') as CanvasRenderingContext2D;
@@ -525,6 +644,10 @@ export class Hud {
     const ox = (w - (b.maxX - b.minX) * scale) / 2;
     const oz = (h - (b.maxZ - b.minZ) * scale) / 2;
     const P = (x: number, z: number): [number, number] => [ox + (x - b.minX) * scale, oz + (z - b.minZ) * scale];
+    // Fond de carte : emprise visible de la mini-carte, chargée une seule fois.
+    const view = { minX: b.minX - ox / scale, maxX: b.maxX + ox / scale, minZ: b.minZ - oz / scale, maxZ: b.maxZ + oz / scale };
+    this.ensureBase(view, view, 1024);
+    this.drawBase(ctx, P);
     ctx.lineJoin = 'round';
     ctx.strokeStyle = 'rgba(0,0,0,0.5)';
     ctx.lineWidth = 9;
@@ -581,7 +704,7 @@ export class Hud {
         const sec = gap / speed;
         const time = Math.abs(sec) >= 60 ? `${sec > 0 ? '+' : '−'}${Math.floor(Math.abs(sec) / 60)}:${String(Math.round(Math.abs(sec) % 60)).padStart(2, '0')}` : `${sec > 0 ? '+' : sec < 0 ? '−' : ''}${Math.round(Math.abs(sec))} s`;
         const dist = Math.abs(gap) >= 1000 ? `${(Math.abs(gap) / 1000).toFixed(1).replace('.', fr ? ',' : '.')} km` : `${Math.round(Math.abs(gap))} m`;
-        return `<div class="row ${r.me ? 'me' : ''}"><span class="rd-name"><b style="color:${r.color}">●</b> ${r.name.replace(/[<>&]/g, '')}${r.speaking ? ' 🔊' : ''} ${rideOn}<small>${tag}</small></span><span class="num rd-wkg">${r.wkg !== undefined ? r.wkg.toFixed(1).replace('.', fr ? ',' : '.') : '—'}<small> W/kg</small></span><span class="num rd-gap">${r.me ? '' : `${time}<small>${dist}</small>`}</span></div>`;
+        return `<div class="row ${r.me ? 'me' : ''}"><span class="rd-name"><b style="color:${r.color}">●</b> ${flagSvg(r.nationality, 11) ? `<span class="rd-flag" title="${countryName(r.nationality, fr ? 'fr' : 'en')}">${flagSvg(r.nationality, 11)}</span> ` : ''}${r.name.replace(/[<>&]/g, '')}${r.speaking ? ' 🔊' : ''} ${rideOn}<small>${tag}</small></span><span class="num rd-wkg">${r.wkg !== undefined ? r.wkg.toFixed(1).replace('.', fr ? ',' : '.') : '—'}<small> W/kg</small></span><span class="num rd-gap">${r.me ? '' : `${time}<small>${dist}</small>`}</span></div>`;
       })
       .join('');
     return head + rows;
@@ -679,6 +802,12 @@ export class Hud {
     const half = 800;
     const k = w / (2 * half);
     const P = (x: number, z: number): [number, number] => [w / 2 + (x - me.x) * k, h / 2 + (z - me.z) * k];
+    // Fond de carte : fenêtre de 3,6 km autour du coureur, renouvelée quand il s'approche du bord de ce que montre la carte.
+    const win = 1800;
+    const cx = Math.round(me.x / 300) * 300;
+    const cz = Math.round(me.z / 300) * 300;
+    this.ensureBase({ minX: cx - win, maxX: cx + win, minZ: cz - win, maxZ: cz + win }, { minX: me.x - half * 1.1, maxX: me.x + half * 1.1, minZ: me.z - half * 1.1, maxZ: me.z + half * 1.1 }, 1024);
+    this.drawBase(ctx, P);
     ctx.lineJoin = 'round';
     ctx.lineCap = 'round';
     for (const e of g.edges) {

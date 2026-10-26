@@ -1,0 +1,271 @@
+{
+  "kind": "open",
+  "id": "idf-ballancourt-sur-essonne",
+  "name": "Île-de-France — Ballancourt-sur-Essonne",
+  "region": "Essonne · Île-de-France",
+  "originL93": {
+    "x": 648000,
+    "y": 6820000
+  },
+  "corridorTiles": {
+    "txMin": -8,
+    "txMax": 7,
+    "tzMin": -8,
+    "tzMax": 7
+  },
+  "start": {
+    "lon": 2.38763,
+    "lat": 48.52466
+  },
+  "orthoPx": 1024,
+  "horizon": {
+    "halfSizeM": 30000,
+    "resM": 100
+  },
+  "tours": [
+    {
+      "routeId": "boucle-20-km",
+      "routeName": "Boucle de 20 km depuis Ballancourt-sur-Essonne",
+      "routeNameEn": "20 km loop from Ballancourt-sur-Essonne",
+      "start": {
+        "lon": 2.38763,
+        "lat": 48.52466
+      },
+      "via": [
+        {
+          "lon": 2.36944,
+          "lat": 48.51389
+        },
+        {
+          "lon": 2.35856,
+          "lat": 48.49206
+        },
+        {
+          "lon": 2.35502,
+          "lat": 48.50809
+        },
+        {
+          "lon": 2.34003,
+          "lat": 48.51283
+        },
+        {
+          "lon": 2.34384,
+          "lat": 48.53065
+        },
+        {
+          "lon": 2.35631,
+          "lat": 48.54031
+        },
+        {
+          "lon": 2.37422,
+          "lat": 48.53692
+        }
+      ]
+    },
+    {
+      "routeId": "boucle-30-km",
+      "routeName": "Boucle de 30 km depuis Ballancourt-sur-Essonne",
+      "routeNameEn": "30 km loop from Ballancourt-sur-Essonne",
+      "start": {
+        "lon": 2.38763,
+        "lat": 48.52466
+      },
+      "via": [
+        {
+          "lon": 2.36944,
+          "lat": 48.51389
+        },
+        {
+          "lon": 2.37854,
+          "lat": 48.49414
+        },
+        {
+          "lon": 2.3523,
+          "lat": 48.48305
+        },
+        {
+          "lon": 2.33308,
+          "lat": 48.47994
+        },
+        {
+          "lon": 2.30964,
+          "lat": 48.48087
+        },
+        {
+          "lon": 2.28217,
+          "lat": 48.49587
+        },
+        {
+          "lon": 2.29384,
+          "lat": 48.51543
+        },
+        {
+          "lon": 2.29528,
+          "lat": 48.52986
+        },
+        {
+          "lon": 2.32082,
+          "lat": 48.53961
+        },
+        {
+          "lon": 2.33548,
+          "lat": 48.54264
+        },
+        {
+          "lon": 2.36169,
+          "lat": 48.53288
+        }
+      ]
+    },
+    {
+      "routeId": "boucle-40-km",
+      "routeName": "Boucle de 40 km depuis Ballancourt-sur-Essonne",
+      "routeNameEn": "40 km loop from Ballancourt-sur-Essonne",
+      "start": {
+        "lon": 2.38763,
+        "lat": 48.52466
+      },
+      "via": [
+        {
+          "lon": 2.36944,
+          "lat": 48.51389
+        },
+        {
+          "lon": 2.37854,
+          "lat": 48.49414
+        },
+        {
+          "lon": 2.3865,
+          "lat": 48.49057
+        },
+        {
+          "lon": 2.3523,
+          "lat": 48.48305
+        },
+        {
+          "lon": 2.34135,
+          "lat": 48.46971
+        },
+        {
+          "lon": 2.32049,
+          "lat": 48.45874
+        },
+        {
+          "lon": 2.28893,
+          "lat": 48.46927
+        },
+        {
+          "lon": 2.28804,
+          "lat": 48.48778
+        },
+        {
+          "lon": 2.28383,
+          "lat": 48.50409
+        },
+        {
+          "lon": 2.28132,
+          "lat": 48.51858
+        },
+        {
+          "lon": 2.28869,
+          "lat": 48.52824
+        },
+        {
+          "lon": 2.31479,
+          "lat": 48.53621
+        },
+        {
+          "lon": 2.33435,
+          "lat": 48.5459
+        },
+        {
+          "lon": 2.35446,
+          "lat": 48.53542
+        }
+      ]
+    },
+    {
+      "routeId": "boucle-50-km",
+      "routeName": "Boucle de 50 km depuis Ballancourt-sur-Essonne",
+      "routeNameEn": "50 km loop from Ballancourt-sur-Essonne",
+      "start": {
+        "lon": 2.38763,
+        "lat": 48.52466
+      },
+      "via": [
+        {
+          "lon": 2.36944,
+          "lat": 48.51389
+        },
+        {
+          "lon": 2.35848,
+          "lat": 48.49093
+        },
+        {
+          "lon": 2.35527,
+          "lat": 48.47235
+        },
+        {
+          "lon": 2.35787,
+          "lat": 48.45535
+        },
+        {
+          "lon": 2.36904,
+          "lat": 48.43818
+        },
+        {
+          "lon": 2.39191,
+          "lat": 48.4474
+        },
+        {
+          "lon": 2.37209,
+          "lat": 48.43393
+        },
+        {
+          "lon": 2.35835,
+          "lat": 48.44533
+        },
+        {
+          "lon": 2.32701,
+          "lat": 48.45645
+        },
+        {
+          "lon": 2.30282,
+          "lat": 48.4486
+        },
+        {
+          "lon": 2.27575,
+          "lat": 48.45082
+        },
+        {
+          "lon": 2.25903,
+          "lat": 48.46192
+        },
+        {
+          "lon": 2.26854,
+          "lat": 48.48568
+        },
+        {
+          "lon": 2.29187,
+          "lat": 48.51086
+        },
+        {
+          "lon": 2.28876,
+          "lat": 48.53075
+        },
+        {
+          "lon": 2.32017,
+          "lat": 48.53817
+        },
+        {
+          "lon": 2.34314,
+          "lat": 48.53627
+        },
+        {
+          "lon": 2.37329,
+          "lat": 48.53109
+        }
+      ]
+    }
+  ]
+}

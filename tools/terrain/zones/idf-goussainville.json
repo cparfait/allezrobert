@@ -1,0 +1,283 @@
+{
+  "kind": "open",
+  "id": "idf-goussainville",
+  "name": "Île-de-France — Goussainville",
+  "region": "Val-d'Oise · Île-de-France",
+  "originL93": {
+    "x": 664000,
+    "y": 6884000
+  },
+  "corridorTiles": {
+    "txMin": -8,
+    "txMax": 7,
+    "tzMin": -8,
+    "tzMax": 7
+  },
+  "start": {
+    "lon": 2.46724,
+    "lat": 49.02738
+  },
+  "orthoPx": 1024,
+  "horizon": {
+    "halfSizeM": 30000,
+    "resM": 100
+  },
+  "tours": [
+    {
+      "routeId": "boucle-20-km",
+      "routeName": "Boucle de 20 km depuis Goussainville",
+      "routeNameEn": "20 km loop from Goussainville",
+      "start": {
+        "lon": 2.46724,
+        "lat": 49.02738
+      },
+      "via": [
+        {
+          "lon": 2.45227,
+          "lat": 49.04332
+        },
+        {
+          "lon": 2.46417,
+          "lat": 49.06069
+        },
+        {
+          "lon": 2.49523,
+          "lat": 49.05792
+        },
+        {
+          "lon": 2.51267,
+          "lat": 49.04972
+        },
+        {
+          "lon": 2.49889,
+          "lat": 49.02898
+        },
+        {
+          "lon": 2.48383,
+          "lat": 49.01092
+        },
+        {
+          "lon": 2.46537,
+          "lat": 49.023
+        }
+      ]
+    },
+    {
+      "routeId": "boucle-30-km",
+      "routeName": "Boucle de 30 km depuis Goussainville",
+      "routeNameEn": "30 km loop from Goussainville",
+      "start": {
+        "lon": 2.46724,
+        "lat": 49.02738
+      },
+      "via": [
+        {
+          "lon": 2.45227,
+          "lat": 49.04332
+        },
+        {
+          "lon": 2.4571,
+          "lat": 49.06247
+        },
+        {
+          "lon": 2.48872,
+          "lat": 49.07119
+        },
+        {
+          "lon": 2.49915,
+          "lat": 49.07812
+        },
+        {
+          "lon": 2.51275,
+          "lat": 49.06783
+        },
+        {
+          "lon": 2.54279,
+          "lat": 49.05573
+        },
+        {
+          "lon": 2.55218,
+          "lat": 49.04328
+        },
+        {
+          "lon": 2.55012,
+          "lat": 49.02772
+        },
+        {
+          "lon": 2.53016,
+          "lat": 49.01479
+        },
+        {
+          "lon": 2.5078,
+          "lat": 49.00472
+        },
+        {
+          "lon": 2.47678,
+          "lat": 49.01194
+        }
+      ]
+    },
+    {
+      "routeId": "boucle-40-km",
+      "routeName": "Boucle de 40 km depuis Goussainville",
+      "routeNameEn": "40 km loop from Goussainville",
+      "start": {
+        "lon": 2.46724,
+        "lat": 49.02738
+      },
+      "via": [
+        {
+          "lon": 2.45227,
+          "lat": 49.04332
+        },
+        {
+          "lon": 2.46417,
+          "lat": 49.06069
+        },
+        {
+          "lon": 2.49523,
+          "lat": 49.05792
+        },
+        {
+          "lon": 2.51751,
+          "lat": 49.04778
+        },
+        {
+          "lon": 2.54821,
+          "lat": 49.04579
+        },
+        {
+          "lon": 2.56223,
+          "lat": 49.02897
+        },
+        {
+          "lon": 2.54229,
+          "lat": 49.0266
+        },
+        {
+          "lon": 2.52441,
+          "lat": 49.00883
+        },
+        {
+          "lon": 2.51837,
+          "lat": 48.99274
+        },
+        {
+          "lon": 2.54514,
+          "lat": 48.98826
+        },
+        {
+          "lon": 2.53326,
+          "lat": 48.98682
+        },
+        {
+          "lon": 2.50965,
+          "lat": 48.99758
+        },
+        {
+          "lon": 2.48289,
+          "lat": 48.98829
+        },
+        {
+          "lon": 2.50834,
+          "lat": 48.99935
+        },
+        {
+          "lon": 2.48383,
+          "lat": 49.01092
+        },
+        {
+          "lon": 2.46537,
+          "lat": 49.023
+        }
+      ]
+    },
+    {
+      "routeId": "boucle-50-km",
+      "routeName": "Boucle de 50 km depuis Goussainville",
+      "routeNameEn": "50 km loop from Goussainville",
+      "start": {
+        "lon": 2.46724,
+        "lat": 49.02738
+      },
+      "via": [
+        {
+          "lon": 2.45227,
+          "lat": 49.04332
+        },
+        {
+          "lon": 2.4571,
+          "lat": 49.06247
+        },
+        {
+          "lon": 2.47082,
+          "lat": 49.07485
+        },
+        {
+          "lon": 2.46583,
+          "lat": 49.09695
+        },
+        {
+          "lon": 2.49308,
+          "lat": 49.09581
+        },
+        {
+          "lon": 2.52107,
+          "lat": 49.09854
+        },
+        {
+          "lon": 2.54899,
+          "lat": 49.09918
+        },
+        {
+          "lon": 2.57807,
+          "lat": 49.10135
+        },
+        {
+          "lon": 2.57047,
+          "lat": 49.08536
+        },
+        {
+          "lon": 2.57596,
+          "lat": 49.0669
+        },
+        {
+          "lon": 2.60803,
+          "lat": 49.06084
+        },
+        {
+          "lon": 2.5807,
+          "lat": 49.0562
+        },
+        {
+          "lon": 2.58103,
+          "lat": 49.03358
+        },
+        {
+          "lon": 2.58166,
+          "lat": 49.0211
+        },
+        {
+          "lon": 2.5581,
+          "lat": 49.01111
+        },
+        {
+          "lon": 2.54794,
+          "lat": 49.00463
+        },
+        {
+          "lon": 2.5187,
+          "lat": 48.99487
+        },
+        {
+          "lon": 2.49774,
+          "lat": 49.00864
+        },
+        {
+          "lon": 2.46899,
+          "lat": 49.01653
+        }
+      ]
+    }
+  ]
+}

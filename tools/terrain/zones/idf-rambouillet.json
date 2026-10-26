@@ -1,0 +1,279 @@
+{
+  "kind": "open",
+  "id": "idf-rambouillet",
+  "name": "Île-de-France — Rambouillet",
+  "region": "Yvelines · Île-de-France",
+  "originL93": {
+    "x": 616000,
+    "y": 6836000
+  },
+  "corridorTiles": {
+    "txMin": -8,
+    "txMax": 7,
+    "tzMin": -8,
+    "tzMax": 7
+  },
+  "start": {
+    "lon": 1.83441,
+    "lat": 48.6533
+  },
+  "orthoPx": 1024,
+  "horizon": {
+    "halfSizeM": 30000,
+    "resM": 100
+  },
+  "tours": [
+    {
+      "routeId": "boucle-20-km",
+      "routeName": "Boucle de 20 km depuis Rambouillet",
+      "routeNameEn": "20 km loop from Rambouillet",
+      "start": {
+        "lon": 1.83441,
+        "lat": 48.6533
+      },
+      "via": [
+        {
+          "lon": 1.81425,
+          "lat": 48.66184
+        },
+        {
+          "lon": 1.80942,
+          "lat": 48.66402
+        },
+        {
+          "lon": 1.81292,
+          "lat": 48.68511
+        },
+        {
+          "lon": 1.84009,
+          "lat": 48.68871
+        },
+        {
+          "lon": 1.84403,
+          "lat": 48.66866
+        },
+        {
+          "lon": 1.872,
+          "lat": 48.66362
+        },
+        {
+          "lon": 1.872,
+          "lat": 48.66362
+        },
+        {
+          "lon": 1.84844,
+          "lat": 48.65187
+        }
+      ]
+    },
+    {
+      "routeId": "boucle-30-km",
+      "routeName": "Boucle de 30 km depuis Rambouillet",
+      "routeNameEn": "30 km loop from Rambouillet",
+      "start": {
+        "lon": 1.83441,
+        "lat": 48.6533
+      },
+      "via": [
+        {
+          "lon": 1.85696,
+          "lat": 48.64357
+        },
+        {
+          "lon": 1.87888,
+          "lat": 48.63365
+        },
+        {
+          "lon": 1.89316,
+          "lat": 48.61779
+        },
+        {
+          "lon": 1.86745,
+          "lat": 48.60768
+        },
+        {
+          "lon": 1.84254,
+          "lat": 48.58526
+        },
+        {
+          "lon": 1.82504,
+          "lat": 48.58439
+        },
+        {
+          "lon": 1.82195,
+          "lat": 48.6033
+        },
+        {
+          "lon": 1.81697,
+          "lat": 48.62169
+        },
+        {
+          "lon": 1.79538,
+          "lat": 48.62291
+        },
+        {
+          "lon": 1.8221,
+          "lat": 48.62823
+        },
+        {
+          "lon": 1.82307,
+          "lat": 48.64453
+        }
+      ]
+    },
+    {
+      "routeId": "boucle-40-km",
+      "routeName": "Boucle de 40 km depuis Rambouillet",
+      "routeNameEn": "40 km loop from Rambouillet",
+      "start": {
+        "lon": 1.83441,
+        "lat": 48.6533
+      },
+      "via": [
+        {
+          "lon": 1.85696,
+          "lat": 48.64357
+        },
+        {
+          "lon": 1.87888,
+          "lat": 48.63365
+        },
+        {
+          "lon": 1.913,
+          "lat": 48.61851
+        },
+        {
+          "lon": 1.93004,
+          "lat": 48.62963
+        },
+        {
+          "lon": 1.90749,
+          "lat": 48.61337
+        },
+        {
+          "lon": 1.90645,
+          "lat": 48.59349
+        },
+        {
+          "lon": 1.88624,
+          "lat": 48.57691
+        },
+        {
+          "lon": 1.90155,
+          "lat": 48.56902
+        },
+        {
+          "lon": 1.87955,
+          "lat": 48.57485
+        },
+        {
+          "lon": 1.85093,
+          "lat": 48.56688
+        },
+        {
+          "lon": 1.83298,
+          "lat": 48.5763
+        },
+        {
+          "lon": 1.81501,
+          "lat": 48.58709
+        },
+        {
+          "lon": 1.80275,
+          "lat": 48.60374
+        },
+        {
+          "lon": 1.822,
+          "lat": 48.62342
+        },
+        {
+          "lon": 1.82556,
+          "lat": 48.64211
+        }
+      ]
+    },
+    {
+      "routeId": "boucle-50-km",
+      "routeName": "Boucle de 50 km depuis Rambouillet",
+      "routeNameEn": "50 km loop from Rambouillet",
+      "start": {
+        "lon": 1.83441,
+        "lat": 48.6533
+      },
+      "via": [
+        {
+          "lon": 1.85696,
+          "lat": 48.64357
+        },
+        {
+          "lon": 1.87173,
+          "lat": 48.62842
+        },
+        {
+          "lon": 1.86895,
+          "lat": 48.61291
+        },
+        {
+          "lon": 1.86861,
+          "lat": 48.59495
+        },
+        {
+          "lon": 1.87668,
+          "lat": 48.5758
+        },
+        {
+          "lon": 1.84674,
+          "lat": 48.56645
+        },
+        {
+          "lon": 1.82871,
+          "lat": 48.56397
+        },
+        {
+          "lon": 1.79593,
+          "lat": 48.55978
+        },
+        {
+          "lon": 1.78428,
+          "lat": 48.57796
+        },
+        {
+          "lon": 1.81197,
+          "lat": 48.58816
+        },
+        {
+          "lon": 1.8265,
+          "lat": 48.60727
+        },
+        {
+          "lon": 1.81697,
+          "lat": 48.62169
+        },
+        {
+          "lon": 1.78474,
+          "lat": 48.62836
+        },
+        {
+          "lon": 1.76727,
+          "lat": 48.61819
+        },
+        {
+          "lon": 1.75672,
+          "lat": 48.60434
+        },
+        {
+          "lon": 1.77257,
+          "lat": 48.62684
+        },
+        {
+          "lon": 1.77448,
+          "lat": 48.63837
+        },
+        {
+          "lon": 1.81363,
+          "lat": 48.64599
+        }
+      ]
+    }
+  ]
+}

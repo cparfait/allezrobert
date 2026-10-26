@@ -240,8 +240,37 @@ export function addSleeveMask(mesh: THREE.SkinnedMesh, jersey: THREE.SkinnedMesh
       jsl[i] = handOf(i) > 0.08 ? Math.max(d, 2) : d; // 4 : la coupe tombe contre l'anneau du poignet, pas dans la main
     }
   }
+  // Jambes (chaussettes hautes, cuissard long) : jsl = −2 − u, u continu le long de la jambe pour
+  // que l'interpolation ne coupe pas au genou : 0 à la hanche, 1 au genou, 2 à la cheville.
+  // ≤ −2 n'est jamais un bras. Tout sommet porté (même un peu) par la cuisse ou le mollet est marqué.
+  for (const side of ['l', 'r'] as const) {
+    const hip = head(mesh, `thigh_${side}`);
+    const knee = head(mesh, `calf_${side}`);
+    const ankle = head(mesh, `foot_${side}`);
+    if (!hip || !knee || !ankle) continue;
+    const upper = knee.clone().sub(hip);
+    const lower = ankle.clone().sub(knee);
+    for (let i = 0; i < pos.count; i++) {
+      let th = 0;
+      let calf = 0;
+      for (let c = 0; c < 4; c++) {
+        const b = sk.bones[si.getComponent(i, c)]?.name;
+        if (b === `thigh_${side}`) th += sw.getComponent(i, c);
+        else if (b === `calf_${side}`) calf += sw.getComponent(i, c);
+      }
+      if (th + calf < 0.2) continue;
+      v.fromBufferAttribute(pos, i);
+      const u = calf >= th ? 1 + THREE.MathUtils.clamp(v.clone().sub(knee).dot(lower) / Math.max(lower.lengthSq(), 1e-9), 0, 1) : THREE.MathUtils.clamp(v.clone().sub(hip).dot(upper) / Math.max(upper.lengthSq(), 1e-9), 0, 1);
+      jsl[i] = -2 - u;
+    }
+  }
   g.setAttribute('jsl', new THREE.BufferAttribute(jsl, 1));
 }
+
+/** Où commencent les chaussettes hautes sur le mollet (fraction genou → cheville) ; les basses : 0,78 (maillage). */
+export const SOCK_HIGH_T = 0.42;
+/** Où le cuissard long commence sur la cuisse (fraction hanche → genou) : sous l'ourlet du cuissard (0,74 au maillage). */
+export const SUIT_THIGH_T = 0.6;
 
 export interface JerseyPatternNodes {
   /** Couleur du maillot avec le motif (base = couleur du maillot ; seconde couleur = look.jerseyAccent). */

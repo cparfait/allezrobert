@@ -1,0 +1,275 @@
+{
+  "kind": "open",
+  "id": "idf-saint-clair-sur-epte",
+  "name": "Île-de-France — Saint-Clair-sur-Epte",
+  "region": "Val-d'Oise · Île-de-France",
+  "originL93": {
+    "x": 600000,
+    "y": 6900000
+  },
+  "corridorTiles": {
+    "txMin": -8,
+    "txMax": 7,
+    "tzMin": -8,
+    "tzMax": 7
+  },
+  "start": {
+    "lon": 1.70592,
+    "lat": 49.21127
+  },
+  "orthoPx": 1024,
+  "horizon": {
+    "halfSizeM": 30000,
+    "resM": 100
+  },
+  "tours": [
+    {
+      "routeId": "boucle-20-km",
+      "routeName": "Boucle de 20 km depuis Saint-Clair-sur-Epte",
+      "routeNameEn": "20 km loop from Saint-Clair-sur-Epte",
+      "start": {
+        "lon": 1.70592,
+        "lat": 49.21127
+      },
+      "via": [
+        {
+          "lon": 1.68269,
+          "lat": 49.20887
+        },
+        {
+          "lon": 1.67144,
+          "lat": 49.21427
+        },
+        {
+          "lon": 1.69098,
+          "lat": 49.22655
+        },
+        {
+          "lon": 1.69822,
+          "lat": 49.24947
+        },
+        {
+          "lon": 1.71824,
+          "lat": 49.24958
+        },
+        {
+          "lon": 1.71695,
+          "lat": 49.24206
+        },
+        {
+          "lon": 1.71388,
+          "lat": 49.22887
+        }
+      ]
+    },
+    {
+      "routeId": "boucle-30-km",
+      "routeName": "Boucle de 30 km depuis Saint-Clair-sur-Epte",
+      "routeNameEn": "30 km loop from Saint-Clair-sur-Epte",
+      "start": {
+        "lon": 1.70592,
+        "lat": 49.21127
+      },
+      "via": [
+        {
+          "lon": 1.6987,
+          "lat": 49.19816
+        },
+        {
+          "lon": 1.73134,
+          "lat": 49.18448
+        },
+        {
+          "lon": 1.70837,
+          "lat": 49.18167
+        },
+        {
+          "lon": 1.67741,
+          "lat": 49.17563
+        },
+        {
+          "lon": 1.6987,
+          "lat": 49.16707
+        },
+        {
+          "lon": 1.71074,
+          "lat": 49.14963
+        },
+        {
+          "lon": 1.70257,
+          "lat": 49.16477
+        },
+        {
+          "lon": 1.67087,
+          "lat": 49.16413
+        },
+        {
+          "lon": 1.66171,
+          "lat": 49.18415
+        },
+        {
+          "lon": 1.66747,
+          "lat": 49.2073
+        },
+        {
+          "lon": 1.69275,
+          "lat": 49.20757
+        }
+      ]
+    },
+    {
+      "routeId": "boucle-40-km",
+      "routeName": "Boucle de 40 km depuis Saint-Clair-sur-Epte",
+      "routeNameEn": "40 km loop from Saint-Clair-sur-Epte",
+      "start": {
+        "lon": 1.70592,
+        "lat": 49.21127
+      },
+      "via": [
+        {
+          "lon": 1.692,
+          "lat": 49.19566
+        },
+        {
+          "lon": 1.68281,
+          "lat": 49.17812
+        },
+        {
+          "lon": 1.67087,
+          "lat": 49.16413
+        },
+        {
+          "lon": 1.64266,
+          "lat": 49.15186
+        },
+        {
+          "lon": 1.61159,
+          "lat": 49.15601
+        },
+        {
+          "lon": 1.58647,
+          "lat": 49.16407
+        },
+        {
+          "lon": 1.56976,
+          "lat": 49.17902
+        },
+        {
+          "lon": 1.55682,
+          "lat": 49.19844
+        },
+        {
+          "lon": 1.57605,
+          "lat": 49.21725
+        },
+        {
+          "lon": 1.60955,
+          "lat": 49.23613
+        },
+        {
+          "lon": 1.61954,
+          "lat": 49.23157
+        },
+        {
+          "lon": 1.649,
+          "lat": 49.22053
+        },
+        {
+          "lon": 1.6693,
+          "lat": 49.20754
+        },
+        {
+          "lon": 1.69275,
+          "lat": 49.20757
+        }
+      ]
+    },
+    {
+      "routeId": "boucle-50-km",
+      "routeName": "Boucle de 50 km depuis Saint-Clair-sur-Epte",
+      "routeNameEn": "50 km loop from Saint-Clair-sur-Epte",
+      "start": {
+        "lon": 1.70592,
+        "lat": 49.21127
+      },
+      "via": [
+        {
+          "lon": 1.692,
+          "lat": 49.19566
+        },
+        {
+          "lon": 1.68281,
+          "lat": 49.17812
+        },
+        {
+          "lon": 1.69251,
+          "lat": 49.16939
+        },
+        {
+          "lon": 1.70265,
+          "lat": 49.15332
+        },
+        {
+          "lon": 1.68798,
+          "lat": 49.14904
+        },
+        {
+          "lon": 1.64817,
+          "lat": 49.13616
+        },
+        {
+          "lon": 1.62172,
+          "lat": 49.14672
+        },
+        {
+          "lon": 1.60148,
+          "lat": 49.15047
+        },
+        {
+          "lon": 1.59573,
+          "lat": 49.15187
+        },
+        {
+          "lon": 1.58031,
+          "lat": 49.17385
+        },
+        {
+          "lon": 1.54934,
+          "lat": 49.18708
+        },
+        {
+          "lon": 1.56736,
+          "lat": 49.2057
+        },
+        {
+          "lon": 1.57605,
+          "lat": 49.21725
+        },
+        {
+          "lon": 1.5918,
+          "lat": 49.2454
+        },
+        {
+          "lon": 1.62403,
+          "lat": 49.24505
+        },
+        {
+          "lon": 1.64931,
+          "lat": 49.24076
+        },
+        {
+          "lon": 1.64645,
+          "lat": 49.22022
+        },
+        {
+          "lon": 1.66796,
+          "lat": 49.20946
+        },
+        {
+          "lon": 1.68653,
+          "lat": 49.20974
+        }
+      ]
+    }
+  ]
+}

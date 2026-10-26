@@ -33,6 +33,12 @@ const MODELS: ModelSpec[] = [
   { file: 'berline', kind: 'car', cruise: [14, 20], repaint: true, weight: 3 },
   { file: 'suv', kind: 'car', cruise: [13, 19], repaint: true, weight: 2 },
   { file: 'porsche-911', kind: 'car', cruise: [17, 24], repaint: true, weight: 1 },
+  { file: 'nissan-silvia', kind: 'car', cruise: [15, 21], repaint: true, weight: 1.5 },
+  { file: 'bmw-733i', kind: 'car', cruise: [14, 20], repaint: false, weight: 1.5 },
+  { file: 'mercedes-c230', kind: 'car', cruise: [14, 20], repaint: false, weight: 1.5 },
+  { file: 'lamborghini-aventador', kind: 'car', cruise: [17, 25], repaint: true, weight: 0.8 },
+  { file: 'mclaren-720s', kind: 'car', cruise: [17, 25], repaint: true, weight: 0.8 },
+  { file: 'de-tomaso-p72', kind: 'car', cruise: [16, 23], repaint: false, weight: 0.6 },
   { file: 'utilitaire', kind: 'van', cruise: [13, 17], repaint: false, weight: 1.5 },
   { file: 'tractor', kind: 'tractor', cruise: [6.5, 8.5], repaint: false, weight: 0 },
 ];
@@ -266,8 +272,9 @@ export class Traffic {
   }
 
   /** @param riders distances déroulées et décalages des coureurs (joueur compris) */
-  update(dt: number, player: { distM: number }, riders: Array<{ distM: number; lateral: number; speedMs: number }>): void {
+  update(dt: number, player: { distM: number }, riders: Array<{ distM: number; lateral: number; speedMs: number }>, playerDir: 1 | -1 = 1): void {
     const L = this.track.length;
+    const me = riders[0];
     const half = this.track.route.roadWidthM / 4;
     for (const v of this.vehicles) {
       // Recyclage : un véhicule trop loin réapparaît hors de vue, derrière (même sens) ou devant (en face).
@@ -295,7 +302,16 @@ export class Traffic {
         // En face : ralentit quand un coureur occupe le milieu de la chaussée.
         if (riders.some((r) => Math.abs(r.distM - v.d) < 40 && r.lateral < 0.3)) target = Math.min(target, 9);
       }
-      v.speed += Math.max(-4 * dt, Math.min(2 * dt, target - v.speed));
+      // Joueur de face dans notre voie : on s'arrête net (le vélo est déporté par `yieldPush`).
+      let brake = 4;
+      if (me && v.sens !== playerDir) {
+        const gap = (me.distM - v.d) * v.sens;
+        if (gap > 0 && gap < 45 && Math.abs(me.lateral - v.lateral) < 1.8) {
+          target = 0;
+          brake = 8;
+        }
+      }
+      v.speed += Math.max(-brake * dt, Math.min(2 * dt, target - v.speed));
       v.lateral += (lateralTarget - v.lateral) * Math.min(1, dt * 0.9);
       v.d += v.sens * v.speed * dt;
       // Itinéraire ouvert (monde ouvert, montée) : pas de véhicule au-delà des extrémités connues.
@@ -311,6 +327,19 @@ export class Traffic {
       const spin = (v.speed / v.wheelRadius) * dt;
       for (const w of v.wheels) w.rotation.x += spin;
     }
+  }
+
+  /**
+   * Déport latéral (m/s, signé) à appliquer au joueur qui roule en face d'un véhicule arrêté devant lui :
+   * le vélo est ramené vers sa voie pour repartir. 0 si rien ne bloque.
+   */
+  yieldPush(distM: number, lateral: number, dir: 1 | -1): number {
+    for (const v of this.vehicles) {
+      if (v.sens === dir || v.speed > 2) continue;
+      const gap = (distM - v.d) * v.sens;
+      if (gap > -2 && gap < 14 && Math.abs(lateral - v.lateral) < 1.8) return dir * 2.5;
+    }
+    return 0;
   }
 
   /** Véhicules pour le son (position, vitesse) ; `id` stable = rang du véhicule. */

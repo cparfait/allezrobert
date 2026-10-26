@@ -1,0 +1,17 @@
+/* Retouche des repères du visage (photo → avatar). */
+.lme-modal { position: fixed; inset: 0; z-index: 80; display: grid; place-items: center; background: rgba(4, 6, 10, 0.78); backdrop-filter: blur(4px); padding: 12px; box-sizing: border-box; }
+.lme-dialog { width: min(640px, 100%); max-height: 100%; overflow: auto; padding: 18px 20px; border-radius: 16px; background: #11151d; border: 1px solid rgba(255, 255, 255, 0.1); box-shadow: 0 30px 80px rgba(0, 0, 0, 0.55); color: #d8dee6; font-size: 13.5px; }
+.lme-dialog h2 { margin: 0 0 6px; font-size: 20px; color: #fff; }
+.lme-dialog p { margin: 0 0 12px; color: #aeb7c3; line-height: 1.45; }
+.lme-stage { position: relative; width: 100%; max-height: 62vh; margin: 0 auto; border-radius: 10px; overflow: hidden; background: #000; touch-action: none; }
+.lme-photo, .lme-svg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.lme-line { fill: none; stroke: rgba(255, 255, 255, 0.55); stroke-width: 1.4; stroke-linejoin: round; pointer-events: none; }
+.lme-pt { cursor: grab; }
+.lme-pt:active { cursor: grabbing; }
+.lme-hit { fill: transparent; }
+.lme-dot { stroke: #0a0e16; stroke-width: 1.6; }
+.lme-pt:hover .lme-dot { r: 7.5; }
+.lme-legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 10px 0 2px; font-size: 12px; color: #aeb7c3; }
+.lme-legend span::before { content: ''; display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--c); margin-right: 5px; }
+.lme-foot { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+@media (max-width: 700px) { .lme-dialog { padding: 14px; } .lme-stage { max-height: 52vh; } }

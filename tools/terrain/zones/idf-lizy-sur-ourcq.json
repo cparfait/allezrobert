@@ -1,0 +1,259 @@
+{
+  "kind": "open",
+  "id": "idf-lizy-sur-ourcq",
+  "name": "Île-de-France — Lizy-sur-Ourcq",
+  "region": "Seine-et-Marne · Île-de-France",
+  "originL93": {
+    "x": 696000,
+    "y": 6884000
+  },
+  "corridorTiles": {
+    "txMin": -8,
+    "txMax": 7,
+    "tzMin": -8,
+    "tzMax": 7
+  },
+  "start": {
+    "lon": 3.01344,
+    "lat": 49.04073
+  },
+  "orthoPx": 1024,
+  "horizon": {
+    "halfSizeM": 30000,
+    "resM": 100
+  },
+  "tours": [
+    {
+      "routeId": "boucle-20-km",
+      "routeName": "Boucle de 20 km depuis Lizy-sur-Ourcq",
+      "routeNameEn": "20 km loop from Lizy-sur-Ourcq",
+      "start": {
+        "lon": 3.01344,
+        "lat": 49.04073
+      },
+      "via": [
+        {
+          "lon": 3.01344,
+          "lat": 49.04073
+        },
+        {
+          "lon": 3.00959,
+          "lat": 49.02545
+        },
+        {
+          "lon": 2.97617,
+          "lat": 49.01145
+        },
+        {
+          "lon": 2.96765,
+          "lat": 49.02668
+        },
+        {
+          "lon": 2.97317,
+          "lat": 49.04074
+        },
+        {
+          "lon": 2.9915,
+          "lat": 49.05124
+        }
+      ]
+    },
+    {
+      "routeId": "boucle-30-km",
+      "routeName": "Boucle de 30 km depuis Lizy-sur-Ourcq",
+      "routeNameEn": "30 km loop from Lizy-sur-Ourcq",
+      "start": {
+        "lon": 3.01344,
+        "lat": 49.04073
+      },
+      "via": [
+        {
+          "lon": 3.01344,
+          "lat": 49.04073
+        },
+        {
+          "lon": 2.98381,
+          "lat": 49.03447
+        },
+        {
+          "lon": 2.95896,
+          "lat": 49.02256
+        },
+        {
+          "lon": 2.93443,
+          "lat": 49.03649
+        },
+        {
+          "lon": 2.94033,
+          "lat": 49.05781
+        },
+        {
+          "lon": 2.96256,
+          "lat": 49.07983
+        },
+        {
+          "lon": 2.98823,
+          "lat": 49.08882
+        },
+        {
+          "lon": 2.99122,
+          "lat": 49.0959
+        },
+        {
+          "lon": 3.01219,
+          "lat": 49.08144
+        },
+        {
+          "lon": 3.01547,
+          "lat": 49.06641
+        }
+      ]
+    },
+    {
+      "routeId": "boucle-40-km",
+      "routeName": "Boucle de 40 km depuis Lizy-sur-Ourcq",
+      "routeNameEn": "40 km loop from Lizy-sur-Ourcq",
+      "start": {
+        "lon": 3.01344,
+        "lat": 49.04073
+      },
+      "via": [
+        {
+          "lon": 3.01344,
+          "lat": 49.04073
+        },
+        {
+          "lon": 3.0252,
+          "lat": 49.01781
+        },
+        {
+          "lon": 3.01209,
+          "lat": 49.00264
+        },
+        {
+          "lon": 2.99546,
+          "lat": 48.99301
+        },
+        {
+          "lon": 2.95938,
+          "lat": 48.99248
+        },
+        {
+          "lon": 2.93679,
+          "lat": 48.99722
+        },
+        {
+          "lon": 2.91431,
+          "lat": 49.00618
+        },
+        {
+          "lon": 2.8959,
+          "lat": 48.99621
+        },
+        {
+          "lon": 2.89848,
+          "lat": 49.00299
+        },
+        {
+          "lon": 2.91638,
+          "lat": 49.02364
+        },
+        {
+          "lon": 2.92455,
+          "lat": 49.03661
+        },
+        {
+          "lon": 2.93506,
+          "lat": 49.05177
+        },
+        {
+          "lon": 2.96002,
+          "lat": 49.06743
+        },
+        {
+          "lon": 2.97318,
+          "lat": 49.05667
+        }
+      ]
+    },
+    {
+      "routeId": "boucle-50-km",
+      "routeName": "Boucle de 50 km depuis Lizy-sur-Ourcq",
+      "routeNameEn": "50 km loop from Lizy-sur-Ourcq",
+      "start": {
+        "lon": 3.01344,
+        "lat": 49.04073
+      },
+      "via": [
+        {
+          "lon": 3.01344,
+          "lat": 49.04073
+        },
+        {
+          "lon": 3.00959,
+          "lat": 49.02545
+        },
+        {
+          "lon": 2.97342,
+          "lat": 49.0092
+        },
+        {
+          "lon": 2.94595,
+          "lat": 49.00688
+        },
+        {
+          "lon": 2.91431,
+          "lat": 49.00618
+        },
+        {
+          "lon": 2.8829,
+          "lat": 49.01637
+        },
+        {
+          "lon": 2.88218,
+          "lat": 49.03445
+        },
+        {
+          "lon": 2.8671,
+          "lat": 49.0533
+        },
+        {
+          "lon": 2.86367,
+          "lat": 49.07615
+        },
+        {
+          "lon": 2.86826,
+          "lat": 49.08317
+        },
+        {
+          "lon": 2.89509,
+          "lat": 49.10162
+        },
+        {
+          "lon": 2.9178,
+          "lat": 49.11188
+        },
+        {
+          "lon": 2.94066,
+          "lat": 49.10433
+        },
+        {
+          "lon": 2.9636,
+          "lat": 49.10979
+        },
+        {
+          "lon": 2.97185,
+          "lat": 49.09695
+        },
+        {
+          "lon": 3.00838,
+          "lat": 49.09135
+        },
+        {
+          "lon": 3.01547,
+          "lat": 49.06641
+        }
+      ]
+    }
+  ]
+}

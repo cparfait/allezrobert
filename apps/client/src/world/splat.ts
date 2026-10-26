@@ -3,6 +3,17 @@ import { SPLAT_CHANNELS } from './types.ts';
 
 const RES = 256;
 
+/**
+ * Doublon, sous un autre itinéraire, d'une route de l'itinéraire actif (même voie OSM, écrite
+ * une fois par boucle qui l'emprunte) : décalé d'un mètre ou deux de la chaussée du ruban, il
+ * peindrait de l'asphalte flou ou un second ruban à côté.
+ */
+export function isRouteTwin(r: { id?: string; route?: string }, roads: readonly { id?: string; route?: string }[], active: string | null): boolean {
+  if (!active || !r.route || r.route === active || !r.id) return false;
+  const way = r.id.slice(r.id.lastIndexOf(':') + 1);
+  return roads.some((o) => o.route === active && o.id?.slice(o.id.lastIndexOf(':') + 1) === way);
+}
+
 /** Occupations du sol OSM rangées par canal. */
 const FIELD_KINDS = new Set(['farmland', 'orchard', 'vineyard', 'allotments', 'farmyard', 'sand']);
 /** Roche nue et éboulis (OSM natural=bare_rock, scree, shingle). */
@@ -79,7 +90,7 @@ export function rasterizeSplat(tile: LoadedTile, skipRoute: string | null = null
       f.roads
         // la chaussée de l'itinéraire actif est le ruban de RoadMesh : la teinter ici déborderait
         // de ±4 m (un pixel ≈ 4 m) sur ses bas-côtés
-        .filter((r) => !r.tunnel && (!skipRoute || r.route !== skipRoute))
+        .filter((r) => !r.tunnel && (!skipRoute || r.route !== skipRoute) && !isRouteTwin(r, f.roads, skipRoute))
         .forEach((r) => {
           ctx.lineWidth = Math.max(r.width * scale, 1);
           ctx.beginPath();

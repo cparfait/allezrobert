@@ -14,6 +14,7 @@ import path from 'node:path';
 import { execFile, spawn, type ChildProcess } from 'node:child_process';
 import { ZONES_DIR, REPO_ROOT, allWorlds, type OpenWorld, type WorldConfig } from './config.ts';
 import { fromL93, toL93 } from './lambert93.ts';
+import { configFile as deployConfigFile, loadConfig as deployConfig, localGit, localZones as deployLocalZones, remoteState, saveConfig as deploySaveConfig } from '../../../deploy/deploy-core.mjs';
 import { estimate, frameFromRect, readWorldLine, rectFromWorld, upsertSpotLine, upsertWorldLine, validate, zoneJson, type Pt, type ZoneDraft } from './zone-builder-lib.ts';
 
 const PORT = Number(process.env.ZONE_BUILDER_PORT ?? 5199);
@@ -26,8 +27,18 @@ const STATE_DIR = path.join(REPO_ROOT, 'data', 'cache', 'zone-builder');
 const BACKUP_DIR = path.join(STATE_DIR, 'backups');
 const JOB_FILE = path.join(STATE_DIR, 'job.json');
 const LOG_FILE = path.join(STATE_DIR, 'job.log');
+/** État de la dernière reconstruction de tous les mondes (gardé quand un autre travail remplace job.json). */
+const REBUILD_FILE = path.join(STATE_DIR, 'rebuild-all.json');
 
 const read = (f: string) => fs.readFileSync(f, 'utf8');
+
+/**
+ * Le panneau « Serveur » (envoi des zones, mise à jour du VPS) est réservé au propriétaire du serveur : le
+ * constructeur de zone sert aussi aux joueurs (Réglages › mode expert, sur leur machine), qui n'ont aucun
+ * serveur à mettre à jour. Actif seulement si deploy/.deploy-gui.json existe (réglages enregistrés par le
+ * propriétaire, ignorés par git) ou avec ZONE_BUILDER_DEPLOY=1 (premier réglage).
+ */
+const deployEnabled = (): boolean => process.env.ZONE_BUILDER_DEPLOY === '1' || fs.existsSync(deployConfigFile);
 const stamp = () => new Date().toISOString().replace(/[:.]/g, '-');
 
 function backup(file: string): void {
@@ -160,6 +171,10 @@ interface Step {
   status: 'pending' | 'running' | 'done' | 'failed' | 'cancelled';
   /** Sortie du pas (vérifications seulement : sert au tableau de résultats). */
   out?: string;
+  startedAt?: string;
+  endedAt?: string;
+  /** Monde reconstruit par ce pas (reconstruction de tous les mondes). */
+  zone?: string;
 }
 interface Job {
   id: string;
@@ -170,6 +185,8 @@ interface Job {
   steps: Step[];
   /** Vérification de zones : un pas en échec n'arrête pas les suivants. */
   keepGoing?: boolean;
+  /** Reconstruction de tous les mondes publiés (état gardé dans REBUILD_FILE). */
+  rebuildAll?: boolean;
 }
 
 let job: Job | null = null;
@@ -201,6 +218,59 @@ const jobRunning = () => job?.status === 'running';
 function persist(): void {
   fs.mkdirSync(STATE_DIR, { recursive: true });
   fs.writeFileSync(JOB_FILE, JSON.stringify(job, null, 1));
+  if (job?.rebuildAll) fs.writeFileSync(REBUILD_FILE, JSON.stringify(job, null, 1));
+}
+
+/** Dernière reconstruction de tous les mondes (en cours ou terminée), null si jamais lancée. */
+function rebuildState(): Job | null {
+  if (job?.rebuildAll) return job;
+  try {
+    const j = JSON.parse(read(REBUILD_FILE)) as Job;
+    if (j.status === 'running') {
+      // serveur relancé pendant la reconstruction : elle s'est arrêtée
+      j.status = 'failed';
+      for (const st of j.steps) if (st.status === 'running' || st.status === 'pending') st.status = 'cancelled';
+    }
+    return j;
+  } catch {
+    return null;
+  }
+}
+
+/** Mondes publiés (catalogue index.json) que l'outil sait reconstruire (hors mondes privés). */
+function publishedZoneIds(): string[] {
+  const all = allWorlds();
+  const cat = JSON.parse(read(path.join(PUBLIC_WORLDS, 'index.json'))) as { zones: Array<{ id: string }> };
+  return cat.zones.map((z) => z.id).filter((id) => all[id] && !all[id]!.private);
+}
+
+/**
+ * Reconstruit tous les mondes publiés, l'un après l'autre (un échec n'arrête pas la suite), puis les
+ * packs. `resume` : reprend la dernière reconstruction en gardant les mondes déjà faits.
+ */
+async function startRebuildAll(opts: { noOrtho: boolean; offline: boolean; resume: boolean; exclude?: string[] }): Promise<Job> {
+  if (jobRunning()) throw new Error('un travail de l’outil est déjà en cours');
+  const others = await otherBuilds();
+  if (others.length) throw new Error(`une construction tourne déjà ailleurs, rien lancé :\n${others.join('\n')}`);
+  const prev = opts.resume ? rebuildState() : null;
+  const doneBefore = new Map((prev?.steps ?? []).filter((st) => st.zone && st.status === 'done').map((st) => [st.zone as string, st]));
+  const flags = [opts.noOrtho && '--no-ortho', opts.offline && '--offline'].filter(Boolean).join(' ');
+  // « Sauf » : zones laissées telles quelles (les identifiants inconnus sont refusés, pour éviter une faute de frappe silencieuse).
+  const published = publishedZoneIds();
+  const exclude = (opts.exclude ?? []).filter(Boolean);
+  const unknown = exclude.filter((id) => !published.includes(id));
+  if (unknown.length) throw new Error(`zone(s) inconnue(s) dans « Sauf » : ${unknown.join(', ')}`);
+  const todo = published.filter((id) => !exclude.includes(id));
+  if (!todo.length) throw new Error('toutes les zones sont exclues : rien à reconstruire');
+  const steps: Step[] = todo.map((id) => doneBefore.get(id) ?? { name: `build ${id}`, zone: id, cmd: `pnpm --filter @allezrobert/terrain build:world -- --world ${id}${flags ? ` ${flags}` : ''}`, status: 'pending' });
+  steps.push({ name: 'packs', cmd: 'pnpm --filter @allezrobert/terrain packs', status: 'pending' });
+  job = { id: 'tous-les-mondes', status: 'running', startedAt: prev && opts.resume ? prev.startedAt : new Date().toISOString(), steps, keepGoing: true, rebuildAll: true };
+  cancelled = false;
+  fs.mkdirSync(STATE_DIR, { recursive: true });
+  fs.writeFileSync(LOG_FILE, `# ${new Date().toISOString()} — reconstruction de ${steps.length - 1} monde(s)${doneBefore.size ? `, ${doneBefore.size} déjà faits gardés` : ''}\n`);
+  persist();
+  void runSteps();
+  return job;
 }
 
 function log(text: string): void {
@@ -234,7 +304,7 @@ function otherBuilds(): Promise<string[]> {
   });
 }
 
-async function startBuild(opts: { id: string; noOrtho: boolean; offline: boolean; graphOnly: boolean; verify: boolean; packs: boolean }): Promise<Job> {
+async function startBuild(opts: { id: string; noOrtho: boolean; offline: boolean; graphOnly: boolean; verify: boolean; packs: boolean; send?: boolean }): Promise<Job> {
   if (jobRunning()) throw new Error('une construction de l’outil est déjà en cours');
   if (!/^[a-z0-9]+(-[a-z0-9]+)*$/.test(opts.id)) throw new Error('identifiant invalide');
   const w = allWorlds()[opts.id];
@@ -246,10 +316,46 @@ async function startBuild(opts: { id: string; noOrtho: boolean; offline: boolean
   const steps: Step[] = [{ name: 'build:world', cmd: `pnpm --filter @allezrobert/terrain build:world -- --world ${opts.id}${flags ? ` ${flags}` : ''}`, status: 'pending' }];
   if (opts.verify && !opts.graphOnly) steps.push({ name: 'verify-world', cmd: `pnpm --filter @allezrobert/terrain exec tsx src/verify-world.ts --world ${opts.id}`, status: 'pending' });
   if (opts.packs) steps.push({ name: 'packs', cmd: 'pnpm --filter @allezrobert/terrain packs', status: 'pending' });
+  if (opts.send && deployEnabled() && !opts.graphOnly) steps.push(deployStep(`envoi ${opts.id} au serveur`, { action: 'send-zones', ids: [opts.id] }));
   job = { id: opts.id, status: 'running', startedAt: new Date().toISOString(), steps };
   cancelled = false;
   fs.mkdirSync(STATE_DIR, { recursive: true });
   fs.writeFileSync(LOG_FILE, `# ${job.startedAt} — zone ${opts.id}\n`);
+  persist();
+  void runSteps();
+  return job;
+}
+
+/**
+ * Pas de déploiement : lance deploy/deploy-core.mjs (même noyau que l'outil autonome) avec la demande écrite dans
+ * un fichier, ce qui évite tout problème de guillemets dans la commande du shell.
+ */
+function deployStep(name: string, req: Record<string, unknown>): Step {
+  fs.mkdirSync(STATE_DIR, { recursive: true });
+  const file = path.join(STATE_DIR, `deploy-${Date.now()}-${Math.random().toString(36).slice(2, 6)}.json`);
+  fs.writeFileSync(file, JSON.stringify(req));
+  return { name, cmd: `node deploy/deploy-core.mjs run ${JSON.stringify(file)}`, status: 'pending' };
+}
+
+/** Mise à jour du serveur : application (git pull + Docker), zones, vidéos du menu. */
+async function startDeploy(b: { action: string; ids?: unknown; branch?: unknown; mode?: unknown; push?: unknown }): Promise<Job> {
+  if (jobRunning()) throw new Error('un travail de l’outil est déjà en cours');
+  const steps: Step[] = [];
+  if (b.action === 'send-zones') {
+    const ids = (Array.isArray(b.ids) ? b.ids.map(String) : []).filter((i) => /^[a-z0-9-]+$/.test(i));
+    if (!ids.length) throw new Error('aucune zone choisie');
+    for (const id of ids) steps.push(deployStep(`envoi ${id}`, { action: 'send-zones', ids: [id] }));
+  } else if (b.action === 'update-app') {
+    steps.push(deployStep('mise à jour de l’application', { action: 'update-app', branch: String(b.branch ?? ''), mode: b.mode === 'pull' ? 'pull' : 'build', push: !!b.push }));
+  } else if (b.action === 'install-key') {
+    steps.push(deployStep('installation de la clé SSH', { action: 'install-key' }));
+  } else if (b.action === 'send-menu') {
+    steps.push(deployStep('vidéos du menu', { action: 'send-menu' }));
+  } else throw new Error('action inconnue');
+  job = { id: 'serveur', status: 'running', startedAt: new Date().toISOString(), steps, keepGoing: true };
+  cancelled = false;
+  fs.mkdirSync(STATE_DIR, { recursive: true });
+  fs.writeFileSync(LOG_FILE, `# ${job.startedAt} — serveur : ${b.action}\n`);
   persist();
   void runSteps();
   return job;
@@ -338,7 +444,10 @@ async function runSteps(): Promise<void> {
   const j = job!;
   for (const step of j.steps) {
     if (cancelled) break;
+    if (step.status === 'done') continue; // déjà fait (reprise)
     step.status = 'running';
+    step.startedAt = new Date().toISOString();
+    step.endedAt = undefined;
     log(`\n$ ${step.cmd}\n`);
     const ok = await new Promise<boolean>((resolve) => {
       child = spawn(step.cmd, { shell: true, cwd: REPO_ROOT, detached: process.platform !== 'win32', env: { ...process.env, FORCE_COLOR: '0' } });
@@ -360,6 +469,7 @@ async function runSteps(): Promise<void> {
       });
     });
     step.status = cancelled ? 'cancelled' : ok ? 'done' : 'failed';
+    step.endedAt = new Date().toISOString();
     persist();
     if (!ok && !j.keepGoing) break;
   }
@@ -493,7 +603,7 @@ const server = http.createServer(async (req, res) => {
       if (req.headers['x-zone-builder'] !== '1' || (origin && !/^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/.test(origin))) return send(res, 403, { error: 'requête refusée' });
     }
     if (req.method === 'GET' && url.pathname === '/') return send(res, 200, read(PAGE), 'text/html; charset=utf-8');
-    if (req.method === 'GET' && url.pathname === '/api/zones') return send(res, 200, { zones: listZones(), job });
+    if (req.method === 'GET' && url.pathname === '/api/zones') return send(res, 200, { zones: listZones(), job, deploy: deployEnabled() });
     if (req.method === 'GET' && url.pathname === '/api/zone') {
       const id = url.searchParams.get('id') ?? '';
       const w = allWorlds()[id];
@@ -503,7 +613,7 @@ const server = http.createServer(async (req, res) => {
     }
     if (req.method === 'GET' && url.pathname === '/api/job') {
       const { text, size } = readLog(Number(url.searchParams.get('from') ?? 0));
-      return send(res, 200, { job, text, size, verify: verifySummary(job) });
+      return send(res, 200, { job, text, size, verify: verifySummary(job), rebuild: rebuildState() });
     }
     if (req.method === 'GET' && url.pathname === '/api/geo') {
       // conversions Lambert-93 ↔ WGS84 pour la page (une seule implémentation de la projection)
@@ -523,7 +633,13 @@ const server = http.createServer(async (req, res) => {
     }
     if (req.method === 'POST' && url.pathname === '/api/build') {
       const b = (await bodyOf(req)) as Record<string, unknown>;
-      const j = await startBuild({ id: String(b.id ?? ''), noOrtho: !!b.noOrtho, offline: !!b.offline, graphOnly: !!b.graphOnly, verify: b.verify !== false, packs: b.packs !== false });
+      const j = await startBuild({ id: String(b.id ?? ''), noOrtho: !!b.noOrtho, offline: !!b.offline, graphOnly: !!b.graphOnly, verify: b.verify !== false, packs: b.packs !== false, send: !!b.send });
+      return send(res, 200, { job: j });
+    }
+    if (req.method === 'POST' && url.pathname === '/api/rebuild-all') {
+      const b = (await bodyOf(req)) as Record<string, unknown>;
+      const exclude = Array.isArray(b.exclude) ? b.exclude.map(String).filter((i) => /^[a-z0-9-]+$/.test(i)) : [];
+      const j = await startRebuildAll({ noOrtho: !!b.noOrtho, offline: !!b.offline, resume: !!b.resume, exclude });
       return send(res, 200, { job: j });
     }
     if (req.method === 'POST' && url.pathname === '/api/verify') {
@@ -542,6 +658,16 @@ const server = http.createServer(async (req, res) => {
       return send(res, 200, { status: 'running' });
     }
     if (req.method === 'POST' && url.pathname === '/api/plan/cancel') return send(res, 200, { cancelled: cancelPlan() });
+    if (url.pathname.startsWith('/api/deploy/') && !deployEnabled()) return send(res, 403, { error: 'déploiement non activé sur cette machine (réservé au propriétaire du serveur)' });
+    if (req.method === 'GET' && url.pathname === '/api/deploy/state') {
+      const config = deployConfig();
+      return send(res, 200, { config, git: await localGit(), local: deployLocalZones(), remote: await remoteState(config) });
+    }
+    if (req.method === 'POST' && url.pathname === '/api/deploy/config') return send(res, 200, deploySaveConfig((await bodyOf(req)) as Record<string, unknown>));
+    if (req.method === 'POST' && url.pathname === '/api/deploy/run') {
+      const j = await startDeploy((await bodyOf(req)) as { action: string });
+      return send(res, 200, { job: j });
+    }
     if (req.method === 'POST' && url.pathname === '/api/cancel') return send(res, 200, { cancelled: cancelBuild() });
     send(res, 404, { error: 'introuvable' });
   } catch (e) {

@@ -135,15 +135,99 @@ export function shapeVector(lm: readonly Landmark[], cal: LikenessCalibration, a
 }
 
 /**
- * Curseurs (−1 → 1) qui reproduisent la forme `f` : régression ridge, curseurs saturés figés
- * puis nouvelle résolution des autres.
+ * Repères du maillage que la retouche manuelle propose de placer (ui/landmarkEditor.ts) : yeux,
+ * sourcils, nez, bouche, tempes, mâchoire, menton. Une fois validés par l'utilisateur, ce sont les
+ * mesures les plus sûres de la photo ; le reste du maillage (barbe, cheveux, oreilles, lunettes)
+ * est deviné par le détecteur.
  */
-export function fitSliders(f: readonly number[], cal: LikenessCalibration, lambda = cal.lambda): Record<string, number> {
+export const HANDLE_INDICES = [33, 133, 362, 263, 70, 107, 336, 300, 168, 1, 98, 327, 61, 291, 13, 14, 10, 234, 454, 172, 397, 152] as const;
+
+/**
+ * Curseurs plus difficiles à écarter de la tête de base : les volumes mous (joues, graisse) et les
+ * traits que le détecteur devine sans appui sur les points posés (oreilles, cou). Sans cela,
+ * l'ajustement obtient la largeur de mâchoire d'une barbe en gonflant les joues.
+ */
+export const STIFFNESS: Readonly<Record<string, number>> = { faceFat: 6, cheekVolume: 4, earSize: 3, earAngle: 4, neckWidth: 3, eyelidFold: 2 };
+
+/** Poids d'un repère éloigné de tous les points posés à la main (1 = poids plein, au pied d'un point). */
+const FAR_WEIGHT = 0.25;
+/** Rayon d'influence d'un point posé, en part de la distance entre les yeux. */
+const HANDLE_REACH = 0.3;
+
+/**
+ * Déplace le repère `h` de (dx, dy) normalisés ; les repères du maillage tout proches (en position
+ * d'origine, gaussienne de portée `sigma`) suivent. Les autres points posés à la main ne bougent jamais.
+ */
+export function moveLandmark(orig: readonly Landmark[], cur: Landmark[], h: number, dx: number, dy: number, sigma: number): void {
+  const o = orig[h] as Landmark;
+  for (let i = 0; i < cur.length; i++) {
+    if (i !== h && (HANDLE_INDICES as readonly number[]).includes(i)) continue;
+    const d = Math.hypot((orig[i] as Landmark).x - o.x, (orig[i] as Landmark).y - o.y);
+    const w = i === h ? 1 : Math.exp(-((d / sigma) ** 2));
+    if (w < 0.01) continue;
+    (cur[i] as Landmark).x += dx * w;
+    (cur[i] as Landmark).y += dy * w;
+  }
+}
+
+/** Part du poids du bas du visage retirée par une barbe pleine. */
+const BEARD_CUT = 0.85;
+/** Distance sous la lèvre (en part de la distance entre les yeux) à partir de laquelle le bas du visage compte pour de bon. */
+const BELOW_LIP = 0.15;
+
+interface HandleReach {
+  /** Proximité (1 = au pied du point, → 0 au loin) du point posé le plus proche. */
+  near: number[];
+  /** 0 au niveau de la lèvre du bas ou au-dessus → 1 à `BELOW_LIP` en dessous (menton, mâchoire). */
+  below: number[];
+}
+
+const reachCache = new WeakMap<LikenessCalibration, HandleReach>();
+
+function handleReach(cal: LikenessCalibration): HandleReach {
+  const hit = reachCache.get(cal);
+  if (hit) return hit;
+  const at = (i: number) => [cal.ref[i * 3] as number, cal.ref[i * 3 + 1] as number, cal.ref[i * 3 + 2] as number] as const;
+  const dist = (a: readonly number[], b: readonly number[]) => Math.hypot((a[0] as number) - (b[0] as number), (a[1] as number) - (b[1] as number), (a[2] as number) - (b[2] as number));
+  const iod = dist(at(33), at(263)) || 0.4;
+  const reach = iod * HANDLE_REACH;
+  const lipY = at(14)[1];
+  const out: HandleReach = { near: [], below: [] };
+  for (let k = 0; k < cal.count; k++) {
+    const p = at(k * cal.step);
+    out.near.push(Math.exp(-((Math.min(...HANDLE_INDICES.map((h) => dist(p, at(h)))) / reach) ** 2)));
+    out.below.push(Math.max(0, Math.min(1, (p[1] - lipY) / (iod * BELOW_LIP))));
+  }
+  reachCache.set(cal, out);
+  return out;
+}
+
+/**
+ * Poids de chaque repère retenu dans l'ajustement (moyenne 1) : fort au voisinage des points posés
+ * à la main, faible ailleurs. Avec une barbe (0 → 1), tout ce qui est sous la lèvre du bas (menton,
+ * mâchoire, points posés compris) perd l'essentiel de son poids : le contour de la barbe n'est pas
+ * celui du visage. Calculé dans la forme de référence de l'étalonnage.
+ */
+export function pointWeights(cal: LikenessCalibration, beard = 0): number[] {
+  const { near, below } = handleReach(cal);
+  const cut = BEARD_CUT * Math.max(0, Math.min(1, beard));
+  const w = near.map((o, k) => (FAR_WEIGHT + (1 - FAR_WEIGHT) * o) * (1 - cut * (below[k] as number)));
+  const mean = w.reduce((a, b) => a + b, 0) / w.length;
+  return w.map((v) => v / mean);
+}
+
+/**
+ * Curseurs (−1 → 1) qui reproduisent la forme `f` : régression ridge pondérée par repère (`weights`,
+ * un par repère retenu ; uniforme par défaut), régularisation multipliée par `stiffness` pour certains
+ * curseurs, curseurs saturés figés puis nouvelle résolution des autres.
+ */
+export function fitSliders(f: readonly number[], cal: LikenessCalibration, lambda = cal.lambda, weights?: readonly number[], stiffness?: Readonly<Record<string, number>>): Record<string, number> {
   const pose = cal.pose ?? [];
   const cols = [...cal.jacobian, ...pose];
-  const reg = [...cal.jacobian.map(() => lambda), ...pose.map(() => lambda * 1e-3)];
+  const reg = [...cal.sliders.map((n) => lambda * (stiffness?.[n] ?? 1)), ...pose.map(() => lambda * 1e-3)];
   const nS = cols.length;
   const r = cal.base.map((b, i) => (f[i] as number) - b);
+  const wt = (i: number) => weights?.[Math.floor(i / 3)] ?? 1;
   const fixed = new Map<number, number>();
   const x = new Array<number>(nS).fill(0);
   for (let pass = 0; pass < 6; pass++) {
@@ -158,10 +242,10 @@ export function fitSliders(f: readonly number[], cal: LikenessCalibration, lambd
     const bvec = new Array<number>(n).fill(0);
     for (let a = 0; a < n; a++) {
       const ja = cols[free[a] as number] as number[];
-      bvec[a] = ja.reduce((s, v, i) => s + v * (rr[i] as number), 0);
+      bvec[a] = ja.reduce((s, v, i) => s + wt(i) * v * (rr[i] as number), 0);
       for (let c = a; c < n; c++) {
         const jc = cols[free[c] as number] as number[];
-        const s = ja.reduce((acc, v, i) => acc + v * (jc[i] as number), 0);
+        const s = ja.reduce((acc, v, i) => acc + wt(i) * v * (jc[i] as number), 0);
         (A[a] as number[])[c] = s;
         (A[c] as number[])[a] = s;
       }
@@ -205,4 +289,45 @@ function solve(A: number[][], b: number[]): number[] {
     const d = row[i] as number;
     return Math.abs(d) < 1e-12 ? 0 : (row[n] as number) / d;
   });
+}
+
+/**
+ * Plafond de chaque curseur issu d'une photo : l'ajustement seul, sur des repères imparfaits (angle,
+ * focale, expression), donnait des têtes énormes et déformées. Les curseurs du crâne et du volume
+ * restent proches de la tête de base ; les traits (yeux, nez, bouche) gardent plus de liberté.
+ */
+const TAME_LIMIT: Record<string, number> = {
+  headWidth: 0.3,
+  headLength: 0.3,
+  headDepth: 0.3,
+  foreheadSlope: 0.4,
+  earSize: 0.4,
+  earAngle: 0.4,
+  neckWidth: 0.4,
+  faceFat: 0.45,
+  cheekVolume: 0.45,
+  jawWidth: 0.55,
+  jawHeight: 0.55,
+  chinHeight: 0.5,
+  chinWidth: 0.5,
+};
+const TAME_DEFAULT = 0.7;
+/** Part de l'écart à la tête de base conservée (1 = fidèle à l'ajustement). */
+const TAME_SHRINK = 0.8;
+
+export interface TameOptions {
+  /** Part de l'écart à la tête de base conservée (1 = fidèle à l'ajustement). */
+  shrink?: number;
+  /** Multiplicateur des plafonds de TAME_LIMIT (et de TAME_DEFAULT), borné à 1. */
+  limitScale?: number;
+}
+
+/** Curseurs ramenés vers la tête de base et plafonnés (voir TAME_LIMIT). */
+export function tameSliders(face: Record<string, number>, { shrink = TAME_SHRINK, limitScale = 1 }: TameOptions = {}): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const [k, v] of Object.entries(face)) {
+    const lim = Math.min(1, (TAME_LIMIT[k] ?? TAME_DEFAULT) * limitScale);
+    out[k] = Math.round(Math.max(-lim, Math.min(lim, v * shrink)) * 100) / 100;
+  }
+  return out;
 }

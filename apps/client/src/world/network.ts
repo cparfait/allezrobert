@@ -2,6 +2,7 @@ import * as THREE from 'three/webgpu';
 import { uv, attribute, mix, smoothstep, step, fract, floor, hash, min, vec3, float, uniform, mx_noise_float, positionWorld, clamp, abs, max } from 'three/tsl';
 import type { LoadedTile, TileRoad } from './types.ts';
 import { asphaltGrain } from './asphalt.ts';
+import { isRouteTwin } from './splat.ts';
 import { ribbonIndex, sideRoadStrips, type RouteFootprint } from './ribbon.ts';
 
 /** Routes revêtues avec marquage axial (départementales et plus). */
@@ -84,7 +85,7 @@ export class RoadNetwork {
   addTile(tile: LoadedTile): void {
     if (this.tiles.has(tile.id)) return;
     const objs: THREE.Object3D[] = [];
-    const roads = tile.features.roads.filter((r) => r.pts3 && !r.tunnel && (!SKIP.has(r.kind) || (this.drawCycleways && r.kind === 'cycleway')) && r.route !== this.activeRoute);
+    const roads = tile.features.roads.filter((r) => r.pts3 && !r.tunnel && (!SKIP.has(r.kind) || (this.drawCycleways && r.kind === 'cycleway')) && r.route !== this.activeRoute && !isRouteTwin(r, tile.features.roads, this.activeRoute));
     if (roads.length) {
       const geo = buildRoads(roads, this.footprint);
       if (geo) {

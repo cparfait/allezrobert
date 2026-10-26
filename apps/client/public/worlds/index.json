@@ -16,10 +16,10 @@
     }
    ],
    "pack": {
-    "version": "8dd86f4d75c7",
-    "bytes": 337261869,
+    "version": "05f7ab08d6a4",
+    "bytes": 337284399,
     "files": 1090,
-    "gzBytes": 176155359
+    "gzBytes": 176162397
    },
    "l93": {
     "minE": 932000,
@@ -44,10 +44,10 @@
     }
    ],
    "pack": {
-    "version": "19566068cc4c",
-    "bytes": 156222246,
+    "version": "5d979d828133",
+    "bytes": 156260692,
     "files": 486,
-    "gzBytes": 72878571
+    "gzBytes": 72901105
    },
    "l93": {
     "minE": 1014000,
@@ -72,10 +72,10 @@
     }
    ],
    "pack": {
-    "version": "426edf12c36c",
-    "bytes": 327633503,
+    "version": "79e951303650",
+    "bytes": 327745145,
     "files": 1082,
-    "gzBytes": 161621372
+    "gzBytes": 161666738
    },
    "l93": {
     "minE": 940000,
@@ -100,10 +100,10 @@
     }
    ],
    "pack": {
-    "version": "51d5561b7744",
-    "bytes": 201519181,
+    "version": "1673c068d547",
+    "bytes": 201603801,
     "files": 669,
-    "gzBytes": 81726782
+    "gzBytes": 81756671
    },
    "l93": {
     "minE": 314000,
@@ -176,10 +176,10 @@
     }
    ],
    "pack": {
-    "version": "c3b214fe8ddc",
-    "bytes": 260314087,
+    "version": "005c89c01804",
+    "bytes": 260427233,
     "files": 902,
-    "gzBytes": 115905464
+    "gzBytes": 115949979
    },
    "l93": {
     "minE": 714000,
@@ -268,17 +268,18 @@
     }
    ],
    "pack": {
-    "version": "2acceed59bec",
-    "bytes": 381903543,
-    "files": 1937,
-    "gzBytes": 194398151
+    "version": "3988c2d8d45e",
+    "bytes": 648740989,
+    "files": 2246,
+    "gzBytes": 278408247
    },
    "l93": {
     "minE": 609000,
     "minN": 6835000,
     "maxE": 642000,
     "maxN": 6852000
-   }
+   },
+   "open": true
   },
   {
    "id": "comte",
@@ -295,10 +296,10 @@
     }
    ],
    "pack": {
-    "version": "d27c31db00c9",
-    "bytes": 275219183,
+    "version": "12a4a49e7373",
+    "bytes": 275306164,
     "files": 962,
-    "gzBytes": 128794773
+    "gzBytes": 128823857
    },
    "l93": {
     "minE": 712000,
@@ -323,10 +324,10 @@
     }
    ],
    "pack": {
-    "version": "38c9825b3c91",
-    "bytes": 191123799,
+    "version": "b3cc8dc959d6",
+    "bytes": 191150984,
     "files": 722,
-    "gzBytes": 84097142
+    "gzBytes": 84113877
    },
    "l93": {
     "minE": 842000,
@@ -351,10 +352,10 @@
     }
    ],
    "pack": {
-    "version": "ea8af9ceae52",
-    "bytes": 209093460,
+    "version": "5b8e774d7fdf",
+    "bytes": 209174908,
     "files": 454,
-    "gzBytes": 72869051
+    "gzBytes": 72904738
    },
    "l93": {
     "minE": 1003000,
@@ -387,10 +388,10 @@
     }
    ],
    "pack": {
-    "version": "5ec27a3e815e",
-    "bytes": 104976072,
+    "version": "39bec73fefd9",
+    "bytes": 104990977,
     "files": 471,
-    "gzBytes": 41761742
+    "gzBytes": 41770813
    },
    "l93": {
     "minE": 495000,
@@ -415,10 +416,10 @@
     }
    ],
    "pack": {
-    "version": "565a18c0f42c",
-    "bytes": 279820911,
+    "version": "6bbe710169fb",
+    "bytes": 279862513,
     "files": 886,
-    "gzBytes": 123666802
+    "gzBytes": 123692258
    },
    "l93": {
     "minE": 666000,
@@ -443,10 +444,10 @@
     }
    ],
    "pack": {
-    "version": "eb4d22911371",
-    "bytes": 196352680,
+    "version": "c44a056fe74f",
+    "bytes": 196377415,
     "files": 722,
-    "gzBytes": 96798691
+    "gzBytes": 96806395
    },
    "l93": {
     "minE": 722000,
@@ -465,16 +466,16 @@
      "id": "tour-de-neuville",
      "name": "Tour de Neuville",
      "nameEn": "Neuville loop",
-     "lengthM": 16156,
-     "elevationGainM": 345.7,
+     "lengthM": 15766,
+     "elevationGainM": 345.18,
      "loop": false
     }
    ],
    "pack": {
-    "version": "3b960d1797cc",
-    "bytes": 51121014,
+    "version": "f64ab53258a0",
+    "bytes": 51128856,
     "files": 198,
-    "gzBytes": 26617419
+    "gzBytes": 26620033
    },
    "l93": {
     "minE": 729000,
@@ -515,10 +516,10 @@
     }
    ],
    "pack": {
-    "version": "3139d92a6602",
-    "bytes": 340077413,
+    "version": "dc52bbd0cacd",
+    "bytes": 340142310,
     "files": 1290,
-    "gzBytes": 164311876
+    "gzBytes": 164336104
    },
    "l93": {
     "minE": 726000,
@@ -543,10 +544,10 @@
     }
    ],
    "pack": {
-    "version": "2ca28ffce132",
-    "bytes": 65069067,
+    "version": "0a6811f6cc34",
+    "bytes": 65141755,
     "files": 146,
-    "gzBytes": 26423516
+    "gzBytes": 26418962
    },
    "l93": {
     "minE": 641000,
@@ -571,10 +572,10 @@
     }
    ],
    "pack": {
-    "version": "38b6ee5a4808",
-    "bytes": 121625374,
+    "version": "7ca132df5163",
+    "bytes": 121800277,
     "files": 282,
-    "gzBytes": 49799528
+    "gzBytes": 49869197
    },
    "l93": {
     "minE": 639000,
@@ -599,10 +600,10 @@
     }
    ],
    "pack": {
-    "version": "d2f5cd13b8c8",
-    "bytes": 860140365,
+    "version": "4930f9fbfb32",
+    "bytes": 860195525,
     "files": 1922,
-    "gzBytes": 360296595
+    "gzBytes": 360315315
    },
    "l93": {
     "minE": 868000,
@@ -627,10 +628,10 @@
     }
    ],
    "pack": {
-    "version": "67b846787c96",
-    "bytes": 50105620,
+    "version": "294fba16a654",
+    "bytes": 50166946,
     "files": 102,
-    "gzBytes": 19796882
+    "gzBytes": 19828526
    },
    "l93": {
     "minE": 649000,
@@ -671,10 +672,10 @@
     }
    ],
    "pack": {
-    "version": "9781b469f465",
-    "bytes": 122638498,
+    "version": "467261d80e4f",
+    "bytes": 122649004,
     "files": 582,
-    "gzBytes": 42811897
+    "gzBytes": 42817735
    },
    "l93": {
     "minE": 599000,
@@ -693,16 +694,16 @@
      "id": "boucle-des-domes",
      "name": "La boucle des Dômes par Orcines et Saint-Ours",
      "nameEn": "The Dômes loop via Orcines and Saint-Ours",
-     "lengthM": 81134.86,
-     "elevationGainM": 1439.53,
+     "lengthM": 79620.19,
+     "elevationGainM": 1368.66,
      "loop": true
     }
    ],
    "pack": {
-    "version": "bf383384418e",
-    "bytes": 459703466,
+    "version": "2fe9f34a0728",
+    "bytes": 459766859,
     "files": 1602,
-    "gzBytes": 230147783
+    "gzBytes": 230173672
    },
    "l93": {
     "minE": 684000,
@@ -751,10 +752,10 @@
     }
    ],
    "pack": {
-    "version": "08fa87114580",
-    "bytes": 131309260,
+    "version": "ede444fe80e5",
+    "bytes": 131330325,
     "files": 566,
-    "gzBytes": 37361155
+    "gzBytes": 37374234
    },
    "l93": {
     "minE": 346000,
@@ -779,10 +780,10 @@
     }
    ],
    "pack": {
-    "version": "aaa8d27a2d2c",
-    "bytes": 188582566,
+    "version": "e17b4da3a0f0",
+    "bytes": 188649536,
     "files": 782,
-    "gzBytes": 74134466
+    "gzBytes": 74201368
    },
    "l93": {
     "minE": 720000,
@@ -807,10 +808,10 @@
     }
    ],
    "pack": {
-    "version": "0c33900843b8",
-    "bytes": 162277917,
+    "version": "498019dd414e",
+    "bytes": 162435555,
     "files": 386,
-    "gzBytes": 67843752
+    "gzBytes": 67926400
    },
    "l93": {
     "minE": 632000,
@@ -879,10 +880,10 @@
     }
    ],
    "pack": {
-    "version": "e5f57d384b12",
-    "bytes": 419573310,
+    "version": "243a45218ff6",
+    "bytes": 419588737,
     "files": 1566,
-    "gzBytes": 223949626
+    "gzBytes": 223956204
    },
    "l93": {
     "minE": 452000,
@@ -907,10 +908,10 @@
     }
    ],
    "pack": {
-    "version": "72f00000f8c3",
-    "bytes": 151166844,
+    "version": "ef1cb574ea54",
+    "bytes": 151307101,
     "files": 402,
-    "gzBytes": 63467150
+    "gzBytes": 63532071
    },
    "l93": {
     "minE": 638000,
@@ -935,10 +936,10 @@
     }
    ],
    "pack": {
-    "version": "01b116659e25",
-    "bytes": 70225822,
+    "version": "bbcb2e63648b",
+    "bytes": 70328338,
     "files": 146,
-    "gzBytes": 27400573
+    "gzBytes": 27447636
    },
    "l93": {
     "minE": 657000,

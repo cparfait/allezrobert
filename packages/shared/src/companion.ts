@@ -54,11 +54,18 @@ export type PhoneCommand =
   | { kind: 'turn'; delta?: -1 | 1; index?: number }
   | { kind: 'uturn' }
   | { kind: 'music'; action: 'toggle' | 'next' | 'previous' | 'volume'; volume?: number }
+  /** Recherche Spotify (morceau ou playlist) ; texte vide : les playlists du compte. Résultats : `PairEvent` « musicResults ». */
+  | { kind: 'musicSearch'; query: string }
+  /** Lance un résultat de recherche (URI Spotify : morceau, album, playlist ou artiste). */
+  | { kind: 'musicPlay'; uri: string }
   | { kind: 'hud' }
   | { kind: 'photo' }
   /** Équipiers IA : « ralentissez », ou allure du groupe ±5 % FTP. */
   | { kind: 'slowDown' }
   | { kind: 'pace'; delta: -1 | 1 }
+  /** « Attendez-moi » et forme du peloton (auto, file, deux files, bordure). */
+  | { kind: 'waitMe' }
+  | { kind: 'formation' }
   /** Demande de l'état complet et de la route (arrivée, retour au premier plan). */
   | { kind: 'sync' };
 
@@ -130,8 +137,22 @@ export interface PairState {
   riders?: PairRider[];
 }
 
+/** Résultat d'une recherche Spotify montré sur le téléphone. */
+export interface PairMusicItem {
+  uri: string;
+  type: 'track' | 'playlist';
+  name: string;
+  /** Artiste du morceau, ou propriétaire / nombre de titres de la playlist. */
+  sub: string;
+  image?: string;
+}
+
+/** URI Spotify acceptée pour la lecture depuis le téléphone. */
+export const SPOTIFY_URI_RE = /^spotify:(track|album|playlist|artist):[A-Za-z0-9]{10,40}$/;
+
 export type PairEvent =
   | { kind: 'chat'; who: string; text: string }
+  | { kind: 'musicResults'; query: string; items: PairMusicItem[]; error?: string }
   | { kind: 'toast'; text: string }
   | { kind: 'rideOn'; from: string };
 

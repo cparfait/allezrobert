@@ -49,6 +49,8 @@ import {
   DEFAULT_LOOK,
   MAX_RIDERS_PER_ROOM,
   PRIME_POINTS,
+  climbCategory,
+  komPoints,
   RouteTrack,
   type AvatarLook,
   type BikeSetup,
@@ -63,6 +65,8 @@ import {
   type SnapshotRow,
   type TelemetryMsg,
   type TrackSample,
+  aiIdentity,
+  withSex,
 } from '@allezrobert/shared';
 import { PowerGuard } from './power-guard.ts';
 
@@ -109,6 +113,7 @@ export function resolveRideOptions(o: Partial<RideRoomOptions>, routeId: string)
     equalEquipment: typeof o.equalEquipment === 'boolean' ? o.equalEquipment : (o.mode ?? 'group') === 'race',
   };
   if (typeof o.paceWkg === 'number' && Number.isFinite(o.paceWkg)) r.paceWkg = clamp(o.paceWkg, 1, 6, 2.5);
+  if (typeof o.targetKmh === 'number' && Number.isFinite(o.targetKmh)) r.targetKmh = clamp(o.targetKmh, 15, 50, 28);
   if (o.name) r.name = o.name.slice(0, 60);
   if (o.weather) r.weather = { ...o.weather };
   if (typeof o.startAt === 'number' && Number.isFinite(o.startAt)) r.startAt = o.startAt;
@@ -235,7 +240,6 @@ export interface TickResult {
   efforts: SegmentEffortOut[];
 }
 
-const AI_NAMES = ['Bernard', 'Gilberte', 'Jacky', 'Mireille', 'Raymond', 'Josiane', 'Lucien', 'Paulette', 'Marcel', 'Simone', 'Roger', 'Odette', 'Fernand', 'Huguette', 'Gaston', 'Yvette', 'Maurice', 'Colette', 'René', 'Ginette'];
 const AI_PROFILE_CYCLE: AiProfileName[] = ['rouleur', 'puncheur', 'diesel', 'sprinter'];
 /** Tactiques de course, réparties dans le peloton (décalées des profils : un sprinteur peut être baroudeur). */
 const AI_TACTIC_CYCLE: AiTactic[] = ['equipier', 'baroudeur', 'attentiste', 'grimpeur', 'equipier', 'attentiste', 'baroudeur'];
@@ -262,6 +266,8 @@ export class RideSimulation {
   private readonly stickyView: Array<StickyRider & { r: SimRider }> = [];
   private order: SimRider[] = [];
   private groupPaceWkg: number;
+  /** Correction (W/kg) ajoutée à l'allure physique pour tenir la vitesse moyenne visée. */
+  private speedTrimWkg = 0;
   /** Meilleurs temps de la sortie par segment : riderId → ms. */
   private readonly segmentBests = new Map<string, Map<string, number>>();
   /** Records personnels connus (base) : userId → segmentId → ms. */
@@ -351,20 +357,27 @@ export class RideSimulation {
     for (let i = 0; i < count && !this.isFull; i++) {
       const k = this.aiCount++;
       const massKg = Math.round(this.rng.range(60, 82));
-      const look: AvatarLook = {
+      const hairStyle = [0, 1, 0, 2, 0, 0][k % 6]!;
+      // Nom et nationalité cohérents : « Prénom NOM » du pays, prénom du genre de l'avatar (coiffure longue = femme).
+      const identity = aiIdentity(k, hairStyle !== 0);
+      const base: AvatarLook = {
         ...DEFAULT_LOOK,
+        nationality: identity.nationality,
         jersey: JERSEYS[k % JERSEYS.length]!,
         jerseyAccent: JERSEYS[(k + 3) % JERSEYS.length]!,
         skin: ['#f1c27d', '#e0ac69', '#c68642', '#8d5524', '#ffdbac'][k % 5]!,
-        hairStyle: k % 4,
+        // Jamais chauve (style 3) : sous le casque, tous les IA ont des cheveux, de couleurs variées.
+        hairStyle,
+        hair: ['#3b2a1e', '#1a1a1a', '#8a5a2b', '#c9a25b', '#5a3b22', '#a8a8a2'][(k * 5) % 6]!,
         build: Math.round(this.rng.range(0.2, 0.7) * 100) / 100,
         // Tailles de 160 à 195 cm, réparties sans tirage (suite aléatoire de la salle inchangée).
         heightCm: 160 + ((k * 13) % 36),
       };
+      const look = hairStyle !== 0 ? withSex(base, 'female') : base;
       const r = this.addRider(
         {
           id: `ai-${k + 1}`,
-          name: `${AI_NAMES[k % AI_NAMES.length]} (IA)`,
+          name: `${identity.name} (IA)`,
           kind: 'ai',
           avatar: look,
           riderMassKg: massKg,
@@ -427,6 +440,8 @@ export class RideSimulation {
     if (typeof patch.allowGuests === 'boolean') this.options.allowGuests = patch.allowGuests;
     if (patch.paceWkg === null) delete this.options.paceWkg;
     else if (typeof patch.paceWkg === 'number' && Number.isFinite(patch.paceWkg)) this.options.paceWkg = Math.round(Math.min(Math.max(patch.paceWkg, 1), 6) * 10) / 10;
+    if (patch.targetKmh === null) delete this.options.targetKmh;
+    else if (typeof patch.targetKmh === 'number' && Number.isFinite(patch.targetKmh)) this.options.targetKmh = Math.round(Math.min(Math.max(patch.targetKmh, 15), 50) * 2) / 2;
     if (typeof patch.leaderId === 'string' && (patch.leaderId === '' || this.byId.get(patch.leaderId)?.kind === 'human')) this.leaderId = patch.leaderId;
     if (typeof patch.stickyGroup === 'boolean') this.options.stickyGroup = patch.stickyGroup;
     if (typeof patch.draftingStrength === 'number' && Number.isFinite(patch.draftingStrength)) {
@@ -442,6 +457,7 @@ export class RideSimulation {
       stickyGroup: this.options.stickyGroup,
       draftingStrength: this.options.draftingStrength,
       paceWkg: this.options.paceWkg ?? null,
+      targetKmh: this.options.targetKmh ?? null,
       leaderId: this.leaderId,
     };
   }
@@ -824,7 +840,24 @@ export class RideSimulation {
       k++;
     }
     // Allure annoncée (sortie de groupe) : les IA la tiennent, quoi que fassent les humains.
-    const announced = this.options.paceWkg;
+    let announced = this.options.paceWkg;
+    // Vitesse moyenne visée : allure de départ tirée de la physique à plat, puis correction lente selon la
+    // moyenne réellement tenue par les IA depuis le départ (montées et descentes se compensent).
+    const targetKmh = this.options.targetKmh;
+    if (targetKmh !== undefined) {
+      const v = targetKmh / 3.6;
+      // Puissance à plat (CdA 0,32, Crr 0,004, 75 kg + vélo) rapportée au poids.
+      const flatWkg = (0.196 * v ** 3 + 0.004 * 84 * 9.81 * v) / 75;
+      let sumSpeed = 0;
+      let n = 0;
+      for (const r of this.riders) {
+        if (r.kind !== 'ai' || r.state.timeS < 60) continue;
+        sumSpeed += r.state.distM / r.state.timeS;
+        n++;
+      }
+      if (n > 0) this.speedTrimWkg = Math.min(Math.max(this.speedTrimWkg + (v - sumSpeed / n) * 0.03 * dt, -1.2), 2.2);
+      announced = flatWkg + this.speedTrimWkg;
+    } else this.speedTrimWkg = 0;
     const target = announced ?? (k > 0 ? sum / k : this.options.aiPaceWkg);
     const a = 1 - Math.exp(-dt / (announced !== undefined ? 5 : 15));
     this.groupPaceWkg += (Math.min(Math.max(target, 1.2), 5.5) - this.groupPaceWkg) * a;
@@ -947,7 +980,7 @@ export class RideSimulation {
     const key = `${segId}:${lap}`;
     const place = (this.primeCounts.get(key) ?? 0) + 1;
     this.primeCounts.set(key, place);
-    const points = PRIME_POINTS[place - 1];
+    const points = (seg.kind === 'kom' ? komPoints(climbCategory(seg)) : PRIME_POINTS)[place - 1];
     if (points === undefined) return;
     if (seg.kind === 'kom') r.komPts += points;
     else r.sprintPts += points;

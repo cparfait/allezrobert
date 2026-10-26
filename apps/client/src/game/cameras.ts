@@ -2,6 +2,7 @@ import * as THREE from 'three/webgpu';
 import type { CameraMode, RouteTrack } from '@allezrobert/shared';
 import { FreeFlyCamera } from './freecam.ts';
 import { getLang } from '../i18n/index.ts';
+import { buzzOffset } from './roadBuzz.ts';
 
 /** Modes de la caméra du jeu : ceux du protocole (appli compagnon) plus la caméra libre, locale. */
 export type RigMode = CameraMode | 'free';
@@ -18,6 +19,8 @@ export interface CameraTarget {
   eye?: THREE.Vector3;
   /** Milieu des mains sur les cocottes (repère monde) : la vue subjective garde le cintre en bas de l'image. */
   hands?: THREE.Vector3;
+  /** Vibration du revêtement sous les roues (0 = lisse, 1 = pavés), voir roadBuzz.ts. */
+  buzz?: number;
 }
 
 const _up = new THREE.Vector3(0, 1, 0);
@@ -275,5 +278,12 @@ export class CameraRig {
     this.smoothLook.lerp(look, Math.min(1, this.mode === 'chase' ? k : k * 1.5));
     cam.position.copy(this.smoothPos);
     cam.lookAt(this.smoothLook);
+    // Vibration du revêtement : forte en vue embarquée (solidaire du vélo), légère en poursuite.
+    const share = this.mode === 'gopro' ? 1.3 : this.mode === 'cockpit' ? 1 : this.mode === 'chase' ? 0.3 : 0;
+    if (share > 0 && t.buzz) {
+      const { dy, pitch } = buzzOffset(performance.now() / 1000, t.speedMs, t.buzz * share);
+      cam.position.y += dy;
+      cam.rotateX(pitch);
+    }
   }
 }

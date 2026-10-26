@@ -257,6 +257,18 @@ par rapport aux avatars actuels en préréglage bas. Résultats notés dans les 
    départ pour rester crédible.
 4. Teint : médiane des joues et du front en espace linéaire, balance des blancs estimée sur la
    photo (gris moyen et sclérotique), projetée sur la palette de teints.
+   Ajustement pondéré : les repères proches des 22 points que l'utilisateur peut poser à la main
+   (`HANDLE_INDICES`) pèsent plus que le reste du maillage (barbe, cheveux, oreilles : devinés par
+   le détecteur) ; les curseurs de volume mou (joues, graisse) et d'oreilles / cou sont plus
+   difficiles à écarter de la tête de base (`STIFFNESS`) ; plafonds assouplis (`DEFAULT_FIT`).
+   Barbe (`onboarding/beard.ts`) : menton et bas des joues comparés aux joues de la même photo
+   (granularité des poils, assombrissement) → `look.beard` ; avec une barbe, tout ce qui est sous
+   la lèvre du bas perd jusqu'à 85 % de son poids dans l'ajustement (le contour de la barbe n'est
+   pas celui de la mâchoire). Seuils réglés sur une seule photo (barbe poivre et sel : 0,95 ; rendu
+   de la tête de base rasée : 0) : à revoir avec d'autres visages.
+   Banc : `avatar-test.html?photofit=<photo annotée>` mesure les proportions du rendu contre celles
+   de la photo. Limite : le visage de l'avatar reste plus court que celui de la photo
+   (les curseurs de longueur n'atteignent pas la distance yeux-menton mesurée).
 5. Résultat = « air de famille », ajustable à la main ; la photo est libérée de la mémoire dès
    la fin du calcul et n'est jamais affichée sur le visage 3D.
 

@@ -130,6 +130,7 @@ function toFeatures(t: WorldTile): TileFeatures {
       const flat: number[] = [];
       for (let i = 0; i < r.pts.length; i += 3) flat.push(r.pts[i] as number, r.pts[i + 2] as number);
       return {
+        ...(r.id ? { id: r.id } : {}),
         kind: r.kind,
         width: r.width,
         pts: flat,

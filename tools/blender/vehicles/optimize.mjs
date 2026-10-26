@@ -68,6 +68,8 @@ async function toKtx2(doc, size) {
 
 async function build(target, texSize, file, far) {
   const doc = await io.read(input);
+  // Carrosserie toujours opaque (certains modèles Sketchfab l'exportent en BLEND : tri des faces faux, intérieur visible).
+  for (const m of doc.getRoot().listMaterials()) if (m.getName() === 'paint') m.setAlphaMode('OPAQUE');
   // Modèle lointain : couleurs seules (normales, rugosité et occlusion invisibles à cette distance).
   if (far)
     for (const m of doc.getRoot().listMaterials()) m.setNormalTexture(null).setMetallicRoughnessTexture(null).setOcclusionTexture(null);

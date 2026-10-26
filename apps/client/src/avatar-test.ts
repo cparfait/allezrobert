@@ -59,6 +59,7 @@ async function main(): Promise<void> {
   if (params.has('profiles')) return profileSheet(engine);
   if (params.has('measure')) return measureHead();
   if (params.has('calib')) return likenessCalibration(engine);
+  if (params.has('photofit')) return likenessPhotoFit(engine);
 
   // ?shoes : chaussures en gros plan (tige, perforations, marquage) pour quatre tenues, pied gauche
   // en bas (manivelle 0) : extérieur, trois quarts avant, dessus ; puis de côté à 3 m.
@@ -311,11 +312,12 @@ async function main(): Promise<void> {
       const wr = P('hand_l');
       const kn = P('calf_l');
       (window as unknown as { __ang: Record<string, unknown> }).__ang ??= {};
-      ((window as unknown as { __ang: Record<string, unknown> }).__ang)[name] = { shoulder: +ang3(sh, hip, el).toFixed(1), elbow: +ang3(el, sh, wr).toFixed(1), forearm: +elev(el, wr).toFixed(1), hip: +ang3(hip, sh, kn).toFixed(1), neckVsBack: +(elev(nk, hd) - elev(hip, sh)).toFixed(1) };
+      ((window as unknown as { __ang: Record<string, unknown> }).__ang)[name] = { shoulder: +ang3(sh, hip, el).toFixed(1), elbow: +ang3(el, sh, wr).toFixed(1), forearm: +elev(el, wr).toFixed(1), elbowOutCm: +((Math.abs(el.x) - Math.abs(sh.x)) * 100).toFixed(1), handOutCm: +((Math.abs(wr.x) - Math.abs(sh.x)) * 100).toFixed(1), hip: +ang3(hip, sh, kn).toFixed(1), neckVsBack: +(elev(nk, hd) - elev(hip, sh)).toFixed(1) };
       out.push({ name, back: +elev(hip, sh).toFixed(1), neck: +elev(nk, hd).toFixed(1), shDz: +(sh.z - hip.z).toFixed(3), shDy: +(sh.y - hip.y).toFixed(3), headFwd: +(hd.z - sh.z).toFixed(3) });
       camera.fov = Number(params.get('fov') ?? 9);
       // &rear : trois quarts arrière (vue du peloton) au lieu du profil strict.
-      if (params.has('rear')) camera.position.set(-5.5, sh.y + 0.7, sh.z - 6.5);
+      if (params.has('behind')) camera.position.set(0, sh.y + 0.9, sh.z - 7); // &behind : derrière, un peu au-dessus (caméra de suivi)
+      else if (params.has('rear')) camera.position.set(-5.5, sh.y + 0.7, sh.z - 6.5);
       else camera.position.set(-9, sh.y, sh.z - 0.15);
       // &low : bas du dos, bassin et selle (au lieu des épaules).
       const low = params.has('low');
@@ -514,6 +516,263 @@ async function main(): Promise<void> {
     requestAnimationFrame(loop);
   };
   requestAnimationFrame(loop);
+}
+
+/**
+ * Ressemblance photo (?photofit=<image>) : photo annotée (22 points posés à la main, couleurs de la
+ * retouche des repères) → repères détectés, points posés repris de l'image, ajustement selon
+ * plusieurs réglages, rendu de la tête de face à côté de la photo. Développement seulement.
+ */
+async function likenessPhotoFit(engine: Awaited<ReturnType<typeof createEngine>>): Promise<void> {
+  const { scene, camera } = engine;
+  const { faceLandmarks, faceFromLandmarks, DEFAULT_FIT } = await import('./onboarding/likeness.ts');
+  const { moveLandmark } = await import('./onboarding/likenessFit.ts');
+  const img = new Image();
+  img.src = params.get('photofit') as string;
+  await img.decode();
+  const W = img.naturalWidth;
+  const H = img.naturalHeight;
+  const pc = document.createElement('canvas');
+  pc.width = W;
+  pc.height = H;
+  const pg = pc.getContext('2d', { willReadFrequently: true }) as CanvasRenderingContext2D;
+  pg.drawImage(img, 0, 0);
+  const px = pg.getImageData(0, 0, W, H).data;
+  // Points de couleur (centres des composantes connexes des pastilles).
+  const COLS: Record<string, [number, number, number]> = { eyes: [0x38, 0xbd, 0xf8], brows: [0xa7, 0x8b, 0xfa], nose: [0xfa, 0xcc, 0x15], mouth: [0xfb, 0x71, 0x85], face: [0x4a, 0xde, 0x80] };
+  const dots: Record<string, Array<[number, number]>> = {};
+  for (const [name, c] of Object.entries(COLS)) {
+    const seen = new Uint8Array(W * H);
+    dots[name] = [];
+    for (let y0 = 0; y0 < H; y0++)
+      for (let x0 = 0; x0 < W; x0++) {
+        const near = (x: number, y: number) => {
+          const i = (y * W + x) * 4;
+          return Math.abs((px[i] as number) - c[0]) + Math.abs((px[i + 1] as number) - c[1]) + Math.abs((px[i + 2] as number) - c[2]) < 40;
+        };
+        if (seen[y0 * W + x0] || !near(x0, y0)) continue;
+        const stack = [[x0, y0]] as Array<[number, number]>;
+        seen[y0 * W + x0] = 1;
+        let sx = 0, sy = 0, n = 0;
+        while (stack.length) {
+          const [x, y] = stack.pop() as [number, number];
+          sx += x; sy += y; n++;
+          for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
+            const nx = x + dx, ny = y + dy;
+            if (nx < 0 || ny < 0 || nx >= W || ny >= H || seen[ny * W + nx] || !near(nx, ny)) continue;
+            seen[ny * W + nx] = 1;
+            stack.push([nx, ny]);
+          }
+        }
+        if (n >= 15) dots[name]?.push([sx / n, sy / n]);
+      }
+  }
+  const byX = (a: Array<[number, number]>) => [...a].sort((p, q) => p[0] - q[0]);
+  const byY = (a: Array<[number, number]>) => [...a].sort((p, q) => p[1] - q[1]);
+  const target = new Map<number, [number, number]>();
+  const put = (ids: number[], pts: Array<[number, number]>) => ids.forEach((id, k) => pts[k] && target.set(id, pts[k] as [number, number]));
+  put([33, 133, 362, 263], byX(dots.eyes ?? []));
+  put([70, 107, 336, 300], byX(dots.brows ?? []));
+  const nose = byY(dots.nose ?? []);
+  put([168], nose.slice(0, 1));
+  put([98, 1, 327], byX(nose.slice(1)));
+  const mouth = byX(dots.mouth ?? []);
+  put([61, 13, 291], mouth);
+  if (mouth[1]) target.set(14, mouth[1]);
+  const face = byY(dots.face ?? []);
+  put([10], face.slice(0, 1));
+  put([152], face.slice(-1));
+  const mid = face.slice(1, -1);
+  put([234, 454], byX(mid.slice(0, 2).length === 2 ? byY(mid).slice(0, 2) : mid));
+  put([172, 397], byX(byY(mid).slice(2)));
+  console.log(`points repris de l'image : ${target.size}/22`);
+  const raw = await faceLandmarks(pc);
+  if (!raw) throw new Error('aucun visage détecté sur la photo');
+  const orig = raw.map((l) => ({ ...l }));
+  const cur = raw.map((l) => ({ ...l }));
+  const iod = Math.hypot((orig[33] as { x: number; y: number }).x - (orig[263] as { x: number; y: number }).x, (orig[33] as { x: number; y: number }).y - (orig[263] as { x: number; y: number }).y);
+  for (const [id, [x, y]] of target) moveLandmark(orig, cur, id, x / W - (cur[id] as { x: number }).x, y / H - (cur[id] as { y: number }).y, iod * 0.2);
+  const configs: Array<[string, Parameters<typeof faceFromLandmarks>[2] | null]> = [
+    ['tête de base', null],
+    ['avant (λ×8, plafonds d’origine)', { lambdaMul: 8, weighted: false, stiff: false, shrink: 0.8, limitScale: 1 }],
+    ['pondéré + raideur', { ...DEFAULT_FIT }],
+  ];
+  const a = new GltfRiderAvatar({ ...DEFAULT_LOOK, bikeModel: 's26-04-cervelo-s5' });
+  a.update(0, 0, 0, 'seated');
+  a.update(1 / 60, 0.0001, 0, 'seated');
+  a.setBareHead(true);
+  scene.add(a.root);
+  a.root.updateMatrixWorld(true);
+  const eye = a.eyeWorld(new THREE.Vector3());
+  camera.fov = 22;
+  camera.position.set(eye.x, eye.y + 0.01, eye.z + 0.7);
+  camera.updateProjectionMatrix();
+  camera.lookAt(eye.x, eye.y - 0.045, eye.z);
+  const cw = 360;
+  const sheet = document.createElement('canvas');
+  sheet.width = (configs.length + 1) * cw;
+  sheet.height = cw + 30;
+  const g = sheet.getContext('2d') as CanvasRenderingContext2D;
+  g.fillStyle = '#fff';
+  g.fillRect(0, 0, sheet.width, sheet.height);
+  // Photo, centrée sur le visage (carré).
+  const fy0 = Math.max(0, (target.get(10)?.[1] ?? 0) - 30);
+  const side = Math.min(W, H - fy0);
+  g.drawImage(pc, (W - side) / 2, fy0, side, side, 0, 30, cw, cw);
+  g.fillStyle = '#000';
+  g.font = '600 14px system-ui, sans-serif';
+  g.fillText('photo + points', 6, 18);
+  const lines: string[] = [];
+  // Proportions de face, en distance entre les yeux (extérieurs), mesurées sur la photo et sur chaque rendu.
+  type P2 = { x: number; y: number };
+  const ratios = (lm: readonly P2[], asp: number): string => {
+    const d = (i: number, j: number) => Math.hypot(((lm[i] as P2).x - (lm[j] as P2).x) * asp, (lm[i] as P2).y - (lm[j] as P2).y);
+    const iod = d(33, 263);
+    const r = (i: number, j: number) => (d(i, j) / iod).toFixed(2);
+    return `tempes ${r(234, 454)} mâchoire ${r(172, 397)} haut→menton ${r(10, 152)} yeux→menton ${r(168, 152)} nez(narines) ${r(98, 327)} bouche ${r(61, 291)} nez→bouche ${r(1, 13)}`;
+  };
+  let photoBeard = 0;
+  {
+    const { beardZones, patchStats, beardFromImage } = await import('./onboarding/beard.ts');
+    const z = beardZones(cur, W, H);
+    if (z) {
+      const st = (r: number[]) => {
+        const im = pg.getImageData(r[0] as number, r[1] as number, r[2] as number, r[3] as number);
+        const q = patchStats(im.data, im.width, im.height);
+        return `L${q.lum.toFixed(0)}/tex${q.tex.toFixed(2)}`;
+      };
+      photoBeard = beardFromImage(pg, cur, W, H);
+      console.log(`BARBE zones ${z.zones.map(st).join(' ')} joues ${z.cheeks.map(st).join(' ')} → ${photoBeard}`);
+    }
+  }
+  console.log(`PHOTO: ${ratios(cur, W / H)}`);
+  // Banc d'expériences pour la console : fit(opt) → curseurs, show(sl) → proportions du rendu.
+  (window as unknown as Record<string, unknown>).__ph = {
+    cur,
+    aspect: W / H,
+    fit: (opt: Partial<Parameters<typeof faceFromLandmarks>[2]>, beard = photoBeard) => faceFromLandmarks(cur, W / H, { ...DEFAULT_FIT, ...opt }, beard),
+    /** Barbe mesurée sur le rendu courant (contrôle des faux positifs : visage rasé). */
+    async beardOfRender() {
+      engine.renderManual();
+      const c3 = document.createElement('canvas');
+      c3.width = c3.height = 640;
+      const g3 = c3.getContext('2d', { willReadFrequently: true }) as CanvasRenderingContext2D;
+      g3.drawImage(canvas, 320, 40, 640, 640, 0, 0, 640, 640);
+      const dl = await faceLandmarks(c3);
+      return dl ? (await import('./onboarding/beard.ts')).beardFromImage(g3, dl, 640, 640) : -1;
+    },
+    async show(sl: Record<string, number>) {
+      a.setFace(sl);
+      engine.renderManual();
+      const c2 = document.createElement('canvas');
+      c2.width = c2.height = 640;
+      (c2.getContext('2d') as CanvasRenderingContext2D).drawImage(canvas, 320, 40, 640, 640, 0, 0, 640, 640);
+      const dl = await faceLandmarks(c2);
+      return dl ? ratios(dl, 1) : 'non détecté';
+    },
+    photo: ratios(cur, W / H),
+    /** Planche photo | tête de base | ajustement, chacun avec les points clés de la retouche (enregistrée dans docs/screenshots). */
+    async pointsSheet(sl: Record<string, number>, name: string) {
+      const GROUP: Record<number, string> = {};
+      const col: Record<string, string> = { eyes: '#38bdf8', brows: '#a78bfa', nose: '#facc15', mouth: '#fb7185', face: '#4ade80' };
+      const grp: Record<string, number[]> = { eyes: [33, 133, 362, 263], brows: [70, 107, 336, 300], nose: [168, 1, 98, 327], mouth: [61, 291, 13, 14], face: [10, 234, 454, 172, 397, 152] };
+      for (const [gname, ids] of Object.entries(grp)) for (const i of ids) GROUP[i] = col[gname] as string;
+      const contours = [[234, 172, 152, 397, 454], [70, 107], [336, 300], [33, 133], [362, 263], [61, 13, 291, 14, 61], [168, 1]];
+      const S = 640;
+      const sh = document.createElement('canvas');
+      sh.width = 3 * S;
+      sh.height = S + 34;
+      const g = sh.getContext('2d') as CanvasRenderingContext2D;
+      g.fillStyle = '#fff';
+      g.fillRect(0, 0, sh.width, sh.height);
+      g.font = '600 20px system-ui, sans-serif';
+      g.fillStyle = '#000';
+      const dotsOn = (lm: ReadonlyArray<{ x: number; y: number }>, ox: number, sx: number, sy: number, ex: number, ey: number) => {
+        g.lineWidth = 1.5;
+        g.strokeStyle = 'rgba(255,255,255,.85)';
+        for (const c of contours) {
+          g.beginPath();
+          c.forEach((i, k) => {
+            const X = ox + ((lm[i] as { x: number }).x * sx - ex), Y = 34 + ((lm[i] as { y: number }).y * sy - ey);
+            if (k) g.lineTo(X, Y);
+            else g.moveTo(X, Y);
+          });
+          g.stroke();
+        }
+        for (const [i, c] of Object.entries(GROUP)) {
+          const X = ox + ((lm[+i] as { x: number }).x * sx - ex), Y = 34 + ((lm[+i] as { y: number }).y * sy - ey);
+          g.beginPath();
+          g.arc(X, Y, 7, 0, Math.PI * 2);
+          g.fillStyle = c;
+          g.fill();
+          g.lineWidth = 2;
+          g.strokeStyle = '#222';
+          g.stroke();
+        }
+      };
+      // Photo : du haut du front au bas de l'image, entière en largeur, centrée dans la case.
+      const fy0 = Math.max(0, (cur[10] as { y: number }).y * H - 60);
+      const k = S / (H - fy0);
+      const ox = (S - W * k) / 2;
+      g.drawImage(pc, 0, fy0, W, H - fy0, ox, 34, W * k, S);
+      dotsOn(cur, ox, W * k, H * k, 0, fy0 * k);
+      g.fillStyle = '#000';
+      g.fillText('photo + points posés (22)', 8, 24);
+      for (const [idx, [label, shape]] of [['tête de base (points détectés)', {}], ['ajustement actuel (points détectés)', sl]].entries() as IterableIterator<[number, [string, Record<string, number>]]>) {
+        a.setFace(shape);
+        engine.renderManual();
+        const c2 = document.createElement('canvas');
+        c2.width = c2.height = S;
+        (c2.getContext('2d') as CanvasRenderingContext2D).drawImage(canvas, 320, 40, 640, 640, 0, 0, S, S);
+        const dl = await faceLandmarks(c2);
+        g.drawImage(c2, (idx + 1) * S, 34);
+        g.fillStyle = '#000';
+        g.fillText(label, (idx + 1) * S + 8, 24);
+        if (dl) dotsOn(dl, (idx + 1) * S, S, S, 0, 0);
+      }
+      await fetch(`/__shot?name=${name}`, { method: 'POST', body: sh.toDataURL('image/jpeg', 0.92) });
+      return 'ok';
+    },
+    /** Rend `sl` dans la case `k` d'une seconde planche (affichée sous la première). */
+    draw(sl: Record<string, number>, label: string, k: number) {
+      let sh = document.getElementById('__sheet2') as HTMLCanvasElement | null;
+      if (!sh) {
+        sh = document.createElement('canvas');
+        sh.id = '__sheet2';
+        sh.width = 6 * cw;
+        sh.height = cw + 20;
+        sh.style.cssText = 'display:block;width:100%;height:auto';
+        document.body.appendChild(sh);
+      }
+      const sg = sh.getContext('2d') as CanvasRenderingContext2D;
+      a.setFace(sl);
+      engine.renderManual();
+      sg.drawImage(canvas, 320, 40, 640, 640, k * cw, 20, cw, cw);
+      sg.fillStyle = '#fff';
+      sg.fillRect(k * cw, 0, cw, 20);
+      sg.fillStyle = '#000';
+      sg.font = '600 14px system-ui, sans-serif';
+      sg.fillText(label, k * cw + 4, 15);
+    },
+  };
+  for (const [k, [name, opt]] of configs.entries()) {
+    const sl = opt ? faceFromLandmarks(cur, W / H, opt, photoBeard) : {};
+    a.setFace(sl);
+    engine.renderManual();
+    g.drawImage(canvas, 320, 40, 640, 640, (k + 1) * cw, 30, cw, cw);
+    const cc = document.createElement('canvas');
+    cc.width = cc.height = 640;
+    (cc.getContext('2d') as CanvasRenderingContext2D).drawImage(canvas, 320, 40, 640, 640, 0, 0, 640, 640);
+    const dl = await faceLandmarks(cc);
+    console.log(`RENDU ${name}: ${dl ? ratios(dl, 1) : 'non détecté'}`);
+    g.fillText(name, (k + 1) * cw + 6, 18);
+    lines.push(`${name}: ${Object.entries(sl).filter(([, v]) => Math.abs(v) >= 0.15).map(([n, v]) => `${n}=${v}`).join(' ')}`);
+  }
+  console.log(lines.join(' | '));
+  document.body.replaceChildren(sheet);
+  sheet.style.cssText = 'display:block;width:100%;height:auto';
+  log.textContent = lines.join(' | ');
+  (window as unknown as { __avatarTestDone: boolean }).__avatarTestDone = true;
 }
 
 /**
@@ -1376,7 +1635,7 @@ async function sleevesSheet(engine: Awaited<ReturnType<typeof createEngine>>): P
   g.font = '600 16px sans-serif';
   for (const [row, item] of items.entries()) {
     for (const [col, long] of [false, true].entries()) {
-      const a = new GltfRiderAvatar({ ...DEFAULT_LOOK, bikeModel: 's26-04-cervelo-s5', helmet: item.jersey?.style === 'bandes' ? '#ffffff' : (item.color ?? '#ffffff'), ...(item.id === 'default' ? {} : jerseyLookOf(item)), sleeves: long ? 'long' : 'short' });
+      const a = new GltfRiderAvatar({ ...DEFAULT_LOOK, bikeModel: 's26-04-cervelo-s5', helmet: item.jersey?.style === 'bandes' ? '#ffffff' : (item.color ?? '#ffffff'), ...(item.id === 'default' ? {} : jerseyLookOf(item)), sleeves: long ? 'long' : 'short', ...(params.has('gloves') ? { gloves: params.get('gloves') === 'mitts' ? ('mitts' as const) : ('full' as const), gloveColor: params.get('glovecolor') ? `#${params.get('glovecolor')}` : '#16161a' } : {}) });
       (a as unknown as { crankAngle: number }).crankAngle = Math.PI / 2;
       a.update(0, 0.0001, 0, 'seated');
       scene.add(a.root);
@@ -1398,6 +1657,10 @@ async function sleevesSheet(engine: Awaited<ReturnType<typeof createEngine>>): P
   }
   const kind = params.get('avatar') ?? 'mpfb';
   if (!params.has('noshot')) await fetch(`/__shot?name=avatar-manches-${close ? 'gros-plans-' : ''}${kind}${params.has('dir') ? '&dir=jerseys' : ''}`, { method: 'POST', body: sheet.toDataURL('image/jpeg', 0.88) });
+  if (params.has('show')) {
+    sheet.style.cssText = 'position:fixed;left:0;top:0;width:100vw;height:auto;z-index:99;background:#222';
+    document.body.appendChild(sheet);
+  }
   log.textContent += '\nmanches : terminé';
   (window as unknown as { __avatarTestDone: boolean }).__avatarTestDone = true;
 }
