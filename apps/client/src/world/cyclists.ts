@@ -260,7 +260,7 @@ export class AmbientCyclists {
         const p = this.track.positionAt(loop ? ((dm % L) + L) % L : Math.min(Math.max(dm, 0), L), c.lateral + m.latOff, this.sample);
         const a = m.avatar;
         const ground = this.heightAt ? Math.max(p.y, this.heightAt(p.x, p.z)) : p.y;
-        a.root.position.set(p.x, ground + 0.06, p.z);
+        a.root.position.set(p.x, ground + 0.11, p.z);
         a.root.rotation.set(0, 0, 0);
         a.root.rotateY(Math.atan2(p.dirX, p.dirZ) + (c.sens < 0 ? Math.PI : 0));
         a.root.rotateX(-Math.atan(p.grade / 100) * c.sens);
