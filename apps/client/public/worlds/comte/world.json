@@ -3406,6 +3406,26 @@
    "elevationGainM": 1140.92,
    "loop": true,
    "main": true
+  },
+  {
+   "id": "vtt-comte",
+   "file": "routes/vtt-comte.json",
+   "name": "Comté d'Auvergne — VTT de Laps à Pardines",
+   "lengthM": 29990.64,
+   "elevationGainM": 992.39,
+   "loop": true,
+   "main": false,
+   "bike": "mtb"
+  },
+  {
+   "id": "gravel-comte",
+   "file": "routes/gravel-comte.json",
+   "name": "Comté d'Auvergne — gravel de Lignat à Corent",
+   "lengthM": 52781.37,
+   "elevationGainM": 1430.38,
+   "loop": true,
+   "main": false,
+   "bike": "gravel"
   }
  ],
  "mainRoute": "circuit-de-la-comte",

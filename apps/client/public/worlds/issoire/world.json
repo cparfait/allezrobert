@@ -2566,6 +2566,26 @@
    "elevationGainM": 1085.81,
    "loop": true,
    "main": true
+  },
+  {
+   "id": "vtt-issoire",
+   "file": "routes/vtt-issoire.json",
+   "name": "Issoire — VTT par Montaigner, Poux et Bansat",
+   "lengthM": 28642.12,
+   "elevationGainM": 787.81,
+   "loop": true,
+   "main": false,
+   "bike": "mtb"
+  },
+  {
+   "id": "gravel-issoire",
+   "file": "routes/gravel-issoire.json",
+   "name": "Issoire — gravel par Sauxillanges et Saint-Genès-la-Tourette",
+   "lengthM": 51562.07,
+   "elevationGainM": 1364.42,
+   "loop": true,
+   "main": false,
+   "bike": "gravel"
   }
  ],
  "mainRoute": "pays-de-la-reine-margot",

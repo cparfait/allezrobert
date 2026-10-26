@@ -56,6 +56,23 @@ export function komPoints(cat: ClimbCategory): readonly number[] {
   return KOM_POINTS[cat];
 }
 
+/** Vélo attendu par un parcours : route (défaut), gravel (pneus `gravel`) ou VTT (pneus `mtb`). */
+export type RouteBike = 'road' | 'gravel' | 'mtb';
+
+/** Vélo d'un parcours (`bike` absent : route). */
+export function routeBike(r: { bike?: RouteBike }): RouteBike {
+  return r.bike ?? 'road';
+}
+
+/**
+ * Parcours à proposer au vélo équipé (`tyre` : route, gravel, VTT) : seuls ceux de son type. Zone sans
+ * parcours de ce type : tous, pour qu'elle reste jouable.
+ */
+export function routesForBike<T extends { bike?: RouteBike }>(routes: readonly T[], tyre: RouteBike | undefined): T[] {
+  const mine = routes.filter((r) => routeBike(r) === (tyre ?? 'road'));
+  return mine.length ? mine : routes.slice();
+}
+
 export interface RouteData {
   id: string;
   name: string;
@@ -92,6 +109,8 @@ export interface RouteData {
   hairpins?: RouteHairpin[];
   /** Marquage de la chaussée : rives et axe (défaut), axe seul, ou aucun (petites départementales). */
   markings?: 'full' | 'axis' | 'none';
+  /** Vélo attendu (gravel, VTT) : le parcours n'est proposé qu'avec ce type de pneus ; absent : route. */
+  bike?: RouteBike;
 }
 
 export interface RouteHairpin {
@@ -169,6 +188,7 @@ export interface WorldRouteIndex {
   elevationGainM: number;
   loop: boolean;
   main: boolean;
+  bike?: RouteBike;
 }
 
 export interface WorldMeta {
@@ -307,7 +327,7 @@ export interface WorldCatalogue {
     name: string;
     /** Département, pays (« Puy-de-Dôme · Limagne »). */
     region?: string;
-    routes: Array<{ id: string; name: string; nameEn?: string; lengthM: number; elevationGainM: number; loop: boolean }>;
+    routes: Array<{ id: string; name: string; nameEn?: string; lengthM: number; elevationGainM: number; loop: boolean; bike?: RouteBike }>;
     /** Pack téléchargeable ; null si les tuiles ne sont pas encore publiées. */
     pack: { version: string; bytes: number; files: number; gzBytes?: number } | null;
     /** Emprise des tuiles en Lambert-93 (m) : zones voisines (qui se touchent ou se chevauchent). */

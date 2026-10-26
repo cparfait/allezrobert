@@ -732,6 +732,26 @@
    "elevationGainM": 345.18,
    "loop": false,
    "main": true
+  },
+  {
+   "id": "vtt-limagne",
+   "file": "routes/vtt-limagne.json",
+   "name": "Limagne — VTT par Neuville et les Vigiers",
+   "lengthM": 20628.32,
+   "elevationGainM": 603.46,
+   "loop": true,
+   "main": false,
+   "bike": "mtb"
+  },
+  {
+   "id": "gravel-limagne",
+   "file": "routes/gravel-limagne.json",
+   "name": "Limagne — gravel par Neuville, Bongheat et Glaine",
+   "lengthM": 32346.04,
+   "elevationGainM": 908.36,
+   "loop": true,
+   "main": false,
+   "bike": "gravel"
   }
  ],
  "mainRoute": "tour-de-neuville",

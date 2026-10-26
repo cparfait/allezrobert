@@ -4572,6 +4572,26 @@
    "elevationGainM": 318.31,
    "loop": true,
    "main": false
+  },
+  {
+   "id": "vtt-livradois",
+   "file": "routes/vtt-livradois.json",
+   "name": "Livradois — VTT par Bort-l'Étang et Champciaux",
+   "lengthM": 23790.65,
+   "elevationGainM": 528.02,
+   "loop": true,
+   "main": false,
+   "bike": "mtb"
+  },
+  {
+   "id": "gravel-livradois",
+   "file": "routes/gravel-livradois.json",
+   "name": "Livradois — gravel de Marcillole à Mauzun",
+   "lengthM": 35893.16,
+   "elevationGainM": 849.71,
+   "loop": true,
+   "main": false,
+   "bike": "gravel"
   }
  ],
  "mainRoute": "circuit-du-livradois",
