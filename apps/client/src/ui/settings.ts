@@ -22,6 +22,11 @@ export interface Settings {
   routeId: string;
   /** Parcours roulé dans l'autre sens (classements et records à part). */
   reverse: boolean;
+  /**
+   * Départ choisi sur une boucle : distance (m) du point de départ sur le tracé d'origine, dans le
+   * sens choisi ; 0 = départ d'origine.
+   */
+  startM: number;
   mode: RideMode;
   volume: number;
   /** Rapport réel monté sur le trainer : Zwift Cog (14 dents) ou cassette réelle. */
@@ -80,6 +85,7 @@ export const DEFAULT_SETTINGS: Settings = {
   trainerDifficulty: 0.5,
   routeId: '',
   reverse: false,
+  startM: 0,
   mode: 'free',
   volume: 0.7,
   drivetrain: 'cog',

@@ -1,6 +1,6 @@
 import './hud/hud.css';
 import * as THREE from 'three/webgpu';
-import { DEFAULT_LOOK, RouteTrack, decimateRoute, type PairState, type PhoneCommand, bikeOfLook, type AvatarLook, bikeSetupFor, weatherAt, weatherSeed, type RideWeather, type RiderProfile, type RouteData } from '@allezrobert/shared';
+import { DEFAULT_LOOK, RouteTrack, decimateRoute, rankRouteId, type PairState, type PhoneCommand, bikeOfLook, type AvatarLook, bikeSetupFor, weatherAt, weatherSeed, type RideWeather, type RiderProfile, type RouteData } from '@allezrobert/shared';
 import { createEngine, type Engine } from './engine/renderer.ts';
 import { QUALITY_PRESETS, withUrlOverrides, type QualitySettings } from './engine/quality.ts';
 import { detectHardwareQuality } from './engine/autoQuality.ts';
@@ -562,6 +562,7 @@ async function boot(): Promise<void> {
     settings.world = id;
     settings.routeId = '';
     settings.reverse = false;
+    settings.startM = 0;
     saveSettings(settings);
     void (async () => {
       const source = await loadWorldSource(id);
@@ -1051,7 +1052,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
       engine.renderManual();
       ride.summitPhotos.push(engine.renderer.domElement.toDataURL('image/jpeg', 0.85));
     }
-    if (sequences.enabled) sequences.segment(r, s.name, track.route.id, 1, 1);
+    if (sequences.enabled) sequences.segment(r, s.name, rankRouteId(track.route.id), 1, 1);
     else hud.toast(`${t('segmentDone')} · ${r.seg.name} · ${Math.floor(r.timeS / 60)}:${String(Math.round(r.timeS % 60)).padStart(2, '0')}`);
   };
   // Sortie à plusieurs : salle d'attente et compte à rebours (course), panneau en direct, résultats, allure du groupe.
@@ -1086,7 +1087,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     net.on('event', (ev) => {
       if (ev.kind === 'segmentEnd' && ev.riderId === net.selfId && !s.guest) {
         const seg = track.route.segments.find((x) => x.id === ev.segmentId);
-        if (seg) sequences.segment({ seg, timeS: ev.timeMs / 1000, avgWatts: ride.avgWatts() }, s.name, track.route.id, ev.rank, net.roster.size);
+        if (seg) sequences.segment({ seg, timeS: ev.timeMs / 1000, avgWatts: ride.avgWatts() }, s.name, rankRouteId(track.route.id), ev.rank, net.roster.size);
       } else if (ev.kind === 'chat') hud.addChat(net.roster.get(ev.riderId)?.name ?? '?', ev.text);
       else if (ev.kind === 'rideOn' && ev.to === net.selfId) hud.toast(`👍 Ride On — ${net.roster.get(ev.from)?.name ?? ''}`);
       else if (ev.kind === 'results') {
@@ -1162,7 +1163,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
       elevationGainM: ride.elevationGainM,
       avgWatts: ride.avgWatts(),
       massKg: s.massKg,
-      ...(kom ? { kom: { name: kom.seg.name, timeS: kom.timeS, avgWatts: kom.avgWatts, climbM: track.sample(kom.seg.endM).y - track.sample(kom.seg.startM).y, recordS: readKomRecord(track.route.id, kom.seg.id)?.timeS ?? null } } : {}),
+      ...(kom ? { kom: { name: kom.seg.name, timeS: kom.timeS, avgWatts: kom.avgWatts, climbM: track.sample(kom.seg.endM).y - track.sample(kom.seg.startM).y, recordS: readKomRecord(rankRouteId(track.route.id), kom.seg.id)?.timeS ?? null } } : {}),
     });
     showSummit(ui, { routeName: track.route.name, altitudeM: track.sample(track.length).y, stats }, {
       onSummary: () => finish(),
@@ -1191,7 +1192,8 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
       sentSegments = ride.segmentResults.length;
       if (routeS !== undefined) sentRouteTimes++;
       void postRideEfforts({
-        routeId: track.route.id,
+        // départ déplacé sur une boucle : mêmes montées et même tour, classés avec la boucle
+        routeId: rankRouteId(track.route.id),
         rideId: String(ride.startT),
         segments: segs.map((r) => ({ segmentId: r.seg.id, elapsedMs: Math.round(r.timeS * 1000) })),
         ...(routeS !== undefined ? { routeTimeMs: Math.round(routeS * 1000) } : {}),

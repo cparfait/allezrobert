@@ -23,7 +23,7 @@ import { normalizeCode } from '../ride/registry.ts';
 import { activeRooms } from '../ride/RideRoom.ts';
 import { readHeartbeat } from '../render/worker.ts';
 import { normalizedPower } from '@allezrobert/physics';
-import { COUNTRY_CODE_RE, GHOST_MAX_S, FACE_CODE_RE, SHOE_MARKS, completedKits, equippedTuneIds, tuneItem, type ShoeMarkId } from '@allezrobert/shared';
+import { COUNTRY_CODE_RE, GHOST_MAX_S, FACE_CODE_RE, SHOE_MARKS, completedKits, equippedTuneIds, rankRouteId, tuneItem, type ShoeMarkId } from '@allezrobert/shared';
 import { buy, migrateLegacyWheels, rewardRide } from '../progression/atelier.ts';
 import type { ActivitySummaryRow } from '../db/repos.ts';
 
@@ -359,6 +359,8 @@ export function mountApi(app: express.Application, ctx: AppContext): void {
       })
       .parse(req.body);
     if (body.routeId === 'open' || body.routeId.startsWith('itineraire-')) throw new HttpError(400, 'Itinéraire non classé', 'unranked_route');
+    // boucle partie d'un autre point : temps rangés avec ceux de la boucle (mêmes montées, même tour)
+    body.routeId = rankRouteId(body.routeId);
     const known = ctx.routes.get(body.routeId)?.data;
     // Vitesse moyenne maximale admise : 90 km/h sur un segment, 60 km/h sur un parcours entier.
     const plausible = (lengthM: number, elapsedMs: number, maxMs: number) => lengthM / (elapsedMs / 1000) <= maxMs;

@@ -15,7 +15,7 @@ import { FriendHub } from './friends/hub.ts';
 import type { RouteStore } from './ride/routes.ts';
 import type { RideServices } from './ride/services.ts';
 import { parseCookies, SESSION_COOKIE } from './http/cookies.ts';
-import { levelForXp } from '@allezrobert/shared';
+import { levelForXp, rankRouteId } from '@allezrobert/shared';
 import { rewardEvents } from './progression/atelier.ts';
 
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
@@ -134,10 +134,11 @@ export function rideServicesFrom(ctx: AppContext): RideServices {
       const n = await ctx.repos.addKom(userId);
       return rewardEvents(ctx.repos, userId, n >= 5 ? ['kom', 'kom-5'] : ['kom']);
     },
+    // Boucle partie d'un autre point (« -depart-<m> ») : mêmes montées, records et classements de la boucle.
     async personalBests(userId, routeId) {
-      return (await ctx.repos.personalBests(userId, routeId)).map((b) => [b.segmentId, b.bestMs] as [string, number]);
+      return (await ctx.repos.personalBests(userId, rankRouteId(routeId))).map((b) => [b.segmentId, b.bestMs] as [string, number]);
     },
-    recordEffort: (e) => ctx.repos.recordSegmentEffort(e),
+    recordEffort: (e) => ctx.repos.recordSegmentEffort({ ...e, routeId: rankRouteId(e.routeId) }),
     log: ctx.log,
   };
 }

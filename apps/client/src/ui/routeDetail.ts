@@ -4,7 +4,7 @@
  * de chaque montée ou sprint) et ceux de tes amis et de tous, chargés depuis le serveur.
  * Les temps viennent des sorties de chacun (solo ou en groupe) : montées, sprints, parcours entier.
  */
-import type { RouteData, RouteSegment } from '@allezrobert/shared';
+import { rankRouteId, type RouteData, type RouteSegment } from '@allezrobert/shared';
 import { readKomRecord } from '../game/challenge.ts';
 import { readGhostBest } from '../game/ghost.ts';
 import { readSegmentPr } from '../game/sequences.ts';
@@ -44,8 +44,8 @@ function myLocalBest(routeId: string, seg: RouteSegment): number | null {
   return a !== null && b !== null ? Math.min(a, b) : (a ?? b);
 }
 
-/** Grande carte : tracé coloré selon la pente, montées surlignées et numérotées, villages, départ, arrivée. */
-function bigMap(r: RouteData, segs: RouteSegment[]): string {
+/** Cadrage de la grande carte : points dessinés et passage monde → carte (unités du viewBox). */
+function mapFrame(r: RouteData) {
   const step = Math.max(1, Math.floor(r.points.length / 900));
   const sel = r.points.filter((_, i) => i % step === 0 || i === r.points.length - 1);
   let minX = Infinity;
@@ -66,6 +66,15 @@ function bigMap(r: RouteData, segs: RouteSegment[]): string {
   const oz = (H - (maxZ - minZ) * k) / 2;
   const X = (x: number) => ox + (x - minX) * k;
   const Z = (z: number) => oz + (z - minZ) * k;
+  return { sel, W, H, X, Z };
+}
+
+/**
+ * Grande carte : tracé coloré selon la pente, montées surlignées et numérotées, villages, départ,
+ * arrivée. `originM` : départ d'origine (distance sur ce parcours) quand le départ a été déplacé.
+ */
+function bigMap(r: RouteData, segs: RouteSegment[], opts: { movable: boolean; originM: number | null }): string {
+  const { sel, W, H, X, Z } = mapFrame(r);
   let lines = '';
   for (let i = 1; i < sel.length; i++) {
     const a = sel[i - 1]!;
@@ -97,12 +106,14 @@ function bigMap(r: RouteData, segs: RouteSegment[]): string {
   const a = r.points[0]!;
   const b = r.points[r.points.length - 1]!;
   const same = Math.hypot(a.x - b.x, a.z - b.z) < 60;
-  return `<svg class="rd-map" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+  const o = opts.originM !== null ? pointAt(r, opts.originM) : null;
+  return `<svg class="rd-map${opts.movable ? ' rd-map-movable' : ''}" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
     <g class="rd-climbs">${climbs.replace(/<g class="rd-climb-tag"[\s\S]*?<\/g>/g, '')}</g>
     <g stroke-width="3.4" stroke-linecap="round">${lines}</g>
     <g class="rd-villages">${villages}</g>
     ${climbs.match(/<g class="rd-climb-tag"[\s\S]*?<\/g>/g)?.join('') ?? ''}
     ${same ? '' : `<g class="rd-end" transform="translate(${X(b.x).toFixed(1)} ${Z(b.z).toFixed(1)})"><circle r="8"/><text y="3.6">A</text></g>`}
+    ${o ? `<g class="rd-origin" transform="translate(${X(o.x).toFixed(1)} ${Z(o.z).toFixed(1)})"><circle r="6.5"/><text y="3">D</text></g>` : ''}
     <g class="rd-start" transform="translate(${X(a.x).toFixed(1)} ${Z(a.z).toFixed(1)})"><circle r="8"/><text y="3.6">D</text></g>
   </svg>`;
 }
@@ -152,17 +163,38 @@ function placesList(list: Array<{ name: string; d: number }>): string {
   return `<div class="rd-places">${head}${rest.length ? `<details><summary>+ ${rest.length} ${L ? 'autres' : 'more'}</summary>${rest.map(item).join(' · ')}</details>` : ''}</div>`;
 }
 
-/** Fiche complète (les temps du serveur arrivent ensuite, voir `loadRouteBoards`). */
-export function routeDetailHtml(r: RouteData, name: string, opts: { loggedIn: boolean }): string {
+/**
+ * Bandeau du départ sous la carte d'une boucle : comment le déplacer, ou où il est et le retour au
+ * départ d'origine. `startM` : distance du départ choisi sur le tracé d'origine (0 = d'origine).
+ */
+function startBar(r: RouteData, startM: number): string {
   const L = fr();
+  if (!(startM > 0)) return `<div class="rd-startbar"><span>${L ? 'Clique sur le tracé ou fais glisser <b>D</b> pour partir d’ailleurs' : 'Click the route or drag <b>D</b> to start elsewhere'}</span></div>`;
+  const gap = (d: number) => Math.min(d, r.lengthM - d);
+  const near = r.landmarks?.slice().sort((a, b) => gap(a.d) - gap(b.d))[0];
+  const at = near && gap(near.d) < 800 ? `${esc(near.name)} · ` : '';
+  return `<div class="rd-startbar"><span>${L ? 'Départ' : 'Start'} : <b>${at}km ${num(startM / 1000)}</b> ${L ? 'après le départ d’origine' : 'after the original start'}</span><button class="mm-link" data-rd-start="0">↺ ${L ? 'Départ d’origine' : 'Original start'}</button></div>`;
+}
+
+/**
+ * Fiche complète (les temps du serveur arrivent ensuite, voir `loadRouteBoards`). `start` : boucle
+ * dont le départ se déplace sur la carte ({@link bindStartPicker}) et départ choisi (m sur le tracé
+ * d'origine, 0 = d'origine).
+ */
+export function routeDetailHtml(r: RouteData, name: string, opts: { loggedIn: boolean; start?: { movable: boolean; startM: number } }): string {
+  const L = fr();
+  // Un départ déplacé ne change ni la boucle ni ses montées : records et classements partagés.
+  const rank = rankRouteId(r.id);
+  const startM = opts.start?.startM ?? 0;
   const segs = [...r.segments].sort((a, b) => a.startM - b.startM);
   const kom = segs.filter((s) => s.kind === 'kom');
   const h = r.lengthM / 26000 + r.elevationGainM / 700;
   const eta = Math.floor(h) ? `${Math.floor(h)} h ${String(Math.round((h % 1) * 60)).padStart(2, '0')}` : `${Math.round(h * 60)} min`;
-  const ghost = readGhostBest(r.id);
-  const rides = readRideHistory().filter((x) => x.routeId === r.id);
+  const ghosts = [readGhostBest(rank), r.id === rank ? null : readGhostBest(r.id)].filter((g) => g !== null);
+  const ghost = ghosts.sort((a, b) => a.lapTimeS - b.lapTimeS)[0] ?? null;
+  const rides = readRideHistory().filter((x) => rankRouteId(x.routeId) === rank);
   const last = rides[rides.length - 1];
-  const done = loadProgress().routesDone.includes(r.id);
+  const done = loadProgress().routesDone.some((id) => rankRouteId(id) === rank);
   const stat = (v: string, u: string) => `<div><b>${v}</b><span>${u}</span></div>`;
   const dateFmt = (d: number | string) => new Date(d).toLocaleDateString(L ? 'fr-FR' : 'en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
   const mine = [
@@ -172,7 +204,7 @@ export function routeDetailHtml(r: RouteData, name: string, opts: { loggedIn: bo
   const rows = segs
     .map((s) => {
       const n = kom.indexOf(s);
-      const best = myLocalBest(r.id, s);
+      const best = myLocalBest(rank, s);
       return `<tr data-seg="${esc(s.id)}">
         <td class="rd-n">${s.kind === 'kom' ? `<i class="rd-badge">${n + 1}</i>` : '<i class="rd-badge rd-sprint">S</i>'}</td>
         <td><b>${esc(s.name)}</b><small>${s.kind === 'kom' ? (L ? 'Montée' : 'Climb') : 'Sprint'} · ${num((s.endM - s.startM) / 1000)} km${s.kind === 'kom' ? ` · ${num(s.avgGrade)} %` : ''} · km ${num(s.startM / 1000)}</small></td>
@@ -185,7 +217,10 @@ export function routeDetailHtml(r: RouteData, name: string, opts: { loggedIn: bo
     .join('');
   return `<div class="rd">
     <div class="rd-top-grid">
-      ${bigMap(r, segs)}
+      <div class="rd-map-box">
+        ${bigMap(r, segs, { movable: !!opts.start?.movable, originM: startM > 0 ? r.lengthM - startM : null })}
+        ${opts.start?.movable ? startBar(r, startM) : ''}
+      </div>
       <div class="rd-side">
         <div class="rd-stats">
           ${stat(num(r.lengthM / 1000), 'km')}
@@ -239,9 +274,10 @@ async function getJson<T>(path: string): Promise<T | null> {
  * (3 meilleurs) et le meilleur temps de tous. Remplit le tableau sur place ; hors ligne, les
  * cases indiquent « hors ligne ».
  */
-export async function loadRouteBoards(root: ParentNode, r: RouteData, loggedIn: boolean): Promise<void> {
+export async function loadRouteBoards(root: ParentNode, route: RouteData, loggedIn: boolean): Promise<void> {
   const L = fr();
   const enc = encodeURIComponent;
+  const r = { id: rankRouteId(route.id), segments: route.segments };
   // Parcours entier : amis (3 meilleurs, toi compris) et meilleur temps de tous.
   void Promise.all([
     getJson<Board[]>(`/routes/${enc(r.id)}/leaderboard?limit=1`),
@@ -287,4 +323,65 @@ export async function loadRouteBoards(root: ParentNode, r: RouteData, loggedIn: 
             : `<span class="rd-none">${L ? 'pas encore de temps' : 'no times yet'}</span>`;
     }),
   );
+}
+
+/** Au-delà (unités de la carte), un clic loin du tracé ne déplace pas le départ. */
+const PICK_RADIUS = 30;
+
+/**
+ * Départ choisi sur la grande carte d'une boucle : un clic sur le tracé (ou le marqueur « D »
+ * glissé) le cale sur le point le plus proche ; `onPick` reçoit sa distance sur ce parcours.
+ */
+export function bindStartPicker(root: ParentNode, r: RouteData, onPick: (d: number) => void): void {
+  const svg = root.querySelector<SVGSVGElement>('svg.rd-map-movable');
+  const marker = svg?.querySelector<SVGGElement>('.rd-start');
+  if (!svg || !marker) return;
+  const { X, Z } = mapFrame(r);
+  const proj = r.points.map((p) => [X(p.x), Z(p.z)] as const);
+  /** Point du tracé le plus proche du pointeur (indice, écart en unités de la carte). */
+  const nearest = (e: PointerEvent): { i: number; dist: number } | null => {
+    const m = svg.getScreenCTM();
+    if (!m) return null;
+    const q = new DOMPoint(e.clientX, e.clientY).matrixTransform(m.inverse());
+    let i = 0;
+    let best = Infinity;
+    proj.forEach(([x, z], j) => {
+      const d2 = (x - q.x) ** 2 + (z - q.y) ** 2;
+      if (d2 < best) [best, i] = [d2, j];
+    });
+    return { i, dist: Math.sqrt(best) };
+  };
+  const moveMarker = (i: number) => {
+    const [x, z] = proj[i] as readonly [number, number];
+    marker.setAttribute('transform', `translate(${x.toFixed(1)} ${z.toFixed(1)})`);
+  };
+  let drag: number | null = null;
+  svg.addEventListener('pointerdown', (e) => {
+    const hit = nearest(e);
+    const onMarker = (e.target as Element).closest('.rd-start') !== null;
+    if (!hit || (!onMarker && hit.dist > PICK_RADIUS)) return;
+    e.preventDefault();
+    svg.setPointerCapture(e.pointerId);
+    svg.classList.add('rd-dragging');
+    drag = onMarker ? 0 : hit.i;
+    moveMarker(drag);
+  });
+  svg.addEventListener('pointermove', (e) => {
+    if (drag === null) return;
+    const hit = nearest(e);
+    if (!hit) return;
+    drag = hit.i;
+    moveMarker(drag);
+  });
+  const end = (e: PointerEvent, keep: boolean) => {
+    if (drag === null) return;
+    const i = drag;
+    drag = null;
+    svg.classList.remove('rd-dragging');
+    if (svg.hasPointerCapture(e.pointerId)) svg.releasePointerCapture(e.pointerId);
+    if (!keep || i === 0) moveMarker(0);
+    else onPick((r.points[i] as { d: number }).d);
+  };
+  svg.addEventListener('pointerup', (e) => end(e, true));
+  svg.addEventListener('pointercancel', (e) => end(e, false));
 }
