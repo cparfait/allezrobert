@@ -15,6 +15,10 @@ export interface ZoneSpot {
   name: { fr: string; en: string };
 }
 
+/** Quadrillage de l'Île-de-France (tools/terrain/src/mesh-idf.ts, zones `idf-*`) : mailles carrées de 16 km, affichées en grille. */
+export const MESH_CELL_M = 16000;
+export const isMeshZone = (id: string): boolean => id.startsWith('idf-');
+
 const PDD = { fr: 'Puy-de-Dôme', en: 'Puy-de-Dôme' };
 const IDF = { fr: 'Île-de-France', en: 'Île-de-France' };
 

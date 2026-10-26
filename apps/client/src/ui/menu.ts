@@ -3,7 +3,7 @@ import { readKomRecord } from '../game/challenge.ts';
 import { COUNTRIES, BIKE_BRANDS, BIKE_GROUPS, BIKE_TEAMS, COSMETICS, DEFAULT_BIKE, bikeById, lookSex, tuneItem, withSex, bottleCapacity, bikeSetupFor, jerseyLookOf, levelProgress, SHOE_MARKS, type BikeCollection, type BikeType, type CosmeticSlot } from '@allezrobert/shared';
 import { shoeAccentOf } from '../rider/shoeLook.ts';
 import { WORKOUT_LIBRARY } from '@allezrobert/physics';
-import { formatBytes, installPack, installedPacks, loadCatalogue, packState, removePack } from '../world/packs.ts';
+import { formatBytes, inTauri, installPack, installedPacks, loadCatalogue, packState, removePack } from '../world/packs.ts';
 import { compositeId, neighbourZones } from '../world/composite.ts';
 import { t, setLang, getLang, type I18nKey } from '../i18n/index.ts';
 import type { Settings } from './settings.ts';
@@ -33,7 +33,7 @@ import { companionQr } from './companionQr.ts';
 import { FranceMap, type MapZone } from './franceMap.ts';
 import { loadRouteBoards, routeDetailHtml } from './routeDetail.ts';
 import { canReverse, reversedOf, routeKey } from '../game/direction.ts';
-import { ZONE_SPOTS } from '../world/zoneMap.ts';
+import { isMeshZone, MESH_CELL_M, ZONE_SPOTS } from '../world/zoneMap.ts';
 import { getAspectCap, getResolutionCap, getUiAspectCap, setAspectCap, setResolutionCap, setUiAspectCap, type AspectCap, type ResolutionCap } from '../engine/display.ts';
 import './menu.css';
 
@@ -1198,7 +1198,10 @@ export class MainMenu {
       const available = this.zones.length ? !!z : !!w;
       const n = z?.routes.length ?? 0;
       const info = [n ? `${n} ${L ? 'parcours' : n > 1 ? 'routes' : 'route'}` : '', spot.open ? (L ? 'monde ouvert' : 'open world') : '', w ? w.hint[lang] : ''].filter(Boolean).join(' · ');
-      return { id: spot.id, name: w ? w.name[lang] : spot.name[lang], region: spot.region[lang], x: spot.x, y: spot.y, available, current: spot.id === this.worldId, info, ...(z?.l93 ? { rect: z.l93 } : {}) };
+      const mesh = isMeshZone(spot.id);
+      // maille du quadrillage : carré de MESH_CELL_M autour de son centre, même avant d'être au catalogue
+      const rect = z?.l93 ?? (mesh ? { minE: spot.x - MESH_CELL_M / 2, minN: spot.y - MESH_CELL_M / 2, maxE: spot.x + MESH_CELL_M / 2, maxN: spot.y + MESH_CELL_M / 2 } : undefined);
+      return { id: spot.id, name: w ? w.name[lang] : spot.name[lang], region: spot.region[lang], x: spot.x, y: spot.y, available, current: spot.id === this.worldId, info, ...(rect ? { rect } : {}), ...(mesh ? { mesh } : {}) };
     });
   }
 
@@ -2064,8 +2067,26 @@ export class MainMenu {
     }
   }
 
+  /**
+   * Application Windows : pas de départ tant que la carte de la zone n'est pas téléchargée
+   * (le téléchargement démarre tout seul). Dans le navigateur, la zone se charge depuis le serveur.
+   */
+  private zoneReady(): boolean {
+    if (!inTauri) return true;
+    const z = this.zones.find((c) => c.id === this.worldId);
+    if (!z?.pack) return true;
+    const st = packState(z.id, z.pack.version);
+    if (st.kind !== 'absent') return true;
+    const busy = this.downloads.get(z.id);
+    if (!busy || busy.error) void this.downloadZone(z.id);
+    const L = fr();
+    alert(L ? `La zone « ${this.zoneLabel(z.id)} » n'est pas encore téléchargée. Le téléchargement démarre : tu pourras rouler quand il sera terminé (Réglages › Zones et cartes).` : `The "${this.zoneLabel(z.id)}" area isn't downloaded yet. The download has started: you can ride once it finishes (Settings › Zones and maps).`);
+    return false;
+  }
+
   /** Départ d'une sortie : l'appli compagnon est d'abord proposée (tous les modes). */
   private launch(...args: Parameters<MenuCallbacks['onStart']>): void {
+    if (!this.zoneReady()) return;
     void companionQr()
       .beforeRide()
       .then(() => this.cb.onStart(...args));
