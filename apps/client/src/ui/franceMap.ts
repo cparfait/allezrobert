@@ -24,7 +24,14 @@ export interface MapZone {
   info: string;
   /** Emprise des tuiles, Lambert-93 (m) : rectangle dessiné sur la carte zoomée. */
   rect?: { minE: number; minN: number; maxE: number; maxN: number };
+  /** Maille du quadrillage de l'Île-de-France : jamais un point ; une case de la grille, visible en zoomant sur la région. */
+  mesh?: boolean;
+  /** Nombre de zones que représente ce point (point unique du quadrillage). */
+  count?: number;
 }
+
+/** Point qui représente tout le quadrillage tant que la carte est trop large pour en lire les cases. */
+const MESH_ID = '__mesh';
 
 interface View {
   x: number;
@@ -46,6 +53,12 @@ const MERGE_PX = 26;
 const FULL: View = { x: 80, y: -7140, w: 1190, h: 1120 };
 /** Largeur de vue la plus petite (km) en zoomant à la molette, la plus grande en dézoomant. */
 const MIN_W = 12;
+/** Sous cette largeur de vue (km), les cases du quadrillage remplacent le point unique « Île-de-France ». */
+const MESH_W = 260;
+/** Largeur d'une case (px) à partir de laquelle son nom est écrit. */
+const MESH_LABEL_PX = 85;
+/** Vue qui cadre l'Île-de-France entière (centre ≈ 663,5 / 6842,5 km). */
+const MESH_VIEW: View = { x: 578.5, y: -6922.5, w: 170, h: (170 * FULL.h) / FULL.w };
 const MAX_W = FULL.w * 1.3;
 
 /** Marge du fond de carte autour de la vue (fraction) : la boîte peut être plus large que le viewBox. */
@@ -97,6 +110,45 @@ export class FranceMap {
     return this.outline;
   }
 
+  private get meshShown(): boolean {
+    return this.view.w < MESH_W;
+  }
+
+  /** Zones ponctuelles de la vue : les mailles du quadrillage sont réunies en un seul point tant qu'on ne zoome pas dessus. */
+  private points(zones: MapZone[]): MapZone[] {
+    const mesh = zones.filter((z) => z.mesh);
+    const rest = zones.filter((z) => !z.mesh);
+    if (!mesh.length || this.meshShown) return rest;
+    const avg = (f: (z: MapZone) => number) => mesh.reduce((t, z) => t + f(z), 0) / mesh.length;
+    const n = mesh.filter((z) => z.available).length;
+    const L = fr();
+    return [...rest, { id: MESH_ID, name: `Île-de-France · ${mesh.length} ${L ? 'zones' : 'areas'}`, region: 'Île-de-France', x: avg((z) => z.x), y: avg((z) => z.y), available: n > 0, current: mesh.some((z) => z.current), info: `${n}/${mesh.length}`, count: mesh.length }];
+  }
+
+  /** Quadrillage de l'Île-de-France : une case par maille, nom en petit dans le coin. */
+  private meshLayer(zones: MapZone[]): string {
+    const L = fr();
+    const k = Number(this.k());
+    return `<g class="fm-cells">${zones
+      .filter((z) => z.mesh && z.rect)
+      .map((z) => {
+        const r = z.rect!;
+        const x = sx(r.minE);
+        const y = sy(r.maxN);
+        const short = z.name.replace(/^Île-de-France — /, '');
+        const tip = `${short}${z.current ? (L ? ' · zone actuelle' : ' · current area') : ''}
+${z.available ? z.info : L ? 'Bientôt disponible' : 'Coming soon'}`;
+        // largeur de la case à l'écran : le nom n'est écrit que si la case est assez large, tronqué à sa largeur
+        const px = (r.maxE - r.minE) / 1000 / k;
+        const room = Math.floor((px - 8) / 6.2);
+        const label = px >= MESH_LABEL_PX ? (short.length > room ? `${short.slice(0, Math.max(3, room - 1))}…` : short) : '';
+        return `<g class="fm-cell${z.available ? '' : ' fm-off'}${z.current ? ' fm-cur' : ''}" data-zone="${esc(z.id)}" data-tip="${esc(tip)}" tabindex="0" role="button" aria-label="${esc(short)}">
+          <rect x="${x.toFixed(2)}" y="${y.toFixed(2)}" width="${((r.maxE - r.minE) / 1000).toFixed(2)}" height="${((r.maxN - r.minN) / 1000).toFixed(2)}"/>
+          ${label ? `<text x="${(x + 4 * k).toFixed(2)}" y="${(y + 14 * k).toFixed(2)}" style="font-size:${(11 * k).toFixed(3)}px;stroke-width:${(2.5 * k).toFixed(3)}px">${esc(label)}</text>` : ''}</g>`;
+      })
+      .join('')}</g>`;
+  }
+
   /** Regroupement des zones proches à l'échelle de la vue. */
   private clusters(zones: MapZone[]): MapZone[][] {
     const lim = (MERGE_PX * this.view.w) / PX_W;
@@ -121,9 +173,9 @@ export class FranceMap {
     const L = fr();
     const v = this.view;
     const k = this.k();
-    const pts = this.clusters(zones)
+    const pts = this.clusters(this.points(zones))
       .map((g, gi) => {
-        if (g.length === 1) {
+        if (g.length === 1 && g[0]!.id !== MESH_ID) {
           const z = g[0] as MapZone;
           const tip = `${z.name}${z.current ? (L ? ' · zone actuelle' : ' · current area') : ''}\n${z.available ? z.info : L ? 'Bientôt disponible' : 'Coming soon'}`;
           return `<g class="fm-pt${z.available ? '' : ' fm-off'}${z.current ? ' fm-cur' : ''}" data-zone="${esc(z.id)}" data-tip="${esc(tip)}" transform="translate(${sx(z.x).toFixed(1)} ${sy(z.y).toFixed(1)}) scale(${k})" tabindex="0" role="button" aria-label="${esc(z.name)}">
@@ -133,9 +185,10 @@ export class FranceMap {
         const cy = g.reduce((s, q) => s + sy(q.y), 0) / g.length;
         const regions = [...new Set(g.map((q) => q.region))];
         const n = g.filter((q) => q.available).length;
-        const tip = `${regions.length === 1 ? regions[0] : L ? 'Plusieurs zones' : 'Several areas'} · ${g.length} ${L ? 'zones' : 'areas'}\n${g.map((q) => q.name).join(', ')}\n${L ? 'Clique pour zoomer' : 'Click to zoom in'}`;
+        const total = g.reduce((t, q) => t + (q.count ?? 1), 0);
+        const tip = `${regions.length === 1 ? regions[0] : L ? 'Plusieurs zones' : 'Several areas'} · ${total} ${L ? 'zones' : 'areas'}\n${g.map((q) => q.name).join(', ')}\n${L ? 'Clique pour zoomer' : 'Click to zoom in'}`;
         return `<g class="fm-cl${n ? '' : ' fm-off'}${g.some((q) => q.current) ? ' fm-cur' : ''}" data-cluster="${gi}" data-ids="${esc(g.map((q) => q.id).join(','))}" data-tip="${esc(tip)}" transform="translate(${cx.toFixed(1)} ${cy.toFixed(1)}) scale(${k})" tabindex="0" role="button">
-          <circle class="fm-hit" r="20"/><circle class="fm-dot" r="12"/><text y="4.5">${g.length}</text></g>`;
+          <circle class="fm-hit" r="20"/><circle class="fm-dot" r="12"/><text y="4.5">${total}</text></g>`;
       })
       .join('');
     return `<div class="fm-box${this.zoomed ? ' fm-zoomed' : ''}">
@@ -143,12 +196,13 @@ export class FranceMap {
         ${this.baseLayers(v)}
         <path class="fm-land" d="${this.outlinePath()}"/>
         ${this.zoomed ? `<g class="fm-rects">${zones
-          .filter((z) => z.rect && z.available)
+          .filter((z) => z.rect && z.available && !z.mesh)
           .map((z) => {
             const r = z.rect!;
             return `<rect class="fm-rect${z.current ? ' fm-cur' : ''}" x="${sx(r.minE).toFixed(2)}" y="${sy(r.maxN).toFixed(2)}" width="${((r.maxE - r.minE) / 1000).toFixed(2)}" height="${((r.maxN - r.minN) / 1000).toFixed(2)}"/>`;
           })
           .join('')}</g>` : ''}
+        ${this.meshShown ? this.meshLayer(zones) : ''}
         <g class="fm-pts">${pts}</g>
       </svg>
       <div class="fm-tip" hidden></div>
@@ -185,6 +239,10 @@ export class FranceMap {
       const v = this.view;
       svg.setAttribute('viewBox', `${v.x.toFixed(1)} ${v.y.toFixed(1)} ${v.w.toFixed(1)} ${v.h.toFixed(1)}`);
       const k = this.k();
+      svg.querySelectorAll<SVGTextElement>('.fm-cell text').forEach((t) => {
+        t.style.fontSize = `${11 * Number(k)}px`;
+        t.style.strokeWidth = `${2.5 * Number(k)}px`;
+      });
       svg.querySelectorAll<SVGGElement>('.fm-pts > g').forEach((g) => g.setAttribute('transform', (g.getAttribute('transform') ?? '').replace(/scale\([^)]*\)/, `scale(${k})`)));
     };
     const zoomTo = (target: View) => {
@@ -242,6 +300,10 @@ export class FranceMap {
           return;
         }
         const ids = el.getAttribute('data-ids');
+        if (ids?.split(',').includes(MESH_ID)) {
+          zoomTo({ ...MESH_VIEW });
+          return;
+        }
         if (ids) {
           // Groupe : zoom sur l'emprise de ses zones, assez près pour les séparer (≥ 30 km de large).
           const g = zones.filter((z) => ids.split(',').includes(z.id));
