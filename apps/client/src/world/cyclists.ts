@@ -290,8 +290,8 @@ export class AmbientCyclists {
    * Cyclistes qui vont dans le sens du joueur à moins de `rangeM` : nom, niveau, W/kg et centre du
    * groupe, pour « À proximité » (savoir si on peut les suivre).
    */
-  roster(playerDistM: number, rangeM: number): Array<{ id: string; name: string; level: string; levelIdx: number; distM: number; x: number; z: number; color: string; wkg: number; km: number }> {
-    const out: Array<{ id: string; name: string; level: string; levelIdx: number; distM: number; x: number; z: number; color: string; wkg: number; km: number }> = [];
+  roster(playerDistM: number, rangeM: number): Array<{ id: string; name: string; level: string; levelIdx: number; distM: number; x: number; z: number; color: string; wkg: number; km: number; watts: number }> {
+    const out: Array<{ id: string; name: string; level: string; levelIdx: number; distM: number; x: number; z: number; color: string; wkg: number; km: number; watts: number }> = [];
     const L = this.track.length;
     for (const c of this.units) {
       if (c.sens < 0) continue;
@@ -300,7 +300,7 @@ export class AmbientCyclists {
       const p = this.track.sample(this.track.route.loop ? ((mid % L) + L) % L : Math.min(Math.max(mid, 0), L), this.sample);
       const n = c.members.length;
       const lv = LEVELS[c.level] as (typeof LEVELS)[number];
-      out.push({ id: c.id, name: n > 1 ? `Groupe de ${n}` : 'Cycliste', level: lv.name, levelIdx: c.level, distM: mid, x: p.x, z: p.z, color: c.color, wkg: c.watts / c.massKg, km: c.kmBase + c.travelledM / 1000 });
+      out.push({ id: c.id, name: n > 1 ? `Groupe de ${n}` : 'Cycliste', level: lv.name, levelIdx: c.level, distM: mid, x: p.x, z: p.z, color: c.color, wkg: c.watts / c.massKg, km: c.kmBase + c.travelledM / 1000, watts: c.watts });
     }
     return out;
   }
