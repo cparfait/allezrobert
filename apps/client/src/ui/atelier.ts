@@ -4,9 +4,9 @@ import { bloom } from 'three/addons/tsl/display/BloomNode.js';
 import { ao } from 'three/addons/tsl/display/GTAONode.js';
 import { DEFAULT_LOOK, type AvatarLook, type TuneSlot } from '@allezrobert/shared';
 import { createAvatar, type RiderAvatarLike } from '../rider/gltfAvatar.ts';
-import { crowdBike, loneWheel, onBikeFamilyLoaded } from '../rider/bikes.ts';
+import { loneWheel, onBikeFamilyLoaded } from '../rider/bikes.ts';
 import { compilePass, isCompiling, type Engine } from '../engine/renderer.ts';
-import { box, buildRoom, cyl, mat, rod } from './atelierRoom.ts';
+import { box, buildRoom, cyl, mat, rod, WALL_WHEELS } from './atelierRoom.ts';
 
 /**
  * Atelier du garage : le vélo du joueur sur un pied d'atelier, dans une pièce procédurale (établi,
@@ -288,10 +288,8 @@ export class AtelierHost {
 
   /** Vélos du jeu (sans coureur) posés sur la lisse du mur de gauche, de profil, comme dans un vrai rack. */
   private hangBikes(): void {
-    const slots: Array<[number, number]> = [[-1.6, 1], [0.1, 4], [1.8, 9]];
-    for (const [x, n] of slots) {
-      const bikeModel = crowdBike(n);
-      if (!bikeModel) continue;
+    const slots: Array<[number, string]> = [[-1.6, 'myth-pinarello-dogma-f12'], [0.1, 'myth-colnago-v4rs'], [1.8, 'myth-specialized-tarmac-sl7']];
+    for (const [x, bikeModel] of slots) {
       const a = createAvatar({ ...DEFAULT_LOOK, bikeModel });
       (a as RiderAvatarLike & { setRiderVisible?(on: boolean): void }).setRiderVisible?.(false);
       a.update(0, 0, 0, 'coasting');
@@ -301,9 +299,8 @@ export class AtelierHost {
       this.scene.add(a.root);
     }
     // Quatrième vélo sur la lisse du mur du fond (le long de z), de profil.
-    const back = crowdBike(12);
-    if (back) {
-      const a = createAvatar({ ...DEFAULT_LOOK, bikeModel: back });
+    {
+      const a = createAvatar({ ...DEFAULT_LOOK, bikeModel: 'myth-colnago-c40-mapei' });
       (a as RiderAvatarLike & { setRiderVisible?(on: boolean): void }).setRiderVisible?.(false);
       a.update(0, 0, 0, 'coasting');
       a.setShadows(false);
@@ -311,14 +308,13 @@ export class AtelierHost {
       this.scene.add(a.root);
     }
     // Deux vélos posés au sol, appuyés contre le mur de bois (fond) et celui de droite.
-    const leaning: Array<[number, number, number, number, number, number]> = [
-      // modèle, x, z, rotation y du vélo, axe d'inclinaison (x ou z), angle
-      [2, -0.7, -2.72, 0, 0, -0.1],
-      [7, 3.1, -1.7, Math.PI / 2, 1, -0.1],
+    const leaning: Array<[string, number, number, number, number, number]> = [
+      // modèle, x, z, rotation y du vélo (de profil, le long du mur), axe d'inclinaison (x ou z : roulis vers le mur), angle
+      ['myth-pinarello-dogma-651', -0.7, -2.62, Math.PI / 2, 0, -0.1],
+      ['myth-cervelo-s5-gen1', 3.02, -1.7, 0, 1, -0.1],
+      ['myth-bianchi-specialissima-acier', 3.02, 0.9, 0, 1, -0.1],
     ];
-    for (const [n, x, z, ry, axis, lean] of leaning) {
-      const bikeModel = crowdBike(n);
-      if (!bikeModel) continue;
+    for (const [bikeModel, x, z, ry, axis, lean] of leaning) {
       const a = createAvatar({ ...DEFAULT_LOOK, bikeModel });
       (a as RiderAvatarLike & { setRiderVisible?(on: boolean): void }).setRiderVisible?.(false);
       a.update(0, 0, 0, 'coasting');
@@ -331,11 +327,12 @@ export class AtelierHost {
       pivot.add(a.root);
       this.scene.add(pivot);
     }
-    // Roues carbone (profils 50 et 65 mm, lenticulaire) accrochées au mur du fond au-dessus du vélo.
-    [['c50', 1.35], ['c65', 2.15], ['disc', 2.95]].forEach(([type, z]) => {
-      const w = loneWheel(type as string, 'F');
+    // Roues haut de gamme (carbone 35, 50 et 65 mm, triple bâtons, lenticulaire) accrochées aux crochets des murs.
+    WALL_WHEELS.forEach(([type, x, y, z, ry]) => {
+      const w = loneWheel(type, 'F');
       if (!w) return;
-      w.position.set(-3.1, 2.78, z as number);
+      w.position.set(x, y, z);
+      w.rotation.y = ry;
       w.traverse((o) => ((o as THREE.Mesh).castShadow = true));
       this.scene.add(w);
     });

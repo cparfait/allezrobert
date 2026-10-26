@@ -104,6 +104,20 @@ function floorTexture(): THREE.CanvasTexture {
   );
 }
 
+/**
+ * Roues haut de gamme accrochées aux murs (un crochet chacune) : profil, centre x, y, z, rotation y.
+ * Mur du fond (x = −3,2) au-dessus du vélo de la lisse ; mur de bois (z = −3) au-dessus du vélo appuyé.
+ */
+export const WALL_WHEELS: ReadonlyArray<readonly [string, number, number, number, number]> = [
+  ['c50', -3.1, 2.78, 0.8, 0],
+  ['c65', -3.1, 2.78, 1.52, 0],
+  ['tri', -3.1, 2.78, 2.24, 0],
+  ['disc', -3.1, 2.78, 2.96, 0],
+  ['c35', -1.75, 2.5, -2.9, Math.PI / 2],
+  ['c65', -1.03, 2.5, -2.9, Math.PI / 2],
+  ['tri', -0.31, 2.5, -2.9, Math.PI / 2],
+];
+
 /** Bois blond en lames verticales (mur des étagères) et plafond. */
 function pineTexture(hue = 34, light = 62): THREE.CanvasTexture {
   return canvasTex(
@@ -588,7 +602,11 @@ export function buildRoom(): THREE.Group {
     room.add(box(0.12, 0.22, 0.05, rail, -3.16, 1.18, z));
     room.add(box(0.1, 0.03, 0.12, rail, -3.14, 1.26, z));
   }
-  for (const z of [1.35, 2.15, 2.95]) room.add(cyl(0.012, 0.09, rail, -3.15, 3.09, z, 8).rotateZ(Math.PI / 2));
+  for (const [, x, y, z, ry] of WALL_WHEELS) {
+    // Crochet perpendiculaire au mur, juste au-dessus de la jante.
+    const hook = ry ? cyl(0.012, 0.09, rail, x, y + 0.31, z - 0.05, 8).rotateX(Math.PI / 2) : cyl(0.012, 0.09, rail, x - 0.05, y + 0.31, z, 8).rotateZ(Math.PI / 2);
+    room.add(hook);
+  }
 
   // Home trainer dans le coin : corps, volant, pieds.
   const tr = new THREE.Group();
