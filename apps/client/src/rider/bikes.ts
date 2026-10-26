@@ -18,12 +18,16 @@ import { decalBoxes, frameMarks, wordmarkTexture } from './wordmarks.ts';
 export type Side = 'L' | 'R';
 
 /**
- * Famille chargeable : celles du catalogue, plus « gravel » (gravel.glb, hors catalogue : « Road Bike » de Tanya Andreeva,
- * CC BY 4.0, voir ASSETS_LICENSES.md), qui prend la livrée du vélo choisi quand le vélo équipé a des pneus gravel. Ce fichier
- * apporte ses propres roues (wheel_front / wheel_rear, pneus larges à flancs beiges, disques de frein) : celles de wheels.glb
- * ne servent pas.
+ * Famille chargeable : celles du catalogue, plus « gravel » (gravel.glb : « Road Bike » de Tanya Andreeva, CC BY 4.0) et « mtb »
+ * (mtb.glb : « Carbon Frame Bike » de prefrontal cortex, CC BY-SA 4.0), hors catalogue, voir ASSETS_LICENSES.md. Elles prennent la
+ * livrée du vélo choisi quand le vélo équipé a des pneus gravel ou VTT, et apportent leurs propres roues (wheel_front /
+ * wheel_rear, disques de frein) : celles de wheels.glb ne servent pas.
  */
-export type FamilyKey = BikeFamily | 'gravel';
+export type FamilyKey = BikeFamily | 'gravel' | 'mtb';
+
+/** Types de vélo qui ont leur modèle complet (famille du même nom). */
+export const OWN_MODEL_TYPES = ['gravel', 'mtb'] as const;
+const isOwnModel = (family: FamilyKey): family is (typeof OWN_MODEL_TYPES)[number] => family === 'gravel' || family === 'mtb';
 
 /** Vélo assemblé (un niveau de détail), prêt à être ajouté au groupe d'un avatar. */
 export interface AssembledBike {
@@ -285,13 +289,13 @@ export function loadBikeFamily(family: FamilyKey): Promise<boolean> {
     p = Promise.all([loadLods(family), wheelsLoading])
       .then(([lods]) => {
         families.set(family, lods);
-        if (family !== 'gravel') for (const cb of listeners) cb(family);
+        if (!isOwnModel(family)) for (const cb of listeners) cb(family);
         return true;
       })
       .catch((e: unknown) => {
         console.warn(`Vélos : famille ${family} indisponible`, e);
-        // Gravel facultatif : fichier absent, on garde le kit sans réessayer à chaque montage.
-        if (family === 'gravel') pending.set(family, Promise.resolve(false));
+        // Modèles gravel et VTT facultatifs : fichier absent, on garde le kit sans réessayer à chaque montage.
+        if (isOwnModel(family)) pending.set(family, Promise.resolve(false));
         else pending.delete(family);
         return false;
       });
@@ -345,8 +349,8 @@ export function assembleBike(build: BikeBuild, family: FamilyKey, lod: 0 | 1, bo
   const group = lods[lod].scene.clone(true);
   group.name = 'bike';
   const { track = false, toeClips = false } = build.params;
-  // Gravel : freins à disque (rotors dans les roues du fichier), quel que soit le vélo dont il prend la livrée.
-  const brakes = family === 'gravel' ? 'disc' : build.params.brakes;
+  // Gravel et VTT : freins à disque (rotors dans les roues du fichier), quel que soit le vélo dont ils prennent la livrée.
+  const brakes = isOwnModel(family) ? 'disc' : build.params.brakes;
   // Bidons : 0, 1 (tube oblique) ou 2 (et tube de selle), dans la limite du cadre ; défaut : ceux du modèle.
   let hasUp = false;
   let hasDown = false;
@@ -372,8 +376,8 @@ export function assembleBike(build: BikeBuild, family: FamilyKey, lod: 0 | 1, bo
   const lib = wheels[lod].scene;
   const out: THREE.Object3D[] = [];
   (['front', 'rear'] as const).forEach((pos, i) => {
-    // Roues propres au fichier (gravel) : déjà posées à leurs axes, tournent autour de leur nœud.
-    const own = family === 'gravel' ? group.getObjectByName(`wheel_${pos}`) : undefined;
+    // Roues propres au fichier (gravel, VTT) : déjà posées à leurs axes, tournent autour de leur nœud.
+    const own = isOwnModel(family) ? group.getObjectByName(`wheel_${pos}`) : undefined;
     if (own) {
       out.push(own);
       return;

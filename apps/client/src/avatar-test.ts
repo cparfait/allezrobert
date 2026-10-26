@@ -129,7 +129,8 @@ async function main(): Promise<void> {
   if (params.has('kits')) {
     const types = ['road', 'gravel', 'mtb'] as const;
     // Le gravel a son propre modèle (gravel.glb), chargé à la demande : prêt avant de monter les avatars.
-    await (await import('./rider/bikes.ts')).loadBikeFamily('gravel');
+    const bikes = await import('./rider/bikes.ts');
+    await Promise.all([bikes.loadBikeFamily('gravel'), bikes.loadBikeFamily('mtb')]);
     const avs = types.map((bikeType, i) => {
       const a = new GltfRiderAvatar({ ...DEFAULT_LOOK, bikeType, bike: ['#c0392b', '#6b7d4f', '#2f6b3a'][i] as string });
       a.root.position.set(0, 0, 0);
@@ -1423,7 +1424,7 @@ async function bikeSheet(engine: Awaited<ReturnType<typeof createEngine>>, list:
   const { loadBikeFamily } = await import('./rider/bikes.ts');
   await Promise.all(models.map((b) => loadBikeFamily(b.family)));
   // &biketype=gravel : modèle gravel.glb, chargé à la demande.
-  if (params.get('biketype') === 'gravel') await loadBikeFamily('gravel');
+  if (params.get('biketype') === 'gravel' || params.get('biketype') === 'mtb') await loadBikeFamily(params.get('biketype') as 'gravel' | 'mtb');
   const cols = Math.min(4, models.length);
   const rows = Math.ceil(models.length / cols);
   // Taille d'une case (&cell=960 pour un gros plan).

@@ -1028,11 +1028,12 @@ export class GltfRiderAvatar implements RiderAvatarLike {
    */
   private mountBike(build: BikeBuild, look: AvatarLook): void {
     // Modèle, roues, marque des jantes et plaque de cadre changent la géométrie : vélo remonté.
-    // Vélo gravel : modèle gravel.glb (cadre, roues, cintre, selle) à la livrée du vélo choisi ; sinon kit gravel sur le vélo route (bikeKits.ts).
-    const wantsGravel = bikeTypeOf(look) === 'gravel';
-    const gravel = wantsGravel && bikeFamilyReady('gravel');
-    const key = JSON.stringify([look.bikeModel ?? 'plain', build.params.wheels, build.params.rimBrand ?? '', build.extras?.number ?? null, look.bottles ?? null, gravel]);
-    const family: FamilyKey = gravel ? 'gravel' : (availableFamily(build.family) ?? PLAIN_BIKE_FAMILY);
+    // Vélo gravel ou VTT : modèle complet (gravel.glb, mtb.glb : cadre, roues, cintre, selle) à la livrée du vélo choisi ; sinon kit sur le vélo route (bikeKits.ts).
+    const type = bikeTypeOf(look);
+    const ownType = type === 'gravel' || type === 'mtb' ? type : null;
+    const own = ownType !== null && bikeFamilyReady(ownType) ? ownType : null;
+    const key = JSON.stringify([look.bikeModel ?? 'plain', build.params.wheels, build.params.rimBrand ?? '', build.extras?.number ?? null, look.bottles ?? null, own]);
+    const family: FamilyKey = own ?? (availableFamily(build.family) ?? PLAIN_BIKE_FAMILY);
     const cur = this.mounted;
     if (cur && cur.key === key && cur.family === family) {
       cur.build = build;
@@ -1077,12 +1078,12 @@ export class GltfRiderAvatar implements RiderAvatarLike {
     this.applyHeadgear(build);
     if (this.bikeType !== 'road') this.setBikeType(this.bikeType);
     this.applySize();
-    if (wantsGravel && !gravel) {
-      void loadBikeFamily('gravel').then((ok) => {
+    if (ownType && !own) {
+      void loadBikeFamily(ownType).then((ok) => {
         if (ok && this.mounted?.key === key) this.mountBike(this.mounted.build, this.look);
       });
     }
-    if (family !== 'gravel' && family !== build.family) {
+    if (family !== 'gravel' && family !== 'mtb' && family !== build.family) {
       void loadBikeFamily(build.family).then((ok) => {
         if (ok && this.mounted?.key === key) this.mountBike(this.mounted.build, this.look);
       });
@@ -1451,8 +1452,8 @@ export class GltfRiderAvatar implements RiderAvatarLike {
     for (const list of this.kits.values()) for (const k of list) k.removeFromParent();
     this.kits.clear();
     const levels = this.mounted?.levels.map((lv) => lv.group) ?? [];
-    // Gravel avec son propre modèle monté : rien à poser sur le vélo.
-    const kitted = type !== 'road' && !(type === 'gravel' && this.mounted?.family === 'gravel');
+    // Gravel ou VTT avec son propre modèle monté : rien à poser sur le vélo.
+    const kitted = type !== 'road' && this.mounted?.family !== type;
     if (kitted) {
       const list: THREE.Group[] = [];
       for (const level of levels) {
