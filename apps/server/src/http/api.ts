@@ -12,6 +12,7 @@ import type { AppContext } from '../context.ts';
 import { authRoutes } from './auth-routes.ts';
 import { ttsRoutes } from './tts.ts';
 import { friendRoutes } from './friends-routes.ts';
+import { publicRoutes } from './public-routes.ts';
 import { clearSessionCookie, cors, errorHandler, HttpError, loadUser, originCheck, requireUser, type AuthedRequest } from './middleware.ts';
 import { COSMETICS, levelInfo, unlockedCosmetics, validateEquipped, xpForRide } from '../progression/xp.ts';
 import { decodeFit, FitImportError, stripHeartRate } from '../activities/fit-import.ts';
@@ -100,6 +101,7 @@ export function mountApi(app: express.Application, ctx: AppContext): void {
   api.use('/auth', authRoutes(ctx));
   api.use('/tts', ttsRoutes(ctx));
   api.use('/friends', friendRoutes(ctx));
+  api.use('/public', publicRoutes(ctx));
 
   /* ───────────── Santé ───────────── */
   api.get('/health', async (_req, res) => {
@@ -498,9 +500,14 @@ export function mountApi(app: express.Application, ctx: AppContext): void {
     const roomId = String(req.params.roomId);
     const role = ctx.registry.roleOf(roomId, u.userId);
     if (!role) throw new HttpError(403, "Tu ne participes pas à cette sortie", 'forbidden');
+    // Salle publique : identité vocale anonyme (identifiant de coureur de la salle) pour ne pas
+    // révéler les comptes à des inconnus, et pour que le jeu relie une voix à un coureur proche.
+    const entry = ctx.registry.byRoomId(roomId);
+    const riderId = entry?.public ? entry.riderIds.get(u.userId) : undefined;
+    if (entry?.public && !riderId) throw new HttpError(403, 'Aucun coureur de ce compte dans la salle', 'forbidden');
     const grant = await createLiveKitToken(
       { url: c.LIVEKIT_URL, apiKey: c.LIVEKIT_API_KEY, apiSecret: c.LIVEKIT_API_SECRET },
-      { identity: `${u.userId}${role === 'companion' ? ':companion' : ''}`, name: u.name, room: voiceRoomName(roomId) },
+      { identity: `${riderId ?? u.userId}${role === 'companion' ? ':companion' : ''}`, name: u.name, room: voiceRoomName(roomId) },
     );
     res.json(grant);
   });

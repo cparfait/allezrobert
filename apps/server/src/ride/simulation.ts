@@ -52,6 +52,7 @@ import {
   climbCategory,
   komPoints,
   RouteTrack,
+  reverseRoute,
   type AvatarLook,
   type BikeSetup,
   type HostOptions,
@@ -157,6 +158,14 @@ export class SimRider {
   shareHr: boolean;
   lateralM = 0;
   lateralTarget = 0;
+  /** Sens de marche : -1 après un demi-tour (distM mesurée sur l'itinéraire inversé). */
+  dir: 1 | -1 = 1;
+  lastTurnMs = -Infinity;
+  /**
+   * Monde ouvert : le coureur sera placé dans la roue de ce coureur (ou à l'arrière du groupe si '') quand son jeu dira
+   * qu'il est prêt (`placeNow`). Indéfini : rien en attente.
+   */
+  placementNear: string | undefined;
   watts = 0;
   cadence = 0;
   hr: number | undefined;
@@ -220,7 +229,7 @@ export class SimRider {
         ...(init.aiTactic && init.aiTactic !== 'neutre' ? { form: 'random' as const } : {}),
       });
     }
-    this.row = { n, distM: 0, lateralM: 0, speedMs: 0, watts: 0, cadence: 0, draftPct: 0, lap: 0, pose: 'seated' };
+    this.row = { n, distM: 0, lateralM: 0, speedMs: 0, watts: 0, cadence: 0, draftPct: 0, lap: 0, pose: 'seated', dir: 1 };
   }
 
   get eligible(): boolean {
@@ -247,6 +256,10 @@ const JERSEYS = ['#e63946', '#2a9d8f', '#e9c46a', '#264653', '#f4a261', '#8d99ae
 
 export class RideSimulation {
   readonly track: RouteTrack;
+  /** Itinéraire inversé (demi-tours), construit au premier demi-tour. */
+  private reverseTrack: RouteTrack | undefined;
+  /** Segments chronométrés actifs (désactivés en salle publique : monde libre, pas de classement). */
+  segmentsEnabled = true;
   readonly route: RouteData;
   readonly options: ResolvedRideOptions;
   readonly guestMaxWkg: number;
@@ -413,9 +426,12 @@ export class RideSimulation {
    * Course au salon : une IA cède sa place quand un humain arrive, pour garder la taille du
    * peloton demandée à la création (1 + `aiRiders`). Renvoie l'IA retirée.
    */
-  yieldAiSlot(): SimRider | null {
-    if (this.options.mode !== 'race' || !this.holding) return null;
-    if (this.riders.length <= 1 + this.options.aiRiders) return null;
+  yieldAiSlot(ambient = false): SimRider | null {
+    // Salle publique (`ambient`) : une IA d'ambiance part dès qu'un humain arrive, en tout temps.
+    if (!ambient) {
+      if (this.options.mode !== 'race' || !this.holding) return null;
+      if (this.riders.length <= 1 + this.options.aiRiders) return null;
+    }
     const ai = [...this.riders].reverse().find((r) => r.kind === 'ai');
     if (!ai) return null;
     this.removeRider(ai.id);
@@ -520,6 +536,100 @@ export class RideSimulation {
     return { kind: 'countdown', startsAt: this.startsAt };
   }
 
+  /** Position le long de l'itinéraire dans le sens de l'itinéraire (un demi-tour est ramené à l'aller). */
+  private forwardPos(r: SimRider): number {
+    const L = this.track.length;
+    const d = this.track.wrap(r.state.distM);
+    return r.dir === 1 ? d : L - d;
+  }
+
+  /** Position (m, [0, longueur)) d'un coureur dans le sens de l'itinéraire, quel que soit son sens de marche. */
+  forwardPositionOf(id: string): number | undefined {
+    const r = this.byId.get(id);
+    if (!r) return undefined;
+    const d = this.forwardPos(r);
+    return this.route.loop && d >= this.track.length ? 0 : d;
+  }
+
+  /**
+   * Monde ouvert : le coureur entre en salle bien avant de rouler (chargement du monde, compilation des ombres : une à
+   * deux minutes) ; pendant ce temps il reste en roue libre et les autres avancent. Son placement (dans la roue de
+   * `nearId`, sinon à l'arrière du groupe) est donc refait quand son jeu envoie `ready` (`placeNow`).
+   */
+  deferPlacement(id: string, nearId?: string): void {
+    const r = this.byId.get(id);
+    if (r) r.placementNear = nearId ?? '';
+  }
+
+  /** Le jeu du coureur est prêt : applique le placement en attente (une seule fois). Renvoie false s'il n'y en avait pas. */
+  placeNow(id: string): boolean {
+    const r = this.byId.get(id);
+    if (!r || r.placementNear === undefined) return false;
+    const near = r.placementNear;
+    r.placementNear = undefined;
+    if (!near || !this.placeNear(r.id, near)) this.placeOnJoin(r);
+    return true;
+  }
+
+  /**
+   * Apparition à côté d'un autre coureur (rejoindre un ami) : même sens, même voie, 4 m derrière, à sa vitesse
+   * (dans sa roue, donc abrité). Renvoie false si l'un des deux est inconnu.
+   */
+  placeNear(id: string, targetId: string): boolean {
+    const r = this.byId.get(id);
+    const t = this.byId.get(targetId);
+    if (!r || !t || r === t) return false;
+    r.dir = t.dir;
+    r.state.distM = t.state.distM - 4;
+    r.state.speedMs = t.state.speedMs;
+    r.lateralM = r.lateralTarget = t.lateralM;
+    r.prevDist = r.state.distM;
+    r.lap = this.lapOf(r.state.distM);
+    return true;
+  }
+
+  /** Distance (m) le long de la route entre deux coureurs, quel que soit leur sens ; Infinity si l'un est inconnu. */
+  separationM(aId: string, bId: string): number {
+    const a = this.byId.get(aId);
+    const b = this.byId.get(bId);
+    if (!a || !b) return Infinity;
+    const gap = Math.abs(this.forwardPos(a) - this.forwardPos(b));
+    return this.route.loop ? Math.min(gap, this.track.length - gap) : gap;
+  }
+
+  /** Itinéraire sur lequel roule ce coureur (inversé après un demi-tour). */
+  private trackOf(r: SimRider): RouteTrack {
+    if (r.dir === 1) return this.track;
+    this.reverseTrack ??= new RouteTrack(reverseRoute(this.route));
+    return this.reverseTrack;
+  }
+
+  /**
+   * Demi-tour (monde libre seulement) : le coureur repart en sens inverse depuis le même endroit,
+   * sur l'itinéraire inversé (distance L − d), presque à l'arrêt, et traverse vers sa nouvelle voie
+   * de droite. Renvoie false s'il est refusé (mode, invité, trop tôt après le précédent).
+   */
+  turnAround(id: string, now: number): boolean {
+    const r = this.byId.get(id);
+    if (!r || r.kind === 'ai' || r.kind === 'guest' || this.options.mode !== 'free' || this.holding) return false;
+    if (now - r.lastTurnMs < 3000) return false;
+    const L = this.track.length;
+    const target = L - this.track.wrap(r.state.distM);
+    // Même repère « déplié » que les coureurs allant dans le nouveau sens (aspiration), tour le plus proche.
+    const mates = this.riders.filter((x) => x !== r && x.dir === -r.dir).map((x) => x.state.distM).sort((a, b) => a - b);
+    const lapShift = this.route.loop && mates.length ? Math.round((mates[Math.floor(mates.length / 2)]! - target) / L) * L : 0;
+    r.dir = r.dir === 1 ? -1 : 1;
+    r.state.distM = target + lapShift;
+    r.state.speedMs *= 0.25;
+    r.lateralM = -r.lateralM;
+    r.lateralTarget = Math.min(1.2, this.halfRoad());
+    r.lastTurnMs = now;
+    r.activeSegments.clear();
+    r.prevDist = r.state.distM;
+    r.lap = this.lapOf(r.state.distM);
+    return true;
+  }
+
   private halfRoad(): number {
     return Math.max(1, (this.route.roadWidthM || 6) / 2 - 0.4);
   }
@@ -552,17 +662,19 @@ export class RideSimulation {
 
   /** Arrivée en cours de sortie : à l'arrière du groupe principal (ou sur la ligne). */
   private placeOnJoin(r: SimRider): void {
-    if (this.holding || this.riders.length === 0) {
-      const i = this.riders.length;
+    const others = this.riders.filter((x) => x !== r);
+    if (this.holding || others.length === 0) {
+      const i = others.length;
       const perRow = 6;
       const span = Math.min(this.halfRoad() * 2, 5);
       r.state.distM = -Math.floor(i / perRow) * 2.2;
       r.lateralM = r.lateralTarget = -span / 2 + (span * ((i % perRow) + 0.5)) / perRow;
     } else {
-      const dists = this.riders.map((x) => x.state.distM).sort((a, b) => a - b);
+      const fwd = others.filter((x) => x.dir === 1);
+      const dists = (fwd.length ? fwd : others).map((x) => x.state.distM).sort((a, b) => a - b);
       const median = dists[Math.floor(dists.length / 2)]!;
       r.state.distM = median - 6;
-      r.state.speedMs = this.riders.reduce((s, x) => s + x.state.speedMs, 0) / this.riders.length;
+      r.state.speedMs = others.reduce((s, x) => s + x.state.speedMs, 0) / others.length;
       r.lateralM = r.lateralTarget = Math.min(1.2, this.halfRoad());
     }
     r.lap = this.lapOf(r.state.distM);
@@ -592,7 +704,7 @@ export class RideSimulation {
     const n = riders.length;
 
     // Ordre de course (tête en premier), sur les positions du pas précédent.
-    this.order = riders.slice().sort((a, b) => b.state.distM - a.state.distM);
+    this.order = riders.filter((r) => r.dir === 1).sort((a, b) => b.state.distM - a.state.distM);
     this.updateGroupPace(dt, now);
 
     // Centre du groupe (hors invités) pour le pilote automatique.
@@ -602,7 +714,7 @@ export class RideSimulation {
     {
       const ds: number[] = [];
       for (const r of riders) {
-        if (r.kind === 'guest') continue;
+        if (r.kind === 'guest' || r.dir !== 1) continue;
         ds.push(r.state.distM);
         centerSpeed += r.state.speedMs;
         nonGuest++;
@@ -617,11 +729,11 @@ export class RideSimulation {
     // Centre des humains (avec ou sans matériel) : référence de regroupement des IA.
     let humanCenter: number | undefined;
     {
-      const hs = riders.filter((r) => r.kind !== 'ai').map((r) => r.state.distM).sort((a, b) => a - b);
+      const hs = riders.filter((r) => r.kind !== 'ai' && r.dir === 1).map((r) => r.state.distM).sort((a, b) => a - b);
       if (hs.length) humanCenter = hs[Math.floor(hs.length / 2)]!;
       // Sortie de groupe avec meneur : les IA se calent sur lui.
       const leader = this.leaderId ? this.byId.get(this.leaderId) : undefined;
-      if (leader && leader.finishMs === undefined) humanCenter = leader.state.distM;
+      if (leader && leader.finishMs === undefined && leader.dir === 1) humanCenter = leader.state.distM;
     }
 
     // 1. Consignes.
@@ -674,14 +786,28 @@ export class RideSimulation {
       v.speedMs = holding ? 0 : r.state.speedMs;
     }
     this.draftView.length = n;
-    const reductions = this.draft.compute(this.draftView);
+    let reductions: ArrayLike<number>;
+    if (riders.every((r) => r.dir === 1)) reductions = this.draft.compute(this.draftView);
+    else {
+      // Demi-tours : pas d'abri entre coureurs qui ne vont pas dans le même sens.
+      const merged = new Float64Array(n);
+      for (const dir of [1, -1] as const) {
+        const idx: number[] = [];
+        for (let i = 0; i < n; i++) if (riders[i]!.dir === dir) idx.push(i);
+        if (!idx.length) continue;
+        const red = this.draft.compute(idx.map((i) => this.draftView[i]!));
+        idx.forEach((i, k) => (merged[i] = red[k]!));
+      }
+      reductions = merged;
+    }
 
     // 3. Physique.
     for (let i = 0; i < n; i++) {
       const r = riders[i]!;
       r.draft = holding ? 0 : reductions[i]!;
       r.prevDist = r.state.distM;
-      const s = this.track.sample(this.track.wrap(r.state.distM), this.sample);
+      const trk = this.trackOf(r);
+      const s = trk.sample(trk.wrap(r.state.distM), this.sample);
       r.grade = s.grade;
       this.env.airDensity = airDensity(s.y);
       if (holding) {
@@ -711,7 +837,7 @@ export class RideSimulation {
             params: r.params,
             env: this.env,
             cdaFactor: (1 - r.draft) * poseCdaFactor(r.pose.pose, r.grade, r.state.speedMs),
-            crr: surfaceCrr(this.track.surfaceAt(r.state.distM), r.params.crr, r.tyre),
+            crr: surfaceCrr(trk.surfaceAt(r.state.distM), r.params.crr, r.tyre),
             footDownBelowMs: r.kind === 'ai' ? 0 : FOOT_DOWN_SPEED_MS,
           },
           dt,
@@ -778,7 +904,7 @@ export class RideSimulation {
         const lap = this.lapOf(cur);
         if (lap > r.lap && lap >= 1) events.push({ kind: 'lap', riderId: r.id, lap });
         r.lap = lap;
-        if (r.kind !== 'guest' && cur > prev) this.trackSegments(r, prev, cur, tStart, dt, events, efforts);
+        if (this.segmentsEnabled && r.dir === 1 && r.kind !== 'guest' && cur > prev) this.trackSegments(r, prev, cur, tStart, dt, events, efforts);
         if (this.phase === 'running' && this.options.mode === 'race' && r.finishMs === undefined && prev < target && cur >= target && this.startedAt !== undefined) {
           const tCross = tStart + ((target - prev) / Math.max(cur - prev, 1e-6)) * dt * 1000;
           r.finishMs = Math.round(tCross - this.startedAt);
@@ -989,8 +1115,10 @@ export class RideSimulation {
 
   private writeRow(r: SimRider, pose = r.pose.pose): void {
     const row = r.row;
-    row.distM = this.track.wrap(r.state.distM);
-    if (this.route.loop && row.distM >= this.track.length) row.distM = 0;
+    const trk = this.trackOf(r);
+    row.distM = trk.wrap(r.state.distM);
+    if (this.route.loop && row.distM >= trk.length) row.distM = 0;
+    row.dir = r.dir;
     row.lap = this.lapOf(r.state.distM);
     row.lateralM = r.lateralM;
     row.speedMs = r.state.speedMs;

@@ -5,6 +5,7 @@
  * et cédée à Spotify : dès que l'utilisateur lance Spotify, la musique du jeu reste coupée (même si
  * Spotify est mis en pause ou si on change d'écran) jusqu'à ce qu'il la rallume lui-même. Le navigateur n'autorise le son qu'après un geste de l'utilisateur : voir unlockOnGesture().
  */
+import { followSink } from './devices.ts';
 
 export interface Track {
   file: string;
@@ -39,7 +40,11 @@ function shuffled<T>(a: T[]): T[] {
 }
 
 export class BackgroundMusic {
-  private readonly el = new Audio();
+  private readonly el = (() => {
+    const a = new Audio();
+    followSink(a);
+    return a;
+  })();
   private order: Track[] = [];
   private index = -1;
   private duck = 1;

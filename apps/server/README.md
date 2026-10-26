@@ -14,7 +14,7 @@ npx vitest run apps/server                        # tests (dont charge 20 client
 npx tsc -p apps/server/tsconfig.json              # types
 ```
 `DEV_LOGIN=true` ouvre `POST /api/auth/dev {name}` (connexion sans OAuth, refusée en production).
-Itinéraires : `ROUTES_DIR` (JSON `RouteData` de tools/terrain) ; sinon boucle procédurale de 10 km.
+Itinéraires : `ROUTES_DIR` (JSON `RouteData` de tools/terrain ; plusieurs dossiers séparés par des virgules) ; sinon boucle procédurale de 10 km.
 Tests d'API sur un vrai PostgreSQL : `TEST_DATABASE_URL=postgres://… npx vitest run apps/server/test/api.test.ts`.
 
 ### Voix en local (LiveKit) et voix off (Cartesia)
@@ -84,6 +84,24 @@ Distances : le serveur intègre en distances **dépliées** (tour × longueur + 
 | `start` / `opts` / `kick` / `host` | hôte → S | compte à rebours, options (invités, groupe soudé, aspiration, allure annoncée `paceWkg`, meneur `leaderId`), exclusion, passation |
 | `regroup` | hôte ou meneur → S | `{ active? }` lance / arrête un regroupement (sortie de groupe) |
 | `ping` | C ↔ S | estimation de l'aller-retour |
+
+### Monde ouvert : salle `public`
+
+`PublicRideRoom` (`gameServer.define('public', …).filterBy(['routeId'])`, constante `PUBLIC_ROOM`) : une
+salle par zone et par tranche de 20 coureurs, créée par `joinOrCreate('public', { routeId, token })` (client :
+`RideNetClient.joinPublic(routeId)`) et fermée quand elle se vide.
+- Compte obligatoire (ni invité, ni anonyme) ; pas de code d'invitation (le code existe toujours pour le
+  registre et « rejoindre un ami ») ; itinéraire inconnu = erreur 404, jamais de repli sur un autre parcours.
+- Mode `free`, aucun hôte (`hostId` vide, `start` / `opts` / `kick` / `host` / `regroup` sans effet), météo
+  et heure (Paris) fixées par le serveur, `welcome.public = true`.
+- 6 IA d'ambiance (`PUBLIC_AMBIENT_AI`) : chaque humain qui arrive en remplace une.
+- Pleine (20) : `lock()` ; une place libérée : `unlock()`. Le 21ᵉ coureur ouvre une autre salle.
+- Chat, Ride On et voix comme dans une sortie privée (anti-flood du chat : 5 messages / 10 s).
+- Pas de segments chronométrés ni de classement (`sim.segmentsEnabled = false`).
+- **Demi-tour** (message `uturn`, `RideNetClient.uturn()`, 3 s entre deux) : le coureur repart du même endroit
+  en sens inverse, presque à l'arrêt. Sa distance est alors mesurée sur l'itinéraire inversé (`L − d`) ; le
+  sens est dans l'instantané (`dir = −1`, bit 4 de la posture). L'aspiration ne joue qu'entre coureurs de
+  même sens ; les IA et le groupe ne suivent que ceux qui vont dans le sens de l'itinéraire.
 
 ### Rôles, invités, IA
 

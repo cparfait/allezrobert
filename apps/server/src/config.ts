@@ -69,7 +69,9 @@ export const ConfigSchema = z.object({
   /** Cache disque des répliques synthétisées (une même phrase n'est générée qu'une fois). */
   TTS_CACHE_DIR: z.string().default('./tts-cache'),
 
-  /** Dossier des itinéraires JSON (RouteData). Repli : boucle procédurale. */
+  /** Itinéraires ouverts au public (monde ouvert), séparés par des virgules. */
+  PUBLIC_ROUTES: z.string().default('anneau-de-longchamp'),
+  /** Dossier(s) des itinéraires JSON (RouteData), séparés par des virgules. Repli : boucle procédurale. */
   ROUTES_DIR: optionalString,
   /** Dossier des vidéos rendues (volume partagé avec le conteneur renderer). */
   RENDERS_DIR: z.string().default('./renders'),

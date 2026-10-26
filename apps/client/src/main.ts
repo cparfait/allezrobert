@@ -91,7 +91,7 @@ async function loadScene(settings: Settings): Promise<Scene3D> {
   const engine = await createEngine(document.getElementById('scene') as HTMLCanvasElement, q);
   GltfRiderAvatar.lodScale = { low: 0.6, medium: 0.8, high: 1, ultra: 1.5 }[q.level];
   bootStep(35, 'Monde et itinéraires');
-  const source = await loadWorldSource(params.get('world') ?? settings.world ?? 'chevreuse');
+  const source = await loadWorldSource(params.get('world') ?? settings.world ?? 'longchamp');
   // Le mode « monde ouvert » n'existe que dans un monde qui a un graphe routier.
   if (settings.mode === 'open' && !source.open) settings.mode = 'free';
   const route = findRoute(source.routes, params.get('route') ?? routeKey(settings)) ?? (source.routes[0] as RouteData);
@@ -834,7 +834,7 @@ async function boot(): Promise<void> {
 /** Matériel du poste, repris par la salle d'attente des courses (posé au démarrage). */
 let devicePanel: DevicePanel | null = null;
 
-async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras: { workoutFile?: { name: string; content: string }; inviteCode?: string; inviteFriends?: string[]; tutorial?: boolean; openStart?: { x: number; z: number } }, overlay?: HTMLElement): Promise<void> {
+async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras: { workoutFile?: { name: string; content: string }; inviteCode?: string; inviteFriends?: string[]; tutorial?: boolean; openStart?: { x: number; z: number }; publicRoom?: boolean; nearFriend?: string }, overlay?: HTMLElement): Promise<void> {
   const { engine, world, source } = scene;
   // Monde ouvert : chemin construit au fil des carrefours (le même RouteTrack s'allonge).
   const nav =
@@ -898,9 +898,17 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   let rideWeather = myWeather;
   let mp: Multiplayer | null = null;
   let voice: VoiceChat | null = null;
-  if (s.mode === 'group' || s.mode === 'race') {
+  if (s.mode === 'group' || s.mode === 'race' || extras.publicRoom) {
     mp = new Multiplayer(engine.scene, track, s.name);
     try {
+      // Monde ouvert : salle publique de la zone (celle des amis d'abord), sans code ni hôte.
+      if (extras.publicRoom) {
+        await mp.connectPublic(track.route.id, s.name, extras.nearFriend);
+        if (mp.weather) rideWeather = mp.weather;
+        const L = getLang() === 'fr';
+        const here = mp.friendsHere.join(', ');
+        setTimeout(() => hud.toast(here ? (L ? `Tes amis sont là : ${here}` : `Your friends are here: ${here}`) : L ? 'Monde ouvert : tu roules avec les coureurs connectés' : 'Open world: you are riding with the riders online'), 600);
+      } else {
       const code = await mp.connect({ ...(extras.inviteCode ? { inviteCode: extras.inviteCode } : {}), mode: s.mode, guest: s.guest, aiRiders: s.aiRiders, aiLevel: s.aiLevel, ...(s.groupTargetKmh ? { targetKmh: s.groupTargetKmh } : {}), laps: s.raceLaps, trainerDifficulty: s.trainerDifficulty, name: s.name, weather: myWeather, ...(s.equalEquipment !== undefined ? { equalEquipment: s.equalEquipment } : {}) });
       // Équipement égalisé : la prédiction locale roule le même vélo que le serveur.
       if (mp.equalized) Object.assign(ride.params, { ...paramsFromBike(s.massKg, EQUALIZED_BIKE), inertiaFactor: ride.params.inertiaFactor });
@@ -910,9 +918,15 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
       if (extras.inviteFriends?.length) {
         void sendRideInvites(mp.net.roomId, extras.inviteFriends).then((n) => n && setTimeout(() => hud.toast(getLang() === 'fr' ? `Invitation envoyée à ${n} ami${n > 1 ? 's' : ''}` : `Invite sent to ${n} friend${n > 1 ? 's' : ''}`), 2500));
       }
+      }
     } catch (e) {
-      console.warn('Serveur injoignable, sortie solo', e);
-      setTimeout(() => hud.toast(getLang() === 'fr' ? 'Serveur injoignable : sortie solo' : 'Server unreachable: solo ride'), 500);
+      console.warn(extras.publicRoom ? 'Monde ouvert indisponible, sortie solo' : 'Serveur injoignable, sortie solo', e);
+      const L = getLang() === 'fr';
+      const reason = String((e as Error).message ?? e);
+      const login = /Connexion requise|401/.test(reason);
+      // Rejoindre un ami impossible (il est parti, sa salle est pleine) : le message du serveur.
+      const friendMsg = extras.nearFriend && !login ? reason : '';
+      setTimeout(() => hud.toast(friendMsg ? `${friendMsg}${L ? ' : sortie solo' : ': solo ride'}` : login ? (L ? 'Connecte-toi pour rouler en monde ouvert : sortie solo' : 'Sign in to ride in the open world: solo ride') : L ? 'Serveur injoignable : sortie solo' : 'Server unreachable: solo ride'), 500);
       mp = null;
     }
   }
@@ -1045,26 +1059,30 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   if (mp) {
     const net = mp.net;
     const voiceCfg = fetchVoiceConfig();
-    room = new RideRoomUi({
-      hudRoot,
-      net,
-      track,
-      mode: s.mode === 'race' ? 'race' : 'group',
-      lang: getLang(),
-      toast: (m) => hud.toast(m),
-      voice: voiceCfg,
-      ...(devicePanel ? { gear: { panel: devicePanel, phones: () => (companion.connected ? companion.presence.phones : null) } } : {}),
-    });
-    // Course pas lancée : le coureur reste sur la grille (le serveur le tient immobile).
-    room.onHoldChange = (hold) => (ride.paused = hold);
-    room.onLeave = () => finish();
-    // Vainqueur : bras levés en V au passage de la ligne, quelques secondes.
-    room.onWin = () => {
-      avatar.setCelebrating?.(true);
-      setTimeout(() => avatar.setCelebrating?.(false), 7000);
-    };
+    // Monde ouvert : ni salle d'attente, ni départ, ni hôte (pas d'interface de sortie organisée).
+    if (!mp.isPublic) {
+      const roomUi = new RideRoomUi({
+        hudRoot,
+        net,
+        track,
+        mode: s.mode === 'race' ? 'race' : 'group',
+        lang: getLang(),
+        toast: (m) => hud.toast(m),
+        voice: voiceCfg,
+        ...(devicePanel ? { gear: { panel: devicePanel, phones: () => (companion.connected ? companion.presence.phones : null) } } : {}),
+      });
+      room = roomUi;
+      // Course pas lancée : le coureur reste sur la grille (le serveur le tient immobile).
+      roomUi.onHoldChange = (hold) => (ride.paused = hold);
+      roomUi.onLeave = () => finish();
+      // Vainqueur : bras levés en V au passage de la ligne, quelques secondes.
+      roomUi.onWin = () => {
+        avatar.setCelebrating?.(true);
+        setTimeout(() => avatar.setCelebrating?.(false), 7000);
+      };
+    }
     // Télémétrie à 10 Hz : puissance mesurée (ou virtuelle pour un invité), rapport, direction.
-    net.startTelemetry(() => ({ watts: ride.inputs.watts, cadence: ride.inputs.cadence, ...(ride.inputs.hr !== undefined ? { hr: ride.inputs.hr } : {}), gear: ride.gearIndex, steer: ride.lateral }));
+    net.startTelemetry(() => ({ watts: ride.inputs.watts, cadence: ride.inputs.cadence, ...(ride.inputs.hr !== undefined ? { hr: ride.inputs.hr } : {}), gear: ride.gearIndex, steer: ride.lateral * ride.dir }));
     net.on('event', (ev) => {
       if (ev.kind === 'segmentEnd' && ev.riderId === net.selfId && !s.guest) {
         const seg = track.route.segments.find((x) => x.id === ev.segmentId);
@@ -1081,6 +1099,11 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     // Repli Discord : lien du salon proposé quand LiveKit est absent ou échoue.
     voice.onState = (st, detail) => void voiceCfg.then((cfg) => hud.setVoice({ connected: st === 'connected', micOn: voice?.micOn ?? false, ...(detail ? { detail } : {}), discordUrl: cfg.discordInvite }));
     void voice.connect(net.roomId);
+    // Monde ouvert : on n'entend que les coureurs proches.
+    if (mp.isPublic && mp.proximity) {
+      const near = mp.proximity;
+      voice.setProximity({ distanceOf: (id) => mp?.distanceTo(id) ?? null, nearM: near.voiceNearM, farM: near.voiceFarM });
+    }
     hud.onRideOn = (id) => {
       net.rideOn(id);
       hud.toast(`👍 → ${net.roster.get(id)?.name ?? ''}`);
@@ -1117,7 +1140,10 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
       onStart: playIntro,
       onLeave: () => finish(),
     });
-  } else if (!params.has('nointro') && !(mp && s.mode === 'race')) playIntro();
+  } else if (!params.has('nointro') && !(mp && s.mode === 'race') && !mp?.isPublic) {
+    // Monde ouvert : pas d'intro ni de compte à rebours — le coureur est déjà dans la salle (parfois dans la roue d'un ami) et doit rouler tout de suite.
+    playIntro();
+  }
   // Montée : annonce de chaque lacet numéroté ; arrivée au sommet d'un itinéraire aller simple.
   const hairpins = new HairpinWatcher(nav ? undefined : track.route.hairpins);
   let summitShown = false;
@@ -1345,6 +1371,9 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
         ride.state.speedMs = Math.min(ride.state.speedMs, 3);
         hud.toast(getLang() === 'fr' ? '↶ Demi-tour' : '↶ U-turn');
       }
+    } else if (mp?.isPublic) {
+      // Monde ouvert : le serveur décide (délai entre deux demi-tours) ; le jeu suit dès qu'il confirme le nouveau sens.
+      mp.net.uturn();
     } else if (!mp && !workout) {
       ride.uturn();
       const L = getLang() === 'fr';
@@ -1503,8 +1532,8 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
       if (me) ride.state.distM = me.lap * track.length + me.distM;
     }
     lap('conditions');
-    const prevD = ride.state.distM;
     banners.setLap(ride.lap, s.mode === 'race' ? s.raceLaps : undefined);
+    const prevD = ride.state.distM;
     // Ligne franchie en course : plus de pédalage, le coureur roule sur sa lancée.
     ride.update(dt, room?.finished ? coastInput : input, steer);
     lap('physique');
@@ -1519,22 +1548,32 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
       challenge?.update(dt, ride.state.distM - startD, ride.elapsedS);
       tutorial?.update({ shifted, gradePercent: ride.gradePercent, inSegment: !!ride.segment, draft: ride.draft, distM: ride.state.distM - startD });
       if (mp) {
+        // Monde ouvert : première image jouée → le serveur place le coureur dans la roue de son ami.
+        mp.notifyReady();
         // Prédiction locale + correction douce vers la position autoritaire du serveur.
         ride.draft = mp.selfDraft();
-        ride.state.distM += mp.reconcile(ride.state.distM, dt);
+        // Monde ouvert : demi-tour confirmé par le serveur → le coureur repart dans l'autre sens.
+        if (mp.isPublic) {
+          const sd = mp.selfDir();
+          if (sd !== null && sd !== ride.dir) {
+            ride.uturn();
+            hud.toast(ride.dir < 0 ? (getLang() === 'fr' ? '↶ Demi-tour' : '↶ U-turn') : getLang() === 'fr' ? '↷ Demi-tour : retour dans le sens initial' : '↷ U-turn: back the original way');
+          }
+        }
+        ride.state.distM += mp.reconcileLocal(ride.dir, ride.state.distM, dt);
       } else ride.draft = peloton.update(dt, { distM: ride.state.distM, lateral: ride.lateral, speedMs: ride.state.speedMs, watts: ride.inputs.watts, massKg: s.massKg, ftpWatts: s.ftpWatts, reversed: ride.dir < 0, headWindMs: ride.headWindMs, crossWindMs: ride.crossWindMs });
       // Relais : quelqu'un roule dans ma roue (0,5 à 4 m derrière, à moins d'un mètre de côté).
       const onWheel = (d: number, lat: number) => {
         const gap = ride.state.distM - d;
         return gap > 0.5 && gap < 4 && Math.abs(lat - ride.lateral) < 1;
       };
-      ride.wheelFollowed = peloton.riders.some((r) => onWheel(r.state.distM, r.lateral)) || remoteRiders.some((r) => onWheel(r.unwrappedM, r.lateralM));
+      ride.wheelFollowed = peloton.riders.some((r) => onWheel(r.state.distM, r.lateral)) || remoteRiders.some((r) => r.dir === ride.dir && onWheel(r.unwrappedM, r.lateralM));
       // Collisions : ni le joueur ni les IA ne traversent un autre coureur (les coureurs distants, imposés par le serveur, ne bougent pas).
       if (ride.dir > 0) {
         const mobile = peloton.riders.filter((r) => !r.uturn.active);
         const me: Body = { distM: ride.state.distM, lateral: ride.lateral, speedMs: ride.state.speedMs };
         const ais: Body[] = mobile.map((r) => ({ distM: r.state.distM, lateral: r.lateral, speedMs: r.state.speedMs }));
-        const far: Body[] = remoteRiders.map((r) => ({ distM: r.unwrappedM, lateral: r.lateralM, speedMs: r.speedMs, fixed: true }));
+        const far: Body[] = remoteRiders.filter((r) => r.dir === ride.dir).map((r) => ({ distM: r.unwrappedM, lateral: r.lateralM, speedMs: r.speedMs, fixed: true }));
         separateRiders([me, ...ais, ...far], track.route.roadWidthM / 2 - 0.5, dt);
         ride.state.distM = me.distM;
         ride.state.speedMs = me.speedMs;
@@ -1554,7 +1593,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
       }
     }
     lap('coureurs IA');
-    remoteRiders = mp ? mp.render(dt, engine.camera) : [];
+    remoteRiders = mp ? mp.render(dt, engine.camera, ride.state.distM) : [];
     if (!ride.paused) {
       trains.update(dt, ride.state.distM, ride.dir, ride.state.speedMs);
       if (traffic) {

@@ -1,6 +1,7 @@
 import { FREEWHEELS } from '../audio/freewheels.ts';
 import { BUSES, BUS_LABELS, getMix, setMix, type Bus } from '../audio/mix.ts';
 import { getLang } from '../i18n/index.ts';
+import { askMicAccess, canChooseOutput, getAudioDevices, listAudioDevices, onDevicesChanged, setAudioDevices } from '../audio/devices.ts';
 
 /**
  * Réglages du son (menu Réglages et menu pause) : volume général, un curseur par catégorie,
@@ -35,4 +36,52 @@ export function renderSoundSettings(el: Element | null): void {
     });
   }
   el.querySelector<HTMLInputElement>('#snd-breath')?.addEventListener('change', (e) => setMix({ breathOn: (e.target as HTMLInputElement).checked }));
+  renderDeviceSettings(el, fr);
+}
+
+const escHtml = (s: string): string => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+
+/**
+ * Micro et sortie audio : listes des appareils du système. Les noms n'apparaissent qu'après l'accord du
+ * navigateur pour le micro (bouton « Autoriser »). Le choix s'applique tout de suite (jeu, musique, voix).
+ */
+function renderDeviceSettings(el: Element, fr: boolean): void {
+  const box = document.createElement('div');
+  box.className = 'snd-devices';
+  box.style.marginTop = '12px';
+  el.appendChild(box);
+  let stop = (): void => undefined;
+  const draw = async (): Promise<void> => {
+    if (!box.isConnected) return stop();
+    const { inputs, outputs, labelled } = await listAudioDevices();
+    const cur = getAudioDevices();
+    const options = (list: MediaDeviceInfo[], sel: string): string =>
+      `<option value="">${fr ? 'Par défaut du système' : 'System default'}</option>${list
+        .map((d, i) => `<option value="${escHtml(d.deviceId)}" ${d.deviceId === sel ? 'selected' : ''}>${escHtml(d.label || `${fr ? 'Appareil' : 'Device'} ${i + 1}`)}</option>`)
+        .join('')}`;
+    const out = canChooseOutput();
+    box.innerHTML = `<div class="grid3" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr))">
+        <label class="field">${fr ? 'Microphone' : 'Microphone'}<select id="snd-mic">${options(inputs, cur.micId)}</select></label>
+        ${
+          out
+            ? `<label class="field">${fr ? 'Sortie audio (haut-parleurs, casque)' : 'Audio output (speakers, headset)'}<select id="snd-out">${options(outputs, cur.speakerId)}</select></label>`
+            : `<p class="mm-hint" style="align-self:end">${fr ? 'Ce navigateur ne permet pas de choisir la sortie audio : utilise celle du système (ou Chrome / Edge / l’appli Windows).' : 'This browser cannot choose the audio output: use the system one (or Chrome / Edge / the Windows app).'}</p>`
+        }
+      </div>
+      ${labelled ? '' : `<button class="mm-link" id="snd-allow" type="button">${fr ? 'Autoriser le micro pour afficher les noms des appareils' : 'Allow the microphone to show device names'}</button>`}
+      <p class="mm-hint" id="snd-dev-msg"></p>`;
+    box.querySelector<HTMLSelectElement>('#snd-mic')?.addEventListener('change', (e) => setAudioDevices({ micId: (e.target as HTMLSelectElement).value }));
+    box.querySelector<HTMLSelectElement>('#snd-out')?.addEventListener('change', (e) => setAudioDevices({ speakerId: (e.target as HTMLSelectElement).value }));
+    box.querySelector('#snd-allow')?.addEventListener('click', () => {
+      void askMicAccess().then((ok) => {
+        if (ok) void draw();
+        else {
+          const m = box.querySelector('#snd-dev-msg');
+          if (m) m.textContent = fr ? 'Accès au micro refusé : autorise-le dans les réglages du navigateur.' : 'Microphone access denied: allow it in the browser settings.';
+        }
+      });
+    });
+  };
+  stop = onDevicesChanged(() => void draw());
+  void draw();
 }

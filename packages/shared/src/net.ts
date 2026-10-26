@@ -10,6 +10,67 @@ import type { RideWeather } from './weather.ts';
 export const NET_TICK_HZ = 10;
 export const MAX_RIDERS_PER_ROOM = 20;
 
+/** Nom de la salle publique (monde ouvert) : une salle par zone, remplie puis dupliquée (`filterBy(['routeId'])`). */
+export const PUBLIC_ROOM = 'public';
+/** Monde ouvert : on ne lit (chat) que les coureurs à moins de cette distance (m) le long de la route. */
+export const PUBLIC_CHAT_RADIUS_M = 50;
+/** Monde ouvert : voix pleine en deçà de `near`, qui s'éteint progressivement jusqu'à `far` (m), muette au-delà. */
+export const PUBLIC_VOICE_NEAR_M = 15;
+export const PUBLIC_VOICE_FAR_M = 40;
+
+/** Zone ouverte au public, avec son affluence (`GET /api/public/zones`). */
+export interface PublicZoneInfo {
+  routeId: string;
+  /** Coureurs humains connectés, toutes salles de la zone. */
+  riders: number;
+  rooms: number;
+  /** Noms des amis qui y roulent (seulement leurs amis les voient). */
+  friends: string[];
+}
+
+/** Salle conseillée (`POST /api/public/pick`) : celle des amis, sinon la plus fréquentée non pleine. Absente : en ouvrir une. */
+export interface PublicPick {
+  roomId?: string;
+  /** Coureur de cette salle près duquel apparaître (demande « Rejoindre » un ami). */
+  near?: string;
+  friends: string[];
+}
+
+/** Un coureur en ligne sur la carte du monde ouvert. Les inconnus restent anonymes : seuls les amis ont un nom. */
+export interface PublicDot {
+  /** Position le long de l'itinéraire, dans le sens de l'itinéraire (m, [0, longueur)). */
+  d: number;
+  /** Sens de marche (-1 après un demi-tour). */
+  dir: 1 | -1;
+  friend?: boolean;
+  name?: string;
+}
+
+/** Un ami qui roule dans la zone (`friend` de `PublicZoneDetail`). */
+export interface PublicFriendHere {
+  /** Identifiant de la relation d'amitié (jamais celui du compte) : à renvoyer à `POST /public/pick`. */
+  id: string;
+  name: string;
+  d: number;
+  dir: 1 | -1;
+  /** Sa salle est pleine : on ne peut pas le rejoindre pour l'instant. */
+  full: boolean;
+}
+
+/** Détail d'une zone ouverte (`GET /api/public/zones/:routeId`) : coureurs en ligne et amis présents. */
+export interface PublicZoneDetail {
+  routeId: string;
+  lengthM: number;
+  loop: boolean;
+  riders: number;
+  rooms: number;
+  dots: PublicDot[];
+  friends: PublicFriendHere[];
+}
+
+/** Coureurs IA d'ambiance au démarrage d'une salle publique ; chacun cède sa place à un humain qui arrive. */
+export const PUBLIC_AMBIENT_AI = 6;
+
 /** `open` : monde ouvert, carrefours au choix (solo) ; `challenge` : battre son record sur une montée. */
 export type RideMode = 'free' | 'group' | 'race' | 'workout' | 'ftpTest' | 'open' | 'challenge';
 
@@ -66,6 +127,8 @@ export interface RiderSnapshot {
   lap: number;
   avatar: AvatarLook;
   pose: 'seated' | 'standing' | 'coasting';
+  /** Sens de marche : 1 = sens de l'itinéraire (absent), -1 = après un demi-tour (distM sur l'itinéraire inversé). */
+  dir?: 1 | -1;
 }
 
 /** Marquages latéraux des chaussures (marques utilisées avec l'accord déclaré par le porteur du projet). */
@@ -229,6 +292,10 @@ export const NET_MSG = {
   host: 'host',
   /** Hôte ou meneur → serveur : `{ active }` lance / arrête un regroupement (sortie de groupe). */
   regroup: 'regroup',
+  /** Client → serveur (salle publique) : le jeu est chargé et le coureur commence à rouler ; il est alors placé (dans la roue d'un ami). */
+  ready: 'ready',
+  /** Client → serveur : demi-tour (salle publique) ; le serveur renvoie le nouvel état dans l'instantané. */
+  uturn: 'uturn',
   /** Client → serveur : `{ t }` ; serveur → client : `{ t, serverT }` (estimation d'horloge). */
   ping: 'ping',
 } as const;
@@ -272,6 +339,8 @@ export interface RideJoinOptions {
   role?: RideRole;
   /** Nom d'un invité anonyme (sans compte). */
   displayName?: string;
+  /** Salle publique : identifiant d'un coureur de la salle, près de qui apparaître (rejoindre un ami). */
+  near?: string;
 }
 
 /** Données statiques d'un coureur, diffusées à chaque changement de la liste. */
@@ -331,6 +400,10 @@ export interface WelcomeMsg {
   hostOptions?: HostOptions;
   /** Sortie de groupe : regroupement en cours. */
   regrouping?: boolean;
+  /** Salle publique (monde ouvert) : pas d'hôte, pas de départ, entrée libre pour les comptes. */
+  public?: boolean;
+  /** Salle publique : portées du chat et de la voix (m) — on n'entend que les coureurs proches. */
+  proximity?: { chatM: number; voiceNearM: number; voiceFarM: number };
 }
 
 /** État du jeu affiché par l'appli compagnon (relayé tel quel). */
@@ -408,12 +481,14 @@ export interface SnapshotRow {
   draftPct: number;
   lap: number;
   pose: 'seated' | 'standing' | 'coasting';
+  /** Sens de marche (défaut 1) ; -1 : `distM` est mesurée sur l'itinéraire inversé (L − distance). */
+  dir?: 1 | -1;
 }
 
 /**
  * Instantané compact : `r` = tableau plat de `SNAPSHOT_STRIDE` entiers par coureur :
  * [n, distance (cm), latéral (cm), vitesse (cm/s), watts, cadence, FC (−1 = absente),
- *  aspiration (‰), tour, posture (0 assis, 1 danseuse, 2 roue libre)].
+ *  aspiration (‰), tour, posture (0 assis, 1 danseuse, 2 roue libre) + 4 si demi-tour (sens inversé)].
  */
 export interface CompactSnapshotMsg {
   /** Numéro de tick serveur. */
@@ -440,7 +515,7 @@ export function encodeSnapshot(tick: number, t: number, rows: ArrayLike<Snapshot
       r.hr === undefined ? -1 : Math.round(r.hr),
       Math.round(r.draftPct * 10),
       r.lap,
-      r.pose === 'standing' ? 1 : r.pose === 'coasting' ? 2 : 0,
+      (r.pose === 'standing' ? 1 : r.pose === 'coasting' ? 2 : 0) + (r.dir === -1 ? 4 : 0),
     );
   }
   return { k: tick, t, r: out };
@@ -467,8 +542,9 @@ export function decodeSnapshot(msg: CompactSnapshotMsg, roster: ReadonlyMap<numb
       isGuest: entry.isGuest,
       lap: r[i + 8] as number,
       avatar: entry.avatar,
-      pose: POSES[r[i + 9] as number] ?? 'seated',
+      pose: POSES[(r[i + 9] as number) & 3] ?? 'seated',
     };
+    if (((r[i + 9] as number) & 4) !== 0) snap.dir = -1;
     if (hr >= 0) snap.hr = hr;
     riders.push(snap);
   }

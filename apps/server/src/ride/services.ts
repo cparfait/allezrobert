@@ -32,6 +32,8 @@ export interface RideServices {
   guestMaxWkg: number;
   reconnectGraceS: number;
   allowAnonymousGuests: boolean;
+  /** Itinéraires ouverts au public (salles `public`). */
+  publicRoutes: readonly string[];
   /** Jeton de jeu (options de connexion) ou cookie de session (même origine). */
   authenticate(token: string | undefined, cookieHeader: string | undefined): Promise<AuthedUser | null>;
   loadProfile(userId: string): Promise<RiderProfileInfo | null>;

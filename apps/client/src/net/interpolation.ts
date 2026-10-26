@@ -29,6 +29,8 @@ export interface InterpolatedRider {
   isAI: boolean;
   isGuest: boolean;
   avatar: RiderSnapshot['avatar'];
+  /** Sens de marche : -1 après un demi-tour (distM / unwrappedM mesurées sur l'itinéraire inversé). */
+  dir: 1 | -1;
   /** Vrai si la position est extrapolée (instantané manquant). */
   extrapolated: boolean;
 }
@@ -158,14 +160,18 @@ export class SnapshotBuffer {
       isAI: a.isAI,
       isGuest: a.isGuest,
       avatar: b.avatar,
+      dir: b.dir ?? 1,
       extrapolated,
     };
     const hr = k < 0.5 ? a.hr : b.hr;
     if (hr !== undefined) out.hr = hr;
     let ua = this.unwrap(a);
     const ub = this.unwrap(b);
-    // Garde-fou : un saut énorme (repositionnement serveur) n'est pas interpolé.
-    if (Math.abs(ub - ua) > 200) ua = ub;
+    // Garde-fou : un saut énorme (repositionnement serveur) n'est pas interpolé ; ni un demi-tour (autre repère).
+    if (Math.abs(ub - ua) > 200 || (a.dir ?? 1) !== (b.dir ?? 1)) {
+      ua = ub;
+      out.lateralM = b.lateralM;
+    }
     this.setUnwrapped(out, ua + (ub - ua) * k);
     return out;
   }

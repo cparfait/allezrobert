@@ -2,6 +2,12 @@
   "version": "0.0.1",
   "configurations": [
     {
+      "name": "audit-sans-hmr",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": ["/c", "set AR_HMR=0&& pnpm --filter @allezrobert/client exec vite --port 5179 --strictPort"],
+      "port": 5179
+    },
+    {
       "name": "jeu-complet",
       "runtimeExecutable": "pnpm",
       "runtimeArgs": [
@@ -90,6 +96,27 @@
         "zone-builder"
       ],
       "port": 5199
+    },
+    {
+      "name": "server-monde-ouvert",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "--env-file-if-exists=C:/tmp/__DEV__/allezrobert/apps/server/.env",
+        "--env-file=C:/tmp/__DEV__/allezrobert/apps/server/.env.monde-ouvert",
+        "--import",
+        "tsx",
+        "C:/tmp/__DEV__/allezrobert/apps/server/src/main.ts"
+      ],
+      "port": 2567
+    },
+    {
+      "name": "client-stable",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": [
+        "/c",
+        "set AR_HMR=0&& pnpm --filter @allezrobert/client exec vite --port 5175"
+      ],
+      "port": 5175
     }
   ]
 }

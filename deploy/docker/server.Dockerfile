@@ -22,7 +22,7 @@ RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
 
 FROM node:22-bookworm-slim AS runtime
 ENV NODE_ENV=production PORT=2567 HOST=0.0.0.0 RENDERS_DIR=/data/renders \
-    ROUTES_DIR=/app/apps/client/public/worlds/chevreuse/routes
+    ROUTES_DIR=/app/apps/client/public/worlds/longchamp/routes,/app/apps/client/public/worlds/chevreuse/routes
 WORKDIR /app/apps/server
 COPY --from=deps --chown=node:node /out ./
 # Itinéraires (JSON RouteData) s'ils sont présents dans le contexte ; sinon boucle procédurale.

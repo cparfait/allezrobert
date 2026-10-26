@@ -111,6 +111,7 @@ export function rideServicesFrom(ctx: AppContext): RideServices {
     guestMaxWkg: ctx.config.GUEST_MAX_WKG,
     reconnectGraceS: ctx.config.RECONNECT_GRACE_S,
     allowAnonymousGuests: ctx.config.ALLOW_ANONYMOUS_GUESTS,
+    publicRoutes: ctx.config.PUBLIC_ROUTES.split(',').map((x) => x.trim()).filter(Boolean),
     async authenticate(token, cookieHeader) {
       if (token) {
         const g = await ctx.tokens.verifyGame(token);

@@ -1,6 +1,6 @@
 /**
  * Itinéraires disponibles côté serveur : fichiers RouteData produits par tools/terrain
- * (ROUTES_DIR, ex. apps/client/public/worlds/chevreuse/routes), avec repli sur une boucle
+ * (ROUTES_DIR, un ou plusieurs dossiers séparés par des virgules, ex. apps/client/public/worlds/chevreuse/routes), avec repli sur une boucle
  * procédurale de ~10 km si le dossier est absent ou vide (développement, tests).
  */
 import { readdir, readFile } from 'node:fs/promises';
@@ -58,17 +58,25 @@ export class RouteStore {
     }));
   }
 
-  /** Charge les *.json d'un dossier ; ajoute la boucle procédurale si rien n'est chargé. */
+  /**
+   * Charge les *.json d'un ou plusieurs dossiers (`dir` : chemins séparés par des virgules, comme
+   * ROUTES_DIR) ; ajoute la boucle procédurale si rien n'est chargé. Un identifiant déjà chargé
+   * n'est pas remplacé par un fichier d'un dossier suivant.
+   */
   static async load(dir: string | undefined, log: (m: string) => void = () => undefined): Promise<RouteStore> {
     const store = new RouteStore();
-    if (dir) {
+    for (const d of (dir ?? '').split(',').map((x) => x.trim()).filter(Boolean)) {
       try {
-        const files = (await readdir(dir)).filter((f) => f.endsWith('.json')).sort();
+        const files = (await readdir(d)).filter((f) => f.endsWith('.json')).sort();
         for (const f of files) {
           try {
-            const data = JSON.parse(await readFile(path.join(dir, f), 'utf8')) as RouteData;
+            const data = JSON.parse(await readFile(path.join(d, f), 'utf8')) as RouteData;
             if (!isRouteData(data)) {
               log(`itinéraire ignoré (format) : ${f}`);
+              continue;
+            }
+            if (store.routes.has(data.id)) {
+              log(`itinéraire déjà chargé, ignoré : ${data.id} (${path.join(d, f)})`);
               continue;
             }
             store.add(data);
@@ -77,7 +85,7 @@ export class RouteStore {
           }
         }
       } catch {
-        log(`dossier d'itinéraires introuvable : ${dir}`);
+        log(`dossier d'itinéraires introuvable : ${d}`);
       }
     }
     if (store.size === 0) {

@@ -1,7 +1,7 @@
 /** Mondes générés par tools/terrain (dossiers public/worlds/<id>/), dans l'ordre du menu. */
 export const WORLD_LIST: Array<{ id: string; name: { fr: string; en: string }; hint: { fr: string; en: string } }> = [
-  { id: 'chevreuse', name: { fr: 'Vallée de Chevreuse', en: 'Chevreuse Valley' }, hint: { fr: 'Saclay, Chevreuse, Rambouillet', en: 'Saclay, Chevreuse, Rambouillet' } },
   { id: 'longchamp', name: { fr: 'Paris — Longchamp', en: 'Paris — Longchamp' }, hint: { fr: 'L’anneau du bois de Boulogne', en: 'The Bois de Boulogne loop' } },
+  { id: 'chevreuse', name: { fr: 'Vallée de Chevreuse', en: 'Chevreuse Valley' }, hint: { fr: 'Saclay, Chevreuse, Rambouillet', en: 'Saclay, Chevreuse, Rambouillet' } },
   { id: 'vincennes', name: { fr: 'Paris — Vincennes', en: 'Paris — Vincennes' }, hint: { fr: 'Le tour de l’hippodrome', en: 'The racecourse loop' } },
   { id: 'meudon', name: { fr: 'Meudon — Clamart', en: 'Meudon — Clamart' }, hint: { fr: 'Forêt de Meudon, côte des Gardes · 13 km', en: 'Meudon forest, Côte des Gardes · 13 km' } },
   { id: 'limagne', name: { fr: 'Limagne — Neuville', en: 'Limagne — Neuville' }, hint: { fr: 'Monde ouvert, Puy-de-Dôme', en: 'Open world, Puy-de-Dôme' } },

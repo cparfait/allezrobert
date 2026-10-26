@@ -12,7 +12,7 @@ export async function loadWorldSource(id: string): Promise<WorldSource> {
   if (id.includes('+')) {
     const ids = id.split('+').filter(Boolean);
     const sources = (await Promise.all(ids.map((z) => loadWorldSource(z)))).filter((s, i) => s.id === ids[i]);
-    if (sources[0]?.id !== ids[0]) return loadWorldSource(ids[0] ?? 'chevreuse');
+    if (sources[0]?.id !== ids[0]) return loadWorldSource(ids[0] ?? 'longchamp');
     if (sources.length === 1) return sources[0]!;
     const { createCompositeWorld } = await import('./composite.ts');
     return createCompositeWorld(sources);

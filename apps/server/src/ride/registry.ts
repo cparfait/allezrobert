@@ -18,9 +18,15 @@ export interface RideEntry {
   name: string;
   allowGuests: boolean;
   hostUserId: string | undefined;
+  /** Salle publique du monde ouvert (sans hôte, entrée libre pour les comptes). */
+  public?: boolean;
   createdAt: number;
+  /** Salle publique : humains présents et leur position (m, sens de l'itinéraire) pour la carte du monde ouvert. */
+  positions?: () => Array<{ riderId: string; userId: string | undefined; d: number; dir: 1 | -1 }>;
   /** userId → rôle tenu dans la sortie (le plus « fort » si plusieurs connexions). */
   participants: Map<string, RideRole>;
+  /** userId → identifiant de son coureur dans la salle (identité vocale anonyme en salle publique). */
+  riderIds: Map<string, string>;
   /** Comptes ayant roulé en invité (conservé après leur départ : FIT/XP refusés). */
   guests: Set<string>;
 }
@@ -40,8 +46,8 @@ export class RideRegistry {
     throw new Error("Impossible de générer un code d'invitation");
   }
 
-  register(e: Omit<RideEntry, 'participants' | 'createdAt' | 'guests'>): RideEntry {
-    const entry: RideEntry = { ...e, createdAt: Date.now(), participants: new Map(), guests: new Set() };
+  register(e: Omit<RideEntry, 'participants' | 'riderIds' | 'createdAt' | 'guests'>): RideEntry {
+    const entry: RideEntry = { ...e, createdAt: Date.now(), participants: new Map(), riderIds: new Map(), guests: new Set() };
     this.byCode.set(e.inviteCode, entry);
     this.byRoom.set(e.roomId, entry);
     return entry;
@@ -63,9 +69,10 @@ export class RideRegistry {
     return this.byRoom.get(roomId);
   }
 
-  join(roomId: string, userId: string, role: RideRole): void {
+  join(roomId: string, userId: string, role: RideRole, riderId?: string): void {
     const e = this.byRoom.get(roomId);
     if (!e) return;
+    if (riderId && role !== 'companion') e.riderIds.set(userId, riderId);
     const prev = e.participants.get(userId);
     if (role !== 'companion' || !prev) e.participants.set(userId, role === 'companion' ? 'companion' : role);
     if (role !== 'companion') this.currentRide.set(userId, roomId);
@@ -77,6 +84,12 @@ export class RideRegistry {
     if (!e) return;
     if (role !== 'companion' && this.currentRide.get(userId) === roomId) this.currentRide.delete(userId);
     if (e.participants.get(userId) === role) e.participants.delete(userId);
+    if (role !== 'companion') e.riderIds.delete(userId);
+  }
+
+  /** Salles publiques (monde ouvert), éventuellement d'une seule zone. */
+  publicRooms(routeId?: string): RideEntry[] {
+    return [...this.byRoom.values()].filter((e) => e.public && (routeId === undefined || e.routeId === routeId));
   }
 
   currentRideOf(userId: string): RideEntry | undefined {
@@ -95,4 +108,11 @@ export class RideRegistry {
 
 export function normalizeCode(code: string): string {
   return code.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+}
+
+/** Coureurs (invités compris, compagnons exclus) présents dans la sortie. */
+export function riderCountOf(e: RideEntry): number {
+  let n = 0;
+  for (const role of e.participants.values()) if (role !== 'companion') n++;
+  return n;
 }

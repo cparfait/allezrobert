@@ -27,6 +27,8 @@ interface ModelSpec {
   repaint: boolean;
   /** Fréquence relative dans la circulation. */
   weight: number;
+  /** Exporté l'avant vers −z (sans `--flip` à l'export) : retourné au chargement. */
+  reversed?: boolean;
 }
 
 const MODELS: ModelSpec[] = [
@@ -35,11 +37,10 @@ const MODELS: ModelSpec[] = [
   { file: 'suv', kind: 'car', cruise: [13, 19], repaint: true, weight: 2 },
   { file: 'porsche-911', kind: 'car', cruise: [17, 24], repaint: true, weight: 1 },
   { file: 'nissan-silvia', kind: 'car', cruise: [15, 21], repaint: true, weight: 1.5 },
-  { file: 'bmw-733i', kind: 'car', cruise: [14, 20], repaint: false, weight: 1.5 },
+  { file: 'bmw-733i', kind: 'car', cruise: [14, 20], repaint: false, weight: 1.5, reversed: true },
   { file: 'mercedes-c230', kind: 'car', cruise: [14, 20], repaint: false, weight: 1.5 },
   { file: 'lamborghini-aventador', kind: 'car', cruise: [17, 25], repaint: true, weight: 0.8 },
-  { file: 'mclaren-720s', kind: 'car', cruise: [17, 25], repaint: true, weight: 0.8 },
-  { file: 'de-tomaso-p72', kind: 'car', cruise: [16, 23], repaint: false, weight: 0.6 },
+  { file: 'mclaren-720s', kind: 'car', cruise: [17, 25], repaint: true, weight: 0.8, reversed: true },
   { file: 'utilitaire', kind: 'van', cruise: [13, 17], repaint: false, weight: 1.5 },
   { file: 'tractor', kind: 'tractor', cruise: [6.5, 8.5], repaint: false, weight: 0 },
 ];
@@ -76,6 +77,7 @@ export function loadVehicleModels(base = '/models/vehicles/'): Promise<boolean> 
         );
         prepare(near, true);
         if (far) prepare(far, false);
+        if (spec.reversed) for (const root of far ? [near, far] : [near]) turnAround(root);
         const size = new THREE.Box3().setFromObject(near).getSize(new THREE.Vector3());
         let wheelRadius = 0.33;
         near.traverse((o) => {
@@ -103,6 +105,20 @@ function prepare(root: THREE.Object3D, shadows: boolean): void {
     mesh.castShadow = shadows;
     mesh.receiveShadow = shadows;
   });
+}
+
+const HALF_TURN = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI);
+
+/**
+ * Remet l'avant vers +z : chaque nœud de premier niveau (caisse, roues) fait un demi-tour autour de
+ * l'axe vertical. Les roues tournent toujours dans le bon sens : `rotation.x` s'applique en dernier
+ * (ordre XYZ), donc autour de l'axe transversal du véhicule.
+ */
+function turnAround(root: THREE.Object3D): void {
+  for (const c of root.children) {
+    c.position.set(-c.position.x, c.position.y, -c.position.z);
+    c.quaternion.premultiply(HALF_TURN);
+  }
 }
 
 /** Repeint les matériaux de carrosserie d'une copie (matériaux clonés, partagés entre ses niveaux). */
@@ -344,7 +360,8 @@ export class Traffic {
       v.mesh.visible = !outside && !v.onTrack;
       if (outside || v.onTrack) continue;
       const p = this.track.positionAt(((v.d % L) + L) % L, v.lateral, this.sample);
-      v.mesh.position.set(p.x, p.y + 0.02, p.z);
+      // Pneus posés sur la chaussée, surélevée de 6 cm comme pour les coureurs (road.ts).
+      v.mesh.position.set(p.x, p.y + 0.06, p.z);
       v.vx = p.dirX * v.sens * v.speed;
       v.vz = p.dirZ * v.sens * v.speed;
       v.mesh.rotation.set(0, Math.atan2(p.dirX, p.dirZ) + (v.sens < 0 ? Math.PI : 0), 0);

@@ -9,6 +9,7 @@
  * gain de compensation → compresseur doux (les scènes chargées) → écrêteur doux (crête
  * < −0,9 dBFS quoi qu'il arrive) → sortie. Niveaux mesurés : apps/client/scripts/audio-bench.mjs.
  */
+import { followSink } from './devices.ts';
 import type { SoundSource } from './spatial.ts';
 import { freewheelDef, loopVoices, type FreewheelDef } from './freewheels.ts';
 import { BUSES, busGains, DEFAULT_MIX, type Bus, type SoundMix } from './mix.ts';
@@ -166,6 +167,8 @@ export class GameAudio {
     if (this.ctx) return;
     const ctx = context ?? new AudioContext({ latencyHint: 'playback' });
     this.ctx = ctx;
+    // Sortie choisie dans les réglages (pas pour le banc d'essai hors ligne).
+    if (!context) followSink(ctx);
     const sr = ctx.sampleRate;
     const rnd = seeded(2026);
     const make = (chans: Float32Array[]): AudioBuffer => {

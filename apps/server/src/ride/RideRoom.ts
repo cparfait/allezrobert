@@ -8,18 +8,26 @@
  * Reconnexion : `allowReconnection` pendant RECONNECT_GRACE_S (le coureur reste sur la
  * route, en roue libre) ; un nouvel onglet du même compte reprend le même coureur.
  * Hôte : le créateur ; s'il part, le rôle passe au plus ancien humain connecté.
+ * Salle publique (`PublicRideRoom`, monde ouvert) : mêmes mécanismes, mais entrée libre pour
+ * les comptes, aucun hôte ni départ, IA d'ambiance cédant la place aux humains, demi-tours.
  */
+import { randomInt } from 'node:crypto';
 import { CloseCode, Room, ServerError, type AuthContext, type Client } from '@colyseus/core';
 import { z } from 'zod';
 import {
   MAX_RIDERS_PER_ROOM,
   NET_MSG,
   NET_TICK_HZ,
+  PUBLIC_AMBIENT_AI,
+  PUBLIC_CHAT_RADIUS_M,
+  PUBLIC_VOICE_FAR_M,
+  PUBLIC_VOICE_NEAR_M,
   encodeSnapshot,
   type CompanionCommand,
   type RideEventMsg,
   type RideResult,
   type RideRole,
+  type RideWeather,
   type TuneEvent,
   type RosterMsg,
   type WelcomeMsg,
@@ -70,6 +78,7 @@ const JoinOptionsSchema = z
     token: z.string().max(4096).optional(),
     role: z.enum(['rider', 'guest', 'companion']).optional(),
     displayName: z.string().max(60).optional(),
+    near: z.string().max(40).optional(),
   })
   .passthrough();
 
@@ -121,6 +130,8 @@ interface AuthData {
   role: RideRole;
   userId?: string;
   name: string;
+  /** Salle publique : coureur près de qui apparaître. */
+  near?: string;
 }
 
 interface ClientData {
@@ -131,11 +142,27 @@ interface ClientData {
   replaced?: boolean;
 }
 
+/** Heure légale de Paris (0–24, fraction = minutes). */
+function parisHour(at = new Date()): number {
+  const parts = new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Paris', hour: 'numeric', minute: 'numeric', hourCycle: 'h23' }).formatToParts(at);
+  const get = (t: string): number => Number(parts.find((p) => p.type === t)?.value ?? 0);
+  return get('hour') + get('minute') / 60;
+}
+
+/** Météo d'une salle publique : même ciel pour tous, choisi à la création par le serveur. */
+function publicWeather(): RideWeather {
+  return { hour: parisHour(), clouds: 0.25, rain: 0, fog: 0, windMs: 2, evolving: true, seed: randomInt(100_000) };
+}
+
 /** Salles actives (statistiques de tick pour /api/health). */
 export const activeRooms = new Set<RideRoom>();
 
 export class RideRoom extends Room {
   override maxClients = 2 * MAX_RIDERS_PER_ROOM;
+  /** Salle publique du monde ouvert (redéfini par `PublicRideRoom`). */
+  protected get isPublic(): boolean {
+    return false;
+  }
   sim!: RideSimulation;
   inviteCode = '';
   hostId = '';
@@ -156,13 +183,22 @@ export class RideRoom extends Room {
     this.svc = rideServices();
     const parsed = CreateOptionsSchema.safeParse(options ?? {});
     const o = parsed.success ? parsed.data : {};
-    const route = this.svc.routes.resolve(o.routeId);
+    const pub = this.isPublic;
+    // Monde ouvert : l'itinéraire doit exister (pas de repli silencieux sur un autre parcours).
+    const route = pub ? this.svc.routes.get(o.routeId ?? '') : this.svc.routes.resolve(o.routeId);
+    if (!route || (pub && !this.svc.publicRoutes.includes(route.data.id))) throw new ServerError(404, 'Zone inconnue');
     this.routeId = route.data.id;
-    const opts = resolveRideOptions(o as Parameters<typeof resolveRideOptions>[0], route.data.id);
+    const opts = resolveRideOptions(
+      (pub
+        ? { routeId: route.data.id, mode: 'free', allowGuests: false, stickyGroup: false, draftingStrength: 1, aiRiders: PUBLIC_AMBIENT_AI, weather: publicWeather() }
+        : o) as Parameters<typeof resolveRideOptions>[0],
+      route.data.id,
+    );
     this.inviteCode = this.svc.registry.newInviteCode();
     opts.inviteCode = this.inviteCode;
     this.sim = new RideSimulation(route.data, opts, Date.now(), { guestMaxWkg: this.svc.guestMaxWkg, seed: this.roomId });
-    this.svc.registry.register({
+    if (pub) this.sim.segmentsEnabled = false;
+    const entry = this.svc.registry.register({
       roomId: this.roomId,
       inviteCode: this.inviteCode,
       routeId: this.routeId,
@@ -170,13 +206,15 @@ export class RideRoom extends Room {
       name: opts.name ?? route.data.name,
       allowGuests: opts.allowGuests,
       hostUserId: undefined,
+      public: pub,
     });
-    void this.setPrivate(true);
+    if (pub) entry.positions = () => this.sim.riders.filter((r) => r.kind !== 'ai').map((r) => ({ riderId: r.id, userId: r.userId, d: this.sim.forwardPositionOf(r.id) ?? 0, dir: r.dir }));
+    if (!pub) void this.setPrivate(true);
     this.maxMessagesPerSecond = 60;
     this.registerHandlers();
     this.setSimulationInterval((deltaMs) => this.update(deltaMs), 1000 / NET_TICK_HZ);
     activeRooms.add(this);
-    this.svc.log('info', `sortie créée ${this.roomId} (${this.routeId}, ${opts.mode})`);
+    this.svc.log('info', `${pub ? 'salle publique' : 'sortie'} créée ${this.roomId} (${this.routeId}, ${opts.mode})`);
   }
 
   override async onAuth(_client: Client, options: unknown, context: AuthContext): Promise<AuthData> {
@@ -184,8 +222,11 @@ export class RideRoom extends Room {
     if (!parsed.success) throw new ServerError(400, 'Options de connexion invalides');
     const o = parsed.data;
     const role: RideRole = o.role ?? 'rider';
-    const isCreator = !this.creatorAuthorized;
-    if (!isCreator && normalizeCode(o.inviteCode ?? '') !== this.inviteCode) throw new ServerError(403, "Code d'invitation invalide");
+    const pub = this.isPublic;
+    // Salle publique : pas de créateur ni de code, mais un compte obligatoire.
+    const isCreator = !pub && !this.creatorAuthorized;
+    if (!pub && !isCreator && normalizeCode(o.inviteCode ?? '') !== this.inviteCode) throw new ServerError(403, "Code d'invitation invalide");
+    if (pub && role === 'guest') throw new ServerError(403, 'Connexion requise pour rouler en monde ouvert');
     const cookie = context.headers?.get?.('cookie') ?? undefined;
     const user = await this.svc.authenticate(o.token ?? context.token, cookie);
     if (isCreator) {
@@ -195,11 +236,12 @@ export class RideRoom extends Room {
     if (user && this.kickedUsers.has(user.userId)) throw new ServerError(403, "Tu as été retiré de cette sortie par l'organisateur");
     if (role === 'guest' && !this.sim.options.allowGuests && !isCreator) throw new ServerError(403, "L'organisateur n'accepte pas d'invités");
     if (role !== 'companion' && this.sim.isFull && !(user && this.riderByUser.has(user.userId))) throw new ServerError(409, 'Sortie complète');
+    if (pub && role === 'companion' && !(user && this.riderByUser.has(user.userId))) throw new ServerError(403, 'Aucun coureur de ce compte dans la salle');
     if (!user) {
       if (role === 'guest' && this.svc.allowAnonymousGuests) return { role, name: sanitizeName(o.displayName ?? '') || 'Invité' };
       throw new ServerError(401, 'Connexion requise');
     }
-    return { role, userId: user.userId, name: user.name };
+    return { role, userId: user.userId, name: user.name, ...(pub && o.near ? { near: o.near } : {}) };
   }
 
   override async onJoin(client: Client, _options?: unknown): Promise<void> {
@@ -213,6 +255,7 @@ export class RideRoom extends Room {
     }
 
     let rider: SimRider | undefined;
+    let created = false;
     const existingId = auth.userId ? this.riderByUser.get(auth.userId) : undefined;
     if (existingId) {
       // Même compte depuis un autre onglet / appareil : reprise du coureur existant.
@@ -243,6 +286,13 @@ export class RideRoom extends Room {
       );
       if (!added) throw new ServerError(409, 'Sortie complète');
       rider = added;
+      created = true;
+      // Rejoindre un ami : apparition dans sa roue.
+      if (this.isPublic) {
+        if (auth.near) this.sim.placeNear(rider.id, auth.near);
+        // Le jeu met du temps à démarrer : placement refait quand il envoie `ready`.
+        this.sim.deferPlacement(rider.id, auth.near);
+      }
       if (auth.userId) {
         this.riderByUser.set(auth.userId, rider.id);
         if (kind === 'human') {
@@ -254,22 +304,23 @@ export class RideRoom extends Room {
     this.sim.setConnected(rider.id, true);
     client.userData = { role: auth.role, riderId: rider.id, ...(auth.userId ? { userId: auth.userId } : {}) } satisfies ClientData;
     this.clientByRider.set(rider.id, client);
-    if (auth.userId) this.svc.registry.join(this.roomId, auth.userId, auth.role);
+    if (auth.userId) this.svc.registry.join(this.roomId, auth.userId, auth.role, rider.id);
 
-    if (!this.hostId && auth.userId) this.setHost(rider.id, false);
+    if (!this.isPublic && !this.hostId && auth.userId) this.setHost(rider.id, false);
     if (!this.aiAdded) {
       this.aiAdded = true;
       // IA au niveau du créateur (× aiLevel) : elles complètent le peloton quand on est peu nombreux.
       if (this.sim.options.aiRiders > 0) this.sim.addAiRiders(this.sim.options.aiRiders, now, rider.ftpWatts * this.sim.options.aiLevel);
-    } else if (rider.kind !== 'ai') {
-      // Course au salon : une IA cède sa place à chaque humain qui arrive (taille du peloton constante).
-      const gone = this.sim.yieldAiSlot();
+    } else if (rider.kind !== 'ai' && (created || !this.isPublic)) {
+      // Course au salon, monde ouvert : une IA cède sa place à chaque humain qui arrive (taille du peloton constante).
+      const gone = this.sim.yieldAiSlot(this.isPublic);
       if (gone) this.broadcastEvent({ kind: 'leave', riderId: gone.id });
     }
     client.send(NET_MSG.welcome, this.welcome(auth.role, rider.id));
     this.broadcastRoster();
     this.broadcastEvent({ kind: 'join', riderId: rider.id, name: rider.name }, client);
     this.notifyCompanions(auth.userId);
+    this.updateLock();
   }
 
   override onDrop(client: Client): void {
@@ -318,6 +369,7 @@ export class RideRoom extends Room {
     if (this.hostId === riderId) this.migrateHost();
     this.broadcastRoster();
     this.notifyCompanions(ud.userId);
+    this.updateLock();
   }
 
   override onDispose(): void {
@@ -482,10 +534,28 @@ export class RideRoom extends Room {
       if (ev) this.broadcastEvent(ev);
     });
 
+    // Jeu prêt (monde ouvert) : le coureur est placé dans la roue de son ami (ou à l'arrière du groupe).
+    this.onMessage(NET_MSG.ready, (client: Client) => {
+      const ud = client.userData as ClientData | undefined;
+      if (this.isPublic && ud?.riderId) this.sim.placeNow(ud.riderId);
+    });
+
+    // Demi-tour (monde ouvert) : le coureur repart en sens inverse depuis le même endroit.
+    this.onMessage(NET_MSG.uturn, (client: Client) => {
+      const ud = client.userData as ClientData | undefined;
+      if (this.isPublic && ud?.riderId) this.sim.turnAround(ud.riderId, Date.now());
+    });
+
     this.onMessage(NET_MSG.ping, (client: Client, raw: unknown) => {
       const p = PingSchema.safeParse(raw);
       if (p.success) client.send(NET_MSG.ping, { t: p.data.t, serverT: Date.now() });
     });
+  }
+
+  /** Salle publique pleine : fermée aux nouveaux arrivants, rouverte dès qu'une place se libère. */
+  private updateLock(): void {
+    if (!this.isPublic) return;
+    void (this.sim.isFull ? this.lock() : this.unlock()).catch(() => undefined);
   }
 
   private isHost(client: Client): boolean {
@@ -515,7 +585,14 @@ export class RideRoom extends Room {
     }
     times.push(now);
     this.chatTimes.set(riderId, times);
-    this.broadcastEvent({ kind: 'chat', riderId, text: clean });
+    if (!this.isPublic) return this.broadcastEvent({ kind: 'chat', riderId, text: clean });
+    // Monde ouvert : seuls les coureurs proches (et leurs compagnons) lisent le message.
+    const ev = { kind: 'chat', riderId, text: clean } satisfies RideEventMsg;
+    for (const c of this.clients) {
+      const ud = c.userData as ClientData | undefined;
+      const to = ud?.riderId ?? (ud?.userId ? this.riderByUser.get(ud.userId) : undefined);
+      if (to && this.sim.separationM(riderId, to) <= PUBLIC_CHAT_RADIUS_M) c.send(NET_MSG.event, ev);
+    }
   }
 
   private doRideOn(client: Client, to: string): void {
@@ -594,6 +671,20 @@ export class RideRoom extends Room {
     if (this.sim.deadline !== undefined) w.deadline = this.sim.deadline;
     w.hostOptions = this.sim.hostOptions();
     if (this.sim.regrouping) w.regrouping = true;
+    if (this.isPublic) {
+      w.public = true;
+      w.proximity = { chatM: PUBLIC_CHAT_RADIUS_M, voiceNearM: PUBLIC_VOICE_NEAR_M, voiceFarM: PUBLIC_VOICE_FAR_M };
+    }
     return w;
+  }
+}
+
+/**
+ * Salle du monde ouvert : une par zone et par tranche de 20 coureurs, créée à la demande
+ * (`joinOrCreate('public', { routeId })`, voir `filterBy` dans server.ts) et fermée quand elle se vide.
+ */
+export class PublicRideRoom extends RideRoom {
+  protected override get isPublic(): boolean {
+    return true;
   }
 }

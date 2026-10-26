@@ -17,8 +17,11 @@ import { Client, type Room } from '@colyseus/sdk';
 import {
   Emitter,
   NET_MSG,
+  PUBLIC_ROOM,
   decodeSnapshot,
   type CompactSnapshotMsg,
+  type PublicPick,
+  type PublicZoneInfo,
   type CompanionCommand,
   type CompanionStateMsg,
   type HostOptions,
@@ -163,6 +166,50 @@ export class RideNetClient {
     this.setState('connecting');
     const room = await this.sdk.create('ride', { ...options, ...join, ...(token ? { token } : {}) });
     return this.attach(room, { roomId: room.roomId, inviteCode: '', join: { ...join } });
+  }
+
+  /**
+   * Monde ouvert : rejoint la salle publique d'une zone (compte requis). `roomId` = salle conseillée par
+   * `POST /api/public/pick` (celle des amis) ; si elle est devenue pleine ou a disparu, on retombe sur
+   * `joinOrCreate` (première salle non pleine de la zone, sinon une nouvelle).
+   */
+  async joinPublic(routeId: string, join: Omit<RideJoinOptions, 'inviteCode' | 'token' | 'role'> = {}, roomId?: string): Promise<WelcomeMsg> {
+    const token = await this.resolveToken();
+    this.setState('connecting');
+    const opts = { ...join, routeId, ...(token ? { token } : {}) };
+    let room: Room | undefined;
+    if (roomId) room = await this.sdk.joinById(roomId, opts).catch(() => undefined);
+    room ??= await this.sdk.joinOrCreate(PUBLIC_ROOM, opts);
+    return this.attach(room, { roomId: room.roomId, inviteCode: '', join: { ...join } });
+  }
+
+  /** Monde ouvert : affluence des zones ouvertes (et amis présents si connecté). */
+  async publicZones(): Promise<PublicZoneInfo[]> {
+    const t = this.options.token;
+    const res = await this.fetchFn(`${this.apiBase}/public/zones`, { credentials: 'include', ...(typeof t === 'string' ? { headers: { authorization: `Bearer ${t}` } } : {}) });
+    if (!res.ok) throw new Error(`Erreur ${res.status}`);
+    return (await res.json()) as PublicZoneInfo[];
+  }
+
+  /**
+   * Monde ouvert : salle conseillée pour une zone (priorité aux amis) ; `roomId` absent = en ouvrir une.
+   * `friendId` (relation d'amitié) : la salle de cet ami et son coureur (`near`) ; le serveur refuse si l'ami ne roule
+   * plus ici ou si sa salle est pleine (le message est celui du serveur).
+   */
+  async pickPublicRoom(routeId: string, friendId?: string): Promise<PublicPick> {
+    // Session par cookie ; un jeton de session fourni explicitement (tests, outils) passe en Bearer.
+    const token = typeof this.options.token === 'string' ? this.options.token : undefined;
+    const res = await this.fetchFn(`${this.apiBase}/public/pick`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'content-type': 'application/json', ...(token ? { authorization: `Bearer ${token}` } : {}) },
+      body: JSON.stringify({ routeId, ...(friendId ? { friendId } : {}) }),
+    });
+    if (!res.ok) {
+      const body = friendId ? ((await res.json().catch(() => null)) as { message?: string } | null) : null;
+      throw new Error(res.status === 401 ? 'Connexion requise' : body?.message || (res.status === 404 ? 'Zone inconnue' : `Erreur ${res.status}`));
+    }
+    return (await res.json()) as PublicPick;
   }
 
   /** Rejoint une sortie par son code d'invitation (résolu via l'API). */
@@ -402,6 +449,21 @@ export class RideNetClient {
 
   chat(text: string): void {
     this.room?.send(NET_MSG.chat, { text });
+  }
+
+  /** Repère de prédiction changé (demi-tour) : oublie l'historique local de la réconciliation. */
+  resetReconciliation(): void {
+    this.reconciler.reset();
+  }
+
+  /** Monde ouvert : le jeu est chargé et le coureur commence à rouler (le serveur le place alors près de son ami). */
+  ready(): void {
+    this.room?.send(NET_MSG.ready, {});
+  }
+
+  /** Monde ouvert : fait demi-tour (repart en sens inverse depuis le même endroit). */
+  uturn(): void {
+    this.room?.send(NET_MSG.uturn, {});
   }
 
   rideOn(toRiderId: string): void {

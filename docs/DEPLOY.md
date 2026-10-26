@@ -258,6 +258,12 @@ itinéraires régénérés sans reconstruire les images, les copier aussi dans
 `deploy/data/worlds/chevreuse/routes/` et mettre `ROUTES_DIR=/data/worlds/chevreuse/routes`
 dans `.env` (le jeu, lui, garde ceux de son bundle : reconstruire l'image web pour aligner).
 
+**Monde ouvert (Longchamp)** : Longchamp est le monde chargé par défaut et celui des salles
+publiques. Ses tuiles se déploient comme celles de Chevreuse (`worlds/longchamp/tiles/`, ≈ 65 Mo) et le
+serveur doit lire ses itinéraires : `ROUTES_DIR` accepte plusieurs dossiers séparés par des virgules
+(`…/worlds/longchamp/routes,…/worlds/chevreuse/routes`, valeur par défaut de l'image). Les zones ouvertes
+au public sont listées par `PUBLIC_ROUTES` (défaut : `anneau-de-longchamp`).
+
 ## 12 bis. Boucles vidéo du menu
 
 Le fond du menu joue une boucle de 60 s par saison (`/menu/loop-<saison>.mp4`, H.264, ≈15 à

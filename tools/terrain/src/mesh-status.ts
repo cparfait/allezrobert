@@ -24,8 +24,8 @@ const todo: string[] = [];
 for (const z of plan.zones) {
   const r = report[z.id];
   if (fs.existsSync(path.join(WORLDS, z.id, 'world.json'))) built.push(z.id);
+  else if (fs.existsSync(path.join(WORK, `build-${z.id}.log`)) && Date.now() - fs.statSync(path.join(WORK, `build-${z.id}.log`)).mtimeMs < 15 * 60_000) running.push(z.id);
   else if (r && r.code !== 0) failed.push(z.id);
-  else if (fs.existsSync(path.join(WORK, `build-${z.id}.log`)) && !r) running.push(z.id);
   else todo.push(z.id);
 }
 

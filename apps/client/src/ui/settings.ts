@@ -93,7 +93,7 @@ export const DEFAULT_SETTINGS: Settings = {
   smoothing3s: false,
   guest: false,
   inertia: 1,
-  world: 'chevreuse',
+  world: 'longchamp',
   workoutPreset: 'sweet-spot-3x12',
   challengeSeg: '',
   weatherEvolves: false,

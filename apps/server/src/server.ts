@@ -10,9 +10,9 @@ import { createDb, migrate, type Db } from './db/db.ts';
 import { RouteStore } from './ride/routes.ts';
 import { createContext, rideServicesFrom, type AppContext } from './context.ts';
 import { setRideServices } from './ride/services.ts';
-import { RideRoom } from './ride/RideRoom.ts';
+import { PublicRideRoom, RideRoom } from './ride/RideRoom.ts';
 import { PairRoom } from './ride/PairRoom.ts';
-import { PAIR_ROOM } from '@allezrobert/shared';
+import { PAIR_ROOM, PUBLIC_ROOM } from '@allezrobert/shared';
 import { mountApi } from './http/api.ts';
 import { RenderWorker } from './render/worker.ts';
 import { renderWorkerOptions } from './render/options.ts';
@@ -50,6 +50,8 @@ export async function startServer(opts: StartOptions = {}): Promise<RunningServe
     express: (app: express.Application) => mountApi(app, ctx),
   });
   gameServer.define('ride', RideRoom);
+  // Monde ouvert : salles publiques par zone (itinéraire), sans hôte.
+  gameServer.define(PUBLIC_ROOM, PublicRideRoom).filterBy(['routeId']);
   // Appli compagnon appairée par QR code (solo comme en groupe) : une salle par jeton.
   gameServer.define(PAIR_ROOM, PairRoom).filterBy(['pair']);
 

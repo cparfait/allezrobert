@@ -1,6 +1,7 @@
 import * as THREE from 'three/webgpu';
-import type { CompanionCommand, RideMode, RideWeather, RouteTrack } from '@allezrobert/shared';
+import type { CompanionCommand, PublicPick, RideMode, RideWeather, RouteTrack, WelcomeMsg } from '@allezrobert/shared';
 import { RideNetClient, type InterpolatedRider } from '../net/index.ts';
+import { frameAfterTurn, gapAlongRoute, toRouteFrame } from '../net/frame.ts';
 import { createAvatar, type RiderAvatarLike } from '../rider/gltfAvatar.ts';
 
 /** Adresse du serveur : VITE_SERVER_URL (prod : https://allezrobert.cparfait.ovh/colyseus), sinon local. */
@@ -56,6 +57,54 @@ export class Multiplayer {
   /** Équipement égalisé dans cette salle (même vélo pour tous), connu après l'entrée. */
   equalized = false;
 
+  /** Salle du monde ouvert (sans hôte) et portées du chat / de la voix, connues après l'entrée. */
+  isPublic = false;
+  proximity: WelcomeMsg['proximity'] | undefined;
+  /** Amis déjà présents dans la salle rejointe (monde ouvert). */
+  friendsHere: string[] = [];
+
+  /** Repère de la prédiction locale par rapport à celui du serveur : serveur = sens × distance locale + décalage. */
+  private frameSign: 1 | -1 = 1;
+  private frameOffset = 0;
+  /** Distance (m, le long de la route) à chaque coureur distant, mise à jour à chaque image. */
+  private readonly gaps = new Map<string, number>();
+
+  /**
+   * Monde ouvert : rejoint la salle conseillée par le serveur (celle des amis d'abord), sinon la première
+   * salle non pleine de la zone, sinon en ouvre une. Compte requis.
+   */
+  async connectPublic(routeId: string, name: string, friendId?: string): Promise<void> {
+    // Rejoindre un ami : si le serveur refuse (il est parti, salle pleine), on le dit au lieu de rouler ailleurs.
+    const pick: PublicPick = await this.net.pickPublicRoom(routeId, friendId).catch((e: Error) => {
+      if (friendId || /Connexion requise/.test(e.message)) throw e;
+      return { friends: [] };
+    });
+    const welcome = await this.net.joinPublic(routeId, { displayName: name, ...(pick.near ? { near: pick.near } : {}) }, pick.roomId);
+    this.isPublic = true;
+    this.friendsHere = pick.roomId && pick.roomId === welcome.roomId ? pick.friends : [];
+    this.proximity = welcome.proximity;
+    this.weather = welcome.options.weather ?? null;
+  }
+
+  /** Monde ouvert : à envoyer une fois, à la première image où le coureur roule vraiment. */
+  private readySent = false;
+  notifyReady(): void {
+    if (this.readySent || !this.isPublic) return;
+    this.readySent = true;
+    this.net.ready();
+  }
+
+  /** Sens de marche de son coureur selon le serveur (null : pas encore d'instantané). */
+  selfDir(): 1 | -1 | null {
+    const s = this.net.getSelfSnapshot();
+    return s ? (s.dir ?? 1) : null;
+  }
+
+  /** Distance (m) le long de la route à un coureur distant, quel que soit son sens ; null s'il n'est pas affiché. */
+  distanceTo(riderId: string): number | null {
+    return this.gaps.get(riderId) ?? null;
+  }
+
   async connect(opts: { inviteCode?: string; mode: RideMode; guest: boolean; aiRiders: number; aiLevel?: number; targetKmh?: number; laps?: number; trainerDifficulty: number; name: string; weather: RideWeather; equalEquipment?: boolean }): Promise<string> {
     const role = opts.guest ? 'guest' : 'rider';
     const welcome = opts.inviteCode
@@ -92,16 +141,41 @@ export class Multiplayer {
     return this.net.reconcileSelf(localUnwrappedM, dt);
   }
 
+  /**
+   * Réconciliation qui tient compte du demi-tour : `dir` et `distM` sont ceux du jeu (repère de l'itinéraire).
+   * Après un demi-tour le serveur mesure la distance sur l'itinéraire inversé ; le décalage entre les deux
+   * repères (tours compris) est recalculé sur le premier instantané du nouveau sens. Renvoie la correction à
+   * ajouter à `distM`.
+   */
+  reconcileLocal(dir: 1 | -1, distM: number, dt: number): number {
+    if (dir !== this.frameSign) {
+      const self = this.net.getSelfSnapshot();
+      if (!self) return 0;
+      const L = this.track.length;
+      const snapU = this.track.route.loop ? self.lap * L + self.distM : self.distM;
+      const f = frameAfterTurn(dir, snapU, distM);
+      this.frameSign = f.sign;
+      this.frameOffset = f.offset;
+      this.net.resetReconciliation();
+    }
+    return this.frameSign * this.net.reconcileSelf(this.frameSign * distM + this.frameOffset, dt);
+  }
+
   onCompanion(cb: (c: CompanionCommand) => void): void {
     this.net.on('companion', cb);
   }
 
   /** Avatars des autres coureurs, à leur position interpolée. */
-  render(dt: number, camera: THREE.Camera): InterpolatedRider[] {
-    const riders = this.net.getAllInterpolated().filter((r) => r.id !== this.net.selfId);
+  render(dt: number, camera: THREE.Camera, refM = 0): InterpolatedRider[] {
+    const riders = this.net
+      .getAllInterpolated()
+      .filter((r) => r.id !== this.net.selfId)
+      .map((r) => toRouteFrame(r, this.track.length, !!this.track.route.loop, refM));
     const seen = new Set<string>();
+    const L = this.track.length;
     for (const r of riders) {
       seen.add(r.id);
+      this.gaps.set(r.id, gapAlongRoute(r.unwrappedM, refM, L, !!this.track.route.loop));
       let rem = this.remotes.get(r.id);
       if (!rem) {
         rem = { avatar: createAvatar(r.avatar), label: null };
@@ -112,8 +186,9 @@ export class Multiplayer {
       const root = rem.avatar.root;
       root.position.set(p.x, p.y + 0.06, p.z);
       root.rotation.set(0, 0, 0);
-      root.rotateY(Math.atan2(p.dirX, p.dirZ));
-      root.rotateX(-Math.atan(p.grade / 100));
+      // À contresens (demi-tour) : cap retourné, pente inversée.
+      root.rotateY(Math.atan2(p.dirX, p.dirZ) + (r.dir === -1 ? Math.PI : 0));
+      root.rotateX(-Math.atan(p.grade / 100) * r.dir);
       const dist = camera.position.distanceTo(root.position);
       root.visible = dist < 600;
       if (dist < 250) {
@@ -127,6 +202,7 @@ export class Multiplayer {
       if (seen.has(id)) continue;
       this.scene.remove(rem.avatar.root);
       this.remotes.delete(id);
+      this.gaps.delete(id);
     }
     return riders;
   }

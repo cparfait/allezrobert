@@ -33,7 +33,8 @@ x-server-env: &server-env
   RENDERS_DIR: /data/renders
   # Itinéraires : ceux du bundle du jeu, copiés dans l'image serveur au même commit ; pour des
   # itinéraires régénérés sans reconstruire, ROUTES_DIR=/data/worlds/chevreuse/routes (volume).
-  ROUTES_DIR: ${ROUTES_DIR:-/app/apps/client/public/worlds/chevreuse/routes}
+  # Plusieurs dossiers possibles, séparés par des virgules : Longchamp pour le monde ouvert.
+  ROUTES_DIR: ${ROUTES_DIR:-/app/apps/client/public/worlds/longchamp/routes,/app/apps/client/public/worlds/chevreuse/routes}
 
 x-logging: &logging
   driver: json-file

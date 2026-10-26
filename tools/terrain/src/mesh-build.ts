@@ -35,6 +35,7 @@ const only = arg('--only')?.split(',');
 const limit = Number(arg('--limit') ?? Infinity);
 const keepCache = argv.includes('--keep-cache');
 const minFreeGb = Number(arg('--min-free-gb') ?? 30);
+const DLL_INIT_FAILED = 3221225794;
 
 const log = (s: string) => console.log(`[${new Date().toLocaleTimeString('fr-FR')}] ${s}`);
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -113,12 +114,14 @@ async function main(): Promise<void> {
   log(`nettoyage initial : ${purge()} fichier(s) hors photo, ${freeGb().toFixed(0)} Go libres`);
 
   let done = 0;
+  let failures = 0;
   for (const id of order) {
     if (only && !only.includes(id)) continue;
     if (done >= limit) break;
     const zf = path.join(zonesDir, `${id}.json`);
     if (!fs.existsSync(zf)) { log(`${id} : pas de tours, ignorée`); continue; }
     if (fs.existsSync(path.join(WORLDS, id, 'world.json'))) { log(`${id} : déjà construite`); continue; }
+    if (failures >= 3) break;
     if (freeGb() < minFreeGb) { log(`arrêt : ${freeGb().toFixed(0)} Go libres (< ${minFreeGb})`); break; }
     const z = JSON.parse(fs.readFileSync(zf, 'utf8')) as Record<string, unknown>;
     if ('enrich' in z) { delete z.enrich; fs.writeFileSync(zf, JSON.stringify(z, null, 2) + '\n'); }
@@ -128,15 +131,28 @@ async function main(): Promise<void> {
     const logFile = path.join(WORK, `build-${id}.log`);
     fs.rmSync(logFile, { force: true });
     log(`${id} : construction (${done})`);
-    const code = await run(`pnpm --filter @allezrobert/terrain build:world -- --world ${id}`, logFile);
+    // L'IGN renvoie parfois 502 puis 400 pendant plusieurs minutes : le cache garde les blocs déjà reçus, une
+    // nouvelle tentative reprend là où la précédente s'est arrêtée (jusqu'à 3 essais, 3 minutes d'écart).
+    let code = 1;
+    for (let essai = 1; essai <= 3 && code !== 0; essai++) {
+      if (essai > 1) { log(`${id} : nouvel essai ${essai}/3 dans 3 min`); await sleep(180_000); }
+      code = await run(`pnpm --filter @allezrobert/terrain build:world -- --world ${id}`, logFile);
+      // 0xC0000142 : Windows n'arrive plus à lancer de processus (session fermée, veille) — rien à voir avec la zone
+      if (code === DLL_INIT_FAILED && Date.now() - t0 < 60_000) {
+        log(`arrêt : Windows ne lance plus de processus (code ${code}) — relancer mesh-build quand la session est de nouveau ouverte`);
+        process.exit(2);
+      }
+    }
     const removed = purge();
     const gitignore = path.join(WORLDS, 'meudon', '.gitignore');
     if (code === 0 && fs.existsSync(gitignore)) fs.copyFileSync(gitignore, path.join(WORLDS, id, '.gitignore'));
     const minutes = Math.round((Date.now() - t0) / 60000);
     report[id] = { code, minutes, cachePurged: removed, freeGb: Math.round(freeGb()) };
     fs.writeFileSync(REPORT, JSON.stringify(report, null, 2) + '\n');
+    failures = code === 0 ? 0 : failures + 1;
     log(`${id} : ${code === 0 ? 'OK' : `ÉCHEC (code ${code}, voir ${path.basename(logFile)})`} en ${minutes} min, ${removed} fichiers de cache supprimés, ${freeGb().toFixed(0)} Go libres`);
   }
+  if (failures >= 3) log('arrêt : 3 zones de suite en échec (voir les journaux)');
   log('catalogue (packs)');
   await run('pnpm --filter @allezrobert/terrain packs', path.join(WORK, 'build-packs.log'));
   log(`terminé : ${done} zone(s) traitée(s)`);

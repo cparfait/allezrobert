@@ -15,6 +15,7 @@ import { renderStravaLink } from './stravaLink.ts';
 import { flagSvg } from './flagSvg.ts';
 import { enhanceSelects } from './dropdown.ts';
 import { renderSoundSettings } from './soundSettings.ts';
+import { OpenWorldPanel } from './openWorld.ts';
 import { renderCompanionSettings } from './companionQr.ts';
 import { HUD_BLOCKS } from '../hud/hud.ts';
 import { renderExpertSettings } from './expertZones.ts';
@@ -63,7 +64,7 @@ export interface DevicePanel {
 
 export interface MenuCallbacks {
   /** `inviteFriends` : amis (identifiants de relation) à inviter une fois la sortie créée. */
-  onStart(settings: Settings, extras: { workoutFile?: { name: string; content: string }; inviteCode?: string; inviteFriends?: string[]; customRoute?: RouteData; openStart?: { x: number; z: number } }): void;
+  onStart(settings: Settings, extras: { workoutFile?: { name: string; content: string }; inviteCode?: string; inviteFriends?: string[]; customRoute?: RouteData; openStart?: { x: number; z: number }; publicRoom?: boolean; nearFriend?: string }): void;
 }
 
 function esc(s: string): string {
@@ -343,7 +344,7 @@ export class MainMenu {
   onLogin?: () => void;
   onLogout?: () => void;
   /** Monde affiché et changement de monde (rechargement de la page). */
-  worldId = 'chevreuse';
+  worldId = 'longchamp';
   /** Zones chargées ensemble : la zone `worldId` puis les voisines ajoutées (parcours libre et à dessiner). */
   loadedZones: string[] = [];
 
@@ -406,6 +407,25 @@ export class MainMenu {
     this.routesAfterWorld = false;
     this.loadingZone = '';
     if (this.root.querySelector('.mm')) this.render();
+    // Monde ouvert choisi dans une autre zone : on y va dès qu'elle est chargée.
+    const pendingOpen = this.pendingOpen;
+    this.pendingOpen = null;
+    if (pendingOpen && routes.some((r) => r.id === pendingOpen.routeId)) this.joinOpenWorld(pendingOpen.routeId, worldId, pendingOpen.friendId);
+  }
+
+  /** Rejoint le monde ouvert d'un itinéraire public, en chargeant d'abord sa zone si ce n'est pas la zone affichée. */
+  private joinOpenWorld(routeId: string, worldId: string, friendId?: string): void {
+    if (this.worldId !== worldId && this.onWorld) {
+      this.pendingOpen = { routeId, ...(friendId ? { friendId } : {}) };
+      this.loadingZone = this.zoneLabel(worldId);
+      this.onWorld(worldId);
+      return;
+    }
+    this.s.mode = 'free';
+    this.s.routeId = routeId;
+    this.s.reverse = false;
+    saveSettings(this.s);
+    this.launch(this.s, { publicRoom: true, ...(friendId ? { nearFriend: friendId } : {}) });
   }
   openWorld = false;
   /** Zone choisie dans la fenêtre « Zones » : ses parcours s'ouvrent dès qu'elle est chargée. */
@@ -444,6 +464,10 @@ export class MainMenu {
   private lastProgressRender = 0;
   /** Onglet Amis : présence, demandes, invitations (interrogation tant que le menu est affiché). */
   private readonly friends: FriendsPanel;
+  /** Monde ouvert : salles publiques par zone (affluence, amis présents). */
+  private readonly openWorldPanel: OpenWorldPanel;
+  /** Zone ouverte choisie dans un autre monde : rejointe dès que ce monde est chargé. */
+  private pendingOpen: { routeId: string; friendId?: string } | null = null;
 
   constructor(root: HTMLElement, settings: Settings, routes: RouteData[], devices: DevicePanel, cb: MenuCallbacks) {
     this.root = root;
@@ -456,6 +480,12 @@ export class MainMenu {
     void loadCatalogue().then((cat) => {
       this.zones = cat?.zones ?? [];
       if (this.tab === 'ride' && this.root.querySelector('.mm')) this.render();
+    });
+    this.openWorldPanel = new OpenWorldPanel({
+      loggedIn: () => !!this.account,
+      login: () => this.onLogin?.(),
+      zones: () => this.zones,
+      join: (routeId, worldId, friendId) => this.joinOpenWorld(routeId, worldId, friendId),
     });
     this.friends = new FriendsPanel({
       loggedIn: () => !!this.account,
@@ -507,6 +537,7 @@ export class MainMenu {
     // Au lancement du jeu et après une sortie : pas de carte du choix tant qu'on n'a rien choisi.
     this.selMap = false;
     this.friends.start();
+    this.openWorldPanel.start();
     // Lien /?ami=CODE : l'onglet Amis propose la demande.
     this.go((tab === 'home' || tab === 'ride') && this.friends.hasPendingCode() ? 'friends' : tab);
   }
@@ -515,6 +546,7 @@ export class MainMenu {
     if (this.garageSlot === 'atelier') this.atelier.leave();
     document.removeEventListener('keydown', this.onKey);
     this.friends.stop();
+    this.openWorldPanel.stop();
     this.root.innerHTML = '';
   }
 
@@ -808,6 +840,7 @@ export class MainMenu {
     this.bind();
     enhanceSelects(this.root);
     this.friends.mount(this.root, this.tab === 'friends');
+    this.openWorldPanel.mount(this.root);
   }
 
   /** Pied de page : état des capteurs (cliquable vers l'onglet Capteurs). Les raccourcis sont dans le menu pause. */
@@ -837,6 +870,7 @@ export class MainMenu {
     const tag = MODE_TAGS[L ? 'fr' : 'en'];
     return `<section class="mm-panel mm-left">
       <header class="mm-head"><h2>${L ? 'Que veux-tu faire ?' : 'What do you want to do?'}</h2></header>
+      <div id="m-openworld" class="ow" hidden></div>
       <div class="mm-modes">${this.modes()
         .map(
           ([v, k]) =>

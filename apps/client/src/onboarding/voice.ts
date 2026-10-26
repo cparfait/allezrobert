@@ -1,3 +1,4 @@
+import { applySink } from '../audio/devices.ts';
 import { getLang } from '../i18n/index.ts';
 import { ONBOARDING_SCRIPT, plainText, spoken } from './script.ts';
 import { serverEndpoint } from '../game/multiplayer.ts';
@@ -107,6 +108,7 @@ export class VoiceOver {
           if (g !== this.gen) return res();
           if (url) {
             const audio = new Audio(url);
+            applySink(audio);
             this.current = audio;
             audio.onended = () => (done(), res());
             audio.onerror = () => (done(), res());
