@@ -1,3 +1,4 @@
+import { FREEWHEELS } from '../audio/freewheels.ts';
 import { BUSES, BUS_LABELS, getMix, setMix, type Bus } from '../audio/mix.ts';
 import { getLang } from '../i18n/index.ts';
 
@@ -17,6 +18,13 @@ export function renderSoundSettings(el: Element | null): void {
   el.innerHTML = `<div class="grid3">${(['master', ...BUSES] as const).map(slider).join('')}</div>
     <label class="field" style="flex-direction:row;align-items:center;gap:8px;margin-top:8px"><input id="snd-breath" type="checkbox" ${m.breathOn ? 'checked' : ''} style="width:auto" />
       ${fr ? 'Entendre mon souffle à l’effort' : 'Hear my breathing when pushing'}</label>`;
+  el.insertAdjacentHTML(
+    'beforeend',
+    `<label class="field" style="margin-top:8px">${fr ? 'Roue libre' : 'Freewheel'}<select id="snd-freewheel">${FREEWHEELS.map(
+      (f) => `<option value="${f.id}" ${f.id === m.freewheel ? 'selected' : ''}>${f.label[lang]}</option>`,
+    ).join('')}</select></label>`,
+  );
+  el.querySelector<HTMLSelectElement>('#snd-freewheel')?.addEventListener('change', (e) => setMix({ freewheel: (e.target as HTMLSelectElement).value }));
   for (const input of el.querySelectorAll<HTMLInputElement>('input[data-k]')) {
     input.addEventListener('input', () => {
       const k = input.dataset.k as Bus | 'master';

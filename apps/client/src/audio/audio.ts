@@ -10,6 +10,7 @@
  * < −0,9 dBFS quoi qu'il arrive) → sortie. Niveaux mesurés : apps/client/scripts/audio-bench.mjs.
  */
 import type { SoundSource } from './spatial.ts';
+import { freewheelDef, loopVoices, type FreewheelDef } from './freewheels.ts';
 import { BUSES, busGains, DEFAULT_MIX, type Bus, type SoundMix } from './mix.ts';
 import { COBBLE_BUFFER_RATE, cobbles, crackle, cricketChorus, hubClick, noise, seeded } from './buffers.ts';
 import {
@@ -136,6 +137,8 @@ export class GameAudio {
   private nextBreath = 0;
   private nextClick = 0;
   private coastT = 0;
+  private readonly loops = new Map<string, AudioBuffer | null>();
+  private loopNode: { id: string; voices: { src: AudioBufferSourceNode; gain: GainNode }[] } | null = null;
   private gust = 1;
   private gustV = 0;
   private swell = 1;
@@ -345,13 +348,17 @@ export class GameAudio {
     // Roue libre : cliquets programmés un peu à l'avance, rythme selon la vitesse de roue.
     const coasting = !paused && isCoasting(s.cadence, s.watts, v);
     this.coastT = coasting ? this.coastT + dt : 0;
+    const def = freewheelDef(this.mix.freewheel);
+    const loopBuf = coasting ? this.freewheelLoop(def) : null;
+    if (loopBuf) this.playLoop(def, loopBuf, Math.min(freewheelRate(v), 400), now);
+    else this.stopLoop(now);
     if (coasting) {
       const rate = Math.min(freewheelRate(v), 400);
       this.set(this.clickBus.gain, Math.min(1, this.coastT / 0.25), 0.05);
       if (this.nextClick < now) this.nextClick = now + 0.02;
       const g = freewheelClickGain(rate);
       let k = 0;
-      while (this.nextClick < now + 0.1 && k++ < 64) {
+      while (!loopBuf && this.nextClick < now + 0.1 && k++ < 64) {
         const src = ctx.createBufferSource();
         src.buffer = this.buf.clicks[k & 1] as AudioBuffer;
         src.playbackRate.value = 0.92 + Math.random() * 0.2;
@@ -367,6 +374,64 @@ export class GameAudio {
     this.updateAmbience(s, dt, now);
     this.updateCrowd(s, dt, now);
     this.updateTraffic(s, dt);
+  }
+
+  /** Boucle de moyeu décodée, ou null (variante synthétisée, pas encore chargée, échec). */
+  private freewheelLoop(def: FreewheelDef): AudioBuffer | null {
+    if (!def.file) return null;
+    const cached = this.loops.get(def.id);
+    if (cached !== undefined) return cached;
+    this.loops.set(def.id, null);
+    const ctx = this.ctx;
+    if (ctx && typeof fetch === 'function') {
+      void fetch(`${import.meta.env.BASE_URL}audio/freewheel/${def.file}`)
+        .then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(String(r.status)))))
+        .then((a) => ctx.decodeAudioData(a))
+        .then((b) => this.loops.set(def.id, b))
+        .catch(() => undefined); // repli : cliquet synthétisé
+    }
+    return null;
+  }
+
+  private playLoop(def: FreewheelDef, buf: AudioBuffer, clicksPerSecond: number, now: number): void {
+    const ctx = this.ctx as BaseAudioContext;
+    if (this.loopNode && this.loopNode.id !== def.id) this.stopLoop(now);
+    const { voices, rate } = loopVoices(def, clicksPerSecond);
+    const node = (this.loopNode ??= { id: def.id, voices: [] });
+    // Plusieurs copies décalées de la boucle : plus de cliquets par seconde sans transposer le son.
+    while (node.voices.length < voices) {
+      const src = ctx.createBufferSource();
+      src.buffer = buf;
+      src.loop = true;
+      src.loopStart = 0.05;
+      src.loopEnd = buf.duration - 0.05;
+      const gain = ctx.createGain();
+      gain.gain.value = 0;
+      src.connect(gain).connect(this.clickBus);
+      src.start(0, 0.05 + Math.random() * Math.max(0, buf.duration - 0.3));
+      node.voices.push({ src, gain });
+    }
+    // Les boucles sont normalisées : le niveau suit la vitesse de la roue sans exploser au sprint ;
+    // en puissance constante quel que soit le nombre de copies.
+    const level = Math.min(1, 0.35 + 0.65 * Math.min(1, clicksPerSecond / 60));
+    node.voices.forEach((v, i) => {
+      v.src.playbackRate.setTargetAtTime(rate, now, 0.08);
+      v.gain.gain.setTargetAtTime(i < voices ? ((def.gain ?? 1) * level) / Math.sqrt(voices) : 0, now, 0.1);
+    });
+  }
+
+  private stopLoop(now: number): void {
+    const n = this.loopNode;
+    if (!n) return;
+    this.loopNode = null;
+    for (const v of n.voices) {
+      v.gain.gain.setTargetAtTime(0, now, 0.04);
+      try {
+        v.src.stop(now + 0.3);
+      } catch {
+        // déjà arrêtée
+      }
+    }
   }
 
   /** Souffle : un cycle (inspiration, expiration) programmé à l'avance selon l'effort. */

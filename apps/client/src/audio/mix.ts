@@ -4,6 +4,8 @@
  * (`ar.sound`). La musique a ses propres réglages (music.ts).
  */
 
+import { DEFAULT_FREEWHEEL, isFreewheelId } from './freewheels.ts';
+
 export const BUSES = ['ambience', 'bike', 'breath', 'crowd', 'traffic'] as const;
 export type Bus = (typeof BUSES)[number];
 
@@ -16,9 +18,11 @@ export interface SoundMix {
   traffic: number;
   /** Souffle du coureur activé (discret, coupable). */
   breathOn: boolean;
+  /** Son de la roue libre (freewheels.ts). */
+  freewheel: string;
 }
 
-export const DEFAULT_MIX: SoundMix = { master: 0.8, ambience: 0.8, bike: 0.8, breath: 0.5, crowd: 0.8, traffic: 0.7, breathOn: true };
+export const DEFAULT_MIX: SoundMix = { master: 0.8, ambience: 0.8, bike: 0.8, breath: 0.5, crowd: 0.8, traffic: 0.7, breathOn: true, freewheel: DEFAULT_FREEWHEEL };
 
 export const BUS_LABELS: Record<Bus | 'master', { fr: string; en: string; hint: { fr: string; en: string } }> = {
   master: { fr: 'Général', en: 'Master', hint: { fr: 'Tous les sons du jeu (hors musique)', en: 'All game sounds (not music)' } },
@@ -55,6 +59,7 @@ export function loadMix(store: Store | null = storage()): SoundMix {
       m.master = vol(o.master, m.master);
       for (const b of BUSES) m[b] = vol(o[b], m[b]);
       if (typeof o.breathOn === 'boolean') m.breathOn = o.breathOn;
+      if (isFreewheelId(o.freewheel)) m.freewheel = o.freewheel;
     }
   } catch {
     // Réglages illisibles : valeurs par défaut.
