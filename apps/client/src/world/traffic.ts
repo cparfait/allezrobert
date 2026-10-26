@@ -208,7 +208,7 @@ interface Vehicle {
   /** Vitesse dans le repère monde (m/s), pour le son (Doppler). */
   vx: number;
   vz: number;
-  /** Sur un chemin non revêtu ou (tracteur) près d'une commune : masqué, muet, sans aspiration. */
+  /** Sur un chemin non revêtu , voie étroite (piste cyclable) ou (tracteur) près d'une commune : masqué, muet, sans aspiration. */
   onTrack?: boolean;
 }
 
@@ -256,6 +256,12 @@ export class Traffic {
       this.vehicles.push({ kind: built.kind, mesh: built.group, wheels: built.wheels, length: built.length, wheelRadius: built.wheelRadius, d, sens, cruise, speed: cruise, lateral: this.laneOf(sens), vx: 0, vz: 0 });
       this.group.add(built.group);
     }
+  }
+
+  /** Largeur de chaussée sous 4,8 m à la distance d de l'itinéraire. */
+  private narrowAt(d: number): boolean {
+    const w = this.track.route.roadWidths?.find((r) => d >= r.startM && d <= r.endM)?.widthM ?? this.track.route.roadWidthM;
+    return w < 4.8;
   }
 
   setPlaces(places: ReadonlyArray<{ kind: string; x: number; z: number }> | undefined): void {
@@ -328,6 +334,8 @@ export class Traffic {
       // Pas de voiture sur un chemin non revêtu : le véhicule disparaît tant qu'il y est.
       const surface = outside ? undefined : this.track.surfaceAt(((v.d % L) + L) % L);
       v.onTrack = surface !== undefined && UNPAVED_SURFACES.has(surface);
+      // Pistes cyclables (Longchamp…) et voies étroites : pas de voiture sous 4,8 m de large.
+      if (!v.onTrack && !outside && this.narrowAt(((v.d % L) + L) % L)) v.onTrack = true;
       // Pas de tracteur près d'une commune : il disparaît à moins de 1,2 km d'un bourg ou d'une ville.
       if (v.kind === 'tractor' && !v.onTrack && !outside && this.urban.length) {
         const q = this.track.positionAt(((v.d % L) + L) % L, 0, this.sample);
