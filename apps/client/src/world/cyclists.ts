@@ -3,6 +3,7 @@ import { DEFAULT_BIKE, DEFAULT_LOOK, type AvatarLook, type RouteTrack } from '@a
 import { draftReductionSingle, paramsFromBike, steadyStateSpeed, type RiderPhysicsParams } from '@allezrobert/physics';
 import { createAvatar, type RiderAvatarLike } from '../rider/gltfAvatar.ts';
 import { crowdShoes } from '../rider/shoeLook.ts';
+import { crowdBike } from '../rider/bikes.ts';
 import { rng } from '../engine/noise.ts';
 
 /** Un cycliste d'ambiance : seul, ou membre d'un groupe qui roule ensemble. */
@@ -42,6 +43,7 @@ interface Unit {
 
 const JERSEYS = ['#264653', '#e76f51', '#2a9d8f', '#e9c46a', '#d62828', '#3a86ff', '#8338ec', '#fb5607'];
 const SKINS = ['#f1c27d', '#e0ac69', '#c68642', '#8d5524', '#ffdbac'];
+const HELMETS = ['#f4f4f4', '#111111', '#c1121f', '#1d4ed8', '#fde047', '#15803d', '#94a3b8', '#f97316'];
 /** Maillots de club : couleur principale, accent. */
 const CLUBS: Array<[string, string]> = [
   ['#c1121f', '#ffffff'],
@@ -139,10 +141,12 @@ export class AmbientCyclists {
         jersey,
         jerseyAccent: club ? kit[1] : (JERSEYS[(i + 3) % JERSEYS.length] as string),
         skin: SKINS[Math.floor(this.r() * SKINS.length)] as string,
-        helmet: club ? kit[1] : (['#f4f4f4', '#111111', jersey][i % 3] as string),
-        bike: ['#1d1d1f', '#c0392b', '#f4f4f4', '#2c3e50'][i % 4] as string,
+        // Même maillot dans un club ; casque, chaussures et vélo sont ceux de chacun.
+        helmet: HELMETS[Math.floor(this.r() * HELMETS.length)] as string,
+        bike: ['#1d1d1f', '#c0392b', '#f4f4f4', '#2c3e50', '#1d4ed8', '#15803d', '#e9c46a'][Math.floor(this.r() * 7)] as string,
+        ...(crowdBike(Math.floor(this.r() * 1000)) ? { bikeModel: crowdBike(Math.floor(this.r() * 1000)) as string } : {}),
         build: this.r(),
-        ...crowdShoes(i + 3),
+        ...crowdShoes(Math.floor(this.r() * 1000)),
         heightCm: 160 + ((i * 17) % 36),
       };
       const avatar = createAvatar(look);
