@@ -89,7 +89,8 @@ export class Dust {
     m.scaleNode = float(0.25).add(k.mul(V.w)).mul(age.lessThan(LIFE).select(float(1), float(0)));
     // Disque doux, opacité qui monte vite puis s'éteint.
     const r = uv().sub(0.5).length();
-    const soft = smoothstep(0.5, 0.15, r);
+    // smoothstep(a, b, x) exige a < b en WGSL : bords inversés = résultat indéfini (carrés en mosaïque).
+    const soft = float(1).sub(smoothstep(0.15, 0.5, r));
     const fade = smoothstep(0, 0.12, age).mul(float(1).sub(smoothstep(0.35, 1, k)));
     const h = hash(instanceIndex);
     m.colorNode = mix(this.tint, this.tint.mul(0.8), h);
