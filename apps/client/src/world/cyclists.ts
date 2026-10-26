@@ -218,7 +218,27 @@ export class AmbientCyclists {
           if (ahead > 0 && ahead < 18 + gapNeeded && c.speed > o.speed + 0.4) lateralTarget = this.laneOf(c.sens) - c.sens * 1.3;
         }
       }
-      c.lateral += (lateralTarget - c.lateral) * Math.min(1, dt * 1.2);
+      // Jamais à travers le joueur : un cycliste trop près (en long comme en large) s'écarte de lui,
+      // de l'autre côté si le bord de la chaussée l'en empêche.
+      let rate = 1.2;
+      const edge = Math.max(0.5, this.track.route.roadWidthM / 2 - 0.2);
+      for (const m of c.members) {
+        const gap = c.d + m.off - player.distM;
+        if (Math.abs(gap) > 14) continue;
+        const cur = c.lateral + m.latOff - player.lateral;
+        const sep = 1.0;
+        if (Math.abs(cur) >= sep) continue;
+        let dir = cur >= 0 ? 1 : -1;
+        let t = player.lateral + dir * sep - m.latOff;
+        if (Math.abs(t + m.latOff) > edge) {
+          dir = -dir;
+          t = player.lateral + dir * sep - m.latOff;
+        }
+        lateralTarget = Math.max(-edge - m.latOff, Math.min(edge - m.latOff, t));
+        rate = 4;
+        break;
+      }
+      c.lateral += (lateralTarget - c.lateral) * Math.min(1, dt * rate);
       c.d += c.sens * c.speed * dt;
       c.cadence = watts > 0 ? Math.min(105, 74 + c.watts / 12) : 0;
 
