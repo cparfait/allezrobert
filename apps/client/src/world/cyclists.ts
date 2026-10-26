@@ -75,6 +75,8 @@ const LEVELS = [
 export class AmbientCyclists {
   /** Distance (m) en dessous de laquelle un cycliste croisé projette une ombre (0 = jamais). */
   shadowRange = 35;
+  /** Altitude du sol (m) en un point : évite d'enfoncer les roues quand le bas-côté est plus haut que l'axe de la route. */
+  heightAt: ((x: number, z: number) => number) | null = null;
   private readonly units: Unit[] = [];
   private readonly track: RouteTrack;
   private readonly r = rng(913);
@@ -257,7 +259,8 @@ export class AmbientCyclists {
         const outside = !loop && (dm < 0 || dm > L);
         const p = this.track.positionAt(loop ? ((dm % L) + L) % L : Math.min(Math.max(dm, 0), L), c.lateral + m.latOff, this.sample);
         const a = m.avatar;
-        a.root.position.set(p.x, p.y + 0.06, p.z);
+        const ground = this.heightAt ? Math.max(p.y, this.heightAt(p.x, p.z)) : p.y;
+        a.root.position.set(p.x, ground + 0.06, p.z);
         a.root.rotation.set(0, 0, 0);
         a.root.rotateY(Math.atan2(p.dirX, p.dirZ) + (c.sens < 0 ? Math.PI : 0));
         a.root.rotateX(-Math.atan(p.grade / 100) * c.sens);

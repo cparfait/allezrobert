@@ -974,6 +974,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   }
   // Cyclistes croisés dans les deux sens (désactivables avec le monde vivant ou par ?cyclists=0).
   const cyclists = alive && params.get('cyclists') !== '0' ? new AmbientCyclists(engine.scene, track, startD) : null;
+  if (cyclists) cyclists.heightAt = (x, z) => world.terrain.heightAt(x, z);
   if (cyclists) cyclists.shadowRange = engine.quality.shadowRiders >= 8 ? 35 : engine.quality.shadowRiders > 0 ? 20 : 0;
   const hud = new Hud(hudRoot, track, source.attribution);
   // Mini-carte : fond Plan IGN quand le monde est calé en Lambert-93 ; bandeau « lieu » (commune, route).
