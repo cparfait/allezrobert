@@ -742,14 +742,20 @@ export class Hud {
     const rows = shown
       .map((r) => {
         const gap = r.distM - me.distM;
-        const tag = r.ambient
-          ? `${r.ambient.level} ${r.ambient.follow === 'ok' ? (fr ? '· à suivre ✓' : '· can follow ✓') : r.ambient.follow === 'hard' ? (fr ? '· trop fort ✗' : '· too strong ✗') : fr ? '· plus lent' : '· slower'}`
-          : r.me ? t('you') : r.isAI ? t('ai') : r.isGuest ? t('guest') : '';
+        const sub = r.ambient ? r.ambient.level : r.me ? t('you') : r.isAI ? t('ai') : r.isGuest ? t('guest') : '';
+        const verdict = r.ambient
+          ? r.ambient.follow === 'ok'
+            ? `<em class="rd-badge ok">${fr ? 'À suivre' : 'Can follow'}</em>`
+            : r.ambient.follow === 'hard'
+              ? `<em class="rd-badge hard">${fr ? 'Trop fort' : 'Too strong'}</em>`
+              : `<em class="rd-badge easy">${fr ? 'Plus lent' : 'Slower'}</em>`
+          : '';
         const rideOn = r.online && !r.me ? `<button class="rideon" data-rideon="${r.id}" title="Ride On">👍</button>` : '';
         const sec = gap / speed;
         const time = Math.abs(sec) >= 60 ? `${sec > 0 ? '+' : '−'}${Math.floor(Math.abs(sec) / 60)}:${String(Math.round(Math.abs(sec) % 60)).padStart(2, '0')}` : `${sec > 0 ? '+' : sec < 0 ? '−' : ''}${Math.round(Math.abs(sec))} s`;
         const dist = Math.abs(gap) >= 1000 ? `${(Math.abs(gap) / 1000).toFixed(1).replace('.', fr ? ',' : '.')} km` : `${Math.round(Math.abs(gap))} m`;
-        return `<div class="row ${r.me ? 'me' : ''}"><span class="rd-name"><b style="color:${r.color}">●</b> ${flagSvg(r.nationality, 11) ? `<span class="rd-flag" title="${countryName(r.nationality, fr ? 'fr' : 'en')}">${flagSvg(r.nationality, 11)}</span> ` : ''}${r.name.replace(/[<>&]/g, '')}${r.speaking ? ' 🔊' : ''} ${rideOn}<small>${tag}</small></span><span class="num rd-wkg">${r.watts !== undefined ? Math.round(r.watts) : '—'}<small> W</small>${r.km !== undefined ? `<small>${r.km.toFixed(1).replace('.', fr ? ',' : '.')} km</small>` : ''}</span><span class="num rd-gap">${r.me ? '' : `${time}<small>${dist}</small>`}</span></div>`;
+        const kmTxt = r.km !== undefined ? `${r.km.toFixed(1).replace('.', fr ? ',' : '.')} km` : '';
+        return `<div class="row ${r.me ? 'me' : ''}"><i class="rd-dot" style="background:${r.color}"></i><span class="rd-name"><b class="rd-n">${flagSvg(r.nationality, 13) ? `<span class="rd-flag" title="${countryName(r.nationality, fr ? 'fr' : 'en')}">${flagSvg(r.nationality, 13)}</span>` : ''}${r.name.replace(/[<>&]/g, '')}${r.speaking ? ' 🔊' : ''} ${rideOn}</b><small class="rd-sub">${sub}${verdict}</small></span><span class="num rd-wkg"><b>${r.watts !== undefined ? Math.round(r.watts) : '—'}<u>W</u></b><small>${kmTxt}</small></span><span class="num rd-gap">${r.me ? '' : `<b>${time}</b><small>${dist}</small>`}</span></div>`;
       })
       .join('');
     return head + rows;
