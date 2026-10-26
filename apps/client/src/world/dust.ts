@@ -90,11 +90,14 @@ export class Dust {
     // Disque doux, opacité qui monte vite puis s'éteint.
     const r = uv().sub(0.5).length();
     // smoothstep(a, b, x) exige a < b en WGSL : bords inversés = résultat indéfini (carrés en mosaïque).
-    const soft = float(1).sub(smoothstep(0.15, 0.5, r));
+    const soft = float(1).sub(smoothstep(0.1, 0.5, r));
     const fade = smoothstep(0, 0.12, age).mul(float(1).sub(smoothstep(0.35, 1, k)));
     const h = hash(instanceIndex);
     m.colorNode = mix(this.tint, this.tint.mul(0.8), h);
-    m.opacityNode = soft.mul(fade).mul(0.28);
+    const alpha = soft.mul(fade).mul(0.22);
+    m.opacityNode = alpha;
+    // Les quads entièrement transparents sont écartés : sinon ils assombrissent le fond en carrés.
+    m.maskNode = alpha.greaterThan(0.004);
     this.sprite = new THREE.Sprite(m);
     this.sprite.count = q.dustParticles > 0 ? this.max : 0;
     this.sprite.frustumCulled = false;
@@ -118,7 +121,7 @@ export class Dust {
       const back = -speed * (0.15 + j() * 0.2);
       const side = (j() - 0.5) * 1.2;
       this.p0.setXYZW(i, x + (j() - 0.5) * 0.3, y + 0.05, z + (j() - 0.5) * 0.3, this.clock);
-      this.v0.setXYZW(i, dx * back - dz * side, 0.3 + j() * 0.5, dz * back + dx * side, 1.2 + j() * 1.4);
+      this.v0.setXYZW(i, dx * back - dz * side, 0.3 + j() * 0.5, dz * back + dx * side, 0.7 + j() * 0.9);
       this.emitted++;
     }
     this.acc.set(id, a);
