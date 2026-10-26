@@ -176,7 +176,9 @@ export class AmbientCyclists {
   /** Voie de droite dans son sens de marche (repère du joueur : positif = à droite). */
   private laneOf(sens: 1 | -1): number {
     const half = this.track.route.roadWidthM / 2;
-    return sens > 0 ? Math.max(0.6, half - 0.7) : -Math.max(0.6, half - 0.7);
+    // Piste étroite : ceux d'en face serrent le bord pour laisser le plus de place possible.
+    const m = this.path && sens < 0 ? 0.4 : 0.7;
+    return sens > 0 ? Math.max(0.6, half - 0.7) : -Math.max(0.6, half - m);
   }
 
   /**
@@ -221,12 +223,12 @@ export class AmbientCyclists {
       // Jamais à travers le joueur : un cycliste trop près (en long comme en large) s'écarte de lui,
       // de l'autre côté si le bord de la chaussée l'en empêche.
       let rate = 1.2;
-      const edge = Math.max(0.5, this.track.route.roadWidthM / 2 - 0.2);
+      const edge = Math.max(0.5, this.track.route.roadWidthM / 2 - 0.25);
       for (const m of c.members) {
         const gap = c.d + m.off - player.distM;
-        if (Math.abs(gap) > 14) continue;
+        if (Math.abs(gap) > (c.sens < 0 ? 30 : 14)) continue;
         const cur = c.lateral + m.latOff - player.lateral;
-        const sep = 1.0;
+        const sep = c.sens < 0 ? 1.4 : 1.0;
         if (Math.abs(cur) >= sep) continue;
         let dir = cur >= 0 ? 1 : -1;
         let t = player.lateral + dir * sep - m.latOff;
