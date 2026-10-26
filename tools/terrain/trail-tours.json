@@ -1,0 +1,507 @@
+[
+ {
+  "zone": "fontainebleau",
+  "id": "vtt-fontainebleau",
+  "name": "Fontainebleau — VTT dans la forêt",
+  "nameEn": "Fontainebleau — MTB loop in the forest",
+  "bike": "mtb",
+  "via": [
+   [
+    1724,
+    1405
+   ],
+   [
+    4481,
+    -521
+   ],
+   [
+    6859,
+    2000
+   ],
+   [
+    6522,
+    5544
+   ],
+   [
+    3689,
+    5702
+   ],
+   [
+    916,
+    3716
+   ]
+  ]
+ },
+ {
+  "zone": "fontainebleau",
+  "id": "gravel-fontainebleau",
+  "name": "Fontainebleau — gravel par Chailly, Arbonne et Achères",
+  "nameEn": "Fontainebleau — gravel via Chailly, Arbonne and Achères",
+  "bike": "gravel",
+  "via": [
+   [
+    -43,
+    7158
+   ],
+   [
+    -6910,
+    6380
+   ],
+   [
+    -7729,
+    151
+   ],
+   [
+    -4653,
+    -5081
+   ],
+   [
+    2294,
+    -1759
+   ],
+   [
+    4682,
+    4082
+   ]
+  ]
+ },
+ {
+  "zone": "billom",
+  "id": "vtt-billom",
+  "name": "Billom — VTT par Busséol et Lide",
+  "nameEn": "Billom — MTB via Busséol and Lide",
+  "bike": "mtb",
+  "via": [
+   [
+    2527,
+    5116
+   ],
+   [
+    -1265,
+    6073
+   ],
+   [
+    -2344,
+    2586
+   ],
+   [
+    -1145,
+    -398
+   ],
+   [
+    2943,
+    1581
+   ]
+  ]
+ },
+ {
+  "zone": "billom",
+  "id": "gravel-billom",
+  "name": "Billom — gravel de Pont-du-Château à Cournon",
+  "nameEn": "Billom — gravel from Pont-du-Château to Cournon",
+  "bike": "gravel",
+  "via": [
+   [
+    2883,
+    -390
+   ],
+   [
+    75,
+    5616
+   ],
+   [
+    -6741,
+    5023
+   ],
+   [
+    -7964,
+    -2665
+   ],
+   [
+    -2762,
+    -6845
+   ]
+  ]
+ },
+ {
+  "zone": "comte",
+  "id": "vtt-comte",
+  "name": "Comté d'Auvergne — VTT de Laps à Pardines",
+  "nameEn": "Comté d'Auvergne — MTB from Laps to Pardines",
+  "bike": "mtb",
+  "via": [
+   [
+    6477,
+    -2241
+   ],
+   [
+    4416,
+    849
+   ],
+   [
+    959,
+    227
+   ],
+   [
+    274,
+    -3498
+   ],
+   [
+    3508,
+    -4810
+   ]
+  ]
+ },
+ {
+  "zone": "comte",
+  "id": "gravel-comte",
+  "name": "Comté d'Auvergne — gravel de Lignat à Corent",
+  "nameEn": "Comté d'Auvergne — gravel from Lignat to Corent",
+  "bike": "gravel",
+  "via": [
+   [
+    -1270,
+    6962
+   ],
+   [
+    -5183,
+    140
+   ],
+   [
+    -104,
+    -5652
+   ],
+   [
+    6503,
+    -4042
+   ],
+   [
+    5357,
+    4543
+   ]
+  ]
+ },
+ {
+  "zone": "puys",
+  "id": "vtt-puys",
+  "name": "Chaîne des Puys — VTT par Grelières et Saint-Ours",
+  "nameEn": "Chaîne des Puys — MTB via Grelières and Saint-Ours",
+  "bike": "mtb",
+  "via": [
+   [
+    1827,
+    263
+   ],
+   [
+    -1494,
+    -2160
+   ],
+   [
+    -980,
+    -5716
+   ],
+   [
+    3877,
+    -6014
+   ],
+   [
+    4834,
+    -1816
+   ]
+  ]
+ },
+ {
+  "zone": "mont-ventoux",
+  "id": "vtt-ventoux",
+  "name": "Ventoux — VTT par Flassan et Saint-Estève",
+  "nameEn": "Ventoux — MTB via Flassan and Saint-Estève",
+  "bike": "mtb",
+  "via": [
+   [
+    677,
+    4073
+   ],
+   [
+    -1019,
+    6552
+   ],
+   [
+    -4446,
+    5748
+   ],
+   [
+    -4102,
+    2336
+   ],
+   [
+    -1517,
+    1458
+   ]
+  ]
+ },
+ {
+  "zone": "issoire",
+  "id": "vtt-issoire",
+  "name": "Issoire — VTT par Montaigner, Poux et Bansat",
+  "nameEn": "Issoire — MTB via Montaigner, Poux and Bansat",
+  "bike": "mtb",
+  "via": [
+   [
+    -8250,
+    1456
+   ],
+   [
+    -6289,
+    -353
+   ],
+   [
+    -3758,
+    -1308
+   ],
+   [
+    -1765,
+    1857
+   ],
+   [
+    -3874,
+    4956
+   ],
+   [
+    -6348,
+    4067
+   ]
+  ]
+ },
+ {
+  "zone": "issoire",
+  "id": "gravel-issoire",
+  "name": "Issoire — gravel par Sauxillanges et Saint-Genès-la-Tourette",
+  "nameEn": "Issoire — gravel via Sauxillanges and Saint-Genès-la-Tourette",
+  "bike": "gravel",
+  "via": [
+   [
+    -2329,
+    -3994
+   ],
+   [
+    4457,
+    -2937
+   ],
+   [
+    2417,
+    4575
+   ],
+   [
+    -3694,
+    5466
+   ],
+   [
+    -7938,
+    718
+   ]
+  ]
+ },
+ {
+  "zone": "livradois",
+  "id": "vtt-livradois",
+  "name": "Livradois — VTT par Bort-l'Étang et Champciaux",
+  "nameEn": "Livradois — MTB via Bort-l'Étang and Champciaux",
+  "bike": "mtb",
+  "via": [
+   [
+    2244,
+    -1282
+   ],
+   [
+    3878,
+    1102
+   ],
+   [
+    2421,
+    3560
+   ],
+   [
+    -738,
+    3431
+   ],
+   [
+    -991,
+    596
+   ]
+  ]
+ },
+ {
+  "zone": "livradois",
+  "id": "gravel-livradois",
+  "name": "Livradois — gravel de Marcillole à Mauzun",
+  "nameEn": "Livradois — gravel from Marcillole to Mauzun",
+  "bike": "gravel",
+  "via": [
+   [
+    -4945,
+    6042
+   ],
+   [
+    -3852,
+    1100
+   ],
+   [
+    1288,
+    815
+   ],
+   [
+    3894,
+    5081
+   ],
+   [
+    -840,
+    8970
+   ]
+  ]
+ },
+ {
+  "zone": "limagne",
+  "id": "vtt-limagne",
+  "name": "Limagne — VTT par Neuville et les Vigiers",
+  "nameEn": "Limagne — MTB via Neuville and Les Vigiers",
+  "bike": "mtb",
+  "via": [
+   [
+    -2721,
+    -1358
+   ],
+   [
+    337,
+    -1919
+   ],
+   [
+    1238,
+    835
+   ],
+   [
+    -969,
+    2059
+   ],
+   [
+    -3422,
+    940
+   ]
+  ]
+ },
+ {
+  "zone": "limagne",
+  "id": "gravel-limagne",
+  "name": "Limagne — gravel par Neuville, Bongheat et Glaine",
+  "nameEn": "Limagne — gravel via Neuville, Bongheat and Glaine",
+  "bike": "gravel",
+  "via": [
+   [
+    -3883,
+    2363
+   ],
+   [
+    -3993,
+    -1861
+   ],
+   [
+    790,
+    -2128
+   ],
+   [
+    2917,
+    552
+   ],
+   [
+    237,
+    3833
+   ]
+  ]
+ },
+ {
+  "zone": "chevreuse",
+  "id": "vtt-chevreuse",
+  "name": "Chevreuse — VTT en forêt par Vieille-Église et Clairefontaine",
+  "nameEn": "Chevreuse — forest MTB via Vieille-Église and Clairefontaine",
+  "bike": "mtb",
+  "via": [
+   [
+    -10513,
+    4623
+   ],
+   [
+    -8473,
+    6354
+   ],
+   [
+    -10850,
+    8380
+   ],
+   [
+    -13106,
+    7890
+   ],
+   [
+    -13172,
+    5137
+   ]
+  ]
+ },
+ {
+  "zone": "chevreuse",
+  "id": "gravel-chevreuse",
+  "name": "Chevreuse — gravel par Saint-Rémy-l'Honoré et Vieille-Église",
+  "nameEn": "Chevreuse — gravel via Saint-Rémy-l'Honoré and Vieille-Église",
+  "bike": "gravel",
+  "via": [
+   [
+    -13209,
+    -5187
+   ],
+   [
+    -8255,
+    -4401
+   ],
+   [
+    -5894,
+    814
+   ],
+   [
+    -11865,
+    3981
+   ],
+   [
+    -14730,
+    -315
+   ]
+  ]
+ },
+ {
+  "zone": "sancy",
+  "id": "gravel-sancy",
+  "name": "Sancy — gravel par Super Besse et Le Verdier",
+  "nameEn": "Sancy — gravel via Super Besse and Le Verdier",
+  "bike": "gravel",
+  "via": [
+   [
+    1354,
+    -392
+   ],
+   [
+    5504,
+    -3299
+   ],
+   [
+    10150,
+    -1500
+   ],
+   [
+    7877,
+    3161
+   ],
+   [
+    3232,
+    3596
+   ]
+  ]
+ }
+]

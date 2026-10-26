@@ -6773,6 +6773,16 @@
    "elevationGainM": 1591.28,
    "loop": false,
    "main": true
+  },
+  {
+   "id": "vtt-ventoux",
+   "file": "routes/vtt-ventoux.json",
+   "name": "Ventoux — VTT par Flassan et Saint-Estève",
+   "lengthM": 27462.84,
+   "elevationGainM": 1011.38,
+   "loop": true,
+   "main": false,
+   "bike": "mtb"
   }
  ],
  "mainRoute": "mont-ventoux-bedoin",

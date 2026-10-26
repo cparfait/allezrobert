@@ -17,6 +17,18 @@ import { decalBoxes, frameMarks, wordmarkTexture } from './wordmarks.ts';
 
 export type Side = 'L' | 'R';
 
+/**
+ * Famille chargeable : celles du catalogue, plus « gravel » (gravel.glb : « Road Bike » de Tanya Andreeva, CC BY 4.0) et « mtb »
+ * (mtb.glb : « Carbon Frame Bike » de prefrontal cortex, CC BY-SA 4.0), hors catalogue, voir ASSETS_LICENSES.md. Elles prennent la
+ * livrée du vélo choisi quand le vélo équipé a des pneus gravel ou VTT, et apportent leurs propres roues (wheel_front /
+ * wheel_rear, disques de frein) : celles de wheels.glb ne servent pas.
+ */
+export type FamilyKey = BikeFamily | 'gravel' | 'mtb';
+
+/** Types de vélo qui ont leur modèle complet (famille du même nom). */
+export const OWN_MODEL_TYPES = ['gravel', 'mtb'] as const;
+const isOwnModel = (family: FamilyKey): family is (typeof OWN_MODEL_TYPES)[number] => family === 'gravel' || family === 'mtb';
+
 /** Vélo assemblé (un niveau de détail), prêt à être ajouté au groupe d'un avatar. */
 export interface AssembledBike {
   group: THREE.Group;
@@ -65,6 +77,9 @@ const BIKE_MATERIALS: Record<string, [string, number, number]> = {
   // Tige de selle (primitive « components » du nœud saddle), recolorable à part (atelier).
   seatpost: ['#18191c', 0.4, 0.2],
 };
+
+/** Flancs beiges des pneus gravel (les mêmes que ceux du kit gravel de bikeKits.ts). */
+const GRAVEL_WALL = '#a9825a';
 
 /** Pièces dont la couleur peut venir de l'atelier (BikeExtras.parts). */
 const TUNABLE = new Set(['chain', 'chainring', 'crank', 'cassette', 'pulley', 'rotor', 'cage', 'topcap', 'spacers', 'bolts', 'computer', 'spokes', 'valve', 'seatpost']);
@@ -175,8 +190,8 @@ type Lods = [GLTF, GLTF];
 
 const base = `${import.meta.env.BASE_URL}models/bikes/`;
 const loader = new GLTFLoader();
-const families = new Map<BikeFamily, Lods>();
-const pending = new Map<BikeFamily, Promise<boolean>>();
+const families = new Map<FamilyKey, Lods>();
+const pending = new Map<FamilyKey, Promise<boolean>>();
 let wheels: Lods | null = null;
 let wheelsLoading: Promise<Lods> | null = null;
 const listeners = new Set<(family: BikeFamily) => void>();
@@ -266,7 +281,7 @@ async function loadLods(name: string): Promise<Lods> {
 }
 
 /** Charge une famille (et la bibliothèque de roues) ; false si les fichiers sont indisponibles. */
-export function loadBikeFamily(family: BikeFamily): Promise<boolean> {
+export function loadBikeFamily(family: FamilyKey): Promise<boolean> {
   if (families.has(family)) return Promise.resolve(true);
   let p = pending.get(family);
   if (!p) {
@@ -274,12 +289,14 @@ export function loadBikeFamily(family: BikeFamily): Promise<boolean> {
     p = Promise.all([loadLods(family), wheelsLoading])
       .then(([lods]) => {
         families.set(family, lods);
-        for (const cb of listeners) cb(family);
+        if (!isOwnModel(family)) for (const cb of listeners) cb(family);
         return true;
       })
       .catch((e: unknown) => {
         console.warn(`Vélos : famille ${family} indisponible`, e);
-        pending.delete(family);
+        // Modèles gravel et VTT facultatifs : fichier absent, on garde le kit sans réessayer à chaque montage.
+        if (isOwnModel(family)) pending.set(family, Promise.resolve(false));
+        else pending.delete(family);
         return false;
       });
     pending.set(family, p);
@@ -287,7 +304,7 @@ export function loadBikeFamily(family: BikeFamily): Promise<boolean> {
   return p;
 }
 
-export function bikeFamilyReady(family: BikeFamily): boolean {
+export function bikeFamilyReady(family: FamilyKey): boolean {
   return families.has(family) && wheels !== null;
 }
 
@@ -342,13 +359,13 @@ export function availableFamily(family: BikeFamily): BikeFamily | null {
 }
 
 /** Scène (LOD 0) d'une famille chargée : référence du pédalier, des pédales et des mains. */
-export function familyScene(family: BikeFamily): THREE.Object3D {
+export function familyScene(family: FamilyKey): THREE.Object3D {
   const lods = families.get(family);
   if (!lods) throw new Error(`famille de vélo non chargée : ${family}`);
   return lods[0].scene;
 }
 
-export function bikeAnchors(family: BikeFamily): BikeAnchors {
+export function bikeAnchors(family: FamilyKey): BikeAnchors {
   const s = familyScene(family);
   const at = (name: string): THREE.Vector3 | null => s.getObjectByName(name)?.position.clone() ?? null;
   const hands = { L: at('hand_L') ?? new THREE.Vector3(0.2, 0.958, 0.54), R: at('hand_R') ?? new THREE.Vector3(-0.2, 0.958, 0.54) };
@@ -358,12 +375,14 @@ export function bikeAnchors(family: BikeFamily): BikeAnchors {
 }
 
 /** Assemble un vélo (famille chargée) : options visibles selon le modèle, roues posées aux axes. */
-export function assembleBike(build: BikeBuild, family: BikeFamily, lod: 0 | 1, bottles?: number): AssembledBike {
+export function assembleBike(build: BikeBuild, family: FamilyKey, lod: 0 | 1, bottles?: number): AssembledBike {
   const lods = families.get(family);
   if (!lods || !wheels) throw new Error(`famille de vélo non chargée : ${family}`);
   const group = lods[lod].scene.clone(true);
   group.name = 'bike';
-  const { brakes, track = false, toeClips = false } = build.params;
+  const { track = false, toeClips = false } = build.params;
+  // Gravel et VTT : freins à disque (rotors dans les roues du fichier), quel que soit le vélo dont ils prennent la livrée.
+  const brakes = isOwnModel(family) ? 'disc' : build.params.brakes;
   // Bidons : 0, 1 (tube oblique) ou 2 (et tube de selle), dans la limite du cadre ; défaut : ceux du modèle.
   let hasUp = false;
   let hasDown = false;
@@ -389,6 +408,12 @@ export function assembleBike(build: BikeBuild, family: BikeFamily, lod: 0 | 1, b
   const lib = wheels[lod].scene;
   const out: THREE.Object3D[] = [];
   (['front', 'rear'] as const).forEach((pos, i) => {
+    // Roues propres au fichier (gravel, VTT) : déjà posées à leurs axes, tournent autour de leur nœud.
+    const own = isOwnModel(family) ? group.getObjectByName(`wheel_${pos}`) : undefined;
+    if (own) {
+      out.push(own);
+      return;
+    }
     const type = build.params.wheels[i] ?? 'c35';
     const src = lib.getObjectByName(`wheel_${type}_${pos === 'front' ? 'F' : 'R'}`);
     const axle = group.getObjectByName(`axle_${pos}`);
@@ -428,9 +453,12 @@ export class BikeMaterials {
   private decalKey = '';
   private build: BikeBuild;
   private look: AvatarLook;
+  /** Famille gravel : flancs de pneus beiges par défaut. */
+  private readonly gravel: boolean;
 
-  constructor(build: BikeBuild, look: AvatarLook, family: BikeFamily) {
+  constructor(build: BikeBuild, look: AvatarLook, family: FamilyKey) {
     this.build = build;
+    this.gravel = family === 'gravel';
     this.look = look;
     this.livery = new LiveryMaterial(build.livery);
     // Inscriptions du cadre (comme sur le vrai vélo) dans les boîtes de la famille.
@@ -547,7 +575,7 @@ export class BikeMaterials {
       // Bande décor sans marque de roue (vélo de base) : fondue dans la jante.
       rim_decal: this.build.params.rimBrand ? liv.rim : BIKE_MATERIALS.rim?.[0],
       disc_face: liv.disc,
-      tire_wall: liv.tireWall,
+      tire_wall: liv.tireWall ?? (this.gravel ? GRAVEL_WALL : undefined),
       saddle: liv.saddle,
       bar_tape: liv.tape ?? this.look.jerseyAccent,
       bottle: parts.bottle ?? this.look.jerseyAccent,

@@ -3140,6 +3140,26 @@
    "elevationGainM": 252.46,
    "loop": false,
    "main": true
+  },
+  {
+   "id": "vtt-fontainebleau",
+   "file": "routes/vtt-fontainebleau.json",
+   "name": "Fontainebleau — VTT dans la forêt",
+   "lengthM": 28614.43,
+   "elevationGainM": 429.57,
+   "loop": true,
+   "main": false,
+   "bike": "mtb"
+  },
+  {
+   "id": "gravel-fontainebleau",
+   "file": "routes/gravel-fontainebleau.json",
+   "name": "Fontainebleau — gravel par Chailly, Arbonne et Achères",
+   "lengthM": 48803.85,
+   "elevationGainM": 425.83,
+   "loop": true,
+   "main": false,
+   "bike": "gravel"
   }
  ],
  "mainRoute": "foret-de-fontainebleau",

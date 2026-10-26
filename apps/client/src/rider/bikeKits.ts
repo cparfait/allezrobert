@@ -1,7 +1,10 @@
 import * as THREE from 'three/webgpu';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
-/** Type de vélo affiché : route (modèle Blender), gravel (pneus larges à flancs beiges), VTT. */
+/**
+ * Type de vélo affiché : route (modèle Blender), gravel (pneus larges à flancs beiges), VTT. Le gravel a son propre modèle
+ * (bikes/gravel.glb, voir bikes.ts) ; le kit de ce fichier ne sert que de repli quand le fichier manque ou n'est pas encore chargé.
+ */
 export type BikeType = 'road' | 'gravel' | 'mtb';
 
 /**

@@ -7972,6 +7972,26 @@
    "elevationGainM": 87.86,
    "loop": true,
    "main": false
+  },
+  {
+   "id": "vtt-chevreuse",
+   "file": "routes/vtt-chevreuse.json",
+   "name": "Chevreuse — VTT en forêt par Vieille-Église et Clairefontaine",
+   "lengthM": 22754.13,
+   "elevationGainM": 66.62,
+   "loop": true,
+   "main": false,
+   "bike": "mtb"
+  },
+  {
+   "id": "gravel-chevreuse",
+   "file": "routes/gravel-chevreuse.json",
+   "name": "Chevreuse — gravel par Saint-Rémy-l'Honoré et Vieille-Église",
+   "lengthM": 39482.04,
+   "elevationGainM": 444.58,
+   "loop": true,
+   "main": false,
+   "bike": "gravel"
   }
  ],
  "mainRoute": "chevreuse-boucle",

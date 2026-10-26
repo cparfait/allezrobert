@@ -4675,6 +4675,16 @@
    "elevationGainM": 527.33,
    "loop": true,
    "main": false
+  },
+  {
+   "id": "gravel-sancy",
+   "file": "routes/gravel-sancy.json",
+   "name": "Sancy — gravel par Super Besse et Le Verdier",
+   "lengthM": 37232.64,
+   "elevationGainM": 1116.68,
+   "loop": true,
+   "main": false,
+   "bike": "gravel"
   }
  ],
  "mainRoute": "tour-du-sancy",

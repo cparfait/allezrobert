@@ -269,3 +269,12 @@ vers `/opt/allezrobert/deploy/data/worlds/<id>/`). Rien à redémarrer.
 Relief et orthophotos : IGN (Licence Ouverte Etalab 2.0). Routes et lieux : OpenStreetMap
 (ODbL : attribution et partage à l'identique si les entités sont redistribuées). Tableau complet
 dans `tools/terrain/README.md`.
+
+## Parcours gravel et VTT
+
+Boucles sur pistes (`track`) tracées sur le graphe déjà publié d'une zone, sans rien télécharger :
+`tools/terrain/trail-tours.json` (points de passage en repère monde, vélo `gravel` ou `mtb`), puis
+`cd tools/terrain && npx tsx src/trail-tours.ts [--only <id>]` écrit `routes/<id>.json` (champ `bike`),
+l'inscrit dans `world.json` et `worlds/index.json`. Le menu ne propose que les parcours du vélo équipé
+(pneus `road`, `gravel` ou `mtb`, `routesForBike` dans `route.ts`) ; une zone sans parcours de ce type
+garde tous les siens pour rester jouable. Zones actuelles : Fontainebleau, Billom, Comté d'Auvergne, Issoire, Livradois, Limagne, Chevreuse (gravel + VTT), Chaîne des Puys et Ventoux (VTT), Sancy (gravel). Seuil retenu : VTT ≥ 75 %, gravel ≥ 50 % de non-revêtu. Le graphe ne contient pas les `path` : pas de singletrack.
