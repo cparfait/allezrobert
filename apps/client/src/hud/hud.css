@@ -98,7 +98,7 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #0a0e16; col
 .riders .rd-filter { border: 1px solid rgba(255,255,255,.18); background: transparent; color: inherit; border-radius: 6px; font-size: 11px; padding: 1px 6px; cursor: pointer; }
 .riders .rd-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .riders .rd-name small { color: var(--ar-muted); margin-left: 4px; font-size: 11px; }
-.riders .rd-wkg { display: flex; flex-direction: column; line-height: 1.1; }
+
 .riders .rd-wkg small, .riders .rd-gap small { color: var(--ar-muted); font-size: 10.5px; }
 .riders .rd-gap { text-align: right; display: flex; flex-direction: column; line-height: 1.1; }
 .riders .row.me { background: rgba(255, 210, 63, 0.18); }
