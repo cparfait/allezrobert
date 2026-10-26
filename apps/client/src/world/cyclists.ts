@@ -127,7 +127,7 @@ export class AmbientCyclists {
     const club = opt.size > 1 || (this.path && this.r() < 0.12);
     // Un groupe de club : même maillot, même casque ; sinon chacun sa couleur.
     const kit = CLUBS[Math.floor(this.r() * CLUBS.length)] as [string, string];
-    const pairs = opt.size > 2 && li <= 1;
+    const pairs = !this.path && opt.size > 2 && li <= 1;
     const members: Member[] = [];
     let firstJersey = kit[0];
     for (let k = 0; k < opt.size; k++) {
@@ -220,6 +220,8 @@ export class AmbientCyclists {
           if (ahead > 0 && ahead < 18 + gapNeeded && c.speed > o.speed + 0.4) lateralTarget = this.laneOf(c.sens) - c.sens * 1.3;
         }
       }
+      // Un cycliste d'en face ne se rabat pas vers le milieu (pour doubler un autre) quand on arrive.
+      if (c.sens < 0 && Math.abs(c.d - player.distM) < 60 && Math.abs(lateralTarget - player.lateral) < 1.8) lateralTarget = this.laneOf(c.sens);
       // Jamais à travers le joueur : un cycliste trop près (en long comme en large) s'écarte de lui,
       // de l'autre côté si le bord de la chaussée l'en empêche.
       let rate = 1.2;
