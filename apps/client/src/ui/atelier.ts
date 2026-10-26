@@ -2,11 +2,12 @@ import * as THREE from 'three/webgpu';
 import { emissive, mrt, normalView, output, packNormalToRGB, pass, sample, unpackRGBToNormal, vec4 } from 'three/tsl';
 import { bloom } from 'three/addons/tsl/display/BloomNode.js';
 import { ao } from 'three/addons/tsl/display/GTAONode.js';
-import { DEFAULT_LOOK, type AvatarLook, type TuneSlot } from '@allezrobert/shared';
+import { DEFAULT_LOOK, bikeById, type AvatarLook, type BikeFamily, type TuneSlot } from '@allezrobert/shared';
 import { createAvatar, type RiderAvatarLike } from '../rider/gltfAvatar.ts';
-import { loneWheel, onBikeFamilyLoaded } from '../rider/bikes.ts';
+import { loadBikeFamily, loneWheel, onBikeFamilyLoaded } from '../rider/bikes.ts';
 import { compilePass, isCompiling, type Engine } from '../engine/renderer.ts';
 import { box, buildRoom, cyl, mat, rod, WALL_WHEELS } from './atelierRoom.ts';
+import { buildPosters, POSTER_RIDERS, RIDER_BOX, type PosterArt } from './atelierPosters.ts';
 
 /**
  * Atelier du garage : le vélo du joueur sur un pied d'atelier, dans une pièce procédurale (établi,
@@ -286,6 +287,88 @@ export class AtelierHost {
     return this.state !== null;
   }
 
+  /**
+   * Photos des coureurs des affiches : vrai coureur, vraie tenue, vrai vélo du catalogue, rendus
+   * hors écran (fond transparent, caméra orthographique de côté, éclairage de studio), relus,
+   * tonalisés et détourés, puis posés dans les affiches à la place des silhouettes.
+   */
+  private async shootPosterRiders(setArt: (art: PosterArt) => void): Promise<void> {
+    const renderer = this.engine.renderer;
+    const families = new Set<BikeFamily>();
+    for (const r of Object.values(POSTER_RIDERS)) {
+      const f = bikeById(r.look.bikeModel)?.family;
+      if (f) families.add(f);
+    }
+    await Promise.all([...families].map((f) => loadBikeFamily(f).catch(() => false)));
+    const { halfWidth, bottom, top } = RIDER_BOX;
+    // Largeur multiple de 32 : lignes relues sans remplissage (RGBA demi-flottants, 256 octets).
+    const w = 512;
+    const h = Math.round(((top - bottom) * w) / (2 * halfWidth));
+    const rt = new THREE.RenderTarget(w, h, { type: THREE.HalfFloatType, samples: 4 });
+    const studio = new THREE.Scene();
+    studio.environment = this.scene.environment;
+    studio.environmentIntensity = 0.5;
+    studio.add(new THREE.HemisphereLight(0xfff4e6, 0x4a4036, 0.9));
+    const sun = new THREE.DirectionalLight(0xfff1e2, 3.2);
+    sun.position.set(4, 5, 2.5);
+    const back = new THREE.DirectionalLight(0xdfe8ff, 1.6);
+    back.position.set(-3, 3, -3);
+    studio.add(sun, back);
+    const cam = new THREE.OrthographicCamera(-halfWidth, halfWidth, top, bottom, 0.1, 30);
+    cam.position.set(8, 0, 0);
+    cam.lookAt(0, 0, 0);
+    const clear = renderer.getClearColor(new THREE.Color());
+    const clearAlpha = renderer.getClearAlpha();
+    const art = new Map<string, CanvasImageSource>();
+    // AgX approché (filmique) puis sRGB : même rendu doux que le jeu.
+    const tone = (x: number) => {
+      const y = (x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14);
+      return Math.round(255 * Math.min(1, Math.max(0, y)) ** (1 / 2.2));
+    };
+    for (const [key, spec] of Object.entries(POSTER_RIDERS)) {
+      const a = createAvatar({ ...DEFAULT_LOOK, ...spec.look });
+      a.setShadows(false);
+      a.root.rotation.y = spec.yaw;
+      studio.add(a.root);
+      // Pose installée (pédalage), visage et textures arrivés.
+      for (let i = 0; i < 45; i++) a.update(1 / 30, spec.pose === 'standing' ? 70 : 92, 10, spec.pose);
+      await new Promise((r) => setTimeout(r, 250));
+      const prev = renderer.getRenderTarget();
+      renderer.setRenderTarget(rt);
+      renderer.setClearColor(0x000000, 0);
+      renderer.clear();
+      renderer.render(studio, cam);
+      renderer.setRenderTarget(prev);
+      renderer.setClearColor(clear, clearAlpha);
+      const px = (await renderer.readRenderTargetPixelsAsync(rt, 0, 0, w, h)) as Uint16Array;
+      studio.remove(a.root);
+      const cv = document.createElement('canvas');
+      cv.width = w;
+      cv.height = h;
+      const g = cv.getContext('2d') as CanvasRenderingContext2D;
+      const img = g.createImageData(w, h);
+      const half = THREE.DataUtils.fromHalfFloat;
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          const i = (y * w + x) * 4;
+          const o = i;
+          const al = Math.min(1, half(px[i + 3] as number));
+          if (al <= 0.002) continue;
+          // Bords anticrénelés : couleur prémultipliée par la couverture.
+          img.data[o] = tone(half(px[i] as number) / al);
+          img.data[o + 1] = tone(half(px[i + 1] as number) / al);
+          img.data[o + 2] = tone(half(px[i + 2] as number) / al);
+          img.data[o + 3] = Math.round(al * 255);
+        }
+      }
+      g.putImageData(img, 0, 0);
+      art.set(key, cv);
+    }
+    rt.dispose();
+    setArt(art);
+    this.frames = Math.max(this.frames, 2);
+  }
+
   /** Vélos du jeu (sans coureur) posés sur la lisse du mur de gauche, de profil, comme dans un vrai rack. */
   private hangBikes(): void {
     const slots: Array<[number, string]> = [[-1.6, 'myth-pinarello-dogma-f12'], [0.1, 'myth-colnago-v4rs'], [1.8, 'myth-specialized-tarmac-sl7']];
@@ -296,6 +379,16 @@ export class AtelierHost {
       a.setShadows(false);
       a.root.rotation.y = -Math.PI / 2;
       a.root.position.set(x, 1.3, 3.22);
+      this.scene.add(a.root);
+    }
+    // Gravel sur la lisse du mur de bois, de profil.
+    {
+      const a = createAvatar({ ...DEFAULT_LOOK, bikeModel: undefined, bikeType: 'gravel', bike: '#5b6b3a' });
+      (a as RiderAvatarLike & { setRiderVisible?(on: boolean): void }).setRiderVisible?.(false);
+      a.update(0, 0, 0, 'coasting');
+      a.setShadows(false);
+      a.root.rotation.y = Math.PI / 2;
+      a.root.position.set(1.85, 1.3, -2.82);
       this.scene.add(a.root);
     }
     // Quatrième vélo sur la lisse du mur du fond (le long de z), de profil.
@@ -313,9 +406,11 @@ export class AtelierHost {
       ['myth-pinarello-dogma-651', -0.7, -2.62, Math.PI / 2, 0, -0.1],
       ['myth-cervelo-s5-gen1', 3.02, -1.7, 0, 1, -0.1],
       ['myth-bianchi-specialissima-acier', 3.02, 0.9, 0, 1, -0.1],
+      // VTT au sol contre le mur de bois, sous le gravel.
+      ['vtt', 1.9, -2.62, Math.PI / 2, 0, -0.1],
     ];
     for (const [bikeModel, x, z, ry, axis, lean] of leaning) {
-      const a = createAvatar({ ...DEFAULT_LOOK, bikeModel });
+      const a = createAvatar(bikeModel === 'vtt' ? { ...DEFAULT_LOOK, bikeModel: undefined, bikeType: 'mtb', bike: '#d9531e' } : { ...DEFAULT_LOOK, bikeModel });
       (a as RiderAvatarLike & { setRiderVisible?(on: boolean): void }).setRiderVisible?.(false);
       a.update(0, 0, 0, 'coasting');
       a.setShadows(false);
@@ -327,9 +422,9 @@ export class AtelierHost {
       pivot.add(a.root);
       this.scene.add(pivot);
     }
-    // Roues haut de gamme (carbone 35, 50 et 65 mm, triple bâtons, lenticulaire) accrochées aux crochets des murs.
-    WALL_WHEELS.forEach(([type, x, y, z, ry]) => {
-      const w = loneWheel(type, 'F');
+    // Roues haut de gamme de l'atelier (ENVE, DT Swiss, Zipp, HED, Campagnolo, Roval) accrochées aux crochets des murs.
+    WALL_WHEELS.forEach(([tune, rear, x, y, z, ry]) => {
+      const w = loneWheel(tune, rear);
       if (!w) return;
       w.position.set(x, y, z);
       w.rotation.y = ry;
@@ -344,7 +439,8 @@ export class AtelierHost {
     this.scene.background = new THREE.Color('#3a342e');
     this.scene.environment = studioEnvironment(this.engine.renderer);
     this.scene.environmentIntensity = 0.75;
-    this.scene.add(buildRoom());
+    const posters = buildPosters();
+    this.scene.add(buildRoom(), posters.group);
     this.scene.add(new THREE.HemisphereLight(0xfff0dc, 0x6a5a48, 0.6));
     // Éclairage de studio : lumière principale douce de côté (à droite du coureur, à l'opposé des
     // caméras de l'atelier : le volume se lit), plafonnier (ombre au sol), contre-jours froids qui
@@ -381,6 +477,7 @@ export class AtelierHost {
       if ((o as THREE.Light).isLight) this.lamps.push([o as THREE.Light, (o as THREE.Light).intensity]);
     });
     this.hangBikes();
+    void this.shootPosterRiders(posters.setArt).catch((e: unknown) => console.warn('atelier : photos des affiches', e));
     this.stand = buildStand();
     this.scene.add(this.stand);
     this.pipeline = new THREE.RenderPipeline(this.engine.renderer);

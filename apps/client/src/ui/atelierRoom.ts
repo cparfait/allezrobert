@@ -4,7 +4,7 @@ import * as THREE from 'three/webgpu';
  * Pièce de l'atelier (repère : sol y = 0, vélo au centre, mur du fond en x = −3,2). Inspirée d'un
  * vrai atelier de vélo : parquet en lames, murs gris à lames verticales, mur de bois côté étagères,
  * plafond en bois avec spots encastrés, panneau perforé garni d'outils bleus et acier, établi,
- * vélos suspendus au mur, étagères de cartons, pneus en rouleau, fût, paillasson.
+ * vélos suspendus au mur (route, gravel, VTT), roues haut de gamme, affiches, pneus en rouleau, fût, paillasson.
  * Les décors plats (parquet, murs, panneau d'outils) sont des textures canevas : peu de géométrie.
  */
 
@@ -37,7 +37,7 @@ export function rod(a: THREE.Vector3, b: THREE.Vector3, r: number, m: THREE.Mate
 }
 
 /** Générateur pseudo-aléatoire déterministe (le décor est identique à chaque ouverture). */
-function rng(seed: number): () => number {
+export function rng(seed: number): () => number {
   let a = seed >>> 0;
   return () => {
     a = (a + 0x6d2b79f5) >>> 0;
@@ -49,7 +49,7 @@ function rng(seed: number): () => number {
 }
 
 /** Texture canevas répétable ou non. */
-function canvasTex(w: number, h: number, draw: (g: CanvasRenderingContext2D) => void, repeat?: [number, number]): THREE.CanvasTexture {
+export function canvasTex(w: number, h: number, draw: (g: CanvasRenderingContext2D) => void, repeat?: [number, number]): THREE.CanvasTexture {
   const cv = document.createElement('canvas');
   cv.width = w;
   cv.height = h;
@@ -105,17 +105,18 @@ function floorTexture(): THREE.CanvasTexture {
 }
 
 /**
- * Roues haut de gamme accrochées aux murs (un crochet chacune) : profil, centre x, y, z, rotation y.
+ * Roues haut de gamme accrochées aux murs (un crochet chacune) : paire de roues de l'atelier,
+ * roue arrière de la paire (lenticulaire), centre x, y, z, rotation y.
  * Mur du fond (x = −3,2) au-dessus du vélo de la lisse ; mur de bois (z = −3) au-dessus du vélo appuyé.
  */
-export const WALL_WHEELS: ReadonlyArray<readonly [string, number, number, number, number]> = [
-  ['c50', -3.1, 2.78, 0.8, 0],
-  ['c65', -3.1, 2.78, 1.52, 0],
-  ['tri', -3.1, 2.78, 2.24, 0],
-  ['disc', -3.1, 2.78, 2.96, 0],
-  ['c35', -1.75, 2.5, -2.9, Math.PI / 2],
-  ['c65', -1.03, 2.5, -2.9, Math.PI / 2],
-  ['tri', -0.31, 2.5, -2.9, Math.PI / 2],
+export const WALL_WHEELS: ReadonlyArray<readonly [string, boolean, number, number, number, number]> = [
+  ['tune-wh-dt-arc50', false, -3.1, 2.78, 0.8, 0],
+  ['tune-wh-zipp-808', false, -3.1, 2.78, 1.52, 0],
+  ['tune-wh-hed-tri', false, -3.1, 2.78, 2.24, 0],
+  ['tune-wh-zipp-super9', true, -3.1, 2.78, 2.96, 0],
+  ['tune-wh-enve-34', false, -1.75, 2.5, -2.9, Math.PI / 2],
+  ['tune-wh-campa-bora', false, -1.03, 2.5, -2.9, Math.PI / 2],
+  ['tune-wh-roval-rapide', false, -0.31, 2.5, -2.9, Math.PI / 2],
 ];
 
 /** Bois blond en lames verticales (mur des étagères) et plafond. */
@@ -487,7 +488,7 @@ export function buildRoom(): THREE.Group {
   doorMat.receiveShadow = true;
   room.add(doorMat);
 
-  // Murs : gris à lames verticales (fond, gauche, droite), bois blond côté étagères (z = −3).
+  // Murs : gris à lames verticales (fond, gauche, droite), bois blond au fond (z = −3).
   const pine = tex(pineTexture(), 0.8);
   const walls: Array<[number, number, number, number, THREE.Material | null]> = [
     // largeur, x, z, rotation y, matériau (null : mur peint, texture propre à chaque mur)
@@ -562,22 +563,14 @@ export function buildRoom(): THREE.Group {
   room.add(cyl(0.022, 0.62, mat('#2a63c0', 0.4, 0.3), -2.35, 0.31, 0.75, 12));
   room.add(box(0.2, 0.025, 0.08, mat('#1a1b1e', 0.6), -2.35, 0.012, 0.75));
 
-  // Étagères de bois sur le mur de bois : cartons bruns, boîtes bleues et blanches, huiles.
-  const shelfM = mat('#c79a62', 0.75);
-  const r = rng(21);
-  for (const [y, n] of [[1.05, 7], [1.55, 7], [2.05, 6]] as const) {
-    room.add(box(2.7, 0.035, 0.34, shelfM, 1.9, y, -2.82));
-    let x = 0.65;
-    for (let i = 0; i < n; i++) {
-      const w = 0.2 + r() * 0.16;
-      const h = 0.14 + r() * 0.14;
-      const c = r() < 0.4 ? '#b58d58' : r() < 0.6 ? '#2a63c0' : r() < 0.8 ? '#e6e8ea' : '#6d4f30';
-      room.add(box(w, h, 0.26, mat(c, 0.7), x + w / 2, y + 0.018 + h / 2, -2.8));
-      x += w + 0.03;
-    }
+  // Mur de bois : lisse d'acier pour le gravel (le VTT est appuyé au sol dessous ; placés par l'atelier), équerres.
+  room.add(box(2.2, 0.035, 0.14, mat('#6d7279', 0.4, 0.8), 1.85, 1.28, -2.9));
+  for (const x of [0.9, 1.85, 2.8]) {
+    room.add(box(0.05, 0.22, 0.012, mat('#6d7279', 0.4, 0.8), x, 1.18, -2.994));
+    room.add(box(0.03, 0.03, 0.12, mat('#6d7279', 0.4, 0.8), x, 1.26, -2.94));
   }
-  // Rouleaux de pneus (empilés) au sol, contre le mur de bois.
-  for (const [x, k] of [[1.2, 5], [2.15, 4]] as const) {
+  // Rouleaux de pneus (empilés) au sol, contre le mur de bois, près du fût.
+  for (const [x, k] of [[-1.98, 6]] as const) {
     for (let i = 0; i < k; i++) {
       const t = new THREE.Mesh(new THREE.TorusGeometry(0.34, 0.05, 20, 64), tex(tireTexture(i + (x > 2 ? 2 : 0)), 0.88));
       t.rotation.z = (i * 1.7 + x) % (Math.PI * 2); // chaque pneu tourné : les inscriptions ne s'alignent pas
@@ -602,7 +595,7 @@ export function buildRoom(): THREE.Group {
     room.add(box(0.12, 0.22, 0.05, rail, -3.16, 1.18, z));
     room.add(box(0.1, 0.03, 0.12, rail, -3.14, 1.26, z));
   }
-  for (const [, x, y, z, ry] of WALL_WHEELS) {
+  for (const [, , x, y, z, ry] of WALL_WHEELS) {
     // Crochet perpendiculaire au mur, juste au-dessus de la jante.
     const hook = ry ? cyl(0.012, 0.09, rail, x, y + 0.31, z - 0.05, 8).rotateX(Math.PI / 2) : cyl(0.012, 0.09, rail, x - 0.05, y + 0.31, z, 8).rotateZ(Math.PI / 2);
     room.add(hook);

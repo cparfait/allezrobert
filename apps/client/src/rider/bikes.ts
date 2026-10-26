@@ -1,7 +1,7 @@
 import * as THREE from 'three/webgpu';
 import { GLTFLoader, type GLTF } from 'three/addons/loaders/GLTFLoader.js';
 import { atan, color, float, floor, materialColor, mix, mod, positionGeometry, sin, uniform, vec3 } from 'three/tsl';
-import { BIKES, PLAIN_BIKE_FAMILY, type AvatarLook, type BikeBuild, type BikeFamily, type TuneNumber } from '@allezrobert/shared';
+import { BIKES, DEFAULT_LOOK, PLAIN_BIKE_FAMILY, bikeOfLook, type AvatarLook, type BikeBuild, type BikeFamily, type TuneNumber } from '@allezrobert/shared';
 import { LiveryMaterial } from './livery.ts';
 import { RimDecalMaterial, measureBand, type RimBand } from './rimDecal.ts';
 import { decalBoxes, frameMarks, wordmarkTexture } from './wordmarks.ts';
@@ -291,10 +291,42 @@ export function bikeFamilyReady(family: BikeFamily): boolean {
   return families.has(family) && wheels !== null;
 }
 
-/** Roue seule de la bibliothèque (décor de l'atelier : roues carbone au mur) ; null tant que la bibliothèque n'est pas chargée. */
-export function loneWheel(type: string, pos: 'F' | 'R' = 'F'): THREE.Object3D | null {
-  const src = wheels?.[0].scene.getObjectByName(`wheel_${type}_${pos}`);
-  return src ? src.clone(true) : null;
+/** Clés de matériau propres à une roue : flancs de lenticulaire, bande décor à la marque des jantes. */
+function tagWheel(w: THREE.Object3D, type: string, build: BikeBuild): void {
+  w.traverse((o) => {
+    const m = (o as THREE.Mesh).material as THREE.Material | undefined;
+    // Roue lenticulaire : flancs peints de la couleur `disc` de la livrée (matériau à part).
+    if (type === 'disc' && m?.name === 'rim') o.userData.matKey = 'disc_face';
+    // Bande décor : nom de la marque des roues, matériau propre à la largeur de bande.
+    if (m?.name === 'rim_decal' && build.params.rimBrand) {
+      const b = measureBand((o as THREE.Mesh).geometry);
+      o.userData.matKey = `rim_decal:${type === 'box' ? 'box' : type === 'disc' ? 'disc' : 'carbon'}:${b.r0.toFixed(4)}:${b.r1.toFixed(4)}`;
+    }
+  });
+}
+
+/**
+ * Roue seule d'une paire de roues de l'atelier (décor : roues accrochées au mur), habillée comme
+ * sur le vélo : jante, bande décor à la marque, flancs, moyeu. `rear` : roue arrière de la paire
+ * (p. ex. la lenticulaire). Null tant que la bibliothèque de roues n'est pas chargée.
+ */
+export function loneWheel(tuneId: string, rear = false): THREE.Object3D | null {
+  if (!wheels || !families.has(PLAIN_BIKE_FAMILY)) return null;
+  const build = bikeOfLook({ bike: '#1e2024', tune: [tuneId] });
+  const type = build.params.wheels[rear ? 1 : 0];
+  const src = wheels[0].scene.getObjectByName(`wheel_${type}_${rear ? 'R' : 'F'}`);
+  if (!src) return null;
+  const w = src.clone(true);
+  tagWheel(w, type, build);
+  const materials = new BikeMaterials(build, DEFAULT_LOOK, PLAIN_BIKE_FAMILY);
+  w.traverse((o) => {
+    const mesh = o as THREE.Mesh;
+    if (!mesh.isMesh) return;
+    mesh.material = materials.get((mesh.userData.matKey as string | undefined) ?? (mesh.material as THREE.Material).name);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+  });
+  return w;
 }
 
 /** Appelé à chaque famille chargée (p. ex. pour refaire l'image fixe de l'accueil). */
@@ -365,16 +397,7 @@ export function assembleBike(build: BikeBuild, family: BikeFamily, lod: 0 | 1, b
     w.name = `wheel_${pos}`;
     w.position.copy(axle.position);
     w.scale.copy(axle.scale);
-    w.traverse((o) => {
-      const m = (o as THREE.Mesh).material as THREE.Material | undefined;
-      // Roue lenticulaire : flancs peints de la couleur `disc` de la livrée (matériau à part).
-      if (type === 'disc' && m?.name === 'rim') o.userData.matKey = 'disc_face';
-      // Bande décor : nom de la marque des roues, matériau propre à la largeur de bande.
-      if (m?.name === 'rim_decal' && build.params.rimBrand) {
-        const b = measureBand((o as THREE.Mesh).geometry);
-        o.userData.matKey = `rim_decal:${type === 'box' ? 'box' : type === 'disc' ? 'disc' : 'carbon'}:${b.r0.toFixed(4)}:${b.r1.toFixed(4)}`;
-      }
-    });
+    tagWheel(w, type, build);
     const rotor = w.getObjectByName(`${src.name}_rotor`);
     if (rotor) rotor.visible = brakes === 'disc';
     group.add(w);
