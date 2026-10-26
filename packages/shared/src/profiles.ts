@@ -25,7 +25,10 @@ export function ageSlider(years: number): number {
  * arcades, mâchoire, menton et cou plus fins, lèvres et yeux un peu plus marqués. Les valeurs du
  * profil s'y ajoutent.
  */
-const FEMININE: FaceShape = { browRidge: -0.45, jawWidth: -0.4, jawAngle: -0.3, chinWidth: -0.3, noseLength: -0.2, noseWidth: -0.15, lipFullness: 0.3, eyeSize: 0.2, cheekbones: 0.2, neckWidth: -0.45, earSize: -0.2 };
+const FEMININE: FaceShape = {
+  browRidge: -0.5, browHeight: 0.2, jawWidth: -0.45, jawAngle: -0.35, chinWidth: -0.35, chinProtrusion: -0.15, noseLength: -0.25, noseWidth: -0.2, noseBridge: -0.15,
+  lipFullness: 0.5, eyeSize: 0.3, eyelidFold: 0.1, cheekbones: 0.25, cheekVolume: 0.1, foreheadSlope: 0.1, headWidth: -0.1, neckWidth: -0.5, earSize: -0.25,
+};
 
 const P = (p: Omit<BaseProfile, 'shape'> & { shape: Omit<FaceShape, 'age'> }): BaseProfile => {
   const shape: FaceShape = { age: ageSlider(p.ageYears) };

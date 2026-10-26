@@ -13,16 +13,14 @@ Décidé et fait (touche F : auto / file indienne / deux files tournantes / bord
 - [x] Ordres aux IA : plus vite ([ ]), plus doucement (R), m'attendre (K) ; aussi sur l'appli compagnon.
 
 ## Atelier
-- [ ] Mur plus réaliste (essai retiré : abîmait le décor).
-- [ ] Vrais pneus avec marques (essai retiré).
-- [ ] Un ou deux vrais vélos en fond (essai retiré).
+- [x] Mur peint vieilli (plinthe sombre, traces de guidons, fissures), pneus marqués (marque, modèle, taille), deux vélos du jeu appuyés au fond (réintroduits : le premier essai avait été retiré sans motif noté ; à valider à l'écran par Christophe).
 
 ## Visage
-- [ ] Tête nue déformée (crâne lisse et allongé, traits étirés) : modèle de tête à reprendre dans le pipeline Blender, avec les coiffures.
-- [ ] En attendant, le tutoriel garde le casque (`onboarding.ts`, `bareHead`) : le remettre tête nue une fois la tête corrigée.
+- [x] Tête nue : le crâne lisse venait du bonnet de cheveux unique ; remplacé tête nue par une coque de cheveux par coiffure. Tutoriel de nouveau tête nue (casque quand on choisit sa couleur).
+- [x] `tongueOut` ajouté (sort à l'effort extrême) ; visages féminins : traits `FEMININE` renforcés ; poitrine des hommes supprimée (`cupsize` 0). À valider à l'œil.
 
 ## Cheveux
-- [ ] Vraies coiffures via le pipeline Blender.
+- [x] 6 coiffures de plus (dégradé, bouclés, carré, chignon, coiffé, longs), visibles tête nue ; sous le casque : bonnet court (les longs en queue de cheval). Coques à bruit de mèches, pas de vrais brins : pistes d'amélioration (cartes de mèches) au besoin.
 - [ ] **En attente** : exemples de coupes homme et femme (Christophe).
 
 ## Voix off

@@ -57,6 +57,7 @@ async function main(): Promise<void> {
   if (params.has('sleeves')) return sleevesSheet(engine);
   if (params.has('bidons')) return bottlesSheet(engine);
   if (params.has('profiles')) return profileSheet(engine);
+  if (params.has('coiffures')) return hairSheet(engine);
   if (params.has('measure')) return measureHead();
   if (params.has('calib')) return likenessCalibration(engine);
   if (params.has('photofit')) return likenessPhotoFit(engine);
@@ -935,6 +936,48 @@ function measureHead(): void {
 }
 
 /**
+ * Planche des coiffures (?avatar=mpfb&coiffures ; &female : visage féminin ; &hair=#couleur) : par coiffure,
+ * tête nue de face, de trois quarts, de profil et de dos → avatars-coiffures.jpg.
+ */
+async function hairSheet(engine: Awaited<ReturnType<typeof createEngine>>): Promise<void> {
+  const { scene, camera } = engine;
+  const cw = 260;
+  const styles = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
+  const views: Array<[string, [number, number, number]]> = [['face', [-0.04, 0.03, 0.62]], ['3/4', [-0.4, 0.04, 0.5]], ['profil', [-0.62, 0.03, 0.02]], ['dos', [0.04, 0.05, -0.62]]];
+  const sheet = document.createElement('canvas');
+  sheet.width = views.length * cw;
+  sheet.height = styles.length * cw;
+  const g = sheet.getContext('2d') as CanvasRenderingContext2D;
+  g.font = '600 18px system-ui, sans-serif';
+  camera.fov = 30;
+  const female = params.has('female');
+  for (const [r, hairStyle] of styles.entries()) {
+    const a = new GltfRiderAvatar({ ...DEFAULT_LOOK, ...(female ? { face: encodeFace({ sex: -1 }) } : {}), hair: params.get('hair') ?? '#4a2f1d', hairStyle, bikeModel: 's26-04-cervelo-s5' });
+    a.setBareHead(true);
+    a.update(0, 0, 0, 'seated');
+    a.update(1 / 60, 0.0001, 0, 'seated');
+    scene.add(a.root);
+    a.root.updateMatrixWorld(true);
+    if (params.has('tongue')) a.setExpressions({ tongueOut: 1 }); // &tongue : langue tirée
+    const eye = a.eyeWorld(new THREE.Vector3());
+    for (const [c, [label, off]] of views.entries()) {
+      camera.position.set(eye.x + off[0], eye.y + off[1], eye.z + off[2]);
+      camera.updateProjectionMatrix();
+      camera.lookAt(eye.x, eye.y + 0.03, eye.z - (label === 'profil' ? 0.02 : 0));
+      engine.renderManual();
+      g.drawImage(canvas, 340, 60, 600, 600, c * cw, r * cw, cw, cw);
+      g.fillStyle = '#000';
+      g.fillText(c === 0 ? `style ${hairStyle}` : label, c * cw + 8, r * cw + 22);
+    }
+    scene.remove(a.root);
+  }
+  document.body.replaceChildren(sheet);
+  sheet.style.cssText = 'display:block;width:100%;height:auto';
+  if (!params.has('noshot')) await fetch(`/__shot?name=avatars-coiffures${female ? '-femme' : ''}`, { method: 'POST', body: sheet.toDataURL('image/jpeg', 0.88) });
+  (window as unknown as { __avatarTestDone: boolean }).__avatarTestDone = true;
+}
+
+/**
  * Planche des profils de base (?avatar=mpfb&profiles) : par profil, visage casqué et lunettes,
  * puis sans casque de face, de trois quarts et de profil.
  */
@@ -958,6 +1001,10 @@ async function profileSheet(engine: Awaited<ReturnType<typeof createEngine>>): P
     a.root.updateMatrixWorld(true);
     const eye = a.eyeWorld(new THREE.Vector3());
     for (const [c, [label, helmet, off]] of views.entries()) {
+      a.root.traverse((o) => {
+        if (/rider_(glasses|helmet)/.test(o.name)) o.visible = helmet && !o.name.startsWith('rider_helmet_aero');
+      });
+      a.setBareHead(!helmet);
       a.root.traverse((o) => {
         if (/rider_(glasses|helmet)/.test(o.name)) o.visible = helmet && !o.name.startsWith('rider_helmet_aero');
       });

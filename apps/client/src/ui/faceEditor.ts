@@ -1,4 +1,4 @@
-import { BASE_PROFILES, FACE_SLIDERS, decodeFace, lookSex, type AvatarLook, type FaceShape, type FaceSlider } from '@allezrobert/shared';
+import { BASE_PROFILES, FACE_SLIDERS, HAIR_STYLE_COUNT, decodeFace, lookSex, type AvatarLook, type FaceShape, type FaceSlider } from '@allezrobert/shared';
 import { getLang } from '../i18n/index.ts';
 
 /**
@@ -73,6 +73,12 @@ const HAIR_STYLES: Array<[number, string, string]> = [
   [1, 'Queue de cheval', 'Ponytail'],
   [2, 'Tresse', 'Braid'],
   [3, 'Rasé', 'Shaved'],
+  [4, 'Dégradé', 'Fade'],
+  [5, 'Bouclés', 'Curly'],
+  [6, 'Carré', 'Bob'],
+  [7, 'Chignon', 'Bun'],
+  [8, 'Coiffé', 'Quiff'],
+  [9, 'Longs', 'Long'],
 ];
 
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c] as string);
@@ -88,8 +94,8 @@ export function faceEditorHtml(look: AvatarLook, tab: FaceTab, bareHead: boolean
           <label class="field">${L ? 'Teint' : 'Skin tone'}<input id="fe-skin" type="color" value="${look.skin}" /></label>
           <label class="field">${L ? (male ? 'Cheveux, barbe' : 'Cheveux') : male ? 'Hair, beard' : 'Hair'}<input id="fe-hair" type="color" value="${look.hair}" /></label>
         </div>
-        <div class="field">${L ? 'Coiffure (sous le casque)' : 'Hairstyle (under the helmet)'}<div class="fe-seg" id="fe-hairstyle">${HAIR_STYLES.map(
-          ([v, fr, en]) => `<button data-v="${v}" class="${(((look.hairStyle % 4) + 4) % 4) === v ? 'on' : ''}">${L ? fr : en}</button>`,
+        <div class="field">${L ? 'Coiffure (tête nue ; sous le casque, courte ou attachée)' : 'Hairstyle (bare head; under the helmet, short or tied)'}<div class="fe-seg" id="fe-hairstyle">${HAIR_STYLES.map(
+          ([v, fr, en]) => `<button data-v="${v}" class="${(((look.hairStyle % HAIR_STYLE_COUNT) + HAIR_STYLE_COUNT) % HAIR_STYLE_COUNT) === v ? 'on' : ''}">${L ? fr : en}</button>`,
         ).join('')}</div></div>
         ${male ? rangeHtml('fe-beard', L ? 'Barbe' : 'Beard', look.beard ?? 0, 0, 1) : ''}
         ${rangeHtml('fe-freckles', L ? 'Taches de rousseur' : 'Freckles', look.freckles ?? 0, 0, 1)}

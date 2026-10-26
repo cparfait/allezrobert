@@ -4,7 +4,7 @@ import { shoeDialOf } from './shoeLook.ts';
 import { GLTFLoader, type GLTF } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
-import { PLAIN_BIKE_FAMILY, bikeOfLook, decodeFace, lookSex, type AvatarLook, type BikeBuild, type BikeFamily } from '@allezrobert/shared';
+import { HAIR_STYLE_COUNT, PLAIN_BIKE_FAMILY, bikeOfLook, decodeFace, lookSex, type AvatarLook, type BikeBuild, type BikeFamily } from '@allezrobert/shared';
 import { RiderAvatar } from './avatar.ts';
 import { buildBikeKit, roadPartsReplaced, type BikeType } from './bikeKits.ts';
 import { FaceAnimator } from './face.ts';
@@ -149,6 +149,9 @@ const HEIGHT_RANGE_CM: readonly [number, number] = [160, 195];
 const TUCK_HIPS = 0.5;
 const TUCK_SPINE = 0.08;
 const TUCK_CHEST = 0.12;
+
+/** Coque de cheveux montrée tête nue, par coiffure (objets `rider_hairs_<nom>` du modèle). */
+const HAIR_SHELL: Record<number, string> = { 0: 'cut', 1: 'slick', 2: 'slick', 4: 'fade', 5: 'curls', 6: 'bob', 7: 'slick', 8: 'quiff', 9: 'long' };
 const TUCK_HEAD = 0.35;
 /**
  * Positions sur un cintre route (bascule en unités de « tuck », ajoutée à la position assise validée
@@ -738,8 +741,14 @@ export class GltfRiderAvatar implements RiderAvatarLike {
   private readonly kind: AvatarKind;
   /** Expressions en sortie (modèle à formes ARKit seulement). */
   private faceAnim: FaceAnimator | null = null;
-  /** Coiffures (avatar MPFB) : 0 courts, 1 queue de cheval, 2 tresse, 3 rasé ; moustache. */
-  private readonly hair = { cap: [] as THREE.Object3D[], ponytail: [] as THREE.Object3D[], braid: [] as THREE.Object3D[], moustache: [] as THREE.Object3D[] };
+  /**
+   * Coiffures (avatar MPFB) : sous le casque, 0 courts, 1 queue de cheval, 2 tresse, 3 rasé (et un
+   * bonnet de cheveux pour les autres) ; tête nue, une coque par coiffure (`shells`, voir HAIR_SHELL) ; moustache.
+   */
+  private readonly hair = {
+    cap: [] as THREE.Object3D[], ponytail: [] as THREE.Object3D[], braid: [] as THREE.Object3D[], moustache: [] as THREE.Object3D[],
+    bun: [] as THREE.Object3D[], shells: new Map<string, THREE.Object3D[]>(),
+  };
   private skin: SkinMaterial | null = null;
   private ftpFrac = 0.7;
   private hrFrac: number | undefined;
@@ -968,7 +977,12 @@ export class GltfRiderAvatar implements RiderAvatarLike {
       const n = o.name;
       if (/^rider_hair_ponytail/.test(n)) this.hair.ponytail.push(o);
       else if (/^rider_hair_braid/.test(n)) this.hair.braid.push(o);
+      else if (/^rider_hair_bun/.test(n)) this.hair.bun.push(o);
       else if (/^rider_moustache/.test(n)) this.hair.moustache.push(o);
+      else if (/^rider_hairs_/.test(n)) {
+        const key = n.slice('rider_hairs_'.length).replace(/_lod\d$/, '');
+        this.hair.shells.set(key, [...(this.hair.shells.get(key) ?? []), o]);
+      }
       else if (/^rider_hair(_lod\d)?$/.test(n)) this.hair.cap.push(o);
       if (n.startsWith('rider_helmet_aero')) this.headgear.aero.push(o);
       else if (n.startsWith('rider_helmet')) this.headgear.road.push(o);
@@ -1417,15 +1431,23 @@ export class GltfRiderAvatar implements RiderAvatarLike {
   /** Tête nue (aperçu de l'éditeur de visage) ou casquée. */
   setBareHead(on: boolean): void {
     this.bareHead = on;
-    if (this.mounted) this.applyHeadgear(this.mounted.build);
+    if (this.mounted) {
+      this.applyHeadgear(this.mounted.build);
+      this.applyHair(this.look);
+    }
   }
 
   private applyHair(look: AvatarLook): void {
     if (!this.hair.ponytail.length) return; // modèle sans coiffures (cyclist.glb)
-    const style = ((look.hairStyle % 4) + 4) % 4;
-    for (const o of this.hair.cap) o.visible = style !== 3;
-    for (const o of this.hair.ponytail) o.visible = style === 1;
+    const style = ((look.hairStyle % HAIR_STYLE_COUNT) + HAIR_STYLE_COUNT) % HAIR_STYLE_COUNT;
+    const shell = this.bareHead && style !== 3 ? HAIR_SHELL[style] : undefined;
+    const shown = shell && this.hair.shells.has(shell) ? shell : undefined;
+    for (const [k, objs] of this.hair.shells) for (const o of objs) o.visible = k === shown;
+    for (const o of this.hair.cap) o.visible = style !== 3 && !shown;
+    // Sous le casque, les coiffures longues sortent en queue de cheval ou en tresse.
+    for (const o of this.hair.ponytail) o.visible = style === 1 || (!shown && style === 9);
     for (const o of this.hair.braid) o.visible = style === 2;
+    for (const o of this.hair.bun) o.visible = style === 7 && !!shown;
     for (const o of this.hair.moustache) o.visible = !!look.moustache && lookSex(look) === 'male';
   }
 

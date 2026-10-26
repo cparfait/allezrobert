@@ -104,29 +104,6 @@ function floorTexture(): THREE.CanvasTexture {
   );
 }
 
-/** Lames verticales (murs gris) : base de couleur, rainures sombres, léger dégradé par lame. */
-function boardsTexture(base: string, groove: string, boards = 8, light = 0.06): THREE.CanvasTexture {
-  return canvasTex(
-    512,
-    512,
-    (g) => {
-      const r = rng(5 + boards);
-      const bw = 512 / boards;
-      for (let i = 0; i < boards; i++) {
-        g.fillStyle = base;
-        g.fillRect(i * bw, 0, bw, 512);
-        g.fillStyle = `rgba(255,255,255,${(r() * light).toFixed(3)})`;
-        g.fillRect(i * bw, 0, bw, 512);
-        g.fillStyle = `rgba(0,0,0,${(r() * light).toFixed(3)})`;
-        g.fillRect(i * bw + bw * 0.5, 0, bw * 0.5, 512);
-        g.fillStyle = groove;
-        g.fillRect(i * bw, 0, 3, 512);
-      }
-    },
-    [1, 1],
-  );
-}
-
 /** Bois blond en lames verticales (mur des étagères) et plafond. */
 function pineTexture(hue = 34, light = 62): THREE.CanvasTexture {
   return canvasTex(
@@ -152,6 +129,174 @@ function pineTexture(hue = 34, light = 62): THREE.CanvasTexture {
     },
     [1, 1],
   );
+}
+
+
+/**
+ * Mur d'atelier peint, vieilli : peinture inégale, plinthe plus sombre et salie vers le sol,
+ * coulures sous le plafond, traces noires de guidons et de pneus, éraflures, fissures fines.
+ * Texture unique par mur (pas de répétition visible) : `ratio` = hauteur / largeur du mur.
+ */
+function wallTexture(seed: number, ratio: number): THREE.CanvasTexture {
+  const W = 2048;
+  const H = Math.round(W * ratio);
+  return canvasTex(W, H, (g) => {
+    const r = rng(seed);
+    const dado = H * 0.3; // hauteur de la sous-face foncée (≈ 1 m)
+    const base = g.createLinearGradient(0, 0, 0, H);
+    base.addColorStop(0, '#d2d4d6');
+    base.addColorStop(0.7, '#c2c5c8');
+    base.addColorStop(1, '#a5a9ad');
+    g.fillStyle = base;
+    g.fillRect(0, 0, W, H);
+    // Peinture inégale : grandes taches très douces claires et sombres.
+    for (let i = 0; i < 90; i++) {
+      const x = r() * W;
+      const y = r() * H;
+      const rad = 80 + r() * 260;
+      const gr = g.createRadialGradient(x, y, 0, x, y, rad);
+      const c = r() < 0.5 ? '255,255,255' : '40,45,52';
+      gr.addColorStop(0, `rgba(${c},${(0.035 + r() * 0.05).toFixed(3)})`);
+      gr.addColorStop(1, `rgba(${c},0)`);
+      g.fillStyle = gr;
+      g.fillRect(x - rad, y - rad, rad * 2, rad * 2);
+    }
+    // Sous-face foncée (peinture grise plus mate) et son liseré de finition.
+    const dg = g.createLinearGradient(0, H - dado, 0, H);
+    dg.addColorStop(0, 'rgba(70,78,88,0.34)');
+    dg.addColorStop(1, 'rgba(40,44,50,0.5)');
+    g.fillStyle = dg;
+    g.fillRect(0, H - dado, W, dado);
+    g.fillStyle = 'rgba(30,33,38,0.55)';
+    g.fillRect(0, H - dado - 2, W, 3);
+    g.fillStyle = 'rgba(255,255,255,0.22)';
+    g.fillRect(0, H - dado - 5, W, 2);
+    // Coulures et salissures vers le plafond, poussière dense au pied du mur.
+    for (let i = 0; i < 26; i++) {
+      const x = r() * W;
+      const len = 60 + r() * 220;
+      const gr = g.createLinearGradient(0, 0, 0, len);
+      gr.addColorStop(0, `rgba(60,55,48,${(0.08 + r() * 0.1).toFixed(3)})`);
+      gr.addColorStop(1, 'rgba(60,55,48,0)');
+      g.fillStyle = gr;
+      g.fillRect(x, 0, 2 + r() * 5, len);
+    }
+    const dust = g.createLinearGradient(0, H - 90, 0, H);
+    dust.addColorStop(0, 'rgba(50,44,36,0)');
+    dust.addColorStop(1, 'rgba(50,44,36,0.4)');
+    g.fillStyle = dust;
+    g.fillRect(0, H - 90, W, 90);
+    // Traces noires de pneus et de guidons (la hauteur d'un vélo appuyé au mur), éraflures claires.
+    g.lineCap = 'round';
+    for (let i = 0; i < 22; i++) {
+      const x = r() * W;
+      const y = H - dado * (0.1 + r() * 1.7);
+      const len = 30 + r() * 110;
+      const a = -0.5 + r();
+      g.strokeStyle = `rgba(14,14,16,${(0.1 + r() * 0.2).toFixed(3)})`;
+      g.lineWidth = 3 + r() * 8;
+      g.beginPath();
+      g.moveTo(x, y);
+      g.lineTo(x + Math.cos(a) * len, y + Math.sin(a) * len * 0.4);
+      g.stroke();
+    }
+    for (let i = 0; i < 40; i++) {
+      const x = r() * W;
+      const y = H - r() * dado * 2;
+      g.strokeStyle = `rgba(255,255,255,${(0.12 + r() * 0.2).toFixed(3)})`;
+      g.lineWidth = 1 + r() * 2;
+      g.beginPath();
+      g.moveTo(x, y);
+      g.lineTo(x + (r() - 0.5) * 70, y + (r() - 0.5) * 24);
+      g.stroke();
+    }
+    // Fissures fines.
+    g.strokeStyle = 'rgba(40,40,44,0.28)';
+    g.lineWidth = 1.2;
+    for (let i = 0; i < 4; i++) {
+      let x = r() * W;
+      let y = r() * H * 0.6;
+      g.beginPath();
+      g.moveTo(x, y);
+      for (let k = 0; k < 14; k++) {
+        x += (r() - 0.5) * 22;
+        y += 6 + r() * 12;
+        g.lineTo(x, y);
+      }
+      g.stroke();
+    }
+    // Grain de la peinture.
+    for (let i = 0; i < 24000; i++) {
+      g.fillStyle = r() < 0.5 ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)';
+      g.fillRect(r() * W, r() * H, 1 + r() * 2, 1 + r() * 2);
+    }
+  });
+}
+
+type TireBrand = { name: string; model: string; accent: string };
+const TIRE_BRANDS: TireBrand[] = [
+  { name: 'CONTINENTAL', model: 'GRAND PRIX 5000 S TR', accent: '#e8c21a' },
+  { name: 'SCHWALBE', model: 'PRO ONE TUBELESS', accent: '#d8342c' },
+  { name: 'PIRELLI', model: 'P ZERO RACE TLR', accent: '#e8c21a' },
+  { name: 'VITTORIA', model: 'CORSA PRO', accent: '#3c8f4a' },
+];
+const tireTexCache = new Map<number, THREE.CanvasTexture>();
+
+/** Pneu route : caoutchouc noir, bande de roulement fine, flancs avec marque, modèle, taille, liseré. */
+function tireTexture(i: number): THREE.CanvasTexture {
+  const hit = tireTexCache.get(i);
+  if (hit) return hit;
+  const b = TIRE_BRANDS[i % TIRE_BRANDS.length] as TireBrand;
+  const t = canvasTex(2048, 256, (g) => {
+    const r = rng(100 + i);
+    g.fillStyle = '#17171a';
+    g.fillRect(0, 0, 2048, 256);
+    // Bande de roulement (centre du pneu : v = 0), fines nervures en chevrons.
+    g.strokeStyle = 'rgba(0,0,0,0.55)';
+    g.lineWidth = 2;
+    for (let x = 0; x < 2048; x += 9) {
+      for (const y0 of [0, 224]) {
+        g.beginPath();
+        g.moveTo(x, y0 + 4);
+        g.lineTo(x + 5, y0 + 16);
+        g.lineTo(x, y0 + 28);
+        g.stroke();
+      }
+    }
+    for (let k = 0; k < 5000; k++) {
+      g.fillStyle = r() < 0.5 ? 'rgba(180,170,155,0.05)' : 'rgba(0,0,0,0.12)';
+      g.fillRect(r() * 2048, r() * 256, 1 + r() * 2, 1 + r() * 2);
+    }
+    // Flancs : liseré de couleur, marque en grandes lettres claires, modèle et taille.
+    for (const [yc, flip] of [[64, false], [192, true]] as const) {
+      g.save();
+      g.translate(flip ? 2048 : 0, 0);
+      g.scale(flip ? -1 : 1, 1);
+      g.fillStyle = b.accent;
+      g.fillRect(0, yc - 46, 2048, 3);
+      g.fillStyle = 'rgba(0,0,0,0.5)';
+      g.fillRect(0, yc - 43, 2048, 2);
+      for (const x0 of [40, 1064]) {
+        g.fillStyle = '#e4e3dd';
+        g.font = '700 34px "Arial Black", Arial, sans-serif';
+        g.textBaseline = 'middle';
+        g.fillText(b.name, x0, yc - 14);
+        g.fillStyle = 'rgba(228,227,221,0.85)';
+        g.font = '600 20px Arial, sans-serif';
+        g.fillText(`${b.model}  ·  28-622 (700×28C)  ·  MAX 6 BAR`, x0, yc + 20);
+      }
+      g.restore();
+    }
+    // Patine de poussière sur les flancs.
+    for (let k = 0; k < 260; k++) {
+      g.fillStyle = `rgba(190,180,165,${(0.02 + r() * 0.04).toFixed(3)})`;
+      g.beginPath();
+      g.ellipse(r() * 2048, 30 + r() * 200, 6 + r() * 26, 2 + r() * 5, 0, 0, Math.PI * 2);
+      g.fill();
+    }
+  });
+  tireTexCache.set(i, t);
+  return t;
 }
 
 /** Panneau perforé gris avec ses outils bleus et acier (clés Allen, clés plates, tournevis, pinces, bacs). */
@@ -329,21 +474,26 @@ export function buildRoom(): THREE.Group {
   room.add(doorMat);
 
   // Murs : gris à lames verticales (fond, gauche, droite), bois blond côté étagères (z = −3).
-  const grey = tex(boardsTexture('#c4c7ca', 'rgba(60,66,72,0.5)'), 0.85);
   const pine = tex(pineTexture(), 0.8);
-  const walls: Array<[number, number, number, number, THREE.Material, number]> = [
-    // largeur, x, z, rotation y, matériau, répétition (m par motif = 0,96)
-    [7, -3.2, 0, Math.PI / 2, grey, 0],
-    [7, 3.4, 0, -Math.PI / 2, grey, 0],
-    [6.6, 0.1, -3.0, 0, pine, 0],
-    [6.6, 0.1, 3.4, Math.PI, grey, 0],
+  const walls: Array<[number, number, number, number, THREE.Material | null]> = [
+    // largeur, x, z, rotation y, matériau (null : mur peint, texture propre à chaque mur)
+    [7, -3.2, 0, Math.PI / 2, null],
+    [7, 3.4, 0, -Math.PI / 2, null],
+    [6.6, 0.1, -3.0, 0, pine],
+    [6.6, 0.1, 3.4, Math.PI, null],
   ];
+  let wallSeed = 40;
   for (const [w, x, z, ry, m] of walls) {
-    const mm = (m as THREE.MeshStandardNodeMaterial).clone() as THREE.MeshStandardNodeMaterial;
-    const t = (m as THREE.MeshStandardNodeMaterial).map?.clone() as THREE.Texture;
-    t.needsUpdate = true;
-    t.repeat.set(w / 0.96, H / 0.96);
-    mm.map = t;
+    let mm: THREE.MeshStandardNodeMaterial;
+    if (m) {
+      mm = (m as THREE.MeshStandardNodeMaterial).clone() as THREE.MeshStandardNodeMaterial;
+      const t = (m as THREE.MeshStandardNodeMaterial).map?.clone() as THREE.Texture;
+      t.needsUpdate = true;
+      t.repeat.set(w / 0.96, H / 0.96);
+      mm.map = t;
+    } else {
+      mm = tex(wallTexture(wallSeed++, H / w), 0.9);
+    }
     const wall = new THREE.Mesh(new THREE.PlaneGeometry(w, H), mm);
     wall.position.set(x, H / 2, z);
     wall.rotation.y = ry;
@@ -415,7 +565,8 @@ export function buildRoom(): THREE.Group {
   // Rouleaux de pneus (empilés) au sol, contre le mur de bois.
   for (const [x, k] of [[1.2, 5], [2.15, 4]] as const) {
     for (let i = 0; i < k; i++) {
-      const t = new THREE.Mesh(new THREE.TorusGeometry(0.34, 0.05, 10, 36), mat('#141416', 0.9));
+      const t = new THREE.Mesh(new THREE.TorusGeometry(0.34, 0.05, 20, 64), tex(tireTexture(i + (x > 2 ? 2 : 0)), 0.88));
+      t.rotation.z = (i * 1.7 + x) % (Math.PI * 2); // chaque pneu tourné : les inscriptions ne s'alignent pas
       t.position.set(x, 0.38, -2.5 + i * 0.1);
       t.castShadow = true;
       t.receiveShadow = true;

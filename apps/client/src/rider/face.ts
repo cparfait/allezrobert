@@ -23,7 +23,7 @@ export const FACE_SHAPES = [
   'browDownLeft', 'browDownRight', 'browInnerUp', 'eyeSquintLeft', 'eyeSquintRight', 'eyeBlinkLeft', 'eyeBlinkRight',
   'noseSneerLeft', 'noseSneerRight', 'jawOpen', 'mouthFunnel', 'mouthLowerDownLeft', 'mouthLowerDownRight',
   'mouthStretchLeft', 'mouthStretchRight', 'mouthSmileLeft', 'mouthSmileRight', 'mouthPressLeft', 'mouthPressRight',
-  'cheekPuff', 'cheekSquintLeft', 'cheekSquintRight',
+  'cheekPuff', 'cheekSquintLeft', 'cheekSquintRight', 'tongueOut',
 ] as const;
 export type FaceShapeName = (typeof FACE_SHAPES)[number];
 
@@ -103,6 +103,8 @@ export class FaceAnimator {
       cheekPuff: 0.6 * sprint * (1 - inhale),
       cheekSquintLeft: 0.5 * hard,
       cheekSquintRight: 0.5 * hard,
+      // Effort extrême : la langue sort à l'inspiration.
+      tongueOut: 0.45 * smoothstep(1.25, 1.5, e) * inhale,
     };
     // Poursuite : rapide pour la respiration et les clignements, lente pour la grimace.
     for (const n of FACE_SHAPES) {

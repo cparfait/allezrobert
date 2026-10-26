@@ -150,7 +150,7 @@ SLIDERS = {
 # Taille et longueur des jambes déplacent les articulations : elles sont traitées par le squelette
 # (client), pas par des cibles.
 BASE_MACRO = {'gender': 1.0, 'age': 0.5, 'muscle': 0.55, 'weight': 0.5, 'proportions': 0.5, 'height': 0.5,
-              'cupsize': 0.5, 'firmness': 0.5, 'race': {'asian': 0.33, 'caucasian': 0.34, 'african': 0.33}}
+              'cupsize': 0.0, 'firmness': 0.5, 'race': {'asian': 0.33, 'caucasian': 0.34, 'african': 0.33}}
 MACRO_SLIDERS = {
     'sex': {'-': {'gender': 0.0, 'cupsize': 0.75}},
     'age': {'+': {'age': 0.9}, '-': {'age': 0.37}},          # ≈ 77 ans / ≈ 19 ans (base 25 ans)
@@ -165,6 +165,7 @@ MACRO_SLIDERS = {
 if args.variant == 'female':
     # Modèle féminin : base entièrement féminine ; le curseur « sex » n'existe plus (ni ses atténuations).
     BASE_MACRO['gender'] = 0.0
+    BASE_MACRO['cupsize'] = 0.5
     if args.height >= 0:
         BASE_MACRO['height'] = args.height
     if args.cup >= 0:
@@ -227,7 +228,7 @@ def vgroup_members(ob, name, threshold=0.5):
 # (CC0, moyenne des trois variantes d'origine) : nom → [(unité, poids)], masque. Masques : côté
 # gauche / droit du coureur (+X / −X), moitié haute / basse de la bouche. Les formes sans unité
 # (mâchoire latérale et en avant, bouche latérale, joues gonflées, regard) sont scriptées
-# (expression_shapes). Pas de langue (aide supprimée) : tongueOut est absent.
+# (expression_shapes), langue tirée comprise.
 EXPRESSIONS = {
     'browDownLeft': ([('eyebrows-left-down', 1)], None),
     'browDownRight': ([('eyebrows-right-down', 1)], None),
@@ -357,6 +358,17 @@ def expression_shapes(body, TS, LS):
     nrm = [v.normal.copy() for v in body.data.vertices]
     cheeks = [mouth + Vector((s * 0.03, 0.012, 0.012)) for s in (1, -1)]
     add('cheekPuff', [nrm[i] * 0.009 * head_w[i] * max(math.exp(-((c - ch).length / 0.02) ** 2) for ch in cheeks) for i, c in enumerate(base)])
+    # Langue tirée : bouche ouverte, la langue (aide MakeHuman gardée dans le corps) glisse vers l'avant,
+    # pointe plus loin et un peu abaissée.
+    tongue = sorted(vgroup_members(body, 'helper-tongue'))
+    if tongue:
+        ty = [base[i].y for i in tongue]
+        tip, rear = min(ty), max(ty)
+        out_d = unit_delta('mouth-open', 0.55)
+        for i in tongue:
+            w = smoothstep(rear, tip, base[i].y)
+            out_d[i] += Vector((0, -0.012 - 0.038 * w, -0.002 - 0.009 * w))
+        add('tongueOut', out_d)
     # Regard : rotation des globes autour de leur centre, paupières qui suivent un peu.
     lids_up = {s: unit_delta(f'eye-{n}-opened-up', 0.3) for s, n in (('l', 'left'), ('r', 'right'))}
     lids_dn = {s: unit_delta(f'eye-{n}-closure', 0.35) for s, n in (('l', 'left'), ('r', 'right'))}
@@ -1198,6 +1210,139 @@ def build_hair_styles(body, rig):
     prune_keys(mo)
     print(f'moustache : {len(me.polygons)} faces, {len(me.shape_keys.key_blocks) - 1} cibles')
     out.append(mo)
+    out += hair_shells(body, rig, back_y, eye_z)
+    return out
+
+
+def hair_shells(body, rig, back_y, eye_z):
+    """Coiffures visibles tête nue (le client les cache sous le casque) : coques découpées dans la
+    tête de base le long d'une ligne d'implantation, décollées de la peau d'une épaisseur variable
+    (volume, frange, mèches par bruit) ; cibles reportées ensuite par transfer_keys. Plus un chignon."""
+    from mathutils import noise
+    heads = [v.co.copy() for v in body.data.vertices if v.co.z > eye_z - 0.02]
+    front_y = min(c.y for c in heads)
+    ycen = (front_y + back_y) / 2
+    ztop = max(c.z for c in heads)
+    mouth_z = MOUTH[0].z
+    H = Vector((0.0, ycen, eye_z + 0.01))
+    L_f, L_s, L_b = eye_z + 0.055, eye_z + 0.012, eye_z - 0.085   # implantation : front, au-dessus de l'oreille, nuque
+
+    def phi(c):
+        return math.atan2(abs(c.x), -(c.y - ycen))
+
+    def hairline(c, front=L_f, side=L_s, back=L_b, low=None):
+        f = phi(c)
+        if low is not None and f > 1.25:   # mèches qui descendent derrière et sur les côtés
+            return side + (low - side) * smoothstep(1.25, 1.8, f)
+        if f < 0.9:
+            return front + (side - front) * smoothstep(0.0, 0.9, f)
+        if f < 1.9:
+            return side
+        return side + (back - side) * smoothstep(1.9, math.pi, f)
+
+    def fur(c, scale, amp):
+        return amp * noise.noise(Vector((c.x * scale, c.y * scale, c.z * scale * 0.6)))
+
+    crown = lambda c, a=0.06: smoothstep(ztop - a, ztop, c.z)
+    quiff_c = Vector((0.0, ycen - 0.035, ztop))
+    low_bob, low_long = mouth_z - 0.03, mouth_z - 0.17
+
+    # nom : (implantation, épaisseur(c), mèches (échelle, amplitude), fin pointue ?, réduction)
+    STYLES = {
+        'cut': (dict(), lambda c: 0.006 + 0.004 * crown(c), (70, 0.0015), True, 0.4),
+        'slick': (dict(front=L_f + 0.01), lambda c: 0.0035, (60, 0.001), True, 0.4),
+        'fade': (dict(side=L_s + 0.015, back=L_b + 0.03), lambda c: 0.0035 + 0.007 * smoothstep(eye_z + 0.04, eye_z + 0.09, c.z), (80, 0.001), True, 0.4),
+        'curls': (dict(front=eye_z + 0.055, side=L_s - 0.01), lambda c: 0.016 + 0.010 * smoothstep(eye_z + 0.02, ztop, c.z), (150, 0.007), True, 0.6),
+        'bob': (dict(front=eye_z + 0.04, side=L_s - 0.02, low=low_bob), lambda c: 0.010 + 0.006 * crown(c, 0.08) + 0.016 * smoothstep(0, 0.07, L_s - c.z), (70, 0.002), False, 0.35),
+        'quiff': (dict(front=L_f + 0.012, side=L_s + 0.01), lambda c: 0.004 + 0.045 * math.exp(-(((c - quiff_c).length) / 0.06) ** 2), (80, 0.002), True, 0.45),
+        'long': (dict(front=eye_z + 0.045, side=L_s - 0.02, low=low_long), lambda c: 0.012 + 0.006 * crown(c, 0.08) + 0.02 * smoothstep(0, 0.08, L_s - c.z), (70, 0.002), False, 0.3),
+    }
+    out = []
+    for key, (hl_kw, thick, (fscale, famp), pointed, ratio) in STYLES.items():
+        mo = body.copy()
+        mo.data = body.data.copy()
+        bpy.context.scene.collection.objects.link(mo)
+        mo.name = mo.data.name = 'rider_hairs_' + key
+        if mo.data.shape_keys:
+            for kb in list(mo.data.shape_keys.key_blocks)[::-1]:
+                mo.shape_key_remove(kb)
+        me = mo.data
+        bm = bmesh.new()
+        bm.from_mesh(me)
+        bm.faces.ensure_lookup_table()
+        # Maillage de la tête affiné d'un cran : l'implantation suit mieux sa courbe.
+        zone = [f for f in bm.faces if abs(f.calc_center_median().x) < 0.14 and f.calc_center_median().z > eye_z - 0.3]
+        bmesh.ops.subdivide_edges(bm, edges=list({e for f in zone for e in f.edges}), cuts=1, use_grid_fill=True)
+        bm.faces.ensure_lookup_table()
+        bm.faces.index_update()
+        outside = [f for f in bm.faces if not (abs(f.calc_center_median().x) < 0.14 and f.calc_center_median().z > hairline(f.calc_center_median(), **hl_kw))]
+        bmesh.ops.delete(bm, geom=outside, context='FACES')
+        bmesh.ops.delete(bm, geom=[v for v in bm.verts if not v.link_faces], context='VERTS')
+        # Bord adouci (la ligne d'implantation ne suit pas l'escalier des faces).
+        edge_vs = [v for v in bm.verts if any(e.is_boundary for e in v.link_edges)]
+        for _ in range(4):
+            new = {}
+            for v in edge_vs:
+                nb = [e.other_vert(v) for e in v.link_edges if e.is_boundary]
+                if nb:
+                    new[v] = v.co * 0.4 + sum((n.co for n in nb), Vector()) / len(nb) * 0.6
+            for v, c in new.items():
+                v.co = c
+        bmesh.ops.triangulate(bm, faces=bm.faces[:])
+        bm.to_mesh(me)
+        bm.free()
+        me.materials.clear()
+        me.materials.append(hair_material())
+        while me.uv_layers:
+            me.uv_layers.remove(me.uv_layers[0])
+        set_active(mo)
+        dec = mo.modifiers.new('Decimate', 'DECIMATE')
+        dec.ratio = ratio
+        bpy.ops.object.modifier_move_to_index(modifier='Decimate', index=0)
+        bpy.ops.object.modifier_apply(modifier='Decimate')
+        me = mo.data
+        # Sur les côtés, l'oreille est ramenée sur le crâne (les mèches passent derrière elle).
+        covers_ears = hl_kw.get('low') is not None or key == 'curls'
+        band = sorted((v.co - H).length for v in me.vertices if 1.2 < phi(v.co) < 2.0 and abs(v.co.z - eye_z) < 0.06)
+        r_skull = band[int(len(band) * 0.4)] if band else None
+        for v in me.vertices:
+            c = v.co.copy()
+            d = c - H
+            r = d.length
+            if covers_ears and r_skull and 1.2 < phi(c) < 2.0 and abs(c.z - eye_z) < 0.06:
+                r = min(r, r_skull)
+            d.normalize()
+            f = phi(c)
+            blunt = smoothstep(1.25, 1.8, f) if not pointed else 0.0
+            near_edge = smoothstep(0.0, 0.015, c.z - hairline(c, **hl_kw))
+            t = thick(c) * (1 - 0.75 * (1 - near_edge) * (1 - blunt))
+            t += fur(c, fscale, famp)
+            # Mèches rayonnant depuis le sommet du crâne (épi), plus marquées dans le haut.
+            t += (0.0018 + famp * 0.5) * math.sin(26 * math.atan2(c.x, c.y - ycen) + 7 * noise.noise(Vector((c.x * 25, c.y * 25, c.z * 25)))) * (0.4 + 0.6 * crown(c, 0.1))
+            v.co = H + d * (r + max(t, 0.0015))
+            if key == 'quiff':  # le toupet est ramené vers l'avant
+                v.co.y -= 0.02 * math.exp(-(((c - quiff_c).length) / 0.06) ** 2)
+        for p in me.polygons:
+            p.use_smooth = True
+        me.update()
+        out.append(mo)
+        print(f'coiffure {key} : {len(me.vertices)} sommets, {len(me.polygons)} triangles')
+
+    # Chignon : boule haute à l'arrière du crâne (avec la coque « slick »).
+    bm = bmesh.new()
+    bmesh.ops.create_uvsphere(bm, u_segments=14, v_segments=10, radius=0.03)
+    for v in bm.verts:
+        v.co = Vector((v.co.x * 1.0, v.co.y * 0.95, v.co.z * 0.8)) + Vector((0, back_y - 0.004, ztop - 0.03))
+    me = bpy.data.meshes.new('rider_hair_bun')
+    bm.to_mesh(me)
+    bm.free()
+    bun = bpy.data.objects.new('rider_hair_bun', me)
+    bpy.context.scene.collection.objects.link(bun)
+    me.materials.append(hair_material())
+    for p in me.polygons:
+        p.use_smooth = True
+    skin_to_head(bun, rig)
+    out.append(bun)
     return out
 
 

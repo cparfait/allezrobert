@@ -125,6 +125,7 @@ async function main(): Promise<void> {
       ['atelier-coureur', 'overview', ['tune-pa-eclair', 'tune-wh-dt-arc50', 'tune-rd-noir', 'tune-bo-rouge', 'tune-ty-gp5000'], true, -0.3],
     ];
     for (const [name, focus, tune, rider, yaw, extra] of views) {
+      if (params.has('sel') && !name.endsWith(params.get('sel') as string)) continue; // &sel=vue : une seule vue
       const c = await render({ look: look(tune, extra), focus, rider, yaw });
       await shot(name, c);
     }
