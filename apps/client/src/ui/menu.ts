@@ -1,6 +1,6 @@
 import type { AvatarLook, CosmeticItem, RouteData, RouteSegment, WorldCatalogue } from '@allezrobert/shared';
 import { readKomRecord } from '../game/challenge.ts';
-import { COUNTRIES, BIKE_BRANDS, BIKE_GROUPS, BIKE_TEAMS, COSMETICS, DEFAULT_BIKE, bikeById, lookSex, tuneItem, withSex, bottleCapacity, bikeSetupFor, jerseyLookOf, levelProgress, SHOE_MARKS, type BikeCollection, type BikeType, type CosmeticSlot } from '@allezrobert/shared';
+import { COUNTRIES, BIKE_BRANDS, BIKE_GROUPS, BIKE_TEAMS, COSMETICS, DEFAULT_BIKE, bikeById, routesForBike, lookSex, tuneItem, withSex, bottleCapacity, bikeSetupFor, jerseyLookOf, levelProgress, SHOE_MARKS, type BikeCollection, type BikeType, type CosmeticSlot } from '@allezrobert/shared';
 import { shoeAccentOf } from '../rider/shoeLook.ts';
 import { WORKOUT_LIBRARY } from '@allezrobert/physics';
 import { formatBytes, inTauri, installPack, installedPacks, loadCatalogue, packState, removePack } from '../world/packs.ts';
@@ -279,7 +279,11 @@ const JERSEY_PACKS: ReadonlyArray<{ id: string; name: { fr: string; en: string }
 export class MainMenu {
   private readonly root: HTMLElement;
   private readonly s: Settings;
-  private routes: RouteData[];
+  private allRoutes: RouteData[];
+  /** Parcours proposés : ceux du vélo équipé (route, gravel ou VTT). */
+  private get routes(): RouteData[] {
+    return routesForBike(this.allRoutes, bikeSetupFor(loadProgress().equipped).tyre);
+  }
   private readonly devices: DevicePanel;
   private readonly cb: MenuCallbacks;
   private workoutFile: { name: string; content: string } | undefined;
@@ -383,7 +387,8 @@ export class MainMenu {
 
   /** Nouveau monde chargé sur place : parcours, identifiant, monde ouvert ; l'écran est refait. */
   setWorld(routes: RouteData[], worldId: string, open: boolean): void {
-    this.routes = routes;
+    this.allRoutes = routes;
+    routes = this.routes;
     this.worldId = worldId;
     this.openWorld = open;
     this.indexClimbs();
@@ -448,10 +453,13 @@ export class MainMenu {
   constructor(root: HTMLElement, settings: Settings, routes: RouteData[], devices: DevicePanel, cb: MenuCallbacks) {
     this.root = root;
     this.s = settings;
-    this.routes = routes;
+    this.allRoutes = routes;
     this.devices = devices;
     this.cb = cb;
-    if (!this.s.routeId || !routes.some((r) => r.id === this.s.routeId)) this.s.routeId = routes[0]?.id ?? '';
+    {
+      const mine = this.routes;
+      if (!this.s.routeId || !mine.some((r) => r.id === this.s.routeId)) this.s.routeId = mine[0]?.id ?? '';
+    }
     this.indexClimbs();
     void loadCatalogue().then((cat) => {
       this.zones = cat?.zones ?? [];
@@ -729,6 +737,8 @@ export class MainMenu {
       ['settings', t('settings')],
     ];
     const p = loadProgress();
+    // Vélo changé au garage : le parcours choisi doit être de son type
+    if (this.s.mode !== 'free' && this.allRoutes.length && !this.routes.some((r) => r.id === this.s.routeId)) this.s.routeId = this.routes[0]?.id ?? '';
     const lp = levelProgress(p.xp);
     const level = this.account?.level ?? lp.level;
     const name = this.account?.name ?? this.s.name;
@@ -1196,7 +1206,7 @@ export class MainMenu {
       const w = WORLD_LIST.find((x) => x.id === spot.id);
       const z = this.zones.find((c) => c.id === spot.id);
       const available = this.zones.length ? !!z : !!w;
-      const n = z?.routes.length ?? 0;
+      const n = z ? routesForBike(z.routes, bikeSetupFor(loadProgress().equipped).tyre).length : 0;
       const info = [n ? `${n} ${L ? 'parcours' : n > 1 ? 'routes' : 'route'}` : '', spot.open ? (L ? 'monde ouvert' : 'open world') : '', w ? w.hint[lang] : ''].filter(Boolean).join(' · ');
       const mesh = isMeshZone(spot.id);
       // maille du quadrillage : carré de MESH_CELL_M autour de son centre, même avant d'être au catalogue

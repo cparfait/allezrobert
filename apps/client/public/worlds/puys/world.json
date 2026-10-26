@@ -5646,6 +5646,16 @@
    "elevationGainM": 1368.66,
    "loop": true,
    "main": true
+  },
+  {
+   "id": "vtt-puys",
+   "file": "routes/vtt-puys.json",
+   "name": "Chaîne des Puys — VTT par Grelières et Saint-Ours",
+   "lengthM": 29115.2,
+   "elevationGainM": 667.35,
+   "loop": true,
+   "main": false,
+   "bike": "mtb"
   }
  ],
  "mainRoute": "boucle-des-domes",

@@ -3250,6 +3250,26 @@
    "elevationGainM": 460.23,
    "loop": false,
    "main": false
+  },
+  {
+   "id": "vtt-billom",
+   "file": "routes/vtt-billom.json",
+   "name": "Billom — VTT par Busséol et Lide",
+   "lengthM": 27353.89,
+   "elevationGainM": 602.64,
+   "loop": true,
+   "main": false,
+   "bike": "mtb"
+  },
+  {
+   "id": "gravel-billom",
+   "file": "routes/gravel-billom.json",
+   "name": "Billom — gravel de Pont-du-Château à Cournon",
+   "lengthM": 49153.83,
+   "elevationGainM": 885.75,
+   "loop": true,
+   "main": false,
+   "bike": "gravel"
   }
  ],
  "mainRoute": "tour-de-billom",
