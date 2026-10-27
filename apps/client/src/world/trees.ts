@@ -1,18 +1,15 @@
 import * as THREE from 'three/webgpu';
-import { attribute, positionLocal, time, sin, vec3, float, mix, instanceIndex, hash, color, smoothstep, texture, uv, step } from 'three/tsl';
+import { attribute, positionLocal, time, sin, vec3, float, mix, instanceIndex, hash, color, smoothstep, texture, uv } from 'three/tsl';
 import { rng } from '../engine/noise.ts';
 import { backlitOutput } from './sunlight.ts';
 import type { Node } from 'three/webgpu';
 import type { Vec3Node } from '../engine/tsl.ts';
 
 /**
- * Arbres et buissons « réels » (tuiles enrichies au LiDAR HD) : tronc, branches maîtresses et
- * cartes de feuillage (texture de feuilles dessinée à l'exécution, sans asset). Modèle nominal
- * de TREE_H m de haut et TREE_R m de rayon de houppier, mis à l'échelle de chaque arbre mesuré.
+ * Haies et buissons « réels » (tuiles enrichies au LiDAR HD) : cartes de feuillage (texture de
+ * feuilles dessinée à l'exécution, sans asset). Les arbres réels reprennent le feuillu semé
+ * (vegetation.ts), bien moins coûteux que des cartes à alpha testé.
  */
-export const TREE_H = 10;
-export const TREE_R = 4;
-
 /** Atlas 2 × 2 de bouquets de feuilles (niveaux de gris, alpha), teinté par le matériau. */
 function leafAtlas(): THREE.Texture {
   const S = 512;
@@ -71,36 +68,6 @@ interface Builder {
   shade: number[];
 }
 
-function cylinder(b: Builder, a: THREE.Vector3, c: THREE.Vector3, ra: number, rc: number, sides: number): void {
-  const axis = new THREE.Vector3().subVectors(c, a);
-  const len = axis.length();
-  axis.normalize();
-  const t1 = new THREE.Vector3(axis.y, -axis.x, 0);
-  if (t1.lengthSq() < 1e-4) t1.set(1, 0, 0);
-  t1.normalize();
-  const t2 = new THREE.Vector3().crossVectors(axis, t1).normalize();
-  const ring = (center: THREE.Vector3, rad: number, k: number) => {
-    const ang = (k / sides) * Math.PI * 2;
-    const n = t1.clone().multiplyScalar(Math.cos(ang)).add(t2.clone().multiplyScalar(Math.sin(ang)));
-    return { p: center.clone().add(n.clone().multiplyScalar(rad)), n };
-  };
-  for (let k = 0; k < sides; k++) {
-    const p0 = ring(a, ra, k);
-    const p1 = ring(a, ra, k + 1);
-    const q0 = ring(c, rc, k);
-    const q1 = ring(c, rc, k + 1);
-    for (const v of [p0, p1, q0, p1, q1, q0]) {
-      b.pos.push(v.p.x, v.p.y, v.p.z);
-      b.nrm.push(v.n.x, v.n.y, v.n.z);
-      // l'écorce pointe sur un coin opaque de l'atlas (non utilisé : alpha forcé à 1 pour le bois)
-      b.uvs.push(0.25, 0.25);
-      b.leaf.push(0);
-      b.shade.push(0.85 + 0.15 * (v.p.y / TREE_H));
-    }
-  }
-  void len;
-}
-
 /** Carte de feuillage carrée, orientée au hasard, normale « sphérique » (éclairage doux du houppier). */
 function card(b: Builder, center: THREE.Vector3, size: number, crown: THREE.Vector3, crownR: number, r: () => number): void {
   const n = new THREE.Vector3(r() - 0.5, r() * 0.8 - 0.2, r() - 0.5).normalize();
@@ -143,57 +110,6 @@ function toGeometry(b: Builder): THREE.BufferGeometry {
   return g;
 }
 
-/**
- * Feuillu nominal (TREE_H × TREE_R) : tronc, 7 à 9 branches maîtresses vers la surface du
- * houppier, rameaux, ~70 cartes de feuillage réparties dans la coquille du houppier.
- */
-export function broadleafGeometry(seed: number): THREE.BufferGeometry {
-  const r = rng(seed);
-  const b: Builder = { pos: [], nrm: [], uvs: [], leaf: [], shade: [] };
-  const crown = new THREE.Vector3(0, TREE_H * 0.62, 0);
-  const crY = TREE_H * 0.36; // demi-hauteur du houppier
-  const forkY = TREE_H * (0.32 + r() * 0.1);
-  // Le tronc monte jusqu'au départ de la branche la plus haute (fourche + 1,2 m) et finit au rayon de ces
-  // branches, sur l'axe : avant, il s'arrêtait à la fourche et les branches partaient dans le vide
-  // au-dessus (tronc « coupé » dès que le feuillage ne le cachait plus).
-  cylinder(b, new THREE.Vector3(0, -0.3, 0), new THREE.Vector3((r() - 0.5) * 0.2, forkY + 1.3, (r() - 0.5) * 0.2), 0.3, 0.13, 7);
-  const fork = new THREE.Vector3(0, forkY, 0);
-  const tips: THREE.Vector3[] = [];
-  const nb = 7 + Math.floor(r() * 3);
-  for (let i = 0; i < nb; i++) {
-    const a = (i / nb) * Math.PI * 2 + r() * 0.6;
-    const up = 0.25 + r() * 0.7;
-    const dir = new THREE.Vector3(Math.cos(a) * (1 - up * 0.6), up, Math.sin(a) * (1 - up * 0.6)).normalize();
-    const tip = crown.clone().add(new THREE.Vector3(dir.x * TREE_R * 0.8, (dir.y - 0.35) * crY * 1.3, dir.z * TREE_R * 0.8));
-    const start = fork.clone().add(new THREE.Vector3(0, r() * 1.2, 0));
-    const mid = start.clone().lerp(tip, 0.5).add(new THREE.Vector3((r() - 0.5) * 0.8, 0.4, (r() - 0.5) * 0.8));
-    cylinder(b, start, mid, 0.13, 0.08, 5);
-    cylinder(b, mid, tip, 0.08, 0.03, 4);
-    tips.push(tip, mid);
-    // rameaux
-    for (let k = 0; k < 2; k++) {
-      const from = start.clone().lerp(tip, 0.55 + r() * 0.35);
-      const to = from.clone().add(new THREE.Vector3((r() - 0.5) * 2.2, 0.6 + r() * 1.2, (r() - 0.5) * 2.2));
-      cylinder(b, from, to, 0.04, 0.015, 3);
-      tips.push(to);
-    }
-  }
-  // cartes : autour des extrémités de branches et dans la coquille du houppier
-  const cards = 72;
-  for (let k = 0; k < cards; k++) {
-    let c: THREE.Vector3;
-    if (k < tips.length) c = (tips[k] as THREE.Vector3).clone().add(new THREE.Vector3((r() - 0.5) * 1.2, (r() - 0.3) * 1.0, (r() - 0.5) * 1.2));
-    else {
-      const a = r() * Math.PI * 2;
-      const el = Math.asin(r() * 1.6 - 0.6);
-      const sh = 0.55 + 0.45 * Math.sqrt(r());
-      c = crown.clone().add(new THREE.Vector3(Math.cos(a) * Math.cos(el) * TREE_R * sh, Math.sin(el) * crY * sh, Math.sin(a) * Math.cos(el) * TREE_R * sh));
-    }
-    card(b, c, 2.0 + r() * 1.1, crown, TREE_R, r);
-  }
-  return toGeometry(b);
-}
-
 /** Buisson nominal de 1 m de haut, 0,9 m de rayon : bouquets de feuilles en dôme. */
 export function shrubGeometry(): THREE.BufferGeometry {
   const r = rng(5);
@@ -217,16 +133,11 @@ export interface LeafColours {
   a: Node<'color'> | Node<'vec3'>;
   b: Node<'color'> | Node<'vec3'>;
   c: Node<'color'> | Node<'vec3'>;
-  /** 1 = feuillage, 0 = hiver (feuillus nus). */
-  amount: Node<'float'>;
   wind: Node<'float'>;
 }
 
-/**
- * Matériau des arbres réels : cartes à alpha testé, teinte de saison par arbre, balancement au
- * vent. `deciduous` : le feuillage disparaît l'hiver (les branches restent).
- */
-export function realTreeMaterial(c: LeafColours, deciduous: boolean): THREE.MeshStandardNodeMaterial {
+/** Matériau des buissons réels : cartes à alpha testé, teinte de saison par buisson, balancement au vent. */
+export function shrubMaterial(c: LeafColours): THREE.MeshStandardNodeMaterial {
   const m = new THREE.MeshStandardNodeMaterial();
   m.side = THREE.DoubleSide;
   m.alphaTest = 0.45;
@@ -246,16 +157,10 @@ export function realTreeMaterial(c: LeafColours, deciduous: boolean): THREE.Mesh
   const foliage = leafCol.mul(tex.rgb).mul(1.5);
   const bark = color('#4d4237').mul(h2.mul(0.2).add(0.85));
   m.colorNode = mix(bark, foliage, leaf).mul(shade);
-  const present = deciduous ? step(float(0.5), c.amount) : float(1);
-  m.opacityNode = mix(float(1), tex.a.mul(present), leaf);
+  m.opacityNode = mix(float(1), tex.a, leaf);
   m.roughnessNode = mix(float(0.95), float(0.8), leaf);
   m.metalnessNode = float(0);
   // Contre-jour : les feuilles s'illuminent quand le soleil est derrière elles.
   m.outputNode = backlitOutput(foliage as unknown as Vec3Node, leaf);
   return m;
-}
-
-/** Variantes de feuillus réels (géométries partagées). */
-export function broadleafVariants(): THREE.BufferGeometry[] {
-  return [11, 23, 37].map(broadleafGeometry);
 }

@@ -383,8 +383,9 @@ de bords à 0,0 cm ; construction en 2 min 30 une fois les données en cache.
   - voies OSM hors itinéraire : `surface` (`gravel` pour « Route empierrée », `ground` pour
     « Chemin ») et `width` du tronçon BD TOPO apparié (distance médiane ≤ 4 m) ;
   - `enriched` { vegetation, buildings, roads } : le client n'y sème plus d'arbres au hasard.
-- Le client place un arbre « réel » (tronc, branches, cartes de feuillage, `world/trees.ts`) par
-  sommet, à sa hauteur et à son houppier mesurés, en blocs de 125 m (détail jusqu'à 160 m).
+- Le client place un arbre « réel » (feuillu en boules, comme les arbres semés, `world/vegetation.ts`)
+  par sommet, à sa hauteur et à son houppier mesurés, en blocs de 125 m (détail jusqu'à 160 m) ;
+  haies et buissons en cartes de feuillage (`world/trees.ts`).
 
 ## Packs de cartes (`src/packs.ts`)
 

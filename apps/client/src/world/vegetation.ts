@@ -9,7 +9,7 @@ import type { LoadedTile } from './types.ts';
 import { splatAt } from './splat.ts';
 import type { Season } from './environment.ts';
 import { drawnRoads, roadAvoidance, roadClearance, type AvoidRoad } from './roadAvoid.ts';
-import { broadleafVariants, realTreeMaterial, shrubGeometry, TREE_H, TREE_R } from './trees.ts';
+import { shrubGeometry, shrubMaterial } from './trees.ts';
 import { alpineProfile, coniferBiasAt, larchShareAt, treeDensityAt, treeScaleAt } from './alpine.ts';
 
 /** Couleurs de feuillage par saison (feuillus) — palettes de ART_DIRECTION.md. */
@@ -45,14 +45,16 @@ const LOD_PER_FRAME = 2;
 const LOD_MID = 1100;
 /** Blocs plus petits pour la végétation réelle (LiDAR) : beaucoup plus dense, détail proche. */
 const REAL_CHUNK = 125;
-/** Végétation réelle : cartes de feuillage jusqu'à REAL_NEAR, silhouettes au-delà, buissons masqués après REAL_MID. */
+/** Végétation réelle : arbres détaillés et ombres jusqu'à REAL_NEAR, silhouettes au-delà, buissons masqués après REAL_MID. */
 const REAL_NEAR = 160;
 const REAL_MID = 700;
 
 /** Rapport hauteur / rayon de houppier au-delà duquel un arbre réel est élancé (peuplier, jeune arbre). */
 const SLENDER = 4.2;
-/** Débord des cartes de feuillage au-delà du rayon de houppier nominal (TREE_R). */
+/** Houppier dessiné un peu plus large que le rayon mesuré au LiDAR. */
 const CROWN_EXTENT = 1.15;
+/** Arbre réel : hauteur (m) prêtée au feuillu semé à l'échelle 1, mis à la hauteur mesurée. */
+const REAL_TREE_H = 10;
 /** Rayon horizontal des houppiers semés à l'échelle 1 (feuillu, conifère) et du buisson nominal (m). */
 const SEEDED_CROWN = { decid: 4.6, conif: 2.9 };
 const SHRUB_R = 1.2;
@@ -91,7 +93,7 @@ function fitCrown(clear: Clearance, x: number, z: number, r: number, maxShift: n
   return [nx, nz, Math.min(r, c1.d - CROWN_GAP)];
 }
 
-type Kind = 'decid' | 'conif' | 'larch' | 'real0' | 'real1' | 'real2' | 'shrub';
+type Kind = 'decid' | 'conif' | 'larch' | 'shrub';
 
 /** Marque chaque sommet : 0 = bois, 1 = feuillage (pour l'animation et la saison). */
 function tag(geo: THREE.BufferGeometry, leaf: number, shade: number, center?: THREE.Vector3): THREE.BufferGeometry {
@@ -201,8 +203,7 @@ export class Vegetation {
   private readonly leafAmount = uniform(1);
   private readonly geos: Record<Kind, Array<THREE.BufferGeometry | null>>;
   private readonly mats: Record<'decid' | 'conif' | 'larch', THREE.MeshStandardNodeMaterial>;
-  /** Arbres réels proches (cartes de feuillage) et haies / buissons. */
-  private readonly realMat: THREE.MeshStandardNodeMaterial;
+  /** Haies et buissons réels (cartes de feuillage). */
   private readonly shrubMat: THREE.MeshStandardNodeMaterial;
   private readonly chunks = new Map<string, Chunk>();
   /**
@@ -244,31 +245,20 @@ export class Vegetation {
     this.group.name = 'vegetation';
     const decid = [0, 1, 2].map(deciduousGeometry);
     const conif = [0, 1, 2].map(coniferGeometry);
-    const real = broadleafVariants();
     const shrub = shrubGeometry();
     this.geos = {
       decid,
       conif,
       larch: conif,
-      // trois feuillus détaillés ; au-delà de REAL_NEAR, la silhouette des feuillus semés
-      real0: [real[0]!, decid[1]!, decid[2]!],
-      real1: [real[1]!, decid[1]!, decid[2]!],
-      real2: [real[2]!, decid[1]!, decid[2]!],
       shrub: [shrub, shrub, null],
     };
     this.mats = { decid: this.material('decid'), conif: this.material('conif'), larch: this.material('larch') };
-    const colours = { a: this.leafA.node, b: this.leafB.node, c: this.leafC.node, amount: this.leafAmount, wind: this.windStrength };
-    this.realMat = realTreeMaterial(colours, true);
-    this.shrubMat = realTreeMaterial(colours, false);
+    this.shrubMat = shrubMaterial({ a: this.leafA.node, b: this.leafB.node, c: this.leafC.node, wind: this.windStrength });
     this.setSeason(season);
   }
 
-  private materialFor(kind: Kind, lod: number): THREE.MeshStandardNodeMaterial {
-    if (kind === 'shrub') return this.shrubMat;
-    if (kind === 'conif') return this.mats.conif;
-    if (kind === 'larch') return this.mats.larch;
-    if (kind === 'decid') return this.mats.decid;
-    return lod === 0 ? this.realMat : this.mats.decid;
+  private materialFor(kind: Kind): THREE.MeshStandardNodeMaterial {
+    return kind === 'shrub' ? this.shrubMat : this.mats[kind];
   }
 
   /** Géométrie et matériau d'un bloc selon le niveau de détail (null = masqué). */
@@ -276,7 +266,7 @@ export class Vegetation {
     const geo = this.geos[kind][lod] ?? null;
     mesh.visible = geo !== null;
     if (geo) mesh.geometry = geo;
-    mesh.material = this.materialFor(kind, lod);
+    mesh.material = this.materialFor(kind);
     mesh.castShadow = lod === 0;
     mesh.receiveShadow = lod === 0;
     mesh.computeBoundingSphere();
@@ -409,12 +399,12 @@ export class Vegetation {
       const y = this.heightAt(x, z);
       if (!Number.isFinite(y)) continue;
       const seed = seedAt(x0, z0);
-      const sxz = room / CROWN_EXTENT / TREE_R;
+      const sxz = room / SEEDED_CROWN.decid;
       p.set(x, y - 0.15, z);
       qn.setFromAxisAngle(up, seed * Math.PI * 2);
-      sc.set(sxz, h / TREE_H, sxz);
+      sc.set(sxz, h / REAL_TREE_H, sxz);
       m.compose(p, qn, sc);
-      push(seed < 0.34 ? 'real0' : seed < 0.67 ? 'real1' : 'real2', x, z);
+      push('decid', x, z);
       farTrees.push(m.clone());
     }
     const shrubs = f.shrubs ?? [];
@@ -442,7 +432,7 @@ export class Vegetation {
       const chunk: Chunk = { key: `${tile.id}:r${key}`, tileId: tile.id, cx, cz, size: chunkM, real: true, meshes: [], lod: 0 };
       chunk.lod = this.lodFor(chunk);
       for (const [kind, list] of bucket) {
-        const im = new THREE.InstancedMesh(this.geos[kind][0] as THREE.BufferGeometry, this.materialFor(kind, 0), list.length);
+        const im = new THREE.InstancedMesh(this.geos[kind][0] as THREE.BufferGeometry, this.materialFor(kind), list.length);
         list.forEach((mat, k) => im.setMatrixAt(k, mat));
         im.instanceMatrix.needsUpdate = true;
         this.applyLod(kind, im, chunk.lod);
