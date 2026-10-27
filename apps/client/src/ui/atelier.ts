@@ -335,11 +335,17 @@ export class AtelierHost {
       for (let i = 0; i < 45; i++) a.update(1 / 30, spec.pose === 'standing' ? 70 : 92, 10, spec.pose);
       await new Promise((r) => setTimeout(r, 250));
       const prev = renderer.getRenderTarget();
+      // Sans MRT : la précompilation de l'atelier (compilePass), souvent en cours, laisse le sien actif.
+      // Rendu avec, la photo sort des shaders sans sortie et vide le MRT partagé de l'atelier
+      // (coureur et vélos sans peau, maillot ni cadre).
+      const prevMrt = renderer.getMRT();
+      renderer.setMRT(null);
       renderer.setRenderTarget(rt);
       renderer.setClearColor(0x000000, 0);
       renderer.clear();
       renderer.render(studio, cam);
       renderer.setRenderTarget(prev);
+      renderer.setMRT(prevMrt);
       renderer.setClearColor(clear, clearAlpha);
       const px = (await renderer.readRenderTargetPixelsAsync(rt, 0, 0, w, h)) as Uint16Array;
       studio.remove(a.root);
