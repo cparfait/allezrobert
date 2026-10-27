@@ -4,9 +4,10 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { ARCHETYPES, pickArchetype, worldStyle, type Archetype, type WallMaterial, type WorldStyle } from '@allezrobert/shared';
 import { rng, polygonArea } from '../engine/noise.ts';
 import type { LoadedTile, TileRoad } from './types.ts';
-import { orientedBox, planRoof, roofBuffers, flatRoof } from './roofs.ts';
+import { orientedBox, planRoof, roofBuffers, flatRoof, ridgeLine } from './roofs.ts';
 import { meuliere } from './meuliere.ts';
 import { FootprintIndex } from './footprints.ts';
+import { wallGroundOffset } from './facadeGround.ts';
 import { LazyTexture } from '../engine/textures.ts';
 
 /** Textures photo CC0 (Poly Haven) des façades et toits, chargées une fois et partagées. */
@@ -131,9 +132,11 @@ function paint(geo: THREE.BufferGeometry, base: THREE.Color, kind: number, accen
  * Murs extrudés depuis l'emprise réelle. uv = (mètres le long du mur, hauteur au-dessus de la base) ;
  * attribut `facade` = (longueur du mur, nombre de travées de fenêtres + hauteur d'étage ÷ 10 pour
  * un archétype) ; `bstyle` = (style local, hauteur du mur, drapeaux : 1 génoise + 2 côté rue +
- * 4 vitrine, travée de la porte d'entrée + 1 ou 0).
+ * 4 vitrine, travée de la porte d'entrée + 1 ou 0). Avec `groundAt`, la façade part du sol le plus haut
+ * le long de chaque mur (voir facadeGround.ts) : uv.y et la hauteur du mur sont comptés depuis ce sol,
+ * uv.y est négatif sur le soubassement découvert.
  */
-function walls(pts: number[], base: number, height: number, style?: WallStyle): THREE.BufferGeometry {
+function walls(pts: number[], base: number, height: number, style?: WallStyle, groundAt?: (x: number, z: number) => number): THREE.BufferGeometry {
   const bayM = style?.bayM ?? 3.1;
   const floorCode = style?.floorM ? Math.min(style.floorM, 9.99) / 10 : 0;
   const n = pts.length / 2;
@@ -152,9 +155,11 @@ function walls(pts: number[], base: number, height: number, style?: WallStyle): 
     const len = Math.hypot(bx - ax, bz - az);
     if (len < 0.05) continue;
     const top = base + height;
+    const off = groundAt ? wallGroundOffset(ax, az, bx, bz, base, height, groundAt) : 0;
+    const h = height - off;
     const bays = len >= 2.6 ? Math.max(1, Math.floor((len - 0.6) / bayM)) : 0;
     pos.push(ax, base, az, ax, top, az, bx, base, bz, bx, base, bz, ax, top, az, bx, top, bz);
-    uvs.push(0, 0, 0, height, len, 0, len, 0, 0, height, len, height);
+    uvs.push(0, -off, 0, h, len, -off, len, -off, 0, h, len, h);
     const genoise = style?.local && style.eave?.(bx - ax, bz - az) ? 1 : 0;
     const street = bays > 0 && style?.street?.((ax + bx) / 2, (az + bz) / 2) ? 1 : 0;
     const flags = genoise + 2 * street + (street && style?.shop ? 4 : 0);
@@ -162,7 +167,7 @@ function walls(pts: number[], base: number, height: number, style?: WallStyle): 
     const doorBay = isDoor ? 1 + Math.min(bays - 1, Math.floor((style?.doorPick ?? 0.5) * bays)) : 0;
     for (let k = 0; k < 6; k++) {
       fac.push(len, bays + floorCode);
-      sty.push(style?.local ? 1 : 0, height, flags, doorBay);
+      sty.push(style?.local ? 1 : 0, h, flags, doorBay);
     }
     if (genoise) {
       // Génoise : trois rangs en encorbellement (10, 20, 30 cm du bas vers le haut), 14 cm chacun, sous
@@ -182,8 +187,8 @@ function walls(pts: number[], base: number, height: number, style?: WallStyle): 
         const x1 = bx + ux * d + nx * d;
         const z1 = bz + uz * d + nz * d;
         const L = len + 2 * d;
-        const v0 = y0 - base;
-        const v1 = y1 - base;
+        const v0 = y0 - base - off;
+        const v1 = y1 - base - off;
         // face avant
         pos.push(x0, y0, z0, x1, y0, z1, x0, y1, z0, x1, y0, z1, x1, y1, z1, x0, y1, z0);
         uvs.push(-d, v0, L - d, v0, -d, v1, L - d, v0, L - d, v1, -d, v1);
@@ -196,7 +201,7 @@ function walls(pts: number[], base: number, height: number, style?: WallStyle): 
         uvs.push(-d, v0, L - d, v0, -d, v0, -d, v0, L - d, v0, L - d, v0);
         for (let k = 0; k < 12; k++) {
           fac.push(len, 0);
-          sty.push(1, height, 1, 0);
+          sty.push(1, h, 1, 0);
         }
       }
     }
@@ -300,26 +305,29 @@ function toGeometry(pos: number[], uvs: number[]): THREE.BufferGeometry {
 /**
  * Détails de toit d'une maison : faîtage en tuiles rondes (toit à deux pans) et souche de cheminée
  * en meulière ou brique avec son chapeau, posée sur le faîtage. Seulement sur les emprises
- * presque rectangulaires (le faîtage est alors l'axe du rectangle orienté).
+ * presque rectangulaires (le faîtage suit alors un axe du rectangle orienté).
  */
-function houseDetails(pts: number[], box: ReturnType<typeof orientedBox>, plan: NonNullable<ReturnType<typeof planRoof>>, wallTop: number, pitch: number, roofColour: string, slate: boolean, r: () => number, density: number): THREE.BufferGeometry[] {
+function houseDetails(pts: number[], box: ReturnType<typeof orientedBox>, plan: NonNullable<ReturnType<typeof planRoof>>, wallTop: number, pitch: number, roofColour: string, slate: boolean, ridgeShort: boolean, r: () => number, density: number): THREE.BufferGeometry[] {
   const out: THREE.BufferGeometry[] = [];
   const rectangular = Math.abs(polygonArea(pts)) / (4 * box.hl * box.hw) > 0.88;
   if (!rectangular || box.hw < 2) return out;
   const tan = Math.tan((pitch * Math.PI) / 180);
   const ridgeY = wallTop + (plan.tEnd - plan.overhang) * tan;
-  const vx = -box.uz;
-  const vz = box.ux;
   const gabled = plan.gables.length > 0;
-  // Demi-longueur du faîtage : tout le rectangle (deux pans) ou réduite par les croupes.
-  const ridgeHalf = gabled ? box.hl + 0.25 : Math.max(box.hl - (plan.tEnd - plan.overhang), 0);
+  // Faîtage : selon la longueur, ou la largeur (faîtage court, pignons sur les grands côtés) ; (vx, vz) le travers.
+  const ridge = ridgeLine(box, gabled, ridgeShort, plan.tEnd - plan.overhang);
+  const ux = ridge.dx;
+  const uz = ridge.dz;
+  const vx = -uz;
+  const vz = ux;
+  const ridgeHalf = ridge.half;
   const c = new THREE.Color();
   const acc = new THREE.Color('#000000');
   if (gabled && ridgeHalf > 0.5 && !slate) {
     const pos: number[] = [];
     const uvs: number[] = [];
-    const a = [box.cx - box.ux * ridgeHalf, box.cz - box.uz * ridgeHalf];
-    const b = [box.cx + box.ux * ridgeHalf, box.cz + box.uz * ridgeHalf];
+    const a = [box.cx - ux * ridgeHalf, box.cz - uz * ridgeHalf];
+    const b = [box.cx + ux * ridgeHalf, box.cz + uz * ridgeHalf];
     const top = ridgeY + 0.13;
     const low = ridgeY - 0.04;
     for (const side of [1, -1]) {
@@ -344,15 +352,15 @@ function houseDetails(pts: number[], box: ReturnType<typeof orientedBox>, plan: 
   if (r() < 0.8 * density) {
     // Souche de cheminée sur le faîtage (au tiers ou au pignon), 0,8 × 0,55 m, 0,9 m au-dessus.
     const t = (r() < 0.5 ? -1 : 1) * Math.min(ridgeHalf * (0.35 + r() * 0.4), Math.max(ridgeHalf - 0.6, 0));
-    const cx = box.cx + box.ux * t;
-    const cz = box.cz + box.uz * t;
+    const cx = box.cx + ux * t;
+    const cz = box.cz + uz * t;
     const hw = 0.4;
     const hd = 0.28;
     const ring = (e: number) => [
-      cx - box.ux * (hw + e) - vx * (hd + e), cz - box.uz * (hw + e) - vz * (hd + e),
-      cx + box.ux * (hw + e) - vx * (hd + e), cz + box.uz * (hw + e) - vz * (hd + e),
-      cx + box.ux * (hw + e) + vx * (hd + e), cz + box.uz * (hw + e) + vz * (hd + e),
-      cx - box.ux * (hw + e) + vx * (hd + e), cz - box.uz * (hw + e) + vz * (hd + e),
+      cx - ux * (hw + e) - vx * (hd + e), cz - uz * (hw + e) - vz * (hd + e),
+      cx + ux * (hw + e) - vx * (hd + e), cz + uz * (hw + e) - vz * (hd + e),
+      cx + ux * (hw + e) + vx * (hd + e), cz + uz * (hw + e) + vz * (hd + e),
+      cx - ux * (hw + e) + vx * (hd + e), cz - uz * (hw + e) + vz * (hd + e),
     ];
     const topY = ridgeY + 0.9;
     const stack = walls(ring(0), wallTop - 0.2, topY - (wallTop - 0.2));
@@ -545,7 +553,9 @@ export class Buildings {
     const glassSky = glass.add(vec3(0.12, 0.15, 0.18).mul(fy.div(winH)).mul(float(1).sub(lit)));
 
     // ── Archétype : modénature (avant les baies, qui passent par-dessus) ──
-    const orn = isArch.mul(isWall).mul(windowed).mul(step(float(0.5), wallH)).mul(step(float(0.5), facade.y));
+    // v < 0 : soubassement découvert sous le sol le plus haut du mur (terrain en pente), sans modénature ni baie.
+    const aboveGround = step(float(0), v);
+    const orn = isArch.mul(isWall).mul(windowed).mul(step(float(0.5), wallH)).mul(step(float(0.5), facade.y)).mul(aboveGround);
     const wallLight = wall.mul(1.12).min(1);
     // Bandeau mouluré sous chaque plancher (et au-dessus du rez-de-chaussée), ombre portée dessous.
     const zNext = floorBase.add(fhA).sub(v); // distance sous le plancher suivant
@@ -564,7 +574,7 @@ export class Buildings {
     wall = mix(wall, wallLight, cornice.mul(step(top, float(0.38))));
     wall = mix(wall, wall.mul(0.55), cornice.mul(step(float(0.38), top)).mul(step(top, float(0.5))));
     // Rez-de-chaussée en pierre de taille : refends (joints horizontaux profonds tous les 45 cm).
-    const inRdc = isArch.mul(isWall).mul(hasRdc).mul(step(v, rdc.sub(0.3))).mul(step(float(0.5), wallH));
+    const inRdc = isArch.mul(isWall).mul(hasRdc).mul(step(v, rdc.sub(0.3))).mul(step(float(0.5), wallH)).mul(aboveGround);
     wall = mix(wall, wall.mul(0.62), inRdc.mul(isAshlar).mul(step(fract(v.div(0.45)), float(0.07))));
 
     wall = mix(wall, accent.mul(slats), inShutter.mul(float(1).sub(inWin)));
@@ -625,7 +635,7 @@ export class Buildings {
     const cochere = isArch.mul(hasRdc);
     const fdW = mix(float(0.55), float(0.75), cochere);
     const fdH = mix(float(2.25), rdc.sub(0.55).min(3.6), cochere);
-    const frontOk = isDoorBay.mul(isWall).mul(step(float(0.5), facade.y));
+    const frontOk = isDoorBay.mul(isWall).mul(step(float(0.5), facade.y)).mul(aboveGround);
     const inFront = step(abs(wx), fdW).mul(step(v, fdH)).mul(frontOk);
     const inFrontFrame = step(abs(wx), fdW.add(0.16)).mul(step(v, fdH.add(0.16))).mul(frontOk).mul(float(1).sub(inFront));
     const panel = step(0.06, abs(fract(v.div(0.55)).sub(0.5))).mul(step(abs(abs(wx).sub(fdW.mul(0.5))), fdW.mul(0.38)));
@@ -635,7 +645,7 @@ export class Buildings {
     wall = mix(wall, mix(frontWood, glassSky, transom), inFront);
     // Porte de grange / garage : planches verticales, encadrement sombre, position tirée par mur.
     const wallSeed = hash(floor(facade.x.mul(7.31)));
-    const hasDoor = step(float(1.5), winCode).mul(step(float(3.2), facade.x)).mul(step(float(0.45), wallSeed));
+    const hasDoor = step(float(1.5), winCode).mul(step(float(3.2), facade.x)).mul(step(float(0.45), wallSeed)).mul(aboveGround);
     const doorW = mix(float(1.1), float(2.8), step(float(6), facade.x));
     const doorC = facade.x.mul(wallSeed.mul(0.4).add(0.3));
     const doorH = min(float(2.7), facade.x.mul(0.6));
@@ -858,7 +868,7 @@ export class Buildings {
           if (door) style.door = door;
         }
       }
-      const w = skillion ? slopedWalls(bld.pts, base, (x, z) => roofAt(x, z) - base) : walls(bld.pts, base, wallH + 0.3, style);
+      const w = skillion ? slopedWalls(bld.pts, base, (x, z) => roofAt(x, z) - base) : walls(bld.pts, base, wallH + 0.3, style, this.groundAt);
       // Granges, fermes et églises : enduit à pierres vues plutôt que meulière ou enduit lisse.
       const rubble = !arch && !stones && !brick && !bld.colour && (bld.kind === 'barn' || bld.kind === 'farm' || isChurch) && r() < 0.7;
       const wallType = arch ? WALL_CODE[arch.wall] : stones ? 1 : rubble ? 3 : brick ? 2 : 0;
@@ -895,7 +905,7 @@ export class Buildings {
         paint(gables, wc, 0, acc, wallType, 0);
         parts.push(gables);
       }
-      if (plan && buf && !isChurch && !isUtility && this.props > 0) parts.push(...houseDetails(bld.pts, box, plan, wallTop, pitch, roofColour, slate, r, this.props));
+      if (plan && buf && !isChurch && !isUtility && this.props > 0) parts.push(...houseDetails(bld.pts, box, plan, wallTop, pitch, roofColour, slate, !!bld.ridgeShort, r, this.props));
       if (isChurch) {
         // Clocher : tour carrée en pierre et flèche d'ardoise à une extrémité.
         const tx = box.cx + box.ux * (box.hl - 2.5);

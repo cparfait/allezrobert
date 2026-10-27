@@ -61,6 +61,33 @@ export function orientedBox(pts: number[]): Obb {
   return best ?? { cx: pts[0] as number, cz: pts[1] as number, ux: 1, uz: 0, hl: 3, hw: 3 };
 }
 
+/** Faîtage d'un toit posé sur un rectangle orienté : milieu, direction unitaire, demi-longueur. */
+export interface RidgeLine {
+  cx: number;
+  cz: number;
+  dx: number;
+  dz: number;
+  half: number;
+}
+
+/**
+ * Faîtage d'un toit simple. Deux pans : selon la longueur, ou selon la largeur si le faîtage est
+ * court (pignons sur les grands côtés), prolongé du débord des rives. Croupes : selon la longueur,
+ * raccourci de la profondeur des croupes (`run`, distance horizontale de l'égout au faîtage) ;
+ * planRoof ignore alors le faîtage court.
+ */
+export function ridgeLine(box: Obb, gabled: boolean, ridgeShort: boolean, run: number, gableOverhang = 0.25): RidgeLine {
+  const across = gabled && ridgeShort;
+  const len = across ? box.hw : box.hl;
+  return {
+    cx: box.cx,
+    cz: box.cz,
+    dx: across ? -box.uz : box.ux,
+    dz: across ? box.ux : box.uz,
+    half: gabled ? len + gableOverhang : Math.max(len - run, 0),
+  };
+}
+
 interface P2 {
   x: number;
   z: number;
