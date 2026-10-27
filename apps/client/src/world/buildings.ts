@@ -10,6 +10,7 @@ import { FootprintIndex } from './footprints.ts';
 import { wallGroundOffset } from './facadeGround.ts';
 import { flatRoofKind, leanSide, LEAN_PITCH } from './flatRoofs.ts';
 import { eaveHeight } from './eaveHeight.ts';
+import { genoiseDrop, genoiseRows } from './genoise.ts';
 import { LazyTexture } from '../engine/textures.ts';
 
 /** Textures photo CC0 (Poly Haven) des façades et toits, chargées une fois et partagées. */
@@ -88,6 +89,8 @@ interface WallStyle {
   local: boolean;
   /** Mur d'égout (parallèle au faîtage) d'après sa direction : génoise. */
   eave?: (dx: number, dz: number) => boolean;
+  /** Abaissement de la génoise sous le haut du mur, pour qu'elle passe sous le pan (voir genoise.ts). */
+  genoiseDrop?: number;
   /** Milieu du mur qui reçoit la porte d'entrée (côté rue). */
   door?: [number, number];
   /** Tirage de la travée de la porte (0–1). */
@@ -169,22 +172,21 @@ function walls(pts: number[], base: number, height: number, style?: WallStyle, g
     const flags = genoise + 2 * street + (street && style?.shop ? 4 : 0);
     const isDoor = style?.door && bays > 0 && Math.hypot((ax + bx) / 2 - style.door[0], (az + bz) / 2 - style.door[1]) < 0.01;
     const doorBay = isDoor ? 1 + Math.min(bays - 1, Math.floor((style?.doorPick ?? 0.5) * bays)) : 0;
+    // Génoise abaissée sous le pan : le shader la peint sous la hauteur du mur `bstyle.y`, ramenée à son haut.
+    const drop = genoise ? (style?.genoiseDrop ?? 0) : 0;
     for (let k = 0; k < 6; k++) {
       fac.push(len, bays + floorCode);
-      sty.push(style?.local ? 1 : 0, h, flags, doorBay);
+      sty.push(style?.local ? 1 : 0, h - drop, flags, doorBay);
     }
     if (genoise) {
       // Génoise : trois rangs en encorbellement (10, 20, 30 cm du bas vers le haut), 14 cm chacun, sous
-      // l'égout ; face avant (même uv que le mur : le shader y peint les bouts de tuiles) et sous-face.
+      // le pan ; face avant (même uv que le mur : le shader y peint les bouts de tuiles) et sous-face.
       // Contour orienté dans le sens positif : l'extérieur est à droite du mur, normale (dz, −dx).
       const nx = (bz - az) / len;
       const nz = -(bx - ax) / len;
       const ux = (bx - ax) / len;
       const uz = (bz - az) / len;
-      for (let row = 0; row < 3; row++) {
-        const d = 0.1 * (row + 1);
-        const y1 = top - 0.14 * (2 - row);
-        const y0 = y1 - 0.14;
+      for (const { d, y0, y1 } of genoiseRows(top, drop)) {
         // les rangs dépassent un peu aux extrémités pour se rejoindre aux angles
         const x0 = ax - ux * d + nx * d;
         const z0 = az - uz * d + nz * d;
@@ -205,7 +207,7 @@ function walls(pts: number[], base: number, height: number, style?: WallStyle, g
         uvs.push(-d, v0, L - d, v0, -d, v0, -d, v0, L - d, v0, L - d, v0);
         for (let k = 0; k < 12; k++) {
           fac.push(len, 0);
-          sty.push(1, h, 1, 0);
+          sty.push(1, h - drop, 1, 0);
         }
       }
     }
@@ -893,6 +895,7 @@ export class Buildings {
           const rz = bld.ridgeShort ? box.ux : box.uz;
           const hipped = HIPPED.has(shape);
           style.eave = (dx, dz) => hipped || Math.abs(dx * rx + dz * rz) / Math.hypot(dx, dz) > 0.7;
+          style.genoiseDrop = genoiseDrop(pitch);
         }
       } else if (bld.bdtopo) {
         style = { local: true, doorPick: r() };
@@ -903,6 +906,7 @@ export class Buildings {
           const rz = bld.ridgeShort ? box.ux : box.uz;
           const hipped = HIPPED.has(shape);
           style.eave = (dx, dz) => hipped || Math.abs(dx * rx + dz * rz) / Math.hypot(dx, dz) > 0.7;
+          style.genoiseDrop = genoiseDrop(pitch);
         }
         if (housing) {
           const door = streetWall(bld.pts, tile.features.roads);
