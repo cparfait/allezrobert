@@ -135,7 +135,7 @@ async function main(): Promise<void> {
     const zone = {
       kind: 'open',
       id,
-      name: `Île-de-France — ${main.nom}`,
+      name: main.nom,
       region: `${DEPT[main.codeDepartement] ?? main.codeDepartement} · Île-de-France`,
       originL93: { x: ox, y: oy },
       corridorTiles: { txMin: -half, txMax: half - 1, tzMin: -half, tzMax: half - 1 },

@@ -34,7 +34,7 @@ import { companionQr } from './companionQr.ts';
 import { FranceMap, type MapZone } from './franceMap.ts';
 import { bindStartPicker, loadRouteBoards, routeDetailHtml } from './routeDetail.ts';
 import { canMoveStart, canReverse, reversedOf, routeKey, snapStartM, startedOf } from '../game/direction.ts';
-import { isMeshZone, MESH_CELL_M, ZONE_SPOTS } from '../world/zoneMap.ts';
+import { ZONE_SPOTS } from '../world/zoneMap.ts';
 import { getAspectCap, getResolutionCap, getUiAspectCap, setAspectCap, setResolutionCap, setUiAspectCap, type AspectCap, type ResolutionCap } from '../engine/display.ts';
 import './menu.css';
 
@@ -1250,10 +1250,7 @@ export class MainMenu {
       const available = this.zones.length ? !!z : !!w;
       const n = z ? routesForBike(z.routes, bikeSetupFor(loadProgress().equipped).tyre).length : 0;
       const info = [n ? `${n} ${L ? 'parcours' : n > 1 ? 'routes' : 'route'}` : '', spot.open ? (L ? 'monde ouvert' : 'open world') : '', w ? w.hint[lang] : ''].filter(Boolean).join(' · ');
-      const mesh = isMeshZone(spot.id);
-      // maille du quadrillage : carré de MESH_CELL_M autour de son centre, même avant d'être au catalogue
-      const rect = z?.l93 ?? (mesh ? { minE: spot.x - MESH_CELL_M / 2, minN: spot.y - MESH_CELL_M / 2, maxE: spot.x + MESH_CELL_M / 2, maxN: spot.y + MESH_CELL_M / 2 } : undefined);
-      return { id: spot.id, name: w ? w.name[lang] : spot.name[lang], region: spot.region[lang], x: spot.x, y: spot.y, available, current: spot.id === this.worldId, info, ...(rect ? { rect } : {}), ...(mesh ? { mesh } : {}) };
+            return { id: spot.id, name: w ? w.name[lang] : spot.name[lang], region: spot.region[lang], x: spot.x, y: spot.y, available, current: spot.id === this.worldId, info, ...(z?.l93 ? { rect: z.l93 } : {}) };
     });
   }
 

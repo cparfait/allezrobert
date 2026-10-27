@@ -1,7 +1,7 @@
 {
  "formatVersion": 1,
  "id": "idf-versailles",
- "name": "Île-de-France — Versailles",
+ "name": "Versailles",
  "crs": "EPSG:2154",
  "originL93": {
   "x": 632000,

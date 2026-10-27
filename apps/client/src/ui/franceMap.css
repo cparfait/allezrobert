@@ -6,18 +6,6 @@
 .fm-map.fm-dragging { cursor: grabbing; }
 .fm-box .fm-land { fill: none; }
 .fm-zoomed .fm-land { fill: none; }
-.fm-rect { fill: rgba(255, 210, 63, 0.1); stroke: rgba(255, 210, 63, 0.8); stroke-width: 1.2px; stroke-dasharray: 4 3; vector-effect: non-scaling-stroke; pointer-events: none; }
-/* quadrillage de l'Île-de-France : une case par zone, nom discret dans le coin */
-.fm-cell { cursor: pointer; outline: none; }
-.fm-cell rect { fill: rgba(255, 210, 63, 0.1); stroke: rgba(255, 210, 63, 0.85); stroke-width: 1px; vector-effect: non-scaling-stroke; pointer-events: all; }
-.fm-cell.fm-off { cursor: default; }
-.fm-cell.fm-off rect { fill: rgba(255, 255, 255, 0.03); stroke: rgba(255, 255, 255, 0.3); }
-.fm-cell.fm-cur rect { fill: rgba(255, 210, 63, 0.22); stroke: #fff; stroke-width: 1.6px; }
-.fm-cell:hover rect, .fm-cell:focus-visible rect { fill: rgba(255, 210, 63, 0.3); stroke: #fff; }
-.fm-cell.fm-off:hover rect { fill: rgba(255, 255, 255, 0.1); }
-.fm-cell text { font: 600 11px system-ui, sans-serif; fill: #fff; opacity: 0.85; paint-order: stroke; stroke: rgba(6, 9, 15, 0.85); stroke-linejoin: round; pointer-events: none; }
-.fm-cell.fm-off text { fill: #cbd5e1; opacity: 0.6; }
-.fm-rect.fm-cur { fill: rgba(255, 210, 63, 0.16); stroke: var(--ar-accent); stroke-dasharray: none; }
 .fm-attr { position: absolute; left: 10px; bottom: 6px; font-size: 10px; color: #9aa4b2; pointer-events: none; }
 .fm-land { fill: rgba(255, 255, 255, 0.05); stroke: rgba(236, 239, 244, 0.75); stroke-width: 1.4px; vector-effect: non-scaling-stroke; stroke-linejoin: round; }
 .fm-pts > g { cursor: pointer; outline: none; }

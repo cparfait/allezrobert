@@ -177,20 +177,18 @@
     {
      "id": "vtt-billom",
      "name": "Billom — VTT par Busséol et Lide",
+     "nameEn": "Billom — MTB via Busséol and Lide",
      "lengthM": 27353.89,
      "elevationGainM": 602.64,
-     "loop": true,
-     "bike": "mtb",
-     "nameEn": "Billom — MTB via Busséol and Lide"
+     "loop": true
     },
     {
      "id": "gravel-billom",
      "name": "Billom — gravel de Pont-du-Château à Cournon",
+     "nameEn": "Billom — gravel from Pont-du-Château to Cournon",
      "lengthM": 49153.83,
      "elevationGainM": 885.75,
-     "loop": true,
-     "bike": "gravel",
-     "nameEn": "Billom — gravel from Pont-du-Château to Cournon"
+     "loop": true
     }
    ],
    "pack": {
@@ -287,20 +285,18 @@
     {
      "id": "vtt-chevreuse",
      "name": "Chevreuse — VTT en forêt par Vieille-Église et Clairefontaine",
+     "nameEn": "Chevreuse — forest MTB via Vieille-Église and Clairefontaine",
      "lengthM": 22754.13,
      "elevationGainM": 66.62,
-     "loop": true,
-     "bike": "mtb",
-     "nameEn": "Chevreuse — forest MTB via Vieille-Église and Clairefontaine"
+     "loop": true
     },
     {
      "id": "gravel-chevreuse",
      "name": "Chevreuse — gravel par Saint-Rémy-l'Honoré et Vieille-Église",
+     "nameEn": "Chevreuse — gravel via Saint-Rémy-l'Honoré and Vieille-Église",
      "lengthM": 39482.04,
      "elevationGainM": 444.58,
-     "loop": true,
-     "bike": "gravel",
-     "nameEn": "Chevreuse — gravel via Saint-Rémy-l'Honoré and Vieille-Église"
+     "loop": true
     }
    ],
    "pack": {
@@ -333,20 +329,18 @@
     {
      "id": "vtt-comte",
      "name": "Comté d'Auvergne — VTT de Laps à Pardines",
+     "nameEn": "Comté d'Auvergne — MTB from Laps to Pardines",
      "lengthM": 29990.64,
      "elevationGainM": 992.39,
-     "loop": true,
-     "bike": "mtb",
-     "nameEn": "Comté d'Auvergne — MTB from Laps to Pardines"
+     "loop": true
     },
     {
      "id": "gravel-comte",
      "name": "Comté d'Auvergne — gravel de Lignat à Corent",
+     "nameEn": "Comté d'Auvergne — gravel from Lignat to Corent",
      "lengthM": 52781.37,
      "elevationGainM": 1430.38,
-     "loop": true,
-     "bike": "gravel",
-     "nameEn": "Comté d'Auvergne — gravel from Lignat to Corent"
+     "loop": true
     }
    ],
    "pack": {
@@ -471,20 +465,18 @@
     {
      "id": "vtt-fontainebleau",
      "name": "Fontainebleau — VTT dans la forêt",
+     "nameEn": "Fontainebleau — MTB loop in the forest",
      "lengthM": 28614.43,
      "elevationGainM": 429.57,
-     "loop": true,
-     "bike": "mtb",
-     "nameEn": "Fontainebleau — MTB loop in the forest"
+     "loop": true
     },
     {
      "id": "gravel-fontainebleau",
      "name": "Fontainebleau — gravel par Chailly, Arbonne et Achères",
+     "nameEn": "Fontainebleau — gravel via Chailly, Arbonne and Achères",
      "lengthM": 48803.85,
      "elevationGainM": 425.83,
-     "loop": true,
-     "bike": "gravel",
-     "nameEn": "Fontainebleau — gravel via Chailly, Arbonne and Achères"
+     "loop": true
     }
    ],
    "pack": {
@@ -814,6 +806,58 @@
    "open": true
   },
   {
+   "id": "idf-sarcelles",
+   "name": "Île-de-France — Sarcelles",
+   "region": "Val-d'Oise · Île-de-France",
+   "routes": [
+    {
+     "id": "boucle-20-km",
+     "name": "Boucle de 20 km depuis Sarcelles",
+     "nameEn": "20 km loop from Sarcelles",
+     "lengthM": 21156,
+     "elevationGainM": 242.57,
+     "loop": false
+    },
+    {
+     "id": "boucle-30-km",
+     "name": "Boucle de 30 km depuis Sarcelles",
+     "nameEn": "30 km loop from Sarcelles",
+     "lengthM": 30530,
+     "elevationGainM": 365.93,
+     "loop": false
+    },
+    {
+     "id": "boucle-40-km",
+     "name": "Boucle de 40 km depuis Sarcelles",
+     "nameEn": "40 km loop from Sarcelles",
+     "lengthM": 40916,
+     "elevationGainM": 557.03,
+     "loop": false
+    },
+    {
+     "id": "boucle-50-km",
+     "name": "Boucle de 50 km depuis Sarcelles",
+     "nameEn": "50 km loop from Sarcelles",
+     "lengthM": 50718,
+     "elevationGainM": 649.67,
+     "loop": false
+    }
+   ],
+   "pack": {
+    "version": "9168568cc58a",
+    "bytes": 354842262,
+    "files": 1026,
+    "gzBytes": 145293487
+   },
+   "l93": {
+    "minE": 640000,
+    "minN": 6876000,
+    "maxE": 656000,
+    "maxN": 6892000
+   },
+   "open": true
+  },
+  {
    "id": "idf-savigny-sur-orge",
    "name": "Île-de-France — Savigny-sur-Orge",
    "region": "Essonne · Île-de-France",
@@ -933,20 +977,18 @@
     {
      "id": "vtt-issoire",
      "name": "Issoire — VTT par Montaigner, Poux et Bansat",
+     "nameEn": "Issoire — MTB via Montaigner, Poux and Bansat",
      "lengthM": 28642.12,
      "elevationGainM": 787.81,
-     "loop": true,
-     "bike": "mtb",
-     "nameEn": "Issoire — MTB via Montaigner, Poux and Bansat"
+     "loop": true
     },
     {
      "id": "gravel-issoire",
      "name": "Issoire — gravel par Sauxillanges et Saint-Genès-la-Tourette",
+     "nameEn": "Issoire — gravel via Sauxillanges and Saint-Genès-la-Tourette",
      "lengthM": 51562.07,
      "elevationGainM": 1364.42,
-     "loop": true,
-     "bike": "gravel",
-     "nameEn": "Issoire — gravel via Sauxillanges and Saint-Genès-la-Tourette"
+     "loop": true
     }
    ],
    "pack": {
@@ -979,20 +1021,18 @@
     {
      "id": "vtt-limagne",
      "name": "Limagne — VTT par Neuville et les Vigiers",
+     "nameEn": "Limagne — MTB via Neuville and Les Vigiers",
      "lengthM": 20628.32,
      "elevationGainM": 603.46,
-     "loop": true,
-     "bike": "mtb",
-     "nameEn": "Limagne — MTB via Neuville and Les Vigiers"
+     "loop": true
     },
     {
      "id": "gravel-limagne",
      "name": "Limagne — gravel par Neuville, Bongheat et Glaine",
+     "nameEn": "Limagne — gravel via Neuville, Bongheat and Glaine",
      "lengthM": 32346.04,
      "elevationGainM": 908.36,
-     "loop": true,
-     "bike": "gravel",
-     "nameEn": "Limagne — gravel via Neuville, Bongheat and Glaine"
+     "loop": true
     }
    ],
    "pack": {
@@ -1041,20 +1081,18 @@
     {
      "id": "vtt-livradois",
      "name": "Livradois — VTT par Bort-l'Étang et Champciaux",
+     "nameEn": "Livradois — MTB via Bort-l'Étang and Champciaux",
      "lengthM": 23790.65,
      "elevationGainM": 528.02,
-     "loop": true,
-     "bike": "mtb",
-     "nameEn": "Livradois — MTB via Bort-l'Étang and Champciaux"
+     "loop": true
     },
     {
      "id": "gravel-livradois",
      "name": "Livradois — gravel de Marcillole à Mauzun",
+     "nameEn": "Livradois — gravel from Marcillole to Mauzun",
      "lengthM": 35893.16,
      "elevationGainM": 849.71,
-     "loop": true,
-     "bike": "gravel",
-     "nameEn": "Livradois — gravel from Marcillole to Mauzun"
+     "loop": true
     }
    ],
    "pack": {
@@ -1143,11 +1181,10 @@
     {
      "id": "vtt-ventoux",
      "name": "Ventoux — VTT par Flassan et Saint-Estève",
+     "nameEn": "Ventoux — MTB via Flassan and Saint-Estève",
      "lengthM": 27462.84,
      "elevationGainM": 1011.38,
-     "loop": true,
-     "bike": "mtb",
-     "nameEn": "Ventoux — MTB via Flassan and Saint-Estève"
+     "loop": true
     }
    ],
    "pack": {
@@ -1252,11 +1289,10 @@
     {
      "id": "vtt-puys",
      "name": "Chaîne des Puys — VTT par Grelières et Saint-Ours",
+     "nameEn": "Chaîne des Puys — MTB via Grelières and Saint-Ours",
      "lengthM": 29115.2,
      "elevationGainM": 667.35,
-     "loop": true,
-     "bike": "mtb",
-     "nameEn": "Chaîne des Puys — MTB via Grelières and Saint-Ours"
+     "loop": true
     }
    ],
    "pack": {
@@ -1405,11 +1441,10 @@
     {
      "id": "gravel-sancy",
      "name": "Sancy — gravel par Super Besse et Le Verdier",
+     "nameEn": "Sancy — gravel via Super Besse and Le Verdier",
      "lengthM": 37232.64,
      "elevationGainM": 1116.68,
-     "loop": true,
-     "bike": "gravel",
-     "nameEn": "Sancy — gravel via Super Besse and Le Verdier"
+     "loop": true
     }
    ],
    "pack": {
