@@ -508,16 +508,16 @@ export class AtelierHost {
   /**
    * Prépare la pièce et le coureur à l'avance, sans les afficher : construction et compilation des
    * shaders en coulisse, pour que la première ouverture du garage ou de l'aperçu du tutoriel soit
-   * immédiate (pièce et coureur restent gardés ensuite).
+   * immédiate (pièce et coureur restent gardés ensuite). `onProgress(fait, total)` suit la compilation.
    */
-  async prepare(look: AvatarLook): Promise<void> {
+  async prepare(look: AvatarLook, onProgress?: (done: number, total: number) => void): Promise<void> {
     this.build();
     if (!this.avatar) {
       this.avatar = createAvatar(look);
       this.bikeRoot.add(this.avatar.root);
       this.lookKey = JSON.stringify(look);
     }
-    if (this.scenePass) await compilePass(this.engine.renderer, this.scenePass);
+    if (this.scenePass) await compilePass(this.engine.renderer, this.scenePass, onProgress);
   }
 
   set(st: AtelierState | null): void {

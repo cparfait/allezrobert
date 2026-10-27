@@ -705,7 +705,10 @@ async function boot(): Promise<void> {
       const t0 = performance.now();
       await modelsReady;
       const t1 = performance.now();
-      await atelier.prepare({ ...settings.look, heightCm: settings.heightCm });
+      // Garage demandé avant la fin : son écran d'attente suit la compilation.
+      await atelier.prepare({ ...settings.look, heightCm: settings.heightCm }, (done, total) => {
+        if (atelierWait && total > 0) setWaitProgress(atelierWait, done / total);
+      });
       atelierBuilt = true;
       // L'image de préparation est restée dans la toile : l'accueil 3D (sans vidéo) se redessine.
       if (inMenu && !garage && !exploring && worldDone && !menuVideo.playing()) renderPoster();
@@ -718,10 +721,10 @@ async function boot(): Promise<void> {
       return;
     }
     if (!atelierWait) atelierWait = worldOverlay(getLang() === 'fr' ? 'Chargement du garage…' : 'Loading the garage…');
-    // Attend la préparation en coulisse (shaders compilés sans bloquer) plutôt que de tout refaire au premier rendu.
-    // Modèles chargés, puis au plus 3 s de préparation : si la compilation traîne, l'atelier s'affiche quand même (compilé au premier rendu).
+    // Attend la fin de la préparation en coulisse (shaders compilés sans bloquer) : l'atelier ne se dessine pas
+    // tant qu'elle compile (AtelierHost.tick), il resterait noir. compilePass borne déjà sa durée (45 s).
     void modelsReady
-      .then(() => Promise.race([prepareAtelier(), new Promise<void>((r) => setTimeout(r, 3000))]))
+      .then(() => prepareAtelier())
       .then(() => (atelierWait ? new Promise<void>((r) => setTimeout(r, 40)) : undefined)) // laisse l'écran d'attente se peindre
       .then(() => {
         if (build()) atelierBuilt = true;
