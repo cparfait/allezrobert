@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { weatherAt, weatherSeed, type RideWeather } from '../src/index.ts';
+import { weatherAt, weatherElapsedS, weatherSeed, type RideWeather } from '../src/index.ts';
 
 const base: RideWeather = { hour: 9.5, clouds: 0.5, rain: 0, fog: 0.3, windMs: 4, evolving: true, seed: weatherSeed('salle-42') };
 
@@ -27,6 +27,16 @@ describe('météo partagée', () => {
     expect(weatherAt(base, 3 * 3600).fog).toBeLessThan(0.1);
     // Graines différentes, météos différentes.
     expect(weatherAt({ ...base, seed: 7 }, 3000).clouds).not.toBeCloseTo(weatherAt({ ...base, seed: 8 }, 3000).clouds, 3);
+  });
+  it('en salle, le temps est celui de l’horloge du serveur, le même pour tous ; en solo, le chrono', () => {
+    const room = { ...base, at: 1_000_000 };
+    // Arrivé au début et arrivé 40 min plus tard (chronos différents) : même heure, même ciel.
+    const early = weatherAt(room, weatherElapsedS(room, 3600, 1_000_000 + 3600_000));
+    const late = weatherAt(room, weatherElapsedS(room, 1200, 1_000_000 + 3600_000));
+    expect(late).toEqual(early);
+    expect(early.hour).toBeCloseTo(10.5, 6);
+    expect(weatherElapsedS(base, 1200, 1_000_000 + 3600_000)).toBe(1200);
+    expect(weatherElapsedS(room, 1200)).toBe(1200);
   });
   it('il finit par pleuvoir quand le ciel se couvre', () => {
     let rained = false;

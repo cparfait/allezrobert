@@ -17,6 +17,11 @@ export interface RideWeather {
   seed: number;
   /** Direction d'où vient le vent (degrés depuis le nord, sens horaire) : météo réelle ; sinon tirée de la graine. */
   windFromDeg?: number;
+  /**
+   * Salle : instant (epoch ms, horloge du serveur) où il est `hour`, fixé par le serveur à la création.
+   * Le temps de la sortie part de là pour tous les coureurs, quels que soient leur arrivée et leurs pauses.
+   */
+  at?: number;
 }
 
 export interface WeatherNow {
@@ -100,6 +105,14 @@ export function weatherAt(w: RideWeather, elapsedS: number): WeatherNow {
   // Force moyenne qui varie de ±40 % au fil des fronts, puis rafales et direction.
   const base = Math.max(0, w.windMs * (1 + 0.4 * noise1(t * 1.7, w.seed + 31)));
   return { hour, clouds, rain, fog, ...liveWind(base, w.seed, elapsedS, w.windFromDeg) };
+}
+
+/**
+ * Temps (s) à passer à `weatherAt` : en salle (`at` connu), le temps écoulé sur l'horloge du serveur,
+ * le même pour tous ; en solo, le chrono de la sortie (`rideElapsedS`).
+ */
+export function weatherElapsedS(w: RideWeather, rideElapsedS: number, serverNowMs?: number): number {
+  return w.at !== undefined && serverNowMs !== undefined ? Math.max(0, (serverNowMs - w.at) / 1000) : rideElapsedS;
 }
 
 /** Graine stable tirée d'un texte (identifiant de salle, date). */

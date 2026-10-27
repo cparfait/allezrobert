@@ -1,3 +1,4 @@
+import type { AvatarLook } from '@allezrobert/shared';
 import { serverEndpoint } from '../game/multiplayer.ts';
 import { getLang } from '../i18n/index.ts';
 import { saveSettings, type Settings } from './settings.ts';
@@ -72,16 +73,28 @@ export async function buyOnServer(id: string): Promise<{ ok: boolean; credits?: 
   }
 }
 
-/** Envoie le profil local vers le compte (après modification dans le menu). */
-export async function pushProfile(s: Settings, level?: number): Promise<void> {
+/**
+ * Envoie le profil local vers le compte (après modification dans le menu, et avant d'entrer dans une
+ * salle) ; renvoie true si le compte l'a enregistré.
+ */
+export async function pushProfile(s: Settings, level?: number): Promise<boolean> {
   // Équipement (pièces de l'atelier possédées, cosmétiques débloqués au niveau du compte) : le serveur
   // s'en sert pour le vélo roulé en salle.
   const equipped = level !== undefined ? { equipped: equippedForServer(level) } : {};
-  await api('/me/profile', {
-    method: 'PUT',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ displayName: s.name, weightKg: s.massKg, heightCm: s.heightCm, ftpWatts: Math.round(s.ftpWatts), avatar: s.look, skipStrava: s.skipStrava, locale: s.lang, ...equipped }),
-  }).catch(() => undefined);
+  const put = (avatar: AvatarLook, extra: object) =>
+    api('/me/profile', {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ displayName: s.name, weightKg: s.massKg, heightCm: s.heightCm, ftpWatts: Math.round(s.ftpWatts), avatar, skipStrava: s.skipStrava, locale: s.lang, ...extra }),
+    }).catch(() => null);
+  let r = await put(s.look, equipped);
+  // Pièce ou modèle de vélo refusé par le compte : le reste de l'apparence (couleurs, tenue) est
+  // enregistré quand même, sinon les autres coureurs verraient l'ancien avatar.
+  if (r?.status === 400) {
+    const { bikeModel: _model, tune: _tune, ...look } = s.look;
+    r = await put(look, {});
+  }
+  return !!r?.ok;
 }
 
 function esc(t: string): string {

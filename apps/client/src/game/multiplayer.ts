@@ -12,8 +12,11 @@ export function serverEndpoint(): string {
   return env.VITE_SERVER_URL ?? (local ? `http://${location.hostname}:2567` : `${location.origin}/colyseus`);
 }
 
-/** Jeton de jeu : session existante (cookie), sinon connexion de développement (refusée en production). */
-function tokenProvider(apiBase: string, name: string): () => Promise<string | undefined> {
+/**
+ * Jeton de jeu : session existante (cookie), sinon connexion de développement (refusée en production).
+ * `onSession` : appelé une fois la session établie, juste avant d'entrer dans la salle.
+ */
+function tokenProvider(apiBase: string, name: string, onSession?: () => Promise<unknown>): () => Promise<string | undefined> {
   return async () => {
     const get = () => fetch(`${apiBase}/auth/game-token`, { credentials: 'include' });
     let r = await get();
@@ -22,7 +25,9 @@ function tokenProvider(apiBase: string, name: string): () => Promise<string | un
       r = await get();
     }
     if (!r.ok) return undefined;
-    return ((await r.json()) as { token?: string }).token;
+    const token = ((await r.json()) as { token?: string }).token;
+    await onSession?.().catch(() => undefined);
+    return token;
   };
 }
 
@@ -42,12 +47,16 @@ export class Multiplayer {
   private readonly remotes = new Map<string, Remote>();
   private readonly sample = { x: 0, y: 0, z: 0, dirX: 1, dirZ: 0, grade: 0, d: 0 };
 
-  constructor(scene: THREE.Scene, track: RouteTrack, riderName: string) {
+  /**
+   * `syncProfile` : envoie le profil local au compte avant l'entrée — le serveur montre aux autres
+   * l'avatar du compte, qui doit être celui que le coureur voit chez lui.
+   */
+  constructor(scene: THREE.Scene, track: RouteTrack, riderName: string, syncProfile?: () => Promise<unknown>) {
     this.scene = scene;
     this.track = track;
     const endpoint = serverEndpoint();
     const apiBase = `${endpoint.replace(/\/colyseus$/, '')}/api`;
-    this.net = new RideNetClient({ endpoint, apiBase, token: tokenProvider(apiBase, riderName) });
+    this.net = new RideNetClient({ endpoint, apiBase, token: tokenProvider(apiBase, riderName, syncProfile) });
   }
 
   /** Rejoint par code d'invitation, ou crée une sortie privée sur l'itinéraire courant. */

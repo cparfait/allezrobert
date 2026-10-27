@@ -1,6 +1,6 @@
 import './hud/hud.css';
 import * as THREE from 'three/webgpu';
-import { DEFAULT_LOOK, RouteTrack, decimateRoute, rankRouteId, type PairState, type PhoneCommand, bikeOfLook, type AvatarLook, bikeSetupFor, weatherAt, weatherSeed, worldToWgs84, type RideWeather, type RiderProfile, type RouteData } from '@allezrobert/shared';
+import { DEFAULT_LOOK, RouteTrack, decimateRoute, rankRouteId, type PairState, type PhoneCommand, bikeOfLook, type AvatarLook, bikeSetupFor, weatherAt, weatherElapsedS, weatherSeed, worldToWgs84, type RideWeather, type RiderProfile, type RouteData } from '@allezrobert/shared';
 import { createEngine, type Engine } from './engine/renderer.ts';
 import { QUALITY_PRESETS, withUrlOverrides, type QualitySettings } from './engine/quality.ts';
 import { detectHardwareQuality } from './engine/autoQuality.ts';
@@ -938,7 +938,8 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   let mp: Multiplayer | null = null;
   let voice: VoiceChat | null = null;
   if (s.mode === 'group' || s.mode === 'race' || extras.publicRoom) {
-    mp = new Multiplayer(engine.scene, track, s.name);
+    // Profil (avatar) envoyé au compte juste avant l'entrée : les autres te voient comme tu te vois.
+    mp = new Multiplayer(engine.scene, track, s.name, () => pushProfile(s));
     try {
       // Monde ouvert : salle publique de la zone (celle des amis d'abord), sans code ni hôte.
       if (extras.publicRoom) {
@@ -1545,7 +1546,8 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     condAcc += dt;
     if (condAcc > 0.25) {
       condAcc = 0;
-      const wNow = weatherAt(rideWeather, ride.elapsedS);
+      // En salle : temps de la salle (horloge du serveur), le même ciel pour tous ; en solo : chrono de la sortie.
+      const wNow = weatherAt(rideWeather, weatherElapsedS(rideWeather, ride.elapsedS, mp?.net.serverNow()));
       const envState = world.env.state;
       envState.hour = wNow.hour;
       envState.weather.clouds = wNow.clouds;

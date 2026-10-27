@@ -269,6 +269,9 @@ describe('salles publiques (serveur réel)', () => {
     const b = await rider('Bob');
     const wb = await b.joinPublic(ZONE);
     expect(wb.roomId).toBe(wa.roomId);
+    // Même ciel pour tous : heure comptée depuis la création de la salle, sur l'horloge du serveur.
+    expect(wa.options.weather?.at).toBeTypeOf('number');
+    expect(wb.options.weather).toEqual(wa.options.weather);
     await sleep(150);
     expect([...a.roster.values()].filter((r) => r.isAI)).toHaveLength(ai0 - 1);
     expect([...a.roster.values()].filter((r) => !r.isAI)).toHaveLength(2);

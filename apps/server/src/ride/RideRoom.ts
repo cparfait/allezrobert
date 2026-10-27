@@ -195,6 +195,9 @@ export class RideRoom extends Room {
         : o) as Parameters<typeof resolveRideOptions>[0],
       route.data.id,
     );
+    // Heure et météo comptées depuis la création de la salle, sur l'horloge du serveur : le même ciel
+    // pour tous, même pour qui arrive plus tard ou fait une pause.
+    if (opts.weather) opts.weather.at = Date.now();
     this.inviteCode = this.svc.registry.newInviteCode();
     opts.inviteCode = this.inviteCode;
     this.sim = new RideSimulation(route.data, opts, Date.now(), { guestMaxWkg: this.svc.guestMaxWkg, seed: this.roomId });
