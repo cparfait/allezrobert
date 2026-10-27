@@ -315,6 +315,7 @@ function tireTexture(i: number): THREE.CanvasTexture {
 }
 
 /** Panneau perforé gris avec ses outils bleus et acier (clés Allen, clés plates, tournevis, pinces, bacs). */
+/** Panneau perforé nu (les outils sont en 3D : atelierTools.ts), un peu sali par l'usage. */
 function pegboardTexture(): THREE.CanvasTexture {
   return canvasTex(1536, 640, (g) => {
     const W = 1536;
@@ -327,96 +328,16 @@ function pegboardTexture(): THREE.CanvasTexture {
     g.fillRect(0, 0, W, H);
     g.fillStyle = 'rgba(40,44,50,0.55)';
     for (let y = 8; y < H; y += 16) for (let x = 8; x < W; x += 16) g.fillRect(x, y, 3, 3);
-    const steel = '#c9ced4';
-    const blue = '#2a63c0';
-    const dark = '#26282c';
-    const shape = (draw: (ox: number, oy: number, col: string) => void, x: number, y: number, col: string, fill?: string) => {
-      draw(x + 4, y + 6, 'rgba(0,0,0,0.28)');
-      draw(x, y, fill ?? col);
-    };
-    const line = (x1: number, y1: number, x2: number, y2: number, w: number, c: string) => {
-      g.strokeStyle = c;
-      g.lineWidth = w;
-      g.lineCap = 'round';
-      g.beginPath();
-      g.moveTo(x1, y1);
-      g.lineTo(x2, y2);
-      g.stroke();
-    };
-    // Clés Allen en L, bleues, deux séries de tailles croissantes (à gauche).
-    for (let s = 0; s < 2; s++) {
-      for (let i = 0; i < 9; i++) {
-        const x = 40 + s * 150 + i * 14;
-        const len = 80 + i * 7;
-        shape((ox, oy, c) => {
-          line(ox, oy, ox, oy + len, 6, c);
-          line(ox, oy + len, ox + 30 + i, oy + len, 6, c);
-        }, x, 50, i % 2 ? steel : blue);
-      }
-    }
-    // Clés mixtes : rangées de clés plates bleues et acier, du plus petit au plus grand.
-    for (let row = 0; row < 3; row++) {
-      for (let i = 0; i < 10; i++) {
-        const x = 380 + i * 44;
-        const len = 120 + i * 9 + row * 18;
-        const y = 40 + row * 190 - (row === 2 ? 20 : 0);
-        shape((ox, oy, c) => {
-          line(ox, oy + 12, ox, oy + len - 12, 9, c);
-          g.strokeStyle = c;
-          g.lineWidth = 7;
-          g.beginPath();
-          g.arc(ox, oy + 12, 13, 0, Math.PI * 2);
-          g.stroke();
-          g.beginPath();
-          g.arc(ox, oy + len - 12, 13, 0, Math.PI * 2);
-          g.stroke();
-        }, x, y, row === 1 ? blue : steel);
-      }
-    }
-    // Tournevis (manches colorés, tiges acier) et mèches.
-    const handles = [blue, dark, '#e8741c', blue, dark, '#d3d6da', blue, dark];
-    for (let i = 0; i < 8; i++) {
-      const x = 830 + i * 26;
-      shape((ox, oy, c) => {
-        line(ox, oy + 60, ox, oy + 105, 3, steel);
-        line(ox, oy, ox, oy + 60, 14, c);
-      }, x, 50, handles[i] as string);
-    }
-    // Pinces : poignées bleues.
-    for (let i = 0; i < 4; i++) {
-      const x = 1090 + i * 52;
-      shape((ox, oy, c) => {
-        line(ox, oy, ox - 8, oy + 70, 12, c);
-        line(ox + 14, oy, ox + 22, oy + 70, 12, c);
-        line(ox + 7, oy - 36, ox + 7, oy + 4, 10, steel);
-      }, x, 80, blue);
-    }
-    // Jauge, clé à molette et rayonneur : grands outils à droite.
-    shape((ox, oy, c) => {
-      line(ox, oy, ox + 90, oy + 230, 22, c);
-      g.fillStyle = c;
-      g.beginPath();
-      g.arc(ox - 6, oy - 12, 38, 0, Math.PI * 2);
-      g.fill();
-    }, 1300, 90, steel);
-    shape((ox, oy, c) => {
-      line(ox, oy, ox, oy + 190, 16, c);
-      g.fillStyle = c;
-      g.fillRect(ox - 22, oy - 12, 44, 30);
-    }, 1440, 120, blue);
-    // Marteau.
-    shape((ox, oy, c) => {
-      line(ox, oy + 20, ox, oy + 190, 12, '#8a5a2b');
-      g.fillStyle = c;
-      g.fillRect(ox - 34, oy - 6, 68, 28);
-    }, 1230, 330, '#3a3c40');
-    // Bidon, pots : petites cases bleues sur la tablette basse.
-    for (let i = 0; i < 12; i++) {
-      const x = 380 + i * 48;
-      g.fillStyle = 'rgba(0,0,0,0.3)';
-      g.fillRect(x + 3, 566, 38, 38);
-      g.fillStyle = r() > 0.25 ? blue : '#d3d6da';
-      g.fillRect(x, 560, 38, 38);
+    // Usure : traces d'outils et de doigts autour des crochets, coulures de graisse.
+    for (let i = 0; i < 60; i++) {
+      const x = r() * W;
+      const y = H * 0.1 + r() * H * 0.6;
+      const rad = 10 + r() * 40;
+      const sm = g.createRadialGradient(x, y, 0, x, y, rad);
+      sm.addColorStop(0, `rgba(40,38,34,${0.06 + r() * 0.08})`);
+      sm.addColorStop(1, 'rgba(40,38,34,0)');
+      g.fillStyle = sm;
+      g.fillRect(x - rad, y - rad, rad * 2, rad * 2);
     }
   });
 }

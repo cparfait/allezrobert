@@ -53,7 +53,6 @@ async function main(): Promise<void> {
   if (!ok) return;
   if (params.has('peloton')) return peloton(engine);
   const host = new AtelierHost(engine);
-  (window as unknown as { __host: AtelierHost }).__host = host; // TMP
   const look = (tune: string[], extra: Partial<AvatarLook> = {}): AvatarLook => ({ ...DEFAULT_LOOK, ...(params.has('female') ? { face: encodeFace({ sex: -1 }) } : {}), ...(DEMO_BIKE ? { bikeModel: DEMO_BIKE } : {}), tune, ...extra });
   const render = async (st: AtelierState) => {
     host.set(st);
