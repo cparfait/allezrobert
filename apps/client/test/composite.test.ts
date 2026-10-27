@@ -81,6 +81,16 @@ describe('createCompositeWorld', () => {
     expect(w.open?.places?.map((p) => p.x)).toEqual([500, 2500]);
   });
 
+  it('écarte les arêtes à moins de 30 m du bord du monde réuni, garde les autres', () => {
+    // nœuds 1 (x = 40), 2 (x = 1000), 3 (x = 20) : l'arête 3 → 2 frôle le bord ouest (20 − 30 < 0), pas 1 → 2
+    const edgeX = (aa: number, bb: number, x0: number, x1: number) => ({ ...edge(aa, bb, x0, x1), pts: [x0, 100, 500, x1, 100, 500] });
+    const near = source('a', { x: 0, y: 1000 }, { formatVersion: 1, nodes: [40, 100, 500, 1000, 100, 500, 20, 100, 500], osm: [1, 2, 3], edges: [edgeX(0, 1, 40, 1000), edgeX(2, 1, 20, 1000)], attribution: [] });
+    const g = createCompositeWorld([near, b]).open!.graph;
+    const starts = g.edges.map((e) => e.pts[0]);
+    expect(starts).toContain(40);
+    expect(starts).not.toContain(20);
+  });
+
   it('raccorde les graphes par les nœuds OSM, sans doublon ni cul-de-sac au bord', () => {
     const g = w.open!.graph;
     // 1 → 2 (A), 2 → 3 (arête au bord, une seule fois), 3 → 4 (B) ; nœuds 1, 2, 3, 4

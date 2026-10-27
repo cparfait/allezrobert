@@ -69,7 +69,6 @@ export function createCompositeWorld(sources: WorldSource[]): WorldSource {
     }
     return null;
   };
-  const ownerAt = (x: number, z: number) => owner(Math.floor(x / T), Math.floor(z / T));
 
   const bounds = { ...main.bounds };
   for (const p of parts.slice(1)) {
@@ -82,7 +81,7 @@ export function createCompositeWorld(sources: WorldSource[]): WorldSource {
 
   let open: WorldSource['open'];
   if (main.open) {
-    const graph = mergeGraphs(parts, ownerAt);
+    const graph = mergeGraphs(parts, owner, T);
     const places: WorldPlace[] = [];
     const seen = new Set<string>();
     for (const p of parts)
@@ -92,6 +91,11 @@ export function createCompositeWorld(sources: WorldSource[]): WorldSource {
         places.push({ ...pl, x: pl.x + p.dx, z: pl.z + p.dz });
       }
     open = { graph, fullGraph: graph, start: main.open.start, places };
+    // Le graphe réuni remplace ceux des zones (des dizaines de Mo chacun) : les tuiles n'en ont plus besoin.
+    for (const p of parts) {
+      const { open: _graphs, ...rest } = p.source;
+      p.source = rest;
+    }
   }
 
   return {
@@ -120,12 +124,41 @@ export function createCompositeWorld(sources: WorldSource[]): WorldSource {
  * milieu (pas de doublon où les zones se chevauchent), nœuds fusionnés par identifiant OSM ;
  * les arêtes qui sortent des tuiles chargées (ou s'en approchent à moins de 30 m) sont écartées.
  */
-function mergeGraphs(parts: Part[], ownerAt: (x: number, z: number) => Part | null): RoadGraphData {
+function mergeGraphs(parts: Part[], owner: (tx: number, tz: number) => Part | null, T: number): RoadGraphData {
   const nodes: number[] = [];
   const edges: RoadGraphEdge[] = [];
   const nodeOf = new Map<string, number>();
   const m = EDGE_MARGIN_M;
-  const covered = (x: number, z: number) => ownerAt(x, z) && ownerAt(x - m, z - m) && ownerAt(x + m, z - m) && ownerAt(x - m, z + m) && ownerAt(x + m, z + m);
+  // Propriétaire par tuile, mémorisé le temps de la fusion : le graphe compte des centaines de milliers de
+  // points et `owner` interroge chaque zone (clé texte) ; sans cache la fusion de Paris et de ses voisines
+  // bloquait le fil principal ≈ 2 s. Valable seulement ici : `hasTile` d'un monde de fichiers peut changer
+  // en cours de sortie (tuile absente), pas pendant cette boucle synchrone.
+  const cache = new Map<number, Part | null>();
+  const tileOwner = (tx: number, tz: number): Part | null => {
+    const key = tx * 1_048_576 + tz;
+    let o = cache.get(key);
+    if (o === undefined) {
+      o = owner(tx, tz);
+      cache.set(key, o);
+    }
+    return o;
+  };
+  const ownerAt = (x: number, z: number) => tileOwner(Math.floor(x / T), Math.floor(z / T));
+  // Le point et ses quatre voisins à `m` mètres ont un propriétaire. Comme m < T/2, le point est sur l'une
+  // des (au plus quatre) tuiles des coins : on ne les interroge qu'une fois chacune.
+  const covered = (x: number, z: number): boolean => {
+    const x0 = Math.floor((x - m) / T);
+    const x1 = Math.floor((x + m) / T);
+    const z0 = Math.floor((z - m) / T);
+    const z1 = Math.floor((z + m) / T);
+    if (!tileOwner(x0, z0)) return false;
+    if (x1 !== x0 && !tileOwner(x1, z0)) return false;
+    if (z1 !== z0) {
+      if (!tileOwner(x0, z1)) return false;
+      if (x1 !== x0 && !tileOwner(x1, z1)) return false;
+    }
+    return true;
+  };
   parts.forEach((p, pi) => {
     const g = p.source.open?.fullGraph ?? p.source.open?.graph;
     if (!g) return;
@@ -140,15 +173,21 @@ function mergeGraphs(parts: Part[], ownerAt: (x: number, z: number) => Part | nu
       return k;
     };
     for (const e of g.edges) {
+      // Arête de la zone propriétaire de la tuile sous son milieu, avant toute copie (zones qui se chevauchent).
+      const mid = Math.floor(e.pts.length / 6) * 3;
+      if (ownerAt((e.pts[mid] as number) + p.dx, (e.pts[mid + 2] as number) + p.dz) !== p) continue;
       const pts = e.pts.slice();
-      for (let i = 0; i < pts.length; i += 3) {
-        pts[i] = (pts[i] as number) + p.dx;
-        pts[i + 2] = (pts[i + 2] as number) + p.dz;
-      }
-      const mid = Math.floor(pts.length / 6) * 3;
-      if (ownerAt(pts[mid] as number, pts[mid + 2] as number) !== p) continue;
       let ok = true;
-      for (let i = 0; i < pts.length && ok; i += 3) ok = !!covered(pts[i] as number, pts[i + 2] as number);
+      for (let i = 0; i < pts.length; i += 3) {
+        const x = (pts[i] as number) + p.dx;
+        const z = (pts[i + 2] as number) + p.dz;
+        if (!covered(x, z)) {
+          ok = false;
+          break;
+        }
+        pts[i] = x;
+        pts[i + 2] = z;
+      }
       if (!ok) continue;
       const a = node(e.a);
       const b = node(e.b);
