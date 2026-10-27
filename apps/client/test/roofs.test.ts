@@ -128,6 +128,31 @@ describe('toits sur emprise réelle', () => {
     }
   });
 
+  it('rectangle à décrochements (BD TOPO) : deux pans gardés, pignons aux bouts seulement', () => {
+    // 14 × 8 m, retrait de 0,6 m sur 4 m au milieu d'un long côté, pignon ouest en deux parties décalées de 0,5 m
+    const notched = [0, 0, 5, 0, 5, 0.6, 9, 0.6, 9, 0, 14, 0, 14, 8, 0.5, 8, 0.5, 4, 0, 4];
+    for (const ridgeShort of [false, true]) {
+      const plan = planRoof(notched, { overhang: O, gableOverhang: OG, gabled: true, ridgeShort });
+      if (!plan) throw new Error('plan nul');
+      check(notched, plan);
+      if (ridgeShort) continue;
+      expect(plan.gables.length).toBeGreaterThan(0);
+      // pignons sur les bouts x ≈ 0 et x = 14, jamais sur le décrochement du long côté (x = 5 ou 9)
+      for (let i = 0; i < plan.gables.length; i += 4) {
+        const x = plan.gables[i] as number;
+        expect(x < 0.5 + 1e-6 || x > 14 - 1e-6).toBe(true);
+      }
+    }
+  });
+
+  it('pignon voisin d’un coin rentrant qui ferait sortir le toit : retour aux croupes', () => {
+    // emprise réelle de Billom (BATIMENT0000000312805045) : avec pignons, le pan sortait de 1,5 m
+    const pts = [-124.2, -2450.3, -126.3, -2450.2, -126.1, -2442, -125.3, -2442.1, -123.9, -2442];
+    const plan = planRoof(pts, { overhang: O, gableOverhang: OG, gabled: true });
+    if (!plan) throw new Error('plan nul');
+    check(pts, plan);
+  });
+
   it('T, U, trapèze et polygone sens horaire', () => {
     const T = [0, 0, 12, 0, 12, 4, 8, 4, 8, 12, 4, 12, 4, 4, 0, 4];
     const U = [0, 0, 14, 0, 14, 10, 10, 10, 10, 4, 4, 4, 4, 10, 0, 10];

@@ -71,21 +71,34 @@ export interface RidgeLine {
 }
 
 /**
- * Faîtage d'un toit simple. Deux pans : selon la longueur, ou selon la largeur si le faîtage est
- * court (pignons sur les grands côtés), prolongé du débord des rives. Croupes : selon la longueur,
- * raccourci de la profondeur des croupes (`run`, distance horizontale de l'égout au faîtage) ;
- * planRoof ignore alors le faîtage court.
+ * Faîtage d'un toit simple, lu sur le plan calculé (sommets à t = tEnd) : selon la longueur, ou la
+ * largeur si le toit à deux pans a un faîtage court (planRoof l'ignore pour les croupes), rives
+ * comprises. Null si le faîtage n'est pas une droite (décrochements, terrasson).
  */
-export function ridgeLine(box: Obb, gabled: boolean, ridgeShort: boolean, run: number, gableOverhang = 0.25): RidgeLine {
-  const across = gabled && ridgeShort;
-  const len = across ? box.hw : box.hl;
-  return {
-    cx: box.cx,
-    cz: box.cz,
-    dx: across ? -box.uz : box.ux,
-    dz: across ? box.ux : box.uz,
-    half: gabled ? len + gableOverhang : Math.max(len - run, 0),
-  };
+export function ridgeLine(box: Obb, plan: RoofPlan, ridgeShort: boolean): RidgeLine | null {
+  const across = plan.gables.length > 0 && ridgeShort;
+  const dx = across ? -box.uz : box.ux;
+  const dz = across ? box.ux : box.uz;
+  let lo = Infinity;
+  let hi = -Infinity;
+  let pMin = Infinity;
+  let pMax = -Infinity;
+  const r = plan.roof;
+  for (let i = 0; i + 4 < r.length; i += 5) {
+    if (Math.abs((r[i + 2] as number) - plan.tEnd) > 1e-6) continue;
+    const x = (r[i] as number) - box.cx;
+    const z = (r[i + 1] as number) - box.cz;
+    const along = x * dx + z * dz;
+    const perp = -x * dz + z * dx;
+    lo = Math.min(lo, along);
+    hi = Math.max(hi, along);
+    pMin = Math.min(pMin, perp);
+    pMax = Math.max(pMax, perp);
+  }
+  if (!Number.isFinite(lo) || pMax - pMin > 0.3) return null;
+  const m = (lo + hi) / 2;
+  const p = (pMin + pMax) / 2;
+  return { cx: box.cx + dx * m - dz * p, cz: box.cz + dz * m + dx * p, dx, dz, half: (hi - lo) / 2 };
 }
 
 interface P2 {
@@ -227,20 +240,29 @@ export interface RoofOptions {
   ridgeShort?: boolean;
 }
 
-/** Arêtes de pignon (petits côtés) si l'emprise est convexe et proche de son rectangle orienté. */
-function gableEdges(ring: P2[], ridgeShort = false): boolean[] | null {
+/**
+ * Arêtes de pignon (petits côtés) si l'emprise est proche de son rectangle orienté. Emprise non
+ * convexe (décrochements de façade, fréquents dans la BD TOPO) : seules les arêtes au bout du
+ * rectangle sont des pignons, pas un décrochement en milieu de mur.
+ */
+function gableEdges(ring: P2[], ridgeShort = false): { edges: boolean[]; convex: boolean } | null {
   const n = ring.length;
   const flat: number[] = [];
   for (const p of ring) flat.push(p.x, p.z);
   const box = orientedBox(flat);
   if (box.hl < 1 || box.hw < 1) return null;
   if (ringArea(ring) / (4 * box.hl * box.hw) < 0.85) return null;
+  let convex = true;
   for (let i = 0; i < n; i++) {
     const a = ring[(i - 1 + n) % n] as P2;
     const b = ring[i] as P2;
     const c = ring[(i + 1) % n] as P2;
-    if ((b.x - a.x) * (c.z - b.z) - (b.z - a.z) * (c.x - b.x) < -1e-9) return null; // non convexe
+    if ((b.x - a.x) * (c.z - b.z) - (b.z - a.z) * (c.x - b.x) < -1e-9) convex = false;
   }
+  // Bout du rectangle selon l'axe du faîtage : à 1 m près (25 % de la demi-dimension au plus) si l'emprise
+  // a des décrochements, au-delà de 60 % de la demi-dimension si elle est convexe.
+  const halfEnd = ridgeShort ? box.hw : box.hl;
+  const endMin = convex ? halfEnd * 0.6 : halfEnd - Math.min(1, halfEnd * 0.25);
   const g: boolean[] = [];
   let ends = 0;
   for (let i = 0; i < n; i++) {
@@ -252,11 +274,11 @@ function gableEdges(ring: P2[], ridgeShort = false): boolean[] | null {
     const mz = (a.z + b.z) / 2 - box.cz;
     // pignons : petits côtés (faîtage selon la longueur) ou grands côtés (faîtage selon la largeur)
     const mid = ridgeShort ? -mx * box.uz + mz * box.ux : mx * box.ux + mz * box.uz;
-    const isG = ridgeShort ? along > 0.66 && Math.abs(mid) > box.hw * 0.6 && len > 1 : along < 0.34 && Math.abs(mid) > box.hl * 0.6 && len > 1;
+    const isG = (ridgeShort ? along > 0.66 : along < 0.34) && Math.abs(mid) > endMin && len > 1;
     g.push(isG);
     if (isG) ends |= mid > 0 ? 1 : 2;
   }
-  return ends === 3 ? g : null;
+  return ends === 3 ? { edges: g, convex } : null;
 }
 
 function solve(l1: Line, l2: Line, c1: number, c2: number): P2 | null {
@@ -283,7 +305,8 @@ export function planRoof(pts: number[], opts: RoofOptions): RoofPlan | null {
   const n0 = ring.length;
   if (n0 < 3 || ringArea(ring) < 1) return null;
   const o = opts.overhang;
-  const gable = opts.gabled ? gableEdges(ring, opts.ridgeShort) : null;
+  const gableInfo = opts.gabled ? gableEdges(ring, opts.ridgeShort) : null;
+  const gable = gableInfo?.edges ?? null;
   const lines: Line[] = [];
   for (let i = 0; i < n0; i++) {
     const a = ring[i] as P2;
@@ -534,7 +557,42 @@ export function planRoof(pts: number[], opts: RoofOptions): RoofPlan | null {
     loops = loops.map((loop) => cleanup(loop)).filter((loop): loop is Vert[] => loop !== null);
   }
   for (const loop of loops) cap(loop, T);
-  return { roof, gables: gab, overhang: o, tEnd: T };
+  const plan = { roof, gables: gab, overhang: o, tEnd: T };
+  // Pignons sur une emprise à décrochements : un coin rentrant voisin d'un pignon peut faire glisser le
+  // front hors de l'emprise, ou l'arrêter tôt sur un grand terrasson ; on revient alors aux croupes.
+  if (gableInfo && !gableInfo.convex && !soundRoof(plan, ring, o * 1.6 + og)) return planRoof(pts, { ...opts, gabled: false });
+  return plan;
+}
+
+/** Point dans l'anneau (règle pair-impair). */
+function insideRing(p: P2, ring: P2[]): boolean {
+  let c = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const a = ring[i] as P2;
+    const b = ring[j] as P2;
+    if (a.z > p.z !== b.z > p.z && p.x < ((b.x - a.x) * (p.z - a.z)) / (b.z - a.z) + a.x) c = !c;
+  }
+  return c;
+}
+
+/** Toit sain : aucun sommet à plus de `maxOut` hors de l'emprise, terrasson sur moins de 10 % du toit. */
+function soundRoof(plan: RoofPlan, ring: P2[], maxOut: number): boolean {
+  const r = plan.roof;
+  let all = 0;
+  let cap = 0;
+  for (let i = 0; i + 15 <= r.length; i += 15) {
+    const a = Math.abs(((r[i + 5] as number) - (r[i] as number)) * ((r[i + 11] as number) - (r[i + 1] as number)) - ((r[i + 6] as number) - (r[i + 1] as number)) * ((r[i + 10] as number) - (r[i] as number))) / 2;
+    all += a;
+    if ([2, 7, 12].every((k) => Math.abs((r[i + k] as number) - plan.tEnd) < 1e-6)) cap += a;
+    for (const k of [0, 5, 10]) {
+      const p = { x: r[i + k] as number, z: r[i + k + 1] as number };
+      if (insideRing(p, ring)) continue;
+      let d = Infinity;
+      for (let j = 0; j < ring.length; j++) d = Math.min(d, segDist(p, ring[j] as P2, ring[(j + 1) % ring.length] as P2));
+      if (d > maxOut + 1e-6) return false;
+    }
+  }
+  return all > 0 && cap <= 0.1 * all;
 }
 
 export interface RoofBuffers {

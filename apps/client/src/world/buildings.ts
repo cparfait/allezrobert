@@ -315,7 +315,8 @@ function houseDetails(pts: number[], box: ReturnType<typeof orientedBox>, plan: 
   const ridgeY = wallTop + (plan.tEnd - plan.overhang) * tan;
   const gabled = plan.gables.length > 0;
   // Faîtage : selon la longueur, ou la largeur (faîtage court, pignons sur les grands côtés) ; (vx, vz) le travers.
-  const ridge = ridgeLine(box, gabled, ridgeShort, plan.tEnd - plan.overhang);
+  const ridge = ridgeLine(box, plan, ridgeShort);
+  if (!ridge) return out;
   const ux = ridge.dx;
   const uz = ridge.dz;
   const vx = -uz;
@@ -326,8 +327,8 @@ function houseDetails(pts: number[], box: ReturnType<typeof orientedBox>, plan: 
   if (gabled && ridgeHalf > 0.5 && !slate) {
     const pos: number[] = [];
     const uvs: number[] = [];
-    const a = [box.cx - ux * ridgeHalf, box.cz - uz * ridgeHalf];
-    const b = [box.cx + ux * ridgeHalf, box.cz + uz * ridgeHalf];
+    const a = [ridge.cx - ux * ridgeHalf, ridge.cz - uz * ridgeHalf];
+    const b = [ridge.cx + ux * ridgeHalf, ridge.cz + uz * ridgeHalf];
     const top = ridgeY + 0.13;
     const low = ridgeY - 0.04;
     for (const side of [1, -1]) {
@@ -352,8 +353,8 @@ function houseDetails(pts: number[], box: ReturnType<typeof orientedBox>, plan: 
   if (r() < 0.8 * density) {
     // Souche de cheminée sur le faîtage (au tiers ou au pignon), 0,8 × 0,55 m, 0,9 m au-dessus.
     const t = (r() < 0.5 ? -1 : 1) * Math.min(ridgeHalf * (0.35 + r() * 0.4), Math.max(ridgeHalf - 0.6, 0));
-    const cx = box.cx + ux * t;
-    const cz = box.cz + uz * t;
+    const cx = ridge.cx + ux * t;
+    const cz = ridge.cz + uz * t;
     const hw = 0.4;
     const hd = 0.28;
     const ring = (e: number) => [

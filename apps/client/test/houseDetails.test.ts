@@ -15,21 +15,22 @@ function ridgePoints(pts: number[], gabled: boolean, ridgeShort: boolean): Array
 }
 
 /** La faîtière (ridgeLine) passe par tous les points du faîtage calculé par planRoof et les couvre. */
-function expectOnRidge(pts: number[], gabled: boolean, ridgeShort: boolean): void {
+function expectOnRidge(pts: number[], gabled: boolean, ridgeShort: boolean): ReturnType<typeof ridgeLine> {
   const box = orientedBox(pts);
   const plan = planRoof(pts, { overhang: O, gableOverhang: OG, gabled, ...(ridgeShort ? { ridgeShort } : {}) })!;
-  const r = ridgeLine(box, plan.gables.length > 0, ridgeShort, plan.tEnd - plan.overhang, OG);
+  const r = ridgeLine(box, plan, ridgeShort);
+  expect(r).not.toBeNull();
   const along: number[] = [];
   for (const [x, z] of ridgePoints(pts, gabled, ridgeShort)) {
-    const dx = x - r.cx;
-    const dz = z - r.cz;
-    expect(Math.abs(-dx * r.dz + dz * r.dx)).toBeLessThan(1e-3); // sur la ligne
-    along.push(dx * r.dx + dz * r.dz);
+    const dx = x - r!.cx;
+    const dz = z - r!.cz;
+    expect(Math.abs(-dx * r!.dz + dz * r!.dx)).toBeLessThan(1e-3); // sur la ligne
+    along.push(dx * r!.dx + dz * r!.dz);
   }
   expect(along.length).toBeGreaterThan(0);
-  expect(Math.max(...along.map(Math.abs))).toBeLessThanOrEqual(r.half + 1e-3);
-  // la faîtière couvre le faîtage d'un bout à l'autre (à la rive près pour les pignons)
-  expect(Math.max(...along) - Math.min(...along)).toBeGreaterThan(2 * r.half - 2 * OG - 1e-3 - (plan.gables.length ? 0 : 1e-3));
+  expect(Math.max(...along)).toBeCloseTo(r!.half, 3);
+  expect(Math.min(...along)).toBeCloseTo(-r!.half, 3);
+  return r;
 }
 
 // Rectangle 14 × 8 m tourné de 30°.
@@ -43,24 +44,20 @@ const rect = (() => {
 
 describe('faîtière et cheminée sur le faîtage', () => {
   it('deux pans, faîtage selon la longueur', () => {
-    expectOnRidge(rect, true, false);
-    const r = ridgeLine(orientedBox(rect), true, false, 4);
+    const r = expectOnRidge(rect, true, false)!;
     expect(r.half).toBeCloseTo(7 + OG);
   });
 
   it('deux pans, faîtage court (pignons sur les grands côtés) : faîtière selon la largeur', () => {
-    expectOnRidge(rect, true, true);
+    const r = expectOnRidge(rect, true, true)!;
     const box = orientedBox(rect);
-    const r = ridgeLine(box, true, true, 7);
     expect(r.half).toBeCloseTo(4 + OG);
     expect(Math.abs(r.dx * box.ux + r.dz * box.uz)).toBeLessThan(1e-9); // perpendiculaire au grand axe
   });
 
   it('croupes : faîtage selon la longueur, raccourci des croupes, même si le faîtage est court', () => {
-    expectOnRidge(rect, false, true);
+    const r = expectOnRidge(rect, false, true)!;
     const box = orientedBox(rect);
-    const plan = planRoof(rect, { overhang: O, gableOverhang: OG, gabled: false, ridgeShort: true })!;
-    const r = ridgeLine(box, plan.gables.length > 0, true, plan.tEnd - plan.overhang);
     expect(r.half).toBeCloseTo(7 - 4, 3);
     expect(Math.abs(r.dx * box.ux + r.dz * box.uz)).toBeCloseTo(1);
   });
