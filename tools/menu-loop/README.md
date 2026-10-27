@@ -64,7 +64,15 @@ trois fois ; le serveur de dev est relancé s'il s'arrête (la page retente ses 
   durée de rendu d'une image.
 - Visages : avatar MPFB, un profil de base par coureur (`BASE_PROFILES`, Robert en tête) aux
   traits un peu variés, effort d'endurance tranquille (`setEffort`), 6 s de mise en route.
+- Tenues : aucun maillot à logo de sponsor (refusé par `kit()`). Robert, en tête, garde son
+  maillot bleu ; les autres portent des maillots de club unis ou à motif.
+- Groupe vivant (`SLOTS` et `gesture()` dans `cinematicPlan.ts`, fonctions pures du temps) :
+  rangs en quinconce, effet d'accordéon, chacun sur sa trajectoire (cap et inclinaison du vélo),
+  et des gestes calés sur les plans : discussions (regards), mains en haut ou en bas du cintre,
+  danseuse, roue libre (manivelles à l'horizontale), coups d'œil derrière. Aucun geste autour du
+  raccord ; `apps/client/test/cinematicPlan.test.ts` vérifie les écarts entre coureurs et la
+  boucle (formation et pédaliers identiques au raccord).
 
-Réglage des plans : `/?cinematic=autumn&route=chevreuse-boucle&quality=ultra&ss=2&sub=8&stills=4,14.5`
+Réglage des plans : `/?cinematic=autumn&world=chevreuse&route=chevreuse-boucle&quality=ultra&ss=2&sub=8&stills=4,14.5`
 rend seulement ces instants dans `out/menu-loop/stills-autumn/` ; sans `capture` ni `stills`,
 aperçu en continu. `&hour=13` change l'heure (essais d'éclairage).

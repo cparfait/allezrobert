@@ -237,7 +237,7 @@ ${new Date().toLocaleTimeString()} : serveur de dev arrêté, relance (journal :
   try {
     while (pending.length) {
       const [first, ...rest] = pending as [string, ...string[]];
-      const url = `${server.url}/?cinematic=${first}&route=chevreuse-boucle&quality=ultra&fps=30&w=${w}&h=${h}&ss=${ss}&sub=${sub}&capture=1${rest.length ? `&then=${rest.join(',')}` : ''}`;
+      const url = `${server.url}/?cinematic=${first}&world=chevreuse&route=chevreuse-boucle&quality=ultra&fps=30&w=${w}&h=${h}&ss=${ss}&sub=${sub}&capture=1${rest.length ? `&then=${rest.join(',')}` : ''}`;
       if (browser === 'chrome') {
         console.log(`Chrome dédié${arg('headed') ? '' : ' sans fenêtre'} : ${url}`);
         chrome = launchChrome(url, resolve(OUT, `chrome-${first}.log`));

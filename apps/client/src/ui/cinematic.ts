@@ -10,13 +10,13 @@ import { splatAt } from '../world/splat.ts';
 import type { World } from '../world/world.ts';
 import type { Engine } from '../engine/renderer.ts';
 import { filmClock, freezeStreaming, waitForAssets, type ViewPoint } from './cinematicStream.ts';
-import { CINE_ENV, GROUP_SPEED, LOOP_S, SLOTS, XFADE_S, formation, frameCount, frontFraming, isCineSeason, shotAt, smooth, type CineSeason } from './cinematicPlan.ts';
+import { CINE_ENV, GROUP_SPEED, LOOP_S, SLOTS, XFADE_S, formation, frameCount, frontFraming, gesture, isCineSeason, shotAt, smooth, type CineSeason } from './cinematicPlan.ts';
 
 /**
  * Mode « cinématique » (développement uniquement) : film d'accueil rendu image par image à pas
  * fixe, sans dépendre de requestAnimationFrame (le panneau du navigateur peut être masqué).
  *
- *   /?cinematic=autumn&route=chevreuse-boucle&quality=ultra&fps=30&w=1920&h=1080&ss=2&sub=8&capture=1
+ *   /?cinematic=autumn&world=chevreuse&route=chevreuse-boucle&quality=ultra&fps=30&w=1920&h=1080&ss=2&sub=8&capture=1
  *
  * - capture=1 : chaque image part en PNG (sans perte) vers POST /__save (dir=menu-loop/<saison>),
  *   puis un manifeste ; tools/menu-loop attend ce manifeste et encode la boucle (voir son README).
@@ -38,28 +38,32 @@ const CINE_D: Record<string, number> = { 'chevreuse-boucle': 5825 };
 const BIKES = ['#1d1d1f', '#e8ecf0', '#c0392b', '#2c3e50', '#16a085', '#f4f4f4', '#d35400'];
 const BLACK = '#141414';
 const WHITE = '#f2f2f2';
-/** Maillot du catalogue (packages/shared/src/cosmetics.json) : couleur, style, bandes, pois et logo. */
+/** Maillot du catalogue (packages/shared/src/cosmetics.json) : couleur, style, bandes et pois. */
 function kit(id: string, extra: Partial<AvatarLook>): Partial<AvatarLook> {
   const item = COSMETICS.find((c) => c.id === id);
   if (!item) throw new Error(`maillot du catalogue introuvable : ${id}`);
-  return { ...jerseyLookOf(item), ...extra };
+  const look = { ...jerseyLookOf(item), ...extra };
+  if (look.jerseyLogo) throw new Error(`maillot à logo de sponsor dans le film : ${id}`);
+  return look;
 }
 /**
- * Tenues des 9 équipiers de Robert : mélange du catalogue (maillots du Tour jaune, vert, à pois et
- * blanc ; équipes pro avec logo), deux ou trois en manches longues, quelques bidons en plus ou en
- * moins ; deux maillots voisins ne se ressemblent jamais (l'ordre suit la formation) et le casque
- * contraste avec le maillot. Tailles de 1,60 à 1,94 m (cadres à la taille).
+ * Tenues des 9 équipiers de Robert : maillots de club du catalogue ou à motif, sans logo de
+ * sponsor ni maillot distinctif, avec un motif (la bande d'accent de
+ * poitrine des maillots sans motif tombe dans le creux sous les pectoraux) ; deux ou trois en manches longues,
+ * quelques bidons en plus ou en moins ; deux maillots voisins ne se ressemblent jamais (l'ordre
+ * suit la formation) et le casque contraste avec le maillot. Tailles de 1,60 à 1,94 m (cadres à
+ * la taille).
  */
 const OUTFITS: ReadonlyArray<Partial<AvatarLook>> = [
-  kit('jersey-leader-jaune', { helmet: BLACK, shoes: WHITE, heightCm: 182 }),
-  kit('jersey-pro-ineos', { helmet: WHITE, shoes: WHITE, heightCm: 168 }),
-  kit('jersey-pro-lidl-trek', { helmet: WHITE, shoes: BLACK, heightCm: 175, sleeves: 'long' }),
-  kit('jersey-pois', { helmet: '#c62828', shoes: WHITE, heightCm: 190, bottles: 2 }),
-  kit('jersey-pro-quickstep', { helmet: WHITE, shoes: WHITE, heightCm: 163 }),
-  kit('jersey-leader-vert', { helmet: BLACK, shoes: BLACK, heightCm: 186, bottles: 2 }),
-  kit('jersey-pro-redbull-bora', { helmet: '#f2c500', shoes: WHITE, heightCm: 172, sleeves: 'long', bottles: 1 }),
-  kit('jersey-leader-blanc', { helmet: '#c62828', shoes: BLACK, heightCm: 194 }),
-  kit('jersey-pro-astana', { helmet: WHITE, shoes: BLACK, heightCm: 160, sleeves: 'long' }),
+  kit('jersey-equipe-bleu-blanc', { jerseyStyle: 'manches', helmet: WHITE, shoes: WHITE, heightCm: 168 }),
+  kit('jersey-equipe-noir-rouge', { jerseyStyle: 'degrade', helmet: WHITE, shoes: BLACK, heightCm: 175, sleeves: 'long' }),
+  kit('jersey-equipe-turquoise', { jerseyStyle: 'uni', helmet: BLACK, shoes: WHITE, heightCm: 190, bottles: 2 }),
+  kit('jersey-equipe-orange', { jerseyStyle: 'manches', helmet: WHITE, shoes: WHITE, heightCm: 163 }),
+  { jersey: '#16233f', jerseyStyle: 'chevrons', jerseyAccent: '#4fb3e8', helmet: WHITE, shoes: BLACK, heightCm: 186, bottles: 2 },
+  kit('jersey-chevreuse', { jerseyStyle: 'uni', helmet: WHITE, shoes: WHITE, heightCm: 172, sleeves: 'long', bottles: 1 }),
+  kit('jersey-equipe-rose-bleu', { jerseyStyle: 'degrade', helmet: '#1a2a5a', shoes: BLACK, heightCm: 194 }),
+  kit('jersey-equipe-blanc-noir', { jerseyStyle: 'manches', helmet: BLACK, shoes: BLACK, heightCm: 160, sleeves: 'long' }),
+  { jersey: '#7a1f2b', jerseyStyle: 'manches', jerseyAccent: '#e8e2d4', helmet: WHITE, shoes: WHITE, heightCm: 182 },
 ];
 /**
  * Visages du groupe (avatar MPFB) : un profil de base par coureur (packages/shared/src/profiles.ts),
@@ -155,6 +159,7 @@ export function lookFor(i: number): AvatarLook {
   }
   const { jersey: _j, jerseyAccent: _a, ...face } = p?.look ?? {};
   const base: AvatarLook = { ...DEFAULT_LOOK, ...face, ...(i >= 8 ? RECAST[i - 8] : {}), face: encodeFace(shape) };
+  // Robert : son maillot bleu (tenue par défaut), en tête.
   if (i === 0) return base;
   const j = i - 1;
   const outfit = OUTFITS[j % OUTFITS.length] as Partial<AvatarLook>;
@@ -229,37 +234,48 @@ export async function runCinematic(engine: Engine, world: World, track: RouteTra
   const riders: RiderAvatarLike[] = SLOTS.map((_, i) => {
     const a = createAvatar(lookFor(i));
     a.setShadows(true);
-    // Effort d'endurance tranquille : respiration posée, aucune grimace.
-    a.setEffort?.(0.6 + 0.04 * (i % 4), 0.6 + 0.03 * (i % 3));
     engine.scene.add(a.root);
     return a;
   });
 
   const leaderD = (t: number) => d0 + GROUP_SPEED * t;
-  const heading = (d: number) => {
-    const p = track.sample(d, _s);
-    return Math.atan2(p.dirX, p.dirZ);
+  /** Trajectoire du coureur i (repère monde, au sol). */
+  const pathAt = (i: number, t: number, out: THREE.Vector3) => {
+    const f = formation(i, t);
+    const p = track.positionAt(leaderD(t) - f.back, f.lat, _s);
+    return out.set(p.x, p.y, p.z);
   };
-  /** Inclinaison en virage ∝ v²·courbure (comme en sortie), bornée. */
-  const bankAt = (d: number) => {
-    let dh = heading(d + 6) - heading(d - 6);
-    if (dh > Math.PI) dh -= 2 * Math.PI;
-    if (dh < -Math.PI) dh += 2 * Math.PI;
-    const yawRate = (dh / 12) * GROUP_SPEED;
-    return THREE.MathUtils.clamp(-yawRate * GROUP_SPEED * 0.08, -0.35, 0.35);
-  };
+  const wrapAngle = (x: number) => Math.atan2(Math.sin(x), Math.cos(x));
+  const _p0 = new THREE.Vector3();
+  const _p1 = new THREE.Vector3();
+  const _p2 = new THREE.Vector3();
+  const PATH_DT = 0.2;
 
+  /**
+   * Chaque vélo suit sa propre trajectoire (route plus écarts de la formation) : cap le long du
+   * chemin parcouru, inclinaison ∝ vitesse × variation du cap (comme en sortie, bornée), vitesse
+   * des roues ; gestes du plan (mains, regard, danseuse, roue libre, pédalier).
+   */
   const placeRiders = (t: number, dt: number) => {
-    const dL = leaderD(t);
     riders.forEach((a, i) => {
+      pathAt(i, t - PATH_DT, _p0);
+      pathAt(i, t, _p1);
+      pathAt(i, t + PATH_DT, _p2);
+      const h1 = Math.atan2(_p1.x - _p0.x, _p1.z - _p0.z);
+      const h2 = Math.atan2(_p2.x - _p1.x, _p2.z - _p1.z);
+      const speed = Math.hypot(_p2.x - _p0.x, _p2.z - _p0.z) / (2 * PATH_DT);
+      const bank = THREE.MathUtils.clamp((-wrapAngle(h2 - h1) / PATH_DT) * speed * 0.08, -0.35, 0.35);
       const f = formation(i, t);
-      const d = dL - f.back;
-      const p = track.positionAt(d, f.lat, _s);
-      a.root.position.set(p.x, p.y + 0.06, p.z);
+      const grade = track.sample(leaderD(t) - f.back, _s).grade;
+      a.root.position.set(_p1.x, _p1.y + 0.06, _p1.z);
       a.root.rotation.set(0, 0, 0);
-      a.root.rotateY(Math.atan2(p.dirX, p.dirZ));
-      a.root.rotateX(-Math.atan(p.grade / 100));
-      a.update(dt, (SLOTS[i] as { cadence: number }).cadence, GROUP_SPEED, 'seated', bankAt(d));
+      a.root.rotateY(wrapAngle(h1 + wrapAngle(h2 - h1) / 2));
+      a.root.rotateX(-Math.atan(grade / 100));
+      const g = gesture(i, t);
+      // Effort d'endurance tranquille (respiration posée), plus marqué en danseuse.
+      a.setEffort?.(g.effort, g.effort);
+      a.setGesture?.({ hands: g.hands, yaw: g.yaw, pitch: g.pitch, crank: g.crank });
+      a.update(dt, g.cadence, speed, g.pose, bank);
     });
   };
 

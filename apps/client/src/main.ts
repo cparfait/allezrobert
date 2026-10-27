@@ -226,7 +226,7 @@ function nextPaint(): Promise<void> {
 }
 
 /** Version des médias du menu (vidéos, images) : à augmenter quand on les régénère (cache navigateur). */
-const MENU_MEDIA_VERSION = 10;
+const MENU_MEDIA_VERSION = 11;
 
 /** Boucle vidéo de la saison en fond du menu (public/menu/loop-<saison>.webm), sur son image fixe. */
 function createMenuVideo(el: HTMLVideoElement | null) {

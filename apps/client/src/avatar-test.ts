@@ -266,6 +266,43 @@ async function main(): Promise<void> {
     (window as unknown as { __avatarTestDone: boolean }).__avatarTestDone = true;
     return;
   }
+  // ?poitrine : torse de face (trois quarts) des hommes du film d'accueil, lumière rasante de côté.
+  if (params.has('poitrine')) {
+    const { lookFor } = await import('./ui/cinematic.ts');
+    for (const o of riders) o.a.root.visible = false;
+    far.root.visible = false;
+    const ids = (params.get('poitrine') || '0,1,3,5').split(',').map(Number);
+    const sheet = document.createElement('canvas');
+    sheet.width = 320 * ids.length;
+    sheet.height = 480;
+    const g = sheet.getContext('2d') as CanvasRenderingContext2D;
+    sun.position.set(-8, 6, 6);
+    for (const [k, i] of ids.entries()) {
+      // &neutre : sans curseurs de forme (visage et corps par défaut).
+      const a = new GltfRiderAvatar(params.has('neutre') ? { ...lookFor(i), face: undefined } : lookFor(i));
+      scene.add(a.root);
+      // &cache=skin,jersey_accent : pièces masquées (recherche d'un défaut).
+      const hide = (params.get('cache') ?? '').split(',').filter(Boolean);
+      if (hide.length) a.root.traverse((o) => { if ((o as THREE.Mesh).isMesh && hide.includes(((o as THREE.Mesh).material as THREE.Material).name)) o.visible = false; });
+      // &bind : pose de liaison (sans animation).
+      if (!params.has('bind')) for (let t = 0; t < 1; t += 1 / 60) a.update(1 / 60, 85, 9, 'seated', 0);
+      const chest = new THREE.Vector3();
+      a.eyeWorld(chest);
+      chest.y -= 0.32;
+      chest.z -= 0.05;
+      camera.fov = 14;
+      camera.position.set(chest.x + 1.0, chest.y + 0.35, chest.z + 3.2);
+      camera.updateProjectionMatrix();
+      camera.lookAt(chest);
+      for (let n = 0; n < 4; n++) engine.renderManual();
+      g.drawImage(canvas, 400, 0, 480, 720, k * 320, 0, 320, 480);
+      scene.remove(a.root);
+    }
+    document.body.replaceChildren(sheet);
+    if (!params.has('noshot')) await fetch(`/__shot?dir=cine-tune&name=poitrine-${params.get('name') ?? 'essai'}`, { method: 'POST', body: sheet.toDataURL('image/png') });
+    (window as unknown as { __avatarTestDone: boolean }).__avatarTestDone = true;
+    return;
+  }
   // ?profil : profil strict zoomé du haut du corps (dos, nuque, tête) des coureurs du film puis de
   // corpulences et tailles extrêmes ; &pose=standing|seated|coasting ; angles dans window.__profil.
   if (params.has('profil')) {

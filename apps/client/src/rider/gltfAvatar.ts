@@ -36,6 +36,18 @@ import { BikeMaterials, assembleBike, availableFamily, bikeAnchors, bikeFamilyRe
 
 export type RiderPose = 'seated' | 'standing' | 'coasting';
 
+/**
+ * Geste imposé (film d'accueil) : mains sur le cintre (sinon selon la vitesse et l'effort), regard
+ * (rad : lacet > 0 vers la gauche du coureur, tangage > 0 tête baissée) et angle du pédalier (rad,
+ * fonction du temps ; absent : il suit la cadence).
+ */
+export interface RiderGesture {
+  hands?: 'hoods' | 'drops' | 'tops';
+  yaw?: number;
+  pitch?: number;
+  crank?: number;
+}
+
 const RIDER_CAST_SHADOWS = false;
 
 /**
@@ -76,6 +88,8 @@ export interface RiderAvatarLike {
   setBareHead?(on: boolean): void;
   /** Effort du coureur (puissance / FTP, FC / FC max) : expressions du visage (avatar MPFB). */
   setEffort?(ftpFrac: number, hrFrac?: number): void;
+  /** Geste imposé (film d'accueil), pris en compte au prochain update(). */
+  setGesture?(g: RiderGesture): void;
   setHeadVisible(on: boolean): void;
   setShadows(on: boolean): void;
   /** Position des yeux (repère monde) pour la vue subjective ; absente : position estimée par la caméra. */
@@ -791,6 +805,7 @@ export class GltfRiderAvatar implements RiderAvatarLike {
   private wheelAngle = 0;
   private poseBlend = 0; // 0 assis → 1 danseuse
   private coastBlend = 0;
+  private gesture: RiderGesture = {};
   private time = Math.random() * 10;
   private shadows = true;
   // Temporaires propres à l'instance.
@@ -1199,6 +1214,7 @@ export class GltfRiderAvatar implements RiderAvatarLike {
       this.crankAngle += (target - this.crankAngle) * k * 0.5;
     }
     this.crankAngle %= Math.PI * 2;
+    if (this.gesture.crank !== undefined) this.crankAngle = this.gesture.crank;
     const a = this.crankAngle;
     const stand = this.poseBlend;
     this.celebrateBlend += ((this.celebrating ? 1 : 0) - this.celebrateBlend) * (1 - Math.exp(-dt * 6));
@@ -1207,8 +1223,9 @@ export class GltfRiderAvatar implements RiderAvatarLike {
     // petite allure (avec hystérésis).
     const coasting = pose === 'coasting' || cadence < 5;
     const bars = this.barTargets !== null && pose !== 'standing';
-    this.dropsOn = bars && (speed > DROPS_IN || (this.dropsOn && speed > DROPS_OUT));
-    this.relaxOn = bars && (speed < RELAX_IN || (this.relaxOn && speed < RELAX_OUT)) && (coasting || this.ftpFrac < RELAX_EFFORT);
+    const hands = this.gesture.hands;
+    this.dropsOn = bars && (hands ? hands === 'drops' : speed > DROPS_IN || (this.dropsOn && speed > DROPS_OUT));
+    this.relaxOn = bars && (hands ? hands === 'tops' : (speed < RELAX_IN || (this.relaxOn && speed < RELAX_OUT)) && (coasting || this.ftpFrac < RELAX_EFFORT));
     const aeroOn = bars && coasting ? THREE.MathUtils.smoothstep(speed, AERO_FROM, AERO_FULL) : 0;
     const k2 = 1 - Math.exp(-dt * 2.5);
     this.dropsBlend += ((this.dropsOn ? 1 : 0) - this.dropsBlend) * k2;
@@ -1268,17 +1285,21 @@ export class GltfRiderAvatar implements RiderAvatarLike {
     _q1.multiplyQuaternions(this.mQ[t.bones.chest.parent ?? 'spine'], t.bones.chest.localQ);
     _q2.setFromAxisAngle(Z_AXIS, -roll * 0.9);
     if (tuck !== 0) _q2.multiply(_q3.setFromAxisAngle(X_AXIS, TUCK_CHEST * tuck));
+    // Regard de côté : les épaules suivent un peu la tête.
+    const yaw = this.gesture.yaw ?? 0;
+    if (yaw !== 0) _q2.premultiply(_q3.setFromAxisAngle(Y_AXIS, 0.2 * yaw));
     this.setModelQ('chest', _q3.multiplyQuaternions(_q2, _q1));
 
     // --- Tête : regarde devant, compense une partie de l'inclinaison ; le cou en prend la moitié.
     this.bones.neck.quaternion.copy(t.bones.neck.localQ);
     this.fk('neck');
-    const look = 0.06 * Math.sin(this.time * 0.37) * Math.sin(this.time * 0.13);
+    const look = 0.06 * Math.sin(this.time * 0.37) * Math.sin(this.time * 0.13) + yaw;
     _q1.setFromAxisAngle(Z_AXIS, -(0.7 * bank + rock + counter));
     // Tête : relevée vers la route en chrono ; en position de course, basse dans l'alignement du dos ;
     // buste relevé : regard inchangé.
     if (tuck !== 0) _q1.multiply(_q3.setFromAxisAngle(X_AXIS, -TUCK_HEAD * (tuck - race) + RACE_HEAD * Math.max(race, 0)));
     _q2.setFromAxisAngle(Y_AXIS, look);
+    if (this.gesture.pitch) _q2.multiply(_q3.setFromAxisAngle(X_AXIS, this.gesture.pitch));
     const headTarget = _q3.multiplyQuaternions(_q1, _q2).multiply(t.bones.head.modelQ);
     _q1.multiplyQuaternions(this.mQ.neck, t.bones.head.localQ).invert(); // tête si cou au repos
     _q2.multiplyQuaternions(headTarget, _q1); // écart restant
@@ -1463,6 +1484,10 @@ export class GltfRiderAvatar implements RiderAvatarLike {
   setEffort(ftpFrac: number, hrFrac?: number): void {
     this.ftpFrac = ftpFrac;
     this.hrFrac = hrFrac;
+  }
+
+  setGesture(g: RiderGesture): void {
+    this.gesture = g;
   }
 
   /**

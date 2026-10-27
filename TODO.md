@@ -17,7 +17,7 @@ Décidé et fait (touche F : auto / file indienne / deux files tournantes / bord
 
 ## Visage
 - [x] Tête nue : le crâne lisse venait du bonnet de cheveux unique ; remplacé tête nue par une coque de cheveux par coiffure. Tutoriel de nouveau tête nue (casque quand on choisit sa couleur).
-- [x] `tongueOut` ajouté (sort à l'effort extrême) ; visages féminins : traits `FEMININE` renforcés ; poitrine des hommes supprimée (`cupsize` 0). À valider à l'œil.
+- [x] `tongueOut` ajouté (sort à l'effort extrême) ; visages féminins : traits `FEMININE` renforcés ; poitrine des hommes supprimée (`cupsize` 0), annulé le 27/10 : pour un homme, 0 applique la cible « bonnet minimal » de MPFB qui plissait les pectoraux ; retour à 0,5 (pectoraux neutres).
 
 ## Cheveux
 - [x] 6 coiffures de plus (dégradé, bouclés, carré, chignon, coiffé, longs), visibles tête nue ; sous le casque : bonnet court (les longs en queue de cheval). Coques à bruit de mèches, pas de vrais brins : pistes d'amélioration (cartes de mèches) au besoin.

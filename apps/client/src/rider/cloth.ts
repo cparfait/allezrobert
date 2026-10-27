@@ -85,7 +85,9 @@ export function makeClothMaterial(name: string, tex: ClothTextures, color: THREE
   // Plis (espace tangent) + maille en mosaïque : mélange « whiteout » des deux reliefs.
   const folds = texture(tex.folds, uv()).rgb.mul(2).sub(1);
   const knit = texture(tex.knit, uv().mul(60)).rgb.mul(2).sub(1);
-  const n = vec3(folds.xy.mul(c.folds).add(knit.xy.mul(c.knit)), folds.z).normalize();
+  // Sans plis (folds 0), la composante z de leur carte ne doit pas rester : elle dessinait encore
+  // les plis cuits (dont ceux sous les pectoraux, qui faisaient une poitrine aux hommes).
+  const n = vec3(folds.xy.mul(c.folds).add(knit.xy.mul(c.knit)), mix(float(1), folds.z, c.folds)).normalize();
   m.normalNode = normalMap(n.mul(0.5).add(0.5));
   // Reflet de lycra : voile clair de la couleur du tissu en lumière rasante.
   m.sheenNode = mix(materialColor.rgb, vec3(1), 0.25).mul(c.sheen);

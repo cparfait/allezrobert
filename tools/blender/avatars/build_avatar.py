@@ -149,8 +149,10 @@ SLIDERS = {
 # Macros de la base et curseurs de corps qui les font varier : nom → {« + » : macros, « − » : macros}.
 # Taille et longueur des jambes déplacent les articulations : elles sont traitées par le squelette
 # (client), pas par des cibles.
+# Homme : cupsize 0,5 = pectoraux neutres de MPFB ; 0 applique la cible « bonnet minimal » qui creuse
+# et plisse les pectoraux (une poitrine dessinée sous le maillot).
 BASE_MACRO = {'gender': 1.0, 'age': 0.5, 'muscle': 0.55, 'weight': 0.5, 'proportions': 0.5, 'height': 0.5,
-              'cupsize': 0.0, 'firmness': 0.5, 'race': {'asian': 0.33, 'caucasian': 0.34, 'african': 0.33}}
+              'cupsize': 0.5, 'firmness': 0.5, 'race': {'asian': 0.33, 'caucasian': 0.34, 'african': 0.33}}
 MACRO_SLIDERS = {
     'sex': {'-': {'gender': 0.0, 'cupsize': 0.75}},
     'age': {'+': {'age': 0.9}, '-': {'age': 0.37}},          # ≈ 77 ans / ≈ 19 ans (base 25 ans)
