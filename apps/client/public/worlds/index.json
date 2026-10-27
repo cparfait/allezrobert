@@ -494,8 +494,60 @@
    "open": true
   },
   {
+   "id": "idf-aubergenville",
+   "name": "Aubergenville",
+   "region": "Yvelines · Île-de-France",
+   "routes": [
+    {
+     "id": "boucle-20-km",
+     "name": "Boucle de 20 km depuis Aubergenville",
+     "nameEn": "20 km loop from Aubergenville",
+     "lengthM": 19926.11,
+     "elevationGainM": 206.81,
+     "loop": true
+    },
+    {
+     "id": "boucle-30-km",
+     "name": "Boucle de 30 km depuis Aubergenville",
+     "nameEn": "30 km loop from Aubergenville",
+     "lengthM": 29711.52,
+     "elevationGainM": 307.8,
+     "loop": true
+    },
+    {
+     "id": "boucle-40-km",
+     "name": "Boucle de 40 km depuis Aubergenville",
+     "nameEn": "40 km loop from Aubergenville",
+     "lengthM": 38797.78,
+     "elevationGainM": 441.94,
+     "loop": true
+    },
+    {
+     "id": "boucle-50-km",
+     "name": "Boucle de 50 km depuis Aubergenville",
+     "nameEn": "50 km loop from Aubergenville",
+     "lengthM": 51190.54,
+     "elevationGainM": 569.46,
+     "loop": true
+    }
+   ],
+   "pack": {
+    "version": "a7efa0b061ff",
+    "bytes": 264616794,
+    "files": 1026,
+    "gzBytes": 112893552
+   },
+   "l93": {
+    "minE": 608000,
+    "minN": 6860000,
+    "maxE": 624000,
+    "maxN": 6876000
+   },
+   "open": true
+  },
+  {
    "id": "idf-boulogne-billancourt",
-   "name": "Île-de-France — Boulogne-Billancourt",
+   "name": "Boulogne-Billancourt",
    "region": "Hauts-de-Seine · Île-de-France",
    "routes": [
     {
@@ -546,8 +598,164 @@
    "open": true
   },
   {
+   "id": "idf-bures-sur-yvette",
+   "name": "Bures-sur-Yvette",
+   "region": "Essonne · Île-de-France",
+   "routes": [
+    {
+     "id": "boucle-20-km",
+     "name": "Boucle de 20 km depuis Bures-sur-Yvette",
+     "nameEn": "20 km loop from Bures-sur-Yvette",
+     "lengthM": 19850,
+     "elevationGainM": 168.4,
+     "loop": false
+    },
+    {
+     "id": "boucle-30-km",
+     "name": "Boucle de 30 km depuis Bures-sur-Yvette",
+     "nameEn": "30 km loop from Bures-sur-Yvette",
+     "lengthM": 27776,
+     "elevationGainM": 190.84,
+     "loop": false
+    },
+    {
+     "id": "boucle-40-km",
+     "name": "Boucle de 40 km depuis Bures-sur-Yvette",
+     "nameEn": "40 km loop from Bures-sur-Yvette",
+     "lengthM": 40072,
+     "elevationGainM": 370.17,
+     "loop": false
+    },
+    {
+     "id": "boucle-50-km",
+     "name": "Boucle de 50 km depuis Bures-sur-Yvette",
+     "nameEn": "50 km loop from Bures-sur-Yvette",
+     "lengthM": 48374,
+     "elevationGainM": 432.62,
+     "loop": false
+    }
+   ],
+   "pack": {
+    "version": "6d3b8eeb906a",
+    "bytes": 262480389,
+    "files": 1026,
+    "gzBytes": 114904299
+   },
+   "l93": {
+    "minE": 624000,
+    "minN": 6828000,
+    "maxE": 640000,
+    "maxN": 6844000
+   },
+   "open": true
+  },
+  {
+   "id": "idf-bussy-saint-georges",
+   "name": "Bussy-Saint-Georges",
+   "region": "Seine-et-Marne · Île-de-France",
+   "routes": [
+    {
+     "id": "boucle-20-km",
+     "name": "Boucle de 20 km depuis Bussy-Saint-Georges",
+     "nameEn": "20 km loop from Bussy-Saint-Georges",
+     "lengthM": 20336,
+     "elevationGainM": 97.11,
+     "loop": false
+    },
+    {
+     "id": "boucle-30-km",
+     "name": "Boucle de 30 km depuis Bussy-Saint-Georges",
+     "nameEn": "30 km loop from Bussy-Saint-Georges",
+     "lengthM": 31434,
+     "elevationGainM": 136.1,
+     "loop": false
+    },
+    {
+     "id": "boucle-40-km",
+     "name": "Boucle de 40 km depuis Bussy-Saint-Georges",
+     "nameEn": "40 km loop from Bussy-Saint-Georges",
+     "lengthM": 40642,
+     "elevationGainM": 139.82,
+     "loop": false
+    },
+    {
+     "id": "boucle-50-km",
+     "name": "Boucle de 50 km depuis Bussy-Saint-Georges",
+     "nameEn": "50 km loop from Bussy-Saint-Georges",
+     "lengthM": 48170,
+     "elevationGainM": 203.71,
+     "loop": false
+    }
+   ],
+   "pack": {
+    "version": "dcfb1c28ebef",
+    "bytes": 286311133,
+    "files": 1026,
+    "gzBytes": 121252343
+   },
+   "l93": {
+    "minE": 672000,
+    "minN": 6844000,
+    "maxE": 688000,
+    "maxN": 6860000
+   },
+   "open": true
+  },
+  {
+   "id": "idf-cergy",
+   "name": "Cergy",
+   "region": "Val-d'Oise · Île-de-France",
+   "routes": [
+    {
+     "id": "boucle-20-km",
+     "name": "Boucle de 20 km depuis Cergy",
+     "nameEn": "20 km loop from Cergy",
+     "lengthM": 20068,
+     "elevationGainM": 229.32,
+     "loop": false
+    },
+    {
+     "id": "boucle-30-km",
+     "name": "Boucle de 30 km depuis Cergy",
+     "nameEn": "30 km loop from Cergy",
+     "lengthM": 29178,
+     "elevationGainM": 419.91,
+     "loop": false
+    },
+    {
+     "id": "boucle-40-km",
+     "name": "Boucle de 40 km depuis Cergy",
+     "nameEn": "40 km loop from Cergy",
+     "lengthM": 39308,
+     "elevationGainM": 548.75,
+     "loop": false
+    },
+    {
+     "id": "boucle-50-km",
+     "name": "Boucle de 50 km depuis Cergy",
+     "nameEn": "50 km loop from Cergy",
+     "lengthM": 48286,
+     "elevationGainM": 474.13,
+     "loop": false
+    }
+   ],
+   "pack": {
+    "version": "1e892376a260",
+    "bytes": 330437215,
+    "files": 1026,
+    "gzBytes": 136496804
+   },
+   "l93": {
+    "minE": 624000,
+    "minN": 6876000,
+    "maxE": 640000,
+    "maxN": 6892000
+   },
+   "open": true
+  },
+  {
    "id": "idf-creteil",
-   "name": "Île-de-France — Créteil",
+   "name": "Créteil",
    "region": "Val-de-Marne · Île-de-France",
    "routes": [
     {
@@ -598,8 +806,112 @@
    "open": true
   },
   {
+   "id": "idf-dammartin-en-goele",
+   "name": "Dammartin-en-Goële",
+   "region": "Seine-et-Marne · Île-de-France",
+   "routes": [
+    {
+     "id": "boucle-20-km",
+     "name": "Boucle de 20 km depuis Dammartin-en-Goële",
+     "nameEn": "20 km loop from Dammartin-en-Goële",
+     "lengthM": 20216,
+     "elevationGainM": 187.95,
+     "loop": false
+    },
+    {
+     "id": "boucle-30-km",
+     "name": "Boucle de 30 km depuis Dammartin-en-Goële",
+     "nameEn": "30 km loop from Dammartin-en-Goële",
+     "lengthM": 29889.95,
+     "elevationGainM": 281.39,
+     "loop": true
+    },
+    {
+     "id": "boucle-40-km",
+     "name": "Boucle de 40 km depuis Dammartin-en-Goële",
+     "nameEn": "40 km loop from Dammartin-en-Goële",
+     "lengthM": 40993.65,
+     "elevationGainM": 405.32,
+     "loop": true
+    },
+    {
+     "id": "boucle-50-km",
+     "name": "Boucle de 50 km depuis Dammartin-en-Goële",
+     "nameEn": "50 km loop from Dammartin-en-Goële",
+     "lengthM": 48736,
+     "elevationGainM": 408.76,
+     "loop": false
+    }
+   ],
+   "pack": {
+    "version": "9b76aede3c0b",
+    "bytes": 221751926,
+    "files": 1026,
+    "gzBytes": 91064715
+   },
+   "l93": {
+    "minE": 672000,
+    "minN": 6876000,
+    "maxE": 688000,
+    "maxN": 6892000
+   },
+   "open": true
+  },
+  {
+   "id": "idf-evry-courcouronnes",
+   "name": "Évry-Courcouronnes",
+   "region": "Essonne · Île-de-France",
+   "routes": [
+    {
+     "id": "boucle-20-km",
+     "name": "Boucle de 20 km depuis Évry-Courcouronnes",
+     "nameEn": "20 km loop from Évry-Courcouronnes",
+     "lengthM": 20110,
+     "elevationGainM": 209.63,
+     "loop": false
+    },
+    {
+     "id": "boucle-30-km",
+     "name": "Boucle de 30 km depuis Évry-Courcouronnes",
+     "nameEn": "30 km loop from Évry-Courcouronnes",
+     "lengthM": 27464,
+     "elevationGainM": 213.45,
+     "loop": false
+    },
+    {
+     "id": "boucle-40-km",
+     "name": "Boucle de 40 km depuis Évry-Courcouronnes",
+     "nameEn": "40 km loop from Évry-Courcouronnes",
+     "lengthM": 40188,
+     "elevationGainM": 259.27,
+     "loop": false
+    },
+    {
+     "id": "boucle-50-km",
+     "name": "Boucle de 50 km depuis Évry-Courcouronnes",
+     "nameEn": "50 km loop from Évry-Courcouronnes",
+     "lengthM": 50428.27,
+     "elevationGainM": 318.33,
+     "loop": true
+    }
+   ],
+   "pack": {
+    "version": "f3ae3579abb5",
+    "bytes": 358213515,
+    "files": 1026,
+    "gzBytes": 145776077
+   },
+   "l93": {
+    "minE": 656000,
+    "minN": 6828000,
+    "maxE": 672000,
+    "maxN": 6844000
+   },
+   "open": true
+  },
+  {
    "id": "idf-goussainville",
-   "name": "Île-de-France — Goussainville",
+   "name": "Goussainville",
    "region": "Val-d'Oise · Île-de-France",
    "routes": [
     {
@@ -651,7 +963,7 @@
   },
   {
    "id": "idf-montreuil",
-   "name": "Île-de-France — Montreuil",
+   "name": "Montreuil",
    "region": "Seine-Saint-Denis · Île-de-France",
    "routes": [
     {
@@ -703,7 +1015,7 @@
   },
   {
    "id": "idf-paris",
-   "name": "Île-de-France — Paris",
+   "name": "Paris",
    "region": "Paris · Île-de-France",
    "routes": [
     {
@@ -755,7 +1067,7 @@
   },
   {
    "id": "idf-rueil-malmaison",
-   "name": "Île-de-France — Rueil-Malmaison",
+   "name": "Rueil-Malmaison",
    "region": "Hauts-de-Seine · Île-de-France",
    "routes": [
     {
@@ -807,7 +1119,7 @@
   },
   {
    "id": "idf-sarcelles",
-   "name": "Île-de-France — Sarcelles",
+   "name": "Sarcelles",
    "region": "Val-d'Oise · Île-de-France",
    "routes": [
     {
@@ -859,7 +1171,7 @@
   },
   {
    "id": "idf-savigny-sur-orge",
-   "name": "Île-de-France — Savigny-sur-Orge",
+   "name": "Savigny-sur-Orge",
    "region": "Essonne · Île-de-France",
    "routes": [
     {
@@ -911,7 +1223,7 @@
   },
   {
    "id": "idf-versailles",
-   "name": "Île-de-France — Versailles",
+   "name": "Versailles",
    "region": "Yvelines · Île-de-France",
    "routes": [
     {
@@ -958,6 +1270,58 @@
     "minN": 6844000,
     "maxE": 640000,
     "maxN": 6860000
+   },
+   "open": true
+  },
+  {
+   "id": "idf-villeparisis",
+   "name": "Île-de-France — Villeparisis",
+   "region": "Seine-et-Marne · Île-de-France",
+   "routes": [
+    {
+     "id": "boucle-20-km",
+     "name": "Boucle de 20 km depuis Villeparisis",
+     "nameEn": "20 km loop from Villeparisis",
+     "lengthM": 20067.76,
+     "elevationGainM": 216.73,
+     "loop": true
+    },
+    {
+     "id": "boucle-30-km",
+     "name": "Boucle de 30 km depuis Villeparisis",
+     "nameEn": "30 km loop from Villeparisis",
+     "lengthM": 31876,
+     "elevationGainM": 311.79,
+     "loop": false
+    },
+    {
+     "id": "boucle-40-km",
+     "name": "Boucle de 40 km depuis Villeparisis",
+     "nameEn": "40 km loop from Villeparisis",
+     "lengthM": 40122,
+     "elevationGainM": 409.8,
+     "loop": false
+    },
+    {
+     "id": "boucle-50-km",
+     "name": "Boucle de 50 km depuis Villeparisis",
+     "nameEn": "50 km loop from Villeparisis",
+     "lengthM": 51465.52,
+     "elevationGainM": 502.2,
+     "loop": true
+    }
+   ],
+   "pack": {
+    "version": "6a0c2130340e",
+    "bytes": 301617210,
+    "files": 1026,
+    "gzBytes": 123194692
+   },
+   "l93": {
+    "minE": 672000,
+    "minN": 6860000,
+    "maxE": 688000,
+    "maxN": 6876000
    },
    "open": true
   },

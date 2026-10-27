@@ -2,6 +2,15 @@
   "version": "0.0.1",
   "configurations": [
     {
+      "name": "film-accueil",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": [
+        "/c",
+        "set AR_HMR=0&& pnpm --filter @allezrobert/client exec vite --port 5188 --strictPort"
+      ],
+      "port": 5188
+    },
+    {
       "name": "jeu-complet",
       "runtimeExecutable": "pnpm",
       "runtimeArgs": [
