@@ -523,15 +523,44 @@ export interface EndDirs {
   end?: [number, number];
 }
 
+/** Route principale d'un carrefour où s'arrête une branche : axe local (x,y,z) et demi-chaussée. */
+export interface RoadStop {
+  line: number[];
+  half: number;
+}
+
+/** Routes principales aux deux bouts d'une polyligne (voir `chainPieces`). */
+export interface EndStops {
+  start?: RoadStop;
+  end?: RoadStop;
+}
+
+/** Emprise d'une route principale de carrefour (sans accotement). */
+function stopFootprint(s: RoadStop | undefined): RouteFootprint | null {
+  if (!s || s.line.length < 6) return null;
+  const pts: AxisPoint3[] = [];
+  let d = 0;
+  for (let i = 0; i < s.line.length; i += 3) {
+    if (i) d += Math.hypot((s.line[i] as number) - (s.line[i - 3] as number), (s.line[i + 2] as number) - (s.line[i - 1] as number));
+    pts.push({ x: s.line[i] as number, y: s.line[i + 1] as number, z: s.line[i + 2] as number, d });
+  }
+  return new RouteFootprint(pts, false, s.half, 0);
+}
+
 /**
  * Découpe une route du réseau (polyligne x,y,z) contre l'emprise de l'itinéraire et construit ses
  * bords (demi-largeur `hw`, bas-côté compris). Les extrémités coupées sont posées sur la ligne de
  * rive de l'itinéraire (profil oblique si le carrefour l'est) et raccordées à son altitude ; les
- * autres suivent `dirs` s'il est fourni (raccord exact avec le tronçon voisin).
+ * autres suivent `dirs` s'il est fourni (raccord exact avec le tronçon voisin). Une extrémité qui
+ * débouche sur la route principale d'un carrefour (`stops`) est coupée de même sur sa rive : ni
+ * chaussée ni marquage de la branche par-dessus la route principale.
  */
-export function sideRoadStrips(pts3: readonly number[], hw: number, rh: number, fp: RouteFootprint | null, lift: number, dirs: EndDirs = {}): SideStrip[] {
+export function sideRoadStrips(pts3: readonly number[], hw: number, rh: number, fp: RouteFootprint | null, lift: number, dirs: EndDirs = {}, stops: EndStops = {}): SideStrip[] {
   const n = pts3.length / 3;
   if (n < 2) return [];
+  // Emprises : itinéraire actif, route principale du carrefour de départ, puis d'arrivée.
+  const fps = [fp, stopFootprint(stops.start), stopFootprint(stops.end)];
+  const all = fps.filter((f): f is RouteFootprint => !!f);
   // Densification à ~1 m pour localiser précisément l'entrée dans l'emprise.
   const P: number[] = [];
   for (let i = 0; i < n - 1; i++) {
@@ -542,7 +571,7 @@ export function sideRoadStrips(pts3: readonly number[], hw: number, rh: number, 
     const by = pts3[i * 3 + 4] as number;
     const bz = pts3[i * 3 + 5] as number;
     const L = Math.hypot(bx - ax, bz - az);
-    const steps = fp && fp.near((ax + bx) / 2, (az + bz) / 2, L / 2 + fp.half + rh + 2) ? Math.max(1, Math.ceil(L)) : 1;
+    const steps = all.some((f) => f.near((ax + bx) / 2, (az + bz) / 2, L / 2 + f.half + rh + 2)) ? Math.max(1, Math.ceil(L)) : 1;
     for (let s = 0; s < steps; s++) {
       const t = s / steps;
       P.push(ax + (bx - ax) * t, ay + (by - ay) * t, az + (bz - az) * t);
@@ -550,8 +579,9 @@ export function sideRoadStrips(pts3: readonly number[], hw: number, rh: number, 
   }
   P.push(pts3[(n - 1) * 3] as number, pts3[(n - 1) * 3 + 1] as number, pts3[(n - 1) * 3 + 2] as number);
   const m = P.length / 3;
+  // 0 : hors emprise, sinon rang + 1 de l'emprise qui recouvre le point
   const cov = new Uint8Array(m);
-  if (fp) {
+  if (all.length) {
     for (let i = 0; i < m; i++) {
       const a = Math.max(i - 1, 0);
       const b = Math.min(i + 1, m - 1);
@@ -560,7 +590,13 @@ export function sideRoadStrips(pts3: readonly number[], hw: number, rh: number, 
       const L = Math.hypot(dx, dz) || 1;
       dx /= L;
       dz /= L;
-      cov[i] = covered(fp, P[i * 3] as number, P[i * 3 + 2] as number, P[i * 3 + 1] as number, dx, dz, rh) ? 1 : 0;
+      for (let c = 0; c < fps.length; c++) {
+        const f = fps[c];
+        if (f && covered(f, P[i * 3] as number, P[i * 3 + 2] as number, P[i * 3 + 1] as number, dx, dz, rh)) {
+          cov[i] = c + 1;
+          break;
+        }
+      }
     }
   }
   // Morceaux hors emprise ; extrémités coupées repérées.
@@ -585,16 +621,19 @@ export function sideRoadStrips(pts3: readonly number[], hw: number, rh: number, 
       const h2 = h && fp.nearest(P[k2 * 3] as number, P[k2 * 3 + 2] as number, fp.half + fp.shoulder + 30, y);
       return !!h && !!h2 && h.dist >= fp.half && h2.dist > h.dist;
     };
-    const cutStart = i > 0 || reachesRoute(0, 1);
-    const cutEnd = j < m - 1 || reachesRoute(m - 1, m - 2);
-    const strip = buildStrip(piece, hw, lift, fp, cutStart, cutEnd, { ...(i === 0 && dirs.start ? { start: dirs.start } : {}), ...(j === m - 1 && dirs.end ? { end: dirs.end } : {}) });
+    // emprise sur laquelle chaque bout coupé se pose
+    const startFp = i > 0 ? (fps[(cov[i - 1] as number) - 1] ?? null) : reachesRoute(0, 1) ? fp : null;
+    const endFp = j < m - 1 ? (fps[(cov[j + 1] as number) - 1] ?? null) : reachesRoute(m - 1, m - 2) ? fp : null;
+    const strip = buildStrip(piece, hw, lift, all, startFp, endFp, { ...(i === 0 && dirs.start ? { start: dirs.start } : {}), ...(j === m - 1 && dirs.end ? { end: dirs.end } : {}) });
     if (strip) out.push(strip);
     i = j + 1;
   }
   return out;
 }
 
-function buildStrip(p: number[], hw: number, lift: number, fp: RouteFootprint | null, cutStart: boolean, cutEnd: boolean, ends: EndDirs): SideStrip | null {
+function buildStrip(p: number[], hw: number, lift: number, fps: readonly RouteFootprint[], startFp: RouteFootprint | null, endFp: RouteFootprint | null, ends: EndDirs): SideStrip | null {
+  const cutStart = !!startFp;
+  const cutEnd = !!endFp;
   let n = p.length / 3;
   if (n < 2) return null;
   let len = 0;
@@ -604,14 +643,14 @@ function buildStrip(p: number[], hw: number, lift: number, fp: RouteFootprint | 
   // Raccord en altitude sur l'itinéraire aux extrémités coupées (ou qui débouchent sur la chaussée).
   const ys = new Float64Array(n);
   for (let i = 0; i < n; i++) ys[i] = p[i * 3 + 1] as number;
-  if (fp) {
-    const joinY = (k: number): number => {
+  {
+    const joinY = (fp: RouteFootprint, k: number): number => {
       const h = fp.nearest(p[k * 3] as number, p[k * 3 + 2] as number, fp.half + fp.shoulder + 1, p[k * 3 + 1] as number);
       // un peu au-dessus de la rive (accotement gravillonné de l'itinéraire recouvert au débouché)
       return h ? h.y + JOIN_ABOVE : Number.NaN;
     };
-    const blend = (from: number, dir: 1 | -1) => {
-      const y0 = joinY(from);
+    const blend = (fp: RouteFootprint, from: number, dir: 1 | -1) => {
+      const y0 = joinY(fp, from);
       if (!Number.isFinite(y0)) return;
       const delta = y0 - (ys[from] as number);
       let acc = 0;
@@ -622,8 +661,8 @@ function buildStrip(p: number[], hw: number, lift: number, fp: RouteFootprint | 
         ys[k] = (ys[k] as number) + delta * w * w * (3 - 2 * w);
       }
     };
-    if (cutStart) blend(0, 1);
-    if (cutEnd) blend(n - 1, -1);
+    if (startFp) blend(startFp, 0, 1);
+    if (endFp) blend(endFp, n - 1, -1);
   }
   const left: number[] = [];
   const right: number[] = [];
@@ -652,20 +691,21 @@ function buildStrip(p: number[], hw: number, lift: number, fp: RouteFootprint | 
     along.push(acc);
   }
   n = along.length;
-  if (fp) {
-    if (cutStart) snapEnd(left, right, 0, 1, fp);
-    if (cutEnd) snapEnd(left, right, n - 1, -1, fp);
+  if (fps.length) {
+    if (startFp) snapEnd(left, right, 0, 1, startFp);
+    if (endFp) snapEnd(left, right, n - 1, -1, endFp);
     // Bords qui empiètent encore sur la chaussée (route qui longe l'itinéraire) : repoussés au bord.
-    for (const e of [left, right])
-      for (let i = 0; i < n; i++) {
-        const x = e[i * 3] as number;
-        const z = e[i * 3 + 2] as number;
-        const h = fp.nearest(x, z, fp.half, (e[i * 3 + 1] as number) - lift);
-        if (!h || h.dist >= fp.half) continue;
-        const s = h.side >= 0 ? 1 : -1;
-        e[i * 3] = h.px - h.tz * fp.half * s;
-        e[i * 3 + 2] = h.pz + h.tx * fp.half * s;
-      }
+    for (const fp of fps)
+      for (const e of [left, right])
+        for (let i = 0; i < n; i++) {
+          const x = e[i * 3] as number;
+          const z = e[i * 3 + 2] as number;
+          const h = fp.nearest(x, z, fp.half, (e[i * 3 + 1] as number) - lift);
+          if (!h || h.dist >= fp.half) continue;
+          const s = h.side >= 0 ? 1 : -1;
+          e[i * 3] = h.px - h.tz * fp.half * s;
+          e[i * 3 + 2] = h.pz + h.tx * fp.half * s;
+        }
     // Chaque bord avance toujours dans le sens du tronçon (sinon quadrilatère vrillé, normale
     // inversée) : un sommet ramené en arrière par les corrections rejoint son voisin, en partant
     // des bouts coupés (posés sur la rive, ils ne bougent plus).
@@ -775,6 +815,8 @@ export interface NetPiece {
   pts3: readonly number[];
   /** Attributs du ruban (largeur, marquage, revêtement) : deux tronçons de même clé se fusionnent. */
   key: string;
+  /** Demi-chaussée (m) : sans elle, les branches d'un carrefour ne s'arrêtent pas sur sa rive. */
+  half?: number;
 }
 
 export interface NetChain {
@@ -783,12 +825,18 @@ export interface NetChain {
   pts3: number[];
   /** Profils extrêmes raccordés à un tronçon d'autres attributs (voir `sideRoadStrips`). */
   dirs: EndDirs;
+  /** Bouts qui débouchent sur la route principale d'un carrefour (voir `sideRoadStrips`). */
+  stops: EndStops;
 }
 
 /** Deux bouts de tronçon à moins de ceci (m) forment un même nœud du graphe. */
 const NODE_SNAP = 0.05;
 /** Carrefour : la route continue tout droit si ses deux branches dévient de moins de 30°. */
 const STRAIGHT_DOT = -Math.cos((30 * Math.PI) / 180);
+/** Carrefour sans branche dans le prolongement d'une autre : route principale coudée d'au plus 80°. */
+const BENT_DOT = -Math.cos((80 * Math.PI) / 180);
+/** Longueur d'axe de la route principale gardée de part et d'autre du carrefour (m). */
+const STOP_REACH = 40;
 
 /**
  * Tronçons du réseau enchaînés. Le graphe coupe les routes à chaque nœud ; dessinés séparément,
@@ -797,6 +845,8 @@ const STRAIGHT_DOT = -Math.cos((30 * Math.PI) / 180);
  * Les tronçons qui se suivent (nœud à deux branches, ou branche qui continue tout droit dans un
  * carrefour) sont mis bout à bout en une seule polyligne ; si leurs attributs diffèrent (largeur,
  * revêtement), ils restent séparés mais partagent leur profil de raccord (bissectrice).
+ * Dans un carrefour, les autres branches s'arrêtent sur la rive de la route qui le traverse (la
+ * plus large des paires) au lieu de peindre leurs lignes jusqu'au milieu de sa chaussée.
  */
 export function chainPieces(pieces: readonly NetPiece[]): NetChain[] {
   const N = pieces.length;
@@ -843,6 +893,8 @@ export function chainPieces(pieces: readonly NetPiece[]): NetChain[] {
     link[b.p * 2 + b.end] = { to: a, merge };
   };
   const dot = (a: End, b: End) => a.dx * b.dx + a.dz * b.dz;
+  const halfOf = (e: End) => (pieces[e.p] as NetPiece).half ?? 0;
+  const crossings: Array<{ branches: End[]; pairs: Array<[End, End]> }> = [];
   for (const l of nodes.values()) {
     const cands: Array<[End, End, number]> = [];
     for (let i = 0; i < l.length; i++)
@@ -851,17 +903,58 @@ export function chainPieces(pieces: readonly NetPiece[]): NetChain[] {
         const b = l[j] as End;
         // (autre niveau : pont au-dessus d'un bout de route ; deux branches confondues : doublon)
         if (Math.abs(a.y - b.y) > 1 || dot(a, b) > 0.95) continue;
-        if (l.length > 2 && dot(a, b) > STRAIGHT_DOT) continue;
         cands.push([a, b, dot(a, b)]);
       }
-    cands.sort((u, v) => u[2] - v[2]);
+    const straight = l.length > 2 ? cands.filter((c) => c[2] <= STRAIGHT_DOT) : cands;
+    straight.sort((u, v) => u[2] - v[2]);
     const taken = new Set<End>();
-    for (const [a, b] of cands) {
-      if (taken.has(a) || taken.has(b)) continue;
+    const pairs: Array<[End, End]> = [];
+    const take = (a: End, b: End) => {
       taken.add(a);
       taken.add(b);
+      pairs.push([a, b]);
       pair(a, b);
+    };
+    for (const [a, b] of straight) if (!taken.has(a) && !taken.has(b)) take(a, b);
+    if (l.length <= 2) continue;
+    if (!pairs.length) {
+      // Route principale qui tourne au carrefour : la paire la plus large, puis la moins coudée.
+      const bent = cands.filter((c) => c[2] <= BENT_DOT).sort((u, v) => halfOf(v[0]) + halfOf(v[1]) - halfOf(u[0]) - halfOf(u[1]) || u[2] - v[2]);
+      if (bent[0]) take(bent[0][0], bent[0][1]);
     }
+    if (pairs.length) crossings.push({ branches: l.filter((e) => !taken.has(e)), pairs });
+  }
+  // Axe de la route principale autour d'un carrefour, du nœud vers l'intérieur du tronçon `e`
+  // (et des tronçons qui le prolongent), sur STOP_REACH m.
+  const outward = (e: End): number[] => {
+    const out: number[] = [];
+    let acc = 0;
+    let cur: End | null = e;
+    for (let guard = 0; cur && guard < N && acc <= STOP_REACH; guard++) {
+      const q = (pieces[cur.p] as NetPiece).pts3;
+      const n = count(cur.p);
+      for (let k = out.length ? 1 : 0; k < n && acc <= STOP_REACH; k++) {
+        const i = cur.end ? n - 1 - k : k;
+        if (out.length) acc += Math.hypot((q[i * 3] as number) - (out[out.length - 3] as number), (q[i * 3 + 2] as number) - (out[out.length - 1] as number));
+        out.push(q[i * 3] as number, q[i * 3 + 1] as number, q[i * 3 + 2] as number);
+      }
+      const l: { to: End; merge: boolean } | null = link[cur.p * 2 + (1 - cur.end)] ?? null;
+      cur = l && l.to.p !== e.p ? l.to : null;
+    }
+    return out;
+  };
+  const stopOf: Array<RoadStop | null> = new Array<RoadStop | null>(N * 2).fill(null);
+  for (const { branches, pairs } of crossings) {
+    const width = (p: [End, End]) => Math.max(halfOf(p[0]), halfOf(p[1]));
+    const main = pairs.reduce((best, p) => (width(p) > width(best) ? p : best));
+    const half = width(main);
+    if (half <= 0) continue;
+    const a = outward(main[0]);
+    const line: number[] = [];
+    for (let i = a.length / 3 - 1; i >= 0; i--) line.push(a[i * 3] as number, a[i * 3 + 1] as number, a[i * 3 + 2] as number);
+    line.push(...outward(main[1]).slice(3));
+    // (branche plus large que la route qui traverse : elle garde son bout, comme avant)
+    for (const e of branches) if (halfOf(e) <= half + 0.01) stopOf[e.p * 2 + e.end] = { line, half };
   }
   const mergeAt = (p: number, end: 0 | 1) => {
     const l = link[p * 2 + end];
@@ -914,7 +1007,9 @@ export function chainPieces(pieces: readonly NetPiece[]): NetChain[] {
     };
     const start = joint(first, 1);
     const end = joint(last, -1);
-    out.push({ piece: first.p, pts3: pts, dirs: { ...(start ? { start } : {}), ...(end ? { end } : {}) } });
+    const s0 = stopOf[first.p * 2 + first.end];
+    const s1 = stopOf[last.p * 2 + last.end];
+    out.push({ piece: first.p, pts3: pts, dirs: { ...(start ? { start } : {}), ...(end ? { end } : {}) }, stops: { ...(s0 ? { start: s0 } : {}), ...(s1 ? { end: s1 } : {}) } });
   }
   return out;
 }

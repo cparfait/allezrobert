@@ -405,4 +405,53 @@ describe('raccords du réseau (tronçons du graphe)', () => {
     expect(start![0]).toBeCloseTo(end![0], 9);
     expect(start![1]).toBeCloseTo(end![1], 9);
   });
+
+  /** Distance horizontale du point (x,z) à la demi-droite partant de l'origine dans la direction `deg`. */
+  const toRay = (x: number, z: number, deg: number) => {
+    const a = (deg * Math.PI) / 180;
+    const t = Math.max(0, x * Math.cos(a) + z * Math.sin(a));
+    return Math.hypot(x - t * Math.cos(a), z - t * Math.sin(a));
+  };
+
+  it('carrefour en T : la branche s’arrête sur la rive de la route principale', () => {
+    const chains = chainPieces([
+      { pts3: ray(180), key: 'principale', half: 3 },
+      { pts3: ray(0), key: 'principale', half: 3 },
+      { pts3: ray(90), key: 'branche', half: 2 },
+    ]);
+    const side = chains.find((c) => c.piece === 2)!;
+    expect(side.stops.start?.half).toBe(3);
+    expect(chains.find((c) => c.piece !== 2)!.stops).toEqual({});
+    const strips = sideRoadStrips(side.pts3, 2.6, 2, null, 0.05, side.dirs, side.stops);
+    expect(strips).toHaveLength(1);
+    const s = strips[0]!;
+    // rien dans la chaussée principale (|z| < 3), bout posé sur sa rive, au niveau de la route
+    for (const e of [s.left, s.right]) for (let i = 0; i < s.along.length; i++) expect(Math.abs(e[i * 3 + 2]!)).toBeGreaterThanOrEqual(3 - 1e-6);
+    expect(s.left[2]).toBeCloseTo(3, 2);
+    expect(s.right[2]).toBeCloseTo(3, 2);
+    expect(s.left[1]).toBeCloseTo(100.07, 3);
+  });
+
+  it('route principale qui tourne au carrefour (120°) : elle reste continue, la branche s’arrête sur sa rive', () => {
+    const chains = chainPieces([
+      { pts3: ray(180), key: 'principale', half: 3 },
+      { pts3: ray(60), key: 'principale', half: 3 },
+      { pts3: ray(300), key: 'chemin', half: 1.5 },
+    ]);
+    expect(chains).toHaveLength(2);
+    const side = chains.find((c) => c.piece === 2)!;
+    expect(side.stops.start?.half).toBe(3);
+    const s = sideRoadStrips(side.pts3, 2.1, 1.5, null, 0.05, side.dirs, side.stops)[0]!;
+    for (const e of [s.left, s.right])
+      for (let i = 0; i < s.along.length; i++) expect(Math.min(toRay(e[i * 3]!, e[i * 3 + 2]!, 180), toRay(e[i * 3]!, e[i * 3 + 2]!, 60))).toBeGreaterThanOrEqual(3 - 1e-6);
+  });
+
+  it('branche plus large que la route qui traverse : elle garde son bout', () => {
+    const chains = chainPieces([
+      { pts3: ray(180), key: 'chemin', half: 1.5 },
+      { pts3: ray(0), key: 'chemin', half: 1.5 },
+      { pts3: ray(90), key: 'nationale', half: 4 },
+    ]);
+    expect(chains.find((c) => c.piece === 2)!.stops).toEqual({});
+  });
 });

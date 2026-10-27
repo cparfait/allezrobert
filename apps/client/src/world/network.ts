@@ -130,7 +130,7 @@ function buildRoads(roads: TileRoad[], footprint: RouteFootprint | null): THREE.
     const { half, marked, unpaved } = pieces[c.piece] as (typeof pieces)[number];
     // Bords à demi-largeur + 0,6 m de bas-côté fondu ; découpe contre l'itinéraire actif.
     const o = half + 0.6;
-    for (const s of sideRoadStrips(c.pts3, o, half, footprint, 0.05, c.dirs)) {
+    for (const s of sideRoadStrips(c.pts3, o, half, footprint, 0.05, c.dirs, c.stops)) {
       const base = pos.length / 3;
       const n = s.along.length;
       for (let i = 0; i < n; i++) {
