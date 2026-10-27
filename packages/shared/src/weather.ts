@@ -15,6 +15,8 @@ export interface RideWeather {
   evolving: boolean;
   /** Graine de l'évolution (identique pour tous les coureurs d'une sortie). */
   seed: number;
+  /** Direction d'où vient le vent (degrés depuis le nord, sens horaire) : météo réelle ; sinon tirée de la graine. */
+  windFromDeg?: number;
 }
 
 export interface WeatherNow {
@@ -71,11 +73,11 @@ export function windDirection(seed: number): number {
  * fortes) et direction qui tourne lentement (±25° sur un quart d'heure). Toujours actif, même
  * météo fixe : un vent parfaitement constant n'existe pas.
  */
-function liveWind(baseMs: number, seed: number, elapsedS: number): { windMs: number; windFrom: number } {
+function liveWind(baseMs: number, seed: number, elapsedS: number, fromDeg?: number): { windMs: number; windFrom: number } {
   const gust = 0.18 * noise1(elapsedS / 7, seed + 41) + 0.07 * noise1(elapsedS / 2.3, seed + 43);
   const peak = Math.max(0, noise1(elapsedS / 23, seed + 47) - 0.55) * 0.9;
   const windMs = Math.max(0, baseMs * (1 + gust + peak));
-  const windFrom = windDirection(seed) + 25 * DEG * noise1(elapsedS / 900, seed + 53) + 6 * DEG * noise1(elapsedS / 40, seed + 59);
+  const windFrom = (fromDeg !== undefined ? fromDeg * DEG : windDirection(seed)) + 25 * DEG * noise1(elapsedS / 900, seed + 53) + 6 * DEG * noise1(elapsedS / 40, seed + 59);
   return { windMs, windFrom };
 }
 
@@ -87,7 +89,7 @@ function liveWind(baseMs: number, seed: number, elapsedS: number): { windMs: num
  */
 export function weatherAt(w: RideWeather, elapsedS: number): WeatherNow {
   const hour = (((w.hour + elapsedS / 3600) % 24) + 24) % 24;
-  if (!w.evolving) return { hour, clouds: w.clouds, rain: w.rain, fog: w.fog, ...liveWind(w.windMs, w.seed, elapsedS) };
+  if (!w.evolving) return { hour, clouds: w.clouds, rain: w.rain, fog: w.fog, ...liveWind(w.windMs, w.seed, elapsedS, w.windFromDeg) };
   const t = elapsedS / 1200;
   const clouds = clamp01(w.clouds + 0.45 * noise1(t, w.seed) + 0.15 * noise1(t * 3.1, w.seed + 7));
   const shower = clamp01((clouds - 0.75) / 0.25) * clamp01(0.6 + 0.6 * noise1(t * 2.3, w.seed + 13));
@@ -97,7 +99,7 @@ export function weatherAt(w: RideWeather, elapsedS: number): WeatherNow {
   const fog = clamp01(w.fog * morning + 0.08 * Math.max(0, noise1(t * 0.7, w.seed + 21)));
   // Force moyenne qui varie de ±40 % au fil des fronts, puis rafales et direction.
   const base = Math.max(0, w.windMs * (1 + 0.4 * noise1(t * 1.7, w.seed + 31)));
-  return { hour, clouds, rain, fog, ...liveWind(base, w.seed, elapsedS) };
+  return { hour, clouds, rain, fog, ...liveWind(base, w.seed, elapsedS, w.windFromDeg) };
 }
 
 /** Graine stable tirée d'un texte (identifiant de salle, date). */

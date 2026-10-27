@@ -618,7 +618,14 @@ export class MainMenu {
     // Replié par défaut : le titre rappelle l'heure choisie ; l'état ouvert / fermé est mémorisé comme dans les Réglages.
     return `<details class="set-sec" data-sec="weather" ${this.settingsOpen.has('weather') ? 'open' : ''}><summary>${L ? 'Heure et météo de la sortie' : 'Ride time and weather'} <span style="text-transform:none;letter-spacing:0;font-weight:500;opacity:.8;margin-left:auto">${this.hourLabel(s.hour)}</span></summary><div class="set-body"><div class="mm-weather">
       <label class="field">${L ? 'Heure de départ' : 'Start time'} <span id="m-hourv">${this.hourLabel(s.hour)}</span><input id="m-hour" type="range" min="5" max="22" step="0.25" value="${s.hour}" /></label>
-      <div class="field">${L ? 'Ciel' : 'Sky'}${this.seg('m-wx', sky, [
+      <div class="field">${L ? 'Conditions' : 'Conditions'}${this.seg('m-realwx', s.realWeather ? '1' : '0', [
+        ['0', L ? 'Réglées' : 'Custom'],
+        ['1', L ? 'Du jour (réelles)' : 'Today (real)'],
+      ])}</div>
+      ${
+        s.realWeather
+          ? `<p class="hw-hint">${L ? 'Ciel, pluie, brouillard et vent réels autour du départ, à l’heure choisie (prévision du jour <a href="https://open-meteo.com" target="_blank" rel="noopener" style="color:inherit">Open-Meteo</a>). Sans réseau : conditions réglées.' : 'Real sky, rain, fog and wind around the start, at the chosen time (today’s <a href="https://open-meteo.com" target="_blank" rel="noopener" style="color:inherit">Open-Meteo</a> forecast). Offline: custom conditions.'}</p>`
+          : `<div class="field">${L ? 'Ciel' : 'Sky'}${this.seg('m-wx', sky, [
         ['sun', L ? '☀ Soleil' : '☀ Sunny'],
         ['cloudy', L ? '☁ Nuageux' : '☁ Cloudy'],
         ['rain', L ? '🌧 Pluie' : '🌧 Rain'],
@@ -633,7 +640,8 @@ export class MainMenu {
       <div class="field">${L ? 'Météo' : 'Weather'}${this.seg('m-evolve', s.weatherEvolves ? '1' : '0', [
         ['0', L ? 'Fixe' : 'Fixed'],
         ['1', L ? 'Qui évolue' : 'Changing'],
-      ])}</div>
+      ])}</div>`
+      }
     </div></div></details>`;
   }
 
@@ -2848,6 +2856,11 @@ export class MainMenu {
     on<HTMLSelectElement>('m-evolve', 'change', (el) => {
       s.weatherEvolves = el.value === '1';
       changed();
+    });
+    on<HTMLSelectElement>('m-realwx', 'change', (el) => {
+      s.realWeather = el.value === '1';
+      changed();
+      this.render();
     });
     this.root.querySelectorAll<HTMLInputElement>('[data-hudblock]').forEach((el) =>
       el.addEventListener('change', () => {

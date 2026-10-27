@@ -60,6 +60,8 @@ export interface Settings {
   challengeSeg: string;
   /** Météo qui évolue pendant la sortie (en groupe : choix de l'hôte, partagé). */
   weatherEvolves: boolean;
+  /** Météo réelle du jour au départ (Open-Meteo), à l'heure choisie, au lieu du ciel et du vent réglés. */
+  realWeather: boolean;
   /** Course sur une boucle : nombre de tours. */
   raceLaps: number;
   /** Sortie créée : même vélo pour tous (absent : oui en course, non en groupe). */
@@ -103,6 +105,7 @@ export const DEFAULT_SETTINGS: Settings = {
   workoutPreset: 'sweet-spot-3x12',
   challengeSeg: '',
   weatherEvolves: false,
+  realWeather: false,
   raceLaps: 1,
   hudHidden: [],
 };

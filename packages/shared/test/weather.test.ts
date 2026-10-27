@@ -34,3 +34,15 @@ describe('météo partagée', () => {
     expect(rained).toBe(true);
   });
 });
+
+describe('direction du vent réelle', () => {
+  it('windFromDeg remplace la direction tirée de la graine (à ±31° de variation lente près)', () => {
+    for (const evolving of [false, true]) {
+      for (let t = 0; t < 2 * 3600; t += 211) {
+        const w = weatherAt({ ...base, evolving, windFromDeg: 90 }, t);
+        const deg = (w.windFrom * 180) / Math.PI;
+        expect(Math.abs(deg - 90)).toBeLessThanOrEqual(31);
+      }
+    }
+  });
+});

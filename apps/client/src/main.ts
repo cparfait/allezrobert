@@ -1,6 +1,6 @@
 import './hud/hud.css';
 import * as THREE from 'three/webgpu';
-import { DEFAULT_LOOK, RouteTrack, decimateRoute, rankRouteId, type PairState, type PhoneCommand, bikeOfLook, type AvatarLook, bikeSetupFor, weatherAt, weatherSeed, type RideWeather, type RiderProfile, type RouteData } from '@allezrobert/shared';
+import { DEFAULT_LOOK, RouteTrack, decimateRoute, rankRouteId, type PairState, type PhoneCommand, bikeOfLook, type AvatarLook, bikeSetupFor, weatherAt, weatherSeed, worldToWgs84, type RideWeather, type RiderProfile, type RouteData } from '@allezrobert/shared';
 import { createEngine, type Engine } from './engine/renderer.ts';
 import { QUALITY_PRESETS, withUrlOverrides, type QualitySettings } from './engine/quality.ts';
 import { detectHardwareQuality } from './engine/autoQuality.ts';
@@ -36,6 +36,7 @@ import { showRideSummary } from './ui/summary.ts';
 import { compareAndStore, readPowerRecords, rideStats, updatePowerRecords } from './game/stats.ts';
 import { shareCard } from './ui/sharecard.ts';
 import { Onboarding, RideTutorial } from './onboarding/onboarding.ts';
+import { fetchRealWeather } from './game/realWeather.ts';
 import { addXp, awardRide, loadProgress, tunedBike } from './ui/garage.ts';
 import { AtelierHost, slotOfPicked, type AtelierState } from './ui/atelier.ts';
 import { rimGlow } from './rider/rimDecal.ts';
@@ -909,6 +910,27 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   // Sortie de groupe / course : le serveur fait rouler tout le monde (IA comprises).
   // Heure et météo de la sortie : réglages du coureur ; en groupe, celles de l'hôte (partagées).
   const myWeather: RideWeather = { hour: s.hour, clouds: s.clouds, rain: s.rain, fog: s.fog, windMs: s.windMs, evolving: s.weatherEvolves, seed: weatherSeed(`${Date.now()}`) };
+  // Météo réelle du jour au départ, à l'heure choisie (Open-Meteo) ; sans réseau : conditions réglées.
+  if (s.realWeather && source.originL93) {
+    const p0 = track.positionAt(startD, 0);
+    const { lat, lon } = worldToWgs84(p0.x, p0.z, source.originL93);
+    const real = await fetchRealWeather(lat, lon, s.hour);
+    const L = getLang() === 'fr';
+    if (real) Object.assign(myWeather, real, { evolving: false });
+    setTimeout(
+      () =>
+        hud.toast(
+          real
+            ? L
+              ? `Météo du jour : nuages ${Math.round(real.clouds * 100)} %, vent ${Math.round(real.windMs * 3.6)} km/h`
+              : `Today's weather: clouds ${Math.round(real.clouds * 100)} %, wind ${Math.round(real.windMs * 3.6)} km/h`
+            : L
+              ? 'Météo réelle indisponible : conditions réglées'
+              : 'Real weather unavailable: custom conditions',
+        ),
+      700,
+    );
+  }
   let rideWeather = myWeather;
   let mp: Multiplayer | null = null;
   let voice: VoiceChat | null = null;

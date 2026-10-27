@@ -63,6 +63,7 @@ const CreateOptionsSchema = z
         windMs: finite.transform((v) => Math.min(Math.max(v, 0), 25)),
         evolving: z.boolean(),
         seed: finite.transform((v) => Math.round(Math.abs(v)) % 100000),
+        windFromDeg: finite.transform((v) => ((v % 360) + 360) % 360).optional(),
       })
       .optional(),
     aiLevel: finite.optional(),
