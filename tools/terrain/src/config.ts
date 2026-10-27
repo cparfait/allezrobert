@@ -364,7 +364,7 @@ export const WORLDS: Record<string, WorldConfig> = {
   longchamp: {
     kind: 'open',
     id: 'longchamp',
-    name: 'Paris — Longchamp',
+    name: 'Longchamp',
     region: 'Paris · Bois de Boulogne',
     // anneau cyclable de Longchamp (relation OSM 163270), l'entraînement des cyclistes parisiens
     originL93: { x: 644000, y: 6862000 },
@@ -388,7 +388,7 @@ export const WORLDS: Record<string, WorldConfig> = {
   vincennes: {
     kind: 'open',
     id: 'vincennes',
-    name: 'Paris — Vincennes',
+    name: 'Vincennes',
     region: 'Paris · Bois de Vincennes',
     // tour de l'hippodrome de Vincennes, dans le bois (routes de la Pyramide, de la Ferme…)
     originL93: { x: 660000, y: 6858000 },
@@ -439,7 +439,7 @@ export const WORLDS: Record<string, WorldConfig> = {
   etretat: {
     kind: 'open',
     id: 'etretat',
-    name: "Étretat — Côte d'Albâtre",
+    name: "Étretat",
     region: 'Seine-Maritime · Pays de Caux',
     // falaises d'Étretat (porte d'Aval, Manneporte), valleuses et plateau du pays de Caux
     originL93: { x: 501000, y: 6959000 },
@@ -500,7 +500,7 @@ export const WORLDS: Record<string, WorldConfig> = {
   opale: {
     kind: 'open',
     id: 'opale',
-    name: "Côte d'Opale — Les deux caps",
+    name: "Côte d'Opale",
     region: "Pas-de-Calais · Côte d'Opale",
     // caps Blanc-Nez et Gris-Nez, baie de Wissant, bocage du Boulonnais
     originL93: { x: 606000, y: 7089000 },
@@ -592,7 +592,7 @@ export const WORLDS: Record<string, WorldConfig> = {
   roubaix: {
     kind: 'open',
     id: 'roubaix',
-    name: "Paris–Roubaix — Trouée d'Arenberg",
+    name: "Paris–Roubaix",
     region: 'Nord · Pévèle',
     // secteurs pavés de Paris–Roubaix dans l'ordre de la course : Haveluy, Arenberg, Hélesmes, Wandignies, Brillon, Sars, Orchies
     originL93: { x: 727000, y: 7034000 },

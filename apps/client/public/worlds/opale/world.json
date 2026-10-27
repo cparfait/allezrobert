@@ -1,7 +1,7 @@
 {
  "formatVersion": 1,
  "id": "opale",
- "name": "Côte d'Opale — Les deux caps",
+ "name": "Côte d'Opale",
  "crs": "EPSG:2154",
  "originL93": {
   "x": 606000,

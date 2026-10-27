@@ -1,7 +1,7 @@
 {
  "formatVersion": 1,
  "id": "etretat",
- "name": "Étretat — Côte d'Albâtre",
+ "name": "Étretat",
  "crs": "EPSG:2154",
  "originL93": {
   "x": 501000,

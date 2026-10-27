@@ -1,7 +1,7 @@
 {
  "formatVersion": 1,
  "id": "vincennes",
- "name": "Paris — Vincennes",
+ "name": "Vincennes",
  "crs": "EPSG:2154",
  "originL93": {
   "x": 660000,

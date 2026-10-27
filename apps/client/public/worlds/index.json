@@ -415,7 +415,7 @@
   },
   {
    "id": "etretat",
-   "name": "Étretat — Côte d'Albâtre",
+   "name": "Étretat",
    "region": "Seine-Maritime · Pays de Caux",
    "routes": [
     {
@@ -1111,7 +1111,7 @@
   },
   {
    "id": "longchamp",
-   "name": "Paris — Longchamp",
+   "name": "Longchamp",
    "region": "Paris · Bois de Boulogne",
    "routes": [
     {
@@ -1231,7 +1231,7 @@
   },
   {
    "id": "opale",
-   "name": "Côte d'Opale — Les deux caps",
+   "name": "Côte d'Opale",
    "region": "Pas-de-Calais · Côte d'Opale",
    "routes": [
     {
@@ -1363,7 +1363,7 @@
   },
   {
    "id": "roubaix",
-   "name": "Paris–Roubaix — Trouée d'Arenberg",
+   "name": "Paris–Roubaix",
    "region": "Nord · Pévèle",
    "routes": [
     {
@@ -1527,7 +1527,7 @@
   },
   {
    "id": "vincennes",
-   "name": "Paris — Vincennes",
+   "name": "Vincennes",
    "region": "Paris · Bois de Vincennes",
    "routes": [
     {
