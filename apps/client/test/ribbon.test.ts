@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { RouteFootprint, ribbonEdges, ribbonIndex, roundCorners, sideRoadStrips, type AxisPoint3 } from '../src/world/ribbon.ts';
+import { RouteFootprint, chainPieces, ribbonEdges, ribbonIndex, roundCorners, sideRoadStrips, type AxisPoint3 } from '../src/world/ribbon.ts';
 
 const HALF = 3.25;
 const SHOULDER = 1.2;
@@ -276,5 +276,133 @@ describe('réseau secondaire contre l’itinéraire', () => {
     expect(fp.clampTerrain(0, 12, 101.2, 4.5)).toBe(101.2);
     expect(fp.clampTerrain(0, 0, 99, 4.5)).toBe(99);
     expect(fp.clampTerrain(0, 0, 112, 4.5)).toBe(112);
+  });
+});
+
+describe('raccords du réseau (tronçons du graphe)', () => {
+  const HW = 3 + 0.6;
+  /** Polyligne x,y,z depuis des points x,z (y = 100). */
+  const line = (pts: Array<[number, number]>) => pts.flatMap(([x, z]) => [x, 100, z]);
+  /** Tronçon qui part de (0,0) dans la direction `deg` (0° = +x), sur `len` m. */
+  const ray = (deg: number, len = 40) => {
+    const a = (deg * Math.PI) / 180;
+    return line([
+      [0, 0],
+      [len * 0.5 * Math.cos(a), len * 0.5 * Math.sin(a)],
+      [len * Math.cos(a), len * Math.sin(a)],
+    ]);
+  };
+  const reverse = (p: number[]) => {
+    const out: number[] = [];
+    for (let i = p.length / 3 - 1; i >= 0; i--) out.push(p[i * 3]!, p[i * 3 + 1]!, p[i * 3 + 2]!);
+    return out;
+  };
+  /** Distance du point (x,z) à la droite passant par l'origine, de direction unitaire (dx,dz). */
+  const offLine = (x: number, z: number, dx: number, dz: number) => Math.abs(x * dz - z * dx);
+
+  it('virage de 25° à un nœud, mêmes attributs : une seule polyligne, pointillé continu', () => {
+    const chains = chainPieces([
+      { pts3: reverse(ray(180)), key: 'a' },
+      { pts3: ray(25), key: 'a' },
+    ]);
+    expect(chains).toHaveLength(1);
+    const c = chains[0]!;
+    // 3 + 3 points, le nœud commun une seule fois
+    expect(c.pts3.length / 3).toBe(5);
+    const strips = sideRoadStrips(c.pts3, HW, 3, null, 0.05, c.dirs);
+    expect(strips).toHaveLength(1);
+    expect(strips[0]!.along[4]).toBeCloseTo(80, 6);
+  });
+
+  it('tronçons enregistrés tête-bêche : remis dans le même sens', () => {
+    const chains = chainPieces([
+      { pts3: ray(180), key: 'a' },
+      { pts3: ray(25), key: 'a' },
+    ]);
+    expect(chains).toHaveLength(1);
+    const p = chains[0]!.pts3;
+    // la polyligne passe par le nœud en son milieu et va d'un bout à l'autre
+    expect(Math.hypot(p[6]!, p[8]!)).toBeCloseTo(0, 9);
+    expect(Math.hypot(p[0]!, p[2]!)).toBeCloseTo(40, 6);
+    expect(Math.hypot(p[12]!, p[14]!)).toBeCloseTo(40, 6);
+  });
+
+  it('virage de 25° entre deux largeurs : profil de raccord commun (pas de marche dans la rive)', () => {
+    const chains = chainPieces([
+      { pts3: reverse(ray(180)), key: 'large' },
+      { pts3: ray(25), key: 'étroite' },
+    ]);
+    expect(chains).toHaveLength(2);
+    const a = sideRoadStrips(chains[0]!.pts3, 4.2, 3.6, null, 0.05, chains[0]!.dirs)[0]!;
+    const b = sideRoadStrips(chains[1]!.pts3, HW, 3, null, 0.05, chains[1]!.dirs)[0]!;
+    // les deux profils au nœud sont sur la bissectrice des normales (direction de marche à 12,5°)
+    const t = (12.5 * Math.PI) / 180;
+    const nx = -Math.sin(t);
+    const nz = Math.cos(t);
+    const na = a.along.length - 1;
+    for (const [e, i] of [
+      [a.left, na],
+      [a.right, na],
+      [b.left, 0],
+      [b.right, 0],
+    ] as const)
+      expect(offLine(e[i * 3]!, e[i * 3 + 2]!, nx, nz)).toBeLessThan(1e-9);
+  });
+
+  it('carrefour en T : la route principale continue d’un seul tenant, la branche reste à part', () => {
+    const chains = chainPieces([
+      { pts3: ray(180), key: 'a' },
+      { pts3: ray(5), key: 'a' },
+      { pts3: ray(90), key: 'a' },
+    ]);
+    expect(chains).toHaveLength(2);
+    const main = chains.find((c) => c.pts3.length / 3 === 5)!;
+    const side = chains.find((c) => c.pts3.length / 3 === 3)!;
+    expect(main).toBeDefined();
+    expect(side.dirs).toEqual({});
+  });
+
+  it('nœud à deux branches confondues (doublon) ou à des niveaux différents : rien n’est raccordé', () => {
+    const dup = chainPieces([
+      { pts3: ray(30), key: 'a' },
+      { pts3: ray(30), key: 'a' },
+    ]);
+    expect(dup).toHaveLength(2);
+    expect(dup.every((c) => Object.keys(c.dirs).length === 0)).toBe(true);
+    const high = ray(25).map((v, i) => (i % 3 === 1 ? v + 6 : v));
+    expect(
+      chainPieces([
+        { pts3: reverse(ray(180)), key: 'a' },
+        { pts3: high, key: 'a' },
+      ]),
+    ).toHaveLength(2);
+  });
+
+  it('boucle fermée en deux tronçons : un seul ruban, raccord de fermeture sur un profil commun', () => {
+    const chains = chainPieces([
+      {
+        pts3: line([
+          [0, 0],
+          [20, -10],
+          [40, 0],
+        ]),
+        key: 'a',
+      },
+      {
+        pts3: line([
+          [40, 0],
+          [20, 10],
+          [0, 0],
+        ]),
+        key: 'a',
+      },
+    ]);
+    expect(chains).toHaveLength(1);
+    const { start, end } = chains[0]!.dirs;
+    expect(start).toBeDefined();
+    expect(end).toBeDefined();
+    // même direction de marche au départ et à l'arrivée (le profil de fermeture coïncide)
+    expect(start![0]).toBeCloseTo(end![0], 9);
+    expect(start![1]).toBeCloseTo(end![1], 9);
   });
 });

@@ -517,12 +517,19 @@ const JOIN_ABOVE = 0.02;
 /** Longueur de raccord en altitude d'une route secondaire sur l'itinéraire (m). */
 const BLEND_M = 12;
 
+/** Directions de marche (unitaires, x,z) imposées aux profils extrêmes d'une polyligne (voir `chainPieces`). */
+export interface EndDirs {
+  start?: [number, number];
+  end?: [number, number];
+}
+
 /**
  * Découpe une route du réseau (polyligne x,y,z) contre l'emprise de l'itinéraire et construit ses
  * bords (demi-largeur `hw`, bas-côté compris). Les extrémités coupées sont posées sur la ligne de
- * rive de l'itinéraire (profil oblique si le carrefour l'est) et raccordées à son altitude.
+ * rive de l'itinéraire (profil oblique si le carrefour l'est) et raccordées à son altitude ; les
+ * autres suivent `dirs` s'il est fourni (raccord exact avec le tronçon voisin).
  */
-export function sideRoadStrips(pts3: readonly number[], hw: number, rh: number, fp: RouteFootprint | null, lift: number): SideStrip[] {
+export function sideRoadStrips(pts3: readonly number[], hw: number, rh: number, fp: RouteFootprint | null, lift: number, dirs: EndDirs = {}): SideStrip[] {
   const n = pts3.length / 3;
   if (n < 2) return [];
   // Densification à ~1 m pour localiser précisément l'entrée dans l'emprise.
@@ -580,14 +587,14 @@ export function sideRoadStrips(pts3: readonly number[], hw: number, rh: number, 
     };
     const cutStart = i > 0 || reachesRoute(0, 1);
     const cutEnd = j < m - 1 || reachesRoute(m - 1, m - 2);
-    const strip = buildStrip(piece, hw, lift, fp, cutStart, cutEnd);
+    const strip = buildStrip(piece, hw, lift, fp, cutStart, cutEnd, { ...(i === 0 && dirs.start ? { start: dirs.start } : {}), ...(j === m - 1 && dirs.end ? { end: dirs.end } : {}) });
     if (strip) out.push(strip);
     i = j + 1;
   }
   return out;
 }
 
-function buildStrip(p: number[], hw: number, lift: number, fp: RouteFootprint | null, cutStart: boolean, cutEnd: boolean): SideStrip | null {
+function buildStrip(p: number[], hw: number, lift: number, fp: RouteFootprint | null, cutStart: boolean, cutEnd: boolean, ends: EndDirs): SideStrip | null {
   let n = p.length / 3;
   if (n < 2) return null;
   let len = 0;
@@ -633,6 +640,9 @@ function buildStrip(p: number[], hw: number, lift: number, fp: RouteFootprint | 
     const L = Math.hypot(dx, dz) || 1;
     dx /= L;
     dz /= L;
+    // bout raccordé à un autre tronçon : profil commun aux deux rubans (pas de marche dans la rive)
+    const forced = i === 0 && !cutStart ? ends.start : i === n - 1 && !cutEnd ? ends.end : undefined;
+    if (forced) [dx, dz] = forced;
     if (i > 0) acc += Math.hypot(x - (p[i * 3 - 3] as number), z - (p[i * 3 - 1] as number));
     const y = (ys[i] as number) + lift;
     // normale droite (−dz, dx)
@@ -756,4 +766,155 @@ function snapEnd(left: number[], right: number[], k: number, dir: 1 | -1, fp: Ro
     e[k * 3 + 2] = orig[j * 2 + 1] as number;
     slides[j] = 0;
   }
+}
+
+// ————————————————————————————————————————————————————————————— Raccords du réseau
+
+export interface NetPiece {
+  /** Polyligne x,y,z. */
+  pts3: readonly number[];
+  /** Attributs du ruban (largeur, marquage, revêtement) : deux tronçons de même clé se fusionnent. */
+  key: string;
+}
+
+export interface NetChain {
+  /** Premier tronçon de la chaîne (attributs communs à toute la chaîne). */
+  piece: number;
+  pts3: number[];
+  /** Profils extrêmes raccordés à un tronçon d'autres attributs (voir `sideRoadStrips`). */
+  dirs: EndDirs;
+}
+
+/** Deux bouts de tronçon à moins de ceci (m) forment un même nœud du graphe. */
+const NODE_SNAP = 0.05;
+/** Carrefour : la route continue tout droit si ses deux branches dévient de moins de 30°. */
+const STRAIGHT_DOT = -Math.cos((30 * Math.PI) / 180);
+
+/**
+ * Tronçons du réseau enchaînés. Le graphe coupe les routes à chaque nœud ; dessinés séparément,
+ * leurs rubans s'arrêtent chacun d'équerre sur sa propre direction, d'où, au moindre angle, une
+ * marche dans les lignes de rive, un chevauchement côté intérieur et un pointillé qui repart à zéro.
+ * Les tronçons qui se suivent (nœud à deux branches, ou branche qui continue tout droit dans un
+ * carrefour) sont mis bout à bout en une seule polyligne ; si leurs attributs diffèrent (largeur,
+ * revêtement), ils restent séparés mais partagent leur profil de raccord (bissectrice).
+ */
+export function chainPieces(pieces: readonly NetPiece[]): NetChain[] {
+  const N = pieces.length;
+  const count = (p: number) => Math.floor((pieces[p] as NetPiece).pts3.length / 3);
+  interface End {
+    p: number;
+    end: 0 | 1;
+    /** Direction du nœud vers l'intérieur du tronçon. */
+    dx: number;
+    dz: number;
+    y: number;
+  }
+  const ends: Array<End | null> = new Array<End | null>(N * 2).fill(null);
+  const nodes = new Map<string, End[]>();
+  for (let p = 0; p < N; p++) {
+    const q = (pieces[p] as NetPiece).pts3;
+    const n = count(p);
+    if (n < 2) continue;
+    for (const end of [0, 1] as const) {
+      const i = end ? n - 1 : 0;
+      const step = end ? -1 : 1;
+      const x = q[i * 3] as number;
+      const z = q[i * 3 + 2] as number;
+      // premier sommet distinct (points confondus en bout de polyligne)
+      let j = i + step;
+      while (j + step >= 0 && j + step < n && Math.hypot((q[j * 3] as number) - x, (q[j * 3 + 2] as number) - z) < 1e-6) j += step;
+      const dx = (q[j * 3] as number) - x;
+      const dz = (q[j * 3 + 2] as number) - z;
+      const L = Math.hypot(dx, dz);
+      if (L < 1e-6) continue;
+      const e: End = { p, end, dx: dx / L, dz: dz / L, y: q[i * 3 + 1] as number };
+      ends[p * 2 + end] = e;
+      const k = `${Math.round(x / NODE_SNAP)},${Math.round(z / NODE_SNAP)}`;
+      const l = nodes.get(k);
+      if (l) l.push(e);
+      else nodes.set(k, [e]);
+    }
+  }
+  // Appariement par nœud : bout → bout voisin, fusionné ou seulement raccordé.
+  const link: Array<{ to: End; merge: boolean } | null> = new Array<{ to: End; merge: boolean } | null>(N * 2).fill(null);
+  const pair = (a: End, b: End) => {
+    const merge = a.p !== b.p && (pieces[a.p] as NetPiece).key === (pieces[b.p] as NetPiece).key;
+    link[a.p * 2 + a.end] = { to: b, merge };
+    link[b.p * 2 + b.end] = { to: a, merge };
+  };
+  const dot = (a: End, b: End) => a.dx * b.dx + a.dz * b.dz;
+  for (const l of nodes.values()) {
+    const cands: Array<[End, End, number]> = [];
+    for (let i = 0; i < l.length; i++)
+      for (let j = i + 1; j < l.length; j++) {
+        const a = l[i] as End;
+        const b = l[j] as End;
+        // (autre niveau : pont au-dessus d'un bout de route ; deux branches confondues : doublon)
+        if (Math.abs(a.y - b.y) > 1 || dot(a, b) > 0.95) continue;
+        if (l.length > 2 && dot(a, b) > STRAIGHT_DOT) continue;
+        cands.push([a, b, dot(a, b)]);
+      }
+    cands.sort((u, v) => u[2] - v[2]);
+    const taken = new Set<End>();
+    for (const [a, b] of cands) {
+      if (taken.has(a) || taken.has(b)) continue;
+      taken.add(a);
+      taken.add(b);
+      pair(a, b);
+    }
+  }
+  const mergeAt = (p: number, end: 0 | 1) => {
+    const l = link[p * 2 + end];
+    return l && l.merge ? l.to : null;
+  };
+  const used = new Uint8Array(N);
+  const out: NetChain[] = [];
+  for (let s = 0; s < N; s++) {
+    if (used[s] || count(s) < 2 || !ends[s * 2] || !ends[s * 2 + 1]) continue;
+    // Remonte au début de la chaîne (boucle fermée : on part de s).
+    let p = s;
+    let back: 0 | 1 = 0;
+    for (let guard = 0; guard < N; guard++) {
+      const to = mergeAt(p, back);
+      if (!to || used[to.p]) break;
+      if (to.p === s) {
+        p = s;
+        back = 0;
+        break;
+      }
+      p = to.p;
+      back = (1 - to.end) as 0 | 1;
+    }
+    const first = { p, end: back };
+    const pts: number[] = [];
+    let cur = p;
+    for (;;) {
+      used[cur] = 1;
+      const q = (pieces[cur] as NetPiece).pts3;
+      const n = count(cur);
+      for (let k = pts.length ? 1 : 0; k < n; k++) {
+        const i = back === 0 ? k : n - 1 - k;
+        pts.push(q[i * 3] as number, q[i * 3 + 1] as number, q[i * 3 + 2] as number);
+      }
+      const to = mergeAt(cur, (1 - back) as 0 | 1);
+      if (!to || used[to.p]) break;
+      cur = to.p;
+      back = to.end;
+    }
+    const last = { p: cur, end: (1 - back) as 0 | 1 };
+    // Bouts raccordés hors fusion : direction de marche = bissectrice des deux branches.
+    const joint = (e: { p: number; end: 0 | 1 }, sign: 1 | -1): [number, number] | undefined => {
+      const own = ends[e.p * 2 + e.end];
+      const l = link[e.p * 2 + e.end];
+      if (!own || !l) return undefined;
+      const dx = (own.dx - l.to.dx) * sign;
+      const dz = (own.dz - l.to.dz) * sign;
+      const L = Math.hypot(dx, dz);
+      return L > 1e-6 ? [dx / L, dz / L] : undefined;
+    };
+    const start = joint(first, 1);
+    const end = joint(last, -1);
+    out.push({ piece: first.p, pts3: pts, dirs: { ...(start ? { start } : {}), ...(end ? { end } : {}) } });
+  }
+  return out;
 }

@@ -3,7 +3,7 @@ import { uv, attribute, mix, smoothstep, step, fract, floor, hash, min, vec3, fl
 import type { LoadedTile, TileRoad } from './types.ts';
 import { asphaltGrain } from './asphalt.ts';
 import { isRouteTwin } from './splat.ts';
-import { ribbonIndex, sideRoadStrips, type RouteFootprint } from './ribbon.ts';
+import { chainPieces, ribbonIndex, sideRoadStrips, type RouteFootprint } from './ribbon.ts';
 
 /** Routes revêtues avec marquage axial (départementales et plus). */
 const MARKED = new Set(['primary', 'secondary', 'tertiary', 'trunk', 'primary_link', 'secondary_link']);
@@ -116,15 +116,20 @@ function buildRoads(roads: TileRoad[], footprint: RouteFootprint | null): THREE.
   const uvs: number[] = [];
   const info: number[] = [];
   const index: number[] = [];
-  for (const r of roads) {
-    const p = r.pts3 as number[];
-    if (p.length < 6) continue;
-    const half = Math.max(r.width, 2.5) / 2;
-    const marked = MARKED.has(r.kind) && r.width >= 5 ? 1 : 0;
-    const unpaved = COBBLES.has(r.surface ?? '') ? 2 : UNPAVED.has(r.surface ?? '') || r.kind === 'track' ? 1 : 0;
+  const pieces = roads
+    .filter((r) => (r.pts3 as number[]).length >= 6)
+    .map((r) => {
+      const half = Math.max(r.width, 2.5) / 2;
+      const marked = MARKED.has(r.kind) && r.width >= 5 ? 1 : 0;
+      const unpaved = COBBLES.has(r.surface ?? '') ? 2 : UNPAVED.has(r.surface ?? '') || r.kind === 'track' ? 1 : 0;
+      return { pts3: r.pts3 as number[], half, marked, unpaved, key: `${half}|${marked}|${unpaved}` };
+    });
+  // Tronçons du graphe mis bout à bout : rives continues aux nœuds, pointillé sans à-coup.
+  for (const c of chainPieces(pieces)) {
+    const { half, marked, unpaved } = pieces[c.piece] as (typeof pieces)[number];
     // Bords à demi-largeur + 0,6 m de bas-côté fondu ; découpe contre l'itinéraire actif.
     const o = half + 0.6;
-    for (const s of sideRoadStrips(p, o, half, footprint, 0.05)) {
+    for (const s of sideRoadStrips(c.pts3, o, half, footprint, 0.05, c.dirs)) {
       const base = pos.length / 3;
       const n = s.along.length;
       for (let i = 0; i < n; i++) {
