@@ -1,5 +1,5 @@
 import * as THREE from 'three/webgpu';
-import { attribute, frontFacing, uv, fract, floor, step, mix, vec2, vec3, float, int, uniform, uniformArray, mx_noise_float, positionWorld, smoothstep, max, min, abs, hash, normalWorld, normalMap } from 'three/tsl';
+import { attribute, frontFacing, uv, fract, floor, step, mix, vec2, vec3, float, int, uniform, uniformArray, mx_noise_float, positionWorld, smoothstep, max, min, abs, hash, normalWorld, normalMap, fwidth } from 'three/tsl';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { ARCHETYPES, pickArchetype, worldStyle, type Archetype, type WallMaterial, type WorldStyle } from '@allezrobert/shared';
 import { rng, polygonArea } from '../engine/noise.ts';
@@ -428,6 +428,11 @@ export class Buildings {
     const wallH = bstyle.y;
     const u = uv().x;
     const v = uv().y;
+    // Taille d'un pixel sur la façade ou le pan (m). Les motifs procéduraux (nuance de chaque tuile, ondes du
+    // bac acier, lames des volets, génoise) ne sont pas filtrés comme une texture : plus fins que le pixel (au
+    // loin, en vue rasante), ils tirent une valeur au hasard par pixel et scintillent. On les fond vers leur
+    // moyenne avant.
+    const pix = max(fwidth(u), fwidth(v));
     const isWall = step(kind, float(0.5));
     const isTile = step(float(0.5), kind).mul(step(kind, float(1.5)));
     const isSlate = step(float(1.5), kind).mul(step(kind, float(2.5)));
@@ -546,7 +551,7 @@ export class Buildings {
       .mul(hasWin)
       .mul(mix(float(1), archB.x, isArch));
     // Lames des volets.
-    const slats = fract(fy.mul(9)).mul(0.25).add(0.8);
+    const slats = mix(fract(fy.mul(9)).mul(0.25).add(0.8), float(0.925), smoothstep(0.03, 0.08, pix));
     // Environ une fenêtre sur deux allumée la nuit (bruit par pièce).
     const lit = step(0.0, mx_noise_float(floor(positionWorld.mul(0.3)).add(0.37))).mul(this.night);
     const glass = mix(vec3(0.1, 0.12, 0.14).add(normalWorld.y.mul(0)), vec3(1.0, 0.74, 0.42), lit);
@@ -670,7 +675,9 @@ export class Buildings {
     const rowY = fract(gd.div(0.14));
     const inTileEnd = step(rowY, tileEnd.mul(0.75).add(0.12));
     const terracotta = vec3(0.5, 0.22, 0.11).mul(tileEnd.mul(0.4).add(0.65)).mul(rowY.mul(0.3).add(0.75));
-    const genoise = mix(vec3(0.62, 0.58, 0.5).mul(0.7), terracotta, inTileEnd).mul(mix(float(0.55), float(1), smoothstep(0.0, 0.05, rowY)));
+    const genoiseFine = mix(vec3(0.62, 0.58, 0.5).mul(0.7), terracotta, inTileEnd).mul(mix(float(0.55), float(1), smoothstep(0.0, 0.05, rowY)));
+    // au loin : teinte moyenne (trois quarts de bouts de tuiles, un quart de mortier)
+    const genoise = mix(genoiseFine, vec3(0.3, 0.17, 0.11), smoothstep(0.03, 0.08, pix));
     wall = mix(wall, genoise, gz);
 
     // ── Toits : tuiles en terre cuite et ardoise (textures photo), mousse par endroits ──
@@ -684,7 +691,7 @@ export class Buildings {
     const th = hash(tcell.x.add(5000).mul(1000).add(tcell.y.add(500)));
     const patch = smoothstep(0.55, 0.75, mx_noise_float(positionWorld.mul(0.22)));
     const lichenY = smoothstep(0.7, 0.85, mx_noise_float(positionWorld.mul(1.7))).mul(0.35);
-    const tileVar = th.mul(0.24).add(0.88).mul(mix(float(1), float(1.12), patch));
+    const tileVar = mix(th.mul(0.24).add(0.88), float(1), smoothstep(0.03, 0.1, pix)).mul(mix(float(1), float(1.12), patch));
     const tilesIdf = mix(tileTex.mul(base.div(vec3(0.33, 0.13, 0.08)).clamp(0.7, 1.3)).mul(tileVar), vec3(0.62, 0.58, 0.3), lichenY);
     // Tuiles vieillies (BD TOPO, binfo.y = 1 sur le toit) : seule la luminance de la photo (relief des
     // tuiles, moyenne 0,048 en linéaire) est gardée, teintée par une terre cuite passée mesurée sur
@@ -697,13 +704,14 @@ export class Buildings {
     // Bac acier : ondes de 25 cm dans la pente, coulures et rouille légère par plaques.
     const rib = abs(fract(u.div(0.25)).sub(0.5)).mul(2);
     const rust = smoothstep(0.55, 0.85, mx_noise_float(positionWorld.mul(0.25))).mul(0.35);
-    const steel = mix(base.mul(rib.mul(0.25).add(0.8)), vec3(0.42, 0.27, 0.17), rust).mul(nBig.mul(0.15).add(0.9));
+    const ribShade = mix(rib.mul(0.25).add(0.8), float(0.925), smoothstep(0.05, 0.15, pix));
+    const steel = mix(base.mul(ribShade), vec3(0.42, 0.27, 0.17), rust).mul(nBig.mul(0.15).add(0.9));
     // Zinc (toits parisiens, binfo.y = 1 sur un toit métallique) : bandes de 55 cm à joints debout,
     // patine gris bleuté par plaques, sans rouille.
     const isZinc = isMetal.mul(step(float(0.5), info.y));
     const seam = smoothstep(0.93, 0.97, fract(u.div(0.55)));
     const patina = mx_noise_float(positionWorld.mul(0.18)).mul(0.08).add(1);
-    const zinc = base.mul(seam.mul(0.3).add(0.94)).mul(patina).mul(nBig.mul(0.1).add(0.95));
+    const zinc = base.mul(mix(seam.mul(0.3).add(0.94), float(0.955), smoothstep(0.02, 0.06, pix))).mul(patina).mul(nBig.mul(0.1).add(0.95));
     const metal = mix(steel, zinc, isZinc);
     let col = mix(wall, tiles, isTile);
     col = mix(col, slate, isSlate);
