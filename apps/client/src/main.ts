@@ -231,8 +231,19 @@ const MENU_MEDIA_VERSION = 10;
 /** Boucle vidéo de la saison en fond du menu (public/menu/loop-<saison>.webm), sur son image fixe. */
 function createMenuVideo(el: HTMLVideoElement | null) {
   let failed = false;
-  let useWebm = false;
+  /**
+   * Formats essayés dans l'ordre, le suivant en cas d'erreur : AV1 (deux fois plus léger) seulement si la
+   * carte graphique le décode (sinon il occuperait le processeur), puis H.264, puis VP9.
+   */
+  let formats = ['mp4', 'webm'];
+  let format = 0;
   let current = '';
+  void navigator.mediaCapabilities
+    ?.decodingInfo({ type: 'file', video: { contentType: 'video/mp4; codecs="av01.0.08M.08"', width: 1920, height: 1080, bitrate: 2_500_000, framerate: 30 } })
+    .then((info) => {
+      if (info.supported && info.powerEfficient && !current) formats = ['av1.mp4', 'mp4', 'webm'];
+    })
+    .catch(() => undefined);
   // Image fixe de la saison, affichée tout de suite sous la vidéo (et seule si la vidéo échoue).
   const still = document.getElementById('menu-still');
   const showStill = (season: Settings['season'] | null) => {
@@ -242,15 +253,16 @@ function createMenuVideo(el: HTMLVideoElement | null) {
   };
   if (el) {
     el.addEventListener('error', () => {
-      if (!useWebm && current.includes('.mp4')) {
-        // MP4 refusé : on retente en WebM avant d'abandonner (l'image fixe reste en dessous).
-        useWebm = true;
-        current = current.replace('.mp4', '.webm');
+      const ext = formats[format];
+      if (ext && format + 1 < formats.length) {
+        // Format refusé (ou fichier absent) : on retente avec le suivant avant d'abandonner (l'image fixe reste en dessous).
+        const next = formats[++format] as string;
+        current = current.replace(`.${ext}?`, `.${next}?`);
         el.src = current;
         void el.play().catch(() => undefined);
         return;
       }
-      // Les deux formats ont échoué : image fixe seule (nouvel essai à la prochaine saison / au prochain accueil).
+      // Tous les formats ont échoué : image fixe seule (nouvel essai à la prochaine saison / au prochain accueil).
       failed = true;
       el.hidden = true;
       console.warn('Boucle vidéo du menu illisible :', current, el.error?.message ?? el.error?.code);
@@ -276,8 +288,9 @@ function createMenuVideo(el: HTMLVideoElement | null) {
     show(season: Settings['season']): boolean {
       showStill(season);
       if (!el || failed) return true;
-      // H.264 (décodé par toutes les cartes graphiques) sinon VP9 ; repli sur l'autre format en cas d'erreur.
-      const ext = useWebm || !el.canPlayType('video/mp4; codecs="avc1.640028"') ? 'webm' : 'mp4';
+      // AV1 si décodé par la carte graphique, sinon H.264, sinon VP9 ; repli sur le suivant en cas d'erreur.
+      if (formats[format] === 'mp4' && !el.canPlayType('video/mp4; codecs="avc1.640028"')) format = formats.indexOf('webm');
+      const ext = formats[format] as string;
       // Application Windows : les boucles (trop lourdes pour l'installateur) viennent du serveur ; web : même origine.
       const src = `${TILES_BASE}/menu/loop-${season}.${ext}?v=${MENU_MEDIA_VERSION}`;
       if (current !== src) {

@@ -19,7 +19,7 @@
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
 import { closeSync, existsSync, mkdirSync, openSync, readFileSync, readdirSync, rmSync, statSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { checkPoints, DEFAULT_ENCODE, mp4Args, stillArgs, webmPasses, type EncodeOptions, type Manifest } from './encode.ts';
+import { checkPoints, DEFAULT_ENCODE, av1Args, mp4Args, stillArgs, webmPasses, type EncodeOptions, type Manifest } from './encode.ts';
 
 const ROOT = resolve(import.meta.dirname, '../../..');
 const OUT = resolve(ROOT, 'out/menu-loop');
@@ -50,9 +50,11 @@ const enc: EncodeOptions = {
   height: h,
   crf: Number(arg('crf', String(DEFAULT_ENCODE.crf))),
   vp9Crf: Number(arg('vp9-crf', String(DEFAULT_ENCODE.vp9Crf))),
+  av1Crf: Number(arg('av1-crf', String(DEFAULT_ENCODE.av1Crf))),
   ...(maxKbps > 0 ? { mp4MaxKbps: maxKbps } : {}),
 };
 const withWebm = arg('no-webm') === undefined;
+const withAv1 = arg('no-av1') === undefined;
 const browser = arg('browser', 'chrome') as 'chrome' | 'open' | 'manual';
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -178,6 +180,12 @@ function encode(season: string): void {
   console.log(`[${season}] MP4 H.264 ${enc.width}×${enc.height} CRF ${enc.crf}${enc.mp4MaxKbps ? ` (≤ ${enc.mp4MaxKbps} kbit/s)` : ''}…`);
   ffmpeg(mp4Args(m, frames, mp4, enc));
   const outputs = [mp4];
+  if (withAv1) {
+    const av1 = resolve(PUBLIC, `loop-${season}.av1.mp4`);
+    console.log(`[${season}] MP4 AV1 CRF ${enc.av1Crf}…`);
+    ffmpeg(av1Args(m, frames, av1, enc));
+    outputs.push(av1);
+  }
   if (withWebm) {
     const webm = resolve(PUBLIC, `loop-${season}.webm`);
     const passlog = resolve(OUT, `pass-${season}`).replaceAll('\\', '/');

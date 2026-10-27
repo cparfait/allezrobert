@@ -1,6 +1,23 @@
 /* HUD — jetons de design partagés avec packages/sequences (voir ART_DIRECTION.md). */
+/* Polices de la direction artistique (OFL), les mêmes que les séquences : sans elles, Segoe UI et Cascadia. */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('/fonts/inter-latin-wght-normal.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 100 800;
+  font-display: swap;
+  src: url('/fonts/jetbrains-mono-latin-wght-normal.woff2') format('woff2');
+}
 :root {
   --ar-bg: rgba(10, 14, 22, 0.62);
+  /* Verre dépoli des panneaux du HUD : refait à chaque image au-dessus de la 3D, coupé en qualité basse et moyenne. */
+  --hud-blur: blur(10px) saturate(1.2);
   --ar-bg-strong: rgba(10, 14, 22, 0.82);
   --ar-fg: #f5f7fa;
   --ar-muted: #9aa5b1;
@@ -16,6 +33,11 @@
   --font: 'Inter', 'Segoe UI', system-ui, sans-serif;
   --mono: 'JetBrains Mono', 'Cascadia Mono', ui-monospace, monospace;
 }
+:root[data-quality="low"],
+:root[data-quality="medium"] {
+  --hud-blur: none;
+  --ar-bg: rgba(10, 14, 22, 0.8);
+}
 
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; overflow: hidden; background: #0a0e16; color: var(--ar-fg); font-family: var(--font); }
@@ -23,7 +45,7 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #0a0e16; col
 #scene { width: 100%; height: 100%; display: block; }
 .hud, .ui { position: absolute; inset: 0; pointer-events: none; }
 .hud.hidden { display: none; }
-.panel { background: var(--ar-bg); backdrop-filter: blur(10px) saturate(1.2); border-radius: var(--ar-radius); border: 1px solid rgba(255, 255, 255, 0.08); box-shadow: 0 8px 30px rgba(0, 0, 0, 0.25); }
+.panel { background: var(--ar-bg); backdrop-filter: var(--hud-blur); border-radius: var(--ar-radius); border: 1px solid rgba(255, 255, 255, 0.08); box-shadow: 0 8px 30px rgba(0, 0, 0, 0.25); }
 .num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
 
 /*
@@ -43,7 +65,7 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #0a0e16; col
 /* Cockpit du haut : compteur de puissance en arc (zones de la FTP) entouré de deux colonnes de tuiles. */
 .hud-top { display: flex; gap: 12px; align-items: center; }
 .tile-col { display: flex; flex-direction: column; gap: 8px; }
-.tile { position: relative; min-width: 128px; padding: 7px 14px 8px 16px; border-radius: 10px 4px 10px 4px; background: linear-gradient(180deg, rgba(18, 24, 36, 0.84), rgba(10, 14, 22, 0.78)); border: 1px solid rgba(255, 255, 255, 0.09); box-shadow: 0 8px 26px rgba(0, 0, 0, 0.3); backdrop-filter: blur(10px) saturate(1.2); overflow: hidden; --acc: #9aa5b1; }
+.tile { position: relative; min-width: 128px; padding: 7px 14px 8px 16px; border-radius: 10px 4px 10px 4px; background: linear-gradient(180deg, rgba(18, 24, 36, 0.84), rgba(10, 14, 22, 0.78)); border: 1px solid rgba(255, 255, 255, 0.09); box-shadow: 0 8px 26px rgba(0, 0, 0, 0.3); backdrop-filter: var(--hud-blur); overflow: hidden; --acc: #9aa5b1; }
 .tile::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--acc); }
 .tile .label { display: flex; align-items: center; gap: 5px; font-size: 10.5px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ar-muted); }
 .tile .label .ico { color: var(--acc); flex: none; }
@@ -176,7 +198,7 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #0a0e16; col
 
 /* Caméra libre : aide des commandes en bas, au-dessus du profil quand le HUD est affiché. */
 .freecam-hint { position: absolute; left: 50%; bottom: 24px; transform: translateX(-50%); max-width: calc(100vw - 32px); display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 6px 16px;
-  padding: 10px 18px; border-radius: var(--ar-radius); background: var(--ar-bg); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.08); font-size: 12.5px; color: #d8dee6; pointer-events: none; }
+  padding: 10px 18px; border-radius: var(--ar-radius); background: var(--ar-bg); backdrop-filter: var(--hud-blur); border: 1px solid rgba(255, 255, 255, 0.08); font-size: 12.5px; color: #d8dee6; pointer-events: none; }
 .hud:not(:empty):not(.hidden) ~ .freecam-hint { bottom: 146px; }
 .freecam-hint b { color: var(--ar-accent); font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; }
 .freecam-hint span { white-space: nowrap; }
@@ -258,6 +280,8 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #0a0e16; col
 /* Sous-titres de la voix off */
 /* Pendant le tutoriel (pas de HUD), les sous-titres descendent en bas de l'écran, sous la carte. */
 body:has(.ob-menu) .subtitle { bottom: 18px; }
+/* Écran bas (1024 × 768…) : les sous-titres du tutoriel passent en haut, au-dessus du titre, au lieu de recouvrir la fenêtre du tutoriel. */
+@media (max-height: 820px) { body:has(.ob-menu) .subtitle { bottom: auto; top: 12px; font-size: 15px; max-width: min(720px, 86vw); } }
 .subtitle { position: absolute; left: 50%; bottom: 140px; transform: translateX(-50%); max-width: min(900px, 80vw); padding: 10px 18px; border-radius: 12px; background: rgba(10, 14, 22, 0.78); color: #fff; font-size: 18px; line-height: 1.4; text-align: center; z-index: 50; pointer-events: none; }
 
 /* Chat texte, chat vocal, Ride On */

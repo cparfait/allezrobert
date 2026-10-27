@@ -42,9 +42,14 @@ export interface EncodeOptions {
    * par Chrome sur certaines machines). CRF 30 : ≈75 Mo la minute pour ce film ; 40 : ≈35 Mo.
    */
   vp9Crf: number;
+  /**
+   * AV1 (SVT-AV1) : facteur de qualité constante. Proposé par le menu quand la carte graphique le décode :
+   * à qualité égale, environ deux fois plus léger que le H.264 plafonné.
+   */
+  av1Crf?: number;
 }
 
-export const DEFAULT_ENCODE: EncodeOptions = { width: 1920, height: 1080, crf: 19, mp4MaxKbps: 3800, vp9Crf: 40 };
+export const DEFAULT_ENCODE: EncodeOptions = { width: 1920, height: 1080, crf: 19, mp4MaxKbps: 3800, vp9Crf: 40, av1Crf: 50 };
 
 /** Bornes de la boucle en images : L = durée de la boucle, F = fondu de raccord. */
 export function loopFrames(m: Pick<Manifest, 'fps' | 'loopS' | 'xfadeS' | 'frames'>): { L: number; F: number } {
@@ -103,6 +108,27 @@ export function mp4Args(m: Manifest, framesDir: string, out: string, o: EncodeOp
     // aq-mode 3 : plus de bits dans les aplats sombres et les dégradés (ciel), moins de bandes.
     // Couleurs aussi dans le VUI du flux H.264 (les options -color_* seules n'y vont pas toujours).
     '-x264-params', 'aq-mode=3:scenecut=0:colorprim=bt709:transfer=bt709:colormatrix=bt709',
+    ...gop(m),
+    '-r', String(m.fps),
+    ...COLOR_TAGS,
+    '-movflags', '+faststart',
+    out,
+  ];
+}
+
+/** MP4 AV1 (SVT-AV1, profil main, yuv420p 8 bits), qualité constante, démarrage rapide, sans son. */
+export function av1Args(m: Manifest, framesDir: string, out: string, o: EncodeOptions): string[] {
+  return [
+    ...inputArgs(m, framesDir),
+    '-filter_complex', loopFilter(m, o),
+    '-map', '[out]',
+    '-an',
+    '-c:v', 'libsvtav1',
+    '-preset', '5',
+    '-crf', String(o.av1Crf ?? 36),
+    '-pix_fmt', 'yuv420p',
+    // Grain de film synthétisé à la lecture : le feuillage garde son grain sans coûter de débit.
+    '-svtav1-params', 'tune=0:film-grain=6',
     ...gop(m),
     '-r', String(m.fps),
     ...COLOR_TAGS,

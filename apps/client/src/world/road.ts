@@ -3,6 +3,7 @@ import { uv, mix, smoothstep, step, fract, vec2, vec3, float, floor, hash, unifo
 import type { RouteData, RoutePoint } from '@allezrobert/shared';
 import { asphaltGrain } from './asphalt.ts';
 import { ribbonEdges, ribbonIndex, roundCorners } from './ribbon.ts';
+import { cloudShade } from './clouds.ts';
 
 /**
  * Ruban de chaussée de l'itinéraire, posé sur le terrain déjà creusé, avec marquages
@@ -86,7 +87,7 @@ export class RoadMesh {
     col = mix(col, vec3(0.9, 0.9, 0.86), paint.mul(onRoad));
     const wet = this.wetness;
     col = col.mul(float(1).sub(wet.mul(0.4).mul(onRoad)));
-    m.colorNode = col;
+    m.colorNode = col.mul(cloudShade());
     const rough = float(0.84).sub(wheelTrack);
     m.roughnessNode = clamp(mix(float(0.97), rough, onRoad).sub(wet.mul(0.6).mul(onRoad)), 0.06, 1);
     m.metalnessNode = float(0);

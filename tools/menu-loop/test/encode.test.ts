@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { checkPoints, DEFAULT_ENCODE, inputArgs, loopFilter, loopFrames, mp4Args, webmPasses, type Manifest } from '../src/encode.ts';
+import { av1Args, checkPoints, DEFAULT_ENCODE, inputArgs, loopFilter, loopFrames, mp4Args, webmPasses, type Manifest } from '../src/encode.ts';
 
 const m: Manifest = { season: 'autumn', fps: 30, width: 1920, height: 1080, format: 'png', frames: 1845, loopS: 60, xfadeS: 1.5, routeId: 'chevreuse-boucle', d0: 5825, hour: 9.2 };
 
@@ -32,6 +32,17 @@ describe('film d’accueil : encodage', () => {
     expect(v('-movflags')).toBe('+faststart');
     expect(v('-maxrate')).toBe('3800k');
     expect(mp4Args(m, 'f', 'o.mp4', { ...DEFAULT_ENCODE, mp4MaxKbps: undefined })).not.toContain('-maxrate');
+  });
+
+  it('MP4 AV1 : SVT-AV1 à qualité constante, même boucle, faststart', () => {
+    const a = av1Args(m, 'f', 'o.av1.mp4', DEFAULT_ENCODE);
+    const v = (k: string) => a[a.indexOf(k) + 1];
+    expect(v('-c:v')).toBe('libsvtav1');
+    expect(v('-crf')).toBe('50');
+    expect(v('-pix_fmt')).toBe('yuv420p');
+    expect(v('-filter_complex')).toBe(loopFilter(m, DEFAULT_ENCODE));
+    expect(v('-movflags')).toBe('+faststart');
+    expect(a.at(-1)).toBe('o.av1.mp4');
   });
 
   it('WebM : VP9 à qualité constante (-b:v 0), deux passes', () => {

@@ -32,9 +32,7 @@ export class Rain {
     const fall = mod(hy.mul(BOX).sub(time.mul(speed)).sub(cam.y), BOX);
     const world = vec3(wrap(hx.mul(1000), cam.x), cam.y.add(fall).sub(BOX / 3), wrap(hz.mul(1000), cam.z));
     const tilt = vec3(this.wind.x.mul(positionLocal.y).mul(0.08), 0, this.wind.y.mul(positionLocal.y).mul(0.08));
-    // Les gouttes au-delà de l'intensité courante sont repliées hors champ.
-    const visible = hash(id.add(5.5)).lessThan(this.intensity).select(float(1), float(0));
-    m.positionNode = positionLocal.add(tilt).add(world).sub(vec3(0, visible.oneMinus().mul(1000), 0));
+    m.positionNode = positionLocal.add(tilt).add(world);
     m.colorNode = mix(color('#c9d6e3'), color('#ffffff'), hx);
     m.opacityNode = float(0.32);
     this.mesh = new THREE.InstancedMesh(geo, m, COUNT);
@@ -46,6 +44,8 @@ export class Rain {
   update(rain: number, windMs: number, windFrom: number): void {
     this.intensity.value = rain;
     this.mesh.visible = rain > 0.02;
+    // Seules les gouttes de l'intensité courante sont dessinées (avant : toutes, les autres repliées hors champ).
+    this.mesh.count = Math.ceil(COUNT * Math.min(1, Math.max(0, rain)));
     (this.wind.value as THREE.Vector2).set(-Math.sin(windFrom) * windMs, Math.cos(windFrom) * windMs);
   }
 }

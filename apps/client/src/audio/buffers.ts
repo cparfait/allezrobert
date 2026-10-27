@@ -154,3 +154,29 @@ export function hubClick(sampleRate: number, variant: number, rnd: () => number)
   }
   return normalize(d, 0.9);
 }
+
+/**
+ * Réponse impulsionnelle d'un lieu semi-ouvert (rue de village, sous-bois), stéréo : premières
+ * réflexions éparses puis queue de bruit qui décroît (−60 dB en `seconds`) et s'assombrit.
+ */
+export function roomImpulse(sampleRate: number, seconds: number, rnd: () => number): Float32Array[] {
+  const n = Math.round(sampleRate * seconds);
+  const decay = Math.log(1000) / seconds;
+  return [0, 1].map(() => {
+    const out = new Float32Array(n);
+    let lp = 0;
+    for (let i = 0; i < n; i++) {
+      const t = i / sampleRate;
+      // Les aigus s'éteignent plus vite : passe-bas qui se referme au fil de la queue.
+      const k = 0.15 + 0.75 * Math.exp(-t * 4);
+      lp += k * (rnd() * 2 - 1 - lp);
+      out[i] = lp * Math.exp(-decay * t) * (t < 0.008 ? 0 : 1);
+    }
+    // Premières réflexions (façades de part et d'autre).
+    for (let r = 0; r < 6; r++) {
+      const at = Math.round(sampleRate * (0.012 + rnd() * 0.06));
+      if (at < n) out[at] = (out[at] ?? 0) + (rnd() < 0.5 ? -1 : 1) * (0.5 - r * 0.06);
+    }
+    return out;
+  });
+}

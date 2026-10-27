@@ -2,7 +2,8 @@ import * as THREE from 'three/webgpu';
 import { attribute, positionLocal, positionWorld, time, sin, vec3, float, uniform, mix, instanceIndex, hash, color, smoothstep, varying, floor, step, dot, fract } from 'three/tsl';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import type { QualitySettings } from '../engine/quality.ts';
-import { colorUniform } from '../engine/tsl.ts';
+import { colorUniform, type Vec3Node } from '../engine/tsl.ts';
+import { backlitOutput } from './sunlight.ts';
 import { fbm, rng } from '../engine/noise.ts';
 import type { LoadedTile } from './types.ts';
 import { splatAt } from './splat.ts';
@@ -341,6 +342,8 @@ export class Vegetation {
     m.colorNode = varying(col);
     m.roughnessNode = float(0.9);
     m.metalnessNode = float(0);
+    // Contre-jour : les feuilles s'illuminent quand le soleil est derrière elles.
+    m.outputNode = backlitOutput(varying(leafCol.mul(shade)) as unknown as Vec3Node, varying(leaf));
     return m;
   }
 

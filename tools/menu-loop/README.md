@@ -9,6 +9,7 @@ Sorties, dans `apps/client/public/menu/` :
 
 | Fichier | Contenu | Dans git |
 | --- | --- | --- |
+| `loop-<saison>.av1.mp4` | AV1 (SVT-AV1), même boucle, CRF 50, grain de film synthétisé, ≈ 12 Mo (2,3 fois moins que le H.264 à qualité égale) ; proposé seulement si la carte graphique décode l'AV1 | non |
 | `loop-<saison>.mp4` | H.264 High, 1920×1080, 30 i/s, yuv420p BT.709, CRF 19 plafonné à 3 800 kbit/s, image clé toutes les 2 s, faststart, ≤ 30 Mo | non (`.gitignore`) |
 | `loop-<saison>.webm` | VP9 profil 0, CRF 40 (`-b:v 0`), deux passes, ≈35 Mo, repli si le MP4 échoue | non |
 | `still-<saison>.jpg` | première image de la vidéo, 1920×1080, ≈200–300 ko : affichée tout de suite, et seule si la vidéo manque | oui |
@@ -37,7 +38,7 @@ par plan et les deux côtés du raccord) dans `out/menu-loop/check-<saison>/`.
 Options : `--season spring,winter`, `--url http://localhost:5173` (serveur existant),
 `--browser open|manual` (navigateur par défaut / adresse affichée seulement), `--headed`
 (fenêtre de Chrome visible), `--ss 2`, `--sub 8`, `--crf 19`, `--vp9-crf 40`,
-`--mp4-max-kbps 3800` (plafond du MP4, 0 = CRF pur), `--no-webm`.
+`--mp4-max-kbps 3800` (plafond du MP4, 0 = CRF pur), `--no-webm`, `--av1-crf 50`, `--no-av1`.
 `CHROME_PATH` désigne un autre navigateur Chromium.
 
 Une capture interrompue (onglet ou serveur tombé) reprend sa saison depuis le début, jusqu'à

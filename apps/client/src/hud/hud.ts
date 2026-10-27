@@ -158,6 +158,14 @@ function zoneColorHex(watts: number, ftp: number): string {
   return ZONE_HEX[idx === -1 ? 6 : idx] as string;
 }
 
+const lastHtml = new WeakMap<HTMLElement, string>();
+/** Remplace le contenu de `el` seulement s'il a changé (pas de reconstruction ni de mise en page inutiles). */
+function setHtml(el: HTMLElement, html: string): void {
+  if (lastHtml.get(el) === html) return;
+  lastHtml.set(el, html);
+  el.innerHTML = html;
+}
+
 function fmtTime(s: number): string {
   const h = Math.floor(s / 3600);
   const m = Math.floor((s % 3600) / 60);
@@ -176,6 +184,10 @@ export class Hud {
   private basemapOrigin: { x: number; y: number } | null = null;
   /** Fond de carte affiché (image chargée, emprise en repère du monde) et celui en cours de chargement. */
   private base: BaseTile | null = null;
+  /** Calques fixes des canevas (profil, mini-carte), avec la clé qui les a produits. */
+  private readonly layers = new Map<string, { canvas: HTMLCanvasElement; key: string }>();
+  /** Altitudes extrêmes du profil (marges comprises), calculées une fois. */
+  private profileRange: { min: number; max: number } | null = null;
   private baseLoading: BaseTile | null = null;
   private readonly track: RouteTrack;
   private readonly profile: Array<{ d: number; y: number }>;
@@ -307,7 +319,7 @@ export class Hud {
       c.phase === 'runup'
         ? `${fr ? 'Pied de la côte dans' : 'Climb starts in'} <b class="num">${Math.round(c.toGoM)} m</b>`
         : `<b class="num">${fmtTime(c.elapsedS)}</b> ${delta} <span class="num" style="color:var(--ar-muted)">· ${Math.round(c.toGoM)} m</span>`;
-    box.innerHTML = `<div class="ch-head"><b>${fr ? 'Défi' : 'Challenge'}</b><span>${c.name.replace(/[<>&]/g, '')} · ${rec}</span></div><div class="ch-main">${main}</div><div class="bar"><span style="width:${(c.progress * 100).toFixed(1)}%"></span></div>`;
+    setHtml(box, `<div class="ch-head"><b>${fr ? 'Défi' : 'Challenge'}</b><span>${c.name.replace(/[<>&]/g, '')} · ${rec}</span></div><div class="ch-main">${main}</div><div class="bar"><span style="width:${(c.progress * 100).toFixed(1)}%"></span></div>`);
   }
 
   /** Panneau de séance structurée (null = masqué). */
@@ -524,9 +536,10 @@ export class Hud {
       if (s.place) loc.innerHTML = `${ICONS.pin}<b>${s.place.town.replace(/[<>&]/g, '')}</b>${s.place.road ? `<span>${s.place.road.replace(/[<>&]/g, '')}</span>` : ''}`;
     }
 
-    (e.devices as HTMLElement).innerHTML = s.devices.map((d) => `<div class="${d.state}">${d.label}</div>`).join('');
+    // Reconstruits seulement s'ils ont changé (10 fois par seconde sinon, boutons compris).
+    setHtml(e.devices as HTMLElement, s.devices.map((d) => `<div class="${d.state}">${d.label}</div>`).join(''));
 
-    (e.riders as HTMLElement).innerHTML = this.nearbyHtml(s);
+    setHtml(e.riders as HTMLElement, this.nearbyHtml(s));
 
     this.drawJunction(s);
     // Montée en cours ou proche : le panneau ClimbPro prend la place du profil du parcours.
@@ -541,42 +554,64 @@ export class Hud {
     }
   }
 
+  /** Calque fixe `name` de taille w × h, redessiné par `draw` seulement quand sa clé ou sa taille change. */
+  private cached(name: string, w: number, h: number, key: string, draw: (ctx: CanvasRenderingContext2D) => void): HTMLCanvasElement {
+    let l = this.layers.get(name);
+    if (!l || l.key !== key || l.canvas.width !== w || l.canvas.height !== h) {
+      const canvas = l?.canvas ?? document.createElement('canvas');
+      canvas.width = w;
+      canvas.height = h;
+      const g = canvas.getContext('2d') as CanvasRenderingContext2D;
+      g.clearRect(0, 0, w, h);
+      draw(g);
+      l = { canvas, key };
+      this.layers.set(name, l);
+    }
+    return l.canvas;
+  }
+
   private drawProfile(s: HudState): void {
     const c = this.profileCanvas;
     const ctx = c.getContext('2d') as CanvasRenderingContext2D;
     const w = c.width;
     const h = c.height;
     ctx.clearRect(0, 0, w, h);
-    const ys = this.profile.map((p) => p.y);
-    const minY = Math.min(...ys) - 5;
-    const maxY = Math.max(...ys) + 5;
+    this.profileRange ??= (() => {
+      const ys = this.profile.map((p) => p.y);
+      return { min: Math.min(...ys) - 5, max: Math.max(...ys) + 5 };
+    })();
+    const { min: minY, max: maxY } = this.profileRange;
     const L = this.track.length;
     const X = (d: number) => (d / L) * w;
     const Y = (y: number) => h - 8 - ((y - minY) / (maxY - minY)) * (h - 24);
-    // Segments KOM / sprint en arrière-plan.
-    for (const seg of this.track.route.segments) {
-      ctx.fillStyle = seg.kind === 'kom' ? 'rgba(239,68,68,0.18)' : 'rgba(34,197,94,0.18)';
-      ctx.fillRect(X(seg.startM), 0, X(seg.endM) - X(seg.startM), h);
-    }
-    // Profil coloré selon la pente.
-    for (let i = 1; i < this.profile.length; i++) {
-      const a = this.profile[i - 1] as { d: number; y: number };
-      const b = this.profile[i] as { d: number; y: number };
-      const grade = ((b.y - a.y) / Math.max(b.d - a.d, 1)) * 100;
-      ctx.fillStyle = grade > 6 ? '#ef4444' : grade > 3 ? '#f97316' : grade > 1 ? '#eab308' : grade < -1 ? '#3b82f6' : '#64748b';
-      ctx.beginPath();
-      ctx.moveTo(X(a.d), h);
-      ctx.lineTo(X(a.d), Y(a.y));
-      ctx.lineTo(X(b.d), Y(b.y));
-      ctx.lineTo(X(b.d), h);
-      ctx.closePath();
-      ctx.fill();
-    }
-    ctx.strokeStyle = 'rgba(255,255,255,0.85)';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    this.profile.forEach((p, i) => (i ? ctx.lineTo(X(p.d), Y(p.y)) : ctx.moveTo(X(p.d), Y(p.y))));
-    ctx.stroke();
+    // Fond fixe (segments, profil coloré, tracé) dessiné une fois : seuls les coureurs changent.
+    const still = this.cached('profile', w, h, '', (g) => {
+      // Segments KOM / sprint en arrière-plan.
+      for (const seg of this.track.route.segments) {
+        g.fillStyle = seg.kind === 'kom' ? 'rgba(239,68,68,0.18)' : 'rgba(34,197,94,0.18)';
+        g.fillRect(X(seg.startM), 0, X(seg.endM) - X(seg.startM), h);
+      }
+      // Profil coloré selon la pente.
+      for (let i = 1; i < this.profile.length; i++) {
+        const a = this.profile[i - 1] as { d: number; y: number };
+        const b = this.profile[i] as { d: number; y: number };
+        const grade = ((b.y - a.y) / Math.max(b.d - a.d, 1)) * 100;
+        g.fillStyle = grade > 6 ? '#ef4444' : grade > 3 ? '#f97316' : grade > 1 ? '#eab308' : grade < -1 ? '#3b82f6' : '#64748b';
+        g.beginPath();
+        g.moveTo(X(a.d), h);
+        g.lineTo(X(a.d), Y(a.y));
+        g.lineTo(X(b.d), Y(b.y));
+        g.lineTo(X(b.d), h);
+        g.closePath();
+        g.fill();
+      }
+      g.strokeStyle = 'rgba(255,255,255,0.85)';
+      g.lineWidth = 2;
+      g.beginPath();
+      this.profile.forEach((p, i) => (i ? g.lineTo(X(p.d), Y(p.y)) : g.moveTo(X(p.d), Y(p.y))));
+      g.stroke();
+    });
+    ctx.drawImage(still, 0, 0);
     // Coureurs.
     for (const r of s.riders) {
       const d = this.track.wrap(r.distM);
@@ -658,7 +693,7 @@ export class Hud {
     for (const p of inView) {
       const r = Math.min(rank[p.kind] ?? 3, 3);
       if (r === 3 && boxes.length >= 14) continue;
-      ctx.font = `600 ${size[r]}px system-ui, sans-serif`;
+      ctx.font = `600 ${size[r]}px Inter, system-ui, sans-serif`;
       const [x, y] = P(p.x, p.z);
       const tw = ctx.measureText(p.name).width;
       const bx: [number, number, number, number] = [x - tw / 2 - 3, y - (size[r] as number) / 2 - 2, x + tw / 2 + 3, y + (size[r] as number) / 2 + 2];
@@ -689,28 +724,34 @@ export class Hud {
     // Fond de carte : emprise visible de la mini-carte, chargée une seule fois.
     const view = { minX: b.minX - ox / scale, maxX: b.maxX + ox / scale, minZ: b.minZ - oz / scale, maxZ: b.maxZ + oz / scale };
     this.ensureBase(view, view, 1024);
-    this.drawBase(ctx, P);
-    ctx.lineJoin = 'round';
-    ctx.strokeStyle = 'rgba(0,0,0,0.5)';
-    ctx.lineWidth = 9;
-    const pts = this.track.route.points;
-    const path = () => {
-      ctx.beginPath();
-      for (let i = 0; i < pts.length; i += 4) {
-        const p = pts[i] as { x: number; z: number };
-        const [x, y] = P(p.x, p.z);
-        if (i) ctx.lineTo(x, y);
-        else ctx.moveTo(x, y);
-      }
-      if (this.track.route.loop) ctx.closePath();
-    };
-    path();
-    ctx.stroke();
-    ctx.strokeStyle = '#e2e8f0';
-    ctx.lineWidth = 5;
-    path();
-    ctx.stroke();
-    this.drawPlaceNames(ctx, w, h, view, P);
+    // Fond de carte filtré, tracé et noms de communes : dessinés une fois (le filtre du fond coûte cher),
+    // refaits seulement quand le fond arrive ou que les communes changent.
+    const key = `${this.base?.ready ? this.base.img.src : ''}|${this.places.length}|${document.fonts.status}`;
+    const still = this.cached('map', w, h, key, (g) => {
+      this.drawBase(g, P);
+      g.lineJoin = 'round';
+      g.strokeStyle = 'rgba(0,0,0,0.5)';
+      g.lineWidth = 9;
+      const pts = this.track.route.points;
+      const path = () => {
+        g.beginPath();
+        for (let i = 0; i < pts.length; i += 4) {
+          const p = pts[i] as { x: number; z: number };
+          const [x, y] = P(p.x, p.z);
+          if (i) g.lineTo(x, y);
+          else g.moveTo(x, y);
+        }
+        if (this.track.route.loop) g.closePath();
+      };
+      path();
+      g.stroke();
+      g.strokeStyle = '#e2e8f0';
+      g.lineWidth = 5;
+      path();
+      g.stroke();
+      this.drawPlaceNames(g, w, h, view, P);
+    });
+    ctx.drawImage(still, 0, 0);
     for (const r of s.riders) {
       const [x, y] = P(r.x, r.z);
       ctx.fillStyle = r.me ? '#ffd23f' : r.color;

@@ -164,7 +164,8 @@
 .mm-hero h1 em { color: var(--ar-accent); font-style: normal; }
 .mm-hero p { margin: 14px 0 0; font-size: clamp(16px, 1.5vw, 24px); font-weight: 600; color: rgba(255, 255, 255, 0.92); letter-spacing: 0.01em; text-shadow: 0 2px 12px rgba(0, 0, 0, 0.55); }
 .mm-rc-title { padding: 10px 12px 0; font-size: 15px; font-weight: 800; line-height: 1.25; }
-@media (max-width: 900px) { .mm-hero:not(.mm-hero-home) { display: none; } }
+/* Le titre se loge à droite du panneau de gauche : masqué quand il n'y a plus la place (il le chevauchait en 1024 px). */
+@media (max-width: 1280px) { .mm-hero:not(.mm-hero-home) { display: none; } }
 
 /* Pied : capteurs et départ */
 .mm-foot { grid-row: 3; display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 0 22px 14px; }
@@ -279,6 +280,7 @@
 @media (max-width: 1100px) {
   .mm-now { max-width: 110px; }
   .mm-tab { padding: 0 10px; font-size: 13px; }
+  .mm-who { display: none; }
 }
 @media (max-width: 860px) {
   .mm-brand { display: none; }

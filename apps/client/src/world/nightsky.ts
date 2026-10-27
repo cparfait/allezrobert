@@ -1,5 +1,6 @@
 import * as THREE from 'three/webgpu';
 import { positionLocal, normalize, mix, vec3, float, uniform, hash, floor, smoothstep, pow, max } from 'three/tsl';
+import { domeVertex } from './overcast.ts';
 
 /**
  * Voûte nocturne : dégradé bleu nuit (horizon plus clair, pollution lumineuse d'Île-de-France
@@ -10,8 +11,10 @@ export class NightSky {
   readonly night = uniform(0);
 
   constructor() {
-    const geo = new THREE.SphereGeometry(400000, 48, 24);
+    const geo = new THREE.SphereGeometry(1, 48, 24);
     const m = new THREE.MeshBasicNodeMaterial({ side: THREE.BackSide, transparent: true, depthWrite: false, fog: false });
+    // Collée à la caméra et derrière tout : une sphère de 400 km était découpée par le plan lointain (pas d'étoiles).
+    m.vertexNode = domeVertex();
     const dir = normalize(positionLocal);
     const up = max(dir.y, float(0));
     const zenith = vec3(0.01, 0.018, 0.045);

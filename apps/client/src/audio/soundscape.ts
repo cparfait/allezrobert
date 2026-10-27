@@ -443,3 +443,8 @@ export function ambienceMix(a: AmbienceInput): AmbienceMix {
 export function eventChance(perMin: number, dt: number): number {
   return perMin > 0 && dt > 0 ? 1 - Math.exp((-perMin * dt) / 60) : 0;
 }
+
+/** Part de réverbération (0–0,35) : forte entre les façades d'un village, douce en forêt, nulle en plaine. */
+export function reverbWet(land: { forest: number; urban: number }): number {
+  return Math.min(0.35, 0.32 * Math.max(0, land.urban) + 0.14 * Math.max(0, land.forest));
+}

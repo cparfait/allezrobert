@@ -7,6 +7,7 @@ import type { LoadedTile } from './types.ts';
 import { splatAt } from './splat.ts';
 import type { Season } from './environment.ts';
 import { snowCoverAt } from './alpine.ts';
+import { cloudShade } from './clouds.ts';
 
 const RADIUS = 60;
 /** Côté (m) des blocs du monde où l'herbe est semée : mêmes touffes aux mêmes endroits à chaque regénération. */
@@ -106,8 +107,10 @@ export class GrassField {
     // une touffe sur huit plus sèche (paille), variation de teinte par touffe
     const dry = hash(instanceIndex.add(31)).greaterThan(0.875).select(float(1), float(0));
     const tipCol = mix(this.tipCol.node, vec3(0.42, 0.38, 0.22), dry.mul(0.7));
-    m.colorNode = varying(mix(this.base.node, tipCol, tip.pow(0.8)).mul(h.mul(0.25).add(0.82)));
+    m.colorNode = varying(mix(this.base.node, tipCol, tip.pow(0.8)).mul(h.mul(0.25).add(0.82))).mul(cloudShade());
     m.roughnessNode = float(0.85);
+    // Brins tournés vers le ciel : moitié moins de lumière du ciel, sinon l'herbe blanchit (voile bleuté).
+    m.envMapIntensity = 0.5;
     // Normale verticale des deux côtés : les brins sont éclairés comme le sol (pas de faces sombres).
     m.normalNode = transformNormalToView(vec3(0, 1, 0));
     this.mesh = new THREE.InstancedMesh(clumpGeometry(), m, Math.max(this.max, 1));

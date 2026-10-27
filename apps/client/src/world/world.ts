@@ -61,6 +61,10 @@ export class World {
     this.source = source;
     this.track = track;
     this.env = new Environment(scene, q, envState);
+    // Brume de vallée calée sur le point le plus bas de l'itinéraire (fond de vallée).
+    let low = Infinity;
+    for (const p of route.points) if (p.y < low) low = p.y;
+    if (Number.isFinite(low)) this.env.setMistBase(low + 10);
     this.terrain = new TerrainManager(source, q, envState.season);
     // Emprise du ruban : terrain abaissé dessous, réseau OSM découpé à son bord. Monde ouvert :
     // toutes les routes sont déjà creusées et dessinées par le réseau, pas de ruban d'itinéraire.
@@ -216,10 +220,13 @@ export class World {
     // L'eau reflète le ciel (zénith) et l'horizon (brume) du moment.
     this.water.skyColor.value.copy(this.env.hemi.color);
     this.water.horizonColor.value.copy(this.env.fog.color);
+    this.water.fakeSky.value = this.scene.environment ? 0.2 : 1;
     if (this.horizon) {
       this.horizon.fogColor.value.copy(this.env.fog.color);
       this.horizon.fogDensity.value = this.env.fog.density;
       this.horizon.skyColor.value.copy(this.env.hemi.color);
+      this.horizon.fogSunColor.value.copy(this.env.sceneFog.sunColor.value);
+      (this.horizon.sunDir.value as THREE.Vector3).copy(this.env.sceneFog.sunDir.value as THREE.Vector3);
     }
     this.rain.update(w.rain, w.windMs, w.windFrom);
     this.buildings.night.value = this.nightFactor() > 0.35 ? 1 : 0;

@@ -1,4 +1,4 @@
-import { Room, RoomEvent, Track, type RemoteTrack, type Participant } from 'livekit-client';
+import type { Room, RemoteTrack, Participant } from 'livekit-client';
 import { apiBase } from '../ui/account.ts';
 import { getAudioDevices, onAudioDevices } from '../audio/devices.ts';
 
@@ -72,6 +72,8 @@ export class VoiceChat {
         return false;
       }
       const { url, token } = (await r.json()) as { url: string; token: string };
+      // LiveKit (≈ 1,4 Mo de code) chargé seulement quand une sortie de groupe ouvre la voix.
+      const { Room, RoomEvent, Track } = await import('livekit-client');
       const dev = getAudioDevices();
       const room = new Room({
         adaptiveStream: true,

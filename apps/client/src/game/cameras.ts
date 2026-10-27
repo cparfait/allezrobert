@@ -57,6 +57,8 @@ export class CameraRig {
   private initialized = false;
   private tvSpot: { pos: THREE.Vector3; untilD: number } | null = null;
   private droneAngle = 0;
+  /** Ouverture du champ due à la vitesse (°), lissée. */
+  private fovBoost = 0;
   private photo = { yaw: 0, pitch: 0.15, dist: 3 };
   private dragging = false;
   /** Regarder derrière soi (touche X maintenue) : caméra devant le coureur, tournée vers l'arrière. */
@@ -126,7 +128,10 @@ export class CameraRig {
   update(dt: number, t: CameraTarget): void {
     const cam = this.camera;
     if (this.mode !== 'tv') {
-      const fov = this.fovFor(this.mode);
+      // Poursuite : le champ s'ouvre un peu avec la vitesse (jusqu'à +6° vers 70 km/h), lissé : sensation de vitesse.
+      const boost = this.mode === 'chase' ? 6 * THREE.MathUtils.smoothstep(t.speedMs, 8, 19) : 0;
+      this.fovBoost += (boost - this.fovBoost) * Math.min(1, dt * 1.2);
+      const fov = this.fovFor(this.mode) + this.fovBoost;
       if (Math.abs(cam.fov - fov) > 0.01) {
         cam.fov = fov;
         cam.updateProjectionMatrix();

@@ -425,15 +425,17 @@ export class Buildings {
     // 3 : bac acier / fibrociment (hangars, BD TOPO « zinc, aluminium » et « béton »)
     const isMetal = step(float(2.5), kind);
     // binfo.z = fenêtres (0 aveugle, 1 fenêtres, 2 annexe) + 4 × indice d'archétype (0 = style historique).
-    const winCode = info.z.mod(4);
-    const archIdx = floor(info.z.div(4));
+    // Codes entiers lus avec une marge : interpolés entre sommets, ils valent tantôt n − ε, tantôt n + ε, et un
+    // floor() brut changeait d'avis d'un pixel à l'autre (fenêtres mouchetées, archétype qui saute).
+    const archIdx = floor(info.z.add(0.01).div(4));
+    const winCode = info.z.sub(archIdx.mul(4));
     const isArch = step(float(0.5), archIdx);
     const aI = int(archIdx);
     const archA = this.archA.element(aI) as unknown as THREE.Node<'vec4'>; // demi-largeur, hauteur des fenêtres, allège, rez-de-chaussée
     const archB = this.archB.element(aI) as unknown as THREE.Node<'vec4'>; // volets, balcons (0, 1 balconnets, 2 filants), bandeaux, petits-bois
     const archC = this.archC.element(aI) as unknown as THREE.Node<'vec4'>; // encadrement, corniche
     // bstyle.z : 1 génoise + 2 mur côté rue + 4 vitrine
-    const genoiseOn = bstyle.z.mod(2);
+    const genoiseOn = floor(bstyle.z.add(0.01)).mod(2);
     const shopOn = step(float(3.5), bstyle.z);
     const windowed = step(float(0.5), winCode).mul(step(winCode, float(1.5)));
 
@@ -461,7 +463,11 @@ export class Buildings {
     // sa nuance, joints fins à peine plus clairs que la pierre (calcaire lutétien).
     const ashCourse = floor(v.div(0.5));
     const ashU = u.add(fract(ashCourse.mul(0.5)).mul(1.4));
-    const ashVar = hash(floor(ashU.div(1.4)).add(ashCourse.mul(37.1)).add(facade.x.mul(3.3))).mul(0.07).add(0.965);
+    // Tirages par mur : clé entière tirée de la longueur du mur. Interpolée entre sommets, la longueur brute
+    // varie d'un pixel à l'autre au dernier chiffre près, et le hachage en faisait un moucheté (fenêtres « murées »
+    // un pixel sur deux, pierres de taille bruitées).
+    const wallKey = floor(facade.x.mul(8).add(0.5));
+    const ashVar = hash(floor(ashU.div(1.4)).add(ashCourse.mul(37.1)).add(wallKey.mul(0.41))).mul(0.07).add(0.965);
     const ashJoint = max(step(fract(v.div(0.5)), float(0.025)), step(fract(ashU.div(1.4)), float(0.012)));
     const ashlar = renderTinted.mul(0.55).add(base.mul(0.45)).mul(ashVar).mul(float(1).sub(ashJoint.mul(0.16)));
     // Béton : panneaux de 3 m, joints creux.
@@ -484,12 +490,13 @@ export class Buildings {
     // Fenêtres : travées réparties sur la longueur. Style historique : une par étage de 2,8 m au-dessus
     // d'une allège de 0,9 m. Archétype : rez-de-chaussée (hauteur propre) puis étages de hauteur `fhA`
     // (hauteur du mur ÷ nombre d'étages entiers), allège et fenêtres de l'archétype.
-    const bays = max(floor(facade.y), float(0.0001));
+    // facade.y = travées + hauteur d'étage ÷ 10 (≤ 0,999) : marge de 0,0004 (voir archIdx).
+    const bays = max(floor(facade.y.add(0.0004)), float(0.0001));
     const local = fract(u.div(facade.x).mul(bays));
     const bayW = facade.x.div(bays);
     const bayIdx = floor(u.div(facade.x).mul(bays));
     const wx = local.sub(0.5).mul(bayW); // mètres depuis l'axe de la travée
-    const fhA = max(fract(facade.y).mul(10), float(2.4));
+    const fhA = max(facade.y.sub(floor(facade.y.add(0.0004))).mul(10), float(2.4));
     const rdc = archA.w.mul(isArch);
     const hasRdc = step(float(0.01), rdc);
     const flA = floor(v.sub(rdc).div(fhA));
@@ -503,7 +510,7 @@ export class Buildings {
     const doorBay = bstyle.w;
     const isDoorBay = step(float(0.5), doorBay).mul(step(abs(bayIdx.add(1).sub(doorBay)), float(0.5)));
     // Style local : travées irrégulières (environ une baie sur cinq murée), fenêtres plus étroites sur la pierre.
-    const skip = step(hash(bayIdx.mul(3.7).add(floorIdx.mul(11.3)).add(facade.x.mul(1.37))), float(0.2)).mul(isLocal);
+    const skip = step(hash(bayIdx.mul(3.7).add(floorIdx.mul(11.3)).add(wallKey.mul(0.171))), float(0.2)).mul(isLocal);
     const halfW = mix(mix(float(0.5), float(0.4), isLocal.mul(isStone)), archA.x, isArch);
     // Archétype : au-dessus du rez-de-chaussée, la fenêtre et son encadrement sous la corniche.
     const archRow = step(rdc, v).mul(step(floorBase.add(archA.z).add(archA.y), wallH.sub(archC.y.mul(0.45)).sub(0.08)));
@@ -591,7 +598,8 @@ export class Buildings {
     const shopFront = shop.mul(step(abs(wx), bayW.mul(0.5).sub(0.04))).mul(step(v, rdc.sub(0.35)));
     const shopGlass = shop.mul(step(abs(wx), glassHW)).mul(step(float(0.45), v)).mul(step(v, glassTop)).mul(step(float(0.06), abs(v.sub(glassTop.sub(0.55)))));
     const signBand = shopFront.mul(step(rdc.sub(0.95), v));
-    const shopSeed = hash(base.r.mul(911.3).add(base.g.mul(577.7)).add(base.b.mul(263.1)));
+    // Couleur du bâtiment ramenée à 8 bits : même tirage sur toute la façade (voir wallKey).
+    const shopSeed = hash(floor(base.r.mul(255).add(0.5)).mul(3.573).add(floor(base.g.mul(255).add(0.5)).mul(2.265)).add(floor(base.b.mul(255).add(0.5)).mul(1.031)));
     const signCol = mix(mix(vec3(0.07, 0.16, 0.11), vec3(0.26, 0.06, 0.07), step(0.3, shopSeed)), mix(vec3(0.06, 0.09, 0.18), mix(vec3(0.05, 0.05, 0.05), vec3(0.42, 0.33, 0.2), step(0.9, shopSeed)), step(0.78, shopSeed)), step(0.55, shopSeed));
     const shopLit = this.night.mul(step(0.3, hash(shopSeed.add(bayIdx))));
     const streak = smoothstep(0.42, 0.5, fract(u.add(v.mul(0.7)).div(2.3))).mul(smoothstep(0.58, 0.5, fract(u.add(v.mul(0.7)).div(2.3))));

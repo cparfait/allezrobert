@@ -13,7 +13,7 @@ import { followSink } from './devices.ts';
 import type { SoundSource } from './spatial.ts';
 import { freewheelDef, loopVoices, type FreewheelDef } from './freewheels.ts';
 import { BUSES, busGains, DEFAULT_MIX, type Bus, type SoundMix } from './mix.ts';
-import { COBBLE_BUFFER_RATE, cobbles, crackle, cricketChorus, hubClick, noise, seeded } from './buffers.ts';
+import { COBBLE_BUFFER_RATE, cobbles, crackle, cricketChorus, hubClick, noise, roomImpulse, seeded } from './buffers.ts';
 import {
   BreathModel,
   ambienceMix,
@@ -25,6 +25,7 @@ import {
   freewheelRate,
   isCoasting,
   panFor,
+  reverbWet,
   tireMix,
   vehicleVoice,
   windMix,
@@ -81,7 +82,8 @@ interface TrafficVoice {
   air: BiquadFilterNode;
   tireFilter: BiquadFilterNode;
   out: GainNode;
-  pan: StereoPannerNode;
+  /** Position binaurale (HRTF) dans le repère de l'auditeur : devant, derrière, à gauche, à droite. */
+  pan: PannerNode;
   base: number;
   idle: number;
 }
@@ -131,6 +133,8 @@ export class GameAudio {
     breath: Layer;
   };
   private waterPan!: StereoPannerNode;
+  /** Envoi vers la réverbération (rues, sous-bois). */
+  private reverbSend!: GainNode;
   private breathVca!: GainNode;
   private clickBus!: GainNode;
   private readonly breathModel = new BreathModel();
@@ -264,6 +268,14 @@ export class GameAudio {
       breath: layer(b.pinkMono, this.breathVca, 'bandpass', 1000, 1.1),
     };
     this.L.breath.gain.gain.value = 1;
+    // Réverbération : le vélo, la circulation et le public renvoyés par les façades d'une rue de village
+    // ou les troncs d'une forêt ; rien en rase campagne (dosée dans update selon l'occupation du sol).
+    this.reverbSend = ctx.createGain();
+    this.reverbSend.gain.value = 0;
+    const reverb = ctx.createConvolver();
+    reverb.buffer = make(roomImpulse(sr, 1.2, rnd));
+    for (const bus of [B.bike, B.traffic, B.crowd]) bus.connect(this.reverbSend);
+    this.reverbSend.connect(reverb).connect(this.master);
     this.clickBus = ctx.createGain();
     this.clickBus.gain.value = 0;
     this.clickBus.connect(B.bike);
@@ -373,6 +385,8 @@ export class GameAudio {
       }
     } else this.set(this.clickBus.gain, 0, 0.04);
 
+    // Écho des façades en village, plus doux en forêt.
+    this.set(this.reverbSend.gain, reverbWet(s.land), 0.6);
     this.updateBreath(s, dt, coasting, now);
     this.updateAmbience(s, dt, now);
     this.updateCrowd(s, dt, now);
@@ -604,7 +618,13 @@ export class GameAudio {
         this.set(voice.engine2.frequency, f0 * 2.01 * vv.doppler, 0.08);
         this.set(voice.tireFilter.frequency, (500 + speed * 25) * vv.doppler, 0.08);
         this.set(voice.air.frequency, vv.lowpass, 0.08);
-        this.set(voice.pan.pan, vv.pan, 0.05);
+        // Repère de l'auditeur (Web Audio : x à droite, −z devant) ; dans le sens de marche f, droite = (−fz, fx).
+        const fx = Math.sin(s.heading);
+        const fz = Math.cos(s.heading);
+        const rx = veh.x - s.x;
+        const rz = veh.z - s.z;
+        this.set(voice.pan.positionX, rx * -fz + rz * fx, 0.05);
+        this.set(voice.pan.positionZ, -(rx * fx + rz * fz), 0.05);
         this.set(voice.out.gain, vv.gain * 0.25, 0.06);
         voice.idle = vv.gain > 0 ? 0 : voice.idle + dt;
       }
@@ -628,7 +648,11 @@ export class GameAudio {
     const c = ctx(this);
     const out = c.createGain();
     out.gain.value = 0;
-    const pan = c.createStereoPanner();
+    // Volume réglé par vehicleVoice (distance, portée) : le panoramique 3D ne fait que placer le son.
+    const pan = c.createPanner();
+    pan.panningModel = 'HRTF';
+    pan.distanceModel = 'linear';
+    pan.rolloffFactor = 0;
     const air = c.createBiquadFilter();
     air.type = 'lowpass';
     air.frequency.value = 2000;

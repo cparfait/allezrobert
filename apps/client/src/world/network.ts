@@ -4,6 +4,7 @@ import type { LoadedTile, TileRoad } from './types.ts';
 import { asphaltGrain } from './asphalt.ts';
 import { isRouteTwin } from './splat.ts';
 import { chainPieces, ribbonIndex, sideRoadStrips, type RouteFootprint } from './ribbon.ts';
+import { cloudShade } from './clouds.ts';
 
 /** Routes revêtues avec marquage axial (départementales et plus). */
 const MARKED = new Set(['primary', 'secondary', 'tertiary', 'trunk', 'primary_link', 'secondary_link']);
@@ -72,7 +73,7 @@ export class RoadNetwork {
     col = mix(col, vec3(0.9, 0.9, 0.86), paint);
     // Bords fondus dans le bas-côté (pas d'arête nette sur l'herbe).
     col = col.mul(float(1).sub(this.wetness.mul(0.4).mul(float(1).sub(unpaved))));
-    m.colorNode = col;
+    m.colorNode = col.mul(cloudShade());
     // pavés mouillés : brillants entre les joints (le « Enfer du Nord » sous la pluie)
     m.roughnessNode = clamp(mix(mix(float(0.8), float(0.97), unpaved), mix(float(0.62), float(0.9), float(1).sub(inStone)), cobble).sub(this.wetness.mul(0.55).mul(float(1).sub(unpaved))), 0.06, 1);
     m.metalnessNode = float(0);

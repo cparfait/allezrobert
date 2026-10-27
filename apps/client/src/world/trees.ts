@@ -1,7 +1,9 @@
 import * as THREE from 'three/webgpu';
 import { attribute, positionLocal, time, sin, vec3, float, mix, instanceIndex, hash, color, smoothstep, texture, uv, step } from 'three/tsl';
 import { rng } from '../engine/noise.ts';
+import { backlitOutput } from './sunlight.ts';
 import type { Node } from 'three/webgpu';
+import type { Vec3Node } from '../engine/tsl.ts';
 
 /**
  * Arbres et buissons « réels » (tuiles enrichies au LiDAR HD) : tronc, branches maîtresses et
@@ -248,6 +250,8 @@ export function realTreeMaterial(c: LeafColours, deciduous: boolean): THREE.Mesh
   m.opacityNode = mix(float(1), tex.a.mul(present), leaf);
   m.roughnessNode = mix(float(0.95), float(0.8), leaf);
   m.metalnessNode = float(0);
+  // Contre-jour : les feuilles s'illuminent quand le soleil est derrière elles.
+  m.outputNode = backlitOutput(foliage as unknown as Vec3Node, leaf);
   return m;
 }
 

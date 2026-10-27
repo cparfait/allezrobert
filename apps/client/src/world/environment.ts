@@ -2,7 +2,13 @@ import * as THREE from 'three/webgpu';
 import { SkyMesh } from 'three/addons/objects/SkyMesh.js';
 import { CSMShadowNode } from 'three/addons/csm/CSMShadowNode.js';
 import { NightSky } from './nightsky.ts';
+import { SkyLight } from './skyLight.ts';
+import { SceneFog } from './fog.ts';
+import { stepClouds } from './clouds.ts';
+import { overcastDome, setOvercast } from './overcast.ts';
+import { sunlight } from './sunlight.ts';
 import type { QualitySettings } from '../engine/quality.ts';
+import { mainRenderer, type Grade } from '../engine/renderer.ts';
 
 export type Season = 'spring' | 'summer' | 'autumn' | 'winter';
 
@@ -23,6 +29,33 @@ export interface EnvironmentState {
   hour: number;
   season: Season;
   weather: Weather;
+}
+
+/** Part de la lumière hémisphérique gardée quand le ciel éclaire la scène (carte d'environnement). */
+const HEMI_WITH_SKY = 0.3;
+/** Intensité de la lumière du ciel (réglée à l'œil : au-delà, les ombres se délavent sous le ciel physique, très lumineux). */
+const SKY_LIGHT_INTENSITY = 0.35;
+/** ?skylight=0 : sans carte d'environnement du ciel (comparaison avant / après). */
+const SKY_LIGHT = typeof location === 'undefined' || new URLSearchParams(location.search).get('skylight') !== '0';
+/** ?mist=0 : brume uniforme d'avant, sans brume de vallée ni teinte vers le soleil (comparaison). */
+const VALLEY_MIST = typeof location === 'undefined' || new URLSearchParams(location.search).get('mist') !== '0';
+/** Météo vue du ciel : la pluie impose des nuages (au moins 55 %, couvert complet sous l'averse). */
+export function rainyWeather(w: Weather): Weather {
+  return w.rain > 0.02 ? { ...w, clouds: Math.max(w.clouds, Math.min(1, 0.55 + 0.6 * w.rain)) } : w;
+}
+
+/** Brume de vallée du matin selon la saison (automne et hiver plus brumeux). */
+const MORNING_MIST: Record<Season, number> = { spring: 0.7, summer: 0.35, autumn: 1, winter: 0.9 };
+
+/**
+ * Densité de la brume de vallée (1/m, au fond de vallée) : un voile en journée, les vallées noyées au
+ * lever du jour et jusqu'au milieu de matinée (moins par ciel couvert), et le brouillard météo.
+ */
+export function valleyMist(hour: number, season: Season, weather: Weather): number {
+  const morning = THREE.MathUtils.smoothstep(hour, 4.5, 6.5) * (1 - THREE.MathUtils.smoothstep(hour, 8.5, 11.5));
+  const evening = THREE.MathUtils.smoothstep(hour, 19, 22) * 0.35;
+  const clear = 1 - 0.5 * Math.max(weather.clouds - 0.4, 0) / 0.6;
+  return 0.0004 + 0.0035 * Math.max(morning, evening) * MORNING_MIST[season] * clear + 0.004 * weather.fog;
 }
 
 /** Date représentative par saison (jour de l'année) pour la course du soleil. */
@@ -99,6 +132,11 @@ export class Environment {
   readonly hemi: THREE.HemisphereLight;
   readonly fog: THREE.FogExp2;
   readonly nightSky = new NightSky();
+  /** Reflets et lumière d'ambiance tirés du ciel du moment (carte d'environnement de la scène). */
+  private readonly skyLight = new SkyLight();
+  private readonly overcastMesh: THREE.Mesh;
+  /** Brume de la scène (fond, vallée, teinte vers le soleil) : voir SceneFog. */
+  readonly sceneFog = new SceneFog();
   state: EnvironmentState;
   private csm: CSMShadowNode | null = null;
   /** Ombres redessinées une image sur N ; entre deux, cartes d'ombre et caméras de cascade restent figées ensemble. */
@@ -124,6 +162,9 @@ export class Environment {
     this.sky.renderOrder = -2;
     scene.add(this.sky);
     scene.add(this.nightSky.mesh);
+    // Voile gris des ciels couverts et de pluie, sur le ciel physique (overcast.ts).
+    this.overcastMesh = overcastDome();
+    scene.add(this.overcastMesh);
 
     this.sun = new THREE.DirectionalLight(0xffffff, 3.2);
     this.sun.castShadow = true;
@@ -135,6 +176,7 @@ export class Environment {
 
     this.fog = new THREE.FogExp2(0xdfe8ef, 0.00018);
     scene.fog = this.fog;
+    if (VALLEY_MIST) (scene as unknown as { fogNode: THREE.Node | null }).fogNode = this.sceneFog.node;
     this.applyQuality(q);
     this.update(0);
   }
@@ -180,13 +222,17 @@ export class Environment {
   /** Avance l'environnement ; `focus` = position du coureur suivi (pour cadrer le soleil). */
   update(_dt: number, focus?: THREE.Vector3): void {
     this.stepShadows();
-    const { hour, season, weather } = this.state;
+    const { hour, season } = this.state;
+    // Pas de pluie sous un ciel bleu : la pluie couvre le ciel (et la lumière) en proportion.
+    const weather = rainyWeather(this.state.weather);
     sunDirection(hour, season, this.sunDir);
     const el = Math.asin(this.sunDir.y);
     // Altitude du point suivi, lissée (quelques secondes) pour éviter tout saut de brume.
     if (focus && Number.isFinite(focus.y)) this.altitudeM = Number.isFinite(this.altitudeM) ? this.altitudeM + (focus.y - this.altitudeM) * Math.min(1, _dt * 0.5) : focus.y;
     const clarity = altitudeClarity(Number.isFinite(this.altitudeM) ? this.altitudeM : 0);
     const pal = palette(el, season, weather, clarity);
+    // Voile couvert réglé avant la capture du ciel (SkyLight), qui le reprend.
+    setOvercast(weather.clouds, THREE.MathUtils.smoothstep(this.sunDir.y, -0.1, 0.3));
 
     this.sky.sunPosition.value.copy(this.sunDir);
     this.sky.cloudCoverage.value = 0.15 + weather.clouds * 0.75;
@@ -203,21 +249,57 @@ export class Environment {
     this.sun.target.position.copy(center);
     const sunStrength = THREE.MathUtils.smoothstep(this.sunDir.y, -0.05, 0.25);
     const overcast = Math.max(weather.clouds - 0.3, 0) / 0.7;
-    this.sun.intensity = isNight ? 0.12 : (0.4 + 3.0 * sunStrength) * (1 - 0.7 * overcast);
+    // Ciel plombé : le soleil n'est plus qu'une lueur diffuse (pas de reflet vif sur la route mouillée).
+    this.sun.intensity = isNight ? 0.12 : (0.4 + 3.0 * sunStrength) * (1 - 0.88 * overcast);
     this.sun.color.copy(isNight ? new THREE.Color('#9fb4ff') : pal.sunColor);
     this.hemi.color.copy(pal.hemiSky);
     this.hemi.groundColor.copy(pal.hemiGround);
     const nightK = 1 - THREE.MathUtils.smoothstep(this.sunDir.y, -0.18, 0.02);
     this.nightSky.night.value = nightK;
     // Nuit : clair de lune bleuté (lisibilité de la route), jamais le noir complet.
-    this.hemi.intensity = 0.25 + 1.1 * THREE.MathUtils.smoothstep(this.sunDir.y, -0.2, 0.3) + overcast * 0.5 + nightK * 0.35;
+    const ambient = 0.25 + 1.1 * THREE.MathUtils.smoothstep(this.sunDir.y, -0.2, 0.3) + overcast * 0.5;
+    const renderer = mainRenderer();
+    // Avec la carte d'environnement, le ciel éclaire déjà les ombres : l'hémisphère ne garde qu'un appoint.
+    if (renderer && SKY_LIGHT) this.updateSkyLight(renderer, pal);
+    this.hemi.intensity = ambient * (this.scene.environment ? HEMI_WITH_SKY : 1) + nightK * 0.35;
     if (nightK > 0) this.hemi.color.lerp(new THREE.Color('#3b4f7a'), nightK * 0.8);
     this.fog.color.copy(pal.fog);
     this.fog.density = 0.00012 * clarity + weather.fog * 0.0022 + weather.rain * 0.0004;
+    // Ombres des nuages sur le sol : défilent avec le vent, seulement quand le soleil perce.
+    stepClouds(_dt, weather.clouds, THREE.MathUtils.smoothstep(this.sunDir.y, 0.02, 0.15), weather.windMs, weather.windFrom);
+    // Soleil pour le contre-jour du feuillage (sunlight.ts) : seulement s'il perce.
+    sunlight.dir.value.copy(this.sunDir);
+    sunlight.color.value.copy(this.sun.color);
+    sunlight.backlight.value = isNight ? 0 : 0.55 * THREE.MathUtils.smoothstep(this.sunDir.y, 0.0, 0.12) * (1 - overcast);
+    const f = this.sceneFog;
+    f.color.value.copy(pal.fog);
+    f.density.value = this.fog.density;
+    f.mist.value = valleyMist(hour, season, weather);
+    f.sunDir.value.copy(this.sunDir);
+    // Vers le soleil (seulement s'il est levé, moins sous un ciel couvert) : brume dorée du contre-jour.
+    const glow = THREE.MathUtils.smoothstep(this.sunDir.y, -0.04, 0.12) * (1 - 0.8 * overcast) * 0.75;
+    f.sunColor.value.copy(pal.fog).lerp(this.sun.color.clone().multiplyScalar(1.2), glow);
+  }
+
+  /** Fond de vallée (m) : la brume de vallée y a sa densité nominale (voir SceneFog). */
+  setMistBase(altitudeM: number): void {
+    this.sceneFog.mistBase.value = altitudeM;
+  }
+
+  /** Recapture le ciel quand il a changé (voir SkyLight) ; la première capture pose la carte d'environnement. */
+  private updateSkyLight(renderer: THREE.WebGPURenderer, pal: Palette): void {
+    // Sol vu de loin : teinte de la saison éclairée par le soleil et le ciel (radiance, pas albédo).
+    const lit = 0.25 + 0.2 * this.sun.intensity;
+    const ground = pal.hemiGround.clone().multiplyScalar(lit);
+    if (!this.skyLight.update(renderer, { sky: this.sky, sunDir: this.sunDir, clouds: rainyWeather(this.state.weather).clouds, ground, horizon: pal.fog })) return;
+    if (!this.scene.environment && this.skyLight.texture) {
+      this.scene.environment = this.skyLight.texture;
+      this.scene.environmentIntensity = SKY_LIGHT_INTENSITY;
+    }
   }
 
   /** Étalonnage conseillé selon saison, heure et météo (voir ART_DIRECTION.md). */
-  grade(out: { saturation: number; vibrance: number; tint: THREE.Color }): void {
+  grade(out: Grade): void {
     const { season, weather } = this.state;
     const el = this.sunDir.y;
     const golden = el > 0 ? 1 - THREE.MathUtils.smoothstep(el, 0.05, 0.3) : 0;
@@ -232,6 +314,12 @@ export class Environment {
     out.saturation = (sat - night * 0.25) * (1 - weather.rain * 0.22 - weather.fog * 0.15);
     out.vibrance = vib * (1 - night);
     out.tint.setRGB(r + golden * 0.06 - night * 0.08, g - golden * 0.01 - night * 0.04, 1 - golden * 0.08 + night * 0.1 + (season === 'winter' ? 0.03 : 0));
+    // Virage : ombres fraîches (ciel) et lumières chaudes (soleil), plus marqué à l'heure dorée, neutre sous la pluie.
+    const split = (0.035 + golden * 0.045) * (1 - night) * (1 - weather.rain * 0.8) * (season === 'winter' ? 0.6 : 1);
+    out.shadows.setRGB(1 - split * 0.8, 1 - split * 0.15, 1 + split);
+    out.highlights.setRGB(1 + split, 1 + split * 0.25, 1 - split * 0.9);
+    // Vignettage plus présent la nuit et dans le brouillard (ambiance), discret en plein jour.
+    out.vignette = 0.14 + night * 0.12 + weather.fog * 0.06;
   }
 
   /** Exposition conseillée pour le tone mapping (plus forte la nuit pour rester lisible). */
@@ -241,7 +329,11 @@ export class Environment {
   }
 
   dispose(): void {
-    this.scene.remove(this.sky, this.sun, this.hemi, this.nightSky.mesh);
+    this.scene.remove(this.sky, this.sun, this.hemi, this.nightSky.mesh, this.overcastMesh);
+    if (this.scene.environment === this.skyLight.texture) this.scene.environment = null;
+    const s = this.scene as unknown as { fogNode: THREE.Node | null };
+    if (s.fogNode === this.sceneFog.node) s.fogNode = null;
+    this.skyLight.dispose();
     this.csm?.dispose();
   }
 }

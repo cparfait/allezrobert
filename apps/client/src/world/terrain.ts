@@ -2,6 +2,7 @@ import * as THREE from 'three/webgpu';
 import { texture, uv, normalWorld, positionWorld, mix, smoothstep, vec2, vec3, float, uniform, mx_noise_float, clamp } from 'three/tsl';
 import type { QualitySettings } from '../engine/quality.ts';
 import { colorUniform } from '../engine/tsl.ts';
+import { cloudShade } from './clouds.ts';
 import { SPLAT_CHANNELS, type LoadedTile, type WorldSource } from './types.ts';
 import { rasterizeSplat } from './splat.ts';
 import { WorkQueue } from './workQueue.ts';
@@ -547,7 +548,8 @@ export class TerrainManager {
     col = col.mul(float(1).sub(this.wetness.mul(0.35)));
     col = mix(col, vec3(0.86, 0.9, 0.93), this.frost.mul(smoothstep(0.85, 0.98, normalWorld.y)).mul(n2));
     col = mix(col, vec3(0.9, 0.93, 0.96).mul(n3.mul(0.06).add(0.96)), snow.mul(0.95));
-    m.colorNode = col;
+    // Ombres des nuages qui passent (clouds.ts).
+    m.colorNode = col.mul(cloudShade());
     const rough = mix(float(0.95), float(0.55), roadMask);
     m.roughnessNode = clamp(rough.sub(this.wetness.mul(0.45)).sub(s0.a.mul(0.6)).sub(ice.mul(0.4)).sub(snow.mul(0.25)), 0.08, 1);
     m.metalnessNode = float(0);

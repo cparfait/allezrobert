@@ -34,6 +34,9 @@ export class FarTerrain {
   readonly fogColor = colorUniform('#dfe8ef');
   readonly fogDensity = uniform(0.00012);
   readonly skyColor = colorUniform('#9cc3ec');
+  /** Teinte de la brume vers le soleil et direction du soleil, comme la brume de la scène (fog.ts). */
+  readonly fogSunColor = colorUniform('#dfe8ef');
+  readonly sunDir = uniform(new THREE.Vector3(0, 1, 0));
   private readonly snowLine = uniform(SNOW_LINE_M.summer);
   private readonly treeline = uniform(2150);
   private readonly forest = colorUniform();
@@ -183,7 +186,9 @@ export class FarTerrain {
     const fogF = clamp(float(1).sub(exp(this.fogDensity.mul(-0.4).mul(dist))), 0, 1);
     // voile bleuté, un peu plus sombre que l'horizon du ciel : les chaînes lointaines se lisent en
     // plans successifs (et non comme des névés)
-    const haze = mix(this.fogColor.node.mul(0.85), this.skyColor.node.mul(0.6), smoothstep(5000, 30000, dist));
+    const toward = P.sub(cameraPosition).div(dist).dot(this.sunDir).max(0).pow(6);
+    const fogTint = mix(this.fogColor.node, this.fogSunColor.node, toward);
+    const haze = mix(fogTint.mul(0.85), this.skyColor.node.mul(0.6), smoothstep(5000, 30000, dist));
     m.outputNode = vec4(mix(output.rgb, haze, fogF), output.a);
     return m;
   }

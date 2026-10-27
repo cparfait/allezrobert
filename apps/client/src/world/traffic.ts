@@ -7,6 +7,7 @@ import { rng } from '../engine/noise.ts';
 import { sharedKtx2Loader } from '../engine/textures.ts';
 import type { VehicleSound } from '../audio/soundscape.ts';
 import { UNPAVED_SURFACES } from './dust.ts';
+import { followSpeed, keepApart, leaderOf, oncomingInLane } from './trafficSpacing.ts';
 
 /**
  * Circulation : voitures, utilitaire et tracteur dans le même repère que les coureurs (distance
@@ -307,16 +308,21 @@ export class Traffic {
     const L = this.track.length;
     const me = riders[0];
     const half = this.track.route.roadWidthM / 4;
+    // Véhicules masqués (chemin, voie étroite, tracteur près d'un bourg) : ni suivis ni écartés, on ne les voit pas.
+    const present = (o: Vehicle) => o.mesh.visible;
     for (const v of this.vehicles) {
-      // Recyclage : un véhicule trop loin réapparaît hors de vue, derrière (même sens) ou devant (en face).
+      // Recyclage : un véhicule trop loin réapparaît hors de vue, derrière (même sens) ou devant (en face),
+      // à l'écart des véhicules de sa voie.
       const rel = v.d - player.distM;
       if (rel > 700 || rel < -700) {
         v.d = player.distM + (v.sens > 0 ? -350 - this.r() * 300 : 450 + this.r() * 400);
+        for (let k = 0; k < 10 && this.vehicles.some((o) => o !== v && o.sens === v.sens && Math.abs(o.d - v.d) < 60); k++) v.d -= v.sens * 60;
         v.speed = v.cruise;
         v.lateral = this.laneOf(v.sens);
       }
       let target = v.cruise;
       let lateralTarget = this.laneOf(v.sens);
+      let brake = 4;
       if (v.sens > 0) {
         // Coureur devant à moins de 60 m : on déboîte s'il n'y a personne en face, sinon on patiente.
         let ahead: (typeof riders)[number] | undefined;
@@ -326,15 +332,23 @@ export class Traffic {
           if (oncoming) target = Math.min(target, ahead.speedMs);
           else lateralTarget = -half - 0.3;
         }
-        // Pas de collision avec un véhicule devant dans le même sens.
-        const car = this.vehicles.find((o) => o !== v && o.sens > 0 && o.d > v.d && o.d - v.d < (o.length + v.length) / 2 + 6);
-        if (car) target = Math.min(target, car.speed);
       } else {
         // En face : ralentit quand un coureur occupe le milieu de la chaussée.
         if (riders.some((r) => Math.abs(r.distM - v.d) < 40 && r.lateral < 0.3)) target = Math.min(target, 9);
       }
+      // Véhicule de devant dans le même sens : vitesse qui permet de s'arrêter derrière lui s'il pile.
+      const lead = present(v) ? leaderOf(v, this.vehicles, present) : null;
+      if (lead) {
+        const safe = followSpeed(lead.gap, lead.leader.speed);
+        if (safe < target) target = safe;
+        if (safe < v.speed) brake = 8;
+      }
+      // Voiture en face dans notre voie (dépassement en cours) : on ralentit et on se serre.
+      if (present(v) && oncomingInLane(v, this.vehicles, 120, present)) {
+        target = Math.min(target, 6);
+        brake = 8;
+      }
       // Joueur de face dans notre voie : on s'arrête net (le vélo est déporté par `yieldPush`).
-      let brake = 4;
       if (me && v.sens !== playerDir) {
         const gap = (me.distM - v.d) * v.sens;
         if (gap > 0 && gap < 45 && Math.abs(me.lateral - v.lateral) < 1.8) {
@@ -343,8 +357,15 @@ export class Traffic {
         }
       }
       v.speed += Math.max(-brake * dt, Math.min(2 * dt, target - v.speed));
-      v.lateral += (lateralTarget - v.lateral) * Math.min(1, dt * 0.9);
+      v.speed = Math.max(0, v.speed);
+      // Sorti de sa voie avec quelqu'un en face : retour franc.
+      const back = lateralTarget === this.laneOf(v.sens) && Math.abs(v.lateral - lateralTarget) > 0.5 && oncomingInLane(v, this.vehicles, 220, present);
+      v.lateral += (lateralTarget - v.lateral) * Math.min(1, dt * (back ? 2.5 : 0.9));
       v.d += v.sens * v.speed * dt;
+    }
+    // Aucun chevauchement, quoi qu'il arrive (freinage trop court, véhicule réapparu, dépassement surpris).
+    keepApart(this.vehicles, (s) => this.laneOf(s), present);
+    for (const v of this.vehicles) {
       // Itinéraire ouvert (monde ouvert, montée) : pas de véhicule au-delà des extrémités connues.
       const outside = !this.track.route.loop && (v.d < 0 || v.d > L);
       // Pas de voiture sur un chemin non revêtu : le véhicule disparaît tant qu'il y est.
@@ -366,7 +387,9 @@ export class Traffic {
       v.vz = p.dirZ * v.sens * v.speed;
       v.mesh.rotation.set(0, Math.atan2(p.dirX, p.dirZ) + (v.sens < 0 ? Math.PI : 0), 0);
       v.mesh.rotateX(-Math.atan(p.grade / 100) * v.sens);
-      const spin = (v.speed / v.wheelRadius) * dt;
+      // Rotation affichée plafonnée (≈ 17° par image) : au-delà, les jantes semblent tourner à l'envers
+      // (effet stroboscopique, 48° par image à 54 km/h et 60 images/s) ; plus lent mais dans le bon sens.
+      const spin = Math.min((v.speed / v.wheelRadius) * dt, 0.3);
       for (const w of v.wheels) w.rotation.x += spin;
     }
   }

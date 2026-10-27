@@ -5,7 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Allez Robert !</title>
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="preload" href="/fonts/inter-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin />
     <style>
+      /* Police de l'interface (locale, public/fonts) : aussi pour l'écran de chargement. */
+      @font-face { font-family: 'Inter'; font-style: normal; font-weight: 100 900; font-display: swap; src: url('/fonts/inter-latin-wght-normal.woff2') format('woff2'); }
       /* Écran de chargement affiché avant le code du jeu (mis à jour ensuite par main.ts). */
       html, body { margin: 0; height: 100%; background: #0a0e16; }
       #splash { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; color: #f5f7fa;

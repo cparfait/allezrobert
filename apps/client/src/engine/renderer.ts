@@ -1,8 +1,9 @@
 import * as THREE from 'three/webgpu';
-import { pass, mrt, output, emissive, normalView, velocity, vec4, vec3, packNormalToRGB, unpackRGBToNormal, sample, uniform, float, saturation, vibrance } from 'three/tsl';
+import { pass, mrt, output, emissive, normalView, velocity, vec4, vec3, packNormalToRGB, unpackRGBToNormal, sample, uniform, float, saturation, vibrance, mix, smoothstep, dot, screenUV, length } from 'three/tsl';
 import { bloom } from 'three/addons/tsl/display/BloomNode.js';
 import { ao } from 'three/addons/tsl/display/GTAONode.js';
 import { traa } from 'three/addons/tsl/display/TRAANode.js';
+import { taau } from 'three/addons/tsl/display/TAAUNode.js';
 import { smaa } from 'three/addons/tsl/display/SMAANode.js';
 import type { QualitySettings } from './quality.ts';
 import { applyViewport, dynamicResolutionEnabled, getFpsCap, getResolutionCap, RESOLUTION_PIXELS, renderPixelRatio } from './display.ts';
@@ -29,6 +30,24 @@ function sharedSceneContext(renderer: THREE.WebGPURenderer, sceneTarget: () => T
   contexts.get = (rt, mrt, depth = 0) => get(rt, mrt, rt !== null && rt === sceneTarget() && depth >= 0 ? 1 : depth);
 }
 export const isCompiling = (): boolean => compiling > 0;
+
+/**
+ * Échelle de rendu de la scène avec reconstruction temporelle (TAAU) : 1 = coupé (défaut) ; ?taau=0.75 ou
+ * localStorage ar.taau. Soulage la carte graphique sur un grand écran (4K, 32:9) quand elle est le goulot.
+ */
+function taauScale(): number {
+  try {
+    const raw = new URLSearchParams(location.search).get('taau') ?? localStorage.getItem('ar.taau');
+    const n = Number(raw);
+    return raw !== null && Number.isFinite(n) && n >= 0.5 && n < 1 ? n : 1;
+  } catch {
+    return 1;
+  }
+}
+
+/** Moteur de rendu du jeu (un seul), pour les systèmes qui préparent des textures (carte d'environnement du ciel). */
+let main: THREE.WebGPURenderer | null = null;
+export const mainRenderer = (): THREE.WebGPURenderer | null => main;
 
 /**
  * Lance `compile` avec les objets de `root` hors du champ compris (rétablis au retour, avant toute image).
@@ -118,6 +137,20 @@ export async function compilePass(renderer: THREE.WebGPURenderer, p: ReturnType<
   }
 }
 
+/**
+ * Étalonnage : saturation, vivacité, teinte d'ensemble (lumière chaude ou froide), virage des ombres et
+ * des hautes lumières (frais dans l'ombre, chaud au soleil, selon la saison et l'heure) et vignettage.
+ */
+export interface Grade {
+  saturation: number;
+  vibrance: number;
+  tint: THREE.Color;
+  shadows: THREE.Color;
+  highlights: THREE.Color;
+  /** Assombrissement des coins (0–1). */
+  vignette: number;
+}
+
 export interface Engine {
   renderer: THREE.WebGPURenderer;
   pipeline: THREE.RenderPipeline;
@@ -127,7 +160,7 @@ export interface Engine {
   /** Exposition globale (étalonnage par saison / heure). */
   exposure: { value: number };
   /** Étalonnage : saturation, vivacité et teinte multiplicative (lumière chaude ou froide). */
-  grade: { saturation: number; vibrance: number; tint: THREE.Color };
+  grade: Grade;
   /** Préréglage en cours (change à chaque `rebuildPipeline`). */
   quality: QualitySettings;
   /** Résolution dynamique : échelle de rendu courante, ajustée selon le temps d'image. */
@@ -158,6 +191,7 @@ export async function createEngine(canvas: HTMLCanvasElement, q: QualitySettings
   // ?perf=1 : mesures GPU (requêtes d'horodatage) pour le panneau de performance (F3).
   const renderer = new THREE.WebGPURenderer({ canvas, antialias: false, forceWebGL, powerPreference: 'high-performance', trackTimestamp: perfRequested() });
   await renderer.init();
+  main = renderer;
   initTextureLoading(renderer);
   const backend = (renderer.backend as { isWebGPUBackend?: boolean }).isWebGPUBackend ? 'webgpu' : 'webgl2';
   if (backend === 'webgpu') instrumentDevice((renderer.backend as unknown as { device: GPUDevice }).device);
@@ -172,10 +206,13 @@ export async function createEngine(canvas: HTMLCanvasElement, q: QualitySettings
 
   const exposure = { value: 1 };
   const exposureNode = uniform(1);
-  const grade = { saturation: 1.12, vibrance: 0.18, tint: new THREE.Color(1, 1, 1) };
+  const grade: Grade = { saturation: 1.12, vibrance: 0.18, tint: new THREE.Color(1, 1, 1), shadows: new THREE.Color(1, 1, 1), highlights: new THREE.Color(1, 1, 1), vignette: 0.16 };
   const satNode = uniform(1.12);
   const vibNode = uniform(0.18);
   const tintNode = uniform(new THREE.Color(1, 1, 1));
+  const shadowNode = uniform(new THREE.Color(1, 1, 1));
+  const highlightNode = uniform(new THREE.Color(1, 1, 1));
+  const vignetteNode = uniform(0.16);
   const pipeline = new THREE.RenderPipeline(renderer);
   const dynamicRes = new DynamicResolution();
   const dynEnabled = dynamicResolutionEnabled();
@@ -316,6 +353,8 @@ export async function createEngine(canvas: HTMLCanvasElement, q: QualitySettings
       // toutes les cibles de rendu (setPixelRatio redimensionne tout, même à ratio identique).
       const resChanged = settings.pixelRatio !== current.pixelRatio || settings.maxPixels !== current.maxPixels;
       current = settings;
+      // Feuille de style : verre dépoli du HUD coupé en qualité basse et moyenne (hud.css).
+      document.documentElement.dataset.quality = settings.level;
       if (camera.far !== settings.viewDistance) {
         camera.far = settings.viewDistance;
         camera.updateProjectionMatrix();
@@ -350,7 +389,10 @@ export async function createEngine(canvas: HTMLCanvasElement, q: QualitySettings
       }
       // Un graphe par combinaison d'effets, mémorisé : rallumer ou recouper un effet déjà vu rebascule
       // sur un graphe dont les passes (et leurs shaders) existent déjà. AO et bloom sont partagés.
-      const key = `${settings.ao ? settings.aoScale : 0}|${settings.bloom ? 1 : 0}|${settings.taa ? 1 : settings.smaa ? 2 : 0}`;
+      // Rendu de la scène à résolution réduite, reconstruit par l'anticrénelage temporel (TAAU) : seulement avec le TAA.
+      const upscale = settings.taa ? taauScale() : 1;
+      if (scenePass.getResolutionScale() !== upscale) scenePass.setResolutionScale(upscale);
+      const key = `${settings.ao ? settings.aoScale : 0}|${settings.bloom ? 1 : 0}|${settings.taa ? (upscale < 1 ? 3 : 1) : settings.smaa ? 2 : 0}`;
       let result = variants.get(key);
       if (!result) {
         const sp = scenePass;
@@ -385,12 +427,18 @@ export async function createEngine(canvas: HTMLCanvasElement, q: QualitySettings
 
         // Étalonnage avant le tone mapping : couleurs vives mais crédibles (direction artistique).
         const tinted = chain.rgb.mul(exposureNode).mul(vec3(tintNode as unknown as THREE.Node<'vec3'>));
-        chain = vec4(vibrance(saturation(tinted, satNode), vibNode), float(1));
+        const graded = vibrance(saturation(tinted, satNode), vibNode);
+        // Virage : teinte des ombres vers celle des hautes lumières selon la luminance (avant le tone mapping).
+        const lum = dot(graded, vec3(0.2126, 0.7152, 0.0722));
+        const split = mix(vec3(shadowNode as unknown as THREE.Node<'vec3'>), vec3(highlightNode as unknown as THREE.Node<'vec3'>), smoothstep(0.03, 0.7, lum));
+        // Vignettage doux : le regard va au centre (la route), les coins s'assombrissent à peine.
+        const corner = smoothstep(0.35, 0.95, length(screenUV.sub(0.5)).mul(1.35));
+        chain = vec4(graded.mul(split).mul(float(1).sub(corner.mul(vignetteNode))), float(1));
 
         if (settings.taa) {
           const depth = sp.getTextureNode('depth');
           const vel = sp.getTextureNode('velocity');
-          chain = traa(chain, depth, vel, camera) as unknown as Vec4Node;
+          chain = (upscale < 1 ? taau(chain as unknown as THREE.TextureNode, depth, vel, camera) : traa(chain, depth, vel, camera)) as unknown as Vec4Node;
         } else if (settings.smaa) {
           // Sans TAA (préréglages Bas et Moyen) : SMAA, bien moins cher, pour ne pas laisser l'image crénelée.
           chain = smaa(chain) as unknown as Vec4Node;
@@ -439,6 +487,9 @@ export async function createEngine(canvas: HTMLCanvasElement, q: QualitySettings
       satNode.value = grade.saturation;
       vibNode.value = grade.vibrance;
       (tintNode.value as THREE.Color).copy(grade.tint);
+      (shadowNode.value as THREE.Color).copy(grade.shadows);
+      (highlightNode.value as THREE.Color).copy(grade.highlights);
+      vignetteNode.value = grade.vignette;
       prepareNewObjects();
       const t0 = performance.now();
       pipeline.render();
@@ -456,6 +507,9 @@ export async function createEngine(canvas: HTMLCanvasElement, q: QualitySettings
       satNode.value = grade.saturation;
       vibNode.value = grade.vibrance;
       (tintNode.value as THREE.Color).copy(grade.tint);
+      (shadowNode.value as THREE.Color).copy(grade.shadows);
+      (highlightNode.value as THREE.Color).copy(grade.highlights);
+      vignetteNode.value = grade.vignette;
       pipeline.render();
     },
   };

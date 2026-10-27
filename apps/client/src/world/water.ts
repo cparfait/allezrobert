@@ -101,6 +101,8 @@ export class WaterSystem {
   /** Couleurs reflétées : zénith et horizon (suivent le ciel et la brume). */
   readonly skyColor = colorUniform('#8fb6e0');
   readonly horizonColor = colorUniform('#dfe8ef');
+  /** Part du reflet simulé dans la couleur : 1 sans carte d'environnement, faible avec (le vrai reflet du ciel s'en charge). */
+  readonly fakeSky = uniform(1);
   private readonly reedBase = colorUniform();
   private readonly reedTip = colorUniform();
   private readonly material: THREE.MeshStandardNodeMaterial;
@@ -172,7 +174,7 @@ export class WaterSystem {
     // Écume et liseré clair au bord, irrégulier.
     const foamNoise = mx_noise_float(vec3(p.mul(1.3), time.mul(0.3))).mul(0.5).add(0.5);
     const foam = smoothstep(0.14, 0.0, depth.add(foamNoise.mul(0.06))).mul(0.55);
-    const col = mix(mix(body, sky, fresnel.min(0.85)), vec3(0.72, 0.74, 0.7), foam);
+    const col = mix(mix(body, sky, fresnel.min(0.85).mul(this.fakeSky)), vec3(0.72, 0.74, 0.7), foam);
     m.colorNode = col;
     m.roughnessNode = mix(float(0.04), float(0.35), foam).add(this.rain.mul(0.08));
     m.metalnessNode = float(0);
