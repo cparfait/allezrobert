@@ -9,6 +9,7 @@ import { meuliere } from './meuliere.ts';
 import { FootprintIndex } from './footprints.ts';
 import { wallGroundOffset } from './facadeGround.ts';
 import { flatRoofKind, leanSide, LEAN_PITCH } from './flatRoofs.ts';
+import { eaveHeight } from './eaveHeight.ts';
 import { LazyTexture } from '../engine/textures.ts';
 
 /** Textures photo CC0 (Poly Haven) des façades et toits, chargées une fois et partagées. */
@@ -839,12 +840,8 @@ export class Buildings {
       const pitch = plan ? Math.min(Math.max((Math.atan(wantH / halfW) * 180) / Math.PI, minPitch), 55) : 0;
       // Appentis : pente de 12° sur toute la largeur.
       const roofH = plan ? Math.tan((pitch * Math.PI) / 180) * halfW : lean ? Math.tan((LEAN_PITCH * Math.PI) / 180) * 2 * box.hw : skillion ? Math.min(bld.roofHeight as number, total * 0.5) : 0;
-      // Égout au moins à hauteur d'étage au-dessus du sol amont : hauteurs LiDAR / BD TOPO souvent basses
-      // (≈ 2 m pour un plain-pied) : 2,7 m au rez-de-chaussée, 2,6 m par niveau en plus, plafonné à trois niveaux et à 1,25 × la hauteur
-      // mesurée (nombre d'étages parfois incohérent : « 11 étages » pour 14 m).
-      const levels = Math.min(Math.max(Math.round(bld.levels ?? 1), 1), 3);
-      const minEave = isUtility || isChurch ? 2.4 : Math.max(2.7, Math.min(2.7 + (levels - 1) * 2.6, total * 1.25));
-      const wallH = Math.max(total - roofH, minEave + rise);
+      // Égout : mesuré (BD TOPO enrichie au LiDAR) ou déduit des étages (OSM), voir eaveHeight.ts.
+      const wallH = eaveHeight({ total, roofH, rise, ...(bld.levels !== undefined ? { levels: bld.levels } : {}), utility: isUtility || isChurch, measured: !!bld.bdtopo });
       const wallTop = base + wallH + 0.3;
       // Emprise pour la collision de la caméra (prisme toit compris ; le clocher dépasse, sans gêne).
       this.footprints.add(tile.id, bld.pts, base, wallTop + roofH);
