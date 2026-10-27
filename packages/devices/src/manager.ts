@@ -19,7 +19,7 @@ import {
   type TrainerSample,
   type TransportKind,
 } from '@allezrobert/shared';
-import { EXPERIMENTAL_ADAPTERS_DEFAULT, type ExperimentalAdapters } from '@allezrobert/protocols';
+import { EXPERIMENTAL_ADAPTERS_DEFAULT, type ExperimentalAdapters, type FecUserConfiguration } from '@allezrobert/protocols';
 import { systemClock, type Clock } from './clock.ts';
 import { Device, type DeviceOptions, type ReconnectPolicy } from './device.ts';
 import { WARNING_MESSAGES } from './messages.ts';
@@ -35,6 +35,7 @@ import {
   type RoleAssignments,
 } from './pairing.ts';
 import { PowerMatchController, type PowerMatchOptions } from './power-match.ts';
+import { FecTrainer, type FecTrainerOptions } from './profiles/index.ts';
 import type { ShifterSource } from './shifters.ts';
 import { PowerSmoother } from './smoothing.ts';
 import type { CalibrationEvent, DeviceWarning, DiscoveredDevice, ScanHandle, Transport } from './types.ts';
@@ -125,10 +126,16 @@ export class DeviceManager extends Emitter<ManagerEvents> {
   private lastCadence = new Map<string, { t: number; cadence: number }>();
   private shifterSources = new Map<string, { src: ShifterSource; off: () => void }>();
   private currentSource: PowerSource = 'none';
+  /**
+   * Options FE-C partagées par référence avec chaque Device : un trainer dont les profils ne sont pas
+   * encore créés lira ainsi le poids à jour à sa première connexion.
+   */
+  private readonly fecOptions: FecTrainerOptions;
 
   constructor(options: DeviceManagerOptions) {
     super();
     this.options = options;
+    this.fecOptions = { ...options.deviceOptions?.fec };
     this.transports = options.transports;
     this.clock = options.clock ?? systemClock;
     this.smoother = new PowerSmoother(options.smoothingWindowMs ?? 3000);
@@ -148,6 +155,22 @@ export class DeviceManager extends Emitter<ManagerEvents> {
   setExperimental(flags: Partial<ExperimentalAdapters>): void {
     this.config.experimental = { ...EXPERIMENTAL_ADAPTERS_DEFAULT, ...this.config.experimental, ...flags };
     void this.persist();
+  }
+
+  /**
+   * Poids du cycliste et du vélo, transmis aux home trainers FE-C (page 55) : à chaque connexion, et tout
+   * de suite à ceux déjà connectés. Le trainer s'en sert pour sa propre simulation (inertie du Neo…).
+   * FTMS n'a pas d'équivalent dans la commande de simulation : rien n'est envoyé.
+   */
+  setUserConfiguration(config: FecUserConfiguration): void {
+    if (!(config.userWeightKg > 0) || !(config.bikeWeightKg >= 0)) return;
+    this.fecOptions.userConfiguration = config;
+    for (const dev of this.devicesById.values()) {
+      for (const p of dev.activeProfiles) {
+        if (!(p instanceof FecTrainer)) continue;
+        p.setUserConfiguration(config).catch((e: unknown) => this.emit('log', `${dev.info.name} : poids non transmis (${(e as Error).message})`));
+      }
+    }
   }
 
   get smoothingEnabled(): boolean {
@@ -280,6 +303,7 @@ export class DeviceManager extends Emitter<ManagerEvents> {
     if (!dev) {
       dev = new Device(desc, this.transportFor(desc.transport), {
         ...this.options.deviceOptions,
+        fec: this.fecOptions,
         clock: this.clock,
         ...(this.options.silentAfterMs !== undefined ? { silentAfterMs: this.options.silentAfterMs } : {}),
         ...(this.options.reconnect !== undefined ? { reconnect: this.options.reconnect } : {}),

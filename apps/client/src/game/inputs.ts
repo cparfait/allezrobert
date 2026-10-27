@@ -21,6 +21,8 @@ export interface InputSource {
   read(): RideInputs;
   /** Commande envoyée au home trainer (pente simulée, ERG…). */
   sendTrainer(cmd: TrainerCommand): void;
+  /** Poids du cycliste et du vélo roulé, transmis au home trainer FE-C (page 55). */
+  setRiderWeights?(riderKg: number, bikeKg: number): void;
   /** Ventilateur (HEADWIND) : consigne manuelle 0–100 % (appli compagnon). */
   setFan?(percent: number): void;
   /** Ventilateur asservi : appelé à chaque image, la source décide selon le mode et limite les envois. */

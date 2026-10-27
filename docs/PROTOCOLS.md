@@ -299,7 +299,9 @@ Paramètres de canal (`ANT_PLUS_PROFILES`) :
 | 80 / 81 / 82 | communes | fabricant, produit et n° de série, batterie |
 
 Les commandes partent en message acquitté (0x4F). Le mode simulation envoie la page 50
-uniquement si le vent change, puis la page 51.
+uniquement si le vent change, puis la page 51. La page 55 (poids du coureur et du vélo roulé, garage
+et équipement égalisé compris) part au début de chaque sortie et à chaque (re)connexion du trainer :
+`DeviceManager.setUserConfiguration`.
 
 **Calibration** : `FecTrainer` envoie la page 1 (bit 7), puis traduit les pages 2 en étapes
 `requested` (vitesse trop basse) et `stopPedaling` (vitesse atteinte), et la page 1 reçue en

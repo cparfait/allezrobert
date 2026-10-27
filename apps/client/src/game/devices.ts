@@ -413,6 +413,10 @@ class ManagerInputSource implements InputSource {
     void this.manager.sendTrainer(cmd).catch(() => undefined);
   }
 
+  setRiderWeights(riderKg: number, bikeKg: number): void {
+    this.manager.setUserConfiguration({ userWeightKg: riderKg, bikeWeightKg: bikeKg });
+  }
+
   /** Consigne de l'appli compagnon : le ventilateur passe en manuel à ce pourcentage. */
   setFan(percent: number): void {
     updateHardwarePrefs((p) => {

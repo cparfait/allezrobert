@@ -5,7 +5,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import type { ShiftEvent } from '@allezrobert/shared';
-import { encodeFecCalibrationInProgress, encodeFecCalibrationResponse, decodeFecCommand, encodeFecGeneralFeData } from '@allezrobert/protocols';
+import { encodeFecCalibrationInProgress, encodeFecCalibrationResponse, decodeFecCommand, encodeFecGeneralFeData, encodeFecUserConfiguration } from '@allezrobert/protocols';
 import {
   AntTransport,
   DEFAULT_HID_REMOTE_BINDINGS,
@@ -89,6 +89,44 @@ describe('calibration (spin-down) par le gestionnaire', () => {
     expect(cal.map((c) => c.status)).toEqual(['started', 'requested', 'stopPedaling', 'success']);
     expect(cal[1]?.targetSpeedLowKmh).toBeCloseTo(32, 1);
     expect(cal[3]).toMatchObject({ spinDownTimeMs: 4200, temperatureC: 21 });
+    await manager.dispose();
+  });
+});
+
+describe('poids du cycliste et du vélo envoyés au trainer FE-C (page 55)', () => {
+  async function antTrainer() {
+    const clock = newClock();
+    const bridge = new FakeBridge();
+    bridge.commands.set('ant_list_sticks', () => [{ id: 'usb-0', name: 'ANT USB-m', vendorId: 0x0fcf, productId: 0x1009 }]);
+    for (const c of ['ant_open', 'ant_open_channel', 'ant_send', 'ant_close', 'ant_close_channel']) bridge.commands.set(c, () => undefined);
+    const manager = new DeviceManager({ transports: [new AntTransport({ bridge, networkKey: '00 11 22 33 44 55 66 77' })], clock });
+    await manager.scan({ kinds: ['trainer'] });
+    bridge.emit('ant://message', { channel: 0, data: Array.from(encodeFecGeneralFeData({ speedKmh: 0 })) });
+    const pages55 = () => bridge.callsOf('ant_send').map((c) => Array.from(c['data'] as number[])).filter((d) => d[0] === 0x37);
+    return { clock, manager, pages55 };
+  }
+
+  it('réglé avant la connexion : page 55 envoyée en se connectant', async () => {
+    const { clock, manager, pages55 } = await antTrainer();
+    manager.setUserConfiguration({ userWeightKg: 72.5, bikeWeightKg: 8.2 });
+    await settle(clock, manager.connect(manager.discovered[0]!));
+    // 72,5 kg → 7250 (0,01 kg) ; 8,2 kg → 164 (0,05 kg, 12 bits répartis sur les octets 4 et 5).
+    expect(pages55()).toEqual([[0x37, 7250 & 0xff, 7250 >> 8, 0xff, 0x0f | ((164 & 0x0f) << 4), 164 >> 4, 0xff, 0x00]]);
+    expect(Array.from(encodeFecUserConfiguration({ userWeightKg: 72.5, bikeWeightKg: 8.2 }))).toEqual(pages55()[0]);
+    await manager.dispose();
+  });
+
+  it('changé trainer connecté : renvoyé tout de suite ; valeurs absurdes ignorées', async () => {
+    const { clock, manager, pages55 } = await antTrainer();
+    await settle(clock, manager.connect(manager.discovered[0]!));
+    expect(pages55()).toEqual([]);
+    manager.setUserConfiguration({ userWeightKg: 80, bikeWeightKg: 9 });
+    await clock.advance(50);
+    expect(pages55()).toEqual([Array.from(encodeFecUserConfiguration({ userWeightKg: 80, bikeWeightKg: 9 }))]);
+    manager.setUserConfiguration({ userWeightKg: Number.NaN, bikeWeightKg: 9 });
+    manager.setUserConfiguration({ userWeightKg: 0, bikeWeightKg: 9 });
+    await clock.advance(50);
+    expect(pages55()).toHaveLength(1);
     await manager.dispose();
   });
 });

@@ -944,6 +944,8 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
       mp = null;
     }
   }
+  // Poids envoyé au trainer FE-C (Neo…) : celui du vélo réellement roulé, égalisé ou non en multijoueur.
+  input.setRiderWeights?.(s.massKg, ride.params.massKg - s.massKg);
   // Sortie solo, séance, test FTP et défi : seul sur la route. Des IA locales seulement en repli d'une sortie de groupe / course (serveur injoignable).
   const aiCount = workout || mp || challenge || (s.mode !== 'group' && s.mode !== 'race') ? 0 : Math.min(Math.max(s.aiRiders, 0), engine.quality.aiRidersMax);
   const peloton = new Peloton(engine.scene, track, aiCount, startD, s.ftpWatts * (s.aiLevel ?? 1));

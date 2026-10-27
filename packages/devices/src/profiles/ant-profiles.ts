@@ -78,6 +78,8 @@ export class FecTrainer implements Profile, TrainerControl {
   /** Étape de la calibration en cours (pages 1, 2 et 71), pour n'émettre que les changements. */
   private calibrationStage: 'started' | 'requested' | 'stopPedaling' | undefined;
   private readonly options: FecTrainerOptions;
+  /** Poids fixés par `setUserConfiguration` ; sinon ceux des options (lus à chaque connexion). */
+  private userConfig: FecUserConfiguration | undefined;
 
   constructor(options: FecTrainerOptions = {}) {
     this.options = options;
@@ -97,10 +99,15 @@ export class FecTrainer implements Profile, TrainerControl {
     this.lastWind = undefined;
     this.channel = link.type === 'ant' ? antFecChannel(link) : await bleFecChannel(link);
     this.unsub = this.channel.onPage((p) => this.onPage(p));
-    if (this.options.userConfiguration) {
-      await this.channel.sendPage(encodeFecUserConfiguration(this.options.userConfiguration)).catch(() => undefined);
-    }
+    const user = this.userConfig ?? this.options.userConfiguration;
+    if (user) await this.channel.sendPage(encodeFecUserConfiguration(user)).catch(() => undefined);
     if (this.lastCmd) await this.send(this.lastCmd).catch(() => undefined);
+  }
+
+  /** Poids du cycliste et du vélo (page 55) : envoyés tout de suite si connecté, puis à chaque reconnexion. */
+  async setUserConfiguration(config: FecUserConfiguration): Promise<void> {
+    this.userConfig = config;
+    if (this.channel) await this.channel.sendPage(encodeFecUserConfiguration(config));
   }
 
   detach(): void {
