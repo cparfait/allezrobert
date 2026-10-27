@@ -26,6 +26,8 @@ export interface PublicZoneInfo {
   rooms: number;
   /** Noms des amis qui y roulent (seulement leurs amis les voient). */
   friends: string[];
+  /** Parmi eux, ceux qui viennent de lancer leur session (jeu en chargement, pas encore sur la route). */
+  arriving?: string[];
 }
 
 /** Salle conseillée (`POST /api/public/pick`) : celle des amis, sinon la plus fréquentée non pleine. Absente : en ouvrir une. */
@@ -55,6 +57,8 @@ export interface PublicFriendHere {
   dir: 1 | -1;
   /** Sa salle est pleine : on ne peut pas le rejoindre pour l'instant. */
   full: boolean;
+  /** Session lancée, jeu en chargement : il arrive (sa position n'a pas encore de sens). */
+  loading?: boolean;
 }
 
 /** Détail d'une zone ouverte (`GET /api/public/zones/:routeId`) : coureurs en ligne et amis présents. */
@@ -292,12 +296,17 @@ export const NET_MSG = {
   host: 'host',
   /** Hôte ou meneur → serveur : `{ active }` lance / arrête un regroupement (sortie de groupe). */
   regroup: 'regroup',
-  /** Client → serveur (salle publique) : le jeu est chargé et le coureur commence à rouler ; il est alors placé (dans la roue d'un ami). */
+  /**
+   * Client → serveur : le jeu est chargé et le coureur commence à rouler. Son arrivée est alors annoncée ; en salle publique,
+   * il apparaît seulement à ce moment-là, placé (dans la roue d'un ami).
+   */
   ready: 'ready',
   /** Client → serveur : demi-tour (salle publique) ; le serveur renvoie le nouvel état dans l'instantané. */
   uturn: 'uturn',
   /** Client → serveur : `{ t }` ; serveur → client : `{ t, serverT }` (estimation d'horloge). */
   ping: 'ping',
+  /** Serveur → client : `FriendsHereMsg`, ses amis présents dans la salle (à chaque changement). */
+  friends: 'friends',
 } as const;
 
 export type RidePhase = 'lobby' | 'countdown' | 'running' | 'finished';
@@ -355,8 +364,15 @@ export interface RosterEntry {
   isHost: boolean;
   /** Faux pendant la fenêtre de reconnexion. */
   connected: boolean;
+  /** Jeu encore en chargement (pas encore de message `ready`) : pas annoncé, absent de la route en salle publique. */
+  loading?: boolean;
   ftpWatts?: number;
   massKg?: number;
+}
+
+/** Coureurs de la salle qui sont des amis du destinataire (identifiants de coureur, jamais de compte). */
+export interface FriendsHereMsg {
+  riderIds: string[];
 }
 
 export interface RosterMsg {

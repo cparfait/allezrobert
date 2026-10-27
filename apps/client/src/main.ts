@@ -943,7 +943,8 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     try {
       // Monde ouvert : salle publique de la zone (celle des amis d'abord), sans code ni hôte.
       if (extras.publicRoom) {
-        await mp.connectPublic(track.route.id, s.name, extras.nearFriend);
+        // Premier arrivé : son heure et sa météo ouvrent la salle, figées (sans évolution) pour tous ceux qui suivent.
+        await mp.connectPublic(track.route.id, s.name, extras.nearFriend, { ...myWeather, evolving: false });
         if (mp.weather) rideWeather = mp.weather;
         const L = getLang() === 'fr';
         const here = mp.friendsHere.join(', ');
@@ -1131,6 +1132,14 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
         if (seg) sequences.segment({ seg, timeS: ev.timeMs / 1000, avgWatts: ride.avgWatts() }, s.name, rankRouteId(track.route.id), ev.rank, net.roster.size);
       } else if (ev.kind === 'chat') hud.addChat(net.roster.get(ev.riderId)?.name ?? '?', ev.text);
       else if (ev.kind === 'rideOn' && ev.to === net.selfId) hud.toast(`👍 Ride On — ${net.roster.get(ev.from)?.name ?? ''}`);
+      // Amis : arrivée (jeu chargé, il est sur la route) et départ annoncés.
+      else if (ev.kind === 'join' && net.friendIds.has(ev.riderId)) hud.toast(getLang() === 'fr' ? `★ Ton ami ${ev.name} vient d'arriver` : `★ Your friend ${ev.name} just joined`);
+      else if (ev.kind === 'leave' && net.friendIds.has(ev.riderId)) {
+        // Parti pendant le chargement : il n'avait pas été annoncé, son départ non plus.
+        const r = net.roster.get(ev.riderId);
+        const who = r && !r.loading ? r.name : '';
+        if (who) hud.toast(getLang() === 'fr' ? `Ton ami ${who} est parti` : `Your friend ${who} left`);
+      }
       else if (ev.kind === 'results') {
         const top = ev.results.filter((r) => r.rank > 0).sort((a, b) => a.rank - b.rank);
         void sequences.podium(top.map((r) => ({ name: r.name, timeS: r.timeMs / 1000, color: net.roster.get(r.riderId)?.avatar.jersey ?? '#ffd23f' })));
@@ -1581,6 +1590,9 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     // Ligne franchie en course : plus de pédalage, le coureur roule sur sa lancée.
     ride.update(dt, room?.finished ? coastInput : input, steer);
     lap('physique');
+    // Jeu chargé : arrivée annoncée aux autres. Monde ouvert : à la première image où l'on roule (le serveur place alors
+    // le coureur dans la roue de son ami) ; sortie de groupe / course : dès la première image, salon d'attente compris.
+    if (mp && (!mp.isPublic || !ride.paused)) mp.notifyReady();
     if (!ride.paused && ride.dir > 0) {
       const hp = hairpins.update(prevD, ride.state.distM);
       if (hp) hud.toast(hairpinToast(hp, getLang() === 'fr'), true);
@@ -1592,8 +1604,6 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
       challenge?.update(dt, ride.state.distM - startD, ride.elapsedS);
       tutorial?.update({ shifted, gradePercent: ride.gradePercent, inSegment: !!ride.segment, draft: ride.draft, distM: ride.state.distM - startD });
       if (mp) {
-        // Monde ouvert : première image jouée → le serveur place le coureur dans la roue de son ami.
-        mp.notifyReady();
         // Prédiction locale + correction douce vers la position autoritaire du serveur.
         ride.draft = mp.selfDraft();
         // Monde ouvert : demi-tour confirmé par le serveur → le coureur repart dans l'autre sens.
@@ -1803,7 +1813,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
             ...remoteRiders.map((r) => {
               const p = track.sample(r.unwrappedM);
               const mass = mp?.net.roster.get(r.id)?.massKg ?? 75;
-              return { id: r.id, name: r.name, distM: r.unwrappedM, x: p.x, z: p.z, me: false, isAI: r.isAI, isGuest: r.isGuest, color: r.avatar.jersey, online: !r.isAI, speaking: voice?.speaking.has(r.name) ?? false, km: r.unwrappedM / 1000, watts: r.watts, wkg: r.watts / mass, ...(r.avatar.nationality ? { nationality: r.avatar.nationality } : {}) };
+              return { id: r.id, name: r.name, distM: r.unwrappedM, x: p.x, z: p.z, me: false, isAI: r.isAI, isGuest: r.isGuest, color: r.avatar.jersey, online: !r.isAI, friend: mp?.net.friendIds.has(r.id) ?? false, speaking: voice?.speaking.has(r.name) ?? false, km: r.unwrappedM / 1000, watts: r.watts, wkg: r.watts / mass, ...(r.avatar.nationality ? { nationality: r.avatar.nationality } : {}) };
             }),
             ...(cyclists
               ? cyclists.roster(ride.state.distM, 400).map((c) => {

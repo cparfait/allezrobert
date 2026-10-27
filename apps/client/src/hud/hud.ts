@@ -28,6 +28,8 @@ export interface HudRider {
   speaking?: boolean;
   /** Coureur humain en ligne (peut recevoir un « Ride On »). */
   online?: boolean;
+  /** Ami du joueur : pastille dorée dans « À proximité », anneau doré sur la carte. */
+  friend?: boolean;
   /** Puissance rapportée au poids (W/kg), si connue. */
   wkg?: number;
   /** Nationalité (code ISO) : drapeau devant le nom. */
@@ -756,10 +758,10 @@ export class Hud {
       const [x, y] = P(r.x, r.z);
       ctx.fillStyle = r.me ? '#ffd23f' : r.color;
       ctx.beginPath();
-      ctx.arc(x, y, r.me ? 10 : 7, 0, Math.PI * 2);
+      ctx.arc(x, y, r.me ? 10 : r.friend ? 8 : 7, 0, Math.PI * 2);
       ctx.fill();
-      ctx.strokeStyle = '#0a0e16';
-      ctx.lineWidth = 3;
+      ctx.strokeStyle = r.friend ? '#ffd23f' : '#0a0e16';
+      ctx.lineWidth = r.friend ? 4 : 3;
       ctx.stroke();
     }
   }
@@ -783,7 +785,7 @@ export class Hud {
     const rows = shown
       .map((r) => {
         const gap = r.distM - me.distM;
-        const sub = r.ambient ? r.ambient.level : r.me ? t('you') : r.isAI ? t('ai') : r.isGuest ? t('guest') : '';
+        const sub = r.ambient ? r.ambient.level : r.me ? t('you') : r.isAI ? t('ai') : r.isGuest ? t('guest') : r.friend ? (fr ? 'Ami' : 'Friend') : '';
         const verdict = r.ambient
           ? r.ambient.follow === 'ok'
             ? `<em class="rd-badge ok">${fr ? 'À suivre' : 'Can follow'}</em>`
@@ -796,7 +798,7 @@ export class Hud {
         const time = Math.abs(sec) >= 60 ? `${sec > 0 ? '+' : '−'}${Math.floor(Math.abs(sec) / 60)}:${String(Math.round(Math.abs(sec) % 60)).padStart(2, '0')}` : `${sec > 0 ? '+' : sec < 0 ? '−' : ''}${Math.round(Math.abs(sec))} s`;
         const dist = Math.abs(gap) >= 1000 ? `${(Math.abs(gap) / 1000).toFixed(1).replace('.', fr ? ',' : '.')} km` : `${Math.round(Math.abs(gap))} m`;
         const kmTxt = r.km !== undefined ? `${r.km.toFixed(1).replace('.', fr ? ',' : '.')} km` : '';
-        return `<div class="row ${r.me ? 'me' : ''}"><i class="rd-dot" style="background:${r.color}"></i><span class="rd-name"><b class="rd-n">${flagSvg(r.nationality, 13) ? `<span class="rd-flag" title="${countryName(r.nationality, fr ? 'fr' : 'en')}">${flagSvg(r.nationality, 13)}</span>` : ''}${r.name.replace(/[<>&]/g, '')}${r.speaking ? ' 🔊' : ''} ${rideOn}</b><small class="rd-sub">${sub}${verdict}</small></span><span class="num rd-wkg"><b>${r.watts !== undefined ? Math.round(r.watts) : '—'}<u>W</u></b><small>${kmTxt}</small></span><span class="num rd-gap">${r.me ? '' : `<b>${time}</b><small>${dist}</small>`}</span></div>`;
+        return `<div class="row ${r.me ? 'me' : ''}"><i class="rd-dot" style="background:${r.color}"></i><span class="rd-name"><b class="rd-n">${r.friend ? `<em class="rd-friend" title="${fr ? 'Ami' : 'Friend'}">★</em>` : ''}${flagSvg(r.nationality, 13) ? `<span class="rd-flag" title="${countryName(r.nationality, fr ? 'fr' : 'en')}">${flagSvg(r.nationality, 13)}</span>` : ''}${r.name.replace(/[<>&]/g, '')}${r.speaking ? ' 🔊' : ''} ${rideOn}</b><small class="rd-sub">${sub}${verdict}</small></span><span class="num rd-wkg"><b>${r.watts !== undefined ? Math.round(r.watts) : '—'}<u>W</u></b><small>${kmTxt}</small></span><span class="num rd-gap">${r.me ? '' : `<b>${time}</b><small>${dist}</small>`}</span></div>`;
       })
       .join('');
     return head + rows;
@@ -936,10 +938,10 @@ export class Hud {
       if (x < -20 || y < -20 || x > w + 20 || y > h + 20) continue;
       ctx.fillStyle = r.me ? '#ffd23f' : r.color;
       ctx.beginPath();
-      ctx.arc(x, y, r.me ? 10 : 7, 0, Math.PI * 2);
+      ctx.arc(x, y, r.me ? 10 : r.friend ? 8 : 7, 0, Math.PI * 2);
       ctx.fill();
-      ctx.strokeStyle = '#0a0e16';
-      ctx.lineWidth = 3;
+      ctx.strokeStyle = r.friend ? '#ffd23f' : '#0a0e16';
+      ctx.lineWidth = r.friend ? 4 : 3;
       ctx.stroke();
     }
   }

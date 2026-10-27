@@ -166,6 +166,11 @@ export class SimRider {
    * qu'il est prêt (`placeNow`). Indéfini : rien en attente.
    */
   placementNear: string | undefined;
+  /**
+   * Jeu encore en chargement (humains et invités, jusqu'au message `ready`) : en salle publique le coureur n'est ni
+   * montré, ni pris en compte par les autres (aspiration, groupe, proximité) tant qu'il n'est pas prêt.
+   */
+  loading: boolean;
   watts = 0;
   cadence = 0;
   hr: number | undefined;
@@ -215,6 +220,7 @@ export class SimRider {
     this.state = createRiderState();
     this.shareHr = init.shareHr ?? false;
     this.joinedAt = now;
+    this.loading = init.kind !== 'ai';
     this.guard = init.kind === 'human' ? new PowerGuard(this.riderMassKg) : undefined;
     if (init.kind === 'ai') {
       this.ai = new AiRider({
@@ -260,6 +266,8 @@ export class RideSimulation {
   private reverseTrack: RouteTrack | undefined;
   /** Segments chronométrés actifs (désactivés en salle publique : monde libre, pas de classement). */
   segmentsEnabled = true;
+  /** Salle publique : les coureurs dont le jeu charge encore restent hors de la route (voir `SimRider.loading`). */
+  hideLoading = false;
   readonly route: RouteData;
   readonly options: ResolvedRideOptions;
   readonly guestMaxWkg: number;
@@ -335,6 +343,19 @@ export class RideSimulation {
 
   get holding(): boolean {
     return this.phase === 'lobby' || this.phase === 'countdown';
+  }
+
+  /** Coureurs sur la route : tous, sauf en salle publique ceux dont le jeu charge encore. */
+  get present(): SimRider[] {
+    return this.hideLoading ? this.riders.filter((r) => !r.loading) : this.riders;
+  }
+
+  /** Le jeu du coureur est chargé ; renvoie false s'il l'était déjà (ou coureur inconnu). */
+  markReady(id: string): boolean {
+    const r = this.byId.get(id);
+    if (!r || !r.loading) return false;
+    r.loading = false;
+    return true;
   }
 
   get(id: string): SimRider | undefined {
@@ -495,7 +516,7 @@ export class RideSimulation {
   private spread(filter: (r: SimRider) => boolean = () => true): number {
     let lo = Infinity;
     let hi = -Infinity;
-    for (const r of this.riders) {
+    for (const r of this.present) {
       if (r.finishMs !== undefined || !filter(r)) continue;
       lo = Math.min(lo, r.state.distM);
       hi = Math.max(hi, r.state.distM);
@@ -592,7 +613,7 @@ export class RideSimulation {
   separationM(aId: string, bId: string): number {
     const a = this.byId.get(aId);
     const b = this.byId.get(bId);
-    if (!a || !b) return Infinity;
+    if (!a || !b || (this.hideLoading && (a.loading || b.loading))) return Infinity;
     const gap = Math.abs(this.forwardPos(a) - this.forwardPos(b));
     return this.route.loop ? Math.min(gap, this.track.length - gap) : gap;
   }
@@ -616,7 +637,7 @@ export class RideSimulation {
     const L = this.track.length;
     const target = L - this.track.wrap(r.state.distM);
     // Même repère « déplié » que les coureurs allant dans le nouveau sens (aspiration), tour le plus proche.
-    const mates = this.riders.filter((x) => x !== r && x.dir === -r.dir).map((x) => x.state.distM).sort((a, b) => a - b);
+    const mates = this.present.filter((x) => x !== r && x.dir === -r.dir).map((x) => x.state.distM).sort((a, b) => a - b);
     const lapShift = this.route.loop && mates.length ? Math.round((mates[Math.floor(mates.length / 2)]! - target) / L) * L : 0;
     r.dir = r.dir === 1 ? -1 : 1;
     r.state.distM = target + lapShift;
@@ -662,7 +683,7 @@ export class RideSimulation {
 
   /** Arrivée en cours de sortie : à l'arrière du groupe principal (ou sur la ligne). */
   private placeOnJoin(r: SimRider): void {
-    const others = this.riders.filter((x) => x !== r);
+    const others = this.present.filter((x) => x !== r);
     if (this.holding || others.length === 0) {
       const i = others.length;
       const perRow = 6;
@@ -700,7 +721,7 @@ export class RideSimulation {
       events.push({ kind: 'phase', phase: 'running', startsAt: this.startsAt });
     }
     const holding = this.holding;
-    const riders = this.riders;
+    const riders = this.present;
     const n = riders.length;
 
     // Ordre de course (tête en premier), sur les positions du pas précédent.
@@ -960,7 +981,7 @@ export class RideSimulation {
   private updateGroupPace(dt: number, now: number): void {
     let sum = 0;
     let k = 0;
-    for (const r of this.riders) {
+    for (const r of this.present) {
       if (r.kind !== 'human' || !r.connected || now - r.lastTelemetryMs > TELEMETRY_STALE_MS || r.watts <= 0) continue;
       sum += r.watts / r.riderMassKg;
       k++;
@@ -1131,7 +1152,7 @@ export class RideSimulation {
   }
 
   rows(): SnapshotRow[] {
-    return this.riders.map((r) => r.row);
+    return this.present.map((r) => r.row);
   }
 
   private statusOf(r: SimRider): RaceStatus {
@@ -1185,6 +1206,7 @@ export class RideSimulation {
       isGuest: r.kind === 'guest',
       isHost: r.id === hostId,
       connected: r.connected,
+      ...(r.loading ? { loading: true } : {}),
       ftpWatts: r.ftpWatts,
       massKg: r.riderMassKg,
     }));

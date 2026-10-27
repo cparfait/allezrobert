@@ -44,6 +44,11 @@ export function sortFriends<T extends Pick<FriendEntry, 'name' | 'presence'>>(li
   return [...list].sort((a, b) => RANK[a.presence.state] - RANK[b.presence.state] || a.name.localeCompare(b.name, 'fr', { sensitivity: 'base' }));
 }
 
+/** Pastille verte de l'onglet Amis : amis connectés (dans le menu ou en train de rouler). */
+export function onlineCount(o: Pick<FriendsOverview, 'friends'> | null): number {
+  return o ? o.friends.filter((f) => f.presence.state !== 'offline').length : 0;
+}
+
 /** Pastille de l'onglet Amis : demandes reçues + invitations à rouler. */
 export function badgeCount(o: Pick<FriendsOverview, 'incoming' | 'invites'> | null): number {
   return o ? o.incoming.length + o.invites.length : 0;

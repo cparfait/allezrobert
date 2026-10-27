@@ -13,6 +13,16 @@ export function ridersLabel(n: number, fr: boolean): string {
 }
 
 /** « Léa roule ici », « Léa et Paul roulent ici », « Léa, Paul et 2 autres roulent ici ». */
+/** Amis qui viennent de lancer leur session dans la zone (jeu en chargement) : « Léa arrive ». */
+export function arrivingLabel(names: string[], fr: boolean): string {
+  if (!names.length) return '';
+  const [a = '', b = ''] = names;
+  if (names.length === 1) return fr ? `${a} arrive` : `${a} is joining`;
+  if (names.length === 2) return fr ? `${a} et ${b} arrivent` : `${a} and ${b} are joining`;
+  const rest = names.length - 2;
+  return fr ? `${a}, ${b} et ${rest} autre${rest > 1 ? 's' : ''} arrivent` : `${a}, ${b} and ${rest} other${rest > 1 ? 's' : ''} are joining`;
+}
+
 export function friendsLabel(names: string[], fr: boolean): string {
   if (!names.length) return '';
   const [a = '', b = ''] = names;

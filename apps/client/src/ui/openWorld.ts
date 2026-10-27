@@ -13,7 +13,7 @@ import { FRIENDS_POLL_S, type PublicZoneDetail, type PublicZoneInfo, type RouteS
 import { getLang } from '../i18n/index.ts';
 import { apiBase } from './account.ts';
 import { dotsSvg, mapSvg, type Bounds, type MapInput } from './openWorldMap.ts';
-import { friendsLabel, ridersLabel, zoneOfRoute } from './openWorldLabels.ts';
+import { arrivingLabel, friendsLabel, ridersLabel, zoneOfRoute } from './openWorldLabels.ts';
 import './openWorld.css';
 
 export { friendsLabel, ridersLabel, zoneOfRoute };
@@ -93,7 +93,9 @@ export class OpenWorldPanel {
     const html = `<div class="ow-top"><b>${fr ? 'Monde ouvert' : 'Open world'}</b><span>${fr ? 'Retrouve d’autres coureurs, à tout moment. Fais demi-tour quand tu veux.' : 'Meet other riders any time. Turn around whenever you like.'}</span></div>
       ${rows
         .map(({ d, zone }) => {
-          const friends = friendsLabel(d.friends, fr);
+          // Amis qui viennent de lancer leur session : annoncés tout de suite, à part de ceux qui roulent déjà.
+          const arriving = d.arriving ?? [];
+          const friends = [friendsLabel(d.friends.filter((n) => !arriving.includes(n)), fr), arrivingLabel(arriving, fr)].filter(Boolean).join(' · ');
           return `<button type="button" class="ow-zone" data-ow-route="${esc(d.routeId)}" data-ow-world="${esc(zone.id)}">
             <span class="ow-name">${esc(zone.name)}<small>${esc(zone.region ?? '')}</small></span>
             <span class="ow-meta"><i class="ow-dot${d.riders > 0 ? ' on' : ''}"></i>${esc(ridersLabel(d.riders, fr))}${friends ? `<em>${esc(friends)}</em>` : ''}</span>
@@ -163,7 +165,7 @@ export class OpenWorldPanel {
       const friends = detail?.friends ?? [];
       const friendRows = friends
         .map(
-          (f) => `<li><span class="ow-fname"><span><i class="ow-pin"></i>${esc(f.name)}</span><small>${f.dir === -1 ? (fr ? 'roule à contresens' : 'riding backwards') : fr ? 'roule dans le sens du parcours' : 'riding the route direction'}</small></span>
+          (f) => `<li><span class="ow-fname"><span><i class="ow-pin"></i>${esc(f.name)}</span><small>${f.loading ? (fr ? 'vient de lancer sa session, il arrive…' : 'just started a session, joining…') : f.dir === -1 ? (fr ? 'roule à contresens' : 'riding backwards') : fr ? 'roule dans le sens du parcours' : 'riding the route direction'}</small></span>
             <button type="button" class="ow-btn" data-ow-friend="${esc(f.id)}" ${f.full ? 'disabled' : ''}>${f.full ? (fr ? 'Salle pleine' : 'Room full') : logged ? (fr ? 'Rejoindre' : 'Join') : fr ? 'Se connecter' : 'Sign in'}</button></li>`,
         )
         .join('');

@@ -33,7 +33,48 @@ function tokenProvider(apiBase: string, name: string, onSession?: () => Promise<
 
 interface Remote {
   avatar: RiderAvatarLike;
+  /** Repère d'ami (nom doré et flèche au-dessus de la tête), visible de loin et à travers le décor. */
   label: THREE.Sprite | null;
+}
+
+/** Au-delà, le repère d'un ami n'est plus montré (m) ; en deçà de `FRIEND_MARKER_NEAR_M`, il gênerait la vue. */
+const FRIEND_MARKER_FAR_M = 5000;
+const FRIEND_MARKER_NEAR_M = 6;
+
+/** Repère d'un ami : étiquette dorée à son nom, flèche vers le coureur ; taille constante à l'écran. */
+function friendMarker(name: string): THREE.Sprite {
+  const c = document.createElement('canvas');
+  c.width = 320;
+  c.height = 104;
+  const ctx = c.getContext('2d') as CanvasRenderingContext2D;
+  ctx.font = '700 30px Inter, Segoe UI, sans-serif';
+  const label = `★ ${name}`.slice(0, 22);
+  const w = Math.min(Math.ceil(ctx.measureText(label).width) + 40, 312);
+  const x0 = (320 - w) / 2;
+  ctx.fillStyle = '#ffd23f';
+  ctx.strokeStyle = 'rgba(10,14,22,0.85)';
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.roundRect(x0, 6, w, 56, 26);
+  ctx.moveTo(146, 62);
+  ctx.lineTo(160, 96);
+  ctx.lineTo(174, 62);
+  ctx.closePath();
+  ctx.stroke();
+  ctx.fill();
+  ctx.fillStyle = '#0a0e16';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(label, 160, 35);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  // Taille constante à l'écran et dessiné par-dessus le décor : on le repère de loin, même derrière une maison.
+  const mat = new THREE.SpriteMaterial({ map: tex, depthWrite: false, depthTest: false, transparent: true, sizeAttenuation: false });
+  const s = new THREE.Sprite(mat);
+  s.center.set(0.5, 0);
+  s.scale.set(0.12, 0.039, 1);
+  s.renderOrder = 20;
+  return s;
 }
 
 /**
@@ -82,23 +123,26 @@ export class Multiplayer {
    * Monde ouvert : rejoint la salle conseillée par le serveur (celle des amis d'abord), sinon la première
    * salle non pleine de la zone, sinon en ouvre une. Compte requis.
    */
-  async connectPublic(routeId: string, name: string, friendId?: string): Promise<void> {
+  async connectPublic(routeId: string, name: string, friendId?: string, weather?: RideWeather): Promise<void> {
     // Rejoindre un ami : si le serveur refuse (il est parti, salle pleine), on le dit au lieu de rouler ailleurs.
     const pick: PublicPick = await this.net.pickPublicRoom(routeId, friendId).catch((e: Error) => {
       if (friendId || /Connexion requise/.test(e.message)) throw e;
       return { friends: [] };
     });
-    const welcome = await this.net.joinPublic(routeId, { displayName: name, ...(pick.near ? { near: pick.near } : {}) }, pick.roomId);
+    const welcome = await this.net.joinPublic(routeId, { displayName: name, ...(pick.near ? { near: pick.near } : {}) }, pick.roomId, weather);
     this.isPublic = true;
     this.friendsHere = pick.roomId && pick.roomId === welcome.roomId ? pick.friends : [];
     this.proximity = welcome.proximity;
     this.weather = welcome.options.weather ?? null;
   }
 
-  /** Monde ouvert : à envoyer une fois, à la première image où le coureur roule vraiment. */
+  /**
+   * Jeu chargé : à envoyer une fois (monde ouvert : à la première image où le coureur roule vraiment). Le serveur annonce
+   * alors l'arrivée aux autres ; avant, le coureur n'apparaît ni dans « À proximité » ni (monde ouvert) sur la route.
+   */
   private readySent = false;
   notifyReady(): void {
-    if (this.readySent || !this.isPublic) return;
+    if (this.readySent) return;
     this.readySent = true;
     this.net.ready();
   }
@@ -176,9 +220,10 @@ export class Multiplayer {
 
   /** Avatars des autres coureurs, à leur position interpolée. */
   render(dt: number, camera: THREE.Camera, refM = 0): InterpolatedRider[] {
+    // Coureurs dont le jeu charge encore : ni montrés, ni comptés à proximité.
     const riders = this.net
       .getAllInterpolated()
-      .filter((r) => r.id !== this.net.selfId)
+      .filter((r) => r.id !== this.net.selfId && !this.net.roster.get(r.id)?.loading)
       .map((r) => toRouteFrame(r, this.track.length, !!this.track.route.loop, refM));
     const seen = new Set<string>();
     const L = this.track.length;
@@ -206,9 +251,11 @@ export class Multiplayer {
         rem.avatar.update(dt, r.cadence, r.speedMs, r.pose);
       }
       rem.avatar.setShadows(dist < 40);
+      this.updateMarker(rem, r.id, r.name, root.position, dist);
     }
     for (const [id, rem] of this.remotes) {
       if (seen.has(id)) continue;
+      this.dropMarker(rem);
       this.scene.remove(rem.avatar.root);
       this.remotes.delete(id);
       this.gaps.delete(id);
@@ -216,8 +263,31 @@ export class Multiplayer {
     return riders;
   }
 
+  /** Ami de la salle : repère au-dessus de sa tête (créé ou retiré si l'amitié change en cours de route). */
+  private updateMarker(rem: Remote, id: string, name: string, at: THREE.Vector3, dist: number): void {
+    const friend = this.net.friendIds.has(id);
+    if (!friend) return this.dropMarker(rem);
+    if (!rem.label) {
+      rem.label = friendMarker(name);
+      this.scene.add(rem.label);
+    }
+    rem.label.position.set(at.x, at.y + 2.1, at.z);
+    rem.label.visible = dist > FRIEND_MARKER_NEAR_M && dist < FRIEND_MARKER_FAR_M;
+  }
+
+  private dropMarker(rem: Remote): void {
+    if (!rem.label) return;
+    this.scene.remove(rem.label);
+    rem.label.material.map?.dispose();
+    rem.label.material.dispose();
+    rem.label = null;
+  }
+
   async dispose(): Promise<void> {
-    for (const rem of this.remotes.values()) this.scene.remove(rem.avatar.root);
+    for (const rem of this.remotes.values()) {
+      this.dropMarker(rem);
+      this.scene.remove(rem.avatar.root);
+    }
     this.remotes.clear();
     await this.net.leave().catch(() => undefined);
   }

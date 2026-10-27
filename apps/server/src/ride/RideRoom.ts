@@ -30,6 +30,7 @@ import {
   type RideWeather,
   type TuneEvent,
   type RosterMsg,
+  type FriendsHereMsg,
   type WelcomeMsg,
 } from '@allezrobert/shared';
 import { RideSimulation, resolveRideOptions, type SimRider } from './simulation.ts';
@@ -178,6 +179,10 @@ export class RideRoom extends Room {
   private readonly kickedUsers = new Set<string>();
   private readonly chatTimes = new Map<string, number[]>();
   private readonly rideOnTimes = new Map<string, number>();
+  /** Comptes amis de chaque compte présent (chargés à l'entrée) : jamais envoyés, seulement les coureurs qui en découlent. */
+  private readonly friendsByUser = new Map<string, Set<string>>();
+  /** Dernière liste d'amis présents envoyée à chaque client (envoi seulement si elle change). */
+  private readonly sentFriends = new WeakMap<Client, string>();
   private readonly snapBuf: number[] = [];
 
   override onCreate(options: unknown): void {
@@ -189,9 +194,11 @@ export class RideRoom extends Room {
     const route = pub ? this.svc.routes.get(o.routeId ?? '') : this.svc.routes.resolve(o.routeId);
     if (!route || (pub && !this.svc.publicRoutes.includes(route.data.id))) throw new ServerError(404, 'Zone inconnue');
     this.routeId = route.data.id;
+    // Monde ouvert : heure et météo du premier joueur (il a ouvert la salle en cliquant sur « Rejoindre »), figées pour
+    // tous ceux qui arrivent ensuite ; à défaut, l'heure de Paris et un ciel clair.
     const opts = resolveRideOptions(
       (pub
-        ? { routeId: route.data.id, mode: 'free', allowGuests: false, stickyGroup: false, draftingStrength: 1, aiRiders: PUBLIC_AMBIENT_AI, weather: publicWeather() }
+        ? { routeId: route.data.id, mode: 'free', allowGuests: false, stickyGroup: false, draftingStrength: 1, aiRiders: PUBLIC_AMBIENT_AI, weather: o.weather ?? publicWeather() }
         : o) as Parameters<typeof resolveRideOptions>[0],
       route.data.id,
     );
@@ -201,7 +208,10 @@ export class RideRoom extends Room {
     this.inviteCode = this.svc.registry.newInviteCode();
     opts.inviteCode = this.inviteCode;
     this.sim = new RideSimulation(route.data, opts, Date.now(), { guestMaxWkg: this.svc.guestMaxWkg, seed: this.roomId });
-    if (pub) this.sim.segmentsEnabled = false;
+    if (pub) {
+      this.sim.segmentsEnabled = false;
+      this.sim.hideLoading = true;
+    }
     const entry = this.svc.registry.register({
       roomId: this.roomId,
       inviteCode: this.inviteCode,
@@ -212,7 +222,9 @@ export class RideRoom extends Room {
       hostUserId: undefined,
       public: pub,
     });
-    if (pub) entry.positions = () => this.sim.riders.filter((r) => r.kind !== 'ai').map((r) => ({ riderId: r.id, userId: r.userId, d: this.sim.forwardPositionOf(r.id) ?? 0, dir: r.dir }));
+    if (pub)
+      entry.positions = () =>
+        this.sim.riders.filter((r) => r.kind !== 'ai').map((r) => ({ riderId: r.id, userId: r.userId, d: this.sim.forwardPositionOf(r.id) ?? 0, dir: r.dir, ...(r.loading ? { loading: true } : {}) }));
     if (!pub) void this.setPrivate(true);
     this.maxMessagesPerSecond = 60;
     this.registerHandlers();
@@ -299,6 +311,10 @@ export class RideRoom extends Room {
       }
       if (auth.userId) {
         this.riderByUser.set(auth.userId, rider.id);
+        if (this.svc.friendsOf) {
+          const ids = await this.svc.friendsOf(auth.userId).catch(() => []);
+          this.friendsByUser.set(auth.userId, new Set(ids));
+        }
         if (kind === 'human') {
           const pbs = await this.svc.personalBests(auth.userId, this.routeId).catch(() => []);
           this.sim.setPersonalBests(auth.userId, pbs);
@@ -322,7 +338,7 @@ export class RideRoom extends Room {
     }
     client.send(NET_MSG.welcome, this.welcome(auth.role, rider.id));
     this.broadcastRoster();
-    this.broadcastEvent({ kind: 'join', riderId: rider.id, name: rider.name }, client);
+    // L'arrivée n'est annoncée qu'une fois son jeu chargé (`ready`), pas pendant le chargement.
     this.notifyCompanions(auth.userId);
     this.updateLock();
   }
@@ -366,6 +382,7 @@ export class RideRoom extends Room {
     this.sim.removeRider(riderId);
     if (ud.userId) {
       this.riderByUser.delete(ud.userId);
+      this.friendsByUser.delete(ud.userId);
       this.svc.registry.leave(this.roomId, ud.userId, ud.role);
     }
     this.broadcastEvent({ kind: 'leave', riderId });
@@ -538,10 +555,16 @@ export class RideRoom extends Room {
       if (ev) this.broadcastEvent(ev);
     });
 
-    // Jeu prêt (monde ouvert) : le coureur est placé dans la roue de son ami (ou à l'arrière du groupe).
+    // Jeu chargé : l'arrivée est annoncée aux autres ; monde ouvert : le coureur apparaît alors sur la route, dans la
+    // roue de son ami (ou à l'arrière du groupe).
     this.onMessage(NET_MSG.ready, (client: Client) => {
       const ud = client.userData as ClientData | undefined;
-      if (this.isPublic && ud?.riderId) this.sim.placeNow(ud.riderId);
+      if (!ud?.riderId || ud.role === 'companion') return;
+      if (this.isPublic) this.sim.placeNow(ud.riderId);
+      if (!this.sim.markReady(ud.riderId)) return;
+      const rider = this.sim.get(ud.riderId);
+      if (rider) this.broadcastEvent({ kind: 'join', riderId: rider.id, name: rider.name }, client);
+      this.broadcastRoster();
     });
 
     // Demi-tour (monde ouvert) : le coureur repart en sens inverse depuis le même endroit.
@@ -652,6 +675,21 @@ export class RideRoom extends Room {
 
   private broadcastRoster(): void {
     this.broadcast(NET_MSG.roster, this.rosterMsg());
+    this.syncFriends();
+  }
+
+  /** Envoie à chaque client les coureurs de la salle qui sont ses amis (s'ils ont changé). */
+  private syncFriends(): void {
+    for (const c of this.clients) {
+      const ud = c.userData as ClientData | undefined;
+      const mine = ud?.userId ? this.friendsByUser.get(ud.userId) : undefined;
+      if (!mine) continue;
+      const riderIds = this.sim.riders.filter((r) => r.userId && mine.has(r.userId)).map((r) => r.id);
+      const key = riderIds.join(',');
+      if (this.sentFriends.get(c) === key) continue;
+      this.sentFriends.set(c, key);
+      c.send(NET_MSG.friends, { riderIds } satisfies FriendsHereMsg);
+    }
   }
 
   private welcome(role: RideRole, selfId: string): WelcomeMsg {

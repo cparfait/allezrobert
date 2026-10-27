@@ -3,6 +3,11 @@
 .mm-badge { display: inline-grid; place-items: center; min-width: 18px; height: 18px; margin-left: 7px; padding: 0 5px; box-sizing: border-box; border-radius: 9px;
   background: #ef4444; color: #fff; font-size: 11px; font-weight: 800; letter-spacing: 0; vertical-align: 2px; box-shadow: 0 0 0 2px rgba(8, 11, 18, 0.9); }
 .mm-badge[hidden] { display: none; }
+/* Amis connectés : pastille verte (point lumineux + nombre). */
+.mm-online { display: inline-flex; align-items: center; gap: 4px; height: 18px; margin-left: 7px; padding: 0 6px 0 5px; box-sizing: border-box; border-radius: 9px;
+  background: rgba(34, 197, 94, 0.18); color: #86efac; font-size: 11px; font-weight: 800; letter-spacing: 0; vertical-align: 2px; }
+.mm-online::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: #22c55e; box-shadow: 0 0 6px #22c55e; }
+.mm-online[hidden] { display: none; }
 .mm-tab[data-tab='friends'] { white-space: nowrap; }
 
 .fr-panel h3:first-child, .fr-h3-first { margin-top: 0; }

@@ -285,6 +285,9 @@ describe('salles publiques (serveur réel)', () => {
     // Chat1 et Chat2 peuvent atterrir dans une salle déjà occupée par d'autres : on vérifie la salle commune.
     const wb = await b.joinPublic(ZONE);
     expect(a.roomId).toBe(wb.roomId);
+    a.ready();
+    b.ready();
+    await sleep(150);
     const got = waitFor(b, (ev) => ev.kind === 'chat' && ev.text === 'Salut Longchamp !' && ev);
     a.chat('Salut Longchamp !');
     expect(await got).toMatchObject({ kind: 'chat' });
@@ -381,6 +384,9 @@ describe('salles publiques (serveur réel)', () => {
     open.push(f, s);
     const wf = await f.joinPublic(ROUTE);
     await s.joinPublic(ROUTE);
+    f.ready();
+    s.ready();
+    await sleep(150);
     const room = [...activeRooms].find((r) => r.roomId === wf.roomId)!;
     room.sim.get(f.selfId)!.state.distM = 12_000;
     room.sim.get(f.selfId)!.state.speedMs = 9;
@@ -417,14 +423,20 @@ describe('salles publiques (serveur réel)', () => {
     expect(placed.dir).toBe(1);
     expect(Math.abs(placed.state.distM - (12_000 - 4))).toBeLessThan(15);
     expect(placed.state.speedMs).toBeGreaterThan(4);
-    expect(Math.abs(room.sim.separationM(me.selfId, f.selfId) - 4)).toBeLessThan(3);
+    // Jeu en chargement : pas encore sur la route, ni sur la carte, ni « proche » de quiconque ; mais l'amie est annoncée.
+    expect(room.sim.separationM(me.selfId, f.selfId)).toBe(Infinity);
+    expect((await detail(tS)).dots).toHaveLength(2);
+    const fView = await detail(tF);
+    expect(fView.riders).toBe(3);
+    expect(fView.friends).toEqual([expect.objectContaining({ name: 'Moi2', loading: true })]);
+    expect((await api<PublicZoneInfo[]>(tF!, 'GET', '/public/zones')).body.find((z) => z.routeId === ROUTE)?.arriving).toEqual(['Moi2']);
 
     // Le jeu met du temps à démarrer : pendant ce temps l'amie a avancé de 300 m. Quand le jeu envoie « prêt », on est
     // replacé dans sa roue (et pas 300 m derrière) ; la télémétrie seule ne suffit pas.
     room.sim.get(f.selfId)!.state.distM += 300;
     me.sendTelemetry({ watts: 0, cadence: 0, gear: 12, steer: 0 });
     await sleep(200);
-    expect(room.sim.separationM(me.selfId, f.selfId)).toBeGreaterThan(250);
+    expect(room.sim.get(f.selfId)!.state.distM - placed.state.distM).toBeGreaterThan(250);
     me.ready();
     await until(() => room.sim.separationM(me.selfId, f.selfId) < 20);
     expect(Math.abs(room.sim.separationM(me.selfId, f.selfId) - 4)).toBeLessThan(3);
@@ -435,6 +447,8 @@ describe('salles publiques (serveur réel)', () => {
     const nw = new RideNetClient({ endpoint, token: tN!, autoRejoin: false });
     open.push(nw);
     await nw.joinPublic(ROUTE, { near: f.selfId }, wf.roomId);
+    nw.ready();
+    await until(() => !room.sim.get(nw.selfId)!.loading);
     const next = room.sim.get(nw.selfId)!;
     expect(next.dir).toBe(-1);
     expect(Math.abs(room.sim.separationM(nw.selfId, f.selfId) - 4)).toBeLessThan(3);
@@ -451,11 +465,54 @@ describe('salles publiques (serveur réel)', () => {
     expect((await api(tU!, 'GET', '/public/zones/zone-inventee')).status).toBe(404);
   });
 
+  it('premier joueur : son heure et sa météo pour tous ; arrivée d’un ami annoncée une fois son jeu chargé', async () => {
+    const ROUTE = 'cote-de-la-madeleine';
+    const [tA, tB, tC] = await Promise.all(['Ouvreur', 'Copain', 'Passant'].map(login));
+    await befriend(tA!, tB!);
+    const [a, b, c] = [tA, tB, tC].map((token) => new RideNetClient({ endpoint, token: token!, autoRejoin: false }));
+    open.push(a!, b!, c!);
+    const night = { hour: 22.5, clouds: 0.8, rain: 0.4, fog: 0.1, windMs: 6, evolving: false, seed: 4242 };
+    const wa = await a!.joinPublic(ROUTE, {}, undefined, night);
+    expect(wa.options.weather).toMatchObject(night);
+    a!.ready();
+    // Les suivants ne changent rien au ciel de la salle.
+    const wb = await b!.joinPublic(ROUTE, {}, wa.roomId, { ...night, hour: 9, rain: 0 });
+    expect(wb.options.weather).toEqual(wa.options.weather);
+    await until(() => a!.friendIds.has(b!.selfId));
+    expect([...a!.friendIds]).toEqual([b!.selfId]);
+    expect(a!.roster.get(b!.selfId)?.loading).toBe(true);
+    const joins: string[] = [];
+    a!.on('event', (ev) => ev.kind === 'join' && joins.push(ev.riderId));
+    await sleep(200);
+    // Jeu de l'ami en chargement : pas d'annonce, pas sur la route.
+    expect(joins).toEqual([]);
+    expect(a!.latest?.riders.some((r) => r.id === b!.selfId)).toBe(false);
+    b!.ready();
+    await until(() => joins.length > 0);
+    expect(joins).toEqual([b!.selfId]);
+    await until(() => !!a!.latest?.riders.some((r) => r.id === b!.selfId));
+    expect(a!.roster.get(b!.selfId)?.loading).toBeUndefined();
+    // Un inconnu n'est l'ami de personne.
+    await c!.joinPublic(ROUTE, {}, wa.roomId);
+    await sleep(200);
+    expect(c!.friendIds.size).toBe(0);
+    expect(a!.friendIds.has(c!.selfId)).toBe(false);
+    // Départ de l'ami : l'événement arrive avant la nouvelle liste (son nom est encore connu).
+    const left = waitFor(a!, (ev) => ev.kind === 'leave' && ev.riderId === b!.selfId && a!.roster.has(ev.riderId));
+    await b!.leave();
+    expect(await left).toBe(true);
+    await until(() => a!.friendIds.size === 0);
+    expect(a!.friendIds.size).toBe(0);
+    await Promise.all([a!.leave(), c!.leave()]);
+  });
+
   it('le chat n’est lu que par les coureurs proches', async () => {
     const [a, near, far] = await Promise.all(['Parle', 'Proche', 'Loin'].map(rider));
     const w = await a!.joinPublic('chevreuse-boucle');
     await near!.joinPublic('chevreuse-boucle');
     await far!.joinPublic('chevreuse-boucle');
+    for (const c of [a!, near!, far!]) c.ready();
+    await sleep(150);
     expect(w.proximity?.chatM).toBe(PUBLIC_CHAT_RADIUS_M);
     const room = [...activeRooms].find((r) => r.roomId === w.roomId)!;
     const farId = far!.selfId;
@@ -506,6 +563,7 @@ describe('salles publiques (serveur réel)', () => {
   it('demi-tour : le coureur apparaît en sens inverse dans l’instantané', async () => {
     const a = await rider('Retour');
     await a.joinPublic('chevreuse-boucle');
+    a.ready();
     a.startTelemetry(() => ({ watts: 200, cadence: 85, gear: 12, steer: 0 }));
     await sleep(1500);
     expect(a.getSelfSnapshot()?.dir).toBeUndefined();

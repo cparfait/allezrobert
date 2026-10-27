@@ -43,6 +43,8 @@ export interface RideServices {
   rewardEvents?(userId: string, events: TuneEvent[]): Promise<unknown>;
   /** Montée chronométrée bouclée en salle (cumul, récompenses « kom » et « kom-5 »). */
   rewardKom?(userId: string): Promise<unknown>;
+  /** Comptes amis (amitiés acceptées) : annonces d'arrivée / de départ et repères des amis en salle. */
+  friendsOf?(userId: string): Promise<string[]>;
   log(level: 'debug' | 'info' | 'warn' | 'error', msg: string): void;
 }
 

@@ -24,11 +24,13 @@ import {
   type PublicZoneInfo,
   type CompanionCommand,
   type CompanionStateMsg,
+  type FriendsHereMsg,
   type HostOptions,
   type RideEventMsg,
   type RideJoinOptions,
   type RideRole,
   type RideRoomOptions,
+  type RideWeather,
   type RiderSnapshot,
   type RosterEntry,
   type RosterMsg,
@@ -74,6 +76,8 @@ export interface RideNetEvents {
   companion: CompanionCommand;
   /** État du jeu reçu par l'appli compagnon. */
   companionState: CompanionStateMsg;
+  /** Ses amis présents dans la salle (identifiants de coureur), à chaque changement. */
+  friends: FriendsHereMsg;
   connection: { state: ConnectionState; code?: number; reason?: string };
   error: { code: string | number; message: string };
 }
@@ -104,6 +108,8 @@ export class RideNetClient {
   private readonly rosterByN = new Map<number, RosterEntry>();
   hostId = '';
   latest: WorldSnapshotMsg | null = null;
+  /** Coureurs de la salle qui sont ses amis (envoyés par le serveur). */
+  readonly friendIds = new Set<string>();
 
   constructor(opts: RideNetClientOptions) {
     this.options = {
@@ -171,12 +177,13 @@ export class RideNetClient {
   /**
    * Monde ouvert : rejoint la salle publique d'une zone (compte requis). `roomId` = salle conseillée par
    * `POST /api/public/pick` (celle des amis) ; si elle est devenue pleine ou a disparu, on retombe sur
-   * `joinOrCreate` (première salle non pleine de la zone, sinon une nouvelle).
+   * `joinOrCreate` (première salle non pleine de la zone, sinon une nouvelle). `weather` : heure et météo de la salle si
+   * c'est elle qui l'ouvre (figées ensuite pour tous ceux qui arrivent), ignorées sinon.
    */
-  async joinPublic(routeId: string, join: Omit<RideJoinOptions, 'inviteCode' | 'token' | 'role'> = {}, roomId?: string): Promise<WelcomeMsg> {
+  async joinPublic(routeId: string, join: Omit<RideJoinOptions, 'inviteCode' | 'token' | 'role'> = {}, roomId?: string, weather?: RideWeather): Promise<WelcomeMsg> {
     const token = await this.resolveToken();
     this.setState('connecting');
-    const opts = { ...join, routeId, ...(token ? { token } : {}) };
+    const opts = { ...join, routeId, ...(weather ? { weather } : {}), ...(token ? { token } : {}) };
     let room: Room | undefined;
     if (roomId) room = await this.sdk.joinById(roomId, opts).catch(() => undefined);
     room ??= await this.sdk.joinOrCreate(PUBLIC_ROOM, opts);
@@ -289,6 +296,11 @@ export class RideNetClient {
         if (ev.kind === 'regroup' && this.welcome) this.welcome.regrouping = ev.active;
         if (ev.kind === 'error') this.emitter.emit('error', { code: ev.code, message: ev.message });
         this.emitter.emit('event', ev);
+      });
+      room.onMessage(NET_MSG.friends, (m: FriendsHereMsg) => {
+        this.friendIds.clear();
+        for (const id of m.riderIds) this.friendIds.add(id);
+        this.emitter.emit('friends', m);
       });
       room.onMessage(NET_MSG.companion, (cmd: CompanionCommand) => this.emitter.emit('companion', cmd));
       room.onMessage(NET_MSG.companionState, (s: CompanionStateMsg) => this.emitter.emit('companionState', s));
@@ -456,7 +468,7 @@ export class RideNetClient {
     this.reconciler.reset();
   }
 
-  /** Monde ouvert : le jeu est chargé et le coureur commence à rouler (le serveur le place alors près de son ami). */
+  /** Le jeu est chargé et le coureur commence à rouler : arrivée annoncée ; monde ouvert : placé près de son ami. */
   ready(): void {
     this.room?.send(NET_MSG.ready, {});
   }

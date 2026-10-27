@@ -23,6 +23,7 @@ import {
   friendLink,
   initials,
   modeLabel,
+  onlineCount,
   presenceLabel,
   presenceParts,
   remainingLabel,
@@ -171,7 +172,12 @@ export class FriendsPanel {
 
   badgeHtml(): string {
     const n = this.hooks.loggedIn() ? badgeCount(this.data) : 0;
-    return `<span class="mm-badge" ${n ? '' : 'hidden'}>${n}</span>`;
+    const on = this.hooks.loggedIn() ? onlineCount(this.data) : 0;
+    return `<span class="mm-online" ${on ? '' : 'hidden'} title="${this.onlineTitle(on)}">${on}</span><span class="mm-badge" ${n ? '' : 'hidden'}>${n}</span>`;
+  }
+
+  private onlineTitle(n: number): string {
+    return fr() ? `${n} ami${n > 1 ? 's' : ''} en ligne` : `${n} friend${n > 1 ? 's' : ''} online`;
   }
 
   // ————————————————————————————————————————————— Rendu
@@ -253,6 +259,13 @@ export class FriendsPanel {
     if (badge) {
       badge.hidden = !n;
       badge.textContent = String(n);
+    }
+    const online = root.querySelector<HTMLElement>('.mm-tab[data-tab="friends"] .mm-online');
+    const on = this.hooks.loggedIn() ? onlineCount(this.data) : 0;
+    if (online) {
+      online.hidden = !on;
+      online.textContent = String(on);
+      online.title = this.onlineTitle(on);
     }
     const bar = root.querySelector<HTMLElement>('#m-friendbar');
     if (bar) bar.innerHTML = this.tabOpen ? '' : this.bannerHtml();

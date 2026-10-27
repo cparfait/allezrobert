@@ -22,7 +22,7 @@ export interface RideEntry {
   public?: boolean;
   createdAt: number;
   /** Salle publique : humains présents et leur position (m, sens de l'itinéraire) pour la carte du monde ouvert. */
-  positions?: () => Array<{ riderId: string; userId: string | undefined; d: number; dir: 1 | -1 }>;
+  positions?: () => Array<{ riderId: string; userId: string | undefined; d: number; dir: 1 | -1; loading?: boolean }>;
   /** userId → rôle tenu dans la sortie (le plus « fort » si plusieurs connexions). */
   participants: Map<string, RideRole>;
   /** userId → identifiant de son coureur dans la salle (identité vocale anonyme en salle publique). */

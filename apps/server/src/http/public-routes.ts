@@ -37,6 +37,9 @@ export function publicRoutes(ctx: AppContext): express.Router {
     return new Map(rel.filter((x) => x.status === 'accepted').map((x) => [x.otherId, { id: x.id, name: x.name }]));
   }
 
+  /** Comptes de la salle dont le jeu charge encore (session lancée, pas encore sur la route). */
+  const loadingIn = (e: RideEntry): Set<string> => new Set((e.positions?.() ?? []).filter((p) => p.loading && p.userId).map((p) => p.userId as string));
+
   const friendsIn = (e: RideEntry, friends: Map<string, string>): string[] => {
     const out: string[] = [];
     for (const [uid, role] of e.participants) {
@@ -55,6 +58,10 @@ export function publicRoutes(ctx: AppContext): express.Router {
         riders: rooms.reduce((n, e) => n + riderCountOf(e), 0),
         rooms: rooms.length,
         friends: rooms.flatMap((e) => friendsIn(e, friends)),
+        arriving: rooms.flatMap((e) => {
+          const loading = loadingIn(e);
+          return [...loading].map((uid) => friends.get(uid)).filter((n): n is string => !!n);
+        }),
       };
     });
     res.setHeader('Cache-Control', 'no-store');
@@ -74,11 +81,13 @@ export function publicRoutes(ctx: AppContext): express.Router {
       for (const p of e.positions?.() ?? []) {
         const f = p.userId ? friends.get(p.userId) : undefined;
         const d = Math.round(p.d * 10) / 10;
-        dots.push({ d, dir: p.dir, ...(f ? { friend: true, name: f.name } : {}) });
-        if (f) here.push({ id: f.id, name: f.name, d, dir: p.dir, full });
+        // Jeu encore en chargement : pas encore sur la route (ni point sur la carte), mais l'ami est annoncé.
+        if (!p.loading) dots.push({ d, dir: p.dir, ...(f ? { friend: true, name: f.name } : {}) });
+        if (f) here.push({ id: f.id, name: f.name, d, dir: p.dir, full, ...(p.loading ? { loading: true } : {}) });
       }
     }
-    const body: PublicZoneDetail = { routeId, lengthM: route.summary.lengthM, loop: route.data.loop, riders: dots.length, rooms: rooms.length, dots, friends: here };
+    const riders = rooms.reduce((n, e) => n + riderCountOf(e), 0);
+    const body: PublicZoneDetail = { routeId, lengthM: route.summary.lengthM, loop: route.data.loop, riders, rooms: rooms.length, dots, friends: here };
     res.setHeader('Cache-Control', 'no-store');
     res.json(body);
   });

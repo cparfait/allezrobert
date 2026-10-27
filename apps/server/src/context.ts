@@ -139,6 +139,9 @@ export function rideServicesFrom(ctx: AppContext): RideServices {
       return (await ctx.repos.personalBests(userId, rankRouteId(routeId))).map((b) => [b.segmentId, b.bestMs] as [string, number]);
     },
     recordEffort: (e) => ctx.repos.recordSegmentEffort({ ...e, routeId: rankRouteId(e.routeId) }),
+    async friendsOf(userId) {
+      return (await ctx.friends.repo.relationsOf(userId)).filter((r) => r.status === 'accepted').map((r) => r.otherId);
+    },
     log: ctx.log,
   };
 }
