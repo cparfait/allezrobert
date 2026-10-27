@@ -253,8 +253,8 @@ export async function runCinematic(engine: Engine, world: World, track: RouteTra
 
   /**
    * Chaque vélo suit sa propre trajectoire (route plus écarts de la formation) : cap le long du
-   * chemin parcouru, inclinaison ∝ vitesse × variation du cap (comme en sortie, bornée), vitesse
-   * des roues ; gestes du plan (mains, regard, danseuse, roue libre, pédalier).
+   * chemin parcouru, vélo à la verticale (aucune inclinaison : un basculement n'est pas réaliste
+   * dans l'intro), vitesse des roues ; gestes du plan (mains, regard, danseuse, roue libre, pédalier).
    */
   const placeRiders = (t: number, dt: number) => {
     riders.forEach((a, i) => {
@@ -264,7 +264,6 @@ export async function runCinematic(engine: Engine, world: World, track: RouteTra
       const h1 = Math.atan2(_p1.x - _p0.x, _p1.z - _p0.z);
       const h2 = Math.atan2(_p2.x - _p1.x, _p2.z - _p1.z);
       const speed = Math.hypot(_p2.x - _p0.x, _p2.z - _p0.z) / (2 * PATH_DT);
-      const bank = THREE.MathUtils.clamp((-wrapAngle(h2 - h1) / PATH_DT) * speed * 0.08, -0.35, 0.35);
       const f = formation(i, t);
       const grade = track.sample(leaderD(t) - f.back, _s).grade;
       a.root.position.set(_p1.x, _p1.y + 0.06, _p1.z);
@@ -275,7 +274,7 @@ export async function runCinematic(engine: Engine, world: World, track: RouteTra
       // Effort d'endurance tranquille (respiration posée), plus marqué en danseuse.
       a.setEffort?.(g.effort, g.effort);
       a.setGesture?.({ hands: g.hands, yaw: g.yaw, pitch: g.pitch, crank: g.crank });
-      a.update(dt, g.cadence, speed, g.pose, bank);
+      a.update(dt, g.cadence, speed, g.pose, 0);
     });
   };
 
