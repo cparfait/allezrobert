@@ -8,6 +8,7 @@ import { orientedBox, planRoof, roofBuffers, flatRoof, ridgeLine, roofEdge } fro
 import { meuliere } from './meuliere.ts';
 import { FootprintIndex } from './footprints.ts';
 import { wallGroundOffset } from './facadeGround.ts';
+import { flatRoofKind, leanSide, LEAN_PITCH } from './flatRoofs.ts';
 import { LazyTexture } from '../engine/textures.ts';
 
 /** Textures photo CC0 (Poly Haven) des façades et toits, chargées une fois et partagées. */
@@ -45,6 +46,8 @@ const TERRACOTTA = ['#a87a6a', '#9d7062', '#b18574', '#94695c', '#a67d6e', '#b38
 const MECHANICAL_TILES = ['#9a5a40', '#8c5038', '#a0614a', '#94553d'];
 /** Bac acier et fibrociment : gris clair à gris-vert, parfois vert ou brun. */
 const METAL_ROOFS = ['#8d9294', '#9da1a0', '#7f8784', '#6f7a72', '#84776a'];
+/** Toits-terrasses : gravillons gris-beige, étanchéité bitumée par endroits. */
+const TERRACES = ['#8e8a82', '#9a948a', '#85817a', '#a09a8e'];
 const SHUTTERS = ['#7d8f9b', '#5f7d66', '#e8e4da', '#8a5a3c', '#4b6a8a', '#a7b8a0'];
 /**
  * Style local des bâtiments BD TOPO (Limagne, Livradois) : enduits à la chaux ocrés, rosés ou grège,
@@ -437,7 +440,9 @@ export class Buildings {
     const isTile = step(float(0.5), kind).mul(step(kind, float(1.5)));
     const isSlate = step(float(1.5), kind).mul(step(kind, float(2.5)));
     // 3 : bac acier / fibrociment (hangars, BD TOPO « zinc, aluminium » et « béton »)
-    const isMetal = step(float(2.5), kind);
+    const isMetal = step(float(2.5), kind).mul(step(kind, float(3.5)));
+    // 4 : toit-terrasse (gravillons, étanchéité bitumée)
+    const isTerrace = step(float(3.5), kind);
     // binfo.z = fenêtres (0 aveugle, 1 fenêtres, 2 annexe) + 4 × indice d'archétype (0 = style historique).
     // Codes entiers lus avec une marge : interpolés entre sommets, ils valent tantôt n − ε, tantôt n + ε, et un
     // floor() brut changeait d'avis d'un pixel à l'autre (fenêtres mouchetées, archétype qui saute).
@@ -716,8 +721,13 @@ export class Buildings {
     let col = mix(wall, tiles, isTile);
     col = mix(col, slate, isSlate);
     col = mix(col, metal, isMetal);
+    // Toit-terrasse : gravillons (grain de 4 cm, fondu au loin), plaques d'étanchéité bitumée, salissures.
+    const grain = mix(hash(floor(positionWorld.xz.mul(25)).dot(vec2(1, 157))).mul(0.3).add(0.85), float(1), smoothstep(0.015, 0.05, pix));
+    const bitumen = smoothstep(0.2, 0.45, mx_noise_float(positionWorld.mul(0.15).add(7)));
+    const gravel = base.mul(grain).mul(nBig.mul(0.2).add(0.88));
+    col = mix(col, mix(gravel, vec3(0.11, 0.11, 0.12), bitumen.mul(0.85)), isTerrace);
     // Sous-face du débord : face arrière des pans (tournés vers le haut), enduit à la teinte du mur (accent).
-    const isRoof = isTile.add(isSlate).add(isMetal).min(1);
+    const isRoof = isTile.add(isSlate).add(isMetal).add(isTerrace).min(1);
     const underside = isRoof.mul(float(1).sub(float(frontFacing)));
     col = mix(col, accent.mul(nBig.mul(0.1).add(0.95)), underside);
     m.colorNode = col;
@@ -725,7 +735,7 @@ export class Buildings {
       .mul(inWin.mul(lit).mul(isWall).mul(2.2))
       .add(vec3(1.0, 0.8, 0.55).mul(shopGlass.mul(shopLit).mul(isWall).mul(1.6)));
     const glazed = inWin.max(shopGlass).max(rdcWin).mul(isWall);
-    m.roughnessNode = mix(mix(mix(mix(float(0.93), float(0.15), glazed), float(0.75), isTile.add(isSlate).min(1)).sub(isSlate.mul(0.2)), mix(float(0.55), float(0.42), isZinc), isMetal), float(0.93), underside);
+    m.roughnessNode = mix(mix(mix(mix(float(0.93), float(0.15), glazed), float(0.75), isTile.add(isSlate).min(1)).sub(isSlate.mul(0.2)), mix(float(0.55), float(0.42), isZinc), isMetal), float(0.95), isTerrace.max(underside));
     // Relief : cartes de normales de la texture correspondante (sauf sur les vitres).
     const nrm = (t: LazyTexture, size: number) => t.sample(vec2(u, v).div(size)).rgb;
     const wallN = nrm(T.render.normal, 2.0)
@@ -734,9 +744,9 @@ export class Buildings {
       .add(meul.normalTS.mul(0.5).add(0.5).mul(isStone))
       .add(nrm(T.brick.normal, 2.0).mul(isBrick))
       .add(nrm(T.stone.normal, 2.3).mul(isRubble));
-    const roofN = nrm(T.tiles.normal, 3.2).mul(isTile).add(nrm(T.slate.normal, 1.5).mul(isSlate)).add(vec3(0.5, 0.5, 1).mul(isMetal));
+    const roofN = nrm(T.tiles.normal, 3.2).mul(isTile).add(nrm(T.slate.normal, 1.5).mul(isSlate)).add(vec3(0.5, 0.5, 1).mul(isMetal.add(isTerrace)));
     const flatN = vec3(0.5, 0.5, 1);
-    const nCol = mix(mix(wallN, flatN, inWin.max(inFrame).max(inShutter).max(shopFront).max(rdcWin)), roofN, isTile.add(isSlate).add(isMetal).min(1));
+    const nCol = mix(mix(wallN, flatN, inWin.max(inFrame).max(inShutter).max(shopFront).max(rdcWin)), roofN, isRoof);
     m.normalNode = normalMap(mix(nCol, flatN, underside), vec2(0.8, 0.8));
     m.metalnessNode = isMetal.mul(mix(float(0.25), float(0.35), isZinc)).mul(float(1).sub(underside));
     // Les emprises OSM n'ont pas d'orientation garantie : on rend les deux faces.
@@ -752,6 +762,18 @@ export class Buildings {
     const wc = new THREE.Color();
     const acc = new THREE.Color();
     const soffit = new THREE.Color();
+    // Centres et surfaces des bâtiments de la tuile : un appentis s'adosse au plus proche plus grand que lui.
+    const centres = new Float64Array(tile.features.buildings.length * 3);
+    tile.features.buildings.forEach((b, k) => {
+      const n = b.pts.length / 2;
+      let x = 0;
+      let z = 0;
+      for (let i = 0; i < b.pts.length; i += 2) {
+        x += (b.pts[i] as number) / n;
+        z += (b.pts[i + 1] as number) / n;
+      }
+      centres.set([x, z, Math.abs(polygonArea(b.pts))], k * 3);
+    });
     for (const bld of tile.features.buildings) {
       if (bld.pts.length < 6) continue;
       // Sol affiché sous l'emprise : la hauteur des données part du point bas (`y`), mais en pente le
@@ -799,18 +821,24 @@ export class Buildings {
       // Zinc : toit métallique d'un archétype parisien (BD TOPO « zinc, aluminium »), pente de toit en tuile.
       const zinc = !!arch && archZinc && roofMat === 'metal';
       const minPitch = metal && !zinc ? 6 : 15;
-      // Monopente (annexes, hangars) : un seul pan sur le rectangle orienté, murs montés jusqu'au pan.
-      const skillion = shape === 'skillion' && box.hw <= 20 && (bld.roofHeight ?? 0) > 0.3;
+      const footArea = Math.abs(polygonArea(bld.pts));
+      // Sans pente mesurée : appentis de tuiles, bac acier presque plat ou toit-terrasse (voir flatRoofs.ts).
+      const measuredSkillion = shape === 'skillion' && box.hw <= 20 && (bld.roofHeight ?? 0) > 0.3;
+      const flatKind = !measuredSkillion && (shape === 'flat' || box.hw > 20 || bld.roofHeight === 0) ? flatRoofKind(roofMat, bld.kind, footArea) : null;
+      const lean = flatKind === 'lean' && box.hw <= 20;
+      // Monopente (annexes, hangars, appentis) : un seul pan sur le rectangle orienté, murs montés jusqu'au pan.
+      const skillion = measuredSkillion || lean;
       // Toit sur l'emprise réelle (squelette droit) : deux pans si elle est presque rectangulaire, croupes sinon.
       const plan =
-        skillion || shape === 'flat' || box.hw > 20 || bld.roofHeight === 0
+        skillion || flatKind
           ? null
           : planRoof(bld.pts, { overhang: 0.4, gableOverhang: 0.25, gabled: !HIPPED.has(shape), maxInset: 15, ...(bld.ridgeShort ? { ridgeShort: true } : {}) });
       // Pente : hauteur de toit (OSM, ou mesurée au LiDAR) sur la demi-largeur effective (là où les pans se rejoignent), bornée.
       const halfW = plan ? Math.max(plan.tEnd - plan.overhang, 0.5) : 0;
       const wantH = Math.min(bld.roofHeight ?? Math.tan((42 * Math.PI) / 180) * halfW, total * 0.6);
       const pitch = plan ? Math.min(Math.max((Math.atan(wantH / halfW) * 180) / Math.PI, minPitch), 55) : 0;
-      const roofH = plan ? Math.tan((pitch * Math.PI) / 180) * halfW : skillion ? Math.min(bld.roofHeight as number, total * 0.5) : 0;
+      // Appentis : pente de 12° sur toute la largeur.
+      const roofH = plan ? Math.tan((pitch * Math.PI) / 180) * halfW : lean ? Math.tan((LEAN_PITCH * Math.PI) / 180) * 2 * box.hw : skillion ? Math.min(bld.roofHeight as number, total * 0.5) : 0;
       // Égout au moins à hauteur d'étage au-dessus du sol amont : hauteurs LiDAR / BD TOPO souvent basses
       // (≈ 2 m pour un plain-pied) : 2,7 m au rez-de-chaussée, 2,6 m par niveau en plus, plafonné à trois niveaux et à 1,25 × la hauteur
       // mesurée (nombre d'étages parfois incohérent : « 11 étages » pour 14 m).
@@ -837,9 +865,11 @@ export class Buildings {
       if (arch) wc.offsetHSL((r() - 0.5) * 0.02, (r() - 0.5) * 0.1, (r() - 0.5) * 0.08);
       acc.set(arch ? pick(arch.shutters.length ? arch.shutters : DOORS) : pick(bld.bdtopo ? SHUTTERS_LOCAL : SHUTTERS));
       // Monopente : haut des murs sur le plan du toit (pente selon la largeur, ou la longueur si faîtage court).
-      const slopeU = !!bld.ridgeShort;
-      const sx = slopeU ? box.ux : -box.uz;
-      const sz = slopeU ? box.uz : box.ux;
+      const slopeU = !!bld.ridgeShort && !lean;
+      // Appentis : côté haut adossé au bâtiment voisin.
+      const side = lean ? leanSide(box.cx, box.cz, slopeU ? box.ux : -box.uz, slopeU ? box.uz : box.ux, footArea, centres) : 1;
+      const sx = (slopeU ? box.ux : -box.uz) * side;
+      const sz = (slopeU ? box.uz : box.ux) * side;
       const half = slopeU ? box.hl : box.hw;
       const roofAt = (x: number, z: number) => wallTop + ((((x - box.cx) * sx + (z - box.cz) * sz) / half + 1) / 2) * roofH;
       // Style local (BD TOPO) : génoise sous les égouts des toits de tuiles, porte d'entrée côté rue.
@@ -888,22 +918,24 @@ export class Buildings {
       const wallType = arch ? WALL_CODE[arch.wall] : stones ? 1 : rubble ? 3 : brick ? 2 : 0;
       paint(w, wc, 0, acc, wallType, isUtility ? 2 : 1, archId ? ARCH_IDS.indexOf(archId) + 1 : 0);
       parts.push(w);
-      const slate = roofMat === 'slate';
+      // Toit-terrasse : sans pente, hors bac acier (le béton est compté avec le métal ci-dessus).
+      const terrace = !plan && !skillion && flatKind !== 'steel';
+      const slate = roofMat === 'slate' && !terrace;
       // Tuiles : brun-rouge (tuile plate d'Île-de-France) ou orangé (tuile mécanique / canal, BD TOPO) ;
       // archétype : sa palette pour le zinc et la tuile.
       const archTile = !!arch && (archRoof === 'flat_tile' || archRoof === 'mechanical_tile' || archRoof === 'canal_tile');
-      const roofColour = zinc
-        ? pick(arch!.roof.colours)
-        : metal
-          ? pick(METAL_ROOFS)
-          : slate
-            ? SLATE
-            : !plan && !skillion
-              ? '#6f6c66'
+      const roofColour = terrace
+        ? pick(TERRACES)
+        : zinc
+          ? pick(arch!.roof.colours)
+          : metal
+            ? pick(METAL_ROOFS)
+            : slate
+              ? SLATE
               : archTile
                 ? pick(arch!.roof.colours)
                 : pick(arch && roofMat === 'tiles' ? MECHANICAL_TILES : roofMat === 'tiles' ? TERRACOTTA : ROOFS);
-      const roofKind = metal ? 3 : slate || (!plan && !skillion) ? 2 : 1;
+      const roofKind = terrace ? 4 : metal ? 3 : slate ? 2 : 1;
       const buf = plan ? roofBuffers(plan, wallTop, pitch) : null;
       const roofPart = buf ? buf.roof : flatRoof(bld.pts, wallTop);
       if (skillion) for (let i = 0; i < roofPart.pos.length; i += 3) roofPart.pos[i + 1] = roofAt(roofPart.pos[i] as number, roofPart.pos[i + 2] as number);
@@ -922,6 +954,15 @@ export class Buildings {
             parts.push(g);
           }
         }
+      }
+      if (terrace) {
+        // Acrotère : muret de 45 cm dans le prolongement des murs, même enduit, sans baie (uv décalés hors
+        // soubassement) ; vu de la terrasse, sa face arrière.
+        const parapet = walls(bld.pts, wallTop, 0.45);
+        const pu = parapet.getAttribute('uv');
+        for (let i = 0; i < pu.count; i++) pu.setY(i, pu.getY(i) + 20);
+        paint(parapet, wc, 0, acc, wallType, 0);
+        parts.push(parapet);
       }
       if (buf && buf.gables.pos.length) {
         // Pignons (murs triangulaires) : même enduit que les murs.
