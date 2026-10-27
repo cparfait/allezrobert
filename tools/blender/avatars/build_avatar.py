@@ -60,6 +60,8 @@ ap.add_argument('--cup', type=float, default=-1.0)      # macro MPFB « cupsize 
 ap.add_argument('--humerus', type=float, default=-1.0)  # remplace HUMERUS_SCALE
 ap.add_argument('--reach', type=float, default=-1.0)     # remplace ARM_REACH
 ap.add_argument('--forearm', type=float, default=1.0)   # facteur de longueur de l'avant-bras
+ap.add_argument('--neck', type=float, default=3.0)      # intensité de FEMALE_NECK (variante féminine)
+ap.add_argument('--skull', type=float, default=0.8)     # arrière du crâne moins profond (SKULL_BACK), 0 : base MPFB
 args = ap.parse_args(argv)
 OUT = os.path.abspath(args.out)
 os.makedirs(OUT, exist_ok=True)
@@ -98,6 +100,13 @@ HUMERUS_SCALE = 1.28                      # humérus × 1,28 : 0,25 → 0,32 m (
 BELLY_DAMP = {'sex-': 0.6}   # atténuation du ventre rentré (déplacement vers le dos) des cibles, 0 à 1
 NECK_DAMP = {'sex-': 0.6}                 # atténuation de la cible « sex− » sur le cou (0 à 1)
 NECK_KEY_SCALE = {'neckWidth-': 0.5}      # « neckWidth− » : moitié de l'amplitude
+# Cou du modèle féminin, d'après des photos de profil : cou plus fin et gorge creusée sous la
+# mâchoire (le bas du visage se fondait dans le cou). Cibles MPFB figées dans le maillage de base.
+FEMALE_NECK = [('neck/neck-double-decr', 1.0), ('neck/neck-scale-depth-decr', 0.6), ('neck/neck-scale-horiz-decr', 0.4)]
+# Arrière du crâne de la base MPFB trop profond (forme de casque, tête nue) : ramené vers l'avant, hommes et femmes.
+SKULL_BACK = [('head/head-back-scale-depth-decr', 1.0)]
+# Nuque creusée sous l'occiput (m) : la base masculine y fait une pente droite et bombée jusqu'au dos.
+NAPE_DEPTH = {'male': 0.014, 'female': 0.0}
 ELBOW_POLE = Vector((0.36, 1.05, 0.30))   # direction des coudes (repère client, côté gauche)
 
 # Curseurs de forme (docs/AVATARS.md § 4) : nom → (cibles « + », cibles « − »), chemins relatifs
@@ -413,6 +422,39 @@ def flatten_glutes(body, base_m):
     body.data.update()
 
 
+def hollow_nape(body, base_m, depth):
+    """Nuque creusée : les sommets de l'arrière du cou, entre la base du cou et la base du crâne,
+    sont avancés au plus de `depth` (vers le milieu du cou) ; même déplacement dans toutes les cibles."""
+    if depth <= 0:
+        return
+    nk = base_m['neck_01'][0].translation
+    hd = base_m['head'][0].translation
+    mw = body.matrix_world
+    imw = mw.inverted()
+    blocks = list(body.data.shape_keys.key_blocks)
+    shifts = []
+    n = 0
+    for v in blocks[0].data:
+        c = mw @ v.co
+        t = (c.z - nk.z) / max(hd.z - nk.z, 1e-6)
+        if not 0.0 < t < 1.0:
+            shifts.append(None)
+            continue
+        axis_y = nk.y + (hd.y - nk.y) * t
+        prof = math.sin(math.pi * t ** 0.75) ** 1.5             # maximum aux deux tiers de la hauteur
+        back = smoothstep(0.0, 0.03, c.y - axis_y)               # +Y : vers le dos
+        side = max(0.0, min(1.0, (0.075 - abs(c.x)) / 0.045))
+        w = prof * back * side
+        n += w > 0.05
+        shifts.append(Vector((0.0, -depth * w, 0.0)) if w > 0 else None)
+    print(f'nuque : {n} sommets, creusée de {100 * depth:.1f} cm au plus')
+    for kb in blocks:
+        for d, sh in zip(kb.data, shifts):
+            if sh is not None:
+                d.co = d.co + imw.to_3x3() @ sh
+    body.data.update()
+
+
 # ---------------------------------------------------------------------------------------------
 # Corps de base, curseurs, aides
 # ---------------------------------------------------------------------------------------------
@@ -438,6 +480,13 @@ def build_base(HS, TS, LS):
     # Macros figées dans le maillage de base : les cibles des curseurs s'y ajoutent.
     TS.bake_targets(body)
     targets_dir = LS.get_mpfb_data('targets')
+    base_fix = [(p, w * args.skull) for p, w in SKULL_BACK if args.skull > 0]
+    if args.variant == 'female' and args.neck > 0:
+        base_fix += [(p, w * args.neck) for p, w in FEMALE_NECK]
+    if base_fix:
+        for p, w in base_fix:
+            TS.load_target(body, os.path.join(targets_dir, p + '.target.gz'), weight=w, name='fix_' + os.path.basename(p))
+        TS.bake_targets(body)
     for name, (plus, minus) in SLIDERS.items():
         for sign, paths in (('+', plus), ('-', minus)):
             for p in paths:
@@ -521,6 +570,7 @@ def build_base(HS, TS, LS):
         k.value = 0.0
     expression_shapes(body, TS, LS)
     flatten_glutes(body, base_m)
+    hollow_nape(body, base_m, NAPE_DEPTH[args.variant])
     for m in list(body.modifiers):
         if m.type == 'MASK':
             body.modifiers.remove(m)

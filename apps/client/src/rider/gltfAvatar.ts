@@ -190,8 +190,10 @@ const AERO_FULL = 13;
 const RELAX_IN = 5.5;
 const RELAX_OUT = 6.5;
 const RELAX_EFFORT = 0.45;
-/** Relevé du cou (rad) d'une morphologie entièrement féminine : tête ≈ 3 cm plus en arrière. */
-const NECK_LIFT = -0.12;
+/** Relevé du cou (rad) d'une morphologie entièrement féminine : tête nettement plus en arrière. */
+const NECK_LIFT = -0.24;
+/** Raccourcissement du cou (fraction) d'une morphologie entièrement féminine ; la tête garde sa taille. */
+const NECK_SHORTEN = 0.3;
 const X_AXIS = new THREE.Vector3(1, 0, 0);
 const Y_AXIS = new THREE.Vector3(0, 1, 0);
 const Z_AXIS = new THREE.Vector3(0, 0, 1);
@@ -316,6 +318,7 @@ const _v4 = new THREE.Vector3();
 const _q1 = new THREE.Quaternion();
 const _q2 = new THREE.Quaternion();
 const _q3 = new THREE.Quaternion();
+const _q4 = new THREE.Quaternion();
 const _m = new THREE.Matrix4();
 const _bx = new THREE.Vector3();
 const _by = new THREE.Vector3();
@@ -801,6 +804,7 @@ export class GltfRiderAvatar implements RiderAvatarLike {
   private readonly headgear: Record<'road' | 'aero' | 'glasses', THREE.Object3D[]> = { road: [], aero: [], glasses: [] };
   /** Casque et lunettes masqués (éditeur de visage). */
   private bareHead = false;
+  private headHidden = false;
   private crankAngle = Math.random() * Math.PI * 2;
   private wheelAngle = 0;
   private poseBlend = 0; // 0 assis → 1 danseuse
@@ -1306,9 +1310,14 @@ export class GltfRiderAvatar implements RiderAvatarLike {
     _q1.slerpQuaternions(_id, _q2, 0.5);
     _q2.multiplyQuaternions(_q1, this.mQ.neck);
     // Buste moins profond des profils féminins : la tête déborde plus devant le torse ; cou relevé, tête au regard inchangé (absolue).
-    if (this.feminine > 0) _q2.premultiply(_q3.setFromAxisAngle(X_AXIS, ((globalThis as unknown as { __lift?: number }).__lift ?? NECK_LIFT) * this.feminine));
+    // (_q4, pas _q3 : _q3 porte headTarget.)
+    if (this.feminine > 0) _q2.premultiply(_q4.setFromAxisAngle(X_AXIS, ((globalThis as unknown as { __lift?: number }).__lift ?? NECK_LIFT) * this.feminine));
     this.setModelQ('neck', _q2);
     this.setModelQ('head', headTarget);
+    // Cou raccourci des profils féminins : l'os du cou est réduit, la tête (son enfant) garde sa taille.
+    const neckK = 1 - NECK_SHORTEN * this.feminine;
+    this.bones.neck.scale.setScalar(this.headHidden ? 1e-3 : neckK);
+    this.bones.head.scale.setScalar(1 / neckK);
 
     // --- Bras : mains fixes sur le cintre (ou les prolongateurs).
     for (const s of SIDES) {
@@ -1368,7 +1377,7 @@ export class GltfRiderAvatar implements RiderAvatarLike {
     const key = JSON.stringify(Object.entries(values).filter(([, v]) => v).sort());
     if (key === this.faceKey) return;
     this.faceKey = key;
-    this.feminine = this.kind === 'mpfb' ? THREE.MathUtils.clamp(-(values.sex ?? 0), 0, 1) : 0;
+    this.feminine = this.kind === 'female' ? 1 : this.kind === 'mpfb' ? THREE.MathUtils.clamp(-(values.sex ?? 0), 0, 1) : 0;
     for (const it of this.identityMeshes) {
       const id = it.base.userData.identity as IdentityTargets;
       const w = id.names.map((n) => {
@@ -1438,6 +1447,7 @@ export class GltfRiderAvatar implements RiderAvatarLike {
    * (son enfant) avec lui ; sinon le moignon du cou resterait dans le champ, sous la caméra.
    */
   setHeadVisible(on: boolean): void {
+    this.headHidden = !on;
     this.bones.neck.scale.setScalar(on ? 1 : 1e-3);
   }
 

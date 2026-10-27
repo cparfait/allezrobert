@@ -53,7 +53,7 @@ async function main(): Promise<void> {
   if (!ok) return;
   if (params.has('peloton')) return peloton(engine);
   const host = new AtelierHost(engine);
-  const look = (tune: string[], extra: Partial<AvatarLook> = {}): AvatarLook => ({ ...DEFAULT_LOOK, ...(params.has('female') ? { face: encodeFace({ sex: -1 }) } : {}), ...(DEMO_BIKE ? { bikeModel: DEMO_BIKE } : {}), tune, ...extra });
+  const look = (tune: string[], extra: Partial<AvatarLook> = {}): AvatarLook => ({ ...DEFAULT_LOOK, ...(params.has('female') ? { face: encodeFace({ sex: -1, ...(params.has('cou') ? { neckWidth: Number(params.get('cou')) } : {}) }) } : {}), ...(DEMO_BIKE ? { bikeModel: DEMO_BIKE } : {}), tune, ...extra });
   const render = async (st: AtelierState) => {
     host.set(st);
     // Familles et textures : quelques images pour que tout arrive.
@@ -149,8 +149,8 @@ async function main(): Promise<void> {
     // Profil du coureur au téléobjectif, angles mesurés sur le squelette ; &zoom : buste et tête ;
     // &silhouette : coureur et vélo en noir sur fond blanc (comparaison avec des photos).
     const tune = ['tune-pa-eclair', 'tune-wh-dt-arc50', 'tune-rd-noir', 'tune-bo-rouge', 'tune-ty-gp5000'];
-    const view: Shot = params.has('zoom') ? { cam: [3.4, 1.32, 0.2], look: [0, 1.3, 0.16], fov: 12 } : { cam: [6, 1.2, 0.12], look: [0, 1.15, 0.12], fov: 13 };
-    const st: AtelierState = { look: look(tune), focus: 'overview', rider: true, yaw: 0, view };
+    const view: Shot = params.has('tete') ? { cam: [1.1, 1.53, 0.2], look: [0, 1.53, 0.2], fov: 16 } : params.has('zoom') ? { cam: [3.4, 1.32, 0.2], look: [0, 1.3, 0.16], fov: 12 } : { cam: [6, 1.2, 0.12], look: [0, 1.15, 0.12], fov: 13 };
+    const st: AtelierState = { look: look(tune), focus: 'overview', rider: true, yaw: 0, view, bareHead: params.has('tete') };
     host.set(st);
     const h = host as unknown as { scene: THREE.Scene; avatar: { root: THREE.Object3D }; bikeRoot: THREE.Object3D };
     if (params.has('silhouette')) {
@@ -166,6 +166,7 @@ async function main(): Promise<void> {
     const pel = P('pelvis'), sp3 = P('spine_03'), nk = P('neck_01'), hd = P('head'), sh = P('upperarm_l');
     const m = { dos: ang(pel, sp3), hautDuDos: ang(sp3, nk), cou: ang(nk, hd), devant: (hd.z - sh.z) * 100, dessus: (hd.y - sh.y) * 100 };
     (window as unknown as { __mesure: unknown }).__mesure = m;
+    (window as unknown as { __root: unknown }).__root = root; // squelette, pour mesurer les angles à la console
     if (!params.has('silhouette')) {
       const g = c.getContext('2d') as CanvasRenderingContext2D;
       g.fillStyle = 'rgba(10,13,20,0.75)';
