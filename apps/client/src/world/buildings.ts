@@ -141,9 +141,10 @@ function paint(geo: THREE.BufferGeometry, base: THREE.Color, kind: number, accen
  * un archétype) ; `bstyle` = (style local, hauteur du mur, drapeaux : 1 génoise + 2 côté rue +
  * 4 vitrine, travée de la porte d'entrée + 1 ou 0). Avec `groundAt`, la façade part du sol le plus haut
  * le long de chaque mur (voir facadeGround.ts) : uv.y et la hauteur du mur sont comptés depuis ce sol,
- * uv.y est négatif sur le soubassement découvert.
+ * uv.y est négatif sur le soubassement découvert. Avec `topAt` (monopentes), le haut de chaque mur suit
+ * la hauteur donnée à ses extrémités (au-dessus de la base) au lieu de `height`.
  */
-function walls(pts: number[], base: number, height: number, style?: WallStyle, groundAt?: (x: number, z: number) => number): THREE.BufferGeometry {
+function walls(pts: number[], base: number, height: number, style?: WallStyle, groundAt?: (x: number, z: number) => number, topAt?: (x: number, z: number) => number): THREE.BufferGeometry {
   const bayM = style?.bayM ?? 3.1;
   const floorCode = style?.floorM ? Math.min(style.floorM, 9.99) / 10 : 0;
   const n = pts.length / 2;
@@ -161,12 +162,14 @@ function walls(pts: number[], base: number, height: number, style?: WallStyle, g
     const bz = pts[b * 2 + 1] as number;
     const len = Math.hypot(bx - ax, bz - az);
     if (len < 0.05) continue;
-    const top = base + height;
-    const off = groundAt ? wallGroundOffset(ax, az, bx, bz, base, height, groundAt) : 0;
-    const h = height - off;
+    const hA = topAt ? topAt(ax, az) : height;
+    const hB = topAt ? topAt(bx, bz) : height;
+    const top = base + Math.min(hA, hB);
+    const off = groundAt ? wallGroundOffset(ax, az, bx, bz, base, Math.min(hA, hB), groundAt) : 0;
+    const h = top - base - off;
     const bays = len >= 2.6 ? Math.max(1, Math.floor((len - 0.6) / bayM)) : 0;
-    pos.push(ax, base, az, ax, top, az, bx, base, bz, bx, base, bz, ax, top, az, bx, top, bz);
-    uvs.push(0, -off, 0, h, len, -off, len, -off, 0, h, len, h);
+    pos.push(ax, base, az, ax, base + hA, az, bx, base, bz, bx, base, bz, ax, base + hA, az, bx, base + hB, bz);
+    uvs.push(0, -off, 0, hA - off, len, -off, len, -off, 0, hA - off, len, hB - off);
     const genoise = style?.local && style.eave?.(bx - ax, bz - az) ? 1 : 0;
     const street = bays > 0 && style?.street?.((ax + bx) / 2, (az + bz) / 2) ? 1 : 0;
     const flags = genoise + 2 * street + (street && style?.shop ? 4 : 0);
@@ -217,21 +220,6 @@ function walls(pts: number[], base: number, height: number, style?: WallStyle, g
   g.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
   g.setAttribute('facade', new THREE.Float32BufferAttribute(fac, 2));
   g.setAttribute('bstyle', new THREE.Float32BufferAttribute(sty, 4));
-  g.computeVertexNormals();
-  return g;
-}
-
-/** Murs dont le haut suit une hauteur variable (`heightAt` au-dessus de la base), pour les monopentes. */
-function slopedWalls(pts: number[], base: number, heightAt: (x: number, z: number) => number): THREE.BufferGeometry {
-  const g = walls(pts, base, 1);
-  const pos = g.getAttribute('position');
-  const uvA = g.getAttribute('uv');
-  for (let i = 0; i < pos.count; i++) {
-    if (pos.getY(i) <= base + 1e-6) continue;
-    const h = heightAt(pos.getX(i), pos.getZ(i));
-    pos.setY(i, base + h);
-    uvA.setY(i, h);
-  }
   g.computeVertexNormals();
   return g;
 }
@@ -827,7 +815,9 @@ export class Buildings {
       const footArea = Math.abs(polygonArea(bld.pts));
       // Sans pente mesurée : appentis de tuiles, bac acier presque plat ou toit-terrasse (voir flatRoofs.ts).
       const measuredSkillion = shape === 'skillion' && box.hw <= 20 && (bld.roofHeight ?? 0) > 0.3;
-      const flatKind = !measuredSkillion && (shape === 'flat' || box.hw > 20 || bld.roofHeight === 0) ? flatRoofKind(roofMat, bld.kind, footArea) : null;
+      // (une monopente non mesurée ou trop large est traitée comme un toit plat ; les grands bâtiments en pente
+      // ont leur toit, le squelette droit allant jusqu'au faîtage)
+      const flatKind = !measuredSkillion && (shape === 'flat' || shape === 'skillion' || bld.roofHeight === 0) ? flatRoofKind(roofMat, bld.kind, footArea) : null;
       const lean = flatKind === 'lean' && box.hw <= 20;
       // Monopente (annexes, hangars, appentis) : un seul pan sur le rectangle orienté, murs montés jusqu'au pan.
       const skillion = measuredSkillion || lean;
@@ -835,7 +825,7 @@ export class Buildings {
       const plan =
         skillion || flatKind
           ? null
-          : planRoof(bld.pts, { overhang: 0.4, gableOverhang: 0.25, gabled: !HIPPED.has(shape), maxInset: 15, ...(bld.ridgeShort ? { ridgeShort: true } : {}) });
+          : planRoof(bld.pts, { overhang: 0.4, gableOverhang: 0.25, gabled: !HIPPED.has(shape), maxInset: Math.max(15, box.hw + 1), ...(bld.ridgeShort ? { ridgeShort: true } : {}) });
       // Pente : hauteur de toit (OSM, ou mesurée au LiDAR) sur la demi-largeur effective (là où les pans se rejoignent), bornée.
       const halfW = plan ? Math.max(plan.tEnd - plan.overhang, 0.5) : 0;
       const wantH = Math.min(bld.roofHeight ?? Math.tan((42 * Math.PI) / 180) * halfW, total * 0.6);
@@ -913,7 +903,8 @@ export class Buildings {
           if (door) style.door = door;
         }
       }
-      const w = skillion ? slopedWalls(bld.pts, base, (x, z) => roofAt(x, z) - base) : walls(bld.pts, base, wallH + 0.3, style, this.groundAt);
+      // Monopente : haut des murs sur le pan ; même façade que les autres murs (porte côté rue, sol amont).
+      const w = walls(bld.pts, base, wallH + 0.3, style, this.groundAt, skillion ? (x, z) => roofAt(x, z) - base : undefined);
       // Granges, fermes et églises : enduit à pierres vues plutôt que meulière ou enduit lisse.
       const rubble = !arch && !stones && !brick && !bld.colour && (bld.kind === 'barn' || bld.kind === 'farm' || isChurch) && r() < 0.7;
       const wallType = arch ? WALL_CODE[arch.wall] : stones ? 1 : rubble ? 3 : brick ? 2 : 0;

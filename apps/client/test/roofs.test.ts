@@ -182,6 +182,19 @@ describe('toits sur emprise réelle', () => {
     check(pts, plan);
   });
 
+  it('grange de 50 × 80 m : faîtage complet (retrait maximal à la demi-largeur), pas de terrasson', () => {
+    const barn = [0, 0, 80, 0, 80, 50, 0, 50];
+    for (const gabled of [true, false]) {
+      const plan = planRoof(barn, { overhang: O, gableOverhang: OG, gabled, maxInset: 25 + 1 });
+      if (!plan) throw new Error('plan nul');
+      expect(plan.tEnd).toBeCloseTo(O + 25, 4);
+      expect(plan.gables.length > 0).toBe(gabled);
+      check(barn, plan);
+      // sommets au faîtage : une ligne (z = 25), pas une surface plate
+      for (let i = 0; i < plan.roof.length; i += 5) if (Math.abs((plan.roof[i + 2] as number) - plan.tEnd) < 1e-6) expect(plan.roof[i + 1]).toBeCloseTo(25, 4);
+    }
+  });
+
   it('T, U, trapèze et polygone sens horaire', () => {
     const T = [0, 0, 12, 0, 12, 4, 8, 4, 8, 12, 4, 12, 4, 4, 0, 4];
     const U = [0, 0, 14, 0, 14, 10, 10, 10, 10, 4, 4, 4, 4, 10, 0, 10];
