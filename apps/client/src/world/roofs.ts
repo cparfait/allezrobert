@@ -243,7 +243,8 @@ export interface RoofOptions {
 /**
  * Arêtes de pignon (petits côtés) si l'emprise est proche de son rectangle orienté. Emprise non
  * convexe (décrochements de façade, fréquents dans la BD TOPO) : seules les arêtes au bout du
- * rectangle sont des pignons, pas un décrochement en milieu de mur.
+ * rectangle sont des pignons, pas un décrochement en milieu de mur. Emprise en L, T, U… : pignons
+ * en bout d'aile (wingEnds). `convex` faux : planRoof vérifie le toit obtenu.
  */
 function gableEdges(ring: P2[], ridgeShort = false): { edges: boolean[]; convex: boolean } | null {
   const n = ring.length;
@@ -251,7 +252,10 @@ function gableEdges(ring: P2[], ridgeShort = false): { edges: boolean[]; convex:
   for (const p of ring) flat.push(p.x, p.z);
   const box = orientedBox(flat);
   if (box.hl < 1 || box.hw < 1) return null;
-  if (ringArea(ring) / (4 * box.hl * box.hw) < 0.85) return null;
+  if (ringArea(ring) / (4 * box.hl * box.hw) < 0.85) {
+    const ends = wingEnds(ring);
+    return ends ? { edges: ends, convex: false } : null;
+  }
   let convex = true;
   for (let i = 0; i < n; i++) {
     const a = ring[(i - 1 + n) % n] as P2;
@@ -279,6 +283,35 @@ function gableEdges(ring: P2[], ridgeShort = false): { edges: boolean[]; convex:
     if (isG) ends |= mid > 0 ? 1 : 2;
   }
   return ends === 3 ? { edges: g, convex } : null;
+}
+
+/**
+ * Bouts d'aile d'une emprise en L, T, U… : arête entre deux angles saillants presque droits, ses
+ * voisines parallèles et de sens opposé (elle ferme l'aile), pas plus longue que l'aile n'est large
+ * à 20 % près ni que sa plus longue voisine. Null s'il n'y en a aucune.
+ */
+function wingEnds(ring: P2[]): boolean[] | null {
+  const n = ring.length;
+  const edge = (i: number) => {
+    const a = ring[((i % n) + n) % n] as P2;
+    const b = ring[(((i + 1) % n) + n) % n] as P2;
+    const len = Math.hypot(b.x - a.x, b.z - a.z);
+    return { x: (b.x - a.x) / len, z: (b.z - a.z) / len, len };
+  };
+  const g: boolean[] = [];
+  let count = 0;
+  for (let i = 0; i < n; i++) {
+    const e = edge(i);
+    const p = edge(i - 1);
+    const q = edge(i + 1);
+    const square = Math.abs(p.x * e.x + p.z * e.z) < 0.17 && Math.abs(q.x * e.x + q.z * e.z) < 0.17;
+    const closes = p.x * q.x + p.z * q.z < -0.95;
+    const salient = p.x * e.z - p.z * e.x > 0 && e.x * q.z - e.z * q.x > 0;
+    const isG = square && closes && salient && e.len > 1 && e.len <= 1.2 * Math.min(p.len, q.len) && e.len < Math.max(p.len, q.len);
+    g.push(isG);
+    if (isG) count++;
+  }
+  return count ? g : null;
 }
 
 function solve(l1: Line, l2: Line, c1: number, c2: number): P2 | null {

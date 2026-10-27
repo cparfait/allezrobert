@@ -112,11 +112,10 @@ describe('toits sur emprise réelle', () => {
     check(rect, plan);
   });
 
-  it('bâtiment en L : pans dans l’emprise, noue au coin rentrant, deux pans → croupes', () => {
+  it('bâtiment en L : pans dans l’emprise, noue au coin rentrant, pignons en bout d’aile', () => {
     for (const gabled of [true, false]) {
       const plan = planRoof(L, { overhang: O, gableOverhang: OG, gabled });
       if (!plan) throw new Error('plan nul');
-      expect(plan.gables.length).toBe(0);
       expect(plan.tEnd).toBeCloseTo(O + 2, 4);
       check(L, plan);
       // Aucun sommet dans le coin vide de l'L (au-delà du débord).
@@ -125,6 +124,36 @@ describe('toits sur emprise réelle', () => {
         const z = plan.roof[i + 1] as number;
         expect(x > 4 + O * 1.5 && z > 4 + O * 1.5).toBe(false);
       }
+      if (!gabled) {
+        expect(plan.gables.length).toBe(0);
+        continue;
+      }
+      // Pignons sur les deux bouts d'aile (x = 10, z ∈ [0, 4] et z = 10, x ∈ [0, 4]), nulle part ailleurs.
+      expect(plan.gables.length).toBeGreaterThan(0);
+      const ends = new Set<string>();
+      for (let i = 0; i < plan.gables.length; i += 4) {
+        const x = plan.gables[i] as number;
+        const z = plan.gables[i + 1] as number;
+        // le pignon s'étend du débord de l'égout au-delà des angles
+        const onA = Math.abs(x - 10) < 1e-6 && z > -O - 1e-6 && z < 4 + O + 1e-6;
+        const onB = Math.abs(z - 10) < 1e-6 && x > -O - 1e-6 && x < 4 + O + 1e-6;
+        expect(onA || onB).toBe(true);
+        ends.add(onA ? 'A' : 'B');
+      }
+      expect(ends.size).toBe(2);
+    }
+  });
+
+  it('T et U à deux pans : un pignon par bout d’aile', () => {
+    const T = [0, 0, 12, 0, 12, 4, 8, 4, 8, 12, 4, 12, 4, 4, 0, 4];
+    const U = [0, 0, 14, 0, 14, 10, 10, 10, 10, 4, 4, 4, 4, 10, 0, 10];
+    for (const [pts, n] of [[T, 3], [U, 2]] as const) {
+      const plan = planRoof(pts, { overhang: O, gableOverhang: OG, gabled: true });
+      if (!plan) throw new Error('plan nul');
+      check(pts, plan);
+      // au moins un triangle de pignon par bout d'aile
+      expect(plan.gables.length).toBeGreaterThan(0);
+      expect(plan.gables.length / 12).toBeGreaterThanOrEqual(n);
     }
   });
 
