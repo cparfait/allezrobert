@@ -145,7 +145,7 @@ export type ShoeMarkId = (typeof SHOE_MARKS)[number]['id'];
 export type JerseyStyle = 'uni' | 'bandes' | 'pois' | 'manches' | 'moitie' | 'degrade' | 'chevrons';
 
 /** Nombre de coiffures (`AvatarLook.hairStyle`) ; 3 = rasé (les noms sont dans l'éditeur de visage). */
-export const HAIR_STYLE_COUNT = 10;
+export const HAIR_STYLE_COUNT = 12;
 
 export interface AvatarLook {
   skin: string;

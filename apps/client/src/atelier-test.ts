@@ -53,7 +53,7 @@ async function main(): Promise<void> {
   if (!ok) return;
   if (params.has('peloton')) return peloton(engine);
   const host = new AtelierHost(engine);
-  const look = (tune: string[], extra: Partial<AvatarLook> = {}): AvatarLook => ({ ...DEFAULT_LOOK, ...(params.has('female') ? { face: encodeFace({ sex: -1, ...(params.has('cou') ? { neckWidth: Number(params.get('cou')) } : {}) }) } : {}), ...(DEMO_BIKE ? { bikeModel: DEMO_BIKE } : {}), tune, ...extra });
+  const look = (tune: string[], extra: Partial<AvatarLook> = {}): AvatarLook => ({ ...DEFAULT_LOOK, ...(params.has('female') ? { face: encodeFace({ sex: -1, ...(params.has('cou') ? { neckWidth: Number(params.get('cou')) } : {}) }) } : {}), ...(DEMO_BIKE ? { bikeModel: DEMO_BIKE } : {}), ...(params.has('coiffure') ? { hairStyle: Number(params.get('coiffure')), hair: '#3a2416' } : {}), tune, ...extra });
   const render = async (st: AtelierState) => {
     host.set(st);
     // Familles et textures : quelques images pour que tout arrive.
@@ -150,7 +150,7 @@ async function main(): Promise<void> {
     // &silhouette : coureur et vélo en noir sur fond blanc (comparaison avec des photos).
     const tune = ['tune-pa-eclair', 'tune-wh-dt-arc50', 'tune-rd-noir', 'tune-bo-rouge', 'tune-ty-gp5000'];
     const view: Shot = params.has('tete') ? { cam: [1.1, 1.53, 0.2], look: [0, 1.53, 0.2], fov: 16 } : params.has('zoom') ? { cam: [3.4, 1.32, 0.2], look: [0, 1.3, 0.16], fov: 12 } : { cam: [6, 1.2, 0.12], look: [0, 1.15, 0.12], fov: 13 };
-    const st: AtelierState = { look: look(tune), focus: 'overview', rider: true, yaw: 0, view, bareHead: params.has('tete') };
+    const st: AtelierState = { look: look(tune), focus: 'overview', rider: true, yaw: 0, view, bareHead: params.has('tete') && !params.has('casque') };
     host.set(st);
     const h = host as unknown as { scene: THREE.Scene; avatar: { root: THREE.Object3D }; bikeRoot: THREE.Object3D };
     if (params.has('silhouette')) {

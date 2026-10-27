@@ -19,7 +19,7 @@ const JERSEYS = ['#1f6feb', '#d62828', '#ffffff', '#2a9d8f', '#f4a261', '#111111
 const ACCENTS = ['#ffd23f', '#ffffff', '#111111', '#d62828', '#1f6feb', '#2a9d8f'];
 const SHOES = ['#f2f2f2', '#111418', '#1e5bd8', '#c0392b', '#d7f205', '#ff7a1a'];
 /** Coiffures proposées au tutoriel (les autres sont dans l'éditeur de visage du garage). */
-const HAIR_CHOICES: Array<[number, string, string]> = [[0, 'Courts', 'Short'], [4, 'Dégradé', 'Fade'], [5, 'Bouclés', 'Curly'], [8, 'Coiffé', 'Quiff'], [6, 'Carré', 'Bob'], [9, 'Longs', 'Long'], [7, 'Chignon', 'Bun'], [1, 'Queue', 'Ponytail']];
+const HAIR_CHOICES: Array<[number, string, string]> = [[0, 'Courts', 'Short'], [4, 'Dégradé', 'Fade'], [5, 'Bouclés', 'Curly'], [8, 'Coiffé', 'Quiff'], [6, 'Carré', 'Bob'], [9, 'Longs', 'Long'], [7, 'Chignon', 'Bun'], [1, 'Queue', 'Ponytail'], [10, 'Deux tresses', 'Two braids'], [11, 'Queue tressée', 'Braided ponytail']];
 const HELMETS = ['#f4f4f4', '#111111', '#1f6feb', '#d62828', '#ffd23f'];
 const BIKES = ['#c0392b', '#111111', '#e8ecf0', '#1f6feb', '#2e7d32'];
 const CASSETTE_SPEEDS = [8, 9, 10, 11, 12, 13];

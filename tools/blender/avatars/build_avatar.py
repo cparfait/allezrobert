@@ -1132,10 +1132,57 @@ def import_accessories(rig, body):
         mod.object = rig
         o.name = n
         out.append(o)
+    fit_headgear([o for o in out if o.name.startswith(('rider_helmet', 'rider_hair', 'rider_glasses'))], body, old_body, (oh, oa), (nh, na), s_head)
     for o in new:
         if o not in out:
             bpy.data.objects.remove(o, do_unlink=True)
     return out
+
+
+def fit_headgear(objs, body, old_body, old_frame, new_frame, s_head):
+    """Casque, lunettes et bonnet de cheveux recalés sur le crâne de ce modèle : profondeur ramenée à celle du
+    crâne (l'échelle d'import ne suit que sa largeur ; l'avant, le front, reste en place), puis tout
+    point entré dans la peau (sangles sur la joue et la mâchoire) ressorti à 3 mm."""
+    from mathutils.bvhtree import BVHTree
+    f_old, f_new = frame(*old_frame).inverted(), frame(*new_frame).inverted()
+
+    def head_z(ob, fr):
+        idx = vgroup_members(ob, 'head')
+        return [(fr @ (ob.matrix_world @ ob.data.vertices[i].co)).z for i in idx]
+    zo, zn = head_z(old_body, f_old), head_z(body, f_new)
+    r = (max(zn) - min(zn)) / max((max(zo) - min(zo)) * s_head, 1e-6)
+    fwd = (f_new.to_3x3() @ Vector((0.0, -1.0, 0.0))).z         # sens de l'avant dans le repère de la tête
+    anchor = max(zn) if fwd > 0 else min(zn)
+    to_w = f_new.inverted()
+    bm = bmesh.new()
+    bm.from_mesh(body.data)
+    bm.transform(body.matrix_world)
+    tree = BVHTree.FromBMesh(bm)
+    bm.free()
+    # Sommet du crâne : le casque est descendu jusqu'à n'y laisser que le rembourrage (bord au-dessus des sourcils).
+    hq = [f_new @ (body.matrix_world @ body.data.vertices[i].co) for i in vgroup_members(body, 'head')]
+    crown = max(hq, key=lambda q: q.y)
+    pushed = 0
+    for o in objs:
+        qs = [f_new @ v.co for v in o.data.vertices]
+        for q in qs:
+            q.z = anchor + (q.z - anchor) * r
+        drop = 0.0
+        if o.name.startswith('rider_helmet'):
+            above = [q.y for q in qs if abs(q.x - crown.x) < 0.025 and abs(q.z - crown.z) < 0.03 and q.y > crown.y]
+            if above:
+                drop = max(0.0, min(above) - crown.y - 0.012)
+            print(f'{o.name} : descendu de {100 * drop:.1f} cm')
+        for v, q in zip(o.data.vertices, qs):
+            q.y -= drop
+            w = to_w @ q
+            loc, nrm, _, _ = tree.find_nearest(w)
+            if loc is not None and (w - loc).dot(nrm) < 0.003:
+                w = loc + nrm * 0.003
+                pushed += 1
+            v.co = w
+        o.data.update()
+    print(f'casque : profondeur × {r:.3f}, {pushed} sommets ressortis de la peau')
 
 
 def transfer_keys(body, objs):
@@ -1187,7 +1234,7 @@ def build_hair_styles(body, rig):
     eye_z = MOUTH[0].z + 0.072
     out = []
 
-    def tube(name, path, radii, twist=0.0, lumps=0):
+    def tube(name, path, radii, twist=0.0, lumps=0, lump_from=0):
         bm = bmesh.new()
         rings = []
         n = 10
@@ -1202,7 +1249,7 @@ def build_hair_styles(body, rig):
             d = nxt.normalized()
             u = d.cross(Vector((1, 0, 0))).normalized()
             w = d.cross(u)
-            if lumps:  # tresse : mèches qui se croisent
+            if lumps and j >= lump_from * 6:  # tresse : mèches qui se croisent (à partir du segment lump_from)
                 p = p + Vector((math.sin(j * math.pi / 3) * r * 0.35, 0, 0))
                 r = r * (0.85 + 0.15 * abs(math.cos(j * math.pi / 3)))
             rings.append([bm.verts.new(p + (u * math.cos(a) + w * math.sin(a)) * r) for a in (2 * math.pi * q / n for q in range(n))])
@@ -1227,6 +1274,32 @@ def build_hair_styles(body, rig):
          [0.02, 0.022, 0.016, 0.006])
     tube('rider_hair_braid', [root, root + Vector((0, 0.025, -0.04)), root + Vector((0, 0.03, -0.11)), root + Vector((0, 0.025, -0.2))],
          [0.016, 0.015, 0.013, 0.007], lumps=1)
+    # Queue tressée : queue rassemblée (lisse) puis tressée, plus épaisse et plus longue que la tresse.
+    tube('rider_hair_plait', [root, root + Vector((0, 0.03, -0.035)), root + Vector((0, 0.04, -0.10)), root + Vector((0, 0.035, -0.17)), root + Vector((0, 0.025, -0.24))],
+         [0.021, 0.019, 0.016, 0.012, 0.005], lumps=1, lump_from=1)
+    # Deux tresses collées : du front à la nuque de part et d'autre de la raie, posées sur le crâne
+    # (tête nue seulement) ; leurs bouts pendent dans la nuque (visibles aussi sous le casque).
+    yc = (min(c.y for c in head) + back_y) / 2
+    Hc = Vector((0.0, yc, eye_z + 0.01))
+    scalp, tails = [], []
+    for sx in (-1.0, 1.0):
+        x0 = sx * 0.03
+        near = [c for c in head if abs(c.x - x0) < 0.008]
+        pts = []
+        for k in range(15):
+            a = 0.8 + (math.pi + 0.45 - 0.8) * k / 14          # 0 : devant, π/2 : sommet, π : derrière
+            d = Vector((0.0, -math.cos(a), math.sin(a)))
+            best = max((c for c in near if (Vector((0.0, c.y - Hc.y, c.z - Hc.z)).normalized() - d).length < 0.07),
+                       key=lambda c: (Vector((0.0, c.y - Hc.y, c.z - Hc.z))).length, default=None)
+            if best is not None:
+                pts.append(Vector((x0 * (1.0 - 0.35 * k / 14), best.y, best.z)) + d * 0.009)
+        scalp.append(pts)
+        end = pts[-1]
+        tails.append([end, end + Vector((0, 0.012, -0.05)), end + Vector((0, 0.014, -0.11))])
+    for i, pts in enumerate(scalp):
+        tube(f'rider_hair_dutch{i}', pts, [0.0105] * len(pts), lumps=1)
+    for i, pts in enumerate(tails):
+        tube(f'rider_hair_dutchtail{i}', pts, [0.0095, 0.008, 0.004], lumps=1)
     # Moustache : faces de peau au-dessus de la lèvre supérieure, retombant aux commissures.
     m = MOUTH[0]
     mo = body.copy()
@@ -1282,32 +1355,128 @@ def hair_shells(body, rig, back_y, eye_z):
     def phi(c):
         return math.atan2(abs(c.x), -(c.y - ycen))
 
-    def hairline(c, front=L_f, side=L_s, back=L_b, low=None):
+    # Oreille repérée sur le maillage : ce qui dépasse sur le côté la largeur de la tempe, juste devant.
+    band = [v.co.copy() for v in body.data.vertices if eye_z - 0.075 < v.co.z < eye_z + 0.04]
+    x_ref = max(abs(c.x) for c in band if 1.0 < phi(c) < 1.15)
+    ear_pts = [c for c in band if abs(c.x) > x_ref + 0.008 and 1.2 < phi(c) < 2.3]
+    pe0, pe1 = min(phi(c) for c in ear_pts), max(phi(c) for c in ear_pts)
+    ez1 = max(c.z for c in ear_pts)
+    print(f'oreille : {len(ear_pts)} sommets, phi {pe0:.2f} à {pe1:.2f}, haut à {100 * (ez1 - eye_z):+.1f} cm des yeux, tempe {100 * x_ref:.1f} cm')
+    SIDEBURN, BEHIND_EAR = eye_z - 0.03, eye_z - 0.065    # bas des pattes devant l'oreille, implantation derrière
+
+    def hairline(c, front=L_f, side=L_s, back=L_b, low=None, ear=True):
         f = phi(c)
         if low is not None and f > 1.25:   # mèches qui descendent derrière et sur les côtés
             return side + (low - side) * smoothstep(1.25, 1.8, f)
         if f < 0.9:
             return front + (side - front) * smoothstep(0.0, 0.9, f)
-        if f < 1.9:
-            return side
-        return side + (back - side) * smoothstep(1.9, math.pi, f)
+        if not ear:                         # côtés dégagés au-dessus de l'oreille (dégradé)
+            if f < 1.9:
+                return side
+            return side + (back - side) * smoothstep(1.9, math.pi, f)
+        # Pattes devant l'oreille, contour du haut de l'oreille (marge), puis derrière jusqu'à la nuque.
+        arch = ez1 - 0.004                 # touche le haut de l'oreille (plaqué derrière elle, voir covers_ears)
+        if f < pe0 - 0.14:
+            return side + (SIDEBURN - side) * smoothstep(0.9, pe0 - 0.14, f)
+        if f < pe0 - 0.02:
+            return SIDEBURN + (arch - SIDEBURN) * smoothstep(pe0 - 0.14, pe0 - 0.02, f)
+        if f < pe1 + 0.02:
+            return arch
+        if f < pe1 + 0.16:
+            return arch + (BEHIND_EAR - arch) * smoothstep(pe1 + 0.02, pe1 + 0.16, f)
+        return BEHIND_EAR + (back - BEHIND_EAR) * smoothstep(pe1 + 0.16, math.pi, f)
 
     def fur(c, scale, amp):
         return amp * noise.noise(Vector((c.x * scale, c.y * scale, c.z * scale * 0.6)))
 
     crown = lambda c, a=0.06: smoothstep(ztop - a, ztop, c.z)
+    allv = [v.co.copy() for v in body.data.vertices]
+
+    def curtain(key, z_front, z_back, phi0, swell, tuck):
+        """Rideau de cheveux tombant droit du crâne (pose debout, liée à la tête) : il part du bas de
+        la calotte, passe au-dessus des oreilles et de la mâchoire (rayon pris sur le maillage,
+        oreilles comprises), bas net légèrement rentré ; deux faces (extérieure, intérieure) fermées."""
+        z_top = eye_z + 0.03
+        amax = math.pi - phi0
+        NA, NZ = 44, 20
+        az_of = lambda c: math.atan2(c.x, c.y - ycen)      # 0 : derrière, ±π : devant
+        rad_of = lambda c: math.hypot(c.x, c.y - ycen)
+
+        # Sommets de la tête et du cou par secteur angulaire (rayon horizontal, hauteur).
+        sectors = []
+        for i in range(NA + 1):
+            az = -amax + 2 * amax * i / NA
+            sectors.append([(c.z, rad_of(c)) for c in allv
+                            if z_back - 0.12 < c.z < z_top + 0.03 and abs(math.atan2(math.sin(az_of(c) - az), math.cos(az_of(c) - az))) < 0.1])
+        bm = bmesh.new()
+        outer, inner = [], []
+        for i in range(NA + 1):
+            az = -amax + 2 * amax * i / NA
+            frontness = abs(az) / amax
+            z_bot = z_back + (z_front - z_back) * frontness
+            sec = sectors[i]
+            ro, ri = [], []
+            r_prev = 0.0
+            for j in range(NZ + 1):
+                t = j / NZ
+                z = z_top + (z_bot - z_top) * t
+                # Collée au crâne en haut (épaisseur de la calotte), puis tombe droit : le rayon ne
+                # diminue jamais en descendant (les cheveux passent au-dessus des oreilles et de la mâchoire).
+                sl = max((r for zz, r in sec if abs(zz - z) < 0.012), default=0.0)
+                r_prev = max(r_prev, sl + (0.011 if j == 0 else 0.006))
+                # Bord avant : le rideau se rapproche de la joue au lieu de finir en plaque.
+                hug = 0.8 * smoothstep(0.75, 1.0, frontness)
+                r = r_prev + (sl + 0.007 - r_prev) * hug if sl > 0 else r_prev
+                r += (swell * math.sin(math.pi * min(t / 0.85, 1.0)) - tuck * smoothstep(0.8, 1.0, t)) * (1 - hug)
+                r += 0.0016 * math.sin(az * 46 + 6 * noise.noise(Vector((az * 3, z * 20, 0.0)))) * smoothstep(0.1, 0.4, t)
+                d = Vector((math.sin(az), math.cos(az), 0.0))
+                base = Vector((0.0, ycen, z))
+                ro.append(bm.verts.new(base + d * r))
+                ri.append(bm.verts.new(base + d * (r - 0.006)))
+            outer.append(ro)
+            inner.append(ri)
+        for i in range(NA):
+            for j in range(NZ):
+                bm.faces.new((outer[i][j], outer[i + 1][j], outer[i + 1][j + 1], outer[i][j + 1]))
+                bm.faces.new((inner[i][j + 1], inner[i + 1][j + 1], inner[i + 1][j], inner[i][j]))
+            bm.faces.new((outer[i][NZ], outer[i + 1][NZ], inner[i + 1][NZ], inner[i][NZ]))     # bas
+        for i in (0, NA):                                                                           # bords avant
+            for j in range(NZ):
+                bm.faces.new((outer[i][j], outer[i][j + 1], inner[i][j + 1], inner[i][j]))
+        bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
+        me = bpy.data.meshes.new('curtain_' + key)
+        bm.to_mesh(me)
+        bm.free()
+        ob = bpy.data.objects.new('curtain_' + key, me)
+        bpy.context.scene.collection.objects.link(ob)
+        me.materials.append(hair_material())
+        for p in me.polygons:
+            p.use_smooth = True
+        return ob
+
+    def join_curtain(shell, cur):
+        """Rideau fondu dans la coque : groupe « head » à 1 (suit la tête seule)."""
+        g = cur.vertex_groups.new(name='head')
+        g.add(range(len(cur.data.vertices)), 1.0, 'REPLACE')
+        bpy.ops.object.select_all(action='DESELECT')
+        cur.select_set(True)
+        shell.select_set(True)
+        bpy.context.view_layer.objects.active = shell
+        bpy.ops.object.join()
     quiff_c = Vector((0.0, ycen - 0.035, ztop))
-    low_bob, low_long = mouth_z - 0.03, mouth_z - 0.17
+    # Rideaux (carré, longs) : bas des cheveux devant / derrière, avant du rideau (phi), renflement, rentré du bas.
+    CURTAINS = {'bob': (mouth_z - 0.045, mouth_z - 0.02, 1.15, 0.010, 0.010),
+                'long': (mouth_z - 0.085, mouth_z - 0.04, 1.05, 0.012, 0.004)}
 
     # nom : (implantation, épaisseur(c), mèches (échelle, amplitude), fin pointue ?, réduction)
     STYLES = {
-        'cut': (dict(), lambda c: 0.006 + 0.004 * crown(c), (70, 0.0015), True, 0.4),
+        'cut': (dict(), lambda c: 0.005 + 0.012 * smoothstep(eye_z + 0.03, ztop - 0.01, c.z), (70, 0.002), True, 0.4),   # dessus fourni, côtés courts
         'slick': (dict(front=L_f + 0.01), lambda c: 0.0035, (60, 0.001), True, 0.4),
-        'fade': (dict(side=L_s + 0.015, back=L_b + 0.03), lambda c: 0.0035 + 0.007 * smoothstep(eye_z + 0.04, eye_z + 0.09, c.z), (80, 0.001), True, 0.4),
-        'curls': (dict(front=eye_z + 0.055, side=L_s - 0.01), lambda c: 0.016 + 0.010 * smoothstep(eye_z + 0.02, ztop, c.z), (150, 0.007), True, 0.6),
-        'bob': (dict(front=eye_z + 0.04, side=L_s - 0.02, low=low_bob), lambda c: 0.010 + 0.006 * crown(c, 0.08) + 0.016 * smoothstep(0, 0.07, L_s - c.z), (70, 0.002), False, 0.35),
+        'fade': (dict(back=L_b + 0.02), lambda c: 0.0022 + 0.012 * smoothstep(eye_z + 0.04, eye_z + 0.09, c.z), (80, 0.0015), True, 0.4),   # côtés ras autour de l'oreille, dessus fourni
+        'curls': (dict(front=eye_z + 0.05, side=L_s - 0.025), lambda c: 0.02 + 0.014 * smoothstep(eye_z + 0.0, ztop, c.z), (150, 0.007), True, 0.6),
+        'bob': (dict(front=eye_z + 0.04, side=L_s - 0.02), lambda c: 0.010 + 0.006 * crown(c, 0.08) + 0.016 * smoothstep(0, 0.07, L_s - c.z), (70, 0.002), False, 0.35),
         'quiff': (dict(front=L_f + 0.012, side=L_s + 0.01), lambda c: 0.004 + 0.045 * math.exp(-(((c - quiff_c).length) / 0.06) ** 2), (80, 0.002), True, 0.45),
-        'long': (dict(front=eye_z + 0.045, side=L_s - 0.02, low=low_long), lambda c: 0.012 + 0.006 * crown(c, 0.08) + 0.02 * smoothstep(0, 0.08, L_s - c.z), (70, 0.002), False, 0.3),
+        'long': (dict(front=eye_z + 0.045, side=L_s - 0.02), lambda c: 0.012 + 0.006 * crown(c, 0.08) + 0.02 * smoothstep(0, 0.08, L_s - c.z), (70, 0.002), False, 0.3),
     }
     out = []
     for key, (hl_kw, thick, (fscale, famp), pointed, ratio) in STYLES.items():
@@ -1354,14 +1523,14 @@ def hair_shells(body, rig, back_y, eye_z):
         bpy.ops.object.modifier_apply(modifier='Decimate')
         me = mo.data
         # Sur les côtés, l'oreille est ramenée sur le crâne (les mèches passent derrière elle).
-        covers_ears = hl_kw.get('low') is not None or key == 'curls'
+        covers_ears = hl_kw.get('ear', True)
         band = sorted((v.co - H).length for v in me.vertices if 1.2 < phi(v.co) < 2.0 and abs(v.co.z - eye_z) < 0.06)
         r_skull = band[int(len(band) * 0.4)] if band else None
         for v in me.vertices:
             c = v.co.copy()
             d = c - H
             r = d.length
-            if covers_ears and r_skull and 1.2 < phi(c) < 2.0 and abs(c.z - eye_z) < 0.06:
+            if covers_ears and r_skull and pe0 - 0.08 < phi(c) < pe1 + 0.08 and eye_z - 0.07 < c.z < ez1 + 0.01 and abs(c.x) > x_ref + 0.004:   # oreille seule
                 r = min(r, r_skull)
             d.normalize()
             f = phi(c)
@@ -1377,6 +1546,9 @@ def hair_shells(body, rig, back_y, eye_z):
         for p in me.polygons:
             p.use_smooth = True
         me.update()
+        if key in CURTAINS:
+            join_curtain(mo, curtain(key, *CURTAINS[key]))
+            me = mo.data
         out.append(mo)
         print(f'coiffure {key} : {len(me.vertices)} sommets, {len(me.polygons)} triangles')
 

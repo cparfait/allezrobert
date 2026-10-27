@@ -165,7 +165,7 @@ const TUCK_SPINE = 0.08;
 const TUCK_CHEST = 0.12;
 
 /** Coque de cheveux montrée tête nue, par coiffure (objets `rider_hairs_<nom>` du modèle). */
-const HAIR_SHELL: Record<number, string> = { 0: 'cut', 1: 'slick', 2: 'slick', 4: 'fade', 5: 'curls', 6: 'bob', 7: 'slick', 8: 'quiff', 9: 'long' };
+const HAIR_SHELL: Record<number, string> = { 0: 'cut', 1: 'slick', 2: 'slick', 4: 'fade', 5: 'curls', 6: 'bob', 7: 'slick', 8: 'quiff', 9: 'long', 10: 'slick', 11: 'slick' };
 const TUCK_HEAD = 0.35;
 /**
  * Positions sur un cintre route (bascule en unités de « tuck », ajoutée à la position assise validée
@@ -759,12 +759,14 @@ export class GltfRiderAvatar implements RiderAvatarLike {
   /** Expressions en sortie (modèle à formes ARKit seulement). */
   private faceAnim: FaceAnimator | null = null;
   /**
-   * Coiffures (avatar MPFB) : sous le casque, 0 courts, 1 queue de cheval, 2 tresse, 3 rasé (et un
-   * bonnet de cheveux pour les autres) ; tête nue, une coque par coiffure (`shells`, voir HAIR_SHELL) ; moustache.
+   * Coiffures (avatar MPFB) : sous le casque, 0 courts, 1 queue de cheval, 2 tresse, 3 rasé, 10 deux
+   * tresses (bouts dans la nuque), 11 queue tressée (et un bonnet de cheveux pour les autres) ; tête nue,
+   * une coque par coiffure (`shells`, voir HAIR_SHELL), les deux tresses collées sur le crâne ; moustache.
    */
   private readonly hair = {
     cap: [] as THREE.Object3D[], ponytail: [] as THREE.Object3D[], braid: [] as THREE.Object3D[], moustache: [] as THREE.Object3D[],
-    bun: [] as THREE.Object3D[], shells: new Map<string, THREE.Object3D[]>(),
+    bun: [] as THREE.Object3D[], plait: [] as THREE.Object3D[], dutch: [] as THREE.Object3D[], dutchTail: [] as THREE.Object3D[],
+    shells: new Map<string, THREE.Object3D[]>(),
   };
   private skin: SkinMaterial | null = null;
   private ftpFrac = 0.7;
@@ -997,6 +999,9 @@ export class GltfRiderAvatar implements RiderAvatarLike {
       if (/^rider_hair_ponytail/.test(n)) this.hair.ponytail.push(o);
       else if (/^rider_hair_braid/.test(n)) this.hair.braid.push(o);
       else if (/^rider_hair_bun/.test(n)) this.hair.bun.push(o);
+      else if (/^rider_hair_plait/.test(n)) this.hair.plait.push(o);
+      else if (/^rider_hair_dutchtail/.test(n)) this.hair.dutchTail.push(o);
+      else if (/^rider_hair_dutch/.test(n)) this.hair.dutch.push(o);
       else if (/^rider_moustache/.test(n)) this.hair.moustache.push(o);
       else if (/^rider_hairs_/.test(n)) {
         const key = n.slice('rider_hairs_'.length).replace(/_lod\d$/, '');
@@ -1480,14 +1485,19 @@ export class GltfRiderAvatar implements RiderAvatarLike {
   private applyHair(look: AvatarLook): void {
     if (!this.hair.ponytail.length) return; // modèle sans coiffures (cyclist.glb)
     const style = ((look.hairStyle % HAIR_STYLE_COUNT) + HAIR_STYLE_COUNT) % HAIR_STYLE_COUNT;
-    const shell = this.bareHead && style !== 3 ? HAIR_SHELL[style] : undefined;
+    const bare = this.bareHead;
+    // Sous le casque : cheveux plaqués (coque « slick » : tempes, autour des oreilles, nuque).
+    const shell = style === 3 ? undefined : bare ? HAIR_SHELL[style] : 'slick';
     const shown = shell && this.hair.shells.has(shell) ? shell : undefined;
     for (const [k, objs] of this.hair.shells) for (const o of objs) o.visible = k === shown;
     for (const o of this.hair.cap) o.visible = style !== 3 && !shown;
     // Sous le casque, les coiffures longues sortent en queue de cheval ou en tresse.
-    for (const o of this.hair.ponytail) o.visible = style === 1 || (!shown && style === 9);
+    for (const o of this.hair.ponytail) o.visible = style === 1 || (!bare && style === 9);
     for (const o of this.hair.braid) o.visible = style === 2;
-    for (const o of this.hair.bun) o.visible = style === 7 && !!shown;
+    for (const o of this.hair.bun) o.visible = style === 7 && bare;
+    for (const o of this.hair.plait) o.visible = style === 11;
+    for (const o of this.hair.dutch) o.visible = style === 10 && bare;
+    for (const o of this.hair.dutchTail) o.visible = style === 10;
     for (const o of this.hair.moustache) o.visible = !!look.moustache && lookSex(look) === 'male';
   }
 

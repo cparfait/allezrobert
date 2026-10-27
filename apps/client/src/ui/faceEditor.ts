@@ -79,6 +79,8 @@ const HAIR_STYLES: Array<[number, string, string]> = [
   [7, 'Chignon', 'Bun'],
   [8, 'Coiffé', 'Quiff'],
   [9, 'Longs', 'Long'],
+  [10, 'Deux tresses', 'Two braids'],
+  [11, 'Queue tressée', 'Braided ponytail'],
 ];
 
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c] as string);

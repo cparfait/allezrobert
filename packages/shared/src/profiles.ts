@@ -116,6 +116,6 @@ export function withSex(look: AvatarLook, sex: 'male' | 'female'): AvatarLook {
     out.beard = 0;
     out.moustache = false;
     if (look.hairStyle === 0) out.hairStyle = 1;
-  } else if (look.hairStyle === 1 || look.hairStyle === 2) out.hairStyle = 0;
+  } else if ([1, 2, 10, 11].includes(look.hairStyle)) out.hairStyle = 0;
   return out;
 }
