@@ -683,16 +683,85 @@ export function roofBuffers(plan: RoofPlan, wallTop: number, pitchDeg: number): 
   return out;
 }
 
-/** Toit-terrasse : emprise nettoyée triangulée à plat (uv = x, z en mètres). */
+/** Pans en triangles 3D (x, y, z par sommet) et uv (2 par sommet). */
+export interface RoofMesh {
+  pos: number[];
+  uv: number[];
+}
+
+/**
+ * Chant d'un toit d'épaisseur `thickness` : bande verticale tournée vers l'extérieur le long des bords
+ * libres des pans (égouts, rives). Les arêtes partagées par deux pans (faîtage, arêtiers, noues) n'en
+ * ont pas ; une arête mal raccordée en reçoit un, caché sous les pans. La sous-face du débord est la face
+ * arrière des pans (shader). uv en mètres, v décalé de 20 (hors soubassement et baies du shader des murs).
+ */
+export function roofEdge(top: RoofMesh, thickness: number): RoofMesh {
+  const p = top.pos;
+  const out: RoofMesh = { pos: [], uv: [] };
+  // Sommets confondus au millimètre près → indice entier ; arête = paire d'indices. Un toit est une surface
+  // de hauteur : (x, z) suffit, clé numérique sur ±4 km autour du premier sommet.
+  const ids = new Map<number, number>();
+  const vid = new Int32Array(p.length / 3);
+  const x0 = (p[0] as number) ?? 0;
+  const z0 = (p[2] as number) ?? 0;
+  for (let i = 0; i < vid.length; i++) {
+    const k = (Math.round(((p[i * 3] as number) - x0) * 1000) + 4194304) * 8388608 + Math.round(((p[i * 3 + 2] as number) - z0) * 1000) + 4194304;
+    let id = ids.get(k);
+    if (id === undefined) ids.set(k, (id = ids.size));
+    vid[i] = id;
+  }
+  const nv = ids.size;
+  const edges = new Map<number, { a: number; b: number; c: number; n: number }>();
+  for (let t = 0; t + 2 < vid.length; t += 3)
+    for (let k = 0; k < 3; k++) {
+      const a = t + k;
+      const b = t + ((k + 1) % 3);
+      const ia = vid[a] as number;
+      const ib = vid[b] as number;
+      if (ia === ib) continue;
+      const id = ia < ib ? ia * nv + ib : ib * nv + ia;
+      const e = edges.get(id);
+      if (e) e.n++;
+      else edges.set(id, { a, b, c: t + ((k + 2) % 3), n: 1 });
+    }
+  const d = thickness;
+  for (const { a, b, c, n } of edges.values()) {
+    if (n !== 1) continue;
+    let ax = p[a * 3] as number;
+    let ay = p[a * 3 + 1] as number;
+    let az = p[a * 3 + 2] as number;
+    let bx = p[b * 3] as number;
+    let by = p[b * 3 + 1] as number;
+    let bz = p[b * 3 + 2] as number;
+    const len = Math.hypot(bx - ax, bz - az);
+    if (len < 1e-4) continue; // arête verticale ou dégénérée
+    // Tournée vers l'extérieur du pan (à l'opposé du troisième sommet) : normale (dz, 0, −dx).
+    const ox = (ax + bx) / 2 - (p[c * 3] as number);
+    const oz = (az + bz) / 2 - (p[c * 3 + 2] as number);
+    if ((bz - az) * ox - (bx - ax) * oz < 0) [ax, ay, az, bx, by, bz] = [bx, by, bz, ax, ay, az];
+    const ex = (bx - ax) / len;
+    const ez = (bz - az) / len;
+    const ua = ax * ex + az * ez;
+    const ub = bx * ex + bz * ez;
+    out.pos.push(ax, ay, az, bx, by, bz, bx, by - d, bz, ax, ay, az, bx, by - d, bz, ax, ay - d, az);
+    out.uv.push(ua, 20 + d, ub, 20 + d, ub, 20, ua, 20 + d, ub, 20, ua, 20);
+  }
+  return out;
+}
+
+/** Toit-terrasse : emprise nettoyée triangulée à plat, tournée vers le haut (uv = x, z en mètres). */
 export function flatRoof(pts: number[], y: number): { pos: number[]; uv: number[] } {
   const ring = cleanFootprint(pts, 0.02);
   const pos: number[] = [];
   const uv: number[] = [];
   if (ring.length < 3) return { pos, uv };
-  for (const k of earClip(ring)) {
-    const p = ring[k] as P2;
-    pos.push(p.x, y, p.z);
-    uv.push(p.x, p.z);
-  }
+  const tri = earClip(ring);
+  // anneau positif dans (x, z) : triangles retournés pour regarder vers le haut (y)
+  for (let i = 0; i + 2 < tri.length; i += 3)
+    for (const k of [tri[i], tri[i + 2], tri[i + 1]] as number[]) {
+      const p = ring[k] as P2;
+      pos.push(p.x, y, p.z);
+      uv.push(p.x, p.z);
+    }
   return { pos, uv };
 }

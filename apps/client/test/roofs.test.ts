@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { planRoof, roofBuffers, type RoofPlan } from '../src/world/roofs.ts';
+import { flatRoof, planRoof, roofBuffers, roofEdge, type RoofPlan } from '../src/world/roofs.ts';
 
 const O = 0.4;
 const OG = 0.25;
@@ -212,5 +212,51 @@ describe('toits sur emprise réelle', () => {
       // Angles aigus possibles : on tolère l'onglet du débord.
       check(pts, plan, 3);
     }
+  });
+});
+
+describe('épaisseur du toit', () => {
+  const rect = [0, 0, 12, 0, 12, 8, 0, 8];
+  const pitch = 40;
+  const tan = Math.tan((pitch * Math.PI) / 180);
+  const top = (gabled: boolean) => roofBuffers(planRoof(rect, { overhang: O, gableOverhang: OG, gabled })!, 10, pitch).roof;
+
+  /** Normale (non normée) du triangle i d'une liste de positions. */
+  const normal = (p: number[], i: number) => {
+    const o = i * 9;
+    const u = [p[o + 3]! - p[o]!, p[o + 4]! - p[o + 1]!, p[o + 5]! - p[o + 2]!];
+    const w = [p[o + 6]! - p[o]!, p[o + 7]! - p[o + 1]!, p[o + 8]! - p[o + 2]!];
+    return [u[1]! * w[2]! - u[2]! * w[1]!, u[2]! * w[0]! - u[0]! * w[2]!, u[0]! * w[1]! - u[1]! * w[0]!];
+  };
+
+  for (const gabled of [true, false]) {
+    it(`${gabled ? 'deux pans' : 'croupes'} : chant vertical, tourné vers l'extérieur, sur le seul pourtour`, () => {
+      const edge = roofEdge(top(gabled), 0.16);
+      // longueur projetée = pourtour du toit débord compris (rien sur le faîtage ni les arêtiers)
+      let perim = 0;
+      for (let i = 0; i < edge.pos.length / 18; i++) {
+        const o = i * 18;
+        const n = normal(edge.pos, i * 2);
+        expect(Math.abs(n[1]!)).toBeLessThan(1e-9);
+        const mx = (edge.pos[o]! + edge.pos[o + 3]!) / 2 - 6;
+        const mz = (edge.pos[o + 2]! + edge.pos[o + 5]!) / 2 - 4;
+        expect(n[0]! * mx + n[2]! * mz).toBeGreaterThan(0);
+        expect(edge.pos[o + 1]! - edge.pos[o + 16]!).toBeCloseTo(0.16, 6);
+        perim += Math.hypot(edge.pos[o + 3]! - edge.pos[o]!, edge.pos[o + 5]! - edge.pos[o + 2]!);
+      }
+      const w = gabled ? 12 + 2 * OG : 12 + 2 * O;
+      expect(perim).toBeCloseTo(2 * (w + 8 + 2 * O), 3);
+      // bas du chant à l'égout : 16 cm sous le bord du pan, lui-même sous le haut du mur
+      const minY = Math.min(...edge.pos.filter((_, k) => k % 3 === 1));
+      expect(minY).toBeCloseTo(10 - O * tan - 0.16, 6);
+    });
+  }
+
+  it('toit plat (et monopente, chapeau de cheminée) tourné vers le haut : la face arrière est la sous-face', () => {
+    const flat = flatRoof([0, 0, 12, 0, 12, 8, 6, 8, 6, 4, 0, 4], 5);
+    expect(flat.pos.length).toBeGreaterThan(0);
+    for (let i = 0; i < flat.pos.length / 9; i++) expect(normal(flat.pos, i)[1]!).toBeGreaterThan(0);
+    const cw = flatRoof([0, 0, 0, 8, 12, 8, 12, 0], 5);
+    for (let i = 0; i < cw.pos.length / 9; i++) expect(normal(cw.pos, i)[1]!).toBeGreaterThan(0);
   });
 });

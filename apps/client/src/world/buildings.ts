@@ -1,10 +1,10 @@
 import * as THREE from 'three/webgpu';
-import { attribute, uv, fract, floor, step, mix, vec2, vec3, float, int, uniform, uniformArray, mx_noise_float, positionWorld, smoothstep, max, min, abs, hash, normalWorld, normalMap } from 'three/tsl';
+import { attribute, frontFacing, uv, fract, floor, step, mix, vec2, vec3, float, int, uniform, uniformArray, mx_noise_float, positionWorld, smoothstep, max, min, abs, hash, normalWorld, normalMap } from 'three/tsl';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { ARCHETYPES, pickArchetype, worldStyle, type Archetype, type WallMaterial, type WorldStyle } from '@allezrobert/shared';
 import { rng, polygonArea } from '../engine/noise.ts';
 import type { LoadedTile, TileRoad } from './types.ts';
-import { orientedBox, planRoof, roofBuffers, flatRoof, ridgeLine } from './roofs.ts';
+import { orientedBox, planRoof, roofBuffers, flatRoof, ridgeLine, roofEdge } from './roofs.ts';
 import { meuliere } from './meuliere.ts';
 import { FootprintIndex } from './footprints.ts';
 import { wallGroundOffset } from './facadeGround.ts';
@@ -708,12 +708,16 @@ export class Buildings {
     let col = mix(wall, tiles, isTile);
     col = mix(col, slate, isSlate);
     col = mix(col, metal, isMetal);
+    // Sous-face du débord : face arrière des pans (tournés vers le haut), enduit à la teinte du mur (accent).
+    const isRoof = isTile.add(isSlate).add(isMetal).min(1);
+    const underside = isRoof.mul(float(1).sub(float(frontFacing)));
+    col = mix(col, accent.mul(nBig.mul(0.1).add(0.95)), underside);
     m.colorNode = col;
     m.emissiveNode = vec3(1.0, 0.62, 0.3)
       .mul(inWin.mul(lit).mul(isWall).mul(2.2))
       .add(vec3(1.0, 0.8, 0.55).mul(shopGlass.mul(shopLit).mul(isWall).mul(1.6)));
     const glazed = inWin.max(shopGlass).max(rdcWin).mul(isWall);
-    m.roughnessNode = mix(mix(mix(float(0.93), float(0.15), glazed), float(0.75), isTile.add(isSlate).min(1)).sub(isSlate.mul(0.2)), mix(float(0.55), float(0.42), isZinc), isMetal);
+    m.roughnessNode = mix(mix(mix(mix(float(0.93), float(0.15), glazed), float(0.75), isTile.add(isSlate).min(1)).sub(isSlate.mul(0.2)), mix(float(0.55), float(0.42), isZinc), isMetal), float(0.93), underside);
     // Relief : cartes de normales de la texture correspondante (sauf sur les vitres).
     const nrm = (t: LazyTexture, size: number) => t.sample(vec2(u, v).div(size)).rgb;
     const wallN = nrm(T.render.normal, 2.0)
@@ -725,8 +729,8 @@ export class Buildings {
     const roofN = nrm(T.tiles.normal, 3.2).mul(isTile).add(nrm(T.slate.normal, 1.5).mul(isSlate)).add(vec3(0.5, 0.5, 1).mul(isMetal));
     const flatN = vec3(0.5, 0.5, 1);
     const nCol = mix(mix(wallN, flatN, inWin.max(inFrame).max(inShutter).max(shopFront).max(rdcWin)), roofN, isTile.add(isSlate).add(isMetal).min(1));
-    m.normalNode = normalMap(nCol, vec2(0.8, 0.8));
-    m.metalnessNode = isMetal.mul(mix(float(0.25), float(0.35), isZinc));
+    m.normalNode = normalMap(mix(nCol, flatN, underside), vec2(0.8, 0.8));
+    m.metalnessNode = isMetal.mul(mix(float(0.25), float(0.35), isZinc)).mul(float(1).sub(underside));
     // Les emprises OSM n'ont pas d'orientation garantie : on rend les deux faces.
     m.side = THREE.DoubleSide;
     return m;
@@ -739,6 +743,7 @@ export class Buildings {
     const c = new THREE.Color();
     const wc = new THREE.Color();
     const acc = new THREE.Color();
+    const soffit = new THREE.Color();
     for (const bld of tile.features.buildings) {
       if (bld.pts.length < 6) continue;
       // Sol affiché sous l'emprise : la hauteur des données part du point bas (`y`), mais en pente le
@@ -896,9 +901,19 @@ export class Buildings {
       if (skillion) for (let i = 0; i < roofPart.pos.length; i += 3) roofPart.pos[i + 1] = roofAt(roofPart.pos[i] as number, roofPart.pos[i + 2] as number);
       if (roofPart.pos.length) {
         const roof = toGeometry(roofPart.pos, roofPart.uv);
-        // binfo.y : tuiles vieillies (BD TOPO) ou zinc (toit métallique d'un archétype parisien).
-        paint(roof, c.set(roofColour), roofKind, acc, zinc || (bld.bdtopo && roofKind === 1) ? 1 : 0, 0);
+        // binfo.y : tuiles vieillies (BD TOPO) ou zinc (toit métallique d'un archétype parisien) ; accent :
+        // sous-face du débord (face arrière des pans), enduit du mur à l'ombre.
+        paint(roof, c.set(roofColour), roofKind, soffit.copy(wc).multiplyScalar(0.8), zinc || (bld.bdtopo && roofKind === 1) ? 1 : 0, 0);
         parts.push(roof);
+        if (plan || skillion) {
+          // Chant : tuiles et liteaux 16 cm, ardoise 10 cm, bac acier 6 cm ; couleur du toit assombrie (bouts de tuiles, rive).
+          const edge = roofEdge(roofPart, metal ? 0.06 : slate ? 0.1 : 0.16);
+          if (edge.pos.length) {
+            const g = toGeometry(edge.pos, edge.uv);
+            paint(g, c.set(roofColour).multiplyScalar(0.7), 0, acc, 0, 0);
+            parts.push(g);
+          }
+        }
       }
       if (buf && buf.gables.pos.length) {
         // Pignons (murs triangulaires) : même enduit que les murs.
