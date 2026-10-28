@@ -11,8 +11,10 @@ Allez Robert ! — avatar MPFB (docs/AVATARS.md, étapes 2 et 3).
     inverse en écarts à cette pose, comme pour cyclist.glb ;
   - zones de tenue (maillot, bande, cuissard, chaussettes) coupées par plans, ourlets nets ;
   - globes oculaires (aides MPFB) avec iris et pupille ;
-  - casque, casque chrono, lunettes et cheveux repris de cyclist.glb, recalés sur la nouvelle
-    tête ; ils suivent les curseurs (cibles reportées depuis les sommets du corps les plus proches) ;
+  - casque route (coque à aérations, molette, sangles en Y) et lunettes à grand écran modélisés
+    sur la tête ; casque chrono et bonnet de cheveux repris de cyclist.glb, recalés sur la
+    nouvelle tête ; tous suivent les curseurs (cibles reportées depuis les sommets du corps les
+    plus proches) ;
   - chaussures de cyclist.glb posées telles quelles sur les pédales, pied caché retiré
     (avatars/reshoe.mjs, après l'export) ;
   - quantification et compression meshopt (avatars/compress.mjs ; --no-compress pour s'en passer).
@@ -1146,7 +1148,8 @@ def import_accessories(rig, body):
         if o.type != 'MESH' or o is old_body:
             continue
         n = o.name.split('.')[0]
-        if n.startswith(('rider_helmet', 'rider_glasses', 'rider_hair')):
+        # Casque route et lunettes : modélisés ici (build_headgear), ceux de cyclist.glb sont écartés.
+        if n.startswith(('rider_helmet_aero', 'rider_hair')):
             mats = [m_head]
             groups = ['head']
         else:
@@ -1235,7 +1238,8 @@ def fit_headgear(objs, body, old_body, old_frame, new_frame, s_head):
 
 def transfer_keys(body, objs):
     """Cibles du corps reportées sur les accessoires : chaque sommet suit la moyenne des sommets
-    du corps les plus proches (cheveux : 4, casque, lunettes, chaussures : 24, pour rester rigides)."""
+    du corps les plus proches (cheveux : 16, casque, lunettes : 24, pour rester rigides ; sangles :
+    8, et la mâchoire qui s'ouvre, pour rester sous le menton)."""
     from mathutils import kdtree
     keys = body.data.shape_keys.key_blocks
     base = [v.co.copy() for v in keys['Basis'].data]
@@ -1245,11 +1249,15 @@ def transfer_keys(body, objs):
     kd.balance()
     ident = [kb for kb in list(keys)[1:] if kb.name[-1] in '+-']
     deltas = {kb.name: [kb.data[i].co - base[i] for i in range(len(base))] for kb in ident}
+    jaw = [kb for kb in keys if kb.name == 'jawOpen']
+    for kb in jaw:
+        deltas[kb.name] = [kb.data[i].co - base[i] for i in range(len(base))]
     for o in objs:
-        n = 16 if o.name.startswith('rider_hair') else 24
+        straps = o.name == 'rider_helmet_straps'
+        n = 16 if o.name.startswith('rider_hair') else 8 if straps else 24
         near = [[i for _, i, _ in kd.find_n(v.co, n)] for v in o.data.vertices]
         o.shape_key_add(name='Basis', from_mix=False)
-        for kb in ident:
+        for kb in ident + (jaw if straps else []):
             d = deltas[kb.name]
             k = o.shape_key_add(name=kb.name, from_mix=False)
             for kd_, v, nb in zip(k.data, o.data.vertices, near):
@@ -1407,6 +1415,11 @@ def hair_shells(body, rig, back_y, eye_z):
     band = [v.co.copy() for v in body.data.vertices if eye_z - 0.075 < v.co.z < eye_z + 0.04]
     x_ref = max(abs(c.x) for c in band if 1.0 < phi(c) < 1.15)
     ear_pts = [c for c in band if abs(c.x) > x_ref + 0.008 and 1.2 < phi(c) < 2.3]
+    from mathutils import kdtree
+    ear_kd = kdtree.KDTree(len(ear_pts))
+    for k, c in enumerate(ear_pts):
+        ear_kd.insert(c, k)
+    ear_kd.balance()
     pe0, pe1 = min(phi(c) for c in ear_pts), max(phi(c) for c in ear_pts)
     ez1 = max(c.z for c in ear_pts)
     print(f'oreille : {len(ear_pts)} sommets, phi {pe0:.2f} à {pe1:.2f}, haut à {100 * (ez1 - eye_z):+.1f} cm des yeux, tempe {100 * x_ref:.1f} cm')
@@ -1578,7 +1591,9 @@ def hair_shells(body, rig, back_y, eye_z):
             c = v.co.copy()
             d = c - H
             r = d.length
-            if covers_ears and r_skull and pe0 - 0.08 < phi(c) < pe1 + 0.08 and eye_z - 0.07 < c.z < ez1 + 0.01 and abs(c.x) > x_ref + 0.004:   # oreille seule
+            # Oreille seule : sommets posés sur l'oreille (derrière elle, le crâne est aussi large
+            # que la tempe ; ramené au rayon du crâne, il passait sous la peau : trou au-dessus de l'oreille).
+            if covers_ears and r_skull and pe0 - 0.08 < phi(c) < pe1 + 0.08 and eye_z - 0.07 < c.z < ez1 + 0.01 and abs(c.x) > x_ref + 0.004                     and ear_kd.find(c)[2] < 0.003:
                 r = min(r, r_skull)
             d.normalize()
             f = phi(c)
@@ -1616,6 +1631,574 @@ def hair_shells(body, rig, back_y, eye_z):
     skin_to_head(bun, rig)
     out.append(bun)
     return out
+
+
+# ---------------------------------------------------------------------------------------------
+# Casque route et lunettes : modélisés sur la tête (pose debout, liés à l'os de la tête)
+# ---------------------------------------------------------------------------------------------
+# Aérations longitudinales, doublées de part et d'autre du milieu : centre latéral s (0 : milieu,
+# 1 : bord au-dessus de l'oreille), début et fin t (0 : bord avant, 1 : bord arrière), demi-largeur
+# (en s), rétrécissement vers l'arrière (0 à 1).
+HELMET_VENTS = ((0.10, 0.10, 0.60, 0.066, 0.45),
+                (0.33, 0.09, 0.55, 0.075, 0.50),
+                (0.57, 0.15, 0.47, 0.062, 0.55),
+                (0.20, 0.68, 0.88, 0.058, 0.25))
+HELMET_NS, HELMET_NT = 48, 56   # mailles de la coque : en travers, d'avant en arrière
+
+
+def gear_material(name):
+    return bpy.data.materials.get(name) or bpy.data.materials.new(name)
+
+
+def head_surface(objs, sheets=()):
+    """Surface extérieure de la tête et de ce qui la couvre : premier point touché par un rayon
+    venu de loin, point le plus proche et distance signée (négative dedans). `sheets` : indices
+    des feuilles ouvertes (coque de cheveux), ignorées au-delà de leur bord."""
+    from mathutils.bvhtree import BVHTree
+    trees = []
+    for o in objs:
+        bm = bmesh.new()
+        bm.from_mesh(o.data)
+        bm.transform(o.matrix_world)
+        trees.append(BVHTree.FromBMesh(bm))
+        bm.free()
+
+    def ray_in(origin, d, far=0.4):
+        best = None
+        for t in trees:
+            hit = t.ray_cast(origin + d * far, -d, far)
+            if hit[0] is not None and (best is None or hit[3] < best[2]):
+                best = (hit[0], hit[1], hit[3])
+        return best
+
+    def nearest(p):
+        best = None
+        for k, t in enumerate(trees):
+            loc, nrm, _, dist = t.find_nearest(p)
+            if loc is None:
+                continue
+            sd = (p - loc).dot(nrm)
+            if k in sheets and ((p - loc) - nrm * sd).length > 0.0015:
+                continue
+            if best is None or sd < best[2]:
+                best = (loc, nrm, sd)
+        return best
+    return ray_in, nearest
+
+
+def catmull(pts, step):
+    """Courbe de Catmull-Rom par les points, rééchantillonnée tous les `step` mètres."""
+    ext = [pts[0] * 2 - pts[1]] + list(pts) + [pts[-1] * 2 - pts[-2]]
+    dense = []
+    for i in range(1, len(ext) - 2):
+        p0, p1, p2, p3 = ext[i - 1], ext[i], ext[i + 1], ext[i + 2]
+        for k in range(20):
+            t = k / 20
+            dense.append(0.5 * ((2 * p1) + (-p0 + p2) * t + (2 * p0 - 5 * p1 + 4 * p2 - p3) * t * t + (-p0 + 3 * p1 - 3 * p2 + p3) * t ** 3))
+    dense.append(pts[-1].copy())
+    total = sum((b - a).length for a, b in zip(dense, dense[1:]))
+    n = max(2, int(total / step) + 1)
+    out, acc, k = [dense[0].copy()], 0.0, 0
+    for i in range(1, n):
+        target = total * i / (n - 1)
+        while k < len(dense) - 2 and acc + (dense[k + 1] - dense[k]).length < target:
+            acc += (dense[k + 1] - dense[k]).length
+            k += 1
+        seg = (dense[k + 1] - dense[k]).length
+        out.append(dense[k].lerp(dense[k + 1], min(1.0, (target - acc) / max(seg, 1e-9))))
+    return out
+
+
+def lie_on(path, nearest, off, rounds=6):
+    """Chemin tendu posé sur la peau : ressorti à `off` au moins et lissé, bouts fixes."""
+    pts = [p.copy() for p in path]
+
+    def push():
+        for i, p in enumerate(pts):
+            loc, nrm, sd = nearest(p)
+            if sd < off:
+                pts[i] = loc + nrm * off
+    for _ in range(rounds):
+        push()
+        pts = [p if i in (0, len(pts) - 1) else (pts[i - 1] + p * 2 + pts[i + 1]) / 4 for i, p in enumerate(pts)]
+    push()
+    return pts
+
+
+def drape(pts, nearest, near_all, off, spread=0.007):
+    """Chemin posé sur la peau puis soulevé en bosse douce là où il croise autre chose (branche
+    des lunettes) : soulèvement nécessaire étalé le long du chemin (gaussienne de `spread` m)."""
+    pts = lie_on(pts, nearest, off)
+    s = [0.0]
+    for a, b in zip(pts, pts[1:]):
+        s.append(s[-1] + (b - a).length)
+    need = [(si, off - near_all(p)[2]) for si, p in zip(s, pts) if near_all(p)[2] < off]
+    out = []
+    for si, p in zip(s, pts):
+        lift = max([n * math.exp(-((si - sj) / spread) ** 2) for sj, n in need] + [0.0])
+        out.append(p + nearest(p)[1] * lift * 1.15)
+    return out
+
+
+def ribbon(bm, pts, nearest, width, thick, mat, ring_ids=None, ring0=0):
+    """Bande plate le long du chemin : largeur à plat sur la peau (orientée par `nearest`),
+    épaisseur vers l'extérieur, arêtes vives (une sangle, pas un tube)."""
+    rings = []
+    tgs = [(pts[min(i + 1, len(pts) - 1)] - pts[max(i - 1, 0)]).normalized() for i in range(len(pts))]
+    # Normales de la peau lissées le long du chemin : la bande ne vrille pas d'une face à l'autre.
+    nrms = [nearest(p)[1].copy() for p in pts]
+    for _ in range(8):
+        nrms = [(nrms[max(i - 1, 0)] + nrms[i] * 2 + nrms[min(i + 1, len(nrms) - 1)]).normalized() for i in range(len(nrms))]
+    for i, p in enumerate(pts):
+        tg, nrm = tgs[i], nrms[i]
+        nn = (nrm - tg * nrm.dot(tg)).normalized()
+        b = tg.cross(nn)
+        w = width(i / max(1, len(pts) - 1)) if callable(width) else width
+        rings.append([bm.verts.new(p + b * w / 2 * sx + nn * thick * sy / 2) for sx, sy in ((-1, -1), (1, -1), (1, 1), (-1, 1))])
+        if ring_ids is not None:
+            for v in rings[-1]:
+                ring_ids[v] = ring0 + i
+    for a, c in zip(rings, rings[1:]):
+        for q in range(4):
+            bm.faces.new((a[q], a[(q + 1) % 4], c[(q + 1) % 4], c[q])).material_index = mat
+    for r in (rings[0], rings[-1]):
+        bm.faces.new(r).material_index = mat
+    for r in rings:
+        for q in range(4):
+            e = bm.edges.get((r[q], r[(q + 1) % 4]))
+            if e:
+                e.smooth = False
+    for a, c in zip(rings, rings[1:]):
+        for q in range(4):
+            bm.edges.get((a[q], c[q])).smooth = False
+    return ring0 + len(pts)
+
+
+def block(bm, center, ax, ay, az, size, mat, ring_ids=None, ring=None, bevel=0.3):
+    """Pavé aux coins chanfreinés (boucles, plaquettes) : axes ax, ay, az, demi-côtés `size`."""
+    sx, sy, sz = size
+    c = bevel
+    prof = [(-1 + c, -1), (1 - c, -1), (1, -1 + c), (1, 1 - c), (1 - c, 1), (-1 + c, 1), (-1, 1 - c), (-1, -1 + c)]
+    bot = [bm.verts.new(center + ax * px * sx + ay * py * sy - az * sz) for px, py in prof]
+    top = [bm.verts.new(center + ax * px * sx + ay * py * sy + az * sz) for px, py in prof]
+    n = len(prof)
+    for q in range(n):
+        bm.faces.new((bot[q], bot[(q + 1) % n], top[(q + 1) % n], top[q])).material_index = mat
+    bm.faces.new(top).material_index = mat
+    bm.faces.new(list(reversed(bot))).material_index = mat
+    for r in (top, bot):
+        for q in range(n):
+            bm.edges.get((r[q], r[(q + 1) % n])).smooth = False
+    if ring_ids is not None:
+        for v in top + bot:
+            ring_ids[v] = ring
+
+
+def gear_object(name, bm, mats, rig):
+    me = bpy.data.meshes.new(name)
+    bm.to_mesh(me)
+    bm.free()
+    ob = bpy.data.objects.new(name, me)
+    bpy.context.scene.collection.objects.link(ob)
+    for n in mats:
+        me.materials.append(gear_material(n))
+    for p in me.polygons:
+        p.use_smooth = True
+    skin_to_head(ob, rig)
+    return ob
+
+
+def build_headgear(body, eyes, rig, styles):
+    """Casque route compact (Van Rysel RCR, POC Omne Air) : coque arrondie à grandes aérations
+    longitudinales, bord avant bas et presque droit au-dessus des sourcils, arrière descendu sur
+    l'occiput ; berceau et molette de serrage dessous ; sangles fines en Y (une branche devant
+    l'oreille, une derrière) réunies par un séparateur sous le lobe, puis sous la mâchoire jusqu'à
+    la boucle. Lunettes à grand écran (build_glasses). Matériaux : « helmet » (coque, couleur du
+    joueur), « helmet_detail » (intérieur, tranche, berceau, sangles), « lens », « glasses_frame »."""
+    m = MOUTH[0]
+    eye_z = m.z + 0.072
+    vs = [v.co.copy() for v in body.data.vertices]
+    heads = [c for c in vs if c.z > eye_z - 0.02]
+    back_y = max(c.y for c in vs if c.z > m.z + 0.05 and abs(c.x) < 0.02)
+    ycen = (min(c.y for c in heads) + back_y) / 2
+    H = Vector((0.0, ycen, eye_z + 0.01))
+    phi = lambda c: math.atan2(abs(c.x), -(c.y - ycen))
+    band = [c for c in vs if eye_z - 0.075 < c.z < eye_z + 0.04]
+    x_ref = max(abs(c.x) for c in band if 1.0 < phi(c) < 1.15)
+    ear = [c for c in vs if eye_z - 0.11 < c.z < eye_z + 0.04 and abs(c.x) > x_ref + 0.008 and 1.2 < phi(c) < 2.3]
+    ear_top = max(ear, key=lambda c: c.z)
+    e_top = ear_top.z - eye_z
+    lobe = min(ear, key=lambda c: c.z)
+    pe0, pe1 = min(phi(c) for c in ear), max(phi(c) for c in ear)
+    slick = next(o for o in styles if o.name == 'rider_hairs_slick')
+    ray_in, nearest = head_surface([body, slick], sheets=(1,))
+
+    # Bord : hauteur (au-dessus des yeux) selon l'azimut (0 : devant, π : derrière).
+    keys = [(0.0, 0.025), (0.85, 0.028), (pe0 - 0.12, max(0.027, e_top + 0.02)), ((pe0 + pe1) / 2, e_top + 0.021),
+            (pe1 + 0.2, e_top + 0.004), (2.65, -0.026), (math.pi, -0.040)]
+
+    def rim_z(a):
+        a = abs(math.atan2(math.sin(a), math.cos(a)))
+        for k in range(len(keys) - 1):
+            (a0, z0), (a1, z1) = keys[k], keys[k + 1]
+            if a <= a1:
+                # Hermite, pentes de Catmull-Rom (nulles aux bouts : bord symétrique).
+                d0 = 0.0 if k == 0 else (z1 - keys[k - 1][1]) / (a1 - keys[k - 1][0])
+                d1 = 0.0 if k + 2 >= len(keys) else (keys[k + 2][1] - z0) / (keys[k + 2][0] - a0)
+                t, h = (a - a0) / (a1 - a0), a1 - a0
+                return eye_z + (2 * t ** 3 - 3 * t * t + 1) * z0 + (t ** 3 - 2 * t * t + t) * h * d0 + (-2 * t ** 3 + 3 * t * t) * z1 + (t ** 3 - t * t) * h * d1
+        return eye_z + keys[-1][1]
+
+    def head_dir(az, el):
+        return Vector((math.sin(az) * math.cos(el), -math.cos(az) * math.cos(el), math.sin(el)))
+
+    def rim_dir(az):
+        """Direction (depuis H) du point de la tête à la hauteur du bord."""
+        target = rim_z(az)
+        lo, hi = -1.0, 1.2
+        for _ in range(30):
+            el = (lo + hi) / 2
+            hit = ray_in(H, head_dir(az, el))
+            if (hit[0].z if hit else H.z) < target:
+                lo = el
+            else:
+                hi = el
+        return head_dir(az, (lo + hi) / 2)
+
+    def to_uv(d):
+        u = math.atan2(d.z, -d.y)
+        if u < -math.pi / 2:
+            u += 2 * math.pi
+        return u, math.asin(max(-1.0, min(1.0, d.x)))
+
+    def from_uv(u, v):
+        return Vector((math.sin(v), -math.cos(v) * math.cos(u), math.cos(v) * math.sin(u)))
+
+    # Coque : carreau de Coons en (u, v) (u : du front vers la nuque par le sommet, v : vers le côté)
+    # entre le bord avant, les côtés au-dessus des oreilles et le bord arrière.
+    A1, A2 = 1.05, pe1 + 0.32   # coins : tempe, derrière l'oreille
+    NS, NT = HELMET_NS, HELMET_NT
+    ss = [-1 + 2 * j / NS for j in range(NS + 1)]
+    ts = [i / NT for i in range(NT + 1)]
+    F = [to_uv(rim_dir(s * A1)) for s in ss]
+    Bk = [to_uv(rim_dir(math.pi - (math.pi - A2) * s)) for s in ss]
+    L = [to_uv(rim_dir(-(A1 + (A2 - A1) * t))) for t in ts]
+    R = [to_uv(rim_dir(A1 + (A2 - A1) * t)) for t in ts]
+
+    def coons(s, t):
+        fj = min(max((s + 1) / 2 * NS, 0.0), NS - 1e-9)
+        fi = min(max(t * NT, 0.0), NT - 1e-9)
+        j0, i0 = int(fj), int(fi)
+        a, b = fj - j0, fi - i0
+        sg = (s + 1) / 2
+        out = []
+        for c in (0, 1):
+            f = F[j0][c] * (1 - a) + F[j0 + 1][c] * a
+            bk = Bk[j0][c] * (1 - a) + Bk[j0 + 1][c] * a
+            le = L[i0][c] * (1 - b) + L[i0 + 1][c] * b
+            ri = R[i0][c] * (1 - b) + R[i0 + 1][c] * b
+            out.append((1 - t) * f + t * bk + (1 - sg) * le + sg * ri
+                       - ((1 - sg) * (1 - t) * F[0][c] + sg * (1 - t) * F[NS][c] + (1 - sg) * t * Bk[0][c] + sg * t * Bk[NS][c]))
+        return out
+
+    # Aérations : trous dans la grille, sommets du bord glissés sur le contour (en travers sur les
+    # côtés, d'avant en arrière aux bouts : pas d'escalier ni de maille retournée).
+    def vent_half(vent, t):
+        c, t0, t1, w, taper = vent
+        tau = (t - t0) / (t1 - t0)
+        if not 0.0 < tau < 1.0:
+            return 0.0
+        return w * (1 - abs(2 * tau - 1) ** 3.5) ** (1 / 3.5) * (1 - taper * tau)
+    vents = [(sx * c, t0, t1, w, tp) for c, t0, t1, w, tp in HELMET_VENTS for sx in (-1, 1)]
+    hole = [[any(abs((ss[j] + ss[j + 1]) / 2 - v[0]) < vent_half(v, (ts[i] + ts[i + 1]) / 2) for v in vents)
+             for j in range(NS)] for i in range(NT)]
+    KS, KT = 0.10, 0.33   # longueur sur la coque d'une unité de s et de t (m)
+    st = [[(ss[j], ts[i]) for j in range(NS + 1)] for i in range(NT + 1)]
+    for i in range(NT + 1):
+        for j in range(NS + 1):
+            adj = [hole[a][b] for a in (i - 1, i) for b in (j - 1, j) if 0 <= a < NT and 0 <= b < NS]
+            if not any(adj) or all(adj):
+                continue
+            s, t = st[i][j]
+            cands = []
+            for v in vents:
+                hw = vent_half(v, t)
+                if hw > 0:
+                    cands.append((v[0] + math.copysign(hw, s - v[0]), t))
+                d = abs(s - v[0])
+                if d < v[3]:
+                    grid = [v[1] + (v[2] - v[1]) * k / 200 for k in range(201)]
+                    for ta, tb in zip(grid, grid[1:]):
+                        ha, hb = vent_half(v, ta) - d, vent_half(v, tb) - d
+                        if ha * hb <= 0 and ha != hb:
+                            cands.append((s, ta + (tb - ta) * ha / (ha - hb)))
+            if cands:
+                st[i][j] = min(cands, key=lambda p: ((p[0] - s) * KS) ** 2 + ((p[1] - t) * KT) ** 2)
+    dirs = [[from_uv(*coons(*st[i][j])) for j in range(NS + 1)] for i in range(NT + 1)]
+    raw = [[((ray_in(H, dirs[i][j]) or (H,))[0] - H).length for j in range(NS + 1)] for i in range(NT + 1)]
+
+    def smooth(f, n):
+        g = [row[:] for row in f]
+        nb = lambda i, j: [(a, b) for a, b in ((i - 1, j), (i + 1, j), (i, j - 1), (i, j + 1)) if 0 <= a <= NT and 0 <= b <= NS]
+        for _ in range(n):
+            g = [[(g[i][j] * 2 + sum(g[a][b] for a, b in nb(i, j))) / (2 + len(nb(i, j))) for j in range(NS + 1)] for i in range(NT + 1)]
+        return g
+    sm = smooth(raw, 6)
+    r_in = [[max(sm[i][j], raw[i][j]) + 0.004 for j in range(NS + 1)] for i in range(NT + 1)]
+    sm2 = smooth(r_in, 40)
+    r_out = []
+    for i in range(NT + 1):
+        row = []
+        for j in range(NS + 1):
+            s, t = st[i][j]
+            th = 0.012 + 0.008 * math.sin(math.pi * min(max(t, 0.0), 1.0)) ** 0.6 * (1 - 0.4 * s * s)
+            r = max(sm2[i][j] + th, r_in[i][j] + 0.010)
+            edge = min(i, NT - i, j, NS - j)
+            r -= (0.0035, 0.0012)[edge] if edge < 2 else 0.0   # bord arrondi
+            row.append(r)
+        r_out.append(row)
+
+    bm = bmesh.new()
+    O = [[bm.verts.new(H + dirs[i][j] * r_out[i][j]) for j in range(NS + 1)] for i in range(NT + 1)]
+    I = [[bm.verts.new(H + dirs[i][j] * r_in[i][j]) for j in range(NS + 1)] for i in range(NT + 1)]
+    SHELL, DETAIL = 0, 1
+    for i in range(NT):
+        for j in range(NS):
+            if not hole[i][j]:
+                bm.faces.new((O[i][j], O[i][j + 1], O[i + 1][j + 1], O[i + 1][j])).material_index = SHELL
+                bm.faces.new((I[i + 1][j], I[i + 1][j + 1], I[i][j + 1], I[i][j])).material_index = DETAIL
+    # Tranches : bord du casque (intérieur foncé) et parois des aérations (couleur de la coque).
+    sharp = []
+    for i in range(NT + 1):
+        for j in range(NS + 1):
+            for di, dj in ((0, 1), (1, 0)):
+                i2, j2 = i + di, j + dj
+                if i2 > NT or j2 > NS:
+                    continue
+                side = [hole[a][j] for a in (i - 1, i) if 0 <= a < NT] if di == 0 else [hole[i][b] for b in (j - 1, j) if 0 <= b < NS]
+                if sum(1 for h in side if not h) != 1:
+                    continue
+                f = bm.faces.new((O[i][j], I[i][j], I[i2][j2], O[i2][j2]))
+                f.material_index = DETAIL if len(side) == 1 else SHELL
+                sharp += [(O[i][j], O[i2][j2]), (I[i][j], I[i2][j2])]
+    bmesh.ops.delete(bm, geom=[v for v in bm.verts if not v.link_faces], context='VERTS')
+    for a, b in sharp:
+        e = bm.edges.get((a, b))
+        if e:
+            e.smooth = False
+    # Sommets recalés au même point du contour (bouts des aérations) : fusionnés.
+    bmesh.ops.remove_doubles(bm, verts=bm.verts[:], dist=0.0002)
+    bmesh.ops.dissolve_degenerate(bm, dist=0.0002, edges=bm.edges[:])
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
+
+    # Berceau et molette de serrage, sous l'arrière de la coque.
+    def on_head(az, z, off):
+        hit = ray_in(Vector((0.0, ycen, z)), Vector((math.sin(az), -math.cos(az), 0.0)))
+        loc, nrm, _ = nearest(hit[0])
+        return loc + nrm * off
+    cz = lobe.z - 0.004
+    cradle = [on_head(a * sx, z, 0.004) for sx, a, z in (
+        (1, A2 - 0.25, rim_z(A2 - 0.25) + 0.012), (1, A2 + 0.1, (rim_z(A2) + cz) / 2 + 0.006), (1, 2.75, cz + 0.004),
+        (1, math.pi, cz), (-1, 2.75, cz + 0.004), (-1, A2 + 0.1, (rim_z(A2) + cz) / 2 + 0.006), (-1, A2 - 0.25, rim_z(A2 - 0.25) + 0.012))]
+    ribbon(bm, lie_on(catmull(cradle, 0.004), nearest, 0.004), nearest, 0.011, 0.003, DETAIL)
+    loc, nrm, _ = nearest(on_head(math.pi, cz, 0.0))
+    ax = Vector((0, 0, 1)).cross(nrm).normalized()
+    ay = nrm.cross(ax)
+    nd = 28
+    ring_b, ring_o, cap = [], [], []
+    for k in range(nd):
+        dv = ax * math.cos(2 * math.pi * k / nd) + ay * math.sin(2 * math.pi * k / nd)
+        rr = 0.0145 if k % 2 == 0 else 0.0133   # molette crantée
+        ring_b.append(bm.verts.new(loc + nrm * 0.005 + dv * rr))
+        ring_o.append(bm.verts.new(loc + nrm * 0.0135 + dv * rr))
+        cap.append(bm.verts.new(loc + nrm * 0.0145 + dv * 0.011))
+    for k in range(nd):
+        k2 = (k + 1) % nd
+        bm.faces.new((ring_b[k], ring_b[k2], ring_o[k2], ring_o[k])).material_index = DETAIL
+        bm.faces.new((ring_o[k], ring_o[k2], cap[k2], cap[k])).material_index = DETAIL
+    bm.faces.new(cap).material_index = DETAIL
+    bm.faces.new(list(reversed(ring_b))).material_index = DETAIL
+    for k in range(nd):
+        for r in (ring_o, cap):
+            bm.edges.get((r[k], r[(k + 1) % nd])).smooth = False
+    helmet = gear_object('rider_helmet', bm, ('helmet', 'helmet_detail'), rig)
+
+    glasses = build_glasses(body, eyes, rig, nearest, ray_in, eye_z, ear_top)
+
+    # Sangles en Y : branches devant et derrière l'oreille (par-dessus les branches des lunettes),
+    # séparateur sous le lobe, jugulaire sous la mâchoire jusqu'à la boucle.
+    _, near_g = head_surface([body, slick, glasses], sheets=(1,))
+    bm = bmesh.new()
+    ring_ids = {}
+    ring = 0
+    # Boucle sous le menton, 3,5 cm derrière la lèvre : dessous de la mâchoire cherché par en bas.
+    hit = ray_in(Vector((0.0, m.y + 0.035, m.z - 0.02)), Vector((0.0, 0.0, -1.0)), 0.08)
+    chin = lie_on([hit[0] if hit else Vector((0.0, m.y + 0.035, m.z - 0.056))], nearest, 0.003)[0]
+    halves = []
+    for sx in (-1, 1):
+        loc, nrm, _ = nearest(Vector((sx * abs(lobe.x), lobe.y, lobe.z)) + Vector((-sx * 0.012, -0.008, -0.009)))
+        div = loc + nrm * 0.004
+        for a in (sx * (pe0 - 0.34), sx * (pe1 + 0.28)):
+            top = on_head(a, rim_z(a) + 0.014, 0.0025)
+            # Par-dessus les branches des lunettes, à plat selon la tête (sans vriller).
+            ring = ribbon(bm, drape(catmull([top, top.lerp(div, 0.5), div], 0.003), nearest, near_g, 0.0025),
+                          nearest, 0.009, 0.0013, 0, ring_ids, ring)
+        halves.append([div, div.lerp(chin, 0.45) + Vector((0, 0.008, -0.01))])
+        tg = (chin - div).normalized()
+        nn = (nrm - tg * nrm.dot(tg)).normalized()
+        block(bm, div, tg.cross(nn), tg, nn, (0.008, 0.0105, 0.0018), 0, ring_ids, ring)
+        ring += 1
+    p = lie_on(catmull(halves[0] + [chin] + list(reversed(halves[1])), 0.004), nearest, 0.0028)
+    ring = ribbon(bm, p, nearest, 0.0105, 0.0013, 0, ring_ids, ring)
+    _, nrm, _ = nearest(chin)
+    tg = (p[len(p) // 2 + 1] - p[len(p) // 2 - 1]).normalized()
+    nn = (nrm - tg * nrm.dot(tg)).normalized()
+    block(bm, chin + nn * 0.0012, tg, tg.cross(nn), nn, (0.015, 0.008, 0.0028), 0, ring_ids, ring)
+    rid = [ring_ids.get(v, -1) for v in bm.verts]
+    straps = gear_object('rider_helmet_straps', bm, ('helmet_detail',), rig)
+    straps.data.attributes.new('strap_ring', 'INT', 'POINT').data.foreach_set('value', rid)
+    print(f'casque route : {len(helmet.data.polygons)} faces, sangles {len(straps.data.polygons)}, lunettes {len(glasses.data.polygons)} ; '
+          f'oreille haut {100 * e_top:+.1f} cm, lobe {100 * (lobe.z - eye_z):+.1f} cm des yeux')
+    return [helmet, straps, glasses]
+
+
+def build_glasses(body, eyes, rig, nearest, ray_in, eye_z, ear_top):
+    """Lunettes de vélo à grand écran (Oakley Sutro, Van Rysel…) : un seul verre cintré d'une tempe
+    à l'autre, du haut des sourcils au milieu des pommettes, échancré en V sur le nez ; barre de
+    monture fine en haut seulement, plaquettes de nez, branches fines et droites qui passent
+    par-dessus l'oreille (sous les sangles du casque)."""
+    ev = [eyes.matrix_world @ v.co for v in eyes.data.vertices]
+    y_eye = min(c.y for c in ev)
+    X = max(abs(c.x) for c in ev) + 0.026        # demi-largeur de l'écran
+    T, Bo, rc = eye_z + 0.024, eye_z - 0.037, 0.014   # haut, bas sur les pommettes, rayon des coins
+    y0 = y_eye - 0.016
+
+    def skin_y(x, z):
+        hit = ray_in(Vector((x, y_eye + 0.1, z)), Vector((0.0, -1.0, 0.0)), 0.3)
+        return hit[0].y if hit else 1.0
+
+    # Verre : cintré en largeur (plus fort vers les tempes), un peu en hauteur ; avancé là où il
+    # passerait à moins de 9 mm de la peau (cils, sourcils, pommettes ; 5 mm aux tempes).
+    NJ, NI = 48, 14
+    xs = [X * math.sin(math.pi / 2 * (2 * j / NJ - 1)) for j in range(NJ + 1)]
+    # Bas de l'écran incliné vers le visage (≈ 9°).
+    base = lambda x, z: y0 + x * x / 0.17 + 900 * x ** 4 + (z - eye_z) ** 2 / 0.24 + (eye_z + 0.01 - z) * 0.16
+
+    def top(x):
+        a = abs(x) - (X - rc)
+        return T - 0.003 * (x / X) ** 2 - (rc - math.sqrt(max(rc * rc - a * a, 0.0)) if a > 0 else 0.0)
+
+    def low(x):
+        a = abs(x) - (X - rc)
+        z = Bo + 0.017 * smoothstep(0.025, X, abs(x)) ** 1.6
+        return z + (rc - math.sqrt(max(rc * rc - a * a, 0.0)) if a > 0 else 0.0)
+    push = []
+    for x in xs:
+        clear = 0.009 if abs(x) < X - 0.018 else 0.005
+        zs = [low(x) + (top(x) - low(x)) * k / 10 for k in range(11)]
+        if abs(x) < 0.02:
+            zs = [z for z in zs if z > eye_z - 0.004]   # le nez est traité par l'échancrure
+        push.append(max([base(x, z) - (skin_y(x, z) - clear) for z in zs] + [0.0]))
+    for _ in range(8):
+        push = [max(push[j], (push[max(j - 1, 0)] + push[j] * 2 + push[min(j + 1, NJ)]) / 4) for j in range(NJ + 1)]
+    sym = [max(push[j], push[NJ - j]) for j in range(NJ + 1)]
+    lens_y = lambda j, z: base(xs[j], z) - sym[j]
+    # Échancrure du nez en V : le bas du verre remonte jusqu'à passer à 4 mm devant le nez.
+    def nose_clear(j):
+        zz = eye_z - 0.002
+        while zz > Bo and skin_y(xs[j], zz) > lens_y(j, zz) + 0.004:
+            zz -= 0.0005
+        return zz + 0.003
+    near_nose = [j for j in range(NJ + 1) if abs(xs[j]) < 0.02]
+    req = {j: nose_clear(j) for j in near_nose}
+    apex = max(req.values())
+    slope = min([1.8] + [(apex - req[j]) / abs(xs[j]) for j in near_nose if abs(xs[j]) > 0.004])
+    slope = max(slope, 0.7)
+    bottom = [max(low(x), apex - slope * abs(x)) for x in xs]
+    bm = bmesh.new()
+    LENS, FRAME = 0, 1
+    front, back = [], []
+    for j, x in enumerate(xs):
+        zt = top(x)
+        col_f, col_b = [], []
+        for i in range(NI + 1):
+            z = bottom[j] + (zt - bottom[j]) * i / NI
+            y = lens_y(j, z)
+            col_f.append(bm.verts.new((x, y, z)))
+            col_b.append(bm.verts.new((x, y + 0.0018, z)))
+        front.append(col_f)
+        back.append(col_b)
+    for j in range(NJ):
+        for i in range(NI):
+            bm.faces.new((front[j][i], front[j + 1][i], front[j + 1][i + 1], front[j][i + 1])).material_index = LENS
+            bm.faces.new((back[j][i + 1], back[j + 1][i + 1], back[j + 1][i], back[j][i])).material_index = LENS
+    loop = [(j, 0) for j in range(NJ)] + [(NJ, i) for i in range(NI)] + [(j, NI) for j in range(NJ, 0, -1)] + [(0, i) for i in range(NI, 0, -1)]
+    for k, (j, i) in enumerate(loop):
+        j2, i2 = loop[(k + 1) % len(loop)]
+        bm.faces.new((front[j][i], back[j][i], back[j2][i2], front[j2][i2])).material_index = LENS
+        bm.edges.get((front[j][i], front[j2][i2])).smooth = False
+        bm.edges.get((back[j][i], back[j2][i2])).smooth = False
+    # Barre de monture en haut (le verre y est serti), d'un coin à l'autre.
+    bar = []
+    for j, x in enumerate(xs):
+        zt = top(x)
+        fx = (lens_y(min(j + 1, NJ), zt) - lens_y(max(j - 1, 0), zt)) / max(xs[min(j + 1, NJ)] - xs[max(j - 1, 0)], 1e-6)
+        fwd = Vector((fx, -1.0, 0.0)).normalized()
+        up = Vector((0.0, 0.0, 1.0))
+        c = Vector((x, lens_y(j, zt) + 0.0009, zt + 0.0006))
+        bar.append([bm.verts.new(c + fwd * dy + up * dz) for dy, dz in ((0.003, -0.0022), (0.003, 0.0024), (-0.0028, 0.0024), (-0.0028, -0.0022))])
+    for a, c in zip(bar, bar[1:]):
+        for q in range(4):
+            bm.faces.new((a[q], a[(q + 1) % 4], c[(q + 1) % 4], c[q])).material_index = FRAME
+            bm.edges.get((a[q], c[q])).smooth = False
+    for r in (bar[0], bar[-1]):
+        bm.faces.new(r).material_index = FRAME
+    # Pont de nez en V et plaquettes posées sur le nez.
+    for sx in (-1, 1):
+        loc, nrm, _ = nearest(Vector((sx * 0.0085, y_eye - 0.004, eye_z - 0.017)))
+        tg = Vector((0.0, 0.0, 1.0))
+        tg = (tg - nrm * tg.dot(nrm)).normalized()
+        block(bm, loc + nrm * 0.0022, nrm.cross(tg), tg, nrm, (0.0035, 0.0065, 0.0015), FRAME)
+    # Branches : de la charnière (coin haut de l'écran) jusque derrière l'oreille, posées sur la
+    # racine de l'oreille.
+    for sx, j_end in ((-1, 0), (1, NJ)):
+        zt = top(xs[j_end]) - 0.006
+        hinge = Vector((xs[j_end] - sx * 0.002, lens_y(j_end, zt) + 0.004, zt))
+        over = Vector((sx * abs(ear_top.x), ear_top.y, ear_top.z + 0.003))
+        hit = ray_in(Vector((0.0, over.y, over.z)), Vector((sx, 0.0, 0.0)))
+        over.x = hit[0].x + sx * 0.0018
+        mid = hinge.lerp(over, 0.45)
+        end = over + Vector((sx * -0.004, 0.026, -0.016))
+        path = lie_on(catmull([hinge, mid, over, over + Vector((0, 0.012, -0.004)), end], 0.003), nearest, 0.0018)
+        ribbon(bm, path, nearest, lambda t: 0.0055 - 0.002 * smoothstep(0.0, 0.5, t), 0.0024, FRAME)
+        block(bm, hinge + Vector((sx * -0.0005, -0.002, 0.0)), Vector((0.0, 1.0, 0.0)), Vector((0.0, 0.0, 1.0)), Vector((sx, 0.0, 0.0)), (0.005, 0.0045, 0.0018), FRAME)
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
+    return gear_object('rider_glasses', bm, ('lens', 'glasses_frame'), rig)
+
+
+def settle_straps(straps, body, slick, glasses):
+    """Après la pose : chaque section de sangle ressortie d'un bloc de la peau (le cou et la
+    mâchoire ne suivent pas exactement l'os de la tête)."""
+    _, nearest = head_surface([body, slick, glasses], sheets=(1,))
+    me = straps.data
+    att = me.attributes['strap_ring']
+    rings = {}
+    for v, d in zip(me.vertices, att.data):
+        rings.setdefault(d.value, []).append(v)
+    moved = 0
+    for r, vs in rings.items():
+        need = Vector()
+        for v in vs:
+            loc, nrm, sd = nearest(straps.matrix_world @ v.co)
+            if sd < 0.0008 and (0.0008 - sd) > need.length:
+                need = nrm * (0.0008 - sd)
+        if need.length > 0:
+            moved += 1
+            for v in vs:
+                v.co += need
+    me.attributes.remove(me.attributes['strap_ring'])
+    me.update()
+    print(f'sangles : {moved} sections ressorties de la peau après la pose')
 
 
 def fix_material_names(objs):
@@ -1906,11 +2489,13 @@ def main():
             m.object = rig
     bake_skin_textures(body, eyes, OUT)
     styles = build_hair_styles(body, rig)
+    gear = build_headgear(body, eyes, rig, styles)
     pose_rider(rig, body)
-    apply_pose_as_rest(rig, [body, eyes] + styles)
+    apply_pose_as_rest(rig, [body, eyes] + styles + gear)
+    settle_straps(gear[1], body, next(o for o in styles if o.name == 'rider_hairs_slick'), gear[2])
     acc = import_accessories(rig, body)
-    transfer_keys(body, acc + [o for o in styles if o.name.startswith('rider_hair')])
-    acc += styles
+    transfer_keys(body, acc + gear + [o for o in styles if o.name.startswith('rider_hair')])
+    acc += styles + gear
     fix_material_names(acc)
     body = reduce_body(body)
     rig.name = rig.data.name = 'Armature'

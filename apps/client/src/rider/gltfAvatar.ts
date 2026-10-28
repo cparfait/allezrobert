@@ -8,7 +8,6 @@ import { HAIR_STYLE_COUNT, PLAIN_BIKE_FAMILY, bikeOfLook, decodeFace, lookSex, t
 import { RiderAvatar } from './avatar.ts';
 import { buildBikeKit, roadPartsReplaced, type BikeType } from './bikeKits.ts';
 import { FaceAnimator } from './face.ts';
-import { fitGlasses } from './glassesFit.ts';
 import { boxOfMeshes, capGeometry, capMaterials } from './cap.ts';
 import { SkinMaterial, loadSkinTextures, skinTextures, type SkinLook } from './skin.ts';
 import { applyClothLook, clothTextures, isClothPart, loadClothTextures, makeClothMaterial, type JerseyAxis } from './cloth.ts';
@@ -66,7 +65,7 @@ function bigPart(mesh: THREE.Mesh): boolean {
   let big: boolean;
   const name = `${mesh.parent?.name ?? ''} ${mesh.name}`;
   // Coureur (maillage articulé, positions compressées : pas en mètres) : d'après le nom de la pièce.
-  if (/rider_/.test(name)) big = !/rider_(eyes|glasses|moustache)/.test(name);
+  if (/rider_/.test(name)) big = !/rider_(eyes|glasses|moustache|helmet_straps)/.test(name);
   else {
     // Vélo et roues (en mètres) : rayon de la pièce d'au moins 10 cm.
     const g = mesh.geometry;
@@ -222,7 +221,7 @@ const MATERIALS: Record<string, [string, number, number]> = {
   cleat_pad: ['#6e7278', 0.8, 0],
   helmet: ['#f4f4f4', 0.35, 0],
   helmet_detail: ['#1c1d22', 0.6, 0],
-  lens: ['#20242c', 0.08, 0.6],
+  lens: ['#1c1f26', 0.06, 0.75],
   visor: ['#2a3340', 0.05, 0.7],
   glasses_frame: ['#141518', 0.35, 0],
   hair: ['#3b2a1e', 0.8, 0],
@@ -296,6 +295,8 @@ interface Templates {
  */
 /** Part de l'écart latéral du pli de coude de repos conservée sur route / VTT (1 = pli du modèle, coudes très ouverts vus de dos). */
 const ELBOW_FLARE = 0.45;
+/** Position aéro (descente) : part de cet écart encore retirée, coudes rentrés le long du buste. */
+const AERO_ELBOW_IN = 0.8;
 const HOOD_PALM = new THREE.Vector3(0.2, 0.9, 0.565);
 /** VTT : milieu de la paume sur la poignée du cintre plat (bikeKits.ts : poignées à y 0,958, z 0,54, x de 0,165 à 0,3). */
 const MTB_PALM = new THREE.Vector3(0.235, 1.0, 0.535);
@@ -314,6 +315,7 @@ const loading = new Map<AvatarKind, Promise<boolean>>();
 // Temporaires (aucune allocation par image).
 const _v1 = new THREE.Vector3();
 const _v2 = new THREE.Vector3();
+const _vPole = new THREE.Vector3();
 const _v3 = new THREE.Vector3();
 const _v4 = new THREE.Vector3();
 const _q1 = new THREE.Quaternion();
@@ -597,16 +599,6 @@ function buildTemplates(riders: GLTF[]): Templates {
     if ((o as THREE.Mesh).isMesh && m?.name.startsWith('tex_')) textured.set(m.name, m);
   });
   const names = RIG_BONES[mpfb ? 'mpfb' : 'classic'];
-  // Lunettes reprises de l'ancien coureur, trop grandes pour la tête MPFB : remodelées (glassesFit.ts).
-  if (mpfb && !textured.size) {
-    for (const r of riders) {
-      const glasses: THREE.Mesh[] = [];
-      r.scene.traverse((o) => {
-        if ((o as THREE.Mesh).isMesh && o.name.startsWith('rider_glasses')) glasses.push(o as THREE.Mesh);
-      });
-      fitGlasses(glasses);
-    }
-  }
   // Milieu de la paume au repos : entre le poignet et la base du majeur.
   const finger = (s: Side) => scene.getObjectByName(`middle_01_${s === 'L' ? 'l' : 'r'}`);
   const wrist = (s: Side) => scene.getObjectByName(names[`hand_${s}`] ?? '');
@@ -719,7 +711,10 @@ function makeMaterial(name: string, look: AvatarLook): THREE.MeshStandardNodeMat
     return sm.material;
   }
   const def = MATERIALS[name] ?? ['#808080', 0.6, 0];
-  const m = new THREE.MeshStandardNodeMaterial({ color: def[0], roughness: def[1], metalness: def[2] });
+  // Écran des lunettes : verre miroir irisé (reflets verts, violets, orangés selon l'angle).
+  const m = name === 'lens'
+    ? new THREE.MeshPhysicalNodeMaterial({ color: def[0], roughness: def[1], metalness: def[2], iridescence: 1, iridescenceIOR: 1.8, iridescenceThicknessRange: [280, 520] })
+    : new THREE.MeshStandardNodeMaterial({ color: def[0], roughness: def[1], metalness: def[2] });
   m.name = name;
   // Visière teintée : on devine les yeux derrière, le ciel s'y reflète (lunettes : verres opaques).
   if (name === 'visor') {
@@ -1403,6 +1398,11 @@ export class GltfRiderAvatar implements RiderAvatarLike {
       if (bar && dropHands > 0) this.target.lerp(bar.drop[s], dropHands);
       if (bar && relax > 0) this.target.lerp(bar.top[s], relax);
       let pole = this.elbowPole[s];
+      if (aero > 0) {
+        pole = _vPole.copy(pole);
+        pole.x *= 1 - AERO_ELBOW_IN * aero;
+        pole.normalize();
+      }
       if (this.celebrateBlend > 0.01) {
         // Victoire : bras tendus en V au-dessus de la tête.
         const sx = s === 'L' ? 1 : -1;

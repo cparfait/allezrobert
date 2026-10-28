@@ -15,7 +15,8 @@ import { AtelierHost, type AtelierState, type Shot } from './ui/atelier.ts';
  *  - ?rendu=<suffixe> : coureur en selle, trois cadrages rapprochés (trois quarts avant, profil,
  *    buste) → rendu-<cadrage>-<suffixe>.jpg, pour comparer le rendu avant / après un changement ;
  *  - ?profil&n=nom[&zoom][&silhouette] : profil du coureur au téléobjectif, angles du dos et du cou
- *    mesurés sur le squelette → profil-<nom>.jpg ;
+ *    mesurés sur le squelette → profil-<nom>.jpg ; &tete : la tête seule (&casque : casquée, &tq : de
+ *    trois quarts avant ; &cam=x,y,z&look=x,y,z&fov=n : cadrage libre) ;
  *  - ?peloton : 50 coureurs tous équipés différemment, vus de la caméra de poursuite → peloton-identite.jpg.
  */
 
@@ -149,7 +150,9 @@ async function main(): Promise<void> {
     // Profil du coureur au téléobjectif, angles mesurés sur le squelette ; &zoom : buste et tête ;
     // &silhouette : coureur et vélo en noir sur fond blanc (comparaison avec des photos).
     const tune = ['tune-pa-eclair', 'tune-wh-dt-arc50', 'tune-rd-noir', 'tune-bo-rouge', 'tune-ty-gp5000'];
-    const view: Shot = params.has('tete') ? { cam: [1.1, 1.53, 0.2], look: [0, 1.53, 0.2], fov: 16 } : params.has('zoom') ? { cam: [3.4, 1.32, 0.2], look: [0, 1.3, 0.16], fov: 12 } : { cam: [6, 1.2, 0.12], look: [0, 1.15, 0.12], fov: 13 };
+    // &cam=x,y,z&look=x,y,z[&fov=n] : cadrage libre (fesses sur la selle, détails).
+    const vec = (k: string) => (params.get(k) ?? '').split(',').map(Number) as [number, number, number];
+    const view: Shot = params.has('cam') ? { cam: vec('cam'), look: vec('look'), fov: Number(params.get('fov') ?? 20) } : params.has('tete') ? { cam: params.has('tq') ? [0.95, 1.62, 1.12] : [1.1, 1.53, 0.2], look: [0, params.has('tq') ? 1.56 : 1.53, 0.2], fov: 16 } : params.has('zoom') ? { cam: [3.4, 1.32, 0.2], look: [0, 1.3, 0.16], fov: 12 } : { cam: [6, 1.2, 0.12], look: [0, 1.15, 0.12], fov: 13 };
     const st: AtelierState = { look: look(tune), focus: 'overview', rider: true, yaw: 0, view, bareHead: params.has('tete') && !params.has('casque') };
     host.set(st);
     const h = host as unknown as { scene: THREE.Scene; avatar: { root: THREE.Object3D }; bikeRoot: THREE.Object3D };
