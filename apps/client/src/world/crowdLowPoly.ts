@@ -42,6 +42,10 @@ export function lowPolyPersonGeometry(): THREE.BufferGeometry {
     tagged(box(0.26, 0.08, 0.26, 0, 1.7, 0.005), 5),
     tagged(box(0.27, 0.1, 0.27, 0, 1.72, 0), 4),
     tagged(box(0.22, 0.03, 0.13, 0, 1.685, -0.195), 4),
+    // cheveux longs (part 6, spectatrices) : nappe dans le dos (+z, l'avant est −z) et mèches sur les joues
+    tagged(box(0.27, 0.34, 0.07, 0, 1.5, 0.135), 6),
+    tagged(box(0.04, 0.22, 0.14, 0.13, 1.56, 0.05), 6),
+    tagged(box(0.04, 0.22, 0.14, -0.13, 1.56, 0.05), 6),
   ];
   // Bras pendants (repos) : manche et main, pivot à l'épaule ; levés dans le shader.
   for (const s of [1, -1]) {
@@ -110,7 +114,10 @@ export function lowPolyCrowdMaterial(spot: Float32Array, still: Float32Array, ri
   // Casquette pour 4 spectateurs sur 10 : sinon ramenée au centre de la tête (triangles dégénérés).
   const isCap = part.equal(4).select(float(1), float(0));
   const noCap = h3.greaterThan(0.4).select(float(1), float(0)).mul(isCap);
-  const dObj = vec3(armDelta.x, armDelta.y, 0).add(vec3(0, 1.6, 0).sub(raw).mul(noCap));
+  // Cheveux longs pour ≈ 45 % des spectateurs sans casquette (femmes, pour l'instant) ; sinon repliés.
+  const longHair = h3.greaterThan(0.4).and(hash(instanceIndex.add(43)).lessThan(0.45)).select(float(1), float(0));
+  const noHair = part.equal(6).select(float(1), float(0)).mul(float(1).sub(longHair));
+  const dObj = vec3(armDelta.x, armDelta.y, 0).add(vec3(0, 1.6, 0).sub(raw).mul(noCap.add(noHair)));
   // Repère du spectateur → repère d'instance (rotation autour de y).
   const c = sp.z;
   const s = sp.w;
@@ -121,7 +128,8 @@ export function lowPolyCrowdMaterial(spot: Float32Array, still: Float32Array, ri
   mat.positionNode = positionLocal.add(dInst).add(vec3(sway.mul(c), jump, sway.mul(s).negate()));
   const shirt = pick(h, SHIRTS);
   const skin = pick(h2, SKIN);
-  const cols: THREE.Node<'vec3'>[] = [shirt, skin, shirt.mul(0.85), pick(hash(instanceIndex.add(5)), TROUSERS), pick(hash(instanceIndex.add(11)), CAPS), pick(hash(instanceIndex.add(17)), HAIR)];
+  const hair = pick(hash(instanceIndex.add(17)), HAIR);
+  const cols: THREE.Node<'vec3'>[] = [shirt, skin, shirt.mul(0.85), pick(hash(instanceIndex.add(5)), TROUSERS), pick(hash(instanceIndex.add(11)), CAPS), hair, hair];
   let col = cols[0] as THREE.Node<'vec3'>;
   for (let i = 1; i < cols.length; i++) col = part.equal(i).select(cols[i] as THREE.Node<'vec3'>, col);
   mat.colorNode = varying(col);

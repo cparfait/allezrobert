@@ -462,9 +462,13 @@ export class LowPolyRider implements RiderAvatarLike {
     const dark = flat('#1d1f24');
     if (look.cap) {
       const cap = look.cap;
-      g.add(new THREE.Mesh(dome(0.118, 0.98, 0.62, 1.05).translate(0, 0.02, -0.005), flat(cap.color)));
+      // Calotte qui enveloppe la coupe de cheveux (sinon les cheveux la traversent), bord au-dessus des
+      // lunettes devant, cheveux visibles sur la nuque.
+      const capMat = new THREE.MeshStandardNodeMaterial({ color: cap.color, roughness: 0.75, metalness: 0, side: THREE.DoubleSide });
+      capMat.flatShading = true;
+      g.add(new THREE.Mesh(headShell(0.119, 0.14, 0.13, 1.22, 1.55, 1.75, 0, 20, 6).translate(0, 0, -0.004), capMat));
       // Visière relevée, comme les coureurs la portent.
-      g.add(new THREE.Mesh(box(0.15, 0.012, 0.07, 0, 0.07, 0.115).rotateX(-0.5), flat(cap.accent ?? cap.colors?.[1] ?? cap.color)));
+      g.add(new THREE.Mesh(box(0.15, 0.012, 0.075, 0, 0.0, 0.035).rotateX(-0.45).translate(0, 0.05, 0.11), flat(cap.accent ?? cap.colors?.[1] ?? cap.color)));
       return;
     }
     if (bike.params.aeroHelmet) {

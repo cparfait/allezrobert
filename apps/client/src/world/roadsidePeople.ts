@@ -111,7 +111,16 @@ function peopleGeometry(): THREE.BufferGeometry {
   parts.push(piece(new THREE.CylinderGeometry(0.2, 0.15, 0.5, 6).scale(1, 1, 0.65).translate(0, 1.23, 0), '#ffffff', 1, 0, 0));
   parts.push(piece(prism(0.05, 0.05, 1.46, 1.57), '#ffffff', 3, 0, 0));
   parts.push(piece(new THREE.IcosahedronGeometry(0.125, 0).scale(0.9, 1.1, 0.95).translate(0, 1.68, 0), '#ffffff', 3, 0, 0));
-  parts.push(piece(box(0.21, 0.08, 0.21, 0, 1.78, -0.02), '#3a2a1e', 0, 0, 0));
+  // Coupe qui dit où est l'avant : dessus en retrait du front, arrière qui descend jusqu'à la nuque ; yeux
+  // sombres sur le visage.
+  parts.push(piece(box(0.22, 0.07, 0.19, 0, 1.775, -0.035), '#3a2a1e', 0, 0, 0));
+  parts.push(piece(box(0.22, 0.17, 0.07, 0, 1.7, -0.095), '#3a2a1e', 0, 0, 0));
+  parts.push(piece(box(0.03, 0.022, 0.012, 0.042, 1.705, 0.112), '#1d1a18', 0, 0, 0));
+  parts.push(piece(box(0.03, 0.022, 0.012, -0.042, 1.705, 0.112), '#1d1a18', 0, 0, 0));
+  // Cheveux longs (femmes, groupe 4) : nappe dans le dos jusqu'aux épaules et mèches le long des joues.
+  parts.push(piece(box(0.24, 0.36, 0.07, 0, 1.6, -0.105), '#4a2f1c', 0, 0, 4));
+  parts.push(piece(box(0.04, 0.24, 0.13, 0.118, 1.63, -0.03), '#4a2f1c', 0, 0, 4));
+  parts.push(piece(box(0.04, 0.24, 0.13, -0.118, 1.63, -0.03), '#4a2f1c', 0, 0, 4));
   parts.push(piece(box(0.035, 0.035, 0.035, 0, 1.66, 0.12), '#ffffff', 3, 0, 0));
 
   // Pêcheur (assis par terre, corps abaissé de 0,82 m dans le shader) : bob, seau, canne et fil.
@@ -202,8 +211,9 @@ class Batch {
   }
 
   /** `shorts` : bas de jambe nu (coureurs, enfants qui jouent), codé par le signe de la couleur du bas. */
-  colors(i: number, shirt: THREE.Color, pants: THREE.Color, skin: THREE.Color, shorts = false): void {
-    this.tints.setXYZ(i, packColor(shirt), packColor(pants) * (shorts ? -1 : 1) - (shorts ? 1 : 0), packColor(skin));
+  colors(i: number, shirt: THREE.Color, pants: THREE.Color, skin: THREE.Color, shorts = false, female = false): void {
+    // bas négatif : en short ; peau négative : cheveux longs (−code − 1, pour distinguer le noir pur)
+    this.tints.setXYZ(i, packColor(shirt), packColor(pants) * (shorts ? -1 : 1) - (shorts ? 1 : 0), packColor(skin) * (female ? -1 : 1) - (female ? 1 : 0));
     this.colorsDirty = true;
   }
 
@@ -258,7 +268,8 @@ function peopleMaterial(pose: THREE.InstancedBufferAttribute, anim: THREE.Instan
   // bas négatif : en short (−code − 1, pour distinguer le noir pur)
   const shorts = step(T.y, -0.5);
   const cP = unpackColor(mix(T.y, T.y.negate().sub(1), shorts));
-  const cK = unpackColor(T.z);
+  const female = step(T.z, -0.5);
+  const cK = unpackColor(mix(T.z, T.z.negate().sub(1), female));
   const lowerLeg = mix(cP, cK, shorts);
   const is = (v: THREE.Node<'float'>, n: number) => float(1).sub(min(abs(v.sub(n)), 1));
   m.colorNode = own.mul(is(paint, 0)).add(cS.mul(is(paint, 1))).add(cP.mul(is(paint, 2))).add(cK.mul(is(paint, 3))).add(lowerLeg.mul(is(paint, 4)));
@@ -277,7 +288,7 @@ function peopleMaterial(pose: THREE.InstancedBufferAttribute, anim: THREE.Instan
   const dog = is(mode, DOG);
   const ball = is(mode, BALL);
   const human = float(1).sub(dog).sub(ball);
-  const vis = is(grp, 0).mul(human).add(is(grp, 1).mul(sit)).add(is(grp, 2).mul(dog)).add(is(grp, 3).mul(ball));
+  const vis = is(grp, 0).mul(human).add(is(grp, 1).mul(sit)).add(is(grp, 2).mul(dog)).add(is(grp, 3).mul(ball)).add(is(grp, 4).mul(human).mul(female));
   const s = sin(ph);
   const legL = is(limb, 1);
   const legR = is(limb, 2);
@@ -348,6 +359,8 @@ interface Actor {
   shirt: THREE.Color;
   pants: THREE.Color;
   skin: THREE.Color;
+  /** Cheveux longs (pour l'instant, la seule différence des femmes). */
+  female: boolean;
   /** Trajet : position (m) le long du chemin, sens, vitesse, pause. */
   t: number;
   dir: number;
@@ -471,6 +484,7 @@ export class RoadsidePeople {
       shirt: role === 'dog' ? pick(DOGS) : (shirt ?? pick(SHIRTS[key] as THREE.Color[])),
       pants: pants ?? pick(PANTS[key] as THREE.Color[]),
       skin: pick(SKIN),
+      female: role !== 'dog' && role !== 'ball' && role !== 'fisher' && r() < 0.45,
       t: 0,
       dir: 1,
       speed: 0,
@@ -484,7 +498,7 @@ export class RoadsidePeople {
       tu: 0,
       tv: 0,
     };
-    b.colors(slot, a.shirt, a.pants, a.skin, a.role === 'jogger' || a.role === 'kid');
+    b.colors(slot, a.shirt, a.pants, a.skin, a.role === 'jogger' || a.role === 'kid', a.female);
     return a;
   }
 
@@ -565,7 +579,7 @@ export class RoadsidePeople {
     (this.batches[a.batch] as Batch).free(a.slot);
     a.batch = want;
     a.slot = slot;
-    to.colors(slot, a.shirt, a.pants, a.skin, a.role === 'jogger' || a.role === 'kid');
+    to.colors(slot, a.shirt, a.pants, a.skin, a.role === 'jogger' || a.role === 'kid', a.female);
   }
 
   private animate(g: Group, dt: number, f: THREE.Vector3): void {
