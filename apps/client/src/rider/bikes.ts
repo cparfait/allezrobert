@@ -474,7 +474,10 @@ export class BikeMaterials {
     this.look = look;
     this.livery = new LiveryMaterial(build.livery);
     // Inscriptions du cadre (comme sur le vrai vélo) dans les boîtes de la famille.
-    this.boxes = decalBoxes(familyScene(family));
+    // Familles génériques : boîtes recalées sur les tubes ; Madone (modèle dédié) : boîtes posées dans Blender.
+    // Bidon du diagonal monté (le vélo est remonté quand le nombre de bidons change) : la marque commence au-dessus.
+    const bottle = !build.params.track && build.params.bottles !== false && (look.bottles ?? 1) > 0;
+    this.boxes = decalBoxes(familyScene(family), family !== 'madone', bottle);
     this.refreshDecals();
   }
 

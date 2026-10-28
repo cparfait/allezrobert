@@ -98,13 +98,111 @@ export function wordmarkTexture(build: BikeBuild, boxes: readonly (DecalBox | nu
   return tex;
 }
 
-/** Boîtes de décor d'une famille (scène LOD 0, repère du vélo = celui du cadre). */
-export function decalBoxes(scene: THREE.Object3D): (DecalBox | null)[] {
+/**
+ * Boîtes de décor d'une famille (scène LOD 0, repère du vélo = celui du cadre). Celle du diagonal commence au-dessus
+ * du bidon du diagonal (« opt_bottle_down ») : la marque se lit en entier, du bidon jusqu'à la douille, comme sur les
+ * vrais cadres (porte-bidon bas, logo au-dessus). `fit` faux : boîtes du modèle telles quelles (modèles dédiés,
+ * déjà posées sur leurs tubes) ; `bottle` faux : vélo sans bidon sur le diagonal, toute la longueur reste.
+ */
+export function decalBoxes(scene: THREE.Object3D, fit = true, bottle = true): (DecalBox | null)[] {
   scene.updateMatrixWorld(true);
   return DECALS.map((name) => {
     const o = scene.getObjectByName(name);
     if (!o) return null;
-    const m = new THREE.Matrix4().compose(o.position, o.quaternion, o.scale);
-    return { inverse: m.invert(), aspect: o.scale.y / Math.max(o.scale.z, 1e-4) };
+    const pos = o.position.clone();
+    const scale = o.scale.clone();
+    const quat = o.quaternion.clone();
+    // Marques des tubes : boîte recalée sur le tube réel (axe, pente, hauteur), sinon les lettres débordent du tube.
+    if (fit && FIT.has(name)) fitToTube(scene, pos, quat, scale);
+    if (fit && bottle && name === 'decal_dt') {
+      const top = bottleTop(scene, new THREE.Matrix4().compose(pos, quat, scale).invert());
+      // Bas de la boîte (y = −0,5) remonté au-dessus du bidon ; le haut ne bouge pas. Au plus 55 % de la longueur en moins.
+      if (top !== null && top > -0.5) {
+        const lo = Math.min(top + 0.03, 0.05);
+        const axis = new THREE.Vector3(0, 1, 0).applyQuaternion(quat);
+        pos.addScaledVector(axis, ((lo + 0.5) / 2) * scale.y);
+        scale.y *= (0.5 - lo);
+      }
+    }
+    const m = new THREE.Matrix4().compose(pos, quat, scale);
+    return { inverse: m.invert(), aspect: scale.y / Math.max(scale.z, 1e-4) };
   });
+}
+
+/** Boîtes recalées sur leur tube (la fourche, boîte à cheval sur les deux fourreaux, garde la sienne). */
+const FIT = new Set(['decal_dt', 'decal_tt', 'decal_st', 'decal_cs', 'decal_ttf']);
+
+/**
+ * Recale une boîte de décor sur le tube du cadre qu'elle couvre : par tranches le long de la boîte, milieu et hauteur
+ * du tube (sommets du cadre de part et d'autre de l'axe), puis droite des milieux → centre et pente ; hauteur de la
+ * boîte : 95 % de la hauteur médiane du tube (lettres sur presque toute la hauteur, comme sur les vrais cadres).
+ * Sans assez de mesures, la boîte reste telle quelle.
+ */
+function fitToTube(scene: THREE.Object3D, pos: THREE.Vector3, quat: THREE.Quaternion, scale: THREE.Vector3): void {
+  const toBox = new THREE.Matrix4().compose(pos, quat, scale).invert();
+  const BINS = 9;
+  const lo = new Array<number>(BINS).fill(Infinity);
+  const hi = new Array<number>(BINS).fill(-Infinity);
+  const v = new THREE.Vector3();
+  const m = new THREE.Matrix4();
+  scene.traverse((o) => {
+    const mesh = o as THREE.Mesh;
+    if (!mesh.isMesh || (mesh.material as THREE.Material | undefined)?.name !== 'frame') return;
+    m.multiplyMatrices(toBox, mesh.matrixWorld);
+    const p = mesh.geometry.getAttribute('position');
+    for (let i = 0; i < p.count; i++) {
+      v.fromBufferAttribute(p, i).applyMatrix4(m);
+      if (Math.abs(v.y) > 0.36 || Math.abs(v.z) > 1.3 || Math.abs(v.x) > 0.6) continue;
+      const b = Math.min(BINS - 1, Math.floor(((v.y + 0.36) / 0.72) * BINS));
+      lo[b] = Math.min(lo[b] as number, v.z);
+      hi[b] = Math.max(hi[b] as number, v.z);
+    }
+  });
+  const ys: number[] = [];
+  const mids: number[] = [];
+  const hs: number[] = [];
+  for (let b = 0; b < BINS; b++) {
+    if (!Number.isFinite(lo[b] as number) || (hi[b] as number) - (lo[b] as number) < 0.2) continue;
+    ys.push(-0.36 + ((b + 0.5) / BINS) * 0.72);
+    mids.push(((lo[b] as number) + (hi[b] as number)) / 2);
+    hs.push((hi[b] as number) - (lo[b] as number));
+  }
+  if (ys.length < 4) return;
+  // Droite des milieux (moindres carrés), en mètres le long de la boîte et en travers.
+  const n = ys.length;
+  const my = ys.reduce((a, b) => a + b, 0) / n;
+  const mz = mids.reduce((a, b) => a + b, 0) / n;
+  let sxy = 0;
+  let sxx = 0;
+  for (let i = 0; i < n; i++) {
+    sxy += ((ys[i] as number) - my) * ((mids[i] as number) - mz);
+    sxx += ((ys[i] as number) - my) ** 2;
+  }
+  const slope = sxx > 1e-9 ? sxy / sxx : 0;
+  const z0 = mz - slope * my;
+  const h = [...hs].sort((a, b) => a - b)[Math.floor(n / 2)] as number;
+  const up = new THREE.Vector3(0, 0, 1).applyQuaternion(quat);
+  pos.addScaledVector(up, z0 * scale.z);
+  quat.multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), Math.atan2(slope * scale.z, scale.y)));
+  scale.z *= THREE.MathUtils.clamp(h * 0.95, 0.7, 1.6);
+}
+
+/** Plus haute abscisse (repère unité de la boîte, le long du tube) du bidon du diagonal ; null sans bidon. */
+function bottleTop(scene: THREE.Object3D, toBox: THREE.Matrix4): number | null {
+  const v = new THREE.Vector3();
+  const m = new THREE.Matrix4();
+  let top: number | null = null;
+  scene.traverse((o) => {
+    const mesh = o as THREE.Mesh;
+    if (!mesh.isMesh || !o.name.startsWith('opt_bottle_down')) return;
+    m.multiplyMatrices(toBox, mesh.matrixWorld);
+    const p = mesh.geometry.getAttribute('position');
+    const idx = mesh.geometry.index;
+    const n = idx ? idx.count : p.count;
+    for (let k = 0; k < n; k++) {
+      v.fromBufferAttribute(p, idx ? idx.getX(k) : k).applyMatrix4(m);
+      if (top === null || v.y > top) top = v.y;
+    }
+  });
+  return top;
 }
