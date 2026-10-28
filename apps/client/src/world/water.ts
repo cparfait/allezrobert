@@ -1,4 +1,5 @@
 import * as THREE from 'three/webgpu';
+import { LOW_POLY } from '../engine/style.ts';
 import {
   attribute,
   positionWorld,
@@ -75,9 +76,9 @@ interface WaterPalette {
 }
 
 /** Étangs et rivières de la vallée : vert-brun, plus clair et plus brun sur les hauts-fonds. */
-const POND: WaterPalette = { deep: [0.035, 0.07, 0.065], shallow: [0.2, 0.19, 0.12], ripple: 1 };
+const POND: WaterPalette = LOW_POLY ? { deep: [0.04, 0.2, 0.42], shallow: [0.22, 0.5, 0.66], ripple: 0.6 } : { deep: [0.035, 0.07, 0.065], shallow: [0.2, 0.19, 0.12], ripple: 1 };
 /** Mer : bleu-vert profond, turquoise sur les hauts-fonds, houle plus marquée. */
-const SEA: WaterPalette = { deep: [0.02, 0.075, 0.11], shallow: [0.09, 0.3, 0.29], ripple: 2.2 };
+const SEA: WaterPalette = LOW_POLY ? { deep: [0.03, 0.18, 0.4], shallow: [0.18, 0.58, 0.64], ripple: 1.2 } : { deep: [0.02, 0.075, 0.11], shallow: [0.09, 0.3, 0.29], ripple: 2.2 };
 /** Maille de la surface de la mer sur une tuile (m) et profondeur au-delà de laquelle elle est « profonde ». */
 const SEA_CELL_M = 10;
 const SEA_DEEP_M = 4;
@@ -120,7 +121,8 @@ export class WaterSystem {
     this.groundAt = groundAt;
     this.avoid = avoid;
     this.group.name = 'water';
-    this.material = this.createMaterial(q.waterDetail);
+    // Style jeu vidéo : une seule octave de vaguelettes (surface lisse et lisible).
+    this.material = this.createMaterial(q.waterDetail && !LOW_POLY);
     this.reedMaterial = this.createReedMaterial();
     this.setSeason(season);
   }

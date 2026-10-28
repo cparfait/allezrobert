@@ -1,4 +1,5 @@
 import * as THREE from 'three/webgpu';
+import { LOW_POLY } from '../engine/style.ts';
 import { attribute, frontFacing, uv, fract, floor, step, mix, vec2, vec3, float, int, uniform, uniformArray, mx_noise_float, positionWorld, smoothstep, max, min, abs, hash, normalWorld, normalMap, fwidth } from 'three/tsl';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { setFlatNormals } from './flatNormals.ts';
@@ -469,12 +470,14 @@ export class Buildings {
     const isRender = float(1).sub(isStone).sub(isBrick).sub(isRubble).sub(isAshlar).sub(isConcrete);
     const T = BUILDING_TEXTURES;
     const wallUv = (size: number) => vec2(u, v).div(size);
-    const render = T.render.map.sample(wallUv(2.0)).rgb;
-    const rubble = T.stone.map.sample(wallUv(2.3)).rgb;
-    const brick = T.brick.map.sample(wallUv(2.0)).rgb;
+    // Style jeu vidéo : aplats à la teinte de chaque maison, aucune photo chargée (moyenne de l'enduit
+    // pour qu'il prenne exactement la couleur de base).
+    const render = LOW_POLY ? vec3(0.31, 0.29, 0.28) : T.render.map.sample(wallUv(2.0)).rgb;
+    const rubble = LOW_POLY ? base : T.stone.map.sample(wallUv(2.3)).rgb;
+    const brick = LOW_POLY ? base : T.brick.map.sample(wallUv(2.0)).rgb;
     // Meulière : moellons procéduraux, teinte de la maison (ocre plus ou moins rouge) en multiplicateur.
     const meul = meuliere(vec2(u, v));
-    const stone = meul.color.mul(base.div(vec3(0.68, 0.53, 0.37)).clamp(0.8, 1.2));
+    const stone = LOW_POLY ? base : meul.color.mul(base.div(vec3(0.68, 0.53, 0.37)).clamp(0.8, 1.2));
     // L'enduit (photo grise tachée) prend la teinte de chaque maison : couleur de base × variations de la photo.
     const renderTinted = render.mul(base.div(vec3(0.31, 0.29, 0.28))).clamp(0, 1.5);
     // Pierre de taille : assises de 50 cm, blocs de 1,40 m décalés d'un rang à l'autre, chaque bloc
@@ -687,7 +690,7 @@ export class Buildings {
     // ── Toits : tuiles en terre cuite et ardoise (textures photo), mousse par endroits ──
     const roofUv = (size: number) => vec2(u, v).div(size);
     const moss = smoothstep(0.6, 0.9, mx_noise_float(positionWorld.mul(0.5))).mul(0.3);
-    const tileTex = T.tiles.map.sample(roofUv(3.2)).rgb;
+    const tileTex = LOW_POLY ? vec3(0.33, 0.13, 0.08) : T.tiles.map.sample(roofUv(3.2)).rgb;
     // Tuile plate : chaque tuile (≈ 17 × 10,5 cm visibles, rangs décalés) a sa propre cuisson,
     // plus quelques plaques de tuiles de remplacement plus claires et des lichens jaunes.
     const tileRow = floor(v.div(0.105));
@@ -703,8 +706,8 @@ export class Buildings {
     const tileLum = tileTex.dot(vec3(0.2126, 0.7152, 0.0722)).div(0.048).clamp(0.45, 1.5);
     const lichen = smoothstep(0.45, 0.8, mx_noise_float(positionWorld.mul(0.9).add(3))).mul(0.25);
     const weathered = mix(base.mul(tileLum).mul(tileVar), vec3(0.32, 0.31, 0.28).mul(tileLum), lichen);
-    const tiles = mix(mix(tilesIdf, weathered, step(float(0.5), info.y)), vec3(0.3, 0.33, 0.18), moss);
-    const slate = T.slate.map.sample(roofUv(1.5)).rgb;
+    const tiles = LOW_POLY ? base : mix(mix(tilesIdf, weathered, step(float(0.5), info.y)), vec3(0.3, 0.33, 0.18), moss);
+    const slate = LOW_POLY ? base : T.slate.map.sample(roofUv(1.5)).rgb;
     // Bac acier : ondes de 25 cm dans la pente, coulures et rouille légère par plaques.
     const rib = abs(fract(u.div(0.25)).sub(0.5)).mul(2);
     const rust = smoothstep(0.55, 0.85, mx_noise_float(positionWorld.mul(0.25))).mul(0.35);
@@ -746,7 +749,9 @@ export class Buildings {
     const roofN = nrm(T.tiles.normal, 3.2).mul(isTile).add(nrm(T.slate.normal, 1.5).mul(isSlate)).add(vec3(0.5, 0.5, 1).mul(isMetal.add(isTerrace)));
     const flatN = vec3(0.5, 0.5, 1);
     const nCol = mix(mix(wallN, flatN, inWin.max(inFrame).max(inShutter).max(shopFront).max(rdcWin)), roofN, isRoof);
-    m.normalNode = normalMap(mix(nCol, flatN, underside), vec2(0.8, 0.8));
+    // Style jeu vidéo : facettes nettes, sans relief de texture.
+    if (LOW_POLY) m.flatShading = true;
+    else m.normalNode = normalMap(mix(nCol, flatN, underside), vec2(0.8, 0.8));
     m.metalnessNode = isMetal.mul(mix(float(0.25), float(0.35), isZinc)).mul(float(1).sub(underside));
     // Les emprises OSM n'ont pas d'orientation garantie : on rend les deux faces.
     m.side = THREE.DoubleSide;

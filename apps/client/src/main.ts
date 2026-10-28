@@ -1113,6 +1113,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   const traffic = alive ? new Traffic(track, engine.quality.trafficDensity, startD, GltfRiderAvatar.lodScale) : null;
   traffic?.setPlaces(source.open?.places);
   if (traffic) engine.scene.add(traffic.group);
+  if (import.meta.env.DEV && traffic) (globalThis as { __traffic?: Traffic }).__traffic = traffic;
   // Trains : départ quand on approche de l'endroit où la route longe ou croise une voie.
   const trains = new Trains(track, (x, z) => world.terrain.heightAt(x, z), () => world.terrain.loadedTiles());
   engine.scene.add(trains.group);

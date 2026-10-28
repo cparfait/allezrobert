@@ -1,4 +1,6 @@
 import { frameStats } from '../engine/frameStats.ts';
+import { LOW_POLY } from '../engine/style.ts';
+import { RoadsideLife } from './roadsideLife.ts';
 import * as THREE from 'three/webgpu';
 import { baseRouteId, type RouteData, type RouteTrack } from '@allezrobert/shared';
 import type { QualitySettings } from '../engine/quality.ts';
@@ -36,6 +38,8 @@ export class World {
   readonly water: WaterSystem;
   readonly railways: Railways;
   readonly dust: Dust;
+  /** Style jeu vidéo : abords peuplés (clôtures, poteaux, fleurs, animaux). */
+  readonly life: RoadsideLife | null = null;
   /** Relief lointain (montagnes au-delà des tuiles), chargé en arrière-plan s'il existe. */
   horizon: FarTerrain | null = null;
   private disposed = false;
@@ -108,6 +112,12 @@ export class World {
     scene.add(this.railways.group);
     this.dust = new Dust(q);
     scene.add(this.dust.sprite);
+    // Style jeu vidéo : clôtures, poteaux, fleurs et animaux le long du parcours (monde plus vivant).
+    if (LOW_POLY) {
+      this.life = new RoadsideLife(track, groundAt, (x, z) => this.terrain.getTile(...this.terrain.tileCoord(x, z)));
+      scene.add(this.life.group);
+      if (import.meta.env.DEV) (globalThis as { __life?: RoadsideLife }).__life = this.life;
+    }
 
     void source
       .loadHorizon?.()
@@ -204,6 +214,7 @@ export class World {
     this.vegetation.update(focus);
     if (frameStats.enabled) frameStats.add('végétation (détail)', performance.now() - tv);
     this.grass.update(focus);
+    this.life?.update(focus);
     const w = this.env.state.weather;
     this.road.wetness.value = w.rain;
     this.network.wetness.value = w.rain;
@@ -313,6 +324,10 @@ export class World {
     this.env.dispose();
     this.road.mesh.geometry.dispose();
     this.scene.remove(this.terrain.group, this.road.mesh, this.vegetation.group, this.buildings.group, this.network.group, this.grass.mesh, this.rain.mesh, this.water.group, this.railways.group, this.dust.sprite);
+    if (this.life) {
+      this.scene.remove(this.life.group);
+      this.life.dispose();
+    }
     void this.track;
   }
 }

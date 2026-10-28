@@ -1,4 +1,5 @@
 import * as THREE from 'three/webgpu';
+import { LOW_POLY } from '../engine/style.ts';
 import { uv, mix, smoothstep, step, fract, vec2, vec3, float, floor, hash, uniform, mx_noise_float, positionWorld, clamp, abs, max } from 'three/tsl';
 import type { RouteData, RoutePoint } from '@allezrobert/shared';
 import { asphaltGrain } from './asphalt.ts';
@@ -87,11 +88,18 @@ export class RoadMesh {
     col = mix(col, vec3(0.9, 0.9, 0.86), paint.mul(onRoad));
     const wet = this.wetness;
     col = col.mul(float(1).sub(wet.mul(0.4).mul(onRoad)));
+    if (LOW_POLY) {
+      // Style jeu vidéo : enrobé uni, rive nette, accotement clair, marquages francs.
+      const inside = step(ax, float(half));
+      col = mix(vec3(0.42, 0.4, 0.35), vec3(0.19, 0.195, 0.21), inside);
+      col = mix(col, vec3(0.92, 0.92, 0.9), max(edgeLine, centerLine).mul(inside));
+      col = col.mul(float(1).sub(wet.mul(0.3).mul(inside)));
+    }
     m.colorNode = col.mul(cloudShade());
     const rough = float(0.84).sub(wheelTrack);
     m.roughnessNode = clamp(mix(float(0.97), rough, onRoad).sub(wet.mul(0.6).mul(onRoad)), 0.06, 1);
     m.metalnessNode = float(0);
-    m.opacityNode = step(ax, vergeOuter);
+    m.opacityNode = LOW_POLY ? step(ax, float(half + 0.6)) : step(ax, vergeOuter);
     m.alphaTest = 0.5;
     m.polygonOffset = true;
     m.polygonOffsetFactor = -2;

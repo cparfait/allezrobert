@@ -9,6 +9,7 @@ import { WorkQueue } from './workQueue.ts';
 import type { RouteFootprint } from './ribbon.ts';
 import type { Season } from './environment.ts';
 import { ALPINE_GROUND_M, ALPINE_MEADOW, SNOW_LINE_M, alpineProfile } from './alpine.ts';
+import { LOW_POLY } from '../engine/style.ts';
 
 /** Orthophotos (prises en été) selon la saison : teinte et saturation. Partagé avec le relief lointain. */
 export const ORTHO_SEASON: Record<Season, [string, number]> = { spring: ['#f4fff0', 1.05], summer: ['#fffbf2', 1], autumn: ['#fbead2', 0.9], winter: ['#dde2e6', 0.5] };
@@ -21,6 +22,14 @@ const SEASON_GROUND: Record<Season, { forest: string; field: string; field2: str
   summer: { forest: '#45512a', field: '#d8b86a', field2: '#c79d4f', meadow: '#7d9245', urban: '#938d78', dirt: '#86704c' },
   autumn: { forest: '#6b4f2a', field: '#7b6a4a', field2: '#9a8a5a', meadow: '#7c8a44', urban: '#8a8270', dirt: '#6f5a3e' },
   winter: { forest: '#4a463a', field: '#8f8a6e', field2: '#a7a38c', meadow: '#7d7f62', urban: '#8a8a82', dirt: '#6a6052' },
+};
+
+/** Style jeu vidéo : aplats plus vifs et plus clairs (prés vert pomme, champs dorés, bourgs clairs). */
+const LOWPOLY_GROUND: typeof SEASON_GROUND = {
+  spring: { forest: '#3f7a2e', field: '#a7c957', field2: '#e9d65a', meadow: '#7cbf4a', urban: '#cfc8b6', dirt: '#a88a5c' },
+  summer: { forest: '#3d6f2a', field: '#e2c46a', field2: '#cfa955', meadow: '#86c04e', urban: '#d0c8b2', dirt: '#b08e5e' },
+  autumn: { forest: '#5f7a2c', field: '#b39a62', field2: '#c9ab66', meadow: '#8cba4c', urban: '#ccc3ad', dirt: '#9a7a50' },
+  winter: { forest: '#4c5f3e', field: '#b5b29a', field2: '#c6c2ad', meadow: '#9aae7a', urban: '#c6c2b8', dirt: '#8e7f66' },
 };
 
 interface TileEntry {
@@ -101,7 +110,7 @@ export class TerrainManager {
   }
 
   setSeason(season: Season): void {
-    const c = SEASON_GROUND[season];
+    const c = (LOW_POLY ? LOWPOLY_GROUND : SEASON_GROUND)[season];
     for (const k of Object.keys(c) as Array<keyof typeof c>) this.seasonColors[k].set(c[k]);
     this.frost.value = season === 'winter' ? 0.25 : 0;
     this.snowLine.value = SNOW_LINE_M[season];
@@ -468,6 +477,7 @@ export class TerrainManager {
   }
 
   private createMaterial(textures: THREE.DataTexture[], ortho: THREE.Texture | null): THREE.MeshStandardNodeMaterial {
+    if (LOW_POLY) return this.createLowPolyMaterial(textures);
     const m = new THREE.MeshStandardNodeMaterial();
     const s0 = texture(textures[0] as THREE.Texture, uv());
     const s1 = texture(textures[1] as THREE.Texture, uv());
@@ -552,6 +562,51 @@ export class TerrainManager {
     m.colorNode = col.mul(cloudShade());
     const rough = mix(float(0.95), float(0.55), roadMask);
     m.roughnessNode = clamp(rough.sub(this.wetness.mul(0.45)).sub(s0.a.mul(0.6)).sub(ice.mul(0.4)).sub(snow.mul(0.25)), 0.08, 1);
+    m.metalnessNode = float(0);
+    return m;
+  }
+  /**
+   * Style jeu vidéo : aplats francs par occupation du sol (limites nettes, pas d'orthophoto ni de grain),
+   * grandes taches de teinte en 3 paliers pour casser les aplats, facettes du maillage visibles.
+   */
+  private createLowPolyMaterial(textures: THREE.DataTexture[]): THREE.MeshStandardNodeMaterial {
+    const m = new THREE.MeshStandardNodeMaterial();
+    m.flatShading = true;
+    const s0 = texture(textures[0] as THREE.Texture, uv());
+    const s1 = texture(textures[1] as THREE.Texture, uv());
+    const c = this.seasonColors;
+    const wp = positionWorld.xz;
+    // Taches de teinte (parcelles, prés plus ou moins verts) : 3 paliers, pas de dégradé.
+    const n1 = mx_noise_float(wp.mul(0.006)).mul(0.5).add(0.5);
+    const patch = n1.mul(3).floor().div(3).mul(0.14).add(0.9);
+    const alt = positionWorld.y;
+    const alpine = smoothstep(ALPINE_GROUND_M - 200, ALPINE_GROUND_M + 200, alt);
+    const meadow = mix(c.meadow.node, this.alpineMeadow.node, alpine);
+    const field = mix(c.field.node, c.field2.node, smoothstep(0.48, 0.52, mx_noise_float(wp.mul(0.0025)).mul(0.5).add(0.5)));
+    const sharp = (v: THREE.Node<'float'>) => smoothstep(0.42, 0.58, v);
+    let col = meadow;
+    col = mix(col, field, sharp(s0.g));
+    col = mix(col, meadow, sharp(s0.b));
+    col = mix(col, c.forest.node, sharp(s0.r));
+    col = mix(col, c.urban.node, sharp(s1.r).mul(0.8));
+    col = mix(col, meadow, sharp(s1.b));
+    col = col.mul(patch);
+    col = mix(col, vec3(0.2, 0.42, 0.62), sharp(s0.a));
+    const roadMask = smoothstep(0.45, 0.6, s1.g);
+    col = mix(col, vec3(0.2, 0.205, 0.22), roadMask);
+    const slope = float(1).sub(normalWorld.y);
+    col = mix(col, c.dirt.node, smoothstep(0.42, 0.5, slope).mul(0.7));
+    // Montagne : roche et neige en aplats.
+    const rockMask = clamp(smoothstep(0.5, 0.58, slope).mul(smoothstep(250, 600, alt)).max(smoothstep(this.treeline.add(200), this.treeline.add(260), alt)).max(sharp(s1.a)), 0, 1).mul(float(1).sub(roadMask));
+    col = mix(col, this.rockColor.node, rockMask);
+    const north = smoothstep(0.0, 0.5, normalWorld.z.negate());
+    const line = this.snowLine.sub(north.mul(200));
+    const snow = smoothstep(line.sub(10), line.add(10), alt).mul(float(1).sub(smoothstep(0.5, 0.55, slope))).mul(float(1).sub(roadMask));
+    col = mix(col, vec3(0.93, 0.95, 0.98), snow);
+    col = col.mul(float(1).sub(this.wetness.mul(0.2)));
+    col = mix(col, vec3(0.9, 0.93, 0.96), this.frost.mul(0.5).mul(smoothstep(0.9, 0.98, normalWorld.y)));
+    m.colorNode = col;
+    m.roughnessNode = float(0.95);
     m.metalnessNode = float(0);
     return m;
   }

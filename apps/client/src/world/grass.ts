@@ -1,4 +1,5 @@
 import * as THREE from 'three/webgpu';
+import { LOW_POLY } from '../engine/style.ts';
 import { attribute, positionLocal, time, sin, vec3, float, uniform, mix, instanceIndex, hash, varying, transformNormalToView } from 'three/tsl';
 import { colorUniform } from '../engine/tsl.ts';
 import { rng } from '../engine/noise.ts';
@@ -17,12 +18,20 @@ const KEEP_RADIUS = GRASS_RADIUS + GRASS_BLOCK * 4;
 /** Clé d'un bloc dans le cache (indices de bloc : |indice| < 2^19). */
 const BLOCK_KEY = 1_048_576;
 /** Base (pied, ombragé) et pointe des brins par saison : verts sourds, pointes olive (pas de jaune vif). */
-const SEASON_GRASS: Record<Season, [string, string]> = {
+const SEASON_GRASS: Record<Season, [string, string]> = LOW_POLY
+  ? {
+      // Style jeu vidéo : herbes hautes vert vif, pointes claires.
+      spring: ['#4f8f2c', '#a6d65a'],
+      summer: ['#4c8a2a', '#9ccc52'],
+      autumn: ['#558a2e', '#a8c25a'],
+      winter: ['#5b6a42', '#a6a882'],
+    }
+  : {
   spring: ['#3d6324', '#86a84e'],
   summer: ['#3e5a22', '#7d8f45'],
   autumn: ['#45552a', '#8c8a52'],
   winter: ['#4b5338', '#8a8a6c'],
-};
+    };
 
 /**
  * Touffe : 7 brins effilés et courbés, de hauteurs différentes, ouverts en éventail depuis le pied

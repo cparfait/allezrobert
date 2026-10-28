@@ -1,4 +1,5 @@
 import * as THREE from 'three/webgpu';
+import { LOW_POLY } from '../engine/style.ts';
 import { float, mx_noise_float, positionWorld, smoothstep, uniform, varying, vec2 } from 'three/tsl';
 
 /**
@@ -17,7 +18,7 @@ export const clouds = {
 };
 
 /** ?clouds=0 : sans ombres de nuages (comparaison). */
-const CLOUD_SHADOWS = typeof location === 'undefined' || new URLSearchParams(location.search).get('clouds') !== '0';
+const CLOUD_SHADOWS = !LOW_POLY && (typeof location === 'undefined' || new URLSearchParams(location.search).get('clouds') !== '0');
 
 /**
  * Multiplicateur de la couleur du sol (≈ 0,55 sous un nuage, 1 au soleil), calculé aux sommets : à

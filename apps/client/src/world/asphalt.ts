@@ -1,4 +1,5 @@
 import * as THREE from 'three/webgpu';
+import { LOW_POLY } from '../engine/style.ts';
 import { positionWorld, dot, vec3 } from 'three/tsl';
 import { LazyTexture } from '../engine/textures.ts';
 
@@ -11,6 +12,8 @@ const map = new LazyTexture('/assets/textures/asphalt_02/diffuse.jpg', {
 
 /** Grain de l'enrobé (≈ 1 en moyenne) projeté en coordonnées monde, à multiplier à la couleur. */
 export function asphaltGrain(): ReturnType<typeof vec3> {
+  // Style jeu vidéo : enrobé uni (la photo n'est jamais chargée).
+  if (LOW_POLY) return vec3(1, 1, 1) as unknown as ReturnType<typeof vec3>;
   const c = map.sample(positionWorld.xz.div(3)).rgb;
   // Luminance relative à la moyenne de la photo (≈ 0,2 en linéaire) : seul le grain est gardé.
   const l = dot(c, vec3(0.299, 0.587, 0.114)).div(0.2);
