@@ -26,7 +26,7 @@
 
 ## Livraison par étapes
 
-1. **Générateur, contrôles automatiques, relief de l'île, l'Anneau et le Bourg** (roulables) ← étape en cours.
+1. **Générateur, contrôles automatiques, relief de l'île, l'Anneau et le Bourg** (roulables) ← fait (voir plus bas).
 2. Le Col du Phare et la Vallée.
 3. Le Front de mer, les Bois et le Plateau ; le Grand Tour de l'île (≈ 45 km).
 4. Finitions : sons, vie, saisons.
@@ -38,3 +38,34 @@
 - carrefours raccordés (extrémités de routes sur un nœud du graphe) ;
 - aucun bâtiment, arbre ou buisson sur la chaussée ;
 - itinéraires bouclés, mesurés et sans demi-tour.
+
+## Générer et contrôler
+
+```
+npx tsx tools/island/src/build.ts     # écrit apps/client/public/worlds/ile-de-robert puis lance les contrôles
+npx tsx tools/island/src/verify.ts    # relit le monde déjà écrit
+```
+
+Les tuiles (`tiles/`, ≈ 47 Mo) ne sont pas versionnées : les régénérer après un `git pull`. Le test
+`tools/island/test/island.test.ts` relance les contrôles quand elles sont là. En jeu (pas encore dans le menu) :
+`/?world=ile-de-robert&route=anneau` ou `&route=boucle-du-bourg`.
+
+## État de l'étape 1
+
+- **L'Anneau** : 3,59 km, 8 m de large, parfaitement plat (32 m), trois tribunes au bord de la ligne droite sud
+  (départ devant elles), pelouse centrale, bosquets autour.
+- **La boucle du Bourg** : 7,46 km — place de l'église, Grand-Rue, route de l'Anneau, trois quarts d'anneau,
+  Piste verte, rue des Écoles, rue de l'Église ; pente max 5,6 %.
+- **Le Bourg (Saint-Robert)** : rues en damier raccordées au graphe (croisements en X compris), ≈ 400 maisons,
+  église et clocher, place pavée, stade.
+- Contrôles au vert : tuiles et raccords, sol sous les routes, graphe, pentes et rayons, bâtiments et bois hors
+  chaussée, itinéraires.
+- Côte : plage en pente douce (≈ 1 %) continue jusqu'au fond marin ; les reliefs s'effacent sur la plage. Le sommet
+  du col a été reculé à ≈ 700 m du rivage (il faisait une falaise verticale de 400 m) : l'étape 2 reprend son tracé.
+
+Limites vues en jeu, côté moteur (hors générateur) :
+- les tribunes sont des bâtiments pleins (pas de gradins) ;
+- la plage (`sand`) est peinte comme un champ : pas encore de sable en style jeu vidéo ;
+- la circulation et les poteaux électriques du bord de route existent aussi sur l'anneau (voulu sans voitures) ;
+- l'île n'est pas au menu : il faudrait une entrée dans `worlds.ts`, `zoneMap.ts` (point sur la carte de France)
+  et le catalogue `worlds/index.json`.

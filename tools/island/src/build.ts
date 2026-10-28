@@ -215,10 +215,11 @@ interface Building {
   kind: string;
   height: number;
   levels: number;
-  roof: { shape: string; height: number; material?: string };
+  roof: { shape: string; height: number; material?: string; colour?: string };
   pts: Vec2[];
   y: number;
   name?: string;
+  colour?: string;
 }
 
 function buildBuildings(roads: Road[]): Building[] {
@@ -235,7 +236,7 @@ function buildBuildings(roads: Road[]): Building[] {
   const nef = orientedRect(EGLISE.x, EGLISE.z, EGLISE.d / 2, EGLISE.w / 2, Math.PI / 2);
   out.push({ id: 'eglise', kind: 'church', height: 15, levels: 1, roof: { shape: 'gabled', height: 6, material: 'slate' }, pts: nef, y: yUnder(nef), name: 'Église Saint-Robert' });
   const clocher = orientedRect(EGLISE.x, EGLISE.z + EGLISE.d / 2 + 2.5, 3, 3, 0);
-  out.push({ id: 'clocher', kind: 'tower', height: 26, levels: 4, roof: { shape: 'pyramidal', height: 7, material: 'slate' }, pts: clocher, y: yUnder(clocher) });
+  out.push({ id: 'clocher', kind: 'church', height: 26, levels: 4, roof: { shape: 'pyramidal', height: 7, material: 'slate' }, pts: clocher, y: yUnder(clocher) });
   occupied.push(nef, clocher);
   // Maisons le long des rues du bourg, des deux côtés, tous les ≈ 22 m (hors place, église, stade).
   let id = 0;
@@ -266,8 +267,11 @@ function buildBuildings(roads: Road[]): Building[] {
     }
   }
   // Tribunes de l'anneau, le long de la ligne droite sud (ligne d'arrivée au milieu).
-  const trib = orientedRect(ANNEAU.cx, ANNEAU.cz + ANNEAU.radius + 30, 80, 7, 0);
-  out.push({ id: 'tribune', kind: 'grandstand', height: 9, levels: 2, roof: { shape: 'skillion', height: 2 }, pts: trib, y: yUnder(trib), name: "Tribunes de l'Anneau" });
+  // Trois tribunes basses et claires (sans fenêtres : type « industrial » pour le jeu), toit en appentis.
+  for (const k of [-1, 0, 1]) {
+    const trib = orientedRect(ANNEAU.cx + k * 56, ANNEAU.cz + ANNEAU.radius + 24, 24, 6, 0);
+    out.push({ id: `tribune-${k + 1}`, kind: 'industrial', height: 7, levels: 1, colour: '#e4ddcb', roof: { shape: 'skillion', height: 1.6, colour: '#c0392b' }, pts: trib, y: yUnder(trib), name: "Tribunes de l'Anneau" });
+  }
   return out;
 }
 
@@ -308,7 +312,9 @@ function buildAreas(roads: Road[]): Area[] {
     areas.push({ id: `plage-${k}`, kind: 'sand', layer: 'fields', ring: [outer[k]!, outer[k1]!, inner[k1]!, inner[k]!] });
   }
   // Bourg, pelouse de l'anneau, stade.
-  areas.push({ id: 'bourg', kind: 'residential', layer: 'landuse', ring: ellipse(BOURG.cx, BOURG.cz + 60, 760, 520, 28), name: 'Saint-Robert' });
+  // Pas de grande zone « résidentielle » (le jeu la peint en gris uni) : les cours suivent les maisons ;
+  // seule la place de l'église est pavée.
+  areas.push({ id: 'place', kind: 'retail', layer: 'landuse', ring: orientedRect(PLACE.x, PLACE.z, PLACE.half, PLACE.half, 0), name: "Place de l'Église" });
   areas.push({ id: 'anneau-pelouse', kind: 'park', layer: 'landuse', ring: stadium(ANNEAU.cx, ANNEAU.cz, ANNEAU.half, ANNEAU.radius - 14), name: "Pelouse de l'Anneau" });
   areas.push({ id: 'stade', kind: 'pitch', layer: 'landuse', ring: orientedRect(STADE.x, STADE.z, STADE.l / 2, STADE.w / 2, 0), name: 'Stade municipal' });
   // Les Bois (nord-ouest) et bosquets autour de l'anneau, loin des routes.
@@ -317,14 +323,14 @@ function buildAreas(roads: Road[]): Area[] {
   for (const [cx, cz, rx, rz] of [[-2700, -260, 420, 110], [-2650, 860, 460, 120], [-3700, 300, 140, 260]] as const)
     areas.push({ id: `bosquet-${cx}-${cz}`, kind: 'deciduous', layer: 'forests', ring: ellipse(cx, cz, rx, rz, 20) });
   // Parcelles agricoles : damier de prés et de champs, sauf près des routes, du bourg, de l'anneau et des bois.
-  const busy = areas.filter((a) => a.layer !== 'fields');
+  const busy = [...areas.filter((a) => a.layer !== 'fields').map((a) => a.ring), ellipse(BOURG.cx, BOURG.cz + 60, 760, 520, 28)];
   let n = 0;
   for (let x = -5600; x < 5600; x += 310)
     for (let z = -3600; z < 3600; z += 220) {
       const cx = x + 155;
       const cz = z + 110;
       if (coast(cx, cz) < 0.08) continue;
-      if (busy.some((a) => pointInPolygon(cx, cz, a.ring))) continue;
+      if (busy.some((ring) => pointInPolygon(cx, cz, ring))) continue;
       const rect = orientedRect(cx, cz, 140, 95, ((cx * 7 + cz * 3) % 9) * 0.02);
       if (rect.some(([px, pz]) => roads.some((r) => nearestOn(r, px, pz).d < r.flat + 6)) || roads.some((r) => nearestOn(r, cx, cz).d < 160)) continue;
       const kind = (Math.floor(x / 310) + Math.floor(z / 220)) % 3 === 0 ? 'farmland' : 'meadow';
@@ -650,7 +656,7 @@ function writeTiles(roads: Road[], buildings: Building[], areas: Area[]): WorldM
         const cx = b.pts.reduce((s, p) => s + p[0], 0) / b.pts.length;
         const cz = b.pts.reduce((s, p) => s + p[1], 0) / b.pts.length;
         if (cx < bounds.minX || cx >= bounds.maxX || cz < bounds.minZ || cz >= bounds.maxZ) continue;
-        tile.buildings.push({ id: b.id, kind: b.kind, height: b.height, levels: b.levels, roof: b.roof, y: r2(b.y), pts: b.pts.flatMap((p) => [r2(p[0]), r2(p[1])]), ...(b.name ? { name: b.name } : {}) });
+        tile.buildings.push({ id: b.id, kind: b.kind, height: b.height, levels: b.levels, roof: b.roof, y: r2(b.y), pts: b.pts.flatMap((p) => [r2(p[0]), r2(p[1])]), ...(b.name ? { name: b.name } : {}), ...(b.colour ? { colour: b.colour } : {}) });
       }
       for (const a of areas) {
         const c = clipPolygon(a.ring, bounds);

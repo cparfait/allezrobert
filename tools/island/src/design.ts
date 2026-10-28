@@ -64,18 +64,22 @@ export const ANNEAU = {
 
 export const BOURG = { cx: 0, cz: 250, level: 26, radius: 700 };
 
-export const COL = { cx: 4200, cz: -2500, height: 430 };
+/** Sommet du col du Phare, à ≈ 700 m du rivage (étape 2 : tracé de la montée et falaises à reprendre). */
+export const COL = { cx: 3600, cz: -1800, height: 430 };
 
 /** Altitude du terrain naturel (avant arasement sous les routes). */
 export function terrain(x: number, z: number): number {
   const c = coast(x, z);
-  if (c <= 0) return Math.max(-14, c * 60) - 1.5; // fond marin qui plonge doucement
-  // Côte : plage puis talus jusqu'au plateau intérieur (≈ 22 m), ondulations douces.
+  // Plage en pente douce (≈ 1 %) qui passe sous l'eau au trait de côte, puis fond marin jusqu'à −14 m :
+  // profil continu, sans marche au bord de l'eau.
+  if (c < 0.02) return Math.max(-14, 1.2 + 60 * (c - 0.02));
+  // Arrière-plage puis talus jusqu'au plateau intérieur (≈ 22 m), ondulations douces.
   let h = 1.2 + 22 * smooth(0.02, 0.3, c) + 6 * ripple(x, z, 5, 900) * smooth(0.1, 0.4, c);
-  // Collines de l'ouest (les Bois) et du sud (la Vallée).
-  h += 45 * gauss(x, z, -4200, -1900, 1100, 900) + 30 * gauss(x, z, 1800, 2000, 900, 700);
-  // Massif du col du Phare au nord-est.
-  h += (COL.height - 20) * gauss(x, z, COL.cx, COL.cz, 1500, 1050) ** 1.15;
+  // Reliefs nuls sur la plage (raccord continu), entiers à quelques centaines de mètres du rivage :
+  // collines de l'ouest (les Bois) et du sud (la Vallée), massif du col du Phare au nord-est.
+  const inland = smooth(0.02, 0.1, c);
+  h += inland * (45 * gauss(x, z, -4200, -1900, 1100, 900) + 30 * gauss(x, z, 1800, 2000, 900, 700));
+  h += inland * (COL.height - 20) * gauss(x, z, COL.cx, COL.cz, 1500, 1050) ** 1.15;
   // Plateaux aplanis de l'Anneau et du Bourg (raccord progressif).
   const a = 1 - smooth(0.85, 1.35, anneauDist(x, z) / 520);
   h = h + (ANNEAU.level - h) * a;
