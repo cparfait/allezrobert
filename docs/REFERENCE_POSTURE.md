@@ -184,6 +184,12 @@ Ces valeurs sont les constantes par défaut ; les deux modèles (`rider*.glb` et
 `avatar-test.html?avatar=mpfb&profil&behind&low&big&spin=0,90,180,270&morphs=sex:-1&only=sex:-1` (`&greyshorts` : cuissard gris
 pour lire les volumes, `&side` : trois quarts arrière). Sauvegarde avant : `out/avatar-avant-fesses2/`.
 
+**Désactivé le 28/10/2026** (`GLUTE_PELVIS` 0 : retour aux fesses du 27/10, commit bbaf413). Porté par le bassin penché de
+la position de course, le bas de la fesse pivotait vers l'arrière et finissait en pointe au ras de la selle (« étagère »,
+« trop pointu en bas »). Mesure faite à cette occasion : au repos, la chair des fesses descend jusqu'à y 0,88 alors que le
+dessus de la selle des vélos de base est à y 0,955 (emprise x ±0,072, z −0,332 à −0,088) ; elle traverse donc la selle
+de 7 à 8 cm, masquée par la selle et le cuissard noir.
+
 ## Vélo adapté à la taille (hauteur de selle et de cintre)
 
 `gltfAvatar.ts` : `saddleLiftFor(k)` calcule, d'après les longueurs réelles du squelette (fémur, tibia), la manivelle réelle

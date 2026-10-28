@@ -130,7 +130,7 @@ export type AvatarKind = 'boutique' | 'mpfb' | 'classic' | 'female';
 const AVATAR_KIND: AvatarKind = AVATAR_PARAM === 'classic' || AVATAR_PARAM === 'boutique' ? AVATAR_PARAM : 'mpfb';
 /**
  * Fichiers du coureur par niveau de détail et distance (m) d'apparition de chaque niveau
- * (avatar MPFB : 12,6 k, 5 k et 2,5 k triangles pour le corps ; modèle acheté : 47,8 k, 16,7 k
+ * (avatar MPFB : 27,9 k, 5 k et 2,5 k triangles pour le corps ; modèle acheté : 47,8 k, 16,7 k
  * et 7,1 k triangles en tout).
  */
 const FILES: Record<AvatarKind, readonly string[]> = {

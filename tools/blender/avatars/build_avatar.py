@@ -68,6 +68,7 @@ ap.add_argument('--glute-start', type=float, default=-1.0)  # remplace GLUTE_STA
 ap.add_argument('--glute-pelvis', type=float, default=-1.0)  # remplace GLUTE_PELVIS
 ap.add_argument('--glute-fold', type=float, default=-1.0)    # remplace GLUTE_FOLD
 ap.add_argument('--glute-side', type=float, default=-1.0)    # remplace GLUTE_SIDE
+ap.add_argument('--reduce-body', action='store_true')  # corps de près (niveau 0) simplifié à BODY_RATIO (avant le 28/10/2026 : pli en V derrière le genou, facettes aux fesses)
 ap.add_argument('--skull', type=float, default=0.8)     # arrière du crâne moins profond (SKULL_BACK), 0 : base MPFB
 args = ap.parse_args(argv)
 OUT = os.path.abspath(args.out)
@@ -103,7 +104,7 @@ ARM_REACH = 0.83                          # épaule → poignet / longueur du br
 BACK_DAMP = {'sex-': 1.0, 'muscle+': 0.7, 'age+': 0.7}  # atténuation de ces cibles sur le haut du dos (0 à 1)
 GLUTE_START = 0.06                        # saillie des fesses comptée à partir de 6 cm derrière l'os du bassin (m)
 GLUTE_FLAT = 0.6                          # part de cette saillie supprimée (0 à 1)
-GLUTE_PELVIS = 1.0                        # part du poids de cuisse reportée sur le bassin pour le haut des fesses (0 à 1)
+GLUTE_PELVIS = 0.0                        # part du poids de cuisse reportée sur le bassin pour le haut des fesses (0 à 1) ; 0 depuis le 28/10/2026 : à 1, le bas de la fesse suit le bassin penché et pointe vers l'arrière
 GLUTE_FOLD = 0.19                         # le report s'étend de la hanche jusqu'à ce point sous elle, pli fessier (m)
 GLUTE_SIDE = 0.24                         # demi-largeur où le report s'annule (m) : le côté de la hanche reste à la cuisse
 HUMERUS_SCALE = 1.28                      # humérus × 1,28 : 0,25 → 0,32 m (adulte de 1,75 m ≈ 0,33 m)
@@ -2251,9 +2252,15 @@ def decimate_group(ob, protect_head):
         g.add([v.index], f, 'REPLACE')
 
 
-def reduce_body(body, ratio=0.45):
+BODY_RATIO = 0.45                         # part des triangles gardée au niveau 0 avec --reduce-body
+
+
+def reduce_body(body, ratio=BODY_RATIO):
     """Niveau 0 : corps décimé hors de la tête (protégée par son poids d'os : visage, expressions
     et curseurs intacts) ; toutes les cibles reportées depuis l'original."""
+    if not args.reduce_body:
+        print(f'corps (niveau 0) : {sum(len(p.vertices) - 2 for p in body.data.polygons)} triangles, non simplifié')
+        return body
     from mathutils import kdtree
     c = body.copy()
     c.data = body.data.copy()
@@ -2312,7 +2319,8 @@ def make_lods(rig, objs):
             if c.data.shape_keys:
                 c.shape_key_clear()
             dec = c.modifiers.new('Decimate', 'DECIMATE')
-            dec.ratio = r_body if o.name == 'rider_body' else r_acc
+            # Corps de près non simplifié : les niveaux gardent le nombre de triangles d'avant.
+            dec.ratio = (r_body * (1.0 if args.reduce_body else BODY_RATIO)) if o.name == 'rider_body' else r_acc
             dec.use_collapse_triangulate = True
             if o.name == 'rider_body' and hems:
                 decimate_group(c, protect_head=False)

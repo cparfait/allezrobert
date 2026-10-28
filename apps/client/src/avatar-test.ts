@@ -44,7 +44,8 @@ async function main(): Promise<void> {
 
   // ?posecheck=/__pose/a.jpg,/__pose/b.jpg : mesures de posture sur des photos (dev/poseCheck.ts).
   if (params.has('posecheck')) return (await import('./dev/poseCheck.ts')).poseSheet((params.get('posecheck') ?? '').split(',').filter(Boolean));
-  const ok = await GltfRiderAvatar.load();
+  // &models=dossier : modèles d'une autre version (public/<dossier>/avatar/…), pour comparer avant / après.
+  const ok = await GltfRiderAvatar.load([], params.has('models') ? `/${params.get('models')}/` : undefined);
   log.textContent = ok ? 'modèles chargés' : 'ÉCHEC du chargement';
   if (!ok) return;
   if (params.has('bikes')) return bikeSheet(engine, params.get('bikes') ?? '');
@@ -371,12 +372,26 @@ async function main(): Promise<void> {
       if (params.has('behind')) camera.position.set(0, sh.y + 0.9, sh.z - 7); // &behind : derrière, un peu au-dessus (caméra de suivi)
       else if (params.has('rear')) camera.position.set(-5.5, sh.y + 0.7, sh.z - 6.5);
       else camera.position.set(-9, sh.y, sh.z - 0.15);
+      if (params.has('right')) camera.position.x *= -1; // &right : côté droit
       // &low : bas du dos, bassin et selle (au lieu des épaules).
       const low = params.has('low');
       if (low && params.has('behind')) camera.position.set(params.has('side') ? -1.6 : 0, hip.y + 0.55, hip.z - (params.has('side') ? 3.0 : 3.4)); // &behind&low : bassin vu de dos (&side : trois quarts arrière)
-      else if (low && !params.has('rear')) camera.position.set(-9, hip.y + 0.1, hip.z);
+      else if (low && !params.has('rear')) camera.position.set(params.has('right') ? 9 : -9, hip.y + 0.1, hip.z);
       camera.updateProjectionMatrix();
       camera.lookAt(0, low ? hip.y + 0.05 : sh.y - 0.05, low ? hip.z : sh.z - 0.15);
+      // &cam=x,y,z&look=x,y,z : cadrage libre, relatif au genou gauche (&right : au genou droit).
+      if (params.has('cam')) {
+        const k = P(params.has('right') ? 'calf_r' : 'calf_l');
+        const v = (n: string) => (params.get(n) ?? '0,0,0').split(',').map(Number) as [number, number, number];
+        camera.position.set(...v('cam')).add(k);
+        camera.lookAt(new THREE.Vector3(...v('look')).add(k));
+      }
+      // &knee : genou et cuisse (côté filmé), cadrage serré.
+      if (params.has('knee')) {
+        const k = P(params.has('right') ? 'calf_r' : 'calf_l');
+        camera.position.set(params.has('right') ? 9 : -9, k.y + 0.05, k.z - 0.1);
+        camera.lookAt(0, k.y + 0.05, k.z - 0.1);
+      }
       for (let n = 0; n < 3; n++) engine.renderManual();
       g.drawImage(canvas, 240, 0, 800, 600, (i % cols) * cw, Math.floor(i / cols) * ch, cw, ch);
       g.fillStyle = '#000';

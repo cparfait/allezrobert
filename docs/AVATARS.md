@@ -391,10 +391,10 @@ reprises de l'ancien modèle un peu grandes pour ce visage.
 
 ### Étape 3d — niveaux de détail et mesure (faite)
 
-- Niveau 0 : corps décimé hors de la tête (tête et cou protégés : visage, curseurs et expressions
-  intacts ; ourlets protégés) : **12,6 k triangles** au lieu de 27,9 k ; toutes les cibles
-  reportées depuis le maillage complet (sommets inchangés : copie exacte ; ailleurs : moyenne
-  pondérée des 3 plus proches).
+- Niveau 0 : corps MPFB complet, **27,9 k triangles** (depuis le 28/10/2026). Décimé à 12,6 k
+  (`--reduce-body`, tête, cou et ourlets protégés), il perdait les anneaux du maillage : pli en V
+  derrière le genou au pédalage, épaules et fesses en facettes. Les niveaux 1 et 2 gardent leurs
+  nombres de triangles (ratios rapportés au corps complet).
 - Niveau 1 (au-delà de 10 m) : 5 k triangles, ourlets protégés, curseurs de forme seulement ;
   niveau 2 (au-delà de 30 m) : 2,5 k. Accessoires réduits à 60 % et 30 %. Fichiers
   `rider.glb` 1,49 Mo, `rider_lod1.glb` 0,91 Mo, `rider_lod2.glb` 0,73 Mo.
