@@ -57,7 +57,8 @@ const PAINTS = ['#d9dadb', '#f4f4f2', '#1b1c1e', '#6f7378', '#9da2a8', '#2b3a55'
 /** Au-delà, modèle lointain (m, multiplié par `Traffic.lodScale`). */
 const FAR_M = 45;
 /** Accélération latérale maximale d'un véhicule en virage (m/s²) : conduite tranquille. */
-const CORNER_ACCEL = 2.5;
+// Style jeu vidéo : conduite plus vive (virages pris plus vite), le monde paraît plus animé.
+const CORNER_ACCEL = LOW_POLY ? 4.5 : 2.5;
 
 interface Template {
   spec: ModelSpec;
@@ -550,6 +551,13 @@ export class Traffic {
       if (kappa > 1e-4) target = Math.min(target, Math.max(4, Math.sqrt(CORNER_ACCEL / kappa)));
       let lateralTarget = this.laneOf(v.sens);
       let brake = 4;
+      // Style jeu vidéo : un véhicule qu'un coureur rattrape par l'arrière accélère pour garder ses distances
+      // (jamais de coureur qui le rattrape et passe au travers dans un virage lent).
+      if (LOW_POLY && v.sens > 0)
+        for (const r of riders) {
+          const gap = v.d - v.length / 2 - r.distM;
+          if (gap > -1 && gap < 30 && Math.abs(r.lateral - v.lateral) < 2.2) target = Math.max(target, r.speedMs + 4);
+        }
       if (v.sens > 0) {
         // Coureur devant à moins de 60 m : on déboîte s'il n'y a personne en face, sinon on patiente.
         let ahead: (typeof riders)[number] | undefined;

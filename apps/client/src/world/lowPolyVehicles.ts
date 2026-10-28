@@ -35,15 +35,15 @@ interface VariantSpec {
 }
 
 export const LOW_POLY_VARIANTS: Record<LowPolyVariant, VariantSpec> = {
-  citadine: { kind: 'car', cruise: [10, 14], weight: 3 },
-  berline: { kind: 'car', cruise: [11, 16], weight: 3 },
-  break: { kind: 'car', cruise: [11, 16], weight: 2 },
-  suv: { kind: 'car', cruise: [11, 15], weight: 2.5 },
-  pickup: { kind: 'car', cruise: [10, 14], weight: 1 },
-  fourgon: { kind: 'van', cruise: [10, 14], weight: 1.5 },
-  camion: { kind: 'van', cruise: [9, 13], weight: 0.6 },
-  tracteur: { kind: 'tractor', cruise: [6.5, 8.5], weight: 0 },
-  tracteurRemorque: { kind: 'tractor', cruise: [6, 8], weight: 0 },
+  citadine: { kind: 'car', cruise: [15, 20], weight: 3 },
+  berline: { kind: 'car', cruise: [16, 22], weight: 3 },
+  break: { kind: 'car', cruise: [16, 21], weight: 2 },
+  suv: { kind: 'car', cruise: [16, 21], weight: 2.5 },
+  pickup: { kind: 'car', cruise: [15, 19], weight: 1 },
+  fourgon: { kind: 'van', cruise: [14, 18], weight: 1.5 },
+  camion: { kind: 'van', cruise: [13, 16], weight: 0.6 },
+  tracteur: { kind: 'tractor', cruise: [8, 11], weight: 0 },
+  tracteurRemorque: { kind: 'tractor', cruise: [7.5, 10], weight: 0 },
 };
 
 /** Teintes franches du style jeu vidéo (blanc, gris et noir restent courants). */

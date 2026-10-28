@@ -592,7 +592,9 @@ export class TerrainManager {
     col = mix(col, meadow, sharp(s1.b));
     col = col.mul(patch);
     col = mix(col, vec3(0.2, 0.42, 0.62), sharp(s0.a));
-    const roadMask = smoothstep(0.45, 0.6, s1.g);
+    // Chaussées OSM : masque large, une facette du sol qui dépasse sur une route en prend la couleur
+    // (le maillage du terrain est plus grossier que les routes).
+    const roadMask = smoothstep(0.22, 0.4, s1.g);
     col = mix(col, vec3(0.2, 0.205, 0.22), roadMask);
     const slope = float(1).sub(normalWorld.y);
     col = mix(col, c.dirt.node, smoothstep(0.42, 0.5, slope).mul(0.7));

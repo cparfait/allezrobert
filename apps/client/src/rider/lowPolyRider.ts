@@ -22,6 +22,9 @@ const THIGH = 0.46;
 const SHIN = 0.47;
 const UPPER_ARM = 0.3;
 const FOREARM = 0.29;
+/** Part de l'inclinaison physique appliquée en virage, et plafond (rad). */
+const BANK_SHARE = 0.55;
+const MAX_BANK = 0.3;
 const UP = new THREE.Vector3(0, 1, 0);
 const LEFT = new THREE.Vector3(1, 0, 0);
 
@@ -306,7 +309,9 @@ export class LowPolyRider implements RiderAvatarLike {
     }
     this.crank.rotation.x = this.crankAngle;
     const stand = this.poseBlend;
-    this.lean.rotation.z = bank + Math.sin(this.crankAngle) * 0.13 * stand;
+    // Virages : inclinaison adoucie et plafonnée (≈ 17°) ; l'angle physique, tout entier, couchait le vélo.
+    const tilt = Math.max(-MAX_BANK, Math.min(MAX_BANK, bank * BANK_SHARE));
+    this.lean.rotation.z = tilt + Math.sin(this.crankAngle) * 0.13 * stand;
 
     const hip = this.hip.set(0, SADDLE.y + 0.07 + 0.13 * stand, SADDLE.z + 0.02 + 0.2 * stand);
     hip.y += Math.sin(this.crankAngle * 2) * 0.01 * (1 - stand);

@@ -30,6 +30,8 @@
       @keyframes ww { from { transform: translateX(-100%); } to { transform: translateX(290%); } }
       /* Robert sur son vélo, au-dessus de la barre (src/ui/waitBike.ts). */
       .world-wait-bike { display: block; width: auto; height: 210px; margin: -4px auto 14px; }
+      /* Style jeu vidéo : Robert en low poly sur fond clair, en carte arrondie. */
+      .world-wait-bike.rb-card { width: 210px; object-fit: cover; border-radius: 22px; box-shadow: 0 14px 34px rgba(0, 0, 0, 0.45); }
       /* Robert qui pédale : calques de robert-attente-velo.png (tools/robert-attente/layers.py), animés uniquement en
          transform pour tourner hors du fil principal (la page est bloquée pendant la compilation des shaders).
          Un tour de pédalier = 0,9 s : la jambe descend, le vélo penche du côté opposé, le buste contre, le poing bat. */

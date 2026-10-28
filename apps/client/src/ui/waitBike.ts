@@ -11,7 +11,7 @@ let next = 0;
 export function waitBike(): HTMLElement {
   // Style jeu vidéo : Robert en low poly (public/robert-lowpoly/velo.png et attente.png), image fixe ;
   // repli sur l'illustration d'origine si les images manquent.
-  if (LOW_POLY) return lowPoly(next++ % 2 === 0);
+  if (LOW_POLY) return lowPoly();
   if (next++ % 2 === 0) return riding();
   const img = document.createElement('img');
   img.className = 'world-wait-bike';
@@ -31,16 +31,25 @@ function riding(): HTMLElement {
   return el;
 }
 
-/** Robert en low poly : sur son vélo poing levé, ou bras croisés. */
-function lowPoly(riding: boolean): HTMLElement {
+/** Robert en low poly, tour à tour poing levé sur son vélo, bras croisés, et à côté de son vélo. */
+const LOW_POLY_POSES = ['velo', 'attente', 'attente-velo'];
+let pose = 0;
+
+/**
+ * Robert en low poly (public/robert-lowpoly/*.webp), présenté en carte claire aux coins arrondis (les images
+ * ont un fond blanc). Une version à fond transparent s'affiche détourée sans autre changement.
+ */
+function lowPoly(): HTMLElement {
   const img = document.createElement('img');
-  img.className = 'world-wait-bike';
+  img.className = 'world-wait-bike rb-card';
   img.alt = '';
   img.decoding = 'async';
-  img.src = `/robert-lowpoly/${riding ? 'velo' : 'attente'}.png`;
+  const name = LOW_POLY_POSES[pose++ % LOW_POLY_POSES.length] as string;
+  img.src = `/robert-lowpoly/${name}.webp`;
   img.onerror = () => {
     img.onerror = null;
-    img.src = riding ? '/robert-velo.png' : '/robert-attente.png';
+    img.className = 'world-wait-bike';
+    img.src = name === 'velo' ? '/robert-velo.png' : '/robert-attente.png';
   };
   return img;
 }
