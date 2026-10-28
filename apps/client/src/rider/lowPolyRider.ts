@@ -2,6 +2,7 @@ import * as THREE from 'three/webgpu';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { bikeOfLook, lookSex, type AvatarLook, type BikeBuild, type WheelType } from '@allezrobert/shared';
 import type { RiderAvatarLike, RiderPose } from './gltfAvatar.ts';
+import { SweptBody, makeJoints, type BodyLook } from './sweptBody.ts';
 
 /**
  * Cycliste et vélo du style jeu vidéo (low poly, voir engine/style.ts), construits de zéro en prismes
@@ -29,6 +30,8 @@ const FOREARM = 0.29;
 const BANK_SHARE = 0.55;
 const MAX_BANK = 0.3;
 const LEFT = new THREE.Vector3(1, 0, 0);
+/** ?corps=tubes : corps d'un seul tenant en tubes à section musculaire (sweptBody.ts) ; sinon prismes séparés. */
+const TUBES_DEFAULT = typeof location !== 'undefined' && new URLSearchParams(location.search).get('corps') === 'tubes';
 
 type BikeKind = 'road' | 'aero' | 'tt' | 'retro' | 'gravel' | 'mtb';
 type BarKind = 'drop' | 'flat' | 'tt';
@@ -217,7 +220,14 @@ export class LowPolyRider implements RiderAvatarLike {
   private readonly hip = new THREE.Vector3();
   private readonly shoulder = new THREE.Vector3();
 
-  constructor(look: AvatarLook) {
+  /** Corps en tubes d'un seul tenant (sweptBody.ts) au lieu des prismes séparés. */
+  private readonly tubes: boolean;
+  private swept: SweptBody | null = null;
+  /** Articulations de l'image (remplies par update, lues par le corps en tubes). */
+  private readonly J = makeJoints();
+
+  constructor(look: AvatarLook, opts: { tubes?: boolean } = {}) {
+    this.tubes = opts.tubes ?? TUBES_DEFAULT;
     this.root.add(this.lean);
     this.build(look);
   }
@@ -250,8 +260,45 @@ export class LowPolyRider implements RiderAvatarLike {
     this.lean.add(this.buildBike(look, bike, kind), this.body);
     this.buildRider(look, bike);
     this.headgear.visible = !this.bareHead;
-    if (!this.shadows) this.root.traverse((o) => (o.castShadow = false));
+    this.swept = null;
     this.update(0, 0, 0, 'seated');
+    if (this.tubes) this.buildTubes(look);
+    if (!this.shadows) this.root.traverse((o) => (o.castShadow = false));
+  }
+
+  /**
+   * Corps en tubes, construit sur les articulations de la pose de repos ; les prismes du torse et des membres
+   * restent calculés mais masqués (tête, cou, chaussures et gants sont communs aux deux corps).
+   */
+  private buildTubes(look: AvatarLook): void {
+    const female = lookSex(look) === 'female';
+    const c = (v: string) => new THREE.Color(v);
+    const style = look.jerseyStyle;
+    const bands: BodyLook['bands'] = [];
+    if (style === 'bandes' && look.jerseyBands?.length) {
+      const n = Math.min(look.jerseyBands.length, 5);
+      const h = 0.6 / n;
+      look.jerseyBands.slice(0, n).forEach((col, i) => bands.push({ from: 0.85 - (i + 1) * h, to: 0.85 - i * h, color: c(col) }));
+    } else if (style !== 'uni' && style !== 'manches' && style !== 'moitie') bands.push({ from: 0.42, to: 0.6, color: c(look.jerseyAccent) });
+    this.swept = new SweptBody(this.J, {
+      jersey: c(look.jersey),
+      accent: c(look.jerseyAccent),
+      shorts: c('#17191e'),
+      skin: c(look.skin),
+      sock: c(look.socks ?? '#f2f2f0'),
+      bands,
+      lowerHalf: style === 'moitie',
+      accentSleeves: style === 'manches',
+      longLegs: look.legs === 'long',
+      longSleeves: look.sleeves === 'long',
+      sockLen: this.sockLen,
+      build: (female ? 0.86 : 0.92) + look.build * 0.3,
+      female,
+    });
+    this.body.add(this.swept.mesh);
+    for (const sg of [this.torso, this.collar, this.pelvis, ...this.bands.map((b) => b.seg)]) sg.mesh.visible = false;
+    for (const l of this.legs) for (const sg of [l.shorts, l.knee, l.shin, l.sock]) sg.mesh.visible = false;
+    for (const a of this.arms) for (const sg of [a.sleeve, a.cuff, a.upper, a.fore]) sg.mesh.visible = false;
   }
 
   private buildRider(look: AvatarLook, bike: BikeBuild): void {
@@ -584,6 +631,13 @@ export class LowPolyRider implements RiderAvatarLike {
     for (const b of this.bands) b.seg.set(chestBase.clone().lerp(shoulder, b.from), chestBase.clone().lerp(shoulder, b.to));
     this.pelvis.set(hip.clone().add(v3(0, -0.06, -0.02)), chestBase);
     const neckTop = shoulder.clone().add(v3(0, 0.08, 0.09));
+    // Articulations du corps en tubes : selle → bassin → dos arrondi → épaules → base du cou.
+    const J = this.J;
+    J.seat.copy(hip).add(v3(0, -0.06, -0.03));
+    J.hip.copy(hip);
+    J.shoulder.copy(shoulder);
+    J.mid.lerpVectors(hip, shoulder, 0.5).add(v3(0, 0.03, -0.03));
+    J.neck.copy(shoulder).add(v3(0, 0.05, 0.04));
     this.neck.set(shoulder.clone().add(v3(0, 0.02, 0.02)), neckTop);
     this.collar.set(shoulder.clone().add(v3(0, 0.0, 0.015)), shoulder.clone().add(v3(0, 0.045, 0.035)));
     this.head.position.copy(neckTop).add(v3(0, 0.07, 0.04));
@@ -601,6 +655,12 @@ export class LowPolyRider implements RiderAvatarLike {
       solveTwoBone(hipJ, ankle, THIGH, SHIN, v3(0.09 * leg.side, 0.2, 1), knee);
       // Cuissard jusqu'à 80 % de la cuisse, puis le genou.
       const hem = hipJ.clone().lerp(knee, 0.8);
+      const jl = this.J.legs[leg.side > 0 ? 0 : 1];
+      if (jl) {
+        jl.hip.copy(hipJ);
+        jl.knee.copy(knee);
+        jl.ankle.copy(ankle);
+      }
       leg.shorts.set(hipJ, hem);
       leg.knee.set(hem, knee);
       leg.shin.set(knee, ankle);
@@ -626,7 +686,14 @@ export class LowPolyRider implements RiderAvatarLike {
       arm.fore.set(elbow, hand);
       arm.glove.position.copy(hand);
       arm.glove.quaternion.copy(arm.fore.mesh.quaternion);
+      const ja = this.J.arms[arm.side > 0 ? 0 : 1];
+      if (ja) {
+        ja.sh.copy(sh);
+        ja.el.copy(elbow);
+        ja.wr.copy(hand);
+      }
     }
+    this.swept?.pose(this.J);
   }
 
   setLook(look: AvatarLook): void {

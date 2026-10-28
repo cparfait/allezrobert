@@ -187,12 +187,14 @@ function lowPolyDeciduousGeometry(lod: number): THREE.BufferGeometry {
   parts.push(tag(main.translate(0, 8.2, 0), 1, 0.95));
   if (lod === 0) {
     parts.push(tag(new THREE.IcosahedronGeometry(2.4, 0).translate(1.9, 10.6, -0.8), 1, 1.05));
-    // Fruits : sur la moitié avant-haute du houppier, à sa surface.
+    // Fruits : posés sur la vraie surface du houppier (même déformation que lui, facettes comprises :
+    // un peu en retrait du rayon), à moitié enfoncés ; sur une sphère fixe, ils flottaient par endroits.
     for (let i = 0; i < 12; i++) {
       const a = r() * Math.PI * 2;
       const el = -0.3 + r() * 1.1;
-      const d = new THREE.Vector3(Math.cos(a) * Math.cos(el), Math.sin(el) * 0.9, Math.sin(a) * Math.cos(el)).multiplyScalar(4.05);
-      parts.push(tag(new THREE.OctahedronGeometry(0.26, 0).translate(d.x, 8.2 + d.y, d.z), 2, 1));
+      const q = new THREE.Vector3(Math.cos(a) * Math.cos(el), Math.sin(el), Math.sin(a) * Math.cos(el)).multiplyScalar(4.3);
+      const f = (0.9 + 0.1 * Math.sin(q.x * 1.3 + q.z * 0.7)) * 0.92;
+      parts.push(tag(new THREE.OctahedronGeometry(0.26, 0).translate(q.x * f, 8.2 + q.y * f * 0.9, q.z * f), 2, 1));
     }
   }
   return mergeGeometries(parts, false) as THREE.BufferGeometry;
