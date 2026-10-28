@@ -306,7 +306,6 @@ function compactLayout(track: RouteTrack, attribution: string[]): string {
           ${cell('hr', 'hr', fr ? 'Cardio' : 'HR', '--', 'bpm', 'hr')}
           ${cell('time', 'time', t('time'), '0:00', '')}
         </div>
-        <div class="panel hud-loc hidden" data-k="loc"></div>
         <div class="panel junction hidden" data-k="junction"></div>
         <div class="panel turnwarn hidden" data-k="turn"></div>
         <div class="panel challenge hidden" data-k="challenge"></div>
@@ -350,6 +349,7 @@ function compactLayout(track: RouteTrack, attribution: string[]): string {
       </div>
       <div class="hud-col hud-col-right">
         <div class="panel minimap" data-hud="map"><canvas width="460" height="460"></canvas></div>
+        <div class="panel hud-loc cx-loc hidden" data-k="loc"></div>
         <div class="panel cx-env">
           <div class="cx-grade" data-hud="grade"><span class="cx-l">${ICONS.grade}${fr ? 'Pente' : 'Grade'}</span><b class="num" data-k="grade">0,0 %</b></div>
           <div class="cx-envline"><span data-hud="alt">▲ <b class="num" data-k="alt">–</b></span><span data-hud="wind">${fr ? 'Vent' : 'Wind'} <b class="num" data-k="wind">–</b></span></div>
@@ -1068,7 +1068,7 @@ export class Hud {
     ctx.save();
     // HUD compact : plan IGN en couleurs (forêts, champs, villages), à peine ravivé ; sinon assombri.
     ctx.globalAlpha = this.compact ? 1 : 0.8;
-    if (hasFilter) ctx.filter = this.compact ? 'saturate(1.3) contrast(1.05) brightness(0.95)' : 'invert(0.9) hue-rotate(180deg) grayscale(0.9) brightness(1.05) contrast(0.85)';
+    if (hasFilter) ctx.filter = this.compact ? 'saturate(1.25) contrast(1.1) brightness(0.82)' : 'invert(0.9) hue-rotate(180deg) grayscale(0.9) brightness(1.05) contrast(0.85)';
     ctx.drawImage(t.img, x0, y0, x1 - x0, y1 - y0);
     ctx.restore();
     if (!hasFilter && !this.compact) {
@@ -1129,10 +1129,11 @@ export class Hud {
       if (this.compact && [bx[0], bx[2]].some((cx) => [bx[1], bx[3]].some((cy) => Math.hypot(cx - w / 2, cy - h / 2) > w / 2 - 6))) continue;
       if (boxes.some((o) => bx[0] < o[2] && bx[2] > o[0] && bx[1] < o[3] && bx[3] > o[1])) continue;
       boxes.push(bx);
-      ctx.strokeStyle = 'rgba(8,12,20,0.85)';
-      ctx.lineWidth = 5 * k;
+      // Carte en couleurs (HUD compact) : texte sombre sur halo blanc ; sinon texte clair sur halo sombre.
+      ctx.strokeStyle = this.compact ? 'rgba(255,255,255,0.92)' : 'rgba(8,12,20,0.85)';
+      ctx.lineWidth = (this.compact ? 6 : 5) * k;
       ctx.strokeText(p.name, x, y);
-      ctx.fillStyle = r === 0 ? '#ffffff' : r === 1 ? '#f1f5f9' : '#cbd5e1';
+      ctx.fillStyle = this.compact ? (r <= 1 ? '#0f172a' : '#334155') : r === 0 ? '#ffffff' : r === 1 ? '#f1f5f9' : '#cbd5e1';
       ctx.fillText(p.name, x, y);
     }
     ctx.textAlign = 'start';
@@ -1177,8 +1178,9 @@ export class Hud {
       };
       path();
       g.stroke();
-      g.strokeStyle = '#e2e8f0';
-      g.lineWidth = 5 * mk;
+      // Tracé orange vif sur la carte en couleurs (le blanc s'y perdait).
+      g.strokeStyle = this.compact ? '#ff6a13' : '#e2e8f0';
+      g.lineWidth = (this.compact ? 6 : 5) * mk;
       path();
       g.stroke();
       this.drawPlaceNames(g, w, h, view, P);

@@ -144,13 +144,17 @@ export class TerrainManager {
    * moins de `r` m du point (tuiles chargées). Sert à n'annoncer les virages qu'aux bifurcations.
    */
   junctionNear(x: number, z: number, routeId: string, r = 14): boolean {
-    const SKIP = new Set(['footway', 'path', 'steps', 'cycleway', 'bridleway', 'pedestrian', 'corridor', 'platform', 'track']);
+    // Ni chemins, ni allées privées (service) ; ni l'itinéraire, ni ses copies au nom d'un autre itinéraire
+    // (« route:<autre>:<osm> », deux boucles sur la même route : prises pour une route qui part).
+    const SKIP = new Set(['footway', 'path', 'steps', 'cycleway', 'bridleway', 'pedestrian', 'corridor', 'platform', 'track', 'service']);
+    const osmOf = (id: string | undefined) => (id ?? '').slice((id ?? '').lastIndexOf(':') + 1);
     for (const e of this.tiles.values()) {
       const t = e.tile;
       if (x < t.x0 - r || x > t.x0 + t.size + r || z < t.z0 - r || z > t.z0 + t.size + r) continue;
+      const mine = new Set(t.features.roads.filter((rd) => rd.route === routeId).map((rd) => osmOf(rd.id)));
       for (const road of t.features.roads) {
         const p = road.pts3;
-        if (!p || road.route === routeId || SKIP.has(road.kind) || road.tunnel) continue;
+        if (!p || road.route === routeId || (road.route && mine.has(osmOf(road.id))) || SKIP.has(road.kind) || road.tunnel) continue;
         for (let k = 0; k + 5 < p.length; k += 3) {
           const ax = p[k] as number, az = p[k + 2] as number;
           const dx = (p[k + 3] as number) - ax, dz = (p[k + 5] as number) - az;
