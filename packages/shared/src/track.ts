@@ -14,6 +14,15 @@ export interface TrackSample {
   d: number;
 }
 
+/** Trajectoire d'affichage (`linePositionAt`) : un virage n'est jamais coupé de plus de 2,5 m (épingles, routes étroites). */
+const LINE_MAX_CUT_M = 2.5;
+/** Trajectoire d'affichage : marge au bord de la chaussée (m), comme la physique (EDGE_MARGIN_M). */
+const LINE_EDGE_M = 0.4;
+/** Inclinaison maximale d'un coureur en virage (≈ 28°). */
+const LEAN_MAX_RAD = 0.49;
+const _leanA: TrackSample = { x: 0, y: 0, z: 0, dirX: 1, dirZ: 0, grade: 0, d: 0 };
+const _leanB: TrackSample = { x: 0, y: 0, z: 0, dirX: 1, dirZ: 0, grade: 0, d: 0 };
+
 /**
  * Accès rapide à un itinéraire par distance curviligne : position, direction, pente.
  * Partagé par le client (rendu, physique locale) et le serveur (physique de groupe).
@@ -137,6 +146,117 @@ export class RouteTrack {
     out.x += -out.dirZ * lateral;
     out.z += out.dirX * lateral;
     return out;
+  }
+
+  /**
+   * Position et cap « en trajectoire », pour l'affichage des coureurs (pas pour la physique : la distance
+   * parcourue ne change pas). Moyenne pondérée des points à d − w, d, d + w et cap sur la corde d ± w, avec
+   * w qui grandit avec la vitesse (3 à 9 m) : un carrefour à angle droit devient un arc, le vélo tourne
+   * progressivement au lieu de pivoter d'un coup. La corde coupe le virage d'au plus LINE_MAX_CUT_M.
+   */
+  /** Largeur de chaussée (m) à la distance d (tronçons `roadWidths`, sinon largeur de l'itinéraire). */
+  widthAt(d: number): number {
+    const x = this.wrap(d);
+    return this.route.roadWidths?.find((r) => x >= r.startM && x <= r.endM)?.widthM ?? this.route.roadWidthM;
+  }
+
+  linePositionAt(d: number, lateral: number, speedMs: number, out: TrackSample = { x: 0, y: 0, z: 0, dirX: 1, dirZ: 0, grade: 0, d: 0 }): TrackSample {
+    this.sample(d, out);
+    const w = Math.min(9, Math.max(3, 2 + 0.45 * Math.max(0, speedMs)));
+    // Itinéraire ouvert : pas de fenêtre au-delà des extrémités (le cap resterait figé).
+    const lo = this.route.loop ? d - w : Math.max(0, d - w);
+    const hi = this.route.loop ? d + w : Math.min(this.length, d + w);
+    if (hi - lo > 0.5) {
+      const a = this.sampleRaw(lo);
+      const b = this.sampleRaw(hi);
+      // Droite du tracé à d (avant de changer de cap) : pour mesurer le décalage latéral final.
+      const r0x = -out.dirZ;
+      const r0z = out.dirX;
+      let cx = (a.x + b.x) / 4 - out.x / 2;
+      let cz = (a.z + b.z) / 4 - out.z / 2;
+      const cut = Math.hypot(cx, cz);
+      if (cut > LINE_MAX_CUT_M) {
+        cx *= LINE_MAX_CUT_M / cut;
+        cz *= LINE_MAX_CUT_M / cut;
+      }
+      const dx = b.x - a.x;
+      const dz = b.z - a.z;
+      const len = Math.hypot(dx, dz);
+      if (len > 1e-3) {
+        out.dirX = dx / len;
+        out.dirZ = dz / len;
+      }
+      // Jamais hors de la chaussée : la corde plus le décalage du coureur restent à LINE_EDGE_M du bord
+      // (dans les bourgs, les façades sont au ras de la route : couper davantage faisait traverser les murs).
+      const half = Math.max(0.9, this.widthAt(d) / 2 - LINE_EDGE_M);
+      const limit = Math.max(half, Math.abs(lateral));
+      const latFinal = cx * r0x + cz * r0z + lateral * (-out.dirZ * r0x + out.dirX * r0z);
+      if (Math.abs(latFinal) > limit) {
+        const excess = latFinal - Math.sign(latFinal) * limit;
+        cx -= excess * r0x;
+        cz -= excess * r0z;
+      }
+      out.x += cx;
+      out.z += cz;
+    }
+    out.x += -out.dirZ * lateral;
+    out.z += out.dirX * lateral;
+    return out;
+  }
+
+  /**
+   * Courbure (1/m, positive = virage à droite dans le sens de l'itinéraire) de la trajectoire d'affichage à d,
+   * cap mesuré à ±2 m. Sert à l'inclinaison des coureurs et à la vitesse des voitures en virage.
+   */
+  curvatureAt(d: number, speedMs: number): number {
+    const a = this.linePositionAt(d - 2, 0, speedMs, _leanA);
+    const b = this.linePositionAt(d + 2, 0, speedMs, _leanB);
+    // x est, z sud : (dirX, dirZ) → (dirX', dirZ') tourne à droite quand le produit vectoriel est positif.
+    return Math.atan2(a.dirX * b.dirZ - a.dirZ * b.dirX, a.dirX * b.dirX + a.dirZ * b.dirZ) / 4;
+  }
+
+  /**
+   * Inclinaison d'un coureur en virage (rad, positive = penché à droite) sur la trajectoire d'affichage :
+   * angle physique atan(v² · κ / g), κ la courbure de la trajectoire (cap mesuré à ±2 m), borné à
+   * LEAN_MAX_RAD. `sign` : sens de marche (−1 à contresens : le virage change de côté).
+   */
+  leanAt(d: number, speedMs: number, sign: 1 | -1 = 1): number {
+    const lean = Math.atan((speedMs * speedMs * this.curvatureAt(d, speedMs)) / 9.81) * sign;
+    return Math.max(-LEAN_MAX_RAD, Math.min(LEAN_MAX_RAD, lean));
+  }
+
+  /**
+   * Prochain virage marqué (≥ 30° de cap sur 25 m) entre 8 et `maxAheadM` m devant, dans le sens `sign`
+   * (−1 après un demi-tour) : distance jusqu'à son entrée et angle total (degrés, positif = à droite).
+   * Les courbes douces et les zigzags d'un tracé bruité (moins de 30° nets) ne comptent pas.
+   */
+  nextTurn(d: number, sign: 1 | -1 = 1, maxAheadM = 200): { inM: number; angleDeg: number } | null {
+    const HALF = 12.5;
+    const STEP = 5;
+    const heading = (x: number) => {
+      const a = this.sampleRaw(d + sign * (x - 1.5));
+      const b = this.sampleRaw(d + sign * (x + 1.5));
+      return Math.atan2(b.x - a.x, b.z - a.z);
+    };
+    const diff = (from: number, to: number) => Math.atan2(Math.sin(to - from), Math.cos(to - from));
+    // Angle signé du cap, positif à droite (x est, z sud : la droite de (dx, dz) est (−dz, dx)).
+    const turnAt = (x: number) => -diff(heading(x - HALF), heading(x + HALF));
+    const limit = this.route.loop ? maxAheadM : Math.min(maxAheadM, sign > 0 ? this.length - d : d) - HALF;
+    for (let x = 8; x <= limit; x += STEP) {
+      if (Math.abs(turnAt(x)) < (30 * Math.PI) / 180) continue;
+      // Entrée : on recule tant que ça tourne encore un peu ; sortie : on avance de même.
+      let start = x;
+      while (start - STEP >= 0 && Math.abs(turnAt(start - STEP)) > (12 * Math.PI) / 180) start -= STEP;
+      let end = x;
+      while (end + STEP <= limit + 60 && Math.abs(turnAt(end + STEP)) > (12 * Math.PI) / 180) end += STEP;
+      const angle = -diff(heading(start - HALF), heading(end + HALF));
+      if (Math.abs(angle) < (30 * Math.PI) / 180) {
+        x = end;
+        continue;
+      }
+      return { inM: Math.max(0, start - HALF), angleDeg: (angle * 180) / Math.PI };
+    }
+    return null;
   }
 
   /** Revêtement à la distance `d` (tag OSM), ou undefined si l'itinéraire ne le précise pas. */

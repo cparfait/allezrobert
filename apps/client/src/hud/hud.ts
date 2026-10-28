@@ -76,6 +76,8 @@ export interface HudState {
   place?: { town: string; road?: string };
   /** Monde ouvert : position du coureur (m) sur le chemin et carrefour à venir. */
   open?: { distM: number; road: string; junction: HudJunction | null };
+  /** Prochain virage marqué (RouteTrack.nextTurn) : distance jusqu'à l'entrée, angle (°, positif = à droite). */
+  turn?: { inM: number; angleDeg: number } | null;
 }
 
 /** Prochain carrefour en monde ouvert : sorties de gauche à droite, celle choisie surlignée. */
@@ -175,6 +177,47 @@ function fmtTime(s: number): string {
   return h > 0 ? `${h}:${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}` : `${m}:${String(sec).padStart(2, '0')}`;
 }
 
+/**
+ * Flèche de virage : tige vers le haut puis arc qui tourne de `angleDeg` (jusqu'à 180° pour une épingle),
+ * pointe dans la direction de sortie. Coordonnées écran (y vers le bas) : tourner à droite fait croître le cap.
+ */
+export function turnArrowSvg(angleDeg: number, right: boolean): string {
+  let x = 0;
+  let y = -14;
+  let h = -Math.PI / 2;
+  const pts: Array<[number, number]> = [
+    [0, 0],
+    [x, y],
+  ];
+  const total = ((angleDeg * Math.PI) / 180) * (right ? 1 : -1);
+  const n = 18;
+  const arc = 20 + angleDeg * 0.05;
+  for (let i = 0; i < n; i++) {
+    h += total / n;
+    x += (Math.cos(h) * arc) / n;
+    y += (Math.sin(h) * arc) / n;
+    pts.push([x, y]);
+  }
+  x += Math.cos(h) * 5;
+  y += Math.sin(h) * 5;
+  pts.push([x, y]);
+  const tip: [number, number] = [x + Math.cos(h) * 8, y + Math.sin(h) * 8];
+  const wing = (s: number): [number, number] => [tip[0] - Math.cos(h + s * 0.6) * 13, tip[1] - Math.sin(h + s * 0.6) * 13];
+  const head = [wing(1), tip, wing(-1)];
+  const all = [...pts, ...head];
+  const pad = 7;
+  const xs = all.map((p) => p[0]);
+  const ys = all.map((p) => p[1]);
+  const minX = Math.min(...xs) - pad;
+  const minY = Math.min(...ys) - pad;
+  const w = Math.max(...xs) + pad - minX;
+  const hgt = Math.max(...ys) + pad - minY;
+  const size = Math.max(w, hgt);
+  const vb = `${(minX - (size - w) / 2).toFixed(1)} ${(minY - (size - hgt) / 2).toFixed(1)} ${size.toFixed(1)} ${size.toFixed(1)}`;
+  const f = (p: [number, number]) => `${p[0].toFixed(1)},${p[1].toFixed(1)}`;
+  return `<svg class="tw-arrow" viewBox="${vb}" aria-hidden="true"><polyline points="${pts.map(f).join(' ')}" /><polygon points="${head.map(f).join(' ')}" /></svg>`;
+}
+
 /** HUD clair et lisible : puissance au centre, profil en bas, mini-carte et coureurs à droite. */
 export class Hud {
   private readonly root: HTMLElement;
@@ -200,6 +243,8 @@ export class Hud {
   /** Panneau « À proximité » : coureurs réels seulement (multijoueur) ou tous (IA comprises). */
   riderFilter: 'real' | 'all' = 'all';
   private lastJunction = '';
+  /** Flèche de virage affichée (côté, angle arrondi) : le dessin n'est refait que s'il change. */
+  private lastTurn = '';
   /** Montée en cours ou proche, façon ClimbPro. */
   private readonly climb: ClimbPanel;
 
@@ -243,6 +288,7 @@ export class Hud {
         </div>
         <div class="panel hud-loc hidden" data-k="loc"></div>
         <div class="panel junction hidden" data-k="junction"></div>
+        <div class="panel turnwarn hidden" data-k="turn"></div>
         <div class="panel challenge hidden" data-k="challenge"></div>
         <div class="panel segment hidden" data-k="segment"><div class="name" data-k="segName"></div><div class="num" data-k="segInfo"></div><div class="bar"><span data-k="segBar" style="width:0%"></span></div></div>
         <div class="toasts"></div>
@@ -544,6 +590,7 @@ export class Hud {
     setHtml(e.riders as HTMLElement, this.nearbyHtml(s));
 
     this.drawJunction(s);
+    this.drawTurn(s);
     // Montée en cours ou proche : le panneau ClimbPro prend la place du profil du parcours.
     const climbing = this.climb.update(this.openGraph && s.open ? s.open.distM : s.lapDistM, s.elapsedS);
     this.root.classList.toggle('climbing', climbing);
@@ -802,6 +849,40 @@ export class Hud {
       })
       .join('');
     return head + rows;
+  }
+
+  /**
+   * Annonce du prochain virage : flèche dessinée selon l'angle (léger, serré, épingle), côté et distance,
+   * couleur de plus en plus chaude avec la difficulté, pulsation dans les 40 derniers mètres. Masquée quand
+   * le panneau de bifurcation du monde ouvert annonce déjà ce carrefour.
+   */
+  private drawTurn(s: HudState): void {
+    const box = this.el.turn as HTMLElement;
+    const tn = s.turn;
+    const j = s.open?.junction;
+    if (!tn || (j && j.inM <= 350 && Math.abs(j.inM - tn.inM) < 30)) {
+      if (this.lastTurn) box.classList.add('hidden');
+      this.lastTurn = '';
+      return;
+    }
+    const fr = getLang() === 'fr';
+    const a = Math.abs(tn.angleDeg);
+    const right = tn.angleDeg > 0;
+    const level = a >= 130 ? 'hairpin' : a >= 100 ? 'hard' : a >= 55 ? 'sharp' : 'easy';
+    const name = fr
+      ? { hairpin: 'Épingle', hard: 'Virage très serré', sharp: 'Virage serré', easy: 'Virage' }[level]
+      : { hairpin: 'Hairpin', hard: 'Very sharp bend', sharp: 'Sharp bend', easy: 'Bend' }[level];
+    const side = fr ? (right ? 'à droite' : 'à gauche') : right ? 'right' : 'left';
+    const dist = tn.inM < 10 ? (fr ? 'maintenant' : 'now') : `${fr ? 'dans' : 'in'} ${Math.round(tn.inM / 10) * 10} m`;
+    const key = `${level}|${right}|${Math.round(a / 10)}`;
+    if (key !== this.lastTurn) {
+      this.lastTurn = key;
+      box.className = `panel turnwarn ${level}`;
+      box.innerHTML = `${turnArrowSvg(Math.min(a, 180), right)}<div class="tw-text"><b>${name} ${side}</b><span class="num"></span></div>`;
+    }
+    box.classList.toggle('soon', tn.inM < 40);
+    const span = box.querySelector('.tw-text span');
+    if (span && span.textContent !== dist) span.textContent = dist;
   }
 
   /** Panneau « Bifurcation dans X m » : ← / → pour choisir, sortie retenue surlignée. */

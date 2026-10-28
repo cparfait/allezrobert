@@ -1305,8 +1305,10 @@ export class GltfRiderAvatar implements RiderAvatarLike {
     const drops = this.dropsBlend * (1 - stand) * (1 - aero);
     const relax = this.relaxBlend * (1 - stand) * (1 - aero);
 
-    // Vélo : en danseuse il balance à l'opposé de la jambe qui appuie ; le corps compense en partie.
-    const rock = -Math.sin(a) * 0.11 * stand;
+    // Vélo : en danseuse il balance à l'opposé de la jambe qui appuie ; le corps compense en partie. Assis, un
+    // léger balancement aussi (≈ 1°, un peu plus quand l'effort monte), nul en roue libre.
+    const seatedRock = 0.014 + 0.01 * THREE.MathUtils.clamp(this.ftpFrac - 0.6, 0, 0.6);
+    const rock = -Math.sin(a) * (0.11 * stand + seatedRock * (1 - stand) * (1 - this.coastBlend));
     this.lean.rotation.z = bank + rock;
     const counter = -rock * 0.65;
 

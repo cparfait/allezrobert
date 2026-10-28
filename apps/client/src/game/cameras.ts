@@ -21,22 +21,35 @@ export interface CameraTarget {
   hands?: THREE.Vector3;
   /** Vibration du revêtement sous les roues (0 = lisse, 1 = pavés), voir roadBuzz.ts. */
   buzz?: number;
+  /** Demi-tour en cours : vue de poursuite élargie, même depuis une vue embarquée (on voit le vélo tourner). */
+  uturn?: boolean;
+  /** Coureur tel qu'il est affiché (arc du demi-tour) : la caméra le suit du regard pendant le demi-tour. */
+  subject?: THREE.Vector3;
 }
 
 const _up = new THREE.Vector3(0, 1, 0);
 /**
- * Vue subjective depuis les yeux (mesuré sur le modèle : mains 54 cm sous les yeux et 19 cm
- * devant, soit ≈ 70° sous l'horizontale). Caméra COCKPIT_BACK m en retrait des yeux, regard
- * baissé de COCKPIT_PITCH rad, focale verticale COCKPIT_FOV proche du champ utile de l'œil :
- * la route au loin d'abord (horizon vers le quart supérieur de l'image), le cockpit en bas.
- * Caméra reculée derrière les yeux (tête masquée ; plus loin, les épaules entrent dans le
- * cadre) : les mains passent à ≈ 53° sous l'horizontale et restent au-dessus du profil du
- * parcours. Baissé de 32° depuis les yeux, le regard ne montrait que le sol.
+ * Vues embarquées (cockpit, caméra casque) : caméra placée par rapport aux yeux animés du coureur (tête
+ * masquée), `up` m au-dessus (négatif : dessous), `back` m en arrière ; regard **dans l'axe du vélo** (le
+ * cintre reste droit à l'écran, même en roulant sur le côté de la route ou en virage), baissé pour poser
+ * les mains à `handsAt` de la hauteur de l'image ; grand angle `hfov`° en horizontal (focale verticale déduite).
+ * Mesuré sur le modèle : mains ≈ 66 cm sous les yeux et seulement 16 cm devant (presque à la verticale).
+ * Pour voir le cintre devant soi, la caméra descend à hauteur de poitrine, derrière les mains.
+ * En développement, `window.__arOnboard` permet de régler ces valeurs en direct.
  */
-const COCKPIT_BACK = 0.28;
-const COCKPIT_UP = 0.08;
-const COCKPIT_PITCH = 0.38;
-const COCKPIT_FOV = 80;
+interface OnboardView {
+  up: number;
+  back: number;
+  hfov: number;
+  handsAt: number;
+}
+const ONBOARD: Record<'cockpit' | 'action', OnboardView> = {
+  /** Cockpit : à hauteur des avant-bras, juste derrière les mains (cintre sur la moitié de la largeur, compteur au centre). */
+  cockpit: { up: -0.57, back: 0.07, hfov: 100, handsAt: 0.62 },
+  /** Caméra casque : plus haut et plus en retrait (épaules et manches dans les coins hauts), plus grand angle, plus de route. */
+  action: { up: -0.4, back: 0.3, hfov: 110, handsAt: 0.72 },
+};
+if (import.meta.env?.DEV && typeof window !== 'undefined') (window as unknown as { __arOnboard: typeof ONBOARD }).__arOnboard = ONBOARD;
 /** Poursuite : recul derrière le coureur et hauteur au-dessus du sol (m). Rapprochée (elle était à 5,2 m et 2,1 m). */
 const CHASE_BACK = 3.5;
 const CHASE_UP = 1.75;
@@ -62,6 +75,9 @@ export class CameraRig {
   private droneAngle = 0;
   /** Ouverture du champ due à la vitesse (°), lissée. */
   private fovBoost = 0;
+  /** Demi-tour : 0 → 1, la poursuite recule et monte (lissé). */
+  private uturnPull = 0;
+  private readonly aheadSample = { x: 0, y: 0, z: 0, dirX: 1, dirZ: 0, grade: 0, d: 0 };
   private photo = { yaw: 0, pitch: 0.15, dist: 3 };
   private dragging = false;
   /** Regarder derrière soi (touche X maintenue) : caméra devant le coureur, tournée vers l'arrière. */
@@ -110,7 +126,7 @@ export class CameraRig {
   }
 
   cycle(): RigMode {
-    const order: RigMode[] = ['chase', 'cockpit', 'gopro', 'drone', 'tv', 'photo', 'free'];
+    const order: RigMode[] = ['chase', 'cockpit', 'action', 'gopro', 'drone', 'tv', 'photo', 'free'];
     this.setMode(order[(order.indexOf(this.mode) + 1) % order.length] as RigMode);
     return this.mode;
   }
@@ -123,7 +139,8 @@ export class CameraRig {
   /** Focale verticale (°) par défaut, et celle de la vue subjective (bornée à 120° en horizontal sur écran très large). */
   private fovFor(mode: RigMode): number {
     const cam = this.camera;
-    if (mode === 'cockpit') return Math.min(COCKPIT_FOV, 2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(60)) / cam.aspect) * THREE.MathUtils.RAD2DEG);
+    // Vues embarquées : grand angle fixe en horizontal (focale verticale déduite, bornée sur écran étroit).
+    if (mode === 'cockpit' || mode === 'action') return Math.min(88, 2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(ONBOARD[mode].hfov / 2)) / cam.aspect) * THREE.MathUtils.RAD2DEG);
     if (mode === 'free') return cam.aspect > 2.5 ? 55 : 70;
     return cam.aspect > 2.5 ? 48 : 62;
   }
@@ -157,17 +174,25 @@ export class CameraRig {
       cam.lookAt(this.smoothLook);
       return;
     }
-    switch (this.mode) {
+    // Demi-tour : poursuite, même depuis une vue embarquée (retour à la vue choisie à la fin).
+    const onboardTurn = !!t.uturn && (this.mode === 'cockpit' || this.mode === 'action' || this.mode === 'gopro');
+    switch (onboardTurn ? 'chase' : this.mode) {
       case 'chase': {
-        // Derrière et au-dessus, regard vers un point devant le coureur (anticipe les virages).
-        const ahead = this.track.sample(t.distM + 18 * (t.sign ?? 1));
+        // Derrière et au-dessus, regard vers un point devant le coureur (anticipe les virages), pris sur la
+        // trajectoire d'affichage (sur le tracé, il sautait à chaque sommet : la caméra balayait par à-coups).
+        const ahead = this.track.linePositionAt(t.distM + 18 * (t.sign ?? 1), 0, t.speedMs, this.aheadSample);
         // Cap lissé (≈ 0,4 s, par le plus court chemin) : la caméra suit le virage sans fouetter.
         const yaw = Math.atan2(t.dir.x, t.dir.z);
         if (!this.initialized) this.chaseYaw = yaw;
         const dYaw = Math.atan2(Math.sin(yaw - this.chaseYaw), Math.cos(yaw - this.chaseYaw));
-        this.chaseYaw += dYaw * (1 - Math.exp(-dt * 2.5));
-        desired.set(t.position.x - Math.sin(this.chaseYaw) * CHASE_BACK, t.position.y + CHASE_UP, t.position.z - Math.cos(this.chaseYaw) * CHASE_BACK);
+        this.chaseYaw += dYaw * (1 - Math.exp(-dt * 2));
+        // Demi-tour : recul et hauteur en plus (tout l'arc dans le cadre), regard sur le coureur affiché.
+        this.uturnPull += ((t.uturn ? 1 : 0) - this.uturnPull) * (1 - Math.exp(-dt * 2.5));
+        const back = CHASE_BACK * (1 + 0.7 * this.uturnPull);
+        const up = CHASE_UP + 0.9 * this.uturnPull;
+        desired.set(t.position.x - Math.sin(this.chaseYaw) * back, t.position.y + up, t.position.z - Math.cos(this.chaseYaw) * back);
         look.set(ahead.x, ahead.y + 1.0, ahead.z).lerp(t.position.clone().add(new THREE.Vector3(0, 1.1, 0)), 0.55);
+        if (t.uturn && t.subject) look.set(t.subject.x, t.subject.y + 1.0, t.subject.z);
         stiffness = 5;
         // Collision : un mur entre le coureur et la caméra rapproche la caméra (une image sur trois).
         if (this.occlusion && (this.collideTick = (this.collideTick + 1) % 3) === 0) {
@@ -185,26 +210,26 @@ export class CameraRig {
         }
         break;
       }
-      case 'cockpit': {
-        // Vue subjective depuis les yeux du coureur (tête masquée) : la caméra suit la tête, donc
-        // le balancement du coup de pédale. Regard vers la route devant, un peu plongeant, pour
-        // garder avant-bras, mains sur les cocottes, cintre, potence et compteur en bas de l'image.
-        // Depuis les yeux du coureur (tête et cou masqués), à peine en retrait : ce que l'on voit
-        // vraiment en roulant, regard baissé vers la route ; cintre, mains et compteur en bas.
-        if (t.eye) desired.copy(t.eye).addScaledVector(t.dir, -COCKPIT_BACK).addScaledVector(_up, COCKPIT_UP);
-        else desired.copy(t.position).addScaledVector(t.dir, 0.05).addScaledVector(_up, 1.5);
-        // Tangage : mains (cintre) calées en bas de l'image, en côte comme en descente (plongée bornée :
-        // en danseuse elles descendent un peu) ; sans repère des mains, pente du vélo plus un tiers
-        // de l'écart vers la route à 30 m.
-        const ahead = this.track.sample(t.distM + 30 * (t.sign ?? 1));
-        const dx = ahead.x - desired.x;
-        const dz = ahead.z - desired.z;
-        const hd = Math.hypot(dx, dz) || 1;
+      case 'cockpit':
+      case 'action': {
+        // Solidaire de la tête (balancement du coup de pédale compris), dans l'axe du vélo.
+        const v = ONBOARD[this.mode as 'cockpit' | 'action'];
+        if (t.eye) desired.copy(t.eye).addScaledVector(t.dir, -v.back).addScaledVector(_up, v.up);
+        else desired.copy(t.position).addScaledVector(t.dir, 0.1).addScaledVector(_up, 1.6 + v.up);
         const bikePitch = Math.atan(this.track.sample(t.distM).grade * (t.sign ?? 1) / 100);
-        // Regard baissé de COCKPIT_PITCH sous la pente du vélo (un tiers de l'écart avec la route à 30 m).
-        const roadPitch = Math.atan2(ahead.y + 1.0 - desired.y, hd);
-        const pitch = bikePitch + (roadPitch - bikePitch) / 3 - COCKPIT_PITCH;
-        look.set(desired.x + (dx / hd) * Math.cos(pitch) * 10, desired.y + Math.sin(pitch) * 10, desired.z + (dz / hd) * Math.cos(pitch) * 10);
+        let pitch = bikePitch - 0.35;
+        if (t.hands) {
+          // Mains à v.handsAt de la hauteur de l'image : angle sous l'horizontale des mains, moins l'écart
+          // entre le centre et cette hauteur (projection perspective : par la tangente).
+          const hx = t.hands.x - desired.x;
+          const hz = t.hands.z - desired.z;
+          const ahead = Math.max(0.05, hx * t.dir.x + hz * t.dir.z);
+          const handsBelow = Math.atan2(desired.y - t.hands.y, ahead);
+          const vfov = THREE.MathUtils.degToRad(this.fovFor(this.mode));
+          const offset = Math.atan((v.handsAt - 0.5) * 2 * Math.tan(vfov / 2));
+          pitch = -THREE.MathUtils.clamp(handsBelow - offset, -0.2, 0.9);
+        }
+        look.set(desired.x + t.dir.x * Math.cos(pitch) * 10, desired.y + Math.sin(pitch) * 10, desired.z + t.dir.z * Math.cos(pitch) * 10);
         stiffness = 12;
         break;
       }
@@ -280,14 +305,14 @@ export class CameraRig {
     }
     const k = 1 - Math.exp(-dt * stiffness);
     // Vues embarquées : la caméra est solidaire du coureur (un retard ferait « nager » le cintre).
-    if (this.mode === 'cockpit' || this.mode === 'gopro') this.smoothPos.copy(desired);
+    if ((this.mode === 'cockpit' || this.mode === 'action' || this.mode === 'gopro') && !onboardTurn) this.smoothPos.copy(desired);
     else this.smoothPos.lerp(desired, k);
     // Poursuite : le regard suit au même rythme que la position (plus vite, il pivotait d'un coup en virage).
     this.smoothLook.lerp(look, Math.min(1, this.mode === 'chase' ? k : k * 1.5));
     cam.position.copy(this.smoothPos);
     cam.lookAt(this.smoothLook);
     // Vibration du revêtement : forte en vue embarquée (solidaire du vélo), légère en poursuite.
-    const share = this.mode === 'gopro' ? 1.3 : this.mode === 'cockpit' ? 1 : this.mode === 'chase' ? 0.3 : 0;
+    const share = this.mode === 'gopro' ? 1.3 : this.mode === 'action' ? 1.15 : this.mode === 'cockpit' ? 1 : this.mode === 'chase' ? 0.3 : 0;
     if (share > 0 && t.buzz) {
       const { dy, pitch } = buzzOffset(performance.now() / 1000, t.speedMs, t.buzz * share);
       cam.position.y += dy;

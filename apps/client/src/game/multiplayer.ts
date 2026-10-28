@@ -87,6 +87,8 @@ export class Multiplayer {
   private readonly track: RouteTrack;
   private readonly remotes = new Map<string, Remote>();
   private readonly sample = { x: 0, y: 0, z: 0, dirX: 1, dirZ: 0, grade: 0, d: 0 };
+  /** Inclinaison affichée de chaque coureur distant en virage (rad, lissée). */
+  private readonly banks = new Map<string, number>();
 
   /**
    * `syncProfile` : envoie le profil local au compte avant l'entrée — le serveur montre aux autres
@@ -236,7 +238,8 @@ export class Multiplayer {
         this.scene.add(rem.avatar.root);
         this.remotes.set(r.id, rem);
       }
-      const p = this.track.positionAt(r.unwrappedM, r.lateralM, this.sample);
+      // Même trajectoire en arc que le joueur (virages fluides).
+      const p = this.track.linePositionAt(r.unwrappedM, r.lateralM, r.speedMs, this.sample);
       const root = rem.avatar.root;
       root.position.set(p.x, p.y + 0.06, p.z);
       root.rotation.set(0, 0, 0);
@@ -248,7 +251,10 @@ export class Multiplayer {
       if (dist < 250) {
         // FTP des autres coureurs inconnue ici : 250 W de référence.
         rem.avatar.setEffort?.(r.watts / 250, r.hr !== undefined ? r.hr / 190 : undefined);
-        rem.avatar.update(dt, r.cadence, r.speedMs, r.pose);
+        const lean = this.track.leanAt(r.unwrappedM, r.speedMs, r.dir === -1 ? -1 : 1);
+        const bank = (this.banks.get(r.id) ?? 0) + (lean - (this.banks.get(r.id) ?? 0)) * Math.min(1, dt * 3);
+        this.banks.set(r.id, bank);
+        rem.avatar.update(dt, r.cadence, r.speedMs, r.pose, bank);
       }
       rem.avatar.setShadows(dist < 40);
       this.updateMarker(rem, r.id, r.name, root.position, dist);
@@ -258,6 +264,7 @@ export class Multiplayer {
       this.dropMarker(rem);
       this.scene.remove(rem.avatar.root);
       this.remotes.delete(id);
+      this.banks.delete(id);
       this.gaps.delete(id);
     }
     return riders;

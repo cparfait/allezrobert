@@ -349,6 +349,7 @@ class ManagerInputSource implements InputSource {
   private inputs: RideInputs = { watts: 0, cadence: 0, steer: 0 };
   private lastHrT = 0;
   private lastPowerT = 0;
+  private simCheckedAt = -Infinity;
   private readonly fan = new FanController(loadHardwarePrefs().fan);
   private readonly onKey = (e: KeyboardEvent) => {
     // Simulateur : + / − règlent la puissance du coureur virtuel.
@@ -406,6 +407,15 @@ class ManagerInputSource implements InputSource {
     }
     // Plus de mesure cardiaque depuis 5 s (ceinture perdue ou déconnectée) : pas de dernière valeur périmée.
     if (this.inputs.hr !== undefined && performance.now() - this.lastHrT > 5000) delete this.inputs.hr;
+    // Cadence du simulateur (aucun vrai capteur de puissance, de cadence ni home trainer) : calculée par la sortie.
+    const now = performance.now();
+    if (now - this.simCheckedAt > 1000) {
+      this.simCheckedAt = now;
+      const list = this.manager.summaries();
+      this.inputs.cadenceSimulated =
+        list.some((d) => d.transport === 'simulator' && d.state === 'connected') &&
+        !list.some((d) => d.transport !== 'simulator' && d.state === 'connected' && (d.kinds.includes('trainer') || d.kinds.includes('power') || d.kinds.includes('cadence')));
+    }
     return this.inputs;
   }
 

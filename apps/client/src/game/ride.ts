@@ -3,6 +3,7 @@ import type { ActivityRecord, RiderProfile, RouteSegment, RouteTrack, VirtualGea
 import { DEFAULT_GEARING } from '@allezrobert/shared';
 import {
   buildGearTable,
+  cadenceForSpeed,
   computeTrainerGrade,
   createRiderState,
   neutralGearIndex,
@@ -137,6 +138,9 @@ export class RideSession {
   private segWatts = 0;
   private segSamples = 0;
   private readonly referenceRatio: number;
+  /** Cadence calculée quand elle n'est pas mesurée (lissée) et battement léger autour. */
+  private simCadence = 0;
+  private simBeat = 0;
   private readonly sample = { x: 0, y: 0, z: 0, dirX: 1, dirZ: 0, grade: 0, d: 0 };
 
   constructor(opts: RideOptions) {
@@ -225,6 +229,15 @@ export class RideSession {
 
   update(dt: number, source: InputSource, steer: number): void {
     this.inputs = source.read();
+    // Cadence non mesurée (simulateur, invité) : celle qu'imposent la vitesse et le rapport engagé. Gros braquet en
+    // côte, elle tombe ; petit braquet, elle remonte. Un léger battement évite une valeur figée.
+    if (this.inputs.cadenceSimulated) {
+      const ratio = this.virtualShifting ? this.gear.ratio : this.referenceRatio;
+      const target = this.inputs.watts > 5 ? Math.min(130, Math.max(30, cadenceForSpeed(this.state.speedMs, ratio))) : 0;
+      this.simCadence += (target - this.simCadence) * Math.min(1, dt * 4);
+      this.simBeat += dt;
+      this.inputs = { ...this.inputs, cadence: target > 0 ? this.simCadence + Math.sin(this.simBeat * 0.7) * 1.5 : 0 };
+    }
     if (this.paused) return;
     this.elapsedS += dt;
     // Horloge de la sortie : temps en mouvement (pauses exclues), indépendante de la cadence d'affichage.

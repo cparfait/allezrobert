@@ -1614,6 +1614,18 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   const hands = new THREE.Vector3();
   let hudAcc = 0;
   let remoteRiders: InterpolatedRider[] = [];
+  /** Prochain virage annoncé au HUD, recalculé 5 fois par seconde ; affiché à 8 s de route (80 m au moins). */
+  let turnInfo: { inM: number; angleDeg: number } | null = null;
+  let turnCheckedAt = 0;
+  const upcomingTurn = () => {
+    const now = performance.now();
+    if (now - turnCheckedAt > 200) {
+      turnCheckedAt = now;
+      const tn = track.nextTurn(ride.state.distM, ride.dir, 220);
+      turnInfo = tn && tn.inM <= Math.max(80, ride.state.speedMs * 8) ? tn : null;
+    }
+    return turnInfo;
+  };
   let prevHeading = Number.NaN;
   let bank = 0;
   /**
@@ -1763,7 +1775,8 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
       ], ride.dir);
     }
     lap('trains, trafic');
-    track.positionAt(ride.state.distM, ride.lateral, sample);
+    // Trajectoire d'affichage : virages pris en arc, cap progressif (la physique garde la distance sur le tracé).
+    track.linePositionAt(ride.state.distM, ride.lateral, ride.state.speedMs, sample);
     pos.set(sample.x, sample.y + 0.06, sample.z);
     // Sens de marche : après un demi-tour, on remonte l'itinéraire.
     dir.set(sample.dirX * ride.dir, 0, sample.dirZ * ride.dir);
@@ -1781,8 +1794,8 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
       dh = 0;
     }
     prevHeading = heading;
-    const yawRate = dt > 0 ? dh / dt : 0;
-    let lean = THREE.MathUtils.clamp(-yawRate * ride.state.speedMs * 0.08, -0.35, 0.35);
+    // Inclinaison en virage : physique (vitesse² × courbure de la trajectoire), comme les autres coureurs.
+    let lean = track.leanAt(ride.state.distM, ride.state.speedMs, ride.dir);
     let shownHeading = heading;
     shownPos.copy(pos);
     if (turn) {
@@ -1796,10 +1809,12 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
       shownPos.lerpVectors(turn.from, pos, e);
       shownPos.x += turn.fwdX * bulge;
       shownPos.z += turn.fwdZ * bulge;
-      lean = -Math.sign(turn.delta) * 0.28 * Math.sin(Math.PI * t);
-      // Caméra : immobile le premier tiers du demi-tour (l'image « s'arrête », le vélo continue devant), puis elle
-      // rejoint doucement la nouvelle position et le nouveau cap (arrivée sur `pos` et `dir` : pas de saut à la fin).
-      const c = Math.min(1, Math.max(0, (t - 0.3) / 0.7));
+      // Penché franchement dans l'épingle (≈ 23° au milieu du demi-tour).
+      lean = -Math.sign(turn.delta) * 0.4 * Math.sin(Math.PI * t);
+      // Caméra : immobile jusqu'à 45 % du demi-tour (l'image « s'arrête », on voit le vélo traverser la chaussée en
+      // arc), puis elle rejoint doucement la nouvelle position et le nouveau cap (arrivée sur `pos` et `dir` : pas de
+      // saut à la fin). Vue embarquée : la caméra sort derrière le coureur le temps du demi-tour (CameraTarget.uturn).
+      const c = Math.min(1, Math.max(0, (t - 0.45) / 0.55));
       const cs = c * c * (3 - 2 * c);
       camPos.lerpVectors(turn.from, pos, cs);
       const camHeading = turn.fromHeading + turn.delta * cs;
@@ -1816,7 +1831,8 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     avatar.setEffort?.(ride.inputs.watts / Math.max(50, s.ftpWatts), ride.inputs.hr !== undefined ? ride.inputs.hr / 190 : undefined);
     avatar.update(dt, ride.inputs.cadence, ride.state.speedMs, ride.pose, bank);
     // Vue subjective et caméra embarquée : on garde le vélo, les bras et les mains, mais pas la tête.
-    const onboard = (rig.mode === 'cockpit' || rig.mode === 'gopro') && !rig.lookBack;
+    // (pendant un demi-tour, la caméra sort derrière le coureur : la tête redevient visible)
+    const onboard = (rig.mode === 'cockpit' || rig.mode === 'action' || rig.mode === 'gopro') && !rig.lookBack && !camTurn;
     avatar.setHeadVisible(!onboard);
     lap('mon coureur');
     peloton.render(dt, engine.camera);
@@ -1830,10 +1846,10 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
       }
     }
 
-    const eyeOk = rig.mode === 'cockpit' && !!avatar.eyeWorld;
+    const eyeOk = (rig.mode === 'cockpit' || rig.mode === 'action') && !!avatar.eyeWorld;
     if (eyeOk) avatar.eyeWorld?.(eye, hands);
     // Pendant un demi-tour, la caméra reste d'abord en place puis pivote doucement (voir camPos / camDir).
-    rig.update(dt, { position: camTurn ? camPos : pos, dir: camTurn ? camDir : dir, distM: ride.state.distM, speedMs: ride.state.speedMs, sign: ride.dir, buzz: buzzLevel(ride.surface), ...(eyeOk ? { eye, hands } : {}) });
+    rig.update(dt, { position: camTurn ? camPos : pos, dir: camTurn ? camDir : dir, distM: ride.state.distM, speedMs: ride.state.speedMs, sign: ride.dir, buzz: buzzLevel(ride.surface), uturn: camTurn, subject: shownPos, ...(eyeOk ? { eye, hands } : {}) });
     lap('poussière, caméra');
     // Les tuiles se chargent autour de la caméra libre, où qu'elle aille ; sinon autour du coureur.
     world.update(dt, rig.mode === 'free' ? engine.camera.position : pos);
@@ -1902,6 +1918,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
           wind: windInfo(),
           altitudeM: sample.y,
           lap: ride.lap,
+          turn: upcomingTurn(),
           ...(() => {
             const town = placeFinder.at(pos.x, pos.z, track.route.loop ? ride.state.distM % Math.max(track.length, 1) : ride.state.distM);
             const road = nav?.roadName(ride.state.distM);

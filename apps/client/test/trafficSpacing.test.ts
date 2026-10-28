@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { FOLLOW_GAP_M, HARD_GAP_M, LANE_CLEAR_M, followSpeed, keepApart, leaderOf, oncomingInLane, type Spaced } from '../src/world/trafficSpacing.ts';
+import { FOLLOW_GAP_M, HARD_GAP_M, LANE_CLEAR_M, followSpeed, keepApart, keepClearOfRiders, leaderOf, oncomingInLane, type Spaced } from '../src/world/trafficSpacing.ts';
 
 const lane = (sens: 1 | -1) => sens * 1.45;
 const car = (d: number, sens: 1 | -1, speed: number, length = 4.5): Spaced & { cruise: number } => ({ d, sens, length, speed, cruise: speed, lateral: lane(sens) });
@@ -97,5 +97,36 @@ describe('espacement de la circulation', () => {
     keepApart([a, b], lane);
     expect(a.lateral).toBe(lane(1));
     expect(b.lateral).toBe(lane(-1));
+  });
+});
+
+describe('keepClearOfRiders', () => {
+  const car = (d: number, lateral: number, sens: 1 | -1 = 1, speed = 20) => ({ d, sens, length: 4.4, speed, lateral });
+
+  it('une voiture qui rattrape un coureur sans s\'être écartée reste derrière lui, à sa vitesse', () => {
+    const v = car(98, 1.6);
+    const n = keepClearOfRiders([v], [{ distM: 100, lateral: 1.4, speedMs: 8 }]);
+    expect(n).toBe(1);
+    expect(v.d + v.length / 2).toBeLessThanOrEqual(100 - 1.8 - 0.5 + 1e-9);
+    expect(v.speed).toBe(8);
+  });
+
+  it('déboîtée (assez d\'écart latéral), elle passe sans correction', () => {
+    const v = car(99, -0.4);
+    expect(keepClearOfRiders([v], [{ distM: 100, lateral: 1.4, speedMs: 8 }])).toBe(0);
+    expect(v.d).toBe(99);
+  });
+
+  it('en face dans la voie du coureur : arrêtée devant lui', () => {
+    const v = car(101, 1.2, -1);
+    keepClearOfRiders([v], [{ distM: 100, lateral: 1.4, speedMs: 8 }]);
+    expect(v.d - v.length / 2).toBeGreaterThanOrEqual(100.3 - 1e-9);
+    expect(v.speed).toBe(0);
+  });
+
+  it('déjà passée devant : poussée devant, pas ramenée derrière', () => {
+    const v = car(101.5, 1.2);
+    keepClearOfRiders([v], [{ distM: 100, lateral: 1.4, speedMs: 8 }]);
+    expect(v.d - v.length / 2).toBeGreaterThanOrEqual(100.3 - 1e-9);
   });
 });

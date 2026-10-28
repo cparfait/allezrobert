@@ -82,3 +82,45 @@ export function keepApart<T extends Spaced>(all: readonly T[], laneOf: (sens: 1 
     }
   }
 }
+
+/** Coureur vu par la circulation : `distM` = avant du vélo, `dir` = sens de marche (−1 : à contresens). */
+export interface SpacedRider {
+  distM: number;
+  lateral: number;
+  speedMs: number;
+  dir?: 1 | -1;
+}
+
+/** Écart latéral sous lequel une voiture et un vélo se touchent (demi-largeur voiture ≈ 0,95 m + vélo et marge). */
+export const RIDER_CLEAR_LAT = 1.35;
+/** Longueur d'un vélo (m) : de l'avant (`distM`) à l'arrière. */
+const BIKE_LEN = 1.8;
+
+/**
+ * Aucun véhicule ne traverse un coureur, quoi qu'il arrive (dépassement pas encore déboîté, coureur qui se
+ * déporte, véhicule réapparu) : un véhicule dont l'emprise chevauche celle d'un coureur (même bande latérale)
+ * est replacé derrière lui (ou devant, s'il l'avait déjà passé) et ralenti à sa vitesse (arrêté s'il vient
+ * en face). Renvoie le nombre de corrections (tests).
+ */
+export function keepClearOfRiders<T extends Spaced>(all: readonly T[], riders: readonly SpacedRider[], present: (o: T) => boolean = () => true): number {
+  let fixes = 0;
+  for (const v of all) {
+    if (!present(v)) continue;
+    const half = v.length / 2;
+    for (const r of riders) {
+      if (Math.abs(v.lateral - r.lateral) >= RIDER_CLEAR_LAT) continue;
+      const front = r.distM + 0.3;
+      const rear = r.distM - BIKE_LEN - 0.5;
+      if (v.d + half <= rear || v.d - half >= front) continue;
+      const sameWay = (r.dir ?? 1) === v.sens;
+      // Côté où se trouve le véhicule : derrière le coureur dans son propre sens de marche, ou déjà devant.
+      const behind = v.sens > 0 ? v.d < r.distM - BIKE_LEN / 2 : v.d > r.distM - BIKE_LEN / 2;
+      if (behind) {
+        v.d = v.sens > 0 ? rear - half : front + half;
+        v.speed = Math.min(v.speed, sameWay ? r.speedMs : 0);
+      } else v.d = v.sens > 0 ? front + half : rear - half;
+      fixes++;
+    }
+  }
+  return fixes;
+}

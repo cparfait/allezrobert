@@ -14,6 +14,11 @@ export interface RideInputs {
   steer: number;
   /** Rapport réel engagé, quand la commande le transmet (SRAM AXS appairé) : plateau, pignon. */
   realGear?: { front: number; rear: number };
+  /**
+   * Cadence non mesurée (simulateur, clavier, invité) : la sortie la calcule d'après la vitesse et le rapport
+   * engagé (RideSession), pour que changer de vitesse se sente sur la cadence selon la pente.
+   */
+  cadenceSimulated?: boolean;
 }
 
 /** Source d'entrées : capteurs réels (DeviceManager), simulateur, invité au clavier. */

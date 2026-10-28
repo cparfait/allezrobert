@@ -7,7 +7,7 @@ import { rng } from '../engine/noise.ts';
 import { sharedKtx2Loader } from '../engine/textures.ts';
 import type { VehicleSound } from '../audio/soundscape.ts';
 import { UNPAVED_SURFACES } from './dust.ts';
-import { followSpeed, keepApart, leaderOf, oncomingInLane } from './trafficSpacing.ts';
+import { followSpeed, keepApart, keepClearOfRiders, leaderOf, oncomingInLane, RIDER_CLEAR_LAT } from './trafficSpacing.ts';
 
 /**
  * Circulation : voitures, utilitaire et tracteur dans le même repère que les coureurs (distance
@@ -33,16 +33,18 @@ interface ModelSpec {
 }
 
 const MODELS: ModelSpec[] = [
-  { file: 'citadine', kind: 'car', cruise: [12, 17], repaint: true, weight: 2 },
-  { file: 'berline', kind: 'car', cruise: [14, 20], repaint: true, weight: 3 },
-  { file: 'suv', kind: 'car', cruise: [13, 19], repaint: true, weight: 2 },
-  { file: 'porsche-911', kind: 'car', cruise: [17, 24], repaint: true, weight: 1 },
-  { file: 'nissan-silvia', kind: 'car', cruise: [15, 21], repaint: true, weight: 1.5 },
-  { file: 'bmw-733i', kind: 'car', cruise: [14, 20], repaint: false, weight: 1.5, reversed: true },
-  { file: 'mercedes-c230', kind: 'car', cruise: [14, 20], repaint: false, weight: 1.5 },
-  { file: 'lamborghini-aventador', kind: 'car', cruise: [17, 25], repaint: true, weight: 0.8 },
-  { file: 'mclaren-720s', kind: 'car', cruise: [17, 25], repaint: true, weight: 0.8, reversed: true },
-  { file: 'utilitaire', kind: 'van', cruise: [13, 17], repaint: false, weight: 1.5 },
+  // Vitesses de croisière (m/s) de routes de campagne et de bourgs : 36 à 68 km/h ; en virage, la vitesse est
+  // en plus bornée par la courbure (Traffic.update, CORNER_ACCEL).
+  { file: 'citadine', kind: 'car', cruise: [10, 14], repaint: true, weight: 2 },
+  { file: 'berline', kind: 'car', cruise: [11, 16], repaint: true, weight: 3 },
+  { file: 'suv', kind: 'car', cruise: [11, 15], repaint: true, weight: 2 },
+  { file: 'porsche-911', kind: 'car', cruise: [13, 19], repaint: true, weight: 1 },
+  { file: 'nissan-silvia', kind: 'car', cruise: [12, 17], repaint: true, weight: 1.5 },
+  { file: 'bmw-733i', kind: 'car', cruise: [11, 16], repaint: false, weight: 1.5, reversed: true },
+  { file: 'mercedes-c230', kind: 'car', cruise: [11, 16], repaint: false, weight: 1.5 },
+  { file: 'lamborghini-aventador', kind: 'car', cruise: [13, 19], repaint: true, weight: 0.8 },
+  { file: 'mclaren-720s', kind: 'car', cruise: [13, 19], repaint: true, weight: 0.8, reversed: true },
+  { file: 'utilitaire', kind: 'van', cruise: [10, 14], repaint: false, weight: 1.5 },
   { file: 'tractor', kind: 'tractor', cruise: [6.5, 8.5], repaint: false, weight: 0 },
 ];
 
@@ -51,6 +53,8 @@ const PAINTS = ['#d9dadb', '#f4f4f2', '#1b1c1e', '#6f7378', '#9da2a8', '#2b3a55'
 
 /** Au-delà, modèle lointain (m, multiplié par `Traffic.lodScale`). */
 const FAR_M = 45;
+/** Accélération latérale maximale d'un véhicule en virage (m/s²) : conduite tranquille. */
+const CORNER_ACCEL = 2.5;
 
 interface Template {
   spec: ModelSpec;
@@ -78,12 +82,33 @@ export function loadVehicleModels(base = '/models/vehicles/'): Promise<boolean> 
         );
         prepare(near, true);
         if (far) prepare(far, false);
+        // Modèle d'un seul tenant (tracteur) : roues retrouvées dans le maillage pour qu'elles tournent.
+        for (const root of far ? [near, far] : [near]) {
+          let has = false;
+          root.traverse((o) => (has ||= isWheel(o)));
+          if (!has) {
+            const n = splitWheelIslands(root);
+            if (n && root === near) console.info(`Véhicule ${spec.file} : ${n} roues extraites du maillage`);
+          }
+        }
+        const straightened: string[] = [];
+        for (const root of far ? [near, far] : [near])
+          root.traverse((o) => {
+            const deg = isWheel(o) ? straightenWheel(o) : 0;
+            if (deg) straightened.push(`${o.name} ${deg.toFixed(1)}°`);
+          });
+        if (straightened.length) console.info(`Véhicule ${spec.file} : roues redressées (${straightened.join(', ')})`);
         if (spec.reversed) for (const root of far ? [near, far] : [near]) turnAround(root);
         const size = new THREE.Box3().setFromObject(near).getSize(new THREE.Vector3());
         let wheelRadius = 0.33;
-        near.traverse((o) => {
-          if (isWheel(o)) wheelRadius = new THREE.Box3().setFromObject(o).getSize(new THREE.Vector3()).y / 2;
-        });
+        // Rayon de chaque roue (une roue avant de tracteur fait la moitié d'une roue arrière) : chacune tourne à sa vitesse.
+        for (const root of far ? [near, far] : [near])
+          root.traverse((o) => {
+            if (!isWheel(o)) return;
+            const r = new THREE.Box3().setFromObject(o).getSize(new THREE.Vector3()).y / 2;
+            if (r > 0.05) o.userData.radius = r;
+            if (root === near) wheelRadius = r;
+          });
         templates.push({ spec, near, far, length: size.z, wheelRadius });
       }),
     );
@@ -106,6 +131,193 @@ function prepare(root: THREE.Object3D, shadows: boolean): void {
     mesh.castShadow = shadows;
     mesh.receiveShadow = shadows;
   });
+}
+
+/**
+ * Roues d'un modèle d'un seul tenant (tracteur : un maillage « body », roues comprises) : elles ne tournaient
+ * pas. Les triangles sont regroupés en pièces connexes (sommets fusionnés par position) ; une roue est une
+ * pièce ronde de profil (hauteur ≈ longueur), plus fine que son diamètre et qui touche le bas du véhicule ;
+ * jantes et moyeux centrés sur le même axe lui sont rattachés. Chaque roue devient un nœud « wheel_N » centré
+ * sur son axe (enfant du maillage d'origine, dont ses triangles sont retirés). Renvoie le nombre de roues.
+ */
+export function splitWheelIslands(root: THREE.Object3D): number {
+  root.updateMatrixWorld(true);
+  const meshes: THREE.Mesh[] = [];
+  root.traverse((o) => (o as THREE.Mesh).isMesh && meshes.push(o as THREE.Mesh));
+  const all = new THREE.Box3().setFromObject(root);
+  const groundY = all.min.y;
+  const height = all.max.y - all.min.y;
+  let count = 0;
+  const v = new THREE.Vector3();
+  for (const mesh of meshes) {
+    const g = mesh.geometry;
+    const pos = g.getAttribute('position');
+    const index = g.getIndex();
+    if (!pos || !index) continue;
+    // Sommets fusionnés par position (coutures d'UV ou de normales : mêmes points, sommets distincts).
+    const key = new Map<string, number>();
+    const canon = new Int32Array(pos.count);
+    for (let i = 0; i < pos.count; i++) {
+      v.fromBufferAttribute(pos, i);
+      const k = `${Math.round(v.x * 2e4)},${Math.round(v.y * 2e4)},${Math.round(v.z * 2e4)}`;
+      let c = key.get(k);
+      if (c === undefined) key.set(k, (c = i));
+      canon[i] = c;
+    }
+    const parent = new Int32Array(pos.count).map((_, i) => i);
+    const find = (x: number): number => {
+      while (parent[x] !== x) x = parent[x] = parent[parent[x] as number] as number;
+      return x;
+    };
+    const tris = index.count / 3;
+    for (let t = 0; t < tris; t++) {
+      const a = find(canon[index.getX(t * 3)] as number);
+      for (const k of [1, 2]) {
+        const b = find(canon[index.getX(t * 3 + k)] as number);
+        if (a !== b) parent[b] = a;
+      }
+    }
+    // Emprise (repère monde du modèle) de chaque pièce.
+    const boxes = new Map<number, THREE.Box3>();
+    const world = mesh.matrixWorld;
+    for (let i = 0; i < pos.count; i++) {
+      const r = find(canon[i] as number);
+      let b = boxes.get(r);
+      if (!b) boxes.set(r, (b = new THREE.Box3()));
+      b.expandByPoint(v.fromBufferAttribute(pos, i).applyMatrix4(world));
+    }
+    const size = new THREE.Vector3();
+    const wheels: Array<{ box: THREE.Box3; parts: Set<number> }> = [];
+    for (const [r, b] of boxes) {
+      b.getSize(size);
+      const round = size.y > 0.3 && Math.abs(size.y - size.z) < 0.2 * size.y && size.x < 0.8 * size.y;
+      if (round && b.min.y - groundY < 0.12 * height) wheels.push({ box: b.clone(), parts: new Set([r]) });
+    }
+    if (!wheels.length) continue;
+    // Jantes, moyeux, écrous : pièces dont le centre est sur l'axe d'une roue et dans son emprise.
+    const c = new THREE.Vector3();
+    const wc = new THREE.Vector3();
+    for (const [r, b] of boxes) {
+      if (wheels.some((w) => w.parts.has(r))) continue;
+      b.getCenter(c);
+      for (const w of wheels) {
+        w.box.getCenter(wc);
+        const rad = (w.box.max.y - w.box.min.y) / 2;
+        if (Math.abs(c.y - wc.y) < 0.15 * rad && Math.abs(c.z - wc.z) < 0.15 * rad && b.min.x >= w.box.min.x - 0.1 * rad && b.max.x <= w.box.max.x + 0.1 * rad && b.max.y <= w.box.max.y + 0.01) {
+          w.parts.add(r);
+          break;
+        }
+      }
+    }
+    // Triangles de chaque roue → nouveau maillage centré sur l'axe ; le reste garde ses triangles.
+    const keep: number[] = [];
+    const picked = wheels.map(() => [] as number[]);
+    for (let t = 0; t < tris; t++) {
+      const r = find(canon[index.getX(t * 3)] as number);
+      const w = wheels.findIndex((x) => x.parts.has(r));
+      const dst = w < 0 ? keep : (picked[w] as number[]);
+      dst.push(index.getX(t * 3), index.getX(t * 3 + 1), index.getX(t * 3 + 2));
+    }
+    const toLocal = new THREE.Matrix4().copy(mesh.matrixWorld).invert();
+    wheels.forEach((w, i) => {
+      const wg = new THREE.BufferGeometry();
+      for (const name of Object.keys(g.attributes)) wg.setAttribute(name, g.getAttribute(name));
+      wg.setIndex(picked[i] as number[]);
+      const sub = wg.toNonIndexed();
+      // Positions quantifiées : en flottants, recentrées sur l'axe de la roue (repère du maillage).
+      const center = w.box.getCenter(new THREE.Vector3()).applyMatrix4(toLocal);
+      const p = sub.getAttribute('position');
+      const f = new Float32Array(p.count * 3);
+      for (let k = 0; k < p.count; k++) v.fromBufferAttribute(p, k).sub(center).toArray(f, k * 3);
+      sub.setAttribute('position', new THREE.BufferAttribute(f, 3));
+      sub.computeBoundingBox();
+      sub.computeBoundingSphere();
+      const node = new THREE.Mesh(sub, mesh.material);
+      node.name = `wheel_${count + i}`;
+      node.castShadow = mesh.castShadow;
+      node.receiveShadow = mesh.receiveShadow;
+      node.position.copy(center);
+      mesh.add(node);
+    });
+    g.setIndex(keep);
+    count += wheels.length;
+  }
+  return count;
+}
+
+/**
+ * Roue braquée dans le modèle d'origine (Porsche 911 : roues avant tournées d'une dizaine de degrés) : tournée
+ * sur `rotation.x`, elle « voilait ». On cherche l'axe du moyeu (direction où le pneu est le plus fin, en
+ * pivotant autour de la verticale) et l'on redresse la géométrie sur l'axe x du nœud, recentrée sur le moyeu
+ * (le nœud est déplacé d'autant : la roue reste à sa place). Sans effet sur une roue déjà droite.
+ */
+export function straightenWheel(node: THREE.Object3D): number {
+  node.updateMatrix();
+  const meshes: THREE.Mesh[] = [];
+  node.traverse((o) => (o as THREE.Mesh).isMesh && meshes.push(o as THREE.Mesh));
+  if (!meshes.length) return 0;
+  // Sommets dans le repère du nœud de roue.
+  const pts: THREE.Vector3[] = [];
+  const toNode = (m: THREE.Object3D) => {
+    const mat = new THREE.Matrix4();
+    for (let o: THREE.Object3D | null = m; o && o !== node; o = o.parent) mat.premultiply(o.matrix);
+    return mat;
+  };
+  for (const m of meshes) {
+    const pos = m.geometry.getAttribute('position');
+    const mat = toNode(m);
+    const step = Math.max(1, Math.floor(pos.count / 4000));
+    for (let i = 0; i < pos.count; i += step) pts.push(new THREE.Vector3().fromBufferAttribute(pos, i).applyMatrix4(mat));
+  }
+  const extent = (ax: number, az: number) => {
+    let lo = Infinity;
+    let hi = -Infinity;
+    for (const p of pts) {
+      const s = p.x * ax + p.z * az;
+      if (s < lo) lo = s;
+      if (s > hi) hi = s;
+    }
+    return hi - lo;
+  };
+  let best = 0;
+  let bestW = extent(1, 0);
+  for (let deg = -25; deg <= 25; deg += 0.25) {
+    const a = (deg * Math.PI) / 180;
+    const w = extent(Math.cos(a), Math.sin(a));
+    if (w < bestW - 1e-9) {
+      bestW = w;
+      best = a;
+    }
+  }
+  if (Math.abs(best) < (1 * Math.PI) / 180) return 0;
+  // Rotation qui ramène l'axe trouvé (cos a, 0, sin a) sur x, puis recentrage sur le moyeu.
+  const rot = new THREE.Matrix4().makeRotationY(best);
+  const box = new THREE.Box3();
+  for (const p of pts) box.expandByPoint(p.clone().applyMatrix4(rot));
+  const center = box.getCenter(new THREE.Vector3());
+  const fix = new THREE.Matrix4().makeTranslation(-center.x, -center.y, -center.z).multiply(rot);
+  for (const m of meshes) {
+    const g = m.geometry.clone();
+    // Attributs quantifiés (entiers normalisés) : passés en flottants avant d'être transformés.
+    for (const name of ['position', 'normal'] as const) {
+      const at = g.getAttribute(name);
+      if (!at || at.array instanceof Float32Array) continue;
+      const f = new Float32Array(at.count * 3);
+      const v = new THREE.Vector3();
+      for (let i = 0; i < at.count; i++) v.fromBufferAttribute(at, i).toArray(f, i * 3);
+      g.setAttribute(name, new THREE.BufferAttribute(f, 3));
+    }
+    const mat = toNode(m);
+    g.applyMatrix4(new THREE.Matrix4().copy(mat).invert().multiply(fix).multiply(mat));
+    g.computeBoundingBox();
+    g.computeBoundingSphere();
+    m.geometry = g;
+  }
+  // Le moyeu était en R⁻¹·center dans l'ancien repère du nœud : le nœud y est déplacé (la roue reste en place).
+  const hub = center.clone().applyMatrix4(new THREE.Matrix4().makeRotationY(-best));
+  node.position.add(hub.applyMatrix3(new THREE.Matrix3().setFromMatrix4(node.matrix)));
+  node.updateMatrix();
+  return (best * 180) / Math.PI;
 }
 
 const HALF_TURN = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI);
@@ -321,6 +533,11 @@ export class Traffic {
         v.lateral = this.laneOf(v.sens);
       }
       let target = v.cruise;
+      // Virages : vitesse bornée pour rester sous CORNER_ACCEL d'accélération latérale, courbure lue jusqu'à 40 m
+      // devant (le véhicule freine avant le virage, pas dedans).
+      let kappa = 0;
+      for (let k = 0; k <= 40; k += 8) kappa = Math.max(kappa, Math.abs(this.track.curvatureAt(((v.d + v.sens * k) % L + L) % L, v.cruise)));
+      if (kappa > 1e-4) target = Math.min(target, Math.max(4, Math.sqrt(CORNER_ACCEL / kappa)));
       let lateralTarget = this.laneOf(v.sens);
       let brake = 4;
       if (v.sens > 0) {
@@ -330,11 +547,22 @@ export class Traffic {
         if (ahead) {
           const oncoming = this.vehicles.some((o) => o.sens < 0 && o.d > v.d && o.d - v.d < 220);
           if (oncoming) target = Math.min(target, ahead.speedMs);
-          else lateralTarget = -half - 0.3;
+          // Dépassement : à 1,7 m au moins du coureur (qui peut lui-même rouler au milieu ou à gauche).
+          else lateralTarget = Math.max(-this.track.route.roadWidthM / 2 - 0.3, Math.min(-half - 0.3, ahead.lateral - 1.7));
+          // Pas encore déboîté : on reste derrière, à sa vitesse, jusqu'à avoir la place de passer.
+          const gapFront = ahead.distM - 1.8 - (v.d + v.length / 2);
+          if (Math.abs(v.lateral - ahead.lateral) < 1.5 && gapFront < 14) {
+            target = Math.min(target, ahead.speedMs);
+            if (gapFront < 5) brake = 8;
+          }
         }
       } else {
-        // En face : ralentit quand un coureur occupe le milieu de la chaussée.
+        // En face : ralentit quand un coureur occupe le milieu de la chaussée, s'arrête s'il est dans sa voie.
         if (riders.some((r) => Math.abs(r.distM - v.d) < 40 && r.lateral < 0.3)) target = Math.min(target, 9);
+        if (riders.some((r) => v.d - v.length / 2 - r.distM > 0 && v.d - v.length / 2 - r.distM < 35 && Math.abs(r.lateral - v.lateral) < RIDER_CLEAR_LAT + 0.3)) {
+          target = 0;
+          brake = 8;
+        }
       }
       // Véhicule de devant dans le même sens : vitesse qui permet de s'arrêter derrière lui s'il pile.
       const lead = present(v) ? leaderOf(v, this.vehicles, present) : null;
@@ -365,6 +593,8 @@ export class Traffic {
     }
     // Aucun chevauchement, quoi qu'il arrive (freinage trop court, véhicule réapparu, dépassement surpris).
     keepApart(this.vehicles, (s) => this.laneOf(s), present);
+    // Ni à travers un coureur : le joueur (dans son sens de marche), les coureurs IA et les autres joueurs.
+    keepClearOfRiders(this.vehicles, riders.map((r, i) => (i === 0 ? { ...r, dir: playerDir } : r)), present);
     for (const v of this.vehicles) {
       // Itinéraire ouvert (monde ouvert, montée) : pas de véhicule au-delà des extrémités connues.
       const outside = !this.track.route.loop && (v.d < 0 || v.d > L);
@@ -380,7 +610,8 @@ export class Traffic {
       }
       v.mesh.visible = !outside && !v.onTrack;
       if (outside || v.onTrack) continue;
-      const p = this.track.positionAt(((v.d % L) + L) % L, v.lateral, this.sample);
+      // Trajectoire en arc, comme les coureurs : plus de pivot brutal à chaque sommet du tracé.
+      const p = this.track.linePositionAt(((v.d % L) + L) % L, v.lateral, v.speed, this.sample);
       // Pneus posés sur la chaussée, surélevée de 6 cm comme pour les coureurs (road.ts).
       v.mesh.position.set(p.x, p.y + 0.06, p.z);
       v.vx = p.dirX * v.sens * v.speed;
@@ -389,8 +620,8 @@ export class Traffic {
       v.mesh.rotateX(-Math.atan(p.grade / 100) * v.sens);
       // Rotation affichée plafonnée (≈ 17° par image) : au-delà, les jantes semblent tourner à l'envers
       // (effet stroboscopique, 48° par image à 54 km/h et 60 images/s) ; plus lent mais dans le bon sens.
-      const spin = Math.min((v.speed / v.wheelRadius) * dt, 0.3);
-      for (const w of v.wheels) w.rotation.x += spin;
+      // Chaque roue à sa vitesse (rayon propre : petites roues avant d'un tracteur, grandes à l'arrière).
+      for (const w of v.wheels) w.rotation.x += Math.min((v.speed / ((w.userData.radius as number | undefined) ?? v.wheelRadius)) * dt, 0.3);
     }
   }
 

@@ -163,6 +163,8 @@ export class Peloton {
     this.onFormation?.(f, this.formationPref);
   }
   private readonly sample = { x: 0, y: 0, z: 0, dirX: 1, dirZ: 0, grade: 0, d: 0 };
+  /** Inclinaison affichée de chaque coureur en virage (rad, lissée). */
+  private readonly banks = new WeakMap<PelotonRider, number>();
 
   constructor(scene: THREE.Scene, track: RouteTrack, count: number, startDistM: number, ftpRef: number) {
     this.scene = scene;
@@ -414,7 +416,8 @@ export class Peloton {
   render(dt: number, camera: THREE.Camera): void {
     const dists: number[] = [];
     for (const r of this.riders) {
-      const p = this.track.positionAt(r.state.distM, r.lateral, this.sample);
+      // Même trajectoire en arc que le joueur (virages fluides).
+      const p = this.track.linePositionAt(r.state.distM, r.lateral, r.state.speedMs, this.sample);
       r.avatar.root.position.set(p.x, p.y + 0.06, p.z);
       r.avatar.root.rotation.set(0, 0, 0);
       // Cap relatif (demi-tour) : à contresens, l'inclinaison de la pente s'inverse.
@@ -424,7 +427,11 @@ export class Peloton {
       r.avatar.root.visible = dist < 600;
       if (dist < 250) {
         r.avatar.setEffort?.(r.watts / r.ftp);
-        r.avatar.update(dt, r.cadence, r.state.speedMs, r.pose);
+        // Inclinaison en virage, lissée comme celle du joueur (contresens après un demi-tour : virage inversé).
+        const lean = this.track.leanAt(r.state.distM, r.state.speedMs, Math.cos(r.heading) < 0 ? -1 : 1);
+        const bank = (this.banks.get(r) ?? 0) + (lean - (this.banks.get(r) ?? 0)) * Math.min(1, dt * 3);
+        this.banks.set(r, bank);
+        r.avatar.update(dt, r.cadence, r.state.speedMs, r.pose, bank);
       }
       dists.push(dist);
       r.label.position.set(p.x, p.y + 2.15, p.z);

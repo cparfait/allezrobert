@@ -20,7 +20,7 @@ const PhoneCommandSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('shift'), action: z.enum(['up', 'down']) }),
   z.object({ kind: z.literal('pause') }),
   z.object({ kind: z.literal('resume') }),
-  z.object({ kind: z.literal('camera'), camera: z.enum(['chase', 'cockpit', 'gopro', 'drone', 'tv', 'photo']) }),
+  z.object({ kind: z.literal('camera'), camera: z.enum(['chase', 'cockpit', 'action', 'gopro', 'drone', 'tv', 'photo']) }),
   z.object({ kind: z.literal('fan'), percent: finite.transform((v) => Math.min(Math.max(Math.round(v), 0), 100)) }),
   z.object({ kind: z.literal('rideOn'), to: z.string().min(1).max(40) }),
   z.object({ kind: z.literal('chat'), text: z.string().trim().min(1).max(280) }),

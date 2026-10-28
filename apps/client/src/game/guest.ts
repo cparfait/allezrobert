@@ -43,7 +43,7 @@ export class GuestInputSource implements InputSource {
     this.wkg = Math.min(Math.max(this.wkg, 0), GUEST_MAX_WKG);
     const boost = this.attack || (pad?.buttons[0]?.pressed ?? false) ? 1.25 : 1;
     const watts = Math.min(this.wkg * boost, GUEST_MAX_WKG) * this.massKg;
-    return { watts, cadence: watts > 5 ? 86 : 0, steer: 0 };
+    return { watts, cadence: watts > 5 ? 86 : 0, steer: 0, cadenceSimulated: true };
   }
 
   sendTrainer(_cmd: TrainerCommand): void {

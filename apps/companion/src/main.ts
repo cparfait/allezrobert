@@ -21,7 +21,7 @@ type Tab = 'dash' | 'ctrl' | 'music' | 'chat' | 'map';
 type FieldId = keyof (typeof STRINGS)['fr']['fields'];
 type Metrics = NonNullable<PairState['metrics']>;
 
-const CAMERAS: CameraMode[] = ['chase', 'cockpit', 'gopro', 'drone', 'tv', 'photo'];
+const CAMERAS: CameraMode[] = ['chase', 'cockpit', 'action', 'gopro', 'drone', 'tv', 'photo'];
 const DEFAULT_FIELDS: FieldId[] = ['power3s', 'speed', 'cadence', 'hr', 'time', 'distance', 'grade'];
 const ALL_FIELDS = Object.keys(STRINGS.fr.fields) as FieldId[];
 

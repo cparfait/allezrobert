@@ -29,7 +29,7 @@ export class DevSimSource implements InputSource {
     const cadence = watts < 5 ? 0 : 88 - Math.max(this.lastGrade, 0) * 2.5 + Math.sin(this.t * 0.7) * 3;
     const hrTarget = 70 + watts * 0.42;
     this.hr += (hrTarget - this.hr) * 0.002;
-    return { watts, cadence, hr: this.hr, balanceLeft: 49 + Math.sin(this.t * 0.3) * 1.5, teLeft: 78, teRight: 80, psLeft: 24, psRight: 26, steer: 0 };
+    return { watts, cadence, hr: this.hr, balanceLeft: 49 + Math.sin(this.t * 0.3) * 1.5, teLeft: 78, teRight: 80, psLeft: 24, psRight: 26, steer: 0, cadenceSimulated: true };
   }
 
   sendTrainer(cmd: TrainerCommand): void {

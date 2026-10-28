@@ -268,7 +268,7 @@ export type CompanionCommand =
   | { kind: 'rideOn'; to: string }
   | { kind: 'chat'; text: string };
 
-export type CameraMode = 'chase' | 'cockpit' | 'gopro' | 'drone' | 'tv' | 'photo';
+export type CameraMode = 'chase' | 'cockpit' | 'action' | 'gopro' | 'drone' | 'tv' | 'photo';
 
 /* ────────────────────────────────────────────────────────────────────────────
  * Extension du protocole de salle « ride » (serveur apps/server, client apps/client/src/net,
