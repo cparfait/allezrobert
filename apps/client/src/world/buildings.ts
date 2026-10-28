@@ -966,6 +966,12 @@ export class Buildings {
       const buf = plan ? roofBuffers(plan, wallTop, pitch) : null;
       const roofPart = buf ? buf.roof : flatRoof(bld.pts, wallTop);
       if (skillion) for (let i = 0; i < roofPart.pos.length; i += 3) roofPart.pos[i + 1] = roofAt(roofPart.pos[i] as number, roofPart.pos[i + 2] as number);
+      else if (!plan) {
+        // Toit plat : abaissé d'un rien propre au bâtiment (0 à 6 cm, tiré de son emprise ; le mur dépasse à peine). Deux bâtiments mitoyens
+        // ou parties d'un même bâtiment (BD TOPO) à la même hauteur superposaient leurs toits : ils scintillaient.
+        const lift = (Math.abs(Math.sin((bld.pts[0] as number) * 12.9898 + (bld.pts[1] as number) * 78.233)) * 43758.5453) % 1 * 0.06;
+        for (let i = 1; i < roofPart.pos.length; i += 3) roofPart.pos[i] = (roofPart.pos[i] as number) - lift;
+      }
       if (roofPart.pos.length) {
         const roof = toGeometry(roofPart.pos, roofPart.uv);
         // binfo.y : tuiles vieillies (BD TOPO) ou zinc (toit métallique d'un archétype parisien) ; accent :
