@@ -31,25 +31,32 @@ function riding(): HTMLElement {
   return el;
 }
 
-/** Robert en low poly, tour à tour poing levé sur son vélo, bras croisés, et à côté de son vélo. */
+/** Robert en low poly, tour à tour sur son vélo (animé), bras croisés, et bras croisés à côté de son vélo. */
 const LOW_POLY_POSES = ['velo', 'attente', 'attente-velo'];
 let pose = 0;
 
 /**
- * Robert en low poly (public/robert-lowpoly/*.webp), présenté en carte claire aux coins arrondis (les images
- * ont un fond blanc). Une version à fond transparent s'affiche détourée sans autre changement.
+ * Robert en low poly (public/robert-lowpoly/, images détourées) : sur le vélo, il pédale comme l'illustration
+ * d'origine (calques vélo, jambe, buste, bras levé animés en CSS, `.rb.rb-lp` dans index.html) ; sinon image fixe.
  */
 function lowPoly(): HTMLElement {
+  const name = LOW_POLY_POSES[pose++ % LOW_POLY_POSES.length] as string;
+  if (name === 'velo') {
+    const el = document.createElement('div');
+    el.className = 'world-wait-bike rb rb-lp';
+    el.setAttribute('aria-hidden', 'true');
+    const l = (part: string, cls = '') => `<img src="/robert-lowpoly/velo-${part}.webp" alt=""${cls ? ` class="${cls}"` : ''}>`;
+    el.innerHTML = `<div class="rb-bike">${l('base')}${l('leg', 'rb-leg')}<div class="rb-upper">${l('upper')}${l('arm', 'rb-arm')}</div></div>`;
+    return el;
+  }
   const img = document.createElement('img');
-  img.className = 'world-wait-bike rb-card';
+  img.className = 'world-wait-bike';
   img.alt = '';
   img.decoding = 'async';
-  const name = LOW_POLY_POSES[pose++ % LOW_POLY_POSES.length] as string;
   img.src = `/robert-lowpoly/${name}.webp`;
   img.onerror = () => {
     img.onerror = null;
-    img.className = 'world-wait-bike';
-    img.src = name === 'velo' ? '/robert-velo.png' : '/robert-attente.png';
+    img.src = '/robert-attente.png';
   };
   return img;
 }

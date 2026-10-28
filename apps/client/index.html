@@ -30,8 +30,6 @@
       @keyframes ww { from { transform: translateX(-100%); } to { transform: translateX(290%); } }
       /* Robert sur son vélo, au-dessus de la barre (src/ui/waitBike.ts). */
       .world-wait-bike { display: block; width: auto; height: 210px; margin: -4px auto 14px; }
-      /* Style jeu vidéo : Robert en low poly sur fond clair, en carte arrondie. */
-      .world-wait-bike.rb-card { width: 210px; object-fit: cover; border-radius: 22px; box-shadow: 0 14px 34px rgba(0, 0, 0, 0.45); }
       /* Robert qui pédale : calques de robert-attente-velo.png (tools/robert-attente/layers.py), animés uniquement en
          transform pour tourner hors du fil principal (la page est bloquée pendant la compilation des shaders).
          Un tour de pédalier = 0,9 s : la jambe descend, le vélo penche du côté opposé, le buste contre, le poing bat. */
@@ -45,6 +43,14 @@
       @keyframes rb-leg { 0%, 100% { transform: none; } 50% { transform: translateY(1.8%) rotate(-1deg); } }
       @keyframes rb-upper { 0%, 100% { transform: rotate(2.2deg); } 25%, 75% { transform: translateY(-0.6%); } 50% { transform: rotate(-2.2deg); } }
       @keyframes rb-arm { 0%, 100% { transform: none; } 35% { transform: rotate(-8deg); } 60% { transform: rotate(2deg); } }
+      /* Style jeu vidéo : Robert en low poly (tools/robert-attente/README.md) ; mêmes mouvements, pivots de ses calques.
+         Le home trainer est au sol : le vélo penche moins. */
+      .rb.rb-lp { aspect-ratio: 284 / 460; }
+      .rb-lp .rb-bike { transform-origin: 38.5% 98.6%; animation-name: rb-bike-lp; }
+      .rb-lp .rb-leg { transform-origin: 38.5% 69.6%; }
+      .rb-lp .rb-upper { transform-origin: 36% 61.8%; }
+      .rb-lp .rb-arm { transform-origin: 71.7% 44.5%; }
+      @keyframes rb-bike-lp { 0%, 100% { transform: rotate(-0.8deg); } 50% { transform: rotate(0.8deg) translateY(-0.3%); } }
       @media (prefers-reduced-motion: reduce) { .rb div, .rb img { animation: none; } }
       /* Phrase qui défile sous le texte d'avancement (écran de sortie seulement : vide ailleurs). */
       .world-wait-tip { display: block; min-height: 2.6em; margin-top: 16px; font-size: 12.5px; line-height: 1.3; color: rgba(230, 235, 242, 0.62); transition: opacity 0.35s ease; }
