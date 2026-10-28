@@ -10,7 +10,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
  *
  * Repère d'un spectateur : y = 0 aux pieds, le visage vers −z (la rotation d'instance tourne +z vers
  * l'extérieur de la route, voir crowd.ts). Attributs : `part` (couleur : 0 maillot, 1 peau, 2 manche,
- * 3 pantalon, 4 casquette, 5 cheveux) et `limb` (−1 bras gauche, +1 bras droit, 0 sinon).
+ * 3 cuisse, 4 casquette, 5 cheveux, 6 cheveux longs, 7 chaise, 8 tibia) et `limb` (−1 bras gauche, +1 bras droit, 0 sinon).
  */
 
 /** Distance (m) en deçà de laquelle le public est pleinement animé, et au-delà de laquelle il est calme. */
@@ -34,8 +34,11 @@ export function lowPolyPersonGeometry(): THREE.BufferGeometry {
   const box = (w: number, h: number, d: number, x: number, y: number, z: number) => new THREE.BoxGeometry(w, h, d).translate(x, y, z);
   const parts: THREE.BufferGeometry[] = [
     // jambes (pantalon), tronc hexagonal plus large aux épaules (maillot)
-    tagged(box(0.13, 0.82, 0.16, 0.09, 0.41, 0), 3),
-    tagged(box(0.13, 0.82, 0.16, -0.09, 0.41, 0), 3),
+    // jambes en deux (cuisse part 3, tibia part 8) : les spectateurs assis plient le genou
+    tagged(box(0.13, 0.41, 0.16, 0.09, 0.615, 0), 3),
+    tagged(box(0.13, 0.41, 0.16, -0.09, 0.615, 0), 3),
+    tagged(box(0.13, 0.41, 0.16, 0.09, 0.205, 0), 8),
+    tagged(box(0.13, 0.41, 0.16, -0.09, 0.205, 0), 8),
     tagged(new THREE.CylinderGeometry(0.23, 0.18, 0.62, 6, 1).rotateY(Math.PI / 6).translate(0, 1.11, 0), 0),
     // tête cubique, cheveux en dalle, casquette (calotte + visière vers l'avant, −z)
     tagged(box(0.24, 0.26, 0.24, 0, 1.58, 0), 1),
@@ -46,6 +49,13 @@ export function lowPolyPersonGeometry(): THREE.BufferGeometry {
     tagged(box(0.27, 0.34, 0.07, 0, 1.5, 0.135), 6),
     tagged(box(0.04, 0.22, 0.14, 0.13, 1.56, 0.05), 6),
     tagged(box(0.04, 0.22, 0.14, -0.13, 1.56, 0.05), 6),
+    // chaise pliante (part 7, seulement pour les spectateurs assis) : assise, dossier derrière (+z), pieds
+    tagged(box(0.46, 0.04, 0.42, 0, 0.44, 0.04), 7),
+    tagged(box(0.46, 0.4, 0.04, 0, 0.66, 0.25), 7),
+    tagged(box(0.03, 0.44, 0.03, 0.21, 0.22, -0.15), 7),
+    tagged(box(0.03, 0.44, 0.03, -0.21, 0.22, -0.15), 7),
+    tagged(box(0.03, 0.86, 0.03, 0.21, 0.43, 0.25), 7),
+    tagged(box(0.03, 0.86, 0.03, -0.21, 0.43, 0.25), 7),
   ];
   // Bras pendants (repos) : manche et main, pivot à l'épaule ; levés dans le shader.
   for (const s of [1, -1]) {
@@ -72,6 +82,7 @@ const SHIRTS = ['#e63946', '#ffd23f', '#2a9d8f', '#f4f4f4', '#1f6feb', '#ff7f11'
 const TROUSERS = ['#2c4a7a', '#2a2a30', '#8a7a5a', '#3d5a3a', '#e8e4da'];
 const SKIN = ['#f3cfa8', '#e8b48a', '#c98b5e', '#8d5a3a'];
 const HAIR = ['#2a1d14', '#5a3a22', '#a8743c', '#d9c08a', '#8a8a8a'];
+const CHAIRS = ['#2a6fdb', '#e63946', '#3d8b3d', '#f2f2f2', '#2a2a2a'];
 const CAPS = ['#e63946', '#ffffff', '#1f6feb', '#ffd23f', '#2a9d8f', '#111111'];
 
 /**
@@ -117,19 +128,33 @@ export function lowPolyCrowdMaterial(spot: Float32Array, still: Float32Array, ri
   // Cheveux longs pour ≈ 45 % des spectateurs sans casquette (femmes, pour l'instant) ; sinon repliés.
   const longHair = h3.greaterThan(0.4).and(hash(instanceIndex.add(43)).lessThan(0.45)).select(float(1), float(0));
   const noHair = part.equal(6).select(float(1), float(0)).mul(float(1).sub(longHair));
-  const dObj = vec3(armDelta.x, armDelta.y, 0).add(vec3(0, 1.6, 0).sub(raw).mul(noCap.add(noHair)));
+  // Assis sur une chaise pliante (1 sur 4, pas les porteurs de pancarte) : cuisses à l'horizontale vers
+  // l'avant (−z), tibias verticaux, corps abaissé de 0,37 m ; enfants (1 sur 5, debout) à 62 % de la taille.
+  const seated = hash(instanceIndex.add(59)).lessThan(0.25).select(float(1), float(0)).mul(float(1).sub(holder));
+  const kid = hash(instanceIndex.add(71)).lessThan(0.2).select(float(1), float(0)).mul(float(1).sub(seated));
+  const isThigh = part.equal(3).select(float(1), float(0));
+  const isShin = part.equal(8).select(float(1), float(0));
+  const isChair = part.equal(7).select(float(1), float(0));
+  const thigh = vec3(raw.x, float(0.82).sub(raw.z), raw.y.sub(0.82)).sub(raw);
+  const shin = vec3(0, 0.41, -0.41);
+  const sit = thigh.mul(isThigh).add(shin.mul(isShin)).add(vec3(0, -0.37, 0).mul(float(1).sub(isChair)));
+  const hideChair = vec3(0, 0.3, 0).sub(raw).mul(isChair).mul(float(1).sub(seated));
+  let dObj = vec3(armDelta.x, armDelta.y, 0).add(vec3(0, 1.6, 0).sub(raw).mul(noCap.add(noHair))).add(sit.mul(seated)).add(hideChair);
+  // enfant : tout le corps réduit depuis les pieds
+  dObj = dObj.add(raw.add(dObj).mul(-0.38).mul(kid));
   // Repère du spectateur → repère d'instance (rotation autour de y).
   const c = sp.z;
   const s = sp.w;
   const dInst = vec3(dObj.x.mul(c).add(dObj.z.mul(s)), dObj.y, dObj.z.mul(c).sub(dObj.x.mul(s)));
   // Sauts déphasés (un sur deux saute franchement) ; au calme, léger balancement d'un pied sur l'autre.
-  const jump = sin(time.mul(float(5).add(h.mul(3))).add(h.mul(20))).max(0).mul(0.14).mul(h2.greaterThan(0.5).select(float(1), float(0.35))).mul(move);
+  const jump = sin(time.mul(float(5).add(h.mul(3))).add(h.mul(20))).max(0).mul(0.14).mul(h2.greaterThan(0.5).select(float(1), float(0.35))).mul(move).mul(float(1).sub(seated));
   const sway = sin(time.mul(1.3).add(h.mul(20))).mul(0.012).mul(float(1).sub(act));
   mat.positionNode = positionLocal.add(dInst).add(vec3(sway.mul(c), jump, sway.mul(s).negate()));
   const shirt = pick(h, SHIRTS);
   const skin = pick(h2, SKIN);
   const hair = pick(hash(instanceIndex.add(17)), HAIR);
-  const cols: THREE.Node<'vec3'>[] = [shirt, skin, shirt.mul(0.85), pick(hash(instanceIndex.add(5)), TROUSERS), pick(hash(instanceIndex.add(11)), CAPS), hair, hair];
+  const trousers = pick(hash(instanceIndex.add(5)), TROUSERS);
+  const cols: THREE.Node<'vec3'>[] = [shirt, skin, shirt.mul(0.85), trousers, pick(hash(instanceIndex.add(11)), CAPS), hair, hair, pick(hash(instanceIndex.add(23)), CHAIRS), trousers];
   let col = cols[0] as THREE.Node<'vec3'>;
   for (let i = 1; i < cols.length; i++) col = part.equal(i).select(cols[i] as THREE.Node<'vec3'>, col);
   mat.colorNode = varying(col);
