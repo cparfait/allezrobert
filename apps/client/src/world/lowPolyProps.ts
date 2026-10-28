@@ -204,6 +204,21 @@ function borne(): Template {
   return template([part(prism(0.14, 0.11, 0, 1.0, 8), g, 0), part(prism(0.16, 0.05, 1.0, 1.16, 8), g, 0), part(box(0.05, 0.05, 0.2, 0, 0.72, 0.18), '#9a8d5a', 0), part(box(0.34, 0.03, 0.34, 0, 0.015, 0.3), '#3a3d40', 0)]);
 }
 
+/**
+ * Borne kilométrique (0,8 m) : corps blanc et dessus arrondi à la couleur de l'objet (jaune : route
+ * départementale) ; face avant vers +z, où roadsideLife.ts pose le numéro.
+ */
+function kmStone(): Template {
+  // demi-cylindre (moitié haute seulement : rien de coplanaire avec la face du corps)
+  const cap = new THREE.CylinderGeometry(0.21, 0.21, 0.2, 8, 1, false, Math.PI / 2, Math.PI).rotateX(Math.PI / 2).translate(0, 0.6, 0);
+  return template([part(box(0.42, 0.6, 0.2, 0, 0.3, 0), '#f4f2ec', 0), part(cap, '#ffffff', 1), part(box(0.46, 0.05, 0.24, 0, 0.025, 0), '#9a968c', 0)]);
+}
+
+/** Borne hectométrique : petit plot blanc à tête colorée. */
+function hectoStone(): Template {
+  return template([part(box(0.12, 0.3, 0.12, 0, 0.15, 0), '#f4f2ec', 0), part(box(0.125, 0.06, 0.125, 0, 0.33, 0), '#ffffff', 1)]);
+}
+
 /** Touffe de roseaux : cinq tiges effilées inclinées, quelques massettes brunes. */
 function reeds(): Template {
   const parts: THREE.BufferGeometry[] = [];
@@ -252,6 +267,8 @@ export function lifeTemplates() {
     trough: trough(),
     fountain: fountain(),
     borne: borne(),
+    kmStone: kmStone(),
+    hectoStone: hectoStone(),
     reeds: reeds(),
   };
 }

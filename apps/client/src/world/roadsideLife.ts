@@ -129,6 +129,36 @@ const TROUGH_WATER = new THREE.Color().setRGB(0.12, 0.3, 0.42);
 const WIRE = new THREE.Color('#2a2a2a');
 const NET = new THREE.Color('#d8d8d4');
 const ONE = new THREE.Color(1, 1, 1);
+/** Dessus des bornes kilométriques : jaune des routes départementales. */
+const KM_CAP = new THREE.Color('#f2c21b');
+
+/** Numéros des bornes kilométriques : une texture et un matériau par numéro, partagés. */
+const kmMaterials = new Map<number, THREE.MeshStandardNodeMaterial>();
+function kmLabel(n: number, x: number, y: number, z: number, yaw: number): THREE.Mesh | null {
+  if (typeof document === 'undefined') return null;
+  let mat = kmMaterials.get(n);
+  if (!mat) {
+    const c = document.createElement('canvas');
+    c.width = c.height = 128;
+    const g = c.getContext('2d') as CanvasRenderingContext2D;
+    g.fillStyle = '#1b1c1f';
+    g.font = `bold ${n >= 100 ? 54 : 74}px "Inter", Arial, sans-serif`;
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    g.fillText(String(n), 64, 70);
+    const tex = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.anisotropy = 4;
+    mat = new THREE.MeshStandardNodeMaterial({ map: tex, transparent: true, alphaTest: 0.35, roughness: 0.8, metalness: 0 });
+    kmMaterials.set(n, mat);
+  }
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(0.36, 0.36), mat);
+  // sur la face avant de la borne (corps de 0,2 m d'épaisseur), un peu sous le dessus arrondi
+  m.position.set(x + Math.sin(yaw) * 0.104, y + 0.36, z + Math.cos(yaw) * 0.104);
+  m.rotation.y = yaw;
+  m.name = `km-${n}`;
+  return m;
+}
 const UTILITY = new Set(['shed', 'garage', 'garages', 'barn', 'greenhouse', 'roof', 'industrial', 'ruins', 'church', 'chapel', 'farm_auxiliary', 'warehouse', 'commercial', 'retail', 'transformer_tower', 'hut', 'carport']);
 
 /** Position du coureur (animaux qui se réveillent à son approche) et angles des manèges. */
@@ -1006,6 +1036,21 @@ export class RoadsideLife {
       }
     }
 
+    // ── Bornes kilométriques (numéro depuis le départ) et hectométriques, à droite dans le sens du parcours ──
+    const kmLabels: THREE.Mesh[] = [];
+    for (let d = Math.ceil(d0 / 100) * 100; d < d1; d += 100) {
+      if (d <= 0 || inSpan(d, 4)) continue;
+      const km = Math.round(d / 100) % 10 === 0;
+      track.positionAt(d, halfAt(d) + (km ? 1.1 : 0.9), s);
+      const y = ground(s.x, s.z);
+      if (!Number.isFinite(y) || probe.buildingNear(s.x, s.z, 0.6) || onAnyRoad(s.x, s.z, 0.4)) continue;
+      // face avant (+z) tournée vers le coureur qui arrive
+      const yaw = Math.atan2(-s.dirX, -s.dirZ);
+      sb.put(km ? tpl.kmStone : tpl.hectoStone, s.x, y, s.z, yaw, 1, 1, 1, KM_CAP);
+      const label = km ? kmLabel(Math.round(d / 1000), s.x, y, s.z, yaw) : null;
+      if (label) kmLabels.push(label);
+    }
+
     // ── Maillages du tronçon ──
     const objects: THREE.Object3D[] = [];
     const casters: THREE.Mesh[] = [];
@@ -1043,6 +1088,7 @@ export class RoadsideLife {
       l.name = `life-wires-${k}`;
       objects.push(l);
     }
+    objects.push(...kmLabels);
     for (const o of objects) {
       o.matrixAutoUpdate = false;
       o.updateMatrix();

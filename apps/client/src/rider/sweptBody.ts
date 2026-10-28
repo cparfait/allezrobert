@@ -242,13 +242,14 @@ export class SweptBody {
       const side = i === 0 ? 1 : -1;
       const thigh = 2 + i * 2;
       const shin = thigh + 1;
-      const pts = [g.hip.clone().add(new THREE.Vector3(-side * 0.02, 0.06, -0.01)), g.hip, g.knee, g.ankle];
+      // Le haut de la cuisse part de l'intérieur du fessier (rien ne dépasse sur les côtés ni au-dessus).
+      const pts = [g.hip.clone().add(new THREE.Vector3(-side * 0.035, 0.025, 0)), g.hip, g.knee, g.ankle];
       const fr = fractions(pts);
       const L = (k: number, f: number) => (fr[k] as number) + f * ((fr[k + 1] ?? 1) - (fr[k] as number));
       const total = length(pts);
       const keys: Key[] = [
-        { t: 0, w: 0.07, p: 0.075, n: 0.07, bones: [[0, 1]] },
-        { t: L(1, 0), w: 0.085, p: 0.088, n: 0.085, bones: [[0, 0.4], [thigh, 0.6]] },
+        { t: 0, w: 0.05, p: 0.06, n: 0.05, bones: [[0, 1]] },
+        { t: L(1, 0), w: 0.076, p: 0.085, n: 0.075, bones: [[0, 0.4], [thigh, 0.6]] },
         { t: L(1, 0.3), w: 0.08, p: 0.08, n: 0.085, bones: [[thigh, 1]] },
         { t: L(1, 0.65), w: 0.068, p: 0.066, n: 0.075, bones: [[thigh, 1]] },
         { t: L(2, 0), w: 0.05, p: 0.047, n: 0.053, bones: [[thigh, 0.5], [shin, 0.5]] },

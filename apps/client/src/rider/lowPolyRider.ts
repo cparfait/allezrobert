@@ -717,7 +717,7 @@ export class LowPolyRider implements RiderAvatarLike {
       const pedal = v3(0.125 * leg.side, BB.y - Math.cos(a) * CRANK, BB.z - Math.sin(a) * CRANK);
       (this.pedals[leg.side > 0 ? 0 : 1] as THREE.Mesh).position.copy(pedal);
       const ankle = pedal.clone().add(v3(0, 0.065, -0.05));
-      const hipJ = hip.clone().setX(hip.x + 0.1 * leg.side);
+      const hipJ = hip.clone().setX(hip.x + 0.09 * leg.side);
       const knee = new THREE.Vector3();
       // Genoux légèrement ouverts (naturel), qui montent et descendent sans balayer.
       solveTwoBone(hipJ, ankle, THIGH, SHIN, v3(0.09 * leg.side, 0.2, 1), knee);
