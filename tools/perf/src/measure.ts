@@ -13,7 +13,7 @@ import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
 import { closeSync, existsSync, mkdirSync, openSync, rmSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import puppeteer from 'puppeteer-core';
-import { formatSummary, overBudget, summarize, type Probe } from './summary.ts';
+import { formatStartup, formatSummary, overBudget, summarize, type Probe } from './summary.ts';
 
 const ROOT = resolve(import.meta.dirname, '../../..');
 const OUT = resolve(ROOT, 'out/perf');
@@ -123,13 +123,34 @@ try {
     for (const n of ['createRenderPipeline', 'createRenderPipelineAsync', 'createShaderModule', 'createTexture', 'createBuffer']) wrap(GPUDevice.prototype, n);
     for (const n of ['copyExternalImageToTexture', 'writeTexture', 'writeBuffer']) wrap(GPUQueue.prototype, n);
   });
-  const url = `${server.url}/?world=${world}&autostart&nointro&quality=${quality}`;
+  // --query "compileconc=1&ao=0" : paramètres d'URL supplémentaires du jeu.
+  const url = `${server.url}/?world=${world}&autostart&nointro&quality=${quality}${arg('query') ? `&${arg('query')}` : ''}`;
   console.log('ouvre', url);
+  // --cpu-load : profil processeur du chargement (ouverture de la page → départ de la sortie).
+  const loadCdp = arg('cpu-load') ? await page.createCDPSession() : null;
+  if (loadCdp) {
+    await loadCdp.send('Profiler.enable');
+    await loadCdp.send('Profiler.setSamplingInterval', { interval: 1000 });
+    await loadCdp.send('Profiler.start');
+  }
   await page.goto(url, { waitUntil: 'load', timeout: 120_000 });
   // Départ de la sortie : repère posé par le jeu après la précompilation (main.ts).
   const t0 = Date.now();
   for (let k = 0; k < 480 && !(await page.evaluate(() => performance.getEntriesByName('ar:ride-start').length > 0).catch(() => false)); k++) await sleep(500);
   console.log(`sortie lancée en ${((Date.now() - t0) / 1000).toFixed(1)} s`);
+  if (loadCdp) writeFileSync(`${stem}.load.cpuprofile`, JSON.stringify((await loadCdp.send('Profiler.stop')).profile));
+  // Détail du chargement : repères « ar:… » posés par le jeu (temps depuis l'ouverture de la page) et
+  // fichiers de monde reçus.
+  const startup = await page.evaluate(() => {
+    const marks = performance
+      .getEntriesByType('mark')
+      .filter((m) => m.name.startsWith('ar:'))
+      .map((m) => ({ name: m.name.slice(3), t: Math.round(m.startTime) }))
+      .sort((a, b) => a.t - b.t);
+    const worlds = (performance.getEntriesByType('resource') as PerformanceResourceTiming[]).filter((r) => r.name.includes('/worlds/'));
+    return { marks, worldFiles: worlds.length, worldMB: Math.round(worlds.reduce((s, r) => s + r.decodedBodySize, 0) / 1e5) / 10 };
+  });
+  console.log(formatStartup(startup));
   await page.mouse.click(800, 450).catch(() => undefined);
   for (let i = 0; i < 130; i++) await page.keyboard.press('Equal');
   await sleep(warm * 1000);
@@ -180,11 +201,44 @@ try {
     if (ar?.world?.buildings) walk(ar.world.buildings.group);
     return { drawCalls: info?.drawCalls ?? -1, triangles: info?.triangles ?? -1, buildings: { meshes, vertices, mb: Math.round(bytes / 1e5) / 10 } };
   });
+  // --probe-buildings : part des sommets des bâtiments qui se répètent à l'identique (gain possible d'une indexation).
+  if (arg('probe-buildings')) {
+    const dup = await page.evaluate(() => {
+      type A = { array: ArrayLike<number>; itemSize: number; count: number };
+      type M = { isMesh?: boolean; geometry?: { attributes: Record<string, A>; index: unknown }; children: M[] };
+      const ar = (window as unknown as { __ar?: { world?: { buildings?: { group: M } } } }).__ar;
+      const meshes: M[] = [];
+      const walk = (o: M) => {
+        if (o.isMesh && o.geometry) meshes.push(o);
+        o.children.forEach(walk);
+      };
+      if (ar?.world?.buildings) walk(ar.world.buildings.group);
+      let total = 0;
+      let unique = 0;
+      let indexed = 0;
+      for (const m of meshes.slice(0, 6)) {
+        const g = m.geometry as NonNullable<M['geometry']>;
+        if (g.index) indexed++;
+        const attrs = Object.values(g.attributes);
+        const n = attrs[0]?.count ?? 0;
+        const seen = new Set<string>();
+        for (let i = 0; i < n; i++) {
+          let key = '';
+          for (const a of attrs) for (let k = 0; k < a.itemSize; k++) key += `${a.array[i * a.itemSize + k]},`;
+          seen.add(key);
+        }
+        total += n;
+        unique += seen.size;
+      }
+      return { meshes: Math.min(meshes.length, 6), indexed, total, unique };
+    });
+    console.log(`sommets de bâtiments (${dup.meshes} maillages, ${dup.indexed} indexés) : ${dup.total} dont ${dup.unique} uniques (${((100 * dup.unique) / Math.max(dup.total, 1)).toFixed(0)} %)`);
+  }
   if (arg('trace')) await page.tracing.stop();
   if (cdp) writeFileSync(`${stem}.cpuprofile`, JSON.stringify((await cdp.send('Profiler.stop')).profile));
   await page.screenshot({ path: `${stem}.jpg`, quality: 70 });
   const summary = summarize(probe, seconds);
-  writeFileSync(`${stem}.json`, JSON.stringify({ world, quality, seconds, summary, scene, probe }, null, 1));
+  writeFileSync(`${stem}.json`, JSON.stringify({ world, quality, seconds, summary, startup, scene, probe }, null, 1));
   console.log(`shaders compilés avant la mesure (chargement, départ) : ${probe.shadersBefore}`);
   console.log(formatSummary(summary));
   console.log(`scène : ${scene.drawCalls} appels de dessin, ${(scene.triangles / 1e6).toFixed(2)} M triangles · bâti : ${scene.buildings.meshes} maillages, ${(scene.buildings.vertices / 1e6).toFixed(2)} M sommets, ${scene.buildings.mb} Mo d'attributs`);

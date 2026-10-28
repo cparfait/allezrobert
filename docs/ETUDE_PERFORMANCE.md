@@ -287,3 +287,73 @@ shaders vierge (le cas du premier lancement), Chrome sans fenêtre (sans synchro
   demanderait des textures en tableau (`DataArrayTexture`).
 - Le test de charge du serveur (`apps/server/test/load.test.ts`) échoue quand la machine est chargée
   (passe seul) : sans lien avec ces changements.
+
+## 8. 28 octobre : chargement, herbe, installateur
+
+Cap : un **logiciel installé** (Tauri). Le chargement se paie à chaque lancement, l'installateur et le disque
+comptent ; le réseau (compression Caddy, découpe du bundle pour le cache) beaucoup moins.
+
+Même scénario qu'au § 7 (Chevreuse, qualité haute, 1 600 × 900, `tools/perf`, 1 500 W) :
+
+| | Avant | Après |
+|---|---|---|
+| Chargement jusqu'au départ, profil Chrome vierge (1er lancement) | 82 s (57 s en rejouant l'ancien comportement : `compileconc=1`) | **23 s** |
+| Chargement, cache de shaders chaud | 36 à 50 s | **20 s** |
+| Images par seconde | 53 à 66 | **89 à 90** |
+| Saccades > 250 ms sur 45 s | 1 à 4 | 0 à 1 (la seule est à l'instant 0 de la sonde) |
+| Part du processeur prise par l'herbe | 9,0 % | **1,0 %** |
+
+### Où partait le temps de chargement (nouveaux repères `ar:…` + `--cpu-load`)
+
+Le jeu pose maintenant des repères de démarrage (`bootStep` et `performance.mark` dans `main.ts`), que
+`tools/perf` imprime et range dans le JSON (`startup`). Cache chaud : menu prêt à 2,5 s, tuiles à 8 s, paysage
+compilé à 14 s, puis **23 à 28 s « départ : objets de la sortie → compilés »**. Le profil processeur de cette
+phase montre le fil principal **inactif 17 s sur 27** : `Renderer.compileAsync` de three.js traite les objets un
+par un et attend la fin du pipeline de chacun (`await Promise.all(pipelinePromises)`) avant de construire les
+nœuds du suivant ; la compilation DXC du processus GPU et la construction des nœuds ne se chevauchaient jamais.
+
+Correctif (`patches/three@0.186.1.patch`, trois fichiers) : jusqu'à N pipelines en vol, les erreurs sont gardées
+et relancées à la fin. Réglage `?compileconc=N` (16 par défaut), profil Chrome vierge :
+
+| Pipelines en vol | 1 | 4 | 8 | 16 | 32 |
+|---|---|---|---|---|---|
+| Chargement jusqu'au départ | 57 s | 29 s | 27 s | 24 s | 23 s |
+
+Reste après ce correctif : tuiles (≈ 6 s) et compilation du paysage (≈ 6 s), limitées par le processeur
+(construction des graphes de nœuds de three.js, bâtiments 2,2 s dont `paint` 0,6 s avant correction).
+
+### Herbe : 9 % → 1 % du processeur
+
+`GrassField.advance` refaisait tous les ~80 blocs de 12 m du disque d'herbe à chaque pas de 12 m (toutes les 0,6 s
+à 70 km/h), alors que chaque bloc a une graine fixe et ne dépend ni du coureur ni du rayon. Les blocs sont
+maintenant mémorisés (`world/grassPlacement.ts`) : une regénération ne refait que la bande qui entre dans le
+disque. Résultat **identique à l'algorithme d'origine à l'octet près** (test `grassPlacement.test.ts`, qui
+rejoue l'ancien code sur 18 pas, été et hiver, avec et sans plafond). Au passage, `buildRoadProximity` (clés
+numériques au lieu de chaînes, `roadProximity.ts`) et `splatCell` (un calcul d'indice pour sept canaux).
+
+### Installateur
+
+- `__pose/` (photos de référence et modèle de pose de développement, non versionnés, **30 Mo**) n'est plus copié
+  dans `dist/` ; avec `AR_DESKTOP=1` (posé par `deploy/publish-desktop.sh`) les boucles `.webm` du menu
+  (**125 Mo**) non plus : H.264 joue dans WebView2, l'AV1 logiciel sert de dernier recours (`scripts/installerDiet.ts`).
+- `navigator.storage.persist()` après l'installation d'une zone et au démarrage : les zones (jusqu'à 2 Go) vivent
+  dans le Cache Storage de WebView2, « au mieux » par défaut, donc purgeable quand le disque se remplit.
+- Graphes routiers : fusion des zones voisines 3 fois plus rapide (commit 1147f06). Les `graph.json` (≈ 330 Mo
+  pour 45 zones) partent encore dans l'installateur : les livrer avec le pack de chaque zone ou en binaire est la
+  prochaine économie, mais change le parcours du menu (carte d'une zone non installée).
+
+### Essayé ou estimé, non retenu
+
+- **Maillage des bâtiments par cellules** (culling) : sur Chevreuse, cellules de 500 m = 12 % des sommets de la
+  tuile au lieu de 17 % sur les 4 passes (principale + 3 cascades), mais 54 objets au lieu de 28 dans la passe
+  principale ; le coût par objet de three.js domine déjà : non.
+- **Indexer la géométrie des bâtiments** : 21 % seulement des sommets sont des doublons exacts (attributs de
+  façade distincts par face) : non.
+- **Compacter les attributs** (92 octets par sommet : `color`, `accent`, `binfo` identiques sur tout un bâtiment) :
+  gain de 22 à 30 % par demi-précision et 8 bits, jusqu'à 52 % avec un index de partie et une table ; à faire
+  avec comparaison de captures, car `vertexColors` de three multiplie déjà l'attribut `color`.
+- `lod.updateMatrixWorld` des coureurs (3 % du processeur) et `updateAfter` de three.js (6 %, vitesse du TAA par
+  maillage animé) : pistes ouvertes.
+
+`tools/perf` : `--cpu-load` (profil du chargement), `--probe-buildings` (sommets répétés), `--query "a=1&b=2"`
+(paramètres d'URL du jeu).

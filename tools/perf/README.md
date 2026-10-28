@@ -15,6 +15,10 @@ pnpm --filter @allezrobert/perf measure -- --world billom --quality high --secon
   `--warm-cache` garde le cache d'une mesure à l'autre.
 - Monte le simulateur à 1 500 W (≈ 70 km/h, une tuile nouvelle toutes les 50 s), roule `--warm`
   secondes (20 par défaut), puis mesure `--seconds` secondes (60 par défaut).
+- `--cpu-load` : profil processeur du chargement (ouverture de la page → départ) ; `--query "compileconc=4"` : paramètres d'URL
+  supplémentaires du jeu ; `--probe-buildings` : part des sommets de bâtiments répétés à l'identique.
+- Le détail du chargement (repères `ar:…` du jeu : moteur, monde, tuiles, compilation) est imprimé après « sortie lancée » et rangé
+  dans le JSON (`startup`).
 - `--cpu` : profil processeur (`.cpuprofile`, à ouvrir dans DevTools > Performance) ;
   `--trace` : trace DevTools complète, processus GPU compris (compilation `CompileShaderDXC`) ;
   `--trace gpu` : seulement Dawn (pipelines nommés d'après leur matériau, trace légère) ;

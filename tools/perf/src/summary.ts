@@ -57,6 +57,21 @@ export function overBudget(s: Summary, b: Budget = DEFAULT_BUDGET): string[] {
   return out;
 }
 
+/** Détail du chargement jusqu'au départ de la sortie. */
+export interface Startup {
+  /** Repères « ar:… » posés par le jeu : nom et instant (ms depuis l'ouverture de la page). */
+  marks: Array<{ name: string; t: number }>;
+  /** Fichiers de monde reçus pendant le chargement, et leur taille décodée (Mo). */
+  worldFiles: number;
+  worldMB: number;
+}
+
+export function formatStartup(s: Startup): string {
+  const sec = (ms: number, width: number) => (ms / 1000).toFixed(1).padStart(width);
+  const lines = s.marks.map((m, i) => `  ${sec(m.t, 6)} s  +${sec(m.t - (s.marks[i - 1]?.t ?? 0), 5)} s  ${m.name}`);
+  return ["chargement (instant depuis l'ouverture, écart avec le repère précédent) :", ...lines, `  fichiers de monde reçus : ${s.worldFiles} (${s.worldMB} Mo)`].join('\n');
+}
+
 export function formatSummary(s: Summary): string {
   return [
     `${s.fps} fps en moyenne sur ${s.seconds} s`,
