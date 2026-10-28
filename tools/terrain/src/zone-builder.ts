@@ -175,6 +175,8 @@ interface Step {
   endedAt?: string;
   /** Monde reconstruit par ce pas (reconstruction de tous les mondes). */
   zone?: string;
+  /** Ne tourne que si tous les pas précédents ont réussi (sinon il est ignoré, sans arrêter le travail). */
+  needsAllOk?: boolean;
 }
 interface Job {
   id: string;
@@ -338,13 +340,15 @@ function deployStep(name: string, req: Record<string, unknown>): Step {
 }
 
 /** Mise à jour du serveur : application (git pull + Docker), zones, vidéos du menu. */
-async function startDeploy(b: { action: string; ids?: unknown; branch?: unknown; mode?: unknown; push?: unknown }): Promise<Job> {
+async function startDeploy(b: { action: string; ids?: unknown; branch?: unknown; mode?: unknown; push?: unknown; thenUpdate?: unknown }): Promise<Job> {
   if (jobRunning()) throw new Error('un travail de l’outil est déjà en cours');
   const steps: Step[] = [];
   if (b.action === 'send-zones') {
     const ids = (Array.isArray(b.ids) ? b.ids.map(String) : []).filter((i) => /^[a-z0-9-]+$/.test(i));
     if (!ids.length) throw new Error('aucune zone choisie');
     for (const id of ids) steps.push(deployStep(`envoi ${id}`, { action: 'send-zones', ids: [id] }));
+    // Le catalogue (index.json) n'annonce les zones qu'une fois l'image web redéployée : à faire après les tuiles, et seulement si tout est parti.
+    if (b.thenUpdate) steps.push({ ...deployStep('mise à jour de l’application', { action: 'update-app', branch: String(b.branch ?? ''), mode: b.mode === 'pull' ? 'pull' : 'build', push: !!b.push }), needsAllOk: true });
   } else if (b.action === 'update-app') {
     steps.push(deployStep('mise à jour de l’application', { action: 'update-app', branch: String(b.branch ?? ''), mode: b.mode === 'pull' ? 'pull' : 'build', push: !!b.push }));
   } else if (b.action === 'install-key') {
@@ -445,6 +449,13 @@ async function runSteps(): Promise<void> {
   for (const step of j.steps) {
     if (cancelled) break;
     if (step.status === 'done') continue; // déjà fait (reprise)
+    if (step.needsAllOk && j.steps.some((o) => o !== step && o.status !== 'done')) {
+      step.status = 'cancelled';
+      log(`
+# ${step.name} : ignoré, un pas précédent a échoué
+`);
+      continue;
+    }
     step.status = 'running';
     step.startedAt = new Date().toISOString();
     step.endedAt = undefined;
