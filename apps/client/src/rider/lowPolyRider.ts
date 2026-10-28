@@ -668,10 +668,14 @@ export class LowPolyRider implements RiderAvatarLike {
     const stand = this.poseBlend;
     // Virages : inclinaison adoucie et plafonnée (≈ 17°) ; l'angle physique, tout entier, couchait le vélo.
     const tilt = Math.max(-MAX_BANK, Math.min(MAX_BANK, bank * BANK_SHARE));
-    // Balancement du vélo au rythme des coups de pédale, en danseuse seulement : assis, le vélo et le bassin
-    // restent stables, ce sont les épaules qui roulent (plus bas).
+    // Danseuse (comme les coureurs NCT) : le vélo bascule franchement (≈ ±9°) sous le coureur, du côté opposé
+    // à la jambe qui appuie, et le corps compense aux trois quarts : tête et buste restent presque au centre.
+    // Assis, le vélo et le bassin restent stables, ce sont les épaules qui roulent (plus bas).
     const pedaling = 1 - this.coastBlend;
-    this.lean.rotation.z = tilt + Math.sin(this.crankAngle) * 0.13 * stand;
+    const rock = -Math.sin(this.crankAngle) * 0.16 * stand * pedaling;
+    this.lean.rotation.z = tilt + rock;
+    /** Décalage latéral (repère du vélo) qui garde un point du corps à la verticale malgré la bascule. */
+    const upright = (y: number) => 0.75 * rock * y;
     // Roulis des épaules assis : l'épaule du côté de la jambe qui appuie (manivelle vers l'avant, sin < 0 à
     // gauche) descend d'environ 1 cm et le buste glisse un peu vers elle.
     // Les pros restent immobiles du haut à haute cadence : roulis réduit de moitié de 80 à 120 tr/min.
@@ -680,6 +684,7 @@ export class LowPolyRider implements RiderAvatarLike {
 
     const fit = this.fit;
     const hip = this.hip.set(0, SADDLE.y + 0.07 + 0.13 * stand, SADDLE.z + 0.02 + 0.2 * stand);
+    hip.x += upright(hip.y);
     const up = this.celebrate;
     // Les bras levés ou la danseuse annulent la position de chrono (on se redresse).
     const fitK = 1 - Math.max(up, stand * 0.6);
@@ -687,7 +692,7 @@ export class LowPolyRider implements RiderAvatarLike {
     // les épaules passent presque au-dessus des mains, coudes fléchis (GCN).
     const shoulder = this.shoulder.set(0, 1.395 + fit.shoulderDy * fitK + 0.02 * stand + 0.15 * up, 0.243 + fit.shoulderDz * fitK + 0.18 * stand - 0.23 * up);
     shoulder.y -= this.coastBlend * 0.03;
-    shoulder.x += roll * 0.008;
+    shoulder.x += roll * 0.008 + upright(shoulder.y);
     const chestBase = hip.clone().add(v3(0, 0.06, 0.02));
     this.torso.set(chestBase, shoulder);
     for (const b of this.bands) b.seg.set(chestBase.clone().lerp(shoulder, b.from), chestBase.clone().lerp(shoulder, b.to));
@@ -711,7 +716,7 @@ export class LowPolyRider implements RiderAvatarLike {
       const pedal = v3(0.125 * leg.side, BB.y - Math.cos(a) * CRANK, BB.z - Math.sin(a) * CRANK);
       (this.pedals[leg.side > 0 ? 0 : 1] as THREE.Mesh).position.copy(pedal);
       const ankle = pedal.clone().add(v3(0, 0.065, -0.05));
-      const hipJ = hip.clone().setX(0.1 * leg.side);
+      const hipJ = hip.clone().setX(hip.x + 0.1 * leg.side);
       const knee = new THREE.Vector3();
       // Genoux légèrement ouverts (naturel), qui montent et descendent sans balayer.
       solveTwoBone(hipJ, ankle, THIGH, SHIN, v3(0.09 * leg.side, 0.2, 1), knee);
