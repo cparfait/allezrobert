@@ -35,7 +35,7 @@ import {
   type Surface,
   type VehicleSound,
 } from './soundscape.ts';
-import { bells, bird, clap, cowbell, dogBark, fanWhistle, moo, shiftSound, shout, type BirdKind } from './voices.ts';
+import { bells, bird, bleat, clap, cowbell, dogBark, fanWhistle, moo, neigh, shiftSound, shout, type BirdKind } from './voices.ts';
 
 export interface AudioState {
   speedMs: number;
@@ -316,6 +316,11 @@ export class GameAudio {
 
   setSources(list: SoundSource[]): void {
     this.sources = list;
+    // prochains événements des sources disparues (tuiles déchargées, troupeaux oubliés)
+    if (this.nextEvent.size > list.length * 2 + 64) {
+      const keep = new Set(list);
+      for (const s of this.nextEvent.keys()) if (!keep.has(s)) this.nextEvent.delete(s);
+    }
   }
 
   /** Changement de vitesse virtuelle : `front` = plateau. */
@@ -500,14 +505,26 @@ export class GameAudio {
           continue;
         }
         const next = this.nextEvent.get(src);
+        const herd = src.herd === true || src.kind === 'sheep' || src.kind === 'horses';
         if (next === undefined) {
-          this.nextEvent.set(src, now + Math.random() * (src.kind === 'bells' ? 60 : 20));
+          // troupeaux visibles (style jeu vidéo) : premier cri vite, le coureur ne fait que passer
+          this.nextEvent.set(src, now + Math.random() * (src.kind === 'bells' ? 60 : herd ? 6 : 20));
           continue;
         }
         if (now < next) continue;
         if (src.kind === 'bells') {
           if (bellsOk) bells(ctx(this), this.buses.ambience, now + 0.05, gain, pan);
           this.nextEvent.set(src, now + 90 + Math.random() * 120);
+        } else if (herd) {
+          // mêmes heures et saisons que les vaches ; plus bavards quand le coureur est tout près
+          if (amb0?.cows ?? true) {
+            if (src.kind === 'sheep') {
+              bleat(ctx(this), this.buses.ambience, now + 0.05, gain, pan);
+              if (Math.random() < 0.4) bleat(ctx(this), this.buses.ambience, now + 0.6 + Math.random() * 0.8, gain * 0.7, Math.max(-1, Math.min(1, pan + (Math.random() - 0.5) * 0.4)));
+            } else if (src.kind === 'horses') neigh(ctx(this), this.buses.ambience, now + 0.05, gain, pan);
+            else moo(ctx(this), this.buses.ambience, now + 0.05, gain, pan);
+          }
+          this.nextEvent.set(src, now + (d < 60 ? 5 : 10) + Math.random() * (src.kind === 'sheep' ? 12 : 22));
         } else {
           if (amb0?.cows ?? true) moo(ctx(this), this.buses.ambience, now + 0.05, gain, pan);
           this.nextEvent.set(src, now + 12 + Math.random() * 25);

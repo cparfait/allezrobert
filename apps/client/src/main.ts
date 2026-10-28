@@ -958,6 +958,8 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
         )
       : null;
   const track = nav ? nav.track : scene.track;
+  // Monde ouvert : les abords (style jeu vidéo) suivent le tracé du navigateur.
+  if (nav) world.setTrack(track);
   // Défi KOM : départ lancé avant le pied de la montée choisie, fantôme du record.
   const komSeg = s.mode === 'challenge' && !nav ? (track.route.segments.find((g) => g.kind === 'kom' && g.id === s.challengeSeg) ?? track.route.segments.find((g) => g.kind === 'kom')) : undefined;
   const challenge = komSeg ? new KomChallenge(engine.scene, track, komSeg, { ...s.look, heightCm: s.heightCm }) : null;

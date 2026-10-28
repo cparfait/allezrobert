@@ -78,24 +78,25 @@ le travail peut être rapatrié dans la branche principale comme une option.
 | `world/vegetation.ts` | feuillus refaits (icosaèdres à facettes, **fruits rouges** sur 4 arbres sur 10), sapins à facettes, buissons en icosaèdres, palette vert pomme, sans contre-jour |
 | `world/grass.ts` | herbes vert vif |
 | `world/buildings.ts` | façades et toits en aplats (couleur de chaque maison), fenêtres et volets gardés, facettes |
-| `world/roadsideLife.ts` (nouveau) | **clôtures** blanches ou en bois, **poteaux électriques et câbles**, **fleurs**, **cailloux**, troupeaux de **vaches, moutons et chevaux** qui broutent (tête animée) ; 8 appels de dessin et une ligne pour tout le parcours |
-| `rider/lowPolyRider.ts` (nouveau) | **cycliste et vélo low poly refaits de zéro** : corps en prismes, casque à aérations, lunettes, barbe, maillot avec bande, cadre en tubes hexagonaux bicolore, roues à rayons ; pédalage, danseuse, roue libre, bras levés à l'arrivée |
+| `world/roadsideLife.ts`, `lowPolyProps.ts`, `lowPolyKit.ts` (nouveaux) | abords par tronçons de 120 m (2 à 4 appels de dessin chacun, masqués hors champ) : **clôtures** blanches ou en bois ouvertes aux chemins et arrêtées près des maisons, **poteaux électriques et câbles**, **haies et buissons**, **fleurs**, **cailloux**, troupeaux de **vaches, moutons et chevaux** (tête qui se relève, chevaux qui trottent à l'approche), **ponts** et têtes d'aqueduc sur les ruisseaux, **mares** à roseaux, **abreuvoirs**, **fontaines**, **boîtes aux lettres**, **poubelles** devant les maisons, **terrains de foot** près des villages |
+| `rider/lowPolyRider.ts` (nouveau) | **cycliste et vélo low poly refaits de zéro** : torse à 8 pans, membres à section carrée, manches à poignets colorés, casque à bande ; suit tout le garage (vélos route, aéro, chrono, rétro, gravel, VTT ; roues 35 à 65, lenticulaire, trois bâtons ; casquette, coiffures, coureuse, maillots) ; pédalage, danseuse (aussi au-delà d'un seuil de watts choisi), roue libre, bras levés à l'arrivée |
 | `rider/gltfAvatar.ts`, `rider/bikes.ts`, `rider/flatLook.ts` | `createAvatar` renvoie le cycliste low poly ; facettes sur les vélos du catalogue (garage) |
 | `world/lowPolyVehicles.ts` (nouveau), `world/traffic.ts` | véhicules low poly refaits (voitures, utilitaires, camions, tracteurs), aucun GLB téléchargé |
-| `ui/waitBike.ts` | écran d'attente : Robert en low poly (`public/robert-lowpoly/velo.png`, `attente.png`), repli sur l'illustration d'origine |
+| `ui/waitBike.ts`, `tools/robert-attente/lowpoly.js` | écran d'attente : Robert en low poly détouré, qui pédale en 4 calques comme l'ancien, ou bras croisés |
+| `world/roadsidePeople.ts`, `world/skyLife.ts` (nouveaux) | **joggeurs**, promeneurs et leur **chien**, **enfants qui saluent**, villageois, **pêcheurs**, enfants qui jouent au foot ; **oiseaux** en V et sur les fils, **papillons** sur les fleurs ; tout s'anime à l'approche du coureur |
+| `audio/voices.ts`, `audio/audio.ts`, `audio/spatial.ts` | **sons d'animaux** spatialisés près des troupeaux (meuglement, bêlement et hennissement synthétisés) |
+| `world/buildingsLowPoly.ts`, `crowdLowPoly.ts`, `trainLowPoly.ts` (nouveaux) | maisons pastel à toits débordants et fenêtres à croisillon, public à facettes qui s'anime à l'approche, trains et RER à facettes |
+| `world/lowPolySky.ts` (nouveau) | **ciel** en dégradé, soleil net, nuages à facettes qui dérivent (?sky=real : ciel physique) |
+| `hud/hud.ts`, `hud/hud.css` | **interface compacte** (?hud=full pour l'ancienne) : bloc puissance, bandeau vitesse, distance, D+ et temps, mini-carte ronde, pente et vent, profil fin ; détails sur la touche I |
 
 ## 4. Suite proposée (par ordre d'intérêt)
 
-1. **Personnages au bord de la route** : joggers, promeneurs avec chien, enfants qui saluent, pêcheurs au bord
-   de l'eau, construits comme le cycliste low poly (mêmes prismes), animés simplement.
-2. **Sons d'animaux spatialisés** (vaches, moutons, chevaux) branchés sur les troupeaux de `roadsideLife.ts`
-   (le moteur audio sait déjà jouer des sources positionnées par tuile).
-3. **Oiseaux et papillons** : petites volées en V dans le ciel, papillons au-dessus des fleurs (instances animées
-   dans le shader).
-4. **Ciel stylisé** : dégradé simple et nuages plats en cartes, à la place du ciel physique.
-5. **Bâtiments refaits** : toits plus épais à débord marqué, fenêtres en volumes, cheminées, comme les maisons
-   de la vidéo (la géométrie actuelle est fidèle à l'emprise réelle, c'est un atout à garder).
-6. **Garage et menu** : décor du garage en low poly, vignettes des vélos refaites.
-7. **Contour optionnel** (outline) pour un rendu plus « dessin » ; la branche `feat/perso-toon` en contient un essai.
-8. **Clôtures et accès** : ouvrir les clôtures devant les chemins et les entrées de champs (routes OSM latérales).
-9. Ne plus précharger les GLB des coureurs en style jeu vidéo (chargement plus court).
+Faits depuis : personnages du bord de route, sons d'animaux, oiseaux et papillons, ciel stylisé, maisons
+refaites, interface compacte (voir le tableau ci-dessus). Reste :
+
+1. **Monde virtuel créé de zéro** : voir `docs/PROPOSITIONS_MONDE.md`.
+2. **Réglages visuels** des nouveaux éléments (tailles, densités, orientation des boîtes aux lettres et poubelles),
+   herbe sur les terrains de foot.
+3. **Garage et menu** : décor du garage en low poly, vignettes des vélos refaites.
+4. **Contour optionnel** (outline) pour un rendu plus « dessin » ; la branche `feat/perso-toon` en contient un essai.
+5. Ne plus précharger les GLB des coureurs en style jeu vidéo (chargement plus court).

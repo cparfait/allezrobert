@@ -82,6 +82,11 @@ function prism(bottom: number, top: number, sides = 6): THREE.BufferGeometry {
   return new THREE.CylinderGeometry(top, bottom, 1, sides, 1);
 }
 
+/** Section carrée (faces devant, derrière et sur les côtés) : membres anguleux, lisibles de loin. */
+function quad(bottom: number, top: number): THREE.BufferGeometry {
+  return new THREE.CylinderGeometry(top, bottom, 1, 4, 1).rotateY(Math.PI / 4);
+}
+
 /** Prisme à 8 pans tourné d'un demi-pan : faces planes devant, derrière et sur les côtés (torse, cuisses). */
 function octo(bottom: number, top: number): THREE.BufferGeometry {
   return new THREE.CylinderGeometry(top, bottom, 1, 8, 1).rotateY(Math.PI / 8);
@@ -269,7 +274,7 @@ export class LowPolyRider implements RiderAvatarLike {
       // Cuisse : cuissard jusqu'au-dessus du genou, puis peau (ou cuissard long jusqu'à la cheville).
       const thighShorts = new Seg(octo(0.056, 0.07), shorts, build, build);
       const knee = new Seg(prism(0.05, 0.056, 6), longLegs ? shorts : skin, build, build);
-      const shin = new Seg(prism(0.04, 0.058, 6), longLegs ? shorts : skin, build, build);
+      const shin = new Seg(quad(0.045, 0.064), longLegs ? shorts : skin, build, build);
       const sk = new Seg(prism(0.042, 0.047, 6), sock);
       const sh = new THREE.Mesh(box(0.085, 0.07, 0.26, 0, 0, 0.02), shoe);
       sh.castShadow = true;
@@ -279,8 +284,8 @@ export class LowPolyRider implements RiderAvatarLike {
       const sleeveMat = style === 'manches' ? accent : jersey;
       const sleeve = new Seg(octo(0.052, 0.062), sleeveMat, build, build);
       const cuff = new Seg(prism(0.054, 0.054, 8), style === 'manches' ? jersey : accent, build, build);
-      const upper = new Seg(prism(0.042, 0.046, 6), this.longSleeves ? sleeveMat : skin, build, build);
-      const fore = new Seg(prism(0.034, 0.043, 6), this.longSleeves ? sleeveMat : skin, build, build);
+      const upper = new Seg(quad(0.046, 0.05), this.longSleeves ? sleeveMat : skin, build, build);
+      const fore = new Seg(quad(0.037, 0.047), this.longSleeves ? sleeveMat : skin, build, build);
       const gl = new THREE.Mesh(box(0.07, 0.06, 0.09), look.gloves === 'none' ? skin : glove);
       gl.castShadow = true;
       this.body.add(sleeve.mesh, cuff.mesh, upper.mesh, fore.mesh, gl);
@@ -289,9 +294,15 @@ export class LowPolyRider implements RiderAvatarLike {
     // Torse : prisme à 8 pans évasé (épaules larges, taille plus fine), aplati d'avant en arrière.
     const shoulderR = female ? 0.148 : 0.166;
     this.torso = new Seg(octo(0.135, shoulderR), jersey, 1.12 * build, 0.72 * build);
+    // Bande : même évasement que le torse, 1 cm au-dessus de sa surface (une bande droite croisait le torse
+    // évasé et scintillait), et passe devant en cas d'égalité de profondeur.
     const band = (from: number, to: number, mat: THREE.Material) => {
-      const r = 0.135 + (shoulderR - 0.135) * ((from + to) / 2) + 0.004;
-      const seg = new Seg(octo(r, r), mat, 1.13 * build, 0.74 * build);
+      const at = (f: number) => 0.135 + (shoulderR - 0.135) * f + 0.01;
+      const m = mat as THREE.MeshStandardNodeMaterial;
+      m.polygonOffset = true;
+      m.polygonOffsetFactor = -1;
+      m.polygonOffsetUnits = -1;
+      const seg = new Seg(octo(at(from), at(to)), mat, 1.12 * build, 0.72 * build);
       this.bands.push({ seg, from, to });
       this.body.add(seg.mesh);
     };

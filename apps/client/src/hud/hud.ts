@@ -2,7 +2,46 @@ import { climbCategory, climbCategoryLabel, countryName, type RoadGraphData, typ
 import { flagSvg } from '../ui/flagSvg.ts';
 import { getLang, t } from '../i18n/index.ts';
 import { BASEMAP_ATTRIBUTION, basemapUrl } from '../ui/basemap.ts';
+import { GRAPHIC_STYLE, LOW_POLY } from '../engine/style.ts';
 import { ClimbPanel } from './climbPanel.ts';
+
+/**
+ * Disposition du HUD : « compact » (bandeaux plats et serrés, défaut du style low poly) ou « full »
+ * (cockpit du style réaliste : compteur en arc, grandes tuiles). ?hud=compact|full a priorité sur
+ * localStorage ar.hudLayout ; sinon, compact en low poly, complet en réaliste.
+ */
+export type HudLayout = 'compact' | 'full';
+export const HUD_LAYOUT_KEY = 'ar.hudLayout';
+function readLayout(): HudLayout {
+  try {
+    const raw = new URLSearchParams(location.search).get('hud') ?? localStorage.getItem(HUD_LAYOUT_KEY);
+    if (raw === 'compact' || raw === 'full') return raw;
+  } catch {
+    // Stockage indisponible : disposition du style.
+  }
+  return LOW_POLY ? 'compact' : 'full';
+}
+export const HUD_LAYOUT: HudLayout = typeof location === 'undefined' ? 'full' : readLayout();
+// Crochet CSS du style graphique (:root[data-style="lowpoly"]), posé dès le chargement du module.
+if (typeof document !== 'undefined') document.documentElement.dataset.style = GRAPHIC_STYLE;
+
+/** HUD compact : panneau de détails ouvert (touche I ou bouton +), liste « À proximité » repliée. */
+const DETAILS_KEY = 'ar.hudDetails';
+const RIDERS_FOLDED_KEY = 'ar.hudRidersFolded';
+function readFlag(key: string): boolean {
+  try {
+    return localStorage.getItem(key) === '1';
+  } catch {
+    return false;
+  }
+}
+function writeFlag(key: string, on: boolean): void {
+  try {
+    localStorage.setItem(key, on ? '1' : '0');
+  } catch {
+    // Stockage indisponible : l'état ne survit pas au rechargement.
+  }
+}
 
 /** Image du fond de carte et emprise qu'elle couvre (repère du monde, m). */
 interface BaseTile {
@@ -109,6 +148,7 @@ export const HUD_BLOCKS = [
   { id: 'lap', fr: 'Tours', en: 'Laps' },
   { id: 'gear', fr: 'Rapport', en: 'Gear' },
   { id: 'balance', fr: 'Équilibre gauche / droite', en: 'Left / right balance' },
+  { id: 'zones', fr: 'Temps par zone (HUD compact)', en: 'Time in zones (compact HUD)' },
   { id: 'map', fr: 'Mini-carte', en: 'Mini-map' },
   { id: 'riders', fr: 'Coureurs à proximité', en: 'Nearby riders' },
   { id: 'profile', fr: 'Profil du parcours', en: 'Route profile' },
@@ -144,9 +184,13 @@ const ZONE_NAMES: Array<[string, string]> = [
   ['Anaérobie', 'Anaerobic'],
   ['Sprint', 'Sprint'],
 ];
-function zoneLabel(watts: number, ftp: number, fr: boolean): string {
+/** Indice (0 à 6) de la zone de puissance. */
+function zoneIndex(watts: number, ftp: number): number {
   const idx = ZONES.findIndex((z) => watts / Math.max(ftp, 1) < z);
-  const i = idx === -1 ? 6 : idx;
+  return idx === -1 ? 6 : idx;
+}
+function zoneLabel(watts: number, ftp: number, fr: boolean): string {
+  const i = zoneIndex(watts, ftp);
   return `Z${i + 1} ${(ZONE_NAMES[i] as [string, string])[fr ? 0 : 1]}`;
 }
 function zoneColor(watts: number, ftp: number): string {
@@ -168,6 +212,23 @@ function setHtml(el: HTMLElement, html: string): void {
   if (lastHtml.get(el) === html) return;
   lastHtml.set(el, html);
   el.innerHTML = html;
+}
+/** Canevas à la taille affichée (netteté, pas de déformation d'un bandeau très allongé) ; rien s'il est masqué. */
+function fitCanvas(c: HTMLCanvasElement): void {
+  const w = c.clientWidth;
+  const h = c.clientHeight;
+  if (!w || !h) return;
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const W = Math.round(w * dpr);
+  const H = Math.round(h * dpr);
+  if (c.width !== W || c.height !== H) {
+    c.width = W;
+    c.height = H;
+  }
+}
+/** Remplace le texte de `el` seulement s'il a changé. */
+function setText(el: HTMLElement, text: string): void {
+  if (el.textContent !== text) el.textContent = text;
 }
 
 function fmtTime(s: number): string {
@@ -218,6 +279,81 @@ export function turnArrowSvg(angleDeg: number, right: boolean): string {
   return `<svg class="tw-arrow" viewBox="${vb}" aria-hidden="true"><polyline points="${pts.map(f).join(' ')}" /><polygon points="${head.map(f).join(' ')}" /></svg>`;
 }
 
+/**
+ * HUD compact (style low poly) : moitié moins de place que le cockpit complet. En haut à gauche, la
+ * puissance et quatre petites tuiles ; en haut au centre, un seul bandeau (vitesse, distance, D+, temps)
+ * sous lequel ne s'empilent que les annonces du moment ; en haut à droite, mini-carte ronde, pente,
+ * altitude et vent, coureurs proches ; en bas, un profil fin. Mêmes clés data-k que le cockpit complet
+ * pour les valeurs partagées : `update` remplit l'un ou l'autre.
+ */
+function compactLayout(track: RouteTrack, attribution: string[]): string {
+  const fr = getLang() === 'fr';
+  const cell = (hud: string, k: string, label: string, value: string, unit: string, cls = '') =>
+    `<div class="cx-cell ${cls}" data-hud="${hud}"><span class="cx-l">${label}</span><span class="cx-v num"><b data-k="${k}">${value}</b>${unit ? `<small>${unit}</small>` : ''}</span></div>`;
+  const mini = (hud: string, k: string, label: string, value: string, unit: string, cls = '') =>
+    `<div class="cx-mini ${cls}" data-hud="${hud}"><span class="cx-l">${label}</span><span class="cx-v num"><b data-k="${k}">${value}</b>${unit ? `<small>${unit}</small>` : ''}</span></div>`;
+  const zoneBars = ZONE_HEX.map((c) => `<i style="background:${c}"></i>`).join('');
+  const zoneLabels = ZONE_HEX.map((_, i) => `<span>Z${i + 1}</span>`).join('');
+  return `
+      <div class="hud-center">
+        <div class="panel cx-strip">
+          ${cell('speed', 'speed', t('speed'), '0,0', 'km/h', 'cx-speed')}
+          ${cell('dist', 'dist', t('distance'), '0,00', 'km')}
+          ${cell('gain', 'gain', fr ? 'D+' : 'Gain', '0', 'm')}
+          ${cell('time', 'time', t('time'), '0:00', '')}
+        </div>
+        <div class="panel hud-loc hidden" data-k="loc"></div>
+        <div class="panel junction hidden" data-k="junction"></div>
+        <div class="panel turnwarn hidden" data-k="turn"></div>
+        <div class="panel challenge hidden" data-k="challenge"></div>
+        <div class="panel segment hidden" data-k="segment"><div class="name" data-k="segName"></div><div class="num" data-k="segInfo"></div><div class="bar"><span data-k="segBar" style="width:0%"></span></div></div>
+        <div class="panel cx-draft hidden" data-k="draftBox" data-hud="draft"><span class="cx-l">${t('draft')}</span><div class="cx-bar"><span data-k="draftBar"></span></div><b class="num" data-k="draft">0 %</b><small class="cx-note" data-k="draftNote"></small></div>
+        <div class="toasts"></div>
+      </div>
+      <div class="hud-col hud-col-left">
+        <div class="cx-pwr">
+          <div class="panel cx-power" data-k="powerBox">
+            <div class="cx-head"><span class="cx-l" data-hud="power">${t('power')} 3 s</span><button class="cx-more" data-k="moreBtn" tabindex="-1" aria-expanded="false" title="${fr ? 'Détails (I)' : 'Details (I)'}">+</button></div>
+            <div class="cx-watts num" data-hud="power"><b data-k="watts">0</b><small>W</small></div>
+            <div class="cx-zone" data-k="zone" data-hud="power">Z1</div>
+            <div class="cx-grid">
+              ${mini('power', 'wkg', 'W/kg', '0,0', '')}
+              ${mini('avg', 'avg', fr ? 'Moyenne' : 'Average', '0', 'W')}
+              ${mini('hr', 'hr', `${ICONS.heart}${fr ? 'Cardio' : 'HR'}`, '--', 'bpm', 'hr')}
+              ${mini('cadence', 'cad', `${ICONS.cadence}${fr ? 'Cadence' : 'Cadence'}`, '0', fr ? 'tr/min' : 'rpm', 'cad')}
+            </div>
+          </div>
+          <div class="panel gearbox cx-gear" data-hud="gear"><span class="cx-l">${t('gear')}</span><div class="value num" data-k="gear">34×17</div><div class="bars" data-k="gearbars"></div></div>
+        </div>
+        <div class="panel hud-left cx-details">
+          <span class="k">${fr ? 'Instantanée' : 'Instant'}</span><span class="v num" data-k="wattsNow">0 W</span>
+          <span class="k" data-hud="np">${t('np')}</span><span class="v num" data-k="np" data-hud="np">0 W</span>
+          ${track.route.loop ? `<span class="k" data-hud="lap">${t('lap')}</span><span class="v num" data-k="lap" data-hud="lap">1</span>` : ''}
+          <span class="k" data-hud="draft">${t('draft')}</span><span class="v num" data-k="draftAll" data-hud="draft">0 %</span>
+        </div>
+        <div class="panel balance hidden" data-k="balanceBox" data-hud="balance"><span class="cx-l">${t('balance')}</span><div class="num cx-bal" data-k="balance">50 / 50</div><div class="bar"><span data-k="balanceBar" style="width:50%"></span></div></div>
+        <div class="hud-bl">
+          <div class="voice-chip panel hidden" data-k="voice"></div>
+          <div class="devices-chip" data-k="devices"></div>
+          <div class="panel cx-zones" data-hud="zones"><div class="cx-zhead"><span class="cx-l">${fr ? 'Temps par zone' : 'Time in zones'}</span><b class="num" data-k="zoneTime"></b></div><div class="cx-zbars" data-k="zoneBars">${zoneBars}</div><div class="cx-zlab">${zoneLabels}</div></div>
+        </div>
+      </div>
+      <div class="hud-col hud-col-right">
+        <div class="panel minimap" data-hud="map"><canvas width="460" height="460"></canvas></div>
+        <div class="panel cx-env">
+          <div class="cx-grade" data-hud="grade"><span class="cx-l">${ICONS.grade}${fr ? 'Pente' : 'Grade'}</span><b class="num" data-k="grade">0,0 %</b></div>
+          <div class="cx-envline"><span data-hud="alt">▲ <b class="num" data-k="alt">–</b></span><span data-hud="wind">${fr ? 'Vent' : 'Wind'} <b class="num" data-k="wind">–</b></span></div>
+        </div>
+        <div class="panel riders" data-k="riders" data-hud="riders"></div>
+        <div class="chat" data-k="chat"><div class="chat-log" data-k="chatLog"></div><input class="chat-input hidden" data-k="chatInput" maxlength="200" /></div>
+      </div>
+      <div class="panel workout hidden" data-k="workout"><div class="row" style="justify-content:space-between"><b data-k="wName"></b><span class="num" data-k="wRemain"></span></div><div class="num" data-k="wTarget" style="font-size:30px;font-weight:800"></div><div class="num" data-k="wStep" style="color:var(--ar-muted);font-size:13px"></div><canvas width="900" height="90" data-k="wChart"></canvas></div>
+      <div class="panel profile" data-hud="profile"><canvas width="1800" height="60"></canvas><span class="cx-togo num" data-k="togo"></span></div>
+      <div class="panel climbpro hidden" data-k="climbpro"></div>
+      <div class="attribution">${attribution.join(' · ')}</div>
+    `;
+}
+
 /** HUD clair et lisible : puissance au centre, profil en bas, mini-carte et coureurs à droite. */
 export class Hud {
   private readonly root: HTMLElement;
@@ -247,6 +383,23 @@ export class Hud {
   private lastTurn = '';
   /** Montée en cours ou proche, façon ClimbPro. */
   private readonly climb: ClimbPanel;
+  /** Disposition compacte (voir HUD_LAYOUT). */
+  private readonly compact = HUD_LAYOUT === 'compact';
+  /** HUD compact : panneau de détails ouvert, liste « À proximité » repliée. */
+  private detailsOpen = false;
+  private ridersFolded = false;
+  /** HUD compact : puce du rapport affichée quelques secondes après un changement de vitesse. */
+  private lastGearKey = '';
+  private gearUntil = 0;
+  /** HUD compact : puces des capteurs affichées au départ et à chaque changement, puis estompées. */
+  private devicesKey = '';
+  private devicesUntil = 0;
+  /** HUD compact : jauge d'aspiration affichée (hystérésis pour ne pas clignoter). */
+  private draftOn = false;
+  /** Temps passé dans chaque zone de puissance (s), mis à jour d'après le chrono de la sortie. */
+  private readonly zoneS = [0, 0, 0, 0, 0, 0, 0];
+  private lastElapsed = -1;
+  private zonesTick = -1;
 
   /** Passe le HUD en monde ouvert (profil glissant, carte locale avec les routes alentour). */
   setOpen(graph: RoadGraphData): void {
@@ -256,9 +409,13 @@ export class Hud {
   constructor(root: HTMLElement, track: RouteTrack, attribution: string[]) {
     this.root = root;
     this.track = track;
+    root.classList.toggle('compact', this.compact);
+    root.classList.remove('cx-open');
     // Trois colonnes empilées en flex (centre, gauche, droite) : aucun panneau ne dépend de la
     // hauteur d'un autre, rien ne se chevauche quelle que soit la taille de la fenêtre.
-    root.innerHTML = `
+    root.innerHTML = this.compact
+      ? compactLayout(track, attribution)
+      : `
       <div class="hud-center">
         <div class="hud-top">
           <div class="tile-col">
@@ -328,13 +485,44 @@ export class Hud {
     `;
     root.querySelectorAll<HTMLElement>('[data-k]').forEach((e) => (this.el[e.dataset.k as string] = e));
     (this.el.riders as HTMLElement).addEventListener('click', (ev) => {
+      // Bouton cliqué : il rend le focus, sinon Espace ou Entrée (commandes du jeu) le réactiveraient.
+      (ev.target as HTMLElement).closest<HTMLElement>('button')?.blur();
       if ((ev.target as HTMLElement).closest('[data-rfilter]')) {
         this.riderFilter = this.riderFilter === 'real' ? 'all' : 'real';
         return;
       }
       const id = (ev.target as HTMLElement).closest<HTMLElement>('[data-rideon]')?.dataset.rideon;
-      if (id) this.onRideOn?.(id);
+      if (id) {
+        this.onRideOn?.(id);
+        return;
+      }
+      if (this.compact && (ev.target as HTMLElement).closest('[data-rfold]')) {
+        this.ridersFolded = !this.ridersFolded;
+        writeFlag(RIDERS_FOLDED_KEY, this.ridersFolded);
+        (this.el.riders as HTMLElement).classList.toggle('cx-folded', this.ridersFolded);
+      }
     });
+    if (this.compact) {
+      this.ridersFolded = readFlag(RIDERS_FOLDED_KEY);
+      (this.el.riders as HTMLElement).classList.toggle('cx-folded', this.ridersFolded);
+      this.toggleDetails(readFlag(DETAILS_KEY));
+      (this.el.moreBtn as HTMLElement).addEventListener('click', (ev) => {
+        (ev.currentTarget as HTMLElement).blur();
+        this.toggleDetails();
+      });
+      // Touche I : détails de la sortie. L'écouteur se retire quand un autre HUD a remplacé celui-ci.
+      const watts = this.el.watts as HTMLElement;
+      const onKey = (ev: KeyboardEvent) => {
+        if (!root.contains(watts)) {
+          window.removeEventListener('keydown', onKey);
+          return;
+        }
+        const tgt = ev.target as HTMLElement | null;
+        if (tgt && (tgt.tagName === 'INPUT' || tgt.tagName === 'TEXTAREA' || tgt.tagName === 'SELECT' || tgt.isContentEditable)) return;
+        if ((ev.key === 'i' || ev.key === 'I') && !ev.ctrlKey && !ev.metaKey && !ev.altKey && this.visible) this.toggleDetails();
+      };
+      window.addEventListener('keydown', onKey);
+    }
     this.profileCanvas = root.querySelector('.profile canvas') as HTMLCanvasElement;
     this.mapCanvas = root.querySelector('.minimap canvas') as HTMLCanvasElement;
     this.toasts = root.querySelector('.toasts') as HTMLElement;
@@ -494,6 +682,22 @@ export class Hud {
     this.root.querySelectorAll<HTMLElement>('[data-hud]').forEach((e) => e.classList.toggle('hud-off', off.has(e.dataset.hud as string)));
   }
 
+  /**
+   * HUD compact : ouvre ou ferme les détails (NP, tours, puissance instantanée, rapport, équilibre G/D),
+   * repliés par défaut. Touche I ou bouton + du bloc puissance ; l'état est mémorisé.
+   */
+  toggleDetails(open = !this.detailsOpen): void {
+    if (!this.compact) return;
+    this.detailsOpen = open;
+    this.root.classList.toggle('cx-open', open);
+    const b = this.el.moreBtn;
+    if (b) {
+      b.textContent = open ? '−' : '+';
+      b.setAttribute('aria-expanded', String(open));
+    }
+    writeFlag(DETAILS_KEY, open);
+  }
+
   setVisible(v: boolean): void {
     this.root.classList.toggle('hidden', !v);
   }
@@ -519,29 +723,46 @@ export class Hud {
   update(s: HudState, massKg: number): void {
     const e = this.el;
     const nf1 = (v: number) => v.toFixed(1).replace('.', ',');
+    const cx = this.compact;
     (e.watts as HTMLElement).textContent = String(Math.round(s.watts3s));
-    // Arc du compteur : proportion de la FTP, couleur de la zone en cours.
-    const dialFrac = Math.min(DIAL_MAX, Math.max(0, s.watts3s / Math.max(s.ftp, 1))) / DIAL_MAX;
-    const dial = e.dialFill as unknown as SVGElement;
-    dial.setAttribute('stroke-dasharray', `${Math.max(0.01, dialFrac * DIAL_L).toFixed(1)} ${DIAL_C.toFixed(1)}`);
-    dial.setAttribute('stroke', zoneColorHex(s.watts3s, s.ftp));
-    (e.powerBox as HTMLElement).style.setProperty('--zone', zoneColorHex(s.watts3s, s.ftp));
+    const zc = zoneColorHex(s.watts3s, s.ftp);
+    // Arc du compteur (cockpit complet) : proportion de la FTP, couleur de la zone en cours.
+    const dial = e.dialFill as unknown as SVGElement | undefined;
+    if (dial) {
+      const dialFrac = Math.min(DIAL_MAX, Math.max(0, s.watts3s / Math.max(s.ftp, 1))) / DIAL_MAX;
+      dial.setAttribute('stroke-dasharray', `${Math.max(0.01, dialFrac * DIAL_L).toFixed(1)} ${DIAL_C.toFixed(1)}`);
+      dial.setAttribute('stroke', zc);
+    }
+    (e.powerBox as HTMLElement).style.setProperty('--zone', zc);
     const fr = getLang() === 'fr';
-    (e.wkg as HTMLElement).textContent = `${nf1(s.watts3s / massKg)} W/kg · ${zoneLabel(s.watts3s, s.ftp, fr)}`;
-    (e.hr as HTMLElement).textContent = s.hr ? String(Math.round(s.hr)) : 'N/A';
+    if (cx) {
+      (e.wkg as HTMLElement).textContent = nf1(s.watts3s / massKg);
+      setText(e.zone as HTMLElement, zoneLabel(s.watts3s, s.ftp, fr));
+      (e.wattsNow as HTMLElement).textContent = `${Math.round(s.watts)} W`;
+    } else (e.wkg as HTMLElement).textContent = `${nf1(s.watts3s / massKg)} W/kg · ${zoneLabel(s.watts3s, s.ftp, fr)}`;
+    (e.hr as HTMLElement).textContent = s.hr ? String(Math.round(s.hr)) : cx ? '--' : 'N/A';
     (e.cad as HTMLElement).textContent = String(Math.round(s.cadence));
     (e.speed as HTMLElement).textContent = nf1(s.speedKmh);
     const g = s.gradePercent;
     (e.grade as HTMLElement).textContent = `${g >= 0 ? '' : '−'}${nf1(Math.abs(g))} %`;
     (e.grade as HTMLElement).style.color = g > 6 ? '#ef4444' : g > 3 ? '#f97316' : g > 1 ? '#eab308' : g < -1 ? '#60a5fa' : '#f5f7fa';
     (e.time as HTMLElement).textContent = fmtTime(s.elapsedS);
-    (e.dist as HTMLElement).textContent = `${(s.distM / 1000).toFixed(2).replace('.', ',')} km`;
-    (e.gain as HTMLElement).textContent = `${Math.round(s.elevationGainM)} m`;
-    (e.avg as HTMLElement).textContent = `${Math.round(s.avgWatts)} W`;
+    // Bandeau compact : unités à part, en petit.
+    const km = (s.distM / 1000).toFixed(2).replace('.', ',');
+    (e.dist as HTMLElement).textContent = cx ? km : `${km} km`;
+    (e.gain as HTMLElement).textContent = cx ? String(Math.round(s.elevationGainM)) : `${Math.round(s.elevationGainM)} m`;
+    (e.avg as HTMLElement).textContent = cx ? String(Math.round(s.avgWatts)) : `${Math.round(s.avgWatts)} W`;
     (e.np as HTMLElement).textContent = `${Math.round(s.np)} W`;
     // Aspiration : watts économisés et part de la résistance de l'air en moins, roue de devant, abri par vent de côté.
-    (e.draft as HTMLElement).textContent = s.draftW !== undefined && s.draftPct >= 1 ? `−${Math.round(s.draftW)} W · ${Math.round(s.draftPct)} %` : `${Math.round(s.draftPct)} %`;
+    const draftTxt = s.draftW !== undefined && s.draftPct >= 1 ? `−${Math.round(s.draftW)} W · ${Math.round(s.draftPct)} %` : `${Math.round(s.draftPct)} %`;
+    (e.draft as HTMLElement).textContent = draftTxt;
     (e.draftBar as HTMLElement).style.width = `${Math.min(100, (s.draftPct / 50) * 100).toFixed(0)}%`;
+    if (cx) {
+      (e.draftAll as HTMLElement).textContent = draftTxt;
+      // Jauge sous le bandeau seulement quand on profite vraiment d'une roue.
+      this.draftOn = this.draftOn ? s.draftPct >= 1.5 : s.draftPct >= 4;
+      (e.draftBox as HTMLElement).classList.toggle('hidden', !this.draftOn);
+    }
     if (s.wheelGapM !== undefined) {
       const w = s.wind;
       const side = w?.shelter ? (fr ? ` · abri à ${w.shelter === 'left' ? 'gauche' : 'droite'} de la roue` : ` · shelter on the ${w.shelter} of the wheel`) : '';
@@ -549,7 +770,13 @@ export class Hud {
         s.wheelGapM === null ? (fr ? 'Personne devant' : 'Nobody ahead') + side : `${fr ? 'Roue devant à' : 'Wheel ahead at'} ${nf1(s.wheelGapM)} m${side}`;
     }
     if (s.wind) {
-      const from = fr ? { face: 'de face', dos: 'de dos', gauche: 'de gauche', droite: 'de droite' }[s.wind.from] : { face: 'head', dos: 'tail', gauche: 'from left', droite: 'from right' }[s.wind.from];
+      const from = cx
+        ? fr
+          ? { face: 'de face', dos: 'de dos', gauche: 'côté g.', droite: 'côté d.' }[s.wind.from]
+          : { face: 'head', dos: 'tail', gauche: 'left', droite: 'right' }[s.wind.from]
+        : fr
+          ? { face: 'de face', dos: 'de dos', gauche: 'de gauche', droite: 'de droite' }[s.wind.from]
+          : { face: 'head', dos: 'tail', gauche: 'from left', droite: 'from right' }[s.wind.from];
       (e.wind as HTMLElement).textContent = s.wind.kmh < 2 ? (fr ? 'calme' : 'calm') : `${Math.round(s.wind.kmh)} km/h ${from}`;
     }
     if (s.altitudeM !== undefined) (e.alt as HTMLElement).textContent = `${Math.round(s.altitudeM)} m`;
@@ -559,6 +786,14 @@ export class Hud {
     const bars = e.gearbars as HTMLElement;
     if (bars.childElementCount !== s.gearCount) bars.innerHTML = '<i></i>'.repeat(s.gearCount);
     Array.from(bars.children).forEach((c, i) => c.classList.toggle('on', i <= s.gearIndex));
+    if (cx) {
+      // Puce du rapport : 3 s après chaque changement (pas au départ), en permanence avec les détails.
+      const now = performance.now();
+      const gearKey = `${s.gearIndex}|${s.gearLabel}`;
+      if (this.lastGearKey && gearKey !== this.lastGearKey) this.gearUntil = now + 3000;
+      this.lastGearKey = gearKey;
+      (bars.parentElement as HTMLElement).classList.toggle('cx-show', now < this.gearUntil);
+    }
     const bb = e.balanceBox as HTMLElement;
     if (s.balanceLeft !== undefined) {
       bb.classList.remove('hidden');
@@ -585,9 +820,25 @@ export class Hud {
     }
 
     // Reconstruits seulement s'ils ont changé (10 fois par seconde sinon, boutons compris).
-    setHtml(e.devices as HTMLElement, s.devices.map((d) => `<div class="${d.state}">${d.label}</div>`).join(''));
+    const devHtml = s.devices.map((d) => `<div class="${d.state}">${d.label}</div>`).join('');
+    setHtml(e.devices as HTMLElement, devHtml);
+    if (cx) {
+      // Capteurs : affichés au départ et à chaque changement (connexion, consigne du simulateur) pendant
+      // 8 s, en permanence tant qu'un capteur est coupé ; estompés sinon.
+      const now = performance.now();
+      if (devHtml !== this.devicesKey) {
+        this.devicesKey = devHtml;
+        this.devicesUntil = now + 8000;
+      }
+      (e.devices as HTMLElement).classList.toggle('cx-faded', now >= this.devicesUntil && !s.devices.some((d) => d.state === 'off'));
+    }
 
-    setHtml(e.riders as HTMLElement, this.nearbyHtml(s));
+    setHtml(e.riders as HTMLElement, cx ? this.nearbyCompactHtml(s) : this.nearbyHtml(s));
+    if (cx) {
+      this.updateZones(s);
+      this.updateToGo(s, fr);
+      fitCanvas(this.profileCanvas);
+    }
 
     this.drawJunction(s);
     this.drawTurn(s);
@@ -601,6 +852,37 @@ export class Hud {
       this.drawProfile(s);
       this.drawMap(s);
     }
+  }
+
+  /** HUD compact : temps cumulé par zone de puissance (barres rafraîchies chaque seconde), zone en cours. */
+  private updateZones(s: HudState): void {
+    const z = zoneIndex(s.watts3s, s.ftp);
+    const dt = s.elapsedS - this.lastElapsed;
+    if (this.lastElapsed >= 0 && dt > 0 && dt < 5) this.zoneS[z] = (this.zoneS[z] as number) + dt;
+    this.lastElapsed = s.elapsedS;
+    const tick = Math.floor(s.elapsedS);
+    if (tick === this.zonesTick) return;
+    this.zonesTick = tick;
+    const max = Math.max(...this.zoneS, 1);
+    const bars = this.el.zoneBars as HTMLElement;
+    Array.from(bars.children).forEach((b, i) => {
+      const sec = this.zoneS[i] as number;
+      (b as HTMLElement).style.height = `${Math.max(6, (sec / max) * 100).toFixed(0)}%`;
+      b.classList.toggle('on', i === z);
+      (b as HTMLElement).title = `Z${i + 1} · ${fmtTime(sec)}`;
+    });
+    setText(this.el.zoneTime as HTMLElement, `Z${z + 1} · ${fmtTime(this.zoneS[z] as number)}`);
+  }
+
+  /** HUD compact : distance restante sur le profil (arrivée, ou fin du tour sur une boucle ; rien en monde ouvert). */
+  private updateToGo(s: HudState, fr: boolean): void {
+    let txt = '';
+    if (!this.openGraph) {
+      const left = Math.max(0, this.track.length - s.lapDistM);
+      const d = left < 1000 ? `${Math.round(left / 10) * 10} m` : `${(left / 1000).toFixed(1).replace('.', fr ? ',' : '.')} km`;
+      txt = this.track.route.loop ? `${fr ? 'Fin du tour' : 'Lap ends in'} ${d}` : `${fr ? 'Arrivée' : 'Finish'} ${d}`;
+    }
+    setText(this.el.togo as HTMLElement, txt);
   }
 
   /** Calque fixe `name` de taille w × h, redessiné par `draw` seulement quand sa clé ou sa taille change. */
@@ -632,7 +914,8 @@ export class Hud {
     const { min: minY, max: maxY } = this.profileRange;
     const L = this.track.length;
     const X = (d: number) => (d / L) * w;
-    const Y = (y: number) => h - 8 - ((y - minY) / (maxY - minY)) * (h - 24);
+    const m = this.profileMetrics(h);
+    const Y = (y: number) => h - m.pb - ((y - minY) / (maxY - minY)) * (h - m.pb - m.pt);
     // Fond fixe (segments, profil coloré, tracé) dessiné une fois : seuls les coureurs changent.
     const still = this.cached('profile', w, h, '', (g) => {
       // Segments KOM / sprint en arrière-plan.
@@ -655,26 +938,40 @@ export class Hud {
         g.fill();
       }
       g.strokeStyle = 'rgba(255,255,255,0.85)';
-      g.lineWidth = 2;
+      g.lineWidth = m.line;
       g.beginPath();
       this.profile.forEach((p, i) => (i ? g.lineTo(X(p.d), Y(p.y)) : g.moveTo(X(p.d), Y(p.y))));
       g.stroke();
     });
     ctx.drawImage(still, 0, 0);
-    // Coureurs.
-    for (const r of s.riders) {
+    // Coureurs (le mien en dernier, par-dessus, avec un trait vertical sur le profil compact).
+    const me = this.compact ? s.riders.find((r) => r.me) : undefined;
+    for (const r of me ? [...s.riders.filter((o) => !o.me), me] : s.riders) {
       const d = this.track.wrap(r.distM);
       const y = this.track.sample(d).y;
+      if (r.me && this.compact) {
+        ctx.fillStyle = 'rgba(255,210,63,0.55)';
+        ctx.fillRect(X(d) - m.line / 2, 0, m.line, h);
+      }
       ctx.fillStyle = r.me ? '#ffd23f' : r.color;
       ctx.beginPath();
-      ctx.arc(X(d), Y(y), r.me ? 9 : 6, 0, Math.PI * 2);
+      ctx.arc(X(d), Y(y), r.me ? m.rMe : m.r, 0, Math.PI * 2);
       ctx.fill();
       if (r.me) {
         ctx.strokeStyle = '#0a0e16';
-        ctx.lineWidth = 3;
+        ctx.lineWidth = m.ring;
         ctx.stroke();
       }
     }
+  }
+
+  /**
+   * Marges et tailles du profil : celles du cockpit complet (canevas 1800 × 160), ou proportionnelles à
+   * la hauteur pour le bandeau fin du HUD compact (canevas à la taille affichée).
+   */
+  private profileMetrics(h: number): { pb: number; pt: number; line: number; rMe: number; r: number; ring: number } {
+    if (!this.compact) return { pb: 8, pt: 16, line: 2, rMe: 9, r: 6, ring: 3 };
+    return { pb: h * 0.1, pt: h * 0.22, line: Math.max(1.5, h * 0.035), rMe: Math.max(4, h * 0.15), r: Math.max(3, h * 0.1), ring: Math.max(1.5, h * 0.045) };
   }
 
   /** Active le fond de carte (Plan IGN, Lambert-93) de la mini-carte ; son attribution rejoint celle du bas d'écran. */
@@ -732,7 +1029,9 @@ export class Hud {
   /** Noms de communes sur la mini-carte : les plus grandes d'abord, sans chevauchement. */
   private drawPlaceNames(ctx: CanvasRenderingContext2D, w: number, h: number, view: { minX: number; maxX: number; minZ: number; maxZ: number }, P: (x: number, z: number) => [number, number]): void {
     const rank: Record<string, number> = { city: 0, town: 1, village: 2, suburb: 2, hamlet: 3 };
-    const size = [24, 21, 18, 16];
+    // Mini-carte ronde du HUD compact, affichée plus petite : noms plus gros, moins nombreux, dans le disque.
+    const k = this.compact ? 1.5 : 1;
+    const size = [24, 21, 18, 16].map((v) => v * k);
     const inView = this.places.filter((p) => p.x >= view.minX && p.x <= view.maxX && p.z >= view.minZ && p.z <= view.maxZ);
     inView.sort((a, b) => (rank[a.kind] ?? 3) - (rank[b.kind] ?? 3));
     const boxes: Array<[number, number, number, number]> = [];
@@ -741,16 +1040,17 @@ export class Hud {
     ctx.lineJoin = 'round';
     for (const p of inView) {
       const r = Math.min(rank[p.kind] ?? 3, 3);
-      if (r === 3 && boxes.length >= 14) continue;
+      if (r === 3 && boxes.length >= (this.compact ? 4 : 14)) continue;
       ctx.font = `600 ${size[r]}px Inter, system-ui, sans-serif`;
       const [x, y] = P(p.x, p.z);
       const tw = ctx.measureText(p.name).width;
       const bx: [number, number, number, number] = [x - tw / 2 - 3, y - (size[r] as number) / 2 - 2, x + tw / 2 + 3, y + (size[r] as number) / 2 + 2];
       if (bx[0] < 2 || bx[2] > w - 2 || bx[1] < 2 || bx[3] > h - 2) continue;
+      if (this.compact && [bx[0], bx[2]].some((cx) => [bx[1], bx[3]].some((cy) => Math.hypot(cx - w / 2, cy - h / 2) > w / 2 - 6))) continue;
       if (boxes.some((o) => bx[0] < o[2] && bx[2] > o[0] && bx[1] < o[3] && bx[3] > o[1])) continue;
       boxes.push(bx);
       ctx.strokeStyle = 'rgba(8,12,20,0.85)';
-      ctx.lineWidth = 5;
+      ctx.lineWidth = 5 * k;
       ctx.strokeText(p.name, x, y);
       ctx.fillStyle = r === 0 ? '#ffffff' : r === 1 ? '#f1f5f9' : '#cbd5e1';
       ctx.fillText(p.name, x, y);
@@ -766,7 +1066,9 @@ export class Hud {
     const h = c.height;
     ctx.clearRect(0, 0, w, h);
     const b = this.mapBounds;
-    const scale = Math.min((w - 40) / (b.maxX - b.minX), (h - 40) / (b.maxZ - b.minZ));
+    // Carte ronde (HUD compact) : la diagonale de l'emprise tient dans le disque.
+    const scale = this.compact ? (Math.min(w, h) - 36) / Math.max(Math.hypot(b.maxX - b.minX, b.maxZ - b.minZ), 1) : Math.min((w - 40) / (b.maxX - b.minX), (h - 40) / (b.maxZ - b.minZ));
+    const mk = this.compact ? 1.5 : 1;
     const ox = (w - (b.maxX - b.minX) * scale) / 2;
     const oz = (h - (b.maxZ - b.minZ) * scale) / 2;
     const P = (x: number, z: number): [number, number] => [ox + (x - b.minX) * scale, oz + (z - b.minZ) * scale];
@@ -780,7 +1082,7 @@ export class Hud {
       this.drawBase(g, P);
       g.lineJoin = 'round';
       g.strokeStyle = 'rgba(0,0,0,0.5)';
-      g.lineWidth = 9;
+      g.lineWidth = 9 * mk;
       const pts = this.track.route.points;
       const path = () => {
         g.beginPath();
@@ -795,7 +1097,7 @@ export class Hud {
       path();
       g.stroke();
       g.strokeStyle = '#e2e8f0';
-      g.lineWidth = 5;
+      g.lineWidth = 5 * mk;
       path();
       g.stroke();
       this.drawPlaceNames(g, w, h, view, P);
@@ -805,10 +1107,10 @@ export class Hud {
       const [x, y] = P(r.x, r.z);
       ctx.fillStyle = r.me ? '#ffd23f' : r.color;
       ctx.beginPath();
-      ctx.arc(x, y, r.me ? 10 : r.friend ? 8 : 7, 0, Math.PI * 2);
+      ctx.arc(x, y, (r.me ? 10 : r.friend ? 8 : 7) * mk, 0, Math.PI * 2);
       ctx.fill();
       ctx.strokeStyle = r.friend ? '#ffd23f' : '#0a0e16';
-      ctx.lineWidth = r.friend ? 4 : 3;
+      ctx.lineWidth = (r.friend ? 4 : 3) * mk;
       ctx.stroke();
     }
   }
@@ -846,6 +1148,36 @@ export class Hud {
         const dist = Math.abs(gap) >= 1000 ? `${(Math.abs(gap) / 1000).toFixed(1).replace('.', fr ? ',' : '.')} km` : `${Math.round(Math.abs(gap))} m`;
         const kmTxt = r.km !== undefined ? `${r.km.toFixed(1).replace('.', fr ? ',' : '.')} km` : '';
         return `<div class="row ${r.me ? 'me' : ''}"><i class="rd-dot" style="background:${r.color}"></i><span class="rd-name"><b class="rd-n">${r.friend ? `<em class="rd-friend" title="${fr ? 'Ami' : 'Friend'}">★</em>` : ''}${flagSvg(r.nationality, 13) ? `<span class="rd-flag" title="${countryName(r.nationality, fr ? 'fr' : 'en')}">${flagSvg(r.nationality, 13)}</span>` : ''}${r.name.replace(/[<>&]/g, '')}${r.speaking ? ' 🔊' : ''} ${rideOn}</b><small class="rd-sub">${sub}${verdict}</small></span><span class="num rd-wkg"><b>${r.watts !== undefined ? Math.round(r.watts) : '—'}<u>W</u></b><small>${kmTxt}</small></span><span class="num rd-gap">${r.me ? '' : `<b>${time}</b><small>${dist}</small>`}</span></div>`;
+      })
+      .join('');
+    return head + rows;
+  }
+
+  /**
+   * « À proximité » du HUD compact : les trois coureurs les plus proches et moi, une ligne chacun (nom,
+   * watts, écart en temps). Repliable d'un clic sur l'en-tête (il garde le nombre de coureurs).
+   */
+  private nearbyCompactHtml(s: HudState): string {
+    const fr = getLang() === 'fr';
+    const me = s.riders.find((r) => r.me);
+    if (!me) return '';
+    const others = s.riders.filter((r) => !r.me && (this.riderFilter === 'all' || (!r.isAI && !r.isGuest) || r.online));
+    const real = s.riders.filter((r) => !r.me && !r.isAI).length;
+    const head = `<div class="rd-head" data-rfold title="${fr ? 'Replier / déplier' : 'Fold / unfold'}"><i class="rd-caret">▾</i><b>${fr ? 'À proximité' : 'Nearby'}</b><span class="rd-count num">${others.length}</span><button class="rd-filter" data-rfilter tabindex="-1" title="${fr ? 'Coureurs réels ou tous' : 'Real riders or all'}">${
+      this.riderFilter === 'real' ? (fr ? `Réels (${real})` : `Real (${real})`) : fr ? 'Tous' : 'All'
+    }</button></div>`;
+    if (this.ridersFolded) return head;
+    const near = others.sort((a, b) => Math.abs(a.distM - me.distM) - Math.abs(b.distM - me.distM)).slice(0, 3);
+    const speed = Math.max(s.speedKmh / 3.6, 2);
+    const rows = [...near, me]
+      .sort((a, b) => b.distM - a.distM)
+      .map((r) => {
+        const sec = (r.distM - me.distM) / speed;
+        const time = Math.abs(sec) >= 60 ? `${sec > 0 ? '+' : '−'}${Math.floor(Math.abs(sec) / 60)}:${String(Math.round(Math.abs(sec) % 60)).padStart(2, '0')}` : `${sec > 0 ? '+' : sec < 0 ? '−' : ''}${Math.round(Math.abs(sec))} s`;
+        const flag = flagSvg(r.nationality, 11);
+        const rideOn = r.online && !r.me ? `<button class="rideon" data-rideon="${r.id}" tabindex="-1" title="Ride On">👍</button>` : '';
+        const friend = r.friend ? `<em class="rd-friend" title="${fr ? 'Ami' : 'Friend'}">★</em>` : '';
+        return `<div class="row ${r.me ? 'me' : ''}"><i class="rd-dot" style="background:${r.color}"></i><b class="rd-n">${friend}${flag ? `<span class="rd-flag">${flag}</span>` : ''}${r.name.replace(/[<>&]/g, '')}${r.speaking ? ' 🔊' : ''}${rideOn}</b><span class="num rd-w">${r.watts !== undefined ? Math.round(r.watts) : '—'}<u>W</u></span><span class="num rd-gap">${r.me ? '' : time}</span></div>`;
       })
       .join('');
     return head + rows;
@@ -931,7 +1263,8 @@ export class Hud {
     const minY = Math.min(...ys) - 5;
     const maxY = Math.max(Math.max(...ys) + 5, minY + 30);
     const X = (x: number) => ((x - d0) / 2000) * w;
-    const Y = (y: number) => h - 8 - ((y - minY) / (maxY - minY)) * (h - 24);
+    const m = this.profileMetrics(h);
+    const Y = (y: number) => h - m.pb - ((y - minY) / (maxY - minY)) * (h - m.pb - m.pt);
     for (let i = 1; i < pts.length; i++) {
       const a = pts[i - 1] as { d: number; y: number };
       const b = pts[i] as { d: number; y: number };
@@ -956,12 +1289,16 @@ export class Hud {
       ctx.setLineDash([]);
     }
     const y = this.track.sample(d).y;
+    if (this.compact) {
+      ctx.fillStyle = 'rgba(255,210,63,0.55)';
+      ctx.fillRect(X(d) - m.line / 2, 0, m.line, h);
+    }
     ctx.fillStyle = '#ffd23f';
     ctx.beginPath();
-    ctx.arc(X(d), Y(y), 9, 0, Math.PI * 2);
+    ctx.arc(X(d), Y(y), m.rMe, 0, Math.PI * 2);
     ctx.fill();
     ctx.strokeStyle = '#0a0e16';
-    ctx.lineWidth = 3;
+    ctx.lineWidth = m.ring;
     ctx.stroke();
   }
 
@@ -976,6 +1313,7 @@ export class Hud {
     const me = this.track.sample(d);
     const half = 800;
     const k = w / (2 * half);
+    const mk = this.compact ? 1.4 : 1;
     const P = (x: number, z: number): [number, number] => [w / 2 + (x - me.x) * k, h / 2 + (z - me.z) * k];
     // Fond de carte : fenêtre de 3,6 km autour du coureur, renouvelée quand il s'approche du bord de ce que montre la carte.
     const win = 1800;
@@ -992,7 +1330,7 @@ export class Hud {
       const near = [0, mid, p.length - 3].some((i) => Math.abs((p[i] as number) - me.x) < half * 1.5 && Math.abs((p[i + 2] as number) - me.z) < half * 1.5);
       if (!near) continue;
       ctx.strokeStyle = /^(asphalt|paved|concrete|chipseal)/.test(e.surface) ? 'rgba(226,232,240,0.45)' : 'rgba(202,170,110,0.45)';
-      ctx.lineWidth = e.kind.startsWith('primary') || e.kind.startsWith('secondary') ? 6 : 3.5;
+      ctx.lineWidth = (e.kind.startsWith('primary') || e.kind.startsWith('secondary') ? 6 : 3.5) * mk;
       ctx.beginPath();
       for (let i = 0; i < p.length; i += 3) {
         const [x, y] = P(p[i] as number, p[i + 2] as number);
@@ -1003,7 +1341,7 @@ export class Hud {
     }
     // Chemin prévu devant (jusqu'à 1,2 km).
     ctx.strokeStyle = '#ffd23f';
-    ctx.lineWidth = 6;
+    ctx.lineWidth = 6 * mk;
     ctx.beginPath();
     let first = true;
     for (let x = d; x <= Math.min(this.track.length, d + 1200); x += 8) {
@@ -1019,10 +1357,10 @@ export class Hud {
       if (x < -20 || y < -20 || x > w + 20 || y > h + 20) continue;
       ctx.fillStyle = r.me ? '#ffd23f' : r.color;
       ctx.beginPath();
-      ctx.arc(x, y, r.me ? 10 : r.friend ? 8 : 7, 0, Math.PI * 2);
+      ctx.arc(x, y, (r.me ? 10 : r.friend ? 8 : 7) * mk, 0, Math.PI * 2);
       ctx.fill();
       ctx.strokeStyle = r.friend ? '#ffd23f' : '#0a0e16';
-      ctx.lineWidth = r.friend ? 4 : 3;
+      ctx.lineWidth = (r.friend ? 4 : 3) * mk;
       ctx.stroke();
     }
   }
