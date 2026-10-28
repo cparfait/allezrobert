@@ -45,6 +45,8 @@ export interface Settings {
   /** Source de puissance de référence quand pédales et trainer sont présents. */
   powerSource: 'pedals' | 'trainer';
   smoothing3s: boolean;
+  /** Danseuse au-delà de cette puissance (W) ; 0 : automatique (sprint, côte, force). */
+  standWatts: number;
   /** Invité sans matériel : puissance virtuelle au clavier / à la manette. */
   guest: boolean;
   /**
@@ -99,6 +101,7 @@ export const DEFAULT_SETTINGS: Settings = {
   groupTargetKmh: 0,
   powerSource: 'pedals',
   smoothing3s: false,
+  standWatts: 0,
   guest: false,
   inertia: 1,
   world: 'longchamp',

@@ -7,6 +7,7 @@ import { SceneFog } from './fog.ts';
 import { stepClouds } from './clouds.ts';
 import { overcastDome, setOvercast } from './overcast.ts';
 import { sunlight } from './sunlight.ts';
+import { LOW_POLY_SKY, LowPolySky } from './lowPolySky.ts';
 import type { QualitySettings } from '../engine/quality.ts';
 import { mainRenderer, type Grade } from '../engine/renderer.ts';
 
@@ -146,6 +147,8 @@ export class Environment {
   private shadowFrozen = false;
   private readonly sunDir = new THREE.Vector3();
   private readonly scene: THREE.Scene;
+  /** Prototype de ciel du style jeu vidéo (?sky=lowpoly) : dôme en dégradé et nuages à facettes. */
+  private readonly lowPolySky: LowPolySky | null = null;
   /** Altitude lissée du coureur suivi (m), pour la clarté de l'air. */
   private altitudeM = Number.NaN;
 
@@ -165,6 +168,12 @@ export class Environment {
     // Voile gris des ciels couverts et de pluie, sur le ciel physique (overcast.ts).
     this.overcastMesh = overcastDome();
     scene.add(this.overcastMesh);
+    if (LOW_POLY_SKY) {
+      // Le ciel physique reste calculé (soleil, nuit) mais n'est plus dessiné.
+      this.lowPolySky = new LowPolySky(q.viewDistance);
+      this.sky.visible = false;
+      scene.add(this.lowPolySky.group);
+    }
 
     this.sun = new THREE.DirectionalLight(0xffffff, 3.2);
     this.sun.castShadow = true;
@@ -263,6 +272,7 @@ export class Environment {
     if (renderer && SKY_LIGHT) this.updateSkyLight(renderer, pal);
     this.hemi.intensity = ambient * (this.scene.environment ? HEMI_WITH_SKY : 1) + nightK * 0.35;
     if (nightK > 0) this.hemi.color.lerp(new THREE.Color('#3b4f7a'), nightK * 0.8);
+    this.lowPolySky?.update(_dt, center, pal.hemiSky, pal.fog, this.sunDir, this.sun.color, sunStrength, weather.clouds, weather.windMs, weather.windFrom);
     this.fog.color.copy(pal.fog);
     this.fog.density = 0.00012 * clarity + weather.fog * 0.0022 + weather.rain * 0.0004;
     // Ombres des nuages sur le sol : défilent avec le vent, seulement quand le soleil perce.
@@ -330,6 +340,10 @@ export class Environment {
 
   dispose(): void {
     this.scene.remove(this.sky, this.sun, this.hemi, this.nightSky.mesh, this.overcastMesh);
+    if (this.lowPolySky) {
+      this.scene.remove(this.lowPolySky.group);
+      this.lowPolySky.dispose();
+    }
     if (this.scene.environment === this.skyLight.texture) this.scene.environment = null;
     const s = this.scene as unknown as { fogNode: THREE.Node | null };
     if (s.fogNode === this.sceneFog.node) s.fogNode = null;

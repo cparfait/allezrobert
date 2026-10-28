@@ -979,6 +979,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   const startD = nav ? 0 : challenge ? challenge.startD : Number(params.get('d') ?? 0);
   const ride = new RideSession({
     profile,
+    standWatts: s.standWatts,
     track,
     trainerDifficulty: s.trainerDifficulty,
     drivetrain: s.drivetrain,

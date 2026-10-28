@@ -1937,6 +1937,7 @@ export class MainMenu {
           ['0', L ? 'Non' : 'Off'],
           ['1', '3 s'],
         ])}</div>
+        <label class="field" title="${L ? 'Le coureur se met en danseuse au-delà de cette puissance (en plus du sprint, des côtes et des efforts en force). Auto : règles seules.' : 'The rider stands up above this power (on top of sprints, climbs and low-cadence efforts). Auto: rules only.'}">${L ? 'Danseuse au-delà de' : 'Stand up above'} <span id="m-standv">${s.standWatts ? `${s.standWatts} W` : 'Auto'}</span><input id="m-stand" type="range" min="0" max="1200" step="25" value="${s.standWatts}" /></label>
       </div>`;
     const lang = `<div class="grid3">
         <div class="field">${t('language')}${this.seg('m-lang', s.lang, [
@@ -2979,6 +2980,12 @@ export class MainMenu {
     );
     on<HTMLSelectElement>('m-smooth', 'change', (el) => {
       s.smoothing3s = el.value === '1';
+      changed();
+    });
+    on<HTMLInputElement>('m-stand', 'input', (el) => {
+      s.standWatts = Number(el.value);
+      const v = document.getElementById('m-standv');
+      if (v) v.textContent = s.standWatts ? `${s.standWatts} W` : 'Auto';
       changed();
     });
   }

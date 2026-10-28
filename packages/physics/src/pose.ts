@@ -7,6 +7,8 @@
  * - roue libre : puissance < `coastWatts` ou cadence < `coastCadence` pendant `coastDelayS` ;
  * - danseuse : sprint (P > 1,5·FTP), ou montée (pente ≥ 6 %) avec P > 0,95·FTP, ou effort
  *   en force (cadence < 65 et P > 1,1·FTP) ; on en sort sous des seuils plus bas (hystérésis) ;
+ * - danseuse aussi au-delà d'un seuil de puissance choisi par le coureur (`standWatts`, sortie à 85 %),
+ *   ou quand les capteurs mesurent la position (`sensorPose`, prioritaire hors roue libre) ;
  * - sinon assis. Chaque état est tenu au moins `minHoldS`.
  */
 
@@ -18,6 +20,10 @@ export interface PoseInput {
   gradePercent: number;
   ftpWatts: number;
   speedMs?: number;
+  /** Seuil de danseuse choisi par le coureur (W) ; absent ou 0 : seulement les règles automatiques. */
+  standWatts?: number;
+  /** Position mesurée par les capteurs (pédales qui la détectent) ; absente : déduite de l'effort. */
+  sensorPose?: 'seated' | 'standing';
 }
 
 export interface PoseOptions {
@@ -67,17 +73,21 @@ export class PoseController {
       next = 'coasting';
     } else if (low) {
       next = this.pose; // en attente de confirmation de roue libre
+    } else if (input.sensorPose) {
+      next = input.sensorPose;
     } else if (this.pose === 'standing') {
       const keep =
         rel > SPRINT_OUT ||
         (input.gradePercent >= CLIMB_GRADE_OUT && rel > CLIMB_OUT) ||
-        (input.cadence < GRIND_CAD_OUT && rel > GRIND_OUT);
+        (input.cadence < GRIND_CAD_OUT && rel > GRIND_OUT) ||
+        (!!input.standWatts && input.watts > input.standWatts * 0.85);
       next = keep ? 'standing' : 'seated';
     } else {
       const stand =
         rel > SPRINT_IN ||
         (input.gradePercent >= CLIMB_GRADE_IN && rel > CLIMB_IN) ||
-        (input.cadence < GRIND_CAD_IN && rel > GRIND_IN);
+        (input.cadence < GRIND_CAD_IN && rel > GRIND_IN) ||
+        (!!input.standWatts && input.watts > input.standWatts);
       next = stand ? 'standing' : 'seated';
     }
     // Sortir de la roue libre se fait immédiatement (on voit tout de suite le pédalage).
