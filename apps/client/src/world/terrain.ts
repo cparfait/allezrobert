@@ -654,13 +654,18 @@ function clampUnderRoads(pos: Float32Array, tile: LoadedTile, seg: number, reach
     const p = r.pts3;
     if (!p || r.tunnel || p.length < 6) continue;
     const R = Math.max(r.width, 2.5) / 2 + 0.6 + reach;
+    // Remblai : sous la chaussée (au moins le sommet de grille le plus proche), un sol trop bas est remonté
+    // jusqu'à la route. Grille grossière au loin (8 m) : une route sur une digue ou à flanc de pente tombait
+    // entre deux sommets et semblait s'envoler. Ni ponts, ni plus de 8 m (viaducs).
+    const lift = r.bridge ? 0 : Math.max(Math.max(r.width, 2.5) / 2 + 0.6, step * 1.2);
     for (let k = 0; k + 5 < p.length; k += 3) {
       const ax = p[k] as number, ay = p[k + 1] as number, az = p[k + 2] as number;
       const bx = p[k + 3] as number, by = p[k + 4] as number, bz = p[k + 5] as number;
-      const i0 = Math.max(0, Math.floor((Math.min(ax, bx) - R - tile.x0) / step));
-      const i1 = Math.min(seg, Math.ceil((Math.max(ax, bx) + R - tile.x0) / step));
-      const j0 = Math.max(0, Math.floor((Math.min(az, bz) - R - tile.z0) / step));
-      const j1 = Math.min(seg, Math.ceil((Math.max(az, bz) + R - tile.z0) / step));
+      const RR = Math.max(R, lift);
+      const i0 = Math.max(0, Math.floor((Math.min(ax, bx) - RR - tile.x0) / step));
+      const i1 = Math.min(seg, Math.ceil((Math.max(ax, bx) + RR - tile.x0) / step));
+      const j0 = Math.max(0, Math.floor((Math.min(az, bz) - RR - tile.z0) / step));
+      const j1 = Math.min(seg, Math.ceil((Math.max(az, bz) + RR - tile.z0) / step));
       if (i0 > i1 || j0 > j1) continue;
       const dx = bx - ax, dz = bz - az;
       const len2 = dx * dx + dz * dz || 1;
@@ -669,10 +674,15 @@ function clampUnderRoads(pos: Float32Array, tile: LoadedTile, seg: number, reach
           const x = tile.x0 + i * step, z = tile.z0 + j * step;
           const t = Math.min(1, Math.max(0, ((x - ax) * dx + (z - az) * dz) / len2));
           const ex = ax + dx * t - x, ez = az + dz * t - z;
-          if (ex * ex + ez * ez > R * R) continue;
+          if (ex * ex + ez * ez > RR * RR) continue;
           const y = ay + (by - ay) * t;
           const kk = (j * row + i) * 3 + 1;
           const h = pos[kk] as number;
+          if (lift && ex * ex + ez * ez <= lift * lift && h < y - ROAD_TERRAIN_BELOW && y - h < 8) {
+            pos[kk] = y - ROAD_TERRAIN_BELOW;
+            continue;
+          }
+          if (ex * ex + ez * ez > R * R) continue;
           // Talus d'une tranchée : abaissé même s'il monte vite (sinon il recouvre le bord de la route).
           const g = axisGround(ax + dx * t, az + dz * t);
           if (Number.isFinite(g) ? g - y > ROAD_TUNNEL_AXIS : h - y > ROAD_TUNNEL_COVER) continue;

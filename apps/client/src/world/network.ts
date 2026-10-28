@@ -1,5 +1,6 @@
 import * as THREE from 'three/webgpu';
-import { uv, attribute, mix, smoothstep, step, fract, floor, hash, min, vec3, float, uniform, mx_noise_float, positionWorld, clamp, abs, max } from 'three/tsl';
+import { uv, attribute, mix, smoothstep, step, fract, floor, hash, min, vec3, float, uniform, mx_noise_float, positionWorld, clamp, abs, max, fwidth } from 'three/tsl';
+import { LOW_POLY } from '../engine/style.ts';
 import type { LoadedTile, TileRoad } from './types.ts';
 import { asphaltGrain } from './asphalt.ts';
 import { isRouteTwin } from './splat.ts';
@@ -50,7 +51,8 @@ export class RoadNetwork {
     const ax = abs(across);
     const n = mx_noise_float(positionWorld.xz.mul(1.7)).mul(0.5).add(0.5);
     const n2 = mx_noise_float(positionWorld.xz.mul(0.08)).mul(0.5).add(0.5);
-    const asphalt = vec3(0.24, 0.245, 0.26).mul(asphaltGrain()).mul(n2.mul(0.2).add(0.9));
+    // Style jeu vidéo : enrobé foncé uni (même teinte que la route de l'itinéraire, road.ts).
+    const asphalt = LOW_POLY ? vec3(0.075, 0.078, 0.085) : vec3(0.24, 0.245, 0.26).mul(asphaltGrain()).mul(n2.mul(0.2).add(0.9));
     const gravel = vec3(0.5, 0.46, 0.38).mul(n.mul(0.35).add(0.7));
     const unpaved = clamp(info.z, 0, 1).mul(step(info.z, 1.5));
     const cobble = step(1.5, info.z);
@@ -65,10 +67,20 @@ export class RoadNetwork {
     const shade = hash(floor(u).add(row.mul(57)));
     const stone = vec3(0.43, 0.41, 0.38).mul(shade.mul(0.4).add(0.72)).mul(n.mul(0.2).add(0.9));
     const cobbles = mix(vec3(0.13, 0.12, 0.1), stone, inStone);
-    const edge = smoothstep(half.sub(0.35), half.sub(0.3), ax).mul(smoothstep(half.sub(0.1), half.sub(0.15), ax)).mul(info.y);
+    let edge = smoothstep(half.sub(0.35), half.sub(0.3), ax).mul(smoothstep(half.sub(0.1), half.sub(0.15), ax)).mul(info.y);
     const dash = step(fract(along.div(13)), float(3 / 13));
-    const center = smoothstep(0.08, 0.06, ax).mul(dash).mul(info.y);
-    const paint = max(edge, center).mul(n2.mul(0.25).add(0.75)).mul(float(1).sub(cobble));
+    let center = smoothstep(0.08, 0.06, ax).mul(dash).mul(info.y);
+    if (LOW_POLY) {
+      // Marquages antialiasés selon leur taille à l'écran (plus de scintillement au loin).
+      const aa = fwidth(ax).max(0.002);
+      const dv = along.div(13);
+      const da = fwidth(dv).max(0.001);
+      const t = fract(dv);
+      const dashAA = smoothstep(float(0).sub(da), da, t).mul(float(1).sub(smoothstep(float(3 / 13).sub(da), float(3 / 13).add(da), t)));
+      edge = float(1).sub(smoothstep(float(0.075).sub(aa), float(0.075).add(aa), abs(ax.sub(half.sub(0.225))))).mul(info.y);
+      center = float(1).sub(smoothstep(float(0.07).sub(aa), float(0.07).add(aa), ax)).mul(dashAA).mul(info.y);
+    }
+    const paint = max(edge, center).mul(LOW_POLY ? float(1) : n2.mul(0.25).add(0.75)).mul(float(1).sub(cobble));
     let col = mix(mix(asphalt, gravel, unpaved), cobbles, cobble);
     col = mix(col, vec3(0.9, 0.9, 0.86), paint);
     // Bords fondus dans le bas-côté (pas d'arête nette sur l'herbe).

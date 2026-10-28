@@ -150,9 +150,13 @@ export class Crowd {
   private readonly rider = uniform(new THREE.Vector2(1e9, 1e9));
   private driven = false;
   private readonly track: RouteTrack;
+  private readonly groundAt: (x: number, z: number) => number;
+  /** Reprise des hauteurs : prochain spectateur (puis pancarte) à reposer sur le sol dessiné. */
+  private groundCursor = 0;
 
   constructor(track: RouteTrack, groundAt: (x: number, z: number) => number, opts: CrowdOptions = {}) {
     this.track = track;
+    this.groundAt = groundAt;
     const r = rng(2026);
     const mats: THREE.Matrix4[] = [];
     const still: number[] = [];
@@ -254,6 +258,36 @@ export class Crowd {
     const p = this.track.positionAt(riderDistM, 0);
     this.rider.value.set(p.x, p.z);
     this.driven = true;
+    this.reground(p.x, p.z);
+  }
+
+  /**
+   * Spectateurs et pancartes reposés sur le sol dessiné, 48 par image, à moins de 600 m du coureur : le
+   * public est placé à la construction de la sortie, souvent avant le chargement des tuiles (hauteur de la
+   * route en repli), et le terrain s'affine ensuite (tuile détaillée) : sinon enfoncés ou en l'air.
+   */
+  private reground(rx: number, rz: number): void {
+    const meshes = this.signs ? [this.mesh, this.signs] : [this.mesh];
+    const total = meshes.reduce((n, m) => n + m.count, 0);
+    if (!total) return;
+    for (let k = 0; k < 48; k++) {
+      let i = this.groundCursor++ % total;
+      let mesh = this.mesh;
+      if (i >= this.mesh.count && this.signs) {
+        i -= this.mesh.count;
+        mesh = this.signs;
+      }
+      const a = mesh.instanceMatrix.array as Float32Array;
+      const x = a[i * 16 + 12] as number;
+      const z = a[i * 16 + 14] as number;
+      if ((x - rx) ** 2 + (z - rz) ** 2 > 600 * 600) continue;
+      const g = this.groundAt(x, z);
+      if (!Number.isFinite(g)) continue;
+      const y = g - 0.05;
+      if (Math.abs((a[i * 16 + 13] as number) - y) < 0.02) continue;
+      a[i * 16 + 13] = y;
+      mesh.instanceMatrix.needsUpdate = true;
+    }
   }
 }
 

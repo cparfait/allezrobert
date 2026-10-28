@@ -73,6 +73,7 @@ const _x = new THREE.Vector3();
 const _y = new THREE.Vector3();
 const _z = new THREE.Vector3();
 const _m = new THREE.Matrix4();
+const _mid = new THREE.Vector3();
 function aim(bone: THREE.Bone, from: THREE.Vector3, to: THREE.Vector3): void {
   bone.position.copy(from);
   _y.subVectors(to, from).normalize();
@@ -319,7 +320,10 @@ export class SweptBody {
   /** Oriente les os sur les articulations de l'image. */
   pose(J: BodyJoints): void {
     const b = this.bones;
-    aim(b[0] as THREE.Bone, J.hip, J.mid);
+    // Bassin visé sans composante latérale : fessier immobile sur la selle, seul le haut du dos suit le roulis
+    // des épaules.
+    _mid.copy(J.mid).setX(J.hip.x);
+    aim(b[0] as THREE.Bone, J.hip, _mid);
     aim(b[1] as THREE.Bone, J.mid, J.shoulder);
     J.legs.forEach((g, i) => {
       aim(b[2 + i * 2] as THREE.Bone, g.hip, g.knee);

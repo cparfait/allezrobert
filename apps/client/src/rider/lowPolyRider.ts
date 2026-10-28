@@ -241,6 +241,10 @@ export class LowPolyRider implements RiderAvatarLike {
   private wheelAngle = 0;
   private poseBlend = 0;
   private coastBlend = 0;
+  /** Mains en bas du cintre (vitesse de course) et position aéro (descente rapide, très haute vitesse). */
+  private dropsBlend = 0;
+  private aeroBlend = 0;
+  private dropsOn = false;
   private celebrate = 0;
   private celebrating = false;
   private shadows = true;
@@ -485,6 +489,8 @@ export class LowPolyRider implements RiderAvatarLike {
     const p = geo.getAttribute('position');
     const shellC = new THREE.Color(look.helmet);
     const ventC = new THREE.Color('#202329');
+    // Bandes décoratives à la couleur d'accent du maillot, le long des aérations (casques NCT).
+    const stripeC = new THREE.Color(look.jerseyAccent);
     const cols: number[] = [];
     const tris = p.count / 3;
     for (let t = 0; t < tris; t++) {
@@ -496,7 +502,8 @@ export class LowPolyRider implements RiderAvatarLike {
       // Aérations en fentes qui rayonnent du sommet vers l'avant et l'arrière ; serrage noir sur la nuque.
       const vent = r >= 3 && r <= 6 && j % 3 === 1 && Math.abs(dz) > 0.3;
       const cradle = r >= 8 && dz < -0.5;
-      const col = vent || cradle ? ventC : shellC;
+      const stripe = r >= 2 && r <= 7 && j % 3 === 2 && Math.abs(dz) > 0.2;
+      const col = vent || cradle ? ventC : stripe ? stripeC : shellC;
       for (let v = 0; v < 3; v++) cols.push(col.r, col.g, col.b);
     }
     geo.setAttribute('color', new THREE.Float32BufferAttribute(cols, 3));
@@ -505,8 +512,14 @@ export class LowPolyRider implements RiderAvatarLike {
     const shell = new THREE.Mesh(geo, helmetMat);
     shell.position.set(0, 0.025, -0.012);
     g.add(shell);
-    // Sangles sous le menton.
-    g.add(merged([box(0.008, 0.1, 0.018, 0.1, -0.035, 0.03), box(0.008, 0.1, 0.018, -0.1, -0.035, 0.03)], dark));
+    // Sangles fines en Y : une devant et une derrière l'oreille, réunies sous l'oreille, puis jusqu'au menton.
+    const straps: THREE.BufferGeometry[] = [];
+    for (const sx of [1, -1]) {
+      const knot = v3(0.1 * sx, -0.065, 0.005);
+      straps.push(tube(v3(0.112 * sx, 0.012, 0.05), knot, 0.0055, 0.0055, 4), tube(v3(0.108 * sx, -0.005, -0.07), knot, 0.0055, 0.0055, 4), tube(knot, v3(0.035 * sx, -0.125, 0.055), 0.0055, 0.0055, 4));
+    }
+    straps.push(box(0.04, 0.016, 0.012, 0, -0.13, 0.062));
+    g.add(merged(straps, dark));
   }
 
   private buildBike(look: AvatarLook, bike: BikeBuild, kind: BikeKind): THREE.Group {
@@ -685,14 +698,31 @@ export class LowPolyRider implements RiderAvatarLike {
     const roll = -Math.sin(this.crankAngle) * pedaling * (1 - stand) * calm;
 
     const fit = this.fit;
-    const hip = this.hip.set(0, SADDLE.y + 0.07 + 0.13 * stand, SADDLE.z + 0.02 + 0.2 * stand);
+    // Cintre route : bas du cintre au-dessus de 43 km/h (retour aux cocottes sous 36), position aéro en roue
+    // libre de 36 à 47 km/h et en pédalant au-delà de 50 km/h : dos presque à plat, épaules basses et
+    // avancées, avant-bras à l'horizontale, tête relevée.
+    const bars = fit.bar === 'drop' && pose !== 'standing';
+    const coasting = pose === 'coasting' || cadence < 5;
+    this.dropsOn = bars && (speed > 12 || (this.dropsOn && speed > 10));
+    const smooth = (a: number, b: number, x: number) => {
+      const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
+      return t * t * (3 - 2 * t);
+    };
+    const aeroOn = bars ? (coasting ? smooth(10, 13, speed) : smooth(13.9, 15.5, speed)) : 0;
+    const k2 = 1 - Math.exp(-dt * 2.5);
+    this.dropsBlend += ((this.dropsOn ? 1 : 0) - this.dropsBlend) * k2;
+    this.aeroBlend += (aeroOn - this.aeroBlend) * k2;
+    const aero = this.aeroBlend * (1 - stand) * (1 - this.celebrate);
+    const dropHands = Math.max(this.dropsBlend * (1 - stand), aero) * (1 - this.celebrate);
+    const hip = this.hip.set(0, SADDLE.y + 0.07 + 0.13 * stand, SADDLE.z + 0.02 + 0.2 * stand - 0.02 * aero);
     const up = this.celebrate;
     // Les bras levés ou la danseuse annulent la position de chrono (on se redresse).
     const fitK = 1 - Math.max(up, stand * 0.6);
     // Buste penché à ≈ 36° assis (comme les coureurs NCT), plus couché en chrono ; en danseuse, le buste plonge et
     // les épaules passent presque au-dessus des mains, coudes fléchis (GCN).
     const shoulder = this.shoulder.set(0, 1.395 + fit.shoulderDy * fitK + 0.02 * stand + 0.15 * up, 0.243 + fit.shoulderDz * fitK + 0.18 * stand - 0.23 * up);
-    shoulder.y -= this.coastBlend * 0.03;
+    shoulder.y -= this.coastBlend * 0.03 * (1 - aero) + 0.13 * aero + 0.04 * dropHands * (1 - aero);
+    shoulder.z += 0.07 * aero + 0.02 * dropHands * (1 - aero);
     shoulder.x += roll * 0.008 + upright(shoulder.y);
     const chestBase = hip.clone().add(v3(0, 0.06, 0.02));
     this.torso.set(chestBase, shoulder);
@@ -710,7 +740,7 @@ export class LowPolyRider implements RiderAvatarLike {
     this.collar.set(shoulder.clone().add(v3(0, 0.0, 0.015)), shoulder.clone().add(v3(0, 0.045, 0.035)));
     this.head.position.copy(neckTop).add(v3(0, 0.07, 0.04));
     // Tête relevée pour regarder la route (le dos est penché vers l'avant).
-    this.head.rotation.x = 0.3 + fit.headTilt * fitK - 0.12 * stand - 0.25 * up;
+    this.head.rotation.x = 0.3 + fit.headTilt * fitK - 0.12 * stand - 0.25 * up - 0.22 * aero;
 
     for (const leg of this.legs) {
       const a = this.crankAngle + (leg.side > 0 ? 0 : Math.PI);
@@ -739,7 +769,8 @@ export class LowPolyRider implements RiderAvatarLike {
     for (const arm of this.arms) {
       const sh = shoulder.clone().add(v3(0.17 * arm.side, -0.04 - roll * 0.012 * arm.side, 0));
       // Mains au cintre (cocottes, guidon plat ou prolongateurs) ; bras levés en V pour fêter la victoire.
-      const handBar = v3(fit.hand.x * arm.side, fit.hand.y, fit.hand.z);
+      // Cocottes, ou crochet du cintre (bas du cintre, aéro).
+      const handBar = v3(fit.hand.x * arm.side, fit.hand.y - 0.135 * dropHands, fit.hand.z - 0.035 * dropHands);
       const handUp = sh.clone().add(v3(0.2 * arm.side, 0.52, 0.08));
       const hand = handBar.lerp(handUp, up);
       const elbow = new THREE.Vector3();

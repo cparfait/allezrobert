@@ -424,6 +424,14 @@ export class RoadsidePeople {
         if (!g && d < SPAWN_M) this.spawn(spot);
         else if (g && d > FORGET_M) this.forget(spot, g);
       }
+      // Personnages immobiles reposés sur le sol dessiné : la hauteur du point d'apparition date de la
+      // construction du tronçon, et le terrain peut s'être affiné depuis (tuile détaillée chargée).
+      for (const g of this.groups.values())
+        for (const a of g.actors) {
+          if (a.role !== 'villager' && a.role !== 'child' && a.role !== 'fisher') continue;
+          const y = this.heightAt(a.x, a.z);
+          if (Number.isFinite(y)) a.y = y;
+        }
     }
     for (const g of this.groups.values()) this.animate(g, dt, focus);
     for (const b of this.batches) b.commit();
