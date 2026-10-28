@@ -1662,19 +1662,29 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   /** Prochain virage annoncé au HUD, recalculé 5 fois par seconde ; affiché à 8 s de route (80 m au moins). */
   let turnInfo: { inM: number; angleDeg: number } | null = null;
   let turnCheckedAt = 0;
+  /** Virage annoncé (position sur l'itinéraire) : gardé jusqu'à son passage. */
+  let announced: { atM: number } | null = null;
   const upcomingTurn = () => {
     const now = performance.now();
     if (now - turnCheckedAt > 200) {
       turnCheckedAt = now;
       const tn = track.nextTurn(ride.state.distM, ride.dir, 220);
       // Seulement aux bifurcations (une autre route part du virage), pas dans chaque courbe.
-      let tj = tn && Math.abs(tn.angleDeg) >= 30 && tn.inM <= Math.max(80, ride.state.speedMs * 8) ? tn : null;
-      if (tj) {
-        // Bifurcation seulement : une autre route rejoint l'itinéraire au milieu du virage.
-        const mid = track.positionAt(ride.state.distM + ride.dir * (tj.inM + 14), 0);
-        if (!scene.world.terrain.junctionNear(mid.x, mid.z, track.route.id)) tj = null;
+      // Virage déjà annoncé : gardé (sans nouveau contrôle de bifurcation) jusqu'à ce qu'il soit passé ; le
+      // contrôle refait toutes les 200 ms le faisait apparaître et disparaître.
+      const d = ride.state.distM;
+      if (announced && ride.dir * (announced.atM - d) > -20 && tn && Math.abs(d + ride.dir * tn.inM - announced.atM) < 30) turnInfo = tn;
+      else {
+        announced = null;
+        let tj = tn && Math.abs(tn.angleDeg) >= 30 && tn.inM <= Math.max(80, ride.state.speedMs * 8) ? tn : null;
+        if (tj) {
+          // Bifurcation seulement : une autre route rejoint l'itinéraire au milieu du virage.
+          const mid = track.positionAt(d + ride.dir * (tj.inM + 14), 0);
+          if (!scene.world.terrain.junctionNear(mid.x, mid.z, track.route.id)) tj = null;
+        }
+        if (tj) announced = { atM: d + ride.dir * tj.inM };
+        turnInfo = tj;
       }
-      turnInfo = tj;
     }
     return turnInfo;
   };
@@ -1887,6 +1897,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     avatar.root.rotateX(-Math.atan((sample.grade * ride.dir) / 100));
     avatar.setEffort?.(ride.inputs.watts / Math.max(50, s.ftpWatts), ride.inputs.hr !== undefined ? ride.inputs.hr / 190 : undefined);
     avatar.update(dt, ride.inputs.cadence, ride.state.speedMs, ride.pose, bank);
+    (avatar as { setComputer?(d: { speedKmh: number; watts: number; cadence: number; hr?: number; timeS?: number }): void }).setComputer?.({ speedKmh: ride.state.speedMs * 3.6, watts: ride.inputs.watts, cadence: ride.inputs.cadence, hr: ride.inputs.hr, timeS: ride.elapsedS });
     // Vue subjective et caméra embarquée : on garde le vélo, les bras et les mains, mais pas la tête.
     // (pendant un demi-tour, la caméra sort derrière le coureur : la tête redevient visible)
     const onboard = (rig.mode === 'cockpit' || rig.mode === 'action' || rig.mode === 'gopro') && !rig.lookBack && !camTurn;

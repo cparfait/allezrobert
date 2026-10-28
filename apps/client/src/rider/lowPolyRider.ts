@@ -223,6 +223,8 @@ export class LowPolyRider implements RiderAvatarLike {
   private body = new THREE.Group();
   private crank = new THREE.Group();
   private wheels: THREE.Group[] = [];
+  /** Écran du compteur (canevas rafraîchi par setComputer, 4 fois par seconde au plus). */
+  private screen: { ctx: CanvasRenderingContext2D; tex: THREE.CanvasTexture; t: number } | null = null;
   private pedals: THREE.Mesh[] = [];
   private legs: Array<{ side: number; shorts: Seg; knee: Seg; shin: Seg; sock: Seg; shoe: THREE.Mesh }> = [];
   private arms: Array<{ side: number; sleeve: Seg; cuff: Seg; upper: Seg; fore: Seg; glove: THREE.Mesh }> = [];
@@ -613,7 +615,10 @@ export class LowPolyRider implements RiderAvatarLike {
     }
     g.add(merged(bar, tapeMat));
     // Compteur sur la potence.
-    if (bike.params.computer !== false) parts.push(box(0.05, 0.016, 0.075, 0, 0.915, 0.6));
+    if (bike.params.computer !== false) {
+      parts.push(box(0.05, 0.016, 0.075, 0, 0.915, 0.6));
+      g.add(this.buildScreen());
+    }
     g.add(merged(parts, dark));
     // Bidons : sur le diagonal puis le tube de selle (selon le cadre, ou le choix du garage).
     const maxBottles = kind === 'tt' || bike.params.track || bike.params.bottles === false ? 0 : 2;
@@ -712,9 +717,8 @@ export class LowPolyRider implements RiderAvatarLike {
     const roll = -Math.sin(this.crankAngle) * pedaling * (1 - stand) * calm;
 
     const fit = this.fit;
-    // Cintre route : bas du cintre au-dessus de 43 km/h (retour aux cocottes sous 36), position aéro en roue
-    // libre de 36 à 47 km/h et en pédalant au-delà de 50 km/h : dos presque à plat, épaules basses et
-    // avancées, avant-bras à l'horizontale, tête relevée.
+    // Cintre route : bas du cintre au-dessus de 43 km/h (retour aux cocottes sous 36), position aéro dans les
+    // descentes rapides : dos presque à plat, épaules basses et avancées, avant-bras à l'horizontale, tête relevée.
     const bars = fit.bar === 'drop' && pose !== 'standing';
     const coasting = pose === 'coasting' || cadence < 5;
     this.dropsOn = bars && (speed > 12 || (this.dropsOn && speed > 10));
@@ -722,7 +726,8 @@ export class LowPolyRider implements RiderAvatarLike {
       const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
       return t * t * (3 - 2 * t);
     };
-    const aeroOn = bars ? (coasting ? smooth(10, 13, speed) : smooth(13.9, 15.5, speed)) : 0;
+    // Descente rapide : position aéro dès 32 km/h en roue libre (pleine à 40), dès 45 km/h en pédalant.
+    const aeroOn = bars ? (coasting ? smooth(8.9, 11.1, speed) : smooth(12.5, 14, speed)) : 0;
     const k2 = 1 - Math.exp(-dt * 2.5);
     this.dropsBlend += ((this.dropsOn ? 1 : 0) - this.dropsBlend) * k2;
     this.aeroBlend += (aeroOn - this.aeroBlend) * k2;
@@ -824,13 +829,90 @@ export class LowPolyRider implements RiderAvatarLike {
     this.headgear.visible = !on;
   }
 
+  /** Écran allumé du compteur, incliné vers le coureur sur la potence. */
+  private buildScreen(): THREE.Object3D {
+    const g = new THREE.Group();
+    if (typeof document === 'undefined') return g;
+    const c = document.createElement('canvas');
+    c.width = 128;
+    c.height = 176;
+    const ctx = c.getContext('2d') as CanvasRenderingContext2D;
+    const tex = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.anisotropy = 4;
+    this.screen = { ctx, tex, t: 0 };
+    this.drawScreen({ speedKmh: 0, watts: 0, cadence: 0 });
+    const mat = new THREE.MeshBasicNodeMaterial({ map: tex });
+    // face vers le haut, inclinée de 20° vers le coureur ; haut de l'écran vers l'avant du vélo
+    const plane = new THREE.Mesh(new THREE.PlaneGeometry(0.044, 0.062).rotateZ(Math.PI).rotateX(-1.92), mat);
+    plane.position.set(0, 0.9245, 0.6);
+    g.add(plane);
+    return g;
+  }
+
+  private drawScreen(d: { speedKmh: number; watts: number; cadence: number; hr?: number; timeS?: number }): void {
+    const sc = this.screen;
+    if (!sc) return;
+    const g = sc.ctx;
+    const W = 128;
+    g.fillStyle = '#0b0f14';
+    g.fillRect(0, 0, W, 176);
+    // bandeau de tête (couleur de la zone d'effort) et heure de sortie
+    g.fillStyle = '#ffd23f';
+    g.fillRect(0, 0, W, 22);
+    g.fillStyle = '#0b0f14';
+    g.font = 'bold 15px Arial, sans-serif';
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    const t = Math.max(0, Math.round(d.timeS ?? 0));
+    g.fillText(`${Math.floor(t / 3600)}:${String(Math.floor((t % 3600) / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`, W / 2, 12);
+    const cell = (y: number, label: string, value: string, color: string) => {
+      g.fillStyle = '#7d8a99';
+      g.font = 'bold 11px Arial, sans-serif';
+      g.fillText(label, W / 2, y);
+      g.fillStyle = color;
+      g.font = 'bold 30px Arial, sans-serif';
+      g.fillText(value, W / 2, y + 22);
+    };
+    cell(36, 'KM/H', d.speedKmh.toFixed(1).replace('.', ','), '#ffffff');
+    cell(84, 'WATTS', String(Math.round(d.watts)), '#7ee081');
+    g.fillStyle = '#26303b';
+    g.fillRect(6, 130, W - 12, 1);
+    g.font = 'bold 18px Arial, sans-serif';
+    g.fillStyle = '#ff7b88';
+    g.fillText(d.hr ? `♥${Math.round(d.hr)}` : '♥ --', W * 0.3, 152);
+    g.fillStyle = '#5fc8ff';
+    g.fillText(`${Math.round(d.cadence)}`, W * 0.75, 152);
+    sc.tex.needsUpdate = true;
+  }
+
+  /** Données du compteur (coureur du joueur) : redessiné au plus 4 fois par seconde. */
+  setComputer(d: { speedKmh: number; watts: number; cadence: number; hr?: number; timeS?: number }): void {
+    const sc = this.screen;
+    if (!sc) return;
+    const now = performance.now();
+    if (now - sc.t < 250) return;
+    sc.t = now;
+    this.drawScreen(d);
+  }
+
   /** Vélo seul (garage : vélos sur les râteliers et contre les murs). */
   setRiderVisible(on: boolean): void {
     this.body.visible = on;
   }
 
+  /**
+   * Vues embarquées (cockpit, caméra d'action) : sans la tête ni le buste et les bras, qui bouchaient l'image
+   * de grands aplats (corps en tubes : jambes comprises) ; restent le vélo et les gants sur le cintre.
+   */
   setHeadVisible(on: boolean): void {
     this.head.visible = on;
+    if (this.swept) this.swept.mesh.visible = on;
+    this.torso.mesh.visible = on && !this.swept;
+    for (const b of this.bands) b.seg.mesh.visible = on && !this.swept;
+    this.collar.mesh.visible = on && !this.swept;
+    this.neck.mesh.visible = on && !this.swept;
+    for (const a of this.arms) for (const sg of [a.sleeve, a.cuff, a.upper, a.fore]) sg.mesh.visible = on && !this.swept;
   }
 
   setShadows(on: boolean): void {

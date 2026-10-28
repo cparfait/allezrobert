@@ -797,8 +797,12 @@ export class Buildings {
       }
       centres.set([x, z, Math.abs(polygonArea(b.pts))], k * 3);
     });
+    const drivable = drivableRoads(tile);
     for (const bld of tile.features.buildings) {
       if (bld.pts.length < 6) continue;
+      // Bâtiment posé sur une route carrossable (emprise OSM/BD TOPO qui mord sur la chaussée) : pas dessiné,
+      // sinon le coureur le traverse.
+      if (coversRoad(bld.pts, drivable)) continue;
       // Sol affiché sous l'emprise : la hauteur des données part du point bas (`y`), mais en pente le
       // côté amont est plus haut et y enterrait les murs.
       let groundLo = Infinity;
@@ -1042,4 +1046,66 @@ export class Buildings {
     m.geometry.dispose();
     this.tiles.delete(tile.id);
   }
+}
+
+/** Voies carrossables d'une tuile (sans chemins, sentiers ni passages couverts) : axe 2D et demi-largeur. */
+const NON_DRIVABLE = new Set(['footway', 'path', 'steps', 'cycleway', 'bridleway', 'pedestrian', 'corridor', 'platform', 'track']);
+function drivableRoads(tile: LoadedTile): Array<{ pts: number[]; half: number; minX: number; maxX: number; minZ: number; maxZ: number }> {
+  const out: Array<{ pts: number[]; half: number; minX: number; maxX: number; minZ: number; maxZ: number }> = [];
+  for (const r of tile.features.roads) {
+    if (NON_DRIVABLE.has(r.kind) || r.tunnel || r.bridge) continue;
+    const p = r.pts;
+    let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+    for (let i = 0; i < p.length; i += 2) {
+      minX = Math.min(minX, p[i] as number);
+      maxX = Math.max(maxX, p[i] as number);
+      minZ = Math.min(minZ, p[i + 1] as number);
+      maxZ = Math.max(maxZ, p[i + 1] as number);
+    }
+    out.push({ pts: p, half: Math.max(r.width, 2.5) / 2, minX, maxX, minZ, maxZ });
+  }
+  return out;
+}
+
+/** L'emprise couvre la chaussée : un point de l'axe dedans, ou un coin du bâtiment à moins de la demi-largeur − 0,5 m. */
+function coversRoad(poly: number[], roads: ReturnType<typeof drivableRoads>): boolean {
+  let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+  for (let i = 0; i < poly.length; i += 2) {
+    minX = Math.min(minX, poly[i] as number);
+    maxX = Math.max(maxX, poly[i] as number);
+    minZ = Math.min(minZ, poly[i + 1] as number);
+    maxZ = Math.max(maxZ, poly[i + 1] as number);
+  }
+  const inside = (x: number, z: number) => {
+    let c = false;
+    for (let i = 0, j = poly.length - 2; i < poly.length; j = i, i += 2) {
+      const xi = poly[i] as number, zi = poly[i + 1] as number, xj = poly[j] as number, zj = poly[j + 1] as number;
+      if (zi > z !== zj > z && x < ((xj - xi) * (z - zi)) / (zj - zi) + xi) c = !c;
+    }
+    return c;
+  };
+  for (const r of roads) {
+    if (r.maxX < minX - r.half || r.minX > maxX + r.half || r.maxZ < minZ - r.half || r.minZ > maxZ + r.half) continue;
+    const p = r.pts;
+    const clear = Math.max(0.5, r.half - 0.5);
+    for (let k = 0; k + 3 < p.length; k += 2) {
+      const ax = p[k] as number, az = p[k + 1] as number, bx = p[k + 2] as number, bz = p[k + 3] as number;
+      const dx = bx - ax, dz = bz - az;
+      const len = Math.hypot(dx, dz);
+      // axe échantillonné tous les 1,5 m
+      for (let t = 0; t <= len; t += 1.5) {
+        const x = ax + (dx * t) / (len || 1), z = az + (dz * t) / (len || 1);
+        if (x < minX || x > maxX || z < minZ || z > maxZ) continue;
+        if (inside(x, z)) return true;
+      }
+      // coins du bâtiment trop près de l'axe
+      const l2 = dx * dx + dz * dz || 1;
+      for (let i = 0; i < poly.length; i += 2) {
+        const px = poly[i] as number, pz = poly[i + 1] as number;
+        const u = Math.max(0, Math.min(1, ((px - ax) * dx + (pz - az) * dz) / l2));
+        if (Math.hypot(ax + dx * u - px, az + dz * u - pz) < clear) return true;
+      }
+    }
+  }
+  return false;
 }

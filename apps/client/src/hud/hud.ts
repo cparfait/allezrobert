@@ -1277,7 +1277,12 @@ export class Hud {
         const flag = flagSvg(r.nationality, 11);
         const rideOn = r.online && !r.me ? `<button class="rideon" data-rideon="${r.id}" tabindex="-1" title="Ride On">👍</button>` : '';
         const friend = r.friend ? `<em class="rd-friend" title="${fr ? 'Ami' : 'Friend'}">★</em>` : '';
-        return `<div class="row ${r.me ? 'me' : ''}"><i class="rd-dot" style="background:${r.color}"></i><b class="rd-n">${friend}${flag ? `<span class="rd-flag">${flag}</span>` : ''}${r.name.replace(/[<>&]/g, '')}${r.speaking ? ' 🔊' : ''}${rideOn}</b><span class="num rd-w">${r.watts !== undefined ? Math.round(r.watts) : '—'}<u>W</u></span><span class="num rd-gap">${r.me ? '' : time}</span></div>`;
+        // Sous le nom : niveau (cyclistes croisés) ou type, kilomètres parcourus ; à droite W et W/kg, écart.
+        const sub = r.ambient ? r.ambient.level : r.me ? t('you') : r.isAI ? t('ai') : r.isGuest ? t('guest') : r.friend ? (fr ? 'Ami' : 'Friend') : '';
+        const kmTxt = r.km !== undefined ? `${r.km.toFixed(1).replace('.', fr ? ',' : '.')} km` : '';
+        const subLine = [sub, kmTxt].filter(Boolean).join(' · ');
+        const wkg = r.wkg !== undefined ? `${r.wkg.toFixed(1).replace('.', fr ? ',' : '.')} W/kg` : '';
+        return `<div class="row ${r.me ? 'me' : ''}"><i class="rd-dot" style="background:${r.color}"></i><span class="rd-name"><b class="rd-n">${friend}${flag ? `<span class="rd-flag">${flag}</span>` : ''}${r.name.replace(/[<>&]/g, '')}${r.speaking ? ' 🔊' : ''}${rideOn}</b>${subLine ? `<small class="rd-sub">${subLine}</small>` : ''}</span><span class="num rd-w">${r.watts !== undefined ? Math.round(r.watts) : '—'}<u>W</u>${wkg ? `<small>${wkg}</small>` : ''}</span><span class="num rd-gap">${r.me ? '' : time}</span></div>`;
       })
       .join('');
     return head + rows;

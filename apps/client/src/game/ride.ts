@@ -311,7 +311,7 @@ export class RideSession {
     this.lateral = THREE.MathUtils.clamp(this.lateral + steer * this.dir * dt * 1.8, -half, half);
 
     this.pose = this.poseCtl.update(
-      { watts: this.inputs.watts, cadence: this.inputs.cadence, gradePercent: grade, ftpWatts: this.opts.profile.ftpWatts, speedMs: this.state.speedMs, standWatts: this.opts.standWatts, sensorPose: this.inputs.riderPosition },
+      { watts: this.inputs.watts, cadence: this.inputs.cadence, gradePercent: grade, ftpWatts: this.opts.profile.ftpWatts, speedMs: this.state.speedMs, standWatts: this.opts.standWatts, sensorPose: this.inputs.riderPosition, sprint: this.segment?.seg.kind === 'sprint' },
       dt,
     );
 

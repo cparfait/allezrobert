@@ -215,7 +215,7 @@ function kmStone(): Template {
   const D = 0.3;
   const dome = new THREE.CylinderGeometry(W / 2, W / 2, D, 10, 1, false, Math.PI / 2, Math.PI).rotateX(Math.PI / 2).translate(0, 0.78, 0);
   return template([
-    part(box(W + 0.12, 0.12, D + 0.12, 0, -0.34, 0), '#e9e6de', 0),
+    part(box(W + 0.12, 0.62, D + 0.12, 0, -0.29, 0), '#e9e6de', 0),
     part(box(W + 0.06, 0.08, D + 0.06, 0, 0.02, 0), '#e9e6de', 0),
     part(box(W, 0.6, D, 0, 0.36, 0), '#f6f4ee', 0),
     part(box(W + 0.004, 0.14, D + 0.004, 0, 0.71, 0), '#ffffff', 1),
