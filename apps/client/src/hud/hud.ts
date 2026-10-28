@@ -292,8 +292,8 @@ export function turnArrowSvg(angleDeg: number, right: boolean): string {
  */
 function compactLayout(track: RouteTrack, attribution: string[]): string {
   const fr = getLang() === 'fr';
-  const cell = (hud: string, k: string, label: string, value: string, unit: string, cls = '') =>
-    `<div class="cx-cell ${cls}" data-hud="${hud}"><span class="cx-l">${label}</span><span class="cx-v num"><b data-k="${k}">${value}</b>${unit ? `<small>${unit}</small>` : ''}</span></div>`;
+  const cell = (hud: string, k: string, label: string, value: string, unit: string, cls = '', avg = '') =>
+    `<div class="cx-cell ${cls}" data-hud="${hud}"><span class="cx-l">${label}</span><span class="cx-v num"><b data-k="${k}">${value}</b>${unit ? `<small>${unit}</small>` : ''}</span>${avg ? `<span class="cx-avg num">${fr ? 'moy.' : 'avg'} <b data-k="${avg}">–</b></span>` : ''}</div>`;
   const mini = (hud: string, k: string, label: string, value: string, unit: string, cls = '') =>
     `<div class="cx-mini ${cls}" data-hud="${hud}"><span class="cx-l">${label}</span><span class="cx-v num"><b data-k="${k}">${value}</b>${unit ? `<small>${unit}</small>` : ''}</span></div>`;
   const zoneBars = ZONE_HEX.map((c) => `<i style="background:${c}"></i>`).join('');
@@ -301,9 +301,9 @@ function compactLayout(track: RouteTrack, attribution: string[]): string {
   return `
       <div class="hud-center">
         <div class="panel cx-strip">
-          ${cell('speed', 'speed', t('speed'), '0,0', 'km/h', 'cx-speed')}
+          ${cell('speed', 'speed', t('speed'), '0,0', 'km/h', 'cx-speed', 'avgSpeed')}
           ${cell('dist', 'dist', t('distance'), '0,00', 'km')}
-          ${cell('hr', 'hr', fr ? 'Cardio' : 'HR', '--', 'bpm', 'hr')}
+          ${cell('hr', 'hr', fr ? 'Cardio' : 'HR', '--', 'bpm', 'hr', 'avgHr')}
           ${cell('time', 'time', t('time'), '0:00', '')}
         </div>
         <div class="panel junction hidden" data-k="junction"></div>
@@ -370,6 +370,10 @@ export class Hud {
   private readonly el: Record<string, HTMLElement> = {};
   private readonly profileCanvas: HTMLCanvasElement;
   private readonly mapCanvas: HTMLCanvasElement;
+  /** Cardio moyen du bandeau compact : somme pondérée par le temps, temps compté, dernier temps vu. */
+  private hrSum = 0;
+  private hrTime = 0;
+  private avgPrevT = 0;
   private places: readonly { name: string; kind: string; x: number; z: number }[] = [];
   /** Origine Lambert-93 du monde : active le fond de carte (Plan IGN) de la mini-carte. */
   private basemapOrigin: { x: number; y: number } | null = null;
@@ -757,6 +761,18 @@ export class Hud {
     (e.grade as HTMLElement).textContent = `${g >= 0 ? '' : '−'}${nf1(Math.abs(g))} %`;
     (e.grade as HTMLElement).style.color = g > 6 ? '#ef4444' : g > 3 ? '#f97316' : g > 1 ? '#eab308' : g < -1 ? '#60a5fa' : '#f5f7fa';
     (e.time as HTMLElement).textContent = fmtTime(s.elapsedS);
+    // Moyennes du bandeau compact : vitesse (distance / temps) et cardio (moyenné dans le temps, capteur présent).
+    if (cx) {
+      const dtS = Math.max(0, s.elapsedS - this.avgPrevT);
+      this.avgPrevT = s.elapsedS;
+      if (s.hr && dtS < 5) {
+        this.hrSum += s.hr * dtS;
+        this.hrTime += dtS;
+      }
+      const avgSpeed = s.elapsedS > 5 ? (s.distM / s.elapsedS) * 3.6 : s.speedKmh;
+      setText(e.avgSpeed as HTMLElement, nf1(avgSpeed));
+      setText(e.avgHr as HTMLElement, this.hrTime > 3 ? String(Math.round(this.hrSum / this.hrTime)) : '–');
+    }
     // Bandeau compact : unités à part, en petit.
     const km = (s.distM / 1000).toFixed(2).replace('.', ',');
     (e.dist as HTMLElement).textContent = cx ? km : `${km} km`;
