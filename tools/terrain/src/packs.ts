@@ -22,12 +22,18 @@ export const WORLDS_ROOT = path.join(REPO_ROOT, 'apps', 'client', 'public', 'wor
 export function writePackManifest(worldDir: string, id: string): WorldPackManifest | null {
   const tilesDir = path.join(worldDir, 'tiles');
   if (!fs.existsSync(tilesDir)) return null;
+  // h : empreinte du contenu (SHA-256, 32 caractères) : l'application Windows vérifie chaque fichier reçu et, à
+  // une mise à jour, ne retélécharge que ceux qui ont changé (apps/desktop/src-tauri/src/packs.rs).
   const files = fs
     .readdirSync(tilesDir)
     .filter((f) => f !== 'pack.json')
     .sort()
-    .map((f) => ({ p: `tiles/${f}`, b: fs.statSync(path.join(tilesDir, f)).size }));
+    .map((f) => {
+      const bytes = fs.readFileSync(path.join(tilesDir, f));
+      return { p: `tiles/${f}`, b: bytes.length, h: createHash('sha256').update(bytes).digest('hex').slice(0, 32) };
+    });
   if (!files.length) return null;
+  // version : noms et tailles seulement (formule d'origine : ajouter h ferait « mettre à jour » toutes les zones installées)
   const h = createHash('sha1');
   for (const f of files) h.update(`${f.p}:${f.b}\n`);
   // taille téléchargée : fichiers compressés comme les sert Caddy (gzip/zstd) et les garde le jeu

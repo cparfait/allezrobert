@@ -21,7 +21,7 @@
         "minHeight": 600,
         "resizable": true,
         "center": true,
-        "additionalBrowserArgs": "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --autoplay-policy=no-user-gesture-required"
+        "additionalBrowserArgs": "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --autoplay-policy=no-user-gesture-required --force_high_performance_gpu --disable-background-timer-throttling --disable-renderer-backgrounding --disable-backgrounding-occluded-windows --gpu-disk-cache-size-kb=262144"
       }
     ],
     "security": {
@@ -30,7 +30,10 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["msi", "nsis"],
+    "targets": [
+      "msi",
+      "nsis"
+    ],
     "category": "SportsGame",
     "shortDescription": "Vélo d'intérieur multijoueur entre amis",
     "icon": [
@@ -41,9 +44,30 @@
       "icons/icon.ico"
     ],
     "windows": {
-      "webviewInstallMode": { "type": "downloadBootstrapper" },
-      "wix": { "language": "fr-FR" },
-      "nsis": { "languages": ["French"], "installMode": "currentUser" }
+      "webviewInstallMode": {
+        "type": "downloadBootstrapper"
+      },
+      "wix": {
+        "language": "fr-FR"
+      },
+      "nsis": {
+        "languages": [
+          "French"
+        ],
+        "installMode": "currentUser"
+      }
+    },
+    "createUpdaterArtifacts": true
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDFCNUExOERGOUI4ODg4N0MKUldSOGlJaWIzeGhhRzBNMHE5VFJuR254OWM4VlpnQThmTytHbHdtaTd2aEsvNGFEd2plR0s3a1EK",
+      "endpoints": [
+        "https://allezrobert.cparfait.ovh/telechargement/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
     }
   }
 }

@@ -687,6 +687,7 @@
 .zs-bar i { display: block; height: 100%; background: var(--ar-accent); }
 .zs-act { display: flex; gap: 6px; justify-content: flex-end; }
 .zs-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 10px; font-size: 12.5px; color: #aeb7c3; }
+.zs-foot > span { flex: 1; }
 @media (max-width: 700px) { .zs-row { grid-template-columns: 1fr auto; } .zs-mid { grid-column: 1 / -1; grid-row: 2; } .zs-act { grid-row: 1; grid-column: 2; } }
 
 /* ───────────── Sans contours : les champs et les cartes se distinguent par leur fond, pas par un filet ───────────── */

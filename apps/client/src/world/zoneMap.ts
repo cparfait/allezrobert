@@ -29,7 +29,7 @@ export const ZONE_SPOTS: ZoneSpot[] = [
   { id: 'livradois', x: 733000, y: 6519500, open: true, region: PDD, name: { fr: 'Livradois — Châteaux', en: 'Livradois — Castles' } },
   { id: 'puys', x: 694000, y: 6525000, open: true, region: PDD, name: { fr: 'Chaîne des Puys', en: 'Chaîne des Puys' } },
   { id: 'issoire', x: 731000, y: 6491000, open: true, region: PDD, name: { fr: "Val d'Allier — Issoire", en: "Val d'Allier — Issoire" } },
-  { id: 'sancy', x: 686000, y: 6491000, open: true, region: PDD, name: { fr: 'Massif du Sancy', en: 'Sancy massif' } },
+  { id: 'sancy', x: 686000, y: 6491500, open: true, region: PDD, name: { fr: 'Massif du Sancy', en: 'Sancy massif' } },
   { id: 'etretat', x: 501000, y: 6959000, open: true, region: { fr: 'Seine-Maritime', en: 'Seine-Maritime' }, name: { fr: "Étretat", en: 'Étretat' } },
   { id: 'opale', x: 606000, y: 7089000, open: true, region: { fr: 'Pas-de-Calais', en: 'Pas-de-Calais' }, name: { fr: "Côte d'Opale", en: 'Opal Coast' } },
   { id: 're', x: 353000, y: 6579000, open: true, region: { fr: 'Charente-Maritime', en: 'Charente-Maritime' }, name: { fr: 'Île de Ré', en: 'Île de Ré' } },

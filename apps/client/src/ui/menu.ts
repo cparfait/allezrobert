@@ -4,6 +4,7 @@ import { COUNTRIES, BIKE_BRANDS, BIKE_GROUPS, BIKE_TEAMS, COSMETICS, DEFAULT_BIK
 import { shoeAccentOf } from '../rider/shoeLook.ts';
 import { WORKOUT_LIBRARY } from '@allezrobert/physics';
 import { formatBytes, inTauri, installPack, installedPacks, loadCatalogue, packState, removePack } from '../world/packs.ts';
+import { fillStoragePanel, storagePanelHtml } from './desktopUi.ts';
 import { compositeId, neighbourZones } from '../world/composite.ts';
 import { t, setLang, getLang, type I18nKey } from '../i18n/index.ts';
 import type { Settings } from './settings.ts';
@@ -510,6 +511,9 @@ export class MainMenu {
   private zones: WorldCatalogue['zones'] = [];
   /** Téléchargements en cours : octets reçus / total, ou message d'erreur. */
   private readonly downloads = new Map<string, { done: number; total: number; error?: string }>();
+  /** « Tout télécharger » : zones en attente, téléchargées une à une dans l'ordre. */
+  private readonly queued = new Set<string>();
+  private queueRunning = false;
   private lastProgressRender = 0;
   /** Onglet Amis : présence, demandes, invitations (interrogation tant que le menu est affiché). */
   private readonly friends: FriendsPanel;
@@ -1414,6 +1418,23 @@ export class MainMenu {
     else this.renderZonesSettings();
   }
 
+  /** Ajoute des zones à la file « Tout télécharger » et la vide une zone à la fois (un échec n'arrête pas la suite). */
+  private async downloadAll(ids: string[]): Promise<void> {
+    for (const id of ids) this.queued.add(id);
+    this.renderZonesSettings();
+    if (this.queueRunning) return;
+    this.queueRunning = true;
+    try {
+      for (let id = this.queued.values().next().value; id !== undefined; id = this.queued.values().next().value) {
+        this.queued.delete(id);
+        await this.downloadZone(id);
+      }
+    } finally {
+      this.queueRunning = false;
+      this.renderZonesSettings();
+    }
+  }
+
   /**
    * Réglages › « Zones et cartes » : seul endroit où l'on gère les téléchargements (état, taille, télécharger,
    * mettre à jour, supprimer, espace utilisé). La fenêtre de choix d'une zone ne fait que télécharger.
@@ -1440,6 +1461,8 @@ export class MainMenu {
         if (dl && !dl.error) {
           const pct = Math.floor((dl.done / Math.max(dl.total, 1)) * 100);
           state = `<span class="zs-state busy">${L ? 'Téléchargement' : 'Downloading'} ${pct} %</span><i class="zs-bar"><i style="width:${pct}%"></i></i>`;
+        } else if (this.queued.has(z.id)) {
+          state = `<span class="zs-state busy">${L ? 'En attente' : 'Queued'}</span>`;
         } else if (dl?.error) {
           state = `<span class="zs-state err" title="${esc(dl.error)}">${L ? 'Échec du téléchargement' : 'Download failed'}</span>`;
           actions = `<button class="btn small primary" data-zpack="${esc(z.id)}">${L ? 'Réessayer' : 'Retry'}</button>`;
@@ -1457,11 +1480,36 @@ export class MainMenu {
       })
       .sort((a, b) => Number(b.have) - Number(a.have));
     const mine = installedPacks();
-    const total = mine.reduce((sum, p) => sum + (zones.find((z) => z.id === p.id)?.pack?.gzBytes ?? p.bytes), 0);
+    // Application Windows : place réelle sur le disque (fichiers décompressés) ; navigateur : fichiers gardés compressés.
+    const total = mine.reduce((sum, p) => sum + (inTauri ? p.bytes : (zones.find((z) => z.id === p.id)?.pack?.gzBytes ?? p.bytes)), 0);
     const used = mine.length ? `${L ? 'Espace utilisé' : 'Space used'} : <b>${formatBytes(total, L)}</b> · ${mine.length} ${L ? (mine.length > 1 ? 'zones' : 'zone') : mine.length > 1 ? 'areas' : 'area'}` : L ? 'Aucune zone téléchargée' : 'No area downloaded';
-    box.innerHTML = `<p class="mm-hint">${L ? 'Une zone téléchargée se charge tout de suite et fonctionne sans connexion ; sinon elle se charge pendant la sortie. Les cartes sont stockées sur cet appareil.' : 'A downloaded area loads instantly and works offline; otherwise it streams in during the ride. Maps are stored on this device.'}</p>
+    // Zones à télécharger ou à mettre à jour, hors celles en cours ou déjà en file.
+    const missing = zones.filter((z) => {
+      const st = packState(z.id, z.pack?.version);
+      const dl = this.downloads.get(z.id);
+      return !(st.kind === 'installed' && st.upToDate) && st.kind !== 'unavailable' && (!dl || dl.error) && !this.queued.has(z.id);
+    });
+    const missingBytes = missing.reduce((s, z) => s + (z.pack?.gzBytes ?? z.pack?.bytes ?? 0), 0);
+    const allBtn = this.queued.size
+      ? `<button class="btn small" data-zqueue-stop>${L ? `Arrêter (${this.queued.size} en attente)` : `Stop (${this.queued.size} queued)`}</button>`
+      : '';
+    const getAll = missing.length ? `<button class="btn small primary" data-zpack-all>${L ? 'Tout télécharger' : 'Download all'} · ${formatBytes(missingBytes, L)}</button>` : '';
+    const where = inTauri ? (L ? 'Les cartes sont dans le dossier des données ci-dessous.' : 'Maps are kept in the data folder below.') : L ? 'Les cartes sont stockées sur cet appareil.' : 'Maps are stored on this device.';
+    box.innerHTML = `<p class="mm-hint">${L ? 'Une zone téléchargée se charge tout de suite et fonctionne sans connexion ; sinon elle se charge pendant la sortie.' : 'A downloaded area loads instantly and works offline; otherwise it streams in during the ride.'} ${where}</p>
+      ${storagePanelHtml()}
       <div class="zs-list">${rows.map((r) => r.html).join('')}</div>
-      <div class="zs-foot"><span>${used}</span>${mine.length ? `<button class="btn small" data-zunpack-all>${L ? 'Tout supprimer' : 'Remove all'}</button>` : ''}</div>`;
+      <div class="zs-foot"><span>${used}</span>${getAll}${allBtn}${mine.length ? `<button class="btn small" data-zunpack-all>${L ? 'Tout supprimer' : 'Remove all'}</button>` : ''}</div>`;
+    void fillStoragePanel(box, () => this.renderZonesSettings());
+    box.querySelector('[data-zpack-all]')?.addEventListener('click', () => {
+      const n = missing.length;
+      const what = L ? `${n} zone${n > 1 ? 's' : ''} (${formatBytes(missingBytes, L)})` : `${n} area${n > 1 ? 's' : ''} (${formatBytes(missingBytes, L)})`;
+      if (!confirm(L ? `Télécharger ${what} ? Elles arrivent une par une ; tu peux continuer à utiliser le jeu.` : `Download ${what}? They arrive one at a time; you can keep using the game.`)) return;
+      void this.downloadAll(missing.map((z) => z.id));
+    });
+    box.querySelector('[data-zqueue-stop]')?.addEventListener('click', () => {
+      this.queued.clear();
+      this.renderZonesSettings();
+    });
     box.querySelectorAll<HTMLElement>('[data-zpack]').forEach((el) => el.addEventListener('click', () => void this.downloadZone(el.dataset.zpack as string)));
     box.querySelectorAll<HTMLElement>('[data-zunpack]').forEach((el) =>
       el.addEventListener('click', () => {

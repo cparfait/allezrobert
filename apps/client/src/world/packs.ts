@@ -1,22 +1,25 @@
 import type { WorldCatalogue, WorldPackManifest } from '@allezrobert/shared';
+import { DOWNLOADS_HOST, inDesktop, invoke, listen } from '../platform/desktop.ts';
 
 /**
  * Packs de cartes : chaque zone (monde) se télécharge d'un bloc depuis le menu et reste sur
- * l'appareil (Cache Storage du navigateur ou de WebView2), au lieu d'être embarquée dans
- * l'application. Le jeu lit d'abord le pack installé, puis le serveur.
+ * l'appareil, au lieu d'être embarquée dans l'application. Le jeu lit d'abord le pack installé, puis le serveur.
  *
+ * - Navigateur : Cache Storage, fichiers gardés compressés, téléchargés par la page (6 à la fois).
+ * - Application Windows : dossier de données sur le disque (`<données>/worlds/<id>/`), téléchargé par le
+ *   Rust (apps/desktop/src-tauri/src/packs.rs : 16 fichiers à la fois, empreintes vérifiées, reprise,
+ *   mise à jour par différence) et lu par le protocole `worlds://` (`http://worlds.localhost`).
  * - Catalogue `worlds/index.json` et `world.json` / itinéraires : livrés avec le jeu.
  * - Tuiles et `tiles/pack.json` : sur le serveur des mondes (même origine en web ; l'application
- *   Windows les prend sur le VPS, voir WORLDS_HOST).
+ *   Windows les prend sur le VPS, voir DOWNLOADS_HOST).
  */
 
-/** Serveur des tuiles pour l'application Windows (la version web les sert elle-même). */
-const WORLDS_HOST = 'https://allezrobert.cparfait.ovh';
-
 const env = (import.meta as unknown as { env?: Record<string, string | undefined> }).env ?? {};
-export const inTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+export const inTauri = inDesktop;
 /** Préfixe des tuiles : `VITE_WORLDS_URL`, sinon le VPS dans l'application Windows, sinon la même origine. */
-export const TILES_BASE = env.VITE_WORLDS_URL ?? (inTauri ? WORLDS_HOST : '');
+export const TILES_BASE = env.VITE_WORLDS_URL ?? (inTauri ? DOWNLOADS_HOST : '');
+/** Application Windows : lecture des zones du disque. */
+const DISK = 'http://worlds.localhost';
 
 const KEY = 'ar.packs';
 const cacheName = (id: string) => `ar-pack-${id}`;
@@ -41,7 +44,28 @@ interface Installed {
   catalogue?: string;
 }
 
+/** Application Windows : zones présentes sur le disque (lues par `initPacks`, tenues à jour ensuite). */
+let disk: Map<string, Installed> | null = null;
+
+/**
+ * Application Windows : liste des zones du dossier de données, à lire avant le menu. Les zones des versions
+ * précédentes (Cache Storage de WebView2) ne sont plus lues : leur place est rendue. Sans effet dans un navigateur.
+ */
+export async function initPacks(): Promise<void> {
+  if (!inDesktop) return;
+  try {
+    const list = await invoke<Array<{ id: string; version: string; bytes: number; catalogue?: string }>>('packs_list');
+    disk = new Map(list.map((p) => [p.id, { version: p.version, bytes: p.bytes, ...(p.catalogue ? { catalogue: p.catalogue } : {}) }]));
+  } catch (err) {
+    console.warn('Zones du disque illisibles', err);
+    disk = new Map();
+  }
+  if (localStorage.getItem(KEY) !== null) localStorage.removeItem(KEY);
+  if (hasCaches()) for (const name of await caches.keys().catch(() => [] as string[])) if (name.startsWith('ar-pack-')) await caches.delete(name);
+}
+
 function installed(): Record<string, Installed> {
+  if (inDesktop) return Object.fromEntries(disk ?? []);
   try {
     return JSON.parse(localStorage.getItem(KEY) ?? '{}') as Record<string, Installed>;
   } catch {
@@ -68,7 +92,7 @@ export function loadCatalogue(): Promise<WorldCatalogue | null> {
 
 /** État du pack d'une zone, comparé à la version du catalogue. */
 export function packState(id: string, catalogueVersion: string | undefined): PackState {
-  if (!hasCaches()) return { kind: 'unavailable' };
+  if (!inDesktop && !hasCaches()) return { kind: 'unavailable' };
   const i = installed()[id];
   if (!i) return { kind: 'absent' };
   return { kind: 'installed', version: i.version, upToDate: !catalogueVersion || catalogueVersion === i.version || catalogueVersion === i.catalogue };
@@ -79,6 +103,7 @@ export function packState(id: string, catalogueVersion: string | undefined): Pac
  * en octets. Une version précédente est remplacée une fois le téléchargement complet.
  */
 export async function installPack(id: string, onProgress: (done: number, total: number) => void, signal?: AbortSignal): Promise<void> {
+  if (inDesktop) return installOnDisk(id, onProgress, signal);
   if (!hasCaches()) throw new Error('stockage hors ligne indisponible (page non sécurisée)');
   const res = await fetch(`${TILES_BASE}/worlds/${id}/tiles/pack.json`, { cache: 'no-store', ...(signal ? { signal } : {}) });
   if (!res.ok || !(res.headers.get('content-type') ?? '').includes('json')) throw new Error(`pack introuvable sur le serveur (HTTP ${res.status})`);
@@ -135,12 +160,31 @@ export async function installPack(id: string, onProgress: (done: number, total: 
   keepStorage();
 }
 
+/** Application Windows : téléchargement par le Rust dans le dossier de données (progression : `pack://progress`). */
+async function installOnDisk(id: string, onProgress: (done: number, total: number) => void, signal?: AbortSignal): Promise<void> {
+  const announced = (await loadCatalogue())?.zones.find((z) => z.id === id)?.pack?.version ?? null;
+  const off = await listen<{ id: string; done: number; total: number }>('pack://progress', (p) => {
+    if (p.id === id) onProgress(p.done, p.total);
+  });
+  const cancel = () => void invoke('pack_cancel', { id });
+  signal?.addEventListener('abort', cancel);
+  try {
+    onProgress(0, 1);
+    const p = await invoke<{ id: string; version: string; bytes: number; catalogue?: string }>('pack_install', { id, baseUrl: TILES_BASE, catalogue: announced });
+    (disk ??= new Map()).set(id, { version: p.version, bytes: p.bytes, ...(p.catalogue ? { catalogue: p.catalogue } : {}) });
+  } finally {
+    off();
+    signal?.removeEventListener('abort', cancel);
+  }
+}
+
 /**
  * Demande que le stockage de l'application ne soit pas purgé : les zones téléchargées (jusqu'à 2 Go) vivent dans le
  * Cache Storage, que le navigateur peut vider sans prévenir quand le disque se remplit (stockage « au mieux »).
  * Sans effet si c'est refusé : la zone se retélécharge alors à l'ouverture.
  */
 export function keepStorage(): void {
+  if (inDesktop) return;
   const storage = typeof navigator !== 'undefined' ? navigator.storage : undefined;
   if (storage?.persist) void storage.persisted().then((p) => (p ? true : storage.persist())).catch(() => undefined);
 }
@@ -169,6 +213,11 @@ export function installedPacks(): Array<{ id: string; bytes: number }> {
 
 /** Supprime le pack d'une zone de l'appareil. */
 export async function removePack(id: string): Promise<void> {
+  if (inDesktop) {
+    await invoke('pack_remove', { id });
+    disk?.delete(id);
+    return;
+  }
   if (hasCaches()) await caches.delete(cacheName(id));
   setInstalled(id, null);
 }
@@ -186,6 +235,11 @@ export async function worldFetch(path: string): Promise<Response> {
 /** Fichier du pack installé de la zone (décompressé), ou null. */
 async function packFile(path: string): Promise<Response | null> {
   const m = /^\/worlds\/([^/]+)\//.exec(path);
+  if (inDesktop) {
+    if (!m || !disk?.has(m[1] as string)) return null;
+    const r = await fetch(`${DISK}${path}`).catch(() => null);
+    return r?.ok ? r : null;
+  }
   if (!m || !hasCaches() || !installed()[m[1] as string]) return null;
   const hit = await (await caches.open(cacheName(m[1] as string))).match(path);
   if (hit?.headers.get(GZ_HEADER) && hit.body) {

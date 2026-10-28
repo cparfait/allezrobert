@@ -1,5 +1,7 @@
 node_modules/
 dist/
+# Ressources de l'application Windows sorties de l'exe au build (apps/client/scripts/installerDiet.ts)
+dist-media/
 build/
 .vite/
 coverage/

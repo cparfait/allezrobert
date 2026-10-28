@@ -1,7 +1,7 @@
-import { deltaDecodeU16, type RoadGraphData, type RouteData, type WorldMeta, type WorldPlace, type WorldTile } from '@allezrobert/shared';
-import type { HorizonGrid, LoadedTile, TileFeatures, WorldSource } from './types.ts';
+import type { RoadGraphData, RouteData, WorldMeta, WorldPlace } from '@allezrobert/shared';
+import type { HorizonGrid, LoadedTile, WorldSource } from './types.ts';
 import { graphFetch, worldFetch } from './packs.ts';
-import { frameStats } from '../engine/frameStats.ts';
+import { decodeTileBytes } from './tileDecoder.ts';
 
 /**
  * Monde généré par tools/terrain (IGN + OpenStreetMap), servi depuis public/worlds/<id>/ :
@@ -68,6 +68,18 @@ export async function createFileWorld(id: string, meta: WorldMeta): Promise<Worl
     },
     async loadTile(tx, tz) {
       const key = `${tx}_${tz}`;
+      const idx = index.get(key);
+      // Grille d'altitudes demandée en même temps que le JSON (la plus fine annoncée par l'index) ;
+      // si la tuile en annonce une autre, le décodeur la redemande.
+      const gridFile = idx ? `${key}.${idx.lods.includes('hi') ? 'hi' : 'lo'}.u16` : null;
+      const loadGrid = async (file: string) => {
+        const r = await worldFetch(`${base}/tiles/${file}`);
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.arrayBuffer();
+      };
+      const binReady = gridFile ? loadGrid(gridFile).catch(() => null) : Promise.resolve(null);
+      const hasOrtho = idx ? idx.lods.includes('ortho') : true;
+      const orthoReady = hasOrtho ? orthoSource(`${base}/tiles/${key}.ortho.jpg`) : Promise.resolve(null);
       const res = await worldFetch(`${base}/tiles/${key}.json`);
       // 404 : tuile hors du monde, on n'y revient plus ; autre erreur (génération en cours) : on réessaiera.
       if (res.status === 404 || (res.ok && !(res.headers.get('content-type') ?? '').includes('json'))) {
@@ -75,29 +87,21 @@ export async function createFileWorld(id: string, meta: WorldMeta): Promise<Worl
         return null;
       }
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const tile = (await res.json()) as WorldTile;
-      const grid = tile.heights.hi ?? tile.heights.lo;
-      const bin = await worldFetch(`${base}/tiles/${grid.file}`);
-      if (!bin.ok) throw new Error(`HTTP ${bin.status}`);
-      const raw = new Uint16Array(await bin.arrayBuffer());
-      const t0 = frameStats.enabled ? performance.now() : 0;
-      if (tile.heights.delta) deltaDecodeU16(raw, grid.n);
-      const heights = new Float32Array(raw.length);
-      for (let i = 0; i < raw.length; i++) heights[i] = tile.heights.baseM + (raw[i] as number) * tile.heights.stepM;
-      if (frameStats.enabled) frameStats.add('décodage tuile', performance.now() - t0);
-      const idx = index.get(key);
-      const hasOrtho = idx ? idx.lods.includes('ortho') : true;
-      const orthoBlob = hasOrtho ? await orthoSource(`${base}/tiles/${key}.ortho.jpg`) : null;
+      const json = await res.arrayBuffer();
+      const bin = await binReady;
+      // Lecture du JSON, altitudes et entités : dans un Web Worker (tileDecoder.ts).
+      const tile = await decodeTileBytes(json, bin, bin ? gridFile : null, loadGrid);
+      const orthoBlob = await orthoReady;
       return {
         id: key,
         tx,
         tz,
-        x0: tile.bounds.minX,
-        z0: tile.bounds.minZ,
+        x0: tile.x0,
+        z0: tile.z0,
         size: T,
-        n: grid.n,
-        heights,
-        features: decodeFeatures(tile),
+        n: tile.n,
+        heights: tile.heights,
+        features: tile.features,
         ...(orthoBlob ? { orthoBlob } : {}),
       } satisfies LoadedTile;
     },
@@ -115,53 +119,4 @@ async function orthoSource(path: string): Promise<Blob | null> {
   } catch {
     return null;
   }
-}
-
-function decodeFeatures(t: WorldTile): TileFeatures {
-  const t0 = frameStats.enabled ? performance.now() : 0;
-  const f = toFeatures(t);
-  if (frameStats.enabled) frameStats.add('décodage tuile', performance.now() - t0);
-  return f;
-}
-
-function toFeatures(t: WorldTile): TileFeatures {
-  return {
-    roads: t.roads.map((r) => {
-      const flat: number[] = [];
-      for (let i = 0; i < r.pts.length; i += 3) flat.push(r.pts[i] as number, r.pts[i + 2] as number);
-      return {
-        ...(r.id ? { id: r.id } : {}),
-        kind: r.kind,
-        width: r.width,
-        pts: flat,
-        pts3: r.pts,
-        surface: r.surface,
-        ...(r.route ? { route: r.route } : {}),
-        ...(r.bridge ? { bridge: true } : {}),
-        ...(r.tunnel ? { tunnel: true } : {}),
-      };
-    }),
-    buildings: t.buildings.map((bd) => ({
-      pts: bd.pts,
-      height: bd.height,
-      kind: bd.kind,
-      roof: bd.roof.shape,
-      roofHeight: bd.roof.height,
-      levels: bd.levels,
-      y: bd.y,
-      ...(bd.colour ? { colour: bd.colour } : {}),
-      ...(bd.material ? { material: bd.material } : {}),
-      ...(bd.roof.material ? { roofMaterial: bd.roof.material } : {}),
-      ...(bd.roof.ridge === 'short' ? { ridgeShort: true } : {}),
-      ...(bd.source === 'bdtopo' ? { bdtopo: true } : {}),
-    })),
-    forests: t.forests.map((f) => ({ rings: f.rings, kind: f.kind })),
-    water: t.water.map((w) => ({ rings: w.rings, kind: w.kind, level: w.level })),
-    fields: t.fields.map((f) => ({ rings: f.rings, kind: f.kind })),
-    landuse: t.landuse.map((l) => ({ rings: l.rings, kind: l.kind })),
-    waterways: t.waterways.map((w) => ({ width: w.width, pts: w.pts, kind: w.kind, ...(w.tunnel ? { tunnel: true } : {}) })),
-    railways: (t.railways ?? []).map((r) => ({ id: r.id, kind: r.kind, pts: r.pts, ...(r.name ? { name: r.name } : {}), ...(r.tunnel ? { tunnel: true } : {}), ...(r.bridge ? { bridge: true } : {}) })),
-    pois: t.pois.map((p) => ({ kind: p.kind, name: p.name, x: p.x, y: p.y, z: p.z })),
-    ...(t.enriched?.vegetation ? { trees: t.trees ?? [], shrubs: t.shrubs ?? [], realVegetation: true } : {}),
-  };
 }

@@ -1,0 +1,240 @@
+{
+  "kind": "open",
+  "id": "sancy",
+  "name": "Massif du Sancy",
+  "region": "Puy-de-Dôme · Monts Dore",
+  "originL93": {
+    "x": 686000,
+    "y": 6492000
+  },
+  "corridorTiles": {
+    "txMin": -11,
+    "txMax": 10,
+    "tzMin": -7,
+    "tzMax": 7
+  },
+  "start": {
+    "lon": 2.79246,
+    "lat": 45.57967
+  },
+  "orthoPx": 1024,
+  "enrich": {
+    "radiusM": 50,
+    "lidarVegetation": true,
+    "bdtopoBuildings": true
+  },
+  "horizon": {
+    "halfSizeM": 45000,
+    "resM": 100
+  },
+  "tours": [
+    {
+      "routeId": "tour-du-sancy",
+      "routeName": "Le tour du Sancy par La Tour-d'Auvergne et Besse",
+      "routeNameEn": "Sancy loop via La Tour-d'Auvergne and Besse",
+      "start": {
+        "lon": 2.79246,
+        "lat": 45.57967
+      },
+      "via": [
+        {
+          "lon": 2.75025,
+          "lat": 45.55761
+        },
+        {
+          "lon": 2.69341,
+          "lat": 45.53459
+        },
+        {
+          "lon": 2.72165,
+          "lat": 45.4905
+        },
+        {
+          "lon": 2.77884,
+          "lat": 45.46129
+        },
+        {
+          "lon": 2.85583,
+          "lat": 45.47633
+        },
+        {
+          "lon": 2.90037,
+          "lat": 45.48681
+        },
+        {
+          "lon": 2.92847,
+          "lat": 45.51512
+        },
+        {
+          "lon": 2.90017,
+          "lat": 45.54658
+        },
+        {
+          "lon": 2.87332,
+          "lat": 45.55967
+        },
+        {
+          "lon": 2.82011,
+          "lat": 45.57062
+        }
+      ]
+    },
+    {
+      "routeId": "vallee-de-chaudefour",
+      "routeName": "La vallée de Chaudefour par Murol",
+      "routeNameEn": "Chaudefour valley via Murol",
+      "start": {
+        "lon": 2.92806,
+        "lat": 45.57444
+      },
+      "via": [
+        {
+          "lon": 2.8701,
+          "lat": 45.55575
+        },
+        {
+          "lon": 2.91587,
+          "lat": 45.5404
+        }
+      ]
+    },
+    {
+      "routeId": "autour-du-mont-dore",
+      "routeName": "Autour du Mont-Dore",
+      "routeNameEn": "Around Le Mont-Dore",
+      "start": {
+        "lon": 2.80926,
+        "lat": 45.57279
+      },
+      "via": [
+        {
+          "lon": 2.81218,
+          "lat": 45.58
+        },
+        {
+          "lon": 2.82176,
+          "lat": 45.56912
+        },
+        {
+          "lon": 2.84473,
+          "lat": 45.55856
+        },
+        {
+          "lon": 2.86376,
+          "lat": 45.56077
+        },
+        {
+          "lon": 2.86685,
+          "lat": 45.55155
+        },
+        {
+          "lon": 2.86591,
+          "lat": 45.54256
+        },
+        {
+          "lon": 2.89299,
+          "lat": 45.54771
+        },
+        {
+          "lon": 2.91688,
+          "lat": 45.53945
+        },
+        {
+          "lon": 2.93064,
+          "lat": 45.52836
+        },
+        {
+          "lon": 2.92996,
+          "lat": 45.51378
+        },
+        {
+          "lon": 2.94225,
+          "lat": 45.52129
+        },
+        {
+          "lon": 2.94494,
+          "lat": 45.54054
+        },
+        {
+          "lon": 2.94275,
+          "lat": 45.55262
+        },
+        {
+          "lon": 2.94597,
+          "lat": 45.56989
+        },
+        {
+          "lon": 2.92138,
+          "lat": 45.57326
+        },
+        {
+          "lon": 2.89874,
+          "lat": 45.57185
+        },
+        {
+          "lon": 2.88372,
+          "lat": 45.57721
+        },
+        {
+          "lon": 2.88924,
+          "lat": 45.5866
+        },
+        {
+          "lon": 2.86559,
+          "lat": 45.59043
+        }
+      ]
+    },
+    {
+      "routeId": "autour-de-chambon-sur-lac",
+      "routeName": "Autour de Chambon-sur-Lac",
+      "routeNameEn": "Around Chambon-sur-Lac",
+      "start": {
+        "lon": 2.82694,
+        "lat": 45.59035
+      },
+      "via": [
+        {
+          "lon": 2.80513,
+          "lat": 45.58688
+        },
+        {
+          "lon": 2.81322,
+          "lat": 45.56788
+        },
+        {
+          "lon": 2.81745,
+          "lat": 45.57563
+        },
+        {
+          "lon": 2.82731,
+          "lat": 45.56452
+        },
+        {
+          "lon": 2.85067,
+          "lat": 45.5581
+        },
+        {
+          "lon": 2.8672,
+          "lat": 45.56236
+        },
+        {
+          "lon": 2.88894,
+          "lat": 45.56835
+        },
+        {
+          "lon": 2.8945,
+          "lat": 45.57401
+        },
+        {
+          "lon": 2.92137,
+          "lat": 45.57327
+        },
+        {
+          "lon": 2.92465,
+          "lat": 45.57365
+        }
+      ]
+    }
+  ]
+}

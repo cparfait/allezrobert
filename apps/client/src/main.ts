@@ -69,6 +69,9 @@ import { RideRoomUi } from './game/rideroom.ts';
 import { showStartGate } from './game/startGate.ts';
 import { PlaceFinder } from './game/place.ts';
 import { TILES_BASE, installedPacks, keepStorage } from './world/packs.ts';
+import { inDesktop, installFullscreenKey, keepAwake, mirrorProfile } from './platform/desktop.ts';
+import { hasLocalMedia, prepareDesktop } from './platform/desktopBoot.ts';
+import { offerDesktopUpdate } from './ui/desktopUi.ts';
 import type { DevicePanel } from './ui/menu.ts';
 import type { InterpolatedRider } from './net/index.ts';
 
@@ -257,8 +260,9 @@ function createMenuVideo(el: HTMLVideoElement | null) {
   const urlFor = (season: Settings['season']): string => {
     // AV1 si décodé par la carte graphique, sinon H.264, sinon VP9 ; repli sur le suivant en cas d'erreur.
     if (el && formats[format] === 'mp4' && !el.canPlayType('video/mp4; codecs="avc1.640028"')) format = formats.indexOf('webm');
-    // Application Windows : les boucles (trop lourdes pour l'installateur) viennent du serveur ; web : même origine.
-    return `${TILES_BASE}/menu/loop-${season}.${formats[format] as string}?v=${MENU_MEDIA_VERSION}`;
+    // Application Windows : depuis les ressources du jeu sur le disque si elles ont la boucle, sinon du serveur ; web : même origine.
+    const file = `menu/loop-${season}.${formats[format] as string}`;
+    return `${inDesktop && !hasLocalMedia(file) ? TILES_BASE : ''}/${file}?v=${MENU_MEDIA_VERSION}`;
   };
   // Image fixe de la saison, affichée tout de suite sous la vidéo (et seule si la vidéo échoue).
   const still = document.getElementById('menu-still');
@@ -408,6 +412,11 @@ async function boot(): Promise<void> {
   // Spotify déconnecté entre-temps : la musique du jeu reprend sa place.
   if (!spotify.connected) music.yieldToExternal(false);
   music.unlockOnGesture();
+  // Application Windows : zones du disque, ressources du jeu à jour, profil sauvegardé, F11, veille rendue à Windows.
+  await prepareDesktop();
+  mirrorProfile();
+  installFullscreenKey();
+  keepAwake(false);
   // Zones déjà téléchargées : demande (sans effet si refusée) que le navigateur ne les purge pas.
   if (installedPacks().length) keepStorage();
   const settings = loadSettings();
@@ -883,6 +892,7 @@ async function boot(): Promise<void> {
     bootWorld = null;
   }
   bootDone();
+  void offerDesktopUpdate();
   if (autostart) {
     await withWorld(getLang() === 'fr' ? 'Préparation de la sortie…' : 'Preparing the ride…');
     void startRide(scene, settings, devices.source(), {});
@@ -935,6 +945,8 @@ let devicePanel: DevicePanel | null = null;
 
 async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras: { workoutFile?: { name: string; content: string }; inviteCode?: string; inviteFriends?: string[]; tutorial?: boolean; openStart?: { x: number; z: number }; publicRoom?: boolean; nearFriend?: string }, overlay?: HTMLElement): Promise<void> {
   const { engine, world, source } = scene;
+  // Écran gardé allumé pendant la sortie (rendu à Windows au retour au menu, qui recharge la page).
+  keepAwake(true);
   // Monde ouvert : chemin construit au fil des carrefours (le même RouteTrack s'allonge).
   const nav =
     s.mode === 'open' && source.open
@@ -1543,10 +1555,10 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   /** Photo : rendu immédiat puis lecture du canvas (sans l'interface). */
   const photo = () => {
     engine.renderManual();
-    const a = document.createElement('a');
-    a.href = engine.renderer.domElement.toDataURL('image/png');
-    a.download = `allez-robert-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.png`;
-    a.click();
+    const png = atob(engine.renderer.domElement.toDataURL('image/png').split(',')[1] ?? '');
+    const bytes = Uint8Array.from(png, (c) => c.charCodeAt(0));
+    // Application Windows : directement dans Images\Allez Robert ; navigateur : téléchargement.
+    download(bytes, `allez-robert-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.png`, 'image/png');
     hud.toast('📷');
   };
   window.addEventListener('keyup', (e) => {

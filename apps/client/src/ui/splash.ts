@@ -28,6 +28,15 @@ export function bootProgress(pct: number): void {
   if (p) p.textContent = `${Math.round(pct)} %`;
 }
 
+/** Change le texte de l'étape sans nouveau repère (progression détaillée : « 120 Mo sur 390 Mo »). */
+export function bootLabel(label: string): void {
+  const step = el('splash-step');
+  if (step) {
+    step.textContent = label;
+    step.style.color = '';
+  }
+}
+
 /** Fondu de sortie une fois le premier écran prêt. */
 export function bootDone(): void {
   const s = el('splash');

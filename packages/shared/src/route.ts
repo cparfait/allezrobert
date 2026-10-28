@@ -316,7 +316,8 @@ export interface WorldPackManifest {
   bytes: number;
   /** Taille téléchargée (fichiers compressés gzip, comme les sert le serveur et les garde l'appareil). */
   gzBytes?: number;
-  files: Array<{ p: string; b: number }>;
+  /** `h` : SHA-256 du contenu (32 caractères hexadécimaux) : vérification et mise à jour par différence (application Windows). */
+  files: Array<{ p: string; b: number; h?: string }>;
 }
 
 /** Catalogue des zones jouables (`worlds/index.json`), livré avec le jeu. */

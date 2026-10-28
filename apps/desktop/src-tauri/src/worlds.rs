@@ -1,21 +1,15 @@
-//! Protocole `worlds://` : sert les tuiles des mondes depuis le disque, pour une application
-//! hors ligne (les tuiles, ≈ 2 Go, ne sont pas embarquées dans l'exécutable).
+//! Protocole `worlds://` : sert au jeu les zones téléchargées dans le dossier de données
+//! (`<données>/worlds/<id>/…`, voir packs.rs), lues sur le disque hors du fil de l'interface.
 //!
-//! Sous Windows, la page y accède par `http://worlds.localhost/worlds/<id>/tiles/…` : il suffit de
-//! construire le client avec `VITE_WORLDS_URL=http://worlds.localhost`. Les fichiers sont lus dans
-//! `AR_WORLDS_DIR` (dossier qui contient `worlds/`) si défini, sinon à côté de l'exécutable.
+//! Sous Windows, la page y accède par `http://worlds.localhost/worlds/<id>/tiles/…`. `AR_WORLDS_DIR`
+//! (dossier qui contient `worlds/`) remplace la racine, pour jouer hors ligne sur des tuiles construites.
 
 use std::borrow::Cow;
-use std::path::{Component, Path, PathBuf};
+use std::path::Path;
 
 use tauri::http::{header, Request, Response, StatusCode};
 
-fn root() -> Option<PathBuf> {
-    if let Some(dir) = std::env::var_os("AR_WORLDS_DIR") {
-        return Some(PathBuf::from(dir));
-    }
-    std::env::current_exe().ok()?.parent().map(Path::to_path_buf)
-}
+use crate::storage::{safe_join, worlds_root};
 
 fn content_type(path: &Path) -> &'static str {
     match path.extension().and_then(|e| e.to_str()) {
@@ -23,17 +17,9 @@ fn content_type(path: &Path) -> &'static str {
         Some("jpg" | "jpeg") => "image/jpeg",
         Some("png") => "image/png",
         Some("webp") => "image/webp",
+        Some("ktx2") => "image/ktx2",
         _ => "application/octet-stream",
     }
-}
-
-/// Résout le chemin de la requête sous la racine, en refusant toute sortie (`..`, chemin absolu).
-fn resolve(root: &Path, uri_path: &str) -> Option<PathBuf> {
-    let rel = Path::new(uri_path.trim_start_matches('/'));
-    if !rel.components().all(|c| matches!(c, Component::Normal(_))) {
-        return None;
-    }
-    Some(root.join(rel))
 }
 
 pub fn handle(request: Request<Vec<u8>>) -> Response<Cow<'static, [u8]>> {
@@ -42,13 +28,16 @@ pub fn handle(request: Request<Vec<u8>>) -> Response<Cow<'static, [u8]>> {
             .status(status)
             .header(header::CONTENT_TYPE, mime)
             .header(header::ACCESS_CONTROL_ALLOW_ORIGIN, "*")
+            // Fichiers locaux : rien à garder dans le cache HTTP de WebView2 (ce serait une seconde copie).
             .header(header::CACHE_CONTROL, "no-store")
             .body(Cow::Owned(body))
             .expect("réponse worlds:// invalide")
     };
-    let path = request.uri().path();
-    let decoded = percent_decode(path);
-    let Some(file) = root().and_then(|r| resolve(&r, &decoded)) else {
+    let decoded = percent_decode(request.uri().path());
+    if !decoded.starts_with("/worlds/") {
+        return reply(StatusCode::BAD_REQUEST, "text/plain", b"chemin refuse".to_vec());
+    }
+    let Some(file) = safe_join(&worlds_root(), &decoded) else {
         return reply(StatusCode::BAD_REQUEST, "text/plain", b"chemin refuse".to_vec());
     };
     match std::fs::read(&file) {
@@ -82,15 +71,16 @@ mod tests {
     use super::*;
 
     #[test]
-    fn refuse_les_sorties_de_racine() {
-        let r = Path::new("C:/jeu");
-        assert!(resolve(r, "/worlds/../secret.txt").is_none());
-        assert!(resolve(r, "/worlds/vincennes/tiles/0_0.json").is_some());
-    }
-
-    #[test]
     fn decode_les_pourcents() {
         assert_eq!(percent_decode("/a%20b/c"), "/a b/c");
         assert_eq!(percent_decode("/fin%2"), "/fin%2");
+    }
+
+    #[test]
+    fn refuse_hors_des_mondes() {
+        let req = Request::builder().uri("http://worlds.localhost/stockage.json").body(Vec::new()).unwrap();
+        assert_eq!(handle(req).status(), StatusCode::BAD_REQUEST);
+        let req = Request::builder().uri("http://worlds.localhost/worlds/%2E%2E/x").body(Vec::new()).unwrap();
+        assert_eq!(handle(req).status(), StatusCode::BAD_REQUEST);
     }
 }

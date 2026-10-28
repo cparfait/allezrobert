@@ -101,14 +101,18 @@
 
 	# Installateurs Windows, publiés par deploy/publish-desktop.sh (docs/BUILD_EXE.md).
 	# Les noms versionnés ne changent jamais ; allez-robert-setup.exe et version.json suivent
-	# la dernière version (pas de cache long).
+	# la dernière version (pas de cache long), comme latest.json, lu par les applications installées
+	# pour se mettre à jour. media/<empreinte>.<ext> : ressources du jeu de l'application, jamais réécrites
+	# (l'extension donne le type : JSON compressé par l'encode global, vidéos et modèles servis tels quels).
 	redir /telechargement /telechargement/ 308
 	handle_path /telechargement/* {
 		root * /srv/downloads
 		@installer path *.exe *.msi
 		header @installer Content-Disposition "attachment"
-		@latest path /version.json /allez-robert-setup.exe /allez-robert.msi
+		@latest path /version.json /latest.json /allez-robert-setup.exe /allez-robert.msi
 		header @latest Cache-Control "no-cache"
+		@media path /media/*
+		header @media Cache-Control "public, max-age=31536000, immutable"
 		header /version.json Access-Control-Allow-Origin "*"
 		file_server {
 			browse

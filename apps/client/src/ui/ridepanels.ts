@@ -8,6 +8,8 @@ import { renderRideInvite } from './friends.ts';
 import type { RideSession } from '../game/ride.ts';
 import { renderMusicControls, renderSoundSettings } from './soundSettings.ts';
 import type { QualityLevel } from '../engine/quality.ts';
+import { saveExport } from '../platform/desktop.ts';
+import { exportSaved } from './desktopUi.ts';
 
 /** Construit le fichier FIT de la sortie (positions GPS reconstruites depuis le repère monde). */
 export function rideToFit(ride: RideSession, opts: { name: string; massKg: number; ftp: number; originL93?: { x: number; y: number }; skipStrava: boolean }): Uint8Array {
@@ -60,13 +62,15 @@ ${pts}
   return new TextEncoder().encode(xml);
 }
 
+/**
+ * Fichier exporté : téléchargé dans un navigateur ; dans l'application Windows, enregistré directement
+ * (sorties FIT/GPX dans Documents\Allez Robert\Sorties, images dans Images\Allez Robert) et montré.
+ */
 export function download(bytes: Uint8Array, filename: string, mime = 'application/octet-stream'): void {
-  const blob = new Blob([bytes as BlobPart], { type: mime });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = filename;
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  const kind = /\.(png|jpe?g)$/i.test(filename) ? 'screenshot' : 'ride';
+  saveExport(kind, filename, bytes, mime)
+    .then((path) => path && exportSaved(path))
+    .catch((err) => alert(`${getLang() === 'fr' ? 'Enregistrement impossible' : 'Could not save'} : ${String(err)}`));
 }
 
 export interface PauseCallbacks {

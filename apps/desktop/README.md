@@ -6,7 +6,20 @@ expose au TypeScript ce que le navigateur ne sait pas (ou mal) faire :
 - **Bluetooth LE natif** (btleplug / WinRT) : home-trainers FTMS, capteurs de puissance,
   cardio, cadence… avec choix de l'adaptateur (intégré ou dongle USB) ;
 - **Wahoo Direct Connect** (DirCon) : découverte mDNS `_wahoo-fitness-tnp._tcp` + liaison TCP ;
-- **ANT+** par clé USB Garmin/Dynastream (USB2 `0fcf:1008`, USB-m `0fcf:1009`).
+- **ANT+** par clé USB Garmin/Dynastream (USB2 `0fcf:1008`, USB-m `0fcf:1009`) ;
+- **dossier de données** (`storage.rs`) : zones (`worlds/`), ressources du jeu (`media/`) et sauvegarde
+  du profil (`profil/`) sur le disque, déplaçable sur un autre disque ;
+- **téléchargements** (`packs.rs`) : 16 fichiers à la fois, empreintes vérifiées, reprise, mise à jour
+  par différence, échange atomique de version ; zones servies par `worlds://` (`worlds.rs`), ressources
+  par le fournisseur de fichiers de l'exe (`assets.rs`, disque si l'exe ne les a pas) ;
+- **système** (`system.rs`) : écran gardé allumé pendant une sortie, plein écran natif (F11), mises à
+  jour signées (`tauri-plugin-updater`) ; sorties FIT/GPX enregistrées dans `Documents\Allez Robert\Sorties`,
+  captures dans `Images\Allez Robert` ;
+- **WebView2 réglé pour le jeu** (`tauri.conf.json`, `additionalBrowserArgs`) : carte graphique dédiée
+  (`--force_high_performance_gpu`), pas de ralentissement quand la fenêtre perd le focus, cache disque
+  des shaders porté à 256 Mo (6 Mo par défaut dans Chromium : les shaders étaient recompilés).
+
+Construction et publication : [docs/BUILD_EXE.md](../../docs/BUILD_EXE.md).
 
 Le contrat exact (commandes `invoke`, arguments, formes de retour, événements) est défini dans
 [`packages/shared/src/native-bridge.ts`](../../packages/shared/src/native-bridge.ts). Les octets
@@ -192,5 +205,10 @@ apps/desktop/
         ├── ble_windows.rs    # noms d'adaptateurs / adaptateur par défaut (WinRT)
         ├── dircon.rs         # Wahoo Direct Connect (mdns-sd + TCP tokio)
         ├── ant.rs            # clé ANT+ USB (nusb)
-        └── ant_protocol.rs   # trames ANT (encodage, décodage, clé réseau)
+        ├── ant_protocol.rs   # trames ANT (encodage, décodage, clé réseau)
+        ├── storage.rs        # dossier de données, profil, fichiers exportés
+        ├── packs.rs          # téléchargement des zones et des ressources du jeu
+        ├── worlds.rs         # protocole worlds:// (zones du disque)
+        ├── assets.rs         # fichiers du jeu : exe, puis ressources du disque
+        └── system.rs         # veille, plein écran, mises à jour
 ```

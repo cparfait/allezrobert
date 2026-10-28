@@ -1,0 +1,55 @@
+/* Application Windows : bandeau (mise à jour, fichier enregistré) et dossier des données (desktopUi.ts). */
+.ar-desk-notice {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  z-index: 9000;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: min(92vw, 820px);
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: rgba(16, 20, 28, 0.94);
+  color: #e8edf3;
+  font-size: 14px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+}
+.ar-desk-notice span {
+  flex: 1;
+  min-width: 0;
+}
+.ar-desk-notice code,
+.zs-store code {
+  font-size: 12px;
+  overflow-wrap: anywhere;
+  opacity: 0.85;
+}
+.zs-store {
+  display: grid;
+  gap: 6px;
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.05);
+}
+.zs-store-head {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  min-width: 0;
+}
+.zs-store-head code {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.zs-store-space {
+  font-size: 13px;
+  opacity: 0.85;
+}
+.zs-store-act {
+  display: flex;
+  gap: 8px;
+}

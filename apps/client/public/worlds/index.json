@@ -2323,19 +2323,27 @@
      "loop": true
     },
     {
-     "id": "gravel-sancy",
-     "name": "Sancy — gravel par Super Besse et Le Verdier",
-     "nameEn": "Sancy — gravel via Super Besse and Le Verdier",
-     "lengthM": 37232.64,
-     "elevationGainM": 1116.68,
-     "loop": true
+     "id": "autour-du-mont-dore",
+     "name": "Autour du Mont-Dore",
+     "nameEn": "Around Le Mont-Dore",
+     "lengthM": 66758,
+     "elevationGainM": 1634.14,
+     "loop": false
+    },
+    {
+     "id": "autour-de-chambon-sur-lac",
+     "name": "Autour de Chambon-sur-Lac",
+     "nameEn": "Around Chambon-sur-Lac",
+     "lengthM": 45636,
+     "elevationGainM": 1217.83,
+     "loop": false
     }
    ],
    "pack": {
-    "version": "4e368091976f",
-    "bytes": 335576815,
+    "version": "bbd779d5e187",
+    "bytes": 335186917,
     "files": 1322,
-    "gzBytes": 175113844
+    "gzBytes": 174860149
    },
    "l93": {
     "minE": 675000,
