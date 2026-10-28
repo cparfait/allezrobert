@@ -410,7 +410,16 @@ export class LowPolyRider implements RiderAvatarLike {
     if (!female && (look.beard ?? 0) > 0.25) this.head.add(new THREE.Mesh(new THREE.IcosahedronGeometry(0.1, 1).scale(0.96, 0.6, 0.9).translate(0, -0.06, 0.027), hair));
     if (!female && look.moustache) this.head.add(new THREE.Mesh(box(0.08, 0.018, 0.025, 0, -0.038, 0.104), hair));
     const hairParts = this.hairGeometry(look.hairStyle);
+    // Coureuses (façon NCT) : queue de cheval qui sort sous l'arrière du casque et tombe sur la nuque, en deux
+    // tronçons effilés ; attache sombre.
+    if (female) {
+      const knot = v3(0, -0.02, -0.122);
+      const mid = v3(0, -0.13, -0.165);
+      const end = v3(0, -0.25, -0.15);
+      hairParts.push(tube(knot, mid, 0.034, 0.03, 6), tube(mid, end, 0.03, 0.012, 6));
+    }
     if (hairParts.length) this.head.add(merged(hairParts, hair));
+    if (female) this.head.add(new THREE.Mesh(tube(v3(0, -0.005, -0.118), v3(0, -0.035, -0.128), 0.038, 0.038, 6), flat('#1b1c20')));
     this.buildHeadgear(look, bike);
     this.head.add(this.headgear);
     this.head.traverse((o) => (o.castShadow = true));

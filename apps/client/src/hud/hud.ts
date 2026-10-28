@@ -109,7 +109,11 @@ export interface HudState {
   altitudeM?: number;
   lap: number;
   riders: HudRider[];
-  segment?: { seg: RouteSegment; progress: number; elapsedS: number };
+  segment?: { seg: RouteSegment; progress: number; elapsedS: number; recordS?: number | null; gainLeftM?: number };
+  /** Prochain KOM ou sprint (moins de 600 m devant) : distance jusqu'au départ, record. */
+  nextSegment?: { seg: RouteSegment; inM: number; recordS: number | null };
+  /** Sortie de groupe : allure demandée (part de la FTP, null : libre) et puissance du groupe. */
+  groupPace?: { ftpPct: number | null; watts: number };
   devices: Array<{ label: string; state: 'ok' | 'warn' | 'off' }>;
   /** Lieu traversé : commune la plus proche et, si on la connaît, la route. */
   place?: { town: string; road?: string };
@@ -306,8 +310,14 @@ function compactLayout(track: RouteTrack, attribution: string[]): string {
         <div class="panel junction hidden" data-k="junction"></div>
         <div class="panel turnwarn hidden" data-k="turn"></div>
         <div class="panel challenge hidden" data-k="challenge"></div>
-        <div class="panel segment hidden" data-k="segment"><div class="name" data-k="segName"></div><div class="num" data-k="segInfo"></div><div class="bar"><span data-k="segBar" style="width:0%"></span></div></div>
+        <div class="panel segment cx-seg hidden" data-k="segment">
+          <div class="cx-seg-head"><b data-k="segBadge">KOM</b><span data-k="segWhen"></span><span class="cx-seg-name" data-k="segName"></span></div>
+          <div class="cx-seg-cells" data-k="segCells">${[1, 2, 3, 4].map((i) => `<div><b class="num" data-k="segV${i}">–</b><small data-k="segL${i}"></small></div>`).join('')}</div>
+          <div class="cx-seg-info" data-k="segInfo"></div>
+          <div class="bar"><span data-k="segBar" style="width:0%"></span></div>
+        </div>
         <div class="panel cx-draft hidden" data-k="draftBox" data-hud="draft"><span class="cx-l">${t('draft')}</span><div class="cx-bar"><span data-k="draftBar"></span></div><b class="num" data-k="draft">0 %</b><small class="cx-note" data-k="draftNote"></small></div>
+        <div class="panel cx-pace hidden" data-k="paceBox"></div>
         <div class="toasts"></div>
       </div>
       <div class="hud-col hud-col-left">
@@ -802,14 +812,59 @@ export class Hud {
     } else bb.classList.add('hidden');
 
     const segEl = e.segment as HTMLElement;
-    if (s.segment) {
+    const mmss = (v: number) => `${Math.floor(v / 60)}:${(v % 60).toFixed(1).padStart(4, '0').replace('.', ',')}`;
+    const recordTxt = (r: number | null | undefined) => (r ? `${fr ? 'record' : 'best'} ${mmss(r)}` : fr ? 'premier passage : ton temps deviendra ton fantôme' : 'first attempt: your time becomes your ghost');
+    const segLabel = (seg: RouteSegment) => (seg.kind === 'kom' ? `${t('kom')} ${climbCategoryLabel(climbCategory(seg), fr)}` : t('sprint'));
+    if (cx && (s.segment || s.nextSegment)) {
+      // Façon NCT : bandeau rouge (KOM) ou vert (sprint) ; à l'approche « dans 98 m » et la fiche du segment,
+      // en cours chrono, restant, D+ restant (ou vitesse) et temps estimé à l'arrivée.
+      const live = s.segment;
+      const seg = (live?.seg ?? s.nextSegment?.seg) as RouteSegment;
+      const len = seg.endM - seg.startM;
+      segEl.classList.remove('hidden');
+      segEl.classList.toggle('sprint', seg.kind === 'sprint');
+      segEl.classList.toggle('live', !!live);
+      setText(e.segBadge as HTMLElement, segLabel(seg));
+      setText(e.segName as HTMLElement, seg.name);
+      (e.segCells as HTMLElement).classList.toggle('hidden', !live);
+      (e.segBar as HTMLElement).parentElement?.classList.toggle('hidden', !live);
+      if (live) {
+        setText(e.segWhen as HTMLElement, fr ? 'en cours' : 'live');
+        const remain = len * (1 - live.progress);
+        const eta = live.elapsedS + remain / Math.max(s.speedKmh / 3.6, 1);
+        const cells: Array<[string, string]> = [
+          [fmtTime(live.elapsedS), fr ? 'chrono' : 'time'],
+          [remain >= 1000 ? `${(remain / 1000).toFixed(2).replace('.', ',')} km` : `${Math.round(remain)} m`, fr ? 'restant' : 'to go'],
+          seg.kind === 'kom' ? [`${Math.round(Math.max(0, live.gainLeftM ?? 0))} m`, fr ? 'D+ restant' : 'climb left'] : [`${nf1(s.speedKmh)}`, 'km/h'],
+          [fmtTime(eta), fr ? 'estimé' : 'estimate'],
+        ];
+        cells.forEach(([v, l], i) => {
+          setText(e[`segV${i + 1}`] as HTMLElement, v);
+          setText(e[`segL${i + 1}`] as HTMLElement, l);
+        });
+        setText(e.segInfo as HTMLElement, recordTxt(live.recordS));
+        (e.segBar as HTMLElement).style.width = `${(live.progress * 100).toFixed(1)}%`;
+      } else if (s.nextSegment) {
+        setText(e.segWhen as HTMLElement, `${fr ? 'dans' : 'in'} ${Math.max(0, Math.round(s.nextSegment.inM))} m`);
+        const lenTxt = len >= 1000 ? `${(len / 1000).toFixed(1).replace('.', ',')} km` : `${Math.round(len)} m`;
+        const grade = seg.kind === 'kom' ? ` · ${nf1(seg.avgGrade)} %` : '';
+        const rec = s.nextSegment.recordS ? recordTxt(s.nextSegment.recordS) : fr ? 'premier passage' : 'first attempt';
+        setText(e.segInfo as HTMLElement, `${lenTxt}${grade} · ${rec}`);
+      }
+    } else if (s.segment) {
       segEl.classList.remove('hidden');
       segEl.classList.toggle('sprint', s.segment.seg.kind === 'sprint');
-      (e.segName as HTMLElement).textContent = `${s.segment.seg.kind === 'kom' ? `${t('kom')} (${climbCategoryLabel(climbCategory(s.segment.seg), getLang() === 'fr')})` : t('sprint')} · ${s.segment.seg.name}`;
+      (e.segName as HTMLElement).textContent = `${s.segment.seg.kind === 'kom' ? `${t('kom')} (${climbCategoryLabel(climbCategory(s.segment.seg), fr)})` : t('sprint')} · ${s.segment.seg.name}`;
       const remain = (s.segment.seg.endM - s.segment.seg.startM) * (1 - s.segment.progress);
       (e.segInfo as HTMLElement).textContent = `${fmtTime(s.segment.elapsedS)} · ${Math.round(remain)} m`;
       (e.segBar as HTMLElement).style.width = `${(s.segment.progress * 100).toFixed(1)}%`;
     } else segEl.classList.add('hidden');
+    const paceBox = e.paceBox as HTMLElement | undefined;
+    if (paceBox) {
+      paceBox.classList.toggle('hidden', !s.groupPace);
+      if (s.groupPace)
+        setText(paceBox, s.groupPace.ftpPct !== null ? `${fr ? 'Allure du groupe' : 'Group pace'} : ${Math.round(s.groupPace.ftpPct * 100)} % ${fr ? 'de ta FTP' : 'of your FTP'} · ${Math.round(s.groupPace.watts)} W` : `${fr ? 'Allure du groupe' : 'Group pace'} : ${fr ? 'libre' : 'free'} · ${Math.round(s.groupPace.watts)} W`);
+    }
 
     const loc = e.loc as HTMLElement;
     const placeKey = s.place ? `${s.place.town}|${s.place.road ?? ''}` : '';

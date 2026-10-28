@@ -1532,6 +1532,47 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
       hud.toast(ride.dir < 0 ? (L ? '↶ Demi-tour : à contresens de l’itinéraire' : '↶ U-turn: riding the route backwards') : L ? '↷ Retour dans le sens de l’itinéraire' : '↷ Back on the route direction');
     }
   };
+  /**
+   * Messages du groupe (façon NCT) : « À toi le relais » quand on passe en tête, « Le groupe reprend la tête »
+   * quand un équipier repasse devant, « Ils s'organisent, ils reviennent sur toi ! » quand l'échappée fond.
+   */
+  const talk = { leading: false, since: 0, away: false, bestGap: 0, quiet: 0 };
+  const groupTalk = (dt: number) => {
+    if (!peloton.riders.length || ride.dir < 0) return;
+    const me = ride.state.distM;
+    let front = -Infinity;
+    for (const r of peloton.riders) front = Math.max(front, r.state.distM);
+    const lead = me - front;
+    talk.quiet -= dt;
+    talk.since += dt;
+    const L = getLang() === 'fr';
+    const say = (fr: string, en: string) => {
+      if (talk.quiet > 0) return;
+      hud.toast(L ? fr : en);
+      talk.quiet = 6;
+    };
+    if (!talk.leading && lead > 1.5 && talk.since > 8) {
+      talk.leading = true;
+      talk.since = 0;
+      say('À toi le relais 💪', 'Your turn on the front 💪');
+    } else if (talk.leading && lead < -2) {
+      talk.leading = false;
+      talk.since = 0;
+      if (!talk.away) say('Le groupe reprend la tête 👋', 'The group takes over 👋');
+    }
+    // Échappée : plus de 25 m d'avance ; quand l'écart fond de 8 m, le groupe chasse.
+    if (lead > 25) {
+      if (!talk.away) {
+        talk.away = true;
+        talk.bestGap = lead;
+      }
+      talk.bestGap = Math.max(talk.bestGap, lead);
+      if (talk.bestGap - lead > 8) {
+        say('Ils s’organisent, ils reviennent sur toi !', 'They’re organising, they’re coming back to you!');
+        talk.bestGap = lead;
+      }
+    } else if (lead < 5) talk.away = false;
+  };
   /** Équipiers : allure du groupe en % de FTP (±5 %). */
   const changePace = (delta: number) => {
     if (!peloton.riders.length) return;
@@ -1626,7 +1667,14 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     if (now - turnCheckedAt > 200) {
       turnCheckedAt = now;
       const tn = track.nextTurn(ride.state.distM, ride.dir, 220);
-      turnInfo = tn && tn.inM <= Math.max(80, ride.state.speedMs * 8) ? tn : null;
+      // Seulement aux bifurcations (une autre route part du virage), pas dans chaque courbe.
+      let tj = tn && Math.abs(tn.angleDeg) >= 30 && tn.inM <= Math.max(80, ride.state.speedMs * 8) ? tn : null;
+      if (tj) {
+        // Bifurcation seulement : une autre route rejoint l'itinéraire au milieu du virage.
+        const mid = track.positionAt(ride.state.distM + ride.dir * (tj.inM + 14), 0);
+        if (!scene.world.terrain.junctionNear(mid.x, mid.z, track.route.id)) tj = null;
+      }
+      turnInfo = tj;
     }
     return turnInfo;
   };
@@ -1727,7 +1775,10 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
           }
         }
         ride.state.distM += mp.reconcileLocal(ride.dir, ride.state.distM, dt);
-      } else ride.draft = peloton.update(dt, { distM: ride.state.distM, lateral: ride.lateral, speedMs: ride.state.speedMs, watts: ride.inputs.watts, massKg: s.massKg, ftpWatts: s.ftpWatts, reversed: ride.dir < 0, headWindMs: ride.headWindMs, crossWindMs: ride.crossWindMs }, cyclists && ride.dir > 0 ? cyclists.sameWayBodies() : []);
+      } else {
+        ride.draft = peloton.update(dt, { distM: ride.state.distM, lateral: ride.lateral, speedMs: ride.state.speedMs, watts: ride.inputs.watts, massKg: s.massKg, ftpWatts: s.ftpWatts, reversed: ride.dir < 0, headWindMs: ride.headWindMs, crossWindMs: ride.crossWindMs }, cyclists && ride.dir > 0 ? cyclists.sameWayBodies() : []);
+        groupTalk(dt);
+      }
       // Relais : quelqu'un roule dans ma roue (0,5 à 4 m derrière, à moins d'un mètre de côté).
       const onWheel = (d: number, lat: number) => {
         const gap = ride.state.distM - d;
@@ -1949,7 +2000,25 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
               return { id: r.id, name: r.name, distM: r.state.distM, x: p.x, z: p.z, me: false, isAI: true, isGuest: false, color: r.color, km: r.state.distM / 1000, watts: r.watts, wkg: r.watts / r.massKg, nationality: r.nationality };
             }),
           ],
-          ...(ride.segment ? { segment: { seg: ride.segment.seg, progress: ride.segment.progress, elapsedS: (ride.startT + ride.elapsedS * 1000 - ride.segment.startT) / 1000 } } : {}),
+          ...(ride.segment
+            ? {
+                segment: {
+                  seg: ride.segment.seg,
+                  progress: ride.segment.progress,
+                  elapsedS: (ride.startT + ride.elapsedS * 1000 - ride.segment.startT) / 1000,
+                  recordS: readKomRecord(rankRouteId(track.route.id), ride.segment.seg.id)?.timeS ?? null,
+                  gainLeftM: track.sample(ride.segment.seg.endM).y - track.sample(ride.state.distM).y,
+                },
+              }
+            : {}),
+          ...(() => {
+            // Prochain KOM ou sprint à moins de 600 m (sens de l'itinéraire seulement).
+            if (ride.segment || ride.dir < 0) return {};
+            const at = ride.state.distM % track.length;
+            const next = track.route.segments.find((g) => (g.kind === 'kom' || g.kind === 'sprint') && g.startM > at && g.startM - at < 600);
+            return next ? { nextSegment: { seg: next, inM: next.startM - at, recordS: readKomRecord(rankRouteId(track.route.id), next.id)?.timeS ?? null } } : {};
+          })(),
+          ...(peloton.riders.length ? { groupPace: { ftpPct: peloton.paceFtpPct, watts: peloton.groupWatts() } } : {}),
           devices: input.status(),
           ...(nav
             ? {

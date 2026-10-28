@@ -105,6 +105,11 @@ export class Peloton {
   private headWindMs = 0;
   private crossWindMs = 0;
   private paceWkg = 2.6;
+  /** Puissance moyenne actuelle des équipiers (W), pour l'affichage. */
+  groupWatts(): number {
+    if (!this.riders.length) return 0;
+    return this.riders.reduce((s, r) => s + r.watts, 0) / this.riders.length;
+  }
   /**
    * Équipiers (idée « rouler seul en semaine ») : allure imposée en % de la FTP du joueur,
    * réglable en sortie ; null = le groupe suit l'allure du joueur.

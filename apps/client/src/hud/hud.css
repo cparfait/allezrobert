@@ -431,8 +431,8 @@ body:has(.subtitle:not(.hidden)) .ob-robert { animation: ob-mouth 1.1s steps(1, 
 .hud.compact {
   --hud-edge: calc(var(--u) * 14);
   --hud-gap: calc(var(--u) * 6);
-  /* profil (14 + 44) + marge au-dessus */
-  --hud-bottom: calc(var(--u) * 70);
+  /* profil (14 + 92) + marge au-dessus */
+  --hud-bottom: calc(var(--u) * 118);
   --cx-bg: rgba(12, 16, 24, 0.64);
   --cx-cell: rgba(255, 255, 255, 0.055);
   --cx-r: calc(var(--u) * 8);
@@ -578,14 +578,14 @@ body:has(.subtitle:not(.hidden)) .ob-robert { animation: ob-mouth 1.1s steps(1, 
 .hud.compact .chat-line { margin-top: calc(var(--u) * 3); padding: calc(var(--u) * 3) calc(var(--u) * 8); border-radius: calc(var(--u) * 6); }
 .hud.compact .chat-input { margin-top: calc(var(--u) * 4); padding: calc(var(--u) * 6) calc(var(--u) * 8); }
 
-/* Bas : profil fin sur toute la largeur, distance restante à droite ; ClimbPro resserré pendant les montées. */
-.hud.compact .profile { left: var(--hud-edge); right: var(--hud-edge); bottom: calc(var(--u) * 14); height: calc(var(--u) * 44); padding: calc(var(--u) * 3) calc(var(--u) * 6); }
+/* Bas : profil sur toute la largeur (hauteur d'origine), distance restante à droite ; ClimbPro resserré pendant les montées. */
+.hud.compact .profile { left: var(--hud-edge); right: var(--hud-edge); bottom: calc(var(--u) * 14); height: calc(var(--u) * 92); padding: calc(var(--u) * 6) calc(var(--u) * 10); }
 .hud.compact .profile canvas { display: block; }
 .hud.compact .cx-togo { position: absolute; top: calc(var(--u) * 3); right: calc(var(--u) * 10); font-size: calc(var(--u) * 10.5); font-weight: 700; color: #fff; text-shadow: 0 1px 3px rgba(0, 0, 0, 0.85); pointer-events: none; }
 .hud.compact .cx-togo:empty { display: none; }
 .hud.compact .attribution { left: var(--hud-edge); right: var(--hud-edge); bottom: calc(var(--u) * 1); font-size: calc(var(--u) * 9); line-height: calc(var(--u) * 12); }
-.hud.compact.climbing { --hud-bottom: calc(var(--u) * 120); }
-.hud.compact .climbpro { left: var(--hud-edge); right: var(--hud-edge); bottom: calc(var(--u) * 14); height: calc(var(--u) * 96); grid-template-columns: minmax(calc(var(--u) * 250), 24%) minmax(0, 1fr); gap: calc(var(--u) * 12); padding: calc(var(--u) * 6) calc(var(--u) * 10) calc(var(--u) * 5); border-left-width: calc(var(--u) * 3); }
+.hud.compact.climbing { --hud-bottom: calc(var(--u) * 142); }
+.hud.compact .climbpro { left: var(--hud-edge); right: var(--hud-edge); bottom: calc(var(--u) * 14); height: calc(var(--u) * 118); grid-template-columns: minmax(calc(var(--u) * 250), 24%) minmax(0, 1fr); gap: calc(var(--u) * 12); padding: calc(var(--u) * 6) calc(var(--u) * 10) calc(var(--u) * 5); border-left-width: calc(var(--u) * 3); }
 .hud.compact .climbpro .cp-head { gap: calc(var(--u) * 8); }
 .hud.compact .climbpro .cp-head b, .hud.compact .climbpro .cp-head span { font-size: calc(var(--u) * 11.5); }
 .hud.compact .climbpro .cp-stats { gap: calc(var(--u) * 6); }
@@ -599,3 +599,23 @@ body:has(.subtitle:not(.hidden)) .ob-robert { animation: ob-mouth 1.1s steps(1, 
 .hud.compact .workout [data-k="wStep"] { font-size: calc(var(--u) * 11) !important; }
 .hud.compact .workout canvas { height: calc(var(--u) * 36); margin-top: calc(var(--u) * 4); }
 .hud.compact:not(:empty):not(.hidden) ~ .freecam-hint { bottom: calc(var(--u) * 76); }
+
+/* KOM et sprint façon NCT : en-tête rouge (KOM) ou vert (sprint), quatre cases en cours de segment. */
+.hud.compact .cx-seg { padding: 0; overflow: hidden; text-align: left; border-left: 0; min-width: calc(var(--u) * 330); }
+.hud.compact .cx-seg-head { display: flex; align-items: center; gap: calc(var(--u) * 8); padding: calc(var(--u) * 5) calc(var(--u) * 10); }
+.hud.compact .cx-seg-head b { background: #e5322d; color: #fff; font-style: italic; font-weight: 900; letter-spacing: 0.04em; padding: calc(var(--u) * 2) calc(var(--u) * 8); border-radius: calc(var(--u) * 4); font-size: calc(var(--u) * 13); }
+.hud.compact .cx-seg.sprint .cx-seg-head b { background: #22a04b; }
+.hud.compact .cx-seg-head [data-k='segWhen'] { font-weight: 800; font-size: calc(var(--u) * 11); text-transform: uppercase; color: #ffd0cc; }
+.hud.compact .cx-seg.sprint .cx-seg-head [data-k='segWhen'] { color: #c9f5d5; }
+.hud.compact .cx-seg-name { margin-left: auto; font-size: calc(var(--u) * 10.5); opacity: 0.8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: calc(var(--u) * 180); }
+.hud.compact .cx-seg.live .cx-seg-head { background: #e5322d; }
+.hud.compact .cx-seg.live.sprint .cx-seg-head { background: #22a04b; }
+.hud.compact .cx-seg.live .cx-seg-head b { background: rgba(0, 0, 0, 0.18); }
+.hud.compact .cx-seg-cells { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: rgba(255, 255, 255, 0.06); }
+.hud.compact .cx-seg-cells > div { display: flex; flex-direction: column; align-items: center; padding: calc(var(--u) * 5) calc(var(--u) * 4); background: var(--cx-bg); }
+.hud.compact .cx-seg-cells b { font-size: calc(var(--u) * 19); font-weight: 900; font-style: italic; line-height: 1.05; }
+.hud.compact .cx-seg-cells small { font-size: calc(var(--u) * 8.5); text-transform: uppercase; letter-spacing: 0.06em; opacity: 0.7; }
+.hud.compact .cx-seg-info { padding: calc(var(--u) * 4) calc(var(--u) * 10) calc(var(--u) * 5); font-size: calc(var(--u) * 10.5); text-align: center; opacity: 0.9; }
+.hud.compact .cx-seg .bar { margin: 0; border-radius: 0; }
+.hud.compact .cx-seg .hidden { display: none; }
+.hud.compact .cx-pace { padding: calc(var(--u) * 4) calc(var(--u) * 10); font-size: calc(var(--u) * 11); font-weight: 700; }

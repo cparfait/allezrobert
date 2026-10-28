@@ -139,6 +139,30 @@ export class TerrainManager {
   }
 
   /** Altitude du sol (bilinéaire) ; NaN si la tuile n'est pas chargée. */
+  /**
+   * Carrefour : une autre voie carrossable (pas l'itinéraire `routeId`, ni sentier ni piste cyclable) passe à
+   * moins de `r` m du point (tuiles chargées). Sert à n'annoncer les virages qu'aux bifurcations.
+   */
+  junctionNear(x: number, z: number, routeId: string, r = 14): boolean {
+    const SKIP = new Set(['footway', 'path', 'steps', 'cycleway', 'bridleway', 'pedestrian', 'corridor', 'platform', 'track']);
+    for (const e of this.tiles.values()) {
+      const t = e.tile;
+      if (x < t.x0 - r || x > t.x0 + t.size + r || z < t.z0 - r || z > t.z0 + t.size + r) continue;
+      for (const road of t.features.roads) {
+        const p = road.pts3;
+        if (!p || road.route === routeId || SKIP.has(road.kind) || road.tunnel) continue;
+        for (let k = 0; k + 5 < p.length; k += 3) {
+          const ax = p[k] as number, az = p[k + 2] as number;
+          const dx = (p[k + 3] as number) - ax, dz = (p[k + 5] as number) - az;
+          const l2 = dx * dx + dz * dz || 1;
+          const u = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / l2));
+          if ((ax + dx * u - x) ** 2 + (az + dz * u - z) ** 2 < r * r) return true;
+        }
+      }
+    }
+    return false;
+  }
+
   heightAt(x: number, z: number): number {
     const [tx, tz] = this.tileCoord(x, z);
     const e = this.tiles.get(`${tx}_${tz}`);
@@ -657,7 +681,8 @@ function clampUnderRoads(pos: Float32Array, tile: LoadedTile, seg: number, reach
     // Remblai : sous la chaussée (au moins le sommet de grille le plus proche), un sol trop bas est remonté
     // jusqu'à la route. Grille grossière au loin (8 m) : une route sur une digue ou à flanc de pente tombait
     // entre deux sommets et semblait s'envoler. Ni ponts, ni plus de 8 m (viaducs).
-    const lift = r.bridge ? 0 : Math.max(Math.max(r.width, 2.5) / 2 + 0.6, step * 1.2);
+    // Seulement sur les tuiles grossières (≥ 4 m, au loin) et hors de l'itinéraire (son ruban a son propre profil).
+    const lift = r.bridge || r.route || step < 4 ? 0 : Math.max(Math.max(r.width, 2.5) / 2 + 0.6, step * 1.2);
     for (let k = 0; k + 5 < p.length; k += 3) {
       const ax = p[k] as number, ay = p[k + 1] as number, az = p[k + 2] as number;
       const bx = p[k + 3] as number, by = p[k + 4] as number, bz = p[k + 5] as number;
@@ -685,7 +710,9 @@ function clampUnderRoads(pos: Float32Array, tile: LoadedTile, seg: number, reach
           if (ex * ex + ez * ez > R * R) continue;
           // Talus d'une tranchée : abaissé même s'il monte vite (sinon il recouvre le bord de la route).
           const g = axisGround(ax + dx * t, az + dz * t);
-          if (Number.isFinite(g) ? g - y > ROAD_TUNNEL_AXIS : h - y > ROAD_TUNNEL_COVER) continue;
+          // Itinéraire roulé : jamais pris pour un tunnel (seule l'étiquette OSM compte) ; une tranchée profonde
+          // (côte en lacets) laissait le sol au-dessus de la chaussée et le vélo enterré.
+          if (!r.route && (Number.isFinite(g) ? g - y > ROAD_TUNNEL_AXIS : h - y > ROAD_TUNNEL_COVER)) continue;
           pos[kk] = Math.min(h, y - ROAD_TERRAIN_BELOW);
         }
     }
