@@ -285,5 +285,8 @@ export function saveConfig(b) {
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href && process.argv[2] === 'run') {
   const req = JSON.parse(readFileSync(process.argv[3], 'utf8'));
   const code = await job(String(req.action), req, (l) => console.log(l));
-  process.exit(code);
+  // Pas de process.exit() : juste après le fetch de contrôle, la connexion keep-alive est encore en cours de
+  // fermeture et Node 24 sous Windows plante (« Assertion failed: !(handle->flags & UV_HANDLE_CLOSING) »,
+  // code 3221226505) alors que l'envoi a réussi. On laisse la boucle d'événements se vider d'elle-même.
+  process.exitCode = code;
 }
