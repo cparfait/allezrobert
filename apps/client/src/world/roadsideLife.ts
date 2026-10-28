@@ -952,9 +952,11 @@ export class RoadsideLife {
     }
 
     // ── Joggeurs et promeneurs (avec leur chien) sur l'accotement ──
+    // Piétons : surtout des coureurs (en short), quelques promeneurs avec leur chien.
     for (const [kind, p] of [
-      ['jogger', 0.28],
-      ['walker', 0.2],
+      ['jogger', 0.5],
+      ['jogger', 0.3],
+      ['walker', 0.15],
     ] as const) {
       if (r() > p * people) continue;
       const side = r() < 0.5 ? -1 : 1;

@@ -1,5 +1,5 @@
 import * as THREE from 'three/webgpu';
-import { abs, attribute, cos, float, floor, instancedBufferAttribute, min, positionGeometry, sin, step, time, vec3 } from 'three/tsl';
+import { abs, attribute, cos, float, floor, instancedBufferAttribute, min, mix, positionGeometry, sin, step, time, vec3 } from 'three/tsl';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { rng } from '../engine/noise.ts';
 import { box } from './lowPolyKit.ts';
@@ -99,7 +99,9 @@ function peopleGeometry(): THREE.BufferGeometry {
   ] as const) {
     const x = 0.1 * side;
     parts.push(piece(box(0.1, 0.07, 0.24, x, 0.035, 0.03), '#2a2a2e', 0, limbLeg, 0));
-    parts.push(piece(prism(0.058, 0.075, 0.07, 0.94, x), '#ffffff', 2, limbLeg, 0));
+    // Jambe en deux : haut (bas du vêtement) et bas de jambe (peau pour les coureurs en short, `paint` 4).
+    parts.push(piece(prism(0.064, 0.075, 0.52, 0.94, x), '#ffffff', 2, limbLeg, 0));
+    parts.push(piece(prism(0.054, 0.064, 0.07, 0.52, x), '#ffffff', 4, limbLeg, 0));
     const ax = 0.225 * side;
     parts.push(piece(prism(0.048, 0.055, 1.14, 1.45, ax), '#ffffff', 1, limbArm, 0));
     parts.push(piece(prism(0.04, 0.046, 0.86, 1.15, ax), '#ffffff', 3, limbArm, 0));
@@ -199,8 +201,9 @@ class Batch {
     this.mesh.count = this.top;
   }
 
-  colors(i: number, shirt: THREE.Color, pants: THREE.Color, skin: THREE.Color): void {
-    this.tints.setXYZ(i, packColor(shirt), packColor(pants), packColor(skin));
+  /** `shorts` : bas de jambe nu (coureurs, enfants qui jouent), codé par le signe de la couleur du bas. */
+  colors(i: number, shirt: THREE.Color, pants: THREE.Color, skin: THREE.Color, shorts = false): void {
+    this.tints.setXYZ(i, packColor(shirt), packColor(pants) * (shorts ? -1 : 1) - (shorts ? 1 : 0), packColor(skin));
     this.colorsDirty = true;
   }
 
@@ -252,10 +255,13 @@ function peopleMaterial(pose: THREE.InstancedBufferAttribute, anim: THREE.Instan
   const A = instancedBufferAttribute(anim) as unknown as THREE.Node<'vec4'>;
   const T = instancedBufferAttribute(tints) as unknown as THREE.Node<'vec3'>;
   const cS = unpackColor(T.x);
-  const cP = unpackColor(T.y);
+  // bas négatif : en short (−code − 1, pour distinguer le noir pur)
+  const shorts = step(T.y, -0.5);
+  const cP = unpackColor(mix(T.y, T.y.negate().sub(1), shorts));
   const cK = unpackColor(T.z);
+  const lowerLeg = mix(cP, cK, shorts);
   const is = (v: THREE.Node<'float'>, n: number) => float(1).sub(min(abs(v.sub(n)), 1));
-  m.colorNode = own.mul(is(paint, 0)).add(cS.mul(is(paint, 1))).add(cP.mul(is(paint, 2))).add(cK.mul(is(paint, 3)));
+  m.colorNode = own.mul(is(paint, 0)).add(cS.mul(is(paint, 1))).add(cP.mul(is(paint, 2))).add(cK.mul(is(paint, 3))).add(lowerLeg.mul(is(paint, 4)));
 
   // anim.x = mode + 10 × échelle (en centièmes) + 0,5 ; < 0 : instance masquée (échelle nulle)
   const code = A.x;
@@ -470,7 +476,7 @@ export class RoadsidePeople {
       tu: 0,
       tv: 0,
     };
-    b.colors(slot, a.shirt, a.pants, a.skin);
+    b.colors(slot, a.shirt, a.pants, a.skin, a.role === 'jogger' || a.role === 'kid');
     return a;
   }
 
@@ -551,7 +557,7 @@ export class RoadsidePeople {
     (this.batches[a.batch] as Batch).free(a.slot);
     a.batch = want;
     a.slot = slot;
-    to.colors(slot, a.shirt, a.pants, a.skin);
+    to.colors(slot, a.shirt, a.pants, a.skin, a.role === 'jogger' || a.role === 'kid');
   }
 
   private animate(g: Group, dt: number, f: THREE.Vector3): void {

@@ -603,13 +603,16 @@ export class TerrainManager {
     col = mix(col, field, sharp(s0.g));
     col = mix(col, meadow, sharp(s0.b));
     col = mix(col, c.forest.node, sharp(s0.r));
-    col = mix(col, c.urban.node, sharp(s1.r).mul(0.8));
+    // Bourgs : couleur claire, sauf dans les parcs et bois des villes (pré ou forêt aussi marqués, comme le
+    // bois de Boulogne à Longchamp, entièrement « urbain ») où le vert l'emporte.
+    const park = sharp(s0.b).max(sharp(s0.r));
+    col = mix(col, c.urban.node, sharp(s1.r).mul(float(1).sub(park)).mul(0.8));
     col = mix(col, meadow, sharp(s1.b));
     col = col.mul(patch);
     col = mix(col, vec3(0.2, 0.42, 0.62), sharp(s0.a));
-    // Chaussées OSM : masque large, une facette du sol qui dépasse sur une route en prend la couleur
-    // (le maillage du terrain est plus grossier que les routes).
-    const roadMask = smoothstep(0.22, 0.4, s1.g);
+    // Chaussées OSM : masque strict (le sol est abaissé sous les routes, clampUnderRoads) ; un masque large
+    // grisait de grandes surfaces dans les bois quadrillés d'allées (Longchamp).
+    const roadMask = smoothstep(0.45, 0.6, s1.g);
     col = mix(col, vec3(0.2, 0.205, 0.22), roadMask);
     const slope = float(1).sub(normalWorld.y);
     col = mix(col, c.dirt.node, smoothstep(0.42, 0.5, slope).mul(0.7));
