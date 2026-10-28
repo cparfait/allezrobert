@@ -46,6 +46,7 @@ export function toFeatures(t: WorldTile): TileFeatures {
         pts3: r.pts,
         surface: r.surface,
         ...(r.route ? { route: r.route } : {}),
+        ...(r.ref ? { ref: r.ref } : {}),
         ...(r.bridge ? { bridge: true } : {}),
         ...(r.tunnel ? { tunnel: true } : {}),
       };

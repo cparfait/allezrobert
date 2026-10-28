@@ -205,14 +205,22 @@ function borne(): Template {
 }
 
 /**
- * Borne kilométrique (0,8 m) : corps blanc et dessus arrondi à la couleur de l'objet (jaune : route
- * départementale) ; face avant vers +z, où roadsideLife.ts pose le numéro.
+ * Borne kilométrique à la française (≈ 1 m) : socle débordant, corps blanc, chapeau arrondi à la couleur de
+ * l'objet (jaune : départementale, rouge : nationale). Face avant vers +z, où roadsideLife.ts pose le
+ * numéro de la route (chapeau), la prochaine commune et sa distance (corps). Corps prolongé de 0,4 m sous le
+ * sol : jamais en l'air sur un talus.
  */
 function kmStone(): Template {
-  // demi-cylindre (moitié haute seulement : rien de coplanaire avec la face du corps)
-  const cap = new THREE.CylinderGeometry(0.21, 0.21, 0.2, 8, 1, false, Math.PI / 2, Math.PI).rotateX(Math.PI / 2).translate(0, 0.6, 0);
-  // corps prolongé de 0,4 m sous le sol : jamais en l'air sur un talus
-  return template([part(box(0.42, 1.0, 0.2, 0, 0.1, 0), '#f4f2ec', 0), part(cap, '#ffffff', 1), part(box(0.46, 0.05, 0.24, 0, 0.025, 0), '#9a968c', 0)]);
+  const W = 0.5;
+  const D = 0.3;
+  const dome = new THREE.CylinderGeometry(W / 2, W / 2, D, 10, 1, false, Math.PI / 2, Math.PI).rotateX(Math.PI / 2).translate(0, 0.78, 0);
+  return template([
+    part(box(W + 0.12, 0.12, D + 0.12, 0, -0.34, 0), '#e9e6de', 0),
+    part(box(W + 0.06, 0.08, D + 0.06, 0, 0.02, 0), '#e9e6de', 0),
+    part(box(W, 0.6, D, 0, 0.36, 0), '#f6f4ee', 0),
+    part(box(W + 0.004, 0.14, D + 0.004, 0, 0.71, 0), '#ffffff', 1),
+    part(dome, '#ffffff', 1),
+  ]);
 }
 
 /** Borne hectométrique : petit plot blanc à tête colorée. */

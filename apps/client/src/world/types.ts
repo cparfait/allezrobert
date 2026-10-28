@@ -26,6 +26,8 @@ export interface TileRoad {
   surface?: string;
   /** Itinéraire auquel appartient ce tronçon (déjà dessiné par RoadMesh s'il est actif). */
   route?: string;
+  /** Numéro de la route (OSM `ref` : « D 91 », « N 10 »). */
+  ref?: string;
   bridge?: boolean;
   tunnel?: boolean;
 }

@@ -132,29 +132,54 @@ const ONE = new THREE.Color(1, 1, 1);
 /** Dessus des bornes kilométriques : jaune des routes départementales. */
 const KM_CAP = new THREE.Color('#f2c21b');
 
-/** Numéros des bornes kilométriques : une texture et un matériau par numéro, partagés. */
-const kmMaterials = new Map<number, THREE.MeshStandardNodeMaterial>();
-function kmLabel(n: number, x: number, y: number, z: number, yaw: number): THREE.Mesh | null {
+/** Inscriptions des bornes kilométriques : une texture par texte, partagées. */
+const kmMaterials = new Map<string, THREE.MeshStandardNodeMaterial>();
+/** Couleur du chapeau selon la route : rouge pour une nationale, jaune pour une départementale, sinon blanc. */
+export function kmCapColor(ref: string): THREE.Color {
+  return new THREE.Color(/^N\s?\d/.test(ref) ? '#d8262c' : /^D\s?\d/.test(ref) ? '#f2c21b' : '#f2f2ee');
+}
+/**
+ * Inscriptions de la face avant (0,5 × 0,95 m) : numéro de route sur le chapeau, prochaine commune et sa
+ * distance sur le corps (sinon le kilomètre depuis le départ, en grand).
+ */
+function kmLabel(ref: string, town: string | null, townKm: number, n: number, x: number, y: number, z: number, yaw: number, scale: number): THREE.Mesh | null {
   if (typeof document === 'undefined') return null;
-  let mat = kmMaterials.get(n);
+  const key = `${ref}|${town ?? ''}|${townKm}|${n}`;
+  let mat = kmMaterials.get(key);
   if (!mat) {
     const c = document.createElement('canvas');
-    c.width = c.height = 128;
+    c.width = 256;
+    c.height = 488;
     const g = c.getContext('2d') as CanvasRenderingContext2D;
-    g.fillStyle = '#1b1c1f';
-    g.font = `bold ${n >= 100 ? 54 : 74}px "Inter", Arial, sans-serif`;
+    const font = (px: number, w = 800) => `${w} ${px}px "DIN Alternate", "Arial Narrow", Arial, sans-serif`;
     g.textAlign = 'center';
     g.textBaseline = 'middle';
-    g.fillText(String(n), 64, 70);
+    // chapeau (haut de la texture) : numéro de route en noir (blanc sur une nationale rouge)
+    if (ref) {
+      g.fillStyle = /^N/.test(ref) ? '#ffffff' : '#141414';
+      g.font = font(ref.length > 4 ? 64 : 80);
+      g.fillText(ref, 128, 92, 220);
+    }
+    g.fillStyle = '#1b1c1f';
+    if (town) {
+      g.font = font(town.length > 10 ? 34 : 42, 700);
+      g.fillText(town.toUpperCase(), 128, 250, 236);
+      g.font = font(54);
+      g.fillText(`${townKm} km`, 150, 320, 200);
+    } else {
+      g.font = font(n >= 100 ? 96 : 120);
+      g.fillText(String(n), 128, 290);
+    }
     const tex = new THREE.CanvasTexture(c);
     tex.colorSpace = THREE.SRGBColorSpace;
     tex.anisotropy = 4;
-    mat = new THREE.MeshStandardNodeMaterial({ map: tex, transparent: true, alphaTest: 0.35, roughness: 0.8, metalness: 0 });
-    kmMaterials.set(n, mat);
+    mat = new THREE.MeshStandardNodeMaterial({ map: tex, transparent: true, alphaTest: 0.3, roughness: 0.8, metalness: 0 });
+    kmMaterials.set(key, mat);
   }
-  const m = new THREE.Mesh(new THREE.PlaneGeometry(0.54, 0.54), mat);
-  // sur la face avant de la borne (×1,5 : corps de 0,3 m d'épaisseur), un peu sous le dessus arrondi
-  m.position.set(x + Math.sin(yaw) * 0.156, y + 0.54, z + Math.cos(yaw) * 0.156);
+  // Plan sur la face avant (corps de 0,3 m) : de 0,08 à 1,03 m au-dessus du sol, échelle de la borne.
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(0.5 * scale, 0.95 * scale), mat);
+  const off = 0.152 * scale;
+  m.position.set(x + Math.sin(yaw) * off, y + 0.555 * scale, z + Math.cos(yaw) * off);
   m.rotation.y = yaw;
   m.name = `km-${n}`;
   return m;
@@ -1048,10 +1073,29 @@ export class RoadsideLife {
       if (!Number.isFinite(y) || probe.buildingNear(s.x, s.z, 0.6) || onAnyRoad(s.x, s.z, 0.4)) continue;
       // face avant (+z) tournée vers le coureur qui arrive
       const yaw = Math.atan2(-s.dirX, -s.dirZ);
-      // Bornes kilométriques une fois et demie plus grosses (lisibles en roulant).
-      const k = km ? 1.5 : 1.2;
-      sb.put(km ? tpl.kmStone : tpl.hectoStone, s.x, y, s.z, yaw, k, k, k, KM_CAP);
-      const label = km ? kmLabel(Math.round(d / 1000), s.x, y, s.z, yaw) : null;
+      // Route (numéro OSM le plus proche) et prochaine commune traversée par l'itinéraire.
+      let ref = '';
+      if (km) {
+        const c0 = track.positionAt(d, 0, this.s2);
+        const t = probe.tileAt(c0.x, c0.z);
+        let best = 15;
+        for (const r of t?.features.roads ?? []) {
+          const p = r.pts3;
+          if (!p || !r.ref) continue;
+          for (let q = 0; q + 5 < p.length; q += 3) {
+            const dd = Math.sqrt(dist2Seg(c0.x, c0.z, p[q] as number, p[q + 2] as number, p[q + 3] as number, p[q + 5] as number));
+            if (dd < best) {
+              best = dd;
+              ref = (r.ref.split(';')[0] as string).replace(/\s+/g, ' ').trim();
+            }
+          }
+        }
+      }
+      const next = km ? (track.route.landmarks ?? []).filter((l) => l.d > d + 150).sort((a, b) => a.d - b.d)[0] : undefined;
+      // Bornes ≈ 1,2 × la taille réelle (lisibles en roulant).
+      const k = km ? 1.25 : 1.2;
+      sb.put(km ? tpl.kmStone : tpl.hectoStone, s.x, y, s.z, yaw, k, k, k, km ? kmCapColor(ref) : KM_CAP);
+      const label = km ? kmLabel(ref, next?.name ?? null, next ? Math.max(1, Math.round((next.d - d) / 1000)) : 0, Math.round(d / 1000), s.x, y, s.z, yaw, k) : null;
       if (label) kmLabels.push(label);
     }
 
