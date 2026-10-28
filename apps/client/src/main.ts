@@ -1,6 +1,6 @@
 import './hud/hud.css';
 import * as THREE from 'three/webgpu';
-import { DEFAULT_LOOK, RouteTrack, decimateRoute, rankRouteId, type PairState, type PhoneCommand, bikeOfLook, type AvatarLook, bikeSetupFor, weatherAt, weatherElapsedS, weatherSeed, worldToWgs84, type RideWeather, type RiderProfile, type RouteData } from '@allezrobert/shared';
+import { rideOnMessage, DEFAULT_LOOK, RouteTrack, decimateRoute, rankRouteId, type PairState, type PhoneCommand, bikeOfLook, type AvatarLook, bikeSetupFor, weatherAt, weatherElapsedS, weatherSeed, worldToWgs84, type RideWeather, type RiderProfile, type RouteData } from '@allezrobert/shared';
 import { createEngine, type Engine } from './engine/renderer.ts';
 import { QUALITY_PRESETS, withUrlOverrides, type QualitySettings } from './engine/quality.ts';
 import { detectHardwareQuality } from './engine/autoQuality.ts';
@@ -1153,7 +1153,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
         const seg = track.route.segments.find((x) => x.id === ev.segmentId);
         if (seg) sequences.segment({ seg, timeS: ev.timeMs / 1000, avgWatts: ride.avgWatts() }, s.name, rankRouteId(track.route.id), ev.rank, net.roster.size);
       } else if (ev.kind === 'chat') hud.addChat(net.roster.get(ev.riderId)?.name ?? '?', ev.text);
-      else if (ev.kind === 'rideOn' && ev.to === net.selfId) hud.toast(`👍 Ride On — ${net.roster.get(ev.from)?.name ?? ''}`);
+      else if (ev.kind === 'rideOn' && ev.to === net.selfId) hud.toast(rideOnMessage(net.roster.get(ev.from)?.name ?? '', getLang()));
       // Amis : arrivée (jeu chargé, il est sur la route) et départ annoncés.
       else if (ev.kind === 'join' && net.friendIds.has(ev.riderId)) hud.toast(getLang() === 'fr' ? `★ Ton ami ${ev.name} vient d'arriver` : `★ Your friend ${ev.name} just joined`);
       else if (ev.kind === 'leave' && net.friendIds.has(ev.riderId)) {
@@ -1661,6 +1661,8 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
           r.state.speedMs = b.speedMs;
           r.lateral = b.lateral;
         });
+        // Aucune IA entre la caméra de poursuite et mon coureur : elles doublent sur le côté ou restent en retrait.
+        peloton.keepCameraClear({ distM: ride.state.distM, lateral: ride.lateral, speedMs: ride.state.speedMs }, dt);
       }
       // Abri derrière un tracteur ou une camionnette qui roule dans le même sens.
       if (traffic && ride.dir > 0) ride.draft = Math.max(ride.draft, traffic.draftFor(ride.state.distM, ride.lateral));

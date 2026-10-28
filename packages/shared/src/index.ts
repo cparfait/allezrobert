@@ -23,3 +23,4 @@ export * from './climbs.ts';
 export * from './archetypes.ts';
 export * from './countries.ts';
 export * from './aiNames.ts';
+export * from './rideOn.ts';

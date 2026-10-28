@@ -12,7 +12,7 @@
  */
 import './style.css';
 import { Client, type Room } from '@colyseus/sdk';
-import { climbAhead, climbElevation, gradeColor, PAIR_MSG, PAIR_ROOM, PAIR_TOKEN_RE, type CameraMode, type Climb, type ClimbAhead, type PairEvent, type PairMusicItem, type PairPresence, type PairRoute, type PairState, type PhoneCommand } from '@allezrobert/shared';
+import { rideOnMessage, climbAhead, climbElevation, gradeColor, PAIR_MSG, PAIR_ROOM, PAIR_TOKEN_RE, type CameraMode, type Climb, type ClimbAhead, type PairEvent, type PairMusicItem, type PairPresence, type PairRoute, type PairState, type PhoneCommand } from '@allezrobert/shared';
 import { detectLang, STRINGS, type Lang } from './i18n.ts';
 import { climbsOf } from './climbs.ts';
 import { drawClimb, drawMap, drawProfile, RouteGeo } from './map.ts';
@@ -260,7 +260,7 @@ function onEvent(ev: PairEvent): void {
     S.chat.push({ who: ev.who, text: ev.text });
     haptic(20);
   } else if (ev.kind === 'toast' || ev.kind === 'rideOn') {
-    const text = ev.kind === 'toast' ? ev.text : `👍 Ride On — ${ev.from}`;
+    const text = ev.kind === 'toast' ? ev.text : rideOnMessage(ev.from, lang);
     S.chat.push({ who: '', text, sys: true });
     showToast(text);
   }

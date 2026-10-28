@@ -27,6 +27,18 @@ function botFace(i: number, r: () => number): Partial<AvatarLook> {
   return { ...look, face: encodeFace(shape) };
 }
 
+/**
+ * Couloir de la caméra de poursuite : derrière le joueur, sur CAMERA_CLEAR_BACK_M (recul de la caméra, CHASE_BACK = 3,5 m
+ * dans cameras.ts, plus une marge) et de part et d'autre de son axe sur CAMERA_CLEAR_SIDE_M (moins que l'écart de
+ * dépassement, 1,2 m : celui qui double est hors du couloir). Aucune IA n'y reste : elle double ou reste en retrait.
+ */
+export const CAMERA_CLEAR_BACK_M = 5.5;
+export const CAMERA_CLEAR_SIDE_M = 1.0;
+/** Écart latéral (m) en dessous duquel une IA qui suit le joueur est dans son couloir ou sur le point d'y entrer. */
+const CAMERA_FOLLOW_SIDE_M = 1.6;
+/** Vitesse (m/s) à laquelle une IA entrée dans le couloir est repoussée en arrière. */
+const CAMERA_PUSHBACK_MS = 8;
+
 export interface PelotonRider {
   id: string;
   name: string;
@@ -188,8 +200,8 @@ export class Peloton {
         name,
         nationality: identity.nationality,
         color,
-        // Départ groupé : en file indienne juste devant et derrière le joueur.
-        state: createRiderState({ distM: startDistM + (i % 2 ? 1 : -1) * (2 + Math.floor(i / 2) * 2.2), speedMs: 0 }),
+        // Départ groupé : en file indienne juste devant le joueur et derrière lui, hors du champ de la caméra de poursuite.
+        state: createRiderState({ distM: startDistM + (i % 2 ? 2 + Math.floor(i / 2) * 2.2 : -(CAMERA_CLEAR_BACK_M + 1 + Math.floor(i / 2) * 2.2)), speedMs: 0 }),
         lateral: Math.min(((i % 3) - 1) * 0.7 + 1.2, roadHalfM(track.route.roadWidthM)),
         ai: new AiRider({ id: `ai-${i}`, profile: PROFILES[i % PROFILES.length] as AiProfileName, ftpWatts: ftp, params, riderMassKg: massKg, seed: i * 7919, aggressiveness: 0.35 }),
         avatar,
@@ -280,11 +292,11 @@ export class Peloton {
       }
       r.heading = 0;
       // Coureur juste devant (IA dans le sens de marche, ou joueur).
-      let ahead: { distM: number; speedMs: number; lateral: number } | null = null;
+      let ahead: { distM: number; speedMs: number; lateral: number; isPlayer?: boolean } | null = null;
       const myLane = this.lanes.laneOf(r.id);
       // Deux files : on suit le coureur de sa propre file (ou le joueur), pas celui de l'autre file.
       const peers = this.riders.filter((x) => x !== r && !x.uturn.active && (!double || this.lanes.laneOf(x.id) === myLane));
-      for (const o of [...peers.map((x) => ({ distM: x.state.distM, speedMs: x.state.speedMs, lateral: x.lateral })), { distM: player.distM, speedMs: player.speedMs, lateral: player.lateral }]) {
+      for (const o of [...peers.map((x) => ({ distM: x.state.distM, speedMs: x.state.speedMs, lateral: x.lateral })), { distM: player.distM, speedMs: player.speedMs, lateral: player.lateral, isPlayer: true }]) {
         if (o.distM > r.state.distM + 0.01 && (!ahead || o.distM < ahead.distM)) ahead = o;
       }
       // Dépassement propre : plus rapide que celui de devant (le joueur, une IA, un cycliste d'ambiance), on déboîte par la
@@ -303,7 +315,8 @@ export class Peloton {
           groupPaceWkg:
             this.paceWkg * easing * (double ? LANE_PACE[myLane] : 1) * (waitingForMe && r.state.distM > player.distM + 6 ? 0.78 : 1) * (1 - THREE.MathUtils.clamp((r.state.distM - player.distM - 4) / 50, -0.3, 0.45)),
           // Pas de roue à suivre pendant un dépassement : l'IA garde son allure jusqu'à être passée.
-          gapAheadM: ahead && !plan.passing ? ahead.distM - r.state.distM - 1.8 : Infinity,
+          // Derrière le joueur on reste hors du champ de la caméra de poursuite (jamais dans sa roue).
+          gapAheadM: ahead && !plan.passing ? ahead.distM - r.state.distM - (ahead.isPlayer && Math.abs(ahead.lateral - r.lateral) < CAMERA_FOLLOW_SIDE_M ? CAMERA_CLEAR_BACK_M : 1.8) : Infinity,
           speedAheadMs: ahead?.speedMs ?? r.state.speedMs,
           ...(ahead && !plan.passing ? { lateralAheadM: ahead.lateral - r.lateral } : {}),
           positionInGroup: rank,
@@ -330,6 +343,21 @@ export class Peloton {
       r.lateral += (targetLat - r.lateral) * Math.min(1, dt * (plan.passing ? 1.8 : 0.8));
     });
     return factors[0] ?? 0;
+  }
+
+  /**
+   * Garde le couloir de la caméra de poursuite dégagé : une IA qui y est entrée (joueur qui ralentit, départ) est
+   * repoussée en arrière et ne dépasse pas l'allure du joueur tant qu'elle n'est pas passée sur le côté.
+   * À appeler après la séparation des coureurs.
+   */
+  keepCameraClear(player: { distM: number; lateral: number; speedMs: number }, dt: number): void {
+    for (const r of this.riders) {
+      if (r.uturn.active) continue;
+      const gap = player.distM - r.state.distM;
+      if (gap < 0 || gap >= CAMERA_CLEAR_BACK_M || Math.abs(r.lateral - player.lateral) >= CAMERA_CLEAR_SIDE_M) continue;
+      r.state.distM -= Math.min(CAMERA_CLEAR_BACK_M - gap, CAMERA_PUSHBACK_MS * dt);
+      r.state.speedMs = Math.min(r.state.speedMs, player.speedMs);
+    }
   }
 
   /** Cyclistes d'ambiance qui viennent en face : branché par le jeu (`AmbientCyclists.oncomingAhead`). */
