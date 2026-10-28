@@ -38,6 +38,42 @@ const SEASON_GRASS: Record<Season, [string, string]> = LOW_POLY
  * (chaque brin : un quadrilatère puis une pointe, penchés vers l'extérieur). `tip` = 0 au pied,
  * 1 à la pointe (couleur et balancement).
  */
+/**
+ * Style jeu vidéo : touffe de 5 larges brins triangulaires, coudés une fois (deux facettes chacun), plus
+ * trapus que les brins fins et courbés du rendu réaliste. `tip` = 0 au pied, 1 à la pointe.
+ */
+function lowPolyClumpGeometry(): THREE.BufferGeometry {
+  const pos: number[] = [];
+  const tip: number[] = [];
+  const r = rng(29);
+  const blades = 5;
+  for (let k = 0; k < blades; k++) {
+    const a = (k / blades) * Math.PI * 2 + r() * 0.8;
+    const ox = Math.cos(a) * (0.015 + r() * 0.04);
+    const oz = Math.sin(a) * (0.015 + r() * 0.04);
+    const h = 0.2 + r() * 0.22;
+    const w = 0.035 + r() * 0.025;
+    const px = -Math.sin(a) * w;
+    const pz = Math.cos(a) * w;
+    // coude à mi-hauteur, pointe penchée vers l'extérieur
+    const lean = 0.3 + r() * 0.3;
+    const mx = ox + Math.cos(a) * h * lean * 0.3;
+    const mz = oz + Math.sin(a) * h * lean * 0.3;
+    const tx = ox + Math.cos(a) * h * lean;
+    const tz = oz + Math.sin(a) * h * lean;
+    const hm = h * 0.5;
+    pos.push(ox - px, 0, oz - pz, ox + px, 0, oz + pz, mx, hm, mz);
+    pos.push(ox - px, 0, oz - pz, mx, hm, mz, tx, h, tz);
+    pos.push(mx, hm, mz, ox + px, 0, oz + pz, tx, h, tz);
+    tip.push(0, 0, 0.5, 0, 0.5, 1, 0.5, 0, 1);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('tip', new THREE.Float32BufferAttribute(tip, 1));
+  g.computeVertexNormals();
+  return g;
+}
+
 function clumpGeometry(): THREE.BufferGeometry {
   const pos: number[] = [];
   const tip: number[] = [];
@@ -130,8 +166,10 @@ export class GrassField {
     // Brins tournés vers le ciel : moitié moins de lumière du ciel, sinon l'herbe blanchit (voile bleuté).
     m.envMapIntensity = 0.5;
     // Normale verticale des deux côtés : les brins sont éclairés comme le sol (pas de faces sombres).
-    m.normalNode = transformNormalToView(vec3(0, 1, 0));
-    this.mesh = new THREE.InstancedMesh(clumpGeometry(), m, Math.max(this.max, 1));
+    // Style jeu vidéo : facettes visibles (aplats par face) ; réaliste : normale verticale, éclairage doux.
+    if (LOW_POLY) m.flatShading = true;
+    else m.normalNode = transformNormalToView(vec3(0, 1, 0));
+    this.mesh = new THREE.InstancedMesh(LOW_POLY ? lowPolyClumpGeometry() : clumpGeometry(), m, Math.max(this.max, 1));
     this.mesh.count = 0;
     this.mesh.frustumCulled = false;
     this.mesh.receiveShadow = true;

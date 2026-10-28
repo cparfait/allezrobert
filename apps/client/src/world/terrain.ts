@@ -144,6 +144,12 @@ export class TerrainManager {
     const e = this.tiles.get(`${tx}_${tz}`);
     if (!e) return Number.NaN;
     const t = e.tile;
+    // Style jeu vidéo : le sol affiché est abaissé sous les routes (clampUnderRoads) ; herbe, fleurs,
+    // clôtures et animaux se posent sur ce sol-là, pas sur le relief brut (ils flottaient à côté des routes).
+    if (LOW_POLY) {
+      const h = meshHeight(e.mesh.geometry, t, x, z);
+      if (Number.isFinite(h)) return h;
+    }
     const fx = ((x - t.x0) / t.size) * t.n;
     const fz = ((z - t.z0) / t.size) * t.n;
     const i = Math.min(Math.max(Math.floor(fx), 0), t.n - 1);
@@ -450,6 +456,7 @@ export class TerrainManager {
       }
     border.forEach((src, n) => normals.copyWithin((mainCount + n) * 3, src * 3, src * 3 + 3));
     const geo = new THREE.BufferGeometry();
+    geo.userData.seg = seg;
     geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
     geo.setAttribute('normal', new THREE.BufferAttribute(normals, 3));
     geo.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
@@ -670,4 +677,27 @@ function clampUnderRoads(pos: Float32Array, tile: LoadedTile, seg: number, reach
         }
     }
   }
+}
+
+/**
+ * Altitude de la surface affichée d'une tuile (triangles de la grille, même diagonale que l'index de
+ * buildGeometry) ; NaN si la géométrie n'est pas une grille de tuile.
+ */
+function meshHeight(geo: THREE.BufferGeometry, tile: LoadedTile, x: number, z: number): number {
+  const seg = geo.userData.seg as number | undefined;
+  const pos = geo.getAttribute('position')?.array as Float32Array | undefined;
+  if (!seg || !pos) return Number.NaN;
+  const u = Math.min(Math.max(((x - tile.x0) / tile.size) * seg, 0), seg - 1e-6);
+  const v = Math.min(Math.max(((z - tile.z0) / tile.size) * seg, 0), seg - 1e-6);
+  const i = Math.floor(u);
+  const j = Math.floor(v);
+  const fu = u - i;
+  const fv = v - j;
+  const row = seg + 1;
+  const H = (ii: number, jj: number) => pos[(jj * row + ii) * 3 + 1] as number;
+  const ha = H(i, j);
+  const hb = H(i + 1, j);
+  const hc = H(i, j + 1);
+  const hd = H(i + 1, j + 1);
+  return fu + fv <= 1 ? ha + (hb - ha) * fu + (hc - ha) * fv : hd + (hc - hd) * (1 - fu) + (hb - hd) * (1 - fv);
 }
