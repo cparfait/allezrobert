@@ -322,11 +322,15 @@ async function main(): Promise<void> {
     // &only=film4,film6 : seulement ces coureurs.
     const only = (params.get('only') ?? '').split(',').filter(Boolean);
     if (only.length) looks.splice(0, looks.length, ...looks.filter(([n]) => only.includes(n)));
+    // &spin=0,90,180,270 : un tour de pédale, une vignette par angle de manivelle (°).
+    const spin = (params.get('spin') ?? '').split(',').filter(Boolean).map(Number);
+    if (spin.length) looks.splice(0, looks.length, ...looks.flatMap(([n, l]) => spin.map((d): [string, AvatarLook] => [`${n}@${d}`, { ...l, crankDeg: d } as AvatarLook])));
     for (const o of riders) o.a.root.visible = false;
     far.root.visible = false;
-    const cols = 4;
-    const cw = 480;
-    const ch = 360;
+    const few = looks.length < 5 && params.has('big'); // &big : au plus quatre vignettes, en grand (deux par ligne)
+    const cols = few ? 2 : Math.min(4, looks.length);
+    const cw = looks.length < 3 || few ? 800 : 480; // une ou deux vignettes : pleine taille
+    const ch = looks.length < 3 || few ? 600 : 360;
     const sheet = document.createElement('canvas');
     sheet.width = cols * cw;
     sheet.height = Math.ceil(looks.length / cols) * ch;
@@ -337,9 +341,18 @@ async function main(): Promise<void> {
       const a = new GltfRiderAvatar(look);
       a.root.position.set(0, 0, 0);
       scene.add(a.root);
+      const crankDeg = (look as AvatarLook & { crankDeg?: number }).crankDeg;
       for (let t = 0; t < 2; t += 1 / 60) a.update(1 / 60, pose === 'standing' ? 70 : pose === 'coasting' ? 0 : 85, speed, pose, 0);
+      if (crankDeg !== undefined) {
+        (a as unknown as { crankAngle: number }).crankAngle = (crankDeg * Math.PI) / 180;
+        a.update(1e-4, 0.0001, 0, pose);
+        (a as unknown as { crankAngle: number }).crankAngle = (crankDeg * Math.PI) / 180;
+        a.update(1e-4, 0.0001, 0, pose);
+      }
       a.root.updateMatrixWorld(true);
-      const P = (n: string): THREE.Vector3 => (a.root.getObjectByName(n) as THREE.Object3D).getWorldPosition(new THREE.Vector3());
+      // &greyshorts : cuissard gris clair, pour lire les volumes du bassin (le noir les écrase).
+      if (params.has('greyshorts')) a.root.traverse((o) => { const m = (o as THREE.Mesh).material as THREE.MeshStandardMaterial | undefined; if (m?.name === 'shorts') { m.color?.set('#9aa0a8'); m.needsUpdate = true; } });
+      const P =(n: string): THREE.Vector3 => (a.root.getObjectByName(n) as THREE.Object3D).getWorldPosition(new THREE.Vector3());
       const hip = P('thigh_l');
       const sh = P('upperarm_l');
       const nk = P('neck_01');
@@ -360,7 +373,8 @@ async function main(): Promise<void> {
       else camera.position.set(-9, sh.y, sh.z - 0.15);
       // &low : bas du dos, bassin et selle (au lieu des épaules).
       const low = params.has('low');
-      if (low && !params.has('rear')) camera.position.set(-9, hip.y + 0.1, hip.z);
+      if (low && params.has('behind')) camera.position.set(params.has('side') ? -1.6 : 0, hip.y + 0.55, hip.z - (params.has('side') ? 3.0 : 3.4)); // &behind&low : bassin vu de dos (&side : trois quarts arrière)
+      else if (low && !params.has('rear')) camera.position.set(-9, hip.y + 0.1, hip.z);
       camera.updateProjectionMatrix();
       camera.lookAt(0, low ? hip.y + 0.05 : sh.y - 0.05, low ? hip.z : sh.z - 0.15);
       for (let n = 0; n < 3; n++) engine.renderManual();

@@ -61,6 +61,11 @@ ap.add_argument('--humerus', type=float, default=-1.0)  # remplace HUMERUS_SCALE
 ap.add_argument('--reach', type=float, default=-1.0)     # remplace ARM_REACH
 ap.add_argument('--forearm', type=float, default=1.0)   # facteur de longueur de l'avant-bras
 ap.add_argument('--neck', type=float, default=3.0)      # intensité de FEMALE_NECK (variante féminine)
+ap.add_argument('--glute-flat', type=float, default=-1.0)   # remplace GLUTE_FLAT
+ap.add_argument('--glute-start', type=float, default=-1.0)  # remplace GLUTE_START
+ap.add_argument('--glute-pelvis', type=float, default=-1.0)  # remplace GLUTE_PELVIS
+ap.add_argument('--glute-fold', type=float, default=-1.0)    # remplace GLUTE_FOLD
+ap.add_argument('--glute-side', type=float, default=-1.0)    # remplace GLUTE_SIDE
 ap.add_argument('--skull', type=float, default=0.8)     # arrière du crâne moins profond (SKULL_BACK), 0 : base MPFB
 args = ap.parse_args(argv)
 OUT = os.path.abspath(args.out)
@@ -96,6 +101,9 @@ ARM_REACH = 0.83                          # épaule → poignet / longueur du br
 BACK_DAMP = {'sex-': 1.0, 'muscle+': 0.7, 'age+': 0.7}  # atténuation de ces cibles sur le haut du dos (0 à 1)
 GLUTE_START = 0.06                        # saillie des fesses comptée à partir de 6 cm derrière l'os du bassin (m)
 GLUTE_FLAT = 0.6                          # part de cette saillie supprimée (0 à 1)
+GLUTE_PELVIS = 1.0                        # part du poids de cuisse reportée sur le bassin pour le haut des fesses (0 à 1)
+GLUTE_FOLD = 0.19                         # le report s'étend de la hanche jusqu'à ce point sous elle, pli fessier (m)
+GLUTE_SIDE = 0.24                         # demi-largeur où le report s'annule (m) : le côté de la hanche reste à la cuisse
 HUMERUS_SCALE = 1.28                      # humérus × 1,28 : 0,25 → 0,32 m (adulte de 1,75 m ≈ 0,33 m)
 BELLY_DAMP = {'sex-': 0.6}   # atténuation du ventre rentré (déplacement vers le dos) des cibles, 0 à 1
 NECK_DAMP = {'sex-': 0.6}                 # atténuation de la cible « sex− » sur le cou (0 à 1)
@@ -405,6 +413,8 @@ def flatten_glutes(body, base_m):
     imw = mw.inverted()
     blocks = list(body.data.shape_keys.key_blocks)
     basis = blocks[0]
+    g_start = args.glute_start if args.glute_start >= 0 else GLUTE_START
+    g_flat = args.glute_flat if args.glute_flat >= 0 else GLUTE_FLAT
     shifts = []
     peak = 0.0
     for v in basis.data:
@@ -412,14 +422,52 @@ def flatten_glutes(body, base_m):
         dz = (c.z - pel.z) / 0.12                      # hauteur : de 12 cm sous l'os à 0
         h = max(0.0, min(1.0, 1.0 + dz)) * max(0.0, min(1.0, (0.06 - (c.z - pel.z)) / 0.05)) if c.z < pel.z + 0.06 else 0.0
         side = max(0.0, min(1.0, (0.24 - abs(c.x)) / 0.08))
-        prot = max(0.0, c.y - (pel.y + GLUTE_START))
+        prot = max(0.0, c.y - (pel.y + g_start))
         peak = max(peak, prot * h * side)
-        shifts.append(Vector((0.0, -GLUTE_FLAT * prot * h * side, 0.0)))
-    print(f'fessiers : saillie maximale {100 * peak:.1f} cm, ramenée de {100 * GLUTE_FLAT * peak:.1f} cm')
+        shifts.append(Vector((0.0, -g_flat * prot * h * side, 0.0)))
+    print(f'fessiers : saillie maximale {100 * peak:.1f} cm, ramenée de {100 * g_flat * peak:.1f} cm')
     for kb in blocks:
         for d, sh in zip(kb.data, shifts):
             d.co = d.co + imw.to_3x3() @ sh
     body.data.update()
+
+
+def stabilize_glutes(body, rig):
+    """Fessiers qui restent des fessiers : dans la base MPFB le haut de la fesse est surtout porté par
+    la cuisse. À la flexion de hanche de la position de course (~100°) et à chaque coup de pédale, la
+    fesse de la jambe levée est tirée vers l'avant et s'écrase en diagonale, celle de l'autre côté
+    gonfle (collage linéaire des poids). Le poids des cuisses est donc reporté sur le bassin
+    (GLUTE_PELVIS, 0 à 1) pour les sommets de l'arrière du bassin, de la hanche jusqu'au pli fessier ;
+    au-dessous, la cuisse garde ses poids (le pli se plie comme un vrai pli)."""
+    g_pelvis = args.glute_pelvis if args.glute_pelvis >= 0 else GLUTE_PELVIS
+    g_fold = args.glute_fold if args.glute_fold >= 0 else GLUTE_FOLD
+    g_side = args.glute_side if args.glute_side >= 0 else GLUTE_SIDE
+    if g_pelvis <= 0 or 'pelvis' not in body.vertex_groups:
+        return
+    mw = body.matrix_world
+    bones = rig.data.bones
+    hip = rig.matrix_world @ bones['thigh_l'].head_local
+    pelvis_idx = body.vertex_groups['pelvis'].index
+    thigh_idx = {g.index for g in body.vertex_groups if g.name.startswith('thigh_')}
+    moved = 0
+    for v in body.data.vertices:
+        c = mw @ v.co
+        up = smoothstep(hip.z - g_fold, hip.z - g_fold + 0.09, c.z)
+        back = smoothstep(hip.y - 0.01, hip.y + 0.05, c.y)
+        side = 1.0 - smoothstep(g_side - 0.07, g_side, abs(c.x))
+        f = g_pelvis * up * back * side
+        if f <= 1e-4:
+            continue
+        w_th = sum(ge.weight for ge in v.groups if ge.group in thigh_idx)
+        if w_th <= 0:
+            continue
+        w_pel = next((ge.weight for ge in v.groups if ge.group == pelvis_idx), 0.0)
+        for ge in list(v.groups):
+            if ge.group in thigh_idx:
+                body.vertex_groups[ge.group].add([v.index], ge.weight * (1.0 - f), 'REPLACE')
+        body.vertex_groups[pelvis_idx].add([v.index], w_pel + w_th * f, 'REPLACE')
+        moved += 1
+    print(f'fessiers : poids de cuisse reporté sur le bassin pour {moved} sommets')
 
 
 def hollow_nape(body, base_m, depth):
@@ -1850,6 +1898,7 @@ def main():
     assign_kit(body, rig)
     assign_eyes(eyes, rig)
     lengthen_humerus(body, rig)
+    stabilize_glutes(body, rig)
     for o in (eyes,):
         o.parent = rig
         if not any(m.type == 'ARMATURE' for m in o.modifiers):

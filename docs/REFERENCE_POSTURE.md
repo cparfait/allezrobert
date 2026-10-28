@@ -172,6 +172,18 @@ Mensurations (modèle féminin ramené à 1,67 m, sections du torse seul sans cu
 hanches ≈ 80 cm (sous-estimées : cuisses exclues) ; cibles 88–92 / 68–72 / 92–98 : poitrine et hanches un peu fines. Ces
 mensurations sont des réglages de build (macros `cupsize`, `proportions`), non exposés comme curseurs du look.
 
+### Fessiers du modèle féminin
+
+Vues de dos (photos de référence de coureuses) : deux fesses rondes séparées par le pli central, au-dessus de la selle, la
+cuisse s'en détachant plus bas. Dans le modèle, le haut de la fesse était porté par la cuisse : à la flexion de hanche de
+la position de course et à chaque coup de pédale, la fesse de la jambe levée s'écrasait en diagonale et l'autre gonflait
+(collage linéaire des poids, figé aussi dans la pose de repos). `stabilize_glutes` (`build_avatar.py`) reporte le poids de
+cuisse sur le bassin pour l'arrière de la hanche, du haut jusqu'au pli fessier (`GLUTE_PELVIS` 1, `GLUTE_FOLD` 0,19 m,
+`GLUTE_SIDE` 0,24 m ; options `--glute-pelvis/-fold/-side`), le côté de la hanche et la cuisse gardant leurs poids.
+Ces valeurs sont les constantes par défaut ; les deux modèles (`rider*.glb` et `rider_female*.glb`) sont reconstruits avec. Banc d'essai :
+`avatar-test.html?avatar=mpfb&profil&behind&low&big&spin=0,90,180,270&morphs=sex:-1&only=sex:-1` (`&greyshorts` : cuissard gris
+pour lire les volumes, `&side` : trois quarts arrière). Sauvegarde avant : `out/avatar-avant-fesses2/`.
+
 ## Vélo adapté à la taille (hauteur de selle et de cintre)
 
 `gltfAvatar.ts` : `saddleLiftFor(k)` calcule, d'après les longueurs réelles du squelette (fémur, tibia), la manivelle réelle
