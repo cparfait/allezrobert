@@ -193,6 +193,27 @@ describe('API — comptes et profil', () => {
     expect(me.body.profile.displayName).toBe('Gégé');
   });
 
+  it('connexion de l’application Windows : session remise une seule fois au bon nonce', async () => {
+    const nonce = 'n'.repeat(40);
+    const app = new Session();
+    expect((await app.req('POST', '/api/auth/desktop/poll', { nonce })).status).toBe(204);
+    const browser = await devLogin('Desktop');
+    // Sans session dans le navigateur : refusé.
+    expect((await new Session().req('GET', `/api/auth/desktop/finish?nonce=${nonce}`)).status).toBe(400);
+    // Nonce trop court : refusé.
+    expect((await browser.req('GET', '/api/auth/desktop/finish?nonce=court')).status).toBe(400);
+    expect((await browser.req('GET', `/api/auth/desktop/finish?nonce=${nonce}`)).status).toBe(200);
+    // Un autre nonce ne donne rien.
+    expect((await app.req('POST', '/api/auth/desktop/poll', { nonce: 'x'.repeat(40) })).status).toBe(204);
+    const got = await app.json<{ sessionToken: string }>('POST', '/api/auth/desktop/poll', { nonce });
+    expect(got.status).toBe(200);
+    // Le jeton remis ouvre bien le compte, en Bearer et sans cookie.
+    const me = await fetch(`${base}/api/me`, { headers: { authorization: `Bearer ${got.body.sessionToken}` } });
+    expect(me.status).toBe(200);
+    // Remis une seule fois.
+    expect((await app.req('POST', '/api/auth/desktop/poll', { nonce })).status).toBe(204);
+  });
+
   it('déconnexion : la session est révoquée', async () => {
     const s = await devLogin('Partant');
     const cookie = s.cookie;

@@ -8,7 +8,7 @@ import type { AppContext } from '../context.ts';
 import { authorizeUrl, exchangeCode, fetchIdentity, newPkce, safeRedirect, type LoginProvider, type OAuthClient } from '../auth/oauth.ts';
 import { normalizeEmail } from '../crypto.ts';
 import { OAUTH_COOKIE, parseCookies, serializeCookie } from './cookies.ts';
-import { clearSessionCookie, HttpError, RateLimiter, requireUser, setSessionCookie, type AuthedRequest } from './middleware.ts';
+import { clearSessionCookie, HttpError, RateLimiter, requireUser, sessionToken, setSessionCookie, type AuthedRequest } from './middleware.ts';
 import type { User } from '../db/repos.ts';
 
 export function loginClient(ctx: AppContext, provider: LoginProvider): OAuthClient | null {
@@ -112,6 +112,41 @@ export function authRoutes(ctx: AppContext): express.Router {
     const user = await ctx.repos.upsertIdentity('dev', body.name.toLowerCase(), body.name);
     const token = await openSession(ctx, res, user);
     res.json({ user: { id: user.id, displayName: user.displayName }, sessionToken: token });
+  });
+
+  /**
+   * Connexion de l'application Windows : la page de connexion s'ouvre dans le navigateur du PC
+   * (redirect = /api/auth/desktop/finish?nonce=…), puis l'application, qui connaît seule le nonce,
+   * vient chercher la session par `POST /desktop/poll`. Le jeton n'est remis qu'une fois.
+   */
+  const desktopHandoff = new Map<string, { token: string; exp: number }>();
+  const NONCE = /^[A-Za-z0-9_-]{32,64}$/;
+  const sweepHandoff = (now: number): void => {
+    for (const [k, v] of desktopHandoff) if (v.exp < now) desktopHandoff.delete(k);
+  };
+
+  r.get('/desktop/finish', (req: AuthedRequest, res) => {
+    const nonce = String(req.query.nonce ?? '');
+    const token = sessionToken(req);
+    const page = (ok: boolean): string =>
+      `<!doctype html><meta charset="utf-8"><title>Allez Robert !</title><body style="font-family:system-ui;background:#0a0e16;color:#f5f7fa;display:grid;place-items:center;height:100vh;margin:0"><div style="text-align:center"><h1>${ok ? 'Connexion réussie' : 'Connexion impossible'}</h1><p>${ok ? 'Tu peux fermer cet onglet et retourner dans l’application Allez Robert !.' : 'Retourne dans l’application et réessaie.'}</p></div>`;
+    res.setHeader('Cache-Control', 'no-store');
+    res.type('html');
+    if (!NONCE.test(nonce) || !token || !req.user) return res.status(400).send(page(false));
+    const now = Date.now();
+    sweepHandoff(now);
+    if (desktopHandoff.size > 1000) return res.status(429).send(page(false));
+    desktopHandoff.set(nonce, { token, exp: now + 5 * 60_000 });
+    res.send(page(true));
+  });
+
+  r.post('/desktop/poll', (req, res) => {
+    const body = z.object({ nonce: z.string().regex(NONCE) }).parse(req.body);
+    const hit = desktopHandoff.get(body.nonce);
+    res.setHeader('Cache-Control', 'no-store');
+    if (!hit || hit.exp < Date.now()) return res.status(204).end();
+    desktopHandoff.delete(body.nonce);
+    res.json({ sessionToken: hit.token });
   });
 
   r.post('/logout', async (req: AuthedRequest, res) => {

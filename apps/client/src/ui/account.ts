@@ -2,6 +2,7 @@ import type { AvatarLook } from '@allezrobert/shared';
 import { serverEndpoint } from '../game/multiplayer.ts';
 import { getLang } from '../i18n/index.ts';
 import { saveSettings, type Settings } from './settings.ts';
+import { inDesktopApp, setDesktopSession, startDesktopLogin } from '../net/desktopAuth.ts';
 import { applyServerAtelier, equippedForServer } from './garage.ts';
 
 /** Base de l'API du serveur (même hôte que les salles Colyseus). */
@@ -47,6 +48,7 @@ async function fetchProviders(): Promise<Providers | null> {
 
 export async function logout(): Promise<void> {
   await api('/auth/logout', { method: 'POST' }).catch(() => undefined);
+  setDesktopSession(null);
 }
 
 /** Recopie le profil du compte dans les réglages locaux (poids, taille, FTP, nom). */
@@ -129,11 +131,30 @@ export async function showLogin(root: HTMLElement, s: Settings, done: (me: Me | 
       ${!prov.google && !prov.discord ? `<p class="meta" style="color:var(--ar-muted);font-size:13px">${fr ? 'Google et Discord apparaîtront une fois leurs identifiants OAuth configurés sur le serveur.' : 'Google and Discord appear once their OAuth credentials are set on the server.'}</p>` : ''}`
         : `<div class="warning">${fr ? 'Serveur injoignable : tu peux rouler seul sans compte.' : 'Server unreachable: you can ride solo without an account.'}${import.meta.env.DEV ? `<br><small>${fr ? 'Google, Discord et le compagnon demandent le serveur : lance <code>pnpm dev</code> (client + serveur + compagnon) à la racine du projet.' : 'Google, Discord and the companion need the server: run <code>pnpm dev</code> (client + server + companion) at the project root.'}</small>` : ''}</div>`
     }
+    <div id="l-wait" class="meta" style="color:var(--ar-muted);font-size:13px;margin-top:10px"></div>
     <button class="btn" id="l-skip" style="width:100%;margin-top:14px">${fr ? 'Continuer sans compte (sortie solo)' : 'Continue without account (solo ride)'}</button>
   </div></div>`;
   const $ = (id: string) => root.querySelector(`#${id}`) as HTMLElement | null;
-  $('l-google')?.addEventListener('click', () => (location.href = `${apiBase()}/auth/google/start?redirect=${back}`));
-  $('l-discord')?.addEventListener('click', () => (location.href = `${apiBase()}/auth/discord/start?redirect=${back}`));
+  // Application Windows : la connexion se fait dans le navigateur du PC, puis on récupère la session.
+  const desktop = inDesktopApp ? startDesktopLogin(apiBase()) : null;
+  let waiting: AbortController | undefined;
+  const waitDesktop = async (): Promise<void> => {
+    if (!desktop) return;
+    waiting?.abort();
+    waiting = new AbortController();
+    const wait = $('l-wait');
+    if (wait) wait.textContent = fr ? 'Termine la connexion dans ton navigateur, puis reviens ici…' : 'Finish signing in in your browser, then come back here…';
+    if (!(await desktop.wait(waiting.signal))) return;
+    const me = await fetchMe();
+    if (me) applyProfile(me, s);
+    done(me);
+  };
+  const oauth = (provider: 'google' | 'discord') => {
+    if (!desktop) return void (location.href = `${apiBase()}/auth/${provider}/start?redirect=${back}`);
+    void desktop.open(`${apiBase()}/auth/${provider}/start?redirect=${encodeURIComponent(desktop.redirect)}`).then(waitDesktop);
+  };
+  $('l-google')?.addEventListener('click', () => oauth('google'));
+  $('l-discord')?.addEventListener('click', () => oauth('discord'));
   $('l-magic')?.addEventListener('submit', async (e) => {
     e.preventDefault();
     const email = ($('l-email') as HTMLInputElement).value.trim();
@@ -143,9 +164,10 @@ export async function showLogin(root: HTMLElement, s: Settings, done: (me: Me | 
       if (msg0) msg0.textContent = fr ? 'Adresse e-mail invalide : vérifie-la avant de recevoir le lien.' : 'Invalid email address: check it before getting the link.';
       return;
     }
-    const r = await api('/auth/magic', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email, redirect: location.pathname, locale: getLang() }) }).catch(() => null);
+    const r = await api('/auth/magic', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email, redirect: desktop ? desktop.redirect : location.pathname, locale: getLang() }) }).catch(() => null);
     const msg = $('l-msg');
     if (msg) msg.textContent = r && r.ok ? (fr ? 'Lien envoyé : ouvre ton e-mail sur cet ordinateur.' : 'Link sent: open your email on this computer.') : fr ? 'Envoi impossible pour le moment.' : 'Could not send the link right now.';
+    if (r && r.ok) void waitDesktop();
   });
   $('l-dev')?.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -156,6 +178,7 @@ export async function showLogin(root: HTMLElement, s: Settings, done: (me: Me | 
     done(me);
   });
   $('l-skip')?.addEventListener('click', () => {
+    waiting?.abort();
     localStorage.setItem('ar.skipLogin', '1');
     done(null);
   });

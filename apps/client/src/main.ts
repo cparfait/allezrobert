@@ -1,3 +1,4 @@
+import './net/desktopAuth.ts';
 import './hud/hud.css';
 import * as THREE from 'three/webgpu';
 import { rideOnMessage, DEFAULT_LOOK, RouteTrack, decimateRoute, rankRouteId, type PairState, type PhoneCommand, bikeOfLook, type AvatarLook, bikeSetupFor, weatherAt, weatherElapsedS, weatherSeed, worldToWgs84, type RideWeather, type RiderProfile, type RouteData } from '@allezrobert/shared';

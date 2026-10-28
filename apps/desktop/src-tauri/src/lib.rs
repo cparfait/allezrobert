@@ -15,8 +15,50 @@ pub mod worlds;
 
 use tauri::{Manager, RunEvent};
 
+/// Vide le cache HTTP de WebView2 (pas le stockage des zones, qui est dans CacheStorage) à la
+/// première ouverture après une nouvelle installation : une page mise en cache par une version
+/// précédente ne doit jamais masquer le jeu embarqué.
+fn purge_stale_http_cache() {
+    let Some(local) = std::env::var_os("LOCALAPPDATA").map(std::path::PathBuf::from) else { return };
+    let Ok(exe) = std::env::current_exe() else { return };
+    let Ok(modified) = std::fs::metadata(&exe).and_then(|m| m.modified()) else { return };
+    let stamp = format!("{:?}", modified);
+    let root = local.join("fr.cparfait.allezrobert");
+    let marker = root.join("last-exe-stamp");
+    if std::fs::read_to_string(&marker).map(|s| s == stamp).unwrap_or(false) {
+        return;
+    }
+    for dir in ["Cache", "Code Cache"] {
+        let _ = std::fs::remove_dir_all(root.join("EBWebView").join("Default").join(dir));
+    }
+    let _ = std::fs::create_dir_all(&root);
+    let _ = std::fs::write(marker, stamp);
+}
+
+/// Ouvre une adresse https dans le navigateur du PC (connexion au compte). Seules les adresses
+/// https sans espace ni guillemet sont acceptées.
+#[tauri::command]
+fn open_external(url: String) -> Result<(), String> {
+    if !url.starts_with("https://") || url.len() > 2048 || url.chars().any(|c| c.is_whitespace() || c == '"' || c == '<' || c == '>') {
+        return Err("adresse refusée".into());
+    }
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        std::process::Command::new("rundll32")
+            .args(["url.dll,FileProtocolHandler", &url])
+            .creation_flags(0x0800_0000)
+            .spawn()
+            .map_err(|e| e.to_string())?;
+        Ok(())
+    }
+    #[cfg(not(windows))]
+    Err("non pris en charge".into())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    purge_stale_http_cache();
     let log_level = if cfg!(debug_assertions) {
         log::LevelFilter::Debug
     } else {
@@ -37,6 +79,7 @@ pub fn run() {
         .manage(dircon::DirconState::default())
         .manage(ant::AntState::default())
         .invoke_handler(tauri::generate_handler![
+            open_external,
             ble::ble_list_adapters,
             ble::ble_select_adapter,
             ble::ble_start_scan,
