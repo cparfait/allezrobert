@@ -50,6 +50,8 @@ const PANTS: Record<string, THREE.Color[]> = {
   villager: col(['#3b5b8a', '#4a4a4a', '#6b5a45', '#2f3a4a']),
   fisher: col(['#4a4a3a', '#3a3f2f', '#5a5040']),
 };
+const CORGI_RED = new THREE.Color('#d98a3d');
+const CORGI_TRI = new THREE.Color('#2b2522');
 const DOGS = col(['#8a5a36', '#2b2420', '#e8dcc8', '#c49a5a', '#5a4a3a', '#f2efe8']);
 const TEAMS = col(['#d63b3b', '#2f6fd6', '#f2c21b', '#22a45d', '#f4f4f4', '#7b3fbf']);
 const WHITE = new THREE.Color('#f4f4f2');
@@ -147,6 +149,22 @@ function peopleGeometry(): THREE.BufferGeometry {
     [-0.07, -0.22, 5],
   ] as const)
     parts.push(piece(box(0.06, 0.32, 0.06, x, 0.16, z), '#ffffff', 1, limb, 2));
+
+  // Corgi (groupe 5, chien marqué « corgi ») : corps long et bas, poitrail et museau blancs, grandes oreilles
+  // dressées, pattes courtes ; robe fauve (couleur de l'objet).
+  parts.push(piece(box(0.22, 0.2, 0.62, 0, 0.27, 0), '#ffffff', 1, 0, 5));
+  parts.push(piece(box(0.16, 0.12, 0.2, 0, 0.21, 0.24), '#f4efe6', 0, 0, 5));
+  parts.push(piece(box(0.19, 0.17, 0.2, 0, 0.42, 0.37), '#ffffff', 1, 0, 5));
+  parts.push(piece(box(0.1, 0.08, 0.11, 0, 0.37, 0.51), '#f4efe6', 0, 0, 5));
+  parts.push(piece(box(0.04, 0.035, 0.03, 0, 0.4, 0.57), '#1d1a18', 0, 0, 5));
+  for (const sx of [1, -1]) parts.push(piece(new THREE.ConeGeometry(0.05, 0.13, 4).rotateY(Math.PI / 4).translate(0.06 * sx, 0.56, 0.33), '#ffffff', 1, 0, 5));
+  for (const [x, z, limb] of [
+    [0.07, 0.2, 5],
+    [-0.07, 0.2, 6],
+    [0.07, -0.22, 6],
+    [-0.07, -0.22, 5],
+  ] as const)
+    parts.push(piece(box(0.07, 0.17, 0.07, x, 0.085, z), '#f4efe6', 0, limb, 5));
 
   // Ballon : icosaèdre blanc, une face sur quatre noire.
   const ball = piece(new THREE.IcosahedronGeometry(0.11, 0).translate(0, 0.11, 0), '#f4f4f2', 0, 7, 3);
@@ -288,7 +306,14 @@ function peopleMaterial(pose: THREE.InstancedBufferAttribute, anim: THREE.Instan
   const dog = is(mode, DOG);
   const ball = is(mode, BALL);
   const human = float(1).sub(dog).sub(ball);
-  const vis = is(grp, 0).mul(human).add(is(grp, 1).mul(sit)).add(is(grp, 2).mul(dog)).add(is(grp, 3).mul(ball)).add(is(grp, 4).mul(human).mul(female));
+  // `female` sur un chien : corgi
+  const vis = is(grp, 0)
+    .mul(human)
+    .add(is(grp, 1).mul(sit))
+    .add(is(grp, 2).mul(dog).mul(float(1).sub(female)))
+    .add(is(grp, 3).mul(ball))
+    .add(is(grp, 4).mul(human).mul(female))
+    .add(is(grp, 5).mul(dog).mul(female));
   const s = sin(ph);
   const legL = is(limb, 1);
   const legR = is(limb, 2);
@@ -484,7 +509,8 @@ export class RoadsidePeople {
       shirt: role === 'dog' ? pick(DOGS) : (shirt ?? pick(SHIRTS[key] as THREE.Color[])),
       pants: pants ?? pick(PANTS[key] as THREE.Color[]),
       skin: pick(SKIN),
-      female: role !== 'dog' && role !== 'ball' && role !== 'fisher' && r() < 0.45,
+      // chiens : `female` marque un corgi (un sur trois)
+      female: role === 'dog' ? r() < 0.35 : role !== 'ball' && role !== 'fisher' && r() < 0.45,
       t: 0,
       dir: 1,
       speed: 0,
@@ -499,6 +525,11 @@ export class RoadsidePeople {
       tv: 0,
     };
     b.colors(slot, a.shirt, a.pants, a.skin, a.role === 'jogger' || a.role === 'kid', a.female);
+    // Corgi : robe fauve ou tricolore (noire), taille unique.
+    if (role === 'dog' && a.female) {
+      a.shirt = r() < 0.75 ? CORGI_RED : CORGI_TRI;
+      a.scale = 1;
+    }
     return a;
   }
 

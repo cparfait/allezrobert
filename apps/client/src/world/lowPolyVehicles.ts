@@ -13,7 +13,7 @@ import type { VehicleKind } from '@allezrobert/physics';
  * fois par variante ; les matériaux une fois par teinte. Une instance = un maillage de caisse + ses roues.
  */
 
-export type LowPolyVariant = 'citadine' | 'berline' | 'break' | 'suv' | 'pickup' | 'fourgon' | 'camion' | 'tracteur' | 'tracteurRemorque';
+export type LowPolyVariant = 'citadine' | 'berline' | 'break' | 'suv' | 'sportive' | 'pickup' | 'fourgon' | 'camion' | 'tracteur' | 'tracteurRemorque';
 
 /** Même forme que `Built` (traffic.ts), sans dépendance circulaire. */
 export interface LowPolyBuilt {
@@ -39,6 +39,8 @@ export const LOW_POLY_VARIANTS: Record<LowPolyVariant, VariantSpec> = {
   berline: { kind: 'car', cruise: [16, 22], weight: 3 },
   break: { kind: 'car', cruise: [16, 21], weight: 2 },
   suv: { kind: 'car', cruise: [16, 21], weight: 2.5 },
+  /** Sportive façon Porsche 911 : basse, capot plongeant, arrière fastback. */
+  sportive: { kind: 'car', cruise: [19, 25], weight: 0.7 },
   pickup: { kind: 'car', cruise: [15, 19], weight: 1 },
   fourgon: { kind: 'van', cruise: [14, 18], weight: 1.5 },
   camion: { kind: 'van', cruise: [13, 16], weight: 0.6 },
@@ -66,9 +68,13 @@ export function pickLowPolyTractor(rand: () => number): LowPolyVariant {
   return rand() < 0.5 ? 'tracteur' : 'tracteurRemorque';
 }
 
+/** Sportives : rouge Indien, jaune Racing, blanc, argent GT, noir, bleu Gentiane, vert Python. */
+const SPORT_PAINTS = ['#c8102e', '#c8102e', '#f5c400', '#f2f2ee', '#b8bcc0', '#1c1d20', '#1f3f8a', '#4f9a3a'];
+
 /** Teinte d'une instance : fourgons blancs le plus souvent, le reste dans la palette. */
 export function pickLowPolyPaint(variant: LowPolyVariant, rand: () => number): string {
   const paint = LOW_POLY_PAINTS[Math.floor(rand() * LOW_POLY_PAINTS.length)] as string;
+  if (variant === 'sportive') return SPORT_PAINTS[Math.floor(rand() * SPORT_PAINTS.length)] as string;
   return variant === 'fourgon' && rand() < 0.75 ? '#f4f4f0' : paint;
 }
 
@@ -437,6 +443,7 @@ const SHAPES: Record<LowPolyVariant, () => Shape> = {
   citadine: () => car({ L: 3.8, W: 1.68, r: 0.3, sill: 0.3, belt: 0.88, roof: 1.46, nose: 0.42, tail: 0.06, cabB: [-1.84, 0.62], cabT: [-1.7, -0.2], axles: [-1.25, 1.25], pillar: true }),
   berline: () => car({ L: 4.6, W: 1.78, r: 0.32, sill: 0.3, belt: 0.84, roof: 1.42, nose: 0.5, tail: 0.18, cabB: [-1.2, 0.8], cabT: [-0.78, 0.18], axles: [-1.4, 1.4], pillar: true }),
   break: () => car({ L: 4.7, W: 1.8, r: 0.32, sill: 0.3, belt: 0.86, roof: 1.46, nose: 0.5, tail: 0.05, cabB: [-2.25, 0.8], cabT: [-2.18, 0.15], axles: [-1.45, 1.42], pillar: true, rails: true }),
+  sportive: () => car({ L: 4.5, W: 1.85, r: 0.33, sill: 0.24, belt: 0.72, roof: 1.27, nose: 0.78, tail: 0.42, cabB: [-1.55, 0.5], cabT: [-1.05, -0.05], axles: [-1.25, 1.2] }),
   suv: () => car({ L: 4.5, W: 1.88, r: 0.38, sill: 0.42, belt: 1.06, roof: 1.72, nose: 0.42, tail: 0.08, cabB: [-2.1, 0.72], cabT: [-1.98, 0.0], axles: [-1.38, 1.36], pillar: true, rails: true, cladding: true }),
   pickup,
   fourgon,
