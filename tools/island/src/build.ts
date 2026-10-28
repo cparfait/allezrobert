@@ -99,14 +99,17 @@ function nearestOn(road: Road, x: number, z: number): { i: number; t: number; d:
 function snapEnds(road: Road, onto: Road[]): void {
   for (const end of [0, road.pts.length - 1]) {
     const p = road.pts[end]!;
-    let target: number | null = null;
+    let target: Vec3 | null = null;
     for (const o of onto) {
       if (o === road) continue;
       const q = nearestOn(o, p[0], p[2]);
-      if (q.d < 4) target = q.y;
+      // Extrémité posée exactement sur le point de la route d'accueil qui portera le nœud du carrefour.
+      if (q.d < 4) target = o.pts[q.t < 0.5 ? q.i : (q.i + 1) % o.pts.length]!;
     }
     if (target === null) continue;
-    const delta = target - p[1];
+    p[0] = target[0];
+    p[2] = target[2];
+    const delta = target[1] - p[1];
     const span = Math.round(40 / STEP);
     for (let k = 0; k <= span && k < road.pts.length; k++) {
       const idx = end === 0 ? k : road.pts.length - 1 - k;
@@ -225,7 +228,9 @@ function buildBuildings(roads: Road[]): Building[] {
     poly.every(([x, z]) => roads.every((r) => nearestOn(r, x, z).d > r.flat + margin)) &&
     roads.every((r) => nearestOn(r, poly.reduce((s, p) => s + p[0], 0) / poly.length, poly.reduce((s, p) => s + p[1], 0) / poly.length).d > r.flat + margin);
   const overlaps = (poly: Vec2[]) => occupied.some((o) => poly.some(([x, z]) => pointInPolygon(x, z, o)) || o.some(([x, z]) => pointInPolygon(x, z, poly)));
-  const yUnder = (poly: Vec2[]) => Math.min(...poly.map(([x, z]) => terrain(x, z)));
+  // Posé sur le sol final (arasé près des routes) : le jeu prolonge les murs vers le bas, jamais vers le haut.
+  const idx = new RoadIndex(roads);
+  const yUnder = (poly: Vec2[]) => Math.min(...poly.map(([x, z]) => finalHeight(idx, x, z)));
   // Église (nef + clocher) au coin de la place.
   const nef = orientedRect(EGLISE.x, EGLISE.z, EGLISE.d / 2, EGLISE.w / 2, Math.PI / 2);
   out.push({ id: 'eglise', kind: 'church', height: 15, levels: 1, roof: { shape: 'gabled', height: 6, material: 'slate' }, pts: nef, y: yUnder(nef), name: 'Église Saint-Robert' });
@@ -309,7 +314,7 @@ function buildAreas(roads: Road[]): Area[] {
   // Les Bois (nord-ouest) et bosquets autour de l'anneau, loin des routes.
   areas.push({ id: 'les-bois', kind: 'mixed', layer: 'forests', ring: ellipse(-4300, -1750, 1150, 800, 30, 0.3), name: 'Les Bois' });
   areas.push({ id: 'bois-du-col', kind: 'conifer', layer: 'forests', ring: ellipse(3900, -2300, 900, 600, 26, -0.4) });
-  for (const [cx, cz, rx, rz] of [[-2700, -260, 420, 110], [-2650, 860, 460, 120], [-3600, 300, 140, 260]] as const)
+  for (const [cx, cz, rx, rz] of [[-2700, -260, 420, 110], [-2650, 860, 460, 120], [-3700, 300, 140, 260]] as const)
     areas.push({ id: `bosquet-${cx}-${cz}`, kind: 'deciduous', layer: 'forests', ring: ellipse(cx, cz, rx, rz, 20) });
   // Parcelles agricoles : damier de prés et de champs, sauf près des routes, du bourg, de l'anneau et des bois.
   const busy = areas.filter((a) => a.layer !== 'fields');
@@ -358,6 +363,26 @@ function buildGraph(roads: Road[]): RoadGraphData {
       }
     }
   }
+  // Croisements en X (rues du bourg en damier) : un nœud commun aux deux routes.
+  for (let a = 0; a < roads.length; a++)
+    for (let b = a + 1; b < roads.length; b++) {
+      const ra = roads[a]!;
+      const rb = roads[b]!;
+      const na = ra.pts.length;
+      const nb = rb.pts.length;
+      for (let i = 0; i < (ra.loop ? na : na - 1); i++) {
+        const p = ra.pts[i]!;
+        const q = ra.pts[(i + 1) % na]!;
+        for (let j = 0; j < (rb.loop ? nb : nb - 1); j++) {
+          const u = rb.pts[j]!;
+          const v = rb.pts[(j + 1) % nb]!;
+          const c = segCross(p, q, u, v);
+          if (!c) continue;
+          addCut(ra, c[0] < 0.5 ? i : (i + 1) % na);
+          addCut(rb, c[1] < 0.5 ? j : (j + 1) % nb);
+        }
+      }
+    }
   const nodes: number[] = [];
   const nodeAt = (p: Vec3): number => {
     for (let k = 0; k < nodes.length; k += 3) if (Math.hypot(nodes[k]! - p[0], nodes[k + 2]! - p[2]) < 4.5) return k / 3;
@@ -396,6 +421,19 @@ function buildGraph(roads: Road[]): RoadGraphData {
     }
   }
   return { formatVersion: 1, nodes, edges, attribution: ATTRIBUTION };
+}
+
+/** Paramètres (t, u) du croisement de deux segments en plan, extrémités comprises ; null s'ils ne se coupent pas. */
+function segCross(p: Vec3, q: Vec3, u: Vec3, v: Vec3): [number, number] | null {
+  const rx = q[0] - p[0];
+  const rz = q[2] - p[2];
+  const sx = v[0] - u[0];
+  const sz = v[2] - u[2];
+  const den = rx * sz - rz * sx;
+  if (Math.abs(den) < 1e-9) return null;
+  const t = ((u[0] - p[0]) * sz - (u[2] - p[2]) * sx) / den;
+  const w = ((u[0] - p[0]) * rz - (u[2] - p[2]) * rx) / den;
+  return t >= 0 && t <= 1 && w >= 0 && w <= 1 ? [t, w] : null;
 }
 
 // ── Itinéraires ──
@@ -596,7 +634,15 @@ function writeTiles(roads: Road[], buildings: Building[], areas: Area[]): WorldM
       };
       for (const r of roads) {
         const pts = r.loop ? [...r.pts, r.pts[0]!] : r.pts;
-        clipPolyline(pts, bounds).forEach((piece, k) =>
+        const parts = clipPolyline(pts, bounds);
+        // Boucle dont le départ tombe dans la tuile : le dernier morceau rejoint le premier (pas de coupure).
+        if (r.loop && parts.length > 1) {
+          const first = parts[0]!;
+          const last = parts[parts.length - 1]!;
+          const a = last[last.length - 1]!;
+          if (Math.hypot(a[0] - first[0]![0], a[2] - first[0]![2]) < 1e-6) parts.splice(0, 1, [...last, ...first.slice(1)]) && parts.pop();
+        }
+        parts.forEach((piece, k) =>
           tile.roads.push({ id: `${r.id}-${k}`, kind: r.kind, name: r.name, width: r.width, surface: r.surface, flatten: [r.flat, r.flat + r.blend], pts: piece.flatMap((p) => [r2(p[0]), r2(p[1]), r2(p[2])]) }),
         );
       }
