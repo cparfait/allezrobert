@@ -1,9 +1,11 @@
 import * as THREE from 'three/webgpu';
-import { attribute, positionLocal, time, sin, abs, vec2, vec3, float, mix, instanceIndex, hash, color, varying, max, uv, texture, frontFacing, instancedBufferAttribute } from 'three/tsl';
+import { attribute, positionLocal, time, sin, abs, vec2, vec3, float, mix, instanceIndex, hash, color, varying, max, uv, texture, frontFacing, instancedBufferAttribute, uniform } from 'three/tsl';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import type { RouteTrack } from '@allezrobert/shared';
 import { rng } from '../engine/noise.ts';
+import { LOW_POLY } from '../engine/style.ts';
 import { signDesigns, type SignDesign } from './crowdSigns.ts';
+import { lowPolyCrowdMaterial, lowPolyPersonGeometry, lowPolySignGeometry, lowPolySignMaterial } from './crowdLowPoly.ts';
 
 /** Spectateur : corps, tête et bras levés (attribut `part` : 0 corps, 1 tête, 2 bras). */
 function personGeometry(): THREE.BufferGeometry {
@@ -141,11 +143,22 @@ export class Crowd {
   /** Pancartes (null si aucun segment). */
   readonly signs: THREE.InstancedMesh | null;
   readonly group = new THREE.Group();
+  /**
+   * Style jeu vidéo : position du coureur (x, z). Le public ne s'anime qu'à son approche (voir
+   * crowdLowPoly.ts). Mise à jour par `update` ; tant qu'elle ne l'est pas, la caméra en tient lieu.
+   */
+  private readonly rider = uniform(new THREE.Vector2(1e9, 1e9));
+  private driven = false;
+  private readonly track: RouteTrack;
 
   constructor(track: RouteTrack, groundAt: (x: number, z: number) => number, opts: CrowdOptions = {}) {
+    this.track = track;
     const r = rng(2026);
     const mats: THREE.Matrix4[] = [];
     const still: number[] = [];
+    // Style jeu vidéo : par spectateur x, z, cosinus et sinus de son orientation ; par pancarte x, z.
+    const spots: number[] = [];
+    const signSpots: number[] = [];
     const signMats: THREE.Matrix4[] = [];
     const signCells: number[] = [];
     const m = new THREE.Matrix4();
@@ -171,7 +184,9 @@ export class Crowd {
           const ground = groundAt(p.x, p.z);
           const y = (Number.isFinite(ground) ? ground : p.y) - 0.05;
           // Face à la route : regard perpendiculaire à la direction de marche.
-          q.setFromAxisAngle(up, Math.atan2(p.dirX, p.dirZ) + (side > 0 ? -Math.PI / 2 : Math.PI / 2));
+          const yaw = Math.atan2(p.dirX, p.dirZ) + (side > 0 ? -Math.PI / 2 : Math.PI / 2);
+          q.setFromAxisAngle(up, yaw);
+          spots.push(p.x, p.z, Math.cos(yaw), Math.sin(yaw));
           const s = 0.9 + r() * 0.2;
           m.compose(new THREE.Vector3(p.x, y, p.z), q, new THREE.Vector3(s, s, s));
           mats.push(m.clone());
@@ -186,30 +201,14 @@ export class Crowd {
           const sq = new THREE.Quaternion().setFromAxisAngle(up, Math.atan2(n.x, n.z));
           const pos = new THREE.Vector3(p.x + n.x * 0.25, y, p.z + n.z * 0.25);
           signMats.push(new THREE.Matrix4().compose(pos, sq, new THREE.Vector3(s, s, s)));
+          signSpots.push(pos.x, pos.z);
           signCells.push(kom ? komNext++ % 10 : 10 + (sprintNext++ % 6));
         }
       }
     }
-    const mat = new THREE.MeshStandardNodeMaterial();
-    const part = attribute<'float'>('part');
-    const h = hash(instanceIndex);
-    const h2 = hash(instanceIndex.add(31));
-    // Porteurs de pancarte : ni saut ni bras agités (ils tiennent le manche).
-    const stillAttr = instancedBufferAttribute(new THREE.InstancedBufferAttribute(new Float32Array(Math.max(still.length, 1)).map((_, i) => still[i] ?? 0), 1)) as unknown as ReturnType<typeof float>;
-    const move = float(1).sub(stillAttr);
-    // Saut et bras agités, déphasés par spectateur.
-    const jump = max(sin(time.mul(float(5).add(h.mul(3))).add(h.mul(20))), float(0)).mul(0.12).mul(h2.greaterThan(0.5).select(float(1), float(0.3))).mul(move);
-    const wave = sin(time.mul(9).add(h.mul(10))).mul(0.18).mul(part.equal(2).select(float(1), float(0))).mul(move);
-    // positionLocal inclut déjà la transformation d'instance : le côté du bras vient de l'attribut brut.
-    const raw = attribute<'vec3'>('position');
-    mat.positionNode = positionLocal.add(vec3(wave.mul(raw.x.sign()), jump.add(abs(wave).mul(0.3)), 0));
-    // Maillots et vêtements variés : choix par paliers du hachage de l'instance.
-    const step = (e: number) => h.greaterThan(e).select(float(1), float(0));
-    const shirt = mix(mix(mix(mix(color('#e63946'), color('#ffd23f'), step(0.2)), color('#2a9d8f'), step(0.4)), color('#f4f4f4'), step(0.6)), color('#1f6feb'), step(0.8));
-    const skin = mix(color('#f1c27d'), color('#8d5524'), h2);
-    mat.colorNode = varying(mix(shirt, skin, part.equal(1).select(float(1), float(0))));
-    mat.roughnessNode = float(0.8);
-    this.mesh = new THREE.InstancedMesh(personGeometry(), mat, Math.max(mats.length, 1));
+    // Style jeu vidéo : spectateurs à facettes, animés seulement à l'approche du coureur (crowdLowPoly.ts).
+    const mat = LOW_POLY ? lowPolyCrowdMaterial(padded(spots, 4), padded(still, 1), this.rider) : realCrowdMaterial(still);
+    this.mesh = new THREE.InstancedMesh(LOW_POLY ? lowPolyPersonGeometry() : personGeometry(), mat, Math.max(mats.length, 1));
     mats.forEach((mm, i) => this.mesh.setMatrixAt(i, mm));
     this.mesh.count = mats.length;
     this.mesh.instanceMatrix.needsUpdate = true;
@@ -218,6 +217,12 @@ export class Crowd {
     this.mesh.receiveShadow = true;
     this.mesh.name = 'crowd';
     this.group.add(this.mesh);
+    if (LOW_POLY) {
+      // Sans appel à `update`, la caméra tient lieu de coureur (elle le suit dans presque tous les plans).
+      this.mesh.onBeforeRender = (_r, _s, camera) => {
+        if (!this.driven) this.rider.value.set(camera.matrixWorld.elements[12] as number, camera.matrixWorld.elements[14] as number);
+      };
+    }
 
     if (signMats.length) {
       const atlas = signAtlas([...komDesigns, ...sprintDesigns]);
@@ -227,19 +232,8 @@ export class Crowd {
         offsets[i * 2 + 1] = 1 - (Math.floor(c / ATLAS_COLS) + 1) / ATLAS_ROWS;
       });
       const cell = instancedBufferAttribute(new THREE.InstancedBufferAttribute(offsets, 2)) as unknown as ReturnType<typeof vec2>;
-      const smat = new THREE.MeshStandardNodeMaterial({ side: THREE.DoubleSide });
-      const spart = attribute<'float'>('part');
-      const atlasUv = uv().mul(vec2(1 / ATLAS_COLS, 1 / ATLAS_ROWS)).add(cell);
-      // Recto : la pancarte ; verso : carton nu ; manche en bois.
-      const face = frontFacing.select(texture(atlas, atlasUv).rgb, vec3(0.48, 0.3, 0.13));
-      smat.colorNode = spart.equal(0).select(face, vec3(0.2, 0.11, 0.05));
-      smat.roughnessNode = float(0.85);
-      // Pancartes agitées : léger va-et-vient vertical et latéral, déphasé.
-      const sh = hash(instanceIndex.add(7));
-      const lift = sin(time.mul(float(2.2).add(sh)).add(sh.mul(12))).mul(0.06);
-      const sway = sin(time.mul(1.6).add(sh.mul(9))).mul(0.05);
-      smat.positionNode = positionLocal.add(vec3(sway, lift, 0));
-      const signs = new THREE.InstancedMesh(signGeometry(), smat, signMats.length);
+      const smat = LOW_POLY ? lowPolySignMaterial(atlas, cell, ATLAS_COLS, ATLAS_ROWS, new Float32Array(signSpots), this.rider) : realSignMaterial(atlas, cell);
+      const signs = new THREE.InstancedMesh(LOW_POLY ? lowPolySignGeometry(SIGN_W, SIGN_H) : signGeometry(), smat, signMats.length);
       signMats.forEach((mm, i) => signs.setMatrixAt(i, mm));
       signs.instanceMatrix.needsUpdate = true;
       signs.computeBoundingSphere();
@@ -250,4 +244,63 @@ export class Crowd {
       this.group.add(signs);
     } else this.signs = null;
   }
+
+  /**
+   * Position du coureur sur l'itinéraire (style jeu vidéo : le public ne s'anime qu'à son approche, puis
+   * se calme après son passage). À appeler à chaque image ; sans appel, la caméra sert de repli.
+   */
+  update(riderDistM: number): void {
+    if (!LOW_POLY) return;
+    const p = this.track.positionAt(riderDistM, 0);
+    this.rider.value.set(p.x, p.z);
+    this.driven = true;
+  }
+}
+
+/** Attribut d'instance d'au moins une instance (le maillage instancié n'est jamais vide). */
+function padded(values: number[], itemSize: number): Float32Array {
+  const out = new Float32Array(Math.max(values.length, itemSize));
+  out.set(values);
+  return out;
+}
+
+/** Spectateurs du style réaliste : sautent et agitent les bras en permanence. */
+function realCrowdMaterial(still: number[]): THREE.MeshStandardNodeMaterial {
+  const mat = new THREE.MeshStandardNodeMaterial();
+  const part = attribute<'float'>('part');
+  const h = hash(instanceIndex);
+  const h2 = hash(instanceIndex.add(31));
+  // Porteurs de pancarte : ni saut ni bras agités (ils tiennent le manche).
+  const stillAttr = instancedBufferAttribute(new THREE.InstancedBufferAttribute(new Float32Array(Math.max(still.length, 1)).map((_, i) => still[i] ?? 0), 1)) as unknown as ReturnType<typeof float>;
+  const move = float(1).sub(stillAttr);
+  // Saut et bras agités, déphasés par spectateur.
+  const jump = max(sin(time.mul(float(5).add(h.mul(3))).add(h.mul(20))), float(0)).mul(0.12).mul(h2.greaterThan(0.5).select(float(1), float(0.3))).mul(move);
+  const wave = sin(time.mul(9).add(h.mul(10))).mul(0.18).mul(part.equal(2).select(float(1), float(0))).mul(move);
+  // positionLocal inclut déjà la transformation d'instance : le côté du bras vient de l'attribut brut.
+  const raw = attribute<'vec3'>('position');
+  mat.positionNode = positionLocal.add(vec3(wave.mul(raw.x.sign()), jump.add(abs(wave).mul(0.3)), 0));
+  // Maillots et vêtements variés : choix par paliers du hachage de l'instance.
+  const step = (e: number) => h.greaterThan(e).select(float(1), float(0));
+  const shirt = mix(mix(mix(mix(color('#e63946'), color('#ffd23f'), step(0.2)), color('#2a9d8f'), step(0.4)), color('#f4f4f4'), step(0.6)), color('#1f6feb'), step(0.8));
+  const skin = mix(color('#f1c27d'), color('#8d5524'), h2);
+  mat.colorNode = varying(mix(shirt, skin, part.equal(1).select(float(1), float(0))));
+  mat.roughnessNode = float(0.8);
+  return mat;
+}
+
+/** Pancartes du style réaliste : carton à l'atlas, verso nu, manche en bois. */
+function realSignMaterial(atlas: THREE.Texture, cell: ReturnType<typeof vec2>): THREE.MeshStandardNodeMaterial {
+  const smat = new THREE.MeshStandardNodeMaterial({ side: THREE.DoubleSide });
+  const spart = attribute<'float'>('part');
+  const atlasUv = uv().mul(vec2(1 / ATLAS_COLS, 1 / ATLAS_ROWS)).add(cell);
+  // Recto : la pancarte ; verso : carton nu ; manche en bois.
+  const face = frontFacing.select(texture(atlas, atlasUv).rgb, vec3(0.48, 0.3, 0.13));
+  smat.colorNode = spart.equal(0).select(face, vec3(0.2, 0.11, 0.05));
+  smat.roughnessNode = float(0.85);
+  // Pancartes agitées : léger va-et-vient vertical et latéral, déphasé.
+  const sh = hash(instanceIndex.add(7));
+  const lift = sin(time.mul(float(2.2).add(sh)).add(sh.mul(12))).mul(0.06);
+  const sway = sin(time.mul(1.6).add(sh.mul(9))).mul(0.05);
+  smat.positionNode = positionLocal.add(vec3(sway, lift, 0));
+  return smat;
 }

@@ -1763,6 +1763,8 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     remoteRiders = mp ? mp.render(dt, engine.camera, ride.state.distM) : [];
     if (!ride.paused) {
       trains.update(dt, ride.state.distM, ride.dir, ride.state.speedMs);
+      // Public : il s'anime quand le coureur approche (style jeu vidéo).
+      crowd.update(ride.state.distM);
       if (traffic) {
         const push = traffic.yieldPush(ride.state.distM, ride.lateral, ride.dir);
         if (push) {

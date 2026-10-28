@@ -198,11 +198,37 @@ function lowPolyDeciduousGeometry(lod: number): THREE.BufferGeometry {
   return mergeGeometries(parts, false) as THREE.BufferGeometry;
 }
 
-/** Style jeu vidéo : buisson en icosaèdre à facettes (≈ 20 tri), rayon SHRUB_R, posé au sol. */
+/**
+ * Style jeu vidéo : buisson en touffe de 4 boules à facettes, plus large que haut, à base plate posée au
+ * sol (une boule seule touchait le sol par sa pointe et semblait flotter). Hauteur unité (l'instance la met
+ * à la hauteur mesurée), rayon horizontal ≈ SHRUB_R ; baies (leaf = 2) montrées sur une partie des buissons.
+ */
 function lowPolyShrubGeometry(): THREE.BufferGeometry {
-  const g = new THREE.IcosahedronGeometry(SHRUB_R, 0);
-  g.scale(1, 0.8, 1).translate(0, SHRUB_R * 0.7, 0);
-  return tag(g, 1, 0.9);
+  const r = rng(23);
+  const parts: THREE.BufferGeometry[] = [];
+  // [x, z, rayon horizontal (m), centre et rayon vertical (hauteur unité)]
+  const blobs: Array<[number, number, number, number, number]> = [
+    [0, 0, 0.85, 0.5, 0.5],
+    [0.62, 0.2, 0.6, 0.34, 0.36],
+    [-0.58, -0.18, 0.6, 0.33, 0.34],
+    [0.08, -0.62, 0.5, 0.3, 0.3],
+  ];
+  for (const [x, z, rx, cy, ry] of blobs) {
+    const g = new THREE.IcosahedronGeometry(1, 1);
+    const p = g.getAttribute('position');
+    for (let k = 0; k < p.count; k++) {
+      const f = 0.9 + 0.1 * Math.sin(p.getX(k) * 3.1 + p.getZ(k) * 2.3);
+      // base plate : rien sous le sol
+      p.setXYZ(k, x + p.getX(k) * rx * f, Math.max(0, cy + p.getY(k) * ry * f), z + p.getZ(k) * rx * f);
+    }
+    parts.push(tag(g, 1, 0.82 + r() * 0.2));
+  }
+  for (let i = 0; i < 7; i++) {
+    const a = r() * Math.PI * 2;
+    const el = 0.2 + r() * 0.9;
+    parts.push(tag(new THREE.OctahedronGeometry(0.07, 0).scale(1, 0.7, 1).translate(Math.cos(a) * Math.cos(el) * 0.8, 0.5 + Math.sin(el) * 0.48, Math.sin(a) * Math.cos(el) * 0.8), 2, 1));
+  }
+  return mergeGeometries(parts, false) as THREE.BufferGeometry;
 }
 
 /** Conifère (pin sylvestre / épicéa) : étages de cônes. */

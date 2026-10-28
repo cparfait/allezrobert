@@ -26,8 +26,8 @@ const LOWLAND: Record<Season, [string, string]> = {
 const LOWLAND_LOWPOLY: Record<Season, [string, string]> = {
   spring: ['#3c6e2c', '#78b04a'],
   summer: ['#3a6a2a', '#80b04c'],
-  autumn: ['#5a6c2c', '#86a84a'],
-  winter: ['#4a5a3e', '#93a47a'],
+  autumn: ['#4f7a30', '#8cb84e'],
+  winter: ['#4a6a40', '#94b46e'],
 };
 
 /**

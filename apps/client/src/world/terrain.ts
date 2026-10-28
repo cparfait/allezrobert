@@ -24,12 +24,16 @@ const SEASON_GROUND: Record<Season, { forest: string; field: string; field2: str
   winter: { forest: '#4a463a', field: '#8f8a6e', field2: '#a7a38c', meadow: '#7d7f62', urban: '#8a8a82', dirt: '#6a6052' },
 };
 
-/** Style jeu vidéo : aplats plus vifs et plus clairs (prés vert pomme, champs dorés, bourgs clairs). */
+/**
+ * Style jeu vidéo : aplats plus vifs et plus clairs (prés vert pomme, champs dorés, bourgs clairs). En automne
+ * et en hiver, campagne de dessin animé ensoleillée plutôt que labours bruns : blés d'hiver verts, chaumes
+ * dorés, prés encore verts.
+ */
 const LOWPOLY_GROUND: typeof SEASON_GROUND = {
   spring: { forest: '#3f7a2e', field: '#a7c957', field2: '#e9d65a', meadow: '#7cbf4a', urban: '#cfc8b6', dirt: '#a88a5c' },
   summer: { forest: '#3d6f2a', field: '#e2c46a', field2: '#cfa955', meadow: '#86c04e', urban: '#d0c8b2', dirt: '#b08e5e' },
-  autumn: { forest: '#5f7a2c', field: '#b39a62', field2: '#c9ab66', meadow: '#8cba4c', urban: '#ccc3ad', dirt: '#9a7a50' },
-  winter: { forest: '#4c5f3e', field: '#b5b29a', field2: '#c6c2ad', meadow: '#9aae7a', urban: '#c6c2b8', dirt: '#8e7f66' },
+  autumn: { forest: '#5a8a30', field: '#9cc85a', field2: '#e3bc5c', meadow: '#86c24e', urban: '#d0c7b1', dirt: '#b48a58' },
+  winter: { forest: '#4f7a3c', field: '#a0c46a', field2: '#d9c47c', meadow: '#92c063', urban: '#cfcabe', dirt: '#a68a64' },
 };
 
 interface TileEntry {

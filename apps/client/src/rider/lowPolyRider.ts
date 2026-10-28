@@ -45,7 +45,7 @@ interface Fit {
 }
 
 const FITS: Record<BarKind, Fit> = {
-  drop: { bar: 'drop', hand: new THREE.Vector3(0.2, 0.92, 0.63), shoulderDy: 0, shoulderDz: 0, elbowPole: new THREE.Vector3(0.6, -0.6, -0.4), headTilt: 0 },
+  drop: { bar: 'drop', hand: new THREE.Vector3(0.2, 0.92, 0.63), shoulderDy: -0.03, shoulderDz: 0.03, elbowPole: new THREE.Vector3(0.3, -0.75, -0.45), headTilt: 0 },
   flat: { bar: 'flat', hand: new THREE.Vector3(0.31, 0.96, 0.5), shoulderDy: 0.06, shoulderDz: -0.08, elbowPole: new THREE.Vector3(0.8, -0.4, -0.3), headTilt: -0.08 },
   tt: { bar: 'tt', hand: new THREE.Vector3(0.075, 0.95, 0.76), shoulderDy: -0.13, shoulderDz: 0.1, elbowPole: new THREE.Vector3(0.1, -1, 0), headTilt: 0.18 },
 };
@@ -287,7 +287,7 @@ export class LowPolyRider implements RiderAvatarLike {
       this.arms.push({ side, sleeve, cuff, upper, fore, glove: gl });
     }
     // Torse : prisme à 8 pans évasé (épaules larges, taille plus fine), aplati d'avant en arrière.
-    const shoulderR = female ? 0.155 : 0.178;
+    const shoulderR = female ? 0.148 : 0.166;
     this.torso = new Seg(octo(0.135, shoulderR), jersey, 1.12 * build, 0.72 * build);
     const band = (from: number, to: number, mat: THREE.Material) => {
       const r = 0.135 + (shoulderR - 0.135) * ((from + to) / 2) + 0.004;
@@ -572,10 +572,10 @@ export class LowPolyRider implements RiderAvatarLike {
     this.torso.set(chestBase, shoulder);
     for (const b of this.bands) b.seg.set(chestBase.clone().lerp(shoulder, b.from), chestBase.clone().lerp(shoulder, b.to));
     this.pelvis.set(hip.clone().add(v3(0, -0.06, -0.02)), chestBase);
-    const neckTop = shoulder.clone().add(v3(0, 0.1, 0.07));
+    const neckTop = shoulder.clone().add(v3(0, 0.08, 0.09));
     this.neck.set(shoulder.clone().add(v3(0, 0.02, 0.02)), neckTop);
     this.collar.set(shoulder.clone().add(v3(0, 0.0, 0.015)), shoulder.clone().add(v3(0, 0.045, 0.035)));
-    this.head.position.copy(neckTop).add(v3(0, 0.08, 0.03));
+    this.head.position.copy(neckTop).add(v3(0, 0.07, 0.04));
     // Tête relevée pour regarder la route (le dos est penché vers l'avant).
     this.head.rotation.x = 0.3 + fit.headTilt * fitK - 0.12 * stand - 0.25 * up;
 
@@ -584,9 +584,10 @@ export class LowPolyRider implements RiderAvatarLike {
       const pedal = v3(0.11 * leg.side, BB.y - Math.cos(a) * CRANK, BB.z - Math.sin(a) * CRANK);
       (this.pedals[leg.side > 0 ? 0 : 1] as THREE.Mesh).position.copy(pedal);
       const ankle = pedal.clone().add(v3(0, 0.065, -0.05));
-      const hipJ = hip.clone().setX(0.095 * leg.side);
+      const hipJ = hip.clone().setX(0.09 * leg.side);
       const knee = new THREE.Vector3();
-      solveTwoBone(hipJ, ankle, THIGH, SHIN, v3(0.05 * leg.side, 0.2, 1), knee);
+      // Genoux légèrement ouverts (naturel), qui montent et descendent sans balayer.
+      solveTwoBone(hipJ, ankle, THIGH, SHIN, v3(0.04 * leg.side, 0.2, 1), knee);
       // Cuissard jusqu'à 80 % de la cuisse, puis le genou.
       const hem = hipJ.clone().lerp(knee, 0.8);
       leg.shorts.set(hipJ, hem);
@@ -597,7 +598,7 @@ export class LowPolyRider implements RiderAvatarLike {
       leg.shoe.rotation.x = 0.15 + Math.sin(a) * 0.12;
     }
     for (const arm of this.arms) {
-      const sh = shoulder.clone().add(v3(0.19 * arm.side, -0.035, 0));
+      const sh = shoulder.clone().add(v3(0.17 * arm.side, -0.04, 0));
       // Mains au cintre (cocottes, guidon plat ou prolongateurs) ; bras levés en V pour fêter la victoire.
       const handBar = v3(fit.hand.x * arm.side, fit.hand.y, fit.hand.z);
       const handUp = sh.clone().add(v3(0.2 * arm.side, 0.52, 0.08));

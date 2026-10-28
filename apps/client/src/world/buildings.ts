@@ -14,6 +14,7 @@ import { flatRoofKind, leanSide, LEAN_PITCH } from './flatRoofs.ts';
 import { eaveHeight } from './eaveHeight.ts';
 import { genoiseDrop, genoiseRows } from './genoise.ts';
 import { LazyTexture } from '../engine/textures.ts';
+import { createLowPolyBuildingMaterial } from './buildingsLowPoly.ts';
 
 /** Textures photo CC0 (Poly Haven) des façades et toits, chargées une fois et partagées. */
 function loadTex(dir: string, file: string, srgb: boolean): LazyTexture {
@@ -37,31 +38,42 @@ const BUILDING_TEXTURES = {
  * soubassement plus sombre, fenêtres à encadrement clair et volets colorés, tuile plate
  * brun-rouge en rangs serrés, ardoise pour les églises et les toits à la Mansart.
  */
-const RENDERS = ['#e8dfcf', '#e2d6c0', '#d9ccb2', '#efe7d8', '#d6c3a0'];
-const MEULIERE = ['#b8936a', '#a98660', '#c29f74'];
+const RENDERS = LOW_POLY ? ['#f6e7c1', '#f3cfa6', '#f2d9d0', '#faf4e6', '#f4dc8e', '#dcebc8', '#cfe1ee'] : ['#e8dfcf', '#e2d6c0', '#d9ccb2', '#efe7d8', '#d6c3a0'];
+const MEULIERE = LOW_POLY ? ['#dfae74', '#d49f66', '#e7bd86'] : ['#b8936a', '#a98660', '#c29f74'];
 /** Pierre locale des bâtiments BD TOPO hors Île-de-France (arkose, granite) : gris-beige. */
-const STONE_LOCAL = ['#b3a68f', '#a89a84', '#bcae95', '#9f937f'];
-const BRICK = '#a8624a';
-const ROOFS = ['#8a4a35', '#7d4331', '#94553d', '#6f3f30', '#86513c', '#7a4a3a'];
-const SLATE = '#4f565f';
+const STONE_LOCAL = LOW_POLY ? ['#ddd0b2', '#d3c4a3', '#e6dabe', '#cbbd9f'] : ['#b3a68f', '#a89a84', '#bcae95', '#9f937f'];
+const BRICK = LOW_POLY ? '#c65a3e' : '#a8624a';
+const ROOFS = LOW_POLY ? ['#c4432e', '#b53d2b', '#cf5636', '#a83f2e', '#9c4a33', '#d4663e'] : ['#8a4a35', '#7d4331', '#94553d', '#6f3f30', '#86513c', '#7a4a3a'];
+const SLATE = LOW_POLY ? '#4d5f7a' : '#4f565f';
 /** Tuiles mécaniques et canal (BD TOPO « tuiles », hors Île-de-France) : orangé à rouge brique. */
-const TERRACOTTA = ['#a87a6a', '#9d7062', '#b18574', '#94695c', '#a67d6e', '#b38a78'];
+const TERRACOTTA = LOW_POLY ? ['#d4683e', '#c95c36', '#dc7646', '#c2553a', '#d86e44', '#e0804e'] : ['#a87a6a', '#9d7062', '#b18574', '#94695c', '#a67d6e', '#b38a78'];
 /** Tuile mécanique des villes (archétype à toit de zinc mais BD TOPO « tuiles ») : rouge brique. */
-const MECHANICAL_TILES = ['#9a5a40', '#8c5038', '#a0614a', '#94553d'];
+const MECHANICAL_TILES = LOW_POLY ? ['#c4482f', '#b8402c', '#cc5536', '#b04a32'] : ['#9a5a40', '#8c5038', '#a0614a', '#94553d'];
 /** Bac acier et fibrociment : gris clair à gris-vert, parfois vert ou brun. */
-const METAL_ROOFS = ['#8d9294', '#9da1a0', '#7f8784', '#6f7a72', '#84776a'];
+const METAL_ROOFS = LOW_POLY ? ['#a3adb3', '#b4bab9', '#8fa49c', '#6f9a7c', '#b0684c'] : ['#8d9294', '#9da1a0', '#7f8784', '#6f7a72', '#84776a'];
 /** Toits-terrasses : gravillons gris-beige, étanchéité bitumée par endroits. */
-const TERRACES = ['#8e8a82', '#9a948a', '#85817a', '#a09a8e'];
-const SHUTTERS = ['#7d8f9b', '#5f7d66', '#e8e4da', '#8a5a3c', '#4b6a8a', '#a7b8a0'];
+const TERRACES = LOW_POLY ? ['#b9b4a8', '#c4beb0', '#aeaa9f', '#cbc5b6'] : ['#8e8a82', '#9a948a', '#85817a', '#a09a8e'];
+const SHUTTERS = LOW_POLY ? ['#3f86c8', '#4aa05e', '#f4f2ea', '#c9503a', '#2f6fa6', '#8cc7a4', '#e5a532'] : ['#7d8f9b', '#5f7d66', '#e8e4da', '#8a5a3c', '#4b6a8a', '#a7b8a0'];
 /**
  * Style local des bâtiments BD TOPO (Limagne, Livradois) : enduits à la chaux ocrés, rosés ou grège,
  * volets bois brun, vert de gris, bleu charrette, lie-de-vin.
  */
-const RENDERS_LOCAL = ['#d9c4a0', '#d2b48c', '#cdb79e', '#e0cdb0', '#c9a882', '#d9b8a0', '#e3d6c2'];
-const SHUTTERS_LOCAL = ['#6b4a35', '#7d8a7a', '#5d7380', '#7e3a33', '#d9d2c2', '#4f6b5a', '#8c6a4a'];
+const RENDERS_LOCAL = LOW_POLY ? ['#f2d9a6', '#efc795', '#ecd6bc', '#f6e2c0', '#eebf8e', '#f2cbb6', '#f7ecd8'] : ['#d9c4a0', '#d2b48c', '#cdb79e', '#e0cdb0', '#c9a882', '#d9b8a0', '#e3d6c2'];
+const SHUTTERS_LOCAL = LOW_POLY ? ['#9a6038', '#6fa58c', '#4f8cb4', '#b8443a', '#f0ebdc', '#3f8a5e', '#d08a3a'] : ['#6b4a35', '#7d8a7a', '#5d7380', '#7e3a33', '#d9d2c2', '#4f6b5a', '#8c6a4a'];
 
 /** Portes des immeubles sans volets (porte cochère) : vert wagon, brun, bleu nuit, noir. */
-const DOORS = ['#3b4a3f', '#4a3a2e', '#2f3a4a', '#2b2a28', '#5a2f2c'];
+const DOORS = LOW_POLY ? ['#2f8a5a', '#a8402e', '#2f5aa8', '#c9802a', '#8a3a72'] : ['#3b4a3f', '#4a3a2e', '#2f3a4a', '#2b2a28', '#5a2f2c'];
+
+/**
+ * Style jeu vidéo : les palettes des archétypes (packages/shared) et les couleurs OSM sont pensées pour le
+ * rendu réaliste ; on les ravive (plus saturées, un peu plus claires) pour rester dans les aplats pastel.
+ */
+function vivid(c: THREE.Color, sat = 0.18, light = 0.05): THREE.Color {
+  if (!LOW_POLY) return c;
+  const hsl = { h: 0, s: 0, l: 0 };
+  c.getHSL(hsl);
+  return c.setHSL(hsl.h, Math.min(1, hsl.s + sat * (1 - hsl.s)), Math.min(0.92, hsl.l + light));
+}
 
 /**
  * Archétypes (packages/shared/src/styles) : indice 1…N dans le shader (0 = style historique), codé
@@ -332,11 +344,13 @@ function houseDetails(pts: number[], box: ReturnType<typeof orientedBox>, plan: 
     const uvs: number[] = [];
     const a = [ridge.cx - ux * ridgeHalf, ridge.cz - uz * ridgeHalf];
     const b = [ridge.cx + ux * ridgeHalf, ridge.cz + uz * ridgeHalf];
-    const top = ridgeY + 0.13;
+    // Style jeu vidéo : faîtière plus large et plus haute, lisible de loin.
+    const top = ridgeY + (LOW_POLY ? 0.24 : 0.13);
     const low = ridgeY - 0.04;
+    const ridgeW = LOW_POLY ? 0.3 : 0.19;
     for (const side of [1, -1]) {
-      const ox = vx * 0.19 * side;
-      const oz = vz * 0.19 * side;
+      const ox = vx * ridgeW * side;
+      const oz = vz * ridgeW * side;
       const q = [
         [a[0]! + ox, low, a[1]! + oz, 0, 0],
         [b[0]! + ox, low, b[1]! + oz, ridgeHalf * 2, 0],
@@ -350,7 +364,7 @@ function houseDetails(pts: number[], box: ReturnType<typeof orientedBox>, plan: 
       }
     }
     const g = toGeometry(pos, uvs);
-    paint(g, c.set(roofColour).multiplyScalar(0.82), 1, acc, 0, 0);
+    paint(g, c.set(roofColour).multiplyScalar(LOW_POLY ? 0.72 : 0.82), 1, acc, 0, 0);
     out.push(g);
   }
   if (r() < 0.8 * density) {
@@ -358,30 +372,37 @@ function houseDetails(pts: number[], box: ReturnType<typeof orientedBox>, plan: 
     const t = (r() < 0.5 ? -1 : 1) * Math.min(ridgeHalf * (0.35 + r() * 0.4), Math.max(ridgeHalf - 0.6, 0));
     const cx = ridge.cx + ux * t;
     const cz = ridge.cz + uz * t;
-    const hw = 0.4;
-    const hd = 0.28;
+    // Style jeu vidéo : souche trapue (lisible au loin), plus haute.
+    const hw = LOW_POLY ? 0.5 : 0.4;
+    const hd = LOW_POLY ? 0.4 : 0.28;
     const ring = (e: number) => [
       cx - ux * (hw + e) - vx * (hd + e), cz - uz * (hw + e) - vz * (hd + e),
       cx + ux * (hw + e) - vx * (hd + e), cz + uz * (hw + e) - vz * (hd + e),
       cx + ux * (hw + e) + vx * (hd + e), cz + uz * (hw + e) + vz * (hd + e),
       cx - ux * (hw + e) + vx * (hd + e), cz - uz * (hw + e) + vz * (hd + e),
     ];
-    const topY = ridgeY + 0.9;
+    const topY = ridgeY + (LOW_POLY ? 1.1 : 0.9);
     const stack = walls(ring(0), wallTop - 0.2, topY - (wallTop - 0.2));
     const brick = r() < 0.4;
     paint(stack, c.set(brick ? BRICK : (MEULIERE[Math.floor(r() * MEULIERE.length)] as string)), 0, acc, brick ? 2 : 1, 0);
     out.push(stack);
-    const capRing = ring(0.06);
-    const cap = walls(capRing, topY, 0.12);
-    paint(cap, c.set('#8d8a82'), 0, acc, 0, 0);
+    // Chapeau : bandeau clair et dessus sombre (jeu vidéo : plus débordant et plus épais).
+    const capRing = ring(LOW_POLY ? 0.1 : 0.06);
+    const capH = LOW_POLY ? 0.2 : 0.12;
+    const cap = walls(capRing, topY, capH);
+    paint(cap, c.set(LOW_POLY ? '#ece6da' : '#8d8a82'), 0, acc, 0, 0);
     out.push(cap);
-    const lid = flatRoof(capRing, topY + 0.12);
+    const lid = flatRoof(capRing, topY + capH);
     const lidG = toGeometry(lid.pos, lid.uv);
-    paint(lidG, c.set('#5d5a55'), 2, acc, 0, 0);
+    paint(lidG, c.set(LOW_POLY ? '#3e3d40' : '#5d5a55'), 2, acc, 0, 0);
     out.push(lidG);
   }
   return out;
 }
+
+/** Style jeu vidéo : débords de toit marqués (égout, rive), comme les maisons des jeux. */
+const ROOF_OVERHANG_LP = 0.65;
+const GABLE_OVERHANG_LP = 0.45;
 
 /** Formes OSM traitées en croupes (les autres, hors terrasse, en deux pans si l'emprise s'y prête). */
 const HIPPED = new Set(['hipped', 'pyramidal', 'half-hipped', 'mansard', 'dome', 'round', 'onion', 'cone']);
@@ -420,6 +441,8 @@ export class Buildings {
   }
 
   private createMaterial(): THREE.MeshStandardNodeMaterial {
+    // Style jeu vidéo : matériau en aplats à part (aucune texture photo demandée, voir buildingsLowPoly.ts).
+    if (LOW_POLY) return createLowPolyBuildingMaterial(this.night, this.archA, this.archB, this.archC);
     const m = new THREE.MeshStandardNodeMaterial({ vertexColors: true });
     const info = attribute<'vec3'>('binfo'); // type, pierres apparentes, fenêtres
     const kind = info.x;
@@ -470,14 +493,12 @@ export class Buildings {
     const isRender = float(1).sub(isStone).sub(isBrick).sub(isRubble).sub(isAshlar).sub(isConcrete);
     const T = BUILDING_TEXTURES;
     const wallUv = (size: number) => vec2(u, v).div(size);
-    // Style jeu vidéo : aplats à la teinte de chaque maison, aucune photo chargée (moyenne de l'enduit
-    // pour qu'il prenne exactement la couleur de base).
-    const render = LOW_POLY ? vec3(0.31, 0.29, 0.28) : T.render.map.sample(wallUv(2.0)).rgb;
-    const rubble = LOW_POLY ? base : T.stone.map.sample(wallUv(2.3)).rgb;
-    const brick = LOW_POLY ? base : T.brick.map.sample(wallUv(2.0)).rgb;
+    const render = T.render.map.sample(wallUv(2.0)).rgb;
+    const rubble = T.stone.map.sample(wallUv(2.3)).rgb;
+    const brick = T.brick.map.sample(wallUv(2.0)).rgb;
     // Meulière : moellons procéduraux, teinte de la maison (ocre plus ou moins rouge) en multiplicateur.
     const meul = meuliere(vec2(u, v));
-    const stone = LOW_POLY ? base : meul.color.mul(base.div(vec3(0.68, 0.53, 0.37)).clamp(0.8, 1.2));
+    const stone = meul.color.mul(base.div(vec3(0.68, 0.53, 0.37)).clamp(0.8, 1.2));
     // L'enduit (photo grise tachée) prend la teinte de chaque maison : couleur de base × variations de la photo.
     const renderTinted = render.mul(base.div(vec3(0.31, 0.29, 0.28))).clamp(0, 1.5);
     // Pierre de taille : assises de 50 cm, blocs de 1,40 m décalés d'un rang à l'autre, chaque bloc
@@ -690,7 +711,7 @@ export class Buildings {
     // ── Toits : tuiles en terre cuite et ardoise (textures photo), mousse par endroits ──
     const roofUv = (size: number) => vec2(u, v).div(size);
     const moss = smoothstep(0.6, 0.9, mx_noise_float(positionWorld.mul(0.5))).mul(0.3);
-    const tileTex = LOW_POLY ? vec3(0.33, 0.13, 0.08) : T.tiles.map.sample(roofUv(3.2)).rgb;
+    const tileTex = T.tiles.map.sample(roofUv(3.2)).rgb;
     // Tuile plate : chaque tuile (≈ 17 × 10,5 cm visibles, rangs décalés) a sa propre cuisson,
     // plus quelques plaques de tuiles de remplacement plus claires et des lichens jaunes.
     const tileRow = floor(v.div(0.105));
@@ -706,8 +727,8 @@ export class Buildings {
     const tileLum = tileTex.dot(vec3(0.2126, 0.7152, 0.0722)).div(0.048).clamp(0.45, 1.5);
     const lichen = smoothstep(0.45, 0.8, mx_noise_float(positionWorld.mul(0.9).add(3))).mul(0.25);
     const weathered = mix(base.mul(tileLum).mul(tileVar), vec3(0.32, 0.31, 0.28).mul(tileLum), lichen);
-    const tiles = LOW_POLY ? base : mix(mix(tilesIdf, weathered, step(float(0.5), info.y)), vec3(0.3, 0.33, 0.18), moss);
-    const slate = LOW_POLY ? base : T.slate.map.sample(roofUv(1.5)).rgb;
+    const tiles = mix(mix(tilesIdf, weathered, step(float(0.5), info.y)), vec3(0.3, 0.33, 0.18), moss);
+    const slate = T.slate.map.sample(roofUv(1.5)).rgb;
     // Bac acier : ondes de 25 cm dans la pente, coulures et rouille légère par plaques.
     const rib = abs(fract(u.div(0.25)).sub(0.5)).mul(2);
     const rust = smoothstep(0.55, 0.85, mx_noise_float(positionWorld.mul(0.25))).mul(0.35);
@@ -749,9 +770,7 @@ export class Buildings {
     const roofN = nrm(T.tiles.normal, 3.2).mul(isTile).add(nrm(T.slate.normal, 1.5).mul(isSlate)).add(vec3(0.5, 0.5, 1).mul(isMetal.add(isTerrace)));
     const flatN = vec3(0.5, 0.5, 1);
     const nCol = mix(mix(wallN, flatN, inWin.max(inFrame).max(inShutter).max(shopFront).max(rdcWin)), roofN, isRoof);
-    // Style jeu vidéo : facettes nettes, sans relief de texture.
-    if (LOW_POLY) m.flatShading = true;
-    else m.normalNode = normalMap(mix(nCol, flatN, underside), vec2(0.8, 0.8));
+    m.normalNode = normalMap(mix(nCol, flatN, underside), vec2(0.8, 0.8));
     m.metalnessNode = isMetal.mul(mix(float(0.25), float(0.35), isZinc)).mul(float(1).sub(underside));
     // Les emprises OSM n'ont pas d'orientation garantie : on rend les deux faces.
     m.side = THREE.DoubleSide;
@@ -838,7 +857,7 @@ export class Buildings {
       const plan =
         skillion || flatKind
           ? null
-          : planRoof(bld.pts, { overhang: 0.4, gableOverhang: 0.25, gabled: !HIPPED.has(shape), maxInset: Math.max(15, box.hw + 1), ...(bld.ridgeShort ? { ridgeShort: true } : {}) });
+          : planRoof(bld.pts, { overhang: LOW_POLY ? ROOF_OVERHANG_LP : 0.4, gableOverhang: LOW_POLY ? GABLE_OVERHANG_LP : 0.25, gabled: !HIPPED.has(shape), maxInset: Math.max(15, box.hw + 1), ...(bld.ridgeShort ? { ridgeShort: true } : {}) });
       // Pente : hauteur de toit (OSM, ou mesurée au LiDAR) sur la demi-largeur effective (là où les pans se rejoignent), bornée.
       const halfW = plan ? Math.max(plan.tEnd - plan.overhang, 0.5) : 0;
       const wantH = Math.min(bld.roofHeight ?? Math.tan((42 * Math.PI) / 180) * halfW, total * 0.6);
@@ -866,6 +885,9 @@ export class Buildings {
       // tirés dans la même palette ne sont pas identiques.
       if (arch) wc.offsetHSL((r() - 0.5) * 0.02, (r() - 0.5) * 0.1, (r() - 0.5) * 0.08);
       acc.set(arch ? pick(arch.shutters.length ? arch.shutters : DOORS) : pick(bld.bdtopo ? SHUTTERS_LOCAL : SHUTTERS));
+      // Style jeu vidéo : palettes des archétypes et couleurs OSM ravivées (les palettes locales le sont déjà).
+      if (LOW_POLY && (arch || bld.colour)) vivid(wc, 0.15, 0.05);
+      if (LOW_POLY && arch) vivid(acc, 0.35, 0.04);
       // Monopente : haut des murs sur le plan du toit (pente selon la largeur, ou la longueur si faîtage court).
       const slopeU = !!bld.ridgeShort && !lean;
       // Appentis : côté haut adossé au bâtiment voisin.
@@ -948,14 +970,15 @@ export class Buildings {
         const roof = toGeometry(roofPart.pos, roofPart.uv);
         // binfo.y : tuiles vieillies (BD TOPO) ou zinc (toit métallique d'un archétype parisien) ; accent :
         // sous-face du débord (face arrière des pans), enduit du mur à l'ombre.
-        paint(roof, c.set(roofColour), roofKind, soffit.copy(wc).multiplyScalar(0.8), zinc || (bld.bdtopo && roofKind === 1) ? 1 : 0, 0);
+        paint(roof, LOW_POLY && (zinc || archTile) ? vivid(c.set(roofColour), 0.25, 0.02) : c.set(roofColour), roofKind, soffit.copy(wc).multiplyScalar(0.8), zinc || (bld.bdtopo && roofKind === 1) ? 1 : 0, 0);
         parts.push(roof);
         if (plan || skillion) {
           // Chant : tuiles et liteaux 16 cm, ardoise 10 cm, bac acier 6 cm ; couleur du toit assombrie (bouts de tuiles, rive).
-          const edge = roofEdge(roofPart, metal ? 0.06 : slate ? 0.1 : 0.16);
+          // Style jeu vidéo : dalle de toit épaisse (rive sombre bien lisible de loin).
+          const edge = roofEdge(roofPart, LOW_POLY ? (metal ? 0.16 : slate ? 0.26 : 0.34) : metal ? 0.06 : slate ? 0.1 : 0.16);
           if (edge.pos.length) {
             const g = toGeometry(edge.pos, edge.uv);
-            paint(g, c.set(roofColour).multiplyScalar(0.7), 0, acc, 0, 0);
+            paint(g, c.set(roofColour).multiplyScalar(LOW_POLY ? 0.52 : 0.7), 0, acc, 0, 0);
             parts.push(g);
           }
         }
