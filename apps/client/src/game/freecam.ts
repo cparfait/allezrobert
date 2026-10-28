@@ -18,8 +18,8 @@ const MOVE: Record<string, [number, number, number]> = {
 const MIN_CLEARANCE = 1.2;
 const MAX_ALTITUDE = 2500;
 const SPEED_MIN = 2;
-const SPEED_MAX = 300;
-const FAST = 4;
+const SPEED_MAX = 1000;
+const FAST = 6;
 
 const _fwd = new THREE.Vector3();
 const _right = new THREE.Vector3();
@@ -35,7 +35,9 @@ const _euler = new THREE.Euler(0, 0, 0, 'YXZ');
 export class FreeFlyCamera {
   active = false;
   /** Vitesse de base (m/s), réglée à la molette. */
-  speed = 15;
+  speed = 40;
+  /** Hauteur au-dessus du sol à l'image précédente (m) : on vole plus vite en altitude. */
+  private clearance = 0;
   /** Ligne ajoutée à l'aide affichée (ex. « Échap : retour au menu »). */
   exitHint = '';
   private readonly camera: THREE.PerspectiveCamera;
@@ -160,13 +162,16 @@ export class FreeFlyCamera {
     _wish.y += u;
     if (_wish.lengthSq() > 1) _wish.normalize();
     const fast = this.keys.has('ShiftLeft') || this.keys.has('ShiftRight') ? FAST : 1;
-    _wish.multiplyScalar(this.speed * fast);
+    // Plus vite en altitude : ×1 au ras du sol, jusqu'à ×8 à 240 m et plus (traverser une vallée).
+    const high = THREE.MathUtils.clamp(this.clearance / 30, 1, 8);
+    _wish.multiplyScalar(this.speed * fast * high);
     // Vitesse amortie : départ et arrêt progressifs.
     this.vel.lerp(_wish, 1 - Math.exp(-dt * 5));
     this.pos.addScaledVector(this.vel, dt);
     // Jamais sous le terrain (tuile chargée) ni trop haut.
     const h = this.groundAt(this.pos.x, this.pos.z);
     if (Number.isFinite(h)) {
+      this.clearance = this.pos.y - h;
       const minY = h + MIN_CLEARANCE;
       if (this.pos.y < minY) {
         this.pos.y = minY;

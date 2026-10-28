@@ -141,7 +141,9 @@ export class FarTerrain {
 
   private material(mx: number, mz: number, mw: number, mh: number, grid: HorizonGrid): THREE.MeshStandardNodeMaterial {
     const m = new THREE.MeshStandardNodeMaterial({ fog: false });
-    m.flatShading = LOW_POLY;
+    // Pas de facettes au lointain, même en style jeu vidéo : maille de 100 m vue à 10 km, chaque petit triangle
+    // prenait sa propre teinte (grain gris sur les montagnes du fond).
+    m.flatShading = false;
     // Sommet : courbure terrestre (abaissement d²/2R autour de la caméra), profondeur collée au ciel.
     m.vertexNode = Fn(() => {
       const p = positionLocal;
@@ -165,8 +167,9 @@ export class FarTerrain {
     // sur les pentes fortes (adoucies à 100 m de maille), neige selon la saison et l'exposition.
     const alt = P.y;
     const slope = float(1).sub(normalWorld.y);
-    const n1 = mx_noise_float(xz.mul(0.0011)).mul(0.5).add(0.5);
-    const n2 = mx_noise_float(xz.mul(0.007)).mul(0.5).add(0.5);
+    // Style jeu vidéo : aplats francs, sans bruit (ni marbrure de la roche ni limite de neige frangée).
+    const n1 = LOW_POLY ? float(0.5) : mx_noise_float(xz.mul(0.0011)).mul(0.5).add(0.5);
+    const n2 = LOW_POLY ? float(0.5) : mx_noise_float(xz.mul(0.007)).mul(0.5).add(0.5);
     // versants boisés, fonds de vallée en prés ; au-dessus de la forêt, alpages
     const forestK = smoothstep(0.06, 0.2, slope).mul(n1.mul(0.5).add(0.6)).mul(float(1).sub(smoothstep(this.treeline.sub(300), this.treeline, alt)));
     let col = mix(this.meadow.node, this.forest.node, clamp(forestK, 0, 1));
