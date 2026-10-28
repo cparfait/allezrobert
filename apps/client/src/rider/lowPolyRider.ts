@@ -669,13 +669,14 @@ export class LowPolyRider implements RiderAvatarLike {
     // Virages : inclinaison adoucie et plafonnée (≈ 17°) ; l'angle physique, tout entier, couchait le vélo.
     const tilt = Math.max(-MAX_BANK, Math.min(MAX_BANK, bank * BANK_SHARE));
     // Le vélo bascule au rythme des coups de pédale, du côté opposé à la jambe qui appuie : légèrement assis
-    // (≈ ±1,2°, le bassin reste d'aplomb), franchement en danseuse (≈ ±9°, le corps compense aux trois quarts,
-    // comme les coureurs NCT). Moins à haute vitesse : −60 % de 20 à 45 km/h.
+    // (≈ ±1,2°), franchement en danseuse (≈ ±9°, comme les coureurs NCT). Le bassin reste fixe sur le vélo et
+    // bascule avec lui ; seules les épaules compensent (le buste reste presque d'aplomb). Moins à haute
+    // vitesse : −60 % de 20 à 45 km/h.
     const pedaling = 1 - this.coastBlend;
     const fast = Math.min(1, Math.max(0, (speed * 3.6 - 20) / 25));
     const rock = -Math.sin(this.crankAngle) * (0.16 * stand + 0.021 * (1 - stand)) * pedaling * (1 - 0.6 * fast);
     this.lean.rotation.z = tilt + rock;
-    /** Décalage latéral (repère du vélo) qui garde un point du corps à la verticale malgré la bascule. */
+    /** Décalage latéral des épaules (repère du vélo) qui garde le buste presque d'aplomb malgré la bascule. */
     const upright = (y: number) => (0.75 * stand + (1 - stand)) * rock * y;
     // Roulis des épaules assis : l'épaule du côté de la jambe qui appuie (manivelle vers l'avant, sin < 0 à
     // gauche) descend d'environ 1 cm et le buste glisse un peu vers elle.
@@ -685,7 +686,6 @@ export class LowPolyRider implements RiderAvatarLike {
 
     const fit = this.fit;
     const hip = this.hip.set(0, SADDLE.y + 0.07 + 0.13 * stand, SADDLE.z + 0.02 + 0.2 * stand);
-    hip.x += upright(hip.y);
     const up = this.celebrate;
     // Les bras levés ou la danseuse annulent la position de chrono (on se redresse).
     const fitK = 1 - Math.max(up, stand * 0.6);
