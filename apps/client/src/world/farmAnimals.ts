@@ -53,6 +53,8 @@ let loading: Promise<boolean> | null = null;
 
 /** Charge les trois modèles une fois (facultatif : sans eux, troupeaux en blocs). */
 export function loadFarmAnimals(): Promise<boolean> {
+  // Hors navigateur (tests) : pas de modèles, troupeaux en blocs.
+  if (typeof document === 'undefined') return Promise.resolve(false);
   loading ??= (async () => {
     try {
       const loader = new GLTFLoader();

@@ -83,6 +83,8 @@ describe('roadside life (style jeu vidéo)', () => {
     let headwall = 0;
     const concrete = new THREE.Color('#b9b6ae');
     for (const o of life.group.children) {
+      // Groupe des animaux animés (farmAnimals.ts) : pas de géométrie propre.
+      if (!(o as THREE.Mesh).isMesh) continue;
       const g = (o as THREE.Mesh).geometry;
       const pos = g.getAttribute('position');
       if (o.name.startsWith('life-static')) {
