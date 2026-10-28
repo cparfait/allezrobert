@@ -4,21 +4,18 @@ import { colorUniform } from '../engine/tsl.ts';
 import { rng } from '../engine/noise.ts';
 import type { QualitySettings } from '../engine/quality.ts';
 import type { LoadedTile } from './types.ts';
-import { splatAt } from './splat.ts';
 import type { Season } from './environment.ts';
-import { snowCoverAt } from './alpine.ts';
 import { cloudShade } from './clouds.ts';
+import { GRASS_BLOCK, GRASS_RADIUS, appendGrassBlock, generateGrassBlock, grassBlocksAround, grassTriesPerBlock, type GrassBlock, type GrassEnv } from './grassPlacement.ts';
 
-const RADIUS = 60;
-/** Côté (m) des blocs du monde où l'herbe est semée : mêmes touffes aux mêmes endroits à chaque regénération. */
-const BLOCK = 12;
 /** Essais de placement par image pendant une regénération (≈ 12 ms ; une vingtaine d'images pour la densité la plus forte). */
 const GRASS_TRIES_PER_FRAME = 6000;
-const _m = new THREE.Matrix4();
-const _q = new THREE.Quaternion();
-const _s = new THREE.Vector3();
-const _p = new THREE.Vector3();
-const _up = new THREE.Vector3(0, 1, 0);
+/** Coût compté (en essais) d'un bloc repris du cache : une simple copie. */
+const CACHED_BLOCK_COST = 40;
+/** Les blocs gardés en mémoire sont ceux du disque d'herbe et une marge de quelques blocs autour. */
+const KEEP_RADIUS = GRASS_RADIUS + GRASS_BLOCK * 4;
+/** Clé d'un bloc dans le cache (indices de bloc : |indice| < 2^19). */
+const BLOCK_KEY = 1_048_576;
 /** Base (pied, ombragé) et pointe des brins par saison : verts sourds, pointes olive (pas de jaune vif). */
 const SEASON_GRASS: Record<Season, [string, string]> = {
   spring: ['#3d6324', '#86a84e'],
@@ -80,23 +77,35 @@ export class GrassField {
   private readonly tipCol = colorUniform();
   private readonly max: number;
   private readonly center = new THREE.Vector3(1e9, 0, 1e9);
-  private readonly tileAt: (x: number, z: number) => LoadedTile | undefined;
-  private readonly heightAt: (x: number, z: number) => number;
-  private readonly avoid: (x: number, z: number) => boolean;
+  private readonly env: GrassEnv;
+  private readonly tries: number;
   private season: Season = 'summer';
+  /**
+   * Touffes déjà placées, par bloc du monde : un bloc ne dépend ni du coureur ni du rayon (graine fixe), donc une
+   * regénération ne refait que les blocs qui entrent dans le disque (une bande de 12 m, au lieu des ~80 blocs
+   * à chaque pas). Vidé au changement de saison (neige).
+   */
+  private readonly blocks = new Map<number, GrassBlock>();
   /**
    * Regénération en cours, étalée sur quelques images : jusqu'à 48 000 touffes refaites d'un coup tous les
    * 12 m figeaient l'image (≈ 55 ms). Les touffes affichées restent en place jusqu'à la fin.
    */
-  private job: { focus: THREE.Vector3; blocks: Array<{ bx: number; bz: number; d: number }>; bi: number; ti: number; r: (() => number) | null; n: number } | null = null;
+  private job: { focus: THREE.Vector3; blocks: Array<{ bx: number; bz: number; d: number }>; bi: number; n: number } | null = null;
   /** Matrices de la regénération en cours (gardé d'une fois à l'autre : 3 Mo). */
   private staging: Float32Array | null = null;
 
   constructor(q: QualitySettings, season: Season, tileAt: (x: number, z: number) => LoadedTile | undefined, heightAt: (x: number, z: number) => number, avoid: (x: number, z: number) => boolean) {
-    this.tileAt = tileAt;
-    this.heightAt = heightAt;
-    this.avoid = avoid;
+    const field = this;
+    this.env = {
+      tileAt,
+      heightAt,
+      avoid,
+      get season() {
+        return field.season;
+      },
+    };
     this.max = Math.floor(60000 * q.grassDensity);
+    this.tries = grassTriesPerBlock(this.max);
     const m = new THREE.MeshStandardNodeMaterial({ side: THREE.DoubleSide });
     const tip = attribute<'float'>('tip');
     const h = hash(instanceIndex);
@@ -126,6 +135,7 @@ export class GrassField {
     // régénérer au prochain update (enneigement)
     this.center.set(1e9, 0, 1e9);
     this.job = null;
+    this.blocks.clear();
     const [b, t] = SEASON_GRASS[season];
     this.base.set(b);
     this.tipCol.set(t);
@@ -135,22 +145,14 @@ export class GrassField {
     if (!this.max) return;
     if (!this.job && Math.hypot(focus.x - this.center.x, focus.z - this.center.z) >= 12) {
       this.center.copy(focus);
-      // Les touffes sont ancrées au monde : blocs fixes de BLOCK m, chacun avec sa graine. Une regénération
+      // Les touffes sont ancrées au monde : blocs fixes de GRASS_BLOCK m, chacun avec sa graine. Une regénération
       // refait donc les mêmes touffes aux mêmes endroits (l'herbe ne bouge plus quand on avance) ; seule la
       // bordure du rayon change. Blocs triés du plus proche au plus loin : si le plafond est atteint, ce
       // sont les plus lointains qui manquent.
-      const blocks: Array<{ bx: number; bz: number; d: number }> = [];
-      const bx0 = Math.floor((focus.x - RADIUS) / BLOCK);
-      const bx1 = Math.floor((focus.x + RADIUS) / BLOCK);
-      const bz0 = Math.floor((focus.z - RADIUS) / BLOCK);
-      const bz1 = Math.floor((focus.z + RADIUS) / BLOCK);
-      for (let bx = bx0; bx <= bx1; bx++)
-        for (let bz = bz0; bz <= bz1; bz++) {
-          const d = Math.hypot((bx + 0.5) * BLOCK - focus.x, (bz + 0.5) * BLOCK - focus.z);
-          if (d <= RADIUS + BLOCK * 0.71) blocks.push({ bx, bz, d });
-        }
-      blocks.sort((a, b) => a.d - b.d);
-      this.job = { focus: focus.clone(), blocks, bi: 0, ti: 0, r: null, n: 0 };
+      for (const [key, b] of this.blocks) {
+        if (Math.hypot((b.bx + 0.5) * GRASS_BLOCK - focus.x, (b.bz + 0.5) * GRASS_BLOCK - focus.z) > KEEP_RADIUS) this.blocks.delete(key);
+      }
+      this.job = { focus: focus.clone(), blocks: grassBlocksAround(focus.x, focus.z), bi: 0, n: 0 };
       this.staging ??= new Float32Array(this.max * 16);
       // Premier remplissage (départ, changement de saison) : tout de suite, sous l'écran d'attente.
       if (this.mesh.count === 0) return this.advance(Infinity);
@@ -164,63 +166,21 @@ export class GrassField {
     if (!job) return;
     const { focus, blocks } = job;
     const staging = this.staging as Float32Array;
-    const m = _m;
-    const q = _q;
-    const s = _s;
-    const p = _p;
-    const up = _up;
     let n = job.n;
-    // Essais par bloc : 2 × le plafond réparti sur l'aire du disque (comme avant, où les essais étaient tirés au hasard).
-    const triesPerBlock = Math.ceil((2 * this.max * BLOCK * BLOCK) / (Math.PI * RADIUS * RADIUS));
     let spent = 0;
     while (job.bi < blocks.length && n < this.max && spent < budget) {
-      const blk = blocks[job.bi] as { bx: number; bz: number };
-      job.r ??= rng(((blk.bx * 73856093) ^ (blk.bz * 19349663)) | 0);
-      const r = job.r;
-      for (; job.ti < triesPerBlock && spent < budget && n < this.max; job.ti++, spent++) {
-        // Tous les tirages à chaque essai, acceptés ou non : la suite du bloc ne dépend pas du foyer ni du terrain.
-        const ux = r();
-        const uz = r();
-        const uDensity = r();
-        const uSnow = r();
-        const uSize = r();
-        const uTurn = r();
-        const uHeight = r();
-        const x = (blk.bx + ux) * BLOCK;
-        const z = (blk.bz + uz) * BLOCK;
-        if (Math.hypot(x - focus.x, z - focus.z) > RADIUS) continue;
-        const tile = this.tileAt(x, z);
-        if (!tile) continue;
-        const meadow = splatAt(tile, 2, x, z);
-        const field = splatAt(tile, 1, x, z);
-        const forest = splatAt(tile, 0, x, z);
-        const road = splatAt(tile, 5, x, z);
-        const water = splatAt(tile, 3, x, z);
-        // abords de l'itinéraire actif : bas-côté herbeux dense et plus haut
-        const verge = splatAt(tile, 6, x, z);
-        // Herbe partout sauf chaussée et eau, plus dense dans les prés et sur les bas-côtés.
-        // ni sur la roche, les éboulis et les glaciers
-        const rock = splatAt(tile, 7, x, z);
-        const density = road > 0.3 || water > 0.3 || rock > 0.2 ? 0 : 0.35 + meadow * 0.65 - forest * 0.25 + field * 0.1 + verge * 0.8;
-        if (uDensity > density) continue;
-        if (this.avoid(x, z)) continue;
-        const y = this.heightAt(x, z);
-        if (!Number.isFinite(y)) continue;
-        // au-dessus de la limite d'enneigement : sous la neige
-        const snow = snowCoverAt(y, this.season);
-        if (snow > 0 && uSnow < snow) continue;
-        const k = (0.6 + uSize * 0.7) * (1 + verge * 0.6);
-        p.set(x, y - 0.02, z);
-        q.setFromAxisAngle(up, uTurn * Math.PI);
-        s.set(k, k * (0.8 + uHeight * 0.6), k);
-        m.compose(p, q, s);
-        m.toArray(staging, n++ * 16);
+      const { bx, bz } = blocks[job.bi] as { bx: number; bz: number };
+      const key = bx * BLOCK_KEY + bz;
+      let block = this.blocks.get(key);
+      if (block) spent += CACHED_BLOCK_COST;
+      else {
+        block = generateGrassBlock(bx, bz, this.tries, this.env);
+        spent += this.tries;
+        // Un bloc écarté faute de tuile (pas encore chargée) est refait à la prochaine regénération.
+        if (block.complete) this.blocks.set(key, block);
       }
-      if (job.ti >= triesPerBlock) {
-        job.bi++;
-        job.ti = 0;
-        job.r = null;
-      }
+      n = appendGrassBlock(block, focus.x, focus.z, staging, n, this.max);
+      job.bi++;
     }
     job.n = n;
     if (job.bi < blocks.length && n < this.max) return;

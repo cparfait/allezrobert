@@ -149,11 +149,20 @@ export function rasterizeSplat(tile: LoadedTile, skipRoute: string | null = null
   return { res: RES, data };
 }
 
-/** Lecture d'un canal du raster à une position monde (0–1). */
-export function splatAt(tile: LoadedTile, channel: number, x: number, z: number): number {
+/**
+ * Indice, dans `tile.splat.data`, du premier canal du pixel qui contient la position monde (-1 sans raster).
+ * Pour lire plusieurs canaux au même point sans refaire le calcul : `data[cell + canal] / 255`.
+ */
+export function splatCell(tile: LoadedTile, x: number, z: number): number {
   const s = tile.splat;
-  if (!s) return 0;
+  if (!s) return -1;
   const i = Math.min(Math.max(Math.floor(((x - tile.x0) / tile.size) * s.res), 0), s.res - 1);
   const j = Math.min(Math.max(Math.floor(((z - tile.z0) / tile.size) * s.res), 0), s.res - 1);
-  return (s.data[(j * s.res + i) * SPLAT_CHANNELS.length + channel] as number) / 255;
+  return (j * s.res + i) * SPLAT_CHANNELS.length;
+}
+
+/** Lecture d'un canal du raster à une position monde (0–1). */
+export function splatAt(tile: LoadedTile, channel: number, x: number, z: number): number {
+  const cell = splatCell(tile, x, z);
+  return cell < 0 ? 0 : ((tile.splat as { data: Uint8Array }).data[cell + channel] as number) / 255;
 }

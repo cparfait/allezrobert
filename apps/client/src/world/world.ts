@@ -16,6 +16,7 @@ import { Railways } from './railways.ts';
 import { Dust, surfaceUnder } from './dust.ts';
 import { FarTerrain } from './horizon.ts';
 import { alpineProfile } from './alpine.ts';
+import { buildRoadProximity } from './roadProximity.ts';
 import { soundSourcesForTile, type SoundSource } from '../audio/spatial.ts';
 import type { WorldSource } from './types.ts';
 
@@ -336,29 +337,5 @@ export function freezeStatic(group: THREE.Object3D): void {
       o.updateMatrixWorld(true);
     }
     return group;
-  };
-}
-
-/** Test rapide « trop près de la route » via une grille de hachage des points de l'itinéraire. */
-function buildRoadProximity(route: RouteData, radius: number): (x: number, z: number) => boolean {
-  const cell = Math.max(radius, 8);
-  const grid = new Map<string, Array<{ x: number; z: number }>>();
-  for (const p of route.points) {
-    const k = `${Math.floor(p.x / cell)},${Math.floor(p.z / cell)}`;
-    let a = grid.get(k);
-    if (!a) grid.set(k, (a = []));
-    a.push(p);
-  }
-  const r2 = radius * radius;
-  return (x, z) => {
-    const cx = Math.floor(x / cell);
-    const cz = Math.floor(z / cell);
-    for (let i = -1; i <= 1; i++)
-      for (let j = -1; j <= 1; j++) {
-        const a = grid.get(`${cx + i},${cz + j}`);
-        if (!a) continue;
-        for (const p of a) if ((p.x - x) ** 2 + (p.z - z) ** 2 < r2) return true;
-      }
-    return false;
   };
 }
