@@ -379,6 +379,10 @@ export class TerrainManager {
         uvs[k * 2] = u;
         uvs[k * 2 + 1] = v;
       }
+    // Style jeu vidéo : sol abaissé sous toutes les routes de la tuile (réseau OSM, itinéraire des mondes
+    // ouverts), comme sous le ruban de l'itinéraire. Sans orthophoto pour peindre la route, les facettes du
+    // maillage (plus grossier que la tranchée creusée par le générateur) se voyaient en vert sur la chaussée.
+    if (LOW_POLY) clampUnderRoads(pos, tile, seg, reach, axisGround);
     // Tableaux typés et normales tirées des hauteurs voisines (grille régulière) : `computeVertexNormals`
     // de three.js, générique, prenait ≈ 75 ms par tuile en qualité haute (saccade au changement de détail).
     const border: number[] = [];
@@ -611,5 +615,55 @@ export class TerrainManager {
     m.roughnessNode = float(0.95);
     m.metalnessNode = float(0);
     return m;
+  }
+}
+
+/**
+ * Sol à 4 cm sous la chaussée. Tunnel : sol à plus de 2,5 m au-dessus de la route sur l'axe même (le
+ * générateur ne creuse pas les tunnels, il creuse les tranchées), ou à défaut plus de 5 m au sommet.
+ */
+const ROAD_TERRAIN_BELOW = 0.04;
+const ROAD_TUNNEL_AXIS = 2.5;
+const ROAD_TUNNEL_COVER = 5;
+
+/**
+ * Abaisse les sommets de la grille (positions locales, centrées sur la tuile) qui portent un triangle
+ * sous une route de la tuile : à moins de demi-largeur + bas-côté (0,6 m, voir network.ts) + `reach`
+ * de son axe, le sol passe juste sous la route à cet endroit. Seuls les sommets du rectangle englobant
+ * de chaque tronçon sont visités.
+ */
+function clampUnderRoads(pos: Float32Array, tile: LoadedTile, seg: number, reach: number, axisGround: (x: number, z: number) => number): void {
+  const s = tile.size;
+  const step = s / seg;
+  const row = seg + 1;
+  for (const r of tile.features.roads) {
+    const p = r.pts3;
+    if (!p || r.tunnel || p.length < 6) continue;
+    const R = Math.max(r.width, 2.5) / 2 + 0.6 + reach;
+    for (let k = 0; k + 5 < p.length; k += 3) {
+      const ax = p[k] as number, ay = p[k + 1] as number, az = p[k + 2] as number;
+      const bx = p[k + 3] as number, by = p[k + 4] as number, bz = p[k + 5] as number;
+      const i0 = Math.max(0, Math.floor((Math.min(ax, bx) - R - tile.x0) / step));
+      const i1 = Math.min(seg, Math.ceil((Math.max(ax, bx) + R - tile.x0) / step));
+      const j0 = Math.max(0, Math.floor((Math.min(az, bz) - R - tile.z0) / step));
+      const j1 = Math.min(seg, Math.ceil((Math.max(az, bz) + R - tile.z0) / step));
+      if (i0 > i1 || j0 > j1) continue;
+      const dx = bx - ax, dz = bz - az;
+      const len2 = dx * dx + dz * dz || 1;
+      for (let j = j0; j <= j1; j++)
+        for (let i = i0; i <= i1; i++) {
+          const x = tile.x0 + i * step, z = tile.z0 + j * step;
+          const t = Math.min(1, Math.max(0, ((x - ax) * dx + (z - az) * dz) / len2));
+          const ex = ax + dx * t - x, ez = az + dz * t - z;
+          if (ex * ex + ez * ez > R * R) continue;
+          const y = ay + (by - ay) * t;
+          const kk = (j * row + i) * 3 + 1;
+          const h = pos[kk] as number;
+          // Talus d'une tranchée : abaissé même s'il monte vite (sinon il recouvre le bord de la route).
+          const g = axisGround(ax + dx * t, az + dz * t);
+          if (Number.isFinite(g) ? g - y > ROAD_TUNNEL_AXIS : h - y > ROAD_TUNNEL_COVER) continue;
+          pos[kk] = Math.min(h, y - ROAD_TERRAIN_BELOW);
+        }
+    }
   }
 }

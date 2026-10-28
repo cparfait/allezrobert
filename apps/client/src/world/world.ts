@@ -77,7 +77,8 @@ export class World {
     const footprint = open ? null : new RouteFootprint(route.points, route.loop, route.roadWidthM / 2, SHOULDER);
     this.terrain.footprint = footprint;
     // routes des tuiles : identifiant du parcours d'origine (sans sens ni départ)
-    this.terrain.activeRoute = baseRouteId(route.id);
+    // Style jeu vidéo, monde ouvert : l'itinéraire est dessiné par le réseau, le sol le peint aussi en enrobé.
+    this.terrain.activeRoute = LOW_POLY && open ? null : baseRouteId(route.id);
     scene.add(this.terrain.group);
     this.road = new RoadMesh(route);
     this.road.mesh.visible = !open;
@@ -118,6 +119,7 @@ export class World {
       this.life = new RoadsideLife(track, groundAt, (x, z) => this.terrain.getTile(...this.terrain.tileCoord(x, z)));
       scene.add(this.life.group);
       if (import.meta.env.DEV) (globalThis as { __life?: RoadsideLife }).__life = this.life;
+      if (import.meta.env.DEV) (globalThis as { __world?: World }).__world = this;
     }
 
     void source

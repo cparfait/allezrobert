@@ -311,7 +311,9 @@ export class LowPolyRider implements RiderAvatarLike {
     const stand = this.poseBlend;
     // Virages : inclinaison adoucie et plafonnée (≈ 17°) ; l'angle physique, tout entier, couchait le vélo.
     const tilt = Math.max(-MAX_BANK, Math.min(MAX_BANK, bank * BANK_SHARE));
-    this.lean.rotation.z = tilt + Math.sin(this.crankAngle) * 0.13 * stand;
+    // Balancement au rythme des coups de pédale : à peine perceptible assis (≈ 0,7°), marqué en danseuse.
+    const pedaling = 1 - this.coastBlend;
+    this.lean.rotation.z = tilt + Math.sin(this.crankAngle) * (0.012 * pedaling * (1 - stand) + 0.13 * stand);
 
     const hip = this.hip.set(0, SADDLE.y + 0.07 + 0.13 * stand, SADDLE.z + 0.02 + 0.2 * stand);
     hip.y += Math.sin(this.crankAngle * 2) * 0.01 * (1 - stand);
