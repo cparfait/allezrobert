@@ -621,13 +621,13 @@ export class LowPolyRider implements RiderAvatarLike {
       const type = (i === 0 ? types[1] : types[0]) ?? 'c35';
       const w = new THREE.Group();
       w.position.copy(axle);
-      w.add(new THREE.Mesh(new THREE.TorusGeometry(WHEEL_R - tireR, tireR, 4, 22).rotateY(Math.PI / 2), tireMat));
+      w.add(new THREE.Mesh(new THREE.TorusGeometry(WHEEL_R - tireR, tireR, 6, 48).rotateY(Math.PI / 2), tireMat));
       const depth = RIM_DEPTH[type];
       const rimR = WHEEL_R - tireR * 2 - depth / 2;
-      w.add(new THREE.Mesh(new THREE.TorusGeometry(rimR, depth / 2, 4, 22).rotateY(Math.PI / 2).scale(0.026 / depth, 1, 1), rimMat));
+      w.add(new THREE.Mesh(new THREE.TorusGeometry(rimR, depth / 2, 4, 48).rotateY(Math.PI / 2).scale(0.026 / depth, 1, 1), rimMat));
       const inner = rimR - depth / 2;
       const hub: THREE.BufferGeometry[] = [new THREE.CylinderGeometry(0.028, 0.028, 0.1, 6).rotateZ(Math.PI / 2)];
-      if (type === 'disc') w.add(new THREE.Mesh(new THREE.CylinderGeometry(inner + 0.004, inner + 0.004, 0.024, 22).rotateZ(Math.PI / 2), liv.disc ? flat(liv.disc) : dark));
+      if (type === 'disc') w.add(new THREE.Mesh(new THREE.CylinderGeometry(inner + 0.004, inner + 0.004, 0.024, 48).rotateZ(Math.PI / 2), liv.disc ? flat(liv.disc) : dark));
       else if (type === 'tri') {
         const blades = [0, 1, 2].map((n) => {
           const a = (n / 3) * Math.PI * 2;
@@ -807,6 +807,11 @@ export class LowPolyRider implements RiderAvatarLike {
   setBareHead(on: boolean): void {
     this.bareHead = on;
     this.headgear.visible = !on;
+  }
+
+  /** Vélo seul (garage : vélos sur les râteliers et contre les murs). */
+  setRiderVisible(on: boolean): void {
+    this.body.visible = on;
   }
 
   setHeadVisible(on: boolean): void {
