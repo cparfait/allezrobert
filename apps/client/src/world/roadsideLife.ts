@@ -6,6 +6,7 @@ import type { SoundSource } from '../audio/spatial.ts';
 import type { LoadedTile } from './types.ts';
 import { LandProbe, MeshBuilder, dist2Seg, flatVertexMaterial, segmentsIn } from './lowPolyKit.ts';
 import { lifeTemplates, type LifeTemplates } from './lowPolyProps.ts';
+import { FarmAnimals, farmAnimalsReady, loadFarmAnimals, type AnimalSpec } from './farmAnimals.ts';
 
 /**
  * Abords de la route façon jeu vidéo (style low poly, voir engine/style.ts) : clôtures blanches ou en
@@ -98,6 +99,8 @@ interface Chunk extends LifeChunk {
   near: boolean;
   herd: Herd | null;
   sources: SoundSource[];
+  /** Animaux animés (modèles Quaternius, farmAnimals.ts) ; vide : troupeau en blocs dans `objects`. */
+  animals: AnimalSpec[];
 }
 
 /** Portion de route au-dessus de l'eau : ruisseau busé (`small`) ou pont. */
@@ -198,6 +201,9 @@ export class RoadsideLife {
   /** Centres des tronçons (x, z), recalculés quand la longueur de l'itinéraire change. */
   private centres = new Float64Array(0);
   private centresLength = -1;
+  private disposed = false;
+  /** Vaches, chevaux et moutons animés (Quaternius). */
+  private readonly farm = new FarmAnimals();
 
   /**
    * `treesIn` : arbres déjà plantés par la végétation dans un rectangle, (x, z, rayon) à la suite ;
@@ -213,6 +219,15 @@ export class RoadsideLife {
     this.track = track;
     this.probe = new LandProbe(tileAt, heightAt);
     this.density = density;
+    this.group.add(this.farm.group);
+    // Animaux animés : dès que les modèles sont chargés, les tronçons déjà peuplés (avec des troupeaux en
+    // blocs) sont refaits, pour que les premiers troupeaux soient animés eux aussi.
+    void loadFarmAnimals().then((ok) => {
+      if (!ok || this.disposed) return;
+      for (const k of [...this.chunks.keys()]) this.drop(k);
+      this.pending = true;
+      this.afterChange();
+    });
     this.group.name = 'roadside-life';
     for (const v of trotVals) v.set(0, 0, 0, 0);
   }
@@ -241,6 +256,7 @@ export class RoadsideLife {
   update(dt: number, focus: THREE.Vector3): void {
     (focusU.value as THREE.Vector3).copy(focus);
     this.animateHerds(dt, focus);
+    this.farm.update(dt, focus);
     const lengthChanged = this.centresLength !== this.track.length;
     // Revu tous les 15 m parcourus, ou à chaque image tant qu'un tronçon proche attend son terrain.
     if (!this.pending && !lengthChanged && this.last.distanceToSquared(focus) < 225) return;
@@ -273,6 +289,7 @@ export class RoadsideLife {
         }
         this.chunks.set(k, c);
         for (const o of c.objects) this.group.add(o);
+        this.farm.add(k, c.animals);
         built = true;
         changed = true;
       }
@@ -331,6 +348,7 @@ export class RoadsideLife {
     const c = this.chunks.get(k);
     if (!c) return;
     this.chunks.delete(k);
+    this.farm.remove(k);
     for (const o of c.objects) {
       this.group.remove(o);
       (o as THREE.Mesh).geometry.dispose();
@@ -387,6 +405,8 @@ export class RoadsideLife {
     const flowers: number[] = [];
     const perches: BirdPerch[] = [];
     const sources: SoundSource[] = [];
+    const animals: AnimalSpec[] = [];
+    const useFarm = farmAnimalsReady();
     const r = rng(k * 7919 + 13);
     const s = this.s;
     const halfAt = (d: number) => track.widthAt(d) / 2;
@@ -716,14 +736,17 @@ export class RoadsideLife {
           }
           if (ok && hi - lo < 0.6) radius = R;
         }
-        const h: Herd = { kind, x: cx, z: cz, slot: radius ? this.trotOwner.indexOf(null) : -1, radius, speed: 0, angle: 0 };
+        // Animaux animés : leur manège est mené par farmAnimals.ts (pas de case d'uniforme à réserver).
+        const h: Herd = { kind, x: cx, z: cz, slot: radius && !useFarm ? this.trotOwner.indexOf(null) : -1, radius, speed: 0, angle: 0 };
+        const ring = radius > 0 && (useFarm || h.slot >= 0);
         let placed = 0;
         for (let i = 0; i < count; i++) {
           let x: number;
           let z: number;
           let yaw: number;
-          if (h.slot >= 0) {
-            const phi = (i / count) * Math.PI * 2 + r() * 0.3;
+          let phi = 0;
+          if (ring) {
+            phi = (i / count) * Math.PI * 2 + r() * 0.3;
             x = cx + Math.cos(phi) * radius;
             z = cz - Math.sin(phi) * radius;
             yaw = phi + Math.PI / 2;
@@ -746,7 +769,8 @@ export class RoadsideLife {
                 : tmpC.setHSL(0.11, 0.15, 0.88 + r() * 0.08);
           const ph = r();
           const sc = 0.9 + r() * 0.2;
-          ab.put(tpl[kind], x, y, z, yaw, sc, sc, sc, col, h.slot >= 0 ? [2 * (h.slot + 1), ph, cx, cz] : [0, ph, x, z]);
+          if (useFarm) animals.push({ kind, x, y, z, yaw, scale: sc, color: col.clone(), ring: ring ? { cx, cz, r: radius, phi } : undefined, ground });
+          else ab.put(tpl[kind], x, y, z, yaw, sc, sc, sc, col, h.slot >= 0 ? [2 * (h.slot + 1), ph, cx, cz] : [0, ph, x, z]);
           placed++;
         }
         if (placed) {
@@ -1021,7 +1045,7 @@ export class RoadsideLife {
       o.matrixAutoUpdate = false;
       o.updateMatrix();
     }
-    return { k, d0, d1, sig, line: new Float32Array(lineXZ), objects, casters, near: false, herd, sources, spots, flowers: new Float32Array(flowers), perches };
+    return { k, d0, d1, sig, line: new Float32Array(lineXZ), objects, casters, near: false, herd, sources, animals, spots, flowers: new Float32Array(flowers), perches };
   }
 
   /** Abreuvoir : bac galvanisé et son eau. */
@@ -1248,7 +1272,9 @@ export class RoadsideLife {
   }
 
   dispose(): void {
+    this.disposed = true;
     for (const k of [...this.chunks.keys()]) this.drop(k);
+    this.farm.dispose();
     this.staticMat.dispose();
     this.animalMat.dispose();
     this.wetMat.dispose();
