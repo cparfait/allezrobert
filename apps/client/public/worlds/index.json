@@ -1014,6 +1014,58 @@
    "open": true
   },
   {
+   "id": "idf-fontenay-tresigny",
+   "name": "Fontenay-Trésigny",
+   "region": "Seine-et-Marne · Île-de-France",
+   "routes": [
+    {
+     "id": "boucle-20-km",
+     "name": "Boucle de 20 km depuis Fontenay-Trésigny",
+     "nameEn": "20 km loop from Fontenay-Trésigny",
+     "lengthM": 20578,
+     "elevationGainM": 45.33,
+     "loop": false
+    },
+    {
+     "id": "boucle-30-km",
+     "name": "Boucle de 30 km depuis Fontenay-Trésigny",
+     "nameEn": "30 km loop from Fontenay-Trésigny",
+     "lengthM": 30036,
+     "elevationGainM": 68.93,
+     "loop": false
+    },
+    {
+     "id": "boucle-40-km",
+     "name": "Boucle de 40 km depuis Fontenay-Trésigny",
+     "nameEn": "40 km loop from Fontenay-Trésigny",
+     "lengthM": 39458,
+     "elevationGainM": 111.9,
+     "loop": false
+    },
+    {
+     "id": "boucle-50-km",
+     "name": "Boucle de 50 km depuis Fontenay-Trésigny",
+     "nameEn": "50 km loop from Fontenay-Trésigny",
+     "lengthM": 49620,
+     "elevationGainM": 217.31,
+     "loop": false
+    }
+   ],
+   "pack": {
+    "version": "11a91c7e1b36",
+    "bytes": 193618910,
+    "files": 1026,
+    "gzBytes": 77948902
+   },
+   "l93": {
+    "minE": 688000,
+    "minN": 6844000,
+    "maxE": 704000,
+    "maxN": 6860000
+   },
+   "open": true
+  },
+  {
    "id": "idf-goussainville",
    "name": "Goussainville",
    "region": "Val-d'Oise · Île-de-France",

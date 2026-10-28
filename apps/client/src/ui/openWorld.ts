@@ -99,7 +99,7 @@ export class OpenWorldPanel {
           return `<button type="button" class="ow-zone" data-ow-route="${esc(d.routeId)}" data-ow-world="${esc(zone.id)}">
             <span class="ow-name">${esc(zone.name)}<small>${esc(zone.region ?? '')}</small></span>
             <span class="ow-meta"><i class="ow-dot${d.riders > 0 ? ' on' : ''}"></i>${esc(ridersLabel(d.riders, fr))}${friends ? `<em>${esc(friends)}</em>` : ''}</span>
-            <span class="ow-go">${fr ? 'Voir la carte' : 'Open map'}</span>
+            <span class="ow-go">${d.riders > 0 ? (fr ? 'Rejoindre' : 'Join') : fr ? 'Rouler' : 'Ride'}</span>
           </button>`;
         })
         .join('')}`;

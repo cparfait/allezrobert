@@ -242,12 +242,23 @@ function createMenuVideo(el: HTMLVideoElement | null) {
   let formats = ['mp4', 'webm', 'av1.mp4'];
   let format = 0;
   let current = '';
-  void navigator.mediaCapabilities
-    ?.decodingInfo({ type: 'file', video: { contentType: 'video/mp4; codecs="av01.0.08M.08"', width: 1920, height: 1080, bitrate: 2_500_000, framerate: 30 } })
-    .then((info) => {
-      if (info.supported && info.powerEfficient && !current) formats = ['av1.mp4', 'mp4', 'webm'];
-    })
-    .catch(() => undefined);
+  const caps: Promise<void> = navigator.mediaCapabilities
+    ? navigator.mediaCapabilities
+        .decodingInfo({ type: 'file', video: { contentType: 'video/mp4; codecs="av01.0.08M.08"', width: 1920, height: 1080, bitrate: 2_500_000, framerate: 30 } })
+        .then((info) => {
+          if (info.supported && info.powerEfficient && !current) formats = ['av1.mp4', 'mp4', 'webm'];
+        })
+        .catch(() => undefined)
+    : Promise.resolve();
+  /** Attentes de `preload` : libérées quand la vidéo est assez chargée, ou quand elle est abandonnée. */
+  const waiters = new Set<() => void>();
+  /** Adresse de la boucle de la saison dans le format courant (H.264 → VP9 si H.264 n'est pas lu). */
+  const urlFor = (season: Settings['season']): string => {
+    // AV1 si décodé par la carte graphique, sinon H.264, sinon VP9 ; repli sur le suivant en cas d'erreur.
+    if (el && formats[format] === 'mp4' && !el.canPlayType('video/mp4; codecs="avc1.640028"')) format = formats.indexOf('webm');
+    // Application Windows : les boucles (trop lourdes pour l'installateur) viennent du serveur ; web : même origine.
+    return `${TILES_BASE}/menu/loop-${season}.${formats[format] as string}?v=${MENU_MEDIA_VERSION}`;
+  };
   // Image fixe de la saison, affichée tout de suite sous la vidéo (et seule si la vidéo échoue).
   const still = document.getElementById('menu-still');
   const showStill = (season: Settings['season'] | null) => {
@@ -268,6 +279,7 @@ function createMenuVideo(el: HTMLVideoElement | null) {
       }
       // Tous les formats ont échoué : image fixe seule (nouvel essai à la prochaine saison / au prochain accueil).
       failed = true;
+      for (const release of [...waiters]) release();
       el.hidden = true;
       console.warn('Boucle vidéo du menu illisible :', current, el.error?.message ?? el.error?.code);
     });
@@ -292,11 +304,7 @@ function createMenuVideo(el: HTMLVideoElement | null) {
     show(season: Settings['season']): boolean {
       showStill(season);
       if (!el || failed) return true;
-      // AV1 si décodé par la carte graphique, sinon H.264, sinon VP9 ; repli sur le suivant en cas d'erreur.
-      if (formats[format] === 'mp4' && !el.canPlayType('video/mp4; codecs="avc1.640028"')) format = formats.indexOf('webm');
-      const ext = formats[format] as string;
-      // Application Windows : les boucles (trop lourdes pour l'installateur) viennent du serveur ; web : même origine.
-      const src = `${TILES_BASE}/menu/loop-${season}.${ext}?v=${MENU_MEDIA_VERSION}`;
+      const src = urlFor(season);
       if (current !== src) {
         current = src;
         el.classList.remove('on');
@@ -305,6 +313,32 @@ function createMenuVideo(el: HTMLVideoElement | null) {
       el.hidden = false;
       void el.play().catch(() => undefined);
       return true;
+    },
+    /**
+     * Télécharge la boucle de la saison, cachée, avant tout le reste (modèles, shaders) : la lecture ne « rame » plus
+     * quand le menu apparaît. Rend la main quand elle est jouable en continu, abandonnée, ou après `maxMs`.
+     */
+    async preload(season: Settings['season'], maxMs = 15_000): Promise<void> {
+      if (!el || failed) return;
+      await caps;
+      const src = urlFor(season);
+      if (current !== src) {
+        current = src;
+        el.src = src;
+        el.load();
+      }
+      if (el.readyState >= 4) return;
+      await new Promise<void>((resolve) => {
+        const release = () => {
+          clearTimeout(timer);
+          el.removeEventListener('canplaythrough', release);
+          waiters.delete(release);
+          resolve();
+        };
+        const timer = setTimeout(release, maxMs);
+        el.addEventListener('canplaythrough', release);
+        waiters.add(release);
+      });
     },
     stop(): void {
       showStill(null);
@@ -382,6 +416,12 @@ async function boot(): Promise<void> {
   // Vélo affiché au garage et sur l'image d'accueil : celui qui est équipé (sauvegardes anciennes).
   settings.look = { ...settings.look, bikeType: bikeSetupFor(loadProgress().equipped).tyre ?? 'road' };
   bootStep(20, 'Chargement du jeu');
+  // Fond du menu : boucle vidéo de la saison (aucun calcul 3D pendant ce temps). Elle se télécharge en premier : modèles,
+  // moteur et shaders attendent qu'elle soit jouable, sinon ils lui prennent le réseau et le processeur et elle saccade.
+  const menuVideo = createMenuVideo(document.getElementById('menu-bg') as HTMLVideoElement | null);
+  const videoReady = new URLSearchParams(location.search).has('autostart') ? Promise.resolve() : menuVideo.preload(settings.season);
+  bootStep(20, 'Chargement de l’accueil');
+  await videoReady;
   // Avatars Blender (glTF) : chargés en parallèle, attendus seulement quand la 3D sert.
   const modelsReady = GltfRiderAvatar.load([bikeOfLook(settings.look).family, ...CROWD_FAMILIES]);
   // Voitures : en tâche de fond, attendues au départ d'une sortie (facultatives).
@@ -467,8 +507,6 @@ async function boot(): Promise<void> {
     overlay.remove();
   };
   window.addEventListener('resize', () => inMenu && !exploring && worldReady && !menuVideo.playing() && renderPoster());
-  // Fond du menu : boucle vidéo de la saison (aucun calcul 3D pendant ce temps).
-  const menuVideo = createMenuVideo(document.getElementById('menu-bg') as HTMLVideoElement | null);
   // Vélo essayé dans le garage dont la famille arrive à l'instant : l'avatar l'a monté, on refait l'image.
   onBikeFamilyLoaded(() => inMenu && !exploring && !!worldReady && !menuVideo.playing() && renderPoster());
   // Explorer la carte : caméra libre au-dessus du monde chargé ; les tuiles suivent la caméra.
