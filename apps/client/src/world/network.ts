@@ -1,5 +1,5 @@
 import * as THREE from 'three/webgpu';
-import { uv, attribute, mix, smoothstep, step, fract, floor, hash, min, vec3, float, uniform, mx_noise_float, positionWorld, clamp, abs, max, fwidth } from 'three/tsl';
+import { uv, attribute, mix, smoothstep, step, fract, floor, hash, min, vec3, float, uniform, mx_noise_float, positionWorld, positionLocal, clamp, abs, max, fwidth } from 'three/tsl';
 import { LOW_POLY } from '../engine/style.ts';
 import type { LoadedTile, TileRoad } from './types.ts';
 import { asphaltGrain } from './asphalt.ts';
@@ -53,7 +53,8 @@ export class RoadNetwork {
     const n2 = mx_noise_float(positionWorld.xz.mul(0.08)).mul(0.5).add(0.5);
     // Style jeu vidéo : enrobé foncé uni (même teinte que la route de l'itinéraire, road.ts).
     const asphalt = LOW_POLY ? vec3(0.075, 0.078, 0.085) : vec3(0.24, 0.245, 0.26).mul(asphaltGrain()).mul(n2.mul(0.2).add(0.9));
-    const gravel = vec3(0.5, 0.46, 0.38).mul(n.mul(0.35).add(0.7));
+    // Style jeu vidéo : chemins de terre bruns (le gris clair se lisait comme une dalle de béton).
+    const gravel = LOW_POLY ? vec3(0.42, 0.33, 0.23) : vec3(0.5, 0.46, 0.38).mul(n.mul(0.35).add(0.7));
     const unpaved = clamp(info.z, 0, 1).mul(step(info.z, 1.5));
     const cobble = step(1.5, info.z);
     // Pavés : rangées de 14 cm décalées d'un demi-pavé, pavés de 17 cm, joints sombres, teinte par pavé.
@@ -92,13 +93,37 @@ export class RoadNetwork {
     m.polygonOffset = true;
     m.polygonOffsetFactor = -2;
     m.polygonOffsetUnits = -2;
+    // Chemins non revêtus 6 cm sous l'enrobé : au carrefour, la route passe dessus (sinon le chemin recouvrait
+    // la chaussée jusqu'en pointe).
+    if (LOW_POLY) {
+      m.positionNode = positionLocal.sub(vec3(0, unpaved.mul(0.06), 0));
+      // Mat : le reflet du ciel (environnement de la scène) noyait la couleur en rasant (enrobé bleuté, chemins
+      // de terre gris) ; seule la pluie fait encore briller la chaussée.
+      m.roughnessNode = clamp(float(0.95).sub(this.wetness.mul(0.5)), 0.3, 1);
+      // (envMapIntensity est sans effet ici : environnement remplacé par un gris neutre, qui éclaire l'ombre sans bleuir)
+      m.envNode = vec3(0.34, 0.34, 0.35);
+    }
     return m;
   }
 
   addTile(tile: LoadedTile): void {
     if (this.tiles.has(tile.id)) return;
     const objs: THREE.Object3D[] = [];
-    const roads = tile.features.roads.filter((r) => r.pts3 && !r.tunnel && (!SKIP.has(r.kind) || (this.drawCycleways && r.kind === 'cycleway')) && r.route !== this.activeRoute && !isRouteTwin(r, tile.features.roads, this.activeRoute));
+    // Voies OSM empruntées par l'itinéraire (le ruban les dessine) : leurs copies au nom d'un autre itinéraire
+    // (« route:<autre>:<osm> », deux boucles sur la même route) passaient dessus, lissées autrement.
+    const osmOf = (r: TileRoad) => (r.id ?? '').slice((r.id ?? '').lastIndexOf(':') + 1);
+    const mine = new Set(this.activeRoute ? tile.features.roads.filter((r) => r.route === this.activeRoute).map(osmOf) : []);
+    let roads = tile.features.roads.filter((r) => r.pts3 && !r.tunnel && (!SKIP.has(r.kind) || (this.drawCycleways && r.kind === 'cycleway')) && r.route !== this.activeRoute && !(r.route && mine.has(osmOf(r))) && !isRouteTwin(r, tile.features.roads, this.activeRoute));
+    // Une voie partagée par plusieurs itinéraires figure une fois par itinéraire (« route:<id>:<osm> ») :
+    // dessinée une seule fois (copies superposées : marquages qui scintillaient).
+    const seen = new Set<string>();
+    roads = roads.filter((r) => {
+      const id = r.id ?? '';
+      const key = r.route ? `${id.slice(id.lastIndexOf(':') + 1)}|${r.pts3?.[0]}|${r.pts3?.[2]}` : `${id}|${r.pts3?.[0]}|${r.pts3?.[2]}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
     if (roads.length) {
       const geo = buildRoads(roads, this.footprint);
       if (geo) {

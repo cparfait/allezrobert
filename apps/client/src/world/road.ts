@@ -109,6 +109,11 @@ export class RoadMesh {
     const rough = float(0.84).sub(wheelTrack);
     m.roughnessNode = clamp(mix(float(0.97), rough, onRoad).sub(wet.mul(0.6).mul(onRoad)), 0.06, 1);
     m.metalnessNode = float(0);
+    if (LOW_POLY) {
+      // Mat (voir network.ts) : sans reflet du ciel en rasant.
+      m.roughnessNode = clamp(float(0.95).sub(wet.mul(0.5)), 0.3, 1);
+      m.envNode = vec3(0.34, 0.34, 0.35);
+    }
     m.opacityNode = LOW_POLY ? step(ax, float(half + 0.6)) : step(ax, vergeOuter);
     m.alphaTest = 0.5;
     m.polygonOffset = true;
