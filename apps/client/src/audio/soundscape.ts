@@ -153,7 +153,8 @@ export function apparentWind(speedMs: number, windMs: number, windFrom: number, 
 /** Souffle de l'air aux oreilles : volume et brillance croissent avec la vitesse de l'air. */
 export function windMix(airMs: number): { gain: number; freq: number } {
   const a = Math.max(0, Number.isFinite(airMs) ? airMs : 0);
-  return { gain: Math.min(0.2, 0.004 + 0.14 * (a / 15) ** 2), freq: Math.min(2400, 220 + a * 70) };
+  // ≈ 40 % plus doux qu'à l'origine (le souffle couvrait le reste à vitesse de course).
+  return { gain: Math.min(0.12, 0.003 + 0.085 * (a / 15) ** 2), freq: Math.min(2400, 220 + a * 70) };
 }
 
 // ————————————————————————————————————————————— Roue libre et transmission

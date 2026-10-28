@@ -116,7 +116,7 @@ describe('vent', () => {
   it('souffle de l’air croissant et borné', () => {
     expect(windMix(0).gain).toBeLessThan(0.01);
     expect(windMix(10).gain).toBeGreaterThan(windMix(5).gain);
-    expect(windMix(100).gain).toBeLessThanOrEqual(0.2);
+    expect(windMix(100).gain).toBeLessThanOrEqual(0.12);
     expect(windMix(15).freq).toBeGreaterThan(windMix(5).freq);
   });
 });
