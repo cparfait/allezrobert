@@ -1,6 +1,6 @@
 import * as THREE from 'three/webgpu';
 import { LOW_POLY } from '../engine/style.ts';
-import { attribute, positionLocal, time, sin, vec3, float, uniform, mix, instanceIndex, hash, varying, transformNormalToView } from 'three/tsl';
+import { attribute, positionLocal, positionWorld, time, sin, vec3, float, uniform, mix, fract, floor, mx_noise_float, varying, transformNormalToView } from 'three/tsl';
 import { colorUniform } from '../engine/tsl.ts';
 import { rng } from '../engine/noise.ts';
 import type { QualitySettings } from '../engine/quality.ts';
@@ -20,11 +20,11 @@ const BLOCK_KEY = 1_048_576;
 /** Base (pied, ombragé) et pointe des brins par saison : verts sourds, pointes olive (pas de jaune vif). */
 const SEASON_GRASS: Record<Season, [string, string]> = LOW_POLY
   ? {
-      // Style jeu vidéo : herbes hautes vert vif, pointes claires.
-      spring: ['#4f8f2c', '#a6d65a'],
-      summer: ['#4c8a2a', '#9ccc52'],
-      autumn: ['#558a2e', '#a8c25a'],
-      winter: ['#5b6a42', '#a6a882'],
+      // Style jeu vidéo : pied au vert du pré (LOWPOLY_GROUND de terrain.ts), pointe plus claire.
+      spring: ['#7cbf4a', '#b3df6a'],
+      summer: ['#86c04e', '#b8dc62'],
+      autumn: ['#8cba4c', '#c2d46a'],
+      winter: ['#9aae7a', '#c4cca0'],
     }
   : {
   spring: ['#3d6324', '#86a84e'],
@@ -138,6 +138,8 @@ export class GrassField {
   private job: { focus: THREE.Vector3; blocks: Array<{ bx: number; bz: number; d: number }>; bi: number; n: number } | null = null;
   /** Matrices de la regénération en cours (gardé d'une fois à l'autre : 3 Mo). */
   private staging: Float32Array | null = null;
+  /** Graine de chaque touffe (0–1), tirée de sa position monde. */
+  private readonly seeds: THREE.InstancedBufferAttribute;
 
   constructor(q: QualitySettings, season: Season, tileAt: (x: number, z: number) => LoadedTile | undefined, heightAt: (x: number, z: number) => number, avoid: (x: number, z: number) => boolean) {
     const field = this;
@@ -153,15 +155,22 @@ export class GrassField {
     this.tries = grassTriesPerBlock(this.max);
     const m = new THREE.MeshStandardNodeMaterial({ side: THREE.DoubleSide });
     const tip = attribute<'float'>('tip');
-    const h = hash(instanceIndex);
+    // Graine par touffe tirée de sa position (attribut `seed`, voir update) : les touffes sont renumérotées à
+    // chaque regénération des blocs (tous les 12 m), une graine tirée de l'indice d'instance changeait la
+    // teinte des touffes d'un coup.
+    const h = attribute<'float'>('seed');
     // Brins couchés dans le sens du vent, avec des vagues de rafales qui parcourent la prairie.
     const wave = sin(positionLocal.x.mul(this.windDir.x).add(positionLocal.z.mul(this.windDir.y)).mul(0.35).sub(time.mul(2.2)));
     const sway = sin(time.mul(float(1.6).add(h.mul(0.8))).add(h.mul(30))).mul(0.4).add(wave.mul(0.35)).add(0.6).mul(this.wind).mul(tip).mul(0.12);
     m.positionNode = positionLocal.add(vec3(this.windDir.x.mul(sway), 0, this.windDir.y.mul(sway)));
     // une touffe sur huit plus sèche (paille), variation de teinte par touffe
-    const dry = hash(instanceIndex.add(31)).greaterThan(0.875).select(float(1), float(0));
+    const dry = fract(h.mul(7.13).add(0.31)).greaterThan(0.875).select(float(1), float(0));
     const tipCol = mix(this.tipCol.node, vec3(0.42, 0.38, 0.22), dry.mul(0.7));
-    m.colorNode = varying(mix(this.base.node, tipCol, tip.pow(0.8)).mul(h.mul(0.25).add(0.82))).mul(cloudShade());
+    // Style jeu vidéo : pied de la touffe à la couleur du pré, avec les mêmes taches en paliers que le sol
+    // (terrain.ts, createLowPolyMaterial), pointe plus claire ; réaliste : variation douce par touffe.
+    const patch = floor(mx_noise_float(positionWorld.xz.mul(0.006)).mul(0.5).add(0.5).mul(3)).div(3).mul(0.14).add(0.9);
+    const shade = LOW_POLY ? patch.mul(h.mul(0.08).add(0.96)) : h.mul(0.25).add(0.82);
+    m.colorNode = varying(mix(this.base.node, tipCol, tip.pow(0.8)).mul(shade)).mul(cloudShade());
     m.roughnessNode = float(0.85);
     // Brins tournés vers le ciel : moitié moins de lumière du ciel, sinon l'herbe blanchit (voile bleuté).
     m.envMapIntensity = 0.5;
@@ -169,7 +178,11 @@ export class GrassField {
     // Style jeu vidéo : facettes visibles (aplats par face) ; réaliste : normale verticale, éclairage doux.
     if (LOW_POLY) m.flatShading = true;
     else m.normalNode = transformNormalToView(vec3(0, 1, 0));
-    this.mesh = new THREE.InstancedMesh(LOW_POLY ? lowPolyClumpGeometry() : clumpGeometry(), m, Math.max(this.max, 1));
+    const geo = LOW_POLY ? lowPolyClumpGeometry() : clumpGeometry();
+    this.seeds = new THREE.InstancedBufferAttribute(new Float32Array(Math.max(this.max, 1)), 1);
+    this.seeds.setUsage(THREE.DynamicDrawUsage);
+    geo.setAttribute('seed', this.seeds);
+    this.mesh = new THREE.InstancedMesh(geo, m, Math.max(this.max, 1));
     this.mesh.count = 0;
     this.mesh.frustumCulled = false;
     this.mesh.receiveShadow = true;
@@ -232,6 +245,12 @@ export class GrassField {
     job.n = n;
     if (job.bi < blocks.length && n < this.max) return;
     (this.mesh.instanceMatrix.array as Float32Array).set(staging.subarray(0, n * 16));
+    const seeds = this.seeds.array as Float32Array;
+    for (let i = 0; i < n; i++) {
+      const v = Math.sin((staging[i * 16 + 12] as number) * 12.9898 + (staging[i * 16 + 14] as number) * 78.233) * 43758.5453;
+      seeds[i] = v - Math.floor(v);
+    }
+    this.seeds.needsUpdate = true;
     this.mesh.count = n;
     this.mesh.instanceMatrix.needsUpdate = true;
     this.job = null;
