@@ -9,6 +9,7 @@ import { RiderAvatar } from './avatar.ts';
 import { buildBikeKit, roadPartsReplaced, type BikeType } from './bikeKits.ts';
 import { FaceAnimator } from './face.ts';
 import { fitGlasses } from './glassesFit.ts';
+import { boxOfMeshes, capGeometry, capMaterials } from './cap.ts';
 import { SkinMaterial, loadSkinTextures, skinTextures, type SkinLook } from './skin.ts';
 import { applyClothLook, clothTextures, isClothPart, loadClothTextures, makeClothMaterial, type JerseyAxis } from './cloth.ts';
 import { addFrameAttributes, addJerseyFrame, addSleeveMask, type JerseyFrame } from './jerseyPattern.ts';
@@ -665,6 +666,43 @@ function buildTemplates(riders: GLTF[]): Templates {
   return { riders, names, bones, armQ, armP, legs, arms, bb, crank, pedalRest, pedalPitch, ankleFlat, eyeRest, refHands: bikeAnchors(PLAIN_BIKE_FAMILY).hands, wristFromPalm, textured, jerseyAxis: mpfb && !textured.size ? jerseyAxisOf(scene) : null, jersey };
 }
 
+/** Géométrie de la casquette par niveau de détail du modèle (null : modèle sans casque pour s'ajuster). */
+const capGeometries = new WeakMap<GLTF, THREE.BufferGeometry | null>();
+/** Boîte du casque route du modèle (niveau 0), repère du modèle, qui sert de gabarit à la casquette. */
+const helmetBoxes = new WeakMap<GLTF, THREE.Box3 | null>();
+
+function capGeometryOf(riders: readonly GLTF[], level: number, headName: string | undefined): THREE.BufferGeometry | null {
+  const rider = riders[level] as GLTF;
+  const known = capGeometries.get(rider);
+  if (known !== undefined) return known;
+  const first = riders[0] as GLTF;
+  if (!helmetBoxes.has(first)) {
+    const meshes: THREE.Mesh[] = [];
+    first.scene.updateMatrixWorld(true);
+    first.scene.traverse((o) => {
+      if (o.name.startsWith('rider_helmet') && !o.name.startsWith('rider_helmet_aero')) o.traverse((c) => (c as THREE.Mesh).isMesh && meshes.push(c as THREE.Mesh));
+    });
+    helmetBoxes.set(first, boxOfMeshes(meshes));
+  }
+  const box = helmetBoxes.get(first);
+  let ref: THREE.SkinnedMesh | undefined;
+  rider.scene.traverse((o) => {
+    if (!ref && (o as THREE.SkinnedMesh).isSkinnedMesh) ref = o as THREE.SkinnedMesh;
+  });
+  rider.scene.updateMatrixWorld(true);
+  const head = ref ? ref.skeleton.bones.findIndex((b) => b.name === headName) : -1;
+  let geo: THREE.BufferGeometry | null = null;
+  if (box && ref && head >= 0) {
+    // Sommet du maillage → monde en pose de repos : bindMatrix, puis matrice d'os (os × inverse de liaison).
+    // Le repère de la boîte est celui de la pose de repos ; on remonte jusqu'au maillage.
+    const bone = ref.skeleton.bones[head] as THREE.Bone;
+    const skin = bone.matrixWorld.clone().multiply(ref.skeleton.boneInverses[head] as THREE.Matrix4).multiply(ref.bindMatrix);
+    geo = capGeometry(box, skin.invert(), head);
+  }
+  capGeometries.set(rider, geo);
+  return geo;
+}
+
 /** L'objet ou l'un de ses parents porte-t-il un nom commençant par `prefix` ? */
 function underNode(o: THREE.Object3D, prefix: string): boolean {
   for (let p: THREE.Object3D | null = o; p; p = p.parent) if (p.name.startsWith(prefix)) return true;
@@ -803,7 +841,7 @@ export class GltfRiderAvatar implements RiderAvatarLike {
   private readonly tmpAnkle = new THREE.Vector3();
   private readonly tmpPedal = new THREE.Vector3();
   /** Casques route et chrono, lunettes (les deux LOD) : casque chrono à visière selon le vélo. */
-  private readonly headgear: Record<'road' | 'aero' | 'glasses', THREE.Object3D[]> = { road: [], aero: [], glasses: [] };
+  private readonly headgear: Record<'road' | 'aero' | 'glasses' | 'cap', THREE.Object3D[]> = { road: [], aero: [], glasses: [], cap: [] };
   /** Casque et lunettes masqués (éditeur de visage). */
   private bareHead = false;
   private headHidden = false;
@@ -938,6 +976,7 @@ export class GltfRiderAvatar implements RiderAvatarLike {
     level0.add(this.bikeSlots[0] as THREE.Group, rider0);
 
     this.lod.addLevel(level0, 0, 0.1);
+    this.addCap(rider0, 0);
     // Niveaux suivants : maillages simplifiés liés aux os du niveau 0 (un seul squelette à animer).
     t.riders.forEach((r, i) => {
       if (i === 0) return;
@@ -953,6 +992,7 @@ export class GltfRiderAvatar implements RiderAvatarLike {
         sm.matrixWorld.decompose(m.position, m.quaternion, m.scale);
         level.add(m);
       });
+      this.addCap(level, i);
       this.lod.addLevel(level, (this.lodDistances[i] ?? 30 * i) * GltfRiderAvatar.lodScale, 0.1);
     });
 
@@ -962,7 +1002,7 @@ export class GltfRiderAvatar implements RiderAvatarLike {
     const bounds = new THREE.Sphere(new THREE.Vector3(0, 0.85, 0.05), 1.1);
     this.lod.traverse((o) => {
       const mesh = o as THREE.Mesh;
-      if (!mesh.isMesh) return;
+      if (!mesh.isMesh || mesh.name === 'rider_cap') return;
       const src = mesh.material as THREE.Material;
       // Visière du casque chrono : verre plus clair que celui des lunettes.
       const key = src.name === 'lens' && underNode(mesh, 'rider_helmet_aero') ? 'visor' : src.name;
@@ -1019,6 +1059,30 @@ export class GltfRiderAvatar implements RiderAvatarLike {
     this.setBuild(look.build);
     this.applyHair(look);
     this.update(0, 0, 0, 'seated');
+  }
+
+  /**
+   * Casquette d'un niveau de détail : maillage lié à l'os de la tête, posé à côté du premier maillage
+   * articulé du niveau (même repère et même liaison). Masquée tant qu'aucune casquette n'est portée.
+   */
+  private addCap(level: THREE.Object3D, i: number): void {
+    const geo = capGeometryOf(this.t.riders, i, this.t.names.head);
+    let ref: THREE.SkinnedMesh | undefined;
+    level.traverse((o) => {
+      if (!ref && (o as THREE.SkinnedMesh).isSkinnedMesh) ref = o as THREE.SkinnedMesh;
+    });
+    if (!geo || !ref || !ref.parent) return;
+    const cap = new THREE.SkinnedMesh(geo, capMaterials({ style: 'uni', color: '#16171a' }));
+    cap.name = 'rider_cap';
+    cap.position.copy(ref.position);
+    cap.quaternion.copy(ref.quaternion);
+    cap.scale.copy(ref.scale);
+    cap.bind(ref.skeleton, ref.bindMatrix);
+    cap.frustumCulled = false;
+    cap.visible = false;
+    cap.receiveShadow = true;
+    ref.parent.add(cap);
+    this.headgear.cap.push(cap);
   }
 
   /**
@@ -1465,12 +1529,22 @@ export class GltfRiderAvatar implements RiderAvatarLike {
     });
   }
 
-  /** Casque route ou chrono selon le vélo, lunettes avec le casque route ; rien tête nue. */
+  /**
+   * Casque route ou chrono selon le vélo, lunettes avec le casque route ; rien tête nue. Une casquette
+   * (look.cap) remplace le casque, chrono compris, et se porte avec les lunettes.
+   */
   private applyHeadgear(build: BikeBuild): void {
-    const aero = !!build.params.aeroHelmet && this.headgear.aero.length > 0;
-    for (const o of this.headgear.aero) o.visible = aero && !this.bareHead;
-    for (const o of this.headgear.road) o.visible = !aero && !this.bareHead;
-    for (const o of this.headgear.glasses) o.visible = !aero && !this.bareHead;
+    const cap = !!this.look.cap && this.headgear.cap.length > 0;
+    const aero = !!build.params.aeroHelmet && this.headgear.aero.length > 0 && !cap;
+    const shown = !this.bareHead;
+    for (const o of this.headgear.aero) o.visible = aero && shown;
+    for (const o of this.headgear.road) o.visible = !aero && !cap && shown;
+    for (const o of this.headgear.glasses) o.visible = !aero && shown;
+    const mats = this.look.cap ? capMaterials(this.look.cap) : null;
+    for (const o of this.headgear.cap) {
+      o.visible = cap && shown;
+      if (mats) (o as THREE.Mesh).material = mats;
+    }
   }
 
   /** Tête nue (aperçu de l'éditeur de visage) ou casquée. */
@@ -1626,6 +1700,7 @@ export class GltfRiderAvatar implements RiderAvatarLike {
     this.skin?.setJersey(look);
     this.applyHair(look);
     this.mountBike(bikeOfLook(look), look);
+    if (this.mounted) this.applyHeadgear(this.mounted.build);
     this.setBuild(look.build);
     if (bikeTypeOf(look) !== this.bikeType) this.setBikeType(bikeTypeOf(look));
   }

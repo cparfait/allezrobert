@@ -7,7 +7,7 @@
 import catalogJson from './cosmetics.json' with { type: 'json' };
 import { DEFAULT_BIKE, type BikeSetup } from './rider.ts';
 import { BIKES, migrateBikeId, type BikeType } from './bikes.ts';
-import type { AvatarLook, JerseyStyle } from './net.ts';
+import type { AvatarLook, CapLook, JerseyStyle } from './net.ts';
 
 export const MAX_LEVEL = 50;
 export const MAX_XP_PER_RIDE = 4000;
@@ -74,6 +74,14 @@ export interface CosmeticItem {
   pack?: string;
   /** Maillots : accent, style (uni, bandes de poitrine) et bandes ; absent : dessin d'origine. */
   jersey?: { accent?: string; style?: JerseyStyle; bands?: string[]; dots?: { r: number; step: number }; logo?: { id: string; tint?: string; w?: number; y?: number } };
+  /** Casquettes (emplacement « helmet ») : motif porté à la place du casque. */
+  cap?: CapLook;
+}
+
+/** Coiffe d'un équipement « casque » : sa couleur et, pour une casquette, son motif (un casque retire la casquette). */
+export function helmetLookOf(item: CosmeticItem, base: AvatarLook): AvatarLook {
+  const { cap: _old, ...rest } = base;
+  return { ...rest, helmet: item.color ?? base.helmet, ...(item.cap ? { cap: item.cap } : {}) };
 }
 
 /**

@@ -94,31 +94,32 @@ export class BackgroundMusic {
     return this.order[this.index] ?? null;
   }
 
-  /** Démarre au premier clic ou à la première touche (politique d'autoplay des navigateurs). */
+  /**
+   * Démarre au premier clic ou à la première touche (politique d'autoplay des navigateurs), sans bouton
+   * à part : le premier clic sur « Rouler » suffit (et lance donc aussi la voix du tutoriel).
+   */
   unlockOnGesture(): void {
-    const hint = document.getElementById('music-hint');
     const go = () => {
-      if (hint) hint.hidden = true;
       window.removeEventListener('pointerdown', go);
       window.removeEventListener('keydown', go);
-      this.unlocked = true;
-      if (this.enabled && !this.external) this.start();
+      this.unlock();
     };
     window.addEventListener('pointerdown', go);
     window.addEventListener('keydown', go);
     if (!this.enabled || this.external) return;
     // Musique dès l'ouverture quand le navigateur l'autorise (site déjà écouté, appli de bureau) ;
-    // sinon petite invitation jusqu'au premier clic ou à la première touche.
+    // sinon elle attend le premier geste.
     this.start();
-    void this.el
-      .play()
-      .then(() => {
-        window.removeEventListener('pointerdown', go);
-        window.removeEventListener('keydown', go);
-      })
-      .catch(() => {
-        if (hint) hint.hidden = false;
-      });
+    void this.el.play().then(() => {
+      window.removeEventListener('pointerdown', go);
+      window.removeEventListener('keydown', go);
+    }, () => undefined);
+  }
+
+  /** Geste de l'utilisateur reçu (clic sur « Rouler ») : le son est autorisé, la musique démarre si elle est activée. */
+  unlock(): void {
+    this.unlocked = true;
+    if (this.enabled && !this.external) this.start();
   }
 
   setEnabled(on: boolean): void {

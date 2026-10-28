@@ -8,7 +8,7 @@ import catalogJson from './bikes.json' with { type: 'json' };
 import type { AvatarLook } from './net.ts';
 import { applyTuneLook, type BikeExtras } from './tuning.ts';
 
-export type BikeFamily = 'aero' | 'climb' | 'tt' | 'retro' | 'retro_compact' | 'steel' | 'lowpro' | 'lotus';
+export type BikeFamily = 'aero' | 'climb' | 'tt' | 'retro' | 'retro_compact' | 'steel' | 'lowpro' | 'lotus' | 'espada';
 export type WheelType = 'box' | 'c35' | 'c50' | 'c65' | 'disc' | 'tri';
 export type BikeType = 'aero' | 'climbing' | 'tt' | 'classic' | 'track';
 export type BikeCollection = 'saison-2026' | 'mythiques' | 'divers';
@@ -45,6 +45,8 @@ export interface BikeLivery {
   tape?: string;
   /** Flancs des roues lenticulaires (sinon carbone noir). */
   disc?: string;
+  /** Graphisme peint sur les flancs des roues lenticulaires : « espada » (triangle rouge, pan bleu), « petals » (pétales tournants rouge, jaune, bleu). */
+  discArt?: 'espada' | 'petals';
   /**
    * Inscriptions du cadre, comme sur le vrai vélo : texte et couleur par emplacement (diagonal,
    * horizontal, tube de selle, fourche, bases). Absent : la marque sur le diagonal seulement.
@@ -124,12 +126,12 @@ export const BIKES: readonly BikeModel[] = catalog.bikes;
 export const BIKE_BRANDS: readonly BikeBrand[] = catalog.brands;
 export const BIKE_TEAMS: readonly BikeTeam[] = catalog.teams;
 export const BIKE_GROUPS: readonly BikeGroup[] = catalog.groups;
-export const BIKE_FAMILIES: readonly BikeFamily[] = ['aero', 'climb', 'tt', 'retro', 'retro_compact', 'steel', 'lowpro', 'lotus'];
+export const BIKE_FAMILIES: readonly BikeFamily[] = ['aero', 'climb', 'tt', 'retro', 'retro_compact', 'steel', 'lowpro', 'lotus', 'espada'];
 
 const byId = new Map(BIKES.map((b) => [b.id, b]));
 
 /** Bidons que porte un cadre de chaque famille (porte-bidons du tube oblique, puis du tube de selle). */
-const FAMILY_BOTTLES: Record<BikeFamily, number> = { aero: 2, climb: 2, retro: 2, retro_compact: 2, steel: 2, tt: 0, lowpro: 0, lotus: 0 };
+const FAMILY_BOTTLES: Record<BikeFamily, number> = { aero: 2, climb: 2, retro: 2, retro_compact: 2, steel: 2, tt: 0, lowpro: 0, lotus: 0, espada: 0 };
 
 /** Nombre maximal de bidons (0, 1 ou 2) d'un vélo ; sans modèle : le vélo de base. */
 export function bottleCapacity(id: string | undefined): 0 | 1 | 2 {

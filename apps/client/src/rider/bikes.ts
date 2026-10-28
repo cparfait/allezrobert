@@ -1,6 +1,6 @@
 import * as THREE from 'three/webgpu';
 import { GLTFLoader, type GLTF } from 'three/addons/loaders/GLTFLoader.js';
-import { atan, color, float, floor, materialColor, mix, mod, positionGeometry, sin, uniform, vec3 } from 'three/tsl';
+import { abs, atan, color, float, floor, fract, length, materialColor, max, mix, mod, positionGeometry, sign, sin, step, uniform, vec2, vec3 } from 'three/tsl';
 import { BIKES, DEFAULT_LOOK, PLAIN_BIKE_FAMILY, bikeOfLook, type AvatarLook, type BikeBuild, type BikeFamily, type TuneNumber } from '@allezrobert/shared';
 import { LiveryMaterial } from './livery.ts';
 import { RimDecalMaterial, measureBand, type RimBand } from './rimDecal.ts';
@@ -495,6 +495,23 @@ export class BikeMaterials {
         const hue = vec3(sin(a), sin(a.add(2.094)), sin(a.add(4.188))).mul(0.5).add(0.5);
         m.colorNode = mix(materialColor, hue, on);
         this.fx.set(name, on);
+      } else if (name === 'disc_face') {
+        // Flancs peints : graphisme en coordonnées polaires autour de l'axe du moyeu (X), lisible des deux côtés.
+        const kind = uniform(0);
+        const p = positionGeometry;
+        const r = length(vec2(p.y, p.z)).div(0.33);
+        const t = atan(p.z, p.y).div(2 * Math.PI).mul(sign(p.x));
+        const rR = max(r, float(0.1));
+        const ring = step(float(0.2), r).mul(step(r, float(0.94)));
+        const wedge = (c: number, w: number) => step(abs(t.sub(c)), rR.mul(w)).mul(ring);
+        // « espada » : grand triangle rouge en haut à l'avant, pan bleu en bas, filet jaune.
+        const espada = mix(mix(mix(materialColor, color('#d8262e'), wedge(0.2, 0.17)), color('#1d3fa8'), wedge(-0.15, 0.15)), color('#f4c300'), wedge(0.4, 0.04));
+        // « petals » : huit secteurs qui tournent avec le rayon, rouge, jaune, bleu, blanc ; moyeu et jante gardent le fond.
+        const sector = mod(floor(fract(t.add(r.mul(0.22))).mul(8)), 4);
+        const pal = mix(mix(mix(color('#c8202a'), color('#f2c000'), step(float(1), sector)), color('#1d3fa8'), step(float(2), sector)), color('#f6f6f2'), step(float(3), sector));
+        const petals = mix(materialColor, pal, step(float(0.24), r).mul(step(r, float(0.95))));
+        m.colorNode = mix(mix(materialColor, espada, step(float(0.5), kind).mul(step(kind, float(1.5)))), petals, step(float(1.5), kind));
+        this.fx.set(name, kind);
       } else if (CARBON_CAPABLE.has(name)) {
         // Carbone apparent : tissage fin, un peu de la couleur de la pièce.
         const on = uniform(0);
@@ -590,6 +607,9 @@ export class BikeMaterials {
       m.roughness = metal ? 0.22 : def[1];
     }
     const fx = this.fx.get(m.name);
-    if (fx) fx.value = m.name === 'tire_wall' ? (ex?.rainbowWall ? 1 : 0) : ex?.carbon?.includes(m.name as never) ? 1 : 0;
+    if (fx) {
+      if (m.name === 'disc_face') fx.value = liv.discArt === 'espada' ? 1 : liv.discArt === 'petals' ? 2 : 0;
+      else fx.value = m.name === 'tire_wall' ? (ex?.rainbowWall ? 1 : 0) : ex?.carbon?.includes(m.name as never) ? 1 : 0;
+    }
   }
 }

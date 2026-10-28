@@ -144,6 +144,19 @@ export type ShoeMarkId = (typeof SHOE_MARKS)[number]['id'];
 
 export type JerseyStyle = 'uni' | 'bandes' | 'pois' | 'manches' | 'moitie' | 'degrade' | 'chevrons';
 
+/**
+ * Casquette de cycliste (remplace le casque) : « uni », « pois » (pois d'`accent` sur `color`, visière
+ * comprise), « losanges » (triangles des `colors`, comme les casquettes de club) ou « panneaux » (les
+ * quatre quartiers en `colors`, tour de la visière en `accent`).
+ */
+export type CapStyle = 'uni' | 'pois' | 'losanges' | 'panneaux';
+export interface CapLook {
+  style: CapStyle;
+  color: string;
+  accent?: string;
+  colors?: string[];
+}
+
 /** Nombre de coiffures (`AvatarLook.hairStyle`) ; 3 = rasé (les noms sont dans l'éditeur de visage). */
 export const HAIR_STYLE_COUNT = 12;
 
@@ -154,6 +167,8 @@ export interface AvatarLook {
   jersey: string;
   jerseyAccent: string;
   helmet: string;
+  /** Casquette de cycliste portée à la place du casque ; absente : casque (couleur `helmet`). */
+  cap?: CapLook;
   /** Couleur du vélo de base (sans modèle du catalogue). */
   bike: string;
   /** Modèle du catalogue de vélos (bikes.ts) ; absent : vélo de base de la couleur `bike`. */

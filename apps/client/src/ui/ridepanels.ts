@@ -6,7 +6,7 @@ import type { SummaryVideoPanel } from './summaryvideo.ts';
 import { apiBase, fetchMe } from './account.ts';
 import { renderRideInvite } from './friends.ts';
 import type { RideSession } from '../game/ride.ts';
-import { renderSoundSettings } from './soundSettings.ts';
+import { renderMusicControls, renderSoundSettings } from './soundSettings.ts';
 import type { QualityLevel } from '../engine/quality.ts';
 
 /** Construit le fichier FIT de la sortie (positions GPS reconstruites depuis le repère monde). */
@@ -165,13 +165,14 @@ export function showPause(root: HTMLElement, cb: PauseCallbacks): void {
     <div class="pause-grid">
       <div class="pause-col">
         ${cb.graphics ? '<section class="pause-sec" id="p-graphics"></section>' : ''}
-        <section class="pause-sec"><h3 class="pause-h">${fr ? 'Son' : 'Sound'}</h3><div id="p-sound"></div></section>
+        <section class="pause-sec"><h3 class="pause-h">${fr ? 'Son' : 'Sound'}</h3><div id="p-music" style="margin-bottom:14px"></div><div id="p-sound"></div></section>
       </div>
       <section class="pause-sec"><h3 class="pause-h">${fr ? 'Raccourcis clavier' : 'Keyboard shortcuts'}</h3>${shortcutsHtml()}</section>
     </div>
     <p class="pause-foot">${fr ? '<kbd>Espace</kbd> ou <kbd>Échap</kbd> pour reprendre' : '<kbd>Space</kbd> or <kbd>Esc</kbd> to resume'}</p>
   </div></div>`;
   if (cb.graphics) renderGraphics(root.querySelector('#p-graphics'), cb.graphics);
+  renderMusicControls(root.querySelector('#p-music'));
   renderSoundSettings(root.querySelector('#p-sound'));
   (root.querySelector('#p-resume') as HTMLElement).onclick = cb.onResume;
   (root.querySelector('#p-finish') as HTMLElement).onclick = cb.onFinish;

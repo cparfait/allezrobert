@@ -40,7 +40,7 @@ import { fetchRealWeather } from './game/realWeather.ts';
 import { addXp, awardRide, loadProgress, tunedBike } from './ui/garage.ts';
 import { AtelierHost, slotOfPicked, type AtelierState } from './ui/atelier.ts';
 import { rimGlow } from './rider/rimDecal.ts';
-import { EQUALIZED_BIKE, paramsFromBike } from '@allezrobert/physics';
+import { EQUALIZED_BIKE, paramsFromBike, roadHalfM } from '@allezrobert/physics';
 import { awardTrophies } from './game/trophies.ts';
 import { roadSurfaceAt, windShelterAt } from './world/conditions.ts';
 import { OpenNavigator } from './game/open.ts';
@@ -715,13 +715,17 @@ async function boot(): Promise<void> {
       const t1 = performance.now();
       // Garage demandé avant la fin : son écran d'attente suit la compilation.
       await atelier.prepare({ ...settings.look, heightCm: settings.heightCm }, (done, total) => {
+        if (total > 0) menu.setGarageProgress(done / total);
         if (atelierWait && total > 0) setWaitProgress(atelierWait, done / total);
       });
       atelierBuilt = true;
       // L'image de préparation est restée dans la toile : l'accueil 3D (sans vidéo) se redessine.
       if (inMenu && !garage && !exploring && worldDone && !menuVideo.playing()) renderPoster();
       console.info(`[atelier] préparé : modèles ${Math.round(t1 - t0)} ms, pièce et shaders ${Math.round(performance.now() - t1)} ms`);
-    })().catch(() => undefined));
+    })()
+      .catch(() => undefined)
+      // Garage chargé (ou impossible à charger : le bouton ne doit pas manquer pour autant) : « Rouler » apparaît à l'accueil.
+      .then(() => menu.setGarageReady()));
   const whenAtelierReady = (build: () => boolean): void => {
     // Atelier déjà affiché une fois : tout est prêt, changement immédiat.
     if (atelierBuilt) {
@@ -831,8 +835,15 @@ async function boot(): Promise<void> {
       // Retour de la liaison Strava : on revient sur la rubrique des Réglages qui l'affiche.
       const fromStrava = new URLSearchParams(location.search).has('strava');
       if (fromStrava) menu.openSettingsSection('lang');
-      if (Onboarding.needed()) menu.onTutorial?.();
-      else menu.show(fromStrava ? 'settings' : 'home');
+      // Toujours l'accueil d'abord : son bouton « Rouler » (visible une fois le garage chargé) donne le premier geste qui
+      // autorise le son, puis ouvre le tutoriel au premier lancement (menu.onHomeRide) ou l'onglet Rouler.
+      menu.show(fromStrava ? 'settings' : 'home');
+    };
+    menu.onHomeRide = () => {
+      if (!Onboarding.needed()) return false;
+      menu.hide();
+      menu.onTutorial?.();
+      return true;
     };
     menu.onLogin = () =>
       void showLogin(ui, settings, (m) => {
@@ -1042,6 +1053,8 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   const cyclists = alive && params.get('cyclists') !== '0' ? new AmbientCyclists(engine.scene, track, startD) : null;
   if (cyclists) cyclists.heightAt = (x, z) => world.terrain.heightAt(x, z);
   if (cyclists) cyclists.shadowRange = engine.quality.shadowRiders >= 8 ? 35 : engine.quality.shadowRiders > 0 ? 20 : 0;
+  // Les équipiers IA ne doublent par la gauche que si personne ne vient en face.
+  if (cyclists) peloton.oncoming = (d, range) => cyclists.oncomingAhead(d, range);
   const hud = new Hud(hudRoot, track, source.attribution);
   // Mini-carte : fond Plan IGN quand le monde est calé en Lambert-93 ; bandeau « lieu » (commune, route).
   if (source.originL93) hud.setBasemap(source.originL93);
@@ -1624,7 +1637,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
           }
         }
         ride.state.distM += mp.reconcileLocal(ride.dir, ride.state.distM, dt);
-      } else ride.draft = peloton.update(dt, { distM: ride.state.distM, lateral: ride.lateral, speedMs: ride.state.speedMs, watts: ride.inputs.watts, massKg: s.massKg, ftpWatts: s.ftpWatts, reversed: ride.dir < 0, headWindMs: ride.headWindMs, crossWindMs: ride.crossWindMs });
+      } else ride.draft = peloton.update(dt, { distM: ride.state.distM, lateral: ride.lateral, speedMs: ride.state.speedMs, watts: ride.inputs.watts, massKg: s.massKg, ftpWatts: s.ftpWatts, reversed: ride.dir < 0, headWindMs: ride.headWindMs, crossWindMs: ride.crossWindMs }, cyclists && ride.dir > 0 ? cyclists.sameWayBodies() : []);
       // Relais : quelqu'un roule dans ma roue (0,5 à 4 m derrière, à moins d'un mètre de côté).
       const onWheel = (d: number, lat: number) => {
         const gap = ride.state.distM - d;
@@ -1634,10 +1647,11 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
       // Collisions : ni le joueur ni les IA ne traversent un autre coureur (les coureurs distants, imposés par le serveur, ne bougent pas).
       if (ride.dir > 0) {
         const mobile = peloton.riders.filter((r) => !r.uturn.active);
-        const me: Body = { distM: ride.state.distM, lateral: ride.lateral, speedMs: ride.state.speedMs };
+        // Le joueur garde sa ligne : ce sont les IA qui s'écartent (ou qui sont retenues), jamais lui qui est déporté.
+        const me: Body = { distM: ride.state.distM, lateral: ride.lateral, speedMs: ride.state.speedMs, priority: true };
         const ais: Body[] = mobile.map((r) => ({ distM: r.state.distM, lateral: r.lateral, speedMs: r.state.speedMs }));
         const far: Body[] = remoteRiders.filter((r) => r.dir === ride.dir).map((r) => ({ distM: r.unwrappedM, lateral: r.lateralM, speedMs: r.speedMs, fixed: true }));
-        separateRiders([me, ...ais, ...far], track.route.roadWidthM / 2 - 0.5, dt);
+        separateRiders([me, ...ais, ...far], roadHalfM(track.route.roadWidthM), dt);
         ride.state.distM = me.distM;
         ride.state.speedMs = me.speedMs;
         ride.lateral = me.lateral;
@@ -1651,7 +1665,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
       // Abri derrière un tracteur ou une camionnette qui roule dans le même sens.
       if (traffic && ride.dir > 0) ride.draft = Math.max(ride.draft, traffic.draftFor(ride.state.distM, ride.lateral));
       if (cyclists) {
-        const d = cyclists.update(dt, { distM: ride.state.distM, lateral: ride.lateral, speedMs: ride.state.speedMs }, engine.camera);
+        const d = cyclists.update(dt, { distM: ride.state.distM, lateral: ride.lateral, speedMs: ride.state.speedMs }, engine.camera, peloton.riders.filter((r) => !r.uturn.active).map((r) => ({ distM: r.state.distM, lateral: r.lateral, speedMs: r.state.speedMs })));
         if (ride.dir > 0) ride.draft = Math.max(ride.draft, d);
       }
     }
@@ -1662,7 +1676,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
       if (traffic) {
         const push = traffic.yieldPush(ride.state.distM, ride.lateral, ride.dir);
         if (push) {
-          const half = track.route.roadWidthM / 2 - 0.5;
+          const half = roadHalfM(track.route.roadWidthM);
           ride.lateral = Math.max(-half, Math.min(half, ride.lateral + push * dt));
         }
       }
@@ -2048,7 +2062,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     const res = await fetch(`/__shot?name=${encodeURIComponent(name)}`, { method: 'POST', body: url });
     return res.text();
   };
-  (window as unknown as { __ar: unknown }).__ar = { engine, world, ride, rig, track, peloton, traffic, input, finish, advance, hud, shot, avatar, audio, room };
+  (window as unknown as { __ar: unknown }).__ar = { engine, world, ride, rig, track, peloton, traffic, cyclists, input, finish, advance, hud, shot, avatar, audio, room };
   // Contrôle visuel du monde (?worldcheck=1, développement) : une capture tous les 500 m de l'itinéraire.
   if (params.has('worldcheck')) {
     void (async () => {

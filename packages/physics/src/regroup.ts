@@ -168,7 +168,8 @@ export class TeammateUTurn {
     }
 
     const half = c.halfRoadM;
-    const leftLane = -half * 0.55;
+    // Voie de gauche, au bord comme ceux qui vont dans le sens de marche le sont à droite : on se croise sans se toucher.
+    const leftLane = -Math.max(0.6, half - 0.3);
     let pedaling = false;
     switch (this.phase) {
       case 'brake':

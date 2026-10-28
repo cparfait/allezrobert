@@ -2,6 +2,9 @@ import { FREEWHEELS } from '../audio/freewheels.ts';
 import { BUSES, BUS_LABELS, getMix, setMix, type Bus } from '../audio/mix.ts';
 import { getLang } from '../i18n/index.ts';
 import { askMicAccess, canChooseOutput, getAudioDevices, listAudioDevices, onDevicesChanged, setAudioDevices } from '../audio/devices.ts';
+import { music } from '../audio/music.ts';
+import { musicSource } from '../audio/musicSource.ts';
+import { spotify } from '../audio/spotify.ts';
 
 /**
  * Réglages du son (menu Réglages et menu pause) : volume général, un curseur par catégorie,
@@ -37,6 +40,38 @@ export function renderSoundSettings(el: Element | null): void {
   }
   el.querySelector<HTMLInputElement>('#snd-breath')?.addEventListener('change', (e) => setMix({ breathOn: (e.target as HTMLInputElement).checked }));
   renderDeviceSettings(el, fr);
+}
+
+/**
+ * Musique en sortie (menu pause) : couper / remettre, morceau suivant, volume. Source active : la musique du jeu, ou
+ * Spotify une fois connecté (mêmes effets que les touches B / N et que l'appli compagnon).
+ */
+export function renderMusicControls(el: Element | null): void {
+  if (!el) return;
+  const fr = getLang() === 'fr';
+  el.innerHTML = `<div class="row" style="flex-wrap:wrap;margin-bottom:10px"><button class="btn small" id="snd-music" type="button"></button><button class="btn small" id="snd-next" type="button">${fr ? 'Morceau suivant' : 'Next track'}</button></div>
+    <label class="field">${fr ? 'Volume de la musique' : 'Music volume'} <span id="snd-music-v">${Math.round(music.volume * 100)} %</span><input id="snd-music-vol" type="range" min="0" max="1" step="0.05" value="${music.volume}" /></label>`;
+  const button = el.querySelector<HTMLButtonElement>('#snd-music');
+  const draw = (playing: boolean): void => {
+    if (button) button.textContent = playing ? (fr ? '♪ Couper la musique' : '♪ Mute the music') : fr ? '♪ Remettre la musique' : '♪ Turn the music back on';
+  };
+  const state = async (): Promise<boolean> => (musicSource() === 'spotify' ? !!(await spotify.nowPlaying())?.isPlaying : music.enabled);
+  void state().then(draw);
+  button?.addEventListener('click', () => {
+    if (musicSource() === 'spotify') void spotify.toggleSmart().then(draw);
+    else draw(music.toggle());
+  });
+  el.querySelector('#snd-next')?.addEventListener('click', () => {
+    if (musicSource() === 'spotify') void spotify.next();
+    else music.next();
+  });
+  el.querySelector<HTMLInputElement>('#snd-music-vol')?.addEventListener('input', (e) => {
+    const v = Number((e.target as HTMLInputElement).value);
+    if (musicSource() === 'spotify') spotify.setHereVolume(v);
+    music.setVolume(v);
+    const out = el.querySelector('#snd-music-v');
+    if (out) out.textContent = `${Math.round(v * 100)} %`;
+  });
 }
 
 const escHtml = (s: string): string => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);

@@ -273,3 +273,71 @@ describe('RideSimulation — course contre les IA', () => {
     expect(run().dist).toEqual(a.dist);
   });
 });
+
+describe('RideSimulation — IA : pas de collision, dépassement propre', () => {
+  const BIKE_LENGTH = 1.8;
+  const BIKE_WIDTH = 0.7;
+
+  /** Plus petit chevauchement (m) entre deux coureurs qui vont dans le même sens : 0 = personne ne se traverse. */
+  function worstOverlap(s: RideSimulation): number {
+    let worst = 0;
+    const riders = s.riders.filter((r) => r.dir === 1);
+    for (let i = 0; i < riders.length; i++) {
+      for (let j = i + 1; j < riders.length; j++) {
+        const a = riders[i]!;
+        const b = riders[j]!;
+        const along = Math.abs(a.state.distM - b.state.distM);
+        const across = Math.abs(a.lateralM - b.lateralM);
+        // Marge de 15 cm : l'écart se fait en quelques pas.
+        if (along < BIKE_LENGTH - 0.15 && across < BIKE_WIDTH - 0.15) worst = Math.max(worst, Math.min(BIKE_LENGTH - along, BIKE_WIDTH - across));
+      }
+    }
+    return worst;
+  }
+
+  it('les IA d’une sortie de groupe ne se traversent pas (ni entre elles, ni un humain)', () => {
+    const s = sim({ mode: 'group', aiRiders: 8 }, 'collisions');
+    const human = s.addRider({ id: 'h', name: 'Moi', kind: 'human', userId: 'u', riderMassKg: 75 }, T0)!;
+    s.addAiRiders(8, T0, 260);
+    human.state.distM = 40;
+    human.lateralM = human.lateralTarget = 1.2;
+    let worst = 0;
+    let steps = 0;
+    // Humain sur une allure modeste : les IA, plus rapides, le rattrapent et le doublent. (Les premiers pas laissent
+    // les IA arrivées au même endroit se séparer.)
+    ride(s, 240, T0, () => 150, () => {
+      if (++steps > 10) worst = Math.max(worst, worstOverlap(s));
+    });
+    expect(worst).toBeLessThan(0.3);
+  });
+
+  it('une IA plus rapide double l’humain par la gauche sans le déporter', () => {
+    const s = sim({ mode: 'group', aiRiders: 1 }, 'doubler');
+    const human = s.addRider({ id: 'h', name: 'Moi', kind: 'human', userId: 'u', riderMassKg: 75 }, T0)!;
+    s.addAiRiders(1, T0, 260);
+    const ai = s.riders.find((r) => r.kind === 'ai')!;
+    human.state.distM = 200;
+    human.state.speedMs = 7;
+    human.lateralM = human.lateralTarget = 1.2;
+    ai.state.distM = 150;
+    ai.state.speedMs = 10;
+    ai.lateralM = ai.lateralTarget = 1.2;
+    let now = T0;
+    let minLateralOfAi = Infinity;
+    let humanMoved = 0;
+    let passed = false;
+    for (let i = 0; i < 900; i++) {
+      now += 100;
+      // L'humain tient exactement la même ligne et une allure modeste.
+      s.setTelemetry('h', telem(130, i, { steer: 1.2 }), now);
+      s.step(now, 0.1);
+      humanMoved = Math.max(humanMoved, Math.abs(human.lateralM - 1.2));
+      if (Math.abs(ai.state.distM - human.state.distM) < BIKE_LENGTH + 1) minLateralOfAi = Math.min(minLateralOfAi, ai.lateralM);
+      if (ai.state.distM > human.state.distM + 6) passed = true;
+    }
+    expect(humanMoved).toBeLessThan(1e-6);
+    // L'IA est passée à gauche de l'humain, avec au moins la largeur d'un vélo d'écart.
+    expect(passed).toBe(true);
+    expect(1.2 - minLateralOfAi).toBeGreaterThanOrEqual(BIKE_WIDTH);
+  });
+});

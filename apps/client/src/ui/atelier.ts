@@ -137,7 +137,7 @@ const LIFT = 0.5;
  * sombre, grande boîte à lumière avant droite (lumière principale), panneau au plafond, deux bandes
  * de contre-jour derrière le coureur qui dessinent sa silhouette, fenêtre froide à droite.
  */
-function studioEnvironment(renderer: THREE.WebGPURenderer): THREE.Texture {
+export function studioEnvironment(renderer: THREE.WebGPURenderer): THREE.Texture {
   const env = new THREE.Scene();
   const room = new THREE.Mesh(new THREE.BoxGeometry(10, 6, 10), new THREE.MeshBasicNodeMaterial({ color: '#6d6358', side: THREE.BackSide }));
   room.position.y = 2.6;

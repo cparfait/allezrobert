@@ -23,13 +23,16 @@ import {
   AI_PROFILES,
   AiRider,
   DraftCalculator,
+  Overtaker,
   PoseController,
   SeededRng,
   StickyGroupRegulator,
   airDensity,
   createRiderState,
   poseCdaFactor,
+  separateRiders,
   surfaceCrr,
+  keepRightM,
   FOOT_DOWN_SPEED_MS,
   effectiveMass,
   paramsFromBike,
@@ -39,7 +42,9 @@ import {
   type AiProfileName,
   type AiTactic,
   type AiSegmentInfo,
+  type Body,
   type Environment,
+  type LaneBody,
   type RiderPhysicsParams,
   type RiderState,
   type StickyRider,
@@ -155,6 +160,8 @@ export class SimRider {
   /** Pneus du vélo (résistance au roulement hors enrobé). */
   readonly tyre: 'road' | 'gravel' | 'mtb';
   readonly ai: AiRider | undefined;
+  /** Dépassement propre (IA) : déboîte à gauche tôt, double, se rabat une fois dégagée. */
+  readonly overtaker = new Overtaker();
   shareHr: boolean;
   lateralM = 0;
   lateralTarget = 0;
@@ -912,13 +919,17 @@ export class RideSimulation {
       }
     }
 
-    // 5. Latéral, tours, segments, arrivée, posture.
-    const target = this.raceTarget();
+    // 5. Latéral (vers la consigne), puis collisions : les IA ne se traversent ni entre elles ni les humains.
     for (const r of riders) {
       const dl = r.lateralTarget - r.lateralM;
       const maxStep = LATERAL_SPEED_MS * dt;
       r.lateralM += Math.abs(dl) <= maxStep ? dl : Math.sign(dl) * maxStep;
+    }
+    if (!holding && this.aiCount > 0) this.separateAi(riders, dt);
 
+    // Tours, segments, arrivée, posture.
+    const target = this.raceTarget();
+    for (const r of riders) {
       const cur = r.state.distM;
       const prev = r.prevDist;
       if (!holding) {
@@ -1024,14 +1035,16 @@ export class RideSimulation {
     groupSpeed /= b - a + 1;
 
     const ahead = p > 0 ? order[p - 1] : undefined;
-    const gapAhead = ahead && ahead.state.distM - me.distM < 200 ? ahead.state.distM - me.distM - BIKE_LENGTH_M : Infinity;
+    // Pas de roue à suivre pendant un dépassement : l'IA garde son allure jusqu'à être passée.
+    const passing = r.overtaker.passing;
+    const gapAhead = ahead && !passing && ahead.state.distM - me.distM < 200 ? ahead.state.distM - me.distM - BIKE_LENGTH_M : Infinity;
     const ctx: AiContext = {
       gradePercent: r.grade,
       speedMs: me.speedMs,
       groupPaceWkg: this.groupPaceWkg,
       gapAheadM: gapAhead,
       speedAheadMs: ahead ? ahead.state.speedMs : me.speedMs,
-      lateralAheadM: ahead ? ahead.lateralM - r.lateralM : 0,
+      lateralAheadM: ahead && !passing ? ahead.lateralM - r.lateralM : 0,
       positionInGroup: p - a,
       groupSize: b - a + 1,
       cdaFactor: 1 - r.draft,
@@ -1053,13 +1066,40 @@ export class RideSimulation {
     return ctx;
   }
 
-  /** Latéral d'une IA : dans la roue du coureur devant, décalée selon sa consigne. */
+  /**
+   * Latéral d'une IA : dans la roue du coureur devant, décalée selon sa consigne, dans la moitié droite de la chaussée
+   * (ceux d'en face roulent à gauche). Plus rapide que celui de devant, elle le double proprement : déboîte tôt par la
+   * gauche, double avec un mètre d'écart, se rabat une fois dégagée.
+   */
   private aiLateral(r: SimRider, offset: number): number {
     const p = this.order.indexOf(r);
     const ahead = p > 0 ? this.order[p - 1] : undefined;
-    const base = ahead && ahead.state.distM - r.state.distM < 10 ? ahead.lateralM : Math.min(1, this.halfRoad());
     const half = this.halfRoad();
-    return Math.min(Math.max(base + offset, -half), half);
+    const base = ahead && ahead.state.distM - r.state.distM < 10 ? ahead.lateralM : Math.min(1, half);
+    const near: LaneBody[] = [];
+    for (const o of this.order) if (o !== r && Math.abs(o.state.distM - r.state.distM) < 60) near.push({ id: o.id, distM: o.state.distM, lateralM: o.lateralM, speedMs: o.state.speedMs });
+    const plan = r.overtaker.update({ id: r.id, distM: r.state.distM, lateralM: r.lateralM, speedMs: r.state.speedMs }, near, half);
+    if (plan.lateralM !== null) return plan.lateralM;
+    return Math.min(Math.max(base + offset, keepRightM(half)), half);
+  }
+
+  /** Les IA ne traversent personne : celle qui arrive de derrière s'écarte ou est retenue ; les humains gardent leur ligne. */
+  private separateAi(riders: SimRider[], dt: number): void {
+    const list: SimRider[] = [];
+    const bodies: Body[] = [];
+    for (const r of riders) {
+      if (r.dir !== 1) continue;
+      list.push(r);
+      bodies.push({ distM: r.state.distM, lateral: r.lateralM, speedMs: r.state.speedMs, ...(r.kind === 'ai' ? {} : { fixed: true }) });
+    }
+    separateRiders(bodies, this.halfRoad(), dt);
+    list.forEach((r, i) => {
+      if (r.kind !== 'ai') return;
+      const b = bodies[i]!;
+      r.state.distM = b.distM;
+      r.state.speedMs = b.speedMs;
+      r.lateralM = b.lateral;
+    });
   }
 
   private segmentInfo(dist: number): AiSegmentInfo | undefined {

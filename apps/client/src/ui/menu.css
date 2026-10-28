@@ -298,8 +298,9 @@
 .mm-bikefilter button.on { background: rgba(255, 255, 255, 0.14); color: #fff; }
 
 /* Sélection du vélo : fiche, types, liste à une ligne par vélo */
-.mm-bikeicon { width: 56px; height: 35px; flex: none; border-radius: 9px; background: linear-gradient(180deg, #e9edf2, #cfd6de); padding: 2px 3px; box-sizing: border-box; }
-.mm-bikeicon.big { width: 112px; height: 70px; border-radius: 12px; padding: 4px 6px; }
+/* Miniature : photo du vrai modèle 3D (public/bike-thumbs, voir ui/bikeThumb.ts) ; le dessin SVG ne sert plus que de repli. */
+.mm-bikeicon { width: 76px; height: 47px; flex: none; border-radius: 9px; background: linear-gradient(180deg, #e9edf2, #cfd6de); padding: 2px 3px; box-sizing: border-box; object-fit: contain; }
+.mm-bikeicon.big { width: 152px; height: 95px; border-radius: 12px; padding: 4px 6px; }
 .mm-bikefocus { display: flex; gap: 14px; align-items: flex-start; padding: 12px; margin-bottom: 12px; border-radius: 14px; background: rgba(255, 210, 63, 0.07); border: 1px solid rgba(255, 210, 63, 0.35); }
 .mm-bikefocus.preview { background: rgba(96, 165, 250, 0.08); border-color: rgba(96, 165, 250, 0.6); }
 .mm-bf-txt { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
@@ -375,6 +376,10 @@
 .mm-hero.mm-hero-home h1 { font-size: clamp(64px, 8vw, 140px); }
 .mm-home-go { position: absolute; left: 50%; bottom: 8vh; transform: translateX(-50%); font-size: 26px; padding: 20px 64px; }
 .mm-home-go:hover span { transform: translateX(6px); }
+/* Garage en cours de chargement : barre d'attente à la place du bouton (animée en transform : elle tourne même quand le fil principal compile les shaders). */
+.mm-home-wait { position: absolute; left: 50%; bottom: 8vh; transform: translateX(-50%); width: min(300px, 70vw); text-align: center; font-size: 14px; color: #e6ebf2; }
+.mm-home-wait .world-wait-bar { margin-bottom: 12px; }
+.mm-home-wait b { font-weight: 600; font-variant-numeric: tabular-nums; color: #9aa5b1; }
 
 /* Fenêtres Zones / Parcours : grille de cartes */
 .mm-picker { width: min(1180px, 94vw) !important; max-height: 86vh; overflow: auto; }

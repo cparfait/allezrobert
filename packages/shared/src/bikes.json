@@ -3032,7 +3032,7 @@
    "collection": "mythiques",
    "group": "legendes-tour",
    "type": "tt",
-   "family": "lotus",
+   "family": "espada",
    "params": {
     "brakes": "rim",
     "wheels": [
@@ -3073,6 +3073,7 @@
     "finish": "gloss",
     "rim": "#f2f2f2",
     "disc": "#f2f2f2",
+    "discArt": "espada",
     "tape": "#111111",
     "marks": {
      "tt": {
@@ -4634,7 +4635,7 @@
    "collection": "mythiques",
    "group": "chrono",
    "type": "track",
-   "family": "lotus",
+   "family": "espada",
    "params": {
     "brakes": "none",
     "wheels": [
@@ -4671,7 +4672,8 @@
     },
     "rim": "#c8202a",
     "tape": "#f0f0f0",
-    "disc": "#f1ece0"
+    "disc": "#f1ece0",
+    "discArt": "petals"
    },
    "level": 49,
    "desc": {

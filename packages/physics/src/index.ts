@@ -17,3 +17,6 @@ export * from './regroup.ts';
 export * from './workout/index.ts';
 export * from './tuning.ts';
 export * from './formation.ts';
+export * from './collision.ts';
+export * from './overtake.ts';
+export * from './lanes.ts';

@@ -5,16 +5,18 @@ Ce fichier est exécuté dans l'espace de noms de build_cyclist.py (exec) : il e
 outils (MB, loft, tube, kamm_sec, ell_sec, lathe_m, MATS…). Repère CLIENT partout (+x gauche,
 +y haut, +z avant). Contrat des nœuds glTF : voir l'en-tête de build_cyclist.py.
 
-Familles : aero, climb, tt, retro, retro_compact, steel, lowpro, lotus.
+Familles : aero, climb, tt, retro, retro_compact, steel, lowpro, lotus, espada.
 """
 
 ZONE_IDX = {'main': 0, 'rear': 1, 'fork': 2, 'head': 3}
 WHEEL_TYPES = ('box', 'c35', 'c50', 'c65', 'disc', 'tri')
 WHEEL_DEPTH = {'box': 0.02, 'c35': 0.035, 'c50': 0.05, 'c65': 0.065, 'disc': 0.03, 'tri': 0.05}
-FAMILIES = ('aero', 'climb', 'tt', 'retro', 'retro_compact', 'steel', 'lowpro', 'lotus')
+FAMILIES = ('aero', 'climb', 'tt', 'retro', 'retro_compact', 'steel', 'lowpro', 'lotus', 'espada')
 COCKPITS = ('classic', 'aero', 'light', 'wing')
 SADDLES = ('race', 'min', 'comfort', 'aero', '3d')
-TT_FAMILIES = ('tt', 'lowpro', 'lotus')
+TT_FAMILIES = ('tt', 'lowpro', 'lotus', 'espada')
+# Monocoques à poutre unique (Lotus 108 / 110, Pinarello Espada) : même géométrie, cockpit, tige et décors.
+BEAM_FAMILIES = ('lotus', 'espada')
 CLASSIC_FAMILIES = ('retro', 'retro_compact', 'steel', 'lowpro')
 ROAD_HAND = V(0.2, 0.958, 0.54)
 TT_HAND = V(0.066, 0.93, 0.53)
@@ -300,6 +302,66 @@ def build_lotus_frame(g, zl, voxel=0.0025, target=2400):
     return ob
 
 
+def build_espada_frame(g, zl, voxel=0.0025, target=2400):
+    """Pinarello Espada (Indurain, 1993-95) : poutre unique en aile, plus profonde vers l'arrière où elle se
+    relève en « spoiler » sous la selle, lame vers le boîtier, bases et haubans fins des deux côtés (la
+    lenticulaire arrière les cache en partie), fourche à deux lames droites sous une douille jaune profilée."""
+    mb = MB()
+    X, Y, Z = V(1, 0, 0), V(0, 1, 0), V(0, 0, 1)
+    R = tube(mb, [g.ht_bot - g.ht_up * 0.01, g.ht_top + g.ht_up * 0.01], 1, lambda t: kamm_sec(20, 0.085, 0.034, 0.8, -0.01), Z, 'frame')
+    zlog(zl, R, 'head')
+    # Poutre : de la douille vers l'arrière, qui monte vers la selle ; profondeur croissante (le spoiler).
+    beam = [g.ht_top - g.ht_up * 0.04 - g.pf * 0.01, V(0, 0.765, 0.24), V(0, 0.755, 0.05), V(0, 0.79, -0.1), V(0, 0.835, -0.185), g.st_top + g.st_dir * 0.075]
+    P = catmull(beam, 4)
+    m = len(P)
+    hgt = np.interp(np.linspace(0, 1, m), [0, 0.2, 0.5, 0.8, 1], [0.1, 0.075, 0.075, 0.13, 0.17])
+    wid = np.interp(np.linspace(0, 1, m), [0, 0.5, 1], [0.03, 0.028, 0.026])
+    v, f, info = loft(P, wid / 2, hgt / 2, Y, n=20, expo=2.6)
+    mb.add(v, f, 'frame')
+    zl.append((info['centers'], 0.045, ZONE_IDX['main']))
+    # Lame vers le boîtier.
+    strut = catmull([V(0, 0.745, 0.075), V(0, 0.58, 0.05), V(0, 0.4, 0.028), BB + V(0, 0.02, 0.0)], 3)
+    R = tube(mb, strut, 1, lambda t: kamm_sec(20, lerp(0.1, 0.07, t), lerp(0.028, 0.032, t), 0.85), Z, 'frame')
+    zlog(zl, R, 'main')
+    v, f, info = loft([BB + V(0.043, 0, 0), BB - V(0.043, 0, 0)], 0.024, 0.024, Y, n=16)
+    mb.add(v, f, 'frame')
+    zlog_pts(zl, info['centers'], 0.024, 'main')
+    hr = HUB_HALF[1]
+    rear_top = g.st_top + g.st_dir * -0.03
+    for s in (1, -1):
+        drop = REAR_AXLE + V((hr + 0.004) * s, 0, 0)
+        # Base fine, puis hauban fin partant de la poutre (de chaque côté).
+        R = tube(mb, [BB + V(0.03 * s, 0.0, -0.02), BB + V(0.04 * s, 0.01, -0.14), drop + V(0, -0.002, 0.08), drop + V(0, 0, 0.004)], 3,
+                 lambda t: kamm_sec(14, lerp(0.045, 0.026, t), 0.0095, 0.85), Z, 'frame')
+        zlog(zl, R, 'rear')
+        R = tube(mb, [rear_top + V(0.012 * s, 0, -0.02), V(0.04 * s, 0.62, -0.27), drop + V(0, 0.012, 0.0)], 3,
+                 lambda t: kamm_sec(14, lerp(0.05, 0.026, t), 0.0095, 0.85), Z, 'frame')
+        zlog(zl, R, 'rear')
+        v, f, info = loft([drop + V(0.004 * s, -0.02, 0.0), drop + V(0.004 * s, 0.02, 0.0)], 0.02, 0.006, X, n=10)
+        mb.add(v, f, 'frame')
+        zlog_pts(zl, info['centers'], 0.02, 'rear')
+    # Fourche : deux lames droites, effilées, sous un té profilé.
+    hf = HUB_HALF[0]
+    for s in (1, -1):
+        fdrop = g.fa + V((hf + 0.008) * s, 0.0, 0.0)
+        top = g.ht_bot - g.ht_up * 0.03 + V(0.04 * s, 0, 0.004)
+        bot = fdrop + V(0, 0.01, 0)
+        R = tube(mb, [top, top + (bot - top) * 0.4, top + (bot - top) * 0.75, bot], 3,
+                 lambda t: kamm_sec(16, lerp(0.07, 0.04, t), lerp(0.016, 0.013, t), 0.8), Z, 'frame')
+        zlog(zl, R, 'fork')
+        v, f, info = loft([fdrop + V(0.0, -0.016, 0.0), fdrop + V(0.0, 0.02, 0.0)], 0.018, 0.006, X, n=10)
+        mb.add(v, f, 'frame')
+        zlog_pts(zl, info['centers'], 0.018, 'fork')
+    v, f, info = loft([g.ht_bot - g.ht_up * 0.04 + V(0.05, 0, 0.004), g.ht_bot - g.ht_up * 0.04 - V(0.05, 0, -0.004)], 0.03, 0.026, Y, n=14)
+    mb.add(v, f, 'frame')
+    zlog_pts(zl, info['centers'], 0.03, 'fork')
+    ob = mb.build('frame_union')
+    remesh_union(ob, voxel, 5, 0.5)
+    decimate_to(ob, target)
+    shade(ob)
+    return ob
+
+
 # ---------------------------------------------------------------------------------------------
 # Pièces : cockpits, selles, transmission, freins, bidons
 # ---------------------------------------------------------------------------------------------
@@ -453,8 +515,8 @@ def build_tt_cockpit(g, kind, lod, name='cockpit'):
     X, Y, Z = V(1, 0, 0), V(0, 1, 0), V(0, 0, 1)
     n = 10 if lod == 0 else 6
     per = 2 if lod == 0 else 1
-    base_y = {'tt': 0.792, 'lowpro': 0.735, 'lotus': 0.79}[kind]
-    base_z = {'tt': 0.47, 'lowpro': 0.47, 'lotus': 0.47}[kind]
+    base_y = {'tt': 0.792, 'lowpro': 0.735, 'lotus': 0.79, 'espada': 0.79}[kind]
+    base_z = {'tt': 0.47, 'lowpro': 0.47, 'lotus': 0.47, 'espada': 0.47}[kind]
     # Potence.
     v, f, _ = loft([g.ht_top - g.ht_up * 0.002, g.steer_top - g.ht_up * 0.01], 0.0175, 0.0175, Z, n=n)
     mb.add(v, f, 'spacers')
@@ -989,7 +1051,7 @@ def family_geometry(fam):
         g = bike_geometry(st_len=0.54, ht_len=0.10, fa=V(0, WHEEL_R * sc, 0.585), ht_bot_y=0.56, steer_extra=0.02)
         g.wheel_scale_f = sc
         return g
-    if fam == 'lotus':
+    if fam in BEAM_FAMILIES:
         return bike_geometry(st_len=0.53, ht_len=0.12, steer_extra=0.02)
     return bike_geometry()
 
@@ -1001,8 +1063,8 @@ def build_family(fam, lod):
     voxel = 0.002 if lod == 0 else (0.0032 if fam in ('steel', 'retro', 'retro_compact') else 0.004)
     target = 2250 if lod == 0 else 520
     classic = fam in CLASSIC_FAMILIES
-    if fam == 'lotus':
-        frame = build_lotus_frame(g, zl, voxel, target)
+    if fam in BEAM_FAMILIES:
+        frame = (build_espada_frame if fam == 'espada' else build_lotus_frame)(g, zl, voxel, target)
         sty = FRAME_STYLES['tt']
     else:
         sty = FRAME_STYLES[fam]
@@ -1011,7 +1073,7 @@ def build_family(fam, lod):
     fx = MB()
     Z = V(0, 0, 1)
     n = 10 if lod == 0 else 6
-    post = sty.get('post_type', 'round') if fam != 'lotus' else 'lotus'
+    post = sty.get('post_type', 'round') if fam not in BEAM_FAMILIES else 'lotus'
     if post == 'aero':
         R = tube(fx, [g.st_top - g.st_dir * 0.02, g.sp_top], 1, lambda t: kamm_sec(n, sty['post'][0], sty['post'][1], sty['trunc']), Z, 'frame')
         zlog(zl, R, 'main')
@@ -1052,7 +1114,7 @@ def build_family(fam, lod):
     # Options.
     if fam in ('aero', 'climb', 'tt'):
         objs.append(build_disc_brakes(g, lod))
-    if fam == 'lotus':
+    if fam in BEAM_FAMILIES:
         rear_t = V(0.0, 0.81, -0.12)
     elif fam in ('aero', 'climb', 'tt'):
         rear_t = BB + g.st_dir * (g.st_len * sty['ss_j'])
@@ -1080,7 +1142,7 @@ def build_family(fam, lod):
     # Décors : centres sur l'axe des tubes, projetés latéralement.
     dl = float(np.linalg.norm(g.ht_bot - BB))
     side_h = lambda c: c
-    if fam == 'lotus':
+    if fam in BEAM_FAMILIES:
         dec = {
             'decal_dt': (V(0, 0.79, 0.12), V(0, 0.08, 1), 0.26, 0.05, 0.05),
             'decal_tt': (V(0, 0.81, -0.08), V(0, 0.15, 1), 0.12, 0.045, 0.05),

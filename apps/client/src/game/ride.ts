@@ -13,6 +13,7 @@ import {
   bodyCdaFactor,
   poseCdaFactor,
   riderWind,
+  roadHalfM,
   surfaceCrr,
   trainerModelFor,
   wetCrrFactor,
@@ -287,7 +288,7 @@ export class RideSession {
       this.onLap?.(this.lap);
     }
     // Direction : décalage latéral borné à la chaussée.
-    const half = track.route.roadWidthM / 2 - 0.5;
+    const half = roadHalfM(track.route.roadWidthM);
     // Décalage dans le repère de l'itinéraire : à contresens, la droite du coureur est à gauche.
     this.lateral = THREE.MathUtils.clamp(this.lateral + steer * this.dir * dt * 1.8, -half, half);
 

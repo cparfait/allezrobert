@@ -2,6 +2,33 @@
   "version": "0.0.1",
   "configurations": [
     {
+      "name": "monde-ouvert-lan-server",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": [
+        "/c",
+        "cd apps\\server&& set DEV_LOGIN=true&& set CORS_ORIGINS=http://localhost:5175,http://192.168.1.63:5175&& set ROUTES_DIR=../client/public/worlds/longchamp/routes,../client/public/worlds/chevreuse/routes&& set PUBLIC_ROUTES=anneau-de-longchamp,cote-de-la-madeleine&&node --env-file-if-exists=.env --import tsx src/main.ts"
+      ],
+      "port": 2567
+    },
+    {
+      "name": "monde-ouvert-lan-client",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": [
+        "/c",
+        "set AR_HMR=0&& set VITE_SERVER_URL=http://192.168.1.63:2567&& pnpm --filter @allezrobert/client exec vite --port 5175 --strictPort --host"
+      ],
+      "port": 5175
+    },
+    {
+      "name": "server-dev-login",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": [
+        "/c",
+        "set DEV_LOGIN=true&& set CORS_ORIGINS=http://localhost:5173,http://localhost:5174,http://localhost:5175&& set ROUTES_DIR=../client/public/worlds/longchamp/routes,../client/public/worlds/chevreuse/routes&& set PUBLIC_ROUTES=anneau-de-longchamp,cote-de-la-madeleine&&pnpm --filter @allezrobert/server dev"
+      ],
+      "port": 2567
+    },
+    {
       "name": "film-accueil",
       "runtimeExecutable": "cmd",
       "runtimeArgs": [

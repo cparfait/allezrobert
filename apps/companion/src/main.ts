@@ -640,6 +640,7 @@ function ctrlHtml(): string {
       <button class="btn big" data-cmd="photo">📷 ${esc(t.photo)}</button>
       <button class="btn big" data-cmd="hud" id="c-hud">${esc(t.hud)}</button>
     </div>
+    <button class="btn big wide" data-music="toggle" id="c-music">${esc(st.music?.playing === false ? t.musicResume : t.musicCut)}</button>
     ${st.open || !st.multiplayer ? `<button class="btn big wide" data-cmd="uturn">↶ ${esc(t.uturn)}</button>` : ''}
     <h2>${esc(t.camera)}</h2>
     <div class="cams">${CAMERAS.map((c) => `<button class="seg" data-cam="${c}">${esc(t.cameras[c])}</button>`).join('')}</div>
@@ -663,6 +664,9 @@ function updateCtrl(st: PairState): void {
   if (p) p.textContent = st.phase === 'paused' ? t.resume : t.pause;
   const h = document.getElementById('c-hud');
   if (h) h.textContent = st.hudVisible === false ? t.hudOff : t.hudOn;
+  // Musique : le bouton dit ce qu'un appui fait (couper la musique en sortie sans quitter le pilotage).
+  const mu = document.getElementById('c-music');
+  if (mu) mu.textContent = st.music?.playing === false ? t.musicResume : t.musicCut;
   document.querySelectorAll<HTMLButtonElement>('[data-cam]').forEach((b) => b.classList.toggle('on', b.dataset.cam === st.camera));
   const fan = document.getElementById('c-fan') as HTMLInputElement | null;
   if (fan && document.activeElement !== fan && st.fanPercent !== undefined && Date.now() - fanTouched > 1500) {

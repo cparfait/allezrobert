@@ -2207,7 +2207,7 @@ def main():
         stats[fam + '_parts'] = {o.name: tri_count(o) for o in with_children(objs) if o.type == 'MESH'}
         export_glb(objs, os.path.join(bout, f'{fam}.glb'))
         if preview:
-            defw = {'tt': ['c65', 'disc'], 'lowpro': ['tri', 'disc'], 'lotus': ['tri', 'disc'], 'steel': ['box', 'box'],
+            defw = {'tt': ['c65', 'disc'], 'lowpro': ['tri', 'disc'], 'lotus': ['tri', 'disc'], 'espada': ['c35', 'disc'], 'steel': ['box', 'box'],
                     'retro': ['box', 'box'], 'retro_compact': ['box', 'box']}.get(fam, ['c50', 'c50'])
             brakes = 'disc' if fam in ('aero', 'climb', 'tt') else 'rim'
             p = os.path.join(shots, f'bikes-family-{fam}.png')

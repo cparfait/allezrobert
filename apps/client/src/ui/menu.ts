@@ -1,6 +1,6 @@
 import type { AvatarLook, CosmeticItem, RouteData, RouteSegment, WorldCatalogue } from '@allezrobert/shared';
 import { readKomRecord } from '../game/challenge.ts';
-import { COUNTRIES, BIKE_BRANDS, BIKE_GROUPS, BIKE_TEAMS, COSMETICS, DEFAULT_BIKE, bikeById, routesForBike, mirrorStartM, rankRouteId, lookSex, tuneItem, withSex, bottleCapacity, bikeSetupFor, jerseyLookOf, levelProgress, SHOE_MARKS, type BikeCollection, type BikeType, type CosmeticSlot } from '@allezrobert/shared';
+import { COUNTRIES, BIKE_BRANDS, BIKE_GROUPS, BIKE_TEAMS, COSMETICS, DEFAULT_BIKE, bikeById, routesForBike, mirrorStartM, rankRouteId, lookSex, tuneItem, withSex, bottleCapacity, bikeSetupFor, jerseyLookOf, helmetLookOf, levelProgress, SHOE_MARKS, type BikeCollection, type BikeType, type CapLook, type CosmeticSlot } from '@allezrobert/shared';
 import { shoeAccentOf } from '../rider/shoeLook.ts';
 import { WORKOUT_LIBRARY } from '@allezrobert/physics';
 import { formatBytes, inTauri, installPack, installedPacks, loadCatalogue, packState, removePack } from '../world/packs.ts';
@@ -15,6 +15,7 @@ import { renderStravaLink } from './stravaLink.ts';
 import { flagSvg } from './flagSvg.ts';
 import { enhanceSelects } from './dropdown.ts';
 import { renderSoundSettings } from './soundSettings.ts';
+import { bikeThumbHtml, paintPlainThumbs, plainThumbHtml, swapMissingThumbs } from './bikeThumb.ts';
 import { OpenWorldPanel } from './openWorld.ts';
 import { renderCompanionSettings } from './companionQr.ts';
 import { HUD_BLOCKS } from '../hud/hud.ts';
@@ -209,7 +210,7 @@ function brandName(id: string): string {
 }
 
 /**
- * Silhouette de vélo aux couleurs de la livrée (cadre : 1re couleur, haubans et fourche : 2e,
+ * Dessin de repli (photo manquante, voir bikeThumb.ts) : silhouette de vélo aux couleurs de la livrée (cadre : 1re couleur, haubans et fourche : 2e,
  * guidon : 3e), cernée de sombre pour rester lisible quelle que soit la couleur.
  */
 function bikeIcon(colors: readonly string[], big = false): string {
@@ -243,8 +244,27 @@ function patternSwatch(c: CosmeticItem): string | null {
   }
 }
 
+/** Vignette d'une casquette à motif (pois, losanges, quartiers) ; une casquette unie garde sa couleur. */
+function capSwatch(cap: CapLook): string | null {
+  const cols = cap.colors?.length ? cap.colors : [cap.color];
+  switch (cap.style) {
+    case 'pois': {
+      const acc = cap.accent ?? '#e8501d';
+      return `radial-gradient(circle at 25% 25%, ${acc} 0 21%, transparent 23%) 0 0 / 17px 17px, radial-gradient(circle at 75% 75%, ${acc} 0 21%, transparent 23%) 0 0 / 17px 17px, ${cap.color}`;
+    }
+    case 'losanges':
+      return `linear-gradient(135deg, ${cols.map((x, i) => `${x} ${((i * 100) / cols.length).toFixed(0)}% ${(((i + 1) * 100) / cols.length).toFixed(0)}%`).join(', ')})`;
+    case 'panneaux':
+      return `linear-gradient(90deg, ${cols.map((x, i) => `${x} ${((i * 100) / cols.length).toFixed(0)}% ${(((i + 1) * 100) / cols.length).toFixed(0)}%`).join(', ')})`;
+    default:
+      return null;
+  }
+}
+
 /** Vignette d'un équipement : couleur unie, ou bandes de la livrée pour un vélo. */
 function swatch(c: CosmeticItem): string {
+  const cap = c.cap ? capSwatch(c.cap) : null;
+  if (cap) return cap;
   const pattern = patternSwatch(c);
   if (pattern) return pattern;
   // Maillot à bandes de champion : le maillot, traversé de ses bandes de poitrine.
@@ -324,6 +344,28 @@ export class MainMenu {
   onSettingsChange?: (s: Settings) => void;
   /** Relance le tutoriel (onboarding) depuis le menu. */
   onTutorial?: () => void;
+  /**
+   * Clic sur « Rouler » de l'accueil : vrai si le jeu a pris la suite lui-même (premier lancement : le tutoriel),
+   * faux pour ouvrir l'onglet Rouler. Le clic autorise déjà le son (musique, voix du tutoriel).
+   */
+  onHomeRide?: () => boolean;
+  /** Garage prêt en mémoire (pièce, coureur, shaders) : jusqu'ici l'accueil n'offre pas « Rouler ». */
+  private garageReady = false;
+  private garageProgress = 0;
+
+  /** Le garage est chargé : « Rouler » remplace la barre d'attente de l'accueil. */
+  setGarageReady(): void {
+    if (this.garageReady) return;
+    this.garageReady = true;
+    if (this.tab === 'home' && this.root.querySelector('.mm-tab-home')) this.render();
+  }
+
+  /** Avancement de la préparation du garage (0–1), affiché sur l'accueil. */
+  setGarageProgress(fraction: number): void {
+    this.garageProgress = fraction;
+    const pct = this.root.querySelector('.mm-home-wait-pct');
+    if (pct) pct.textContent = fraction > 0 ? `${Math.round(fraction * 100)} %` : '';
+  }
   /** « Explorer la carte » : survol libre du monde chargé, sans rouler (Échap pour revenir). */
   onExplore?: () => void;
   /** Aperçu immédiat d'une tenue (éditeur de visage) sur le coureur du garage, sans reconstruire la scène. */
@@ -705,7 +747,7 @@ export class MainMenu {
     const look = { ...base };
     if (item.color) {
       if (item.slot === 'jersey') Object.assign(look, jerseyLookOf(item));
-      if (item.slot === 'helmet') look.helmet = item.color;
+      if (item.slot === 'helmet') return helmetLookOf(item, look);
       if (item.slot === 'bike') look.bike = item.color;
       if (item.slot === 'socks') look.socks = item.color;
     }
@@ -791,11 +833,13 @@ export class MainMenu {
       .join('')
       .slice(0, 2)
       .toUpperCase();
-    // Accueil : rien que la vidéo, le titre et le bouton Rouler, qui ouvre le menu.
+    // Accueil : rien que la vidéo, le titre et le bouton Rouler, qui ouvre le menu. Le bouton n'apparaît qu'une fois le
+    // garage chargé en mémoire (barre d'attente à sa place) : le garage et le tutoriel s'ouvrent alors sans attente.
     if (this.tab === 'home') {
+      const wait = `<div class="mm-home-wait" role="status"><div class="world-wait-bar"><i></i></div><span>${L ? 'Chargement du garage…' : 'Loading the garage…'} <b class="mm-home-wait-pct">${this.garageProgress > 0 ? `${Math.round(this.garageProgress * 100)} %` : ''}</b></span></div>`;
       this.root.innerHTML = `<div class="mm mm-tab-home">
         <div class="mm-hero mm-hero-home"><h1>Allez <em>Robert</em> !</h1><p>${L ? 'Rouler ensemble, chacun chez soi.' : 'Ride together, each from home.'}</p></div>
-        <button class="mm-go mm-home-go" data-tab="ride">${t('ride')}</button>
+        ${this.garageReady ? `<button class="mm-go mm-home-go" data-tab="ride">${t('ride')}</button>` : wait}
       </div>`;
       this.bind();
       return;
@@ -860,6 +904,9 @@ export class MainMenu {
     }
     this.bind();
     enhanceSelects(this.root);
+    // Miniatures de vélos : le dessin d'avant remplace une photo manquante ; le vélo sans marque prend sa couleur.
+    swapMissingThumbs(this.root, (colors, big) => bikeIcon(colors, big));
+    void paintPlainThumbs(this.root, (cv) => (cv.outerHTML = bikeIcon([cv.dataset.plainthumb ?? '#7a8594'], cv.classList.contains('big'))));
     this.friends.mount(this.root, this.tab === 'friends');
     this.openWorldPanel.mount(this.root);
   }
@@ -1734,7 +1781,7 @@ export class MainMenu {
     const sub = bike ? `${BIKE_TYPE[bike.type][L ? 0 : 1]}${from ? ` · ${from}` : ''}` : '';
     const state = prev ? `👁 ${L ? 'Aperçu' : 'Preview'}` : locked ? `🔒 ${L ? 'niv.' : 'lvl'} ${c.level}` : on ? `✓ ${L ? 'Équipé' : 'Equipped'}` : '';
     return `<button class="mm-bike ${on ? 'on' : ''} ${locked ? 'locked' : ''} ${prev ? 'preview' : ''}" data-item="${c.id}" title="${esc([bike?.desc[lang] ?? '', locked ? (L ? 'Cliquer pour l’essayer' : 'Click to try it on') : ''].filter(Boolean).join(' — '))}">
-      ${bikeIcon(c.colors?.length ? c.colors : [c.color ?? '#7a8594'])}
+      ${bikeThumbHtml(c.id, 'mm-bikeicon', c.colors?.length ? c.colors : [c.color ?? '#7a8594'])}
       <span class="mm-bike-txt"><b>${esc(c.name[lang])}</b><small>${esc(sub)}</small></span>
       <span class="mm-bike-side">${c.effect ? `<em>${esc(c.effect[lang])}</em>` : ''}${state ? `<span class="mm-bike-state">${state}</span>` : ''}</span>
     </button>`;
@@ -1745,7 +1792,7 @@ export class MainMenu {
     const L = fr();
     const on = !this.s.look.bikeModel;
     return `<button class="mm-bike ${on ? 'on' : ''}" data-plainbike title="${L ? 'Couleur au choix dans l’onglet Couleurs' : 'Pick its colour in the Colours tab'}">
-      ${bikeIcon([this.s.look.bike])}
+      ${plainThumbHtml(this.s.look.bike, 'mm-bikeicon')}
       <span class="mm-bike-txt"><b>${L ? 'Vélo sans marque' : 'Unbranded bike'}</b><small>${L ? 'Couleur au choix (onglet Couleurs)' : 'Your colour (Colours tab)'}</small></span>
       <span class="mm-bike-side">${on ? `<span class="mm-bike-state">✓ ${L ? 'Équipé' : 'Equipped'}</span>` : ''}</span></button>`;
   }
@@ -1757,13 +1804,13 @@ export class MainMenu {
     const previewed = this.previews.has('bike') ? COSMETICS.find((c) => c.id === this.previews.get('bike')) : undefined;
     const c = previewed ?? (equippedId ? COSMETICS.find((x) => x.id === equippedId) : undefined);
     if (!c) {
-      return `<div class="mm-bikefocus">${bikeIcon([this.s.look.bike], true)}<div class="mm-bf-txt"><small>${L ? 'Ton vélo' : 'Your bike'}</small><b>${L ? 'Vélo sans marque' : 'Unbranded bike'}</b>
+      return `<div class="mm-bikefocus">${plainThumbHtml(this.s.look.bike, 'mm-bikeicon big')}<div class="mm-bf-txt"><small>${L ? 'Ton vélo' : 'Your bike'}</small><b>${L ? 'Vélo sans marque' : 'Unbranded bike'}</b>
         <p>${L ? 'Sa couleur se choisit dans l’onglet Couleurs. Les vélos des équipes se débloquent en roulant.' : 'Pick its colour in the Colours tab. Team bikes unlock as you ride.'}</p></div></div>`;
     }
     const bike = bikeById(c.id);
     const from = bike ? bikeFrom(bike.group, lang) : undefined;
     const tags = [bike ? BIKE_TYPE[bike.type][L ? 0 : 1] : '', from ?? '', bike?.year ? String(bike.year) : ''].filter(Boolean);
-    return `<div class="mm-bikefocus ${previewed ? 'preview' : ''}">${bikeIcon(c.colors?.length ? c.colors : [c.color ?? '#7a8594'], true)}
+    return `<div class="mm-bikefocus ${previewed ? 'preview' : ''}">${bikeThumbHtml(c.id, 'mm-bikeicon big', c.colors?.length ? c.colors : [c.color ?? '#7a8594'])}
       <div class="mm-bf-txt">
         <small>${previewed ? (L ? `Aperçu · se débloque au niveau ${c.level}` : `Preview · unlocks at level ${c.level}`) : L ? 'Ton vélo' : 'Your bike'}</small>
         <b>${esc(c.name[lang])}</b>
@@ -2221,7 +2268,16 @@ export class MainMenu {
       this.onSettingsChange?.(s);
       this.onSettingsSaved?.(s);
     };
-    this.root.querySelectorAll<HTMLElement>('[data-tab]').forEach((el) => el.addEventListener('click', () => this.go(el.dataset.tab as Tab)));
+    this.root.querySelectorAll<HTMLElement>('[data-tab]').forEach((el) =>
+      el.addEventListener('click', () => {
+        // « Rouler » de l'accueil : premier geste de l'utilisateur, le son est autorisé ; au premier lancement, le tutoriel prend la suite.
+        if (this.tab === 'home' && el.dataset.tab === 'ride') {
+          music.unlock();
+          if (this.onHomeRide?.()) return;
+        }
+        this.go(el.dataset.tab as Tab);
+      }),
+    );
     on('m-tuto', 'click', () => this.onTutorial?.());
     on('m-login', 'click', () => this.onLogin?.());
     on('m-logout', 'click', () => this.onLogout?.());

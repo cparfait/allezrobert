@@ -37,6 +37,9 @@ const COCKPIT_BACK = 0.28;
 const COCKPIT_UP = 0.08;
 const COCKPIT_PITCH = 0.38;
 const COCKPIT_FOV = 80;
+/** Poursuite : recul derrière le coureur et hauteur au-dessus du sol (m). Rapprochée (elle était à 5,2 m et 2,1 m). */
+const CHASE_BACK = 3.5;
+const CHASE_UP = 1.75;
 /** Orbite de la caméra photo et du drone : toujours dans l'arc derrière le coureur (rad de part et d'autre). */
 const PHOTO_MAX_YAW = 1.2;
 
@@ -163,7 +166,7 @@ export class CameraRig {
         if (!this.initialized) this.chaseYaw = yaw;
         const dYaw = Math.atan2(Math.sin(yaw - this.chaseYaw), Math.cos(yaw - this.chaseYaw));
         this.chaseYaw += dYaw * (1 - Math.exp(-dt * 2.5));
-        desired.set(t.position.x - Math.sin(this.chaseYaw) * 5.2, t.position.y + 2.1, t.position.z - Math.cos(this.chaseYaw) * 5.2);
+        desired.set(t.position.x - Math.sin(this.chaseYaw) * CHASE_BACK, t.position.y + CHASE_UP, t.position.z - Math.cos(this.chaseYaw) * CHASE_BACK);
         look.set(ahead.x, ahead.y + 1.0, ahead.z).lerp(t.position.clone().add(new THREE.Vector3(0, 1.1, 0)), 0.55);
         stiffness = 5;
         // Collision : un mur entre le coureur et la caméra rapproche la caméra (une image sur trois).

@@ -546,6 +546,58 @@
    "open": true
   },
   {
+   "id": "idf-ballancourt-sur-essonne",
+   "name": "Ballancourt-sur-Essonne",
+   "region": "Essonne · Île-de-France",
+   "routes": [
+    {
+     "id": "boucle-20-km",
+     "name": "Boucle de 20 km depuis Ballancourt-sur-Essonne",
+     "nameEn": "20 km loop from Ballancourt-sur-Essonne",
+     "lengthM": 18810,
+     "elevationGainM": 158.73,
+     "loop": false
+    },
+    {
+     "id": "boucle-30-km",
+     "name": "Boucle de 30 km depuis Ballancourt-sur-Essonne",
+     "nameEn": "30 km loop from Ballancourt-sur-Essonne",
+     "lengthM": 31172,
+     "elevationGainM": 269.17,
+     "loop": false
+    },
+    {
+     "id": "boucle-40-km",
+     "name": "Boucle de 40 km depuis Ballancourt-sur-Essonne",
+     "nameEn": "40 km loop from Ballancourt-sur-Essonne",
+     "lengthM": 39424,
+     "elevationGainM": 313.55,
+     "loop": false
+    },
+    {
+     "id": "boucle-50-km",
+     "name": "Boucle de 50 km depuis Ballancourt-sur-Essonne",
+     "nameEn": "50 km loop from Ballancourt-sur-Essonne",
+     "lengthM": 49154,
+     "elevationGainM": 449.39,
+     "loop": false
+    }
+   ],
+   "pack": {
+    "version": "79d11a7619e3",
+    "bytes": 276382627,
+    "files": 1026,
+    "gzBytes": 116581179
+   },
+   "l93": {
+    "minE": 640000,
+    "minN": 6812000,
+    "maxE": 656000,
+    "maxN": 6828000
+   },
+   "open": true
+  },
+  {
    "id": "idf-boulogne-billancourt",
    "name": "Boulogne-Billancourt",
    "region": "Hauts-de-Seine · Île-de-France",
@@ -806,6 +858,58 @@
    "open": true
   },
   {
+   "id": "idf-dammarie-les-lys",
+   "name": "Dammarie-les-Lys",
+   "region": "Seine-et-Marne · Île-de-France",
+   "routes": [
+    {
+     "id": "boucle-24-km",
+     "name": "Boucle de 24 km depuis Dammarie-les-Lys",
+     "nameEn": "24 km loop from Dammarie-les-Lys",
+     "lengthM": 23728,
+     "elevationGainM": 152.32,
+     "loop": false
+    },
+    {
+     "id": "boucle-30-km",
+     "name": "Boucle de 30 km depuis Dammarie-les-Lys",
+     "nameEn": "30 km loop from Dammarie-les-Lys",
+     "lengthM": 30156,
+     "elevationGainM": 241.57,
+     "loop": false
+    },
+    {
+     "id": "boucle-40-km",
+     "name": "Boucle de 40 km depuis Dammarie-les-Lys",
+     "nameEn": "40 km loop from Dammarie-les-Lys",
+     "lengthM": 39980,
+     "elevationGainM": 208.95,
+     "loop": false
+    },
+    {
+     "id": "boucle-50-km",
+     "name": "Boucle de 50 km depuis Dammarie-les-Lys",
+     "nameEn": "50 km loop from Dammarie-les-Lys",
+     "lengthM": 48720,
+     "elevationGainM": 259.85,
+     "loop": false
+    }
+   ],
+   "pack": {
+    "version": "c7b7396f42c4",
+    "bytes": 268012039,
+    "files": 1026,
+    "gzBytes": 112137293
+   },
+   "l93": {
+    "minE": 656000,
+    "minN": 6812000,
+    "maxE": 672000,
+    "maxN": 6828000
+   },
+   "open": true
+  },
+  {
    "id": "idf-dammartin-en-goele",
    "name": "Dammartin-en-Goële",
    "region": "Seine-et-Marne · Île-de-France",
@@ -962,6 +1066,162 @@
    "open": true
   },
   {
+   "id": "idf-les-mureaux",
+   "name": "Les Mureaux",
+   "region": "Yvelines · Île-de-France",
+   "routes": [
+    {
+     "id": "boucle-20-km",
+     "name": "Boucle de 20 km depuis Les Mureaux",
+     "nameEn": "20 km loop from Les Mureaux",
+     "lengthM": 20964,
+     "elevationGainM": 220.87,
+     "loop": false
+    },
+    {
+     "id": "boucle-30-km",
+     "name": "Boucle de 30 km depuis Les Mureaux",
+     "nameEn": "30 km loop from Les Mureaux",
+     "lengthM": 32278,
+     "elevationGainM": 429.79,
+     "loop": false
+    },
+    {
+     "id": "boucle-40-km",
+     "name": "Boucle de 40 km depuis Les Mureaux",
+     "nameEn": "40 km loop from Les Mureaux",
+     "lengthM": 38676,
+     "elevationGainM": 574.07,
+     "loop": false
+    },
+    {
+     "id": "boucle-50-km",
+     "name": "Boucle de 50 km depuis Les Mureaux",
+     "nameEn": "50 km loop from Les Mureaux",
+     "lengthM": 49428,
+     "elevationGainM": 681.48,
+     "loop": false
+    }
+   ],
+   "pack": {
+    "version": "2802681b32c7",
+    "bytes": 258868522,
+    "files": 1026,
+    "gzBytes": 113156349
+   },
+   "l93": {
+    "minE": 608000,
+    "minN": 6876000,
+    "maxE": 624000,
+    "maxN": 6892000
+   },
+   "open": true
+  },
+  {
+   "id": "idf-marines",
+   "name": "Marines",
+   "region": "Val-d'Oise · Île-de-France",
+   "routes": [
+    {
+     "id": "boucle-20-km",
+     "name": "Boucle de 20 km depuis Marines",
+     "nameEn": "20 km loop from Marines",
+     "lengthM": 21894,
+     "elevationGainM": 337.19,
+     "loop": false
+    },
+    {
+     "id": "boucle-30-km",
+     "name": "Boucle de 30 km depuis Marines",
+     "nameEn": "30 km loop from Marines",
+     "lengthM": 30196.49,
+     "elevationGainM": 483.21,
+     "loop": true
+    },
+    {
+     "id": "boucle-40-km",
+     "name": "Boucle de 40 km depuis Marines",
+     "nameEn": "40 km loop from Marines",
+     "lengthM": 39274.16,
+     "elevationGainM": 629.18,
+     "loop": true
+    },
+    {
+     "id": "boucle-50-km",
+     "name": "Boucle de 50 km depuis Marines",
+     "nameEn": "50 km loop from Marines",
+     "lengthM": 50788,
+     "elevationGainM": 766.03,
+     "loop": false
+    }
+   ],
+   "pack": {
+    "version": "cb563c98445b",
+    "bytes": 237416432,
+    "files": 1026,
+    "gzBytes": 106650039
+   },
+   "l93": {
+    "minE": 624000,
+    "minN": 6892000,
+    "maxE": 640000,
+    "maxN": 6908000
+   },
+   "open": true
+  },
+  {
+   "id": "idf-meaux",
+   "name": "Meaux",
+   "region": "Seine-et-Marne · Île-de-France",
+   "routes": [
+    {
+     "id": "boucle-20-km",
+     "name": "Boucle de 20 km depuis Meaux",
+     "nameEn": "20 km loop from Meaux",
+     "lengthM": 21187.29,
+     "elevationGainM": 294.3,
+     "loop": true
+    },
+    {
+     "id": "boucle-30-km",
+     "name": "Boucle de 30 km depuis Meaux",
+     "nameEn": "30 km loop from Meaux",
+     "lengthM": 30574.47,
+     "elevationGainM": 384.88,
+     "loop": true
+    },
+    {
+     "id": "boucle-40-km",
+     "name": "Boucle de 40 km depuis Meaux",
+     "nameEn": "40 km loop from Meaux",
+     "lengthM": 42088.59,
+     "elevationGainM": 444.26,
+     "loop": true
+    },
+    {
+     "id": "boucle-50-km",
+     "name": "Boucle de 50 km depuis Meaux",
+     "nameEn": "50 km loop from Meaux",
+     "lengthM": 50389.77,
+     "elevationGainM": 638.08,
+     "loop": true
+    }
+   ],
+   "pack": {
+    "version": "7b8ecdfed8dd",
+    "bytes": 205284899,
+    "files": 1026,
+    "gzBytes": 87393767
+   },
+   "l93": {
+    "minE": 688000,
+    "minN": 6860000,
+    "maxE": 704000,
+    "maxN": 6876000
+   },
+   "open": true
+  },
+  {
    "id": "idf-montreuil",
    "name": "Montreuil",
    "region": "Seine-Saint-Denis · Île-de-France",
@@ -1062,6 +1322,162 @@
     "minN": 6860000,
     "maxE": 656000,
     "maxN": 6876000
+   },
+   "open": true
+  },
+  {
+   "id": "idf-persan",
+   "name": "Persan",
+   "region": "Val-d'Oise · Île-de-France",
+   "routes": [
+    {
+     "id": "boucle-20-km",
+     "name": "Boucle de 20 km depuis Persan",
+     "nameEn": "20 km loop from Persan",
+     "lengthM": 18588,
+     "elevationGainM": 131.51,
+     "loop": false
+    },
+    {
+     "id": "boucle-30-km",
+     "name": "Boucle de 30 km depuis Persan",
+     "nameEn": "30 km loop from Persan",
+     "lengthM": 31458,
+     "elevationGainM": 238.78,
+     "loop": false
+    },
+    {
+     "id": "boucle-40-km",
+     "name": "Boucle de 40 km depuis Persan",
+     "nameEn": "40 km loop from Persan",
+     "lengthM": 41954,
+     "elevationGainM": 442.93,
+     "loop": false
+    },
+    {
+     "id": "boucle-50-km",
+     "name": "Boucle de 50 km depuis Persan",
+     "nameEn": "50 km loop from Persan",
+     "lengthM": 49324,
+     "elevationGainM": 589.64,
+     "loop": false
+    }
+   ],
+   "pack": {
+    "version": "3e5fe250eca1",
+    "bytes": 267949278,
+    "files": 1026,
+    "gzBytes": 117115951
+   },
+   "l93": {
+    "minE": 640000,
+    "minN": 6892000,
+    "maxE": 656000,
+    "maxN": 6908000
+   },
+   "open": true
+  },
+  {
+   "id": "idf-plaisir",
+   "name": "Plaisir",
+   "region": "Yvelines · Île-de-France",
+   "routes": [
+    {
+     "id": "boucle-20-km",
+     "name": "Boucle de 20 km depuis Plaisir",
+     "nameEn": "20 km loop from Plaisir",
+     "lengthM": 20090,
+     "elevationGainM": 236.19,
+     "loop": false
+    },
+    {
+     "id": "boucle-30-km",
+     "name": "Boucle de 30 km depuis Plaisir",
+     "nameEn": "30 km loop from Plaisir",
+     "lengthM": 30794,
+     "elevationGainM": 339.69,
+     "loop": false
+    },
+    {
+     "id": "boucle-40-km",
+     "name": "Boucle de 40 km depuis Plaisir",
+     "nameEn": "40 km loop from Plaisir",
+     "lengthM": 40258,
+     "elevationGainM": 432.12,
+     "loop": false
+    },
+    {
+     "id": "boucle-50-km",
+     "name": "Boucle de 50 km depuis Plaisir",
+     "nameEn": "50 km loop from Plaisir",
+     "lengthM": 49358,
+     "elevationGainM": 482.13,
+     "loop": false
+    }
+   ],
+   "pack": {
+    "version": "ed1fd623a6c8",
+    "bytes": 292366639,
+    "files": 1026,
+    "gzBytes": 125279440
+   },
+   "l93": {
+    "minE": 608000,
+    "minN": 6844000,
+    "maxE": 624000,
+    "maxN": 6860000
+   },
+   "open": true
+  },
+  {
+   "id": "idf-rambouillet",
+   "name": "Rambouillet",
+   "region": "Yvelines · Île-de-France",
+   "routes": [
+    {
+     "id": "boucle-20-km",
+     "name": "Boucle de 20 km depuis Rambouillet",
+     "nameEn": "20 km loop from Rambouillet",
+     "lengthM": 19442,
+     "elevationGainM": 84.39,
+     "loop": false
+    },
+    {
+     "id": "boucle-30-km",
+     "name": "Boucle de 30 km depuis Rambouillet",
+     "nameEn": "30 km loop from Rambouillet",
+     "lengthM": 31499.41,
+     "elevationGainM": 173.44,
+     "loop": true
+    },
+    {
+     "id": "boucle-40-km",
+     "name": "Boucle de 40 km depuis Rambouillet",
+     "nameEn": "40 km loop from Rambouillet",
+     "lengthM": 40578.04,
+     "elevationGainM": 311.27,
+     "loop": true
+    },
+    {
+     "id": "boucle-50-km",
+     "name": "Boucle de 50 km depuis Rambouillet",
+     "nameEn": "50 km loop from Rambouillet",
+     "lengthM": 48913.39,
+     "elevationGainM": 272.47,
+     "loop": true
+    }
+   ],
+   "pack": {
+    "version": "e1bc37c61cca",
+    "bytes": 254613511,
+    "files": 1026,
+    "gzBytes": 109318767
+   },
+   "l93": {
+    "minE": 608000,
+    "minN": 6828000,
+    "maxE": 624000,
+    "maxN": 6844000
    },
    "open": true
   },
@@ -1270,6 +1686,58 @@
     "minN": 6844000,
     "maxE": 640000,
     "maxN": 6860000
+   },
+   "open": true
+  },
+  {
+   "id": "idf-vert-saint-denis",
+   "name": "Vert-Saint-Denis",
+   "region": "Seine-et-Marne · Île-de-France",
+   "routes": [
+    {
+     "id": "boucle-20-km",
+     "name": "Boucle de 20 km depuis Vert-Saint-Denis",
+     "nameEn": "20 km loop from Vert-Saint-Denis",
+     "lengthM": 21868,
+     "elevationGainM": 106.26,
+     "loop": false
+    },
+    {
+     "id": "boucle-30-km",
+     "name": "Boucle de 30 km depuis Vert-Saint-Denis",
+     "nameEn": "30 km loop from Vert-Saint-Denis",
+     "lengthM": 29526,
+     "elevationGainM": 151.61,
+     "loop": false
+    },
+    {
+     "id": "boucle-40-km",
+     "name": "Boucle de 40 km depuis Vert-Saint-Denis",
+     "nameEn": "40 km loop from Vert-Saint-Denis",
+     "lengthM": 44360,
+     "elevationGainM": 214.16,
+     "loop": false
+    },
+    {
+     "id": "boucle-50-km",
+     "name": "Boucle de 50 km depuis Vert-Saint-Denis",
+     "nameEn": "50 km loop from Vert-Saint-Denis",
+     "lengthM": 50152,
+     "elevationGainM": 261.24,
+     "loop": false
+    }
+   ],
+   "pack": {
+    "version": "993fb2d23898",
+    "bytes": 230095124,
+    "files": 1026,
+    "gzBytes": 97134257
+   },
+   "l93": {
+    "minE": 672000,
+    "minN": 6828000,
+    "maxE": 688000,
+    "maxN": 6844000
    },
    "open": true
   },

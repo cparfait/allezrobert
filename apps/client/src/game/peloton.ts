@@ -1,6 +1,6 @@
 import { shadowCasters } from './shadowBudget.ts';
 import * as THREE from 'three/webgpu';
-import { AiRider, AI_PROFILES, DraftCalculator, FORMATION_PREFS, LANE_PACE, LaneRotator, laneOffsets, resolveFormation, type Formation, type FormationPref, PoseController, TeammateUTurn, createRiderState, paramsFromBike, powerForSpeed, stepRider, airDensity, wakeShiftM, type AiProfileName, type RiderState } from '@allezrobert/physics';
+import { AiRider, AI_PROFILES, DraftCalculator, FORMATION_PREFS, LANE_PACE, LaneRotator, Overtaker, keepRightM, laneOffsets, resolveFormation, roadHalfM, type Formation, type FormationPref, type LaneBody, PoseController, TeammateUTurn, createRiderState, paramsFromBike, powerForSpeed, stepRider, airDensity, wakeShiftM, type AiProfileName, type RiderState } from '@allezrobert/physics';
 import { BASE_PROFILES, DEFAULT_BIKE, aiIdentity, DEFAULT_LOOK, FACE_SLIDERS, encodeFace, type AvatarLook, type FaceShape, type RouteTrack } from '@allezrobert/shared';
 import { createAvatar, type RiderAvatarLike } from '../rider/gltfAvatar.ts';
 import { crowdShoes } from '../rider/shoeLook.ts';
@@ -49,6 +49,8 @@ export interface PelotonRider {
   uturn: TeammateUTurn;
   /** Cap relatif à la route (rad) : 0 sens de marche, π contresens (demi-tour). */
   heading: number;
+  /** Dépassement propre d'un coureur plus lent : déboîte à gauche tôt, double, se rabat une fois dégagé. */
+  overtaker: Overtaker;
 }
 
 function nameSprite(text: string, color: string): THREE.Sprite {
@@ -188,7 +190,7 @@ export class Peloton {
         color,
         // Départ groupé : en file indienne juste devant et derrière le joueur.
         state: createRiderState({ distM: startDistM + (i % 2 ? 1 : -1) * (2 + Math.floor(i / 2) * 2.2), speedMs: 0 }),
-        lateral: ((i % 3) - 1) * 0.9 + 1.0,
+        lateral: Math.min(((i % 3) - 1) * 0.7 + 1.2, roadHalfM(track.route.roadWidthM)),
         ai: new AiRider({ id: `ai-${i}`, profile: PROFILES[i % PROFILES.length] as AiProfileName, ftpWatts: ftp, params, riderMassKg: massKg, seed: i * 7919, aggressiveness: 0.35 }),
         avatar,
         label,
@@ -201,6 +203,7 @@ export class Peloton {
         pose: 'seated',
         uturn: new TeammateUTurn({ halfRoadM: Math.max(1.2, track.route.roadWidthM / 2 - 0.4) }),
         heading: 0,
+        overtaker: new Overtaker(),
       });
     }
     void AI_PROFILES;
@@ -210,7 +213,12 @@ export class Peloton {
    * @param player position et puissance du joueur (référence d'allure et d'aspiration)
    * @returns l'aspiration dont bénéficie le joueur (0–1)
    */
-  update(dt: number, player: { distM: number; lateral: number; speedMs: number; watts: number; massKg: number; ftpWatts?: number; reversed?: boolean; headWindMs?: number; crossWindMs?: number }): number {
+  update(
+    dt: number,
+    player: { distM: number; lateral: number; speedMs: number; watts: number; massKg: number; ftpWatts?: number; reversed?: boolean; headWindMs?: number; crossWindMs?: number },
+    /** Cyclistes d'ambiance qui vont dans le même sens : des obstacles à doubler, jamais à traverser. */
+    ambient: readonly LaneBody[] = [],
+  ): number {
     if (!this.riders.length) return 0;
     // Même vent pour tout le groupe (la route est la même) : de face pour l'effort, de côté pour les sillages.
     this.headWindMs = player.headWindMs ?? 0;
@@ -233,7 +241,7 @@ export class Peloton {
     const easing = (this.time < this.slowUntil ? 0.85 : 1) * (waiting ? 0.85 : 1);
     this.updateFormation();
     const double = this.formationNow === 'double';
-    const halfRoad = Math.max(1.2, this.track.route.roadWidthM / 2 - 0.5);
+    const halfRoad = Math.max(1.2, roadHalfM(this.track.route.roadWidthM));
     const laneAt = laneOffsets(halfRoad);
     if (double) this.lanes.update(this.riders.filter((r) => !r.uturn.active).map((r) => ({ id: r.id, distM: r.state.distM })), [{ distM: player.distM }], dt);
     const waitingForMe = this.time < this.waitUntil;
@@ -245,7 +253,8 @@ export class Peloton {
     ];
     const factors = this.draft.compute(all);
     const order = [...this.riders].sort((a, b) => b.state.distM - a.state.distM);
-    const half = this.track.route.roadWidthM / 2 - 0.5;
+    const half = roadHalfM(this.track.route.roadWidthM);
+    const right = keepRightM(half);
     order.forEach((r, rank) => {
       r.draft = r.uturn.active ? 0 : (factors[this.riders.indexOf(r) + 1] ?? 0);
       const s = this.track.sample(r.state.distM, this.sample);
@@ -278,6 +287,14 @@ export class Peloton {
       for (const o of [...peers.map((x) => ({ distM: x.state.distM, speedMs: x.state.speedMs, lateral: x.lateral })), { distM: player.distM, speedMs: player.speedMs, lateral: player.lateral }]) {
         if (o.distM > r.state.distM + 0.01 && (!ahead || o.distM < ahead.distM)) ahead = o;
       }
+      // Dépassement propre : plus rapide que celui de devant (le joueur, une IA, un cycliste d'ambiance), on déboîte par la
+      // gauche à bonne distance, on double avec un mètre d'écart et on se rabat une fois dégagé ; sans place, on reste dans sa roue.
+      const sameWay: LaneBody[] = [
+        { id: 'player', distM: player.distM, lateralM: player.lateral, speedMs: player.speedMs },
+        ...peers.map((x) => ({ id: x.id, distM: x.state.distM, lateralM: x.lateral, speedMs: x.state.speedMs })),
+        ...ambient,
+      ];
+      const plan = r.overtaker.update({ id: r.id, distM: r.state.distM, lateralM: r.lateral, speedMs: r.state.speedMs }, sameWay, half, !this.leftLaneBusy(r.state.distM));
       const out = r.ai.update(
         {
           gradePercent: s.grade,
@@ -285,9 +302,10 @@ export class Peloton {
           // Élastique autour du joueur : on ralentit devant lui, on accélère derrière (sortie solo).
           groupPaceWkg:
             this.paceWkg * easing * (double ? LANE_PACE[myLane] : 1) * (waitingForMe && r.state.distM > player.distM + 6 ? 0.78 : 1) * (1 - THREE.MathUtils.clamp((r.state.distM - player.distM - 4) / 50, -0.3, 0.45)),
-          gapAheadM: ahead ? ahead.distM - r.state.distM - 1.8 : Infinity,
+          // Pas de roue à suivre pendant un dépassement : l'IA garde son allure jusqu'à être passée.
+          gapAheadM: ahead && !plan.passing ? ahead.distM - r.state.distM - 1.8 : Infinity,
           speedAheadMs: ahead?.speedMs ?? r.state.speedMs,
-          ...(ahead ? { lateralAheadM: ahead.lateral - r.lateral } : {}),
+          ...(ahead && !plan.passing ? { lateralAheadM: ahead.lateral - r.lateral } : {}),
           positionInGroup: rank,
           groupSize: this.riders.length + 1,
           cdaFactor: 1 - r.draft,
@@ -305,11 +323,22 @@ export class Peloton {
       stepRider(r.state, { watts: r.watts, gradePercent: s.grade, params: r.ai.params, env, cdaFactor: 1 - r.draft }, dt);
       // Vent de côté : l'abri est décalé sous le vent ; le coureur s'y place (bordure).
       const shelter = ahead && this.formationNow !== 'single' ? wakeShiftM(ahead.distM - r.state.distM - 1.75, this.crossWindMs, ahead.speedMs) : 0;
-      const base = double ? laneAt[myLane] : (ahead?.lateral ?? 1);
-      const targetLat = THREE.MathUtils.clamp(base + (double ? 0 : out.lateralTargetM) + shelter, -half, half);
-      r.lateral += (targetLat - r.lateral) * Math.min(1, dt * 0.8);
+      const base = double ? laneAt[myLane] : (ahead?.lateral ?? Math.min(1.2, half));
+      // Circulation à droite : sauf pour doubler, on reste dans la moitié droite (ceux d'en face roulent à gauche).
+      let targetLat = THREE.MathUtils.clamp(base + (double ? 0 : out.lateralTargetM) + shelter, right, half);
+      if (plan.lateralM !== null) targetLat = plan.lateralM;
+      r.lateral += (targetLat - r.lateral) * Math.min(1, dt * (plan.passing ? 1.8 : 0.8));
     });
     return factors[0] ?? 0;
+  }
+
+  /** Cyclistes d'ambiance qui viennent en face : branché par le jeu (`AmbientCyclists.oncomingAhead`). */
+  oncoming: ((distM: number, rangeM: number) => boolean) | null = null;
+
+  /** La voie de gauche est occupée devant `distM` (cycliste d'ambiance ou équipier qui revient à contresens) : pas de dépassement par la gauche. */
+  private leftLaneBusy(distM: number): boolean {
+    if (this.oncoming?.(distM, 80)) return true;
+    return this.riders.some((x) => x.uturn.active && x.state.distM > distM - 8 && x.state.distM < distM + 80);
   }
 
   /** Le groupe roule seul, à l'allure courante (joueur à contresens). */

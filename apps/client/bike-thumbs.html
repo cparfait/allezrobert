@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Allez Robert ! — miniatures des vélos du garage</title>
+    <style>
+      html, body { margin: 0; height: 100%; background: #222; color: #fff; font: 13px monospace; }
+      canvas#scene { position: fixed; left: 0; top: 0; width: 64px; height: 40px; opacity: 0; pointer-events: none; }
+      #sheet { display: grid; grid-template-columns: repeat(auto-fill, 320px); gap: 6px; padding: 8px; }
+      #sheet figure { margin: 0; background: linear-gradient(180deg, #e9edf2, #cfd6de); border-radius: 12px; }
+      #sheet figcaption { color: #123; padding: 2px 8px; font-size: 11px; }
+      #log { position: fixed; left: 8px; bottom: 8px; background: rgba(0, 0, 0, 0.7); padding: 4px 8px; }
+    </style>
+  </head>
+  <body>
+    <canvas id="scene" width="64" height="40"></canvas>
+    <div id="sheet"></div>
+    <div id="log"></div>
+    <script type="module" src="/src/bike-thumbs.ts"></script>
+  </body>
+</html>

@@ -1,6 +1,6 @@
 import * as THREE from 'three/webgpu';
 import { DEFAULT_BIKE, DEFAULT_LOOK, type AvatarLook, type RouteTrack } from '@allezrobert/shared';
-import { draftReductionSingle, paramsFromBike, steadyStateSpeed, type RiderPhysicsParams } from '@allezrobert/physics';
+import { draftReductionSingle, paramsFromBike, rightLaneM, steadyStateSpeed, type LaneBody, type RiderPhysicsParams } from '@allezrobert/physics';
 import { createAvatar, type RiderAvatarLike } from '../rider/gltfAvatar.ts';
 import { crowdShoes } from '../rider/shoeLook.ts';
 import { crowdBike } from '../rider/bikes.ts';
@@ -139,6 +139,8 @@ export class AmbientCyclists {
     const pairs = !this.path && opt.size > 2 && li <= 1;
     const members: Member[] = [];
     let firstJersey = kit[0];
+    let rowOff = 0;
+    let lastRow = -1;
     for (let k = 0; k < opt.size; k++) {
       const i = this.serial++;
       const jersey = club ? kit[0] : (JERSEYS[Math.floor(this.r() * JERSEYS.length)] as string);
@@ -160,9 +162,14 @@ export class AmbientCyclists {
       scene.add(avatar.root);
       // Loisir en duo côte à côte, club en file serrée (roue dans la roue au-delà de 25 km/h).
       const row = pairs ? Math.floor(k / 2) : k;
-      // Le vélo fait 1,75 m : sous 2,1 m entre les centres, les roues se chevauchent.
-      const gap = li >= 2 ? 2.25 + this.r() * 0.35 : pairs ? 3.1 + this.r() * 0.5 : 2.9 + this.r() * 0.9;
-      members.push({ avatar, off: -row * gap, latOff: pairs && k % 2 ? -1.0 * sens : 0, cadenceOff: Math.round((this.r() - 0.5) * 8) });
+      // Le vélo fait 1,75 m : sous 2,1 m entre les centres, les roues se chevauchent. L'écart s'ajoute rang après rang
+      // (un écart tiré pour chaque coureur puis multiplié par son rang pouvait rapprocher deux voisins sous 1,7 m).
+      if (row !== lastRow) {
+        const gap = li >= 2 ? 2.25 + this.r() * 0.35 : pairs ? 3.1 + this.r() * 0.5 : 2.9 + this.r() * 0.9;
+        if (row > 0) rowOff += gap;
+        lastRow = row;
+      }
+      members.push({ avatar, off: -rowOff, latOff: pairs && k % 2 ? -1.0 * sens : 0, cadenceOff: Math.round((this.r() - 0.5) * 8) });
     }
     const mass = lv.mass[0] + this.r() * (lv.mass[1] - lv.mass[0]);
     const length = Math.abs((members[members.length - 1] as Member).off);
@@ -188,23 +195,49 @@ export class AmbientCyclists {
     });
   }
 
-  /** Voie de droite dans son sens de marche (repère du joueur : positif = à droite). */
+  /** Voie de droite dans son sens de marche (repère du joueur : positif = à droite) : au bord, comme le joueur ; ceux d'en face, au bord opposé. */
   private laneOf(sens: 1 | -1): number {
-    const half = this.track.route.roadWidthM / 2;
-    // Piste étroite : ceux d'en face serrent le bord pour laisser le plus de place possible.
-    const m = this.path && sens < 0 ? 0.4 : 0.7;
-    return sens > 0 ? Math.max(0.6, half - 0.7) : -Math.max(0.6, half - m);
+    const lane = rightLaneM(this.track.route.roadWidthM);
+    return sens > 0 ? lane : -lane;
+  }
+
+  private readonly sameWay: LaneBody[] = [];
+
+  /** Cyclistes qui vont dans le sens du joueur, un par membre de groupe : les IA du peloton les doublent sans les traverser. */
+  sameWayBodies(): LaneBody[] {
+    const out = this.sameWay;
+    out.length = 0;
+    for (const c of this.units) {
+      if (c.sens < 0) continue;
+      c.members.forEach((m, k) => out.push({ id: `${c.id}.${k}`, distM: c.d + m.off, lateralM: c.lateral + m.latOff, speedMs: c.speed }));
+    }
+    return out;
+  }
+
+  /** Un cycliste vient en face entre `distM - 8` et `distM + rangeM` : la voie de gauche n'est pas libre pour doubler. */
+  oncomingAhead(distM: number, rangeM: number): boolean {
+    for (const c of this.units) {
+      if (c.sens > 0) continue;
+      for (const m of c.members) {
+        const d = c.d + m.off - distM;
+        if (d > -8 && d < rangeM) return true;
+      }
+    }
+    return false;
   }
 
   /**
    * @param player distance et décalage du joueur
    * @param camera pour les niveaux de détail (animation et ombres seulement près de la caméra)
+   * @param others autres coureurs qui vont dans le sens du joueur (équipiers IA) : on les double et on les croise sans les traverser
    * @returns l'aspiration dont profite le joueur derrière un cycliste qui va dans son sens
    */
-  update(dt: number, player: { distM: number; lateral: number; speedMs: number }, camera: THREE.Camera): number {
+  update(dt: number, player: { distM: number; lateral: number; speedMs: number }, camera: THREE.Camera, others: ReadonlyArray<{ distM: number; lateral: number; speedMs: number }> = []): number {
     const L = this.track.length;
     const loop = this.track.route.loop;
     let draft = 0;
+    // Le joueur et les équipiers IA : tous sont à éviter ou à doubler de la même façon.
+    const rivals = [player, ...others];
     for (const c of this.units) {
       const rel = c.d - player.distM;
       // Recyclage hors de vue : en face, il revient loin devant ; dans le même sens, le lent repart
@@ -226,7 +259,11 @@ export class AmbientCyclists {
       // Même sens : on s'écarte pour doubler le joueur s'il roule moins vite juste devant.
       let lateralTarget = this.laneOf(c.sens);
       const gapNeeded = 4 + c.length;
-      if (c.sens > 0 && rel < 0 && rel > -12 - c.length && c.speed > player.speedMs + 0.3 && Math.abs(player.lateral - c.lateral) < 1.2) lateralTarget = player.lateral - 1.4;
+      if (c.sens > 0)
+        for (const p of rivals) {
+          const behind = c.d - p.distM;
+          if (behind < 0 && behind > -12 - c.length && c.speed > p.speedMs + 0.3 && Math.abs(p.lateral - c.lateral) < 1.2) lateralTarget = Math.min(lateralTarget, p.lateral - 1.4);
+        }
       // Sur piste, on déboîte aussi pour doubler un autre cycliste plus lent dans le même sens.
       if (this.path) {
         for (const o of this.units) {
@@ -236,26 +273,28 @@ export class AmbientCyclists {
         }
       }
       // Un cycliste d'en face ne se rabat pas vers le milieu (pour doubler un autre) quand on arrive.
-      if (c.sens < 0 && Math.abs(c.d - player.distM) < 60 && Math.abs(lateralTarget - player.lateral) < 1.8) lateralTarget = this.laneOf(c.sens);
-      // Jamais à travers le joueur : un cycliste trop près (en long comme en large) s'écarte de lui,
+      if (c.sens < 0 && rivals.some((p) => Math.abs(c.d - p.distM) < 60 && Math.abs(lateralTarget - p.lateral) < 1.8)) lateralTarget = this.laneOf(c.sens);
+      // Jamais à travers le joueur ni un équipier : un cycliste trop près (en long comme en large) s'écarte de lui,
       // de l'autre côté si le bord de la chaussée l'en empêche.
       let rate = 1.2;
       const edge = Math.max(0.5, this.track.route.roadWidthM / 2 - 0.25);
-      for (const m of c.members) {
-        const gap = c.d + m.off - player.distM;
-        if (Math.abs(gap) > (c.sens < 0 ? 30 : 14)) continue;
-        const cur = c.lateral + m.latOff - player.lateral;
-        const sep = c.sens < 0 ? 1.4 : 1.0;
-        if (Math.abs(cur) >= sep) continue;
-        let dir = cur >= 0 ? 1 : -1;
-        let t = player.lateral + dir * sep - m.latOff;
-        if (Math.abs(t + m.latOff) > edge) {
-          dir = -dir;
-          t = player.lateral + dir * sep - m.latOff;
+      avoid: for (const p of rivals) {
+        for (const m of c.members) {
+          const gap = c.d + m.off - p.distM;
+          if (Math.abs(gap) > (c.sens < 0 ? 30 : 14)) continue;
+          const cur = c.lateral + m.latOff - p.lateral;
+          const sep = c.sens < 0 ? 1.4 : 1.0;
+          if (Math.abs(cur) >= sep) continue;
+          let dir = cur >= 0 ? 1 : -1;
+          let t = p.lateral + dir * sep - m.latOff;
+          if (Math.abs(t + m.latOff) > edge) {
+            dir = -dir;
+            t = p.lateral + dir * sep - m.latOff;
+          }
+          lateralTarget = Math.max(-edge - m.latOff, Math.min(edge - m.latOff, t));
+          rate = 4;
+          break avoid;
         }
-        lateralTarget = Math.max(-edge - m.latOff, Math.min(edge - m.latOff, t));
-        rate = 4;
-        break;
       }
       c.lateral += (lateralTarget - c.lateral) * Math.min(1, dt * rate);
       c.d += c.sens * c.speed * dt;
