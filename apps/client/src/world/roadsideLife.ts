@@ -1042,7 +1042,9 @@ export class RoadsideLife {
       if (d <= 0 || inSpan(d, 4)) continue;
       const km = Math.round(d / 100) % 10 === 0;
       track.positionAt(d, halfAt(d) + (km ? 1.1 : 0.9), s);
-      const y = ground(s.x, s.z);
+      // Jamais sous la chaussée : le sol lu à la construction du tronçon peut être celui de la tuile grossière.
+      const g = ground(s.x, s.z);
+      const y = Number.isFinite(g) ? Math.max(g, s.y - 0.3) : g;
       if (!Number.isFinite(y) || probe.buildingNear(s.x, s.z, 0.6) || onAnyRoad(s.x, s.z, 0.4)) continue;
       // face avant (+z) tournée vers le coureur qui arrive
       const yaw = Math.atan2(-s.dirX, -s.dirZ);
