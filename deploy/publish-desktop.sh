@@ -29,6 +29,8 @@ if [[ "$mode" != "--upload-only" ]]; then
   export VITE_WORLDS_URL="${VITE_WORLDS_URL:-https://$DOMAIN}"
   # Jamais de tuiles dans l'exe (le plugin Vite ne les garde qu'avec AR_BUNDLE_TILES=1).
   unset AR_BUNDLE_TILES
+  # Installateur : le plugin Vite ar-installer-diet retire de dist/ les boucles vidéo VP9 en double (≈ 125 Mo).
+  export AR_DESKTOP=1
 
   echo "→ Build de l'application Windows $version (serveur : $VITE_SERVER_URL)"
   pnpm --filter @allezrobert/desktop build

@@ -10,6 +10,7 @@ Côté code :
 
 - `apps/client/vite.config.ts`, plugin `ar-exclude-world-tiles` : supprime `dist/worlds/*/tiles`
   après chaque build, sauf si `AR_BUNDLE_TILES=1` (exe hors ligne, à ne **pas** utiliser ici) ;
+- `apps/client/vite.config.ts`, plugin `ar-installer-diet` (`scripts/installerDiet.ts`) : retire de `dist/` les photos de pose de développement (`__pose/`, ≈ 30 Mo, partout) et, avec `AR_DESKTOP=1` (posé par `deploy/publish-desktop.sh`), les boucles vidéo VP9 du menu (`.webm`, ≈ 125 Mo) : H.264 joue dans WebView2, l'AV1 sert de secours ;
 - `apps/client/src/world/packs.ts` : dans l'application Windows, les tuiles viennent de
   `VITE_WORLDS_URL`, sinon de `https://allezrobert.cparfait.ovh` ;
 - `apps/client/src/game/multiplayer.ts` : le serveur de jeu est `VITE_SERVER_URL`. **Obligatoire
@@ -45,7 +46,7 @@ bash deploy/publish-desktop.sh
 Le script :
 
 1. définit `VITE_SERVER_URL=https://allezrobert.cparfait.ovh/colyseus` et
-   `VITE_WORLDS_URL=https://allezrobert.cparfait.ovh`, et retire `AR_BUNDLE_TILES` ;
+   `VITE_WORLDS_URL=https://allezrobert.cparfait.ovh`, retire `AR_BUNDLE_TILES` et pose `AR_DESKTOP=1` ;
 2. lance `pnpm --filter @allezrobert/desktop build` (build du client, puis Tauri : NSIS + MSI) ;
 3. **s'arrête si une tuile est restée** dans `apps/client/dist/worlds` ;
 4. range les installateurs dans `out/release/` sous des noms sans espaces :
@@ -65,6 +66,7 @@ Autre domaine ou serveur de test : `DOMAIN=test.exemple.fr bash deploy/publish-d
 export VITE_SERVER_URL=https://allezrobert.cparfait.ovh/colyseus
 export VITE_WORLDS_URL=https://allezrobert.cparfait.ovh
 unset AR_BUNDLE_TILES
+export AR_DESKTOP=1
 pnpm --filter @allezrobert/desktop build
 ```
 

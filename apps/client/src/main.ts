@@ -67,7 +67,7 @@ import { VoiceChat, fetchVoiceConfig } from './game/voice.ts';
 import { RideRoomUi } from './game/rideroom.ts';
 import { showStartGate } from './game/startGate.ts';
 import { PlaceFinder } from './game/place.ts';
-import { TILES_BASE } from './world/packs.ts';
+import { TILES_BASE, installedPacks, keepStorage } from './world/packs.ts';
 import type { DevicePanel } from './ui/menu.ts';
 import type { InterpolatedRider } from './net/index.ts';
 
@@ -236,9 +236,10 @@ function createMenuVideo(el: HTMLVideoElement | null) {
   let failed = false;
   /**
    * Formats essayés dans l'ordre, le suivant en cas d'erreur : AV1 (deux fois plus léger) seulement si la
-   * carte graphique le décode (sinon il occuperait le processeur), puis H.264, puis VP9.
+   * carte graphique le décode (sinon il occuperait le processeur), puis H.264, puis VP9, et en dernier recours
+   * AV1 décodé par logiciel (l'installateur Windows ne livre pas le VP9 : voir scripts/installerDiet.ts).
    */
-  let formats = ['mp4', 'webm'];
+  let formats = ['mp4', 'webm', 'av1.mp4'];
   let format = 0;
   let current = '';
   void navigator.mediaCapabilities
@@ -372,6 +373,8 @@ async function boot(): Promise<void> {
   // Spotify déconnecté entre-temps : la musique du jeu reprend sa place.
   if (!spotify.connected) music.yieldToExternal(false);
   music.unlockOnGesture();
+  // Zones déjà téléchargées : demande (sans effet si refusée) que le navigateur ne les purge pas.
+  if (installedPacks().length) keepStorage();
   const settings = loadSettings();
   // Premier lancement ou qualité jamais choisie à la main : préréglage selon la carte graphique.
   if (!localStorage.getItem('ar.quality') && !new URLSearchParams(location.search).has('quality')) settings.quality = await detectHardwareQuality();

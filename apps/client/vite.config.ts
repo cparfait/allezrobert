@@ -2,6 +2,7 @@ import { defineConfig, type Plugin } from 'vite';
 import { mkdirSync, writeFileSync, rmSync, existsSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { networkInterfaces } from 'node:os';
+import { pruneDist } from './scripts/installerDiet.ts';
 
 // AR_HMR=0 coupe le rechargement à chaud (utile quand d'autres processus modifient les paquets partagés).
 const hmr = process.env.AR_HMR !== '0';
@@ -89,6 +90,21 @@ function excludeWorldTiles(): Plugin {
 }
 
 /**
+ * Build : retire de dist/ ce qui ne se livre pas (photos de pose de dev) et, pour l'installateur Windows
+ * (AR_DESKTOP=1, posé par deploy/publish-desktop.sh), les boucles vidéo VP9 en double. Voir scripts/installerDiet.ts.
+ */
+function installerDiet(): Plugin {
+  return {
+    name: 'ar-installer-diet',
+    apply: 'build',
+    closeBundle() {
+      const removed = pruneDist(resolve(import.meta.dirname, 'dist'), process.env.AR_DESKTOP === '1');
+      if (removed.length) console.info(`[ar-installer-diet] retiré de dist/ : ${removed.map((p) => p.split(/[\\/]/).slice(-2).join('/')).join(', ')}`);
+    },
+  };
+}
+
+/**
  * Développement uniquement : GET /__lan donne l'adresse IPv4 du poste sur le réseau local, pour
  * le QR code de l'appli compagnon (le téléphone ne joint pas « localhost »).
  */
@@ -113,7 +129,7 @@ function lanAddress(): Plugin {
 }
 
 export default defineConfig({
-  plugins: [screenshots(), excludeWorldTiles(), lanAddress()],
+  plugins: [screenshots(), excludeWorldTiles(), installerDiet(), lanAddress()],
   server: { port: 5173, strictPort: true, host: true, hmr },
   build: { target: 'es2022', sourcemap: true, chunkSizeWarningLimit: 2500 },
   clearScreen: false,

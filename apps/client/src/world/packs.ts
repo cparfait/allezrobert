@@ -131,6 +131,17 @@ export async function installPack(id: string, onProgress: (done: number, total: 
   await caches.delete(tmpName);
   const announced = (await loadCatalogue())?.zones.find((z) => z.id === id)?.pack?.version;
   setInstalled(id, { version: manifest.version, bytes: manifest.bytes, ...(announced ? { catalogue: announced } : {}) });
+  keepStorage();
+}
+
+/**
+ * Demande que le stockage de l'application ne soit pas purgé : les zones téléchargées (jusqu'à 2 Go) vivent dans le
+ * Cache Storage, que le navigateur peut vider sans prévenir quand le disque se remplit (stockage « au mieux »).
+ * Sans effet si c'est refusé : la zone se retélécharge alors à l'ouverture.
+ */
+export function keepStorage(): void {
+  const storage = typeof navigator !== 'undefined' ? navigator.storage : undefined;
+  if (storage?.persist) void storage.persisted().then((p) => (p ? true : storage.persist())).catch(() => undefined);
 }
 
 /** Zones téléchargées sur cet appareil, avec la taille de leur pack (octets non compressés annoncés par le manifeste). */
