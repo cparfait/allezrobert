@@ -338,9 +338,25 @@ numériques au lieu de chaînes, `roadProximity.ts`) et `splatCell` (un calcul d
   (**125 Mo**) non plus : H.264 joue dans WebView2, l'AV1 logiciel sert de dernier recours (`scripts/installerDiet.ts`).
 - `navigator.storage.persist()` après l'installation d'une zone et au démarrage : les zones (jusqu'à 2 Go) vivent
   dans le Cache Storage de WebView2, « au mieux » par défaut, donc purgeable quand le disque se remplit.
-- Graphes routiers : fusion des zones voisines 3 fois plus rapide (commit 1147f06). Les `graph.json` (≈ 330 Mo
-  pour 45 zones) partent encore dans l'installateur : les livrer avec le pack de chaque zone ou en binaire est la
-  prochaine économie, mais change le parcours du menu (carte d'une zone non installée).
+- Graphes routiers : fusion des zones voisines 3 fois plus rapide (commit 1147f06). Les `graph.json` (≈ 330 Mo pour
+  45 zones) ne partent **plus** dans l'installateur (`AR_DESKTOP=1`) : `graphFetch` (`world/packs.ts`) les prend dans le
+  pack de la zone (téléchargé avec elle, gardé compressé, donc utilisable hors ligne), sinon dans les fichiers de
+  l'application, sinon sur le serveur des mondes (Caddy les autorise en CORS). Sans réseau ni pack, une zone sans
+  graphe se charge quand même, sans mode monde ouvert.
+
+### Premier lancement, vraiment à froid
+
+Les mesures « profil Chrome vierge » gardaient le cache de shaders du pilote. Mesuré avec le cache DirectX du pilote
+vidé : **28 s** jusqu'au départ (23 s avec le cache du pilote), compilation des objets de la sortie 11,5 s. Le
+premier lancement réel est donc ≈ 5 s plus lent que le chiffre du tableau ci-dessus. Le cache de Dawn n'a rien
+écrit dans le cache DirectX pendant la mesure (1,8 Mo) : le gros du coût à froid est dans Chrome, pas dans le pilote.
+
+### Tuiles et compilation du paysage (processeur)
+
+Profil du chargement : tuiles ≈ 3 à 5 s, paysage compilé ≈ 4 à 5 s, limités par le fil principal. Dans les tuiles,
+`buildings.addTile` fait 2,2 s dont `computeVertexNormals` 0,5 s : remplacé par `setFlatNormals` (`flatNormals.ts`, normales
+par face identiques au bit près à celles de three.js, test sur 4 000 triangles). Le reste est la construction des
+graphes de nœuds de three.js (un par objet) ; la réduire demande moins d'objets ou un Web Worker pour la géométrie.
 
 ### Essayé ou estimé, non retenu
 

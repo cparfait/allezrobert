@@ -1,6 +1,7 @@
 import * as THREE from 'three/webgpu';
 import { attribute, frontFacing, uv, fract, floor, step, mix, vec2, vec3, float, int, uniform, uniformArray, mx_noise_float, positionWorld, smoothstep, max, min, abs, hash, normalWorld, normalMap, fwidth } from 'three/tsl';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { setFlatNormals } from './flatNormals.ts';
 import { ARCHETYPES, pickArchetype, worldStyle, type Archetype, type WallMaterial, type WorldStyle } from '@allezrobert/shared';
 import { rng, polygonArea } from '../engine/noise.ts';
 import type { LoadedTile, TileRoad } from './types.ts';
@@ -227,7 +228,7 @@ function walls(pts: number[], base: number, height: number, style?: WallStyle, g
   g.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
   g.setAttribute('facade', new THREE.Float32BufferAttribute(fac, 2));
   g.setAttribute('bstyle', new THREE.Float32BufferAttribute(sty, 4));
-  g.computeVertexNormals();
+  setFlatNormals(g);
   return g;
 }
 
@@ -299,7 +300,7 @@ function toGeometry(pos: number[], uvs: number[]): THREE.BufferGeometry {
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
   g.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
-  g.computeVertexNormals();
+  setFlatNormals(g);
   return g;
 }
 
