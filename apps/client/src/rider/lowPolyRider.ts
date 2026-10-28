@@ -26,7 +26,7 @@ const THIGH = 0.46;
 const SHIN = 0.47;
 const UPPER_ARM = 0.3;
 /** Coude → creux de la main (prise du cintre), pas seulement jusqu'au poignet. */
-const FOREARM = 0.34;
+const FOREARM = 0.31;
 /** Part de l'inclinaison physique appliquée en virage, et plafond (rad). */
 const BANK_SHARE = 0.55;
 const MAX_BANK = 0.3;
@@ -49,7 +49,7 @@ interface Fit {
 }
 
 const FITS: Record<BarKind, Fit> = {
-  drop: { bar: 'drop', hand: new THREE.Vector3(0.2, 0.92, 0.59), shoulderDy: -0.03, shoulderDz: 0.03, elbowPole: new THREE.Vector3(0.3, -0.75, -0.45), headTilt: 0 },
+  drop: { bar: 'drop', hand: new THREE.Vector3(0.2, 0.92, 0.63), shoulderDy: -0.03, shoulderDz: 0.03, elbowPole: new THREE.Vector3(0.3, -0.75, -0.45), headTilt: 0 },
   flat: { bar: 'flat', hand: new THREE.Vector3(0.31, 0.96, 0.5), shoulderDy: 0.06, shoulderDz: -0.08, elbowPole: new THREE.Vector3(0.8, -0.4, -0.3), headTilt: -0.08 },
   tt: { bar: 'tt', hand: new THREE.Vector3(0.075, 0.95, 0.76), shoulderDy: -0.13, shoulderDz: 0.1, elbowPole: new THREE.Vector3(0.1, -1, 0), headTilt: 0.18 },
 };
@@ -562,7 +562,7 @@ export class LowPolyRider implements RiderAvatarLike {
     const sp = saddle.getAttribute('position');
     for (let i = 0; i < sp.count; i++) if (sp.getZ(i) > SADDLE.z) sp.setX(i, sp.getX(i) * 0.35);
     const fit = this.fit;
-    const stemEnd = fit.bar === 'flat' ? v3(0, 0.95, 0.5) : fit.bar === 'tt' ? v3(0, 0.89, 0.55) : v3(0, 0.89, 0.51);
+    const stemEnd = fit.bar === 'flat' ? v3(0, 0.95, 0.5) : v3(0, 0.89, 0.55);
     parts.push(tube(seatTop, SADDLE.clone().setY(SADDLE.y - 0.03), 0.014 * (mtb ? 1.4 : 1)), saddle, tube(headTop, stemEnd, 0.018));
     const bar: THREE.BufferGeometry[] = [];
     if (fit.bar === 'flat') {
@@ -577,18 +577,17 @@ export class LowPolyRider implements RiderAvatarLike {
       }
     } else {
       const flare = kind === 'gravel' ? 0.04 : 0;
-      // Potence courte (cocottes à 0,62 m) : coudes légèrement fléchis comme chez les pros.
-      bar.push(tube(v3(0.21, 0.89, 0.51), v3(-0.21, 0.89, 0.51), 0.014));
+      bar.push(tube(v3(0.21, 0.89, 0.55), v3(-0.21, 0.89, 0.55), 0.014));
       for (const s of [1, -1]) {
-        bar.push(tube(v3(0.2 * s, 0.89, 0.51), v3(0.2 * s, 0.87, 0.6), 0.015));
-        bar.push(tube(v3(0.2 * s, 0.87, 0.6), v3((0.2 + flare) * s, 0.75, 0.58), 0.014));
-        bar.push(tube(v3((0.2 + flare) * s, 0.75, 0.58), v3((0.2 + flare) * s, 0.74, 0.48), 0.014));
-        parts.push(box(0.035, 0.065, 0.075, 0.2 * s, 0.915, 0.62));
+        bar.push(tube(v3(0.2 * s, 0.89, 0.55), v3(0.2 * s, 0.87, 0.64), 0.015));
+        bar.push(tube(v3(0.2 * s, 0.87, 0.64), v3((0.2 + flare) * s, 0.75, 0.62), 0.014));
+        bar.push(tube(v3((0.2 + flare) * s, 0.75, 0.62), v3((0.2 + flare) * s, 0.74, 0.52), 0.014));
+        parts.push(box(0.035, 0.065, 0.075, 0.2 * s, 0.915, 0.66));
       }
     }
     g.add(merged(bar, tapeMat));
     // Compteur sur la potence.
-    if (bike.params.computer !== false) parts.push(box(0.05, 0.016, 0.075, 0, 0.915, fit.bar === 'drop' ? 0.56 : 0.6));
+    if (bike.params.computer !== false) parts.push(box(0.05, 0.016, 0.075, 0, 0.915, 0.6));
     g.add(merged(parts, dark));
     // Bidons : sur le diagonal puis le tube de selle (selon le cadre, ou le choix du garage).
     const maxBottles = kind === 'tt' || bike.params.track || bike.params.bottles === false ? 0 : 2;
@@ -684,9 +683,9 @@ export class LowPolyRider implements RiderAvatarLike {
     const up = this.celebrate;
     // Les bras levés ou la danseuse annulent la position de chrono (on se redresse).
     const fitK = 1 - Math.max(up, stand * 0.6);
-    // Buste à ≈ 45° assis (mesuré sur Pogačar et des études posturales), plus couché en chrono ; en danseuse, le
-    // buste plonge et les épaules passent presque au-dessus des mains, coudes fléchis (GCN).
-    const shoulder = this.shoulder.set(0, 1.445 + fit.shoulderDy * fitK - 0.03 * stand + 0.1 * up, 0.185 + fit.shoulderDz * fitK + 0.2 * stand - 0.17 * up);
+    // Buste penché à ≈ 36° assis (comme les coureurs NCT), plus couché en chrono ; en danseuse, le buste plonge et
+    // les épaules passent presque au-dessus des mains, coudes fléchis (GCN).
+    const shoulder = this.shoulder.set(0, 1.395 + fit.shoulderDy * fitK + 0.02 * stand + 0.15 * up, 0.243 + fit.shoulderDz * fitK + 0.18 * stand - 0.23 * up);
     shoulder.y -= this.coastBlend * 0.03;
     shoulder.x += roll * 0.008;
     const chestBase = hip.clone().add(v3(0, 0.06, 0.02));
@@ -696,7 +695,7 @@ export class LowPolyRider implements RiderAvatarLike {
     const neckTop = shoulder.clone().add(v3(0, 0.08, 0.09));
     // Articulations du corps en tubes : selle → bassin → dos arrondi → épaules → base du cou.
     const J = this.J;
-    J.seat.copy(hip).add(v3(0, -0.07, -0.03));
+    J.seat.copy(hip).add(v3(0, -0.09, -0.035));
     J.hip.copy(hip);
     J.shoulder.copy(shoulder);
     J.mid.lerpVectors(hip, shoulder, 0.5).add(v3(0, 0.03, -0.03));

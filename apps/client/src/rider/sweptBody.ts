@@ -202,13 +202,13 @@ export class SweptBody {
     const T = (i: number, f: number) => (tr[i] as number) + f * ((tr[i + 1] ?? 1) - (tr[i] as number));
     const chest = look.female ? 0.9 : 1;
     const hips = look.female ? 1.05 : 1;
-    // Fessier : posé à plat sur la selle, large et rebondi vers l'arrière (n), qui couvre le haut des cuisses vu
-    // de dos ; il rejoint le bassin à la ceinture.
+    // Fessier en bloc façon NCT : presque aussi large que le buste vu de dos, fond plat qui descend un peu sous
+    // le dessus de la selle, flancs droits ; les cuisses sortent sous ses coins. Il rejoint le bassin à la ceinture.
     const trunkKeys: Key[] = [
-      { t: 0, w: 0.11 * hips, p: 0.07, n: 0.065, bones: [[0, 1]] },
-      { t: T(0, 0.35), w: 0.155 * hips, p: 0.09, n: 0.1, bones: [[0, 1]] },
-      { t: T(0, 0.75), w: 0.16 * hips, p: 0.1, n: 0.1, bones: [[0, 1]] },
-      { t: T(1, 0), w: 0.152 * hips, p: 0.1, n: 0.095, bones: [[0, 1]] },
+      { t: 0, w: 0.158 * hips, p: 0.075, n: 0.085, bones: [[0, 1]] },
+      { t: T(0, 0.35), w: 0.175 * hips, p: 0.095, n: 0.115, bones: [[0, 1]] },
+      { t: T(0, 0.75), w: 0.172 * hips, p: 0.1, n: 0.11, bones: [[0, 1]] },
+      { t: T(1, 0), w: 0.16 * hips, p: 0.1, n: 0.1, bones: [[0, 1]] },
       { t: T(1, 0.5), w: 0.138, p: 0.09, n: 0.09, bones: [[0, 1]] },
       { t: T(2, 0), w: 0.135, p: 0.085, n: 0.085, bones: [[0, 0.5], [1, 0.5]] },
       { t: T(2, 0.45), w: 0.15 * chest, p: 0.095, n: 0.095, bones: [[1, 1]] },
