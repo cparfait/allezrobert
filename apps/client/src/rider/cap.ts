@@ -12,16 +12,16 @@ import type { CapLook } from '@allezrobert/shared';
 /** Réglages de forme (fractions de la boîte du casque ; épaisseur de la visière en mètres). */
 export const CAP_FIT = {
   /** Dôme : rayons relatifs à la demi-largeur et à la demi-profondeur du casque ; hauteur relative à sa demi-largeur (sangles exclues). */
-  rx: 1.05,
-  rz: 1.05,
+  rx: 0.98,
+  rz: 1.0,
   /** Dôme : exposant du profil (< 1 : épaules plus pleines, sommet plus plat). */
-  fullness: 0.7,
-  ry: 1.32,
+  fullness: 0.8,
+  ry: 1.1,
   /** Dôme : relevé (m) pour que les cheveux ne percent pas au sommet. */
-  lift: 0.016,
+  lift: 0.006,
   /** Dôme : angle (degrés depuis le sommet) du bord, devant et derrière (nuque). */
-  frontEdge: 78,
-  backEdge: 102,
+  frontEdge: 88,
+  backEdge: 110,
   /** Visière : longueur (× demi-largeur), inclinaison vers le bas (degrés) et épaisseur (m). */
   billLength: 0.95,
   billTilt: -24,
@@ -34,7 +34,6 @@ const BILL_COLS = 20;
 const BILL_ROWS = 6;
 /** Angle (degrés) qui remplit le rayon du canevas du dôme (projection azimutale équidistante). */
 const DOME_SPAN = 108;
-const UNDERSIDE = '#d7d8dc';
 
 const deg = THREE.MathUtils.degToRad;
 
@@ -178,7 +177,7 @@ export function capGeometry(head: THREE.Box3, toLocal: THREE.Matrix4, headBone: 
 
 const materialCache = new Map<string, THREE.Material[]>();
 
-/** Matériaux (dôme, dessus de visière, dessous) d'une casquette ; partagés par les coureurs qui la portent. */
+/** Matériaux (dôme, dessus et dessous de visière) d'une casquette ; partagés par les coureurs qui la portent. */
 export function capMaterials(cap: CapLook): THREE.Material[] {
   const key = JSON.stringify(cap);
   let mats = materialCache.get(key);
@@ -190,7 +189,8 @@ export function capMaterials(cap: CapLook): THREE.Material[] {
       else m.color.set(color);
       return m;
     };
-    mats = [fabric(domeTexture(cap), cap.color, THREE.DoubleSide), fabric(billTexture(cap), cap.color, THREE.DoubleSide), fabric(null, UNDERSIDE, THREE.DoubleSide)];
+    const bill = billTexture(cap);
+    mats = [fabric(domeTexture(cap), cap.color, THREE.DoubleSide), fabric(bill, cap.color, THREE.DoubleSide), fabric(bill, cap.color, THREE.DoubleSide)];
     materialCache.set(key, mats);
   }
   return mats;
