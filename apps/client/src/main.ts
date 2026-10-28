@@ -1924,6 +1924,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     avatar.root.rotateY(shownHeading);
     avatar.root.rotateX(-Math.atan((sample.grade * ride.dir) / 100));
     avatar.setEffort?.(ride.inputs.watts / Math.max(50, s.ftpWatts), ride.inputs.hr !== undefined ? ride.inputs.hr / 190 : undefined);
+    (avatar as { setSprint?(on: boolean): void }).setSprint?.(ride.segment?.seg.kind === 'sprint' || ride.inputs.watts > 1.4 * s.ftpWatts);
     avatar.update(dt, ride.inputs.cadence, ride.state.speedMs, ride.pose, bank);
     // Voix de course : speaker au départ, mi-parcours et dernier kilomètre (itinéraire), cris du public.
     if (!ride.paused) {

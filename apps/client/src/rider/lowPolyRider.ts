@@ -246,6 +246,9 @@ export class LowPolyRider implements RiderAvatarLike {
   /** Mains en bas du cintre (vitesse de course) et position aéro (descente rapide, très haute vitesse). */
   private dropsBlend = 0;
   private aeroBlend = 0;
+  /** Sprint (danseuse basse, mains en bas du cintre) plutôt que danseuse de montée ; fondu. */
+  private sprintOn = false;
+  private sprintBlend = 0;
   private dropsOn = false;
   private celebrate = 0;
   private celebrating = false;
@@ -705,7 +708,10 @@ export class LowPolyRider implements RiderAvatarLike {
     // vitesse : −60 % de 20 à 45 km/h.
     const pedaling = 1 - this.coastBlend;
     const fast = Math.min(1, Math.max(0, (speed * 3.6 - 20) / 25));
-    const rock = -Math.sin(this.crankAngle) * (0.22 * stand + 0.009 * (1 - stand)) * pedaling * (1 - 0.6 * fast);
+    // Sprint : le vélo est jeté franchement d'un côté à l'autre (≈ ±16°), même à pleine vitesse.
+    this.sprintBlend += ((this.sprintOn ? 1 : 0) - this.sprintBlend) * (1 - Math.exp(-dt * 4));
+    const sprint = this.sprintBlend * stand;
+    const rock = -Math.sin(this.crankAngle) * (0.22 * stand + 0.06 * sprint + 0.009 * (1 - stand)) * pedaling * (1 - 0.6 * fast * (1 - sprint));
     this.lean.rotation.z = tilt + rock;
     /** Décalage latéral des épaules (repère du vélo) qui garde le buste presque d'aplomb malgré la bascule. */
     // Assis : buste fixe sur le vélo (aucune compensation) ; en danseuse, épaules ramenées vers l'aplomb.
@@ -732,16 +738,18 @@ export class LowPolyRider implements RiderAvatarLike {
     this.dropsBlend += ((this.dropsOn ? 1 : 0) - this.dropsBlend) * k2;
     this.aeroBlend += (aeroOn - this.aeroBlend) * k2;
     const aero = this.aeroBlend * (1 - stand) * (1 - this.celebrate);
-    const dropHands = Math.max(this.dropsBlend * (1 - stand), aero) * (1 - this.celebrate);
+    const dropHands = Math.max(this.dropsBlend * (1 - stand), aero, sprint) * (1 - this.celebrate);
     // Danseuse : bassin monté de 16 cm et avancé vers le pédalier ; il reste à l'aplomb pendant que le vélo bascule.
-    const hip = this.hip.set(0, SADDLE.y + 0.07 + 0.16 * stand, SADDLE.z + 0.02 + 0.23 * stand - 0.02 * aero);
+    // Sprint : bassin hors de la selle mais bas, au-dessus du bec de selle.
+    const hip = this.hip.set(0, SADDLE.y + 0.07 + 0.16 * stand - 0.07 * sprint, SADDLE.z + 0.02 + 0.23 * stand - 0.12 * sprint - 0.02 * aero);
     hip.x += stand * upright(hip.y);
     const up = this.celebrate;
     // Les bras levés ou la danseuse annulent la position de chrono (on se redresse).
     const fitK = 1 - Math.max(up, stand * 0.6);
     // Buste penché à ≈ 36° assis (comme les coureurs NCT), plus couché en chrono ; en danseuse, le buste plonge et
     // les épaules passent presque au-dessus des mains, coudes fléchis (GCN).
-    const shoulder = this.shoulder.set(0, 1.395 + fit.shoulderDy * fitK + 0.07 * stand + 0.15 * up, 0.243 + fit.shoulderDz * fitK + 0.17 * stand - 0.23 * up);
+    // Sprint (vidéos Eurosport) : dos presque horizontal (≈ 17°), épaules basses et avancées au-dessus de la potence.
+    const shoulder = this.shoulder.set(0, 1.395 + fit.shoulderDy * fitK + 0.07 * stand - 0.12 * sprint + 0.15 * up, 0.243 + fit.shoulderDz * fitK + 0.17 * stand + 0.08 * sprint - 0.23 * up);
     shoulder.y -= this.coastBlend * 0.03 * (1 - aero) + 0.13 * aero + 0.04 * dropHands * (1 - aero);
     shoulder.z += 0.07 * aero + 0.02 * dropHands * (1 - aero);
     shoulder.x += upright(shoulder.y);
@@ -761,7 +769,7 @@ export class LowPolyRider implements RiderAvatarLike {
     this.collar.set(shoulder.clone().add(v3(0, 0.0, 0.015)), shoulder.clone().add(v3(0, 0.045, 0.035)));
     this.head.position.copy(neckTop).add(v3(0, 0.07, 0.04));
     // Tête relevée pour regarder la route (le dos est penché vers l'avant).
-    this.head.rotation.x = 0.3 + fit.headTilt * fitK - 0.12 * stand - 0.25 * up - 0.22 * aero;
+    this.head.rotation.x = 0.3 + fit.headTilt * fitK - 0.12 * stand - 0.2 * sprint - 0.25 * up - 0.22 * aero;
 
     for (const leg of this.legs) {
       const a = this.crankAngle + (leg.side > 0 ? 0 : Math.PI);
@@ -820,6 +828,11 @@ export class LowPolyRider implements RiderAvatarLike {
 
   setLook(look: AvatarLook): void {
     if (JSON.stringify(look) !== this.lookKey) this.build(look);
+  }
+
+  /** Sprint en cours (segment de sprint ou effort maximal) : danseuse de sprint. */
+  setSprint(on: boolean): void {
+    this.sprintOn = on;
   }
 
   setCelebrating(on: boolean): void {
