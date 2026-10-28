@@ -685,16 +685,17 @@ export class LowPolyRider implements RiderAvatarLike {
     const stand = this.poseBlend;
     // Virages : inclinaison adoucie et plafonnée (≈ 17°) ; l'angle physique, tout entier, couchait le vélo.
     const tilt = Math.max(-MAX_BANK, Math.min(MAX_BANK, bank * BANK_SHARE));
-    // Le vélo bascule au rythme des coups de pédale, du côté opposé à la jambe qui appuie : légèrement assis
-    // (≈ ±1,2°), franchement en danseuse (≈ ±9°, comme les coureurs NCT). Le bassin reste fixe sur le vélo et
+    // Le vélo bascule au rythme des coups de pédale, du côté opposé à la jambe qui appuie : à peine assis
+    // (≈ ±0,5°), franchement en danseuse (≈ ±9°, comme les coureurs NCT). Le bassin reste fixe sur le vélo et
     // bascule avec lui ; seules les épaules compensent (le buste reste presque d'aplomb). Moins à haute
     // vitesse : −60 % de 20 à 45 km/h.
     const pedaling = 1 - this.coastBlend;
     const fast = Math.min(1, Math.max(0, (speed * 3.6 - 20) / 25));
-    const rock = -Math.sin(this.crankAngle) * (0.16 * stand + 0.021 * (1 - stand)) * pedaling * (1 - 0.6 * fast);
+    const rock = -Math.sin(this.crankAngle) * (0.16 * stand + 0.009 * (1 - stand)) * pedaling * (1 - 0.6 * fast);
     this.lean.rotation.z = tilt + rock;
     /** Décalage latéral des épaules (repère du vélo) qui garde le buste presque d'aplomb malgré la bascule. */
-    const upright = (y: number) => (0.75 * stand + (1 - stand)) * rock * y;
+    // Assis : buste fixe sur le vélo (aucune compensation) ; en danseuse, épaules ramenées vers l'aplomb.
+    const upright = (y: number) => 0.75 * stand * rock * y;
     // Roulis des épaules assis : l'épaule du côté de la jambe qui appuie (manivelle vers l'avant, sin < 0 à
     // gauche) descend d'environ 1 cm et le buste glisse un peu vers elle.
     // Les pros restent immobiles du haut à haute cadence : roulis réduit de moitié de 80 à 120 tr/min.
@@ -727,7 +728,7 @@ export class LowPolyRider implements RiderAvatarLike {
     const shoulder = this.shoulder.set(0, 1.395 + fit.shoulderDy * fitK + 0.02 * stand + 0.15 * up, 0.243 + fit.shoulderDz * fitK + 0.18 * stand - 0.23 * up);
     shoulder.y -= this.coastBlend * 0.03 * (1 - aero) + 0.13 * aero + 0.04 * dropHands * (1 - aero);
     shoulder.z += 0.07 * aero + 0.02 * dropHands * (1 - aero);
-    shoulder.x += roll * 0.008 + upright(shoulder.y);
+    shoulder.x += upright(shoulder.y);
     const chestBase = hip.clone().add(v3(0, 0.06, 0.02));
     this.torso.set(chestBase, shoulder);
     for (const b of this.bands) b.seg.set(chestBase.clone().lerp(shoulder, b.from), chestBase.clone().lerp(shoulder, b.to));
@@ -771,7 +772,8 @@ export class LowPolyRider implements RiderAvatarLike {
       leg.shoe.rotation.x = 0.15 + Math.sin(a) * 0.12;
     }
     for (const arm of this.arms) {
-      const sh = shoulder.clone().add(v3(0.17 * arm.side, -0.04 - roll * 0.012 * arm.side, 0));
+      // Seule l'articulation de l'épaule descend un peu du côté de la jambe qui appuie (±6 mm), buste immobile.
+      const sh = shoulder.clone().add(v3(0.17 * arm.side, -0.04 - roll * 0.006 * arm.side, 0));
       // Mains au cintre (cocottes, guidon plat ou prolongateurs) ; bras levés en V pour fêter la victoire.
       // Cocottes, ou crochet du cintre (bas du cintre, aéro).
       const handBar = v3(fit.hand.x * arm.side, fit.hand.y - 0.135 * dropHands, fit.hand.z - 0.035 * dropHands);
