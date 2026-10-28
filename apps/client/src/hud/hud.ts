@@ -1066,14 +1066,39 @@ export class Hud {
     const [x1, y1] = P(t.maxX, t.maxZ);
     const hasFilter = (ctx as unknown as { filter?: string }).filter !== undefined;
     ctx.save();
-    ctx.globalAlpha = 0.8;
-    if (hasFilter) ctx.filter = 'invert(0.9) hue-rotate(180deg) grayscale(0.9) brightness(1.05) contrast(0.85)';
+    // HUD compact : plan IGN en couleurs (forêts, champs, villages), à peine ravivé ; sinon assombri.
+    ctx.globalAlpha = this.compact ? 1 : 0.8;
+    if (hasFilter) ctx.filter = this.compact ? 'saturate(1.3) contrast(1.05) brightness(0.95)' : 'invert(0.9) hue-rotate(180deg) grayscale(0.9) brightness(1.05) contrast(0.85)';
     ctx.drawImage(t.img, x0, y0, x1 - x0, y1 - y0);
     ctx.restore();
-    if (!hasFilter) {
+    if (!hasFilter && !this.compact) {
       ctx.fillStyle = 'rgba(10, 14, 22, 0.55)';
       ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
     }
+  }
+
+  /** Points cardinaux au bord de la mini-carte ronde (nord en haut, en rouge). */
+  private drawCompass(ctx: CanvasRenderingContext2D, w: number, h: number): void {
+    const fr = getLang() === 'fr';
+    const r = Math.min(w, h) / 2 - 24;
+    const cx = w / 2;
+    const cy = h / 2;
+    ctx.save();
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.font = '800 26px Inter, system-ui, sans-serif';
+    for (const [label, a] of [['N', 0], ['E', 90], ['S', 180], [fr ? 'O' : 'W', 270]] as const) {
+      const t = (a * Math.PI) / 180;
+      const x = cx + Math.sin(t) * r;
+      const y = cy - Math.cos(t) * r;
+      ctx.beginPath();
+      ctx.arc(x, y, 17, 0, Math.PI * 2);
+      ctx.fillStyle = label === 'N' ? '#e5322d' : 'rgba(10,14,22,0.78)';
+      ctx.fill();
+      ctx.fillStyle = '#fff';
+      ctx.fillText(label, x, y + 1);
+    }
+    ctx.restore();
   }
 
   /** Communes affichées sur la mini-carte. */
@@ -1136,8 +1161,9 @@ export class Hud {
     const still = this.cached('map', w, h, key, (g) => {
       this.drawBase(g, P);
       g.lineJoin = 'round';
-      g.strokeStyle = 'rgba(0,0,0,0.5)';
-      g.lineWidth = 9 * mk;
+      // Contour sombre plus épais sur le fond en couleurs.
+      g.strokeStyle = this.compact ? 'rgba(10,14,22,0.85)' : 'rgba(0,0,0,0.5)';
+      g.lineWidth = (this.compact ? 11 : 9) * mk;
       const pts = this.track.route.points;
       const path = () => {
         g.beginPath();
@@ -1156,6 +1182,7 @@ export class Hud {
       path();
       g.stroke();
       this.drawPlaceNames(g, w, h, view, P);
+      if (this.compact) this.drawCompass(g, w, h);
     });
     ctx.drawImage(still, 0, 0);
     for (const r of s.riders) {
@@ -1418,5 +1445,6 @@ export class Hud {
       ctx.lineWidth = (r.friend ? 4 : 3) * mk;
       ctx.stroke();
     }
+    if (this.compact) this.drawCompass(ctx, w, h);
   }
 }
