@@ -512,6 +512,7 @@ body:has(.subtitle:not(.hidden)) .ob-robert { animation: ob-mouth 1.1s steps(1, 
 .hud.compact .cx-mini .cx-l { font-size: calc(var(--u) * 8.5); }
 .hud.compact .cx-mini.hr .ico { color: #ff5d6c; }
 .hud.compact .cx-mini.hr b { color: #ff8a94; }
+.hud.compact .cx-cell.hr b { color: #ff8a94; }
 .hud.compact .cx-mini.cad .ico { color: #38bdf8; }
 /* Rapport : petite puce à droite du bloc puissance, 3 s après un changement (toujours avec les détails). */
 .hud.compact .cx-gear { position: absolute; top: 0; left: calc(100% + var(--hud-gap)); min-width: 0; padding: calc(var(--u) * 5) calc(var(--u) * 9) calc(var(--u) * 6); opacity: 0; transform: translateX(calc(var(--u) * -6)); transition: opacity 0.25s ease, transform 0.25s ease; pointer-events: none; }

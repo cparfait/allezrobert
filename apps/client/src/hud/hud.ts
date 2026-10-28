@@ -281,7 +281,7 @@ export function turnArrowSvg(angleDeg: number, right: boolean): string {
 
 /**
  * HUD compact (style low poly) : moitié moins de place que le cockpit complet. En haut à gauche, la
- * puissance et quatre petites tuiles ; en haut au centre, un seul bandeau (vitesse, distance, D+, temps)
+ * puissance et quatre petites tuiles ; en haut au centre, un seul bandeau (vitesse, distance, cardio, temps)
  * sous lequel ne s'empilent que les annonces du moment ; en haut à droite, mini-carte ronde, pente,
  * altitude et vent, coureurs proches ; en bas, un profil fin. Mêmes clés data-k que le cockpit complet
  * pour les valeurs partagées : `update` remplit l'un ou l'autre.
@@ -299,7 +299,7 @@ function compactLayout(track: RouteTrack, attribution: string[]): string {
         <div class="panel cx-strip">
           ${cell('speed', 'speed', t('speed'), '0,0', 'km/h', 'cx-speed')}
           ${cell('dist', 'dist', t('distance'), '0,00', 'km')}
-          ${cell('gain', 'gain', fr ? 'D+' : 'Gain', '0', 'm')}
+          ${cell('hr', 'hr', fr ? 'Cardio' : 'HR', '--', 'bpm', 'hr')}
           ${cell('time', 'time', t('time'), '0:00', '')}
         </div>
         <div class="panel hud-loc hidden" data-k="loc"></div>
@@ -319,7 +319,7 @@ function compactLayout(track: RouteTrack, attribution: string[]): string {
             <div class="cx-grid">
               ${mini('power', 'wkg', 'W/kg', '0,0', '')}
               ${mini('avg', 'avg', fr ? 'Moyenne' : 'Average', '0', 'W')}
-              ${mini('hr', 'hr', `${ICONS.heart}${fr ? 'Cardio' : 'HR'}`, '--', 'bpm', 'hr')}
+              ${mini('gain', 'gain', fr ? 'D+' : 'Gain', '0', 'm')}
               ${mini('cadence', 'cad', `${ICONS.cadence}${fr ? 'Cadence' : 'Cadence'}`, '0', fr ? 'tr/min' : 'rpm', 'cad')}
             </div>
           </div>
