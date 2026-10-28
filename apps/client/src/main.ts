@@ -29,7 +29,7 @@ import { musicSource, noteSpotifyPlaying } from './audio/musicSource.ts';
 import { t, setLang, getLang } from './i18n/index.ts';
 import { loadSettings, saveSettings, type Settings } from './ui/settings.ts';
 import { MainMenu } from './ui/menu.ts';
-import { bootStep, bootDone, bootError } from './ui/splash.ts';
+import { bootStep, bootProgress, bootDone, bootError } from './ui/splash.ts';
 import { PosterScene, POSTER_HOUR, GARAGE_VIEWS, type GarageView } from './ui/poster.ts';
 import { showPause, rideToFit, rideToGpx, download, onlinePanel } from './ui/ridepanels.ts';
 import { showRideSummary } from './ui/summary.ts';
@@ -425,7 +425,7 @@ async function boot(): Promise<void> {
   // Avatars Blender (glTF) : chargés en parallèle, attendus seulement quand la 3D sert.
   const modelsReady = GltfRiderAvatar.load([bikeOfLook(settings.look).family, ...CROWD_FAMILIES]);
   // Voitures : en tâche de fond, attendues au départ d'une sortie (facultatives).
-  if (new URLSearchParams(location.search).get('traffic') !== '0') void loadVehicleModels();
+  const vehiclesReady = new URLSearchParams(location.search).get('traffic') !== '0' ? loadVehicleModels().catch(() => undefined) : Promise.resolve();
   // Léger : moteur, liste des mondes et des parcours. Le paysage (tuiles, shaders) se charge après le menu.
   const scene = await loadScene(settings);
   // Film d'accueil (développement) : rendu image par image, sans menu (voir tools/menu-loop).
@@ -473,14 +473,16 @@ async function boot(): Promise<void> {
   };
   /**
    * Paysage autour du départ de l'itinéraire choisi (tuiles, végétation, bâtiments) et ses shaders.
-   * Rien n'est préparé au lancement (l'accueil est une vidéo) : seulement au clic sur « Rouler »
-   * (ou « Explorer la carte »), une fois la zone choisie.
+   * Préparé sous l'écran de chargement pour l'itinéraire courant (l'accueil est une vidéo) ; refait au clic
+   * sur « Rouler » si la zone a changé.
    */
   let worldReady: Promise<void> | null = null;
   /** Écran d'attente qui suit la préparation du paysage en cours (barre de progression). */
   let worldWait: HTMLElement | null = null;
   /** Vrai seulement quand la préparation est terminée : `worldReady` est une promesse déjà « vraie » pendant qu'elle court. */
   let worldDone = false;
+  /** Progression (0–0,85) de la préparation du paysage quand elle se fait sous l'écran de chargement. */
+  let bootWorld: ((p: number) => void) | null = null;
   const prepareWorld = (): Promise<void> =>
     (worldReady ??= (async () => {
       await modelsReady;
@@ -488,9 +490,15 @@ async function boot(): Promise<void> {
       if (scene.world.env.state.season !== settings.season) scene.world.setSeason(settings.season);
       const start = scene.track.positionAt(0, 1.2);
       // Barre : tuiles jusqu'à 55 %, shaders jusqu'à 85 % (le reste : objets de la sortie, dans startRide).
-      await scene.world.preload(new THREE.Vector3(start.x, start.y, start.z), (d, t) => worldWait && tileStage(worldWait, 0, 0.55)(d, t));
+      await scene.world.preload(new THREE.Vector3(start.x, start.y, start.z), (d, t) => {
+        worldWait && tileStage(worldWait, 0, 0.55)(d, t);
+        bootWorld?.(0.55 * (t ? d / t : 1));
+      });
       performance.mark('ar:tuiles prêtes');
-      await scene.engine.compileScene((d, t) => worldWait && tileStage(worldWait, 0.55, 0.85)(d, t));
+      await scene.engine.compileScene((d, t) => {
+        worldWait && tileStage(worldWait, 0.55, 0.85)(d, t);
+        bootWorld?.(0.55 + 0.3 * (t ? d / t : 1));
+      });
       performance.mark('ar:paysage compilé');
       worldDone = true;
     })());
@@ -698,7 +706,7 @@ async function boot(): Promise<void> {
     if (scene.world.env.state.season !== s.season) scene.world.setSeason(s.season);
     if (menuVideo.playing()) menuVideo.show(s.season);
     if (garage) return showGarage(menu.currentLook());
-    if (!worldReady) return;
+    if (!worldReady || menuVideo.playing()) return;
     poster.build({ ...s.look, heightCm: s.heightCm });
     poster.setPlayerLook({ ...s.look, heightCm: s.heightCm }, menu.bareHeadPreview);
     poster.place(poster.d);
@@ -715,7 +723,7 @@ async function boot(): Promise<void> {
   // Garage : aperçu d'un équipement (même verrouillé) sur le coureur, puis retour à la tenue équipée.
   menu.onPreviewLook = (look) => {
     if (inMenu && garage) return showGarage(look ?? settings.look, menu.bareHeadPreview);
-    if (!inMenu || !worldReady) return;
+    if (!inMenu || !worldReady || menuVideo.playing()) return;
     poster.build({ ...(look ?? settings.look), heightCm: settings.heightCm });
     poster.place(poster.d);
     renderPoster();
@@ -753,7 +761,10 @@ async function boot(): Promise<void> {
       const t1 = performance.now();
       // Garage demandé avant la fin : son écran d'attente suit la compilation.
       await atelier.prepare({ ...settings.look, heightCm: settings.heightCm }, (done, total) => {
-        if (total > 0) menu.setGarageProgress(done / total);
+        if (total > 0) {
+          menu.setGarageProgress(done / total);
+          bootProgress(60 + 20 * (done / total));
+        }
         if (atelierWait && total > 0) setWaitProgress(atelierWait, done / total);
       });
       atelierBuilt = true;
@@ -857,14 +868,26 @@ async function boot(): Promise<void> {
     // Fin du tutoriel : directement le menu (onglet Rouler), sans repasser par la page d'accueil et son bouton.
     new Onboarding(ui, settings, devices.panel, () => menu.show('ride'), preview).start();
   };
+  // Tout ce qui se télécharge ou se compile pour l'accueil et le garage se fait ici, sous l'écran de chargement :
+  // une fois le menu (et sa vidéo) affiché, « Rouler » est utilisable tout de suite.
+  if (!autostart) {
+    bootStep(50, 'Chargement des avatars');
+    await modelsReady.catch(() => undefined);
+    bootStep(60, 'Préparation du garage');
+    await prepareAtelier();
+    // Paysage du départ choisi, véhicules : prêts avant l'accueil, « Rouler » démarre sans attente.
+    bootStep(80, 'Préparation du paysage');
+    bootWorld = (p) => bootProgress(80 + 19 * (p / 0.85));
+    await Promise.all([prepareWorld().catch(() => undefined), vehiclesReady]);
+    bootWorld = null;
+  }
   bootDone();
   if (autostart) {
     await withWorld(getLang() === 'fr' ? 'Préparation de la sortie…' : 'Preparing the ride…');
     void startRide(scene, settings, devices.source(), {});
   } else {
-    // Au lancement, seulement l'atelier (garage et étape Avatar du tutoriel rapides) ; aucune zone :
-    // l'accueil est une vidéo, le paysage se prépare au clic sur « Rouler ».
-    setTimeout(() => void prepareAtelier(), 400);
+    // L'atelier est déjà préparé (écran de chargement) ; aucune zone : l'accueil est une vidéo,
+    // le paysage se prépare au clic sur « Rouler ».
     // Compte : session existante, sinon écran de connexion (sauf choix « sans compte »).
     let me: Me | null = await fetchMe();
     if (me) applyProfile(me, settings);

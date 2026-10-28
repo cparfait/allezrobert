@@ -20,6 +20,14 @@ export function bootStep(pct: number, label: string): void {
   if (p) p.textContent = `${Math.round(pct)} %`;
 }
 
+/** Avance la barre sans changer l'étape affichée (progression fine à l'intérieur d'une étape). */
+export function bootProgress(pct: number): void {
+  const bar = el('splash-bar');
+  if (bar) bar.style.width = `${Math.max(4, Math.min(100, pct))}%`;
+  const p = el('splash-pct');
+  if (p) p.textContent = `${Math.round(pct)} %`;
+}
+
 /** Fondu de sortie une fois le premier écran prêt. */
 export function bootDone(): void {
   const s = el('splash');
