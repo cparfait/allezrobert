@@ -191,8 +191,8 @@ describe('public', () => {
   ];
   it('plein au sommet, entendu en approche, éteint après', () => {
     expect(crowdLevel(1800, segs, 8000, true)).toBe(1);
-    expect(crowdLevel(1550, segs, 8000, true)).toBeGreaterThan(0);
-    expect(crowdLevel(1550, segs, 8000, true)).toBeLessThan(crowdLevel(1620, segs, 8000, true));
+    expect(crowdLevel(1600, segs, 8000, true)).toBeGreaterThan(0);
+    expect(crowdLevel(1600, segs, 8000, true)).toBeLessThan(crowdLevel(1630, segs, 8000, true));
     expect(crowdLevel(1200, segs, 8000, true)).toBe(0);
     expect(crowdLevel(2050, segs, 8000, true)).toBeGreaterThan(0);
     expect(crowdLevel(2200, segs, 8000, true)).toBe(0);

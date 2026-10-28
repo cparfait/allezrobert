@@ -634,9 +634,10 @@ export class GameAudio {
       // les côtes ; la rumeur synthétisée se tait.
       const l = this.paused ? 0 : Math.min(1, Math.max(0, s.crowd));
       const excite = Math.min(1, Math.max(0, (s.watts / Math.max(s.ftp, 1) - 0.75) / 0.5));
-      this.set(rec.gains[0]!.gain, 0.9 * l, 0.6);
-      this.set(rec.gains[1]!.gain, 0.75 * l * (0.25 + 0.75 * excite) * this.swell, 0.6);
-      this.set(rec.gains[2]!.gain, (s.mountain ? 0.7 : 0.25) * l * l * (0.3 + 0.7 * excite), 0.8);
+      // Niveaux à la mesure d'un public de bord de route (quelques dizaines de personnes, pas un stade).
+      this.set(rec.gains[0]!.gain, 0.42 * l, 0.6);
+      this.set(rec.gains[1]!.gain, 0.32 * l * (0.2 + 0.8 * excite) * this.swell, 0.6);
+      this.set(rec.gains[2]!.gain, (s.mountain ? 0.3 : 0.1) * l * l * (0.3 + 0.7 * excite), 0.8);
       this.set(this.L.crowdLow.gain.gain, 0, 0.5);
       this.set(this.L.crowdHigh.gain.gain, 0, 0.5);
     } else {

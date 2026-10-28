@@ -245,8 +245,8 @@ export function crowdZone(seg: RouteSegment): { from: number; to: number; weight
 }
 
 /**
- * Présence du public (0–1) à la distance `d` de l'itinéraire : pleine dans la zone, entendue de
- * loin en approche (250 m), vite éteinte après le sommet (120 m). Boucle : distances repliées.
+ * Présence du public (0–1) à la distance `d` de l'itinéraire : pleine dans la zone, entendue à
+ * l'approche (80 m, quand on le voit), vite éteinte après (60 m). Boucle : distances repliées.
  */
 export function crowdLevel(d: number, segments: readonly RouteSegment[], lengthM: number, loop: boolean): number {
   let best = 0;
@@ -264,8 +264,8 @@ export function crowdLevel(d: number, segments: readonly RouteSegment[], lengthM
     for (const s of shifts) {
       const x = d + s;
       let lvl: number;
-      if (x < z.from) lvl = (1 - Math.min(1, (z.from - x) / 250)) ** 2;
-      else if (x > z.to) lvl = (1 - Math.min(1, (x - z.to) / 120)) ** 2;
+      if (x < z.from) lvl = (1 - Math.min(1, (z.from - x) / 80)) ** 2;
+      else if (x > z.to) lvl = (1 - Math.min(1, (x - z.to) / 60)) ** 2;
       else lvl = 1;
       best = Math.max(best, lvl * z.weight);
     }
