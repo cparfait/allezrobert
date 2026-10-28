@@ -130,6 +130,10 @@
 		root * /srv/client
 		@assets path /assets/*
 		header @assets Cache-Control "public, max-age=31536000, immutable"
+		# Graphes routiers des zones : l'application Windows (autre origine) ne les embarque pas, elle les
+		# télécharge ici avec le pack de la zone.
+		@graphs path /worlds/*/graph.json
+		header @graphs Access-Control-Allow-Origin "*"
 		try_files {path}
 		file_server
 	}

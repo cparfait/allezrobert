@@ -1,6 +1,6 @@
 import { deltaDecodeU16, type RoadGraphData, type RouteData, type WorldMeta, type WorldPlace, type WorldTile } from '@allezrobert/shared';
 import type { HorizonGrid, LoadedTile, TileFeatures, WorldSource } from './types.ts';
-import { worldFetch } from './packs.ts';
+import { graphFetch, worldFetch } from './packs.ts';
 import { frameStats } from '../engine/frameStats.ts';
 
 /**
@@ -21,7 +21,7 @@ export async function createFileWorld(id: string, meta: WorldMeta): Promise<Worl
   // habités pour la carte d'itinéraire du menu (facultatifs).
   let open: WorldSource['open'];
   if (meta.open) {
-    const [res, pl] = await Promise.all([fetch(`${base}/${meta.open.graph}`), meta.open.places ? fetch(`${base}/${meta.open.places}`).catch(() => null) : null]);
+    const [res, pl] = await Promise.all([graphFetch(`${base}/${meta.open.graph}`), meta.open.places ? fetch(`${base}/${meta.open.places}`).catch(() => null) : null]);
     const places = pl?.ok ? ((await pl.json().catch(() => null)) as WorldPlace[] | null) : null;
     if (res.ok) {
       // arêtes au bord du monde : seulement pour raccorder les zones voisines (pas de cul-de-sac au bord)

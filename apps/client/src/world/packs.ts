@@ -117,6 +117,7 @@ export async function installPack(id: string, onProgress: (done: number, total: 
   };
   try {
     await Promise.all(Array.from({ length: 6 }, worker));
+    await fetchGraphInto(cache, id, signal);
   } catch (err) {
     await caches.delete(tmpName);
     throw err;
@@ -144,6 +145,23 @@ export function keepStorage(): void {
   if (storage?.persist) void storage.persisted().then((p) => (p ? true : storage.persist())).catch(() => undefined);
 }
 
+/**
+ * Graphe routier de la zone dans le pack : l'installateur Windows ne l'embarque pas (≈ 330 Mo pour toutes les
+ * zones), il vient avec la zone et reste utilisable hors ligne. Absent du serveur : sans conséquence (le jeu le
+ * redemandera, le mode monde ouvert n'existe que s'il est là).
+ */
+async function fetchGraphInto(cache: Cache, id: string, signal?: AbortSignal): Promise<void> {
+  const path = `/worlds/${id}/graph.json`;
+  const r = await fetch(`${TILES_BASE}${path}`, signal ? { signal } : {}).catch((err) => {
+    if (signal?.aborted) throw err;
+    return null;
+  });
+  if (!r?.ok || !(r.headers.get('content-type') ?? '').includes('json')) return;
+  const type = r.headers.get('content-type') ?? 'application/json';
+  if (r.body && canGzip()) await cache.put(path, new Response(r.body.pipeThrough(new CompressionStream('gzip')), { headers: { 'content-type': type, [GZ_HEADER]: '1' } }));
+  else await cache.put(path, r);
+}
+
 /** Zones téléchargées sur cet appareil, avec la taille de leur pack (octets non compressés annoncés par le manifeste). */
 export function installedPacks(): Array<{ id: string; bytes: number }> {
   return Object.entries(installed()).map(([id, v]) => ({ id, bytes: v.bytes }));
@@ -160,16 +178,39 @@ export async function removePack(id: string): Promise<void> {
  * (tuiles sur TILES_BASE, le reste sur l'origine du jeu).
  */
 export async function worldFetch(path: string): Promise<Response> {
-  const m = /^\/worlds\/([^/]+)\//.exec(path);
-  if (m && hasCaches() && installed()[m[1] as string]) {
-    const hit = await (await caches.open(cacheName(m[1] as string))).match(path);
-    if (hit?.headers.get(GZ_HEADER) && hit.body) {
-      const type = hit.headers.get('content-type') ?? 'application/octet-stream';
-      return new Response(hit.body.pipeThrough(new DecompressionStream('gzip')), { headers: { 'content-type': type } });
-    }
-    if (hit) return hit;
-  }
+  const hit = await packFile(path);
+  if (hit) return hit;
   return fetch(path.includes('/tiles/') ? `${TILES_BASE}${path}` : path);
+}
+
+/** Fichier du pack installé de la zone (décompressé), ou null. */
+async function packFile(path: string): Promise<Response | null> {
+  const m = /^\/worlds\/([^/]+)\//.exec(path);
+  if (!m || !hasCaches() || !installed()[m[1] as string]) return null;
+  const hit = await (await caches.open(cacheName(m[1] as string))).match(path);
+  if (hit?.headers.get(GZ_HEADER) && hit.body) {
+    const type = hit.headers.get('content-type') ?? 'application/octet-stream';
+    return new Response(hit.body.pipeThrough(new DecompressionStream('gzip')), { headers: { 'content-type': type } });
+  }
+  return hit ?? null;
+}
+
+/**
+ * Graphe routier d'une zone (`/worlds/<id>/graph.json`, de 1 à 33 Mo) : pack installé, puis les fichiers de
+ * l'application ou du site, puis, dans l'application Windows qui ne l'embarque pas, le serveur des mondes.
+ * Une réponse qui n'est pas du JSON (page d'accueil servie à la place d'un fichier absent) compte pour absente.
+ */
+export async function graphFetch(path: string): Promise<Response> {
+  const pack = await packFile(path);
+  if (pack) return pack;
+  const isJson = (r: Response) => r.ok && (r.headers.get('content-type') ?? '').includes('json');
+  const local = await fetch(path).catch(() => null);
+  if (local && isJson(local)) return local;
+  if (TILES_BASE) {
+    const remote = await fetch(`${TILES_BASE}${path}`).catch(() => null);
+    if (remote && isJson(remote)) return remote;
+  }
+  return local ?? new Response(null, { status: 404 });
 }
 
 /** Taille lisible (« 11 Mo », « 1,2 Go »). */

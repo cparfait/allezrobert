@@ -11,6 +11,11 @@ function dist(): string {
   dir = mkdtempSync(join(tmpdir(), 'ar-dist-'));
   mkdirSync(join(dir, '__pose'));
   writeFileSync(join(dir, '__pose', 'photo-1.jpg'), 'x');
+  for (const z of ['chevreuse', 'limagne']) {
+    mkdirSync(join(dir, 'worlds', z), { recursive: true });
+    for (const f of ['graph.json', 'world.json', 'places.json']) writeFileSync(join(dir, 'worlds', z, f), 'x');
+  }
+  writeFileSync(join(dir, 'worlds', 'index.json'), 'x');
   mkdirSync(join(dir, 'menu'));
   for (const f of ['loop-summer.webm', 'loop-summer.mp4', 'loop-summer.av1.mp4', 'still-summer.jpg']) writeFileSync(join(dir, 'menu', f), 'x');
   return dir;
@@ -21,6 +26,7 @@ describe('pruneDist', () => {
     const d = dist();
     const removed = pruneDist(d, false);
     expect(removed).toEqual([join(d, '__pose')]);
+    expect(readdirSync(join(d, 'worlds', 'chevreuse')).sort()).toEqual(['graph.json', 'places.json', 'world.json']);
     expect(readdirSync(join(d, 'menu')).sort()).toEqual(['loop-summer.av1.mp4', 'loop-summer.mp4', 'loop-summer.webm', 'still-summer.jpg']);
   });
 
@@ -28,7 +34,10 @@ describe('pruneDist', () => {
     const d = dist();
     pruneDist(d, true);
     expect(readdirSync(join(d, 'menu')).sort()).toEqual(['loop-summer.av1.mp4', 'loop-summer.mp4', 'still-summer.jpg']);
-    expect(readdirSync(d)).toEqual(['menu']);
+    expect(readdirSync(d).sort()).toEqual(['menu', 'worlds']);
+    // graphes retirés, le reste des zones et le catalogue restent
+    expect(readdirSync(join(d, 'worlds', 'chevreuse')).sort()).toEqual(['places.json', 'world.json']);
+    expect(readdirSync(join(d, 'worlds')).sort()).toEqual(['chevreuse', 'index.json', 'limagne']);
   });
 
   it('sans dossiers à retirer, ne fait rien', () => {

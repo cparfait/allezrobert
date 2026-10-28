@@ -6,6 +6,8 @@ import { resolve } from 'node:path';
  * - `__pose/` : photos de référence et modèle de pose du banc de mesure (non versionnés, ≈ 30 Mo), partout ;
  * - pour l'installateur Windows (`desktop`), les boucles vidéo VP9 `.webm` (≈ 125 Mo) : H.264 (`.mp4`) joue dans
  *   WebView2, et le menu retombe sur l'AV1 (`.av1.mp4`, décodé par logiciel) si H.264 manque (Windows « N »).
+ * - toujours pour l'installateur : les graphes routiers `worlds/<zone>/graph.json` (≈ 330 Mo pour 45 zones), que le jeu télécharge
+ *   avec le pack de chaque zone (world/packs.ts, graphFetch).
  * Renvoie les chemins retirés.
  */
 export function pruneDist(dist: string, desktop: boolean): string[] {
@@ -17,6 +19,8 @@ export function pruneDist(dist: string, desktop: boolean): string[] {
   };
   drop(resolve(dist, '__pose'));
   const menu = resolve(dist, 'menu');
+  const worlds = resolve(dist, 'worlds');
+  if (desktop && existsSync(worlds)) for (const w of readdirSync(worlds, { withFileTypes: true })) if (w.isDirectory()) drop(resolve(worlds, w.name, 'graph.json'));
   if (desktop && existsSync(menu)) for (const f of readdirSync(menu)) if (/^loop-.*\.webm$/.test(f)) drop(resolve(menu, f));
   return removed;
 }
