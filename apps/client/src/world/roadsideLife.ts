@@ -1002,7 +1002,7 @@ export class RoadsideLife {
           if (pts.length) break;
           continue;
         }
-        track.positionAt(d, side * (halfAt(d) + (kind === 'walker' ? 1.3 : 0.9)), s);
+        track.positionAt(d, side * (halfAt(d) + (kind === 'walker' ? 2.1 : 1.8)), s);
         const y = ground(s.x, s.z);
         if (!Number.isFinite(y)) break;
         pts.push(s.x, y, s.z);

@@ -634,10 +634,10 @@ export class TerrainManager {
     col = mix(col, meadow, sharp(s1.b));
     col = col.mul(patch);
     col = mix(col, vec3(0.2, 0.42, 0.62), sharp(s0.a));
-    // Chaussées OSM : masque strict (le sol est abaissé sous les routes, clampUnderRoads) ; un masque large
-    // grisait de grandes surfaces dans les bois quadrillés d'allées (Longchamp).
+    // Chaussées OSM : le sol n'en prend plus la couleur (les rubans et le réseau dessinent les routes) ; peint
+    // au pas du raster (≈ 4 m), il débordait en bande grise qui plongeait sous le bord de la route. Le masque
+    // sert encore à ôter roche et neige sous les routes.
     const roadMask = smoothstep(0.45, 0.6, s1.g);
-    col = mix(col, vec3(0.2, 0.205, 0.22), roadMask);
     const slope = float(1).sub(normalWorld.y);
     col = mix(col, c.dirt.node, smoothstep(0.42, 0.5, slope).mul(0.7));
     // Montagne : roche et neige en aplats.
@@ -680,9 +680,10 @@ function clampUnderRoads(pos: Float32Array, tile: LoadedTile, seg: number, reach
     const R = Math.max(r.width, 2.5) / 2 + 0.6 + reach;
     // Remblai : sous la chaussée (au moins le sommet de grille le plus proche), un sol trop bas est remonté
     // jusqu'à la route. Grille grossière au loin (8 m) : une route sur une digue ou à flanc de pente tombait
-    // entre deux sommets et semblait s'envoler. Ni ponts, ni plus de 8 m (viaducs).
+    // entre deux sommets et semblait s'envoler. Seulement les sommets sous la chaussée, écart de 3 m au plus
+    // (au-delà, un remblai visible) ; ni ponts.
     // Seulement sur les tuiles grossières (≥ 4 m, au loin) et hors de l'itinéraire (son ruban a son propre profil).
-    const lift = r.bridge || r.route || step < 4 ? 0 : Math.max(Math.max(r.width, 2.5) / 2 + 0.6, step * 1.2);
+    const lift = r.bridge || r.route || step < 4 ? 0 : Math.max(Math.max(r.width, 2.5) / 2 + 0.6, step * 0.6);
     for (let k = 0; k + 5 < p.length; k += 3) {
       const ax = p[k] as number, ay = p[k + 1] as number, az = p[k + 2] as number;
       const bx = p[k + 3] as number, by = p[k + 4] as number, bz = p[k + 5] as number;
@@ -703,7 +704,7 @@ function clampUnderRoads(pos: Float32Array, tile: LoadedTile, seg: number, reach
           const y = ay + (by - ay) * t;
           const kk = (j * row + i) * 3 + 1;
           const h = pos[kk] as number;
-          if (lift && ex * ex + ez * ez <= lift * lift && h < y - ROAD_TERRAIN_BELOW && y - h < 8) {
+          if (lift && ex * ex + ez * ez <= lift * lift && h < y - ROAD_TERRAIN_BELOW && y - h < 3) {
             pos[kk] = y - ROAD_TERRAIN_BELOW;
             continue;
           }
