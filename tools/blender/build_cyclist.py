@@ -45,6 +45,8 @@ ap.add_argument('--no-preview', action='store_true')
 ap.add_argument('--blend', default='')
 ap.add_argument('--views', default='')  # (obsolète, conservé pour compatibilité)
 ap.add_argument('--only', default='', choices=['', 'rider', 'bikes'])
+# --families madone,aero : seulement ces familles (sans les bibliothèques de roues et de pièces, ni bike_stats.json complet).
+ap.add_argument('--families', default='')
 args = ap.parse_args(argv)
 OUT = os.path.abspath(args.out)
 os.makedirs(OUT, exist_ok=True)
@@ -443,6 +445,13 @@ MAT_DEFS = {
     'bar_tape': ('#ffd23f', 0.75, 0.0),
     'computer_screen': ('#1b2a30', 0.15, 0.0),
     'bottle': ('#ffd23f', 0.5, 0.0),
+    # Bidons d'équipe (Madone Lidl-Trek) : bande, filets et bouchon, haut du bidon.
+    'bottle_band': ('#ffe100', 0.5, 0.0),
+    'bottle_trim': ('#d71f26', 0.5, 0.0),
+    'bottle_white': ('#f2f2ee', 0.5, 0.0),
+    # Pédalier SRAM Red du Madone : dents argentées, anneau rouge.
+    'ring_teeth': ('#b9bcc2', 0.3, 1.0),
+    'crank_accent': ('#c8102e', 0.4, 0.2),
     # Catalogue de vélos : matériaux teintables séparément par le client.
     'tire_wall': ('#1a1a1c', 0.8, 0.0),
     'spokes': ('#151618', 0.4, 0.3),
@@ -1887,6 +1896,7 @@ def add_m(mb, verts, faces, mats):
 # ---------------------------------------------------------------------------------------------
 _HERE = os.path.dirname(os.path.abspath(__file__)) if '__file__' in globals() else os.path.dirname(os.path.abspath(sys.argv[sys.argv.index('--python') + 1]))
 exec(compile(open(os.path.join(_HERE, 'bike_families.py'), encoding='utf-8').read(), os.path.join(_HERE, 'bike_families.py'), 'exec'), globals())
+exec(compile(open(os.path.join(_HERE, 'bike_madone.py'), encoding='utf-8').read(), os.path.join(_HERE, 'bike_madone.py'), 'exec'), globals())
 REPO = os.path.abspath(os.path.join(_HERE, '..', '..'))
 
 
@@ -2171,8 +2181,9 @@ def main():
     with open(os.path.join(REPO, 'packages', 'shared', 'src', 'bikes.json'), encoding='utf-8') as f:
         catalog = json.load(f)['bikes']
 
+    only_fams = [f for f in args.families.split(',') if f]
     # --- Bibliothèque de roues
-    for lod in (0, 1):
+    for lod in ((0, 1) if not only_fams else ()):
         ws = []
         st = {}
         for typ in WHEEL_TYPES:
@@ -2188,7 +2199,7 @@ def main():
             remove_obj(w)
 
     # --- Bibliothèque de pièces
-    for lod in (0, 1):
+    for lod in ((0, 1) if not only_fams else ()):
         ps = build_parts_lib(lod)
         stats['parts' if lod == 0 else 'parts_lod1'] = {o.name: tri_count(o) for o in ps}
         export_glb(ps, os.path.join(bout, 'parts.glb' if lod == 0 else 'parts_lod1.glb'))
@@ -2200,7 +2211,7 @@ def main():
     fam_shots = []
     liv_shots = {}
     rider_done = False
-    for fam in FAMILIES:
+    for fam in (only_fams or FAMILIES):
         objs, info, g = build_family(fam, 0)
         anchors[fam] = info
         stats[fam] = tris_of(objs)
@@ -2265,7 +2276,7 @@ def main():
     stats['anchors'] = anchors
     os.makedirs(os.path.join(REPO, 'out'), exist_ok=True)
     stats['bones'] = r.bone_names
-    with open(os.path.join(REPO, 'out', 'bike_stats.json'), 'w', encoding='utf-8') as f:
+    with open(os.path.join(REPO, 'out', 'bike_stats.json' if not only_fams else 'bike_stats_' + '_'.join(only_fams) + '.json'), 'w', encoding='utf-8') as f:
         json.dump(stats, f, indent=1)
     print('STATS ' + json.dumps(stats))
 

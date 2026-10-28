@@ -1,5 +1,5 @@
 import * as THREE from 'three/webgpu';
-import { abs, atan, float, fract, length, mix, positionGeometry, sign, sin, step, texture, time, uniform, vec2, vec3 } from 'three/tsl';
+import { abs, atan, float, fract, length, mix, normalGeometry, positionGeometry, sign, sin, step, texture, time, uniform, vec2, vec3 } from 'three/tsl';
 
 /**
  * Inscriptions des jantes : le nom de la marque (`params.rimBrand`) écrit dans la bande décor des
@@ -17,6 +17,8 @@ const RIM_WORDMARKS: Record<string, string> = {
   'swiss-side': 'SWISS SIDE',
   shimano: 'DURA-ACE',
   campagnolo: 'CAMPAGNOLO',
+  // Deux inscriptions qui alternent sur chaque flanc (« A|B ») : la marque en grand, le modèle en plus petit.
+  'bontrager-aeolus-rsl': 'BONTRAGER|AEOLUS RSL 60',
 };
 
 export function rimWordmark(brand: string): string {
@@ -26,7 +28,7 @@ export function rimWordmark(brand: string): string {
 const textures = new Map<string, { tex: THREE.CanvasTexture; aspect: number }>();
 
 /** Texte blanc sur fond transparent (alpha = lettres), et son rapport largeur / hauteur. */
-function wordTexture(text: string): { tex: THREE.CanvasTexture; aspect: number } {
+export function wordTexture(text: string): { tex: THREE.CanvasTexture; aspect: number } {
   const hit = textures.get(text);
   if (hit) return hit;
   const H = 96;
@@ -49,6 +51,55 @@ function wordTexture(text: string): { tex: THREE.CanvasTexture; aspect: number }
   const out = { tex, aspect: cv.width / cv.height };
   textures.set(text, out);
   return out;
+}
+
+/**
+ * Alpha des lettres d'un libellé écrit deux fois par flanc d'une roue, dans l'anneau r0–r1 autour de l'axe du moyeu (X),
+ * lettres tournées vers l'extérieur, lisibles des deux côtés ; « A|B » : A et B alternent (B à 70 % de la hauteur).
+ * `fill` : hauteur des lettres en part de l'anneau.
+ */
+export function polarLetters(label: string, r0: number, r1: number, fill = 0.8): THREE.Node<'float'> {
+  const [first = '', second] = label.split('|');
+  const p = positionGeometry;
+  const r = length(vec2(p.y, p.z));
+  const mid = (r0 + r1) / 2;
+  // Deux inscriptions par flanc, centrées à 0 et π ; abscisse le long de la circonférence (m).
+  const reps = 2;
+  const L = (2 * Math.PI * mid) / reps;
+  const turn = atan(p.z, p.y).mul(reps / (2 * Math.PI)).add(0.5);
+  const s = fract(turn).sub(0.5).mul(L);
+  // Sens de lecture rétabli sur le flanc gauche (miroir).
+  const textH = (r1 - r0) * fill;
+  const letters = (t: THREE.Texture, asp: number, k: number) => {
+    const tw = Math.min(textH * k * asp, L * 0.8);
+    const u = s.mul(sign(p.x).negate()).div(tw).add(0.5);
+    const v = r.sub(mid).div(textH * k).add(0.5);
+    const inside = step(abs(u.sub(0.5)), float(0.5)).mul(step(abs(v.sub(0.5)), float(0.5)));
+    return texture(t, vec2(u, v)).a.mul(inside);
+  };
+  const w1 = wordTexture(first);
+  let a = letters(w1.tex, w1.aspect, 1);
+  if (second) {
+    const w2 = wordTexture(second);
+    const odd = step(float(0.5), fract(turn.mul(0.5)));
+    a = mix(a, letters(w2.tex, w2.aspect, 0.7), odd);
+  }
+  return a as unknown as THREE.Node<'float'>;
+}
+
+/**
+ * Alpha d'un mot écrit sur la face extérieure des deux manivelles (repère du pédalier : manivelle gauche vers −y,
+ * droite vers +y, faces extérieures en ±x), du boîtier vers la pédale, centré à `at` m de l'axe, haut `h` m.
+ */
+export function crankLetters(text: string, at = 0.1, h = 0.0125): THREE.Node<'float'> {
+  const { tex, aspect } = wordTexture(text);
+  const p = positionGeometry;
+  const L = h * aspect;
+  const u = abs(p.y).sub(at - L / 2).div(L);
+  const v = float(0.5).sub(p.z.div(h));
+  const inside = step(abs(u.sub(0.5)), float(0.5)).mul(step(abs(v.sub(0.5)), float(0.5)));
+  const outer = step(float(0.062), abs(p.x)).mul(step(float(0.5), normalGeometry.x.mul(sign(p.x))));
+  return texture(tex, vec2(u, v)).a.mul(inside).mul(outer) as unknown as THREE.Node<'float'>;
 }
 
 export interface RimBand {
@@ -101,26 +152,12 @@ export class RimDecalMaterial {
   private readonly flash = uniform(0);
 
   constructor(band: RimBand, brand: string) {
-    const { tex, aspect } = wordTexture(rimWordmark(brand));
     const [bc, rough, metal] = BASES[band.base];
     (this.baseColor.value as THREE.Color).set(bc);
     const m = new THREE.MeshStandardNodeMaterial({ roughness: rough, metalness: metal });
     m.name = 'rim_decal';
+    const a = polarLetters(rimWordmark(brand), band.r0, band.r1);
     const p = positionGeometry;
-    const r = length(vec2(p.y, p.z));
-    const mid = (band.r0 + band.r1) / 2;
-    const h = band.r1 - band.r0;
-    // Deux inscriptions par flanc, centrées à 0 et π ; abscisse le long de la circonférence (m).
-    const reps = 2;
-    const L = (2 * Math.PI * mid) / reps;
-    const s = fract(atan(p.z, p.y).mul(reps / (2 * Math.PI)).add(0.5)).sub(0.5).mul(L);
-    // Lettres : 80 % de la hauteur de bande, sens de lecture rétabli sur le flanc gauche (miroir).
-    const textH = h * 0.8;
-    const textW = Math.min(textH * aspect, L * 0.8);
-    const u = s.mul(sign(p.x).negate()).div(textW).add(0.5);
-    const v = r.sub(mid).div(textH).add(0.5);
-    const inside = step(abs(u.sub(0.5)), float(0.5)).mul(step(abs(v.sub(0.5)), float(0.5)));
-    const a = texture(tex, vec2(u, v)).a.mul(inside);
     // Holographique : teinte qui tourne avec l'angle sur la roue (et le temps).
     const ang = atan(p.z, p.y).mul(2).add(time.mul(0.6));
     const hue = vec3(sin(ang), sin(ang.add(2.094)), sin(ang.add(4.188))).mul(0.5).add(0.5);

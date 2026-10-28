@@ -48,6 +48,8 @@ async function main(): Promise<void> {
   const ok = await GltfRiderAvatar.load([], params.has('models') ? `/${params.get('models')}/` : undefined);
   log.textContent = ok ? 'modèles chargés' : 'ÉCHEC du chargement';
   if (!ok) return;
+  // &lodscale=0.01 : niveaux de détail rapprochés (le banc montre le niveau 1 / 2 de près).
+  if (params.has('lodscale')) GltfRiderAvatar.lodScale = Number(params.get('lodscale'));
   if (params.has('bikes')) return bikeSheet(engine, params.get('bikes') ?? '');
   if (params.has('bench')) return bench(engine);
   if (params.has('sliders')) return sliderSheet(engine);
@@ -1524,7 +1526,7 @@ async function bench(engine: Awaited<ReturnType<typeof createEngine>>): Promise<
 /**
  * Planche des vélos du catalogue vus de profil, côté transmission (?bikes=id1,id2… par préfixes,
  * vide : la planche des livrées des aperçus Blender ; &rider : avec le coureur ; &side=left :
- * côté gauche ; &view=3q : de trois quarts avant ; &view=upper : haut du corps de profil ; &view=back : de dos ; &view=face : visage ; &view=portrait : visage de face sans casque ; ?avatar=mpfb&face=jawWidth:1,… : avatar MPFB et ses curseurs ; &view=cockpit : poste de pilotage). Enregistrée comme bikes-client-<nom>.jpg (&name=…), sauf avec ?noshot ; &each : chaque vélo aussi dans out/bikes-render/<id>.jpg.
+ * côté gauche ; &view=3q : de trois quarts avant ; &view=upper : haut du corps de profil ; &view=back : de dos ; &view=face : visage ; &view=portrait : visage de face sans casque ; ?avatar=mpfb&face=jawWidth:1,… : avatar MPFB et ses curseurs ; &view=cockpit : poste de pilotage ; &view=seat : nœud de selle). Enregistrée comme bikes-client-<nom>.jpg (&name=…), sauf avec ?noshot ; &each : chaque vélo aussi dans out/bikes-render/<id>[-<tag>].jpg (&tag=…).
  */
 const LIVERY_SHEET = ['s26-04-', 's26-01-', 's26-14-', 'myth-bianchi-specialissima-acier', 'myth-peugeot-px10', 'myth-lotus-110',
   's26-06-', 'myth-look-kg86', 'myth-specialized-tarmac-sl7', 'myth-pinarello-espada', 'myth-giant-tcr-compact', 'myth-colnago-c40-mapei'];
@@ -1644,6 +1646,11 @@ async function bikeSheet(engine: Awaited<ReturnType<typeof createEngine>>, list:
       camera.position.set(eye.x + sx * 2.2, eye.y - 0.2, eye.z - 0.3);
       camera.updateProjectionMatrix();
       camera.lookAt(eye.x, eye.y - 0.2, eye.z - 0.3);
+    } else if (params.get('view') === 'seat') {
+      // Nœud de selle et tube de selle de profil (gros plan).
+      camera.position.set(sx * 1.25, 0.72, -0.1);
+      camera.updateProjectionMatrix();
+      camera.lookAt(0, 0.66, -0.1);
     } else if (params.get('view') === 'cockpitside') {
       camera.position.set(sx * 1.1, 0.95, 0.5);
       camera.updateProjectionMatrix();
@@ -1664,7 +1671,12 @@ async function bikeSheet(engine: Awaited<ReturnType<typeof createEngine>>, list:
       camera.position.set(0, 1.0, 1.5);
       camera.updateProjectionMatrix();
       camera.lookAt(0, 0.9, 0.55);
-    } else if (params.get('view') === '3q') camera.position.set(sx * 2.2, 1.5, 2.6);
+    } else if (params.get('view') === '3q') {
+      // &zoom : rapproche la caméra de son point visé (vélo seul : 0,6 le cadre en grand).
+      const zf = Number(params.get('zoom') ?? 1);
+      const at = riderOn ? 0.85 : 0.56;
+      camera.position.set(sx * 2.2 * zf, at + (1.5 - at) * zf, 0.09 + 2.51 * zf);
+    }
     else if (params.get('view') === 'back') camera.position.set(sx * 1.2, 1.9, -3.4);
     else if (params.get('view') === 'wheel') {
       // Gros plan de la roue arrière (inscriptions des jantes).
@@ -1673,7 +1685,7 @@ async function bikeSheet(engine: Awaited<ReturnType<typeof createEngine>>, list:
       camera.lookAt(0, 0.33, -0.45);
     }
     else camera.position.set(sx * (riderOn ? 4.4 : 3.4) * Number(params.get('zoom') ?? 1), riderOn ? 0.95 : 0.62, 0.09);
-    if (!['face', 'portrait', 'upper', 'cockpit', 'cockpitside', 'wheel', 'top', 'front'].includes(params.get('view') ?? '')) {
+    if (!['face', 'portrait', 'upper', 'seat', 'cockpit', 'cockpitside', 'wheel', 'top', 'front'].includes(params.get('view') ?? '')) {
       camera.updateProjectionMatrix();
       camera.lookAt(0, riderOn ? 0.85 : 0.56, 0.09);
     }
@@ -1700,7 +1712,7 @@ async function bikeSheet(engine: Awaited<ReturnType<typeof createEngine>>, list:
       one.width = 960;
       one.height = 600;
       (one.getContext('2d') as CanvasRenderingContext2D).drawImage(canvas, 160, 60, 960, 600, 0, 0, 960, 600);
-      await fetch(`/__shot?name=${b.id}&dir=bikes-render`, { method: 'POST', body: one.toDataURL('image/jpeg', 0.9) });
+      await fetch(`/__shot?name=${b.id}${params.get('tag') ? `-${params.get('tag')}` : ''}&dir=bikes-render`, { method: 'POST', body: one.toDataURL('image/jpeg', 0.9) });
     }
     g.fillStyle = '#16181c';
     g.fillText(`${b.name} · ${b.family}`, x + cw / 2, y + 24);

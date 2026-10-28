@@ -89,7 +89,7 @@ function swatch(t: TuneItem): string {
   if (l.glow) return `radial-gradient(circle, #0b0d12 38%, ${l.glow} 42% 55%, #0b0d12 60%)`;
   if (l.number) return `linear-gradient(${l.number.bg} 0 72%, ${l.number.stripe ?? l.number.bg} 72%)`;
   if (l.tireWall === 'rainbow' || l.rim === 'holo') return 'conic-gradient(#e63946, #ffd23f, #2a9d8f, #1e5bd8, #a855f7, #e63946)';
-  if (l.finish) return { matte: '#4b5563', gloss: 'linear-gradient(135deg,#9ca3af,#f3f4f6 50%,#6b7280)', metallic: 'linear-gradient(135deg,#6b7280,#e5e7eb,#4b5563)', pearl: 'linear-gradient(135deg,#f5f3ff,#dbeafe,#fce7f3)', iridescent: 'linear-gradient(135deg,#7c3aed,#06b6d4,#84cc16,#f59e0b)', chrome: 'linear-gradient(135deg,#6b7280,#fff,#9ca3af)', raw: '#1b1c1f' }[l.finish];
+  if (l.finish) return { matte: '#4b5563', gloss: 'linear-gradient(135deg,#9ca3af,#f3f4f6 50%,#6b7280)', metallic: 'linear-gradient(135deg,#6b7280,#e5e7eb,#4b5563)', pearl: 'linear-gradient(135deg,#f5f3ff,#dbeafe,#fce7f3)', iridescent: 'linear-gradient(135deg,#7c3aed,#06b6d4,#84cc16,#f59e0b)', chrome: 'linear-gradient(135deg,#6b7280,#fff,#9ca3af)', raw: '#1b1c1f', chroma: 'linear-gradient(135deg,#1d34b8,#7334c4,#c23c86,#c8892c)' }[l.finish];
   if (l.wheels) return `radial-gradient(circle, #2a2c30 18%, #0b0d12 20% ${l.wheels[0] === 'c65' || l.wheels[1] === 'disc' ? 56 : l.wheels[0] === 'c50' ? 64 : 72}%, #1b1c1f 74% 86%, #0b0d12 88%)`;
   if (l.marks) return 'linear-gradient(135deg,#111214 0 45%,#ffd23f 45% 55%,#111214 55%)';
   if (!cols.length) return '#3a3f48';

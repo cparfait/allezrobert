@@ -8,17 +8,23 @@ import catalogJson from './bikes.json' with { type: 'json' };
 import type { AvatarLook } from './net.ts';
 import { applyTuneLook, type BikeExtras } from './tuning.ts';
 
-export type BikeFamily = 'aero' | 'climb' | 'tt' | 'retro' | 'retro_compact' | 'steel' | 'lowpro' | 'lotus' | 'espada';
+/** « madone » : modèle dédié (Trek Madone de Mads Pedersen, tools/blender/bike_madone.py), les autres sont des familles génériques. */
+export type BikeFamily = 'aero' | 'climb' | 'tt' | 'retro' | 'retro_compact' | 'steel' | 'lowpro' | 'lotus' | 'espada' | 'madone';
 export type WheelType = 'box' | 'c35' | 'c50' | 'c65' | 'disc' | 'tri';
 export type BikeType = 'aero' | 'climbing' | 'tt' | 'classic' | 'track';
 export type BikeCollection = 'saison-2026' | 'mythiques' | 'divers';
-/** « crystal » : facettes de cristal (atelier, livrée Glacier). */
-export type LiveryPattern = 'solid' | 'fade' | 'split' | 'band' | 'stripes' | 'rainbow' | 'checker' | 'blocks' | 'dots' | 'stops' | 'crystal';
+/**
+ * « crystal » : facettes de cristal (atelier, livrée Glacier). « chroma » : dégradé fondu des couleurs de `stops`
+ * (repères le long de l'axe), bouts de tubes (boîtier, pattes, bas de fourche) à la première couleur, haut du mât
+ * de selle vers le milieu du dégradé (Project One « Chroma » de Trek).
+ */
+export type LiveryPattern = 'solid' | 'fade' | 'split' | 'band' | 'stripes' | 'rainbow' | 'checker' | 'blocks' | 'dots' | 'stops' | 'crystal' | 'chroma';
 /** Axe du motif : z = avant → arrière, y = bas → haut, x = gauche → droite, diag / anti = diagonales. */
 export type LiveryAxis = 'z' | 'y' | 'x' | 'diag' | 'anti';
-export type LiveryFinish = 'gloss' | 'matte' | 'metallic' | 'chrome' | 'pearl' | 'iridescent' | 'raw';
-/** Emplacements des inscriptions : diagonal, horizontal, tube de selle, fourche, bases. */
-export type FrameMark = 'dt' | 'tt' | 'st' | 'fork' | 'cs';
+/** « chroma » : chrome teinté de la livrée sous un film irisé. */
+export type LiveryFinish = 'gloss' | 'matte' | 'metallic' | 'chrome' | 'pearl' | 'iridescent' | 'raw' | 'chroma';
+/** Emplacements des inscriptions : diagonal, horizontal, tube de selle, fourche, bases, avant de l'horizontal (modèles qui l'ont). */
+export type FrameMark = 'dt' | 'tt' | 'st' | 'fork' | 'cs' | 'ttf';
 /** Zones du cadre repeintes d'une couleur de la livrée (attribut « zone » des modèles). */
 export type FrameZone = 'rear' | 'fork' | 'head';
 
@@ -35,7 +41,10 @@ export interface BikeLivery {
   line?: boolean;
   /** Couleurs supplémentaires du motif « blocks ». */
   extra?: string[];
-  /** Motif « stops » : plages successives le long de l'axe, chacune jusqu'à `to` (0–1 ; la dernière jusqu'au bout). Au plus 6. */
+  /**
+   * Motif « stops » : plages successives le long de l'axe, chacune jusqu'à `to` (0–1 ; la dernière jusqu'au bout). Au plus 6.
+   * Motif « chroma » : couleurs repères du dégradé, posées à `to` (croissants).
+   */
   stops?: Array<{ to: number; color: string }>;
   zones?: Partial<Record<FrameZone, number>>;
   finish?: LiveryFinish;
@@ -56,8 +65,16 @@ export interface BikeLivery {
   marks?: Partial<Record<FrameMark, { text: string; color?: string; stretch?: number }>>;
   /** Flancs des pneus (sinon noirs), p. ex. « gumwall » beige. */
   tireWall?: string;
+  /** Inscription des flancs de pneus (deux fois par flanc ; « A|B » : alternées), p. ex. « P ZERO ». */
+  tireText?: { text: string; color: string };
+  /** Inscription des faces extérieures des manivelles, p. ex. « SRAM ». */
+  crankText?: { text: string; color: string };
   /** Selle (sinon noire). */
   saddle?: string;
+  /** Corps des bidons (sinon l'accent du maillot) ; les bidons d'équipe des modèles dédiés gardent leurs bandes. */
+  bottle?: string;
+  /** Pièces de série d'une autre couleur que le noir (p. ex. chaîne et cassette dorées) ; l'atelier les remplace. */
+  parts?: Partial<Record<'chain' | 'cassette' | 'chainring' | 'crank', string>>;
 }
 
 export interface BikeParams {
@@ -126,12 +143,12 @@ export const BIKES: readonly BikeModel[] = catalog.bikes;
 export const BIKE_BRANDS: readonly BikeBrand[] = catalog.brands;
 export const BIKE_TEAMS: readonly BikeTeam[] = catalog.teams;
 export const BIKE_GROUPS: readonly BikeGroup[] = catalog.groups;
-export const BIKE_FAMILIES: readonly BikeFamily[] = ['aero', 'climb', 'tt', 'retro', 'retro_compact', 'steel', 'lowpro', 'lotus', 'espada'];
+export const BIKE_FAMILIES: readonly BikeFamily[] = ['aero', 'climb', 'tt', 'retro', 'retro_compact', 'steel', 'lowpro', 'lotus', 'espada', 'madone'];
 
 const byId = new Map(BIKES.map((b) => [b.id, b]));
 
 /** Bidons que porte un cadre de chaque famille (porte-bidons du tube oblique, puis du tube de selle). */
-const FAMILY_BOTTLES: Record<BikeFamily, number> = { aero: 2, climb: 2, retro: 2, retro_compact: 2, steel: 2, tt: 0, lowpro: 0, lotus: 0, espada: 0 };
+const FAMILY_BOTTLES: Record<BikeFamily, number> = { aero: 2, climb: 2, retro: 2, retro_compact: 2, steel: 2, tt: 0, lowpro: 0, lotus: 0, espada: 0, madone: 2 };
 
 /** Nombre maximal de bidons (0, 1 ou 2) d'un vélo ; sans modèle : le vélo de base. */
 export function bottleCapacity(id: string | undefined): 0 | 1 | 2 {

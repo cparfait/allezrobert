@@ -6098,6 +6098,105 @@
     "fr": "Le chrono de TotalEnergies, à damiers.",
     "en": "TotalEnergies' checkered time-trial bike."
    }
+  },
+  {
+   "id": "s26-59-lidl-madone-gen8-pedersen",
+   "name": "Trek Madone SLR – Project One Mads Pedersen",
+   "brand": "trek",
+   "collection": "saison-2026",
+   "group": "lidl",
+   "type": "aero",
+   "family": "madone",
+   "params": {
+    "brakes": "disc",
+    "wheels": [
+     "c65",
+     "c65"
+    ],
+    "rimBrand": "bontrager-aeolus-rsl"
+   },
+   "livery": {
+    "colors": [
+     "#16299e",
+     "#5d2ab8",
+     "#d49a32"
+    ],
+    "pattern": "chroma",
+    "stops": [
+     {
+      "to": 0.03,
+      "color": "#d49a32"
+     },
+     {
+      "to": 0.1,
+      "color": "#d4583a"
+     },
+     {
+      "to": 0.17,
+      "color": "#b02a7e"
+     },
+     {
+      "to": 0.28,
+      "color": "#5d2ab8"
+     },
+     {
+      "to": 0.42,
+      "color": "#2c34c4"
+     },
+     {
+      "to": 0.62,
+      "color": "#16299e"
+     }
+    ],
+    "finish": "chroma",
+    "rim": "#f4f4f2",
+    "tape": "#141414",
+    "tireWall": "#dd8a70",
+    "bottle": "#183a8c",
+    "marks": {
+     "dt": {
+      "text": "TREK",
+      "color": "#e4e7ee",
+      "stretch": 1.15
+     },
+     "tt": {
+      "text": "PEDERSEN",
+      "color": "#f4f4f2"
+     },
+     "ttf": {
+      "text": "PROJECTONE",
+      "color": "#3a3f86",
+      "stretch": 0.9
+     },
+     "cs": {
+      "text": "SRAM",
+      "color": "#f2e6ea",
+      "stretch": 1.2
+     },
+     "fork": {
+      "text": "PIRELLI",
+      "color": "#f4f4f2"
+     }
+    },
+    "parts": {
+     "chain": "#c9a24a",
+     "cassette": "#c9a24a"
+    },
+    "tireText": {
+     "text": "P ZERO|PIRELLI",
+     "color": "#6e2219"
+    },
+    "crankText": {
+     "text": "SRAM",
+     "color": "#d4d7dc"
+    }
+   },
+   "level": 33,
+   "year": 2026,
+   "desc": {
+    "fr": "Le Madone Gen 8 de Mads Pedersen en peinture Project One « Chroma » : chrome irisé du bleu au violet, au rose et à l'or, cintre-potence monobloc, SRAM Red, roues Aeolus RSL 60 et pneus Pirelli P Zero à flancs clairs.",
+    "en": "Mads Pedersen's Madone Gen 8 in Project One \"Chroma\" paint: iridescent chrome shading from blue to purple, pink and gold, one-piece bar and stem, SRAM Red, Aeolus RSL 60 wheels and tan-wall Pirelli P Zero tyres."
+   }
   }
  ]
 }

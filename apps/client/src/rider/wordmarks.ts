@@ -11,8 +11,8 @@ import { BIKE_BRANDS, type BikeBuild, type FrameMark } from '@allezrobert/shared
  * X latéral ; échelle = (épaisseur latérale, longueur, hauteur).
  */
 
-/** Emplacements et boîtes de décor, dans l'ordre des lignes de la texture. */
-export const MARKS: readonly FrameMark[] = ['dt', 'tt', 'st', 'fork', 'cs'];
+/** Emplacements et boîtes de décor, dans l'ordre des lignes de la texture (« ttf » : seulement les modèles qui ont sa boîte). */
+export const MARKS: readonly FrameMark[] = ['dt', 'tt', 'st', 'fork', 'cs', 'ttf'];
 export const DECALS = MARKS.map((m) => `decal_${m}`);
 const ROW_W = 1024;
 const ROW_H = 128;

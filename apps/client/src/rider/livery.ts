@@ -14,7 +14,7 @@ import { DECALS, type DecalBox } from './wordmarks.ts';
  * finition, et changer de vélo ne recompile rien.
  */
 
-const PATTERNS: readonly LiveryPattern[] = ['solid', 'fade', 'split', 'band', 'stripes', 'rainbow', 'checker', 'blocks', 'dots', 'stops', 'crystal'];
+const PATTERNS: readonly LiveryPattern[] = ['solid', 'fade', 'split', 'band', 'stripes', 'rainbow', 'checker', 'blocks', 'dots', 'stops', 'crystal', 'chroma'];
 /** Plages du motif « stops » (au plus). */
 const MAX_STOPS = 6;
 /** Poids (uz, uy, 1 − uy, ux) de l'abscisse du motif selon l'axe. */
@@ -35,6 +35,7 @@ const FINISH: Record<LiveryFinish, [number, number, number, number]> = {
   pearl: [0.25, 0, 1, 320],
   iridescent: [0.2, 0, 1, 520],
   raw: [0.28, 0, 1, 0],
+  chroma: [0.1, 0.82, 1, 380],
 };
 
 type FloatNode = THREE.Node<'float'>;
@@ -113,9 +114,11 @@ export class LiveryMaterial {
       this.zoneOn.value.setComponent(i, ci !== undefined ? 1 : 0);
     });
     const stops = (liv.stops ?? []).slice(0, MAX_STOPS);
+    // « stops » : fin de chaque plage (la dernière va jusqu'au bout) ; « chroma » : position de chaque repère.
+    const keys = liv.pattern === 'chroma';
     for (let i = 0; i < MAX_STOPS; i++) {
       const st = stops[i] ?? stops[stops.length - 1];
-      (this.stopTo[i] as { value: number }).value = i < stops.length - 1 ? (stops[i]?.to ?? 2) : 2;
+      (this.stopTo[i] as { value: number }).value = i < stops.length - (keys ? 0 : 1) ? (stops[i]?.to ?? 2) : 2 + i;
       (this.stopCols[i] as ColorUniform).set(st?.color ?? c[0] ?? '#808080');
     }
     const finish = liv.finish ?? 'gloss';
@@ -128,7 +131,7 @@ export class LiveryMaterial {
     m.iridescence = film > 0 ? 1 : 0;
     m.iridescenceThicknessRange = [film, film];
     this.film.value = film;
-    this.shimmer.value = finish === 'iridescent' ? 1 : 0;
+    this.shimmer.value = finish === 'iridescent' || finish === 'chroma' ? 1 : 0;
     m.needsUpdate = true;
   }
 
@@ -200,7 +203,19 @@ export class LiveryMaterial {
     const edge = lt(min(min(fa, fb), abs(float(1).sub(fa).sub(fb))), 0.035);
     const crystal = mix(mix(c0, mix(c1, c2, gt(facet, 0.82)), gt(facet, 0.5)), color('#ffffff') as unknown as Vec3Node, edge.mul(0.6));
 
-    const byPattern = [solid, fade, split, band, stripes, rainbow, checker, blocks, dots, stops, crystal];
+    // Chroma : dégradé fondu entre les repères, en hauteur ; bases (bas du cadre) dorées aux deux bouts seulement,
+    // haut du mât de selle (derrière le nœud) ramené vers le milieu du dégradé.
+    const zoneAttr = attribute<'vec4'>('color', 'vec4');
+    const cyN = clamp(cy.sub(0.27).div(0.55), 0, 1);
+    const ends = min(abs(cz), abs(cz.add(0.41)));
+    const stays = gt(zoneAttr.y, 0.5).mul(lt(cy, 0.4));
+    const hv = max(cyN, smoothstep(0.03, 0.16, ends).mul(0.78).mul(stays));
+    const mast = smoothstep(0.7, 0.8, cy).mul(lt(cz, -0.09));
+    const cv = mix(hv, float(0.2), mast);
+    let chroma = (this.stopCols[0] as ColorUniform).node as unknown as Vec3Node;
+    for (let i = 1; i < MAX_STOPS; i++) chroma = mix(chroma, (this.stopCols[i] as ColorUniform).node as unknown as Vec3Node, smoothstep(this.stopTo[i - 1] as FloatNode, this.stopTo[i] as FloatNode, cv));
+
+    const byPattern = [solid, fade, split, band, stripes, rainbow, checker, blocks, dots, stops, crystal, chroma];
     let col = byPattern[byPattern.length - 1] as Vec3Node;
     for (let i = byPattern.length - 2; i >= 0; i--) col = select(this.pattern.lessThan(i + 0.5), byPattern[i] as Vec3Node, col);
 
