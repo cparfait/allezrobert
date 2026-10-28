@@ -147,7 +147,7 @@ export class Environment {
   private shadowFrozen = false;
   private readonly sunDir = new THREE.Vector3();
   private readonly scene: THREE.Scene;
-  /** Prototype de ciel du style jeu vidéo (?sky=lowpoly) : dôme en dégradé et nuages à facettes. */
+  /** Ciel du style jeu vidéo (lowPolySky.ts) : dôme en dégradé et nuages à facettes. */
   private readonly lowPolySky: LowPolySky | null = null;
   /** Altitude lissée du coureur suivi (m), pour la clarté de l'air. */
   private altitudeM = Number.NaN;

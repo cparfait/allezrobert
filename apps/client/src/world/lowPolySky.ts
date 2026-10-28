@@ -4,14 +4,18 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { colorUniform } from '../engine/tsl.ts';
 import { rng } from '../engine/noise.ts';
 import { domeVertex } from './overcast.ts';
+import { LOW_POLY } from '../engine/style.ts';
 
 /**
- * Prototype de ciel du style jeu vidéo (?sky=lowpoly, pas encore appliqué par défaut) : dégradé simple
+ * Ciel du style jeu vidéo (par défaut avec LOW_POLY ; ?sky=real pour le ciel physique) : dégradé simple
  * bleu ciel → horizon laiteux en paliers doux, soleil en disque net avec un halo, et nuages en volumes
  * à facettes (icosaèdres aplatis, blancs, éclairés par le soleil) qui dérivent avec le vent autour du
  * coureur. Remplace à l'écran le ciel physique (gardé pour la lumière d'ambiance, SkyLight).
  */
-export const LOW_POLY_SKY = typeof location !== 'undefined' && new URLSearchParams(location.search).get('sky') === 'lowpoly';
+export const LOW_POLY_SKY = (() => {
+  const p = typeof location === 'undefined' ? null : new URLSearchParams(location.search).get('sky');
+  return p === 'lowpoly' || (LOW_POLY && p !== 'real');
+})();
 
 const CLOUDS = 34;
 

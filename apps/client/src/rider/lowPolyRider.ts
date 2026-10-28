@@ -267,8 +267,8 @@ export class LowPolyRider implements RiderAvatarLike {
 
     for (const side of [1, -1]) {
       // Cuisse : cuissard jusqu'au-dessus du genou, puis peau (ou cuissard long jusqu'à la cheville).
-      const thighShorts = new Seg(octo(0.07, 0.088), shorts, build, build);
-      const knee = new Seg(prism(0.058, 0.068, 6), longLegs ? shorts : skin, build, build);
+      const thighShorts = new Seg(octo(0.056, 0.07), shorts, build, build);
+      const knee = new Seg(prism(0.05, 0.056, 6), longLegs ? shorts : skin, build, build);
       const shin = new Seg(prism(0.04, 0.058, 6), longLegs ? shorts : skin, build, build);
       const sk = new Seg(prism(0.042, 0.047, 6), sock);
       const sh = new THREE.Mesh(box(0.085, 0.07, 0.26, 0, 0, 0.02), shoe);
@@ -307,7 +307,7 @@ export class LowPolyRider implements RiderAvatarLike {
       band(0, 0.05, accent);
     }
     this.collar = new Seg(prism(0.06, 0.055, 8), accent);
-    this.pelvis = new Seg(octo(0.125, 0.125), shorts, 1.12 * build, 0.85 * build);
+    this.pelvis = new Seg(octo(0.112, 0.118), shorts, 1.02 * build, 0.82 * build);
     this.neck = new Seg(prism(0.047, 0.045, 6), skin);
     this.body.add(this.torso.mesh, this.collar.mesh, this.pelvis.mesh, this.neck.mesh);
 
@@ -581,13 +581,13 @@ export class LowPolyRider implements RiderAvatarLike {
 
     for (const leg of this.legs) {
       const a = this.crankAngle + (leg.side > 0 ? 0 : Math.PI);
-      const pedal = v3(0.11 * leg.side, BB.y - Math.cos(a) * CRANK, BB.z - Math.sin(a) * CRANK);
+      const pedal = v3(0.125 * leg.side, BB.y - Math.cos(a) * CRANK, BB.z - Math.sin(a) * CRANK);
       (this.pedals[leg.side > 0 ? 0 : 1] as THREE.Mesh).position.copy(pedal);
       const ankle = pedal.clone().add(v3(0, 0.065, -0.05));
-      const hipJ = hip.clone().setX(0.09 * leg.side);
+      const hipJ = hip.clone().setX(0.1 * leg.side);
       const knee = new THREE.Vector3();
       // Genoux légèrement ouverts (naturel), qui montent et descendent sans balayer.
-      solveTwoBone(hipJ, ankle, THIGH, SHIN, v3(0.04 * leg.side, 0.2, 1), knee);
+      solveTwoBone(hipJ, ankle, THIGH, SHIN, v3(0.09 * leg.side, 0.2, 1), knee);
       // Cuissard jusqu'à 80 % de la cuisse, puis le genou.
       const hem = hipJ.clone().lerp(knee, 0.8);
       leg.shorts.set(hipJ, hem);
