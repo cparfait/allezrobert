@@ -8,6 +8,8 @@ const el = (id: string) => document.getElementById(id);
 
 export function bootStep(pct: number, label: string): void {
   const now = performance.now();
+  // Repère lu par tools/perf (détail du temps de chargement).
+  performance.mark(`ar:${label}`);
   console.info(`[démarrage] ${label} — ${(now / 1000).toFixed(1)} s (étape précédente : ${Math.round(now - last)} ms)`);
   last = now;
   const bar = el('splash-bar');

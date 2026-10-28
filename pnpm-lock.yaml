@@ -6,7 +6,7 @@ settings:
 
 patchedDependencies:
   three@0.186.1:
-    hash: 896ba9f21454824bb5a33c8b8f73164670fb6464f43923d3e39ff7c7fc802c77
+    hash: 6c3cfccb2ab9e660972542d2d6bfb0b1167315e66a2490487a062b86034443ba
     path: patches/three@0.186.1.patch
 
 importers:
@@ -57,7 +57,7 @@ importers:
         version: 2.23.0(@types/dom-mediacapture-record@1.0.22)
       three:
         specifier: ^0.186.1
-        version: 0.186.1(patch_hash=896ba9f21454824bb5a33c8b8f73164670fb6464f43923d3e39ff7c7fc802c77)
+        version: 0.186.1(patch_hash=6c3cfccb2ab9e660972542d2d6bfb0b1167315e66a2490487a062b86034443ba)
       uqr:
         specifier: ^0.1.3
         version: 0.1.3
@@ -4723,7 +4723,7 @@ snapshots:
   supports-preserve-symlinks-flag@1.0.0:
     optional: true
 
-  three@0.186.1(patch_hash=896ba9f21454824bb5a33c8b8f73164670fb6464f43923d3e39ff7c7fc802c77): {}
+  three@0.186.1(patch_hash=6c3cfccb2ab9e660972542d2d6bfb0b1167315e66a2490487a062b86034443ba): {}
 
   tiny-inflate@1.0.3: {}
 

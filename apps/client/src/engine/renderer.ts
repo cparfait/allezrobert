@@ -186,6 +186,12 @@ export interface Engine {
  * Crée le moteur de rendu : WebGPU par défaut, repli WebGL2 automatique (ou forcé par ?webgl).
  * Chaîne de post-traitement : MRT (couleur, normales, vitesses) → GTAO → bloom → TRAA.
  */
+/** Pipelines compilés en même temps pendant le chargement : 16 par défaut (le processus GPU compile sur plusieurs fils ; mesuré, profil Chrome vierge : 1 → 57 s de chargement, 4 → 29 s, 8 → 27 s, 16 → 24 s). */
+function compileConcurrency(): number {
+  const n = Number(new URLSearchParams(location.search).get('compileconc'));
+  return Number.isFinite(n) && n >= 1 ? Math.min(Math.round(n), 64) : 16;
+}
+
 export async function createEngine(canvas: HTMLCanvasElement, q: QualitySettings): Promise<Engine> {
   const forceWebGL = new URLSearchParams(location.search).has('webgl');
   // ?perf=1 : mesures GPU (requêtes d'horodatage) pour le panneau de performance (F3).
@@ -196,6 +202,8 @@ export async function createEngine(canvas: HTMLCanvasElement, q: QualitySettings
   const backend = (renderer.backend as { isWebGPUBackend?: boolean }).isWebGPUBackend ? 'webgpu' : 'webgl2';
   if (backend === 'webgpu') instrumentDevice((renderer.backend as unknown as { device: GPUDevice }).device);
   sharedSceneContext(renderer, () => scenePass?.renderTarget ?? null);
+  // Pipelines créés en parallèle pendant la précompilation (patch de three.js, compileAsync) : ?compileconc=N pour essayer.
+  (renderer as unknown as { compileConcurrency: number }).compileConcurrency = compileConcurrency();
   renderer.toneMapping = THREE.AgXToneMapping;
   renderer.toneMappingExposure = 1.0;
   renderer.shadowMap.enabled = true;

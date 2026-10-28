@@ -123,10 +123,17 @@ function paint(geo: THREE.BufferGeometry, base: THREE.Color, kind: number, accen
   const acc = new Float32Array(n * 3);
   const info = new Float32Array(n * 3);
   const z = windows + 4 * arch;
-  for (let i = 0; i < n; i++) {
-    col.set([base.r, base.g, base.b], i * 3);
-    acc.set([accent.r, accent.g, accent.b], i * 3);
-    info.set([kind, stones, z], i * 3);
+  // Écritures directes : un tableau littéral par sommet (et par attribut) coûtait ≈ 0,6 s de chargement.
+  for (let i = 0, o = 0; i < n; i++, o += 3) {
+    col[o] = base.r;
+    col[o + 1] = base.g;
+    col[o + 2] = base.b;
+    acc[o] = accent.r;
+    acc[o + 1] = accent.g;
+    acc[o + 2] = accent.b;
+    info[o] = kind;
+    info[o + 1] = stones;
+    info[o + 2] = z;
   }
   geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
   geo.setAttribute('accent', new THREE.BufferAttribute(acc, 3));

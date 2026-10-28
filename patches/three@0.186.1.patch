@@ -1,5 +1,5 @@
 diff --git a/build/three.webgpu.js b/build/three.webgpu.js
-index 48b30e6bf4bf114ba5524ae509c81c4a043d27ea..254db5a7058944bd7940a1ea609c31251586771a 100644
+index 48b30e6bf4bf114ba5524ae509c81c4a043d27ea..ea29fbc915ecdca6a46cfb93626865b6cb3eafdb 100644
 --- a/build/three.webgpu.js
 +++ b/build/three.webgpu.js
 @@ -18862,9 +18862,9 @@ function createInstanceMatrixNode( builder, instanceMatrix ) {
@@ -27,7 +27,82 @@ index 48b30e6bf4bf114ba5524ae509c81c4a043d27ea..254db5a7058944bd7940a1ea609c3125
  
  			interleavedMatrix = _matrixBuffers.get( matrices );
  
-@@ -82662,6 +82661,14 @@ class WGSLNodeBuilder extends NodeBuilder {
+@@ -62718,6 +62717,21 @@ class Renderer {
+ 
+ 		const total = compilationPromises.length;
+ 		let loaded = 0;
++		const inflight = new Set();
++		const inflightMax = this.compileConcurrency || 8;
++		let failure = null;
++
++		const reportLoaded = () => {
++
++			loaded ++;
++
++			if ( onProgress !== null ) {
++
++				onProgress( new ProgressEvent( 'progress', { lengthComputable: true, loaded, total } ) );
++
++			}
++
++		};
+ 
+ 		for ( const item of compilationPromises ) {
+ 
+@@ -62735,32 +62749,43 @@ class Renderer {
+ 			this._bindings.updateForRender( renderObject );
+ 			this._isPreCompiling = false;
+ 
+-			// Wait for pipeline creation
++			// allezrobert : la création des pipelines (compilation DXC dans le processus GPU) se fait en parallèle
++			// de la construction des nœuds de l'objet suivant ; au plus `inflightMax` à la fois. Avant, chaque objet
++			// attendait la fin de son pipeline : le fil principal restait inactif plus de la moitié du chargement.
+ 			const pipelinePromises = [];
+ 			this._pipelines.getForRender( renderObject, pipelinePromises );
+ 			if ( pipelinePromises.length > 0 ) {
+ 
+-				await Promise.all( pipelinePromises );
++				const pending = Promise.all( pipelinePromises ).then( reportLoaded, ( e ) => {
+ 
+-			}
++					failure = failure || e;
+ 
+-			this._isPreCompiling = true;
+-			this._nodes.updateAfter( renderObject );
+-			this._isPreCompiling = false;
++				} ).then( () => inflight.delete( pending ) );
++				inflight.add( pending );
+ 
+-			loaded ++;
++				if ( inflight.size >= inflightMax ) await Promise.race( inflight );
+ 
+-			if ( onProgress !== null ) {
++			} else {
+ 
+-				onProgress( new ProgressEvent( 'progress', { lengthComputable: true, loaded, total } ) );
++				reportLoaded();
+ 
+ 			}
+ 
++			this._isPreCompiling = true;
++			this._nodes.updateAfter( renderObject );
++			this._isPreCompiling = false;
++
++			if ( failure !== null ) break;
++
+ 			// Yield between objects to allow animation frames
+ 			await yieldToMain();
+ 
+ 		}
+ 
++		await Promise.all( inflight );
++
++		if ( failure !== null ) throw failure;
++
+ 	}
+ 
+ 	/**
+@@ -82662,6 +82687,14 @@ class WGSLNodeBuilder extends NodeBuilder {
  	 * @param {?string} [name=null] - An optional uniform name.
  	 * @return {NodeUniform} The node uniform object.
  	 */
@@ -42,7 +117,7 @@ index 48b30e6bf4bf114ba5524ae509c81c4a043d27ea..254db5a7058944bd7940a1ea609c3125
  	getUniformFromNode( node, type, shaderStage, name = null ) {
  
  		const uniformNode = super.getUniformFromNode( node, type, shaderStage, name );
-@@ -82751,7 +82758,9 @@ class WGSLNodeBuilder extends NodeBuilder {
+@@ -82751,7 +82784,9 @@ class WGSLNodeBuilder extends NodeBuilder {
  
  				uniformGPU = buffer;
  
@@ -54,7 +129,7 @@ index 48b30e6bf4bf114ba5524ae509c81c4a043d27ea..254db5a7058944bd7940a1ea609c3125
  			} else {
  
 diff --git a/build/three.webgpu.nodes.js b/build/three.webgpu.nodes.js
-index e96c4ae08d528fea66c58e5869923c1675822ac9..95baff8076339d29fda73336851db78524d53198 100644
+index e96c4ae08d528fea66c58e5869923c1675822ac9..974bdae1e2e193bde8a27d5d915a37153a0b0743 100644
 --- a/build/three.webgpu.nodes.js
 +++ b/build/three.webgpu.nodes.js
 @@ -18862,9 +18862,9 @@ function createInstanceMatrixNode( builder, instanceMatrix ) {
@@ -82,7 +157,82 @@ index e96c4ae08d528fea66c58e5869923c1675822ac9..95baff8076339d29fda73336851db785
  
  			interleavedMatrix = _matrixBuffers.get( matrices );
  
-@@ -82662,6 +82661,14 @@ class WGSLNodeBuilder extends NodeBuilder {
+@@ -62718,6 +62717,21 @@ class Renderer {
+ 
+ 		const total = compilationPromises.length;
+ 		let loaded = 0;
++		const inflight = new Set();
++		const inflightMax = this.compileConcurrency || 8;
++		let failure = null;
++
++		const reportLoaded = () => {
++
++			loaded ++;
++
++			if ( onProgress !== null ) {
++
++				onProgress( new ProgressEvent( 'progress', { lengthComputable: true, loaded, total } ) );
++
++			}
++
++		};
+ 
+ 		for ( const item of compilationPromises ) {
+ 
+@@ -62735,32 +62749,43 @@ class Renderer {
+ 			this._bindings.updateForRender( renderObject );
+ 			this._isPreCompiling = false;
+ 
+-			// Wait for pipeline creation
++			// allezrobert : la création des pipelines (compilation DXC dans le processus GPU) se fait en parallèle
++			// de la construction des nœuds de l'objet suivant ; au plus `inflightMax` à la fois. Avant, chaque objet
++			// attendait la fin de son pipeline : le fil principal restait inactif plus de la moitié du chargement.
+ 			const pipelinePromises = [];
+ 			this._pipelines.getForRender( renderObject, pipelinePromises );
+ 			if ( pipelinePromises.length > 0 ) {
+ 
+-				await Promise.all( pipelinePromises );
++				const pending = Promise.all( pipelinePromises ).then( reportLoaded, ( e ) => {
+ 
+-			}
++					failure = failure || e;
+ 
+-			this._isPreCompiling = true;
+-			this._nodes.updateAfter( renderObject );
+-			this._isPreCompiling = false;
++				} ).then( () => inflight.delete( pending ) );
++				inflight.add( pending );
+ 
+-			loaded ++;
++				if ( inflight.size >= inflightMax ) await Promise.race( inflight );
+ 
+-			if ( onProgress !== null ) {
++			} else {
+ 
+-				onProgress( new ProgressEvent( 'progress', { lengthComputable: true, loaded, total } ) );
++				reportLoaded();
+ 
+ 			}
+ 
++			this._isPreCompiling = true;
++			this._nodes.updateAfter( renderObject );
++			this._isPreCompiling = false;
++
++			if ( failure !== null ) break;
++
+ 			// Yield between objects to allow animation frames
+ 			await yieldToMain();
+ 
+ 		}
+ 
++		await Promise.all( inflight );
++
++		if ( failure !== null ) throw failure;
++
+ 	}
+ 
+ 	/**
+@@ -82662,6 +82687,14 @@ class WGSLNodeBuilder extends NodeBuilder {
  	 * @param {?string} [name=null] - An optional uniform name.
  	 * @return {NodeUniform} The node uniform object.
  	 */
@@ -97,7 +247,7 @@ index e96c4ae08d528fea66c58e5869923c1675822ac9..95baff8076339d29fda73336851db785
  	getUniformFromNode( node, type, shaderStage, name = null ) {
  
  		const uniformNode = super.getUniformFromNode( node, type, shaderStage, name );
-@@ -82751,7 +82758,9 @@ class WGSLNodeBuilder extends NodeBuilder {
+@@ -82751,7 +82784,9 @@ class WGSLNodeBuilder extends NodeBuilder {
  
  				uniformGPU = buffer;
  
@@ -137,6 +287,85 @@ index 2723fa918f28e286b33fdc9e4627c1d8c23b6a9c..9e319dff5093fa8fbb43f6ef9fad620b
  
  			interleavedMatrix = _matrixBuffers.get( matrices );
  
+diff --git a/src/renderers/common/Renderer.js b/src/renderers/common/Renderer.js
+index c05aa68471f07a0bbbf6203865da1096fea503c1..2af493d0f8ff92b35ed49723e6ed93bd67cae492 100644
+--- a/src/renderers/common/Renderer.js
++++ b/src/renderers/common/Renderer.js
+@@ -1057,6 +1057,21 @@ class Renderer {
+ 
+ 		const total = compilationPromises.length;
+ 		let loaded = 0;
++		const inflight = new Set();
++		const inflightMax = this.compileConcurrency || 8;
++		let failure = null;
++
++		const reportLoaded = () => {
++
++			loaded ++;
++
++			if ( onProgress !== null ) {
++
++				onProgress( new ProgressEvent( 'progress', { lengthComputable: true, loaded, total } ) );
++
++			}
++
++		};
+ 
+ 		for ( const item of compilationPromises ) {
+ 
+@@ -1074,32 +1089,43 @@ class Renderer {
+ 			this._bindings.updateForRender( renderObject );
+ 			this._isPreCompiling = false;
+ 
+-			// Wait for pipeline creation
++			// allezrobert : la création des pipelines (compilation DXC dans le processus GPU) se fait en parallèle
++			// de la construction des nœuds de l'objet suivant ; au plus `inflightMax` à la fois. Avant, chaque objet
++			// attendait la fin de son pipeline : le fil principal restait inactif plus de la moitié du chargement.
+ 			const pipelinePromises = [];
+ 			this._pipelines.getForRender( renderObject, pipelinePromises );
+ 			if ( pipelinePromises.length > 0 ) {
+ 
+-				await Promise.all( pipelinePromises );
++				const pending = Promise.all( pipelinePromises ).then( reportLoaded, ( e ) => {
+ 
+-			}
++					failure = failure || e;
+ 
+-			this._isPreCompiling = true;
+-			this._nodes.updateAfter( renderObject );
+-			this._isPreCompiling = false;
++				} ).then( () => inflight.delete( pending ) );
++				inflight.add( pending );
+ 
+-			loaded ++;
++				if ( inflight.size >= inflightMax ) await Promise.race( inflight );
+ 
+-			if ( onProgress !== null ) {
++			} else {
+ 
+-				onProgress( new ProgressEvent( 'progress', { lengthComputable: true, loaded, total } ) );
++				reportLoaded();
+ 
+ 			}
+ 
++			this._isPreCompiling = true;
++			this._nodes.updateAfter( renderObject );
++			this._isPreCompiling = false;
++
++			if ( failure !== null ) break;
++
+ 			// Yield between objects to allow animation frames
+ 			await yieldToMain();
+ 
+ 		}
+ 
++		await Promise.all( inflight );
++
++		if ( failure !== null ) throw failure;
++
+ 	}
+ 
+ 	/**
 diff --git a/src/renderers/webgpu/nodes/WGSLNodeBuilder.js b/src/renderers/webgpu/nodes/WGSLNodeBuilder.js
 index 141480f7109eec5162b8d1dcff4ac551b9a31f91..64896689d9619e512492ad5765d5073b004a1852 100644
 --- a/src/renderers/webgpu/nodes/WGSLNodeBuilder.js

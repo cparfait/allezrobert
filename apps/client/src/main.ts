@@ -90,9 +90,11 @@ async function loadScene(settings: Settings): Promise<Scene3D> {
   const q = withUrlOverrides(QUALITY_PRESETS[(params.get('quality') as Settings['quality'] | null) ?? settings.quality]);
   bootStep(20, 'Démarrage du moteur 3D (WebGPU)');
   const engine = await createEngine(document.getElementById('scene') as HTMLCanvasElement, q);
+  performance.mark('ar:moteur prêt');
   GltfRiderAvatar.lodScale = { low: 0.6, medium: 0.8, high: 1, ultra: 1.5 }[q.level];
   bootStep(35, 'Monde et itinéraires');
   const source = await loadWorldSource(params.get('world') ?? settings.world ?? 'longchamp');
+  performance.mark('ar:monde chargé');
   // Le mode « monde ouvert » n'existe que dans un monde qui a un graphe routier.
   if (settings.mode === 'open' && !source.open) settings.mode = 'free';
   const route = findRoute(source.routes, params.get('route') ?? routeKey(settings)) ?? (source.routes[0] as RouteData);
@@ -439,11 +441,14 @@ async function boot(): Promise<void> {
   const prepareWorld = (): Promise<void> =>
     (worldReady ??= (async () => {
       await modelsReady;
+      performance.mark('ar:modèles prêts');
       if (scene.world.env.state.season !== settings.season) scene.world.setSeason(settings.season);
       const start = scene.track.positionAt(0, 1.2);
       // Barre : tuiles jusqu'à 55 %, shaders jusqu'à 85 % (le reste : objets de la sortie, dans startRide).
       await scene.world.preload(new THREE.Vector3(start.x, start.y, start.z), (d, t) => worldWait && tileStage(worldWait, 0, 0.55)(d, t));
+      performance.mark('ar:tuiles prêtes');
       await scene.engine.compileScene((d, t) => worldWait && tileStage(worldWait, 0.55, 0.85)(d, t));
+      performance.mark('ar:paysage compilé');
       worldDone = true;
     })());
   /** Attend le paysage avant une action 3D, avec un écran d'attente seulement s'il n'est pas prêt. */
@@ -876,6 +881,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   {
     const d0 = challenge?.startD ?? (nav ? 0 : Number(new URLSearchParams(location.search).get('d') ?? 0));
     const p0 = track.positionAt(d0, 1.2);
+    performance.mark('ar:départ : tuiles');
     await world.preload(new THREE.Vector3(p0.x, p0.y, p0.z), (d, t) => t > 0 && tileStage(startOverlay, 0.55, 0.85)(d, t));
   }
   ui.innerHTML = '';
@@ -1871,11 +1877,14 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   };
   // Pipelines des objets ajoutés pour la sortie (coureur, groupe, circulation) compilés avant la première image,
   // au lieu de figer la première image du jeu.
+  performance.mark('ar:départ : objets de la sortie');
   await engine.compileScene(tileStage(startOverlay, 0.85, 1));
+  performance.mark('ar:départ : objets compilés');
   // Laisse l'écran d'attente se peindre, puis fait les premières images (lentes) derrière lui : la première
   // compile la passe de scène, les suivantes les ombres (redessinées une image sur deux) et le post-traitement.
   await new Promise<void>((r) => setTimeout(r, 50));
   for (let i = 0; i < 4; i++) engine.renderManual();
+  performance.mark('ar:premières images');
   // Désormais, ce qui arrive dans la scène (tuiles, cyclistes) est compilé à l'avance avant d'être dessiné.
   engine.watchNewObjects(true);
   // Coureurs : niveau de détail choisi d'après la caméra de la sortie, niveaux masqués non recalculés.
