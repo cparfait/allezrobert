@@ -15,6 +15,7 @@ import {
   poseCdaFactor,
   riderWind,
   roadHalfM,
+  rightLaneM,
   surfaceCrr,
   trainerModelFor,
   wetCrrFactor,
@@ -147,6 +148,8 @@ export class RideSession {
 
   constructor(opts: RideOptions) {
     this.opts = opts;
+    // Tout à droite de la chaussée, l'axe du vélo à ≈ 50 cm de la ligne de rive (code de la route).
+    this.lateral = Math.min(roadHalfM(opts.track.route.roadWidthM), Math.max(0.6, rightLaneM(opts.track.route.roadWidthM) - 0.3));
     // Morphologie : le CdA du vélo vaut pour un coureur de 1,78 m et 75 kg.
     const base = paramsFromProfile(opts.profile);
     this.params = { ...base, cda: base.cda * bodyCdaFactor(opts.profile.heightCm, opts.profile.massKg), inertiaFactor: opts.inertiaFactor ?? 1 };
