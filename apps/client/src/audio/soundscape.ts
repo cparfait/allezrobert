@@ -250,9 +250,16 @@ export function crowdZone(seg: RouteSegment): { from: number; to: number; weight
  */
 export function crowdLevel(d: number, segments: readonly RouteSegment[], lengthM: number, loop: boolean): number {
   let best = 0;
+  // Zones : fin des côtes et sprints, plus la foule des arches (départ de KOM, départ de sprint, arrivée),
+  // comme world/crowd.ts.
+  const zones: Array<{ from: number; to: number; weight: number }> = [];
   for (const seg of segments) {
     const z = crowdZone(seg);
-    if (!z) continue;
+    if (z) zones.push(z);
+    if (seg.kind === 'kom' || seg.kind === 'sprint') zones.push({ from: seg.startM - 30, to: seg.startM + 30, weight: 0.7 });
+  }
+  if (lengthM > 0) zones.push({ from: lengthM - 60, to: lengthM, weight: 0.8 });
+  for (const z of zones) {
     const shifts = loop && lengthM > 0 ? [-lengthM, 0, lengthM] : [0];
     for (const s of shifts) {
       const x = d + s;

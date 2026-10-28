@@ -203,7 +203,19 @@ describe('public', () => {
   it('boucle : la zone d’arrivée est entendue avant le tour suivant', () => {
     const s: RouteSegment[] = [{ id: 'c', kind: 'kom', name: 'C', startM: 0, endM: 300, avgGrade: 5 }];
     expect(crowdLevel(7950, s, 8000, true)).toBeGreaterThan(0.5);
-    expect(crowdLevel(7950, s, 8000, false)).toBe(0);
+    // sans boucle, la zone du sommet n'est pas repliée (l'arche d'arrivée a sa foule à moins de 60 m de la fin)
+    expect(crowdLevel(7500, s, 8000, false)).toBe(0);
+  });
+
+  it('foule autour des arches : départ de KOM, départ de sprint, arrivée', () => {
+    const s: RouteSegment[] = [
+      { id: 'c', kind: 'kom', name: 'C', startM: 2000, endM: 3000, avgGrade: 5 },
+      { id: 'p', kind: 'sprint', name: 'P', startM: 5000, endM: 5300, avgGrade: 0 },
+    ];
+    expect(crowdLevel(2000, s, 8000, false)).toBeGreaterThan(0.5);
+    expect(crowdLevel(5010, s, 8000, false)).toBeGreaterThan(0.5);
+    expect(crowdLevel(7980, s, 8000, false)).toBeGreaterThan(0.5);
+    expect(crowdLevel(1000, s, 8000, false)).toBe(0);
   });
 
   it('pousse plus quand le coureur souffre', () => {

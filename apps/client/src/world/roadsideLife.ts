@@ -152,9 +152,9 @@ function kmLabel(n: number, x: number, y: number, z: number, yaw: number): THREE
     mat = new THREE.MeshStandardNodeMaterial({ map: tex, transparent: true, alphaTest: 0.35, roughness: 0.8, metalness: 0 });
     kmMaterials.set(n, mat);
   }
-  const m = new THREE.Mesh(new THREE.PlaneGeometry(0.36, 0.36), mat);
-  // sur la face avant de la borne (corps de 0,2 m d'épaisseur), un peu sous le dessus arrondi
-  m.position.set(x + Math.sin(yaw) * 0.104, y + 0.36, z + Math.cos(yaw) * 0.104);
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(0.54, 0.54), mat);
+  // sur la face avant de la borne (×1,5 : corps de 0,3 m d'épaisseur), un peu sous le dessus arrondi
+  m.position.set(x + Math.sin(yaw) * 0.156, y + 0.54, z + Math.cos(yaw) * 0.156);
   m.rotation.y = yaw;
   m.name = `km-${n}`;
   return m;
@@ -1044,11 +1044,13 @@ export class RoadsideLife {
       track.positionAt(d, halfAt(d) + (km ? 1.1 : 0.9), s);
       // Jamais sous la chaussée : le sol lu à la construction du tronçon peut être celui de la tuile grossière.
       const g = ground(s.x, s.z);
-      const y = Number.isFinite(g) ? Math.max(g, s.y - 0.3) : g;
+      const y = Number.isFinite(g) ? Math.max(g, s.y - 0.05) : g;
       if (!Number.isFinite(y) || probe.buildingNear(s.x, s.z, 0.6) || onAnyRoad(s.x, s.z, 0.4)) continue;
       // face avant (+z) tournée vers le coureur qui arrive
       const yaw = Math.atan2(-s.dirX, -s.dirZ);
-      sb.put(km ? tpl.kmStone : tpl.hectoStone, s.x, y, s.z, yaw, 1, 1, 1, KM_CAP);
+      // Bornes kilométriques une fois et demie plus grosses (lisibles en roulant).
+      const k = km ? 1.5 : 1.2;
+      sb.put(km ? tpl.kmStone : tpl.hectoStone, s.x, y, s.z, yaw, k, k, k, KM_CAP);
       const label = km ? kmLabel(Math.round(d / 1000), s.x, y, s.z, yaw) : null;
       if (label) kmLabels.push(label);
     }

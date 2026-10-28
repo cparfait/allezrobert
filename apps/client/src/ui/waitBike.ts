@@ -4,14 +4,12 @@
  * Sur le vélo, il pédale : calques de l'illustration animés en CSS (`.rb` dans index.html), uniquement par
  * transform pour que l'animation tourne même quand le chargement bloque la page. Bras croisés : image fixe.
  */
-import { LOW_POLY } from '../engine/style.ts';
 
 let next = 0;
 
 export function waitBike(): HTMLElement {
-  // Style jeu vidéo : Robert en low poly (public/robert-lowpoly/velo.png et attente.png), image fixe ;
-  // repli sur l'illustration d'origine si les images manquent.
-  if (LOW_POLY) return lowPoly();
+  // Les écrans d'attente gardent le Robert d'origine même en style jeu vidéo (choix du 28/10) ; la version
+  // low poly reste disponible (lowPolyWaitBike, public/robert-lowpoly).
   if (next++ % 2 === 0) return riding();
   const img = document.createElement('img');
   img.className = 'world-wait-bike';
@@ -39,7 +37,7 @@ let pose = 0;
  * Robert en low poly (public/robert-lowpoly/, images détourées) : sur le vélo, il pédale comme l'illustration
  * d'origine (calques vélo, jambe, buste, bras levé animés en CSS, `.rb.rb-lp` dans index.html) ; sinon image fixe.
  */
-function lowPoly(): HTMLElement {
+export function lowPolyWaitBike(): HTMLElement {
   const name = LOW_POLY_POSES[pose++ % LOW_POLY_POSES.length] as string;
   if (name === 'velo') {
     const el = document.createElement('div');

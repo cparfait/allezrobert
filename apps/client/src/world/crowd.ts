@@ -176,12 +176,23 @@ export class Crowd {
     const sprintDesigns = signDesigns(name, 'sprint', 6, r);
     let komNext = 0;
     let sprintNext = 0;
+    // Zones de public : fin des KOM (350 m) et des sprints (120 m), et foule serrée sur 30 m de part et d'autre de
+    // chaque arche (départ, arrivée, départ de KOM, départ et ligne de sprint).
+    const zones: Array<{ startM: number; endM: number; kom: boolean; arch: boolean }> = [];
     for (const seg of track.route.segments.filter((s) => s.kind === 'kom' || s.kind === 'sprint')) {
       const kom = seg.kind === 'kom';
-      const from = Math.max(seg.startM, seg.endM - (kom ? 350 : 120));
-      for (let d = from; d < seg.endM; d += (kom ? 3.25 : 4) / density) {
+      zones.push({ startM: Math.max(seg.startM, seg.endM - (kom ? 350 : 120)), endM: seg.endM, kom, arch: false });
+      zones.push({ startM: Math.max(0, seg.startM - 30), endM: Math.min(track.length, seg.startM + 30), kom, arch: true });
+      zones.push({ startM: seg.endM, endM: Math.min(track.length, seg.endM + 30), kom, arch: true });
+    }
+    zones.push({ startM: Math.max(0, track.length - 60), endM: track.length - 1, kom: false, arch: true });
+    if (!track.route.loop) zones.push({ startM: 0, endM: 40, kom: false, arch: true });
+    for (const seg of zones) {
+      const kom = seg.kom;
+      const from = seg.startM;
+      for (let d = from; d < seg.endM; d += (seg.arch ? 2.4 : kom ? 3.25 : 4) / density) {
         for (const side of [-1, 1]) {
-          if (r() < (kom ? 0.35 : 0.5)) continue;
+          if (r() < (seg.arch ? 0.15 : kom ? 0.35 : 0.5)) continue;
           const lateral = side * (half + 1.6 + r() * 3);
           const dd = d + r() * 2;
           const p = track.positionAt(dd, lateral);
