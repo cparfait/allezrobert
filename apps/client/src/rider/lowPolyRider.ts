@@ -705,11 +705,11 @@ export class LowPolyRider implements RiderAvatarLike {
     // vitesse : −60 % de 20 à 45 km/h.
     const pedaling = 1 - this.coastBlend;
     const fast = Math.min(1, Math.max(0, (speed * 3.6 - 20) / 25));
-    const rock = -Math.sin(this.crankAngle) * (0.16 * stand + 0.009 * (1 - stand)) * pedaling * (1 - 0.6 * fast);
+    const rock = -Math.sin(this.crankAngle) * (0.22 * stand + 0.009 * (1 - stand)) * pedaling * (1 - 0.6 * fast);
     this.lean.rotation.z = tilt + rock;
     /** Décalage latéral des épaules (repère du vélo) qui garde le buste presque d'aplomb malgré la bascule. */
     // Assis : buste fixe sur le vélo (aucune compensation) ; en danseuse, épaules ramenées vers l'aplomb.
-    const upright = (y: number) => 0.75 * stand * rock * y;
+    const upright = (y: number) => 0.85 * stand * rock * y;
     // Roulis des épaules assis : l'épaule du côté de la jambe qui appuie (manivelle vers l'avant, sin < 0 à
     // gauche) descend d'environ 1 cm et le buste glisse un peu vers elle.
     // Les pros restent immobiles du haut à haute cadence : roulis réduit de moitié de 80 à 120 tr/min.
@@ -733,13 +733,15 @@ export class LowPolyRider implements RiderAvatarLike {
     this.aeroBlend += (aeroOn - this.aeroBlend) * k2;
     const aero = this.aeroBlend * (1 - stand) * (1 - this.celebrate);
     const dropHands = Math.max(this.dropsBlend * (1 - stand), aero) * (1 - this.celebrate);
-    const hip = this.hip.set(0, SADDLE.y + 0.07 + 0.13 * stand, SADDLE.z + 0.02 + 0.2 * stand - 0.02 * aero);
+    // Danseuse : bassin monté de 16 cm et avancé vers le pédalier ; il reste à l'aplomb pendant que le vélo bascule.
+    const hip = this.hip.set(0, SADDLE.y + 0.07 + 0.16 * stand, SADDLE.z + 0.02 + 0.23 * stand - 0.02 * aero);
+    hip.x += stand * upright(hip.y);
     const up = this.celebrate;
     // Les bras levés ou la danseuse annulent la position de chrono (on se redresse).
     const fitK = 1 - Math.max(up, stand * 0.6);
     // Buste penché à ≈ 36° assis (comme les coureurs NCT), plus couché en chrono ; en danseuse, le buste plonge et
     // les épaules passent presque au-dessus des mains, coudes fléchis (GCN).
-    const shoulder = this.shoulder.set(0, 1.395 + fit.shoulderDy * fitK + 0.02 * stand + 0.15 * up, 0.243 + fit.shoulderDz * fitK + 0.18 * stand - 0.23 * up);
+    const shoulder = this.shoulder.set(0, 1.395 + fit.shoulderDy * fitK + 0.07 * stand + 0.15 * up, 0.243 + fit.shoulderDz * fitK + 0.17 * stand - 0.23 * up);
     shoulder.y -= this.coastBlend * 0.03 * (1 - aero) + 0.13 * aero + 0.04 * dropHands * (1 - aero);
     shoulder.z += 0.07 * aero + 0.02 * dropHands * (1 - aero);
     shoulder.x += upright(shoulder.y);

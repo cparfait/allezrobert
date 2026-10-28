@@ -51,14 +51,25 @@ async function play(keys) {
   for (const k of keys) {
     const b = await buf(k);
     if (document.getElementById('crowd').checked) {
-      for (let v = 0; v < 3; v++) {
-        const s = new AudioBufferSourceNode(ctx, { buffer: b, playbackRate: 0.93 + v * 0.07, detune: (v - 1) * 60 });
-        const g = new GainNode(ctx, { gain: 0.4 });
-        const bp = new BiquadFilterNode(ctx, { type: 'bandpass', frequency: 1100 + v * 250, Q: 0.7 });
-        const pan = new StereoPannerNode(ctx, { pan: (v - 1) * 0.7 });
-        s.connect(bp).connect(g).connect(pan).connect(ctx.destination);
-        s.start(t + v * 0.11);
+      // une personne dans la foule : timbre changé, distance, côté, courte réverbération
+      const s = new AudioBufferSourceNode(ctx, { buffer: b, playbackRate: 0.88 + Math.random() * 0.24 });
+      const dist = 6 + Math.random() * 14;
+      const lp = new BiquadFilterNode(ctx, { type: 'lowpass', frequency: 5200 - dist * 120 });
+      const hp = new BiquadFilterNode(ctx, { type: 'highpass', frequency: 220 });
+      const dry = new GainNode(ctx, { gain: 0.6 / (1 + dist / 10) });
+      const wet = new GainNode(ctx, { gain: 0.2 });
+      const pan = new StereoPannerNode(ctx, { pan: (Math.random() < 0.5 ? -1 : 1) * (0.35 + Math.random() * 0.5) });
+      if (!window.__room) {
+        const len = Math.floor(ctx.sampleRate * 0.7);
+        const ir = ctx.createBuffer(2, len, ctx.sampleRate);
+        for (let c = 0; c < 2; c++) { const d = ir.getChannelData(c); for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / len) ** 3; }
+        window.__room = new ConvolverNode(ctx, { buffer: ir });
+        window.__room.connect(ctx.destination);
       }
+      s.connect(hp).connect(lp);
+      lp.connect(dry).connect(pan).connect(ctx.destination);
+      lp.connect(wet).connect(window.__room);
+      s.start(t);
     } else {
       const s = new AudioBufferSourceNode(ctx, { buffer: b });
       chain(s, t);

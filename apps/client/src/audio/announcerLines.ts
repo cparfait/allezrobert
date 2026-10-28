@@ -34,6 +34,7 @@ const FIXED: Record<string, [string, string]> = {
   seconde: ['seconde', 'second'],
   secondes: ['secondes', 'seconds'],
   et: ['et', 'and'],
+  virgule: ['virgule', 'point'],
   // Segments
   komStart: ['C’est parti pour la montée, chrono lancé !', 'Here comes the climb, the clock is running!'],
   komStart2: ['Début de la côte, à toi de jouer !', 'The climb starts now, over to you!'],
@@ -97,17 +98,22 @@ export function announcerLines(lang: Lang): Record<string, string> {
 /** Cris du public tirés au hasard. */
 export const CROWD_SHOUTS = ['allez', 'allezRobert', 'vasy', 'courage', 'allez3', 'bravo', 'plusVite', 'danseuse'];
 
-/** Clés d'une durée (« 5 minutes 11 secondes », « 42 secondes »). */
+/**
+ * Clés d'une durée : « 56 virgule 6 secondes » sous la minute (au dixième, sans arrondir à la seconde),
+ * « 5 minutes 11 » au-delà (secondes tronquées, comme un chrono).
+ */
 export function durationKeys(totalS: number): string[] {
-  const s = Math.max(0, Math.round(totalS));
-  const m = Math.floor(s / 60);
-  const r = s % 60;
-  const keys: string[] = [];
-  if (m > 0) {
-    keys.push(m < 60 ? `n${m}` : 'n59', m === 1 ? 'minute' : 'minutes');
-    if (r > 0) keys.push(`n${r}`);
-    return keys;
+  const t = Math.max(0, totalS);
+  if (t < 60) {
+    const tenthsTotal = Math.floor(t * 10 + 1e-6);
+    const sec = Math.floor(tenthsTotal / 10);
+    const tenth = tenthsTotal % 10;
+    return tenth ? [`n${sec}`, 'virgule', `n${tenth}`, 'secondes'] : [`n${sec}`, sec <= 1 ? 'seconde' : 'secondes'];
   }
-  keys.push(`n${r}`, r <= 1 ? 'seconde' : 'secondes');
+  const s = Math.floor(t);
+  const m = Math.min(59, Math.floor(s / 60));
+  const r = s % 60;
+  const keys = [`n${m}`, m === 1 ? 'minute' : 'minutes'];
+  if (r > 0) keys.push(`n${r}`);
   return keys;
 }

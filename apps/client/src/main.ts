@@ -22,6 +22,8 @@ import { FriendGhost, Ghost, fetchFriendGhost, uploadGhost } from './game/ghost.
 import { createDeviceLayer } from './game/devices.ts';
 import { Hud } from './hud/hud.ts';
 import { RideSound } from './audio/rideSound.ts';
+import { Announcer } from './audio/announcer.ts';
+import { crowdLevel } from './audio/soundscape.ts';
 import { music } from './audio/music.ts';
 import { companion } from './game/companionLink.ts';
 import { companionQr } from './ui/companionQr.ts';
@@ -1167,6 +1169,16 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   keyboard.steerBlocked = choosing;
   // Son de la sortie (ambiances, roulement, roue libre, souffle, public, trafic) : audio/rideSound.ts.
   const audio = new RideSound({ world, track, ride, traffic, ftpWatts: s.ftpWatts });
+  // Voix de course : speaker, temps et records des segments, cris du public, bilan (audio/announcer.ts).
+  const announcer = new Announcer(() => audio.audio.voiceOut());
+  announcer.preload(['welcome', 'go', 'komStart', 'sprintStart', 'time', 'summit', 'sprintLine', 'allez', 'allezRobert', 'vasy']);
+  /** Meilleur temps de chaque segment sur cet itinéraire (voix : record battu ou écart). */
+  const segBestKey = (id: string) => `ar.segbest.${rankRouteId(track.route.id)}.${id}`;
+  const voiceFlags = { start: false, half: false, lastKm: false };
+  ride.onSegmentStart = (seg) => {
+    if (seg.kind === 'kom') void announcer.say([Math.random() < 0.5 ? 'komStart' : 'komStart2']);
+    else if (seg.kind === 'sprint') void announcer.say([Math.random() < 0.5 ? 'sprintStart' : 'sprintStart2']);
+  };
   // Sons positionnés (églises, prés, eau) : la liste suit les tuiles chargées.
   const refreshSources = () => audio.setSources([...world.soundSources.values()].flat());
   refreshSources();
@@ -1186,6 +1198,12 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   input.onWarning?.((m) => hud.toast(m));
   const sequences = new RideSequences(document.getElementById('app') as HTMLElement, track);
   ride.onSegmentDone = (r) => {
+    if (r.seg.kind === 'kom' || r.seg.kind === 'sprint') {
+      const prev = Number(localStorage.getItem(segBestKey(r.seg.id)) ?? NaN);
+      const record = Number.isFinite(prev) && prev > 0 ? prev : readKomRecord(rankRouteId(track.route.id), r.seg.id)?.timeS ?? null;
+      announcer.segmentResult(r.seg.kind, r.timeS, record);
+      if (!s.guest && (record === null || r.timeS < record)) localStorage.setItem(segBestKey(r.seg.id), String(r.timeS));
+    }
     // Séquence HyperFrames (KOM / sprint) ; toast texte si les séquences sont coupées.
     // Rang solo : le joueur est classé seul ; en multijoueur le serveur fournit le vrai rang.
     if (s.guest) return;
@@ -1352,6 +1370,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   };
   ride.onLap = (lap) => {
     const done = routeTimer.lap(ride.elapsedS);
+    void announcer.say(['lap'], 'pa');
     const fr = getLang() === 'fr';
     hud.toast(done ? `${t('lap')} ${lap - 1} · ${fmtLapTime(done.timeS)}${done.best ? (fr ? ' · meilleur tour' : ' · best lap') : ''}` : `${t('lap')} ${lap}`);
     ghost.lap(ride.elapsedS, ride.state.distM);
@@ -1384,6 +1403,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   };
   const finish = () => {
     ride.paused = true;
+    void announcer.say(['finish'], 'pa');
     hud.setVisible(false);
     input.sendTrainer({ kind: 'simulation', gradePercent: 0 });
     const done = { distanceM: ride.state.distM - startD, elevationM: ride.elevationGainM, movingS: ride.elapsedS };
@@ -1423,6 +1443,14 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     );
     const trophyXp = trophies.reduce((a, t) => a + t.xp, 0);
     const after = trophyXp && xp ? addXp(trophyXp) : null;
+    announcer.summary({
+      distanceKm: stats.distanceM / 1000,
+      avgSpeedKmh: stats.avgSpeedKmh,
+      records: records.beaten.length > 0,
+      levelUp: !!xp?.levelUp,
+      trophy: trophies.length > 0,
+      previousSpeedKmh: previous?.avgSpeedKmh ?? null,
+    });
     showRideSummary(
       ui,
       {
@@ -1897,6 +1925,26 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     avatar.root.rotateX(-Math.atan((sample.grade * ride.dir) / 100));
     avatar.setEffort?.(ride.inputs.watts / Math.max(50, s.ftpWatts), ride.inputs.hr !== undefined ? ride.inputs.hr / 190 : undefined);
     avatar.update(dt, ride.inputs.cadence, ride.state.speedMs, ride.pose, bank);
+    // Voix de course : speaker au départ, mi-parcours et dernier kilomètre (itinéraire), cris du public.
+    if (!ride.paused) {
+      if (!voiceFlags.start && ride.elapsedS > 1.5) {
+        voiceFlags.start = true;
+        void announcer.say(['welcome', 'go'], 'pa');
+      }
+      const routeLen = track.length;
+      if (!track.route.loop && !nav && routeLen > 4000 && ride.dir > 0) {
+        const at = ride.state.distM;
+        if (!voiceFlags.half && at > routeLen / 2 && at < routeLen / 2 + 200) {
+          voiceFlags.half = true;
+          void announcer.say(['halfway'], 'plain', true);
+        }
+        if (!voiceFlags.lastKm && at > routeLen - 1000 && at < routeLen - 800) {
+          voiceFlags.lastKm = true;
+          void announcer.say(['lastKm'], 'pa', true);
+        }
+      }
+      announcer.crowd(crowdLevel(track.wrap(ride.state.distM), track.route.segments, track.length, track.route.loop), ride.pose === 'standing');
+    }
     (avatar as { setComputer?(d: { speedKmh: number; watts: number; cadence: number; hr?: number; timeS?: number }): void }).setComputer?.({ speedKmh: ride.state.speedMs * 3.6, watts: ride.inputs.watts, cadence: ride.inputs.cadence, hr: ride.inputs.hr, timeS: ride.elapsedS });
     // Vue subjective et caméra embarquée : on garde le vélo, les bras et les mains, mais pas la tête.
     // (pendant un demi-tour, la caméra sort derrière le coureur : la tête redevient visible)
