@@ -598,13 +598,8 @@ function srvSend(ids, what) {
   if (!ids.length) return alert('Aucune zone à envoyer.');
   const tot = srv.local.filter((z) => ids.includes(z.id)).reduce((n, z) => n + z.bytes, 0);
   const then = $('srvThen').checked;
-  const warn = then && srv.git.dirty ? `
-
-⚠ ${srv.git.dirty} fichier(s) non commité(s) : world.json / index.json de ces zones doivent être commités (et poussés : coche « git push ») pour que le serveur les reçoive.` : '';
-  srvRun({ action: 'send-zones', ids, thenUpdate: then, branch: $('srvBranch').value.trim(), mode: $('srvMode').value, push: $('srvPush').checked }, `${what} : ${ids.length} zone(s), ${mb(tot)} à envoyer vers le serveur.` + (then ? '
-Puis : git pull + déploiement de l’application.' : '') + warn + '
-
-Continuer ?');
+  const warn = then && srv.git.dirty ? '\n\n⚠ ' + srv.git.dirty + ' fichier(s) non commité(s) : world.json / index.json de ces zones doivent être commités (et poussés : coche « git push ») pour que le serveur les reçoive.' : '';
+  srvRun({ action: 'send-zones', ids, thenUpdate: then, branch: $('srvBranch').value.trim(), mode: $('srvMode').value, push: $('srvPush').checked }, `${what} : ${ids.length} zone(s), ${mb(tot)} à envoyer vers le serveur.` + (then ? '\nPuis : git pull + déploiement de l’application.' : '') + warn + '\n\nContinuer ?');
 }
 $('srvSendOne').onclick = () => { if (!draft || !draft.id) return alert('Choisis ou enregistre d’abord une zone.'); if (!srv || !srv.local.find((z) => z.id === draft.id)) return alert('Cette zone n’a pas encore de tuiles construites (pack.json) : la construire d’abord.'); srvSend([draft.id], 'Envoi de la zone ' + draft.id); };
 $('srvSendNew').onclick = () => srvSend(srvIds((st) => st !== 'ok'), 'Envoi des nouvelles et modifiées');

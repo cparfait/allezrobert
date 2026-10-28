@@ -451,9 +451,7 @@ async function runSteps(): Promise<void> {
     if (step.status === 'done') continue; // déjà fait (reprise)
     if (step.needsAllOk && j.steps.some((o) => o !== step && o.status !== 'done')) {
       step.status = 'cancelled';
-      log(`
-# ${step.name} : ignoré, un pas précédent a échoué
-`);
+      log(`\n# ${step.name} : ignoré, un pas précédent a échoué\n`);
       continue;
     }
     step.status = 'running';
