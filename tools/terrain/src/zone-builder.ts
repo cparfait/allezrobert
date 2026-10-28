@@ -340,7 +340,7 @@ function deployStep(name: string, req: Record<string, unknown>): Step {
 }
 
 /** Mise à jour du serveur : application (git pull + Docker), zones, vidéos du menu. */
-async function startDeploy(b: { action: string; ids?: unknown; branch?: unknown; mode?: unknown; push?: unknown; thenUpdate?: unknown }): Promise<Job> {
+async function startDeploy(b: { action: string; ids?: unknown; branch?: unknown; mode?: unknown; push?: unknown; commit?: unknown; thenUpdate?: unknown }): Promise<Job> {
   if (jobRunning()) throw new Error('un travail de l’outil est déjà en cours');
   const steps: Step[] = [];
   if (b.action === 'send-zones') {
@@ -348,9 +348,9 @@ async function startDeploy(b: { action: string; ids?: unknown; branch?: unknown;
     if (!ids.length) throw new Error('aucune zone choisie');
     for (const id of ids) steps.push(deployStep(`envoi ${id}`, { action: 'send-zones', ids: [id] }));
     // Le catalogue (index.json) n'annonce les zones qu'une fois l'image web redéployée : à faire après les tuiles, et seulement si tout est parti.
-    if (b.thenUpdate) steps.push({ ...deployStep('mise à jour de l’application', { action: 'update-app', branch: String(b.branch ?? ''), mode: b.mode === 'pull' ? 'pull' : 'build', push: !!b.push }), needsAllOk: true });
+    if (b.thenUpdate) steps.push({ ...deployStep('mise à jour de l’application', { action: 'update-app', branch: String(b.branch ?? ''), mode: b.mode === 'pull' ? 'pull' : 'build', push: !!b.push, commit: !!b.commit }), needsAllOk: true });
   } else if (b.action === 'update-app') {
-    steps.push(deployStep('mise à jour de l’application', { action: 'update-app', branch: String(b.branch ?? ''), mode: b.mode === 'pull' ? 'pull' : 'build', push: !!b.push }));
+    steps.push(deployStep('mise à jour de l’application', { action: 'update-app', branch: String(b.branch ?? ''), mode: b.mode === 'pull' ? 'pull' : 'build', push: !!b.push, commit: !!b.commit }));
   } else if (b.action === 'install-key') {
     steps.push(deployStep('installation de la clé SSH', { action: 'install-key' }));
   } else if (b.action === 'send-menu') {

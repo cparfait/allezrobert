@@ -127,6 +127,7 @@
   <div class="row" style="margin-top:6px"><button id="srvMenu">Vidéos du menu</button><button id="srvRefresh">Actualiser</button></div>
   <h2 style="margin-top:10px">Application</h2>
   <div class="row"><div><label>Branche à déployer</label><input id="srvBranch" type="text" placeholder="(celle en place)"></div><div><label>Images Docker</label><select id="srvMode"><option value="build">Construites sur le serveur</option><option value="pull">Publiées par la CI (main)</option></select></div></div>
+  <div class="chk"><input id="srvCommit" type="checkbox"><span>Commiter d’abord les fichiers de zones modifiés (world.json, graph.json, routes, index.json…)</span></div>
   <div class="chk"><input id="srvPush" type="checkbox"><span>Envoyer d’abord mes commits vers GitHub (git push)</span></div>
   <div class="chk"><input id="srvThen" type="checkbox"><span>Après l’envoi de zones : mettre à jour l’application (le catalogue n’annonce les zones qu’ensuite ; ignoré si un envoi échoue)</span></div>
   <div class="row"><button id="srvUpdate" class="primary">Mettre à jour l’application (git pull + Docker)</button></div>
@@ -599,18 +600,18 @@ function srvSend(ids, what) {
   const tot = srv.local.filter((z) => ids.includes(z.id)).reduce((n, z) => n + z.bytes, 0);
   const then = $('srvThen').checked;
   const warn = then && srv.git.dirty ? '\n\n⚠ ' + srv.git.dirty + ' fichier(s) non commité(s) : world.json / index.json de ces zones doivent être commités (et poussés : coche « git push ») pour que le serveur les reçoive.' : '';
-  srvRun({ action: 'send-zones', ids, thenUpdate: then, branch: $('srvBranch').value.trim(), mode: $('srvMode').value, push: $('srvPush').checked }, `${what} : ${ids.length} zone(s), ${mb(tot)} à envoyer vers le serveur.` + (then ? '\nPuis : git pull + déploiement de l’application.' : '') + warn + '\n\nContinuer ?');
+  srvRun({ action: 'send-zones', ids, thenUpdate: then, branch: $('srvBranch').value.trim(), mode: $('srvMode').value, push: $('srvPush').checked, commit: $('srvCommit').checked }, `${what} : ${ids.length} zone(s), ${mb(tot)} à envoyer vers le serveur.` + (then ? '\nPuis : git pull + déploiement de l’application.' : '') + warn + '\n\nContinuer ?');
 }
 $('srvSendOne').onclick = () => { if (!draft || !draft.id) return alert('Choisis ou enregistre d’abord une zone.'); if (!srv || !srv.local.find((z) => z.id === draft.id)) return alert('Cette zone n’a pas encore de tuiles construites (pack.json) : la construire d’abord.'); srvSend([draft.id], 'Envoi de la zone ' + draft.id); };
 $('srvSendNew').onclick = () => srvSend(srvIds((st) => st !== 'ok'), 'Envoi des nouvelles et modifiées');
 $('srvSendAll').onclick = () => srvSend(srv ? srv.local.map((z) => z.id) : [], 'Envoi de toutes les zones');
 $('srvMenu').onclick = () => srvRun({ action: 'send-menu' }, 'Envoyer les vidéos du menu (≈250 Mo) vers le serveur ?');
-$('srvUpdate').onclick = () => srvRun({ action: 'update-app', branch: $('srvBranch').value.trim(), mode: $('srvMode').value, push: $('srvPush').checked }, 'Mettre à jour l’application sur le serveur ?\n\n• git pull' + ($('srvBranch').value.trim() ? ' (branche ' + $('srvBranch').value.trim() + ')' : '') + '\n• deploy.sh : sauvegarde, images Docker, migrations, redémarrage.');
+$('srvUpdate').onclick = () => srvRun({ action: 'update-app', branch: $('srvBranch').value.trim(), mode: $('srvMode').value, push: $('srvPush').checked, commit: $('srvCommit').checked }, 'Mettre à jour l’application sur le serveur ?\n\n• git pull' + ($('srvBranch').value.trim() ? ' (branche ' + $('srvBranch').value.trim() + ')' : '') + '\n• deploy.sh : sauvegarde, images Docker, migrations, redémarrage.');
 $('srvRefresh').onclick = srvLoad;
 $('cfgKeyInstall').onclick = () => srvRun({ action: 'install-key' }, 'Installer ta clé SSH sur le serveur ?\n\nUne fenêtre noire va s’ouvrir : SSH y demandera le mot de passe du serveur (une seule fois).');
 $('cfgSave').onclick = async () => { const r = await api('/api/deploy/config', { host: $('cfgHost').value, port: $('cfgPort').value, key: $('cfgKey').value, repo: $('cfgRepo').value, url: $('cfgUrl').value }); $('cfgMsg').innerHTML = r.ok ? '<span class="good">Enregistré.</span>' : `<span class="err">${esc(r.error)}</span>`; if (r.ok) srvLoad(); };
 const _showJob = showJob;
-showJob = (j) => { _showJob(j); const running = !!j && j.status === 'running'; for (const id of ['srvSendOne', 'srvSendNew', 'srvSendAll', 'srvMenu', 'srvUpdate', 'srvThen', 'cfgKeyInstall']) $(id).disabled = running; };
+showJob = (j) => { _showJob(j); const running = !!j && j.status === 'running'; for (const id of ['srvSendOne', 'srvSendNew', 'srvSendAll', 'srvMenu', 'srvUpdate', 'srvThen', 'srvCommit', 'cfgKeyInstall']) $(id).disabled = running; };
 
 // ---------- démarrage ----------
 (async () => {

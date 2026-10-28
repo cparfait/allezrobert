@@ -237,6 +237,20 @@ export async function job(action, body, emit) {
     const branch = String(body.branch || '').trim();
     if (branch && !SAFE.branch.test(branch)) return emit('✗ Nom de branche invalide.'), 1;
     const mode = body.mode === 'build' ? 'build' : 'pull';
+    if (body.commit) {
+      // Seulement les fichiers que l'outil de zones écrit (tuiles exclues : ignorées par git) ; rien d'autre n'est commité.
+      const paths = ['apps/client/public/worlds', 'tools/terrain/zones', 'apps/client/src/world/worlds.ts', 'apps/client/src/world/zoneMap.ts'];
+      const st = await run('git', ['status', '--porcelain', '--', ...paths]);
+      const files = st.out.split(/\r?\n/).filter(Boolean);
+      if (!files.length) emit('\n▶ Commit des zones : rien à commiter.');
+      else {
+        emit(`\n▶ Commit des zones : ${files.length} fichier(s)`);
+        files.slice(0, 12).forEach((l) => emit(`  ${l}`));
+        if (files.length > 12) emit(`  … et ${files.length - 12} autre(s)`);
+        if ((await step(emit, 'git add', 'git', ['add', '--', ...paths])) !== 0) return 1;
+        if ((await step(emit, 'git commit', 'git', ['commit', '-m', 'chore(zones) : zones mises à jour depuis l’outil', '--', ...paths])) !== 0) return 1;
+      }
+    }
     if (body.push && (await step(emit, 'Envoi des commits locaux vers GitHub (git push)', 'git', ['push'])) !== 0) return 1;
     const checkout = branch ? `git fetch origin && git checkout ${q(branch)} && ` : '';
     const cmd = `cd ${q(c.repo)} && ${checkout}git pull --ff-only && cd deploy && ./deploy.sh ${mode}`;
