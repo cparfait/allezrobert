@@ -13,6 +13,8 @@ import { companion, type CompanionLink } from '../game/companionLink.ts';
 /** « Proposer le QR code au lancement d'une sortie » (activé par défaut). */
 const OFFER_KEY = 'ar.pair.offer';
 const OFFER_CLOSE_S = 40;
+/** Durée de la coche verte « téléphone connecté » avant le départ automatique. */
+const CONNECTED_SHOW_MS = 1800;
 
 /** Téléphone (trait fin, comme les icônes du menu) avec ondes de liaison. */
 export function phoneIcon(size = 20): string {
@@ -35,11 +37,11 @@ export function offerEnabled(): boolean {
   return localStorage.getItem(OFFER_KEY) !== 'off';
 }
 
-function statusHtml(link: CompanionLink): string {
+function statusHtml(link: CompanionLink, withNone = true): string {
   const fr = getLang() === 'fr';
   const { phones } = link.presence;
   if (phones) return `<i class="ok"></i>${fr ? `${phones} téléphone${phones > 1 ? 's' : ''} connecté${phones > 1 ? 's' : ''}` : `${phones} phone${phones > 1 ? 's' : ''} connected`}`;
-  return `<i></i>${fr ? 'Aucun téléphone connecté' : 'No phone connected'}`;
+  return withNone ? `<i></i>${fr ? 'Aucun téléphone connecté' : 'No phone connected'}` : '';
 }
 
 export class CompanionQr {
@@ -52,6 +54,8 @@ export class CompanionQr {
   private prestart = false;
   /** La carte est déjà affichée : les mises à jour (présence, état) ne rejouent pas son animation d'entrée. */
   private shown = false;
+  /** Téléphone connecté : coche verte affichée, départ programmé. */
+  private connectedShown = false;
   private closeTimer: ReturnType<typeof setTimeout> | undefined;
   url = '';
   svg = '';
@@ -63,9 +67,11 @@ export class CompanionQr {
     document.body.appendChild(this.el);
     link.listen(() => {
       // Téléphone connecté pendant la proposition : on le confirme, puis on s'efface.
-      if (this.open && this.offered && link.presence.phones) {
+      if (this.open && this.offered && link.presence.phones && !this.connectedShown) {
+        this.connectedShown = true;
         clearTimeout(this.closeTimer);
-        this.closeTimer = setTimeout(() => this.close(), 1500);
+        // Pastille verte un instant, puis la fenêtre se ferme et la sortie démarre (close() libère beforeRide).
+        this.closeTimer = setTimeout(() => this.close(), CONNECTED_SHOW_MS);
       }
       if (this.open) this.render();
     });
@@ -102,6 +108,7 @@ export class CompanionQr {
     if (!this.link.connected) return;
     this.open = true;
     this.shown = false;
+    this.connectedShown = false;
     this.offered = offered;
     this.prestart = prestart;
     clearTimeout(this.closeTimer);
@@ -175,9 +182,9 @@ export class CompanionQr {
       <b>${this.prestart ? (fr ? 'Avant de partir' : 'Before you go') : fr ? 'Appli compagnon' : 'Companion app'}</b>
       <h2>${fr ? 'Pilote ta sortie depuis ton téléphone' : 'Control your ride from your phone'}</h2>
       <ul class="cmp-feats">${(fr ? ['Compteur', 'Vitesses', 'Carrefours', 'Musique', 'Chat'] : ['Computer', 'Gears', 'Junctions', 'Music', 'Chat']).map((f) => `<li>${f}</li>`).join('')}</ul>
-      <div class="cmp-code ${done ? 'done' : ''}">${this.svg}${done ? '<span>✓</span>' : ''}</div>
+      <div class="cmp-code ${done ? 'done' : ''}">${this.svg}${done ? '<svg class="cmp-check" viewBox="0 0 52 52" aria-hidden="true"><circle cx="26" cy="26" r="23" /><path d="M15 27 l8 8 l15 -17" /></svg>' : ''}</div>
       <p class="cmp-how">${fr ? 'Ouvre l’appareil photo de ton téléphone et vise ce code.<br>Aucun compte à créer.' : 'Open your phone camera and point it at this code.<br>No account needed.'}</p>
-      <p class="cmp-state">${statusHtml(this.link)}</p>
+      <p class="cmp-state">${statusHtml(this.link, false)}</p>
       <div class="cmp-row">
         ${
           this.prestart
