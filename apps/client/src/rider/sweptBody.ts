@@ -343,7 +343,10 @@ export class SweptBody {
       geo.setAttribute('jpos', new THREE.BufferAttribute(jp, 3));
       geo.setAttribute('jnor', new THREE.BufferAttribute(jn, 3));
       geo.setAttribute('jmask', new THREE.Float32BufferAttribute(b.mask, 1));
-      const pattern = jerseyPattern(look.pattern, { sleeveX: 0.16 * s, torsoLen });
+      // Pois : centres posés sur le tissu du maillot (triangles dont les trois sommets sont du maillot).
+      const index: number[] = [];
+      for (let t = 0; t < b.index.length; t += 3) if (b.mask[b.index[t] as number] && b.mask[b.index[t + 1] as number] && b.mask[b.index[t + 2] as number]) index.push(b.index[t] as number, b.index[t + 1] as number, b.index[t + 2] as number);
+      const pattern = jerseyPattern(look.pattern, { sleeveX: 0.16 * s, torsoLen, surface: { jp, index } });
       pattern.set(look.pattern);
       const vc = attribute<'vec3'>('color', 'vec3');
       mat.colorNode = mix(vc, pattern.color(vc), attribute<'float'>('jmask', 'float'));

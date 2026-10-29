@@ -454,7 +454,7 @@ export function jerseyPattern(look: AvatarLook, opt: { sleeveX: number; torsoLen
   const s = jp.y.div(opt.torsoLen); // 0 ourlet → 1 col
   const flag = (i: number) => step(i - 0.5, mode).mul(step(mode, i + 0.5));
   let dots: THREE.Node<'float'>;
-  // Avatar réaliste : disque autour du centre le plus proche (dotCentres), cherché dans les 8 cases voisines.
+  // Disque autour du centre le plus proche (dotCentres), cherché dans les 8 cases voisines.
   const loads: THREE.TextureNode[] = [];
   const gOrigin = uniform(new THREE.Vector3());
   const gDims = uniform(new THREE.Vector3(1, 1, 1));
@@ -491,7 +491,7 @@ export function jerseyPattern(look: AvatarLook, opt: { sleeveX: number; torsoLen
       return out;
     })() as THREE.Node<'float'>;
   } else {
-    // Corps low poly : treillis 3D décalé une rangée sur deux ; disque perpendiculaire à la normale.
+    // Sans surface connue : treillis 3D décalé une rangée sur deux ; disque perpendiculaire à la normale.
     const q = jp.div(dotStep);
     const qs = vec3(q.x.add(mod(floor(q.y), 2).mul(0.5)), q.y, q.z);
     const d3 = fract(qs).sub(0.5);
