@@ -20,7 +20,7 @@ const WHEEL_R = 0.335;
 const BB = new THREE.Vector3(0, 0.28, 0);
 const CRANK = 0.1725;
 const REAR_AXLE = new THREE.Vector3(0, WHEEL_R, -0.41);
-const FRONT_AXLE = new THREE.Vector3(0, WHEEL_R, 0.6);
+const FRONT_AXLE = new THREE.Vector3(0, WHEEL_R, 0.62);
 const SADDLE = new THREE.Vector3(0, 0.965, -0.2);
 const THIGH = 0.46;
 const SHIN = 0.47;
@@ -143,6 +143,66 @@ function solveTwoBone(root: THREE.Vector3, target: THREE.Vector3, l1: number, l2
 }
 
 const _tubeMat = new THREE.MeshBasicMaterial();
+const _handY = new THREE.Vector3();
+const _handZ = new THREE.Vector3();
+const _handM = new THREE.Matrix4();
+
+/**
+ * Tube d'un seul tenant le long d'une polyligne (cintre) : anneaux orientés par transport parallèle, tangente
+ * moyenne aux coudes, extrémités fermées. Des cylindres mis bout à bout faisaient des bourrelets aux jointures.
+ */
+function sweep(path: THREE.Vector3[], r: number, sides = 8): THREE.BufferGeometry {
+  const pos: number[] = [];
+  const index: number[] = [];
+  const t = new THREE.Vector3();
+  const n = new THREE.Vector3(0, 1, 0);
+  const b = new THREE.Vector3();
+  const prevT = new THREE.Vector3();
+  const q = new THREE.Quaternion();
+  for (let i = 0; i < path.length; i++) {
+    const a = path[Math.max(0, i - 1)] as THREE.Vector3;
+    const c = path[Math.min(path.length - 1, i + 1)] as THREE.Vector3;
+    t.subVectors(c, a).normalize();
+    if (i === 0) {
+      // Normale de départ perpendiculaire à la tangente.
+      if (Math.abs(n.dot(t)) > 0.9) n.set(1, 0, 0);
+      n.addScaledVector(t, -n.dot(t)).normalize();
+    } else {
+      q.setFromUnitVectors(prevT, t);
+      n.applyQuaternion(q).addScaledVector(t, -n.dot(t)).normalize();
+    }
+    prevT.copy(t);
+    b.crossVectors(t, n);
+    const p = path[i] as THREE.Vector3;
+    for (let j = 0; j < sides; j++) {
+      const ang = (j / sides) * Math.PI * 2;
+      pos.push(p.x + (n.x * Math.cos(ang) + b.x * Math.sin(ang)) * r, p.y + (n.y * Math.cos(ang) + b.y * Math.sin(ang)) * r, p.z + (n.z * Math.cos(ang) + b.z * Math.sin(ang)) * r);
+    }
+    if (i > 0)
+      for (let j = 0; j < sides; j++) {
+        const j1 = (j + 1) % sides;
+        const r0 = (i - 1) * sides;
+        const r1 = i * sides;
+        index.push(r0 + j, r1 + j, r0 + j1, r0 + j1, r1 + j, r1 + j1);
+      }
+  }
+  // Bouts fermés.
+  for (const [ring, flip] of [[0, true], [path.length - 1, false]] as const) {
+    const c = pos.length / 3;
+    const p = path[ring] as THREE.Vector3;
+    pos.push(p.x, p.y, p.z);
+    for (let j = 0; j < sides; j++) {
+      const j1 = (j + 1) % sides;
+      if (flip) index.push(c, ring * sides + j1, ring * sides + j);
+      else index.push(c, ring * sides + j, ring * sides + j1);
+    }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setIndex(index);
+  g.computeVertexNormals();
+  return g;
+}
 /** Tube fixe (géométrie transformée, à fusionner) ; `sx` / `sz` : profil (aéro : étroit et profond). */
 function tube(a: THREE.Vector3, b: THREE.Vector3, r: number, rEnd = r, sides = 6, sx = 1, sz = 1): THREE.BufferGeometry {
   const s = new Seg(prism(r, rEnd, sides), _tubeMat, sx, sz);
@@ -255,7 +315,7 @@ export class LowPolyRider implements RiderAvatarLike {
   private screen: { ctx: CanvasRenderingContext2D; tex: THREE.CanvasTexture; t: number } | null = null;
   private pedals: THREE.Mesh[] = [];
   private legs: Array<{ side: number; shorts: Seg; knee: Seg; shin: Seg; sock: Seg; shoe: THREE.Mesh }> = [];
-  private arms: Array<{ side: number; sleeve: Seg; cuff: Seg; upper: Seg; fore: Seg; glove: THREE.Mesh }> = [];
+  private arms: Array<{ side: number; sleeve: Seg; cuff: Seg; upper: Seg; fore: Seg; glove: THREE.Object3D }> = [];
   private torso!: Seg;
   private bands: Band[] = [];
   private collar!: Seg;
@@ -411,8 +471,7 @@ export class LowPolyRider implements RiderAvatarLike {
       const cuff = new Seg(prism(0.054, 0.054, 8), style === 'manches' ? jersey : accent, build, build);
       const upper = new Seg(quad(0.046, 0.05), this.longSleeves ? sleeveMat : skin, build, build);
       const fore = new Seg(quad(0.037, 0.047), this.longSleeves ? sleeveMat : skin, build, build);
-      const gl = new THREE.Mesh(box(0.07, 0.06, 0.09), look.gloves === 'none' ? skin : glove);
-      gl.castShadow = true;
+      const gl = this.buildHand(side, look.gloves === 'none' ? skin : glove, look.gloves === 'none' || look.gloves === 'mitts' ? skin : glove);
       this.body.add(sleeve.mesh, cuff.mesh, upper.mesh, fore.mesh, gl);
       this.arms.push({ side, sleeve, cuff, upper, fore, glove: gl });
     }
@@ -485,6 +544,29 @@ export class LowPolyRider implements RiderAvatarLike {
     this.head.add(this.headgear);
     this.head.traverse((o) => (o.castShadow = true));
     this.body.add(this.head);
+  }
+
+  /**
+   * Main sur la cocotte, dans le repère de l'avant-bras (y vers les doigts, x latéral, +z vers le bas) : dos de main
+   * qui s'élargit vers les jointures, doigts recourbés autour de l'avant de la cocotte, pouce côté intérieur. Gant
+   * (ou peau) ; les doigts restent nus avec des mitaines.
+   */
+  private buildHand(side: number, palmMat: THREE.Material, fingerMat: THREE.Material): THREE.Group {
+    const g = new THREE.Group();
+    const palm = new THREE.BoxGeometry(0.07, 0.08, 0.026).translate(0, -0.012, -0.01);
+    const pp = palm.getAttribute('position');
+    // Plus étroite et plus fine au poignet.
+    for (let i = 0; i < pp.count; i++) if (pp.getY(i) < 0) pp.setXYZ(i, pp.getX(i) * 0.82, pp.getY(i), pp.getZ(i) * 0.85);
+    const thumb = new THREE.BoxGeometry(0.02, 0.05, 0.021).rotateZ(0.45 * side).translate(-0.036 * side, 0.012, 0.012);
+    // Doigts : première phalange dans le prolongement, puis repliés vers le bas autour de la cocotte.
+    const fingers = [
+      new THREE.BoxGeometry(0.068, 0.032, 0.02).rotateX(0.35).translate(0, 0.042, -0.002),
+      new THREE.BoxGeometry(0.064, 0.036, 0.018).rotateX(1.35).translate(0, 0.06, 0.022),
+    ];
+    const a = merged([palm, thumb], palmMat);
+    const b = merged(fingers, fingerMat);
+    g.add(a, b);
+    return g;
   }
 
   /** Coiffure (AvatarLook.hairStyle, voir faceEditor.ts), sous le casque : nuque, queue, tresses, chignon… */
@@ -613,8 +695,10 @@ export class LowPolyRider implements RiderAvatarLike {
     const mtb = kind === 'mtb';
     const aeroTubes = kind === 'aero' || kind === 'tt';
     const seatTop = mtb ? v3(0, 0.72, -0.14) : kind === 'retro' ? v3(0, 0.83, -0.155) : v3(0, 0.8, -0.15);
-    const headTop = mtb ? v3(0, 0.87, 0.42) : kind === 'retro' ? v3(0, 0.83, 0.44) : kind === 'gravel' ? v3(0, 0.86, 0.44) : v3(0, 0.84, 0.44);
-    const headBottom = mtb ? v3(0, 0.64, 0.47) : v3(0, 0.66, 0.49);
+    // Douille d'un vrai cadre (route : stack 565 mm, reach 390, douille de 15 cm à 73°) : son bas est à 37 cm
+    // de l'axe de roue (longueur d'une fourche), et le diagonal passe à 1 ou 2 cm du pneu.
+    const headTop = mtb ? v3(0, 0.88, 0.39) : kind === 'retro' ? v3(0, 0.83, 0.405) : kind === 'gravel' ? v3(0, 0.87, 0.4) : v3(0, 0.85, 0.4);
+    const headBottom = mtb ? v3(0, 0.72, 0.44) : v3(0, 0.7, 0.445);
     const k = mtb ? 1.35 : kind === 'retro' ? 0.7 : 1;
     const sides = kind === 'retro' ? 8 : 6;
     const sx = aeroTubes ? 0.7 : 1;
@@ -622,7 +706,8 @@ export class LowPolyRider implements RiderAvatarLike {
     const frame = [
       tube(BB, seatTop, 0.02 * k, 0.02 * k, sides, sx, sz),
       tube(seatTop, headTop, 0.019 * k, 0.019 * k, sides, sx, aeroTubes ? 1.4 : 1),
-      tube(BB, headBottom, 0.028 * k, 0.024 * k, sides, sx, sz),
+      // Diagonal aéro moins profond vers la roue (il la frôlait).
+      tube(BB, headBottom, 0.028 * k, 0.024 * k, sides, sx, aeroTubes ? 1.35 : 1),
       tube(headBottom, headTop, 0.026 * k, 0.026 * k, sides),
     ];
     for (const s of [1, -1]) {
@@ -633,7 +718,7 @@ export class LowPolyRider implements RiderAvatarLike {
     }
     g.add(merged(frame, frameMat));
     // Seconde couleur de la livrée : bande sur le diagonal et la douille.
-    g.add(merged([tube(BB.clone().lerp(headBottom, 0.35), BB.clone().lerp(headBottom, 0.75), 0.03 * k, 0.03 * k, sides, sx, sz), tube(headBottom.clone().lerp(headTop, 0.2), headBottom.clone().lerp(headTop, 0.8), 0.029 * k, 0.029 * k, sides)], accentMat));
+    g.add(merged([tube(BB.clone().lerp(headBottom, 0.35), BB.clone().lerp(headBottom, 0.75), 0.03 * k, 0.03 * k, sides, sx, aeroTubes ? 1.4 : 1), tube(headBottom.clone().lerp(headTop, 0.2), headBottom.clone().lerp(headTop, 0.8), 0.029 * k, 0.029 * k, sides)], accentMat));
 
     const parts: THREE.BufferGeometry[] = [];
     // Fourche suspendue du VTT : fourreaux épais, té, plongeurs.
@@ -652,7 +737,8 @@ export class LowPolyRider implements RiderAvatarLike {
     for (let i = 0; i < sp.count; i++) if (sp.getZ(i) > SADDLE.z) sp.setX(i, sp.getX(i) * 0.35);
     const fit = this.fit;
     const stemEnd = fit.bar === 'flat' ? v3(0, 0.95, 0.5) : v3(0, 0.89, 0.55);
-    parts.push(tube(seatTop, SADDLE.clone().setY(SADDLE.y - 0.03), 0.014 * (mtb ? 1.4 : 1)), saddle, tube(headTop, stemEnd, 0.018));
+    const steer = headTop.clone().add(headTop.clone().sub(headBottom).normalize().multiplyScalar(0.035));
+    parts.push(tube(seatTop, SADDLE.clone().setY(SADDLE.y - 0.03), 0.014 * (mtb ? 1.4 : 1)), saddle, tube(headTop, steer, 0.017, 0.017, 8), tube(steer.clone().add(v3(0, -0.005, -0.012)), stemEnd, 0.017, 0.016, 8), box(0.05, 0.036, 0.03, stemEnd.x, stemEnd.y, stemEnd.z));
     const bar: THREE.BufferGeometry[] = [];
     if (fit.bar === 'flat') {
       bar.push(tube(v3(0.36, 0.955, 0.5), v3(-0.36, 0.955, 0.5), 0.014, 0.014, 6));
@@ -666,13 +752,41 @@ export class LowPolyRider implements RiderAvatarLike {
       }
     } else {
       const flare = kind === 'gravel' ? 0.04 : 0;
-      bar.push(tube(v3(0.21, 0.89, 0.55), v3(-0.21, 0.89, 0.55), 0.014));
+      // Cocottes gris anthracite : distinctes du gant et du guidoline.
+      const hoodMat = flat('#3a3d44', 0.6);
+      const hoods: THREE.BufferGeometry[] = [];
+      // Partie centrale (tops) : un peu plus épaisse au collier de potence.
+      bar.push(tube(v3(0.05, 0.89, 0.55), v3(-0.05, 0.89, 0.55), 0.016, 0.016, 8));
       for (const s of [1, -1]) {
-        bar.push(tube(v3(0.2 * s, 0.89, 0.55), v3(0.2 * s, 0.87, 0.64), 0.015));
-        bar.push(tube(v3(0.2 * s, 0.87, 0.64), v3((0.2 + flare) * s, 0.75, 0.62), 0.014));
-        bar.push(tube(v3((0.2 + flare) * s, 0.75, 0.62), v3((0.2 + flare) * s, 0.74, 0.52), 0.014));
-        parts.push(box(0.035, 0.065, 0.075, 0.2 * s, 0.915, 0.66));
+        // Tracé du cintre (côté +x), puis courbe régulière : tops → virage vers l'avant → sommet du crochet →
+        // descente du drop → bas du cintre qui revient vers le coureur.
+        const path = [
+          [0.04, 0.89, 0.55],
+          [0.15, 0.89, 0.55],
+          [0.183, 0.889, 0.558],
+          [0.199, 0.887, 0.582],
+          [0.204, 0.884, 0.615],
+          [0.205, 0.877, 0.645],
+          [0.205, 0.862, 0.668],
+          [0.205, 0.838, 0.68],
+          [0.205, 0.81, 0.68],
+          [0.205, 0.784, 0.668],
+          [0.205, 0.765, 0.645],
+          [0.205, 0.755, 0.615],
+          [0.205, 0.752, 0.58],
+          [0.205, 0.752, 0.535],
+        ].map(([x, y, z], i, all) => {
+          const f = Math.max(0, i - 5) / (all.length - 6);
+          return v3(((x as number) + flare * f) * s, y as number, z as number);
+        });
+        bar.push(sweep(path, 0.0125, 8));
+        // Cocotte : corps galbé posé sur le haut du crochet, plus haut et plus étroit vers l'avant, corne relevée.
+        const hood = new THREE.CylinderGeometry(0.014, 0.017, 0.085, 7).rotateX(Math.PI / 2 - 0.25).scale(1, 1.25, 1).translate(0.205 * s, 0.904, 0.637);
+        hoods.push(hood, new THREE.IcosahedronGeometry(0.011, 0).scale(1, 1.2, 1.1).translate(0.205 * s, 0.919, 0.676));
+        // Levier de frein : lame qui descend devant le crochet.
+        parts.push(tube(v3(0.205 * s, 0.9, 0.679), v3(0.205 * s, 0.84, 0.693), 0.007, 0.006, 5, 1, 2), tube(v3(0.205 * s, 0.84, 0.693), v3(0.205 * s, 0.79, 0.686), 0.006, 0.005, 5, 1, 2));
       }
+      g.add(merged(hoods, hoodMat));
     }
     g.add(merged(bar, tapeMat));
     // Compteur sur la potence.
@@ -705,7 +819,14 @@ export class LowPolyRider implements RiderAvatarLike {
       const rimR = WHEEL_R - tireR * 2 - depth / 2;
       w.add(new THREE.Mesh(new THREE.TorusGeometry(rimR, depth / 2, 4, 48).rotateY(Math.PI / 2).scale(0.026 / depth, 1, 1), rimMat));
       const inner = rimR - depth / 2;
-      const hub: THREE.BufferGeometry[] = [new THREE.CylinderGeometry(0.028, 0.028, 0.1, 6).rotateZ(Math.PI / 2)];
+      // Moyeu : corps fin et deux flasques (plus grandes à l'arrière).
+      const flangeR = i === 0 ? 0.026 : 0.021;
+      const hub: THREE.BufferGeometry[] = [
+        new THREE.CylinderGeometry(0.012, 0.012, 0.1, 8).rotateZ(Math.PI / 2),
+        new THREE.CylinderGeometry(flangeR, flangeR, 0.005, 12).rotateZ(Math.PI / 2).translate(0.034, 0, 0),
+        new THREE.CylinderGeometry(flangeR, flangeR, 0.005, 12).rotateZ(Math.PI / 2).translate(-0.034, 0, 0),
+      ];
+      const spokes: THREE.BufferGeometry[] = [];
       if (type === 'disc') w.add(new THREE.Mesh(new THREE.CylinderGeometry(inner + 0.004, inner + 0.004, 0.024, 48).rotateZ(Math.PI / 2), liv.disc ? flat(liv.disc) : dark));
       else if (type === 'tri') {
         const blades = [0, 1, 2].map((n) => {
@@ -714,13 +835,19 @@ export class LowPolyRider implements RiderAvatarLike {
         });
         w.add(merged(blades, dark));
       } else {
-        const n = type === 'box' ? 14 : 10;
-        for (let s = 0; s < n; s++) {
-          const a = (s / n) * Math.PI * 2;
-          hub.push(tube(v3((s % 2 ? 1 : -1) * 0.03, 0, 0), v3(0, Math.sin(a) * inner, Math.cos(a) * inner), 0.003, 0.003, 3));
+        // Rayons fins (1,6 mm) : 20 radiaux devant, 24 croisés derrière (départ décalé sur la flasque), un sur
+        // deux de chaque côté.
+        const n = i === 0 ? 24 : type === 'box' ? 28 : 20;
+        for (let k = 0; k < n; k++) {
+          const a = (k / n) * Math.PI * 2;
+          const side = k % 2 ? 1 : -1;
+          const cross = i === 0 ? (Math.floor(k / 2) % 2 ? 0.55 : -0.55) : 0;
+          const b = a + cross;
+          spokes.push(tube(v3(side * 0.034, Math.sin(b) * flangeR, Math.cos(b) * flangeR), v3(side * 0.004, Math.sin(a) * (inner + 0.002), Math.cos(a) * (inner + 0.002)), 0.0016, 0.0016, 4));
         }
       }
       w.add(merged(hub, metal));
+      if (spokes.length) w.add(merged(spokes, type === 'box' ? metal : flat('#2b2d33', 0.45, 0.4)));
       w.traverse((o) => {
         o.castShadow = true;
         o.receiveShadow = true;
@@ -761,19 +888,22 @@ export class LowPolyRider implements RiderAvatarLike {
     // Virages : inclinaison adoucie et plafonnée (≈ 17°) ; l'angle physique, tout entier, couchait le vélo.
     const tilt = Math.max(-MAX_BANK, Math.min(MAX_BANK, bank * BANK_SHARE));
     // Le vélo bascule au rythme des coups de pédale, du côté opposé à la jambe qui appuie : à peine assis
-    // (≈ ±0,5°), franchement en danseuse (≈ ±9°, comme les coureurs NCT). Le bassin reste fixe sur le vélo et
-    // bascule avec lui ; seules les épaules compensent (le buste reste presque d'aplomb). Moins à haute
+    // (≈ ±0,5°), franchement en danseuse (≈ ±9°, comme les coureurs NCT vus de dos). Le bassin reste dans l'axe
+    // du vélo et bascule avec lui ; le buste, droit du bassin aux épaules, reste presque d'aplomb (les bras
+    // compensent : coude plié et ouvert du côté où le cintre remonte, bras tendu de l'autre). Moins à haute
     // vitesse : −60 % de 20 à 45 km/h.
     const pedaling = 1 - this.coastBlend;
     const fast = Math.min(1, Math.max(0, (speed * 3.6 - 20) / 25));
     // Sprint : le vélo est jeté franchement d'un côté à l'autre (≈ ±16°), même à pleine vitesse.
     this.sprintBlend += ((this.sprintOn ? 1 : 0) - this.sprintBlend) * (1 - Math.exp(-dt * 4));
     const sprint = this.sprintBlend * stand;
-    const rock = -Math.sin(this.crankAngle) * (0.22 * stand + 0.06 * sprint + 0.009 * (1 - stand)) * pedaling * (1 - 0.6 * fast * (1 - sprint));
+    const rock = -Math.sin(this.crankAngle) * (0.16 * stand + 0.12 * sprint + 0.009 * (1 - stand)) * pedaling * (1 - 0.6 * fast * (1 - sprint));
     this.lean.rotation.z = tilt + rock;
-    /** Décalage latéral des épaules (repère du vélo) qui garde le buste presque d'aplomb malgré la bascule. */
-    // Assis : buste fixe sur le vélo (aucune compensation) ; en danseuse, épaules ramenées vers l'aplomb.
-    const upright = (y: number) => 0.85 * stand * rock * y;
+    /**
+     * Décalage latéral (repère du vélo) d'un point du buste à la hauteur `y` : en danseuse, le buste pivote autour du
+     * bassin (resté dans l'axe du vélo) pour revenir presque d'aplomb ; il reste droit, sans pliure. Assis : aucun.
+     */
+    const upright = (y: number) => 0.95 * stand * rock * (y - this.hip.y);
     // Roulis des épaules assis : l'épaule du côté de la jambe qui appuie (manivelle vers l'avant, sin < 0 à
     // gauche) descend d'environ 1 cm et le buste glisse un peu vers elle.
     // Les pros restent immobiles du haut à haute cadence : roulis réduit de moitié de 80 à 120 tr/min.
@@ -800,7 +930,6 @@ export class LowPolyRider implements RiderAvatarLike {
     // Danseuse : bassin monté de 16 cm et avancé vers le pédalier ; il reste à l'aplomb pendant que le vélo bascule.
     // Sprint : bassin hors de la selle mais bas, au-dessus du bec de selle.
     const hip = this.hip.set(0, SADDLE.y + 0.07 + 0.16 * stand - 0.07 * sprint, SADDLE.z + 0.02 + 0.23 * stand - 0.12 * sprint - 0.02 * aero);
-    hip.x += stand * upright(hip.y);
     const up = this.celebrate;
     // Les bras levés ou la danseuse annulent la position de chrono (on se redresse).
     const fitK = 1 - Math.max(up, stand * 0.6);
@@ -822,6 +951,8 @@ export class LowPolyRider implements RiderAvatarLike {
     J.hip.copy(hip);
     J.shoulder.copy(shoulder);
     J.mid.lerpVectors(hip, shoulder, 0.5).add(v3(0, 0.03, -0.03));
+    // En danseuse, le bassin suit la ligne du buste (sinon il restait vertical sur le vélo : buste plié).
+    J.pelvisFollow = stand;
     J.neck.copy(shoulder).add(v3(0, 0.05, 0.04));
     this.neck.set(shoulder.clone().add(v3(0, 0.02, 0.02)), neckTop);
     this.collar.set(shoulder.clone().add(v3(0, 0.0, 0.015)), shoulder.clone().add(v3(0, 0.045, 0.035)));
@@ -863,7 +994,8 @@ export class LowPolyRider implements RiderAvatarLike {
       const hand = handBar.lerp(handUp, up);
       const elbow = new THREE.Vector3();
       // Coude qui s'ouvre légèrement du côté de l'épaule qui descend (roulis assis).
-      const pole = v3((fit.elbowPole.x + Math.max(0, roll * arm.side) * 0.12) * arm.side, fit.elbowPole.y + up, fit.elbowPole.z);
+      // En danseuse, coudes nettement ouverts vers l'extérieur (coureurs vus de dos).
+      const pole = v3((fit.elbowPole.x + Math.max(0, roll * arm.side) * 0.12 + 0.25 * stand) * arm.side, fit.elbowPole.y + up, fit.elbowPole.z);
       solveTwoBone(sh, hand, UPPER_ARM, FOREARM, pole, elbow);
       // Manche courte : 60 % du bras, poignet de couleur, puis peau ; manche longue jusqu'au poignet.
       const sleeveEnd = this.longSleeves ? elbow : sh.clone().lerp(elbow, 0.6);
@@ -872,8 +1004,12 @@ export class LowPolyRider implements RiderAvatarLike {
       else arm.cuff.set(sh.clone().lerp(elbow, 0.56), sh.clone().lerp(elbow, 0.66));
       arm.upper.set(this.longSleeves ? sh : sleeveEnd, elbow);
       arm.fore.set(elbow, hand);
+      // Main posée à plat sur la cocotte, dans son axe (un peu plus inclinée au bas du cintre, à plat sur les
+      // prolongateurs) ; elle ne suit l'avant-bras que bras levés.
       arm.glove.position.copy(hand);
-      arm.glove.quaternion.copy(arm.fore.mesh.quaternion);
+      _handY.set(0, fit.bar === 'tt' ? -0.1 : -0.25 - 0.35 * dropHands, 1).normalize();
+      _handZ.crossVectors(LEFT, _handY);
+      arm.glove.quaternion.setFromRotationMatrix(_handM.makeBasis(LEFT, _handY, _handZ)).slerp(arm.fore.mesh.quaternion, up);
       const ja = this.J.arms[arm.side > 0 ? 0 : 1];
       if (ja) {
         ja.sh.copy(sh);

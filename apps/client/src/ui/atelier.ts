@@ -3,7 +3,7 @@ import { emissive, mrt, normalView, output, packNormalToRGB, pass, sample, unpac
 import { bloom } from 'three/addons/tsl/display/BloomNode.js';
 import { ao } from 'three/addons/tsl/display/GTAONode.js';
 import { DEFAULT_LOOK, bikeById, type AvatarLook, type BikeFamily, type TuneSlot } from '@allezrobert/shared';
-import { createAvatar, type RiderAvatarLike } from '../rider/gltfAvatar.ts';
+import { createAvatar, type RiderAvatarLike, type RiderPose } from '../rider/gltfAvatar.ts';
 import { loadBikeFamily, loneWheel, onBikeFamilyLoaded } from '../rider/bikes.ts';
 import { compilePass, isCompiling, type Engine } from '../engine/renderer.ts';
 import { box, buildRoom, cyl, mat, rod, WALL_WHEELS } from './atelierRoom.ts';
@@ -33,6 +33,8 @@ export interface AtelierState {
   bareHead?: boolean;
   /** Cadrage imposé (bancs d'essai) : remplace celui de `focus`, sans rotation ni recul. */
   view?: Shot;
+  /** Pose du coureur (bancs d'essai) : `frames` images à 60 i/s dans cette pose, à cette cadence. */
+  pose?: { pose: RiderPose; cadence: number; frames: number; speed?: number };
 }
 
 /** Matériaux du vélo concernés par chaque emplacement (surbrillance). */
@@ -543,7 +545,8 @@ export class AtelierHost {
     // Coureur en selle : vélo au sol (pied replié) ; sinon sur le pied d'atelier, roues décollées.
     this.bikeRoot.position.y = st.rider ? 0 : LIFT;
     if (this.stand) this.stand.visible = !st.rider;
-    for (let i = 0; i < 4; i++) this.avatar.update(1 / 60, 0, 0, 'coasting');
+    if (st.pose) for (let i = 0; i < st.pose.frames; i++) this.avatar.update(1 / 60, st.pose.cadence, st.pose.speed ?? 5, st.pose.pose);
+    else for (let i = 0; i < 4; i++) this.avatar.update(1 / 60, 0, 0, 'coasting');
     if (st.pulse?.length) {
       this.pulseParts = st.pulse;
       this.pulseT = 0;

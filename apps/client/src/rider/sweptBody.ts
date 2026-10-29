@@ -28,6 +28,8 @@ export interface BodyJoints {
   /** Gauche (côté +x) puis droite. */
   legs: Array<{ hip: THREE.Vector3; knee: THREE.Vector3; ankle: THREE.Vector3 }>;
   arms: Array<{ sh: THREE.Vector3; el: THREE.Vector3; wr: THREE.Vector3 }>;
+  /** 0 : bassin vertical sur le vélo (assis) ; 1 : bassin dans la ligne du buste (danseuse). */
+  pelvisFollow?: number;
 }
 
 export function makeJoints(): BodyJoints {
@@ -366,8 +368,8 @@ export class SweptBody {
   pose(J: BodyJoints): void {
     const b = this.bones;
     // Bassin visé sans composante latérale : fessier immobile sur la selle, seul le haut du dos suit le roulis
-    // des épaules.
-    _mid.copy(J.mid).setX(J.hip.x);
+    // des épaules (assis) ; en danseuse (pelvisFollow), il suit la ligne droite du buste.
+    _mid.copy(J.mid).setX(J.hip.x + (J.mid.x - J.hip.x) * (J.pelvisFollow ?? 0));
     aim(b[0] as THREE.Bone, J.hip, _mid);
     aim(b[1] as THREE.Bone, J.mid, J.shoulder);
     J.legs.forEach((g, i) => {

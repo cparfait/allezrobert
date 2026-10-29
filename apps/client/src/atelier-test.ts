@@ -173,7 +173,9 @@ async function main(): Promise<void> {
         ];
     const tune = ['tune-pa-eclair', 'tune-wh-dt-arc50', 'tune-rd-noir', 'tune-bo-rouge', 'tune-ty-gp5000'];
     for (const [name, view] of views) {
-      const c = await render({ look: look(tune), focus: 'overview', rider: true, yaw: 0, view });
+      // &pose=standing|seated&cadence=70&img=N&vitesse=m/s : coureur posé (N images à 60 i/s, la manivelle tourne).
+      const pose = params.has('pose') ? { pose: params.get('pose') as 'standing' | 'seated', cadence: Number(params.get('cadence') ?? 70), frames: Number(params.get('img') ?? 120), speed: Number(params.get('vitesse') ?? 5) } : undefined;
+      const c = await render({ look: look(tune), focus: 'overview', rider: true, yaw: 0, view, ...(pose ? { pose } : {}) });
       await shot(`rendu-${name}-${tag}`, c);
     }
     return done();
