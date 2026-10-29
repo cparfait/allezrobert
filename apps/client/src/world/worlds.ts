@@ -1,5 +1,6 @@
 /** Mondes générés par tools/terrain (dossiers public/worlds/<id>/), dans l'ordre du menu. */
 export const WORLD_LIST: Array<{ id: string; name: { fr: string; en: string }; hint: { fr: string; en: string } }> = [
+  { id: 'ile-de-robert', name: { fr: "L'île de Robert", en: "Robert's Island" }, hint: { fr: "Monde imaginaire : l'Anneau, la mer, le col du Phare", en: 'Imaginary world: the Ring, the sea, the Lighthouse pass' } },
   { id: 'longchamp', name: { fr: 'Longchamp', en: 'Longchamp' }, hint: { fr: 'L’anneau du bois de Boulogne', en: 'The Bois de Boulogne loop' } },
   { id: 'chevreuse', name: { fr: 'Vallée de Chevreuse', en: 'Chevreuse Valley' }, hint: { fr: 'Saclay, Chevreuse, Rambouillet', en: 'Saclay, Chevreuse, Rambouillet' } },
   { id: 'vincennes', name: { fr: 'Vincennes', en: 'Vincennes' }, hint: { fr: 'Le tour de l’hippodrome', en: 'The racecourse loop' } },

@@ -20,6 +20,7 @@ import { ANNEAU_GATES, Builder, farmBuildings, farmSites, landmarks, roadsideHou
 import type { Area } from './types.ts';
 import { verifyWorld } from './verify.ts';
 import { switchbacks } from './climb.ts';
+import { publishIsland } from './catalogue.ts';
 
 const OUT = resolve(import.meta.dirname, '../../../apps/client/public/worlds', ISLAND.id);
 const T = ISLAND.tileSizeM;
@@ -901,8 +902,8 @@ async function main(): Promise<void> {
     id: ISLAND.id,
     name: ISLAND.name,
     crs: 'EPSG:2154',
-    // Repère fictif, en pleine mer au large de la Bretagne : ne recouvre aucune zone réelle.
-    originL93: { x: 60000, y: 6800000 },
+    // Repère fictif, en mer d'Iroise au large du Finistère : ne recouvre aucune zone réelle.
+    originL93: { x: 95000, y: 6815000 },
     bounds: { minX: ISLAND.minX, minZ: ISLAND.minZ, maxX: ISLAND.maxX, maxZ: ISLAND.maxZ },
     tileSizeM: T,
     heightResolutionM: 2,
@@ -924,6 +925,8 @@ async function main(): Promise<void> {
   for (const line of report.lines) console.log(line);
   log(report.ok ? 'contrôles au vert' : 'contrôles en échec');
   if (!report.ok) process.exitCode = 1;
+  // Menu du jeu : catalogue des zones et pack de tuiles.
+  else publishIsland(OUT);
 }
 
 // Lancement direct seulement (les fonctions servent aussi aux scripts de mise au point).

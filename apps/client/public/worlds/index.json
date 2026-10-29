@@ -1846,6 +1846,106 @@
    "open": true
   },
   {
+   "id": "ile-de-robert",
+   "name": "L'île de Robert",
+   "region": "Monde imaginaire · Jeu vidéo",
+   "routes": [
+    {
+     "id": "anneau",
+     "name": "L'Anneau",
+     "nameEn": "The Ring",
+     "lengthM": 3591.81,
+     "elevationGainM": 0,
+     "loop": true
+    },
+    {
+     "id": "boucle-de-saint-robert",
+     "name": "La boucle de Saint-Robert",
+     "nameEn": "Saint-Robert loop",
+     "lengthM": 15131.09,
+     "elevationGainM": 50.63,
+     "loop": true
+    },
+    {
+     "id": "robertville-plage",
+     "name": "Robertville par les Coteaux",
+     "nameEn": "Robertville via the hills",
+     "lengthM": 58485.55,
+     "elevationGainM": 251.59,
+     "loop": true
+    },
+    {
+     "id": "front-de-mer",
+     "name": "Le front de mer de Robertville",
+     "nameEn": "Robertville seafront",
+     "lengthM": 4652.11,
+     "elevationGainM": 3.39,
+     "loop": true
+    },
+    {
+     "id": "col-du-phare",
+     "name": "Le Col du Phare",
+     "nameEn": "Lighthouse pass",
+     "lengthM": 6194.65,
+     "elevationGainM": 339.18,
+     "loop": false
+    },
+    {
+     "id": "phare",
+     "name": "La montée au Phare",
+     "nameEn": "Lighthouse climb",
+     "lengthM": 7459.06,
+     "elevationGainM": 457.81,
+     "loop": false
+    },
+    {
+     "id": "tour-de-l-ile",
+     "name": "Le Tour de l'Île",
+     "nameEn": "Round the island",
+     "lengthM": 90974.37,
+     "elevationGainM": 363.91,
+     "loop": true
+    },
+    {
+     "id": "piste-verte",
+     "name": "La Piste verte",
+     "nameEn": "The green way",
+     "lengthM": 17190.24,
+     "elevationGainM": 42.14,
+     "loop": false
+    },
+    {
+     "id": "gravel-des-bois",
+     "name": "Gravel des Bois",
+     "nameEn": "Woods gravel loop",
+     "lengthM": 54213.87,
+     "elevationGainM": 543.71,
+     "loop": true
+    },
+    {
+     "id": "vtt-des-bois",
+     "name": "VTT des Bois",
+     "nameEn": "Woods MTB loop",
+     "lengthM": 18493.62,
+     "elevationGainM": 244.92,
+     "loop": true
+    }
+   ],
+   "pack": {
+    "version": "eb87edfbde93",
+    "bytes": 378817669,
+    "files": 2650,
+    "gzBytes": 38006330
+   },
+   "l93": {
+    "minE": 76000,
+    "minN": 6802000,
+    "maxE": 114000,
+    "maxN": 6828000
+   },
+   "open": true
+  },
+  {
    "id": "issoire",
    "name": "Val d'Allier — Issoire",
    "region": "Puy-de-Dôme · Val d'Allier",
