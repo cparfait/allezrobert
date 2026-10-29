@@ -698,3 +698,15 @@ body:has(.subtitle:not(.hidden)) .ob-robert { animation: ob-mouth 1.1s steps(1, 
 .hud.compact.facet .cx-speed .cx-l, .hud.compact.facet .cx-speed .cx-v b, .hud.compact.facet .cx-speed .cx-v small { color: #0a0e16; }
 .hud.compact.facet .hud-loc { border-radius: 0; clip-path: polygon(var(--chamf) 0, 100% 0, calc(100% - var(--chamf)) 100%, 0 100%); }
 .hud.compact.facet .cx-cell .cx-v b { font-weight: 900; }
+
+/*
+ * Tutoriel : la carte est centrée sous le titre et les sous-titres ; Robert se place dans la marge de gauche
+ * (réservée à droite aussi, pour que la carte reste au milieu).
+ */
+.ob-wrap:has(.ob-robert) { --rbw: clamp(100px, 17vh, 150px); }
+.ob-stage { position: relative; justify-content: center; }
+.ob-stage > .card.onboarding:not(.ob-side) { flex: 0 1 calc(100% - 2 * (var(--rbw, 0px) + 26px)); }
+.ob-stage > .ob-robert { position: absolute; left: 0; bottom: 0; }
+@media (max-width: 760px) {
+  .ob-stage > .card.onboarding:not(.ob-side) { flex: 1 1 auto; }
+}
