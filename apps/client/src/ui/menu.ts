@@ -2215,7 +2215,7 @@ export class MainMenu {
           ['fr', 'Français'],
           ['en', 'English'],
         ])}</div>
-        <div class="field">${L ? 'Tutoriel' : 'Tutorial'}<button type="button" class="btn" id="m-tuto">${L ? 'Revoir le tutoriel' : 'Watch the tutorial again'}</button></div>
+        <div class="field">${L ? 'Tutoriel' : 'Tutorial'}<div class="mm-seg"><button type="button" id="m-tuto">${L ? 'Revoir le tutoriel' : 'Watch the tutorial again'}</button></div></div>
         <div class="field">Strava${this.seg('m-strava', s.skipStrava ? 'skip' : 'send', [
           ['skip', L ? 'Ne pas envoyer' : 'Don’t upload'],
           ['send', L ? 'Envoyer' : 'Upload'],
