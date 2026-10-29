@@ -235,6 +235,18 @@ export class AtelierPanel {
     this.host.scene(null);
   }
 
+  /** Arrivée depuis Progression : la pièce clignote (surbrillance répétée) quelques secondes pour la repérer. */
+  blink(id: string): void {
+    clearInterval(this.blinkTimer);
+    let n = 0;
+    this.blinkTimer = setInterval(() => {
+      this.emit(this.pulseOf(id));
+      if (++n >= 6) clearInterval(this.blinkTimer);
+    }, 650);
+  }
+
+  private blinkTimer: ReturnType<typeof setInterval> | undefined;
+
   private pulseOf(id: string | null): string[] {
     const it = tuneItem(id ?? undefined);
     if (!it) return [];

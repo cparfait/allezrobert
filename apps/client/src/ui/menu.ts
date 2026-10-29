@@ -712,6 +712,7 @@ export class MainMenu {
         if (this.garageSlot !== 'atelier') this.garageSlot = 'atelier';
         this.atelier.openItem(id);
         this.go('garage');
+        this.atelier.blink(id);
       },
       rerender: () => this.render(),
     });
@@ -736,7 +737,37 @@ export class MainMenu {
       this.sendPreview();
       this.render();
     }
-    this.root.querySelector(`[data-item="${CSS.escape(item.id)}"]`)?.scrollIntoView({ block: 'center' });
+    const card = this.root.querySelector<HTMLElement>(`[data-item="${CSS.escape(item.id)}"]`);
+    card?.scrollIntoView({ block: 'center' });
+    this.blinkArrival(item, card);
+  }
+
+  private blinkTimer: ReturnType<typeof setInterval> | undefined;
+
+  /**
+   * Arrivée depuis Progression : l'équipement clignote quelques secondes, sur le coureur (il apparaît et disparaît)
+   * et dans la liste (carte en surbrillance), pour qu'on le repère tout de suite.
+   */
+  private blinkArrival(item: CosmeticItem, card: HTMLElement | null): void {
+    clearInterval(this.blinkTimer);
+    card?.classList.add('blink');
+    setTimeout(() => card?.classList.remove('blink'), 3800);
+    // Déjà équipé : le coureur le porte déjà, seule la carte clignote.
+    if (loadProgress().equipped[item.slot] === item.id) return;
+    this.previews.set(item.slot, item.id);
+    this.sendPreview();
+    let n = 0;
+    this.blinkTimer = setInterval(() => {
+      n++;
+      if (n % 2 === 1) this.previews.delete(item.slot);
+      else this.previews.set(item.slot, item.id);
+      this.sendPreview();
+      if (n >= 8) {
+        clearInterval(this.blinkTimer);
+        this.previews.set(item.slot, item.id);
+        this.sendPreview();
+      }
+    }, 380);
   }
 
   /** Ouvre une rubrique des Réglages (retour de Strava : la rubrique d'envoi des sorties). */
@@ -767,6 +798,7 @@ export class MainMenu {
   }
 
   private go(tab: Tab): void {
+    if (tab !== 'garage') clearInterval(this.blinkTimer);
     this.picker = null;
     if (tab !== 'progress') this.progress.reset();
     if (tab !== 'garage' && this.previews.size) {

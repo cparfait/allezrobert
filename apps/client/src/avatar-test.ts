@@ -77,7 +77,7 @@ async function main(): Promise<void> {
       { shoes: '#c8102e', shoeMark: 'sphyre', shoeAccent: '#111111' },
     ];
     const avs = variants.map((v) => {
-      const a = new GltfRiderAvatar({ ...DEFAULT_LOOK, ...v });
+      const a = LOW_POLY ? createAvatar({ ...DEFAULT_LOOK, ...v }) : new GltfRiderAvatar({ ...DEFAULT_LOOK, ...v });
       a.root.visible = false;
       scene.add(a.root);
       const priv = a as unknown as { crankAngle: number };

@@ -815,3 +815,7 @@
 .gr-reopen { grid-row: 2; align-self: start; justify-self: end; margin: 14px 18px 0 0; z-index: 3; appearance: none; border: 0; border-radius: 999px; padding: 9px 16px; background: var(--mm-glass); color: var(--ar-fg); font: 700 13px var(--font, inherit); cursor: pointer; box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35); backdrop-filter: blur(10px); }
 .gr-reopen[hidden] { display: none; }
 .gr-reopen:hover { background: rgba(255, 210, 63, 0.9); color: #0a0e16; }
+
+/* Arrivée depuis Progression : la carte de l'équipement clignote quelques secondes. */
+@keyframes mm-blink { 0%, 100% { box-shadow: 0 0 0 0 rgba(255, 210, 63, 0); } 50% { box-shadow: 0 0 0 4px var(--ar-accent), 0 0 26px rgba(255, 210, 63, 0.7); background: rgba(255, 210, 63, 0.22); } }
+[data-item].blink { animation: mm-blink 0.7s ease-in-out 5; }

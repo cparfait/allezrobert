@@ -6,7 +6,7 @@ import type { RiderAvatarLike, RiderGesture, RiderPose } from './gltfAvatar.ts';
 import { SweptBody, makeJoints, type BodyLook } from './sweptBody.ts';
 import { HELMET_FACETED, aeroHelmetGeometry } from './aeroHelmet.ts';
 import { aerobarAnchors, buildAerobars, type AerobarAnchors } from './aerobars.ts';
-import { shoeDialOf } from './shoeLook.ts';
+import { shoeAccentOf, shoeDialOf, shoeMarkText } from './shoeLook.ts';
 import { BikeMaterials, assembleBike, bikeAnchors, bikeFamilyReady, libraryWheel, loadBikeFamily, type FamilyKey } from './bikes.ts';
 import { flatLook } from './flatLook.ts';
 
@@ -440,6 +440,37 @@ function shoeGeometry(): THREE.BufferGeometry {
   return g;
 }
 
+/** Marquage latéral de la chaussure (garage : « Marquage » et « Accent ») : le texte, à la couleur d'accent, sur le flanc extérieur. */
+const markTextures = new Map<string, THREE.CanvasTexture>();
+function shoeMarkDecal(text: string, color: string, side: number): THREE.Mesh | null {
+  if (typeof document === 'undefined') return null;
+  const key = `${text}|${color}`;
+  let tex = markTextures.get(key);
+  if (!tex) {
+    const c = document.createElement('canvas');
+    c.width = 256;
+    c.height = 64;
+    const g = c.getContext('2d') as CanvasRenderingContext2D;
+    g.fillStyle = color;
+    g.font = 'italic 800 40px Arial, sans-serif';
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    g.fillText(text.toUpperCase(), 128, 34, 244);
+    tex = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.anisotropy = 4;
+    markTextures.set(key, tex);
+  }
+  const mat = new THREE.MeshBasicNodeMaterial({ map: tex, transparent: true, depthWrite: false });
+  mat.polygonOffset = true;
+  mat.polygonOffsetFactor = -2;
+  const plane = new THREE.Mesh(new THREE.PlaneGeometry(0.115, 0.029), mat);
+  // Sur le flanc extérieur, lisible de l'extérieur, le haut du texte vers le haut de la chaussure.
+  plane.rotation.y = side * (Math.PI / 2);
+  plane.position.set(side * 0.0372, -0.004, -0.008);
+  return plane;
+}
+
 /**
  * Deux molettes BOA sur le dessus de la chaussure (shoeGeometry), côté extérieur du pied (`side` : +1
  * gauche) : devant la chaussette et au milieu du pied, posées à plat sur la tige, avec leur câble.
@@ -736,6 +767,9 @@ export class LowPolyRider implements RiderAvatarLike {
       const sk = new Seg(prism(0.042, 0.047, 6), sock);
       const sh = new THREE.Mesh(shoeGeometry(), shoe);
       sh.add(new THREE.Mesh(boaGeometry(side), boa));
+      const markText = shoeMarkText(look);
+      const mark = markText ? shoeMarkDecal(markText, shoeAccentOf(look), side) : null;
+      if (mark) sh.add(mark);
       sh.castShadow = true;
       this.body.add(thighShorts.mesh, knee.mesh, shin.mesh, sk.mesh, sh);
       this.legs.push({ side, shorts: thighShorts, knee, shin, sock: sk, shoe: sh });
