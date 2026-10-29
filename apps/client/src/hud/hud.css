@@ -128,6 +128,27 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #0a0e16; col
 .riders .row.me { background: rgba(255, 210, 63, 0.18); }
 .riders .gap { color: var(--ar-muted); }
 
+/* Panneau « Groupe » : allure du groupe (− / +), radar de 30 m derrière à 30 m devant, coureurs les plus proches. */
+.hud-col > .grp { width: 400px; padding: 8px 12px 10px; font-size: 14px; --dot: 10px; }
+.grp-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.grp-l { font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--ar-muted); }
+.grp-pace { display: flex; align-items: center; gap: 8px; }
+.grp-pace b { font-size: 13.5px; font-weight: 750; white-space: nowrap; }
+.grp-pace button { pointer-events: auto; appearance: none; display: grid; place-items: center; width: 22px; height: 22px; padding: 0; border: 0; border-radius: 6px; background: rgba(255, 255, 255, 0.12); color: var(--ar-fg); font: 700 15px / 1 var(--font); cursor: pointer; }
+.grp-pace button:hover { background: rgba(255, 255, 255, 0.22); }
+.grp-radar { position: relative; height: 32px; margin: 4px 6px 0; }
+.grp-track { position: absolute; left: 0; right: 0; top: 50%; height: 2px; transform: translateY(-50%); border-radius: 1px; background: rgba(255, 255, 255, 0.25); }
+.grp-dots { position: absolute; inset: 0; }
+.grp-dot, .grp-me { position: absolute; top: 50%; border-radius: 50%; }
+.grp-dot { width: var(--dot); height: var(--dot); top: calc(50% + var(--row, 0) * var(--dot) * 0.9); transform: translate(-50%, -50%); background: #f4f6f8; box-shadow: 0 0 0 1.5px rgba(0, 0, 0, 0.45); transition: left 0.3s linear; }
+.grp-dot.far { opacity: 0.4; }
+.grp-me { left: 50%; width: 13px; height: 13px; transform: translate(-50%, -50%); background: #f59e0b; box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.45), 0 0 8px rgba(245, 158, 11, 0.6); z-index: 1; }
+.grp-scale { display: flex; justify-content: space-between; margin-bottom: 4px; font-size: 10.5px; color: var(--ar-muted); }
+.grp-row { display: flex; justify-content: space-between; gap: 10px; padding: 1px 2px; font-size: 14px; }
+.grp-name { font-weight: 650; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.grp-gap { white-space: nowrap; color: var(--ar-fg); }
+.grp-list:empty { display: none; }
+
 .profile { position: absolute; left: 18px; right: 18px; bottom: 18px; height: 92px; padding: 6px 10px; }
 .profile canvas { width: 100%; height: 100%; }
 /* Montée façon ClimbPro : à la place du profil du parcours, un peu plus haute. */
@@ -630,7 +651,18 @@ body:has(.subtitle:not(.hidden)) .ob-robert { animation: ob-mouth 1.1s steps(1, 
 .hud.compact .cx-seg-info { padding: calc(var(--u) * 4) calc(var(--u) * 10) calc(var(--u) * 5); font-size: calc(var(--u) * 10.5); text-align: center; opacity: 0.9; }
 .hud.compact .cx-seg .bar { margin: 0; border-radius: 0; }
 .hud.compact .cx-seg .hidden { display: none; }
-.hud.compact .cx-pace { padding: calc(var(--u) * 4) calc(var(--u) * 10); font-size: calc(var(--u) * 11); font-weight: 700; }
+/* Panneau « Groupe » resserré (tailles en --u). */
+.hud.compact .grp { width: auto; padding: calc(var(--u) * 5) calc(var(--u) * 9) calc(var(--u) * 6); font-size: calc(var(--u) * 12); --dot: calc(var(--u) * 8); }
+.hud.compact .grp-head { gap: calc(var(--u) * 6); }
+.hud.compact .grp-l { font-size: calc(var(--u) * 9.5); }
+.hud.compact .grp-pace { gap: calc(var(--u) * 6); }
+.hud.compact .grp-pace b { font-size: calc(var(--u) * 11.5); }
+.hud.compact .grp-pace button { width: calc(var(--u) * 18); height: calc(var(--u) * 18); border-radius: calc(var(--u) * 5); font-size: calc(var(--u) * 13); }
+.hud.compact .grp-radar { height: calc(var(--u) * 26); margin: calc(var(--u) * 3) calc(var(--u) * 5) 0; }
+.hud.compact .grp-track { height: calc(var(--u) * 2); }
+.hud.compact .grp-me { width: calc(var(--u) * 11); height: calc(var(--u) * 11); }
+.hud.compact .grp-scale { font-size: calc(var(--u) * 8.5); margin-bottom: calc(var(--u) * 3); }
+.hud.compact .grp-row { padding: calc(var(--u) * 1) calc(var(--u) * 2); font-size: calc(var(--u) * 12); }
 
 /* Commune traversée sous la mini-carte, centrée, sur deux lignes au besoin (commune, puis route). */
 .hud.compact .cx-loc { align-self: center; justify-content: center; flex-wrap: wrap; row-gap: 0; text-align: center; max-width: 100%; white-space: normal; }

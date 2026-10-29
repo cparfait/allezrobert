@@ -1737,6 +1737,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     peloton.paceFtpPct = Math.min(1.2, Math.max(0.5, (peloton.paceFtpPct ?? 0.75) + delta * 0.05));
     hud.toast(`${getLang() === 'fr' ? 'Allure du groupe' : 'Group pace'} : ${Math.round(peloton.paceFtpPct * 100)} % FTP`);
   };
+  hud.onGroupPace = changePace;
   const slowDown = () => {
     if (!peloton.riders.length) return;
     peloton.slowDown();
