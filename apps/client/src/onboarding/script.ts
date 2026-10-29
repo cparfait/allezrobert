@@ -23,6 +23,12 @@ export const ONBOARDING_SCRIPT: Record<string, Line[]> = {
       en: "<emotion value=\"happy\"/>In a few minutes we'll set up your equipment, then your profile and avatar, and off we go for a first ride!",
     },
   ],
+  style: [
+    {
+      fr: '<emotion value="curious"/>Comment veux-tu voir la route ? En réaliste, au plus près des vraies routes de France, ou façon jeu vidéo, avec des couleurs franches et un monde plus animé. <break time="250ms"/>Choisis celui qui te plaît, tu pourras en changer quand tu veux dans les réglages.',
+      en: '<emotion value="curious"/>How do you want to see the road? Realistic, true to the real roads of France, or video game style, with bold colours and a livelier world. <break time="250ms"/>Pick the one you like, you can switch any time in the settings.',
+    },
+  ],
   profile: [
     {
       fr: '<emotion value="content"/>Ton poids et ta taille servent à la physique : en côte, chaque kilo compte ! La FTP, c\'est la puissance que tu tiens environ une heure. Tu ne la connais pas ? Pas de souci, le test FTP la calculera pour toi.',

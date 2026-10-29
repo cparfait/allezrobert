@@ -1,13 +1,13 @@
 /**
  * Style graphique : « lowpoly » (jeu vidéo : facettes, aplats de couleur, sans textures photo, monde plus
- * peuplé) ou « real » (semi-réalisme de la branche principale). Lu une fois au chargement : les matériaux
+ * peuplé) ou « real » (semi-réalisme), choisi au premier lancement (tutoriel) puis dans les réglages. Lu une fois au chargement : les matériaux
  * sont construits dans les constructeurs, changer de style recharge la page.
- * ?style=real|lowpoly a priorité sur localStorage ar.style ; défaut du fork : lowpoly.
+ * ?style=real|lowpoly a priorité sur localStorage ar.style ; défaut (jamais choisi) : réaliste.
  */
 export type GraphicStyle = 'lowpoly' | 'real';
 
 export const STYLE_KEY = 'ar.style';
-const DEFAULT_STYLE: GraphicStyle = 'lowpoly';
+const DEFAULT_STYLE: GraphicStyle = 'real';
 
 function readStyle(): GraphicStyle {
   try {

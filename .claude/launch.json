@@ -162,7 +162,7 @@
       "runtimeExecutable": "cmd",
       "runtimeArgs": [
         "/c",
-        "cd ..\\allezrobert-lowpoly&& set AR_HMR=0&& pnpm --filter @allezrobert/client exec vite --port 5192 --strictPort"
+        "set AR_HMR=0&& pnpm --filter @allezrobert/client exec vite --port 5192 --strictPort"
       ],
       "port": 5192
     },
@@ -183,6 +183,15 @@
         "set AR_HMR=0&& set VITE_SERVER_URL=http://localhost:2600&& pnpm --filter @allezrobert/client exec vite --port 5197 --strictPort"
       ],
       "port": 5197
+    },
+    {
+      "name": "style-choix",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": [
+        "/c",
+        "set AR_HMR=0&& pnpm --filter @allezrobert/client exec vite --port 5201 --strictPort"
+      ],
+      "port": 5201
     }
   ]
 }
