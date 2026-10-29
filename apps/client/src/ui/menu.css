@@ -826,3 +826,8 @@
 .mm-left > .mm-modes { padding: 10px; border-radius: 16px; background: rgba(255, 255, 255, 0.045); border: 1px solid rgba(255, 255, 255, 0.08); }
 .mm-left > .mm-modes + .mm-hint { margin: 10px 2px 0; padding: 0; }
 .mm-sep { border: 0; height: 1px; background: rgba(255, 255, 255, 0.16); margin: 18px -22px 16px; flex: none; }
+
+/* Défi KOM : champ de recherche au-dessus des filtres de zone. */
+.kom-search { width: 100%; box-sizing: border-box; margin: 4px 0 8px; padding: 10px 14px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.18); background: rgba(255, 255, 255, 0.07); color: var(--ar-fg); font: inherit; font-size: 14px; }
+.kom-search:focus { outline: 0; border-color: var(--ar-accent); }
+.kom-table tr[hidden] { display: none; }

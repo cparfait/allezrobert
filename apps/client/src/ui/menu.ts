@@ -616,6 +616,8 @@ export class MainMenu {
   private picker: 'zones' | 'zone' | 'routes' | 'map' | 'route' | 'workouts' | 'koms' | null = null;
   /** Fenêtre « Défi KOM » : zone filtrée ('' = toutes) et montée d'une autre zone à choisir une fois cette zone chargée. */
   private komZone = '';
+  /** Recherche dans la liste des montées (filtre les lignes sur place, sans redessiner). */
+  private komQuery = '';
   private pendingKom: { routeId: string; segId: string } | null = null;
   /** Parcours ouvert dans sa fiche (fenêtre « route »). */
   private detailId = '';
@@ -1462,7 +1464,8 @@ export class MainMenu {
           .map((c) => {
             const on = c.routeId === this.s.routeId && c.segId === this.s.challengeSeg && this.s.mode === 'challenge';
             const date = c.rec ? new Date(c.rec.date).toLocaleDateString(L ? 'fr-FR' : 'en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '';
-            return `<tr class="${on ? 'on' : ''}" tabindex="0" data-kom="${esc(c.segId)}" data-kom-route="${esc(c.routeId)}" data-kom-zone="${esc(c.zone)}">
+            const hay = `${c.name} ${c.routeName} ${this.zoneLabel(c.zone)}`.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+            return `<tr class="${on ? 'on' : ''}" tabindex="0" data-kom="${esc(c.segId)}" data-kom-route="${esc(c.routeId)}" data-kom-zone="${esc(c.zone)}" data-search="${esc(hay)}">
               <td class="kom-name"><b>${esc(c.name)}</b><small>${esc(c.routeName)}</small></td>
               <td class="kom-zone">${esc(this.zoneLabel(c.zone))}</td>
               <td class="num">${this.km(c.lengthM)} km</td>
@@ -1479,6 +1482,7 @@ export class MainMenu {
       <div class="mm-dialog mm-picker kom-dialog" role="dialog" aria-modal="true">
         <header><h2>${L ? 'Défi KOM' : 'KOM challenge'}</h2><button class="mm-x" data-picker-close aria-label="${L ? 'Fermer' : 'Close'}">×</button></header>
         <p class="mm-hint">${L ? 'Choisis une montée : départ lancé, fantôme de ton meilleur temps et écart en direct. Clique sur une ligne pour la défier.' : 'Pick a climb: flying start, ghost of your best time and live gap. Click a row to take it on.'}</p>
+        <input class="kom-search" id="m-kom-q" type="search" autocomplete="off" value="${esc(this.komQuery)}" placeholder="${L ? 'Chercher une montée, un parcours ou une zone…' : 'Search a climb, a route or an area…'}" aria-label="${L ? 'Chercher une montée' : 'Search a climb'}" />
         <div class="kom-filter" role="group" aria-label="${L ? 'Filtrer par zone' : 'Filter by area'}">${chips}</div>
         <div class="kom-wrap"><table class="kom-table"><thead><tr><th>${L ? 'Montée' : 'Climb'}</th><th>${L ? 'Zone' : 'Area'}</th><th class="num">${L ? 'Longueur' : 'Length'}</th><th class="num">${L ? 'Pente moy.' : 'Avg grade'}</th><th class="num">${L ? 'Mon record' : 'My best'}</th><th>${L ? 'Date' : 'Date'}</th><th></th></tr></thead><tbody>${body}</tbody></table></div>
         <div class="kom-foot"><span>${rows.length} ${L ? (rows.length > 1 ? 'montées' : 'montée') : rows.length > 1 ? 'climbs' : 'climb'} · ${records} ${L ? (records > 1 ? 'records' : 'record') : records > 1 ? 'records' : 'record'}</span><span>${L ? 'Les montées d’une zone apparaissent après sa première visite.' : 'A zone’s climbs appear after you first visit it.'}</span></div>
@@ -2662,6 +2666,33 @@ export class MainMenu {
         this.render();
       }),
     );
+    const komInput = this.root.querySelector<HTMLInputElement>('#m-kom-q');
+    if (komInput) {
+      const norm = (t: string) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+      const apply = () => {
+        const words = norm(this.komQuery).split(/\s+/).filter(Boolean);
+        let n = 0;
+        this.root.querySelectorAll<HTMLElement>('tr[data-kom]').forEach((tr) => {
+          const ok = words.every((w) => (tr.dataset.search ?? '').includes(w));
+          tr.hidden = !ok;
+          if (ok) n++;
+        });
+        const foot = this.root.querySelector<HTMLElement>('.kom-foot span');
+        if (foot && words.length) foot.textContent = `${n} ${fr() ? (n > 1 ? 'montées trouvées' : 'montée trouvée') : n > 1 ? 'climbs found' : 'climb found'}`;
+        let none = this.root.querySelector<HTMLElement>('.kom-nomatch');
+        if (words.length && n === 0 && !none) {
+          none = document.createElement('p');
+          none.className = 'mm-hint kom-nomatch';
+          none.textContent = fr() ? 'Aucune montée ne correspond.' : 'No climb matches.';
+          this.root.querySelector('.kom-wrap')?.after(none);
+        } else if (none && (n > 0 || !words.length)) none.remove();
+      };
+      komInput.addEventListener('input', () => {
+        this.komQuery = komInput.value;
+        apply();
+      });
+      if (this.komQuery) apply();
+    }
     this.root.querySelectorAll<HTMLElement>('[data-komzone]').forEach((el) =>
       el.addEventListener('click', () => {
         this.komZone = el.dataset.komzone ?? '';
