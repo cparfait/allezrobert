@@ -15,10 +15,10 @@ describe("île de Robert : conception", () => {
   });
 
   it('le sol est continu au bord de l’eau (pas de marche au trait de côte)', () => {
-    // Le long d'un rayon vers le sud : pas de saut de plus de 10 cm entre deux points espacés de 2 m.
-    let prev = terrain(0, 2000);
-    for (let z = 2002; z < 4600; z += 2) {
-      const h = terrain(0, z);
+    // Le long d'un rayon vers une plage du sud : pas de saut de plus de 10 cm entre deux points espacés de 2 m.
+    let prev = terrain(-3000, 8000);
+    for (let z = 8002; z < 12500; z += 2) {
+      const h = terrain(-3000, z);
       expect(Math.abs(h - prev), `z = ${z}`).toBeLessThan(0.1);
       prev = h;
     }

@@ -7,690 +7,824 @@
  */
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { deltaEncodeU16 } from '../../../packages/shared/src/heights.ts';
-import type { RoadGraphData, RoadGraphEdge } from '../../../packages/shared/src/roadgraph.ts';
-import type { RouteData, WorldMeta, WorldPlace, WorldTile } from '../../../packages/shared/src/route.ts';
-import { ANNEAU, BOURG, EGLISE, ISLAND, PLACE, STADE, anneauLoop, bourgStreets, coast, terrain, type StreetSpec, type Vec2 } from './design.ts';
-import { chaikin, clipPolygon, clipPolyline, ellipse, orientedRect, pointInPolygon, polygonArea, projectSeg, resample, type Vec3 } from './geom.ts';
+import type { RouteData, WorldMeta, WorldTile } from '../../../packages/shared/src/route.ts';
+import { ANNEAU, ISLAND, LAKES, MASSIF, TOWNS, anneauLoop, coastPoint, inHarbour, inLake, inRiver, shoreDist, terrain, type Vec2 } from './design.ts';
+import { chaikin, clipPolygon, clipPolyline, polygonArea, resample, type Vec3 } from './geom.ts';
+import { forestMask, lakes, parcels, shoreAreas, waterways, type LandCtx } from './land.ts';
+import { fbm, rng } from './noise.ts';
+import { CELL, CLASSES, CLASS_BY_RANK, Grid, type RoadClass } from './planner.ts';
+import { runPool } from './pool.ts';
+import { ATTRIBUTION, RoadIndex, buildGraph, joinCrossings, makeRoad, nodeHeight, profile, r2, snapEnds, type Road, type RoadSpec } from './roads.ts';
+import { planRoute, type RouteSpec } from './routes.ts';
+import { ANNEAU_GATES, Builder, farmBuildings, farmSites, landmarks, roadsideHouses, seasideBuildings, townCentre, townLayout, type TownLayout } from './settle.ts';
+import type { Area } from './types.ts';
 import { verifyWorld } from './verify.ts';
+import { switchbacks } from './climb.ts';
 
 const OUT = resolve(import.meta.dirname, '../../../apps/client/public/worlds', ISLAND.id);
 const T = ISLAND.tileSizeM;
-const STEP = 2;
-const ATTRIBUTION = ["L'île de Robert — monde imaginaire d'Allez Robert ! (généré par tools/island)"];
-const r2 = (v: number) => Math.round(v * 100) / 100;
+const log = (s: string) => console.log(`[${((Date.now() - T0) / 1000).toFixed(0).padStart(4)} s] ${s}`);
+const T0 = Date.now();
 
-// ── Routes : tracés, profils, raccords ──
+// ── 1. Routes dessinées : Anneau, rues des villes, front de mer ──
 
-export interface Road {
-  id: string;
-  name: string;
-  kind: string;
-  width: number;
-  surface: string;
-  loop: boolean;
-  /** Points tous les 2 m [x, y, z] ; boucle : le dernier précède le premier. */
-  pts: Vec3[];
-  /** Demi-largeur arasée (chaussée + accotement) et largeur du raccord au terrain naturel. */
-  flat: number;
-  blend: number;
-}
-
-/** Profil en long : moyenne glissante du terrain (± `win` m), pente plafonnée à `maxGrade`. */
-function profile(xz: Vec2[], loop: boolean, win: number, maxGrade: number): number[] {
-  const n = xz.length;
-  const raw = xz.map(([x, z]) => terrain(x, z));
-  const k = Math.max(1, Math.round(win / STEP));
-  const y = raw.map((_, i) => {
-    let s = 0;
-    let c = 0;
-    for (let j = -k; j <= k; j++) {
-      const idx = loop ? (i + j + n) % n : i + j;
-      if (idx < 0 || idx >= n) continue;
-      s += raw[idx]!;
-      c++;
+export function designedRoads(): { roads: Road[]; layouts: TownLayout[]; anneau: Road; gates: Array<{ p: Vec2; y: number; dir: Vec2; town?: string }> } {
+  const anneau = makeRoad({ id: 'anneau', name: "L'Anneau", kind: 'tertiary', width: ANNEAU.widthM, pts: anneauLoop(2), loop: true, designed: true, gmax: 0.01 });
+  for (const p of anneau.pts) p[1] = ANNEAU.level;
+  const layouts = TOWNS.map((t, k) => townLayout(t, k));
+  const roads: Road[] = [anneau];
+  const gates: Array<{ p: Vec2; y: number; dir: Vec2; town?: string }> = [];
+  for (const lay of layouts) {
+    const rs = lay.specs.map((s) => makeRoad(s));
+    // Rues secondaires posées sur les rues principales (raccords en T).
+    // (sur la rue principale, le boulevard ou les planches en priorité, sinon sur la rue la plus proche).
+    const main = rs.filter((r) => /-(main|boulevard|planches)$/.test(r.id));
+    for (const r of rs) if (!main.includes(r)) snapEnds(r, main, rs.filter((o) => o !== r));
+    roads.push(...rs);
+    for (const g of lay.gates) {
+      // Altitude de la rue à la porte.
+      let best: Vec3 | null = null;
+      let inner: Vec3 | null = null;
+      for (const r of rs)
+        for (const [p, q] of [[r.pts[0]!, r.pts[Math.min(5, r.pts.length - 1)]!], [r.pts[r.pts.length - 1]!, r.pts[Math.max(0, r.pts.length - 6)]!]] as const)
+          if (!best || Math.hypot(p[0] - g[0], p[2] - g[1]) < Math.hypot(best[0] - g[0], best[2] - g[1])) {
+            best = p;
+            inner = q;
+          }
+      gates.push({ p: [best![0], best![2]], y: best![1], dir: [best![0] - inner![0], best![2] - inner![2]], town: lay.town.id });
     }
-    return s / c;
-  });
-  // Pente plafonnée dans les deux sens (aller puis retour), sans toucher aux extrémités.
-  const lim = maxGrade * STEP;
-  for (let pass = 0; pass < 2; pass++) {
-    for (let i = 1; i < n; i++) y[i] = Math.min(y[i - 1]! + lim, Math.max(y[i - 1]! - lim, y[i]!));
-    for (let i = n - 2; i >= 0; i--) y[i] = Math.min(y[i + 1]! + lim, Math.max(y[i + 1]! - lim, y[i]!));
   }
-  return y;
+  // Col du Phare : montée en lacets depuis le Hameau du Col, descente en lacets vers le nord, route du phare.
+  const col = saddle();
+  const colY = terrain(col[0], col[1]);
+  const lc = gates.filter((g) => g.town === 'le-col').sort((a, b) => Math.hypot(a.p[0] - col[0], a.p[1] - col[1]) - Math.hypot(b.p[0] - col[0], b.p[1] - col[1]))[0]!;
+  lc.town = 'le-col-montee'; // porte réservée à la montée (le réseau passe par les autres)
+  const axis: Vec2 = [MASSIF.mont[0] - MASSIF.phare[0], MASSIF.mont[1] - MASSIF.phare[1]];
+  const al = Math.hypot(axis[0], axis[1]);
+  let out: Vec2 = [-axis[1] / al, axis[0] / al];
+  // Versant nord : du côté opposé au Hameau du Col.
+  if ((lc.p[0] - col[0]) * out[0] + (lc.p[1] - col[1]) * out[1] > 0) out = [-out[0], -out[1]];
+  let foot: Vec2 = [col[0] + out[0] * 2600, col[1] + out[1] * 2600];
+  for (let d = 2600; d > 900; d -= 100) {
+    const q: Vec2 = [col[0] + out[0] * d, col[1] + out[1] * d];
+    if (shoreDist(q[0], q[1]) > 450 && terrain(q[0], q[1]) < colY - 120) {
+      foot = q;
+      break;
+    }
+  }
+  const toPhare: Vec2 = [MASSIF.phare[0] - col[0], MASSIF.phare[1] - col[1]];
+  const tl = Math.hypot(toPhare[0], toPhare[1]);
+  const phareEnd: Vec2 = [MASSIF.phare[0] - (toPhare[0] / tl) * 45, MASSIF.phare[1] - (toPhare[1] / tl) * 45];
+  const lacets = (a: Vec2, b: Vec2, grade: number, firstSide?: number) => fillet(simplifyPath(switchbacks(a, b, { grade, halfWidth: 230, turn: 50, ...(firstSide ? { firstSide } : {}) }), 3), 13);
+  const south = makeRoad({ id: 'col-sud', name: 'Route du Col du Phare', kind: 'tertiary', width: 6, pts: lacets(lc.p, col, 0.072), designed: true, gmax: 0.095, smooth: 0, y0: lc.y });
+  // Le col : un seul point, une seule altitude pour les trois routes.
+  const top = south.pts[south.pts.length - 1]!;
+  const fromTop = (pts: Vec2[]): Vec2[] => [[top[0], top[2]], ...pts.slice(1)];
+  const north = makeRoad({ id: 'col-nord', name: 'Route du Col du Phare', kind: 'tertiary', width: 6, pts: fromTop(lacets(foot, col, 0.075).reverse()), designed: true, gmax: 0.095, smooth: 0, y0: top[1] });
+  // Route du phare : premier lacet dans le prolongement de la montée (pas d'épingle au col).
+  const arr = south.pts[south.pts.length - 6]!;
+  const dS: Vec2 = [top[0] - arr[0], top[2] - arr[2]];
+  const lat: Vec2 = [-(phareEnd[1] - col[1]), phareEnd[0] - col[0]];
+  const phare = makeRoad({ id: 'route-du-phare', name: 'Route du Phare', kind: 'unclassified', width: 4.5, pts: fromTop(lacets(col, phareEnd, 0.08, dS[0] * lat[0] + dS[1] * lat[1] > 0 ? 1 : -1)), designed: true, gmax: 0.105, smooth: 0, y0: top[1] });
+  roads.push(south, north, phare);
+  // Route du Hameau : de Vallon-sur-Robe au Hameau du Col, en écharpe sur le flanc du massif.
+  const vg = gates.filter((g) => g.town === 'vallon').sort((a, b) => Math.hypot(a.p[0] - lc.p[0], a.p[1] - lc.p[1]) - Math.hypot(b.p[0] - lc.p[0], b.p[1] - lc.p[1]))[0]!;
+  const hg = gates.filter((g) => g.town === 'le-col').sort((a, b) => Math.hypot(a.p[0] - vg.p[0], a.p[1] - vg.p[1]) - Math.hypot(b.p[0] - vg.p[0], b.p[1] - vg.p[1]))[0]!;
+  vg.town = 'vallon-hameau';
+  hg.town = 'le-col-hameau';
+  roads.push(makeRoad({ id: 'route-du-hameau', name: 'Route du Hameau du Col', kind: 'tertiary', width: 6, pts: fillet(simplifyPath(switchbacks(vg.p, hg.p, { grade: 0.065, halfWidth: 300, turn: 50 }), 3), 18), designed: true, gmax: 0.09, smooth: 0, y0: vg.y, y1: hg.y }));
+  gates.push({ p: [north.pts[north.pts.length - 1]![0], north.pts[north.pts.length - 1]![2]], y: north.pts[north.pts.length - 1]![1], dir: out, town: 'col-nord' });
+  gates.push({ p: [top[0], top[2]], y: top[1], dir: [axis[0] / al, axis[1] / al], town: 'col' });
+  for (const g of ANNEAU_GATES) {
+    let best = anneau.pts[0]!;
+    for (const p of anneau.pts) if (Math.hypot(p[0] - g[0], p[2] - g[1]) < Math.hypot(best[0] - g[0], best[2] - g[1])) best = p;
+    const out: Vec2 = [g[0] - ANNEAU.cx - Math.sign(g[0] - ANNEAU.cx) * Math.min(Math.abs(g[0] - ANNEAU.cx), ANNEAU.half), g[1] - ANNEAU.cz];
+    gates.push({ p: [best[0], best[2]], y: best[1], dir: out, town: 'anneau' });
+  }
+  return { roads, layouts, anneau, gates };
 }
 
-function makeRoad(s: StreetSpec | { id: string; name: string; kind: string; width: number; pts: Vec2[]; loop?: boolean; surface?: string }, smooth = true): Road {
-  const loop = 'loop' in s && !!s.loop;
-  const xz = loop ? resample(s.pts, STEP, true) : resample(smooth ? chaikin(s.pts, 4) : s.pts, STEP);
-  const y = profile(xz, loop, 40, 0.08);
-  return {
-    id: s.id,
-    name: s.name,
-    kind: s.kind,
-    width: s.width,
-    surface: ('surface' in s && s.surface) || 'asphalt',
-    loop,
-    pts: xz.map(([x, z], i) => [x, y[i]!, z]),
-    flat: s.width / 2 + 1.5,
-    blend: 7,
+// ── 2. Grille de tracé ──
+
+export async function planningGrid(designed: Road[], gates: Array<{ p: Vec2; dir: Vec2 }>, farms: Array<{ x: number; z: number; gate: Vec2 }>): Promise<Grid> {
+  const grid = new Grid(ISLAND.minX, ISLAND.minZ, ISLAND.maxX - ISLAND.minX, ISLAND.maxZ - ISLAND.minZ);
+  const bands = 48;
+  const rows = Math.ceil(grid.m / bands);
+  const parts = await runPool<Float32Array>(
+    null,
+    Array.from({ length: Math.ceil(grid.m / rows) }, (_, b) => ({ type: 'grid', x0: grid.x0, z0: grid.z0, n: grid.n, j0: b * rows, j1: Math.min(grid.m, (b + 1) * rows), cell: CELL })),
+  );
+  parts.forEach((p, b) => grid.h.set(p, b * rows * grid.n));
+  for (let j = 0; j < grid.m; j++)
+    for (let i = 0; i < grid.n; i++) {
+      const c = j * grid.n + i;
+      const x = grid.x0 + (i + 0.5) * CELL;
+      const z = grid.z0 + (j + 0.5) * CELL;
+      const sd = shoreDist(x, z);
+      if (sd < 60 || inLake(x, z, 1.25) || inHarbour(x, z, 25)) grid.water[c] = 1;
+      else if (inRiver(x, z, 4)) grid.water[c] = 2;
+      grid.wob[c] = 0.8 + 0.4 * (0.5 + 0.5 * fbm(x / 700, z / 700, 2, 61));
+    }
+  // Villes, Anneau et cours de ferme réservés : on n'y passe que par les rues dessinées.
+  const reserve = (x: number, z: number, r: number) => {
+    const c0 = grid.cellAt(x - r, z - r);
+    const c1 = grid.cellAt(x + r, z + r);
+    for (let j = Math.floor(c0 / grid.n); j <= Math.floor(c1 / grid.n); j++)
+      for (let i = c0 % grid.n; i <= c1 % grid.n; i++) {
+        const cx = grid.x0 + (i + 0.5) * CELL;
+        const cz = grid.z0 + (j + 0.5) * CELL;
+        if (Math.hypot(cx - x, cz - z) <= r) grid.block[j * grid.n + i] = 1;
+      }
   };
+  for (const t of TOWNS) {
+    if (t.seaside) {
+      const ang = Math.atan2(t.z, t.x);
+      for (let a = ang - 0.045; a <= ang + 0.14; a += 0.002) for (let inset = 0; inset <= 1320; inset += 15) reserve(...coastPoint(a, inset), 12);
+    } else reserve(t.x, t.z, t.r * 1.05);
+  }
+  for (let x = ANNEAU.cx - ANNEAU.half; x <= ANNEAU.cx + ANNEAU.half; x += 20) reserve(x, ANNEAU.cz, ANNEAU.radius + 30);
+  for (const f of farms) reserve(f.x, f.z, 42);
+  for (const r of designed) for (let k = 0; k < r.pts.length; k += 4) reserve(r.pts[k]![0], r.pts[k]![2], r.width / 2 + 14);
+  // Portes libres ; coordonnées exactes ; couloir de sortie dans le prolongement de la rue (≤ 500 m).
+  const all = [...gates.map((q) => ({ p: q.p, dir: q.dir })), ...farms.map((f) => ({ p: f.gate, dir: [f.gate[0] - f.x, f.gate[1] - f.z] as Vec2 }))];
+  const reserved = grid.block.slice();
+  for (const { p: g, dir } of all) {
+    const c = grid.cellAt(g[0], g[1]);
+    grid.block[c] = 0;
+    grid.exact.set(c, g);
+    grid.forced.add(c);
+    const l = Math.hypot(dir[0], dir[1]) || 1;
+    for (let s = CELL / 2; s <= 600; s += CELL / 2) {
+      const k = grid.cellAt(g[0] + (dir[0] / l) * s, g[1] + (dir[1] / l) * s);
+      if (!reserved[k] && s > 2 * CELL) break;
+      grid.block[k] = 0;
+    }
+  }
+  return grid;
 }
 
-/** Point le plus proche d'une route : index du segment, paramètre, distance, altitude. */
-function nearestOn(road: Road, x: number, z: number): { i: number; t: number; d: number; y: number } {
-  let best = { i: 0, t: 0, d: Infinity, y: 0 };
-  const n = road.pts.length;
-  const segs = road.loop ? n : n - 1;
-  for (let i = 0; i < segs; i++) {
-    const a = road.pts[i]!;
-    const b = road.pts[(i + 1) % n]!;
-    const p = projectSeg(x, z, a[0], a[2], b[0], b[2]);
-    if (p.d < best.d) best = { i, t: p.t, d: p.d, y: a[1] + (b[1] - a[1]) * p.t };
+// ── 3. Réseau tracé ──
+
+export interface Plan {
+  grid: Grid;
+  failed: string[];
+}
+
+export function connect(P: Plan, a: Vec2, b: Vec2, classes: RoadClass[], label: string, box = 160): boolean {
+  const s = P.grid.cellAt(a[0], a[1]);
+  const g = P.grid.cellAt(b[0], b[1]);
+  if (s === g) return true;
+  // Arrivée déjà prise par une route : on rejoint celle-ci à moins de 500 m, en T (jamais en biseau).
+  const grid = P.grid;
+  const [gx, gz] = grid.center(g);
+  const goal = grid.occ[g] ? (c: number) => grid.occ[c]! > 0 && Math.hypot(grid.center(c)[0] - gx, grid.center(c)[1] - gz) < 500 : g;
+  for (const cls of classes) {
+    const path = P.grid.search(s, goal, cls, { box, toward: g });
+    if (path) {
+      P.grid.commit(path, cls, label);
+      return true;
+    }
+  }
+  // Diagnostic : la contrainte qui bloque (raccords francs, pente, emprise de recherche).
+  const c0 = classes[classes.length - 1]!;
+  const why = [
+    P.grid.search(s, goal, c0, { box, loose: true, toward: g }) ? 'raccords' : '',
+    P.grid.search(s, goal, { ...c0, gmax: c0.gmax * 2 }, { box, toward: g }) ? 'pente' : '',
+    P.grid.search(s, goal, c0, { box: box * 2, toward: g }) ? 'emprise' : '',
+  ].filter(Boolean);
+  P.failed.push(`${label} ${a.map(Math.round).join(',')} → ${b.map(Math.round).join(',')} (${why.join(', ') || '?'})`);
+  return false;
+}
+
+/** Rejoint la route la plus proche (de rang ≥ `minRank`). */
+export function spur(P: Plan, a: Vec2, cls: RoadClass, minRank: number, label: string, box = 150): boolean {
+  const s = P.grid.cellAt(a[0], a[1]);
+  const grid = P.grid;
+  const path = grid.search(s, (c) => grid.occ[c]! >= minRank, cls, { box, maxExp: 3_000_000 });
+  if (!path) {
+    P.failed.push(`${label} ${a.map(Math.round).join(',')}`);
+    return false;
+  }
+  grid.commit(path, cls, label);
+  return true;
+}
+
+function nearestGate(gates: Array<{ p: Vec2; town?: string }>, town: string, toward: Vec2): Vec2 {
+  let best: Vec2 | null = null;
+  let bd = Infinity;
+  for (const g of gates) {
+    if (g.town !== town) continue;
+    const d = Math.hypot(g.p[0] - toward[0], g.p[1] - toward[1]);
+    if (d < bd) {
+      bd = d;
+      best = g.p;
+    }
+  }
+  return best!;
+}
+
+/** Point de la vallée du col : le plus bas sur la ligne entre les deux sommets. */
+export function saddle(): Vec2 {
+  const [ax, az] = MASSIF.phare;
+  const [bx, bz] = MASSIF.mont;
+  let best: Vec2 = [ax, az];
+  let bh = Infinity;
+  for (let t = 0.15; t <= 0.85; t += 0.01) {
+    const x = ax + (bx - ax) * t;
+    const z = az + (bz - az) * t;
+    const h = terrain(x, z);
+    if (h < bh) {
+      bh = h;
+      best = [x, z];
+    }
   }
   return best;
 }
 
+export function planNetwork(P: Plan, gates: Array<{ p: Vec2; town?: string }>, farms: Array<{ gate: Vec2 }>): { ring: Vec2[]; bois: Vec2[]; mtb: Vec2[]; col: Vec2 } {
+  const C = CLASSES;
+  const town = (id: string) => TOWNS.find((t) => t.id === id)!;
+  const G = (id: string, toward: Vec2 | string) => nearestGate(gates, id, typeof toward === 'string' ? [town(toward).x, town(toward).z] : toward);
+  // a. Route du tour de l'île : points le long de la côte, villes côtières traversées par leurs rues.
+  const ring: Array<{ p: Vec2; ang: number }> = [];
+  for (let k = 0; k < 30; k++) {
+    const ang = -Math.PI + (k / 30) * 2 * Math.PI;
+    let inset = 520;
+    let p = coastPoint(ang, inset);
+    const steepAt = (q: Vec2) => {
+      const h = terrain(q[0], q[1]);
+      return Math.max(...[[60, 0], [-60, 0], [0, 60], [0, -60]].map(([dx, dz]) => Math.abs(terrain(q[0] + dx!, q[1] + dz!) - h))) > 4;
+    };
+    while (inset < 2500 && (P.grid.block[P.grid.cellAt(p[0], p[1])] || P.grid.water[P.grid.cellAt(p[0], p[1])] || steepAt(p) || TOWNS.some((t) => Math.hypot(t.x - p[0], t.z - p[1]) < t.r * 1.6))) {
+      inset += 120;
+      p = coastPoint(ang, inset);
+    }
+    // Massif du Phare : pas de point imposé, la route le contourne d'elle-même.
+    if (Math.min(Math.hypot(p[0] - MASSIF.phare[0], p[1] - MASSIF.phare[1]), Math.hypot(p[0] - MASSIF.mont[0], p[1] - MASSIF.mont[1])) < 4200 || inset >= 2500) continue;
+    ring.push({ p, ang });
+  }
+  for (const id of ['robertville', 'kerbrou', 'port-sable', 'la-pointe', 'saint-pierre']) {
+    const t = town(id);
+    const ang = Math.atan2(t.z, t.x);
+    const tg = gates.filter((g) => g.town === id);
+    const ga = tg.map((g) => ({ p: g.p, ang: Math.atan2(g.p[1], g.p[0]) }));
+    // Les deux portes les plus écartées le long de la côte.
+    ga.sort((a, b) => a.ang - b.ang);
+    const first = ga[0]!;
+    const last = ga[ga.length - 1]!;
+    for (let k = ring.length - 1; k >= 0; k--) if (Math.abs(angle(ring[k]!.ang - ang)) < 0.12) ring.splice(k, 1);
+    ring.push({ p: first.p, ang: first.ang - 1e-4 }, { p: last.p, ang: last.ang + 1e-4 });
+  }
+  ring.sort((a, b) => a.ang - b.ang);
+  for (let k = 0; k < ring.length; k++) {
+    const a = ring[k]!;
+    const b = ring[(k + 1) % ring.length]!;
+    // Entre les deux portes d'une même ville : la ville elle-même.
+    const sameTown = gates.find((g) => g.p === a.p)?.town && gates.find((g) => g.p === a.p)?.town === gates.find((g) => g.p === b.p)?.town;
+    if (sameTown) continue;
+    connect(P, a.p, b.p, [C.secondary, C.tertiary, C.lane], "Route du Tour de l'Île");
+  }
+  // b. Grands axes depuis Saint-Robert.
+  for (const to of ['kerbrou', 'robertville', 'saint-pierre', 'vallon']) connect(P, G('saint-robert', to), G(to, 'saint-robert'), [C.secondary, C.tertiary, C.lane], `Route de ${town(to).name}`);
+  connect(P, G('vallon', 'les-granges'), G('les-granges', 'vallon'), [C.secondary, C.tertiary, C.lane], 'Route des Granges');
+  // c. Routes communales.
+  const tert: Array<[string, string]> = [
+    ['les-vignes', 'saint-robert'], ['les-vignes', 'robertville'], ['bois-joli', 'saint-robert'], ['bois-joli', 'saint-pierre'], ['bois-joli', 'kerbrou'],
+['les-granges', 'port-sable'], ['vallon', 'port-sable'], ['robertville', 'vallon'], ['la-pointe', 'les-vignes'], ['les-granges', 'saint-robert'],
+  ];
+  const steep = { ...C.lane, gmax: 0.14 };
+  for (const [a, b] of tert) connect(P, G(a, b), G(b, a), [C.tertiary, C.lane, steep], `Route de ${town(b).name}`);
+  const anneauGate = (k: number) => gates.filter((g) => g.town === 'anneau')[k]!.p;
+  connect(P, anneauGate(0), G('saint-robert', anneauGate(0)), [C.tertiary, C.lane, { ...C.lane, gmax: 0.14 }], "Route de l'Anneau");
+  connect(P, anneauGate(3), G('les-vignes', anneauGate(3)), [C.tertiary, C.lane, { ...C.lane, gmax: 0.14 }], "Route de l'Anneau");
+  connect(P, anneauGate(1), G('saint-pierre', anneauGate(1)), [C.tertiary, C.lane, { ...C.lane, gmax: 0.14 }], "Route de l'Anneau");
+  // d. Col du Phare (routes dessinées en lacets) : le pied du versant nord rejoint le réseau.
+  const col = gates.find((g) => g.town === 'col')!.p;
+  void col;
+  const foot = gates.find((g) => g.town === 'col-nord')!.p;
+  if (!spur(P, foot, { ...C.tertiary, gmax: 0.1 }, 5, 'Route du Col du Phare', 250)) {
+    P.failed.pop();
+    spur(P, foot, { ...C.lane, gmax: 0.14 }, 5, 'Route du Col du Phare', 300);
+  }
+  // e. Pistes cyclables : Piste verte (Saint-Robert → Anneau → Saint-Pierre), voie verte de la Robe.
+  connect(P, G('saint-robert', anneauGate(2)), anneauGate(2), [C.cycleway, { ...C.cycleway, gmax: 0.06 }], 'La Piste verte');
+  connect(P, anneauGate(1), G('saint-pierre', anneauGate(1)), [C.cycleway, { ...C.cycleway, gmax: 0.06 }], 'La Piste verte');
+  connect(P, G('vallon', 'port-sable'), G('port-sable', 'vallon'), [C.cycleway, { ...C.cycleway, gmax: 0.06 }], 'Voie verte de la Robe');
+  connect(P, G('robertville', 'la-pointe'), G('la-pointe', 'robertville'), [C.cycleway, { ...C.cycleway, gmax: 0.06 }], 'La Vélomaritime');
+  // f. Chemins des fermes.
+  for (const f of farms) spur(P, f.gate, C.lane, 5, 'Chemin rural');
+  // g. Gravel : boucle des Bois, chemins des vignes et du plateau.
+  const r = rng(31337);
+  const loopPts = (cx: number, cz: number, R: number, n: number, jit: number): Vec2[] =>
+    Array.from({ length: n }, (_, k) => {
+      const a = (k / n) * Math.PI * 2;
+      const rr = R * (1 + (r() - 0.5) * jit);
+      return [cx + Math.cos(a) * rr * 1.3, cz + Math.sin(a) * rr] as Vec2;
+    });
+  const bois = loopPts(-10300, -5000, 2300, 12, 0.5);
+  const okPt = (p: Vec2) => {
+    const c = P.grid.cellAt(p[0], p[1]);
+    return !P.grid.water[c] && !P.grid.block[c];
+  };
+  const loopConnect = (pts: Vec2[], cls: RoadClass[], label: string) => {
+    const good = pts.filter(okPt);
+    for (let k = 0; k < good.length; k++) connect(P, good[k]!, good[(k + 1) % good.length]!, cls, label);
+    // Toujours relié aux routes (deux accès).
+    if (good[0]) spur(P, good[0], cls[0]!, 5, label);
+    if (good.length > 3) spur(P, good[Math.floor(good.length / 2)]!, cls[0]!, 5, label);
+    return good;
+  };
+  const boisOk = loopConnect(bois, [C.track, { ...C.track, gmax: 0.17 }], 'Chemin des Bois');
+  loopConnect(loopPts(-1500, 5500, 1300, 7, 0.4), [C.track], 'Chemin des Vignes');
+  loopConnect(loopPts(12300, 1200, 2200, 8, 0.4), [C.track], 'Chemin du Plateau');
+  loopConnect(loopPts(LAKES[0]!.x, LAKES[0]!.z, 1500, 7, 0.3), [C.track], 'Chemin de la Lagune');
+  // h. VTT : sentiers des Bois et du massif.
+  const mtb = loopConnect(loopPts(-10600, -5400, 1300, 10, 0.6), [C.mtb, { ...C.mtb, gmax: 0.26 }], 'Sentier VTT des Bois');
+  return { ring: ring.map((q) => q.p), bois: boisOk, mtb, col };
+}
+
+const angle = (a: number) => Math.atan2(Math.sin(a), Math.cos(a));
+
+/** Virages arrondis : chaque angle remplacé par un arc de rayon `R` (réduit si les côtés sont trop courts). */
+function fillet(pts: Vec2[], R: number): Vec2[] {
+  if (pts.length < 3) return pts;
+  const out: Vec2[] = [pts[0]!];
+  for (let k = 1; k < pts.length - 1; k++) {
+    const [px, pz] = out[out.length - 1]!;
+    const [bx, bz] = pts[k]!;
+    const [nx, nz] = pts[k + 1]!;
+    const l1 = Math.hypot(bx - px, bz - pz);
+    const l2 = Math.hypot(nx - bx, nz - bz);
+    if (l1 < 1e-6 || l2 < 1e-6) continue;
+    const u1: Vec2 = [(bx - px) / l1, (bz - pz) / l1];
+    const u2: Vec2 = [(nx - bx) / l2, (nz - bz) / l2];
+    const cos = Math.max(-1, Math.min(1, u1[0] * u2[0] + u1[1] * u2[1]));
+    const phi = Math.acos(cos);
+    if (phi < 0.05) {
+      out.push(pts[k]!);
+      continue;
+    }
+    const tanHalf = Math.tan(phi / 2);
+    const t = Math.min(R * tanHalf, l1 * 0.48, l2 * 0.48);
+    const r = t / tanHalf;
+    const a: Vec2 = [bx - u1[0] * t, bz - u1[1] * t];
+    const cross = u1[0] * u2[1] - u1[1] * u2[0];
+    const side = cross > 0 ? 1 : -1;
+    const cx = a[0] - u1[1] * r * side;
+    const cz = a[1] + u1[0] * r * side;
+    const a0 = Math.atan2(a[1] - cz, a[0] - cx);
+    const steps = Math.max(2, Math.ceil((phi * r) / 3));
+    for (let i = 0; i <= steps; i++) {
+      const ang = a0 + side * phi * (i / steps);
+      out.push([cx + Math.cos(ang) * r, cz + Math.sin(ang) * r]);
+    }
+  }
+  out.push(pts[pts.length - 1]!);
+  return out;
+}
+
+/** Douglas-Peucker : retire les marches de la grille (écart toléré `tol` m), extrémités gardées. */
+function simplifyPath(pts: Vec2[], tol: number): Vec2[] {
+  if (pts.length < 3) return pts;
+  const keep = new Uint8Array(pts.length);
+  keep[0] = 1;
+  keep[pts.length - 1] = 1;
+  const stack: Array<[number, number]> = [[0, pts.length - 1]];
+  while (stack.length) {
+    const [a, b] = stack.pop()!;
+    const [ax, az] = pts[a]!;
+    const [bx, bz] = pts[b]!;
+    const L = Math.hypot(bx - ax, bz - az) || 1;
+    let worst = -1;
+    let wd = tol;
+    for (let k = a + 1; k < b; k++) {
+      const d = Math.abs((pts[k]![0] - ax) * (bz - az) - (pts[k]![1] - az) * (bx - ax)) / L;
+      if (d > wd) {
+        wd = d;
+        worst = k;
+      }
+    }
+    if (worst >= 0) {
+      keep[worst] = 1;
+      stack.push([a, worst], [worst, b]);
+    }
+  }
+  return pts.filter((_, k) => keep[k]);
+}
+
 /**
- * Raccords : l'extrémité d'une route secondaire posée sur une route principale prend son altitude, et
- * l'écart est réparti sur les 40 m qui précèdent (les profils se rejoignent sans marche).
+ * Tronçons du réseau tracé → routes lissées avec profil. Aux carrefours, la route qui continue (même rang,
+ * la plus droite) est lissée d'un seul tenant : pas de cassure au droit d'un raccord ; les branches viennent
+ * ensuite se poser sur sa courbe.
  */
-function snapEnds(road: Road, onto: Road[]): void {
-  for (const end of [0, road.pts.length - 1]) {
-    const p = road.pts[end]!;
-    let target: Vec3 | null = null;
-    for (const o of onto) {
-      if (o === road) continue;
-      const q = nearestOn(o, p[0], p[2]);
-      // Extrémité posée exactement sur le point de la route d'accueil qui portera le nœud du carrefour.
-      if (q.d < 4) target = o.pts[q.t < 0.5 ? q.i : (q.i + 1) % o.pts.length]!;
-    }
-    if (target === null) continue;
-    p[0] = target[0];
-    p[2] = target[2];
-    const delta = target[1] - p[1];
-    const span = Math.round(40 / STEP);
-    for (let k = 0; k <= span && k < road.pts.length; k++) {
-      const idx = end === 0 ? k : road.pts.length - 1 - k;
-      road.pts[idx]![1] += delta * (1 - k / span);
-    }
-  }
-}
-
-export function buildRoads(): Road[] {
-  const anneau = makeRoad({ id: 'anneau', name: "L'Anneau", kind: 'unclassified', width: ANNEAU.widthM, pts: anneauLoop(STEP), loop: true });
-  const streets = bourgStreets().map((s) => makeRoad(s));
-  const grandRueWest = (streets.find((s) => s.id === 'grand-rue') as Road).pts[0]!;
-  const ecolesWest = (streets.find((s) => s.id === 'rue-ecoles') as Road).pts[0]!;
-  const eastApex: Vec2 = [ANNEAU.cx + ANNEAU.half + ANNEAU.radius, ANNEAU.cz];
-  const neEnd: Vec2 = [ANNEAU.cx + ANNEAU.half - 2, ANNEAU.cz - ANNEAU.radius];
-  const liaison = makeRoad({
-    id: 'route-anneau',
-    name: "Route de l'Anneau",
-    kind: 'tertiary',
-    width: 6.5,
-    pts: [[grandRueWest[0], grandRueWest[2]], [-1150, 330], [-1600, 290], [eastApex[0] + 140, eastApex[1] + 6], [eastApex[0], eastApex[1]]],
+export function networkRoads(grid: Grid, designed: Road[], gates: Array<{ p: Vec2; y: number }>): Road[] {
+  const gateY = new Map<string, number>();
+  for (const g of gates) gateY.set(`${g.p[0].toFixed(2)},${g.p[1].toFixed(2)}`, g.y);
+  const edges = grid.edges().filter((e) => e.cells.length >= 2);
+  const R_OF: Record<string, number> = { secondary: 30, tertiary: 18, lane: 14, cycleway: 15, track: 9, mtb: 7 };
+  // Arêtes par nœud (case d'extrémité).
+  const atNode = new Map<number, number[]>();
+  edges.forEach((e, k) => {
+    for (const c of [e.cells[0]!, e.cells[e.cells.length - 1]!]) (atNode.get(c) ?? atNode.set(c, []).get(c)!).push(k);
   });
-  const voieVerte = makeRoad({
-    id: 'voie-verte',
-    name: 'La Piste verte',
-    kind: 'cycleway',
-    width: 3,
-    pts: [[ecolesWest[0], ecolesWest[2]], [-760, 70], [-1250, 30], [-1750, 45], [neEnd[0] + 90, neEnd[1] - 20], [neEnd[0], neEnd[1]]],
-  });
-  for (const s of streets) snapEnds(s, [streets.find((x) => x.id === 'grand-rue')!, streets.find((x) => x.id === 'rue-eglise')!]);
-  snapEnds(liaison, [anneau, ...streets]);
-  snapEnds(voieVerte, [anneau, ...streets]);
-  return [anneau, ...streets, liaison, voieVerte];
-}
-
-// ── Terrain arasé sous les routes ──
-
-class RoadIndex {
-  private cells = new Map<string, Array<{ r: Road; i: number }>>();
-  private readonly cs = 25;
-  constructor(readonly roads: Road[]) {
-    for (const r of roads) {
-      const n = r.pts.length;
-      const segs = r.loop ? n : n - 1;
-      const reach = r.flat + r.blend;
-      for (let i = 0; i < segs; i++) {
-        const a = r.pts[i]!;
-        const b = r.pts[(i + 1) % n]!;
-        const x0 = Math.floor((Math.min(a[0], b[0]) - reach) / this.cs);
-        const x1 = Math.floor((Math.max(a[0], b[0]) + reach) / this.cs);
-        const z0 = Math.floor((Math.min(a[2], b[2]) - reach) / this.cs);
-        const z1 = Math.floor((Math.max(a[2], b[2]) + reach) / this.cs);
-        for (let cx = x0; cx <= x1; cx++)
-          for (let cz = z0; cz <= z1; cz++) {
-            const k = `${cx},${cz}`;
-            let l = this.cells.get(k);
-            if (!l) this.cells.set(k, (l = []));
-            l.push({ r, i });
-          }
-      }
-    }
-  }
-
-  /** Route la plus « contraignante » au point : distance, altitude de chaussée, route. */
-  query(x: number, z: number): { d: number; y: number; r: Road } | null {
-    const l = this.cells.get(`${Math.floor(x / this.cs)},${Math.floor(z / this.cs)}`);
-    if (!l) return null;
-    let best: { d: number; y: number; r: Road; score: number } | null = null;
-    for (const { r, i } of l) {
-      const n = r.pts.length;
-      const a = r.pts[i]!;
-      const b = r.pts[(i + 1) % n]!;
-      const p = projectSeg(x, z, a[0], a[2], b[0], b[2]);
-      if (p.d > r.flat + r.blend) continue;
-      // La chaussée la plus proche (relativement à sa largeur) l'emporte.
-      const score = p.d - r.flat;
-      if (!best || score < best.score) best = { d: p.d, y: a[1] + (b[1] - a[1]) * p.t, r, score };
-    }
-    return best;
-  }
-}
-
-const smoothstep = (t: number) => {
-  const u = Math.min(1, Math.max(0, t));
-  return u * u * (3 - 2 * u);
-};
-
-/** Altitude finale : terrain naturel, arasé 10 cm sous la chaussée et ses accotements, raccordé au-delà. */
-export function finalHeight(idx: RoadIndex, x: number, z: number): number {
-  const h0 = terrain(x, z);
-  const q = idx.query(x, z);
-  if (!q) return h0;
-  const under = q.y - 0.1;
-  if (q.d <= q.r.flat) return under;
-  const t = smoothstep((q.d - q.r.flat) / q.r.blend);
-  return under + (h0 - under) * t;
-}
-
-// ── Bâtiments, sols et végétation ──
-
-interface Building {
-  id: string;
-  kind: string;
-  height: number;
-  levels: number;
-  roof: { shape: string; height: number; material?: string; colour?: string };
-  pts: Vec2[];
-  y: number;
-  name?: string;
-  colour?: string;
-}
-
-function buildBuildings(roads: Road[]): Building[] {
-  const out: Building[] = [];
-  const occupied: Vec2[][] = [];
-  const clearOfRoads = (poly: Vec2[], margin: number) =>
-    poly.every(([x, z]) => roads.every((r) => nearestOn(r, x, z).d > r.flat + margin)) &&
-    roads.every((r) => nearestOn(r, poly.reduce((s, p) => s + p[0], 0) / poly.length, poly.reduce((s, p) => s + p[1], 0) / poly.length).d > r.flat + margin);
-  const overlaps = (poly: Vec2[]) => occupied.some((o) => poly.some(([x, z]) => pointInPolygon(x, z, o)) || o.some(([x, z]) => pointInPolygon(x, z, poly)));
-  // Posé sur le sol final (arasé près des routes) : le jeu prolonge les murs vers le bas, jamais vers le haut.
-  const idx = new RoadIndex(roads);
-  const yUnder = (poly: Vec2[]) => Math.min(...poly.map(([x, z]) => finalHeight(idx, x, z)));
-  // Église (nef + clocher) au coin de la place.
-  const nef = orientedRect(EGLISE.x, EGLISE.z, EGLISE.d / 2, EGLISE.w / 2, Math.PI / 2);
-  out.push({ id: 'eglise', kind: 'church', height: 15, levels: 1, roof: { shape: 'gabled', height: 6, material: 'slate' }, pts: nef, y: yUnder(nef), name: 'Église Saint-Robert' });
-  const clocher = orientedRect(EGLISE.x, EGLISE.z + EGLISE.d / 2 + 2.5, 3, 3, 0);
-  out.push({ id: 'clocher', kind: 'church', height: 26, levels: 4, roof: { shape: 'pyramidal', height: 7, material: 'slate' }, pts: clocher, y: yUnder(clocher) });
-  occupied.push(nef, clocher);
-  // Maisons le long des rues du bourg, des deux côtés, tous les ≈ 22 m (hors place, église, stade).
-  let id = 0;
-  let seed = 7;
-  const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
-  const stade = orientedRect(STADE.x, STADE.z, STADE.l / 2 + 12, STADE.w / 2 + 12, 0);
-  for (const r of roads) {
-    if (!['tertiary', 'residential'].includes(r.kind) || r.id === 'route-anneau') continue;
-    for (let i = 6; i < r.pts.length - 6; i += 11) {
-      const a = r.pts[i - 1]!;
-      const b = r.pts[i + 1]!;
-      const ang = Math.atan2(b[2] - a[2], b[0] - a[0]);
-      for (const side of [1, -1]) {
-        const depth = 9 + rnd() * 3;
-        const len = 8 + rnd() * 5;
-        const off = r.width / 2 + 7 + depth / 2 + rnd() * 3;
-        const cx = r.pts[i]![0] - Math.sin(ang) * off * side;
-        const cz = r.pts[i]![2] + Math.cos(ang) * off * side;
-        if (Math.hypot(cx - PLACE.x, cz - PLACE.z) < PLACE.half + 20) continue;
-        if (pointInPolygon(cx, cz, stade)) continue;
-        if (Math.hypot(cx - BOURG.cx, cz - BOURG.cz) > 760) continue;
-        const poly = orientedRect(cx, cz, len / 2, depth / 2, ang);
-        if (!clearOfRoads(poly, 2.5) || overlaps(poly)) continue;
-        occupied.push(poly);
-        const levels = rnd() < 0.35 ? 1 : 2;
-        out.push({ id: `maison-${id++}`, kind: 'house', height: 3 * levels + 2.6, levels, roof: { shape: rnd() < 0.7 ? 'gabled' : 'hipped', height: 2.6, material: 'tiles' }, pts: poly, y: yUnder(poly) });
-      }
-    }
-  }
-  // Tribunes de l'anneau, le long de la ligne droite sud (ligne d'arrivée au milieu).
-  // Trois tribunes basses et claires (sans fenêtres : type « industrial » pour le jeu), toit en appentis.
-  for (const k of [-1, 0, 1]) {
-    const trib = orientedRect(ANNEAU.cx + k * 56, ANNEAU.cz + ANNEAU.radius + 24, 24, 6, 0);
-    out.push({ id: `tribune-${k + 1}`, kind: 'industrial', height: 7, levels: 1, colour: '#e4ddcb', roof: { shape: 'skillion', height: 1.6, colour: '#c0392b' }, pts: trib, y: yUnder(trib), name: "Tribunes de l'Anneau" });
-  }
-  return out;
-}
-
-interface Area {
-  id: string;
-  kind: string;
-  layer: 'forests' | 'fields' | 'landuse';
-  ring: Vec2[];
-  name?: string;
-}
-
-/** Côte à la distance normalisée `level` (0 = trait de côte), par dichotomie le long de rayons. */
-function coastRing(level: number, n = 180): Vec2[] {
-  const out: Vec2[] = [];
-  for (let k = 0; k < n; k++) {
-    const a = (k / n) * Math.PI * 2;
-    const dx = Math.cos(a);
-    const dz = Math.sin(a);
-    let lo = 0;
-    let hi = 9000;
-    for (let it = 0; it < 30; it++) {
-      const m = (lo + hi) / 2;
-      if (coast(dx * m, dz * m) > level) lo = m;
-      else hi = m;
-    }
-    out.push([dx * lo, dz * lo]);
-  }
-  return out;
-}
-
-function buildAreas(roads: Road[]): Area[] {
-  const areas: Area[] = [];
-  // Plage : bande entre le trait de côte et l'intérieur, en quadrilatères (pas de trous à découper).
-  const outer = coastRing(-0.004);
-  const inner = coastRing(0.022);
-  for (let k = 0; k < outer.length; k++) {
-    const k1 = (k + 1) % outer.length;
-    areas.push({ id: `plage-${k}`, kind: 'sand', layer: 'fields', ring: [outer[k]!, outer[k1]!, inner[k1]!, inner[k]!] });
-  }
-  // Bourg, pelouse de l'anneau, stade.
-  // Pas de grande zone « résidentielle » (le jeu la peint en gris uni) : les cours suivent les maisons ;
-  // seule la place de l'église est pavée.
-  areas.push({ id: 'place', kind: 'retail', layer: 'landuse', ring: orientedRect(PLACE.x, PLACE.z, PLACE.half, PLACE.half, 0), name: "Place de l'Église" });
-  areas.push({ id: 'anneau-pelouse', kind: 'park', layer: 'landuse', ring: stadium(ANNEAU.cx, ANNEAU.cz, ANNEAU.half, ANNEAU.radius - 14), name: "Pelouse de l'Anneau" });
-  areas.push({ id: 'stade', kind: 'pitch', layer: 'landuse', ring: orientedRect(STADE.x, STADE.z, STADE.l / 2, STADE.w / 2, 0), name: 'Stade municipal' });
-  // Les Bois (nord-ouest) et bosquets autour de l'anneau, loin des routes.
-  areas.push({ id: 'les-bois', kind: 'mixed', layer: 'forests', ring: ellipse(-4300, -1750, 1150, 800, 30, 0.3), name: 'Les Bois' });
-  areas.push({ id: 'bois-du-col', kind: 'conifer', layer: 'forests', ring: ellipse(3900, -2300, 900, 600, 26, -0.4) });
-  for (const [cx, cz, rx, rz] of [[-2700, -260, 420, 110], [-2650, 860, 460, 120], [-3700, 300, 140, 260]] as const)
-    areas.push({ id: `bosquet-${cx}-${cz}`, kind: 'deciduous', layer: 'forests', ring: ellipse(cx, cz, rx, rz, 20) });
-  // Parcelles agricoles : damier de prés et de champs, sauf près des routes, du bourg, de l'anneau et des bois.
-  const busy = [...areas.filter((a) => a.layer !== 'fields').map((a) => a.ring), ellipse(BOURG.cx, BOURG.cz + 60, 760, 520, 28)];
-  let n = 0;
-  for (let x = -5600; x < 5600; x += 310)
-    for (let z = -3600; z < 3600; z += 220) {
-      const cx = x + 155;
-      const cz = z + 110;
-      if (coast(cx, cz) < 0.08) continue;
-      if (busy.some((ring) => pointInPolygon(cx, cz, ring))) continue;
-      const rect = orientedRect(cx, cz, 140, 95, ((cx * 7 + cz * 3) % 9) * 0.02);
-      if (rect.some(([px, pz]) => roads.some((r) => nearestOn(r, px, pz).d < r.flat + 6)) || roads.some((r) => nearestOn(r, cx, cz).d < 160)) continue;
-      const kind = (Math.floor(x / 310) + Math.floor(z / 220)) % 3 === 0 ? 'farmland' : 'meadow';
-      areas.push({ id: `parcelle-${n++}`, kind, layer: 'fields', ring: rect });
-    }
-  return areas;
-}
-
-function stadium(cx: number, cz: number, half: number, radius: number): Vec2[] {
-  const out: Vec2[] = [];
-  for (let i = 0; i <= 12; i++) out.push([cx + half + radius * Math.cos(-Math.PI / 2 + (Math.PI * i) / 12), cz + radius * Math.sin(-Math.PI / 2 + (Math.PI * i) / 12)]);
-  for (let i = 0; i <= 12; i++) out.push([cx - half + radius * Math.cos(Math.PI / 2 + (Math.PI * i) / 12), cz + radius * Math.sin(Math.PI / 2 + (Math.PI * i) / 12)]);
-  return out;
-}
-
-// ── Graphe routier (mode ouvert) ──
-
-function buildGraph(roads: Road[]): RoadGraphData {
-  // Nœuds : extrémités des routes ouvertes et points où elles touchent une autre route.
-  const cuts = new Map<Road, Set<number>>();
-  const addCut = (r: Road, i: number) => (cuts.get(r) ?? cuts.set(r, new Set()).get(r)!).add(i);
-  for (const r of roads) {
-    if (!r.loop) {
-      addCut(r, 0);
-      addCut(r, r.pts.length - 1);
-    }
-  }
-  for (const r of roads) {
-    if (r.loop) continue;
-    for (const end of [0, r.pts.length - 1]) {
-      const p = r.pts[end]!;
-      for (const o of roads) {
-        if (o === r) continue;
-        const q = nearestOn(o, p[0], p[2]);
-        if (q.d < 4) addCut(o, q.t < 0.5 ? q.i : (q.i + 1) % o.pts.length);
-      }
-    }
-  }
-  // Croisements en X (rues du bourg en damier) : un nœud commun aux deux routes.
-  for (let a = 0; a < roads.length; a++)
-    for (let b = a + 1; b < roads.length; b++) {
-      const ra = roads[a]!;
-      const rb = roads[b]!;
-      const na = ra.pts.length;
-      const nb = rb.pts.length;
-      for (let i = 0; i < (ra.loop ? na : na - 1); i++) {
-        const p = ra.pts[i]!;
-        const q = ra.pts[(i + 1) % na]!;
-        for (let j = 0; j < (rb.loop ? nb : nb - 1); j++) {
-          const u = rb.pts[j]!;
-          const v = rb.pts[(j + 1) % nb]!;
-          const c = segCross(p, q, u, v);
-          if (!c) continue;
-          addCut(ra, c[0] < 0.5 ? i : (i + 1) % na);
-          addCut(rb, c[1] < 0.5 ? j : (j + 1) % nb);
-        }
-      }
-    }
-  const nodes: number[] = [];
-  const nodeAt = (p: Vec3): number => {
-    for (let k = 0; k < nodes.length; k += 3) if (Math.hypot(nodes[k]! - p[0], nodes[k + 2]! - p[2]) < 4.5) return k / 3;
-    nodes.push(r2(p[0]), r2(p[1]), r2(p[2]));
-    return nodes.length / 3 - 1;
+  const dirFrom = (k: number, c: number): Vec2 => {
+    const cells = edges[k]!.cells;
+    const fwd = cells[0] === c;
+    const far = cells[fwd ? Math.min(3, cells.length - 1) : Math.max(0, cells.length - 4)]!;
+    const p = grid.center(c);
+    const q = grid.center(far);
+    const l = Math.hypot(q[0] - p[0], q[1] - p[1]) || 1;
+    return [(q[0] - p[0]) / l, (q[1] - p[1]) / l];
   };
-  const edges: RoadGraphEdge[] = [];
-  for (const r of roads) {
-    const idx = [...(cuts.get(r) ?? [])].sort((a, b) => a - b);
-    if (!idx.length) continue;
-    const n = r.pts.length;
-    const pieces: number[][] = [];
-    if (r.loop) {
-      for (let k = 0; k < idx.length; k++) {
-        const a = idx[k]!;
-        const b = idx[(k + 1) % idx.length]!;
-        const seq: number[] = [];
-        for (let i = a; ; i = (i + 1) % n) {
-          seq.push(i);
-          if (i === b && seq.length > 1) break;
-        }
-        pieces.push(seq);
+  // Paires « qui continuent » à chaque nœud (jamais aux portes des rues dessinées).
+  const pair = new Map<string, number>();
+  for (const [c, list] of atNode) {
+    if (grid.exact.has(c) || list.length < 2) continue;
+    const cand: Array<{ i: number; j: number; score: number }> = [];
+    for (let i = 0; i < list.length; i++)
+      for (let j = i + 1; j < list.length; j++) {
+        const ki = list[i]!;
+        const kj = list[j]!;
+        if (ki === kj) continue;
+        const di = dirFrom(ki, c);
+        const dj = dirFrom(kj, c);
+        const cos = di[0] * dj[0] + di[1] * dj[1];
+        if (cos > -0.5) continue; // moins de 120° entre les deux : ce n'est pas une continuation
+        cand.push({ i: ki, j: kj, score: (edges[ki]!.rank === edges[kj]!.rank ? 10 : 0) + edges[ki]!.rank + edges[kj]!.rank - cos * 3 });
       }
-    } else for (let k = 0; k < idx.length - 1; k++) pieces.push(Array.from({ length: idx[k + 1]! - idx[k]! + 1 }, (_, j) => idx[k]! + j));
-    for (const seq of pieces) {
-      if (seq.length < 2) continue;
-      const pts = seq.map((i) => r.pts[i]!);
-      const a = nodeAt(pts[0]!);
-      const b = nodeAt(pts[pts.length - 1]!);
-      // Extrémités posées exactement sur les nœuds (altitude unique au carrefour).
-      pts[0] = [nodes[a * 3]!, nodes[a * 3 + 1]!, nodes[a * 3 + 2]!];
-      pts[pts.length - 1] = [nodes[b * 3]!, nodes[b * 3 + 1]!, nodes[b * 3 + 2]!];
-      let len = 0;
-      for (let i = 1; i < pts.length; i++) len += Math.hypot(pts[i]![0] - pts[i - 1]![0], pts[i]![2] - pts[i - 1]![2]);
-      edges.push({ a, b, kind: r.kind, name: r.name, width: r.width, surface: r.surface, oneway: 0, len: r2(len), pts: pts.flatMap((p) => [r2(p[0]), r2(p[1]), r2(p[2])]) });
+    cand.sort((p, q) => q.score - p.score);
+    const used = new Set<number>();
+    for (const cnd of cand) {
+      if (used.has(cnd.i) || used.has(cnd.j)) continue;
+      used.add(cnd.i);
+      used.add(cnd.j);
+      pair.set(`${cnd.i}@${c}`, cnd.j);
+      pair.set(`${cnd.j}@${c}`, cnd.i);
     }
   }
-  return { formatVersion: 1, nodes, edges, attribution: ATTRIBUTION };
-}
-
-/** Paramètres (t, u) du croisement de deux segments en plan, extrémités comprises ; null s'ils ne se coupent pas. */
-function segCross(p: Vec3, q: Vec3, u: Vec3, v: Vec3): [number, number] | null {
-  const rx = q[0] - p[0];
-  const rz = q[2] - p[2];
-  const sx = v[0] - u[0];
-  const sz = v[2] - u[2];
-  const den = rx * sz - rz * sx;
-  if (Math.abs(den) < 1e-9) return null;
-  const t = ((u[0] - p[0]) * sz - (u[2] - p[2]) * sx) / den;
-  const w = ((u[0] - p[0]) * rz - (u[2] - p[2]) * rx) / den;
-  return t >= 0 && t <= 1 && w >= 0 && w <= 1 ? [t, w] : null;
-}
-
-// ── Itinéraires ──
-
-interface Leg {
-  road: Road;
-  from: number;
-  to: number;
-  /** Sens de parcours sur une boucle : +1 indices croissants. */
-  dir: 1 | -1;
-}
-
-function walk(leg: Leg): Vec3[] {
-  const n = leg.road.pts.length;
-  const out: Vec3[] = [];
-  for (let i = leg.from; ; i = (i + leg.dir + n) % n) {
-    out.push(leg.road.pts[i]!);
-    if (i === leg.to) break;
-    if (out.length > n + 1) throw new Error(`itinéraire : ${leg.road.id} ${leg.from}→${leg.to} ne se referme pas`);
+  // Chaînes d'arêtes.
+  interface Chain {
+    edges: Array<{ k: number; fwd: boolean }>;
+    cells: number[];
+    /** Indice (dans `cells`) de chaque nœud intérieur. */
+    inner: Array<{ c: number; at: number }>;
   }
+  const seen = new Set<number>();
+  const chains: Chain[] = [];
+  for (let k0 = 0; k0 < edges.length; k0++) {
+    if (seen.has(k0)) continue;
+    // Remonte jusqu'au début de la chaîne.
+    let k = k0;
+    let startNode = edges[k]!.cells[0]!;
+    const guard = new Set<number>([k]);
+    for (;;) {
+      const prev = pair.get(`${k}@${startNode}`);
+      if (prev === undefined || guard.has(prev)) break;
+      guard.add(prev);
+      const pe = edges[prev]!;
+      startNode = pe.cells[0] === startNode ? pe.cells[pe.cells.length - 1]! : pe.cells[0]!;
+      k = prev;
+    }
+    const ch: Chain = { edges: [], cells: [], inner: [] };
+    let node = startNode;
+    for (;;) {
+      if (seen.has(k)) break;
+      seen.add(k);
+      const e = edges[k]!;
+      const fwd = e.cells[0] === node;
+      const cells = fwd ? e.cells : [...e.cells].reverse();
+      if (ch.cells.length) ch.inner.push({ c: node, at: ch.cells.length - 1 });
+      ch.edges.push({ k, fwd });
+      ch.cells.push(...(ch.cells.length ? cells.slice(1) : cells));
+      node = cells[cells.length - 1]!;
+      const nx = pair.get(`${k}@${node}`);
+      if (nx === undefined || seen.has(nx)) break;
+      k = nx;
+    }
+    chains.push(ch);
+  }
+  // Lissage d'une chaîne : marches retirées, virages arrondis, puis points tous les 2 m ; position finale
+  // des nœuds intérieurs (point le plus proche de la courbe).
+  const moved = new Map<number, Vec2>();
+  /**
+   * Courbe d'une chaîne. `fixed` : nœuds intérieurs dont la position est déjà arrêtée (croisement d'une
+   * route plus importante) : la courbe y passe exactement (lissage par morceaux entre ces points).
+   */
+  const shape = (ch: Chain, fixed: Map<number, Vec2> = new Map()) => {
+    const pts = ch.cells.map((c) => fixed.get(c) ?? moved.get(c) ?? grid.center(c));
+    const R = Math.max(...ch.edges.map(({ k }) => R_OF[CLASS_BY_RANK[edges[k]!.rank]!.id] ?? 12));
+    // Tolérance de simplification : plus large pour les grandes routes (côtés plus longs, virages plus amples).
+    const tol = Math.max(...ch.edges.map(({ k }) => ({ secondary: 10, tertiary: 9, lane: 8, cycleway: 8, track: 6, mtb: 5 })[CLASS_BY_RANK[edges[k]!.rank]!.id] ?? 7));
+    const hard = [0, ...ch.inner.filter((n) => fixed.has(n.c)).map((n) => n.at), pts.length - 1];
+    const dense: Vec2[] = [];
+    const hardAt = new Map<number, number>();
+    for (let t = 0; t + 1 < hard.length; t++) {
+      const seg = pts.slice(hard[t]!, hard[t + 1]! + 1);
+      const d = seg.length >= 2 ? resample(chaikin(fillet(simplifyPath(seg, tol), R), 2), 2) : seg;
+      for (let i = dense.length ? 1 : 0; i < d.length; i++) dense.push(d[i]!);
+      hardAt.set(hard[t + 1]!, dense.length - 1);
+    }
+    // Position de chaque nœud intérieur : imposée, ou point de la courbe le plus proche.
+    const at: number[] = [];
+    let from = 0;
+    for (const n of ch.inner) {
+      const h = hardAt.get(n.at);
+      if (h !== undefined && fixed.has(n.c)) {
+        at.push(h);
+        from = h;
+        continue;
+      }
+      const p = pts[n.at]!;
+      let best = from;
+      let bd = Infinity;
+      for (let i = from; i < dense.length; i++) {
+        const dd = Math.hypot(dense[i]![0] - p[0], dense[i]![1] - p[1]);
+        if (dd < bd) {
+          bd = dd;
+          best = i;
+        }
+        if (dd > bd + 60) break;
+      }
+      at.push(best);
+      from = best;
+    }
+    return { dense, at };
+  };
+  // Passe 1 : positions provisoires des nœuds intérieurs.
+  for (const ch of chains) {
+    const { dense, at } = shape(ch);
+    ch.inner.forEach((n, i) => moved.set(n.c, dense[at[i]!]!));
+  }
+  // Passe 2, des routes les plus importantes aux plus petites : un nœud déjà arrêté par une route plus
+  // importante (croisement) est imposé aux suivantes.
+  const final = new Map<number, Vec2>();
+  const rankOf = (ch: Chain) => Math.max(...ch.edges.map(({ k }) => edges[k]!.rank));
+  chains.sort((p, q) => rankOf(q) - rankOf(p));
+  const out: Road[] = [];
+  const counts = new Map<string, number>();
+  const endY = (p: Vec2) => gateY.get(`${p[0].toFixed(2)},${p[1].toFixed(2)}`) ?? nodeHeight(p[0], p[1]);
+  for (const ch of chains) {
+    const fixed = new Map<number, Vec2>();
+    for (const n of ch.inner) if (final.has(n.c)) fixed.set(n.c, final.get(n.c)!);
+    // Extrémités : position arrêtée si elle l'est, sinon provisoire.
+    for (const c of [ch.cells[0]!, ch.cells[ch.cells.length - 1]!]) if (final.has(c)) fixed.set(c, final.get(c)!);
+    const own = new Map(ch.inner.map((n) => [n.c, moved.get(n.c)!]));
+    for (const n of ch.inner) if (!fixed.has(n.c)) moved.delete(n.c);
+    const { dense, at } = shape(ch, fixed);
+    for (const [c, p] of own) moved.set(c, p);
+    ch.inner.forEach((n, i) => {
+      if (!final.has(n.c)) final.set(n.c, dense[at[i]!]!);
+    });
+    // Extrémités arrêtées elles aussi : la route qui passera plus tard par ce carrefour y passera exactement.
+    if (!final.has(ch.cells[0]!)) final.set(ch.cells[0]!, dense[0]!);
+    if (!final.has(ch.cells[ch.cells.length - 1]!)) final.set(ch.cells[ch.cells.length - 1]!, dense[dense.length - 1]!);
+    const bounds = [0, ...at, dense.length - 1];
+    ch.edges.forEach(({ k }, i) => {
+      const e = edges[k]!;
+      const cls = CLASS_BY_RANK[e.rank]!;
+      const xz = dense.slice(bounds[i]!, bounds[i + 1]! + 1);
+      if (xz.length < 2) return;
+      const y = profile(xz, false, cls.kind === 'track' ? 16 : 30, cls.gmax + 0.005, endY(xz[0]!), endY(xz[xz.length - 1]!));
+      const n = (counts.get(cls.id) ?? 0) + 1;
+      counts.set(cls.id, n);
+      out.push({
+        id: `${cls.id}-${n}`,
+        name: e.label || cls.id,
+        kind: cls.kind,
+        width: cls.width,
+        surface: cls.surface,
+        loop: false,
+        pts: xz.map(([x, z], j) => [x, y[j]!, z]),
+        flat: cls.width / 2 + (cls.kind === 'track' ? 0.8 : 1.5),
+        blend: cls.kind === 'track' ? 5 : 7,
+        gmax: cls.gmax,
+      });
+    });
+  }
+  // Extrémités posées exactement sur la route qu'elles rejoignent (écart résiduel du lissage).
+  // (sauf deux extrémités déjà confondues : nœud commun, rien à recoller).
+  const ends = out.flatMap((r) => [r.pts[0]!, r.pts[r.pts.length - 1]!]);
+  const shared = (p: Vec3) => ends.filter((q) => Math.hypot(q[0] - p[0], q[2] - p[2]) < 0.05).length > 1;
+  for (const r of out) {
+    const a = shared(r.pts[0]!);
+    const b = shared(r.pts[r.pts.length - 1]!);
+    if (a && b) continue;
+    const keep0: Vec3 = [...r.pts[0]!];
+    const keep1: Vec3 = [...r.pts[r.pts.length - 1]!];
+    snapEnds(r, out.filter((o) => o !== r), [], 10);
+    if (a) r.pts[0] = keep0;
+    if (b) r.pts[r.pts.length - 1] = keep1;
+  }
+  void designed;
   return out;
 }
 
-function route(id: string, name: string, nameEn: string, legs: Leg[], loop: boolean, landmarks: Array<{ name: string; x: number; z: number }>): RouteData {
-  const raw: Vec3[] = [];
-  const widths: Array<{ startM: number; endM: number; widthM: number }> = [];
-  const surfaces: Array<{ startM: number; endM: number; surface: string }> = [];
-  let d = 0;
-  for (const leg of legs) {
-    const pts = walk(leg);
-    const start = d;
-    for (const p of pts) {
-      const last = raw[raw.length - 1];
-      if (last) {
-        const step = Math.hypot(p[0] - last[0], p[2] - last[2]);
-        if (step < 0.5) continue;
-        d += step;
-      }
-      raw.push(p);
-    }
-    widths.push({ startM: r2(start), endM: r2(d), widthM: leg.road.width });
-    surfaces.push({ startM: r2(start), endM: r2(d), surface: leg.road.surface });
-  }
-  if (loop) {
-    const a = raw[0]!;
-    const b = raw[raw.length - 1]!;
-    if (Math.hypot(a[0] - b[0], a[2] - b[2]) < 0.5) raw.pop();
-  }
-  let lengthM = 0;
-  const points = raw.map((p, i) => {
-    if (i > 0) lengthM += Math.hypot(p[0] - raw[i - 1]![0], p[2] - raw[i - 1]![2]);
-    return { x: r2(p[0]), y: r2(p[1]), z: r2(p[2]), d: r2(lengthM) };
-  });
-  if (loop) lengthM += Math.hypot(raw[0]![0] - raw[raw.length - 1]![0], raw[0]![2] - raw[raw.length - 1]![2]);
-  let gain = 0;
-  let maxGrade = 0;
-  for (let i = 1; i < points.length; i++) gain += Math.max(0, points[i]!.y - points[i - 1]!.y);
-  for (let i = 5; i < points.length; i++) {
-    const dd = points[i]!.d - points[i - 5]!.d;
-    if (dd > 0) maxGrade = Math.max(maxGrade, (Math.abs(points[i]!.y - points[i - 5]!.y) / dd) * 100);
-  }
-  const ys = points.map((p) => p.y);
-  return {
-    id,
-    name,
-    nameEn,
-    loop,
-    lengthM: r2(lengthM),
-    elevationGainM: r2(gain),
-    points,
-    segments: [],
-    roadWidthM: legs[0]!.road.width,
-    attribution: ATTRIBUTION,
-    roadWidths: widths,
-    surfaces,
-    landmarks: landmarks.map((l) => ({ name: l.name, d: r2(points.reduce((best, p) => (Math.hypot(p.x - l.x, p.z - l.z) < Math.hypot(best.x - l.x, best.z - l.z) ? p : best)).d) })),
-    stepM: STEP,
-    minElevationM: r2(Math.min(...ys)),
-    maxElevationM: r2(Math.max(...ys)),
-    maxGradePct: r2(maxGrade),
-    markings: 'full',
+// ── 4. Itinéraires ──
+
+function routeSpecs(net: { ring: Vec2[]; bois: Vec2[]; mtb: Vec2[]; col: Vec2 }): RouteSpec[] {
+  const t = (id: string): Vec2 => {
+    const q = TOWNS.find((x) => x.id === id)!;
+    return [q.x, q.z];
   };
+  const rv = TOWNS.find((x) => x.id === 'robertville')!;
+  const ang = Math.atan2(rv.z, rv.x);
+  const east = ang - 0.055;
+  const west = ang + 0.145;
+  return [
+    { id: 'boucle-de-saint-robert', name: 'La boucle de Saint-Robert', nameEn: 'Saint-Robert loop', loop: true, mode: 'road', waypoints: [t('saint-robert'), ANNEAU_GATES[0]!, ANNEAU_GATES[3]!, t('les-vignes')], landmarks: [{ name: 'Saint-Robert', x: t('saint-robert')[0], z: t('saint-robert')[1] }, { name: "L'Anneau", x: ANNEAU.cx, z: ANNEAU.cz }, { name: 'Les Vignes', x: t('les-vignes')[0], z: t('les-vignes')[1] }] },
+    { id: 'robertville-plage', name: 'Robertville par les Coteaux', nameEn: 'Robertville via the hills', loop: true, mode: 'road', waypoints: [t('saint-robert'), t('les-vignes'), coastPoint(west + 0.06, 500), coastPoint(east, 185), t('vallon')], landmarks: [{ name: 'Les Coteaux', x: -1500, z: 5300 }, { name: 'Front de mer', x: rv.x, z: rv.z }, { name: 'Vallon-sur-Robe', x: t('vallon')[0], z: t('vallon')[1] }] },
+    { id: 'front-de-mer', name: 'Le front de mer de Robertville', nameEn: 'Robertville seafront', loop: true, mode: 'cycle', waypoints: [coastPoint(east + 0.006, 185), coastPoint(east + 0.006, 125), coastPoint(west - 0.006, 125), coastPoint(west - 0.006, 185), coastPoint(ang, 480)], landmarks: [{ name: 'Les Planches', x: coastPoint(ang, 125)[0], z: coastPoint(ang, 125)[1] }, { name: 'Casino', x: coastPoint(ang + 0.018, 230)[0], z: coastPoint(ang + 0.018, 230)[1] }] },
+    { id: 'col-du-phare', name: 'Le Col du Phare', nameEn: 'Lighthouse pass', loop: false, mode: 'road', waypoints: [t('le-col'), net.col, MASSIF.phare], hairpins: true, landmarks: [{ name: 'Col du Phare', x: net.col[0], z: net.col[1] }, { name: 'Phare de Robert', x: MASSIF.phare[0], z: MASSIF.phare[1] }] },
+    { id: 'tour-de-l-ile', name: "Le Tour de l'Île", nameEn: 'Round the island', loop: true, mode: 'road', waypoints: net.ring.filter((_, k) => k % 3 === 0), landmarks: TOWNS.filter((x) => shoreDist(x.x, x.z) < 1500).map((x) => ({ name: x.name, x: x.x, z: x.z })) },
+    { id: 'piste-verte', name: 'La Piste verte', nameEn: 'The green way', loop: false, mode: 'cycle', waypoints: [t('saint-robert'), ANNEAU_GATES[2]!, ANNEAU_GATES[1]!, t('saint-pierre')], landmarks: [{ name: "L'Anneau", x: ANNEAU.cx, z: ANNEAU.cz }] },
+    { id: 'gravel-des-bois', name: 'Gravel des Bois', nameEn: 'Woods gravel loop', loop: true, mode: 'gravel', bike: 'gravel', waypoints: net.bois, landmarks: [{ name: 'Les Bois', x: -10300, z: -5000 }, { name: 'Étang des Bois', x: -9400, z: -4600 }] },
+    { id: 'vtt-des-bois', name: 'VTT des Bois', nameEn: 'Woods MTB loop', loop: true, mode: 'mtb', bike: 'mtb', waypoints: net.mtb, landmarks: [{ name: 'Chapelle en ruine', x: -10600, z: -5600 }] },
+  ];
 }
 
-function buildRoutes(roads: Road[]): RouteData[] {
-  const R = (id: string) => roads.find((r) => r.id === id)!;
-  const anneau = R('anneau');
-  const n = anneau.pts.length;
-  const near = (r: Road, x: number, z: number) => {
-    const q = nearestOn(r, x, z);
-    return q.t < 0.5 ? q.i : (q.i + 1) % r.pts.length;
-  };
-  // Anneau : départ au milieu de la ligne droite sud, devant les tribunes, sens des aiguilles d'une montre.
-  const start = near(anneau, ANNEAU.cx, ANNEAU.cz + ANNEAU.radius);
-  const ring = route('anneau', "L'Anneau", 'The Ring', [{ road: anneau, from: start, to: (start - 1 + n) % n, dir: 1 }], true, [{ name: 'Tribunes', x: ANNEAU.cx, z: ANNEAU.cz + ANNEAU.radius }]);
-  // Boucle du Bourg : place → Grand-Rue → route de l'Anneau → trois quarts d'anneau → Piste verte → rue des
-  // Écoles → rue de l'Église → place.
-  const grandRue = R('grand-rue');
-  const eglise = R('rue-eglise');
-  const ecoles = R('rue-ecoles');
-  const liaison = R('route-anneau');
-  const verte = R('voie-verte');
-  const gPlace = near(grandRue, PLACE.x, PLACE.z);
-  const apex = near(anneau, liaison.pts[liaison.pts.length - 1]![0], liaison.pts[liaison.pts.length - 1]![2]);
-  const ne = near(anneau, verte.pts[verte.pts.length - 1]![0], verte.pts[verte.pts.length - 1]![2]);
-  const eEcoles = near(ecoles, eglise.pts[0]![0], ecoles.pts[0]![2]);
-  const egEcoles = near(eglise, ecoles.pts[eEcoles]![0], ecoles.pts[eEcoles]![2]);
-  const egPlace = near(eglise, PLACE.x, PLACE.z);
-  const bourg = route(
-    'boucle-du-bourg',
-    'La boucle du Bourg',
-    'The village loop',
-    [
-      { road: grandRue, from: gPlace, to: 0, dir: -1 },
-      { road: liaison, from: 0, to: liaison.pts.length - 1, dir: 1 },
-      { road: anneau, from: apex, to: ne, dir: 1 },
-      { road: verte, from: verte.pts.length - 1, to: 0, dir: -1 },
-      { road: ecoles, from: 0, to: eEcoles, dir: 1 },
-      { road: eglise, from: egEcoles, to: egPlace, dir: 1 },
-    ],
-    true,
-    [
-      { name: 'Saint-Robert', x: PLACE.x, z: PLACE.z },
-      { name: "L'Anneau", x: ANNEAU.cx, z: ANNEAU.cz + ANNEAU.radius },
-      { name: 'La Piste verte', x: -1250, z: 30 },
-    ],
-  );
-  return [ring, bourg];
+// ── 5. Écriture ──
+
+function clipPolyline2(pts: Vec2[], b: { minX: number; minZ: number; maxX: number; maxZ: number }): Vec2[][] {
+  return clipPolyline(
+    pts.map(([x, z]) => [x, 0, z] as Vec3),
+    b,
+  ).map((p) => p.map((q) => [q[0], q[2]] as Vec2));
 }
 
-// ── Écriture ──
-
-function writeTiles(roads: Road[], buildings: Building[], areas: Area[]): WorldMeta['tiles'] {
-  const idx = new RoadIndex(roads);
-  const index: WorldMeta['tiles'] = [];
-  const tx0 = Math.floor(ISLAND.minX / T);
-  const tx1 = Math.ceil(ISLAND.maxX / T) - 1;
-  const tz0 = Math.floor(ISLAND.minZ / T);
-  const tz1 = Math.ceil(ISLAND.maxZ / T) - 1;
-  for (let tx = tx0; tx <= tx1; tx++)
-    for (let tz = tz0; tz <= tz1; tz++) {
-      const id = `${tx}_${tz}`;
-      const bounds = { minX: tx * T, minZ: tz * T, maxX: (tx + 1) * T, maxZ: (tz + 1) * T };
-      const grid = (res: number) => {
-        const n = T / res;
-        const h = new Float32Array((n + 1) * (n + 1));
-        for (let j = 0; j <= n; j++) for (let i = 0; i <= n; i++) h[j * (n + 1) + i] = finalHeight(idx, bounds.minX + i * res, bounds.minZ + j * res);
-        return { n, h };
-      };
-      const lo = grid(8);
-      let lMin = Infinity;
-      let lMax = -Infinity;
-      for (const v of lo.h) {
-        lMin = Math.min(lMin, v);
-        lMax = Math.max(lMax, v);
-      }
-      // Pleine mer : grille grossière seule.
-      const land = lMax > -0.3;
-      const hi = land ? grid(2) : null;
-      let min = lMin;
-      let max = lMax;
-      if (hi) for (const v of hi.h) {
-        min = Math.min(min, v);
-        max = Math.max(max, v);
-      }
-      const baseM = Math.floor(min) - 1;
-      const stepM = 0.01;
-      const enc = (g: { n: number; h: Float32Array }) => {
-        const N = g.n + 1;
-        const q = new Uint16Array(N * N);
-        for (let k = 0; k < N * N; k++) q[k] = Math.max(0, Math.min(65535, Math.round((g.h[k]! - baseM) / stepM)));
-        deltaEncodeU16(q, g.n);
-        return Buffer.from(q.buffer);
-      };
-      const loBuf = enc(lo);
-      writeFileSync(join(OUT, 'tiles', `${id}.lo.u16`), loBuf);
-      let bytes = loBuf.length;
-      if (hi) {
-        const hiBuf = enc(hi);
-        writeFileSync(join(OUT, 'tiles', `${id}.hi.u16`), hiBuf);
-        bytes += hiBuf.length;
-      }
-      const tile: WorldTile = {
-        id,
-        tx,
-        tz,
-        bounds,
-        heights: { baseM, stepM, encoding: 'uint16le', delta: true, lo: { n: 125, resolutionM: 8, file: `${id}.lo.u16` }, ...(hi ? { hi: { n: 500, resolutionM: 2, file: `${id}.hi.u16` } } : {}) },
-        roads: [],
-        buildings: [],
-        forests: [],
-        fields: [],
-        landuse: [],
-        water: [],
-        waterways: [],
-        railways: [],
-        pois: [],
-      };
-      for (const r of roads) {
-        const pts = r.loop ? [...r.pts, r.pts[0]!] : r.pts;
-        const parts = clipPolyline(pts, bounds);
-        // Boucle dont le départ tombe dans la tuile : le dernier morceau rejoint le premier (pas de coupure).
-        if (r.loop && parts.length > 1) {
-          const first = parts[0]!;
-          const last = parts[parts.length - 1]!;
-          const a = last[last.length - 1]!;
-          if (Math.hypot(a[0] - first[0]![0], a[2] - first[0]![2]) < 1e-6) parts.splice(0, 1, [...last, ...first.slice(1)]) && parts.pop();
-        }
-        parts.forEach((piece, k) =>
-          tile.roads.push({ id: `${r.id}-${k}`, kind: r.kind, name: r.name, width: r.width, surface: r.surface, flatten: [r.flat, r.flat + r.blend], pts: piece.flatMap((p) => [r2(p[0]), r2(p[1]), r2(p[2])]) }),
-        );
-      }
-      for (const b of buildings) {
-        const cx = b.pts.reduce((s, p) => s + p[0], 0) / b.pts.length;
-        const cz = b.pts.reduce((s, p) => s + p[1], 0) / b.pts.length;
-        if (cx < bounds.minX || cx >= bounds.maxX || cz < bounds.minZ || cz >= bounds.maxZ) continue;
-        tile.buildings.push({ id: b.id, kind: b.kind, height: b.height, levels: b.levels, roof: b.roof, y: r2(b.y), pts: b.pts.flatMap((p) => [r2(p[0]), r2(p[1])]), ...(b.name ? { name: b.name } : {}), ...(b.colour ? { colour: b.colour } : {}) });
-      }
-      for (const a of areas) {
-        const c = clipPolygon(a.ring, bounds);
-        if (c.length < 3 || Math.abs(polygonArea(c)) < 1) continue;
-        const entry = { id: a.id, kind: a.kind, ...(a.name ? { name: a.name } : {}), rings: [c.flatMap((p) => [r2(p[0]), r2(p[1])])] };
-        if (a.layer === 'forests') tile.forests.push(entry as WorldTile['forests'][number]);
-        else tile[a.layer].push(entry);
-      }
-      writeFileSync(join(OUT, 'tiles', `${id}.json`), JSON.stringify(tile));
-      bytes += Buffer.byteLength(JSON.stringify(tile));
-      index.push({ id, tx, tz, baseM, minM: r2(min), maxM: r2(max), lods: hi ? ['lo', 'hi'] : ['lo'], bytes });
-    }
-  return index;
-}
-
-function main(): void {
-  const t0 = Date.now();
-  rmSync(join(OUT, 'tiles'), { recursive: true, force: true });
+async function main(): Promise<void> {
+  rmSync(join(OUT, 'tiles'), { recursive: true, force: true, maxRetries: 10, retryDelay: 300 });
   mkdirSync(join(OUT, 'tiles'), { recursive: true });
+  rmSync(join(OUT, 'routes'), { recursive: true, force: true, maxRetries: 10, retryDelay: 300 });
   mkdirSync(join(OUT, 'routes'), { recursive: true });
   writeFileSync(join(OUT, '.gitignore'), 'tiles/\n');
-  const roads = buildRoads();
-  const buildings = buildBuildings(roads);
-  const areas = buildAreas(roads);
-  const routes = buildRoutes(roads);
-  for (const r of routes) writeFileSync(join(OUT, 'routes', `${r.id}.json`), JSON.stringify(r));
+  terrain(0, 0);
+  log('relief prêt');
+
+  const D = designedRoads();
+  log(`${D.roads.length} rues dessinées, ${D.gates.length} portes`);
+  const ctx0: LandCtx = { farms: [] };
+  const farms = farmSites(150, (x, z) => forestMask(x, z, ctx0));
+  log(`${farms.length} fermes`);
+  const grid = await planningGrid(D.roads, D.gates, farms);
+  log(`grille de tracé ${grid.n} × ${grid.m}`);
+  const P: Plan = { grid, failed: [] };
+  const net = planNetwork(P, D.gates, farms);
+  log(`réseau tracé (${grid.links.size} liens)${P.failed.length ? `, ${P.failed.length} tracés impossibles` : ''}`);
+  for (const f of P.failed) console.log(`   · impossible : ${f}`);
+  const netRoads = networkRoads(grid, D.roads, D.gates);
+  const roads = [...D.roads, ...netRoads];
+  const nx = joinCrossings(roads);
+  log(`${roads.length} routes (${netRoads.length} tracées), ${(roads.reduce((s, r) => s + r.pts.length * 2, 0) / 1000).toFixed(0)} km, ${nx} croisements`);
+
+  const idx = new RoadIndex(roads);
+  const B = new Builder(idx);
+  D.layouts.forEach((lay, k) => {
+    townCentre(B, lay, k);
+    if (lay.town.seaside) seasideBuildings(B, lay);
+  });
+  landmarks(B);
+  // Maisons des rues.
+  const byTown = new Map(D.layouts.map((l) => [l.town.id, l]));
+  for (const r of D.roads) {
+    const tid = TOWNS.find((t) => r.id.startsWith(`${t.id}-`));
+    if (!tid) continue;
+    const lay = byTown.get(tid.id)!;
+    const t = lay.town;
+    if (r.kind === 'cycleway') continue;
+    const inside = (x: number, z: number) => Math.hypot(x - t.x, z - t.z) < t.r * (t.seaside ? 2 : 1.15);
+    const palette = t.seaside ? 'villa' : t.port ? 'breton' : 'village';
+    const core = t.size === 'ville' || t.size === 'bourg';
+    B.street(r, { spacing: core ? 13 : 16, setback: core ? 3 : 4.5, depth: [8, 12], len: [8, 13], levels: core ? [2, 3] : [1, 2], palette, inside, seed: r.id.length * 131 + Math.round(t.x), apartments: core ? 0.15 : 0, ...(r.id.endsWith('boulevard') ? { sides: [1] } : {}) });
+  }
+  farmBuildings(B, farms);
+  roadsideHouses(B, netRoads);
+  log(`${B.out.length} bâtiments`);
+
+  // Sols : parcelles, plages, eau.
+  const ctx: LandCtx = { farms: farms.map((f) => [f.x, f.z]) };
+  const rv = TOWNS.find((t) => t.seaside)!;
+  const rvAng = Math.atan2(rv.z, rv.x);
+  const nearSeaside = (x: number, z: number) => Math.abs(angle(Math.atan2(z, x) - rvAng - 0.045)) < 0.12 && shoreDist(x, z) < 2200;
+  const fields = parcels(ctx, nearSeaside);
+  const shore = shoreAreas((x, z) => Math.abs(angle(Math.atan2(z, x) - rvAng - 0.045)) < 0.11);
+  const areas: Area[] = [...B.areas, ...fields, ...shore];
+  const water = lakes();
+  const ways = waterways((x, z) => idx.edgeDist(x, z) < 8);
+  log(`${fields.length} parcelles, ${shore.length} morceaux de plage, ${water.length} plans d'eau, ${ways.length} cours d'eau`);
+
+  // Graphe et itinéraires.
   const graph = buildGraph(roads);
   writeFileSync(join(OUT, 'graph.json'), JSON.stringify(graph));
-  const places: WorldPlace[] = [
-    { name: 'Saint-Robert', kind: 'village', x: PLACE.x, z: PLACE.z },
-    { name: "L'Anneau", kind: 'hamlet', x: ANNEAU.cx, z: ANNEAU.cz },
-  ];
-  writeFileSync(join(OUT, 'places.json'), JSON.stringify(places));
-  const tiles = writeTiles(roads, buildings, areas);
+  log(`graphe : ${graph.nodes.length / 3} nœuds, ${graph.edges.length} arêtes`);
+  const routes: RouteData[] = [];
+  // L'Anneau : la boucle elle-même, départ devant les tribunes.
+  const an = D.anneau;
+  const start = an.pts.reduce((bi, p, i) => (Math.hypot(p[0] - ANNEAU.cx, p[2] - (ANNEAU.cz + ANNEAU.radius)) < Math.hypot(an.pts[bi]![0] - ANNEAU.cx, an.pts[bi]![2] - (ANNEAU.cz + ANNEAU.radius)) ? i : bi), 0);
+  const ringPts = [...an.pts.slice(start), ...an.pts.slice(0, start)];
+  let dd = 0;
+  const anPoints = ringPts.map((p, i) => {
+    if (i) dd += Math.hypot(p[0] - ringPts[i - 1]![0], p[2] - ringPts[i - 1]![2]);
+    return { x: r2(p[0]), y: r2(p[1]), z: r2(p[2]), d: 0 };
+  });
+  let acc = 0;
+  anPoints.forEach((p, i) => {
+    if (i) acc += Math.hypot(p.x - anPoints[i - 1]!.x, p.z - anPoints[i - 1]!.z);
+    p.d = r2(acc);
+  });
+  const anLen = acc + Math.hypot(anPoints[0]!.x - anPoints[anPoints.length - 1]!.x, anPoints[0]!.z - anPoints[anPoints.length - 1]!.z);
+  void dd;
+  routes.push({ id: 'anneau', name: "L'Anneau", nameEn: 'The Ring', loop: true, lengthM: r2(anLen), elevationGainM: 0, points: anPoints, segments: [], roadWidthM: ANNEAU.widthM, attribution: ATTRIBUTION, roadWidths: [{ startM: 0, endM: r2(anLen), widthM: ANNEAU.widthM }], surfaces: [{ startM: 0, endM: r2(anLen), surface: 'asphalt' }], landmarks: [{ name: 'Tribunes', d: 0 }], stepM: 2, minElevationM: ANNEAU.level, maxElevationM: ANNEAU.level, maxGradePct: 0, markings: 'full' });
+  for (const spec of routeSpecs(net)) {
+    const r = planRoute(graph, spec);
+    if (!r) {
+      console.log(`   · itinéraire impossible : ${spec.id}`);
+      continue;
+    }
+    routes.push(r);
+  }
+  for (const r of routes) writeFileSync(join(OUT, 'routes', `${r.id}.json`), JSON.stringify(r));
+  for (const r of routes) log(`  ${r.id} : ${(r.lengthM / 1000).toFixed(1)} km, D+ ${r.elevationGainM.toFixed(0)} m, pente max ${r.maxGradePct} %${r.hairpins?.length ? `, ${r.hairpins.length} lacets` : ''}`);
+
+  // Tuiles : altitudes et bois en parallèle, entités ici.
+  const tiles: Array<{ id: string; tx: number; tz: number }> = [];
+  for (let tx = Math.floor(ISLAND.minX / T); tx < Math.ceil(ISLAND.maxX / T); tx++) for (let tz = Math.floor(ISLAND.minZ / T); tz < Math.ceil(ISLAND.maxZ / T); tz++) tiles.push({ id: `${tx}_${tz}`, tx, tz });
+  const serial = roads.map((r) => ({ pts: r.pts.flat(), loop: r.loop, flat: r.flat, blend: r.blend, width: r.width, kind: r.kind }));
+  let lastPct = -1;
+  const res = await runPool<{ min: number; max: number; baseM: number; hi: boolean; bytes: number; forests: Array<{ kind: string; rings: Vec2[][] }>; heath: Vec2[][]; rock: Vec2[][] }>(
+    { type: 'init', roads: serial, farms: ctx.farms },
+    tiles.map((t) => ({ type: 'tile', id: t.id, minX: t.tx * T, minZ: t.tz * T, size: T, dir: join(OUT, 'tiles') })),
+    (done, total) => {
+      const pct = Math.floor((done / total) * 10);
+      if (pct !== lastPct) {
+        lastPct = pct;
+        log(`tuiles ${done}/${total}`);
+      }
+    },
+  );
+  const index: WorldMeta['tiles'] = [];
+  const flatRing = (ring: Vec2[]) => ring.flatMap((p) => [r2(p[0]), r2(p[1])]);
+  tiles.forEach((t, k) => {
+    const h = res[k]!;
+    const bounds = { minX: t.tx * T, minZ: t.tz * T, maxX: (t.tx + 1) * T, maxZ: (t.tz + 1) * T };
+    const tile: WorldTile = {
+      id: t.id,
+      tx: t.tx,
+      tz: t.tz,
+      bounds,
+      heights: { baseM: h.baseM, stepM: 0.01, encoding: 'uint16le', delta: true, lo: { n: 125, resolutionM: 8, file: `${t.id}.lo.u16` }, ...(h.hi ? { hi: { n: 500, resolutionM: 2, file: `${t.id}.hi.u16` } } : {}) },
+      roads: [],
+      buildings: [],
+      forests: h.forests.map((f, i) => ({ id: `bois-${t.id}-${i}`, kind: f.kind as 'deciduous', rings: f.rings.map(flatRing) })),
+      fields: [],
+      landuse: [],
+      water: [],
+      waterways: [],
+      railways: [],
+      pois: [],
+    };
+    if (h.heath.length) tile.fields.push({ id: `lande-${t.id}`, kind: 'heath', rings: h.heath.map(flatRing) });
+    if (h.rock.length) tile.fields.push({ id: `roche-${t.id}`, kind: 'bare', rings: h.rock.map(flatRing) });
+    for (const r of roads) {
+      if (!r.pts.some((p) => p[0] >= bounds.minX - 2 && p[0] <= bounds.maxX + 2 && p[2] >= bounds.minZ - 2 && p[2] <= bounds.maxZ + 2)) continue;
+      const pts = r.loop ? [...r.pts, r.pts[0]!] : r.pts;
+      const parts = clipPolyline(pts, bounds);
+      if (r.loop && parts.length > 1) {
+        const first = parts[0]!;
+        const last = parts[parts.length - 1]!;
+        const a = last[last.length - 1]!;
+        if (Math.hypot(a[0] - first[0]![0], a[2] - first[0]![2]) < 1e-6) {
+          parts[0] = [...last, ...first.slice(1)];
+          parts.pop();
+        }
+      }
+      parts.forEach((piece, i) => tile.roads.push({ id: `${r.id}-${i}`, kind: r.kind, name: r.name, width: r.width, surface: r.surface, flatten: [r.flat, r.flat + r.blend], pts: piece.flatMap((p) => [r2(p[0]), r2(p[1]), r2(p[2])]) }));
+    }
+    for (const b of B.out) {
+      const cx = b.pts.reduce((s, p) => s + p[0], 0) / b.pts.length;
+      const cz = b.pts.reduce((s, p) => s + p[1], 0) / b.pts.length;
+      if (cx < bounds.minX || cx >= bounds.maxX || cz < bounds.minZ || cz >= bounds.maxZ) continue;
+      tile.buildings.push({ id: b.id, kind: b.kind, height: b.height, levels: b.levels, roof: b.roof, y: r2(b.y), pts: b.pts.flatMap((p) => [r2(p[0]), r2(p[1])]), ...(b.name ? { name: b.name } : {}), ...(b.colour ? { colour: b.colour } : {}), ...(b.material ? { material: b.material } : {}) });
+    }
+    for (const a of areas) {
+      const c = clipPolygon(a.ring, bounds);
+      if (c.length < 3 || Math.abs(polygonArea(c)) < 1) continue;
+      const entry = { id: a.id, kind: a.kind, ...(a.name ? { name: a.name } : {}), rings: [flatRing(c)] };
+      if (a.layer === 'forests') tile.forests.push(entry as WorldTile['forests'][number]);
+      else tile[a.layer].push(entry);
+    }
+    for (const w of water) {
+      const c = clipPolygon(w.ring, bounds);
+      if (c.length >= 3 && Math.abs(polygonArea(c)) > 1) tile.water.push({ id: w.id, kind: w.kind, ...(w.name ? { name: w.name } : {}), level: w.level, rings: [flatRing(c)] });
+    }
+    for (const w of ways) for (const piece of clipPolyline2(w.pts, bounds)) if (piece.length >= 2) tile.waterways.push({ id: w.id, kind: w.kind, width: w.width, name: w.name, pts: piece.flatMap((p) => [r2(p[0]), r2(p[1])]) });
+    const json = JSON.stringify(tile);
+    writeFileSync(join(OUT, 'tiles', `${t.id}.json`), json);
+    index.push({ id: t.id, tx: t.tx, tz: t.tz, baseM: h.baseM, minM: r2(h.min), maxM: r2(h.max), lods: h.hi ? ['lo', 'hi'] : ['lo'], bytes: h.bytes + Buffer.byteLength(json) });
+  });
+  log('tuiles écrites');
+
+  writeFileSync(join(OUT, 'places.json'), JSON.stringify(B.places));
+  const sr = TOWNS.find((t) => t.id === 'saint-robert')!;
   const meta: WorldMeta = {
     formatVersion: 1,
     id: ISLAND.id,
@@ -706,22 +840,20 @@ function main(): void {
       { id: 'lo', resolutionM: 8, n: 125, suffix: '.lo.u16' },
       { id: 'hi', resolutionM: 2, n: 500, suffix: '.hi.u16' },
     ],
-    tiles,
-    routes: routes.map((r, i) => ({ id: r.id, file: `routes/${r.id}.json`, name: r.name, nameEn: r.nameEn, lengthM: r.lengthM, elevationGainM: r.elevationGainM, loop: r.loop, main: i === 0 })),
-    mainRoute: routes[0]!.id,
+    tiles: index,
+    routes: routes.map((r, i) => ({ id: r.id, file: `routes/${r.id}.json`, name: r.name, nameEn: r.nameEn ?? r.name, lengthM: r.lengthM, elevationGainM: r.elevationGainM, loop: r.loop, main: i === 0, ...(r.bike ? { bike: r.bike } : {}) })),
+    mainRoute: 'anneau',
     attribution: ATTRIBUTION,
-    open: { graph: 'graph.json', start: { x: PLACE.x, z: PLACE.z + 20 }, places: 'places.json' },
+    open: { graph: 'graph.json', start: { x: sr.x + 3, z: sr.z }, places: 'places.json' },
     sea: { levelM: 0 },
   };
   writeFileSync(join(OUT, 'world.json'), JSON.stringify(meta, null, 1));
-  console.log(`île écrite en ${((Date.now() - t0) / 1000).toFixed(1)} s : ${tiles.length} tuiles, ${roads.length} routes, ${buildings.length} bâtiments, ${areas.length} surfaces`);
-  for (const r of routes) console.log(`  ${r.id} : ${(r.lengthM / 1000).toFixed(2)} km, D+ ${r.elevationGainM} m, pente max ${r.maxGradePct} %`);
+  log('monde écrit, contrôles…');
   const report = verifyWorld(OUT);
   for (const line of report.lines) console.log(line);
-  if (!report.ok) {
-    console.error('contrôles en échec');
-    process.exitCode = 1;
-  }
+  log(report.ok ? 'contrôles au vert' : 'contrôles en échec');
+  if (!report.ok) process.exitCode = 1;
 }
 
-main();
+// Lancement direct seulement (les fonctions servent aussi aux scripts de mise au point).
+if (process.argv[1] && resolve(process.argv[1]) === resolve(import.meta.filename)) void main();

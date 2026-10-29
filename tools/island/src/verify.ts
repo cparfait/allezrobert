@@ -14,7 +14,8 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { deltaDecodeU16 } from '../../../packages/shared/src/heights.ts';
-import type { RoadGraphData, RouteData, WorldMeta, WorldTile } from '../../../packages/shared/src/route.ts';
+import type { RoadGraphData } from '../../../packages/shared/src/roadgraph.ts';
+import type { RouteData, WorldMeta, WorldTile } from '../../../packages/shared/src/route.ts';
 
 /** Tolérances (m). */
 const TOL_GROUND = 0.02;
@@ -22,11 +23,18 @@ const TOL_SEAM = 0.011;
 const TOL_NODE = 0.05;
 /** Pente maximale (fraction) mesurée sur 10 m. */
 const GRADE_RING = 0.01;
-const GRADE_ROAD = 0.1;
+/** Pente maximale par catégorie (fraction, sur 10 m). */
+function gradeLimit(kind: string, surface: string): number {
+  if (kind === 'track') return surface === 'gravel' ? 0.2 : 0.27;
+  return ({ cycleway: 0.07, secondary: 0.085, tertiary: 0.105, residential: 0.13, unclassified: 0.135 } as Record<string, number>)[kind] ?? 0.13;
+}
 const GRADE_WINDOW = 10;
 /** Rayon de virage minimal (m) mesuré sur une corde de 2 × 6 m. */
 const RADIUS_RING = 150;
-const RADIUS_ROAD = 10;
+/** Rayons minimaux : grandes routes, petites routes de montagne (épingles), chemins. */
+const RADIUS_ROAD = 7.5;
+const RADIUS_SMALL = 5;
+const RADIUS_TRACK = 4;
 const RING_NAME = "L'Anneau";
 
 interface Grid {
@@ -242,7 +250,13 @@ export function verifyWorld(dir: string): { ok: boolean; lines: string[] } {
     const find = (i: number): number => (parent[i] === i ? i : (parent[i] = find(parent[i]!)));
     for (const e of graph.edges) parent[find(e.a)] = find(e.b);
     const comps = new Set(Array.from({ length: nodeCount }, (_, i) => find(i))).size;
-    if (comps > 1) errors.push(`réseau en ${comps} morceaux`);
+    if (comps > 1) {
+      const size = new Map<number, number>();
+      for (let i = 0; i < nodeCount; i++) size.set(find(i), (size.get(find(i)) ?? 0) + 1);
+      const big = [...size.entries()].sort((p, q) => q[1] - p[1])[0]![0];
+      const small = [...size.keys()].filter((k) => k !== big).map((k) => `${size.get(k)} nœuds vers ${at(node(k)[0], node(k)[2])} (${graph.edges.find((e) => find(e.a) === k)?.name ?? '?'})`);
+      errors.push(`réseau en ${comps} morceaux : ${small.join(' ; ')}`);
+    }
     // Culs-de-sac : jamais à quelques mètres d'une autre route (carrefour oublié).
     const edgeSegs = new SegIndex(20);
     graph.edges.forEach((e, ei) => {
@@ -278,6 +292,13 @@ export function verifyWorld(dir: string): { ok: boolean; lines: string[] } {
         }
       }
     });
+    const nodeHash = new Map<string, number[]>();
+    for (let i = 0; i < nodeCount; i++)
+      for (const dx of [-1, 0, 1])
+        for (const dz of [-1, 0, 1]) {
+          const k = `${Math.round(node(i)[0]) + dx},${Math.round(node(i)[2]) + dz}`;
+          (nodeHash.get(k) ?? nodeHash.set(k, []).get(k)!).push(i);
+        }
     // Morceaux de route des tuiles : chaque extrémité est sur un bord de tuile ou sur un nœud du graphe.
     for (const p of pieces) {
       const t = tiles.get(p.tile)!;
@@ -286,8 +307,7 @@ export function verifyWorld(dir: string): { ok: boolean; lines: string[] } {
         const z = p.pts[k + 2]!;
         const onEdge = Math.min(Math.abs(x - t.bounds.minX), Math.abs(x - t.bounds.maxX), Math.abs(z - t.bounds.minZ), Math.abs(z - t.bounds.maxZ)) < 0.02;
         if (onEdge) continue;
-        let onNode = false;
-        for (let i = 0; i < nodeCount && !onNode; i++) onNode = Math.hypot(node(i)[0] - x, node(i)[2] - z) < 0.5;
+        const onNode = (nodeHash.get(`${Math.round(x)},${Math.round(z)}`) ?? []).some((i) => Math.hypot(node(i)[0] - x, node(i)[2] - z) < 0.5);
         // Boucle fermée dans la tuile : extrémités confondues.
         const closed = Math.hypot(p.pts[0]! - p.pts[p.pts.length - 3]!, p.pts[2]! - p.pts[p.pts.length - 1]!) < 0.05;
         if (!onNode && !closed) errors.push(`${p.name || p.id} : extrémité ${at(x, z)} ni au bord de la tuile ni sur un nœud`);
@@ -299,8 +319,36 @@ export function verifyWorld(dir: string): { ok: boolean; lines: string[] } {
     if (!(d0 < 15)) errors.push(`départ libre ${at(s.x, s.z)} loin de toute route`);
     check('graphe routier', errors, `${nodeCount} nœuds, ${graph.edges.length} arêtes, ${deadEnds} culs-de-sac`);
 
+    // ── Carrefours francs : deux routes ne partent jamais d'un nœud à moins de 20° l'une de l'autre ──
+    const jErr: string[] = [];
+    const dirs = new Map<number, Array<{ a: number; e: number }>>();
+    graph.edges.forEach((e, ei) => {
+      const m = e.pts.length / 3;
+      const away = (from: number, step: number) => {
+        let k = from;
+        let L = 0;
+        while (k + step >= 0 && k + step < m && L < 8) {
+          L += Math.hypot(e.pts[(k + step) * 3]! - e.pts[k * 3]!, e.pts[(k + step) * 3 + 2]! - e.pts[k * 3 + 2]!);
+          k += step;
+        }
+        return Math.atan2(e.pts[k * 3 + 2]! - e.pts[from * 3 + 2]!, e.pts[k * 3]! - e.pts[from * 3]!);
+      };
+      (dirs.get(e.a) ?? dirs.set(e.a, []).get(e.a)!).push({ a: away(0, 1), e: ei });
+      (dirs.get(e.b) ?? dirs.set(e.b, []).get(e.b)!).push({ a: away(m - 1, -1), e: ei });
+    });
+    for (const [n, l] of dirs)
+      for (let i = 0; i < l.length; i++)
+        for (let j = i + 1; j < l.length; j++) {
+          let t = Math.abs(l[i]!.a - l[j]!.a);
+          if (t > Math.PI) t = 2 * Math.PI - t;
+          const trails = graph.edges[l[i]!.e]!.kind === 'track' && graph.edges[l[j]!.e]!.kind === 'track';
+          if (t < ((trails ? 10 : 20) * Math.PI) / 180 && jErr.length < 60) jErr.push(`${graph.edges[l[i]!.e]!.name} / ${graph.edges[l[j]!.e]!.name} ${at(node(n)[0], node(n)[2])} : raccord en biseau (${f((t * 180) / Math.PI, 0)}°)`);
+        }
+    check('carrefours francs', jErr);
+
     // ── Pentes et rayons, sur les routes entières (arêtes du graphe) ──
     const gErr: string[] = [];
+    const radiusSeen = new Set<string>();
     let ringMax = 0;
     let roadMax = 0;
     let ringMinR = Infinity;
@@ -321,7 +369,7 @@ export function verifyWorld(dir: string): { ok: boolean; lines: string[] } {
         const g = Math.abs(pts[j]![1] - pts[i]![1]) / dd;
         if (ring) ringMax = Math.max(ringMax, g);
         else roadMax = Math.max(roadMax, g);
-        if (g > (ring ? GRADE_RING : GRADE_ROAD) + 1e-4 && gErr.length < 100) gErr.push(`${e.name} ${at(pts[i]![0], pts[i]![2])} : pente ${f(g * 100, 1)} %`);
+        if (g > (ring ? GRADE_RING : gradeLimit(e.kind, e.surface)) + 1e-4 && gErr.length < 100) gErr.push(`${e.name} (${e.kind}) ${at(pts[i]![0], pts[i]![2])} : pente ${f(g * 100, 1)} %`);
       }
       // Rayon du cercle passant par trois points espacés de ≈ 6 m.
       for (let i = 0; i + 6 < pts.length; i++) {
@@ -331,7 +379,14 @@ export function verifyWorld(dir: string): { ok: boolean; lines: string[] } {
         const r = circumradius(a[0], a[2], b[0], b[2], c[0], c[2]);
         if (ring) ringMinR = Math.min(ringMinR, r);
         else roadMinR = Math.min(roadMinR, r);
-        if (r < (ring ? RADIUS_RING : RADIUS_ROAD) && gErr.length < 100) gErr.push(`${e.name} ${at(b[0], b[2])} : virage de ${f(r, 0)} m de rayon`);
+        if (r < (ring ? RADIUS_RING : e.kind === 'track' ? RADIUS_TRACK : e.kind === 'secondary' ? RADIUS_ROAD : RADIUS_SMALL) && gErr.length < 100) {
+          // Un message par virage (points voisins regroupés).
+          const key = `${e.name}|${Math.round(b[0] / 40)}|${Math.round(b[2] / 40)}`;
+          if (!radiusSeen.has(key)) {
+            radiusSeen.add(key);
+            gErr.push(`${e.name} (${e.kind}) ${at(b[0], b[2])} : virage de ${f(r, 0)} m de rayon`);
+          }
+        }
       }
     });
     check('pentes et rayons', gErr, `anneau ${f(ringMax * 100, 2)} % / R ≥ ${f(ringMinR, 0)} m, routes ${f(roadMax * 100, 1)} % / R ≥ ${f(roadMinR, 0)} m`);
@@ -362,23 +417,44 @@ export function verifyWorld(dir: string): { ok: boolean; lines: string[] } {
         // Posé sur le sol : jamais en l'air (le jeu prolonge les murs vers le bas, pas vers le haut).
         const hmin = Math.min(...poly.map(([x, z]) => ground(x, z)));
         if (b.y > hmin + 0.05) errors.push(`${b.id} : posé à ${f(b.y)} m, sol à ${f(hmin)} m (en l'air)`);
+        if (hmin < 0.3) errors.push(`${b.id} (${b.kind}) ${at(cx, cz)} : les pieds dans l'eau (sol à ${f(hmin)} m)`);
       }
+      // Bois : contours rastérisés (pair-impair, trous compris), chaussée testée tous les 2 m.
       for (const fo of tile.forests) {
         nf++;
-        for (const ring of fo.rings) {
-          const poly: Array<[number, number]> = [];
-          for (let k = 0; k < ring.length; k += 2) poly.push([ring[k]!, ring[k + 1]!]);
-          let hit = false;
-          for (const p of pieces) {
-            if (p.tile !== tile.id || hit) continue;
-            for (let k = 0; k < p.pts.length && !hit; k += 3) {
-              const x = p.pts[k]!;
-              const z = p.pts[k + 2]!;
-              if (inPoly(x, z, poly) || polyPointDist(poly, x, z) < p.width / 2) {
-                errors.push(`bois ${fo.id} sur ${p.name || p.id} ${at(x, z)}`);
+        const mask = rasterize(fo.rings, tile.bounds.minX, tile.bounds.minZ, 2, 500);
+        let hit = false;
+        for (const p of pieces) {
+          if (p.tile !== tile.id || hit) continue;
+          for (let k = 0; k + 5 < p.pts.length && !hit; k += 3) {
+            const x = p.pts[k]!;
+            const z = p.pts[k + 2]!;
+            const dx = p.pts[k + 3]! - x;
+            const dz = p.pts[k + 5]! - z;
+            const l = Math.hypot(dx, dz) || 1;
+            for (const o of [-p.width / 2, 0, p.width / 2]) {
+              const qx = x - (dz / l) * o;
+              const qz = z + (dx / l) * o;
+              const i = Math.floor((qx - tile.bounds.minX) / 2);
+              const j = Math.floor((qz - tile.bounds.minZ) / 2);
+              if (i >= 0 && j >= 0 && i < 500 && j < 500 && mask[j * 500 + i]) {
+                errors.push(`bois ${fo.id} sur ${p.name || p.id} ${at(qx, qz)}`);
                 hit = true;
+                break;
               }
             }
+          }
+        }
+      }
+      // Eau courante jamais sur la chaussée (busage aux croisements).
+      for (const w of tile.waterways) {
+        for (let k = 0; k + 1 < w.pts.length; k += 2) {
+          const x = w.pts[k]!;
+          const z = w.pts[k + 1]!;
+          const close = segIndex.near(x, z, 8).find(({ seg, data }) => proj(x, z, seg).d < (data as RoadPiece).width / 2 + w.width / 2 + 0.5);
+          if (close) {
+            errors.push(`${w.name ?? 'cours d\u2019eau'} ${at(x, z)} sur ${(close.data as RoadPiece).name}`);
+            break;
           }
         }
       }
@@ -392,7 +468,7 @@ export function verifyWorld(dir: string): { ok: boolean; lines: string[] } {
         }
       }
     }
-    check('bâtiments et bois hors chaussée', errors, `${nb} bâtiments, ${nf} bois`);
+    check('bâtiments, bois et eau hors chaussée', errors, `${nb} bâtiments, ${nf} bois`);
   }
 
   // ── Itinéraires ──
@@ -439,8 +515,9 @@ export function verifyWorld(dir: string): { ok: boolean; lines: string[] } {
     }
     if (Math.abs(r.lengthM - d) > 0.1) errors.push(`longueur annoncée ${r.lengthM} m, mesurée ${f(d)} m`);
     if (Math.abs(ri.lengthM - r.lengthM) > 0.01) errors.push(`longueur de l'index ${ri.lengthM} ≠ ${r.lengthM}`);
-    if (maxStepY > (ring ? 0.05 : 0.3)) errors.push(`marche de ${f(maxStepY * 100, 0)} cm entre deux points`);
-    // Demi-tour : cap qui tourne de plus de 100° sur ± 6 m.
+    const stepLim = ring ? 0.05 : r.bike === 'mtb' ? 0.6 : r.bike === 'gravel' ? 0.45 : 0.3;
+    if (maxStepY > stepLim) errors.push(`marche de ${f(maxStepY * 100, 0)} cm entre deux points`);
+    // Demi-tour : cap qui tourne de plus de 150° sur ± 6 m.
     const n = P.length;
     const get = (i: number) => P[r.loop ? ((i % n) + n) % n : Math.max(0, Math.min(n - 1, i))]!;
     for (let i = 0; i < n; i++) {
@@ -451,7 +528,7 @@ export function verifyWorld(dir: string): { ok: boolean; lines: string[] } {
       const h2 = Math.atan2(c.z - b.z, c.x - b.x);
       let t = Math.abs(h2 - h1);
       if (t > Math.PI) t = 2 * Math.PI - t;
-      if ((a !== b && b !== c && t > (100 * Math.PI) / 180) || (a.x === c.x && a.z === c.z && a !== c)) {
+      if ((a !== b && b !== c && t > (150 * Math.PI) / 180) || (a.x === c.x && a.z === c.z && a !== c)) {
         errors.push(`demi-tour au point ${i} ${at(b.x, b.z)} (${f((t * 180) / Math.PI, 0)}°)`);
         break;
       }
@@ -465,7 +542,11 @@ export function verifyWorld(dir: string): { ok: boolean; lines: string[] } {
       if (dd < GRADE_WINDOW * 0.8) break;
       gMax = Math.max(gMax, Math.abs(P[j]!.y - P[i]!.y) / dd);
     }
-    if (gMax > (ring ? GRADE_RING : GRADE_ROAD) + 1e-4) errors.push(`pente max ${f(gMax * 100, 1)} %`);
+    const lim = ring ? GRADE_RING : r.bike === 'mtb' ? 0.27 : r.bike === 'gravel' ? 0.2 : 0.135;
+    if (gMax > lim + 1e-4) errors.push(`pente max ${f(gMax * 100, 1)} %`);
+    // Le jeu place le coureur d'après roadWidthM sur tout le parcours : jamais plus large que la voie la plus étroite.
+    const narrow = Math.min(...(r.roadWidths ?? [{ widthM: r.roadWidthM }]).map((w) => w.widthM));
+    if (r.roadWidthM > narrow + 1e-6) errors.push(`largeur ${r.roadWidthM} m annoncée, voie la plus étroite ${narrow} m (coureur hors chaussée)`);
     check(`itinéraire ${ri.id}`, errors, `${f(r.lengthM / 1000, 2)} km, ${n} points, pente max ${f(gMax * 100, 1)} %, écart aux routes ${f(maxOff, 2)} m`);
   }
   if (!meta.routes.some((r) => r.id === meta.mainRoute)) check('itinéraire principal', [`${meta.mainRoute} absent de l'index`]);
@@ -474,6 +555,30 @@ export function verifyWorld(dir: string): { ok: boolean; lines: string[] } {
 }
 
 // ── Outils géométriques ──
+
+/** Polygones [x, z, …] → masque n × n (cases de `res` m), remplissage pair-impair aux centres des cases. */
+function rasterize(rings: number[][], x0: number, z0: number, res: number, n: number): Uint8Array {
+  const m = new Uint8Array(n * n);
+  for (let j = 0; j < n; j++) {
+    const z = z0 + (j + 0.5) * res;
+    const xs: number[] = [];
+    for (const r of rings) {
+      const k = r.length / 2;
+      for (let a = 0, b = k - 1; a < k; b = a++) {
+        const az = r[a * 2 + 1]!;
+        const bz = r[b * 2 + 1]!;
+        if (az > z !== bz > z) xs.push(r[a * 2]! + ((z - az) / (bz - az)) * (r[b * 2]! - r[a * 2]!));
+      }
+    }
+    xs.sort((p, q) => p - q);
+    for (let t = 0; t + 1 < xs.length; t += 2) {
+      const i0 = Math.max(0, Math.ceil((xs[t]! - x0) / res - 0.5));
+      const i1 = Math.min(n - 1, Math.floor((xs[t + 1]! - x0) / res - 0.5));
+      for (let i = i0; i <= i1; i++) m[j * n + i] = 1;
+    }
+  }
+  return m;
+}
 
 function sample(g: Grid, x: number, z: number): number {
   const N = g.n + 1;

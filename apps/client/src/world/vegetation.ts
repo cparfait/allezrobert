@@ -595,6 +595,8 @@ export class Vegetation {
     // Pas d'arbre sur une route ou une piste dessinée, en plus du masque de route rastérisé (peu précis).
     const onRoad = roadAvoidance(drawnRoads(tile.features.roads ?? []));
     const clear = nearestClearance(roadClearance(drawnRoads(tile.features.roads ?? [])), this.routeClear);
+    // Ni tronc ni houppier sur un toit : arbres des jardins écartés des emprises bâties.
+    const onBuilding = buildingAvoidance(tile.features.buildings ?? [], SEEDED_CROWN.decid);
     // pseudo-aléa stable par position, pour les règles d'altitude (la suite r() reste inchangée en plaine)
     const seedAt = (x: number, z: number) => Math.abs(Math.sin(x * 12.9898 + z * 78.233) * 43758.5453) % 1;
     const m = new THREE.Matrix4();
@@ -618,7 +620,7 @@ export class Vegetation {
       const hedge = Math.abs(fbm(x / 90, z / 90, 3)) < 0.03 ? 0.5 : 0;
       const prob = forest + meadow * (0.012 + hedge) + field * hedge * 0.6 + urban * 0.05;
       if (rr > prob) continue;
-      if (this.avoid(x, z) || onRoad(x, z, 1.2)) continue;
+      if (this.avoid(x, z) || onRoad(x, z, 1.2) || onBuilding(x, z)) continue;
       const y = this.heightAt(x, z);
       if (!Number.isFinite(y)) continue;
       // Altitude : forêt éclaircie à l'approche de la limite des arbres, rien au-delà ; ni arbre
@@ -704,4 +706,40 @@ export class Vegetation {
       if (far !== t.far) this.setTileFar(id, far);
     }
   }
+}
+
+/** Point à moins de `margin` m d'un bâtiment (boîte englobante de l'emprise, grille de 32 m). */
+function buildingAvoidance(buildings: ReadonlyArray<{ pts: number[] }>, margin: number): (x: number, z: number) => boolean {
+  if (!buildings.length) return () => false;
+  const CELL = 32;
+  const cells = new Map<number, number[]>();
+  const boxes: number[] = [];
+  buildings.forEach((b) => {
+    let x0 = Infinity;
+    let z0 = Infinity;
+    let x1 = -Infinity;
+    let z1 = -Infinity;
+    for (let i = 0; i + 1 < b.pts.length; i += 2) {
+      x0 = Math.min(x0, b.pts[i] as number);
+      x1 = Math.max(x1, b.pts[i] as number);
+      z0 = Math.min(z0, b.pts[i + 1] as number);
+      z1 = Math.max(z1, b.pts[i + 1] as number);
+    }
+    const k = boxes.length / 4;
+    boxes.push(x0 - margin, z0 - margin, x1 + margin, z1 + margin);
+    for (let cx = Math.floor((x0 - margin) / CELL); cx <= Math.floor((x1 + margin) / CELL); cx++)
+      for (let cz = Math.floor((z0 - margin) / CELL); cz <= Math.floor((z1 + margin) / CELL); cz++) {
+        const key = cx * 100003 + cz;
+        let l = cells.get(key);
+        if (!l) cells.set(key, (l = []));
+        l.push(k);
+      }
+  });
+  return (x, z) => {
+    for (const k of cells.get(Math.floor(x / CELL) * 100003 + Math.floor(z / CELL)) ?? []) {
+      const o = k * 4;
+      if (x >= (boxes[o] as number) && x <= (boxes[o + 2] as number) && z >= (boxes[o + 1] as number) && z <= (boxes[o + 3] as number)) return true;
+    }
+    return false;
+  };
 }
