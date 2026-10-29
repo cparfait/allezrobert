@@ -257,6 +257,23 @@ const LOW_POLY_HOODS = { L: new THREE.Vector3(0.2, 0.977, 0.575), R: new THREE.V
 const ROAD_HELMET_BOX = new THREE.Box3(new THREE.Vector3(-0.128, -0.1, -0.012 - 0.177), new THREE.Vector3(0.128, 0.025 + 0.12, -0.012 + 0.145));
 
 /**
+ * Nez à facettes (repère de la tête) : petite pyramide au lieu d'un cube — arête fine qui part sous les
+ * lunettes, pointe avancée qui descend, ailes plus larges en bas (narines) ; le dos rentre dans le visage.
+ */
+function noseGeometry(): THREE.BufferGeometry {
+  const B = [0, 0.012, 0.104]; // haut de l'arête
+  const T = [0, -0.015, 0.129]; // pointe
+  const L = [0.013, -0.025, 0.11]; // aile gauche
+  const R = [-0.013, -0.025, 0.11]; // aile droite
+  const C = [0, -0.02, 0.094]; // racine, dans le visage
+  const tris = [B, T, L, B, R, T, T, R, L, B, L, C, B, C, R, C, L, R];
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(tris.flat(), 3));
+  g.computeVertexNormals();
+  return g;
+}
+
+/**
  * Chaussure à facettes, à l'échelle du corps (pointure 42 : 21,5 cm de semelle à cette échelle) : talon
  * 11,5 cm derrière l'axe de la pédale (6 cm derrière la cheville), pointe 10 cm devant ; tige qui
  * s'abaisse et s'affine vers la pointe. Origine : axe de la pédale, semelle 3,3 cm plus bas.
@@ -581,7 +598,7 @@ export class LowPolyRider implements RiderAvatarLike {
 
     // Tête : icosaèdre à facettes un peu grand (lisible de loin), nez, oreilles, lunettes de sport.
     const skull = new THREE.Mesh(new THREE.IcosahedronGeometry(0.112, 1).scale(0.92, 1.05, 1), skin);
-    const face = merged([box(0.03, 0.04, 0.04, 0, -0.01, 0.112), box(0.03, 0.05, 0.04, 0.104, -0.005, -0.005), box(0.03, 0.05, 0.04, -0.104, -0.005, -0.005)], skin);
+    const face = merged([noseGeometry(), box(0.03, 0.05, 0.04, 0.104, -0.005, -0.005), box(0.03, 0.05, 0.04, -0.104, -0.005, -0.005)], skin);
     // Lunettes : écran à la couleur des verres, branches à celle de la monture (garage).
     const glasses = new THREE.Group();
     glasses.add(
