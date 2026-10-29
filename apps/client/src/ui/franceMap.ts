@@ -216,6 +216,8 @@ export class FranceMap {
 
   /** Champ de recherche d'une ville et, dessous, ce que la carte en dit (couverte par une zone, zone proche, ou non). */
   private searchHtml(): string {
+    // Sans connexion détectée, pas de recherche de ville (le service de l'IGN est en ligne).
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) return '';
     const L = fr();
     const f = this.found;
     let card = '';

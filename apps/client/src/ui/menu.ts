@@ -14,7 +14,7 @@ import { fillStoragePanel, storagePanelHtml } from './desktopUi.ts';
 import { compositeId, neighbourZones } from '../world/composite.ts';
 import { t, setLang, getLang, type I18nKey } from '../i18n/index.ts';
 import type { Settings } from './settings.ts';
-import { saveSettings } from './settings.ts';
+import { nowHour, saveSettings } from './settings.ts';
 import { music } from '../audio/music.ts';
 import { spotify, redirectUri } from '../audio/spotify.ts';
 import { musicSource, setMusicSource } from '../audio/musicSource.ts';
@@ -860,7 +860,7 @@ export class MainMenu {
     const wind = String(WIND_STEPS.reduce((best, v) => (Math.abs(v - s.windMs) < Math.abs(best - s.windMs) ? v : best), WIND_STEPS[0] as number));
     // Replié par défaut : le titre rappelle l'heure choisie ; l'état ouvert / fermé est mémorisé comme dans les Réglages.
     return `<details class="set-sec" data-sec="weather" ${this.settingsOpen.has('weather') ? 'open' : ''}><summary>${L ? 'Heure et météo de la sortie' : 'Ride time and weather'} <span style="text-transform:none;letter-spacing:0;font-weight:500;opacity:.8;margin-left:auto">${this.hourLabel(s.hour)}</span></summary><div class="set-body"><div class="mm-weather">
-      <label class="field">${L ? 'Heure de départ' : 'Start time'} <span id="m-hourv">${this.hourLabel(s.hour)}</span><input id="m-hour" type="range" min="5" max="22" step="0.25" value="${s.hour}" /></label>
+      ${this.hourFields()}
       <div class="field">${L ? 'Conditions' : 'Conditions'}${this.seg('m-realwx', s.realWeather ? '1' : '0', [
         ['1', L ? 'Du jour (réelles)' : 'Today (real)'],
         ['0', L ? 'Réglées' : 'Custom'],
@@ -973,6 +973,20 @@ export class MainMenu {
   }
 
   /** 9,25 → « 9 h 15 ». */
+  /** Heure de départ : l'heure actuelle (choisie par défaut) ou une heure réglée à la main avec le curseur. */
+  private hourFields(): string {
+    const s = this.s;
+    const L = fr();
+    return `<div class="field">${L ? 'Heure de départ' : 'Start time'}${this.seg('m-realtime', s.realTime ? '1' : '0', [
+      ['1', `${L ? 'Heure actuelle' : 'Current time'} · ${this.hourLabel(nowHour())}`],
+      ['0', L ? 'Réglée' : 'Custom'],
+    ])}</div>${
+      s.realTime
+        ? ''
+        : `<label class="field">${t('hour')} <span id="m-hourv">${this.hourLabel(s.hour)}</span><input id="m-hour" type="range" min="5" max="22" step="0.25" value="${s.hour}" /></label>`
+    }`;
+  }
+
   private hourLabel(h: number): string {
     const hh = Math.floor(h);
     const mm = Math.round((h - hh) * 60);
@@ -2181,7 +2195,7 @@ export class MainMenu {
         <div class="field">${L ? 'Zone de l\'interface' : 'Interface area'}${this.seg('m-uiaspect', getUiAspectCap(), [['full', L ? 'Toute la largeur' : 'Full width'], ['16:9', '16:9'], ['21:9', '21:9']])}</div>
         <div class="field">${L ? 'Résolution max' : 'Max resolution'}${this.seg('m-maxres', getResolutionCap(), [['auto', 'Auto'], ['1080p', '1080p'], ['1440p', '1440p'], ['4k', '4K']])}</div>
         <div class="field">${t('season')}${this.seg('m-season', s.season, (['spring', 'summer', 'autumn', 'winter'] as const).map((q) => [q, t(q)]))}</div>
-        <label class="field">${t('hour')} <span id="m-hourv">${this.hourLabel(s.hour)}</span><input id="m-hour" type="range" min="5" max="22" step="0.25" value="${s.hour}" /></label>
+        ${this.hourFields()}
         <label class="field">${L ? 'Nuages' : 'Clouds'}<input id="m-clouds" type="range" min="0" max="1" step="0.05" value="${s.clouds}" /></label>
         <label class="field">${L ? 'Pluie' : 'Rain'}<input id="m-rain" type="range" min="0" max="1" step="0.05" value="${s.rain}" /></label>
         <label class="field">${L ? 'Brouillard' : 'Fog'}<input id="m-fog" type="range" min="0" max="1" step="0.05" value="${s.fog}" /></label>
@@ -2565,6 +2579,7 @@ export class MainMenu {
 
   private start(more: { customRoute?: RouteData; openStart?: { x: number; z: number } } = {}): void {
     const invite = (this.root.querySelector('#m-invite') as HTMLInputElement | null)?.value.trim();
+    if (this.s.realTime) this.s.hour = nowHour();
     const laps = Number((this.root.querySelector('#m-laps') as HTMLInputElement | null)?.value);
     if (Number.isFinite(laps) && laps >= 1) this.s.raceLaps = Math.min(20, Math.round(laps));
     this.launch(this.s, { ...(this.workoutFile ? { workoutFile: this.workoutFile } : {}), ...(invite ? { inviteCode: invite } : {}), ...more });
@@ -3325,6 +3340,12 @@ export class MainMenu {
         changed();
       });
     range('m-hour', 'hour', 'm-hourv', (v) => this.hourLabel(v));
+    on<HTMLSelectElement>('m-realtime', 'change', (el) => {
+      s.realTime = el.value === '1';
+      if (s.realTime) s.hour = nowHour();
+      changed();
+      this.render();
+    });
     range('m-clouds', 'clouds');
     range('m-rain', 'rain');
     range('m-fog', 'fog');

@@ -13,6 +13,8 @@ export interface Settings {
   quality: QualityLevel;
   season: Season;
   hour: number;
+  /** Heure de départ = heure actuelle de l'ordinateur (sinon `hour`, réglée à la main). */
+  realTime: boolean;
   clouds: number;
   rain: number;
   fog: number;
@@ -81,6 +83,7 @@ export const DEFAULT_SETTINGS: Settings = {
   quality: 'high',
   season: 'autumn',
   hour: 10.5,
+  realTime: true,
   clouds: 0.35,
   rain: 0,
   fog: 0,
@@ -115,12 +118,23 @@ export const DEFAULT_SETTINGS: Settings = {
 
 const KEY = 'ar.settings';
 
+/** Heure actuelle de l'ordinateur, en heures décimales (14,5 = 14 h 30). */
+export function nowHour(): number {
+  const d = new Date();
+  return Math.round((d.getHours() + d.getMinutes() / 60) * 4) / 4;
+}
+
 export function loadSettings(): Settings {
   try {
     const raw = localStorage.getItem(KEY);
     if (raw) {
       const saved = { ...DEFAULT_SETTINGS, ...(JSON.parse(raw) as Partial<Settings>) };
       // Une seule fois : la météo du jour devient le choix par défaut (le joueur peut revenir aux conditions réglées).
+      if (!localStorage.getItem('ar.hourRealDefault')) {
+        saved.realTime = true;
+        localStorage.setItem('ar.hourRealDefault', '1');
+      }
+      if (saved.realTime) saved.hour = nowHour();
       if (!localStorage.getItem('ar.wxRealDefault')) {
         saved.realWeather = true;
         localStorage.setItem('ar.wxRealDefault', '1');
@@ -130,7 +144,7 @@ export function loadSettings(): Settings {
   } catch {
     // Réglages corrompus : on repart des valeurs par défaut.
   }
-  return migrateBike({ ...DEFAULT_SETTINGS });
+  return migrateBike({ ...DEFAULT_SETTINGS, hour: nowHour() });
 }
 
 /**
