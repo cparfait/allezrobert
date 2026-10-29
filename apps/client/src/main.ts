@@ -31,6 +31,7 @@ import { t, setLang, getLang } from './i18n/index.ts';
 import { loadSettings, saveSettings, type Settings } from './ui/settings.ts';
 import { MainMenu } from './ui/menu.ts';
 import { WorldMap } from './ui/worldMap.ts';
+import { basemapUrl } from './ui/basemap.ts';
 import { bootStep, bootProgress, bootDone, bootError } from './ui/splash.ts';
 import { PosterScene, POSTER_HOUR, GARAGE_VIEWS, type GarageView } from './ui/poster.ts';
 import { showPause, rideToFit, rideToGpx, download, onlinePanel } from './ui/ridepanels.ts';
@@ -1154,11 +1155,15 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
       }
       return best;
     };
+    const o93 = source.originL93 ?? { x: 0, y: 0 };
+    // Toutes les zones chargées ensemble (voisines comprises).
+    const areas = source.areas ?? [source.bounds];
+    const allBounds = { minX: Math.min(...areas.map((a) => a.minX)), minZ: Math.min(...areas.map((a) => a.minZ)), maxX: Math.max(...areas.map((a) => a.maxX)), maxZ: Math.max(...areas.map((a) => a.maxZ)) };
     const wmap = new WorldMap({
       graph: open.graph,
       places: open.places ?? [],
-      bounds: source.bounds,
-      ...(open.map ? { image: open.map } : {}),
+      bounds: allBounds,
+      ...(open.map ? { image: open.map } : source.originL93 ? { basemap: (b: { minX: number; minZ: number; maxX: number; maxZ: number }, px: number) => basemapUrl({ minE: o93.x + b.minX, minN: o93.y - b.maxZ, maxE: o93.x + b.maxX, maxN: o93.y - b.minZ }, px) } : {}),
       fr: L,
       snap: (x, z) => {
         const sn = snapToRoad(nav.net, x, z, 800);

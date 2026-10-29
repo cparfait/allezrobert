@@ -20,8 +20,10 @@ export interface WorldMapOptions {
   graph: RoadGraphData;
   places: readonly WorldPlace[];
   bounds: Box;
-  /** Image de la carte couvrant `bounds` (mondes générés) ; sinon le réseau seul sur fond sombre. */
+  /** Image de la carte couvrant `bounds`, réseau compris (mondes générés). */
   image?: string;
+  /** Fond de carte d'une emprise quelconque, `px` de large (Plan IGN des zones réelles). */
+  basemap?: (box: Box, px: number) => string;
   fr: boolean;
   /** Point de route roulable le plus proche (null : trop loin d'une route). */
   snap: (x: number, z: number) => WorldMapPick | null;
@@ -45,6 +47,10 @@ export class WorldMap {
   private root: HTMLElement | null = null;
   private canvas: HTMLCanvasElement | null = null;
   private img: HTMLImageElement | null = null;
+  /** Fond de carte : vue d'ensemble, puis détail de la vue courante (rechargé quand le geste s'arrête). */
+  private overview: { img: HTMLImageElement; box: Box } | null = null;
+  private detail: { img: HTMLImageElement; box: Box; ready: boolean } | null = null;
+  private detailTimer = 0;
   private view = { cx: 0, cz: 0, mPerPx: 20 };
   private state: WorldMapState | null = null;
   private pick: WorldMapPick | null = null;
@@ -60,6 +66,11 @@ export class WorldMap {
       this.img = new Image();
       this.img.onload = () => this.draw();
       this.img.src = o.image;
+    } else if (o.basemap) {
+      const img = new Image();
+      img.onload = () => this.draw();
+      img.src = o.basemap(o.bounds, 2048);
+      this.overview = { img, box: o.bounds };
     }
   }
 
@@ -240,22 +251,24 @@ export class WorldMap {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     const v = this.view;
     const P = (x: number, z: number): [number, number] => [W / 2 + (x - v.cx) / v.mPerPx, H / 2 + (z - v.cz) / v.mPerPx];
-    ctx.fillStyle = 'rgb(40, 90, 150)';
-    ctx.fillRect(0, 0, W, H);
-    const b = this.o.bounds;
     const img = this.img;
-    if (img?.complete && img.naturalWidth) {
+    ctx.fillStyle = img ? 'rgb(40, 90, 150)' : '#141a24';
+    ctx.fillRect(0, 0, W, H);
+    const layer = (im: HTMLImageElement | undefined, b: Box) => {
+      if (!im?.complete || !im.naturalWidth) return;
       const [x0, y0] = P(b.minX, b.minZ);
       const [x1, y1] = P(b.maxX, b.maxZ);
       ctx.imageSmoothingQuality = 'high';
-      ctx.drawImage(img, x0, y0, x1 - x0, y1 - y0);
-    } else {
-      ctx.fillStyle = '#141a24';
-      ctx.fillRect(0, 0, W, H);
-    }
-    // Réseau : toujours sans image ; avec l'image, seulement de près (l'image le montre déjà de loin).
-    const showNet = !img || v.mPerPx < 12;
+      ctx.drawImage(im, x0, y0, x1 - x0, y1 - y0);
+    };
+    layer(img ?? this.overview?.img, img ? this.o.bounds : (this.overview?.box ?? this.o.bounds));
+    if (this.detail?.ready) layer(this.detail.img, this.detail.box);
     const view = { minX: v.cx - (W / 2) * v.mPerPx, maxX: v.cx + (W / 2) * v.mPerPx, minZ: v.cz - (H / 2) * v.mPerPx, maxZ: v.cz + (H / 2) * v.mPerPx };
+    this.wantDetail(view, W);
+    // Réseau roulable : sur le fond de carte, toujours ; sur l'image d'un monde généré (qui le montre déjà), de près.
+    // Le Plan IGN montre déjà routes et noms de lieux : ni réseau ni noms par-dessus.
+    const ign = !img && !!this.overview;
+    const showNet = img ? v.mPerPx < 12 : !ign;
     ctx.lineJoin = 'round';
     ctx.lineCap = 'round';
     if (showNet)
@@ -296,7 +309,7 @@ export class WorldMap {
     }
     // Lieux.
     ctx.textAlign = 'center';
-    for (const p of this.o.places) {
+    for (const p of ign ? [] : this.o.places) {
       const rank = PLACE_RANK[p.kind] ?? 5;
       if (rank >= 3 && v.mPerPx > 15) continue;
       const [x, y] = P(p.x, p.z);
@@ -345,6 +358,32 @@ export class WorldMap {
     ctx.strokeStyle = '#0a0e16';
     ctx.stroke();
     this.renderCard(P);
+  }
+
+  /** Fond de carte net de la vue courante, demandé quand la vue ne bouge plus depuis 300 ms. */
+  private wantDetail(view: Box, W: number): void {
+    const bm = this.o.basemap;
+    const ov = this.overview;
+    if (!bm || !ov) return;
+    // Vue d'ensemble assez nette à cette échelle, ou détail déjà chargé pour cette vue : rien à faire.
+    const ovMPerPx = (ov.box.maxX - ov.box.minX) / 2048;
+    if (this.view.mPerPx > ovMPerPx * 0.8) return;
+    const d = this.detail;
+    if (d && d.box.minX <= view.minX && d.box.maxX >= view.maxX && d.box.minZ <= view.minZ && d.box.maxZ >= view.maxZ && (d.box.maxX - d.box.minX) / (W * 1.5) <= this.view.mPerPx * 1.3) return;
+    clearTimeout(this.detailTimer);
+    this.detailTimer = window.setTimeout(() => {
+      if (!this.root) return;
+      const padX = (view.maxX - view.minX) * 0.25;
+      const padZ = (view.maxZ - view.minZ) * 0.25;
+      const box = { minX: view.minX - padX, maxX: view.maxX + padX, minZ: view.minZ - padZ, maxZ: view.maxZ + padZ };
+      const next = { img: new Image(), box, ready: false };
+      next.img.onload = () => {
+        next.ready = true;
+        this.detail = next;
+        this.draw();
+      };
+      next.img.src = bm(box, Math.min(4096, Math.round(W * 1.5 * Math.min(2, window.devicePixelRatio || 1))));
+    }, 300);
   }
 
   /** Carte du point choisi, posée à côté de lui. */
