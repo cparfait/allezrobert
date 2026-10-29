@@ -228,7 +228,7 @@ une courbe d'ouverture / fermeture asymétrique.
 | Roger | 63 | H | européenne | costaud | cheveux gris courts, barbe naissante |
 | Christine | 47 | F | européenne | moyenne | rousse, taches de rousseur, carré |
 | Laetitia | 34 | F | européenne | athlétique | châtain, queue de cheval |
-| Cheick | 29 | H | africaine | rouleur athlétique | barbe courte |
+| Cheick | 29 | H | africaine | rouleur athlétique | rasé de près |
 | Nathalie | 42 | F | est-asiatique | fine, nerveuse | carré |
 
 Chaque profil est un simple jeu de curseurs (JSON). Planche de validation : face, 3/4, profil,

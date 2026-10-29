@@ -85,9 +85,9 @@ export const BASE_PROFILES: readonly BaseProfile[] = [
   }),
   P({
     id: 'cheick', name: 'Cheick', ageYears: 29,
-    desc: { fr: '29 ans, rouleur athlétique, barbe courte', en: '29, athletic rouleur, short beard' },
+    desc: { fr: '29 ans, rouleur athlétique, rasé de près', en: '29, athletic rouleur, clean-shaven' },
     shape: { originAfrican: 0.9, muscle: 0.6, noseWidth: 0.5, lipFullness: 0.5, jawWidth: 0.3, nostrilFlare: 0.3 },
-    look: { skin: '#4a2e1f', hair: '#101010', hairStyle: 4, beard: 0.5, freckles: 0, jersey: '#06d6a0', jerseyAccent: '#073b4c' },
+    look: { skin: '#4a2e1f', hair: '#101010', hairStyle: 4, beard: 0, freckles: 0, jersey: '#06d6a0', jerseyAccent: '#073b4c' },
   }),
   P({
     id: 'nathalie', name: 'Nathalie', ageYears: 42,
