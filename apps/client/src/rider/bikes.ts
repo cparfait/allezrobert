@@ -1,3 +1,4 @@
+import { bottleColorOf } from './shoeLook.ts';
 import { ComputerScreen, type ComputerData } from './computerScreen.ts';
 import * as THREE from 'three/webgpu';
 import { LOW_POLY } from '../engine/style.ts';
@@ -633,7 +634,9 @@ export class BikeMaterials {
     // Inscriptions du cadre (comme sur le vrai vélo) dans les boîtes de la famille.
     // Familles génériques : boîtes recalées sur les tubes ; Madone (modèle dédié) : boîtes posées dans Blender.
     // Bidon du diagonal monté (le vélo est remonté quand le nombre de bidons change) : la marque commence au-dessus.
-    const bottle = !build.params.track && build.params.bottles !== false && (look.bottles ?? 1) > 0;
+    // Place des inscriptions : celle d'un cadre qui peut porter un bidon, que le bidon soit monté ou non (ajouter ou
+    // retirer un bidon ne déplace jamais l'écriture).
+    const bottle = !build.params.track && build.params.bottles !== false;
     this.boxes = decalBoxes(familyScene(family), family !== 'madone', bottle);
     this.refreshDecals();
   }
@@ -795,7 +798,7 @@ export class BikeMaterials {
       tire_wall: liv.tireWall ?? liv.tire ?? (this.gravel ? GRAVEL_WALL : undefined),
       saddle: liv.saddle,
       bar_tape: liv.tape ?? this.look.jerseyAccent,
-      bottle: parts.bottle ?? liv.bottle ?? this.look.jerseyAccent,
+      bottle: parts.bottle ?? liv.bottle ?? bottleColorOf(this.look, liv.colors[0]),
     };
     const def = BIKE_MATERIALS[m.name];
     const own = (liv.parts ?? {}) as Partial<Record<string, string>>;

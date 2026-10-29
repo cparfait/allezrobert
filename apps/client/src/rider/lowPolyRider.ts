@@ -6,7 +6,7 @@ import type { RiderAvatarLike, RiderGesture, RiderPose } from './gltfAvatar.ts';
 import { SweptBody, makeJoints, type BodyLook } from './sweptBody.ts';
 import { HELMET_FACETED, aeroHelmetGeometry } from './aeroHelmet.ts';
 import { aerobarAnchors, buildAerobars, type AerobarAnchors } from './aerobars.ts';
-import { shoeAccentOf, shoeDialOf, shoeMarkText } from './shoeLook.ts';
+import { bottleColorOf, shoeAccentOf, shoeDialOf, shoeMarkText } from './shoeLook.ts';
 import { BikeMaterials, assembleBike, bikeAnchors, bikeFamilyReady, libraryWheel, loadBikeFamily, type FamilyKey } from './bikes.ts';
 import { flatLook } from './flatLook.ts';
 
@@ -1217,7 +1217,7 @@ export class LowPolyRider implements RiderAvatarLike {
       const along = (a: THREE.Vector3, b: THREE.Vector3, f0: number, f1: number, off: THREE.Vector3) => tube(a.clone().lerp(b, f0).add(off), a.clone().lerp(b, f1).add(off), 0.034, 0.034, 8);
       bottles.push(along(BB, headBottom, 0.3, 0.62, v3(0, 0.045, -0.02)));
       if (nBottles > 1) bottles.push(along(BB, seatTop, 0.25, 0.55, v3(0, 0.0, 0.045)));
-      g.add(merged(bottles, flat('#f2f2ee', 0.5)));
+      g.add(merged(bottles, flat(bottleColorOf(look, bike.livery.colors[0]), 0.5)));
     }
 
     // Roues : pneu (large en gravel, très large en VTT), jante à la hauteur du modèle, rayons,

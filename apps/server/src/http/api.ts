@@ -65,6 +65,7 @@ const AvatarSchema = z.object({
   gloves: z.enum(['none', 'mitts', 'full']).optional(),
   gloveColor: hex.optional(),
   bottles: z.union([z.literal(0), z.literal(1), z.literal(2)]).optional(),
+  bottleColor: z.enum(['black', 'white']).optional(),
   jerseyLogo: z.object({ id: z.string().regex(/^[a-z0-9-]{1,32}$/), tint: hex.optional(), w: z.number().min(0.05).max(0.3).optional(), y: z.number().min(0.2).max(0.9).optional() }).optional(),
   jerseyDots: z.object({ r: z.number().min(1).max(10), step: z.number().min(4).max(40) }).optional(),
   jerseyBands: z.array(hex).max(5).optional(),

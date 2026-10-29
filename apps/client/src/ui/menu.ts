@@ -297,7 +297,7 @@ function bikeFrom(group: string, lang: 'fr' | 'en'): string | undefined {
 /** Marque d'un vélo (nom affiché), pour classer la liste. */
 function brandName(id: string): string {
   const brand = bikeById(id)?.brand;
-  return BIKE_BRANDS.find((b) => b.id === brand)?.name ?? brand ?? (/^bike-(vtt|gravel)/.test(id) ? 'VTT · Gravel' : '');
+  return BIKE_BRANDS.find((b) => b.id === brand)?.name ?? brand ?? (id === 'bike-vtt' ? 'VTT' : id === 'bike-gravel' ? 'Gravel' : '');
 }
 
 /**
@@ -2080,7 +2080,13 @@ export class MainMenu {
     if (cap === 0) return `<div class="field mm-bottles">${L ? 'Bidons' : 'Bottles'}<span class="mm-hint">${L ? 'Ce cadre ne porte pas de bidon.' : 'This frame carries no bottle.'}</span></div>`;
     const cur = Math.min(this.s.look.bottles ?? 1, cap);
     const opts: Array<[string, string]> = [['0', L ? 'Aucun' : 'None'], ['1', '1'], ['2', '2']];
-    return `<div class="field mm-bottles">${L ? 'Bidons' : 'Bottles'}${this.seg('m-bottles', String(cur), opts.slice(0, cap + 1))}</div>`;
+    const color = this.s.look.bottleColor ?? 'auto';
+    return `<div class="field mm-bottles">${L ? 'Bidons' : 'Bottles'}${this.seg('m-bottles', String(cur), opts.slice(0, cap + 1))}</div>
+      <div class="field mm-bottles">${L ? 'Couleur des bidons' : 'Bottle colour'}${this.seg('m-bottlecolor', color, [
+        ['auto', 'Auto'],
+        ['black', L ? 'Noir' : 'Black'],
+        ['white', L ? 'Blanc' : 'White'],
+      ])}</div>`;
   }
 
   /** Une ligne de la liste des vélos : silhouette aux couleurs de la livrée, nom, type et équipe, effet, état. */
@@ -3202,6 +3208,12 @@ export class MainMenu {
     on<HTMLElement>('m-bottles', 'change', (el) => {
       const n = Number((el as unknown as { value: string }).value);
       s.look = { ...s.look, bottles: n === 0 || n === 1 || n === 2 ? n : 2 };
+      changed();
+    });
+    on<HTMLElement>('m-bottlecolor', 'change', (el) => {
+      const v = (el as unknown as { value: string }).value;
+      const { bottleColor: _old, ...rest } = s.look;
+      s.look = v === 'black' || v === 'white' ? { ...rest, bottleColor: v } : rest;
       changed();
     });
     on<HTMLElement>('m-legs', 'change', (el) => {

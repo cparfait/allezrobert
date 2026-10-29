@@ -52,3 +52,10 @@ export function shoeAccentOf(look: AvatarLook): string {
 export function shoeMarkText(look: AvatarLook): string | null {
   return SHOE_MARKS.find((m) => m.id === look.shoeMark)?.text ?? null;
 }
+
+/** Couleur des bidons : celle choisie (noir ou blanc), sinon blanc sur un cadre foncé et noir sur un cadre clair. */
+export function bottleColorOf(look: Pick<AvatarLook, 'bottleColor'>, frame: string | undefined): string {
+  if (look.bottleColor === 'black') return '#16171a';
+  if (look.bottleColor === 'white') return '#f4f4f2';
+  return frame && luminance(frame) > 0.4 ? '#16171a' : '#f4f4f2';
+}

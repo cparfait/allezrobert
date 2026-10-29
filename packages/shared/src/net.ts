@@ -238,6 +238,8 @@ export interface AvatarLook {
   jerseyDots?: { r: number; step: number };
   /** Bidons sur le vélo : 0, 1 (tube oblique) ou 2 (et tube de selle), dans la limite du cadre ; absent : ceux du modèle. */
   bottles?: 0 | 1 | 2;
+  /** Couleur des bidons : noir ou blanc ; absent : selon le cadre (blanc sur un cadre foncé, noir sur un cadre clair). */
+  bottleColor?: 'black' | 'white';
   /** Manches du maillot : courtes (défaut) ou longues jusqu'au poignet, pour tous les maillots. */
   sleeves?: 'short' | 'long';
   /** Logo sur la poitrine et le dos (image logos/<id>.png), teinte facultative, largeur en m (0,16). */

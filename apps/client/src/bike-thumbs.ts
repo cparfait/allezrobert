@@ -2,7 +2,7 @@ import { BIKES, BIKE_FAMILIES, type AvatarLook } from '@allezrobert/shared';
 import { createEngine } from './engine/renderer.ts';
 import { QUALITY_PRESETS } from './engine/quality.ts';
 import { GltfRiderAvatar } from './rider/gltfAvatar.ts';
-import { loadBikeFamily } from './rider/bikes.ts';
+import { OWN_MODEL_TYPES, loadBikeFamily } from './rider/bikes.ts';
 import { studioEnvironment } from './ui/atelier.ts';
 import { BikeShooter, commonFrame, type BikeBounds } from './ui/bikeShot.ts';
 
@@ -37,13 +37,16 @@ async function main(): Promise<void> {
   engine.renderer.setPixelRatio(1);
   log.textContent = 'chargement des modèles…';
   await GltfRiderAvatar.load([...BIKE_FAMILIES]);
-  await Promise.all(BIKE_FAMILIES.map((f) => loadBikeFamily(f)));
+  await Promise.all([...BIKE_FAMILIES, ...OWN_MODEL_TYPES].map((f) => loadBikeFamily(f)));
   const shooter = new BikeShooter(engine.renderer, studioEnvironment(engine.renderer));
   const only = params.get('only')?.split(',');
   // Le vélo sans marque : cadre blanc, teinté au garage. Les autres : un cliché par modèle du catalogue.
   const jobs: Array<{ id: string; look: Partial<AvatarLook> }> = [
     { id: 'plain', look: { bikeModel: undefined, bike: '#ffffff', bikeType: 'road' as const } },
     ...BIKES.map((b) => ({ id: b.id, look: { bikeModel: b.id } })),
+    // VTT et gravel : modèles propres (hors catalogue des cadres), aux couleurs de leur fiche du garage.
+    { id: 'bike-vtt', look: { bikeModel: undefined, bikeType: 'mtb' as const, bike: '#2f6b3a' } },
+    { id: 'bike-gravel', look: { bikeModel: undefined, bikeType: 'gravel' as const, bike: '#6b7d4f' } },
   ].filter((j) => !only || only.includes(j.id));
   // Première passe : emprises, pour un cadre commun (même échelle partout).
   const mounted: Array<{ id: string; avatar: Awaited<ReturnType<BikeShooter['mount']>>['avatar']; bounds: BikeBounds }> = [];
