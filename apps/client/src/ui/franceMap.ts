@@ -115,6 +115,35 @@ export class FranceMap {
     return groups.map((g) => g.z);
   }
 
+  /**
+   * Noms affichés à côté des points : placés un à un (zones disponibles et zone actuelle d'abord), un nom qui en
+   * recouvre un autre, ou un autre point, est omis (il reste lisible au survol). Mesures en unités de la carte.
+   */
+  private visibleLabels(groups: MapZone[][]): Set<string> {
+    const u = this.view.w / PX_W; // unités de carte par pixel d'écran
+    type Box = { x0: number; y0: number; x1: number; y1: number };
+    const hit = (a: Box, b: Box) => a.x0 < b.x1 && a.x1 > b.x0 && a.y0 < b.y1 && a.y1 > b.y0;
+    const dots: Box[] = groups.map((g) => {
+      const cx = g.reduce((t, q) => t + sx(q.x), 0) / g.length;
+      const cy = g.reduce((t, q) => t + sy(q.y), 0) / g.length;
+      const r = (g.length > 1 ? 14 : 9) * u;
+      return { x0: cx - r, y0: cy - r, x1: cx + r, y1: cy + r };
+    });
+    const singles = groups.map((g, i) => ({ z: g[0] as MapZone, g, i })).filter((e) => e.g.length === 1);
+    singles.sort((a, b) => Number(b.z.current) - Number(a.z.current) || Number(b.z.available) - Number(a.z.available) || a.z.name.length - b.z.name.length);
+    const placed: Box[] = [];
+    const out = new Set<string>();
+    for (const { z, i } of singles) {
+      const x = sx(z.x) + 12 * u;
+      const y = sy(z.y);
+      const box: Box = { x0: x, y0: y - 8 * u, x1: x + (z.name.length * 6.8 + 6) * u, y1: y + 8 * u };
+      if (placed.some((p) => hit(p, box)) || dots.some((d, j) => j !== i && hit(d, box))) continue;
+      placed.push(box);
+      out.add(z.id);
+    }
+    return out;
+  }
+
   private k(): string {
     return (this.view.w / PX_W).toFixed(4);
   }
@@ -123,13 +152,15 @@ export class FranceMap {
     const L = fr();
     const v = this.view;
     const k = this.k();
-    const pts = this.clusters(zones.filter((z) => !z.image))
+    const groups = this.clusters(zones.filter((z) => !z.image));
+    const shown = this.zoomed ? this.visibleLabels(groups) : new Set<string>();
+    const pts = groups
       .map((g, gi) => {
         if (g.length === 1) {
           const z = g[0] as MapZone;
           const tip = `${z.name}${z.current ? (L ? ' · zone actuelle' : ' · current area') : ''}\n${z.available ? z.info : L ? 'Bientôt disponible' : 'Coming soon'}`;
           return `<g class="fm-pt${z.available ? '' : ' fm-off'}${z.current ? ' fm-cur' : ''}" data-zone="${esc(z.id)}" data-tip="${esc(tip)}" transform="translate(${sx(z.x).toFixed(1)} ${sy(z.y).toFixed(1)}) scale(${k})" tabindex="0" role="button" aria-label="${esc(z.name)}">
-            ${z.available ? '<circle class="fm-pulse" r="7"/>' : ''}<circle class="fm-hit" r="16"/><circle class="fm-dot" r="7"/>${this.zoomed ? `<text x="12" y="4.5">${esc(z.name)}</text>` : ''}</g>`;
+            ${z.available ? '<circle class="fm-pulse" r="7"/>' : ''}<circle class="fm-hit" r="16"/><circle class="fm-dot" r="7"/>${shown.has(z.id) ? `<text x="12" y="4.5">${esc(z.name)}</text>` : ''}</g>`;
         }
         const cx = g.reduce((s, q) => s + sx(q.x), 0) / g.length;
         const cy = g.reduce((s, q) => s + sy(q.y), 0) / g.length;
