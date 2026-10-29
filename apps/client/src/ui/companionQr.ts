@@ -38,7 +38,6 @@ export function offerEnabled(): boolean {
 function statusHtml(link: CompanionLink): string {
   const fr = getLang() === 'fr';
   const { phones } = link.presence;
-  if (!link.connected) return `<i class="off"></i>${fr ? 'Serveur injoignable : le téléphone ne pourra pas se connecter.' : 'Server unreachable: the phone cannot connect.'}`;
   if (phones) return `<i class="ok"></i>${fr ? `${phones} téléphone${phones > 1 ? 's' : ''} connecté${phones > 1 ? 's' : ''}` : `${phones} phone${phones > 1 ? 's' : ''} connected`}`;
   return `<i></i>${fr ? 'Aucun téléphone connecté' : 'No phone connected'}`;
 }
@@ -66,7 +65,10 @@ export class CompanionQr {
         clearTimeout(this.closeTimer);
         this.closeTimer = setTimeout(() => this.close(), 1500);
       }
-      if (this.open) this.render();
+      if (this.open) {
+        if (link.connected) this.render();
+        else this.close();
+      }
     });
     this.el.addEventListener('click', (e) => {
       const act = (e.target as HTMLElement).closest<HTMLElement>('[data-act]')?.dataset.act;
@@ -97,6 +99,8 @@ export class CompanionQr {
   }
 
   show(offered = false, prestart = false): void {
+    // Serveur injoignable : un téléphone ne pourrait pas se connecter, on n'affiche pas de code.
+    if (!this.link.connected) return;
     this.open = true;
     this.offered = offered;
     this.prestart = prestart;
@@ -205,6 +209,10 @@ export function renderCompanionSettings(el: Element | null, simple = false): voi
   const link = companion;
   const fr = getLang() === 'fr';
   const draw = () => {
+    if (!link.connected) {
+      el.innerHTML = `<p class="cmp-muted">${fr ? 'L’appli compagnon n’est pas disponible pour le moment.' : 'The companion app is not available right now.'}</p>`;
+      return;
+    }
     // Version tutoriel : le code et l'état de la connexion, sans boutons ni options.
     if (simple) {
       el.innerHTML = `<div class="cmp-settings cmp-simple"><div class="cmp-code">${qr.svg}</div><div class="cmp-side"><p>${fr ? 'Scanne ce code avec l’appareil photo de ton téléphone. Pas de compte à créer.' : 'Scan this code with your phone camera. No account needed.'}</p><p class="cmp-state">${statusHtml(link)}</p></div></div>`;

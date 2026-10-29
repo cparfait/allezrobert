@@ -36,3 +36,4 @@
 .cmp-ico { display: inline-block; vertical-align: -4px; }
 .cmp-simple .cmp-code { cursor: default; align-items: center; }
 .cmp-simple { align-items: center; }
+.cmp-muted { margin: 0; font-size: 13px; color: var(--ar-muted, #b8c0cc); }
