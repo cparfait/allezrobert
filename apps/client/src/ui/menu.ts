@@ -1,3 +1,4 @@
+import { workoutStudioHtml } from './workoutStudio.ts';
 import { crossedArmsSrc } from './waitBike.ts';
 import type { AvatarLook, CosmeticItem, RouteData, RouteSegment, WorldCatalogue } from '@allezrobert/shared';
 import { GRAPHIC_STYLE, setGraphicStyle, type GraphicStyle } from '../engine/style.ts';
@@ -404,6 +405,8 @@ export class MainMenu {
   private wkFilter: WorkoutType | 'mine' | '' = '';
   /** Filtre de la fenêtre des séances au dernier rendu (null : fenêtre fermée), pour garder son défilement. */
   private wkScrollKey: string | null = null;
+  /** Séance regardée dans la fiche du studio (pas encore choisie). */
+  private wkSel: string | null = null;
   /** Séances importées, gardées dans l'historique (rechargées à l'ouverture de la fenêtre). */
   private myWorkouts: LocalWorkout[] = [];
   /** Séances favorites (identifiants de la bibliothèque ou `mine:…`), listées dans « Mes séances ». */
@@ -1152,6 +1155,7 @@ export class MainMenu {
         )
         .join('')}</div>
       <p class="mm-hint">${s.mode === 'open' ? (L ? 'Parcours libre : ← / → pour choisir ta direction à chaque carrefour, U pour faire demi-tour.' : 'Free ride: ← / → to pick your way at each junction, U to turn around.') : mode ? esc(mode[2]) : ''}</p>
+      <hr class="mm-sep" />
       ${this.weatherHtml()}
       ${
         s.mode === 'group' || s.mode === 'race'
@@ -1232,37 +1236,22 @@ export class MainMenu {
   private workoutsHtml(): string {
     const L = fr();
     return `<div class="mm-modal mm-picker-modal" data-picker-close>
-      <div class="mm-dialog mm-picker wk-dialog" role="dialog" aria-modal="true">
+      <div class="mm-dialog mm-picker wk-dialog ws" role="dialog" aria-modal="true">
         <header><h2>${L ? 'Choisis ta séance' : 'Choose your workout'}</h2><button class="mm-x" data-picker-close aria-label="${L ? 'Fermer' : 'Close'}">×</button></header>
-        <div class="wk-filter">${(['', ...WORKOUT_TYPES, 'mine'] as Array<WorkoutType | 'mine' | ''>)
-          .map((f) => {
-            const n = f === '' ? WORKOUT_LIBRARY.length : f === 'mine' ? this.favWorkouts.size + this.myWorkouts.length : WORKOUT_LIBRARY.filter((w) => w.type === f).length;
-            const label = f === '' ? (L ? 'Toutes' : 'All') : f === 'mine' ? `★ ${L ? 'Mes séances' : 'My workouts'}` : WORKOUT_TYPE_LABELS[f][L ? 'fr' : 'en'];
-            const typed = f && f !== 'mine';
-            return `<button class="wk-chip${typed ? ' typed' : ''}${f === this.wkFilter ? ' on' : ''}" data-wkfilter="${f}"${typed ? ` style="--wk:${TYPE_COLORS[f]}"` : ''}>${typed ? '<i></i>' : ''}${label}${n ? ` <small>${n}</small>` : ''}</button>`;
-          })
-          .join('')}</div>
-        <div class="mm-wks mm-wks-grid">${
-          this.wkFilter === 'mine'
-            ? (() => {
-                const favs = WORKOUT_LIBRARY.filter((w) => this.favWorkouts.has(w.id));
-                const mine = this.myWorkouts.map((w) => storedAsLibrary(w));
-                if (!favs.length && !mine.length) return `<p class="mm-hint">${L ? 'Ajoute des séances à tes favoris avec l’étoile ☆ ; les séances que tu importes (.zwo, .erg, .mrc) sont aussi gardées ici.' : 'Star ☆ workouts to add them to your favourites; workouts you import (.zwo, .erg, .mrc) are kept here too.'}</p>`;
-                return [
-                  ...favs.map((w) => workoutCard(w, !this.workoutFile && w.id === this.s.workoutPreset, undefined, true)),
-                  ...mine.map((w) => workoutCard(w, this.workoutFile?.name === `${w.name.fr}.json`, undefined, this.favWorkouts.has(w.id))),
-                ].join('');
-              })()
-            : // Toutes : rangées par type, de la plus facile à la plus dure, chaque type sous son titre.
-              (this.wkFilter ? [this.wkFilter] : WORKOUT_TYPES)
-                .map((type) => {
-                  const list = WORKOUT_LIBRARY.filter((w) => w.type === type);
-                  if (!list.length) return '';
-                  const head = this.wkFilter ? '' : `<h3 class="wk-sec" style="--wk:${TYPE_COLORS[type]}">${WORKOUT_TYPE_LABELS[type][L ? 'fr' : 'en']}<small>${list.length}</small></h3>`;
-                  return head + list.map((w) => workoutCard(w, !this.workoutFile && w.id === this.s.workoutPreset, undefined, this.favWorkouts.has(w.id))).join('');
-                })
-                .join('')
-        }</div>
+        ${workoutStudioHtml({
+          fr: L,
+          filter: this.wkFilter,
+          types: WORKOUT_TYPES,
+          library: WORKOUT_LIBRARY,
+          mine: this.myWorkouts.map((w) => storedAsLibrary(w)),
+          favs: this.favWorkouts,
+          current: this.workoutFile ? undefined : this.s.workoutPreset,
+          selected: this.wkSel ?? undefined,
+          ftp: this.s.ftpWatts,
+          typeColors: TYPE_COLORS,
+          typeLabels: WORKOUT_TYPE_LABELS,
+          zoneColor: zoneColorOf,
+        })}
         <label class="mm-file">${L ? 'Ou importer une séance' : 'Or import a workout'} (.zwo / .erg / .mrc)<input id="m-workout" type="file" accept=".zwo,.erg,.mrc" hidden /><span id="m-wname">${this.workoutFile ? esc(this.workoutFile.name) : ''}</span></label>
       </div></div>`;
   }
@@ -2697,6 +2686,21 @@ export class MainMenu {
       el.addEventListener('click', toggle);
       el.addEventListener('keydown', (e) => (e.key === 'Enter' || e.key === ' ') && toggle(e));
     });
+    // Studio des séances : un clic sur une ligne montre sa fiche, un double clic la choisit.
+    this.root.querySelectorAll<HTMLElement>('[data-wksel]').forEach((el) => {
+      const show = () => {
+        this.wkSel = el.dataset.wksel ?? null;
+        this.render();
+      };
+      el.addEventListener('click', show);
+      el.addEventListener('dblclick', () => this.root.querySelector<HTMLElement>('.ws-go')?.click());
+      el.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          show();
+        }
+      });
+    });
     this.root.querySelectorAll<HTMLElement>('[data-preset]').forEach((el) =>
       el.addEventListener('click', () => {
         const preset = el.dataset.preset as string;
@@ -2708,6 +2712,7 @@ export class MainMenu {
           this.render();
           return;
         }
+        this.wkSel = null;
         s.workoutPreset = preset;
         this.workoutFile = undefined;
         if (this.picker === 'workouts') this.picker = null;

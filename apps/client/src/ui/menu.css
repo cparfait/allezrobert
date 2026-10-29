@@ -821,3 +821,8 @@
 [data-item].blink { animation: mm-blink 0.7s ease-in-out 5; }
 .mm-dd-fl { display: inline-flex; flex: none; align-items: center; }
 .mm-dd-fl[hidden] { display: none; }
+
+/* Onglet Rouler : les cartes de mode forment un bloc, séparé par un filet du bloc des réglages de la sortie. */
+.mm-left > .mm-modes { padding: 10px; border-radius: 16px; background: rgba(255, 255, 255, 0.045); border: 1px solid rgba(255, 255, 255, 0.08); }
+.mm-left > .mm-modes + .mm-hint { margin: 10px 2px 0; padding: 0; }
+.mm-sep { border: 0; height: 1px; background: rgba(255, 255, 255, 0.16); margin: 18px -22px 16px; flex: none; }
