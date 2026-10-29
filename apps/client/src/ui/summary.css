@@ -80,3 +80,13 @@
 .sum-online .meta { color: #c3cddb; }
 .sum-share-msg { margin: 0; min-height: 1.2em; font-size: 12.5px; color: var(--ar-accent); }
 .sum-share-msg:empty { display: none; }
+
+/* En-tête : Robert à côté du titre, pastilles du résumé, titres des deux familles de chiffres. */
+.sum-hero { display: flex; align-items: center; gap: 14px; }
+.sum-hero .sum-robert { flex: none; height: 84px; margin: 0; }
+.sum-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.sum-chip { padding: 3px 10px; border-radius: 999px; font-size: 12.5px; font-weight: 700; background: rgba(255, 255, 255, 0.14); color: #eef2f7; }
+.sum-chip.gold { background: rgba(255, 210, 63, 0.22); color: #ffe37a; }
+.sum-chip.up { background: rgba(34, 197, 94, 0.22); color: #86efac; }
+.sum-chip.down { background: rgba(239, 68, 68, 0.2); color: #fca5a5; }
+.sum-cap { margin: 2px 0 -4px; font-size: 11.5px; letter-spacing: 0.1em; text-transform: uppercase; color: #b9c4d3; font-weight: 700; }

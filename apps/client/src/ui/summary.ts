@@ -12,7 +12,7 @@ const C_ALT = '#64748b';
 const ZONE_HEX = ['#9aa5b1', '#3b82f6', '#22c55e', '#eab308', '#f97316', '#ef4444', '#a855f7'];
 const INK = '#f1f5f9';
 /** Liseré des dix tuiles : distance, temps, dénivelé, vitesse, cardio, puissances, charge, énergie, comparaison. */
-const TILE_COLORS = ['#64a8ff', '#64a8ff', '#94a3b8', '#64a8ff', C_HR, C_RIDE, C_RIDE, '#f97316', '#f97316', '#22c55e'];
+const TILE_COLORS = ['#64a8ff', '#64a8ff', '#94a3b8', '#64a8ff', '#22c55e', C_RIDE, C_RIDE, '#f97316', C_HR, '#f97316'];
 const MUTED = '#b4bfcd';
 const GRID = 'rgba(255,255,255,0.14)';
 
@@ -80,28 +80,43 @@ export function showRideSummary(root: HTMLElement, d: SummaryData, a: SummaryAct
   const s = d.stats;
   const prev = d.previous;
   const vs = prev ? s.avgSpeedKmh - prev.avgSpeedKmh : null;
-  const tiles: Array<[string, string, string?]> = [
-    [L ? 'Distance' : 'Distance', `${num(s.distanceM / 1000, 2)} km`],
+  const vsTile: [string, string, string] = [
+    L ? 'Vs dernière fois' : 'Vs last time',
+    vs === null ? '—' : `${vs >= 0 ? '+' : '−'}${num(Math.abs(vs), 1)} km/h`,
+    prev ? `${L ? 'le' : 'on'} ${new Date(prev.date).toLocaleDateString(L ? 'fr-FR' : 'en-GB')}` : L ? 'première fois ici' : 'first time here',
+  ];
+  // Deux familles : le parcours (distance, temps, allure) et l'effort (puissance, cœur, énergie).
+  const course: Array<[string, string, string?]> = [
+    ['Distance', `${num(s.distanceM / 1000, 2)} km`],
     [L ? 'Temps' : 'Time', hms(s.movingS)],
-    ['D+', `${Math.round(s.elevationGainM)} m`],
+    [L ? 'Dénivelé +' : 'Climbing', `${Math.round(s.elevationGainM)} m`],
     [L ? 'Vitesse moy.' : 'Avg speed', `${num(s.avgSpeedKmh, 1)} km/h`, `max ${num(s.maxSpeedKmh, 1)}`],
-    [L ? 'Cardio moy.' : 'Avg HR', s.avgHr ? `${Math.round(s.avgHr)} bpm` : '— bpm', s.maxHr ? `max ${Math.round(s.maxHr)}` : ''],
+    vsTile,
+  ];
+  const effort: Array<[string, string, string?]> = [
     [L ? 'Puissance moy.' : 'Avg power', `${Math.round(s.avgWatts)} W`, `${num(s.avgWatts / d.massKg, 1)} W/kg`],
     [L ? 'Normalisée' : 'Normalized', `${Math.round(s.np)} W`, `max ${Math.round(s.maxWatts)} W`],
-    ['TSS · IF', `${Math.round(s.tss)} · ${num(s.ifactor, 2)}`],
-    [L ? 'Calories' : 'Calories', `${Math.round(s.kcal)} kcal`, `${Math.round(s.workKJ)} kJ`],
-    [
-      L ? 'Vs dernière fois' : 'Vs last time',
-      vs === null ? '—' : `${vs >= 0 ? '+' : '−'}${num(Math.abs(vs), 1)} km/h`,
-      prev ? `${L ? 'le' : 'on'} ${new Date(prev.date).toLocaleDateString(L ? 'fr-FR' : 'en-GB')}` : L ? 'première fois ici' : 'first time here',
-    ],
+    [L ? 'Charge (TSS) · IF' : 'Load (TSS) · IF', `${Math.round(s.tss)} · ${num(s.ifactor, 2)}`],
+    [L ? 'Cardio moy.' : 'Avg HR', s.avgHr ? `${Math.round(s.avgHr)} bpm` : '— bpm', [s.maxHr ? `max ${Math.round(s.maxHr)}` : '', s.avgCadence ? `${Math.round(s.avgCadence)} tr/min` : ''].filter(Boolean).join(' · ')],
+    [L ? 'Énergie' : 'Energy', `${Math.round(s.kcal)} kcal`, `${Math.round(s.workKJ)} kJ`],
   ];
+  const tilesHtml = (list: Array<[string, string, string?]>, colors: string[]) =>
+    list.map(([k, v, sub], i) => `<div class="sum-tile" style="--tc:${colors[i] ?? C_RIDE}"><span>${k}</span><b>${v}</b>${sub ? `<small>${esc(sub)}</small>` : ''}</div>`).join('');
+  // Pastilles du résumé : ce qui compte en un coup d'œil.
+  const chips: string[] = [];
+  if (d.records.beaten.length) chips.push(`<span class="sum-chip gold">🏅 ${d.records.beaten.length} ${L ? (d.records.beaten.length > 1 ? 'records battus' : 'record battu') : d.records.beaten.length > 1 ? 'records beaten' : 'record beaten'}</span>`);
+  if (d.xp?.levelUp) chips.push(`<span class="sum-chip gold">🎉 ${L ? 'Niveau' : 'Level'} ${d.xp.level}</span>`);
+  if (d.trophies?.length) chips.push(`<span class="sum-chip gold">🏆 ${d.trophies.length} ${L ? (d.trophies.length > 1 ? 'trophées' : 'trophée') : d.trophies.length > 1 ? 'trophies' : 'trophy'}</span>`);
+  if (vs !== null) chips.push(`<span class="sum-chip ${vs >= 0 ? 'up' : 'down'}">${vs >= 0 ? '▲' : '▼'} ${num(Math.abs(vs), 1)} km/h ${L ? 'vs dernière fois' : 'vs last time'}</span>`);
+  if (d.xp) chips.push(`<span class="sum-chip">+${d.xp.gained} XP</span>`);
   const segs = d.ride.segmentResults;
   const g = d.ride.group;
   const beaten = d.records.beaten;
   root.innerHTML = `<div class="sum">
     <header class="sum-head">
-      <div><h1>${L ? 'Bravo, <em>belle sortie</em> !' : 'Well done, <em>great ride</em>!'}</h1><p>${esc(d.routeName)} · ${num(s.distanceM / 1000, 1)} km</p></div>
+      <div class="sum-hero"><span class="sum-robert" aria-hidden="true"></span>
+        <div><h1>${L ? 'Bravo, <em>belle sortie</em> !' : 'Well done, <em>great ride</em>!'}</h1><p>${esc(d.routeName)} · ${num(s.distanceM / 1000, 1)} km · ${hms(s.movingS)} · ${num(s.avgSpeedKmh, 1)} km/h</p>
+          ${chips.length ? `<div class="sum-chips">${chips.join('')}</div>` : ''}</div></div>
       <nav class="sum-actions">
         ${a.onResume ? `<button class="sum-btn" id="s-resume">${L ? 'Reprendre' : 'Resume'}</button>` : ''}
         <button class="sum-btn accent" id="s-new">${L ? 'Nouvelle sortie' : 'New ride'}</button>
@@ -177,12 +192,12 @@ export function showRideSummary(root: HTMLElement, d: SummaryData, a: SummaryAct
           <div class="sum-online" id="s-online"></div>
           <p class="sum-share-msg" id="s-share-msg" role="status"></p>
         </section>
-        <span class="sum-robert" aria-hidden="true"></span>
       </aside>
       <main class="sum-main">
-        <div class="sum-tiles">${tiles
-          .map(([k, v, sub], i) => `<div class="sum-tile" style="--tc:${TILE_COLORS[i] ?? C_RIDE}"><span>${k}</span><b>${v}</b>${sub ? `<small>${esc(sub)}</small>` : ''}</div>`)
-          .join('')}</div>
+        <h3 class="sum-cap">${L ? 'Le parcours' : 'The ride'}</h3>
+        <div class="sum-tiles">${tilesHtml(course, TILE_COLORS.slice(0, 5))}</div>
+        <h3 class="sum-cap">${L ? 'L’effort' : 'The effort'}</h3>
+        <div class="sum-tiles">${tilesHtml(effort, TILE_COLORS.slice(5))}</div>
         <div class="sum-charts">
           <section class="sum-card sum-chart"><h3>${L ? 'Courbe de puissance' : 'Power curve'}</h3>
             <div class="sum-legend"><span><i style="background:${C_RIDE}"></i>${L ? 'Cette sortie' : 'This ride'}</span><span><i class="dash" style="border-color:${C_RECORD}"></i>${L ? 'Tes records (avant)' : 'Your records (before)'}</span></div>
