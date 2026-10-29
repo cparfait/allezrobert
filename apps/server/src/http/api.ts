@@ -24,7 +24,7 @@ import { normalizeCode } from '../ride/registry.ts';
 import { activeRooms } from '../ride/RideRoom.ts';
 import { readHeartbeat } from '../render/worker.ts';
 import { normalizedPower, WORKOUT_LIBRARY } from '@allezrobert/physics';
-import { RIDE_KINDS, type RideKind, COUNTRY_CODE_RE, GHOST_MAX_S, FACE_CODE_RE, SHOE_MARKS, completedKits, equippedTuneIds, rankRouteId, tuneItem, type ShoeMarkId } from '@allezrobert/shared';
+import { RIDE_KINDS, type RideKind, COUNTRY_CODE_RE, GHOST_MAX_S, FACE_CODE_RE, SHOE_MARKS, HELMET_SHAPES, type HelmetShape, completedKits, equippedTuneIds, rankRouteId, tuneItem, type ShoeMarkId } from '@allezrobert/shared';
 import { buy, migrateLegacyWheels, rewardRide } from '../progression/atelier.ts';
 import type { ActivitySummaryRow } from '../db/repos.ts';
 
@@ -39,6 +39,7 @@ const AvatarSchema = z.object({
   cap: z.object({ style: z.enum(['uni', 'pois', 'losanges', 'panneaux']), color: hex, accent: hex.optional(), colors: z.array(hex).max(6).optional() }).optional(),
   noHelmet: z.boolean().optional(),
   noGlasses: z.boolean().optional(),
+  helmetShape: z.enum(HELMET_SHAPES as [HelmetShape, ...HelmetShape[]]).optional(),
   bike: hex,
   bikeModel: z.string().regex(/^[a-z0-9-]{1,64}$/).optional(),
   build: z.number().min(0).max(1),
@@ -47,6 +48,8 @@ const AvatarSchema = z.object({
   shoeMark: z.enum(SHOE_MARKS.map((m) => m.id) as [ShoeMarkId, ...ShoeMarkId[]]).optional(),
   socks: hex.optional(),
   sockHeight: z.enum(['low', 'high']).optional(),
+  glassesFrame: hex.optional(),
+  glassesLens: hex.optional(),
   legs: z.enum(['short', 'long']).optional(),
   bikeType: z.enum(['road', 'gravel', 'mtb']).optional(),
   face: z.string().regex(FACE_CODE_RE).optional(),

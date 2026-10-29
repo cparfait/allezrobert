@@ -927,10 +927,10 @@ export class MainMenu {
     const L = fr();
     const tabs: Array<[Tab, string]> = [
       ['ride', t('ride')],
-      ['friends', L ? 'Amis' : 'Friends'],
       ['garage', 'Garage'],
-      ['devices', t('devices')],
       ['profile', t('profile')],
+      ['friends', L ? 'Amis' : 'Friends'],
+      ['devices', t('devices')],
       ['settings', t('settings')],
     ];
     const p = loadProgress();
@@ -985,8 +985,8 @@ export class MainMenu {
         <div class="mm-right">
           ${this.musicInHero() ? '' : '<div class="mm-music" id="m-music"></div>'}
           <div class="mm-account">
-            <div class="mm-avatar" style="background:${this.s.look.jersey}">${esc(initials || 'R')}</div>
-            <div class="mm-who"><b>${esc(name)}</b>
+            <div class="mm-avatar mm-me" data-tab="profile" role="button" title="${L ? 'Mon profil' : 'My profile'}" style="background:${this.s.look.jersey}">${esc(initials || 'R')}</div>
+            <div class="mm-who mm-me" data-tab="profile" role="button" title="${L ? 'Mon profil' : 'My profile'}"><b>${esc(name)}</b>
               <span>${L ? 'Niveau' : 'Level'} ${level}<i class="mm-xp"><i style="width:${(lp.progress * 100).toFixed(0)}%"></i></i><em class="mm-credits" title="${L ? 'Crédits (atelier)' : 'Credits (workshop)'}">${COIN} ${(this.account?.credits ?? p.credits).toLocaleString(L ? 'fr-FR' : 'en-GB')}</em></span></div>
             ${this.account ? `<button class="mm-link" id="m-logout">${L ? 'Déconnexion' : 'Sign out'}</button>` : `<button class="mm-link" id="m-login">${L ? 'Se connecter' : 'Sign in'}</button>`}
           </div>
@@ -2482,6 +2482,8 @@ export class MainMenu {
           music.unlock();
           if (this.onHomeRide?.()) return;
         }
+        // Nom ou avatar du coureur : sa fiche, pas l'historique.
+        if (el.classList.contains('mm-me')) this.profileView = 'profile';
         this.go(el.dataset.tab as Tab);
       }),
     );

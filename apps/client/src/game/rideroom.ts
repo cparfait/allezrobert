@@ -65,6 +65,8 @@ export class RideRoomUi {
   onResults?: (results: RideResult[]) => void;
   /** Le coureur franchit la ligne en tête (bras levés). */
   onWin?: () => void;
+  /** Mon passage de la ligne d'arrivée (classé ou non). */
+  onFinish?: () => void;
 
   constructor(o: RideRoomUiOptions) {
     this.o = o;
@@ -166,6 +168,7 @@ export class RideRoomUi {
     switch (ev.kind) {
       case 'finish': {
         this.upsert(ev.riderId, { rank: ev.rank, timeMs: ev.timeMs, status: ev.rank > 0 ? 'finished' : 'unranked' });
+        if (ev.riderId === me) this.onFinish?.();
         if (ev.riderId === me && ev.rank === 1) this.onWin?.();
         this.refreshArrival();
         if (ev.riderId === me) this.o.toast(ev.rank > 0 ? (fr ? `Arrivée ! ${ev.rank}${ev.rank === 1 ? 'er' : 'e'} en ${formatRaceTime(ev.timeMs)}` : `Finished! #${ev.rank} in ${formatRaceTime(ev.timeMs)}`) : fr ? 'Arrivée (hors classement)' : 'Finished (unranked)');

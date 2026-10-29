@@ -3,12 +3,14 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { bikeOfLook, lookSex, type AvatarLook, type BikeBuild, type WheelType } from '@allezrobert/shared';
 import type { RiderAvatarLike, RiderPose } from './gltfAvatar.ts';
 import { SweptBody, makeJoints, type BodyLook } from './sweptBody.ts';
+import { HELMET_FACETED, aeroHelmetGeometry } from './aeroHelmet.ts';
+import { aerobarAnchors, buildAerobars, type AerobarAnchors } from './aerobars.ts';
 
 /**
  * Cycliste et vélo du style jeu vidéo (low poly, voir engine/style.ts), construits de zéro en prismes
  * à facettes et aplats de couleur : aucun modèle téléchargé, un millier de triangles environ.
  * Suit la tenue du garage : vélo (route, aéro, chrono, rétro, gravel, VTT), roues (basses, 35, 50, 65,
- * lenticulaire, trois bâtons), bidons et compteur, casque (route, aéro des vélos de chrono) ou
+ * lenticulaire, trois bâtons), bidons et compteur, casque (route, aéro des vélos de chrono, chrono du garage) ou
  * casquette, coiffure, barbe et moustache, coureuse, maillot (bande, bandes de champion, manches,
  * moitié), manches longues, cuissard long, chaussettes hautes, gants.
  * Repère local : +z = avant, +y = haut, +x = gauche ; le sol est à y = 0 sous les roues.
@@ -241,6 +243,18 @@ function helmetTrim(shell: string): string {
 /** Hauteur de jante (m) par type de roue. */
 const RIM_DEPTH: Record<WheelType, number> = { box: 0.02, c35: 0.035, c50: 0.05, c65: 0.065, disc: 0.05, tri: 0.05 };
 
+/**
+ * Boîte de la coque du casque de route (repère de la tête : headShell(0.128, 0.12, 0.145, …, queue 0.22)
+ * posée en (0, 0,025, −0,012)), gabarit des casques chrono du garage.
+ */
+/**
+ * Cocottes du cintre route à facettes, comme les ancres hand_L / hand_R des modèles réalistes : haut du
+ * cintre (aerobars.ts : 7,3 cm sous elles, 2,5 cm derrière) à y 0,904, z 0,55.
+ */
+const LOW_POLY_HOODS = { L: new THREE.Vector3(0.2, 0.977, 0.575), R: new THREE.Vector3(-0.2, 0.977, 0.575) };
+
+const ROAD_HELMET_BOX = new THREE.Box3(new THREE.Vector3(-0.128, -0.1, -0.012 - 0.177), new THREE.Vector3(0.128, 0.025 + 0.12, -0.012 + 0.145));
+
 /** Calotte à facettes à fond plat (casque, casquette). */
 function dome(r: number, sx: number, sy: number, sz: number): THREE.BufferGeometry {
   const g = new THREE.IcosahedronGeometry(r, 1);
@@ -342,6 +356,25 @@ export class LowPolyRider implements RiderAvatarLike {
   private sprintOn = false;
   private sprintBlend = 0;
   private dropsOn = false;
+  /**
+   * Positions aéro en pédalant assis sur un cintre route (comme l'avatar réaliste) : avant-bras à plat sur
+   * les cocottes quand on roule très fort (> 105 % de la FTP, plus de 29 km/h), avant-bras posés sur le haut
+   * du cintre quand on roule très vite (> 50 km/h).
+   */
+  private ftpFrac = 0.7;
+  private hoodsAeroOn = false;
+  private forearmsOn = false;
+  private hoodsAeroBlend = 0;
+  private forearmsBlend = 0;
+  /** Prolongateurs de l'atelier : repose-coudes et poignées (null sans prolongateurs) ; couché dessus très vite ou très fort. */
+  private clip: AerobarAnchors | null = null;
+  private clipOn = false;
+  private clipBlend = 0;
+  /** Vélo de chrono : mains sur les cornes (petite allure, danseuse), tortue (très vite ou très fort). */
+  private hornsOn = false;
+  private hornsBlend = 0;
+  private turtleOn = false;
+  private turtleBlend = 0;
   private celebrate = 0;
   private celebrating = false;
   private shadows = true;
@@ -509,7 +542,12 @@ export class LowPolyRider implements RiderAvatarLike {
     // Tête : icosaèdre à facettes un peu grand (lisible de loin), nez, oreilles, lunettes de sport.
     const skull = new THREE.Mesh(new THREE.IcosahedronGeometry(0.112, 1).scale(0.92, 1.05, 1), skin);
     const face = merged([box(0.03, 0.04, 0.04, 0, -0.01, 0.112), box(0.03, 0.05, 0.04, 0.104, -0.005, -0.005), box(0.03, 0.05, 0.04, -0.104, -0.005, -0.005)], skin);
-    const glasses = merged([box(0.2, 0.045, 0.02, 0, 0.022, 0.102), box(0.01, 0.015, 0.12, 0.099, 0.03, 0.04), box(0.01, 0.015, 0.12, -0.099, 0.03, 0.04)], flat('#15171b', 0.3, 0.3));
+    // Lunettes : écran à la couleur des verres, branches à celle de la monture (garage).
+    const glasses = new THREE.Group();
+    glasses.add(
+      new THREE.Mesh(box(0.2, 0.045, 0.02, 0, 0.022, 0.102), flat(look.glassesLens ?? '#15171b', 0.3, 0.3)),
+      merged([box(0.01, 0.015, 0.12, 0.099, 0.03, 0.04), box(0.01, 0.015, 0.12, -0.099, 0.03, 0.04)], flat(look.glassesFrame ?? '#15171b', 0.3, 0.3)),
+    );
     this.glasses = glasses;
     // Yeux (sous les lunettes, visibles sans elles) : blanc, pupille et sourcil posés à plat sur la facette du
     // visage, qui fuit vers les tempes (pente ≈ 0,41).
@@ -615,13 +653,35 @@ export class LowPolyRider implements RiderAvatarLike {
     const dark = flat('#1d1f24');
     if (look.cap) {
       const cap = look.cap;
-      // Calotte qui enveloppe la coupe de cheveux (sinon les cheveux la traversent), bord au-dessus des
-      // lunettes devant, cheveux visibles sur la nuque.
+      // Petite calotte serrée sur la coupe de cheveux (headShell(0.109, 0.125, 0.119) de hairGeometry), bord
+      // au-dessus des lunettes devant, cheveux visibles sur la nuque.
       const capMat = new THREE.MeshStandardNodeMaterial({ color: cap.color, roughness: 0.75, metalness: 0, side: THREE.DoubleSide });
       capMat.flatShading = true;
-      g.add(new THREE.Mesh(headShell(0.119, 0.14, 0.13, 1.22, 1.55, 1.75, 0, 20, 6).translate(0, 0, -0.004), capMat));
-      // Visière relevée, comme les coureurs la portent.
-      g.add(new THREE.Mesh(box(0.15, 0.012, 0.075, 0, 0.0, 0.035).rotateX(-0.45).translate(0, 0.05, 0.11), flat(cap.accent ?? cap.colors?.[1] ?? cap.color)));
+      g.add(new THREE.Mesh(headShell(0.115, 0.126, 0.125, 1.22, 1.55, 1.75, 0, 20, 6).translate(0, 0.007, -0.004), capMat));
+      // Visière courte, bien relevée, comme les coureurs la portent.
+      g.add(new THREE.Mesh(box(0.13, 0.01, 0.038, 0, 0.0, 0.019).rotateX(-1.0).translate(0, 0.055, 0.105), flat(cap.accent ?? cap.colors?.[1] ?? cap.color)));
+      return;
+    }
+    // Sangles fines en Y : une devant et une derrière l'oreille, réunies sous l'oreille, puis jusqu'au menton.
+    const straps = (): THREE.Mesh => {
+      const parts: THREE.BufferGeometry[] = [];
+      for (const sx of [1, -1]) {
+        const knot = v3(0.1 * sx, -0.065, 0.005);
+        parts.push(tube(v3(0.112 * sx, 0.012, 0.05), knot, 0.0055, 0.0055, 4), tube(v3(0.108 * sx, -0.005, -0.07), knot, 0.0055, 0.0055, 4), tube(knot, v3(0.035 * sx, -0.125, 0.055), 0.0055, 0.0055, 4));
+      }
+      parts.push(box(0.04, 0.016, 0.012, 0, -0.13, 0.062));
+      return merged(parts, dark);
+    };
+    if (look.helmetShape) {
+      // Casque chrono du garage : mêmes formes que le style réaliste (aeroHelmet.ts), à facettes, ajustées à
+      // la coque du casque de route ci-dessous.
+      const geo = aeroHelmetGeometry(look.helmetShape, ROAD_HELMET_BOX, new THREE.Matrix4(), 0, HELMET_FACETED);
+      geo.deleteAttribute('skinIndex');
+      geo.deleteAttribute('skinWeight');
+      const faceted = geo.toNonIndexed();
+      faceted.computeVertexNormals();
+      g.add(new THREE.Mesh(faceted, [shellMat, dark, flat('#20242c', 0.15, 0.4)]));
+      g.add(straps());
       return;
     }
     if (bike.params.aeroHelmet) {
@@ -670,14 +730,7 @@ export class LowPolyRider implements RiderAvatarLike {
     const shell = new THREE.Mesh(geo, helmetMat);
     shell.position.set(0, 0.025, -0.012);
     g.add(shell);
-    // Sangles fines en Y : une devant et une derrière l'oreille, réunies sous l'oreille, puis jusqu'au menton.
-    const straps: THREE.BufferGeometry[] = [];
-    for (const sx of [1, -1]) {
-      const knot = v3(0.1 * sx, -0.065, 0.005);
-      straps.push(tube(v3(0.112 * sx, 0.012, 0.05), knot, 0.0055, 0.0055, 4), tube(v3(0.108 * sx, -0.005, -0.07), knot, 0.0055, 0.0055, 4), tube(knot, v3(0.035 * sx, -0.125, 0.055), 0.0055, 0.0055, 4));
-    }
-    straps.push(box(0.04, 0.016, 0.012, 0, -0.13, 0.062));
-    g.add(merged(straps, dark));
+    g.add(straps());
   }
 
   private buildBike(look: AvatarLook, bike: BikeBuild, kind: BikeKind): THREE.Group {
@@ -789,6 +842,19 @@ export class LowPolyRider implements RiderAvatarLike {
       g.add(merged(hoods, hoodMat));
     }
     g.add(merged(bar, tapeMat));
+    // Prolongateurs de l'atelier (mêmes pièces que l'avatar réaliste, aerobars.ts), sur le cintre route.
+    this.clip = null;
+    const clipKind = bike.extras?.aerobars;
+    if (clipKind && fit.bar === 'drop' && kind !== 'gravel') {
+      const bars = buildAerobars(clipKind, LOW_POLY_HOODS, 1);
+      const foam = flat('#26282c', 0.85);
+      bars.traverse((o) => {
+        const m = o as THREE.Mesh;
+        if (m.isMesh) m.material = (m.material as THREE.Material).name === 'aerobar_pad' ? foam : dark;
+      });
+      g.add(bars);
+      this.clip = aerobarAnchors(clipKind, LOW_POLY_HOODS);
+    }
     // Compteur sur la potence.
     if (bike.params.computer !== false) {
       parts.push(box(0.05, 0.016, 0.075, 0, 0.915, 0.6));
@@ -920,13 +986,32 @@ export class LowPolyRider implements RiderAvatarLike {
       const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
       return t * t * (3 - 2 * t);
     };
+    // Très vite en pédalant : avant-bras sur le haut du cintre (> 50 km/h, quittée sous 46) ; très fort :
+    // avant-bras à plat sur les cocottes.
+    const hard = (on: boolean) => this.ftpFrac > 1.05 || (on && this.ftpFrac > 0.95);
+    this.clipOn = bars && !coasting && this.clip !== null && (speed > 11 || (this.clipOn && speed > 10) || (speed > 8 && hard(this.clipOn)));
+    this.forearmsOn = bars && !coasting && !this.clip && (speed > 13.9 || (this.forearmsOn && speed > 12.8));
+    this.hoodsAeroOn = bars && !coasting && !this.clip && !this.forearmsOn && speed > 8 && hard(this.hoodsAeroOn);
+    const tt = fit.bar === 'tt';
+    this.hornsOn = tt && (pose === 'standing' || speed < 7 || (this.hornsOn && speed < 8));
+    this.turtleOn = tt && !this.hornsOn && !coasting && (speed > 13.9 || (this.turtleOn && speed > 12.8) || (speed > 8 && hard(this.turtleOn)));
     // Descente rapide : position aéro dès 32 km/h en roue libre (pleine à 40), dès 45 km/h en pédalant.
-    const aeroOn = bars ? (coasting ? smooth(8.9, 11.1, speed) : smooth(12.5, 14, speed)) : 0;
+    const aeroOn = bars ? (coasting ? smooth(8.9, 11.1, speed) : smooth(12.5, 14, speed) * (this.forearmsOn || this.clipOn ? 0 : 1)) : 0;
     const k2 = 1 - Math.exp(-dt * 2.5);
     this.dropsBlend += ((this.dropsOn ? 1 : 0) - this.dropsBlend) * k2;
     this.aeroBlend += (aeroOn - this.aeroBlend) * k2;
+    this.forearmsBlend += ((this.forearmsOn ? 1 : 0) - this.forearmsBlend) * k2;
+    this.hoodsAeroBlend += ((this.hoodsAeroOn ? 1 : 0) - this.hoodsAeroBlend) * k2;
+    this.clipBlend += ((this.clipOn ? 1 : 0) - this.clipBlend) * k2;
+    this.hornsBlend += ((this.hornsOn ? 1 : 0) - this.hornsBlend) * k2;
+    this.turtleBlend += ((this.turtleOn ? 1 : 0) - this.turtleBlend) * k2;
+    const horns = this.hornsBlend * (1 - this.celebrate);
+    const turtle = this.turtleBlend * (1 - stand) * (1 - horns) * (1 - this.celebrate);
     const aero = this.aeroBlend * (1 - stand) * (1 - this.celebrate);
-    const dropHands = Math.max(this.dropsBlend * (1 - stand), aero, sprint) * (1 - this.celebrate);
+    const clip = this.clipBlend * (1 - stand) * (1 - this.celebrate) * (1 - aero);
+    const forearms = this.forearmsBlend * (1 - stand) * (1 - this.celebrate) * (1 - aero);
+    const hoodsAero = this.hoodsAeroBlend * (1 - stand) * (1 - this.celebrate) * (1 - aero) * (1 - forearms);
+    const dropHands = Math.max(this.dropsBlend * (1 - stand) * (1 - forearms) * (1 - hoodsAero) * (1 - clip), aero, sprint) * (1 - this.celebrate);
     // Danseuse : bassin monté de 16 cm et avancé vers le pédalier ; il reste à l'aplomb pendant que le vélo bascule.
     // Sprint : bassin hors de la selle mais bas, au-dessus du bec de selle.
     const hip = this.hip.set(0, SADDLE.y + 0.07 + 0.16 * stand - 0.07 * sprint, SADDLE.z + 0.02 + 0.23 * stand - 0.12 * sprint - 0.02 * aero);
@@ -939,6 +1024,12 @@ export class LowPolyRider implements RiderAvatarLike {
     const shoulder = this.shoulder.set(0, 1.395 + fit.shoulderDy * fitK + 0.07 * stand - 0.12 * sprint + 0.15 * up, 0.243 + fit.shoulderDz * fitK + 0.17 * stand + 0.08 * sprint - 0.23 * up);
     shoulder.y -= this.coastBlend * 0.03 * (1 - aero) + 0.13 * aero + 0.04 * dropHands * (1 - aero);
     shoulder.z += 0.07 * aero + 0.02 * dropHands * (1 - aero);
+    // Dos à plat : épaules basses et avancées (avant-bras sur le cintre : jusqu'à poser les coudes).
+    shoulder.y -= 0.15 * forearms + 0.12 * hoodsAero + 0.15 * clip;
+    shoulder.z += 0.12 * forearms + 0.06 * hoodsAero + 0.1 * clip;
+    // Chrono : buste relevé sur les cornes ; tortue : dos encore plus bas.
+    shoulder.y += 0.1 * horns - 0.03 * turtle;
+    shoulder.z += -0.07 * horns + 0.02 * turtle;
     shoulder.x += upright(shoulder.y);
     const chestBase = hip.clone().add(v3(0, 0.06, 0.02));
     this.torso.set(chestBase, shoulder);
@@ -958,7 +1049,7 @@ export class LowPolyRider implements RiderAvatarLike {
     this.collar.set(shoulder.clone().add(v3(0, 0.0, 0.015)), shoulder.clone().add(v3(0, 0.045, 0.035)));
     this.head.position.copy(neckTop).add(v3(0, 0.07, 0.04));
     // Tête relevée pour regarder la route (le dos est penché vers l'avant).
-    this.head.rotation.x = 0.3 + fit.headTilt * fitK - 0.12 * stand - 0.2 * sprint - 0.25 * up - 0.22 * aero;
+    this.head.rotation.x = 0.3 + fit.headTilt * fitK - 0.12 * stand - 0.2 * sprint - 0.25 * up - 0.22 * aero - 0.18 * forearms - 0.12 * hoodsAero - 0.18 * clip - 0.18 * horns + 0.22 * turtle;
 
     for (const leg of this.legs) {
       const a = this.crankAngle + (leg.side > 0 ? 0 : Math.PI);
@@ -990,12 +1081,24 @@ export class LowPolyRider implements RiderAvatarLike {
       // Mains au cintre (cocottes, guidon plat ou prolongateurs) ; bras levés en V pour fêter la victoire.
       // Cocottes, ou crochet du cintre (bas du cintre, aéro).
       const handBar = v3(fit.hand.x * arm.side, fit.hand.y - 0.135 * dropHands, fit.hand.z - 0.035 * dropHands);
+      // Avant-bras sur le cintre : mains rapprochées devant la potence.
+      if (forearms > 0) handBar.lerp(v3(0.05 * arm.side, 0.94, 0.74), forearms);
+      // Vélo de chrono : mains sur les cornes ; tortue : mains plus hautes.
+      if (horns > 0) handBar.lerp(v3(0.205 * arm.side, 0.875, 0.62), horns);
+      handBar.y += 0.03 * turtle;
+      // Prolongateurs : mains aux poignées.
+      if (this.clip && clip > 0) handBar.lerp(arm.side > 0 ? this.clip.grips.L : this.clip.grips.R, clip);
       const handUp = sh.clone().add(v3(0.2 * arm.side, 0.52, 0.08));
       const hand = handBar.lerp(handUp, up);
       const elbow = new THREE.Vector3();
       // Coude qui s'ouvre légèrement du côté de l'épaule qui descend (roulis assis).
       // En danseuse, coudes nettement ouverts vers l'extérieur (coureurs vus de dos).
       const pole = v3((fit.elbowPole.x + Math.max(0, roll * arm.side) * 0.12 + 0.25 * stand) * arm.side, fit.elbowPole.y + up, fit.elbowPole.z);
+      // Avant-bras à plat sur les cocottes : coudes tirés vers l'arrière ; sur le cintre : coudes posés dessous.
+      if (hoodsAero > 0) pole.lerp(v3(0.3 * arm.side, -0.1, -1), hoodsAero);
+      if (forearms > 0) pole.lerp(v3(0.15 * arm.side, -1, -0.1), forearms);
+      if (clip > 0) pole.lerp(v3(0.1 * arm.side, -1, 0), clip);
+      if (horns > 0) pole.lerp(v3(0.3 * arm.side, -0.75, -0.45), horns);
       solveTwoBone(sh, hand, UPPER_ARM, FOREARM, pole, elbow);
       // Manche courte : 60 % du bras, poignet de couleur, puis peau ; manche longue jusqu'au poignet.
       const sleeveEnd = this.longSleeves ? elbow : sh.clone().lerp(elbow, 0.6);
@@ -1022,6 +1125,11 @@ export class LowPolyRider implements RiderAvatarLike {
 
   setLook(look: AvatarLook): void {
     if (JSON.stringify(look) !== this.lookKey) this.build(look);
+  }
+
+  /** Effort (puissance / FTP) : positions aéro quand on roule très fort. */
+  setEffort(ftpFrac: number): void {
+    this.ftpFrac = ftpFrac;
   }
 
   /** Sprint en cours (segment de sprint ou effort maximal) : danseuse de sprint. */

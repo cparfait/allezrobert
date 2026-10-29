@@ -2,7 +2,8 @@ import * as THREE from 'three/webgpu';
 import { BASE_PROFILES, BIKES, COSMETICS, DEFAULT_LOOK, FACE_SLIDERS, encodeFace, jerseyLookOf, profileLook, type AvatarLook, type BikeModel, type FaceShape } from '@allezrobert/shared';
 import { createEngine } from './engine/renderer.ts';
 import { QUALITY_PRESETS, type QualityLevel } from './engine/quality.ts';
-import { GltfRiderAvatar, type RiderPose } from './rider/gltfAvatar.ts';
+import { GltfRiderAvatar, createAvatar, type RiderPose } from './rider/gltfAvatar.ts';
+import { LOW_POLY } from './engine/style.ts';
 import { preloadJerseyLogo } from './rider/jerseyPattern.ts';
 
 /**
@@ -306,6 +307,126 @@ async function main(): Promise<void> {
     (window as unknown as { __avatarTestDone: boolean }).__avatarTestDone = true;
     return;
   }
+  // ?positions : le coureur entier selon l'allure et l'effort (positions du cintre route, aéro), de profil et
+  // de trois quarts avant ; &velo=id du catalogue ; &tenue={...} comme pour ?profil ; &lent : 20 km/h et danseuse en plus.
+  if (params.has('positions')) {
+    for (const o of riders) o.a.root.visible = false;
+    far.root.visible = false;
+    const patch = JSON.parse(params.get('tenue') ?? '{}') as Partial<AvatarLook>;
+    const look: AvatarLook = { ...DEFAULT_LOOK, bikeModel: params.get('velo') ?? 's26-04-cervelo-s5', ...patch };
+    // Famille du vélo chargée avant les vues (sinon le vélo de base la remplace).
+    const family = BIKES.find((b) => b.id === look.bikeModel)?.family;
+    if (family) await (await import('./rider/bikes.ts')).loadBikeFamily(family);
+    // [nom, vitesse (m/s), part de FTP, position, cadence]
+    const cases: Array<[string, number, number, RiderPose, number]> = [
+      ...(params.has('lent') ? ([['20 km/h', 5.6, 0.6, 'seated', 80], ['danseuse', 5, 1, 'standing', 70]] as Array<[string, number, number, RiderPose, number]>) : []),
+      ['30 km/h, 70 % FTP', 8.3, 0.7, 'seated', 88],
+      ['45 km/h (bas du cintre)', 12.5, 0.8, 'seated', 92],
+      ['35 km/h, 115 % FTP (tres fort)', 9.7, 1.15, 'seated', 95],
+      ['55 km/h (tres vite)', 15.3, 0.9, 'seated', 95],
+    ];
+    const views: Array<[string, THREE.Vector3]> = [['profil', new THREE.Vector3(-1, 0.05, 0)], ['3/4 avant', new THREE.Vector3(-0.75, 0.25, 0.65)]];
+    const cw = 640;
+    const ch = 400;
+    const sheet = document.createElement('canvas');
+    sheet.width = views.length * cw;
+    sheet.height = cases.length * ch;
+    const g = sheet.getContext('2d') as CanvasRenderingContext2D;
+    g.font = '600 16px sans-serif';
+    camera.fov = 18;
+    for (const [i, [name, speed, effort, pose, cadence]] of cases.entries()) {
+      const a = LOW_POLY ? createAvatar(look) : new GltfRiderAvatar(look);
+      a.setEffort?.(effort);
+      scene.add(a.root);
+      for (let t = 0; t < 4; t += 1 / 60) a.update(1 / 60, cadence, speed, pose, 0);
+      a.root.updateMatrixWorld(true);
+      // &mid=x,y,z&dist=m : cadrage resserré (p. ex. le poste de pilotage) ; &nurider : vélo seul.
+      const mid = new THREE.Vector3(...((params.get('mid') ?? '0,0.75,0.1').split(',').map(Number) as [number, number, number]));
+      if (params.has('nurider')) (a as unknown as { setRiderVisible?(on: boolean): void }).setRiderVisible?.(false);
+      for (const [j, [, dir]] of views.entries()) {
+        camera.position.copy(mid).addScaledVector(dir.clone().normalize(), Number(params.get('dist') ?? 7));
+        camera.lookAt(mid);
+        camera.updateProjectionMatrix();
+        for (let n = 0; n < 3; n++) engine.renderManual();
+        g.drawImage(canvas, 1280 / 2 - 480, 60, 960, 600, j * cw, i * ch, cw, ch);
+      }
+      g.fillStyle = '#000';
+      g.fillRect(0, i * ch, 300, 22);
+      g.fillStyle = '#fff';
+      g.fillText(name, 4, i * ch + 16);
+      scene.remove(a.root);
+    }
+    document.body.replaceChildren(sheet);
+    sheet.style.cssText = 'display:block;width:100%;height:auto';
+    if (!params.has('noshot')) await fetch(`/__shot?name=avatar-positions-${params.get('name') ?? 'essai'}`, { method: 'POST', body: sheet.toDataURL('image/jpeg', 0.92) });
+    (window as unknown as { __avatarTestDone: boolean }).__avatarTestDone = true;
+    return;
+  }
+  // ?casques : gros plans de la tête, un coureur par coiffe (casque route, chrono d'office du vélo de chrono,
+  // casques chrono du garage), de profil, de trois quarts avant et de trois quarts arrière ; &color=#rrggbb.
+  if (params.has('casques')) {
+    for (const o of riders) o.a.root.visible = false;
+    far.root.visible = false;
+    const color = params.get('color') ?? '#f4f4f4';
+    const base: AvatarLook = { ...DEFAULT_LOOK, helmet: color, bikeModel: 's26-04-cervelo-s5', ...(params.has('female') ? { face: encodeFace({ sex: -1 }), hairStyle: 1 } : {}) };
+    const tt = BIKES.find((b) => b.params.aeroHelmet)?.id ?? 's26-04-cervelo-s5';
+    const looks: Array<[string, AvatarLook]> = [
+      ['route', base],
+      ['chrono velo', { ...base, bikeModel: tt }],
+      ['chrono', { ...base, helmetShape: 'chrono' }],
+      ['chrono-court', { ...base, helmetShape: 'chrono-court' }],
+    ];
+    // &lunettes : quelques lunettes du garage (monture, verres) au lieu des casques.
+    if (params.has('lunettes')) {
+      const pairs = COSMETICS.filter((c) => c.slot === 'glasses' && c.glasses).slice(0, Number(params.get('lunettes') || 4));
+      looks.splice(0, looks.length, ...pairs.map((c): [string, AvatarLook] => [c.id.replace('glasses-', ''), { ...base, glassesFrame: c.glasses?.frame, glassesLens: c.glasses?.lens }]));
+    }
+    // &casquettes : casquettes (pois, unie) au lieu des casques.
+    if (params.has('casquettes')) {
+      looks.splice(0, looks.length,
+        ['pois', { ...base, cap: { style: 'pois', color: '#f6f3ee', accent: '#e8501d' } }],
+        ['bleue', { ...base, cap: { style: 'uni', color: '#1f4fb5' } }],
+        ['bleue femme', { ...base, cap: { style: 'uni', color: '#1f4fb5' }, face: encodeFace({ sex: -1 }), hairStyle: 1 }],
+      );
+    }
+    const views: Array<[string, THREE.Vector3]> = [['profil', new THREE.Vector3(-1, 0, 0)], ['3/4 avant', new THREE.Vector3(-0.7, 0.15, 0.7)], ['3/4 arriere', new THREE.Vector3(-0.6, 0.35, -0.75)]];
+    const cw = 420;
+    const ch = 320;
+    const sheet = document.createElement('canvas');
+    sheet.width = views.length * cw;
+    sheet.height = looks.length * ch;
+    const g = sheet.getContext('2d') as CanvasRenderingContext2D;
+    g.font = '600 16px sans-serif';
+    camera.fov = 6;
+    for (const [i, [name, look]] of looks.entries()) {
+      // &style=lowpoly : coureur du style jeu vidéo.
+      const a = LOW_POLY ? createAvatar(look) : new GltfRiderAvatar(look);
+      scene.add(a.root);
+      for (let t = 0; t < 2; t += 1 / 60) a.update(1 / 60, 85, Number(params.get('speed') ?? 9), 'seated', 0);
+      await new Promise((r) => setTimeout(r, 1500)); // famille du vélo de chrono chargée
+      for (let t = 0; t < 1; t += 1 / 60) a.update(1 / 60, 85, Number(params.get('speed') ?? 9), 'seated', 0);
+      a.root.updateMatrixWorld(true);
+      const headObj = a.root.getObjectByName('head') ?? (a as unknown as { head: THREE.Object3D }).head;
+      const hd = headObj.getWorldPosition(new THREE.Vector3()).add(new THREE.Vector3(0, LOW_POLY ? 0.02 : 0.06, -0.01));
+      for (const [j, [, dir]] of views.entries()) {
+        camera.position.copy(hd).addScaledVector(dir.clone().normalize(), 6);
+        camera.lookAt(hd);
+        camera.updateProjectionMatrix();
+        for (let n = 0; n < 3; n++) engine.renderManual();
+        g.drawImage(canvas, 1280 / 2 - 400, 0, 800, 600, j * cw, i * ch, cw, ch);
+      }
+      g.fillStyle = '#000';
+      g.fillRect(0, i * ch, 130, 22);
+      g.fillStyle = '#fff';
+      g.fillText(name, 4, i * ch + 16);
+      scene.remove(a.root);
+    }
+    document.body.replaceChildren(sheet);
+    sheet.style.cssText = 'display:block;width:100%;height:auto';
+    if (!params.has('noshot')) await fetch(`/__shot?name=avatar-casques-${params.get('name') ?? 'essai'}`, { method: 'POST', body: sheet.toDataURL('image/jpeg', 0.92) });
+    (window as unknown as { __avatarTestDone: boolean }).__avatarTestDone = true;
+    return;
+  }
   // ?profil : profil strict zoomé du haut du corps (dos, nuque, tête) des coureurs du film puis de
   // corpulences et tailles extrêmes ; &pose=standing|seated|coasting ; angles dans window.__profil.
   if (params.has('profil')) {
@@ -325,6 +446,11 @@ async function main(): Promise<void> {
     // &only=film4,film6 : seulement ces coureurs.
     const only = (params.get('only') ?? '').split(',').filter(Boolean);
     if (only.length) looks.splice(0, looks.length, ...looks.filter(([n]) => only.includes(n)));
+    // &tenue={"build":0.4,"bikeModel":null} : retouches de tenue appliquées à tous (null retire le champ).
+    if (params.has('tenue')) {
+      const patch = JSON.parse(params.get('tenue') ?? '{}') as Record<string, unknown>;
+      for (const e of looks) e[1] = Object.fromEntries(Object.entries({ ...e[1], ...patch }).filter(([, v]) => v !== null)) as unknown as AvatarLook;
+    }
     // &spin=0,90,180,270 : un tour de pédale, une vignette par angle de manivelle (°).
     const spin = (params.get('spin') ?? '').split(',').filter(Boolean).map(Number);
     if (spin.length) looks.splice(0, looks.length, ...looks.flatMap(([n, l]) => spin.map((d): [string, AvatarLook] => [`${n}@${d}`, { ...l, crankDeg: d } as AvatarLook])));
@@ -387,6 +513,14 @@ async function main(): Promise<void> {
         const v = (n: string) => (params.get(n) ?? '0,0,0').split(',').map(Number) as [number, number, number];
         camera.position.set(...v('cam')).add(k);
         camera.lookAt(new THREE.Vector3(...v('look')).add(k));
+      }
+      // &foot=l|r : cheville et chaussure gauche ou droite (côté filmé : &right, caméra en +x), cadrage serré.
+      if (params.has('foot')) {
+        const f = P(params.get('foot') === 'r' ? 'foot_r' : 'foot_l');
+        // &footcam=x,y,z : direction de la caméra (défaut : de côté).
+        const d = new THREE.Vector3(...((params.get('footcam') ?? `${params.has('right') ? 1 : -1},0,0`).split(',').map(Number) as [number, number, number])).normalize();
+        camera.position.copy(f).add(new THREE.Vector3(0, 0.02, -0.02)).addScaledVector(d, 1.4);
+        camera.lookAt(f.x, f.y + 0.02, f.z - 0.02);
       }
       // &knee : genou et cuisse (côté filmé), cadrage serré.
       if (params.has('knee')) {

@@ -1328,6 +1328,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
       // Course pas lancée : le coureur reste sur la grille (le serveur le tient immobile).
       roomUi.onHoldChange = (hold) => (ride.paused = hold);
       roomUi.onLeave = () => finish();
+      roomUi.onFinish = () => void announcer.say(['finish'], 'pa');
       // Vainqueur : bras levés en V au passage de la ligne, quelques secondes.
       roomUi.onWin = () => {
         avatar.setCelebrating?.(true);
@@ -1410,6 +1411,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   let summitShown = false;
   const reachSummit = () => {
     summitShown = true;
+    void announcer.say(['finish'], 'pa');
     routeTimer.finish(ride.elapsedS);
     ride.state.distM = track.length;
     ride.state.speedMs = 0;
@@ -1501,7 +1503,6 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   };
   const finish = () => {
     ride.paused = true;
-    void announcer.say(['finish'], 'pa');
     hud.setVisible(false);
     input.sendTrainer({ kind: 'simulation', gradePercent: 0 });
     const done = { distanceM: ride.state.distM - startD, elevationM: ride.elevationGainM, movingS: ride.elapsedS };
@@ -1637,6 +1638,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   if (challenge) {
     challenge.onDone = (r) => {
       challengeResult = r;
+      void announcer.say(['finish'], 'pa');
       const L = getLang() === 'fr';
       const t = `${Math.floor(r.timeS / 60)}:${String(Math.round(r.timeS % 60)).padStart(2, '0')}`;
       hud.toast(r.isRecord ? (r.previousS === null ? `🏁 ${t} · ${L ? 'premier record' : 'first record'}` : `🏆 ${L ? 'Record battu' : 'New record'} : ${t} (−${Math.round(r.previousS - r.timeS)} s)`) : `🏁 ${t} · ${L ? 'record' : 'best'} ${Math.floor((r.previousS as number) / 60)}:${String(Math.round((r.previousS as number) % 60)).padStart(2, '0')}`);
@@ -1737,6 +1739,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     peloton.paceFtpPct = Math.min(1.2, Math.max(0.5, (peloton.paceFtpPct ?? 0.75) + delta * 0.05));
     hud.toast(`${getLang() === 'fr' ? 'Allure du groupe' : 'Group pace'} : ${Math.round(peloton.paceFtpPct * 100)} % FTP`);
   };
+  hud.onGroupPace = changePace;
   const slowDown = () => {
     if (!peloton.riders.length) return;
     peloton.slowDown();

@@ -7,6 +7,7 @@ import { BIKES, DEFAULT_LOOK, PLAIN_BIKE_FAMILY, bikeOfLook, type AvatarLook, ty
 import { LiveryMaterial } from './livery.ts';
 import { RimDecalMaterial, crankLetters, measureBand, polarLetters, type RimBand } from './rimDecal.ts';
 import { decalBoxes, frameMarks, wordmarkTexture } from './wordmarks.ts';
+import { buildAerobars } from './aerobars.ts';
 
 /**
  * Vélos du catalogue assemblés à partir des modèles Blender (tools/blender/build_cyclist.py) :
@@ -83,6 +84,9 @@ const BIKE_MATERIALS: Record<string, [string, number, number]> = {
   topcap: ['#18191c', 0.4, 0.3],
   bolts: ['#b9bcc2', 0.3, 1],
   pad: ['#202124', 0.8, 0],
+  // Prolongateurs de l'atelier (aerobars.ts) : carbone, mousse des repose-coudes et poignées.
+  aerobar: ['#141518', 0.35, 0.15],
+  aerobar_pad: ['#1f2022', 0.85, 0],
   // Tige de selle (primitive « components » du nœud saddle), recolorable à part (atelier).
   seatpost: ['#18191c', 0.4, 0.2],
 };
@@ -257,14 +261,26 @@ function splitBottles(scene: THREE.Object3D): void {
     });
   }
   const two = Math.hypot(centers[0]![0] - centers[1]![0], centers[0]![1] - centers[1]![1]) > 0.12;
+  // Axe de chaque bidon (plan y-z) : le plus gros morceau d'un seul tenant du maillage du bidon dans chaque
+  // groupe (le corps du bidon). Chaque morceau de chaque pièce va ensuite au bidon dont l'axe est le plus
+  // proche : le fond du bidon du tube de selle (anneau) et l'attache basse de son porte-bidon, tout près du
+  // bidon du tube oblique, restaient sinon avec lui et se voyaient sur un porte-bidon vide.
+  const nearest = (y: number, z: number) => (Math.hypot(y - centers[0]![0], z - centers[0]![1]) <= Math.hypot(y - centers[1]![0], z - centers[1]![1]) ? 0 : 1);
+  const axes = two ? bottleAxes(ref.geometry, nearest) : null;
   for (const mesh of parts) {
     const g = mesh.geometry;
     const index = g.index ? Array.from(g.index.array) : Array.from({ length: g.getAttribute('position').count }, (_, i) => i);
     const groups: number[][] = [[], []];
-    for (let t = 0; t < index.length / 3; t++) {
-      const c = centroid(g, t);
-      const k = two && Math.hypot(c[0] - centers[0]![0], c[1] - centers[0]![1]) <= Math.hypot(c[0] - centers[1]![0], c[1] - centers[1]![1]) ? 0 : 1;
-      (groups[k] as number[]).push(index[t * 3] as number, index[t * 3 + 1] as number, index[t * 3 + 2] as number);
+    for (const tris of pieces(index)) {
+      let y = 0;
+      let z = 0;
+      for (const t of tris) {
+        const c = centroid(g, t);
+        y += c[0] / tris.length;
+        z += c[1] / tris.length;
+      }
+      const k = axes ? (segmentDistance(axes[0], y, z) <= segmentDistance(axes[1], y, z) ? 0 : 1) : 1;
+      for (const t of tris) (groups[k] as number[]).push(index[t * 3] as number, index[t * 3 + 1] as number, index[t * 3 + 2] as number);
     }
     ['up', 'down'].forEach((name, k) => {
       const ids = groups[k] as number[];
@@ -280,6 +296,98 @@ function splitBottles(scene: THREE.Object3D): void {
     });
     mesh.removeFromParent();
   }
+}
+
+/** Morceaux d'un seul tenant d'un maillage indexé : listes de triangles reliés par leurs sommets. */
+function pieces(index: readonly number[]): number[][] {
+  const parent = new Map<number, number>();
+  const find = (i: number): number => {
+    let r = i;
+    while (parent.has(r) && parent.get(r) !== r) r = parent.get(r) as number;
+    parent.set(i, r);
+    return r;
+  };
+  for (let t = 0; t < index.length / 3; t++) {
+    const a = find(index[t * 3] as number);
+    for (let k = 1; k < 3; k++) {
+      const b = find(index[t * 3 + k] as number);
+      if (a !== b) parent.set(b, a);
+    }
+  }
+  const out = new Map<number, number[]>();
+  for (let t = 0; t < index.length / 3; t++) {
+    const r = find(index[t * 3] as number);
+    const list = out.get(r) ?? [];
+    list.push(t);
+    out.set(r, list);
+  }
+  return [...out.values()];
+}
+
+/** Segment (plan y-z) : centre, direction unitaire, demi-longueurs de part et d'autre. */
+interface Segment {
+  y: number;
+  z: number;
+  dy: number;
+  dz: number;
+  t0: number;
+  t1: number;
+}
+
+function segmentDistance(s: Segment, y: number, z: number): number {
+  const t = THREE.MathUtils.clamp((y - s.y) * s.dy + (z - s.z) * s.dz, s.t0, s.t1);
+  return Math.hypot(y - (s.y + s.dy * t), z - (s.z + s.dz * t));
+}
+
+/**
+ * Axes des deux bidons : pour chaque groupe (`side` d'un point), le plus gros morceau du maillage du bidon,
+ * son axe principal (analyse en composantes principales des sommets) et son étendue le long de cet axe ;
+ * null s'il n'y a qu'un bidon (tout va alors au bidon du tube oblique).
+ */
+function bottleAxes(g: THREE.BufferGeometry, side: (y: number, z: number) => 0 | 1): [Segment, Segment] | null {
+  const p = g.getAttribute('position');
+  const index = g.index ? Array.from(g.index.array) : Array.from({ length: p.count }, (_, i) => i);
+  const best: Array<number[] | null> = [null, null];
+  for (const tris of pieces(index)) {
+    const verts = [...new Set(tris.flatMap((t) => [index[t * 3] as number, index[t * 3 + 1] as number, index[t * 3 + 2] as number]))];
+    const y = verts.reduce((a, i) => a + p.getY(i), 0) / verts.length;
+    const z = verts.reduce((a, i) => a + p.getZ(i), 0) / verts.length;
+    const k = side(y, z);
+    if (!best[k] || verts.length > (best[k] as number[]).length) best[k] = verts;
+  }
+  const seg = (verts: number[] | null): Segment | null => {
+    if (!verts) return null;
+    const y = verts.reduce((a, i) => a + p.getY(i), 0) / verts.length;
+    const z = verts.reduce((a, i) => a + p.getZ(i), 0) / verts.length;
+    let syy = 0;
+    let szz = 0;
+    let syz = 0;
+    for (const i of verts) {
+      const a = p.getY(i) - y;
+      const b = p.getZ(i) - z;
+      syy += a * a;
+      szz += b * b;
+      syz += a * b;
+    }
+    const ang = 0.5 * Math.atan2(2 * syz, syy - szz);
+    const dy = Math.cos(ang);
+    const dz = Math.sin(ang);
+    let t0 = Infinity;
+    let t1 = -Infinity;
+    for (const i of verts) {
+      const t = (p.getY(i) - y) * dy + (p.getZ(i) - z) * dz;
+      t0 = Math.min(t0, t);
+      t1 = Math.max(t1, t);
+    }
+    return { y, z, dy, dz, t0, t1 };
+  };
+  // Deux vrais bidons : deux corps de taille comparable (sinon un seul bidon coupé en deux par les k-moyennes).
+  const n0 = best[0]?.length ?? 0;
+  const n1 = best[1]?.length ?? 0;
+  if (Math.min(n0, n1) < 0.5 * Math.max(n0, n1)) return null;
+  const a = seg(best[0] ?? null);
+  const b = seg(best[1] ?? null);
+  return a && b ? [a, b] : null;
 }
 
 async function loadLods(name: string): Promise<Lods> {
@@ -442,6 +550,9 @@ export function assembleBike(build: BikeBuild, family: FamilyKey, lod: 0 | 1, bo
     group.add(w);
     out.push(w);
   });
+  // Prolongateurs de l'atelier sur un cintre route (les vélos de chrono ont les leurs ; pas de VTT ni de gravel).
+  const bars = build.extras?.aerobars;
+  if (bars && !isOwnModel(family) && !bikeAnchors(family).pads) group.add(buildAerobars(bars, bikeAnchors(family).hands, lod));
   // Plaque de cadre (atelier) sous la selle.
   const num = build.extras?.number;
   const anchor = group.getObjectByName('anchor_number');

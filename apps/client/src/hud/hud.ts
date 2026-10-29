@@ -154,6 +154,7 @@ export const HUD_BLOCKS = [
   { id: 'balance', fr: 'Équilibre gauche / droite', en: 'Left / right balance' },
   { id: 'zones', fr: 'Temps par zone (HUD compact)', en: 'Time in zones (compact HUD)' },
   { id: 'map', fr: 'Mini-carte', en: 'Mini-map' },
+  { id: 'group', fr: 'Radar du groupe', en: 'Group radar' },
   { id: 'riders', fr: 'Coureurs à proximité', en: 'Nearby riders' },
   { id: 'profile', fr: 'Profil du parcours', en: 'Route profile' },
 ] as const;
@@ -242,6 +243,24 @@ function fmtTime(s: number): string {
   return h > 0 ? `${h}:${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}` : `${m}:${String(sec).padStart(2, '0')}`;
 }
 
+/** Radar du groupe : portée de la barre, de part et d'autre du coureur (m). */
+const GROUP_RANGE_M = 30;
+
+/**
+ * Panneau « Groupe » : allure demandée au groupe (boutons − et +), radar de position de 30 m derrière à
+ * 30 m devant (moi au centre, un point par coureur), puis les trois coureurs les plus proches. Squelette
+ * fixe : seuls l'allure, les points et la liste sont réécrits (les boutons restent cliquables).
+ */
+function groupPanel(fr: boolean): string {
+  const r = GROUP_RANGE_M;
+  return `<div class="panel grp hidden" data-k="group" data-hud="group">
+          <div class="grp-head"><span class="grp-l">${fr ? 'Groupe' : 'Group'}</span><span class="grp-pace hidden" data-k="grpPace"><button data-gpace="-1" tabindex="-1" title="${fr ? 'Groupe moins vite ( [ )' : 'Slower group ( [ )'}">−</button><b class="num" data-k="grpPaceTxt"></b><button data-gpace="1" tabindex="-1" title="${fr ? 'Groupe plus vite ( ] )' : 'Faster group ( ] )'}">+</button></span></div>
+          <div class="grp-radar"><i class="grp-track"></i><div class="grp-dots" data-k="grpDots"></div><i class="grp-me"></i></div>
+          <div class="grp-scale"><span>${r} m ${fr ? 'derrière' : 'behind'}</span><span>${fr ? 'toi' : 'you'}</span><span>${r} m ${fr ? 'devant' : 'ahead'}</span></div>
+          <div class="grp-list" data-k="grpList"></div>
+        </div>`;
+}
+
 /**
  * Flèche de virage : tige vers le haut puis arc qui tourne de `angleDeg` (jusqu'à 180° pour une épingle),
  * pointe dans la direction de sortie. Coordonnées écran (y vers le bas) : tourner à droite fait croître le cap.
@@ -316,7 +335,6 @@ function compactLayout(track: RouteTrack, attribution: string[]): string {
           <div class="bar"><span data-k="segBar" style="width:0%"></span></div>
         </div>
         <div class="panel cx-draft hidden" data-k="draftBox" data-hud="draft"><span class="cx-l">${t('draft')}</span><div class="cx-bar"><span data-k="draftBar"></span></div><b class="num" data-k="draft">0 %</b><small class="cx-note" data-k="draftNote"></small></div>
-        <div class="panel cx-pace hidden" data-k="paceBox"></div>
         <div class="toasts"></div>
       </div>
       <div class="hud-col hud-col-left">
@@ -350,6 +368,7 @@ function compactLayout(track: RouteTrack, attribution: string[]): string {
       <div class="hud-col hud-col-right">
         <div class="panel minimap" data-hud="map"><canvas width="460" height="460"></canvas></div>
         <div class="panel hud-loc cx-loc hidden" data-k="loc"></div>
+        ${groupPanel(fr)}
         <div class="panel cx-env">
           <div class="cx-grade" data-hud="grade"><span class="cx-l">${ICONS.grade}${fr ? 'Pente' : 'Grade'}</span><b class="num" data-k="grade">0,0 %</b></div>
           <div class="cx-envline"><span data-hud="alt">▲ <b class="num" data-k="alt">–</b></span><span data-hud="wind">${fr ? 'Vent' : 'Wind'} <b class="num" data-k="wind">–</b></span></div>
@@ -514,6 +533,7 @@ export class Hud {
       </div>
       <div class="hud-col hud-col-right">
         <div class="panel minimap" data-hud="map"><canvas width="460" height="460"></canvas></div>
+        ${groupPanel(getLang() === 'fr')}
         <div class="panel riders" data-k="riders" data-hud="riders"></div>
         <div class="chat" data-k="chat"><div class="chat-log" data-k="chatLog"></div><input class="chat-input hidden" data-k="chatInput" maxlength="200" /></div>
       </div>
@@ -540,6 +560,12 @@ export class Hud {
         writeFlag(RIDERS_FOLDED_KEY, this.ridersFolded);
         (this.el.riders as HTMLElement).classList.toggle('cx-folded', this.ridersFolded);
       }
+    });
+    (this.el.group as HTMLElement).addEventListener('click', (ev) => {
+      const btn = (ev.target as HTMLElement).closest<HTMLElement>('[data-gpace]');
+      if (!btn) return;
+      btn.blur();
+      this.onGroupPace?.(Number(btn.dataset.gpace));
     });
     if (this.compact) {
       this.ridersFolded = readFlag(RIDERS_FOLDED_KEY);
@@ -707,6 +733,8 @@ export class Hud {
 
   /** Clic sur 👍 dans la liste des coureurs. */
   onRideOn?: (riderId: string) => void;
+  /** Boutons − et + du panneau « Groupe » : allure du groupe d'un cran (−1 ou +1). */
+  onGroupPace?: (delta: number) => void;
 
   /** Annonces et messages de chat, relayés vers l'appli compagnon. */
   onToast?: (text: string) => void;
@@ -900,12 +928,7 @@ export class Hud {
       (e.segInfo as HTMLElement).textContent = `${fmtTime(s.segment.elapsedS)} · ${Math.round(remain)} m`;
       (e.segBar as HTMLElement).style.width = `${(s.segment.progress * 100).toFixed(1)}%`;
     } else segEl.classList.add('hidden');
-    const paceBox = e.paceBox as HTMLElement | undefined;
-    if (paceBox) {
-      paceBox.classList.toggle('hidden', !s.groupPace);
-      if (s.groupPace)
-        setText(paceBox, s.groupPace.ftpPct !== null ? `${fr ? 'Allure du groupe' : 'Group pace'} : ${Math.round(s.groupPace.ftpPct * 100)} % ${fr ? 'de ta FTP' : 'of your FTP'} · ${Math.round(s.groupPace.watts)} W` : `${fr ? 'Allure du groupe' : 'Group pace'} : ${fr ? 'libre' : 'free'} · ${Math.round(s.groupPace.watts)} W`);
-    }
+    this.updateGroup(s, fr);
 
     const loc = e.loc as HTMLElement;
     const placeKey = s.place ? `${s.place.town}|${s.place.road ?? ''}` : '';
@@ -948,6 +971,52 @@ export class Hud {
       this.drawProfile(s);
       this.drawMap(s);
     }
+  }
+
+  /**
+   * Panneau « Groupe » : affiché avec un peloton d'équipiers, ou dès qu'un autre coureur (joueur, IA du
+   * serveur ; pas les cyclistes croisés) roule à moins de 150 m. Points empilés quand ils se chevauchent.
+   */
+  private updateGroup(s: HudState, fr: boolean): void {
+    const e = this.el;
+    const box = e.group as HTMLElement;
+    const me = s.riders.find((r) => r.me);
+    const group = me ? s.riders.filter((r) => !r.me && !r.ambient).map((r) => ({ r, gap: r.distM - me.distM })) : [];
+    const show = !!me && (!!s.groupPace || group.some((g) => Math.abs(g.gap) < 150));
+    box.classList.toggle('hidden', !show);
+    if (!show) return;
+    const pace = e.grpPace as HTMLElement;
+    pace.classList.toggle('hidden', !s.groupPace);
+    if (s.groupPace) setText(e.grpPaceTxt as HTMLElement, `${s.groupPace.ftpPct !== null ? `${Math.round(s.groupPace.ftpPct * 100)} % FTP` : fr ? 'libre' : 'free'} · ${Math.round(s.groupPace.watts)} W`);
+
+    // Points : position le long de la barre (%), hors de portée collés au bord et estompés ; un point qui
+    // chevauche le précédent passe sur la rangée du dessus, puis du dessous.
+    const R = GROUP_RANGE_M;
+    const rows = [0, -1, 1];
+    const last = rows.map(() => -Infinity);
+    const dots = group
+      .map((g) => ({ g, x: 50 + (Math.max(-R, Math.min(R, g.gap)) / R) * 50 }))
+      .sort((a, b) => a.x - b.x)
+      .map(({ g, x }) => {
+        let k = last.findIndex((l) => x - l >= 5);
+        if (k === -1) k = last.indexOf(Math.min(...last));
+        last[k] = x;
+        const far = Math.abs(g.gap) > R ? ' far' : '';
+        return `<i class="grp-dot${far}" style="left:${x.toFixed(1)}%;--row:${rows[k]}" title="${g.r.name.replace(/[<>&"]/g, '')}"></i>`;
+      })
+      .join('');
+    setHtml(e.grpDots as HTMLElement, dots);
+
+    const near = [...group].sort((a, b) => Math.abs(a.gap) - Math.abs(b.gap)).slice(0, 3);
+    const list = near
+      .map(({ r, gap }) => {
+        const d = Math.abs(gap);
+        const dist = d >= 1000 ? `${(d / 1000).toFixed(1).replace('.', fr ? ',' : '.')} km` : `${Math.round(d)} m`;
+        const where = d < 1 ? (fr ? 'à côté' : 'alongside') : `${dist} ${gap > 0 ? (fr ? 'devant' : 'ahead') : fr ? 'derrière' : 'behind'}`;
+        return `<div class="grp-row"><span class="grp-name">${r.name.replace(/[<>&]/g, '')}</span><span class="num grp-gap">${where}</span></div>`;
+      })
+      .join('');
+    setHtml(e.grpList as HTMLElement, list);
   }
 
   /** HUD compact : temps cumulé par zone de puissance (barres rafraîchies chaque seconde), zone en cours. */

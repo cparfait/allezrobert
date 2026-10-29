@@ -7,7 +7,7 @@
 import catalogJson from './cosmetics.json' with { type: 'json' };
 import { DEFAULT_BIKE, type BikeSetup } from './rider.ts';
 import { BIKES, migrateBikeId, type BikeType } from './bikes.ts';
-import type { AvatarLook, CapLook, JerseyStyle } from './net.ts';
+import type { AvatarLook, CapLook, HelmetShape, JerseyStyle } from './net.ts';
 
 export const MAX_LEVEL = 50;
 export const MAX_XP_PER_RIDE = 4000;
@@ -78,22 +78,31 @@ export interface CosmeticItem {
   cap?: CapLook;
   /** « Sans casque » / « Sans lunettes » : retire la coiffe ou les lunettes de l'emplacement. */
   bare?: boolean;
+  /** Casques chrono (emplacement « helmet ») : forme portée, à la couleur de l'article. */
+  helmetShape?: HelmetShape;
+  /** Lunettes (emplacement « glasses ») : couleurs de la monture et des verres. */
+  glasses?: { frame: string; lens: string };
 }
 
 /**
- * Coiffe d'un équipement « casque » : sa couleur et, pour une casquette, son motif (un casque retire la
- * casquette) ; « Sans casque » laisse la tête nue (la couleur du casque est gardée pour la suite).
+ * Coiffe d'un équipement « casque » : sa couleur et, pour une casquette, son motif, pour un casque chrono,
+ * sa forme (chaque article retire la casquette et la forme de l'article précédent) ; « Sans casque » laisse
+ * la tête nue (la couleur du casque est gardée pour la suite).
  */
 export function helmetLookOf(item: CosmeticItem, base: AvatarLook): AvatarLook {
-  const { cap: _old, noHelmet: _bare, ...rest } = base;
+  const { cap: _old, noHelmet: _bare, helmetShape: _shape, ...rest } = base;
   if (item.bare) return { ...rest, noHelmet: true };
-  return { ...rest, helmet: item.color ?? base.helmet, ...(item.cap ? { cap: item.cap } : {}) };
+  return { ...rest, helmet: item.color ?? base.helmet, ...(item.cap ? { cap: item.cap } : {}), ...(item.helmetShape ? { helmetShape: item.helmetShape } : {}) };
 }
 
-/** Lunettes : « Sans lunettes » les retire, toute autre paire les remet. */
+/**
+ * Lunettes d'un équipement « lunettes » : « Sans lunettes » les retire ; toute autre paire les remet, avec
+ * sa monture et ses verres (sans couleurs : les lunettes d'origine).
+ */
 export function glassesLookOf(item: CosmeticItem, base: AvatarLook): AvatarLook {
-  const { noGlasses: _bare, ...rest } = base;
-  return item.bare ? { ...rest, noGlasses: true } : rest;
+  const { noGlasses: _bare, glassesFrame: _f, glassesLens: _l, ...rest } = base;
+  if (item.bare) return { ...rest, noGlasses: true };
+  return item.glasses ? { ...rest, glassesFrame: item.glasses.frame, glassesLens: item.glasses.lens } : rest;
 }
 
 /**

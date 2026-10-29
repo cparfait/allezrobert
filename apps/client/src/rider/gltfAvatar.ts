@@ -7,15 +7,17 @@ import { shoeDialOf } from './shoeLook.ts';
 import { GLTFLoader, type GLTF } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
-import { HAIR_STYLE_COUNT, PLAIN_BIKE_FAMILY, bikeOfLook, decodeFace, lookSex, type AvatarLook, type BikeBuild, type BikeFamily } from '@allezrobert/shared';
+import { HAIR_STYLE_COUNT, PLAIN_BIKE_FAMILY, bikeOfLook, decodeFace, lookSex, type AvatarLook, type BikeBuild, type BikeFamily, type HelmetShape } from '@allezrobert/shared';
 import { RiderAvatar } from './avatar.ts';
 import { buildBikeKit, roadPartsReplaced, type BikeType } from './bikeKits.ts';
 import { FaceAnimator } from './face.ts';
 import { boxOfMeshes, capGeometry, capMaterials } from './cap.ts';
+import { AERO_HELMET_GROUPS, aeroHelmetGeometry } from './aeroHelmet.ts';
 import { SkinMaterial, loadSkinTextures, skinTextures, type SkinLook } from './skin.ts';
 import { applyClothLook, clothTextures, isClothPart, loadClothTextures, makeClothMaterial, type JerseyAxis } from './cloth.ts';
 import { addFrameAttributes, addJerseyFrame, addSleeveMask, type JerseyFrame } from './jerseyPattern.ts';
 import { applyTexturedLook, loadTexturedMasks, texturedMaterial } from './texturedLook.ts';
+import { aerobarAnchors } from './aerobars.ts';
 import { BikeMaterials, assembleBike, availableFamily, bikeAnchors, bikeFamilyReady, familyScene, loadBikeFamily, type AssembledBike, type BikeAnchors, type FamilyKey } from './bikes.ts';
 
 /**
@@ -190,6 +192,50 @@ const DROPS_IN = 12;
 const DROPS_OUT = 10;
 const AERO_FROM = 10;
 const AERO_FULL = 13;
+/**
+ * Positions aéro sur un cintre route, sans prolongateurs, en pédalant assis (en plus des positions
+ * ci-dessus) :
+ *  - « très fort » (au-delà de HOODS_AERO_EFFORT × FTP, plus vite que HOODS_AERO_SPEED) : mains sur les
+ *    cocottes, avant-bras à l'horizontale, coudes rentrés vers l'arrière, dos à plat (HOODS_AERO_BEND) ;
+ *  - « très vite » (au-delà de FOREARMS_IN m/s, ≈ 50 km/h) : avant-bras posés sur le haut du cintre de part
+ *    et d'autre de la potence (FOREARM_ELBOW : coude posé sur le cintre), mains en avant ;
+ *    le buste bascule jusqu'à poser les avant-bras, comme sur les repose-coudes d'un vélo de chrono.
+ */
+const HOODS_AERO_EFFORT = 1.05;
+const HOODS_AERO_EFFORT_OUT = 0.95;
+const HOODS_AERO_SPEED = 8;
+const HOODS_AERO_BEND = 0.95;
+const FOREARMS_IN = 13.9;
+const FOREARMS_OUT = 12.8;
+const FOREARM_ELBOW = new THREE.Vector3(0.075, 0.915, 0.51);
+/**
+ * Prolongateurs de l'atelier sur un vélo de route (aerobars.ts) : couché dessus (coudes sur les
+ * repose-coudes, mains aux poignées) au-delà de CLIP_IN m/s (≈ 40 km/h) ou très fort ; cocottes sinon.
+ */
+const CLIP_IN = 11;
+const CLIP_OUT = 10;
+/**
+ * Vélos de chrono (en plus de la position sur les prolongateurs) :
+ *  - mains sur les cornes (cintre de base, build_tt_cockpit : bout des cornes) sous HORNS_IN m/s
+ *    (≈ 25 km/h) et en danseuse, buste relevé (HORNS_UNTUCK de la bascule de chrono en moins) ;
+ *  - « tortue » très vite (> TURTLE_IN, ≈ 50 km/h) ou très fort : dos encore plus plat, tête rentrée
+ *    entre les épaules haussées, mains un peu plus hautes (photos d'Evenepoel, de Cofidis sur piste).
+ */
+const HORNS_IN = 7;
+const HORNS_OUT = 8;
+const HORNS_UNTUCK = 0.65;
+const TT_HORN_PALM: Partial<Record<FamilyKey, THREE.Vector3>> = {
+  tt: new THREE.Vector3(0.201, 0.774, 0.534),
+  lotus: new THREE.Vector3(0.201, 0.772, 0.534),
+  espada: new THREE.Vector3(0.201, 0.772, 0.534),
+  lowpro: new THREE.Vector3(0.195, 0.778, 0.6),
+};
+const TURTLE_IN = 13.9;
+const TURTLE_OUT = 12.8;
+const TURTLE_BEND = 0.18;
+const TURTLE_HEAD = 0.4;
+const TURTLE_SHRUG = 0.28;
+const TURTLE_HANDS_UP = 0.035;
 /** Très détendue : sous RELAX_IN (≈ 20 km/h), en roue libre ou sans forcer (< RELAX_EFFORT × FTP) ; quittée au-delà de RELAX_OUT. */
 const RELAX_IN = 5.5;
 const RELAX_OUT = 6.5;
@@ -569,8 +615,115 @@ function jerseyAxisOf(scene: THREE.Object3D): JerseyAxis | null {
   return { origin, dir: neck.sub(origin).normalize() };
 }
 
+/** Pièces de la chaussure dont le col suit en partie la jambe (cales, semelle et patins restent rigides). */
+const SHOE_UPPER = /^shoe(_lining|_reflect|_dial)?$/;
+/** Col de la chaussure : hauteur (m, le long de la jambe, sous le haut de la tige) sur laquelle il suit le mollet, et part prise au bord. */
+const COLLAR_DEPTH = 0.04;
+const COLLAR_SHIN = 0.55;
+/** Haut du talon resserré contre le tendon d'Achille (m, derrière la cheville, au bord de la tige). */
+const COLLAR_HUG = 0.011;
+
+/**
+ * Col souple des chaussures : la tige n'est liée qu'à l'os du pied, la chaussette au mollet et au pied ;
+ * quand la cheville plie (coup de pédale), le haut du talon s'écartait du tendon d'Achille (trou entre la
+ * chaussette et la chaussure). Le haut de la tige suit en partie l'os parent du pied (mollet), comme un
+ * col souple serré sur la cheville, et le haut du talon est resserré contre la jambe.
+ */
+function softenShoeCollars(scene: THREE.Object3D): void {
+  const shoes: THREE.SkinnedMesh[] = [];
+  scene.traverse((o) => {
+    const m = o as THREE.SkinnedMesh;
+    if (m.isSkinnedMesh && SHOE_UPPER.test((m.material as THREE.Material).name)) shoes.push(m);
+  });
+  // Articulations en pose de liaison (repère « bindMatrix · sommet », commun à tous les maillages).
+  const joint = (m: THREE.SkinnedMesh, i: number): THREE.Vector3 => new THREE.Vector3().applyMatrix4((m.skeleton.boneInverses[i] as THREE.Matrix4).clone().invert());
+  interface Leg {
+    ankle: THREE.Vector3;
+    axis: THREE.Vector3;
+    fwd: THREE.Vector3;
+    /** Haut de la tige devant et derrière la cheville (le talon est plus bas que la languette). */
+    top: [number, number];
+  }
+  const legs = new Map<string, Leg>();
+  /** Os du pied d'un sommet, et sa jambe (mollet, cheville, axe cheville → genou). */
+  const legOf = (m: THREE.SkinnedMesh, k: number): [string, Leg] | null => {
+    const fi = m.geometry.getAttribute('skinIndex').getComponent(k, 0);
+    const foot = m.skeleton.bones[fi];
+    if (!foot) return null;
+    let leg = legs.get(foot.name);
+    if (!leg) {
+      const shin = foot.parent ? m.skeleton.bones.indexOf(foot.parent as THREE.Bone) : -1;
+      if (shin < 0) return null;
+      const ankle = joint(m, fi);
+      leg = { ankle, axis: joint(m, shin).sub(ankle).normalize(), fwd: new THREE.Vector3(), top: [-Infinity, -Infinity] };
+      legs.set(foot.name, leg);
+    }
+    return [foot.name, leg];
+  };
+  const v = new THREE.Vector3();
+  const rel = (m: THREE.SkinnedMesh, k: number, leg: Leg): THREE.Vector3 => v.fromBufferAttribute(m.geometry.getAttribute('position'), k).applyMatrix4(m.bindMatrix).sub(leg.ankle);
+  const each = (fn: (m: THREE.SkinnedMesh, k: number, leg: Leg) => void): void => {
+    for (const m of shoes) {
+      for (let k = 0; k < m.geometry.getAttribute('position').count; k++) {
+        const l = legOf(m, k);
+        if (l) fn(m, k, l[1]);
+      }
+    }
+  };
+  // Avant du pied : vers le centre de la tige, perpendiculairement à la jambe.
+  each((m, k, leg) => leg.fwd.add(rel(m, k, leg)));
+  for (const leg of legs.values()) leg.fwd.addScaledVector(leg.axis, -leg.fwd.dot(leg.axis)).normalize();
+  each((m, k, leg) => {
+    const p = rel(m, k, leg);
+    const i = p.dot(leg.fwd) >= 0 ? 0 : 1;
+    leg.top[i] = Math.max(leg.top[i], p.dot(leg.axis));
+  });
+  const toMesh = new THREE.Matrix4();
+  const perp = new THREE.Vector3();
+  for (const m of shoes) {
+    const g = m.geometry;
+    const n = g.getAttribute('position').count;
+    const si = g.getAttribute('skinIndex');
+    let pos = g.getAttribute('position');
+    if (pos.normalized || (pos as THREE.InterleavedBufferAttribute).isInterleavedBufferAttribute || !(pos.array instanceof Float32Array)) g.setAttribute('position', (pos = plainAttribute(pos)));
+    toMesh.copy(m.bindMatrix).invert();
+    const idx = new Uint16Array(n * 4);
+    const w = new Float32Array(n * 4);
+    for (let k = 0; k < n; k++) {
+      idx[k * 4] = si.getComponent(k, 0);
+      w[k * 4] = 1;
+      const leg = legOf(m, k)?.[1];
+      // Mollet : indice dans le squelette de ce maillage (l'ordre des os peut changer d'un maillage à l'autre).
+      const shin = m.skeleton.bones.indexOf(m.skeleton.bones[si.getComponent(k, 0)]?.parent as THREE.Bone);
+      if (!leg || shin < 0) continue;
+      const p = rel(m, k, leg);
+      const hTop = leg.top[p.dot(leg.fwd) >= 0 ? 0 : 1];
+      const edge = THREE.MathUtils.smoothstep(p.dot(leg.axis), hTop - COLLAR_DEPTH, hTop);
+      const t = edge * COLLAR_SHIN;
+      if (t <= 0) continue;
+      // Talon : resserré vers l'axe de la jambe, en plein derrière, un peu sur les côtés, rien devant.
+      perp.copy(p).addScaledVector(leg.axis, -p.dot(leg.axis));
+      const back = THREE.MathUtils.smoothstep(-perp.dot(leg.fwd) / Math.max(perp.length(), 1e-6), -0.4, 0.7);
+      if (back > 0) {
+        const pull = Math.min(COLLAR_HUG * edge * back, perp.length() * 0.5);
+        const q = p.addScaledVector(perp.normalize(), -pull).add(leg.ankle).applyMatrix4(toMesh);
+        (pos as THREE.BufferAttribute).setXYZ(k, q.x, q.y, q.z);
+      }
+      idx[k * 4 + 1] = shin;
+      w[k * 4] = 1 - t;
+      w[k * 4 + 1] = t;
+    }
+    g.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(idx, 4));
+    g.setAttribute('skinWeight', new THREE.Float32BufferAttribute(w, 4));
+  }
+}
+
 function buildTemplates(riders: GLTF[]): Templates {
   for (const r of riders) extractIdentity(r.scene);
+  for (const r of riders) {
+    r.scene.updateMatrixWorld(true);
+    softenShoeCollars(r.scene);
+  }
   const scene = (riders[0] as GLTF).scene;
   scene.updateMatrixWorld(true);
   // Repère du torse des maillots (motifs du shader) ; mesures prises sur le niveau 0.
@@ -664,8 +817,13 @@ function buildTemplates(riders: GLTF[]): Templates {
 
 /** Géométrie de la casquette par niveau de détail du modèle (null : modèle sans casque pour s'ajuster). */
 const capGeometries = new WeakMap<GLTF, THREE.BufferGeometry | null>();
-/** Boîte du casque route du modèle (niveau 0), repère du modèle, qui sert de gabarit à la casquette. */
+/** Boîte du casque route du modèle (niveau 0), repère du modèle, gabarit des casques chrono du garage. */
 const helmetBoxes = new WeakMap<GLTF, THREE.Box3 | null>();
+/**
+ * Boîte des cheveux plaqués portés sous le casque (coque « slick », niveau 0), gabarit de la casquette :
+ * une casquette de cycliste est petite et serrée sur les cheveux. Sans coque (ancien modèle) : casque route.
+ */
+const capBoxes = new WeakMap<GLTF, THREE.Box3 | null>();
 
 function capGeometryOf(riders: readonly GLTF[], level: number, headName: string | undefined): THREE.BufferGeometry | null {
   const rider = riders[level] as GLTF;
@@ -679,8 +837,13 @@ function capGeometryOf(riders: readonly GLTF[], level: number, headName: string 
       if (o.name.startsWith('rider_helmet') && !o.name.startsWith('rider_helmet_aero')) o.traverse((c) => (c as THREE.Mesh).isMesh && meshes.push(c as THREE.Mesh));
     });
     helmetBoxes.set(first, boxOfMeshes(meshes));
+    const hair: THREE.Mesh[] = [];
+    first.scene.traverse((o) => {
+      if (o.name.startsWith('rider_hairs_slick')) o.traverse((c) => (c as THREE.Mesh).isMesh && hair.push(c as THREE.Mesh));
+    });
+    capBoxes.set(first, hair.length ? boxOfMeshes(hair) : null);
   }
-  const box = helmetBoxes.get(first);
+  const box = capBoxes.get(first) ?? helmetBoxes.get(first);
   let ref: THREE.SkinnedMesh | undefined;
   rider.scene.traverse((o) => {
     if (!ref && (o as THREE.SkinnedMesh).isSkinnedMesh) ref = o as THREE.SkinnedMesh;
@@ -696,6 +859,33 @@ function capGeometryOf(riders: readonly GLTF[], level: number, headName: string 
     geo = capGeometry(box, skin.invert(), head);
   }
   capGeometries.set(rider, geo);
+  return geo;
+}
+
+/** Casques chrono du garage par niveau de détail du modèle et par forme (null : modèle sans casque route pour s'ajuster). */
+const aeroHelmetGeometries = new WeakMap<GLTF, Map<HelmetShape, THREE.BufferGeometry | null>>();
+
+function aeroHelmetGeometryOf(riders: readonly GLTF[], level: number, headName: string | undefined, shape: HelmetShape): THREE.BufferGeometry | null {
+  const rider = riders[level] as GLTF;
+  let byShape = aeroHelmetGeometries.get(rider);
+  if (!byShape) aeroHelmetGeometries.set(rider, (byShape = new Map()));
+  const known = byShape.get(shape);
+  if (known !== undefined) return known;
+  // La boîte du casque route est calculée avec la casquette (capGeometryOf).
+  capGeometryOf(riders, level, headName);
+  const box = helmetBoxes.get(riders[0] as GLTF);
+  let ref: THREE.SkinnedMesh | undefined;
+  rider.scene.traverse((o) => {
+    if (!ref && (o as THREE.SkinnedMesh).isSkinnedMesh) ref = o as THREE.SkinnedMesh;
+  });
+  const head = ref ? ref.skeleton.bones.findIndex((b) => b.name === headName) : -1;
+  let geo: THREE.BufferGeometry | null = null;
+  if (box && ref && head >= 0) {
+    const bone = ref.skeleton.bones[head] as THREE.Bone;
+    const skin = bone.matrixWorld.clone().multiply(ref.skeleton.boneInverses[head] as THREE.Matrix4).multiply(ref.bindMatrix);
+    geo = aeroHelmetGeometry(shape, box, skin.invert(), head);
+  }
+  byShape.set(shape, geo);
   return geo;
 }
 
@@ -748,6 +938,9 @@ function applyLookColor(m: THREE.MeshStandardNodeMaterial, look: AvatarLook): vo
     hair: look.hair,
     shoe_dial: shoeDialOf(look),
     sock: look.socks,
+    // Lunettes du garage (monture, verres miroir teintés) ; sans couleurs, celles d'origine.
+    glasses_frame: look.glassesFrame ?? MATERIALS.glasses_frame?.[0],
+    lens: look.glassesLens ?? MATERIALS.lens?.[0],
   };
   const col = c[m.name];
   if (col) m.color.set(col);
@@ -827,7 +1020,27 @@ export class GltfRiderAvatar implements RiderAvatarLike {
   /** Mains en bas et en haut du cintre (repère modèle) ; null si le vélo n'en a pas (VTT, prolongateurs). */
   private celebrating = false;
   private celebrateBlend = 0;
-  private barTargets: { drop: Record<Side, THREE.Vector3>; top: Record<Side, THREE.Vector3> } | null = null;
+  /** Bas et haut du cintre (mains), coudes posés sur le haut du cintre (avant-bras à plat). */
+  private barTargets: { drop: Record<Side, THREE.Vector3>; top: Record<Side, THREE.Vector3>; elbow: Record<Side, THREE.Vector3> } | null = null;
+  /** Bascule du buste qui pose les avant-bras sur le haut du cintre. */
+  private forearmTuck = 0;
+  /** Prolongateurs de l'atelier : coudes (repose-coudes) et poignées, repère du modèle ; null sans prolongateurs. */
+  private clip: { elbow: Record<Side, THREE.Vector3>; grip: Record<Side, THREE.Vector3> } | null = null;
+  private clipTuck = 0;
+  private clipOn = false;
+  private clipBlend = 0;
+  /** Vélo de chrono : mains sur les cornes (paumes, repère du modèle ; null sans cornes) et pli des coudes. */
+  private horns: { hand: Record<Side, THREE.Vector3>; pole: Record<Side, THREE.Vector3> } | null = null;
+  /** Vélo de chrono : coudes dans les repose-coudes et poignées des prolongateurs (avant-bras couchés dessus). */
+  private ttLay: { elbow: Record<Side, THREE.Vector3>; grip: Record<Side, THREE.Vector3> } | null = null;
+  private hornsOn = false;
+  private hornsBlend = 0;
+  private turtleOn = false;
+  private turtleBlend = 0;
+  private hoodsAeroOn = false;
+  private forearmsOn = false;
+  private hoodsAeroBlend = 0;
+  private forearmsBlend = 0;
   private dropsOn = false;
   private relaxOn = false;
   private dropsBlend = 0;
@@ -840,7 +1053,9 @@ export class GltfRiderAvatar implements RiderAvatarLike {
   private readonly tmpAnkle = new THREE.Vector3();
   private readonly tmpPedal = new THREE.Vector3();
   /** Casques route et chrono, lunettes (les deux LOD) : casque chrono à visière selon le vélo. */
-  private readonly headgear: Record<'road' | 'aero' | 'glasses' | 'cap', THREE.Object3D[]> = { road: [], aero: [], glasses: [], cap: [] };
+  private readonly headgear: Record<'road' | 'straps' | 'aero' | 'glasses' | 'cap', THREE.Object3D[]> = { road: [], straps: [], aero: [], glasses: [], cap: [] };
+  /** Casques chrono du garage (aeroHelmet.ts), par forme : un maillage par niveau de détail, construit au premier port. */
+  private readonly garageHelmets = new Map<HelmetShape, THREE.SkinnedMesh[]>();
   /** Casque et lunettes masqués (éditeur de visage). */
   private bareHead = false;
   private headHidden = false;
@@ -1049,6 +1264,8 @@ export class GltfRiderAvatar implements RiderAvatarLike {
       }
       else if (/^rider_hair(_lod\d)?$/.test(n)) this.hair.cap.push(o);
       if (n.startsWith('rider_helmet_aero')) this.headgear.aero.push(o);
+      // Sangles du casque route : portées aussi avec les casques chrono du garage.
+      else if (n.startsWith('rider_helmet_straps')) this.headgear.straps.push(o);
       else if (n.startsWith('rider_helmet')) this.headgear.road.push(o);
       else if (n.startsWith('rider_glasses')) this.headgear.glasses.push(o);
     });
@@ -1096,7 +1313,7 @@ export class GltfRiderAvatar implements RiderAvatarLike {
     const palm = this.bikeType === 'mtb' && !anchors.pads ? MTB_PALM : HOOD_PALM;
     const drops = this.bikeType !== 'mtb' && !anchors.pads;
     const pair = (): Record<Side, THREE.Vector3> => ({ L: new THREE.Vector3(), R: new THREE.Vector3() });
-    this.barTargets = drops ? { drop: pair(), top: pair() } : null;
+    this.barTargets = drops ? { drop: pair(), top: pair(), elbow: pair() } : null;
     for (const s of SIDES) {
       const c = this.t.arms[s];
       const rest = this.t.bones[c.end].modelP;
@@ -1121,7 +1338,41 @@ export class GltfRiderAvatar implements RiderAvatarLike {
       const bar = this.barTargets;
       bar?.drop[s].set(sx * (DROP_PALM.x - HOOD_PALM.x), DROP_PALM.y - HOOD_PALM.y, DROP_PALM.z - HOOD_PALM.z).add(this.handTarget[s]);
       bar?.top[s].set(sx * (TOP_PALM.x - HOOD_PALM.x), TOP_PALM.y - HOOD_PALM.y, TOP_PALM.z - HOOD_PALM.z).add(this.handTarget[s]);
+      bar?.elbow[s].set(sx * (FOREARM_ELBOW.x - HOOD_PALM.x), FOREARM_ELBOW.y - HOOD_PALM.y, FOREARM_ELBOW.z - HOOD_PALM.z).add(this.handTarget[s]);
     }
+    // Vélo de chrono : paumes sur les cornes, coudes pliés comme sur un cintre route.
+    const horn = anchors.pads && this.mounted ? TT_HORN_PALM[this.mounted.family] : undefined;
+    const wrist = this.t.wristFromPalm;
+    if (horn && wrist) {
+      const hand = (s: Side) => new THREE.Vector3(s === 'L' ? horn.x : -horn.x, horn.y + this.saddleLift, horn.z).add(wrist[s]);
+      const pole = (s: Side) => {
+        const p = this.t.arms[s].pole.clone();
+        p.x *= ELBOW_FLARE;
+        return p.normalize();
+      };
+      this.horns = { hand: { L: hand('L'), R: hand('R') }, pole: { L: pole('L'), R: pole('R') } };
+    } else this.horns = null;
+    // Prolongateurs du vélo de chrono : coude à un rayon d'avant-bras au-dessus du repose-coude, un peu en arrière.
+    const pads = anchors.pads;
+    if (pads) {
+      const elbow = (s: Side) => pads[s].clone().add(new THREE.Vector3(0, 0.028 + this.saddleLift, -0.02));
+      const grip = (s: Side) => anchors.hands[s].clone().setY(anchors.hands[s].y + this.saddleLift);
+      this.ttLay = { elbow: { L: elbow('L'), R: elbow('R') }, grip: { L: grip('L'), R: grip('R') } };
+    } else this.ttLay = null;
+    // Prolongateurs de l'atelier (vélo de route) : relevés avec le poste de pilotage (saddleLift).
+    const kind = this.mounted?.build.extras?.aerobars;
+    if (kind && this.barTargets) {
+      const a = aerobarAnchors(kind, anchors.hands);
+      const lift = (v: THREE.Vector3) => v.clone().setY(v.y + this.saddleLift);
+      this.clip = { elbow: { L: lift(a.pads.L), R: lift(a.pads.R) }, grip: { L: lift(a.grips.L), R: lift(a.grips.R) } };
+      this.clipTuck = this.solveTuck(a.pads);
+    } else {
+      this.clip = null;
+      this.clipTuck = 0;
+    }
+    // Avant-bras sur le cintre : bascule calculée sans la hauteur de selle (le bassin la reprend).
+    const elbows = this.barTargets?.elbow;
+    this.forearmTuck = elbows ? this.solveTuck({ L: elbows.L.clone().setY(elbows.L.y - this.saddleLift), R: elbows.R.clone().setY(elbows.R.y - this.saddleLift) }) : 0;
   }
 
   /**
@@ -1134,7 +1385,7 @@ export class GltfRiderAvatar implements RiderAvatarLike {
     const type = bikeTypeOf(look);
     const ownType = type === 'gravel' || type === 'mtb' ? type : null;
     const own = ownType !== null && bikeFamilyReady(ownType) ? ownType : null;
-    const key = JSON.stringify([look.bikeModel ?? 'plain', build.params.wheels, build.params.rimBrand ?? '', build.extras?.number ?? null, look.bottles ?? null, own]);
+    const key = JSON.stringify([look.bikeModel ?? 'plain', build.params.wheels, build.params.rimBrand ?? '', build.extras?.number ?? null, look.bottles ?? null, own, build.extras?.aerobars ?? null]);
     const family: FamilyKey = own ?? (availableFamily(build.family) ?? PLAIN_BIKE_FAMILY);
     const cur = this.mounted;
     if (cur && cur.key === key && cur.family === family) {
@@ -1300,15 +1551,38 @@ export class GltfRiderAvatar implements RiderAvatarLike {
     this.dropsOn = bars && (hands ? hands === 'drops' : speed > DROPS_IN || (this.dropsOn && speed > DROPS_OUT));
     this.relaxOn = bars && (hands ? hands === 'tops' : (speed < RELAX_IN || (this.relaxOn && speed < RELAX_OUT)) && (coasting || this.ftpFrac < RELAX_EFFORT));
     const aeroOn = bars && coasting ? THREE.MathUtils.smoothstep(speed, AERO_FROM, AERO_FULL) : 0;
+    // Positions aéro en pédalant (pas avec un geste imposé) : avant-bras sur le cintre très vite, sinon
+    // avant-bras à plat sur les cocottes très fort.
+    const pedalling = bars && !coasting && !hands;
+    // Avec prolongateurs : couché dessus très vite ou très fort, à la place des deux positions ci-dessous.
+    const hard = (on: boolean) => this.ftpFrac > HOODS_AERO_EFFORT || (on && this.ftpFrac > HOODS_AERO_EFFORT_OUT);
+    this.clipOn = pedalling && this.clip !== null && (speed > CLIP_IN || (this.clipOn && speed > CLIP_OUT) || (speed > HOODS_AERO_SPEED && hard(this.clipOn)));
+    this.forearmsOn = pedalling && !this.clip && (speed > FOREARMS_IN || (this.forearmsOn && speed > FOREARMS_OUT));
+    this.hoodsAeroOn = pedalling && !this.clip && !this.forearmsOn && speed > HOODS_AERO_SPEED && hard(this.hoodsAeroOn);
+    // Vélo de chrono : cornes à petite allure et en danseuse, tortue très vite ou très fort.
+    const tt = this.horns !== null && !hands;
+    this.hornsOn = tt && (pose === 'standing' || speed < HORNS_IN || (this.hornsOn && speed < HORNS_OUT));
+    this.turtleOn = tt && !this.hornsOn && !coasting && (speed > TURTLE_IN || (this.turtleOn && speed > TURTLE_OUT) || (speed > HOODS_AERO_SPEED && hard(this.turtleOn)));
     const k2 = 1 - Math.exp(-dt * 2.5);
     this.dropsBlend += ((this.dropsOn ? 1 : 0) - this.dropsBlend) * k2;
     this.aeroBlend += (aeroOn - this.aeroBlend) * k2;
     this.relaxBlend += ((this.relaxOn ? 1 : 0) - this.relaxBlend) * k2;
+    this.hoodsAeroBlend += ((this.hoodsAeroOn ? 1 : 0) - this.hoodsAeroBlend) * k2;
+    this.forearmsBlend += ((this.forearmsOn ? 1 : 0) - this.forearmsBlend) * k2;
+    this.clipBlend += ((this.clipOn ? 1 : 0) - this.clipBlend) * k2;
+    this.hornsBlend += ((this.hornsOn ? 1 : 0) - this.hornsBlend) * k2;
+    this.turtleBlend += ((this.turtleOn ? 1 : 0) - this.turtleBlend) * k2;
+    const horns = this.hornsBlend;
+    const turtle = this.turtleBlend * (1 - stand) * (1 - horns);
     const aero = this.aeroBlend * (1 - stand);
+    const clip = this.clipBlend * (1 - stand) * (1 - aero);
+    const forearms = this.forearmsBlend * (1 - stand) * (1 - aero);
+    const hoodsAero = this.hoodsAeroBlend * (1 - stand) * (1 - aero) * (1 - forearms);
     // Aéro : mains en bas du cintre aussi (dos à plat, épaules au-dessus du crochet : avant-bras à l'horizontale).
-    const dropHands = Math.max(this.dropsBlend * (1 - stand), aero);
-    const drops = this.dropsBlend * (1 - stand) * (1 - aero);
-    const relax = this.relaxBlend * (1 - stand) * (1 - aero);
+    const keep = (1 - forearms) * (1 - hoodsAero) * (1 - clip);
+    const dropHands = Math.max(this.dropsBlend * (1 - stand) * keep, aero);
+    const drops = this.dropsBlend * (1 - stand) * (1 - aero) * keep;
+    const relax = this.relaxBlend * (1 - stand) * (1 - aero) * keep;
 
     // Vélo : en danseuse il balance à l'opposé de la jambe qui appuie ; le corps compense en partie. Assis, un
     // léger balancement aussi (≈ 1°, un peu plus quand l'effort monte), nul en roue libre.
@@ -1324,8 +1598,8 @@ export class GltfRiderAvatar implements RiderAvatarLike {
     // --- Bassin
     const hipsR = t.bones.hips;
     const roll = 0.02 * Math.sin(a) * (1 - stand) * (1 - coast);
-    const race = DROPS_BEND * drops + AERO_BEND * aero + RELAX_BEND * relax;
-    const tuck = this.tuck * (1 - 0.6 * stand) + race;
+    const race = DROPS_BEND * drops + AERO_BEND * aero + RELAX_BEND * relax + HOODS_AERO_BEND * hoodsAero + this.forearmTuck * forearms + this.clipTuck * clip + TURTLE_BEND * turtle;
+    const tuck = this.tuck * (1 - 0.6 * stand) * (1 - HORNS_UNTUCK * horns) + race;
     const tilt = -0.09 * stand - 0.05 * coast + TUCK_HIPS * tuck;
     _q1.setFromAxisAngle(Z_AXIS, counter + roll);
     _q2.setFromAxisAngle(X_AXIS, tilt);
@@ -1372,7 +1646,7 @@ export class GltfRiderAvatar implements RiderAvatarLike {
     _q1.setFromAxisAngle(Z_AXIS, -(0.7 * bank + rock + counter));
     // Tête : relevée vers la route en chrono ; en position de course, basse dans l'alignement du dos ;
     // buste relevé : regard inchangé.
-    if (tuck !== 0) _q1.multiply(_q3.setFromAxisAngle(X_AXIS, -TUCK_HEAD * (tuck - race) + RACE_HEAD * Math.max(race, 0)));
+    if (tuck !== 0) _q1.multiply(_q3.setFromAxisAngle(X_AXIS, -TUCK_HEAD * (tuck - race) + RACE_HEAD * Math.max(race, 0) + TURTLE_HEAD * turtle));
     _q2.setFromAxisAngle(Y_AXIS, look);
     if (this.gesture.pitch) _q2.multiply(_q3.setFromAxisAngle(X_AXIS, this.gesture.pitch));
     const headTarget = _q3.multiplyQuaternions(_q1, _q2).multiply(t.bones.head.modelQ);
@@ -1397,6 +1671,8 @@ export class GltfRiderAvatar implements RiderAvatarLike {
       if (t.names[clav]) {
         this.bones[clav].quaternion.copy(t.bones[clav].localQ);
         this.fk(clav);
+        // Tortue : épaules haussées autour de la tête (rotation autour de l'axe avant).
+        if (turtle > 0) this.setModelQ(clav, _q1.setFromAxisAngle(Z_AXIS, (s === 'L' ? 1 : -1) * TURTLE_SHRUG * turtle).multiply(this.mQ[clav]));
       }
       this.bones[c.upper].quaternion.copy(t.bones[c.upper].localQ);
       this.fk(c.upper);
@@ -1410,9 +1686,34 @@ export class GltfRiderAvatar implements RiderAvatarLike {
         pole.x *= 1 - AERO_ELBOW_IN * aero;
         pole.normalize();
       }
+      const sx = s === 'L' ? 1 : -1;
+      if (hoodsAero > 0) {
+        // Avant-bras à plat : coudes tirés vers l'arrière (un peu en dehors), mains sur les cocottes.
+        pole = _vPole.copy(pole).lerp(_v1.set(0.3 * sx, -0.1, -1).normalize(), hoodsAero).normalize();
+      }
+      // Avant-bras posés (haut du cintre, ou repose-coudes des prolongateurs) : coude sur son appui, poignet
+      // un avant-bras plus loin (mains rapprochées devant la potence, ou vers les poignées) ; le coude est
+      // tiré vers son point d'appui.
+      const lay = (elbow: THREE.Vector3, aim: THREE.Vector3, w: number): void => {
+        _v1.copy(aim).multiplyScalar(c.l2).add(elbow);
+        this.target.lerp(_v1, w);
+        const sh = this.mP[c.upper];
+        const dir = _v2.subVectors(this.target, sh).normalize();
+        const toElbow = _v3.subVectors(elbow, sh);
+        toElbow.addScaledVector(dir, -toElbow.dot(dir)).normalize();
+        pole = _vPole.copy(pole).lerp(toElbow, w).normalize();
+      };
+      if (bar && forearms > 0) lay(bar.elbow[s], _v4.set(-0.22 * sx, -0.06, 1).normalize(), forearms);
+      if (this.clip && clip > 0) lay(this.clip.elbow[s], _v4.subVectors(this.clip.grip[s], this.clip.elbow[s]).normalize(), clip);
+      // Vélo de chrono : avant-bras couchés sur les prolongateurs (sauf mains sur les cornes).
+      if (this.ttLay && horns < 1 && this.celebrateBlend < 0.99) lay(this.ttLay.elbow[s], _v4.subVectors(this.ttLay.grip[s], this.ttLay.elbow[s]).normalize(), 1 - horns);
+      if (this.horns && horns > 0) {
+        this.target.lerp(this.horns.hand[s], horns);
+        pole = _vPole.copy(pole).lerp(this.horns.pole[s], horns).normalize();
+      }
+      if (turtle > 0) this.target.y += TURTLE_HANDS_UP * turtle;
       if (this.celebrateBlend > 0.01) {
         // Victoire : bras tendus en V au-dessus de la tête.
-        const sx = s === 'L' ? 1 : -1;
         _v1.set(sx * 0.5, 0.85, 0.1).normalize().multiplyScalar((c.l1 + c.l2) * 0.97).add(t.bones[c.upper].modelP);
         this.target.lerp(_v1, this.celebrateBlend);
         pole = _v2.set(sx, 0, 0.3).normalize().lerp(pole, 1 - this.celebrateBlend);
@@ -1543,18 +1844,63 @@ export class GltfRiderAvatar implements RiderAvatarLike {
    */
   private applyHeadgear(build: BikeBuild): void {
     const cap = !!this.look.cap && this.headgear.cap.length > 0;
-    const aero = !!build.params.aeroHelmet && this.headgear.aero.length > 0 && !cap;
+    // Casque chrono choisi au garage : il passe avant le casque d'office des vélos de chrono.
+    const garage = !cap && this.look.helmetShape ? this.garageHelmet(this.look.helmetShape) : null;
+    const aero = !garage && !!build.params.aeroHelmet && this.headgear.aero.length > 0 && !cap;
     const helmet = !this.bareHead && !this.look.noHelmet;
     const glasses = !this.bareHead && !this.look.noGlasses;
+    for (const [shape, meshes] of this.garageHelmets) for (const o of meshes) o.visible = helmet && garage !== null && shape === this.look.helmetShape;
     for (const o of this.headgear.aero) o.visible = aero && helmet;
-    for (const o of this.headgear.road) o.visible = !aero && !cap && helmet;
-    // Le casque chrono a sa visière : lunettes seulement sans lui.
-    for (const o of this.headgear.glasses) o.visible = (!aero || !helmet) && glasses;
+    for (const o of this.headgear.road) o.visible = !aero && !cap && !garage && helmet;
+    for (const o of this.headgear.straps) o.visible = !aero && !cap && helmet;
+    // Les casques chrono ont leur visière : lunettes seulement sans eux.
+    for (const o of this.headgear.glasses) o.visible = (!(aero || garage) || !helmet) && glasses;
     const mats = this.look.cap ? capMaterials(this.look.cap) : null;
     for (const o of this.headgear.cap) {
       o.visible = cap && helmet;
       if (mats) (o as THREE.Mesh).material = mats;
     }
+  }
+
+  /**
+   * Casque chrono du garage (une forme) : maillages liés à l'os de la tête, à côté du premier maillage
+   * articulé de chaque niveau (comme la casquette), construits au premier port ; null si le modèle n'a
+   * pas de casque route pour s'ajuster.
+   */
+  private garageHelmet(shape: HelmetShape): THREE.SkinnedMesh[] | null {
+    const known = this.garageHelmets.get(shape);
+    if (known) return known.length ? known : null;
+    const meshes: THREE.SkinnedMesh[] = [];
+    this.lod.levels.forEach(({ object: level }, i) => {
+      const geo = aeroHelmetGeometryOf(this.t.riders, i, this.t.names.head, shape);
+      let ref: THREE.SkinnedMesh | undefined;
+      level.traverse((o) => {
+        if (!ref && (o as THREE.SkinnedMesh).isSkinnedMesh && o.name !== 'rider_cap') ref = o as THREE.SkinnedMesh;
+      });
+      if (!geo || !ref || !ref.parent) return;
+      const mats = AERO_HELMET_GROUPS.map((key) => {
+        let mat = this.materials.get(key);
+        if (!mat) {
+          mat = makeMaterial(key, this.look);
+          if (LOW_POLY) flatLook(mat);
+          this.materials.set(key, mat);
+        }
+        return mat;
+      });
+      const m = new THREE.SkinnedMesh(geo, mats);
+      m.name = `rider_helmet_garage_${shape}`;
+      m.position.copy(ref.position);
+      m.quaternion.copy(ref.quaternion);
+      m.scale.copy(ref.scale);
+      m.bind(ref.skeleton, ref.bindMatrix);
+      m.frustumCulled = false;
+      m.receiveShadow = true;
+      m.visible = false;
+      ref.parent.add(m);
+      meshes.push(m);
+    });
+    this.garageHelmets.set(shape, meshes);
+    return meshes.length ? meshes : null;
   }
 
   /** Tête nue (aperçu de l'éditeur de visage) ou casquée. */
@@ -1681,7 +2027,7 @@ export class GltfRiderAvatar implements RiderAvatarLike {
     // abaissés de saddleLift : jambe à ≈ 145° au point bas, buste et coudes inchangés.
     for (const slot of this.bikeSlots) {
       slot.traverse((o) => {
-        if (o.name !== 'saddle' && o.name !== 'cockpit') return;
+        if (o.name !== 'saddle' && o.name !== 'cockpit' && o.name !== 'aerobars') return;
         o.userData.baseY ??= o.position.y;
         o.position.y = (o.userData.baseY as number) + this.saddleLift;
       });
