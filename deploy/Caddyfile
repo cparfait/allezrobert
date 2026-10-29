@@ -64,6 +64,13 @@
 		file_server
 	}
 
+	# Tuile absente (mise à jour en cours) : ne jamais garder ce 404 dans le navigateur, sinon il
+	# reste 7 jours en cache alors que le fichier existe de nouveau.
+	handle_errors {
+		@tiles404 path /worlds/*/tiles/*
+		header @tiles404 Cache-Control "no-store"
+	}
+
 	# Boucles vidéo du menu (≈20 Mo chacune, hors du dépôt et de l'image) : volume deploy/data/menu
 	# monté sur /srv/menu (docs/DEPLOY.md §12 bis). Absentes : 404, le menu garde l'image fixe.
 	@menuloops path /menu/loop-*
