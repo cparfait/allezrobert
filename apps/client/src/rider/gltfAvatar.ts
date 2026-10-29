@@ -191,6 +191,22 @@ const DROPS_IN = 12;
 const DROPS_OUT = 10;
 const AERO_FROM = 10;
 const AERO_FULL = 13;
+/**
+ * Positions aéro sur un cintre route, sans prolongateurs, en pédalant assis (en plus des positions
+ * ci-dessus) :
+ *  - « très fort » (au-delà de HOODS_AERO_EFFORT × FTP, plus vite que HOODS_AERO_SPEED) : mains sur les
+ *    cocottes, avant-bras à l'horizontale, coudes rentrés vers l'arrière, dos à plat (HOODS_AERO_BEND) ;
+ *  - « très vite » (au-delà de FOREARMS_IN m/s, ≈ 50 km/h) : avant-bras posés sur le haut du cintre de part
+ *    et d'autre de la potence (FOREARM_ELBOW : coude posé sur le cintre), mains en avant ;
+ *    le buste bascule jusqu'à poser les avant-bras, comme sur les repose-coudes d'un vélo de chrono.
+ */
+const HOODS_AERO_EFFORT = 1.05;
+const HOODS_AERO_EFFORT_OUT = 0.95;
+const HOODS_AERO_SPEED = 8;
+const HOODS_AERO_BEND = 0.95;
+const FOREARMS_IN = 13.9;
+const FOREARMS_OUT = 12.8;
+const FOREARM_ELBOW = new THREE.Vector3(0.075, 0.915, 0.51);
 /** Très détendue : sous RELAX_IN (≈ 20 km/h), en roue libre ou sans forcer (< RELAX_EFFORT × FTP) ; quittée au-delà de RELAX_OUT. */
 const RELAX_IN = 5.5;
 const RELAX_OUT = 6.5;
@@ -975,7 +991,14 @@ export class GltfRiderAvatar implements RiderAvatarLike {
   /** Mains en bas et en haut du cintre (repère modèle) ; null si le vélo n'en a pas (VTT, prolongateurs). */
   private celebrating = false;
   private celebrateBlend = 0;
-  private barTargets: { drop: Record<Side, THREE.Vector3>; top: Record<Side, THREE.Vector3> } | null = null;
+  /** Bas et haut du cintre (mains), coudes posés sur le haut du cintre (avant-bras à plat). */
+  private barTargets: { drop: Record<Side, THREE.Vector3>; top: Record<Side, THREE.Vector3>; elbow: Record<Side, THREE.Vector3> } | null = null;
+  /** Bascule du buste qui pose les avant-bras sur le haut du cintre. */
+  private forearmTuck = 0;
+  private hoodsAeroOn = false;
+  private forearmsOn = false;
+  private hoodsAeroBlend = 0;
+  private forearmsBlend = 0;
   private dropsOn = false;
   private relaxOn = false;
   private dropsBlend = 0;
@@ -1248,7 +1271,7 @@ export class GltfRiderAvatar implements RiderAvatarLike {
     const palm = this.bikeType === 'mtb' && !anchors.pads ? MTB_PALM : HOOD_PALM;
     const drops = this.bikeType !== 'mtb' && !anchors.pads;
     const pair = (): Record<Side, THREE.Vector3> => ({ L: new THREE.Vector3(), R: new THREE.Vector3() });
-    this.barTargets = drops ? { drop: pair(), top: pair() } : null;
+    this.barTargets = drops ? { drop: pair(), top: pair(), elbow: pair() } : null;
     for (const s of SIDES) {
       const c = this.t.arms[s];
       const rest = this.t.bones[c.end].modelP;
@@ -1273,7 +1296,11 @@ export class GltfRiderAvatar implements RiderAvatarLike {
       const bar = this.barTargets;
       bar?.drop[s].set(sx * (DROP_PALM.x - HOOD_PALM.x), DROP_PALM.y - HOOD_PALM.y, DROP_PALM.z - HOOD_PALM.z).add(this.handTarget[s]);
       bar?.top[s].set(sx * (TOP_PALM.x - HOOD_PALM.x), TOP_PALM.y - HOOD_PALM.y, TOP_PALM.z - HOOD_PALM.z).add(this.handTarget[s]);
+      bar?.elbow[s].set(sx * (FOREARM_ELBOW.x - HOOD_PALM.x), FOREARM_ELBOW.y - HOOD_PALM.y, FOREARM_ELBOW.z - HOOD_PALM.z).add(this.handTarget[s]);
     }
+    // Avant-bras sur le cintre : bascule calculée sans la hauteur de selle (le bassin la reprend).
+    const elbows = this.barTargets?.elbow;
+    this.forearmTuck = elbows ? this.solveTuck({ L: elbows.L.clone().setY(elbows.L.y - this.saddleLift), R: elbows.R.clone().setY(elbows.R.y - this.saddleLift) }) : 0;
   }
 
   /**
@@ -1452,15 +1479,25 @@ export class GltfRiderAvatar implements RiderAvatarLike {
     this.dropsOn = bars && (hands ? hands === 'drops' : speed > DROPS_IN || (this.dropsOn && speed > DROPS_OUT));
     this.relaxOn = bars && (hands ? hands === 'tops' : (speed < RELAX_IN || (this.relaxOn && speed < RELAX_OUT)) && (coasting || this.ftpFrac < RELAX_EFFORT));
     const aeroOn = bars && coasting ? THREE.MathUtils.smoothstep(speed, AERO_FROM, AERO_FULL) : 0;
+    // Positions aéro en pédalant (pas avec un geste imposé) : avant-bras sur le cintre très vite, sinon
+    // avant-bras à plat sur les cocottes très fort.
+    const pedalling = bars && !coasting && !hands;
+    this.forearmsOn = pedalling && (speed > FOREARMS_IN || (this.forearmsOn && speed > FOREARMS_OUT));
+    this.hoodsAeroOn = pedalling && !this.forearmsOn && speed > HOODS_AERO_SPEED && (this.ftpFrac > HOODS_AERO_EFFORT || (this.hoodsAeroOn && this.ftpFrac > HOODS_AERO_EFFORT_OUT));
     const k2 = 1 - Math.exp(-dt * 2.5);
     this.dropsBlend += ((this.dropsOn ? 1 : 0) - this.dropsBlend) * k2;
     this.aeroBlend += (aeroOn - this.aeroBlend) * k2;
     this.relaxBlend += ((this.relaxOn ? 1 : 0) - this.relaxBlend) * k2;
+    this.hoodsAeroBlend += ((this.hoodsAeroOn ? 1 : 0) - this.hoodsAeroBlend) * k2;
+    this.forearmsBlend += ((this.forearmsOn ? 1 : 0) - this.forearmsBlend) * k2;
     const aero = this.aeroBlend * (1 - stand);
+    const forearms = this.forearmsBlend * (1 - stand) * (1 - aero);
+    const hoodsAero = this.hoodsAeroBlend * (1 - stand) * (1 - aero) * (1 - forearms);
     // Aéro : mains en bas du cintre aussi (dos à plat, épaules au-dessus du crochet : avant-bras à l'horizontale).
-    const dropHands = Math.max(this.dropsBlend * (1 - stand), aero);
-    const drops = this.dropsBlend * (1 - stand) * (1 - aero);
-    const relax = this.relaxBlend * (1 - stand) * (1 - aero);
+    const keep = (1 - forearms) * (1 - hoodsAero);
+    const dropHands = Math.max(this.dropsBlend * (1 - stand) * keep, aero);
+    const drops = this.dropsBlend * (1 - stand) * (1 - aero) * keep;
+    const relax = this.relaxBlend * (1 - stand) * (1 - aero) * keep;
 
     // Vélo : en danseuse il balance à l'opposé de la jambe qui appuie ; le corps compense en partie. Assis, un
     // léger balancement aussi (≈ 1°, un peu plus quand l'effort monte), nul en roue libre.
@@ -1476,7 +1513,7 @@ export class GltfRiderAvatar implements RiderAvatarLike {
     // --- Bassin
     const hipsR = t.bones.hips;
     const roll = 0.02 * Math.sin(a) * (1 - stand) * (1 - coast);
-    const race = DROPS_BEND * drops + AERO_BEND * aero + RELAX_BEND * relax;
+    const race = DROPS_BEND * drops + AERO_BEND * aero + RELAX_BEND * relax + HOODS_AERO_BEND * hoodsAero + this.forearmTuck * forearms;
     const tuck = this.tuck * (1 - 0.6 * stand) + race;
     const tilt = -0.09 * stand - 0.05 * coast + TUCK_HIPS * tuck;
     _q1.setFromAxisAngle(Z_AXIS, counter + roll);
@@ -1562,9 +1599,25 @@ export class GltfRiderAvatar implements RiderAvatarLike {
         pole.x *= 1 - AERO_ELBOW_IN * aero;
         pole.normalize();
       }
+      const sx = s === 'L' ? 1 : -1;
+      if (hoodsAero > 0) {
+        // Avant-bras à plat : coudes tirés vers l'arrière (un peu en dehors), mains sur les cocottes.
+        pole = _vPole.copy(pole).lerp(_v1.set(0.3 * sx, -0.1, -1).normalize(), hoodsAero).normalize();
+      }
+      if (bar && forearms > 0) {
+        // Avant-bras posés sur le haut du cintre : coude sur le cintre, poignet un avant-bras plus loin,
+        // mains rapprochées devant la potence ; le coude est tiré vers son point d'appui.
+        const elbow = bar.elbow[s];
+        _v1.set(-0.22 * sx, -0.06, 1).normalize().multiplyScalar(c.l2).add(elbow);
+        this.target.lerp(_v1, forearms);
+        const sh = this.mP[c.upper];
+        const dir = _v2.subVectors(this.target, sh).normalize();
+        const toElbow = _v3.subVectors(elbow, sh);
+        toElbow.addScaledVector(dir, -toElbow.dot(dir)).normalize();
+        pole = _vPole.copy(pole).lerp(toElbow, forearms).normalize();
+      }
       if (this.celebrateBlend > 0.01) {
         // Victoire : bras tendus en V au-dessus de la tête.
-        const sx = s === 'L' ? 1 : -1;
         _v1.set(sx * 0.5, 0.85, 0.1).normalize().multiplyScalar((c.l1 + c.l2) * 0.97).add(t.bones[c.upper].modelP);
         this.target.lerp(_v1, this.celebrateBlend);
         pole = _v2.set(sx, 0, 0.3).normalize().lerp(pole, 1 - this.celebrateBlend);

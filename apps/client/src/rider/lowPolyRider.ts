@@ -259,6 +259,16 @@ export class LowPolyRider implements RiderAvatarLike {
   private sprintOn = false;
   private sprintBlend = 0;
   private dropsOn = false;
+  /**
+   * Positions aéro en pédalant assis sur un cintre route (comme l'avatar réaliste) : avant-bras à plat sur
+   * les cocottes quand on roule très fort (> 105 % de la FTP, plus de 29 km/h), avant-bras posés sur le haut
+   * du cintre quand on roule très vite (> 50 km/h).
+   */
+  private ftpFrac = 0.7;
+  private hoodsAeroOn = false;
+  private forearmsOn = false;
+  private hoodsAeroBlend = 0;
+  private forearmsBlend = 0;
   private celebrate = 0;
   private celebrating = false;
   private shadows = true;
@@ -758,13 +768,21 @@ export class LowPolyRider implements RiderAvatarLike {
       const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
       return t * t * (3 - 2 * t);
     };
+    // Très vite en pédalant : avant-bras sur le haut du cintre (> 50 km/h, quittée sous 46) ; très fort :
+    // avant-bras à plat sur les cocottes.
+    this.forearmsOn = bars && !coasting && (speed > 13.9 || (this.forearmsOn && speed > 12.8));
+    this.hoodsAeroOn = bars && !coasting && !this.forearmsOn && speed > 8 && (this.ftpFrac > 1.05 || (this.hoodsAeroOn && this.ftpFrac > 0.95));
     // Descente rapide : position aéro dès 32 km/h en roue libre (pleine à 40), dès 45 km/h en pédalant.
-    const aeroOn = bars ? (coasting ? smooth(8.9, 11.1, speed) : smooth(12.5, 14, speed)) : 0;
+    const aeroOn = bars ? (coasting ? smooth(8.9, 11.1, speed) : smooth(12.5, 14, speed) * (this.forearmsOn ? 0 : 1)) : 0;
     const k2 = 1 - Math.exp(-dt * 2.5);
     this.dropsBlend += ((this.dropsOn ? 1 : 0) - this.dropsBlend) * k2;
     this.aeroBlend += (aeroOn - this.aeroBlend) * k2;
+    this.forearmsBlend += ((this.forearmsOn ? 1 : 0) - this.forearmsBlend) * k2;
+    this.hoodsAeroBlend += ((this.hoodsAeroOn ? 1 : 0) - this.hoodsAeroBlend) * k2;
     const aero = this.aeroBlend * (1 - stand) * (1 - this.celebrate);
-    const dropHands = Math.max(this.dropsBlend * (1 - stand), aero, sprint) * (1 - this.celebrate);
+    const forearms = this.forearmsBlend * (1 - stand) * (1 - this.celebrate) * (1 - aero);
+    const hoodsAero = this.hoodsAeroBlend * (1 - stand) * (1 - this.celebrate) * (1 - aero) * (1 - forearms);
+    const dropHands = Math.max(this.dropsBlend * (1 - stand) * (1 - forearms) * (1 - hoodsAero), aero, sprint) * (1 - this.celebrate);
     // Danseuse : bassin monté de 16 cm et avancé vers le pédalier ; il reste à l'aplomb pendant que le vélo bascule.
     // Sprint : bassin hors de la selle mais bas, au-dessus du bec de selle.
     const hip = this.hip.set(0, SADDLE.y + 0.07 + 0.16 * stand - 0.07 * sprint, SADDLE.z + 0.02 + 0.23 * stand - 0.12 * sprint - 0.02 * aero);
@@ -778,6 +796,9 @@ export class LowPolyRider implements RiderAvatarLike {
     const shoulder = this.shoulder.set(0, 1.395 + fit.shoulderDy * fitK + 0.07 * stand - 0.12 * sprint + 0.15 * up, 0.243 + fit.shoulderDz * fitK + 0.17 * stand + 0.08 * sprint - 0.23 * up);
     shoulder.y -= this.coastBlend * 0.03 * (1 - aero) + 0.13 * aero + 0.04 * dropHands * (1 - aero);
     shoulder.z += 0.07 * aero + 0.02 * dropHands * (1 - aero);
+    // Dos à plat : épaules basses et avancées (avant-bras sur le cintre : jusqu'à poser les coudes).
+    shoulder.y -= 0.15 * forearms + 0.12 * hoodsAero;
+    shoulder.z += 0.12 * forearms + 0.06 * hoodsAero;
     shoulder.x += upright(shoulder.y);
     const chestBase = hip.clone().add(v3(0, 0.06, 0.02));
     this.torso.set(chestBase, shoulder);
@@ -795,7 +816,7 @@ export class LowPolyRider implements RiderAvatarLike {
     this.collar.set(shoulder.clone().add(v3(0, 0.0, 0.015)), shoulder.clone().add(v3(0, 0.045, 0.035)));
     this.head.position.copy(neckTop).add(v3(0, 0.07, 0.04));
     // Tête relevée pour regarder la route (le dos est penché vers l'avant).
-    this.head.rotation.x = 0.3 + fit.headTilt * fitK - 0.12 * stand - 0.2 * sprint - 0.25 * up - 0.22 * aero;
+    this.head.rotation.x = 0.3 + fit.headTilt * fitK - 0.12 * stand - 0.2 * sprint - 0.25 * up - 0.22 * aero - 0.18 * forearms - 0.12 * hoodsAero;
 
     for (const leg of this.legs) {
       const a = this.crankAngle + (leg.side > 0 ? 0 : Math.PI);
@@ -827,11 +848,16 @@ export class LowPolyRider implements RiderAvatarLike {
       // Mains au cintre (cocottes, guidon plat ou prolongateurs) ; bras levés en V pour fêter la victoire.
       // Cocottes, ou crochet du cintre (bas du cintre, aéro).
       const handBar = v3(fit.hand.x * arm.side, fit.hand.y - 0.135 * dropHands, fit.hand.z - 0.035 * dropHands);
+      // Avant-bras sur le cintre : mains rapprochées devant la potence.
+      if (forearms > 0) handBar.lerp(v3(0.05 * arm.side, 0.94, 0.74), forearms);
       const handUp = sh.clone().add(v3(0.2 * arm.side, 0.52, 0.08));
       const hand = handBar.lerp(handUp, up);
       const elbow = new THREE.Vector3();
       // Coude qui s'ouvre légèrement du côté de l'épaule qui descend (roulis assis).
       const pole = v3((fit.elbowPole.x + Math.max(0, roll * arm.side) * 0.12) * arm.side, fit.elbowPole.y + up, fit.elbowPole.z);
+      // Avant-bras à plat sur les cocottes : coudes tirés vers l'arrière ; sur le cintre : coudes posés dessous.
+      if (hoodsAero > 0) pole.lerp(v3(0.3 * arm.side, -0.1, -1), hoodsAero);
+      if (forearms > 0) pole.lerp(v3(0.15 * arm.side, -1, -0.1), forearms);
       solveTwoBone(sh, hand, UPPER_ARM, FOREARM, pole, elbow);
       // Manche courte : 60 % du bras, poignet de couleur, puis peau ; manche longue jusqu'au poignet.
       const sleeveEnd = this.longSleeves ? elbow : sh.clone().lerp(elbow, 0.6);
@@ -854,6 +880,11 @@ export class LowPolyRider implements RiderAvatarLike {
 
   setLook(look: AvatarLook): void {
     if (JSON.stringify(look) !== this.lookKey) this.build(look);
+  }
+
+  /** Effort (puissance / FTP) : positions aéro quand on roule très fort. */
+  setEffort(ftpFrac: number): void {
+    this.ftpFrac = ftpFrac;
   }
 
   /** Sprint en cours (segment de sprint ou effort maximal) : danseuse de sprint. */

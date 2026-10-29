@@ -307,6 +307,55 @@ async function main(): Promise<void> {
     (window as unknown as { __avatarTestDone: boolean }).__avatarTestDone = true;
     return;
   }
+  // ?positions : le coureur entier selon l'allure et l'effort (positions du cintre route, aéro), de profil et
+  // de trois quarts avant ; &velo=id du catalogue ; &tenue={...} comme pour ?profil.
+  if (params.has('positions')) {
+    for (const o of riders) o.a.root.visible = false;
+    far.root.visible = false;
+    const patch = JSON.parse(params.get('tenue') ?? '{}') as Partial<AvatarLook>;
+    const look: AvatarLook = { ...DEFAULT_LOOK, bikeModel: params.get('velo') ?? 's26-04-cervelo-s5', ...patch };
+    // [nom, vitesse (m/s), part de FTP, position, cadence]
+    const cases: Array<[string, number, number, RiderPose, number]> = [
+      ['30 km/h, 70 % FTP', 8.3, 0.7, 'seated', 88],
+      ['45 km/h (bas du cintre)', 12.5, 0.8, 'seated', 92],
+      ['35 km/h, 115 % FTP (tres fort)', 9.7, 1.15, 'seated', 95],
+      ['55 km/h (tres vite)', 15.3, 0.9, 'seated', 95],
+    ];
+    const views: Array<[string, THREE.Vector3]> = [['profil', new THREE.Vector3(-1, 0.05, 0)], ['3/4 avant', new THREE.Vector3(-0.75, 0.25, 0.65)]];
+    const cw = 640;
+    const ch = 400;
+    const sheet = document.createElement('canvas');
+    sheet.width = views.length * cw;
+    sheet.height = cases.length * ch;
+    const g = sheet.getContext('2d') as CanvasRenderingContext2D;
+    g.font = '600 16px sans-serif';
+    camera.fov = 18;
+    for (const [i, [name, speed, effort, pose, cadence]] of cases.entries()) {
+      const a = LOW_POLY ? createAvatar(look) : new GltfRiderAvatar(look);
+      a.setEffort?.(effort);
+      scene.add(a.root);
+      for (let t = 0; t < 4; t += 1 / 60) a.update(1 / 60, cadence, speed, pose, 0);
+      a.root.updateMatrixWorld(true);
+      const mid = new THREE.Vector3(0, 0.75, 0.1);
+      for (const [j, [, dir]] of views.entries()) {
+        camera.position.copy(mid).addScaledVector(dir.clone().normalize(), 7);
+        camera.lookAt(mid);
+        camera.updateProjectionMatrix();
+        for (let n = 0; n < 3; n++) engine.renderManual();
+        g.drawImage(canvas, 1280 / 2 - 480, 60, 960, 600, j * cw, i * ch, cw, ch);
+      }
+      g.fillStyle = '#000';
+      g.fillRect(0, i * ch, 300, 22);
+      g.fillStyle = '#fff';
+      g.fillText(name, 4, i * ch + 16);
+      scene.remove(a.root);
+    }
+    document.body.replaceChildren(sheet);
+    sheet.style.cssText = 'display:block;width:100%;height:auto';
+    if (!params.has('noshot')) await fetch(`/__shot?name=avatar-positions-${params.get('name') ?? 'essai'}`, { method: 'POST', body: sheet.toDataURL('image/jpeg', 0.92) });
+    (window as unknown as { __avatarTestDone: boolean }).__avatarTestDone = true;
+    return;
+  }
   // ?casques : gros plans de la tête, un coureur par coiffe (casque route, chrono d'office du vélo de chrono,
   // casques chrono du garage), de profil, de trois quarts avant et de trois quarts arrière ; &color=#rrggbb.
   if (params.has('casques')) {
