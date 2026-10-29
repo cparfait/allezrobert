@@ -1,5 +1,5 @@
 import * as THREE from 'three/webgpu';
-import { abs, attribute, clamp, dot, float, floor, fract, fwidth, length, max, mix, mod, smoothstep, step, texture, uniform, vec2, vec3 } from 'three/tsl';
+import { Fn, If, abs, int, attribute, clamp, dot, float, floor, fract, fwidth, ivec2, length, max, min, mix, mod, smoothstep, step, texture, textureLoad, uniform, vec2, vec3 } from 'three/tsl';
 import type { AvatarLook } from '@allezrobert/shared';
 import { colorUniform } from '../engine/tsl.ts';
 
@@ -67,10 +67,17 @@ export interface JerseyFrame {
   ay: THREE.Vector3;
   az: THREE.Vector3;
   s0: number;
+  /** Tissu du maillot dans ce repère (maillot, bande d'accent, avant-bras des manches longues ; « jpos » et triangles) : centres des pois. */
+  surface?: JerseySurface;
+}
+
+export interface JerseySurface {
+  jp: Float32Array;
+  index: ArrayLike<number> | null;
 }
 
 /** Repère du maillage : position au repos (monde de liaison) → « jpos », normales → « jnor ». */
-function setFrameAttributes(mesh: THREE.Mesh, f: Pick<JerseyFrame, 'ay' | 'az' | 's0'>): void {
+function setFrameAttributes(mesh: THREE.Mesh, f: Pick<JerseyFrame, 'ay' | 'az' | 's0'>): Float32Array {
   const g = mesh.geometry;
   const pos = g.getAttribute('position');
   const nor = g.getAttribute('normal');
@@ -88,11 +95,164 @@ function setFrameAttributes(mesh: THREE.Mesh, f: Pick<JerseyFrame, 'ay' | 'az' |
   }
   g.setAttribute('jpos', new THREE.BufferAttribute(jp, 3));
   g.setAttribute('jnor', new THREE.BufferAttribute(jn, 3));
+  return jp;
+}
+
+/**
+ * Pois du maillot, posés comme sur le vrai maillot de meilleur grimpeur : une grille de pas `step` projetée
+ * de face (devant et dos : rangées et colonnes droites, une colonne au milieu), de côté (flancs) et de dessus
+ * (épaules) : chaque triangle propose les points des projections face auxquelles il est assez tourné, les
+ * mieux orientés passent d'abord et les autres comblent les trous (dos penché de la pose de liaison), à un
+ * espacement minimal. Le shader dessine un disque autour du centre le plus proche (distance 3D) : pois ronds et
+ * de même taille partout, quelles que soient les UV ; les anciens pois d'un treillis 3D étaient coupés partout
+ * où la surface traverse une case. Centres en mètres dans le repère du maillot, gardés par pas.
+ */
+const centresCache = new WeakMap<JerseySurface, Map<number, Float32Array>>();
+export function dotCentres(surface: JerseySurface, stepM: number): Float32Array {
+  let byStep = centresCache.get(surface);
+  if (!byStep) centresCache.set(surface, (byStep = new Map()));
+  const hit = byStep.get(stepM);
+  if (hit) return hit;
+  const { jp, index } = surface;
+  const tris = (index ? index.length : jp.length / 3) / 3;
+  const vi = (t: number, c: number): number => (index ? (index[t * 3 + c] as number) : t * 3 + c);
+  // Projections : axe de visée, puis les deux axes de la grille (0 : x, 1 : y le long du torse, 2 : z).
+  const AXES: Array<[number, number, number]> = [
+    [2, 0, 1],
+    [0, 2, 1],
+    [1, 0, 2],
+  ];
+  const cand: Array<{ p: [number, number, number]; prio: number }> = [];
+  const P = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()];
+  const e1 = new THREE.Vector3();
+  const e2 = new THREE.Vector3();
+  for (let t = 0; t < tris; t++) {
+    for (let c = 0; c < 3; c++) (P[c] as THREE.Vector3).fromArray(jp, vi(t, c) * 3);
+    const [A, B, C] = P as [THREE.Vector3, THREE.Vector3, THREE.Vector3];
+    const n = e1.subVectors(B, A).cross(e2.subVectors(C, A));
+    const nl = n.length();
+    if (nl < 1e-12) continue;
+    for (let axis = 0; axis < AXES.length; axis++) {
+      const [ax, ia, ib] = AXES[axis] as [number, number, number];
+      const cos = Math.abs(n.getComponent(ax)) / nl;
+      if (cos < 0.3) continue;
+      // Devant / dos d'abord, puis par orientation : un point bien de face passe avant un point rasant.
+      const prio = axis + (1 - cos);
+      const a = [A.getComponent(ia), B.getComponent(ia), C.getComponent(ia)];
+      const b = [A.getComponent(ib), B.getComponent(ib), C.getComponent(ib)];
+      const det = ((a[1] as number) - (a[0] as number)) * ((b[2] as number) - (b[0] as number)) - ((a[2] as number) - (a[0] as number)) * ((b[1] as number) - (b[0] as number));
+      if (Math.abs(det) < 1e-12) continue;
+      // Colonne au milieu (x = 0) ; première rangée un demi-pas au-dessus de l'ourlet.
+      const i0 = Math.ceil(Math.min(...a) / stepM);
+      const i1 = Math.floor(Math.max(...a) / stepM);
+      const j0 = Math.ceil(Math.min(...b) / stepM - 0.5);
+      const j1 = Math.floor(Math.max(...b) / stepM - 0.5);
+      for (let i = i0; i <= i1; i++)
+        for (let j = j0; j <= j1; j++) {
+          const pa = i * stepM;
+          const pb = (j + 0.5) * stepM;
+          const w1 = ((pa - (a[0] as number)) * ((b[2] as number) - (b[0] as number)) - ((a[2] as number) - (a[0] as number)) * (pb - (b[0] as number))) / det;
+          const w2 = (((a[1] as number) - (a[0] as number)) * (pb - (b[0] as number)) - (pa - (a[0] as number)) * ((b[1] as number) - (b[0] as number))) / det;
+          const w0 = 1 - w1 - w2;
+          if (w0 < -1e-6 || w1 < -1e-6 || w2 < -1e-6) continue;
+          cand.push({ p: [A.x * w0 + B.x * w1 + C.x * w2, A.y * w0 + B.y * w1 + C.y * w2, A.z * w0 + B.z * w1 + C.z * w2], prio });
+        }
+    }
+  }
+  cand.sort((u, v) => u.prio - v.prio);
+  // Doublons (plusieurs triangles, plusieurs projections) : un centre par voisinage de 0,85 pas.
+  const minD = stepM * 0.85;
+  const cell = (v: number) => Math.floor(v / minD);
+  const grid = new Map<string, Array<[number, number, number]>>();
+  const kept: number[] = [];
+  for (const { p } of cand) {
+    const [x, y, z] = p;
+    let near = false;
+    for (let dx = -1; dx <= 1 && !near; dx++)
+      for (let dy = -1; dy <= 1 && !near; dy++)
+        for (let dz = -1; dz <= 1 && !near; dz++)
+          for (const q of grid.get(`${cell(x) + dx},${cell(y) + dy},${cell(z) + dz}`) ?? []) if (Math.hypot(q[0] - x, q[1] - y, q[2] - z) < minD) near = true;
+    if (near) continue;
+    const key = `${cell(x)},${cell(y)},${cell(z)}`;
+    const list = grid.get(key) ?? [];
+    list.push(p);
+    grid.set(key, list);
+    kept.push(x, y, z);
+  }
+  const out = new Float32Array(kept);
+  byStep.set(stepM, out);
+  return out;
+}
+
+/** Centres rangés par case de `cell` mètres (4 au plus par case), texture lue par le shader. */
+const DOT_SLOTS = 4;
+const DOT_TEX_W = 256;
+interface DotGrid {
+  tex: THREE.DataTexture;
+  origin: THREE.Vector3;
+  dims: THREE.Vector3;
+  cell: number;
+}
+function dotGrid(centres: Float32Array, cellM: number): DotGrid {
+  const min = new THREE.Vector3(Infinity, Infinity, Infinity);
+  const max = new THREE.Vector3(-Infinity, -Infinity, -Infinity);
+  const v = new THREE.Vector3();
+  for (let i = 0; i < centres.length; i += 3) {
+    v.fromArray(centres, i);
+    min.min(v);
+    max.max(v);
+  }
+  if (!Number.isFinite(min.x)) min.set(0, 0, 0), max.set(0, 0, 0);
+  const origin = min.clone().subScalar(cellM);
+  const dims = max.clone().sub(origin).divideScalar(cellM).floor().addScalar(2);
+  const cells = dims.x * dims.y * dims.z;
+  const h = Math.max(1, Math.ceil((cells * DOT_SLOTS) / DOT_TEX_W));
+  const data = new Float32Array(DOT_TEX_W * h * 4);
+  const used = new Uint8Array(cells);
+  for (let i = 0; i < centres.length; i += 3) {
+    v.fromArray(centres, i);
+    const c = v.clone().sub(origin).divideScalar(cellM).floor();
+    const id = (c.z * dims.y + c.y) * dims.x + c.x;
+    const slot = used[id] as number;
+    if (slot >= DOT_SLOTS) continue;
+    used[id] = slot + 1;
+    data.set([v.x, v.y, v.z, 1], (id * DOT_SLOTS + slot) * 4);
+  }
+  const tex = new THREE.DataTexture(data, DOT_TEX_W, h, THREE.RGBAFormat, THREE.FloatType);
+  tex.needsUpdate = true;
+  return { tex, origin, dims, cell: cellM };
 }
 
 /** Ajoute « jpos » et « jnor » à un autre maillage du maillot (bande d'accent) avec le repère du maillot. */
 export function addFrameAttributes(mesh: THREE.Mesh, f: JerseyFrame): void {
-  if (mesh.geometry.getAttribute('position') && mesh.geometry.getAttribute('normal')) setFrameAttributes(mesh, f);
+  if (!mesh.geometry.getAttribute('position') || !mesh.geometry.getAttribute('normal')) return;
+  // Bande de poitrine et poignets (« jersey_accent ») : peints aux couleurs et motifs du maillot, ils portent
+  // aussi des pois.
+  extendSurface(f, setFrameAttributes(mesh, f), mesh.geometry.index);
+}
+
+/**
+ * Ajoute des triangles d'un autre maillage à la surface des pois (nouvel objet : les centres sont recalculés).
+ * `keep` : seuls les triangles dont les trois sommets passent sont gardés.
+ */
+function extendSurface(f: JerseyFrame, jp: Float32Array, index: THREE.BufferAttribute | null, keep: (i: number) => boolean = () => true): void {
+  const base = f.surface;
+  if (!base) return;
+  const n0 = base.jp.length / 3;
+  const tris = (index ? index.count : jp.length / 3) / 3;
+  const vi = (t: number, c: number): number => (index ? index.getX(t * 3 + c) : t * 3 + c);
+  const baseIdx = base.index ?? Array.from({ length: n0 }, (_, i) => i);
+  const idx: number[] = Array.from(baseIdx);
+  for (let t = 0; t < tris; t++) {
+    const a = vi(t, 0);
+    const b = vi(t, 1);
+    const c = vi(t, 2);
+    if (keep(a) && keep(b) && keep(c)) idx.push(n0 + a, n0 + b, n0 + c);
+  }
+  const all = new Float32Array(base.jp.length + jp.length);
+  all.set(base.jp);
+  all.set(jp, base.jp.length);
+  f.surface = { jp: all, index: idx };
 }
 
 /**
@@ -130,8 +290,8 @@ export function addJerseyFrame(mesh: THREE.Mesh): JerseyFrame | null {
     const rel = (q.dot(ay) - s0) / len;
     if (rel > 0.12 && rel < 0.45) torsoHalf = Math.max(torsoHalf, Math.abs(q.x));
   }
-  setFrameAttributes(mesh, { ay, az, s0 });
-  return { torsoLen: len, sleeveX: torsoHalf + 0.012, ay, az, s0 };
+  const jp = setFrameAttributes(mesh, { ay, az, s0 });
+  return { torsoLen: len, sleeveX: torsoHalf + 0.012, ay, az, s0, surface: { jp, index: g.index ? g.index.array : null } };
 }
 
 /** Os des bras (squelette MPFB, et modèle acheté qui reprend ces noms) : épaule, coude, poignet. */
@@ -153,7 +313,7 @@ const CUFF_T = 0.965;
 export function addSleeveMask(mesh: THREE.SkinnedMesh, jersey: THREE.SkinnedMesh, frame: JerseyFrame): void {
   const g = mesh.geometry;
   if (!g.getAttribute('position') || !g.getAttribute('normal')) return;
-  setFrameAttributes(mesh, frame);
+  const sleeveJp = setFrameAttributes(mesh, frame);
   const pos = g.getAttribute('position');
   // « jsl » : −1 hors du bras, sinon t (0 épaule → 1 poignet) ; un seul attribut (8 tampons de sommets au plus).
   const jsl = new Float32Array(pos.count).fill(-1);
@@ -265,6 +425,8 @@ export function addSleeveMask(mesh: THREE.SkinnedMesh, jersey: THREE.SkinnedMesh
     }
   }
   g.setAttribute('jsl', new THREE.BufferAttribute(jsl, 1));
+  // Manche longue : le tissu peint sur l'avant-bras (1 ≤ jsl < 1,97, voir jerseySleeve) porte aussi des pois.
+  extendSurface(frame, sleeveJp, g.index, (i) => (jsl[i] as number) >= 1 && (jsl[i] as number) < 1.97);
 }
 
 /** Où commencent les chaussettes hautes sur le mollet (fraction genou → cheville) ; les basses : 0,78 (maillage). */
@@ -282,7 +444,7 @@ export interface JerseyPatternNodes {
  * Nœuds du motif d'un maillot. `sleeveX` : distance latérale (m) où commence la manche ;
  * `torsoLen` : longueur du torse (m, de l'ourlet au col).
  */
-export function jerseyPattern(look: AvatarLook, opt: { sleeveX: number; torsoLen: number; bands?: boolean }): JerseyPatternNodes {
+export function jerseyPattern(look: AvatarLook, opt: { sleeveX: number; torsoLen: number; bands?: boolean; surface?: JerseySurface }): JerseyPatternNodes {
   const accent = colorUniform(look.jerseyAccent);
   const mode = uniform(0);
   const dotR = uniform(0.035);
@@ -291,15 +453,54 @@ export function jerseyPattern(look: AvatarLook, opt: { sleeveX: number; torsoLen
   const jn = attribute<'vec3'>('jnor', 'vec3');
   const s = jp.y.div(opt.torsoLen); // 0 ourlet → 1 col
   const flag = (i: number) => step(i - 0.5, mode).mul(step(mode, i + 0.5));
-  // Pois : treillis 3D décalé une rangée sur deux ; disque perpendiculaire à la normale.
-  const q = jp.div(dotStep);
-  const qs = vec3(q.x.add(mod(floor(q.y), 2).mul(0.5)), q.y, q.z);
-  const d3 = fract(qs).sub(0.5);
-  const nrm = jn.add(1e-5).normalize(); // normale nulle : NaN → triangle noir
-  const dist = length(d3.sub(nrm.mul(dot(d3, nrm))));
-  const rr = dotR.div(dotStep);
-  const aa = fwidth(dist).mul(0.8).add(1e-4);
-  const dots = float(1).sub(smoothstep(rr.sub(aa), rr.add(aa), dist));
+  let dots: THREE.Node<'float'>;
+  // Avatar réaliste : disque autour du centre le plus proche (dotCentres), cherché dans les 8 cases voisines.
+  const loads: THREE.TextureNode[] = [];
+  const gOrigin = uniform(new THREE.Vector3());
+  const gDims = uniform(new THREE.Vector3(1, 1, 1));
+  const gCell = uniform(0.065);
+  let gridStep = 0;
+  let gridSurface: JerseySurface | undefined;
+  const surface = opt.surface;
+  // Texture des centres : le corps du Fn n'est exécuté qu'à la compilation du matériau, souvent après set().
+  const blankF = new THREE.DataTexture(new Float32Array(4), 1, 1, THREE.RGBAFormat, THREE.FloatType);
+  blankF.needsUpdate = true;
+  let dotTex: THREE.Texture = blankF;
+  if (surface) {
+    dots = Fn(() => {
+      const out = float(0).toVar();
+      If(flag(1).greaterThan(0.5), () => {
+        const best = float(1e3).toVar();
+        const base = floor(jp.sub(gOrigin).div(gCell).sub(0.5));
+        for (let o = 0; o < 8; o++) {
+          const c = base.add(vec3(o & 1, (o >> 1) & 1, (o >> 2) & 1));
+          const inside = step(0, c.x).mul(step(0, c.y)).mul(step(0, c.z)).mul(step(c.x, gDims.x.sub(1))).mul(step(c.y, gDims.y.sub(1))).mul(step(c.z, gDims.z.sub(1)));
+          const cc = clamp(c, vec3(0), gDims.sub(1));
+          const id = cc.z.mul(gDims.y).add(cc.y).mul(gDims.x).add(cc.x).mul(DOT_SLOTS);
+          for (let k = 0; k < DOT_SLOTS; k++) {
+            const t = id.add(k);
+            const node = textureLoad(dotTex, ivec2(int(mod(t, DOT_TEX_W)), int(floor(t.div(DOT_TEX_W)))));
+            loads.push(node);
+            const d = length(node.xyz.sub(jp));
+            best.assign(min(best, mix(float(1e3), d, node.w.mul(inside))));
+          }
+        }
+        const aa = fwidth(best).mul(0.8).add(1e-4);
+        out.assign(float(1).sub(smoothstep(dotR.sub(aa), dotR.add(aa), best)));
+      });
+      return out;
+    })() as THREE.Node<'float'>;
+  } else {
+    // Corps low poly : treillis 3D décalé une rangée sur deux ; disque perpendiculaire à la normale.
+    const q = jp.div(dotStep);
+    const qs = vec3(q.x.add(mod(floor(q.y), 2).mul(0.5)), q.y, q.z);
+    const d3 = fract(qs).sub(0.5);
+    const nrm = jn.add(1e-5).normalize(); // normale nulle : NaN → triangle noir
+    const dist = length(d3.sub(nrm.mul(dot(d3, nrm))));
+    const rr = dotR.div(dotStep);
+    const aa = fwidth(dist).mul(0.8).add(1e-4);
+    dots = float(1).sub(smoothstep(rr.sub(aa), rr.add(aa), dist)) as THREE.Node<'float'>;
+  }
   // Manches : seconde couleur au-delà de sleeveX.
   const sleeve = smoothstep(opt.sleeveX - 0.006, opt.sleeveX + 0.006, abs(jp.x));
   // Moitié : bas du maillot (sous 45 % du torse), manches comprises.
@@ -375,6 +576,19 @@ export function jerseyPattern(look: AvatarLook, opt: { sleeveX: number; torsoLen
       const d = l.jerseyDots ?? DEFAULT_DOTS;
       dotR.value = d.r / 100;
       dotStep.value = d.step / 100;
+      // Centres des pois du maillot réaliste : recalculés quand le pas change (gardés par pas).
+      // (surface relue ici : la bande d'accent et les manches longues l'étendent après la création du motif)
+      const surf = opt.surface;
+      if (surf && l.jerseyStyle === 'pois' && (gridStep !== d.step || gridSurface !== surf)) {
+        gridStep = d.step;
+        gridSurface = surf;
+        const grid = dotGrid(dotCentres(surf, d.step / 100), d.step / 100);
+        dotTex = grid.tex;
+        for (const n of loads) n.value = grid.tex;
+        gOrigin.value.copy(grid.origin);
+        gDims.value.copy(grid.dims);
+        gCell.value = grid.cell;
+      }
     },
   };
 }

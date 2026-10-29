@@ -5,7 +5,7 @@
     { "id": "jersey-chevreuse", "slot": "jersey", "name": { "fr": "Maillot vallée de Chevreuse", "en": "Chevreuse Valley jersey" }, "level": 2, "color": "#2e7d32" },
     { "id": "jersey-saclay", "slot": "jersey", "name": { "fr": "Maillot plateau de Saclay", "en": "Saclay Plateau jersey" }, "level": 4, "color": "#f9a825" },
     { "id": "jersey-rambouillet", "slot": "jersey", "name": { "fr": "Maillot forêt de Rambouillet", "en": "Rambouillet Forest jersey" }, "level": 6, "color": "#1b5e20" },
-    { "id": "jersey-pois", "slot": "jersey", "pack": "tour", "name": { "fr": "Maillot à pois du meilleur grimpeur", "en": "Polka-dot jersey (best climber)" }, "level": 10, "color": "#ffffff", "jersey": { "style": "pois", "accent": "#d7141a" } },
+    { "id": "jersey-pois", "slot": "jersey", "pack": "tour", "name": { "fr": "Maillot à pois du meilleur grimpeur", "en": "Polka-dot jersey (best climber)" }, "level": 10, "color": "#ffffff", "jersey": { "style": "pois", "accent": "#d7141a", "dots": { "r": 2.3, "step": 6.5 } } },
     { "id": "jersey-robert", "slot": "jersey", "name": { "fr": "Maillot « Allez Robert ! »", "en": "\"Allez Robert!\" jersey" }, "level": 20, "color": "#ffd23f" },
     { "id":  "jersey-champion-france",  "slot":  "jersey",  "pack":  "pays",  "name":  { "fr":  "Champion de France",  "en":  "French champion" },  "level":  8, "color":  "#ffffff",  "jersey":  { "style":  "bandes",  "bands":  ["#1f3c88",  "#ffffff",  "#d71920"]}},
     { "id":  "jersey-champion-belgique",  "slot":  "jersey",  "pack":  "pays",  "name":  { "fr":  "Champion de Belgique",  "en":  "Belgian champion" },  "level":  9, "color":  "#ffffff",  "jersey":  { "style":  "bandes",  "bands":  ["#111111",  "#fdda24",  "#ef3340"]}},
