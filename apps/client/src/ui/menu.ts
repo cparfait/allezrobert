@@ -297,7 +297,7 @@ function bikeFrom(group: string, lang: 'fr' | 'en'): string | undefined {
 /** Marque d'un vélo (nom affiché), pour classer la liste. */
 function brandName(id: string): string {
   const brand = bikeById(id)?.brand;
-  return BIKE_BRANDS.find((b) => b.id === brand)?.name ?? brand ?? '';
+  return BIKE_BRANDS.find((b) => b.id === brand)?.name ?? brand ?? (/^bike-(vtt|gravel)/.test(id) ? 'VTT · Gravel' : '');
 }
 
 /**
@@ -2025,7 +2025,8 @@ export class MainMenu {
   private bikesInCollection(level: number): CosmeticItem[] {
     const group = (id: string) => BIKE_GROUPS.findIndex((g) => g.id === bikeById(id)?.group);
     return COSMETICS.filter((c) => c.slot === 'bike')
-      .filter((c) => (this.bikeFilter === 'unlocked' ? c.level <= level : bikeById(c.id)?.collection === this.bikeFilter))
+      // Le VTT et le gravel ne sont pas au catalogue des cadres : ils sont rangés dans « Divers ».
+      .filter((c) => (this.bikeFilter === 'unlocked' ? c.level <= level : (bikeById(c.id)?.collection ?? 'divers') === this.bikeFilter))
       .sort((a, b) => brandName(a.id).localeCompare(brandName(b.id), 'fr') || a.level - b.level || group(a.id) - group(b.id) || a.name.fr.localeCompare(b.name.fr));
   }
 
