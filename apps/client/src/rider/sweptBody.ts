@@ -137,7 +137,9 @@ class Builder {
     };
     // Anneaux : stations, plus un anneau de chaque côté de chaque changement de couleur.
     const rings: Array<{ t: number; c: THREE.Color }> = [];
-    for (const k of keys) rings.push({ t: k.t, c: colorAt(k.t) });
+    // Une station posée pile sur un changement de couleur prendrait la couleur d'un seul côté et ferait
+    // un dégradé sur toute la bande voisine : les deux anneaux du bord suffisent.
+    for (const k of keys) if (!edges.some((e) => Math.abs(e - k.t) < 1e-7)) rings.push({ t: k.t, c: colorAt(k.t) });
     for (const e of edges) rings.push({ t: e, c: colorAt(e - 1e-4) }, { t: e + 1e-6, c: colorAt(e + 1e-4) });
     rings.sort((a, b) => a.t - b.t);
     const p = new THREE.Vector3();

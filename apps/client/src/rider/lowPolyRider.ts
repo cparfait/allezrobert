@@ -237,6 +237,10 @@ export class LowPolyRider implements RiderAvatarLike {
   private neck!: Seg;
   private head = new THREE.Group();
   private headgear = new THREE.Group();
+  private glasses: THREE.Object3D | null = null;
+  /** « Sans casque » / « Sans lunettes » de la tenue (look.noHelmet, look.noGlasses). */
+  private noHelmet = false;
+  private noGlasses = false;
   private fit: Fit = FITS.drop;
   private sockLen = 0.11;
   private longSleeves = false;
@@ -299,7 +303,9 @@ export class LowPolyRider implements RiderAvatarLike {
     this.fit = FITS[kind === 'mtb' ? 'flat' : kind === 'tt' ? 'tt' : 'drop'];
     this.lean.add(this.buildBike(look, bike, kind), this.body);
     this.buildRider(look, bike);
-    this.headgear.visible = !this.bareHead;
+    this.noHelmet = !!look.noHelmet;
+    this.noGlasses = !!look.noGlasses;
+    this.applyHeadwear();
     this.swept = null;
     this.update(0, 0, 0, 'seated');
     if (this.tubes) this.buildTubes(look);
@@ -413,7 +419,20 @@ export class LowPolyRider implements RiderAvatarLike {
     const skull = new THREE.Mesh(new THREE.IcosahedronGeometry(0.112, 1).scale(0.92, 1.05, 1), skin);
     const face = merged([box(0.03, 0.04, 0.04, 0, -0.01, 0.112), box(0.03, 0.05, 0.04, 0.104, -0.005, -0.005), box(0.03, 0.05, 0.04, -0.104, -0.005, -0.005)], skin);
     const glasses = merged([box(0.2, 0.045, 0.02, 0, 0.022, 0.102), box(0.01, 0.015, 0.12, 0.099, 0.03, 0.04), box(0.01, 0.015, 0.12, -0.099, 0.03, 0.04)], flat('#15171b', 0.3, 0.3));
-    this.head.add(skull, face, glasses);
+    this.glasses = glasses;
+    // Yeux (sous les lunettes, visibles sans elles) : blanc, pupille et sourcil posés à plat sur la facette du
+    // visage, qui fuit vers les tempes (pente ≈ 0,41).
+    const whites: THREE.BufferGeometry[] = [];
+    const pupils: THREE.BufferGeometry[] = [];
+    const brows: THREE.BufferGeometry[] = [];
+    for (const sx of [1, -1]) {
+      const at = (w: number, h: number, d: number, y: number, out: number) =>
+        new THREE.BoxGeometry(w, h, d).translate(0, 0, out).rotateY(0.39 * sx).translate(0.038 * sx, y, 0.0965);
+      whites.push(at(0.03, 0.017, 0.006, 0.014, 0.001));
+      pupils.push(at(0.013, 0.014, 0.004, 0.013, 0.004));
+      brows.push(at(0.034, 0.007, 0.007, 0.033, 0.002));
+    }
+    this.head.add(skull, face, glasses, merged(whites, flat('#f3efe6', 0.5)), merged(pupils, flat('#2b1d14', 0.3)), merged(brows, hair));
     if (!female && (look.beard ?? 0) > 0.25) this.head.add(new THREE.Mesh(new THREE.IcosahedronGeometry(0.1, 1).scale(0.96, 0.6, 0.9).translate(0, -0.06, 0.027), hair));
     if (!female && look.moustache) this.head.add(new THREE.Mesh(box(0.08, 0.018, 0.025, 0, -0.038, 0.104), hair));
     const hairParts = this.hairGeometry(look.hairStyle);
@@ -502,10 +521,10 @@ export class LowPolyRider implements RiderAvatarLike {
       return;
     }
     // Casque de route : coque ovale profilée vers l'arrière, bord qui remonte au-dessus des lunettes et descend
-    // sur la nuque ; aérations sombres creusées dans la coque (faces colorées, rien ne dépasse) et serrage
-    // noir à l'arrière.
+    // bas sur l'occiput (protection de l'arrière du crâne, comme les casques actuels) ; aérations sombres
+    // creusées dans la coque (faces colorées, rien ne dépasse) et serrage noir à l'arrière.
     const SEGS = 24;
-    const geo = headShell(0.128, 0.12, 0.145, 1.27, 1.7, 2.05, 0.22, SEGS, 8).toNonIndexed();
+    const geo = headShell(0.128, 0.12, 0.145, 1.27, 1.7, 2.35, 0.22, SEGS, 8).toNonIndexed();
     const p = geo.getAttribute('position');
     const shellC = new THREE.Color(look.helmet);
     const ventC = new THREE.Color('#202329');
@@ -843,7 +862,13 @@ export class LowPolyRider implements RiderAvatarLike {
 
   setBareHead(on: boolean): void {
     this.bareHead = on;
-    this.headgear.visible = !on;
+    this.applyHeadwear();
+  }
+
+  /** Casque et lunettes : retirés tête nue (aperçu de l'éditeur de visage) ou par la tenue. */
+  private applyHeadwear(): void {
+    this.headgear.visible = !this.bareHead && !this.noHelmet;
+    if (this.glasses) this.glasses.visible = !this.bareHead && !this.noGlasses;
   }
 
   /** Écran allumé du compteur, incliné vers le coureur sur la potence. */

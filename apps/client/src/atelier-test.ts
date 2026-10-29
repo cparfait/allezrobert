@@ -1,5 +1,5 @@
 import * as THREE from 'three/webgpu';
-import { BIKES, DEFAULT_LOOK, encodeFace, RARITY_LABEL, TUNE_ITEMS, TUNE_KITS, kitPrice, type AvatarLook, type TuneSlot } from '@allezrobert/shared';
+import { BIKES, COSMETICS, DEFAULT_LOOK, encodeFace, jerseyLookOf, RARITY_LABEL, TUNE_ITEMS, TUNE_KITS, kitPrice, type AvatarLook, type TuneSlot } from '@allezrobert/shared';
 import { createEngine } from './engine/renderer.ts';
 import { QUALITY_PRESETS } from './engine/quality.ts';
 import { GltfRiderAvatar } from './rider/gltfAvatar.ts';
@@ -13,7 +13,8 @@ import { AtelierHost, type AtelierState, type Shot } from './ui/atelier.ts';
  *  - ?kits : chaque ensemble monté sur le pied d'atelier → kit-<id>.jpg, planche kit-planche.jpg ;
  *  - ?views : cadrages de l'atelier (roue, transmission, cockpit, selle, cadre, coureur) → atelier-*.jpg ;
  *  - ?rendu=<suffixe> : coureur en selle, trois cadrages rapprochés (trois quarts avant, profil,
- *    buste) → rendu-<cadrage>-<suffixe>.jpg, pour comparer le rendu avant / après un changement ;
+ *    buste) → rendu-<cadrage>-<suffixe>.jpg, pour comparer le rendu avant / après un changement
+ *    (&maillot=<id> : un maillot du catalogue ; &tenue=<json> : réglages de tenue ; &cam=x,y,z&look=x,y,z&fov=n : un seul cadrage libre) ;
  *  - ?profil&n=nom[&zoom][&silhouette] : profil du coureur au téléobjectif, angles du dos et du cou
  *    mesurés sur le squelette → profil-<nom>.jpg ; &tete : la tête seule (&casque : casquée, &tq : de
  *    trois quarts avant ; &cam=x,y,z&look=x,y,z&fov=n : cadrage libre) ;
@@ -55,7 +56,12 @@ async function main(): Promise<void> {
   if (!ok) return;
   if (params.has('peloton')) return peloton(engine);
   const host = new AtelierHost(engine);
-  const look = (tune: string[], extra: Partial<AvatarLook> = {}): AvatarLook => ({ ...DEFAULT_LOOK, ...(params.has('female') ? { face: encodeFace({ sex: -1, ...(params.has('cou') ? { neckWidth: Number(params.get('cou')) } : {}) }) } : {}), ...(DEMO_BIKE ? { bikeModel: DEMO_BIKE } : {}), ...(params.has('coiffure') ? { hairStyle: Number(params.get('coiffure')), hair: '#3a2416' } : {}), tune, ...extra });
+  // &maillot=<id> : maillot du catalogue (cosmetics.json) porté par le coureur.
+  const jerseyItem = COSMETICS.find((c) => c.slot === 'jersey' && c.id === params.get('maillot'));
+  const maillot = jerseyItem ? jerseyLookOf(jerseyItem) : {};
+  // &tenue=<json> : réglages de tenue en plus (ex. {"noHelmet":true,"noGlasses":true}).
+  const tenue = (params.has('tenue') ? JSON.parse(params.get('tenue') as string) : {}) as Partial<AvatarLook>;
+  const look = (tune: string[], extra: Partial<AvatarLook> = {}): AvatarLook => ({ ...DEFAULT_LOOK, ...(params.has('female') ? { face: encodeFace({ sex: -1, ...(params.has('cou') ? { neckWidth: Number(params.get('cou')) } : {}) }) } : {}), ...(DEMO_BIKE ? { bikeModel: DEMO_BIKE } : {}), ...(params.has('coiffure') ? { hairStyle: Number(params.get('coiffure')), hair: '#3a2416' } : {}), ...maillot, ...tenue, tune, ...extra });
   const render = async (st: AtelierState) => {
     host.set(st);
     // Familles et textures : quelques images pour que tout arrive.
@@ -154,11 +160,15 @@ async function main(): Promise<void> {
   }
   if (params.has('rendu')) {
     const tag = (params.get('rendu') || 'essai').replace(/[^a-z0-9_-]/gi, '_');
-    const views: Array<[string, Shot]> = [
-      ['trois-quarts', { cam: [1.55, 1.95, 2.05], look: [0, 0.95, 0.12], fov: 30 }],
-      ['profil', { cam: [2.75, 1.25, 0.1], look: [0, 1.0, 0.05], fov: 32 }],
-      ['buste', { cam: [1.05, 1.62, 1.5], look: [0, 1.3, 0.28], fov: 28 }],
-    ];
+    const vec = (k: string) => (params.get(k) ?? '').split(',').map(Number) as [number, number, number];
+    // &cam=x,y,z&look=x,y,z&fov=n : un seul cadrage libre (rendu-libre-<suffixe>.jpg).
+    const views: Array<[string, Shot]> = params.has('cam')
+      ? [['libre', { cam: vec('cam'), look: vec('look'), fov: Number(params.get('fov') ?? 30) }]]
+      : [
+          ['trois-quarts', { cam: [1.55, 1.95, 2.05], look: [0, 0.95, 0.12], fov: 30 }],
+          ['profil', { cam: [2.75, 1.25, 0.1], look: [0, 1.0, 0.05], fov: 32 }],
+          ['buste', { cam: [1.05, 1.62, 1.5], look: [0, 1.3, 0.28], fov: 28 }],
+        ];
     const tune = ['tune-pa-eclair', 'tune-wh-dt-arc50', 'tune-rd-noir', 'tune-bo-rouge', 'tune-ty-gp5000'];
     for (const [name, view] of views) {
       const c = await render({ look: look(tune), focus: 'overview', rider: true, yaw: 0, view });
