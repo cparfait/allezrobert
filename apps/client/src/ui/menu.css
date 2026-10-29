@@ -819,3 +819,5 @@
 /* Arrivée depuis Progression : la carte de l'équipement clignote quelques secondes. */
 @keyframes mm-blink { 0%, 100% { box-shadow: 0 0 0 0 rgba(255, 210, 63, 0); } 50% { box-shadow: 0 0 0 4px var(--ar-accent), 0 0 26px rgba(255, 210, 63, 0.7); background: rgba(255, 210, 63, 0.22); } }
 [data-item].blink { animation: mm-blink 0.7s ease-in-out 5; }
+.mm-dd-fl { display: inline-flex; flex: none; align-items: center; }
+.mm-dd-fl[hidden] { display: none; }

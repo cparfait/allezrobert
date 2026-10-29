@@ -4,6 +4,8 @@
  * Le <select> reste dans la page : sa valeur et son événement « change » restent ceux que le code
  * existant lit, la liste ne fait que les piloter. À rappeler après chaque rendu d'écran.
  */
+import { flagSvg } from './flagSvg.ts';
+
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c] as string);
 
 const plain = (t: string) => t.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
@@ -49,16 +51,22 @@ export function enhanceSelects(root: ParentNode = document): void {
     sel.style.display = 'none';
     const wrap = document.createElement('div');
     wrap.className = 'mm-dd';
-    wrap.innerHTML = `<button type="button" class="mm-dd-btn" aria-haspopup="listbox"><span></span><em>▾</em></button><div class="mm-dd-list" role="listbox" hidden></div>`;
+    wrap.innerHTML = `<button type="button" class="mm-dd-btn" aria-haspopup="listbox"><b class="mm-dd-fl"></b><span></span><em>▾</em></button><div class="mm-dd-list" role="listbox" hidden></div>`;
     sel.after(wrap);
     const btn = wrap.querySelector('.mm-dd-btn') as HTMLButtonElement;
     const label = btn.querySelector('span') as HTMLElement;
+    const flag = btn.querySelector('.mm-dd-fl') as HTMLElement;
+    /** Drapeau d'un choix (option avec data-flag = code pays), sinon rien. */
+    const flagOf = (code: string | undefined) => (code ? flagSvg(code, 15) : '');
     const list = wrap.querySelector('.mm-dd-list') as HTMLElement;
     const sync = () => {
       label.textContent = sel.selectedOptions[0]?.textContent ?? '';
+      const f = flagOf(sel.selectedOptions[0]?.dataset.flag);
+      flag.innerHTML = f;
+      flag.hidden = !f;
       list.querySelectorAll<HTMLElement>('.mm-dd-opt').forEach((o) => o.classList.toggle('on', o.dataset.v === sel.value));
     };
-    list.innerHTML = [...sel.options].map((o) => `<button type="button" role="option" class="mm-dd-opt" data-v="${esc(o.value)}"><span>${esc(o.textContent ?? '')}</span></button>`).join('');
+    list.innerHTML = [...sel.options].map((o) => `<button type="button" role="option" class="mm-dd-opt" data-v="${esc(o.value)}">${flagOf(o.dataset.flag)}<span>${esc(o.textContent ?? '')}</span></button>`).join('');
     sync();
 
     const choose = (o: HTMLElement) => {

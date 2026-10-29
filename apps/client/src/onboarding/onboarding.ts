@@ -169,7 +169,7 @@ export class Onboarding {
           <label class="field">${fr ? 'Je suis' : 'I am'}<div class="row">${(['male', 'female'] as const).map((x) => `<button class="btn small ${lookSex(this.s.look) === x ? 'primary' : ''}" data-sex="${x}">${x === 'male' ? (fr ? 'Un homme' : 'A man') : fr ? 'Une femme' : 'A woman'}</button>`).join('')}</div></label>
           <label class="field">${fr ? 'Nationalité' : 'Nationality'}<select id="o-nation"><option value="" ${this.s.look.nationality ? '' : 'selected'}>${fr ? 'Choisir mon pays' : 'Choose my country'}</option>${[...COUNTRIES]
             .sort((a, b) => a[fr ? 'fr' : 'en'].localeCompare(b[fr ? 'fr' : 'en'], fr ? 'fr' : 'en'))
-            .map((c) => `<option value="${c.code}" ${this.s.look.nationality === c.code ? 'selected' : ''}>${c[fr ? 'fr' : 'en']}</option>`)
+            .map((c) => `<option value="${c.code}" data-flag="${c.code}" ${this.s.look.nationality === c.code ? 'selected' : ''}>${c[fr ? 'fr' : 'en']}</option>`)
             .join('')}</select></label>
           <label class="field">${t('weight')}<input id="o-mass" type="number" min="30" max="200" step="0.5" value="${this.s.massKg}"/></label>
           <label class="field">${t('height')}<input id="o-height" type="number" min="120" max="220" value="${this.s.heightCm}"/></label>
