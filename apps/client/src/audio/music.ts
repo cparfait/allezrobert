@@ -26,7 +26,6 @@ export const PLAYLIST: Track[] = [
   { file: 'cruising-the-perimeter.mp3', title: 'Cruising the Perimeter', mood: 'drive' },
   { file: 'the-final-ascent.mp3', title: 'The Final Ascent', mood: 'drive' },
   { file: 'the-long-climb.mp3', title: 'The Long Climb', mood: 'calm' },
-  { file: 'westward-glide.mp3', title: 'Westward Glide', mood: 'calm' },
 ];
 
 const BASE = '/music/';
