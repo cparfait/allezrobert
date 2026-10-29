@@ -4,7 +4,7 @@ import type { RiderPose } from '../rider/gltfAvatar.ts';
 import { box, canvasTex, mat, rng } from './atelierRoom.ts';
 
 /**
- * Affiches de l'atelier : grandes courses (Tour de France, Paris–Roubaix, Giro, Milan–San Remo,
+ * Affiches de l'atelier : grandes courses (Tour de France en bannière et en affiche, Paris–Roubaix, Giro, Milan–San Remo,
  * Liège–Bastogne–Liège, Tour des Flandres, Vuelta) et réclames d'époque, dessinées en canevas.
  * Pour le réalisme : papier jauni, plis de pliage, taches et piqûres, bords usés ; affiches
  * scotchées (ruban adhésif, légère inclinaison) ou encadrées sous verre (reflet des spots).
@@ -356,6 +356,37 @@ function roubaix(): Painted {
   });
 }
 
+/** Affiche du Tour de France : le maillot jaune dans les lacets d'un col, ciel d'été. */
+function tour(): Painted {
+  return painted(PW, PH, (g, art) => {
+    sky(g, PH, '#ffd84a', '#fff4c2');
+    sun(g, 170, 300, 95, '#fffbe6');
+    mountains(g, 640, 300, '#c98a16', 5);
+    mountains(g, 700, 420, '#8f5c0c', 13);
+    // Lacets de la montée, peints à flanc de montagne.
+    g.strokeStyle = 'rgba(255,240,200,0.75)';
+    g.lineWidth = 7;
+    g.beginPath();
+    g.moveTo(120, 690);
+    for (let i = 0; i < 5; i++) g.quadraticCurveTo(i % 2 ? 110 : 500, 650 - i * 52, 300, 625 - i * 52);
+    g.stroke();
+    g.fillStyle = '#5a3a08';
+    g.fillRect(0, 690, PW, 160);
+    figure(g, art, 'jaune', 300, 740, 270, '#2a1d05');
+    g.fillStyle = '#1b1712';
+    g.textAlign = 'center';
+    fit(g, 'TOUR DE FRANCE', PW / 2, 130, PW - 60, 82, BLACK, 'italic 900');
+    g.fillStyle = '#b8191f';
+    g.font = `italic 700 40px ${SERIF}`;
+    g.fillText('Le Maillot Jaune', PW / 2, 190);
+    g.fillStyle = '#fff4c2';
+    g.font = `700 24px ${SERIF}`;
+    g.fillText("Alpe d'Huez · Tourmalet · Champs-Élysées", PW / 2, 805);
+    margin(g, PW, PH, 16, '#f6eee0');
+    age(g, PW, PH, 29, 0.5, false);
+  });
+}
+
 function giro(): Painted {
   return painted(PW, PH, (g, art) => {
     sky(g, PH, '#f6b9cc', '#fbe4ea');
@@ -658,6 +689,7 @@ export function buildPosters(): { group: THREE.Group; setArt(art: PosterArt): vo
   add(roubaix(), 0.6, 0.848, 'wood', -2.62, 1.78, { tilt: -0.02 });
   // Mur de droite : une rangée d'affiches au-dessus des vélos appuyés.
   add(giro(), 0.52, 0.735, 'right', -2.3, 1.85, { frame: '#1c1c1e' });
+  add(tour(), 0.52, 0.735, 'right', -0.72, 1.85, { frame: '#3a2a1c' });
   add(sanremo(), 0.5, 0.707, 'right', 0.85, 1.85, { tilt: 0.015 });
   add(cyclesAd(), 0.52, 0.735, 'right', 1.75, 1.85, { frame: '#6b4a2b' });
   add(liege(), 0.52, 0.735, 'right', 2.7, 1.85, { frame: '#1c1c1e' });

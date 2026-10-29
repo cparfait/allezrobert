@@ -4,7 +4,7 @@ import { COSMETICS, DEFAULT_BIKE, DEFAULT_TRAINER, bikeSetupFor, trainerOf } fro
 describe('home trainers du garage', () => {
   const trainers = COSMETICS.filter((c) => c.slot === 'trainer');
 
-  it('NEO 2T de départ, trois autres à débloquer', () => {
+  it('KICKR CORE 2 de départ, trois autres à débloquer', () => {
     expect(trainers.map((t) => t.id).sort()).toEqual(['trainer-kickr', 'trainer-kickr-core-2', 'trainer-neo-2t', 'trainer-neo-3m']);
     expect(trainers.find((t) => t.id === DEFAULT_TRAINER)?.level).toBe(1);
     expect(trainers.filter((t) => t.level > 1)).toHaveLength(3);
@@ -17,10 +17,11 @@ describe('home trainers du garage', () => {
     }
   });
 
-  it('home trainer monté : celui équipé, sinon le NEO 2T', () => {
-    expect(trainerOf({})).toBe('trainer-neo-2t');
+  it('home trainer monté : celui équipé, sinon le KICKR CORE 2', () => {
+    expect(trainerOf({})).toBe('trainer-kickr-core-2');
     expect(trainerOf({ trainer: 'trainer-kickr' })).toBe('trainer-kickr');
-    expect(trainerOf({ trainer: 'jersey-robert' })).toBe('trainer-neo-2t');
-    expect(trainerOf({ trainer: 'inconnu' })).toBe('trainer-neo-2t');
+    expect(trainerOf({ trainer: 'trainer-neo-2t' })).toBe('trainer-neo-2t');
+    expect(trainerOf({ trainer: 'jersey-robert' })).toBe('trainer-kickr-core-2');
+    expect(trainerOf({ trainer: 'inconnu' })).toBe('trainer-kickr-core-2');
   });
 });

@@ -402,9 +402,10 @@ export function buildRoom(): THREE.Group {
   floor.rotation.x = -Math.PI / 2;
   floor.receiveShadow = true;
   room.add(floor);
-  // Paillasson « Allez Robert ! » sous le vélo (dans le sens du vélo : le texte se lit depuis le côté caméra).
+  // Paillasson « Allez Robert ! » sous le vélo (dans le sens du vélo : le texte se lit depuis la caméra
+  // d'arrivée, côté transmission).
   const doorMat = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 1.2), tex(matTexture(), 0.95));
-  doorMat.rotation.set(-Math.PI / 2, 0, Math.PI / 2, 'YXZ');
+  doorMat.rotation.set(-Math.PI / 2, Math.PI, Math.PI / 2, 'YXZ');
   doorMat.position.set(0, 0.004, 0.05);
   doorMat.receiveShadow = true;
   room.add(doorMat);
@@ -522,24 +523,7 @@ export function buildRoom(): THREE.Group {
     room.add(hook);
   }
 
-  // Home trainer dans le coin : corps, volant, pieds.
-  const tr = new THREE.Group();
-  tr.add(box(0.3, 0.42, 0.55, mat('#111214', 0.4, 0.2), 0, 0.33, 0));
-  const fly = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.05, 32).rotateZ(Math.PI / 2), mat('#2a2c30', 0.35, 0.8));
-  fly.position.set(0.17, 0.33, 0);
-  tr.add(fly);
-  tr.add(box(0.95, 0.04, 0.06, mat('#2a2c30', 0.5, 0.6), 0, 0.03, -0.18));
-  tr.add(box(0.95, 0.04, 0.06, mat('#2a2c30', 0.5, 0.6), 0, 0.03, 0.22));
-  tr.add(box(0.02, 0.05, 0.3, mat('#2a63c0', 0.5), -0.16, 0.45, 0));
-  tr.traverse((o) => ((o as THREE.Mesh).castShadow = true));
-  tr.position.set(2.6, 0, 2.6);
-  tr.rotation.y = 0.6;
-  room.add(tr);
-  // Fenêtre lumineuse sur le mur de droite (x = 3,4).
-  const win = new THREE.Mesh(new THREE.PlaneGeometry(1.4, 1.0), new THREE.MeshStandardNodeMaterial({ color: '#000000', emissive: '#dfeaff', emissiveIntensity: 0.6 }));
-  win.rotation.y = -Math.PI / 2;
-  win.position.set(3.39, 1.8, -0.4);
-  room.add(win);
-  room.add(box(0.04, 1.06, 0.04, mat('#f4f4f2', 0.6), 3.37, 1.8, -0.4));
+  // Home trainer du coin : construit par l'atelier (homeTrainers.ts), voir AtelierHost.build.
+  // Mur de droite : plus de fenêtre, l'affiche du Tour de France a pris sa place (atelierPosters.ts).
   return room;
 }

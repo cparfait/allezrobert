@@ -41,7 +41,7 @@ export function levelProgress(xp: number): { level: number; progress: number; ne
 export type CosmeticSlot = 'jersey' | 'helmet' | 'bike' | 'socks' | 'glasses' | 'trainer';
 
 /** Home trainer de départ (garage), monté tant qu'aucun autre n'est équipé. */
-export const DEFAULT_TRAINER = 'trainer-neo-2t';
+export const DEFAULT_TRAINER = 'trainer-kickr-core-2';
 
 /** Home trainer du garage : celui équipé s'il existe au catalogue, sinon celui de départ. */
 export function trainerOf(equipped: Readonly<Record<string, string | undefined>>): string {

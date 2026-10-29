@@ -1944,7 +1944,7 @@ export class MainMenu {
     return roadEffectHtml(bike, this.s.massKg, this.s.ftpWatts);
   }
 
-  /** Home trainer montré au garage : celui essayé, sinon celui équipé (NEO 2T au départ). */
+  /** Home trainer montré au garage : celui essayé, sinon celui équipé (KICKR CORE 2 au départ). */
   currentTrainer(): string {
     return this.previews.get('trainer') ?? trainerOf(loadProgress().equipped);
   }

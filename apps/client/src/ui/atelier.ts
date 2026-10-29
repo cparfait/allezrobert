@@ -495,6 +495,11 @@ export class AtelierHost {
     });
     this.hangBikes();
     void this.shootPosterRiders(posters.setArt).catch((e: unknown) => console.warn('atelier : photos des affiches', e));
+    // Home trainer rangé dans le coin, côté transmission tourné vers la pièce : un Wahoo KICKR.
+    const spare = buildHomeTrainer('trainer-kickr').group;
+    spare.position.set(2.55, 0, 2.55);
+    spare.rotation.y = -Math.PI / 4;
+    this.scene.add(spare);
     this.stand = buildStand();
     this.scene.add(this.stand);
     this.pipeline = new THREE.RenderPipeline(this.engine.renderer);
@@ -664,7 +669,8 @@ export class AtelierHost {
       const e = 1 - (1 - this.intro) ** 3;
       const rest = 1 - e;
       const off = this.goalPos.clone().sub(this.goalLook);
-      const ang = rest * 0.9;
+      // Arc d'entrée du côté de la caméra (côté transmission : arc inversé).
+      const ang = rest * 0.9 * (off.x < 0 ? -1 : 1);
       const c = Math.cos(ang);
       const s = Math.sin(ang);
       off.set(off.x * c + off.z * s, off.y, -off.x * s + off.z * c).multiplyScalar(1 + rest * 0.85);
