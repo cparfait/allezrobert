@@ -686,3 +686,15 @@ body:has(.subtitle:not(.hidden)) .ob-robert { animation: ob-mouth 1.1s steps(1, 
 .hud.compact .riders .rd-w { display: grid; justify-items: end; line-height: 1.1; font-size: calc(var(--u) * 14); font-weight: 700; }
 .hud.compact .riders .rd-w small { font-size: calc(var(--u) * 10); color: var(--ar-muted); font-weight: 600; }
 .hud.compact .riders .rd-gap { font-size: calc(var(--u) * 13); }
+
+/*
+ * HUD « facettes » (compact en style jeu vidéo) : aplats opaques, angles coupés, liseré jaune, vitesse en
+ * pavé jaune. Même disposition que le compact (hud.ts : currentHudLayout).
+ */
+.hud.compact.facet { --cx-bg: rgba(15, 23, 40, 0.94); --cx-r: 0; --chamf: calc(var(--u) * 9); }
+.hud.compact.facet .panel { border-radius: 0; box-shadow: none; border: 0; border-left: calc(var(--u) * 3) solid var(--ar-accent); clip-path: polygon(var(--chamf) 0, 100% 0, 100% calc(100% - var(--chamf)), calc(100% - var(--chamf)) 100%, 0 100%, 0 var(--chamf)); backdrop-filter: none; }
+.hud.compact.facet .cx-cell { border-left-color: rgba(255, 255, 255, 0.16); }
+.hud.compact.facet .cx-speed { background: var(--ar-accent); box-shadow: none; }
+.hud.compact.facet .cx-speed .cx-l, .hud.compact.facet .cx-speed .cx-v b, .hud.compact.facet .cx-speed .cx-v small { color: #0a0e16; }
+.hud.compact.facet .hud-loc { border-radius: 0; clip-path: polygon(var(--chamf) 0, 100% 0, calc(100% - var(--chamf)) 100%, 0 100%); }
+.hud.compact.facet .cx-cell .cx-v b { font-weight: 900; }

@@ -6,40 +6,44 @@ import { GRAPHIC_STYLE, LOW_POLY } from '../engine/style.ts';
 import { ClimbPanel } from './climbPanel.ts';
 
 /**
- * Disposition du HUD : « compact » (bandeaux plats et serrés, défaut du style low poly) ou « full »
- * (cockpit du style réaliste : compteur en arc, grandes tuiles). ?hud=compact|full a priorité sur
- * localStorage ar.hudLayout ; sinon, compact en low poly, complet en réaliste.
+ * Disposition du HUD : « full » (cockpit réaliste : compteur en arc, grandes tuiles), « compact » (bandeaux plats
+ * et serrés) ou « facet » (compact en facettes : angles coupés, aplats). ?hud=full|compact|facet a priorité sur
+ * localStorage ar.hudLayout ; sinon compact en low poly, complet en réaliste. Lue à la création du HUD (début de
+ * chaque sortie) : changer de disposition dans les Réglages ne demande aucun rechargement.
  */
-export type HudLayout = 'compact' | 'full';
+export type HudLayout = 'full' | 'compact' | 'facet';
+export const HUD_LAYOUTS: readonly HudLayout[] = ['full', 'compact', 'facet'];
 export const HUD_LAYOUT_KEY = 'ar.hudLayout';
-function readLayout(): HudLayout {
+const isLayout = (v: string | null): v is HudLayout => v === 'full' || v === 'compact' || v === 'facet';
+
+/** Disposition effective (adresse, réglage, sinon celle du style graphique). */
+export function currentHudLayout(): HudLayout {
   try {
     const raw = new URLSearchParams(location.search).get('hud') ?? localStorage.getItem(HUD_LAYOUT_KEY);
-    if (raw === 'compact' || raw === 'full') return raw;
+    if (isLayout(raw)) return raw;
   } catch {
     // Stockage indisponible : disposition du style.
   }
   return LOW_POLY ? 'compact' : 'full';
 }
-export const HUD_LAYOUT: HudLayout = typeof location === 'undefined' ? 'full' : readLayout();
 
-/** Choix enregistré : 'auto' (selon le style graphique), 'compact' ou 'full'. */
+/** Choix enregistré : 'auto' (selon le style graphique) ou une disposition. */
 export function hudChoice(): 'auto' | HudLayout {
   try {
     const raw = localStorage.getItem(HUD_LAYOUT_KEY);
-    return raw === 'compact' || raw === 'full' ? raw : 'auto';
+    return isLayout(raw) ? raw : 'auto';
   } catch {
     return 'auto';
   }
 }
 
-/** Change la disposition du HUD (construite au chargement : la page se recharge). */
+/** Disposition qu'un choix donne avec le style graphique courant. */
+export const resolveHudLayout = (choice: 'auto' | HudLayout): HudLayout => (choice === 'auto' ? (LOW_POLY ? 'compact' : 'full') : choice);
+
+/** Enregistre la disposition (prise en compte à la prochaine sortie, sans recharger la page). */
 export function setHudLayout(choice: 'auto' | HudLayout): void {
   if (choice === 'auto') localStorage.removeItem(HUD_LAYOUT_KEY);
   else localStorage.setItem(HUD_LAYOUT_KEY, choice);
-  const url = new URL(location.href);
-  url.searchParams.delete('hud');
-  location.replace(url.toString());
 }
 // Crochet CSS du style graphique (:root[data-style="lowpoly"]), posé dès le chargement du module.
 if (typeof document !== 'undefined') document.documentElement.dataset.style = GRAPHIC_STYLE;
@@ -435,8 +439,10 @@ export class Hud {
   private lastTurn = '';
   /** Montée en cours ou proche, façon ClimbPro. */
   private readonly climb: ClimbPanel;
-  /** Disposition compacte (voir HUD_LAYOUT). */
-  private readonly compact = HUD_LAYOUT === 'compact';
+  /** Disposition (voir currentHudLayout), lue à la création. */
+  private readonly layout = currentHudLayout();
+  /** Disposition compacte (compact ou facettes). */
+  private readonly compact = this.layout !== 'full';
   /** HUD compact : panneau de détails ouvert, liste « À proximité » repliée. */
   private detailsOpen = false;
   private ridersFolded = false;
@@ -487,6 +493,7 @@ export class Hud {
     this.root = root;
     this.track = track;
     root.classList.toggle('compact', this.compact);
+    root.classList.toggle('facet', this.layout === 'facet');
     root.classList.remove('cx-open');
     // Trois colonnes empilées en flex (centre, gauche, droite) : aucun panneau ne dépend de la
     // hauteur d'un autre, rien ne se chevauche quelle que soit la taille de la fenêtre.

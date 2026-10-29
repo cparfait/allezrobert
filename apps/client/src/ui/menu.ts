@@ -24,7 +24,8 @@ import { renderSoundSettings } from './soundSettings.ts';
 import { bikeThumbHtml, paintPlainThumbs, plainThumbHtml, swapMissingThumbs } from './bikeThumb.ts';
 import { OpenWorldPanel } from './openWorld.ts';
 import { renderCompanionSettings } from './companionQr.ts';
-import { HUD_BLOCKS, hudChoice, setHudLayout } from '../hud/hud.ts';
+import { HUD_BLOCKS } from '../hud/hud.ts';
+import { bindHudPicker, hudPickerHtml } from './hudPicker.ts';
 import { renderExpertSettings } from './expertZones.ts';
 import { loadProgress, equipItem, equipPlainBike, SLOT_LABEL } from './garage.ts';
 import { roadEffectHtml } from './roadEffect.ts';
@@ -2141,7 +2142,7 @@ export class MainMenu {
     const graphics = `<div class="grid3">
         <div class="field">${t('quality')}${this.seg('m-quality', s.quality, (['low', 'medium', 'high', 'ultra'] as const).map((q) => [q, t(q)]))}</div>
         <div class="field">${L ? 'Style graphique' : 'Graphic style'}${this.seg('m-style', GRAPHIC_STYLE, [['lowpoly', L ? 'Jeu vidéo' : 'Video game'], ['real', L ? 'Réaliste' : 'Realistic']])}</div>
-        <div class="field">${L ? 'Interface (HUD)' : 'HUD layout'}${this.seg('m-hud', hudChoice(), [['auto', L ? 'Selon le style' : 'By style'], ['compact', 'Compact'], ['full', L ? 'Complet' : 'Full']])}</div>
+        <div class="field hud-field" style="grid-column: 1 / -1">${L ? 'Interface (HUD) · effet à la prochaine sortie' : 'HUD layout · applies from the next ride'}${hudPickerHtml()}</div>
         <div class="field">${L ? 'Format de l\'image' : 'Picture format'}${this.seg('m-aspect', getAspectCap(), [['full', L ? 'Plein écran' : 'Full'], ['16:9', '16:9'], ['21:9', '21:9'], ['32:9', '32:9']])}</div>
         <div class="field">${L ? 'Zone de l\'interface' : 'Interface area'}${this.seg('m-uiaspect', getUiAspectCap(), [['full', L ? 'Toute la largeur' : 'Full width'], ['16:9', '16:9'], ['21:9', '21:9']])}</div>
         <div class="field">${L ? 'Résolution max' : 'Max resolution'}${this.seg('m-maxres', getResolutionCap(), [['auto', 'Auto'], ['1080p', '1080p'], ['1440p', '1440p'], ['4k', '4K']])}</div>
@@ -3195,7 +3196,7 @@ export class MainMenu {
     // Style graphique : matériaux construits au chargement, la page se recharge.
     on<HTMLSelectElement>('m-style', 'change', (el) => setGraphicStyle(el.value as GraphicStyle));
     // HUD : disposition construite au chargement, la page se recharge.
-    on<HTMLSelectElement>('m-hud', 'change', (el) => setHudLayout(el.value as 'auto' | 'compact' | 'full'));
+    bindHudPicker(this.root, () => this.render());
     // Format et résolution : pris en compte tout de suite (le moteur écoute « resize »), sans recharger.
     on<HTMLSelectElement>('m-aspect', 'change', (el) => {
       setAspectCap(el.value as AspectCap);
