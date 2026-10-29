@@ -320,9 +320,15 @@ function renderTabs(): void {
     .join('');
 }
 
+/** Robert qui pédale (calques de l'illustration du jeu, animés en CSS), pour les écrans d'attente. */
+function robertWait(): string {
+  const l = (name: string, cls = '') => `<img src="${import.meta.env.BASE_URL}robert-velo/${name}.webp" alt=""${cls ? ` class="${cls}"` : ''}>`;
+  return `<div class="rb" aria-hidden="true"><div class="rb-bike">${l('base')}${l('leg', 'rb-leg')}<div class="rb-upper">${l('upper')}${l('arm', 'rb-arm')}</div></div></div>`;
+}
+
 function waitingHtml(): string {
-  if (S.conn !== 'connected') return `<div class="empty"><div class="spinner"></div><p>${esc(S.conn === 'down' ? t.serverDown : t.connecting)}</p></div>`;
-  if (!S.presence.game || !S.st) return `<div class="empty"><div class="spinner"></div><p>${esc(t.waitingGame)}</p><button class="btn ghost small" data-act="unpair">${esc(t.unpair)}</button></div>`;
+  if (S.conn !== 'connected') return `<div class="empty">${robertWait()}<p>${esc(S.conn === 'down' ? t.serverDown : t.connecting)}</p></div>`;
+  if (!S.presence.game || !S.st) return `<div class="empty">${robertWait()}<p>${esc(t.waitingGame)}</p><button class="btn ghost small" data-act="unpair">${esc(t.unpair)}</button></div>`;
   return `<div class="empty"><div class="logo">🚴</div><p>${esc(t.menu)}</p></div>`;
 }
 
