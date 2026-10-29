@@ -1413,6 +1413,7 @@ export class MainMenu {
 
   private closePicker(): void {
     this.picker = null;
+    this.franceMap.clearSearch();
     this.render();
   }
 

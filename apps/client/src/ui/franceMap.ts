@@ -77,6 +77,14 @@ export class FranceMap {
   /** Retour à la France entière (nouvelle ouverture de la fenêtre). */
   reset(): void {
     this.view = { ...FULL };
+    this.clearSearch();
+  }
+
+  /** Recherche de ville vidée (à la fermeture de la carte) : saisie, repère et résultat. */
+  clearSearch(): void {
+    this.query = '';
+    this.found = null;
+    this.lookup = 'idle';
   }
 
   private get zoomed(): boolean {
