@@ -148,6 +148,8 @@ const FILES: Record<AvatarKind, readonly string[]> = {
 };
 const LOD_DISTANCES: Record<AvatarKind, readonly number[]> = { boutique: [0, 10, 30], mpfb: [0, 10, 30], classic: [0, 30], female: [0, 10, 30] };
 const WHEEL_R = 0.335;
+/** Phase de pédale des deux pieds dans la pose de repos de l'avatar MPFB (BIND_PHASE de build_avatar.py : en bas). */
+const BIND_PHASE = 0;
 /**
  * Taille du coureur (look.heightCm, profil du joueur) : modèle acheté construit à 1,765 m
  * (build_boutique.py), coureurs de 1,60 à 1,95 m. Coureur, cadre, poste de pilotage et selle
@@ -799,11 +801,17 @@ function buildTemplates(riders: GLTF[]): Templates {
   const pedalRest = { L: pl.position.clone(), R: pr.position.clone() };
   const crank = Math.hypot(pedalRest.L.y - bb.y, pedalRest.L.z - bb.z);
   const pedalPitch = 2 * Math.atan2(pl.quaternion.x, pl.quaternion.w);
+  // Pédales sous les pieds au repos : manivelle 0 (gauche en bas, droite en haut, comme le vélo) ou,
+  // pieds à la même hauteur (avatar MPFB depuis le 29/10/2026, jambes liées en miroir), les deux
+  // pédales à BIND_PHASE.
+  const level = Math.abs(bones.foot_L.modelP.y - bones.foot_R.modelP.y) < 0.05;
+  const pedalBind = (s: Side): THREE.Vector3 =>
+    level ? new THREE.Vector3(pedalRest[s].x, bb.y - Math.cos(BIND_PHASE) * crank, bb.z - Math.sin(BIND_PHASE) * crank) : pedalRest[s];
   const ankleFlat = {} as Record<Side, THREE.Vector3>;
   const legs = {} as Record<Side, ChainRest>;
   const arms = {} as Record<Side, ChainRest>;
   for (const s of SIDES) {
-    ankleFlat[s] = new THREE.Vector3().subVectors(bones[`foot_${s}`].modelP, pedalRest[s]).applyAxisAngle(X_AXIS, -pedalPitch);
+    ankleFlat[s] = new THREE.Vector3().subVectors(bones[`foot_${s}`].modelP, pedalBind(s)).applyAxisAngle(X_AXIS, -pedalPitch);
     legs[s] = chainRest(bones, `thigh_${s}`, `shin_${s}`, `foot_${s}`);
     arms[s] = chainRest(bones, `upper_arm_${s}`, `forearm_${s}`, `hand_${s}`);
   }

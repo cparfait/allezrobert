@@ -1,8 +1,9 @@
 /**
  * Chaussures de l'avatar MPFB (docs/AVATARS.md) : remplace les chaussures de rider*.glb par celles
- * de cyclist.glb (build_cyclist.py, build_shoes), posées telles quelles sur les pédales (même pose
- * de repos : manivelle à 0, pédales inclinées de REST_PITCH), et retire les faces du pied cachées
- * dans la chaussure (le pied MPFB ne traverse plus la tige, et le maillage s'allège).
+ * de cyclist.glb (build_cyclist.py, build_shoes), posées sur les pédales (pédales inclinées de
+ * REST_PITCH ; cyclist.glb est au repos à la manivelle 0, l'avatar a ses deux pieds à BIND_PHASE de
+ * build_avatar.py : chaque chaussure suit le déplacement de sa pédale), et retire les faces du pied
+ * cachées dans la chaussure (le pied MPFB ne traverse plus la tige, et le maillage s'allège).
  *
  *   - niveau 0 : chaussures de cyclist.glb ; niveaux 1 et 2 : celles de cyclist_lod1.glb ;
  *   - liées aux os foot_l / foot_r (rigides, comme sur cyclist.glb) ;
@@ -30,6 +31,7 @@ const BB_Y = 0.27;
 const CRANK = 0.1725;
 const PEDAL_X = 0.105;
 const REST_PITCH = 0.35;
+const ANKLE_FLAT = [0, 0.095, -0.13]; // cheville / axe de pédale, pied à plat (build_avatar.py)
 
 await Promise.all([MeshoptDecoder.ready, MeshoptEncoder.ready]);
 const io = new NodeIO().registerExtensions(ALL_EXTENSIONS).registerDependencies({ 'meshopt.decoder': MeshoptDecoder, 'meshopt.encoder': MeshoptEncoder });
@@ -65,6 +67,7 @@ function invert(m) {
   return inv.map((x) => x / det);
 }
 const sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+const add = (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
 const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
 const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
 const norm = (a) => {
@@ -72,12 +75,22 @@ const norm = (a) => {
   return [a[0] / l, a[1] / l, a[2] / l];
 };
 
-/** Repère de la pédale au repos (manivelle 0) : centre, axes x, y (normal au plateau), z. */
-function pedalFrame(side) {
+/** Repère de la pédale au repos (phase `a`, 0 : en bas) : centre, axes x, y (normal au plateau), z. */
+function pedalFrame(side, a) {
   const c = Math.cos(REST_PITCH);
   const s = Math.sin(REST_PITCH);
-  const a = side > 0 ? 0 : Math.PI;
   return { o: [PEDAL_X * side, BB_Y - Math.cos(a) * CRANK, -Math.sin(a) * CRANK], x: [1, 0, 0], y: [0, c, s], z: [0, -s, c] };
+}
+
+/** Phase de la pédale sous un pied au repos (position monde de l'os foot_*, cheville sur la pédale). */
+function pedalPhase(skin, bone) {
+  const j = skin.listJoints().find((n) => n.getName().toLowerCase() === bone); // foot_l (MPFB), foot_L (cyclist.glb)
+  const m = j.getWorldMatrix();
+  const c = Math.cos(REST_PITCH);
+  const s = Math.sin(REST_PITCH);
+  const py = m[13] - (ANKLE_FLAT[1] * c - ANKLE_FLAT[2] * s) - BB_Y;
+  const pz = m[14] - (ANKLE_FLAT[1] * s + ANKLE_FLAT[2] * c);
+  return Math.atan2(-pz, -py);
 }
 
 /** Sommets d'un nœud skinné en pose de repos (positions et normales monde, tous attributs lus). */
@@ -155,8 +168,18 @@ async function reshoe(file, shoeFile) {
     else root.listScenes()[0].addChild(node);
   }
 
-  // --- Chaussures source (repère client, pose de repos) et triangles de la tige et de la semelle.
+  // --- Chaussures source (repère client, pose de repos), déplacées avec leur pédale jusqu'au pied
+  // de l'avatar, et triangles de la tige et de la semelle.
+  const phase = {};
+  const shift = {};
+  for (const [side, b] of [[1, 'foot_l'], [-1, 'foot_r']]) {
+    phase[side] = pedalPhase(body.getSkin(), b);
+    const from = pedalFrame(side, pedalPhase(srcNode.getSkin(), b)).o;
+    shift[side] = sub(pedalFrame(side, phase[side]).o, from);
+  }
+  console.log(`${path.basename(file)} : pédales au repos à ${(phase[1] * 180 / Math.PI).toFixed(1)}° (gauche), ${(phase[-1] * 180 / Math.PI).toFixed(1)}° (droite)`);
   const parts = restVertices(srcNode);
+  for (const { pos } of parts) pos.forEach((p, i) => (pos[i] = add(p, shift[p[0] > 0 ? 1 : -1])));
   const hull = { 1: [], [-1]: [] };
   for (const { prim, pos } of parts) {
     const mat = prim.getMaterial()?.getName();
@@ -190,7 +213,7 @@ async function reshoe(file, shoeFile) {
   // l'ouverture et au bas du pied, tout le pied (orteils MPFB plus larges que la chaussure).
   const hidden = (p, bone) => {
     const side = p[0] > 0 ? 1 : -1;
-    const f = pedalFrame(side);
+    const f = pedalFrame(side, phase[side]);
     const l = sub(p, f.o);
     const lx = dot(l, f.x) * side;
     const ly = dot(l, f.y);

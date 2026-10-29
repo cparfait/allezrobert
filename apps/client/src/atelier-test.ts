@@ -18,7 +18,7 @@ import { preloadJerseyLogo } from './rider/jerseyPattern.ts';
  *    (&maillot=<id> : un maillot du catalogue ; &tenue=<json> : réglages de tenue ; &cam=x,y,z&look=x,y,z&fov=n : un seul cadrage libre) ;
  *  - ?profil&n=nom[&zoom][&silhouette] : profil du coureur au téléobjectif, angles du dos et du cou
  *    mesurés sur le squelette → profil-<nom>.jpg ; &tete : la tête seule (&casque : casquée, &tq : de
- *    trois quarts avant ; &cam=x,y,z&look=x,y,z&fov=n : cadrage libre) ;
+ *    trois quarts avant ; &cam=x,y,z&look=x,y,z&fov=n : cadrage libre ; &manivelle=<°> : manivelles figées) ;
  *  - ?peloton : 50 coureurs tous équipés différemment, vus de la caméra de poursuite → peloton-identite.jpg.
  *  - ?velo=<id>[&bottles=2] : un vélo du catalogue sur le pied (garage), trois quarts et deux profils → out/bikes-render/.
  */
@@ -189,7 +189,9 @@ async function main(): Promise<void> {
     const view: Shot = params.has('cam') ? { cam: vec('cam'), look: vec('look'), fov: Number(params.get('fov') ?? 20) } : params.has('tete') ? { cam: params.has('tq') ? [0.95, 1.62, 1.12] : [1.1, 1.53, 0.2], look: [0, params.has('tq') ? 1.56 : 1.53, 0.2], fov: 16 } : params.has('zoom') ? { cam: [3.4, 1.32, 0.2], look: [0, 1.3, 0.16], fov: 12 } : { cam: [6, 1.2, 0.12], look: [0, 1.15, 0.12], fov: 13 };
     const st: AtelierState = { look: look(tune), focus: 'overview', rider: true, yaw: 0, view, bareHead: params.has('tete') && !params.has('casque') };
     host.set(st);
-    const h = host as unknown as { scene: THREE.Scene; avatar: { root: THREE.Object3D }; bikeRoot: THREE.Object3D };
+    const h = host as unknown as { scene: THREE.Scene; avatar: { root: THREE.Object3D; setGesture?(g: { crank?: number }): void }; bikeRoot: THREE.Object3D };
+    // &manivelle=<°> : manivelles figées à cet angle (comparer les deux côtés dans des poses symétriques).
+    if (params.has('manivelle')) h.avatar.setGesture?.({ crank: (Number(params.get('manivelle')) * Math.PI) / 180 });
     if (params.has('silhouette')) {
       for (const o of h.scene.children) o.visible = o === h.bikeRoot;
       h.scene.background = new THREE.Color('#ffffff');

@@ -6,7 +6,7 @@ Allez Robert ! — avatar MPFB (docs/AVATARS.md, étapes 2 et 3).
     34 pour le visage (cibles MakeHuman) et 8 pour le corps (macros sexe, âge, poids, muscle,
     origine : écart entre deux humains MPFB, ramené au squelette de base pour ne pas changer la
     taille ni la longueur des membres) ; le client les applique une fois, sur le processeur ;
-  - pose de conduite (bassin sur la selle, pieds sur les pédales à la manivelle 0, mains aux
+  - pose de conduite (bassin sur la selle, les deux pieds sur leur pédale en bas, BIND_PHASE, mains aux
     cocottes) appliquée comme pose de repos, cibles comprises : le client calcule sa cinématique
     inverse en écarts à cette pose, comme pour cyclist.glb ;
   - zones de tenue (maillot, bande, cuissard, chaussettes) coupées par plans, ourlets nets ;
@@ -86,6 +86,12 @@ CRANK = 0.1725
 PEDAL_AXIS_X = 0.072
 FOOT_X = 0.105
 REST_PITCH = 0.35            # talon levé (rad), comme les pédales de bike_families
+# Phase de pédale des deux pieds dans la pose de repos (0 : pédale en bas). Les deux jambes sont
+# liées dans la même pose, celle de la jambe gauche d'avant le 29/10/2026 : jusque-là manivelle 0
+# (gauche en bas, droite en haut), la fesse droite, liée cuisse pliée, se froissait d'un pli en
+# travers dès que la jambe droite descendait, la gauche restait lisse. Liées devant (3π/2), les deux
+# fesses se froissaient jambe en bas.
+BIND_PHASE = 0.0
 ANKLE_FLAT = Vector((0.0, 0.095, -0.13))  # cheville / axe de pédale, pied à plat
 HIP = Vector((0.0, 1.02, -0.215))          # centre des hanches, assis sur la selle
 HOOD = Vector((0.2, 0.958, 0.54))         # prise des mains sur les cocottes
@@ -843,8 +849,9 @@ def assign_eyes(eyes, rig):
 # Pose de conduite
 # ---------------------------------------------------------------------------------------------
 def ankle_target(side):
-    """Cheville (client) à la manivelle 0 : pédale gauche en bas, droite en haut, talon levé."""
-    a = 0.0 if side == 'l' else math.pi
+    """Cheville (client) sur sa pédale à BIND_PHASE, talon levé : les deux pieds au même endroit du
+    tour de pédale (jambes en miroir)."""
+    a = BIND_PHASE
     pedal = Vector((PEDAL_AXIS_X if side == 'l' else -PEDAL_AXIS_X, BB.y - math.cos(a) * CRANK, BB.z - math.sin(a) * CRANK))
     rest = ANKLE_FLAT.copy()
     rot = Matrix.Rotation(REST_PITCH, 3, 'X')
