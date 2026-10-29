@@ -14,8 +14,11 @@ import { shortsShell } from './shortsShell.ts';
  * Inspiré du principe du corps de Veloworld (tubes à section musculaire sur un squelette plat), réécrit ici.
  */
 
-/** Coque du cuissard (shortsShell.ts) ; ?coque=0 : ancien fessier en bloc (comparaison). */
-const SHELL = (typeof location === 'undefined' ? null : new URLSearchParams(location.search).get('coque')) !== '0';
+/**
+ * Fessier en bloc (quelques grands pans, comme le reste du corps) ; ?coque=1 : coque du cuissard (shortsShell.ts),
+ * par défaut jusqu'au 29/10/2026, jugée trop chargée en petites facettes.
+ */
+const SHELL = (typeof location === 'undefined' ? null : new URLSearchParams(location.search).get('coque')) === '1';
 
 /** Genou : chevauchement de la cuisse et du tibia au-delà de l'articulation, rayon et avancée du bloc de genou (m). */
 const KNEE_OVERLAP = 0.03;
@@ -295,9 +298,8 @@ export class SweptBody {
     const T = (i: number, f: number) => (tr[i] as number) + f * ((tr[i + 1] ?? 1) - (tr[i] as number));
     const chest = look.female ? 0.9 : 1;
     const hips = look.female ? 1.05 : 1;
-    // Bas du tronc (selle → bassin) : caché sous la coque du cuissard (shortsShell.ts), qui donne seule la
-    // forme du fessier, de la taille et du haut des cuisses.
-    // (?coque=0 : ancien fessier en bloc, sans la coque, pour comparer.)
+    // Bas du tronc (selle → bassin) : fessier en bloc ; avec la coque du cuissard (?coque=1, shortsShell.ts),
+    // caché sous elle, qui donne seule la forme du fessier, de la taille et du haut des cuisses.
     const trunkKeys: Key[] = [
       ...(SHELL
         ? ([
@@ -361,8 +363,17 @@ export class SweptBody {
       const LT = (f: number) => (tf[1] as number) + f * (1 - (tf[1] as number));
       const thighLen = g.hip.distanceTo(g.knee);
       const tKeys: Key[] = [
-        { t: 0, w: 0.05, p: 0.06, n: 0.05, bones: [[0, 1]] },
-        { t: LT(0), w: 0.076, p: 0.085, n: 0.075, bones: [[0, 0.4], [thigh, 0.6]] },
+        // Racine de la cuisse : avec le fessier en bloc, mince, pour rester dedans quand la cuisse tourne (jusqu'au
+        // 29/10/2026, ses coins ressortaient du flanc du bloc en marche, son bout fermé à vue).
+        ...(SHELL
+          ? ([
+              { t: 0, w: 0.05, p: 0.06, n: 0.05, bones: [[0, 1]] },
+              { t: LT(0), w: 0.076, p: 0.085, n: 0.075, bones: [[0, 0.4], [thigh, 0.6]] },
+            ] as Key[])
+          : ([
+              { t: 0, w: 0.035, p: 0.04, n: 0.035, bones: [[0, 1]] },
+              { t: LT(0), w: 0.058, p: 0.058, n: 0.06, bones: [[0, 0.4], [thigh, 0.6]] },
+            ] as Key[])),
         { t: LT(0.3), w: 0.08, p: 0.08, n: 0.085, bones: [[thigh, 1]] },
         { t: LT(0.65), w: 0.068, p: 0.066, n: 0.075, bones: [[thigh, 1]] },
         { t: 1, w: 0.054, p: 0.054, n: 0.056, bones: [[thigh, 1]] },

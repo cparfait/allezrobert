@@ -20,9 +20,6 @@ const SMOOTH_PASSES = 4;
 const SMOOTH_K = 0.5;
 /** Rayon d'adoucissement des unions (m) : pas d'arête entre fessier, taille et cuisses. */
 const BLEND = 0.04;
-/** Sillon entre les fesses : profondeur et demi-largeur (m). */
-const CLEFT_DEPTH = 0.055;
-const CLEFT_W = 0.03;
 
 export interface ShellParams {
   /** Ourlet du maillot (repos) : la coque s'arrête un peu au-dessus, sous le maillot. */
@@ -102,10 +99,6 @@ export function shortsShell(rest: BodyJoints, P: ShellParams): { vertices: Shell
     d = smin(d, capsule(p, H, top, waistR, waistR * 0.96, waistSx, tmp), BLEND);
     // Cuisses : rayon qui finit sous celui du tube de la cuisse (≈ 7,2 cm à mi-cuisse) : la coque y rentre.
     for (const L of legs) d = smin(d, capsule(p, L.a, L.hem, 0.09 * s, 0.062 * s, 1, tmp), BLEND);
-    // Sillon entre les deux fesses, derrière, du haut des fesses jusqu'à la selle : deux fesses comme sur
-    // l'avatar réaliste au lieu d'un bloc d'un tenant (jusqu'au 29/10/2026).
-    q.subVectors(p, gC);
-    d += CLEFT_DEPTH * s * Math.exp(-((q.x / CLEFT_W) ** 2)) * smooth(0.0, 0.05, -q.z) * smooth(-0.14, -0.08, q.y) * (1 - smooth(0.05, 0.11, q.y));
     // Coupe sous le maillot (plan de la taille) ; les cuisses finissent arrondies dans leur tube.
     d = Math.max(d, q.subVectors(p, top).dot(up));
     return d;
