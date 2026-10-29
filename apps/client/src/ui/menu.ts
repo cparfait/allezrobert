@@ -1163,7 +1163,6 @@ export class MainMenu {
     const tag = MODE_TAGS[L ? 'fr' : 'en'];
     return `<section class="mm-panel mm-left">
       <header class="mm-head"><h2>${L ? 'Que veux-tu faire ?' : 'What do you want to do?'}</h2></header>
-      <div id="m-openworld" class="ow" hidden></div>
       <div class="mm-modes">${this.modes()
         .map(
           ([v, k]) =>
@@ -1171,6 +1170,7 @@ export class MainMenu {
         )
         .join('')}</div>
       <p class="mm-hint">${s.mode === 'open' ? (L ? 'Parcours libre : ← / → pour choisir ta direction à chaque carrefour, U pour faire demi-tour.' : 'Free ride: ← / → to pick your way at each junction, U to turn around.') : mode ? esc(mode[2]) : ''}</p>
+      <div id="m-openworld" class="ow" hidden></div>
       <hr class="mm-sep" />
       ${this.weatherHtml()}
       ${
