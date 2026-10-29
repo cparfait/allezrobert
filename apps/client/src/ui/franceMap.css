@@ -72,7 +72,24 @@
 .zc-near-chip:hover:not(:disabled) { border-color: var(--ar-accent); }
 .zc-near-chip.on { border-color: var(--ar-accent); background: rgba(255, 210, 63, 0.12); color: var(--ar-accent); }
 .zc-near-chip:disabled { opacity: 0.6; cursor: wait; }
-.mm-picker.wk-dialog { width: min(980px, 94vw) !important; background: rgba(10, 14, 22, 0.88); backdrop-filter: blur(6px); border-color: rgba(255, 255, 255, 0.14); }
+/* Fenêtre « Choisis ta séance » : fond presque opaque pour que les cartes se détachent, seule la liste défile. */
+.mm-picker.wk-dialog { width: min(1020px, 94vw) !important; height: min(calc(100vh - 140px), 940px); max-height: none; overflow: hidden; background: rgba(11, 15, 22, 0.97); backdrop-filter: blur(6px); border-color: rgba(255, 255, 255, 0.12); }
 .mm-picker-modal:has(.wk-dialog) { background: rgba(6, 9, 15, 0.62); backdrop-filter: blur(4px); }
-.wk-filter { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 10px; }
-.mm-wks-grid { grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); overflow-y: auto; padding-right: 4px; }
+/* Le bandeau du haut reste au-dessus des fenêtres : la fenêtre tient dans l'espace libre, sans passer dessous. */
+@media (max-width: 700px) { .mm-picker.wk-dialog { height: calc(100vh - 196px); } }
+.wk-filter { display: flex; flex-wrap: wrap; gap: 5px; padding-bottom: 12px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); }
+.wk-chip { appearance: none; display: inline-flex; align-items: center; gap: 5px; padding: 5px 10px; border-radius: 999px; border: 1px solid rgba(255, 255, 255, 0.12); background: rgba(255, 255, 255, 0.05); color: #e6ebf2; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; transition: background 0.12s, border-color 0.12s; }
+.wk-chip i { width: 8px; height: 8px; border-radius: 50%; }
+.wk-chip small { font-size: 10.5px; font-weight: 600; color: #8d98a6; }
+.wk-chip:hover { background: rgba(255, 255, 255, 0.1); border-color: rgba(255, 255, 255, 0.24); }
+.wk-chip:focus-visible { outline: 2px solid var(--ar-accent); outline-offset: 2px; }
+.wk-chip.on { background: var(--ar-accent); border-color: var(--ar-accent); color: #0a0e16; }
+.wk-chip.on small { color: rgba(10, 14, 22, 0.6); }
+.mm-wks-grid { position: relative; flex: 1; min-height: 0; margin: 0; grid-template-columns: repeat(auto-fill, minmax(min(380px, 100%), 1fr)); grid-auto-rows: max-content; gap: 12px; align-content: start; overflow-y: auto; overscroll-behavior: contain; padding: 2px 10px 22px 2px; scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, 0.24) transparent; }
+.mm-wks-grid .mm-hint { grid-column: 1 / -1; }
+/* Titre d'un type de séance (vue « Toutes ») : reste en haut pendant qu'on fait défiler ses séances. */
+.wk-sec { grid-column: 1 / -1; position: sticky; top: -2px; z-index: 2; display: flex; align-items: center; gap: 8px; margin: 8px 0 -2px; padding: 8px 2px 6px; background: rgb(11, 15, 22); font-size: 12.5px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: color-mix(in srgb, var(--wk) 65%, #fff); }
+.wk-sec:first-child { margin-top: 0; }
+.wk-sec::before { content: ''; width: 9px; height: 9px; border-radius: 50%; background: var(--wk); }
+.wk-sec small { font-size: 12px; font-weight: 600; letter-spacing: 0; color: #8d98a6; }
+.wk-sec::after { content: ''; flex: 1; height: 1px; background: linear-gradient(90deg, color-mix(in srgb, var(--wk) 45%, transparent), transparent); }
