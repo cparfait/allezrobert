@@ -1,4 +1,7 @@
 import * as THREE from 'three/webgpu';
+import { attribute, mix } from 'three/tsl';
+import type { AvatarLook } from '@allezrobert/shared';
+import { jerseyPattern } from './jerseyPattern.ts';
 
 /**
  * Corps du cycliste low poly d'un seul tenant (par défaut ; `?corps=prismes` pour l'ancien, voir lowPolyRider.ts) : tronc, jambes
@@ -57,6 +60,11 @@ export interface BodyLook {
   sockLen: number;
   build: number;
   female: boolean;
+  /**
+   * Motifs du maillot dessinés dans le shader (pois, dégradé, chevrons, logo : jerseyPattern.ts, les mêmes
+   * que l'avatar réaliste) ; les aplats (bandes, manches, moitié) restent des couleurs de sommets.
+   */
+  pattern?: AvatarLook;
 }
 
 /** Station d'un tube : position (fraction de la longueur), section et poids des os. */
@@ -89,11 +97,14 @@ class Builder {
   readonly col: number[] = [];
   readonly si: number[] = [];
   readonly sw: number[] = [];
+  /** 1 sur le tissu du maillot (motifs), 0 ailleurs (peau, cuissard, col, liserés). */
+  readonly mask: number[] = [];
   readonly index: number[] = [];
 
-  private vertex(p: THREE.Vector3, c: THREE.Color, bones: Array<[number, number]>): number {
+  private vertex(p: THREE.Vector3, c: THREE.Color, bones: Array<[number, number]>, m = 0): number {
     this.pos.push(p.x, p.y, p.z);
     this.col.push(c.r, c.g, c.b);
+    this.mask.push(m);
     const b = [...bones].sort((a, z) => z[1] - a[1]).slice(0, 4);
     const sum = b.reduce((s, x) => s + x[1], 0) || 1;
     for (let i = 0; i < 4; i++) {
@@ -107,7 +118,7 @@ class Builder {
    * Tube le long de `pts` : `keys` donnent la section (interpolée linéairement), `colorAt(t)` la couleur ;
    * `edges` : positions où la couleur change, doublées pour un bord net. Bouts fermés en éventail.
    */
-  tube(pts: THREE.Vector3[], keys: Key[], colorAt: (t: number) => THREE.Color, edges: number[], scale: number): void {
+  tube(pts: THREE.Vector3[], keys: Key[], colorAt: (t: number) => THREE.Color, edges: number[], scale: number, maskAt: (t: number) => number = () => 0): void {
     const cum = [0];
     for (let i = 1; i < pts.length; i++) cum.push((cum[i - 1] as number) + (pts[i] as THREE.Vector3).distanceTo(pts[i - 1] as THREE.Vector3));
     const total = cum[cum.length - 1] as number;
@@ -136,11 +147,11 @@ class Builder {
       return { t, w: A.w + (B.w - A.w) * u, p: A.p + (B.p - A.p) * u, n: A.n + (B.n - A.n) * u, bones: [...bones] };
     };
     // Anneaux : stations, plus un anneau de chaque côté de chaque changement de couleur.
-    const rings: Array<{ t: number; c: THREE.Color }> = [];
+    const rings: Array<{ t: number; c: THREE.Color; m: number }> = [];
     // Une station posée pile sur un changement de couleur prendrait la couleur d'un seul côté et ferait
     // un dégradé sur toute la bande voisine : les deux anneaux du bord suffisent.
-    for (const k of keys) if (!edges.some((e) => Math.abs(e - k.t) < 1e-7)) rings.push({ t: k.t, c: colorAt(k.t) });
-    for (const e of edges) rings.push({ t: e, c: colorAt(e - 1e-4) }, { t: e + 1e-6, c: colorAt(e + 1e-4) });
+    for (const k of keys) if (!edges.some((e) => Math.abs(e - k.t) < 1e-7)) rings.push({ t: k.t, c: colorAt(k.t), m: maskAt(k.t) });
+    for (const e of edges) rings.push({ t: e, c: colorAt(e - 1e-4), m: maskAt(e - 1e-4) }, { t: e + 1e-6, c: colorAt(e + 1e-4), m: maskAt(e + 1e-4) });
     rings.sort((a, b) => a.t - b.t);
     const p = new THREE.Vector3();
     const tan = new THREE.Vector3();
@@ -150,7 +161,7 @@ class Builder {
     let prev: number[] | null = null;
     let first: number[] | null = null;
     let firstC: THREE.Vector3 | null = null;
-    let last: { row: number[]; c: THREE.Vector3; k: Key; color: THREE.Color } | null = null;
+    let last: { row: number[]; c: THREE.Vector3; k: Key; color: THREE.Color; m: number } | null = null;
     for (const r of rings) {
       at(r.t, p, tan);
       const k = keyAt(r.t);
@@ -165,7 +176,7 @@ class Builder {
         const c = Math.cos(phi);
         const s = Math.sin(phi);
         v.copy(p).addScaledVector(ex, c * k.w * scale).addScaledVector(ez, s * (s >= 0 ? k.p : k.n) * scale);
-        row.push(this.vertex(v, r.c, k.bones));
+        row.push(this.vertex(v, r.c, k.bones, r.m));
       }
       if (prev) for (let j = 0; j < SIDES; j++) {
         const j1 = (j + 1) % SIDES;
@@ -176,19 +187,19 @@ class Builder {
         firstC = p.clone();
       }
       prev = row;
-      last = { row, c: p.clone(), k, color: r.c };
+      last = { row, c: p.clone(), k, color: r.c, m: r.m };
     }
     // Bouts fermés (éventail autour du centre).
-    const cap = (row: number[], centre: THREE.Vector3, k: Key, c: THREE.Color, flip: boolean) => {
-      const ci = this.vertex(centre, c, k.bones);
+    const cap = (row: number[], centre: THREE.Vector3, k: Key, c: THREE.Color, flip: boolean, m: number) => {
+      const ci = this.vertex(centre, c, k.bones, m);
       for (let j = 0; j < SIDES; j++) {
         const j1 = (j + 1) % SIDES;
         if (flip) this.index.push(ci, row[j1] as number, row[j] as number);
         else this.index.push(ci, row[j] as number, row[j1] as number);
       }
     };
-    if (first && firstC) cap(first, firstC, keyAt(0), colorAt(0), false);
-    if (last) cap(last.row, last.c, last.k, last.color, true);
+    if (first && firstC) cap(first, firstC, keyAt(0), colorAt(0), false, maskAt(0));
+    if (last) cap(last.row, last.c, last.k, last.color, true, last.m);
   }
 }
 
@@ -239,6 +250,7 @@ export class SweptBody {
       },
       trunkEdges,
       s,
+      (t) => (t >= hem && t <= collar ? 1 : 0),
     );
     // ── Jambes : haut de cuisse → hanche → genou → cheville ──
     rest.legs.forEach((g, i) => {
@@ -296,6 +308,7 @@ export class SweptBody {
         (t) => (t < cuffA ? sleeve : t < cuffB ? (look.accentSleeves ? look.jersey : look.accent) : look.longSleeves ? sleeve : look.skin),
         [cuffA, cuffB],
         s,
+        (t) => (t < cuffA || (t >= cuffB && look.longSleeves) ? 1 : 0),
       );
     });
 
@@ -306,8 +319,35 @@ export class SweptBody {
     geo.setAttribute('skinWeight', new THREE.Float32BufferAttribute(b.sw, 4));
     geo.setIndex(b.index);
     geo.computeVertexNormals();
-    const mat = new THREE.MeshStandardNodeMaterial({ vertexColors: true, roughness: 0.75, metalness: 0, side: THREE.DoubleSide });
+    const mat = new THREE.MeshStandardNodeMaterial({ vertexColors: !look.pattern, roughness: 0.75, metalness: 0, side: THREE.DoubleSide });
     mat.flatShading = true;
+    if (look.pattern) {
+      // Repère du maillot au repos (comme addJerseyFrame pour l'avatar réaliste) : y de l'ourlet vers la base du
+      // cou le long du buste penché, x latéral, z vers la poitrine.
+      const hemP = pointAt(trunkPts, hem);
+      const ay = new THREE.Vector3().subVectors(rest.neck, hemP).setX(0).normalize();
+      const az = new THREE.Vector3().crossVectors(LEFT, ay).normalize();
+      const s0 = hemP.dot(ay);
+      const torsoLen = rest.neck.dot(ay) - s0;
+      const pos = geo.getAttribute('position');
+      const nor = geo.getAttribute('normal');
+      const jp = new Float32Array(pos.count * 3);
+      const jn = new Float32Array(pos.count * 3);
+      const q = new THREE.Vector3();
+      for (let i = 0; i < pos.count; i++) {
+        q.fromBufferAttribute(pos, i);
+        jp.set([q.x, q.dot(ay) - s0, q.dot(az)], i * 3);
+        q.fromBufferAttribute(nor, i);
+        jn.set([q.x, q.dot(ay), q.dot(az)], i * 3);
+      }
+      geo.setAttribute('jpos', new THREE.BufferAttribute(jp, 3));
+      geo.setAttribute('jnor', new THREE.BufferAttribute(jn, 3));
+      geo.setAttribute('jmask', new THREE.Float32BufferAttribute(b.mask, 1));
+      const pattern = jerseyPattern(look.pattern, { sleeveX: 0.16 * s, torsoLen });
+      pattern.set(look.pattern);
+      const vc = attribute<'vec3'>('color', 'vec3');
+      mat.colorNode = mix(vc, pattern.color(vc), attribute<'float'>('jmask', 'float'));
+    }
     this.mesh = new THREE.SkinnedMesh(geo, mat);
     this.mesh.castShadow = true;
     this.mesh.receiveShadow = true;
@@ -341,6 +381,16 @@ export class SweptBody {
     this.mesh.geometry.dispose();
     (this.mesh.material as THREE.Material).dispose();
   }
+}
+
+/** Point à la fraction t (0–1) de la longueur d'une polyligne. */
+function pointAt(pts: THREE.Vector3[], t: number): THREE.Vector3 {
+  const fr = fractions(pts);
+  let i = 0;
+  while (i < pts.length - 2 && t > (fr[i + 1] as number)) i++;
+  const a = fr[i] as number;
+  const b = fr[i + 1] as number;
+  return new THREE.Vector3().lerpVectors(pts[i] as THREE.Vector3, pts[i + 1] as THREE.Vector3, Math.min(1, Math.max(0, (t - a) / Math.max(1e-6, b - a))));
 }
 
 function length(pts: THREE.Vector3[]): number {

@@ -5,6 +5,7 @@ import { QUALITY_PRESETS } from './engine/quality.ts';
 import { GltfRiderAvatar } from './rider/gltfAvatar.ts';
 import { loadBikeFamily } from './rider/bikes.ts';
 import { AtelierHost, type AtelierState, type Shot } from './ui/atelier.ts';
+import { preloadJerseyLogo } from './rider/jerseyPattern.ts';
 
 /**
  * Banc d'essai de l'atelier (développement) : /atelier-test.html rend l'atelier et le peloton
@@ -59,6 +60,7 @@ async function main(): Promise<void> {
   // &maillot=<id> : maillot du catalogue (cosmetics.json) porté par le coureur.
   const jerseyItem = COSMETICS.find((c) => c.slot === 'jersey' && c.id === params.get('maillot'));
   const maillot = jerseyItem ? jerseyLookOf(jerseyItem) : {};
+  if (jerseyItem?.jersey?.logo) await preloadJerseyLogo(jerseyItem.jersey.logo.id);
   // &tenue=<json> : réglages de tenue en plus (ex. {"noHelmet":true,"noGlasses":true}).
   const tenue = (params.has('tenue') ? JSON.parse(params.get('tenue') as string) : {}) as Partial<AvatarLook>;
   const look = (tune: string[], extra: Partial<AvatarLook> = {}): AvatarLook => ({ ...DEFAULT_LOOK, ...(params.has('female') ? { face: encodeFace({ sex: -1, ...(params.has('cou') ? { neckWidth: Number(params.get('cou')) } : {}) }) } : {}), ...(DEMO_BIKE ? { bikeModel: DEMO_BIKE } : {}), ...(params.has('coiffure') ? { hairStyle: Number(params.get('coiffure')), hair: '#3a2416' } : {}), ...maillot, ...tenue, tune, ...extra });

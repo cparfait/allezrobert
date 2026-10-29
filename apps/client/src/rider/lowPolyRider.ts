@@ -171,6 +171,13 @@ function merged(parts: THREE.BufferGeometry[], material: THREE.Material): THREE.
   return m;
 }
 
+/** Liseré du casque : la couleur de la coque, assombrie si elle est claire, éclaircie sinon. */
+function helmetTrim(shell: string): string {
+  const hsl = { h: 0, s: 0, l: 0 };
+  new THREE.Color(shell).getHSL(hsl);
+  return `#${new THREE.Color().setHSL(hsl.h, hsl.s, hsl.l > 0.5 ? hsl.l - 0.22 : hsl.l + 0.22).getHexString()}`;
+}
+
 /** Hauteur de jante (m) par type de roue. */
 const RIM_DEPTH: Record<WheelType, number> = { box: 0.02, c35: 0.035, c50: 0.05, c65: 0.065, disc: 0.05, tri: 0.05 };
 
@@ -187,6 +194,25 @@ function dome(r: number, sx: number, sy: number, sz: number): THREE.BufferGeomet
  * direction — angle depuis le sommet (rad) devant, sur les côtés et derrière. `tail` allonge l'arrière
  * (casque profilé). Géométrie indexée, faces tournées vers l'extérieur.
  */
+/**
+ * Cheveux qui tombent : sous la ligne des oreilles, la calotte ne se referme plus vers le cou mais descend
+ * presque droit (légère cloche vers l'intérieur), comme un carré ou des cheveux longs ; `drop` allonge
+ * l'arrière (cheveux longs sur la nuque, qui suivent la tête penchée).
+ */
+function hangDown(g: THREE.BufferGeometry, ry: number, drop = 0): THREE.BufferGeometry {
+  const p = g.getAttribute('position');
+  for (let i = 0; i < p.count; i++) {
+    const th = Math.acos(Math.max(-1, Math.min(1, p.getY(i) / ry)));
+    if (th <= Math.PI / 2) continue;
+    const k = (1 - 0.22 * (th - Math.PI / 2)) / Math.max(0.05, Math.sin(th));
+    const x = p.getX(i);
+    const z = p.getZ(i);
+    const back = Math.max(0, -z / Math.max(1e-6, Math.hypot(x, z)));
+    p.setXYZ(i, x * k, p.getY(i) * (1 + drop * back * back), z * k);
+  }
+  return g;
+}
+
 function headShell(rx: number, ry: number, rz: number, front: number, side: number, back: number, tail = 0, segs = 24, rows = 8): THREE.BufferGeometry {
   const pos: number[] = [0, ry, 0];
   const index: number[] = [];
@@ -325,7 +351,12 @@ export class LowPolyRider implements RiderAvatarLike {
       const n = Math.min(look.jerseyBands.length, 5);
       const h = 0.6 / n;
       look.jerseyBands.slice(0, n).forEach((col, i) => bands.push({ from: 0.85 - (i + 1) * h, to: 0.85 - i * h, color: c(col) }));
-    } else if (style !== 'uni' && style !== 'manches' && style !== 'moitie') bands.push({ from: 0.42, to: 0.6, color: c(look.jerseyAccent) });
+    } else if (!style) bands.push({ from: 0.42, to: 0.6, color: c(look.jerseyAccent) });
+    // Pois, dégradé, chevrons et logo : dans le shader du corps (mêmes motifs que l'avatar réaliste).
+    const shaderStyle = style === 'pois' || style === 'degrade' || style === 'chevrons' ? style : undefined;
+    // Logo un peu plus petit et plus bas : le dos du corps low poly est plus étroit que celui du modèle réaliste.
+    const logo = look.jerseyLogo && { ...look.jerseyLogo, w: (look.jerseyLogo.w ?? 0.16) * 0.78, y: (look.jerseyLogo.y ?? 0.62) * 0.93 };
+    const pattern = shaderStyle || logo ? { ...look, jerseyStyle: shaderStyle, jerseyLogo: logo } : undefined;
     this.swept = new SweptBody(this.J, {
       jersey: c(look.jersey),
       accent: c(look.jerseyAccent),
@@ -340,6 +371,7 @@ export class LowPolyRider implements RiderAvatarLike {
       sockLen: this.sockLen,
       build: (female ? 0.86 : 0.92) + look.build * 0.3,
       female,
+      pattern,
     });
     this.body.add(this.swept.mesh);
     for (const sg of [this.torso, this.collar, this.pelvis, ...this.bands.map((b) => b.seg)]) sg.mesh.visible = false;
@@ -438,14 +470,17 @@ export class LowPolyRider implements RiderAvatarLike {
     const hairParts = this.hairGeometry(look.hairStyle);
     // Coureuses (façon NCT) : queue de cheval qui sort sous l'arrière du casque et tombe sur la nuque, en deux
     // tronçons effilés ; attache sombre.
-    if (female) {
+    // Seulement avec une coupe courte : les coiffures longues, attachées ou le carré ont leur propre arrière.
+    const hairStyle = ((look.hairStyle % 12) + 12) % 12;
+    const ponytail = female && [0, 4, 8].includes(hairStyle);
+    if (ponytail) {
       const knot = v3(0, -0.02, -0.122);
       const mid = v3(0, -0.13, -0.165);
       const end = v3(0, -0.25, -0.15);
       hairParts.push(tube(knot, mid, 0.034, 0.03, 6), tube(mid, end, 0.03, 0.012, 6));
     }
     if (hairParts.length) this.head.add(merged(hairParts, hair));
-    if (female) this.head.add(new THREE.Mesh(tube(v3(0, -0.005, -0.118), v3(0, -0.035, -0.128), 0.038, 0.038, 6), flat('#1b1c20')));
+    if (ponytail) this.head.add(new THREE.Mesh(tube(v3(0, -0.005, -0.118), v3(0, -0.035, -0.128), 0.038, 0.038, 6), flat('#1b1c20')));
     this.buildHeadgear(look, bike);
     this.head.add(this.headgear);
     this.head.traverse((o) => (o.castShadow = true));
@@ -457,8 +492,13 @@ export class LowPolyRider implements RiderAvatarLike {
     const s = ((style % 12) + 12) % 12;
     if (s === 3) return [];
     // Coupe courte qui épouse le crâne : ligne de front haute, tempes au-dessus des oreilles, nuque dégagée
-    // (style 4 : plus court derrière). Les autres styles ajoutent queue, tresses, chignon ou carré par-dessus.
-    const cap = headShell(0.109, 0.125, 0.119, 0.85, 1.72, s === 4 ? 2.0 : 2.22, 0, 20, 7).translate(0, 0.004, -0.004);
+    // (style 4 : plus court derrière). Carré (6) et cheveux longs (9) : calotte plus ample qui descend sur les
+    // côtés jusqu'à la mâchoire en couvrant les oreilles, visage dégagé. Les autres styles ajoutent queue,
+    // tresses ou chignon par-dessus.
+    const cap =
+      s === 6 || s === 9
+        ? hangDown(headShell(0.132, 0.13, 0.129, 0.85, 2.25, s === 9 ? 2.7 : 2.45, 0, 20, 8), 0.13, s === 9 ? 0.9 : 0).translate(0, 0.004, -0.006)
+        : headShell(0.109, 0.125, 0.119, 0.85, 1.72, s === 4 ? 2.0 : 2.22, 0, 20, 7).translate(0, 0.004, -0.004);
     const parts: THREE.BufferGeometry[] = [cap];
     const tail = (x: number, len: number, r: number) => tube(v3(x, -0.01, -0.11), v3(x * 1.3, -0.04 - len, -0.16 - len * 0.25), r, r * 0.7, 6);
     switch (s) {
@@ -472,13 +512,9 @@ export class LowPolyRider implements RiderAvatarLike {
         for (const [x, y, z] of [[0.08, -0.02, -0.06], [-0.08, -0.02, -0.06], [0.05, -0.05, -0.1], [-0.05, -0.05, -0.1], [0, -0.04, -0.115]]) parts.push(new THREE.IcosahedronGeometry(0.04, 0).translate(x as number, y as number, z as number));
         break;
       case 6:
-        parts.push(box(0.235, 0.14, 0.17, 0, -0.045, -0.035));
         break;
       case 7:
         parts.push(new THREE.IcosahedronGeometry(0.052, 0).translate(0, 0, -0.14));
-        break;
-      case 9:
-        parts.push(box(0.21, 0.26, 0.06, 0, -0.13, -0.09));
         break;
       case 10:
         parts.push(tail(0.07, 0.2, 0.022), tail(-0.07, 0.2, 0.022));
@@ -517,7 +553,7 @@ export class LowPolyRider implements RiderAvatarLike {
       }
       g.add(new THREE.Mesh(shell.translate(0, 0.04, -0.02), shellMat));
       g.add(new THREE.Mesh(box(0.21, 0.07, 0.02, 0, 0.0, 0.135), flat('#20242c', 0.15, 0.4)));
-      g.add(merged([box(0.02, 0.03, 0.2, 0, 0.16, -0.05)], flat(look.jerseyAccent)));
+      g.add(merged([box(0.02, 0.03, 0.2, 0, 0.16, -0.05)], flat(helmetTrim(look.helmet))));
       return;
     }
     // Casque de route : coque ovale profilée vers l'arrière, bord qui remonte au-dessus des lunettes et descend
@@ -528,8 +564,9 @@ export class LowPolyRider implements RiderAvatarLike {
     const p = geo.getAttribute('position');
     const shellC = new THREE.Color(look.helmet);
     const ventC = new THREE.Color('#202329');
-    // Bandes décoratives à la couleur d'accent du maillot, le long des aérations (casques NCT).
-    const stripeC = new THREE.Color(look.jerseyAccent);
+    // Bandes décoratives le long des aérations (casques NCT), d'un ton voisin de la coque : le casque ne change
+    // pas avec le maillot.
+    const stripeC = new THREE.Color(helmetTrim(look.helmet));
     const cols: number[] = [];
     const tris = p.count / 3;
     for (let t = 0; t < tris; t++) {
