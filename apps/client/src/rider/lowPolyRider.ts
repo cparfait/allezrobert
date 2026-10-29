@@ -5,6 +5,7 @@ import type { RiderAvatarLike, RiderPose } from './gltfAvatar.ts';
 import { SweptBody, makeJoints, type BodyLook } from './sweptBody.ts';
 import { HELMET_FACETED, aeroHelmetGeometry } from './aeroHelmet.ts';
 import { aerobarAnchors, buildAerobars, type AerobarAnchors } from './aerobars.ts';
+import { shoeDialOf } from './shoeLook.ts';
 
 /**
  * Cycliste et vélo du style jeu vidéo (low poly, voir engine/style.ts), construits de zéro en prismes
@@ -277,6 +278,20 @@ function shoeGeometry(): THREE.BufferGeometry {
   return g;
 }
 
+/**
+ * Deux molettes BOA sur le dessus de la chaussure (shoeGeometry), côté extérieur du pied (`side` : +1
+ * gauche) : devant la chaussette et au milieu du pied, posées à plat sur la tige, avec leur câble.
+ */
+function boaGeometry(side: number): THREE.BufferGeometry {
+  const parts: THREE.BufferGeometry[] = [];
+  for (const [z, y, tilt] of [[-0.012, 0.03, 0.05], [0.038, 0.014, 0.35]] as const) {
+    parts.push(new THREE.CylinderGeometry(0.0155, 0.017, 0.01, 8).rotateX(tilt).translate(0.012 * side, y + 0.004, z));
+    // Câble : de la molette vers l'intérieur du pied.
+    parts.push(new THREE.BoxGeometry(0.03, 0.003, 0.004).rotateX(tilt).translate(-0.006 * side, y + 0.001, z));
+  }
+  return mergeGeometries(parts.map((g) => g.toNonIndexed())) as THREE.BufferGeometry;
+}
+
 /** Calotte à facettes à fond plat (casque, casquette). */
 function dome(r: number, sx: number, sy: number, sz: number): THREE.BufferGeometry {
   const g = new THREE.IcosahedronGeometry(r, 1);
@@ -503,6 +518,8 @@ export class LowPolyRider implements RiderAvatarLike {
     const skin = flat(look.skin, 0.8);
     const sock = flat(look.socks ?? '#f2f2f0');
     const shoe = flat(look.shoes ?? '#f4f4f2', 0.5);
+    // Molettes BOA contrastées : sombres sur chaussure claire, claires sur chaussure foncée.
+    const boa = flat(shoeDialOf(look) === '#f4f4f4' ? '#1b1c20' : '#d9dce0', 0.35, 0.2);
     const glove = flat(look.gloveColor ?? '#1c1d22');
     const hair = flat(look.hair, 0.9);
     const longLegs = look.legs === 'long';
@@ -517,6 +534,7 @@ export class LowPolyRider implements RiderAvatarLike {
       const shin = new Seg(quad(0.045, 0.064), longLegs ? shorts : skin, build, build);
       const sk = new Seg(prism(0.042, 0.047, 6), sock);
       const sh = new THREE.Mesh(shoeGeometry(), shoe);
+      sh.add(new THREE.Mesh(boaGeometry(side), boa));
       sh.castShadow = true;
       this.body.add(thighShorts.mesh, knee.mesh, shin.mesh, sk.mesh, sh);
       this.legs.push({ side, shorts: thighShorts, knee, shin, sock: sk, shoe: sh });
