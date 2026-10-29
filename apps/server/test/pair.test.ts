@@ -101,6 +101,23 @@ describe('salle pair', () => {
     await Promise.all([phone.leave(true), late.leave(true), other.leave(true)]);
   });
 
+  it('compte une seule fois le même téléphone qui se reconnecte', async () => {
+    const pair = 'DeViCeDeViCeDeViCeDeViCe';
+    const game = await join(pair, 'game');
+    const device = 'tel-12345678-abcd';
+    const first = await new Client(endpoint).joinOrCreate(PAIR_ROOM, { pair, role: 'phone', device });
+    await next<PairPresence>(game, PAIR_MSG.presence, (p) => p.phones === 1);
+    // Même appareil, nouvelle connexion (page rechargée) : l'ancienne est fermée, toujours un seul téléphone.
+    const closed = new Promise<void>((r) => first.onLeave(() => r()));
+    const second = await new Client(endpoint).joinOrCreate(PAIR_ROOM, { pair, role: 'phone', device });
+    await closed;
+    expect(await next<PairPresence>(game, PAIR_MSG.presence, (p) => p.game && p.phones === 1)).toEqual({ game: true, phones: 1 });
+    // Un autre appareil compte, lui.
+    const other = await new Client(endpoint).joinOrCreate(PAIR_ROOM, { pair, role: 'phone', device: 'autre-87654321-dcba' });
+    expect(await next<PairPresence>(game, PAIR_MSG.presence, (p) => p.phones === 2)).toEqual({ game: true, phones: 2 });
+    await Promise.all([second.leave(true), other.leave(true), game.leave(true)]);
+  });
+
   it('refuse un jeton mal formé', async () => {
     await expect(join('court', 'phone')).rejects.toThrow();
     await expect(join('pas un jeton avec espaces !!', 'phone')).rejects.toThrow();

@@ -178,6 +178,20 @@ function field(id: FieldId, m: Metrics): { v: string; u: string; color?: string 
 
 /* ───────────── Connexion ───────────── */
 
+/** Identifiant stable de ce téléphone (gardé sur l'appareil) : le serveur ne le compte qu'une fois, même reconnecté. */
+function deviceId(): string {
+  try {
+    let id = localStorage.getItem('ar.companion.device');
+    if (!id) {
+      id = (crypto.randomUUID?.() ?? `${Date.now().toString(36)}${Math.random().toString(36).slice(2)}`).replace(/[^a-zA-Z0-9-]/g, '');
+      localStorage.setItem('ar.companion.device', id);
+    }
+    return id;
+  } catch {
+    return `anon-${Math.random().toString(36).slice(2, 12)}`;
+  }
+}
+
 let retry: ReturnType<typeof setTimeout> | undefined;
 
 function connect(): void {
@@ -186,7 +200,7 @@ function connect(): void {
   S.conn = 'connecting';
   renderBar();
   void new Client(serverEndpoint())
-    .joinOrCreate(PAIR_ROOM, { pair: S.pair, role: 'phone' })
+    .joinOrCreate(PAIR_ROOM, { pair: S.pair, role: 'phone', device: deviceId() })
     .then((r) => {
       room = r;
       S.conn = 'connected';
@@ -1043,6 +1057,56 @@ document.addEventListener('visibilitychange', () => {
 });
 // Certains navigateurs n'accordent le verrou d'écran qu'après un geste.
 app.addEventListener('pointerdown', () => !wakeLock && void keepAwake(), { passive: true });
+
+/**
+ * Proposition d'installation (PWA) : bandeau en bas, une fois le téléphone appairé. Chrome / Edge / Android :
+ * bouton « Installer » (événement beforeinstallprompt) ; iPhone / iPad : consigne « Sur l'écran d'accueil ».
+ * Rien si l'appli est déjà installée ; « Plus tard » le masque 14 jours.
+ */
+const INSTALL_KEY = 'ar.companion.installAsked';
+let installEvent: (Event & { prompt(): Promise<void>; userChoice: Promise<{ outcome: string }> }) | null = null;
+const standalone = () => matchMedia('(display-mode: standalone)').matches || (navigator as { standalone?: boolean }).standalone === true;
+const isIos = () => /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
+function installAsked(): boolean {
+  try {
+    return Date.now() - Number(localStorage.getItem(INSTALL_KEY) ?? 0) < 14 * 86_400_000;
+  } catch {
+    return false;
+  }
+}
+
+function showInstall(): void {
+  if (standalone() || installAsked() || document.getElementById('install')) return;
+  if (!installEvent && !isIos()) return;
+  const el = document.createElement('div');
+  el.id = 'install';
+  el.className = 'install';
+  el.innerHTML = `<div><b>${esc(t.installTitle)}</b><span>${esc(installEvent ? t.installText : t.installIos)}</span></div>
+    ${installEvent ? `<button class="btn" data-act="install">${esc(t.installBtn)}</button>` : ''}
+    <button class="btn ghost" data-act="later">${esc(t.installLater)}</button>`;
+  document.body.appendChild(el);
+  el.addEventListener('click', (e) => {
+    const act = (e.target as HTMLElement).closest<HTMLElement>('[data-act]')?.dataset.act;
+    if (act === 'install' && installEvent) {
+      void installEvent.prompt();
+      void installEvent.userChoice.finally(() => el.remove());
+      installEvent = null;
+    } else if (act === 'later') {
+      localStorage.setItem(INSTALL_KEY, String(Date.now()));
+      el.remove();
+    }
+  });
+}
+
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  installEvent = e as typeof installEvent;
+  setTimeout(showInstall, 2500);
+});
+window.addEventListener('appinstalled', () => document.getElementById('install')?.remove());
+// iPhone : pas d'événement, la consigne est montrée une fois le téléphone appairé.
+if (isIos() && !standalone()) setTimeout(showInstall, 6000);
 
 if ('serviceWorker' in navigator && import.meta.env.PROD) {
   window.addEventListener('load', () => void navigator.serviceWorker.register('./sw.js', { scope: './' }));

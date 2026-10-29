@@ -14,7 +14,12 @@ import { PAIR_MAX_PHONES, PAIR_MSG, PAIR_TOKEN_RE, SPOTIFY_URI_RE, type PairPres
 
 const finite = z.number().refine(Number.isFinite, 'nombre fini attendu');
 
-const JoinSchema = z.object({ pair: z.string().regex(PAIR_TOKEN_RE), role: z.enum(['game', 'phone']) });
+const JoinSchema = z.object({
+  pair: z.string().regex(PAIR_TOKEN_RE),
+  role: z.enum(['game', 'phone']),
+  /** Identifiant stable du téléphone (stocké sur l'appareil) : une reconnexion du même téléphone ne compte pas deux fois. */
+  device: z.string().min(8).max(64).optional(),
+});
 
 const PhoneCommandSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('shift'), action: z.enum(['up', 'down']) }),
@@ -42,6 +47,8 @@ const PhoneCommandSchema = z.discriminatedUnion('kind', [
 
 interface PairClientData {
   role: PairRole;
+  /** Identifiant du téléphone (voir JoinSchema). */
+  device?: string;
   /** Jeu remplacé par une connexion plus récente. */
   replaced?: boolean;
 }
@@ -75,16 +82,27 @@ export class PairRoom extends Room {
     }
   }
 
-  override onAuth(_client: Client, options: unknown): PairRole {
+  override onAuth(_client: Client, options: unknown): { role: PairRole; device?: string } {
     const p = JoinSchema.safeParse(options ?? {});
     if (!p.success) throw new ServerError(400, "Jeton d'appairage invalide");
-    if (p.data.role === 'phone' && this.phones() >= PAIR_MAX_PHONES) throw new ServerError(409, 'Trop de téléphones appairés');
-    return p.data.role;
+    // Le même téléphone qui se reconnecte remplace son ancienne connexion : il ne compte pas dans la limite.
+    if (p.data.role === 'phone' && this.phones(p.data.device) >= PAIR_MAX_PHONES) throw new ServerError(409, 'Trop de téléphones appairés');
+    return { role: p.data.role, ...(p.data.device ? { device: p.data.device } : {}) };
   }
 
   override onJoin(client: Client): void {
-    const role = client.auth as PairRole;
-    client.userData = { role } satisfies PairClientData;
+    const { role, device } = client.auth as { role: PairRole; device?: string };
+    client.userData = { role, ...(device ? { device } : {}) } satisfies PairClientData;
+    if (role === 'phone' && device) {
+      // Même téléphone (page rechargée, réseau changé) : l'ancienne connexion est fermée.
+      for (const c of this.clients) {
+        const d = c.userData as PairClientData | undefined;
+        if (c !== client && d?.role === 'phone' && d.device === device) {
+          d.replaced = true;
+          c.leave(CloseCode.CONSENTED, 'replaced');
+        }
+      }
+    }
     if (role === 'game') {
       const old = this.game;
       this.game = client;
@@ -107,9 +125,13 @@ export class PairRoom extends Room {
     this.broadcastPresence();
   }
 
-  private phones(): number {
+  /** Téléphones connectés, sauf ceux de l'appareil `except` (sa reconnexion les remplace). */
+  private phones(except?: string): number {
     let n = 0;
-    for (const c of this.clients) if ((c.userData as PairClientData | undefined)?.role === 'phone') n++;
+    for (const c of this.clients) {
+      const d = c.userData as PairClientData | undefined;
+      if (d?.role === 'phone' && !d.replaced && !(except && d.device === except)) n++;
+    }
     return n;
   }
 

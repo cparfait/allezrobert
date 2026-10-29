@@ -14,6 +14,11 @@ const fr = {
   offline: 'Jeu hors ligne',
   menu: 'Le jeu est sur l’accueil : lance une sortie, le compagnon suit.',
   unpair: 'Oublier cet appairage',
+  installTitle: 'Installer l’appli',
+  installText: 'Ajoute le compagnon à ton écran d’accueil : plein écran, plus rapide, sans barre du navigateur.',
+  installBtn: 'Installer',
+  installLater: 'Plus tard',
+  installIos: 'Touche Partager, puis « Sur l’écran d’accueil ».',
   tabs: { dash: 'Compteur', ctrl: 'Pilotage', music: 'Musique', chat: 'Chat', map: 'Carte' },
   fields: {
     power3s: 'Puissance 3 s',
@@ -142,6 +147,11 @@ const en: typeof fr = {
   offline: 'Game offline',
   menu: 'The game is on the home screen: start a ride, the companion follows.',
   unpair: 'Forget this pairing',
+  installTitle: 'Install the app',
+  installText: 'Add the companion to your home screen: full screen, faster, no browser bar.',
+  installBtn: 'Install',
+  installLater: 'Later',
+  installIos: 'Tap Share, then “Add to Home Screen”.',
   tabs: { dash: 'Computer', ctrl: 'Controls', music: 'Music', chat: 'Chat', map: 'Map' },
   fields: {
     power3s: 'Power 3 s',
