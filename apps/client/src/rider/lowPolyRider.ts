@@ -1,3 +1,4 @@
+import { AERO_COAST_FULL, AERO_SPEED, AERO_SPEED_OUT, FOREARMS_IN, FOREARMS_OUT, HARD_EFFORT, HARD_EFFORT_OUT } from './poseThresholds.ts';
 import * as THREE from 'three/webgpu';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { bikeOfLook, lookSex, type AvatarLook, type BikeBuild, type WheelType } from '@allezrobert/shared';
@@ -1314,22 +1315,22 @@ export class LowPolyRider implements RiderAvatarLike {
     // descentes rapides : dos presque à plat, épaules basses et avancées, avant-bras à l'horizontale, tête relevée.
     const bars = fit.bar === 'drop' && pose !== 'standing';
     const coasting = pose === 'coasting' || cadence < 5;
-    this.dropsOn = bars && (speed > 12 || (this.dropsOn && speed > 10));
+    this.dropsOn = bars && (speed > AERO_SPEED || (this.dropsOn && speed > AERO_SPEED_OUT));
     const smooth = (a: number, b: number, x: number) => {
       const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
       return t * t * (3 - 2 * t);
     };
     // Très vite en pédalant : avant-bras sur le haut du cintre (> 50 km/h, quittée sous 46) ; très fort :
     // avant-bras à plat sur les cocottes.
-    const hard = (on: boolean) => this.ftpFrac > 1.05 || (on && this.ftpFrac > 0.95);
-    this.clipOn = bars && !coasting && this.clip !== null && (speed > 11 || (this.clipOn && speed > 10) || (speed > 8 && hard(this.clipOn)));
-    this.forearmsOn = bars && !coasting && !this.clip && (speed > 13.9 || (this.forearmsOn && speed > 12.8));
-    this.hoodsAeroOn = bars && !coasting && !this.clip && !this.forearmsOn && speed > 8 && hard(this.hoodsAeroOn);
+    const hard = (on: boolean) => this.ftpFrac > HARD_EFFORT || (on && this.ftpFrac > HARD_EFFORT_OUT);
+    this.clipOn = bars && !coasting && this.clip !== null && (speed > AERO_SPEED || (this.clipOn && speed > AERO_SPEED_OUT) || (speed > AERO_SPEED && hard(this.clipOn)));
+    this.forearmsOn = bars && !coasting && !this.clip && (speed > FOREARMS_IN || (this.forearmsOn && speed > FOREARMS_OUT));
+    this.hoodsAeroOn = bars && !coasting && !this.clip && !this.forearmsOn && speed > AERO_SPEED && hard(this.hoodsAeroOn);
     const tt = fit.bar === 'tt';
     this.hornsOn = tt && (pose === 'standing' || speed < 7 || (this.hornsOn && speed < 8));
-    this.turtleOn = tt && !this.hornsOn && !coasting && (speed > 13.9 || (this.turtleOn && speed > 12.8) || (speed > 8 && hard(this.turtleOn)));
-    // Descente rapide : position aéro dès 32 km/h en roue libre (pleine à 40), dès 45 km/h en pédalant.
-    const aeroOn = bars ? (coasting ? smooth(8.9, 11.1, speed) : smooth(12.5, 14, speed) * (this.forearmsOn || this.clipOn ? 0 : 1)) : 0;
+    this.turtleOn = tt && !this.hornsOn && !coasting && (speed > FOREARMS_IN || (this.turtleOn && speed > FOREARMS_OUT) || (speed > AERO_SPEED && hard(this.turtleOn)));
+    // Descente rapide : position aéro à partir de 45 km/h, en roue libre comme en pédalant.
+    const aeroOn = bars ? (coasting ? smooth(AERO_SPEED, AERO_COAST_FULL, speed) : smooth(12.5, 14, speed) * (this.forearmsOn || this.clipOn ? 0 : 1)) : 0;
     const k2 = 1 - Math.exp(-dt * 2.5);
     this.dropsBlend += ((this.dropsOn ? 1 : 0) - this.dropsBlend) * k2;
     this.aeroBlend += (aeroOn - this.aeroBlend) * k2;

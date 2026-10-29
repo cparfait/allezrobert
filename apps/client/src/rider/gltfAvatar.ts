@@ -1,3 +1,4 @@
+import { AERO_COAST_FULL, AERO_SPEED, AERO_SPEED_OUT, FOREARMS_IN, FOREARMS_OUT, HARD_EFFORT, HARD_EFFORT_OUT } from './poseThresholds.ts';
 import * as THREE from 'three/webgpu';
 import { LOW_POLY } from '../engine/style.ts';
 import { flatLook } from './flatLook.ts';
@@ -190,10 +191,10 @@ const SEAT_FROM_HIPS = { y: -0.06, z: -0.06 };
 /** Tête en position de course (rad par unité, > 0 : vers le bas) : basse, dans l'alignement du dos, regard sous la visière. */
 const RACE_HEAD = 0.12;
 /** Vitesses (m/s) : bas du cintre au-dessus de DROPS_IN, retour aux cocottes sous DROPS_OUT ; aéro en roue libre au-delà de AERO_FROM → AERO_FULL. */
-const DROPS_IN = 12;
-const DROPS_OUT = 10;
-const AERO_FROM = 10;
-const AERO_FULL = 13;
+const DROPS_IN = AERO_SPEED;
+const DROPS_OUT = AERO_SPEED_OUT;
+const AERO_FROM = AERO_SPEED;
+const AERO_FULL = AERO_COAST_FULL;
 /**
  * Positions aéro sur un cintre route, sans prolongateurs, en pédalant assis (en plus des positions
  * ci-dessus) :
@@ -203,19 +204,17 @@ const AERO_FULL = 13;
  *    et d'autre de la potence (FOREARM_ELBOW : coude posé sur le cintre), mains en avant ;
  *    le buste bascule jusqu'à poser les avant-bras, comme sur les repose-coudes d'un vélo de chrono.
  */
-const HOODS_AERO_EFFORT = 1.05;
-const HOODS_AERO_EFFORT_OUT = 0.95;
-const HOODS_AERO_SPEED = 8;
+const HOODS_AERO_EFFORT = HARD_EFFORT;
+const HOODS_AERO_EFFORT_OUT = HARD_EFFORT_OUT;
+const HOODS_AERO_SPEED = AERO_SPEED;
 const HOODS_AERO_BEND = 0.95;
-const FOREARMS_IN = 13.9;
-const FOREARMS_OUT = 12.8;
 const FOREARM_ELBOW = new THREE.Vector3(0.075, 0.915, 0.51);
 /**
  * Prolongateurs de l'atelier sur un vélo de route (aerobars.ts) : couché dessus (coudes sur les
  * repose-coudes, mains aux poignées) au-delà de CLIP_IN m/s (≈ 40 km/h) ou très fort ; cocottes sinon.
  */
-const CLIP_IN = 11;
-const CLIP_OUT = 10;
+const CLIP_IN = AERO_SPEED;
+const CLIP_OUT = AERO_SPEED_OUT;
 /**
  * Vélos de chrono (en plus de la position sur les prolongateurs) :
  *  - mains sur les cornes (cintre de base, build_tt_cockpit : bout des cornes) sous HORNS_IN m/s
