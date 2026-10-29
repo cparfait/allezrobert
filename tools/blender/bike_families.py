@@ -262,52 +262,74 @@ def build_frame(g, sty, zl, voxel=0.0025, target=2400):
     return ob
 
 
+def slab(mb, outline, half_w, mat):
+    """Plaque de profil (contour (z, y) du flanc, extrudé de ±half_w en x) : monocoques vus de côté. L'union voxel
+    et le lissage qui suivent arrondissent les arêtes."""
+    P = [V(0, y, z) for z, y in outline]
+    n = len(P)
+    # Sens du contour : faces extérieures (aire signée dans le plan (z, y)).
+    area = sum(P[i][2] * P[(i + 1) % n][1] - P[(i + 1) % n][2] * P[i][1] for i in range(n))
+    if area > 0:
+        P = P[::-1]
+    verts = [p + V(half_w, 0, 0) for p in P] + [p - V(half_w, 0, 0) for p in P]
+    faces = [tuple(range(n)), tuple(range(2 * n - 1, n - 1, -1))]
+    faces += [(i, n + i, n + (i + 1) % n, (i + 1) % n) for i in range(n)]
+    mb.add(verts, faces, mat)
+    return P
+
+
 def build_lotus_frame(g, zl, voxel=0.0025, target=2400):
-    """Monocoque Lotus 108/110 : poutre en aile (douille → selle), lame vers le boîtier,
-    bras arrière et fourche monolames côté gauche (+x)."""
+    """Lotus 110 (Boardman, 1994) d'après photos : monocoque d'une pièce vue de profil, poutre horizontale de la douille
+    à l'arrière, mât de selle qui en jaillit, et grand étai en C qui plonge de l'arrière de la poutre jusqu'au boîtier
+    en épousant la roue arrière (pointe du frein au-dessus du pneu) ; grand vide devant. Monobras arrière côté
+    transmission (aucun hauban), fourche aéro à deux lames."""
     mb = MB()
     X, Y, Z = V(1, 0, 0), V(0, 1, 0), V(0, 0, 1)
-    # Douille intégrée (profil en aile profonde).
-    R = tube(mb, [g.ht_bot - g.ht_up * 0.01, g.ht_top + g.ht_up * 0.01], 1, lambda t: kamm_sec(20, 0.09, 0.036, 0.8, -0.01), Z, 'frame')
+    R = tube(mb, [g.ht_bot - g.ht_up * 0.01, g.ht_top + g.ht_up * 0.004], 1, lambda t: kamm_sec(20, 0.09, 0.036, 0.8, -0.01), Z, 'frame')
     zlog(zl, R, 'head')
-    # Poutre principale : de la douille vers l'arrière et vers le haut jusqu'au tube de selle.
-    beam = [g.ht_top - g.ht_up * 0.04 - g.pf * 0.01, V(0, 0.775, 0.22), V(0, 0.79, 0.02), V(0, 0.81, -0.12), g.st_top + g.st_dir * 0.03]
-    P = catmull(beam, 4)
-    m = len(P)
-    hgt = np.interp(np.linspace(0, 1, m), [0, 0.25, 0.6, 1], [0.13, 0.085, 0.07, 0.05])
-    wid = np.interp(np.linspace(0, 1, m), [0, 0.5, 1], [0.034, 0.03, 0.03])
-    v, f, info = loft(P, wid / 2, hgt / 2, Y, n=20, expo=2.6)
-    mb.add(v, f, 'frame')
-    zl.append((info['centers'], 0.04, ZONE_IDX['main']))
-    # Lame vers le boîtier (aile verticale, corde le long de z).
-    strut = catmull([V(0, 0.76, 0.07), V(0, 0.58, 0.045), V(0, 0.4, 0.025), BB + V(0, 0.02, 0.0)], 3)
-    R = tube(mb, strut, 1, lambda t: kamm_sec(20, lerp(0.11, 0.075, t), lerp(0.03, 0.034, t), 0.85), Z, 'frame')
-    zlog(zl, R, 'main')
+    # Bord arrière de l'étai : cercle à 3 cm du pneu arrière, de la pointe du frein jusque sous le boîtier.
+    rr = WHEEL_R + 0.03
+    arc = lambda deg: (REAR_AXLE[2] + rr * math.sin(math.radians(deg)), REAR_AXLE[1] + rr * math.cos(math.radians(deg)))
+    outline = [
+        # Dessus de la poutre (douille → arrière), congé vers le mât, mât, arrière du mât.
+        (0.43, 0.775), (0.2, 0.78), (-0.06, 0.785), (-0.11, 0.795), (-0.145, 0.82), (-0.163, 0.87),
+        (-0.205, 0.87), (-0.212, 0.82), (-0.222, 0.775),
+        # Pointe du frein au-dessus du pneu, puis bord arrière le long de la roue jusqu'au boîtier.
+        (-0.245, 0.725), arc(24), arc(32), arc(42), arc(52), arc(62), arc(72), arc(82), (-0.036, 0.3), (-0.018, 0.252),
+        (0.012, 0.248), (0.034, 0.27),
+        # Bord avant de l'étai (le C), puis dessous de la poutre jusqu'à la douille.
+        (0.04, 0.33), (0.025, 0.4), (0.008, 0.47), (0.004, 0.54), (0.016, 0.6), (0.045, 0.65), (0.1, 0.685), (0.18, 0.698),
+        (0.4, 0.702), (0.445, 0.712),
+    ]
+    P = slab(mb, outline, 0.017, 'frame')
+    zl.append((np.array(P), 0.03, ZONE_IDX['main']))
     v, f, info = loft([BB + V(0.043, 0, 0), BB - V(0.043, 0, 0)], 0.024, 0.024, Y, n=16)
     mb.add(v, f, 'frame')
     zlog_pts(zl, info['centers'], 0.024, 'main')
     hr = HUB_HALF[1]
-    s = 1
+    # Monobras arrière côté transmission (−x) : du boîtier à la patte, profil vertical qui s'affine.
+    s = -1
     drop = REAR_AXLE + V((hr + 0.004) * s, 0, 0)
-    # Base monolame (gauche) et hauban monolame partant de la poutre.
-    R = tube(mb, stay_pts([BB + V(0.03, 0.0, -0.02), BB + V(0.05, 0, -0.13), drop + V(0, 0, 0.07), drop + V(0, 0, 0.004)]), 3,
-             lambda t: kamm_sec(14, lerp(0.05, 0.03, t), 0.018, 0.85), Z, 'frame')
+    R = tube(mb, stay_pts([BB + V(0.03 * s, 0.0, -0.02), BB + V(0.05 * s, 0, -0.13), drop + V(0, 0, 0.07), drop + V(0, 0, 0.004)]), 3,
+             lambda t: kamm_sec(14, lerp(0.06, 0.032, t), 0.018, 0.85), Z, 'frame')
     zlog(zl, R, 'rear')
-    R = tube(mb, [g.st_top + g.st_dir * -0.06 + V(0.01, 0, -0.02), V(0.05, 0.62, -0.25), drop + V(0, 0.012, 0.0)], 3,
-             lambda t: kamm_sec(14, lerp(0.05, 0.03, t), 0.018, 0.85), Z, 'frame')
-    zlog(zl, R, 'rear')
-    v, f, info = loft([drop + V(0.004, -0.02, 0.0), drop + V(0.004, 0.02, 0.0)], 0.02, 0.006, X, n=10)
+    v, f, info = loft([drop + V(0.004 * s, -0.02, 0.0), drop + V(0.004 * s, 0.02, 0.0)], 0.02, 0.006, X, n=10)
     mb.add(v, f, 'frame')
     zlog_pts(zl, info['centers'], 0.02, 'rear')
-    # Fourche monolame (gauche).
+    # Fourche aéro à deux lames sous un té profilé.
     hf = HUB_HALF[0]
-    fdrop = g.fa + V(hf + 0.008, 0.0, 0.0)
-    R = tube(mb, [g.ht_bot + g.ht_up * 0.02 + V(0.01, 0, 0), g.ht_bot - g.ht_up * 0.06 + V(0.04, 0, 0.005), g.ht_bot - g.ht_up * 0.2 + V(hf + 0.008, 0, 0.012), fdrop + V(0, 0.01, 0)], 3,
-             lambda t: kamm_sec(16, lerp(0.075, 0.045, t), lerp(0.024, 0.016, t), 0.8), Z, 'frame')
-    zlog(zl, R, 'fork')
-    v, f, info = loft([fdrop + V(0.0, -0.016, 0.0), fdrop + V(0.0, 0.02, 0.0)], 0.018, 0.006, X, n=10)
+    for s in (1, -1):
+        fdrop = g.fa + V((hf + 0.008) * s, 0.0, 0.0)
+        top = g.ht_bot - g.ht_up * 0.02 + V(0.036 * s, 0, 0.004)
+        mid = g.ht_bot - g.ht_up * 0.16 + V((hf + 0.004) * s, 0, 0) + g.pf * 0.008
+        R = tube(mb, [top, mid, fdrop + V(0, 0.01, 0)], 3, lambda t: kamm_sec(16, lerp(0.068, 0.04, t), lerp(0.02, 0.014, t), 0.8), Z, 'frame')
+        zlog(zl, R, 'fork')
+        v, f, info = loft([fdrop + V(0.0, -0.016, 0.0), fdrop + V(0.0, 0.02, 0.0)], 0.018, 0.006, X, n=10)
+        mb.add(v, f, 'frame')
+        zlog_pts(zl, info['centers'], 0.018, 'fork')
+    v, f, info = loft([g.ht_bot - g.ht_up * 0.03 + V(0.05, 0, 0.004), g.ht_bot - g.ht_up * 0.03 - V(0.05, 0, -0.004)], 0.03, 0.024, Y, n=14)
     mb.add(v, f, 'frame')
-    zlog_pts(zl, info['centers'], 0.018, 'fork')
+    zlog_pts(zl, info['centers'], 0.03, 'fork')
     ob = mb.build('frame_union')
     remesh_union(ob, voxel, 5, 0.5)
     decimate_to(ob, target)
@@ -316,41 +338,47 @@ def build_lotus_frame(g, zl, voxel=0.0025, target=2400):
 
 
 def build_espada_frame(g, zl, voxel=0.0025, target=2400):
-    """Pinarello Espada (Indurain, 1993-95) : poutre unique en aile, plus profonde vers l'arrière où elle se
-    relève en « spoiler » sous la selle, lame vers le boîtier, bases et haubans fins des deux côtés (la
-    lenticulaire arrière les cache en partie), fourche à deux lames droites sous une douille jaune profilée."""
+    """Pinarello Espada (Indurain, 1993-95) d'après photos : monocoque vue de profil, poutre de la douille vers
+    l'arrière qui se relève en aileron sous la selle, très large étai (bord avant presque droit, grand vide devant)
+    qui descend au boîtier en épousant la roue arrière ; haubans en larges lames des deux côtés de la roue, presque
+    horizontaux jusqu'aux pattes, bases fines dessous (la fente entre les deux) ; fourche à deux lames droites sous
+    une douille profilée."""
     mb = MB()
     X, Y, Z = V(1, 0, 0), V(0, 1, 0), V(0, 0, 1)
-    R = tube(mb, [g.ht_bot - g.ht_up * 0.01, g.ht_top + g.ht_up * 0.01], 1, lambda t: kamm_sec(20, 0.085, 0.034, 0.8, -0.01), Z, 'frame')
+    R = tube(mb, [g.ht_bot - g.ht_up * 0.01, g.ht_top + g.ht_up * 0.004], 1, lambda t: kamm_sec(20, 0.085, 0.034, 0.8, -0.01), Z, 'frame')
     zlog(zl, R, 'head')
-    # Poutre : de la douille vers l'arrière, qui monte vers la selle ; profondeur croissante (le spoiler).
-    beam = [g.ht_top - g.ht_up * 0.04 - g.pf * 0.01, V(0, 0.765, 0.24), V(0, 0.755, 0.05), V(0, 0.79, -0.1), V(0, 0.835, -0.185), g.st_top + g.st_dir * 0.075]
-    P = catmull(beam, 4)
-    m = len(P)
-    hgt = np.interp(np.linspace(0, 1, m), [0, 0.2, 0.5, 0.8, 1], [0.1, 0.075, 0.075, 0.13, 0.17])
-    wid = np.interp(np.linspace(0, 1, m), [0, 0.5, 1], [0.03, 0.028, 0.026])
-    v, f, info = loft(P, wid / 2, hgt / 2, Y, n=20, expo=2.6)
-    mb.add(v, f, 'frame')
-    zl.append((info['centers'], 0.045, ZONE_IDX['main']))
-    # Lame vers le boîtier.
-    strut = catmull([V(0, 0.745, 0.075), V(0, 0.58, 0.05), V(0, 0.4, 0.028), BB + V(0, 0.02, 0.0)], 3)
-    R = tube(mb, strut, 1, lambda t: kamm_sec(20, lerp(0.1, 0.07, t), lerp(0.028, 0.032, t), 0.85), Z, 'frame')
-    zlog(zl, R, 'main')
+    rr = WHEEL_R + 0.03
+    arc = lambda deg: (REAR_AXLE[2] + rr * math.sin(math.radians(deg)), REAR_AXLE[1] + rr * math.cos(math.radians(deg)))
+    outline = [
+        # Dessus de la poutre, puis aileron qui monte sous la selle (sans la toucher).
+        (0.425, 0.776), (0.2, 0.782), (0.06, 0.786), (-0.01, 0.8), (-0.07, 0.826), (-0.13, 0.855), (-0.19, 0.884),
+        (-0.24, 0.893), (-0.268, 0.887),
+        # Arrière de l'aileron, puis bord arrière de l'étai le long de la roue jusqu'au boîtier.
+        (-0.262, 0.85), (-0.24, 0.8), (-0.215, 0.745), (-0.2, 0.7), arc(36), arc(45), arc(54), arc(63), arc(72), arc(82),
+        (-0.036, 0.3), (-0.018, 0.252), (0.012, 0.248), (0.034, 0.27),
+        # Bord avant de l'étai, presque droit, congé vers le dessous de la poutre, jusqu'à la douille.
+        (0.042, 0.33), (0.05, 0.42), (0.056, 0.52), (0.064, 0.6), (0.08, 0.655), (0.12, 0.69), (0.2, 0.7), (0.4, 0.704),
+        (0.445, 0.715),
+    ]
+    P = slab(mb, outline, 0.015, 'frame')
+    zl.append((np.array(P), 0.03, ZONE_IDX['main']))
     v, f, info = loft([BB + V(0.043, 0, 0), BB - V(0.043, 0, 0)], 0.024, 0.024, Y, n=16)
     mb.add(v, f, 'frame')
     zlog_pts(zl, info['centers'], 0.024, 'main')
     hr = HUB_HALF[1]
-    rear_top = g.st_top + g.st_dir * -0.03
+    j0 = arc(60)
     for s in (1, -1):
         drop = REAR_AXLE + V((hr + 0.004) * s, 0, 0)
-        # Base fine, puis hauban fin partant de la poutre (de chaque côté).
+        # Base fine sous la lame du hauban.
         R = tube(mb, stay_pts([BB + V(0.03 * s, 0.0, -0.02), BB + V(0.04 * s, 0, -0.14), drop + V(0, 0, 0.08), drop + V(0, 0, 0.004)]), 3,
-                 lambda t: kamm_sec(14, lerp(0.045, 0.026, t), 0.0095, 0.85), Z, 'frame')
+                 lambda t: kamm_sec(14, lerp(0.03, 0.02, t), 0.01, 0.85), Z, 'frame')
         zlog(zl, R, 'rear')
-        R = tube(mb, [rear_top + V(0.012 * s, 0, -0.02), V(0.04 * s, 0.62, -0.27), drop + V(0, 0.012, 0.0)], 3,
-                 lambda t: kamm_sec(14, lerp(0.05, 0.026, t), 0.0095, 0.85), Z, 'frame')
+        # Hauban en large lame plate, de l'étai à la patte, de chaque côté de la roue.
+        top = V(0.018 * s, j0[1] + 0.012, j0[0] + 0.02)
+        R = tube(mb, [top, V(0.045 * s, lerp(top[1], drop[1] + 0.02, 0.5), lerp(top[2], drop[2], 0.5)), drop + V(0, 0.016, 0.0)], 3,
+                 lambda t: ell_sec(14, 0.0055, lerp(0.03, 0.016, t), 2.6), Y, 'frame')
         zlog(zl, R, 'rear')
-        v, f, info = loft([drop + V(0.004 * s, -0.02, 0.0), drop + V(0.004 * s, 0.02, 0.0)], 0.02, 0.006, X, n=10)
+        v, f, info = loft([drop + V(0.004 * s, -0.02, 0.0), drop + V(0.004 * s, 0.024, 0.0)], 0.02, 0.006, X, n=10)
         mb.add(v, f, 'frame')
         zlog_pts(zl, info['centers'], 0.02, 'rear')
     # Fourche : deux lames droites, effilées, sous un té profilé.
@@ -1129,7 +1157,12 @@ def build_family(fam, lod):
     # Options.
     if fam in ('aero', 'climb', 'tt'):
         objs.append(build_disc_brakes(g, lod))
-    if fam in BEAM_FAMILIES:
+    if fam == 'lotus':
+        # Étrier arrière sous la pointe du frein de la monocoque (24° en arrière de la verticale de l'axe).
+        rear_t = REAR_AXLE + V(0, math.cos(math.radians(24)), math.sin(math.radians(24)))
+    elif fam == 'espada':
+        rear_t = REAR_AXLE + V(0, math.cos(math.radians(33)), math.sin(math.radians(33)))
+    elif fam in BEAM_FAMILIES:
         rear_t = V(0.0, 0.81, -0.12)
     elif fam in ('aero', 'climb', 'tt'):
         rear_t = BB + g.st_dir * (g.st_len * sty['ss_j'])
@@ -1157,10 +1190,19 @@ def build_family(fam, lod):
     # Décors : centres sur l'axe des tubes, projetés latéralement.
     dl = float(np.linalg.norm(g.ht_bot - BB))
     side_h = lambda c: c
-    if fam in BEAM_FAMILIES:
+    if fam == 'lotus':
+        # LOTUS au milieu de la poutre, comme sur le vrai cadre.
+        dec = {
+            'decal_dt': (V(0, 0.742, 0.06), V(0, 0, 1), 0.22, 0.06, 0.05),
+            'decal_tt': (V(0, 0.742, 0.21), V(0, 0, 1), 0.2, 0.055, 0.05),
+            'decal_st': (V(0, 0.5, -0.03), nrm(V(0, 0.75, -0.03)), 0.18, 0.05, 0.05),
+            'decal_fork': (g.ht_bot - g.ht_up * 0.12 + V(0.04, 0, 0.005), g.ht_up, 0.13, 0.04, 0.12),
+        }
+    elif fam in BEAM_FAMILIES:
         dec = {
             'decal_dt': (V(0, 0.79, 0.12), V(0, 0.08, 1), 0.26, 0.05, 0.05),
-            'decal_tt': (V(0, 0.81, -0.08), V(0, 0.15, 1), 0.12, 0.045, 0.05),
+            # PINARELLO au milieu de la poutre (Espada).
+            'decal_tt': (V(0, 0.745, 0.24), V(0, 0, 1), 0.24, 0.05, 0.05),
             'decal_st': (V(0, 0.5, 0.05), nrm(V(0, 0.75, 0.07)), 0.22, 0.07, 0.05),
             'decal_fork': (g.ht_bot - g.ht_up * 0.12 + V(0.04, 0, 0.005), g.ht_up, 0.13, 0.04, 0.12),
         }

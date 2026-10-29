@@ -1697,7 +1697,7 @@ async function lowPolyBikeSheet(engine: Awaited<ReturnType<typeof createEngine>>
   // &facettes : troisième colonne, le vélo réaliste simplifié (dernier niveau de détail) rendu à facettes, sans vernis.
   const facets = params.has('facettes');
   const perCase = facets ? 3 : 2;
-  const perRow = facets ? 1 : 2;
+  const perRow = facets || models.length < 2 ? 1 : 2;
   const cw = Number(params.get('cell') ?? 480);
   const ch = Math.round((cw * 5) / 8);
   const rows = Math.ceil(models.length / perRow);

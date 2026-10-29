@@ -3054,11 +3054,11 @@
     "axis": "y",
     "stops": [
      {
-      "to": 0.3,
+      "to": 0.38,
       "color": "#1d3fa8"
      },
      {
-      "to": 0.68,
+      "to": 0.74,
       "color": "#f2f2f2"
      },
      {
@@ -4654,11 +4654,8 @@
      "#c8202a",
      "#f2c000"
     ],
-    "pattern": "band",
+    "pattern": "stops",
     "axis": "y",
-    "at": 0.74,
-    "width": 0.14,
-    "line": true,
     "finish": "gloss",
     "marks": {
      "tt": {
@@ -4673,7 +4670,29 @@
     "rim": "#c8202a",
     "tape": "#f0f0f0",
     "disc": "#f1ece0",
-    "discArt": "petals"
+    "discArt": "petals",
+    "stops": [
+     {
+      "to": 0.2,
+      "color": "#f1ece0"
+     },
+     {
+      "to": 0.45,
+      "color": "#1d3fa8"
+     },
+     {
+      "to": 0.58,
+      "color": "#f2c000"
+     },
+     {
+      "to": 0.74,
+      "color": "#f1ece0"
+     },
+     {
+      "to": 1,
+      "color": "#c8202a"
+     }
+    ]
    },
    "level": 49,
    "desc": {
@@ -4704,11 +4723,12 @@
     "colors": [
      "#d8262e",
      "#f2f2f2",
-     "#2a4fa0"
+     "#55595f"
     ],
     "pattern": "solid",
     "zones": {
-     "fork": 1
+     "rear": 1,
+     "fork": 2
     },
     "finish": "gloss",
     "marks": {
@@ -4716,14 +4736,16 @@
       "text": "BOTTECCHIA",
       "color": "#f2f2f2"
      },
-     "fork": {
-      "text": "MAVIC",
-      "color": "#f2c400"
+     "st": {
+      "text": "BOTTECCHIA",
+      "color": "#f2f2f2"
      }
     },
     "rim": "#d9d9d9",
-    "tape": "#f2f2f2",
-    "disc": "#cfd2d6"
+    "tape": "#1a1b1e",
+    "disc": "#d8262e",
+    "saddle": "#f2f2ee",
+    "tireWall": "#c9a36a"
    },
    "level": 34,
    "desc": {
