@@ -15,10 +15,10 @@ type Step = (typeof STEPS)[number];
 
 /** Étape où reprendre le tutoriel après le rechargement qu'impose un changement de style graphique. */
 const RESUME_KEY = 'ar.onboarding.resume';
-/** Les deux styles, avec une capture en jeu de chacun. */
+/** Les deux styles, avec une vue du garage dans chacun. */
 const STYLES: Array<[GraphicStyle, string, string, string, string]> = [
-  ['real', 'Réaliste', 'Realistic', 'Au plus près des vraies routes : relief, lumière, textures.', 'True to the real roads: terrain, light, textures.'],
-  ['lowpoly', 'Jeu vidéo', 'Video game', 'Facettes et aplats de couleur, plus léger, monde plus animé.', 'Facets and flat colours, lighter, a livelier world.'],
+  ['real', 'Réaliste', 'Realistic', 'Une vue plus réaliste, au plus près des vraies routes : relief, lumière et matières.', 'A more realistic view, close to the real roads: terrain, light and materials.'],
+  ['lowpoly', 'Jeu vidéo', 'Video game', 'Un mode plus ludique : formes simples, plus léger, un monde plus animé.', 'A more playful mode: simple shapes, lighter, a livelier world.'],
 ];
 
 const SKINS = ['#f1c27d', '#e0ac69', '#c68642', '#8d5524', '#ffdbac', '#5c3a21'];

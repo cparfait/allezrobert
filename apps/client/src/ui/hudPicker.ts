@@ -21,14 +21,13 @@ const shot = (layout: HudLayout): string => `/hud/${layout}.jpg`;
 export function hudPickerHtml(): string {
   const L = getLang() === 'fr';
   const cur = hudChoice();
-  const shown = resolveHudLayout(cur);
   const card = (c: Choice) => {
-    const [fl, en, fd, ed] = LABELS[c];
+    const [fl, en] = LABELS[c];
     const img = c === 'auto' ? resolveHudLayout('auto') : c;
-    return `<button type="button" class="hp-card${c === cur ? ' on' : ''}" data-hud="${c}" data-shot="${shot(img)}" aria-pressed="${c === cur}"><img class="hp-thumb" src="${shot(img)}" alt="" loading="lazy" /><b>${L ? fl : en}</b><small>${L ? fd : ed}</small></button>`;
+    return `<button type="button" class="hp-card${c === cur ? ' on' : ''}" data-hud="${c}" data-shot="${shot(img)}" aria-pressed="${c === cur}">${L ? fl : en}</button>`;
   };
-  return `<div class="hp-picker">${(['auto', ...HUD_LAYOUTS] as Choice[]).map(card).join('')}</div>
-    <figure class="hp-big"><img src="${shot(shown)}" alt="${L ? 'Aperçu du HUD choisi' : 'Preview of the chosen HUD'}" /><figcaption>${L ? 'Aperçu en jeu' : 'In-game preview'} · ${L ? LABELS[cur][0] : LABELS[cur][1]}</figcaption></figure>`;
+  // Aperçu : caché, il n'apparaît qu'au survol (ou au focus clavier) d'un nom.
+  return `<div class="hp-picker">${(['auto', ...HUD_LAYOUTS] as Choice[]).map(card).join('')}</div><img class="hp-pop" alt="" hidden />`;
 }
 
 /** Branche les cartes : le choix est enregistré tout de suite, `redraw` remet l'écran à jour. */
@@ -39,15 +38,18 @@ export function bindHudPicker(root: ParentNode, redraw: () => void): void {
       redraw();
     }),
   );
-  // Survol ou focus d'une carte : l'aperçu montre cette disposition, puis revient à celle choisie.
-  const big = root.querySelector<HTMLImageElement>('.hp-big img');
-  const keep = big?.src;
+  // Survol ou focus d'un nom : l'aperçu en jeu de cette disposition apparaît, il disparaît ensuite.
+  const pop = root.querySelector<HTMLImageElement>('.hp-pop');
   root.querySelectorAll<HTMLElement>('.hp-picker [data-shot]').forEach((b) => {
-    const show = () => big && (big.src = b.dataset.shot as string);
-    const back = () => big && keep && (big.src = keep);
+    const show = () => {
+      if (!pop) return;
+      pop.src = b.dataset.shot as string;
+      pop.hidden = false;
+    };
+    const hide = () => pop && (pop.hidden = true);
     b.addEventListener('pointerenter', show);
     b.addEventListener('focus', show);
-    b.addEventListener('pointerleave', back);
-    b.addEventListener('blur', back);
+    b.addEventListener('pointerleave', hide);
+    b.addEventListener('blur', hide);
   });
 }
