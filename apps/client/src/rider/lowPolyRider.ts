@@ -255,11 +255,74 @@ function merged(parts: THREE.BufferGeometry[], material: THREE.Material): THREE.
   return m;
 }
 
-/** Liseré du casque : la couleur de la coque, assombrie si elle est claire, éclaircie sinon. */
-function helmetTrim(shell: string): string {
-  const hsl = { h: 0, s: 0, l: 0 };
-  new THREE.Color(shell).getHSL(hsl);
-  return `#${new THREE.Color().setHSL(hsl.h, hsl.s, hsl.l > 0.5 ? hsl.l - 0.22 : hsl.l + 0.22).getHexString()}`;
+/**
+ * Aérations du casque de route (repère de la coque) : canaux d'avant en arrière, parallèles — au milieu, de
+ * part et d'autre, sur les flancs — qui descendent jusqu'au bord avant (casques Kask, Bell). `x` : écart
+ * latéral (symétrique sauf au milieu), `w` : demi-largeur, de `z0` (arrière) à `z1` (avant).
+ */
+const HELMET_VENTS: ReadonlyArray<{ x: number; w: number; z0: number; z1: number }> = [
+  { x: 0, w: 0.009, z0: -0.075, z1: 0.1 },
+  { x: 0.042, w: 0.011, z0: -0.11, z1: 0.11 },
+  { x: 0.08, w: 0.009, z0: -0.085, z1: 0.07 },
+];
+
+/**
+ * Fentes d'aération posées sur la coque `shell` (repère de la coque) : bandes sombres qui suivent sa surface
+ * (lancer de rayons vers le bas sur la coque, trois points en travers), effilées aux deux bouts, 3 mm au-dessus
+ * de la surface et dessinées devant elle (décalage de profondeur).
+ */
+function helmetVents(shell: THREE.Mesh, mat: THREE.Material): THREE.Mesh {
+  const ray = new THREE.Raycaster();
+  const probe = new THREE.Mesh(shell.geometry, new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }));
+  const down = new THREE.Vector3(0, -1, 0);
+  const onShell = (x: number, z: number): THREE.Vector3 | null => {
+    ray.set(new THREE.Vector3(x, 1, z), down);
+    const hit = ray.intersectObject(probe, false)[0];
+    if (!hit || !hit.face) return null;
+    return hit.point.clone().addScaledVector(hit.face.normal, 0.003);
+  };
+  const parts: THREE.BufferGeometry[] = [];
+  const N = 14;
+  for (const v of HELMET_VENTS) {
+    for (const sx of v.x === 0 ? [0] : [1, -1]) {
+      const pos: number[] = [];
+      let prev: [THREE.Vector3, THREE.Vector3, THREE.Vector3] | null = null;
+      for (let i = 0; i <= N; i++) {
+        const u = i / N;
+        const z = v.z0 + (v.z1 - v.z0) * u;
+        // Bouts arrondis : la fente s'effile vers ses extrémités.
+        const w = v.w * Math.sqrt(Math.max(0.15, Math.sin(Math.PI * u)));
+        // Trois points en travers (bords et milieu) : la fente épouse la coque sans y plonger.
+        const a = onShell(sx * v.x - w, z);
+        const m = onShell(sx * v.x, z);
+        const b = onShell(sx * v.x + w, z);
+        if (!a || !m || !b) {
+          // Une fente reste d'un seul tenant : elle s'arrête au premier point hors de la coque.
+          if (prev) break;
+          continue;
+        }
+        if (prev) {
+          const [pa, pm, pb] = prev;
+          pos.push(...pa.toArray(), ...a.toArray(), ...m.toArray(), ...pa.toArray(), ...m.toArray(), ...pm.toArray());
+          pos.push(...pm.toArray(), ...m.toArray(), ...b.toArray(), ...pm.toArray(), ...b.toArray(), ...pb.toArray());
+        }
+        prev = [a, m, b];
+      }
+      if (!pos.length) continue;
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+      g.computeVertexNormals();
+      parts.push(g);
+    }
+  }
+  (probe.material as THREE.Material).dispose();
+  const out = new THREE.Mesh(mergeGeometries(parts) ?? new THREE.BufferGeometry(), mat);
+  // Toujours devant la coque (pas de points blancs dans les fentes selon l'angle).
+  mat.side = THREE.DoubleSide;
+  mat.polygonOffset = true;
+  mat.polygonOffsetFactor = -2;
+  mat.polygonOffsetUnits = -2;
+  return out;
 }
 
 /** Hauteur de jante (m) par type de roue. */
@@ -292,6 +355,66 @@ function noseGeometry(): THREE.BufferGeometry {
   g.setAttribute('position', new THREE.Float32BufferAttribute(tris.flat(), 3));
   g.computeVertexNormals();
   return g;
+}
+
+/**
+ * Lunettes-écran enveloppantes (repère de la tête) : bande qui suit la courbure du visage d'une tempe à
+ * l'autre (arc ±SHIELD_SPAN autour de l'axe vertical), plus étroite vers les côtés, avec une encoche au
+ * milieu du bord bas pour le nez ; `frame` : fine monture le long du bord haut.
+ */
+const SHIELD_SPAN = 1.3;
+function shieldGeometry(): { lens: THREE.BufferGeometry; frame: THREE.BufferGeometry } {
+  const N = 12;
+  const at = (phi: number, y: number, out = 0): THREE.Vector3 => v3((0.109 + out) * Math.sin(phi), y, (0.124 + out) * Math.cos(phi));
+  const lensPos: number[] = [];
+  const framePos: number[] = [];
+  const quad = (arr: number[], a: THREE.Vector3, b: THREE.Vector3, c: THREE.Vector3, d: THREE.Vector3) => arr.push(...a.toArray(), ...b.toArray(), ...c.toArray(), ...a.toArray(), ...c.toArray(), ...d.toArray());
+  for (let i = 0; i < N; i++) {
+    const cols = [i, i + 1].map((k) => {
+      const phi = -SHIELD_SPAN + (2 * SHIELD_SPAN * k) / N;
+      const u = phi / SHIELD_SPAN;
+      const top = 0.046 - 0.007 * u * u;
+      // Bord bas : remonte vers les côtés, encoche du nez au milieu.
+      const bottom = 0.004 + 0.013 * u * u + 0.017 * Math.max(0, 1 - Math.abs(phi) / 0.24);
+      return { phi, top, bottom };
+    });
+    const [l, r] = cols as [{ phi: number; top: number; bottom: number }, { phi: number; top: number; bottom: number }];
+    quad(lensPos, at(l.phi, l.bottom), at(r.phi, r.bottom), at(r.phi, r.top), at(l.phi, l.top));
+    quad(framePos, at(l.phi, l.top - 0.002, 0.002), at(r.phi, r.top - 0.002, 0.002), at(r.phi, r.top + 0.005, 0.002), at(l.phi, l.top + 0.005, 0.002));
+  }
+  const geo = (pos: number[]) => {
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    g.computeVertexNormals();
+    return g;
+  };
+  return { lens: geo(lensPos), frame: geo(framePos) };
+}
+
+/** Tête à facettes (icosaèdre de buildBody) : demi-axes x, y, z. */
+const HEAD_AXES = v3(0.112 * 0.92, 0.112 * 1.05, 0.112);
+
+/**
+ * Point de la surface de la tête dans la direction (x, y, z) depuis son centre, décalé de `out` (m) vers
+ * l'extérieur : sangles posées sur la peau.
+ */
+function onHead(x: number, y: number, z: number, out = 0.0045): THREE.Vector3 {
+  const d = v3(x, y, z).normalize();
+  const t = 1 / Math.sqrt((d.x / HEAD_AXES.x) ** 2 + (d.y / HEAD_AXES.y) ** 2 + (d.z / HEAD_AXES.z) ** 2);
+  return d.multiplyScalar(t + out);
+}
+
+/**
+ * Oreille à facettes (côté `side` : +1 gauche) : disque à six pans aplati, plus haut que large, penché vers
+ * l'arrière, plus épais au bord avant collé à la tête qu'au bord arrière décollé (pavillon).
+ */
+function earGeometry(side: number): THREE.BufferGeometry {
+  const g = new THREE.CylinderGeometry(0.021, 0.021, 0.012, 6).rotateZ(Math.PI / 2).scale(1, 1.3, 0.9);
+  const p = g.getAttribute('position');
+  // Pavillon : l'arrière s'écarte de la tête, l'avant s'y colle.
+  for (let i = 0; i < p.count; i++) p.setX(i, p.getX(i) + side * Math.max(0, -p.getZ(i)) * 0.25);
+  g.rotateX(0.22);
+  return g.translate(0.103 * side, -0.006, -0.008);
 }
 
 /**
@@ -425,6 +548,8 @@ export class LowPolyRider implements RiderAvatarLike {
   /** « Sans casque » / « Sans lunettes » de la tenue (look.noHelmet, look.noGlasses). */
   private noHelmet = false;
   private noGlasses = false;
+  /** Casque chrono porté : sa visière tient lieu de lunettes (lunettes masquées, sauf tête nue). */
+  private visorOn = false;
   private fit: Fit = FITS.drop;
   private sockLen = 0.11;
   private longSleeves = false;
@@ -490,7 +615,8 @@ export class LowPolyRider implements RiderAvatarLike {
         // Vélo du modèle : géométries partagées avec la famille chargée, matériaux rendus par realMats.
         if (!mesh.isMesh || o.userData.shared) return;
         mesh.geometry.dispose();
-        (mesh.material as THREE.Material).dispose();
+        // (casques chrono : plusieurs matériaux)
+        for (const m of Array.isArray(mesh.material) ? mesh.material : [mesh.material]) m.dispose();
       });
     }
     this.realMats?.dispose();
@@ -639,12 +765,19 @@ export class LowPolyRider implements RiderAvatarLike {
 
     // Tête : icosaèdre à facettes un peu grand (lisible de loin), nez, oreilles, lunettes de sport.
     const skull = new THREE.Mesh(new THREE.IcosahedronGeometry(0.112, 1).scale(0.92, 1.05, 1), skin);
-    const face = merged([noseGeometry(), box(0.03, 0.05, 0.04, 0.104, -0.005, -0.005), box(0.03, 0.05, 0.04, -0.104, -0.005, -0.005)], skin);
+    const face = merged([noseGeometry(), earGeometry(1), earGeometry(-1)], skin);
     // Lunettes : écran à la couleur des verres, branches à celle de la monture (garage).
     const glasses = new THREE.Group();
+    // Écran enveloppant d'une pièce (comme les coureurs NCT), monture fine en haut ; branches des bouts de
+    // l'écran jusqu'au haut des oreilles (earGeometry : haut à y ≈ 0,02, z ≈ −0,01), en biais.
+    const lensMat = flat(look.glassesLens ?? '#15171b', 0.3, 0.3);
+    lensMat.side = THREE.DoubleSide;
+    const frameMat = flat(look.glassesFrame ?? '#15171b', 0.3, 0.3);
+    const shield = shieldGeometry();
     glasses.add(
-      new THREE.Mesh(box(0.2, 0.045, 0.02, 0, 0.022, 0.102), flat(look.glassesLens ?? '#15171b', 0.3, 0.3)),
-      merged([box(0.01, 0.015, 0.12, 0.099, 0.03, 0.04), box(0.01, 0.015, 0.12, -0.099, 0.03, 0.04)], flat(look.glassesFrame ?? '#15171b', 0.3, 0.3)),
+      new THREE.Mesh(shield.lens, lensMat),
+      new THREE.Mesh(shield.frame, frameMat),
+      merged([1, -1].map((sx) => tube(v3(0.104 * sx, 0.034, 0.04), v3(0.118 * sx, 0.017, -0.012), 0.0065, 0.006, 4)), frameMat),
     );
     this.glasses = glasses;
     // Yeux (sous les lunettes, visibles sans elles) : blanc, pupille et sourcil posés à plat sur la facette du
@@ -747,6 +880,9 @@ export class LowPolyRider implements RiderAvatarLike {
   /** Casque de route (aérations, bande de couleur), casque aéro des vélos de chrono, ou casquette. */
   private buildHeadgear(look: AvatarLook, bike: BikeBuild): void {
     const g = this.headgear;
+    this.visorOn = !look.cap && (!!look.helmetShape || !!bike.params.aeroHelmet);
+    // Visière des casques chrono : lunettes aéro, à la couleur des verres choisis au garage.
+    const visorMat = flat(look.glassesLens ?? '#20242c', 0.15, 0.4);
     const shellMat = flat(look.helmet, 0.45);
     const dark = flat('#1d1f24');
     if (look.cap) {
@@ -760,66 +896,56 @@ export class LowPolyRider implements RiderAvatarLike {
       g.add(new THREE.Mesh(box(0.13, 0.01, 0.038, 0, 0.0, 0.019).rotateX(-1.0).translate(0, 0.055, 0.105), flat(cap.accent ?? cap.colors?.[1] ?? cap.color)));
       return;
     }
-    // Sangles fines en Y : une devant et une derrière l'oreille, réunies sous l'oreille, puis jusqu'au menton.
+    // Sangles en Y qui suivent la tête (quelques millimètres au-dessus de la peau) : une branche devant l'oreille
+    // et une derrière, qui sortent de sous le bord du casque, réunies sous l'oreille, puis une sangle le long
+    // de la mâchoire jusque sous le menton, boucle sur le côté (casque de route seulement).
     const straps = (): THREE.Mesh => {
       const parts: THREE.BufferGeometry[] = [];
+      const path = (dirs: Array<[number, number, number]>, sx: number) => {
+        const pts = dirs.map(([x, y, z]) => onHead(x * sx, y, z));
+        for (let i = 0; i + 1 < pts.length; i++) parts.push(tube(pts[i] as THREE.Vector3, pts[i + 1] as THREE.Vector3, 0.0042, 0.0042, 4));
+      };
       for (const sx of [1, -1]) {
-        const knot = v3(0.1 * sx, -0.065, 0.005);
-        parts.push(tube(v3(0.112 * sx, 0.012, 0.05), knot, 0.0055, 0.0055, 4), tube(v3(0.108 * sx, -0.005, -0.07), knot, 0.0055, 0.0055, 4), tube(knot, v3(0.035 * sx, -0.125, 0.055), 0.0055, 0.0055, 4));
+        const knot: [number, number, number] = [0.86, -0.5, 0.08];
+        path([[0.96, 0.16, 0.26], [0.95, -0.18, 0.22], knot], sx); // devant l'oreille
+        path([[0.84, 0.14, -0.52], [0.9, -0.24, -0.3], knot], sx); // derrière l'oreille
+        path([knot, [0.66, -0.72, 0.24], [0.32, -0.86, 0.4], [0, -0.86, 0.5]], sx); // mâchoire, menton
       }
-      parts.push(box(0.04, 0.016, 0.012, 0, -0.13, 0.062));
+      // Boucle, sous le menton sur le côté.
+      parts.push(new THREE.BoxGeometry(0.026, 0.01, 0.016).lookAt(v3(0, -1, 0.4)).translate(...onHead(0.16, -0.86, 0.48, 0.008).toArray()));
       return merged(parts, dark);
     };
-    if (look.helmetShape) {
-      // Casque chrono du garage : mêmes formes que le style réaliste (aeroHelmet.ts), à facettes, ajustées à
-      // la coque du casque de route ci-dessous.
-      const geo = aeroHelmetGeometry(look.helmetShape, ROAD_HELMET_BOX, new THREE.Matrix4(), 0, HELMET_FACETED);
+    if (look.helmetShape || bike.params.aeroHelmet) {
+      // Casque chrono du garage, ou d'office sur un vélo de chrono (à longue queue) : mêmes formes que le style
+      // réaliste (aeroHelmet.ts), à facettes, ajustées à la coque du casque de route ci-dessous.
+      const geo = aeroHelmetGeometry(look.helmetShape ?? 'chrono', ROAD_HELMET_BOX, new THREE.Matrix4(), 0, HELMET_FACETED);
       geo.deleteAttribute('skinIndex');
       geo.deleteAttribute('skinWeight');
       const faceted = geo.toNonIndexed();
       faceted.computeVertexNormals();
-      g.add(new THREE.Mesh(faceted, [shellMat, dark, flat('#20242c', 0.15, 0.4)]));
-      g.add(straps());
-      return;
-    }
-    if (bike.params.aeroHelmet) {
-      // Casque de chrono : goutte d'eau allongée vers l'arrière, visière sombre.
-      const shell = new THREE.IcosahedronGeometry(0.14, 1);
-      const p = shell.getAttribute('position');
-      for (let i = 0; i < p.count; i++) {
-        const z = p.getZ(i);
-        const back = z < 0 ? -z * 1.4 : 0;
-        p.setXYZ(i, p.getX(i) * (1 - back * 1.6) * 0.95, Math.max(p.getY(i), -0.02) * 0.85 + back * 0.25, z * 1.25 - back * 0.9);
-      }
-      g.add(new THREE.Mesh(shell.translate(0, 0.04, -0.02), shellMat));
-      g.add(new THREE.Mesh(box(0.21, 0.07, 0.02, 0, 0.0, 0.135), flat('#20242c', 0.15, 0.4)));
-      g.add(merged([box(0.02, 0.03, 0.2, 0, 0.16, -0.05)], flat(helmetTrim(look.helmet))));
+      // Pas de sangles sous un casque chrono.
+      g.add(new THREE.Mesh(faceted, [shellMat, dark, visorMat]));
       return;
     }
     // Casque de route : coque ovale profilée vers l'arrière, bord qui remonte au-dessus des lunettes et descend
-    // bas sur l'occiput (protection de l'arrière du crâne, comme les casques actuels) ; aérations sombres
-    // creusées dans la coque (faces colorées, rien ne dépasse) et serrage noir à l'arrière.
+    // bas sur l'occiput (protection de l'arrière du crâne, comme les casques actuels) ; fentes d'aération sombres
+    // posées sur la coque et serrage noir à l'arrière. Aérations comme les casques de route actuels (Kask, POC,
+    // Bell) : canaux allongés d'avant en arrière, parallèles (HELMET_VENTS, helmetVents).
     const SEGS = 24;
-    const geo = headShell(0.128, 0.12, 0.145, 1.27, 1.7, 2.35, 0.22, SEGS, 8).toNonIndexed();
+    const ROWS = 8;
+    const geo = headShell(0.128, 0.12, 0.145, 1.27, 1.7, 2.35, 0.22, SEGS, ROWS).toNonIndexed();
     const p = geo.getAttribute('position');
     const shellC = new THREE.Color(look.helmet);
     const ventC = new THREE.Color('#202329');
-    // Bandes décoratives le long des aérations (casques NCT), d'un ton voisin de la coque : le casque ne change
-    // pas avec le maillot.
-    const stripeC = new THREE.Color(helmetTrim(look.helmet));
     const cols: number[] = [];
     const tris = p.count / 3;
     for (let t = 0; t < tris; t++) {
-      // Facette (rangée r depuis le sommet, colonne j) ; les deux triangles d'un quadrilatère ont la même couleur.
+      // Facette (rangée r depuis le sommet, colonne j) : serrage noir sur la nuque, coque ailleurs.
       const qi = t < SEGS ? t : Math.floor((t - SEGS) / 2);
       const r = t < SEGS ? 1 : 2 + Math.floor(qi / SEGS);
       const j = qi % SEGS;
       const dz = Math.cos(((j + 0.5) / SEGS) * Math.PI * 2);
-      // Aérations en fentes qui rayonnent du sommet vers l'avant et l'arrière ; serrage noir sur la nuque.
-      const vent = r >= 3 && r <= 6 && j % 3 === 1 && Math.abs(dz) > 0.3;
-      const cradle = r >= 8 && dz < -0.5;
-      const stripe = r >= 2 && r <= 7 && j % 3 === 2 && Math.abs(dz) > 0.2;
-      const col = vent || cradle ? ventC : stripe ? stripeC : shellC;
+      const col = r >= ROWS && dz < -0.5 ? ventC : shellC;
       for (let v = 0; v < 3; v++) cols.push(col.r, col.g, col.b);
     }
     geo.setAttribute('color', new THREE.Float32BufferAttribute(cols, 3));
@@ -827,6 +953,7 @@ export class LowPolyRider implements RiderAvatarLike {
     helmetMat.flatShading = true;
     const shell = new THREE.Mesh(geo, helmetMat);
     shell.position.set(0, 0.025, -0.012);
+    shell.add(helmetVents(shell, flat('#202329', 0.6)));
     g.add(shell);
     g.add(straps());
   }
@@ -1340,7 +1467,7 @@ export class LowPolyRider implements RiderAvatarLike {
   /** Casque et lunettes : retirés tête nue (aperçu de l'éditeur de visage) ou par la tenue. */
   private applyHeadwear(): void {
     this.headgear.visible = !this.bareHead && !this.noHelmet;
-    if (this.glasses) this.glasses.visible = !this.bareHead && !this.noGlasses;
+    if (this.glasses) this.glasses.visible = !this.bareHead && !this.noGlasses && (!this.visorOn || this.noHelmet);
   }
 
   /** Écran allumé du compteur, incliné vers le coureur sur la potence. */

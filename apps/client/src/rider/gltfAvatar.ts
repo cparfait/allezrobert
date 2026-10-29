@@ -1264,7 +1264,7 @@ export class GltfRiderAvatar implements RiderAvatarLike {
       }
       else if (/^rider_hair(_lod\d)?$/.test(n)) this.hair.cap.push(o);
       if (n.startsWith('rider_helmet_aero')) this.headgear.aero.push(o);
-      // Sangles du casque route : portées aussi avec les casques chrono du garage.
+      // Sangles du casque route (pas avec les casques chrono).
       else if (n.startsWith('rider_helmet_straps')) this.headgear.straps.push(o);
       else if (n.startsWith('rider_helmet')) this.headgear.road.push(o);
       else if (n.startsWith('rider_glasses')) this.headgear.glasses.push(o);
@@ -1852,7 +1852,8 @@ export class GltfRiderAvatar implements RiderAvatarLike {
     for (const [shape, meshes] of this.garageHelmets) for (const o of meshes) o.visible = helmet && garage !== null && shape === this.look.helmetShape;
     for (const o of this.headgear.aero) o.visible = aero && helmet;
     for (const o of this.headgear.road) o.visible = !aero && !cap && !garage && helmet;
-    for (const o of this.headgear.straps) o.visible = !aero && !cap && helmet;
+    // Pas de sangles sous les casques chrono du garage (le casque chrono d'office a les siennes, dans le modèle).
+    for (const o of this.headgear.straps) o.visible = !aero && !cap && !garage && helmet;
     // Les casques chrono ont leur visière : lunettes seulement sans eux.
     for (const o of this.headgear.glasses) o.visible = (!(aero || garage) || !helmet) && glasses;
     const mats = this.look.cap ? capMaterials(this.look.cap) : null;
