@@ -24,10 +24,10 @@ export function hudPickerHtml(): string {
   const card = (c: Choice) => {
     const [fl, en] = LABELS[c];
     const img = c === 'auto' ? resolveHudLayout('auto') : c;
-    return `<button type="button" class="hp-card${c === cur ? ' on' : ''}" data-hud="${c}" data-shot="${shot(img)}" aria-pressed="${c === cur}">${L ? fl : en}</button>`;
+    return `<button type="button" role="radio" class="hp-card${c === cur ? ' on' : ''}" data-hud="${c}" data-shot="${shot(img)}" aria-checked="${c === cur}">${L ? fl : en}</button>`;
   };
   // Aperçu : caché, il n'apparaît qu'au survol (ou au focus clavier) d'un nom.
-  return `<div class="hp-picker">${(['auto', ...HUD_LAYOUTS] as Choice[]).map(card).join('')}</div>`;
+  return `<div class="hp-picker mm-seg" role="radiogroup">${(['auto', ...HUD_LAYOUTS] as Choice[]).map(card).join('')}</div>`;
 }
 
 /** Branche les cartes : le choix est enregistré tout de suite, `redraw` remet l'écran à jour. */

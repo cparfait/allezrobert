@@ -1,8 +1,3 @@
-/* Choix du HUD (Réglages) : cartes avec maquette de chaque disposition. */
-.hp-picker { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-top: 6px; }
-.hp-card { appearance: none; padding: 9px 16px; border-radius: 999px; border: 2px solid transparent; background: rgba(255, 255, 255, 0.07); color: inherit; font: 700 13.5px inherit; cursor: pointer; }
-.hp-card:hover, .hp-card:focus-visible { background: rgba(255, 255, 255, 0.14); outline: 0; }
-.hp-card.on { border-color: var(--ar-accent); background: rgba(255, 210, 63, 0.14); }
-.hp-picker { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
-/* Aperçu en jeu : posé au centre de l'écran pendant le survol d'un nom. */
+/* Choix du HUD (Réglages) : mêmes boutons que les autres choix (.mm-seg) ; l'aperçu en jeu apparaît au survol. */
+.hp-picker { max-width: 560px; }
 .hp-pop { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 9999; width: min(760px, 86vw); max-height: 86vh; aspect-ratio: 800 / 535; object-fit: contain; background: #0a0e16; border-radius: 14px; border: 1px solid rgba(255, 255, 255, 0.3); box-shadow: 0 24px 80px rgba(0, 0, 0, 0.7); pointer-events: none; }
