@@ -16,6 +16,7 @@ import { PAIR_ROOM, PUBLIC_ROOM } from '@allezrobert/shared';
 import { mountApi } from './http/api.ts';
 import { RenderWorker } from './render/worker.ts';
 import { renderWorkerOptions } from './render/options.ts';
+import { backfillTraining } from './activities/backfill.ts';
 
 export interface RunningServer {
   ctx: AppContext;
@@ -41,6 +42,14 @@ export async function startServer(opts: StartOptions = {}): Promise<RunningServe
   if (applied.length) ctx.log('info', `${applied.length} migration(s) appliquée(s)`);
   if (db.kind === 'memory') ctx.log('warn', 'base en mémoire (pg-mem) : données perdues à l’arrêt');
   setRideServices(rideServicesFrom(ctx));
+  // Mesures d'entraînement des anciennes sorties (migration 006), en tâche de fond.
+  if (config.NODE_ENV !== 'test') {
+    setTimeout(() => {
+      void backfillTraining(ctx)
+        .then((n) => n && ctx.log('info', `mesures d'entraînement calculées pour ${n} ancienne(s) sortie(s)`))
+        .catch((e) => ctx.log('warn', `rattrapage des mesures : ${(e as Error).message}`));
+    }, 5000).unref();
+  }
 
   const transport = new WebSocketTransport({ pingInterval: 5000, pingMaxRetries: 3, maxPayload: 16 * 1024 });
   const gameServer = new Server({

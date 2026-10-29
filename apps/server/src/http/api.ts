@@ -13,17 +13,18 @@ import { authRoutes } from './auth-routes.ts';
 import { ttsRoutes } from './tts.ts';
 import { friendRoutes } from './friends-routes.ts';
 import { publicRoutes } from './public-routes.ts';
+import { historyRoutes } from './history-routes.ts';
 import { clearSessionCookie, cors, errorHandler, HttpError, loadUser, originCheck, requireUser, type AuthedRequest } from './middleware.ts';
 import { COSMETICS, levelInfo, unlockedCosmetics, validateEquipped, xpForRide } from '../progression/xp.ts';
-import { decodeFit, FitImportError, stripHeartRate } from '../activities/fit-import.ts';
+import { decodeFit, FitImportError, stripHeartRate, trainingFromFit } from '../activities/fit-import.ts';
 import { authorizeUrl, exchangeCode, newPkce, safeRedirect } from '../auth/oauth.ts';
 import { OAUTH_COOKIE, parseCookies, serializeCookie } from './cookies.ts';
 import { createLiveKitToken, voiceRoomName } from '../integrations/livekit.ts';
 import { normalizeCode } from '../ride/registry.ts';
 import { activeRooms } from '../ride/RideRoom.ts';
 import { readHeartbeat } from '../render/worker.ts';
-import { normalizedPower } from '@allezrobert/physics';
-import { COUNTRY_CODE_RE, GHOST_MAX_S, FACE_CODE_RE, SHOE_MARKS, completedKits, equippedTuneIds, rankRouteId, tuneItem, type ShoeMarkId } from '@allezrobert/shared';
+import { normalizedPower, WORKOUT_LIBRARY } from '@allezrobert/physics';
+import { RIDE_KINDS, type RideKind, COUNTRY_CODE_RE, GHOST_MAX_S, FACE_CODE_RE, SHOE_MARKS, completedKits, equippedTuneIds, rankRouteId, tuneItem, type ShoeMarkId } from '@allezrobert/shared';
 import { buy, migrateLegacyWheels, rewardRide } from '../progression/atelier.ts';
 import type { ActivitySummaryRow } from '../db/repos.ts';
 
@@ -103,6 +104,7 @@ export function mountApi(app: express.Application, ctx: AppContext): void {
   api.use('/tts', ttsRoutes(ctx));
   api.use('/friends', friendRoutes(ctx));
   api.use('/public', publicRoutes(ctx));
+  api.use('/history', historyRoutes(ctx));
 
   /* ───────────── Santé ───────────── */
   api.get('/health', async (_req, res) => {
@@ -184,6 +186,8 @@ export function mountApi(app: express.Application, ctx: AppContext): void {
     const data = await ctx.repos.exportUser(u.userId);
     // Invitations à rouler en cours (en mémoire, 30 min au plus).
     data.rideInvites = ctx.friends.exportFor(u.userId);
+    // Historique d'entraînement : mesures, FTP, records, séances perso.
+    data.training = await ctx.training.exportUser(u.userId);
     res.setHeader('Content-Disposition', `attachment; filename="allezrobert-export-${new Date().toISOString().slice(0, 10)}.json"`);
     res.json(data);
   });
@@ -225,6 +229,12 @@ export function mountApi(app: express.Application, ctx: AppContext): void {
         routeId: z.string().max(80).optional(),
         skipStrava: z.enum(['0', '1', 'true', 'false']).optional(),
         guest: z.enum(['0', '1', 'true', 'false']).optional(),
+        // Historique : sortie de la base locale du jeu, nature, séance et FTP du moment.
+        clientRideId: z.string().regex(/^[A-Za-z0-9._:-]{1,64}$/).optional(),
+        kind: z.enum(RIDE_KINDS as [RideKind, ...RideKind[]]).optional(),
+        workoutId: z.string().max(80).optional(),
+        workoutName: z.string().max(100).optional(),
+        ftp: z.coerce.number().int().min(30).max(700).optional(),
       })
       .parse(req.query);
     if (q.guest === '1' || q.guest === 'true') throw new HttpError(403, 'Les sorties en invité ne sont pas enregistrées', 'guest');
@@ -240,6 +250,16 @@ export function mountApi(app: express.Application, ctx: AppContext): void {
       throw e;
     }
     const s = imported.summary;
+    // Même sortie déjà envoyée avec son FIT : rien de plus (pas d'XP en double). Sortie synchronisée
+    // sans FIT : remplacée par celle-ci, complète.
+    if (q.clientRideId) {
+      const known = await ctx.training.byClientId(u.userId, q.clientRideId);
+      if (known?.hasFit) {
+        res.status(200).json({ activity: await ctx.repos.getActivity(u.userId, known.id), xpGained: 0, progression: levelInfo((await ctx.repos.getProgression(u.userId)).xp), newlyUnlocked: [], credits: null, duplicate: true });
+        return;
+      }
+      if (known) await ctx.db.query('DELETE FROM activities WHERE id = $1 AND user_id = $2', [known.id, u.userId]);
+    }
     // Sans consentement FC : aucune donnée cardiaque n'est conservée.
     const fit = imported.hasHr && !profile.consentHr ? stripHeartRate(imported) : new Uint8Array(req.body);
     const xp = xpForRide(s);
@@ -260,8 +280,22 @@ export function mountApi(app: express.Application, ctx: AppContext): void {
       xp,
       ...(q.routeId ? { routeId: q.routeId } : {}),
       ...(q.rideId ? { rideId: q.rideId } : {}),
+      ...(q.clientRideId ? { clientRideId: q.clientRideId } : {}),
       skipStrava,
     });
+    // Mesures d'entraînement (NP, IF, TSS, courbe, zones) calculées sur le FIT avec la FTP du moment.
+    await ctx.training.setTraining(
+      ctx.db,
+      u.userId,
+      id,
+      (() => {
+        const t = trainingFromFit(imported, q.ftp ?? profile.ftpWatts);
+        // Séance de la bibliothèque : son type ; sinon celui estimé d'après les zones.
+        const libraryType = q.workoutId ? WORKOUT_LIBRARY.find((w) => w.id === q.workoutId)?.type : undefined;
+        return { ...t, kind: q.kind ?? (q.rideId ? 'group' : 'free'), workoutId: q.workoutId ?? null, workoutName: q.workoutName ?? null, trainingType: libraryType ?? t.trainingType ?? null };
+      })(),
+      new Date(s.startedAt),
+    );
     await ctx.repos.addProgression(ctx.db, u.userId, xp, s.distanceM, s.elevationM);
     // Crédits et récompenses : calculés ici à partir du FIT et des données du serveur (itinéraire connu, segments bouclés en salle).
     const route = q.routeId ? ctx.routes.get(q.routeId) : undefined;
@@ -303,7 +337,8 @@ export function mountApi(app: express.Application, ctx: AppContext): void {
 
   api.delete('/activities/:id', async (req: AuthedRequest, res) => {
     const u = requireUser(req);
-    if (!(await ctx.repos.deleteActivity(u.userId, String(req.params.id)))) throw new HttpError(404, 'Sortie introuvable', 'not_found');
+    // Suppression notée pour les autres appareils (historique synchronisé).
+    if (!(await ctx.training.deleteRide(u.userId, String(req.params.id)))) throw new HttpError(404, 'Sortie introuvable', 'not_found');
     res.status(204).end();
   });
 

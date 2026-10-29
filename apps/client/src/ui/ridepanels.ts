@@ -1,6 +1,6 @@
 import { phoneIcon } from './companionQr.ts';
 import { encodeActivity, buildActivity } from '@allezrobert/fit';
-import { worldToWgs84, type ActivityRecord } from '@allezrobert/shared';
+import { worldToWgs84, type ActivityRecord, type RideKind } from '@allezrobert/shared';
 import { t, getLang } from '../i18n/index.ts';
 import type { SummaryVideoPanel } from './summaryvideo.ts';
 import { apiBase, fetchMe } from './account.ts';
@@ -189,7 +189,18 @@ export function showPause(root: HTMLElement, cb: PauseCallbacks): void {
  * Compte connecté : enregistrement de la sortie sur le serveur (XP, segments), envoi
  * automatique vers Strava (sauf option « Garmin ») et intervals.icu s'ils sont reliés.
  */
-export async function onlinePanel(box: HTMLElement, ride: RideSession, fit: () => Uint8Array, video?: SummaryVideoPanel): Promise<void> {
+/** Lien avec l'historique : la sortie envoyée remplace celle déjà synchronisée (même identifiant). */
+export interface UploadMeta {
+  clientRideId: string;
+  kind: RideKind;
+  workoutId?: string | null;
+  workoutName?: string | null;
+  ftp: number;
+  /** FIT bien enregistré sur le compte. */
+  onSaved?: () => void;
+}
+
+export async function onlinePanel(box: HTMLElement, ride: RideSession, fit: () => Uint8Array, video?: SummaryVideoPanel, meta?: UploadMeta): Promise<void> {
   const fr = getLang() === 'fr';
   const me = await fetchMe();
   video?.setLoggedIn(!!me);
@@ -215,18 +226,26 @@ export async function onlinePanel(box: HTMLElement, ride: RideSession, fit: () =
     e.preventDefault();
     const key = (box.querySelector('#o-intkey') as HTMLInputElement).value.trim();
     const r = await api('/integrations/intervals', { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ apiKey: key }) }).catch(() => null);
-    if (r?.ok) void onlinePanel(box, ride, fit, video);
+    if (r?.ok) void onlinePanel(box, ride, fit, video, meta);
     else alert(fr ? 'intervals.icu a refusé cette clé.' : 'intervals.icu rejected this key.');
   });
   box.querySelector('#o-save')?.addEventListener('click', async (e) => {
     const b = e.target as HTMLButtonElement;
     b.disabled = true;
     const q = new URLSearchParams({ name: `Allez Robert ! — ${ride.route.name}`.slice(0, 100), routeId: ride.route.id, skipStrava: st.skipStrava ? '1' : '0' });
+    if (meta) {
+      q.set('clientRideId', meta.clientRideId);
+      q.set('kind', meta.kind);
+      q.set('ftp', String(Math.round(meta.ftp)));
+      if (meta.workoutId) q.set('workoutId', meta.workoutId.slice(0, 80));
+      if (meta.workoutName) q.set('workoutName', meta.workoutName.slice(0, 100));
+    }
     const r = await api(`/activities?${q}`, { method: 'POST', headers: { 'content-type': 'application/octet-stream' }, body: fit() as BlobPart }).catch(() => null);
     const msg = box.querySelector('#o-save-msg') as HTMLElement;
     if (r?.ok) {
       const j = (await r.json()) as { xpGained: number; progression: { level: number }; activity?: { id: string } };
       if (j.activity?.id) video?.setActivity(j.activity.id);
+      meta?.onSaved?.();
       msg.textContent = `${fr ? 'Enregistrée' : 'Saved'} · +${j.xpGained} XP · ${fr ? 'niveau' : 'level'} ${j.progression.level}${integ?.strava.connected && !st.skipStrava ? ' · Strava…' : ''}${integ?.intervals.connected ? ' · intervals.icu…' : ''}`;
     } else {
       msg.textContent = fr ? 'Enregistrement impossible pour le moment.' : 'Could not save right now.';

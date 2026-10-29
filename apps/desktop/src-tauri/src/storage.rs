@@ -209,6 +209,8 @@ pub async fn storage_move(app: AppHandle, target: String) -> AppResult<String> {
     if target.starts_with(&from) || from.starts_with(&target) {
         return Err("le nouveau dossier ne peut pas être dans l'ancien (ni l'inverse)".into());
     }
+    // La base locale (profil/historique.sqlite) est fermée pendant le déplacement ; elle se rouvre ensuite.
+    crate::localdb::close();
     let progress_app = app.clone();
     let dest = target.clone();
     tauri::async_runtime::spawn_blocking(move || -> AppResult<()> {

@@ -34,7 +34,10 @@ import { bootStep, bootProgress, bootDone, bootError } from './ui/splash.ts';
 import { PosterScene, POSTER_HOUR, GARAGE_VIEWS, type GarageView } from './ui/poster.ts';
 import { showPause, rideToFit, rideToGpx, download, onlinePanel } from './ui/ridepanels.ts';
 import { showRideSummary } from './ui/summary.ts';
-import { compareAndStore, readPowerRecords, rideStats, updatePowerRecords } from './game/stats.ts';
+import { previousComparable, readPowerRecords, rideStats, updatePowerRecords, type RideHistoryEntry } from './game/stats.ts';
+import { rideHistory } from './data/history/instance.ts';
+import { rideClientId } from './data/history/index.ts';
+import type { RideKind } from '@allezrobert/shared';
 import { shareCard } from './ui/sharecard.ts';
 import { Onboarding, RideTutorial } from './onboarding/onboarding.ts';
 import { fetchRealWeather } from './game/realWeather.ts';
@@ -893,6 +896,8 @@ async function boot(): Promise<void> {
   }
   bootDone();
   void offerDesktopUpdate();
+  // Historique local (SQLite dans l'appli de bureau) : ouverture et import des anciennes données.
+  void rideHistory.ready(settings.ftpWatts).catch((e) => console.warn('Historique indisponible', e));
   if (autostart) {
     await withWorld(getLang() === 'fr' ? 'Préparation de la sortie…' : 'Preparing the ride…');
     void startRide(scene, settings, devices.source(), {});
@@ -903,6 +908,8 @@ async function boot(): Promise<void> {
     let me: Me | null = await fetchMe();
     if (me) applyProfile(me, settings);
     const afterLogin = () => {
+      // Historique : synchronisé avec le compte connecté.
+      rideHistory.setAccount(me?.id ?? null);
       menu.account = me ? { name: me.profile.displayName, level: me.progression.level, ...(me.atelier ? { credits: me.atelier.credits } : {}) } : null;
       // Retour de la liaison Strava : on revient sur la rubrique des Réglages qui l'affiche.
       const fromStrava = new URLSearchParams(location.search).has('strava');
@@ -930,7 +937,11 @@ async function boot(): Promise<void> {
     };
     // Profil envoyé au compte une fois les réglages stabilisés (1,5 s sans changement).
     let pushTimer: ReturnType<typeof setTimeout> | undefined;
+    // FTP changée à la main : notée dans l'historique des FTP une fois la valeur stable.
+    let ftpTimer: ReturnType<typeof setTimeout> | undefined;
     menu.onSettingsSaved = (st) => {
+      clearTimeout(ftpTimer);
+      ftpTimer = setTimeout(() => void rideHistory.addFtp(st.ftpWatts, 'manual'), 2000);
       if (!me) return;
       clearTimeout(pushTimer);
       pushTimer = setTimeout(() => void pushProfile(st, me?.progression.level), 1500);
@@ -1151,6 +1162,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
         hud.toast(`FTP estimée : ${ftp} W`);
         s.ftpWatts = ftp;
         saveSettings(s);
+        void rideHistory.addFtp(ftp, workout?.kind === 'ftp20' ? '20min' : 'ramp', ride.startT);
       } else hud.toast(t('segmentDone'));
     };
   }
@@ -1359,6 +1371,12 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   // « Nouvelle sortie » et « Quitter » rendent la main au menu. XP, historique et records sont
   // enregistrés à chaque fin (sans double compte si la sortie a été reprise).
   const recordsBefore = readPowerRecords();
+  // Sorties précédentes sur ce parcours (tout l'historique) pour « vs la dernière fois ».
+  let pastRides: RideHistoryEntry[] = [];
+  void rideHistory
+    .rides({ routeId: track.route.id })
+    .then((list) => (pastRides = list.map((r) => ({ routeId: r.routeId ?? track.route.id, date: r.startedAt, distanceM: r.distanceM, movingS: r.movingS, avgSpeedKmh: r.avgSpeedKmh ?? 0, avgWatts: r.avgWatts ?? 0, np: r.np ?? 0 }))))
+    .catch(() => undefined);
   let credited: { distanceM: number; elevationM: number; movingS: number } | undefined;
   const fileStem = () => `allez-robert-${new Date(ride.startT).toISOString().slice(0, 16).replace(/[:T]/g, '-')}`;
   const fitBytes = () => rideToFit(ride, { name: `Allez Robert ! — ${track.route.name}`, massKg: s.massKg, ftp: s.ftpWatts, ...(source.originL93 ? { originL93: source.originL93 } : {}), skipStrava: s.skipStrava });
@@ -1399,7 +1417,27 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     const records = s.guest ? { previous: recordsBefore, beaten: [] } : updatePowerRecords(stats.curve, recordsBefore);
     const previous = s.guest
       ? null
-      : compareAndStore({ routeId: track.route.id, date: ride.startT, distanceM: stats.distanceM, movingS: stats.movingS, avgSpeedKmh: stats.avgSpeedKmh, avgWatts: stats.avgWatts, np: stats.np });
+      : previousComparable(pastRides, { routeId: track.route.id, date: ride.startT, distanceM: stats.distanceM, movingS: stats.movingS, avgSpeedKmh: stats.avgSpeedKmh, avgWatts: stats.avgWatts, np: stats.np });
+    // Historique d'entraînement : la sortie, ses mesures et sa séance (une sortie reprise remplace la précédente).
+    const rideKind: RideKind = workout ? (workout.kind === 'ramp' || workout.kind === 'ftp20' ? 'ftp_test' : 'workout') : s.mode === 'race' ? 'race' : mp ? 'group' : 'free';
+    const rideWorkout = workout ? { workoutId: workout.kind === 'library' ? (s.workoutPreset ?? null) : workout.kind === 'file' ? null : `ftp.${workout.kind}`, workoutName: workout.workout.name } : {};
+    if (!s.guest && ride.records.length >= 60) {
+      void rideHistory
+        .recordRide({
+          startT: ride.startT,
+          name: track.route.name,
+          routeId: track.route.id,
+          kind: rideKind,
+          ...rideWorkout,
+          durationS: Math.max(ride.elapsedS, ((ride.records.at(-1)?.t ?? ride.startT) - ride.startT) / 1000),
+          movingS: ride.elapsedS,
+          distanceM: done.distanceM,
+          elevationM: done.elevationM,
+          ftpWatts: s.ftpWatts,
+          samples: ride.records,
+        })
+        .catch((e) => console.warn('Sortie non gardée dans l’historique', e));
+    }
     const L = getLang() === 'fr';
     const trophies = awardTrophies(
       {
@@ -1468,7 +1506,19 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
             }),
         onNewRide: () => teardown(true),
         onQuit: () => teardown(false),
-        ...(s.guest ? {} : { onlineBox: (box: HTMLElement) => void onlinePanel(box, ride, fitBytes) }),
+        ...(s.guest
+          ? {}
+          : {
+              onlineBox: (box: HTMLElement) =>
+                void onlinePanel(box, ride, fitBytes, undefined, {
+                  clientRideId: rideClientId(ride.startT),
+                  kind: rideKind,
+                  ...rideWorkout,
+                  ftp: s.ftpWatts,
+                  onSaved: () => void rideHistory.updateRide(rideClientId(ride.startT), { hasFit: true }),
+                }),
+              onFeedback: (f) => void rideHistory.updateRide(rideClientId(ride.startT), { feedback: f }),
+            }),
       },
     );
   };

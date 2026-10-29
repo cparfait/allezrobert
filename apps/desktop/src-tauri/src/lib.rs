@@ -3,7 +3,8 @@
 //! Enveloppe le client web (`apps/client`) et expose au TypeScript les capteurs natifs :
 //! Bluetooth LE (btleplug), Wahoo Direct Connect (mDNS + TCP) et ANT+ USB (nusb), ainsi que ce qu'un
 //! navigateur ne fait pas : zones et ressources du jeu dans un dossier de données (storage.rs, packs.rs,
-//! worlds.rs, assets.rs), mises à jour signées, écran gardé allumé, plein écran (system.rs).
+//! worlds.rs, assets.rs), historique des sorties en SQLite (localdb.rs), mises à jour signées,
+//! écran gardé allumé, plein écran (system.rs).
 //! Contrat : `packages/shared/src/native-bridge.ts`.
 
 pub mod ant;
@@ -14,6 +15,7 @@ pub mod ble;
 mod ble_windows;
 pub mod dircon;
 pub mod error;
+pub mod localdb;
 pub mod packs;
 pub mod storage;
 pub mod system;
@@ -106,6 +108,10 @@ pub fn run() {
             storage::reveal_path,
             storage::profile_save,
             storage::save_export,
+            localdb::localdb_execute,
+            localdb::localdb_query,
+            localdb::localdb_batch,
+            localdb::localdb_path,
             packs::pack_install,
             packs::pack_cancel,
             packs::pack_remove,

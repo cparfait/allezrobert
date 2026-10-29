@@ -7,6 +7,8 @@
 import { Decoder, Stream } from '@garmin/fitsdk';
 import type { Activity, ActivityLap, ActivityRecord } from '@allezrobert/shared';
 import { computeStats, decodeBalanceLeft, encodeActivity } from '@allezrobert/fit';
+import { classifyRideType, trainingSummary } from '@allezrobert/physics';
+import type { TrainingFields } from '../db/training.ts';
 
 type Msg = Record<string, unknown>;
 
@@ -20,6 +22,8 @@ export interface FitSummary {
   maxWatts?: number;
   avgHr?: number;
   maxHr?: number;
+  /** Décalage UTC local (min) lu dans le message activity (`local_timestamp`), s'il existe. */
+  utcOffsetMin?: number;
 }
 
 export interface ImportedFit {
@@ -147,7 +151,42 @@ export function decodeFit(bytes: Uint8Array, name = 'Sortie Allez Robert !'): Im
   if (st.maxPower !== undefined) summary.maxWatts = Math.round(st.maxPower);
   if (st.avgHr !== undefined) summary.avgHr = Math.round(st.avgHr);
   if (st.maxHr !== undefined) summary.maxHr = Math.round(st.maxHr);
+  const offset = utcOffsetOf(messages.activityMesgs?.[0]);
+  if (offset !== undefined) summary.utcOffsetMin = offset;
   return { activity, summary, hasHr };
+}
+
+/** Secondes entre l'époque FIT (31/12/1989) et l'époque Unix. */
+const FIT_EPOCH_S = 631065600;
+
+/** Décalage local − UTC (min) du message activity, borné à ±14 h ; undefined s'il manque. */
+function utcOffsetOf(msg: Msg | undefined): number | undefined {
+  if (!msg) return undefined;
+  const utc = time(msg.timestamp);
+  const local = msg.localTimestamp instanceof Date ? msg.localTimestamp.getTime() : typeof msg.localTimestamp === 'number' ? (msg.localTimestamp + FIT_EPOCH_S) * 1000 : undefined;
+  if (utc === undefined || local === undefined) return undefined;
+  const min = Math.round((local - utc) / 60_000 / 15) * 15;
+  return Math.abs(min) <= 14 * 60 ? min : undefined;
+}
+
+/** Mesures d'entraînement d'un FIT (NP, IF, TSS, courbe, zones) pour une FTP. */
+export function trainingFromFit(imported: ImportedFit, ftpWatts: number): TrainingFields {
+  const t = trainingSummary(imported.activity.records, ftpWatts);
+  const s = imported.summary;
+  const hasPower = imported.activity.records.some((r) => r.watts !== undefined);
+  return {
+    ...(s.utcOffsetMin !== undefined ? { utcOffsetMin: s.utcOffsetMin } : {}),
+    ftpAtRide: ftpWatts,
+    np: hasPower ? t.np : null,
+    intensity: hasPower ? t.intensity : null,
+    tss: hasPower ? t.tss : null,
+    workKJ: hasPower ? t.workKJ : null,
+    avgCadence: t.avgCadence,
+    avgSpeedKmh: s.movingS > 0 ? (s.distanceM / s.movingS) * 3.6 : null,
+    curve: t.curve.map((p) => [p.durationS, p.watts] as const),
+    zonesS: hasPower ? t.zonesS : [],
+    trainingType: hasPower ? classifyRideType(t.zonesS, t.intensity) : null,
+  };
 }
 
 /** Ré-encode la sortie sans aucune donnée de fréquence cardiaque. */

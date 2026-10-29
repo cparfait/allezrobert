@@ -1,6 +1,6 @@
 import { withLikeness } from '../ui/faceEditorLogic.ts';
 import { enhanceSelects } from '../ui/dropdown.ts';
-import { DEFAULT_LOOK, lookSex, withSex, type AvatarLook } from '@allezrobert/shared';
+import { COUNTRIES, DEFAULT_LOOK, lookSex, withSex, type AvatarLook } from '@allezrobert/shared';
 import { getLang, setLang, t } from '../i18n/index.ts';
 import type { DevicePanel } from '../ui/menu.ts';
 import { saveSettings, type Settings } from '../ui/settings.ts';
@@ -139,6 +139,10 @@ export class Onboarding {
         body = `<h2>${t('profile')}</h2><div class="grid3">
           <label class="field">${t('name')}<input id="o-name" value="${this.s.name.replace(/"/g, '&quot;')}"/></label>
           <label class="field">${fr ? 'Je suis' : 'I am'}<div class="row">${(['male', 'female'] as const).map((x) => `<button class="btn small ${lookSex(this.s.look) === x ? 'primary' : ''}" data-sex="${x}">${x === 'male' ? (fr ? 'Un homme' : 'A man') : fr ? 'Une femme' : 'A woman'}</button>`).join('')}</div></label>
+          <label class="field">${fr ? 'Nationalité' : 'Nationality'}<select id="o-nation"><option value="" ${this.s.look.nationality ? '' : 'selected'}>${fr ? 'Choisir mon pays' : 'Choose my country'}</option>${[...COUNTRIES]
+            .sort((a, b) => a[fr ? 'fr' : 'en'].localeCompare(b[fr ? 'fr' : 'en'], fr ? 'fr' : 'en'))
+            .map((c) => `<option value="${c.code}" ${this.s.look.nationality === c.code ? 'selected' : ''}>${c[fr ? 'fr' : 'en']}</option>`)
+            .join('')}</select></label>
           <label class="field">${t('weight')}<input id="o-mass" type="number" min="30" max="200" step="0.5" value="${this.s.massKg}"/></label>
           <label class="field">${t('height')}<input id="o-height" type="number" min="120" max="220" value="${this.s.heightCm}"/></label>
           <label class="field">${t('ftp')}<input id="o-ftp" type="number" min="50" max="600" value="${this.s.ftpWatts}"/></label>
@@ -288,6 +292,12 @@ export class Onboarding {
     num('o-mass', 'massKg');
     num('o-height', 'heightCm');
     num('o-ftp', 'ftpWatts');
+    // Nationalité : drapeau montré aux autres coureurs (comme dans l'onglet Profil).
+    $<HTMLSelectElement>('o-nation')?.addEventListener('change', (e) => {
+      const code = (e.target as HTMLSelectElement).value;
+      const { nationality: _old, ...rest } = this.s.look;
+      this.s.look = code ? { ...rest, nationality: code } : rest;
+    });
     $<HTMLInputElement>('o-name')?.addEventListener('change', (e) => (this.s.name = (e.target as HTMLInputElement).value.trim().slice(0, 24) || 'Robert'));
     $('o-ftptest')?.addEventListener('click', () => {
       this.wantFtp = !this.wantFtp;
