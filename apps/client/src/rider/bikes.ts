@@ -1,3 +1,4 @@
+import { ComputerScreen, type ComputerData } from './computerScreen.ts';
 import * as THREE from 'three/webgpu';
 import { LOW_POLY } from '../engine/style.ts';
 import { flatLook } from './flatLook.ts';
@@ -187,7 +188,7 @@ function seatpostRearZ(group: THREE.Object3D, y: number): number | undefined {
 }
 
 const EMISSIVE: Record<string, [string, number]> = {
-  computer_screen: ['#3f7f8f', 0.6],
+  computer_screen: ['#ffffff', 1],
 };
 
 /** Vélos des coureurs du décor (IA, photo d'accueil, film) : modèles route 2026, familles préchargées. */
@@ -535,6 +536,7 @@ export function assembleBike(build: BikeBuild, family: FamilyKey, lod: 0 | 1, bo
     // Tige de selle : matériau à part (pièces de l'atelier).
     const mm = (o as THREE.Mesh).material as THREE.Material | undefined;
     if (mm?.name === 'components' && (o.name === 'saddle' || o.parent?.name === 'saddle')) o.userData.matKey = 'seatpost';
+    if (mm?.name === 'computer_screen') addScreenUv(o as THREE.Mesh);
     if (n.startsWith('opt_brakes_disc')) o.visible = brakes === 'disc';
     else if (n.startsWith('opt_brakes_rim')) o.visible = brakes === 'rim';
     else if (n.startsWith('opt_derailleur')) o.visible = !track;
@@ -582,12 +584,38 @@ export function assembleBike(build: BikeBuild, family: FamilyKey, lod: 0 | 1, bo
 }
 
 /**
+ * Coordonnées de texture de l'écran du compteur (le modèle n'en a pas) : projection à plat sur la face de l'écran
+ * (axe le plus fin du maillage = normale), largeur sur le plus petit des deux autres axes, hauteur sur le plus grand.
+ */
+function addScreenUv(mesh: THREE.Mesh): void {
+  const g = mesh.geometry;
+  if (g.attributes.uv) return;
+  g.computeBoundingBox();
+  const box = g.boundingBox;
+  const pos = g.attributes.position;
+  if (!box || !pos) return;
+  const size = box.getSize(new THREE.Vector3()).toArray();
+  const order = [0, 1, 2].sort((i, j) => (size[i] as number) - (size[j] as number));
+  const [, wi, hi] = order as [number, number, number];
+  const min = box.min.toArray();
+  const uv = new Float32Array(pos.count * 2);
+  for (let i = 0; i < pos.count; i++) {
+    const p = [pos.getX(i), pos.getY(i), pos.getZ(i)];
+    uv[i * 2] = ((p[wi] as number) - (min[wi] as number)) / Math.max(size[wi] as number, 1e-6);
+    uv[i * 2 + 1] = ((p[hi] as number) - (min[hi] as number)) / Math.max(size[hi] as number, 1e-6);
+  }
+  g.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+}
+
+/**
  * Matériaux d'un vélo, partagés par ses deux niveaux de détail : livrée du cadre, jantes et
  * guidoline aux couleurs du modèle, bidons à l'accent du maillot.
  */
 export class BikeMaterials {
   private readonly livery: LiveryMaterial;
   private readonly byName = new Map<string, THREE.MeshStandardNodeMaterial>();
+  /** Écran du compteur (canevas), créé avec le matériau « computer_screen ». */
+  private screen: ComputerScreen | null = null;
   /** Interrupteurs des effets de l'atelier (flancs arc-en-ciel, carbone apparent), par matériau. */
   private readonly fx = new Map<string, { value: number }>();
   private readonly boxes: (ReturnType<typeof decalBoxes>[number])[];
@@ -608,6 +636,11 @@ export class BikeMaterials {
     const bottle = !build.params.track && build.params.bottles !== false && (look.bottles ?? 1) > 0;
     this.boxes = decalBoxes(familyScene(family), family !== 'madone', bottle);
     this.refreshDecals();
+  }
+
+  /** Données du compteur du vélo (coureur du joueur). */
+  setComputer(d: ComputerData): void {
+    this.screen?.set(d);
   }
 
   /** Inscriptions du cadre (marque, autocollants de l'atelier) : texture refaite si elles changent. */
@@ -677,6 +710,15 @@ export class BikeMaterials {
         const ct = this.build.livery.crankText;
         if (name === 'crank' && ct) m.colorNode = mix(m.colorNode, color(ct.color), crankLetters(ct.text));
         this.fx.set(name, on);
+      }
+      if (kind === 'computer_screen' && typeof document !== 'undefined') {
+        // Écran allumé : le canevas du compteur (setComputer) en couleur et en émission, indépendant de la lumière.
+        this.screen ??= new ComputerScreen();
+        m.map = this.screen.texture;
+        m.emissiveMap = this.screen.texture;
+        m.color.set('#ffffff');
+        m.emissive.set('#ffffff');
+        m.emissiveIntensity = 1;
       }
       this.byName.set(name, m);
       this.tint(m);

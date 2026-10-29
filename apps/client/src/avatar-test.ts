@@ -325,7 +325,7 @@ async function main(): Promise<void> {
       ...(params.has('tour') ? ([['manivelle 0°', 8.3, 0.7, 'seated', 88], ['manivelle 90°', 8.3, 0.7, 'seated', 88], ['manivelle 180°', 8.3, 0.7, 'seated', 88]] as Array<[string, number, number, RiderPose, number]>) : []),
       ...(params.has('lent') ? ([['20 km/h', 5.6, 0.6, 'seated', 80], ['danseuse', 5, 1, 'standing', 70]] as Array<[string, number, number, RiderPose, number]>) : []),
       ['30 km/h, 70 % FTP', 8.3, 0.7, 'seated', 88],
-      ...(params.has('seul') ? [] : ([['45 km/h (bas du cintre)', 12.5, 0.8, 'seated', 92],
+      ...(params.has('seul') ? [] : ([['45 km/h (bas du cintre)', 12.7, 0.8, 'seated', 92],
       ['35 km/h, 115 % FTP (tres fort)', 9.7, 1.15, 'seated', 95],
       ['55 km/h (tres vite)', 15.3, 0.9, 'seated', 95]] as Array<[string, number, number, RiderPose, number]>)),
     ];

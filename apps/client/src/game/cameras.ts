@@ -223,6 +223,15 @@ export class CameraRig {
         const v = ONBOARD[this.mode as 'cockpit' | 'action'];
         if (t.eye) desired.copy(t.eye).addScaledVector(t.dir, -v.back).addScaledVector(_up, v.up);
         else desired.copy(t.position).addScaledVector(t.dir, 0.1).addScaledVector(_up, 1.6 + v.up);
+        // Position aéro (tête basse, mains près des yeux) : la caméra ne descend pas sous les mains, sinon elle les
+        // verrait d'en dessous et regarderait le ciel ; elle reste juste au-dessus d'elles, sous les yeux.
+        if (t.eye && t.hands && desired.y < t.hands.y + 0.08) desired.y = Math.min(t.hands.y + 0.08, t.eye.y - 0.02);
+        // Tête au-dessus des mains (aéro) : la caméra recule pour garder les mains à 32 cm devant elle au moins,
+        // sinon elle les regarderait de tout près et plongerait vers la roue.
+        if (t.hands) {
+          const gap = (t.hands.x - desired.x) * t.dir.x + (t.hands.z - desired.z) * t.dir.z;
+          if (gap < 0.32) desired.addScaledVector(t.dir, gap - 0.32);
+        }
         const bikePitch = Math.atan(this.track.sample(t.distM).grade * (t.sign ?? 1) / 100);
         let pitch = bikePitch - 0.35;
         if (t.hands) {

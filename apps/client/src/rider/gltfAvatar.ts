@@ -183,7 +183,7 @@ const TUCK_HEAD = 0.35;
  * basse, mains en bas du cintre, avant-bras presque à l'horizontale ; très détendue à petite allure, mains en
  * haut du cintre, buste relevé (≈ 46° : au-delà, les bras tendus n'atteignent plus un cintre route).
  */
-const DROPS_BEND = 0.62;
+const DROPS_BEND = 0.8;
 const AERO_BEND = 1.0;
 const RELAX_BEND = -0.06;
 /** Ischions sur la selle par rapport à l'os du bassin (mesuré : selle 6 cm sous lui et 6 cm derrière). */
@@ -204,6 +204,8 @@ const AERO_FULL = AERO_COAST_FULL;
  *    et d'autre de la potence (FOREARM_ELBOW : coude posé sur le cintre), mains en avant ;
  *    le buste bascule jusqu'à poser les avant-bras, comme sur les repose-coudes d'un vélo de chrono.
  */
+/** Cintre route sans prolongateurs : en aéro, mains en bas du cintre (false) ; true : avant-bras posés sur le cintre / sur les cocottes. */
+const ROAD_AERO_ON_BARS = false;
 const HOODS_AERO_EFFORT = HARD_EFFORT;
 const HOODS_AERO_EFFORT_OUT = HARD_EFFORT_OUT;
 const HOODS_AERO_SPEED = AERO_SPEED;
@@ -1564,8 +1566,8 @@ export class GltfRiderAvatar implements RiderAvatarLike {
     // Avec prolongateurs : couché dessus très vite ou très fort, à la place des deux positions ci-dessous.
     const hard = (on: boolean) => this.ftpFrac > HOODS_AERO_EFFORT || (on && this.ftpFrac > HOODS_AERO_EFFORT_OUT);
     this.clipOn = pedalling && this.clip !== null && (speed > CLIP_IN || (this.clipOn && speed > CLIP_OUT) || (speed > HOODS_AERO_SPEED && hard(this.clipOn)));
-    this.forearmsOn = pedalling && !this.clip && (speed > FOREARMS_IN || (this.forearmsOn && speed > FOREARMS_OUT));
-    this.hoodsAeroOn = pedalling && !this.clip && !this.forearmsOn && speed > HOODS_AERO_SPEED && hard(this.hoodsAeroOn);
+    this.forearmsOn = ROAD_AERO_ON_BARS && pedalling && !this.clip && (speed > FOREARMS_IN || (this.forearmsOn && speed > FOREARMS_OUT));
+    this.hoodsAeroOn = ROAD_AERO_ON_BARS && pedalling && !this.clip && !this.forearmsOn && speed > HOODS_AERO_SPEED && hard(this.hoodsAeroOn);
     // Vélo de chrono : cornes à petite allure et en danseuse, tortue très vite ou très fort.
     const tt = this.horns !== null && !hands;
     this.hornsOn = tt && (pose === 'standing' || speed < HORNS_IN || (this.hornsOn && speed < HORNS_OUT));
@@ -1833,6 +1835,11 @@ export class GltfRiderAvatar implements RiderAvatarLike {
   setHeadVisible(on: boolean): void {
     this.headHidden = !on;
     this.bones.neck.scale.setScalar(on ? 1 : 1e-3);
+  }
+
+  /** Données du compteur du vélo (écran allumé en vue subjective) ; redessiné au plus 4 fois par seconde. */
+  setComputer(d: { speedKmh: number; watts: number; cadence: number; hr?: number; timeS?: number }): void {
+    this.mounted?.materials.setComputer(d);
   }
 
   /** Active ou coupe les ombres portées de tout l'avatar (coureurs lointains : coupées). */

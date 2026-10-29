@@ -1043,26 +1043,7 @@ export class LowPolyRider implements RiderAvatarLike {
     const clipKind = bike.extras?.aerobars;
     const anchors = bikeAnchors(family);
     this.clip = clipKind && !anchors.pads && !own ? aerobarAnchors(clipKind, anchors.hands) : null;
-    // Compteur : l'écran allumé du style jeu vidéo posé sur celui du modèle.
-    if (bike.params.computer !== false) {
-      a.group.updateMatrixWorld(true);
-      const box3 = new THREE.Box3();
-      a.group.traverse((o) => {
-        const mesh = o as THREE.Mesh;
-        if (mesh.isMesh && (mesh.material as THREE.Material).name === 'computer_screen') box3.expandByObject(mesh);
-      });
-      if (!box3.isEmpty()) {
-        const screen = this.buildScreen();
-        const plane = screen.children[0];
-        if (plane) {
-          const c = box3.getCenter(new THREE.Vector3());
-          plane.position.set(c.x, box3.max.y + 0.0015, c.z);
-          const size = box3.getSize(new THREE.Vector3());
-          plane.scale.setScalar(Math.min(1, size.x / 0.044));
-        }
-        a.group.add(screen);
-      }
-    }
+    // Compteur : l'écran du modèle lui-même s'allume (BikeMaterials.setComputer), collé sur le compteur.
     return a.group;
   }
 
@@ -1552,6 +1533,10 @@ export class LowPolyRider implements RiderAvatarLike {
 
   /** Données du compteur (coureur du joueur) : redessiné au plus 4 fois par seconde. */
   setComputer(d: { speedKmh: number; watts: number; cadence: number; hr?: number; timeS?: number }): void {
+    if (this.realMats) {
+      this.realMats.setComputer(d);
+      return;
+    }
     const sc = this.screen;
     if (!sc) return;
     const now = performance.now();
