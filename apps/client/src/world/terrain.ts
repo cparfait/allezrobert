@@ -642,7 +642,7 @@ export class TerrainManager {
     col = mix(col, meadow, sharp(s1.b));
     col = col.mul(patch);
     // Plages : sable clair, plus foncé et mouillé au bord de l'eau (sous 0,6 m).
-    const sand = mix(vec3(0.62, 0.5, 0.33), vec3(0.86, 0.73, 0.5), smoothstep(0.2, 0.9, alt));
+    const sand = mix(vec3(0.56, 0.43, 0.26), vec3(0.8, 0.62, 0.34), smoothstep(0.2, 0.9, alt));
     col = mix(col, sand, sharp(s2.r));
     col = mix(col, vec3(0.2, 0.42, 0.62), sharp(s0.a));
     // Chaussées OSM : le sol n'en prend plus la couleur (les rubans et le réseau dessinent les routes) ; peint
