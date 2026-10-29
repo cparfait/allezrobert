@@ -147,6 +147,8 @@ export class ProgressPage {
   /** Dernier affichage (vue) : au premier, la frise défile jusqu'au niveau atteint ; ensuite le défilement est gardé. */
   private shownView: ProgressView | null = null;
   private scroll = 0;
+  /** Récompense ouverte en fiche (sans quitter la page Progression). */
+  private detail: { id: string; tune: boolean } | null = null;
 
   constructor(
     private readonly root: HTMLElement,
@@ -256,7 +258,67 @@ export class ProgressPage {
       ${this.heroHtml(level, xp, rewards)}
       ${sub}
       ${this.view === 'levels' ? this.levelsHtml(level, xp, rewards) : this.trophiesHtml(level, rewards)}
-    </section>`;
+    </section>${this.detailHtml(rewards)}`;
+  }
+
+  /** Fiche d'une récompense : grande vignette, état, description et caractéristiques ; « Essayer au garage » en option. */
+  private detailHtml(rewards: Reward[]): string {
+    const d = this.detail;
+    if (!d) return '';
+    const r = rewards.find((x) => x.id === d.id);
+    if (!r) return '';
+    const L = fr();
+    const lang = L ? 'fr' : 'en';
+    const rows: Array<[string, string]> = [];
+    const pm = (v: number, unit: string) => `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v).toLocaleString(L ? 'fr-FR' : 'en-GB', { maximumFractionDigits: 3 })} ${unit}`;
+    const factor = (f: number) => `${f < 1 ? '−' : '+'}${Math.abs((f - 1) * 100).toFixed(1).replace('.', L ? ',' : '.')} %`;
+    const perf = (o: { massKg?: number; cdaFactor?: number; crrFactor?: number; wheelInertia?: number; drivetrain?: number } | undefined) => {
+      if (!o) return;
+      if (o.massKg !== undefined) rows.push([L ? 'Masse' : 'Weight', pm(o.massKg, 'kg')]);
+      if (o.cdaFactor !== undefined) rows.push([L ? 'Traînée aéro (CdA)' : 'Aero drag (CdA)', factor(o.cdaFactor)]);
+      if (o.crrFactor !== undefined) rows.push([L ? 'Résistance au roulement' : 'Rolling resistance', factor(o.crrFactor)]);
+      if (o.wheelInertia !== undefined) rows.push([L ? 'Inertie des roues' : 'Wheel inertia', `${o.wheelInertia.toLocaleString(L ? 'fr-FR' : 'en-GB')} kg·m²`]);
+      if (o.drivetrain !== undefined) rows.push([L ? 'Rendement transmission' : 'Drivetrain efficiency', `+${(o.drivetrain * 100).toFixed(1).replace('.', L ? ',' : '.')} %`]);
+    };
+    let desc = '';
+    let effect = '';
+    if (d.tune) {
+      const t = TUNE_ITEMS.find((x) => x.id === d.id);
+      if (t) {
+        desc = t.desc[lang];
+        effect = t.effect[lang];
+        if (t.brand) rows.push([L ? 'Marque' : 'Brand', t.brand]);
+        perf(t.perf);
+        if (t.bonus?.flat !== undefined) rows.push([L ? 'Gain sur le plat' : 'Flat gain', `+${t.bonus.flat} %`]);
+        if (t.bonus?.climb !== undefined) rows.push([L ? 'Gain en côte' : 'Climbing gain', `+${t.bonus.climb} %`]);
+        if (t.pieces?.length) rows.push([L ? 'Pièces' : 'Parts', String(t.pieces.length)]);
+        if (t.price) rows.push([L ? 'Prix' : 'Price', `${COIN} ${int(t.price)}`]);
+      }
+    } else {
+      const c = COSMETICS.find((x) => x.id === d.id);
+      if (c) {
+        const bike = c.slot === 'bike' ? bikeById(c.id) : undefined;
+        desc = bike ? bike.desc[lang] : '';
+        effect = c.effect?.[lang] ?? '';
+        if (bike) {
+          const brand = BIKE_BRANDS.find((b) => b.id === bike.brand)?.name;
+          if (brand) rows.push([L ? 'Marque' : 'Brand', brand]);
+          if (bike.year) rows.push([L ? 'Année' : 'Year', String(bike.year)]);
+          rows.push([L ? 'Freins' : 'Brakes', bike.params.brakes === 'disc' ? (L ? 'à disque' : 'disc') : bike.params.brakes === 'rim' ? (L ? 'sur jante' : 'rim') : '—']);
+        }
+        perf(c.physics);
+      }
+    }
+    rows.push([L ? 'Déblocage' : 'Unlock', `${L ? 'niveau' : 'level'} ${r.level}`]);
+    const body = rows.map(([k, v]) => `<div class="pg-d-row"><span>${esc(k)}</span><b>${v}</b></div>`).join('');
+    return `<div class="pg-modal" data-pgclose><div class="pg-detail ${r.state}" role="dialog" aria-label="${esc(r.name)}" ${r.rar ? `style="--rar:${r.rar}"` : ''}>
+      <button class="pg-d-x" data-pgclose aria-label="${L ? 'Fermer' : 'Close'}">×</button>
+      <div class="pg-d-thumb">${r.thumb}</div>
+      <div class="pg-d-main"><h3>${esc(r.name)}</h3><p class="pg-d-sub">${esc(r.sub)}</p><span class="pg-d-state ${r.state}">${r.stateText}</span>
+        ${desc ? `<p class="pg-d-desc">${esc(desc)}</p>` : ''}${effect ? `<p class="pg-d-effect">${esc(effect)}</p>` : ''}
+        <div class="pg-d-rows">${body}</div>
+        <div class="pg-d-actions"><button class="btn primary" data-pgtry>${d.tune ? (L ? 'Voir à l’atelier' : 'See in the workshop') : L ? 'Essayer au garage' : 'Try in the garage'}</button><button class="btn" data-pgclose>${L ? 'Fermer' : 'Close'}</button></div></div>
+    </div></div>`;
   }
 
   private heroHtml(level: number, xp: number, rewards: Reward[]): string {
@@ -499,15 +561,50 @@ export class ProgressPage {
     );
     root.querySelectorAll<HTMLElement>('[data-pgitem]').forEach((el) =>
       el.addEventListener('click', () => {
-        const item = COSMETICS.find((c) => c.id === el.dataset.pgitem);
-        if (item) this.host.openCosmetic(item);
+        if (el.dataset.pgitem) {
+          this.detail = { id: el.dataset.pgitem, tune: false };
+          this.host.rerender();
+        }
       }),
     );
     root.querySelectorAll<HTMLElement>('[data-pgtune]').forEach((el) =>
       el.addEventListener('click', () => {
-        if (el.dataset.pgtune) this.host.openTune(el.dataset.pgtune);
+        if (el.dataset.pgtune) {
+          this.detail = { id: el.dataset.pgtune, tune: true };
+          this.host.rerender();
+        }
       }),
     );
+    // Fiche ouverte : fermeture (croix, fond, Échap), ou essai au garage / à l'atelier.
+    const closeDetail = () => {
+      this.detail = null;
+      this.host.rerender();
+    };
+    root.querySelectorAll<HTMLElement>('[data-pgclose]').forEach((el) =>
+      el.addEventListener('click', (e) => {
+        if (e.target === el || el.tagName === 'BUTTON') closeDetail();
+      }),
+    );
+    root.querySelector<HTMLElement>('[data-pgtry]')?.addEventListener('click', () => {
+      const d = this.detail;
+      this.detail = null;
+      if (!d) return;
+      if (d.tune) this.host.openTune(d.id);
+      else {
+        const item = COSMETICS.find((c) => c.id === d.id);
+        if (item) this.host.openCosmetic(item);
+      }
+    });
+    if (this.detail) {
+      const onKey = (e: KeyboardEvent) => {
+        if (e.key !== 'Escape') return;
+        e.stopPropagation();
+        e.preventDefault();
+        document.removeEventListener('keydown', onKey, true);
+        closeDetail();
+      };
+      document.addEventListener('keydown', onKey, true);
+    }
     // Première ouverture de la frise : le niveau actuel en vue ; sinon le défilement d'avant.
     if (this.scroll >= 0) panel.scrollTop = this.scroll;
     else if (this.view === 'levels') {
