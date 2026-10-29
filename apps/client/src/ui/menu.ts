@@ -1067,8 +1067,7 @@ export class MainMenu {
     this.root.innerHTML = `<div class="mm mm-tab-${this.tab}${enter ? ' mm-enter' : ''}">
       <header class="mm-top">
         <button class="mm-brand" data-tab="home" title="${L ? 'Accueil' : 'Home'}">Allez <em>Robert</em> !</button>
-        <nav class="mm-tabs">${tabs.map(([id, label]) => `<button class="mm-tab ${id === this.tab ? 'on' : ''}" data-tab="${id}">${esc(label)}${id === 'friends' ? this.friends.badgeHtml() : ''}</button>`).join('')}
-          <button class="mm-tab subtle" id="m-tuto">${L ? 'Tutoriel' : 'Tutorial'}</button></nav>
+        <nav class="mm-tabs">${tabs.map(([id, label]) => `<button class="mm-tab ${id === this.tab ? 'on' : ''}" data-tab="${id}">${esc(label)}${id === 'friends' ? this.friends.badgeHtml() : ''}</button>`).join('')}</nav>
         <div class="mm-right">
           ${this.musicInHero() ? '' : '<div class="mm-music" id="m-music"></div>'}
           <div class="mm-account">
@@ -2216,6 +2215,7 @@ export class MainMenu {
           ['fr', 'Français'],
           ['en', 'English'],
         ])}</div>
+        <div class="field">${L ? 'Tutoriel' : 'Tutorial'}<button type="button" class="btn" id="m-tuto">${L ? 'Revoir le tutoriel' : 'Watch the tutorial again'}</button></div>
         <div class="field">Strava${this.seg('m-strava', s.skipStrava ? 'skip' : 'send', [
           ['skip', L ? 'Ne pas envoyer' : 'Don’t upload'],
           ['send', L ? 'Envoyer' : 'Upload'],
@@ -2235,7 +2235,7 @@ export class MainMenu {
       ${sec('hud', L ? 'Affichage en sortie' : 'In-ride display', hud)}
       ${sec('companion', L ? 'Appli compagnon (téléphone)' : 'Companion app (phone)', '<div id="m-companion-settings"></div>')}
       ${sec('zones', L ? 'Zones et cartes hors ligne' : 'Areas and offline maps', '<div id="m-zones-settings"></div>')}
-      ${sec('lang', L ? 'Langue et envoi des sorties' : 'Language and ride upload', lang)}
+      ${sec('lang', L ? 'Langue, tutoriel et envoi des sorties' : 'Language, tutorial and ride upload', lang)}
       ${sec('expert', L ? 'Mode expert : créer mes zones' : 'Expert mode: build my own zones', '<div id="m-expert-settings"></div>')}
     </section>`;
   }
