@@ -45,6 +45,7 @@ export const TUNE_SLOT_LABEL: Record<TuneSlot, [string, string]> = {
   wheelset: ['Roues', 'Wheels'],
   tyres: ['Pneus', 'Tyres'],
   cockpit: ['Cockpit', 'Cockpit'],
+  aerobars: ['Prolongateurs', 'Aerobars'],
   groupset: ['Transmission', 'Groupset'],
   crank: ['Pédalier', 'Crankset'],
   cassette: ['Cassette', 'Cassette'],

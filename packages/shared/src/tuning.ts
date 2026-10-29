@@ -1,9 +1,9 @@
 /**
- * Atelier : catalogue des 101 pièces et décors du vélo (tuning.json), ensembles (kits),
+ * Atelier : catalogue des 109 pièces et décors du vélo (tuning.json), ensembles (kits),
  * crédits et récompenses d'événements. Partagé client / serveur : le serveur valide les achats
  * et l'équipement avec ces mêmes fonctions (jamais avec des valeurs envoyées par le client).
  *
- * Familles : pièces techniques (26), peintures et livrées (25), roues et effets (15),
+ * Familles : pièces techniques (34), peintures et livrées (25), roues et effets (15),
  * accessoires (15), ensembles (10), récompenses d'événements (10, non achetables).
  * Chaque pièce a un emplacement (une seule par emplacement) ; un ensemble regroupe des pièces.
  * L'effet physique (`perf`) est appliqué et plafonné par @allezrobert/physics (tuning.ts).
@@ -17,6 +17,7 @@ export type TuneSlot =
   | 'wheelset'
   | 'tyres'
   | 'cockpit'
+  | 'aerobars'
   | 'groupset'
   | 'crank'
   | 'cassette'
@@ -90,8 +91,16 @@ export interface TuneNumber {
   flip?: boolean;
 }
 
+/**
+ * Prolongateurs montés sur le cintre route : « clip » bas, repose-coudes sur les colliers (type Swiss Side
+ * Hadron) ; « clip-haut » surélevés, repose-coudes sur des pieds (type FastT Xenos).
+ */
+export type AerobarKind = 'clip' | 'clip-haut';
+
 /** Ce que la pièce change à l'écran. */
 export interface TuneLook {
+  /** Prolongateurs (vélos de route ; les vélos de chrono ont les leurs). */
+  aerobars?: AerobarKind;
   wheels?: [WheelType, WheelType];
   /** Marque inscrite sur les jantes. */
   rimBrand?: string;
@@ -151,7 +160,7 @@ export const TUNE_EVENTS: readonly TuneEvent[] = ['route-finish', 'routes-10', '
 
 /** Emplacements de chaque famille, dans l'ordre de l'atelier. */
 export const TUNE_SLOTS: Record<Exclude<TuneFamily, 'kit' | 'event'>, readonly TuneSlot[]> = {
-  tech: ['wheelset', 'tyres', 'cockpit', 'groupset', 'crank', 'cassette', 'pulleys', 'rotors', 'saddle', 'seatpost'],
+  tech: ['wheelset', 'tyres', 'cockpit', 'aerobars', 'groupset', 'crank', 'cassette', 'pulleys', 'rotors', 'saddle', 'seatpost'],
   paint: ['paint', 'finish', 'sticker', 'number'],
   wheelfx: ['rimdecal', 'spokes', 'rimglow', 'valves'],
   accessory: ['tape', 'bottles', 'chain', 'topcap', 'spacers', 'bolts', 'computer'],
@@ -404,6 +413,7 @@ export interface BikeExtras {
   number?: TuneNumber;
   rainbowWall?: boolean;
   holoRim?: boolean;
+  aerobars?: AerobarKind;
 }
 
 /** Inscriptions de jante par défaut quand ni le vélo ni les roues n'ont de marque. */
@@ -455,6 +465,7 @@ export function applyTuneLook(build: BikeBuild, ids: readonly string[]): BikeBui
       if (l.parts.bar_tape) livery.tape = l.parts.bar_tape;
       if (l.parts.saddle) livery.saddle = l.parts.saddle;
     }
+    if (l.aerobars) extras.aerobars = l.aerobars;
     if (l.metal) extras.metal = [...new Set([...(extras.metal ?? []), ...l.metal])];
     if (l.carbon) extras.carbon = [...new Set([...(extras.carbon ?? []), ...l.carbon])];
   }

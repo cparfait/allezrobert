@@ -336,9 +336,11 @@ async function main(): Promise<void> {
       scene.add(a.root);
       for (let t = 0; t < 4; t += 1 / 60) a.update(1 / 60, cadence, speed, pose, 0);
       a.root.updateMatrixWorld(true);
-      const mid = new THREE.Vector3(0, 0.75, 0.1);
+      // &mid=x,y,z&dist=m : cadrage resserré (p. ex. le poste de pilotage) ; &nurider : vélo seul.
+      const mid = new THREE.Vector3(...((params.get('mid') ?? '0,0.75,0.1').split(',').map(Number) as [number, number, number]));
+      if (params.has('nurider')) (a as unknown as { setRiderVisible?(on: boolean): void }).setRiderVisible?.(false);
       for (const [j, [, dir]] of views.entries()) {
-        camera.position.copy(mid).addScaledVector(dir.clone().normalize(), 7);
+        camera.position.copy(mid).addScaledVector(dir.clone().normalize(), Number(params.get('dist') ?? 7));
         camera.lookAt(mid);
         camera.updateProjectionMatrix();
         for (let n = 0; n < 3; n++) engine.renderManual();

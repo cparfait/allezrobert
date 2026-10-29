@@ -7,6 +7,7 @@ import { BIKES, DEFAULT_LOOK, PLAIN_BIKE_FAMILY, bikeOfLook, type AvatarLook, ty
 import { LiveryMaterial } from './livery.ts';
 import { RimDecalMaterial, crankLetters, measureBand, polarLetters, type RimBand } from './rimDecal.ts';
 import { decalBoxes, frameMarks, wordmarkTexture } from './wordmarks.ts';
+import { buildAerobars } from './aerobars.ts';
 
 /**
  * Vélos du catalogue assemblés à partir des modèles Blender (tools/blender/build_cyclist.py) :
@@ -83,6 +84,9 @@ const BIKE_MATERIALS: Record<string, [string, number, number]> = {
   topcap: ['#18191c', 0.4, 0.3],
   bolts: ['#b9bcc2', 0.3, 1],
   pad: ['#202124', 0.8, 0],
+  // Prolongateurs de l'atelier (aerobars.ts) : carbone, mousse des repose-coudes et poignées.
+  aerobar: ['#141518', 0.35, 0.15],
+  aerobar_pad: ['#1f2022', 0.85, 0],
   // Tige de selle (primitive « components » du nœud saddle), recolorable à part (atelier).
   seatpost: ['#18191c', 0.4, 0.2],
 };
@@ -546,6 +550,9 @@ export function assembleBike(build: BikeBuild, family: FamilyKey, lod: 0 | 1, bo
     group.add(w);
     out.push(w);
   });
+  // Prolongateurs de l'atelier sur un cintre route (les vélos de chrono ont les leurs ; pas de VTT ni de gravel).
+  const bars = build.extras?.aerobars;
+  if (bars && !isOwnModel(family) && !bikeAnchors(family).pads) group.add(buildAerobars(bars, bikeAnchors(family).hands, lod));
   // Plaque de cadre (atelier) sous la selle.
   const num = build.extras?.number;
   const anchor = group.getObjectByName('anchor_number');

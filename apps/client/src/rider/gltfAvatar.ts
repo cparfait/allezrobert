@@ -17,6 +17,7 @@ import { SkinMaterial, loadSkinTextures, skinTextures, type SkinLook } from './s
 import { applyClothLook, clothTextures, isClothPart, loadClothTextures, makeClothMaterial, type JerseyAxis } from './cloth.ts';
 import { addFrameAttributes, addJerseyFrame, addSleeveMask, type JerseyFrame } from './jerseyPattern.ts';
 import { applyTexturedLook, loadTexturedMasks, texturedMaterial } from './texturedLook.ts';
+import { aerobarAnchors } from './aerobars.ts';
 import { BikeMaterials, assembleBike, availableFamily, bikeAnchors, bikeFamilyReady, familyScene, loadBikeFamily, type AssembledBike, type BikeAnchors, type FamilyKey } from './bikes.ts';
 
 /**
@@ -207,6 +208,12 @@ const HOODS_AERO_BEND = 0.95;
 const FOREARMS_IN = 13.9;
 const FOREARMS_OUT = 12.8;
 const FOREARM_ELBOW = new THREE.Vector3(0.075, 0.915, 0.51);
+/**
+ * Prolongateurs de l'atelier sur un vélo de route (aerobars.ts) : couché dessus (coudes sur les
+ * repose-coudes, mains aux poignées) au-delà de CLIP_IN m/s (≈ 40 km/h) ou très fort ; cocottes sinon.
+ */
+const CLIP_IN = 11;
+const CLIP_OUT = 10;
 /** Très détendue : sous RELAX_IN (≈ 20 km/h), en roue libre ou sans forcer (< RELAX_EFFORT × FTP) ; quittée au-delà de RELAX_OUT. */
 const RELAX_IN = 5.5;
 const RELAX_OUT = 6.5;
@@ -995,6 +1002,11 @@ export class GltfRiderAvatar implements RiderAvatarLike {
   private barTargets: { drop: Record<Side, THREE.Vector3>; top: Record<Side, THREE.Vector3>; elbow: Record<Side, THREE.Vector3> } | null = null;
   /** Bascule du buste qui pose les avant-bras sur le haut du cintre. */
   private forearmTuck = 0;
+  /** Prolongateurs de l'atelier : coudes (repose-coudes) et poignées, repère du modèle ; null sans prolongateurs. */
+  private clip: { elbow: Record<Side, THREE.Vector3>; grip: Record<Side, THREE.Vector3> } | null = null;
+  private clipTuck = 0;
+  private clipOn = false;
+  private clipBlend = 0;
   private hoodsAeroOn = false;
   private forearmsOn = false;
   private hoodsAeroBlend = 0;
@@ -1298,6 +1310,17 @@ export class GltfRiderAvatar implements RiderAvatarLike {
       bar?.top[s].set(sx * (TOP_PALM.x - HOOD_PALM.x), TOP_PALM.y - HOOD_PALM.y, TOP_PALM.z - HOOD_PALM.z).add(this.handTarget[s]);
       bar?.elbow[s].set(sx * (FOREARM_ELBOW.x - HOOD_PALM.x), FOREARM_ELBOW.y - HOOD_PALM.y, FOREARM_ELBOW.z - HOOD_PALM.z).add(this.handTarget[s]);
     }
+    // Prolongateurs de l'atelier (vélo de route) : relevés avec le poste de pilotage (saddleLift).
+    const kind = this.mounted?.build.extras?.aerobars;
+    if (kind && this.barTargets) {
+      const a = aerobarAnchors(kind, anchors.hands);
+      const lift = (v: THREE.Vector3) => v.clone().setY(v.y + this.saddleLift);
+      this.clip = { elbow: { L: lift(a.pads.L), R: lift(a.pads.R) }, grip: { L: lift(a.grips.L), R: lift(a.grips.R) } };
+      this.clipTuck = this.solveTuck(a.pads);
+    } else {
+      this.clip = null;
+      this.clipTuck = 0;
+    }
     // Avant-bras sur le cintre : bascule calculée sans la hauteur de selle (le bassin la reprend).
     const elbows = this.barTargets?.elbow;
     this.forearmTuck = elbows ? this.solveTuck({ L: elbows.L.clone().setY(elbows.L.y - this.saddleLift), R: elbows.R.clone().setY(elbows.R.y - this.saddleLift) }) : 0;
@@ -1313,7 +1336,7 @@ export class GltfRiderAvatar implements RiderAvatarLike {
     const type = bikeTypeOf(look);
     const ownType = type === 'gravel' || type === 'mtb' ? type : null;
     const own = ownType !== null && bikeFamilyReady(ownType) ? ownType : null;
-    const key = JSON.stringify([look.bikeModel ?? 'plain', build.params.wheels, build.params.rimBrand ?? '', build.extras?.number ?? null, look.bottles ?? null, own]);
+    const key = JSON.stringify([look.bikeModel ?? 'plain', build.params.wheels, build.params.rimBrand ?? '', build.extras?.number ?? null, look.bottles ?? null, own, build.extras?.aerobars ?? null]);
     const family: FamilyKey = own ?? (availableFamily(build.family) ?? PLAIN_BIKE_FAMILY);
     const cur = this.mounted;
     if (cur && cur.key === key && cur.family === family) {
@@ -1482,19 +1505,24 @@ export class GltfRiderAvatar implements RiderAvatarLike {
     // Positions aéro en pédalant (pas avec un geste imposé) : avant-bras sur le cintre très vite, sinon
     // avant-bras à plat sur les cocottes très fort.
     const pedalling = bars && !coasting && !hands;
-    this.forearmsOn = pedalling && (speed > FOREARMS_IN || (this.forearmsOn && speed > FOREARMS_OUT));
-    this.hoodsAeroOn = pedalling && !this.forearmsOn && speed > HOODS_AERO_SPEED && (this.ftpFrac > HOODS_AERO_EFFORT || (this.hoodsAeroOn && this.ftpFrac > HOODS_AERO_EFFORT_OUT));
+    // Avec prolongateurs : couché dessus très vite ou très fort, à la place des deux positions ci-dessous.
+    const hard = (on: boolean) => this.ftpFrac > HOODS_AERO_EFFORT || (on && this.ftpFrac > HOODS_AERO_EFFORT_OUT);
+    this.clipOn = pedalling && this.clip !== null && (speed > CLIP_IN || (this.clipOn && speed > CLIP_OUT) || (speed > HOODS_AERO_SPEED && hard(this.clipOn)));
+    this.forearmsOn = pedalling && !this.clip && (speed > FOREARMS_IN || (this.forearmsOn && speed > FOREARMS_OUT));
+    this.hoodsAeroOn = pedalling && !this.clip && !this.forearmsOn && speed > HOODS_AERO_SPEED && hard(this.hoodsAeroOn);
     const k2 = 1 - Math.exp(-dt * 2.5);
     this.dropsBlend += ((this.dropsOn ? 1 : 0) - this.dropsBlend) * k2;
     this.aeroBlend += (aeroOn - this.aeroBlend) * k2;
     this.relaxBlend += ((this.relaxOn ? 1 : 0) - this.relaxBlend) * k2;
     this.hoodsAeroBlend += ((this.hoodsAeroOn ? 1 : 0) - this.hoodsAeroBlend) * k2;
     this.forearmsBlend += ((this.forearmsOn ? 1 : 0) - this.forearmsBlend) * k2;
+    this.clipBlend += ((this.clipOn ? 1 : 0) - this.clipBlend) * k2;
     const aero = this.aeroBlend * (1 - stand);
+    const clip = this.clipBlend * (1 - stand) * (1 - aero);
     const forearms = this.forearmsBlend * (1 - stand) * (1 - aero);
     const hoodsAero = this.hoodsAeroBlend * (1 - stand) * (1 - aero) * (1 - forearms);
     // Aéro : mains en bas du cintre aussi (dos à plat, épaules au-dessus du crochet : avant-bras à l'horizontale).
-    const keep = (1 - forearms) * (1 - hoodsAero);
+    const keep = (1 - forearms) * (1 - hoodsAero) * (1 - clip);
     const dropHands = Math.max(this.dropsBlend * (1 - stand) * keep, aero);
     const drops = this.dropsBlend * (1 - stand) * (1 - aero) * keep;
     const relax = this.relaxBlend * (1 - stand) * (1 - aero) * keep;
@@ -1513,7 +1541,7 @@ export class GltfRiderAvatar implements RiderAvatarLike {
     // --- Bassin
     const hipsR = t.bones.hips;
     const roll = 0.02 * Math.sin(a) * (1 - stand) * (1 - coast);
-    const race = DROPS_BEND * drops + AERO_BEND * aero + RELAX_BEND * relax + HOODS_AERO_BEND * hoodsAero + this.forearmTuck * forearms;
+    const race = DROPS_BEND * drops + AERO_BEND * aero + RELAX_BEND * relax + HOODS_AERO_BEND * hoodsAero + this.forearmTuck * forearms + this.clipTuck * clip;
     const tuck = this.tuck * (1 - 0.6 * stand) + race;
     const tilt = -0.09 * stand - 0.05 * coast + TUCK_HIPS * tuck;
     _q1.setFromAxisAngle(Z_AXIS, counter + roll);
@@ -1604,18 +1632,20 @@ export class GltfRiderAvatar implements RiderAvatarLike {
         // Avant-bras à plat : coudes tirés vers l'arrière (un peu en dehors), mains sur les cocottes.
         pole = _vPole.copy(pole).lerp(_v1.set(0.3 * sx, -0.1, -1).normalize(), hoodsAero).normalize();
       }
-      if (bar && forearms > 0) {
-        // Avant-bras posés sur le haut du cintre : coude sur le cintre, poignet un avant-bras plus loin,
-        // mains rapprochées devant la potence ; le coude est tiré vers son point d'appui.
-        const elbow = bar.elbow[s];
-        _v1.set(-0.22 * sx, -0.06, 1).normalize().multiplyScalar(c.l2).add(elbow);
-        this.target.lerp(_v1, forearms);
+      // Avant-bras posés (haut du cintre, ou repose-coudes des prolongateurs) : coude sur son appui, poignet
+      // un avant-bras plus loin (mains rapprochées devant la potence, ou vers les poignées) ; le coude est
+      // tiré vers son point d'appui.
+      const lay = (elbow: THREE.Vector3, aim: THREE.Vector3, w: number): void => {
+        _v1.copy(aim).multiplyScalar(c.l2).add(elbow);
+        this.target.lerp(_v1, w);
         const sh = this.mP[c.upper];
         const dir = _v2.subVectors(this.target, sh).normalize();
         const toElbow = _v3.subVectors(elbow, sh);
         toElbow.addScaledVector(dir, -toElbow.dot(dir)).normalize();
-        pole = _vPole.copy(pole).lerp(toElbow, forearms).normalize();
-      }
+        pole = _vPole.copy(pole).lerp(toElbow, w).normalize();
+      };
+      if (bar && forearms > 0) lay(bar.elbow[s], _v4.set(-0.22 * sx, -0.06, 1).normalize(), forearms);
+      if (this.clip && clip > 0) lay(this.clip.elbow[s], _v4.subVectors(this.clip.grip[s], this.clip.elbow[s]).normalize(), clip);
       if (this.celebrateBlend > 0.01) {
         // Victoire : bras tendus en V au-dessus de la tête.
         _v1.set(sx * 0.5, 0.85, 0.1).normalize().multiplyScalar((c.l1 + c.l2) * 0.97).add(t.bones[c.upper].modelP);
@@ -1928,7 +1958,7 @@ export class GltfRiderAvatar implements RiderAvatarLike {
     // abaissés de saddleLift : jambe à ≈ 145° au point bas, buste et coudes inchangés.
     for (const slot of this.bikeSlots) {
       slot.traverse((o) => {
-        if (o.name !== 'saddle' && o.name !== 'cockpit') return;
+        if (o.name !== 'saddle' && o.name !== 'cockpit' && o.name !== 'aerobars') return;
         o.userData.baseY ??= o.position.y;
         o.position.y = (o.userData.baseY as number) + this.saddleLift;
       });
