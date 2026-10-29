@@ -1,5 +1,5 @@
 /* QR code de l'appli compagnon : fenêtre centrée (lancement de sortie, touche Q, pause) et bloc des Réglages. */
-.cmp-qr { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; background: rgba(10, 14, 22, 0.5); pointer-events: auto; color: var(--ar-fg, #fff); }
+.cmp-qr { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; background: rgba(6, 9, 15, 0.45); backdrop-filter: blur(6px); pointer-events: auto; color: var(--ar-fg, #fff); }
 .cmp-qr[hidden] { display: none; }
 .cmp-code svg { display: block; width: 100%; height: 100%; border-radius: 6px; }
 .cmp-state { display: flex; align-items: center; gap: 8px; }
@@ -9,20 +9,20 @@
 .cmp-hint { font-size: 11.5px; color: var(--ar-muted, #b8c0cc); }
 .cmp-hint kbd { border: 1px solid rgba(255, 255, 255, 0.3); border-radius: 4px; padding: 0 5px; }
 
-.cmp-card { position: relative; width: min(410px, 92vw); padding: 22px 24px 16px; display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center; background: var(--ar-bg-strong, rgba(10, 14, 22, 0.86)); animation: cmp-in 0.25s ease-out; }
+.cmp-card { position: relative; width: min(410px, 92vw); padding: 22px 24px 16px; display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center; background: linear-gradient(180deg, #2b3547 0%, #1f2736 100%); border: 1px solid rgba(255, 255, 255, 0.22); border-radius: 22px; box-shadow: 0 24px 70px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(0, 0, 0, 0.35); animation: cmp-in 0.25s ease-out; }
 .cmp-card b { font-size: 11.5px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ar-accent, #ffd23f); margin-top: 2px; }
 .cmp-card h2 { margin: 0; font-size: 21px; line-height: 1.2; font-weight: 800; letter-spacing: -0.01em; }
 .cmp-feats { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; }
-.cmp-feats li { padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; background: rgba(255, 255, 255, 0.07); color: #d5dbe4; }
+.cmp-feats li { padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; background: rgba(255, 255, 255, 0.12); color: #eef2f7; }
 .cmp-card .cmp-how { font-size: 13px; }
-.cmp-card p { margin: 0; font-size: 13.5px; line-height: 1.45; color: var(--ar-muted, #b8c0cc); }
+.cmp-card p { margin: 0; font-size: 13.5px; line-height: 1.45; color: #cdd5e0; }
 .cmp-card .cmp-code { position: relative; width: min(220px, 60vw); aspect-ratio: 1; padding: 10px; box-sizing: content-box; background: #fff; border-radius: 16px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4), 0 0 0 4px rgba(255, 210, 63, 0.35); margin: 6px 0 2px; }
 .cmp-card .cmp-code.done svg { opacity: 0.25; }
 .cmp-card .cmp-code.done span { position: absolute; inset: 10px; display: grid; place-items: center; font-size: 96px; color: #22c55e; font-weight: 800; }
-.cmp-card .cmp-state { justify-content: center; padding: 6px 14px; border-radius: 999px; background: rgba(255, 255, 255, 0.07); color: var(--ar-fg, #fff); font-size: 13px; font-weight: 600; }
+.cmp-card .cmp-state { justify-content: center; padding: 6px 14px; border-radius: 999px; background: rgba(255, 255, 255, 0.12); color: var(--ar-fg, #fff); font-size: 13px; font-weight: 600; }
 .cmp-x { position: absolute; top: 10px; right: 10px; width: 30px; height: 30px; border-radius: 50%; border: 0; background: rgba(255, 255, 255, 0.1); color: #fff; font-size: 18px; line-height: 30px; padding: 0; cursor: pointer; }
 .cmp-row { display: flex; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap; }
-.cmp-row .btn.ghost { background: none; color: var(--ar-muted, #b8c0cc); }
+.cmp-row .btn.ghost { background: none; color: #cdd5e0; }
 @keyframes cmp-in { from { transform: scale(0.96); opacity: 0; } }
 
 /* Onglet Réglages. */
