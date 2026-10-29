@@ -1852,7 +1852,7 @@ export class MainMenu {
     return `<div class="gr-head">
         <div class="gr-lvl"><b>${L ? 'Niveau' : 'Level'} ${lp.level}</b><i class="mm-xp big"><i style="width:${(lp.progress * 100).toFixed(1)}%"></i></i><span>${xp}${lp.nextLevelXp ? ` / ${lp.nextLevelXp}` : ''} XP</span></div>
         <span class="gr-coins" title="${L ? 'Crédits de l’atelier' : 'Workshop credits'}">${COIN} <b>${(this.account?.credits ?? loadProgress().credits).toLocaleString(L ? 'fr-FR' : 'en-GB')}</b></span>
-        <button class="gr-fold" data-gr="fold" aria-label="${L ? 'Réduire le menu' : 'Collapse the menu'}" title="${L ? 'Réduire le menu pour voir plus large' : 'Collapse the menu for a wider view'}">›</button>
+        <button class="gr-fold" data-gr="fold" aria-label="${L ? 'Réduire le menu' : 'Collapse the menu'}" title="${L ? 'Réduire le menu pour voir plus large' : 'Collapse the menu for a wider view'}"><svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M3 10.5 8 5.5l5 5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
         <button class="gr-x" data-tab="ride" aria-label="${L ? 'Fermer' : 'Close'}" title="${L ? 'Fermer (Échap)' : 'Close (Esc)'}">×</button>
       </div>`;
   }

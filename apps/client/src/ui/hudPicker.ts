@@ -15,23 +15,20 @@ const LABELS: Record<Choice, [string, string, string, string]> = {
   facet: ['Facettes', 'Facets', 'Compact en angles coupés et aplats jaunes.', 'Compact with cut corners and yellow blocks.'],
 };
 
-/** Maquette d'une disposition : décor de route, compteur, liste des coureurs, profil. */
-function mock(layout: HudLayout): string {
-  const common = `<i class="hm-road"></i><i class="hm-prof"></i><i class="hm-list"></i>`;
-  if (layout === 'full')
-    return `<span class="hm hm-full">${common}<i class="hm-arc"><b>210</b></i><i class="hm-tile hm-tl"></i><i class="hm-tile hm-tr"></i><i class="hm-side"></i></span>`;
-  return `<span class="hm hm-compact${layout === 'facet' ? ' hm-facet' : ''}">${common}<i class="hm-strip"><b class="hm-spd"></b><b></b><b></b><b></b></i><i class="hm-left"></i></span>`;
-}
+/** Capture réelle d'une disposition (public/hud/<disposition>.jpg), prise en jeu. */
+const shot = (layout: HudLayout): string => `/hud/${layout}.jpg`;
 
 export function hudPickerHtml(): string {
   const L = getLang() === 'fr';
   const cur = hudChoice();
+  const shown = resolveHudLayout(cur);
   const card = (c: Choice) => {
     const [fl, en, fd, ed] = LABELS[c];
-    const shown = c === 'auto' ? resolveHudLayout('auto') : c;
-    return `<button type="button" class="hp-card${c === cur ? ' on' : ''}" data-hud="${c}" aria-pressed="${c === cur}">${mock(shown)}<b>${L ? fl : en}</b><small>${L ? fd : ed}</small></button>`;
+    const img = c === 'auto' ? resolveHudLayout('auto') : c;
+    return `<button type="button" class="hp-card${c === cur ? ' on' : ''}" data-hud="${c}" data-shot="${shot(img)}" aria-pressed="${c === cur}"><img class="hp-thumb" src="${shot(img)}" alt="" loading="lazy" /><b>${L ? fl : en}</b><small>${L ? fd : ed}</small></button>`;
   };
-  return `<div class="hp-picker">${(['auto', ...HUD_LAYOUTS] as Choice[]).map(card).join('')}</div>`;
+  return `<div class="hp-picker">${(['auto', ...HUD_LAYOUTS] as Choice[]).map(card).join('')}</div>
+    <figure class="hp-big"><img src="${shot(shown)}" alt="${L ? 'Aperçu du HUD choisi' : 'Preview of the chosen HUD'}" /><figcaption>${L ? 'Aperçu en jeu' : 'In-game preview'} · ${L ? LABELS[cur][0] : LABELS[cur][1]}</figcaption></figure>`;
 }
 
 /** Branche les cartes : le choix est enregistré tout de suite, `redraw` remet l'écran à jour. */
@@ -42,4 +39,15 @@ export function bindHudPicker(root: ParentNode, redraw: () => void): void {
       redraw();
     }),
   );
+  // Survol ou focus d'une carte : l'aperçu montre cette disposition, puis revient à celle choisie.
+  const big = root.querySelector<HTMLImageElement>('.hp-big img');
+  const keep = big?.src;
+  root.querySelectorAll<HTMLElement>('.hp-picker [data-shot]').forEach((b) => {
+    const show = () => big && (big.src = b.dataset.shot as string);
+    const back = () => big && keep && (big.src = keep);
+    b.addEventListener('pointerenter', show);
+    b.addEventListener('focus', show);
+    b.addEventListener('pointerleave', back);
+    b.addEventListener('blur', back);
+  });
 }
