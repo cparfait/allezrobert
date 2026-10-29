@@ -1810,7 +1810,7 @@ export class MainMenu {
             ${this.sockHeightToggle()}
             ${this.legsToggle()}
             ${this.glovesToggle()}
-            <label class="field">${L ? 'Couleur des gants' : 'Glove colour'}<input id="m-glove-color" type="color" value="${this.s.look.gloveColor ?? '#16161a'}" /></label>
+            ${this.gloveColorField()}
           </div>
           <h3 class="mm-presets-title">${L ? 'Tenues préréglées' : 'Kit presets'}</h3>
           <div class="mm-items mm-kits">${OUTFITS.map(
@@ -1821,7 +1821,7 @@ export class MainMenu {
         : this.garageSlot === 'bike'
         ? this.bikeListHtml(lp.level, p.equipped.bike)
         : this.garageSlot === 'jersey'
-        ? `${this.sleevesToggle()}${this.legsToggle()}${this.glovesToggle()}${this.jerseyPacksHtml(lp.level, p.equipped.jersey)}`
+        ? `${this.sleevesToggle()}${this.legsToggle()}${this.glovesToggle()}${this.gloveColorField()}${this.jerseyPacksHtml(lp.level, p.equipped.jersey)}`
         : `${this.garageSlot === 'socks' ? this.sockHeightToggle() : ''}<div class="mm-items">${this.garageItems(lp.level)
             .map((c) => this.itemHtml(c, lp.level, p.equipped[c.slot]))
             .join('')}</div>`;
@@ -1885,13 +1885,19 @@ export class MainMenu {
     ])}</div>`;
   }
 
-  /** Gants : aucun, mitaines ou gants longs (look.gloves) ; aperçu immédiat. */
+  /** Couleur des gants (mitaines ou gants longs), à côté du choix des gants. */
+  private gloveColorField(): string {
+    const L = fr();
+    return `<label class="field">${L ? 'Couleur des gants' : 'Glove colour'}<input id="m-glove-color" type="color" value="${this.s.look.gloveColor ?? '#16161a'}" /></label>`;
+  }
+
+  /** Gants : aucun, mitaines (doigts nus) ou gants complets (look.gloves) ; aperçu immédiat. */
   private glovesToggle(): string {
     const L = fr();
     return `<div class="field mm-sleeves">${L ? 'Gants' : 'Gloves'}${this.seg('m-gloves', this.s.look.gloves ?? 'none', [
       ['none', L ? 'Sans' : 'None'],
       ['mitts', L ? 'Mitaines' : 'Mitts'],
-      ['full', L ? 'Longs' : 'Full'],
+      ['full', L ? 'Complets' : 'Full'],
     ])}</div>`;
   }
 
