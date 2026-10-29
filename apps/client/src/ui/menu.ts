@@ -1,3 +1,4 @@
+import { crossedArmsSrc } from './waitBike.ts';
 import type { AvatarLook, CosmeticItem, RouteData, RouteSegment, WorldCatalogue } from '@allezrobert/shared';
 import { GRAPHIC_STYLE, setGraphicStyle, type GraphicStyle } from '../engine/style.ts';
 import { readKomRecord } from '../game/challenge.ts';
@@ -2500,7 +2501,7 @@ export class MainMenu {
         const why = missing
           ? L ? 'Cette zone n’est pas encore publiée sur ce serveur.' : 'This area is not published on this server yet.'
           : L ? 'Le téléchargement s’est interrompu. Vérifie ta connexion, puis réessaie.' : 'The download was interrupted. Check your connection and try again.';
-        el.innerHTML = `<div class="world-wait-box zone-dl-err"><img class="world-wait-bike" src="/robert-attente.png" alt="" /><h3>${L ? 'Zone indisponible' : 'Area unavailable'}</h3><p>${why}</p>${tip ? `<small class="world-wait-tip">${tip}</small>` : ''}<button class="btn primary" style="margin-top:16px">${L ? 'Fermer' : 'Close'}</button></div>`;
+        el.innerHTML = `<div class="world-wait-box zone-dl-err"><img class="world-wait-bike" src="${crossedArmsSrc()}" alt="" /><h3>${L ? 'Zone indisponible' : 'Area unavailable'}</h3><p>${why}</p>${tip ? `<small class="world-wait-tip">${tip}</small>` : ''}<button class="btn primary" style="margin-top:16px">${L ? 'Fermer' : 'Close'}</button></div>`;
         el.querySelector('button')?.addEventListener('click', () => el.remove());
         return;
       }

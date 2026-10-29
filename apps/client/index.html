@@ -89,6 +89,13 @@
         <div class="step"><span id="splash-step">Chargement du jeu…</span><span id="splash-pct">4 %</span></div>
       </div>
     </div>
+    <script>
+      // Écran de chargement : Robert en low poly si le style jeu vidéo est choisi (voir src/engine/style.ts).
+      try {
+        const q = new URLSearchParams(location.search).get('style') || localStorage.getItem('ar.style');
+        if (q === 'lowpoly') document.querySelectorAll('.splash-rb img').forEach((i) => (i.src = i.src.replace('/robert-velo/', '/robert-velo-poly/')));
+      } catch {}
+    </script>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

@@ -51,6 +51,7 @@
 .sum-zbar i { display: block; height: 100%; border-radius: 0 6px 6px 0; min-width: 2px; }
 /* Robert, le guide du tutoriel, dans l'espace libre de la colonne de gauche (planche robert-tuto.png, bouche fermée). */
 .sum-robert { display: block; height: min(190px, 22vh); aspect-ratio: 237 / 474; margin: auto auto 0; background: url('/robert-tuto.png') 100% 0 / 200% 100% no-repeat; filter: drop-shadow(0 10px 14px rgba(0, 0, 0, 0.5)); }
+:root[data-style="lowpoly"] .sum-robert { background-image: url('/robert-tuto-poly.webp'); }
 @media (max-width: 1100px) {
   .sum-robert { display: none; }
   .sum-body { grid-template-columns: 1fr; }

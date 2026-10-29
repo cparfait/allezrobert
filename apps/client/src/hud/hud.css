@@ -353,6 +353,7 @@ body:has(.subtitle:not(.hidden)) .ob-mini { animation: ob-talk 0.9s ease-in-out 
 /* Bulle de BD : contour épais et clair, coins très arrondis, ombre douce. */
 .ob-stage > .card.onboarding { flex: 1 1 auto; min-width: 0; position: relative; z-index: 1; background: #182030; border: 3px solid #f3ead2; border-radius: 28px; box-shadow: 0 18px 44px rgba(0, 0, 0, 0.5); }
 .ob-robert { position: relative; z-index: 2; flex: none; height: clamp(200px, 34vh, 300px); aspect-ratio: 237 / 474; background: url('/robert-tuto.png') 100% 0 / 200% 100% no-repeat; filter: drop-shadow(0 12px 22px rgba(0, 0, 0, 0.45)); }
+:root[data-style="lowpoly"] .ob-robert { background-image: url('/robert-tuto-poly.webp'); }
 /*
  * Queue de la bulle, de la carte vers la bouche de Robert : triangle clair (le contour) et, par-dessus,
  * triangle sombre plus petit (le fond), qui recouvre le contour de la carte à la jonction. Hauteur
