@@ -255,6 +255,28 @@ const LOW_POLY_HOODS = { L: new THREE.Vector3(0.2, 0.977, 0.575), R: new THREE.V
 
 const ROAD_HELMET_BOX = new THREE.Box3(new THREE.Vector3(-0.128, -0.1, -0.012 - 0.177), new THREE.Vector3(0.128, 0.025 + 0.12, -0.012 + 0.145));
 
+/**
+ * Chaussure à facettes, à l'échelle du corps (pointure 42 : 21,5 cm de semelle à cette échelle) : talon
+ * 11,5 cm derrière l'axe de la pédale (6 cm derrière la cheville), pointe 10 cm devant ; tige qui
+ * s'abaisse et s'affine vers la pointe. Origine : axe de la pédale, semelle 3,3 cm plus bas.
+ */
+function shoeGeometry(): THREE.BufferGeometry {
+  const W = 0.074;
+  const H = 0.06;
+  const HEEL = -0.115;
+  const TOE = 0.1;
+  const g = new THREE.BoxGeometry(W, H, TOE - HEEL, 1, 1, 3).translate(0, 0, (TOE + HEEL) / 2);
+  const p = g.getAttribute('position');
+  for (let i = 0; i < p.count; i++) {
+    const t = (p.getZ(i) - HEEL) / (TOE - HEEL); // 0 talon → 1 pointe
+    const top = p.getY(i) > 0;
+    // Pointe : 70 % de la largeur ; dessus abaissé vers l'avant (cou-de-pied puis bout arrondi).
+    p.setX(i, p.getX(i) * (1 - 0.3 * t * t));
+    if (top) p.setY(i, -H / 2 + H * (t < 0.4 ? 1 : 1 - 0.65 * ((t - 0.4) / 0.6) ** 1.3));
+  }
+  return g;
+}
+
 /** Calotte à facettes à fond plat (casque, casquette). */
 function dome(r: number, sx: number, sy: number, sz: number): THREE.BufferGeometry {
   const g = new THREE.IcosahedronGeometry(r, 1);
@@ -494,7 +516,7 @@ export class LowPolyRider implements RiderAvatarLike {
       const knee = new Seg(prism(0.05, 0.056, 6), longLegs ? shorts : skin, build, build);
       const shin = new Seg(quad(0.045, 0.064), longLegs ? shorts : skin, build, build);
       const sk = new Seg(prism(0.042, 0.047, 6), sock);
-      const sh = new THREE.Mesh(box(0.085, 0.07, 0.26, 0, 0, 0.02), shoe);
+      const sh = new THREE.Mesh(shoeGeometry(), shoe);
       sh.castShadow = true;
       this.body.add(thighShorts.mesh, knee.mesh, shin.mesh, sk.mesh, sh);
       this.legs.push({ side, shorts: thighShorts, knee, shin, sock: sk, shoe: sh });
@@ -1072,7 +1094,7 @@ export class LowPolyRider implements RiderAvatarLike {
       leg.knee.set(hem, knee);
       leg.shin.set(knee, ankle);
       leg.sock.set(ankle.clone().add(v3(0, this.sockLen, 0.015)), ankle);
-      leg.shoe.position.copy(pedal).add(v3(0, 0.038, 0.02));
+      leg.shoe.position.copy(pedal).add(v3(0, 0.033, 0));
       leg.shoe.rotation.x = 0.15 + Math.sin(a) * 0.12;
     }
     for (const arm of this.arms) {
