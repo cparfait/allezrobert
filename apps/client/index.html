@@ -58,6 +58,7 @@
       .world-wait-tip:empty { display: none; }
       .world-wait-box > span { display: block; font-variant-numeric: tabular-nums; }
       #splash .box { width: min(460px, 86vw); }
+      #splash .splash-rb { height: clamp(120px, 24vh, 190px); margin: 0 0 10px; }
       #splash h1 { margin: 0; font-size: clamp(40px, 7vw, 64px); font-weight: 800; letter-spacing: -0.03em; }
       #splash h1 em { color: #ffd23f; font-style: normal; }
       #splash p { margin: 6px 0 28px; color: #9aa5b1; font-size: 15px; }
@@ -81,6 +82,7 @@
     <div id="splash" role="status" aria-live="polite">
       <div class="road"></div>
       <div class="box">
+        <div class="world-wait-bike rb splash-rb" aria-hidden="true"><div class="rb-bike"><img src="/robert-velo/base.webp" alt=""><img class="rb-leg" src="/robert-velo/leg.webp" alt=""><div class="rb-upper"><img src="/robert-velo/upper.webp" alt=""><img class="rb-arm" src="/robert-velo/arm.webp" alt=""></div></div></div>
         <h1>Allez <em>Robert</em> !</h1>
         <p>Rouler ensemble, chacun chez soi.</p>
         <div class="bar"><i id="splash-bar"></i></div>

@@ -22,6 +22,8 @@ export interface RideSoundDeps {
   traffic: Traffic | null;
   ftpWatts: number;
   maxHr?: number;
+  /** Présence du public selon la distance (0–1) ; absent : celle des zones de l'itinéraire. */
+  crowd?: (distM: number) => number;
 }
 
 /** Canaux du raster d'occupation du sol (world/types.ts, SPLAT_CHANNELS). */
@@ -139,7 +141,7 @@ export class RideSound {
         z: pos.z,
         env: { hour: env.hour, season: env.season, night: world.nightFactor(), rain },
         land: this.land,
-        crowd: crowdLevel(track.wrap(ride.state.distM), route.segments, track.length, route.loop),
+        crowd: this.d.crowd ? this.d.crowd(track.wrap(ride.state.distM)) : crowdLevel(track.wrap(ride.state.distM), route.segments, track.length, route.loop),
         mountain: (route.maxElevationM ?? 0) > 900,
         vehicles: traffic?.audible() ?? [],
         paused: ride.paused,
