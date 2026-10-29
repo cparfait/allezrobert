@@ -316,7 +316,7 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #0a0e16; col
 
 /* Sous-titres de la voix off */
 /* Pendant le tutoriel (pas de HUD), les sous-titres descendent en bas de l'écran, sous la carte. */
-body:has(.ob-menu) .subtitle { bottom: 18px; }
+body:has(.ob-menu) .subtitle { bottom: clamp(36px, 7vh, 80px); }
 /* Écran bas (1024 × 768…) : les sous-titres du tutoriel passent en haut, au-dessus du titre, au lieu de recouvrir la fenêtre du tutoriel. */
 @media (max-height: 820px) { body:has(.ob-menu) .subtitle { bottom: auto; top: 12px; font-size: 15px; max-width: min(720px, 86vw); } }
 .subtitle { position: absolute; left: 50%; bottom: 140px; transform: translateX(-50%); max-width: min(900px, 80vw); padding: 10px 18px; border-radius: 12px; background: rgba(10, 14, 22, 0.78); color: #fff; font-size: 18px; line-height: 1.4; text-align: center; z-index: 50; pointer-events: none; }

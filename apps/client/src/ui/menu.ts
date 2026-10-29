@@ -1161,7 +1161,7 @@ export class MainMenu {
         s.mode === 'group' || s.mode === 'race'
           ? `<input id="m-invite" class="mm-input" placeholder="${L ? 'Code d’invitation (facultatif)' : 'Invite code (optional)'}" />${
               // Course sur une boucle : nombre de tours (créateur de la course).
-              s.mode === 'race' && r?.loop ? `<div class="mm-steprow"><span>${L ? 'Tours de la course' : 'Race laps'}</span>${this.stepper('m-laps', 1, 20, s.raceLaps)}</div>` : ''
+              s.mode === 'race' && r?.loop ? `<div class="mm-steprow"><span>${L ? 'Tours de la course' : 'Race laps'}</span>${this.stepper('m-laps', 1, 20, s.raceLaps)}</div><p class="mm-hint">${L ? 'Valable seulement sur une boucle : la course s’arrête après ce nombre de tours.' : 'Only for a loop: the race ends after this many laps.'}</p>` : ''
             }
             <div class="mm-groupopts">
               ${
