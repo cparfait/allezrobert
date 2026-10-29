@@ -147,6 +147,8 @@ export class ProgressPage {
   /** Dernier affichage (vue) : au premier, la frise défile jusqu'au niveau atteint ; ensuite le défilement est gardé. */
   private shownView: ProgressView | null = null;
   private scroll = 0;
+  /** Prochain niveau : toutes les récompenses affichées (clic sur « +N »). */
+  private spotAll = false;
   /** Récompense ouverte en fiche (sans quitter la page Progression). */
   private detail: { id: string; tune: boolean } | null = null;
 
@@ -392,7 +394,7 @@ export class ProgressPage {
           <p>${L ? `Encore <b>${int(left)} XP</b>` : `<b>${int(left)} XP</b> to go`} · ${kmFor(left)} · ${timeFor(left)}</p>
           ${mile !== nextL ? `<p class="dim">${L ? `Palier du niveau ${mile} : ${int(mileLeft)} XP (${kmFor(mileLeft)})` : `Level ${mile} milestone: ${int(mileLeft)} XP (${kmFor(mileLeft)})`}</p>` : ''}
         </div>
-        <div class="pg-spot-items">${list.length ? list.slice(0, 8).map((r) => this.card(r, true)).join('') + (list.length > 8 ? `<span class="pg-more">+${list.length - 8}</span>` : '') : `<p class="dim">${L ? 'Rien dans ces catégories à ce niveau.' : 'Nothing in these categories at this level.'}</p>`}</div>
+        <div class="pg-spot-items">${list.length ? list.slice(0, this.spotAll ? list.length : 8).map((r) => this.card(r, true)).join('') + (list.length > 8 ? `<button type="button" class="pg-more" data-pgmore title="${this.spotAll ? (L ? 'Réduire' : 'Show less') : L ? 'Afficher le reste' : 'Show the rest'}">${this.spotAll ? '−' : `+${list.length - 8}`}</button>` : '') : `<p class="dim">${L ? 'Rien dans ces catégories à ce niveau.' : 'Nothing in these categories at this level.'}</p>`}</div>
       </article>`;
     }
 
@@ -575,6 +577,10 @@ export class ProgressPage {
         }
       }),
     );
+    root.querySelector<HTMLElement>('[data-pgmore]')?.addEventListener('click', () => {
+      this.spotAll = !this.spotAll;
+      this.host.rerender();
+    });
     // Fiche ouverte : fermeture (croix, fond, Échap), ou essai au garage / à l'atelier.
     const closeDetail = () => {
       this.detail = null;
