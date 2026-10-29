@@ -157,6 +157,13 @@ export interface CapLook {
   colors?: string[];
 }
 
+/**
+ * Casque chrono choisi au garage (en plus du casque route) : « chrono » à longue queue et visière (type
+ * Ekoi TT1), « chrono-court » arrondi à queue tronquée et visière (type Kask Bambino, Giro Aerohead).
+ */
+export type HelmetShape = 'chrono' | 'chrono-court';
+export const HELMET_SHAPES: readonly HelmetShape[] = ['chrono', 'chrono-court'];
+
 /** Nombre de coiffures (`AvatarLook.hairStyle`) ; 3 = rasé (les noms sont dans l'éditeur de visage). */
 export const HAIR_STYLE_COUNT = 12;
 
@@ -169,6 +176,8 @@ export interface AvatarLook {
   helmet: string;
   /** Casquette de cycliste portée à la place du casque ; absente : casque (couleur `helmet`). */
   cap?: CapLook;
+  /** Casque chrono porté (couleur `helmet`) ; absent : casque route (chrono d'office sur les vélos de chrono). */
+  helmetShape?: HelmetShape;
   /** Couleur du vélo de base (sans modèle du catalogue). */
   bike: string;
   /** Modèle du catalogue de vélos (bikes.ts) ; absent : vélo de base de la couleur `bike`. */

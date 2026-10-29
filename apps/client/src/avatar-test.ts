@@ -2,7 +2,8 @@ import * as THREE from 'three/webgpu';
 import { BASE_PROFILES, BIKES, COSMETICS, DEFAULT_LOOK, FACE_SLIDERS, encodeFace, jerseyLookOf, profileLook, type AvatarLook, type BikeModel, type FaceShape } from '@allezrobert/shared';
 import { createEngine } from './engine/renderer.ts';
 import { QUALITY_PRESETS, type QualityLevel } from './engine/quality.ts';
-import { GltfRiderAvatar, type RiderPose } from './rider/gltfAvatar.ts';
+import { GltfRiderAvatar, createAvatar, type RiderPose } from './rider/gltfAvatar.ts';
+import { LOW_POLY } from './engine/style.ts';
 import { preloadJerseyLogo } from './rider/jerseyPattern.ts';
 
 /**
@@ -303,6 +304,58 @@ async function main(): Promise<void> {
     }
     document.body.replaceChildren(sheet);
     if (!params.has('noshot')) await fetch(`/__shot?dir=cine-tune&name=poitrine-${params.get('name') ?? 'essai'}`, { method: 'POST', body: sheet.toDataURL('image/png') });
+    (window as unknown as { __avatarTestDone: boolean }).__avatarTestDone = true;
+    return;
+  }
+  // ?casques : gros plans de la tête, un coureur par coiffe (casque route, chrono d'office du vélo de chrono,
+  // casques chrono du garage), de profil, de trois quarts avant et de trois quarts arrière ; &color=#rrggbb.
+  if (params.has('casques')) {
+    for (const o of riders) o.a.root.visible = false;
+    far.root.visible = false;
+    const color = params.get('color') ?? '#f4f4f4';
+    const base: AvatarLook = { ...DEFAULT_LOOK, helmet: color, bikeModel: 's26-04-cervelo-s5', ...(params.has('female') ? { face: encodeFace({ sex: -1 }), hairStyle: 1 } : {}) };
+    const tt = BIKES.find((b) => b.params.aeroHelmet)?.id ?? 's26-04-cervelo-s5';
+    const looks: Array<[string, AvatarLook]> = [
+      ['route', base],
+      ['chrono velo', { ...base, bikeModel: tt }],
+      ['chrono', { ...base, helmetShape: 'chrono' }],
+      ['chrono-court', { ...base, helmetShape: 'chrono-court' }],
+    ];
+    const views: Array<[string, THREE.Vector3]> = [['profil', new THREE.Vector3(-1, 0, 0)], ['3/4 avant', new THREE.Vector3(-0.7, 0.15, 0.7)], ['3/4 arriere', new THREE.Vector3(-0.6, 0.35, -0.75)]];
+    const cw = 420;
+    const ch = 320;
+    const sheet = document.createElement('canvas');
+    sheet.width = views.length * cw;
+    sheet.height = looks.length * ch;
+    const g = sheet.getContext('2d') as CanvasRenderingContext2D;
+    g.font = '600 16px sans-serif';
+    camera.fov = 6;
+    for (const [i, [name, look]] of looks.entries()) {
+      // &style=lowpoly : coureur du style jeu vidéo.
+      const a = LOW_POLY ? createAvatar(look) : new GltfRiderAvatar(look);
+      scene.add(a.root);
+      for (let t = 0; t < 2; t += 1 / 60) a.update(1 / 60, 85, Number(params.get('speed') ?? 9), 'seated', 0);
+      await new Promise((r) => setTimeout(r, 1500)); // famille du vélo de chrono chargée
+      for (let t = 0; t < 1; t += 1 / 60) a.update(1 / 60, 85, Number(params.get('speed') ?? 9), 'seated', 0);
+      a.root.updateMatrixWorld(true);
+      const headObj = a.root.getObjectByName('head') ?? (a as unknown as { head: THREE.Object3D }).head;
+      const hd = headObj.getWorldPosition(new THREE.Vector3()).add(new THREE.Vector3(0, LOW_POLY ? 0.02 : 0.06, -0.01));
+      for (const [j, [, dir]] of views.entries()) {
+        camera.position.copy(hd).addScaledVector(dir.clone().normalize(), 6);
+        camera.lookAt(hd);
+        camera.updateProjectionMatrix();
+        for (let n = 0; n < 3; n++) engine.renderManual();
+        g.drawImage(canvas, 1280 / 2 - 400, 0, 800, 600, j * cw, i * ch, cw, ch);
+      }
+      g.fillStyle = '#000';
+      g.fillRect(0, i * ch, 130, 22);
+      g.fillStyle = '#fff';
+      g.fillText(name, 4, i * ch + 16);
+      scene.remove(a.root);
+    }
+    document.body.replaceChildren(sheet);
+    sheet.style.cssText = 'display:block;width:100%;height:auto';
+    if (!params.has('noshot')) await fetch(`/__shot?name=avatar-casques-${params.get('name') ?? 'essai'}`, { method: 'POST', body: sheet.toDataURL('image/jpeg', 0.92) });
     (window as unknown as { __avatarTestDone: boolean }).__avatarTestDone = true;
     return;
   }

@@ -3,12 +3,13 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { bikeOfLook, lookSex, type AvatarLook, type BikeBuild, type WheelType } from '@allezrobert/shared';
 import type { RiderAvatarLike, RiderPose } from './gltfAvatar.ts';
 import { SweptBody, makeJoints, type BodyLook } from './sweptBody.ts';
+import { HELMET_FACETED, aeroHelmetGeometry } from './aeroHelmet.ts';
 
 /**
  * Cycliste et vélo du style jeu vidéo (low poly, voir engine/style.ts), construits de zéro en prismes
  * à facettes et aplats de couleur : aucun modèle téléchargé, un millier de triangles environ.
  * Suit la tenue du garage : vélo (route, aéro, chrono, rétro, gravel, VTT), roues (basses, 35, 50, 65,
- * lenticulaire, trois bâtons), bidons et compteur, casque (route, aéro des vélos de chrono) ou
+ * lenticulaire, trois bâtons), bidons et compteur, casque (route, aéro des vélos de chrono, chrono du garage) ou
  * casquette, coiffure, barbe et moustache, coureuse, maillot (bande, bandes de champion, manches,
  * moitié), manches longues, cuissard long, chaussettes hautes, gants.
  * Repère local : +z = avant, +y = haut, +x = gauche ; le sol est à y = 0 sous les roues.
@@ -173,6 +174,12 @@ function merged(parts: THREE.BufferGeometry[], material: THREE.Material): THREE.
 
 /** Hauteur de jante (m) par type de roue. */
 const RIM_DEPTH: Record<WheelType, number> = { box: 0.02, c35: 0.035, c50: 0.05, c65: 0.065, disc: 0.05, tri: 0.05 };
+
+/**
+ * Boîte de la coque du casque de route (repère de la tête : headShell(0.128, 0.12, 0.145, …, queue 0.22)
+ * posée en (0, 0,025, −0,012)), gabarit des casques chrono du garage.
+ */
+const ROAD_HELMET_BOX = new THREE.Box3(new THREE.Vector3(-0.128, -0.1, -0.012 - 0.177), new THREE.Vector3(0.128, 0.025 + 0.12, -0.012 + 0.145));
 
 /** Calotte à facettes à fond plat (casque, casquette). */
 function dome(r: number, sx: number, sy: number, sz: number): THREE.BufferGeometry {
@@ -487,6 +494,28 @@ export class LowPolyRider implements RiderAvatarLike {
       g.add(new THREE.Mesh(box(0.15, 0.012, 0.075, 0, 0.0, 0.035).rotateX(-0.45).translate(0, 0.05, 0.11), flat(cap.accent ?? cap.colors?.[1] ?? cap.color)));
       return;
     }
+    // Sangles fines en Y : une devant et une derrière l'oreille, réunies sous l'oreille, puis jusqu'au menton.
+    const straps = (): THREE.Mesh => {
+      const parts: THREE.BufferGeometry[] = [];
+      for (const sx of [1, -1]) {
+        const knot = v3(0.1 * sx, -0.065, 0.005);
+        parts.push(tube(v3(0.112 * sx, 0.012, 0.05), knot, 0.0055, 0.0055, 4), tube(v3(0.108 * sx, -0.005, -0.07), knot, 0.0055, 0.0055, 4), tube(knot, v3(0.035 * sx, -0.125, 0.055), 0.0055, 0.0055, 4));
+      }
+      parts.push(box(0.04, 0.016, 0.012, 0, -0.13, 0.062));
+      return merged(parts, dark);
+    };
+    if (look.helmetShape) {
+      // Casque chrono du garage : mêmes formes que le style réaliste (aeroHelmet.ts), à facettes, ajustées à
+      // la coque du casque de route ci-dessous.
+      const geo = aeroHelmetGeometry(look.helmetShape, ROAD_HELMET_BOX, new THREE.Matrix4(), 0, HELMET_FACETED);
+      geo.deleteAttribute('skinIndex');
+      geo.deleteAttribute('skinWeight');
+      const faceted = geo.toNonIndexed();
+      faceted.computeVertexNormals();
+      g.add(new THREE.Mesh(faceted, [shellMat, dark, flat('#20242c', 0.15, 0.4)]));
+      g.add(straps());
+      return;
+    }
     if (bike.params.aeroHelmet) {
       // Casque de chrono : goutte d'eau allongée vers l'arrière, visière sombre.
       const shell = new THREE.IcosahedronGeometry(0.14, 1);
@@ -532,14 +561,7 @@ export class LowPolyRider implements RiderAvatarLike {
     const shell = new THREE.Mesh(geo, helmetMat);
     shell.position.set(0, 0.025, -0.012);
     g.add(shell);
-    // Sangles fines en Y : une devant et une derrière l'oreille, réunies sous l'oreille, puis jusqu'au menton.
-    const straps: THREE.BufferGeometry[] = [];
-    for (const sx of [1, -1]) {
-      const knot = v3(0.1 * sx, -0.065, 0.005);
-      straps.push(tube(v3(0.112 * sx, 0.012, 0.05), knot, 0.0055, 0.0055, 4), tube(v3(0.108 * sx, -0.005, -0.07), knot, 0.0055, 0.0055, 4), tube(knot, v3(0.035 * sx, -0.125, 0.055), 0.0055, 0.0055, 4));
-    }
-    straps.push(box(0.04, 0.016, 0.012, 0, -0.13, 0.062));
-    g.add(merged(straps, dark));
+    g.add(straps());
   }
 
   private buildBike(look: AvatarLook, bike: BikeBuild, kind: BikeKind): THREE.Group {

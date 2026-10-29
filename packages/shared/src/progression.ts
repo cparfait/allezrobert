@@ -7,7 +7,7 @@
 import catalogJson from './cosmetics.json' with { type: 'json' };
 import { DEFAULT_BIKE, type BikeSetup } from './rider.ts';
 import { BIKES, migrateBikeId, type BikeType } from './bikes.ts';
-import type { AvatarLook, CapLook, JerseyStyle } from './net.ts';
+import type { AvatarLook, CapLook, HelmetShape, JerseyStyle } from './net.ts';
 
 export const MAX_LEVEL = 50;
 export const MAX_XP_PER_RIDE = 4000;
@@ -76,12 +76,17 @@ export interface CosmeticItem {
   jersey?: { accent?: string; style?: JerseyStyle; bands?: string[]; dots?: { r: number; step: number }; logo?: { id: string; tint?: string; w?: number; y?: number } };
   /** Casquettes (emplacement « helmet ») : motif porté à la place du casque. */
   cap?: CapLook;
+  /** Casques chrono (emplacement « helmet ») : forme portée, à la couleur de l'article. */
+  helmetShape?: HelmetShape;
 }
 
-/** Coiffe d'un équipement « casque » : sa couleur et, pour une casquette, son motif (un casque retire la casquette). */
+/**
+ * Coiffe d'un équipement « casque » : sa couleur et, pour une casquette, son motif, pour un casque chrono,
+ * sa forme (chaque article retire la casquette et la forme de l'article précédent).
+ */
 export function helmetLookOf(item: CosmeticItem, base: AvatarLook): AvatarLook {
-  const { cap: _old, ...rest } = base;
-  return { ...rest, helmet: item.color ?? base.helmet, ...(item.cap ? { cap: item.cap } : {}) };
+  const { cap: _old, helmetShape: _shape, ...rest } = base;
+  return { ...rest, helmet: item.color ?? base.helmet, ...(item.cap ? { cap: item.cap } : {}), ...(item.helmetShape ? { helmetShape: item.helmetShape } : {}) };
 }
 
 /**
