@@ -419,8 +419,10 @@ export class LowPolyRider implements RiderAvatarLike {
     // Tête : icosaèdre à facettes un peu grand (lisible de loin), nez, oreilles, lunettes de sport.
     const skull = new THREE.Mesh(new THREE.IcosahedronGeometry(0.112, 1).scale(0.92, 1.05, 1), skin);
     const face = merged([box(0.03, 0.04, 0.04, 0, -0.01, 0.112), box(0.03, 0.05, 0.04, 0.104, -0.005, -0.005), box(0.03, 0.05, 0.04, -0.104, -0.005, -0.005)], skin);
-    const glasses = merged([box(0.2, 0.045, 0.02, 0, 0.022, 0.102), box(0.01, 0.015, 0.12, 0.099, 0.03, 0.04), box(0.01, 0.015, 0.12, -0.099, 0.03, 0.04)], flat('#15171b', 0.3, 0.3));
-    this.head.add(skull, face, glasses);
+    // Lunettes : écran à la couleur des verres, branches à celle de la monture (garage).
+    const lenses = new THREE.Mesh(box(0.2, 0.045, 0.02, 0, 0.022, 0.102), flat(look.glassesLens ?? '#15171b', 0.3, 0.3));
+    const temples = merged([box(0.01, 0.015, 0.12, 0.099, 0.03, 0.04), box(0.01, 0.015, 0.12, -0.099, 0.03, 0.04)], flat(look.glassesFrame ?? '#15171b', 0.3, 0.3));
+    this.head.add(skull, face, lenses, temples);
     if (!female && (look.beard ?? 0) > 0.25) this.head.add(new THREE.Mesh(new THREE.IcosahedronGeometry(0.1, 1).scale(0.96, 0.6, 0.9).translate(0, -0.06, 0.027), hair));
     if (!female && look.moustache) this.head.add(new THREE.Mesh(box(0.08, 0.018, 0.025, 0, -0.038, 0.104), hair));
     const hairParts = this.hairGeometry(look.hairStyle);
@@ -485,13 +487,13 @@ export class LowPolyRider implements RiderAvatarLike {
     const dark = flat('#1d1f24');
     if (look.cap) {
       const cap = look.cap;
-      // Calotte qui enveloppe la coupe de cheveux (sinon les cheveux la traversent), bord au-dessus des
-      // lunettes devant, cheveux visibles sur la nuque.
+      // Petite calotte serrée sur la coupe de cheveux (headShell(0.109, 0.125, 0.119) de hairGeometry), bord
+      // au-dessus des lunettes devant, cheveux visibles sur la nuque.
       const capMat = new THREE.MeshStandardNodeMaterial({ color: cap.color, roughness: 0.75, metalness: 0, side: THREE.DoubleSide });
       capMat.flatShading = true;
-      g.add(new THREE.Mesh(headShell(0.119, 0.14, 0.13, 1.22, 1.55, 1.75, 0, 20, 6).translate(0, 0, -0.004), capMat));
-      // Visière relevée, comme les coureurs la portent.
-      g.add(new THREE.Mesh(box(0.15, 0.012, 0.075, 0, 0.0, 0.035).rotateX(-0.45).translate(0, 0.05, 0.11), flat(cap.accent ?? cap.colors?.[1] ?? cap.color)));
+      g.add(new THREE.Mesh(headShell(0.115, 0.126, 0.125, 1.22, 1.55, 1.75, 0, 20, 6).translate(0, 0.007, -0.004), capMat));
+      // Visière courte, bien relevée, comme les coureurs la portent.
+      g.add(new THREE.Mesh(box(0.13, 0.01, 0.038, 0, 0.0, 0.019).rotateX(-1.0).translate(0, 0.055, 0.105), flat(cap.accent ?? cap.colors?.[1] ?? cap.color)));
       return;
     }
     // Sangles fines en Y : une devant et une derrière l'oreille, réunies sous l'oreille, puis jusqu'au menton.

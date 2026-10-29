@@ -78,6 +78,8 @@ export interface CosmeticItem {
   cap?: CapLook;
   /** Casques chrono (emplacement « helmet ») : forme portée, à la couleur de l'article. */
   helmetShape?: HelmetShape;
+  /** Lunettes (emplacement « glasses ») : couleurs de la monture et des verres. */
+  glasses?: { frame: string; lens: string };
 }
 
 /**
@@ -87,6 +89,12 @@ export interface CosmeticItem {
 export function helmetLookOf(item: CosmeticItem, base: AvatarLook): AvatarLook {
   const { cap: _old, helmetShape: _shape, ...rest } = base;
   return { ...rest, helmet: item.color ?? base.helmet, ...(item.cap ? { cap: item.cap } : {}), ...(item.helmetShape ? { helmetShape: item.helmetShape } : {}) };
+}
+
+/** Lunettes d'un équipement « lunettes » : monture et verres ; sans couleurs, les lunettes d'origine. */
+export function glassesLookOf(item: CosmeticItem, base: AvatarLook): AvatarLook {
+  const { glassesFrame: _f, glassesLens: _l, ...rest } = base;
+  return item.glasses ? { ...rest, glassesFrame: item.glasses.frame, glassesLens: item.glasses.lens } : rest;
 }
 
 /**

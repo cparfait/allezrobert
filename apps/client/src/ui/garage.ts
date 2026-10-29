@@ -14,6 +14,7 @@ import {
   nextStreak,
   jerseyLookOf,
   helmetLookOf,
+  glassesLookOf,
   purchase,
   rideEvents,
   tuneItem,
@@ -162,6 +163,7 @@ export function equipItem(item: CosmeticItem, s: Settings): void {
     if (item.slot === 'bike') s.look = { ...s.look, bike: item.color };
     if (item.slot === 'socks') s.look = { ...s.look, socks: item.color };
   }
+  if (item.slot === 'glasses') s.look = glassesLookOf(item, s.look);
   // Vélo équipé : modèle du catalogue (cadre, livrée) ou VTT / gravel ; le modèle affiché suit les pneus.
   if (item.slot === 'bike') {
     const { bikeModel: _old, ...rest } = s.look;

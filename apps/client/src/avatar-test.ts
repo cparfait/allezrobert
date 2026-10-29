@@ -321,6 +321,19 @@ async function main(): Promise<void> {
       ['chrono', { ...base, helmetShape: 'chrono' }],
       ['chrono-court', { ...base, helmetShape: 'chrono-court' }],
     ];
+    // &lunettes : quelques lunettes du garage (monture, verres) au lieu des casques.
+    if (params.has('lunettes')) {
+      const pairs = COSMETICS.filter((c) => c.slot === 'glasses' && c.glasses).slice(0, Number(params.get('lunettes') || 4));
+      looks.splice(0, looks.length, ...pairs.map((c): [string, AvatarLook] => [c.id.replace('glasses-', ''), { ...base, glassesFrame: c.glasses?.frame, glassesLens: c.glasses?.lens }]));
+    }
+    // &casquettes : casquettes (pois, unie) au lieu des casques.
+    if (params.has('casquettes')) {
+      looks.splice(0, looks.length,
+        ['pois', { ...base, cap: { style: 'pois', color: '#f6f3ee', accent: '#e8501d' } }],
+        ['bleue', { ...base, cap: { style: 'uni', color: '#1f4fb5' } }],
+        ['bleue femme', { ...base, cap: { style: 'uni', color: '#1f4fb5' }, face: encodeFace({ sex: -1 }), hairStyle: 1 }],
+      );
+    }
     const views: Array<[string, THREE.Vector3]> = [['profil', new THREE.Vector3(-1, 0, 0)], ['3/4 avant', new THREE.Vector3(-0.7, 0.15, 0.7)], ['3/4 arriere', new THREE.Vector3(-0.6, 0.35, -0.75)]];
     const cw = 420;
     const ch = 320;
@@ -378,6 +391,11 @@ async function main(): Promise<void> {
     // &only=film4,film6 : seulement ces coureurs.
     const only = (params.get('only') ?? '').split(',').filter(Boolean);
     if (only.length) looks.splice(0, looks.length, ...looks.filter(([n]) => only.includes(n)));
+    // &tenue={"build":0.4,"bikeModel":null} : retouches de tenue appliquées à tous (null retire le champ).
+    if (params.has('tenue')) {
+      const patch = JSON.parse(params.get('tenue') ?? '{}') as Record<string, unknown>;
+      for (const e of looks) e[1] = Object.fromEntries(Object.entries({ ...e[1], ...patch }).filter(([, v]) => v !== null)) as unknown as AvatarLook;
+    }
     // &spin=0,90,180,270 : un tour de pédale, une vignette par angle de manivelle (°).
     const spin = (params.get('spin') ?? '').split(',').filter(Boolean).map(Number);
     if (spin.length) looks.splice(0, looks.length, ...looks.flatMap(([n, l]) => spin.map((d): [string, AvatarLook] => [`${n}@${d}`, { ...l, crankDeg: d } as AvatarLook])));
@@ -440,6 +458,14 @@ async function main(): Promise<void> {
         const v = (n: string) => (params.get(n) ?? '0,0,0').split(',').map(Number) as [number, number, number];
         camera.position.set(...v('cam')).add(k);
         camera.lookAt(new THREE.Vector3(...v('look')).add(k));
+      }
+      // &foot=l|r : cheville et chaussure gauche ou droite (côté filmé : &right, caméra en +x), cadrage serré.
+      if (params.has('foot')) {
+        const f = P(params.get('foot') === 'r' ? 'foot_r' : 'foot_l');
+        // &footcam=x,y,z : direction de la caméra (défaut : de côté).
+        const d = new THREE.Vector3(...((params.get('footcam') ?? `${params.has('right') ? 1 : -1},0,0`).split(',').map(Number) as [number, number, number])).normalize();
+        camera.position.copy(f).add(new THREE.Vector3(0, 0.02, -0.02)).addScaledVector(d, 1.4);
+        camera.lookAt(f.x, f.y + 0.02, f.z - 0.02);
       }
       // &knee : genou et cuisse (côté filmé), cadrage serré.
       if (params.has('knee')) {

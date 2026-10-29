@@ -4,27 +4,31 @@ import type { CapLook } from '@allezrobert/shared';
 /**
  * Casquette de cycliste : dôme souple à quartiers et petite visière un peu incurvée, dessous gris.
  * Le maillage est construit dans le repère du modèle (+z avant, +y haut, +x gauche), ajusté à la boîte
- * du casque du coureur, puis lié à 100 % à l'os de la tête (gltfAvatar.ts) : il suit la tête comme
+ * des cheveux plaqués du coureur (coque portée sous le casque), puis lié à 100 % à l'os de la tête (gltfAvatar.ts) : il suit la tête comme
  * le casque. Les motifs (uni, pois, losanges, quartiers) sont dessinés sur des canevas, partagés par
  * tous les coureurs de même casquette.
  */
 
-/** Réglages de forme (fractions de la boîte du casque ; épaisseur de la visière en mètres). */
+/**
+ * Réglages de forme (fractions de la boîte des cheveux plaqués sous le casque, à défaut du casque ;
+ * épaisseur de la visière en mètres). Casquette de cycliste : petite, serrée sur les cheveux, visière
+ * courte relevée.
+ */
 export const CAP_FIT = {
-  /** Dôme : rayons relatifs à la demi-largeur et à la demi-profondeur du casque ; hauteur relative à sa demi-largeur (sangles exclues). */
-  rx: 0.98,
-  rz: 1.0,
+  /** Dôme : rayons relatifs à la demi-largeur et à la demi-profondeur des cheveux ; hauteur relative à leur demi-largeur. */
+  rx: 1.06,
+  rz: 1.05,
   /** Dôme : exposant du profil (< 1 : épaules plus pleines, sommet plus plat). */
   fullness: 0.8,
   ry: 1.1,
   /** Dôme : relevé (m) pour que les cheveux ne percent pas au sommet. */
-  lift: 0.006,
+  lift: 0.004,
   /** Dôme : angle (degrés depuis le sommet) du bord, devant et derrière (nuque). */
   frontEdge: 88,
-  backEdge: 110,
-  /** Visière : longueur (× demi-largeur), inclinaison vers le bas (degrés) et épaisseur (m). */
-  billLength: 0.95,
-  billTilt: -24,
+  backEdge: 108,
+  /** Visière : longueur (× demi-largeur, ≈ 4 cm), inclinaison (degrés, < 0 : relevée) et épaisseur (m). */
+  billLength: 0.48,
+  billTilt: -58,
   billThickness: 0.003,
 };
 

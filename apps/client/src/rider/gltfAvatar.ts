@@ -570,8 +570,115 @@ function jerseyAxisOf(scene: THREE.Object3D): JerseyAxis | null {
   return { origin, dir: neck.sub(origin).normalize() };
 }
 
+/** Pièces de la chaussure dont le col suit en partie la jambe (cales, semelle et patins restent rigides). */
+const SHOE_UPPER = /^shoe(_lining|_reflect|_dial)?$/;
+/** Col de la chaussure : hauteur (m, le long de la jambe, sous le haut de la tige) sur laquelle il suit le mollet, et part prise au bord. */
+const COLLAR_DEPTH = 0.04;
+const COLLAR_SHIN = 0.55;
+/** Haut du talon resserré contre le tendon d'Achille (m, derrière la cheville, au bord de la tige). */
+const COLLAR_HUG = 0.011;
+
+/**
+ * Col souple des chaussures : la tige n'est liée qu'à l'os du pied, la chaussette au mollet et au pied ;
+ * quand la cheville plie (coup de pédale), le haut du talon s'écartait du tendon d'Achille (trou entre la
+ * chaussette et la chaussure). Le haut de la tige suit en partie l'os parent du pied (mollet), comme un
+ * col souple serré sur la cheville, et le haut du talon est resserré contre la jambe.
+ */
+function softenShoeCollars(scene: THREE.Object3D): void {
+  const shoes: THREE.SkinnedMesh[] = [];
+  scene.traverse((o) => {
+    const m = o as THREE.SkinnedMesh;
+    if (m.isSkinnedMesh && SHOE_UPPER.test((m.material as THREE.Material).name)) shoes.push(m);
+  });
+  // Articulations en pose de liaison (repère « bindMatrix · sommet », commun à tous les maillages).
+  const joint = (m: THREE.SkinnedMesh, i: number): THREE.Vector3 => new THREE.Vector3().applyMatrix4((m.skeleton.boneInverses[i] as THREE.Matrix4).clone().invert());
+  interface Leg {
+    ankle: THREE.Vector3;
+    axis: THREE.Vector3;
+    fwd: THREE.Vector3;
+    /** Haut de la tige devant et derrière la cheville (le talon est plus bas que la languette). */
+    top: [number, number];
+  }
+  const legs = new Map<string, Leg>();
+  /** Os du pied d'un sommet, et sa jambe (mollet, cheville, axe cheville → genou). */
+  const legOf = (m: THREE.SkinnedMesh, k: number): [string, Leg] | null => {
+    const fi = m.geometry.getAttribute('skinIndex').getComponent(k, 0);
+    const foot = m.skeleton.bones[fi];
+    if (!foot) return null;
+    let leg = legs.get(foot.name);
+    if (!leg) {
+      const shin = foot.parent ? m.skeleton.bones.indexOf(foot.parent as THREE.Bone) : -1;
+      if (shin < 0) return null;
+      const ankle = joint(m, fi);
+      leg = { ankle, axis: joint(m, shin).sub(ankle).normalize(), fwd: new THREE.Vector3(), top: [-Infinity, -Infinity] };
+      legs.set(foot.name, leg);
+    }
+    return [foot.name, leg];
+  };
+  const v = new THREE.Vector3();
+  const rel = (m: THREE.SkinnedMesh, k: number, leg: Leg): THREE.Vector3 => v.fromBufferAttribute(m.geometry.getAttribute('position'), k).applyMatrix4(m.bindMatrix).sub(leg.ankle);
+  const each = (fn: (m: THREE.SkinnedMesh, k: number, leg: Leg) => void): void => {
+    for (const m of shoes) {
+      for (let k = 0; k < m.geometry.getAttribute('position').count; k++) {
+        const l = legOf(m, k);
+        if (l) fn(m, k, l[1]);
+      }
+    }
+  };
+  // Avant du pied : vers le centre de la tige, perpendiculairement à la jambe.
+  each((m, k, leg) => leg.fwd.add(rel(m, k, leg)));
+  for (const leg of legs.values()) leg.fwd.addScaledVector(leg.axis, -leg.fwd.dot(leg.axis)).normalize();
+  each((m, k, leg) => {
+    const p = rel(m, k, leg);
+    const i = p.dot(leg.fwd) >= 0 ? 0 : 1;
+    leg.top[i] = Math.max(leg.top[i], p.dot(leg.axis));
+  });
+  const toMesh = new THREE.Matrix4();
+  const perp = new THREE.Vector3();
+  for (const m of shoes) {
+    const g = m.geometry;
+    const n = g.getAttribute('position').count;
+    const si = g.getAttribute('skinIndex');
+    let pos = g.getAttribute('position');
+    if (pos.normalized || (pos as THREE.InterleavedBufferAttribute).isInterleavedBufferAttribute || !(pos.array instanceof Float32Array)) g.setAttribute('position', (pos = plainAttribute(pos)));
+    toMesh.copy(m.bindMatrix).invert();
+    const idx = new Uint16Array(n * 4);
+    const w = new Float32Array(n * 4);
+    for (let k = 0; k < n; k++) {
+      idx[k * 4] = si.getComponent(k, 0);
+      w[k * 4] = 1;
+      const leg = legOf(m, k)?.[1];
+      // Mollet : indice dans le squelette de ce maillage (l'ordre des os peut changer d'un maillage à l'autre).
+      const shin = m.skeleton.bones.indexOf(m.skeleton.bones[si.getComponent(k, 0)]?.parent as THREE.Bone);
+      if (!leg || shin < 0) continue;
+      const p = rel(m, k, leg);
+      const hTop = leg.top[p.dot(leg.fwd) >= 0 ? 0 : 1];
+      const edge = THREE.MathUtils.smoothstep(p.dot(leg.axis), hTop - COLLAR_DEPTH, hTop);
+      const t = edge * COLLAR_SHIN;
+      if (t <= 0) continue;
+      // Talon : resserré vers l'axe de la jambe, en plein derrière, un peu sur les côtés, rien devant.
+      perp.copy(p).addScaledVector(leg.axis, -p.dot(leg.axis));
+      const back = THREE.MathUtils.smoothstep(-perp.dot(leg.fwd) / Math.max(perp.length(), 1e-6), -0.4, 0.7);
+      if (back > 0) {
+        const pull = Math.min(COLLAR_HUG * edge * back, perp.length() * 0.5);
+        const q = p.addScaledVector(perp.normalize(), -pull).add(leg.ankle).applyMatrix4(toMesh);
+        (pos as THREE.BufferAttribute).setXYZ(k, q.x, q.y, q.z);
+      }
+      idx[k * 4 + 1] = shin;
+      w[k * 4] = 1 - t;
+      w[k * 4 + 1] = t;
+    }
+    g.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(idx, 4));
+    g.setAttribute('skinWeight', new THREE.Float32BufferAttribute(w, 4));
+  }
+}
+
 function buildTemplates(riders: GLTF[]): Templates {
   for (const r of riders) extractIdentity(r.scene);
+  for (const r of riders) {
+    r.scene.updateMatrixWorld(true);
+    softenShoeCollars(r.scene);
+  }
   const scene = (riders[0] as GLTF).scene;
   scene.updateMatrixWorld(true);
   // Repère du torse des maillots (motifs du shader) ; mesures prises sur le niveau 0.
@@ -665,8 +772,13 @@ function buildTemplates(riders: GLTF[]): Templates {
 
 /** Géométrie de la casquette par niveau de détail du modèle (null : modèle sans casque pour s'ajuster). */
 const capGeometries = new WeakMap<GLTF, THREE.BufferGeometry | null>();
-/** Boîte du casque route du modèle (niveau 0), repère du modèle, qui sert de gabarit à la casquette. */
+/** Boîte du casque route du modèle (niveau 0), repère du modèle, gabarit des casques chrono du garage. */
 const helmetBoxes = new WeakMap<GLTF, THREE.Box3 | null>();
+/**
+ * Boîte des cheveux plaqués portés sous le casque (coque « slick », niveau 0), gabarit de la casquette :
+ * une casquette de cycliste est petite et serrée sur les cheveux. Sans coque (ancien modèle) : casque route.
+ */
+const capBoxes = new WeakMap<GLTF, THREE.Box3 | null>();
 
 function capGeometryOf(riders: readonly GLTF[], level: number, headName: string | undefined): THREE.BufferGeometry | null {
   const rider = riders[level] as GLTF;
@@ -680,8 +792,13 @@ function capGeometryOf(riders: readonly GLTF[], level: number, headName: string 
       if (o.name.startsWith('rider_helmet') && !o.name.startsWith('rider_helmet_aero')) o.traverse((c) => (c as THREE.Mesh).isMesh && meshes.push(c as THREE.Mesh));
     });
     helmetBoxes.set(first, boxOfMeshes(meshes));
+    const hair: THREE.Mesh[] = [];
+    first.scene.traverse((o) => {
+      if (o.name.startsWith('rider_hairs_slick')) o.traverse((c) => (c as THREE.Mesh).isMesh && hair.push(c as THREE.Mesh));
+    });
+    capBoxes.set(first, hair.length ? boxOfMeshes(hair) : null);
   }
-  const box = helmetBoxes.get(first);
+  const box = capBoxes.get(first) ?? helmetBoxes.get(first);
   let ref: THREE.SkinnedMesh | undefined;
   rider.scene.traverse((o) => {
     if (!ref && (o as THREE.SkinnedMesh).isSkinnedMesh) ref = o as THREE.SkinnedMesh;
@@ -776,6 +893,9 @@ function applyLookColor(m: THREE.MeshStandardNodeMaterial, look: AvatarLook): vo
     hair: look.hair,
     shoe_dial: shoeDialOf(look),
     sock: look.socks,
+    // Lunettes du garage (monture, verres miroir teintés) ; sans couleurs, celles d'origine.
+    glasses_frame: look.glassesFrame ?? MATERIALS.glasses_frame?.[0],
+    lens: look.glassesLens ?? MATERIALS.lens?.[0],
   };
   const col = c[m.name];
   if (col) m.color.set(col);

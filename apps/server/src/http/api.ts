@@ -46,6 +46,8 @@ const AvatarSchema = z.object({
   shoeMark: z.enum(SHOE_MARKS.map((m) => m.id) as [ShoeMarkId, ...ShoeMarkId[]]).optional(),
   socks: hex.optional(),
   sockHeight: z.enum(['low', 'high']).optional(),
+  glassesFrame: hex.optional(),
+  glassesLens: hex.optional(),
   legs: z.enum(['short', 'long']).optional(),
   bikeType: z.enum(['road', 'gravel', 'mtb']).optional(),
   face: z.string().regex(FACE_CODE_RE).optional(),

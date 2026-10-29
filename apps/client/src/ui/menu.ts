@@ -1,7 +1,7 @@
 import type { AvatarLook, CosmeticItem, RouteData, RouteSegment, WorldCatalogue } from '@allezrobert/shared';
 import { GRAPHIC_STYLE, setGraphicStyle, type GraphicStyle } from '../engine/style.ts';
 import { readKomRecord } from '../game/challenge.ts';
-import { COUNTRIES, BIKE_BRANDS, BIKE_GROUPS, BIKE_TEAMS, COSMETICS, DEFAULT_BIKE, bikeById, routesForBike, mirrorStartM, rankRouteId, lookSex, tuneItem, withSex, bottleCapacity, bikeSetupFor, jerseyLookOf, helmetLookOf, levelProgress, SHOE_MARKS, type BikeCollection, type BikeType, type CapLook, type CosmeticSlot } from '@allezrobert/shared';
+import { COUNTRIES, BIKE_BRANDS, BIKE_GROUPS, BIKE_TEAMS, COSMETICS, DEFAULT_BIKE, bikeById, routesForBike, mirrorStartM, rankRouteId, lookSex, tuneItem, withSex, bottleCapacity, bikeSetupFor, jerseyLookOf, helmetLookOf, glassesLookOf, levelProgress, SHOE_MARKS, type BikeCollection, type BikeType, type CapLook, type CosmeticSlot } from '@allezrobert/shared';
 import { shoeAccentOf } from '../rider/shoeLook.ts';
 import { WORKOUT_LIBRARY, WORKOUT_TYPES, WORKOUT_TYPE_LABELS, parseWorkoutFile, type LibraryWorkout, type WorkoutStep, type WorkoutType } from '@allezrobert/physics';
 import { rideHistory } from '../data/history/instance.ts';
@@ -860,6 +860,7 @@ export class MainMenu {
       if (item.slot === 'bike') look.bike = item.color;
       if (item.slot === 'socks') look.socks = item.color;
     }
+    if (item.slot === 'glasses') return glassesLookOf(item, look);
     if (item.slot === 'bike') {
       // Modèle du catalogue (cadre, livrée) ou VTT / gravel : le type de pneus suit l'équipement.
       look.bikeType = item.physics?.tyre ?? 'road';
