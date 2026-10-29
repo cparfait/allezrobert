@@ -238,10 +238,29 @@ export class FranceMap {
     return `<form class="fm-search" autocomplete="off"><input class="fm-q" type="search" value="${esc(this.query)}" placeholder="${L ? 'Chercher une ville…' : 'Find a city…'}" aria-label="${L ? 'Chercher une ville' : 'Find a city'}" /><button type="submit" aria-label="${L ? 'Chercher' : 'Search'}">⌕</button></form>${card ? `<div class="fm-found">${card}</div>` : ''}`;
   }
 
+  private readonly geoCache = new Map<string, { label: string; x: number; y: number }>();
+
+  /** Situe un lieu (Lambert-93) par rapport aux zones : dedans, la plus proche, ou aucune. */
+  private placeFound(label: string, x: number, y: number, zones: MapZone[]): NonNullable<FranceMap['found']> {
+    const real = zones.filter((z) => !z.image);
+    const inside = real.find((z) => z.rect && x >= z.rect.minE && x <= z.rect.maxE && y >= z.rect.minN && y <= z.rect.maxN);
+    const dist = (z: MapZone) => Math.hypot(z.x - x, z.y - y) / 1000;
+    const near = [...real].sort((a, b) => dist(a) - dist(b))[0] ?? null;
+    const zone = inside ?? near;
+    return { label, x, y, zone, km: zone ? dist(zone) : 0, state: inside ? 'in' : near ? 'near' : 'far' };
+  }
+
   /** Cherche une ville (géocodeur de l'IGN), la situe sur la carte et dit si une zone du jeu la couvre. */
   private async locate(q: string, zones: MapZone[]): Promise<boolean> {
     this.lookup = 'busy';
     this.found = null;
+    // Même recherche déjà faite : réponse gardée, sans réseau.
+    const cached = this.geoCache.get(q.toLowerCase());
+    if (cached) {
+      this.found = this.placeFound(cached.label, cached.x, cached.y, zones);
+      this.lookup = 'idle';
+      return true;
+    }
     try {
       const r = await fetch(`https://data.geopf.fr/geocodage/search?q=${encodeURIComponent(q)}&type=municipality&limit=1`);
       const j = (await r.json()) as { features?: Array<{ geometry: { coordinates: [number, number] }; properties: { city?: string; label?: string; postcode?: string } }> };
@@ -252,13 +271,9 @@ export class FranceMap {
       }
       const [lon, lat] = ft.geometry.coordinates;
       const p = wgs84ToL93(lon, lat);
-      const real = zones.filter((z) => !z.image);
-      const inside = real.find((z) => z.rect && p.x >= z.rect.minE && p.x <= z.rect.maxE && p.y >= z.rect.minN && p.y <= z.rect.maxN);
-      const dist = (z: MapZone) => Math.hypot(z.x - p.x, z.y - p.y) / 1000;
-      const near = [...real].sort((a, b) => Number(b.available) - Number(a.available) || dist(a) - dist(b)).sort((a, b) => dist(a) - dist(b))[0] ?? null;
-      const zone = inside ?? near;
       const label = `${ft.properties.city ?? ft.properties.label ?? q}${ft.properties.postcode ? ` (${ft.properties.postcode.slice(0, 2)})` : ''}`;
-      this.found = { label, x: p.x, y: p.y, zone, km: zone ? dist(zone) : 0, state: inside ? 'in' : near ? 'near' : 'far' };
+      this.geoCache.set(q.toLowerCase(), { label, x: p.x, y: p.y });
+      this.found = this.placeFound(label, p.x, p.y, zones);
       this.lookup = 'idle';
       return true;
     } catch {
@@ -280,13 +295,13 @@ export class FranceMap {
   private baseLayers(v: View): string {
     // Fond de la France entière livré avec le jeu (public/basemap/france.jpg) : toujours là, tout de suite ; le Plan
     // IGN en ligne n'est demandé que pour le détail, une fois zoomé.
-    const local = `<image class="map-base" href="/basemap/france.jpg" x="${FULL.x}" y="${FULL.y}" width="${FULL.w}" height="${FULL.h}" preserveAspectRatio="none"/>`;
+    const local = `<image class="map-base" data-keep="france" href="/basemap/france.jpg" x="${FULL.x}" y="${FULL.y}" width="${FULL.w}" height="${FULL.h}" preserveAspectRatio="none"/>`;
     if (!this.zoomed) {
       this.lastBase = '';
       return local;
     }
     // Détail de l'Île-de-France livré aussi avec le jeu (hors ligne) ; le Plan IGN en ligne ne vient qu'en plus.
-    const idf = `<image class="map-base" href="/basemap/idf.jpg" x="520" y="-7020" width="280" height="280" preserveAspectRatio="none"/>`;
+    const idf = `<image class="map-base" data-keep="idf" href="/basemap/idf.jpg" x="520" y="-7020" width="280" height="280" preserveAspectRatio="none"/>`;
     const base = basemap(v);
     const prev = this.lastBase && this.lastBase !== base ? this.lastBase : '';
     this.lastBase = base;
@@ -304,6 +319,12 @@ export class FranceMap {
       tmp.innerHTML = this.html(zones);
       const fresh = tmp.firstElementChild;
       if (!fresh) return;
+      // Les deux grands fonds livrés avec le jeu sont déplacés tels quels dans le nouveau dessin : pas de nouveau
+      // chargement ni de nouveau décodage (c'était ce qui ralentissait chaque zoom et chaque recherche).
+      box.querySelectorAll<SVGImageElement>('image[data-keep]').forEach((old) => {
+        const next = fresh.querySelector(`image[data-keep="${old.dataset.keep}"]`);
+        if (next) next.replaceWith(old);
+      });
       box.replaceWith(fresh);
       this.bind(fresh.parentNode ?? scope, zones, onPick);
     };
@@ -352,7 +373,13 @@ export class FranceMap {
       this.query = q;
       if (q.length < 2) return;
       this.lookup = 'busy';
-      redraw();
+      let card = box.querySelector<HTMLElement>('.fm-found');
+      if (!card) {
+        card = document.createElement('div');
+        card.className = 'fm-found';
+        box.querySelector('.fm-main')?.append(card);
+      }
+      card.innerHTML = `<p>${fr() ? 'Recherche…' : 'Searching…'}</p>`;
       void this.locate(q, zones).then((ok) => {
         if (!ok) return redraw();
         const f = this.found;
