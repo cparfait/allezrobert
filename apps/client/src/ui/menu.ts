@@ -138,54 +138,91 @@ const ZONE_LIMITS = [0.55, 0.75, 0.9, 1.05, 1.2, 1.5];
 const ZONE_COLORS = ['#c3cbd5', '#3b82f6', '#22c55e', '#eab308', '#f97316', '#ef4444', '#a855f7'];
 const zoneColorOf = (ftp: number) => ZONE_COLORS[ZONE_LIMITS.findIndex((z) => ftp < z) === -1 ? 6 : ZONE_LIMITS.findIndex((z) => ftp < z)] as string;
 
+/** Couleur d'un type de séance : la zone où se joue l'essentiel (mêmes teintes que le graphe). */
+const TYPE_COLORS: Record<WorkoutType, string> = {
+  recovery: ZONE_COLORS[0]!,
+  endurance: ZONE_COLORS[1]!,
+  tempo: ZONE_COLORS[2]!,
+  sweetspot: '#a3c726',
+  threshold: ZONE_COLORS[3]!,
+  vo2max: ZONE_COLORS[4]!,
+  anaerobic: ZONE_COLORS[5]!,
+};
+
+/** Durée lisible : « 45 min », « 1 h 05 ». */
+const fmtWkDur = (s: number) => {
+  const min = Math.round(s / 60);
+  return min >= 60 ? `${Math.floor(min / 60)} h ${String(min % 60).padStart(2, '0')}` : `${min} min`;
+};
+
 /**
- * Carte d'une séance : nom, durée, description, profil des paliers (hauteur = % de FTP, couleur = zone),
- * puis durée, TSS et IF estimés (puissance normalisée calculée sur les paliers).
+ * Carte d'une séance : nom et durée, type (couleur de sa zone), TSS et IF estimés (puissance normalisée
+ * calculée sur les paliers), description, puis profil des paliers (hauteur = % de FTP, couleur = zone,
+ * ligne FTP repérée). L'échelle est la même pour toutes les cartes (0 à 160 % de FTP) : on compare d'un coup d'œil.
  */
 function workoutCard(w: (typeof WORKOUT_LIBRARY)[number], on: boolean, opens?: string, fav?: boolean): string {
   const lang = getLang();
   const steps = w.build().steps;
   const total = steps.reduce((a, st) => a + st.durationS, 0) || 1;
-  const H = 40;
+  const H = 56;
   const W = 300;
-  const y = (p: number) => (H - (Math.min(p, 1.6) / 1.6) * (H - 2)).toFixed(1);
+  const PMAX = 1.6;
+  const y = (p: number) => (H - (Math.min(p, PMAX) / PMAX) * (H - 2)).toFixed(1);
+  // Effort « à fond » (sprint) : dessiné et compté à 150 % de FTP, faute de cible.
+  const powerOf = (st: WorkoutStep, p: number) => (st.mode === 'max' ? 1.5 : p);
   let t = 0;
   let p4 = 0;
-  let peak = 0;
-  // Paliers voisins de la même zone : une seule forme (pas de couture ton sur ton) ; 2 px d'écart
+  // Paliers voisins de la même zone : une seule forme (pas de couture ton sur ton) ; 1 px d'écart
   // entre deux zones différentes, pour que chaque bloc se lise.
   const runs: Array<{ color: string; pts: Array<[number, number]> }> = [];
   for (const st of steps) {
     const x0 = (t / total) * W;
     const x1 = ((t + st.durationS) / total) * W;
     t += st.durationS;
-    const mid = (st.powerStart + st.powerEnd) / 2;
+    const a = powerOf(st, st.powerStart);
+    const b = powerOf(st, st.powerEnd);
+    const mid = (a + b) / 2;
     p4 += mid ** 4 * st.durationS;
-    peak = Math.max(peak, st.powerStart, st.powerEnd);
     const color = zoneColorOf(mid);
     const last = runs.at(-1);
-    if (last && last.color === color) last.pts.push([x0, st.powerStart], [x1, st.powerEnd]);
-    else runs.push({ color, pts: [[x0, st.powerStart], [x1, st.powerEnd]] });
+    if (last && last.color === color) last.pts.push([x0, a], [x1, b]);
+    else runs.push({ color, pts: [[x0, a], [x1, b]] });
   }
   const GAP = 1;
-  const shapes = runs
-    .map((r, i) => {
-      const pts = r.pts.map(([x, p]) => [x, p] as [number, number]);
-      if (i > 0) pts[0]![0] += GAP;
-      if (i < runs.length - 1) pts[pts.length - 1]![0] -= GAP;
-      const top = pts.map(([x, p]) => `${x.toFixed(1)},${y(p)}`).join(' ');
-      return `<polygon points="${pts[0]![0].toFixed(1)},${H} ${top} ${pts[pts.length - 1]![0].toFixed(1)},${H}" fill="${r.color}"/>`;
-    })
-    .join('');
+  // Effort très court (sprint de 15 s sur 45 min) : 3 unités de large au moins, dessiné par-dessus ses voisins.
+  const MIN_W = 3;
+  const wide: string[] = [];
+  const narrow: string[] = [];
+  runs.forEach((r, i) => {
+    const pts = r.pts.map(([x, p]) => [x, p] as [number, number]);
+    if (i > 0) pts[0]![0] += GAP;
+    if (i < runs.length - 1) pts[pts.length - 1]![0] -= GAP;
+    const x0 = pts[0]![0];
+    const x1 = pts[pts.length - 1]![0];
+    const thin = x1 - x0 < MIN_W;
+    if (thin) {
+      const c = (x0 + x1) / 2;
+      pts[0]![0] = c - MIN_W / 2;
+      pts[pts.length - 1]![0] = c + MIN_W / 2;
+    }
+    const top = pts.map(([x, p]) => `${x.toFixed(1)},${y(p)}`).join(' ');
+    (thin ? narrow : wide).push(`<polygon points="${pts[0]![0].toFixed(1)},${H} ${top} ${pts[pts.length - 1]![0].toFixed(1)},${H}" fill="${r.color}"/>`);
+  });
+  const shapes = wide.join('') + narrow.join('');
   const ifv = (p4 / total) ** 0.25;
   const tss = Math.round((total / 3600) * ifv * ifv * 100);
-  const min = Math.round(total / 60);
-  const dur = min >= 60 ? `${Math.floor(min / 60)} h ${String(min % 60).padStart(2, '0')}` : `${min} min`;
-  return `<button class="mm-wk ${on ? 'on' : ''}" ${opens ? `data-picker="${opens}"` : `data-preset="${w.id}"`} style="--wk:${zoneColorOf(peak)}">
-    <span class="mm-wk-head"><b>${esc(w.name[lang])}</b><em>${dur}</em>${fav === undefined ? '' : `<span class="mm-wk-fav${fav ? ' on' : ''}" data-fav="${w.id}" role="button" tabindex="0" aria-pressed="${fav}" title="${lang === 'fr' ? (fav ? 'Retirer des favoris' : 'Ajouter aux favoris') : fav ? 'Remove from favourites' : 'Add to favourites'}">${fav ? '★' : '☆'}</span>`}</span>
+  const dur = fmtWkDur(total);
+  const ftpPct = (((1 / PMAX) * (H - 2)) / H) * 100;
+  const L = lang === 'fr';
+  const favHtml =
+    fav === undefined
+      ? ''
+      : `<span class="mm-wk-fav${fav ? ' on' : ''}" data-fav="${w.id}" role="button" tabindex="0" aria-pressed="${fav}" title="${L ? (fav ? 'Retirer des favoris' : 'Ajouter aux favoris') : fav ? 'Remove from favourites' : 'Add to favourites'}">${fav ? '★' : '☆'}</span>`;
+  return `<button class="mm-wk${on ? ' on' : ''}" ${opens ? `data-picker="${opens}"` : `data-preset="${w.id}"`} style="--wk:${TYPE_COLORS[w.type]}">
+    <span class="mm-wk-head"><b>${esc(w.name[lang])}</b><em>${dur}</em>${favHtml}</span>
+    <span class="mm-wk-meta"><span class="mm-wk-type">${WORKOUT_TYPE_LABELS[w.type][lang]}</span><span class="mm-wk-stat"><small>TSS</small>${tss}</span><span class="mm-wk-stat"><small>IF</small>${ifv.toFixed(2).replace('.', L ? ',' : '.')}</span>${on && !opens ? `<span class="mm-wk-chosen">✓ ${L ? 'Choisie' : 'Selected'}</span>` : ''}</span>
     <span class="mm-wk-desc">${esc(w.description[lang])}</span>
-    <svg class="mm-wk-prof" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true"><line x1="0" x2="${W}" y1="${y(1)}" y2="${y(1)}"/>${shapes}</svg>
-    <span class="mm-wk-stats">${dur} · TSS ${tss} · IF ${ifv.toFixed(2).replace('.', lang === 'fr' ? ',' : '.')}</span>
+    <span class="mm-wk-graph" aria-hidden="true"><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">${shapes}</svg><i class="mm-wk-ftp" style="bottom:${ftpPct.toFixed(1)}%"><span>FTP</span></i></span>
   </button>`;
 }
 
@@ -355,6 +392,8 @@ export class MainMenu {
   private workoutFile: { name: string; content: string } | undefined;
   /** Filtre de la fenêtre des séances : un type, « mes séances » (importées), ou tout. */
   private wkFilter: WorkoutType | 'mine' | '' = '';
+  /** Filtre de la fenêtre des séances au dernier rendu (null : fenêtre fermée), pour garder son défilement. */
+  private wkScrollKey: string | null = null;
   /** Séances importées, gardées dans l'historique (rechargées à l'ouverture de la fenêtre). */
   private myWorkouts: LocalWorkout[] = [];
   /** Séances favorites (identifiants de la bibliothèque ou `mine:…`), listées dans « Mes séances ». */
@@ -928,6 +967,10 @@ export class MainMenu {
     const key = `${this.tab}/${this.garageSlot}/${this.bikeFilter}/${this.bikeType}`;
     const scroll = key === this.panelKey ? ((this.root.querySelector('.gr-body') ?? this.root.querySelector('.mm-side'))?.scrollTop ?? 0) : 0;
     this.panelKey = key;
+    // Fenêtre des séances : même défilement après une étoile ; à l'ouverture, la séance choisie en vue.
+    const wkKey = this.picker === 'workouts' ? this.wkFilter : null;
+    const wkScroll = wkKey !== null && wkKey === this.wkScrollKey ? (this.root.querySelector('.mm-wks-grid')?.scrollTop ?? 0) : null;
+    this.wkScrollKey = wkKey;
     // Arrivée dans le garage : le panneau glisse en place une seule fois (pas à chaque nouveau rendu).
     const enter = this.tab === 'garage' && !this.garageEntered;
     this.garageEntered = this.tab === 'garage';
@@ -956,6 +999,9 @@ export class MainMenu {
     if (this.tab === 'devices') this.renderDevices();
     const side = this.root.querySelector('.gr-body') ?? this.root.querySelector('.mm-side');
     if (side) side.scrollTop = scroll;
+    const wks = this.root.querySelector<HTMLElement>('.mm-wks-grid');
+    const wkOn = wks?.querySelector<HTMLElement>('.mm-wk.on');
+    if (wks) wks.scrollTop = wkScroll ?? (wkOn ? wkOn.offsetTop - (wks.clientHeight - wkOn.offsetHeight) / 2 : 0);
     this.renderStatus();
     this.renderMusic();
     renderSoundSettings(this.root.querySelector('#m-sound-settings'));
@@ -1100,7 +1146,12 @@ export class MainMenu {
       <div class="mm-dialog mm-picker wk-dialog" role="dialog" aria-modal="true">
         <header><h2>${L ? 'Choisis ta séance' : 'Choose your workout'}</h2><button class="mm-x" data-picker-close aria-label="${L ? 'Fermer' : 'Close'}">×</button></header>
         <div class="wk-filter">${(['', ...WORKOUT_TYPES, 'mine'] as Array<WorkoutType | 'mine' | ''>)
-          .map((f) => `<button class="hp-chip${f === this.wkFilter ? ' on' : ''}" data-wkfilter="${f}">${f === '' ? (L ? 'Toutes' : 'All') : f === 'mine' ? `★ ${L ? 'Mes séances' : 'My workouts'}${this.favWorkouts.size + this.myWorkouts.length ? ` <small>${this.favWorkouts.size + this.myWorkouts.length}</small>` : ''}` : WORKOUT_TYPE_LABELS[f][L ? 'fr' : 'en']}</button>`)
+          .map((f) => {
+            const n = f === '' ? WORKOUT_LIBRARY.length : f === 'mine' ? this.favWorkouts.size + this.myWorkouts.length : WORKOUT_LIBRARY.filter((w) => w.type === f).length;
+            const label = f === '' ? (L ? 'Toutes' : 'All') : f === 'mine' ? `★ ${L ? 'Mes séances' : 'My workouts'}` : WORKOUT_TYPE_LABELS[f][L ? 'fr' : 'en'];
+            const dot = f && f !== 'mine' ? `<i style="background:${TYPE_COLORS[f]}"></i>` : '';
+            return `<button class="wk-chip${f === this.wkFilter ? ' on' : ''}" data-wkfilter="${f}">${dot}${label}${n ? ` <small>${n}</small>` : ''}</button>`;
+          })
           .join('')}</div>
         <div class="mm-wks mm-wks-grid">${
           this.wkFilter === 'mine'
@@ -1113,8 +1164,14 @@ export class MainMenu {
                   ...mine.map((w) => workoutCard(w, this.workoutFile?.name === `${w.name.fr}.json`, undefined, this.favWorkouts.has(w.id))),
                 ].join('');
               })()
-            : WORKOUT_LIBRARY.filter((w) => !this.wkFilter || w.type === this.wkFilter)
-                .map((w) => workoutCard(w, !this.workoutFile && w.id === this.s.workoutPreset, undefined, this.favWorkouts.has(w.id)))
+            : // Toutes : rangées par type, de la plus facile à la plus dure, chaque type sous son titre.
+              (this.wkFilter ? [this.wkFilter] : WORKOUT_TYPES)
+                .map((type) => {
+                  const list = WORKOUT_LIBRARY.filter((w) => w.type === type);
+                  if (!list.length) return '';
+                  const head = this.wkFilter ? '' : `<h3 class="wk-sec" style="--wk:${TYPE_COLORS[type]}">${WORKOUT_TYPE_LABELS[type][L ? 'fr' : 'en']}<small>${list.length}</small></h3>`;
+                  return head + list.map((w) => workoutCard(w, !this.workoutFile && w.id === this.s.workoutPreset, undefined, this.favWorkouts.has(w.id))).join('');
+                })
                 .join('')
         }</div>
         <label class="mm-file">${L ? 'Ou importer une séance' : 'Or import a workout'} (.zwo / .erg / .mrc)<input id="m-workout" type="file" accept=".zwo,.erg,.mrc" hidden /><span id="m-wname">${this.workoutFile ? esc(this.workoutFile.name) : ''}</span></label>
