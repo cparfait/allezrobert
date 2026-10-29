@@ -2494,13 +2494,14 @@ export class MainMenu {
     const tick = () => {
       const dl = this.downloads.get(id);
       if (dl?.error) {
-        bar.style.width = '0%';
-        label.textContent = `${L ? 'Échec du téléchargement' : 'Download failed'} : ${dl.error}`;
-        const retry = el.querySelector('button');
-        if (retry) {
-          retry.textContent = L ? 'Fermer' : 'Close';
-        }
         clearInterval(timer);
+        // Échec : Robert bras croisés, ce qui s'est passé en clair, l'astuce de l'appli, puis « Fermer ».
+        const missing = /pas publiée|introuvable/.test(dl.error);
+        const why = missing
+          ? L ? 'Cette zone n’est pas encore publiée sur ce serveur.' : 'This area is not published on this server yet.'
+          : L ? 'Le téléchargement s’est interrompu. Vérifie ta connexion, puis réessaie.' : 'The download was interrupted. Check your connection and try again.';
+        el.innerHTML = `<div class="world-wait-box zone-dl-err"><img class="world-wait-bike" src="/robert-attente.png" alt="" /><h3>${L ? 'Zone indisponible' : 'Area unavailable'}</h3><p>${why}</p>${tip ? `<small class="world-wait-tip">${tip}</small>` : ''}<button class="btn primary" style="margin-top:16px">${L ? 'Fermer' : 'Close'}</button></div>`;
+        el.querySelector('button')?.addEventListener('click', () => el.remove());
         return;
       }
       if (!dl) {

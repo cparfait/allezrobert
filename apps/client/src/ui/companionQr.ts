@@ -168,11 +168,12 @@ export class CompanionQr {
     this.el.innerHTML = `<div class="cmp-card panel" role="dialog" aria-label="${fr ? 'Appli compagnon' : 'Companion app'}">
       <button class="cmp-x" data-act="close" aria-label="${fr ? 'Fermer' : 'Close'}">×</button>
       <span class="cmp-badge">${phoneIcon(26)}</span>
-      <b>${this.prestart ? (fr ? 'Avant de partir : l’appli compagnon' : 'Before you go: the companion app') : fr ? 'Appli compagnon' : 'Companion app'}</b>
-      <p>${fr ? 'Scanne ce code avec l’appareil photo de ton téléphone : compteur, vitesses, carrefours, musique et chat dans ta main. Sans compte.' : 'Scan this code with your phone camera: bike computer, gears, turns, music and chat in your hand. No account needed.'}</p>
+      <b>${this.prestart ? (fr ? 'Avant de partir' : 'Before you go') : fr ? 'Appli compagnon' : 'Companion app'}</b>
+      <h2>${fr ? 'Pilote ta sortie depuis ton téléphone' : 'Control your ride from your phone'}</h2>
+      <ul class="cmp-feats">${(fr ? ['Compteur', 'Vitesses', 'Carrefours', 'Musique', 'Chat'] : ['Computer', 'Gears', 'Junctions', 'Music', 'Chat']).map((f) => `<li>${f}</li>`).join('')}</ul>
       <div class="cmp-code ${done ? 'done' : ''}">${this.svg}${done ? '<span>✓</span>' : ''}</div>
+      <p class="cmp-how">${fr ? 'Ouvre l’appareil photo de ton téléphone et vise ce code.<br>Aucun compte à créer.' : 'Open your phone camera and point it at this code.<br>No account needed.'}</p>
       <p class="cmp-state">${statusHtml(this.link)}</p>
-      <a class="cmp-url" href="${this.url}" target="_blank" rel="noopener">${this.url.replace(/^https?:\/\//, '').replace(/pair=[^&]+/, 'pair=…')}</a>
       <div class="cmp-row">
         ${
           this.prestart
@@ -182,7 +183,6 @@ export class CompanionQr {
               : `<button class="btn" data-act="new">${fr ? 'Nouveau code' : 'New code'}</button>`
         }
       </div>
-      <small class="cmp-hint">${fr ? '<kbd>Q</kbd> affiche ce code à tout moment · aussi dans la pause et les Réglages' : '<kbd>Q</kbd> shows this code any time · also in pause and Settings'}</small>
     </div>`;
   }
 }
