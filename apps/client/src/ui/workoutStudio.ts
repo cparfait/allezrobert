@@ -159,6 +159,7 @@ export function workoutStudioHtml(ctx: StudioCtx): string {
           })
           .join('');
 
+  let actions = '';
   let detail = `<p class="ws-empty">${fr ? 'Choisis une séance dans la liste.' : 'Pick a workout from the list.'}</p>`;
   if (selected) {
     const p = profileOf(selected, zoneIndex);
@@ -188,14 +189,14 @@ export function workoutStudioHtml(ctx: StudioCtx): string {
         <div class="ws-chart"><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">${grid.replace(/<text/g, '<text')}<g class="shapes">${shapes(p.steps, p.total, W, H, ctx.zoneColor, 1.5)}</g></svg><div class="ws-ticks">${ticks.join('')}</div></div>
         <div class="ws-zones" title="${fr ? 'Temps par zone' : 'Time in zone'}">${zoneBar}</div>
         <ol class="ws-steps">${stepRows(p, ctx)}</ol>
-        <div class="ws-actions"><button class="ws-go" data-preset="${esc(selected.id)}">${isCur ? (fr ? '✓ Séance choisie' : '✓ Chosen') : fr ? 'Choisir cette séance' : 'Choose this workout'}</button></div>
       </div>`;
+    actions = `<div class="ws-actions"><button class="ws-go" data-preset="${esc(selected.id)}">${isCur ? (fr ? '✓ Séance choisie' : '✓ Chosen') : fr ? 'Choisir cette séance' : 'Choose this workout'}</button></div>`;
   }
 
   return `<div class="ws-top"><div class="ws-tiles">${tiles}</div></div>
     <div class="ws-body">
       <div class="ws-list mm-wks-grid">${list}</div>
-      <section class="ws-detail">${detail}</section>
+      <section class="ws-detail"><div class="ws-scroll">${detail}</div>${actions}</section>
     </div>`;
 }
 

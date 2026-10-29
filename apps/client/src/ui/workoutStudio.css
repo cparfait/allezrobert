@@ -65,3 +65,9 @@
 .ws-hero header { display: block; margin: 0; padding: 0; }
 .ws-hero header .ws-type { margin-bottom: 2px; }
 .ws-actions { position: sticky; bottom: -2px; z-index: 3; padding: 10px 0 2px; background: linear-gradient(180deg, transparent, rgba(16, 22, 34, 0.96) 38%); }
+
+/* Fiche : le contenu défile, le bouton de choix reste fixe en bas du bloc. */
+.ws-detail { display: flex; flex-direction: column; overflow: hidden; padding-right: 0; }
+.ws-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding-right: 4px; }
+.ws-detail > .ws-actions { flex: none; position: static; padding: 12px 4px 0; background: none; border-top: 1px solid rgba(255, 255, 255, 0.12); margin-top: 10px; }
+.ws-detail .ws-go { width: 100%; }
