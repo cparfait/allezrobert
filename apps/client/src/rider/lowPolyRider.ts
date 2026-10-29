@@ -159,6 +159,8 @@ function merged(parts: THREE.BufferGeometry[], material: THREE.Material): THREE.
     parts.map((p) => {
       const n = p.index ? p.toNonIndexed() : p;
       for (const k of Object.keys(n.attributes)) if (k !== 'position' && k !== 'normal') n.deleteAttribute(k);
+      // headShell n'a pas de normales : sans elles la fusion avec un tube (queue de cheval) échoue.
+      if (!n.getAttribute('normal')) n.computeVertexNormals();
       return n;
     }),
     false,
