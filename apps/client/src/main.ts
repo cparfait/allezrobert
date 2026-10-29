@@ -1280,8 +1280,13 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   announcer.preload(['welcome', 'go', 'komStart', 'sprintStart', 'time', 'summit', 'sprintLine', 'allez', 'allezRobert', 'vasy']);
   /** Meilleur temps de chaque segment sur cet itinéraire (voix : record battu ou écart). */
   const segBestKey = (id: string) => `ar.segbest.${rankRouteId(track.route.id)}.${id}`;
-  const voiceFlags = { start: false };
-  // Voix et cris du public : seulement en course, au départ et à l'arrivée (ni sorties libres, ni séances, ni segments).
+  const voiceFlags = { start: false, half: false, lastKm: false };
+  ride.onSegmentStart = (seg) => {
+    if (seg.kind === 'kom') void announcer.say([Math.random() < 0.5 ? 'komStart' : 'komStart2']);
+    else if (seg.kind === 'sprint') void announcer.say([Math.random() < 0.5 ? 'sprintStart' : 'sprintStart2']);
+  };
+  // Speaker de départ et d'arrivée et cris du public : seulement en course (au départ et à l'arrivée). Les annonces
+  // de segments, de mi-parcours, du dernier kilomètre et de tour restent dans tous les modes.
   const raceVoice = s.mode === 'race';
   /** Public audible : au départ (quarante premières secondes) et à l'approche de la ligne d'arrivée. */
   const raceCrowd = (distM: number): number => {
@@ -1313,6 +1318,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     if (r.seg.kind === 'kom' || r.seg.kind === 'sprint') {
       const prev = Number(localStorage.getItem(segBestKey(r.seg.id)) ?? NaN);
       const record = Number.isFinite(prev) && prev > 0 ? prev : readKomRecord(rankRouteId(track.route.id), r.seg.id)?.timeS ?? null;
+      announcer.segmentResult(r.seg.kind, r.timeS, record);
       if (!s.guest && (record === null || r.timeS < record)) localStorage.setItem(segBestKey(r.seg.id), String(r.timeS));
     }
     // Séquence HyperFrames (KOM / sprint) ; toast texte si les séquences sont coupées.
@@ -1483,6 +1489,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   };
   ride.onLap = (lap) => {
     const done = routeTimer.lap(ride.elapsedS);
+    void announcer.say(['lap'], 'pa');
     const fr = getLang() === 'fr';
     hud.toast(done ? `${t('lap')} ${lap - 1} · ${fmtLapTime(done.timeS)}${done.best ? (fr ? ' · meilleur tour' : ' · best lap') : ''}` : `${t('lap')} ${lap}`);
     ghost.lap(ride.elapsedS, ride.state.distM);
@@ -2093,6 +2100,18 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
       if (!voiceFlags.start && ride.elapsedS > 1.5) {
         voiceFlags.start = true;
         if (raceVoice) void announcer.say(['welcome', 'go'], 'pa');
+      }
+      const routeLen = track.length;
+      if (!track.route.loop && !nav && routeLen > 4000 && ride.dir > 0) {
+        const at = ride.state.distM;
+        if (!voiceFlags.half && at > routeLen / 2 && at < routeLen / 2 + 200) {
+          voiceFlags.half = true;
+          void announcer.say(['halfway'], 'plain', true);
+        }
+        if (!voiceFlags.lastKm && at > routeLen - 1000 && at < routeLen - 800) {
+          voiceFlags.lastKm = true;
+          void announcer.say(['lastKm'], 'pa', true);
+        }
       }
       announcer.crowd(raceCrowd(track.wrap(ride.state.distM)), ride.pose === 'standing');
     }
