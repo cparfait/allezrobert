@@ -17,6 +17,9 @@ type Vec3Node = THREE.Node<'vec3'>;
 export const JERSEY_PATTERNS = ['pois', 'manches', 'moitie', 'degrade', 'chevrons'] as const;
 
 const BANDS_CENTER = 0.645;
+/** Poches arrière : demi-largeur de l'ensemble des trois poches et hauteur au-dessus de l'ourlet (m). */
+const POCKET_HALF_W = 0.15;
+const POCKET_TOP = 0.17;
 const BANDS_TOTAL = 0.225;
 const BAND_MAX = 0.07;
 const MAX_BANDS = 5;
@@ -537,12 +540,27 @@ export function jerseyPattern(look: AvatarLook, opt: { sleeveX: number; torsoLen
   const inBand = step(0, rel).mul(step(rel, nBands)).mul(step(abs(jp.x), opt.sleeveX));
   let band: Vec3Node = bandColors[0]!.node as Vec3Node;
   for (let i = 1; i < MAX_BANDS; i++) band = mix(band, bandColors[i]!.node, step(i, idx));
+  // Poches arrière : trois poches au bas du dos (de l'ourlet à POCKET_TOP), coutures verticales, ouverture
+  // sombre en haut avec l'ombre de l'intérieur juste dessous, tissu de la poche un peu plus sombre.
+  const onBack = smoothstep(0.15, 0.4, jn.z.negate());
+  const ax = abs(jp.x);
+  const inPocket = step(ax, POCKET_HALF_W).mul(step(0.004, jp.y)).mul(step(jp.y, POCKET_TOP)).mul(onBack);
+  const line = (d: THREE.Node<'float'>, w: number) => {
+    const aa = fwidth(d).add(1e-4);
+    return float(1).sub(smoothstep(float(w).sub(aa), float(w).add(aa), d));
+  };
+  const seams = max(line(abs(ax.sub(POCKET_HALF_W / 3)), 0.0025), line(abs(ax.sub(POCKET_HALF_W)), 0.0025));
+  const opening = line(abs(jp.y.sub(POCKET_TOP)), 0.004);
+  const inner = smoothstep(POCKET_TOP - 0.02, POCKET_TOP, jp.y);
+  const pocket = float(1).sub(
+    inPocket.mul(0.07).add(inPocket.mul(inner).mul(0.12)).add(seams.mul(inPocket).mul(0.3)).add(opening.mul(step(ax, POCKET_HALF_W)).mul(onBack).mul(0.55)),
+  );
   return {
     color: (base, shade = 1) => {
       const w = clamp(flag(1).mul(dots).add(flag(2).mul(sleeve)).add(flag(3).mul(half)).add(flag(4).mul(grad)).add(flag(5).mul(chev)), 0, 1);
       const c = mix(base, accent.node.mul(shade), w);
       const d = opt.bands ? mix(c, band, inBand) : c;
-      return mix(d, logoRgb, logoAlpha);
+      return mix(d, logoRgb, logoAlpha).mul(pocket);
     },
     set: (l) => {
       const lg0 = l.jerseyLogo;

@@ -69,6 +69,9 @@ export interface SkinLook {
   freckles: number;
 }
 
+/** Couleur du cuissard (matériau « shorts » de gltfAvatar.ts), en linéaire. */
+const SHORTS_LINEAR = new THREE.Color('#15171c');
+
 export class SkinMaterial {
   readonly material: THREE.MeshSSSNodeMaterial;
   private readonly tone: ColorUniform;
@@ -131,7 +134,8 @@ export class SkinMaterial {
     // en s'éloignant de l'articulation (u = 1), un peu plus claires que le tissu.
     const kneeZone = exp(u.sub(1).div(0.14).pow(2).negate());
     const creases = abs(sin(u.mul(95).add(sin(uv().x.mul(40)).mul(0.6)))).pow(5).mul(kneeZone);
-    const suitCol = vec3(0.0052, 0.0059, 0.0078).add(creases.mul(0.012));
+    // Même lycra que le cuissard court (matériau « shorts » de gltfAvatar.ts, #15171c) : pas de raccord visible.
+    const suitCol = vec3(SHORTS_LINEAR.r, SHORTS_LINEAR.g, SHORTS_LINEAR.b).add(creases.mul(0.012));
     const legCol = suit && sock ? mix(suitCol, this.sockColor.node, sock) : sock ? this.sockColor.node : suitCol;
     const clothCol0 = this.sleeve && sleeveCover && legCover ? mix(legCol, this.sleeve.color, sleeveCover) : this.sleeve ? this.sleeve.color : legCol;
     const clothCol = glove ? mix(clothCol0, this.gloveColor.node, glove) : clothCol0;
@@ -139,7 +143,8 @@ export class SkinMaterial {
     m.colorNode = col;
     // Sueur : peau plus brillante sur les mêmes zones (et un peu partout).
     const skinRough = mix(float(0.62), float(0.3), k.r.mul(0.7).add(0.3).mul(this.sweat));
-    m.roughnessNode = cover ? mix(skinRough, float(legCover ? 0.85 : 0.65), cover) : skinRough;
+    // Cuissard long : rugosité du tissu du cuissard (cloth.ts : 0,8).
+    m.roughnessNode = cover ? mix(skinRough, float(legCover ? 0.8 : 0.65), cover) : skinRough;
     // Grain : pores et ridules (mosaïque de ~4 cm), plus marqués sur la peau âgée.
     if (tex.detail) {
       const grain = vec3(0.35).add(this.age.mul(0.2)).xy;
@@ -154,9 +159,12 @@ export class SkinMaterial {
     m.thicknessScaleNode = float(1.2);
     // Duvet : voile clair et doux en lumière rasante.
     // Manche, chaussette : reflet de lycra du tissu (cloth.ts) à la place du duvet de la peau.
-    m.sheenNode = cover ? mix(vec3(0.07, 0.06, 0.055), mix(clothCol, vec3(1), 0.25).mul(legCover ? mix(float(0.35), float(0.1), legCover) : 0.35), cover) : vec3(0.07, 0.06, 0.055);
+    // (cuissard long : reflet du lycra du cuissard, cloth.ts : 0,12)
+    m.sheenNode = cover ? mix(vec3(0.07, 0.06, 0.055), mix(clothCol, vec3(1), 0.25).mul(legCover ? mix(float(0.35), float(0.12), legCover) : 0.35), cover) : vec3(0.07, 0.06, 0.055);
     m.sheenRoughnessNode = float(0.6);
     m.specularIntensity = 0.7;
+    // Tissu peint sur la peau : reflet spéculaire du tissu (cloth.ts : 0,2 au cuissard, 0,35 ailleurs), pas celui de la peau.
+    if (cover) m.specularIntensityNode = mix(float(0.7), float(legCover ? 0.2 : 0.35), cover);
     this.material = m;
     this.setLook(look);
     if (avatar) this.setJersey(avatar);
