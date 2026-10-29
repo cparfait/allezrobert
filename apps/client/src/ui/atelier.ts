@@ -30,6 +30,8 @@ export interface AtelierState {
   trainer?: string;
   /** Rotation de la vue autour du vélo (rad). */
   yaw: number;
+  /** Distance de la caméra (molette) : 1 = cadrage normal, moins = plus près. */
+  zoom?: number;
   /** Matériaux à faire briller brièvement (pièce qui vient d'être changée). */
   pulse?: readonly string[];
   /** Tête nue (éditeur de visage : casque retiré le temps de l'aperçu). */
@@ -653,6 +655,7 @@ export class AtelierHost {
       const back = 1.08;
       this.goalPos.sub(this.goalLook).multiplyScalar(back).add(this.goalLook);
     }
+    if (st.zoom && st.zoom !== 1) this.goalPos.sub(this.goalLook).multiplyScalar(st.zoom).add(this.goalLook);
     this.goalFov = shot.fov;
   }
 

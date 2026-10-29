@@ -854,11 +854,11 @@ async function boot(): Promise<void> {
     st.view = { cam: [cam[0] * fit, cam[1], cam[2] * fit], look: st.view!.look, fov: fit < 1 ? (2 * Math.atan(Math.tan((v.fov * Math.PI) / 360) / fit) * 180) / Math.PI : v.fov };
     whenAtelierReady(() => !!garage && (atelier.set(st), true));
   };
-  menu.onScene = (view, yaw, bikeOnly) => {
+  menu.onScene = (view, yaw, bikeOnly, zoom) => {
     if (!inMenu || exploring) return;
     if (view !== 'poster') {
       menuVideo.stop();
-      garage = { view, yaw, ...(bikeOnly ? { bikeOnly } : {}) };
+      garage = { view, yaw, ...(zoom && zoom !== 1 ? { far: zoom } : {}), ...(bikeOnly ? { bikeOnly } : {}) };
       return showGarage(garageLook ?? menu.currentLook());
     }
     garage = null;

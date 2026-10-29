@@ -804,3 +804,14 @@
 .zone-dl-err .world-wait-tip { margin-top: 14px; padding: 10px 12px; border-radius: 12px; background: rgba(255, 255, 255, 0.06); font-size: 12.5px; }
 .zone-dl-err .world-wait-tip a { font-weight: 700; white-space: nowrap; }
 .mm-dd-opt.hl { background: rgba(255, 210, 63, 0.16); color: #fff; box-shadow: inset 0 0 0 1px rgba(255, 210, 63, 0.5); }
+
+/* Garage : la grille a des colonnes implicites (panneau à droite) ; la barre du haut et le pied couvrent toute la largeur. */
+.mm-tab-garage .mm-top, .mm-tab-garage .mm-foot { grid-column: 1 / span 3; }
+
+/* Garage : menu de droite réductible (vue plus large) ; « ‹ Menu » le rouvre. */
+.gr-fold { appearance: none; width: 30px; height: 30px; border-radius: 50%; border: 0; background: rgba(255, 255, 255, 0.1); color: #fff; font-size: 18px; line-height: 28px; padding: 0; cursor: pointer; flex: none; }
+.gr-fold:hover { background: rgba(255, 255, 255, 0.2); }
+.gr-panel.gr-folded { display: none; }
+.gr-reopen { grid-row: 2; align-self: start; justify-self: end; margin: 14px 18px 0 0; z-index: 3; appearance: none; border: 0; border-radius: 999px; padding: 9px 16px; background: var(--mm-glass); color: var(--ar-fg); font: 700 13px var(--font, inherit); cursor: pointer; box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35); backdrop-filter: blur(10px); }
+.gr-reopen[hidden] { display: none; }
+.gr-reopen:hover { background: rgba(255, 210, 63, 0.9); color: #0a0e16; }

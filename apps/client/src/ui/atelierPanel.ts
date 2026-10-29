@@ -161,6 +161,8 @@ export class AtelierPanel {
   private hover: string | null = null;
   rider = false;
   yaw = 0;
+  /** Distance de la caméra (molette), bornée par le menu. */
+  zoom = 1;
   private msg = '';
   private readonly s: Settings;
   private readonly host: AtelierPanelHost;
@@ -224,7 +226,7 @@ export class AtelierPanel {
   /** Envoie l'état 3D (pièce essayée, cadrage, surbrillance). */
   emit(pulse?: readonly string[]): void {
     const look = this.lookWith(this.trial(this.hover ?? this.selected));
-    this.host.scene({ look, focus: this.focus(), rider: this.rider, yaw: this.yaw, ...(pulse ? { pulse } : {}) });
+    this.host.scene({ look, focus: this.focus(), rider: this.rider, yaw: this.yaw, zoom: this.zoom, ...(pulse ? { pulse } : {}) });
   }
 
   /** Sortie de l'atelier : la pièce sélectionnée le reste (de nouveau essayée au retour). */

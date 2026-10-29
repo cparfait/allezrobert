@@ -263,6 +263,10 @@ const WEATHER_PRESETS: Array<[string, { clouds: number; rain: number; fog: numbe
 /** Forces de vent proposées (m/s) : calme, léger (≈ 11 km/h), moyen (≈ 22 km/h), fort (≈ 36 km/h). */
 const WIND_STEPS = [0, 3, 6, 10];
 
+/** Zoom du garage à la molette : limites de la distance de la caméra (1 = cadrage normal). */
+const ZOOM_MIN = 0.6;
+const ZOOM_MAX = 1.6;
+
 /** Gros plan du garage selon la catégorie choisie. */
 const SLOT_VIEW: Record<CosmeticSlot, GarageView> = { jersey: '3q', helmet: 'front', bike: 'side', socks: 'shoes', glasses: 'front', trainer: 'trainer' };
 
@@ -424,6 +428,8 @@ export class MainMenu {
   });
   private tab: Tab = 'ride';
   private garageSlot: GarageSlot = 'jersey';
+  /** Menu du garage réduit (vue plus large). */
+  private grFolded = false;
   /** Le garage est déjà ouvert (animation d'arrivée jouée). */
   private garageEntered = false;
   /** Atelier (pièces du vélo, ensembles, crédits) : panneau et état de la scène 3D. */
@@ -445,6 +451,8 @@ export class MainMenu {
   private panelKey = '';
   private view: GarageView = '3q';
   private yaw = 0;
+  /** Distance de la caméra du garage (molette) : 1 = cadrage normal. */
+  private zoom = 1;
   private readonly onKey = (e: KeyboardEvent) => {
     if (this.picker && e.key === 'Escape') {
       e.preventDefault();
@@ -491,7 +499,7 @@ export class MainMenu {
     return this.tab === 'garage' && this.garageSlot === 'face' && this.bareHead;
   }
   /** Cadrage 3D demandé par le menu : photo du groupe ou vue du garage (rotation en radians). */
-  onScene?: (view: 'poster' | GarageView, yaw: number, bikeOnly?: boolean) => void;
+  onScene?: (view: 'poster' | GarageView, yaw: number, bikeOnly?: boolean, zoom?: number) => void;
   /** Aperçu d'un équipement (même verrouillé) sur le coureur du garage ; null : tenue équipée. */
   onPreviewLook?: (look: AvatarLook | null) => void;
   /** Carte du choix (sous « Choisir ma sortie ») : seulement après un choix fait dans ce menu. */
@@ -770,7 +778,7 @@ export class MainMenu {
     // Garage resté sur l'atelier : sa pièce 3D ; sinon la photo ou le coureur du garage.
     if (tab === 'garage' && this.garageSlot === 'atelier') return this.atelier.emit();
     if (this.garageSlot === 'atelier') this.atelier.leave();
-    this.onScene?.(tab === 'garage' ? this.view : 'poster', tab === 'garage' ? this.yaw : 0, tab === 'garage' && this.garageSlot === 'bike');
+    this.onScene?.(tab === 'garage' ? this.view : 'poster', tab === 'garage' ? this.yaw : 0, tab === 'garage' && this.garageSlot === 'bike', this.zoom);
   }
 
   /** Croix de fermeture d'un panneau (retour à l'onglet Rouler, comme Échap). */
@@ -1830,7 +1838,8 @@ export class MainMenu {
       <div class="mm-views">${views.map(([v, label]) => `<button class="mm-view ${v === this.view ? 'on' : ''}" data-view="${v}">${label}</button>`).join('')}
         <span class="mm-drag">${ICON.rotate} ${L ? 'Glisser pour tourner' : 'Drag to rotate'}</span></div>
       ${this.garageSlot === 'face' ? '' : this.roadEffect()}
-      <section class="mm-panel mm-side gr-panel">
+      <button class="gr-reopen" data-gr="open" ${this.grFolded ? '' : 'hidden'}>‹ ${L ? 'Menu' : 'Menu'}</button>
+      <section class="mm-panel mm-side gr-panel${this.grFolded ? ' gr-folded' : ''}">
         <div class="gr-top">${this.garageHeader(lp, p.xp)}${this.garageNav()}</div>
         <div class="gr-body">${items}</div>
         <div class="gr-foot">${this.bikeSummary()}<p>${L ? 'Les équipements se débloquent en roulant. Clique un équipement verrouillé pour l’essayer.' : 'Gear unlocks as you ride. Click locked gear to try it on.'}</p></div>
@@ -1843,6 +1852,7 @@ export class MainMenu {
     return `<div class="gr-head">
         <div class="gr-lvl"><b>${L ? 'Niveau' : 'Level'} ${lp.level}</b><i class="mm-xp big"><i style="width:${(lp.progress * 100).toFixed(1)}%"></i></i><span>${xp}${lp.nextLevelXp ? ` / ${lp.nextLevelXp}` : ''} XP</span></div>
         <span class="gr-coins" title="${L ? 'Crédits de l’atelier' : 'Workshop credits'}">${COIN} <b>${(this.account?.credits ?? loadProgress().credits).toLocaleString(L ? 'fr-FR' : 'en-GB')}</b></span>
+        <button class="gr-fold" data-gr="fold" aria-label="${L ? 'Réduire le menu' : 'Collapse the menu'}" title="${L ? 'Réduire le menu pour voir plus large' : 'Collapse the menu for a wider view'}">›</button>
         <button class="gr-x" data-tab="ride" aria-label="${L ? 'Fermer' : 'Close'}" title="${L ? 'Fermer (Échap)' : 'Close (Esc)'}">×</button>
       </div>`;
   }
@@ -2967,7 +2977,7 @@ export class MainMenu {
           this.yaw = 0;
         }
         this.render();
-        this.onScene?.(this.view, this.yaw, this.garageSlot === 'bike');
+        this.onScene?.(this.view, this.yaw, this.garageSlot === 'bike', this.zoom);
         if ((was === 'face') !== (this.garageSlot === 'face')) this.onLookLive?.(s.look, this.bareHeadPreview);
       }),
     );
@@ -3019,8 +3029,17 @@ export class MainMenu {
       el.addEventListener('click', () => {
         this.view = el.dataset.view as GarageView;
         this.yaw = 0;
+        this.zoom = 1;
         this.root.querySelectorAll('[data-view]').forEach((b) => b.classList.toggle('on', b === el));
-        this.onScene?.(this.view, this.yaw, this.garageSlot === 'bike');
+        this.onScene?.(this.view, this.yaw, this.garageSlot === 'bike', this.zoom);
+      }),
+    );
+    // Garage : réduire le menu de droite pour une vue plus large, le rouvrir avec « ‹ Menu ».
+    this.root.querySelectorAll<HTMLElement>('[data-gr]').forEach((b) =>
+      b.addEventListener('click', () => {
+        this.grFolded = b.dataset.gr === 'fold';
+        this.root.querySelector('.gr-panel')?.classList.toggle('gr-folded', this.grFolded);
+        this.root.querySelector<HTMLElement>('.gr-reopen')?.toggleAttribute('hidden', !this.grFolded);
       }),
     );
     const zone = this.root.querySelector<HTMLElement>('#m-dragzone');
@@ -3042,7 +3061,7 @@ export class MainMenu {
         }
         this.yaw -= (e.clientX - lastX) * 0.008;
         lastX = e.clientX;
-        this.onScene?.(this.view, this.yaw, this.garageSlot === 'bike');
+        this.onScene?.(this.view, this.yaw, this.garageSlot === 'bike', this.zoom);
       });
       const up = (e: PointerEvent) => {
         lastX = null;
@@ -3053,6 +3072,22 @@ export class MainMenu {
         }
         downAt = null;
       };
+      // Molette : avance / recule la caméra, entre 0,6 (près) et 1,6 (loin) du cadrage normal.
+      zone.addEventListener(
+        'wheel',
+        (e) => {
+          e.preventDefault();
+          const z = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, (this.garageSlot === 'atelier' ? this.atelier.zoom : this.zoom) * (e.deltaY > 0 ? 1.08 : 1 / 1.08)));
+          if (this.garageSlot === 'atelier') {
+            this.atelier.zoom = z;
+            this.atelier.emit();
+          } else {
+            this.zoom = z;
+            this.onScene?.(this.view, this.yaw, this.garageSlot === 'bike', this.zoom);
+          }
+        },
+        { passive: false },
+      );
       zone.addEventListener('pointerup', up);
       zone.addEventListener('pointercancel', up);
     }
