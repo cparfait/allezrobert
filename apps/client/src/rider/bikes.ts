@@ -749,7 +749,8 @@ export class BikeMaterials {
       // Bande décor sans marque de roue (vélo de base) : fondue dans la jante.
       rim_decal: this.build.params.rimBrand ? liv.rim : BIKE_MATERIALS.rim?.[0],
       disc_face: liv.disc,
-      tire_wall: liv.tireWall ?? (this.gravel ? GRAVEL_WALL : undefined),
+      tire: liv.tire,
+      tire_wall: liv.tireWall ?? liv.tire ?? (this.gravel ? GRAVEL_WALL : undefined),
       saddle: liv.saddle,
       bar_tape: liv.tape ?? this.look.jerseyAccent,
       bottle: parts.bottle ?? liv.bottle ?? this.look.jerseyAccent,

@@ -329,7 +329,7 @@ function robertWait(): string {
 function waitingHtml(): string {
   if (S.conn !== 'connected') return `<div class="empty">${robertWait()}<p>${esc(S.conn === 'down' ? t.serverDown : t.connecting)}</p></div>`;
   if (!S.presence.game || !S.st) return `<div class="empty">${robertWait()}<p>${esc(t.waitingGame)}</p><button class="btn ghost small" data-act="unpair">${esc(t.unpair)}</button></div>`;
-  return `<div class="empty"><div class="logo">🚴</div><p>${esc(t.menu)}</p></div>`;
+  return `<div class="empty">${robertWait()}<p>${esc(t.menu)}</p></div>`;
 }
 
 /** Squelette de l'onglet courant (les valeurs sont remplies par `refresh`). */

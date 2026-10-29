@@ -115,7 +115,7 @@ export async function choosePosterSpot(world: World, track: RouteTrack, season: 
 }
 
 /** Vues du garage autour du coureur du joueur (repère du vélo : +z vers l'avant, y en haut). */
-export type GarageView = '3q' | 'side' | 'front' | 'back' | 'bike' | 'cockpit' | 'face' | 'trainer';
+export type GarageView = '3q' | 'side' | 'front' | 'back' | 'bike' | 'cockpit' | 'face' | 'trainer' | 'shoes';
 export const GARAGE_VIEWS: Record<GarageView, { cam: [number, number, number]; look: [number, number, number]; fov: number }> = {
   // Trois quarts avant côté transmission (dérailleur, home trainer).
   '3q': { cam: [-2.3, 1.6, 2.75], look: [0, 0.9, 0.1], fov: 34 },
@@ -124,6 +124,8 @@ export const GARAGE_VIEWS: Record<GarageView, { cam: [number, number, number]; l
   back: { cam: [-0.3, 1.5, -2.9], look: [0, 1.0, 0.1], fov: 32 },
   bike: { cam: [1.75, 0.7, 0.35], look: [0, 0.5, 0.2], fov: 36 },
   cockpit: { cam: [0.75, 1.45, 1.35], look: [0, 1.0, 0.5], fov: 36 },
+  // Chaussures et chaussettes : pieds et pédalier de trois quarts avant, un peu reculé pour tout voir.
+  shoes: { cam: [1.9, 0.55, 0.95], look: [0.02, 0.22, 0.0], fov: 36 },
   // Éditeur de visage : gros plan de trois quarts sur la tête.
   face: { cam: [0.75, 1.6, 2.0], look: [0, 1.38, 0.3], fov: 22 },
   // Home trainer : trois quarts arrière côté transmission, à hauteur de l'axe arrière.

@@ -262,7 +262,7 @@ const WEATHER_PRESETS: Array<[string, { clouds: number; rain: number; fog: numbe
 const WIND_STEPS = [0, 3, 6, 10];
 
 /** Gros plan du garage selon la catégorie choisie. */
-const SLOT_VIEW: Record<CosmeticSlot, GarageView> = { jersey: '3q', helmet: 'front', bike: 'side', socks: 'bike', glasses: 'front', trainer: 'trainer' };
+const SLOT_VIEW: Record<CosmeticSlot, GarageView> = { jersey: '3q', helmet: 'front', bike: 'side', socks: 'shoes', glasses: 'front', trainer: 'trainer' };
 
 /** Filtres de la liste des vélos du garage. */
 type BikeFilter = BikeCollection | 'unlocked';
@@ -1804,9 +1804,7 @@ export class MainMenu {
             <label class="field">${L ? 'Vélo sans marque' : 'Unbranded bike'}<input id="m-bike" type="color" value="${this.s.look.bike}" /></label>
             <label class="field">${L ? 'Peau' : 'Skin'}<input id="m-skin" type="color" value="${this.s.look.skin}" /></label>
             <label class="field">${L ? 'Cheveux' : 'Hair'}<input id="m-hair" type="color" value="${this.s.look.hair}" /></label>
-            <label class="field">${L ? 'Chaussures' : 'Shoes'}<input id="m-shoes" type="color" value="${this.s.look.shoes ?? '#f2f2f2'}" /></label>
-            <label class="field">${L ? 'Marquage des chaussures' : 'Shoe logo'}<select id="m-shoe-mark"><option value="">${L ? 'Aucun' : 'None'}</option>${SHOE_MARKS.map((m) => `<option value="${m.id}" ${this.s.look.shoeMark === m.id ? 'selected' : ''}>${m.text}</option>`).join('')}</select></label>
-            <label class="field">${L ? 'Accent des chaussures' : 'Shoe accent'}<input id="m-shoe-accent" type="color" value="${this.s.look.shoeAccent ?? shoeAccentOf(this.s.look)}" /></label>
+            ${this.shoeFields()}
             <label class="field">${L ? 'Chaussettes' : 'Socks'}<input id="m-socks" type="color" value="${this.s.look.socks ?? '#f2f2f2'}" /></label>
             ${this.sockHeightToggle()}
             ${this.legsToggle()}
@@ -1823,7 +1821,7 @@ export class MainMenu {
         ? this.bikeListHtml(lp.level, p.equipped.bike)
         : this.garageSlot === 'jersey'
         ? `${this.sleevesToggle()}${this.legsToggle()}${this.glovesToggle()}${this.gloveColorField()}${this.jerseyPacksHtml(lp.level, p.equipped.jersey)}`
-        : `${this.garageSlot === 'socks' ? this.sockHeightToggle() : ''}<div class="mm-items">${this.garageItems(lp.level)
+        : `${this.garageSlot === 'socks' ? `${this.sockHeightToggle()}<div class="mm-colors">${this.shoeFields()}</div>` : ''}<div class="mm-items">${this.garageItems(lp.level)
             .map((c) => this.itemHtml(c, lp.level, c.slot === 'trainer' ? trainerOf(p.equipped) : p.equipped[c.slot]))
             .join('')}</div>`;
     return `<div class="mm-dragzone" id="m-dragzone"></div>
@@ -1885,6 +1883,14 @@ export class MainMenu {
       ['short', L ? 'Courts' : 'Short'],
       ['long', L ? 'Longs' : 'Long'],
     ])}</div>`;
+  }
+
+  /** Couleur, marquage et accent des chaussures (onglets Couleurs et Chaussettes). */
+  private shoeFields(): string {
+    const L = fr();
+    return `<label class="field">${L ? 'Chaussures' : 'Shoes'}<input id="m-shoes" type="color" value="${this.s.look.shoes ?? '#f2f2f2'}" /></label>
+            <label class="field">${L ? 'Marquage des chaussures' : 'Shoe logo'}<select id="m-shoe-mark"><option value="">${L ? 'Aucun' : 'None'}</option>${SHOE_MARKS.map((m) => `<option value="${m.id}" ${this.s.look.shoeMark === m.id ? 'selected' : ''}>${m.text}</option>`).join('')}</select></label>
+            <label class="field">${L ? 'Accent des chaussures' : 'Shoe accent'}<input id="m-shoe-accent" type="color" value="${this.s.look.shoeAccent ?? shoeAccentOf(this.s.look)}" /></label>`;
   }
 
   /** Couleur des gants (mitaines ou gants longs), à côté du choix des gants. */
@@ -2134,13 +2140,13 @@ export class MainMenu {
     const graphics = `<div class="grid3">
         <div class="field">${t('quality')}${this.seg('m-quality', s.quality, (['low', 'medium', 'high', 'ultra'] as const).map((q) => [q, t(q)]))}</div>
         <div class="field">${L ? 'Style graphique' : 'Graphic style'}${this.seg('m-style', GRAPHIC_STYLE, [['lowpoly', L ? 'Jeu vidéo' : 'Video game'], ['real', L ? 'Réaliste' : 'Realistic']])}</div>
+        <div class="field">${L ? 'Interface (HUD)' : 'HUD layout'}${this.seg('m-hud', hudChoice(), [['auto', L ? 'Selon le style' : 'By style'], ['compact', 'Compact'], ['full', L ? 'Complet' : 'Full']])}</div>
         <div class="field">${L ? 'Format de l\'image' : 'Picture format'}${this.seg('m-aspect', getAspectCap(), [['full', L ? 'Plein écran' : 'Full'], ['16:9', '16:9'], ['21:9', '21:9'], ['32:9', '32:9']])}</div>
         <div class="field">${L ? 'Zone de l\'interface' : 'Interface area'}${this.seg('m-uiaspect', getUiAspectCap(), [['full', L ? 'Toute la largeur' : 'Full width'], ['16:9', '16:9'], ['21:9', '21:9']])}</div>
         <div class="field">${L ? 'Résolution max' : 'Max resolution'}${this.seg('m-maxres', getResolutionCap(), [['auto', 'Auto'], ['1080p', '1080p'], ['1440p', '1440p'], ['4k', '4K']])}</div>
         <div class="field">${t('season')}${this.seg('m-season', s.season, (['spring', 'summer', 'autumn', 'winter'] as const).map((q) => [q, t(q)]))}</div>
         <label class="field">${t('hour')} <span id="m-hourv">${this.hourLabel(s.hour)}</span><input id="m-hour" type="range" min="5" max="22" step="0.25" value="${s.hour}" /></label>
         <label class="field">${L ? 'Nuages' : 'Clouds'}<input id="m-clouds" type="range" min="0" max="1" step="0.05" value="${s.clouds}" /></label>
-        <div class="field">${L ? 'Interface (HUD)' : 'HUD layout'}${this.seg('m-hud', hudChoice(), [['auto', L ? 'Selon le style' : 'By style'], ['compact', 'Compact'], ['full', L ? 'Complet' : 'Full']])}</div>
         <label class="field">${L ? 'Pluie' : 'Rain'}<input id="m-rain" type="range" min="0" max="1" step="0.05" value="${s.rain}" /></label>
         <label class="field">${L ? 'Brouillard' : 'Fog'}<input id="m-fog" type="range" min="0" max="1" step="0.05" value="${s.fog}" /></label>
         <div class="field">${L ? 'Météo' : 'Weather'}${this.seg('m-evolve', s.weatherEvolves ? '1' : '0', [
@@ -3177,14 +3183,14 @@ export class MainMenu {
     });
     // Style graphique : matériaux construits au chargement, la page se recharge.
     on<HTMLSelectElement>('m-style', 'change', (el) => setGraphicStyle(el.value as GraphicStyle));
+    // HUD : disposition construite au chargement, la page se recharge.
+    on<HTMLSelectElement>('m-hud', 'change', (el) => setHudLayout(el.value as 'auto' | 'compact' | 'full'));
     // Format et résolution : pris en compte tout de suite (le moteur écoute « resize »), sans recharger.
     on<HTMLSelectElement>('m-aspect', 'change', (el) => {
       setAspectCap(el.value as AspectCap);
       window.dispatchEvent(new Event('resize'));
     });
     on<HTMLSelectElement>('m-uiaspect', 'change', (el) => {
-    // HUD : disposition construite au chargement, la page se recharge.
-    on<HTMLSelectElement>('m-hud', 'change', (el) => setHudLayout(el.value as 'auto' | 'compact' | 'full'));
       setUiAspectCap(el.value as AspectCap);
       window.dispatchEvent(new Event('resize'));
     });

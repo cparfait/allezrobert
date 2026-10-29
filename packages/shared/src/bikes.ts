@@ -65,6 +65,8 @@ export interface BikeLivery {
   marks?: Partial<Record<FrameMark, { text: string; color?: string; stretch?: number }>>;
   /** Flancs des pneus (sinon noirs), p. ex. « gumwall » beige. */
   tireWall?: string;
+  /** Pneu entier (bande de roulement comprise, sinon noir), p. ex. le pneu bleu de home trainer. */
+  tire?: string;
   /** Inscription des flancs de pneus (deux fois par flanc ; « A|B » : alternées), p. ex. « P ZERO ». */
   tireText?: { text: string; color: string };
   /** Inscription des faces extérieures des manivelles, p. ex. « SRAM ». */

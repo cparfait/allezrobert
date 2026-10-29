@@ -103,6 +103,9 @@ export function makeClothMaterial(name: string, tex: ClothTextures, color: THREE
   if (edge) registerLookSetter(m, edge.set);
   const baseCol = (pattern ? pattern.color(materialColor.rgb) : edge ? mix(materialColor.rgb, edge.color, edge.weight) : materialColor.rgb) as THREE.Node<'vec3'>;
   if (pattern || edge) m.colorNode = baseCol;
+  // Bande d'accent : le reflet suit la couleur peinte, pas celle du matériau (sinon une bande dorée
+  // éclaircit la manche et le torse d'un maillot uni).
+  if (edge) m.sheenNode = mix(baseCol, vec3(1), 0.25).mul(c.sheen);
   if (axis && (name === 'jersey' || name === 'jersey_accent')) {
     // Bandes de champion : de bas en haut dans le shader (la première est la plus basse).
     const nBands = uniform(0);

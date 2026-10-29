@@ -78,7 +78,7 @@ function go(ids,label){if(!ids.length)return alert('Aucune zone à envoyer.');co
 $('sendsel').onclick=()=>go(sel(),'Envoi de la sélection');
 $('sendall').onclick=()=>go(local.zones.map(z=>z.id),'Envoi de toutes les zones');
 $('sendnew').onclick=()=>go(local.zones.filter(z=>status(z)[0]!=='ok').map(z=>z.id),'Envoi des nouvelles et modifiées');
-$('refresh').onclick=load;$('sendmenu').onclick=()=>confirm('Envoyer les vidéos du menu (≈250 Mo) vers le serveur ?')&&stream('send-menu',{});
+$('refresh').onclick=load;$('sendmenu').onclick=()=>confirm('Envoyer les vidéos du menu (≈550 Mo, réaliste et jeu vidéo) vers le serveur ?')&&stream('send-menu',{});
 $('update').onclick=()=>{const g=local.git;let m='Mettre à jour l’application sur le serveur ?\\n\\n• git pull'+($('branch').value?' (branche '+$('branch').value+')':'')+'\\n• deploy.sh : sauvegarde, images Docker, migrations, redémarrage.';if(g.dirty||g.ahead)m+='\\n\\n⚠ Des modifications locales ne sont pas poussées'+($('push').checked?' (elles le seront si les fichiers sont commités)':'')+'.';if(confirm(m))stream('update-app',{branch:$('branch').value.trim(),mode:$('mode').value,push:$('push').checked})};
 $('savecfg').onclick=async()=>{const o={};document.querySelectorAll('[data-k]').forEach(i=>o[i.dataset.k]=i.dataset.k==='port'?Number(i.value):i.value);const r=await api('config',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(o)});log(r.ok?'Réglages enregistrés.':'✗ '+r.error);load()};
 $('installkey').onclick=()=>confirm('Installer ta clé SSH sur le serveur ?\\n\\nUne fenêtre noire va s’ouvrir : SSH y demandera le mot de passe du serveur (une seule fois).')&&stream('install-key',{});

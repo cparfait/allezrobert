@@ -605,7 +605,7 @@ function srvSend(ids, what) {
 $('srvSendOne').onclick = () => { if (!draft || !draft.id) return alert('Choisis ou enregistre d’abord une zone.'); if (!srv || !srv.local.find((z) => z.id === draft.id)) return alert('Cette zone n’a pas encore de tuiles construites (pack.json) : la construire d’abord.'); srvSend([draft.id], 'Envoi de la zone ' + draft.id); };
 $('srvSendNew').onclick = () => srvSend(srvIds((st) => st !== 'ok'), 'Envoi des nouvelles et modifiées');
 $('srvSendAll').onclick = () => srvSend(srv ? srv.local.map((z) => z.id) : [], 'Envoi de toutes les zones');
-$('srvMenu').onclick = () => srvRun({ action: 'send-menu' }, 'Envoyer les vidéos du menu (≈250 Mo) vers le serveur ?');
+$('srvMenu').onclick = () => srvRun({ action: 'send-menu' }, 'Envoyer les vidéos du menu (≈550 Mo, réaliste et jeu vidéo) vers le serveur ?');
 $('srvUpdate').onclick = () => srvRun({ action: 'update-app', branch: $('srvBranch').value.trim(), mode: $('srvMode').value, push: $('srvPush').checked, commit: $('srvCommit').checked }, 'Mettre à jour l’application sur le serveur ?\n\n• git pull' + ($('srvBranch').value.trim() ? ' (branche ' + $('srvBranch').value.trim() + ')' : '') + '\n• deploy.sh : sauvegarde, images Docker, migrations, redémarrage.');
 $('srvRefresh').onclick = srvLoad;
 $('cfgKeyInstall').onclick = () => srvRun({ action: 'install-key' }, 'Installer ta clé SSH sur le serveur ?\n\nUne fenêtre noire va s’ouvrir : SSH y demandera le mot de passe du serveur (une seule fois).');

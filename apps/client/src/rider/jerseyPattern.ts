@@ -348,7 +348,7 @@ export function addSleeveMask(mesh: THREE.SkinnedMesh, jersey: THREE.SkinnedMesh
       let sum = 0;
       for (let c = 0; c < 4; c++) {
         const b = m.skeleton.bones[idx.getComponent(i, c)]?.name;
-        if (b && ((/^(upperarm|lowerarm)/.test(b) && b.endsWith(`_${side.toLowerCase()}`)) || (withHand && b === names.hand))) sum += w.getComponent(i, c);
+        if (b && ((/^(upperarm|lowerarm)/.test(b) && b.endsWith(`_${side.toLowerCase()}`)) || (withHand && (b === names.hand || (/^(thumb|index|middle|ring|pinky)/.test(b) && b.endsWith(`_${side.toLowerCase()}`)))))) sum += w.getComponent(i, c);
       }
       return sum;
     };

@@ -521,6 +521,8 @@ export class LowPolyRider implements RiderAvatarLike {
   /** Groupe incliné (virages, danseuse) : vélo et coureur. */
   private readonly lean = new THREE.Group();
   private body = new THREE.Group();
+  /** Coureur masqué (vélo seul) : à réappliquer quand le corps est reconstruit. */
+  private riderHidden = false;
   private crank: THREE.Object3D = new THREE.Group();
   private wheels: THREE.Object3D[] = [];
   /** Écran du compteur (canevas rafraîchi par setComputer, 4 fois par seconde au plus). */
@@ -647,6 +649,7 @@ export class LowPolyRider implements RiderAvatarLike {
     this.hornsFix.copy(real ? REAL_TT_HORNS : new THREE.Vector3());
     this.lean.add(real ?? this.buildBike(look, bike, kind), this.body);
     this.buildRider(look, bike);
+    this.body.visible = !this.riderHidden;
     this.noHelmet = !!look.noHelmet;
     this.noGlasses = !!look.noGlasses;
     this.applyHeadwear();
@@ -1558,6 +1561,7 @@ export class LowPolyRider implements RiderAvatarLike {
 
   /** Vélo seul (garage : vélos sur les râteliers et contre les murs). */
   setRiderVisible(on: boolean): void {
+    this.riderHidden = !on;
     this.body.visible = on;
   }
 

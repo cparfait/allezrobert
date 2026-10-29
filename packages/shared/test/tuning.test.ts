@@ -29,10 +29,10 @@ import {
 const HEX = /^#[0-9a-f]{6}$/i;
 
 describe('catalogue de l’atelier', () => {
-  it('109 pièces réparties 34 / 25 / 15 / 15 / 10 / 10', () => {
-    expect(TUNE_ITEMS).toHaveLength(109);
+  it('110 pièces réparties 35 / 25 / 15 / 15 / 10 / 10', () => {
+    expect(TUNE_ITEMS).toHaveLength(110);
     const count = (f: string) => TUNE_ITEMS.filter((t) => t.family === f).length;
-    expect(TUNE_FAMILIES.map(count)).toEqual([34, 25, 15, 15, 10, 10]);
+    expect(TUNE_FAMILIES.map(count)).toEqual([35, 25, 15, 15, 10, 10]);
   });
 
   it('identifiants uniques, sans collision avec les cosmétiques', () => {

@@ -108,6 +108,8 @@ export interface TuneLook {
   rim?: string;
   /** Flancs des pneus ; « rainbow » : arc-en-ciel. */
   tireWall?: string;
+  /** Pneu entier, bande de roulement comprise (pneu bleu de home trainer). */
+  tire?: string;
   /** Peinture complète du cadre (remplace celle du modèle, inscriptions de marque conservées). */
   livery?: Partial<BikeLivery>;
   /** Finition seule (vernis), appliquée par-dessus la peinture. */
@@ -454,6 +456,7 @@ export function applyTuneLook(build: BikeBuild, ids: readonly string[]): BikeBui
       for (const [k, m] of Object.entries(l.marks)) if (m?.color) ownColor.add(k as FrameMark);
     }
     if (l.rim) rimColor = l.rim;
+    if (l.tire) livery.tire = l.tire;
     if (l.tireWall) {
       if (l.tireWall === 'rainbow') extras.rainbowWall = true;
       else livery.tireWall = l.tireWall;
