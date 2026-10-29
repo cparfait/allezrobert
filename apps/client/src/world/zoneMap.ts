@@ -13,14 +13,16 @@ export interface ZoneSpot {
   open: boolean;
   region: { fr: string; en: string };
   name: { fr: string; en: string };
+  /** Monde imaginaire : pas de place sur la carte de France, présenté à côté avec cette vignette. */
+  image?: string;
 }
 
 const PDD = { fr: 'Puy-de-Dôme', en: 'Puy-de-Dôme' };
 const IDF = { fr: 'Île-de-France', en: 'Île-de-France' };
 
 export const ZONE_SPOTS: ZoneSpot[] = [
-  // Île imaginaire, en mer d'Iroise : le point est posé sur la pointe du Finistère, l'île au large (world.json).
-  { id: 'ile-de-robert', x: 150000, y: 6815000, open: true, region: { fr: 'Monde imaginaire', en: 'Imaginary world' }, name: { fr: "L'île de Robert", en: "Robert's Island" } },
+  // Île imaginaire : hors de la carte de France, à côté (vignette = carte de l'île).
+  { id: 'ile-de-robert', x: 150000, y: 6815000, open: true, region: { fr: 'Monde imaginaire', en: 'Imaginary world' }, name: { fr: "L'île de Robert", en: "Robert's Island" }, image: '/worlds/ile-de-robert/vignette.png' },
   { id: 'chevreuse', x: 625500, y: 6843500, open: true, region: IDF, name: { fr: 'Vallée de Chevreuse', en: 'Chevreuse Valley' } },
   { id: 'longchamp', x: 646000, y: 6861500, open: true, region: IDF, name: { fr: 'Longchamp', en: 'Longchamp' } },
   { id: 'vincennes', x: 662000, y: 6857500, open: true, region: IDF, name: { fr: 'Vincennes', en: 'Vincennes' } },

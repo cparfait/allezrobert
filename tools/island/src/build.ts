@@ -5,6 +5,7 @@
  *
  *   npx tsx tools/island/src/build.ts
  */
+import { execFileSync } from 'node:child_process';
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import type { RouteData, WorldMeta, WorldTile } from '../../../packages/shared/src/route.ts';
@@ -311,7 +312,7 @@ export function saddle(): Vec2 {
   return best;
 }
 
-export function planNetwork(P: Plan, gates: Array<{ p: Vec2; town?: string }>, farms: Array<{ gate: Vec2 }>): { ring: Vec2[]; bois: Vec2[]; mtb: Vec2[]; col: Vec2 } {
+export function planNetwork(P: Plan, gates: Array<{ p: Vec2; town?: string }>, farms: Array<{ gate: Vec2 }>): { ring: Vec2[]; bois: Vec2[]; mtb: Vec2[]; col: Vec2; foot: Vec2 } {
   const C = CLASSES;
   const town = (id: string) => TOWNS.find((t) => t.id === id)!;
   const G = (id: string, toward: Vec2 | string) => nearestGate(gates, id, typeof toward === 'string' ? [town(toward).x, town(toward).z] : toward);
@@ -410,7 +411,7 @@ export function planNetwork(P: Plan, gates: Array<{ p: Vec2; town?: string }>, f
   loopConnect(loopPts(LAKES[0]!.x, LAKES[0]!.z, 1500, 7, 0.3), [C.track], 'Chemin de la Lagune');
   // h. VTT : sentiers des Bois et du massif.
   const mtb = loopConnect(loopPts(-10600, -5400, 1300, 10, 0.6), [C.mtb, { ...C.mtb, gmax: 0.26 }], 'Sentier VTT des Bois');
-  return { ring: ring.map((q) => q.p), bois: boisOk, mtb, col };
+  return { ring: ring.map((q) => q.p), bois: boisOk, mtb, col, foot };
 }
 
 const angle = (a: number) => Math.atan2(Math.sin(a), Math.cos(a));
@@ -692,7 +693,7 @@ export function networkRoads(grid: Grid, designed: Road[], gates: Array<{ p: Vec
 
 // ── 4. Itinéraires ──
 
-function routeSpecs(net: { ring: Vec2[]; bois: Vec2[]; mtb: Vec2[]; col: Vec2 }): RouteSpec[] {
+function routeSpecs(net: { ring: Vec2[]; bois: Vec2[]; mtb: Vec2[]; col: Vec2; foot: Vec2 }): RouteSpec[] {
   const t = (id: string): Vec2 => {
     const q = TOWNS.find((x) => x.id === id)!;
     return [q.x, q.z];
@@ -705,7 +706,8 @@ function routeSpecs(net: { ring: Vec2[]; bois: Vec2[]; mtb: Vec2[]; col: Vec2 })
     { id: 'boucle-de-saint-robert', name: 'La boucle de Saint-Robert', nameEn: 'Saint-Robert loop', loop: true, mode: 'road', waypoints: [t('saint-robert'), ANNEAU_GATES[0]!, ANNEAU_GATES[3]!, t('les-vignes')], landmarks: [{ name: 'Saint-Robert', x: t('saint-robert')[0], z: t('saint-robert')[1] }, { name: "L'Anneau", x: ANNEAU.cx, z: ANNEAU.cz }, { name: 'Les Vignes', x: t('les-vignes')[0], z: t('les-vignes')[1] }] },
     { id: 'robertville-plage', name: 'Robertville par les Coteaux', nameEn: 'Robertville via the hills', loop: true, mode: 'road', waypoints: [t('saint-robert'), t('les-vignes'), coastPoint(west + 0.06, 500), coastPoint(east, 185), t('vallon')], landmarks: [{ name: 'Les Coteaux', x: -1500, z: 5300 }, { name: 'Front de mer', x: rv.x, z: rv.z }, { name: 'Vallon-sur-Robe', x: t('vallon')[0], z: t('vallon')[1] }] },
     { id: 'front-de-mer', name: 'Le front de mer de Robertville', nameEn: 'Robertville seafront', loop: true, mode: 'cycle', waypoints: [coastPoint(east + 0.006, 185), coastPoint(east + 0.006, 125), coastPoint(west - 0.006, 125), coastPoint(west - 0.006, 185), coastPoint(ang, 480)], landmarks: [{ name: 'Les Planches', x: coastPoint(ang, 125)[0], z: coastPoint(ang, 125)[1] }, { name: 'Casino', x: coastPoint(ang + 0.018, 230)[0], z: coastPoint(ang + 0.018, 230)[1] }] },
-    { id: 'col-du-phare', name: 'Le Col du Phare', nameEn: 'Lighthouse pass', loop: false, mode: 'road', waypoints: [t('le-col'), net.col], hairpins: true, landmarks: [{ name: 'Le Hameau du Col', x: t('le-col')[0], z: t('le-col')[1] }, { name: 'Col du Phare', x: net.col[0], z: net.col[1] }] },
+    // Traversée : montée sud en lacets, col, descente en lacets côté nord (la montée au Phare bifurque avant le col).
+    { id: 'col-du-phare', name: 'La traversée du Col du Phare', nameEn: 'Lighthouse pass traverse', loop: false, mode: 'road', waypoints: [t('le-col'), net.col, net.foot], hairpins: true, landmarks: [{ name: 'Le Hameau du Col', x: t('le-col')[0], z: t('le-col')[1] }, { name: 'Col du Phare', x: net.col[0], z: net.col[1] }, { name: 'Versant nord', x: net.foot[0], z: net.foot[1] }] },
     { id: 'phare', name: 'La montée au Phare', nameEn: 'Lighthouse climb', loop: false, mode: 'road', waypoints: [t('le-col'), MASSIF.phare], hairpins: true, landmarks: [{ name: 'Phare de Robert', x: MASSIF.phare[0], z: MASSIF.phare[1] }] },
     { id: 'tour-de-l-ile', name: "Le Tour de l'Île", nameEn: 'Round the island', loop: true, mode: 'road', waypoints: net.ring.filter((_, k) => k % 3 === 0), landmarks: TOWNS.filter((x) => shoreDist(x.x, x.z) < 1500).map((x) => ({ name: x.name, x: x.x, z: x.z })) },
     { id: 'piste-verte', name: 'La Piste verte', nameEn: 'The green way', loop: false, mode: 'cycle', waypoints: [t('saint-robert'), ANNEAU_GATES[2]!, ANNEAU_GATES[1]!, t('saint-pierre')], landmarks: [{ name: "L'Anneau", x: ANNEAU.cx, z: ANNEAU.cz }] },
@@ -916,7 +918,7 @@ async function main(): Promise<void> {
     routes: routes.map((r, i) => ({ id: r.id, file: `routes/${r.id}.json`, name: r.name, nameEn: r.nameEn ?? r.name, lengthM: r.lengthM, elevationGainM: r.elevationGainM, loop: r.loop, main: i === 0, ...(r.bike ? { bike: r.bike } : {}) })),
     mainRoute: 'anneau',
     attribution: ATTRIBUTION,
-    open: { graph: 'graph.json', start: { x: sr.x + 3, z: sr.z }, places: 'places.json' },
+    open: { graph: 'graph.json', start: { x: sr.x + 3, z: sr.z }, places: 'places.json', map: 'carte.png' },
     sea: { levelM: 0 },
   };
   writeFileSync(join(OUT, 'world.json'), JSON.stringify(meta, null, 1));
@@ -925,8 +927,12 @@ async function main(): Promise<void> {
   for (const line of report.lines) console.log(line);
   log(report.ok ? 'contrôles au vert' : 'contrôles en échec');
   if (!report.ok) process.exitCode = 1;
-  // Menu du jeu : catalogue des zones et pack de tuiles.
-  else publishIsland(OUT);
+  // Menu du jeu : catalogue des zones et pack de tuiles ; carte de l'île (menu, mini-carte, carte complète).
+  else {
+    publishIsland(OUT);
+    execFileSync('npx', ['tsx', join(import.meta.dirname, 'map.ts'), '--px', '25', '--out', join(OUT, 'carte.png')], { stdio: 'inherit', shell: true });
+    execFileSync('npx', ['tsx', join(import.meta.dirname, 'map.ts'), '--px', '80', '--out', join(OUT, 'vignette.png')], { stdio: 'inherit', shell: true });
+  }
 }
 
 // Lancement direct seulement (les fonctions servent aussi aux scripts de mise au point).

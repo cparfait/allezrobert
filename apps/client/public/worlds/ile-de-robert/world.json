@@ -12611,10 +12611,10 @@
   {
    "id": "col-du-phare",
    "file": "routes/col-du-phare.json",
-   "name": "Le Col du Phare",
+   "name": "La traversée du Col du Phare",
    "nameEn": "Lighthouse pass",
-   "lengthM": 6194.65,
-   "elevationGainM": 339.18,
+   "lengthM": 14301.19,
+   "elevationGainM": 339.47,
    "loop": false,
    "main": false
   },
@@ -12681,7 +12681,8 @@
    "x": 303,
    "z": -200
   },
-  "places": "places.json"
+  "places": "places.json",
+  "map": "carte.png"
  },
  "sea": {
   "levelM": 0

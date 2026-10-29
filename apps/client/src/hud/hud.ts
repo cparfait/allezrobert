@@ -420,6 +420,31 @@ export class Hud {
     this.openGraph = graph;
   }
 
+  /** Clic sur la mini-carte (monde ouvert : ouvre la carte complète). */
+  set onMapClick(fn: (() => void) | null) {
+    const m = this.root.querySelector<HTMLElement>('.minimap');
+    if (!m) return;
+    m.classList.toggle('map-click', !!fn);
+    m.title = fn ? (getLang() === 'fr' ? 'Carte complète : choisir où aller' : 'Full map: choose where to go') : '';
+    m.onclick = fn ? () => fn() : null;
+  }
+
+  /** Destination du guidage (drapeau sur la mini-carte). */
+  destination: { x: number; z: number } | null = null;
+
+  /**
+   * Fond de la mini-carte : image de tout le monde (mondes générés, `bounds` en repère du monde) à la
+   * place du Plan IGN.
+   */
+  setMapImage(url: string, bounds: { minX: number; minZ: number; maxX: number; maxZ: number }): void {
+    const tile: BaseTile = { img: new Image(), ready: false, ...bounds };
+    tile.img.onload = () => (tile.ready = true);
+    tile.img.src = url;
+    this.base = tile;
+    this.fixedBase = true;
+  }
+  private fixedBase = false;
+
   constructor(root: HTMLElement, track: RouteTrack, attribution: string[]) {
     this.root = root;
     this.track = track;
@@ -1055,7 +1080,7 @@ export class Hud {
   /** Charge (une fois) le fond couvrant l'emprise demandée, tant que le courant ne la couvre pas assez. */
   private ensureBase(area: { minX: number; minZ: number; maxX: number; maxZ: number }, need: { minX: number; minZ: number; maxX: number; maxZ: number }, px: number): void {
     const o = this.basemapOrigin;
-    if (!o) return;
+    if (!o || this.fixedBase) return;
     const covers = (t: BaseTile | null) => !!t && t.minX <= need.minX && t.maxX >= need.maxX && t.minZ <= need.minZ && t.maxZ >= need.maxZ;
     if (covers(this.base) || (this.baseLoading && covers(this.baseLoading))) return;
     const tile: BaseTile = { img: new Image(), ready: false, ...area };
@@ -1452,6 +1477,27 @@ export class Hud {
       first = false;
     }
     ctx.stroke();
+    // Destination du guidage : drapeau vert (au bord de la carte s'il est plus loin).
+    if (this.destination) {
+      let [fx, fy] = P(this.destination.x, this.destination.z);
+      const rr = Math.hypot(fx - w / 2, fy - h / 2);
+      const rmax = w / 2 - 30;
+      if (rr > rmax) [fx, fy] = [w / 2 + ((fx - w / 2) * rmax) / rr, h / 2 + ((fy - h / 2) * rmax) / rr];
+      ctx.strokeStyle = '#0a0e16';
+      ctx.lineWidth = 3 * mk;
+      ctx.beginPath();
+      ctx.moveTo(fx, fy);
+      ctx.lineTo(fx, fy - 34 * mk);
+      ctx.stroke();
+      ctx.fillStyle = '#22c55e';
+      ctx.beginPath();
+      ctx.moveTo(fx, fy - 34 * mk);
+      ctx.lineTo(fx + 22 * mk, fy - 26 * mk);
+      ctx.lineTo(fx, fy - 18 * mk);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+    }
     for (const r of s.riders) {
       const [x, y] = P(r.x, r.z);
       if (x < -20 || y < -20 || x > w + 20 || y > h + 20) continue;

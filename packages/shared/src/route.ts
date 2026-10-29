@@ -216,9 +216,10 @@ export interface WorldMeta {
   /**
    * Monde ouvert : graphe routier roulable (`RoadGraphData`, fichier relatif au dossier du monde)
    * et point de départ par défaut. Toutes les routes y sont creusées et dessinées. `places` :
-   * villes, villages et hameaux (`WorldPlace[]`, fichier relatif), pour la carte d'itinéraire.
+   * villes, villages et hameaux (`WorldPlace[]`, fichier relatif), pour la carte d'itinéraire. `map` : image
+   * de la carte couvrant `bounds` (mondes générés), fond de la mini-carte et de la carte complète.
    */
-  open?: { graph: string; start: { x: number; z: number }; places?: string };
+  open?: { graph: string; start: { x: number; z: number }; places?: string; map?: string };
   /** Monde côtier : surface de la mer à cette altitude (m, NGF), fonds marins sous ce niveau. */
   sea?: { levelM: number };
 }

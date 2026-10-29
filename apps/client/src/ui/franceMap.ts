@@ -24,6 +24,8 @@ export interface MapZone {
   info: string;
   /** Emprise des tuiles, Lambert-93 (m) : rectangle dessiné sur la carte zoomée. */
   rect?: { minE: number; minN: number; maxE: number; maxN: number };
+  /** Monde imaginaire : présenté à côté de la carte (vignette), pas dessus. */
+  image?: string;
 }
 
 interface View {
@@ -121,7 +123,7 @@ export class FranceMap {
     const L = fr();
     const v = this.view;
     const k = this.k();
-    const pts = this.clusters(zones)
+    const pts = this.clusters(zones.filter((z) => !z.image))
       .map((g, gi) => {
         if (g.length === 1) {
           const z = g[0] as MapZone;
@@ -138,7 +140,17 @@ export class FranceMap {
           <circle class="fm-hit" r="20"/><circle class="fm-dot" r="12"/><text y="4.5">${g.length}</text></g>`;
       })
       .join('');
-    return `<div class="fm-box${this.zoomed ? ' fm-zoomed' : ''}">
+    // Mondes imaginaires : à côté de la carte, une vignette chacun.
+    const extra = zones.filter((z) => z.image);
+    const side = extra.length
+      ? `<aside class="fm-side"><h3>${L ? 'Hors de France' : 'Beyond France'}</h3><p>${L ? 'Mondes imaginaires, quelque part au large.' : 'Imaginary worlds, somewhere offshore.'}</p>${extra
+          .map(
+            (z) => `<button class="fm-xcard${z.available ? '' : ' fm-off'}${z.current ? ' fm-cur' : ''}" data-xzone="${esc(z.id)}" ${z.available ? '' : 'disabled'}>
+          <img src="${esc(z.image as string)}" alt="" decoding="async"><b>${esc(z.name)}</b><span>${esc(z.available ? z.info : L ? 'Bientôt disponible' : 'Coming soon')}</span>${z.current ? `<em>${L ? 'zone actuelle' : 'current area'}</em>` : ''}</button>`,
+          )
+          .join('')}</aside>`
+      : '';
+    return `<div class="fm-box${this.zoomed ? ' fm-zoomed' : ''}${side ? ' fm-has-side' : ''}"><div class="fm-main">
       <svg class="fm-map" viewBox="${v.x.toFixed(1)} ${v.y.toFixed(1)} ${v.w.toFixed(1)} ${v.h.toFixed(1)}" preserveAspectRatio="xMidYMid meet">
         ${this.baseLayers(v)}
         <path class="fm-land" d="${this.outlinePath()}"/>
@@ -148,7 +160,7 @@ export class FranceMap {
       <button class="fm-back" data-fm-back ${this.moved ? '' : 'hidden'}>← ${L ? 'France entière' : 'Whole France'}</button>
       <div class="fm-attr">${BASEMAP_ATTRIBUTION}</div>
       <div class="fm-legend"><span><i class="fm-l-on"></i>${L ? 'disponible' : 'available'}</span><span><i class="fm-l-off"></i>${L ? 'bientôt' : 'coming soon'}</span></div>
-    </div>`;
+    </div>${side}</div>`;
   }
 
   /** Fond Plan IGN de la vue, par-dessus celui de la vue précédente (déjà chargé : pas de trou). */
@@ -258,6 +270,12 @@ export class FranceMap {
       });
     });
     box.querySelector('[data-fm-back]')?.addEventListener('click', () => zoomTo({ ...FULL }));
+    box.querySelectorAll<HTMLElement>('[data-xzone]').forEach((el) =>
+      el.addEventListener('click', () => {
+        const z = zones.find((q) => q.id === el.dataset.xzone);
+        if (z?.available) onPick(z.id);
+      }),
+    );
 
     // Navigation libre : glisser pour se déplacer, molette pour zoomer (autour du pointeur) ; la
     // carte (regroupements, noms, fond IGN) se redessine quand le geste s'arrête.

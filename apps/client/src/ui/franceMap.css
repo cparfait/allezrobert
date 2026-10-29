@@ -2,6 +2,22 @@
 .mm-picker.fm-dialog { width: min(760px, 94vw) !important; background: rgba(10, 14, 22, 0.88); backdrop-filter: blur(6px); border-color: rgba(255, 255, 255, 0.14); }
 .mm-picker-modal:has(.fm-dialog) { background: rgba(6, 9, 15, 0.62); backdrop-filter: blur(4px); }
 .fm-box { position: relative; }
+.fm-main { position: relative; flex: 1 1 auto; min-width: 0; }
+.fm-has-side { display: flex; gap: 14px; align-items: stretch; }
+.mm-picker.fm-dialog:has(.fm-has-side) { width: min(1040px, 96vw) !important; }
+/* Mondes imaginaires, à côté de la carte de France. */
+.fm-side { flex: 0 0 240px; display: flex; flex-direction: column; gap: 10px; padding: 4px 2px; }
+.fm-side h3 { margin: 0; font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: #8d98a6; }
+.fm-side p { margin: -4px 0 2px; font-size: 12.5px; color: #aab4c2; line-height: 1.4; }
+.fm-xcard { appearance: none; display: flex; flex-direction: column; gap: 4px; align-items: flex-start; text-align: left; padding: 8px 8px 10px; border-radius: 14px; border: 1px solid var(--mm-line); background: rgba(255, 255, 255, 0.05); color: var(--ar-fg); font: inherit; cursor: pointer; transition: border-color 0.15s, transform 0.15s, background 0.15s; }
+.fm-xcard img { width: 100%; aspect-ratio: 38 / 26; object-fit: cover; border-radius: 9px; background: rgb(40, 90, 150); }
+.fm-xcard b { font-size: 15px; margin-top: 4px; }
+.fm-xcard span { font-size: 12px; color: #aab4c2; line-height: 1.35; }
+.fm-xcard em { font-style: normal; font-size: 11px; color: var(--ar-accent); }
+.fm-xcard:hover:not(:disabled), .fm-xcard:focus-visible { border-color: var(--ar-accent); background: rgba(255, 210, 63, 0.07); transform: translateY(-2px); outline: none; }
+.fm-xcard.fm-cur { border-color: rgba(255, 255, 255, 0.5); }
+.fm-xcard:disabled { opacity: 0.55; cursor: default; }
+@media (max-width: 760px) { .fm-has-side { flex-direction: column; } .fm-side { flex-basis: auto; } }
 .fm-map { display: block; width: 100%; height: min(66vh, 620px); cursor: grab; touch-action: none; }
 .fm-map.fm-dragging { cursor: grabbing; }
 .fm-box .fm-land { fill: none; }

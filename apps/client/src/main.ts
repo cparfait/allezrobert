@@ -1,7 +1,7 @@
 import './net/desktopAuth.ts';
 import './hud/hud.css';
 import * as THREE from 'three/webgpu';
-import { rideOnMessage, DEFAULT_LOOK, RouteTrack, decimateRoute, rankRouteId, type PairState, type PhoneCommand, bikeOfLook, type AvatarLook, bikeSetupFor, weatherAt, weatherElapsedS, weatherSeed, worldToWgs84, type RideWeather, type RiderProfile, type RouteData } from '@allezrobert/shared';
+import { rideOnMessage, snapToRoad, DEFAULT_LOOK, RouteTrack, decimateRoute, rankRouteId, type PairState, type PhoneCommand, bikeOfLook, type AvatarLook, bikeSetupFor, weatherAt, weatherElapsedS, weatherSeed, worldToWgs84, type RideWeather, type RiderProfile, type RouteData } from '@allezrobert/shared';
 import { createEngine, type Engine } from './engine/renderer.ts';
 import { QUALITY_PRESETS, withUrlOverrides, type QualitySettings } from './engine/quality.ts';
 import { detectHardwareQuality } from './engine/autoQuality.ts';
@@ -30,6 +30,7 @@ import { musicSource, noteSpotifyPlaying } from './audio/musicSource.ts';
 import { t, setLang, getLang } from './i18n/index.ts';
 import { loadSettings, saveSettings, type Settings } from './ui/settings.ts';
 import { MainMenu } from './ui/menu.ts';
+import { WorldMap } from './ui/worldMap.ts';
 import { bootStep, bootProgress, bootDone, bootError } from './ui/splash.ts';
 import { PosterScene, POSTER_HOUR, GARAGE_VIEWS, type GarageView } from './ui/poster.ts';
 import { showPause, rideToFit, rideToGpx, download, onlinePanel } from './ui/ridepanels.ts';
@@ -1140,6 +1141,80 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   const placeFinder = new PlaceFinder(source.open?.places, track.route.landmarks, track.length, !!track.route.loop);
   hud.setHidden(s.hudHidden ?? []);
   if (nav && source.open) hud.setOpen(source.open.graph);
+  // Monde ouvert : la mini-carte ouvre la carte complète ; on y choisit où aller (guidage) ou d'où repartir.
+  if (nav && source.open) {
+    const open = source.open;
+    const L = getLang() === 'fr';
+    if (open.map) hud.setMapImage(open.map, source.bounds);
+    const near = (x: number, z: number) => {
+      let best: { name: string; d: number } | null = null;
+      for (const p of open.places ?? []) {
+        const d = Math.hypot(p.x - x, p.z - z);
+        if (d < 1500 && (!best || d < best.d)) best = { name: p.name, d };
+      }
+      return best;
+    };
+    const wmap = new WorldMap({
+      graph: open.graph,
+      places: open.places ?? [],
+      bounds: source.bounds,
+      ...(open.map ? { image: open.map } : {}),
+      fr: L,
+      snap: (x, z) => {
+        const sn = snapToRoad(nav.net, x, z, 800);
+        if (!sn) return null;
+        const e = nav.net.edge(sn.edge);
+        const road = e.name || e.ref || '';
+        const pl = near(sn.x, sn.z);
+        const name = pl && pl.d < 300 ? pl.name : road && pl ? `${road} (${L ? 'près de' : 'near'} ${pl.name})` : road || (pl ? `${L ? 'Près de' : 'Near'} ${pl.name}` : L ? 'Route' : 'Road');
+        return { x: sn.x, z: sn.z, name };
+      },
+      onGo: (p) => {
+        if (nav.goTo(p.x, p.z, p.name, ride.state.distM)) hud.toast(`${L ? 'Cap sur' : 'Heading to'} ${p.name} · ${(Math.max(0, (nav.destination?.d ?? 0) - ride.state.distM) / 1000).toFixed(1).replace('.', L ? ',' : '.')} km`);
+        else hud.toast(L ? 'Pas de route roulable jusque-là' : 'No rideable road to there');
+        hud.destination = nav.destination;
+      },
+      onRestart: (p) => {
+        const q = new URLSearchParams(location.search);
+        q.set('world', source.id);
+        q.set('x', String(Math.round(p.x)));
+        q.set('z', String(Math.round(p.z)));
+        q.set('autostart', '');
+        q.set('nointro', '');
+        // La nouvelle sortie repart en parcours libre, au point choisi.
+        saveSettings({ ...s, mode: 'open' });
+        location.search = q.toString();
+      },
+      onClear: () => {
+        nav.clearDestination();
+        hud.destination = null;
+      },
+    });
+    // Guidage abandonné (autre sortie sans itinéraire possible…) : plus de drapeau.
+    nav.onChange = () => (hud.destination = nav.destination);
+    nav.onArrive = (name) => {
+      hud.destination = null;
+      hud.toast(`🏁 ${L ? 'Arrivé' : 'Arrived'} : ${name}`);
+    };
+    const mapState = () => {
+      const d = ride.state.distM;
+      const end = Math.min(track.length, nav.destination ? nav.destination.d : d + 1500);
+      const ahead: number[] = [];
+      for (let x = d; x <= end; x += 20) {
+        const q = track.sample(x);
+        ahead.push(q.x, q.z);
+      }
+      const me = track.sample(d);
+      return { me: { x: me.x, z: me.z }, ahead, destination: nav.destination };
+    };
+    hud.onMapClick = () => {
+      wmap.open(mapState());
+      const tick = window.setInterval(() => {
+        if (!wmap.isOpen) window.clearInterval(tick);
+        else wmap.update(mapState());
+      }, 1000);
+    };
+  }
   // En groupe, le panneau « À proximité » montre d'abord les coureurs réels.
   hud.riderFilter = mp ? 'real' : 'all';
   // Musique plus discrète en sortie ; titres Spotify annoncés dans le HUD.

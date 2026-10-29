@@ -1884,10 +1884,10 @@
     },
     {
      "id": "col-du-phare",
-     "name": "Le Col du Phare",
-     "nameEn": "Lighthouse pass",
-     "lengthM": 6194.65,
-     "elevationGainM": 339.18,
+     "name": "La traversée du Col du Phare",
+     "nameEn": "Lighthouse pass traverse",
+     "lengthM": 14301.19,
+     "elevationGainM": 339.47,
      "loop": false
     },
     {

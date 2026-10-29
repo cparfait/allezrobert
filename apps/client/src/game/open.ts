@@ -1,4 +1,4 @@
-import { OpenPath, RoadNet, RouteTrack, type RoadGraphData, type RouteData, type TurnChoice } from '@allezrobert/shared';
+import { OpenPath, RoadNet, RouteTrack, edgeLengths, planItinerary, snapToRoad, type RoadGraphData, type RouteData, type TurnChoice } from '@allezrobert/shared';
 
 /** Distance planifiée devant le coureur (m) : trafic, caméras et mini-carte voient la suite. */
 const LOOKAHEAD_M = 800;
@@ -32,6 +32,11 @@ export class OpenNavigator {
   readonly track: RouteTrack;
   readonly route: RouteData;
   next: Junction | null = null;
+  /**
+   * Destination choisie sur la carte : le chemin suit le plus court itinéraire jusqu'à elle (recalculé si
+   * l'on prend une autre sortie ou fait demi-tour). `d` : distance d'arrivée sur le chemin.
+   */
+  destination: { x: number; z: number; name: string; d: number } | null = null;
   /** Prévenu quand le chemin devant change (mini-carte, trafic). */
   onChange?: () => void;
 
@@ -74,6 +79,67 @@ export class OpenNavigator {
     }
     if (this.next && distM > this.next.d) this.findNext(distM);
     if (this.next && !this.next.locked && this.next.d - distM < COMMIT_M) this.next.locked = true;
+    if (this.destination && distM >= this.destination.d) {
+      const name = this.destination.name;
+      this.destination = null;
+      this.onArrive?.(name);
+    }
+  }
+
+  /** Prévenu à l'arrivée à la destination. */
+  onArrive?: (name: string) => void;
+
+  /**
+   * Itinéraire jusqu'à (x, z) depuis le premier carrefour encore libre devant `distM`. false : aucune route
+   * roulable assez près, ou inaccessible.
+   */
+  goTo(x: number, z: number, name: string, distM: number): boolean {
+    const to = snapToRoad(this.net, x, z, 600);
+    if (!to) return false;
+    const steps = this.path.steps;
+    let k = steps.findIndex((st) => st.endD > distM + COMMIT_M);
+    if (k < 0) k = steps.length - 1;
+    if (!this.route_(k, to, name)) return false;
+    this.findNext(distM);
+    this.onChange?.();
+    return true;
+  }
+
+  /** Abandonne la destination (le chemin redevient « tout droit »). */
+  clearDestination(): void {
+    this.destination = null;
+  }
+
+  /** Remplace la suite du chemin après l'arête `k` par l'itinéraire jusqu'à `to`. */
+  private route_(k: number, to: { edge: number; along: number; x: number; z: number }, name: string): boolean {
+    const cur = this.path.steps[k];
+    if (!cur) return false;
+    const lenE = edgeLengths(this.net)[cur.edge] as number;
+    const from = Math.max(cur.startD, cur.endD - SMOOTH_MARGIN_M);
+    // Destination plus loin sur l'arête en cours : on la suit jusque-là.
+    const ahead = cur.forward ? to.along : lenE - to.along;
+    if (to.edge === cur.edge && ahead > cur.from + (from - cur.startD)) {
+      this.path.truncateSteps(k + 1);
+      this.destination = { x: to.x, z: to.z, name, d: cur.startD + ahead - cur.from };
+      this.extendPlan();
+      this.track.extend(this.path.pointsFrom(from), from);
+      return true;
+    }
+    const end = this.net.node(this.net.endNode(cur));
+    const it = planItinerary(this.net, { edge: cur.edge, along: cur.forward ? lenE : 0, x: end[0], z: end[2] }, to);
+    if (!it) return false;
+    this.path.truncateSteps(k + 1);
+    let arriveD = this.path.length;
+    for (const st of it.steps) {
+      // Bout d'arête en cours parcouru sur 0 m : rien à ajouter.
+      if (st.edge === cur.edge && st.forward === cur.forward && this.path.steps.length === k + 1) continue;
+      const rec = this.path.add({ edge: st.edge, forward: st.forward });
+      arriveD = rec.startD + st.to;
+    }
+    this.destination = { x: to.x, z: to.z, name, d: arriveD };
+    this.extendPlan();
+    this.track.extend(this.path.pointsFrom(from), from);
+    return true;
   }
 
   /** Change la sortie choisie au prochain carrefour (−1 : plus à gauche, +1 : plus à droite). */
@@ -84,6 +150,8 @@ export class OpenNavigator {
     if (i === j.selected) return false;
     j.selected = i;
     this.replanFrom(j.stepIndex, j.choices[i] as TurnChoice, Math.max(distM + 1, j.d - SMOOTH_MARGIN_M));
+    // Autre sortie qu'au guidage : itinéraire recalculé depuis cette sortie.
+    if (this.destination) this.reroute(j.stepIndex + 1);
     return true;
   }
 
@@ -99,12 +167,22 @@ export class OpenNavigator {
       this.track.extend(this.path.pointsFrom(distM), distM);
       return false;
     }
+    const ui = this.path.steps.length;
     this.path.add(back, Math.max(0, len - cut.along));
     this.extendPlan();
     this.track.extend(this.path.pointsFrom(distM), distM);
+    if (this.destination) this.reroute(ui);
     this.findNext(distM);
     this.onChange?.();
     return true;
+  }
+
+  /** Itinéraire recalculé vers la destination après l'arête `k` du chemin. */
+  private reroute(k: number): void {
+    const d = this.destination;
+    if (!d) return;
+    const to = snapToRoad(this.net, d.x, d.z, 600);
+    if (!to || !this.route_(Math.max(0, Math.min(k, this.path.steps.length - 1)), to, d.name)) this.destination = null;
   }
 
   /** Revêtement OSM sous les roues. */

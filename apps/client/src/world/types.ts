@@ -121,6 +121,8 @@ export interface WorldSource {
     graph: RoadGraphData;
     start: { x: number; z: number };
     places?: WorldPlace[];
+    /** Image de la carte couvrant `bounds` (adresse) : mondes générés, sans Plan IGN. */
+    map?: string;
     /** Graphe complet, arêtes au bord comprises (raccord des zones voisines). */
     fullGraph?: RoadGraphData;
   };

@@ -38,6 +38,9 @@ import { FranceMap, type MapZone } from './franceMap.ts';
 import { bindStartPicker, loadRouteBoards, routeDetailHtml } from './routeDetail.ts';
 import { canMoveStart, canReverse, reversedOf, routeKey, snapStartM, startedOf } from '../game/direction.ts';
 import { ZONE_SPOTS } from '../world/zoneMap.ts';
+
+// Vignettes des mondes imaginaires (à côté de la carte de France) : chargées dès le menu, prêtes à l'ouverture.
+if (typeof Image !== 'undefined') for (const z of ZONE_SPOTS) if (z.image) new Image().src = z.image;
 import { getAspectCap, getResolutionCap, getUiAspectCap, setAspectCap, setResolutionCap, setUiAspectCap, type AspectCap, type ResolutionCap } from '../engine/display.ts';
 import './menu.css';
 
@@ -1310,7 +1313,7 @@ export class MainMenu {
       const available = this.zones.length ? !!z : !!w;
       const n = z ? routesForBike(z.routes, bikeSetupFor(loadProgress().equipped).tyre).length : 0;
       const info = [n ? `${n} ${L ? 'parcours' : n > 1 ? 'routes' : 'route'}` : '', spot.open ? (L ? 'monde ouvert' : 'open world') : '', w ? w.hint[lang] : ''].filter(Boolean).join(' · ');
-            return { id: spot.id, name: w ? w.name[lang] : spot.name[lang], region: spot.region[lang], x: spot.x, y: spot.y, available, current: spot.id === this.worldId, info, ...(z?.l93 ? { rect: z.l93 } : {}) };
+            return { id: spot.id, name: w ? w.name[lang] : spot.name[lang], region: spot.region[lang], x: spot.x, y: spot.y, available, current: spot.id === this.worldId, info, ...(z?.l93 ? { rect: z.l93 } : {}), ...(spot.image ? { image: spot.image } : {}) };
     });
   }
 

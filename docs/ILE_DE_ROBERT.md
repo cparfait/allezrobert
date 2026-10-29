@@ -49,9 +49,11 @@ carrefour. Les tracés sont ensuite simplifiés, arrondis (rayon minimal par cat
 ## Itinéraires
 
 L'Anneau, la boucle de Saint-Robert, Robertville par les Coteaux, le front de mer de Robertville (planches),
-le Col du Phare (lacets numérotés), le Tour de l'Île (≈ 95 km), la Piste verte, Gravel des Bois, VTT des Bois.
+la traversée du Col du Phare (montée sud et descente nord en lacets), la montée au Phare (bifurcation sous le
+col), le Tour de l'Île (≈ 95 km), la Piste verte, Gravel des Bois, VTT des Bois.
 En monde ouvert, on part de Saint-Robert et on va où l'on veut : rejoindre l'Anneau et y tourner, descendre
-au front de mer, monter au phare.
+au front de mer, monter au phare. Un clic sur la mini-carte ouvre la carte complète de l'île : on y choisit
+une destination (route ou lieu) et le jeu guide jusque-là au fil des carrefours, ou l'on repart d'ailleurs.
 
 ## Générer, contrôler, voir
 
@@ -61,8 +63,12 @@ npx tsx tools/island/src/verify.ts    # relit le monde déjà écrit
 npx tsx tools/island/src/map.ts --route tour-de-l-ile   # carte vue du ciel (PNG)
 ```
 
-Les tuiles (`tiles/`, ≈ 400 Mo) ne sont pas versionnées : les régénérer après un `git pull`. En jeu (pas
-encore au menu) : `/?world=ile-de-robert&route=anneau` (ou un autre identifiant d'itinéraire).
+`build.ts` écrit aussi `carte.png` (25 m par pixel : fond de la mini-carte et de la carte complète en jeu) et
+`vignette.png` (80 m par pixel, ≈ 200 Ko : menu), toutes deux versionnées.
+
+Les tuiles (`tiles/`, ≈ 400 Mo) ne sont pas versionnées : les régénérer après un `git pull`. Au menu, l'île
+est présentée à côté de la carte de France (« Hors de France ») ; en direct : `/?world=ile-de-robert&route=anneau`
+(ou un autre identifiant d'itinéraire).
 
 Fichiers : `design.ts` (côte, relief, rivières, lacs, ports, lieux), `planner.ts` (recherche de chemin),
 `roads.ts` (profils, sol arasé, graphe), `settle.ts` (villes, station balnéaire, fermes, édifices),
@@ -84,6 +90,4 @@ parallèle des tuiles), `verify.ts` (contrôles), `map.ts` (carte).
 
 - les tribunes sont des bâtiments pleins (pas de gradins) ; pas de parasols ni de bateaux ;
 - la plage (`sand`) est peinte comme un champ en style jeu vidéo ;
-- la circulation et les poteaux électriques suivent aussi l'Anneau (voulu sans voitures) ;
-- l'île n'est pas au menu : il faudrait une entrée dans `worlds.ts`, `zoneMap.ts` (point sur la carte de
-  France) et le catalogue `worlds/index.json`.
+- la circulation et les poteaux électriques suivent aussi l'Anneau (voulu sans voitures).

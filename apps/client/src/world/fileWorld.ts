@@ -28,7 +28,7 @@ export async function createFileWorld(id: string, meta: WorldMeta): Promise<Worl
       // arêtes au bord du monde : seulement pour raccorder les zones voisines (pas de cul-de-sac au bord)
       const full = (await res.json()) as RoadGraphData;
       const graph = full.edges.some((e) => e.border) ? { ...full, edges: full.edges.filter((e) => !e.border) } : full;
-      open = { graph, fullGraph: full, start: meta.open.start, ...(places ? { places } : {}) };
+      open = { graph, fullGraph: full, start: meta.open.start, ...(places ? { places } : {}), ...(meta.open.map ? { map: `${base}/${meta.open.map}` } : {}) };
     }
   }
   // Itinéraire principal en premier (jalon 1).

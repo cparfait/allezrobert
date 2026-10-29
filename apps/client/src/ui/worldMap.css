@@ -1,0 +1,30 @@
+/* Carte complète du monde ouvert (ui/worldMap.ts), ouverte d'un clic sur la mini-carte. */
+.wm-overlay { position: fixed; inset: 0; z-index: 80; display: flex; gap: 14px; padding: 18px; background: rgba(4, 6, 10, 0.72); backdrop-filter: blur(6px); color: var(--ar-fg, #eef1f5); font-family: var(--font, system-ui, sans-serif); animation: wm-in 0.16s ease-out; }
+@keyframes wm-in { from { opacity: 0; } to { opacity: 1; } }
+.wm-panel { flex: 0 0 260px; display: flex; flex-direction: column; gap: 10px; min-height: 0; padding: 14px; border-radius: 16px; background: rgba(10, 14, 22, 0.92); border: 1px solid rgba(255, 255, 255, 0.12); }
+.wm-panel header { display: flex; align-items: center; }
+.wm-panel h2 { margin: 0; font-size: 20px; }
+.wm-panel h3 { margin: 4px 0 0; font-size: 11.5px; text-transform: uppercase; letter-spacing: .08em; color: #8d98a6; }
+.wm-x { margin-left: auto; appearance: none; width: 32px; height: 32px; border-radius: 50%; border: 1px solid rgba(255, 255, 255, 0.16); background: transparent; color: inherit; font-size: 20px; line-height: 1; cursor: pointer; }
+.wm-x:hover { border-color: var(--ar-accent, #ffd23f); }
+.wm-hint { margin: 0; font-size: 12.5px; color: #aab4c2; line-height: 1.4; }
+.wm-dest { display: flex; flex-direction: column; gap: 4px; padding: 10px 12px; border-radius: 12px; background: rgba(255, 255, 255, 0.05); font-size: 12.5px; color: #aab4c2; }
+.wm-dest b { font-size: 15px; color: #22c55e; }
+.wm-dest button { align-self: flex-start; margin-top: 4px; appearance: none; padding: 5px 10px; border-radius: 999px; border: 1px solid rgba(255, 255, 255, 0.18); background: transparent; color: inherit; font: inherit; cursor: pointer; }
+.wm-places { flex: 1 1 auto; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; padding-right: 4px; }
+.wm-places button { appearance: none; display: flex; justify-content: space-between; align-items: baseline; gap: 8px; padding: 7px 10px; border-radius: 10px; border: 1px solid transparent; background: rgba(255, 255, 255, 0.04); color: inherit; font: inherit; font-size: 13.5px; text-align: left; cursor: pointer; }
+.wm-places button span { font-size: 11.5px; color: #8d98a6; }
+.wm-places button:hover { border-color: var(--ar-accent, #ffd23f); }
+.wm-stage { position: relative; flex: 1 1 auto; min-width: 0; border-radius: 16px; overflow: hidden; border: 1px solid rgba(255, 255, 255, 0.12); }
+.wm-stage canvas { display: block; width: 100%; height: 100%; cursor: crosshair; touch-action: none; }
+.wm-stage canvas.wm-dragging { cursor: grabbing; }
+.wm-card { position: absolute; width: 236px; display: flex; flex-direction: column; gap: 6px; padding: 12px; border-radius: 14px; background: rgba(10, 14, 22, 0.95); border: 1px solid rgba(255, 255, 255, 0.16); box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45); font-size: 12.5px; color: #aab4c2; }
+.wm-card[hidden] { display: none; }
+.wm-card b { font-size: 15px; color: #fff; }
+.wm-card button { appearance: none; padding: 8px 10px; border-radius: 10px; border: 1px solid rgba(255, 255, 255, 0.18); background: transparent; color: var(--ar-fg, #eef1f5); font: inherit; font-weight: 700; cursor: pointer; text-align: left; }
+.wm-card button:hover { border-color: var(--ar-accent, #ffd23f); }
+.wm-card .wm-go { background: var(--ar-accent, #ffd23f); border-color: transparent; color: #0a0e16; }
+.wm-tools { position: absolute; right: 12px; top: 12px; display: flex; flex-direction: column; gap: 6px; }
+.wm-tools button { appearance: none; min-width: 36px; height: 36px; padding: 0 8px; border-radius: 10px; border: 1px solid rgba(255, 255, 255, 0.18); background: rgba(10, 14, 22, 0.85); color: #fff; font: 700 15px system-ui, sans-serif; cursor: pointer; }
+.wm-tools button:hover { border-color: var(--ar-accent, #ffd23f); }
+@media (max-width: 760px) { .wm-overlay { flex-direction: column-reverse; padding: 8px; } .wm-panel { flex: 0 0 34vh; } }
