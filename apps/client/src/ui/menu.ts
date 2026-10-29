@@ -132,7 +132,7 @@ type GarageSlot = CosmeticSlot | 'colors' | 'face' | 'atelier';
 
 /** Seuils des zones de puissance (× FTP) et leurs couleurs (Z1 à Z7). */
 const ZONE_LIMITS = [0.55, 0.75, 0.9, 1.05, 1.2, 1.5];
-const ZONE_COLORS = ['#9aa5b1', '#3b82f6', '#22c55e', '#eab308', '#f97316', '#ef4444', '#a855f7'];
+const ZONE_COLORS = ['#c3cbd5', '#3b82f6', '#22c55e', '#eab308', '#f97316', '#ef4444', '#a855f7'];
 const zoneColorOf = (ftp: number) => ZONE_COLORS[ZONE_LIMITS.findIndex((z) => ftp < z) === -1 ? 6 : ZONE_LIMITS.findIndex((z) => ftp < z)] as string;
 
 /**
@@ -149,15 +149,29 @@ function workoutCard(w: (typeof WORKOUT_LIBRARY)[number], on: boolean, opens?: s
   let t = 0;
   let p4 = 0;
   let peak = 0;
-  const shapes = steps
-    .map((st) => {
-      const x0 = (t / total) * W;
-      const x1 = ((t + st.durationS) / total) * W;
-      t += st.durationS;
-      const mid = (st.powerStart + st.powerEnd) / 2;
-      p4 += mid ** 4 * st.durationS;
-      peak = Math.max(peak, st.powerStart, st.powerEnd);
-      return `<polygon points="${x0.toFixed(1)},${H} ${x0.toFixed(1)},${y(st.powerStart)} ${x1.toFixed(1)},${y(st.powerEnd)} ${x1.toFixed(1)},${H}" fill="${zoneColorOf(mid)}"/>`;
+  // Paliers voisins de la même zone : une seule forme (pas de couture ton sur ton) ; 2 px d'écart
+  // entre deux zones différentes, pour que chaque bloc se lise.
+  const runs: Array<{ color: string; pts: Array<[number, number]> }> = [];
+  for (const st of steps) {
+    const x0 = (t / total) * W;
+    const x1 = ((t + st.durationS) / total) * W;
+    t += st.durationS;
+    const mid = (st.powerStart + st.powerEnd) / 2;
+    p4 += mid ** 4 * st.durationS;
+    peak = Math.max(peak, st.powerStart, st.powerEnd);
+    const color = zoneColorOf(mid);
+    const last = runs.at(-1);
+    if (last && last.color === color) last.pts.push([x0, st.powerStart], [x1, st.powerEnd]);
+    else runs.push({ color, pts: [[x0, st.powerStart], [x1, st.powerEnd]] });
+  }
+  const GAP = 1;
+  const shapes = runs
+    .map((r, i) => {
+      const pts = r.pts.map(([x, p]) => [x, p] as [number, number]);
+      if (i > 0) pts[0]![0] += GAP;
+      if (i < runs.length - 1) pts[pts.length - 1]![0] -= GAP;
+      const top = pts.map(([x, p]) => `${x.toFixed(1)},${y(p)}`).join(' ');
+      return `<polygon points="${pts[0]![0].toFixed(1)},${H} ${top} ${pts[pts.length - 1]![0].toFixed(1)},${H}" fill="${r.color}"/>`;
     })
     .join('');
   const ifv = (p4 / total) ** 0.25;
