@@ -217,18 +217,19 @@ une courbe d'ouverture / fermeture asymétrique.
   `hm08`) : un même jeu de curseurs donne la même tête à tous les niveaux.
 - Distances multipliées par 0,6 (bas), 0,8 (moyen), 1 (haut), 1,5 (ultra).
 
-## 9. Profils de base (8) et éditeur
+## 9. Profils de base (9) et éditeur
 
 | Profil | Âge | Sexe | Origine (dominante) | Morphologie | Particularités |
 | --- | --- | --- | --- | --- | --- |
 | Robert | 72 | H | européenne | sec, endurant | rides, moustache grise (clin d'œil au nom du jeu) |
-| Léa | 27 | F | européenne | grimpeuse fine | taches de rousseur, queue de cheval |
-| Antoine | 34 | H | ouest-africaine | rouleur athlétique | barbe courte |
-| Claire | 41 | F | est-asiatique | fine, nerveuse | cheveux courts |
-| Marc | 46 | H | nord-africaine | costaud, mâchoire carrée | barbe naissante |
-| Sylvie | 55 | F | métissée (Antilles) | moyenne | cheveux courts gris |
-| Tom | 21 | H | européenne | très fin, joues creuses | imberbe |
-| Julie | 36 | F | latino-américaine | sprinteuse puissante | cheveux tressés sous le casque |
+| Chloé | 26 | F | européenne | fine | brune, cheveux longs |
+| Mathieu | 38 | H | européenne | moyen | brun, moustache |
+| Clément | 31 | H | européenne | fin | brun, cheveux longs et barbe |
+| Roger | 63 | H | européenne | costaud | cheveux gris courts, barbe naissante |
+| Christine | 47 | F | européenne | moyenne | rousse, taches de rousseur, carré |
+| Laetitia | 34 | F | européenne | athlétique | châtain, queue de cheval |
+| Cheick | 29 | H | africaine | rouleur athlétique | barbe courte |
+| Nathalie | 42 | F | est-asiatique | fine, nerveuse | carré |
 
 Chaque profil est un simple jeu de curseurs (JSON). Planche de validation : face, 3/4, profil,
 avec et sans casque et lunettes, avant / après chaque itération.
@@ -417,7 +418,7 @@ reprises de l'ancien modèle un peu grandes pour ce visage.
 
 ### Étape 4 — profils de base (faite)
 
-- `packages/shared/src/profiles.ts` : Robert, Léa, Antoine, Claire, Marc, Sylvie, Tom, Julie (§ 9),
+- `packages/shared/src/profiles.ts` : Robert, Chloé, Mathieu, Clément, Roger, Christine, Laetitia, Cheick, Nathalie (§ 9),
   chacun en curseurs (âge en années converti en curseur `age`), teint, cheveux, coiffure, barbe,
   taches de rousseur, moustache. Traits féminins ajoutés quand `sex` < 0 (le curseur change
   surtout la silhouette). Tests.

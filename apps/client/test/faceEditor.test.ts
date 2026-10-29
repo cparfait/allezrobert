@@ -21,7 +21,7 @@ describe('éditeur de visage', () => {
   });
 
   it('aléatoire contrôlé (corps inchangé) ; tête de base', () => {
-    const base = withProfile(DEFAULT_LOOK, 'julie');
+    const base = withProfile(DEFAULT_LOOK, 'laetitia');
     let i = 0;
     const r = withRandomFace(base, () => [0, 1][i++ % 2] as number);
     const before = decodeFace(base.face);

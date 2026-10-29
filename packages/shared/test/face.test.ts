@@ -30,9 +30,9 @@ describe('curseurs de forme', () => {
 });
 
 describe('profils de base', () => {
-  it('8 profils, tenues valides, âges cohérents', async () => {
+  it('9 profils, tenues valides, âges cohérents', async () => {
     const { BASE_PROFILES, profileLook, ageSlider } = await import('../src/profiles.ts');
-    expect(BASE_PROFILES).toHaveLength(8);
+    expect(BASE_PROFILES).toHaveLength(9);
     expect(ageSlider(25)).toBe(0);
     expect(ageSlider(77)).toBeCloseTo(1);
     expect(ageSlider(19)).toBeCloseTo(-1);

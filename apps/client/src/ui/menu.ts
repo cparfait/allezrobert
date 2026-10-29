@@ -2757,6 +2757,10 @@ export class MainMenu {
     this.root.querySelectorAll<HTMLElement>('#fe-hairstyle [data-v]').forEach((el) =>
       el.addEventListener('click', () => faceSet({ ...s.look, hairStyle: Number(el.dataset.v) })),
     );
+    // Homme / femme : seuls les profils de base du même sexe sont proposés.
+    this.root.querySelectorAll<HTMLElement>('[data-fesex]').forEach((el) =>
+      el.addEventListener('click', () => faceSet(withSex(s.look, el.dataset.fesex as 'male' | 'female'))),
+    );
     this.root.querySelectorAll<HTMLElement>('[data-feprofile]').forEach((el) =>
       el.addEventListener('click', () => faceSet(withProfile(s.look, el.dataset.feprofile as string))),
     );

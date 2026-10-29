@@ -106,7 +106,8 @@ export function faceEditorHtml(look: AvatarLook, tab: FaceTab, bareHead: boolean
           .map((s) => rangeHtml(`fe-s-${s.id}`, LABELS[s.id][L ? 0 : 1], sliderValue(s.id, shape), ONE_SIDED.has(s.id) ? 0 : -1, 1, s.id))
           .join('');
   return `<div class="fe">
-    <div class="fe-profiles" title="${L ? 'Partir d’un profil de base' : 'Start from a base profile'}">${BASE_PROFILES.map((p) => `<button data-feprofile="${p.id}" title="${esc(p.desc[L ? 'fr' : 'en'])}">${esc(p.name)}</button>`).join('')}</div>
+    <div class="fe-seg fe-sex" role="radiogroup">${(['male', 'female'] as const).map((x) => `<button data-fesex="${x}" role="radio" aria-checked="${(male ? 'male' : 'female') === x}" class="${(male ? 'male' : 'female') === x ? 'on' : ''}">${x === 'male' ? (L ? 'Homme' : 'Man') : L ? 'Femme' : 'Woman'}</button>`).join('')}</div>
+    <div class="fe-profiles" title="${L ? 'Partir d’un profil de base' : 'Start from a base profile'}">${BASE_PROFILES.filter((p) => (p.shape.sex ?? 0) < -0.5 !== male).map((p) => `<button data-feprofile="${p.id}" title="${esc(p.desc[L ? 'fr' : 'en'])}">${esc(p.name)}</button>`).join('')}</div>
     <div class="fe-tabs">${TABS.map(([id, fr, en]) => `<button data-fetab="${id}" class="${id === tab ? 'on' : ''}">${L ? fr : en}</button>`).join('')}</div>
     <div class="fe-sliders">${sliders}</div>
     <details class="fe-photo"${photoOpen ? ' open' : ''}><summary>${L ? 'Ressemblance à partir d’une photo' : 'Likeness from a photo'}</summary>
