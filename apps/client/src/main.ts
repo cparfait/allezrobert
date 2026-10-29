@@ -1277,7 +1277,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   const audio = new RideSound({ world, track, ride, traffic, ftpWatts: s.ftpWatts, crowd: (d) => raceCrowd(d) });
   // Voix de course : speaker, temps et records des segments, cris du public, bilan (audio/announcer.ts).
   const announcer = new Announcer(() => audio.audio.voiceOut());
-  announcer.preload(['welcome', 'go', 'komStart', 'sprintStart', 'time', 'summit', 'sprintLine', 'allez', 'allezRobert', 'vasy']);
+  announcer.preload(['welcome', 'komStart', 'sprintStart', 'time', 'summit', 'sprintLine', 'allez', 'allezRobert', 'vasy']);
   /** Meilleur temps de chaque segment sur cet itinéraire (voix : record battu ou écart). */
   const segBestKey = (id: string) => `ar.segbest.${rankRouteId(track.route.id)}.${id}`;
   const voiceFlags = { start: false, half: false, lastKm: false };
@@ -2099,7 +2099,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     if (!ride.paused) {
       if (!voiceFlags.start && ride.elapsedS > 1.5) {
         voiceFlags.start = true;
-        if (raceVoice) void announcer.say(['welcome', 'go'], 'pa');
+        if (raceVoice) void announcer.say(['welcome'], 'pa');
       }
       const routeLen = track.length;
       if (!track.route.loop && !nav && routeLen > 4000 && ride.dir > 0) {
