@@ -213,7 +213,7 @@ export class FranceMap {
     let card = '';
     if (this.lookup === 'busy') card = `<p>${L ? 'Recherche…' : 'Searching…'}</p>`;
     else if (this.lookup === 'none') card = `<p>${L ? 'Ville introuvable. Essaie avec le nom exact.' : 'City not found. Try the exact name.'}</p>`;
-    else if (this.lookup === 'offline') card = `<p>${L ? 'Recherche indisponible hors ligne.' : 'Search is unavailable offline.'}</p>`;
+    else if (this.lookup === 'offline') card = `<p>${L ? 'Hors ligne : seules les zones du jeu se trouvent par leur nom.' : 'Offline: only the game areas can be found by name.'}</p>`;
     else if (f) {
       const z = f.zone;
       if (f.state === 'in' && z)
@@ -252,6 +252,15 @@ export class FranceMap {
       this.lookup = 'idle';
       return true;
     } catch {
+      // Hors ligne : on cherche parmi les noms des zones du jeu.
+      const norm = (t: string) => t.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+      const nq = norm(q);
+      const hit = zones.filter((z) => !z.image).find((z) => norm(z.name) === nq) ?? zones.filter((z) => !z.image).find((z) => norm(z.name).includes(nq));
+      if (hit) {
+        this.found = { label: hit.name, x: hit.x, y: hit.y, zone: hit, km: 0, state: 'in' };
+        this.lookup = 'idle';
+        return true;
+      }
       this.lookup = 'offline';
       return false;
     }
@@ -266,10 +275,12 @@ export class FranceMap {
       this.lastBase = '';
       return local;
     }
+    // Détail de l'Île-de-France livré aussi avec le jeu (hors ligne) ; le Plan IGN en ligne ne vient qu'en plus.
+    const idf = `<image class="map-base" href="/basemap/idf.jpg" x="520" y="-7020" width="280" height="280" preserveAspectRatio="none"/>`;
     const base = basemap(v);
     const prev = this.lastBase && this.lastBase !== base ? this.lastBase : '';
     this.lastBase = base;
-    return local + prev + base;
+    return local + idf + prev + base;
   }
 
   /** Événements (survol, zoom sur un groupe, choix d'une zone, glisser, molette) ; la carte se redessine sur place. */
