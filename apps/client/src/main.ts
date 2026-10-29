@@ -1621,6 +1621,10 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
           : {}),
       },
       {
+        cardBlob: () => {
+          const photo = ride.summitPhotos[0];
+          return shareCard(ride, { routeName: track.route.name, riderName: s.name, ftp: s.ftpWatts, ...(photo ? { photo } : {}) });
+        },
         onShareCard: async () => {
           const photo = ride.summitPhotos[0];
           const blob = await shareCard(ride, { routeName: track.route.name, riderName: s.name, ftp: s.ftpWatts, ...(photo ? { photo } : {}) });

@@ -1,44 +1,44 @@
 /* Écran de fin de sortie (au-dessus de la scène figée). */
-.sum { position: fixed; inset: 0; z-index: 30; overflow-y: auto; display: flex; flex-direction: column; background: rgba(8, 11, 18, 0.9); backdrop-filter: blur(6px); color: var(--ar-fg); font-family: var(--font); padding: 14px 22px 16px; box-sizing: border-box; }
+.sum { position: fixed; inset: 0; z-index: 30; overflow-y: auto; display: flex; flex-direction: column; background: linear-gradient(180deg, rgba(46, 62, 90, 0.62) 0%, rgba(20, 29, 45, 0.82) 100%); backdrop-filter: blur(16px) saturate(1.15); color: var(--ar-fg); font-family: var(--font); padding: 14px 22px 16px; box-sizing: border-box; }
 .sum-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 10px; }
 .sum-head h1 { margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -0.02em; }
 .sum-head h1 em { font-style: normal; color: var(--ar-accent); }
-.sum-head p { margin: 4px 0 0; color: #8d98a6; font-size: 14px; }
+.sum-head p { margin: 4px 0 0; color: #c3cddb; font-size: 14px; }
 .sum-actions { display: flex; gap: 8px; flex-wrap: wrap; }
-.sum-btn { background: rgba(255, 255, 255, 0.1); border: 0; color: var(--ar-fg); border-radius: 12px; padding: 9px 16px; font: 700 14px var(--font); cursor: pointer; }
+.sum-btn { background: rgba(255, 255, 255, 0.16); border: 0; color: var(--ar-fg); border-radius: 12px; padding: 9px 16px; font: 700 14px var(--font); cursor: pointer; }
 .sum-btn:hover { background: rgba(255, 255, 255, 0.18); }
 .sum-btn.accent { background: var(--ar-accent); color: #0a0e16; }
 .sum-btn.accent:hover { filter: brightness(1.08); }
 .sum-body { flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: minmax(220px, 280px) 1fr; gap: 12px; }
 .sum-side { display: flex; flex-direction: column; gap: 12px; }
-.sum-card { background: rgba(10, 13, 20, 0.78); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 18px; padding: 10px 14px; box-shadow: 0 12px 34px rgba(0, 0, 0, 0.3); }
-.sum-card h3 { margin: 0 0 8px; font-size: 11.5px; letter-spacing: 0.08em; text-transform: uppercase; color: #8d98a6; font-weight: 700; }
+.sum-card { background: rgba(34, 46, 68, 0.88); border: 1px solid rgba(255, 255, 255, 0.16); border-radius: 18px; padding: 10px 14px; box-shadow: 0 12px 34px rgba(0, 0, 0, 0.3); }
+.sum-card h3 { margin: 0 0 8px; font-size: 11.5px; letter-spacing: 0.08em; text-transform: uppercase; color: #b9c4d3; font-weight: 700; }
 .sum-card:empty { display: none; }
 .sum-lv { display: flex; flex-direction: column; gap: 6px; }
 .sum-lv b { font-size: 26px; font-weight: 800; color: var(--ar-accent); }
 .sum-xp { display: block; height: 6px; background: rgba(255, 255, 255, 0.1); border-radius: 3px; overflow: hidden; }
 .sum-xp i { display: block; height: 100%; background: var(--ar-accent); border-radius: 3px; }
 .sum-level p { margin: 8px 0 0; font-size: 13px; }
-.sum-level p span, .sum-muted { color: #8d98a6; font-size: 13px; margin: 0; }
+.sum-level p span, .sum-muted { color: #b9c4d3; font-size: 13px; margin: 0; }
 .sum-unlock { color: var(--ar-accent); }
-.sum-row { display: grid; grid-template-columns: 1fr auto auto; gap: 10px; align-items: baseline; font-size: 13px; padding: 4px 0; border-bottom: 1px solid rgba(255, 255, 255, 0.05); }
+.sum-row { display: grid; grid-template-columns: 1fr auto auto; gap: 10px; align-items: baseline; font-size: 13px; padding: 4px 0; border-bottom: 1px solid rgba(255, 255, 255, 0.1); }
 .sum-row:last-child { border-bottom: 0; }
 .sum-row b { font-variant-numeric: tabular-nums; }
-.sum-row em { font-style: normal; color: #8d98a6; font-size: 12px; font-variant-numeric: tabular-nums; }
+.sum-row em { font-style: normal; color: #b9c4d3; font-size: 12px; font-variant-numeric: tabular-nums; }
 .sum-main { flex: 1 1 auto; min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: 10px; }
 .sum-tiles { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
-.sum-tile { background: rgba(10, 13, 20, 0.78); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 14px; padding: 7px 12px; display: flex; flex-direction: column; gap: 1px; min-width: 0; }
-.sum-tile span { font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; color: #8d98a6; font-weight: 700; }
-.sum-tile b { font-size: 19px; font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.sum-tile small { color: #8d98a6; font-size: 11.5px; }
+.sum-tile { background: rgba(34, 46, 68, 0.88); border: 1px solid rgba(255, 255, 255, 0.16); border-left: 3px solid var(--tc, var(--ar-accent)); border-radius: 14px; padding: 7px 12px; display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.sum-tile span { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: #b9c4d3; font-weight: 700; }
+.sum-tile b { color: #fff; font-size: 21px; font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sum-tile small { color: #c3cddb; font-size: 12px; }
 /* Les courbes prennent la hauteur libre de l'écran ; zones et segments gardent leur hauteur. */
-.sum-charts { flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr auto; gap: 10px; }
+.sum-charts { flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: auto auto; align-content: start; gap: 10px; }
 .sum-chart { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
-.sum-legend { display: flex; gap: 14px; font-size: 12px; color: #c7cfd9; margin-bottom: 6px; }
+.sum-legend { display: flex; gap: 14px; font-size: 12px; color: #dbe3ed; margin-bottom: 6px; }
 .sum-legend i { display: inline-block; width: 14px; height: 3px; border-radius: 2px; margin-right: 6px; vertical-align: middle; }
 .sum-legend i.dash { height: 0; border-top: 2px dashed; background: none; }
-.sum-canvas { position: relative; flex: 1 1 auto; min-height: 130px; }
-.sum-canvas.tall { min-height: 130px; }
+.sum-canvas { position: relative; flex: none; height: clamp(120px, 20vh, 175px); }
+.sum-canvas.tall { height: clamp(130px, 22vh, 190px); }
 .sum-canvas canvas { position: absolute; inset: 0; cursor: crosshair; }
 .sum-tip { position: absolute; top: 6px; pointer-events: none; background: rgba(10, 14, 22, 0.95); border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 6px; padding: 6px 9px; font-size: 12px; display: flex; flex-direction: column; gap: 2px; white-space: nowrap; }
 .sum-tip i { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
@@ -66,3 +66,16 @@
 .sum-trophy small { color: #8d98a6; font-size: 11.5px; }
 .sum-challenge b { font-size: 30px; font-weight: 800; color: var(--ar-accent); }
 .sum-challenge p { margin: 4px 0 0; font-size: 13px; }
+
+/* Bloc « Partager » : carte de sortie, fichiers, compte et services. */
+.sum-share { display: flex; flex-direction: column; gap: 10px; }
+.sum-share-row { display: flex; flex-direction: column; gap: 8px; padding-bottom: 10px; border-bottom: 1px solid rgba(255, 255, 255, 0.1); }
+.sum-share-row b { display: block; font-size: 13.5px; }
+.sum-share-row small { color: #b9c4d3; font-size: 12px; }
+.sum-share-btns { display: flex; flex-wrap: wrap; gap: 6px; }
+.sum-share-btns .sum-btn { padding: 7px 12px; font-size: 13px; }
+.sum-sub { margin: 0 0 6px; font-size: 13.5px; font-weight: 700; }
+.sum-online .device { background: rgba(255, 255, 255, 0.06); border-radius: 10px; padding: 8px 10px; }
+.sum-online .meta { color: #c3cddb; }
+.sum-share-msg { margin: 0; min-height: 1.2em; font-size: 12.5px; color: var(--ar-accent); }
+.sum-share-msg:empty { display: none; }

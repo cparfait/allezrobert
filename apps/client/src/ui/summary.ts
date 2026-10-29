@@ -10,9 +10,11 @@ const C_RECORD = '#3987e5';
 const C_HR = '#e66767';
 const C_ALT = '#64748b';
 const ZONE_HEX = ['#9aa5b1', '#3b82f6', '#22c55e', '#eab308', '#f97316', '#ef4444', '#a855f7'];
-const INK = '#e8edf3';
-const MUTED = '#8d98a6';
-const GRID = 'rgba(255,255,255,0.08)';
+const INK = '#f1f5f9';
+/** Liseré des dix tuiles : distance, temps, dénivelé, vitesse, cardio, puissances, charge, énergie, comparaison. */
+const TILE_COLORS = ['#64a8ff', '#64a8ff', '#94a3b8', '#64a8ff', C_HR, C_RIDE, C_RIDE, '#f97316', '#f97316', '#22c55e'];
+const MUTED = '#b4bfcd';
+const GRID = 'rgba(255,255,255,0.14)';
 
 export interface SummaryData {
   ride: RideSession;
@@ -37,6 +39,8 @@ export interface SummaryData {
 
 export interface SummaryActions {
   onShareCard(): void;
+  /** Image de la carte de sortie (copier, partager) ; absent : seul le téléchargement. */
+  cardBlob?: () => Promise<Blob>;
   onFit(): void;
   onGpx(): void;
   /** Absent : la sortie ne peut pas reprendre (course terminée, multijoueur). */
@@ -99,10 +103,8 @@ export function showRideSummary(root: HTMLElement, d: SummaryData, a: SummaryAct
     <header class="sum-head">
       <div><h1>${L ? 'Bravo, <em>belle sortie</em> !' : 'Well done, <em>great ride</em>!'}</h1><p>${esc(d.routeName)} · ${num(s.distanceM / 1000, 1)} km</p></div>
       <nav class="sum-actions">
-        <button class="sum-btn" id="s-card">${L ? 'Carte de sortie' : 'Ride card'}</button>
-        ${d.guest ? '' : `<button class="sum-btn accent" id="s-fit">.fit (Strava)</button><button class="sum-btn" id="s-gpx">.gpx</button>`}
         ${a.onResume ? `<button class="sum-btn" id="s-resume">${L ? 'Reprendre' : 'Resume'}</button>` : ''}
-        <button class="sum-btn" id="s-new">${L ? 'Nouvelle sortie' : 'New ride'}</button>
+        <button class="sum-btn accent" id="s-new">${L ? 'Nouvelle sortie' : 'New ride'}</button>
         <button class="sum-btn" id="s-quit">${L ? 'Quitter' : 'Quit'}</button>
       </nav>
     </header>
@@ -162,12 +164,24 @@ export function showRideSummary(root: HTMLElement, d: SummaryData, a: SummaryAct
             ? `<section class="sum-card sum-feel"><h3>${L ? 'Ton ressenti' : 'How did it feel?'}</h3><div class="sum-feel-row">${FEELINGS.map(([id, f, e]) => `<button class="sum-btn" data-feel="${id}">${L ? f : e}</button>`).join('')}</div></section>`
             : ''
         }
-        <section class="sum-card" id="s-online"></section>
+        <section class="sum-card sum-share">
+          <h3>${L ? 'Partager' : 'Share'}</h3>
+          <div class="sum-share-row"><div><b>${L ? 'Carte de sortie' : 'Ride card'}</b><small>${L ? 'Une image à poster' : 'An image to post'}</small></div>
+            <div class="sum-share-btns"><button class="sum-btn" id="s-card">${L ? 'Enregistrer' : 'Save'}</button>${a.cardBlob ? `<button class="sum-btn" id="s-card-copy">${L ? 'Copier' : 'Copy'}</button><button class="sum-btn accent" id="s-card-share" hidden>${L ? 'Partager…' : 'Share…'}</button>` : ''}</div></div>
+          ${
+            d.guest
+              ? ''
+              : `<div class="sum-share-row"><div><b>${L ? 'Fichiers de la sortie' : 'Ride files'}</b><small>${L ? '.fit pour Strava, Garmin ; .gpx pour le tracé' : '.fit for Strava, Garmin; .gpx for the route'}</small></div>
+            <div class="sum-share-btns"><button class="sum-btn accent" id="s-fit">.fit</button><button class="sum-btn" id="s-gpx">.gpx</button></div></div>`
+          }
+          <div class="sum-online" id="s-online"></div>
+          <p class="sum-share-msg" id="s-share-msg" role="status"></p>
+        </section>
         <span class="sum-robert" aria-hidden="true"></span>
       </aside>
       <main class="sum-main">
         <div class="sum-tiles">${tiles
-          .map(([k, v, sub]) => `<div class="sum-tile"><span>${k}</span><b>${v}</b>${sub ? `<small>${esc(sub)}</small>` : ''}</div>`)
+          .map(([k, v, sub], i) => `<div class="sum-tile" style="--tc:${TILE_COLORS[i] ?? C_RIDE}"><span>${k}</span><b>${v}</b>${sub ? `<small>${esc(sub)}</small>` : ''}</div>`)
           .join('')}</div>
         <div class="sum-charts">
           <section class="sum-card sum-chart"><h3>${L ? 'Courbe de puissance' : 'Power curve'}</h3>
@@ -195,6 +209,40 @@ export function showRideSummary(root: HTMLElement, d: SummaryData, a: SummaryAct
     if (el && f) el.onclick = f;
   };
   on('s-card', a.onShareCard);
+  const msg = root.querySelector<HTMLElement>('#s-share-msg');
+  const say = (t: string) => {
+    if (msg) msg.textContent = t;
+  };
+  if (a.cardBlob) {
+    const getBlob = a.cardBlob;
+    const file = async () => new File([await getBlob()], 'allez-robert.png', { type: 'image/png' });
+    on('s-card-copy', () => {
+      void (async () => {
+        try {
+          if (!navigator.clipboard?.write || typeof ClipboardItem === 'undefined') throw new Error('clipboard');
+          await navigator.clipboard.write([new ClipboardItem({ 'image/png': getBlob() })]);
+          say(L ? 'Image copiée : colle-la dans ton message.' : 'Image copied: paste it in your message.');
+        } catch {
+          say(L ? 'Copie impossible ici : utilise « Enregistrer ».' : 'Copy not available here: use “Save”.');
+        }
+      })();
+    });
+    // Partage natif (téléphone, tablette, Windows) : seulement si le navigateur sait partager un fichier.
+    const shareBtn = root.querySelector<HTMLButtonElement>('#s-card-share');
+    if (shareBtn && typeof navigator.canShare === 'function' && typeof navigator.share === 'function') {
+      shareBtn.hidden = false;
+      shareBtn.onclick = () =>
+        void (async () => {
+          try {
+            const f = await file();
+            if (!navigator.canShare({ files: [f] })) return say(L ? 'Partage de fichier indisponible ici.' : 'File sharing not available here.');
+            await navigator.share({ files: [f], title: d.routeName, text: `${d.routeName} · ${num(s.distanceM / 1000, 1)} km · Allez Robert !` });
+          } catch (e) {
+            if ((e as Error).name !== 'AbortError') say(L ? 'Partage impossible.' : 'Could not share.');
+          }
+        })();
+    }
+  }
   on('s-fit', a.onFit);
   on('s-gpx', a.onGpx);
   on('s-resume', a.onResume);
@@ -208,7 +256,7 @@ export function showRideSummary(root: HTMLElement, d: SummaryData, a: SummaryAct
   );
   const online = root.querySelector('#s-online') as HTMLElement;
   if (a.onlineBox) a.onlineBox(online);
-  else online.remove();
+  else online.closest('.sum-share')?.querySelector('.sum-online')?.remove();
   drawZones(root.querySelector('#c-zones') as HTMLElement, s.zonesS, d.ftp);
   interactiveCanvas(root.querySelector('#c-curve') as HTMLCanvasElement, (ctx, w, h, hx) => drawCurve(ctx, w, h, hx, s, d.records.previous));
   interactiveCanvas(root.querySelector('#c-time') as HTMLCanvasElement, (ctx, w, h, hx) => drawTimeline(ctx, w, h, hx, d.ride));
@@ -443,6 +491,15 @@ function drawTimeline(ctx: CanvasRenderingContext2D, w: number, h: number, hx: n
       ctx.strokeStyle = sr.color;
       ctx.lineWidth = 2;
       ctx.stroke();
+      // Voile sous la courbe, de la couleur de la série.
+      ctx.lineTo(X(D), top + laneH);
+      ctx.lineTo(X(0), top + laneH);
+      ctx.closePath();
+      const grad = ctx.createLinearGradient(0, top, 0, top + laneH);
+      grad.addColorStop(0, `${sr.color}55`);
+      grad.addColorStop(1, `${sr.color}05`);
+      ctx.fillStyle = grad;
+      ctx.fill();
     }
     if (idx >= 0) {
       const r = rec[idx] as (typeof rec)[number];
