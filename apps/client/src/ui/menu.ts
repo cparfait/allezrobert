@@ -23,7 +23,7 @@ import { renderSoundSettings } from './soundSettings.ts';
 import { bikeThumbHtml, paintPlainThumbs, plainThumbHtml, swapMissingThumbs } from './bikeThumb.ts';
 import { OpenWorldPanel } from './openWorld.ts';
 import { renderCompanionSettings } from './companionQr.ts';
-import { HUD_BLOCKS } from '../hud/hud.ts';
+import { HUD_BLOCKS, hudChoice, setHudLayout } from '../hud/hud.ts';
 import { renderExpertSettings } from './expertZones.ts';
 import { loadProgress, equipItem, equipPlainBike, SLOT_LABEL } from './garage.ts';
 import { roadEffectHtml } from './roadEffect.ts';
@@ -2140,6 +2140,7 @@ export class MainMenu {
         <div class="field">${t('season')}${this.seg('m-season', s.season, (['spring', 'summer', 'autumn', 'winter'] as const).map((q) => [q, t(q)]))}</div>
         <label class="field">${t('hour')} <span id="m-hourv">${this.hourLabel(s.hour)}</span><input id="m-hour" type="range" min="5" max="22" step="0.25" value="${s.hour}" /></label>
         <label class="field">${L ? 'Nuages' : 'Clouds'}<input id="m-clouds" type="range" min="0" max="1" step="0.05" value="${s.clouds}" /></label>
+        <div class="field">${L ? 'Interface (HUD)' : 'HUD layout'}${this.seg('m-hud', hudChoice(), [['auto', L ? 'Selon le style' : 'By style'], ['compact', 'Compact'], ['full', L ? 'Complet' : 'Full']])}</div>
         <label class="field">${L ? 'Pluie' : 'Rain'}<input id="m-rain" type="range" min="0" max="1" step="0.05" value="${s.rain}" /></label>
         <label class="field">${L ? 'Brouillard' : 'Fog'}<input id="m-fog" type="range" min="0" max="1" step="0.05" value="${s.fog}" /></label>
         <div class="field">${L ? 'Météo' : 'Weather'}${this.seg('m-evolve', s.weatherEvolves ? '1' : '0', [
@@ -3182,6 +3183,8 @@ export class MainMenu {
       window.dispatchEvent(new Event('resize'));
     });
     on<HTMLSelectElement>('m-uiaspect', 'change', (el) => {
+    // HUD : disposition construite au chargement, la page se recharge.
+    on<HTMLSelectElement>('m-hud', 'change', (el) => setHudLayout(el.value as 'auto' | 'compact' | 'full'));
       setUiAspectCap(el.value as AspectCap);
       window.dispatchEvent(new Event('resize'));
     });

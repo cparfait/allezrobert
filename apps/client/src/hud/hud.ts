@@ -22,6 +22,25 @@ function readLayout(): HudLayout {
   return LOW_POLY ? 'compact' : 'full';
 }
 export const HUD_LAYOUT: HudLayout = typeof location === 'undefined' ? 'full' : readLayout();
+
+/** Choix enregistré : 'auto' (selon le style graphique), 'compact' ou 'full'. */
+export function hudChoice(): 'auto' | HudLayout {
+  try {
+    const raw = localStorage.getItem(HUD_LAYOUT_KEY);
+    return raw === 'compact' || raw === 'full' ? raw : 'auto';
+  } catch {
+    return 'auto';
+  }
+}
+
+/** Change la disposition du HUD (construite au chargement : la page se recharge). */
+export function setHudLayout(choice: 'auto' | HudLayout): void {
+  if (choice === 'auto') localStorage.removeItem(HUD_LAYOUT_KEY);
+  else localStorage.setItem(HUD_LAYOUT_KEY, choice);
+  const url = new URL(location.href);
+  url.searchParams.delete('hud');
+  location.replace(url.toString());
+}
 // Crochet CSS du style graphique (:root[data-style="lowpoly"]), posé dès le chargement du module.
 if (typeof document !== 'undefined') document.documentElement.dataset.style = GRAPHIC_STYLE;
 
