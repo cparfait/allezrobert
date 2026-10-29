@@ -1198,8 +1198,8 @@ export class MainMenu {
           .map((f) => {
             const n = f === '' ? WORKOUT_LIBRARY.length : f === 'mine' ? this.favWorkouts.size + this.myWorkouts.length : WORKOUT_LIBRARY.filter((w) => w.type === f).length;
             const label = f === '' ? (L ? 'Toutes' : 'All') : f === 'mine' ? `★ ${L ? 'Mes séances' : 'My workouts'}` : WORKOUT_TYPE_LABELS[f][L ? 'fr' : 'en'];
-            const dot = f && f !== 'mine' ? `<i style="background:${TYPE_COLORS[f]}"></i>` : '';
-            return `<button class="wk-chip${f === this.wkFilter ? ' on' : ''}" data-wkfilter="${f}">${dot}${label}${n ? ` <small>${n}</small>` : ''}</button>`;
+            const typed = f && f !== 'mine';
+            return `<button class="wk-chip${typed ? ' typed' : ''}${f === this.wkFilter ? ' on' : ''}" data-wkfilter="${f}"${typed ? ` style="--wk:${TYPE_COLORS[f]}"` : ''}>${typed ? '<i></i>' : ''}${label}${n ? ` <small>${n}</small>` : ''}</button>`;
           })
           .join('')}</div>
         <div class="mm-wks mm-wks-grid">${
