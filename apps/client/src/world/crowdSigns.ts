@@ -3,6 +3,7 @@
  * dans apps/client/test). Encouragements en français, prénom du coureur, clins d'œil à
  * « Allez Robert ! ». La texture (canevas) est fabriquée dans crowd.ts.
  */
+import { LOW_POLY } from '../engine/style.ts';
 
 export interface SignDesign {
   /** Lignes du texte (1 à 3), déjà en forme. */
@@ -14,7 +15,7 @@ export interface SignDesign {
   deco: 'none' | 'heart' | 'arrow' | 'stars';
 }
 
-const PALETTE: Array<[string, string]> = [
+const PALETTE_REAL: Array<[string, string]> = [
   ['#f4efe2', '#c8102e'],
   ['#ffd23f', '#111111'],
   ['#ffffff', '#1f3c88'],
@@ -23,6 +24,19 @@ const PALETTE: Array<[string, string]> = [
   ['#e63946', '#ffffff'],
   ['#2a9d8f', '#ffffff'],
 ];
+
+/** Style jeu vidéo : aplats francs (plus de carton brun), encres contrastées. */
+const PALETTE_LOWPOLY: Array<[string, string]> = [
+  ['#ffffff', '#e63946'],
+  ['#ffd23f', '#1d3557'],
+  ['#ffffff', '#1f6feb'],
+  ['#8ac926', '#ffffff'],
+  ['#ff7f11', '#ffffff'],
+  ['#e63946', '#ffffff'],
+  ['#1f6feb', '#ffd23f'],
+];
+
+const PALETTE = LOW_POLY ? PALETTE_LOWPOLY : PALETTE_REAL;
 
 /** Prénom affichable : premier mot, capitales initiales, 14 caractères au plus. */
 export function signName(name: string): string {

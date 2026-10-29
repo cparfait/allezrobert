@@ -9,6 +9,7 @@ import { WorkQueue } from './workQueue.ts';
 import type { RouteFootprint } from './ribbon.ts';
 import type { Season } from './environment.ts';
 import { ALPINE_GROUND_M, ALPINE_MEADOW, SNOW_LINE_M, alpineProfile } from './alpine.ts';
+import { LOW_POLY } from '../engine/style.ts';
 
 /** Orthophotos (prises en été) selon la saison : teinte et saturation. Partagé avec le relief lointain. */
 export const ORTHO_SEASON: Record<Season, [string, number]> = { spring: ['#f4fff0', 1.05], summer: ['#fffbf2', 1], autumn: ['#fbead2', 0.9], winter: ['#dde2e6', 0.5] };
@@ -21,6 +22,18 @@ const SEASON_GROUND: Record<Season, { forest: string; field: string; field2: str
   summer: { forest: '#45512a', field: '#d8b86a', field2: '#c79d4f', meadow: '#7d9245', urban: '#938d78', dirt: '#86704c' },
   autumn: { forest: '#6b4f2a', field: '#7b6a4a', field2: '#9a8a5a', meadow: '#7c8a44', urban: '#8a8270', dirt: '#6f5a3e' },
   winter: { forest: '#4a463a', field: '#8f8a6e', field2: '#a7a38c', meadow: '#7d7f62', urban: '#8a8a82', dirt: '#6a6052' },
+};
+
+/**
+ * Style jeu vidéo : aplats plus vifs et plus clairs (prés vert pomme, champs dorés, bourgs clairs). En automne
+ * et en hiver, campagne de dessin animé ensoleillée plutôt que labours bruns : blés d'hiver verts, chaumes
+ * dorés, prés encore verts.
+ */
+const LOWPOLY_GROUND: typeof SEASON_GROUND = {
+  spring: { forest: '#3f7a2e', field: '#a7c957', field2: '#e9d65a', meadow: '#7cbf4a', urban: '#cfc8b6', dirt: '#a88a5c' },
+  summer: { forest: '#3d6f2a', field: '#e2c46a', field2: '#cfa955', meadow: '#86c04e', urban: '#d0c8b2', dirt: '#b08e5e' },
+  autumn: { forest: '#5a8a30', field: '#9cc85a', field2: '#e3bc5c', meadow: '#86c24e', urban: '#d0c7b1', dirt: '#b48a58' },
+  winter: { forest: '#4f7a3c', field: '#a0c46a', field2: '#d9c47c', meadow: '#92c063', urban: '#cfcabe', dirt: '#a68a64' },
 };
 
 interface TileEntry {
@@ -101,7 +114,7 @@ export class TerrainManager {
   }
 
   setSeason(season: Season): void {
-    const c = SEASON_GROUND[season];
+    const c = (LOW_POLY ? LOWPOLY_GROUND : SEASON_GROUND)[season];
     for (const k of Object.keys(c) as Array<keyof typeof c>) this.seasonColors[k].set(c[k]);
     this.frost.value = season === 'winter' ? 0.25 : 0;
     this.snowLine.value = SNOW_LINE_M[season];
@@ -126,11 +139,45 @@ export class TerrainManager {
   }
 
   /** Altitude du sol (bilinéaire) ; NaN si la tuile n'est pas chargée. */
+  /**
+   * Carrefour : une autre voie carrossable (pas l'itinéraire `routeId`, ni sentier ni piste cyclable) passe à
+   * moins de `r` m du point (tuiles chargées). Sert à n'annoncer les virages qu'aux bifurcations.
+   */
+  junctionNear(x: number, z: number, routeId: string, r = 14): boolean {
+    // Ni chemins, ni allées privées (service) ; ni l'itinéraire, ni ses copies au nom d'un autre itinéraire
+    // (« route:<autre>:<osm> », deux boucles sur la même route : prises pour une route qui part).
+    const SKIP = new Set(['footway', 'path', 'steps', 'cycleway', 'bridleway', 'pedestrian', 'corridor', 'platform', 'track', 'service']);
+    const osmOf = (id: string | undefined) => (id ?? '').slice((id ?? '').lastIndexOf(':') + 1);
+    for (const e of this.tiles.values()) {
+      const t = e.tile;
+      if (x < t.x0 - r || x > t.x0 + t.size + r || z < t.z0 - r || z > t.z0 + t.size + r) continue;
+      const mine = new Set(t.features.roads.filter((rd) => rd.route === routeId).map((rd) => osmOf(rd.id)));
+      for (const road of t.features.roads) {
+        const p = road.pts3;
+        if (!p || road.route === routeId || (road.route && mine.has(osmOf(road.id))) || SKIP.has(road.kind) || road.tunnel) continue;
+        for (let k = 0; k + 5 < p.length; k += 3) {
+          const ax = p[k] as number, az = p[k + 2] as number;
+          const dx = (p[k + 3] as number) - ax, dz = (p[k + 5] as number) - az;
+          const l2 = dx * dx + dz * dz || 1;
+          const u = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / l2));
+          if ((ax + dx * u - x) ** 2 + (az + dz * u - z) ** 2 < r * r) return true;
+        }
+      }
+    }
+    return false;
+  }
+
   heightAt(x: number, z: number): number {
     const [tx, tz] = this.tileCoord(x, z);
     const e = this.tiles.get(`${tx}_${tz}`);
     if (!e) return Number.NaN;
     const t = e.tile;
+    // Style jeu vidéo : le sol affiché est abaissé sous les routes (clampUnderRoads) ; herbe, fleurs,
+    // clôtures et animaux se posent sur ce sol-là, pas sur le relief brut (ils flottaient à côté des routes).
+    if (LOW_POLY) {
+      const h = meshHeight(e.mesh.geometry, t, x, z);
+      if (Number.isFinite(h)) return h;
+    }
     const fx = ((x - t.x0) / t.size) * t.n;
     const fz = ((z - t.z0) / t.size) * t.n;
     const i = Math.min(Math.max(Math.floor(fx), 0), t.n - 1);
@@ -370,6 +417,10 @@ export class TerrainManager {
         uvs[k * 2] = u;
         uvs[k * 2 + 1] = v;
       }
+    // Style jeu vidéo : sol abaissé sous toutes les routes de la tuile (réseau OSM, itinéraire des mondes
+    // ouverts), comme sous le ruban de l'itinéraire. Sans orthophoto pour peindre la route, les facettes du
+    // maillage (plus grossier que la tranchée creusée par le générateur) se voyaient en vert sur la chaussée.
+    if (LOW_POLY) clampUnderRoads(pos, tile, seg, reach, axisGround);
     // Tableaux typés et normales tirées des hauteurs voisines (grille régulière) : `computeVertexNormals`
     // de three.js, générique, prenait ≈ 75 ms par tuile en qualité haute (saccade au changement de détail).
     const border: number[] = [];
@@ -433,6 +484,7 @@ export class TerrainManager {
       }
     border.forEach((src, n) => normals.copyWithin((mainCount + n) * 3, src * 3, src * 3 + 3));
     const geo = new THREE.BufferGeometry();
+    geo.userData.seg = seg;
     geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
     geo.setAttribute('normal', new THREE.BufferAttribute(normals, 3));
     geo.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
@@ -468,6 +520,7 @@ export class TerrainManager {
   }
 
   private createMaterial(textures: THREE.DataTexture[], ortho: THREE.Texture | null): THREE.MeshStandardNodeMaterial {
+    if (LOW_POLY) return this.createLowPolyMaterial(textures);
     const m = new THREE.MeshStandardNodeMaterial();
     const s0 = texture(textures[0] as THREE.Texture, uv());
     const s1 = texture(textures[1] as THREE.Texture, uv());
@@ -555,4 +608,150 @@ export class TerrainManager {
     m.metalnessNode = float(0);
     return m;
   }
+  /**
+   * Style jeu vidéo : aplats francs par occupation du sol (limites nettes, pas d'orthophoto ni de grain),
+   * grandes taches de teinte en 3 paliers pour casser les aplats, facettes du maillage visibles.
+   */
+  private createLowPolyMaterial(textures: THREE.DataTexture[]): THREE.MeshStandardNodeMaterial {
+    const m = new THREE.MeshStandardNodeMaterial();
+    m.flatShading = true;
+    const s0 = texture(textures[0] as THREE.Texture, uv());
+    const s1 = texture(textures[1] as THREE.Texture, uv());
+    const c = this.seasonColors;
+    const wp = positionWorld.xz;
+    // Taches de teinte (parcelles, prés plus ou moins verts) : 3 paliers, pas de dégradé.
+    const n1 = mx_noise_float(wp.mul(0.006)).mul(0.5).add(0.5);
+    const patch = n1.mul(3).floor().div(3).mul(0.14).add(0.9);
+    const alt = positionWorld.y;
+    const alpine = smoothstep(ALPINE_GROUND_M - 200, ALPINE_GROUND_M + 200, alt);
+    const meadow = mix(c.meadow.node, this.alpineMeadow.node, alpine);
+    const field = mix(c.field.node, c.field2.node, smoothstep(0.48, 0.52, mx_noise_float(wp.mul(0.0025)).mul(0.5).add(0.5)));
+    const sharp = (v: THREE.Node<'float'>) => smoothstep(0.42, 0.58, v);
+    let col = meadow;
+    col = mix(col, field, sharp(s0.g));
+    col = mix(col, meadow, sharp(s0.b));
+    col = mix(col, c.forest.node, sharp(s0.r));
+    // Bourgs : couleur claire, sauf dans les parcs et bois des villes (pré ou forêt aussi marqués, comme le
+    // bois de Boulogne à Longchamp, entièrement « urbain ») où le vert l'emporte.
+    const park = sharp(s0.b).max(sharp(s0.r));
+    col = mix(col, c.urban.node, sharp(s1.r).mul(float(1).sub(park)).mul(0.8));
+    col = mix(col, meadow, sharp(s1.b));
+    col = col.mul(patch);
+    col = mix(col, vec3(0.2, 0.42, 0.62), sharp(s0.a));
+    // Chaussées OSM : le sol n'en prend plus la couleur (les rubans et le réseau dessinent les routes) ; peint
+    // au pas du raster (≈ 4 m), il débordait en bande grise qui plongeait sous le bord de la route. Le masque
+    // sert encore à ôter roche et neige sous les routes.
+    const roadMask = smoothstep(0.45, 0.6, s1.g);
+    const slope = float(1).sub(normalWorld.y);
+    col = mix(col, c.dirt.node, smoothstep(0.42, 0.5, slope).mul(0.7));
+    // Montagne : roche et neige en aplats.
+    const rockMask = clamp(smoothstep(0.5, 0.58, slope).mul(smoothstep(250, 600, alt)).max(smoothstep(this.treeline.add(200), this.treeline.add(260), alt)).max(sharp(s1.a)), 0, 1).mul(float(1).sub(roadMask));
+    col = mix(col, this.rockColor.node, rockMask);
+    const north = smoothstep(0.0, 0.5, normalWorld.z.negate());
+    const line = this.snowLine.sub(north.mul(200));
+    const snow = smoothstep(line.sub(10), line.add(10), alt).mul(float(1).sub(smoothstep(0.5, 0.55, slope))).mul(float(1).sub(roadMask));
+    col = mix(col, vec3(0.93, 0.95, 0.98), snow);
+    col = col.mul(float(1).sub(this.wetness.mul(0.2)));
+    col = mix(col, vec3(0.9, 0.93, 0.96), this.frost.mul(0.5).mul(smoothstep(0.9, 0.98, normalWorld.y)));
+    m.colorNode = col;
+    m.roughnessNode = float(0.95);
+    m.metalnessNode = float(0);
+    return m;
+  }
+}
+
+/**
+ * Sol à 4 cm sous la chaussée. Tunnel : sol à plus de 2,5 m au-dessus de la route sur l'axe même (le
+ * générateur ne creuse pas les tunnels, il creuse les tranchées), ou à défaut plus de 5 m au sommet.
+ */
+const ROAD_TERRAIN_BELOW = 0.04;
+const ROAD_TUNNEL_AXIS = 2.5;
+const ROAD_TUNNEL_COVER = 5;
+
+/**
+ * Abaisse les sommets de la grille (positions locales, centrées sur la tuile) qui portent un triangle
+ * sous une route de la tuile : à moins de demi-largeur + bas-côté (0,6 m, voir network.ts) + `reach`
+ * de son axe, le sol passe juste sous la route à cet endroit. Seuls les sommets du rectangle englobant
+ * de chaque tronçon sont visités.
+ */
+function clampUnderRoads(pos: Float32Array, tile: LoadedTile, seg: number, reach: number, axisGround: (x: number, z: number) => number): void {
+  const s = tile.size;
+  const step = s / seg;
+  const row = seg + 1;
+  /** Parcourt les sommets de grille à moins de `radius` m de chaque segment de la route. */
+  const around = (p: number[], radius: number, visit: (kk: number, d: number, y: number, axX: number, axZ: number) => void) => {
+    for (let k = 0; k + 5 < p.length; k += 3) {
+      const ax = p[k] as number, ay = p[k + 1] as number, az = p[k + 2] as number;
+      const bx = p[k + 3] as number, by = p[k + 4] as number, bz = p[k + 5] as number;
+      const i0 = Math.max(0, Math.floor((Math.min(ax, bx) - radius - tile.x0) / step));
+      const i1 = Math.min(seg, Math.ceil((Math.max(ax, bx) + radius - tile.x0) / step));
+      const j0 = Math.max(0, Math.floor((Math.min(az, bz) - radius - tile.z0) / step));
+      const j1 = Math.min(seg, Math.ceil((Math.max(az, bz) + radius - tile.z0) / step));
+      if (i0 > i1 || j0 > j1) continue;
+      const dx = bx - ax, dz = bz - az;
+      const len2 = dx * dx + dz * dz || 1;
+      for (let j = j0; j <= j1; j++)
+        for (let i = i0; i <= i1; i++) {
+          const x = tile.x0 + i * step, z = tile.z0 + j * step;
+          const t = Math.min(1, Math.max(0, ((x - ax) * dx + (z - az) * dz) / len2));
+          const ex = ax + dx * t - x, ez = az + dz * t - z;
+          const d2 = ex * ex + ez * ez;
+          if (d2 > radius * radius) continue;
+          visit((j * row + i) * 3 + 1, Math.sqrt(d2), ay + (by - ay) * t, ax + dx * t, az + dz * t);
+        }
+    }
+  };
+  const roads = tile.features.roads.filter((r) => r.pts3 && !r.tunnel && (r.pts3 as number[]).length >= 6);
+  // 1. Remblai : sous la chaussée et son accotement, un sol trop bas est remonté au niveau de la route, puis
+  //    descend en talus à 45° (6 m au plus) : plus de marche au bord d'une route à flanc de pente ou sur une
+  //    digue, ni de route qui flotte entre deux sommets de la grille grossière (8 m) au loin. Ni ponts, ni
+  //    dénivelé de plus de 6 m (viaduc).
+  for (const r of roads) {
+    if (r.bridge) continue;
+    const shoulder = Math.max(Math.max(r.width, 2.5) / 2 + 0.8, step * 0.6);
+    around(r.pts3 as number[], shoulder + 6, (kk, d, y) => {
+      const h = pos[kk] as number;
+      const top = y - ROAD_TERRAIN_BELOW - 0.02;
+      if (h >= top || top - h > 6) return;
+      const target = d <= shoulder ? top : top - (d - shoulder);
+      if (target > h) pos[kk] = target;
+    });
+  }
+  // 2. Sous la chaussée : sol abaissé juste sous la route (après le remblai, il l'emporte toujours ; le talus
+  //    d'une route voisine, dans les lacets, ne peut pas recouvrir une chaussée).
+  for (const r of roads) {
+    const R = Math.max(r.width, 2.5) / 2 + 0.6 + reach;
+    around(r.pts3 as number[], R, (kk, _d, y, axX, axZ) => {
+      const h = pos[kk] as number;
+      // Talus d'une tranchée : abaissé même s'il monte vite (sinon il recouvre le bord de la route).
+      const g = axisGround(axX, axZ);
+      // Itinéraire roulé : jamais pris pour un tunnel (seule l'étiquette OSM compte) ; une tranchée profonde
+      // (côte en lacets) laissait le sol au-dessus de la chaussée et le vélo enterré.
+      if (!r.route && (Number.isFinite(g) ? g - y > ROAD_TUNNEL_AXIS : h - y > ROAD_TUNNEL_COVER)) return;
+      pos[kk] = Math.min(h, y - ROAD_TERRAIN_BELOW);
+    });
+  }
+}
+
+/**
+ * Altitude de la surface affichée d'une tuile (triangles de la grille, même diagonale que l'index de
+ * buildGeometry) ; NaN si la géométrie n'est pas une grille de tuile.
+ */
+function meshHeight(geo: THREE.BufferGeometry, tile: LoadedTile, x: number, z: number): number {
+  const seg = geo.userData.seg as number | undefined;
+  const pos = geo.getAttribute('position')?.array as Float32Array | undefined;
+  if (!seg || !pos) return Number.NaN;
+  const u = Math.min(Math.max(((x - tile.x0) / tile.size) * seg, 0), seg - 1e-6);
+  const v = Math.min(Math.max(((z - tile.z0) / tile.size) * seg, 0), seg - 1e-6);
+  const i = Math.floor(u);
+  const j = Math.floor(v);
+  const fu = u - i;
+  const fv = v - j;
+  const row = seg + 1;
+  const H = (ii: number, jj: number) => pos[(jj * row + ii) * 3 + 1] as number;
+  const ha = H(i, j);
+  const hb = H(i + 1, j);
+  const hc = H(i, j + 1);
+  const hd = H(i + 1, j + 1);
+  return fu + fv <= 1 ? ha + (hb - ha) * fu + (hc - ha) * fv : hd + (hc - hd) * (1 - fu) + (hb - hd) * (1 - fv);
 }

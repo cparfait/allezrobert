@@ -1,4 +1,6 @@
 import * as THREE from 'three/webgpu';
+import { LOW_POLY } from '../engine/style.ts';
+import { flatLook } from './flatLook.ts';
 import { GLTFLoader, type GLTF } from 'three/addons/loaders/GLTFLoader.js';
 import { abs, atan, color, float, floor, fract, length, materialColor, max, mix, mod, positionGeometry, sign, sin, step, uniform, vec2, vec3 } from 'three/tsl';
 import { BIKES, DEFAULT_LOOK, PLAIN_BIKE_FAMILY, bikeOfLook, type AvatarLook, type BikeBuild, type BikeFamily, type TuneNumber } from '@allezrobert/shared';
@@ -491,6 +493,13 @@ export class BikeMaterials {
   }
 
   get(name: string): THREE.Material {
+    const m = this.getRaw(name);
+    // Style jeu vidéo : facettes et aplats (voir flatLook).
+    if (LOW_POLY) flatLook(m);
+    return m;
+  }
+
+  private getRaw(name: string): THREE.Material {
     if (name === 'frame') return this.livery.material;
     if (name.startsWith('rim_decal:')) return this.rimDecal(name);
     let m = this.byName.get(name);

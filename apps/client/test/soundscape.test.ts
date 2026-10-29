@@ -116,7 +116,7 @@ describe('vent', () => {
   it('souffle de l’air croissant et borné', () => {
     expect(windMix(0).gain).toBeLessThan(0.01);
     expect(windMix(10).gain).toBeGreaterThan(windMix(5).gain);
-    expect(windMix(100).gain).toBeLessThanOrEqual(0.2);
+    expect(windMix(100).gain).toBeLessThanOrEqual(0.12);
     expect(windMix(15).freq).toBeGreaterThan(windMix(5).freq);
   });
 });
@@ -191,8 +191,8 @@ describe('public', () => {
   ];
   it('plein au sommet, entendu en approche, éteint après', () => {
     expect(crowdLevel(1800, segs, 8000, true)).toBe(1);
-    expect(crowdLevel(1550, segs, 8000, true)).toBeGreaterThan(0);
-    expect(crowdLevel(1550, segs, 8000, true)).toBeLessThan(crowdLevel(1620, segs, 8000, true));
+    expect(crowdLevel(1600, segs, 8000, true)).toBeGreaterThan(0);
+    expect(crowdLevel(1600, segs, 8000, true)).toBeLessThan(crowdLevel(1630, segs, 8000, true));
     expect(crowdLevel(1200, segs, 8000, true)).toBe(0);
     expect(crowdLevel(2050, segs, 8000, true)).toBeGreaterThan(0);
     expect(crowdLevel(2200, segs, 8000, true)).toBe(0);
@@ -203,7 +203,19 @@ describe('public', () => {
   it('boucle : la zone d’arrivée est entendue avant le tour suivant', () => {
     const s: RouteSegment[] = [{ id: 'c', kind: 'kom', name: 'C', startM: 0, endM: 300, avgGrade: 5 }];
     expect(crowdLevel(7950, s, 8000, true)).toBeGreaterThan(0.5);
-    expect(crowdLevel(7950, s, 8000, false)).toBe(0);
+    // sans boucle, la zone du sommet n'est pas repliée (l'arche d'arrivée a sa foule à moins de 60 m de la fin)
+    expect(crowdLevel(7500, s, 8000, false)).toBe(0);
+  });
+
+  it('foule autour des arches : départ de KOM, départ de sprint, arrivée', () => {
+    const s: RouteSegment[] = [
+      { id: 'c', kind: 'kom', name: 'C', startM: 2000, endM: 3000, avgGrade: 5 },
+      { id: 'p', kind: 'sprint', name: 'P', startM: 5000, endM: 5300, avgGrade: 0 },
+    ];
+    expect(crowdLevel(2000, s, 8000, false)).toBeGreaterThan(0.5);
+    expect(crowdLevel(5010, s, 8000, false)).toBeGreaterThan(0.5);
+    expect(crowdLevel(7980, s, 8000, false)).toBeGreaterThan(0.5);
+    expect(crowdLevel(1000, s, 8000, false)).toBe(0);
   });
 
   it('pousse plus quand le coureur souffre', () => {

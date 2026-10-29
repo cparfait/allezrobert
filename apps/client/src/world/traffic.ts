@@ -5,8 +5,10 @@ import type { RouteTrack } from '@allezrobert/shared';
 import { vehicleDraftReduction, type VehicleKind } from '@allezrobert/physics';
 import { rng } from '../engine/noise.ts';
 import { sharedKtx2Loader } from '../engine/textures.ts';
+import { LOW_POLY } from '../engine/style.ts';
 import type { VehicleSound } from '../audio/soundscape.ts';
 import { UNPAVED_SURFACES } from './dust.ts';
+import { buildLowPolyVehicle, pickLowPolyPaint, pickLowPolyTractor, pickLowPolyVariant, type LowPolyVariant } from './lowPolyVehicles.ts';
 import { followSpeed, keepApart, keepClearOfRiders, leaderOf, oncomingInLane, RIDER_CLEAR_LAT } from './trafficSpacing.ts';
 
 /**
@@ -17,6 +19,7 @@ import { followSpeed, keepApart, keepClearOfRiders, leaderOf, oncomingInLane, RI
  * Modèles réalistes (Sketchfab, CC BY 4.0, voir ASSETS_LICENSES.md) préparés par tools/blender/vehicles :
  * `<nom>.glb` (proche) et `<nom>.far.glb` (lointain, simplifié), Meshopt + KTX2, à l'échelle réelle,
  * avant vers +z, roues = nœuds « wheel* » centrés sur leur axe. Sans fichiers : primitives.
+ * Style jeu vidéo (LOW_POLY) : aucun modèle chargé, véhicules à facettes de lowPolyVehicles.ts.
  */
 
 interface ModelSpec {
@@ -54,7 +57,8 @@ const PAINTS = ['#d9dadb', '#f4f4f2', '#1b1c1e', '#6f7378', '#9da2a8', '#2b3a55'
 /** Au-delà, modèle lointain (m, multiplié par `Traffic.lodScale`). */
 const FAR_M = 45;
 /** Accélération latérale maximale d'un véhicule en virage (m/s²) : conduite tranquille. */
-const CORNER_ACCEL = 2.5;
+// Style jeu vidéo : conduite plus vive (virages pris plus vite), le monde paraît plus animé.
+const CORNER_ACCEL = LOW_POLY ? 4.5 : 2.5;
 
 interface Template {
   spec: ModelSpec;
@@ -67,8 +71,9 @@ interface Template {
 const templates: Template[] = [];
 let loading: Promise<boolean> | null = null;
 
-/** Charge les modèles une fois (facultatif : sans eux, primitives). */
+/** Charge les modèles une fois (facultatif : sans eux, primitives). Style low poly : rien à télécharger. */
 export function loadVehicleModels(base = '/models/vehicles/'): Promise<boolean> {
+  if (LOW_POLY) return (loading ??= Promise.resolve(true));
   loading ??= (async () => {
     const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
     const ktx2 = await sharedKtx2Loader();
@@ -464,10 +469,16 @@ export class Traffic {
     const pool = templates.filter((t) => t.spec.weight > 0);
     const total = pool.reduce((s, t) => s + t.spec.weight, 0);
     let last: Template | undefined;
+    let lastLow: LowPolyVariant | undefined;
     for (let i = 0; i < n; i++) {
       const color = PAINTS[Math.floor(this.r() * PAINTS.length)] as string;
       let built: Built;
-      if (i === 1 && n >= 3) {
+      if (LOW_POLY) {
+        // Style jeu vidéo : variante à facettes (tracteur au même rang), sans répéter la précédente.
+        const variant = i === 1 && n >= 3 ? pickLowPolyTractor(this.r) : pickLowPolyVariant(this.r, lastLow);
+        lastLow = variant;
+        built = buildLowPolyVehicle(variant, pickLowPolyPaint(variant, this.r));
+      } else if (i === 1 && n >= 3) {
         const t = templates.find((m) => m.spec.kind === 'tractor');
         built = t ? buildModel(t, color, lodScale) : buildPrimitive('tractor', color);
       } else if (pool.length) {
@@ -540,6 +551,13 @@ export class Traffic {
       if (kappa > 1e-4) target = Math.min(target, Math.max(4, Math.sqrt(CORNER_ACCEL / kappa)));
       let lateralTarget = this.laneOf(v.sens);
       let brake = 4;
+      // Style jeu vidéo : un véhicule qu'un coureur rattrape par l'arrière accélère pour garder ses distances
+      // (jamais de coureur qui le rattrape et passe au travers dans un virage lent).
+      if (LOW_POLY && v.sens > 0)
+        for (const r of riders) {
+          const gap = v.d - v.length / 2 - r.distM;
+          if (gap > -1 && gap < 30 && Math.abs(r.lateral - v.lateral) < 2.2) target = Math.max(target, r.speedMs + 4);
+        }
       if (v.sens > 0) {
         // Coureur devant à moins de 60 m : on déboîte s'il n'y a personne en face, sinon on patiente.
         let ahead: (typeof riders)[number] | undefined;

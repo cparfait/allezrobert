@@ -153,7 +153,8 @@ export function apparentWind(speedMs: number, windMs: number, windFrom: number, 
 /** Souffle de l'air aux oreilles : volume et brillance croissent avec la vitesse de l'air. */
 export function windMix(airMs: number): { gain: number; freq: number } {
   const a = Math.max(0, Number.isFinite(airMs) ? airMs : 0);
-  return { gain: Math.min(0.2, 0.004 + 0.14 * (a / 15) ** 2), freq: Math.min(2400, 220 + a * 70) };
+  // ≈ 40 % plus doux qu'à l'origine (le souffle couvrait le reste à vitesse de course).
+  return { gain: Math.min(0.12, 0.003 + 0.085 * (a / 15) ** 2), freq: Math.min(2400, 220 + a * 70) };
 }
 
 // ————————————————————————————————————————————— Roue libre et transmission
@@ -245,20 +246,27 @@ export function crowdZone(seg: RouteSegment): { from: number; to: number; weight
 }
 
 /**
- * Présence du public (0–1) à la distance `d` de l'itinéraire : pleine dans la zone, entendue de
- * loin en approche (250 m), vite éteinte après le sommet (120 m). Boucle : distances repliées.
+ * Présence du public (0–1) à la distance `d` de l'itinéraire : pleine dans la zone, entendue à
+ * l'approche (80 m, quand on le voit), vite éteinte après (60 m). Boucle : distances repliées.
  */
 export function crowdLevel(d: number, segments: readonly RouteSegment[], lengthM: number, loop: boolean): number {
   let best = 0;
+  // Zones : fin des côtes et sprints, plus la foule des arches (départ de KOM, départ de sprint, arrivée),
+  // comme world/crowd.ts.
+  const zones: Array<{ from: number; to: number; weight: number }> = [];
   for (const seg of segments) {
     const z = crowdZone(seg);
-    if (!z) continue;
+    if (z) zones.push(z);
+    if (seg.kind === 'kom' || seg.kind === 'sprint') zones.push({ from: seg.startM - 30, to: seg.startM + 30, weight: 0.7 });
+  }
+  if (lengthM > 0) zones.push({ from: lengthM - 60, to: lengthM, weight: 0.8 });
+  for (const z of zones) {
     const shifts = loop && lengthM > 0 ? [-lengthM, 0, lengthM] : [0];
     for (const s of shifts) {
       const x = d + s;
       let lvl: number;
-      if (x < z.from) lvl = (1 - Math.min(1, (z.from - x) / 250)) ** 2;
-      else if (x > z.to) lvl = (1 - Math.min(1, (x - z.to) / 120)) ** 2;
+      if (x < z.from) lvl = (1 - Math.min(1, (z.from - x) / 80)) ** 2;
+      else if (x > z.to) lvl = (1 - Math.min(1, (x - z.to) / 60)) ** 2;
       else lvl = 1;
       best = Math.max(best, lvl * z.weight);
     }

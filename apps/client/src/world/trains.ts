@@ -3,6 +3,8 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import type { RouteTrack } from '@allezrobert/shared';
 import { mergeRailPieces, planTriggers, railAt, type Rail, type TrainTrigger } from '../game/trainplan.ts';
 import type { LoadedTile } from './types.ts';
+import { LOW_POLY } from '../engine/style.ts';
+import { LIVERIES, lowPolyCarGeometry, type CarEnd } from './trainLowPoly.ts';
 
 const CAR_LENGTH = 24;
 const CAR_GAP = 1.2;
@@ -50,10 +52,16 @@ export class Trains {
     accent: new THREE.MeshStandardNodeMaterial({ color: '#1f4fa3', roughness: 0.5, metalness: 0.2 }),
     glass: new THREE.MeshStandardNodeMaterial({ color: '#1b2430', roughness: 0.1, metalness: 0.4 }),
     dark: new THREE.MeshStandardNodeMaterial({ color: '#202226', roughness: 0.8 }),
-    ballast: new THREE.MeshStandardNodeMaterial({ color: '#7d756b', roughness: 1, side: THREE.DoubleSide }),
-    rail: new THREE.MeshStandardNodeMaterial({ color: '#5b5e63', roughness: 0.35, metalness: 0.8, side: THREE.DoubleSide }),
+    // Style jeu vidéo : ballast clair et rails gris unis, à facettes.
+    ballast: new THREE.MeshStandardNodeMaterial({ color: LOW_POLY ? '#aaa295' : '#7d756b', roughness: 1, side: THREE.DoubleSide, flatShading: LOW_POLY }),
+    rail: LOW_POLY
+      ? new THREE.MeshStandardNodeMaterial({ color: '#70757c', roughness: 0.6, metalness: 0.2, side: THREE.DoubleSide, flatShading: true })
+      : new THREE.MeshStandardNodeMaterial({ color: '#5b5e63', roughness: 0.35, metalness: 0.8, side: THREE.DoubleSide }),
   };
   private readonly geo = carGeometry();
+  /** Style jeu vidéo : voitures à couleurs par sommet (un appel de dessin chacune), géométries par livrée. */
+  private readonly lowPolyMat = LOW_POLY ? new THREE.MeshStandardNodeMaterial({ vertexColors: true, flatShading: true, roughness: 0.6, metalness: 0 }) : null;
+  private readonly lowPolyGeo = new Map<string, THREE.BufferGeometry>();
 
   constructor(
     private readonly track: RouteTrack,
@@ -125,8 +133,19 @@ export class Trains {
     const speed = Math.min(39, Math.max(15, dist / eta));
     const cars: THREE.Group[] = [];
     const n = 3 + Math.floor(Math.random() * 2);
+    const livery = LOW_POLY ? (LIVERIES[Math.floor(Math.random() * LIVERIES.length)] as string) : '';
     for (let i = 0; i < n; i++) {
       const g = new THREE.Group();
+      if (this.lowPolyMat) {
+        // Voiture 0 en tête (nez vers l'avant), dernière voiture en queue (nez vers l'arrière).
+        const end: CarEnd = i === 0 ? 'head' : i === n - 1 ? 'tail' : 'mid';
+        const body = new THREE.Mesh(this.lowPolyGeometry(end, livery), this.lowPolyMat);
+        body.castShadow = true;
+        g.add(body);
+        this.group.add(g);
+        cars.push(g);
+        continue;
+      }
       const body = new THREE.Mesh(this.geo.body, i % 2 ? this.mats.ter : this.mats.accent);
       body.castShadow = true;
       g.add(body, new THREE.Mesh(this.geo.glass, this.mats.glass), new THREE.Mesh(this.geo.dark, this.mats.dark));
@@ -134,6 +153,14 @@ export class Trains {
       cars.push(g);
     }
     this.active = { rail, s: t.railS - sens * dist, sens, speed, cars };
+  }
+
+  /** Géométrie low poly d'une voiture (créée une fois par extrémité et par livrée). */
+  private lowPolyGeometry(end: CarEnd, livery: string): THREE.BufferGeometry {
+    const key = `${end}|${livery}`;
+    let g = this.lowPolyGeo.get(key);
+    if (!g) this.lowPolyGeo.set(key, (g = lowPolyCarGeometry(CAR_LENGTH, end, livery)));
+    return g;
   }
 
   /** Voies des tuiles chargées (raccordées) et points de déclenchement, quand les tuiles changent. */

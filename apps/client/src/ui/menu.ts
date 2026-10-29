@@ -1,4 +1,5 @@
 import type { AvatarLook, CosmeticItem, RouteData, RouteSegment, WorldCatalogue } from '@allezrobert/shared';
+import { GRAPHIC_STYLE, setGraphicStyle, type GraphicStyle } from '../engine/style.ts';
 import { readKomRecord } from '../game/challenge.ts';
 import { COUNTRIES, BIKE_BRANDS, BIKE_GROUPS, BIKE_TEAMS, COSMETICS, DEFAULT_BIKE, bikeById, routesForBike, mirrorStartM, rankRouteId, lookSex, tuneItem, withSex, bottleCapacity, bikeSetupFor, jerseyLookOf, helmetLookOf, levelProgress, SHOE_MARKS, type BikeCollection, type BikeType, type CapLook, type CosmeticSlot } from '@allezrobert/shared';
 import { shoeAccentOf } from '../rider/shoeLook.ts';
@@ -1990,6 +1991,7 @@ export class MainMenu {
     const sec = (id: string, title: string, body: string) => this.settingsSection(id, title, body);
     const graphics = `<div class="grid3">
         <div class="field">${t('quality')}${this.seg('m-quality', s.quality, (['low', 'medium', 'high', 'ultra'] as const).map((q) => [q, t(q)]))}</div>
+        <div class="field">${L ? 'Style graphique' : 'Graphic style'}${this.seg('m-style', GRAPHIC_STYLE, [['lowpoly', L ? 'Jeu vidéo' : 'Video game'], ['real', L ? 'Réaliste' : 'Realistic']])}</div>
         <div class="field">${L ? 'Format de l\'image' : 'Picture format'}${this.seg('m-aspect', getAspectCap(), [['full', L ? 'Plein écran' : 'Full'], ['16:9', '16:9'], ['21:9', '21:9'], ['32:9', '32:9']])}</div>
         <div class="field">${L ? 'Zone de l\'interface' : 'Interface area'}${this.seg('m-uiaspect', getUiAspectCap(), [['full', L ? 'Toute la largeur' : 'Full width'], ['16:9', '16:9'], ['21:9', '21:9']])}</div>
         <div class="field">${L ? 'Résolution max' : 'Max resolution'}${this.seg('m-maxres', getResolutionCap(), [['auto', 'Auto'], ['1080p', '1080p'], ['1440p', '1440p'], ['4k', '4K']])}</div>
@@ -2014,6 +2016,7 @@ export class MainMenu {
           ['0', L ? 'Non' : 'Off'],
           ['1', '3 s'],
         ])}</div>
+        <label class="field" title="${L ? 'Le coureur se met en danseuse au-delà de cette puissance (en plus du sprint, des côtes et des efforts en force). Auto : règles seules.' : 'The rider stands up above this power (on top of sprints, climbs and low-cadence efforts). Auto: rules only.'}">${L ? 'Danseuse au-delà de' : 'Stand up above'} <span id="m-standv">${s.standWatts ? `${s.standWatts} W` : 'Auto'}</span><input id="m-stand" type="range" min="0" max="1200" step="25" value="${s.standWatts}" /></label>
       </div>`;
     const lang = `<div class="grid3">
         <div class="field">${t('language')}${this.seg('m-lang', s.lang, [
@@ -3023,6 +3026,8 @@ export class MainMenu {
       localStorage.setItem('ar.quality', s.quality);
       changed();
     });
+    // Style graphique : matériaux construits au chargement, la page se recharge.
+    on<HTMLSelectElement>('m-style', 'change', (el) => setGraphicStyle(el.value as GraphicStyle));
     // Format et résolution : pris en compte tout de suite (le moteur écoute « resize »), sans recharger.
     on<HTMLSelectElement>('m-aspect', 'change', (el) => {
       setAspectCap(el.value as AspectCap);
@@ -3108,6 +3113,12 @@ export class MainMenu {
     );
     on<HTMLSelectElement>('m-smooth', 'change', (el) => {
       s.smoothing3s = el.value === '1';
+      changed();
+    });
+    on<HTMLInputElement>('m-stand', 'input', (el) => {
+      s.standWatts = Number(el.value);
+      const v = document.getElementById('m-standv');
+      if (v) v.textContent = s.standWatts ? `${s.standWatts} W` : 'Auto';
       changed();
     });
   }

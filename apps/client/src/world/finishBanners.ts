@@ -1,7 +1,8 @@
 import * as THREE from 'three/webgpu';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { climbCategory, climbCategoryLabel, komPoints, type RouteTrack } from '@allezrobert/shared';
 
-type Kind = 'finish' | 'start' | 'km10' | 'km1' | 'summit';
+type Kind = 'finish' | 'start' | 'km10' | 'km1' | 'summit' | 'komStart' | 'sprintStart' | 'sprintEnd';
 
 /** Sommet d'une côte classée : nom, catégorie et points du classement de la montagne. */
 interface Summit {
@@ -57,6 +58,18 @@ function bannerTexture(kind: Kind, ratio: number, summit?: Summit, label = 'ARRI
     ctx.fillStyle = '#d4141c';
     ctx.font = font(52);
     ctx.fillText(summit.points, W / 2, H * 0.79, W * 0.88);
+  } else if (kind === 'komStart' || kind === 'sprintStart' || kind === 'sprintEnd') {
+    // Départ de KOM (rouge), départ et ligne de sprint (vert) : titre, nom du segment en dessous.
+    const kom = kind === 'komStart';
+    ctx.fillStyle = kom ? '#e5322d' : '#22a04b';
+    ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, W, 12);
+    ctx.fillRect(0, H - 12, W, 12);
+    ctx.font = font(118);
+    ctx.fillText(kom ? 'DÉPART KOM' : kind === 'sprintStart' ? 'DÉPART SPRINT' : 'SPRINT', W / 2, H * 0.4, W * 0.9);
+    ctx.font = font(62);
+    ctx.fillText((summit?.name ?? label).toUpperCase(), W / 2, H * 0.78, W * 0.9);
   } else {
     ctx.fillStyle = kind === 'km1' ? '#c8102e' : '#1f4f9c';
     ctx.fillRect(0, 0, W, H);
@@ -126,17 +139,25 @@ export class FinishBanners {
       const pts = komPoints(cat);
       spots.push({ d: seg.endM, kind: 'summit', summit: { name: seg.name, category: climbCategoryLabel(cat), points: `GRIMPEUR : ${pts.join(' · ')} PTS` } });
     }
+    // Départ des KOM, départ et ligne des sprints (arches gonflables rouges et vertes).
+    for (const seg of track.route.segments) {
+      if (seg.kind === 'kom' && seg.startM > 8) spots.push({ d: seg.startM, kind: 'komStart', label: seg.name });
+      if (seg.kind === 'sprint') {
+        if (seg.startM > 8) spots.push({ d: seg.startM, kind: 'sprintStart', label: seg.name });
+        spots.push({ d: seg.endM, kind: 'sprintEnd', label: seg.name });
+      }
+    }
     const half = track.route.roadWidthM / 2;
     const span = half + 1.2; // poteaux à 1,2 m du bord de la chaussée
     const flameMat = new THREE.MeshStandardNodeMaterial({ color: '#d4141c', roughness: 0.6, side: THREE.DoubleSide });
     const TUBE = 0.5; // rayon du boudin gonflable
-    const tubeColor: Record<Kind, string> = { finish: '#1f5fbf', start: '#1f5fbf', km1: '#c8102e', km10: '#1f5fbf', summit: '#f4f4f4' };
+    const tubeColor: Record<Kind, string> = { finish: '#1f5fbf', start: '#1f5fbf', km1: '#c8102e', km10: '#1f5fbf', summit: '#f4f4f4', komStart: '#f4f4f4', sprintStart: '#f4f4f4', sprintEnd: '#22a04b' };
     for (const { d, kind, summit, label, backLabel } of spots) {
       const p = track.positionAt(d, 0);
       const ground = groundAt(p.x, p.z);
       const y = Number.isFinite(ground) ? ground : p.y;
       const g = new THREE.Group();
-      const H = kind === 'finish' || kind === 'start' || kind === 'summit' ? 6.0 : 5.4; // hauteur du sommet de l'arche
+      const H = kind === 'km1' || kind === 'km10' ? 5.4 : 6.0; // hauteur du sommet de l'arche
       const hw = span + TUBE; // demi-largeur au centre des boudins
       // Arche gonflable : boudin continu, montants verticaux et haut arrondi (carré à coins ronds).
       const path: THREE.Vector3[] = [];
@@ -157,7 +178,7 @@ export class FinishBanners {
       }
       // Panneau d'inscription tendu sous le haut de l'arche, lisible des deux côtés.
       const bw = hw * 1.6;
-      const bh = kind === 'finish' || kind === 'start' || kind === 'summit' ? 1.5 : 1.3;
+      const bh = kind === 'km1' || kind === 'km10' ? 1.3 : 1.5;
       const bannerMat = new THREE.MeshStandardNodeMaterial({ map: bannerTexture(kind, bw / bh, summit, label), roughness: 0.7 });
       if (kind === 'finish' && loop) this.loopFront = { mat: bannerMat, ratio: bw / bh, text: label ?? '' };
       // Verso : sur une boucle, les coureurs qui viennent de partir voient « DÉPART », ceux qui arrivent « ARRIVÉE ».
@@ -179,5 +200,56 @@ export class FinishBanners {
       g.rotation.y = Math.atan2(-p.dirX, -p.dirZ);
       this.group.add(g);
     }
+    this.addFlags(track, groundAt, span);
+  }
+
+  /**
+   * Haies de drapeaux des deux côtés de la route sur 40 m autour du départ et de l'arrivée de chaque KOM
+   * (rouges et blancs) et sprint (verts et blancs), comme dans les courses : un seul maillage, couleurs par
+   * sommet, drapeaux légèrement tournés vers la route.
+   */
+  private addFlags(track: RouteTrack, groundAt: (x: number, z: number) => number, span: number): void {
+    const parts: THREE.BufferGeometry[] = [];
+    const paint = (g: THREE.BufferGeometry, hex: string) => {
+      const n = g.getAttribute('position').count;
+      const c = new THREE.Color(hex);
+      const cols = new Float32Array(n * 3);
+      for (let i = 0; i < n; i++) c.toArray(cols, i * 3);
+      g.setAttribute('color', new THREE.BufferAttribute(cols, 3));
+      return g;
+    };
+    for (const seg of track.route.segments) {
+      if (seg.kind !== 'kom' && seg.kind !== 'sprint') continue;
+      const colA = seg.kind === 'kom' ? '#e5322d' : '#22a04b';
+      for (const at of [seg.startM, seg.endM]) {
+        for (let d = at - 40; d <= at + 40; d += 6) {
+          if (d < 2 || d > track.length - 2 || Math.abs(d - at) < 4) continue;
+          for (const side of [-1, 1]) {
+            const p = track.positionAt(d, side * (span + 1.4));
+            const gy = groundAt(p.x, p.z);
+            const y = Number.isFinite(gy) ? gy : p.y;
+            const k = Math.round(d / 6) + (side > 0 ? 1 : 0);
+            const col = k % 2 ? colA : '#f4f4f4';
+            const yaw = Math.atan2(p.dirX, p.dirZ) + (side > 0 ? -Math.PI / 2 : Math.PI / 2) + 0.35 * side;
+            const m = new THREE.Matrix4().makeRotationY(yaw).setPosition(p.x, y, p.z);
+            const pole = paint(new THREE.CylinderGeometry(0.03, 0.035, 3.2, 5).translate(0, 1.6, 0).toNonIndexed(), '#d8d8d8');
+            const flag = paint(new THREE.BoxGeometry(0.02, 0.62, 0.95).translate(0, 2.8, -0.5).toNonIndexed(), col);
+            for (const g of [pole, flag]) {
+              g.deleteAttribute('uv');
+              g.applyMatrix4(m);
+              parts.push(g);
+            }
+          }
+        }
+      }
+    }
+    if (!parts.length) return;
+    const merged = mergeGeometries(parts) as THREE.BufferGeometry;
+    const mat = new THREE.MeshStandardNodeMaterial({ vertexColors: true, roughness: 0.75, side: THREE.DoubleSide });
+    mat.flatShading = true;
+    const mesh = new THREE.Mesh(merged, mat);
+    mesh.name = 'segment-flags';
+    mesh.castShadow = true;
+    this.group.add(mesh);
   }
 }

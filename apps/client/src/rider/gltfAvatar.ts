@@ -1,4 +1,7 @@
 import * as THREE from 'three/webgpu';
+import { LOW_POLY } from '../engine/style.ts';
+import { flatLook } from './flatLook.ts';
+import { LowPolyRider } from './lowPolyRider.ts';
 import { ShoeMaterial } from './shoeMaterial.ts';
 import { shoeDialOf } from './shoeLook.ts';
 import { GLTFLoader, type GLTF } from 'three/addons/loaders/GLTFLoader.js';
@@ -135,10 +138,11 @@ const AVATAR_KIND: AvatarKind = AVATAR_PARAM === 'classic' || AVATAR_PARAM === '
  */
 const FILES: Record<AvatarKind, readonly string[]> = {
   boutique: ['avatar/boutique/rider.glb', 'avatar/boutique/rider_lod1.glb', 'avatar/boutique/rider_lod2.glb'],
-  mpfb: ['avatar/rider.glb', 'avatar/rider_lod1.glb', 'avatar/rider_lod2.glb'],
+  // Style jeu vidéo : le niveau le plus simple (2,5 k triangles) à toutes les distances, à facettes.
+  mpfb: LOW_POLY ? ['avatar/rider_lod2.glb'] : ['avatar/rider.glb', 'avatar/rider_lod1.glb', 'avatar/rider_lod2.glb'],
   classic: ['cyclist.glb', 'cyclist_lod1.glb'],
   // Modèle MPFB féminin de base (build_avatar.py --variant female) : choisi pour les looks « sex < 0 ».
-  female: ['avatar/rider_female.glb', 'avatar/rider_female_lod1.glb', 'avatar/rider_female_lod2.glb'],
+  female: LOW_POLY ? ['avatar/rider_female_lod2.glb'] : ['avatar/rider_female.glb', 'avatar/rider_female_lod1.glb', 'avatar/rider_female_lod2.glb'],
 };
 const LOD_DISTANCES: Record<AvatarKind, readonly number[]> = { boutique: [0, 10, 30], mpfb: [0, 10, 30], classic: [0, 30], female: [0, 10, 30] };
 const WHEEL_R = 0.335;
@@ -1020,6 +1024,7 @@ export class GltfRiderAvatar implements RiderAvatarLike {
         } else mat = makeMaterial(key, look);
         this.materials.set(key, mat);
       }
+      if (LOW_POLY) flatLook(mat);
       mesh.material = mat;
       mesh.castShadow = bigPart(mesh);
       mesh.receiveShadow = true;
@@ -1710,6 +1715,8 @@ export class GltfRiderAvatar implements RiderAvatarLike {
 
 /** Avatar glTF si les modèles sont chargés (GltfRiderAvatar.load()), sinon l'avatar procédural. */
 export function createAvatar(look: AvatarLook, kind: AvatarKind = AVATAR_KIND): RiderAvatarLike {
+  // Style jeu vidéo : cycliste et vélo low poly construits de zéro (lowPolyRider.ts).
+  if (LOW_POLY) return new LowPolyRider(look);
   if (GltfRiderAvatar.has(kind)) return new GltfRiderAvatar(look, kind);
   return GltfRiderAvatar.ready ? new GltfRiderAvatar(look) : new RiderAvatar(look);
 }

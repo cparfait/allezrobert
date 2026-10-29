@@ -130,4 +130,23 @@ describe('posture', () => {
     }
     expect(changes).toBeLessThanOrEqual(1);
   });
+  it('seuil de danseuse choisi et position mesurée par les pédales', () => {
+    const p = new PoseController();
+    const flat = { cadence: 95, gradePercent: 0, ftpWatts: 250 };
+    // 320 W sur le plat : assis par les règles seules, debout avec un seuil à 300 W.
+    for (let i = 0; i < 20; i++) p.update({ ...flat, watts: 320 }, 0.1);
+    expect(p.pose).toBe('seated');
+    for (let i = 0; i < 20; i++) p.update({ ...flat, watts: 320, standWatts: 300 }, 0.1);
+    expect(p.pose).toBe('standing');
+    // Sortie sous 85 % du seuil seulement.
+    for (let i = 0; i < 20; i++) p.update({ ...flat, watts: 270, standWatts: 300 }, 0.1);
+    expect(p.pose).toBe('standing');
+    for (let i = 0; i < 20; i++) p.update({ ...flat, watts: 240, standWatts: 300 }, 0.1);
+    expect(p.pose).toBe('seated');
+    // Les pédales qui détectent la position l'emportent sur l'effort.
+    for (let i = 0; i < 20; i++) p.update({ ...flat, watts: 180, sensorPose: 'standing' }, 0.1);
+    expect(p.pose).toBe('standing');
+    for (let i = 0; i < 20; i++) p.update({ ...flat, watts: 700, sensorPose: 'seated' }, 0.1);
+    expect(p.pose).toBe('seated');
+  });
 });

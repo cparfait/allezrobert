@@ -1,5 +1,6 @@
 import * as THREE from 'three/webgpu';
-import { uv, mix, smoothstep, step, fract, vec2, vec3, float, floor, hash, uniform, mx_noise_float, positionWorld, clamp, abs, max } from 'three/tsl';
+import { LOW_POLY } from '../engine/style.ts';
+import { uv, mix, smoothstep, step, fract, vec2, vec3, float, floor, hash, uniform, mx_noise_float, positionWorld, clamp, abs, max, fwidth } from 'three/tsl';
 import type { RouteData, RoutePoint } from '@allezrobert/shared';
 import { asphaltGrain } from './asphalt.ts';
 import { ribbonEdges, ribbonIndex, roundCorners } from './ribbon.ts';
@@ -87,11 +88,33 @@ export class RoadMesh {
     col = mix(col, vec3(0.9, 0.9, 0.86), paint.mul(onRoad));
     const wet = this.wetness;
     col = col.mul(float(1).sub(wet.mul(0.4).mul(onRoad)));
+    if (LOW_POLY) {
+      // Style jeu vidéo : enrobé uni, rive nette, accotement clair, marquages francs.
+      // Enrobé foncé (réaliste) ; marquages antialiasés selon leur taille à l'écran : au loin, une ligne plus
+      // fine qu'un pixel s'estompe au lieu de scintiller.
+      const inside = step(ax, float(half));
+      const aa = fwidth(ax).max(0.002);
+      const band = (c: number, hw: number) => float(1).sub(smoothstep(float(hw).sub(aa), float(hw).add(aa), abs(ax.sub(c))));
+      const dv = v.div(13);
+      const da = fwidth(dv).max(0.001);
+      const t = fract(dv);
+      const dashAA = smoothstep(float(0).sub(da), da, t).mul(float(1).sub(smoothstep(float(3 / 13).sub(da), float(3 / 13).add(da), t)));
+      const edgeAA = band(half - 0.225, 0.075).mul(mk === 'full' ? 1 : 0);
+      const centerAA = band(0, 0.07).mul(dashAA).mul(mk === 'none' ? 0 : 1);
+      col = mix(vec3(0.42, 0.4, 0.35), vec3(0.075, 0.078, 0.085), inside);
+      col = mix(col, vec3(0.92, 0.92, 0.9), max(edgeAA, centerAA).mul(inside));
+      col = col.mul(float(1).sub(wet.mul(0.3).mul(inside)));
+    }
     m.colorNode = col.mul(cloudShade());
     const rough = float(0.84).sub(wheelTrack);
     m.roughnessNode = clamp(mix(float(0.97), rough, onRoad).sub(wet.mul(0.6).mul(onRoad)), 0.06, 1);
     m.metalnessNode = float(0);
-    m.opacityNode = step(ax, vergeOuter);
+    if (LOW_POLY) {
+      // Mat (voir network.ts) : sans reflet du ciel en rasant.
+      m.roughnessNode = clamp(float(0.95).sub(wet.mul(0.5)), 0.3, 1);
+      m.envNode = vec3(0.34, 0.34, 0.35);
+    }
+    m.opacityNode = LOW_POLY ? step(ax, float(half + 0.6)) : step(ax, vergeOuter);
     m.alphaTest = 0.5;
     m.polygonOffset = true;
     m.polygonOffsetFactor = -2;

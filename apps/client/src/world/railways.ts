@@ -1,6 +1,7 @@
 import * as THREE from 'three/webgpu';
-import { attribute, uv, vec3, float, uniform, mix, smoothstep, step, fract, abs, mx_noise_float, positionWorld, max, varying } from 'three/tsl';
+import { attribute, uv, vec3, float, uniform, mix, smoothstep, step, fract, abs, mx_noise_float, positionWorld, max, varying, fwidth, positionLocal, sign } from 'three/tsl';
 import type { QualitySettings } from '../engine/quality.ts';
+import { LOW_POLY } from '../engine/style.ts';
 import type { LoadedTile } from './types.ts';
 import { assembleLines, pointAt, RER, trainsAt, type RailLine, type RailPiece } from './railgeom.ts';
 
@@ -95,6 +96,8 @@ export class Railways {
   private readonly trackMat: THREE.MeshStandardNodeMaterial;
   private readonly cars: THREE.InstancedMesh;
   private readonly carEnds: THREE.InstancedBufferAttribute;
+  /** Style jeu vidéo : axe avant de chaque voiture (repère du monde), pour biseauter les cabines dans le shader. */
+  private readonly carFwd: THREE.InstancedBufferAttribute | null = null;
   private readonly tiles = new Map<string, TileRails>();
   private lines: RailLine[] = [];
   private anchors: Array<{ x: number; z: number }> = [];
@@ -112,6 +115,10 @@ export class Railways {
     const geo = carGeometry();
     this.carEnds = new THREE.InstancedBufferAttribute(new Float32Array(MAX_TRAINS * CARS * 2), 2);
     geo.setAttribute('ends', this.carEnds);
+    if (LOW_POLY) {
+      this.carFwd = new THREE.InstancedBufferAttribute(new Float32Array(MAX_TRAINS * CARS * 3), 3);
+      geo.setAttribute('fwd', this.carFwd);
+    }
     this.cars = new THREE.InstancedMesh(geo, this.createCarMaterial(), MAX_TRAINS * CARS);
     this.cars.count = 0;
     this.cars.frustumCulled = false;
@@ -122,6 +129,7 @@ export class Railways {
   }
 
   private createTrackMaterial(): THREE.MeshStandardNodeMaterial {
+    if (LOW_POLY) return lowPolyTrackMaterial();
     const m = new THREE.MeshStandardNodeMaterial();
     const kind = attribute<'float'>('rk'); // 0 ballast, 1 rail, 2 caténaire / poteau
     const across = uv().x;
@@ -146,6 +154,7 @@ export class Railways {
   }
 
   private createCarMaterial(): THREE.MeshStandardNodeMaterial {
+    if (LOW_POLY) return this.createLowPolyCarMaterial();
     const m = new THREE.MeshStandardNodeMaterial();
     const part = attribute<'float'>('part');
     const raw = attribute<'vec3'>('position');
@@ -185,6 +194,58 @@ export class Railways {
     m.emissiveNode = lampCol.mul(lamp).add(vec3(1.0, 0.92, 0.75).mul(lit.mul(0.9)));
     m.roughnessNode = mix(float(0.45), float(0.12), window);
     m.metalnessNode = mix(float(0.1), float(0.5), step(float(0.5), part));
+    return m;
+  }
+
+  /**
+   * Style jeu vidéo : mêmes zones que le matériau réaliste (portes, bandeau de vitres, bandeau bas, cabines,
+   * feux) mais calculées par pixel en aplats francs (blanc, bleu vif, vitres bleu nuit), facettes ; cabines
+   * de tête et de queue biseautées (haut de la face d'extrémité ramené de 1,1 m vers l'intérieur).
+   */
+  private createLowPolyCarMaterial(): THREE.MeshStandardNodeMaterial {
+    const m = new THREE.MeshStandardNodeMaterial();
+    m.flatShading = true;
+    const part = attribute<'float'>('part');
+    const raw = attribute<'vec3'>('position');
+    const ends = attribute<'vec2'>('ends');
+    const fwd = attribute<'vec3'>('fwd');
+    const y = raw.y;
+    const z = raw.z;
+    const half = CAR_LEN / 2;
+    const dz = abs(z);
+    const endKind = mix(ends.x, ends.y, step(float(0), z)); // 0 intercirculation, 1 tête, 2 queue
+    // Biseau : sommets de la caisse à une extrémité de tête ou de queue, au-dessus de 1,6 m.
+    const bevel = step(float(0.5), endKind).mul(step(half - 0.01, dz)).mul(step(part, float(0.5))).mul(smoothstep(1.6, 4.1, y).mul(1.1));
+    m.positionNode = positionLocal.sub(fwd.mul(sign(z).mul(bevel)));
+    const side = smoothstep(1.3, 1.44, abs(raw.x));
+    const door = max(step(abs(z.sub(6.5)), float(0.7)), max(step(abs(z), float(0.7)), step(abs(z.add(6.5)), float(0.7)))).mul(side).mul(step(y, float(3.3)));
+    const winBand = step(float(2.0), y).mul(step(y, float(3.0))).mul(side);
+    // Montants plus larges qu'en réaliste (30 cm) : ils restent lisibles sans scintiller au loin.
+    const pillar = step(fract(z.div(1.6)), float(0.19)).mul(float(1).sub(smoothstep(0.08, 0.2, fwidth(z))));
+    const window = winBand.mul(float(1).sub(pillar)).mul(step(dz, float(half - 1.2)));
+    const lower = step(y, float(1.6)).mul(step(float(1.12), y));
+    const white = vec3(0.88, 0.88, 0.85);
+    const blue = vec3(0.02, 0.18, 0.72);
+    const glass = vec3(0.025, 0.05, 0.12);
+    let col: THREE.Node<'vec3'> = white;
+    col = mix(col, blue, lower);
+    col = mix(col, blue, door);
+    col = mix(col, glass, max(window, door.mul(step(float(1.7), y)).mul(step(y, float(2.9)))));
+    const atEnd = smoothstep(half - 0.05, half, dz);
+    const cab = atEnd.mul(step(float(0.5), endKind));
+    // Cabine : face d'extrémité bleue, grand pare-brise sombre.
+    col = mix(col, blue, cab.mul(step(y, float(2.3))));
+    col = mix(col, glass, cab.mul(step(float(2.3), y)).mul(step(y, float(3.6))).mul(step(abs(raw.x), float(1.25))));
+    col = mix(col, vec3(0.08, 0.08, 0.09), step(float(0.5), part).mul(step(part, float(1.5))));
+    col = mix(col, vec3(0.5, 0.52, 0.55), step(float(1.5), part));
+    m.colorNode = col;
+    const lamp = cab.mul(step(abs(abs(raw.x).sub(0.95)), float(0.17))).mul(step(abs(y.sub(1.55)), float(0.13)));
+    const head = step(abs(endKind.sub(1)), float(0.5));
+    const lampCol = mix(vec3(3.0, 0.15, 0.1), vec3(4.0, 3.8, 3.4), head);
+    const lit = window.mul(this.night).mul(float(1).sub(part.min(1)));
+    m.emissiveNode = lampCol.mul(lamp).add(vec3(1.0, 0.92, 0.75).mul(lit.mul(0.9)));
+    m.roughnessNode = mix(float(0.6), float(0.25), window);
+    m.metalnessNode = float(0);
     return m;
   }
 
@@ -419,6 +480,10 @@ export class Railways {
           const lowEnd = c === 0 ? (headHigh ? 2 : 1) : 0;
           const highEnd = c === CARS - 1 ? (headHigh ? 1 : 2) : 0;
           this.carEnds.setXY(count, lowEnd, highEnd);
+          if (this.carFwd) {
+            const f = fwd.clone().normalize();
+            this.carFwd.setXYZ(count, f.x, f.y, f.z);
+          }
           count++;
         }
       }
@@ -426,12 +491,39 @@ export class Railways {
     this.cars.count = count;
     this.cars.instanceMatrix.needsUpdate = true;
     this.carEnds.needsUpdate = true;
+    if (this.carFwd) this.carFwd.needsUpdate = true;
   }
 
   /** Nombre de voitures visibles (statistiques). */
   get visibleCars(): number {
     return this.cars.count;
   }
+}
+
+/**
+ * Style jeu vidéo : voie en aplats (ballast gris clair, traverses en bois brun, rails gris), sans bruit ;
+ * traverses fondues dans le ballast au loin (avant qu'elles ne scintillent), facettes.
+ */
+function lowPolyTrackMaterial(): THREE.MeshStandardNodeMaterial {
+  const m = new THREE.MeshStandardNodeMaterial();
+  m.flatShading = true;
+  const kind = attribute<'float'>('rk'); // 0 ballast, 1 rail, 2 caténaire / poteau
+  const across = uv().x;
+  const along = uv().y;
+  const ballast = vec3(0.4, 0.37, 0.33);
+  const sleeper = step(fract(along.div(0.6)), float(0.38)).mul(step(abs(across), float(1.25)));
+  const wood = vec3(0.25, 0.14, 0.07);
+  // Au loin (une traverse plus fine que 2 pixels) : teinte moyenne ballast / bois.
+  const far = smoothstep(0.15, 0.35, fwidth(along));
+  let col: THREE.Node<'vec3'> = mix(mix(ballast, wood, sleeper), mix(ballast, wood, 0.38), far.mul(step(abs(across), float(1.25))));
+  const isRail = step(float(0.5), kind).mul(step(kind, float(1.5)));
+  const isMetal = step(float(1.5), kind);
+  col = mix(col, vec3(0.32, 0.33, 0.36), isRail);
+  col = mix(col, vec3(0.28, 0.29, 0.31), isMetal);
+  m.colorNode = col;
+  m.roughnessNode = mix(float(0.95), float(0.5), isRail.max(isMetal));
+  m.metalnessNode = isRail.max(isMetal).mul(0.3);
+  return m;
 }
 
 /** Abscisse du point d'une ligne le plus proche de (x, z). */

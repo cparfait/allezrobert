@@ -1,4 +1,5 @@
 import type { RoadGraphData, RouteData, WorldMeta, WorldPlace } from '@allezrobert/shared';
+import { LOW_POLY } from '../engine/style.ts';
 import type { HorizonGrid, LoadedTile, WorldSource } from './types.ts';
 import { graphFetch, worldFetch } from './packs.ts';
 import { decodeTileBytes } from './tileDecoder.ts';
@@ -78,7 +79,8 @@ export async function createFileWorld(id: string, meta: WorldMeta): Promise<Worl
         return r.arrayBuffer();
       };
       const binReady = gridFile ? loadGrid(gridFile).catch(() => null) : Promise.resolve(null);
-      const hasOrtho = idx ? idx.lods.includes('ortho') : true;
+      // Style jeu vidéo : aplats de couleur, l'orthophoto n'est pas téléchargée.
+      const hasOrtho = !LOW_POLY && (idx ? idx.lods.includes('ortho') : true);
       const orthoReady = hasOrtho ? orthoSource(`${base}/tiles/${key}.ortho.jpg`) : Promise.resolve(null);
       const res = await worldFetch(`${base}/tiles/${key}.json`);
       // 404 : tuile hors du monde, on n'y revient plus ; autre erreur (génération en cours) : on réessaiera.

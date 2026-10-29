@@ -22,6 +22,8 @@ import { FriendGhost, Ghost, fetchFriendGhost, uploadGhost } from './game/ghost.
 import { createDeviceLayer } from './game/devices.ts';
 import { Hud } from './hud/hud.ts';
 import { RideSound } from './audio/rideSound.ts';
+import { Announcer } from './audio/announcer.ts';
+import { crowdLevel } from './audio/soundscape.ts';
 import { music } from './audio/music.ts';
 import { companion } from './game/companionLink.ts';
 import { companionQr } from './ui/companionQr.ts';
@@ -969,6 +971,8 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
         )
       : null;
   const track = nav ? nav.track : scene.track;
+  // Monde ouvert : les abords (style jeu vidéo) suivent le tracé du navigateur.
+  if (nav) world.setTrack(track);
   // Défi KOM : départ lancé avant le pied de la montée choisie, fantôme du record.
   const komSeg = s.mode === 'challenge' && !nav ? (track.route.segments.find((g) => g.kind === 'kom' && g.id === s.challengeSeg) ?? track.route.segments.find((g) => g.kind === 'kom')) : undefined;
   const challenge = komSeg ? new KomChallenge(engine.scene, track, komSeg, { ...s.look, heightCm: s.heightCm }) : null;
@@ -990,6 +994,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   const startD = nav ? 0 : challenge ? challenge.startD : Number(params.get('d') ?? 0);
   const ride = new RideSession({
     profile,
+    standWatts: s.standWatts,
     track,
     trainerDifficulty: s.trainerDifficulty,
     drivetrain: s.drivetrain,
@@ -1124,6 +1129,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   const traffic = alive ? new Traffic(track, engine.quality.trafficDensity, startD, GltfRiderAvatar.lodScale) : null;
   traffic?.setPlaces(source.open?.places);
   if (traffic) engine.scene.add(traffic.group);
+  if (import.meta.env.DEV && traffic) (globalThis as { __traffic?: Traffic }).__traffic = traffic;
   // Trains : départ quand on approche de l'endroit où la route longe ou croise une voie.
   const trains = new Trains(track, (x, z) => world.terrain.heightAt(x, z), () => world.terrain.loadedTiles());
   engine.scene.add(trains.group);
@@ -1175,6 +1181,16 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   keyboard.steerBlocked = choosing;
   // Son de la sortie (ambiances, roulement, roue libre, souffle, public, trafic) : audio/rideSound.ts.
   const audio = new RideSound({ world, track, ride, traffic, ftpWatts: s.ftpWatts });
+  // Voix de course : speaker, temps et records des segments, cris du public, bilan (audio/announcer.ts).
+  const announcer = new Announcer(() => audio.audio.voiceOut());
+  announcer.preload(['welcome', 'go', 'komStart', 'sprintStart', 'time', 'summit', 'sprintLine', 'allez', 'allezRobert', 'vasy']);
+  /** Meilleur temps de chaque segment sur cet itinéraire (voix : record battu ou écart). */
+  const segBestKey = (id: string) => `ar.segbest.${rankRouteId(track.route.id)}.${id}`;
+  const voiceFlags = { start: false, half: false, lastKm: false };
+  ride.onSegmentStart = (seg) => {
+    if (seg.kind === 'kom') void announcer.say([Math.random() < 0.5 ? 'komStart' : 'komStart2']);
+    else if (seg.kind === 'sprint') void announcer.say([Math.random() < 0.5 ? 'sprintStart' : 'sprintStart2']);
+  };
   // Sons positionnés (églises, prés, eau) : la liste suit les tuiles chargées.
   const refreshSources = () => audio.setSources([...world.soundSources.values()].flat());
   refreshSources();
@@ -1194,6 +1210,12 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   input.onWarning?.((m) => hud.toast(m));
   const sequences = new RideSequences(document.getElementById('app') as HTMLElement, track);
   ride.onSegmentDone = (r) => {
+    if (r.seg.kind === 'kom' || r.seg.kind === 'sprint') {
+      const prev = Number(localStorage.getItem(segBestKey(r.seg.id)) ?? NaN);
+      const record = Number.isFinite(prev) && prev > 0 ? prev : readKomRecord(rankRouteId(track.route.id), r.seg.id)?.timeS ?? null;
+      announcer.segmentResult(r.seg.kind, r.timeS, record);
+      if (!s.guest && (record === null || r.timeS < record)) localStorage.setItem(segBestKey(r.seg.id), String(r.timeS));
+    }
     // Séquence HyperFrames (KOM / sprint) ; toast texte si les séquences sont coupées.
     // Rang solo : le joueur est classé seul ; en multijoueur le serveur fournit le vrai rang.
     if (s.guest) return;
@@ -1360,6 +1382,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   };
   ride.onLap = (lap) => {
     const done = routeTimer.lap(ride.elapsedS);
+    void announcer.say(['lap'], 'pa');
     const fr = getLang() === 'fr';
     hud.toast(done ? `${t('lap')} ${lap - 1} · ${fmtLapTime(done.timeS)}${done.best ? (fr ? ' · meilleur tour' : ' · best lap') : ''}` : `${t('lap')} ${lap}`);
     ghost.lap(ride.elapsedS, ride.state.distM);
@@ -1398,6 +1421,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   };
   const finish = () => {
     ride.paused = true;
+    void announcer.say(['finish'], 'pa');
     hud.setVisible(false);
     input.sendTrainer({ kind: 'simulation', gradePercent: 0 });
     const done = { distanceM: ride.state.distM - startD, elevationM: ride.elevationGainM, movingS: ride.elapsedS };
@@ -1457,6 +1481,14 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     );
     const trophyXp = trophies.reduce((a, t) => a + t.xp, 0);
     const after = trophyXp && xp ? addXp(trophyXp) : null;
+    announcer.summary({
+      distanceKm: stats.distanceM / 1000,
+      avgSpeedKmh: stats.avgSpeedKmh,
+      records: records.beaten.length > 0,
+      levelUp: !!xp?.levelUp,
+      trophy: trophies.length > 0,
+      previousSpeedKmh: previous?.avgSpeedKmh ?? null,
+    });
     showRideSummary(
       ui,
       {
@@ -1578,6 +1610,47 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
       hud.toast(ride.dir < 0 ? (L ? '↶ Demi-tour : à contresens de l’itinéraire' : '↶ U-turn: riding the route backwards') : L ? '↷ Retour dans le sens de l’itinéraire' : '↷ Back on the route direction');
     }
   };
+  /**
+   * Messages du groupe (façon NCT) : « À toi le relais » quand on passe en tête, « Le groupe reprend la tête »
+   * quand un équipier repasse devant, « Ils s'organisent, ils reviennent sur toi ! » quand l'échappée fond.
+   */
+  const talk = { leading: false, since: 0, away: false, bestGap: 0, quiet: 0 };
+  const groupTalk = (dt: number) => {
+    if (!peloton.riders.length || ride.dir < 0) return;
+    const me = ride.state.distM;
+    let front = -Infinity;
+    for (const r of peloton.riders) front = Math.max(front, r.state.distM);
+    const lead = me - front;
+    talk.quiet -= dt;
+    talk.since += dt;
+    const L = getLang() === 'fr';
+    const say = (fr: string, en: string) => {
+      if (talk.quiet > 0) return;
+      hud.toast(L ? fr : en);
+      talk.quiet = 6;
+    };
+    if (!talk.leading && lead > 1.5 && talk.since > 8) {
+      talk.leading = true;
+      talk.since = 0;
+      say('À toi le relais 💪', 'Your turn on the front 💪');
+    } else if (talk.leading && lead < -2) {
+      talk.leading = false;
+      talk.since = 0;
+      if (!talk.away) say('Le groupe reprend la tête 👋', 'The group takes over 👋');
+    }
+    // Échappée : plus de 25 m d'avance ; quand l'écart fond de 8 m, le groupe chasse.
+    if (lead > 25) {
+      if (!talk.away) {
+        talk.away = true;
+        talk.bestGap = lead;
+      }
+      talk.bestGap = Math.max(talk.bestGap, lead);
+      if (talk.bestGap - lead > 8) {
+        say('Ils s’organisent, ils reviennent sur toi !', 'They’re organising, they’re coming back to you!');
+        talk.bestGap = lead;
+      }
+    } else if (lead < 5) talk.away = false;
+  };
   /** Équipiers : allure du groupe en % de FTP (±5 %). */
   const changePace = (delta: number) => {
     if (!peloton.riders.length) return;
@@ -1667,12 +1740,29 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   /** Prochain virage annoncé au HUD, recalculé 5 fois par seconde ; affiché à 8 s de route (80 m au moins). */
   let turnInfo: { inM: number; angleDeg: number } | null = null;
   let turnCheckedAt = 0;
+  /** Virage annoncé (position sur l'itinéraire) : gardé jusqu'à son passage. */
+  let announced: { atM: number } | null = null;
   const upcomingTurn = () => {
     const now = performance.now();
     if (now - turnCheckedAt > 200) {
       turnCheckedAt = now;
       const tn = track.nextTurn(ride.state.distM, ride.dir, 220);
-      turnInfo = tn && tn.inM <= Math.max(80, ride.state.speedMs * 8) ? tn : null;
+      // Seulement aux bifurcations (une autre route part du virage), pas dans chaque courbe.
+      // Virage déjà annoncé : gardé (sans nouveau contrôle de bifurcation) jusqu'à ce qu'il soit passé ; le
+      // contrôle refait toutes les 200 ms le faisait apparaître et disparaître.
+      const d = ride.state.distM;
+      if (announced && ride.dir * (announced.atM - d) > -20 && tn && Math.abs(d + ride.dir * tn.inM - announced.atM) < 30) turnInfo = tn;
+      else {
+        announced = null;
+        let tj = tn && Math.abs(tn.angleDeg) >= 30 && tn.inM <= Math.max(80, ride.state.speedMs * 8) ? tn : null;
+        if (tj) {
+          // Bifurcation seulement : une autre route rejoint l'itinéraire au milieu du virage.
+          const mid = track.positionAt(d + ride.dir * (tj.inM + 14), 0);
+          if (!scene.world.terrain.junctionNear(mid.x, mid.z, track.route.id)) tj = null;
+        }
+        if (tj) announced = { atM: d + ride.dir * tj.inM };
+        turnInfo = tj;
+      }
     }
     return turnInfo;
   };
@@ -1773,7 +1863,10 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
           }
         }
         ride.state.distM += mp.reconcileLocal(ride.dir, ride.state.distM, dt);
-      } else ride.draft = peloton.update(dt, { distM: ride.state.distM, lateral: ride.lateral, speedMs: ride.state.speedMs, watts: ride.inputs.watts, massKg: s.massKg, ftpWatts: s.ftpWatts, reversed: ride.dir < 0, headWindMs: ride.headWindMs, crossWindMs: ride.crossWindMs }, cyclists && ride.dir > 0 ? cyclists.sameWayBodies() : []);
+      } else {
+        ride.draft = peloton.update(dt, { distM: ride.state.distM, lateral: ride.lateral, speedMs: ride.state.speedMs, watts: ride.inputs.watts, massKg: s.massKg, ftpWatts: s.ftpWatts, reversed: ride.dir < 0, headWindMs: ride.headWindMs, crossWindMs: ride.crossWindMs }, cyclists && ride.dir > 0 ? cyclists.sameWayBodies() : []);
+        groupTalk(dt);
+      }
       // Relais : quelqu'un roule dans ma roue (0,5 à 4 m derrière, à moins d'un mètre de côté).
       const onWheel = (d: number, lat: number) => {
         const gap = ride.state.distM - d;
@@ -1811,6 +1904,8 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     remoteRiders = mp ? mp.render(dt, engine.camera, ride.state.distM) : [];
     if (!ride.paused) {
       trains.update(dt, ride.state.distM, ride.dir, ride.state.speedMs);
+      // Public : il s'anime quand le coureur approche (style jeu vidéo).
+      crowd.update(ride.state.distM);
       if (traffic) {
         const push = traffic.yieldPush(ride.state.distM, ride.lateral, ride.dir);
         if (push) {
@@ -1879,7 +1974,29 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     avatar.root.rotateY(shownHeading);
     avatar.root.rotateX(-Math.atan((sample.grade * ride.dir) / 100));
     avatar.setEffort?.(ride.inputs.watts / Math.max(50, s.ftpWatts), ride.inputs.hr !== undefined ? ride.inputs.hr / 190 : undefined);
+    (avatar as { setSprint?(on: boolean): void }).setSprint?.(ride.segment?.seg.kind === 'sprint' || ride.inputs.watts > 1.4 * s.ftpWatts);
     avatar.update(dt, ride.inputs.cadence, ride.state.speedMs, ride.pose, bank);
+    // Voix de course : speaker au départ, mi-parcours et dernier kilomètre (itinéraire), cris du public.
+    if (!ride.paused) {
+      if (!voiceFlags.start && ride.elapsedS > 1.5) {
+        voiceFlags.start = true;
+        void announcer.say(['welcome', 'go'], 'pa');
+      }
+      const routeLen = track.length;
+      if (!track.route.loop && !nav && routeLen > 4000 && ride.dir > 0) {
+        const at = ride.state.distM;
+        if (!voiceFlags.half && at > routeLen / 2 && at < routeLen / 2 + 200) {
+          voiceFlags.half = true;
+          void announcer.say(['halfway'], 'plain', true);
+        }
+        if (!voiceFlags.lastKm && at > routeLen - 1000 && at < routeLen - 800) {
+          voiceFlags.lastKm = true;
+          void announcer.say(['lastKm'], 'pa', true);
+        }
+      }
+      announcer.crowd(crowdLevel(track.wrap(ride.state.distM), track.route.segments, track.length, track.route.loop), ride.pose === 'standing');
+    }
+    (avatar as { setComputer?(d: { speedKmh: number; watts: number; cadence: number; hr?: number; timeS?: number }): void }).setComputer?.({ speedKmh: ride.state.speedMs * 3.6, watts: ride.inputs.watts, cadence: ride.inputs.cadence, hr: ride.inputs.hr, timeS: ride.elapsedS });
     // Vue subjective et caméra embarquée : on garde le vélo, les bras et les mains, mais pas la tête.
     // (pendant un demi-tour, la caméra sort derrière le coureur : la tête redevient visible)
     const onboard = (rig.mode === 'cockpit' || rig.mode === 'action' || rig.mode === 'gopro') && !rig.lookBack && !camTurn;
@@ -1993,7 +2110,25 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
               return { id: r.id, name: r.name, distM: r.state.distM, x: p.x, z: p.z, me: false, isAI: true, isGuest: false, color: r.color, km: r.state.distM / 1000, watts: r.watts, wkg: r.watts / r.massKg, nationality: r.nationality };
             }),
           ],
-          ...(ride.segment ? { segment: { seg: ride.segment.seg, progress: ride.segment.progress, elapsedS: (ride.startT + ride.elapsedS * 1000 - ride.segment.startT) / 1000 } } : {}),
+          ...(ride.segment
+            ? {
+                segment: {
+                  seg: ride.segment.seg,
+                  progress: ride.segment.progress,
+                  elapsedS: (ride.startT + ride.elapsedS * 1000 - ride.segment.startT) / 1000,
+                  recordS: readKomRecord(rankRouteId(track.route.id), ride.segment.seg.id)?.timeS ?? null,
+                  gainLeftM: track.sample(ride.segment.seg.endM).y - track.sample(ride.state.distM).y,
+                },
+              }
+            : {}),
+          ...(() => {
+            // Prochain KOM ou sprint à moins de 600 m (sens de l'itinéraire seulement).
+            if (ride.segment || ride.dir < 0) return {};
+            const at = ride.state.distM % track.length;
+            const next = track.route.segments.find((g) => (g.kind === 'kom' || g.kind === 'sprint') && g.startM > at && g.startM - at < 600);
+            return next ? { nextSegment: { seg: next, inM: next.startM - at, recordS: readKomRecord(rankRouteId(track.route.id), next.id)?.timeS ?? null } } : {};
+          })(),
+          ...(peloton.riders.length ? { groupPace: { ftpPct: peloton.paceFtpPct, watts: peloton.groupWatts() } } : {}),
           devices: input.status(),
           ...(nav
             ? {

@@ -1,4 +1,8 @@
 import { frameStats } from '../engine/frameStats.ts';
+import { LOW_POLY } from '../engine/style.ts';
+import { RoadsideLife, type LifeDensity } from './roadsideLife.ts';
+import { RoadsidePeople } from './roadsidePeople.ts';
+import { SkyLife } from './skyLife.ts';
 import * as THREE from 'three/webgpu';
 import { baseRouteId, type RouteData, type RouteTrack } from '@allezrobert/shared';
 import type { QualitySettings } from '../engine/quality.ts';
@@ -36,6 +40,12 @@ export class World {
   readonly water: WaterSystem;
   readonly railways: Railways;
   readonly dust: Dust;
+  /** Style jeu vidéo : abords peuplés (clôtures, poteaux, fleurs, animaux). */
+  readonly life: RoadsideLife | null = null;
+  /** Style jeu vidéo : joggeurs, promeneurs, enfants, pêcheurs, footballeurs. */
+  readonly people: RoadsidePeople | null = null;
+  /** Style jeu vidéo : oiseaux et papillons. */
+  readonly sky: SkyLife | null = null;
   /** Relief lointain (montagnes au-delà des tuiles), chargé en arrière-plan s'il existe. */
   horizon: FarTerrain | null = null;
   private disposed = false;
@@ -56,6 +66,10 @@ export class World {
   private lastHour = Number.NaN;
   /** Sources sonores positionnées par tuile (tags OSM). */
   readonly soundSources = new Map<string, SoundSource[]>();
+  private lifeVersion = -1;
+  private lifeFailed = false;
+  /** Tuiles dont la végétation est plantée. */
+  private readonly vegReady = new Set<string>();
 
   constructor(scene: THREE.Scene, source: WorldSource, route: RouteData, track: RouteTrack, q: QualitySettings, envState: EnvironmentState) {
     this.scene = scene;
@@ -73,7 +87,8 @@ export class World {
     const footprint = open ? null : new RouteFootprint(route.points, route.loop, route.roadWidthM / 2, SHOULDER);
     this.terrain.footprint = footprint;
     // routes des tuiles : identifiant du parcours d'origine (sans sens ni départ)
-    this.terrain.activeRoute = baseRouteId(route.id);
+    // Style jeu vidéo, monde ouvert : l'itinéraire est dessiné par le réseau, le sol le peint aussi en enrobé.
+    this.terrain.activeRoute = LOW_POLY && open ? null : baseRouteId(route.id);
     scene.add(this.terrain.group);
     this.road = new RoadMesh(route);
     this.road.mesh.visible = !open;
@@ -97,7 +112,8 @@ export class World {
     scene.add(this.network.group);
     this.rain = new Rain();
     scene.add(this.rain.mesh);
-    const onAsphalt = buildRoadProximity(route, route.roadWidthM / 2 + 0.4);
+    // Style jeu vidéo : herbe tenue à 1 m du bord (les touffes penchées ne débordent plus sur l'enrobé).
+    const onAsphalt = buildRoadProximity(route, route.roadWidthM / 2 + (LOW_POLY ? 1.0 : 0.4));
     this.grass = new GrassField(q, envState.season, (x, z) => this.terrain.getTile(...this.terrain.tileCoord(x, z)), groundAt, onAsphalt);
     scene.add(this.grass.mesh);
     this.water = new WaterSystem(q, envState.season, groundAt, nearRoad);
@@ -108,6 +124,22 @@ export class World {
     scene.add(this.railways.group);
     this.dust = new Dust(q);
     scene.add(this.dust.sprite);
+    // Style jeu vidéo : clôtures, poteaux, fleurs et animaux le long du parcours (monde plus vivant).
+    if (LOW_POLY) {
+      // Tuile prise en compte une fois sa végétation plantée (les animaux évitent les arbres).
+      const lifeTile = (x: number, z: number) => {
+        const t = this.terrain.getTile(...this.terrain.tileCoord(x, z));
+        return t && this.vegReady.has(t.id) ? t : undefined;
+      };
+      this.life = new RoadsideLife(track, groundAt, lifeTile, lifeDensity(q), (a, b, c, d) => this.treesIn(a, b, c, d));
+      scene.add(this.life.group);
+      this.people = new RoadsidePeople(this.life, groundAt, lifeDensity(q).people);
+      scene.add(this.people.group);
+      this.sky = new SkyLife(this.life);
+      scene.add(this.sky.group);
+      if (import.meta.env.DEV) (globalThis as { __life?: RoadsideLife }).__life = this.life;
+      if (import.meta.env.DEV) (globalThis as { __world?: World }).__world = this;
+    }
 
     void source
       .loadHorizon?.()
@@ -131,7 +163,13 @@ export class World {
       for (const [label, step] of [
         ['bâtiments', () => this.buildings.addTile(tile)],
         ['routes', () => this.network.addTile(tile)],
-        ['végétation', () => this.vegetation.addTile(tile)],
+        [
+          'végétation',
+          () => {
+            this.vegetation.addTile(tile);
+            this.vegReady.add(tile.id);
+          },
+        ],
         ['eau', () => this.water.addTile(tile)],
         ['rails', () => this.railways.addTile(tile)],
       ] as const)
@@ -139,6 +177,7 @@ export class World {
     };
     this.terrain.onTileUnloaded = (tile) => {
       this.soundSources.delete(tile.id);
+      this.vegReady.delete(tile.id);
       this.buildings.removeTile(tile);
       this.network.removeTile(tile);
       this.vegetation.removeTile(tile);
@@ -196,6 +235,7 @@ export class World {
     this.vegetation.setQuality(q);
     this.water.setQuality(q);
     this.horizon?.setQuality(q);
+    this.life?.setDensity(lifeDensity(q));
   }
 
   update(dt: number, focus: THREE.Vector3): void {
@@ -204,6 +244,7 @@ export class World {
     this.vegetation.update(focus);
     if (frameStats.enabled) frameStats.add('végétation (détail)', performance.now() - tv);
     this.grass.update(focus);
+    this.updateLife(dt, focus);
     const w = this.env.state.weather;
     this.road.wetness.value = w.rain;
     this.network.wetness.value = w.rain;
@@ -263,6 +304,71 @@ export class World {
     }
   }
 
+  /**
+   * Monde ouvert : l'itinéraire roulé est celui du navigateur (créé au départ de la sortie, après le
+   * monde). Le décor des abords et ses personnages suivent ce nouvel itinéraire.
+   */
+  setTrack(track: RouteTrack): void {
+    if (!this.life || !track) return;
+    this.life.setTrack(track);
+    this.people?.reset();
+    this.sky?.reset();
+  }
+
+  /** Style jeu vidéo : décor des abords (une erreur n'arrête jamais la boucle de rendu). */
+  private updateLife(dt: number, focus: THREE.Vector3): void {
+    const life = this.life;
+    if (!life || !focus || !Number.isFinite(focus.x) || !Number.isFinite(focus.z)) return;
+    const step = Number.isFinite(dt) ? Math.min(Math.max(dt, 0), 0.25) : 0;
+    try {
+      life.update(step, focus);
+      if (life.version !== this.lifeVersion) {
+        this.lifeVersion = life.version;
+        this.soundSources.set('life:troupeaux', life.sources);
+      }
+      this.people?.update(step, focus);
+      if (this.sky) {
+        // pas d'oiseaux la nuit ; pas de papillons en hiver, la nuit ni sous la pluie
+        const night = this.nightFactor();
+        const w = this.env.state.weather;
+        this.sky.birdsOn = night < 0.6 && w.rain < 0.6;
+        this.sky.butterfliesOn = night < 0.3 && w.rain < 0.25 && this.env.state.season !== 'winter';
+        this.sky.update(step, focus);
+      }
+    } catch (err) {
+      if (!this.lifeFailed) console.error('Abords de la route :', err);
+      this.lifeFailed = true;
+    }
+  }
+
+  /**
+   * Arbres et buissons plantés par la végétation dans un rectangle : (x, z, rayon du tronc et des basses
+   * branches) à la suite, lus dans les matrices des instances (repère monde).
+   */
+  private treesIn(minX: number, minZ: number, maxX: number, maxZ: number): number[] {
+    const out: number[] = [];
+    for (const o of this.vegetation.group.children) {
+      const im = o as THREE.InstancedMesh;
+      if (!im.isInstancedMesh || !im.count) continue;
+      if (!im.boundingSphere) im.computeBoundingSphere();
+      const bs = im.boundingSphere;
+      if (bs && (bs.center.x + bs.radius < minX || bs.center.x - bs.radius > maxX || bs.center.z + bs.radius < minZ || bs.center.z - bs.radius > maxZ)) continue;
+      const g = im.geometry;
+      if (!g.boundingSphere) g.computeBoundingSphere();
+      // le gabarit fait ~ hauteur / 2 de rayon : tronc et basses branches ≈ 35 % (3 m au plus)
+      const base = Math.min(3, (g.boundingSphere?.radius ?? 4) * 0.35);
+      const a = im.instanceMatrix.array;
+      for (let i = 0; i < im.count; i++) {
+        const k = i * 16;
+        const x = a[k + 12] as number;
+        const z = a[k + 14] as number;
+        if (x < minX || x > maxX || z < minZ || z > maxZ) continue;
+        out.push(x, z, base * Math.hypot(a[k] as number, a[k + 1] as number, a[k + 2] as number));
+      }
+    }
+    return out;
+  }
+
   /** Revêtement sous (x, z) (route OSM la plus proche), mis en cache par émetteur. */
   private surfaceFor(id: string, x: number, z: number): { unpaved: boolean; dusty: boolean } {
     const c = this.surfaceCache.get(id);
@@ -313,6 +419,18 @@ export class World {
     this.env.dispose();
     this.road.mesh.geometry.dispose();
     this.scene.remove(this.terrain.group, this.road.mesh, this.vegetation.group, this.buildings.group, this.network.group, this.grass.mesh, this.rain.mesh, this.water.group, this.railways.group, this.dust.sprite);
+    if (this.life) {
+      this.scene.remove(this.life.group);
+      this.life.dispose();
+    }
+    if (this.people) {
+      this.scene.remove(this.people.group);
+      this.people.dispose();
+    }
+    if (this.sky) {
+      this.scene.remove(this.sky.group);
+      this.sky.dispose();
+    }
     void this.track;
   }
 }
@@ -338,4 +456,9 @@ export function freezeStatic(group: THREE.Object3D): void {
     }
     return group;
   };
+}
+
+/** Densités du décor des abords (style jeu vidéo) selon la qualité graphique. */
+function lifeDensity(q: QualitySettings): LifeDensity {
+  return { props: q.propDensity, people: (q.trafficDensity + q.crowdDensity) / 2 };
 }

@@ -15,6 +15,7 @@ import {
   poseCdaFactor,
   riderWind,
   roadHalfM,
+  rightLaneM,
   surfaceCrr,
   trainerModelFor,
   wetCrrFactor,
@@ -31,6 +32,8 @@ import type { InputSource, RideInputs } from './inputs.ts';
 
 export interface RideOptions {
   profile: RiderProfile;
+  /** Danseuse au-delà de cette puissance (W), en plus des règles automatiques ; 0 ou absent : automatique. */
+  standWatts?: number;
   track: RouteTrack;
   trainerDifficulty: number;
   gearing?: VirtualGearing;
@@ -124,6 +127,8 @@ export class RideSession {
   /** Fins de tour (epoch ms), pour les tours du FIT. */
   readonly lapTimes: number[] = [];
   onSegmentDone?: (r: SegmentResult) => void;
+  /** Départ d'un segment (KOM, sprint) franchi. */
+  onSegmentStart?: (seg: RouteSegment) => void;
   onLap?: (lap: number) => void;
 
   private readonly opts: RideOptions;
@@ -145,6 +150,8 @@ export class RideSession {
 
   constructor(opts: RideOptions) {
     this.opts = opts;
+    // Tout à droite de la chaussée, l'axe du vélo à ≈ 50 cm de la ligne de rive (code de la route).
+    this.lateral = Math.min(roadHalfM(opts.track.route.roadWidthM), Math.max(0.6, rightLaneM(opts.track.route.roadWidthM) - 0.3));
     // Morphologie : le CdA du vélo vaut pour un coureur de 1,78 m et 75 kg.
     const base = paramsFromProfile(opts.profile);
     this.params = { ...base, cda: base.cda * bodyCdaFactor(opts.profile.heightCm, opts.profile.massKg), inertiaFactor: opts.inertiaFactor ?? 1 };
@@ -306,7 +313,7 @@ export class RideSession {
     this.lateral = THREE.MathUtils.clamp(this.lateral + steer * this.dir * dt * 1.8, -half, half);
 
     this.pose = this.poseCtl.update(
-      { watts: this.inputs.watts, cadence: this.inputs.cadence, gradePercent: grade, ftpWatts: this.opts.profile.ftpWatts, speedMs: this.state.speedMs },
+      { watts: this.inputs.watts, cadence: this.inputs.cadence, gradePercent: grade, ftpWatts: this.opts.profile.ftpWatts, speedMs: this.state.speedMs, standWatts: this.opts.standWatts, sensorPose: this.inputs.riderPosition, sprint: this.segment?.seg.kind === 'sprint' },
       dt,
     );
 
@@ -404,6 +411,7 @@ export class RideSession {
         this.segment = { seg, startT: now, progress: 0 };
         this.segWatts = 0;
         this.segSamples = 0;
+        this.onSegmentStart?.(seg);
         break;
       }
     }

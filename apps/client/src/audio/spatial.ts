@@ -2,11 +2,13 @@ import type { LoadedTile } from '../world/types.ts';
 
 /** Source sonore positionnée, dérivée des tags OSM d'une tuile. */
 export interface SoundSource {
-  kind: 'bells' | 'cows' | 'water' | 'village';
+  kind: 'bells' | 'cows' | 'sheep' | 'horses' | 'water' | 'village';
   x: number;
   z: number;
   /** Portée audible (m). */
   range: number;
+  /** Troupeau visible au bord de la route (style jeu vidéo) : premiers cris plus tôt, plus fréquents de près. */
+  herd?: boolean;
 }
 
 function centroid(ring: number[]): [number, number] {

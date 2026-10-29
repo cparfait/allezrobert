@@ -164,10 +164,11 @@ export function climbAhead(climbs: Climb[], routeM: number, opts: { loop: boolea
 export function drawClimbProfile(ctx: CanvasRenderingContext2D, w: number, h: number, c: Climb, pos: number, nf: (v: number, d?: number) => string): void {
   if (c.elev.length < 2) return;
   const L = c.lengthM;
-  const top = 22;
-  const base = h - 18;
+  // Marges proportionnelles (panneau bas du HUD compact) : altitudes en haut, distances en bas.
+  const top = Math.max(14, Math.min(22, h * 0.17));
+  const base = h - Math.max(12, Math.min(18, h * 0.14));
   // Bande sous le pied pour écrire les pourcentages même là où le profil est bas.
-  const band = Math.min(26, (base - top) * 0.3);
+  const band = Math.min(22, Math.max(13, (base - top) * 0.24));
   const lo = Math.min(...c.elev);
   const hi = Math.max(...c.elev);
   const range = Math.max(hi - lo, 10);
@@ -183,10 +184,17 @@ export function drawClimbProfile(ctx: CanvasRenderingContext2D, w: number, h: nu
     ctx.fillStyle = gradeColor(s.grade);
     ctx.fill();
   }
-  // Déjà grimpé : assombri.
+  // Déjà grimpé : assombri sous le profil seulement (le ciel au-dessus reste transparent).
   if (pos > 0) {
-    ctx.fillStyle = 'rgba(7, 9, 12, 0.55)';
-    ctx.fillRect(0, 0, X(Math.min(pos, L)), base);
+    const end = Math.min(pos, L);
+    ctx.beginPath();
+    ctx.moveTo(X(0), base);
+    for (let x = 0; x < end; x += c.step) ctx.lineTo(X(x), Y(climbElevation(c, x)));
+    ctx.lineTo(X(end), Y(climbElevation(c, end)));
+    ctx.lineTo(X(end), base);
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(7, 9, 12, 0.5)';
+    ctx.fill();
   }
   // Séparations des tronçons et ligne du profil.
   ctx.strokeStyle = 'rgba(7, 9, 12, 0.85)';

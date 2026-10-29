@@ -1,4 +1,5 @@
 import * as THREE from 'three/webgpu';
+import { LOW_POLY } from '../engine/style.ts';
 import { Fn, positionLocal, normalWorld, cameraPosition, cameraProjectionMatrix, cameraViewMatrix, vec2, vec3, vec4, float, mix, smoothstep, uniform, mx_noise_float, exp, clamp, output, texture } from 'three/tsl';
 import { colorUniform } from '../engine/tsl.ts';
 import type { QualitySettings } from '../engine/quality.ts';
@@ -20,6 +21,13 @@ const LOWLAND: Record<Season, [string, string]> = {
   summer: ['#30422a', '#5c703a'],
   autumn: ['#4b4a2c', '#6e6e3e'],
   winter: ['#3d3d34', '#66675a'],
+};
+/** Style jeu vidéo : forêts et prés lointains plus clairs et plus verts. */
+const LOWLAND_LOWPOLY: Record<Season, [string, string]> = {
+  spring: ['#3c6e2c', '#78b04a'],
+  summer: ['#3a6a2a', '#80b04c'],
+  autumn: ['#4f7a30', '#8cb84e'],
+  winter: ['#4a6a40', '#94b46e'],
 };
 
 /**
@@ -76,7 +84,7 @@ export class FarTerrain {
     this.maskTex.magFilter = this.maskTex.minFilter = THREE.NearestFilter;
     this.maskTex.needsUpdate = true;
 
-    if (grid.orthoBlob) {
+    if (grid.orthoBlob && !LOW_POLY) {
       // Décodée hors du fil principal, comme les orthophotos des tuiles (terrain.ts).
       const tex = this.orthoTex;
       tex.colorSpace = THREE.SRGBColorSpace;
@@ -106,8 +114,9 @@ export class FarTerrain {
 
   setSeason(season: Season): void {
     this.snowLine.value = SNOW_LINE_M[season];
-    this.forest.set(LOWLAND[season][0]);
-    this.meadow.set(LOWLAND[season][1]);
+    const low = LOW_POLY ? LOWLAND_LOWPOLY : LOWLAND;
+    this.forest.set(low[season][0]);
+    this.meadow.set(low[season][1]);
     this.alpineMeadow.set(ALPINE_MEADOW[season]);
     this.orthoTint.set(ORTHO_SEASON[season][0]);
     this.orthoSat.value = ORTHO_SEASON[season][1];
@@ -132,6 +141,9 @@ export class FarTerrain {
 
   private material(mx: number, mz: number, mw: number, mh: number, grid: HorizonGrid): THREE.MeshStandardNodeMaterial {
     const m = new THREE.MeshStandardNodeMaterial({ fog: false });
+    // Pas de facettes au lointain, même en style jeu vidéo : maille de 100 m vue à 10 km, chaque petit triangle
+    // prenait sa propre teinte (grain gris sur les montagnes du fond).
+    m.flatShading = false;
     // Sommet : courbure terrestre (abaissement d²/2R autour de la caméra), profondeur collée au ciel.
     m.vertexNode = Fn(() => {
       const p = positionLocal;
@@ -155,8 +167,9 @@ export class FarTerrain {
     // sur les pentes fortes (adoucies à 100 m de maille), neige selon la saison et l'exposition.
     const alt = P.y;
     const slope = float(1).sub(normalWorld.y);
-    const n1 = mx_noise_float(xz.mul(0.0011)).mul(0.5).add(0.5);
-    const n2 = mx_noise_float(xz.mul(0.007)).mul(0.5).add(0.5);
+    // Style jeu vidéo : aplats francs, sans bruit (ni marbrure de la roche ni limite de neige frangée).
+    const n1 = LOW_POLY ? float(0.5) : mx_noise_float(xz.mul(0.0011)).mul(0.5).add(0.5);
+    const n2 = LOW_POLY ? float(0.5) : mx_noise_float(xz.mul(0.007)).mul(0.5).add(0.5);
     // versants boisés, fonds de vallée en prés ; au-dessus de la forêt, alpages
     const forestK = smoothstep(0.06, 0.2, slope).mul(n1.mul(0.5).add(0.6)).mul(float(1).sub(smoothstep(this.treeline.sub(300), this.treeline, alt)));
     let col = mix(this.meadow.node, this.forest.node, clamp(forestK, 0, 1));

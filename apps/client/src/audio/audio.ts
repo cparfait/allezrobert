@@ -35,7 +35,7 @@ import {
   type Surface,
   type VehicleSound,
 } from './soundscape.ts';
-import { bells, bird, clap, cowbell, dogBark, fanWhistle, moo, shiftSound, shout, type BirdKind } from './voices.ts';
+import { bells, bird, bleat, clap, cowbell, dogBark, fanWhistle, moo, neigh, shiftSound, shout, type BirdKind } from './voices.ts';
 
 export interface AudioState {
   speedMs: number;
@@ -147,6 +147,11 @@ export class GameAudio {
   private gust = 1;
   private gustV = 0;
   private swell = 1;
+  /**
+   * Public enregistré (Gregor Quendel, CC-BY 4.0, voir ASSETS_LICENSES.md) : rumeur et bavardages,
+   * encouragements forts, encouragements rythmés ; boucles chargées au premier public rencontré.
+   */
+  private crowdRec: { gains: GainNode[]; ready: boolean } | null = null;
   private cadence = 0;
   private sources: SoundSource[] = [];
   private readonly nextEvent = new Map<SoundSource, number>();
@@ -298,6 +303,19 @@ export class GameAudio {
     for (const b of BUSES) this.buses[b].gain.setTargetAtTime(g[b], now, tau);
   }
 
+  /** Sortie de la voix de course (après le volume général, avant la compression) ; null tant que l'audio n'est pas lancé. */
+  voiceOut(): { ctx: BaseAudioContext; dest: AudioNode } | null {
+    if (!this.ctx) return null;
+    this.voiceBus ??= (() => {
+      const g = this.ctx!.createGain();
+      g.gain.value = 1;
+      g.connect(this.master);
+      return g;
+    })();
+    return { ctx: this.ctx, dest: this.voiceBus };
+  }
+  private voiceBus: GainNode | null = null;
+
   setMix(m: SoundMix): void {
     this.mix = { ...m };
     this.applyBuses(0.08);
@@ -316,6 +334,11 @@ export class GameAudio {
 
   setSources(list: SoundSource[]): void {
     this.sources = list;
+    // prochains événements des sources disparues (tuiles déchargées, troupeaux oubliés)
+    if (this.nextEvent.size > list.length * 2 + 64) {
+      const keep = new Set(list);
+      for (const s of this.nextEvent.keys()) if (!keep.has(s)) this.nextEvent.delete(s);
+    }
   }
 
   /** Changement de vitesse virtuelle : `front` = plateau. */
@@ -500,14 +523,26 @@ export class GameAudio {
           continue;
         }
         const next = this.nextEvent.get(src);
+        const herd = src.herd === true || src.kind === 'sheep' || src.kind === 'horses';
         if (next === undefined) {
-          this.nextEvent.set(src, now + Math.random() * (src.kind === 'bells' ? 60 : 20));
+          // troupeaux visibles (style jeu vidéo) : premier cri vite, le coureur ne fait que passer
+          this.nextEvent.set(src, now + Math.random() * (src.kind === 'bells' ? 60 : herd ? 6 : 20));
           continue;
         }
         if (now < next) continue;
         if (src.kind === 'bells') {
           if (bellsOk) bells(ctx(this), this.buses.ambience, now + 0.05, gain, pan);
           this.nextEvent.set(src, now + 90 + Math.random() * 120);
+        } else if (herd) {
+          // mêmes heures et saisons que les vaches ; plus bavards quand le coureur est tout près
+          if (amb0?.cows ?? true) {
+            if (src.kind === 'sheep') {
+              bleat(ctx(this), this.buses.ambience, now + 0.05, gain, pan);
+              if (Math.random() < 0.4) bleat(ctx(this), this.buses.ambience, now + 0.6 + Math.random() * 0.8, gain * 0.7, Math.max(-1, Math.min(1, pan + (Math.random() - 0.5) * 0.4)));
+            } else if (src.kind === 'horses') neigh(ctx(this), this.buses.ambience, now + 0.05, gain, pan);
+            else moo(ctx(this), this.buses.ambience, now + 0.05, gain, pan);
+          }
+          this.nextEvent.set(src, now + (d < 60 ? 5 : 10) + Math.random() * (src.kind === 'sheep' ? 12 : 22));
         } else {
           if (amb0?.cows ?? true) moo(ctx(this), this.buses.ambience, now + 0.05, gain, pan);
           this.nextEvent.set(src, now + 12 + Math.random() * 25);
@@ -570,12 +605,58 @@ export class GameAudio {
     fire(a.dogs, () => dogBark(c, out, noiseBuf, now + 0.05, 0.4 + Math.random() * 0.5, Math.random() * 1.8 - 0.9));
   }
 
+  /** Boucles du public enregistré, lancées en silence (le niveau suit ensuite la densité du public). */
+  private startCrowdRecordings(): void {
+    const c = this.ctx;
+    if (!c || this.crowdRec || typeof fetch !== 'function') return;
+    const rec: { gains: GainNode[]; ready: boolean } = { gains: [], ready: false };
+    this.crowdRec = rec;
+    const files = ['murmure.ogg', 'encouragements.ogg', 'rythme.ogg'];
+    void Promise.all(
+      files.map((f) =>
+        fetch(`${import.meta.env.BASE_URL}audio/crowd/${f}`)
+          .then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(String(r.status)))))
+          .then((a) => c.decodeAudioData(a)),
+      ),
+    )
+      .then((bufs) => {
+        for (const buf of bufs) {
+          const src = c.createBufferSource();
+          src.buffer = buf;
+          src.loop = true;
+          const g = c.createGain();
+          g.gain.value = 0;
+          src.connect(g).connect(this.buses.crowd);
+          // départ au hasard dans la boucle : les trois couches ne repartent jamais ensemble
+          src.start(0, Math.random() * buf.duration);
+          rec.gains.push(g);
+        }
+        rec.ready = true;
+      })
+      .catch(() => undefined); // repli : public synthétisé
+  }
+
   /** Public : rumeur qui enfle, applaudissements, « Allez ! », sifflets, cloches de vache. */
   private updateCrowd(s: AudioState, dt: number, now: number): void {
     const act = crowdActivity(this.paused ? 0 : s.crowd, s.watts / Math.max(s.ftp, 1), s.mountain);
     this.swell += ((0.75 + 0.5 * Math.random()) - this.swell) * Math.min(1, dt * 0.7);
-    this.set(this.L.crowdLow.gain.gain, act.bed * this.swell, 0.5);
-    this.set(this.L.crowdHigh.gain.gain, act.bed * 0.5 * this.swell, 0.5);
+    if (act.bed > 0) this.startCrowdRecordings();
+    const rec = this.crowdRec?.ready ? this.crowdRec : null;
+    if (rec) {
+      // Enregistrements : rumeur selon la densité, encouragements forts quand l'effort monte, rythmés dans
+      // les côtes ; la rumeur synthétisée se tait.
+      const l = this.paused ? 0 : Math.min(1, Math.max(0, s.crowd));
+      const excite = Math.min(1, Math.max(0, (s.watts / Math.max(s.ftp, 1) - 0.75) / 0.5));
+      // Niveaux à la mesure d'un public de bord de route (quelques dizaines de personnes, pas un stade).
+      this.set(rec.gains[0]!.gain, 0.42 * l, 0.6);
+      this.set(rec.gains[1]!.gain, 0.32 * l * (0.2 + 0.8 * excite) * this.swell, 0.6);
+      this.set(rec.gains[2]!.gain, (s.mountain ? 0.3 : 0.1) * l * l * (0.3 + 0.7 * excite), 0.8);
+      this.set(this.L.crowdLow.gain.gain, 0, 0.5);
+      this.set(this.L.crowdHigh.gain.gain, 0, 0.5);
+    } else {
+      this.set(this.L.crowdLow.gain.gain, act.bed * this.swell, 0.5);
+      this.set(this.L.crowdHigh.gain.gain, act.bed * 0.5 * this.swell, 0.5);
+    }
     if (act.bed <= 0) return;
     const c = ctx(this);
     const out = this.buses.crowd;
@@ -590,8 +671,9 @@ export class GameAudio {
       }
       return k;
     };
-    for (let i = n(act.claps); i > 0; i--) clap(c, out, this.buf.whiteMono, now + Math.random() * 0.05, 0.5 + Math.random() * 0.5, side());
-    for (let i = n(act.shouts); i > 0; i--) shout(c, out, now + Math.random() * 0.1, 0.5 + Math.random() * 0.5, side());
+    // Avec les enregistrements : applaudissements synthétisés plus rares, plus de « Allez ! » de synthèse.
+    for (let i = n(act.claps * (rec ? 0.3 : 1)); i > 0; i--) clap(c, out, this.buf.whiteMono, now + Math.random() * 0.05, 0.5 + Math.random() * 0.5, side());
+    if (!rec) for (let i = n(act.shouts); i > 0; i--) shout(c, out, now + Math.random() * 0.1, 0.5 + Math.random() * 0.5, side());
     for (let i = n(act.whistles); i > 0; i--) fanWhistle(c, out, now + 0.02, 0.6 + Math.random() * 0.4, side());
     for (let i = n(act.cowbells); i > 0; i--) cowbell(c, out, now + 0.02, 0.6 + Math.random() * 0.4, side());
   }

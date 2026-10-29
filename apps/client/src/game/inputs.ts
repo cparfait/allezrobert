@@ -12,6 +12,8 @@ export interface RideInputs {
   psRight?: number;
   /** Direction demandée (−1 gauche … +1 droite). */
   steer: number;
+  /** Position mesurée par les pédales qui la détectent (assis / danseuse) ; absente : déduite de l'effort. */
+  riderPosition?: 'seated' | 'standing';
   /** Rapport réel engagé, quand la commande le transmet (SRAM AXS appairé) : plateau, pignon. */
   realGear?: { front: number; rear: number };
   /**

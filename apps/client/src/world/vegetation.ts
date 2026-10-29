@@ -11,6 +11,7 @@ import type { Season } from './environment.ts';
 import { drawnRoads, roadAvoidance, roadClearance, type AvoidRoad } from './roadAvoid.ts';
 import { shrubGeometry, shrubMaterial } from './trees.ts';
 import { alpineProfile, coniferBiasAt, larchShareAt, treeDensityAt, treeScaleAt } from './alpine.ts';
+import { LOW_POLY } from '../engine/style.ts';
 
 /** Couleurs de feuillage par saison (feuillus) — palettes de ART_DIRECTION.md. */
 const LEAVES: Record<Season, [string, string, string]> = {
@@ -19,6 +20,16 @@ const LEAVES: Record<Season, [string, string, string]> = {
   autumn: ['#c8762c', '#e0a33a', '#9b3d1f'],
   winter: ['#6e5d4f', '#6e5d4f', '#6e5d4f'],
 };
+
+/** Style jeu vidéo : feuillages plus vifs et plus clairs (vert pomme). */
+const LEAVES_LOWPOLY: Record<Season, [string, string, string]> = {
+  spring: ['#8cc84b', '#a6d65a', '#77b843'],
+  summer: ['#6fae3f', '#86c04e', '#5d9a36'],
+  autumn: ['#d98b2b', '#e8b23a', '#86b043'],
+  winter: ['#6e5d4f', '#6e5d4f', '#6e5d4f'],
+};
+/** Style jeu vidéo : pommes et cerises sur une partie des feuillus (valeur 2 de l'attribut `leaf`). */
+const FRUIT = '#d8322a';
 
 /** Mélèzes : vert tendre au printemps, doré à l'automne, nus (gris-brun) en hiver. */
 const LARCH: Record<Season, [string, string]> = {
@@ -158,6 +169,70 @@ function deciduousGeometry(lod: number): THREE.BufferGeometry {
   return mergeGeometries(parts, false) as THREE.BufferGeometry;
 }
 
+/**
+ * Style jeu vidéo : tronc à 5 pans et houppier en gros icosaèdres à facettes (un principal, un plus
+ * petit décalé), fruits en petits octaèdres posés sur le houppier (montrés sur une partie des arbres).
+ * lod 0 ≈ 200 tri, 1 ≈ 90 tri, 2 ≈ 24 tri.
+ */
+function lowPolyDeciduousGeometry(lod: number): THREE.BufferGeometry {
+  const r = rng(11);
+  const parts: THREE.BufferGeometry[] = [];
+  parts.push(tag(new THREE.CylinderGeometry(0.22, 0.34, 5.6, lod === 2 ? 4 : 5, 1, false).translate(0, 2.8, 0), 0, 1));
+  const main = new THREE.IcosahedronGeometry(4.3, lod === 2 ? 0 : 1);
+  const p = main.getAttribute('position');
+  for (let k = 0; k < p.count; k++) {
+    const f = 0.9 + 0.1 * Math.sin(p.getX(k) * 1.3 + p.getZ(k) * 0.7);
+    p.setXYZ(k, p.getX(k) * f, p.getY(k) * f * 0.9, p.getZ(k) * f);
+  }
+  parts.push(tag(main.translate(0, 8.2, 0), 1, 0.95));
+  if (lod === 0) {
+    parts.push(tag(new THREE.IcosahedronGeometry(2.4, 0).translate(1.9, 10.6, -0.8), 1, 1.05));
+    // Fruits : posés sur la vraie surface du houppier (même déformation que lui, facettes comprises :
+    // un peu en retrait du rayon), à moitié enfoncés ; sur une sphère fixe, ils flottaient par endroits.
+    for (let i = 0; i < 12; i++) {
+      const a = r() * Math.PI * 2;
+      const el = -0.3 + r() * 1.1;
+      const q = new THREE.Vector3(Math.cos(a) * Math.cos(el), Math.sin(el), Math.sin(a) * Math.cos(el)).multiplyScalar(4.3);
+      const f = (0.9 + 0.1 * Math.sin(q.x * 1.3 + q.z * 0.7)) * 0.92;
+      parts.push(tag(new THREE.OctahedronGeometry(0.26, 0).translate(q.x * f, 8.2 + q.y * f * 0.9, q.z * f), 2, 1));
+    }
+  }
+  return mergeGeometries(parts, false) as THREE.BufferGeometry;
+}
+
+/**
+ * Style jeu vidéo : buisson en touffe de 4 boules à facettes, plus large que haut, à base plate posée au
+ * sol (une boule seule touchait le sol par sa pointe et semblait flotter). Hauteur unité (l'instance la met
+ * à la hauteur mesurée), rayon horizontal ≈ SHRUB_R ; baies (leaf = 2) montrées sur une partie des buissons.
+ */
+function lowPolyShrubGeometry(): THREE.BufferGeometry {
+  const r = rng(23);
+  const parts: THREE.BufferGeometry[] = [];
+  // [x, z, rayon horizontal (m), centre et rayon vertical (hauteur unité)]
+  const blobs: Array<[number, number, number, number, number]> = [
+    [0, 0, 0.85, 0.5, 0.5],
+    [0.62, 0.2, 0.6, 0.34, 0.36],
+    [-0.58, -0.18, 0.6, 0.33, 0.34],
+    [0.08, -0.62, 0.5, 0.3, 0.3],
+  ];
+  for (const [x, z, rx, cy, ry] of blobs) {
+    const g = new THREE.IcosahedronGeometry(1, 1);
+    const p = g.getAttribute('position');
+    for (let k = 0; k < p.count; k++) {
+      const f = 0.9 + 0.1 * Math.sin(p.getX(k) * 3.1 + p.getZ(k) * 2.3);
+      // base plate : rien sous le sol
+      p.setXYZ(k, x + p.getX(k) * rx * f, Math.max(0, cy + p.getY(k) * ry * f), z + p.getZ(k) * rx * f);
+    }
+    parts.push(tag(g, 1, 0.82 + r() * 0.2));
+  }
+  for (let i = 0; i < 7; i++) {
+    const a = r() * Math.PI * 2;
+    const el = 0.2 + r() * 0.9;
+    parts.push(tag(new THREE.OctahedronGeometry(0.07, 0).scale(1, 0.7, 1).translate(Math.cos(a) * Math.cos(el) * 0.8, 0.5 + Math.sin(el) * 0.48, Math.sin(a) * Math.cos(el) * 0.8), 2, 1));
+  }
+  return mergeGeometries(parts, false) as THREE.BufferGeometry;
+}
+
 /** Conifère (pin sylvestre / épicéa) : étages de cônes. */
 function coniferGeometry(lod: number): THREE.BufferGeometry {
   const parts: THREE.BufferGeometry[] = [];
@@ -243,9 +318,9 @@ export class Vegetation {
     this.avoidReal = avoidReal;
     this.routeClear = routeRoads.length ? roadClearance(routeRoads) : null;
     this.group.name = 'vegetation';
-    const decid = [0, 1, 2].map(deciduousGeometry);
+    const decid = [0, 1, 2].map(LOW_POLY ? lowPolyDeciduousGeometry : deciduousGeometry);
     const conif = [0, 1, 2].map(coniferGeometry);
-    const shrub = shrubGeometry();
+    const shrub = LOW_POLY ? lowPolyShrubGeometry() : shrubGeometry();
     this.geos = {
       decid,
       conif,
@@ -258,7 +333,9 @@ export class Vegetation {
   }
 
   private materialFor(kind: Kind): THREE.MeshStandardNodeMaterial {
-    return kind === 'shrub' ? this.shrubMat : this.mats[kind];
+    // Style jeu vidéo : les buissons sont des feuillus à facettes (même matériau, pas de cartes de feuilles).
+    if (kind === 'shrub') return LOW_POLY ? this.mats.decid : this.shrubMat;
+    return this.mats[kind];
   }
 
   /** Géométrie et matériau d'un bloc selon le niveau de détail (null = masqué). */
@@ -273,7 +350,7 @@ export class Vegetation {
   }
 
   setSeason(season: Season): void {
-    const [a, b, c] = LEAVES[season];
+    const [a, b, c] = (LOW_POLY ? LEAVES_LOWPOLY : LEAVES)[season];
     this.leafA.set(a);
     this.leafB.set(b);
     this.leafC.set(c);
@@ -289,7 +366,11 @@ export class Vegetation {
   private material(kind: 'decid' | 'conif' | 'larch'): THREE.MeshStandardNodeMaterial {
     const conifer = kind !== 'decid';
     const m = new THREE.MeshStandardNodeMaterial();
-    const leaf = attribute<'float'>('leaf');
+    // Style jeu vidéo : facettes visibles (normales de face, les normales sphériques sont ignorées).
+    m.flatShading = LOW_POLY;
+    const fruitAttr = attribute<'float'>('leaf');
+    // Fruits (leaf = 2) : feuillage ailleurs que sur les arbres fruitiers.
+    const leaf = fruitAttr.min(1);
     const shade = attribute<'float'>('shade');
     const h = hash(instanceIndex);
     const h2 = hash(instanceIndex.add(7));
@@ -326,14 +407,17 @@ export class Vegetation {
       kind === 'larch'
         ? mix(this.larchA.node, this.larchB.node, h)
         : conifer
-          ? mix(color('#2f4a2c'), color('#3d5a33'), h)
+          ? LOW_POLY
+            ? mix(color('#3c7a3a'), color('#4c8c42'), h)
+            : mix(color('#2f4a2c'), color('#3d5a33'), h)
           : mix(mix(this.leafA.node, this.leafB.node, smoothstep(0.2, 0.8, h)), this.leafC.node, smoothstep(0.65, 0.95, h2));
-    const col = mix(wood, leafCol, leaf).mul(shade).mul(h2.mul(0.25).add(0.85));
+    let col = mix(wood, leafCol, leaf).mul(shade).mul(h2.mul(LOW_POLY ? 0.12 : 0.25).add(LOW_POLY ? 0.94 : 0.85));
+    if (LOW_POLY && !conifer) col = mix(col, color(FRUIT), step(1.5, fruitAttr).mul(step(0.62, h)).mul(this.leafAmount));
     m.colorNode = varying(col);
     m.roughnessNode = float(0.9);
     m.metalnessNode = float(0);
     // Contre-jour : les feuilles s'illuminent quand le soleil est derrière elles.
-    m.outputNode = backlitOutput(varying(leafCol.mul(shade)) as unknown as Vec3Node, varying(leaf));
+    if (!LOW_POLY) m.outputNode = backlitOutput(varying(leafCol.mul(shade)) as unknown as Vec3Node, varying(leaf));
     return m;
   }
 

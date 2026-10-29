@@ -252,6 +252,105 @@ export function moo(ctx: BaseAudioContext, out: AudioNode, at: number, gain: num
   });
 }
 
+/** Oscillateur basse fréquence branché sur un paramètre (vibrato, trémolo), arrêté à `end`. */
+function lfo(ctx: BaseAudioContext, target: AudioParam, at: number, end: number, rate: number, depth: number): void {
+  const o = ctx.createOscillator();
+  o.frequency.value = rate;
+  const d = ctx.createGain();
+  d.gain.value = depth;
+  o.connect(d).connect(target);
+  o.start(at);
+  o.stop(end);
+}
+
+/**
+ * Bêlement : dent de scie (300 à 400 Hz) à travers deux formants de /ɛ/ (600 et 1 800 Hz), chevrotée
+ * par un trémolo et un vibrato vers 7 Hz, hauteur qui retombe. Agneaux plus aigus.
+ */
+export function bleat(ctx: BaseAudioContext, out: AudioNode, at: number, gain: number, pan: number): void {
+  const o = placed(ctx, out, pan, 4000);
+  const lamb = r() < 0.3;
+  const base = lamb ? between(480, 600) : between(290, 380);
+  const dur = between(0.55, 0.9);
+  const trem = ctx.createGain();
+  trem.gain.value = 0.7;
+  for (const [fq, q, amp] of [
+    [620, 4, 1],
+    [1800, 5, 0.55],
+  ] as const) {
+    const f = ctx.createBiquadFilter();
+    f.type = 'bandpass';
+    f.frequency.value = fq * (lamb ? 1.15 : 1);
+    f.Q.value = q;
+    const g = ctx.createGain();
+    g.gain.value = amp;
+    trem.connect(f).connect(g).connect(o);
+  }
+  const rate = between(6, 8);
+  lfo(ctx, trem.gain, at, at + dur + 0.1, rate, 0.3);
+  const osc = ctx.createOscillator();
+  osc.type = 'sawtooth';
+  osc.frequency.setValueAtTime(base * 1.08, at);
+  osc.frequency.linearRampToValueAtTime(base, at + 0.15);
+  osc.frequency.linearRampToValueAtTime(base * 0.9, at + dur);
+  lfo(ctx, osc.frequency, at, at + dur + 0.1, rate, base * 0.04);
+  const env = ctx.createGain();
+  env.gain.setValueAtTime(0, at);
+  env.gain.linearRampToValueAtTime(gain * 0.09, at + 0.06);
+  env.gain.linearRampToValueAtTime(gain * 0.07, at + dur * 0.7);
+  env.gain.linearRampToValueAtTime(0, at + dur);
+  osc.connect(env).connect(trem);
+  osc.start(at);
+  osc.stop(at + dur + 0.1);
+}
+
+/**
+ * Hennissement : cri aigu qui monte (≈ 700 → 1 000 Hz) puis dégringole jusqu'à 400 Hz en tremblant
+ * (vibrato rapide, ~13 Hz), formant nasal ; suivi parfois de deux ou trois « hou » graves.
+ */
+export function neigh(ctx: BaseAudioContext, out: AudioNode, at: number, gain: number, pan: number): void {
+  const o = placed(ctx, out, pan, 5000);
+  const f = ctx.createBiquadFilter();
+  f.type = 'bandpass';
+  f.frequency.value = 1300;
+  f.Q.value = 1.4;
+  f.connect(o);
+  const top = between(900, 1100);
+  const dur = between(1.0, 1.4);
+  const osc = ctx.createOscillator();
+  osc.type = 'sawtooth';
+  osc.frequency.setValueAtTime(top * 0.7, at);
+  osc.frequency.linearRampToValueAtTime(top, at + 0.18);
+  osc.frequency.exponentialRampToValueAtTime(top * 0.42, at + dur);
+  lfo(ctx, osc.frequency, at, at + dur + 0.1, between(11, 15), top * 0.07);
+  const env = ctx.createGain();
+  env.gain.setValueAtTime(0, at);
+  env.gain.linearRampToValueAtTime(gain * 0.07, at + 0.08);
+  env.gain.linearRampToValueAtTime(gain * 0.05, at + dur * 0.6);
+  env.gain.linearRampToValueAtTime(0, at + dur);
+  osc.connect(env).connect(f);
+  osc.start(at);
+  osc.stop(at + dur + 0.1);
+  if (r() < 0.6) {
+    const n = 2 + Math.floor(r() * 2);
+    for (let i = 0; i < n; i++) {
+      const t = at + dur + 0.08 + i * 0.17;
+      const low = ctx.createBiquadFilter();
+      low.type = 'bandpass';
+      low.frequency.value = 500;
+      low.Q.value = 2;
+      low.connect(o);
+      tone(ctx, low, t, 0.14, 'sawtooth', (fr, g) => {
+        fr.setValueAtTime(between(180, 230), t);
+        fr.linearRampToValueAtTime(150, t + 0.12);
+        g.setValueAtTime(0, t);
+        g.linearRampToValueAtTime(gain * 0.05, t + 0.02);
+        g.linearRampToValueAtTime(0, t + 0.13);
+      });
+    }
+  }
+}
+
 // ————————————————————————————————————————————— Public
 
 /** Un applaudissement (claquement de mains). */

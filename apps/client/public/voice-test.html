@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<title>Voix de course : écoute</title>
+<style>
+  body { margin: 0; padding: 24px; background: #0a0e16; color: #e8edf3; font: 14px Inter, system-ui, sans-serif; }
+  h1 { font-size: 20px; margin: 0 0 6px; }
+  h2 { font-size: 14px; margin: 22px 0 8px; color: #ffd23f; text-transform: uppercase; letter-spacing: .06em; }
+  p { color: #8d98a6; margin: 0 0 12px; }
+  .grid { display: flex; flex-wrap: wrap; gap: 6px; }
+  button { padding: 7px 11px; border: 0; border-radius: 6px; background: #1c2533; color: #e8edf3; font: inherit; cursor: pointer; }
+  button:hover { background: #2a3648; }
+  button.seq { background: #ff6a13; color: #111; font-weight: 700; }
+  label { margin-left: 12px; color: #8d98a6; }
+</style>
+</head>
+<body>
+<h1>Voix de course (Cartesia, sonic-3.6)</h1>
+<p>Clique pour écouter. Les séquences enchaînent des morceaux comme en course. <label><input type="checkbox" id="pa" /> effet sono (speaker)</label> <label><input type="checkbox" id="crowd" /> effet foule (cris)</label></p>
+<h2>Séquences</h2>
+<div class="grid" id="seq"></div>
+<div id="groups"></div>
+<script type="module">
+const idx = (await (await fetch('/voice/announcer/announcer.json')).json()).fr;
+const ctx = new AudioContext();
+const cache = new Map();
+const buf = async (k) => {
+  if (!cache.has(k)) cache.set(k, fetch('/voice/announcer/' + idx[k]).then((r) => r.arrayBuffer()).then((a) => ctx.decodeAudioData(a)));
+  return cache.get(k);
+};
+/** Effets : sono (passe-bande + écho), foule (trois voix décalées, filtrées, réverbérées). */
+function chain(src, when) {
+  const out = ctx.destination;
+  if (document.getElementById('pa').checked) {
+    const hp = new BiquadFilterNode(ctx, { type: 'highpass', frequency: 380 });
+    const lp = new BiquadFilterNode(ctx, { type: 'lowpass', frequency: 3600 });
+    const drive = new WaveShaperNode(ctx, { curve: Float32Array.from({ length: 256 }, (_, i) => Math.tanh(((i / 128) - 1) * 2.2)) });
+    const delay = new DelayNode(ctx, { delayTime: 0.19 });
+    const fb = new GainNode(ctx, { gain: 0.32 });
+    src.connect(hp).connect(drive).connect(lp).connect(out);
+    lp.connect(delay).connect(fb).connect(delay);
+    fb.connect(out);
+    return;
+  }
+  src.connect(out);
+}
+async function play(keys) {
+  await ctx.resume();
+  let t = ctx.currentTime + 0.05;
+  for (const k of keys) {
+    const b = await buf(k);
+    if (document.getElementById('crowd').checked) {
+      // une personne dans la foule : timbre changé, distance, côté, courte réverbération
+      const s = new AudioBufferSourceNode(ctx, { buffer: b, playbackRate: 0.88 + Math.random() * 0.24 });
+      const dist = 6 + Math.random() * 14;
+      const lp = new BiquadFilterNode(ctx, { type: 'lowpass', frequency: 5200 - dist * 120 });
+      const hp = new BiquadFilterNode(ctx, { type: 'highpass', frequency: 220 });
+      const dry = new GainNode(ctx, { gain: 0.6 / (1 + dist / 10) });
+      const wet = new GainNode(ctx, { gain: 0.2 });
+      const pan = new StereoPannerNode(ctx, { pan: (Math.random() < 0.5 ? -1 : 1) * (0.35 + Math.random() * 0.5) });
+      if (!window.__room) {
+        const len = Math.floor(ctx.sampleRate * 0.7);
+        const ir = ctx.createBuffer(2, len, ctx.sampleRate);
+        for (let c = 0; c < 2; c++) { const d = ir.getChannelData(c); for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / len) ** 3; }
+        window.__room = new ConvolverNode(ctx, { buffer: ir });
+        window.__room.connect(ctx.destination);
+      }
+      s.connect(hp).connect(lp);
+      lp.connect(dry).connect(pan).connect(ctx.destination);
+      lp.connect(wet).connect(window.__room);
+      s.start(t);
+    } else {
+      const s = new AudioBufferSourceNode(ctx, { buffer: b });
+      chain(s, t);
+      s.start(t);
+    }
+    t += b.duration - 0.04;
+  }
+}
+const seqs = {
+  'Départ (speaker)': ['welcome', 'onTheLine', 'three', 'two', 'one', 'go'],
+  'Temps : 5 min 11': ['time', 'n5', 'minutes', 'n11'],
+  'Record battu de 12 s': ['newRecord', 'recordBy', 'n12', 'secondes'],
+  'À 3 s du record': ['missedBy', 'n3', 'secondes', 'missedTail'],
+  'En avance de 8 s': ['ahead', 'n8', 'secondes'],
+  'Bilan de sortie': ['sumGreat', 'sumDistance', 'n42', 'kilometres', 'sumSpeed', 'n28', 'kmh', 'sumFaster', 'sumRest'],
+};
+const seqBox = document.getElementById('seq');
+for (const [n, keys] of Object.entries(seqs)) {
+  const b = document.createElement('button');
+  b.className = 'seq';
+  b.textContent = '▶ ' + n;
+  b.onclick = () => play(keys);
+  seqBox.append(b);
+}
+const groups = {
+  'Course': ['komStart', 'komStart2', 'sprintStart', 'sprintStart2', 'summit', 'sprintLine', 'time', 'newRecord', 'firstTime', 'halfway', 'lastKm', 'lap', 'finish'],
+  'Speaker': ['welcome', 'onTheLine', 'three', 'two', 'one', 'go'],
+  'Public': ['allez', 'allezRobert', 'vasy', 'courage', 'allez3', 'bravo', 'plusVite', 'danseuse'],
+  'Bilan': Object.keys(idx).filter((k) => k.startsWith('sum')),
+  'Nombres': Array.from({ length: 60 }, (_, i) => 'n' + i),
+};
+const gBox = document.getElementById('groups');
+for (const [n, keys] of Object.entries(groups)) {
+  const h = document.createElement('h2');
+  h.textContent = n;
+  const g = document.createElement('div');
+  g.className = 'grid';
+  for (const k of keys.filter((k) => idx[k])) {
+    const b = document.createElement('button');
+    b.textContent = k.startsWith('n') && /^n\d+$/.test(k) ? k.slice(1) : k;
+    b.onclick = () => play([k]);
+    g.append(b);
+  }
+  gBox.append(h, g);
+}
+</script>
+</body>
+</html>
