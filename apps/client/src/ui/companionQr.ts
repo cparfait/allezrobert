@@ -50,6 +50,8 @@ export class CompanionQr {
   /** Proposé avant le départ : la sortie attend sa fermeture (ou un téléphone connecté). */
   private startWait: (() => void) | null = null;
   private prestart = false;
+  /** La carte est déjà affichée : les mises à jour (présence, état) ne rejouent pas son animation d'entrée. */
+  private shown = false;
   private closeTimer: ReturnType<typeof setTimeout> | undefined;
   url = '';
   svg = '';
@@ -65,10 +67,7 @@ export class CompanionQr {
         clearTimeout(this.closeTimer);
         this.closeTimer = setTimeout(() => this.close(), 1500);
       }
-      if (this.open) {
-        if (link.connected) this.render();
-        else this.close();
-      }
+      if (this.open) this.render();
     });
     this.el.addEventListener('click', (e) => {
       const act = (e.target as HTMLElement).closest<HTMLElement>('[data-act]')?.dataset.act;
@@ -102,6 +101,7 @@ export class CompanionQr {
     // Serveur injoignable : un téléphone ne pourrait pas se connecter, on n'affiche pas de code.
     if (!this.link.connected) return;
     this.open = true;
+    this.shown = false;
     this.offered = offered;
     this.prestart = prestart;
     clearTimeout(this.closeTimer);
@@ -169,7 +169,7 @@ export class CompanionQr {
   private render(): void {
     const fr = getLang() === 'fr';
     const done = this.offered && this.link.presence.phones > 0;
-    this.el.innerHTML = `<div class="cmp-card panel" role="dialog" aria-label="${fr ? 'Appli compagnon' : 'Companion app'}">
+    this.el.innerHTML = `<div class="cmp-card panel${this.shown ? ' cmp-still' : ''}" role="dialog" aria-label="${fr ? 'Appli compagnon' : 'Companion app'}">
       <button class="cmp-x" data-act="close" aria-label="${fr ? 'Fermer' : 'Close'}">×</button>
       <span class="cmp-badge">${phoneIcon(26)}</span>
       <b>${this.prestart ? (fr ? 'Avant de partir' : 'Before you go') : fr ? 'Appli compagnon' : 'Companion app'}</b>
@@ -188,6 +188,7 @@ export class CompanionQr {
         }
       </div>
     </div>`;
+    this.shown = true;
   }
 }
 
