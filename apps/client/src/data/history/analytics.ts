@@ -11,16 +11,21 @@ export interface HistoryTotals {
   movingS: number;
   elevationM: number;
   tss: number;
+  /** Plus longue sortie et plus gros dénivelé d'une seule sortie (trophées « d'un coup »). */
+  bestDistanceM: number;
+  bestElevationM: number;
 }
 
 export function totals(rides: readonly HistoryRide[]): HistoryTotals {
-  const t: HistoryTotals = { rides: 0, distanceM: 0, movingS: 0, elevationM: 0, tss: 0 };
+  const t: HistoryTotals = { rides: 0, distanceM: 0, movingS: 0, elevationM: 0, tss: 0, bestDistanceM: 0, bestElevationM: 0 };
   for (const r of rides) {
     t.rides++;
     t.distanceM += r.distanceM;
     t.movingS += r.movingS;
     t.elevationM += r.elevationM;
     t.tss += r.tss ?? 0;
+    t.bestDistanceM = Math.max(t.bestDistanceM, r.distanceM);
+    t.bestElevationM = Math.max(t.bestElevationM, r.elevationM);
   }
   return t;
 }
