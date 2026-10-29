@@ -61,3 +61,7 @@
   .ws-body { grid-template-columns: 1fr; overflow-y: auto; }
   .ws-list { max-height: 260px; }
 }
+
+.ws-hero header { display: block; margin: 0; padding: 0; }
+.ws-hero header .ws-type { margin-bottom: 2px; }
+.ws-actions { position: sticky; bottom: -2px; z-index: 3; padding: 10px 0 2px; background: linear-gradient(180deg, transparent, rgba(16, 22, 34, 0.96) 38%); }
