@@ -18,7 +18,7 @@ import { spotify, redirectUri } from '../audio/spotify.ts';
 import { musicSource, setMusicSource } from '../audio/musicSource.ts';
 import { renderStravaLink } from './stravaLink.ts';
 import { flagSvg } from './flagSvg.ts';
-import { enhanceSelects } from './dropdown.ts';
+import { enhanceSelects, listKeys } from './dropdown.ts';
 import { renderSoundSettings } from './soundSettings.ts';
 import { bikeThumbHtml, paintPlainThumbs, plainThumbHtml, swapMissingThumbs } from './bikeThumb.ts';
 import { OpenWorldPanel } from './openWorld.ts';
@@ -3141,12 +3141,27 @@ export class MainMenu {
     const dd = this.root.querySelector<HTMLElement>('#m-nation');
     if (dd) {
       const list = dd.querySelector<HTMLElement>('.mm-dd-list') as HTMLElement;
+      const pickNation = (o: HTMLElement) => {
+        const { nationality: _old, ...rest } = s.look;
+        const code = o.dataset.nation ?? '';
+        s.look = code ? { ...rest, nationality: code } : rest;
+        close();
+        changed();
+        this.render();
+      };
+      const onKey = listKeys(list, '[data-nation]', pickNation);
+      // Le défilement de la liste elle-même ne la ferme pas (seul celui de la page).
+      const onScroll = (e: Event) => {
+        if (!list.contains(e.target as Node)) close();
+      };
       const close = () => {
         list.hidden = true;
         list.style.cssText = '';
+        list.querySelector('.hl')?.classList.remove('hl');
         dd.appendChild(list);
         document.removeEventListener('pointerdown', outside, true);
-        document.removeEventListener('scroll', close, true);
+        document.removeEventListener('scroll', onScroll, true);
+        document.removeEventListener('keydown', onKey, true);
       };
       const outside = (e: Event) => {
         if (!dd.contains(e.target as Node) && !list.contains(e.target as Node)) close();
@@ -3157,22 +3172,16 @@ export class MainMenu {
         const r = (dd.querySelector('.mm-dd-btn') as HTMLElement).getBoundingClientRect();
         // Sorti du panneau (son flou crée un repère qui rognerait la liste) : posé sur la page.
         document.body.appendChild(list);
-        list.style.cssText = `position:fixed;z-index:90;left:${r.left}px;top:${r.bottom + 6}px;width:${r.width}px;max-height:${Math.max(160, Math.min(340, innerHeight - r.bottom - 16))}px`;
+        list.style.cssText = `position:fixed;z-index:9999;left:${r.left}px;top:${r.bottom + 6}px;width:${r.width}px;max-height:${Math.max(160, Math.min(340, innerHeight - r.bottom - 16))}px`;
         list.hidden = false;
         list.querySelector('.on')?.scrollIntoView({ block: 'center' });
         document.addEventListener('pointerdown', outside, true);
+        document.addEventListener('keydown', onKey, true);
         // Le défilement de la page ferme la liste, mais pas celui qu'on provoque pour montrer le pays choisi.
-        setTimeout(() => !list.hidden && document.addEventListener('scroll', close, true), 200);
+        setTimeout(() => !list.hidden && document.addEventListener('scroll', onScroll, true), 200);
       });
       dd.querySelectorAll<HTMLElement>('[data-nation]').forEach((o) =>
-        o.addEventListener('click', () => {
-          const { nationality: _old, ...rest } = s.look;
-          const code = o.dataset.nation ?? '';
-          s.look = code ? { ...rest, nationality: code } : rest;
-          close();
-          changed();
-          this.render();
-        }),
+        o.addEventListener('click', () => pickNation(o)),
       );
       dd.addEventListener('keydown', (e) => e.key === 'Escape' && (e.stopPropagation(), close()));
     }

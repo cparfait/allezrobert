@@ -32,6 +32,7 @@ import { musicSource, noteSpotifyPlaying } from './audio/musicSource.ts';
 import { t, setLang, getLang } from './i18n/index.ts';
 import { loadSettings, saveSettings, type Settings } from './ui/settings.ts';
 import { MainMenu } from './ui/menu.ts';
+import { autoEnhanceSelects } from './ui/dropdown.ts';
 import { WorldMap } from './ui/worldMap.ts';
 import { basemapUrl } from './ui/basemap.ts';
 import { bootStep, bootProgress, bootDone, bootError } from './ui/splash.ts';
@@ -244,6 +245,9 @@ function nextPaint(): Promise<void> {
 /** Drapeau posé en quittant une sortie : le menu s'ouvre sur l'onglet Rouler au rechargement. */
 const AFTER_RIDE_KEY = 'ar.afterRide';
 const MENU_MEDIA_VERSION = 12;
+// Listes déroulantes aux couleurs de l'appli, y compris celles ajoutées après coup (appareils audio…).
+autoEnhanceSelects();
+
 /** Films du menu du style choisi : réaliste (loop-<saison>.*) ou jeu vidéo (loop-lowpoly-<saison>.*). */
 const MENU_STYLE = LOW_POLY ? 'lowpoly-' : '';
 
