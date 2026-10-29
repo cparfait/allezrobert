@@ -10,8 +10,8 @@ import { rng } from '../engine/noise.ts';
 const JERSEYS = ['#e63946', '#2a9d8f', '#f4a261', '#8d99ae', '#06d6a0', '#ef476f', '#118ab2', '#ffd166', '#6a4c93', '#90be6d', '#f3722c', '#277da1'];
 const PROFILES: AiProfileName[] = ['rouleur', 'diesel', 'puncheur', 'sprinter'];
 /** Visages des IA (avatar MPFB) : profils de base selon le prénom (un coureur sur deux est une femme, comme son prénom). */
-const MEN = ['robert', 'moussa', 'karim', 'tom'];
-const WOMEN = ['lea', 'aiko', 'ines', 'marta'];
+const MEN = ['robert', 'antoine', 'marc', 'tom'];
+const WOMEN = ['lea', 'claire', 'sylvie', 'julie'];
 
 /** Tenue d'un profil de base, curseurs du visage un peu variés (pas deux têtes identiques). */
 function botFace(i: number, r: () => number): Partial<AvatarLook> {

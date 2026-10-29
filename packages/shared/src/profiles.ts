@@ -54,25 +54,25 @@ export const BASE_PROFILES: readonly BaseProfile[] = [
     look: { skin: '#f2cdb2', hair: '#8a4320', hairStyle: 1, freckles: 0.85, beard: 0, jersey: '#2a9d8f', jerseyAccent: '#e9c46a' },
   }),
   P({
-    id: 'moussa', name: 'Moussa', ageYears: 34,
+    id: 'antoine', name: 'Antoine', ageYears: 34,
     desc: { fr: '34 ans, rouleur athlétique, barbe courte', en: '34, athletic rouleur, short beard' },
     shape: { originAfrican: 0.9, muscle: 0.6, noseWidth: 0.5, lipFullness: 0.5, jawWidth: 0.3, nostrilFlare: 0.3 },
     look: { skin: '#5b3a28', hair: '#121212', hairStyle: 0, beard: 0.9, freckles: 0, jersey: '#f4a261', jerseyAccent: '#264653' },
   }),
   P({
-    id: 'aiko', name: 'Aiko', ageYears: 41,
+    id: 'claire', name: 'Claire', ageYears: 41,
     desc: { fr: '41 ans, fine et nerveuse, cheveux courts', en: '41, slim and punchy, short hair' },
     shape: { sex: -1, originAsian: 0.9, weight: -0.4, eyelidFold: 0.6, noseBridge: -0.4, eyeTilt: 0.3, faceFat: -0.2 },
     look: { skin: '#e6c09a', hair: '#141414', hairStyle: 0, beard: 0, freckles: 0, jersey: '#ffffff', jerseyAccent: '#e63946' },
   }),
   P({
-    id: 'karim', name: 'Karim', ageYears: 46,
+    id: 'marc', name: 'Marc', ageYears: 46,
     desc: { fr: '46 ans, costaud, mâchoire carrée, barbe naissante', en: '46, sturdy, square jaw, stubble' },
     shape: { originEuropean: 0.5, originAfrican: 0.25, weight: 0.4, muscle: 0.4, jawWidth: 0.6, jawAngle: 0.6, noseBridge: 0.5, browRidge: 0.3 },
     look: { skin: '#b9845c', hair: '#1d1410', hairStyle: 0, beard: 0.5, freckles: 0, jersey: '#1d3557', jerseyAccent: '#a8dadc' },
   }),
   P({
-    id: 'ines', name: 'Inès', ageYears: 55,
+    id: 'sylvie', name: 'Sylvie', ageYears: 55,
     desc: { fr: '55 ans, cheveux courts gris', en: '55, short grey hair' },
     shape: { sex: -1, originAfrican: 0.5, originEuropean: 0.3, weight: 0.1, lipFullness: 0.4, noseWidth: 0.3, cheekbones: 0.3 },
     look: { skin: '#8d5b3d', hair: '#bdbdb8', hairStyle: 0, beard: 0, freckles: 0, jersey: '#7b2cbf', jerseyAccent: '#ffd23f' },
@@ -84,7 +84,7 @@ export const BASE_PROFILES: readonly BaseProfile[] = [
     look: { skin: '#f0c7a6', hair: '#c9a25b', hairStyle: 0, beard: 0, freckles: 0.15, jersey: '#ffd23f', jerseyAccent: '#111111' },
   }),
   P({
-    id: 'marta', name: 'Marta', ageYears: 36,
+    id: 'julie', name: 'Julie', ageYears: 36,
     desc: { fr: '36 ans, sprinteuse puissante, tresse sous le casque', en: '36, powerful sprinter, braid under the helmet' },
     shape: { sex: -1, originEuropean: 0.4, originAfrican: 0.15, originAsian: 0.2, muscle: 0.7, weight: 0.1, cheekbones: 0.4, jawWidth: 0.2, noseWidth: 0.2 },
     look: { skin: '#c48c64', hair: '#2a1a10', hairStyle: 2, beard: 0, freckles: 0, jersey: '#e63946', jerseyAccent: '#1d3557' },

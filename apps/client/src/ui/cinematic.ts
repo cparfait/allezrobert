@@ -69,7 +69,7 @@ const OUTFITS: ReadonlyArray<Partial<AvatarLook>> = [
  * Visages du groupe (avatar MPFB) : un profil de base par coureur (packages/shared/src/profiles.ts),
  * Robert en tête ; les deux derniers reprennent un profil avec d'autres traits et un autre teint.
  */
-const CAST = ['robert', 'moussa', 'lea', 'karim', 'aiko', 'tom', 'ines', 'marta', 'tom', 'moussa'];
+const CAST = ['robert', 'antoine', 'lea', 'marc', 'claire', 'tom', 'sylvie', 'julie', 'tom', 'antoine'];
 const RECAST: ReadonlyArray<Partial<AvatarLook>> = [
   { skin: '#d9a47e', hair: '#5a3b22', beard: 0.6 },
   { skin: '#7a4e34', hair: '#1a1a1a', beard: 0.3 },
