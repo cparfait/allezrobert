@@ -862,8 +862,8 @@ export class MainMenu {
     return `<details class="set-sec" data-sec="weather" ${this.settingsOpen.has('weather') ? 'open' : ''}><summary>${L ? 'Heure et météo de la sortie' : 'Ride time and weather'} <span style="text-transform:none;letter-spacing:0;font-weight:500;opacity:.8;margin-left:auto">${this.hourLabel(s.hour)}</span></summary><div class="set-body"><div class="mm-weather">
       <label class="field">${L ? 'Heure de départ' : 'Start time'} <span id="m-hourv">${this.hourLabel(s.hour)}</span><input id="m-hour" type="range" min="5" max="22" step="0.25" value="${s.hour}" /></label>
       <div class="field">${L ? 'Conditions' : 'Conditions'}${this.seg('m-realwx', s.realWeather ? '1' : '0', [
-        ['0', L ? 'Réglées' : 'Custom'],
         ['1', L ? 'Du jour (réelles)' : 'Today (real)'],
+        ['0', L ? 'Réglées' : 'Custom'],
       ])}</div>
       ${
         s.realWeather

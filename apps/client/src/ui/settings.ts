@@ -108,7 +108,7 @@ export const DEFAULT_SETTINGS: Settings = {
   workoutPreset: 'sweet-spot-3x12',
   challengeSeg: '',
   weatherEvolves: false,
-  realWeather: false,
+  realWeather: true,
   raceLaps: 1,
   hudHidden: [],
 };
@@ -118,7 +118,15 @@ const KEY = 'ar.settings';
 export function loadSettings(): Settings {
   try {
     const raw = localStorage.getItem(KEY);
-    if (raw) return migrateBike({ ...DEFAULT_SETTINGS, ...(JSON.parse(raw) as Partial<Settings>) });
+    if (raw) {
+      const saved = { ...DEFAULT_SETTINGS, ...(JSON.parse(raw) as Partial<Settings>) };
+      // Une seule fois : la météo du jour devient le choix par défaut (le joueur peut revenir aux conditions réglées).
+      if (!localStorage.getItem('ar.wxRealDefault')) {
+        saved.realWeather = true;
+        localStorage.setItem('ar.wxRealDefault', '1');
+      }
+      return migrateBike(saved);
+    }
   } catch {
     // Réglages corrompus : on repart des valeurs par défaut.
   }
