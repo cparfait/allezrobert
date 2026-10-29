@@ -497,8 +497,11 @@ export class TerrainManager {
     const { res, data } = tile.splat as { res: number; data: Uint8Array };
     const a = new Uint8Array(res * res * 4);
     const b = new Uint8Array(res * res * 4);
+    // Troisième texture : sable (canal 9) en rouge.
+    const c = new Uint8Array(res * res * 4);
     const C = SPLAT_CHANNELS.length;
     for (let i = 0; i < res * res; i++) {
+      c[i * 4] = data[i * C + 9] as number;
       a[i * 4] = data[i * C] as number;
       a[i * 4 + 1] = data[i * C + 1] as number;
       a[i * 4 + 2] = data[i * C + 2] as number;
@@ -508,7 +511,7 @@ export class TerrainManager {
       b[i * 4 + 2] = data[i * C + 6] as number;
       b[i * 4 + 3] = data[i * C + 7] as number;
     }
-    return [a, b].map((buf) => {
+    return [a, b, c].map((buf) => {
       const t = new THREE.DataTexture(buf, res, res, THREE.RGBAFormat);
       t.magFilter = THREE.LinearFilter;
       t.minFilter = THREE.LinearMipmapLinearFilter;
@@ -617,6 +620,7 @@ export class TerrainManager {
     m.flatShading = true;
     const s0 = texture(textures[0] as THREE.Texture, uv());
     const s1 = texture(textures[1] as THREE.Texture, uv());
+    const s2 = texture(textures[2] as THREE.Texture, uv());
     const c = this.seasonColors;
     const wp = positionWorld.xz;
     // Taches de teinte (parcelles, prés plus ou moins verts) : 3 paliers, pas de dégradé.
@@ -637,6 +641,9 @@ export class TerrainManager {
     col = mix(col, c.urban.node, sharp(s1.r).mul(float(1).sub(park)).mul(0.8));
     col = mix(col, meadow, sharp(s1.b));
     col = col.mul(patch);
+    // Plages : sable clair, plus foncé et mouillé au bord de l'eau (sous 0,6 m).
+    const sand = mix(vec3(0.62, 0.5, 0.33), vec3(0.86, 0.73, 0.5), smoothstep(0.2, 0.9, alt));
+    col = mix(col, sand, sharp(s2.r));
     col = mix(col, vec3(0.2, 0.42, 0.62), sharp(s0.a));
     // Chaussées OSM : le sol n'en prend plus la couleur (les rubans et le réseau dessinent les routes) ; peint
     // au pas du raster (≈ 4 m), il débordait en bande grise qui plongeait sous le bord de la route. Le masque
@@ -702,13 +709,17 @@ function clampUnderRoads(pos: Float32Array, tile: LoadedTile, seg: number, reach
       for (let j = j0; j <= j1; j++)
         for (let i = i0; i <= i1; i++) {
           const x = tile.x0 + i * step, z = tile.z0 + j * step;
-          const t = Math.min(1, Math.max(0, ((x - ax) * dx + (z - az) * dz) / len2));
+          const tRaw = ((x - ax) * dx + (z - az) * dz) / len2;
+          const t = Math.min(1, Math.max(0, tRaw));
           const ex = ax + dx * t - x, ez = az + dz * t - z;
           if (ex * ex + ez * ez > RR * RR) continue;
           const y = ay + (by - ay) * t;
           const kk = (j * row + i) * 3 + 1;
           const h = pos[kk] as number;
-          if (lift && ex * ex + ez * ez <= lift * lift && h < y - ROAD_TERRAIN_BELOW && y - h < 3) {
+          // Remblai : seulement au droit du tronçon (projection dans le segment). Sur une route en pente, le
+          // bout d'un tronçon voisin est plus haut ou plus bas que la chaussée au droit du sommet : relever le
+          // sol à sa hauteur le faisait passer au-dessus de la route (herbe sur la chaussée dans les côtes).
+          if (lift && tRaw > 0 && tRaw < 1 && ex * ex + ez * ez <= lift * lift && h < y - ROAD_TERRAIN_BELOW && y - h < 3) {
             pos[kk] = y - ROAD_TERRAIN_BELOW;
             continue;
           }

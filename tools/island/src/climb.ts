@@ -14,6 +14,8 @@ export interface ClimbOptions {
   step?: number;
   /** Côté du premier lacet (+1 / −1) ; par défaut, le côté où le terrain monte le moins vite. */
   firstSide?: number;
+  /** Lieux à éviter (lacs, rivières, villages). */
+  blocked?: (x: number, z: number) => boolean;
 }
 
 /** Tracé en lacets de `from` (bas) à `to` (haut). */
@@ -28,12 +30,14 @@ export function switchbacks(from: Vec2, to: Vec2, o: ClimbOptions): Vec2[] {
   let p: Vec2 = from;
   // Premier lacet du côté où le terrain monte le moins vite (plus de place).
   let prevHead: number | null = null;
+  const hTo = terrain(to[0], to[1]);
   let side = o.firstSide ?? (terrain(from[0] + P0[0] * 60, from[1] + P0[1] * 60) < terrain(from[0] - P0[0] * 60, from[1] - P0[1] * 60) ? 1 : -1);
   for (let it = 0; it < 6000; it++) {
     const dx = to[0] - p[0];
     const dz = to[1] - p[1];
     const d = Math.hypot(dx, dz);
-    if (d < 70) {
+    // Arrivée : droit au but seulement si la pente qui reste est raisonnable.
+    if (d < 15 || (d < 90 && Math.abs(terrain(to[0], to[1]) - terrain(p[0], p[1])) / d < o.grade * 1.4)) {
       pts.push(to);
       break;
     }
@@ -47,8 +51,15 @@ export function switchbacks(from: Vec2, to: Vec2, o: ClimbOptions): Vec2[] {
       const r = (b * Math.PI) / 180;
       const u: Vec2 = [Math.cos(r) * Ap[0] * side + Math.sin(r) * A[0], Math.cos(r) * Ap[1] * side + Math.sin(r) * A[1]];
       const g = (terrain(p[0] + u[0] * step, p[1] + u[1] * step) - h0) / step;
-      // Jamais en descente ; au-delà de la cible, pénalisé plus fort qu'en deçà.
-      const err = g < 0 ? 1 + -g : g > o.grade ? (g - o.grade) * 3 : (o.grade - g) * (b === 90 ? 0.5 : 1);
+      // Jamais en descente ; au-delà de la cible, pénalisé plus fort qu'en deçà ; jamais près d'un lacet
+      // précédent (deux routes côte à côte).
+      const q: Vec2 = [p[0] + u[0] * step * 4, p[1] + u[1] * step * 4];
+      let crowd = 0;
+      for (let k = 0; k < pts.length - 30; k += 2) if (Math.hypot(pts[k]![0] - q[0], pts[k]![1] - q[1]) < 26) crowd = 10;
+      if (o.blocked && (o.blocked(q[0], q[1]) || o.blocked(p[0] + u[0] * step, p[1] + u[1] * step))) crowd += 20;
+      // Jamais plus haut que l'arrivée (pas de bosse à redescendre avant le col).
+      if (h0 + g * step > hTo + 8) crowd += 50;
+      const err = crowd + (g < 0 ? 1 + -g : g > o.grade ? (g - o.grade) * 8 : (o.grade - g) * (b === 90 ? 0.5 : 1));
       if (err < bestErr) {
         bestErr = err;
         best = u;

@@ -615,7 +615,7 @@ export class Vegetation {
       const urban = splatAt(tile, 4, x, z);
       const road = splatAt(tile, 5, x, z);
       // Rien sur l'eau, la route, les éboulis, la roche nue ni les glaciers.
-      if (water > 0.2 || road > 0.05 || splatAt(tile, 7, x, z) > 0.2) continue;
+      if (water > 0.2 || road > 0.05 || splatAt(tile, 7, x, z) > 0.2 || splatAt(tile, 9, x, z) > 0.3) continue;
       // Forêt dense ; arbres isolés et haies (bruit filaire) dans les prés ; jardins en zone bâtie.
       const hedge = Math.abs(fbm(x / 90, z / 90, 3)) < 0.03 ? 0.5 : 0;
       const prob = forest + meadow * (0.012 + hedge) + field * hedge * 0.6 + urban * 0.05;

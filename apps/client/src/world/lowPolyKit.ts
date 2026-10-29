@@ -295,6 +295,7 @@ export class LandProbe {
   water = 0;
   urban = 0;
   road = 0;
+  sand = 0;
   private readonly tiles: LoadedTile[] = [];
   /** Dernière tuile lue (la plupart des requêtes d'un tronçon tombent dans la même). */
   private last: LoadedTile | undefined;
@@ -345,12 +346,13 @@ export class LandProbe {
     this.water = (d[c + CH.water] as number) / 255;
     this.urban = (d[c + CH.urban] as number) / 255;
     this.road = (d[c + CH.road] as number) / 255;
+    this.sand = (d[c + CH.sand] as number) / 255;
     return true;
   }
 
   /** Terre ouverte : ni bourg, ni bois, ni eau, ni route (les terres sans occupation comptent comme prés). */
   open(x: number, z: number, urbanMax = 0.3): boolean {
-    return this.read(x, z) && this.urban < urbanMax && this.forest < 0.4 && this.water < 0.2 && this.road < 0.25;
+    return this.read(x, z) && this.urban < urbanMax && this.forest < 0.4 && this.water < 0.2 && this.road < 0.25 && this.sand < 0.3;
   }
 
   /**

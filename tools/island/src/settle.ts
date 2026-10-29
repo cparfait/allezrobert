@@ -311,7 +311,7 @@ export function seasideBuildings(B: Builder, lay: TownLayout): void {
   B.places.push({ name: 'La Plage', kind: 'locality', x: coastPoint(ang, 60)[0], z: coastPoint(ang, 60)[1] });
   // Plage jusqu'aux planches, jardins publics, golf et hippodrome sur les hauteurs.
   const beach: Vec2[] = [];
-  for (let a = ang - 0.06; a <= ang + 0.15; a += 0.003) beach.push(coastPoint(a, -12));
+  for (let a = ang - 0.06; a <= ang + 0.15; a += 0.003) beach.push(coastPoint(a, -45));
   for (let a = ang + 0.15; a >= ang - 0.06; a -= 0.003) beach.push(coastPoint(a, 112));
   B.area('sand', 'fields', beach, 'Plage de Robertville');
   const golf = coastPoint(ang + 0.03, 1750);

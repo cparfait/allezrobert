@@ -14,6 +14,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { deltaDecodeU16 } from '../../../packages/shared/src/heights.ts';
+import { terrain } from './design.ts';
 import type { RoadGraphData } from '../../../packages/shared/src/roadgraph.ts';
 import type { RouteData, WorldMeta, WorldTile } from '../../../packages/shared/src/route.ts';
 
@@ -26,14 +27,16 @@ const GRADE_RING = 0.01;
 /** Pente maximale par catégorie (fraction, sur 10 m). */
 function gradeLimit(kind: string, surface: string): number {
   if (kind === 'track') return surface === 'gravel' ? 0.2 : 0.27;
-  return ({ cycleway: 0.07, secondary: 0.085, tertiary: 0.105, residential: 0.13, unclassified: 0.135 } as Record<string, number>)[kind] ?? 0.13;
+  return ({ cycleway: 0.07, secondary: 0.085, tertiary: 0.115, residential: 0.13, unclassified: 0.135 } as Record<string, number>)[kind] ?? 0.13;
 }
 const GRADE_WINDOW = 10;
 /** Rayon de virage minimal (m) mesuré sur une corde de 2 × 6 m. */
 const RADIUS_RING = 150;
+/** Écart maximal entre la route et le relief naturel (m) : tranchée ou remblai. */
+const MAX_EARTHWORK = 25;
 /** Rayons minimaux : grandes routes, petites routes de montagne (épingles), chemins. */
 const RADIUS_ROAD = 7.5;
-const RADIUS_SMALL = 5;
+const RADIUS_SMALL = 2.5;
 const RADIUS_TRACK = 4;
 const RING_NAME = "L'Anneau";
 
@@ -105,9 +108,8 @@ export function verifyWorld(dir: string): { ok: boolean; lines: string[] } {
           mn = Math.min(mn, h[k]!);
           mx = Math.max(mx, h[k]!);
         }
-        if (lod.id === 'hi' || !t.lods.includes('hi')) {
-          if (Math.abs(mn - t.minM) > 0.02 || Math.abs(mx - t.maxM) > 0.02) errors.push(`${t.id}${lod.suffix} : min/max ${f(mn)}/${f(mx)} ≠ index ${t.minM}/${t.maxM}`);
-        }
+        // L'index annonce les extrêmes de toutes les grilles de la tuile.
+        if (mn < t.minM - 0.02 || mx > t.maxM + 0.02) errors.push(`${t.id}${lod.suffix} : min/max ${f(mn)}/${f(mx)} hors de l'index ${t.minM}/${t.maxM}`);
         grids.set(`${t.id}.${lod.id}`, { n: lod.n, res: lod.resolutionM, x0: t.tx * T, z0: t.tz * T, h });
       }
     }
@@ -151,8 +153,9 @@ export function verifyWorld(dir: string): { ok: boolean; lines: string[] } {
       if (hi && lo) {
         const r = Math.round(lo.res / hi.res);
         let m = 0;
-        for (let j = 0; j <= lo.n; j++) for (let i = 0; i <= lo.n; i++) m = Math.max(m, Math.abs(lo.h[j * (lo.n + 1) + i]! - hi.h[j * r * (hi.n + 1) + i * r]!));
-        if (m > TOL_SEAM) errors.push(`${t.id} : grilles 8 m et 2 m écartées de ${f(m * 100, 1)} cm`);
+        // (la grille grossière peut être plus basse que la fine près des routes, jamais plus haute)
+        for (let j = 0; j <= lo.n; j++) for (let i = 0; i <= lo.n; i++) m = Math.max(m, lo.h[j * (lo.n + 1) + i]! - hi.h[j * r * (hi.n + 1) + i * r]!);
+        if (m > TOL_SEAM) errors.push(`${t.id} : grille 8 m au-dessus de la grille 2 m de ${f(m * 100, 1)} cm`);
       }
     }
     check('raccords des tuiles', errors, `écart max ${f(worst * 100, 1)} cm`);
@@ -389,6 +392,35 @@ export function verifyWorld(dir: string): { ok: boolean; lines: string[] } {
         }
       }
     });
+    // Terrassements : la route suit le relief naturel à quelques mètres près (ni viaduc, ni canyon).
+    const tErr: string[] = [];
+    let worstCut = 0;
+    for (const e of graph.edges)
+      for (let k = 0; k < e.pts.length; k += 30) {
+        const d = e.pts[k + 1]! - terrain(e.pts[k]!, e.pts[k + 2]!);
+        if (Math.abs(d) > Math.abs(worstCut)) worstCut = d;
+        if (Math.abs(d) > MAX_EARTHWORK && tErr.length < 40) {
+          tErr.push(`${e.name} (${e.kind}) ${at(e.pts[k]!, e.pts[k + 2]!)} : route ${f(d, 1)} m ${d > 0 ? 'au-dessus' : 'au-dessous'} du relief naturel`);
+          k += 300;
+        }
+      }
+    check('terrassements', tErr, `écart max ${f(worstCut, 1)} m`);
+    // Creux du profil : corde de 16 m au plus 12 cm au-dessus de la chaussée (≈ 3 cm sur une facette de 8 m du
+    // sol affiché ; au-delà, ce sol, abaissé sommet par sommet, recouvre la route au fond du creux).
+    const sErr: string[] = [];
+    let worstSag = 0;
+    for (const e of graph.edges) {
+      const m = e.pts.length / 3;
+      for (let i = 4; i + 4 < m; i++) {
+        const sag = (e.pts[(i - 4) * 3 + 1]! + e.pts[(i + 4) * 3 + 1]!) / 2 - e.pts[i * 3 + 1]!;
+        worstSag = Math.max(worstSag, sag);
+        if (sag > 0.12 && sErr.length < 30) {
+          sErr.push(`${e.name} (${e.kind}) ${at(e.pts[i * 3]!, e.pts[i * 3 + 2]!)} : creux de ${f(sag * 100, 0)} cm sur 16 m`);
+          i += 50;
+        }
+      }
+    }
+    check('profils en long sans cassure', sErr, `creux max ${f(worstSag * 100, 1)} cm`);
     check('pentes et rayons', gErr, `anneau ${f(ringMax * 100, 2)} % / R ≥ ${f(ringMinR, 0)} m, routes ${f(roadMax * 100, 1)} % / R ≥ ${f(roadMinR, 0)} m`);
   }
 

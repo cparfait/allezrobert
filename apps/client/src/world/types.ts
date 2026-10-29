@@ -6,7 +6,7 @@ import type { RoadGraphData, RouteData, WorldPlace } from '@allezrobert/shared';
  * roche nue et éboulis ≈ 0,5, glacier = 1. `conifer` : forêts de résineux OSM (1) ou mixtes (0,5),
  * pour la végétation seulement (les huit premiers canaux vont au matériau du terrain).
  */
-export const SPLAT_CHANNELS = ['forest', 'field', 'meadow', 'water', 'urban', 'road', 'verge', 'alpine', 'conifer'] as const;
+export const SPLAT_CHANNELS = ['forest', 'field', 'meadow', 'water', 'urban', 'road', 'verge', 'alpine', 'conifer', 'sand'] as const;
 export type SplatChannel = (typeof SPLAT_CHANNELS)[number];
 
 export type ForestKind = 'deciduous' | 'conifer' | 'mixed';

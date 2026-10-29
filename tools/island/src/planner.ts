@@ -75,9 +75,11 @@ export class Grid {
     readonly z0: number,
     width: number,
     height: number,
+    /** Côté des cases (m). */
+    readonly cs = CELL,
   ) {
-    this.n = Math.ceil(width / CELL);
-    this.m = Math.ceil(height / CELL);
+    this.n = Math.ceil(width / cs);
+    this.m = Math.ceil(height / cs);
     this.N = this.n * this.m;
     const N = this.N;
     this.h = new Float32Array(N);
@@ -95,15 +97,15 @@ export class Grid {
   }
 
   cellAt(x: number, z: number): number {
-    const i = Math.max(0, Math.min(this.n - 1, Math.floor((x - this.x0) / CELL)));
-    const j = Math.max(0, Math.min(this.m - 1, Math.floor((z - this.z0) / CELL)));
+    const i = Math.max(0, Math.min(this.n - 1, Math.floor((x - this.x0) / this.cs)));
+    const j = Math.max(0, Math.min(this.m - 1, Math.floor((z - this.z0) / this.cs)));
     return j * this.n + i;
   }
 
   center(c: number): Vec2 {
     const e = this.exact.get(c);
     if (e) return e;
-    return [this.x0 + ((c % this.n) + 0.5) * CELL, this.z0 + (Math.floor(c / this.n) + 0.5) * CELL];
+    return [this.x0 + ((c % this.n) + 0.5) * this.cs, this.z0 + (Math.floor(c / this.n) + 0.5) * this.cs];
   }
 
   private key(a: number, b: number): number {
@@ -169,7 +171,7 @@ export class Grid {
     const j0 = Math.max(0, Math.min(sj, aim >= 0 ? gj : sj) - margin);
     const j1 = Math.min(this.m - 1, Math.max(sj, aim >= 0 ? gj : sj) + margin);
     const heap = new Heap();
-    const hOf = (c: number) => (aim >= 0 ? Math.max(0, Math.hypot((c % n) - gi, Math.floor(c / n) - gj) * CELL - 500) * 0.7 : 0);
+    const hOf = (c: number) => (aim >= 0 ? Math.max(0, Math.hypot((c % n) - gi, Math.floor(c / n) - gj) * this.cs - 500) * 0.7 : 0);
     this.g[start] = 0;
     this.stamp[start] = run;
     this.from[start] = -1;
@@ -198,7 +200,7 @@ export class Grid {
         const target = single ? b === goal : false;
         if (this.water[b] === 1 && !target) continue;
         if (this.block[b] && !target && b !== start) continue;
-        const L = Math.hypot(di, dj) * CELL;
+        const L = Math.hypot(di, dj) * this.cs;
         const grade = Math.abs(this.h[b]! - this.h[a]!) / L;
         if (grade > cls.gmax && !target) continue;
         // Raccord franc : jamais d'arrivée ni de départ en biseau sur une route existante.

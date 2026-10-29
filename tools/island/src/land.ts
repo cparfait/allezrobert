@@ -280,7 +280,7 @@ export function shoreAreas(skip: (x: number, z: number) => boolean): Area[] {
     if (cliffiness((a0 + a1) / 2) > 0.3) continue;
     const mid = coastPoint((a0 + a1) / 2, 50);
     if (skip(mid[0], mid[1]) || inHarbour(mid[0], mid[1], 150) || inRiver(mid[0], mid[1], 30)) continue;
-    out.push({ id: `plage-${k}`, kind: 'sand', layer: 'fields', ring: [coastPoint(a0, -14), coastPoint(a1, -14), coastPoint(a1, 105), coastPoint(a0, 105)] });
+    out.push({ id: `plage-${k}`, kind: 'sand', layer: 'fields', ring: [coastPoint(a0, -45), coastPoint(a1, -45), coastPoint(a1, 105), coastPoint(a0, 105)] });
   }
   const lag = LAKES.find((l) => l.id === 'lagune')!;
   const ring: Vec2[] = [];

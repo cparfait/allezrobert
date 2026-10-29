@@ -100,6 +100,22 @@ export function profile(xz: Vec2[], loop: boolean, win: number, maxGrade: number
     for (let i = n - 2; i >= 0; i--) y[i] = Math.min(y[i + 1]! + lim, Math.max(y[i + 1]! - lim, y[i]!));
     if (pin0 !== null) y[0] = pin0;
   }
+  // Raccords de pente arrondis (moyenne glissante sur ± 16 m, deux fois) : sans cassure du profil, le sol du jeu
+  // (facettes de ≈ 8 m) ne passe jamais au-dessus de la chaussée dans un creux. La moyenne de pentes ≤ la
+  // pente plafond reste sous le plafond ; extrémités inchangées.
+  if (n > 5)
+    for (let pass = 0; pass < 3; pass++) {
+      const src = y.slice();
+      const K = 8;
+      for (let i = 0; i < n; i++) {
+        // Fenêtre symétrique, rétrécie près des extrémités (qui restent en place).
+        const k = loop ? K : Math.min(K, i, n - 1 - i);
+        if (k === 0) continue;
+        let s2 = 0;
+        for (let j = i - k; j <= i + k; j++) s2 += src[loop ? (j + n) % n : j]!;
+        y[i] = s2 / (2 * k + 1);
+      }
+    }
   return y;
 }
 
@@ -108,7 +124,7 @@ export function makeRoad(s: RoadSpec): Road {
   const sm = s.smooth ?? 4;
   const xz = loop ? resample(s.pts, STEP, true) : resample(sm ? chaikin(s.pts, sm) : s.pts, STEP);
   const gmax = s.gmax ?? 0.09;
-  const y = profile(xz, loop, s.kind === 'track' ? 16 : 30, gmax, s.y0, s.y1);
+  const y = profile(xz, loop, s.kind === 'track' ? 24 : 30, gmax, s.y0, s.y1);
   return {
     id: s.id,
     name: s.name,
@@ -225,6 +241,9 @@ export function snapEnds(road: Road, onto: Road[], fallback: Road[] = [], reach 
 
 // ── Terrain arasé sous les routes ──
 
+/** Largeur maximale des talus (m). */
+const MAX_BLEND = 30;
+
 export class RoadIndex {
   private cells = new Map<number, Array<{ r: Road; i: number }>>();
   private readonly cs = 25;
@@ -232,7 +251,7 @@ export class RoadIndex {
     for (const r of roads) {
       const n = r.pts.length;
       const segs = r.loop ? n : n - 1;
-      const reach = r.flat + 2.2 + r.blend;
+      const reach = r.flat + 2.2 + MAX_BLEND;
       for (let i = 0; i < segs; i++) {
         const a = r.pts[i]!;
         const b = r.pts[(i + 1) % n]!;
@@ -282,9 +301,13 @@ export class RoadIndex {
       // Plateforme arasée une case de grille (2 m) au-delà de l'accotement : entre deux sommets de la grille,
       // le sol interpolé ne remonte jamais au-dessus de la chaussée.
       const flat = r.flat + 2.2;
-      if (p.d > flat + r.blend) continue;
+      if (p.d > flat + MAX_BLEND) continue;
       const under = a[1] + (b[1] - a[1]) * p.t - 0.1;
-      const v = p.d <= flat ? under : under + (h0 - under) * smoothstep01((p.d - flat) / r.blend);
+      // Talus : au moins 1,6 m de large par mètre de hauteur (tranchées et remblais en pente douce, jamais de
+      // mur de terre au bord d'une route en tranchée).
+      const blend = Math.min(MAX_BLEND, Math.max(r.blend, Math.abs(h0 - under) * 1.6));
+      if (p.d > flat + blend) continue;
+      const v = p.d <= flat ? under : under + (h0 - under) * smoothstep01((p.d - flat) / blend);
       if (!touched || v < h) h = v;
       touched = true;
     }

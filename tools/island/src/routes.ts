@@ -44,14 +44,15 @@ export function planRoute(graph: RoadGraphData, spec: RouteSpec): RouteData | nu
     if (e.b !== e.a) adj[e.b]!.push({ e: i, to: e.a });
   });
   // Point de passage → nœud le plus proche parmi ceux qui conviennent au vélo.
-  const nodeFor = (x: number, z: number): number => {
+  const nodeFor = (x: number, z: number, end = false): number => {
     let best = -1;
     let bd = Infinity;
     for (let k = 0; k < nNodes; k++) {
       if (!adj[k]!.length) continue;
       const pref = Math.min(...adj[k]!.map(({ e }) => edgeFactor(spec.mode, graph.edges[e]!.kind, graph.edges[e]!.surface)));
       // Carrefour (≥ 3 voies) de préférence : on n'arrive jamais dans un cul-de-sac (demi-tour obligé).
-      const d = Math.hypot(graph.nodes[k * 3]! - x, graph.nodes[k * 3 + 2]! - z) * (pref > 3 ? 4 : 1) * (adj[k]!.length >= 3 ? 1 : adj[k]!.length === 2 ? 2 : 50);
+      // (départ et arrivée d'un parcours ouvert : un cul-de-sac convient, on n'en repart pas)
+      const d = Math.hypot(graph.nodes[k * 3]! - x, graph.nodes[k * 3 + 2]! - z) * (pref > 3 ? 4 : 1) * (end ? 1 : adj[k]!.length >= 3 ? 1 : adj[k]!.length === 2 ? 2 : 50);
       if (d < bd) {
         bd = d;
         best = k;
@@ -61,7 +62,8 @@ export function planRoute(graph: RoadGraphData, spec: RouteSpec): RouteData | nu
   };
   // Points de passage tombés sur le même nœud : un seul (sinon la dernière étape d'une boucle peut disparaître
   // et la boucle se refermer par un demi-tour).
-  const wps = spec.waypoints.map(([x, z]) => nodeFor(x, z)).filter((n, i, a) => i === 0 || n !== a[i - 1]);
+  const last = spec.waypoints.length - 1;
+  const wps = spec.waypoints.map(([x, z], i) => nodeFor(x, z, !spec.loop && (i === 0 || i === last))).filter((n, i, a) => i === 0 || n !== a[i - 1]);
   if (spec.loop) {
     while (wps.length > 1 && wps[wps.length - 1] === wps[0]) wps.pop();
     wps.push(wps[0]!);

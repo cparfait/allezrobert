@@ -21,7 +21,13 @@ const OUTF = resolve(opt('out', 'docs/screenshots/ile-carte.png'));
 const ROUTE = opt('route', '');
 
 const meta = JSON.parse(readFileSync(join(DIR, 'world.json'), 'utf8')) as WorldMeta;
-const b = meta.bounds;
+// --center x,z --span m : zoom sur une zone (sinon toute l'île).
+const C = opt('center', '');
+const SPAN = Number(opt('span', '1000'));
+const b = C ? (() => {
+  const [cx, cz] = C.split(',').map(Number) as [number, number];
+  return { minX: cx - SPAN / 2, maxX: cx + SPAN / 2, minZ: cz - SPAN / 2, maxZ: cz + SPAN / 2 };
+})() : meta.bounds;
 const W = Math.round((b.maxX - b.minX) / PX);
 const H = Math.round((b.maxZ - b.minZ) / PX);
 const elev = new Float32Array(W * H).fill(NaN);
@@ -29,7 +35,9 @@ const img = new Uint8Array(W * H * 3);
 const T = meta.tileSizeM;
 
 // Altitudes : grille 8 m des tuiles.
+const inView = (t: { tx: number; tz: number }) => (t.tx + 1) * T > b.minX && t.tx * T < b.maxX && (t.tz + 1) * T > b.minZ && t.tz * T < b.maxZ;
 for (const t of meta.tiles) {
+  if (!inView(t)) continue;
   const buf = readFileSync(join(DIR, 'tiles', `${t.id}.lo.u16`));
   const n = 125;
   const N = n + 1;
@@ -38,8 +46,8 @@ for (const t of meta.tiles) {
   deltaDecodeU16(q, n);
   for (let j = 0; j < T / PX; j++)
     for (let i = 0; i < T / PX; i++) {
-      const gx = Math.min(n, Math.round(((i + 0.5) * PX) / 8));
-      const gz = Math.min(n, Math.round(((j + 0.5) * PX) / 8));
+      const gx = Math.min(n, Math.floor(((i + 0.5) * PX) / 8));
+      const gz = Math.min(n, Math.floor(((j + 0.5) * PX) / 8));
       const X = Math.floor((t.tx * T - b.minX) / PX) + i;
       const Z = Math.floor((t.tz * T - b.minZ) / PX) + j;
       if (X < 0 || Z < 0 || X >= W || Z >= H) continue;
@@ -90,7 +98,8 @@ function fill(rings: number[][], c: number[], a: number): void {
     for (let t = 0; t + 1 < xs.length; t += 2) for (let x = xs[t]!; x < xs[t + 1]!; x += PX) put(x, z, c, a);
   }
 }
-function line(pts: number[], stride: number, c: number[], w = 1): void {
+function line(pts: number[], stride: number, c: number[], w = 1, widthM = 0): void {
+  if (widthM && PX < 4) w = Math.max(1, Math.round(widthM / PX));
   for (let k = 0; k + stride < pts.length; k += stride) {
     const ax = pts[k]!;
     const az = pts[k + stride - 1]!;
@@ -108,7 +117,7 @@ function line(pts: number[], stride: number, c: number[], w = 1): void {
 const FIELD: Record<string, number[]> = { farmland: [222, 196, 110], meadow: [150, 196, 95], orchard: [120, 170, 80], vineyard: [150, 120, 160], sand: [240, 225, 170], heath: [175, 150, 110], bare: [170, 165, 160], wetland: [120, 170, 160] };
 const LAND: Record<string, number[]> = { retail: [200, 190, 180], pitch: [90, 170, 90], cemetery: [140, 160, 130], farmyard: [190, 170, 140], golf: [110, 200, 110], park: [120, 190, 110] };
 const ROAD: Record<string, [number[], number]> = { secondary: [[200, 60, 40], 2], tertiary: [[240, 170, 40], 2], residential: [[90, 90, 90], 1], unclassified: [[255, 255, 255], 1], cycleway: [[30, 140, 60], 1], track: [[140, 90, 40], 1] };
-const tiles: WorldTile[] = meta.tiles.map((t) => JSON.parse(readFileSync(join(DIR, 'tiles', `${t.id}.json`), 'utf8')) as WorldTile);
+const tiles: WorldTile[] = meta.tiles.filter(inView).map((t) => JSON.parse(readFileSync(join(DIR, 'tiles', `${t.id}.json`), 'utf8')) as WorldTile);
 for (const t of tiles) for (const f of t.fields) fill(f.rings, FIELD[f.kind] ?? [180, 180, 120], 0.45);
 for (const t of tiles) for (const f of t.forests) fill(f.rings, f.kind === 'conifer' ? [40, 90, 60] : [60, 120, 55], 0.75);
 for (const t of tiles) for (const f of t.landuse) fill(f.rings, LAND[f.kind] ?? [200, 200, 200], 0.6);
@@ -116,7 +125,7 @@ for (const t of tiles) for (const w of t.water) fill(w.rings, [70, 130, 200], 1)
 for (const t of tiles) for (const w of t.waterways) line(w.pts, 2, [60, 120, 210], 1);
 for (const t of tiles) for (const r of t.roads) if (r.kind === 'track' && r.surface !== 'gravel') line(r.pts, 3, [170, 60, 160], 1);
 for (const kind of ['track', 'cycleway', 'unclassified', 'residential', 'tertiary', 'secondary'])
-  for (const t of tiles) for (const r of t.roads) if (r.kind === kind && !(kind === 'track' && r.surface !== 'gravel')) line(r.pts, 3, ROAD[kind]![0], ROAD[kind]![1]);
+  for (const t of tiles) for (const r of t.roads) if (r.kind === kind && !(kind === 'track' && r.surface !== 'gravel')) line(r.pts, 3, ROAD[kind]![0], ROAD[kind]![1], r.width);
 for (const t of tiles) for (const bd of t.buildings) put(bd.pts[0]!, bd.pts[1]!, [110, 60, 60]);
 if (ROUTE && existsSync(join(DIR, 'routes', `${ROUTE}.json`))) {
   const r = JSON.parse(readFileSync(join(DIR, 'routes', `${ROUTE}.json`), 'utf8')) as RouteData;

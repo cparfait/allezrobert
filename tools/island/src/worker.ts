@@ -62,7 +62,20 @@ function tile(j: TileJob) {
   const grid = (res: number) => {
     const n = j.size / res;
     const h = new Float32Array((n + 1) * (n + 1));
-    for (let r = 0; r <= n; r++) for (let c = 0; c <= n; c++) h[r * (n + 1) + c] = height(j.minX + c * res, j.minZ + r * res);
+    for (let r = 0; r <= n; r++)
+      for (let c = 0; c <= n; c++) {
+        const x = j.minX + c * res;
+        const z = j.minZ + r * res;
+        let v = height(x, z);
+        // Grille grossière (8 m, au loin) : sommets à moins d'une case du bord d'une route posés à son niveau.
+        // Sinon le sol interpolé entre deux sommets passe au-dessus d'une route en tranchée, que le jeu prend
+        // alors pour un tunnel (herbe sur la chaussée).
+        if (res > 2 && idx) {
+          const q = idx.query(x, z);
+          if (q && q.d <= q.r.width / 2 + res) v = Math.min(v, q.y - 0.1);
+        }
+        h[r * (n + 1) + c] = v;
+      }
     return { n, h };
   };
   const lo = grid(8);
@@ -100,7 +113,7 @@ function tile(j: TileJob) {
     bytes += hiBuf.length;
   }
   // Bois, landes, rochers : jamais sur la chaussée (couloir de 5 m de part et d'autre).
-  const corridor = (x: number, z: number) => (idx ? (idx.edgeDist(x, z) - 6) / 3 : 1);
+  const corridor = (x: number, z: number) => (idx ? (idx.edgeDist(x, z) - 7) / 2 : 1);
   const forests: Array<{ kind: string; rings: Vec2[][] }> = [];
   let heath: Vec2[][] = [];
   let rock: Vec2[][] = [];

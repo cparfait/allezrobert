@@ -136,6 +136,8 @@ export function rasterizeSplat(tile: LoadedTile, skipRoute: string | null = null
       ctx.globalAlpha = 1;
       f.forests.filter((p) => p.kind === 'conifer').forEach((p) => poly(p.rings));
     },
+    // Plages et dunes de sable (OSM natural=beach / sand) : sable en style jeu vidéo, ni herbe ni arbre.
+    () => f.fields.filter((p) => p.kind === 'sand').forEach((p) => poly(p.rings)),
   ];
 
   channelDraws.forEach((draw, c) => {

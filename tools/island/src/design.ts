@@ -276,7 +276,7 @@ function natural(x: number, z: number): number {
   const fade = smoothstep(120, 1200, d);
   // Les Bois (nord-ouest) : collines boisées.
   const bois = gauss(x, z, -10300, -5000, 4200, 3000);
-  if (bois > 1e-3) h += fade * bois * (120 + 110 * ridged(x / 2600, z / 2600, 4, 21));
+  if (bois > 1e-3) h += fade * bois * (120 + 80 * ridged(x / 2600, z / 2600, 3, 21));
   // Les Coteaux (sud) : longue croupe exposée au sud, vignes.
   h += fade * 105 * gauss(x, z, -1500, 5300, 3800, 1250) * (0.85 + 0.3 * fbm(x / 1800, z / 1800, 2, 22));
   // Plateau de l'est : dessus presque plat, rebord en escarpement.
@@ -284,13 +284,13 @@ function natural(x: number, z: number): number {
   h += fade * 88 * (1 - smoothstep(0.62, 1.05, pe)) * (1 + 0.04 * fbm(x / 900, z / 900, 2, 23));
   // Massif du Phare : deux sommets, col entre les deux, arêtes.
   const M = MASSIF;
-  const cone = (px: number, pz: number, H: number) => H * Math.exp(-((Math.hypot(x - px, z - pz) / M.spread) ** 1.55));
+  const cone = (px: number, pz: number, H: number) => H * Math.exp(-((Math.hypot(x - px, z - pz) / M.spread) ** 1.75));
   // Maximum adouci : col arrondi (pas d'arête vive entre les deux sommets).
   const c1 = cone(M.phare[0], M.phare[1], M.h1);
   const c2 = cone(M.mont[0], M.mont[1], M.h2);
   // (norme p : nulle loin du massif, arrondit le col sans arête vive)
   const massif = (c1 ** 8 + c2 ** 8) ** (1 / 8);
-  if (massif > 0.05) h += smoothstep(30, 500, d) * (massif + massif * 0.18 * (ridged(x / 1400, z / 1400, 4, 31) - 0.45));
+  if (massif > 0.05) h += smoothstep(30, 1600, d) * (massif + massif * 0.09 * (ridged(x / 1600, z / 1600, 3, 31) - 0.45));
   // Plaine basse de la lagune (sud-ouest).
   h -= fade * 14 * gauss(x, z, lagoonC[0], lagoonC[1], 2600, 1800);
   return h;
@@ -463,9 +463,10 @@ function carve(h0: number, x: number, z: number): number {
   let h = h0;
   const v = valleyAt(x, z);
   if (v && v.dist < v.width) {
+    // Vallée : le relief au-dessus du lit est abaissé vers lui (jamais remonté : continu au bord de la vallée).
     const t = smoothstep(v.chan + 2, v.width, v.dist);
-    h = v.bed + (Math.max(h, v.bed) - v.bed) * t;
-    if (v.dist < v.chan + 2) h = v.bed - 1.2 * (1 - smoothstep(v.chan * 0.6, v.chan + 2, v.dist));
+    if (h > v.bed) h = v.bed + (h - v.bed) * t;
+    if (v.dist < v.chan + 2) h = Math.min(h, v.bed - 1.2 * (1 - smoothstep(v.chan * 0.6, v.chan + 2, v.dist)));
   }
   return h;
 }
@@ -527,8 +528,9 @@ export function terrain(x: number, z: number): number {
     // Cuvette sous l'eau ; berges en pente douce, jamais sous le niveau jusqu'à 1,2 × le rayon (bassin fermé).
     if (e < 1) h = Math.min(h, l.level - l.depth * (1 - e * e) - 0.2);
     else {
-      h = Math.min(h, l.level + 0.3 + 6 * (e - 1));
-      if (e < 1.2) h = Math.max(h, l.level + 0.3);
+      // Berge : à 0,3 m au-dessus de l'eau sur la rive, puis raccord continu au relief jusqu'à 1,6 × le rayon ;
+      // relief plus bas que l'eau : digue jusqu'à 1,2 × le rayon, puis talus.
+      h = h >= l.level + 0.3 ? lerp(l.level + 0.3, h, smoothstep(1, 1.6, e)) : lerp(l.level + 0.3, h, smoothstep(1.2, 1.6, e));
     }
   }
   for (const p of HARBOURS) {
@@ -594,3 +596,10 @@ export function inHarbour(x: number, z: number, margin = 0): boolean {
 }
 
 export { clamp };
+
+/** Mise au point : étapes du relief en un point. */
+export function terrainSteps(x: number, z: number) {
+  const n = natural(x, z);
+  const c = carve(n, x, z);
+  return { natural: n, carved: c, preLake: preLake(x, z), final: terrain(x, z), flats: getFlats().map((f) => ({ x: Math.round(f.x), z: Math.round(f.z), level: f.level, d: Math.round(f.dist(x, z)), r0: f.r0, r1: f.r1 })).filter((f) => f.d < f.r1 + 100) };
+}

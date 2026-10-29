@@ -55,46 +55,115 @@ export function designedRoads(): { roads: Road[]; layouts: TownLayout[]; anneau:
     }
   }
   // Col du Phare : montée en lacets depuis le Hameau du Col, descente en lacets vers le nord, route du phare.
+  const wet = (x: number, z: number) => inLake(x, z, 1.5) || inRiver(x, z, 25) || shoreDist(x, z) < 150;
   const col = saddle();
   const colY = terrain(col[0], col[1]);
   const lc = gates.filter((g) => g.town === 'le-col').sort((a, b) => Math.hypot(a.p[0] - col[0], a.p[1] - col[1]) - Math.hypot(b.p[0] - col[0], b.p[1] - col[1]))[0]!;
   lc.town = 'le-col-montee'; // porte réservée à la montée (le réseau passe par les autres)
   const axis: Vec2 = [MASSIF.mont[0] - MASSIF.phare[0], MASSIF.mont[1] - MASSIF.phare[1]];
   const al = Math.hypot(axis[0], axis[1]);
-  let out: Vec2 = [-axis[1] / al, axis[0] / al];
-  // Versant nord : du côté opposé au Hameau du Col.
-  if ((lc.p[0] - col[0]) * out[0] + (lc.p[1] - col[1]) * out[1] > 0) out = [-out[0], -out[1]];
+  // On franchit le col en travers de la crête : approche sud côté Hameau, approche nord de l'autre côté.
+  let across: Vec2 = [-axis[1] / al, axis[0] / al];
+  if ((lc.p[0] - col[0]) * across[0] + (lc.p[1] - col[1]) * across[1] < 0) across = [-across[0], -across[1]];
+  const out: Vec2 = [-across[0], -across[1]];
+  // Pied du versant nord : loin des falaises du rivage, en terrain doux, assez bas sous le col, dans un
+  // cône de ± 70° autour de la sortie nord, sans lac sur le chemin.
   let foot: Vec2 = [col[0] + out[0] * 2600, col[1] + out[1] * 2600];
-  for (let d = 2600; d > 900; d -= 100) {
-    const q: Vec2 = [col[0] + out[0] * d, col[1] + out[1] * d];
-    if (shoreDist(q[0], q[1]) > 450 && terrain(q[0], q[1]) < colY - 120) {
-      foot = q;
-      break;
+  let footScore = Infinity;
+  const outAng = Math.atan2(out[1], out[0]);
+  for (let k = -8; k <= 8; k++) {
+    const ang = outAng + (k * 5 * Math.PI) / 180;
+    for (let d = 1800; d <= 4200; d += 150) {
+      const q: Vec2 = [col[0] + Math.cos(ang) * d, col[1] + Math.sin(ang) * d];
+      const h = terrain(q[0], q[1]);
+      const slope = Math.max(...[[40, 0], [-40, 0], [0, 40], [0, -40]].map(([dx, dz]) => Math.abs(terrain(q[0] + dx!, q[1] + dz!) - h) / 40));
+      if (shoreDist(q[0], q[1]) < 1200 || slope > 0.12 || h > colY - 200) continue;
+      if ((colY - h) / d > 0.12) continue;
+      let wetLine = false;
+      for (let t = 0; t <= 1 && !wetLine; t += 0.02) wetLine = inLake(col[0] + (q[0] - col[0]) * t, col[1] + (q[1] - col[1]) * t, 2.2);
+      if (wetLine) continue;
+      const score = d + Math.abs(k) * 60;
+      if (score < footScore) {
+        footScore = score;
+        foot = q;
+      }
     }
   }
   const toPhare: Vec2 = [MASSIF.phare[0] - col[0], MASSIF.phare[1] - col[1]];
   const tl = Math.hypot(toPhare[0], toPhare[1]);
   const phareEnd: Vec2 = [MASSIF.phare[0] - (toPhare[0] / tl) * 45, MASSIF.phare[1] - (toPhare[1] / tl) * 45];
-  const lacets = (a: Vec2, b: Vec2, grade: number, firstSide?: number) => fillet(simplifyPath(switchbacks(a, b, { grade, halfWidth: 230, turn: 50, ...(firstSide ? { firstSide } : {}) }), 3), 13);
-  const south = makeRoad({ id: 'col-sud', name: 'Route du Col du Phare', kind: 'tertiary', width: 6, pts: lacets(lc.p, col, 0.072), designed: true, gmax: 0.095, smooth: 0, y0: lc.y });
-  // Le col : un seul point, une seule altitude pour les trois routes.
-  const top = south.pts[south.pts.length - 1]!;
-  const fromTop = (pts: Vec2[]): Vec2[] => [[top[0], top[2]], ...pts.slice(1)];
-  const north = makeRoad({ id: 'col-nord', name: 'Route du Col du Phare', kind: 'tertiary', width: 6, pts: fromTop(lacets(foot, col, 0.075).reverse()), designed: true, gmax: 0.095, smooth: 0, y0: top[1] });
-  // Route du phare : premier lacet dans le prolongement de la montée (pas d'épingle au col).
-  const arr = south.pts[south.pts.length - 6]!;
-  const dS: Vec2 = [top[0] - arr[0], top[2] - arr[2]];
-  const lat: Vec2 = [-(phareEnd[1] - col[1]), phareEnd[0] - col[0]];
-  const phare = makeRoad({ id: 'route-du-phare', name: 'Route du Phare', kind: 'unclassified', width: 4.5, pts: fromTop(lacets(col, phareEnd, 0.08, dS[0] * lat[0] + dS[1] * lat[1] > 0 ? 1 : -1)), designed: true, gmax: 0.105, smooth: 0, y0: top[1] });
-  roads.push(south, north, phare);
+  // Départ dans le prolongement d'une rue (pas d'épingle au raccord).
+  const ahead = (g: { p: Vec2; dir: Vec2 }, m: number): Vec2 => {
+    const l = Math.hypot(g.dir[0], g.dir[1]) || 1;
+    return [g.p[0] + (g.dir[0] / l) * m, g.p[1] + (g.dir[1] / l) * m];
+  };
+  // Routes du col tracées par recherche de chemin sur une grille fine (8 m) : lacets naturels, pente
+  // bornée pas à pas (aucun terrassement démesuré), virages arrondis ensuite.
+  const pts4 = [lc.p, col, foot, phareEnd];
+  const bx0 = Math.min(...pts4.map((q) => q[0])) - 900;
+  const bz0 = Math.min(...pts4.map((q) => q[1])) - 900;
+  const bx1 = Math.max(...pts4.map((q) => q[0])) + 900;
+  const bz1 = Math.max(...pts4.map((q) => q[1])) + 900;
+  const fine = new Grid(bx0, bz0, bx1 - bx0, bz1 - bz0, 12);
+  for (let c = 0; c < fine.N; c++) {
+    const [x, z] = fine.center(c);
+    fine.h[c] = terrain(x, z);
+    if (shoreDist(x, z) < 60 || inLake(x, z, 1.3)) fine.water[c] = 1;
+    else if (inRiver(x, z, 4)) fine.water[c] = 2;
+    fine.wob[c] = 1;
+  }
+  // Village du Hameau réservé (on en sort par sa rue).
+  const ham = TOWNS.find((t) => t.id === 'le-col')!;
+  for (let c = 0; c < fine.N; c++) {
+    const [x, z] = fine.center(c);
+    if (Math.hypot(x - ham.x, z - ham.z) < ham.r * 1.05) fine.block[c] = 1;
+  }
+  for (const g of [lc.p, col, foot, phareEnd]) {
+    const c = fine.cellAt(g[0], g[1]);
+    fine.block[c] = 0;
+    fine.exact.set(c, g);
+    fine.forced.add(c);
+  }
+  for (let s2 = 8; s2 <= 140; s2 += 4) {
+    const q = ahead(lc, s2);
+    fine.block[fine.cellAt(q[0], q[1])] = 0;
+  }
+  const colCls = { ...CLASSES.tertiary, gmax: 0.085, gpen: 0.4, reuse: 0.5 };
+  const go = (a2: Vec2, b2: Vec2 | ((c: number) => boolean), cls: RoadClass, label: string): number[] | null => {
+    const path = fine.search(fine.cellAt(a2[0], a2[1]), typeof b2 === 'function' ? b2 : fine.cellAt(b2[0], b2[1]), cls, { box: 400, maxExp: 8_000_000 });
+    if (path) fine.commit(path, cls, label);
+    else console.log(`   · col : tracé impossible ${label}`);
+    return path;
+  };
+  const southPath = go(lc.p, col, colCls, 'Route du Col du Phare');
+  go(col, foot, colCls, 'Route du Col du Phare');
+  // Route du phare : bifurque de la montée sud ≈ 300 m sous le col (on y tourne sans épingle).
+  if (southPath) {
+    const branchCell = southPath[Math.max(0, southPath.length - 1 - Math.round(300 / 12 / 1.3))]!;
+    fine.forced.add(branchCell);
+    go(fine.center(branchCell), phareEnd, { ...CLASSES.lane, gmax: 0.095, gpen: 0.4 }, 'Route du Phare');
+  }
+  const colRoads = networkRoads(fine, [], [{ p: lc.p, y: lc.y }], { prefix: 'col-', rMax: 14, tol: 8, designed: true });
+  for (const r of colRoads) if (r.name === 'Route du Phare') r.kind = 'unclassified';
+  const top: Vec3 = (() => {
+    let best = colRoads[0]!.pts[0]!;
+    for (const r of colRoads) for (const p of [r.pts[0]!, r.pts[r.pts.length - 1]!]) if (Math.hypot(p[0] - col[0], p[2] - col[1]) < Math.hypot(best[0] - col[0], best[2] - col[1])) best = p;
+    return best;
+  })();
+  const footEnd: Vec3 = (() => {
+    let best = colRoads[0]!.pts[0]!;
+    for (const r of colRoads) for (const p of [r.pts[0]!, r.pts[r.pts.length - 1]!]) if (Math.hypot(p[0] - foot[0], p[2] - foot[1]) < Math.hypot(best[0] - foot[0], best[2] - foot[1])) best = p;
+    return best;
+  })();
+  roads.push(...colRoads);
+  gates.push({ p: [footEnd[0], footEnd[2]], y: footEnd[1], dir: out, town: 'col-nord' });
+  gates.push({ p: [top[0], top[2]], y: top[1], dir: [axis[0] / al, axis[1] / al], town: 'col' });
   // Route du Hameau : de Vallon-sur-Robe au Hameau du Col, en écharpe sur le flanc du massif.
   const vg = gates.filter((g) => g.town === 'vallon').sort((a, b) => Math.hypot(a.p[0] - lc.p[0], a.p[1] - lc.p[1]) - Math.hypot(b.p[0] - lc.p[0], b.p[1] - lc.p[1]))[0]!;
   const hg = gates.filter((g) => g.town === 'le-col').sort((a, b) => Math.hypot(a.p[0] - vg.p[0], a.p[1] - vg.p[1]) - Math.hypot(b.p[0] - vg.p[0], b.p[1] - vg.p[1]))[0]!;
   vg.town = 'vallon-hameau';
   hg.town = 'le-col-hameau';
-  roads.push(makeRoad({ id: 'route-du-hameau', name: 'Route du Hameau du Col', kind: 'tertiary', width: 6, pts: fillet(simplifyPath(switchbacks(vg.p, hg.p, { grade: 0.065, halfWidth: 300, turn: 50 }), 3), 18), designed: true, gmax: 0.09, smooth: 0, y0: vg.y, y1: hg.y }));
-  gates.push({ p: [north.pts[north.pts.length - 1]![0], north.pts[north.pts.length - 1]![2]], y: north.pts[north.pts.length - 1]![1], dir: out, town: 'col-nord' });
-  gates.push({ p: [top[0], top[2]], y: top[1], dir: [axis[0] / al, axis[1] / al], town: 'col' });
+  roads.push(makeRoad({ id: 'route-du-hameau', name: 'Route du Hameau du Col', kind: 'tertiary', width: 6, pts: fillet([vg.p, ...simplifyPath(switchbacks(ahead(vg, 70), ahead(hg, 70), { grade: 0.065, halfWidth: 300, turn: 30, blocked: wet }), 3), hg.p], 18), designed: true, gmax: 0.09, smooth: 0, y0: vg.y, y1: hg.y }));
   for (const g of ANNEAU_GATES) {
     let best = anneau.pts[0]!;
     for (const p of anneau.pts) if (Math.hypot(p[0] - g[0], p[2] - g[1]) < Math.hypot(best[0] - g[0], best[2] - g[1])) best = p;
@@ -417,7 +486,7 @@ function simplifyPath(pts: Vec2[], tol: number): Vec2[] {
  * la plus droite) est lissée d'un seul tenant : pas de cassure au droit d'un raccord ; les branches viennent
  * ensuite se poser sur sa courbe.
  */
-export function networkRoads(grid: Grid, designed: Road[], gates: Array<{ p: Vec2; y: number }>): Road[] {
+export function networkRoads(grid: Grid, designed: Road[], gates: Array<{ p: Vec2; y: number }>, opts: { prefix?: string; rMax?: number; tol?: number; designed?: boolean } = {}): Road[] {
   const gateY = new Map<string, number>();
   for (const g of gates) gateY.set(`${g.p[0].toFixed(2)},${g.p[1].toFixed(2)}`, g.y);
   const edges = grid.edges().filter((e) => e.cells.length >= 2);
@@ -512,9 +581,9 @@ export function networkRoads(grid: Grid, designed: Road[], gates: Array<{ p: Vec
    */
   const shape = (ch: Chain, fixed: Map<number, Vec2> = new Map()) => {
     const pts = ch.cells.map((c) => fixed.get(c) ?? moved.get(c) ?? grid.center(c));
-    const R = Math.max(...ch.edges.map(({ k }) => R_OF[CLASS_BY_RANK[edges[k]!.rank]!.id] ?? 12));
+    const R = Math.min(opts.rMax ?? Infinity, Math.max(...ch.edges.map(({ k }) => R_OF[CLASS_BY_RANK[edges[k]!.rank]!.id] ?? 12)));
     // Tolérance de simplification : plus large pour les grandes routes (côtés plus longs, virages plus amples).
-    const tol = Math.max(...ch.edges.map(({ k }) => ({ secondary: 10, tertiary: 9, lane: 8, cycleway: 8, track: 6, mtb: 5 })[CLASS_BY_RANK[edges[k]!.rank]!.id] ?? 7));
+    const tol = opts.tol ?? Math.max(...ch.edges.map(({ k }) => ({ secondary: 10, tertiary: 9, lane: 8, cycleway: 8, track: 6, mtb: 5 })[CLASS_BY_RANK[edges[k]!.rank]!.id] ?? 7));
     const hard = [0, ...ch.inner.filter((n) => fixed.has(n.c)).map((n) => n.at), pts.length - 1];
     const dense: Vec2[] = [];
     const hardAt = new Map<number, number>();
@@ -584,11 +653,12 @@ export function networkRoads(grid: Grid, designed: Road[], gates: Array<{ p: Vec
       const cls = CLASS_BY_RANK[e.rank]!;
       const xz = dense.slice(bounds[i]!, bounds[i + 1]! + 1);
       if (xz.length < 2) return;
-      const y = profile(xz, false, cls.kind === 'track' ? 16 : 30, cls.gmax + 0.005, endY(xz[0]!), endY(xz[xz.length - 1]!));
+      const y = profile(xz, false, cls.kind === 'track' ? 24 : 30, cls.gmax + 0.005, endY(xz[0]!), endY(xz[xz.length - 1]!));
       const n = (counts.get(cls.id) ?? 0) + 1;
       counts.set(cls.id, n);
       out.push({
-        id: `${cls.id}-${n}`,
+        id: `${opts.prefix ?? ''}${cls.id}-${n}`,
+        ...(opts.designed ? { designed: true } : {}),
         name: e.label || cls.id,
         kind: cls.kind,
         width: cls.width,
@@ -634,7 +704,8 @@ function routeSpecs(net: { ring: Vec2[]; bois: Vec2[]; mtb: Vec2[]; col: Vec2 })
     { id: 'boucle-de-saint-robert', name: 'La boucle de Saint-Robert', nameEn: 'Saint-Robert loop', loop: true, mode: 'road', waypoints: [t('saint-robert'), ANNEAU_GATES[0]!, ANNEAU_GATES[3]!, t('les-vignes')], landmarks: [{ name: 'Saint-Robert', x: t('saint-robert')[0], z: t('saint-robert')[1] }, { name: "L'Anneau", x: ANNEAU.cx, z: ANNEAU.cz }, { name: 'Les Vignes', x: t('les-vignes')[0], z: t('les-vignes')[1] }] },
     { id: 'robertville-plage', name: 'Robertville par les Coteaux', nameEn: 'Robertville via the hills', loop: true, mode: 'road', waypoints: [t('saint-robert'), t('les-vignes'), coastPoint(west + 0.06, 500), coastPoint(east, 185), t('vallon')], landmarks: [{ name: 'Les Coteaux', x: -1500, z: 5300 }, { name: 'Front de mer', x: rv.x, z: rv.z }, { name: 'Vallon-sur-Robe', x: t('vallon')[0], z: t('vallon')[1] }] },
     { id: 'front-de-mer', name: 'Le front de mer de Robertville', nameEn: 'Robertville seafront', loop: true, mode: 'cycle', waypoints: [coastPoint(east + 0.006, 185), coastPoint(east + 0.006, 125), coastPoint(west - 0.006, 125), coastPoint(west - 0.006, 185), coastPoint(ang, 480)], landmarks: [{ name: 'Les Planches', x: coastPoint(ang, 125)[0], z: coastPoint(ang, 125)[1] }, { name: 'Casino', x: coastPoint(ang + 0.018, 230)[0], z: coastPoint(ang + 0.018, 230)[1] }] },
-    { id: 'col-du-phare', name: 'Le Col du Phare', nameEn: 'Lighthouse pass', loop: false, mode: 'road', waypoints: [t('le-col'), net.col, MASSIF.phare], hairpins: true, landmarks: [{ name: 'Col du Phare', x: net.col[0], z: net.col[1] }, { name: 'Phare de Robert', x: MASSIF.phare[0], z: MASSIF.phare[1] }] },
+    { id: 'col-du-phare', name: 'Le Col du Phare', nameEn: 'Lighthouse pass', loop: false, mode: 'road', waypoints: [t('le-col'), net.col], hairpins: true, landmarks: [{ name: 'Le Hameau du Col', x: t('le-col')[0], z: t('le-col')[1] }, { name: 'Col du Phare', x: net.col[0], z: net.col[1] }] },
+    { id: 'phare', name: 'La montée au Phare', nameEn: 'Lighthouse climb', loop: false, mode: 'road', waypoints: [t('le-col'), MASSIF.phare], hairpins: true, landmarks: [{ name: 'Phare de Robert', x: MASSIF.phare[0], z: MASSIF.phare[1] }] },
     { id: 'tour-de-l-ile', name: "Le Tour de l'Île", nameEn: 'Round the island', loop: true, mode: 'road', waypoints: net.ring.filter((_, k) => k % 3 === 0), landmarks: TOWNS.filter((x) => shoreDist(x.x, x.z) < 1500).map((x) => ({ name: x.name, x: x.x, z: x.z })) },
     { id: 'piste-verte', name: 'La Piste verte', nameEn: 'The green way', loop: false, mode: 'cycle', waypoints: [t('saint-robert'), ANNEAU_GATES[2]!, ANNEAU_GATES[1]!, t('saint-pierre')], landmarks: [{ name: "L'Anneau", x: ANNEAU.cx, z: ANNEAU.cz }] },
     { id: 'gravel-des-bois', name: 'Gravel des Bois', nameEn: 'Woods gravel loop', loop: true, mode: 'gravel', bike: 'gravel', waypoints: net.bois, landmarks: [{ name: 'Les Bois', x: -10300, z: -5000 }, { name: 'Étang des Bois', x: -9400, z: -4600 }] },
