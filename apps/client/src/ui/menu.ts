@@ -925,10 +925,10 @@ export class MainMenu {
     const L = fr();
     const tabs: Array<[Tab, string]> = [
       ['ride', t('ride')],
-      ['friends', L ? 'Amis' : 'Friends'],
       ['garage', 'Garage'],
-      ['devices', t('devices')],
       ['profile', t('profile')],
+      ['friends', L ? 'Amis' : 'Friends'],
+      ['devices', t('devices')],
       ['settings', t('settings')],
     ];
     const p = loadProgress();
