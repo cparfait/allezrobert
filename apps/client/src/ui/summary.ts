@@ -1,7 +1,7 @@
 import { getLang } from '../i18n/index.ts';
 import type { RideSession } from '../game/ride.ts';
 import { CURVE_DURATIONS, durationLabel, POWER_ZONES, type RideHistoryEntry, type RideStats } from '../game/stats.ts';
-import type { RideFeedback } from '@allezrobert/shared';
+import type { HistoryRide, RideFeedback } from '@allezrobert/shared';
 import './summary.css';
 
 /** Couleurs des séries (palette catégorielle validée sur fond sombre) et des zones (HUD). */
@@ -212,6 +212,48 @@ export function showRideSummary(root: HTMLElement, d: SummaryData, a: SummaryAct
   drawZones(root.querySelector('#c-zones') as HTMLElement, s.zonesS, d.ftp);
   interactiveCanvas(root.querySelector('#c-curve') as HTMLCanvasElement, (ctx, w, h, hx) => drawCurve(ctx, w, h, hx, s, d.records.previous));
   interactiveCanvas(root.querySelector('#c-time') as HTMLCanvasElement, (ctx, w, h, hx) => drawTimeline(ctx, w, h, hx, d.ride));
+}
+
+/**
+ * Stats d'une sortie passée (clic dans l'historique) : mêmes chiffres, courbe de puissance et temps par zone que
+ * l'écran de fin, à partir de la sortie gardée (le profil seconde par seconde reste dans le FIT).
+ */
+export function showPastRide(root: HTMLElement, r: HistoryRide, o: { massKg: number; ftp: number; onClose(): void }): void {
+  const L = fr();
+  const n = (v: number | null | undefined) => (v === null || v === undefined ? null : v);
+  const date = new Date(r.startedAt).toLocaleDateString(L ? 'fr-FR' : 'en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  const tiles: Array<[string, string, string?]> = [
+    ['Distance', `${num(r.distanceM / 1000, 2)} km`],
+    [L ? 'Temps' : 'Time', hms(r.movingS)],
+    ['D+', `${Math.round(r.elevationM)} m`],
+    [L ? 'Vitesse moy.' : 'Avg speed', n(r.avgSpeedKmh) === null ? '—' : `${num(r.avgSpeedKmh as number, 1)} km/h`],
+    [L ? 'Cardio moy.' : 'Avg HR', r.avgHr ? `${Math.round(r.avgHr)} bpm` : '— bpm', r.maxHr ? `max ${Math.round(r.maxHr)}` : ''],
+    [L ? 'Puissance moy.' : 'Avg power', n(r.avgWatts) === null ? '—' : `${Math.round(r.avgWatts as number)} W`, r.avgWatts ? `${num(r.avgWatts / o.massKg, 1)} W/kg` : ''],
+    [L ? 'Normalisée' : 'Normalized', n(r.np) === null ? '—' : `${Math.round(r.np as number)} W`, r.maxWatts ? `max ${Math.round(r.maxWatts)} W` : ''],
+    ['TSS · IF', n(r.tss) === null ? '—' : `${Math.round(r.tss as number)} · ${r.intensity === null ? '—' : num(r.intensity, 2)}`],
+    [L ? 'Énergie' : 'Energy', r.workKJ ? `${Math.round(r.workKJ)} kJ` : '—', r.workKJ ? `${Math.round(r.workKJ / (4.184 * 0.24))} kcal` : ''],
+    [L ? 'Cadence moy.' : 'Avg cadence', r.avgCadence ? `${Math.round(r.avgCadence)} tr/min` : '—'],
+  ];
+  const feel = r.feedback ? FEELINGS.find((f) => f[0] === r.feedback) : undefined;
+  root.innerHTML = `<div class="sum">
+    <header class="sum-head">
+      <div><h1>${esc(r.name)}</h1><p>${esc(date)} · ${num(r.distanceM / 1000, 1)} km${r.workoutName ? ` · ${esc(r.workoutName)}` : ''}${feel ? ` · ${L ? feel[1] : feel[2]}` : ''}</p></div>
+      <nav class="sum-actions"><button class="sum-btn accent" id="s-close">${L ? 'Retour à l’historique' : 'Back to history'}</button></nav>
+    </header>
+    <main class="sum-main">
+      <div class="sum-tiles">${tiles.map(([k, v, sub]) => `<div class="sum-tile"><span>${k}</span><b>${v}</b>${sub ? `<small>${esc(sub)}</small>` : ''}</div>`).join('')}</div>
+      <div class="sum-charts">
+        <section class="sum-card sum-chart"><h3>${L ? 'Courbe de puissance' : 'Power curve'}</h3>
+          <div class="sum-canvas"><canvas id="c-curve"></canvas><div class="sum-tip" hidden></div></div></section>
+        <section class="sum-card sum-chart"><h3>${L ? 'Temps par zone' : 'Time in zone'}</h3><div class="sum-zones" id="c-zones"></div></section>
+      </div>
+    </main>
+  </div>`;
+  (root.querySelector('#s-close') as HTMLElement).onclick = o.onClose;
+  const stats = { curve: r.curve.map(([durationS, watts]) => ({ durationS, watts })) } as RideStats;
+  if (r.zonesS.length) drawZones(root.querySelector('#c-zones') as HTMLElement, r.zonesS, r.ftpAtRide ?? o.ftp);
+  else (root.querySelector('#c-zones') as HTMLElement).innerHTML = `<p class="sum-muted">${L ? 'Zones inconnues pour cette sortie.' : 'No zone data for this ride.'}</p>`;
+  interactiveCanvas(root.querySelector('#c-curve') as HTMLCanvasElement, (ctx, w, h, hx) => drawCurve(ctx, w, h, hx, stats, {}));
 }
 
 /** Canevas net (devicePixelRatio), redessiné au survol avec la position de la souris. */

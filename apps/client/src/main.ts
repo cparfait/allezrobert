@@ -241,6 +241,8 @@ function nextPaint(): Promise<void> {
 }
 
 /** Version des médias du menu (vidéos, images) : à augmenter quand on les régénère (cache navigateur). */
+/** Drapeau posé en quittant une sortie : le menu s'ouvre sur l'onglet Rouler au rechargement. */
+const AFTER_RIDE_KEY = 'ar.afterRide';
 const MENU_MEDIA_VERSION = 12;
 /** Films du menu du style choisi : réaliste (loop-<saison>.*) ou jeu vidéo (loop-lowpoly-<saison>.*). */
 const MENU_STYLE = LOW_POLY ? 'lowpoly-' : '';
@@ -924,7 +926,9 @@ async function boot(): Promise<void> {
       if (fromStrava) menu.openSettingsSection('lang');
       // Toujours l'accueil d'abord : son bouton « Rouler » (visible une fois le garage chargé) donne le premier geste qui
       // autorise le son, puis ouvre le tutoriel au premier lancement (menu.onHomeRide) ou l'onglet Rouler.
-      menu.show(fromStrava ? 'settings' : 'home');
+      const afterRide = sessionStorage.getItem(AFTER_RIDE_KEY) !== null;
+      sessionStorage.removeItem(AFTER_RIDE_KEY);
+      menu.show(fromStrava ? 'settings' : afterRide ? 'ride' : 'home');
     };
     menu.onHomeRide = () => {
       if (!Onboarding.needed()) return false;
@@ -1503,7 +1507,11 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     input.sendTrainer({ kind: 'simulation', gradePercent: 0 });
     const url = new URL(location.href);
     if (autostart) url.searchParams.set('autostart', '1');
-    else url.searchParams.delete('autostart');
+    else {
+      url.searchParams.delete('autostart');
+      // « Quitter » : on revient dans le menu (onglet Rouler), pas sur la vidéo d'accueil et son bouton.
+      sessionStorage.setItem(AFTER_RIDE_KEY, '1');
+    }
     location.href = url.toString();
   };
   const finish = () => {

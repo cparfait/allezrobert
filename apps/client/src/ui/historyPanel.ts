@@ -10,6 +10,7 @@ import { rideHistory } from '../data/history/instance.ts';
 import { loadSeries, totals, weeklyZones, type LocalRide } from '../data/history/index.ts';
 import { getLang } from '../i18n/index.ts';
 import { apiBase } from './account.ts';
+import { showPastRide } from './summary.ts';
 import './historyPanel.css';
 
 const fr = () => getLang() === 'fr';
@@ -231,6 +232,27 @@ export class HistoryPanel {
       b.addEventListener('click', () => {
         this.page = Math.max(0, this.page + Number(b.dataset.page));
         void this.render();
+      }),
+    );
+    // Clic sur une sortie : sa page de stats (pas sur la case à cocher ni sur « Supprimer »).
+    box.querySelectorAll<HTMLElement>('tr[data-ride]').forEach((tr) =>
+      tr.addEventListener('click', (e) => {
+        if ((e.target as HTMLElement).closest('input, button')) return;
+        const ride = page.find((x) => x.clientId === tr.dataset.ride);
+        if (!ride) return;
+        const layer = document.createElement('div');
+        document.body.appendChild(layer);
+        const close = () => {
+          document.removeEventListener('keydown', onKey, true);
+          layer.remove();
+        };
+        const onKey = (ev: KeyboardEvent) => {
+          if (ev.key !== 'Escape') return;
+          ev.stopPropagation();
+          close();
+        };
+        document.addEventListener('keydown', onKey, true);
+        showPastRide(layer, ride, { massKg: this.massKg, ftp: ftp.at(-1)?.ftpWatts ?? 200, onClose: close });
       }),
     );
     const remove = async (ids: string[]) => {

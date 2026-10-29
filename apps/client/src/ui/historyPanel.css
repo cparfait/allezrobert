@@ -75,3 +75,5 @@
 .hp-count { font-size: 12.5px; color: #8d98a6; white-space: nowrap; }
 .hp-view-rides .hp-scroll { max-height: calc(100vh - 545px); min-height: 160px; overflow-y: auto; }
 .hp-view-rides thead th { position: sticky; top: 0; background: #151b26; z-index: 1; }
+.hp-list tr[data-ride] { cursor: pointer; }
+.hp-list tr[data-ride]:hover td { background: rgba(255, 255, 255, 0.05); }
