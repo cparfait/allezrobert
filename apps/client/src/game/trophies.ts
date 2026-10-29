@@ -64,6 +64,11 @@ export function earnedTrophies(): string[] {
   return load().earned;
 }
 
+/** Kilomètres cumulés des sorties terminées (trophée « Gros rouleur »). */
+export function trophyTotalKm(): number {
+  return Object.values(load().rides).reduce((a, b) => a + b, 0);
+}
+
 /**
  * Trophées gagnés par cette sortie (jamais deux fois). `rideKey` identifie la sortie pour le
  * cumul de distance (une sortie reprise puis terminée à nouveau n'est comptée qu'une fois).

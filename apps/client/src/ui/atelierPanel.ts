@@ -79,7 +79,7 @@ const credits = (v: number) => `${Math.round(v).toLocaleString(fr() ? 'fr-FR' : 
 export const COIN = `<svg class="at-coin" viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><circle cx="8" cy="8" r="7" fill="#ffd23f"/><circle cx="8" cy="8" r="4.6" fill="none" stroke="#a87d00" stroke-width="1.4"/></svg>`;
 
 /** Vignette d'une pièce : ses couleurs (livrée, pièces, flancs, jantes). */
-function swatch(t: TuneItem): string {
+export function swatch(t: TuneItem): string {
   const l = t.look ?? {};
   const cols: string[] = [];
   if (l.livery?.colors) cols.push(...l.livery.colors);
@@ -181,6 +181,17 @@ export class AtelierPanel {
     this.msg = '';
     this.emit(SLOT_PARTS[slot]);
     this.host.rerender();
+  }
+
+  /** Ouvre une pièce ou un ensemble (onglet Progression) : sa famille, son emplacement, sélectionnée et essayée. */
+  openItem(id: string): void {
+    const it = tuneItem(id);
+    if (!it) return;
+    this.family = it.family;
+    if (it.slot && it.family !== 'event') this.slot = it.slot;
+    this.selected = it.id;
+    this.hover = null;
+    this.msg = '';
   }
 
   private level(): number {

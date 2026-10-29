@@ -32,6 +32,7 @@ import { WORLD_LIST } from '../world/worlds.ts';
 import { OUTFITS } from './outfits.ts';
 import type { GarageView } from './poster.ts';
 import { FriendsPanel } from './friends.ts';
+import { ProgressPage } from './progressPage.ts';
 import { faceEditorHtml, withBaseHead, withLikeness, withProfile, withRandomFace, withSlider, type FaceTab } from './faceEditor.ts';
 import type { FaceSlider } from '@allezrobert/shared';
 import { joinSettings } from './friendsLogic.ts';
@@ -80,7 +81,7 @@ function esc(s: string): string {
   return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] as string);
 }
 
-type Tab = 'home' | 'ride' | 'friends' | 'garage' | 'devices' | 'profile' | 'settings';
+type Tab = 'home' | 'ride' | 'friends' | 'garage' | 'progress' | 'devices' | 'profile' | 'settings';
 type Role = Parameters<DevicePanel['pair']>[0];
 
 const fr = () => getLang() === 'fr';
@@ -415,6 +416,8 @@ export class MainMenu {
   /** Compteur de km du profil : redessiné quand l'historique change (nouvelle sortie, synchronisation). */
   private readonly historyWatch = rideHistory.subscribe(() => {
     if (this.tab === 'profile' && this.profileView === 'profile' && this.root.querySelector('.mm-bigstats')) this.render();
+    // Trophées : meilleure sortie et nombre de sorties viennent de l'historique.
+    if (this.tab === 'progress') this.render();
   });
   private tab: Tab = 'ride';
   private garageSlot: GarageSlot = 'jersey';
@@ -422,6 +425,8 @@ export class MainMenu {
   private garageEntered = false;
   /** Atelier (pièces du vélo, ensembles, crédits) : panneau et état de la scène 3D. */
   private readonly atelier: AtelierPanel;
+  /** Onglet Progression : niveaux, récompenses, trophées et défis. */
+  private readonly progress: ProgressPage;
   /** Atelier 3D (pièce procédurale, vélo sur pied) : état demandé, null pour le fermer. */
   onAtelier?: (st: AtelierState | null) => void;
   /** Pièce du vélo 3D sous le pointeur (coordonnées écran) : emplacement d'atelier, null si aucune. */
@@ -685,6 +690,42 @@ export class MainMenu {
       },
       rerender: () => this.render(),
     });
+    this.progress = new ProgressPage(this.root, {
+      level: () => this.account?.level ?? levelProgress(loadProgress().xp).level,
+      credits: () => this.account?.credits ?? loadProgress().credits,
+      look: () => this.s.look,
+      cosmeticSwatch: swatch,
+      bikeIcon: (colors) => bikeIcon(colors),
+      openCosmetic: (item) => this.openInGarage(item),
+      openTune: (id) => {
+        if (this.garageSlot !== 'atelier') this.garageSlot = 'atelier';
+        this.atelier.openItem(id);
+        this.go('garage');
+      },
+      rerender: () => this.render(),
+    });
+  }
+
+  /**
+   * Récompense choisie dans l'onglet Progression : le garage s'ouvre sur sa catégorie, l'équipement
+   * essayé sur le coureur s'il est encore verrouillé, la liste des vélos sur sa collection.
+   */
+  private openInGarage(item: CosmeticItem): void {
+    this.garageSlot = item.slot;
+    this.view = SLOT_VIEW[item.slot];
+    this.yaw = 0;
+    if (item.slot === 'bike') {
+      const bike = bikeById(item.id);
+      this.bikeFilter = bike ? bike.collection : 'divers';
+      this.bikeType = 'all';
+    }
+    this.go('garage');
+    if (item.level > levelProgress(loadProgress().xp).level) {
+      this.previews.set(item.slot, item.id);
+      this.sendPreview();
+      this.render();
+    }
+    this.root.querySelector(`[data-item="${CSS.escape(item.id)}"]`)?.scrollIntoView({ block: 'center' });
   }
 
   /** Ouvre une rubrique des Réglages (retour de Strava : la rubrique d'envoi des sorties). */
@@ -716,6 +757,7 @@ export class MainMenu {
 
   private go(tab: Tab): void {
     this.picker = null;
+    if (tab !== 'progress') this.progress.reset();
     if (tab !== 'garage' && this.previews.size) {
       this.previews.clear();
       this.onPreviewLook?.(null);
@@ -928,6 +970,7 @@ export class MainMenu {
     const tabs: Array<[Tab, string]> = [
       ['ride', t('ride')],
       ['garage', 'Garage'],
+      ['progress', L ? 'Progression' : 'Progress'],
       ['profile', t('profile')],
       ['friends', L ? 'Amis' : 'Friends'],
       ['devices', t('devices')],
@@ -963,6 +1006,7 @@ export class MainMenu {
       garage: () => this.garageHtml(),
       devices: () =>
         `<section class="mm-panel mm-center mm-wide">${this.closeBtn()}<header class="mm-head"><h2>${t('devices')}</h2><p>${L ? 'Associe ton home trainer et tes capteurs. Une seule appli à la fois par capteur Bluetooth.' : 'Pair your trainer and sensors. One app at a time per Bluetooth sensor.'}</p></header><div id="m-devices"></div></section>`,
+      progress: () => this.progress.html(this.closeBtn()),
       profile: () => this.profileHtml(),
       settings: () => this.settingsHtml(),
     };
@@ -1022,6 +1066,7 @@ export class MainMenu {
       });
     }
     this.bind();
+    if (this.tab === 'progress') this.progress.bind();
     enhanceSelects(this.root);
     // Miniatures de vélos : le dessin d'avant remplace une photo manquante ; le vélo sans marque prend sa couleur.
     swapMissingThumbs(this.root, (colors, big) => bikeIcon(colors, big));
