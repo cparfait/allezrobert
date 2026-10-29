@@ -308,7 +308,7 @@ async function main(): Promise<void> {
     return;
   }
   // ?positions : le coureur entier selon l'allure et l'effort (positions du cintre route, aéro), de profil et
-  // de trois quarts avant ; &velo=id du catalogue ; &tenue={...} comme pour ?profil ; &lent : 20 km/h et danseuse en plus.
+  // de trois quarts avant ; &velo=id du catalogue ; &tenue={...} comme pour ?profil ; &lent : 20 km/h et danseuse en plus ; &seul : 30 km/h seulement ; &tour : pédalier à 0, 90, 180 et 270°.
   if (params.has('positions')) {
     for (const o of riders) o.a.root.visible = false;
     far.root.visible = false;
@@ -319,13 +319,17 @@ async function main(): Promise<void> {
     if (family) await (await import('./rider/bikes.ts')).loadBikeFamily(family);
     // [nom, vitesse (m/s), part de FTP, position, cadence]
     const cases: Array<[string, number, number, RiderPose, number]> = [
+      ...(params.has('tour') ? ([['manivelle 0°', 8.3, 0.7, 'seated', 88], ['manivelle 90°', 8.3, 0.7, 'seated', 88], ['manivelle 180°', 8.3, 0.7, 'seated', 88]] as Array<[string, number, number, RiderPose, number]>) : []),
       ...(params.has('lent') ? ([['20 km/h', 5.6, 0.6, 'seated', 80], ['danseuse', 5, 1, 'standing', 70]] as Array<[string, number, number, RiderPose, number]>) : []),
       ['30 km/h, 70 % FTP', 8.3, 0.7, 'seated', 88],
-      ['45 km/h (bas du cintre)', 12.5, 0.8, 'seated', 92],
+      ...(params.has('seul') ? [] : ([['45 km/h (bas du cintre)', 12.5, 0.8, 'seated', 92],
       ['35 km/h, 115 % FTP (tres fort)', 9.7, 1.15, 'seated', 95],
-      ['55 km/h (tres vite)', 15.3, 0.9, 'seated', 95],
+      ['55 km/h (tres vite)', 15.3, 0.9, 'seated', 95]] as Array<[string, number, number, RiderPose, number]>)),
     ];
-    const views: Array<[string, THREE.Vector3]> = [['profil', new THREE.Vector3(-1, 0.05, 0)], ['3/4 avant', new THREE.Vector3(-0.75, 0.25, 0.65)]];
+    // &vues=x,y,z;x,y,z : directions de caméra (défaut : profil et trois quarts avant).
+    const views: Array<[string, THREE.Vector3]> = params.has('vues')
+      ? (params.get('vues') ?? '').split(';').map((v, i): [string, THREE.Vector3] => [`vue ${i + 1}`, new THREE.Vector3(...(v.split(',').map(Number) as [number, number, number]))])
+      : [['profil', new THREE.Vector3(-1, 0.05, 0)], ['3/4 avant', new THREE.Vector3(-0.75, 0.25, 0.65)]];
     const cw = 640;
     const ch = 400;
     const sheet = document.createElement('canvas');
@@ -339,6 +343,12 @@ async function main(): Promise<void> {
       a.setEffort?.(effort);
       scene.add(a.root);
       for (let t = 0; t < 4; t += 1 / 60) a.update(1 / 60, cadence, speed, pose, 0);
+      // &manivelle=deg : angle du pédalier imposé (un tour de pédale : &tour).
+      const crankDeg = params.has('tour') ? i * 90 : params.has('manivelle') ? Number(params.get('manivelle')) : null;
+      if (crankDeg !== null) {
+        (a as unknown as { crankAngle: number }).crankAngle = (crankDeg * Math.PI) / 180;
+        a.update(1e-4, cadence, speed, pose, 0);
+      }
       a.root.updateMatrixWorld(true);
       // &mid=x,y,z&dist=m : cadrage resserré (p. ex. le poste de pilotage) ; &nurider : vélo seul.
       const mid = new THREE.Vector3(...((params.get('mid') ?? '0,0.75,0.1').split(',').map(Number) as [number, number, number]));

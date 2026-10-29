@@ -2,6 +2,7 @@ import * as THREE from 'three/webgpu';
 import { attribute, mix } from 'three/tsl';
 import type { AvatarLook } from '@allezrobert/shared';
 import { jerseyPattern } from './jerseyPattern.ts';
+import { shortsShell } from './shortsShell.ts';
 
 /**
  * Corps du cycliste low poly d'un seul tenant (par défaut ; `?corps=prismes` pour l'ancien, voir lowPolyRider.ts) : tronc, jambes
@@ -12,6 +13,17 @@ import { jerseyPattern } from './jerseyPattern.ts';
  * à facettes, une couleur par sommet : un seul appel de dessin pour le corps.
  * Inspiré du principe du corps de Veloworld (tubes à section musculaire sur un squelette plat), réécrit ici.
  */
+
+/** Coque du cuissard (shortsShell.ts) ; ?coque=0 : ancien fessier en bloc (comparaison). */
+const SHELL = (typeof location === 'undefined' ? null : new URLSearchParams(location.search).get('coque')) !== '0';
+
+/** Genou : chevauchement de la cuisse et du tibia au-delà de l'articulation, rayon et avancée du bloc de genou (m). */
+const KNEE_OVERLAP = 0.03;
+const KNEE_R = 0.052;
+const KNEE_FORWARD = 0.012;
+
+/** Ourlet du cuissard : fraction de la cuisse (hanche → genou). */
+const SHORTS_END = 0.8;
 
 /** Os : 0 bassin, 1 buste, 2/3 cuisse/tibia gauche, 4/5 droite, 6/7 bras/avant-bras gauche, 8/9 droite. */
 const BONES = 10;
@@ -94,6 +106,43 @@ function aim(bone: THREE.Bone, from: THREE.Vector3, to: THREE.Vector3): void {
   bone.quaternion.setFromRotationMatrix(_m.makeBasis(_x, _y, _z));
 }
 
+/** Point (et tangente adoucie aux articulations) à la fraction t de la longueur d'une polyligne. */
+function pathSampler(pts: THREE.Vector3[]): (t: number, out: THREE.Vector3, tan: THREE.Vector3) => void {
+  const cum = [0];
+  for (let i = 1; i < pts.length; i++) cum.push((cum[i - 1] as number) + (pts[i] as THREE.Vector3).distanceTo(pts[i - 1] as THREE.Vector3));
+  const total = cum[cum.length - 1] as number;
+  const at = (t: number, out: THREE.Vector3, tan: THREE.Vector3) => {
+    const d = t * total;
+    let i = 0;
+    while (i < pts.length - 2 && d > (cum[i + 1] as number)) i++;
+    const a = pts[i] as THREE.Vector3;
+    const b = pts[i + 1] as THREE.Vector3;
+    const u = Math.min(1, Math.max(0, (d - (cum[i] as number)) / Math.max(1e-6, (cum[i + 1] as number) - (cum[i] as number))));
+    out.lerpVectors(a, b, u);
+    tan.subVectors(b, a).normalize();
+    // tangente adoucie aux articulations (moyenne avec le segment voisin)
+    if (u < 0.15 && i > 0) tan.add(_z.subVectors(a, pts[i - 1] as THREE.Vector3).normalize()).normalize();
+    else if (u > 0.85 && i < pts.length - 2) tan.add(_z.subVectors(pts[i + 2] as THREE.Vector3, b).normalize()).normalize();
+  };
+  return at;
+}
+
+/** Section interpolée (rayons et os) à la fraction t d'un tube. */
+function keySampler(keys: Key[]): (t: number) => Key {
+  const keyAt = (t: number): Key => {
+    let i = 0;
+    while (i < keys.length - 2 && t > (keys[i + 1] as Key).t) i++;
+    const A = keys[i] as Key;
+    const B = keys[i + 1] as Key;
+    const u = Math.min(1, Math.max(0, (t - A.t) / Math.max(1e-6, B.t - A.t)));
+    const bones = new Map<number, number>();
+    for (const [b, w] of A.bones) bones.set(b, (bones.get(b) ?? 0) + w * (1 - u));
+    for (const [b, w] of B.bones) bones.set(b, (bones.get(b) ?? 0) + w * u);
+    return { t, w: A.w + (B.w - A.w) * u, p: A.p + (B.p - A.p) * u, n: A.n + (B.n - A.n) * u, bones: [...bones] };
+  };
+  return keyAt;
+}
+
 class Builder {
   readonly pos: number[] = [];
   readonly col: number[] = [];
@@ -103,7 +152,7 @@ class Builder {
   readonly mask: number[] = [];
   readonly index: number[] = [];
 
-  private vertex(p: THREE.Vector3, c: THREE.Color, bones: Array<[number, number]>, m = 0): number {
+  vertex(p: THREE.Vector3, c: THREE.Color, bones: Array<[number, number]>, m = 0): number {
     this.pos.push(p.x, p.y, p.z);
     this.col.push(c.r, c.g, c.b);
     this.mask.push(m);
@@ -117,37 +166,62 @@ class Builder {
   }
 
   /**
+   * Poches arrière du maillot, devinées à leurs traits : une poche par pan du dos du tube `pts` / `keys`
+   * (pans arrière de l'octogone, entre `t0` et `t1`), sans relief ni tissu à part — trait sombre de
+   * l'ouverture en haut (hauteur `lip`), coutures fines sur les bords des pans ; traits plaqués 1,5 mm devant
+   * le dos pour ne pas scintiller.
+   */
+  pockets(pts: THREE.Vector3[], keys: Key[], scale: number, t0: number, t1: number, lip: number, colorAt: (t: number) => THREE.Color): void {
+    const at = pathSampler(pts);
+    const keyAt = keySampler(keys);
+    const p = new THREE.Vector3();
+    const tan = new THREE.Vector3();
+    const ex = new THREE.Vector3();
+    const ez = new THREE.Vector3();
+    /** Sommet `j` (bord de pan) de l'anneau à t, décalé vers l'extérieur de `out` (m). */
+    const corner = (t: number, phi: number, out: number): THREE.Vector3 => {
+      at(t, p, tan);
+      const k = keyAt(t);
+      ex.copy(LEFT).addScaledVector(tan, -LEFT.dot(tan));
+      if (ex.lengthSq() < 1e-8) ex.set(0, 0, 1);
+      ex.normalize();
+      ez.crossVectors(ex, tan);
+      const c = Math.cos(phi);
+      const sn = Math.sin(phi);
+      const v = p.clone().addScaledVector(ex, c * k.w * scale).addScaledVector(ez, sn * (sn >= 0 ? k.p : k.n) * scale);
+      return v.addScaledVector(v.clone().sub(p).normalize(), out);
+    };
+    const shade = (c: THREE.Color, k: number) => new THREE.Color(c.r * k, c.g * k, c.b * k);
+    /** Trait : bande de t = ta à tb entre les angles fa et fb (sur un même pan), plaquée sur le dos. */
+    const stroke = (ta: number, tb: number, fa: number, fb: number, k: number): void => {
+      const ids = [ta, tb].map((t) => {
+        const col = shade(colorAt(t), k);
+        const bones = keyAt(t).bones;
+        return [this.vertex(corner(t, fa, 0.0015 * scale), col, bones), this.vertex(corner(t, fb, 0.0015 * scale), col, bones)];
+      });
+      const [q0, q1] = ids[0] as number[];
+      const [q2, q3] = ids[1] as number[];
+      this.index.push(q0 as number, q2 as number, q1 as number, q1 as number, q2 as number, q3 as number);
+    };
+    // Pans arrière : entre les sommets 4–5, 5–6 et 6–7 (sin < 0 : côté dos). Une poche par pan, devinée à ses
+    // traits : ouverture en haut, coutures sur les deux bords du pan (les poches voisines se touchent).
+    for (let j = 4; j <= 6; j++) {
+      const a0 = ((j + 0.5) / SIDES) * Math.PI * 2;
+      const a1 = ((j + 1.5) / SIDES) * Math.PI * 2;
+      const w = (a1 - a0) * 0.035;
+      stroke(t1 - lip, t1, a0, a1, 0.45);
+      stroke(t0, t1 - lip, a0, a0 + w, 0.62);
+      stroke(t0, t1 - lip, a1 - w, a1, 0.62);
+    }
+  }
+
+  /**
    * Tube le long de `pts` : `keys` donnent la section (interpolée linéairement), `colorAt(t)` la couleur ;
    * `edges` : positions où la couleur change, doublées pour un bord net. Bouts fermés en éventail.
    */
   tube(pts: THREE.Vector3[], keys: Key[], colorAt: (t: number) => THREE.Color, edges: number[], scale: number, maskAt: (t: number) => number = () => 0): void {
-    const cum = [0];
-    for (let i = 1; i < pts.length; i++) cum.push((cum[i - 1] as number) + (pts[i] as THREE.Vector3).distanceTo(pts[i - 1] as THREE.Vector3));
-    const total = cum[cum.length - 1] as number;
-    const at = (t: number, out: THREE.Vector3, tan: THREE.Vector3) => {
-      const d = t * total;
-      let i = 0;
-      while (i < pts.length - 2 && d > (cum[i + 1] as number)) i++;
-      const a = pts[i] as THREE.Vector3;
-      const b = pts[i + 1] as THREE.Vector3;
-      const u = Math.min(1, Math.max(0, (d - (cum[i] as number)) / Math.max(1e-6, (cum[i + 1] as number) - (cum[i] as number))));
-      out.lerpVectors(a, b, u);
-      tan.subVectors(b, a).normalize();
-      // tangente adoucie aux articulations (moyenne avec le segment voisin)
-      if (u < 0.15 && i > 0) tan.add(_z.subVectors(a, pts[i - 1] as THREE.Vector3).normalize()).normalize();
-      else if (u > 0.85 && i < pts.length - 2) tan.add(_z.subVectors(pts[i + 2] as THREE.Vector3, b).normalize()).normalize();
-    };
-    const keyAt = (t: number): Key => {
-      let i = 0;
-      while (i < keys.length - 2 && t > (keys[i + 1] as Key).t) i++;
-      const A = keys[i] as Key;
-      const B = keys[i + 1] as Key;
-      const u = Math.min(1, Math.max(0, (t - A.t) / Math.max(1e-6, B.t - A.t)));
-      const bones = new Map<number, number>();
-      for (const [b, w] of A.bones) bones.set(b, (bones.get(b) ?? 0) + w * (1 - u));
-      for (const [b, w] of B.bones) bones.set(b, (bones.get(b) ?? 0) + w * u);
-      return { t, w: A.w + (B.w - A.w) * u, p: A.p + (B.p - A.p) * u, n: A.n + (B.n - A.n) * u, bones: [...bones] };
-    };
+    const at = pathSampler(pts);
+    const keyAt = keySampler(keys);
     // Anneaux : stations, plus un anneau de chaque côté de chaque changement de couleur.
     const rings: Array<{ t: number; c: THREE.Color; m: number }> = [];
     // Une station posée pile sur un changement de couleur prendrait la couleur d'un seul côté et ferait
@@ -218,13 +292,23 @@ export class SweptBody {
     const T = (i: number, f: number) => (tr[i] as number) + f * ((tr[i + 1] ?? 1) - (tr[i] as number));
     const chest = look.female ? 0.9 : 1;
     const hips = look.female ? 1.05 : 1;
-    // Fessier en bloc façon NCT : presque aussi large que le buste vu de dos, fond plat qui descend un peu sous
-    // le dessus de la selle, flancs droits ; les cuisses sortent sous ses coins. Il rejoint le bassin à la ceinture.
+    // Bas du tronc (selle → bassin) : caché sous la coque du cuissard (shortsShell.ts), qui donne seule la
+    // forme du fessier, de la taille et du haut des cuisses.
+    // (?coque=0 : ancien fessier en bloc, sans la coque, pour comparer.)
     const trunkKeys: Key[] = [
-      { t: 0, w: 0.158 * hips, p: 0.075, n: 0.085, bones: [[0, 1]] },
-      { t: T(0, 0.35), w: 0.175 * hips, p: 0.095, n: 0.115, bones: [[0, 1]] },
-      { t: T(0, 0.75), w: 0.172 * hips, p: 0.1, n: 0.11, bones: [[0, 1]] },
-      { t: T(1, 0), w: 0.16 * hips, p: 0.1, n: 0.1, bones: [[0, 1]] },
+      ...(SHELL
+        ? ([
+            { t: 0, w: 0.1 * hips, p: 0.05, n: 0.06, bones: [[0, 1]] },
+            { t: T(0, 0.35), w: 0.125 * hips, p: 0.065, n: 0.075, bones: [[0, 1]] },
+            { t: T(0, 0.75), w: 0.125 * hips, p: 0.07, n: 0.075, bones: [[0, 1]] },
+            { t: T(1, 0), w: 0.122 * hips, p: 0.072, n: 0.072, bones: [[0, 1]] },
+          ] as Key[])
+        : ([
+            { t: 0, w: 0.158 * hips, p: 0.075, n: 0.085, bones: [[0, 1]] },
+            { t: T(0, 0.35), w: 0.175 * hips, p: 0.095, n: 0.115, bones: [[0, 1]] },
+            { t: T(0, 0.75), w: 0.172 * hips, p: 0.1, n: 0.11, bones: [[0, 1]] },
+            { t: T(1, 0), w: 0.16 * hips, p: 0.1, n: 0.1, bones: [[0, 1]] },
+          ] as Key[])),
       { t: T(1, 0.5), w: 0.138, p: 0.09, n: 0.09, bones: [[0, 1]] },
       { t: T(2, 0), w: 0.135, p: 0.085, n: 0.085, bones: [[0, 0.5], [1, 0.5]] },
       { t: T(2, 0.45), w: 0.15 * chest, p: 0.095, n: 0.095, bones: [[1, 1]] },
@@ -235,6 +319,7 @@ export class SweptBody {
     ];
     const hem = T(1, 0.45);
     const collar = T(3, 0.55);
+    const trunkLen = length(trunkPts);
     const B = (f: number) => T(2, 0) + f * (T(3, 0) - T(2, 0));
     const trunkEdges = [hem, collar];
     for (const band of look.bands) trunkEdges.push(B(band.from), B(band.to));
@@ -254,36 +339,64 @@ export class SweptBody {
       s,
       (t) => (t >= hem && t <= collar ? 1 : 0),
     );
-    // ── Jambes : haut de cuisse → hanche → genou → cheville ──
+    // Trois poches arrière tout en bas du dos, juste au-dessus de l'ourlet sans le dépasser (≈ 8 cm de haut, ouverture en haut).
+    const trunkColor = (t: number) => (look.lowerHalf && t < midT ? look.accent : look.jersey);
+    b.pockets(trunkPts, trunkKeys, s, hem + 0.004 / trunkLen, hem + (0.085 * s) / trunkLen, 0.006 / trunkLen, trunkColor);
+    // ── Jambes : deux segments rigides qui se chevauchent au genou, et un bloc de genou (rotule) ──
+    // Comme les coureurs NCT : la cuisse et le tibia ne partagent aucun anneau (un tube unique se pinçait en V
+    // au pli du genou) ; le bloc de genou, à moitié sur chacun, comble le pli et marque la rotule.
     rest.legs.forEach((g, i) => {
       const side = i === 0 ? 1 : -1;
       const thigh = 2 + i * 2;
       const shin = thigh + 1;
-      // Le haut de la cuisse part de l'intérieur du fessier (rien ne dépasse sur les côtés ni au-dessus).
-      const pts = [g.hip.clone().add(new THREE.Vector3(-side * 0.035, 0.025, 0)), g.hip, g.knee, g.ankle];
-      const fr = fractions(pts);
-      const L = (k: number, f: number) => (fr[k] as number) + f * ((fr[k + 1] ?? 1) - (fr[k] as number));
-      const total = length(pts);
-      const keys: Key[] = [
+      const thighDir = new THREE.Vector3().subVectors(g.knee, g.hip).normalize();
+      const shinUp = new THREE.Vector3().subVectors(g.knee, g.ankle).normalize();
+      const legColor = (cover: boolean) => (cover || look.longLegs ? look.shorts : look.skin);
+      // Cuisse : du cœur du fessier au genou, un peu au-delà (bout fermé caché sous le bloc de genou).
+      const tPts = [g.hip.clone().add(new THREE.Vector3(-side * 0.035, 0.025, 0)), g.hip, g.knee.clone().addScaledVector(thighDir, KNEE_OVERLAP)];
+      const tf = fractions(tPts);
+      const LT = (f: number) => (tf[1] as number) + f * (1 - (tf[1] as number));
+      const thighLen = g.hip.distanceTo(g.knee);
+      const tKeys: Key[] = [
         { t: 0, w: 0.05, p: 0.06, n: 0.05, bones: [[0, 1]] },
-        { t: L(1, 0), w: 0.076, p: 0.085, n: 0.075, bones: [[0, 0.4], [thigh, 0.6]] },
-        { t: L(1, 0.3), w: 0.08, p: 0.08, n: 0.085, bones: [[thigh, 1]] },
-        { t: L(1, 0.65), w: 0.068, p: 0.066, n: 0.075, bones: [[thigh, 1]] },
-        { t: L(2, 0), w: 0.05, p: 0.047, n: 0.053, bones: [[thigh, 0.5], [shin, 0.5]] },
-        { t: L(2, 0.25), w: 0.046, p: 0.062, n: 0.044, bones: [[shin, 1]] },
-        { t: L(2, 0.55), w: 0.04, p: 0.05, n: 0.037, bones: [[shin, 1]] },
+        { t: LT(0), w: 0.076, p: 0.085, n: 0.075, bones: [[0, 0.4], [thigh, 0.6]] },
+        { t: LT(0.3), w: 0.08, p: 0.08, n: 0.085, bones: [[thigh, 1]] },
+        { t: LT(0.65), w: 0.068, p: 0.066, n: 0.075, bones: [[thigh, 1]] },
+        { t: 1, w: 0.054, p: 0.054, n: 0.056, bones: [[thigh, 1]] },
+      ];
+      const shortsEnd = LT((SHORTS_END * thighLen) / (thighLen + KNEE_OVERLAP));
+      b.tube(tPts, tKeys, (t) => legColor(t < shortsEnd), look.longLegs ? [] : [shortsEnd], s);
+      // Tibia : d'un peu au-dessus du genou (dans la cuisse) à la cheville.
+      const sPts = [g.knee.clone().addScaledVector(shinUp, KNEE_OVERLAP), g.knee, g.ankle];
+      const sf = fractions(sPts);
+      const LS = (f: number) => (sf[1] as number) + f * (1 - (sf[1] as number));
+      const sKeys: Key[] = [
+        { t: 0, w: 0.05, p: 0.054, n: 0.05, bones: [[shin, 1]] },
+        { t: LS(0), w: 0.05, p: 0.05, n: 0.053, bones: [[shin, 1]] },
+        { t: LS(0.25), w: 0.046, p: 0.062, n: 0.044, bones: [[shin, 1]] },
+        { t: LS(0.55), w: 0.04, p: 0.05, n: 0.037, bones: [[shin, 1]] },
         { t: 1, w: 0.029, p: 0.031, n: 0.03, bones: [[shin, 1]] },
       ];
-      const shortsEnd = L(1, 0.8);
-      const sockStart = Math.max(L(2, 0.3), 1 - look.sockLen / total);
-      b.tube(
-        pts,
-        keys,
-        (t) => (t < shortsEnd || look.longLegs ? look.shorts : t >= sockStart ? look.sock : look.skin),
-        look.longLegs ? [] : [shortsEnd, sockStart],
-        s,
-      );
+      const sockStart = Math.max(LS(0.3), 1 - look.sockLen / length(sPts));
+      b.tube(sPts, sKeys, (t) => (look.longLegs ? look.shorts : t >= sockStart ? look.sock : look.skin), look.longLegs ? [] : [sockStart], s);
+      // Bloc de genou : polyèdre à facettes sur l'articulation, avancé vers la pointe du genou (rotule).
+      const front = thighDir.clone().add(shinUp).normalize();
+      const centre = g.knee.clone().addScaledVector(front, KNEE_FORWARD * s);
+      const knee = new THREE.IcosahedronGeometry(KNEE_R * s, 0);
+      const kp = knee.getAttribute('position');
+      const base = b.pos.length / 3;
+      const v = new THREE.Vector3();
+      for (let k = 0; k < kp.count; k++) b.vertex(v.fromBufferAttribute(kp, k).add(centre), legColor(false), [[thigh, 0.5], [shin, 0.5]]);
+      for (let k = 0; k < kp.count; k++) b.index.push(base + k);
+      knee.dispose();
     });
+    // ── Cuissard : coque d'un seul tenant (bassin, taille, haut des cuisses) par-dessus les tubes ──
+    if (SHELL) {
+      const shell = shortsShell(rest, { hemP: pointAt(trunkPts, hem), shortsEnd: SHORTS_END, scale: s, female: look.female });
+      const base = b.pos.length / 3;
+      for (const v of shell.vertices) b.vertex(v.p, look.shorts, v.bones);
+      for (const i of shell.index) b.index.push(base + i);
+    }
     // ── Bras : haut de l'épaule → épaule → coude → poignet ──
     rest.arms.forEach((g, i) => {
       const side = i === 0 ? 1 : -1;
