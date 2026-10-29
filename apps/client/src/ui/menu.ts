@@ -1,9 +1,9 @@
 import type { AvatarLook, CosmeticItem, RouteData, RouteSegment, WorldCatalogue } from '@allezrobert/shared';
 import { GRAPHIC_STYLE, setGraphicStyle, type GraphicStyle } from '../engine/style.ts';
 import { readKomRecord } from '../game/challenge.ts';
-import { COUNTRIES, BIKE_BRANDS, BIKE_GROUPS, BIKE_TEAMS, COSMETICS, DEFAULT_BIKE, bikeById, routesForBike, mirrorStartM, rankRouteId, lookSex, tuneItem, withSex, bottleCapacity, bikeSetupFor, jerseyLookOf, helmetLookOf, glassesLookOf, levelProgress, SHOE_MARKS, type BikeCollection, type BikeType, type CapLook, type CosmeticSlot } from '@allezrobert/shared';
+import { COUNTRIES, BIKE_BRANDS, BIKE_GROUPS, BIKE_TEAMS, COSMETICS, DEFAULT_BIKE, bikeById, routesForBike, mirrorStartM, rankRouteId, lookSex, tuneItem, withSex, bottleCapacity, bikeSetupFor, jerseyLookOf, helmetLookOf, glassesLookOf, levelProgress, SHOE_MARKS, equippedTuneIds, trainerOf, type BikeCollection, type BikeType, type CapLook, type CosmeticSlot } from '@allezrobert/shared';
 import { shoeAccentOf } from '../rider/shoeLook.ts';
-import { WORKOUT_LIBRARY, WORKOUT_TYPES, WORKOUT_TYPE_LABELS, parseWorkoutFile, type LibraryWorkout, type WorkoutStep, type WorkoutType } from '@allezrobert/physics';
+import { WORKOUT_LIBRARY, WORKOUT_TYPES, WORKOUT_TYPE_LABELS, parseWorkoutFile, tunedBikeSetup, type LibraryWorkout, type WorkoutStep, type WorkoutType } from '@allezrobert/physics';
 import { rideHistory } from '../data/history/instance.ts';
 import type { LocalWorkout } from '../data/history/index.ts';
 import { HistoryPanel } from './historyPanel.ts';
@@ -26,6 +26,7 @@ import { renderCompanionSettings } from './companionQr.ts';
 import { HUD_BLOCKS } from '../hud/hud.ts';
 import { renderExpertSettings } from './expertZones.ts';
 import { loadProgress, equipItem, equipPlainBike, SLOT_LABEL } from './garage.ts';
+import { roadEffectHtml } from './roadEffect.ts';
 import { AtelierPanel, COIN } from './atelierPanel.ts';
 import type { AtelierState } from './atelier.ts';
 import { WORLD_LIST } from '../world/worlds.ts';
@@ -261,7 +262,7 @@ const WEATHER_PRESETS: Array<[string, { clouds: number; rain: number; fog: numbe
 const WIND_STEPS = [0, 3, 6, 10];
 
 /** Gros plan du garage selon la catégorie choisie. */
-const SLOT_VIEW: Record<CosmeticSlot, GarageView> = { jersey: '3q', helmet: 'front', bike: 'side', socks: 'bike', glasses: 'front' };
+const SLOT_VIEW: Record<CosmeticSlot, GarageView> = { jersey: '3q', helmet: 'front', bike: 'side', socks: 'bike', glasses: 'front', trainer: 'trainer' };
 
 /** Filtres de la liste des vélos du garage. */
 type BikeFilter = BikeCollection | 'unlocked';
@@ -1823,11 +1824,12 @@ export class MainMenu {
         : this.garageSlot === 'jersey'
         ? `${this.sleevesToggle()}${this.legsToggle()}${this.glovesToggle()}${this.gloveColorField()}${this.jerseyPacksHtml(lp.level, p.equipped.jersey)}`
         : `${this.garageSlot === 'socks' ? this.sockHeightToggle() : ''}<div class="mm-items">${this.garageItems(lp.level)
-            .map((c) => this.itemHtml(c, lp.level, p.equipped[c.slot]))
+            .map((c) => this.itemHtml(c, lp.level, c.slot === 'trainer' ? trainerOf(p.equipped) : p.equipped[c.slot]))
             .join('')}</div>`;
     return `<div class="mm-dragzone" id="m-dragzone"></div>
       <div class="mm-views">${views.map(([v, label]) => `<button class="mm-view ${v === this.view ? 'on' : ''}" data-view="${v}">${label}</button>`).join('')}
         <span class="mm-drag">${ICON.rotate} ${L ? 'Glisser pour tourner' : 'Drag to rotate'}</span></div>
+      ${this.garageSlot === 'face' ? '' : this.roadEffect()}
       <section class="mm-panel mm-side gr-panel">
         <div class="gr-top">${this.garageHeader(lp, p.xp)}${this.garageNav()}</div>
         <div class="gr-body">${items}</div>
@@ -1853,7 +1855,7 @@ export class MainMenu {
     const slotLabel = (sl: CosmeticSlot) => SLOT_LABEL[sl][lang];
     const groups: Array<{ label: string; icon: string; first: GarageSlot; subs: Array<[GarageSlot, string]> }> = [
       { label: L ? 'Tenue' : 'Outfit', icon: ICON.gTenue, first: 'jersey', subs: [['jersey', slotLabel('jersey')], ['helmet', slotLabel('helmet')], ['glasses', slotLabel('glasses')], ['socks', slotLabel('socks')]] },
-      { label: L ? 'Vélo' : 'Bike', icon: ICON.gBike, first: 'bike', subs: [['bike', L ? 'Choisir mon vélo' : 'Pick my bike'], ['atelier', `${ICON.gWrench} ${L ? 'Atelier de pièces' : 'Parts workshop'}`]] },
+      { label: L ? 'Vélo' : 'Bike', icon: ICON.gBike, first: 'bike', subs: [['bike', L ? 'Choisir mon vélo' : 'Pick my bike'], ['atelier', `${ICON.gWrench} ${L ? 'Atelier de pièces' : 'Parts workshop'}`], ['trainer', L ? 'Home trainer' : 'Home trainer']] },
       { label: L ? 'Personnage' : 'Character', icon: ICON.gFace, first: 'face', subs: [['face', L ? 'Visage' : 'Face'], ['colors', L ? 'Couleurs' : 'Colours']] },
     ];
     const active = groups.find((g) => g.subs.some(([id]) => id === cur)) ?? groups[0]!;
@@ -1933,6 +1935,18 @@ export class MainMenu {
           `${g.k.id || packs.length > 1 ? `<h3 class="mm-presets-title mm-pack">${esc(g.k.name[lang])} <span>${g.items.length}</span></h3>` : ''}<div class="mm-items">${g.items.map((c) => this.itemHtml(c, level, equipped)).join('')}</div>`,
       )
       .join('');
+  }
+
+  /** Panneau « Effet sur la route » : vélo roulé (équipé, ou essayé) avec les pièces de l'atelier montées. */
+  private roadEffect(): string {
+    const eq: Record<string, string | undefined> = { ...loadProgress().equipped, ...Object.fromEntries(this.previews) };
+    const bike = tunedBikeSetup(bikeSetupFor(eq), equippedTuneIds(eq)).bike;
+    return roadEffectHtml(bike, this.s.massKg, this.s.ftpWatts);
+  }
+
+  /** Home trainer montré au garage : celui essayé, sinon celui équipé (NEO 2T au départ). */
+  currentTrainer(): string {
+    return this.previews.get('trainer') ?? trainerOf(loadProgress().equipped);
   }
 
   /** Vélo réellement roulé avec l'équipement porté : masse, traînée, pneus. */

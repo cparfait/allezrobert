@@ -832,6 +832,7 @@ async function boot(): Promise<void> {
       look: { ...look, heightCm: settings.heightCm },
       focus: 'overview',
       rider: true,
+      trainer: menu.currentTrainer(),
       yaw: 0,
       bareHead,
       view: { cam: [0, 0, 0], look: [v.look[0], v.look[1] - (k - 1) * 0.35, v.look[2]], fov: v.fov },

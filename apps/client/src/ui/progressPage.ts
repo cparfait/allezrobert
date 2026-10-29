@@ -12,6 +12,7 @@ import {
   bikeOfLook,
   dayKey,
   kitProgress,
+  trainerOf,
   xpForLevel,
   type AvatarLook,
   type CosmeticItem,
@@ -33,7 +34,7 @@ import './progressPage.css';
  */
 
 export type ProgressView = 'levels' | 'trophies';
-type Cat = 'bike' | 'jersey' | 'helmet' | 'glasses' | 'socks' | 'tune' | 'kit';
+type Cat = 'bike' | 'jersey' | 'helmet' | 'glasses' | 'socks' | 'trainer' | 'tune' | 'kit';
 
 export interface ProgressHost {
   /** Niveau affiché (celui du compte une fois connecté). */
@@ -69,6 +70,7 @@ const CATS: Array<[Cat, string, string]> = [
   ['helmet', 'Casques', 'Helmets'],
   ['glasses', 'Lunettes', 'Glasses'],
   ['socks', 'Chaussettes', 'Socks'],
+  ['trainer', 'Home trainers', 'Home trainers'],
   ['tune', 'Atelier', 'Workshop'],
   ['kit', 'Ensembles', 'Sets'],
 ];
@@ -170,7 +172,7 @@ export class ProgressPage {
     const out: Reward[] = [];
     for (const c of COSMETICS) {
       const open = c.level <= level;
-      const on = p.equipped[c.slot] === c.id;
+      const on = (c.slot === 'trainer' ? trainerOf(p.equipped) : p.equipped[c.slot]) === c.id;
       const bike = c.slot === 'bike' ? bikeById(c.id) : undefined;
       const brand = bike ? (BIKE_BRANDS.find((b) => b.id === bike.brand)?.name ?? '') : '';
       const thumb =

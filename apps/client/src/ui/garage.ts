@@ -150,6 +150,7 @@ export const SLOT_LABEL: Record<CosmeticSlot, { fr: string; en: string }> = {
   bike: { fr: 'Vélo', en: 'Bike' },
   socks: { fr: 'Chaussettes', en: 'Socks' },
   glasses: { fr: 'Lunettes', en: 'Glasses' },
+  trainer: { fr: 'Home trainer', en: 'Home trainer' },
 };
 
 /** Équipe un cosmétique débloqué ; les cosmétiques à couleur et les vélos s'appliquent à l'avatar. */

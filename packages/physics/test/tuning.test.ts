@@ -122,6 +122,18 @@ describe('chiffres de l’atelier', () => {
     const light = bikeStats(tunedBikeSetup(DEFAULT_BIKE, ['tune-wh-enve-34']).bike, 75, 250);
     expect(light.climbS).toBeLessThan(s0.climbS);
   });
+  it('vent de face et chemin de terre (effet sur la route du garage)', () => {
+    const road = bikeStats(DEFAULT_BIKE, 75, 250);
+    expect(road.headwind75Kmh).toBeLessThan(road.flat75Kmh - 5);
+    expect(road.dirt75Kmh).toBeLessThan(road.flat75Kmh);
+    // Pneus gravel : un peu plus lents sur l'enrobé, plus rapides sur la terre.
+    const gravel = bikeStats(bikeSetupFor({ bike: 'bike-gravel' }), 75, 250);
+    expect(gravel.flat75Kmh).toBeLessThan(road.flat75Kmh);
+    expect(gravel.dirt75Kmh).toBeGreaterThan(road.dirt75Kmh);
+    // Vélo plus aérodynamique : l'écart grandit avec le vent de face.
+    const aero = bikeStats({ ...DEFAULT_BIKE, cda: DEFAULT_BIKE.cda * 0.95 }, 75, 250);
+    expect(aero.headwind75Kmh - road.headwind75Kmh).toBeGreaterThan(0);
+  });
   it('gains nuls entre deux vélos identiques', () => {
     expect(tuneGains(DEFAULT_BIKE, DEFAULT_BIKE)).toEqual({ flat: 0, climb: 0 });
   });

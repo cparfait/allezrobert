@@ -34,8 +34,20 @@ export function levelProgress(xp: number): { level: number; progress: number; ne
   return { level, progress: next === null ? 1 : (xp - cur) / (next - cur), nextLevelXp: next };
 }
 
-/** Les roues sont passées à l'atelier (tuning.ts, emplacement « wheelset »). */
-export type CosmeticSlot = 'jersey' | 'helmet' | 'bike' | 'socks' | 'glasses';
+/**
+ * Les roues sont passées à l'atelier (tuning.ts, emplacement « wheelset »). « trainer » : home trainer
+ * sur lequel le vélo est monté au garage, purement visuel (aucun effet en course).
+ */
+export type CosmeticSlot = 'jersey' | 'helmet' | 'bike' | 'socks' | 'glasses' | 'trainer';
+
+/** Home trainer de départ (garage), monté tant qu'aucun autre n'est équipé. */
+export const DEFAULT_TRAINER = 'trainer-neo-2t';
+
+/** Home trainer du garage : celui équipé s'il existe au catalogue, sinon celui de départ. */
+export function trainerOf(equipped: Readonly<Record<string, string | undefined>>): string {
+  const id = equipped.trainer;
+  return id && COSMETICS.some((c) => c.id === id && c.slot === 'trainer') ? id : DEFAULT_TRAINER;
+}
 
 /** Effet d'un équipement sur la physique (relatif au vélo route aluminium par défaut). */
 export interface CosmeticPhysics {

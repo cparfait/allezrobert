@@ -9,6 +9,7 @@ import { compilePass, isCompiling, type Engine } from '../engine/renderer.ts';
 import { box, buildRoom, cyl, mat, rod, WALL_WHEELS } from './atelierRoom.ts';
 import { buildPosters, POSTER_RIDERS, RIDER_BOX, type PosterArt } from './atelierPosters.ts';
 import { buildTools } from './atelierTools.ts';
+import { buildHomeTrainer, TRAINER_AXLE_Y } from './homeTrainers.ts';
 
 /**
  * Atelier du garage : le vélo du joueur sur un pied d'atelier, dans une pièce procédurale (établi,
@@ -25,6 +26,8 @@ export interface AtelierState {
   focus: TuneSlot | 'overview';
   /** Coureur en selle (vélo posé au sol) ou vélo seul sur le pied. */
   rider: boolean;
+  /** Home trainer du garage (catalogue « trainer ») : coureur en selle, vélo monté dessus, roue arrière retirée. */
+  trainer?: string;
   /** Rotation de la vue autour du vélo (rad). */
   yaw: number;
   /** Matériaux à faire briller brièvement (pièce qui vient d'être changée). */
@@ -225,6 +228,9 @@ export class AtelierHost {
   private avatar: RiderAvatarLike | null = null;
   private readonly bikeRoot = new THREE.Group();
   private stand: THREE.Group | null = null;
+  /** Home trainer monté (garage) et sa cale de roue avant ; roues arrière masquées pendant le montage. */
+  private trainer: { id: string; group: THREE.Group; front: THREE.Group } | null = null;
+  private readonly hiddenWheels = new Set<THREE.Object3D>();
   /** Arrivée dans l'atelier : avancement 0 → 1 de l'entrée de caméra et de l'allumage des lumières. */
   private intro = 1;
   private readonly lamps: Array<[THREE.Light, number]> = [];
@@ -547,6 +553,7 @@ export class AtelierHost {
     // Coureur en selle : vélo au sol (pied replié) ; sinon sur le pied d'atelier, roues décollées.
     this.bikeRoot.position.y = st.rider ? 0 : LIFT;
     if (this.stand) this.stand.visible = !st.rider;
+    this.mountTrainer(st.rider ? st.trainer : undefined);
     if (st.pose) for (let i = 0; i < st.pose.frames; i++) this.avatar.update(1 / 60, st.pose.cadence, st.pose.speed ?? 5, st.pose.pose);
     else for (let i = 0; i < 4; i++) this.avatar.update(1 / 60, 0, 0, 'coasting');
     if (st.pulse?.length) {
@@ -558,6 +565,55 @@ export class AtelierHost {
     this.aim(first);
     if (first) this.intro = 0;
     this.frames = Math.max(this.frames, 3);
+  }
+
+  /** Monte le vélo sur le home trainer `id` (construit à la demande) ; sans id, le démonte (roue arrière remise). */
+  private mountTrainer(id: string | undefined): void {
+    if (this.trainer && this.trainer.id !== id) {
+      this.scene.remove(this.trainer.group, this.trainer.front);
+      this.trainer.group.traverse((o) => (o as THREE.Mesh).geometry?.dispose());
+      this.trainer.front.traverse((o) => (o as THREE.Mesh).geometry?.dispose());
+      this.trainer = null;
+    }
+    if (!id) {
+      for (const w of this.hiddenWheels) w.visible = true;
+      this.hiddenWheels.clear();
+      return;
+    }
+    if (!this.trainer) {
+      this.trainer = { id, ...buildHomeTrainer(id) };
+      this.scene.add(this.trainer.group, this.trainer.front);
+    }
+    this.fitTrainer();
+  }
+
+  /**
+   * Cale le home trainer sur l'axe arrière du vélo et la cale sous la roue avant, et masque la roue
+   * arrière (à refaire après chaque reconstruction du vélo : famille chargée, tenue changée).
+   */
+  private fitTrainer(): void {
+    const tr = this.trainer;
+    if (!tr || !this.avatar) return;
+    const root = this.avatar.root;
+    root.updateMatrixWorld(true);
+    const wheels: Record<'front' | 'rear', THREE.Object3D[]> = { front: [], rear: [] };
+    root.traverse((o) => {
+      if (o.name === 'wheel_rear') wheels.rear.push(o);
+      else if (o.name === 'wheel_front') wheels.front.push(o);
+    });
+    // Coureur low poly : roues sans nom, rangées dans `wheels` (arrière : axe derrière le pédalier).
+    const own = (this.avatar as unknown as { wheels?: unknown }).wheels;
+    if (Array.isArray(own)) for (const w of own) if (w instanceof THREE.Object3D && !wheels.rear.includes(w) && !wheels.front.includes(w)) wheels[w.position.z < 0 ? 'rear' : 'front'].push(w);
+    const axle = (list: THREE.Object3D[], fallback: THREE.Vector3) => (list[0] ? this.bikeRoot.worldToLocal(list[0].getWorldPosition(new THREE.Vector3())) : fallback);
+    const rear = axle(wheels.rear, new THREE.Vector3(0, TRAINER_AXLE_Y, -0.41));
+    const front = axle(wheels.front, new THREE.Vector3(0, TRAINER_AXLE_Y, 0.6));
+    // Axe du home trainer sur celui du vélo (écart de hauteur de roue borné : les pieds restent au sol).
+    tr.group.position.set(0, THREE.MathUtils.clamp(rear.y - TRAINER_AXLE_Y, -0.02, 0.02), rear.z);
+    tr.front.position.set(0, 0, front.z);
+    for (const w of wheels.rear) {
+      if (w.visible) this.hiddenWheels.add(w);
+      w.visible = false;
+    }
   }
 
   /** Cadrage demandé : imposé (`view`) ou celui de l'emplacement. */
@@ -662,6 +718,7 @@ export class AtelierHost {
     cam.position.copy(this.camPos);
     cam.lookAt(this.camLook);
     cam.updateProjectionMatrix();
+    if (this.trainer) this.fitTrainer();
     this.pipeline?.render();
   }
 

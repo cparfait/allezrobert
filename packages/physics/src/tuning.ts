@@ -12,6 +12,7 @@
  */
 import { DEFAULT_BIKE, tuneItem, type BikeSetup } from '@allezrobert/shared';
 import { DEFAULT_ENVIRONMENT, paramsFromBike, powerForSpeed, steadyStateSpeed } from './model.ts';
+import { surfaceCrr } from './conditions.ts';
 
 /** Gain maximal des pièces de l'atelier, toutes ensemble (fraction de puissance économisée). */
 export const TUNE_BONUS_CAP = 0.05;
@@ -117,7 +118,10 @@ export function tunedBikeSetup(base: BikeSetup, ids: readonly string[]): TunedBi
   return { bike, gains: k === 1 ? raw : tuneGains(base, bike), raw, scale: k };
 }
 
-/** Chiffres de l'atelier pour un vélo : vitesses à plat (FTP, 75 % FTP) et montée de référence (5 km à 7 %). */
+/**
+ * Chiffres de l'atelier pour un vélo : vitesses à plat (FTP, 75 % FTP), à 75 % FTP vent de face et
+ * sur chemin de terre, et montée de référence (5 km à 7 %) à la FTP.
+ */
 export interface BikeStats {
   massKg: number;
   cda: number;
@@ -125,22 +129,31 @@ export interface BikeStats {
   drivetrainEfficiency: number;
   flatFtpKmh: number;
   flat75Kmh: number;
+  /** Plat à 75 % FTP avec REFERENCE_HEADWIND_KMH de vent de face (km/h). */
+  headwind75Kmh: number;
+  /** Chemin de terre à plat, à 75 % FTP (km/h), pneus du vélo compris. */
+  dirt75Kmh: number;
   /** Temps de la montée de référence (5 km à 7 %) à la FTP (s). */
   climbS: number;
 }
 
 export const REFERENCE_CLIMB = { lengthM: 5000, grade: 7 } as const;
+/** Vent de face des chiffres de l'atelier et du garage (km/h). */
+export const REFERENCE_HEADWIND_KMH = 20;
 
 export function bikeStats(bike: BikeSetup, riderKg: number, ftpWatts: number): BikeStats {
   const p = paramsFromBike(riderKg, bike);
   const env = DEFAULT_ENVIRONMENT;
+  const w75 = ftpWatts * 0.75;
   return {
     massKg: bike.massKg,
     cda: bike.cda,
     crr: bike.crr,
     drivetrainEfficiency: bike.drivetrainEfficiency,
     flatFtpKmh: steadyStateSpeed(ftpWatts, 0, p, env) * 3.6,
-    flat75Kmh: steadyStateSpeed(ftpWatts * 0.75, 0, p, env) * 3.6,
+    flat75Kmh: steadyStateSpeed(w75, 0, p, env) * 3.6,
+    headwind75Kmh: steadyStateSpeed(w75, 0, p, { ...env, windSpeedMs: REFERENCE_HEADWIND_KMH / 3.6 }) * 3.6,
+    dirt75Kmh: steadyStateSpeed(w75, 0, { ...p, crr: surfaceCrr('dirt', bike.crr, bike.tyre) }, env) * 3.6,
     climbS: REFERENCE_CLIMB.lengthM / steadyStateSpeed(ftpWatts, REFERENCE_CLIMB.grade, p, env),
   };
 }
