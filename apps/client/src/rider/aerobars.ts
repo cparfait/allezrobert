@@ -19,8 +19,8 @@ interface KindDef {
 }
 
 const KINDS: Record<AerobarKind, KindDef> = {
-  clip: { stack: 0.04, tipRise: 0.05 },
-  'clip-haut': { stack: 0.12, tipRise: 0.09 },
+  clip: { stack: 0.04, tipRise: 0.03 },
+  'clip-haut': { stack: 0.12, tipRise: 0.04 },
 };
 
 /** Haut du cintre (milieu, sur la potence) par rapport à l'ancre de la cocotte (mesuré sur le vélo de base). */
@@ -32,7 +32,7 @@ const PAD_W = 0.088;
 const PAD_BACK = 0.035;
 /** Extensions : écart (x), longueur au-delà du cintre (m), rayon du tube. */
 const EXT_X = 0.06;
-const EXT_REACH = 0.33;
+const EXT_REACH = 0.27;
 const EXT_R = 0.011;
 
 type Side = 'L' | 'R';
@@ -55,8 +55,8 @@ function extensionCurve(kind: AerobarKind, top: THREE.Vector3, sx: number): THRE
   const z0 = top.z;
   return new THREE.CatmullRomCurve3([
     new THREE.Vector3(sx * EXT_X, y0, z0 - 0.07),
-    new THREE.Vector3(sx * EXT_X, y0 + 0.002, z0 + 0.12),
-    new THREE.Vector3(sx * EXT_X * 0.88, y0 + k.tipRise * 0.3, z0 + 0.25),
+    new THREE.Vector3(sx * EXT_X, y0 + 0.002, z0 + 0.1),
+    new THREE.Vector3(sx * EXT_X * 0.88, y0 + k.tipRise * 0.3, z0 + 0.2),
     new THREE.Vector3(sx * EXT_X * 0.8, y0 + k.tipRise, z0 + EXT_REACH),
   ]);
 }
@@ -64,9 +64,10 @@ function extensionCurve(kind: AerobarKind, top: THREE.Vector3, sx: number): THRE
 export function aerobarAnchors(kind: AerobarKind, hands: Record<Side, THREE.Vector3>): AerobarAnchors {
   const top = barTop(hands);
   const k = KINDS[kind];
-  const pad = (sx: number) => new THREE.Vector3(sx * PAD_X, top.y + k.stack + 0.035, top.z - PAD_BACK - 0.02);
-  // Poignée : un peu avant le bout de l'extension.
-  const grip = (sx: number) => extensionCurve(kind, top, sx).getPoint(0.9).add(new THREE.Vector3(0, 0.02, 0));
+  // Coude posé dans le repose-coude (articulation à un rayon d'avant-bras au-dessus de la mousse).
+  const pad = (sx: number) => new THREE.Vector3(sx * PAD_X, top.y + k.stack + 0.028, top.z - PAD_BACK - 0.02);
+  // Poignée : au bout de l'extension, main refermée dessus (avant-bras couché le long de l'extension).
+  const grip = (sx: number) => extensionCurve(kind, top, sx).getPoint(0.92).add(new THREE.Vector3(0, 0.012, 0));
   return { pads: { L: pad(1), R: pad(-1) }, grips: { L: grip(1), R: grip(-1) } };
 }
 
