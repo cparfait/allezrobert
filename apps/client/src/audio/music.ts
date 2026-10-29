@@ -7,15 +7,26 @@
  */
 import { followSink } from './devices.ts';
 
+/** `calm` : plus doux (menu, garage) ; `drive` : plus péchu (en sortie). */
+export type Mood = 'calm' | 'drive';
+
 export interface Track {
   file: string;
   title: string;
+  mood: Mood;
 }
 
 export const PLAYLIST: Track[] = [
-  { file: 'tempo.mp3', title: 'Tempo' },
-  { file: 'a-bloc.mp3', title: 'À bloc' },
-  { file: 'echappee.mp3', title: 'Échappée' },
+  { file: 'tempo.mp3', title: 'Tempo', mood: 'drive' },
+  { file: 'a-bloc.mp3', title: 'À bloc', mood: 'drive' },
+  { file: 'echappee.mp3', title: 'Échappée', mood: 'calm' },
+  { file: 'chasing-daylight.mp3', title: 'Chasing Daylight', mood: 'drive' },
+  { file: 'chasing-the-meridian.mp3', title: 'Chasing the Meridian', mood: 'calm' },
+  { file: 'coastal-cadence.mp3', title: 'Coastal Cadence', mood: 'calm' },
+  { file: 'cruising-the-perimeter.mp3', title: 'Cruising the Perimeter', mood: 'drive' },
+  { file: 'the-final-ascent.mp3', title: 'The Final Ascent', mood: 'drive' },
+  { file: 'the-long-climb.mp3', title: 'The Long Climb', mood: 'calm' },
+  { file: 'westward-glide.mp3', title: 'Westward Glide', mood: 'calm' },
 ];
 
 const BASE = '/music/';
@@ -23,12 +34,19 @@ const EXTERNAL_KEY = 'ar.music.spotify';
 /** Morceau joué en premier à l'ouverture. */
 const FIRST_TRACK = 'echappee.mp3';
 const FADE_S = 1.2;
+/** Durée de l'enchaînement entre deux morceaux (fin du premier, début du second). */
+const CROSS_S = 3;
 /** Niveau de la musique sous la voix du tutoriel, et durées de la baisse et de la remontée. */
 const VOICE_DUCK = 0.25;
 const VOICE_DOWN_S = 0.3;
 const VOICE_UP_S = 1;
 /** Délai avant la remontée : la musique reste basse entre deux répliques qui s'enchaînent. */
 const VOICE_RELEASE_MS = 700;
+
+/** Les morceaux de l'ambiance voulue d'abord (mélangés), puis tous les autres (mélangés). */
+function ordered(mood: Mood): Track[] {
+  return [...shuffled(PLAYLIST.filter((t) => t.mood === mood)), ...shuffled(PLAYLIST.filter((t) => t.mood !== mood))];
+}
 
 function shuffled<T>(a: T[]): T[] {
   const r = [...a];
@@ -40,13 +58,17 @@ function shuffled<T>(a: T[]): T[] {
 }
 
 export class BackgroundMusic {
-  private readonly el = (() => {
-    const a = new Audio();
-    followSink(a);
-    return a;
-  })();
+  /** Deux lecteurs : celui qui joue et celui qui prend la suite pendant l'enchaînement. */
+  private el = this.makeEl();
+  private spare = this.makeEl();
+  /** Morceau qui s'efface pendant l'enchaînement, et son niveau (1 → 0). */
+  private out: HTMLAudioElement | null = null;
+  private outFade = 0;
+  private outTimer: ReturnType<typeof setInterval> | null = null;
   private order: Track[] = [];
   private index = -1;
+  /** Ambiance recherchée : douce au menu, péchue en sortie. */
+  private mood: Mood = 'calm';
   private duck = 1;
   /** Atténuation sous la voix du tutoriel (indépendante de setDuck, que Spotify réécrit). */
   private voice = 1;
@@ -64,13 +86,22 @@ export class BackgroundMusic {
   /** Prévenu au changement de morceau (menu, HUD). */
   onTrack?: (t: Track) => void;
 
-  constructor() {
-    this.el.preload = 'auto';
-    this.el.addEventListener('ended', () => this.next());
-    // Fichier illisible : on passe au suivant plutôt que de rester muet.
-    this.el.addEventListener('error', () => {
-      if (this.playing) setTimeout(() => this.next(), 500);
+  private makeEl(): HTMLAudioElement {
+    const a = new Audio();
+    followSink(a);
+    a.preload = 'auto';
+    // Les dernières secondes d'un morceau se recouvrent avec le début du suivant.
+    a.addEventListener('timeupdate', () => {
+      if (a === this.el && this.playing && Number.isFinite(a.duration) && a.duration - a.currentTime <= CROSS_S) this.next();
     });
+    a.addEventListener('ended', () => {
+      if (a === this.el) this.next();
+    });
+    // Fichier illisible : on passe au suivant plutôt que de rester muet.
+    a.addEventListener('error', () => {
+      if (a === this.el && this.playing) setTimeout(() => this.next(), 500);
+    });
+    return a;
   }
 
   get playing(): boolean {
@@ -82,7 +113,7 @@ export class BackgroundMusic {
     if (on === this.external) return;
     this.external = on;
     localStorage.setItem(EXTERNAL_KEY, on ? '1' : '0');
-    if (on) this.fadeTo(0, () => this.el.pause());
+    if (on) this.fadeTo(0, () => this.silence());
     else if (this.enabled && this.unlocked) this.start();
   }
 
@@ -129,7 +160,7 @@ export class BackgroundMusic {
     if (on) this.external = false;
     localStorage.setItem(EXTERNAL_KEY, this.external ? '1' : '0');
     if (on) this.start();
-    else this.fadeTo(0, () => this.el.pause());
+    else this.fadeTo(0, () => this.silence());
   }
 
   toggle(): boolean {
@@ -172,16 +203,66 @@ export class BackgroundMusic {
     }, 50);
   }
 
+  /** Menu : morceaux doux d'abord ; sortie : morceaux péchus d'abord. Change de morceau si celui en cours ne convient pas. */
+  setMood(m: Mood): void {
+    if (m === this.mood) return;
+    this.mood = m;
+    if (this.index < 0) return;
+    const cur = this.current;
+    const rest = ordered(m).filter((t) => t !== cur);
+    if (cur && cur.mood === m) {
+      // Le morceau en cours convient : il finit, la suite suit la nouvelle ambiance.
+      this.order = [cur, ...rest];
+      this.index = 0;
+    } else {
+      this.order = rest;
+      this.index = -1;
+      if (this.playing) this.crossTo(0);
+    }
+  }
+
   /** Morceau suivant (fondu enchaîné). */
   next(): void {
     if (!this.enabled || this.external) return;
-    this.fadeTo(0, () => this.load(this.index + 1));
+    this.crossTo(this.index + 1);
   }
 
   /** Morceau précédent (le premier de la liste repart du début). */
   previous(): void {
     if (!this.enabled || this.external) return;
-    this.fadeTo(0, () => this.load(Math.max(this.index - 1, 0)));
+    this.crossTo(Math.max(this.index - 1, 0));
+  }
+
+  /** Arrête les deux lecteurs (musique coupée ou cédée à Spotify). */
+  private silence(): void {
+    this.releaseOut();
+    this.el.pause();
+  }
+
+  private releaseOut(): void {
+    if (this.outTimer) clearInterval(this.outTimer);
+    this.outTimer = null;
+    this.out?.pause();
+    this.out = null;
+  }
+
+  /** Enchaîne vers le morceau `i` : l'ancien s'efface pendant que le nouveau monte. */
+  private crossTo(i: number): void {
+    if (this.fade === 0 || this.el.paused || this.el.ended) {
+      this.load(i);
+      return;
+    }
+    this.releaseOut();
+    this.out = this.el;
+    this.outFade = this.fade;
+    [this.el, this.spare] = [this.spare, this.el];
+    const step = 0.05 / CROSS_S;
+    this.outTimer = setInterval(() => {
+      this.outFade = Math.max(0, this.outFade - step);
+      this.apply();
+      if (this.outFade === 0) this.releaseOut();
+    }, 50);
+    this.load(i);
   }
 
   private start(): void {
@@ -196,7 +277,7 @@ export class BackgroundMusic {
   private load(i: number): void {
     if (i >= this.order.length || this.order.length === 0) {
       const last = this.current;
-      this.order = shuffled(PLAYLIST);
+      this.order = ordered(this.mood);
       // Premier morceau de la session : toujours « Échappée », la suite au hasard.
       if (!last) {
         const first = PLAYLIST.find((t) => t.file === FIRST_TRACK);
@@ -212,18 +293,20 @@ export class BackgroundMusic {
     this.fade = 0;
     this.apply();
     void this.el.play().catch(() => undefined);
-    this.fadeTo(1);
+    this.fadeTo(1, undefined, CROSS_S);
     this.onTrack?.(t);
   }
 
   private apply(): void {
-    this.el.volume = Math.max(0, Math.min(1, this.volume * this.duck * this.voice * this.fade));
+    const base = this.volume * this.duck * this.voice;
+    this.el.volume = Math.max(0, Math.min(1, base * this.fade));
+    if (this.out) this.out.volume = Math.max(0, Math.min(1, base * this.outFade));
   }
 
-  private fadeTo(target: number, done?: () => void): void {
+  private fadeTo(target: number, done?: () => void, seconds = FADE_S): void {
     this.fadeTarget = target;
     if (this.fadeTimer) clearInterval(this.fadeTimer);
-    const stepPerTick = 0.05 / FADE_S;
+    const stepPerTick = 0.05 / seconds;
     this.fadeTimer = setInterval(() => {
       const d = this.fadeTarget - this.fade;
       this.fade = Math.abs(d) <= stepPerTick ? this.fadeTarget : this.fade + Math.sign(d) * stepPerTick;

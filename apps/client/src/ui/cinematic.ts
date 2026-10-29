@@ -9,6 +9,7 @@ import { sunDirection } from '../world/environment.ts';
 import { splatAt } from '../world/splat.ts';
 import type { World } from '../world/world.ts';
 import type { Engine } from '../engine/renderer.ts';
+import { GRAPHIC_STYLE, LOW_POLY } from '../engine/style.ts';
 import { filmClock, freezeStreaming, waitForAssets, type ViewPoint } from './cinematicStream.ts';
 import { CINE_ENV, GROUP_SPEED, LOOP_S, SLOTS, XFADE_S, formation, frameCount, frontFraming, gesture, isCineSeason, shotAt, smooth, type CineSeason } from './cinematicPlan.ts';
 
@@ -18,7 +19,8 @@ import { CINE_ENV, GROUP_SPEED, LOOP_S, SLOTS, XFADE_S, formation, frameCount, f
  *
  *   /?cinematic=autumn&world=chevreuse&route=chevreuse-boucle&quality=ultra&fps=30&w=1920&h=1080&ss=2&sub=8&capture=1
  *
- * - capture=1 : chaque image part en PNG (sans perte) vers POST /__save (dir=menu-loop/<saison>),
+ * - capture=1 : chaque image part en PNG (sans perte) vers POST /__save (dir=menu-loop/<saison>,
+ *   menu-loop/lowpoly-<saison> en style jeu vidéo : &style=lowpoly),
  *   puis un manifeste ; tools/menu-loop attend ce manifeste et encode la boucle (voir son README).
  *   &then=summer,winter enchaîne les saisons suivantes dans le même onglet.
  * - stills=5,15.5 : quelques images seulement (out/menu-loop/stills-<saison>/), pour régler les plans.
@@ -210,7 +212,9 @@ export async function runCinematic(engine: Engine, world: World, track: RouteTra
     status.textContent = msg;
     document.title = msg;
   };
-  const state = { season, fps, frames: frameCount(fps), done: 0, finished: false, d0: 0, error: '' };
+  /** Dossier des images et nom de la boucle : la saison, préfixée du style jeu vidéo. */
+  const tag = LOW_POLY ? `lowpoly-${season}` : season;
+  const state = { season, style: GRAPHIC_STYLE, fps, frames: frameCount(fps), done: 0, finished: false, d0: 0, error: '' };
   (window as unknown as { __cine: unknown }).__cine = state;
 
   // Saison, heure dorée et ciel du film.
@@ -447,10 +451,10 @@ export async function runCinematic(engine: Engine, world: World, track: RouteTra
           if (i === fps) shot = png();
         });
         say(`cinematic : image t=${ts}`);
-        if (shot) await post(`/__save?dir=menu-loop/stills-${season}&name=${encodeURIComponent(`t${ts.toFixed(1).replace('.', '_')}.png`)}`, await shot);
+        if (shot) await post(`/__save?dir=menu-loop/stills-${tag}&name=${encodeURIComponent(`t${ts.toFixed(1).replace('.', '_')}.png`)}`, await shot);
       }
       state.finished = true;
-      say(`cinematic : ${stills.length} images → out/menu-loop/stills-${season}/`);
+      say(`cinematic : ${stills.length} images → out/menu-loop/stills-${tag}/`);
       return;
     }
     await run(-6, 5 * fps, null, false);
@@ -460,7 +464,7 @@ export async function runCinematic(engine: Engine, world: World, track: RouteTra
       const t0 = performance.now();
       await run(0, state.frames, async (i) => {
         const p = png()
-          .then((blob) => post(`/__save?dir=menu-loop/${season}&name=frame-${String(i).padStart(5, '0')}.png`, blob))
+          .then((blob) => post(`/__save?dir=menu-loop/${tag}&name=frame-${String(i).padStart(5, '0')}.png`, blob))
           .then(() => {
             inflight.delete(p);
             state.done++;
@@ -473,8 +477,8 @@ export async function runCinematic(engine: Engine, world: World, track: RouteTra
         }
       });
       await Promise.all(inflight);
-      const manifest = { season, fps, width: W, height: H, format: 'png', ss, sub, frames: state.frames, loopS: LOOP_S, xfadeS: XFADE_S, routeId: track.route.id, d0, hour: env.hour, renderS: Math.round((performance.now() - t0) / 1000), createdAt: new Date().toISOString() };
-      await post(`/__save?dir=menu-loop/${season}&name=manifest.json`, JSON.stringify(manifest, null, 2));
+      const manifest = { season, style: GRAPHIC_STYLE, fps, width: W, height: H, format: 'png', ss, sub, frames: state.frames, loopS: LOOP_S, xfadeS: XFADE_S, routeId: track.route.id, d0, hour: env.hour, renderS: Math.round((performance.now() - t0) / 1000), createdAt: new Date().toISOString() };
+      await post(`/__save?dir=menu-loop/${tag}&name=manifest.json`, JSON.stringify(manifest, null, 2));
       state.finished = true;
       say(`cinematic ${season} : ${state.frames} images capturées`);
       // Saisons suivantes dans le même onglet (&then=summer,winter).

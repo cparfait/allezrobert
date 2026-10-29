@@ -266,13 +266,13 @@ au public sont listées par `PUBLIC_ROUTES` (défaut : `anneau-de-longchamp`).
 
 ## 12 bis. Boucles vidéo du menu
 
-Le fond du menu joue une boucle de 60 s par saison (`/menu/loop-<saison>.mp4`, H.264, ≈15 à
-30 Mo ; `.webm` VP9 en repli). Trop lourdes pour le dépôt public, elles ne sont ni dans git ni
+Le fond du menu joue une boucle de 60 s par saison et par style graphique (`/menu/loop-<saison>.mp4`
+en réaliste, `/menu/loop-lowpoly-<saison>.mp4` en jeu vidéo, H.264, ≈15 à 30 Mo ; `.webm` VP9 en repli). Trop lourdes pour le dépôt public, elles ne sont ni dans git ni
 dans l'image web : Caddy les sert depuis `deploy/data/menu/` (volume `MENU_DIR`, lecture seule).
-Les images fixes `still-<saison>.jpg` restent dans l'image : sans vidéo (fichier absent, 404),
+Les images fixes `still-<saison>.jpg` et `still-lowpoly-<saison>.jpg` restent dans l'image : sans vidéo (fichier absent, 404),
 le menu affiche simplement l'image fixe de la saison.
 
-1. Sur ton PC, générer les vidéos (≈1 h 30 pour les 4 saisons, voir `tools/menu-loop/README.md`) :
+1. Sur ton PC, générer les vidéos (≈3 h pour les 2 styles × 4 saisons, voir `tools/menu-loop/README.md`) :
    ```bash
    pnpm --filter @allezrobert/menu-loop capture
    ```

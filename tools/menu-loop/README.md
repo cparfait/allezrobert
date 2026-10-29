@@ -1,11 +1,13 @@
 # Film d'accueil du menu (tools/menu-loop)
 
-Le fond du menu joue une boucle de 60 s par saison, tournée dans le jeu lui-même (mode
+Le fond du menu joue une boucle de 60 s par saison et par style graphique (réaliste ou jeu
+vidéo, celui choisi par le joueur), tournée dans le jeu lui-même (mode
 « cinématique » du client de dev, `apps/client/src/ui/cinematic.ts`, plan de tournage dans
 `cinematicPlan.ts`) : un groupe de 10 coureurs sur la boucle de Chevreuse, six plans, raccord
 de boucle invisible (les 1,5 dernières secondes fondues dans les premières).
 
-Sorties, dans `apps/client/public/menu/` :
+Sorties, dans `apps/client/public/menu/` (style jeu vidéo : mêmes fichiers préfixés,
+`loop-lowpoly-<saison>.*` et `still-lowpoly-<saison>.jpg`) :
 
 | Fichier | Contenu | Dans git |
 | --- | --- | --- |
@@ -21,8 +23,9 @@ dans `apps/client/src/main.ts`).
 ## Régénérer
 
 ```bash
-pnpm --filter @allezrobert/menu-loop capture                     # 4 saisons (≈1 h 30 sur RTX 4090)
-pnpm --filter @allezrobert/menu-loop capture -- --season autumn  # une saison
+pnpm --filter @allezrobert/menu-loop capture                     # 2 styles × 4 saisons (≈3 h sur RTX 4090)
+pnpm --filter @allezrobert/menu-loop capture -- --season autumn  # une saison, dans les deux styles
+pnpm --filter @allezrobert/menu-loop capture -- --style lowpoly  # un style (real | lowpoly)
 pnpm --filter @allezrobert/menu-loop encode -- --season autumn   # réencoder des images déjà capturées
 ```
 
@@ -31,11 +34,12 @@ copier les vidéos sur le serveur.
 
 Le script lance son propre serveur de dev (port 5199, modifiable avec `MENU_LOOP_PORT`, sans rechargement à chaud) et un Chrome
 sans fenêtre (WebGPU, profil dédié `out/menu-loop/chrome-profile`, pas de ralentissement des pages
-en arrière-plan) ; les saisons s'enchaînent dans le même onglet. Pour chaque saison il attend le
+en arrière-plan) ; les saisons d'un style s'enchaînent dans le même onglet (`&style=real|lowpoly`),
+puis un nouvel onglet tourne l'autre style. Pour chaque saison il attend le
 manifeste écrit par la page, encode, écrit l'image fixe et extrait des images de contrôle (une
-par plan et les deux côtés du raccord) dans `out/menu-loop/check-<saison>/`.
+par plan et les deux côtés du raccord) dans `out/menu-loop/check-<saison>/` (`check-lowpoly-<saison>/`).
 
-Options : `--season spring,winter`, `--url http://localhost:5173` (serveur existant),
+Options : `--season spring,winter`, `--style real,lowpoly`, `--url http://localhost:5173` (serveur existant),
 `--browser open|manual` (navigateur par défaut / adresse affichée seulement), `--headed`
 (fenêtre de Chrome visible), `--ss 2`, `--sub 8`, `--crf 19`, `--vp9-crf 40`,
 `--mp4-max-kbps 3800` (plafond du MP4, 0 = CRF pur), `--no-webm`, `--av1-crf 50`, `--no-av1`.
@@ -44,7 +48,7 @@ Options : `--season spring,winter`, `--url http://localhost:5173` (serveur exist
 Une capture interrompue (onglet ou serveur tombé) reprend sa saison depuis le début, jusqu'à
 trois fois ; le serveur de dev est relancé s'il s'arrête (la page retente ses envois pendant
 3 min). Journaux : `out/menu-loop/vite.log` et `out/menu-loop/chrome-<saison>.log`. Prévoir
-≈5 Go libres par saison pour les PNG (un disque plein arrête le serveur : ENOSPC) ; ils peuvent
+≈5 Go libres par saison et par style pour les PNG (un disque plein arrête le serveur : ENOSPC) ; ils peuvent
 être effacés une fois la saison encodée.
 
 ## Rendu
@@ -57,12 +61,14 @@ trois fois ; le serveur de dev est relancé s'il s'arrête (la page retente ses 
   (≈3 Mo l'image, ≈6 Go par saison ; `out/` n'est pas versionné).
 - Paysage figé avant la première image (`apps/client/src/ui/cinematicStream.ts`) : tuiles
   chargées une fois pour tout le trajet (orthophotos comprises, plus aucune requête réseau),
-  niveau de détail des arbres calculé sur tout le trajet de la caméra, herbe posée sur une
-  grille fixe du monde, coureurs toujours au niveau de détail maximal ; aucune apparition en
+  niveau de détail des arbres calculé sur tout le trajet de la caméra, herbe ancrée au monde
+  (blocs de `GrassField`, regénérés d'un coup tous les 1,5 m de caméra), coureurs toujours au niveau de détail maximal ; aucune apparition en
   cours de plan.
 - Horloge des shaders (vent, eau) = temps du film : animation régulière quelle que soit la
   durée de rendu d'une image.
-- Visages : avatar MPFB, un profil de base par coureur (`BASE_PROFILES`, Robert en tête) aux
+- Style jeu vidéo : coureurs `LowPolyRider` (mêmes tenues, vélos, regards et pédaliers imposés
+  au raccord) dans le monde low poly ; le reste du tournage est identique.
+- Visages (réaliste) : avatar MPFB, un profil de base par coureur (`BASE_PROFILES`, Robert en tête) aux
   traits un peu variés, effort d'endurance tranquille (`setEffort`), 6 s de mise en route.
 - Tenues : aucun maillot à logo de sponsor (refusé par `kit()`). Robert, en tête, garde son
   maillot bleu ; les autres portent des maillots de club unis ou à motif.

@@ -1,10 +1,11 @@
 /**
  * Film d'accueil du menu : capture des images (mode cinématique du client de dev) puis encodage
- * de la boucle par saison dans apps/client/public/menu/loop-<saison>.mp4 (+ .webm) et de l'image
- * fixe still-<saison>.jpg. Mode d'emploi : tools/menu-loop/README.md.
+ * de la boucle par saison et par style graphique dans apps/client/public/menu/loop-<saison>.mp4
+ * (+ .webm, .av1.mp4) et de l'image fixe still-<saison>.jpg ; style jeu vidéo : loop-lowpoly-<saison>.*,
+ * still-lowpoly-<saison>.jpg. Mode d'emploi : tools/menu-loop/README.md.
  *
- *   pnpm --filter @allezrobert/menu-loop capture                      (4 saisons, ~1 h 30)
- *   pnpm --filter @allezrobert/menu-loop capture -- --season autumn
+ *   pnpm --filter @allezrobert/menu-loop capture                      (2 styles × 4 saisons, ~3 h)
+ *   pnpm --filter @allezrobert/menu-loop capture -- --style lowpoly --season autumn
  *   pnpm --filter @allezrobert/menu-loop encode -- --season autumn    (images déjà capturées)
  *
  * Par défaut le script lance son propre serveur de dev du client (port 5199, sans rechargement à
@@ -25,6 +26,8 @@ const ROOT = resolve(import.meta.dirname, '../../..');
 const OUT = resolve(ROOT, 'out/menu-loop');
 const PUBLIC = resolve(ROOT, 'apps/client/public/menu');
 const SEASONS = ['spring', 'summer', 'autumn', 'winter'] as const;
+/** Styles graphiques du jeu (apps/client/src/engine/style.ts) : un film chacun. */
+const STYLES = ['real', 'lowpoly'] as const;
 const NULL_DEV = process.platform === 'win32' ? 'NUL' : '/dev/null';
 /** Image fixe du menu : JPEG d'environ 200 à 300 ko. */
 const STILL_MAX_BYTES = 300 * 1024;
@@ -39,6 +42,10 @@ function arg(name: string, fallback?: string): string | undefined {
 const mode = process.argv[2] === 'encode' ? 'encode' : 'capture';
 const seasonArg = arg('season', 'all') as string;
 const seasons = seasonArg === 'all' ? [...SEASONS] : seasonArg.split(',');
+const styleArg = arg('style', 'all') as string;
+const styles = styleArg === 'all' ? [...STYLES] : styleArg.split(',');
+/** Nom d'une boucle (dossier des images, fichiers du menu) : la saison, préfixée du style jeu vidéo. */
+const tagOf = (style: string, season: string) => (style === 'lowpoly' ? `lowpoly-${season}` : season);
 const [w, h] = (arg('size', `${DEFAULT_ENCODE.width}x${DEFAULT_ENCODE.height}`) as string).split('x').map(Number) as [number, number];
 /** Suréchantillonnage (rendu à w·ss × h·ss, réduit dans la page) et sous-rendus de l'anticrénelage temporel. */
 const ss = Number(arg('ss', '2'));
@@ -213,8 +220,11 @@ function encode(season: string): void {
 }
 
 for (const season of seasons) if (!(SEASONS as readonly string[]).includes(season)) throw new Error(`Saison inconnue : ${season}`);
+for (const style of styles) if (!(STYLES as readonly string[]).includes(style)) throw new Error(`Style inconnu : ${style}`);
+/** Boucles demandées, style par style (les saisons d'un style s'enchaînent dans le même onglet). */
+const jobs = styles.flatMap((style) => seasons.map((season) => ({ style, season, tag: tagOf(style, season) })));
 if (mode === 'encode') {
-  for (const season of seasons) encode(season);
+  for (const j of jobs) encode(j.tag);
 } else {
   // Serveur : celui de --url, ou le nôtre (relancé s'il tombe entre deux tentatives).
   let server = arg('url') ? { url: arg('url') as string, stop: () => undefined } : await ownServer();
@@ -227,40 +237,44 @@ ${new Date().toLocaleTimeString()} : serveur de dev arrêté, relance (journal :
     server = await ownServer();
   };
   if (!(await alive())) throw new Error(`Serveur de dev injoignable sur ${server.url} : lancer « pnpm dev » d'abord.`);
-  for (const season of seasons) rmSync(resolve(OUT, season), { recursive: true, force: true });
+  for (const j of jobs) rmSync(resolve(OUT, j.tag), { recursive: true, force: true });
   const t0 = Date.now();
-  /** Saisons restant à capturer ; une capture interrompue reprend sa saison depuis le début. */
-  const pending = [...seasons];
+  /** Boucles restant à capturer ; une capture interrompue reprend sa saison depuis le début. */
+  const pending = [...jobs];
   const MAX_RETRIES = 3;
   let retries = 0;
   let chrome: ChildProcess | null = null;
   try {
     while (pending.length) {
-      const [first, ...rest] = pending as [string, ...string[]];
-      const url = `${server.url}/?cinematic=${first}&world=chevreuse&route=chevreuse-boucle&quality=ultra&fps=30&w=${w}&h=${h}&ss=${ss}&sub=${sub}&capture=1${rest.length ? `&then=${rest.join(',')}` : ''}`;
+      const first = pending[0] as (typeof jobs)[number];
+      // Saisons suivantes du même style : même onglet (&then=…) ; le style suivant repart d'un nouvel onglet.
+      const rest = pending.slice(1).filter((j) => j.style === first.style).map((j) => j.season);
+      const url = `${server.url}/?cinematic=${first.season}&style=${first.style}&world=chevreuse&route=chevreuse-boucle&quality=ultra&fps=30&w=${w}&h=${h}&ss=${ss}&sub=${sub}&capture=1${rest.length ? `&then=${rest.join(',')}` : ''}`;
       if (browser === 'chrome') {
         console.log(`Chrome dédié${arg('headed') ? '' : ' sans fenêtre'} : ${url}`);
-        chrome = launchChrome(url, resolve(OUT, `chrome-${first}.log`));
+        chrome = launchChrome(url, resolve(OUT, `chrome-${first.tag}.log`));
       } else {
         console.log(`Ouvrir dans un onglet d'un navigateur WebGPU (Chrome, Edge) ; il peut rester en arrière-plan :
   ${url}`);
         if (browser === 'open') openBrowser(url);
       }
       try {
-        while (pending.length) {
-          const season = pending[0] as string;
-          await waitCapture(season, chrome, keepServer);
-          encode(season);
+        while (pending[0]?.style === first.style) {
+          const job = pending[0];
+          await waitCapture(job.tag, chrome, keepServer);
+          encode(job.tag);
           pending.shift();
         }
+        if (chrome) killTree(chrome);
+        chrome = null;
       } catch (err) {
         // Onglet ou serveur tombé (carte graphique partagée, processus arrêté…) : on relance la saison.
         if (chrome) killTree(chrome);
         chrome = null;
         if (browser !== 'chrome' || ++retries > MAX_RETRIES) throw err;
         console.warn(`
-${String(err)} : nouvelle tentative ${retries}/${MAX_RETRIES} à partir de « ${pending[0]} »`);
-        rmSync(resolve(OUT, pending[0] as string), { recursive: true, force: true });
+${String(err)} : nouvelle tentative ${retries}/${MAX_RETRIES} à partir de « ${pending[0]?.tag} »`);
+        rmSync(resolve(OUT, pending[0]?.tag as string), { recursive: true, force: true });
         if (arg('url') && !(await alive())) throw new Error(`Serveur de dev injoignable sur ${server.url}`);
         await keepServer();
       }

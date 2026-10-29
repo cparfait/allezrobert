@@ -494,6 +494,58 @@
    "open": true
   },
   {
+   "id": "idf-ablis",
+   "name": "Ablis",
+   "region": "Yvelines · Île-de-France",
+   "routes": [
+    {
+     "id": "boucle-20-km",
+     "name": "Boucle de 20 km depuis Ablis",
+     "nameEn": "20 km loop from Ablis",
+     "lengthM": 17983.63,
+     "elevationGainM": 102.26,
+     "loop": true
+    },
+    {
+     "id": "boucle-30-km",
+     "name": "Boucle de 30 km depuis Ablis",
+     "nameEn": "30 km loop from Ablis",
+     "lengthM": 28356.67,
+     "elevationGainM": 137.32,
+     "loop": true
+    },
+    {
+     "id": "boucle-40-km",
+     "name": "Boucle de 40 km depuis Ablis",
+     "nameEn": "40 km loop from Ablis",
+     "lengthM": 41434,
+     "elevationGainM": 308.78,
+     "loop": false
+    },
+    {
+     "id": "boucle-50-km",
+     "name": "Boucle de 50 km depuis Ablis",
+     "nameEn": "50 km loop from Ablis",
+     "lengthM": 48003,
+     "elevationGainM": 232.91,
+     "loop": true
+    }
+   ],
+   "pack": {
+    "version": "4b5b579ddf4a",
+    "bytes": 177333824,
+    "files": 1026,
+    "gzBytes": 65399657
+   },
+   "l93": {
+    "minE": 608000,
+    "minN": 6812000,
+    "maxE": 624000,
+    "maxN": 6828000
+   },
+   "open": true
+  },
+  {
    "id": "idf-aubergenville",
    "name": "Aubergenville",
    "region": "Yvelines · Île-de-France",
@@ -1170,6 +1222,58 @@
    "open": true
   },
   {
+   "id": "idf-houdan",
+   "name": "Houdan",
+   "region": "Yvelines · Île-de-France",
+   "routes": [
+    {
+     "id": "boucle-20-km",
+     "name": "Boucle de 20 km depuis Houdan",
+     "nameEn": "20 km loop from Houdan",
+     "lengthM": 19841.4,
+     "elevationGainM": 172.07,
+     "loop": true
+    },
+    {
+     "id": "boucle-30-km",
+     "name": "Boucle de 30 km depuis Houdan",
+     "nameEn": "30 km loop from Houdan",
+     "lengthM": 31450,
+     "elevationGainM": 245.98,
+     "loop": false
+    },
+    {
+     "id": "boucle-40-km",
+     "name": "Boucle de 40 km depuis Houdan",
+     "nameEn": "40 km loop from Houdan",
+     "lengthM": 41690,
+     "elevationGainM": 323.64,
+     "loop": false
+    },
+    {
+     "id": "boucle-50-km",
+     "name": "Boucle de 50 km depuis Houdan",
+     "nameEn": "50 km loop from Houdan",
+     "lengthM": 49026,
+     "elevationGainM": 362.56,
+     "loop": false
+    }
+   ],
+   "pack": {
+    "version": "158e51bac1c4",
+    "bytes": 249713602,
+    "files": 1026,
+    "gzBytes": 108224231
+   },
+   "l93": {
+    "minE": 592000,
+    "minN": 6844000,
+    "maxE": 608000,
+    "maxN": 6860000
+   },
+   "open": true
+  },
+  {
    "id": "idf-les-mureaux",
    "name": "Les Mureaux",
    "region": "Yvelines · Île-de-France",
@@ -1322,6 +1426,110 @@
     "minN": 6892000,
     "maxE": 624000,
     "maxN": 6908000
+   },
+   "open": true
+  },
+  {
+   "id": "idf-maisse",
+   "name": "Maisse",
+   "region": "Essonne · Île-de-France",
+   "routes": [
+    {
+     "id": "boucle-20-km",
+     "name": "Boucle de 20 km depuis Maisse",
+     "nameEn": "20 km loop from Maisse",
+     "lengthM": 19790,
+     "elevationGainM": 177.81,
+     "loop": false
+    },
+    {
+     "id": "boucle-30-km",
+     "name": "Boucle de 30 km depuis Maisse",
+     "nameEn": "30 km loop from Maisse",
+     "lengthM": 27906,
+     "elevationGainM": 262.91,
+     "loop": false
+    },
+    {
+     "id": "boucle-40-km",
+     "name": "Boucle de 40 km depuis Maisse",
+     "nameEn": "40 km loop from Maisse",
+     "lengthM": 41668,
+     "elevationGainM": 369.59,
+     "loop": false
+    },
+    {
+     "id": "boucle-50-km",
+     "name": "Boucle de 50 km depuis Maisse",
+     "nameEn": "50 km loop from Maisse",
+     "lengthM": 49532,
+     "elevationGainM": 379.97,
+     "loop": false
+    }
+   ],
+   "pack": {
+    "version": "98ea476f981c",
+    "bytes": 206949054,
+    "files": 1026,
+    "gzBytes": 84464224
+   },
+   "l93": {
+    "minE": 640000,
+    "minN": 6796000,
+    "maxE": 656000,
+    "maxN": 6812000
+   },
+   "open": true
+  },
+  {
+   "id": "idf-mantes-la-jolie",
+   "name": "Mantes-la-Jolie",
+   "region": "Yvelines · Île-de-France",
+   "routes": [
+    {
+     "id": "boucle-20-km",
+     "name": "Boucle de 20 km depuis Mantes-la-Jolie",
+     "nameEn": "20 km loop from Mantes-la-Jolie",
+     "lengthM": 21035.81,
+     "elevationGainM": 187.26,
+     "loop": true
+    },
+    {
+     "id": "boucle-30-km",
+     "name": "Boucle de 30 km depuis Mantes-la-Jolie",
+     "nameEn": "30 km loop from Mantes-la-Jolie",
+     "lengthM": 31694,
+     "elevationGainM": 260.05,
+     "loop": false
+    },
+    {
+     "id": "boucle-40-km",
+     "name": "Boucle de 40 km depuis Mantes-la-Jolie",
+     "nameEn": "40 km loop from Mantes-la-Jolie",
+     "lengthM": 40768,
+     "elevationGainM": 327.51,
+     "loop": false
+    },
+    {
+     "id": "boucle-50-km",
+     "name": "Boucle de 50 km depuis Mantes-la-Jolie",
+     "nameEn": "50 km loop from Mantes-la-Jolie",
+     "lengthM": 52848,
+     "elevationGainM": 651.9,
+     "loop": false
+    }
+   ],
+   "pack": {
+    "version": "d8879e543ac3",
+    "bytes": 294806973,
+    "files": 1026,
+    "gzBytes": 126996313
+   },
+   "l93": {
+    "minE": 592000,
+    "minN": 6876000,
+    "maxE": 608000,
+    "maxN": 6892000
    },
    "open": true
   },
@@ -2108,7 +2316,6 @@
   {
    "id": "ile-de-robert",
    "name": "L'île de Robert",
-   "region": "Monde imaginaire · Jeu vidéo",
    "routes": [
     {
      "id": "anneau",

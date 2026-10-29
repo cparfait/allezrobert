@@ -1,8 +1,5 @@
 import * as THREE from 'three/webgpu';
-import { rng } from '../engine/noise.ts';
 import type { Engine } from '../engine/renderer.ts';
-import { splatAt } from '../world/splat.ts';
-import type { LoadedTile } from '../world/types.ts';
 import type { World } from '../world/world.ts';
 
 /**
@@ -16,8 +13,9 @@ import type { World } from '../world/world.ts';
  *   niveau de détail pendant le film) ;
  * - arbres : niveau de détail selon la distance au point de vue le plus proche du trajet
  *   (caméra et groupe sur tout le film), donc constant ;
- * - herbe : touffes posées sur une grille fixe du monde, autour de la caméra (seul le bord du
- *   disque de 60 m bouge, au lieu d'un nouveau tirage tous les 12 m) ;
+ * - herbe : touffes de GrassField (ancrées au monde par blocs), autour de la caméra, regénérées
+ *   tous les 1,5 m et d'un coup (en jeu : tous les 12 m, étalé sur plusieurs images) : seul le
+ *   bord du disque bouge ;
  * - horloge des shaders (vent, eau) : temps du film, et non temps réel.
  */
 
@@ -39,11 +37,9 @@ interface VegetationInternals {
 }
 
 interface GrassInternals {
-  max: number;
-  mesh: THREE.InstancedMesh;
-  tileAt(x: number, z: number): LoadedTile | undefined;
-  heightAt(x: number, z: number): number;
-  avoid(x: number, z: number): boolean;
+  center: THREE.Vector3;
+  job: unknown;
+  advance(budget: number): void;
   update(focus: THREE.Vector3): void;
 }
 
@@ -54,11 +50,6 @@ interface NodeFrameInternals {
   lastTime?: number;
   update(): void;
 }
-
-/** Rayon de l'herbe : le même que RADIUS dans world/grass.ts. */
-const GRASS_RADIUS = 60;
-/** Maille de la grille fixe de l'herbe (m). */
-const GRASS_CELL = 8;
 
 /** Horloge des nœuds (time, deltaTime) pilotée par le film plutôt que par performance.now(). */
 export function filmClock(engine: Engine): { time: number; delta: number } {
@@ -112,69 +103,16 @@ export function freezeStreaming(world: World, fixedFocus: THREE.Vector3, views: 
   veg.update(fixedFocus);
 
   const grass = world.grass as unknown as GrassInternals;
-  // Même nombre d'essais au m² que GrassField.update (2 × max sur le disque).
-  const perCell = Math.round(((grass.max * 2) / (Math.PI * GRASS_RADIUS * GRASS_RADIUS)) * GRASS_CELL * GRASS_CELL);
+  const grassUpdate = grass.update.bind(grass);
   const last = new THREE.Vector3(1e9, 0, 1e9);
-  const m = new THREE.Matrix4();
-  const q = new THREE.Quaternion();
-  const s = new THREE.Vector3();
-  const p = new THREE.Vector3();
-  const up = new THREE.Vector3(0, 1, 0);
   grass.update = () => {
-    if (!grass.max) return;
     const c = grassCenter;
     if (Math.hypot(c.x - last.x, c.z - last.z) < 1.5) return;
     last.copy(c);
-    const R = GRASS_RADIUS;
-    const cells: Array<{ ix: number; iz: number; d: number }> = [];
-    for (let iz = Math.floor((c.z - R) / GRASS_CELL); iz <= Math.floor((c.z + R) / GRASS_CELL); iz++)
-      for (let ix = Math.floor((c.x - R) / GRASS_CELL); ix <= Math.floor((c.x + R) / GRASS_CELL); ix++) {
-        const nx = Math.min(Math.max(c.x, ix * GRASS_CELL), (ix + 1) * GRASS_CELL);
-        const nz = Math.min(Math.max(c.z, iz * GRASS_CELL), (iz + 1) * GRASS_CELL);
-        if (Math.hypot(nx - c.x, nz - c.z) > R) continue;
-        cells.push({ ix, iz, d: Math.hypot((ix + 0.5) * GRASS_CELL - c.x, (iz + 0.5) * GRASS_CELL - c.z) });
-      }
-    // Les plus proches d'abord : si le plafond d'instances est atteint, seul le bord manque.
-    cells.sort((a, b) => a.d - b.d);
-    let n = 0;
-    for (const cell of cells) {
-      if (n >= grass.max) break;
-      // Tirage propre à la case (indépendant du centre) : une touffe reste où elle est.
-      const r = rng((Math.imul(cell.ix, 73856093) ^ Math.imul(cell.iz, 19349663)) >>> 0);
-      for (let k = 0; k < perCell && n < grass.max; k++) {
-        // Toujours six tirages par candidat, qu'il soit retenu ou non.
-        const x = (cell.ix + r()) * GRASS_CELL;
-        const z = (cell.iz + r()) * GRASS_CELL;
-        const keep = r();
-        const size = r();
-        const rot = r();
-        const tall = r();
-        if (Math.hypot(x - c.x, z - c.z) > R) continue;
-        const tile = grass.tileAt(x, z);
-        if (!tile) continue;
-        // Densité : même règle que GrassField.update (world/grass.ts), pour un monde de plaine
-        // (le film se tourne à Chevreuse : ni roche ni neige d'altitude).
-        const meadow = splatAt(tile, 2, x, z);
-        const field = splatAt(tile, 1, x, z);
-        const forest = splatAt(tile, 0, x, z);
-        const road = splatAt(tile, 5, x, z);
-        const water = splatAt(tile, 3, x, z);
-        const verge = splatAt(tile, 6, x, z);
-        const density = road > 0.3 || water > 0.3 ? 0 : 0.35 + meadow * 0.65 - forest * 0.25 + field * 0.1 + verge * 0.8;
-        if (keep > density) continue;
-        if (grass.avoid(x, z)) continue;
-        const y = grass.heightAt(x, z);
-        if (!Number.isFinite(y)) continue;
-        const kk = (0.6 + size * 0.7) * (1 + verge * 0.6);
-        p.set(x, y - 0.02, z);
-        q.setFromAxisAngle(up, rot * Math.PI);
-        s.set(kk, kk * (0.8 + tall * 0.6), kk);
-        m.compose(p, q, s);
-        grass.mesh.setMatrixAt(n++, m);
-      }
-    }
-    grass.mesh.count = n;
-    grass.mesh.instanceMatrix.needsUpdate = true;
+    // Blocs déjà tirés gardés en cache : regénérer souvent ne coûte que le bord du disque.
+    grass.center.set(1e9, 0, 1e9);
+    grassUpdate(c);
+    if (grass.job) grass.advance(Infinity);
   };
 }
 

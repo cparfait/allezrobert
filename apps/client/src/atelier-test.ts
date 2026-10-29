@@ -200,13 +200,14 @@ async function main(): Promise<void> {
     const c = await render(st);
     const root = h.avatar.root;
     root.updateMatrixWorld(true);
-    const P = (n: string) => (root.getObjectByName(n) as THREE.Object3D).getWorldPosition(new THREE.Vector3());
+    const P = (n: string) => root.getObjectByName(n)?.getWorldPosition(new THREE.Vector3()) ?? new THREE.Vector3();
     const ang = (a: THREE.Vector3, b: THREE.Vector3) => (Math.atan2(b.y - a.y, b.z - a.z) * 180) / Math.PI;
     const pel = P('pelvis'), sp3 = P('spine_03'), nk = P('neck_01'), hd = P('head'), sh = P('upperarm_l');
     const m = { dos: ang(pel, sp3), hautDuDos: ang(sp3, nk), cou: ang(nk, hd), devant: (hd.z - sh.z) * 100, dessus: (hd.y - sh.y) * 100 };
     (window as unknown as { __mesure: unknown }).__mesure = m;
     (window as unknown as { __root: unknown }).__root = root; // squelette, pour mesurer les angles à la console
-    if (!params.has('silhouette')) {
+    // Coureur low poly : pas de squelette nommé, pas de mesures.
+    if (!params.has('silhouette') && root.getObjectByName('pelvis')) {
       const g = c.getContext('2d') as CanvasRenderingContext2D;
       g.fillStyle = 'rgba(10,13,20,0.75)';
       g.fillRect(20, 20, 640, 76);
