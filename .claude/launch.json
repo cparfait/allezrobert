@@ -192,6 +192,15 @@
         "set AR_HMR=0&& pnpm --filter @allezrobert/client exec vite --port 5201 --strictPort"
       ],
       "port": 5201
+    },
+    {
+      "name": "velos-lowpoly",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": [
+        "/c",
+        "set AR_HMR=0&& pnpm --filter @allezrobert/client exec vite --port 5204 --strictPort"
+      ],
+      "port": 5204
     }
   ]
 }

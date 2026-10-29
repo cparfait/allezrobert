@@ -468,6 +468,22 @@ export function loneWheel(tuneId: string, rear = false): THREE.Object3D | null {
   return w;
 }
 
+/**
+ * Roue de la bibliothèque au niveau de détail demandé, habillée pour ce vélo comme dans assembleBike (clés de matériaux,
+ * disque de frein selon les freins), à l'origine ; null avant chargement.
+ */
+export function libraryWheel(build: BikeBuild, front: boolean, lod: 0 | 1): THREE.Object3D | null {
+  const type = build.params.wheels[front ? 0 : 1] ?? 'c35';
+  const src = wheels?.[lod].scene.getObjectByName(`wheel_${type}_${front ? 'F' : 'R'}`);
+  if (!src) return null;
+  const w = src.clone(true);
+  w.position.set(0, 0, 0);
+  tagWheel(w, type, build);
+  const rotor = w.getObjectByName(`${src.name}_rotor`);
+  if (rotor) rotor.visible = build.params.brakes === 'disc';
+  return w;
+}
+
 /** Appelé à chaque famille chargée (p. ex. pour refaire l'image fixe de l'accueil). */
 export function onBikeFamilyLoaded(cb: (family: BikeFamily) => void): () => void {
   listeners.add(cb);

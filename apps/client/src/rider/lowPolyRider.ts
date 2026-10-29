@@ -6,10 +6,13 @@ import { SweptBody, makeJoints, type BodyLook } from './sweptBody.ts';
 import { HELMET_FACETED, aeroHelmetGeometry } from './aeroHelmet.ts';
 import { aerobarAnchors, buildAerobars, type AerobarAnchors } from './aerobars.ts';
 import { shoeDialOf } from './shoeLook.ts';
+import { BikeMaterials, assembleBike, bikeAnchors, bikeFamilyReady, libraryWheel, loadBikeFamily, type FamilyKey } from './bikes.ts';
+import { flatLook } from './flatLook.ts';
 
 /**
  * Cycliste et vélo du style jeu vidéo (low poly, voir engine/style.ts), construits de zéro en prismes
- * à facettes et aplats de couleur : aucun modèle téléchargé, un millier de triangles environ.
+ * à facettes et aplats de couleur, un millier de triangles environ. Vélo : celui du style réaliste (modèles du
+ * catalogue, niveau de détail simplifié) à facettes, voir REAL_BIKE_DEFAULT ; vélo en prismes en attendant.
  * Suit la tenue du garage : vélo (route, aéro, chrono, rétro, gravel, VTT), roues (basses, 35, 50, 65,
  * lenticulaire, trois bâtons), bidons et compteur, casque (route, aéro des vélos de chrono, chrono du garage) ou
  * casquette, coiffure, barbe et moustache, coureuse, maillot (bande, bandes de champion, manches,
@@ -36,6 +39,24 @@ const MAX_BANK = 0.3;
 const LEFT = new THREE.Vector3(1, 0, 0);
 /** Corps d'un seul tenant en tubes à section musculaire (sweptBody.ts) ; ?corps=prismes : anciens prismes séparés. */
 const TUBES_DEFAULT = (typeof location === 'undefined' ? null : new URLSearchParams(location.search).get('corps')) !== 'prismes';
+/**
+ * Vélo des modèles du style réaliste (bikes.ts, niveau de détail simplifié) rendu à facettes : mêmes cadres, livrées et
+ * inscriptions que le catalogue. Le vélo en prismes (buildBike) reste affiché le temps que la famille se charge, et
+ * remplace le modèle s'il est indisponible ; ?velo-prismes : toujours le vélo en prismes.
+ */
+const REAL_BIKE_DEFAULT = (typeof location === 'undefined' ? null : new URLSearchParams(location.search).has('velo-prismes')) !== true;
+/** Familles dont le chargement a échoué (fichiers absents) : vélo en prismes sans réessayer. */
+const failedFamilies = new Set<FamilyKey>();
+/** Selle des modèles : dessus 2,7 cm plus bas que celle du vélo en prismes (SADDLE). */
+const REAL_SEAT_DY = -0.027;
+/**
+ * Mains sur le poste de chrono des modèles (bikes/tt.glb…) : prolongateurs 12 cm plus courts et un peu plus bas que
+ * ceux du vélo en prismes, cornes du cintre de base 8,5 cm plus bas.
+ */
+const REAL_TT_HAND = new THREE.Vector3(0, -0.015, -0.12);
+const REAL_TT_HORNS = new THREE.Vector3(0, -0.085, -0.02);
+/** Distance (m) au-delà de laquelle les roues du modèle passent au niveau simplifié. */
+const NEAR_WHEELS = 12;
 
 type BikeKind = 'road' | 'aero' | 'tt' | 'retro' | 'gravel' | 'mtb';
 type BarKind = 'drop' | 'flat' | 'tt';
@@ -377,11 +398,20 @@ export class LowPolyRider implements RiderAvatarLike {
   /** Groupe incliné (virages, danseuse) : vélo et coureur. */
   private readonly lean = new THREE.Group();
   private body = new THREE.Group();
-  private crank = new THREE.Group();
-  private wheels: THREE.Group[] = [];
+  private crank: THREE.Object3D = new THREE.Group();
+  private wheels: THREE.Object3D[] = [];
   /** Écran du compteur (canevas rafraîchi par setComputer, 4 fois par seconde au plus). */
   private screen: { ctx: CanvasRenderingContext2D; tex: THREE.CanvasTexture; t: number } | null = null;
-  private pedals: THREE.Mesh[] = [];
+  /** Pédales (gauche, droite) ; celles du modèle gardent leur écart d'axe (`pedalX`), celles en prismes sont sous le pied. */
+  private pedals: THREE.Object3D[] = [];
+  private pedalX: number | null = null;
+  /** Vélo du modèle réaliste (REAL_BIKE_DEFAULT) : ses matériaux, et les réglages du coureur posé dessus. */
+  private readonly realBike: boolean;
+  private realMats: BikeMaterials | null = null;
+  private bb = BB.clone();
+  private seatDy = 0;
+  private readonly ttHandFix = new THREE.Vector3();
+  private readonly hornsFix = new THREE.Vector3();
   private legs: Array<{ side: number; shorts: Seg; knee: Seg; shin: Seg; sock: Seg; shoe: THREE.Mesh }> = [];
   private arms: Array<{ side: number; sleeve: Seg; cuff: Seg; upper: Seg; fore: Seg; glove: THREE.Object3D }> = [];
   private torso!: Seg;
@@ -443,8 +473,9 @@ export class LowPolyRider implements RiderAvatarLike {
   /** Articulations de l'image (remplies par update, lues par le corps en tubes). */
   private readonly J = makeJoints();
 
-  constructor(look: AvatarLook, opts: { tubes?: boolean } = {}) {
+  constructor(look: AvatarLook, opts: { tubes?: boolean; realBike?: boolean } = {}) {
     this.tubes = opts.tubes ?? TUBES_DEFAULT;
+    this.realBike = opts.realBike ?? REAL_BIKE_DEFAULT;
     this.root.add(this.lean);
     this.build(look);
   }
@@ -456,15 +487,20 @@ export class LowPolyRider implements RiderAvatarLike {
       this.lean.remove(c);
       c.traverse((o) => {
         const mesh = o as THREE.Mesh;
-        if (!mesh.isMesh) return;
+        // Vélo du modèle : géométries partagées avec la famille chargée, matériaux rendus par realMats.
+        if (!mesh.isMesh || o.userData.shared) return;
         mesh.geometry.dispose();
         (mesh.material as THREE.Material).dispose();
       });
     }
+    this.realMats?.dispose();
+    this.realMats = null;
     this.body = new THREE.Group();
     this.crank = new THREE.Group();
     this.wheels = [];
     this.pedals = [];
+    this.pedalX = null;
+    this.screen = null;
     this.legs = [];
     this.arms = [];
     this.bands = [];
@@ -474,7 +510,12 @@ export class LowPolyRider implements RiderAvatarLike {
     const bike = bikeOfLook(look);
     const kind = bikeKind(look, bike);
     this.fit = FITS[kind === 'mtb' ? 'flat' : kind === 'tt' ? 'tt' : 'drop'];
-    this.lean.add(this.buildBike(look, bike, kind), this.body);
+    const real = this.realBike ? this.mountRealBike(look, bike) : null;
+    this.bb.set(BB.x, real ? 0.27 : BB.y, BB.z);
+    this.seatDy = real ? REAL_SEAT_DY : 0;
+    this.ttHandFix.copy(real ? REAL_TT_HAND : new THREE.Vector3());
+    this.hornsFix.copy(real ? REAL_TT_HORNS : new THREE.Vector3());
+    this.lean.add(real ?? this.buildBike(look, bike, kind), this.body);
     this.buildRider(look, bike);
     this.noHelmet = !!look.noHelmet;
     this.noGlasses = !!look.noGlasses;
@@ -790,6 +831,97 @@ export class LowPolyRider implements RiderAvatarLike {
     g.add(straps());
   }
 
+  /**
+   * Vélo du style réaliste (niveau de détail simplifié, matériaux à facettes) : cadre, livrée, inscriptions, roues,
+   * cockpit, transmission. Null tant que la famille n'est pas chargée (le vélo est remonté à son arrivée) ou si elle
+   * est indisponible. Gravel et VTT : leurs modèles complets.
+   */
+  private mountRealBike(look: AvatarLook, bike: BikeBuild): THREE.Group | null {
+    const own = look.bikeType === 'gravel' || look.bikeType === 'mtb' ? look.bikeType : null;
+    const family: FamilyKey = own ?? bike.family;
+    if (failedFamilies.has(family)) return null;
+    if (!bikeFamilyReady(family)) {
+      const key = this.lookKey;
+      void loadBikeFamily(family).then((ok) => {
+        if (!ok) failedFamilies.add(family);
+        else if (this.lookKey === key) this.build(look);
+      });
+      return null;
+    }
+    const a = assembleBike(bike, family, 1, look.bottles);
+    // Roues bien rondes et rayonnées de près (niveau détaillé : 64 facettes), simplifiées au loin (20 facettes, sans
+    // rayons) : chaque roue devient un LOD posé à son axe, qui tourne d'un bloc.
+    const wheels = own
+      ? a.wheels
+      : a.wheels.map((far, i) => {
+          const near = libraryWheel(bike, i === 0, 0);
+          if (!near) return far;
+          const lod = new THREE.LOD();
+          lod.name = far.name;
+          lod.position.copy(far.position);
+          lod.scale.copy(far.scale);
+          far.position.set(0, 0, 0);
+          far.scale.set(1, 1, 1);
+          far.parent?.add(lod);
+          lod.addLevel(near, 0);
+          lod.addLevel(far, NEAR_WHEELS);
+          return lod;
+        });
+    const mats = new BikeMaterials(bike, look, family);
+    this.realMats = mats;
+    a.group.traverse((o) => {
+      o.userData.shared = true;
+      const mesh = o as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      // Plaque de cadre : matériau texturé propre.
+      if (mesh.userData.matKey === 'number') return;
+      const m = mats.get((mesh.userData.matKey as string | undefined) ?? (mesh.material as THREE.Material).name);
+      flatLook(m);
+      mesh.material = m;
+    });
+    this.crank = a.crank ?? new THREE.Group();
+    this.wheels = wheels;
+    const pl = a.pedals.L;
+    const pr = a.pedals.R;
+    if (pl && pr) {
+      this.pedals = [pl, pr];
+      this.pedalX = Math.abs(pl.position.x);
+    } else {
+      for (let i = 0; i < 2; i++) {
+        const p = new THREE.Mesh(box(0.075, 0.016, 0.09), flat('#1a1b1f', 0.6));
+        this.pedals.push(p);
+        a.group.add(p);
+      }
+    }
+    // Prolongateurs de l'atelier (posés par assembleBike sur les cintres route) : poignées et repose-coudes.
+    const clipKind = bike.extras?.aerobars;
+    const anchors = bikeAnchors(family);
+    this.clip = clipKind && !anchors.pads && !own ? aerobarAnchors(clipKind, anchors.hands) : null;
+    // Compteur : l'écran allumé du style jeu vidéo posé sur celui du modèle.
+    if (bike.params.computer !== false) {
+      a.group.updateMatrixWorld(true);
+      const box3 = new THREE.Box3();
+      a.group.traverse((o) => {
+        const mesh = o as THREE.Mesh;
+        if (mesh.isMesh && (mesh.material as THREE.Material).name === 'computer_screen') box3.expandByObject(mesh);
+      });
+      if (!box3.isEmpty()) {
+        const screen = this.buildScreen();
+        const plane = screen.children[0];
+        if (plane) {
+          const c = box3.getCenter(new THREE.Vector3());
+          plane.position.set(c.x, box3.max.y + 0.0015, c.z);
+          const size = box3.getSize(new THREE.Vector3());
+          plane.scale.setScalar(Math.min(1, size.x / 0.044));
+        }
+        a.group.add(screen);
+      }
+    }
+    return a.group;
+  }
+
   private buildBike(look: AvatarLook, bike: BikeBuild, kind: BikeKind): THREE.Group {
     const g = new THREE.Group();
     const liv = bike.livery;
@@ -1071,7 +1203,7 @@ export class LowPolyRider implements RiderAvatarLike {
     const dropHands = Math.max(this.dropsBlend * (1 - stand) * (1 - forearms) * (1 - hoodsAero) * (1 - clip), aero, sprint) * (1 - this.celebrate);
     // Danseuse : bassin monté de 16 cm et avancé vers le pédalier ; il reste à l'aplomb pendant que le vélo bascule.
     // Sprint : bassin hors de la selle mais bas, au-dessus du bec de selle.
-    const hip = this.hip.set(0, SADDLE.y + 0.07 + 0.16 * stand - 0.07 * sprint, SADDLE.z + 0.02 + 0.23 * stand - 0.12 * sprint - 0.02 * aero);
+    const hip = this.hip.set(0, SADDLE.y + this.seatDy + 0.07 + 0.16 * stand - 0.07 * sprint, SADDLE.z + 0.02 + 0.23 * stand - 0.12 * sprint - 0.02 * aero);
     const up = this.celebrate;
     // Les bras levés ou la danseuse annulent la position de chrono (on se redresse).
     const fitK = 1 - Math.max(up, stand * 0.6);
@@ -1110,8 +1242,9 @@ export class LowPolyRider implements RiderAvatarLike {
 
     for (const leg of this.legs) {
       const a = this.crankAngle + (leg.side > 0 ? 0 : Math.PI);
-      const pedal = v3(0.125 * leg.side, BB.y - Math.cos(a) * CRANK, BB.z - Math.sin(a) * CRANK);
-      (this.pedals[leg.side > 0 ? 0 : 1] as THREE.Mesh).position.copy(pedal);
+      const pedal = v3(0.125 * leg.side, this.bb.y - Math.cos(a) * CRANK, this.bb.z - Math.sin(a) * CRANK);
+      const pm = this.pedals[leg.side > 0 ? 0 : 1];
+      if (pm) pm.position.copy(pedal).setX(this.pedalX === null ? pedal.x : this.pedalX * leg.side);
       const ankle = pedal.clone().add(v3(0, 0.065, -0.05));
       const hipJ = hip.clone().setX(hip.x + 0.09 * leg.side);
       const knee = new THREE.Vector3();
@@ -1138,10 +1271,11 @@ export class LowPolyRider implements RiderAvatarLike {
       // Mains au cintre (cocottes, guidon plat ou prolongateurs) ; bras levés en V pour fêter la victoire.
       // Cocottes, ou crochet du cintre (bas du cintre, aéro).
       const handBar = v3(fit.hand.x * arm.side, fit.hand.y - 0.135 * dropHands, fit.hand.z - 0.035 * dropHands);
+      if (fit.bar === 'tt') handBar.add(this.ttHandFix);
       // Avant-bras sur le cintre : mains rapprochées devant la potence.
       if (forearms > 0) handBar.lerp(v3(0.05 * arm.side, 0.94, 0.74), forearms);
       // Vélo de chrono : mains sur les cornes ; tortue : mains plus hautes.
-      if (horns > 0) handBar.lerp(v3(0.205 * arm.side, 0.875, 0.62), horns);
+      if (horns > 0) handBar.lerp(v3(0.205 * arm.side, 0.875, 0.62).add(this.hornsFix), horns);
       handBar.y += 0.03 * turtle;
       // Prolongateurs : mains aux poignées.
       if (this.clip && clip > 0) handBar.lerp(arm.side > 0 ? this.clip.grips.L : this.clip.grips.R, clip);

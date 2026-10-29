@@ -65,6 +65,7 @@ async function main(): Promise<void> {
   if (params.has('measure')) return measureHead();
   if (params.has('calib')) return likenessCalibration(engine);
   if (params.has('photofit')) return likenessPhotoFit(engine);
+  if (params.has('velos')) return lowPolyBikeSheet(engine, params.get('velos') ?? '');
 
   // ?shoes : chaussures en gros plan (tige, perforations, marquage) pour quatre tenues, pied gauche
   // en bas (manivelle 0) : extérieur, trois quarts avant, dessus ; puis de côté à 3 m.
@@ -317,6 +318,8 @@ async function main(): Promise<void> {
     // Famille du vélo chargée avant les vues (sinon le vélo de base la remplace).
     const family = BIKES.find((b) => b.id === look.bikeModel)?.family;
     if (family) await (await import('./rider/bikes.ts')).loadBikeFamily(family);
+    // Gravel, VTT : leurs modèles complets (vélo du style jeu vidéo compris).
+    if (look.bikeType === 'gravel' || look.bikeType === 'mtb') await (await import('./rider/bikes.ts')).loadBikeFamily(look.bikeType);
     // [nom, vitesse (m/s), part de FTP, position, cadence]
     const cases: Array<[string, number, number, RiderPose, number]> = [
       ...(params.has('tour') ? ([['manivelle 0°', 8.3, 0.7, 'seated', 88], ['manivelle 90°', 8.3, 0.7, 'seated', 88], ['manivelle 180°', 8.3, 0.7, 'seated', 88]] as Array<[string, number, number, RiderPose, number]>) : []),
@@ -1674,6 +1677,85 @@ async function bench(engine: Awaited<ReturnType<typeof createEngine>>): Promise<
  */
 const LIVERY_SHEET = ['s26-04-', 's26-01-', 's26-14-', 'myth-bianchi-specialissima-acier', 'myth-peugeot-px10', 'myth-lotus-110',
   's26-06-', 'myth-look-kg86', 'myth-specialized-tarmac-sl7', 'myth-pinarello-espada', 'myth-giant-tcr-compact', 'myth-colnago-c40-mapei'];
+
+/** Vélos de ?velos par défaut : une famille de cadre et un motif de livrée différents par vélo. */
+const LOW_POLY_SHEET = ['s26-01-', 's26-05-', 's26-14-', 's26-59-', 's26-10-', 's26-06-', 'myth-pinarello-espada', 'myth-lotus-110',
+  'myth-bottecchia-1989-tt', 'myth-peugeot-px10', 'myth-colnago-c40-mapei', 'myth-giant-tcr-compact'];
+
+/**
+ * ?velos=id,id… : les vélos du catalogue deux par ligne, chacun en style réaliste puis en style jeu vidéo (low poly),
+ * vélo seul, sous la même lumière. &vue=profil (côté transmission, défaut) | gauche | 3/4 ; &rider : avec le coureur ;
+ * &cell=480 : largeur d'une case ; &name=… : nom de la capture (docs/screenshots/velos-lowpoly-<name>.jpg).
+ */
+async function lowPolyBikeSheet(engine: Awaited<ReturnType<typeof createEngine>>, list: string): Promise<void> {
+  const { scene, camera } = engine;
+  const { LowPolyRider } = await import('./rider/lowPolyRider.ts');
+  const keys = list ? list.split(',') : LOW_POLY_SHEET;
+  const models = keys.map((k) => BIKES.find((b) => b.id.startsWith(k))).filter((b): b is BikeModel => !!b);
+  const { loadBikeFamily } = await import('./rider/bikes.ts');
+  await Promise.all([...new Set(models.map((b) => b.family))].map((f) => loadBikeFamily(f)));
+  // &facettes : troisième colonne, le vélo réaliste simplifié (dernier niveau de détail) rendu à facettes, sans vernis.
+  const facets = params.has('facettes');
+  const perCase = facets ? 3 : 2;
+  const perRow = facets ? 1 : 2;
+  const cw = Number(params.get('cell') ?? 480);
+  const ch = Math.round((cw * 5) / 8);
+  const rows = Math.ceil(models.length / perRow);
+  const sheet = document.createElement('canvas');
+  sheet.width = perRow * perCase * cw;
+  sheet.height = rows * ch;
+  const g = sheet.getContext('2d') as CanvasRenderingContext2D;
+  g.font = '600 14px system-ui, sans-serif';
+  const view = params.get('vue') ?? 'profil';
+  const dir = view === '3/4' ? new THREE.Vector3(-0.72, 0.22, 0.66) : view === 'gauche' ? new THREE.Vector3(1, 0.04, 0) : new THREE.Vector3(-1, 0.04, 0);
+  // &mid=x,y,z&dist=m : gros plan (p. ex. &mid=0,0.3,-0.2&dist=1.6 : bases arrière).
+  const mid = params.has('mid') ? new THREE.Vector3(...((params.get('mid') ?? '').split(',').map(Number) as [number, number, number])) : new THREE.Vector3(0, params.has('rider') ? 0.7 : 0.52, 0.1);
+  camera.fov = 18;
+  const dist = Number(params.get('dist') ?? (params.has('rider') ? 5.4 : 4.1));
+  for (const [i, b] of models.entries()) {
+    const look: AvatarLook = { ...DEFAULT_LOOK, bikeModel: b.id };
+    const avatars: Array<GltfRiderAvatar | InstanceType<typeof LowPolyRider>> = [new GltfRiderAvatar(look), new LowPolyRider(look)];
+    if (facets) {
+      const scale = GltfRiderAvatar.lodScale;
+      GltfRiderAvatar.lodScale = 0.01;
+      const f = new GltfRiderAvatar(look);
+      GltfRiderAvatar.lodScale = scale;
+      f.root.traverse((o) => {
+        const mesh = o as THREE.Mesh;
+        if (!mesh.isMesh) return;
+        for (const m of [mesh.material].flat() as THREE.MeshPhysicalMaterial[]) {
+          m.flatShading = true;
+          if ('clearcoat' in m) m.clearcoat = 0;
+          m.needsUpdate = true;
+        }
+      });
+      avatars.push(f);
+    }
+    for (const [k, a] of avatars.entries()) {
+      scene.add(a.root);
+      for (let t = 0; t < 1; t += 1 / 60) a.update(1 / 60, 0.0001, 0, 'seated', 0);
+      (a as unknown as { setRiderVisible?(on: boolean): void }).setRiderVisible?.(params.has('rider'));
+      a.root.updateMatrixWorld(true);
+      camera.position.copy(mid).addScaledVector(dir.clone().normalize(), dist);
+      camera.lookAt(mid);
+      camera.updateProjectionMatrix();
+      for (let n = 0; n < 3; n++) engine.renderManual();
+      const x = ((i % perRow) * perCase + k) * cw;
+      const y = Math.floor(i / perRow) * ch;
+      g.drawImage(canvas, 1280 / 2 - 576, 0, 1152, 720, x, y, cw, ch);
+      g.fillStyle = 'rgba(0,0,0,0.65)';
+      const label = `${['réaliste', 'jeu vidéo', 'réel à facettes'][k]} · ${b.name}`;
+      g.fillRect(x, y, g.measureText(label).width + 10, 20);
+      g.fillStyle = '#fff';
+      g.fillText(label, x + 5, y + 15);
+      scene.remove(a.root);
+    }
+  }
+  document.body.replaceChildren(sheet);
+  sheet.style.cssText = 'display:block;width:100%;height:auto';
+  if (!params.has('noshot')) await fetch(`/__shot?name=velos-lowpoly-${params.get('name') ?? 'essai'}`, { method: 'POST', body: sheet.toDataURL('image/jpeg', 0.92) });
+  (window as unknown as { __avatarTestDone: boolean }).__avatarTestDone = true;
+}
 
 async function bikeSheet(engine: Awaited<ReturnType<typeof createEngine>>, list: string): Promise<void> {
   const { scene, camera } = engine;

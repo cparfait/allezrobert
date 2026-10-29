@@ -91,8 +91,8 @@ def build_madone_frame(g, zl, voxel, target):
         drop = REAR_AXLE + V((hr + 0.002) * s, 0, 0)
         # Bases : hautes et plates (côté transmission un peu plus massive).
         k = 1.12 if s < 0 else 1.0
-        R = tube(mb, [BB + V(0.026 * s, -0.004, -0.02), BB + V(0.031 * s, 0.002, -0.12), REAR_AXLE + V((hr - 0.011) * s, -0.006, 0.11),
-                      drop + V(0, -0.004, 0.012)], 3, lambda t: ell_sec(14, lerp(0.0095, 0.0062, t), lerp(0.02, 0.0095, t) * k, 2.3), Y, 'frame')
+        R = tube(mb, stay_pts([BB + V(0.026 * s, -0.004, -0.02), BB + V(0.031 * s, 0, -0.12), REAR_AXLE + V((hr - 0.011) * s, 0, 0.11),
+                               drop + V(0, -0.004, 0.012)]), 3, lambda t: ell_sec(14, lerp(0.0095, 0.0062, t), lerp(0.02, 0.0095, t) * k, 2.3), Y, 'frame')
         zlog(zl, R, 'rear')
         # Haubans fins, droits, du nœud aux pattes.
         top = V(0.011 * s, g.slab_y - 0.014, N[2] + 0.014)

@@ -166,6 +166,18 @@ def decal_empty(name, center, direction, length, height, lateral):
     return make_empty(name, center, th, (lateral, height, length))
 
 
+def stay_pts(P):
+    """Bases arrière droites de profil : les points intermédiaires sont ramenés sur la droite (y, z) du premier au
+    dernier (le tube ne s'écarte que latéralement, vers la patte). Avant : un S qui plongeait sous la droite près du
+    boîtier et remontait au-dessus avant la patte."""
+    a, b = P[0], P[-1]
+    out = [a]
+    for p in P[1:-1]:
+        t = (p[2] - a[2]) / (b[2] - a[2])
+        out.append(V(p[0], a[1] + (b[1] - a[1]) * t, p[2]))
+    return out + [b]
+
+
 # ---------------------------------------------------------------------------------------------
 # Cadres tubulaires (aero, climb, tt, retro, steel, lowpro)
 # ---------------------------------------------------------------------------------------------
@@ -210,8 +222,8 @@ def build_frame(g, sty, zl, voxel=0.0025, target=2400):
     J = BB + st * (g.st_len * sty['ss_j'])
     for s in (1, -1):
         drop = REAR_AXLE + V((hr + 0.002) * s, 0, 0)
-        R = tube(mb, [BB + V(0.025 * s, -0.003, -0.02), BB + V(0.029 * s, 0.003, -0.115), REAR_AXLE + V((hr - 0.012) * s, -0.008, 0.12),
-                      drop + V(0, -0.004, 0.012)], 3, lambda t: ell_sec(12, lerp(sw, sw1, t), lerp(sh, sh1, t), 2.2), Y, 'frame')
+        R = tube(mb, stay_pts([BB + V(0.025 * s, -0.003, -0.02), BB + V(0.029 * s, 0, -0.115), REAR_AXLE + V((hr - 0.012) * s, 0, 0.12),
+                               drop + V(0, -0.004, 0.012)]), 3, lambda t: ell_sec(12, lerp(sw, sw1, t), lerp(sh, sh1, t), 2.2), Y, 'frame')
         zlog(zl, R, 'rear')
         mid = lerp(J, drop, 0.5)
         R = tube(mb, [J + V(0.013 * s, 0, -0.004), mid + V(0.043 * s - mid[0], 0.0, 0.0), drop + V(0, 0.014, 0.0)],
@@ -278,7 +290,7 @@ def build_lotus_frame(g, zl, voxel=0.0025, target=2400):
     s = 1
     drop = REAR_AXLE + V((hr + 0.004) * s, 0, 0)
     # Base monolame (gauche) et hauban monolame partant de la poutre.
-    R = tube(mb, [BB + V(0.03, 0.0, -0.02), BB + V(0.05, 0.01, -0.13), drop + V(0, -0.002, 0.07), drop + V(0, 0, 0.004)], 3,
+    R = tube(mb, stay_pts([BB + V(0.03, 0.0, -0.02), BB + V(0.05, 0, -0.13), drop + V(0, 0, 0.07), drop + V(0, 0, 0.004)]), 3,
              lambda t: kamm_sec(14, lerp(0.05, 0.03, t), 0.018, 0.85), Z, 'frame')
     zlog(zl, R, 'rear')
     R = tube(mb, [g.st_top + g.st_dir * -0.06 + V(0.01, 0, -0.02), V(0.05, 0.62, -0.25), drop + V(0, 0.012, 0.0)], 3,
@@ -332,7 +344,7 @@ def build_espada_frame(g, zl, voxel=0.0025, target=2400):
     for s in (1, -1):
         drop = REAR_AXLE + V((hr + 0.004) * s, 0, 0)
         # Base fine, puis hauban fin partant de la poutre (de chaque côté).
-        R = tube(mb, [BB + V(0.03 * s, 0.0, -0.02), BB + V(0.04 * s, 0.01, -0.14), drop + V(0, -0.002, 0.08), drop + V(0, 0, 0.004)], 3,
+        R = tube(mb, stay_pts([BB + V(0.03 * s, 0.0, -0.02), BB + V(0.04 * s, 0, -0.14), drop + V(0, 0, 0.08), drop + V(0, 0, 0.004)]), 3,
                  lambda t: kamm_sec(14, lerp(0.045, 0.026, t), 0.0095, 0.85), Z, 'frame')
         zlog(zl, R, 'rear')
         R = tube(mb, [rear_top + V(0.012 * s, 0, -0.02), V(0.04 * s, 0.62, -0.27), drop + V(0, 0.012, 0.0)], 3,
@@ -1153,8 +1165,7 @@ def build_family(fam, lod):
             'decal_fork': (g.ht_bot - g.ht_up * 0.12 + V(0.04, 0, 0.005), g.ht_up, 0.13, 0.04, 0.12),
         }
     else:
-        cs0 = BB + V(0, 0.003, -0.115)
-        cs1 = REAR_AXLE + V(0, -0.008, 0.12)
+        cs0, cs1 = stay_pts([BB + V(0, -0.003, -0.02), BB + V(0, 0, -0.115), REAR_AXLE + V(0, 0, 0.12), REAR_AXLE + V(0, -0.004, 0.012)])[1:3]
         dc = sty['dt'][0] if not sty['round'] else sty['dt'][2]
         sc_ = sty['st'][0] if not sty['round'] else sty['st'][2]
         tth = 2 * sty['tt'][2]
