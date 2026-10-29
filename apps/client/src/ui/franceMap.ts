@@ -67,6 +67,10 @@ export class FranceMap {
   private anim = 0;
   /** Fond de carte de la vue précédente, gardé dessous le temps que le nouveau se charge. */
   private lastBase = '';
+  /** Recherche d'une ville : saisie, résultat (couverte ou non par une zone) et recherche en cours. */
+  private query = '';
+  private found: { label: string; x: number; y: number; zone: MapZone | null; km: number; state: 'in' | 'near' | 'far' } | null = null;
+  private lookup: 'idle' | 'busy' | 'none' | 'offline' = 'idle';
   /** Le dernier geste était un glissement (pas un clic sur un point). */
   private dragged = false;
 
@@ -185,21 +189,87 @@ export class FranceMap {
       <svg class="fm-map" viewBox="${v.x.toFixed(1)} ${v.y.toFixed(1)} ${v.w.toFixed(1)} ${v.h.toFixed(1)}" preserveAspectRatio="xMidYMid meet">
         ${this.baseLayers(v)}
         <path class="fm-land" d="${this.outlinePath()}"/>
-        <g class="fm-pts">${pts}</g>
+        <g class="fm-pts">${pts}${this.pinHtml(k)}</g>
       </svg>
       <div class="fm-tip" hidden></div>
+      ${this.searchHtml()}
       <button class="fm-back" data-fm-back ${this.moved ? '' : 'hidden'}>← ${L ? 'France entière' : 'Whole France'}</button>
       <div class="fm-attr">${BASEMAP_ATTRIBUTION}</div>
       <div class="fm-legend"><span><i class="fm-l-on"></i>${L ? 'disponible' : 'available'}</span><span><i class="fm-l-off"></i>${L ? 'bientôt' : 'coming soon'}</span></div>
     </div>${side}</div>`;
   }
 
+  /** Repère de la ville cherchée sur la carte. */
+  private pinHtml(k: string): string {
+    const f = this.found;
+    if (!f) return '';
+    return `<g class="fm-pin" transform="translate(${sx(f.x).toFixed(1)} ${sy(f.y).toFixed(1)}) scale(${k})"><path d="M0 0 C-9 -12 -10 -17 -10 -21 A10 10 0 1 1 10 -21 C10 -17 9 -12 0 0Z"/><circle cx="0" cy="-21" r="3.6"/></g>`;
+  }
+
+  /** Champ de recherche d'une ville et, dessous, ce que la carte en dit (couverte par une zone, zone proche, ou non). */
+  private searchHtml(): string {
+    const L = fr();
+    const f = this.found;
+    let card = '';
+    if (this.lookup === 'busy') card = `<p>${L ? 'Recherche…' : 'Searching…'}</p>`;
+    else if (this.lookup === 'none') card = `<p>${L ? 'Ville introuvable. Essaie avec le nom exact.' : 'City not found. Try the exact name.'}</p>`;
+    else if (this.lookup === 'offline') card = `<p>${L ? 'Recherche indisponible hors ligne.' : 'Search is unavailable offline.'}</p>`;
+    else if (f) {
+      const z = f.zone;
+      if (f.state === 'in' && z)
+        card = `<b>${esc(f.label)}</b><p class="ok">${L ? 'Couverte par le jeu : zone' : 'Covered by the game: area'} ${esc(z.name)}${z.available ? '' : L ? ' (bientôt)' : ' (soon)'}</p>${
+          z.available ? `<button class="fm-go" data-fm-open="${esc(z.id)}">${L ? 'Rouler dans cette zone' : 'Ride in this area'}</button>` : ''
+        }`;
+      else if (z)
+        card = `<b>${esc(f.label)}</b><p>${L ? 'Pas encore couverte par le jeu.' : 'Not covered by the game yet.'}<br>${L ? 'Zone la plus proche' : 'Nearest area'} : ${esc(z.name)} (${Math.round(f.km)} km)</p>${
+          z.available ? `<button class="fm-go" data-fm-open="${esc(z.id)}">${L ? 'Ouvrir cette zone' : 'Open this area'}</button>` : ''
+        }`;
+    }
+    return `<form class="fm-search" autocomplete="off"><input class="fm-q" type="search" value="${esc(this.query)}" placeholder="${L ? 'Chercher une ville…' : 'Find a city…'}" aria-label="${L ? 'Chercher une ville' : 'Find a city'}" /><button type="submit" aria-label="${L ? 'Chercher' : 'Search'}">⌕</button></form>${card ? `<div class="fm-found">${card}</div>` : ''}`;
+  }
+
+  /** Cherche une ville (géocodeur de l'IGN), la situe sur la carte et dit si une zone du jeu la couvre. */
+  private async locate(q: string, zones: MapZone[]): Promise<boolean> {
+    this.lookup = 'busy';
+    this.found = null;
+    try {
+      const r = await fetch(`https://data.geopf.fr/geocodage/search?q=${encodeURIComponent(q)}&type=municipality&limit=1`);
+      const j = (await r.json()) as { features?: Array<{ geometry: { coordinates: [number, number] }; properties: { city?: string; label?: string; postcode?: string } }> };
+      const ft = j.features?.[0];
+      if (!ft) {
+        this.lookup = 'none';
+        return false;
+      }
+      const [lon, lat] = ft.geometry.coordinates;
+      const p = wgs84ToL93(lon, lat);
+      const real = zones.filter((z) => !z.image);
+      const inside = real.find((z) => z.rect && p.x >= z.rect.minE && p.x <= z.rect.maxE && p.y >= z.rect.minN && p.y <= z.rect.maxN);
+      const dist = (z: MapZone) => Math.hypot(z.x - p.x, z.y - p.y) / 1000;
+      const near = [...real].sort((a, b) => Number(b.available) - Number(a.available) || dist(a) - dist(b)).sort((a, b) => dist(a) - dist(b))[0] ?? null;
+      const zone = inside ?? near;
+      const label = `${ft.properties.city ?? ft.properties.label ?? q}${ft.properties.postcode ? ` (${ft.properties.postcode.slice(0, 2)})` : ''}`;
+      this.found = { label, x: p.x, y: p.y, zone, km: zone ? dist(zone) : 0, state: inside ? 'in' : near ? 'near' : 'far' };
+      this.lookup = 'idle';
+      return true;
+    } catch {
+      this.lookup = 'offline';
+      return false;
+    }
+  }
+
   /** Fond Plan IGN de la vue, par-dessus celui de la vue précédente (déjà chargé : pas de trou). */
   private baseLayers(v: View): string {
+    // Fond de la France entière livré avec le jeu (public/basemap/france.jpg) : toujours là, tout de suite ; le Plan
+    // IGN en ligne n'est demandé que pour le détail, une fois zoomé.
+    const local = `<image class="map-base" href="/basemap/france.jpg" x="${FULL.x}" y="${FULL.y}" width="${FULL.w}" height="${FULL.h}" preserveAspectRatio="none"/>`;
+    if (!this.zoomed) {
+      this.lastBase = '';
+      return local;
+    }
     const base = basemap(v);
     const prev = this.lastBase && this.lastBase !== base ? this.lastBase : '';
     this.lastBase = base;
-    return prev + base;
+    return local + prev + base;
   }
 
   /** Événements (survol, zoom sur un groupe, choix d'une zone, glisser, molette) ; la carte se redessine sur place. */
@@ -251,6 +321,26 @@ export class FranceMap {
       };
       this.anim = requestAnimationFrame(step);
     };
+    // Recherche d'une ville : la carte s'y centre et indique si une zone la couvre.
+    const form = box.querySelector<HTMLFormElement>('.fm-search');
+    const input = box.querySelector<HTMLInputElement>('.fm-q');
+    input?.addEventListener('input', () => (this.query = input.value));
+    form?.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const q = (input?.value ?? '').trim();
+      this.query = q;
+      if (q.length < 2) return;
+      this.lookup = 'busy';
+      redraw();
+      void this.locate(q, zones).then((ok) => {
+        if (!ok) return redraw();
+        const f = this.found;
+        if (!f) return redraw();
+        const w = f.state === 'in' ? 90 : 220;
+        zoomTo({ x: sx(f.x) - w / 2, y: sy(f.y) - (w * FULL.h) / FULL.w / 2, w, h: (w * FULL.h) / FULL.w });
+      });
+    });
+    box.querySelector<HTMLElement>('[data-fm-open]')?.addEventListener('click', (e) => onPick((e.currentTarget as HTMLElement).dataset.fmOpen as string));
     const show = (el: Element, e: PointerEvent | FocusEvent) => {
       const lines = (el.getAttribute('data-tip') ?? '').split('\n');
       tip.innerHTML = `<b>${esc(lines[0] ?? '')}</b>${lines

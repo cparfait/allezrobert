@@ -1066,7 +1066,6 @@ export class MainMenu {
     this.garageEntered = this.tab === 'garage';
     this.root.innerHTML = `<div class="mm mm-tab-${this.tab}${enter ? ' mm-enter' : ''}">
       <header class="mm-top">
-        <button class="mm-brand" data-tab="home" title="${L ? 'Accueil' : 'Home'}">Allez <em>Robert</em> !</button>
         <nav class="mm-tabs">${tabs.map(([id, label]) => `<button class="mm-tab ${id === this.tab ? 'on' : ''}" data-tab="${id}">${esc(label)}${id === 'friends' ? this.friends.badgeHtml() : ''}</button>`).join('')}</nav>
         <div class="mm-right">
           ${this.musicInHero() ? '' : '<div class="mm-music" id="m-music"></div>'}
