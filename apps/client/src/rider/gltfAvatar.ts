@@ -214,6 +214,28 @@ const FOREARM_ELBOW = new THREE.Vector3(0.075, 0.915, 0.51);
  */
 const CLIP_IN = 11;
 const CLIP_OUT = 10;
+/**
+ * Vélos de chrono (en plus de la position sur les prolongateurs) :
+ *  - mains sur les cornes (cintre de base, build_tt_cockpit : bout des cornes) sous HORNS_IN m/s
+ *    (≈ 25 km/h) et en danseuse, buste relevé (HORNS_UNTUCK de la bascule de chrono en moins) ;
+ *  - « tortue » très vite (> TURTLE_IN, ≈ 50 km/h) ou très fort : dos encore plus plat, tête rentrée
+ *    entre les épaules haussées, mains un peu plus hautes (photos d'Evenepoel, de Cofidis sur piste).
+ */
+const HORNS_IN = 7;
+const HORNS_OUT = 8;
+const HORNS_UNTUCK = 0.65;
+const TT_HORN_PALM: Partial<Record<FamilyKey, THREE.Vector3>> = {
+  tt: new THREE.Vector3(0.201, 0.774, 0.534),
+  lotus: new THREE.Vector3(0.201, 0.772, 0.534),
+  espada: new THREE.Vector3(0.201, 0.772, 0.534),
+  lowpro: new THREE.Vector3(0.195, 0.778, 0.6),
+};
+const TURTLE_IN = 13.9;
+const TURTLE_OUT = 12.8;
+const TURTLE_BEND = 0.18;
+const TURTLE_HEAD = 0.4;
+const TURTLE_SHRUG = 0.28;
+const TURTLE_HANDS_UP = 0.035;
 /** Très détendue : sous RELAX_IN (≈ 20 km/h), en roue libre ou sans forcer (< RELAX_EFFORT × FTP) ; quittée au-delà de RELAX_OUT. */
 const RELAX_IN = 5.5;
 const RELAX_OUT = 6.5;
@@ -1007,6 +1029,14 @@ export class GltfRiderAvatar implements RiderAvatarLike {
   private clipTuck = 0;
   private clipOn = false;
   private clipBlend = 0;
+  /** Vélo de chrono : mains sur les cornes (paumes, repère du modèle ; null sans cornes) et pli des coudes. */
+  private horns: { hand: Record<Side, THREE.Vector3>; pole: Record<Side, THREE.Vector3> } | null = null;
+  /** Vélo de chrono : coudes dans les repose-coudes et poignées des prolongateurs (avant-bras couchés dessus). */
+  private ttLay: { elbow: Record<Side, THREE.Vector3>; grip: Record<Side, THREE.Vector3> } | null = null;
+  private hornsOn = false;
+  private hornsBlend = 0;
+  private turtleOn = false;
+  private turtleBlend = 0;
   private hoodsAeroOn = false;
   private forearmsOn = false;
   private hoodsAeroBlend = 0;
@@ -1310,6 +1340,25 @@ export class GltfRiderAvatar implements RiderAvatarLike {
       bar?.top[s].set(sx * (TOP_PALM.x - HOOD_PALM.x), TOP_PALM.y - HOOD_PALM.y, TOP_PALM.z - HOOD_PALM.z).add(this.handTarget[s]);
       bar?.elbow[s].set(sx * (FOREARM_ELBOW.x - HOOD_PALM.x), FOREARM_ELBOW.y - HOOD_PALM.y, FOREARM_ELBOW.z - HOOD_PALM.z).add(this.handTarget[s]);
     }
+    // Vélo de chrono : paumes sur les cornes, coudes pliés comme sur un cintre route.
+    const horn = anchors.pads && this.mounted ? TT_HORN_PALM[this.mounted.family] : undefined;
+    const wrist = this.t.wristFromPalm;
+    if (horn && wrist) {
+      const hand = (s: Side) => new THREE.Vector3(s === 'L' ? horn.x : -horn.x, horn.y + this.saddleLift, horn.z).add(wrist[s]);
+      const pole = (s: Side) => {
+        const p = this.t.arms[s].pole.clone();
+        p.x *= ELBOW_FLARE;
+        return p.normalize();
+      };
+      this.horns = { hand: { L: hand('L'), R: hand('R') }, pole: { L: pole('L'), R: pole('R') } };
+    } else this.horns = null;
+    // Prolongateurs du vélo de chrono : coude à un rayon d'avant-bras au-dessus du repose-coude, un peu en arrière.
+    const pads = anchors.pads;
+    if (pads) {
+      const elbow = (s: Side) => pads[s].clone().add(new THREE.Vector3(0, 0.028 + this.saddleLift, -0.02));
+      const grip = (s: Side) => anchors.hands[s].clone().setY(anchors.hands[s].y + this.saddleLift);
+      this.ttLay = { elbow: { L: elbow('L'), R: elbow('R') }, grip: { L: grip('L'), R: grip('R') } };
+    } else this.ttLay = null;
     // Prolongateurs de l'atelier (vélo de route) : relevés avec le poste de pilotage (saddleLift).
     const kind = this.mounted?.build.extras?.aerobars;
     if (kind && this.barTargets) {
@@ -1510,6 +1559,10 @@ export class GltfRiderAvatar implements RiderAvatarLike {
     this.clipOn = pedalling && this.clip !== null && (speed > CLIP_IN || (this.clipOn && speed > CLIP_OUT) || (speed > HOODS_AERO_SPEED && hard(this.clipOn)));
     this.forearmsOn = pedalling && !this.clip && (speed > FOREARMS_IN || (this.forearmsOn && speed > FOREARMS_OUT));
     this.hoodsAeroOn = pedalling && !this.clip && !this.forearmsOn && speed > HOODS_AERO_SPEED && hard(this.hoodsAeroOn);
+    // Vélo de chrono : cornes à petite allure et en danseuse, tortue très vite ou très fort.
+    const tt = this.horns !== null && !hands;
+    this.hornsOn = tt && (pose === 'standing' || speed < HORNS_IN || (this.hornsOn && speed < HORNS_OUT));
+    this.turtleOn = tt && !this.hornsOn && !coasting && (speed > TURTLE_IN || (this.turtleOn && speed > TURTLE_OUT) || (speed > HOODS_AERO_SPEED && hard(this.turtleOn)));
     const k2 = 1 - Math.exp(-dt * 2.5);
     this.dropsBlend += ((this.dropsOn ? 1 : 0) - this.dropsBlend) * k2;
     this.aeroBlend += (aeroOn - this.aeroBlend) * k2;
@@ -1517,6 +1570,10 @@ export class GltfRiderAvatar implements RiderAvatarLike {
     this.hoodsAeroBlend += ((this.hoodsAeroOn ? 1 : 0) - this.hoodsAeroBlend) * k2;
     this.forearmsBlend += ((this.forearmsOn ? 1 : 0) - this.forearmsBlend) * k2;
     this.clipBlend += ((this.clipOn ? 1 : 0) - this.clipBlend) * k2;
+    this.hornsBlend += ((this.hornsOn ? 1 : 0) - this.hornsBlend) * k2;
+    this.turtleBlend += ((this.turtleOn ? 1 : 0) - this.turtleBlend) * k2;
+    const horns = this.hornsBlend;
+    const turtle = this.turtleBlend * (1 - stand) * (1 - horns);
     const aero = this.aeroBlend * (1 - stand);
     const clip = this.clipBlend * (1 - stand) * (1 - aero);
     const forearms = this.forearmsBlend * (1 - stand) * (1 - aero);
@@ -1541,8 +1598,8 @@ export class GltfRiderAvatar implements RiderAvatarLike {
     // --- Bassin
     const hipsR = t.bones.hips;
     const roll = 0.02 * Math.sin(a) * (1 - stand) * (1 - coast);
-    const race = DROPS_BEND * drops + AERO_BEND * aero + RELAX_BEND * relax + HOODS_AERO_BEND * hoodsAero + this.forearmTuck * forearms + this.clipTuck * clip;
-    const tuck = this.tuck * (1 - 0.6 * stand) + race;
+    const race = DROPS_BEND * drops + AERO_BEND * aero + RELAX_BEND * relax + HOODS_AERO_BEND * hoodsAero + this.forearmTuck * forearms + this.clipTuck * clip + TURTLE_BEND * turtle;
+    const tuck = this.tuck * (1 - 0.6 * stand) * (1 - HORNS_UNTUCK * horns) + race;
     const tilt = -0.09 * stand - 0.05 * coast + TUCK_HIPS * tuck;
     _q1.setFromAxisAngle(Z_AXIS, counter + roll);
     _q2.setFromAxisAngle(X_AXIS, tilt);
@@ -1589,7 +1646,7 @@ export class GltfRiderAvatar implements RiderAvatarLike {
     _q1.setFromAxisAngle(Z_AXIS, -(0.7 * bank + rock + counter));
     // Tête : relevée vers la route en chrono ; en position de course, basse dans l'alignement du dos ;
     // buste relevé : regard inchangé.
-    if (tuck !== 0) _q1.multiply(_q3.setFromAxisAngle(X_AXIS, -TUCK_HEAD * (tuck - race) + RACE_HEAD * Math.max(race, 0)));
+    if (tuck !== 0) _q1.multiply(_q3.setFromAxisAngle(X_AXIS, -TUCK_HEAD * (tuck - race) + RACE_HEAD * Math.max(race, 0) + TURTLE_HEAD * turtle));
     _q2.setFromAxisAngle(Y_AXIS, look);
     if (this.gesture.pitch) _q2.multiply(_q3.setFromAxisAngle(X_AXIS, this.gesture.pitch));
     const headTarget = _q3.multiplyQuaternions(_q1, _q2).multiply(t.bones.head.modelQ);
@@ -1614,6 +1671,8 @@ export class GltfRiderAvatar implements RiderAvatarLike {
       if (t.names[clav]) {
         this.bones[clav].quaternion.copy(t.bones[clav].localQ);
         this.fk(clav);
+        // Tortue : épaules haussées autour de la tête (rotation autour de l'axe avant).
+        if (turtle > 0) this.setModelQ(clav, _q1.setFromAxisAngle(Z_AXIS, (s === 'L' ? 1 : -1) * TURTLE_SHRUG * turtle).multiply(this.mQ[clav]));
       }
       this.bones[c.upper].quaternion.copy(t.bones[c.upper].localQ);
       this.fk(c.upper);
@@ -1646,6 +1705,13 @@ export class GltfRiderAvatar implements RiderAvatarLike {
       };
       if (bar && forearms > 0) lay(bar.elbow[s], _v4.set(-0.22 * sx, -0.06, 1).normalize(), forearms);
       if (this.clip && clip > 0) lay(this.clip.elbow[s], _v4.subVectors(this.clip.grip[s], this.clip.elbow[s]).normalize(), clip);
+      // Vélo de chrono : avant-bras couchés sur les prolongateurs (sauf mains sur les cornes).
+      if (this.ttLay && horns < 1 && this.celebrateBlend < 0.99) lay(this.ttLay.elbow[s], _v4.subVectors(this.ttLay.grip[s], this.ttLay.elbow[s]).normalize(), 1 - horns);
+      if (this.horns && horns > 0) {
+        this.target.lerp(this.horns.hand[s], horns);
+        pole = _vPole.copy(pole).lerp(this.horns.pole[s], horns).normalize();
+      }
+      if (turtle > 0) this.target.y += TURTLE_HANDS_UP * turtle;
       if (this.celebrateBlend > 0.01) {
         // Victoire : bras tendus en V au-dessus de la tête.
         _v1.set(sx * 0.5, 0.85, 0.1).normalize().multiplyScalar((c.l1 + c.l2) * 0.97).add(t.bones[c.upper].modelP);

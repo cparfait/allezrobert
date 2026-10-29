@@ -280,6 +280,11 @@ export class LowPolyRider implements RiderAvatarLike {
   private clip: AerobarAnchors | null = null;
   private clipOn = false;
   private clipBlend = 0;
+  /** Vélo de chrono : mains sur les cornes (petite allure, danseuse), tortue (très vite ou très fort). */
+  private hornsOn = false;
+  private hornsBlend = 0;
+  private turtleOn = false;
+  private turtleBlend = 0;
   private celebrate = 0;
   private celebrating = false;
   private shadows = true;
@@ -798,6 +803,9 @@ export class LowPolyRider implements RiderAvatarLike {
     this.clipOn = bars && !coasting && this.clip !== null && (speed > 11 || (this.clipOn && speed > 10) || (speed > 8 && hard(this.clipOn)));
     this.forearmsOn = bars && !coasting && !this.clip && (speed > 13.9 || (this.forearmsOn && speed > 12.8));
     this.hoodsAeroOn = bars && !coasting && !this.clip && !this.forearmsOn && speed > 8 && hard(this.hoodsAeroOn);
+    const tt = fit.bar === 'tt';
+    this.hornsOn = tt && (pose === 'standing' || speed < 7 || (this.hornsOn && speed < 8));
+    this.turtleOn = tt && !this.hornsOn && !coasting && (speed > 13.9 || (this.turtleOn && speed > 12.8) || (speed > 8 && hard(this.turtleOn)));
     // Descente rapide : position aéro dès 32 km/h en roue libre (pleine à 40), dès 45 km/h en pédalant.
     const aeroOn = bars ? (coasting ? smooth(8.9, 11.1, speed) : smooth(12.5, 14, speed) * (this.forearmsOn || this.clipOn ? 0 : 1)) : 0;
     const k2 = 1 - Math.exp(-dt * 2.5);
@@ -806,6 +814,10 @@ export class LowPolyRider implements RiderAvatarLike {
     this.forearmsBlend += ((this.forearmsOn ? 1 : 0) - this.forearmsBlend) * k2;
     this.hoodsAeroBlend += ((this.hoodsAeroOn ? 1 : 0) - this.hoodsAeroBlend) * k2;
     this.clipBlend += ((this.clipOn ? 1 : 0) - this.clipBlend) * k2;
+    this.hornsBlend += ((this.hornsOn ? 1 : 0) - this.hornsBlend) * k2;
+    this.turtleBlend += ((this.turtleOn ? 1 : 0) - this.turtleBlend) * k2;
+    const horns = this.hornsBlend * (1 - this.celebrate);
+    const turtle = this.turtleBlend * (1 - stand) * (1 - horns) * (1 - this.celebrate);
     const aero = this.aeroBlend * (1 - stand) * (1 - this.celebrate);
     const clip = this.clipBlend * (1 - stand) * (1 - this.celebrate) * (1 - aero);
     const forearms = this.forearmsBlend * (1 - stand) * (1 - this.celebrate) * (1 - aero);
@@ -827,6 +839,9 @@ export class LowPolyRider implements RiderAvatarLike {
     // Dos à plat : épaules basses et avancées (avant-bras sur le cintre : jusqu'à poser les coudes).
     shoulder.y -= 0.15 * forearms + 0.12 * hoodsAero + 0.15 * clip;
     shoulder.z += 0.12 * forearms + 0.06 * hoodsAero + 0.1 * clip;
+    // Chrono : buste relevé sur les cornes ; tortue : dos encore plus bas.
+    shoulder.y += 0.1 * horns - 0.03 * turtle;
+    shoulder.z += -0.07 * horns + 0.02 * turtle;
     shoulder.x += upright(shoulder.y);
     const chestBase = hip.clone().add(v3(0, 0.06, 0.02));
     this.torso.set(chestBase, shoulder);
@@ -844,7 +859,7 @@ export class LowPolyRider implements RiderAvatarLike {
     this.collar.set(shoulder.clone().add(v3(0, 0.0, 0.015)), shoulder.clone().add(v3(0, 0.045, 0.035)));
     this.head.position.copy(neckTop).add(v3(0, 0.07, 0.04));
     // Tête relevée pour regarder la route (le dos est penché vers l'avant).
-    this.head.rotation.x = 0.3 + fit.headTilt * fitK - 0.12 * stand - 0.2 * sprint - 0.25 * up - 0.22 * aero - 0.18 * forearms - 0.12 * hoodsAero - 0.18 * clip;
+    this.head.rotation.x = 0.3 + fit.headTilt * fitK - 0.12 * stand - 0.2 * sprint - 0.25 * up - 0.22 * aero - 0.18 * forearms - 0.12 * hoodsAero - 0.18 * clip - 0.18 * horns + 0.22 * turtle;
 
     for (const leg of this.legs) {
       const a = this.crankAngle + (leg.side > 0 ? 0 : Math.PI);
@@ -878,6 +893,9 @@ export class LowPolyRider implements RiderAvatarLike {
       const handBar = v3(fit.hand.x * arm.side, fit.hand.y - 0.135 * dropHands, fit.hand.z - 0.035 * dropHands);
       // Avant-bras sur le cintre : mains rapprochées devant la potence.
       if (forearms > 0) handBar.lerp(v3(0.05 * arm.side, 0.94, 0.74), forearms);
+      // Vélo de chrono : mains sur les cornes ; tortue : mains plus hautes.
+      if (horns > 0) handBar.lerp(v3(0.205 * arm.side, 0.875, 0.62), horns);
+      handBar.y += 0.03 * turtle;
       // Prolongateurs : mains aux poignées.
       if (this.clip && clip > 0) handBar.lerp(arm.side > 0 ? this.clip.grips.L : this.clip.grips.R, clip);
       const handUp = sh.clone().add(v3(0.2 * arm.side, 0.52, 0.08));
@@ -889,6 +907,7 @@ export class LowPolyRider implements RiderAvatarLike {
       if (hoodsAero > 0) pole.lerp(v3(0.3 * arm.side, -0.1, -1), hoodsAero);
       if (forearms > 0) pole.lerp(v3(0.15 * arm.side, -1, -0.1), forearms);
       if (clip > 0) pole.lerp(v3(0.1 * arm.side, -1, 0), clip);
+      if (horns > 0) pole.lerp(v3(0.3 * arm.side, -0.75, -0.45), horns);
       solveTwoBone(sh, hand, UPPER_ARM, FOREARM, pole, elbow);
       // Manche courte : 60 % du bras, poignet de couleur, puis peau ; manche longue jusqu'au poignet.
       const sleeveEnd = this.longSleeves ? elbow : sh.clone().lerp(elbow, 0.6);

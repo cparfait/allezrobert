@@ -308,14 +308,18 @@ async function main(): Promise<void> {
     return;
   }
   // ?positions : le coureur entier selon l'allure et l'effort (positions du cintre route, aéro), de profil et
-  // de trois quarts avant ; &velo=id du catalogue ; &tenue={...} comme pour ?profil.
+  // de trois quarts avant ; &velo=id du catalogue ; &tenue={...} comme pour ?profil ; &lent : 20 km/h et danseuse en plus.
   if (params.has('positions')) {
     for (const o of riders) o.a.root.visible = false;
     far.root.visible = false;
     const patch = JSON.parse(params.get('tenue') ?? '{}') as Partial<AvatarLook>;
     const look: AvatarLook = { ...DEFAULT_LOOK, bikeModel: params.get('velo') ?? 's26-04-cervelo-s5', ...patch };
+    // Famille du vélo chargée avant les vues (sinon le vélo de base la remplace).
+    const family = BIKES.find((b) => b.id === look.bikeModel)?.family;
+    if (family) await (await import('./rider/bikes.ts')).loadBikeFamily(family);
     // [nom, vitesse (m/s), part de FTP, position, cadence]
     const cases: Array<[string, number, number, RiderPose, number]> = [
+      ...(params.has('lent') ? ([['20 km/h', 5.6, 0.6, 'seated', 80], ['danseuse', 5, 1, 'standing', 70]] as Array<[string, number, number, RiderPose, number]>) : []),
       ['30 km/h, 70 % FTP', 8.3, 0.7, 'seated', 88],
       ['45 km/h (bas du cintre)', 12.5, 0.8, 'seated', 92],
       ['35 km/h, 115 % FTP (tres fort)', 9.7, 1.15, 'seated', 95],
