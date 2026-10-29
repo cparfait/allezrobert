@@ -22,6 +22,9 @@ const KNEE_OVERLAP = 0.03;
 const KNEE_R = 0.052;
 const KNEE_FORWARD = 0.012;
 
+/** Fraction de la cuisse où la coque du cuissard rentre dans le tube de la cuisse (pas de raccord à l'ourlet). */
+const SHELL_THIGH_END = 0.5;
+
 /** Ourlet du cuissard : fraction de la cuisse (hanche → genou). */
 const SHORTS_END = 0.8;
 
@@ -392,7 +395,7 @@ export class SweptBody {
     });
     // ── Cuissard : coque d'un seul tenant (bassin, taille, haut des cuisses) par-dessus les tubes ──
     if (SHELL) {
-      const shell = shortsShell(rest, { hemP: pointAt(trunkPts, hem), shortsEnd: SHORTS_END, scale: s, female: look.female });
+      const shell = shortsShell(rest, { hemP: pointAt(trunkPts, hem), thighEnd: SHELL_THIGH_END, scale: s, female: look.female });
       const base = b.pos.length / 3;
       for (const v of shell.vertices) b.vertex(v.p, look.shorts, v.bones);
       for (const i of shell.index) b.index.push(base + i);

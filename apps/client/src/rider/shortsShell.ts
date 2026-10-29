@@ -6,7 +6,8 @@ import type { BodyJoints } from './sweptBody.ts';
  * tenant, à la place du fessier en bloc et des tubes de cuisse qui s'y croisaient (marche au bas du dos,
  * encoche en haut des cuisses, fond plat). La forme est une union adoucie de volumes simples — fessier
  * (ellipsoïde dissymétrique, fond dans la selle), taille (capsule ovale le long du bas du dos), cuisses
- * (capsules effilées jusqu'à l'ourlet) — coupée sous l'ourlet du maillot et à l'ourlet du cuissard, puis
+ * (capsules effilées qui rentrent à mi-cuisse dans le tube de la cuisse, sans bord) — coupée sous l'ourlet
+ * du maillot, puis
  * mise en facettes par « surface nets » (pas de grille SHELL_CELL) et un peu lissée : même aspect à facettes
  * que le reste.
  * Chaque sommet est lié au bassin, au buste et à sa cuisse selon sa place (os de sweptBody.ts).
@@ -23,8 +24,11 @@ const BLEND = 0.04;
 export interface ShellParams {
   /** Ourlet du maillot (repos) : la coque s'arrête un peu au-dessus, sous le maillot. */
   hemP: THREE.Vector3;
-  /** Fraction de la cuisse (hanche → genou) où s'arrête le cuissard. */
-  shortsEnd: number;
+  /**
+   * Fraction de la cuisse (hanche → genou) où la coque s'enfonce dans le tube de la cuisse : elle ne fait
+   * que la jonction avec le fessier (le tube porte la couleur et l'ourlet du cuissard), sans bord visible.
+   */
+  thighEnd: number;
   /** Corpulence (échelle des sections) et bassin féminin (plus large). */
   scale: number;
   female: boolean;
@@ -69,8 +73,8 @@ export function shortsShell(rest: BodyJoints, P: ShellParams): { vertices: Shell
   const up = new THREE.Vector3().subVectors(rest.mid, H).normalize();
   // Fessier : centre un peu sous et derrière le bassin, fond dans l'épaisseur de la selle ; plus profond
   // derrière (fesses) que devant (bas-ventre), plus haut que bas.
-  const gC = H.clone().add(new THREE.Vector3(0, -0.012, -0.032));
-  const gR = { x: 0.158 * hips * s, up: 0.085 * s, down: 0.07 * s, front: 0.078 * s, back: 0.11 * s };
+  const gC = H.clone().add(new THREE.Vector3(0, -0.012, -0.02));
+  const gR = { x: 0.145 * hips * s, up: 0.08 * s, down: 0.07 * s, front: 0.078 * s, back: 0.088 * s };
   // Taille : capsule ovale le long du bas du dos, jusqu'au-dessus de l'ourlet du maillot.
   const top = P.hemP.clone().addScaledVector(up, 0.02);
   const waistR = 0.083 * s;
@@ -79,7 +83,7 @@ export function shortsShell(rest: BodyJoints, P: ShellParams): { vertices: Shell
   const legs = rest.legs.map((g, i) => {
     const side = i === 0 ? 1 : -1;
     const a = g.hip.clone().add(new THREE.Vector3(-side * 0.02, 0.015, -0.015));
-    const hem = g.hip.clone().lerp(g.knee, P.shortsEnd);
+    const hem = g.hip.clone().lerp(g.knee, P.thighEnd);
     const dir = new THREE.Vector3().subVectors(g.knee, g.hip).normalize();
     return { side, a, hem, dir, hip: g.hip, len: g.hip.distanceTo(g.knee), bone: 2 + i * 2 };
   });
@@ -93,10 +97,10 @@ export function shortsShell(rest: BodyJoints, P: ShellParams): { vertices: Shell
     const ez = q.z / (q.z > 0 ? gR.front : gR.back);
     let d = (Math.sqrt(ex * ex + ey * ey + ez * ez) - 1) * Math.min(gR.down, gR.front);
     d = smin(d, capsule(p, H, top, waistR, waistR * 0.96, waistSx, tmp), BLEND);
-    for (const L of legs) d = smin(d, capsule(p, L.a, L.hem, 0.09 * s, 0.079 * s, 1, tmp), BLEND);
-    // Coupes : sous le maillot (plan de la taille), à l'ourlet du cuissard de chaque côté.
+    // Cuisses : rayon qui finit sous celui du tube de la cuisse (≈ 7,2 cm à mi-cuisse) : la coque y rentre.
+    for (const L of legs) d = smin(d, capsule(p, L.a, L.hem, 0.09 * s, 0.062 * s, 1, tmp), BLEND);
+    // Coupe sous le maillot (plan de la taille) ; les cuisses finissent arrondies dans leur tube.
     d = Math.max(d, q.subVectors(p, top).dot(up));
-    for (const L of legs) if (p.x * L.side > -0.01) d = Math.max(d, q.subVectors(p, L.hem).dot(L.dir));
     return d;
   };
 
