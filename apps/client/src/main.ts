@@ -33,6 +33,7 @@ import { t, setLang, getLang } from './i18n/index.ts';
 import { loadSettings, saveSettings, type Settings } from './ui/settings.ts';
 import { MainMenu } from './ui/menu.ts';
 import { autoEnhanceSelects } from './ui/dropdown.ts';
+import { TouchControls, isTouchDevice } from './ui/touchControls.ts';
 import { WorldMap } from './ui/worldMap.ts';
 import { basemapUrl } from './ui/basemap.ts';
 import { bootStep, bootProgress, bootDone, bootError } from './ui/splash.ts';
@@ -1834,6 +1835,9 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
       togglePause();
     }
   });
+
+  // Téléphone, tablette : boutons de direction, de vitesses, de caméra et de pause (touches envoyées au clavier du jeu).
+  if (isTouchDevice()) new TouchControls(document.body);
 
   const timer = new THREE.Timer();
   timer.connect(document);

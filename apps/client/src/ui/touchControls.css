@@ -1,0 +1,7 @@
+/* Commandes tactiles de la sortie : boutons ronds en bas de l'écran, au-dessus du profil, hors des zones d'encoche. */
+.tc { position: fixed; left: 0; right: 0; bottom: calc(max(110px, 14vh) + env(safe-area-inset-bottom, 0px)); z-index: 22; display: flex; justify-content: space-between; align-items: flex-end; padding: 0 calc(14px + env(safe-area-inset-right, 0px)) 0 calc(14px + env(safe-area-inset-left, 0px)); pointer-events: none; }
+.tc-group { display: flex; gap: 12px; align-items: flex-end; pointer-events: none; }
+.tc-btn { pointer-events: auto; appearance: none; width: 64px; height: 64px; border-radius: 50%; border: 2px solid rgba(255, 255, 255, 0.35); background: rgba(16, 24, 40, 0.62); color: #fff; font: 800 26px system-ui, sans-serif; display: grid; place-items: center; padding: 0; touch-action: none; user-select: none; -webkit-user-select: none; backdrop-filter: blur(6px); }
+.tc-btn.tc-small { width: 48px; height: 48px; font-size: 20px; }
+.tc-btn.on { background: var(--ar-accent, #ffd23f); color: #0a0e16; border-color: var(--ar-accent, #ffd23f); }
+@media (max-height: 520px) { .tc { bottom: calc(80px + env(safe-area-inset-bottom, 0px)); } .tc-btn { width: 52px; height: 52px; font-size: 22px; } .tc-btn.tc-small { width: 42px; height: 42px; } }

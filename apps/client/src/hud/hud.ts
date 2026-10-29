@@ -24,7 +24,18 @@ export function currentHudLayout(): HudLayout {
   } catch {
     // Stockage indisponible : disposition du style.
   }
-  return LOW_POLY ? 'compact' : 'full';
+  return styleDefault();
+}
+
+/** Disposition par défaut : compact en low poly et sur écran tactile ou étroit (téléphone, tablette), complet sinon. */
+function styleDefault(): HudLayout {
+  let small = false;
+  try {
+    small = matchMedia('(pointer: coarse)').matches || innerWidth < 1000;
+  } catch {
+    // Pas de fenêtre (tests) : défaut du style.
+  }
+  return LOW_POLY || small ? 'compact' : 'full';
 }
 
 /** Choix enregistré : 'auto' (selon le style graphique) ou une disposition. */
@@ -38,7 +49,7 @@ export function hudChoice(): 'auto' | HudLayout {
 }
 
 /** Disposition qu'un choix donne avec le style graphique courant. */
-export const resolveHudLayout = (choice: 'auto' | HudLayout): HudLayout => (choice === 'auto' ? (LOW_POLY ? 'compact' : 'full') : choice);
+export const resolveHudLayout = (choice: 'auto' | HudLayout): HudLayout => (choice === 'auto' ? styleDefault() : choice);
 
 /** Enregistre la disposition (prise en compte à la prochaine sortie, sans recharger la page). */
 export function setHudLayout(choice: 'auto' | HudLayout): void {
@@ -594,7 +605,8 @@ export class Hud {
       this.onGroupPace?.(Number(btn.dataset.gpace));
     });
     if (this.compact) {
-      this.ridersFolded = readFlag(RIDERS_FOLDED_KEY);
+      // Petit écran tactile : la liste « À proximité » est repliée tant que le joueur ne l'a pas ouverte.
+      this.ridersFolded = localStorage.getItem(RIDERS_FOLDED_KEY) === null ? innerHeight < 560 : readFlag(RIDERS_FOLDED_KEY);
       (this.el.riders as HTMLElement).classList.toggle('cx-folded', this.ridersFolded);
       this.toggleDetails(readFlag(DETAILS_KEY));
       (this.el.moreBtn as HTMLElement).addEventListener('click', (ev) => {
