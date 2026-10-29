@@ -27,7 +27,7 @@ export function hudPickerHtml(): string {
     return `<button type="button" class="hp-card${c === cur ? ' on' : ''}" data-hud="${c}" data-shot="${shot(img)}" aria-pressed="${c === cur}">${L ? fl : en}</button>`;
   };
   // Aperçu : caché, il n'apparaît qu'au survol (ou au focus clavier) d'un nom.
-  return `<div class="hp-picker">${(['auto', ...HUD_LAYOUTS] as Choice[]).map(card).join('')}</div><img class="hp-pop" alt="" hidden />`;
+  return `<div class="hp-picker">${(['auto', ...HUD_LAYOUTS] as Choice[]).map(card).join('')}</div>`;
 }
 
 /** Branche les cartes : le choix est enregistré tout de suite, `redraw` remet l'écran à jour. */
@@ -38,18 +38,26 @@ export function bindHudPicker(root: ParentNode, redraw: () => void): void {
       redraw();
     }),
   );
-  // Survol ou focus d'un nom : l'aperçu en jeu de cette disposition apparaît, il disparaît ensuite.
-  const pop = root.querySelector<HTMLImageElement>('.hp-pop');
+  // Survol ou focus d'un nom : l'aperçu en jeu de cette disposition apparaît au centre de l'écran (posé sur la page,
+  // hors du panneau qui le rognerait), puis disparaît.
+  let pop: HTMLImageElement | null = null;
+  const hide = () => {
+    pop?.remove();
+    pop = null;
+  };
   root.querySelectorAll<HTMLElement>('.hp-picker [data-shot]').forEach((b) => {
     const show = () => {
-      if (!pop) return;
+      hide();
+      pop = document.createElement('img');
+      pop.className = 'hp-pop';
+      pop.alt = '';
       pop.src = b.dataset.shot as string;
-      pop.hidden = false;
+      document.body.appendChild(pop);
     };
-    const hide = () => pop && (pop.hidden = true);
     b.addEventListener('pointerenter', show);
     b.addEventListener('focus', show);
     b.addEventListener('pointerleave', hide);
     b.addEventListener('blur', hide);
+    b.addEventListener('click', hide);
   });
 }

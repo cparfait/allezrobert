@@ -4,7 +4,5 @@
 .hp-card:hover, .hp-card:focus-visible { background: rgba(255, 255, 255, 0.14); outline: 0; }
 .hp-card.on { border-color: var(--ar-accent); background: rgba(255, 210, 63, 0.14); }
 .hp-picker { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
-/* Aperçu en jeu : flottant au-dessus des noms, seulement pendant le survol. */
-.hud-field { position: relative; }
-.hp-pop { position: absolute; left: 0; bottom: calc(100% + 8px); z-index: 30; width: min(560px, 90vw); aspect-ratio: 800 / 535; object-fit: contain; background: #0a0e16; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.25); box-shadow: 0 18px 50px rgba(0, 0, 0, 0.6); pointer-events: none; }
-.hp-pop[hidden] { display: none; }
+/* Aperçu en jeu : posé au centre de l'écran pendant le survol d'un nom. */
+.hp-pop { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 9999; width: min(760px, 86vw); max-height: 86vh; aspect-ratio: 800 / 535; object-fit: contain; background: #0a0e16; border-radius: 14px; border: 1px solid rgba(255, 255, 255, 0.3); box-shadow: 0 24px 80px rgba(0, 0, 0, 0.7); pointer-events: none; }

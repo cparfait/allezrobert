@@ -25,8 +25,8 @@ export const ONBOARDING_SCRIPT: Record<string, Line[]> = {
   ],
   style: [
     {
-      fr: '<emotion value="curious"/>Comment veux-tu voir la route ? En réaliste, au plus près des vraies routes de France, ou façon jeu vidéo, avec des couleurs franches et un monde plus animé. <break time="250ms"/>Choisis celui qui te plaît, tu pourras en changer quand tu veux dans les réglages.',
-      en: '<emotion value="curious"/>How do you want to see the road? Realistic, true to the real roads of France, or video game style, with bold colours and a livelier world. <break time="250ms"/>Pick the one you like, you can switch any time in the settings.',
+      fr: '<emotion value="curious"/>Comment veux-tu voir la route ? Avec une vue plus réaliste, au plus près des vraies routes de France, ou en mode plus ludique, façon jeu vidéo, avec des formes simples et un monde plus animé. <break time="250ms"/>Choisis celui qui te plaît, tu pourras en changer quand tu veux dans les réglages.',
+      en: '<emotion value="curious"/>How do you want to see the road? With a more realistic view, true to the real roads of France, or in a more playful mode, video game style, with simple shapes and a livelier world. <break time="250ms"/>Pick the one you like, you can switch any time in the settings.',
     },
   ],
   profile: [
