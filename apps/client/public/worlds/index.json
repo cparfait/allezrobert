@@ -1222,6 +1222,58 @@
    "open": true
   },
   {
+   "id": "idf-hermeray",
+   "name": "Hermeray",
+   "region": "Yvelines · Île-de-France",
+   "routes": [
+    {
+     "id": "boucle-20-km",
+     "name": "Boucle de 20 km depuis Hermeray",
+     "nameEn": "20 km loop from Hermeray",
+     "lengthM": 20972,
+     "elevationGainM": 212.66,
+     "loop": false
+    },
+    {
+     "id": "boucle-30-km",
+     "name": "Boucle de 30 km depuis Hermeray",
+     "nameEn": "30 km loop from Hermeray",
+     "lengthM": 30152,
+     "elevationGainM": 228.17,
+     "loop": false
+    },
+    {
+     "id": "boucle-40-km",
+     "name": "Boucle de 40 km depuis Hermeray",
+     "nameEn": "40 km loop from Hermeray",
+     "lengthM": 38244,
+     "elevationGainM": 323.25,
+     "loop": false
+    },
+    {
+     "id": "boucle-50-km",
+     "name": "Boucle de 50 km depuis Hermeray",
+     "nameEn": "50 km loop from Hermeray",
+     "lengthM": 49614,
+     "elevationGainM": 401.1,
+     "loop": false
+    }
+   ],
+   "pack": {
+    "version": "41ddfe7563c0",
+    "bytes": 239938737,
+    "files": 1026,
+    "gzBytes": 104499801
+   },
+   "l93": {
+    "minE": 592000,
+    "minN": 6828000,
+    "maxE": 608000,
+    "maxN": 6844000
+   },
+   "open": true
+  },
+  {
    "id": "idf-houdan",
    "name": "Houdan",
    "region": "Yvelines · Île-de-France",
