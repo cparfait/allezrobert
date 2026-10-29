@@ -106,7 +106,8 @@ export async function installPack(id: string, onProgress: (done: number, total: 
   if (inDesktop) return installOnDisk(id, onProgress, signal);
   if (!hasCaches()) throw new Error('stockage hors ligne indisponible (page non sécurisée)');
   const res = await fetch(`${TILES_BASE}/worlds/${id}/tiles/pack.json`, { cache: 'no-store', ...(signal ? { signal } : {}) });
-  if (!res.ok || !(res.headers.get('content-type') ?? '').includes('json')) throw new Error(`pack introuvable sur le serveur (HTTP ${res.status})`);
+  // Serveur de développement : un fichier absent renvoie la page du jeu (HTTP 200, HTML), pas une erreur.
+  if (!res.ok || !(res.headers.get('content-type') ?? '').includes('json')) throw new Error(res.ok ? 'cette zone n’est pas publiée sur ce serveur' : `pack introuvable sur le serveur (HTTP ${res.status})`);
   const manifest = (await res.json()) as WorldPackManifest;
   const tmpName = `${cacheName(id)}-tmp`;
   await caches.delete(tmpName);
