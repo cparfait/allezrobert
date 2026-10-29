@@ -11,6 +11,7 @@ import { createMailer, type Mailer } from './auth/mailer.ts';
 import { UploadService } from './integrations/uploads.ts';
 import { RideRegistry } from './ride/registry.ts';
 import { FriendRepo } from './db/friends.ts';
+import { TrainingRepo } from './db/training.ts';
 import { FriendHub } from './friends/hub.ts';
 import type { RouteStore } from './ride/routes.ts';
 import type { RideServices } from './ride/services.ts';
@@ -36,6 +37,8 @@ export interface AppContext {
   config: Config;
   db: Db;
   repos: Repos;
+  /** Historique d'entraînement : mesures, FTP, records, séances perso, synchronisation. */
+  training: TrainingRepo;
   cipher: DataCipher;
   tokens: TokenService;
   mailer: Mailer;
@@ -73,6 +76,7 @@ export function createContext(config: Config, db: Db, routes: RouteStore, opts: 
     config,
     db,
     repos,
+    training: new TrainingRepo(db, cipher),
     cipher,
     tokens,
     mailer,

@@ -85,7 +85,6 @@ export interface RideHistoryEntry {
   np: number;
 }
 
-const HISTORY_KEY = 'ar.history';
 const RECORDS_KEY = 'ar.powerRecords';
 
 function readJson<T>(key: string, fallback: T): T {
@@ -105,22 +104,19 @@ function writeJson(key: string, v: unknown): void {
   }
 }
 
-/** Dernières sorties (20 au plus), de la plus ancienne à la plus récente. */
-export function readRideHistory(): RideHistoryEntry[] {
-  return readJson<RideHistoryEntry[]>(HISTORY_KEY, []);
-}
-
 /**
- * Dernière sortie comparable (même itinéraire, distance à ±30 %), puis enregistrement de celle-ci
- * dans l'historique (20 dernières). `date` identifie la sortie : la terminer à nouveau après
- * l'avoir reprise remplace l'entrée au lieu d'en ajouter une.
+ * Sortie comparable précédente pour « vs la dernière fois » : même itinéraire, distance à ±30 %,
+ * la plus récente. `history` : sorties de l'historique (toutes, sans limite) ; `entry.date`
+ * identifie la sortie : une sortie reprise puis terminée ne se compare pas à elle-même.
  */
-export function compareAndStore(entry: RideHistoryEntry): RideHistoryEntry | null {
-  const list = readJson<RideHistoryEntry[]>(HISTORY_KEY, []).filter((h) => h.date !== entry.date);
-  const prev = [...list].reverse().find((h) => h.routeId === entry.routeId && h.distanceM >= entry.distanceM * 0.7 && h.distanceM <= entry.distanceM / 0.7) ?? null;
-  list.push(entry);
-  writeJson(HISTORY_KEY, list.slice(-20));
-  return prev;
+export function previousComparable(history: readonly RideHistoryEntry[], entry: RideHistoryEntry): RideHistoryEntry | null {
+  let best: RideHistoryEntry | null = null;
+  for (const h of history) {
+    if (h.date === entry.date || h.date > entry.date || h.routeId !== entry.routeId) continue;
+    if (h.distanceM < entry.distanceM * 0.7 || h.distanceM > entry.distanceM / 0.7) continue;
+    if (!best || h.date > best.date) best = h;
+  }
+  return best;
 }
 
 /**

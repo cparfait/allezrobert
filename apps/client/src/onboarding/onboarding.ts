@@ -1,16 +1,25 @@
 import { withLikeness } from '../ui/faceEditorLogic.ts';
 import { enhanceSelects } from '../ui/dropdown.ts';
-import { DEFAULT_LOOK, lookSex, withSex, type AvatarLook } from '@allezrobert/shared';
+import { COUNTRIES, DEFAULT_LOOK, lookSex, withSex, type AvatarLook } from '@allezrobert/shared';
 import { getLang, setLang, t } from '../i18n/index.ts';
 import type { DevicePanel } from '../ui/menu.ts';
 import { saveSettings, type Settings } from '../ui/settings.ts';
 import { VoiceOver } from './voice.ts';
 import { renderCompanionSettings } from '../ui/companionQr.ts';
+import { GRAPHIC_STYLE, STYLE_KEY, setGraphicStyle, type GraphicStyle } from '../engine/style.ts';
 
-// Premier lancement : accueil, équipement (capteurs, vitesses), profil, avatar, puis la page finale
-// (test FTP si demandé, sinon le mot de la fin).
-const STEPS = ['welcome', 'devices', 'gears', 'companion', 'profile', 'avatar', 'final'] as const;
+// Premier lancement : accueil, style graphique, équipement (capteurs, vitesses), profil, avatar, puis la page
+// finale (test FTP si demandé, sinon le mot de la fin).
+const STEPS = ['welcome', 'style', 'devices', 'gears', 'companion', 'profile', 'avatar', 'final'] as const;
 type Step = (typeof STEPS)[number];
+
+/** Étape où reprendre le tutoriel après le rechargement qu'impose un changement de style graphique. */
+const RESUME_KEY = 'ar.onboarding.resume';
+/** Les deux styles, avec une capture en jeu de chacun. */
+const STYLES: Array<[GraphicStyle, string, string, string, string]> = [
+  ['real', 'Réaliste', 'Realistic', 'Au plus près des vraies routes : relief, lumière, textures.', 'True to the real roads: terrain, light, textures.'],
+  ['lowpoly', 'Jeu vidéo', 'Video game', 'Facettes et aplats de couleur, plus léger, monde plus animé.', 'Facets and flat colours, lighter, a livelier world.'],
+];
 
 const SKINS = ['#f1c27d', '#e0ac69', '#c68642', '#8d5524', '#ffdbac', '#5c3a21'];
 const HAIRS = ['#1f1a17', '#3b2a1e', '#6a4e35', '#b88a52', '#d9c08a', '#9a9a9a'];
@@ -56,6 +65,8 @@ export class Onboarding {
   /** Test FTP demandé à l'étape profil : proposé sur la page finale. */
   private wantFtp = false;
   private assiomaSaid = false;
+  /** Style choisi à l'étape style (appliqué en quittant l'étape : la page se recharge s'il change). */
+  private style: GraphicStyle = GRAPHIC_STYLE;
 
   constructor(root: HTMLElement, settings: Settings, devices: DevicePanel, done: (s: Settings, skipped: boolean) => void, preview?: AvatarPreview) {
     this.root = root;
@@ -83,7 +94,9 @@ export class Onboarding {
   }
 
   start(): void {
-    this.go('welcome');
+    const resume = sessionStorage.getItem(RESUME_KEY) as Step | null;
+    sessionStorage.removeItem(RESUME_KEY);
+    this.go(resume && STEPS.includes(resume) ? resume : 'welcome');
   }
 
   private go(step: Step): void {
@@ -119,6 +132,15 @@ export class Onboarding {
   private next(): void {
     saveSettings(this.s);
     const i = STEPS.indexOf(this.step);
+    // Matériaux construits au chargement : un autre style recharge la page, le tutoriel reprend à l'étape suivante.
+    if (this.step === 'style') {
+      if (this.style !== GRAPHIC_STYLE) {
+        this.voice.stop();
+        sessionStorage.setItem(RESUME_KEY, STEPS[i + 1] as Step);
+        return setGraphicStyle(this.style);
+      }
+      localStorage.setItem(STYLE_KEY, this.style);
+    }
     if (i < STEPS.length - 1) this.go(STEPS[i + 1] as Step);
     else this.finish(this.wantFtp);
   }
@@ -135,10 +157,20 @@ export class Onboarding {
           <button class="btn small" id="o-voice" style="margin-left:auto;padding:8px 10px;display:flex;${this.voice.enabled ? '' : 'opacity:.55'}" title="${this.voice.enabled ? (fr ? 'Voix off activée' : 'Voice-over on') : fr ? 'Voix off coupée' : 'Voice-over off'}" aria-pressed="${this.voice.enabled}">${this.voice.enabled ? '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/></svg>' : '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="m22 9-6 6"/><path d="m16 9 6 6"/></svg>'}</button></div>
           <div class="warning" style="margin-top:16px;background:rgba(59,130,246,.12);border-color:rgba(59,130,246,.35);color:#bfdbfe">${fr ? 'Compte : la connexion Google, Discord ou lien magique sera proposée pour rouler en groupe. Pour une sortie seul, aucun compte n’est nécessaire.' : 'Account: Google, Discord or magic-link sign-in is offered for group rides. Riding solo needs no account.'}</div>`;
         break;
+      case 'style':
+        body = `<h2>${fr ? 'Style graphique' : 'Graphic style'}</h2>
+          <div class="ob-styles">${STYLES.map(([v, f, e, df, de]) => `<button class="ob-style ${this.style === v ? 'on' : ''}" data-gstyle="${v}" aria-pressed="${this.style === v}">
+            <img src="/onboarding/style-${v}.jpg" alt=""/><b>${fr ? f : e}</b><span>${fr ? df : de}</span></button>`).join('')}</div>
+          <p style="font-size:13px;color:var(--ar-muted);margin:10px 0 0">${fr ? 'Tu pourras en changer quand tu veux dans Réglages.' : 'You can change it any time in Settings.'}</p>`;
+        break;
       case 'profile':
         body = `<h2>${t('profile')}</h2><div class="grid3">
           <label class="field">${t('name')}<input id="o-name" value="${this.s.name.replace(/"/g, '&quot;')}"/></label>
           <label class="field">${fr ? 'Je suis' : 'I am'}<div class="row">${(['male', 'female'] as const).map((x) => `<button class="btn small ${lookSex(this.s.look) === x ? 'primary' : ''}" data-sex="${x}">${x === 'male' ? (fr ? 'Un homme' : 'A man') : fr ? 'Une femme' : 'A woman'}</button>`).join('')}</div></label>
+          <label class="field">${fr ? 'Nationalité' : 'Nationality'}<select id="o-nation"><option value="" ${this.s.look.nationality ? '' : 'selected'}>${fr ? 'Choisir mon pays' : 'Choose my country'}</option>${[...COUNTRIES]
+            .sort((a, b) => a[fr ? 'fr' : 'en'].localeCompare(b[fr ? 'fr' : 'en'], fr ? 'fr' : 'en'))
+            .map((c) => `<option value="${c.code}" ${this.s.look.nationality === c.code ? 'selected' : ''}>${c[fr ? 'fr' : 'en']}</option>`)
+            .join('')}</select></label>
           <label class="field">${t('weight')}<input id="o-mass" type="number" min="30" max="200" step="0.5" value="${this.s.massKg}"/></label>
           <label class="field">${t('height')}<input id="o-height" type="number" min="120" max="220" value="${this.s.heightCm}"/></label>
           <label class="field">${t('ftp')}<input id="o-ftp" type="number" min="50" max="600" value="${this.s.ftpWatts}"/></label>
@@ -280,6 +312,12 @@ export class Onboarding {
         this.go('welcome');
       }),
     );
+    this.root.querySelectorAll<HTMLButtonElement>('[data-gstyle]').forEach((b) =>
+      b.addEventListener('click', () => {
+        this.style = b.dataset.gstyle as GraphicStyle;
+        this.render();
+      }),
+    );
     $('o-voice')?.addEventListener('click', () => {
       this.voice.setEnabled(!this.voice.enabled);
       this.render();
@@ -288,6 +326,12 @@ export class Onboarding {
     num('o-mass', 'massKg');
     num('o-height', 'heightCm');
     num('o-ftp', 'ftpWatts');
+    // Nationalité : drapeau montré aux autres coureurs (comme dans l'onglet Profil).
+    $<HTMLSelectElement>('o-nation')?.addEventListener('change', (e) => {
+      const code = (e.target as HTMLSelectElement).value;
+      const { nationality: _old, ...rest } = this.s.look;
+      this.s.look = code ? { ...rest, nationality: code } : rest;
+    });
     $<HTMLInputElement>('o-name')?.addEventListener('change', (e) => (this.s.name = (e.target as HTMLInputElement).value.trim().slice(0, 24) || 'Robert'));
     $('o-ftptest')?.addEventListener('click', () => {
       this.wantFtp = !this.wantFtp;

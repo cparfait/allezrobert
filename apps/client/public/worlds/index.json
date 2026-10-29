@@ -962,6 +962,58 @@
    "open": true
   },
   {
+   "id": "idf-etampes",
+   "name": "Étampes",
+   "region": "Essonne · Île-de-France",
+   "routes": [
+    {
+     "id": "boucle-20-km",
+     "name": "Boucle de 20 km depuis Étampes",
+     "nameEn": "20 km loop from Étampes",
+     "lengthM": 20478.23,
+     "elevationGainM": 193.71,
+     "loop": true
+    },
+    {
+     "id": "boucle-23-km",
+     "name": "Boucle de 23 km depuis Étampes",
+     "nameEn": "23 km loop from Étampes",
+     "lengthM": 23280,
+     "elevationGainM": 248.67,
+     "loop": false
+    },
+    {
+     "id": "boucle-40-km",
+     "name": "Boucle de 40 km depuis Étampes",
+     "nameEn": "40 km loop from Étampes",
+     "lengthM": 41836.86,
+     "elevationGainM": 360,
+     "loop": true
+    },
+    {
+     "id": "boucle-50-km",
+     "name": "Boucle de 50 km depuis Étampes",
+     "nameEn": "50 km loop from Étampes",
+     "lengthM": 46660.72,
+     "elevationGainM": 406.28,
+     "loop": true
+    }
+   ],
+   "pack": {
+    "version": "736ce1f092d6",
+    "bytes": 208346815,
+    "files": 1026,
+    "gzBytes": 85690892
+   },
+   "l93": {
+    "minE": 624000,
+    "minN": 6812000,
+    "maxE": 640000,
+    "maxN": 6828000
+   },
+   "open": true
+  },
+  {
    "id": "idf-evry-courcouronnes",
    "name": "Évry-Courcouronnes",
    "region": "Essonne · Île-de-France",
@@ -1170,6 +1222,162 @@
    "open": true
   },
   {
+   "id": "idf-lizy-sur-ourcq",
+   "name": "Lizy-sur-Ourcq",
+   "region": "Seine-et-Marne · Île-de-France",
+   "routes": [
+    {
+     "id": "boucle-20-km",
+     "name": "Boucle de 20 km depuis Lizy-sur-Ourcq",
+     "nameEn": "20 km loop from Lizy-sur-Ourcq",
+     "lengthM": 17493.11,
+     "elevationGainM": 235.84,
+     "loop": true
+    },
+    {
+     "id": "boucle-30-km",
+     "name": "Boucle de 30 km depuis Lizy-sur-Ourcq",
+     "nameEn": "30 km loop from Lizy-sur-Ourcq",
+     "lengthM": 29276,
+     "elevationGainM": 288.56,
+     "loop": false
+    },
+    {
+     "id": "boucle-40-km",
+     "name": "Boucle de 40 km depuis Lizy-sur-Ourcq",
+     "nameEn": "40 km loop from Lizy-sur-Ourcq",
+     "lengthM": 35916.21,
+     "elevationGainM": 375.27,
+     "loop": true
+    },
+    {
+     "id": "boucle-50-km",
+     "name": "Boucle de 50 km depuis Lizy-sur-Ourcq",
+     "nameEn": "50 km loop from Lizy-sur-Ourcq",
+     "lengthM": 49384.73,
+     "elevationGainM": 528.82,
+     "loop": true
+    }
+   ],
+   "pack": {
+    "version": "ca4e62bd7de4",
+    "bytes": 182150169,
+    "files": 1026,
+    "gzBytes": 75740443
+   },
+   "l93": {
+    "minE": 688000,
+    "minN": 6876000,
+    "maxE": 704000,
+    "maxN": 6892000
+   },
+   "open": true
+  },
+  {
+   "id": "idf-magny-en-vexin",
+   "name": "Magny-en-Vexin",
+   "region": "Val-d'Oise · Île-de-France",
+   "routes": [
+    {
+     "id": "boucle-20-km",
+     "name": "Boucle de 20 km depuis Magny-en-Vexin",
+     "nameEn": "20 km loop from Magny-en-Vexin",
+     "lengthM": 19320,
+     "elevationGainM": 248.92,
+     "loop": false
+    },
+    {
+     "id": "boucle-30-km",
+     "name": "Boucle de 30 km depuis Magny-en-Vexin",
+     "nameEn": "30 km loop from Magny-en-Vexin",
+     "lengthM": 29562.1,
+     "elevationGainM": 419.16,
+     "loop": true
+    },
+    {
+     "id": "boucle-40-km",
+     "name": "Boucle de 40 km depuis Magny-en-Vexin",
+     "nameEn": "40 km loop from Magny-en-Vexin",
+     "lengthM": 39966,
+     "elevationGainM": 457.53,
+     "loop": false
+    },
+    {
+     "id": "boucle-50-km",
+     "name": "Boucle de 50 km depuis Magny-en-Vexin",
+     "nameEn": "50 km loop from Magny-en-Vexin",
+     "lengthM": 46063.06,
+     "elevationGainM": 503.92,
+     "loop": true
+    }
+   ],
+   "pack": {
+    "version": "e1527f0d555c",
+    "bytes": 226231449,
+    "files": 1026,
+    "gzBytes": 100676016
+   },
+   "l93": {
+    "minE": 608000,
+    "minN": 6892000,
+    "maxE": 624000,
+    "maxN": 6908000
+   },
+   "open": true
+  },
+  {
+   "id": "idf-mantes-la-ville",
+   "name": "Mantes-la-Ville",
+   "region": "Yvelines · Île-de-France",
+   "routes": [
+    {
+     "id": "boucle-20-km",
+     "name": "Boucle de 20 km depuis Mantes-la-Ville",
+     "nameEn": "20 km loop from Mantes-la-Ville",
+     "lengthM": 18912,
+     "elevationGainM": 290.96,
+     "loop": false
+    },
+    {
+     "id": "boucle-30-km",
+     "name": "Boucle de 30 km depuis Mantes-la-Ville",
+     "nameEn": "30 km loop from Mantes-la-Ville",
+     "lengthM": 28654,
+     "elevationGainM": 314.8,
+     "loop": false
+    },
+    {
+     "id": "boucle-40-km",
+     "name": "Boucle de 40 km depuis Mantes-la-Ville",
+     "nameEn": "40 km loop from Mantes-la-Ville",
+     "lengthM": 39942,
+     "elevationGainM": 451.82,
+     "loop": false
+    },
+    {
+     "id": "boucle-50-km",
+     "name": "Boucle de 50 km depuis Mantes-la-Ville",
+     "nameEn": "50 km loop from Mantes-la-Ville",
+     "lengthM": 48262,
+     "elevationGainM": 531.15,
+     "loop": false
+    }
+   ],
+   "pack": {
+    "version": "f886f15e65f2",
+    "bytes": 231735094,
+    "files": 1026,
+    "gzBytes": 98473849
+   },
+   "l93": {
+    "minE": 592000,
+    "minN": 6860000,
+    "maxE": 608000,
+    "maxN": 6876000
+   },
+   "open": true
+  },
+  {
    "id": "idf-marines",
    "name": "Marines",
    "region": "Val-d'Oise · Île-de-France",
@@ -1270,6 +1478,58 @@
     "minN": 6860000,
     "maxE": 704000,
     "maxN": 6876000
+   },
+   "open": true
+  },
+  {
+   "id": "idf-melun",
+   "name": "Melun",
+   "region": "Seine-et-Marne · Île-de-France",
+   "routes": [
+    {
+     "id": "boucle-20-km",
+     "name": "Boucle de 20 km depuis Melun",
+     "nameEn": "20 km loop from Melun",
+     "lengthM": 20451.66,
+     "elevationGainM": 177,
+     "loop": true
+    },
+    {
+     "id": "boucle-30-km",
+     "name": "Boucle de 30 km depuis Melun",
+     "nameEn": "30 km loop from Melun",
+     "lengthM": 29106.74,
+     "elevationGainM": 246.18,
+     "loop": true
+    },
+    {
+     "id": "boucle-40-km",
+     "name": "Boucle de 40 km depuis Melun",
+     "nameEn": "40 km loop from Melun",
+     "lengthM": 38547.95,
+     "elevationGainM": 246.75,
+     "loop": true
+    },
+    {
+     "id": "boucle-50-km",
+     "name": "Boucle de 50 km depuis Melun",
+     "nameEn": "50 km loop from Melun",
+     "lengthM": 50466.95,
+     "elevationGainM": 369.48,
+     "loop": true
+    }
+   ],
+   "pack": {
+    "version": "d2acd462fa78",
+    "bytes": 302974686,
+    "files": 1026,
+    "gzBytes": 129310244
+   },
+   "l93": {
+    "minE": 672000,
+    "minN": 6812000,
+    "maxE": 688000,
+    "maxN": 6828000
    },
    "open": true
   },

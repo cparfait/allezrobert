@@ -8,7 +8,7 @@ import { rankRouteId, type RouteData, type RouteSegment } from '@allezrobert/sha
 import { readKomRecord } from '../game/challenge.ts';
 import { readGhostBest } from '../game/ghost.ts';
 import { readSegmentPr } from '../game/sequences.ts';
-import { readRideHistory } from '../game/stats.ts';
+import { rideHistory } from '../data/history/instance.ts';
 import { getLang } from '../i18n/index.ts';
 import { apiBase } from './account.ts';
 import { loadProgress } from './garage.ts';
@@ -192,14 +192,21 @@ export function routeDetailHtml(r: RouteData, name: string, opts: { loggedIn: bo
   const eta = Math.floor(h) ? `${Math.floor(h)} h ${String(Math.round((h % 1) * 60)).padStart(2, '0')}` : `${Math.round(h * 60)} min`;
   const ghosts = [readGhostBest(rank), r.id === rank ? null : readGhostBest(r.id)].filter((g) => g !== null);
   const ghost = ghosts.sort((a, b) => a.lapTimeS - b.lapTimeS)[0] ?? null;
-  const rides = readRideHistory().filter((x) => rankRouteId(x.routeId) === rank);
-  const last = rides[rides.length - 1];
+  // Tout l'historique (résumé en mémoire) : sorties sur ce parcours, départ déplacé compris.
+  let count = 0;
+  let lastRide: { startedAt: number; avgSpeedKmh: number | null; avgWatts: number | null } | null = null;
+  for (const [id, v] of rideHistory.summary?.byRoute ?? []) {
+    if (rankRouteId(id) !== rank) continue;
+    count += v.count;
+    if (!lastRide || v.last.startedAt > lastRide.startedAt) lastRide = v.last;
+  }
+  const last = lastRide ? { date: lastRide.startedAt, avgSpeedKmh: lastRide.avgSpeedKmh ?? 0, avgWatts: lastRide.avgWatts ?? 0 } : null;
   const done = loadProgress().routesDone.some((id) => rankRouteId(id) === rank);
   const stat = (v: string, u: string) => `<div><b>${v}</b><span>${u}</span></div>`;
   const dateFmt = (d: number | string) => new Date(d).toLocaleDateString(L ? 'fr-FR' : 'en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
   const mine = [
     ghost ? `<li><span>${L ? 'Meilleur temps sur le parcours' : 'Best time on the route'}</span><b>${formatTime(ghost.lapTimeS)}</b><small>${dateFmt(ghost.date)}</small></li>` : '',
-    `<li><span>${L ? 'Sorties sur ce parcours' : 'Rides on this route'}</span><b>${rides.length}${done && !rides.length ? ' ✓' : ''}</b>${last ? `<small>${L ? 'dernière' : 'last'} ${dateFmt(last.date)} · ${num(last.avgSpeedKmh)} km/h · ${Math.round(last.avgWatts)} W</small>` : `<small>${done ? (L ? 'parcours déjà terminé' : 'route already finished') : L ? 'jamais roulé' : 'never ridden'}</small>`}</li>`,
+    `<li><span>${L ? 'Sorties sur ce parcours' : 'Rides on this route'}</span><b>${count}${done && !count ? ' ✓' : ''}</b>${last ? `<small>${L ? 'dernière' : 'last'} ${dateFmt(last.date)} · ${num(last.avgSpeedKmh)} km/h · ${Math.round(last.avgWatts)} W</small>` : `<small>${done ? (L ? 'parcours déjà terminé' : 'route already finished') : L ? 'jamais roulé' : 'never ridden'}</small>`}</li>`,
   ].join('');
   const rows = segs
     .map((s) => {

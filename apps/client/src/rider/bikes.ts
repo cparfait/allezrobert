@@ -5,7 +5,7 @@ import { GLTFLoader, type GLTF } from 'three/addons/loaders/GLTFLoader.js';
 import { abs, atan, color, float, floor, fract, length, materialColor, max, mix, mod, positionGeometry, sign, sin, step, uniform, vec2, vec3 } from 'three/tsl';
 import { BIKES, DEFAULT_LOOK, PLAIN_BIKE_FAMILY, bikeOfLook, type AvatarLook, type BikeBuild, type BikeFamily, type TuneNumber } from '@allezrobert/shared';
 import { LiveryMaterial } from './livery.ts';
-import { RimDecalMaterial, measureBand, type RimBand } from './rimDecal.ts';
+import { RimDecalMaterial, crankLetters, measureBand, polarLetters, type RimBand } from './rimDecal.ts';
 import { decalBoxes, frameMarks, wordmarkTexture } from './wordmarks.ts';
 
 /**
@@ -59,6 +59,13 @@ const BIKE_MATERIALS: Record<string, [string, number, number]> = {
   computer_screen: ['#1b2a30', 0.15, 0],
   computer: ['#1b1c20', 0.45, 0],
   bottle: ['#ffd23f', 0.5, 0],
+  // Bidons d'équipe des modèles dédiés (Madone Lidl-Trek) : bande, filets et bouchon, haut.
+  bottle_band: ['#ffe100', 0.5, 0],
+  bottle_trim: ['#d71f26', 0.5, 0],
+  bottle_white: ['#f2f2ee', 0.5, 0],
+  // Pédalier SRAM Red du Madone : dents argentées, anneau rouge.
+  ring_teeth: ['#b9bcc2', 0.3, 1],
+  crank_accent: ['#c8102e', 0.4, 0.2],
   cage: ['#18191c', 0.45, 0.1],
   spokes: ['#151618', 0.4, 0.3],
   hub: ['#1c1d21', 0.4, 0.3],
@@ -317,6 +324,11 @@ function tagWheel(w: THREE.Object3D, type: string, build: BikeBuild): void {
     // Roue lenticulaire : flancs peints de la couleur `disc` de la livrée (matériau à part).
     if (type === 'disc' && m?.name === 'rim') o.userData.matKey = 'disc_face';
     // Bande décor : nom de la marque des roues, matériau propre à la largeur de bande.
+    // Flancs écrits (p. ex. « P ZERO ») : matériau propre à la largeur du flanc.
+    if (m?.name === 'tire_wall' && build.livery.tireText) {
+      const b = measureBand((o as THREE.Mesh).geometry);
+      o.userData.matKey = `tire_wall:${b.r0.toFixed(4)}:${b.r1.toFixed(4)}`;
+    }
     if (m?.name === 'rim_decal' && build.params.rimBrand) {
       const b = measureBand((o as THREE.Mesh).geometry);
       o.userData.matKey = `rim_decal:${type === 'box' ? 'box' : type === 'disc' ? 'disc' : 'carbon'}:${b.r0.toFixed(4)}:${b.r1.toFixed(4)}`;
@@ -464,7 +476,10 @@ export class BikeMaterials {
     this.look = look;
     this.livery = new LiveryMaterial(build.livery);
     // Inscriptions du cadre (comme sur le vrai vélo) dans les boîtes de la famille.
-    this.boxes = decalBoxes(familyScene(family));
+    // Familles génériques : boîtes recalées sur les tubes ; Madone (modèle dédié) : boîtes posées dans Blender.
+    // Bidon du diagonal monté (le vélo est remonté quand le nombre de bidons change) : la marque commence au-dessus.
+    const bottle = !build.params.track && build.params.bottles !== false && (look.bottles ?? 1) > 0;
+    this.boxes = decalBoxes(familyScene(family), family !== 'madone', bottle);
     this.refreshDecals();
   }
 
@@ -489,21 +504,25 @@ export class BikeMaterials {
     if (name.startsWith('rim_decal:')) return this.rimDecal(name);
     let m = this.byName.get(name);
     if (!m) {
-      const def = BIKE_MATERIALS[name] ?? ['#808080', 0.6, 0];
+      // « tire_wall:<r0>:<r1> » : flanc avec inscription, mêmes réglages que « tire_wall ».
+      const [kind = name, r0, r1] = name.split(':');
+      const def = BIKE_MATERIALS[kind] ?? ['#808080', 0.6, 0];
       m = new THREE.MeshStandardNodeMaterial({ color: def[0], roughness: def[1], metalness: def[2] });
-      m.name = name;
+      m.name = kind;
       const em = EMISSIVE[name];
       if (em) {
         m.emissive.set(em[0]);
         m.emissiveIntensity = em[1];
       }
-      if (name === 'tire_wall') {
+      if (kind === 'tire_wall') {
         // Flancs arc-en-ciel : teinte selon l'angle autour de l'axe du moyeu (X).
         const on = uniform(0);
         const a = atan(positionGeometry.z, positionGeometry.y).mul(3);
         const hue = vec3(sin(a), sin(a.add(2.094)), sin(a.add(4.188))).mul(0.5).add(0.5);
         m.colorNode = mix(materialColor, hue, on);
-        this.fx.set(name, on);
+        const tt = this.build.livery.tireText;
+        if (tt && r0 && r1) m.colorNode = mix(m.colorNode, color(tt.color), polarLetters(tt.text, Number(r0), Number(r1), 0.62));
+        m.userData.fx = on;
       } else if (name === 'disc_face') {
         // Flancs peints : graphisme en coordonnées polaires autour de l'axe du moyeu (X), lisible des deux côtés.
         const kind = uniform(0);
@@ -528,6 +547,8 @@ export class BikeMaterials {
         const weave = mod(floor(p.x.mul(320)).add(floor(p.y.mul(320))).add(floor(p.z.mul(320))), 2);
         const carbon = mix(mix(color('#141518'), color('#2c2d33'), weave), materialColor, float(0.15));
         m.colorNode = mix(materialColor, carbon, on);
+        const ct = this.build.livery.crankText;
+        if (name === 'crank' && ct) m.colorNode = mix(m.colorNode, color(ct.color), crankLetters(ct.text));
         this.fx.set(name, on);
       }
       this.byName.set(name, m);
@@ -604,10 +625,11 @@ export class BikeMaterials {
       tire_wall: liv.tireWall ?? (this.gravel ? GRAVEL_WALL : undefined),
       saddle: liv.saddle,
       bar_tape: liv.tape ?? this.look.jerseyAccent,
-      bottle: parts.bottle ?? this.look.jerseyAccent,
+      bottle: parts.bottle ?? liv.bottle ?? this.look.jerseyAccent,
     };
     const def = BIKE_MATERIALS[m.name];
-    const c = col[m.name] ?? (TUNABLE.has(m.name) ? parts[m.name] : undefined) ?? def?.[0];
+    const own = (liv.parts ?? {}) as Partial<Record<string, string>>;
+    const c = col[m.name] ?? (TUNABLE.has(m.name) ? (parts[m.name] ?? own[m.name]) : undefined) ?? def?.[0];
     if (c) m.color.set(c);
     // Pièces anodisées / dorées de l'atelier : métal poli ; sinon valeurs du modèle.
     const metal = !!ex?.metal?.includes(m.name as never);
@@ -615,7 +637,7 @@ export class BikeMaterials {
       m.metalness = metal ? 1 : def[2];
       m.roughness = metal ? 0.22 : def[1];
     }
-    const fx = this.fx.get(m.name);
+    const fx = this.fx.get(m.name) ?? (m.userData.fx as { value: number } | undefined);
     if (fx) {
       if (m.name === 'disc_face') fx.value = liv.discArt === 'espada' ? 1 : liv.discArt === 'petals' ? 2 : 0;
       else fx.value = m.name === 'tire_wall' ? (ex?.rainbowWall ? 1 : 0) : ex?.carbon?.includes(m.name as never) ? 1 : 0;

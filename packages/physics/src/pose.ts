@@ -9,6 +9,7 @@
  *   en force (cadence < 65 et P > 1,1·FTP) ; on en sort sous des seuils plus bas (hystérésis) ;
  * - danseuse aussi au-delà d'un seuil de puissance choisi par le coureur (`standWatts`, sortie à 85 %),
  *   ou quand les capteurs mesurent la position (`sensorPose`, prioritaire hors roue libre) ;
+ * - dans un segment de sprint, danseuse dès 1,05·FTP (`sprint`) ;
  * - sinon assis. Chaque état est tenu au moins `minHoldS`.
  */
 
@@ -24,6 +25,8 @@ export interface PoseInput {
   standWatts?: number;
   /** Position mesurée par les capteurs (pédales qui la détectent) ; absente : déduite de l'effort. */
   sensorPose?: 'seated' | 'standing';
+  /** Dans un segment de sprint : danseuse dès 1,05·FTP (sortie sous 0,9·FTP). */
+  sprint?: boolean;
 }
 
 export interface PoseOptions {
@@ -80,14 +83,16 @@ export class PoseController {
         rel > SPRINT_OUT ||
         (input.gradePercent >= CLIMB_GRADE_OUT && rel > CLIMB_OUT) ||
         (input.cadence < GRIND_CAD_OUT && rel > GRIND_OUT) ||
-        (!!input.standWatts && input.watts > input.standWatts * 0.85);
+        (!!input.standWatts && input.watts > input.standWatts * 0.85) ||
+        (!!input.sprint && rel > 0.9);
       next = keep ? 'standing' : 'seated';
     } else {
       const stand =
         rel > SPRINT_IN ||
         (input.gradePercent >= CLIMB_GRADE_IN && rel > CLIMB_IN) ||
         (input.cadence < GRIND_CAD_IN && rel > GRIND_IN) ||
-        (!!input.standWatts && input.watts > input.standWatts);
+        (!!input.standWatts && input.watts > input.standWatts) ||
+        (!!input.sprint && rel > 1.05);
       next = stand ? 'standing' : 'seated';
     }
     // Sortir de la roue libre se fait immédiatement (on voit tout de suite le pédalage).

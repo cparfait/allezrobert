@@ -303,6 +303,19 @@ export class GameAudio {
     for (const b of BUSES) this.buses[b].gain.setTargetAtTime(g[b], now, tau);
   }
 
+  /** Sortie de la voix de course (après le volume général, avant la compression) ; null tant que l'audio n'est pas lancé. */
+  voiceOut(): { ctx: BaseAudioContext; dest: AudioNode } | null {
+    if (!this.ctx) return null;
+    this.voiceBus ??= (() => {
+      const g = this.ctx!.createGain();
+      g.gain.value = 1;
+      g.connect(this.master);
+      return g;
+    })();
+    return { ctx: this.ctx, dest: this.voiceBus };
+  }
+  private voiceBus: GainNode | null = null;
+
   setMix(m: SoundMix): void {
     this.mix = { ...m };
     this.applyBuses(0.08);

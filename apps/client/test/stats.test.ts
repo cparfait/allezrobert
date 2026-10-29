@@ -1,6 +1,6 @@
 import { describe, expect, it, beforeEach } from 'vitest';
 import type { ActivityRecord } from '@allezrobert/shared';
-import { compareAndStore, readPowerRecords, rideStats, updatePowerRecords } from '../src/game/stats.ts';
+import { previousComparable, readPowerRecords, rideStats, updatePowerRecords } from '../src/game/stats.ts';
 
 // localStorage minimal pour les tests (Node).
 const store = new Map<string, string>();
@@ -51,13 +51,14 @@ describe('statistiques de fin de sortie', () => {
     // Sortie reprise puis terminée à nouveau : mêmes records d'avant, rien ne se bat soi-même.
     expect(updatePowerRecords(s2.curve, before).beaten).toContain(60);
   });
-  it('« vs la dernière fois » : même itinéraire, distance comparable, sans doublon', () => {
+  it('« vs la dernière fois » : même itinéraire, distance comparable, pas soi-même, tout l’historique', () => {
     const e = { routeId: 'r', distanceM: 10000, movingS: 1200, avgSpeedKmh: 30, avgWatts: 200, np: 210 };
-    expect(compareAndStore({ ...e, date: 1 })).toBeNull();
-    expect(compareAndStore({ ...e, routeId: 'autre', date: 2 })).toBeNull();
-    expect(compareAndStore({ ...e, date: 3, avgSpeedKmh: 31 })?.date).toBe(1);
+    const old = Array.from({ length: 100 }, (_, i) => ({ ...e, date: i + 1 }));
+    expect(previousComparable([], { ...e, date: 1 })).toBeNull();
+    expect(previousComparable(old, { ...e, routeId: 'autre', date: 200 })).toBeNull();
+    expect(previousComparable(old, { ...e, date: 200 })?.date).toBe(100);
     // Même sortie terminée deux fois : elle ne se compare pas à elle-même.
-    expect(compareAndStore({ ...e, date: 3, avgSpeedKmh: 32 })?.date).toBe(1);
-    expect(compareAndStore({ ...e, date: 4, distanceM: 30000 })).toBeNull();
+    expect(previousComparable([...old, { ...e, date: 200 }], { ...e, date: 200 })?.date).toBe(100);
+    expect(previousComparable(old, { ...e, date: 200, distanceM: 30000 })).toBeNull();
   });
 });

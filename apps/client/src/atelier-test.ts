@@ -18,6 +18,7 @@ import { AtelierHost, type AtelierState, type Shot } from './ui/atelier.ts';
  *    mesurés sur le squelette → profil-<nom>.jpg ; &tete : la tête seule (&casque : casquée, &tq : de
  *    trois quarts avant ; &cam=x,y,z&look=x,y,z&fov=n : cadrage libre) ;
  *  - ?peloton : 50 coureurs tous équipés différemment, vus de la caméra de poursuite → peloton-identite.jpg.
+ *  - ?velo=<id>[&bottles=2] : un vélo du catalogue sur le pied (garage), trois quarts et deux profils → out/bikes-render/.
  */
 
 const canvas = document.getElementById('scene') as HTMLCanvasElement;
@@ -129,6 +130,25 @@ async function main(): Promise<void> {
       if (params.has('sel') && !name.endsWith(params.get('sel') as string)) continue; // &sel=vue : une seule vue
       const c = await render({ look: look(tune, extra), focus, rider, yaw });
       await shot(name, c);
+    }
+    return done();
+  }
+  if (params.has('velo')) {
+    // ?velo=<id>[&bottles=2] : un vélo du catalogue sur le pied de l'atelier, cadrage du garage (trois quarts)
+    // puis profils droit (transmission) et gauche → out/bikes-render/atelier-<id>-<vue>.jpg.
+    const id = params.get('velo') as string;
+    const fam = BIKES.find((b) => b.id === id)?.family;
+    if (fam) await loadBikeFamily(fam);
+    const extra: Partial<AvatarLook> = { bikeModel: id, ...(params.has('bottles') ? { bottles: Number(params.get('bottles')) as 0 | 1 | 2 } : {}) };
+    const lift = 0.5;
+    const views: Array<[string, Shot | undefined]> = [
+      ['3q', undefined],
+      ['droite', { cam: [-1.95, 0.62 + lift, 0.09], look: [0, 0.6 + lift, 0.09], fov: 42 }],
+      ['gauche', { cam: [1.95, 0.62 + lift, 0.09], look: [0, 0.6 + lift, 0.09], fov: 42 }],
+    ];
+    for (const [name, view] of views) {
+      const c = await render({ look: look([], extra), focus: 'overview', rider: false, yaw: 0, ...(view ? { view } : {}) });
+      if (!params.has('noshot')) await fetch(`/__shot?name=atelier-${id}-${name}&dir=bikes-render`, { method: 'POST', body: c.toDataURL('image/jpeg', 0.9) });
     }
     return done();
   }

@@ -49,6 +49,8 @@ renvoie un MP3 mis en cache dans `TTS_CACHE_DIR` ; voix réglables par `CARTESIA
 | `src/crypto.ts` | AES-256-GCM des données sensibles, empreinte HMAC des e-mails |
 | `src/integrations/*` | Strava, intervals.icu, jetons LiveKit |
 | `src/activities/fit-import.ts` | Lecture FIT (SDK Garmin), résumé, retrait de la FC |
+| `src/db/training.ts`, `src/http/history-routes.ts` | Historique d'entraînement (migration 006) : mesures par sortie (NP, IF, TSS, courbe, zones), FTP, records, séances perso, fil des amis, synchronisation avec la base locale du jeu (`POST /api/history/sync`) |
+| `src/activities/backfill.ts` | Rattrapage en tâche de fond des mesures des sorties envoyées avant la migration 006 |
 | `src/progression/xp.ts` | Aides serveur ; formules et catalogue dans `@allezrobert/shared` |
 | `src/worker/render-worker.ts` | Worker vidéo (conteneur renderer) → scripts de packages/sequences |
 

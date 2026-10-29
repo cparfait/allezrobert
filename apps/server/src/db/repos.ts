@@ -48,6 +48,13 @@ export interface ActivitySummaryRow {
   stravaStatus: string | null;
   intervalsStatus: string | null;
   createdAt: Date;
+  /** Fichier FIT présent (absent pour une sortie synchronisée depuis le jeu). */
+  hasFit: boolean;
+  kind: string;
+  workoutName: string | null;
+  np: number | null;
+  tss: number | null;
+  intensity: number | null;
 }
 
 /** Atelier d'un compte : crédits, pièces possédées, événements débloqués, série, cumuls. */
@@ -164,7 +171,10 @@ export class Repos {
   async deleteUser(userId: string): Promise<void> {
     await this.db.tx(async (q) => {
       // Suppressions explicites (en plus des ON DELETE CASCADE) pour ne dépendre d'aucun moteur.
-      for (const table of ['render_jobs', 'integrations', 'segment_efforts', 'activities', 'progression', 'profiles', 'sessions', 'auth_identities', 'friend_codes']) {
+      for (const table of ['activity_power_curve', 'activity_zone_time']) {
+        await q.query(`DELETE FROM ${table} WHERE activity_id IN (SELECT id FROM activities WHERE user_id = $1)`, [userId]);
+      }
+      for (const table of ['render_jobs', 'integrations', 'segment_efforts', 'route_times', 'ghost_laps', 'ftp_history', 'power_records', 'workouts', 'deleted_rides', 'activities', 'progression', 'profiles', 'sessions', 'auth_identities', 'friend_codes']) {
         await q.query(`DELETE FROM ${table} WHERE user_id = $1`, [userId]);
       }
       // Amitiés et demandes, dans les deux sens.
@@ -283,16 +293,18 @@ export class Repos {
     routeId?: string;
     rideId?: string;
     skipStrava: boolean;
-  }): Promise<string> {
+    /** Sortie de la base locale du jeu (envoi idempotent). */
+    clientRideId?: string;
+  }, q: Queryable = this.db): Promise<string> {
     const id = randomUUID();
     const hrEnc = a.hr && (a.hr.avg !== undefined || a.hr.max !== undefined) ? this.bin(this.cipher.encryptJson(a.hr, `act-hr:${id}`)) : null;
     const fitEnc = this.bin(this.cipher.encrypt(a.fit, `fit:${id}`));
-    await this.db.query(
+    await q.query(
       `INSERT INTO activities (id, user_id, name, started_at, duration_s, moving_s, distance_m, elevation_m, avg_watts, max_watts,
-                               hr_summary_enc, fit_enc, fit_size, xp, route_id, ride_id, skip_strava)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)`,
+                               hr_summary_enc, fit_enc, fit_size, xp, route_id, ride_id, skip_strava, client_ride_id)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)`,
       [id, a.userId, a.name, a.startedAt, a.durationS, a.movingS, a.distanceM, a.elevationM, a.avgWatts ?? null, a.maxWatts ?? null,
-        hrEnc, fitEnc, a.fit.length, a.xp, a.routeId ?? null, a.rideId ?? null, a.skipStrava],
+        hrEnc, fitEnc, a.fit.length, a.xp, a.routeId ?? null, a.rideId ?? null, a.skipStrava, a.clientRideId ?? null],
     );
     return id;
   }
@@ -300,7 +312,7 @@ export class Repos {
   async listActivities(userId: string, limit = 50, offset = 0): Promise<ActivitySummaryRow[]> {
     const r = await this.db.query(
       `SELECT id, name, started_at, duration_s, moving_s, distance_m, elevation_m, avg_watts, max_watts, hr_summary_enc, xp,
-              route_id, ride_id, skip_strava, strava_status, intervals_status, created_at
+              route_id, ride_id, skip_strava, strava_status, intervals_status, created_at, fit_size, kind, workout_name, np, tss, intensity
          FROM activities WHERE user_id = $1 ORDER BY started_at DESC LIMIT $2 OFFSET $3`,
       [userId, limit, offset],
     );
@@ -310,7 +322,7 @@ export class Repos {
   async getActivity(userId: string, id: string): Promise<ActivitySummaryRow | null> {
     const r = await this.db.query(
       `SELECT id, name, started_at, duration_s, moving_s, distance_m, elevation_m, avg_watts, max_watts, hr_summary_enc, xp,
-              route_id, ride_id, skip_strava, strava_status, intervals_status, created_at
+              route_id, ride_id, skip_strava, strava_status, intervals_status, created_at, fit_size, kind, workout_name, np, tss, intensity
          FROM activities WHERE user_id = $1 AND id = $2`,
       [userId, id],
     );
@@ -335,6 +347,12 @@ export class Repos {
       stravaStatus: row.strava_status,
       intervalsStatus: row.intervals_status,
       createdAt: toDate(row.created_at),
+      hasFit: row.fit_size !== null && row.fit_size !== undefined,
+      kind: row.kind ?? 'free',
+      workoutName: row.workout_name ?? null,
+      np: row.np === null || row.np === undefined ? null : toNum(row.np),
+      tss: row.tss === null || row.tss === undefined ? null : toNum(row.tss),
+      intensity: row.intensity === null || row.intensity === undefined ? null : toNum(row.intensity),
     };
     if (row.hr_summary_enc) {
       const hr = this.cipher.decryptJson<{ avg?: number; max?: number }>(this.unbin(row.hr_summary_enc), `act-hr:${row.id}`);
@@ -347,7 +365,8 @@ export class Repos {
   async getActivityFit(userId: string, id: string): Promise<Buffer | null> {
     const r = await this.db.query('SELECT fit_enc FROM activities WHERE user_id = $1 AND id = $2', [userId, id]);
     const row = r.rows[0];
-    return row ? this.cipher.decrypt(this.unbin(row.fit_enc), `fit:${id}`) : null;
+    // Sortie synchronisée depuis le jeu sans fichier FIT : rien à renvoyer.
+    return row?.fit_enc ? this.cipher.decrypt(this.unbin(row.fit_enc), `fit:${id}`) : null;
   }
 
   async replaceActivityFit(id: string, fit: Uint8Array): Promise<void> {

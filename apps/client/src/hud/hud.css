@@ -186,7 +186,9 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #0a0e16; col
 .turnwarn .tw-text { display: grid; line-height: 1.15; }
 .turnwarn .tw-text b { font-size: 17px; text-transform: uppercase; letter-spacing: .04em; color: var(--tw); }
 .turnwarn .tw-text span { font-size: 15px; font-weight: 700; }
-.turnwarn.soon { animation: tw-pulse .7s ease-in-out infinite alternate; }
+/* Dans les 40 derniers mètres : le panneau reste fixe, seule la flèche clignote. */
+.turnwarn.soon .tw-arrow { animation: tw-blink 0.8s steps(2, jump-none) infinite; }
+@keyframes tw-blink { 0% { opacity: 1; } 100% { opacity: 0.15; } }
 @keyframes tw-pulse { from { box-shadow: 0 0 0 0 transparent; } to { box-shadow: 0 0 0 3px var(--tw); } }
 .segment { padding: 8px 18px 10px; min-width: 320px; max-width: min(560px, 90vw); text-align: center; border-left: 4px solid var(--z6); }
 .segment.sprint { border-left-color: var(--z3); }
@@ -352,6 +354,14 @@ body:has(.subtitle:not(.hidden)) .ob-robert { animation: ob-mouth 1.1s steps(1, 
 /* Étape Avatar : chaque réglage dans son encadré, pour ne pas mélanger les nuanciers voisins. */
 .ob-avatar-grid { gap: 10px; }
 .ob-avatar-grid > .field { padding: 10px 12px 12px; border: 1px solid rgba(255, 255, 255, 0.14); border-radius: 12px; background: rgba(255, 255, 255, 0.035); }
+/* Étape Style graphique : deux cartes avec une capture en jeu, la choisie cerclée de jaune. */
+.ob-styles { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.ob-style { display: flex; flex-direction: column; gap: 4px; padding: 8px 8px 12px; text-align: left; color: var(--ar-fg); font: inherit; cursor: pointer; border: 2px solid rgba(255, 255, 255, 0.14); border-radius: 12px; background: rgba(255, 255, 255, 0.035); }
+.ob-style:hover { border-color: rgba(255, 255, 255, 0.35); }
+.ob-style.on { border-color: var(--ar-accent); background: rgba(255, 210, 63, 0.08); }
+.ob-style img { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 8px; margin-bottom: 6px; background: #182030; }
+.ob-style b { font-size: 16px; padding: 0 4px; }
+.ob-style span { font-size: 13px; color: var(--ar-muted); padding: 0 4px; line-height: 1.4; }
 /* Écran étroit : pas de place à côté de la carte, Robert s'efface. */
 @media (max-width: 760px) {
   .ob-stage .ob-robert { display: none; }
@@ -549,7 +559,7 @@ body:has(.subtitle:not(.hidden)) .ob-robert { animation: ob-mouth 1.1s steps(1, 
 .hud.compact .cx-zlab { display: grid; grid-template-columns: repeat(7, 1fr); gap: calc(var(--u) * 3); margin-top: calc(var(--u) * 2); font-size: calc(var(--u) * 8.5); color: var(--ar-muted); text-align: center; }
 
 /* Haut, droite : mini-carte ronde, pente (gros chiffre) avec altitude et vent, coureurs proches, chat. */
-.hud.compact .hud-col-right { width: calc(var(--u) * 200); align-items: stretch; }
+.hud.compact .hud-col-right { width: calc(var(--u) * 240); align-items: stretch; }
 .hud.compact .minimap { align-self: center; width: calc(var(--u) * 150); height: calc(var(--u) * 150); padding: 0; border-radius: 50%; overflow: hidden; border: calc(var(--u) * 2) solid rgba(255, 255, 255, 0.14); }
 .hud.compact .minimap canvas { display: block; border-radius: 50%; }
 .hud.compact .cx-env { display: flex; flex-direction: column; gap: calc(var(--u) * 2); padding: calc(var(--u) * 5) calc(var(--u) * 10) calc(var(--u) * 6); }
@@ -631,3 +641,15 @@ body:has(.subtitle:not(.hidden)) .ob-robert { animation: ob-mouth 1.1s steps(1, 
 .hud.compact .cx-avg { font-size: calc(var(--u) * 9.5); color: rgba(255, 255, 255, 0.62); line-height: 1; }
 .hud.compact .cx-avg b { font-weight: 700; color: rgba(255, 255, 255, 0.85); }
 .hud.compact .cx-cell.hr .cx-avg b { color: #ffb3ba; }
+
+/* « À proximité » agrandi : nom, puis niveau et kilomètres ; watts et W/kg ; écart. */
+.hud.compact .hud-col > .riders { font-size: calc(var(--u) * 14); }
+.hud.compact .riders .rd-head { font-size: calc(var(--u) * 11); }
+.hud.compact .riders .row { grid-template-columns: calc(var(--u) * 9) minmax(0, 1fr) auto calc(var(--u) * 44); gap: calc(var(--u) * 7); padding: calc(var(--u) * 5) calc(var(--u) * 7); }
+.hud.compact .riders .rd-dot { width: calc(var(--u) * 9); height: calc(var(--u) * 9); }
+.hud.compact .riders .rd-name { display: grid; min-width: 0; line-height: 1.15; }
+.hud.compact .riders .rd-n { font-size: calc(var(--u) * 14.5); }
+.hud.compact .riders .rd-sub { font-size: calc(var(--u) * 10.5); color: var(--ar-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hud.compact .riders .rd-w { display: grid; justify-items: end; line-height: 1.1; font-size: calc(var(--u) * 14); font-weight: 700; }
+.hud.compact .riders .rd-w small { font-size: calc(var(--u) * 10); color: var(--ar-muted); font-weight: 600; }
+.hud.compact .riders .rd-gap { font-size: calc(var(--u) * 13); }

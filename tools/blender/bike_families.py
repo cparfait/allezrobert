@@ -5,13 +5,14 @@ Ce fichier est exécuté dans l'espace de noms de build_cyclist.py (exec) : il e
 outils (MB, loft, tube, kamm_sec, ell_sec, lathe_m, MATS…). Repère CLIENT partout (+x gauche,
 +y haut, +z avant). Contrat des nœuds glTF : voir l'en-tête de build_cyclist.py.
 
-Familles : aero, climb, tt, retro, retro_compact, steel, lowpro, lotus, espada.
+Familles : aero, climb, tt, retro, retro_compact, steel, lowpro, lotus, espada ;
+madone (Trek Madone de Mads Pedersen, modèle dédié : tools/blender/bike_madone.py).
 """
 
 ZONE_IDX = {'main': 0, 'rear': 1, 'fork': 2, 'head': 3}
 WHEEL_TYPES = ('box', 'c35', 'c50', 'c65', 'disc', 'tri')
 WHEEL_DEPTH = {'box': 0.02, 'c35': 0.035, 'c50': 0.05, 'c65': 0.065, 'disc': 0.03, 'tri': 0.05}
-FAMILIES = ('aero', 'climb', 'tt', 'retro', 'retro_compact', 'steel', 'lowpro', 'lotus', 'espada')
+FAMILIES = ('aero', 'climb', 'tt', 'retro', 'retro_compact', 'steel', 'lowpro', 'lotus', 'espada', 'madone')
 COCKPITS = ('classic', 'aero', 'light', 'wing')
 SADDLES = ('race', 'min', 'comfort', 'aero', '3d')
 TT_FAMILIES = ('tt', 'lowpro', 'lotus', 'espada')
@@ -1058,6 +1059,8 @@ def family_geometry(fam):
 
 def build_family(fam, lod):
     """Objets d'une famille (maillages + vides) ; renvoie (objets, infos des ancres)."""
+    if fam == 'madone':
+        return build_madone(lod)
     g = family_geometry(fam)
     zl = []
     voxel = 0.002 if lod == 0 else (0.0032 if fam in ('steel', 'retro', 'retro_compact') else 0.004)

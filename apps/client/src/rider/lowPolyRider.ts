@@ -223,6 +223,8 @@ export class LowPolyRider implements RiderAvatarLike {
   private body = new THREE.Group();
   private crank = new THREE.Group();
   private wheels: THREE.Group[] = [];
+  /** Écran du compteur (canevas rafraîchi par setComputer, 4 fois par seconde au plus). */
+  private screen: { ctx: CanvasRenderingContext2D; tex: THREE.CanvasTexture; t: number } | null = null;
   private pedals: THREE.Mesh[] = [];
   private legs: Array<{ side: number; shorts: Seg; knee: Seg; shin: Seg; sock: Seg; shoe: THREE.Mesh }> = [];
   private arms: Array<{ side: number; sleeve: Seg; cuff: Seg; upper: Seg; fore: Seg; glove: THREE.Mesh }> = [];
@@ -244,6 +246,9 @@ export class LowPolyRider implements RiderAvatarLike {
   /** Mains en bas du cintre (vitesse de course) et position aéro (descente rapide, très haute vitesse). */
   private dropsBlend = 0;
   private aeroBlend = 0;
+  /** Sprint (danseuse basse, mains en bas du cintre) plutôt que danseuse de montée ; fondu. */
+  private sprintOn = false;
+  private sprintBlend = 0;
   private dropsOn = false;
   private celebrate = 0;
   private celebrating = false;
@@ -613,7 +618,10 @@ export class LowPolyRider implements RiderAvatarLike {
     }
     g.add(merged(bar, tapeMat));
     // Compteur sur la potence.
-    if (bike.params.computer !== false) parts.push(box(0.05, 0.016, 0.075, 0, 0.915, 0.6));
+    if (bike.params.computer !== false) {
+      parts.push(box(0.05, 0.016, 0.075, 0, 0.915, 0.6));
+      g.add(this.buildScreen());
+    }
     g.add(merged(parts, dark));
     // Bidons : sur le diagonal puis le tube de selle (selon le cadre, ou le choix du garage).
     const maxBottles = kind === 'tt' || bike.params.track || bike.params.bottles === false ? 0 : 2;
@@ -700,11 +708,14 @@ export class LowPolyRider implements RiderAvatarLike {
     // vitesse : −60 % de 20 à 45 km/h.
     const pedaling = 1 - this.coastBlend;
     const fast = Math.min(1, Math.max(0, (speed * 3.6 - 20) / 25));
-    const rock = -Math.sin(this.crankAngle) * (0.16 * stand + 0.009 * (1 - stand)) * pedaling * (1 - 0.6 * fast);
+    // Sprint : le vélo est jeté franchement d'un côté à l'autre (≈ ±16°), même à pleine vitesse.
+    this.sprintBlend += ((this.sprintOn ? 1 : 0) - this.sprintBlend) * (1 - Math.exp(-dt * 4));
+    const sprint = this.sprintBlend * stand;
+    const rock = -Math.sin(this.crankAngle) * (0.22 * stand + 0.06 * sprint + 0.009 * (1 - stand)) * pedaling * (1 - 0.6 * fast * (1 - sprint));
     this.lean.rotation.z = tilt + rock;
     /** Décalage latéral des épaules (repère du vélo) qui garde le buste presque d'aplomb malgré la bascule. */
     // Assis : buste fixe sur le vélo (aucune compensation) ; en danseuse, épaules ramenées vers l'aplomb.
-    const upright = (y: number) => 0.75 * stand * rock * y;
+    const upright = (y: number) => 0.85 * stand * rock * y;
     // Roulis des épaules assis : l'épaule du côté de la jambe qui appuie (manivelle vers l'avant, sin < 0 à
     // gauche) descend d'environ 1 cm et le buste glisse un peu vers elle.
     // Les pros restent immobiles du haut à haute cadence : roulis réduit de moitié de 80 à 120 tr/min.
@@ -712,9 +723,8 @@ export class LowPolyRider implements RiderAvatarLike {
     const roll = -Math.sin(this.crankAngle) * pedaling * (1 - stand) * calm;
 
     const fit = this.fit;
-    // Cintre route : bas du cintre au-dessus de 43 km/h (retour aux cocottes sous 36), position aéro en roue
-    // libre de 36 à 47 km/h et en pédalant au-delà de 50 km/h : dos presque à plat, épaules basses et
-    // avancées, avant-bras à l'horizontale, tête relevée.
+    // Cintre route : bas du cintre au-dessus de 43 km/h (retour aux cocottes sous 36), position aéro dans les
+    // descentes rapides : dos presque à plat, épaules basses et avancées, avant-bras à l'horizontale, tête relevée.
     const bars = fit.bar === 'drop' && pose !== 'standing';
     const coasting = pose === 'coasting' || cadence < 5;
     this.dropsOn = bars && (speed > 12 || (this.dropsOn && speed > 10));
@@ -722,19 +732,24 @@ export class LowPolyRider implements RiderAvatarLike {
       const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
       return t * t * (3 - 2 * t);
     };
-    const aeroOn = bars ? (coasting ? smooth(10, 13, speed) : smooth(13.9, 15.5, speed)) : 0;
+    // Descente rapide : position aéro dès 32 km/h en roue libre (pleine à 40), dès 45 km/h en pédalant.
+    const aeroOn = bars ? (coasting ? smooth(8.9, 11.1, speed) : smooth(12.5, 14, speed)) : 0;
     const k2 = 1 - Math.exp(-dt * 2.5);
     this.dropsBlend += ((this.dropsOn ? 1 : 0) - this.dropsBlend) * k2;
     this.aeroBlend += (aeroOn - this.aeroBlend) * k2;
     const aero = this.aeroBlend * (1 - stand) * (1 - this.celebrate);
-    const dropHands = Math.max(this.dropsBlend * (1 - stand), aero) * (1 - this.celebrate);
-    const hip = this.hip.set(0, SADDLE.y + 0.07 + 0.13 * stand, SADDLE.z + 0.02 + 0.2 * stand - 0.02 * aero);
+    const dropHands = Math.max(this.dropsBlend * (1 - stand), aero, sprint) * (1 - this.celebrate);
+    // Danseuse : bassin monté de 16 cm et avancé vers le pédalier ; il reste à l'aplomb pendant que le vélo bascule.
+    // Sprint : bassin hors de la selle mais bas, au-dessus du bec de selle.
+    const hip = this.hip.set(0, SADDLE.y + 0.07 + 0.16 * stand - 0.07 * sprint, SADDLE.z + 0.02 + 0.23 * stand - 0.12 * sprint - 0.02 * aero);
+    hip.x += stand * upright(hip.y);
     const up = this.celebrate;
     // Les bras levés ou la danseuse annulent la position de chrono (on se redresse).
     const fitK = 1 - Math.max(up, stand * 0.6);
     // Buste penché à ≈ 36° assis (comme les coureurs NCT), plus couché en chrono ; en danseuse, le buste plonge et
     // les épaules passent presque au-dessus des mains, coudes fléchis (GCN).
-    const shoulder = this.shoulder.set(0, 1.395 + fit.shoulderDy * fitK + 0.02 * stand + 0.15 * up, 0.243 + fit.shoulderDz * fitK + 0.18 * stand - 0.23 * up);
+    // Sprint (vidéos Eurosport) : dos presque horizontal (≈ 17°), épaules basses et avancées au-dessus de la potence.
+    const shoulder = this.shoulder.set(0, 1.395 + fit.shoulderDy * fitK + 0.07 * stand - 0.12 * sprint + 0.15 * up, 0.243 + fit.shoulderDz * fitK + 0.17 * stand + 0.08 * sprint - 0.23 * up);
     shoulder.y -= this.coastBlend * 0.03 * (1 - aero) + 0.13 * aero + 0.04 * dropHands * (1 - aero);
     shoulder.z += 0.07 * aero + 0.02 * dropHands * (1 - aero);
     shoulder.x += upright(shoulder.y);
@@ -754,7 +769,7 @@ export class LowPolyRider implements RiderAvatarLike {
     this.collar.set(shoulder.clone().add(v3(0, 0.0, 0.015)), shoulder.clone().add(v3(0, 0.045, 0.035)));
     this.head.position.copy(neckTop).add(v3(0, 0.07, 0.04));
     // Tête relevée pour regarder la route (le dos est penché vers l'avant).
-    this.head.rotation.x = 0.3 + fit.headTilt * fitK - 0.12 * stand - 0.25 * up - 0.22 * aero;
+    this.head.rotation.x = 0.3 + fit.headTilt * fitK - 0.12 * stand - 0.2 * sprint - 0.25 * up - 0.22 * aero;
 
     for (const leg of this.legs) {
       const a = this.crankAngle + (leg.side > 0 ? 0 : Math.PI);
@@ -815,6 +830,11 @@ export class LowPolyRider implements RiderAvatarLike {
     if (JSON.stringify(look) !== this.lookKey) this.build(look);
   }
 
+  /** Sprint en cours (segment de sprint ou effort maximal) : danseuse de sprint. */
+  setSprint(on: boolean): void {
+    this.sprintOn = on;
+  }
+
   setCelebrating(on: boolean): void {
     this.celebrating = on;
   }
@@ -824,13 +844,90 @@ export class LowPolyRider implements RiderAvatarLike {
     this.headgear.visible = !on;
   }
 
+  /** Écran allumé du compteur, incliné vers le coureur sur la potence. */
+  private buildScreen(): THREE.Object3D {
+    const g = new THREE.Group();
+    if (typeof document === 'undefined') return g;
+    const c = document.createElement('canvas');
+    c.width = 128;
+    c.height = 176;
+    const ctx = c.getContext('2d') as CanvasRenderingContext2D;
+    const tex = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.anisotropy = 4;
+    this.screen = { ctx, tex, t: 0 };
+    this.drawScreen({ speedKmh: 0, watts: 0, cadence: 0 });
+    const mat = new THREE.MeshBasicNodeMaterial({ map: tex });
+    // face vers le haut, inclinée de 20° vers le coureur ; haut de l'écran vers l'avant du vélo
+    const plane = new THREE.Mesh(new THREE.PlaneGeometry(0.044, 0.062).rotateZ(Math.PI).rotateX(-1.92), mat);
+    plane.position.set(0, 0.9245, 0.6);
+    g.add(plane);
+    return g;
+  }
+
+  private drawScreen(d: { speedKmh: number; watts: number; cadence: number; hr?: number; timeS?: number }): void {
+    const sc = this.screen;
+    if (!sc) return;
+    const g = sc.ctx;
+    const W = 128;
+    g.fillStyle = '#0b0f14';
+    g.fillRect(0, 0, W, 176);
+    // bandeau de tête (couleur de la zone d'effort) et heure de sortie
+    g.fillStyle = '#ffd23f';
+    g.fillRect(0, 0, W, 22);
+    g.fillStyle = '#0b0f14';
+    g.font = 'bold 15px Arial, sans-serif';
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    const t = Math.max(0, Math.round(d.timeS ?? 0));
+    g.fillText(`${Math.floor(t / 3600)}:${String(Math.floor((t % 3600) / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`, W / 2, 12);
+    const cell = (y: number, label: string, value: string, color: string) => {
+      g.fillStyle = '#7d8a99';
+      g.font = 'bold 11px Arial, sans-serif';
+      g.fillText(label, W / 2, y);
+      g.fillStyle = color;
+      g.font = 'bold 30px Arial, sans-serif';
+      g.fillText(value, W / 2, y + 22);
+    };
+    cell(36, 'KM/H', d.speedKmh.toFixed(1).replace('.', ','), '#ffffff');
+    cell(84, 'WATTS', String(Math.round(d.watts)), '#7ee081');
+    g.fillStyle = '#26303b';
+    g.fillRect(6, 130, W - 12, 1);
+    g.font = 'bold 18px Arial, sans-serif';
+    g.fillStyle = '#ff7b88';
+    g.fillText(d.hr ? `♥${Math.round(d.hr)}` : '♥ --', W * 0.3, 152);
+    g.fillStyle = '#5fc8ff';
+    g.fillText(`${Math.round(d.cadence)}`, W * 0.75, 152);
+    sc.tex.needsUpdate = true;
+  }
+
+  /** Données du compteur (coureur du joueur) : redessiné au plus 4 fois par seconde. */
+  setComputer(d: { speedKmh: number; watts: number; cadence: number; hr?: number; timeS?: number }): void {
+    const sc = this.screen;
+    if (!sc) return;
+    const now = performance.now();
+    if (now - sc.t < 250) return;
+    sc.t = now;
+    this.drawScreen(d);
+  }
+
   /** Vélo seul (garage : vélos sur les râteliers et contre les murs). */
   setRiderVisible(on: boolean): void {
     this.body.visible = on;
   }
 
+  /**
+   * Vues embarquées (cockpit, caméra d'action) : sans la tête ni le buste et les bras, qui bouchaient l'image
+   * de grands aplats (corps en tubes : jambes comprises) ; restent le vélo et les gants sur le cintre.
+   */
   setHeadVisible(on: boolean): void {
     this.head.visible = on;
+    if (this.swept) this.swept.mesh.visible = on;
+    this.torso.mesh.visible = on && !this.swept;
+    for (const b of this.bands) b.seg.mesh.visible = on && !this.swept;
+    this.collar.mesh.visible = on && !this.swept;
+    this.neck.mesh.visible = on && !this.swept;
+    for (const a of this.arms) for (const sg of [a.sleeve, a.cuff, a.upper, a.fore]) sg.mesh.visible = on && !this.swept;
   }
 
   setShadows(on: boolean): void {

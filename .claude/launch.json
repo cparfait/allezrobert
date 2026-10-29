@@ -147,6 +147,51 @@
         "set AR_HMR=0&& pnpm --filter @allezrobert/client exec vite --port 5175"
       ],
       "port": 5175
+    },
+    {
+      "name": "client-madone",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": [
+        "/c",
+        "set AR_HMR=0&& pnpm --filter @allezrobert/client exec vite --port 5191 --strictPort"
+      ],
+      "port": 5191
+    },
+    {
+      "name": "lowpoly",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": [
+        "/c",
+        "set AR_HMR=0&& pnpm --filter @allezrobert/client exec vite --port 5192 --strictPort"
+      ],
+      "port": 5192
+    },
+    {
+      "name": "historique-server",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": [
+        "/c",
+        "cd apps\\server&& set PORT=2600&& set DATABASE_URL=memory&& set DEV_LOGIN=true&& set PUBLIC_URL=http://localhost:5197&& set API_PUBLIC_URL=http://localhost:2600&& set CORS_ORIGINS=http://localhost:5197&& node --env-file-if-exists=.env --import tsx src/main.ts"
+      ],
+      "port": 2600
+    },
+    {
+      "name": "historique-client",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": [
+        "/c",
+        "set AR_HMR=0&& set VITE_SERVER_URL=http://localhost:2600&& pnpm --filter @allezrobert/client exec vite --port 5197 --strictPort"
+      ],
+      "port": 5197
+    },
+    {
+      "name": "style-choix",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": [
+        "/c",
+        "set AR_HMR=0&& pnpm --filter @allezrobert/client exec vite --port 5201 --strictPort"
+      ],
+      "port": 5201
     }
   ]
 }

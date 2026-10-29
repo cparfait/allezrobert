@@ -685,24 +685,15 @@ function clampUnderRoads(pos: Float32Array, tile: LoadedTile, seg: number, reach
   const s = tile.size;
   const step = s / seg;
   const row = seg + 1;
-  for (const r of tile.features.roads) {
-    const p = r.pts3;
-    if (!p || r.tunnel || p.length < 6) continue;
-    const R = Math.max(r.width, 2.5) / 2 + 0.6 + reach;
-    // Remblai : sous la chaussée (au moins le sommet de grille le plus proche), un sol trop bas est remonté
-    // jusqu'à la route. Grille grossière au loin (8 m) : une route sur une digue ou à flanc de pente tombait
-    // entre deux sommets et semblait s'envoler. Seulement les sommets sous la chaussée, écart de 3 m au plus
-    // (au-delà, un remblai visible) ; ni ponts.
-    // Seulement sur les tuiles grossières (≥ 4 m, au loin) et hors de l'itinéraire (son ruban a son propre profil).
-    const lift = r.bridge || r.route || step < 4 ? 0 : Math.max(Math.max(r.width, 2.5) / 2 + 0.6, step * 0.6);
+  /** Parcourt les sommets de grille à moins de `radius` m de chaque segment de la route. */
+  const around = (p: number[], radius: number, visit: (kk: number, d: number, y: number, axX: number, axZ: number) => void) => {
     for (let k = 0; k + 5 < p.length; k += 3) {
       const ax = p[k] as number, ay = p[k + 1] as number, az = p[k + 2] as number;
       const bx = p[k + 3] as number, by = p[k + 4] as number, bz = p[k + 5] as number;
-      const RR = Math.max(R, lift);
-      const i0 = Math.max(0, Math.floor((Math.min(ax, bx) - RR - tile.x0) / step));
-      const i1 = Math.min(seg, Math.ceil((Math.max(ax, bx) + RR - tile.x0) / step));
-      const j0 = Math.max(0, Math.floor((Math.min(az, bz) - RR - tile.z0) / step));
-      const j1 = Math.min(seg, Math.ceil((Math.max(az, bz) + RR - tile.z0) / step));
+      const i0 = Math.max(0, Math.floor((Math.min(ax, bx) - radius - tile.x0) / step));
+      const i1 = Math.min(seg, Math.ceil((Math.max(ax, bx) + radius - tile.x0) / step));
+      const j0 = Math.max(0, Math.floor((Math.min(az, bz) - radius - tile.z0) / step));
+      const j1 = Math.min(seg, Math.ceil((Math.max(az, bz) + radius - tile.z0) / step));
       if (i0 > i1 || j0 > j1) continue;
       const dx = bx - ax, dz = bz - az;
       const len2 = dx * dx + dz * dz || 1;
@@ -712,26 +703,41 @@ function clampUnderRoads(pos: Float32Array, tile: LoadedTile, seg: number, reach
           const tRaw = ((x - ax) * dx + (z - az) * dz) / len2;
           const t = Math.min(1, Math.max(0, tRaw));
           const ex = ax + dx * t - x, ez = az + dz * t - z;
-          if (ex * ex + ez * ez > RR * RR) continue;
-          const y = ay + (by - ay) * t;
-          const kk = (j * row + i) * 3 + 1;
-          const h = pos[kk] as number;
-          // Remblai : seulement au droit du tronçon (projection dans le segment). Sur une route en pente, le
-          // bout d'un tronçon voisin est plus haut ou plus bas que la chaussée au droit du sommet : relever le
-          // sol à sa hauteur le faisait passer au-dessus de la route (herbe sur la chaussée dans les côtes).
-          if (lift && tRaw > 0 && tRaw < 1 && ex * ex + ez * ez <= lift * lift && h < y - ROAD_TERRAIN_BELOW && y - h < 3) {
-            pos[kk] = y - ROAD_TERRAIN_BELOW;
-            continue;
-          }
-          if (ex * ex + ez * ez > R * R) continue;
-          // Talus d'une tranchée : abaissé même s'il monte vite (sinon il recouvre le bord de la route).
-          const g = axisGround(ax + dx * t, az + dz * t);
-          // Itinéraire roulé : jamais pris pour un tunnel (seule l'étiquette OSM compte) ; une tranchée profonde
-          // (côte en lacets) laissait le sol au-dessus de la chaussée et le vélo enterré.
-          if (!r.route && (Number.isFinite(g) ? g - y > ROAD_TUNNEL_AXIS : h - y > ROAD_TUNNEL_COVER)) continue;
-          pos[kk] = Math.min(h, y - ROAD_TERRAIN_BELOW);
+          const d2 = ex * ex + ez * ez;
+          if (d2 > radius * radius) continue;
+          visit((j * row + i) * 3 + 1, Math.sqrt(d2), ay + (by - ay) * t, ax + dx * t, az + dz * t);
         }
     }
+  };
+  const roads = tile.features.roads.filter((r) => r.pts3 && !r.tunnel && (r.pts3 as number[]).length >= 6);
+  // 1. Remblai : sous la chaussée et son accotement, un sol trop bas est remonté au niveau de la route, puis
+  //    descend en talus à 45° (6 m au plus) : plus de marche au bord d'une route à flanc de pente ou sur une
+  //    digue, ni de route qui flotte entre deux sommets de la grille grossière (8 m) au loin. Ni ponts, ni
+  //    dénivelé de plus de 6 m (viaduc).
+  for (const r of roads) {
+    if (r.bridge) continue;
+    const shoulder = Math.max(Math.max(r.width, 2.5) / 2 + 0.8, step * 0.6);
+    around(r.pts3 as number[], shoulder + 6, (kk, d, y) => {
+      const h = pos[kk] as number;
+      const top = y - ROAD_TERRAIN_BELOW - 0.02;
+      if (h >= top || top - h > 6) return;
+      const target = d <= shoulder ? top : top - (d - shoulder);
+      if (target > h) pos[kk] = target;
+    });
+  }
+  // 2. Sous la chaussée : sol abaissé juste sous la route (après le remblai, il l'emporte toujours ; le talus
+  //    d'une route voisine, dans les lacets, ne peut pas recouvrir une chaussée).
+  for (const r of roads) {
+    const R = Math.max(r.width, 2.5) / 2 + 0.6 + reach;
+    around(r.pts3 as number[], R, (kk, _d, y, axX, axZ) => {
+      const h = pos[kk] as number;
+      // Talus d'une tranchée : abaissé même s'il monte vite (sinon il recouvre le bord de la route).
+      const g = axisGround(axX, axZ);
+      // Itinéraire roulé : jamais pris pour un tunnel (seule l'étiquette OSM compte) ; une tranchée profonde
+      // (côte en lacets) laissait le sol au-dessus de la chaussée et le vélo enterré.
+      if (!r.route && (Number.isFinite(g) ? g - y > ROAD_TUNNEL_AXIS : h - y > ROAD_TUNNEL_COVER)) return;
+      pos[kk] = Math.min(h, y - ROAD_TERRAIN_BELOW);
+    });
   }
 }
 

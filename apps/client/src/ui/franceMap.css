@@ -74,4 +74,5 @@
 .zc-near-chip:disabled { opacity: 0.6; cursor: wait; }
 .mm-picker.wk-dialog { width: min(980px, 94vw) !important; background: rgba(10, 14, 22, 0.88); backdrop-filter: blur(6px); border-color: rgba(255, 255, 255, 0.14); }
 .mm-picker-modal:has(.wk-dialog) { background: rgba(6, 9, 15, 0.62); backdrop-filter: blur(4px); }
+.wk-filter { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 10px; }
 .mm-wks-grid { grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); overflow-y: auto; padding-right: 4px; }

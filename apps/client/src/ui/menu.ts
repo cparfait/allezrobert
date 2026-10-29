@@ -3,7 +3,10 @@ import { GRAPHIC_STYLE, setGraphicStyle, type GraphicStyle } from '../engine/sty
 import { readKomRecord } from '../game/challenge.ts';
 import { COUNTRIES, BIKE_BRANDS, BIKE_GROUPS, BIKE_TEAMS, COSMETICS, DEFAULT_BIKE, bikeById, routesForBike, mirrorStartM, rankRouteId, lookSex, tuneItem, withSex, bottleCapacity, bikeSetupFor, jerseyLookOf, helmetLookOf, levelProgress, SHOE_MARKS, type BikeCollection, type BikeType, type CapLook, type CosmeticSlot } from '@allezrobert/shared';
 import { shoeAccentOf } from '../rider/shoeLook.ts';
-import { WORKOUT_LIBRARY } from '@allezrobert/physics';
+import { WORKOUT_LIBRARY, WORKOUT_TYPES, WORKOUT_TYPE_LABELS, parseWorkoutFile, type LibraryWorkout, type WorkoutStep, type WorkoutType } from '@allezrobert/physics';
+import { rideHistory } from '../data/history/instance.ts';
+import type { LocalWorkout } from '../data/history/index.ts';
+import { HistoryPanel } from './historyPanel.ts';
 import { formatBytes, inTauri, installPack, installedPacks, loadCatalogue, packState, removePack } from '../world/packs.ts';
 import { fillStoragePanel, storagePanelHtml } from './desktopUi.ts';
 import { compositeId, neighbourZones } from '../world/composite.ts';
@@ -132,14 +135,14 @@ type GarageSlot = CosmeticSlot | 'colors' | 'face' | 'atelier';
 
 /** Seuils des zones de puissance (× FTP) et leurs couleurs (Z1 à Z7). */
 const ZONE_LIMITS = [0.55, 0.75, 0.9, 1.05, 1.2, 1.5];
-const ZONE_COLORS = ['#9aa5b1', '#3b82f6', '#22c55e', '#eab308', '#f97316', '#ef4444', '#a855f7'];
+const ZONE_COLORS = ['#c3cbd5', '#3b82f6', '#22c55e', '#eab308', '#f97316', '#ef4444', '#a855f7'];
 const zoneColorOf = (ftp: number) => ZONE_COLORS[ZONE_LIMITS.findIndex((z) => ftp < z) === -1 ? 6 : ZONE_LIMITS.findIndex((z) => ftp < z)] as string;
 
 /**
  * Carte d'une séance : nom, durée, description, profil des paliers (hauteur = % de FTP, couleur = zone),
  * puis durée, TSS et IF estimés (puissance normalisée calculée sur les paliers).
  */
-function workoutCard(w: (typeof WORKOUT_LIBRARY)[number], on: boolean, opens?: string): string {
+function workoutCard(w: (typeof WORKOUT_LIBRARY)[number], on: boolean, opens?: string, fav?: boolean): string {
   const lang = getLang();
   const steps = w.build().steps;
   const total = steps.reduce((a, st) => a + st.durationS, 0) || 1;
@@ -149,15 +152,29 @@ function workoutCard(w: (typeof WORKOUT_LIBRARY)[number], on: boolean, opens?: s
   let t = 0;
   let p4 = 0;
   let peak = 0;
-  const shapes = steps
-    .map((st) => {
-      const x0 = (t / total) * W;
-      const x1 = ((t + st.durationS) / total) * W;
-      t += st.durationS;
-      const mid = (st.powerStart + st.powerEnd) / 2;
-      p4 += mid ** 4 * st.durationS;
-      peak = Math.max(peak, st.powerStart, st.powerEnd);
-      return `<polygon points="${x0.toFixed(1)},${H} ${x0.toFixed(1)},${y(st.powerStart)} ${x1.toFixed(1)},${y(st.powerEnd)} ${x1.toFixed(1)},${H}" fill="${zoneColorOf(mid)}"/>`;
+  // Paliers voisins de la même zone : une seule forme (pas de couture ton sur ton) ; 2 px d'écart
+  // entre deux zones différentes, pour que chaque bloc se lise.
+  const runs: Array<{ color: string; pts: Array<[number, number]> }> = [];
+  for (const st of steps) {
+    const x0 = (t / total) * W;
+    const x1 = ((t + st.durationS) / total) * W;
+    t += st.durationS;
+    const mid = (st.powerStart + st.powerEnd) / 2;
+    p4 += mid ** 4 * st.durationS;
+    peak = Math.max(peak, st.powerStart, st.powerEnd);
+    const color = zoneColorOf(mid);
+    const last = runs.at(-1);
+    if (last && last.color === color) last.pts.push([x0, st.powerStart], [x1, st.powerEnd]);
+    else runs.push({ color, pts: [[x0, st.powerStart], [x1, st.powerEnd]] });
+  }
+  const GAP = 1;
+  const shapes = runs
+    .map((r, i) => {
+      const pts = r.pts.map(([x, p]) => [x, p] as [number, number]);
+      if (i > 0) pts[0]![0] += GAP;
+      if (i < runs.length - 1) pts[pts.length - 1]![0] -= GAP;
+      const top = pts.map(([x, p]) => `${x.toFixed(1)},${y(p)}`).join(' ');
+      return `<polygon points="${pts[0]![0].toFixed(1)},${H} ${top} ${pts[pts.length - 1]![0].toFixed(1)},${H}" fill="${r.color}"/>`;
     })
     .join('');
   const ifv = (p4 / total) ** 0.25;
@@ -165,11 +182,34 @@ function workoutCard(w: (typeof WORKOUT_LIBRARY)[number], on: boolean, opens?: s
   const min = Math.round(total / 60);
   const dur = min >= 60 ? `${Math.floor(min / 60)} h ${String(min % 60).padStart(2, '0')}` : `${min} min`;
   return `<button class="mm-wk ${on ? 'on' : ''}" ${opens ? `data-picker="${opens}"` : `data-preset="${w.id}"`} style="--wk:${zoneColorOf(peak)}">
-    <span class="mm-wk-head"><b>${esc(w.name[lang])}</b><em>${dur}</em></span>
+    <span class="mm-wk-head"><b>${esc(w.name[lang])}</b><em>${dur}</em>${fav === undefined ? '' : `<span class="mm-wk-fav${fav ? ' on' : ''}" data-fav="${w.id}" role="button" tabindex="0" aria-pressed="${fav}" title="${lang === 'fr' ? (fav ? 'Retirer des favoris' : 'Ajouter aux favoris') : fav ? 'Remove from favourites' : 'Add to favourites'}">${fav ? '★' : '☆'}</span>`}</span>
     <span class="mm-wk-desc">${esc(w.description[lang])}</span>
     <svg class="mm-wk-prof" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true"><line x1="0" x2="${W}" y1="${y(1)}" y2="${y(1)}"/>${shapes}</svg>
     <span class="mm-wk-stats">${dur} · TSS ${tss} · IF ${ifv.toFixed(2).replace('.', lang === 'fr' ? ',' : '.')}</span>
   </button>`;
+}
+
+/** Séances favorites (stockage local ; l'appli de bureau le sauvegarde avec le profil). */
+const FAV_KEY = 'ar.workoutFavorites';
+
+/** Séance perso vue comme une séance de la bibliothèque (même carte). */
+function storedAsLibrary(w: LocalWorkout): LibraryWorkout {
+  const desc = w.description ?? (w.source === 'custom' ? 'Séance créée' : `Fichier .${w.source}`);
+  return {
+    id: `mine:${w.id}`,
+    type: (WORKOUT_TYPES as readonly string[]).includes(w.type ?? '') ? (w.type as WorkoutType) : 'endurance',
+    source: 'allezrobert',
+    name: { fr: w.name, en: w.name },
+    description: { fr: desc, en: desc },
+    build: () => ({ name: w.name, steps: w.steps as WorkoutStep[] }),
+  };
+}
+
+/** Empreinte courte d'un fichier (même fichier réimporté = même séance). */
+function contentId(text: string): string {
+  let h = 2166136261;
+  for (let i = 0; i < text.length; i++) h = Math.imul(h ^ text.charCodeAt(i), 16777619);
+  return (h >>> 0).toString(36);
 }
 
 /** Ciels proposés au départ d'une sortie (nuages, pluie, brouillard de 0 à 1). */
@@ -313,6 +353,28 @@ export class MainMenu {
   private readonly devices: DevicePanel;
   private readonly cb: MenuCallbacks;
   private workoutFile: { name: string; content: string } | undefined;
+  /** Filtre de la fenêtre des séances : un type, « mes séances » (importées), ou tout. */
+  private wkFilter: WorkoutType | 'mine' | '' = '';
+  /** Séances importées, gardées dans l'historique (rechargées à l'ouverture de la fenêtre). */
+  private myWorkouts: LocalWorkout[] = [];
+  /** Séances favorites (identifiants de la bibliothèque ou `mine:…`), listées dans « Mes séances ». */
+  private favWorkouts = new Set<string>(
+    (() => {
+      try {
+        return JSON.parse(localStorage.getItem(FAV_KEY) ?? '[]') as string[];
+      } catch {
+        return [];
+      }
+    })(),
+  );
+  /** Historique (sous-onglet du Profil). */
+  private readonly historyPanel = new HistoryPanel();
+  /** Sous-onglet du Profil : réglages du coureur ou historique des sorties. */
+  private profileView: 'profile' | 'history' = 'profile';
+  /** Compteur de km du profil : redessiné quand l'historique change (nouvelle sortie, synchronisation). */
+  private readonly historyWatch = rideHistory.subscribe(() => {
+    if (this.tab === 'profile' && this.profileView === 'profile' && this.root.querySelector('.mm-bigstats')) this.render();
+  });
   private tab: Tab = 'ride';
   private garageSlot: GarageSlot = 'jersey';
   /** Le garage est déjà ouvert (animation d'arrivée jouée). */
@@ -916,6 +978,7 @@ export class MainMenu {
     swapMissingThumbs(this.root, (colors, big) => bikeIcon(colors, big));
     void paintPlainThumbs(this.root, (cv) => (cv.outerHTML = bikeIcon([cv.dataset.plainthumb ?? '#7a8594'], cv.classList.contains('big'))));
     this.friends.mount(this.root, this.tab === 'friends');
+    this.historyPanel.mount(this.tab === 'profile' && this.profileView === 'history' ? this.root.querySelector<HTMLElement>('#m-history') : null, { massKg: this.s.massKg, loggedIn: !!this.account });
     this.openWorldPanel.mount(this.root);
   }
 
@@ -1022,7 +1085,7 @@ export class MainMenu {
     const L = fr();
     const w = WORKOUT_LIBRARY.find((x) => x.id === this.s.workoutPreset) ?? WORKOUT_LIBRARY[0];
     const current = this.workoutFile
-      ? `<button class="mm-wk on" data-picker="workouts" style="--wk:#9aa5b1"><span class="mm-wk-head"><b>${esc(this.workoutFile.name)}</b></span><span class="mm-wk-desc">${L ? 'Séance importée' : 'Imported workout'}</span></button>`
+      ? `<button class="mm-wk on" data-picker="workouts" style="--wk:#9aa5b1"><span class="mm-wk-head"><b>${esc(this.workoutFile.name.replace(/\.json$/i, ''))}</b></span><span class="mm-wk-desc">${L ? 'Ma séance' : 'My workout'}</span></button>`
       : w
         ? workoutCard(w, true, 'workouts')
         : '';
@@ -1036,7 +1099,24 @@ export class MainMenu {
     return `<div class="mm-modal mm-picker-modal" data-picker-close>
       <div class="mm-dialog mm-picker wk-dialog" role="dialog" aria-modal="true">
         <header><h2>${L ? 'Choisis ta séance' : 'Choose your workout'}</h2><button class="mm-x" data-picker-close aria-label="${L ? 'Fermer' : 'Close'}">×</button></header>
-        <div class="mm-wks mm-wks-grid">${WORKOUT_LIBRARY.map((w) => workoutCard(w, !this.workoutFile && w.id === this.s.workoutPreset)).join('')}</div>
+        <div class="wk-filter">${(['', ...WORKOUT_TYPES, 'mine'] as Array<WorkoutType | 'mine' | ''>)
+          .map((f) => `<button class="hp-chip${f === this.wkFilter ? ' on' : ''}" data-wkfilter="${f}">${f === '' ? (L ? 'Toutes' : 'All') : f === 'mine' ? `★ ${L ? 'Mes séances' : 'My workouts'}${this.favWorkouts.size + this.myWorkouts.length ? ` <small>${this.favWorkouts.size + this.myWorkouts.length}</small>` : ''}` : WORKOUT_TYPE_LABELS[f][L ? 'fr' : 'en']}</button>`)
+          .join('')}</div>
+        <div class="mm-wks mm-wks-grid">${
+          this.wkFilter === 'mine'
+            ? (() => {
+                const favs = WORKOUT_LIBRARY.filter((w) => this.favWorkouts.has(w.id));
+                const mine = this.myWorkouts.map((w) => storedAsLibrary(w));
+                if (!favs.length && !mine.length) return `<p class="mm-hint">${L ? 'Ajoute des séances à tes favoris avec l’étoile ☆ ; les séances que tu importes (.zwo, .erg, .mrc) sont aussi gardées ici.' : 'Star ☆ workouts to add them to your favourites; workouts you import (.zwo, .erg, .mrc) are kept here too.'}</p>`;
+                return [
+                  ...favs.map((w) => workoutCard(w, !this.workoutFile && w.id === this.s.workoutPreset, undefined, true)),
+                  ...mine.map((w) => workoutCard(w, this.workoutFile?.name === `${w.name.fr}.json`, undefined, this.favWorkouts.has(w.id))),
+                ].join('');
+              })()
+            : WORKOUT_LIBRARY.filter((w) => !this.wkFilter || w.type === this.wkFilter)
+                .map((w) => workoutCard(w, !this.workoutFile && w.id === this.s.workoutPreset, undefined, this.favWorkouts.has(w.id)))
+                .join('')
+        }</div>
         <label class="mm-file">${L ? 'Ou importer une séance' : 'Or import a workout'} (.zwo / .erg / .mrc)<input id="m-workout" type="file" accept=".zwo,.erg,.mrc" hidden /><span id="m-wname">${this.workoutFile ? esc(this.workoutFile.name) : ''}</span></label>
       </div></div>`;
   }
@@ -1878,9 +1958,22 @@ export class MainMenu {
     const s = this.s;
     const L = fr();
     const wkg = s.ftpWatts / s.massKg;
+    const sub = `<nav class="hp-tabs mm-subtabs" role="tablist">${(
+      [
+        ['profile', L ? 'Mon profil' : 'My profile'],
+        ['history', L ? 'Historique' : 'History'],
+      ] as const
+    )
+      .map(([v, label]) => `<button role="tab" class="hp-tab${v === this.profileView ? ' on' : ''}" aria-selected="${v === this.profileView}" data-pview="${v}">${label}</button>`)
+      .join('')}</nav>`;
+    // Historique : toutes les sorties, la forme, les records et les FTP (fenêtre large).
+    if (this.profileView === 'history') {
+      return `<section class="mm-panel mm-center mm-wide">${this.closeBtn()}
+      <header class="mm-head"><h2>${t('profile')}</h2></header>${sub}<div id="m-history"></div></section>`;
+    }
     return `<section class="mm-panel mm-center">${this.closeBtn()}
-      <header class="mm-head"><h2>${t('profile')}</h2><p>${L ? 'Le poids et la taille servent à la physique (montées, prise au vent) ; la FTP règle les séances et les zones.' : 'Weight and height drive the physics (climbs, drag); FTP sets workouts and zones.'}</p></header>
-      <div class="mm-bigstats"><div><b>${wkg.toFixed(1).replace('.', L ? ',' : '.')}</b><span>W/kg</span></div><div><b>${Math.round(s.ftpWatts)}</b><span>W FTP</span></div><div><b>${s.massKg}</b><span>kg</span></div></div>
+      <header class="mm-head"><h2>${t('profile')}</h2><p>${L ? 'Le poids et la taille servent à la physique (montées, prise au vent) ; la FTP règle les séances et les zones.' : 'Weight and height drive the physics (climbs, drag); FTP sets workouts and zones.'}</p></header>${sub}
+      <div class="mm-bigstats"><div><b>${wkg.toFixed(1).replace('.', L ? ',' : '.')}</b><span>W/kg</span></div><div><b>${Math.round(s.ftpWatts)}</b><span>W FTP</span></div><div><b>${s.massKg}</b><span>kg</span></div><div title="${L ? 'Kilomètres roulés dans le jeu, toutes sorties confondues' : 'Kilometres ridden in the game, all rides'}"><b>${Math.round((rideHistory.summary?.totals.distanceM ?? 0) / 1000).toLocaleString(L ? 'fr-FR' : 'en-GB')}</b><span>${L ? 'km au compteur' : 'km ridden'}</span></div></div>
       <div class="grid2b">
         <label class="field">${t('name')}<input id="m-name" value="${esc(s.name)}" /></label>
         <label class="field">${L ? 'Je suis' : 'I am'}<div class="row">${(['male', 'female'] as const).map((x) => `<button class="btn small ${lookSex(s.look) === x ? 'primary' : ''}" data-sex="${x}">${x === 'male' ? (L ? 'Un homme' : 'A man') : L ? 'Une femme' : 'A woman'}</button>`).join('')}</div></label>
@@ -2409,9 +2502,35 @@ export class MainMenu {
       }),
     );
     this.root.querySelectorAll<HTMLElement>('tr[data-kom]').forEach((el) => el.addEventListener('keydown', (e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), el.click())));
+    this.root.querySelectorAll<HTMLElement>('[data-fav]').forEach((el) => {
+      const toggle = (e: Event) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const id = el.dataset.fav as string;
+        if (this.favWorkouts.has(id)) this.favWorkouts.delete(id);
+        else this.favWorkouts.add(id);
+        try {
+          localStorage.setItem(FAV_KEY, JSON.stringify([...this.favWorkouts]));
+        } catch {
+          // Stockage indisponible : favoris pour cette session seulement.
+        }
+        this.render();
+      };
+      el.addEventListener('click', toggle);
+      el.addEventListener('keydown', (e) => (e.key === 'Enter' || e.key === ' ') && toggle(e));
+    });
     this.root.querySelectorAll<HTMLElement>('[data-preset]').forEach((el) =>
       el.addEventListener('click', () => {
-        s.workoutPreset = el.dataset.preset as string;
+        const preset = el.dataset.preset as string;
+        // Séance perso : jouée comme un fichier (format JSON du jeu).
+        const mine = preset.startsWith('mine:') ? this.myWorkouts.find((w) => `mine:${w.id}` === preset) : undefined;
+        if (mine) {
+          this.workoutFile = { name: `${mine.name}.json`, content: JSON.stringify({ name: mine.name, ...(mine.description ? { description: mine.description } : {}), steps: mine.steps }) };
+          if (this.picker === 'workouts') this.picker = null;
+          this.render();
+          return;
+        }
+        s.workoutPreset = preset;
         this.workoutFile = undefined;
         if (this.picker === 'workouts') this.picker = null;
         changed();
@@ -2556,9 +2675,37 @@ export class MainMenu {
       const f = el.files?.[0];
       if (!f) return;
       this.workoutFile = { name: f.name, content: await f.text() };
+      // Gardée dans « Mes séances » (et synchronisée avec le compte).
+      try {
+        const parsed = parseWorkoutFile(f.name, this.workoutFile.content);
+        const ext = f.name.toLowerCase().split('.').pop() ?? '';
+        if (ext === 'zwo' || ext === 'erg' || ext === 'mrc') {
+          const name = (parsed.name || f.name.replace(/\.[^.]+$/, '')).slice(0, 100);
+          await rideHistory.saveWorkout({ id: `${ext}.${contentId(this.workoutFile.content)}`, name, source: ext, type: null, description: parsed.description ?? null, steps: parsed.steps, deleted: false });
+          this.myWorkouts = await rideHistory.workouts();
+        }
+      } catch (err) {
+        console.warn('Séance non gardée', err);
+      }
       if (this.picker === 'workouts') this.picker = null;
       this.render();
     });
+    this.root.querySelectorAll<HTMLElement>('[data-pview]').forEach((el) =>
+      el.addEventListener('click', () => {
+        this.profileView = el.dataset.pview as 'profile' | 'history';
+        this.render();
+      }),
+    );
+    this.root.querySelectorAll<HTMLElement>('[data-wkfilter]').forEach((el) =>
+      el.addEventListener('click', () => {
+        this.wkFilter = (el.dataset.wkfilter ?? '') as WorkoutType | 'mine' | '';
+        if (this.wkFilter === 'mine') void rideHistory.workouts().then((list) => {
+          this.myWorkouts = list;
+          if (this.picker === 'workouts') this.render();
+        });
+        this.render();
+      }),
+    );
     // Éditeur de visage : aperçu immédiat pendant le glissement, enregistrement au relâcher.
     const faceLive = (look: AvatarLook) => {
       s.look = look;

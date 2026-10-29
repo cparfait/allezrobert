@@ -3,6 +3,7 @@ import type { CameraMode, RouteTrack } from '@allezrobert/shared';
 import { FreeFlyCamera } from './freecam.ts';
 import { getLang } from '../i18n/index.ts';
 import { buzzOffset } from './roadBuzz.ts';
+import { LOW_POLY } from '../engine/style.ts';
 
 /** Modes de la caméra du jeu : ceux du protocole (appli compagnon) plus la caméra libre, locale. */
 export type RigMode = CameraMode | 'free';
@@ -45,14 +46,16 @@ interface OnboardView {
 }
 const ONBOARD: Record<'cockpit' | 'action', OnboardView> = {
   /** Cockpit : à hauteur des avant-bras, juste derrière les mains (cintre sur la moitié de la largeur, compteur au centre). */
-  cockpit: { up: -0.57, back: 0.07, hfov: 100, handsAt: 0.62 },
+  // Style jeu vidéo : plus haut et plus en retrait (tout le cintre, les cocottes et le compteur dans le bas de l'image).
+  cockpit: LOW_POLY ? { up: -0.4, back: 0.3, hfov: 95, handsAt: 0.8 } : { up: -0.57, back: 0.07, hfov: 100, handsAt: 0.62 },
   /** Caméra casque : plus haut et plus en retrait (épaules et manches dans les coins hauts), plus grand angle, plus de route. */
   action: { up: -0.4, back: 0.3, hfov: 110, handsAt: 0.72 },
 };
 if (import.meta.env?.DEV && typeof window !== 'undefined') (window as unknown as { __arOnboard: typeof ONBOARD }).__arOnboard = ONBOARD;
 /** Poursuite : recul derrière le coureur et hauteur au-dessus du sol (m). Rapprochée (elle était à 5,2 m et 2,1 m). */
-const CHASE_BACK = 3.5;
-const CHASE_UP = 1.75;
+// Plus près et plus bas qu'à l'origine (3,5 m / 1,75 m) : le sol défile au premier plan, la vitesse se sent.
+const CHASE_BACK = 3.0;
+const CHASE_UP = 1.5;
 /** Orbite de la caméra photo et du drone : toujours dans l'arc derrière le coureur (rad de part et d'autre). */
 const PHOTO_MAX_YAW = 1.2;
 
@@ -148,8 +151,8 @@ export class CameraRig {
   update(dt: number, t: CameraTarget): void {
     const cam = this.camera;
     if (this.mode !== 'tv') {
-      // Poursuite : le champ s'ouvre un peu avec la vitesse (jusqu'à +6° vers 70 km/h), lissé : sensation de vitesse.
-      const boost = this.mode === 'chase' ? 6 * THREE.MathUtils.smoothstep(t.speedMs, 8, 19) : 0;
+      // Poursuite : le champ s'ouvre avec la vitesse dès 11 km/h (+9° vers 50 km/h), lissé : sensation de vitesse.
+      const boost = this.mode === 'chase' ? 9 * THREE.MathUtils.smoothstep(t.speedMs, 3, 14) : 0;
       this.fovBoost += (boost - this.fovBoost) * Math.min(1, dt * 1.2);
       const fov = this.fovFor(this.mode) + this.fovBoost;
       if (Math.abs(cam.fov - fov) > 0.01) {
@@ -208,6 +211,10 @@ export class CameraRig {
           const head = t.position.clone().add(new THREE.Vector3(0, 1.3, 0));
           desired.sub(head).multiplyScalar(this.collideScale).add(head);
         }
+        // Vibration de la route : quelques millimètres, plus vive avec la vitesse (sensation de vitesse).
+        const now = performance.now() * 0.001;
+        const vib = 0.006 * Math.min(1, t.speedMs / 9);
+        desired.y += (Math.sin(now * 37) * 0.6 + Math.sin(now * 23.3 + 1.7) * 0.4) * vib;
         break;
       }
       case 'cockpit':

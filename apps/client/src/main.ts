@@ -22,6 +22,8 @@ import { FriendGhost, Ghost, fetchFriendGhost, uploadGhost } from './game/ghost.
 import { createDeviceLayer } from './game/devices.ts';
 import { Hud } from './hud/hud.ts';
 import { RideSound } from './audio/rideSound.ts';
+import { Announcer } from './audio/announcer.ts';
+import { crowdLevel } from './audio/soundscape.ts';
 import { music } from './audio/music.ts';
 import { companion } from './game/companionLink.ts';
 import { companionQr } from './ui/companionQr.ts';
@@ -36,7 +38,10 @@ import { bootStep, bootProgress, bootDone, bootError } from './ui/splash.ts';
 import { PosterScene, POSTER_HOUR, GARAGE_VIEWS, type GarageView } from './ui/poster.ts';
 import { showPause, rideToFit, rideToGpx, download, onlinePanel } from './ui/ridepanels.ts';
 import { showRideSummary } from './ui/summary.ts';
-import { compareAndStore, readPowerRecords, rideStats, updatePowerRecords } from './game/stats.ts';
+import { previousComparable, readPowerRecords, rideStats, updatePowerRecords, type RideHistoryEntry } from './game/stats.ts';
+import { rideHistory } from './data/history/instance.ts';
+import { rideClientId } from './data/history/index.ts';
+import type { RideKind } from '@allezrobert/shared';
 import { shareCard } from './ui/sharecard.ts';
 import { Onboarding, RideTutorial } from './onboarding/onboarding.ts';
 import { fetchRealWeather } from './game/realWeather.ts';
@@ -895,6 +900,8 @@ async function boot(): Promise<void> {
   }
   bootDone();
   void offerDesktopUpdate();
+  // Historique local (SQLite dans l'appli de bureau) : ouverture et import des anciennes données.
+  void rideHistory.ready(settings.ftpWatts).catch((e) => console.warn('Historique indisponible', e));
   if (autostart) {
     await withWorld(getLang() === 'fr' ? 'Préparation de la sortie…' : 'Preparing the ride…');
     void startRide(scene, settings, devices.source(), {});
@@ -905,6 +912,8 @@ async function boot(): Promise<void> {
     let me: Me | null = await fetchMe();
     if (me) applyProfile(me, settings);
     const afterLogin = () => {
+      // Historique : synchronisé avec le compte connecté.
+      rideHistory.setAccount(me?.id ?? null);
       menu.account = me ? { name: me.profile.displayName, level: me.progression.level, ...(me.atelier ? { credits: me.atelier.credits } : {}) } : null;
       // Retour de la liaison Strava : on revient sur la rubrique des Réglages qui l'affiche.
       const fromStrava = new URLSearchParams(location.search).has('strava');
@@ -932,7 +941,11 @@ async function boot(): Promise<void> {
     };
     // Profil envoyé au compte une fois les réglages stabilisés (1,5 s sans changement).
     let pushTimer: ReturnType<typeof setTimeout> | undefined;
+    // FTP changée à la main : notée dans l'historique des FTP une fois la valeur stable.
+    let ftpTimer: ReturnType<typeof setTimeout> | undefined;
     menu.onSettingsSaved = (st) => {
+      clearTimeout(ftpTimer);
+      ftpTimer = setTimeout(() => void rideHistory.addFtp(st.ftpWatts, 'manual'), 2000);
       if (!me) return;
       clearTimeout(pushTimer);
       pushTimer = setTimeout(() => void pushProfile(st, me?.progression.level), 1500);
@@ -1235,6 +1248,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
         hud.toast(`FTP estimée : ${ftp} W`);
         s.ftpWatts = ftp;
         saveSettings(s);
+        void rideHistory.addFtp(ftp, workout?.kind === 'ftp20' ? '20min' : 'ramp', ride.startT);
       } else hud.toast(t('segmentDone'));
     };
   }
@@ -1247,6 +1261,16 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   keyboard.steerBlocked = choosing;
   // Son de la sortie (ambiances, roulement, roue libre, souffle, public, trafic) : audio/rideSound.ts.
   const audio = new RideSound({ world, track, ride, traffic, ftpWatts: s.ftpWatts });
+  // Voix de course : speaker, temps et records des segments, cris du public, bilan (audio/announcer.ts).
+  const announcer = new Announcer(() => audio.audio.voiceOut());
+  announcer.preload(['welcome', 'go', 'komStart', 'sprintStart', 'time', 'summit', 'sprintLine', 'allez', 'allezRobert', 'vasy']);
+  /** Meilleur temps de chaque segment sur cet itinéraire (voix : record battu ou écart). */
+  const segBestKey = (id: string) => `ar.segbest.${rankRouteId(track.route.id)}.${id}`;
+  const voiceFlags = { start: false, half: false, lastKm: false };
+  ride.onSegmentStart = (seg) => {
+    if (seg.kind === 'kom') void announcer.say([Math.random() < 0.5 ? 'komStart' : 'komStart2']);
+    else if (seg.kind === 'sprint') void announcer.say([Math.random() < 0.5 ? 'sprintStart' : 'sprintStart2']);
+  };
   // Sons positionnés (églises, prés, eau) : la liste suit les tuiles chargées.
   const refreshSources = () => audio.setSources([...world.soundSources.values()].flat());
   refreshSources();
@@ -1266,6 +1290,12 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   input.onWarning?.((m) => hud.toast(m));
   const sequences = new RideSequences(document.getElementById('app') as HTMLElement, track);
   ride.onSegmentDone = (r) => {
+    if (r.seg.kind === 'kom' || r.seg.kind === 'sprint') {
+      const prev = Number(localStorage.getItem(segBestKey(r.seg.id)) ?? NaN);
+      const record = Number.isFinite(prev) && prev > 0 ? prev : readKomRecord(rankRouteId(track.route.id), r.seg.id)?.timeS ?? null;
+      announcer.segmentResult(r.seg.kind, r.timeS, record);
+      if (!s.guest && (record === null || r.timeS < record)) localStorage.setItem(segBestKey(r.seg.id), String(r.timeS));
+    }
     // Séquence HyperFrames (KOM / sprint) ; toast texte si les séquences sont coupées.
     // Rang solo : le joueur est classé seul ; en multijoueur le serveur fournit le vrai rang.
     if (s.guest) return;
@@ -1432,6 +1462,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   };
   ride.onLap = (lap) => {
     const done = routeTimer.lap(ride.elapsedS);
+    void announcer.say(['lap'], 'pa');
     const fr = getLang() === 'fr';
     hud.toast(done ? `${t('lap')} ${lap - 1} · ${fmtLapTime(done.timeS)}${done.best ? (fr ? ' · meilleur tour' : ' · best lap') : ''}` : `${t('lap')} ${lap}`);
     ghost.lap(ride.elapsedS, ride.state.distM);
@@ -1443,6 +1474,12 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   // « Nouvelle sortie » et « Quitter » rendent la main au menu. XP, historique et records sont
   // enregistrés à chaque fin (sans double compte si la sortie a été reprise).
   const recordsBefore = readPowerRecords();
+  // Sorties précédentes sur ce parcours (tout l'historique) pour « vs la dernière fois ».
+  let pastRides: RideHistoryEntry[] = [];
+  void rideHistory
+    .rides({ routeId: track.route.id })
+    .then((list) => (pastRides = list.map((r) => ({ routeId: r.routeId ?? track.route.id, date: r.startedAt, distanceM: r.distanceM, movingS: r.movingS, avgSpeedKmh: r.avgSpeedKmh ?? 0, avgWatts: r.avgWatts ?? 0, np: r.np ?? 0 }))))
+    .catch(() => undefined);
   let credited: { distanceM: number; elevationM: number; movingS: number } | undefined;
   const fileStem = () => `allez-robert-${new Date(ride.startT).toISOString().slice(0, 16).replace(/[:T]/g, '-')}`;
   const fitBytes = () => rideToFit(ride, { name: `Allez Robert ! — ${track.route.name}`, massKg: s.massKg, ftp: s.ftpWatts, ...(source.originL93 ? { originL93: source.originL93 } : {}), skipStrava: s.skipStrava });
@@ -1464,6 +1501,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   };
   const finish = () => {
     ride.paused = true;
+    void announcer.say(['finish'], 'pa');
     hud.setVisible(false);
     input.sendTrainer({ kind: 'simulation', gradePercent: 0 });
     const done = { distanceM: ride.state.distM - startD, elevationM: ride.elevationGainM, movingS: ride.elapsedS };
@@ -1483,7 +1521,27 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     const records = s.guest ? { previous: recordsBefore, beaten: [] } : updatePowerRecords(stats.curve, recordsBefore);
     const previous = s.guest
       ? null
-      : compareAndStore({ routeId: track.route.id, date: ride.startT, distanceM: stats.distanceM, movingS: stats.movingS, avgSpeedKmh: stats.avgSpeedKmh, avgWatts: stats.avgWatts, np: stats.np });
+      : previousComparable(pastRides, { routeId: track.route.id, date: ride.startT, distanceM: stats.distanceM, movingS: stats.movingS, avgSpeedKmh: stats.avgSpeedKmh, avgWatts: stats.avgWatts, np: stats.np });
+    // Historique d'entraînement : la sortie, ses mesures et sa séance (une sortie reprise remplace la précédente).
+    const rideKind: RideKind = workout ? (workout.kind === 'ramp' || workout.kind === 'ftp20' ? 'ftp_test' : 'workout') : s.mode === 'race' ? 'race' : mp ? 'group' : 'free';
+    const rideWorkout = workout ? { workoutId: workout.kind === 'library' ? (s.workoutPreset ?? null) : workout.kind === 'file' ? null : `ftp.${workout.kind}`, workoutName: workout.workout.name } : {};
+    if (!s.guest && ride.records.length >= 60) {
+      void rideHistory
+        .recordRide({
+          startT: ride.startT,
+          name: track.route.name,
+          routeId: track.route.id,
+          kind: rideKind,
+          ...rideWorkout,
+          durationS: Math.max(ride.elapsedS, ((ride.records.at(-1)?.t ?? ride.startT) - ride.startT) / 1000),
+          movingS: ride.elapsedS,
+          distanceM: done.distanceM,
+          elevationM: done.elevationM,
+          ftpWatts: s.ftpWatts,
+          samples: ride.records,
+        })
+        .catch((e) => console.warn('Sortie non gardée dans l’historique', e));
+    }
     const L = getLang() === 'fr';
     const trophies = awardTrophies(
       {
@@ -1503,6 +1561,14 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     );
     const trophyXp = trophies.reduce((a, t) => a + t.xp, 0);
     const after = trophyXp && xp ? addXp(trophyXp) : null;
+    announcer.summary({
+      distanceKm: stats.distanceM / 1000,
+      avgSpeedKmh: stats.avgSpeedKmh,
+      records: records.beaten.length > 0,
+      levelUp: !!xp?.levelUp,
+      trophy: trophies.length > 0,
+      previousSpeedKmh: previous?.avgSpeedKmh ?? null,
+    });
     showRideSummary(
       ui,
       {
@@ -1552,7 +1618,19 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
             }),
         onNewRide: () => teardown(true),
         onQuit: () => teardown(false),
-        ...(s.guest ? {} : { onlineBox: (box: HTMLElement) => void onlinePanel(box, ride, fitBytes) }),
+        ...(s.guest
+          ? {}
+          : {
+              onlineBox: (box: HTMLElement) =>
+                void onlinePanel(box, ride, fitBytes, undefined, {
+                  clientRideId: rideClientId(ride.startT),
+                  kind: rideKind,
+                  ...rideWorkout,
+                  ftp: s.ftpWatts,
+                  onSaved: () => void rideHistory.updateRide(rideClientId(ride.startT), { hasFit: true }),
+                }),
+              onFeedback: (f) => void rideHistory.updateRide(rideClientId(ride.startT), { feedback: f }),
+            }),
       },
     );
   };
@@ -1742,19 +1820,29 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   /** Prochain virage annoncé au HUD, recalculé 5 fois par seconde ; affiché à 8 s de route (80 m au moins). */
   let turnInfo: { inM: number; angleDeg: number } | null = null;
   let turnCheckedAt = 0;
+  /** Virage annoncé (position sur l'itinéraire) : gardé jusqu'à son passage. */
+  let announced: { atM: number } | null = null;
   const upcomingTurn = () => {
     const now = performance.now();
     if (now - turnCheckedAt > 200) {
       turnCheckedAt = now;
       const tn = track.nextTurn(ride.state.distM, ride.dir, 220);
       // Seulement aux bifurcations (une autre route part du virage), pas dans chaque courbe.
-      let tj = tn && Math.abs(tn.angleDeg) >= 30 && tn.inM <= Math.max(80, ride.state.speedMs * 8) ? tn : null;
-      if (tj) {
-        // Bifurcation seulement : une autre route rejoint l'itinéraire au milieu du virage.
-        const mid = track.positionAt(ride.state.distM + ride.dir * (tj.inM + 14), 0);
-        if (!scene.world.terrain.junctionNear(mid.x, mid.z, track.route.id)) tj = null;
+      // Virage déjà annoncé : gardé (sans nouveau contrôle de bifurcation) jusqu'à ce qu'il soit passé ; le
+      // contrôle refait toutes les 200 ms le faisait apparaître et disparaître.
+      const d = ride.state.distM;
+      if (announced && ride.dir * (announced.atM - d) > -20 && tn && Math.abs(d + ride.dir * tn.inM - announced.atM) < 30) turnInfo = tn;
+      else {
+        announced = null;
+        let tj = tn && Math.abs(tn.angleDeg) >= 30 && tn.inM <= Math.max(80, ride.state.speedMs * 8) ? tn : null;
+        if (tj) {
+          // Bifurcation seulement : une autre route rejoint l'itinéraire au milieu du virage.
+          const mid = track.positionAt(d + ride.dir * (tj.inM + 14), 0);
+          if (!scene.world.terrain.junctionNear(mid.x, mid.z, track.route.id)) tj = null;
+        }
+        if (tj) announced = { atM: d + ride.dir * tj.inM };
+        turnInfo = tj;
       }
-      turnInfo = tj;
     }
     return turnInfo;
   };
@@ -1966,7 +2054,29 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     avatar.root.rotateY(shownHeading);
     avatar.root.rotateX(-Math.atan((sample.grade * ride.dir) / 100));
     avatar.setEffort?.(ride.inputs.watts / Math.max(50, s.ftpWatts), ride.inputs.hr !== undefined ? ride.inputs.hr / 190 : undefined);
+    (avatar as { setSprint?(on: boolean): void }).setSprint?.(ride.segment?.seg.kind === 'sprint' || ride.inputs.watts > 1.4 * s.ftpWatts);
     avatar.update(dt, ride.inputs.cadence, ride.state.speedMs, ride.pose, bank);
+    // Voix de course : speaker au départ, mi-parcours et dernier kilomètre (itinéraire), cris du public.
+    if (!ride.paused) {
+      if (!voiceFlags.start && ride.elapsedS > 1.5) {
+        voiceFlags.start = true;
+        void announcer.say(['welcome', 'go'], 'pa');
+      }
+      const routeLen = track.length;
+      if (!track.route.loop && !nav && routeLen > 4000 && ride.dir > 0) {
+        const at = ride.state.distM;
+        if (!voiceFlags.half && at > routeLen / 2 && at < routeLen / 2 + 200) {
+          voiceFlags.half = true;
+          void announcer.say(['halfway'], 'plain', true);
+        }
+        if (!voiceFlags.lastKm && at > routeLen - 1000 && at < routeLen - 800) {
+          voiceFlags.lastKm = true;
+          void announcer.say(['lastKm'], 'pa', true);
+        }
+      }
+      announcer.crowd(crowdLevel(track.wrap(ride.state.distM), track.route.segments, track.length, track.route.loop), ride.pose === 'standing');
+    }
+    (avatar as { setComputer?(d: { speedKmh: number; watts: number; cadence: number; hr?: number; timeS?: number }): void }).setComputer?.({ speedKmh: ride.state.speedMs * 3.6, watts: ride.inputs.watts, cadence: ride.inputs.cadence, hr: ride.inputs.hr, timeS: ride.elapsedS });
     // Vue subjective et caméra embarquée : on garde le vélo, les bras et les mains, mais pas la tête.
     // (pendant un demi-tour, la caméra sort derrière le coureur : la tête redevient visible)
     const onboard = (rig.mode === 'cockpit' || rig.mode === 'action' || rig.mode === 'gopro') && !rig.lookBack && !camTurn;

@@ -144,10 +144,10 @@ MINUTES WATTS
 });
 
 describe('séances intégrées', () => {
-  it('chaque séance se construit, dure entre 40 et 75 min et vise des % de FTP plausibles', async () => {
+  it('chaque séance maison se construit, dure entre 40 et 75 min et vise des % de FTP plausibles', async () => {
     const { WORKOUT_LIBRARY, workoutDuration } = await import('../src/index.ts');
     expect(WORKOUT_LIBRARY.length).toBeGreaterThanOrEqual(5);
-    for (const w of WORKOUT_LIBRARY) {
+    for (const w of WORKOUT_LIBRARY.filter((x) => x.source === 'allezrobert')) {
       const wk = w.build();
       const min = workoutDuration(wk) / 60;
       expect(min, w.id).toBeGreaterThan(40);

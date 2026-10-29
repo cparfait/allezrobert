@@ -127,6 +127,8 @@ export class RideSession {
   /** Fins de tour (epoch ms), pour les tours du FIT. */
   readonly lapTimes: number[] = [];
   onSegmentDone?: (r: SegmentResult) => void;
+  /** Départ d'un segment (KOM, sprint) franchi. */
+  onSegmentStart?: (seg: RouteSegment) => void;
   onLap?: (lap: number) => void;
 
   private readonly opts: RideOptions;
@@ -311,7 +313,7 @@ export class RideSession {
     this.lateral = THREE.MathUtils.clamp(this.lateral + steer * this.dir * dt * 1.8, -half, half);
 
     this.pose = this.poseCtl.update(
-      { watts: this.inputs.watts, cadence: this.inputs.cadence, gradePercent: grade, ftpWatts: this.opts.profile.ftpWatts, speedMs: this.state.speedMs, standWatts: this.opts.standWatts, sensorPose: this.inputs.riderPosition },
+      { watts: this.inputs.watts, cadence: this.inputs.cadence, gradePercent: grade, ftpWatts: this.opts.profile.ftpWatts, speedMs: this.state.speedMs, standWatts: this.opts.standWatts, sensorPose: this.inputs.riderPosition, sprint: this.segment?.seg.kind === 'sprint' },
       dt,
     );
 
@@ -409,6 +411,7 @@ export class RideSession {
         this.segment = { seg, startT: now, progress: 0 };
         this.segWatts = 0;
         this.segSamples = 0;
+        this.onSegmentStart?.(seg);
         break;
       }
     }

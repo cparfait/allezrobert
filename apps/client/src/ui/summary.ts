@@ -1,6 +1,7 @@
 import { getLang } from '../i18n/index.ts';
 import type { RideSession } from '../game/ride.ts';
 import { CURVE_DURATIONS, durationLabel, POWER_ZONES, type RideHistoryEntry, type RideStats } from '../game/stats.ts';
+import type { RideFeedback } from '@allezrobert/shared';
 import './summary.css';
 
 /** Couleurs des séries (palette catégorielle validée sur fond sombre) et des zones (HUD). */
@@ -44,7 +45,16 @@ export interface SummaryActions {
   onQuit(): void;
   /** Panneau compte / Strava / intervals.icu rempli après coup. */
   onlineBox?: (box: HTMLElement) => void;
+  /** Ressenti de la sortie, gardé dans l'historique (absent : pas de question). */
+  onFeedback?: (feedback: RideFeedback) => void;
 }
+
+const FEELINGS: Array<[RideFeedback, string, string]> = [
+  ['easy', 'Facile', 'Easy'],
+  ['right', 'Juste bien', 'Just right'],
+  ['hard', 'Dur', 'Hard'],
+  ['failed', 'Pas tenu', 'Couldn’t finish'],
+];
 
 const fr = () => getLang() === 'fr';
 const num = (v: number, d = 0) => v.toFixed(d).replace('.', fr() ? ',' : '.');
@@ -147,6 +157,11 @@ export function showRideSummary(root: HTMLElement, d: SummaryData, a: SummaryAct
                 .join('')}</div></section>`
             : ''
         }
+        ${
+          a.onFeedback
+            ? `<section class="sum-card sum-feel"><h3>${L ? 'Ton ressenti' : 'How did it feel?'}</h3><div class="sum-feel-row">${FEELINGS.map(([id, f, e]) => `<button class="sum-btn" data-feel="${id}">${L ? f : e}</button>`).join('')}</div></section>`
+            : ''
+        }
         <section class="sum-card" id="s-online"></section>
         <span class="sum-robert" aria-hidden="true"></span>
       </aside>
@@ -185,6 +200,12 @@ export function showRideSummary(root: HTMLElement, d: SummaryData, a: SummaryAct
   on('s-resume', a.onResume);
   on('s-new', a.onNewRide);
   on('s-quit', a.onQuit);
+  root.querySelectorAll<HTMLButtonElement>('[data-feel]').forEach((b) =>
+    b.addEventListener('click', () => {
+      root.querySelectorAll('[data-feel]').forEach((x) => x.classList.toggle('accent', x === b));
+      a.onFeedback?.(b.dataset.feel as RideFeedback);
+    }),
+  );
   const online = root.querySelector('#s-online') as HTMLElement;
   if (a.onlineBox) a.onlineBox(online);
   else online.remove();

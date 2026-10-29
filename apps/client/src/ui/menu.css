@@ -232,7 +232,7 @@
 
 /* Profil et réglages */
 .grid2b { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-.mm-bigstats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-bottom: 18px; }
+.mm-bigstats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-bottom: 18px; }
 .mm-bigstats div { padding: 14px 16px; border-radius: 14px; background: var(--mm-soft); display: flex; flex-direction: column; }
 .mm-bigstats b { font-size: 30px; font-weight: 800; color: var(--ar-accent); font-variant-numeric: tabular-nums; }
 .mm-bigstats span { font-size: 12px; color: #8d98a6; }
@@ -620,6 +620,10 @@
 .mm-wk-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
 .mm-wk-head b { font-size: 14.5px; }
 .mm-wk-head em { font-style: normal; font-size: 12px; color: var(--ar-muted); white-space: nowrap; }
+.mm-wk-fav { margin-left: auto; padding: 0 2px; font-size: 17px; line-height: 1; color: var(--ar-muted); cursor: pointer; }
+.mm-wk-head em + .mm-wk-fav { margin-left: 0; }
+.mm-wk-fav:hover, .mm-wk-fav:focus-visible { color: #fff; }
+.mm-wk-fav.on { color: var(--ar-accent); }
 .mm-wk-desc { font-size: 12px; color: var(--ar-muted); line-height: 1.35; }
 .mm-wk-prof { width: 100%; height: 34px; display: block; }
 .mm-wk-prof line { stroke: rgba(255, 255, 255, 0.35); stroke-dasharray: 3 3; stroke-width: 1; vector-effect: non-scaling-stroke; }
