@@ -1538,18 +1538,21 @@ export class GltfRiderAvatar implements RiderAvatarLike {
 
   /**
    * Casque route ou chrono selon le vélo, lunettes avec le casque route ; rien tête nue. Une casquette
-   * (look.cap) remplace le casque, chrono compris, et se porte avec les lunettes.
+   * (look.cap) remplace le casque, chrono compris, et se porte avec les lunettes. « Sans casque »
+   * (look.noHelmet) et « Sans lunettes » (look.noGlasses) retirent l'un ou l'autre en selle.
    */
   private applyHeadgear(build: BikeBuild): void {
     const cap = !!this.look.cap && this.headgear.cap.length > 0;
     const aero = !!build.params.aeroHelmet && this.headgear.aero.length > 0 && !cap;
-    const shown = !this.bareHead;
-    for (const o of this.headgear.aero) o.visible = aero && shown;
-    for (const o of this.headgear.road) o.visible = !aero && !cap && shown;
-    for (const o of this.headgear.glasses) o.visible = !aero && shown;
+    const helmet = !this.bareHead && !this.look.noHelmet;
+    const glasses = !this.bareHead && !this.look.noGlasses;
+    for (const o of this.headgear.aero) o.visible = aero && helmet;
+    for (const o of this.headgear.road) o.visible = !aero && !cap && helmet;
+    // Le casque chrono a sa visière : lunettes seulement sans lui.
+    for (const o of this.headgear.glasses) o.visible = (!aero || !helmet) && glasses;
     const mats = this.look.cap ? capMaterials(this.look.cap) : null;
     for (const o of this.headgear.cap) {
-      o.visible = cap && shown;
+      o.visible = cap && helmet;
       if (mats) (o as THREE.Mesh).material = mats;
     }
   }
@@ -1566,7 +1569,7 @@ export class GltfRiderAvatar implements RiderAvatarLike {
   private applyHair(look: AvatarLook): void {
     if (!this.hair.ponytail.length) return; // modèle sans coiffures (cyclist.glb)
     const style = ((look.hairStyle % HAIR_STYLE_COUNT) + HAIR_STYLE_COUNT) % HAIR_STYLE_COUNT;
-    const bare = this.bareHead;
+    const bare = this.bareHead || !!look.noHelmet;
     // Sous le casque : cheveux plaqués (coque « slick » : tempes, autour des oreilles, nuque).
     const shell = style === 3 ? undefined : bare ? HAIR_SHELL[style] : 'slick';
     const shown = shell && this.hair.shells.has(shell) ? shell : undefined;

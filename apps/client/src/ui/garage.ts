@@ -14,6 +14,7 @@ import {
   nextStreak,
   jerseyLookOf,
   helmetLookOf,
+  glassesLookOf,
   purchase,
   rideEvents,
   tuneItem,
@@ -156,9 +157,10 @@ export function equipItem(item: CosmeticItem, s: Settings): void {
   const p = loadProgress();
   p.equipped[item.slot] = item.id;
   saveProgress(p);
+  if (item.slot === 'helmet') s.look = helmetLookOf(item, s.look);
+  if (item.slot === 'glasses') s.look = glassesLookOf(item, s.look);
   if (item.color) {
     if (item.slot === 'jersey') s.look = { ...s.look, ...jerseyLookOf(item) };
-    if (item.slot === 'helmet') s.look = helmetLookOf(item, s.look);
     if (item.slot === 'bike') s.look = { ...s.look, bike: item.color };
     if (item.slot === 'socks') s.look = { ...s.look, socks: item.color };
   }

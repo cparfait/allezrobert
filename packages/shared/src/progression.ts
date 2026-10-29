@@ -76,12 +76,24 @@ export interface CosmeticItem {
   jersey?: { accent?: string; style?: JerseyStyle; bands?: string[]; dots?: { r: number; step: number }; logo?: { id: string; tint?: string; w?: number; y?: number } };
   /** Casquettes (emplacement « helmet ») : motif porté à la place du casque. */
   cap?: CapLook;
+  /** « Sans casque » / « Sans lunettes » : retire la coiffe ou les lunettes de l'emplacement. */
+  bare?: boolean;
 }
 
-/** Coiffe d'un équipement « casque » : sa couleur et, pour une casquette, son motif (un casque retire la casquette). */
+/**
+ * Coiffe d'un équipement « casque » : sa couleur et, pour une casquette, son motif (un casque retire la
+ * casquette) ; « Sans casque » laisse la tête nue (la couleur du casque est gardée pour la suite).
+ */
 export function helmetLookOf(item: CosmeticItem, base: AvatarLook): AvatarLook {
-  const { cap: _old, ...rest } = base;
+  const { cap: _old, noHelmet: _bare, ...rest } = base;
+  if (item.bare) return { ...rest, noHelmet: true };
   return { ...rest, helmet: item.color ?? base.helmet, ...(item.cap ? { cap: item.cap } : {}) };
+}
+
+/** Lunettes : « Sans lunettes » les retire, toute autre paire les remet. */
+export function glassesLookOf(item: CosmeticItem, base: AvatarLook): AvatarLook {
+  const { noGlasses: _bare, ...rest } = base;
+  return item.bare ? { ...rest, noGlasses: true } : rest;
 }
 
 /**

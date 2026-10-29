@@ -169,6 +169,10 @@ export interface AvatarLook {
   helmet: string;
   /** Casquette de cycliste portée à la place du casque ; absente : casque (couleur `helmet`). */
   cap?: CapLook;
+  /** Tête nue en selle : ni casque ni casquette (« Sans casque » au garage). */
+  noHelmet?: boolean;
+  /** Sans lunettes (« Sans lunettes » au garage). */
+  noGlasses?: boolean;
   /** Couleur du vélo de base (sans modèle du catalogue). */
   bike: string;
   /** Modèle du catalogue de vélos (bikes.ts) ; absent : vélo de base de la couleur `bike`. */

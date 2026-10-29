@@ -37,6 +37,8 @@ const AvatarSchema = z.object({
   jerseyAccent: hex,
   helmet: hex,
   cap: z.object({ style: z.enum(['uni', 'pois', 'losanges', 'panneaux']), color: hex, accent: hex.optional(), colors: z.array(hex).max(6).optional() }).optional(),
+  noHelmet: z.boolean().optional(),
+  noGlasses: z.boolean().optional(),
   bike: hex,
   bikeModel: z.string().regex(/^[a-z0-9-]{1,64}$/).optional(),
   build: z.number().min(0).max(1),

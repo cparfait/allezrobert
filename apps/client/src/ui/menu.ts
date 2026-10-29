@@ -1,7 +1,7 @@
 import type { AvatarLook, CosmeticItem, RouteData, RouteSegment, WorldCatalogue } from '@allezrobert/shared';
 import { GRAPHIC_STYLE, setGraphicStyle, type GraphicStyle } from '../engine/style.ts';
 import { readKomRecord } from '../game/challenge.ts';
-import { COUNTRIES, BIKE_BRANDS, BIKE_GROUPS, BIKE_TEAMS, COSMETICS, DEFAULT_BIKE, bikeById, routesForBike, mirrorStartM, rankRouteId, lookSex, tuneItem, withSex, bottleCapacity, bikeSetupFor, jerseyLookOf, helmetLookOf, levelProgress, SHOE_MARKS, type BikeCollection, type BikeType, type CapLook, type CosmeticSlot } from '@allezrobert/shared';
+import { COUNTRIES, BIKE_BRANDS, BIKE_GROUPS, BIKE_TEAMS, COSMETICS, DEFAULT_BIKE, bikeById, routesForBike, mirrorStartM, rankRouteId, lookSex, tuneItem, withSex, bottleCapacity, bikeSetupFor, jerseyLookOf, helmetLookOf, glassesLookOf, levelProgress, SHOE_MARKS, type BikeCollection, type BikeType, type CapLook, type CosmeticSlot } from '@allezrobert/shared';
 import { shoeAccentOf } from '../rider/shoeLook.ts';
 import { WORKOUT_LIBRARY, WORKOUT_TYPES, WORKOUT_TYPE_LABELS, parseWorkoutFile, type LibraryWorkout, type WorkoutStep, type WorkoutType } from '@allezrobert/physics';
 import { rideHistory } from '../data/history/instance.ts';
@@ -308,6 +308,8 @@ function capSwatch(cap: CapLook): string | null {
 
 /** Vignette d'un équipement : couleur unie, ou bandes de la livrée pour un vélo. */
 function swatch(c: CosmeticItem): string {
+  // « Sans casque » / « Sans lunettes » : pastille barrée.
+  if (c.bare) return 'linear-gradient(135deg, transparent 44%, #e05a4f 44% 56%, transparent 56%), #3a3f47';
   const cap = c.cap ? capSwatch(c.cap) : null;
   if (cap) return cap;
   const pattern = patternSwatch(c);
@@ -815,9 +817,10 @@ export class MainMenu {
 
   private lookWith(item: CosmeticItem, base: AvatarLook = this.s.look): AvatarLook {
     const look = { ...base };
+    if (item.slot === 'helmet') return helmetLookOf(item, look);
+    if (item.slot === 'glasses') return glassesLookOf(item, look);
     if (item.color) {
       if (item.slot === 'jersey') Object.assign(look, jerseyLookOf(item));
-      if (item.slot === 'helmet') return helmetLookOf(item, look);
       if (item.slot === 'bike') look.bike = item.color;
       if (item.slot === 'socks') look.socks = item.color;
     }
