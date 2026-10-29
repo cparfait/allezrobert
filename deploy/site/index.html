@@ -16,6 +16,8 @@
     <a class="brand" href="/"><img src="/site/favicon.svg" alt="" width="28" height="28" /> Allez Robert !</a>
     <nav>
       <a href="#fonctions">Fonctions</a>
+      <a href="#styles">Deux styles</a>
+      <a href="#garage">Garage</a>
       <a href="#zones">Zones</a>
       <a href="#installer">Installer</a>
       <a class="btn small" href="#telecharger">Télécharger</a>
@@ -26,8 +28,9 @@
     <div class="hero-text">
       <p class="kicker">Simulateur de vélo d'intérieur · multijoueur</p>
       <h1>Le home-trainer entre amis,<br />sur les vraies routes de France.</h1>
-      <p class="lead">Relief IGN, orthophotos, villages et bâtiments réels : de la vallée de Chevreuse
-        au Tourmalet, on roule ensemble, on se parle, on se tire la bourre dans les côtes.</p>
+      <p class="lead">Relief IGN, villages et bâtiments réels : de l'Île-de-France à l'Alpe d'Huez, du Ventoux
+        au Tourmalet, on roule ensemble, on se parle, on se tire la bourre dans les côtes.
+        Au choix, un rendu réaliste ou un style jeu vidéo.</p>
       <div class="cta">
         <a class="btn" href="/telechargement/allez-robert-setup.exe" data-dl="exe">Télécharger pour Windows</a>
         <a class="btn ghost" href="/jouer">Jouer dans le navigateur</a>
@@ -54,26 +57,52 @@
           parler en roulant, peloton de coureurs virtuels quand les copains ne sont pas là.</p>
       </article>
       <article class="card">
-        <img src="/site/img/atelier.jpg" alt="L'atelier : vélo personnalisé sur son pied" loading="lazy" />
+        <img src="/site/img/garage.jpg" alt="Le garage : coureur sur son vélo monté sur home-trainer" loading="lazy" />
         <h3>Ton vélo, ta tenue</h3>
-        <p>L'atelier se débloque en roulant : cadres, roues, maillots. Ton coureur te ressemble,
-          homme ou femme, et ton vélo aussi.</p>
+        <p>Le garage se débloque en roulant : cadres, roues, maillots, casques (chrono compris), lunettes, gants.
+          Ton coureur te ressemble, homme ou femme, et ton vélo est monté sur ton home-trainer.</p>
       </article>
     </div>
 
     <ul class="features">
+      <li><strong>Progression</strong> niveaux 1 à 50 avec leurs récompenses, trophées et défis</li>
+      <li><strong>Positions</strong> danseuse, sprint, mains sur les cornes, prolongateurs et position aéro sur route comme en chrono</li>
+      <li><strong>Peloton</strong> radar de position du groupe, formations (file, deux files, bordure), « attendez-moi », allure du groupe</li>
       <li><strong>Home-trainers</strong> Bluetooth (FTMS), ANT+ FE-C par clé USB, Wahoo Direct Connect</li>
       <li><strong>Capteurs</strong> puissance, cardio, cadence ; ventilateur HEADWIND</li>
       <li><strong>Entraînement</strong> séances ERG, test FTP (rampe ou 20 min), zones de puissance</li>
       <li><strong>Export</strong> fichier FIT, envoi Strava et intervals.icu</li>
-      <li><strong>Téléphone</strong> appli compagnon par QR code : télécommande et infos de sortie</li>
+      <li><strong>Téléphone</strong> appli compagnon par QR code : vitesses, caméras, carrefours, musique, radar du groupe, regard derrière, son</li>
       <li><strong>Ambiance</strong> saisons, heure du jour, pluie, nuit, voix off en français</li>
     </ul>
   </section>
 
+  <section id="styles" class="band alt">
+    <h2>Deux styles graphiques</h2>
+    <p class="lead narrow">Au premier lancement, tu choisis ton rendu, et tu peux en changer à tout moment dans les réglages.</p>
+    <div class="grid two">
+      <article class="card">
+        <img src="/site/img/style-real.jpg" alt="Rendu réaliste : un coureur sur une route d'automne" loading="lazy" />
+        <h3>Réaliste</h3>
+        <p>Au plus près des vraies routes : relief, lumière, textures.</p>
+      </article>
+      <article class="card">
+        <img src="/site/img/style-lowpoly.jpg" alt="Style jeu vidéo : le même coureur, en facettes et aplats de couleur" loading="lazy" />
+        <h3>Jeu vidéo</h3>
+        <p>Facettes et aplats de couleur : plus léger pour les petites machines, et un monde plus animé.</p>
+      </article>
+    </div>
+  </section>
+
+  <section id="garage" class="band">
+    <h2>Le garage</h2>
+    <p class="lead narrow">Un vélo de route, de chrono, de gravel ou de VTT, des vélos de légende redessinés d'après photos
+      (Bottecchia 1989, Lotus 110, Pinarello Espada), monté sur le home-trainer de ton choix : KICKR, Neo…</p>
+  </section>
+
   <section id="zones" class="band alt">
     <h2>Les zones</h2>
-    <p class="lead narrow">L'application est légère : chaque zone se télécharge depuis le menu, une fois,
+    <p class="lead narrow" id="zone-count">L'application est légère : chaque zone se télécharge depuis le menu, une fois,
       puis reste sur ton PC. Tu ne prends que celles où tu veux rouler.</p>
     <div id="zone-list" class="zones">
       <p class="meta">Chargement de la liste des zones…</p>
@@ -165,6 +194,7 @@
         .then((r) => (r.ok ? r.json() : Promise.reject()))
         .then((cat) => {
           const zones = (cat.zones || []).slice().sort((a, b) => a.name.localeCompare(b.name, 'fr'));
+          document.getElementById('zone-count').textContent = `${zones.length} zones à rouler, de l'Île-de-France aux grands cols. Chacune se télécharge depuis le menu, une fois, puis reste sur ton PC : tu ne prends que celles où tu veux rouler.`;
           list.innerHTML = zones.map((z) => `<span class="zone">${esc(z.name)}</span>`).join('') + '<span class="zone etc">… etc.</span>';
         })
         .catch(() => {

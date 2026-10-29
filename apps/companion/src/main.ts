@@ -640,6 +640,10 @@ function ctrlHtml(): string {
       <button class="btn big" data-cmd="photo">📷 ${esc(t.photo)}</button>
       <button class="btn big" data-cmd="hud" id="c-hud">${esc(t.hud)}</button>
     </div>
+    <div class="row3">
+      <button class="btn big" data-cmd="lookback" id="c-look">${esc(t.lookBack)}</button>
+      <button class="btn big" data-cmd="mute" id="c-mute">${esc(st.muted ? t.unmute : t.mute)}</button>
+    </div>
     <button class="btn big wide" data-music="toggle" id="c-music">${esc(st.music?.playing === false ? t.musicResume : t.musicCut)}</button>
     ${st.open || !st.multiplayer ? `<button class="btn big wide" data-cmd="uturn">↶ ${esc(t.uturn)}</button>` : ''}
     <h2>${esc(t.camera)}</h2>
@@ -647,7 +651,7 @@ function ctrlHtml(): string {
     <label class="slider"><span>${esc(t.fan)}</span><input type="range" min="0" max="100" step="5" value="${st.fanPercent ?? 0}" id="c-fan"/><output id="c-fanv">${st.fanPercent ?? 0} %</output></label>
     ${
       st.team
-        ? `<h2>${esc(t.team)}</h2><div class="row3"><button class="btn big" data-cmd="pace-down">${esc(t.paceDown)}</button><button class="btn big" data-cmd="slowdown">${esc(t.slowDown)}</button><button class="btn big" data-cmd="pace-up">${esc(t.paceUp)}</button></div><div class="row3"><button class="btn big" data-cmd="waitme">${esc(t.waitMe)}</button><button class="btn big" data-cmd="formation">${esc(t.formation)}</button></div>`
+        ? `<h2>${esc(t.team)} <small id="c-grp-pace"></small></h2><div class="grp"><div class="grp-radar"><i class="grp-track"></i><div id="c-grp-dots"></div><i class="grp-me"></i></div><div class="grp-scale"><span>${esc(t.groupBehind)}</span><span>${esc(t.groupYou)}</span><span>${esc(t.groupAhead)}</span></div></div><div class="row3"><button class="btn big" data-cmd="pace-down">${esc(t.paceDown)}</button><button class="btn big" data-cmd="slowdown">${esc(t.slowDown)}</button><button class="btn big" data-cmd="pace-up">${esc(t.paceUp)}</button></div><div class="row3"><button class="btn big" data-cmd="waitme">${esc(t.waitMe)}</button><button class="btn big" data-cmd="formation">${esc(t.formation)}</button></div>`
         : ''
     }
   </section>`;
@@ -664,6 +668,20 @@ function updateCtrl(st: PairState): void {
   if (p) p.textContent = st.phase === 'paused' ? t.resume : t.pause;
   const h = document.getElementById('c-hud');
   if (h) h.textContent = st.hudVisible === false ? t.hudOff : t.hudOn;
+  const look = document.getElementById('c-look');
+  if (look) look.classList.toggle('on', !!st.lookBack);
+  const mute = document.getElementById('c-mute');
+  if (mute) mute.textContent = st.muted ? t.unmute : t.mute;
+  // Radar du groupe : 30 m derrière à 30 m devant, moi au centre (comme le panneau « Groupe » du jeu).
+  const dots = document.getElementById('c-grp-dots');
+  if (dots) {
+    dots.innerHTML = (st.riders ?? [])
+      .filter((r) => !r.me && Math.abs(r.gapM) <= 30)
+      .map((r) => `<i style="left:${(50 + (r.gapM / 30) * 50).toFixed(1)}%;background:${esc(r.color)}" title="${esc(r.name)}"></i>`)
+      .join('');
+    const gp = document.getElementById('c-grp-pace');
+    if (gp) gp.textContent = st.groupPacePct ? `${st.groupPacePct} % FTP` : '';
+  }
   // Musique : le bouton dit ce qu'un appui fait (couper la musique en sortie sans quitter le pilotage).
   const mu = document.getElementById('c-music');
   if (mu) mu.textContent = st.music?.playing === false ? t.musicResume : t.musicCut;
@@ -926,6 +944,8 @@ app.addEventListener('click', (e) => {
     else if (d.cmd === 'pause') send({ kind: st?.phase === 'paused' ? 'resume' : 'pause' });
     else if (d.cmd === 'photo') send({ kind: 'photo' });
     else if (d.cmd === 'hud') send({ kind: 'hud' });
+    else if (d.cmd === 'lookback') send({ kind: 'lookBack', on: !S.st?.lookBack });
+    else if (d.cmd === 'mute') send({ kind: 'mute' });
     else if (d.cmd === 'uturn') send({ kind: 'uturn' });
     else if (d.cmd === 'slowdown') send({ kind: 'slowDown' });
     else if (d.cmd === 'waitme') send({ kind: 'waitMe' });

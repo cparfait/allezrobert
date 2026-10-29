@@ -78,6 +78,7 @@ import { PlaceFinder } from './game/place.ts';
 import { TILES_BASE, installedPacks, keepStorage } from './world/packs.ts';
 import { inDesktop, installFullscreenKey, keepAwake, mirrorProfile } from './platform/desktop.ts';
 import { hasLocalMedia, prepareDesktop } from './platform/desktopBoot.ts';
+import { LOW_POLY } from './engine/style.ts';
 import { offerDesktopUpdate } from './ui/desktopUi.ts';
 import type { DevicePanel } from './ui/menu.ts';
 import type { InterpolatedRider } from './net/index.ts';
@@ -240,9 +241,11 @@ function nextPaint(): Promise<void> {
 }
 
 /** Version des médias du menu (vidéos, images) : à augmenter quand on les régénère (cache navigateur). */
-const MENU_MEDIA_VERSION = 11;
+const MENU_MEDIA_VERSION = 12;
+/** Films du menu du style choisi : réaliste (loop-<saison>.*) ou jeu vidéo (loop-lowpoly-<saison>.*). */
+const MENU_STYLE = LOW_POLY ? 'lowpoly-' : '';
 
-/** Boucle vidéo de la saison en fond du menu (public/menu/loop-<saison>.webm), sur son image fixe. */
+/** Boucle vidéo de la saison (et du style) en fond du menu (public/menu/loop-<saison>.mp4), sur son image fixe. */
 function createMenuVideo(el: HTMLVideoElement | null) {
   let failed = false;
   /**
@@ -268,14 +271,14 @@ function createMenuVideo(el: HTMLVideoElement | null) {
     // AV1 si décodé par la carte graphique, sinon H.264, sinon VP9 ; repli sur le suivant en cas d'erreur.
     if (el && formats[format] === 'mp4' && !el.canPlayType('video/mp4; codecs="avc1.640028"')) format = formats.indexOf('webm');
     // Application Windows : depuis les ressources du jeu sur le disque si elles ont la boucle, sinon du serveur ; web : même origine.
-    const file = `menu/loop-${season}.${formats[format] as string}`;
+    const file = `menu/loop-${MENU_STYLE}${season}.${formats[format] as string}`;
     return `${inDesktop && !hasLocalMedia(file) ? TILES_BASE : ''}/${file}?v=${MENU_MEDIA_VERSION}`;
   };
   // Image fixe de la saison, affichée tout de suite sous la vidéo (et seule si la vidéo échoue).
   const still = document.getElementById('menu-still');
   const showStill = (season: Settings['season'] | null) => {
     if (!still) return;
-    if (season) still.style.backgroundImage = `url(/menu/still-${season}.jpg?v=${MENU_MEDIA_VERSION})`;
+    if (season) still.style.backgroundImage = `url(/menu/still-${MENU_STYLE}${season}.jpg?v=${MENU_MEDIA_VERSION})`;
     still.hidden = !season;
   };
   if (el) {
@@ -1239,6 +1242,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   // Musique plus discrète en sortie ; titres Spotify annoncés dans le HUD.
   musicCtl.base = 0.6;
   music.setDuck(musicCtl.base);
+  music.setMood('drive');
   musicCtl.onTrack = (label) => hud.toast(`♪ ${label}`);
   hud.ftp = s.ftpWatts;
   hud.setVisible(true);
@@ -2343,6 +2347,9 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
       camera: rig.mode === 'free' ? 'chase' : rig.mode,
       ...(fanPercent !== undefined ? { fanPercent } : {}),
       hudVisible: hud.visible,
+      muted: audio.isMuted(),
+      lookBack: rig.lookBack,
+      ...(peloton.riders.length ? { groupPacePct: Math.round((peloton.paceFtpPct ?? 0.75) * 100) } : {}),
       music: companionMusic(),
       junction:
         nav?.next && nav.next.d - d < 600
@@ -2390,6 +2397,12 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
         break;
       case 'hud':
         hud.toggle();
+        break;
+      case 'lookBack':
+        rig.lookBack = c.on;
+        break;
+      case 'mute':
+        audio.toggleMute();
         break;
       case 'photo':
         photo();

@@ -326,6 +326,10 @@ export class GameAudio {
     this.setMix({ ...this.mix, master: v });
   }
 
+  isMuted(): boolean {
+    return this.muted;
+  }
+
   toggleMute(): boolean {
     this.muted = !this.muted;
     this.applyBuses(0.08);

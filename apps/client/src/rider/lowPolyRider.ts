@@ -1,7 +1,7 @@
 import * as THREE from 'three/webgpu';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { bikeOfLook, lookSex, type AvatarLook, type BikeBuild, type WheelType } from '@allezrobert/shared';
-import type { RiderAvatarLike, RiderPose } from './gltfAvatar.ts';
+import type { RiderAvatarLike, RiderGesture, RiderPose } from './gltfAvatar.ts';
 import { SweptBody, makeJoints, type BodyLook } from './sweptBody.ts';
 import { HELMET_FACETED, aeroHelmetGeometry } from './aeroHelmet.ts';
 import { aerobarAnchors, buildAerobars, type AerobarAnchors } from './aerobars.ts';
@@ -555,6 +555,8 @@ export class LowPolyRider implements RiderAvatarLike {
   private longSleeves = false;
   private lookKey = '';
   private crankAngle = Math.random() * Math.PI * 2;
+  /** Pose de repos du corps en tubes : les deux pieds pédale en bas (jambes en miroir). */
+  private bindPose = false;
   private wheelAngle = 0;
   private poseBlend = 0;
   private coastBlend = 0;
@@ -571,6 +573,8 @@ export class LowPolyRider implements RiderAvatarLike {
    * du cintre quand on roule très vite (> 50 km/h).
    */
   private ftpFrac = 0.7;
+  /** Geste imposé (film d'accueil) : angle des manivelles, regard de côté et vers le haut. */
+  private gesture: RiderGesture = {};
   private hoodsAeroOn = false;
   private forearmsOn = false;
   private hoodsAeroBlend = 0;
@@ -647,8 +651,17 @@ export class LowPolyRider implements RiderAvatarLike {
     this.noGlasses = !!look.noGlasses;
     this.applyHeadwear();
     this.swept = null;
+    // Corps en tubes lié dans une pose de repos fixe et symétrique, les deux pieds pédale en bas, comme
+    // l'avatar réaliste (BIND_PHASE de build_avatar.py) : lié à l'angle de manivelle du moment (au hasard),
+    // la fesse de la jambe levée se froissait dès que la jambe redescendait.
+    const crank = this.crankAngle;
+    this.crankAngle = 0;
+    this.bindPose = true;
     this.update(0, 0, 0, 'seated');
     if (this.tubes) this.buildTubes(look);
+    this.bindPose = false;
+    this.crankAngle = crank;
+    this.update(0, 0, 0, 'seated');
     if (!this.shadows) this.root.traverse((o) => (o.castShadow = false));
   }
 
@@ -1265,6 +1278,7 @@ export class LowPolyRider implements RiderAvatarLike {
       const target = Math.round((this.crankAngle - Math.PI / 2) / Math.PI) * Math.PI + Math.PI / 2;
       this.crankAngle += (target - this.crankAngle) * k * 0.5;
     }
+    if (this.gesture.crank !== undefined && !this.bindPose) this.crankAngle = this.gesture.crank;
     this.crank.rotation.x = this.crankAngle;
     const stand = this.poseBlend;
     // Virages : inclinaison adoucie et plafonnée (≈ 17°) ; l'angle physique, tout entier, couchait le vélo.
@@ -1365,10 +1379,11 @@ export class LowPolyRider implements RiderAvatarLike {
     this.collar.set(shoulder.clone().add(v3(0, 0.0, 0.015)), shoulder.clone().add(v3(0, 0.045, 0.035)));
     this.head.position.copy(neckTop).add(v3(0, 0.07, 0.04));
     // Tête relevée pour regarder la route (le dos est penché vers l'avant).
-    this.head.rotation.x = 0.3 + fit.headTilt * fitK - 0.12 * stand - 0.2 * sprint - 0.25 * up - 0.22 * aero - 0.18 * forearms - 0.12 * hoodsAero - 0.18 * clip - 0.18 * horns + 0.22 * turtle;
+    this.head.rotation.x = 0.3 + fit.headTilt * fitK - 0.12 * stand - 0.2 * sprint - 0.25 * up - 0.22 * aero - 0.18 * forearms - 0.12 * hoodsAero - 0.18 * clip - 0.18 * horns + 0.22 * turtle + (this.gesture.pitch ?? 0);
+    this.head.rotation.y = this.gesture.yaw ?? 0;
 
     for (const leg of this.legs) {
-      const a = this.crankAngle + (leg.side > 0 ? 0 : Math.PI);
+      const a = this.crankAngle + (leg.side > 0 || this.bindPose ? 0 : Math.PI);
       const pedal = v3(0.125 * leg.side, this.bb.y - Math.cos(a) * CRANK, this.bb.z - Math.sin(a) * CRANK);
       const pm = this.pedals[leg.side > 0 ? 0 : 1];
       if (pm) pm.position.copy(pedal).setX(this.pedalX === null ? pedal.x : this.pedalX * leg.side);
@@ -1448,6 +1463,10 @@ export class LowPolyRider implements RiderAvatarLike {
   /** Effort (puissance / FTP) : positions aéro quand on roule très fort. */
   setEffort(ftpFrac: number): void {
     this.ftpFrac = ftpFrac;
+  }
+
+  setGesture(g: RiderGesture): void {
+    this.gesture = g;
   }
 
   /** Sprint en cours (segment de sprint ou effort maximal) : danseuse de sprint. */

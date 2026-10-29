@@ -112,8 +112,8 @@ export class World {
     scene.add(this.network.group);
     this.rain = new Rain();
     scene.add(this.rain.mesh);
-    // Style jeu vidéo : herbe tenue à 1 m du bord (les touffes penchées ne débordent plus sur l'enrobé).
-    const onAsphalt = buildRoadProximity(route, route.roadWidthM / 2 + (LOW_POLY ? 1.0 : 0.4));
+    // Herbe tenue à 1 m du bord (les touffes penchées ne débordent plus sur l'enrobé).
+    const onAsphalt = buildRoadProximity(route, route.roadWidthM / 2 + 1.0);
     this.grass = new GrassField(q, envState.season, (x, z) => this.terrain.getTile(...this.terrain.tileCoord(x, z)), groundAt, onAsphalt);
     scene.add(this.grass.mesh);
     this.water = new WaterSystem(q, envState.season, groundAt, nearRoad);

@@ -471,7 +471,8 @@ export class SweptBody {
     }
     this.mesh = new THREE.SkinnedMesh(geo, mat);
     this.mesh.castShadow = true;
-    this.mesh.receiveShadow = true;
+    // Pas d'ombre reçue : les facettes du corps se piquetaient d'acné d'ombre (fessier moucheté), l'ombre portée au sol reste.
+    this.mesh.receiveShadow = false;
     this.mesh.frustumCulled = false;
     this.bones = Array.from({ length: BONES }, () => new THREE.Bone());
     this.mesh.add(...this.bones);

@@ -69,6 +69,10 @@ export class RideSound {
     this.audio.setSources(list);
   }
 
+  isMuted(): boolean {
+    return this.audio.isMuted();
+  }
+
   toggleMute(): boolean {
     return this.audio.toggleMute();
   }

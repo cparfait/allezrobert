@@ -59,6 +59,10 @@ export type PhoneCommand =
   /** Lance un résultat de recherche (URI Spotify : morceau, album, playlist ou artiste). */
   | { kind: 'musicPlay'; uri: string }
   | { kind: 'hud' }
+  /** Regarder derrière (touche X) : activé ou relâché. */
+  | { kind: 'lookBack'; on: boolean }
+  /** Coupe / rétablit le son du jeu (touche M). */
+  | { kind: 'mute' }
   | { kind: 'photo' }
   /** Équipiers IA : « ralentissez », ou allure du groupe ±5 % FTP. */
   | { kind: 'slowDown' }
@@ -130,6 +134,10 @@ export interface PairState {
   camera?: CameraMode;
   fanPercent?: number;
   hudVisible?: boolean;
+  /** Son du jeu coupé ; regard vers l'arrière ; allure demandée au groupe en % de FTP. */
+  muted?: boolean;
+  lookBack?: boolean;
+  groupPacePct?: number;
   music?: { source: 'game' | 'spotify'; playing: boolean; title: string; volume: number };
   junction?: PairJunction | null;
   segment?: { name: string; kind: string; progress: number; elapsedS: number } | null;

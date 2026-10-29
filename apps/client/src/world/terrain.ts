@@ -172,9 +172,9 @@ export class TerrainManager {
     const e = this.tiles.get(`${tx}_${tz}`);
     if (!e) return Number.NaN;
     const t = e.tile;
-    // Style jeu vidéo : le sol affiché est abaissé sous les routes (clampUnderRoads) ; herbe, fleurs,
+    // Le sol affiché est abaissé sous les routes (clampUnderRoads, les deux styles) ; herbe, fleurs,
     // clôtures et animaux se posent sur ce sol-là, pas sur le relief brut (ils flottaient à côté des routes).
-    if (LOW_POLY) {
+    {
       const h = meshHeight(e.mesh.geometry, t, x, z);
       if (Number.isFinite(h)) return h;
     }
@@ -420,7 +420,7 @@ export class TerrainManager {
     // Style jeu vidéo : sol abaissé sous toutes les routes de la tuile (réseau OSM, itinéraire des mondes
     // ouverts), comme sous le ruban de l'itinéraire. Sans orthophoto pour peindre la route, les facettes du
     // maillage (plus grossier que la tranchée creusée par le générateur) se voyaient en vert sur la chaussée.
-    if (LOW_POLY) clampUnderRoads(pos, tile, seg, reach, axisGround);
+    clampUnderRoads(pos, tile, seg, reach, axisGround);
     // Tableaux typés et normales tirées des hauteurs voisines (grille régulière) : `computeVertexNormals`
     // de three.js, générique, prenait ≈ 75 ms par tuile en qualité haute (saccade au changement de détail).
     const border: number[] = [];

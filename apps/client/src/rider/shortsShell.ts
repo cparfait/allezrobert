@@ -16,10 +16,13 @@ import type { BodyJoints } from './sweptBody.ts';
 /** Pas de la grille (m) : taille des facettes. */
 const SHELL_CELL = 0.03;
 /** Lissage des sommets (passes, part du déplacement vers la moyenne des voisins) : facettes régulières. */
-const SMOOTH_PASSES = 2;
+const SMOOTH_PASSES = 4;
 const SMOOTH_K = 0.5;
 /** Rayon d'adoucissement des unions (m) : pas d'arête entre fessier, taille et cuisses. */
 const BLEND = 0.04;
+/** Sillon entre les fesses : profondeur et demi-largeur (m). */
+const CLEFT_DEPTH = 0.055;
+const CLEFT_W = 0.03;
 
 export interface ShellParams {
   /** Ourlet du maillot (repos) : la coque s'arrête un peu au-dessus, sous le maillot. */
@@ -74,11 +77,11 @@ export function shortsShell(rest: BodyJoints, P: ShellParams): { vertices: Shell
   // Fessier : centre un peu sous et derrière le bassin, fond dans l'épaisseur de la selle ; plus profond
   // derrière (fesses) que devant (bas-ventre), plus haut que bas.
   const gC = H.clone().add(new THREE.Vector3(0, -0.012, -0.02));
-  const gR = { x: 0.145 * hips * s, up: 0.08 * s, down: 0.07 * s, front: 0.078 * s, back: 0.088 * s };
+  const gR = { x: 0.12 * hips * s, up: 0.08 * s, down: 0.07 * s, front: 0.078 * s, back: 0.088 * s };
   // Taille : capsule ovale le long du bas du dos, jusqu'au-dessus de l'ourlet du maillot.
   const top = P.hemP.clone().addScaledVector(up, 0.02);
   const waistR = 0.083 * s;
-  const waistSx = (0.13 * hips) / 0.083;
+  const waistSx = (0.115 * hips) / 0.083;
   // Cuisses : du cœur du fessier à l'ourlet du cuissard, rayon effilé.
   const legs = rest.legs.map((g, i) => {
     const side = i === 0 ? 1 : -1;
@@ -99,6 +102,10 @@ export function shortsShell(rest: BodyJoints, P: ShellParams): { vertices: Shell
     d = smin(d, capsule(p, H, top, waistR, waistR * 0.96, waistSx, tmp), BLEND);
     // Cuisses : rayon qui finit sous celui du tube de la cuisse (≈ 7,2 cm à mi-cuisse) : la coque y rentre.
     for (const L of legs) d = smin(d, capsule(p, L.a, L.hem, 0.09 * s, 0.062 * s, 1, tmp), BLEND);
+    // Sillon entre les deux fesses, derrière, du haut des fesses jusqu'à la selle : deux fesses comme sur
+    // l'avatar réaliste au lieu d'un bloc d'un tenant (jusqu'au 29/10/2026).
+    q.subVectors(p, gC);
+    d += CLEFT_DEPTH * s * Math.exp(-((q.x / CLEFT_W) ** 2)) * smooth(0.0, 0.05, -q.z) * smooth(-0.14, -0.08, q.y) * (1 - smooth(0.05, 0.11, q.y));
     // Coupe sous le maillot (plan de la taille) ; les cuisses finissent arrondies dans leur tube.
     d = Math.max(d, q.subVectors(p, top).dot(up));
     return d;

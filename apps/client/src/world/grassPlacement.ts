@@ -1,5 +1,4 @@
 import { rng } from '../engine/noise.ts';
-import { LOW_POLY } from '../engine/style.ts';
 import type { Season } from './environment.ts';
 import { snowCoverAt } from './alpine.ts';
 import { splatCell } from './splat.ts';
@@ -137,7 +136,7 @@ export function generateGrassBlock(bx: number, bz: number, tries: number, env: G
     const sand = d ? (d[cell + 9] as number) / 255 : 0;
     // Herbe partout sauf chaussée et eau, plus dense dans les prés et sur les bas-côtés.
     // Style jeu vidéo : marge plus large autour des routes OSM (rien ne dépasse sur l'enrobé).
-    const density = road > (LOW_POLY ? 0.12 : 0.3) || water > 0.3 || rock > 0.2 || sand > 0.3 ? 0 : 0.35 + meadow * 0.65 - forest * 0.25 + field * 0.1 + verge * 0.8;
+    const density = road > 0.12 || water > 0.3 || rock > 0.2 || sand > 0.3 ? 0 : 0.35 + meadow * 0.65 - forest * 0.25 + field * 0.1 + verge * 0.8;
     if (uDensity > density) continue;
     if (env.avoid(x, z)) continue;
     const y = env.heightAt(x, z);

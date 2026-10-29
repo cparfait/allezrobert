@@ -385,7 +385,8 @@ async function main(): Promise<void> {
     const tt = BIKES.find((b) => b.params.aeroHelmet)?.id ?? 's26-04-cervelo-s5';
     const looks: Array<[string, AvatarLook]> = [
       ['route', base],
-      ['chrono velo', { ...base, bikeModel: tt }],
+      // Style jeu vidéo : le vélo de chrono porte le casque « chrono » du garage (ligne en double, retirée).
+      ...(LOW_POLY ? [] : ([['chrono velo', { ...base, bikeModel: tt }]] as Array<[string, AvatarLook]>)),
       ['chrono', { ...base, helmetShape: 'chrono' }],
       ['chrono-court', { ...base, helmetShape: 'chrono-court' }],
     ];
