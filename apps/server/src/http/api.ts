@@ -15,7 +15,7 @@ import { friendRoutes } from './friends-routes.ts';
 import { publicRoutes } from './public-routes.ts';
 import { historyRoutes } from './history-routes.ts';
 import { adminRoutes } from './admin-routes.ts';
-import { clearSessionCookie, cors, errorHandler, HttpError, loadUser, originCheck, requireUser, type AuthedRequest } from './middleware.ts';
+import { clearSessionCookie, cors, errorHandler, HttpError, loadUser, originCheck, platformOf, requireUser, type AuthedRequest } from './middleware.ts';
 import { COSMETICS, levelInfo, unlockedCosmetics, validateEquipped, xpForRide } from '../progression/xp.ts';
 import { decodeFit, FitImportError, stripHeartRate, trainingFromFit } from '../activities/fit-import.ts';
 import { authorizeUrl, exchangeCode, newPkce, safeRedirect } from '../auth/oauth.ts';
@@ -129,6 +129,7 @@ export function mountApi(app: express.Application, ctx: AppContext): void {
   /* ───────────── Compte et profil ───────────── */
   api.get('/me', async (req: AuthedRequest, res) => {
     const u = requireUser(req);
+    void ctx.repos.touchPlatform(u.userId, platformOf(req)).catch(() => undefined);
     const profile = await ctx.repos.getProfile(u.userId);
     if (!profile) throw new HttpError(401, 'Compte introuvable', 'unauthorized');
     const prog = await ctx.repos.getProgression(u.userId);

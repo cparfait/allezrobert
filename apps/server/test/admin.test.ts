@@ -153,3 +153,26 @@ describe('administration — adresses e-mail', () => {
     expect(((await call('GET', '/users?q=sans', admin.cookie)).body.users[0] as { email: string }).email).toBe('sans@example.fr');
   });
 });
+
+describe('administration — plateformes', () => {
+  beforeAll(() => boot({}));
+  afterAll(stop);
+
+  it('répartition web / Windows / Mac d’après l’origine des requêtes', async () => {
+    const admin = await sessionFor('Chef', ADMIN_EMAIL);
+    const ana = await sessionFor('Ana', 'ana@example.fr');
+    const ben = await sessionFor('Ben', 'ben@example.fr');
+    const me = (s: { cookie: string }, origin?: string) => fetch(`${base}/api/me`, { headers: { cookie: s.cookie, ...(origin ? { origin } : {}) } });
+    await me(ana);
+    await me(ana, 'http://tauri.localhost');
+    await me(ben, 'tauri://localhost');
+    await me(admin);
+    const stats = (await call('GET', '/stats', admin.cookie)).body.platforms as Array<{ platform: string; users: number; active7d: number }>;
+    const by = Object.fromEntries(stats.map((p) => [p.platform, p.users]));
+    expect(by).toEqual({ web: 2, windows: 1, mac: 1 });
+    const list = (await call('GET', '/users?q=ana', admin.cookie)).body.users[0] as { platforms: string[] };
+    expect([...list.platforms].sort()).toEqual(['web', 'windows']);
+    const detail = (await call('GET', `/users/${ben.userId}`, admin.cookie)).body as { platforms: Array<{ platform: string }> };
+    expect(detail.platforms.map((p) => p.platform)).toEqual(['mac']);
+  });
+});

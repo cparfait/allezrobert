@@ -431,6 +431,8 @@ export class MainMenu {
   });
   private tab: Tab = 'ride';
   private garageSlot: GarageSlot = 'jersey';
+  /** Filtre du catalogue du garage : tout, débloqués (portables) ou verrouillés (niveau à atteindre). */
+  private itemFilter: 'all' | 'unlocked' | 'locked' = 'all';
   /** Menu du garage réduit (vue plus large). */
   private grFolded = false;
   /** Le garage est déjà ouvert (animation d'arrivée jouée). */
@@ -1868,8 +1870,8 @@ export class MainMenu {
         : this.garageSlot === 'bike'
         ? this.bikeListHtml(lp.level, p.equipped.bike)
         : this.garageSlot === 'jersey'
-        ? `${this.sleevesToggle()}${this.legsToggle()}${this.glovesToggle()}${this.gloveColorField()}${this.jerseyPacksHtml(lp.level, p.equipped.jersey)}`
-        : `${this.garageSlot === 'socks' ? `${this.sockHeightToggle()}<div class="mm-colors">${this.shoeFields()}</div>` : ''}<div class="mm-items">${this.garageItems(lp.level)
+        ? `<div class="gr-opts">${this.sleevesToggle()}${this.legsToggle()}${this.glovesToggle()}${this.gloveColorField()}</div>${this.filterBar(lp.level)}${this.jerseyPacksHtml(lp.level, p.equipped.jersey)}`
+        : `${this.filterBar(lp.level)}${this.garageSlot === 'socks' ? `${this.sockHeightToggle()}<div class="mm-colors">${this.shoeFields()}</div>` : ''}<div class="mm-items">${this.garageItems(lp.level)
             .map((c) => this.itemHtml(c, lp.level, c.slot === 'trainer' ? trainerOf(p.equipped) : p.equipped[c.slot]))
             .join('')}</div>`;
     return `<div class="mm-dragzone" id="m-dragzone"></div>
@@ -1907,10 +1909,22 @@ export class MainMenu {
       { label: L ? 'Personnage' : 'Character', icon: ICON.gFace, first: 'face', subs: [['face', L ? 'Visage' : 'Face'], ['colors', L ? 'Couleurs' : 'Colours']] },
     ];
     const active = groups.find((g) => g.subs.some(([id]) => id === cur)) ?? groups[0]!;
+    // Tenue : une tuile par emplacement, avec l'équipement porté (coup d'œil sur ce qu'on porte, un clic ouvre son catalogue).
+    const equipped = loadProgress().equipped;
+    const tile = ([id, label]: [GarageSlot, string]) => {
+      const item = COSMETICS.find((c) => c.slot === id && c.id === equipped[id as CosmeticSlot]);
+      // Rien d'équipé au catalogue : la couleur portée (réglages du coureur) et « Par défaut ».
+      const look = this.s.look;
+      const base: Partial<Record<GarageSlot, string>> = { jersey: look.jersey, helmet: look.helmet, socks: look.socks ?? '#f2f2f2', glasses: '#1a1d24' };
+      return `<button class="gr-slot ${id === cur ? 'on' : ''}" data-slot="${id}" aria-pressed="${id === cur}"><i style="background:${item ? swatch(item) : base[id] ?? 'rgba(255,255,255,.08)'}"></i><small>${label}</small><b>${item ? esc(item.name[lang]) : L ? 'Par défaut' : 'Default'}</b></button>`;
+    };
+    const subs = active.label === (L ? 'Tenue' : 'Outfit')
+      ? `<div class="gr-slots">${active.subs.map(tile).join('')}</div>`
+      : `<div class="gr-subs">${active.subs.map(([id, label]) => `<button class="gr-sub ${id === cur ? 'on' : ''}" data-slot="${id}">${label}</button>`).join('')}</div>`;
     return `<nav class="gr-groups" aria-label="${L ? 'Rubriques du garage' : 'Garage sections'}">${groups
       .map((g) => `<button class="gr-group ${g === active ? 'on' : ''}" data-slot="${g === active ? cur : g.first}" aria-pressed="${g === active}">${g.icon}<span>${g.label}</span></button>`)
       .join('')}</nav>
-      <div class="gr-subs">${active.subs.map(([id, label]) => `<button class="gr-sub ${id === cur ? 'on' : ''}" data-slot="${id}">${label}</button>`).join('')}</div>`;
+      ${subs}`;
   }
 
   /** Vignette d'un équipement du garage (équipé, verrouillé, en aperçu). */
@@ -1923,7 +1937,7 @@ export class MainMenu {
     return `<button class="mm-item ${on ? 'on' : ''} ${locked ? 'locked' : ''} ${prev ? 'preview' : ''}" data-item="${c.id}" title="${locked ? (L ? 'Cliquer pour l’essayer' : 'Click to try it on') : ''}">
                 <i style="background:${swatch(c)}"></i>
                 <span class="mm-it-txt"><b>${esc(c.name[lang])}</b>${c.effect ? `<em class="mm-effect">${esc(c.effect[lang])}</em>` : ''}
-                <span class="mm-it-state">${prev ? `👁 ${L ? 'Aperçu' : 'Preview'} · 🔒 ${L ? 'niv.' : 'lvl'} ${c.level}` : locked ? `🔒 ${L ? 'niveau' : 'level'} ${c.level}` : on ? (L ? '✓ Équipé' : '✓ Equipped') : L ? 'Disponible' : 'Available'}</span></span></button>`;
+                <span class="mm-it-state st-${prev ? 'preview' : locked ? 'locked' : on ? 'on' : 'free'}">${prev ? `${L ? 'Aperçu' : 'Preview'} · ${L ? 'niv.' : 'lvl'} ${c.level}` : locked ? `${L ? 'Niveau' : 'Level'} ${c.level} · ${L ? `dans ${c.level - level} niv.` : `${c.level - level} to go`}` : on ? (L ? 'Équipé' : 'Equipped') : L ? 'Débloqué' : 'Unlocked'}</span></span></button>`;
   }
 
   /** Cuissard court ou long (look.legs) ; aperçu immédiat. */
@@ -2017,8 +2031,18 @@ export class MainMenu {
   }
 
   /** Équipements de l'emplacement choisi (hors vélos, voir bikesInCollection). */
-  private garageItems(_level: number): CosmeticItem[] {
-    return COSMETICS.filter((c) => c.slot === this.garageSlot);
+  private garageItems(level: number): CosmeticItem[] {
+    return COSMETICS.filter((c) => c.slot === this.garageSlot).filter((c) => this.itemFilter === 'all' || (this.itemFilter === 'locked') === c.level > level);
+  }
+
+  /** Barre de filtre du catalogue : Tout / Débloqués / Verrouillés, avec les effectifs. */
+  private filterBar(level: number): string {
+    const L = fr();
+    const all = COSMETICS.filter((c) => c.slot === this.garageSlot);
+    const open = all.filter((c) => c.level <= level).length;
+    const seg = (id: 'all' | 'unlocked' | 'locked', label: string, n: number) =>
+      `<button class="gr-f ${this.itemFilter === id ? 'on' : ''}" data-gfilter="${id}" aria-pressed="${this.itemFilter === id}">${label} <i>${n}</i></button>`;
+    return `<div class="gr-filter" role="group" aria-label="${L ? 'Filtrer' : 'Filter'}">${seg('all', L ? 'Tout' : 'All', all.length)}${seg('unlocked', L ? 'Débloqués' : 'Unlocked', open)}${seg('locked', L ? 'Verrouillés' : 'Locked', all.length - open)}</div>`;
   }
 
   /** Vélos de la collection choisie (ou débloqués), par marque, puis par niveau et par groupe. */
@@ -3083,6 +3107,12 @@ export class MainMenu {
         this.render();
         this.onScene?.(this.view, this.yaw, this.garageSlot === 'bike', this.zoom);
         if ((was === 'face') !== (this.garageSlot === 'face')) this.onLookLive?.(s.look, this.bareHeadPreview);
+      }),
+    );
+    this.root.querySelectorAll<HTMLElement>('[data-gfilter]').forEach((el) =>
+      el.addEventListener('click', () => {
+        this.itemFilter = el.dataset.gfilter as typeof this.itemFilter;
+        this.render();
       }),
     );
     this.root.querySelectorAll<HTMLElement>('[data-bikefilter]').forEach((el) =>

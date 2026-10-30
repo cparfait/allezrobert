@@ -98,6 +98,7 @@ interface Stats {
   generatedAt: string;
   users: { total: number; disabled: number; new7d: number; new30d: number; seen24h: number; seen7d: number; seen30d: number; riding7d: number; riding30d: number };
   providers: Array<{ provider: string; n: number }>;
+  platforms: Array<{ platform: string; users: number; active7d: number; active30d: number }>;
   activities: { total: number; distanceKm: number; elevationM: number; movingH: number };
   friendships: number;
   topRoutes: Array<{ routeId: string; n: number }>;
@@ -110,6 +111,7 @@ interface UserRow {
   name: string;
   email: string | null;
   providers: string[];
+  platforms: string[];
   createdAt: string | null;
   lastLoginAt: string | null;
   lastRideAt: string | null;
@@ -159,12 +161,41 @@ async function render(silent = false): Promise<void> {
     const r = await api<Stats>('GET', '/stats');
     if (r.status === 403 || r.status === 401) return void start();
     if (r.status !== 200) return void (view.innerHTML = '<p class="ad-msg">Statistiques indisponibles.</p>');
+    await loadRouteNames();
     view.innerHTML = statsHtml(r.data);
     (root.querySelector('#stamp') as HTMLElement).textContent = `actualisé à ${new Date(r.data.generatedAt).toLocaleTimeString('fr-FR')}`;
   } else {
     await loadUsers(view);
   }
 }
+
+/* ───────────── Noms lisibles des itinéraires ───────────── */
+let routeNames: Map<string, string> | null = null;
+
+/** Catalogue des zones du jeu (/worlds/index.json) : identifiant d'itinéraire → « Nom de l'itinéraire · Zone ». */
+async function loadRouteNames(): Promise<Map<string, string>> {
+  if (routeNames) return routeNames;
+  routeNames = new Map();
+  try {
+    const cat = await (await fetch(`/worlds/index.json`)).json();
+    for (const z of cat.zones ?? []) for (const r of z.routes ?? []) routeNames.set(String(r.id), z.routes.length > 1 ? `${r.name} · ${z.name}` : String(r.name));
+  } catch {
+    // Catalogue indisponible : on retombe sur les identifiants.
+  }
+  return routeNames;
+}
+
+/** Nom lisible d'un itinéraire : catalogue, sinon libellé générique (monde ouvert, itinéraire dessiné), sinon l'identifiant. */
+function routeLabel(id: string): string {
+  const known = routeNames?.get(id);
+  if (known) return known;
+  if (id === 'open') return 'Monde ouvert (parcours libre)';
+  if (id.startsWith('itineraire-')) return 'Itinéraire dessiné par un joueur';
+  return id.replace(/-/g, ' ').replace(/^./, (c) => c.toUpperCase());
+}
+
+const PLATFORM_LABEL: Record<string, string> = { web: 'Site web', windows: 'Windows', mac: 'Mac' };
+const platLabel = (p: string): string => PLATFORM_LABEL[p] ?? p;
 
 /* ───────────── Statistiques ───────────── */
 function kpi(label: string, value: string, sub = '', hot = false): string {
@@ -208,7 +239,11 @@ function statsHtml(s: Stats): string {
       <div class="ad-box ad-chart"><h3>Coureurs actifs par jour</h3>${bars(s.daily.map((d) => ({ day: d.day, v: d.riders })), 'b2')}</div>
     </div>
     <h2>Répartition</h2><div class="ad-grid2">
-      <div class="ad-box"><h3>Itinéraires les plus roulés</h3>${s.topRoutes.map((t) => `<div class="ad-hbar"><span class="t" title="${esc(t.routeId)}">${esc(t.routeId)}</span><span class="b"><i style="width:${(t.n / maxRoute) * 100}%"></i></span><b class="num">${t.n}</b></div>`).join('') || '<p class="muted">Pas encore de sortie enregistrée.</p>'}</div>
+      <div class="ad-box"><h3>Itinéraires les plus roulés</h3>${s.topRoutes.map((t) => `<div class="ad-hbar"><span class="t" title="${esc(t.routeId)}">${esc(routeLabel(t.routeId))}</span><span class="b"><i style="width:${(t.n / maxRoute) * 100}%"></i></span><b class="num">${t.n}</b></div>`).join('') || '<p class="muted">Pas encore de sortie enregistrée.</p>'}</div>
+      <div class="ad-box"><h3>Plateformes utilisées <span class="muted" style="font-weight:400">· comptes, actifs sur 30 jours</span></h3>${(() => {
+        const max = Math.max(1, ...s.platforms.map((x) => x.users));
+        return s.platforms.map((x) => `<div class="ad-hbar"><span class="t">${platLabel(x.platform)}</span><span class="b"><i style="width:${(x.users / max) * 100}%"></i></span><b class="num" title="${x.active7d} actifs sur 7 jours">${x.users} <span class="muted" style="font-weight:400">· ${x.active30d}</span></b></div>`).join('') + '<p class="muted" style="margin:8px 0 0;font-size:12px">Un compte compte pour chaque plateforme où il s’est connecté. Suivi depuis la version 0.1.9.</p>';
+      })()}</div>
       <div class="ad-box"><h3>Modes de connexion</h3>${s.providers.map((p) => `<div class="ad-hbar"><span class="t">${esc(p.provider)}</span><span class="b"><i style="width:${(p.n / maxProv) * 100}%"></i></span><b class="num">${p.n}</b></div>`).join('') || '<p class="muted">—</p>'}</div>
     </div>`;
 }
@@ -223,7 +258,7 @@ async function loadUsers(view: HTMLElement): Promise<void> {
       <select id="sort"><option value="created">Plus récents</option><option value="login">Dernière connexion</option><option value="rides">Plus de sorties</option><option value="distance">Plus de kilomètres</option><option value="name">Nom A → Z</option></select>
       <button class="ad-btn" id="csv">Exporter en CSV</button><span class="muted" id="count"></span>
     </div>
-    <div class="ad-table-wrap"><table><thead><tr><th>Nom</th><th>E-mail</th><th>Connexion</th><th>Inscrit</th><th>Dernière connexion</th><th>Dernière sortie</th><th class="r">Sorties</th><th class="r">Km</th><th class="r">Niveau</th><th>État</th></tr></thead><tbody id="rows"></tbody></table></div>
+    <div class="ad-table-wrap"><table><thead><tr><th>Nom</th><th>E-mail</th><th>Connexion</th><th>Plateformes</th><th>Inscrit</th><th>Dernière connexion</th><th>Dernière sortie</th><th class="r">Sorties</th><th class="r">Km</th><th class="r">Niveau</th><th>État</th></tr></thead><tbody id="rows"></tbody></table></div>
     <p class="muted" style="margin-top:10px">Les adresses e-mail sont chiffrées en base et enregistrées à chaque connexion : celle d’un compte apparaît dès que la personne se reconnecte.</p>`;
   (view.querySelector('#sort') as HTMLSelectElement).value = sort;
   view.querySelector('#q')?.addEventListener('input', (e) => ((query = (e.target as HTMLInputElement).value), rows()));
@@ -245,10 +280,10 @@ function rows(): void {
   tbody.innerHTML = list.length
     ? list
         .map(
-          (u) => `<tr data-id="${esc(u.id)}"><td><b>${esc(u.name)}</b></td><td>${u.email ? esc(u.email) : '<span class="muted">à la prochaine connexion</span>'}</td><td>${u.providers.map((p) => `<span class="ad-pill">${esc(p)}</span>`).join('') || '—'}</td><td>${date(u.createdAt)}</td><td title="${esc(date(u.lastLoginAt, true))}">${ago(u.lastLoginAt)}</td><td>${u.lastRideAt ? ago(u.lastRideAt) : '—'}</td><td class="r num">${u.rides}</td><td class="r num">${nf(u.distanceKm, 1)}</td><td class="r num">${u.level}</td><td>${u.disabled ? '<span class="ad-pill bad">suspendu</span>' : '<span class="ad-pill ok">actif</span>'}</td></tr>`,
+          (u) => `<tr data-id="${esc(u.id)}"><td><b>${esc(u.name)}</b></td><td>${u.email ? esc(u.email) : '<span class="muted">à la prochaine connexion</span>'}</td><td>${u.providers.map((p) => `<span class="ad-pill">${esc(p)}</span>`).join('') || '—'}</td><td>${u.platforms.map((p) => `<span class="ad-pill">${esc(platLabel(p))}</span>`).join('') || '<span class="muted">—</span>'}</td><td>${date(u.createdAt)}</td><td title="${esc(date(u.lastLoginAt, true))}">${ago(u.lastLoginAt)}</td><td>${u.lastRideAt ? ago(u.lastRideAt) : '—'}</td><td class="r num">${u.rides}</td><td class="r num">${nf(u.distanceKm, 1)}</td><td class="r num">${u.level}</td><td>${u.disabled ? '<span class="ad-pill bad">suspendu</span>' : '<span class="ad-pill ok">actif</span>'}</td></tr>`,
         )
         .join('')
-    : '<tr><td colspan="10" class="ad-empty">Aucun compte ne correspond.</td></tr>';
+    : '<tr><td colspan="11" class="ad-empty">Aucun compte ne correspond.</td></tr>';
   tbody.querySelectorAll<HTMLElement>('tr[data-id]').forEach((tr) => tr.addEventListener('click', () => void openUser(tr.dataset.id as string)));
 }
 
@@ -277,6 +312,7 @@ async function openUser(id: string): Promise<void> {
       <dt>E-mail</dt><dd>${u.email ? esc(u.email) : '<span class="muted">pas encore enregistré (à la prochaine connexion)</span>'}</dd>
       <dt>Inscrit le</dt><dd>${date(u.createdAt, true)}</dd>
       <dt>Dernière connexion</dt><dd>${date(u.lastLoginAt, true)} <span class="muted">(${ago(u.lastLoginAt)})</span></dd>
+      <dt>Plateformes</dt><dd>${u.platforms.map((x: any) => `<span class="ad-pill" title="vu pour la dernière fois ${esc(date(x.last, true))}">${esc(platLabel(x.platform))}</span>`).join('') || '<span class="muted">pas encore enregistrées</span>'}</dd>
       <dt>Connexion via</dt><dd>${u.identities.map((i: any) => `<span class="ad-pill">${esc(i.provider)}</span>`).join('') || '—'}</dd>
       <dt>Sessions ouvertes</dt><dd>${u.sessions}</dd>
       ${u.progression ? `<dt>Progression</dt><dd>niveau ${u.progression.level} · ${nf(u.progression.xp)} XP</dd><dt>Total</dt><dd>${u.progression.rides} sorties · ${nf(u.progression.distanceKm, 1)} km · ${nf(u.progression.elevationM)} m D+</dd>` : ''}

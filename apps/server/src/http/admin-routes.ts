@@ -117,6 +117,7 @@ export function adminRoutes(ctx: AppContext): express.Router {
     const recent = (await ctx.db.query('SELECT user_id, started_at, distance_m, moving_s FROM activities WHERE started_at >= $1', [since])).rows;
     const topRoutes = (await ctx.db.query('SELECT route_id, COUNT(*) AS n FROM activities WHERE route_id IS NOT NULL GROUP BY route_id ORDER BY n DESC LIMIT 10')).rows;
     const friendships = (await ctx.db.query('SELECT COUNT(*) AS n FROM friendships')).rows[0];
+    const plat = (await ctx.db.query('SELECT user_id, platform, last_seen_at FROM user_platforms')).rows;
 
     const created = users.map((u) => toDate(u.created_at).getTime());
     const seen = users.map((u) => (u.last_login_at ? toDate(u.last_login_at).getTime() : 0));
@@ -155,6 +156,11 @@ export function adminRoutes(ctx: AppContext): express.Router {
         riding30d: activeRiders(30),
       },
       providers: providers.map((p) => ({ provider: String(p.provider), n: Number(p.n) })),
+      platforms: ['web', 'windows', 'mac'].map((name) => {
+        const rows = plat.filter((x) => String(x.platform) === name);
+        const recent = (d: number) => rows.filter((x) => toDate(x.last_seen_at).getTime() >= now - d * DAY_MS).length;
+        return { platform: name, users: rows.length, active7d: recent(7), active30d: recent(30) };
+      }),
       activities: { total: Number(totals.n ?? 0), distanceKm: Math.round(Number(totals.dist ?? 0) / 1000), elevationM: Math.round(Number(totals.elev ?? 0)), movingH: Math.round(Number(totals.mv ?? 0) / 3600) },
       friendships: Number(friendships?.n ?? 0),
       topRoutes: topRoutes.map((t) => ({ routeId: String(t.route_id), n: Number(t.n) })),
@@ -177,6 +183,9 @@ export function adminRoutes(ctx: AppContext): express.Router {
     ).rows;
     const ids = (await ctx.db.query('SELECT user_id, provider FROM auth_identities')).rows;
     const acts = (await ctx.db.query('SELECT user_id, COUNT(*) AS n, MAX(started_at) AS last FROM activities GROUP BY user_id')).rows;
+    const platRows = (await ctx.db.query('SELECT user_id, platform FROM user_platforms')).rows;
+    const platOf = new Map<string, string[]>();
+    for (const x of platRows) platOf.set(String(x.user_id), [...(platOf.get(String(x.user_id)) ?? []), String(x.platform)]);
     const provOf = new Map<string, string[]>();
     for (const i of ids) provOf.set(String(i.user_id), [...(provOf.get(String(i.user_id)) ?? []), String(i.provider)]);
     const actOf = new Map(acts.map((a) => [String(a.user_id), { n: Number(a.n), last: iso(a.last) }]));
@@ -186,6 +195,7 @@ export function adminRoutes(ctx: AppContext): express.Router {
       name: String(u.display_name),
       email: ctx.repos.readEmail(u.email_enc as Uint8Array | null),
       providers: provOf.get(String(u.id)) ?? [],
+      platforms: platOf.get(String(u.id)) ?? [],
       createdAt: iso(u.created_at),
       lastLoginAt: iso(u.last_login_at),
       lastRideAt: actOf.get(String(u.id))?.last ?? null,
@@ -213,6 +223,7 @@ export function adminRoutes(ctx: AppContext): express.Router {
     const idents = (await ctx.db.query('SELECT provider, created_at FROM auth_identities WHERE user_id = $1', [id])).rows;
     const prog = (await ctx.db.query('SELECT xp, rides, distance_m, elevation_m FROM progression WHERE user_id = $1', [id])).rows[0];
     const sessions = (await ctx.db.query('SELECT COUNT(*) AS n FROM sessions WHERE user_id = $1', [id])).rows[0];
+    const plats = (await ctx.db.query('SELECT platform, first_seen_at, last_seen_at FROM user_platforms WHERE user_id = $1', [id])).rows;
     const acts = (
       await ctx.db.query('SELECT id, name, started_at, duration_s, distance_m, elevation_m, avg_watts, route_id, strava_status FROM activities WHERE user_id = $1 ORDER BY started_at DESC LIMIT 20', [id])
     ).rows;
@@ -224,6 +235,7 @@ export function adminRoutes(ctx: AppContext): express.Router {
       lastLoginAt: iso(u.last_login_at),
       disabled: !!u.disabled_at,
       disabledAt: iso(u.disabled_at),
+      platforms: plats.map((x) => ({ platform: String(x.platform), since: iso(x.first_seen_at), last: iso(x.last_seen_at) })),
       identities: idents.map((i) => ({ provider: String(i.provider), since: iso(i.created_at) })),
       progression: prog ? { level: levelForXp(Number(prog.xp)), xp: Number(prog.xp), rides: Number(prog.rides), distanceKm: Math.round(Number(prog.distance_m) / 100) / 10, elevationM: Math.round(Number(prog.elevation_m)) } : null,
       sessions: Number(sessions?.n ?? 0),

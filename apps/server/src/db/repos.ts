@@ -187,6 +187,20 @@ export class Repos {
     }
   }
 
+  private readonly platformSeen = new Map<string, number>();
+
+  /** Note la plateforme utilisée par un compte (web, windows, mac) ; une écriture par 10 minutes au plus. */
+  async touchPlatform(userId: string, platform: string): Promise<void> {
+    const key = `${userId}|${platform}`;
+    const now = Date.now();
+    if ((this.platformSeen.get(key) ?? 0) > now - 600_000) return;
+    if (this.platformSeen.size > 5000) this.platformSeen.clear();
+    this.platformSeen.set(key, now);
+    const known = (await this.db.query('SELECT 1 AS x FROM user_platforms WHERE user_id = $1 AND platform = $2', [userId, platform])).rows[0];
+    if (known) await this.db.query('UPDATE user_platforms SET last_seen_at = now() WHERE user_id = $1 AND platform = $2', [userId, platform]);
+    else await this.db.query('INSERT INTO user_platforms (user_id, platform) VALUES ($1, $2)', [userId, platform]);
+  }
+
   /** Droit à l'effacement : supprime le compte et toutes les données liées. */
   async deleteUser(userId: string): Promise<void> {
     await this.db.tx(async (q) => {
@@ -194,7 +208,7 @@ export class Repos {
       for (const table of ['activity_power_curve', 'activity_zone_time']) {
         await q.query(`DELETE FROM ${table} WHERE activity_id IN (SELECT id FROM activities WHERE user_id = $1)`, [userId]);
       }
-      for (const table of ['render_jobs', 'integrations', 'segment_efforts', 'route_times', 'ghost_laps', 'ftp_history', 'power_records', 'workouts', 'deleted_rides', 'activities', 'progression', 'profiles', 'sessions', 'auth_identities', 'friend_codes']) {
+      for (const table of ['render_jobs', 'integrations', 'segment_efforts', 'route_times', 'ghost_laps', 'ftp_history', 'power_records', 'workouts', 'deleted_rides', 'activities', 'progression', 'profiles', 'sessions', 'auth_identities', 'friend_codes', 'user_platforms']) {
         await q.query(`DELETE FROM ${table} WHERE user_id = $1`, [userId]);
       }
       // Amitiés et demandes, dans les deux sens.

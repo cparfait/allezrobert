@@ -839,3 +839,44 @@
 .kom-search { width: 100%; box-sizing: border-box; margin: 4px 0 8px; padding: 10px 14px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.18); background: rgba(255, 255, 255, 0.07); color: var(--ar-fg); font: inherit; font-size: 14px; }
 .kom-search:focus { outline: 0; border-color: var(--ar-accent); }
 .kom-table tr[hidden] { display: none; }
+
+
+/* ——— Garage, refonte : tuiles d'équipement, filtre, cartes (langage visuel du site : bitume, jaune, chasse fixe) ——— */
+.gr-slots { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.gr-slot { appearance: none; display: grid; gap: 1px; padding: 7px; border: 1px solid var(--mm-line); border-radius: 6px; background: rgba(255, 255, 255, 0.03); color: var(--ar-fg); font: inherit; text-align: left; cursor: pointer; min-width: 0; transition: border-color 0.15s ease, background 0.15s ease; }
+.gr-slot i { display: block; height: 30px; border-radius: 4px; margin-bottom: 5px; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18); }
+.gr-slot small { font: 700 9.5px/1.2 var(--mono); letter-spacing: 0.1em; text-transform: uppercase; color: #8d98a6; }
+.gr-slot b { font-size: 11.5px; font-weight: 700; line-height: 1.2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gr-slot:hover { border-color: rgba(255, 255, 255, 0.3); background: rgba(255, 255, 255, 0.06); }
+.gr-slot.on { border-color: var(--ar-accent); background: rgba(255, 210, 63, 0.09); }
+.gr-slot.on small { color: var(--ar-accent); }
+.gr-slot:focus-visible { outline: 2px solid rgba(255, 210, 63, 0.8); outline-offset: 2px; }
+.gr-filter { display: flex; gap: 0; margin: 0 0 12px; border: 1px solid var(--mm-line); border-radius: 6px; overflow: hidden; width: fit-content; max-width: 100%; }
+.gr-f { appearance: none; border: 0; border-right: 1px solid var(--mm-line); background: none; padding: 6px 12px; font: 700 11px/1 var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: #aeb7c3; cursor: pointer; white-space: nowrap; }
+.gr-f:last-child { border-right: 0; }
+.gr-f i { font-style: normal; margin-left: 4px; color: #6f7a88; }
+.gr-f:hover { color: #fff; background: rgba(255, 255, 255, 0.06); }
+.gr-f.on { background: var(--ar-accent); color: #0a0e16; }
+.gr-f.on i { color: rgba(10, 14, 22, 0.6); }
+.gr-body .mm-items { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.gr-body .mm-item { grid-template-columns: 1fr; grid-template-rows: auto; padding: 0; overflow: hidden; border-radius: 8px; border-width: 1.5px; row-gap: 0; align-content: start; }
+.gr-body .mm-item i { width: 100%; height: 56px; border-radius: 0; grid-row: auto; box-shadow: none; }
+.gr-body .mm-item .mm-it-txt { grid-row: auto; padding: 8px 10px 10px; gap: 4px; }
+.gr-body .mm-item b { font-size: 12.5px; }
+.gr-body .mm-item .mm-it-state { display: inline-block; align-self: flex-start; margin-top: 2px; padding: 2px 8px; border-radius: 3px; font: 700 10px/1.4 var(--mono); letter-spacing: 0.06em; text-transform: uppercase; background: rgba(255, 255, 255, 0.07); color: #aeb7c3; }
+.gr-body .mm-item .mm-it-state.st-on { background: var(--ar-accent); color: #0a0e16; }
+.gr-body .mm-item .mm-it-state.st-free { background: rgba(52, 211, 153, 0.14); color: #6ee7b7; }
+.gr-body .mm-item .mm-it-state.st-locked { background: rgba(255, 255, 255, 0.05); color: #8d98a6; }
+.gr-body .mm-item .mm-it-state.st-preview { background: rgba(96, 165, 250, 0.18); color: #93c5fd; }
+.gr-body .mm-item.on { background: rgba(255, 210, 63, 0.07); }
+.gr-body .mm-presets-title { font: 700 10.5px/1.2 var(--mono); letter-spacing: 0.12em; }
+.gr-lvl b { font-weight: 900; font-style: italic; letter-spacing: -0.02em; text-transform: uppercase; }
+.gr-groups { border-radius: 8px; }
+.gr-group { border-radius: 6px; font-weight: 900; font-style: italic; letter-spacing: -0.01em; text-transform: uppercase; }
+
+/* Options de tenue (manches, cuissard, gants) : une grille compacte plutôt que quatre blocs pleine largeur */
+.gr-opts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 10px; margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--mm-line); }
+.gr-opts .field { margin: 0 !important; gap: 4px; font: 700 9.5px/1.2 var(--mono); letter-spacing: 0.1em; text-transform: uppercase; color: #8d98a6; }
+.gr-opts .field > * { font-family: var(--font); letter-spacing: 0; text-transform: none; }
+.gr-opts button { padding: 6px 4px !important; font-size: 12px !important; border-radius: 4px !important; }
+.gr-opts input[type='color'] { height: 30px; padding: 2px; }

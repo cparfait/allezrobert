@@ -57,6 +57,15 @@ export function originCheck(ctx: AppContext) {
   };
 }
 
+/** Plateforme du client d'après l'origine : application macOS (tauri://localhost), Windows (http(s)://tauri.localhost), sinon le site. */
+export type Platform = 'web' | 'windows' | 'mac';
+export function platformOf(req: Request): Platform {
+  const origin = String(req.headers.origin ?? '');
+  if (/^tauri:\/\/localhost$/i.test(origin)) return 'mac';
+  if (/^https?:\/\/tauri\.localhost$/i.test(origin)) return 'windows';
+  return 'web';
+}
+
 export function sessionToken(req: Request): string | undefined {
   const h = req.headers.authorization;
   if (h?.startsWith('Bearer ')) return h.slice(7).trim();
