@@ -39,13 +39,19 @@
       <div class="hero-img" id="hero-img"></div>
       <div class="hero-shade"></div>
 
-      <div class="hud" aria-hidden="true">
-        <div class="tile"><small>Puissance</small><strong><span id="h-w">212</span><u>W</u></strong></div>
-        <div class="tile"><small>Cadence</small><strong><span id="h-rpm">88</span><u>tr/min</u></strong></div>
-        <div class="tile hot"><small>Pente</small><strong><span id="h-pct">9,5</span><u>%</u></strong></div>
-        <div class="tile"><small>Vitesse</small><strong><span id="h-kmh">17,4</span><u>km/h</u></strong></div>
-        <div class="tile fc"><small>Cœur</small><strong><span id="h-fc">142</span><u>bpm</u></strong></div>
-        <div class="tile"><small>Watts / kilo</small><strong><span id="h-wkg">2,8</span><u>W/kg</u></strong></div>
+      <div class="ghud" aria-hidden="true">
+        <div class="tile-col">
+          <div class="tile hr"><div class="label"><svg class="ico" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20s-7-4.4-9-9a5 5 0 0 1 9-3 5 5 0 0 1 9 3c-2 4.600-9 9-9 9Z"/></svg>Fréq. cardiaque</div><div class="value num"><span id="h-fc">142</span><span class="unit">bpm</span></div></div>
+          <div class="tile cad"><div class="label"><svg class="ico" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-3-6.700L21 8"/><path d="M21 3v5h-5"/></svg>Cadence</div><div class="value num"><span id="h-rpm">88</span><span class="unit">tr/min</span></div></div>
+        </div>
+        <div class="dial" id="h-dial">
+          <svg class="dial-svg" viewBox="0 0 160 160"><g transform="rotate(135 80 80)"><circle class="dial-back" cx="80" cy="80" r="66" stroke-dasharray="311.0 414.7"/><circle class="dial-zone" cx="80" cy="80" r="66" stroke="#9aa5b1" stroke-dasharray="105.4 414.7" stroke-dashoffset="0.0"/><circle class="dial-zone" cx="80" cy="80" r="66" stroke="#3b82f6" stroke-dasharray="37.4 414.7" stroke-dashoffset="-106.9"/><circle class="dial-zone" cx="80" cy="80" r="66" stroke="#22c55e" stroke-dasharray="27.7 414.7" stroke-dashoffset="-145.8"/><circle class="dial-zone" cx="80" cy="80" r="66" stroke="#eab308" stroke-dasharray="27.7 414.7" stroke-dashoffset="-174.9"/><circle class="dial-zone" cx="80" cy="80" r="66" stroke="#f97316" stroke-dasharray="27.7 414.7" stroke-dashoffset="-204.1"/><circle class="dial-zone" cx="80" cy="80" r="66" stroke="#ef4444" stroke-dasharray="56.8 414.7" stroke-dashoffset="-233.3"/><circle class="dial-zone" cx="80" cy="80" r="66" stroke="#a855f7" stroke-dasharray="17.9 414.7" stroke-dashoffset="-291.6"/><circle class="dial-fill" id="h-fill" cx="80" cy="80" r="66" stroke-dasharray="0.01 414.7"/></g><line class="dial-ftp" x1="112.2" y1="31.8" x2="122.8" y2="16.0"/></svg>
+          <div class="dial-in"><div class="label">Puissance 3 s</div><div class="value num" id="h-w">212</div><div class="unit">W</div><div class="sub num" id="h-wkg">2,8 W/kg · Z3 Tempo</div></div>
+        </div>
+        <div class="tile-col">
+          <div class="tile spd"><div class="label"><svg class="ico" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 18a9 9 0 1 1 16 0"/><path d="m12 14 4-5"/></svg>Vitesse</div><div class="value num"><span id="h-kmh">17,4</span><span class="unit">km/h</span></div></div>
+          <div class="tile grade"><div class="label"><svg class="ico" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3 19 6-11 4 6 3-4 5 9Z"/></svg>Pente</div><div class="value num" id="h-pct">9,5 %</div></div>
+        </div>
       </div>
 
       <div class="hero-copy">
@@ -83,7 +89,7 @@
       <article class="row reveal">
         <figure class="shot tilt"><img src="/site/img/ventoux.jpg" alt="La montée du Mont Ventoux dans le jeu" loading="lazy" /><figcaption>Mont Ventoux · versant Bédoin</figcaption></figure>
         <div class="row-text">
-          <span class="num">1</span>
+          <span class="bignum">1</span>
           <h3>Le relief au mètre près</h3>
           <p>Chaque zone est reconstruite avec les données ouvertes de l'IGN et d'OpenStreetMap&nbsp;: altitudes au mètre,
             photos aériennes, routes, maisons, forêts. La pente que tu vois dans le jeu est celle que ton
@@ -94,7 +100,7 @@
       <article class="row flip reveal">
         <figure class="shot tilt"><img src="/site/img/course.jpg" alt="Interface de course : puissance, cadence, pente, profil" loading="lazy" /><figcaption>Tout est lisible d'un coup d'œil</figcaption></figure>
         <div class="row-text">
-          <span class="num">2</span>
+          <span class="bignum">2</span>
           <h3>À plusieurs, pour de vrai</h3>
           <p>Sorties de groupe avec regroupement, courses avec classement, voix intégrée pour parler en roulant,
             peloton de coureurs virtuels quand les copains ne sont pas là. Radar du groupe, formations en file ou en bordure,
@@ -105,7 +111,7 @@
       <article class="row reveal">
         <figure class="shot tilt"><img src="/site/img/garage.jpg" alt="Le garage : le coureur et son vélo" loading="lazy" /><figcaption>Le garage</figcaption></figure>
         <div class="row-text">
-          <span class="num">3</span>
+          <span class="bignum">3</span>
           <h3>Ton vélo, ta tenue</h3>
           <p>Cadres, roues, maillots, casques (chrono compris), lunettes, gants&nbsp;: le garage se débloque en roulant,
             du niveau 1 au niveau 50. Ton coureur te ressemble, homme ou femme, et ton vélo est monté sur ton home-trainer.</p>

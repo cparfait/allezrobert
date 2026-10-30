@@ -15,23 +15,33 @@
   root.classList.add('ready');
   body.classList.add('ready');
 
-  /* ——— télémétrie du hero (fonction du temps : pas d'aléatoire) ——— */
-  var hfc = $('#h-fc'), hwkg = $('#h-wkg'), hw = $('#h-w'), hr = $('#h-rpm'), hp = $('#h-pct'), hk = $('#h-kmh');
+  /* ——— compteurs du hero : même cadran que le jeu, valeurs en fonction du temps (pas d'aléatoire) ——— */
+  var ZH = ['#9aa5b1', '#3b82f6', '#22c55e', '#eab308', '#f97316', '#ef4444', '#a855f7'], ZB = [.55, .75, .9, 1.05, 1.2, 1.5];
+  var ZN = ['Z1 Récup', 'Z2 Endurance', 'Z3 Tempo', 'Z4 Seuil', 'Z5 VO2max', 'Z6 Anaérobie', 'Z7 Sprint'];
+  var FTP = 250, DC = 2 * Math.PI * 66, DL = DC * .75;
+  var hfc = $('#h-fc'), hr = $('#h-rpm'), hw = $('#h-w'), hwkg = $('#h-wkg'), hk = $('#h-kmh'), hp = $('#h-pct');
+  var hfill = $('#h-fill'), hdial = $('#h-dial');
   var heroEl = $('.hero'), heroVisible = true;
+  function tele() {
+    var t = performance.now() / 1000;
+    var pct = 9.4 + 0.7 * Math.sin(t * .35) + 0.25 * Math.sin(t * 1.1);
+    var w = 214 + 40 * Math.sin(t * .5) + 9 * Math.sin(t * 2.6) + (pct - 9.4) * 14;
+    var r = w / FTP, zi = 0;
+    while (zi < ZB.length && r >= ZB[zi]) zi++;
+    hw.textContent = Math.round(w);
+    hfc.textContent = Math.round(144 + 6 * Math.sin(t * .25) + 3 * Math.sin(t * 1.7) + (w - 214) * .12);
+    hr.textContent = Math.round(87 + 4 * Math.sin(t * 1.3) + 2 * Math.sin(t * 3.1));
+    hk.textContent = fr(17.3 + 0.8 * Math.sin(t * .6) - (pct - 9.4) * .7, 1);
+    hp.textContent = fr(pct, 1) + ' %';
+    hwkg.textContent = fr(w / 76, 1) + ' W/kg · ' + ZN[zi];
+    hfill.setAttribute('stroke-dasharray', Math.max(.01, Math.min(1, r / 1.6) * DL).toFixed(1) + ' ' + DC.toFixed(1));
+    hfill.setAttribute('stroke', ZH[zi]);
+    hdial.style.setProperty('--zone', ZH[zi]);
+  }
+  tele();
   if (!reduce) {
     new IntersectionObserver(function (en) { heroVisible = en[0].isIntersecting; }).observe(heroEl);
-    setInterval(function () {
-      if (!heroVisible) return;
-      var t = performance.now() / 1000;
-      var pct = 9.4 + 0.7 * Math.sin(t * .35) + 0.25 * Math.sin(t * 1.1);
-      var w = 214 + 26 * Math.sin(t * .8) + 9 * Math.sin(t * 2.6) + (pct - 9.4) * 14;
-      hw.textContent = Math.round(w);
-      hfc.textContent = Math.round(144 + 6 * Math.sin(t * .25) + 3 * Math.sin(t * 1.7) + (w - 214) * .12);
-      hwkg.textContent = fr(w / 76, 1);
-      hr.textContent = Math.round(87 + 4 * Math.sin(t * 1.3) + 2 * Math.sin(t * 3.1));
-      hp.textContent = fr(pct, 1);
-      hk.textContent = fr(17.3 + 0.8 * Math.sin(t * .6) - (pct - 9.4) * .7, 1);
-    }, 140);
+    setInterval(function () { if (heroVisible) tele(); }, 140);
   }
 
   /* ——— défilement : progression, barre du haut, parallaxe, coureur du bas de page ——— */
