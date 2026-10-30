@@ -75,7 +75,9 @@ em { font-style: normal; color: var(--jaune); }
 .cta { display: flex; flex-wrap: wrap; gap: .8rem; margin: 1.8rem 0 1rem; }
 .cta.center { justify-content: center; }
 .hero-copy { position: relative; z-index: 2; max-width: 62rem; }
-.mascot { display: block; width: clamp(84px, 9vw, 140px); height: auto; margin: 0 0 .6rem .2rem; filter: drop-shadow(0 14px 22px rgba(0, 0, 0, .55)); animation: ride 3.2s ease-in-out infinite; }
+.hero-top { display: flex; align-items: center; gap: 1.2rem; margin-bottom: .4rem; }
+.hero-top .kicker { margin-bottom: 0; }
+.mascot { display: block; flex: none; width: clamp(84px, 9vw, 140px); height: auto; margin: 0; filter: drop-shadow(0 14px 22px rgba(0, 0, 0, .55)); animation: ride 3.2s ease-in-out infinite; }
 @keyframes ride { 0%, 100% { transform: translateY(0) rotate(-1.5deg); } 50% { transform: translateY(-9px) rotate(1.5deg); } }
 
 /* télémétrie du hero */
