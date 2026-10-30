@@ -916,3 +916,24 @@
 
 .gr-cap { margin: 4px 0 10px; }
 .gr-cap-hint { display: none; }
+
+/* Types d'équipement : sept pictogrammes sur une ligne, puis choix de type en pastilles */
+.gr-slots { grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 5px; }
+.gr-slot { padding: 6px 2px 5px; }
+.gr-slot i { height: 34px; }
+.gr-slot i svg { width: 20px; height: 20px; }
+.gr-slot small { font-size: 8.5px; letter-spacing: 0.06em; }
+.gr-vopt { display: grid; grid-template-columns: 78px 1fr; align-items: center; gap: 8px; margin-bottom: 10px; }
+.gr-vopt > small { font: 700 9.5px/1.2 var(--mono); letter-spacing: 0.1em; text-transform: uppercase; color: #8d98a6; }
+.gr-vopt > div { display: flex; gap: 6px; flex-wrap: wrap; }
+.gr-vchip { appearance: none; border: 1px solid var(--mm-line); border-radius: 6px; background: rgba(255, 255, 255, 0.04); color: #c6cdd6; padding: 7px 14px; font: 700 12px/1 var(--font); cursor: pointer; }
+.gr-vchip:hover { color: #fff; border-color: rgba(255, 255, 255, 0.35); }
+.gr-vchip.on { background: var(--ar-accent); border-color: var(--ar-accent); color: #0a0e16; }
+.gr-note { margin: 4px 0 12px; font-size: 12px; color: #8d98a6; }
+.gr-shoefields { margin-top: 6px; }
+
+.gr-slot small { display: none; }
+.gr-slot { padding: 6px 3px; }
+.gr-slot i { height: 38px; }
+.gr-typename { margin: 8px 2px 0; font: 900 15px/1.2 var(--font); font-style: italic; letter-spacing: -0.01em; text-transform: uppercase; color: var(--ar-fg); }
+.gr-shoefields .field:nth-child(1), .gr-shoefields .field:nth-child(3) { display: none; }
