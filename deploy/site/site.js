@@ -1,4 +1,4 @@
-/* Site de présentation d'Allez Robert ! — intro, télémétrie du hero, défilement, comparateur, zones, version publiée. */
+/* Site de présentation d'Allez Robert ! — télémétrie du hero, défilement, comparateur, zones, version publiée. */
 (function () {
   'use strict';
   var $ = function (s, r) { return (r || document).querySelector(s); };
@@ -9,80 +9,11 @@
   var fr = function (n, d) { return n.toLocaleString('fr-FR', { minimumFractionDigits: d || 0, maximumFractionDigits: d || 0 }); };
   var esc = function (s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
   var fmtMo = function (b) { return (b / 1e6 < 10 ? (b / 1e6).toFixed(1) : Math.round(b / 1e6)).toString().replace('.', ',') + ' Mo'; };
-  var wait = function (ms) { return new Promise(function (r) { setTimeout(r, ms); }); };
   var ease = function (t) { return 1 - Math.pow(1 - t, 3); };
 
-  /* ——— intro et lancement ——— */
-  var intro = $('#intro');
-  var els = { w: $('#i-w'), kmh: $('#i-kmh'), pct: $('#i-pct') };
-  var lights = $$('.intro-lights b', intro);
-  var skip = false;
-
-  function ramp(ms) {
-    var t0 = performance.now();
-    (function tick(now) {
-      var k = Math.min(1, (now - t0) / ms), e = ease(k);
-      els.w.textContent = Math.round(e * 318);
-      els.kmh.textContent = Math.round(e * 41);
-      els.pct.textContent = fr(e * 7.4, 1);
-      if (k < 1 && !intro.classList.contains('gone')) requestAnimationFrame(tick);
-    })(t0);
-  }
-  function resetIntro(extra) {
-    intro.className = 'intro' + (extra ? ' ' + extra : '');
-    lights.forEach(function (l) { l.className = ''; });
-    $('.intro-lights', intro).className = 'intro-lights';
-    void intro.offsetWidth;
-  }
-  function startLights() {
-    var box = $('.intro-lights', intro);
-    box.classList.add('show');
-    return lights.reduce(function (p, l) { return p.then(function () { l.classList.add('on'); return wait(300); }); }, wait(150))
-      .then(function () { return wait(260); })
-      .then(function () { box.classList.add('green'); });
-  }
-  function ready() { body.classList.remove('lock'); root.classList.add('ready'); body.classList.add('ready'); }
-
-  function playIntro() {
-    body.classList.add('lock');
-    resetIntro('run');
-    var skipper = function () { skip = true; };
-    intro.addEventListener('click', skipper); document.addEventListener('keydown', skipper, { once: true });
-    var go = function () {
-      var lightsDone = startLights();
-      return lightsDone.then(function () {
-        if (skip) return;
-        intro.classList.add('slam'); ramp(1500);
-        return wait(1500);
-      });
-    };
-    go().then(function () {
-      intro.classList.add('out');
-      ready();
-      return wait(1000);
-    }).then(function () { intro.classList.add('gone'); sessionStorage.setItem('ar.intro', '1'); });
-  }
-
-  function launchGame(href) {
-    body.classList.add('lock');
-    resetIntro('run launching');
-    ramp(1300);
-    startLights().then(function () { return wait(750); }).then(function () { location.href = href; });
-    // retour arrière du navigateur : on rend la page telle qu'elle était
-    window.addEventListener('pageshow', function (e) { if (e.persisted) { intro.classList.add('gone'); body.classList.remove('lock'); } });
-  }
-
-  $$('[data-play]').forEach(function (a) {
-    a.addEventListener('click', function (e) {
-      if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return;
-      e.preventDefault();
-      if (reduce) { location.href = a.href; return; }
-      launchGame(a.href);
-    });
-  });
-
-  if (reduce || sessionStorage.getItem('ar.intro')) { intro.classList.add('gone'); ready(); }
-  else playIntro();
+  /* ——— entrée du hero ——— */
+  root.classList.add('ready');
+  body.classList.add('ready');
 
   /* ——— télémétrie du hero (fonction du temps : pas d'aléatoire) ——— */
   var hw = $('#h-w'), hr = $('#h-rpm'), hp = $('#h-pct'), hk = $('#h-kmh');

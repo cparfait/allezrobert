@@ -16,18 +16,6 @@
   <link rel="stylesheet" href="/site/style.css" />
 </head>
 <body>
-  <!-- Intro : feux de départ, route et compteur de puissance, puis rideau. Rejouée en « Jouer en ligne ». -->
-  <div id="intro" class="intro" aria-hidden="true">
-    <div class="intro-road"><div class="plane"><i></i></div></div>
-    <div class="intro-lights"><b></b><b></b><b></b></div>
-    <p class="intro-title"><span class="a">ALLEZ</span> <span class="b">ROBERT&nbsp;!</span></p>
-    <div class="intro-read">
-      <span><em id="i-w">0</em> W</span>
-      <span><em id="i-kmh">0</em> km/h</span>
-      <span><em id="i-pct">0,0</em> %</span>
-    </div>
-    <p class="intro-go" id="intro-go">En selle&nbsp;!</p>
-  </div>
   <div class="progress" aria-hidden="true"><i id="progress"></i></div>
 
   <header class="top" id="top">
@@ -42,7 +30,7 @@
       <a href="#zones">Zones</a>
       <a href="#installer">Installer</a>
     </nav>
-    <a class="btn small play" href="/jouer" data-play>Jouer en ligne</a>
+    <a class="btn small" href="/jouer">Jouer en ligne</a>
   </header>
 
   <main>
@@ -64,7 +52,7 @@
         <p class="lead">Branche ton home-trainer. Relief IGN, villages et bâtiments réels&nbsp;: de l'Île-de-France à
           l'Alpe d'Huez, on roule ensemble, on se parle, on se tire la bourre dans les côtes.</p>
         <div class="cta">
-          <a class="btn big play" href="/jouer" data-play><span>Jouer en ligne</span><svg viewBox="0 0 24 24" width="22" height="22"><path d="M5 12h13m-5-6 6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+          <a class="btn big" href="/jouer"><span>Jouer en ligne</span><svg viewBox="0 0 24 24" width="22" height="22"><path d="M5 12h13m-5-6 6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
           <a class="btn big ghost" href="#telecharger" data-dl-btn>Télécharger pour Windows</a>
         </div>
         <p class="meta" id="hero-version">Windows 10 / 11 · 64 bits · sans compte · gratuit</p>
@@ -228,7 +216,7 @@
         <p class="dl-version" id="dl-version">Allez Robert ! pour Windows</p>
         <div class="cta center">
           <a class="btn big" href="/telechargement/allez-robert-setup.exe" data-dl="exe">Installateur Windows (.exe)</a>
-          <a class="btn big ghost play" href="/jouer" data-play>Jouer dans le navigateur</a>
+          <a class="btn big ghost" href="/jouer">Jouer dans le navigateur</a>
         </div>
         <p class="meta"><a href="/telechargement/allez-robert.msi" data-dl="msi" id="dl-msi">Version MSI</a> pour plusieurs postes ·
           <a href="/telechargement/">toutes les versions</a> · navigateur : Chrome ou Edge (Bluetooth via Web Bluetooth)</p>
