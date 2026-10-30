@@ -69,10 +69,11 @@ em { font-style: normal; color: var(--jaune); }
   radial-gradient(65% 60% at 50% 62%, rgba(11, 12, 15, .6), rgba(11, 12, 15, 0) 100%); }
 .kicker { display: flex; align-items: center; gap: .7rem; font: 600 .78rem/1 var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--jaune); margin-bottom: 1.3rem; }
 .kicker i { width: 2.4rem; height: 2px; background: var(--jaune); }
-.hero h1 { font-weight: 900; font-size: clamp(3.6rem, 12vw, 11rem); line-height: .82; letter-spacing: -.045em; text-transform: uppercase; transform: skewX(-7deg); transform-origin: 50% 100%; }
+.hero h1 { font-weight: 900; font-size: clamp(3.8rem, 12.5vw, 11.5rem); line-height: .95; letter-spacing: -.035em; color: #fff; }
 .hero h1 > span { display: block; overflow: hidden; padding: .06em .1em .02em 0; }
 .hero h1 > span > span { display: block; transform: translateY(var(--hy, 0)); }
 .hero h1 .l2 > span { color: var(--jaune); }
+.hero h1 .l2 b { color: #fff; font-weight: inherit; }
 .titlebox { width: fit-content; max-width: 100%; }
 .slogan { margin-top: 1.4rem; text-align: center; font: 800 clamp(1.3rem, 2.6vw, 2.2rem)/1.1 var(--sans); font-style: italic; letter-spacing: -.02em; color: var(--craie); }
 .hero .lead { margin-top: .8rem; }
