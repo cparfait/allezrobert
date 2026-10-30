@@ -75,7 +75,7 @@ em { font-style: normal; color: var(--jaune); }
 .cta { display: flex; flex-wrap: wrap; gap: .8rem; margin: 1.8rem 0 1rem; }
 .cta.center { justify-content: center; }
 .hero-copy { position: relative; z-index: 2; max-width: 62rem; }
-.mascot { position: absolute; z-index: 2; right: clamp(1rem, 7vw, 8rem); bottom: 7.5rem; width: clamp(120px, 15vw, 230px); height: auto; filter: drop-shadow(0 18px 28px rgba(0, 0, 0, .55)); animation: ride 3.2s ease-in-out infinite; }
+.mascot { display: block; width: clamp(84px, 9vw, 140px); height: auto; margin: 0 0 .6rem .2rem; filter: drop-shadow(0 14px 22px rgba(0, 0, 0, .55)); animation: ride 3.2s ease-in-out infinite; }
 @keyframes ride { 0%, 100% { transform: translateY(0) rotate(-1.5deg); } 50% { transform: translateY(-9px) rotate(1.5deg); } }
 
 /* télémétrie du hero */
@@ -230,7 +230,6 @@ footer { padding: 2.5rem var(--pad) 3rem; border-top: 1px solid var(--ligne); di
   .top { justify-content: space-between; }
   .hud { grid-template-columns: repeat(4, 1fr); left: var(--pad); right: var(--pad); top: 5rem; }
   .tile { padding: .55rem .6rem; } .tile strong { font-size: 1.25rem; } .tile u { display: none; }
-  .mascot { display: none; }
   .row, .row.flip { grid-template-columns: 1fr; }
   .row.flip .shot { order: 0; }
   .num { top: -.6em; }
