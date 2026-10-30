@@ -1,6 +1,6 @@
 {
   "name": "@allezrobert/desktop",
-  "version": "0.1.8",
+  "version": "0.1.9",
   "private": true,
   "description": "Allez Robert ! — application Windows (Tauri 2) : Bluetooth LE, Wahoo Direct Connect et ANT+ natifs",
   "type": "module",
