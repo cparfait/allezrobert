@@ -55,6 +55,13 @@ export function adminRoutes(ctx: AppContext): express.Router {
   const r = express.Router();
   const attempts = new RateLimiter(5, 15 * 60_000);
 
+  // Réservée au site : une requête venue d'une application de bureau (Windows : http://tauri.localhost, macOS : tauri://localhost) reçoit 404.
+  r.use((req, _res, next) => {
+    const origin = req.headers.origin;
+    if (origin && /^(https?:\/\/tauri\.localhost|tauri:\/\/localhost)$/i.test(origin)) return next(new HttpError(404, 'Introuvable', 'not_found'));
+    next();
+  });
+
   // Connexion obligatoire, puis compte administrateur (sinon 404).
   r.use(async (req: AuthedRequest, _res, next) => {
     try {

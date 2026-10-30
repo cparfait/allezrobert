@@ -64,6 +64,15 @@ describe('administration — accès par compte seul', () => {
     expect((await call('GET', '/users', noMail.cookie)).status).toBe(404);
   });
 
+  it('introuvable depuis les applications de bureau, même pour l’administrateur', async () => {
+    const admin = await sessionFor('ChefApp', ADMIN_EMAIL);
+    for (const origin of ['http://tauri.localhost', 'tauri://localhost']) {
+      const res = await fetch(`${base}/api/admin/status`, { headers: { cookie: admin.cookie, origin } });
+      expect(res.status, origin).toBe(404);
+    }
+    expect((await call('GET', '/status', admin.cookie)).status).toBe(200);
+  });
+
   it('le compte administrateur accède aux statistiques et aux inscrits', async () => {
     const admin = await sessionFor('Chef', ADMIN_EMAIL);
     const st = await call('GET', '/status', admin.cookie);
