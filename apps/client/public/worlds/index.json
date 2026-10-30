@@ -2262,6 +2262,58 @@
    "open": true
   },
   {
+   "id": "idf-saint-germain-laval",
+   "name": "Saint-Germain-Laval",
+   "region": "Seine-et-Marne · Île-de-France",
+   "routes": [
+    {
+     "id": "boucle-20-km",
+     "name": "Boucle de 20 km depuis Saint-Germain-Laval",
+     "nameEn": "20 km loop from Saint-Germain-Laval",
+     "lengthM": 19254,
+     "elevationGainM": 231.22,
+     "loop": false
+    },
+    {
+     "id": "boucle-30-km",
+     "name": "Boucle de 30 km depuis Saint-Germain-Laval",
+     "nameEn": "30 km loop from Saint-Germain-Laval",
+     "lengthM": 30258,
+     "elevationGainM": 202.41,
+     "loop": false
+    },
+    {
+     "id": "boucle-40-km",
+     "name": "Boucle de 40 km depuis Saint-Germain-Laval",
+     "nameEn": "40 km loop from Saint-Germain-Laval",
+     "lengthM": 41686,
+     "elevationGainM": 241.37,
+     "loop": false
+    },
+    {
+     "id": "boucle-50-km",
+     "name": "Boucle de 50 km depuis Saint-Germain-Laval",
+     "nameEn": "50 km loop from Saint-Germain-Laval",
+     "lengthM": 51006,
+     "elevationGainM": 369.85,
+     "loop": false
+    }
+   ],
+   "pack": {
+    "version": "8dee2edec790",
+    "bytes": 189515096,
+    "files": 1026,
+    "gzBytes": 82943778
+   },
+   "l93": {
+    "minE": 688000,
+    "minN": 6812000,
+    "maxE": 704000,
+    "maxN": 6828000
+   },
+   "open": true
+  },
+  {
    "id": "idf-sarcelles",
    "name": "Sarcelles",
    "region": "Val-d'Oise · Île-de-France",

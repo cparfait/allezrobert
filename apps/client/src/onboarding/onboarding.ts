@@ -191,6 +191,7 @@ export class Onboarding {
         const look = this.s.look;
         const bald = look.hairStyle === 3;
         body = `<h2>Avatar</h2><div class="grid3 ob-avatar-grid">
+          <label class="field wide">${fr ? 'Je suis' : 'I am'}<div class="row">${(['male', 'female'] as const).map((x) => `<button class="btn small ${lookSex(look) === x ? 'primary' : ''}" data-sex="${x}">${x === 'male' ? (fr ? 'Un homme' : 'A man') : fr ? 'Une femme' : 'A woman'}</button>`).join('')}</div></label>
           <label class="field">${fr ? 'Peau' : 'Skin'}<div class="row">${sw('skin', SKINS, look.skin)}</div></label>
           <label class="field">${fr ? 'Cheveux' : 'Hair'}<div class="row">${sw('hair', HAIRS, bald ? '' : look.hair)}<button class="btn small ${bald ? 'primary' : ''}" data-bald="1">${fr ? 'Chauve' : 'Bald'}</button></div></label>
           <label class="field wide">${fr ? 'Coiffure' : 'Hairstyle'}<div class="row">${HAIR_CHOICES.map(([v, f, e]) => `<button class="btn small ${look.hairStyle === v ? 'primary' : ''}" data-hstyle="${v}">${fr ? f : e}</button>`).join('')}</div></label>
