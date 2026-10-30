@@ -52,6 +52,7 @@ em { font-style: normal; color: var(--jaune); }
 .top { position: fixed; inset: 0 0 auto 0; z-index: 50; display: flex; align-items: center; justify-content: space-between; gap: 1.5rem; padding: .85rem var(--pad); transition: background .3s, backdrop-filter .3s, padding .3s; }
 .top.stuck { background: rgba(11, 12, 15, .78); backdrop-filter: blur(14px) saturate(1.2); padding-block: .55rem; border-bottom: 1px solid var(--ligne); }
 .brand { display: flex; align-items: center; gap: .6rem; color: var(--craie); text-decoration: none; font-weight: 800; font-size: 1.1rem; letter-spacing: -.01em; }
+.brand-robert { height: 42px; width: auto; margin: -6px 0 -6px; filter: drop-shadow(0 3px 6px rgba(0, 0, 0, .45)); }
 .brand b { color: var(--jaune); font-weight: 800; }
 .top nav { display: flex; gap: 1.8rem; margin-left: auto; }
 .top nav a { color: var(--craie); text-decoration: none; font-size: .95rem; opacity: .75; position: relative; padding: .3rem 0; }
@@ -76,7 +77,6 @@ em { font-style: normal; color: var(--jaune); }
 .cta.center { justify-content: center; }
 .hero-copy { position: relative; z-index: 2; max-width: 62rem; }
 .hero-top { display: flex; align-items: center; gap: 1.2rem; margin-bottom: .4rem; }
-.hero-top .kicker { margin-bottom: 0; }
 .mascot { display: block; flex: none; width: clamp(84px, 9vw, 140px); height: auto; margin: 0; filter: drop-shadow(0 14px 22px rgba(0, 0, 0, .55)); animation: ride 3.2s ease-in-out infinite; }
 @keyframes ride { 0%, 100% { transform: translateY(0) rotate(-1.5deg); } 50% { transform: translateY(-9px) rotate(1.5deg); } }
 
