@@ -542,6 +542,9 @@ export class ProgressPage {
     const root = this.root;
     const panel = root.querySelector<HTMLElement>('.pg');
     if (!panel) return;
+    // La barre des filtres se colle sous les sous-onglets : leur hauteur réelle (police, échelle de Windows) décide du décalage.
+    const tabs = panel.querySelector<HTMLElement>('.pg-subtabs');
+    if (tabs && typeof ResizeObserver !== 'undefined') new ResizeObserver(() => panel.style.setProperty('--pg-tabs-h', `${tabs.offsetHeight}px`)).observe(tabs);
     root.querySelectorAll<HTMLElement>('[data-pgview]').forEach((el) =>
       el.addEventListener('click', () => {
         this.view = el.dataset.pgview as ProgressView;

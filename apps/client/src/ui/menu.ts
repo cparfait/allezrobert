@@ -1067,7 +1067,7 @@ export class MainMenu {
       friends: () => this.friends.html(),
       garage: () => this.garageHtml(),
       devices: () =>
-        `<section class="mm-panel mm-center mm-wide">${this.closeBtn()}<header class="mm-head"><h2>${t('devices')}</h2><p>${L ? 'Associe ton home trainer et tes capteurs. Une seule appli à la fois par capteur Bluetooth.' : 'Pair your trainer and sensors. One app at a time per Bluetooth sensor.'}</p></header><div id="m-devices"></div></section>`,
+        `<section class="mm-panel mm-center mm-wide mm-xl">${this.closeBtn()}<header class="mm-head"><h2>${t('devices')}</h2><p>${L ? 'Associe ton home trainer et tes capteurs. Une seule appli à la fois par capteur Bluetooth.' : 'Pair your trainer and sensors. One app at a time per Bluetooth sensor.'}</p></header><div id="m-devices"></div></section>`,
       progress: () => this.progress.html(this.closeBtn()),
       profile: () => this.profileHtml(),
       settings: () => this.settingsHtml(),
@@ -2156,7 +2156,7 @@ export class MainMenu {
       .join('')}</nav>`;
     // Historique : toutes les sorties, la forme, les records et les FTP (fenêtre large).
     if (this.profileView === 'history') {
-      return `<section class="mm-panel mm-center mm-wide">${this.closeBtn()}
+      return `<section class="mm-panel mm-center mm-wide mm-xl">${this.closeBtn()}
       <header class="mm-head"><h2>${t('profile')}</h2></header>${sub}<div id="m-history"></div></section>`;
     }
     return `<section class="mm-panel mm-center">${this.closeBtn()}
@@ -2240,7 +2240,7 @@ export class MainMenu {
     const hidden = new Set(s.hudHidden);
     const hud = `<p class="mm-hint">${L ? 'Décoche ce que ton matériel ne mesure pas ou ce que tu ne veux pas voir.' : 'Untick what your hardware does not measure or what you do not want to see.'}</p><div class="grid3">${HUD_BLOCKS.map((b) => `<label class="mm-check"><input type="checkbox" data-hudblock="${b.id}" ${hidden.has(b.id) ? '' : 'checked'}/> ${L ? b.fr : b.en}</label>`).join('')}</div>`;
     // Rubriques repliables (la première ouverte au départ, l'état est mémorisé) ; le mode expert est tout en bas.
-    return `<section class="mm-panel mm-center mm-wide">${this.closeBtn()}
+    return `<section class="mm-panel mm-center mm-wide mm-xl">${this.closeBtn()}
       <header class="mm-head"><h2>${t('settings')}</h2></header>
       ${sec('graphics', L ? 'Graphismes et conditions de la sortie' : 'Graphics and ride conditions', graphics)}
       ${sec('trainer', L ? 'Home trainer' : 'Smart trainer', trainer)}

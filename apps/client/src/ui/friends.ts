@@ -189,7 +189,7 @@ export class FriendsPanel {
     const close = `<button class="mm-close" data-tab="ride" aria-label="${L ? 'Fermer' : 'Close'}" title="${L ? 'Fermer (Échap)' : 'Close (Esc)'}">×</button>`;
     if (!this.hooks.loggedIn()) {
       const code = pendingCode();
-      return `<section class="mm-panel mm-center fr-panel">${close}${head}
+      return `<section class="mm-panel mm-center mm-xl fr-panel">${close}${head}
         <div class="fr-empty fr-signin">
           <b>${L ? 'Connecte-toi pour retrouver tes amis' : 'Sign in to find your friends'}</b>
           <p>${L ? 'Les amis, leur présence et les invitations à rouler demandent un compte (les invités sans compte roulent seuls ou avec un code d’invitation).' : 'Friends, presence and ride invites need an account (guests without an account ride solo or with an invite code).'}</p>
@@ -197,7 +197,7 @@ export class FriendsPanel {
           <button class="btn primary" data-fr="login">${L ? 'Se connecter' : 'Sign in'}</button>
         </div></section>`;
     }
-    return `<section class="mm-panel mm-center mm-wide fr-panel">${close}${head}
+    return `<section class="mm-panel mm-center mm-wide mm-xl fr-panel">${close}${head}
       <div class="fr-grid">
         <div class="fr-col">
           <div class="fr-card fr-mine" id="fr-mine"></div>

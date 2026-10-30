@@ -374,8 +374,33 @@ body:has(.subtitle:not(.hidden)) .ob-robert { animation: ob-mouth 1.1s steps(1, 
   90% { background-position: 0 0; }
 }
 /* Étape Avatar : chaque réglage dans son encadré, pour ne pas mélanger les nuanciers voisins. */
-.ob-avatar-grid { gap: 10px; }
-.ob-avatar-grid > .field { padding: 10px 12px 12px; border: 1px solid rgba(255, 255, 255, 0.14); border-radius: 12px; background: rgba(255, 255, 255, 0.035); }
+.ob-avatar-grid { gap: 6px; }
+.ob-avatar-grid > .field { padding: 6px 9px 8px; border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 9px; background: rgba(255, 255, 255, 0.03); font-size: 10.5px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; gap: 5px; align-self: start; }
+.ob-avatar-grid .row { gap: 5px; flex-wrap: wrap; align-items: center; }
+.ob-avatar-grid .btn.small { padding: 3px 9px; border-radius: 7px; font-size: 12px; font-weight: 600; letter-spacing: 0; text-transform: none; }
+/* Pastilles de couleur : fines, rondes, la choisie cerclée de jaune. */
+.ob-sw { appearance: none; flex: none; width: 20px; height: 20px; padding: 0; border-radius: 50%; border: 1px solid rgba(255, 255, 255, 0.3); background: var(--c); cursor: pointer; transition: transform 0.12s ease, box-shadow 0.12s ease; }
+.ob-sw:hover { transform: scale(1.14); }
+.ob-sw.on { box-shadow: 0 0 0 2px #182030, 0 0 0 3.5px var(--ar-accent); }
+.ob-avatar-grid input[type='range'] { margin: 2px 0 0; accent-color: var(--ar-accent); height: 16px; }
+.ob-likeness { margin-top: 6px; padding: 8px 10px; gap: 10px; font-size: 11.5px; }
+.ob-likeness .meta { font-size: 10.5px; line-height: 1.3; }
+.ob-likeness b { font-size: 12.5px; }
+.ob-likeness label.row { font-size: 11.5px !important; margin-top: 3px !important; }
+/* Avec l'aperçu 3D à côté : carte à 2 colonnes, qui tient dans la fenêtre sans défilement (le défilement ne sert que de secours). */
+.ob-preview .ob-wrap { width: min(560px, 46vw); max-height: 100vh; justify-content: center; }
+.ob-preview .ob-avatar-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.ob-preview .ob-avatar-grid > .field.wide { grid-column: 1 / -1; }
+.ob-preview .ob-stage { min-height: 0; max-height: calc(100vh - 16px); }
+.ob-preview .card.onboarding.ob-side { padding: 10px 16px 12px; max-height: calc(100vh - 16px); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+.ob-preview .card.onboarding.ob-side h2 { font-size: 19px; margin: 2px 0 7px; padding-bottom: 4px; border-bottom-width: 2px; }
+.ob-preview .card.onboarding.ob-side .ob-progress { margin-bottom: 2px; }
+.ob-preview .card.onboarding.ob-side > .meta { margin: 6px 0 0 !important; font-size: 11.5px !important; }
+.ob-preview .card.onboarding.ob-side > .row:last-child { margin-top: 8px !important; }
+.ob-preview .card.onboarding.ob-side .btn:not(.small):not(.ob-sw) { padding: 7px 14px; font-size: 13.5px; border-radius: 9px; }
+/* Sous-titres de la voix : à gauche, sur l'aperçu, pour ne pas couvrir la carte. */
+body:has(.ob-preview) .subtitle { left: 2vw; right: auto; transform: none; max-width: calc(100vw - min(560px, 46vw) - 6vw); top: auto; bottom: 12px; font-size: 14px; text-align: left; }
+@media (max-width: 760px) { body:has(.ob-preview) .subtitle { left: 10px; right: 10px; max-width: none; } }
 /* Étape Style graphique : deux cartes avec une capture en jeu, la choisie cerclée de jaune. */
 .ob-styles { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .ob-style { display: flex; flex-direction: column; gap: 4px; padding: 8px 8px 12px; text-align: left; color: var(--ar-fg); font: inherit; cursor: pointer; border: 2px solid rgba(255, 255, 255, 0.14); border-radius: 12px; background: rgba(255, 255, 255, 0.035); }

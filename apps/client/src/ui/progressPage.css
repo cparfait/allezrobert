@@ -42,8 +42,8 @@
 .pg-tile-i svg { width: 15px; height: 15px; }
 
 /* — Sous-onglets et filtres (collés en haut au défilement) — */
-.pg-subtabs { position: sticky; top: 0; z-index: 4; margin: 0 !important; padding: 0 26px; background: rgba(13, 17, 25, 0.96); backdrop-filter: blur(10px); }
-.pg-sticky { position: sticky; top: 41px; z-index: 3; padding: 10px 30px; background: rgba(13, 17, 25, 0.92); backdrop-filter: blur(10px); border-bottom: 1px solid var(--mm-line); }
+.pg-subtabs { position: sticky; top: 0; z-index: 4; margin: 0 !important; padding: 0 26px; background: #0d1119; }
+.pg-sticky { position: sticky; top: calc(var(--pg-tabs-h, 41px) - 1px); z-index: 3; padding: 10px 30px; background: #0d1119; border-bottom: 1px solid var(--mm-line); }
 .pg-filters { display: flex; flex-wrap: wrap; gap: 6px; }
 .pg-chip { appearance: none; display: inline-flex; align-items: center; gap: 7px; border: 1px solid var(--mm-line); border-radius: 999px; background: rgba(255, 255, 255, 0.05); color: #c6cdd6; font: inherit; font-size: 12.5px; font-weight: 700; padding: 5px 11px; cursor: pointer; }
 .pg-chip i { font-style: normal; font-size: 11px; color: #8d98a6; font-variant-numeric: tabular-nums; }

@@ -71,7 +71,11 @@
 .mm-xp > i { display: block; height: 100%; background: var(--ar-accent); }
 .mm-xp.big { width: 100%; height: 8px; margin-top: 6px; }
 .mm-link { appearance: none; border: 0; background: none; color: var(--ar-accent); font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; padding: 2px 4px; white-space: nowrap; }
-.mm-link:hover { text-decoration: underline; }
+.mm-link:hover { text-decoration: underline; text-underline-offset: 3px; }
+.mm-link:focus-visible { outline: 2px solid var(--ar-accent); outline-offset: 2px; border-radius: 6px; }
+/* Liens de retour et d'en-tête (« ← Choix de la zone », « ← Carte de France », « ← Revenir à mon vélo ») : pastille discrète plutôt que texte jaune nu. */
+.rp-head-links .mm-link, .mm-link.zc-back, .mm-link[data-unpreview] { display: inline-flex; align-items: center; gap: 6px; padding: 6px 13px; border-radius: 999px; border: 1px solid rgba(255, 255, 255, 0.16); background: rgba(255, 255, 255, 0.06); color: #e6ebf1; font-size: 12.5px; font-weight: 600; letter-spacing: 0.01em; transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease; }
+.rp-head-links .mm-link:hover, .mm-link.zc-back:hover, .mm-link[data-unpreview]:hover { text-decoration: none; color: #fff; border-color: rgba(255, 210, 63, 0.6); background: rgba(255, 210, 63, 0.12); }
 
 /* Panneaux */
 .mm-panel { background: var(--mm-glass); backdrop-filter: blur(16px) saturate(1.15); border: 1px solid var(--mm-line); border-radius: 18px; box-shadow: 0 18px 50px rgba(0, 0, 0, 0.35); overflow: auto; }
@@ -79,6 +83,8 @@
 .mm-side { grid-row: 2; align-self: start; justify-self: end; margin: 18px 22px 0 0; width: min(440px, calc(100vw - 44px)); max-height: calc(100% - 18px); padding: 20px 22px; box-sizing: border-box; }
 .mm-center { grid-row: 2; align-self: start; justify-self: center; margin-top: 22px; width: min(760px, calc(100vw - 44px)); max-height: calc(100% - 22px); padding: 24px 28px; box-sizing: border-box; }
 .mm-center.mm-wide { width: min(980px, calc(100vw - 44px)); }
+/* Historique, Amis, Capteurs : même largeur que Progression. */
+.mm-center.mm-xl { width: min(1220px, calc(100vw - 44px)); }
 /* Réglages : rubriques repliables (titre cliquable, chevron qui se retourne à l'ouverture). */
 .set-sec { border-top: 1px solid rgba(255, 255, 255, 0.08); }
 .set-sec:first-of-type { border-top: 0; }
@@ -683,7 +689,7 @@
   .mm-tab { flex: none; padding: 0 12px; font-size: 13px; }
   .mm-tab.on::after { left: 8px; right: 8px; }
   .mm-account { gap: 6px; }
-  .mm-left, .mm-side, .mm-center, .mm-center.mm-wide { justify-self: center; margin: 8px 0 0; width: calc(100vw - 16px); max-height: calc(100% - 8px); padding: 14px; border-radius: 16px; }
+  .mm-left, .mm-side, .mm-center, .mm-center.mm-wide, .mm-center.mm-xl { justify-self: center; margin: 8px 0 0; width: calc(100vw - 16px); max-height: calc(100% - 8px); padding: 14px; border-radius: 16px; }
   .mm-left:has(.mm-selmap) { height: calc(100% - 8px); }
   .mm-head h2 { font-size: 20px; }
   .mm-modes { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; grid-auto-flow: row !important; gap: 6px; }

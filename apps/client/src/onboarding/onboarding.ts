@@ -106,6 +106,16 @@ export class Onboarding {
     void this.voice.say(step === 'final' ? (this.wantFtp ? 'ftp' : 'finish') : step);
   }
 
+  private previewFrame = 0;
+  /** Redessin de l'aperçu au plus une fois par image : le curseur émet bien plus d'événements que l'écran n'affiche d'images. */
+  private queuePreview(): void {
+    if (this.previewFrame) return;
+    this.previewFrame = requestAnimationFrame(() => {
+      this.previewFrame = 0;
+      if (this.previewOn) this.preview?.show({ ...DEFAULT_LOOK, ...this.s.look }, this.bareHead);
+    });
+  }
+
   /** Aperçu du coureur pendant l'étape avatar, retiré aux autres étapes. */
   private syncPreview(): void {
     if (this.step === 'avatar') {
@@ -177,13 +187,13 @@ export class Onboarding {
           <label class="field">${fr ? 'Je ne connais pas ma FTP' : "I don't know my FTP"}<button class="btn small ${this.wantFtp ? 'primary' : ''}" id="o-ftptest">${this.wantFtp ? (fr ? 'Test FTP prévu à la fin ✓' : 'FTP test planned at the end ✓') : fr ? 'Faire le test FTP' : 'Do the FTP test'}</button></label></div>`;
         break;
       case 'avatar': {
-        const sw = (attr: string, colors: string[], cur: string) => colors.map((c) => `<button class="btn small" data-${attr}="${c}" style="background:${c};width:30px;height:30px;padding:0;border:${cur.toLowerCase() === c ? '3px solid #ffd23f' : '1px solid rgba(255,255,255,.35)'}"></button>`).join('');
+        const sw = (attr: string, colors: string[], cur: string) => colors.map((c) => `<button class="ob-sw ${cur.toLowerCase() === c.toLowerCase() ? 'on' : ''}" data-${attr}="${c}" style="--c:${c}" title="${c}" aria-label="${c}" aria-pressed="${cur.toLowerCase() === c.toLowerCase()}"></button>`).join('');
         const look = this.s.look;
         const bald = look.hairStyle === 3;
         body = `<h2>Avatar</h2><div class="grid3 ob-avatar-grid">
           <label class="field">${fr ? 'Peau' : 'Skin'}<div class="row">${sw('skin', SKINS, look.skin)}</div></label>
           <label class="field">${fr ? 'Cheveux' : 'Hair'}<div class="row">${sw('hair', HAIRS, bald ? '' : look.hair)}<button class="btn small ${bald ? 'primary' : ''}" data-bald="1">${fr ? 'Chauve' : 'Bald'}</button></div></label>
-          <label class="field">${fr ? 'Coiffure' : 'Hairstyle'}<div class="row">${HAIR_CHOICES.map(([v, f, e]) => `<button class="btn small ${look.hairStyle === v ? 'primary' : ''}" data-hstyle="${v}">${fr ? f : e}</button>`).join('')}</div></label>
+          <label class="field wide">${fr ? 'Coiffure' : 'Hairstyle'}<div class="row">${HAIR_CHOICES.map(([v, f, e]) => `<button class="btn small ${look.hairStyle === v ? 'primary' : ''}" data-hstyle="${v}">${fr ? f : e}</button>`).join('')}</div></label>
           <label class="field">${fr ? 'Morphologie' : 'Build'}<input id="o-build" type="range" min="0" max="1" step="0.05" value="${look.build}"/></label>
           <label class="field">${fr ? 'Maillot' : 'Jersey'}<div class="row">${sw('jersey', JERSEYS, look.jersey)}</div></label>
           <label class="field">${fr ? 'Seconde couleur du maillot' : 'Jersey second colour'}<div class="row">${sw('accent', ACCENTS, look.jerseyAccent)}</div></label>
@@ -191,7 +201,7 @@ export class Onboarding {
           <label class="field">${fr ? 'Chaussures' : 'Shoes'}<div class="row">${sw('shoes', SHOES, look.shoes ?? '#f2f2f2')}</div></label>
           <label class="field">${fr ? 'Vélo' : 'Bike'}<div class="row">${sw('bike', BIKES, look.bike)}</div></label></div>
           <p class="meta" style="font-size:13px;color:var(--ar-muted)">${fr ? 'Maillots, casques et vélos se débloquent en roulant : retrouve-les au garage.' : 'Jerseys, helmets and bikes unlock as you ride: find them in the garage.'}</p>
-          <div class="device" style="margin-top:12px"><div><b>${fr ? 'Ressemblance à partir d’une photo' : 'Likeness from a photo'}</b>
+          <div class="device ob-likeness"><div><b>${fr ? 'Ressemblance à partir d’une photo' : 'Likeness from a photo'}</b>
             <div class="meta">${fr ? 'Visage, teint et cheveux estimés sur ton appareil ; la photo n’est ni envoyée ni conservée, seuls les réglages obtenus sont gardés (modifiables ou effaçables au garage). Uniquement une photo de toi.' : 'Face, skin and hair estimated on your device; the photo is never uploaded nor stored, only the resulting settings are kept (editable or erasable in the garage). Only a photo of yourself.'}</div>
             <label class="row" style="font-size:13px;margin-top:6px"><input type="checkbox" id="o-consent"/> ${fr ? 'J’accepte ce traitement local de ma photo' : 'I agree to this local processing of my photo'}</label></div>
             <label class="btn small" id="o-photo-label" style="opacity:.5">${fr ? 'Choisir une photo' : 'Choose a photo'}<input id="o-photo" type="file" accept="image/*" hidden disabled/></label></div>`;
@@ -257,6 +267,7 @@ export class Onboarding {
         break;
     }
     const side = this.step === 'avatar' && !!this.preview;
+    const keepScroll = this.root.querySelector<HTMLElement>('.card.onboarding')?.scrollTop ?? 0;
     this.root.innerHTML = `<div class="menu ob-menu ${side ? 'ob-preview' : ''}"><div class="ob-wrap">
       <div class="ob-hero"><h1>Allez <em>Robert</em> !</h1><p class="tagline">${fr ? 'Rouler ensemble, chacun chez soi.' : 'Ride together, each from home.'}</p></div>
       <div class="ob-stage">${side ? '' : '<span class="ob-robert" aria-hidden="true"></span>'}
@@ -266,6 +277,10 @@ export class Onboarding {
         ${i === STEPS.length - 1 ? '<span></span>' : `<button class="btn" id="o-skip">${fr ? 'Passer le tutoriel' : 'Skip tutorial'}</button>`}
         <div class="row">${i > 0 ? `<button class="btn" id="o-back">←</button>` : ''}${i === STEPS.length - 1 && this.wantFtp ? `<button class="btn" id="o-later">${fr ? 'Plus tard' : 'Later'}</button>` : ''}<button class="btn primary" id="o-next">${i === STEPS.length - 1 ? (this.wantFtp ? (fr ? 'Lancer le test FTP' : 'Start the FTP test') : fr ? 'Terminer ✓' : 'Finish ✓') : fr ? 'Suivant →' : 'Next →'}</button></div>
       </div></div></div></div></div>`;
+    if (keepScroll) {
+      const card = this.root.querySelector<HTMLElement>('.card.onboarding');
+      if (card) card.scrollTop = keepScroll;
+    }
     this.bind();
     enhanceSelects(this.root);
     this.placeTail();
@@ -340,7 +355,7 @@ export class Onboarding {
     const setLook = (patch: Partial<AvatarLook>, redraw: boolean) => {
       this.s.look = { ...DEFAULT_LOOK, ...this.s.look, ...patch };
       if (redraw) this.render();
-      else this.preview?.show(this.s.look, this.bareHead);
+      else this.queuePreview();
     };
     const pick = (attr: 'skin' | 'hair' | 'jersey' | 'accent' | 'helmet' | 'bike' | 'shoes') =>
       this.root.querySelectorAll<HTMLButtonElement>(`[data-${attr}]`).forEach((b) =>
