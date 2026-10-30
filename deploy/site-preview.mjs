@@ -9,7 +9,7 @@ import { extname, join, normalize, resolve } from 'node:path';
 
 const root = resolve(import.meta.dirname, '..');
 const port = Number(process.env.PORT ?? 8090);
-const types = { '.html': 'text/html; charset=utf-8', '.css': 'text/css', '.js': 'text/javascript', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.exe': 'application/octet-stream', '.msi': 'application/octet-stream' };
+const types = { '.html': 'text/html; charset=utf-8', '.css': 'text/css', '.js': 'text/javascript', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.woff2': 'font/woff2', '.webp': 'image/webp', '.jpg': 'image/jpeg', '.exe': 'application/octet-stream', '.msi': 'application/octet-stream' };
 
 /** Fichier sous `dir` (jamais au-dessus), ou null. */
 async function file(dir, rel) {

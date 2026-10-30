@@ -5,202 +5,244 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Allez Robert ! — le vélo d'intérieur entre amis, sur les vraies routes de France</title>
   <meta name="description" content="Simulateur de vélo d'intérieur multijoueur : roulez entre amis sur des routes françaises reconstituées en 3D, avec votre home-trainer Bluetooth, ANT+ ou Wahoo." />
+  <meta name="theme-color" content="#0b0c0f" />
   <meta property="og:title" content="Allez Robert !" />
   <meta property="og:description" content="Le vélo d'intérieur entre amis, sur les vraies routes de France." />
   <meta property="og:image" content="https://allezrobert.cparfait.ovh/site/img/hero.jpg" />
   <link rel="icon" href="/site/favicon.svg" type="image/svg+xml" />
+  <link rel="preload" href="/site/fonts/inter-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin />
+  <link rel="preload" href="/site/img/hero.jpg" as="image" />
+  <script>document.documentElement.classList.add("js")</script>
   <link rel="stylesheet" href="/site/style.css" />
 </head>
 <body>
-  <header class="top">
-    <a class="brand" href="/"><img src="/site/favicon.svg" alt="" width="28" height="28" /> Allez Robert !</a>
-    <nav>
-      <a href="#fonctions">Fonctions</a>
-      <a href="#styles">Deux styles</a>
+  <!-- Intro : feux de départ, route et compteur de puissance, puis rideau. Rejouée en « Jouer en ligne ». -->
+  <div id="intro" class="intro" aria-hidden="true">
+    <div class="intro-road"><div class="plane"><i></i></div></div>
+    <div class="intro-lights"><b></b><b></b><b></b></div>
+    <p class="intro-title"><span class="a">ALLEZ</span> <span class="b">ROBERT&nbsp;!</span></p>
+    <div class="intro-read">
+      <span><em id="i-w">0</em> W</span>
+      <span><em id="i-kmh">0</em> km/h</span>
+      <span><em id="i-pct">0,0</em> %</span>
+    </div>
+    <p class="intro-go" id="intro-go">En selle&nbsp;!</p>
+  </div>
+  <div class="progress" aria-hidden="true"><i id="progress"></i></div>
+
+  <header class="top" id="top">
+    <a class="brand" href="/" aria-label="Allez Robert ! — accueil">
+      <img src="/site/favicon.svg" alt="" width="30" height="30" />
+      <span>Allez <b>Robert</b>&nbsp;!</span>
+    </a>
+    <nav aria-label="Navigation principale">
+      <a href="#sorties">Le jeu</a>
+      <a href="#styles">Rendus</a>
       <a href="#garage">Garage</a>
       <a href="#zones">Zones</a>
       <a href="#installer">Installer</a>
-      <a class="btn small" href="#telecharger">Télécharger</a>
     </nav>
+    <a class="btn small play" href="/jouer" data-play>Jouer en ligne</a>
   </header>
 
-  <section class="hero">
-    <div class="hero-text">
-      <p class="kicker">Simulateur de vélo d'intérieur · multijoueur</p>
-      <h1>Le home-trainer entre amis,<br />sur les vraies routes de France.</h1>
-      <p class="lead">Relief IGN, villages et bâtiments réels : de l'Île-de-France à l'Alpe d'Huez, du Ventoux
-        au Tourmalet, on roule ensemble, on se parle, on se tire la bourre dans les côtes.
-        Au choix, un rendu réaliste ou un style jeu vidéo.</p>
-      <div class="cta">
-        <a class="btn" href="/telechargement/allez-robert-setup.exe" data-dl="exe">Télécharger pour Windows</a>
-        <a class="btn ghost" href="/jouer">Jouer dans le navigateur</a>
+  <main>
+    <!-- 1. Départ -->
+    <section class="hero" id="haut">
+      <div class="hero-img" id="hero-img"></div>
+      <div class="hero-shade"></div>
+
+      <div class="hud" aria-hidden="true">
+        <div class="tile"><small>Puissance</small><strong><span id="h-w">212</span><u>W</u></strong></div>
+        <div class="tile"><small>Cadence</small><strong><span id="h-rpm">88</span><u>tr/min</u></strong></div>
+        <div class="tile hot"><small>Pente</small><strong><span id="h-pct">9,5</span><u>%</u></strong></div>
+        <div class="tile"><small>Vitesse</small><strong><span id="h-kmh">17,4</span><u>km/h</u></strong></div>
       </div>
-      <p class="meta" id="hero-version">Windows 10 / 11 · 64 bits · gratuit</p>
-    </div>
-    <img class="robert" src="/site/img/robert.png" alt="Robert, la mascotte, à vélo" width="262" height="460" />
-  </section>
 
-  <section id="fonctions" class="band">
-    <h2>Ce qu'on y fait</h2>
-    <div class="grid">
-      <article class="card">
-        <img src="/site/img/alpe.jpg" alt="Les lacets de l'Alpe d'Huez dans le jeu" loading="lazy" />
-        <h3>Des routes qui existent</h3>
-        <p>Chaque zone est reconstruite à partir des données ouvertes de l'IGN et d'OpenStreetMap :
-          altitudes au mètre, photos aériennes, routes, maisons, forêts. La pente se ressent
-          dans les jambes : elle est envoyée au home-trainer.</p>
+      <div class="hero-copy">
+        <p class="kicker"><i></i> Simulateur de vélo d'intérieur · multijoueur · gratuit</p>
+        <h1><span class="l1"><span>Allez</span></span> <span class="l2"><span>Robert&nbsp;!</span></span></h1>
+        <p class="lead">Branche ton home-trainer. Relief IGN, villages et bâtiments réels&nbsp;: de l'Île-de-France à
+          l'Alpe d'Huez, on roule ensemble, on se parle, on se tire la bourre dans les côtes.</p>
+        <div class="cta">
+          <a class="btn big play" href="/jouer" data-play><span>Jouer en ligne</span><svg viewBox="0 0 24 24" width="22" height="22"><path d="M5 12h13m-5-6 6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+          <a class="btn big ghost" href="#telecharger" data-dl-btn>Télécharger pour Windows</a>
+        </div>
+        <p class="meta" id="hero-version">Windows 10 / 11 · 64 bits · sans compte · gratuit</p>
+      </div>
+
+      <img class="mascot" src="/site/img/robert.png" alt="Robert, la mascotte, à vélo" width="262" height="460" />
+
+      <svg class="profile" viewBox="0 0 1200 120" preserveAspectRatio="none" aria-hidden="true">
+        <path id="profile-fill" d="M0 120 L0 98 C80 96 130 90 200 84 S330 70 400 62 S520 66 600 52 S720 40 800 34 S940 30 1010 18 S1130 8 1200 4 L1200 120Z" />
+        <path id="profile-line" d="M0 98 C80 96 130 90 200 84 S330 70 400 62 S520 66 600 52 S720 40 800 34 S940 30 1010 18 S1130 8 1200 4" />
+      </svg>
+      <a class="scroll-cue" href="#sorties" aria-label="Descendre"><span></span></a>
+    </section>
+
+    <!-- 2. Ruban des zones -->
+    <div class="ticker" aria-hidden="true"><div class="ticker-track" id="ticker"></div></div>
+
+    <!-- 3. Le jeu -->
+    <section id="sorties" class="sec">
+      <header class="sec-head reveal">
+        <p class="eyebrow">01 — Sur la route</p>
+        <h2>Des routes <em>qui existent</em>,<br />des copains <em>qui roulent</em>.</h2>
+      </header>
+
+      <article class="row reveal">
+        <figure class="shot tilt"><img src="/site/img/ventoux.jpg" alt="La montée du Mont Ventoux dans le jeu" loading="lazy" /><figcaption>Mont Ventoux · versant Bédoin</figcaption></figure>
+        <div class="row-text">
+          <span class="num">1</span>
+          <h3>Le relief au mètre près</h3>
+          <p>Chaque zone est reconstruite avec les données ouvertes de l'IGN et d'OpenStreetMap&nbsp;: altitudes au mètre,
+            photos aériennes, routes, maisons, forêts. La pente que tu vois dans le jeu est celle que ton
+            home-trainer t'envoie dans les jambes.</p>
+        </div>
       </article>
-      <article class="card">
-        <img src="/site/img/course.jpg" alt="Interface de course : puissance, cadence, classement" loading="lazy" />
-        <h3>À plusieurs, pour de vrai</h3>
-        <p>Sorties de groupe avec regroupement, courses avec classement, voix intégrée pour
-          parler en roulant, peloton de coureurs virtuels quand les copains ne sont pas là.</p>
+
+      <article class="row flip reveal">
+        <figure class="shot tilt"><img src="/site/img/course.jpg" alt="Interface de course : puissance, cadence, pente, profil" loading="lazy" /><figcaption>Tout est lisible d'un coup d'œil</figcaption></figure>
+        <div class="row-text">
+          <span class="num">2</span>
+          <h3>À plusieurs, pour de vrai</h3>
+          <p>Sorties de groupe avec regroupement, courses avec classement, voix intégrée pour parler en roulant,
+            peloton de coureurs virtuels quand les copains ne sont pas là. Radar du groupe, formations en file ou en bordure,
+            «&nbsp;attendez-moi&nbsp;».</p>
+        </div>
       </article>
-      <article class="card">
-        <img src="/site/img/garage.jpg" alt="Le garage : coureur sur son vélo monté sur home-trainer" loading="lazy" />
-        <h3>Ton vélo, ta tenue</h3>
-        <p>Le garage se débloque en roulant : cadres, roues, maillots, casques (chrono compris), lunettes, gants.
-          Ton coureur te ressemble, homme ou femme, et ton vélo est monté sur ton home-trainer.</p>
+
+      <article class="row reveal">
+        <figure class="shot tilt"><img src="/site/img/garage.jpg" alt="Le garage : le coureur et son vélo" loading="lazy" /><figcaption>Le garage</figcaption></figure>
+        <div class="row-text">
+          <span class="num">3</span>
+          <h3>Ton vélo, ta tenue</h3>
+          <p>Cadres, roues, maillots, casques (chrono compris), lunettes, gants&nbsp;: le garage se débloque en roulant,
+            du niveau 1 au niveau 50. Ton coureur te ressemble, homme ou femme, et ton vélo est monté sur ton home-trainer.</p>
+        </div>
       </article>
-    </div>
+    </section>
 
-    <ul class="features">
-      <li><strong>Progression</strong> niveaux 1 à 50 avec leurs récompenses, trophées et défis</li>
-      <li><strong>Positions</strong> danseuse, sprint, mains sur les cornes, prolongateurs et position aéro sur route comme en chrono</li>
-      <li><strong>Peloton</strong> radar de position du groupe, formations (file, deux files, bordure), « attendez-moi », allure du groupe</li>
-      <li><strong>Home-trainers</strong> Bluetooth (FTMS), ANT+ FE-C par clé USB, Wahoo Direct Connect</li>
-      <li><strong>Capteurs</strong> puissance, cardio, cadence ; ventilateur HEADWIND</li>
-      <li><strong>Entraînement</strong> séances ERG, test FTP (rampe ou 20 min), zones de puissance</li>
-      <li><strong>Export</strong> fichier FIT, envoi Strava et intervals.icu</li>
-      <li><strong>Téléphone</strong> appli compagnon par QR code : vitesses, caméras, carrefours, musique, radar du groupe, regard derrière, son</li>
-      <li><strong>Ambiance</strong> saisons, heure du jour, pluie, nuit, voix off en français</li>
-    </ul>
-  </section>
+    <!-- 4. Chiffres -->
+    <section class="stats" aria-label="Le jeu en chiffres">
+      <div class="stat reveal"><strong data-count="64" id="stat-zones">64</strong><span>zones à rouler</span></div>
+      <div class="stat reveal"><strong data-count="50">50</strong><span>niveaux à gravir</span></div>
+      <div class="stat reveal"><strong data-count="3">3</strong><span>protocoles : Bluetooth, ANT+, Wahoo</span></div>
+      <div class="stat reveal"><strong data-count="2">2</strong><span>rendus graphiques</span></div>
+    </section>
 
-  <section id="styles" class="band alt">
-    <h2>Deux styles graphiques</h2>
-    <p class="lead narrow">Au premier lancement, tu choisis ton rendu, et tu peux en changer à tout moment dans les réglages.</p>
-    <div class="grid two">
-      <article class="card">
-        <img src="/site/img/style-real.jpg" alt="Rendu réaliste : un coureur sur une route d'automne" loading="lazy" />
-        <h3>Réaliste</h3>
-        <p>Au plus près des vraies routes : relief, lumière, textures.</p>
-      </article>
-      <article class="card">
-        <img src="/site/img/style-lowpoly.jpg" alt="Style jeu vidéo : le même coureur, en facettes et aplats de couleur" loading="lazy" />
-        <h3>Jeu vidéo</h3>
-        <p>Facettes et aplats de couleur : plus léger pour les petites machines, et un monde plus animé.</p>
-      </article>
-    </div>
-  </section>
+    <!-- 5. Deux rendus -->
+    <section id="styles" class="sec dark">
+      <header class="sec-head reveal">
+        <p class="eyebrow">02 — Ton rendu</p>
+        <h2>Même route, <em>deux regards</em>.</h2>
+        <p class="lead narrow">Au premier lancement tu choisis, et tu peux changer à tout moment dans les réglages.
+          Glisse pour comparer.</p>
+      </header>
+      <div class="compare reveal" id="compare" style="--p:50%">
+        <img src="/site/img/alpe-lowpoly.jpg" alt="Rendu jeu vidéo : facettes et aplats de couleur" loading="lazy" />
+        <img class="top-img" src="/site/img/alpe-real.jpg" alt="Rendu réaliste : relief, lumière, textures" loading="lazy" />
+        <span class="tag l">Réaliste</span><span class="tag r">Jeu vidéo</span>
+        <i class="handle"><b></b></i>
+        <input type="range" min="0" max="100" value="50" aria-label="Comparer les deux rendus" id="compare-range" />
+      </div>
+      <div class="two-cols reveal">
+        <p><strong>Réaliste</strong> — au plus près des vraies routes : relief, lumière, textures.</p>
+        <p><strong>Jeu vidéo</strong> — facettes et aplats de couleur : plus léger pour les petites machines, et un monde plus animé.</p>
+      </div>
+    </section>
 
-  <section id="garage" class="band">
-    <h2>Le garage</h2>
-    <p class="lead narrow">Un vélo de route, de chrono, de gravel ou de VTT, des vélos de légende redessinés d'après photos
-      (Bottecchia 1989, Lotus 110, Pinarello Espada), monté sur le home-trainer de ton choix : KICKR, Neo…</p>
-  </section>
+    <!-- 6. Garage & matériel -->
+    <section id="garage" class="sec">
+      <header class="sec-head reveal">
+        <p class="eyebrow">03 — Sous la selle</p>
+        <h2>Tout ce qui <em>pédale</em>, tout ce qui <em>mesure</em>.</h2>
+      </header>
+      <div class="bento">
+        <article class="cell wide reveal"><small>Garage</small><h3>Route, chrono, gravel, VTT</h3><p>Des vélos de légende redessinés d'après photos (Bottecchia 1989, Lotus 110, Pinarello Espada), montés sur le home-trainer de ton choix : KICKR, Neo…</p></article>
+        <article class="cell reveal"><small>Home-trainers</small><h3>FTMS · FE-C · Wahoo</h3><p>Bluetooth, ANT+ par clé USB, Wahoo Direct Connect.</p></article>
+        <article class="cell reveal"><small>Capteurs</small><h3>Watts, cœur, cadence</h3><p>Plus le ventilateur HEADWIND.</p></article>
+        <article class="cell reveal"><small>Positions</small><h3>Danseuse, sprint, aéro</h3><p>Mains sur les cornes, prolongateurs : sur route comme en chrono.</p></article>
+        <article class="cell reveal"><small>Entraînement</small><h3>ERG &amp; test FTP</h3><p>Séances structurées, rampe ou 20 minutes, zones de puissance.</p></article>
+        <article class="cell accent wide reveal"><small>Export</small><h3>FIT · Strava · intervals.icu</h3><p>Ta sortie part où tu veux.</p></article>
+        <article class="cell wide reveal"><small>Téléphone</small><h3>L'appli compagnon, par QR code</h3><p>Vitesses, caméras, carrefours, musique, radar du groupe, regard derrière, son.</p></article>
+        <article class="cell wide reveal"><small>Ambiance</small><h3>Saisons &amp; météo</h3><p>Heure du jour, pluie, nuit, voix off en français.</p></article>
+      </div>
+    </section>
 
-  <section id="zones" class="band alt">
-    <h2>Les zones</h2>
-    <p class="lead narrow" id="zone-count">L'application est légère : chaque zone se télécharge depuis le menu, une fois,
-      puis reste sur ton PC. Tu ne prends que celles où tu veux rouler.</p>
-    <div id="zone-list" class="zones">
-      <p class="meta">Chargement de la liste des zones…</p>
-    </div>
-  </section>
+    <!-- 7. Zones -->
+    <section id="zones" class="sec dark">
+      <header class="sec-head reveal">
+        <p class="eyebrow">04 — Où rouler</p>
+        <h2><em id="zone-n">64</em> zones, des grands cols<br />à ta banlieue.</h2>
+        <p class="lead narrow">L'application est légère&nbsp;: chaque zone se télécharge depuis le menu, une fois, puis reste sur ton PC.
+          Tu ne prends que celles où tu veux rouler.</p>
+      </header>
 
-  <section id="installer" class="band">
-    <h2>Installer et rouler</h2>
-    <ol class="steps">
-      <li>
-        <h3>Télécharger</h3>
-        <p>Récupère <a href="/telechargement/allez-robert-setup.exe" data-dl="exe">l'installateur Windows</a>.
-          L'installation se fait dans ton compte utilisateur, sans droits administrateur.</p>
-      </li>
-      <li>
-        <h3>Lancer l'installateur</h3>
-        <p>L'application n'est pas encore signée : Windows SmartScreen peut afficher
-          « Windows a protégé votre ordinateur ». Clique sur <em>Informations complémentaires</em>
-          puis <em>Exécuter quand même</em>.</p>
-      </li>
-      <li>
-        <h3>Choisir une zone</h3>
-        <p>Au premier lancement, choisis une zone dans le menu et télécharge-la
-          (de 12 à 450 Mo selon la zone). Elle reste disponible ensuite, même hors ligne.</p>
-      </li>
-      <li>
-        <h3>Brancher son vélo</h3>
-        <p>Allume le home-trainer, pédale pour le réveiller, puis associe-le depuis le menu
-          du jeu. Pas de matériel sous la main ? Le mode <em>Simulateur (sans matériel)</em> permet d'essayer.</p>
-      </li>
-    </ol>
+      <div class="gallery reveal" id="gallery">
+        <figure><img src="/site/img/alpe-real.jpg" alt="Alpe d'Huez" loading="lazy" /><figcaption><b>Alpe d'Huez</b><span id="g-alpe">21 virages</span></figcaption></figure>
+        <figure><img src="/site/img/tourmalet.jpg" alt="Col du Tourmalet" loading="lazy" /><figcaption><b>Tourmalet</b><span id="g-tourmalet">Pyrénées</span></figcaption></figure>
+        <figure><img src="/site/img/etretat.jpg" alt="Falaises d'Étretat" loading="lazy" /><figcaption><b>Étretat</b><span id="g-etretat">Côte d'Albâtre</span></figcaption></figure>
+        <figure><img src="/site/img/chevreuse.jpg" alt="Vallée de Chevreuse à l'automne" loading="lazy" /><figcaption><b>Chevreuse</b><span id="g-chevreuse">Yvelines</span></figcaption></figure>
+      </div>
 
-    <div class="reqs">
-      <h3>Configuration conseillée</h3>
-      <ul>
-        <li>Windows 10 ou 11, 64 bits (WebView2 est installé automatiquement s'il manque)</li>
-        <li>Carte graphique récente (rendu WebGPU) ; un portable de bureau récent suffit en qualité réduite</li>
-        <li>Bluetooth 4.0 ou plus, ou une clé ANT+ USB (pilote WinUSB via <a href="https://zadig.akeo.ie/" rel="noopener">Zadig</a>)</li>
-        <li>Connexion internet pour télécharger les zones et rouler à plusieurs</li>
-      </ul>
-    </div>
-  </section>
+      <div class="zone-tools reveal">
+        <label class="search"><span>Chercher une zone</span><input id="zone-q" type="search" placeholder="Ventoux, Annecy, Versailles…" autocomplete="off" /></label>
+        <div class="sorts" role="group" aria-label="Trier">
+          <button type="button" class="chip on" data-sort="name">A → Z</button>
+          <button type="button" class="chip" data-sort="gain">Dénivelé</button>
+          <button type="button" class="chip" data-sort="len">Distance</button>
+        </div>
+      </div>
+      <div id="zone-list" class="zones"><p class="meta">Chargement de la liste des zones…</p></div>
+    </section>
 
-  <section id="telecharger" class="band download">
-    <h2>Télécharger</h2>
-    <div class="dl-box">
-      <img src="/site/img/hero.jpg" alt="Un groupe de coureurs sur une route d'automne" loading="lazy" />
-      <div>
+    <!-- 8. Installer -->
+    <section id="installer" class="sec">
+      <header class="sec-head reveal">
+        <p class="eyebrow">05 — En selle</p>
+        <h2>Quatre étapes, <em>dix minutes</em>.</h2>
+      </header>
+      <ol class="steps">
+        <li class="reveal"><span class="n">1</span><h3>Télécharger</h3><p>Récupère <a href="/telechargement/allez-robert-setup.exe" data-dl="exe">l'installateur Windows</a>. Il s'installe dans ton compte, sans droits administrateur.</p></li>
+        <li class="reveal"><span class="n">2</span><h3>Lancer</h3><p>L'application n'est pas encore signée : si SmartScreen s'affiche, clique sur <em>Informations complémentaires</em> puis <em>Exécuter quand même</em>.</p></li>
+        <li class="reveal"><span class="n">3</span><h3>Choisir une zone</h3><p>Au premier lancement, choisis une zone et télécharge-la (de 12 à 450 Mo). Elle reste ensuite disponible, même hors ligne.</p></li>
+        <li class="reveal"><span class="n">4</span><h3>Brancher son vélo</h3><p>Allume le home-trainer, pédale pour le réveiller, associe-le depuis le menu. Sans matériel : le mode <em>Simulateur</em> permet d'essayer.</p></li>
+      </ol>
+      <details class="reqs reveal">
+        <summary>Configuration conseillée</summary>
+        <ul>
+          <li>Windows 10 ou 11, 64 bits (WebView2 est installé automatiquement s'il manque)</li>
+          <li>Carte graphique récente (rendu WebGPU) ; un portable de bureau récent suffit en qualité réduite</li>
+          <li>Bluetooth 4.0 ou plus, ou une clé ANT+ USB (pilote WinUSB via <a href="https://zadig.akeo.ie/" rel="noopener">Zadig</a>)</li>
+          <li>Connexion internet pour télécharger les zones et rouler à plusieurs</li>
+        </ul>
+      </details>
+    </section>
+
+    <!-- 9. Télécharger -->
+    <section id="telecharger" class="download">
+      <div class="road-line" aria-hidden="true"><img class="rider" src="/site/img/robert.png" alt="" width="131" height="230" /></div>
+      <div class="dl-inner reveal">
+        <p class="eyebrow">Prêt ?</p>
+        <h2>Allez, <em>Robert&nbsp;!</em></h2>
         <p class="dl-version" id="dl-version">Allez Robert ! pour Windows</p>
-        <a class="btn big" href="/telechargement/allez-robert-setup.exe" data-dl="exe">Installateur Windows (.exe)</a>
-        <p><a href="/telechargement/allez-robert.msi" data-dl="msi" id="dl-msi">Version MSI</a> pour un déploiement
-          sur plusieurs postes · <a href="/telechargement/">toutes les versions</a></p>
-        <p class="meta" id="dl-sha"></p>
-        <p class="meta">Pas sous Windows ? <a href="/jouer">La version navigateur</a> fonctionne dans Chrome ou Edge
-          (Bluetooth via Web Bluetooth).</p>
+        <div class="cta center">
+          <a class="btn big" href="/telechargement/allez-robert-setup.exe" data-dl="exe">Installateur Windows (.exe)</a>
+          <a class="btn big ghost play" href="/jouer" data-play>Jouer dans le navigateur</a>
+        </div>
+        <p class="meta"><a href="/telechargement/allez-robert.msi" data-dl="msi" id="dl-msi">Version MSI</a> pour plusieurs postes ·
+          <a href="/telechargement/">toutes les versions</a> · navigateur : Chrome ou Edge (Bluetooth via Web Bluetooth)</p>
+        <p class="meta mono" id="dl-sha"></p>
       </div>
-    </div>
-  </section>
+    </section>
+  </main>
 
   <footer>
-    <p>Allez Robert ! — un projet entre amis, hébergé en France.</p>
+    <p>Allez Robert&nbsp;! — un projet entre amis, hébergé en France.</p>
     <p class="meta">Relief et photos aériennes © IGN (RGE ALTI®, BD ORTHO®, Licence Ouverte Etalab 2.0) ·
       Routes et bâtiments © les contributeurs OpenStreetMap (ODbL).</p>
   </footer>
 
-  <script>
-    (function () {
-      const fmtMo = (b) => (b / 1e6 < 10 ? (b / 1e6).toFixed(1) : Math.round(b / 1e6)).toString().replace('.', ',') + ' Mo';
-      const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
-
-      // Version publiée (deploy/publish-desktop.sh écrit version.json à côté des installateurs).
-      fetch('/telechargement/version.json', { cache: 'no-store' })
-        .then((r) => (r.ok ? r.json() : null))
-        .then((v) => {
-          if (!v || !v.exe) return;
-          const date = v.date ? new Date(v.date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' }) : '';
-          document.getElementById('hero-version').textContent = `Version ${v.version} · ${fmtMo(v.exe.bytes)} · Windows 10 / 11 · 64 bits · gratuit`;
-          document.getElementById('dl-version').textContent = `Version ${v.version}${date ? ' du ' + date : ''} · ${fmtMo(v.exe.bytes)}`;
-          document.querySelectorAll('a[data-dl="exe"]').forEach((a) => (a.href = '/telechargement/' + v.exe.file));
-          if (v.msi) document.querySelectorAll('a[data-dl="msi"]').forEach((a) => (a.href = '/telechargement/' + v.msi.file));
-          else document.getElementById('dl-msi').removeAttribute('href');
-          document.getElementById('dl-sha').textContent = 'SHA-256 de l’installateur : ' + v.exe.sha256;
-        })
-        .catch(() => {});
-
-      // Catalogue des zones : le même que celui du jeu.
-      const list = document.getElementById('zone-list');
-      fetch('/worlds/index.json')
-        .then((r) => (r.ok ? r.json() : Promise.reject()))
-        .then((cat) => {
-          const zones = (cat.zones || []).slice().sort((a, b) => a.name.localeCompare(b.name, 'fr'));
-          document.getElementById('zone-count').textContent = `${zones.length} zones à rouler, de l'Île-de-France aux grands cols. Chacune se télécharge depuis le menu, une fois, puis reste sur ton PC : tu ne prends que celles où tu veux rouler.`;
-          list.innerHTML = zones.map((z) => `<span class="zone">${esc(z.name)}</span>`).join('') + '<span class="zone etc">… etc.</span>';
-        })
-        .catch(() => {
-          list.innerHTML = '<p class="meta">La liste des zones est momentanément indisponible.</p>';
-        });
-    })();
-  </script>
+  <script src="/site/site.js"></script>
 </body>
 </html>
