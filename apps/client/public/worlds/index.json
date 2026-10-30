@@ -858,6 +858,58 @@
    "open": true
   },
   {
+   "id": "idf-coulommiers",
+   "name": "Coulommiers",
+   "region": "Seine-et-Marne · Île-de-France",
+   "routes": [
+    {
+     "id": "boucle-20-km",
+     "name": "Boucle de 20 km depuis Coulommiers",
+     "nameEn": "20 km loop from Coulommiers",
+     "lengthM": 19600,
+     "elevationGainM": 166.01,
+     "loop": false
+    },
+    {
+     "id": "boucle-30-km",
+     "name": "Boucle de 30 km depuis Coulommiers",
+     "nameEn": "30 km loop from Coulommiers",
+     "lengthM": 28692,
+     "elevationGainM": 274.03,
+     "loop": false
+    },
+    {
+     "id": "boucle-40-km",
+     "name": "Boucle de 40 km depuis Coulommiers",
+     "nameEn": "40 km loop from Coulommiers",
+     "lengthM": 42072,
+     "elevationGainM": 439.39,
+     "loop": false
+    },
+    {
+     "id": "boucle-50-km",
+     "name": "Boucle de 50 km depuis Coulommiers",
+     "nameEn": "50 km loop from Coulommiers",
+     "lengthM": 50916,
+     "elevationGainM": 462.09,
+     "loop": false
+    }
+   ],
+   "pack": {
+    "version": "48ed546601c0",
+    "bytes": 186757241,
+    "files": 1026,
+    "gzBytes": 74160017
+   },
+   "l93": {
+    "minE": 704000,
+    "minN": 6844000,
+    "maxE": 720000,
+    "maxN": 6860000
+   },
+   "open": true
+  },
+  {
    "id": "idf-creteil",
    "name": "Créteil",
    "region": "Val-de-Marne · Île-de-France",
@@ -1326,6 +1378,58 @@
    "open": true
   },
   {
+   "id": "idf-la-ferte-sous-jouarre",
+   "name": "La Ferté-sous-Jouarre",
+   "region": "Seine-et-Marne · Île-de-France",
+   "routes": [
+    {
+     "id": "boucle-20-km",
+     "name": "Boucle de 20 km depuis La Ferté-sous-Jouarre",
+     "nameEn": "20 km loop from La Ferté-sous-Jouarre",
+     "lengthM": 19718,
+     "elevationGainM": 268.73,
+     "loop": false
+    },
+    {
+     "id": "boucle-30-km",
+     "name": "Boucle de 30 km depuis La Ferté-sous-Jouarre",
+     "nameEn": "30 km loop from La Ferté-sous-Jouarre",
+     "lengthM": 28572,
+     "elevationGainM": 397.21,
+     "loop": false
+    },
+    {
+     "id": "boucle-40-km",
+     "name": "Boucle de 40 km depuis La Ferté-sous-Jouarre",
+     "nameEn": "40 km loop from La Ferté-sous-Jouarre",
+     "lengthM": 39022,
+     "elevationGainM": 426.98,
+     "loop": false
+    },
+    {
+     "id": "boucle-50-km",
+     "name": "Boucle de 50 km depuis La Ferté-sous-Jouarre",
+     "nameEn": "50 km loop from La Ferté-sous-Jouarre",
+     "lengthM": 49828,
+     "elevationGainM": 490.1,
+     "loop": false
+    }
+   ],
+   "pack": {
+    "version": "a94b35edd5e0",
+    "bytes": 191983321,
+    "files": 1026,
+    "gzBytes": 81189278
+   },
+   "l93": {
+    "minE": 704000,
+    "minN": 6860000,
+    "maxE": 720000,
+    "maxN": 6876000
+   },
+   "open": true
+  },
+  {
    "id": "idf-les-mureaux",
    "name": "Les Mureaux",
    "region": "Yvelines · Île-de-France",
@@ -1790,6 +1894,58 @@
     "minN": 6812000,
     "maxE": 688000,
     "maxN": 6828000
+   },
+   "open": true
+  },
+  {
+   "id": "idf-milly-la-foret",
+   "name": "Milly-la-Forêt",
+   "region": "Essonne · Île-de-France",
+   "routes": [
+    {
+     "id": "boucle-20-km",
+     "name": "Boucle de 20 km depuis Milly-la-Forêt",
+     "nameEn": "20 km loop from Milly-la-Forêt",
+     "lengthM": 17436,
+     "elevationGainM": 151.68,
+     "loop": false
+    },
+    {
+     "id": "boucle-30-km",
+     "name": "Boucle de 30 km depuis Milly-la-Forêt",
+     "nameEn": "30 km loop from Milly-la-Forêt",
+     "lengthM": 28770,
+     "elevationGainM": 143.28,
+     "loop": false
+    },
+    {
+     "id": "boucle-40-km",
+     "name": "Boucle de 40 km depuis Milly-la-Forêt",
+     "nameEn": "40 km loop from Milly-la-Forêt",
+     "lengthM": 42652,
+     "elevationGainM": 305.22,
+     "loop": false
+    },
+    {
+     "id": "boucle-50-km",
+     "name": "Boucle de 50 km depuis Milly-la-Forêt",
+     "nameEn": "50 km loop from Milly-la-Forêt",
+     "lengthM": 49742,
+     "elevationGainM": 281.21,
+     "loop": false
+    }
+   ],
+   "pack": {
+    "version": "c61f8947a016",
+    "bytes": 254104861,
+    "files": 1024,
+    "gzBytes": 105802938
+   },
+   "l93": {
+    "minE": 656000,
+    "minN": 6796000,
+    "maxE": 672000,
+    "maxN": 6812000
    },
    "open": true
   },
