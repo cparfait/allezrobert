@@ -20,7 +20,22 @@ static DATA_DIR: RwLock<Option<PathBuf>> = RwLock::new(None);
 
 /// `%LOCALAPPDATA%\fr.cparfait.allezrobert` (même dossier que WebView2 et les journaux).
 pub fn app_local_dir() -> Option<PathBuf> {
-    std::env::var_os("LOCALAPPDATA").map(|l| PathBuf::from(l).join(IDENTIFIER))
+    #[cfg(windows)]
+    {
+        std::env::var_os("LOCALAPPDATA").map(|l| PathBuf::from(l).join(IDENTIFIER))
+    }
+    // macOS : ~/Library/Application Support/fr.cparfait.allezrobert (comme les données de la fenêtre web).
+    #[cfg(target_os = "macos")]
+    {
+        std::env::var_os("HOME").map(|h| PathBuf::from(h).join("Library").join("Application Support").join(IDENTIFIER))
+    }
+    #[cfg(not(any(windows, target_os = "macos")))]
+    {
+        std::env::var_os("XDG_DATA_HOME")
+            .map(PathBuf::from)
+            .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".local").join("share")))
+            .map(|d| d.join(IDENTIFIER))
+    }
 }
 
 #[derive(Serialize, Deserialize, Default)]
@@ -147,8 +162,17 @@ pub fn reveal_path(path: String) -> AppResult<()> {
     if !p.is_absolute() || !p.exists() {
         return Err("fichier introuvable".into());
     }
-    let arg = format!("/select,{}", p.display());
-    explorer(&[std::ffi::OsStr::new(&arg)])
+    #[cfg(target_os = "macos")]
+    {
+        // Finder : sélectionne le fichier.
+        std::process::Command::new("open").arg("-R").arg(&p).spawn().map_err(|e| io_error("Finder", e))?;
+        Ok(())
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let arg = format!("/select,{}", p.display());
+        explorer(&[std::ffi::OsStr::new(&arg)])
+    }
 }
 
 fn explorer(args: &[&std::ffi::OsStr]) -> AppResult<()> {
@@ -157,7 +181,13 @@ fn explorer(args: &[&std::ffi::OsStr]) -> AppResult<()> {
         std::process::Command::new("explorer").args(args).spawn().map_err(|e| io_error("Explorateur", e))?;
         Ok(())
     }
-    #[cfg(not(windows))]
+    #[cfg(target_os = "macos")]
+    {
+        // Ouvre le dossier dans le Finder.
+        std::process::Command::new("open").args(args).spawn().map_err(|e| io_error("Finder", e))?;
+        Ok(())
+    }
+    #[cfg(not(any(windows, target_os = "macos")))]
     {
         let _ = args;
         Err("non pris en charge".into())

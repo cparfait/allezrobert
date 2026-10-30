@@ -1,0 +1,67 @@
+# Application macOS (.dmg, Apple silicon + Intel) construite sur un Mac de GitHub, puis déposée dans une release
+# « mac-<version> ». Non signée par Apple (signature ad hoc) : au premier lancement, clic droit > Ouvrir.
+# Lancement : onglet Actions > « Application macOS » > Run workflow, ou à chaque modification de l'application de bureau.
+name: Application macOS
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/macos.yml'
+      - 'apps/desktop/**'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: macos-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  dmg:
+    name: Construire le .dmg
+    runs-on: macos-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop/src-tauri
+      - run: pnpm install --frozen-lockfile
+      - name: Construire (universel : Apple silicon + Intel)
+        env:
+          VITE_SERVER_URL: https://allezrobert.cparfait.ovh/colyseus
+          VITE_WORLDS_URL: https://allezrobert.cparfait.ovh
+          AR_DESKTOP: '1'
+          # Signature ad hoc : sans elle, macOS (Apple silicon) annonce que l'application est « endommagée ».
+          APPLE_SIGNING_IDENTITY: '-'
+        run: pnpm --filter @allezrobert/desktop exec tauri build --target universal-apple-darwin --bundles dmg --config '{"bundle":{"createUpdaterArtifacts":false}}'
+      - name: Nommer le fichier
+        id: name
+        run: |
+          version=$(node -p "require('./apps/desktop/src-tauri/tauri.conf.json').version")
+          src=$(ls apps/desktop/src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg | head -1)
+          cp "$src" "allez-robert_${version}_macos.dmg"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          shasum -a 256 "allez-robert_${version}_macos.dmg"
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: mac-${{ steps.name.outputs.version }}
+          name: Application macOS ${{ steps.name.outputs.version }}
+          body: |
+            Installateur macOS (.dmg) d'Allez Robert !, Apple silicon et Intel (macOS 12 ou plus).
+            Non signé par Apple : au premier lancement, clic droit sur l'application > Ouvrir.
+          files: allez-robert_${{ steps.name.outputs.version }}_macos.dmg
+      - uses: actions/upload-artifact@v4
+        with:
+          name: allez-robert-macos
+          path: allez-robert_${{ steps.name.outputs.version }}_macos.dmg

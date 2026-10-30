@@ -19,7 +19,8 @@ export const inTauri = inDesktop;
 /** Préfixe des tuiles : `VITE_WORLDS_URL`, sinon le VPS dans l'application Windows, sinon la même origine. */
 export const TILES_BASE = env.VITE_WORLDS_URL ?? (inTauri ? DOWNLOADS_HOST : '');
 /** Application Windows : lecture des zones du disque. */
-const DISK = 'http://worlds.localhost';
+// WebView2 (Windows) sert les protocoles personnalisés en http://<nom>.localhost ; WKWebView (macOS) en <nom>://localhost.
+const DISK = typeof navigator !== 'undefined' && /Windows/i.test(navigator.userAgent) ? 'http://worlds.localhost' : 'worlds://localhost';
 
 const KEY = 'ar.packs';
 const cacheName = (id: string) => `ar-pack-${id}`;
