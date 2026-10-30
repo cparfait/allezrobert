@@ -37,7 +37,7 @@ jobs:
         with:
           workspaces: apps/desktop/src-tauri
       - run: pnpm install --frozen-lockfile
-      - name: Construire (universel : Apple silicon + Intel)
+      - name: Construire (universel, Apple silicon et Intel)
         env:
           VITE_SERVER_URL: https://allezrobert.cparfait.ovh/colyseus
           VITE_WORLDS_URL: https://allezrobert.cparfait.ovh
