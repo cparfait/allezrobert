@@ -62,7 +62,7 @@ import { frameStats } from './engine/frameStats.ts';
 import { KomChallenge, readKomRecord, type ChallengeResult } from './game/challenge.ts';
 import { HairpinWatcher, hairpinToast, reachedFinish, summitStats } from './game/climb.ts';
 import { showSummit } from './ui/summit.ts';
-import { fetchMe, showLogin, applyProfile, logout, pushProfile, type Me } from './ui/account.ts';
+import { fetchMe, showLogin, earlyLogin, applyProfile, logout, pushProfile, type Me } from './ui/account.ts';
 import { sendRideInvites } from './ui/friends.ts';
 import { RideSequences } from './game/sequences.ts';
 import { GuestInputSource } from './game/guest.ts';
@@ -442,6 +442,8 @@ async function boot(): Promise<void> {
   setLang(settings.lang);
   // Vélo affiché au garage et sur l'image d'accueil : celui qui est équipé (sauvegardes anciennes).
   settings.look = { ...settings.look, bikeType: bikeSetupFor(loadProgress().equipped).tyre ?? 'road' };
+  // Connexion ou « sans compte » : demandée tout de suite, pendant que le jeu se charge (sauf lancement direct d'une sortie).
+  const earlyAuth: Promise<Me | null> | null = new URLSearchParams(location.search).has('autostart') ? null : earlyLogin(settings);
   bootStep(20, 'Chargement du jeu');
   // Fond du menu : boucle vidéo de la saison (aucun calcul 3D pendant ce temps). Elle se télécharge en premier : modèles,
   // moteur et shaders attendent qu'elle soit jouable, sinon ils lui prennent le réseau et le processeur et elle saccade.
@@ -920,7 +922,7 @@ async function boot(): Promise<void> {
     // L'atelier est déjà préparé (écran de chargement) ; aucune zone : l'accueil est une vidéo,
     // le paysage se prépare au clic sur « Rouler ».
     // Compte : session existante, sinon écran de connexion (sauf choix « sans compte »).
-    let me: Me | null = await fetchMe();
+    let me: Me | null = earlyAuth ? await earlyAuth : await fetchMe();
     if (me) applyProfile(me, settings);
     const afterLogin = () => {
       // Historique : synchronisé avec le compte connecté.
@@ -963,7 +965,7 @@ async function boot(): Promise<void> {
       clearTimeout(pushTimer);
       pushTimer = setTimeout(() => void pushProfile(st, me?.progression.level), 1500);
     };
-    if (!me && !localStorage.getItem('ar.skipLogin')) menu.onLogin();
+    if (!earlyAuth && !me && !localStorage.getItem('ar.skipLogin')) menu.onLogin();
     else afterLogin();
   }
 }

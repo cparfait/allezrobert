@@ -119,6 +119,10 @@ export async function showLogin(root: HTMLElement, s: Settings, done: (me: Me | 
   root.innerHTML = `<div class="menu"><div class="card panel" style="max-width:520px">
     <h1>Allez <em>Robert</em> !</h1>
     <p class="tagline">${fr ? 'Connecte-toi pour rouler en groupe, garder ta progression et envoyer tes sorties.' : 'Sign in to ride with friends, keep your progress and upload rides.'}</p>
+    <div class="lg-cmp">
+      <div><b>${fr ? 'Avec un compte' : 'With an account'}</b><ul>${(fr ? ['Amis et sorties de groupe', 'Progression et historique sur tous tes appareils', 'Envoi vers Strava'] : ['Friends and group rides', 'Progress and history on every device', 'Upload to Strava']).map((x) => `<li>${x}</li>`).join('')}</ul></div>
+      <div><b>${fr ? 'Sans compte' : 'Without an account'}</b><ul>${(fr ? ['Sorties solo, tous les parcours', 'Tout reste sur cet appareil', 'Tu pourras te connecter plus tard'] : ['Solo rides, every route', 'Everything stays on this device', 'You can sign in later']).map((x) => `<li>${x}</li>`).join('')}</ul></div>
+    </div>
     ${
       prov
         ? `${btn('l-google', fr ? 'Continuer avec Google' : 'Continue with Google', 'background:#fff;color:#3c4043;border:1px solid #dadce0', GOOGLE_G, prov.google)}${btn('l-discord', fr ? 'Continuer avec Discord' : 'Continue with Discord', 'background:#5865f2;color:#fff', DISCORD_LOGO, prov.discord)}
@@ -181,5 +185,44 @@ export async function showLogin(root: HTMLElement, s: Settings, done: (me: Me | 
     waiting?.abort();
     localStorage.setItem('ar.skipLogin', '1');
     done(null);
+  });
+}
+
+/**
+ * Choix « connexion ou sans compte » dès le démarrage, par-dessus l'écran de chargement : le jeu continue de se charger
+ * derrière. Résolu tout de suite si une session existe ou si le joueur a déjà choisi de rouler sans compte.
+ */
+export async function earlyLogin(s: Settings): Promise<Me | null> {
+  const me = await fetchMe();
+  if (me || localStorage.getItem('ar.skipLogin')) return me;
+  const host = document.createElement('div');
+  host.id = 'early-login';
+  document.body.appendChild(host);
+  const fr = getLang() === 'fr';
+  return new Promise<Me | null>((resolve) => {
+    let timer: ReturnType<typeof setInterval> | undefined;
+    void showLogin(host, s, (m) => {
+      clearInterval(timer);
+      host.remove();
+      resolve(m);
+    }).then(() => {
+      // Avancement du chargement, repris de l'écran de chargement (caché derrière) : rien n'attend la réponse du joueur.
+      const card = host.querySelector('.card');
+      if (!card) return;
+      const line = document.createElement('p');
+      line.className = 'lg-load meta';
+      card.appendChild(line);
+      const sync = () => {
+        const step = document.getElementById('splash-step')?.textContent;
+        const pct = document.getElementById('splash-pct')?.textContent;
+        line.textContent = document.getElementById('splash')
+          ? `${fr ? 'Chargement du jeu en arrière-plan' : 'Loading the game in the background'} · ${pct ?? ''}${step ? ` · ${step}` : ''}`
+          : fr
+            ? 'Le jeu est prêt.'
+            : 'The game is ready.';
+      };
+      sync();
+      timer = setInterval(sync, 400);
+    });
   });
 }

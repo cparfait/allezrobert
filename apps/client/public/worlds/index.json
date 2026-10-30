@@ -546,6 +546,58 @@
    "open": true
   },
   {
+   "id": "idf-angerville",
+   "name": "Angerville",
+   "region": "Essonne · Île-de-France",
+   "routes": [
+    {
+     "id": "boucle-20-km",
+     "name": "Boucle de 20 km depuis Angerville",
+     "nameEn": "20 km loop from Angerville",
+     "lengthM": 20502,
+     "elevationGainM": 116.39,
+     "loop": false
+    },
+    {
+     "id": "boucle-30-km",
+     "name": "Boucle de 30 km depuis Angerville",
+     "nameEn": "30 km loop from Angerville",
+     "lengthM": 31194,
+     "elevationGainM": 232.97,
+     "loop": false
+    },
+    {
+     "id": "boucle-40-km",
+     "name": "Boucle de 40 km depuis Angerville",
+     "nameEn": "40 km loop from Angerville",
+     "lengthM": 40272,
+     "elevationGainM": 372.32,
+     "loop": false
+    },
+    {
+     "id": "boucle-50-km",
+     "name": "Boucle de 50 km depuis Angerville",
+     "nameEn": "50 km loop from Angerville",
+     "lengthM": 51096,
+     "elevationGainM": 406.32,
+     "loop": false
+    }
+   ],
+   "pack": {
+    "version": "a65a6b9bd5e4",
+    "bytes": 183879693,
+    "files": 1026,
+    "gzBytes": 71918560
+   },
+   "l93": {
+    "minE": 624000,
+    "minN": 6796000,
+    "maxE": 640000,
+    "maxN": 6812000
+   },
+   "open": true
+  },
+  {
    "id": "idf-aubergenville",
    "name": "Aubergenville",
    "region": "Yvelines · Île-de-France",

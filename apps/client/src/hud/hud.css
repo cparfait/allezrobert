@@ -735,3 +735,14 @@ body:has(.ob-preview) .subtitle { left: 2vw; right: auto; transform: none; max-w
 @media (max-width: 760px) {
   .ob-stage > .card.onboarding:not(.ob-side) { flex: 1 1 auto; }
 }
+
+/* Connexion anticipée (pendant le chargement) : par-dessus l'écran de chargement. */
+#early-login { position: fixed; inset: 0; z-index: 10000; }
+#early-login .menu { position: absolute; inset: 0; background: rgba(8, 11, 18, 0.9); box-shadow: none; }
+.lg-cmp { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 4px 0 16px; }
+.lg-cmp > div { padding: 10px 12px; border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 10px; background: rgba(255, 255, 255, 0.035); font-size: 12.5px; color: var(--ar-muted); }
+.lg-cmp > div:first-child { border-color: rgba(255, 210, 63, 0.4); }
+.lg-cmp b { display: block; margin-bottom: 4px; font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ar-fg); }
+.lg-cmp ul { margin: 0; padding-left: 16px; display: grid; gap: 2px; }
+.lg-load { margin: 12px 0 0; font-size: 12px; color: var(--ar-muted); text-align: center; }
+@media (max-width: 560px) { .lg-cmp { grid-template-columns: 1fr; } }

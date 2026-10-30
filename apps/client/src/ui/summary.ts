@@ -179,6 +179,11 @@ export function showRideSummary(root: HTMLElement, d: SummaryData, a: SummaryAct
             ? `<section class="sum-card sum-feel"><h3>${L ? 'Ton ressenti' : 'How did it feel?'}</h3><div class="sum-feel-row">${FEELINGS.map(([id, f, e]) => `<button class="sum-btn" data-feel="${id}">${L ? f : e}</button>`).join('')}</div></section>`
             : ''
         }
+        ${
+          localStorage.getItem('ar.skipLogin')
+            ? `<section class="sum-card sum-login"><h3>${L ? 'Garde ta sortie' : 'Keep this ride'}</h3><p>${L ? 'Sans compte, cette sortie reste sur cet appareil. Connecte-toi pour la retrouver partout, rouler avec tes amis et l’envoyer à Strava.' : 'Without an account this ride stays on this device. Sign in to find it everywhere, ride with friends and upload it to Strava.'}</p><button class="sum-btn accent" id="s-login">${L ? 'Se connecter' : 'Sign in'}</button></section>`
+            : ''
+        }
         <section class="sum-card sum-share">
           <h3>${L ? 'Partager' : 'Share'}</h3>
           <div class="sum-share-row"><div><b>${L ? 'Carte de sortie' : 'Ride card'}</b><small>${L ? 'Une image à poster' : 'An image to post'}</small></div>
@@ -224,6 +229,11 @@ export function showRideSummary(root: HTMLElement, d: SummaryData, a: SummaryAct
     if (el && f) el.onclick = f;
   };
   on('s-card', a.onShareCard);
+  // Sans compte : on retire le choix mémorisé et on recharge, l'écran de connexion revient au démarrage.
+  on('s-login', () => {
+    localStorage.removeItem('ar.skipLogin');
+    location.reload();
+  });
   const msg = root.querySelector<HTMLElement>('#s-share-msg');
   const say = (t: string) => {
     if (msg) msg.textContent = t;
