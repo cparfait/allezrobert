@@ -37,7 +37,7 @@ import { OUTFITS } from './outfits.ts';
 import type { GarageView } from './poster.ts';
 import { FriendsPanel } from './friends.ts';
 import { ProgressPage } from './progressPage.ts';
-import { faceEditorHtml, withBaseHead, withLikeness, withProfile, withRandomFace, withSlider, type FaceTab } from './faceEditor.ts';
+import { characterTypeHtml, faceEditorHtml, withBaseHead, withLikeness, withProfile, withRandomFace, withSlider, type FaceTab } from './faceEditor.ts';
 import type { FaceSlider } from '@allezrobert/shared';
 import { joinSettings } from './friendsLogic.ts';
 import { RoutePlanner } from './routePlanner.ts';
@@ -131,6 +131,11 @@ const ICON = {
   pShorts: svg('<path d="M5 4h14l1.2 15H14l-2-8-2 8H3.8Z"/><path d="M5 8h14"/>', 26),
   pGloves: svg('<path d="M7 21v-8L5.5 9.5c-.5-1.2 1-2 1.8-1L9 11V4.5c0-1.3 2-1.3 2 0V10V3.5c0-1.3 2-1.3 2 0V10V4.5c0-1.3 2-1.3 2 0V11V6.5c0-1.3 2-1.3 2 0V15c0 3.5-2 6-5.5 6Z"/>', 26),
   pShoes: svg('<path d="M3 17v-5l5-1 3 3 8 1.5c1.8.3 2.2 3.5 0 3.5H4a1 1 0 0 1-1-1Z"/><path d="M8 11l1.5 2M12 14l1 2"/>', 26),
+  pFace: svg('<circle cx="12" cy="12" r="8.5"/><circle cx="9" cy="10.5" r=".9"/><circle cx="15" cy="10.5" r=".9"/><path d="M8.5 15c1 1.2 2.2 1.8 3.5 1.8s2.5-.6 3.5-1.8"/>', 26),
+  pSkin: svg('<path d="M12 3c4 5 6 7.5 6 11a6 6 0 0 1-12 0c0-3.5 2-6 6-11Z"/>', 26),
+  pHair: svg('<path d="M5 14c0-6 3-9 7-9s7 3 7 9v1c-2-1-3-3-3-5-2 2-6 2-8 0 0 2-1 4-3 5Z"/>', 26),
+  pBeard: svg('<path d="M6 8c0 6 2 10 6 10s6-4 6-10M9 14c1 1 5 1 6 0"/>', 26),
+  pPalette: svg('<path d="M12 3a9 9 0 1 0 0 18c1.5 0 2-1 1.4-2-.7-1.2.1-2.6 1.6-2.6H17a4 4 0 0 0 4-4c0-5-4-9.4-9-9.4Z"/><circle cx="8" cy="11" r="1"/><circle cx="11" cy="7.5" r="1"/><circle cx="15.5" cy="8.5" r="1"/>', 26),
   pLock: svg('<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>', 12),
   pJersey: svg('<path d="M8 3 3 6l2 4 2-1v12h10V9l2 1 2-4-5-3c-.5 1.6-2 2.5-4 2.5S8.5 4.6 8 3Z"/>', 26),
   pHelmet: svg('<path d="M3 15a9 8 0 0 1 18 0v2H3Z"/><path d="M8 8.5 9.5 15M12 7v8M16 8.5 14.5 15"/><path d="M6 17v2.5M18 17v2.5"/>', 26),
@@ -144,7 +149,9 @@ const ICON = {
 };
 
 /** Catégorie ouverte dans le garage. */
-type GarageSlot = CosmeticSlot | 'colors' | 'face' | 'atelier' | 'shorts' | 'gloves' | 'shoes';
+type GarageSlot = CosmeticSlot | 'colors' | 'face' | 'atelier' | 'shorts' | 'gloves' | 'shoes' | 'skin' | 'hair' | 'beard';
+/** Types du personnage qui montrent la tête nue (visage, peau, cheveux, barbe). */
+const isFaceSlot = (sl: GarageSlot): sl is 'face' | 'skin' | 'hair' | 'beard' => sl === 'face' || sl === 'skin' || sl === 'hair' || sl === 'beard';
 
 /** Seuils des zones de puissance (× FTP) et leurs couleurs (Z1 à Z7). */
 const ZONE_LIMITS = [0.55, 0.75, 0.9, 1.05, 1.2, 1.5];
@@ -367,7 +374,7 @@ function helmetKind(c: CosmeticItem): 'road' | 'tt' | 'cap' | 'none' {
 }
 
 /** Pictogramme de chaque emplacement de la tenue. */
-const SLOT_PICTO: Partial<Record<GarageSlot, string>> = { jersey: ICON.pJersey, helmet: ICON.pHelmet, glasses: ICON.pGlasses, socks: ICON.pSocks, shorts: ICON.pShorts, gloves: ICON.pGloves, shoes: ICON.pShoes };
+const SLOT_PICTO: Partial<Record<GarageSlot, string>> = { jersey: ICON.pJersey, helmet: ICON.pHelmet, glasses: ICON.pGlasses, socks: ICON.pSocks, shorts: ICON.pShorts, gloves: ICON.pGloves, shoes: ICON.pShoes, face: ICON.pFace, skin: ICON.pSkin, hair: ICON.pHair, beard: ICON.pBeard, colors: ICON.pPalette };
 
 /** Encre (claire ou foncée) lisible sur le fond d'une pastille : d'après la première couleur hexadécimale du fond. */
 function pictoInk(bg: string): string {
@@ -385,6 +392,8 @@ const QUICK_COLORS: Record<string, string[]> = {
   helmet: ['#f4f4f4', '#111111', '#1f6feb', '#d62828', '#ffd23f', '#2a9d8f'],
   shoes: ['#f2f2f2', '#111418', '#1e5bd8', '#c0392b', '#d7f205', '#ff7a1a'],
   socks: ['#f2f2f2', '#111418', '#1e5bd8', '#c0392b', '#ffd23f', '#2a9d8f'],
+  skin: ['#f1c27d', '#e0ac69', '#c68642', '#8d5524', '#ffdbac', '#5c3a21'],
+  hair: ['#1f1a17', '#3b2a1e', '#6a4e35', '#b88a52', '#d9c08a', '#9a9a9a', '#a8442a'],
   shoeAccent: ['#ffd23f', '#ffffff', '#111111', '#d62828', '#1f6feb', '#2a9d8f'],
   gloveColor: ['#16161a', '#ffffff', '#d62828', '#1f6feb', '#ffd23f', '#2a9d8f'],
 };
@@ -539,7 +548,7 @@ export class MainMenu {
   onLookLive?: (look: AvatarLook, bareHead: boolean) => void;
   /** Éditeur de visage ouvert avec tête nue : l'aperçu garde casque et lunettes masqués. */
   get bareHeadPreview(): boolean {
-    return this.tab === 'garage' && this.garageSlot === 'face' && this.bareHead;
+    return this.tab === 'garage' && isFaceSlot(this.garageSlot) && this.bareHead;
   }
   /** Cadrage 3D demandé par le menu : photo du groupe ou vue du garage (rotation en radians). */
   onScene?: (view: 'poster' | GarageView, yaw: number, bikeOnly?: boolean, zoom?: number) => void;
@@ -1882,7 +1891,9 @@ export class MainMenu {
       ['cockpit', 'Cockpit'],
     ];
     const items =
-      this.garageSlot === 'face'
+      this.garageSlot === 'skin' || this.garageSlot === 'hair' || this.garageSlot === 'beard'
+        ? characterTypeHtml(this.garageSlot, this.s.look, (l, k, c) => this.colorRow(l, k, c))
+        : this.garageSlot === 'face'
         ? faceEditorHtml(this.s.look, this.faceTab, this.bareHead, this.faceUndo.length > 0, this.photoOpen)
         : this.garageSlot === 'colors'
         ? `<div class="mm-colors">
@@ -1917,7 +1928,7 @@ export class MainMenu {
     return `<div class="mm-dragzone" id="m-dragzone"></div>
       <div class="mm-views">${views.map(([v, label]) => `<button class="mm-view ${v === this.view ? 'on' : ''}" data-view="${v}">${label}</button>`).join('')}
         <span class="mm-drag">${ICON.rotate} ${L ? 'Glisser pour tourner' : 'Drag to rotate'}</span></div>
-      ${this.garageSlot === 'face' ? '' : this.roadEffect()}
+      ${isFaceSlot(this.garageSlot) ? '' : this.roadEffect()}
       <button class="gr-reopen" data-gr="open" ${this.grFolded ? '' : 'hidden'}>‹ ${L ? 'Menu' : 'Menu'}</button>
       <section class="mm-panel mm-side gr-panel${this.grFolded ? ' gr-folded' : ''}">
         <div class="gr-top">${this.garageHeader(lp, p.xp)}${this.garageNav()}</div>
@@ -1946,7 +1957,7 @@ export class MainMenu {
     const groups: Array<{ label: string; icon: string; first: GarageSlot; subs: Array<[GarageSlot, string]> }> = [
       { label: L ? 'Tenue' : 'Outfit', icon: ICON.gTenue, first: 'jersey', subs: [['jersey', slotLabel('jersey')], ['shorts', L ? 'Cuissard' : 'Shorts'], ['helmet', slotLabel('helmet')], ['glasses', slotLabel('glasses')], ['gloves', L ? 'Gants' : 'Gloves'], ['socks', slotLabel('socks')], ['shoes', L ? 'Chaussures' : 'Shoes']] },
       { label: L ? 'Vélo' : 'Bike', icon: ICON.gBike, first: 'bike', subs: [['bike', L ? 'Choisir mon vélo' : 'Pick my bike'], ['atelier', `${ICON.gWrench} ${L ? 'Atelier de pièces' : 'Parts workshop'}`], ['trainer', L ? 'Home trainer' : 'Home trainer']] },
-      { label: L ? 'Personnage' : 'Character', icon: ICON.gFace, first: 'face', subs: [['face', L ? 'Visage' : 'Face'], ['colors', L ? 'Couleurs' : 'Colours']] },
+      { label: L ? 'Personnage' : 'Character', icon: ICON.gFace, first: 'face', subs: [['face', L ? 'Visage' : 'Face'], ['skin', L ? 'Peau' : 'Skin'], ['hair', L ? 'Cheveux' : 'Hair'], ...(lookSex(this.s.look) === 'male' ? ([['beard', L ? 'Barbe' : 'Beard']] as Array<[GarageSlot, string]>) : []), ['colors', L ? 'Couleurs' : 'Colours']] },
     ];
     const active = groups.find((g) => g.subs.some(([id]) => id === cur)) ?? groups[0]!;
     // Tenue : une tuile par emplacement, avec l'équipement porté (coup d'œil sur ce qu'on porte, un clic ouvre son catalogue).
@@ -1958,8 +1969,8 @@ export class MainMenu {
       const base: Partial<Record<GarageSlot, string>> = { jersey: look.jersey, helmet: look.helmet, socks: look.socks ?? '#f2f2f2', glasses: '#1a1d24' };
       return `<button class="gr-slot ${id === cur ? 'on' : ''}" data-slot="${id}" aria-pressed="${id === cur}" title="${esc(item ? item.name[lang] : L ? 'Par défaut' : 'Default')}"><i>${SLOT_PICTO[id] ?? ''}</i><small>${label}</small></button>`;
     };
-    const subs = active.label === (L ? 'Tenue' : 'Outfit')
-      ? `<div class="gr-slots">${active.subs.map(tile).join('')}</div><div class="gr-typename">${esc(active.subs.find(([id]) => id === cur)?.[1] ?? '')}</div>`
+    const subs = active.label === (L ? 'Tenue' : 'Outfit') || active.label === (L ? 'Personnage' : 'Character')
+      ? `<div class="gr-slots" style="--n:${active.subs.length}">${active.subs.map(tile).join('')}</div><div class="gr-typename">${esc(active.subs.find(([id]) => id === cur)?.[1] ?? '')}</div>`
       : `<div class="gr-subs">${active.subs.map(([id, label]) => `<button class="gr-sub ${id === cur ? 'on' : ''}" data-slot="${id}">${label}</button>`).join('')}</div>`;
     return `<nav class="gr-groups" aria-label="${L ? 'Rubriques du garage' : 'Garage sections'}">${groups
       .map((g) => `<button class="gr-group ${g === active ? 'on' : ''}" data-slot="${g === active ? cur : g.first}" aria-pressed="${g === active}">${g.icon}<span>${g.label}</span></button>`)
@@ -1977,7 +1988,7 @@ export class MainMenu {
     if (SLOT_PICTO[c.slot as GarageSlot]) {
       const bg = swatch(c);
       const stateTxt = prev ? `${L ? 'Aperçu' : 'Preview'} · ${L ? 'niv.' : 'lvl'} ${c.level}` : locked ? `${L ? 'Niveau' : 'Level'} ${c.level} · ${L ? `dans ${c.level - level} niv.` : `${c.level - level} to go`}` : on ? (L ? 'Équipé' : 'Equipped') : L ? 'Débloqué' : 'Unlocked';
-      return `<button class="gr-chip ${on ? 'on' : ''} ${locked ? 'locked' : ''} ${prev ? 'preview' : ''}" data-item="${c.id}" data-cap-name="${esc(c.name[lang])}" data-cap-effect="${esc(c.effect?.[lang] ?? '')}" data-cap-state="${esc(stateTxt)}" aria-label="${esc(c.name[lang])} — ${esc(stateTxt)}" style="background:${bg};color:${pictoInk(bg)}">${SLOT_PICTO[c.slot as GarageSlot]}${locked ? `<u>${ICON.pLock}</u>` : on ? '<u class="ok">✓</u>' : ''}</button>`;
+      return `<button class="gr-chip ${on ? 'on' : ''} ${locked ? 'locked' : ''} ${prev ? 'preview' : ''}" data-item="${c.id}" data-cap-name="${esc(c.name[lang])}" data-cap-effect="${esc(c.effect?.[lang] ?? '')}" data-cap-state="${esc(stateTxt)}" aria-label="${esc(c.name[lang])} — ${esc(stateTxt)}" style="background:${bg};color:${pictoInk(bg)}">${locked ? `<u>${ICON.pLock}</u>` : on ? '<u class="ok">✓</u>' : ''}</button>`;
     }
     return `<button class="mm-item ${on ? 'on' : ''} ${locked ? 'locked' : ''} ${prev ? 'preview' : ''}" data-item="${c.id}" title="${locked ? (L ? 'Cliquer pour l’essayer' : 'Click to try it on') : ''}">
                 <i style="background:${swatch(c)}"></i>
@@ -2100,7 +2111,7 @@ export class MainMenu {
   }
 
   /** Couleurs de l'emplacement : pastilles rondes et roue de couleur (même effet que l'onglet Couleurs). */
-  private colorRow(label: string, key: 'jersey' | 'jerseyAccent' | 'helmet' | 'shoes' | 'shoeAccent' | 'socks' | 'gloveColor', current: string): string {
+  private colorRow(label: string, key: 'jersey' | 'jerseyAccent' | 'helmet' | 'shoes' | 'shoeAccent' | 'socks' | 'gloveColor' | 'skin' | 'hair', current: string): string {
     const cur = current.toLowerCase();
     return `<div class="gr-colors"><small>${label}</small><div>${(QUICK_COLORS[key] ?? [])
       .map((h) => `<button class="gr-sw ${h.toLowerCase() === cur ? 'on' : ''}" data-setcolor="${key}:${h}" style="background:${h}" aria-label="${h}" aria-pressed="${h.toLowerCase() === cur}"></button>`)
@@ -3214,7 +3225,7 @@ export class MainMenu {
           return;
         }
         if (was === 'atelier') this.atelier.leave();
-        if (this.garageSlot === 'face') {
+        if (isFaceSlot(this.garageSlot)) {
           this.view = 'face';
           this.yaw = 0;
         } else if (this.garageSlot !== 'colors') {
@@ -3223,7 +3234,7 @@ export class MainMenu {
         }
         this.render();
         this.onScene?.(this.view, this.yaw, this.garageSlot === 'bike', this.zoom);
-        if ((was === 'face') !== (this.garageSlot === 'face')) this.onLookLive?.(s.look, this.bareHeadPreview);
+        if (isFaceSlot(was) !== isFaceSlot(this.garageSlot)) this.onLookLive?.(s.look, this.bareHeadPreview);
       }),
     );
     this.root.querySelectorAll<HTMLElement>('[data-htype]').forEach((el) =>

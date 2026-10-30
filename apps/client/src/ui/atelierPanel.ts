@@ -70,6 +70,41 @@ export const TUNE_SLOT_LABEL: Record<TuneSlot, [string, string]> = {
   computer: ['Compteur', 'Computer'],
 };
 
+/** Zones du vélo (schéma cliquable) : chacune regroupe des emplacements de pièces. */
+interface Zone {
+  id: string;
+  label: [string, string];
+  slots: TuneSlot[];
+}
+const ZONES: Zone[] = [
+  { id: 'wheels', label: ['Roues', 'Wheels'], slots: ['wheelset', 'spokes', 'rimdecal', 'rimglow', 'valves'] },
+  { id: 'tyres', label: ['Pneus', 'Tyres'], slots: ['tyres'] },
+  { id: 'cockpit', label: ['Cockpit', 'Cockpit'], slots: ['cockpit', 'aerobars', 'tape', 'computer', 'topcap', 'spacers', 'bolts'] },
+  { id: 'saddle', label: ['Selle', 'Saddle'], slots: ['saddle', 'seatpost'] },
+  { id: 'drive', label: ['Transmission', 'Drivetrain'], slots: ['groupset', 'crank', 'cassette', 'chain', 'pulleys', 'rotors'] },
+  { id: 'frame', label: ['Cadre', 'Frame'], slots: ['paint', 'finish', 'sticker', 'number', 'bottles'] },
+];
+const zoneOfSlot = (sl: TuneSlot): Zone => ZONES.find((z) => z.slots.includes(sl)) ?? (ZONES[0] as Zone);
+const familyOfSlot = (sl: TuneSlot): TuneFamily => ((Object.keys(TUNE_SLOTS) as Array<keyof typeof TUNE_SLOTS>).find((f) => (TUNE_SLOTS[f] as readonly string[]).includes(sl)) ?? 'tech') as TuneFamily;
+const pic = (d: string) => `<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
+/** Pictogramme de chaque zone, posé sur la couleur de la pièce. */
+const ZONE_PICTO: Record<string, string> = {
+  wheels: pic('<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="2"/><path d="M12 3.5v6.5M12 14v6.5M3.5 12H10M14 12h6.5"/>'),
+  tyres: pic('<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="5.5"/>'),
+  cockpit: pic('<path d="M3 8h18M12 8v8M5 8c0 4 1 6 3 7M19 8c0 4-1 6-3 7"/>'),
+  saddle: pic('<path d="M4 9c3-1 7 0 10 1l6-1c1 0 1 2 0 2l-6 1c-3 1-7 1-10 0-1 0-1-2 0-3ZM12 13v7"/>'),
+  drive: pic('<circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.5"/><path d="M12 4v3M12 17v3M4 12h3M17 12h3M6.3 6.3l2.1 2.1M15.6 15.6l2.1 2.1M17.7 6.3l-2.1 2.1M8.4 15.6l-2.1 2.1"/>'),
+  frame: pic('<path d="M5 17 9 8h8l-3 9M9 8 7 5H5M14 17H5M17 8l2 9"/>'),
+};
+/** Encre lisible (claire ou foncée) sur le fond d'une pastille : d'après la première couleur hexadécimale. */
+function inkOn(bg: string): string {
+  const m = /#([0-9a-f]{6})/i.exec(bg);
+  if (!m) return '#ffffff';
+  const v = parseInt(m[1] as string, 16);
+  const lum = (0.299 * ((v >> 16) & 255) + 0.587 * ((v >> 8) & 255) + 0.114 * (v & 255)) / 255;
+  return lum > 0.62 ? '#10141c' : '#ffffff';
+}
+
 const fr = () => getLang() === 'fr';
 const L2 = (p: [string, string]) => (fr() ? p[0] : p[1]);
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] as string);
@@ -265,14 +300,13 @@ export class AtelierPanel {
     const list =
       this.family === 'kit'
         ? `<div class="at-kits">${TUNE_KITS.map((k) => this.kitCard(k, p.owned, p.credits, level)).join('')}</div>`
-        : `<div class="at-items">${TUNE_ITEMS.filter((t) => (this.family === 'event' ? t.family === 'event' : t.family === this.family && t.slot === this.slot))
-            .map((t) => this.itemCard(t, p, level))
-            .join('')}</div>`;
+        : `<div class="at-chips">${TUNE_ITEMS.filter((t) => (this.family === 'event' ? t.family === 'event' : t.family === this.family && t.slot === this.slot))
+            .map((t) => this.itemChip(t, p, level))
+            .join('')}</div><div class="gr-cap at-cap" id="at-cap"><b></b><span></span><em></em></div>`;
     return `<div class="mm-dragzone" id="m-dragzone"></div>
       <section class="mm-panel mm-side gr-panel at-panel">
         <div class="gr-top">${header}${nav}
-          <div class="at-tabs">${fams.map((f) => `<button class="at-tab ${f === this.family ? 'on' : ''}" data-atfam="${f}">${L2(FAMILY_LABEL[f])}</button>`).join('')}</div>
-          ${slots.length ? `<div class="at-slots" role="radiogroup">${slots.map((sl) => `<button class="${sl === this.slot ? 'on' : ''}" data-atslot="${sl}" role="radio" aria-checked="${sl === this.slot}">${L2(TUNE_SLOT_LABEL[sl])}${p.equipped[sl] ? '<i class="at-dot"></i>' : ''}</button>`).join('')}</div>` : ''}
+          ${this.zonesHtml(p)}
         </div>
         <div class="gr-body">${list}${this.msg ? `<p class="at-msg">${esc(this.msg)}</p>` : ''}</div>
         <div class="gr-foot at-bottom">
@@ -284,6 +318,42 @@ export class AtelierPanel {
         </div>
       </section>
       ${this.statsHtml()}`;
+  }
+
+  /** Schéma du vélo (zones cliquables), ensembles et récompenses, puis les emplacements de la zone choisie. */
+  private zonesHtml(p: ReturnType<typeof loadProgress>): string {
+    const L = fr();
+    const zone = this.family === 'kit' || this.family === 'event' ? null : zoneOfSlot(this.slot);
+    const hot = (z: Zone, cx: number, cy: number, r: number, tx: number | null, ty = 0, anchor = 'middle') =>
+      `<g class="at-hot ${zone?.id === z.id ? 'on' : ''}" data-atzone="${z.id}" role="button" tabindex="0" aria-label="${L2(z.label)}"><title>${L2(z.label)}</title><circle cx="${cx}" cy="${cy}" r="${r}"/>${tx === null ? '' : `<text x="${tx}" y="${ty}" text-anchor="${anchor}">${L2(z.label)}</text>`}</g>`;
+    const [wheels, tyres, cockpit, saddle, drive, frame] = ZONES as [Zone, Zone, Zone, Zone, Zone, Zone];
+    const svg = `<svg class="at-bike" viewBox="0 0 330 168" role="group" aria-label="${L ? 'Schéma du vélo' : 'Bike diagram'}">
+      <g class="at-line"><circle cx="75" cy="112" r="42"/><circle cx="255" cy="112" r="42"/><path d="M75 112 L135 112 L180 52 L112 52 Z M135 112 L180 52 M180 52 L245 52 L255 112 M112 52 L104 34 M245 52 L236 32 L258 32"/></g>
+      ${hot(wheels, 75, 112, 13, 75, 168)}${hot(wheels, 255, 112, 13, null)}${hot(tyres, 33, 112, 7, null)}${hot(tyres, 297, 112, 7, 297, 134)}
+      ${hot(cockpit, 247, 24, 9, 247, 10)}${hot(saddle, 104, 24, 9, 104, 10)}${hot(drive, 135, 112, 10, 170, 154)}${hot(frame, 180, 52, 9, 196, 42, 'start')}
+    </svg>`;
+    const extra = `<div class="at-extra"><button class="gr-vchip ${this.family === 'kit' ? 'on' : ''}" data-atzone="kit">${L2(FAMILY_LABEL.kit)}</button><button class="gr-vchip ${this.family === 'event' ? 'on' : ''}" data-atzone="event">${L2(FAMILY_LABEL.event)}</button></div>`;
+    const types =
+      zone && zone.slots.length > 1
+        ? `<div class="gr-vopt at-types"><small>${L2(zone.label)}</small><div>${zone.slots
+            .map((sl) => `<button class="gr-vchip ${sl === this.slot ? 'on' : ''}" data-atslot="${sl}" aria-pressed="${sl === this.slot}">${L2(TUNE_SLOT_LABEL[sl])}${p.equipped[sl] ? '<u class="at-dot"></u>' : ''}</button>`)
+            .join('')}</div></div>`
+        : '';
+    return `<div class="at-zones">${svg}${extra}</div>${types}`;
+  }
+
+  /** Pastille d'une pièce : pictogramme de sa zone sur ses couleurs, liseré de rareté, état en coin. */
+  private itemChip(t: TuneItem, p: ReturnType<typeof loadProgress>, level: number): string {
+    const L = fr();
+    const owned = p.owned.includes(t.id);
+    const on = !!t.slot && p.equipped[t.slot] === t.id;
+    const av = tuneAvailability(t, level, p.owned);
+    const locked = !owned && av !== 'buyable';
+    const bg = swatch(t);
+    const rar = RARITY_LABEL[t.rarity];
+    const state = on ? (L ? 'Équipé' : 'Equipped') : owned ? (L ? 'Possédé' : 'Owned') : locked ? (av === 'level' && 'level' in t.unlock ? `${L ? 'Niveau' : 'Level'} ${t.unlock.level}` : L ? 'Verrouillé' : 'Locked') : `${credits(t.price)} ${L ? 'crédits' : 'credits'}`;
+    const badge = on ? '<u class="ok">✓</u>' : locked ? `<u>${pic('<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>').replace('width="26" height="26"', 'width="10" height="10"')}</u>` : owned ? '' : `<u class="coin">${COIN}</u>`;
+    return `<button class="at-item at-chip ${on ? 'on' : ''} ${owned ? 'owned' : ''} ${locked ? 'locked' : ''} ${this.selected === t.id ? 'sel' : ''}" data-tune="${t.id}" data-cap-name="${esc(t.name[L ? 'fr' : 'en'])}" data-cap-effect="${esc(t.effect[L ? 'fr' : 'en'])}" data-cap-state="${esc(state)}" style="--rar:${rar.color};background:${bg};color:${inkOn(bg)}" aria-label="${esc(t.name[L ? 'fr' : 'en'])} — ${esc(state)}">${badge}</button>`;
   }
 
   private stateLabel(t: TuneItem, owned: boolean, on: boolean, level: number, creditsNow: number): string {
@@ -400,21 +470,36 @@ export class AtelierPanel {
     const q = <T extends HTMLElement>(sel: string) => root.querySelectorAll<T>(sel);
     // Pièce sélectionnée (p. ex. au retour dans l'atelier) : visible dans la liste.
     root.querySelector('.at-item.sel, .at-kit.sel')?.scrollIntoView({ block: 'nearest' });
-    q('[data-atfam]').forEach((el) =>
-      el.addEventListener('click', () => {
-        this.family = el.dataset.atfam as TuneFamily;
-        if (this.family in TUNE_SLOTS) this.slot = TUNE_SLOTS[this.family as keyof typeof TUNE_SLOTS][0] as TuneSlot;
+    q('[data-atzone]').forEach((el) => {
+      const go = () => {
+        const id = el.dataset.atzone as string;
+        if (id === 'kit' || id === 'event') this.family = id;
+        else {
+          const z = ZONES.find((x) => x.id === id);
+          if (!z) return;
+          // La zone déjà ouverte garde son emplacement ; sinon son premier.
+          this.slot = z.slots.includes(this.slot) && this.family !== 'kit' && this.family !== 'event' ? this.slot : (z.slots[0] as TuneSlot);
+          this.family = familyOfSlot(this.slot);
+        }
         this.selected = null;
         this.hover = null;
         this.msg = '';
         this.yaw = 0;
-        this.emit();
+        this.emit(id === 'kit' || id === 'event' ? undefined : SLOT_PARTS[this.slot]);
         this.host.rerender();
-      }),
-    );
+      };
+      el.addEventListener('click', go);
+      el.addEventListener('keydown', (e) => {
+        if ((e as KeyboardEvent).key === 'Enter' || (e as KeyboardEvent).key === ' ') {
+          e.preventDefault();
+          go();
+        }
+      });
+    });
     q('[data-atslot]').forEach((el) =>
       el.addEventListener('click', () => {
         this.slot = el.dataset.atslot as TuneSlot;
+        this.family = familyOfSlot(this.slot);
         this.selected = null;
         this.hover = null;
         this.msg = '';
@@ -423,16 +508,28 @@ export class AtelierPanel {
         this.host.rerender();
       }),
     );
+    // Légende de la pastille survolée (sinon la sélectionnée ou la montée).
+    const cap = root.querySelector<HTMLElement>('#at-cap');
+    const showCap = (chip: HTMLElement | null) => {
+      if (!cap) return;
+      (cap.querySelector('b') as HTMLElement).textContent = chip?.dataset.capName ?? '';
+      (cap.querySelector('span') as HTMLElement).textContent = chip?.dataset.capEffect ?? '';
+      (cap.querySelector('em') as HTMLElement).textContent = chip?.dataset.capState ?? '';
+      cap.classList.toggle('empty', !chip);
+    };
+    showCap(root.querySelector<HTMLElement>('.at-chip.sel') ?? root.querySelector<HTMLElement>('.at-chip.on'));
     // Survol : essai immédiat (surbrillance) ; clic : sélection (détail, achat, équipement).
     q('[data-tune]').forEach((el) => {
       const id = el.dataset.tune as string;
       el.addEventListener('pointerenter', () => {
+        showCap(el);
         if (this.hover === id) return;
         this.hover = id;
         this.emit(this.pulseOf(id));
         this.refreshStats(root);
       });
       el.addEventListener('pointerleave', () => {
+        showCap(root.querySelector<HTMLElement>('.at-chip.sel') ?? root.querySelector<HTMLElement>('.at-chip.on'));
         if (this.hover !== id) return;
         this.hover = null;
         this.emit();

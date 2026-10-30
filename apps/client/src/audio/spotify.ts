@@ -10,7 +10,15 @@
  * jeu + « / », à déclarer à l'identique dans l'application Spotify (Spotify refuse « localhost »).
  */
 
+import { inDesktopApp } from '../net/desktopAuth.ts';
+
 const env = (import.meta as unknown as { env: Record<string, string | undefined> }).env;
+
+/** Racine du site (et de l'API) pour les applications de bureau : celle du serveur configuré à la construction. */
+const siteRoot = (): string | null => {
+  const url = env.VITE_SERVER_URL;
+  return url ? url.replace(/\/colyseus$/, '') : null;
+};
 const clientId = () => env.VITE_SPOTIFY_CLIENT_ID ?? localStorage.getItem('ar.spotify.clientId') ?? '';
 const SCOPES = 'user-read-playback-state user-modify-playback-state user-read-currently-playing streaming user-read-email user-read-private playlist-read-private playlist-read-collaborative';
 const PLAYER_NAME = 'Allez Robert !';
@@ -45,7 +53,12 @@ export interface NowPlaying {
 }
 
 /** Adresse de retour à déclarer chez Spotify ; « localhost » y est refusé, d'où 127.0.0.1 en local. */
-export const redirectUri = () => env.VITE_SPOTIFY_REDIRECT_URI ?? `${location.origin.replace('//localhost', '//127.0.0.1')}${location.pathname}`;
+export const redirectUri = () => {
+  if (env.VITE_SPOTIFY_REDIRECT_URI) return env.VITE_SPOTIFY_REDIRECT_URI;
+  // Application de bureau : l'adresse du jeu web (déjà déclarée chez Spotify), car la fenêtre de l'application (tauri://…) ne peut pas l'être.
+  if (inDesktopApp && siteRoot()) return `${siteRoot()}/jouer`;
+  return `${location.origin.replace('//localhost', '//127.0.0.1')}${location.pathname}`;
+};
 
 function b64url(bytes: Uint8Array): string {
   return btoa(String.fromCharCode(...bytes))
@@ -293,6 +306,7 @@ class SpotifyRemote {
 
   /** Redirige vers la page d'autorisation Spotify. */
   async login(): Promise<void> {
+    if (inDesktopApp && siteRoot()) return this.loginDesktop();
     // Ouvert via « localhost » : on bascule d'abord sur l'adresse de retour (127.0.0.1) en emportant
     // l'identifiant (public), la connexion reprend là-bas — le stockage du navigateur dépend de l'adresse.
     const back = new URL(redirectUri());
@@ -317,6 +331,33 @@ class SpotifyRemote {
     location.href = `https://accounts.spotify.com/authorize?${q}`;
   }
 
+  /**
+   * Application de bureau : autorisation dans le navigateur du poste ; au retour, la page du site dépose le code sur le
+   * relais du serveur, que l'application relève (PKCE : le code seul ne sert à rien sans le vérificateur gardé ici).
+   */
+  private async loginDesktop(): Promise<void> {
+    const root = siteRoot() as string;
+    const verifier = randomString(64);
+    const state = `desk${randomString(32)}`;
+    const challenge = b64url(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier))));
+    const q = new URLSearchParams({ client_id: clientId(), response_type: 'code', redirect_uri: redirectUri(), scope: SCOPES, code_challenge_method: 'S256', code_challenge: challenge, state });
+    const internals = (window as unknown as { __TAURI_INTERNALS__: { invoke: (cmd: string, args: unknown) => Promise<unknown> } }).__TAURI_INTERNALS__;
+    await internals.invoke('open_external', { url: `https://accounts.spotify.com/authorize?${q}` });
+    const until = Date.now() + 5 * 60_000;
+    while (Date.now() < until) {
+      await new Promise((r) => setTimeout(r, 2000));
+      try {
+        const res = await fetch(`${root}/api/spotify-relay/take`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ state }) });
+        if (res.status !== 200) continue;
+        const { code } = (await res.json()) as { code: string };
+        if (await tokenRequest({ grant_type: 'authorization_code', code, redirect_uri: redirectUri(), code_verifier: verifier })) location.reload();
+        return;
+      } catch {
+        // Réseau coupé : on réessaie.
+      }
+    }
+  }
+
   /** Au chargement : termine la connexion si l'on revient de Spotify (?code&state), puis nettoie l'URL. */
   async handleRedirect(): Promise<void> {
     // Suite d'une bascule depuis « localhost » : identifiant repris, connexion lancée.
@@ -329,6 +370,16 @@ class SpotifyRemote {
     const url = new URL(location.href);
     const code = url.searchParams.get('code');
     const state = url.searchParams.get('state');
+    // Connexion lancée depuis une application de bureau : ce navigateur ne fait que transmettre le code à l'application.
+    if (code && state && /^desk[A-Za-z0-9_-]{20,80}$/.test(state)) {
+      history.replaceState(null, '', location.pathname);
+      const ok = await fetch('/api/spotify-relay/put', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ state, code }) }).then((r) => r.ok).catch(() => false);
+      const note = document.createElement('div');
+      note.style.cssText = 'position:fixed;inset:0;z-index:99999;display:grid;place-items:center;background:#0a0e16;color:#f1f4f9;font:600 20px system-ui,sans-serif;text-align:center;padding:24px';
+      note.textContent = ok ? 'Spotify est connecté : retourne dans l’application Allez Robert !, tu peux fermer cet onglet.' : 'La connexion n’a pas pu être transmise à l’application : relance-la depuis Allez Robert !';
+      document.body.appendChild(note);
+      return;
+    }
     const expected = sessionStorage.getItem('ar.spotify.state');
     if (!state || state !== expected) return;
     const verifier = sessionStorage.getItem('ar.spotify.verifier') ?? '';

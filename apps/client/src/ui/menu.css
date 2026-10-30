@@ -944,3 +944,32 @@
 .gr-slot.on i { background: var(--ar-accent); color: #0a0e16; box-shadow: none; }
 
 .gr-vchip i { font-style: normal; margin-left: 4px; opacity: 0.6; font-family: var(--mono); font-size: 10.5px; }
+
+/* ——— Atelier : schéma du vélo, types en pastilles, pièces en pastilles ——— */
+.at-zones { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: center; }
+.at-bike { width: 100%; height: auto; max-height: 150px; }
+.at-line { fill: none; stroke: #4b5563; stroke-width: 2.5; }
+.at-hot { cursor: pointer; outline: 0; }
+.at-hot circle { fill: #3b4656; stroke: rgba(255, 255, 255, 0.3); stroke-width: 1; transition: fill 0.15s ease, r 0.15s ease; }
+.at-hot text { fill: #9aa5b1; font: 700 10px var(--font); }
+.at-hot:hover circle, .at-hot:focus-visible circle { fill: #6b7a90; }
+.at-hot.on circle { fill: var(--ar-accent); stroke: var(--ar-accent); }
+.at-hot.on text { fill: #fff; }
+.at-extra { display: grid; gap: 6px; }
+.at-types { margin-top: 8px; }
+.gr-vchip u { display: inline-block; width: 6px; height: 6px; margin-left: 6px; border-radius: 50%; background: var(--ar-accent); vertical-align: 2px; }
+.gr-vchip.on u { background: #0a0e16; }
+.at-chips { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; }
+.at-chip { appearance: none; position: relative; display: grid; place-items: center; aspect-ratio: 1; width: 100%; padding: 0; border: 2px solid var(--rar, transparent); border-radius: 10px; cursor: pointer; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14); transition: transform 0.12s ease; }
+.at-chip svg { width: 58%; height: 58%; }
+.at-chip:hover, .at-chip:focus-visible { transform: translateY(-2px); outline: 0; }
+.at-chip.sel { outline: 2px solid var(--ar-accent); outline-offset: 1px; }
+.at-chip.on { border-color: var(--ar-accent); }
+.at-chip.locked { filter: saturate(0.5) brightness(0.72); }
+.at-chip u { position: absolute; right: -4px; bottom: -4px; display: grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; background: #0a0e16; color: #aeb7c3; text-decoration: none; font-size: 10px; border: 1px solid rgba(255, 255, 255, 0.25); }
+.at-chip u svg { width: 10px; height: 10px; }
+.at-chip u.ok { background: var(--ar-accent); color: #0a0e16; border-color: var(--ar-accent); font-weight: 900; }
+.at-cap { margin-top: 12px; }
+
+/* Personnage : autant de pictogrammes que de types (visage, peau, cheveux, barbe, couleurs) */
+.gr-slots { grid-template-columns: repeat(var(--n, 7), minmax(0, 1fr)); }

@@ -176,3 +176,20 @@ describe('administration — plateformes', () => {
     expect(detail.platforms.map((p) => p.platform)).toEqual(['mac']);
   });
 });
+
+describe('relais Spotify des applications', () => {
+  beforeAll(() => boot({}));
+  afterAll(stop);
+
+  it('dépose puis relève le code une seule fois, avec un state d’application', async () => {
+    const post = (path: string, body: unknown) => fetch(`${base}/api/spotify-relay/${path}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+    const state = 'desk' + 'a'.repeat(32);
+    expect((await post('take', { state })).status).toBe(404);
+    expect((await post('put', { state: 'web-state-1234567890123456', code: 'x'.repeat(20) })).status).toBe(400);
+    expect((await post('put', { state, code: 'c'.repeat(30) })).status).toBe(204);
+    const got = await post('take', { state });
+    expect(got.status).toBe(200);
+    expect(((await got.json()) as { code: string }).code).toBe('c'.repeat(30));
+    expect((await post('take', { state })).status).toBe(404);
+  });
+});

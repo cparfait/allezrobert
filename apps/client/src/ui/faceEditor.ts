@@ -108,7 +108,7 @@ export function faceEditorHtml(look: AvatarLook, tab: FaceTab, bareHead: boolean
   return `<div class="fe">
     <div class="fe-seg fe-sex" role="radiogroup">${(['male', 'female'] as const).map((x) => `<button data-fesex="${x}" role="radio" aria-checked="${(male ? 'male' : 'female') === x}" class="${(male ? 'male' : 'female') === x ? 'on' : ''}">${x === 'male' ? (L ? 'Homme' : 'Man') : L ? 'Femme' : 'Woman'}</button>`).join('')}</div>
     <div class="fe-profiles" title="${L ? 'Partir d’un profil de base' : 'Start from a base profile'}">${BASE_PROFILES.filter((p) => (p.shape.sex ?? 0) < -0.5 !== male).map((p) => `<button data-feprofile="${p.id}" title="${esc(p.desc[L ? 'fr' : 'en'])}">${esc(p.name)}</button>`).join('')}</div>
-    <div class="fe-tabs">${TABS.map(([id, fr, en]) => `<button data-fetab="${id}" class="${id === tab ? 'on' : ''}">${L ? fr : en}</button>`).join('')}</div>
+    <div class="fe-tabs">${TABS.filter(([id]) => id !== 'skin').map(([id, fr, en]) => `<button data-fetab="${id}" class="${id === tab ? 'on' : ''}">${L ? fr : en}</button>`).join('')}</div>
     <div class="fe-sliders">${sliders}</div>
     <details class="fe-photo"${photoOpen ? ' open' : ''}><summary>${L ? 'Ressemblance à partir d’une photo' : 'Likeness from a photo'}</summary>
       <p>${
@@ -129,8 +129,23 @@ export function faceEditorHtml(look: AvatarLook, tab: FaceTab, bareHead: boolean
   </div>`;
 }
 
-function rangeHtml(id: string, label: string, value: number, min: number, max: number, slider?: FaceSlider): string {
+export function rangeHtml(id: string, label: string, value: number, min: number, max: number, slider?: FaceSlider): string {
   return `<label class="fe-range">${esc(label)}<input id="${id}" ${slider ? `data-feslider="${slider}"` : ''} type="range" min="${min}" max="${max}" step="0.02" value="${value.toFixed(2)}" /></label>`;
 }
 
 export { withBaseHead, withLikeness, withProfile, withRandomFace, withSlider } from './faceEditorLogic.ts';
+
+
+/** Types du personnage hors visage : peau (teint, taches), cheveux (couleur, coiffure) et barbe (hommes). */
+export const HAIR_STYLE_CHOICES = HAIR_STYLES;
+export function characterTypeHtml(kind: 'skin' | 'hair' | 'beard', look: AvatarLook, colorRow: (label: string, key: 'skin' | 'hair', current: string) => string): string {
+  const L = getLang() === 'fr';
+  if (kind === 'skin') return `${colorRow(L ? 'Teint' : 'Skin tone', 'skin', look.skin)}<div class="fe-sliders">${rangeHtml('fe-freckles', L ? 'Taches de rousseur' : 'Freckles', look.freckles ?? 0, 0, 1)}</div>`;
+  if (kind === 'hair') {
+    const cur = ((look.hairStyle % HAIR_STYLE_COUNT) + HAIR_STYLE_COUNT) % HAIR_STYLE_COUNT;
+    return `${colorRow(L ? 'Couleur' : 'Colour', 'hair', look.hair)}<div class="gr-vopt"><small>${L ? 'Coiffure' : 'Hairstyle'}</small><div id="fe-hairstyle">${HAIR_STYLES.map(
+      ([v, fr, en]) => `<button data-v="${v}" class="gr-vchip ${cur === v ? 'on' : ''}">${L ? fr : en}</button>`,
+    ).join('')}</div></div><p class="gr-note">${L ? 'Tête nue ; sous le casque, les cheveux sont courts ou attachés.' : 'Bare head; under a helmet, hair is short or tied.'}</p>`;
+  }
+  return `<div class="fe-sliders">${rangeHtml('fe-beard', L ? 'Barbe' : 'Beard', look.beard ?? 0, 0, 1)}</div><div class="gr-vopt"><small>${L ? 'Moustache' : 'Moustache'}</small><div><label class="fe-check"><input id="fe-moustache" type="checkbox" ${look.moustache ? 'checked' : ''} /> ${L ? 'Avec moustache' : 'With moustache'}</label></div></div>`;
+}
