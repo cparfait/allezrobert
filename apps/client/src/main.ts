@@ -1833,7 +1833,10 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
       e.preventDefault();
       hud.openChat((text) => mp?.net.chat(text));
     }
-    if (voice && (e.key === 'v' || e.key === 'V')) void voice.toggleMic().then((on) => hud.setVoice({ connected: true, micOn: on }));
+    if (voice && (e.key === 'v' || e.key === 'V')) void voice.toggleMic().then((on) => {
+      hud.setVoice({ connected: true, micOn: on });
+      if (voice?.micError) hud.toast(voice.micError);
+    });
     // Équipiers : allure du groupe en % de FTP ([ / ]), ordre « ralentissez » (R).
     if (e.key === '[' || e.key === ']') changePace(e.key === ']' ? 1 : -1);
     if (e.key === 'r' || e.key === 'R') slowDown();

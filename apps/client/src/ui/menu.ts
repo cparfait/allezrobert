@@ -136,6 +136,7 @@ const ICON = {
   pHair: svg('<path d="M5 14c0-6 3-9 7-9s7 3 7 9v1c-2-1-3-3-3-5-2 2-6 2-8 0 0 2-1 4-3 5Z"/>', 26),
   pBeard: svg('<path d="M6 8c0 6 2 10 6 10s6-4 6-10M9 14c1 1 5 1 6 0"/>', 26),
   pPalette: svg('<path d="M12 3a9 9 0 1 0 0 18c1.5 0 2-1 1.4-2-.7-1.2.1-2.6 1.6-2.6H17a4 4 0 0 0 4-4c0-5-4-9.4-9-9.4Z"/><circle cx="8" cy="11" r="1"/><circle cx="11" cy="7.5" r="1"/><circle cx="15.5" cy="8.5" r="1"/>', 26),
+  dice: svg('<rect x="4" y="4" width="16" height="16" rx="3"/><circle cx="9" cy="9" r="1.1"/><circle cx="15" cy="9" r="1.1"/><circle cx="12" cy="12" r="1.1"/><circle cx="9" cy="15" r="1.1"/><circle cx="15" cy="15" r="1.1"/>', 22),
   pLock: svg('<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>', 12),
   pJersey: svg('<path d="M8 3 3 6l2 4 2-1v12h10V9l2 1 2-4-5-3c-.5 1.6-2 2.5-4 2.5S8.5 4.6 8 3Z"/>', 26),
   pHelmet: svg('<path d="M3 15a9 8 0 0 1 18 0v2H3Z"/><path d="M8 8.5 9.5 15M12 7v8M16 8.5 14.5 15"/><path d="M6 17v2.5M18 17v2.5"/>', 26),
@@ -767,6 +768,11 @@ export class MainMenu {
         this.atelier.openItem(id);
         this.go('garage');
         this.atelier.blink(id);
+        // Même clignotement jaune que pour un équipement : la pastille de la pièce dans la liste de l'atelier.
+        const chip = this.root.querySelector<HTMLElement>(`[data-tune="${CSS.escape(id)}"]`);
+        chip?.scrollIntoView({ block: 'center' });
+        chip?.classList.add('blink');
+        setTimeout(() => chip?.classList.remove('blink'), 3800);
       },
       rerender: () => this.render(),
     });
@@ -1970,7 +1976,7 @@ export class MainMenu {
       return `<button class="gr-slot ${id === cur ? 'on' : ''}" data-slot="${id}" aria-pressed="${id === cur}" title="${esc(item ? item.name[lang] : L ? 'Par défaut' : 'Default')}"><i>${SLOT_PICTO[id] ?? ''}</i><small>${label}</small></button>`;
     };
     const subs = active.label === (L ? 'Tenue' : 'Outfit') || active.label === (L ? 'Personnage' : 'Character')
-      ? `<div class="gr-slots" style="--n:${active.subs.length}">${active.subs.map(tile).join('')}</div><div class="gr-typename">${esc(active.subs.find(([id]) => id === cur)?.[1] ?? '')}</div>`
+      ? `<div class="gr-slots" style="--n:${active.subs.length}">${active.subs.map(tile).join('')}</div><div class="gr-typename">${esc(active.subs.find(([id]) => id === cur)?.[1] ?? '')}${active.label === (L ? 'Personnage' : 'Character') ? `<button class="gr-dice" id="gr-dice" title="${L ? 'Personnage au hasard (visage, peau, cheveux, barbe)' : 'Random character (face, skin, hair, beard)'}" aria-label="${L ? 'Personnage au hasard' : 'Random character'}">${ICON.dice}</button>` : ''}</div>`
       : `<div class="gr-subs">${active.subs.map(([id, label]) => `<button class="gr-sub ${id === cur ? 'on' : ''}" data-slot="${id}">${label}</button>`).join('')}</div>`;
     return `<nav class="gr-groups" aria-label="${L ? 'Rubriques du garage' : 'Garage sections'}">${groups
       .map((g) => `<button class="gr-group ${g === active ? 'on' : ''}" data-slot="${g === active ? cur : g.first}" aria-pressed="${g === active}">${g.icon}<span>${g.label}</span></button>`)
@@ -3171,6 +3177,20 @@ export class MainMenu {
       }),
     );
     on('fe-random', 'click', () => faceSet(withRandomFace(s.look)));
+    // Dé : personnage entier au hasard (visage, teint, cheveux, coiffure, barbe), en gardant le sexe choisi.
+    on('gr-dice', 'click', () => {
+      const pick = <T,>(a: readonly T[]): T => a[Math.floor(Math.random() * a.length)] as T;
+      const male = lookSex(s.look) === 'male';
+      const base = withRandomFace(s.look);
+      faceSet({
+        ...base,
+        skin: pick(QUICK_COLORS.skin as string[]),
+        hair: pick(QUICK_COLORS.hair as string[]),
+        hairStyle: pick(male ? [0, 3, 4, 5, 8] : [0, 1, 2, 5, 6, 7, 9, 10, 11]),
+        freckles: Math.random() < 0.25 ? Math.random() * 0.8 : 0,
+        ...(male ? { beard: Math.random() < 0.45 ? 0.3 + Math.random() * 0.6 : 0, moustache: Math.random() < 0.3 } : {}),
+      });
+    });
     on('fe-reset', 'click', () => faceSet(withBaseHead(s.look)));
     on('fe-undo', 'click', () => {
       const prev = this.faceUndo.pop();

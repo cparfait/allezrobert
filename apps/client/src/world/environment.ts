@@ -252,15 +252,26 @@ export class Environment {
 
     // Le soleil passe sous l'horizon : la lune prend le relais (lumière froide et faible).
     const isNight = this.sunDir.y < -0.02;
-    const lightDir = isNight ? new THREE.Vector3(-this.sunDir.x, 0.6, -this.sunDir.z).normalize() : this.sunDir;
+    // Passage soleil → lune progressif (pas de saut de direction ni d'intensité au coucher : l'ombre ne « saute » plus).
+    const moonK = 1 - THREE.MathUtils.smoothstep(this.sunDir.y, -0.08, 0.04);
+    const moonDir = new THREE.Vector3(-this.sunDir.x, 0.6, -this.sunDir.z).normalize();
+    const lightDir = new THREE.Vector3().copy(this.sunDir).lerp(moonDir, moonK).normalize();
+    // Soleil rasant : les ombres de la carte d'ombres grésillent (acné, plis qui bougent) ; la direction de la lumière
+    // qui les porte ne descend jamais sous ~8° au-dessus de l'horizon.
+    if (lightDir.y < 0.14) {
+      const h = Math.hypot(lightDir.x, lightDir.z) || 1;
+      const k = Math.sqrt(1 - 0.14 * 0.14) / h;
+      lightDir.set(lightDir.x * k, 0.14, lightDir.z * k);
+    }
     const center = focus ?? new THREE.Vector3();
     this.sun.position.copy(center).addScaledVector(lightDir, 400);
     this.sun.target.position.copy(center);
     const sunStrength = THREE.MathUtils.smoothstep(this.sunDir.y, -0.05, 0.25);
     const overcast = Math.max(weather.clouds - 0.3, 0) / 0.7;
     // Ciel plombé : le soleil n'est plus qu'une lueur diffuse (pas de reflet vif sur la route mouillée).
-    this.sun.intensity = isNight ? 0.12 : (0.4 + 3.0 * sunStrength) * (1 - 0.88 * overcast);
-    this.sun.color.copy(isNight ? new THREE.Color('#9fb4ff') : pal.sunColor);
+    const dayIntensity = (0.4 + 3.0 * sunStrength) * (1 - 0.88 * overcast);
+    this.sun.intensity = THREE.MathUtils.lerp(dayIntensity, 0.12, moonK);
+    this.sun.color.copy(pal.sunColor).lerp(new THREE.Color('#9fb4ff'), moonK);
     this.hemi.color.copy(pal.hemiSky);
     this.hemi.groundColor.copy(pal.hemiGround);
     const nightK = 1 - THREE.MathUtils.smoothstep(this.sunDir.y, -0.18, 0.02);

@@ -1,4 +1,5 @@
 import type { Room, RemoteTrack, Participant } from 'livekit-client';
+import { getLang } from '../i18n/index.ts';
 import { apiBase } from '../ui/account.ts';
 import { getAudioDevices, onAudioDevices } from '../audio/devices.ts';
 
@@ -60,6 +61,8 @@ export class VoiceChat {
   private proximityTimer: ReturnType<typeof setInterval> | null = null;
   private offDevices: (() => void) | null = null;
   micOn = false;
+  /** Dernière raison d'échec du micro (vide si tout va bien) : affichée par le jeu. */
+  micError = '';
   /** Noms affichés des coureurs qui parlent en ce moment (et qu'on entend). */
   speaking = new Set<string>();
   onState?: (state: 'connected' | 'disconnected' | 'unavailable', detail?: string) => void;
@@ -137,8 +140,31 @@ export class VoiceChat {
   /** Bascule le micro (demande l'autorisation du navigateur la première fois). */
   async toggleMic(): Promise<boolean> {
     if (!this.room) return false;
+    this.micError = '';
     this.micOn = !this.micOn;
-    await this.room.localParticipant.setMicrophoneEnabled(this.micOn).catch(() => (this.micOn = false));
+    if (this.micOn) {
+      // Autorisation d'abord, pour savoir pourquoi le micro ne démarre pas (refus du système, aucun micro…).
+      const dev = getAudioDevices();
+      try {
+        const probe = await navigator.mediaDevices.getUserMedia({ audio: dev.micId ? { deviceId: dev.micId } : true });
+        for (const t of probe.getTracks()) t.stop();
+      } catch (e) {
+        this.micOn = false;
+        const name = (e as DOMException)?.name ?? '';
+        const fr = getLang() === 'fr';
+        this.micError =
+          name === 'NotFoundError'
+            ? fr ? 'Aucun micro trouvé : branche-en un ou choisis-le dans Réglages › Audio.' : 'No microphone found: plug one in or pick it in Settings › Audio.'
+            : name === 'NotAllowedError' || name === 'SecurityError'
+              ? fr ? 'Micro refusé : autorise-le (Windows : Paramètres › Confidentialité › Microphone, « Autoriser les applications de bureau » ; Mac : Réglages Système › Confidentialité › Microphone).' : 'Microphone blocked: allow it in your system privacy settings.'
+              : fr ? `Micro indisponible (${name || 'erreur'}).` : `Microphone unavailable (${name || 'error'}).`;
+        return false;
+      }
+    }
+    await this.room.localParticipant.setMicrophoneEnabled(this.micOn).catch((e) => {
+      this.micOn = false;
+      this.micError = `${getLang() === 'fr' ? 'Micro indisponible' : 'Microphone unavailable'} (${String((e as Error)?.message ?? e).slice(0, 80)}).`;
+    });
     return this.micOn;
   }
 

@@ -92,7 +92,7 @@ export const BASE_PROFILES: readonly BaseProfile[] = [
   P({
     id: 'nathalie', name: 'Nathalie', ageYears: 42,
     desc: { fr: '42 ans, fine et nerveuse, carré', en: '42, slim and punchy, bob' },
-    shape: { sex: -1, originAsian: 0.9, weight: -0.3, eyelidFold: 0.6, noseBridge: -0.4, eyeTilt: 0.3, faceFat: -0.2 },
+    shape: { sex: -1, originAsian: 0.9, weight: -0.3, eyelidFold: 1, noseBridge: -0.4, eyeTilt: 1, eyeSize: -0.35, eyeHeight: -0.1, faceFat: -0.2 },
     look: { skin: '#e8c4a0', hair: '#141414', hairStyle: 6, beard: 0, freckles: 0, jersey: '#ffffff', jerseyAccent: '#e63946' },
   }),
 ];
