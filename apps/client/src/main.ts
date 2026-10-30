@@ -1133,6 +1133,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   const rig = new CameraRig(engine.camera, track, (x, z) => world.terrain.heightAt(x, z), engine.renderer.domElement);
   const footprints = world.buildings.footprints;
   rig.occlusion = (a, b) => footprints.firstHit(a.x, a.y, a.z, b.x, b.y, b.z);
+  rig.slopeFeel = s.slopeFeel ?? 1;
   // Public sur les côtes (une fois le terrain chargé autour du départ).
   const crowd = new Crowd(track, (x, z) => world.terrain.heightAt(x, z), { riderName: s.name, density: engine.quality.crowdDensity });
   engine.scene.add(crowd.group);

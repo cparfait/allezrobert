@@ -56,6 +56,8 @@ export interface Settings {
    * vite les relances, comme le volant d'un home trainer.
    */
   inertia: number;
+  /** Sensation de pente : 0 = caméra réelle, 1 = relevée ×2,5 avec la pente, 2 = ×4. */
+  slopeFeel: number;
   /** Monde choisi (dossier public/worlds/<id>) ; `?world=` dans l'adresse a priorité. */
   world: string;
   /** Séance intégrée choisie (mode entraînement), si aucun fichier n'est importé. */
@@ -107,6 +109,7 @@ export const DEFAULT_SETTINGS: Settings = {
   standWatts: 0,
   guest: false,
   inertia: 1,
+  slopeFeel: 1,
   world: 'longchamp',
   workoutPreset: 'sweet-spot-3x12',
   challengeSeg: '',
