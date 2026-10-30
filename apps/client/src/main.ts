@@ -1591,7 +1591,8 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     );
     const trophyXp = trophies.reduce((a, t) => a + t.xp, 0);
     const after = trophyXp && xp ? addXp(trophyXp) : null;
-    if (raceVoice) announcer.summary({
+    // Bilan parlé à l'ouverture des statistiques : dans toutes les sorties (le reste de la voix de course ne sert qu'en course).
+    announcer.summary({
       distanceKm: stats.distanceM / 1000,
       avgSpeedKmh: stats.avgSpeedKmh,
       records: records.beaten.length > 0,
