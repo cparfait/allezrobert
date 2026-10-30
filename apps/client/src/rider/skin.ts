@@ -22,9 +22,9 @@ import { jerseySleeve, SOCK_HIGH_T, SUIT_THIGH_T, type JerseyFrame, type SleeveN
  * En sortie, la rougeur et la sueur suivent l'effort (SkinMaterial.update).
  */
 
-/** Début de la main sur l'attribut « jsl » (poignet = 2) et fin des mitaines (≈ 10 cm au-delà, bras ≈ 58 cm). */
+/** Début de la main sur l'attribut « jsl » (poignet = 2) et fin des mitaines (au pli des doigts, ≈ 12 cm au-delà, bras ≈ 58 cm). */
 const GLOVE_T = 1.99;
-const MITT_END_T = 2.17;
+const MITT_END_T = 2.21;
 
 export interface SkinTextures {
   albedo: THREE.Texture;

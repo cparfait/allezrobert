@@ -361,6 +361,11 @@ function capSwatch(cap: CapLook): string | null {
 }
 
 /** Vignette d'un équipement : couleur unie, ou bandes de la livrée pour un vélo. */
+/** Genre d'une coiffe du garage : sans (tête nue), casquette, chrono (forme aéro) ou casque de route. */
+function helmetKind(c: CosmeticItem): 'road' | 'tt' | 'cap' | 'none' {
+  return c.bare ? 'none' : c.cap ? 'cap' : c.helmetShape ? 'tt' : 'road';
+}
+
 /** Pictogramme de chaque emplacement de la tenue. */
 const SLOT_PICTO: Partial<Record<GarageSlot, string>> = { jersey: ICON.pJersey, helmet: ICON.pHelmet, glasses: ICON.pGlasses, socks: ICON.pSocks, shorts: ICON.pShorts, gloves: ICON.pGloves, shoes: ICON.pShoes };
 
@@ -464,6 +469,8 @@ export class MainMenu {
   private garageSlot: GarageSlot = 'jersey';
   /** Filtre du catalogue du garage : tout, débloqués (portables) ou verrouillés (niveau à atteindre). */
   private itemFilter: 'all' | 'unlocked' | 'locked' = 'all';
+  /** Casques : type affiché (casque route, chrono, casquette, sans coiffe). */
+  private helmetType: 'all' | 'road' | 'tt' | 'cap' | 'none' = 'all';
   /** Menu du garage réduit (vue plus large). */
   private grFolded = false;
   /** Le garage est déjà ouvert (animation d'arrivée jouée). */
@@ -1904,7 +1911,7 @@ export class MainMenu {
         ? this.bikeListHtml(lp.level, p.equipped.bike)
         : this.garageSlot === 'jersey'
         ? `${this.colorRows()}${this.optRow(fr() ? 'Manches' : 'Sleeves', 'sleeves', this.s.look.sleeves ?? 'short', [['short', fr() ? 'Courtes' : 'Short'], ['long', fr() ? 'Longues' : 'Long']])}${this.captionHtml()}${this.filterBar(lp.level)}${this.jerseyPacksHtml(lp.level, p.equipped.jersey)}`
-        : `${this.colorRows()}${this.garageSlot === 'socks' ? this.optRow(fr() ? 'Hauteur' : 'Height', 'sockHeight', this.s.look.sockHeight ?? 'low', [['low', fr() ? 'Basses' : 'Low'], ['high', fr() ? 'Hautes' : 'High']]) : ''}${SLOT_PICTO[this.garageSlot] ? this.captionHtml() : ''}${this.filterBar(lp.level)}<div class="mm-items">${this.garageItems(lp.level)
+        : `${this.colorRows()}${this.garageSlot === 'helmet' ? this.helmetTypeRow() : ''}${this.garageSlot === 'socks' ? this.optRow(fr() ? 'Hauteur' : 'Height', 'sockHeight', this.s.look.sockHeight ?? 'low', [['low', fr() ? 'Basses' : 'Low'], ['high', fr() ? 'Hautes' : 'High']]) : ''}${SLOT_PICTO[this.garageSlot] ? this.captionHtml() : ''}${this.filterBar(lp.level)}<div class="mm-items">${this.garageItems(lp.level)
             .map((c) => this.itemHtml(c, lp.level, c.slot === 'trainer' ? trainerOf(p.equipped) : p.equipped[c.slot]))
             .join('')}</div>`;
     return `<div class="mm-dragzone" id="m-dragzone"></div>
@@ -1949,8 +1956,7 @@ export class MainMenu {
       // Rien d'équipé au catalogue : la couleur portée (réglages du coureur) et « Par défaut ».
       const look = this.s.look;
       const base: Partial<Record<GarageSlot, string>> = { jersey: look.jersey, helmet: look.helmet, socks: look.socks ?? '#f2f2f2', glasses: '#1a1d24' };
-      const bg = item ? swatch(item) : base[id] ?? 'rgba(255,255,255,.08)';
-      return `<button class="gr-slot ${id === cur ? 'on' : ''}" data-slot="${id}" aria-pressed="${id === cur}" title="${esc(item ? item.name[lang] : L ? 'Par défaut' : 'Default')}"><i style="background:${bg};color:${pictoInk(bg)}">${SLOT_PICTO[id] ?? ''}</i><small>${label}</small></button>`;
+      return `<button class="gr-slot ${id === cur ? 'on' : ''}" data-slot="${id}" aria-pressed="${id === cur}" title="${esc(item ? item.name[lang] : L ? 'Par défaut' : 'Default')}"><i>${SLOT_PICTO[id] ?? ''}</i><small>${label}</small></button>`;
     };
     const subs = active.label === (L ? 'Tenue' : 'Outfit')
       ? `<div class="gr-slots">${active.subs.map(tile).join('')}</div><div class="gr-typename">${esc(active.subs.find(([id]) => id === cur)?.[1] ?? '')}</div>`
@@ -2071,7 +2077,26 @@ export class MainMenu {
 
   /** Équipements de l'emplacement choisi (hors vélos, voir bikesInCollection). */
   private garageItems(level: number): CosmeticItem[] {
-    return COSMETICS.filter((c) => c.slot === this.garageSlot).filter((c) => this.itemFilter === 'all' || (this.itemFilter === 'locked') === c.level > level);
+    return COSMETICS.filter((c) => c.slot === this.garageSlot)
+      .filter((c) => this.garageSlot !== 'helmet' || this.helmetType === 'all' || helmetKind(c) === this.helmetType)
+      .filter((c) => this.itemFilter === 'all' || (this.itemFilter === 'locked') === c.level > level);
+  }
+
+  /** Type de coiffe : choix du genre (casque, chrono, casquette, sans) avec les effectifs. */
+  private helmetTypeRow(): string {
+    const L = fr();
+    const all = COSMETICS.filter((c) => c.slot === 'helmet');
+    const count = (k: string) => all.filter((c) => helmetKind(c) === k).length;
+    const opts: Array<['all' | 'road' | 'tt' | 'cap' | 'none', string, number]> = [
+      ['all', L ? 'Tous' : 'All', all.length],
+      ['road', L ? 'Casque' : 'Helmet', count('road')],
+      ['tt', L ? 'Chrono' : 'Time trial', count('tt')],
+      ['cap', L ? 'Casquette' : 'Cap', count('cap')],
+      ['none', L ? 'Sans' : 'None', count('none')],
+    ].filter(([k, , n]) => k === 'all' || (n as number) > 0) as Array<['all' | 'road' | 'tt' | 'cap' | 'none', string, number]>;
+    return `<div class="gr-vopt"><small>${L ? 'Genre' : 'Kind'}</small><div>${opts
+      .map(([k, l, n]) => `<button class="gr-vchip ${this.helmetType === k ? 'on' : ''}" data-htype="${k}" aria-pressed="${this.helmetType === k}">${l} <i>${n}</i></button>`)
+      .join('')}</div></div>`;
   }
 
   /** Couleurs de l'emplacement : pastilles rondes et roue de couleur (même effet que l'onglet Couleurs). */
@@ -3199,6 +3224,12 @@ export class MainMenu {
         this.render();
         this.onScene?.(this.view, this.yaw, this.garageSlot === 'bike', this.zoom);
         if ((was === 'face') !== (this.garageSlot === 'face')) this.onLookLive?.(s.look, this.bareHeadPreview);
+      }),
+    );
+    this.root.querySelectorAll<HTMLElement>('[data-htype]').forEach((el) =>
+      el.addEventListener('click', () => {
+        this.helmetType = el.dataset.htype as typeof this.helmetType;
+        this.render();
       }),
     );
     this.root.querySelectorAll<HTMLElement>('[data-gfilter]').forEach((el) =>

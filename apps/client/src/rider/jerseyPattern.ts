@@ -394,7 +394,7 @@ export function addSleeveMask(mesh: THREE.SkinnedMesh, jersey: THREE.SkinnedMesh
     for (let i = 0; i < pos.count; i++) {
       v.fromBufferAttribute(pos, i).sub(shoulder);
       const t = v.dot(axis) / len;
-      if (t < -0.02 || t > 1.2 || armOf(mesh, i, si, sw, true) < 0.25 || torsoOf(i) > 0.5) continue;
+      if (t < -0.02 || t > 1.6 || armOf(mesh, i, si, sw, true) < 0.25 || torsoOf(i) > 0.5) continue;
       // Distance au poignet le long de l'avant-bras (négative avant le poignet), décalée de +2 : > 1 sur le bras.
       // Coupe franche au poignet ; un sommet de la main passe « au-delà du poignet » (2 ou plus),
       // valeur continue avec celle de l'anneau du poignet : ni biseau ni dents.

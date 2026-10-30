@@ -937,3 +937,10 @@
 .gr-slot i { height: 38px; }
 .gr-typename { margin: 8px 2px 0; font: 900 15px/1.2 var(--font); font-style: italic; letter-spacing: -0.01em; text-transform: uppercase; color: var(--ar-fg); }
 .gr-shoefields .field:nth-child(1), .gr-shoefields .field:nth-child(3) { display: none; }
+
+/* Types d'équipement : tous de la même couleur, celui choisi passe en jaune */
+.gr-slot i { background: rgba(255, 255, 255, 0.07); color: #c6cdd6; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1); transition: background 0.15s ease, color 0.15s ease; }
+.gr-slot:hover i { background: rgba(255, 255, 255, 0.13); color: #fff; }
+.gr-slot.on i { background: var(--ar-accent); color: #0a0e16; box-shadow: none; }
+
+.gr-vchip i { font-style: normal; margin-left: 4px; opacity: 0.6; font-family: var(--mono); font-size: 10.5px; }
