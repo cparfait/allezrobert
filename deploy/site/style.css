@@ -287,3 +287,9 @@ footer { padding: 2.5rem var(--pad) 3rem; border-top: 1px solid var(--ligne); di
 
 /* Pastille « bêta » (version Mac) */
 .beta { display: inline-block; padding: 1px 7px; margin-left: 2px; border-radius: 999px; background: var(--jaune); color: var(--bitume); font: 800 .68rem/1.4 var(--mono); letter-spacing: .08em; text-transform: uppercase; vertical-align: 1px; }
+
+/* Logos des plates-formes sur les boutons */
+.btn .ico { width: 1.15em; height: 1.15em; flex: none; }
+.btn:hover .ico { transform: none; }
+.btn .beta { margin-left: 0; }
+.btn:not(.ghost) .beta { background: var(--bitume); color: var(--jaune); }
