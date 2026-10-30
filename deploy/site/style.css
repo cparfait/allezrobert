@@ -83,7 +83,8 @@ em { font-style: normal; color: var(--jaune); }
 /* télémétrie du hero */
 .hud { position: absolute; z-index: 2; top: 6.2rem; right: var(--pad); display: grid; grid-template-columns: repeat(2, 9.5rem); gap: .6rem; }
 .tile { padding: .75rem .9rem .8rem; background: rgba(11, 12, 15, .62); border: 1px solid var(--ligne); border-left: 3px solid var(--jaune); backdrop-filter: blur(10px); border-radius: 4px; }
-.tile.hot { border-left-color: var(--rouge); }
+.tile.hot, .tile.fc { border-left-color: var(--rouge); }
+.tile.fc strong { color: #ff7b6b; }
 .tile small { display: block; font: 600 .66rem/1 var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--gris); margin-bottom: .45rem; }
 .tile strong { font: 700 2.1rem/1 var(--mono); letter-spacing: -.04em; font-variant-numeric: tabular-nums; }
 .tile u { text-decoration: none; font-size: .72rem; color: var(--gris); margin-left: .35rem; letter-spacing: 0; }
@@ -223,6 +224,7 @@ footer { padding: 2.5rem var(--pad) 3rem; border-top: 1px solid var(--ligne); di
 .ready .hero .meta { transition-delay: .6s; }
 .ready .hud .tile:nth-child(1) { transition-delay: .55s; } .ready .hud .tile:nth-child(2) { transition-delay: .65s; }
 .ready .hud .tile:nth-child(3) { transition-delay: .75s; } .ready .hud .tile:nth-child(4) { transition-delay: .85s; }
+.ready .hud .tile:nth-child(5) { transition-delay: .95s; } .ready .hud .tile:nth-child(6) { transition-delay: 1.05s; }
 .ready .mascot { transition-delay: .7s; animation: ride 3.2s ease-in-out 1.7s infinite; }
 .ready .profile #profile-line { transition: stroke-dashoffset 2.4s var(--ease) .3s; stroke-dashoffset: 0; }
 
@@ -230,7 +232,7 @@ footer { padding: 2.5rem var(--pad) 3rem; border-top: 1px solid var(--ligne); di
 @media (max-width: 980px) {
   .top nav { display: none; }
   .top { justify-content: space-between; }
-  .hud { grid-template-columns: repeat(4, 1fr); left: var(--pad); right: var(--pad); top: 5rem; }
+  .hud { grid-template-columns: repeat(3, 1fr); left: var(--pad); right: var(--pad); top: 5rem; }
   .tile { padding: .55rem .6rem; } .tile strong { font-size: 1.25rem; } .tile u { display: none; }
   .row, .row.flip { grid-template-columns: 1fr; }
   .row.flip .shot { order: 0; }

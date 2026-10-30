@@ -16,7 +16,7 @@
   body.classList.add('ready');
 
   /* ——— télémétrie du hero (fonction du temps : pas d'aléatoire) ——— */
-  var hw = $('#h-w'), hr = $('#h-rpm'), hp = $('#h-pct'), hk = $('#h-kmh');
+  var hfc = $('#h-fc'), hwkg = $('#h-wkg'), hw = $('#h-w'), hr = $('#h-rpm'), hp = $('#h-pct'), hk = $('#h-kmh');
   var heroEl = $('.hero'), heroVisible = true;
   if (!reduce) {
     new IntersectionObserver(function (en) { heroVisible = en[0].isIntersecting; }).observe(heroEl);
@@ -26,6 +26,8 @@
       var pct = 9.4 + 0.7 * Math.sin(t * .35) + 0.25 * Math.sin(t * 1.1);
       var w = 214 + 26 * Math.sin(t * .8) + 9 * Math.sin(t * 2.6) + (pct - 9.4) * 14;
       hw.textContent = Math.round(w);
+      hfc.textContent = Math.round(144 + 6 * Math.sin(t * .25) + 3 * Math.sin(t * 1.7) + (w - 214) * .12);
+      hwkg.textContent = fr(w / 76, 1);
       hr.textContent = Math.round(87 + 4 * Math.sin(t * 1.3) + 2 * Math.sin(t * 3.1));
       hp.textContent = fr(pct, 1);
       hk.textContent = fr(17.3 + 0.8 * Math.sin(t * .6) - (pct - 9.4) * .7, 1);
