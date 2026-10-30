@@ -359,6 +359,8 @@ describe('API — sorties, segments, progression', () => {
 
   it.runIf(!!process.env.TEST_DATABASE_URL)('file de rendu (PostgreSQL) : réservation SKIP LOCKED, fin, remise en file', async () => {
     const s = await devLogin('Worker');
+    // Les rendus mis en file par les tests précédents passeraient avant celui-ci (réservation par ordre d'arrivée).
+    await db.query("DELETE FROM render_jobs WHERE status = 'queued'");
     const id = (await s.json('POST', '/api/renders', { composition: 'kom' })).body.id as string;
     const [j1, j2] = await Promise.all([ctx.repos.claimRender(), ctx.repos.claimRender()]);
     const claimed = [j1, j2].filter(Boolean);
