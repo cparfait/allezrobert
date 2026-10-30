@@ -193,7 +193,8 @@ export class Repos {
   }
 
   async sessionValid(id: string, userId: string): Promise<boolean> {
-    const r = await this.db.query('SELECT expires_at FROM sessions WHERE id = $1 AND user_id = $2', [id, userId]);
+    // Compte suspendu (administration) : aucune session valide.
+    const r = await this.db.query('SELECT s.expires_at FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.id = $1 AND s.user_id = $2 AND u.disabled_at IS NULL', [id, userId]);
     const row = r.rows[0];
     return !!row && toDate(row.expires_at).getTime() > Date.now();
   }

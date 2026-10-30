@@ -85,6 +85,10 @@ export const ConfigSchema = z.object({
   ALLOW_ANONYMOUS_GUESTS: bool.default(true),
   /** Puissance virtuelle maximale d'un invité au clavier / à la manette (W/kg). */
   GUEST_MAX_WKG: z.coerce.number().min(1).max(8).default(3.5),
+  /** Compte administrateur : adresse e-mail (ou plusieurs, séparées par des virgules) autorisée sur /api/admin. */
+  ADMIN_EMAIL: z.string().default('christophe.parfait@gmail.com'),
+  /** Mot de passe supplémentaire de la page d'administration (vide : seul le compte administrateur est exigé). */
+  ADMIN_PASSWORD: optionalString,
   /** Connexion de développement sans OAuth (`POST /api/auth/dev`) — interdite en production. */
   DEV_LOGIN: bool.default(false),
   LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('info'),

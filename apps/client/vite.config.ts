@@ -138,6 +138,7 @@ function lanAddress(): Plugin {
 export default defineConfig({
   plugins: [screenshots(), excludeWorldTiles(), installerDiet(), lanAddress()],
   server: { port: 5173, strictPort: true, host: true, hmr },
-  build: { target: 'es2022', sourcemap: true, chunkSizeWarningLimit: 2500 },
+  // Deux pages : le jeu et l'administration (admin.html, autonome).
+  build: { target: 'es2022', sourcemap: true, chunkSizeWarningLimit: 2500, rollupOptions: { input: { main: resolve(import.meta.dirname, 'index.html'), admin: resolve(import.meta.dirname, 'admin.html') } } },
   clearScreen: false,
 });

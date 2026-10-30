@@ -28,6 +28,9 @@ x-server-env: &server-env
   DISCORD_VOICE_INVITE: ${DISCORD_VOICE_INVITE:-}
   ALLOW_ANONYMOUS_GUESTS: ${ALLOW_ANONYMOUS_GUESTS:-true}
   GUEST_MAX_WKG: ${GUEST_MAX_WKG:-3.5}
+  # Page d'administration (/jouer/admin.html) : réservée à ce compte ; mot de passe supplémentaire facultatif.
+  ADMIN_EMAIL: ${ADMIN_EMAIL:-christophe.parfait@gmail.com}
+  ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
   RECONNECT_GRACE_S: ${RECONNECT_GRACE_S:-30}
   LOG_LEVEL: ${LOG_LEVEL:-info}
   RENDERS_DIR: /data/renders

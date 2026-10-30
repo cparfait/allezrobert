@@ -14,6 +14,7 @@ import { ttsRoutes } from './tts.ts';
 import { friendRoutes } from './friends-routes.ts';
 import { publicRoutes } from './public-routes.ts';
 import { historyRoutes } from './history-routes.ts';
+import { adminRoutes } from './admin-routes.ts';
 import { clearSessionCookie, cors, errorHandler, HttpError, loadUser, originCheck, requireUser, type AuthedRequest } from './middleware.ts';
 import { COSMETICS, levelInfo, unlockedCosmetics, validateEquipped, xpForRide } from '../progression/xp.ts';
 import { decodeFit, FitImportError, stripHeartRate, trainingFromFit } from '../activities/fit-import.ts';
@@ -111,6 +112,7 @@ export function mountApi(app: express.Application, ctx: AppContext): void {
   api.use('/friends', friendRoutes(ctx));
   api.use('/public', publicRoutes(ctx));
   api.use('/history', historyRoutes(ctx));
+  api.use('/admin', adminRoutes(ctx));
 
   /* ───────────── Santé ───────────── */
   api.get('/health', async (_req, res) => {
