@@ -60,7 +60,7 @@ em { font-style: normal; color: var(--jaune); }
 .top nav a:hover::after, .top nav a.on::after { transform: scaleX(1); }
 
 /* ——— hero ——— */
-.hero { position: relative; min-height: 100svh; display: grid; align-content: end; padding: 7rem var(--pad) 9rem; overflow: hidden; isolation: isolate; }
+.hero { position: relative; min-height: 100svh; display: grid; align-content: center; padding: 6rem var(--pad) 8rem; overflow: hidden; isolation: isolate; }
 .hero-img { position: absolute; inset: -4%; z-index: -3; background: url("/site/img/hero.jpg") center 40% / cover no-repeat; transform: translate3d(0, var(--py, 0px), 0) scale(1.06); will-change: transform; }
 .hero-shade { position: absolute; inset: 0; z-index: -2; background:
   linear-gradient(180deg, rgba(11, 12, 15, .55) 0%, rgba(11, 12, 15, 0) 28%, rgba(11, 12, 15, .15) 55%, var(--bitume) 100%),
