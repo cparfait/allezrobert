@@ -4,7 +4,7 @@
  * Accès réservé au compte dont l'adresse e-mail est ADMIN_EMAIL (comparaison d'empreinte : le serveur ne garde
  * aucune adresse en clair) ; si ADMIN_PASSWORD est défini, un mot de passe est demandé en plus (jeton de 30 minutes
  * dans un cookie HTTP-only). Un compte connecté qui n'est pas l'administrateur reçoit 404, comme si la page n'existait pas.
- * Aucune donnée sensible n'est exposée : ni e-mail, ni fichier FIT, ni fréquence cardiaque.
+ * L'adresse e-mail (chiffrée en base, enregistrée à chaque connexion) n'est lue que ici ; ni fichier FIT ni fréquence cardiaque ne sont exposés.
  */
 import express from 'express';
 import { createHash, createHmac } from 'node:crypto';
@@ -170,7 +170,7 @@ export function adminRoutes(ctx: AppContext): express.Router {
     const sort = typeof req.query.sort === 'string' ? req.query.sort : 'created';
     const rows = (
       await ctx.db.query(
-        `SELECT u.id, u.display_name, u.created_at, u.last_login_at, u.disabled_at,
+        `SELECT u.id, u.display_name, u.created_at, u.last_login_at, u.disabled_at, u.email_enc,
                 COALESCE(p.xp, 0) AS xp, COALESCE(p.rides, 0) AS rides, COALESCE(p.distance_m, 0) AS distance_m
            FROM users u LEFT JOIN progression p ON p.user_id = u.id`,
       )
@@ -184,6 +184,7 @@ export function adminRoutes(ctx: AppContext): express.Router {
     let list = rows.map((u) => ({
       id: String(u.id),
       name: String(u.display_name),
+      email: ctx.repos.readEmail(u.email_enc as Uint8Array | null),
       providers: provOf.get(String(u.id)) ?? [],
       createdAt: iso(u.created_at),
       lastLoginAt: iso(u.last_login_at),
@@ -193,7 +194,7 @@ export function adminRoutes(ctx: AppContext): express.Router {
       level: levelForXp(Number(u.xp)),
       disabled: !!u.disabled_at,
     }));
-    if (q) list = list.filter((u) => u.name.toLowerCase().includes(q) || u.id.startsWith(q) || u.providers.some((p) => p.includes(q)));
+    if (q) list = list.filter((u) => u.name.toLowerCase().includes(q) || (u.email ?? '').toLowerCase().includes(q) || u.id.startsWith(q) || u.providers.some((p) => p.includes(q)));
     const cmp: Record<string, (a: (typeof list)[number], b: (typeof list)[number]) => number> = {
       created: (a, b) => String(b.createdAt).localeCompare(String(a.createdAt)),
       login: (a, b) => String(b.lastLoginAt ?? '').localeCompare(String(a.lastLoginAt ?? '')),
@@ -207,7 +208,7 @@ export function adminRoutes(ctx: AppContext): express.Router {
 
   r.get('/users/:id', async (req, res) => {
     const id = String(req.params.id);
-    const u = (await ctx.db.query('SELECT id, display_name, created_at, last_login_at, disabled_at FROM users WHERE id = $1', [id])).rows[0];
+    const u = (await ctx.db.query('SELECT id, display_name, created_at, last_login_at, disabled_at, email_enc FROM users WHERE id = $1', [id])).rows[0];
     if (!u) throw new HttpError(404, 'Compte introuvable', 'not_found');
     const idents = (await ctx.db.query('SELECT provider, created_at FROM auth_identities WHERE user_id = $1', [id])).rows;
     const prog = (await ctx.db.query('SELECT xp, rides, distance_m, elevation_m FROM progression WHERE user_id = $1', [id])).rows[0];
@@ -218,6 +219,7 @@ export function adminRoutes(ctx: AppContext): express.Router {
     res.json({
       id: String(u.id),
       name: String(u.display_name),
+      email: ctx.repos.readEmail(u.email_enc as Uint8Array | null),
       createdAt: iso(u.created_at),
       lastLoginAt: iso(u.last_login_at),
       disabled: !!u.disabled_at,

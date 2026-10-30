@@ -134,5 +134,8 @@ if [[ "$mode" == "--upload" || "$mode" == "--upload-only" ]]; then
   scp "${latest[@]}" "$VPS:$REMOTE_DIR/"
   scp "$OUT/version.json" "$VPS:$REMOTE_DIR/"
   scp "$OUT/latest.json" "$VPS:$REMOTE_DIR/"
+  # Anciennes versions : plus conservées (seule la dernière reste en ligne, avec ses alias). Les ressources de media/
+  # ne sont pas touchées : les applications déjà installées y retrouvent les leurs.
+  ssh "$VPS" "cd '$REMOTE_DIR' && for f in allez-robert_*_x64-setup.exe allez-robert_*_x64-setup.exe.sig allez-robert_*_x64_fr-FR.msi; do case \"\$f\" in allez-robert_${version}_*) ;; *) rm -f -- \"\$f\" ;; esac; done"
   echo "→ En ligne : https://$DOMAIN/telechargement/allez-robert-setup.exe (mise à jour proposée aux applications installées)"
 fi

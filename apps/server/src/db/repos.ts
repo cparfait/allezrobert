@@ -142,10 +142,11 @@ export class Repos {
    * Trouve ou crée le compte lié à une identité (OAuth ou e-mail). Si l'empreinte d'e-mail
    * correspond à un compte existant, l'identité y est rattachée (même personne, autre fournisseur).
    */
-  async upsertIdentity(provider: string, subject: string, displayName: string, emailHash?: string): Promise<User> {
+  async upsertIdentity(provider: string, subject: string, displayName: string, emailHash?: string, email?: string): Promise<User> {
     const existing = await this.findUserByIdentity(provider, subject);
     if (existing) {
       await this.db.query('UPDATE users SET last_login_at = now() WHERE id = $1', [existing.id]);
+      await this.rememberEmail(existing.id, email);
       return existing;
     }
     return this.db.tx(async (q) => {
@@ -164,7 +165,26 @@ export class Repos {
       }
       await q.query('INSERT INTO auth_identities (provider, subject, user_id) VALUES ($1, $2, $3)', [provider, subject, user.id]);
       return user;
+    }).then(async (u) => {
+      await this.rememberEmail(u.id, email);
+      return u;
     });
+  }
+
+  /** Garde l'adresse e-mail (chiffrée) du compte : elle n'est lisible que par l'administration. */
+  private async rememberEmail(userId: string, email?: string): Promise<void> {
+    if (!email) return;
+    await this.db.query('UPDATE users SET email_enc = $1 WHERE id = $2', [this.bin(this.cipher.encrypt(email.trim().toLowerCase(), 'user-email')), userId]);
+  }
+
+  /** Adresse e-mail du compte (administration), ou null si elle n'a pas encore été enregistrée. */
+  readEmail(blob: Uint8Array | null | undefined): string | null {
+    if (!blob) return null;
+    try {
+      return this.cipher.decrypt(this.unbin(blob), 'user-email').toString('utf8');
+    } catch {
+      return null;
+    }
   }
 
   /** Droit à l'effacement : supprime le compte et toutes les données liées. */

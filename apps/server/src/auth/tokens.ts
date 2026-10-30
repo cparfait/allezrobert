@@ -28,6 +28,8 @@ export interface GameClaims {
 
 export interface MagicClaims {
   emailHash: string;
+  /** Adresse e-mail chiffrée (base64url), pour l'enregistrer à la première connexion. */
+  emailEnc?: string;
   name: string;
   redirect: string;
   jti: string;
@@ -85,8 +87,8 @@ export class TokenService {
     return { userId: p.sub, name: typeof p.name === 'string' ? p.name : '' };
   }
 
-  signMagic(emailHash: string, name: string, redirect: string, ttlS = 15 * 60): Promise<string> {
-    return this.sign({ em: emailHash, nm: name, rd: redirect, jti: randomId() }, AUD.magic, ttlS);
+  signMagic(emailHash: string, name: string, redirect: string, ttlS = 15 * 60, emailEnc?: string): Promise<string> {
+    return this.sign({ em: emailHash, nm: name, rd: redirect, jti: randomId(), ...(emailEnc ? { ee: emailEnc } : {}) }, AUD.magic, ttlS);
   }
 
   async verifyMagic(token: string): Promise<MagicClaims | null> {
@@ -94,6 +96,7 @@ export class TokenService {
     if (!p || typeof p.em !== 'string' || typeof p.jti !== 'string' || typeof p.exp !== 'number') return null;
     return {
       emailHash: p.em,
+      ...(typeof p.ee === 'string' ? { emailEnc: p.ee } : {}),
       name: typeof p.nm === 'string' ? p.nm : '',
       redirect: typeof p.rd === 'string' ? p.rd : '/',
       jti: p.jti,

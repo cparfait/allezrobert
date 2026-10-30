@@ -108,6 +108,7 @@ interface Stats {
 interface UserRow {
   id: string;
   name: string;
+  email: string | null;
   providers: string[];
   createdAt: string | null;
   lastLoginAt: string | null;
@@ -218,12 +219,12 @@ async function loadUsers(view: HTMLElement): Promise<void> {
   if (r.status === 403 || r.status === 401) return void start();
   users = r.data?.users ?? [];
   view.innerHTML = `<div class="ad-tools">
-      <input class="ad-search" id="q" type="search" placeholder="Chercher un nom, un identifiant, un mode de connexion…" value="${esc(query)}" />
+      <input class="ad-search" id="q" type="search" placeholder="Chercher un nom, une adresse e-mail, un identifiant…" value="${esc(query)}" />
       <select id="sort"><option value="created">Plus récents</option><option value="login">Dernière connexion</option><option value="rides">Plus de sorties</option><option value="distance">Plus de kilomètres</option><option value="name">Nom A → Z</option></select>
       <button class="ad-btn" id="csv">Exporter en CSV</button><span class="muted" id="count"></span>
     </div>
-    <div class="ad-table-wrap"><table><thead><tr><th>Nom</th><th>Connexion</th><th>Inscrit</th><th>Dernière connexion</th><th>Dernière sortie</th><th class="r">Sorties</th><th class="r">Km</th><th class="r">Niveau</th><th>État</th></tr></thead><tbody id="rows"></tbody></table></div>
-    <p class="muted" style="margin-top:10px">Les adresses e-mail ne sont pas conservées en clair par le serveur (empreinte seulement) : elles ne peuvent pas être affichées ici.</p>`;
+    <div class="ad-table-wrap"><table><thead><tr><th>Nom</th><th>E-mail</th><th>Connexion</th><th>Inscrit</th><th>Dernière connexion</th><th>Dernière sortie</th><th class="r">Sorties</th><th class="r">Km</th><th class="r">Niveau</th><th>État</th></tr></thead><tbody id="rows"></tbody></table></div>
+    <p class="muted" style="margin-top:10px">Les adresses e-mail sont chiffrées en base et enregistrées à chaque connexion : celle d’un compte apparaît dès que la personne se reconnecte.</p>`;
   (view.querySelector('#sort') as HTMLSelectElement).value = sort;
   view.querySelector('#q')?.addEventListener('input', (e) => ((query = (e.target as HTMLInputElement).value), rows()));
   view.querySelector('#sort')?.addEventListener('change', (e) => ((sort = (e.target as HTMLSelectElement).value), void loadUsers(view)));
@@ -233,7 +234,7 @@ async function loadUsers(view: HTMLElement): Promise<void> {
 
 function visible(): UserRow[] {
   const q = query.trim().toLowerCase();
-  return q ? users.filter((u) => u.name.toLowerCase().includes(q) || u.id.startsWith(q) || u.providers.some((p) => p.includes(q))) : users;
+  return q ? users.filter((u) => u.name.toLowerCase().includes(q) || (u.email ?? '').toLowerCase().includes(q) || u.id.startsWith(q) || u.providers.some((p) => p.includes(q))) : users;
 }
 
 function rows(): void {
@@ -244,17 +245,17 @@ function rows(): void {
   tbody.innerHTML = list.length
     ? list
         .map(
-          (u) => `<tr data-id="${esc(u.id)}"><td><b>${esc(u.name)}</b></td><td>${u.providers.map((p) => `<span class="ad-pill">${esc(p)}</span>`).join('') || '—'}</td><td>${date(u.createdAt)}</td><td title="${esc(date(u.lastLoginAt, true))}">${ago(u.lastLoginAt)}</td><td>${u.lastRideAt ? ago(u.lastRideAt) : '—'}</td><td class="r num">${u.rides}</td><td class="r num">${nf(u.distanceKm, 1)}</td><td class="r num">${u.level}</td><td>${u.disabled ? '<span class="ad-pill bad">suspendu</span>' : '<span class="ad-pill ok">actif</span>'}</td></tr>`,
+          (u) => `<tr data-id="${esc(u.id)}"><td><b>${esc(u.name)}</b></td><td>${u.email ? esc(u.email) : '<span class="muted">à la prochaine connexion</span>'}</td><td>${u.providers.map((p) => `<span class="ad-pill">${esc(p)}</span>`).join('') || '—'}</td><td>${date(u.createdAt)}</td><td title="${esc(date(u.lastLoginAt, true))}">${ago(u.lastLoginAt)}</td><td>${u.lastRideAt ? ago(u.lastRideAt) : '—'}</td><td class="r num">${u.rides}</td><td class="r num">${nf(u.distanceKm, 1)}</td><td class="r num">${u.level}</td><td>${u.disabled ? '<span class="ad-pill bad">suspendu</span>' : '<span class="ad-pill ok">actif</span>'}</td></tr>`,
         )
         .join('')
-    : '<tr><td colspan="9" class="ad-empty">Aucun compte ne correspond.</td></tr>';
+    : '<tr><td colspan="10" class="ad-empty">Aucun compte ne correspond.</td></tr>';
   tbody.querySelectorAll<HTMLElement>('tr[data-id]').forEach((tr) => tr.addEventListener('click', () => void openUser(tr.dataset.id as string)));
 }
 
 function exportCsv(): void {
-  const head = ['id', 'nom', 'connexion', 'inscrit', 'derniere_connexion', 'derniere_sortie', 'sorties', 'km', 'niveau', 'suspendu'];
+  const head = ['id', 'nom', 'email', 'connexion', 'inscrit', 'derniere_connexion', 'derniere_sortie', 'sorties', 'km', 'niveau', 'suspendu'];
   const cell = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`;
-  const lines = visible().map((u) => [u.id, u.name, u.providers.join('+'), u.createdAt, u.lastLoginAt, u.lastRideAt, u.rides, u.distanceKm, u.level, u.disabled ? 'oui' : 'non'].map(cell).join(','));
+  const lines = visible().map((u) => [u.id, u.name, u.email, u.providers.join('+'), u.createdAt, u.lastLoginAt, u.lastRideAt, u.rides, u.distanceKm, u.level, u.disabled ? 'oui' : 'non'].map(cell).join(','));
   const blob = new Blob(['﻿' + [head.join(','), ...lines].join('\n')], { type: 'text/csv;charset=utf-8' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
@@ -273,6 +274,7 @@ async function openUser(id: string): Promise<void> {
   drawer.innerHTML = `<div class="ad-drawer-bg"><aside class="ad-drawer"><button class="ad-btn ad-x" id="x">Fermer</button>
     <h3>${esc(u.name)} ${u.disabled ? '<span class="ad-pill bad">suspendu</span>' : ''}</h3><div class="id mono">${esc(u.id)}</div>
     <dl class="ad-dl">
+      <dt>E-mail</dt><dd>${u.email ? esc(u.email) : '<span class="muted">pas encore enregistré (à la prochaine connexion)</span>'}</dd>
       <dt>Inscrit le</dt><dd>${date(u.createdAt, true)}</dd>
       <dt>Dernière connexion</dt><dd>${date(u.lastLoginAt, true)} <span class="muted">(${ago(u.lastLoginAt)})</span></dd>
       <dt>Connexion via</dt><dd>${u.identities.map((i: any) => `<span class="ad-pill">${esc(i.provider)}</span>`).join('') || '—'}</dd>

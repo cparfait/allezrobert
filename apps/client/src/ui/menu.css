@@ -429,6 +429,8 @@
 
 /* Atelier du garage : panneau des pièces, ensembles, chiffres avant → après */
 .mm-credits { font-style: normal; display: inline-flex; align-items: center; gap: 4px; font-weight: 800; color: #ffe08a; font-variant-numeric: tabular-nums; }
+.mm-credits { cursor: pointer; padding: 1px 7px; margin-left: 4px; border-radius: 999px; background: rgba(255, 224, 138, 0.1); border: 1px solid rgba(255, 224, 138, 0.25); transition: background 0.15s ease, border-color 0.15s ease; }
+.mm-credits:hover, .mm-credits:focus-visible { background: rgba(255, 224, 138, 0.22); border-color: rgba(255, 224, 138, 0.6); outline: 0; }
 .at-coin { display: inline-block; vertical-align: -2px; }
 .mm-tab-garage .at-panel { grid-column: 1; width: min(480px, calc(100vw - 44px)); display: flex; flex-direction: column; gap: 10px; }
 .at-head { margin-bottom: 2px; }

@@ -130,3 +130,26 @@ describe('administration — mot de passe supplémentaire', () => {
     expect((await call('GET', '/stats', `${other.cookie}; ${adminCookie}`)).status).toBe(403);
   });
 });
+
+describe('administration — adresses e-mail', () => {
+  beforeAll(() => boot({}));
+  afterAll(stop);
+
+  it('l’adresse (chiffrée en base) apparaît dans la liste, la recherche et la fiche', async () => {
+    const admin = await sessionFor('Chef', ADMIN_EMAIL);
+    const mail = 'claire@example.fr';
+    const claire = await ctx.repos.upsertIdentity('google', 'sub-claire', 'Claire', ctx.cipher.emailHash(mail), mail);
+    await ctx.repos.upsertIdentity('google', 'sub-sans', 'Sans', ctx.cipher.emailHash('sans@example.fr'));
+    const raw = (await ctx.db.query('SELECT email_enc FROM users WHERE id = $1', [claire.id])).rows[0].email_enc as Uint8Array;
+    expect(Buffer.from(raw).toString('utf8')).not.toContain('claire@');
+    const list = await call('GET', '/users?q=claire@', admin.cookie);
+    expect(list.body.users).toHaveLength(1);
+    expect(list.body.users[0]).toMatchObject({ name: 'Claire', email: mail });
+    const all = (await call('GET', '/users', admin.cookie)).body.users as Array<{ name: string; email: string | null }>;
+    expect(all.find((u) => u.name === 'Sans')?.email).toBeNull();
+    expect((await call('GET', `/users/${claire.id}`, admin.cookie)).body.email).toBe(mail);
+    // Une reconnexion enregistre l'adresse d'un compte qui n'en avait pas encore.
+    await ctx.repos.upsertIdentity('google', 'sub-sans', 'Sans', ctx.cipher.emailHash('sans@example.fr'), 'sans@example.fr');
+    expect(((await call('GET', '/users?q=sans', admin.cookie)).body.users[0] as { email: string }).email).toBe('sans@example.fr');
+  });
+});

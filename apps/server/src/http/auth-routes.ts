@@ -67,7 +67,7 @@ export function authRoutes(ctx: AppContext): express.Router {
         const tok = await exchangeCode(provider, client, req.query.code, st.verifier, ctx.fetchFn);
         const ident = await fetchIdentity(provider, String(tok.access_token), ctx.fetchFn);
         const emailHash = ident.verifiedEmail ? ctx.cipher.emailHash(ident.verifiedEmail) : undefined;
-        const user = await ctx.repos.upsertIdentity(provider, ident.subject, ident.displayName, emailHash);
+        const user = await ctx.repos.upsertIdentity(provider, ident.subject, ident.displayName, emailHash, ident.verifiedEmail ?? undefined);
         await openSession(ctx, res, user);
         res.redirect(302, redirectTo(ctx, st.redirect));
       } catch (e) {
@@ -89,7 +89,7 @@ export function authRoutes(ctx: AppContext): express.Router {
     const local = email.split('@')[0] ?? 'coureur';
     const first = local.split(/[._+-]/)[0] ?? local;
     const name = first.charAt(0).toUpperCase() + first.slice(1);
-    const token = await ctx.tokens.signMagic(hash, name, safeRedirect(body.redirect));
+    const token = await ctx.tokens.signMagic(hash, name, safeRedirect(body.redirect), undefined, ctx.cipher.encrypt(email, 'magic-email').toString('base64url'));
     const link = `${ctx.config.apiPublicUrl}/api/auth/magic/verify?token=${encodeURIComponent(token)}`;
     await ctx.mailer.sendMagicLink(email, link, body.locale ?? 'fr');
     // Réponse identique que le compte existe ou non (pas d'énumération).
@@ -100,7 +100,13 @@ export function authRoutes(ctx: AppContext): express.Router {
     const claims = await ctx.tokens.verifyMagic(String(req.query.token ?? ''));
     if (!claims) return res.redirect(302, redirectTo(ctx, '/?login=expired'));
     if (!(await ctx.repos.consumeMagicLink(claims.jti, new Date(claims.exp * 1000)))) return res.redirect(302, redirectTo(ctx, '/?login=used'));
-    const user = await ctx.repos.upsertIdentity('email', claims.emailHash, claims.name, claims.emailHash);
+    let email: string | undefined;
+    try {
+      email = claims.emailEnc ? ctx.cipher.decrypt(Buffer.from(claims.emailEnc, 'base64url'), 'magic-email').toString('utf8') : undefined;
+    } catch {
+      email = undefined;
+    }
+    const user = await ctx.repos.upsertIdentity('email', claims.emailHash, claims.name, claims.emailHash, email);
     await openSession(ctx, res, user);
     res.redirect(302, redirectTo(ctx, claims.redirect));
   });

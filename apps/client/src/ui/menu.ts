@@ -1091,7 +1091,7 @@ export class MainMenu {
           <div class="mm-account">
             <div class="mm-avatar mm-me" data-tab="profile" role="button" title="${L ? 'Mon profil' : 'My profile'}" style="background:${this.s.look.jersey}">${esc(initials || 'R')}</div>
             <div class="mm-who mm-me" data-tab="profile" role="button" title="${L ? 'Mon profil' : 'My profile'}"><b>${esc(name)}</b>
-              <span>${L ? 'Niveau' : 'Level'} ${level}<i class="mm-xp"><i style="width:${(lp.progress * 100).toFixed(0)}%"></i></i><em class="mm-credits" title="${L ? 'Crédits (atelier)' : 'Credits (workshop)'}">${COIN} ${(this.account?.credits ?? p.credits).toLocaleString(L ? 'fr-FR' : 'en-GB')}</em></span></div>
+              <span>${L ? 'Niveau' : 'Level'} ${level}<i class="mm-xp"><i style="width:${(lp.progress * 100).toFixed(0)}%"></i></i><em class="mm-credits" role="button" tabindex="0" title="${L ? 'Crédits : ouvrir l’atelier du garage pour les dépenser' : 'Credits: open the garage workshop to spend them'}">${COIN} ${(this.account?.credits ?? p.credits).toLocaleString(L ? 'fr-FR' : 'en-GB')}</em></span></div>
             ${this.account ? `<button class="mm-link" id="m-logout">${L ? 'Déconnexion' : 'Sign out'}</button>` : `<button class="mm-link" id="m-login">${L ? 'Se connecter' : 'Sign in'}</button>`}
           </div>
         </div>
@@ -2622,6 +2622,20 @@ export class MainMenu {
     on('m-tuto', 'click', () => this.onTutorial?.());
     on('m-login', 'click', () => this.onLogin?.());
     on('m-logout', 'click', () => this.onLogout?.());
+    // Crédits : mènent à l'atelier du garage, où ils se dépensent (le bloc voisin ouvre le profil, d'où stopPropagation).
+    const credits = this.root.querySelector<HTMLElement>('.mm-credits');
+    const openWorkshop = (e: Event) => {
+      e.stopPropagation();
+      this.garageSlot = 'atelier';
+      this.go('garage');
+    };
+    credits?.addEventListener('click', openWorkshop);
+    credits?.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        openWorkshop(e);
+      }
+    });
     // Rouler : le parcours dessiné ou le départ du libre choisis sur la carte.
     on('m-start', 'click', () => {
       const drawn = this.drawnChoice;
