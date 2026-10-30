@@ -72,7 +72,8 @@ em { font-style: normal; color: var(--jaune); }
 .hero h1 > span { display: block; overflow: hidden; padding: .06em .1em .02em 0; }
 .hero h1 > span > span { display: block; transform: translateY(var(--hy, 0)); }
 .hero h1 .l2 > span { color: var(--jaune); }
-.hero .lead { margin-top: 2rem; }
+.slogan { margin-top: 1.4rem; font: 800 clamp(1.3rem, 2.6vw, 2.2rem)/1.1 var(--sans); font-style: italic; letter-spacing: -.02em; color: var(--craie); }
+.hero .lead { margin-top: 1rem; }
 .cta { display: flex; flex-wrap: wrap; gap: .8rem; margin: 1.8rem 0 1rem; }
 .cta.center { justify-content: center; }
 .hero-copy { position: relative; z-index: 2; max-width: 62rem; }
@@ -235,13 +236,14 @@ footer { padding: 2.5rem var(--pad) 3rem; border-top: 1px solid var(--ligne); di
 
 /* ——— entrée du hero (au chargement) ——— */
 .js .hero h1 > span > span { transform: translateY(105%); }
-.js .hero .kicker, .js .hero .lead, .js .hero .cta, .js .hero .meta, .js .ghud, .js .mascot { opacity: 0; transform: translateY(24px); }
+.js .hero .kicker, .js .hero .slogan, .js .hero .lead, .js .hero .cta, .js .hero .meta, .js .ghud, .js .mascot { opacity: 0; transform: translateY(24px); }
 .js .mascot { animation: none; }
 .ready .hero h1 > span > span { transform: none; transition: transform 1s var(--ease); }
 .ready .hero h1 .l2 > span { transition-delay: .12s; }
-.ready .hero .kicker, .ready .hero .lead, .ready .hero .cta, .ready .hero .meta, .ready .ghud, .ready .mascot { opacity: 1; transform: none; transition: opacity .9s var(--ease), transform .9s var(--ease); }
+.ready .hero .kicker, .ready .hero .slogan, .ready .hero .lead, .ready .hero .cta, .ready .hero .meta, .ready .ghud, .ready .mascot { opacity: 1; transform: none; transition: opacity .9s var(--ease), transform .9s var(--ease); }
 .ready .hero .kicker { transition-delay: .05s; }
-.ready .hero .lead { transition-delay: .35s; }
+.ready .hero .slogan { transition-delay: .3s; }
+.ready .hero .lead { transition-delay: .4s; }
 .ready .hero .cta { transition-delay: .5s; }
 .ready .hero .meta { transition-delay: .6s; }
 .ready .ghud { transition-delay: .6s; }
