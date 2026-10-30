@@ -128,6 +128,11 @@ const ICON = {
   pause: svg('<path d="M7 4v16M17 4v16"/>', 14),
   list: svg('<path d="M4 6h12M4 12h12M4 18h8M18 15v6l4-3z"/>', 16),
   rotate: svg('<path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/>', 16),
+  pLock: svg('<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>', 12),
+  pJersey: svg('<path d="M8 3 3 6l2 4 2-1v12h10V9l2 1 2-4-5-3c-.5 1.6-2 2.5-4 2.5S8.5 4.6 8 3Z"/>', 26),
+  pHelmet: svg('<path d="M3 15a9 8 0 0 1 18 0v2H3Z"/><path d="M8 8.5 9.5 15M12 7v8M16 8.5 14.5 15"/><path d="M6 17v2.5M18 17v2.5"/>', 26),
+  pGlasses: svg('<path d="M2.5 9.5h19"/><path d="M4 9.5c0 4.5 2 6 4.5 6S11 13 11 10M13 10c0 3 .8 5.5 3.5 5.5S20 14 20 9.5"/>', 26),
+  pSocks: svg('<path d="M9 3h6v10l4.5 3c1.5 1 1 4-1.5 4H10c-2 0-2-1.5-2-3Z"/><path d="M9 7h6"/>', 26),
   gTenue: svg('<path d="M8 3 3 6l2 4 2-1v12h10V9l2 1 2-4-5-3c-.5 1.6-2 2.5-4 2.5S8.5 4.6 8 3Z"/>', 18),
   gBike: svg('<circle cx="6" cy="16" r="4"/><circle cx="18" cy="16" r="4"/><path d="M6 16l4-8h5l3 8M10 8 8 5H6M12 16l-2-8"/>', 18),
   gFace: svg('<circle cx="12" cy="12" r="9"/><circle cx="9" cy="10" r="1"/><circle cx="15" cy="10" r="1"/><path d="M8.5 15c1 1.2 2.2 1.8 3.5 1.8s2.5-.6 3.5-1.8"/>', 18),
@@ -353,6 +358,27 @@ function capSwatch(cap: CapLook): string | null {
 }
 
 /** Vignette d'un équipement : couleur unie, ou bandes de la livrée pour un vélo. */
+/** Pictogramme de chaque emplacement de la tenue. */
+const SLOT_PICTO: Partial<Record<GarageSlot, string>> = { jersey: ICON.pJersey, helmet: ICON.pHelmet, glasses: ICON.pGlasses, socks: ICON.pSocks };
+
+/** Encre (claire ou foncée) lisible sur le fond d'une pastille : d'après la première couleur hexadécimale du fond. */
+function pictoInk(bg: string): string {
+  const m = /#([0-9a-f]{6})/i.exec(bg);
+  if (!m) return '#ffffff';
+  const n = parseInt(m[1]!, 16);
+  const lum = (0.299 * ((n >> 16) & 255) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255;
+  return lum > 0.62 ? '#10141c' : '#ffffff';
+}
+
+/** Couleurs proposées d'un coup d'œil (la roue de couleur reste disponible à côté). */
+const QUICK_COLORS: Record<string, string[]> = {
+  jersey: ['#1f6feb', '#d62828', '#ffffff', '#2a9d8f', '#f4a261', '#111111', '#ffd23f', '#7b2cbf'],
+  jerseyAccent: ['#ffd23f', '#ffffff', '#111111', '#d62828', '#1f6feb', '#2a9d8f'],
+  helmet: ['#f4f4f4', '#111111', '#1f6feb', '#d62828', '#ffd23f', '#2a9d8f'],
+  shoes: ['#f2f2f2', '#111418', '#1e5bd8', '#c0392b', '#d7f205', '#ff7a1a'],
+  socks: ['#f2f2f2', '#111418', '#1e5bd8', '#c0392b', '#ffd23f', '#2a9d8f'],
+};
+
 function swatch(c: CosmeticItem): string {
   // « Sans casque » / « Sans lunettes » : pastille barrée.
   if (c.bare) return 'linear-gradient(135deg, transparent 44%, #e05a4f 44% 56%, transparent 56%), #3a3f47';
@@ -1870,10 +1896,10 @@ export class MainMenu {
         : this.garageSlot === 'bike'
         ? this.bikeListHtml(lp.level, p.equipped.bike)
         : this.garageSlot === 'jersey'
-        ? `<div class="gr-opts">${this.sleevesToggle()}${this.legsToggle()}${this.glovesToggle()}${this.gloveColorField()}</div>${this.filterBar(lp.level)}${this.jerseyPacksHtml(lp.level, p.equipped.jersey)}`
-        : `${this.filterBar(lp.level)}${this.garageSlot === 'socks' ? `${this.sockHeightToggle()}<div class="mm-colors">${this.shoeFields()}</div>` : ''}<div class="mm-items">${this.garageItems(lp.level)
+        ? `${this.colorRows()}${this.captionHtml()}${this.filterBar(lp.level)}${this.jerseyPacksHtml(lp.level, p.equipped.jersey)}<div class="gr-opts">${this.sleevesToggle()}${this.legsToggle()}${this.glovesToggle()}${this.gloveColorField()}</div>`
+        : `${this.colorRows()}${SLOT_PICTO[this.garageSlot] ? this.captionHtml() : ''}${this.filterBar(lp.level)}<div class="mm-items">${this.garageItems(lp.level)
             .map((c) => this.itemHtml(c, lp.level, c.slot === 'trainer' ? trainerOf(p.equipped) : p.equipped[c.slot]))
-            .join('')}</div>`;
+            .join('')}</div>${this.garageSlot === 'socks' ? `${this.sockHeightToggle()}<div class="mm-colors">${this.shoeFields()}</div>` : ''}`;
     return `<div class="mm-dragzone" id="m-dragzone"></div>
       <div class="mm-views">${views.map(([v, label]) => `<button class="mm-view ${v === this.view ? 'on' : ''}" data-view="${v}">${label}</button>`).join('')}
         <span class="mm-drag">${ICON.rotate} ${L ? 'Glisser pour tourner' : 'Drag to rotate'}</span></div>
@@ -1916,7 +1942,8 @@ export class MainMenu {
       // Rien d'équipé au catalogue : la couleur portée (réglages du coureur) et « Par défaut ».
       const look = this.s.look;
       const base: Partial<Record<GarageSlot, string>> = { jersey: look.jersey, helmet: look.helmet, socks: look.socks ?? '#f2f2f2', glasses: '#1a1d24' };
-      return `<button class="gr-slot ${id === cur ? 'on' : ''}" data-slot="${id}" aria-pressed="${id === cur}"><i style="background:${item ? swatch(item) : base[id] ?? 'rgba(255,255,255,.08)'}"></i><small>${label}</small><b>${item ? esc(item.name[lang]) : L ? 'Par défaut' : 'Default'}</b></button>`;
+      const bg = item ? swatch(item) : base[id] ?? 'rgba(255,255,255,.08)';
+      return `<button class="gr-slot ${id === cur ? 'on' : ''}" data-slot="${id}" aria-pressed="${id === cur}" title="${esc(item ? item.name[lang] : L ? 'Par défaut' : 'Default')}"><i style="background:${bg};color:${pictoInk(bg)}">${SLOT_PICTO[id] ?? ''}</i><small>${label}</small></button>`;
     };
     const subs = active.label === (L ? 'Tenue' : 'Outfit')
       ? `<div class="gr-slots">${active.subs.map(tile).join('')}</div>`
@@ -1934,6 +1961,11 @@ export class MainMenu {
     const locked = c.level > level;
     const on = equipped === c.id;
     const prev = [...this.previews.values()].includes(c.id);
+    if (SLOT_PICTO[c.slot as GarageSlot]) {
+      const bg = swatch(c);
+      const stateTxt = prev ? `${L ? 'Aperçu' : 'Preview'} · ${L ? 'niv.' : 'lvl'} ${c.level}` : locked ? `${L ? 'Niveau' : 'Level'} ${c.level} · ${L ? `dans ${c.level - level} niv.` : `${c.level - level} to go`}` : on ? (L ? 'Équipé' : 'Equipped') : L ? 'Débloqué' : 'Unlocked';
+      return `<button class="gr-chip ${on ? 'on' : ''} ${locked ? 'locked' : ''} ${prev ? 'preview' : ''}" data-item="${c.id}" data-cap-name="${esc(c.name[lang])}" data-cap-effect="${esc(c.effect?.[lang] ?? '')}" data-cap-state="${esc(stateTxt)}" aria-label="${esc(c.name[lang])} — ${esc(stateTxt)}" style="background:${bg};color:${pictoInk(bg)}">${SLOT_PICTO[c.slot as GarageSlot]}${locked ? `<u>${ICON.pLock}</u>` : on ? '<u class="ok">✓</u>' : ''}</button>`;
+    }
     return `<button class="mm-item ${on ? 'on' : ''} ${locked ? 'locked' : ''} ${prev ? 'preview' : ''}" data-item="${c.id}" title="${locked ? (L ? 'Cliquer pour l’essayer' : 'Click to try it on') : ''}">
                 <i style="background:${swatch(c)}"></i>
                 <span class="mm-it-txt"><b>${esc(c.name[lang])}</b>${c.effect ? `<em class="mm-effect">${esc(c.effect[lang])}</em>` : ''}
@@ -2033,6 +2065,36 @@ export class MainMenu {
   /** Équipements de l'emplacement choisi (hors vélos, voir bikesInCollection). */
   private garageItems(level: number): CosmeticItem[] {
     return COSMETICS.filter((c) => c.slot === this.garageSlot).filter((c) => this.itemFilter === 'all' || (this.itemFilter === 'locked') === c.level > level);
+  }
+
+  /** Couleurs de l'emplacement : pastilles rondes et roue de couleur (même effet que l'onglet Couleurs). */
+  private colorRow(label: string, key: 'jersey' | 'jerseyAccent' | 'helmet' | 'shoes' | 'socks', current: string): string {
+    const cur = current.toLowerCase();
+    return `<div class="gr-colors"><small>${label}</small><div>${(QUICK_COLORS[key] ?? [])
+      .map((h) => `<button class="gr-sw ${h.toLowerCase() === cur ? 'on' : ''}" data-setcolor="${key}:${h}" style="background:${h}" aria-label="${h}" aria-pressed="${h.toLowerCase() === cur}"></button>`)
+      .join('')}<label class="gr-sw gr-custom" title="${fr() ? 'Autre couleur' : 'Other colour'}"><input type="color" data-colorkey="${key}" value="${current.length === 7 ? current : '#888888'}" /></label></div></div>`;
+  }
+
+  /** Lignes de couleur de l'emplacement affiché. */
+  private colorRows(): string {
+    const L = fr();
+    const look = this.s.look;
+    switch (this.garageSlot) {
+      case 'jersey':
+        return this.colorRow(L ? 'Maillot' : 'Jersey', 'jersey', look.jersey) + this.colorRow(L ? 'Bande' : 'Stripe', 'jerseyAccent', look.jerseyAccent);
+      case 'helmet':
+        return this.colorRow(L ? 'Casque' : 'Helmet', 'helmet', look.helmet);
+      case 'socks':
+        return this.colorRow(L ? 'Chaussettes' : 'Socks', 'socks', look.socks ?? '#f2f2f2') + this.colorRow(L ? 'Chaussures' : 'Shoes', 'shoes', look.shoes ?? '#f2f2f2');
+      default:
+        return '';
+    }
+  }
+
+  /** Légende de l'équipement survolé (ou équipé / essayé) sous la grille de pastilles. */
+  private captionHtml(): string {
+    const L = fr();
+    return `<div class="gr-cap" id="gr-cap" aria-live="polite"><b></b><span></span><em></em></div><p class="gr-cap-hint">${L ? 'Survole une pastille pour lire son nom et son effet ; clique pour l’essayer ou l’équiper.' : 'Hover a chip for its name and effect; click to try it on or equip it.'}</p>`;
   }
 
   /** Barre de filtre du catalogue : Tout / Débloqués / Verrouillés, avec les effectifs. */
@@ -3249,6 +3311,43 @@ export class MainMenu {
       changed();
     });
     color('m-socks', 'socks');
+    // Couleurs rapides (pastilles et roue de couleur du garage).
+    this.root.querySelectorAll<HTMLElement>('[data-setcolor]').forEach((el) =>
+      el.addEventListener('click', () => {
+        const [key, hex] = (el.dataset.setcolor ?? '').split(':');
+        if (!key || !hex) return;
+        s.look = { ...s.look, [key]: hex };
+        changed();
+        this.render();
+      }),
+    );
+    this.root.querySelectorAll<HTMLInputElement>('[data-colorkey]').forEach((el) =>
+      el.addEventListener('input', () => {
+        s.look = { ...s.look, [el.dataset.colorkey as string]: el.value };
+        changed();
+      }),
+    );
+    // Légende : nom, effet et état de la pastille survolée ; au repos, l'équipement essayé ou porté.
+    const cap = this.root.querySelector<HTMLElement>('#gr-cap');
+    if (cap) {
+      const show = (chip: HTMLElement | null) => {
+        const b = cap.querySelector('b') as HTMLElement;
+        const sp = cap.querySelector('span') as HTMLElement;
+        const em = cap.querySelector('em') as HTMLElement;
+        b.textContent = chip?.dataset.capName ?? '';
+        sp.textContent = chip?.dataset.capEffect ?? '';
+        em.textContent = chip?.dataset.capState ?? '';
+        cap.classList.toggle('empty', !chip);
+      };
+      const rest = () => show(this.root.querySelector<HTMLElement>('.gr-chip.preview') ?? this.root.querySelector<HTMLElement>('.gr-chip.on'));
+      this.root.querySelectorAll<HTMLElement>('.gr-chip').forEach((chip) => {
+        chip.addEventListener('mouseenter', () => show(chip));
+        chip.addEventListener('focus', () => show(chip));
+        chip.addEventListener('mouseleave', rest);
+        chip.addEventListener('blur', rest);
+      });
+      rest();
+    }
     on<HTMLElement>('m-bottles', 'change', (el) => {
       const n = Number((el as unknown as { value: string }).value);
       s.look = { ...s.look, bottles: n === 0 || n === 1 || n === 2 ? n : 2 };
