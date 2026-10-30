@@ -62,30 +62,31 @@ em { font-style: normal; color: var(--jaune); }
 .top nav a:hover::after, .top nav a.on::after { transform: scaleX(1); }
 
 /* ——— hero ——— */
-.hero { position: relative; min-height: 100svh; display: grid; align-content: center; padding: 6rem var(--pad) 8rem; overflow: hidden; isolation: isolate; }
+.hero { position: relative; min-height: 100svh; display: grid; align-content: center; padding: 5.2rem var(--pad) 6.5rem; overflow: hidden; isolation: isolate; }
 .hero-img { position: absolute; inset: -4%; z-index: -3; background: url("/site/img/hero.jpg") center 40% / cover no-repeat; transform: translate3d(0, var(--py, 0px), 0) scale(1.06); will-change: transform; }
 .hero-shade { position: absolute; inset: 0; z-index: -2; background:
   linear-gradient(180deg, rgba(11, 12, 15, .55) 0%, rgba(11, 12, 15, 0) 28%, rgba(11, 12, 15, .15) 55%, var(--bitume) 100%),
-  linear-gradient(90deg, rgba(11, 12, 15, .75) 0%, rgba(11, 12, 15, 0) 62%); }
+  radial-gradient(65% 60% at 50% 62%, rgba(11, 12, 15, .6), rgba(11, 12, 15, 0) 100%); }
 .kicker { display: flex; align-items: center; gap: .7rem; font: 600 .78rem/1 var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--jaune); margin-bottom: 1.3rem; }
 .kicker i { width: 2.4rem; height: 2px; background: var(--jaune); }
-.hero h1 { font-weight: 900; font-size: clamp(3.6rem, 13.5vw, 12.5rem); line-height: .82; letter-spacing: -.045em; text-transform: uppercase; transform: skewX(-7deg); transform-origin: 0 100%; margin-left: -.04em; }
+.hero h1 { font-weight: 900; font-size: clamp(3.2rem, 9vw, 8.2rem); line-height: .82; letter-spacing: -.045em; text-transform: uppercase; transform: skewX(-7deg); transform-origin: 50% 100%; }
 .hero h1 > span { display: block; overflow: hidden; padding: .06em .1em .02em 0; }
 .hero h1 > span > span { display: block; transform: translateY(var(--hy, 0)); }
 .hero h1 .l2 > span { color: var(--jaune); }
 .titlebox { width: fit-content; max-width: 100%; }
 .slogan { margin-top: 1.4rem; text-align: center; font: 800 clamp(1.3rem, 2.6vw, 2.2rem)/1.1 var(--sans); font-style: italic; letter-spacing: -.02em; color: var(--craie); }
-.hero .lead { margin-top: 1rem; }
-.cta { display: flex; flex-wrap: wrap; gap: .8rem; margin: 1.8rem 0 1rem; }
+.hero .lead { margin-top: .8rem; }
+.cta { display: flex; flex-wrap: wrap; justify-content: center; gap: .8rem; margin: 1.3rem 0 .8rem; }
 .cta.center { justify-content: center; }
-.hero-copy { position: relative; z-index: 2; max-width: 62rem; }
+.hero-copy { position: relative; z-index: 2; max-width: 62rem; margin: 0 auto; text-align: center; }
+.hero-copy .lead, .hero-copy .titlebox { margin-inline: auto; }
 .hero-top { display: flex; align-items: center; gap: 1.2rem; margin-bottom: .4rem; }
 .mascot { display: block; flex: none; width: clamp(84px, 9vw, 140px); height: auto; margin: 0; filter: drop-shadow(0 14px 22px rgba(0, 0, 0, .55)); animation: ride 3.2s ease-in-out infinite; }
 @keyframes ride { 0%, 100% { transform: translateY(0) rotate(-1.5deg); } 50% { transform: translateY(-9px) rotate(1.5deg); } }
 
 /* Compteurs du jeu : copie fidèle du HUD de l'appli (apps/client/src/hud/hud.css) */
 .ghud { --z1: #9aa5b1; --z2: #3b82f6; --z3: #22c55e; --z4: #eab308; --z5: #f97316; --z6: #ef4444; --z7: #a855f7; --ar-muted: #9aa5b1;
-  position: absolute; z-index: 2; top: 5.4rem; right: var(--pad); display: flex; gap: 12px; align-items: center; font-family: var(--sans); color: #f5f7fa; }
+  display: flex; justify-content: center; gap: 12px; align-items: center; margin: 0 auto 1.4rem; font-family: var(--sans); color: #f5f7fa; }
 .ghud .num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
 .ghud .tile-col { display: flex; flex-direction: column; gap: 8px; }
 .ghud .tile { position: relative; min-width: 128px; padding: 7px 14px 8px 16px; border-radius: 10px 4px 10px 4px; background: linear-gradient(180deg, rgba(18, 24, 36, 0.84), rgba(10, 14, 22, 0.78)); border: 1px solid rgba(255, 255, 255, 0.09); box-shadow: 0 8px 26px rgba(0, 0, 0, 0.3); backdrop-filter: blur(10px) saturate(1.2); overflow: hidden; --acc: #9aa5b1; }
@@ -257,7 +258,7 @@ footer { padding: 2.5rem var(--pad) 3rem; border-top: 1px solid var(--ligne); di
 @media (max-width: 980px) {
   .top nav { display: none; }
   .top { justify-content: space-between; }
-  .ghud { left: var(--pad); right: auto; top: 4.6rem; transform: scale(.62); transform-origin: 0 0; }
+  .ghud { transform: scale(.62); transform-origin: 50% 0; margin-bottom: -4.6rem; }
   .row, .row.flip { grid-template-columns: 1fr; }
   .row.flip .shot { order: 0; }
   .bignum { top: -.6em; }
