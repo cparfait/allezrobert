@@ -313,7 +313,8 @@ describe('historique — analyses', () => {
     const me = (await s.json('GET', '/api/me')).body.id as string;
     expect((await s.json('DELETE', '/api/me', { confirm: 'SUPPRIMER' })).status).toBe(204);
     for (const table of ['activities', 'ftp_history', 'power_records', 'workouts', 'deleted_rides']) {
-      expect((await db.query(`SELECT COUNT(*) AS n FROM ${table} WHERE user_id = $1`, [me])).rows[0].n, table).toBe(0);
+      // COUNT(*) est un bigint : PostgreSQL le rend en texte (« 0 »), la base mémoire en nombre.
+      expect(Number((await db.query(`SELECT COUNT(*) AS n FROM ${table} WHERE user_id = $1`, [me])).rows[0].n), table).toBe(0);
     }
   });
 });
