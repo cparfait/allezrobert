@@ -264,6 +264,7 @@ export class World {
     this.water.horizonColor.value.copy(this.env.fog.color);
     this.water.fakeSky.value = this.scene.environment ? 0.2 : 1;
     if (this.horizon) {
+      this.horizon.orderFor(focus.x, focus.z);
       this.horizon.fogColor.value.copy(this.env.fog.color);
       this.horizon.fogDensity.value = this.env.fog.density;
       this.horizon.skyColor.value.copy(this.env.hemi.color);

@@ -112,6 +112,52 @@ export class FarTerrain {
     this.mesh.renderOrder = -1;
   }
 
+  private orderCell = -1;
+
+  /**
+   * Ordre de dessin « du plus loin au plus près » vu de la caméra (algorithme du peintre sur la grille). Toute la
+   * montagne est dessinée à la même profondeur (collée au ciel) : sans tri, deux versants qui se recouvrent se
+   * disputent chaque pixel selon l'ordre des triangles, et la neige comme la roche « scintillent » quand on avance.
+   * Réécrit seulement quand la caméra change de maille.
+   */
+  orderFor(x: number, z: number): void {
+    const geo = this.mesh.geometry;
+    const gr = geo.userData.grid as { x0: number; z0: number; res: number; m: number } | undefined;
+    const index = geo.getIndex();
+    if (!gr || !index) return;
+    const { m } = gr;
+    const ci = Math.min(m - 1, Math.max(0, Math.floor((x - gr.x0) / gr.res)));
+    const cj = Math.min(m - 1, Math.max(0, Math.floor((z - gr.z0) / gr.res)));
+    const key = cj * m + ci;
+    if (key === this.orderCell) return;
+    this.orderCell = key;
+    const seq = (c: number): number[] => {
+      const a: number[] = [];
+      for (let k = 0; k < c; k++) a.push(k);
+      for (let k = m - 1; k >= c; k--) a.push(k);
+      return a;
+    };
+    const I = seq(ci);
+    const J = seq(cj);
+    const arr = index.array as Uint32Array;
+    const w = m + 1;
+    let n = 0;
+    for (const j of J)
+      for (const i of I) {
+        const a = j * w + i;
+        const b = a + 1;
+        const c = a + w;
+        const d = c + 1;
+        arr[n++] = a;
+        arr[n++] = c;
+        arr[n++] = b;
+        arr[n++] = b;
+        arr[n++] = c;
+        arr[n++] = d;
+      }
+    index.needsUpdate = true;
+  }
+
   setSeason(season: Season): void {
     this.snowLine.value = SNOW_LINE_M[season];
     const low = LOW_POLY ? LOWLAND_LOWPOLY : LOWLAND;
@@ -251,5 +297,6 @@ function buildGeometry(g: HorizonGrid, step: number): THREE.BufferGeometry {
   geo.setIndex(new THREE.BufferAttribute(index, 1));
   geo.computeVertexNormals();
   geo.computeBoundingSphere();
+  geo.userData.grid = { x0: g.x0, z0: g.z0, res: step * g.resolutionM, m };
   return geo;
 }
