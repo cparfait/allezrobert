@@ -702,6 +702,110 @@
    "open": true
   },
   {
+   "id": "idf-beaumont-du-gatinais",
+   "name": "Beaumont-du-Gâtinais",
+   "region": "Seine-et-Marne · Île-de-France",
+   "routes": [
+    {
+     "id": "boucle-20-km",
+     "name": "Boucle de 20 km depuis Beaumont-du-Gâtinais",
+     "nameEn": "20 km loop from Beaumont-du-Gâtinais",
+     "lengthM": 19028,
+     "elevationGainM": 117.01,
+     "loop": false
+    },
+    {
+     "id": "boucle-30-km",
+     "name": "Boucle de 30 km depuis Beaumont-du-Gâtinais",
+     "nameEn": "30 km loop from Beaumont-du-Gâtinais",
+     "lengthM": 27768.95,
+     "elevationGainM": 116.64,
+     "loop": true
+    },
+    {
+     "id": "boucle-40-km",
+     "name": "Boucle de 40 km depuis Beaumont-du-Gâtinais",
+     "nameEn": "40 km loop from Beaumont-du-Gâtinais",
+     "lengthM": 39548,
+     "elevationGainM": 313.53,
+     "loop": false
+    },
+    {
+     "id": "boucle-50-km",
+     "name": "Boucle de 50 km depuis Beaumont-du-Gâtinais",
+     "nameEn": "50 km loop from Beaumont-du-Gâtinais",
+     "lengthM": 47767.1,
+     "elevationGainM": 198.51,
+     "loop": true
+    }
+   ],
+   "pack": {
+    "version": "fb4b2c9b3e4f",
+    "bytes": 188640918,
+    "files": 1026,
+    "gzBytes": 73715914
+   },
+   "l93": {
+    "minE": 656000,
+    "minN": 6780000,
+    "maxE": 672000,
+    "maxN": 6796000
+   },
+   "open": true
+  },
+  {
+   "id": "idf-blaru",
+   "name": "Blaru",
+   "region": "Yvelines · Île-de-France",
+   "routes": [
+    {
+     "id": "boucle-20-km",
+     "name": "Boucle de 20 km depuis Blaru",
+     "nameEn": "20 km loop from Blaru",
+     "lengthM": 19196.16,
+     "elevationGainM": 186.09,
+     "loop": true
+    },
+    {
+     "id": "boucle-30-km",
+     "name": "Boucle de 30 km depuis Blaru",
+     "nameEn": "30 km loop from Blaru",
+     "lengthM": 29166,
+     "elevationGainM": 301.63,
+     "loop": false
+    },
+    {
+     "id": "boucle-40-km",
+     "name": "Boucle de 40 km depuis Blaru",
+     "nameEn": "40 km loop from Blaru",
+     "lengthM": 39268,
+     "elevationGainM": 408.96,
+     "loop": false
+    },
+    {
+     "id": "boucle-50-km",
+     "name": "Boucle de 50 km depuis Blaru",
+     "nameEn": "50 km loop from Blaru",
+     "lengthM": 49576.32,
+     "elevationGainM": 460.16,
+     "loop": true
+    }
+   ],
+   "pack": {
+    "version": "c2ec90abdc6d",
+    "bytes": 269462178,
+    "files": 1026,
+    "gzBytes": 116665190
+   },
+   "l93": {
+    "minE": 576000,
+    "minN": 6876000,
+    "maxE": 592000,
+    "maxN": 6892000
+   },
+   "open": true
+  },
+  {
    "id": "idf-boulogne-billancourt",
    "name": "Boulogne-Billancourt",
    "region": "Hauts-de-Seine · Île-de-France",
@@ -1014,6 +1118,58 @@
    "open": true
   },
   {
+   "id": "idf-crouy-sur-ourcq",
+   "name": "Crouy-sur-Ourcq",
+   "region": "Seine-et-Marne · Île-de-France",
+   "routes": [
+    {
+     "id": "boucle-20-km",
+     "name": "Boucle de 20 km depuis Crouy-sur-Ourcq",
+     "nameEn": "20 km loop from Crouy-sur-Ourcq",
+     "lengthM": 20052,
+     "elevationGainM": 235.76,
+     "loop": false
+    },
+    {
+     "id": "boucle-30-km",
+     "name": "Boucle de 30 km depuis Crouy-sur-Ourcq",
+     "nameEn": "30 km loop from Crouy-sur-Ourcq",
+     "lengthM": 31438,
+     "elevationGainM": 500.74,
+     "loop": false
+    },
+    {
+     "id": "boucle-40-km",
+     "name": "Boucle de 40 km depuis Crouy-sur-Ourcq",
+     "nameEn": "40 km loop from Crouy-sur-Ourcq",
+     "lengthM": 38224,
+     "elevationGainM": 541.41,
+     "loop": false
+    },
+    {
+     "id": "boucle-50-km",
+     "name": "Boucle de 50 km depuis Crouy-sur-Ourcq",
+     "nameEn": "50 km loop from Crouy-sur-Ourcq",
+     "lengthM": 50518,
+     "elevationGainM": 716,
+     "loop": false
+    }
+   ],
+   "pack": {
+    "version": "4cab8cf831c8",
+    "bytes": 185751726,
+    "files": 1026,
+    "gzBytes": 82924826
+   },
+   "l93": {
+    "minE": 704000,
+    "minN": 6876000,
+    "maxE": 720000,
+    "maxN": 6892000
+   },
+   "open": true
+  },
+  {
    "id": "idf-dammarie-les-lys",
    "name": "Dammarie-les-Lys",
    "region": "Seine-et-Marne · Île-de-France",
@@ -1114,6 +1270,58 @@
     "minN": 6876000,
     "maxE": 688000,
     "maxN": 6892000
+   },
+   "open": true
+  },
+  {
+   "id": "idf-donnemarie-dontilly",
+   "name": "Donnemarie-Dontilly",
+   "region": "Seine-et-Marne · Île-de-France",
+   "routes": [
+    {
+     "id": "boucle-20-km",
+     "name": "Boucle de 20 km depuis Donnemarie-Dontilly",
+     "nameEn": "20 km loop from Donnemarie-Dontilly",
+     "lengthM": 20298,
+     "elevationGainM": 197.28,
+     "loop": false
+    },
+    {
+     "id": "boucle-30-km",
+     "name": "Boucle de 30 km depuis Donnemarie-Dontilly",
+     "nameEn": "30 km loop from Donnemarie-Dontilly",
+     "lengthM": 29371.21,
+     "elevationGainM": 314.4,
+     "loop": true
+    },
+    {
+     "id": "boucle-40-km",
+     "name": "Boucle de 40 km depuis Donnemarie-Dontilly",
+     "nameEn": "40 km loop from Donnemarie-Dontilly",
+     "lengthM": 38512.75,
+     "elevationGainM": 367.9,
+     "loop": true
+    },
+    {
+     "id": "boucle-50-km",
+     "name": "Boucle de 50 km depuis Donnemarie-Dontilly",
+     "nameEn": "50 km loop from Donnemarie-Dontilly",
+     "lengthM": 47141.31,
+     "elevationGainM": 423.63,
+     "loop": true
+    }
+   ],
+   "pack": {
+    "version": "24762cfecebc",
+    "bytes": 187053087,
+    "files": 1026,
+    "gzBytes": 76972686
+   },
+   "l93": {
+    "minE": 704000,
+    "minN": 6812000,
+    "maxE": 720000,
+    "maxN": 6828000
    },
    "open": true
   },
@@ -1425,6 +1633,110 @@
     "minE": 592000,
     "minN": 6844000,
     "maxE": 608000,
+    "maxN": 6860000
+   },
+   "open": true
+  },
+  {
+   "id": "idf-jouy-le-chatel",
+   "name": "Jouy-le-Châtel",
+   "region": "Seine-et-Marne · Île-de-France",
+   "routes": [
+    {
+     "id": "boucle-20-km",
+     "name": "Boucle de 20 km depuis Jouy-le-Châtel",
+     "nameEn": "20 km loop from Jouy-le-Châtel",
+     "lengthM": 20966.28,
+     "elevationGainM": 146.89,
+     "loop": true
+    },
+    {
+     "id": "boucle-30-km",
+     "name": "Boucle de 30 km depuis Jouy-le-Châtel",
+     "nameEn": "30 km loop from Jouy-le-Châtel",
+     "lengthM": 28046.06,
+     "elevationGainM": 161,
+     "loop": true
+    },
+    {
+     "id": "boucle-40-km",
+     "name": "Boucle de 40 km depuis Jouy-le-Châtel",
+     "nameEn": "40 km loop from Jouy-le-Châtel",
+     "lengthM": 39508.84,
+     "elevationGainM": 237.95,
+     "loop": true
+    },
+    {
+     "id": "boucle-50-km",
+     "name": "Boucle de 50 km depuis Jouy-le-Châtel",
+     "nameEn": "50 km loop from Jouy-le-Châtel",
+     "lengthM": 46894.77,
+     "elevationGainM": 304.87,
+     "loop": true
+    }
+   ],
+   "pack": {
+    "version": "85720f1d3a10",
+    "bytes": 176394742,
+    "files": 1026,
+    "gzBytes": 67451051
+   },
+   "l93": {
+    "minE": 704000,
+    "minN": 6828000,
+    "maxE": 720000,
+    "maxN": 6844000
+   },
+   "open": true
+  },
+  {
+   "id": "idf-la-ferte-gaucher",
+   "name": "La Ferté-Gaucher",
+   "region": "Seine-et-Marne · Île-de-France",
+   "routes": [
+    {
+     "id": "boucle-20-km",
+     "name": "Boucle de 20 km depuis La Ferté-Gaucher",
+     "nameEn": "20 km loop from La Ferté-Gaucher",
+     "lengthM": 20563.81,
+     "elevationGainM": 194.99,
+     "loop": true
+    },
+    {
+     "id": "boucle-30-km",
+     "name": "Boucle de 30 km depuis La Ferté-Gaucher",
+     "nameEn": "30 km loop from La Ferté-Gaucher",
+     "lengthM": 29778.61,
+     "elevationGainM": 385.51,
+     "loop": true
+    },
+    {
+     "id": "boucle-40-km",
+     "name": "Boucle de 40 km depuis La Ferté-Gaucher",
+     "nameEn": "40 km loop from La Ferté-Gaucher",
+     "lengthM": 40538.49,
+     "elevationGainM": 411.67,
+     "loop": true
+    },
+    {
+     "id": "boucle-50-km",
+     "name": "Boucle de 50 km depuis La Ferté-Gaucher",
+     "nameEn": "50 km loop from La Ferté-Gaucher",
+     "lengthM": 47142.74,
+     "elevationGainM": 505.12,
+     "loop": true
+    }
+   ],
+   "pack": {
+    "version": "954a845d16a1",
+    "bytes": 194256007,
+    "files": 1026,
+    "gzBytes": 82662544
+   },
+   "l93": {
+    "minE": 720000,
+    "minN": 6844000,
+    "maxE": 736000,
     "maxN": 6860000
    },
    "open": true
@@ -2002,6 +2314,58 @@
    "open": true
   },
   {
+   "id": "idf-montereau-fault-yonne",
+   "name": "Montereau-Fault-Yonne",
+   "region": "Seine-et-Marne · Île-de-France",
+   "routes": [
+    {
+     "id": "boucle-20-km",
+     "name": "Boucle de 20 km depuis Montereau-Fault-Yonne",
+     "nameEn": "20 km loop from Montereau-Fault-Yonne",
+     "lengthM": 19208.06,
+     "elevationGainM": 107.78,
+     "loop": true
+    },
+    {
+     "id": "boucle-30-km",
+     "name": "Boucle de 30 km depuis Montereau-Fault-Yonne",
+     "nameEn": "30 km loop from Montereau-Fault-Yonne",
+     "lengthM": 30028.31,
+     "elevationGainM": 264.44,
+     "loop": true
+    },
+    {
+     "id": "boucle-40-km",
+     "name": "Boucle de 40 km depuis Montereau-Fault-Yonne",
+     "nameEn": "40 km loop from Montereau-Fault-Yonne",
+     "lengthM": 35839.04,
+     "elevationGainM": 276.32,
+     "loop": true
+    },
+    {
+     "id": "boucle-50-km",
+     "name": "Boucle de 50 km depuis Montereau-Fault-Yonne",
+     "nameEn": "50 km loop from Montereau-Fault-Yonne",
+     "lengthM": 53553.08,
+     "elevationGainM": 543.23,
+     "loop": true
+    }
+   ],
+   "pack": {
+    "version": "f3db1657c9dd",
+    "bytes": 191422085,
+    "files": 1026,
+    "gzBytes": 79764341
+   },
+   "l93": {
+    "minE": 688000,
+    "minN": 6796000,
+    "maxE": 704000,
+    "maxN": 6812000
+   },
+   "open": true
+  },
+  {
    "id": "idf-montreuil",
    "name": "Montreuil",
    "region": "Seine-Saint-Denis · Île-de-France",
@@ -2050,6 +2414,110 @@
     "minN": 6860000,
     "maxE": 672000,
     "maxN": 6876000
+   },
+   "open": true
+  },
+  {
+   "id": "idf-moret-loing-et-orvanne",
+   "name": "Moret-Loing-et-Orvanne",
+   "region": "Seine-et-Marne · Île-de-France",
+   "routes": [
+    {
+     "id": "boucle-20-km",
+     "name": "Boucle de 20 km depuis Moret-Loing-et-Orvanne",
+     "nameEn": "20 km loop from Moret-Loing-et-Orvanne",
+     "lengthM": 19988,
+     "elevationGainM": 216.13,
+     "loop": false
+    },
+    {
+     "id": "boucle-30-km",
+     "name": "Boucle de 30 km depuis Moret-Loing-et-Orvanne",
+     "nameEn": "30 km loop from Moret-Loing-et-Orvanne",
+     "lengthM": 28126.4,
+     "elevationGainM": 250.73,
+     "loop": true
+    },
+    {
+     "id": "boucle-40-km",
+     "name": "Boucle de 40 km depuis Moret-Loing-et-Orvanne",
+     "nameEn": "40 km loop from Moret-Loing-et-Orvanne",
+     "lengthM": 39777.26,
+     "elevationGainM": 351.42,
+     "loop": true
+    },
+    {
+     "id": "boucle-50-km",
+     "name": "Boucle de 50 km depuis Moret-Loing-et-Orvanne",
+     "nameEn": "50 km loop from Moret-Loing-et-Orvanne",
+     "lengthM": 47378.57,
+     "elevationGainM": 370.11,
+     "loop": true
+    }
+   ],
+   "pack": {
+    "version": "5a6cc90d7381",
+    "bytes": 304628800,
+    "files": 1026,
+    "gzBytes": 131482816
+   },
+   "l93": {
+    "minE": 672000,
+    "minN": 6796000,
+    "maxE": 688000,
+    "maxN": 6812000
+   },
+   "open": true
+  },
+  {
+   "id": "idf-nemours",
+   "name": "Nemours",
+   "region": "Seine-et-Marne · Île-de-France",
+   "routes": [
+    {
+     "id": "boucle-20-km",
+     "name": "Boucle de 20 km depuis Nemours",
+     "nameEn": "20 km loop from Nemours",
+     "lengthM": 20128,
+     "elevationGainM": 132.32,
+     "loop": false
+    },
+    {
+     "id": "boucle-30-km",
+     "name": "Boucle de 30 km depuis Nemours",
+     "nameEn": "30 km loop from Nemours",
+     "lengthM": 28636,
+     "elevationGainM": 210.77,
+     "loop": false
+    },
+    {
+     "id": "boucle-40-km",
+     "name": "Boucle de 40 km depuis Nemours",
+     "nameEn": "40 km loop from Nemours",
+     "lengthM": 40660,
+     "elevationGainM": 327.97,
+     "loop": false
+    },
+    {
+     "id": "boucle-50-km",
+     "name": "Boucle de 50 km depuis Nemours",
+     "nameEn": "50 km loop from Nemours",
+     "lengthM": 51038,
+     "elevationGainM": 401.89,
+     "loop": false
+    }
+   ],
+   "pack": {
+    "version": "ec5d9b378ca1",
+    "bytes": 243754099,
+    "files": 1026,
+    "gzBytes": 101885543
+   },
+   "l93": {
+    "minE": 672000,
+    "minN": 6780000,
+    "maxE": 688000,
+    "maxN": 6796000
    },
    "open": true
   },
@@ -2210,6 +2678,58 @@
    "open": true
   },
   {
+   "id": "idf-provins",
+   "name": "Provins",
+   "region": "Seine-et-Marne · Île-de-France",
+   "routes": [
+    {
+     "id": "boucle-20-km",
+     "name": "Boucle de 20 km depuis Provins",
+     "nameEn": "20 km loop from Provins",
+     "lengthM": 19267.41,
+     "elevationGainM": 263.43,
+     "loop": true
+    },
+    {
+     "id": "boucle-30-km",
+     "name": "Boucle de 30 km depuis Provins",
+     "nameEn": "30 km loop from Provins",
+     "lengthM": 30486.92,
+     "elevationGainM": 373.82,
+     "loop": true
+    },
+    {
+     "id": "boucle-40-km",
+     "name": "Boucle de 40 km depuis Provins",
+     "nameEn": "40 km loop from Provins",
+     "lengthM": 40306.31,
+     "elevationGainM": 426.22,
+     "loop": true
+    },
+    {
+     "id": "boucle-50-km",
+     "name": "Boucle de 50 km depuis Provins",
+     "nameEn": "50 km loop from Provins",
+     "lengthM": 46863.95,
+     "elevationGainM": 471.18,
+     "loop": true
+    }
+   ],
+   "pack": {
+    "version": "ffe5c986a776",
+    "bytes": 184718597,
+    "files": 1026,
+    "gzBytes": 72829763
+   },
+   "l93": {
+    "minE": 720000,
+    "minN": 6828000,
+    "maxE": 736000,
+    "maxN": 6844000
+   },
+   "open": true
+  },
+  {
    "id": "idf-rambouillet",
    "name": "Rambouillet",
    "region": "Yvelines · Île-de-France",
@@ -2310,6 +2830,58 @@
     "minN": 6860000,
     "maxE": 640000,
     "maxN": 6876000
+   },
+   "open": true
+  },
+  {
+   "id": "idf-saint-clair-sur-epte",
+   "name": "Saint-Clair-sur-Epte",
+   "region": "Val-d'Oise · Île-de-France",
+   "routes": [
+    {
+     "id": "boucle-20-km",
+     "name": "Boucle de 20 km depuis Saint-Clair-sur-Epte",
+     "nameEn": "20 km loop from Saint-Clair-sur-Epte",
+     "lengthM": 19546.71,
+     "elevationGainM": 170.81,
+     "loop": true
+    },
+    {
+     "id": "boucle-30-km",
+     "name": "Boucle de 30 km depuis Saint-Clair-sur-Epte",
+     "nameEn": "30 km loop from Saint-Clair-sur-Epte",
+     "lengthM": 30248,
+     "elevationGainM": 504.48,
+     "loop": false
+    },
+    {
+     "id": "boucle-40-km",
+     "name": "Boucle de 40 km depuis Saint-Clair-sur-Epte",
+     "nameEn": "40 km loop from Saint-Clair-sur-Epte",
+     "lengthM": 38896,
+     "elevationGainM": 560.39,
+     "loop": false
+    },
+    {
+     "id": "boucle-50-km",
+     "name": "Boucle de 50 km depuis Saint-Clair-sur-Epte",
+     "nameEn": "50 km loop from Saint-Clair-sur-Epte",
+     "lengthM": 49956,
+     "elevationGainM": 715.93,
+     "loop": false
+    }
+   ],
+   "pack": {
+    "version": "02f1f03b72f4",
+    "bytes": 222731892,
+    "files": 1026,
+    "gzBytes": 100168419
+   },
+   "l93": {
+    "minE": 592000,
+    "minN": 6892000,
+    "maxE": 608000,
+    "maxN": 6908000
    },
    "open": true
   },
@@ -2570,6 +3142,58 @@
     "minN": 6828000,
     "maxE": 688000,
     "maxN": 6844000
+   },
+   "open": true
+  },
+  {
+   "id": "idf-villeneuve-sur-bellot",
+   "name": "Villeneuve-sur-Bellot",
+   "region": "Seine-et-Marne · Île-de-France",
+   "routes": [
+    {
+     "id": "boucle-20-km",
+     "name": "Boucle de 20 km depuis Villeneuve-sur-Bellot",
+     "nameEn": "20 km loop from Villeneuve-sur-Bellot",
+     "lengthM": 19381.85,
+     "elevationGainM": 262.66,
+     "loop": true
+    },
+    {
+     "id": "boucle-30-km",
+     "name": "Boucle de 30 km depuis Villeneuve-sur-Bellot",
+     "nameEn": "30 km loop from Villeneuve-sur-Bellot",
+     "lengthM": 29374.7,
+     "elevationGainM": 357.58,
+     "loop": true
+    },
+    {
+     "id": "boucle-40-km",
+     "name": "Boucle de 40 km depuis Villeneuve-sur-Bellot",
+     "nameEn": "40 km loop from Villeneuve-sur-Bellot",
+     "lengthM": 40060.51,
+     "elevationGainM": 498.28,
+     "loop": true
+    },
+    {
+     "id": "boucle-50-km",
+     "name": "Boucle de 50 km depuis Villeneuve-sur-Bellot",
+     "nameEn": "50 km loop from Villeneuve-sur-Bellot",
+     "lengthM": 46933.5,
+     "elevationGainM": 576.21,
+     "loop": true
+    }
+   ],
+   "pack": {
+    "version": "fad16266d981",
+    "bytes": 200539844,
+    "files": 1026,
+    "gzBytes": 86775713
+   },
+   "l93": {
+    "minE": 720000,
+    "minN": 6860000,
+    "maxE": 736000,
+    "maxN": 6876000
    },
    "open": true
   },
