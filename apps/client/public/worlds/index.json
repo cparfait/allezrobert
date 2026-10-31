@@ -702,6 +702,58 @@
    "open": true
   },
   {
+   "id": "idf-bazoches-les-bray",
+   "name": "Bazoches-lès-Bray",
+   "region": "Seine-et-Marne · Île-de-France",
+   "routes": [
+    {
+     "id": "boucle-20-km",
+     "name": "Boucle de 20 km depuis Bazoches-lès-Bray",
+     "nameEn": "20 km loop from Bazoches-lès-Bray",
+     "lengthM": 22092,
+     "elevationGainM": 175.4,
+     "loop": false
+    },
+    {
+     "id": "boucle-30-km",
+     "name": "Boucle de 30 km depuis Bazoches-lès-Bray",
+     "nameEn": "30 km loop from Bazoches-lès-Bray",
+     "lengthM": 28840,
+     "elevationGainM": 247.62,
+     "loop": false
+    },
+    {
+     "id": "boucle-40-km",
+     "name": "Boucle de 40 km depuis Bazoches-lès-Bray",
+     "nameEn": "40 km loop from Bazoches-lès-Bray",
+     "lengthM": 40770,
+     "elevationGainM": 367.35,
+     "loop": false
+    },
+    {
+     "id": "boucle-50-km",
+     "name": "Boucle de 50 km depuis Bazoches-lès-Bray",
+     "nameEn": "50 km loop from Bazoches-lès-Bray",
+     "lengthM": 50364,
+     "elevationGainM": 413.02,
+     "loop": false
+    }
+   ],
+   "pack": {
+    "version": "9c90d049225b",
+    "bytes": 185181213,
+    "files": 1026,
+    "gzBytes": 75331942
+   },
+   "l93": {
+    "minE": 704000,
+    "minN": 6796000,
+    "maxE": 720000,
+    "maxN": 6812000
+   },
+   "open": true
+  },
+  {
    "id": "idf-beaumont-du-gatinais",
    "name": "Beaumont-du-Gâtinais",
    "region": "Seine-et-Marne · Île-de-France",
@@ -1322,6 +1374,58 @@
     "minN": 6812000,
     "maxE": 720000,
     "maxN": 6828000
+   },
+   "open": true
+  },
+  {
+   "id": "idf-egreville",
+   "name": "Égreville",
+   "region": "Seine-et-Marne · Île-de-France",
+   "routes": [
+    {
+     "id": "boucle-20-km",
+     "name": "Boucle de 20 km depuis Égreville",
+     "nameEn": "20 km loop from Égreville",
+     "lengthM": 19418.21,
+     "elevationGainM": 109.96,
+     "loop": true
+    },
+    {
+     "id": "boucle-30-km",
+     "name": "Boucle de 30 km depuis Égreville",
+     "nameEn": "30 km loop from Égreville",
+     "lengthM": 31342,
+     "elevationGainM": 191.59,
+     "loop": false
+    },
+    {
+     "id": "boucle-40-km",
+     "name": "Boucle de 40 km depuis Égreville",
+     "nameEn": "40 km loop from Égreville",
+     "lengthM": 38246,
+     "elevationGainM": 277.96,
+     "loop": false
+    },
+    {
+     "id": "boucle-50-km",
+     "name": "Boucle de 50 km depuis Égreville",
+     "nameEn": "50 km loop from Égreville",
+     "lengthM": 50274,
+     "elevationGainM": 403.74,
+     "loop": false
+    }
+   ],
+   "pack": {
+    "version": "e3fd14d2b42e",
+    "bytes": 196451724,
+    "files": 1026,
+    "gzBytes": 74619602
+   },
+   "l93": {
+    "minE": 688000,
+    "minN": 6780000,
+    "maxE": 704000,
+    "maxN": 6796000
    },
    "open": true
   },
@@ -3042,6 +3146,58 @@
    "open": true
   },
   {
+   "id": "idf-sourdun",
+   "name": "Sourdun",
+   "region": "Seine-et-Marne · Île-de-France",
+   "routes": [
+    {
+     "id": "boucle-20-km",
+     "name": "Boucle de 20 km depuis Sourdun",
+     "nameEn": "20 km loop from Sourdun",
+     "lengthM": 19469.8,
+     "elevationGainM": 225.68,
+     "loop": true
+    },
+    {
+     "id": "boucle-30-km",
+     "name": "Boucle de 30 km depuis Sourdun",
+     "nameEn": "30 km loop from Sourdun",
+     "lengthM": 29893.52,
+     "elevationGainM": 276.79,
+     "loop": true
+    },
+    {
+     "id": "boucle-40-km",
+     "name": "Boucle de 40 km depuis Sourdun",
+     "nameEn": "40 km loop from Sourdun",
+     "lengthM": 37473.34,
+     "elevationGainM": 326.25,
+     "loop": true
+    },
+    {
+     "id": "boucle-50-km",
+     "name": "Boucle de 50 km depuis Sourdun",
+     "nameEn": "50 km loop from Sourdun",
+     "lengthM": 50150.07,
+     "elevationGainM": 491.09,
+     "loop": true
+    }
+   ],
+   "pack": {
+    "version": "4b1cfd06554b",
+    "bytes": 214715973,
+    "files": 1026,
+    "gzBytes": 88096611
+   },
+   "l93": {
+    "minE": 720000,
+    "minN": 6812000,
+    "maxE": 736000,
+    "maxN": 6828000
+   },
+   "open": true
+  },
+  {
    "id": "idf-versailles",
    "name": "Versailles",
    "region": "Yvelines · Île-de-France",
@@ -3142,6 +3298,58 @@
     "minN": 6828000,
     "maxE": 688000,
     "maxN": 6844000
+   },
+   "open": true
+  },
+  {
+   "id": "idf-villenauxe-la-petite",
+   "name": "Villenauxe-la-Petite",
+   "region": "Seine-et-Marne · Île-de-France",
+   "routes": [
+    {
+     "id": "boucle-20-km",
+     "name": "Boucle de 20 km depuis Villenauxe-la-Petite",
+     "nameEn": "20 km loop from Villenauxe-la-Petite",
+     "lengthM": 22892,
+     "elevationGainM": 259.98,
+     "loop": false
+    },
+    {
+     "id": "boucle-30-km",
+     "name": "Boucle de 30 km depuis Villenauxe-la-Petite",
+     "nameEn": "30 km loop from Villenauxe-la-Petite",
+     "lengthM": 27864,
+     "elevationGainM": 378.3,
+     "loop": false
+    },
+    {
+     "id": "boucle-40-km",
+     "name": "Boucle de 40 km depuis Villenauxe-la-Petite",
+     "nameEn": "40 km loop from Villenauxe-la-Petite",
+     "lengthM": 39206,
+     "elevationGainM": 538.59,
+     "loop": false
+    },
+    {
+     "id": "boucle-50-km",
+     "name": "Boucle de 50 km depuis Villenauxe-la-Petite",
+     "nameEn": "50 km loop from Villenauxe-la-Petite",
+     "lengthM": 52790,
+     "elevationGainM": 731.08,
+     "loop": false
+    }
+   ],
+   "pack": {
+    "version": "0dda4966a379",
+    "bytes": 193220983,
+    "files": 1026,
+    "gzBytes": 81238106
+   },
+   "l93": {
+    "minE": 720000,
+    "minN": 6796000,
+    "maxE": 736000,
+    "maxN": 6812000
    },
    "open": true
   },
