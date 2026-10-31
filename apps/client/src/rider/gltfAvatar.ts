@@ -156,8 +156,10 @@ const HEAD_SEX = 1;
 const CHEST_SEX = 0;
 /** Poitrine modelée (bosses gaussiennes devant le buste) : écartement, hauteur sous la ceinture de poitrine, rayon et relief, en mètres. */
 /** Pectoraux des hommes (creux, m) trop forts : réduits pour tous ; les coureuses en perdent davantage (hWomen) avant que la poitrine soit modelée. */
-const PEC = { a: 0.08, b: -0.14, sigma: 0.07, hMen: -0.015, hWomen: -0.02 };
-const BREAST = { a: 0.09, b: -0.14, sigma: 0.06, h: 0.035 };
+const PEC = { a: 0.0, b: -0.13, sigma: 0.11, hMen: -0.035, hWomen: -0.01 };
+/** Lissage des normales du devant du buste des hommes : demi-largeur et hauteurs (m), passes. */
+const SMOOTHN = { x: 0.2, y0: 0.0, y1: 0.3, iter: 14 };
+const BREAST = { a: 0.09, b: -0.13, sigma: 0.07, h: 0.1 };
 /** Hauteur du buste (0 = ceinture de poitrine, 1 = base du cou) où la poitrine commence à s'effacer (haut → 0) et où elle est pleine. */
 const CHEST_RAMP: readonly [number, number] = [0.15, 0.7];
 const SEX_HEAD_BONES: ReadonlySet<string> = new Set(['head', 'neck_01']);
@@ -562,6 +564,7 @@ function sexMaskOf(mesh: THREE.Mesh): SexMask | null {
 
 function extractIdentity(scene: THREE.Object3D): void {
   const done = new Set<THREE.BufferGeometry>();
+  const flatParts: Array<{ frame: NonNullable<SexMask['frame']>; g: THREE.BufferGeometry }> = [];
   scene.traverse((o) => {
     const mesh = o as THREE.Mesh;
     const g = mesh.geometry as THREE.BufferGeometry | undefined;
@@ -595,8 +598,7 @@ function extractIdentity(scene: THREE.Object3D): void {
         const pa = g.getAttribute('position');
         const arr = pa.array as Float32Array;
         bumpChest(arr, g.getAttribute('normal') ? toFloat(g.getAttribute('normal')) : null, sexMask.frame, PEC.hMen, PEC.a, PEC.b, PEC.sigma);
-        pa.needsUpdate = true;
-        smoothNormals(g);
+        flatParts.push({ g, frame: sexMask.frame });
       }
       g.userData.animNames = names.filter((_, i) => keep[i]);
     }
@@ -611,6 +613,11 @@ function extractIdentity(scene: THREE.Object3D): void {
       }
     }
   });
+  for (const q of flatParts) {
+    q.g.getAttribute('position').needsUpdate = true;
+    smoothNormals(q.g);
+    smoothChestNormals(q.g, q.frame);
+  }
 }
 
 function smoothNormals(g: THREE.BufferGeometry): void {
@@ -673,6 +680,64 @@ function bumpChest(p: Float32Array, nrm: Float32Array | null, f: NonNullable<Sex
     p[v * 3 + 1] = (p[v * 3 + 1] as number) + nv.y * bump;
     p[v * 3 + 2] = (p[v * 3 + 2] as number) + nv.z * bump;
   }
+}
+
+/**
+ * Devant du buste des hommes : normales lissées (moyenne répétée avec les voisins, soudés aux coutures) sur le
+ * pectoral et le haut du ventre, pour que le maillot soit lisse comme sur les photos de coureurs, sans toucher à la
+ * géométrie (la peau ne ressort pas du maillot). Seules les normales du modèle de base changent.
+ */
+function smoothChestNormals(g: THREE.BufferGeometry, f: NonNullable<SexMask['frame']>): void {
+  const pos = g.getAttribute('position');
+  const nor = g.getAttribute('normal');
+  if (!nor) return;
+  const count = pos.count;
+  const key = (i: number): string => `${Math.round(pos.getX(i) * 1e4)},${Math.round(pos.getY(i) * 1e4)},${Math.round(pos.getZ(i) * 1e4)}`;
+  const weld = new Map<string, number>();
+  const rep = new Int32Array(count);
+  for (let i = 0; i < count; i++) {
+    const kk = key(i);
+    const r = weld.get(kk);
+    if (r === undefined) {
+      weld.set(kk, i);
+      rep[i] = i;
+    } else rep[i] = r;
+  }
+  const nb = new Map<number, Set<number>>();
+  const idx = g.index;
+  for (let t = 0; t < (idx ? idx.count : count); t += 3) {
+    const tri = [0, 1, 2].map((k) => rep[idx ? idx.getX(t + k) : t + k] as number);
+    for (let a = 0; a < 3; a++) for (let b = 0; b < 3; b++) if (a !== b && tri[a] !== tri[b]) (nb.get(tri[a] as number) ?? nb.set(tri[a] as number, new Set()).get(tri[a] as number))?.add(tri[b] as number);
+  }
+  const r = new THREE.Vector3();
+  const wt = new Map<number, number>();
+  for (let i = 0; i < count; i++) {
+    if (rep[i] !== i) continue;
+    r.fromBufferAttribute(pos, i).sub(f.origin);
+    if (r.dot(f.fwd) <= 0) continue;
+    const w = THREE.MathUtils.smoothstep(1 - Math.abs(r.dot(f.lat)) / SMOOTHN.x, 0, 0.35) * THREE.MathUtils.smoothstep(r.dot(f.axis), SMOOTHN.y0 - 0.05, SMOOTHN.y0 + 0.05) * (1 - THREE.MathUtils.smoothstep(r.dot(f.axis), SMOOTHN.y1 - 0.05, SMOOTHN.y1 + 0.05));
+    if (w > 0.02) wt.set(i, w);
+  }
+  const cur = new Map<number, THREE.Vector3>();
+  for (const i of wt.keys()) cur.set(i, new THREE.Vector3().fromBufferAttribute(nor, i));
+  const get = (i: number): THREE.Vector3 => cur.get(i) ?? new THREE.Vector3().fromBufferAttribute(nor, i);
+  for (let it = 0; it < SMOOTHN.iter; it++) {
+    const next = new Map<number, THREE.Vector3>();
+    for (const [i, w] of wt) {
+      const ns = nb.get(i);
+      if (!ns?.size) continue;
+      const avg = new THREE.Vector3();
+      for (const j of ns) avg.add(get(j));
+      avg.divideScalar(ns.size);
+      next.set(i, get(i).clone().lerp(avg, w).normalize());
+    }
+    for (const [i, v] of next) cur.set(i, v);
+  }
+  for (let i = 0; i < count; i++) {
+    const v = cur.get(rep[i] as number);
+    if (v) nor.setXYZ(i, v.x, v.y, v.z);
+  }
+  nor.needsUpdate = true;
 }
 
 /** Poitrine des coureuses : les pectoraux des hommes sont creusés davantage, puis deux bosses lisses sont modelées (k = poids du curseur). */
