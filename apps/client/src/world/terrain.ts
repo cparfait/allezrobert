@@ -720,11 +720,13 @@ function clampUnderRoads(pos: Float32Array, tile: LoadedTile, seg: number, reach
   for (const r of roads) {
     if (r.bridge) continue;
     const shoulder = Math.max(Math.max(r.width, 2.5) / 2 + 0.8, step * 0.6);
-    around(r.pts3 as number[], shoulder + 6, (kk, d, y) => {
+    // Talus en pente douce (≈ 1 pour 2,5) sur 14 m, au lieu d'un mur à 45° : la route se raccorde au terrain par une
+    // pente, sans marche ni vide sous son bord (elle ne semble plus voler au-dessus du sol).
+    around(r.pts3 as number[], shoulder + 14, (kk, d, y) => {
       const h = pos[kk] as number;
       const top = y - ROAD_TERRAIN_BELOW - 0.02;
-      if (h >= top || top - h > 6) return;
-      const target = d <= shoulder ? top : top - (d - shoulder);
+      if (h >= top || top - h > 8) return;
+      const target = d <= shoulder ? top : top - (d - shoulder) * 0.4;
       if (target > h) pos[kk] = target;
     });
   }
