@@ -346,7 +346,8 @@ export class Environment {
   /** Exposition conseillée pour le tone mapping (plus forte la nuit pour rester lisible). */
   exposure(): number {
     const el = this.sunDir.y;
-    return el < 0 ? 1.6 : 1.0 + 0.35 * (1 - THREE.MathUtils.smoothstep(el, 0, 0.3));
+    // Continue au coucher (l'ancien saut de 1,35 à 1,6 à l'horizon faisait « pomper » l'image et scintiller le lointain).
+    return 1.0 + 0.35 * (1 - THREE.MathUtils.smoothstep(el, 0, 0.3)) + 0.25 * (1 - THREE.MathUtils.smoothstep(el, -0.12, 0.0));
   }
 
   dispose(): void {

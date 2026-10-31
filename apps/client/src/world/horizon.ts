@@ -168,8 +168,11 @@ export class FarTerrain {
     const alt = P.y;
     const slope = float(1).sub(normalWorld.y);
     // Style jeu vidéo : aplats francs, sans bruit (ni marbrure de la roche ni limite de neige frangée).
-    const n1 = LOW_POLY ? float(0.5) : mx_noise_float(xz.mul(0.0011)).mul(0.5).add(0.5);
-    const n2 = LOW_POLY ? float(0.5) : mx_noise_float(xz.mul(0.007)).mul(0.5).add(0.5);
+    // Le bruit s'efface avec la distance : à 10 km et plus, ses détails font moins d'un pixel et grésillent au moindre
+    // mouvement (surtout la nuit, où l'exposition les amplifie) ; une valeur moyenne fixe les remplace.
+    const farK = float(1).sub(smoothstep(3000, 9000, P.sub(cameraPosition).length()));
+    const n1 = LOW_POLY ? float(0.5) : mix(float(0.5), mx_noise_float(xz.mul(0.0011)).mul(0.5).add(0.5), farK);
+    const n2 = LOW_POLY ? float(0.5) : mix(float(0.5), mx_noise_float(xz.mul(0.007)).mul(0.5).add(0.5), farK);
     // versants boisés, fonds de vallée en prés ; au-dessus de la forêt, alpages
     const forestK = smoothstep(0.06, 0.2, slope).mul(n1.mul(0.5).add(0.6)).mul(float(1).sub(smoothstep(this.treeline.sub(300), this.treeline, alt)));
     let col = mix(this.meadow.node, this.forest.node, clamp(forestK, 0, 1));
