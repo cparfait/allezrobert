@@ -153,7 +153,9 @@ const SEX_FULL_BODY = FEMALES_PARAM === 'sex' || FEMALE_OWN_MODEL;
  * le reste du corps (épaules, dos, hanches, jambes) reste celui des hommes.
  */
 const HEAD_SEX = 1;
-const CHEST_SEX = 1;
+const CHEST_SEX = 0;
+/** Poitrine modelée (bosses gaussiennes devant le buste) : écartement, hauteur sous la ceinture de poitrine, rayon et relief, en mètres. */
+const BREAST = { a: 0.09, b: -0.06, sigma: 0.065, h: 0.04 };
 /** Hauteur du buste (0 = ceinture de poitrine, 1 = base du cou) où la poitrine commence à s'effacer (haut → 0) et où elle est pleine. */
 const CHEST_RAMP: readonly [number, number] = [0.15, 0.7];
 const SEX_HEAD_BONES: ReadonlySet<string> = new Set(['head', 'neck_01']);
@@ -495,7 +497,14 @@ function plainAttributes(g: THREE.BufferGeometry): void {
 }
 
 /** Part du curseur « sex » par sommet : tête et cou, buste (poids des os), pour la morphologie féminine sur le corps des hommes. */
-function sexMaskOf(mesh: THREE.Mesh): { head: Float32Array; chest: Float32Array } | null {
+interface SexMask {
+  head: Float32Array;
+  chest: Float32Array;
+  trunk: Float32Array;
+  frame: { origin: THREE.Vector3; axis: THREE.Vector3; fwd: THREE.Vector3; lat: THREE.Vector3; s: number } | null;
+}
+
+function sexMaskOf(mesh: THREE.Mesh): SexMask | null {
   const sm = mesh as THREE.SkinnedMesh;
   const g = mesh.geometry;
   const si = g.getAttribute('skinIndex');
@@ -504,6 +513,7 @@ function sexMaskOf(mesh: THREE.Mesh): { head: Float32Array; chest: Float32Array 
   const n = g.getAttribute('position').count;
   const head = new Float32Array(n);
   const chest = new Float32Array(n);
+  const trunk = new Float32Array(n);
   const bones = sm.skeleton.bones;
   // Hauteur le long du buste (0 = ceinture de poitrine, 1 = base du cou) : le haut de la poitrine, creusé par la
   // cible féminine (clavicules), reste celui des hommes ; la poitrine n'est appliquée qu'en dessous.
@@ -520,10 +530,32 @@ function sexMaskOf(mesh: THREE.Mesh): { head: Float32Array; chest: Float32Array 
       const name = bones[si.getComponent(i, c)]?.name ?? '';
       const w = sw.getComponent(i, c);
       if (SEX_HEAD_BONES.has(name)) head[i] = (head[i] as number) + w;
-      else if (SEX_CHEST_BONES.has(name)) chest[i] = (chest[i] as number) + w * ramp;
+      else if (SEX_CHEST_BONES.has(name)) {
+        chest[i] = (chest[i] as number) + w * ramp;
+        if (name.startsWith('spine')) trunk[i] = (trunk[i] as number) + w;
+      }
     }
   }
-  return { head, chest };
+  // Repère du buste pour la poitrine : origine, axe vers le cou, avant (pied → orteils), côté, largeur des clavicules.
+  let frame: SexMask['frame'] = null;
+  const bh = (name: string): THREE.Vector3 | null => {
+    const k = bones.findIndex((b) => b.name === name);
+    const inv = sm.skeleton.boneInverses[k];
+    return inv ? new THREE.Vector3().setFromMatrixPosition(new THREE.Matrix4().copy(sm.bindMatrixInverse).multiply(inv.clone().invert())) : null;
+  };
+  const cl = bh('clavicle_l');
+  const cr = bh('clavicle_r');
+  const foot = bh('foot_l');
+  const ball = bh('ball_l');
+  if (axis && cl && cr && foot && ball) {
+    // Côté : d'une clavicule à l'autre ; avant : perpendiculaire au côté et à l'axe, du côté des orteils (la pose de conduite incline tout).
+    const lat = cl.clone().sub(cr);
+    lat.addScaledVector(axis.dir, -lat.dot(axis.dir)).normalize();
+    const fwd = new THREE.Vector3().crossVectors(lat, axis.dir).normalize();
+    if (fwd.dot(ball.sub(foot)) < 0) fwd.negate();
+    frame = { origin: axis.origin, axis: axis.dir, fwd, lat, s: cl.distanceTo(cr) };
+  }
+  return { head, chest, trunk, frame };
 }
 
 function extractIdentity(scene: THREE.Object3D): void {
@@ -611,6 +643,34 @@ function smoothNormals(g: THREE.BufferGeometry): void {
   g.setAttribute('normal', new THREE.BufferAttribute(n, 3));
 }
 
+/** Poitrine : deux bosses gaussiennes sur le devant du buste, poussées vers l'avant (positions modifiées en place, k = poids du curseur). */
+function addBreasts(p: Float32Array, nrm: Float32Array | null, mask: SexMask, k: number): void {
+  const f = mask.frame as NonNullable<SexMask['frame']>;
+  const T = (globalThis as unknown as { __br?: Partial<typeof BREAST> }).__br ?? {};
+  const a = T.a ?? BREAST.a;
+  const b = T.b ?? BREAST.b;
+  const sg = T.sigma ?? BREAST.sigma;
+  const h = (T.h ?? BREAST.h) * k;
+  const r = new THREE.Vector3();
+  const nv = new THREE.Vector3();
+  const nm = new THREE.Vector3();
+  for (let v = 0; v < mask.trunk.length; v++) {
+    r.set(p[v * 3] as number, p[v * 3 + 1] as number, p[v * 3 + 2] as number).sub(f.origin);
+    const x = r.dot(f.lat);
+    const y = r.dot(f.axis);
+    const z = r.dot(f.fwd);
+    if (z <= 0 || Math.abs(x) > 0.16) continue;
+    const d2 = (Math.abs(x) - a) ** 2 + (y + b) ** 2;
+    const bump = h * Math.exp(-d2 / (2 * sg * sg));
+    if (bump < 1e-5) continue;
+    nv.copy(f.fwd);
+    if (nrm) nv.multiplyScalar(0.5).add(nm.set(nrm[v * 3] as number, nrm[v * 3 + 1] as number, nrm[v * 3 + 2] as number).normalize().multiplyScalar(0.5)).normalize();
+    p[v * 3] = (p[v * 3] as number) + nv.x * bump;
+    p[v * 3 + 1] = (p[v * 3 + 1] as number) + nv.y * bump;
+    p[v * 3 + 2] = (p[v * 3 + 2] as number) + nv.z * bump;
+  }
+}
+
 /** Géométrie propre à l'avatar : base + Σ poids × cibles d'identité (positions et normales). */
 function bakeIdentity(base: THREE.BufferGeometry, id: IdentityTargets, w: readonly number[]): THREE.BufferGeometry {
   // Index, UV, poids et cibles animées partagés avec le modèle : seules positions et normales sont propres.
@@ -625,7 +685,8 @@ function bakeIdentity(base: THREE.BufferGeometry, id: IdentityTargets, w: readon
   const n0 = base.getAttribute('normal');
   const p = toFloat(p0);
   const n = n0 ? toFloat(n0) : null;
-  const mask = base.userData.sexMask as { head: Float32Array; chest: Float32Array } | null | undefined;
+  const mask = base.userData.sexMask as SexMask | null | undefined;
+  let breastsDone = false;
   w.forEach((k, t) => {
     if (!k) return;
     const dp = id.pos[t] as Float32Array;
@@ -642,12 +703,20 @@ function bakeIdentity(base: THREE.BufferGeometry, id: IdentityTargets, w: readon
           if (n && dn) n[v * 3 + c] = (n[v * 3 + c] as number) + m * (dn[v * 3 + c] as number);
         }
       }
+      if (mask.frame) {
+        addBreasts(p, n ?? (nor ? toFloat(nor) : null), mask, k);
+      }
+      breastsDone = true;
       return;
     }
     for (let i = 0; i < p.length; i++) p[i] = (p[i] as number) + k * (dp[i] as number);
     if (n && dn) for (let i = 0; i < n.length; i++) n[i] = (n[i] as number) + k * (dn[i] as number);
   });
   g.setAttribute('position', new THREE.BufferAttribute(p, 3));
+  if (breastsDone) {
+    smoothNormals(g);
+    return g;
+  }
   if (n && !id.nrm.some(Boolean)) {
     // Cibles sans normales : normales recalculées, lissées à travers les coutures (sommets
     // dédoublés aux bords d'UV et de matériaux, mêmes positions).
