@@ -1,5 +1,5 @@
 import * as THREE from 'three/webgpu';
-import { texture, uv, normalWorld, positionWorld, mix, smoothstep, vec2, vec3, float, uniform, mx_noise_float, clamp } from 'three/tsl';
+import { texture, uv, normalWorld, positionWorld, mix, smoothstep, vec2, vec3, float, uniform, mx_noise_float, clamp, cameraPosition } from 'three/tsl';
 import type { QualitySettings } from '../engine/quality.ts';
 import { colorUniform } from '../engine/tsl.ts';
 import { cloudShade } from './clouds.ts';
@@ -531,8 +531,11 @@ export class TerrainManager {
     const wp = positionWorld.xz;
     // Variations à plusieurs échelles pour casser les aplats (taches de cultures, herbe).
     const n1 = mx_noise_float(wp.mul(0.004)).mul(0.5).add(0.5);
-    const n2 = mx_noise_float(wp.mul(0.035)).mul(0.5).add(0.5);
-    const n3 = mx_noise_float(wp.mul(0.4)).mul(0.5).add(0.5);
+    // Les bruits fins s'effacent avec la distance : au-delà de leur taille de pixel ils grésillent dès que la caméra
+    // bouge (versants enneigés la nuit surtout). Au loin, la valeur moyenne les remplace.
+    const camDist = positionWorld.sub(cameraPosition).length();
+    const n2 = mix(float(0.5), mx_noise_float(wp.mul(0.035)).mul(0.5).add(0.5), float(1).sub(smoothstep(250, 1200, camDist)));
+    const n3 = mix(float(0.5), mx_noise_float(wp.mul(0.4)).mul(0.5).add(0.5), float(1).sub(smoothstep(40, 220, camDist)));
     const detail = n2.mul(0.18).add(n3.mul(0.12)).add(0.82);
 
     // Altitude : alpages au-dessus de ~1 500 m (pelouse rase, plus claire et plus sèche).
@@ -586,7 +589,7 @@ export class TerrainManager {
     const highRock = smoothstep(this.treeline.add(100), this.treeline.add(700), alt).mul(0.6).mul(n1.mul(0.6).add(0.6));
     const rockMask = clamp(steep.max(highRock).max(scree), 0, 1).mul(float(1).sub(roadMask));
     // Roche : strates et taches (bruit étiré), éboulis plus clairs et grenus.
-    const strata = mx_noise_float(vec3(wp.x.mul(0.05), alt.mul(0.35), wp.y.mul(0.05))).mul(0.12).add(1);
+    const strata = mix(float(1), mx_noise_float(vec3(wp.x.mul(0.05), alt.mul(0.35), wp.y.mul(0.05))).mul(0.12).add(1), float(1).sub(smoothstep(300, 1500, camDist)));
     const rock = this.rockColor.node.mul(n3.mul(0.25).add(0.82)).mul(strata).mul(scree.mul(0.12).add(1));
     col = mix(col, rock, rockMask.mul(ortho ? 0.5 : 0.9));
     const glacier = mix(vec3(0.78, 0.85, 0.9), vec3(0.62, 0.72, 0.8), smoothstep(0.55, 0.8, n3));
