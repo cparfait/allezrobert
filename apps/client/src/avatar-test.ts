@@ -634,12 +634,14 @@ async function main(): Promise<void> {
     const chosen = rows.filter((_, i) => !only || only.split(',').includes(String(i)));
     sheet.height = H * chosen.length;
     const g = sheet.getContext('2d') as CanvasRenderingContext2D;
-    camera.fov = 24;
+    camera.fov = Number(params.get('fov') ?? 24);
     camera.aspect = canvas.width / canvas.height;
     camera.updateProjectionMatrix();
     for (const [ri, [label, look, kind]] of chosen.entries()) {
-      const a = new GltfRiderAvatar(look, kind);
+      const a = LOW_POLY ? createAvatar(look) : new GltfRiderAvatar(look, kind);
       scene.add(a.root);
+      const hide = params.get('hide');
+      if (hide) a.root.traverse((o) => { if (o.name === hide) o.visible = false; });
       const priv = a as unknown as { crankAngle: number };
       priv.crankAngle = Math.PI + 0.25;
       a.update(0, 0.0001, 0, 'seated');
@@ -647,8 +649,11 @@ async function main(): Promise<void> {
       a.update(1e-4, 0.0001, 0, 'seated');
       a.root.updateMatrixWorld(true);
       for (const [vi, [dx, dz]] of views.entries()) {
-        camera.position.set(dx * 2.6, 1.55, 0.1 + dz * 2.6);
-        camera.lookAt(0, 1.3, 0.1);
+        const ch = Number(params.get('ch') ?? 1.55);
+        const ty = Number(params.get('ty') ?? 1.3);
+        const dist = Number(params.get('dist') ?? 2.6);
+        camera.position.set(dx * dist, ch, 0.1 + dz * dist);
+        camera.lookAt(0, ty, 0.1);
         for (let n = 0; n < 3; n++) engine.renderManual();
         const sw = (canvas.height * W) / H;
         g.drawImage(canvas, (canvas.width - sw) / 2, 0, sw, canvas.height, vi * W, ri * H, W, H);

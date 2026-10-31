@@ -358,7 +358,7 @@ export class SweptBody {
       const shinUp = new THREE.Vector3().subVectors(g.knee, g.ankle).normalize();
       const legColor = (cover: boolean) => (cover || look.longLegs ? look.shorts : look.skin);
       // Cuisse : du cœur du fessier au genou, un peu au-delà (bout fermé caché sous le bloc de genou).
-      const tPts = [g.hip.clone().add(new THREE.Vector3(-side * 0.035, 0.025, 0)), g.hip, g.knee.clone().addScaledVector(thighDir, KNEE_OVERLAP)];
+      const tPts = [SHELL ? g.hip.clone().add(new THREE.Vector3(-side * 0.035, 0.025, 0)) : g.hip.clone().addScaledVector(thighDir, -0.045), g.hip, g.knee.clone().addScaledVector(thighDir, KNEE_OVERLAP)];
       const tf = fractions(tPts);
       const LT = (f: number) => (tf[1] as number) + f * (1 - (tf[1] as number));
       const thighLen = g.hip.distanceTo(g.knee);
