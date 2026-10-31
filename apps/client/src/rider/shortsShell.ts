@@ -14,9 +14,9 @@ import type { BodyJoints } from './sweptBody.ts';
  */
 
 /** Pas de la grille (m) : taille des facettes. */
-const SHELL_CELL = 0.03;
+const SHELL_CELL = 0.07;
 /** Lissage des sommets (passes, part du déplacement vers la moyenne des voisins) : facettes régulières. */
-const SMOOTH_PASSES = 4;
+const SMOOTH_PASSES = 6;
 const SMOOTH_K = 0.5;
 /** Rayon d'adoucissement des unions (m) : pas d'arête entre fessier, taille et cuisses. */
 const BLEND = 0.04;
@@ -74,15 +74,15 @@ export function shortsShell(rest: BodyJoints, P: ShellParams): { vertices: Shell
   // Fessier : centre un peu sous et derrière le bassin, fond dans l'épaisseur de la selle ; plus profond
   // derrière (fesses) que devant (bas-ventre), plus haut que bas.
   const gC = H.clone().add(new THREE.Vector3(0, -0.012, -0.02));
-  const gR = { x: 0.12 * hips * s, up: 0.08 * s, down: 0.07 * s, front: 0.078 * s, back: 0.088 * s };
+  const gR = { x: 0.155 * hips * s, up: 0.08 * s, down: 0.07 * s, front: 0.078 * s, back: 0.088 * s };
   // Taille : capsule ovale le long du bas du dos, jusqu'au-dessus de l'ourlet du maillot.
   const top = P.hemP.clone().addScaledVector(up, 0.02);
   const waistR = 0.083 * s;
-  const waistSx = (0.115 * hips) / 0.083;
+  const waistSx = (0.145 * hips) / 0.083;
   // Cuisses : du cœur du fessier à l'ourlet du cuissard, rayon effilé.
   const legs = rest.legs.map((g, i) => {
     const side = i === 0 ? 1 : -1;
-    const a = g.hip.clone().add(new THREE.Vector3(-side * 0.02, 0.015, -0.015));
+    const a = g.hip.clone().add(new THREE.Vector3(-side * 0.035, 0.015, 0.012));
     const hem = g.hip.clone().lerp(g.knee, P.thighEnd);
     const dir = new THREE.Vector3().subVectors(g.knee, g.hip).normalize();
     return { side, a, hem, dir, hip: g.hip, len: g.hip.distanceTo(g.knee), bone: 2 + i * 2 };
@@ -98,7 +98,7 @@ export function shortsShell(rest: BodyJoints, P: ShellParams): { vertices: Shell
     let d = (Math.sqrt(ex * ex + ey * ey + ez * ez) - 1) * Math.min(gR.down, gR.front);
     d = smin(d, capsule(p, H, top, waistR, waistR * 0.96, waistSx, tmp), BLEND);
     // Cuisses : rayon qui finit sous celui du tube de la cuisse (≈ 7,2 cm à mi-cuisse) : la coque y rentre.
-    for (const L of legs) d = smin(d, capsule(p, L.a, L.hem, 0.09 * s, 0.062 * s, 1, tmp), BLEND);
+    for (const L of legs) d = smin(d, capsule(p, L.a, L.hem, 0.078 * s, 0.062 * s, 1, tmp), BLEND);
     // Coupe sous le maillot (plan de la taille) ; les cuisses finissent arrondies dans leur tube.
     d = Math.max(d, q.subVectors(p, top).dot(up));
     return d;

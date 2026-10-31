@@ -15,15 +15,16 @@ import { shortsShell } from './shortsShell.ts';
  */
 
 /**
- * Fessier en bloc (quelques grands pans, comme le reste du corps) ; ?coque=1 : coque du cuissard (shortsShell.ts),
- * par défaut jusqu'au 29/10/2026, jugée trop chargée en petites facettes.
+ * Coque du cuissard (shortsShell.ts) d'un seul tenant, à grandes facettes (cellules de 7 cm) : bassin, fesses et
+ * hauts de cuisses continus. Remise par défaut le 01/11/2026 (retirée le 29/10 : trop de petites facettes à 3 cm) ;
+ * ?coque=0 : ancien fessier en bloc.
  */
-const SHELL = (typeof location === 'undefined' ? null : new URLSearchParams(location.search).get('coque')) === '1';
+const SHELL = (typeof location === 'undefined' ? null : new URLSearchParams(location.search).get('coque')) !== '0';
 
 /** Genou : chevauchement de la cuisse et du tibia au-delà de l'articulation, rayon et avancée du bloc de genou (m). */
-const KNEE_OVERLAP = 0.03;
-const KNEE_R = 0.052;
-const KNEE_FORWARD = 0.012;
+const KNEE_OVERLAP = 0.01;
+const KNEE_R = 0.044;
+const KNEE_FORWARD = 0;
 
 /** Fraction de la cuisse où la coque du cuissard rentre dans le tube de la cuisse (pas de raccord à l'ourlet). */
 const SHELL_THIGH_END = 0.5;
@@ -314,11 +315,11 @@ export class SweptBody {
             { t: T(0, 0.75), w: 0.172 * hips, p: 0.1, n: 0.11, bones: [[0, 1]] },
             { t: T(1, 0), w: 0.16 * hips, p: 0.1, n: 0.1, bones: [[0, 1]] },
           ] as Key[])),
-      { t: T(1, 0.5), w: 0.138, p: 0.09, n: 0.09, bones: [[0, 1]] },
-      { t: T(2, 0), w: 0.135, p: 0.085, n: 0.085, bones: [[0, 0.5], [1, 0.5]] },
-      { t: T(2, 0.45), w: 0.15 * chest, p: 0.095, n: 0.095, bones: [[1, 1]] },
-      { t: T(2, 0.8), w: 0.168 * chest, p: 0.105, n: 0.1, bones: [[1, 1]] },
-      { t: T(3, 0), w: 0.145 * chest, p: 0.07, n: 0.075, bones: [[1, 1]] },
+      { t: T(1, 0.5), w: 0.145, p: 0.09, n: 0.09, bones: [[0, 1]] },
+      { t: T(2, 0), w: 0.145, p: 0.085, n: 0.085, bones: [[0, 0.5], [1, 0.5]] },
+      { t: T(2, 0.45), w: 0.16 * chest, p: 0.095, n: 0.095, bones: [[1, 1]] },
+      { t: T(2, 0.8), w: 0.182 * chest, p: 0.105, n: 0.1, bones: [[1, 1]] },
+      { t: T(3, 0), w: 0.158 * chest, p: 0.07, n: 0.075, bones: [[1, 1]] },
       { t: T(3, 0.6), w: 0.066, p: 0.05, n: 0.05, bones: [[1, 1]] },
       { t: 1, w: 0.055, p: 0.046, n: 0.046, bones: [[1, 1]] },
     ];

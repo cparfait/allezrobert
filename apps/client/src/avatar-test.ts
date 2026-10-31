@@ -625,7 +625,7 @@ async function main(): Promise<void> {
       ['ancien modèle féminin', { ...DEFAULT_LOOK, bikeModel: 's26-04-cervelo-s5', face: encodeFace({ sex: -1 }), hairStyle: 1 }, 'female'],
     ];
     const only = params.get('rows');
-    const allViews: Array<[number, number]> = [[-1, 0], [-0.7, 0.7], [0, 1], [0.8, -0.6]]; // direction (x, z) caméra
+    const allViews: Array<[number, number]> = [[-1, 0], [-0.7, 0.7], [0, 1], [0.8, -0.6], [0, -1], [1, 0]]; // direction (x, z) caméra
     const only2 = params.get('views');
     const views = allViews.filter((_, i) => !only2 || only2.split(',').includes(String(i)));
     const W = views.length === 1 ? 800 : 480, H = views.length === 1 ? 1000 : 600;
