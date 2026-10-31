@@ -755,8 +755,8 @@ export class Buildings {
     col = mix(col, accent.mul(nBig.mul(0.1).add(0.95)), underside);
     m.colorNode = col;
     m.emissiveNode = vec3(1.0, 0.62, 0.3)
-      .mul(inWin.mul(lit).mul(isWall).mul(1.0))
-      .add(vec3(1.0, 0.8, 0.55).mul(shopGlass.mul(shopLit).mul(isWall).mul(0.75)));
+      .mul(inWin.mul(lit).mul(isWall).mul(0.38))
+      .add(vec3(1.0, 0.8, 0.55).mul(shopGlass.mul(shopLit).mul(isWall).mul(0.35)));
     const glazed = inWin.max(shopGlass).max(rdcWin).mul(isWall);
     m.roughnessNode = mix(mix(mix(mix(float(0.93), float(0.15), glazed), float(0.75), isTile.add(isSlate).min(1)).sub(isSlate.mul(0.2)), mix(float(0.55), float(0.42), isZinc), isMetal), float(0.95), isTerrace.max(underside));
     // Relief : cartes de normales de la texture correspondante (sauf sur les vitres).

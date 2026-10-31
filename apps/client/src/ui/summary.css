@@ -1,5 +1,5 @@
 /* Écran de fin de sortie (au-dessus de la scène figée). */
-.sum { position: fixed; inset: 0; z-index: 30; overflow-y: auto; display: flex; flex-direction: column; background: linear-gradient(180deg, rgba(46, 62, 90, 0.62) 0%, rgba(20, 29, 45, 0.82) 100%); backdrop-filter: blur(16px) saturate(1.15); color: var(--ar-fg); font-family: var(--font); padding: 14px 22px 16px; box-sizing: border-box; }
+.sum { position: fixed; inset: 0; z-index: 30; overflow-y: auto; display: flex; flex-direction: column; background: radial-gradient(ellipse at 50% 0%, rgba(255, 210, 63, 0.1), transparent 55%), linear-gradient(180deg, rgba(10, 13, 20, 0.86) 0%, rgba(6, 9, 15, 0.94) 100%); backdrop-filter: blur(16px) saturate(1.15); color: var(--ar-fg); font-family: var(--font); padding: 14px 22px 16px; box-sizing: border-box; }
 .sum-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 10px; }
 .sum-head h1 { margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -0.02em; }
 .sum-head h1 em { font-style: normal; color: var(--ar-accent); }
@@ -11,7 +11,7 @@
 .sum-btn.accent:hover { filter: brightness(1.08); }
 .sum-body { flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: minmax(220px, 280px) 1fr; gap: 12px; }
 .sum-side { display: flex; flex-direction: column; gap: 12px; }
-.sum-card { background: rgba(34, 46, 68, 0.88); border: 1px solid rgba(255, 255, 255, 0.16); border-radius: 18px; padding: 10px 14px; box-shadow: 0 12px 34px rgba(0, 0, 0, 0.3); }
+.sum-card { background: linear-gradient(180deg, rgba(18, 24, 36, 0.86), rgba(10, 14, 22, 0.82)); border: 1px solid rgba(255, 255, 255, 0.09); border-radius: 18px; padding: 10px 14px; box-shadow: 0 12px 34px rgba(0, 0, 0, 0.3); }
 .sum-card h3 { margin: 0 0 8px; font-size: 11.5px; letter-spacing: 0.08em; text-transform: uppercase; color: #b9c4d3; font-weight: 700; }
 .sum-card:empty { display: none; }
 .sum-lv { display: flex; flex-direction: column; gap: 6px; }
@@ -27,7 +27,7 @@
 .sum-row em { font-style: normal; color: #b9c4d3; font-size: 12px; font-variant-numeric: tabular-nums; }
 .sum-main { flex: 1 1 auto; min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: 10px; }
 .sum-tiles { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
-.sum-tile { background: rgba(34, 46, 68, 0.88); border: 1px solid rgba(255, 255, 255, 0.16); border-left: 3px solid var(--tc, var(--ar-accent)); border-radius: 14px; padding: 7px 12px; display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.sum-tile { background: linear-gradient(180deg, rgba(18, 24, 36, 0.86), rgba(10, 14, 22, 0.82)); border: 1px solid rgba(255, 255, 255, 0.09); border-left: 3px solid var(--tc, var(--ar-accent)); border-radius: 14px; padding: 7px 12px; display: flex; flex-direction: column; gap: 1px; min-width: 0; }
 .sum-tile span { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: #b9c4d3; font-weight: 700; }
 .sum-tile b { color: #fff; font-size: 21px; font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sum-tile small { color: #c3cddb; font-size: 12px; }
