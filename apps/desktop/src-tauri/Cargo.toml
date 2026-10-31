@@ -1,6 +1,6 @@
 [package]
 name = "allezrobert-desktop"
-version = "0.1.16"
+version = "0.1.17"
 description = "Allez Robert ! — application Windows (Bluetooth LE, Wahoo Direct Connect, ANT+)"
 authors = ["Christophe Parfait"]
 edition = "2021"
