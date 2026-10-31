@@ -155,7 +155,9 @@ const SEX_FULL_BODY = FEMALES_PARAM === 'sex' || FEMALE_OWN_MODEL;
 const HEAD_SEX = 1;
 const CHEST_SEX = 0;
 /** Poitrine modelée (bosses gaussiennes devant le buste) : écartement, hauteur sous la ceinture de poitrine, rayon et relief, en mètres. */
-const BREAST = { a: 0.09, b: -0.06, sigma: 0.065, h: 0.04 };
+/** Pectoraux des hommes (creux, m) trop forts : réduits pour tous ; les coureuses en perdent davantage (hWomen) avant que la poitrine soit modelée. */
+const PEC = { a: 0.08, b: -0.14, sigma: 0.07, hMen: -0.015, hWomen: -0.02 };
+const BREAST = { a: 0.09, b: -0.14, sigma: 0.06, h: 0.035 };
 /** Hauteur du buste (0 = ceinture de poitrine, 1 = base du cou) où la poitrine commence à s'effacer (haut → 0) et où elle est pleine. */
 const CHEST_RAMP: readonly [number, number] = [0.15, 0.7];
 const SEX_HEAD_BONES: ReadonlySet<string> = new Set(['head', 'neck_01']);
@@ -587,7 +589,15 @@ function extractIdentity(scene: THREE.Object3D): void {
         delete g.morphAttributes.normal;
       }
       g.userData.identity = id;
-      g.userData.sexMask = sexMaskOf(mesh);
+      const sexMask = sexMaskOf(mesh);
+      g.userData.sexMask = sexMask;
+      if (sexMask?.frame) {
+        const pa = g.getAttribute('position');
+        const arr = pa.array as Float32Array;
+        bumpChest(arr, g.getAttribute('normal') ? toFloat(g.getAttribute('normal')) : null, sexMask.frame, PEC.hMen, PEC.a, PEC.b, PEC.sigma);
+        pa.needsUpdate = true;
+        smoothNormals(g);
+      }
       g.userData.animNames = names.filter((_, i) => keep[i]);
     }
     // Dictionnaire et poids recalculés sur les cibles animées restantes.
@@ -643,18 +653,12 @@ function smoothNormals(g: THREE.BufferGeometry): void {
   g.setAttribute('normal', new THREE.BufferAttribute(n, 3));
 }
 
-/** Poitrine : deux bosses gaussiennes sur le devant du buste, poussées vers l'avant (positions modifiées en place, k = poids du curseur). */
-function addBreasts(p: Float32Array, nrm: Float32Array | null, mask: SexMask, k: number): void {
-  const f = mask.frame as NonNullable<SexMask['frame']>;
-  const T = (globalThis as unknown as { __br?: Partial<typeof BREAST> }).__br ?? {};
-  const a = T.a ?? BREAST.a;
-  const b = T.b ?? BREAST.b;
-  const sg = T.sigma ?? BREAST.sigma;
-  const h = (T.h ?? BREAST.h) * k;
+/** Deux bosses gaussiennes (une par côté) sur le devant du buste, le long de l'avant / de la normale ; h < 0 : creux. Positions modifiées en place. */
+function bumpChest(p: Float32Array, nrm: Float32Array | null, f: NonNullable<SexMask['frame']>, h: number, a: number, b: number, sg: number): void {
   const r = new THREE.Vector3();
   const nv = new THREE.Vector3();
   const nm = new THREE.Vector3();
-  for (let v = 0; v < mask.trunk.length; v++) {
+  for (let v = 0; v < p.length / 3; v++) {
     r.set(p[v * 3] as number, p[v * 3 + 1] as number, p[v * 3 + 2] as number).sub(f.origin);
     const x = r.dot(f.lat);
     const y = r.dot(f.axis);
@@ -662,13 +666,21 @@ function addBreasts(p: Float32Array, nrm: Float32Array | null, mask: SexMask, k:
     if (z <= 0 || Math.abs(x) > 0.16) continue;
     const d2 = (Math.abs(x) - a) ** 2 + (y + b) ** 2;
     const bump = h * Math.exp(-d2 / (2 * sg * sg));
-    if (bump < 1e-5) continue;
+    if (Math.abs(bump) < 1e-5) continue;
     nv.copy(f.fwd);
     if (nrm) nv.multiplyScalar(0.5).add(nm.set(nrm[v * 3] as number, nrm[v * 3 + 1] as number, nrm[v * 3 + 2] as number).normalize().multiplyScalar(0.5)).normalize();
     p[v * 3] = (p[v * 3] as number) + nv.x * bump;
     p[v * 3 + 1] = (p[v * 3 + 1] as number) + nv.y * bump;
     p[v * 3 + 2] = (p[v * 3 + 2] as number) + nv.z * bump;
   }
+}
+
+/** Poitrine des coureuses : les pectoraux des hommes sont creusés davantage, puis deux bosses lisses sont modelées (k = poids du curseur). */
+function addBreasts(p: Float32Array, nrm: Float32Array | null, mask: SexMask, k: number): void {
+  const f = mask.frame as NonNullable<SexMask['frame']>;
+  const T = (globalThis as unknown as { __br?: Partial<typeof BREAST & typeof PEC> }).__br ?? {};
+  bumpChest(p, nrm, f, (T.hWomen ?? PEC.hWomen) * k, T.a ?? PEC.a, T.b ?? PEC.b, T.sigma ?? PEC.sigma);
+  bumpChest(p, nrm, f, (T.h ?? BREAST.h) * k, T.a ?? BREAST.a, T.b ?? BREAST.b, T.sigma ?? BREAST.sigma);
 }
 
 /** Géométrie propre à l'avatar : base + Σ poids × cibles d'identité (positions et normales). */
