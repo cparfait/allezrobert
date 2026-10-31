@@ -139,6 +139,23 @@ const AVATAR_KIND: AvatarKind = AVATAR_PARAM === 'classic' || AVATAR_PARAM === '
  * (avatar MPFB : 27,9 k, 5 k et 2,5 k triangles pour le corps ; modèle acheté : 47,8 k, 16,7 k
  * et 7,1 k triangles en tout).
  */
+/**
+ * Coureuses : corps des hommes (modèle MPFB de base) auquel le curseur « sex » ajoute poitrine et
+ * silhouette féminine, cou ajusté. L'ancien modèle féminin distinct (rider_female*.glb, difforme)
+ * reste disponible avec ?femmes=modele.
+ */
+const FEMALES_PARAM = typeof location === 'undefined' ? null : new URLSearchParams(location.search).get('femmes');
+const FEMALE_OWN_MODEL = FEMALES_PARAM === 'modele';
+/** Curseur « sex » appliqué en entier à tout le corps (?femmes=sex) : ancien rendu, morphologie féminine complète. */
+const SEX_FULL_BODY = FEMALES_PARAM === 'sex' || FEMALE_OWN_MODEL;
+/**
+ * Curseur « sex » par zone, par défaut : tête et cou en entier, poitrine (devant du buste) à CHEST_SEX,
+ * le reste du corps (épaules, dos, hanches, jambes) reste celui des hommes.
+ */
+const HEAD_SEX = 1;
+const CHEST_SEX = 1;
+const SEX_HEAD_BONES: ReadonlySet<string> = new Set(['head', 'neck_01']);
+const SEX_CHEST_BONES: ReadonlySet<string> = new Set(['spine_03', 'spine_02', 'clavicle_l', 'clavicle_r']);
 const FILES: Record<AvatarKind, readonly string[]> = {
   boutique: ['avatar/boutique/rider.glb', 'avatar/boutique/rider_lod1.glb', 'avatar/boutique/rider_lod2.glb'],
   // Style jeu vidéo : le niveau le plus simple (2,5 k triangles) à toutes les distances, à facettes.
@@ -475,6 +492,28 @@ function plainAttributes(g: THREE.BufferGeometry): void {
   for (const k of Object.keys(ma)) ma[k] = (ma[k] ?? []).map(plainAttribute);
 }
 
+/** Part du curseur « sex » par sommet : tête et cou, buste (poids des os), pour la morphologie féminine sur le corps des hommes. */
+function sexMaskOf(mesh: THREE.Mesh): { head: Float32Array; chest: Float32Array } | null {
+  const sm = mesh as THREE.SkinnedMesh;
+  const g = mesh.geometry;
+  const si = g.getAttribute('skinIndex');
+  const sw = g.getAttribute('skinWeight');
+  if (!sm.isSkinnedMesh || !si || !sw) return null;
+  const n = g.getAttribute('position').count;
+  const head = new Float32Array(n);
+  const chest = new Float32Array(n);
+  const bones = sm.skeleton.bones;
+  for (let i = 0; i < n; i++) {
+    for (let c = 0; c < 4; c++) {
+      const name = bones[si.getComponent(i, c)]?.name ?? '';
+      const w = sw.getComponent(i, c);
+      if (SEX_HEAD_BONES.has(name)) head[i] = (head[i] as number) + w;
+      else if (SEX_CHEST_BONES.has(name)) chest[i] = (chest[i] as number) + w;
+    }
+  }
+  return { head, chest };
+}
+
 function extractIdentity(scene: THREE.Object3D): void {
   const done = new Set<THREE.BufferGeometry>();
   scene.traverse((o) => {
@@ -504,6 +543,7 @@ function extractIdentity(scene: THREE.Object3D): void {
         delete g.morphAttributes.normal;
       }
       g.userData.identity = id;
+      g.userData.sexMask = sexMaskOf(mesh);
       g.userData.animNames = names.filter((_, i) => keep[i]);
     }
     // Dictionnaire et poids recalculés sur les cibles animées restantes.
@@ -573,11 +613,26 @@ function bakeIdentity(base: THREE.BufferGeometry, id: IdentityTargets, w: readon
   const n0 = base.getAttribute('normal');
   const p = toFloat(p0);
   const n = n0 ? toFloat(n0) : null;
+  const mask = base.userData.sexMask as { head: Float32Array; chest: Float32Array } | null | undefined;
   w.forEach((k, t) => {
     if (!k) return;
     const dp = id.pos[t] as Float32Array;
-    for (let i = 0; i < p.length; i++) p[i] = (p[i] as number) + k * (dp[i] as number);
     const dn = id.nrm[t];
+    if (mask && !SEX_FULL_BODY && id.names[t] === 'sex-') {
+      // Morphologie féminine sur le corps des hommes : par sommet, tête et cou d'un côté, devant du buste de l'autre.
+      const nor = base.getAttribute('normal');
+      for (let v = 0; v < mask.head.length; v++) {
+        const front = nor ? Math.max(0, nor.getZ(v)) : 1;
+        const m = k * ((mask.head[v] as number) * HEAD_SEX + (mask.chest[v] as number) * front * CHEST_SEX);
+        if (!m) continue;
+        for (let c = 0; c < 3; c++) {
+          p[v * 3 + c] = (p[v * 3 + c] as number) + m * (dp[v * 3 + c] as number);
+          if (n && dn) n[v * 3 + c] = (n[v * 3 + c] as number) + m * (dn[v * 3 + c] as number);
+        }
+      }
+      return;
+    }
+    for (let i = 0; i < p.length; i++) p[i] = (p[i] as number) + k * (dp[i] as number);
     if (n && dn) for (let i = 0; i < n.length; i++) n[i] = (n[i] as number) + k * (dn[i] as number);
   });
   g.setAttribute('position', new THREE.BufferAttribute(p, 3));
@@ -1167,7 +1222,7 @@ export class GltfRiderAvatar implements RiderAvatarLike {
 
   constructor(look: AvatarLook, kindWanted: AvatarKind = AVATAR_KIND) {
     // Look féminin (curseur « sex » < 0) : modèle féminin s'il est chargé (le modèle ne change plus ensuite).
-    const kind: AvatarKind = kindWanted === 'mpfb' && templates.has('female') && decodeFace(look.face).sex !== undefined && (decodeFace(look.face).sex as number) <= -0.25 ? 'female' : kindWanted;
+    const kind: AvatarKind = FEMALE_OWN_MODEL && kindWanted === 'mpfb' && templates.has('female') && decodeFace(look.face).sex !== undefined && (decodeFace(look.face).sex as number) <= -0.25 ? 'female' : kindWanted;
     this.kind = kind;
     const loaded = templates.get(kind);
     if (!loaded) throw new Error('GltfRiderAvatar.load() doit être appelé (et attendu) avant la création');

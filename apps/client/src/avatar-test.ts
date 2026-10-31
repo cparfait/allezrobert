@@ -2,7 +2,7 @@ import * as THREE from 'three/webgpu';
 import { BASE_PROFILES, BIKES, COSMETICS, DEFAULT_LOOK, FACE_SLIDERS, encodeFace, jerseyLookOf, profileLook, type AvatarLook, type BikeModel, type FaceShape } from '@allezrobert/shared';
 import { createEngine } from './engine/renderer.ts';
 import { QUALITY_PRESETS, type QualityLevel } from './engine/quality.ts';
-import { GltfRiderAvatar, createAvatar, type RiderPose } from './rider/gltfAvatar.ts';
+import { GltfRiderAvatar, createAvatar, type AvatarKind, type RiderPose } from './rider/gltfAvatar.ts';
 import { LOW_POLY } from './engine/style.ts';
 import { preloadJerseyLogo } from './rider/jerseyPattern.ts';
 
@@ -611,6 +611,56 @@ async function main(): Promise<void> {
     document.body.replaceChildren(sheet);
     sheet.style.cssText = 'display:block;width:100%;height:auto';
     if (!params.has('noshot')) await fetch(`/__shot?name=avatar-ref-${params.get('name') ?? 'essai'}`, { method: 'POST', body: sheet.toDataURL('image/jpeg', 0.92) });
+    (window as unknown as { __avatarTestDone: boolean }).__avatarTestDone = true;
+    return;
+  }
+  // ?corps : buste et tête en gros plan (profil, face, trois quarts), en selle ; une ligne par morphologie :
+  // homme, coureuse sur le corps des hommes (curseur sex −1, nouvelle approche), ancien modèle féminin.
+  if (params.has('corps')) {
+    for (const o of riders) o.a.root.visible = false;
+    far.root.visible = false;
+    const rows: Array<[string, AvatarLook, AvatarKind | undefined]> = [
+      ['homme', { ...DEFAULT_LOOK, bikeModel: 's26-04-cervelo-s5' }, undefined],
+      ['femme (corps homme + sex)', { ...DEFAULT_LOOK, bikeModel: 's26-04-cervelo-s5', face: encodeFace({ sex: -1 }), hairStyle: 1 }, undefined],
+      ['ancien modèle féminin', { ...DEFAULT_LOOK, bikeModel: 's26-04-cervelo-s5', face: encodeFace({ sex: -1 }), hairStyle: 1 }, 'female'],
+    ];
+    const only = params.get('rows');
+    const allViews: Array<[number, number]> = [[-1, 0], [-0.7, 0.7], [0, 1], [0.8, -0.6]]; // direction (x, z) caméra
+    const only2 = params.get('views');
+    const views = allViews.filter((_, i) => !only2 || only2.split(',').includes(String(i)));
+    const W = views.length === 1 ? 800 : 480, H = views.length === 1 ? 1000 : 600;
+    const sheet = document.createElement('canvas');
+    sheet.width = W * views.length;
+    const chosen = rows.filter((_, i) => !only || only.split(',').includes(String(i)));
+    sheet.height = H * chosen.length;
+    const g = sheet.getContext('2d') as CanvasRenderingContext2D;
+    camera.fov = 24;
+    camera.aspect = canvas.width / canvas.height;
+    camera.updateProjectionMatrix();
+    for (const [ri, [label, look, kind]] of chosen.entries()) {
+      const a = new GltfRiderAvatar(look, kind);
+      scene.add(a.root);
+      const priv = a as unknown as { crankAngle: number };
+      priv.crankAngle = Math.PI + 0.25;
+      a.update(0, 0.0001, 0, 'seated');
+      priv.crankAngle = Math.PI + 0.25;
+      a.update(1e-4, 0.0001, 0, 'seated');
+      a.root.updateMatrixWorld(true);
+      for (const [vi, [dx, dz]] of views.entries()) {
+        camera.position.set(dx * 2.6, 1.55, 0.1 + dz * 2.6);
+        camera.lookAt(0, 1.3, 0.1);
+        for (let n = 0; n < 3; n++) engine.renderManual();
+        const sw = (canvas.height * W) / H;
+        g.drawImage(canvas, (canvas.width - sw) / 2, 0, sw, canvas.height, vi * W, ri * H, W, H);
+      }
+      g.font = '22px sans-serif';
+      g.fillStyle = '#000';
+      g.fillText(label, 10, ri * H + 28);
+      scene.remove(a.root);
+    }
+    document.body.replaceChildren(sheet);
+    sheet.style.cssText = views.length === 1 ? 'display:block' : 'display:block;width:100%;height:auto';
+    if (!params.has('noshot')) await fetch(`/__shot?name=avatar-corps-${params.get('name') ?? 'essai'}`, { method: 'POST', body: sheet.toDataURL('image/jpeg', 0.92) });
     (window as unknown as { __avatarTestDone: boolean }).__avatarTestDone = true;
     return;
   }
