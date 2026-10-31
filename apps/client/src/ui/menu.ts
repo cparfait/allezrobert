@@ -2372,7 +2372,6 @@ export class MainMenu {
     const trainer = `<div class="grid3">
         <label class="field">${t('difficulty')} <span id="m-diffv">${Math.round(s.trainerDifficulty * 100)} %</span><input id="m-diff" type="range" min="0" max="1" step="0.05" value="${s.trainerDifficulty}" /></label>
         <label class="field" title="${L ? '100 % : masse et roues réelles. Plus bas, la vitesse suit plus vite les relances (volant du home trainer).' : '100%: real mass and wheels. Lower: speed follows accelerations faster (trainer flywheel).'}">${L ? 'Inertie' : 'Inertia'} <span id="m-inertiav">${Math.round(s.inertia * 100)} %</span><input id="m-inertia" type="range" min="0.6" max="1" step="0.05" value="${s.inertia}" /></label>
-        <label class="field" title="${L ? 'Relève la caméra avec la pente pour la sentir à l’image. 0 : rendu réel.' : 'Tilts the camera up with the slope so you can see it. 0: real view.'}">${L ? 'Sensation de pente' : 'Slope feel'} <span id="m-slopev">${(s.slopeFeel ?? 1) <= 0 ? (L ? 'réel' : 'real') : `×${(1 + 1.5 * (s.slopeFeel ?? 1)).toFixed(1).replace('.', ',')}`}</span><input id="m-slope" type="range" min="0" max="2" step="0.5" value="${s.slopeFeel ?? 1}" /></label>
         <div class="field">Transmission${this.seg('m-drive', s.drivetrain, [
           ['cog', L ? 'Vitesses virtuelles' : 'Virtual shifting'],
           ['cassette', L ? 'Cassette réelle' : 'Real cassette'],
@@ -3591,7 +3590,7 @@ export class MainMenu {
       s.season = el.value as Settings['season'];
       changed();
     });
-    const range = (id: string, key: 'hour' | 'clouds' | 'rain' | 'fog' | 'trainerDifficulty' | 'inertia' | 'slopeFeel', label?: string, fmt?: (v: number) => string) =>
+    const range = (id: string, key: 'hour' | 'clouds' | 'rain' | 'fog' | 'trainerDifficulty' | 'inertia', label?: string, fmt?: (v: number) => string) =>
       on<HTMLInputElement>(id, 'input', (el) => {
         s[key] = Number(el.value);
         const l = label ? this.root.querySelector(`#${label}`) : null;
@@ -3610,7 +3609,6 @@ export class MainMenu {
     range('m-fog', 'fog');
     range('m-diff', 'trainerDifficulty', 'm-diffv', (v) => `${Math.round(v * 100)} %`);
     range('m-inertia', 'inertia', 'm-inertiav', (v) => `${Math.round(v * 100)} %`);
-    range('m-slope', 'slopeFeel', 'm-slopev', (v) => (v <= 0 ? (fr() ? 'réel' : 'real') : `×${(1 + 1.5 * v).toFixed(1).replace('.', ',')}`));
     on<HTMLSelectElement>('m-lang', 'change', (el) => {
       s.lang = el.value as Settings['lang'];
       setLang(s.lang);

@@ -85,9 +85,6 @@ export class CameraRig {
   private dragging = false;
   /** Regarder derrière soi (touche X maintenue) : caméra devant le coureur, tournée vers l'arrière. */
   lookBack = false;
-  /** Sensation de pente (réglage) : 0 réel ; 1 : la caméra se relève 2,5 fois plus que la pente ; 2 : 4 fois. */
-  slopeFeel = 1;
-  private slopeSm = 0;
   /** Objets qui bloquent la vue (bâtiments) : la caméra TV cherche un plan dégagé. */
   /**
    * Obstacles entre deux points (bâtiments) : fraction du segment a → b au premier obstacle, null si dégagé.
@@ -151,19 +148,6 @@ export class CameraRig {
     return cam.aspect > 2.5 ? 48 : 62;
   }
 
-  /** Relève (ou abaisse) le regard de `part` × pente lissée × (sensation − 0 → 1,5 ou 3 de plus), plafonné à ±0,3 rad. */
-  private tiltLook(from: THREE.Vector3, look: THREE.Vector3, part: number): void {
-    if (this.slopeFeel <= 0) return;
-    const extra = THREE.MathUtils.clamp(this.slopeSm * 1.5 * this.slopeFeel * part, -0.3, 0.3);
-    const dx = look.x - from.x;
-    const dz = look.z - from.z;
-    const h = Math.hypot(dx, dz);
-    if (h < 1e-4) return;
-    const len = Math.hypot(h, look.y - from.y);
-    const np = Math.atan2(look.y - from.y, h) + extra;
-    look.set(from.x + (dx / h) * Math.cos(np) * len, from.y + Math.sin(np) * len, from.z + (dz / h) * Math.cos(np) * len);
-  }
-
   update(dt: number, t: CameraTarget): void {
     const cam = this.camera;
     if (this.mode !== 'tv') {
@@ -183,9 +167,6 @@ export class CameraRig {
     const desired = new THREE.Vector3();
     const look = new THREE.Vector3();
     let stiffness = 6;
-    // Pente lissée (≈ 0,6 s) : à 10 % la caméra réelle ne se relève que de 5,7°, à peine perceptible ; on y ajoute un angle.
-    const gradeNow = Math.atan((this.track.sample(t.distM).grade * (t.sign ?? 1)) / 100);
-    this.slopeSm += (gradeNow - this.slopeSm) * (1 - Math.exp(-dt * 1.6));
     if (this.lookBack && this.mode !== 'tv' && this.mode !== 'photo' && this.mode !== 'drone') {
       // Coup d'œil en arrière : qui arrive, l'équipier lâché, la voiture qui va doubler.
       desired.copy(t.position).addScaledVector(t.dir, 5).add(new THREE.Vector3(0, 1.9, 0));
@@ -216,7 +197,6 @@ export class CameraRig {
         look.set(ahead.x, ahead.y + 1.0, ahead.z).lerp(t.position.clone().add(new THREE.Vector3(0, 1.1, 0)), 0.55);
         if (t.uturn && t.subject) look.set(t.subject.x, t.subject.y + 1.0, t.subject.z);
         stiffness = 5;
-        this.tiltLook(desired, look, 1.2);
         // Collision : un mur entre le coureur et la caméra rapproche la caméra (une image sur trois).
         if (this.occlusion && (this.collideTick = (this.collideTick + 1) % 3) === 0) {
           const head = t.position.clone().add(new THREE.Vector3(0, 1.3, 0));
@@ -266,7 +246,6 @@ export class CameraRig {
           pitch = -THREE.MathUtils.clamp(handsBelow - offset, -0.2, 0.9);
         }
         look.set(desired.x + t.dir.x * Math.cos(pitch) * 10, desired.y + Math.sin(pitch) * 10, desired.z + t.dir.z * Math.cos(pitch) * 10);
-        this.tiltLook(desired, look, 0.8);
         stiffness = 12;
         break;
       }
