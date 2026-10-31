@@ -154,6 +154,8 @@ const SEX_FULL_BODY = FEMALES_PARAM === 'sex' || FEMALE_OWN_MODEL;
  */
 const HEAD_SEX = 1;
 const CHEST_SEX = 1;
+/** Hauteur du buste (0 = ceinture de poitrine, 1 = base du cou) où la poitrine commence à s'effacer (haut → 0) et où elle est pleine. */
+const CHEST_RAMP: readonly [number, number] = [0.15, 0.7];
 const SEX_HEAD_BONES: ReadonlySet<string> = new Set(['head', 'neck_01']);
 const SEX_CHEST_BONES: ReadonlySet<string> = new Set(['spine_03', 'spine_02', 'clavicle_l', 'clavicle_r']);
 const FILES: Record<AvatarKind, readonly string[]> = {
@@ -503,12 +505,22 @@ function sexMaskOf(mesh: THREE.Mesh): { head: Float32Array; chest: Float32Array 
   const head = new Float32Array(n);
   const chest = new Float32Array(n);
   const bones = sm.skeleton.bones;
+  // Hauteur le long du buste (0 = ceinture de poitrine, 1 = base du cou) : le haut de la poitrine, creusé par la
+  // cible féminine (clavicules), reste celui des hommes ; la poitrine n'est appliquée qu'en dessous.
+  const axis = jerseyAxisOf(sm.parent ?? sm);
+  const pos = g.getAttribute('position');
+  const neckLen = axis ? bones.length && new THREE.Vector3().setFromMatrixPosition(new THREE.Matrix4().copy(sm.bindMatrixInverse).multiply((sm.skeleton.boneInverses[bones.findIndex((b) => b.name === 'neck_01')] as THREE.Matrix4).clone().invert())).sub(axis.origin).dot(axis.dir) : 0;
   for (let i = 0; i < n; i++) {
+    let ramp = 1;
+    if (axis && neckLen) {
+      const u = _v1.fromBufferAttribute(pos, i).sub(axis.origin).dot(axis.dir) / neckLen;
+      ramp = 1 - THREE.MathUtils.smoothstep(u, CHEST_RAMP[0], CHEST_RAMP[1]);
+    }
     for (let c = 0; c < 4; c++) {
       const name = bones[si.getComponent(i, c)]?.name ?? '';
       const w = sw.getComponent(i, c);
       if (SEX_HEAD_BONES.has(name)) head[i] = (head[i] as number) + w;
-      else if (SEX_CHEST_BONES.has(name)) chest[i] = (chest[i] as number) + w;
+      else if (SEX_CHEST_BONES.has(name)) chest[i] = (chest[i] as number) + w * ramp;
     }
   }
   return { head, chest };
