@@ -51,3 +51,6 @@ tts-cache/
 
 # Réglages de l'outil de déploiement graphique (hôte, clé SSH…)
 deploy/.deploy-gui.json
+
+# Décors générés (make_props.py) : images, maillages TRELLIS et sorties Blender intermédiaires
+tools/blender/props/work/

@@ -1,0 +1,33 @@
+{
+  "style": ", isolated 3D game asset, three-quarter view from slightly above, plain white background, soft even lighting, no ground, no shadows, no people, no text, no letters",
+  "props": {
+    "fontaine": {
+      "prompt": "A single old French village stone fountain, round weathered limestone basin, central carved stone pillar with two bronze spouts",
+      "height": 2.2
+    },
+    "calvaire": {
+      "prompt": "A French countryside wayside stone cross (calvaire) on a tall square stepped limestone pedestal, weathered stone, simple carved cross",
+      "height": 3.6
+    },
+    "monument": {
+      "prompt": "A French village war memorial: grey granite obelisk on a square stepped stone base with a carved laurel wreath, surrounded by four short stone posts linked by black iron chains, plain stone faces without inscription",
+      "height": 4.2
+    },
+    "puits": {
+      "prompt": "An old French village stone well: round limestone well wall about one meter high, two stone pillars holding a wooden beam with a winch and a small wooden bucket",
+      "height": 2.4
+    },
+    "pompe": {
+      "prompt": "An old French village cast iron hand water pump on a small square stone base, dark green painted cast iron column with a curved spout and a long pump handle",
+      "height": 1.7
+    },
+    "banc": {
+      "prompt": "A traditional French village park bench: dark green cast iron legs and armrests, wooden slat seat and backrest, seen from the front three-quarter",
+      "length": 1.8
+    },
+    "abreuvoir": {
+      "prompt": "An old long rectangular stone water trough for cattle, carved limestone, about two meters long, filled with water",
+      "length": 2.2
+    }
+  }
+}
