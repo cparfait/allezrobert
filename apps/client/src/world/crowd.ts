@@ -6,6 +6,7 @@ import { rng } from '../engine/noise.ts';
 import { LOW_POLY } from '../engine/style.ts';
 import { signDesigns, type SignDesign } from './crowdSigns.ts';
 import { lowPolyCrowdMaterial, lowPolyPersonGeometry, lowPolySignGeometry, lowPolySignMaterial } from './crowdLowPoly.ts';
+import { loadSpectator, spectatorMaterial } from './crowdRealistic.ts';
 
 /** Spectateur : corps, tête et bras levés (attribut `part` : 0 corps, 1 tête, 2 bras). */
 function personGeometry(): THREE.BufferGeometry {
@@ -102,6 +103,8 @@ export interface CrowdOptions {
   riderName?: string;
   /** Densité (1 : un spectateur tous les 3,2 m sur les KOM, 4 m sur les sprints, de chaque côté) ; voir `QualitySettings.crowdDensity`. */
   density?: number;
+  /** Style réaliste : vrais personnages recolorés (crowdRealistic.ts) plutôt que des capsules ; vrai par défaut. */
+  realPeople?: boolean;
 }
 
 /**
@@ -160,6 +163,8 @@ export class Crowd {
     const r = rng(2026);
     const mats: THREE.Matrix4[] = [];
     const still: number[] = [];
+    // Style réaliste : par spectateur cos et sin de son lacet et son échelle (vrais personnages, crowdRealistic.ts).
+    const orient: number[] = [];
     // Style jeu vidéo : par spectateur x, z, cosinus et sinus de son orientation ; par pancarte x, z.
     const spots: number[] = [];
     const signSpots: number[] = [];
@@ -203,6 +208,7 @@ export class Crowd {
           q.setFromAxisAngle(up, yaw);
           spots.push(p.x, p.z, Math.cos(yaw), Math.sin(yaw));
           const s = 0.9 + r() * 0.2;
+          orient.push(Math.cos(yaw), Math.sin(yaw), s);
           m.compose(new THREE.Vector3(p.x, y, p.z), q, new THREE.Vector3(s, s, s));
           mats.push(m.clone());
           // Premier rang, dans les 150 derniers mètres (KOM) : une pancarte de temps en temps.
@@ -232,6 +238,19 @@ export class Crowd {
     this.mesh.receiveShadow = true;
     this.mesh.name = 'crowd';
     this.group.add(this.mesh);
+    if (!LOW_POLY && mats.length && opts.realPeople !== false) {
+      // Vrais personnages recolorés dès que leurs fichiers sont là ; d'ici là (ou s'ils manquent), les capsules.
+      void loadSpectator().then((asset) => {
+        if (!asset) return;
+        const oldGeometry = this.mesh.geometry;
+        const oldMaterial = this.mesh.material as THREE.Material;
+        this.mesh.geometry = asset.geometry;
+        this.mesh.material = spectatorMaterial(asset, padded(orient, 3), padded(still, 1));
+        this.mesh.computeBoundingSphere();
+        oldGeometry.dispose();
+        oldMaterial.dispose();
+      });
+    }
     if (LOW_POLY) {
       // Sans appel à `update`, la caméra tient lieu de coureur (elle le suit dans presque tous les plans).
       this.mesh.onBeforeRender = (_r, _s, camera) => {
