@@ -1,14 +1,16 @@
 """
 Décor .glb texturé ou à couleurs par sommet (Sketchfab, BlenderKit, TRELLIS…) → deux .glb prêts pour optimize.mjs --dir props :
 
-- <nom>.real.glb : modèle d'origine (textures PBR ou couleurs par sommet gardées) en un seul objet, taille réelle,
-  centré, posé à z = 0, simplifié à --real-faces triangles au plus ;
+- <nom>.real.glb : modèle d'origine en un seul objet, taille réelle, centré, posé à z = 0, simplifié à --real-faces
+  triangles au plus ; textures PBR gardées ; couleurs par sommet (TRELLIS…) cuites dans une texture --bake px de
+  côté depuis le maillage complet (Cycles, « sélection vers active ») : le détail des couleurs survit à la
+  simplification au lieu de tomber à une couleur par sommet restant (--bake 0 : couleurs par sommet gardées) ;
 - <nom>.lowpoly.glb : style jeu vidéo du mode LOW_POLY : maillage simplifié (--faces), facettes nettes, une couleur
   par face lue dans la texture puis ramenée à une petite palette (--palette, k-moyennes), sans texture ni UV.
 
 Usage :
   blender -b --factory-startup -P tools/blender/props/stylize_prop.py -- <source.glb> <dossier de sortie> <nom>
-         [--height M | --length M] [--yaw DEGRÉS] [--faces 1500] [--palette 12] [--real-faces 30000]
+         [--height M | --length M] [--yaw DEGRÉS] [--faces 1500] [--palette 12] [--real-faces 30000] [--bake 1024]
 
 --height : hauteur voulue ; --length : plus grande dimension au sol ; sans les deux, l'échelle de la source est
 gardée. --yaw tourne le modèle autour de la verticale.
@@ -21,7 +23,7 @@ import numpy as np
 from mathutils import Matrix, Vector
 
 argv = sys.argv[sys.argv.index('--') + 1:]
-VALUED = ('--height', '--length', '--yaw', '--faces', '--palette', '--real-faces')
+VALUED = ('--height', '--length', '--yaw', '--faces', '--palette', '--real-faces', '--bake')
 src, out_dir, name = [a for i, a in enumerate(argv) if not a.startswith('--') and (i == 0 or argv[i - 1] not in VALUED)][:3]
 
 
@@ -115,10 +117,76 @@ if vertex_colored:
     # partagés et optimize.mjs peut encore le simplifier pour le modèle lointain.
     for p in me.polygons:
         p.use_smooth = True
+def bake_vertex_colors(hi, px):
+    """Couleurs par sommet du maillage complet `hi` → texture px × px sur les UV dépliés de `prop` (simplifié)."""
+    bpy.ops.object.select_all(action='DESELECT')
+    prop.select_set(True)
+    bpy.context.view_layer.objects.active = prop
+    bpy.ops.object.mode_set(mode='EDIT')
+    bpy.ops.mesh.select_all(action='SELECT')
+    bpy.ops.uv.smart_project(angle_limit=math.radians(60), island_margin=2 / px * 4, area_weight=1.0)
+    bpy.ops.object.mode_set(mode='OBJECT')
+    # Source : émission = couleur des sommets (la cuisson EMIT ne dépend d'aucune lumière).
+    src_mat = bpy.data.materials.new('vc_emit')
+    if src_mat.node_tree is None:
+        src_mat.use_nodes = True
+    nt = src_mat.node_tree
+    nt.nodes.clear()
+    col = nt.nodes.new('ShaderNodeVertexColor')
+    col.layer_name = hi.data.color_attributes.active_color.name
+    emit = nt.nodes.new('ShaderNodeEmission')
+    out = nt.nodes.new('ShaderNodeOutputMaterial')
+    nt.links.new(col.outputs['Color'], emit.inputs['Color'])
+    nt.links.new(emit.outputs['Emission'], out.inputs['Surface'])
+    hi.data.materials.clear()
+    hi.data.materials.append(src_mat)
+    # Cible : image non linéaire (sRGB), nœud image actif = destination de la cuisson.
+    img = bpy.data.images.new(f'{name}_basecolor', px, px, alpha=False)
+    mat = bpy.data.materials.new(f'{name}')
+    if mat.node_tree is None:
+        mat.use_nodes = True
+    nodes = mat.node_tree.nodes
+    bsdf = next(n for n in nodes if n.type == 'BSDF_PRINCIPLED')
+    bsdf.inputs['Roughness'].default_value = 0.85
+    bsdf.inputs['Metallic'].default_value = 0.0
+    tex = nodes.new('ShaderNodeTexImage')
+    tex.image = img
+    mat.node_tree.links.new(tex.outputs['Color'], bsdf.inputs['Base Color'])
+    nodes.active = tex
+    me.materials.clear()
+    me.materials.append(mat)
+    scene.render.engine = 'CYCLES'
+    scene.cycles.samples = 1
+    scene.cycles.device = 'CPU'
+    scene.render.bake.use_selected_to_active = True
+    scene.render.bake.cage_extrusion = float(max(size)) * 0.01
+    scene.render.bake.max_ray_distance = float(max(size)) * 0.03
+    scene.render.bake.margin = 8
+    bpy.ops.object.select_all(action='DESELECT')
+    hi.select_set(True)
+    prop.select_set(True)
+    bpy.context.view_layer.objects.active = prop
+    bpy.ops.object.bake(type='EMIT')
+    img.pack()
+    bpy.data.objects.remove(hi, do_unlink=True)
+    while me.color_attributes:
+        me.color_attributes.remove(me.color_attributes[0])
+
+
 # Version réaliste : --real-faces triangles au plus (0 : intacte) ; la simplification garde UV et couleurs.
+bake_px = int(opt('--bake', 1024))
+hi = None
+if vertex_colored and bake_px:
+    hi = prop.copy()
+    hi.data = prop.data.copy()
+    scene.collection.objects.link(hi)
 decimate(int(opt('--real-faces', 30000)) or src_tris)
+if hi:
+    bake_vertex_colors(hi, bake_px)
+    vertex_colored = False
 export(f'{out_dir}/{name}.real.glb', vertex_colors=vertex_colored)
-print(f'réaliste : {size[0]:.2f} × {size[1]:.2f} × {size[2]:.2f} m, {src_tris} → {tris()} triangles')
+print(f'réaliste : {size[0]:.2f} × {size[1]:.2f} × {size[2]:.2f} m, {src_tris} → {tris()} triangles'
+      + (f', texture cuite {bake_px} px' if hi else ''))
 
 # ---------- Variante low poly ----------
 
