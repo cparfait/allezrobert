@@ -3,6 +3,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { baseRouteId, type RouteTrack, type TrackSample } from '@allezrobert/shared';
 import { rng } from '../engine/noise.ts';
+import { sharedKtx2Loader } from '../engine/textures.ts';
 import type { LoadedTile } from './types.ts';
 import { LandProbe, dist2Seg, segmentsIn } from './lowPolyKit.ts';
 
@@ -80,6 +81,9 @@ function loadModel(name: string): Promise<Model | null> {
   if (p) return p;
   p = (async () => {
     const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
+    // Couleurs TRELLIS cuites en texture (stylize_prop.py), compressées en KTX2 par optimize.mjs.
+    const ktx2 = await sharedKtx2Loader();
+    if (ktx2) loader.setKTX2Loader(ktx2);
     const prepare = (root: THREE.Object3D, near: boolean) =>
       root.traverse((o) => {
         const mesh = o as THREE.Mesh;

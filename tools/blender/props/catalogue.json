@@ -10,7 +10,7 @@
       "height": 3.6
     },
     "monument": {
-      "prompt": "A French village war memorial: grey granite obelisk on a square stepped stone base with a carved laurel wreath, surrounded by four short stone posts linked by black iron chains, plain stone faces without inscription",
+      "prompt": "A French village war memorial: tall smooth grey granite obelisk with blank polished faces and a single bronze laurel wreath, on a square stepped stone base, surrounded by four short black iron posts linked by iron chains",
       "height": 4.2
     },
     "puits": {
@@ -19,14 +19,16 @@
     },
     "pompe": {
       "prompt": "An old French village cast iron hand water pump on a small square stone base, dark green painted cast iron column with a curved spout and a long pump handle",
-      "height": 1.7
+      "height": 1.7,
+      "yaw": -90
     },
     "banc": {
       "prompt": "A traditional French village park bench: dark green cast iron legs and armrests, wooden slat seat and backrest, seen from the front three-quarter",
-      "length": 1.8
+      "length": 1.8,
+      "yaw": -90
     },
     "abreuvoir": {
-      "prompt": "An old long rectangular stone water trough for cattle, carved limestone, about two meters long, filled with water",
+      "prompt": "An old long rectangular stone water trough for cattle, rough carved limestone with plain smooth undecorated sides, about two meters long, filled with water",
       "length": 2.2
     }
   }
