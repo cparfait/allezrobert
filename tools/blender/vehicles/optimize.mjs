@@ -5,6 +5,7 @@
  * ETC1S pour les couleurs, UASTC pour les normales et masques), quantification et compression Meshopt.
  *
  * Usage : pnpm --filter @allezrobert/blender-tools vehicles:optimize <entrée.glb> <nom> [--near 40000] [--far 6000]
+ *         [--dir vehicles]  (sous-dossier de public/models ; « props » pour les décors de props/stylize_prop.py)
  */
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -16,15 +17,16 @@ import { MeshoptDecoder, MeshoptEncoder, MeshoptSimplifier } from 'meshoptimizer
 import sharp from 'sharp';
 import { encodeToKTX2 } from 'ktx2-encoder';
 
-const OUT = resolve(dirname(fileURLToPath(import.meta.url)), '../../../apps/client/public/models/vehicles');
 const args = process.argv.slice(2);
+const dirArg = args.indexOf('--dir');
+const OUT = resolve(dirname(fileURLToPath(import.meta.url)), '../../../apps/client/public/models', dirArg >= 0 ? args[dirArg + 1] : 'vehicles');
 const opt = (k, d) => {
   const i = args.indexOf(k);
   return i >= 0 ? Number(args[i + 1]) : d;
 };
 const [input, name] = args.filter((a, i) => !a.startsWith('--') && !args[i - 1]?.startsWith('--'));
 if (!input || !name) {
-  console.error('usage : optimize.mjs <entrée.glb> <nom> [--near 40000] [--far 6000]');
+  console.error('usage : optimize.mjs <entrée.glb> <nom> [--near 40000] [--far 6000] [--dir vehicles]');
   process.exit(1);
 }
 await Promise.all([MeshoptDecoder.ready, MeshoptEncoder.ready, MeshoptSimplifier.ready]);
@@ -48,6 +50,8 @@ function triangles(doc) {
 
 /** Textures → KTX2, côté maximal `size` pour les couleurs, moitié pour normales et masques (puissance de deux). */
 async function toKtx2(doc, size) {
+  // Sans texture (décor à couleurs par sommet) : pas d'extension KTX2 déclarée, le fichier reste lisible partout.
+  if (!doc.getRoot().listTextures().length) return null;
   const basisu = doc.createExtension(KHRTextureBasisu).setRequired(true);
   const srgb = new Set();
   for (const m of doc.getRoot().listMaterials()) {
