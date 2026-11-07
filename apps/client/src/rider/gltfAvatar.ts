@@ -209,6 +209,12 @@ const TUCK_HEAD = 0.35;
  * haut du cintre, buste relevé (≈ 46° : au-delà, les bras tendus n'atteignent plus un cintre route).
  */
 const DROPS_BEND = 0.8;
+/**
+ * Assis sur les cocottes : petite bascule en plus de la pose du modèle, qui laissait le dos à ≈ 47° (hanche →
+ * épaule, mesuré) au lieu des ≈ 41° validés ; épaules plus basses et plus en avant, coudes plus pliés (les bras
+ * paraissaient trop longs de dos).
+ */
+const HOODS_BEND = 0.15;
 const AERO_BEND = 1.0;
 const RELAX_BEND = -0.06;
 /** Ischions sur la selle par rapport à l'os du bassin (mesuré : selle 6 cm sous lui et 6 cm derrière). */
@@ -371,8 +377,12 @@ interface Templates {
  * route partagent le même poste de pilotage : cocotte de z 0,554 à 0,670, sommet 0,917 m au bec,
  * dessus ≈ 0,90 m au milieu ; la paume repose dessus, les doigts tombent sur le côté.
  */
-/** Part de l'écart latéral du pli de coude de repos conservée sur route / VTT (1 = pli du modèle, coudes très ouverts vus de dos). */
-const ELBOW_FLARE = 0.45;
+/**
+ * Part de l'écart latéral du pli de coude de repos conservée sur route / VTT (1 = pli du modèle, coudes très ouverts vus
+ * de dos). 0,45 laissait les coudes partir sur le côté et les bras paraître longs et écartés de dos ; à 0,15 ils plient
+ * vers l'arrière, le long du buste, comme sur les photos de coureurs vus de dos.
+ */
+const ELBOW_FLARE = 0.15;
 /** Position aéro (descente) : part de cet écart encore retirée, coudes rentrés le long du buste. */
 const AERO_ELBOW_IN = 0.8;
 const HOOD_PALM = new THREE.Vector3(0.2, 0.9, 0.565);
@@ -1805,6 +1815,8 @@ export class GltfRiderAvatar implements RiderAvatarLike {
     const dropHands = Math.max(this.dropsBlend * (1 - stand) * keep, aero);
     const drops = this.dropsBlend * (1 - stand) * (1 - aero) * keep;
     const relax = this.relaxBlend * (1 - stand) * (1 - aero) * keep;
+    // Cocottes, assis : ce qui reste quand aucune autre position du cintre ne s'applique.
+    const hoods = bars ? Math.max(0, 1 - drops - relax - aero - hoodsAero - forearms - clip) * (1 - stand) : 0;
 
     // Vélo : en danseuse il balance à l'opposé de la jambe qui appuie ; le corps compense en partie. Assis, un
     // léger balancement aussi (≈ 1°, un peu plus quand l'effort monte), nul en roue libre.
@@ -1820,7 +1832,7 @@ export class GltfRiderAvatar implements RiderAvatarLike {
     // --- Bassin
     const hipsR = t.bones.hips;
     const roll = 0.02 * Math.sin(a) * (1 - stand) * (1 - coast);
-    const race = DROPS_BEND * drops + AERO_BEND * aero + RELAX_BEND * relax + HOODS_AERO_BEND * hoodsAero + this.forearmTuck * forearms + this.clipTuck * clip + TURTLE_BEND * turtle;
+    const race = DROPS_BEND * drops + AERO_BEND * aero + RELAX_BEND * relax + HOODS_BEND * hoods + HOODS_AERO_BEND * hoodsAero + this.forearmTuck * forearms + this.clipTuck * clip + TURTLE_BEND * turtle;
     const tuck = this.tuck * (1 - 0.6 * stand) * (1 - HORNS_UNTUCK * horns) + race;
     const tilt = -0.09 * stand - 0.05 * coast + TUCK_HIPS * tuck;
     _q1.setFromAxisAngle(Z_AXIS, counter + roll);
