@@ -4,6 +4,7 @@ import { FreeFlyCamera } from './freecam.ts';
 import { getLang } from '../i18n/index.ts';
 import { buzzOffset } from './roadBuzz.ts';
 import { LOW_POLY } from '../engine/style.ts';
+import { CameraBoom, keepInFrame, type Occlusion } from './chaseFraming.ts';
 
 /** Modes de la caméra du jeu : ceux du protocole (appli compagnon) plus la caméra libre, locale. */
 export type RigMode = CameraMode | 'free';
@@ -29,6 +30,11 @@ export interface CameraTarget {
 }
 
 const _up = new THREE.Vector3(0, 1, 0);
+const _center = new THREE.Vector3();
+// Vecteurs de travail de CameraRig.update (aucune allocation par image).
+const _desired = new THREE.Vector3();
+const _look = new THREE.Vector3();
+const _tmp = new THREE.Vector3();
 /**
  * Vues embarquées (cockpit, caméra casque) : caméra placée par rapport aux yeux animés du coureur (tête
  * masquée), `up` m au-dessus (négatif : dessous), `back` m en arrière ; regard **dans l'axe du vélo** (le
@@ -90,11 +96,14 @@ export class CameraRig {
    * Obstacles entre deux points (bâtiments) : fraction du segment a → b au premier obstacle, null si dégagé.
    * Branché sur les emprises des bâtiments (voir FootprintIndex).
    */
-  occlusion: ((a: THREE.Vector3, b: THREE.Vector3) => number | null) | null = null;
-  private collideTick = 0;
-  /** Rapprochement visé (mur entre le coureur et la caméra) et rapprochement appliqué, lissé. */
-  private collideTarget = 1;
-  private collideScale = 1;
+  occlusion: Occlusion | null = null;
+  /** Bras de la poursuite et du coup d'œil en arrière : la caméra s'arrête avant le premier bâtiment (voir chaseFraming.ts). */
+  private readonly boom = new CameraBoom();
+  /** Centre du coureur pour le recadrage, lissé (≈ 0,1 s) : un saut de la trajectoire d'affichage ne fait pas sauter le décor. */
+  private readonly subjectCenter = new THREE.Vector3();
+  private subjectInit = false;
+  /** Côté du coureur par rapport au regard, gardé d'une image à l'autre (voir keepInFrame). */
+  private readonly frameHint = { side: 0 };
   /**
    * Poursuite : cap de la caméra (rad), lissé. Placée derrière le cap instantané, la caméra
    * balayait un arc de 5 m en un quart de seconde dans les virages serrés.
@@ -126,6 +135,22 @@ export class CameraRig {
     this.mode = mode;
     this.tvSpot = null;
     this.initialized = false;
+    this.subjectInit = false;
+    this.frameHint.side = 0;
+    this.boom.reset();
+  }
+
+  /** Recadrage sur le coureur (`subject`, au sol) depuis la caméra déjà placée : regard lissé ramené dans le cadre. */
+  private frameSubject(subject: THREE.Vector3, dt: number): void {
+    const cam = this.camera;
+    if (!this.subjectInit) {
+      this.subjectCenter.copy(subject);
+      this.subjectInit = true;
+    } else this.subjectCenter.lerp(subject, 1 - Math.exp(-dt * 10));
+    _center.copy(this.subjectCenter).y += 0.9;
+    // Le regard lissé lui-même est ramené (pas seulement l'image) : après l'épingle, il repart du coureur, pas de derrière la caméra.
+    keepInFrame(cam.position, this.smoothLook, _center, cam.fov, cam.aspect, this.frameHint);
+    cam.lookAt(this.smoothLook);
   }
 
   cycle(): RigMode {
@@ -153,7 +178,7 @@ export class CameraRig {
     if (this.mode !== 'tv') {
       // Poursuite : le champ s'ouvre avec la vitesse dès 11 km/h (+9° vers 50 km/h), lissé : sensation de vitesse.
       const boost = this.mode === 'chase' ? 9 * THREE.MathUtils.smoothstep(t.speedMs, 3, 14) : 0;
-      this.fovBoost += (boost - this.fovBoost) * Math.min(1, dt * 1.2);
+      this.fovBoost += (boost - this.fovBoost) * (1 - Math.exp(-dt * 1.2));
       const fov = this.fovFor(this.mode) + this.fovBoost;
       if (Math.abs(cam.fov - fov) > 0.01) {
         cam.fov = fov;
@@ -164,17 +189,27 @@ export class CameraRig {
       this.free.update(dt);
       return;
     }
-    const desired = new THREE.Vector3();
-    const look = new THREE.Vector3();
+    const desired = _desired.set(0, 0, 0);
+    const look = _look.set(0, 0, 0);
     let stiffness = 6;
+    // Vibration de la route en poursuite (m) : ajoutée à la caméra après le lissage, qui la filtrerait sinon.
+    let vib = 0;
     if (this.lookBack && this.mode !== 'tv' && this.mode !== 'photo' && this.mode !== 'drone') {
       // Coup d'œil en arrière : qui arrive, l'équipier lâché, la voiture qui va doubler.
-      desired.copy(t.position).addScaledVector(t.dir, 5).add(new THREE.Vector3(0, 1.9, 0));
-      look.copy(t.position).addScaledVector(t.dir, -12).add(new THREE.Vector3(0, 1.0, 0));
+      desired.copy(t.position).addScaledVector(t.dir, 5);
+      desired.y += 1.9;
+      look.copy(t.position).addScaledVector(t.dir, -12);
+      look.y += 1.0;
+      if (!this.initialized) {
+        this.smoothPos.copy(desired);
+        this.smoothLook.copy(look);
+        this.initialized = true;
+      }
       this.smoothPos.lerp(desired, 1 - Math.exp(-dt * 10));
       this.smoothLook.lerp(look, 1 - Math.exp(-dt * 10));
-      cam.position.copy(this.smoothPos);
-      cam.lookAt(this.smoothLook);
+      // Dans un virage, le point 5 m devant tombe dans la façade extérieure : le bras s'arrête avant, coureur dans le cadre.
+      this.boom.update(t.position, this.smoothPos, dt, this.occlusion, cam.position);
+      this.frameSubject(t.position, dt);
       return;
     }
     // Demi-tour : poursuite, même depuis une vue embarquée (retour à la vue choisie à la fin).
@@ -184,37 +219,27 @@ export class CameraRig {
         // Derrière et au-dessus, regard vers un point devant le coureur (anticipe les virages), pris sur la
         // trajectoire d'affichage (sur le tracé, il sautait à chaque sommet : la caméra balayait par à-coups).
         const ahead = this.track.linePositionAt(t.distM + 18 * (t.sign ?? 1), 0, t.speedMs, this.aheadSample);
-        // Cap lissé (≈ 0,4 s, par le plus court chemin) : la caméra suit le virage sans fouetter.
+        // Cap lissé (≈ 0,5 s, par le plus court chemin) : la caméra suit le virage sans fouetter. Dans un virage
+        // serré (gros écart), elle rattrape plus vite (jusqu'à ≈ 0,25 s) : en retard, elle se retrouvait de côté,
+        // dans l'angle des façades, et ne cadrait plus le vélo.
         const yaw = Math.atan2(t.dir.x, t.dir.z);
         if (!this.initialized) this.chaseYaw = yaw;
         const dYaw = Math.atan2(Math.sin(yaw - this.chaseYaw), Math.cos(yaw - this.chaseYaw));
-        this.chaseYaw += dYaw * (1 - Math.exp(-dt * 2));
+        const yawRate = 2 + 2 * THREE.MathUtils.smoothstep(Math.abs(dYaw), 0.35, 1.1);
+        this.chaseYaw += dYaw * (1 - Math.exp(-dt * yawRate));
         // Demi-tour : recul et hauteur en plus (tout l'arc dans le cadre), regard sur le coureur affiché.
         this.uturnPull += ((t.uturn ? 1 : 0) - this.uturnPull) * (1 - Math.exp(-dt * 2.5));
         const back = CHASE_BACK * (1 + 0.7 * this.uturnPull);
         const up = CHASE_UP + 0.9 * this.uturnPull;
         desired.set(t.position.x - Math.sin(this.chaseYaw) * back, t.position.y + up, t.position.z - Math.cos(this.chaseYaw) * back);
-        look.set(ahead.x, ahead.y + 1.0, ahead.z).lerp(t.position.clone().add(new THREE.Vector3(0, 1.1, 0)), 0.55);
+        look.set(ahead.x, ahead.y + 1.0, ahead.z).lerp(_tmp.copy(t.position).setY(t.position.y + 1.1), 0.55);
         if (t.uturn && t.subject) look.set(t.subject.x, t.subject.y + 1.0, t.subject.z);
         stiffness = 5;
-        // Collision : un mur entre le coureur et la caméra rapproche la caméra (une image sur trois).
-        if (this.occlusion && (this.collideTick = (this.collideTick + 1) % 3) === 0) {
-          const head = t.position.clone().add(new THREE.Vector3(0, 1.3, 0));
-          const len = desired.distanceTo(head);
-          const hit = this.occlusion(head, desired);
-          this.collideTarget = hit !== null ? Math.max(0.25, (hit * len - 0.6) / len) : 1;
-        }
-        // Vite vers le coureur (ne pas traverser le mur), lentement en reculant (pas de va-et-vient).
-        const rate = this.collideTarget < this.collideScale ? 14 : 1.5;
-        this.collideScale += (this.collideTarget - this.collideScale) * (1 - Math.exp(-dt * rate));
-        if (this.collideScale < 1) {
-          const head = t.position.clone().add(new THREE.Vector3(0, 1.3, 0));
-          desired.sub(head).multiplyScalar(this.collideScale).add(head);
-        }
-        // Vibration de la route : quelques millimètres, plus vive avec la vitesse (sensation de vitesse).
+        // (collision avec les bâtiments : après le lissage, sur la position réelle de la caméra, voir plus bas)
+        // Vibration de la route : quelques millimètres, plus vive avec la vitesse (sensation de vitesse). Appliquée
+        // en fin d'update : ajoutée ici à la cible, le lissage (taux 5) n'en laissait passer que ≈ 2 % à 37 Hz.
         const now = performance.now() * 0.001;
-        const vib = 0.006 * Math.min(1, t.speedMs / 9);
-        desired.y += (Math.sin(now * 37) * 0.6 + Math.sin(now * 23.3 + 1.7) * 0.4) * vib;
+        vib = (Math.sin(now * 37) * 0.6 + Math.sin(now * 23.3 + 1.7) * 0.4) * 0.006 * Math.min(1, t.speedMs / 9);
         break;
       }
       case 'cockpit':
@@ -252,7 +277,8 @@ export class CameraRig {
       case 'gopro': {
         // Caméra embarquée sur la poitrine : bras et cintre dans le champ, vibrations de la route.
         const shake = Math.sin(performance.now() * 0.031) * 0.006 * Math.min(t.speedMs / 8, 1);
-        desired.copy(t.position).addScaledVector(t.dir, 0.42).add(new THREE.Vector3(0, 1.22 + shake, 0));
+        desired.copy(t.position).addScaledVector(t.dir, 0.42);
+        desired.y += 1.22 + shake;
         const ahead = this.track.sample(t.distM + 12 * (t.sign ?? 1));
         look.set(ahead.x, ahead.y + 0.4, ahead.z);
         stiffness = 30;
@@ -264,7 +290,8 @@ export class CameraRig {
         const r = 28;
         const a = Math.atan2(t.dir.x, t.dir.z) + Math.PI + Math.sin(this.droneAngle) * PHOTO_MAX_YAW;
         desired.set(t.position.x + Math.sin(a) * r, t.position.y + 16, t.position.z + Math.cos(a) * r);
-        look.copy(t.position).add(new THREE.Vector3(0, 1, 0));
+        look.copy(t.position);
+        look.y += 1;
         stiffness = 2;
         break;
       }
@@ -289,7 +316,8 @@ export class CameraRig {
           this.initialized = false;
         }
         if (this.tvSpot) desired.copy(this.tvSpot.pos);
-        look.copy(t.position).add(new THREE.Vector3(0, 1, 0));
+        look.copy(t.position);
+        look.y += 1;
         stiffness = 50;
         // Zoom : focale plus serrée quand le coureur est loin.
         const dist = desired.distanceTo(t.position);
@@ -306,7 +334,8 @@ export class CameraRig {
         const { yaw, pitch, dist } = this.photo;
         const base = Math.atan2(t.dir.x, t.dir.z) + Math.PI + yaw;
         desired.set(t.position.x + Math.sin(base) * Math.cos(pitch) * dist, t.position.y + 0.9 + Math.sin(pitch) * dist, t.position.z + Math.cos(base) * Math.cos(pitch) * dist);
-        look.copy(t.position).add(new THREE.Vector3(0, 1, 0));
+        look.copy(t.position);
+        look.y += 1;
         stiffness = 12;
         break;
       }
@@ -326,7 +355,15 @@ export class CameraRig {
     // Poursuite : le regard suit au même rythme que la position (plus vite, il pivotait d'un coup en virage).
     this.smoothLook.lerp(look, Math.min(1, this.mode === 'chase' ? k : k * 1.5));
     cam.position.copy(this.smoothPos);
-    cam.lookAt(this.smoothLook);
+    if (this.mode === 'chase' || onboardTurn) {
+      // Poursuite : coureur toujours visible. Le bras s'arrête avant le premier bâtiment entre le coureur et la
+      // caméra (testé à chaque image, depuis la position lissée), et le regard ne quitte jamais le coureur de plus
+      // d'une fraction du champ (le point visé, devant dans le virage, partait sur le côté dans les épingles).
+      const subject = t.uturn && t.subject ? t.subject : t.position;
+      this.boom.update(subject, this.smoothPos, dt, this.occlusion, cam.position);
+      this.frameSubject(subject, dt);
+    } else cam.lookAt(this.smoothLook);
+    cam.position.y += vib;
     // Vibration du revêtement : forte en vue embarquée (solidaire du vélo), légère en poursuite.
     const share = this.mode === 'gopro' ? 1.3 : this.mode === 'action' ? 1.15 : this.mode === 'cockpit' ? 1 : this.mode === 'chase' ? 0.3 : 0;
     if (share > 0 && t.buzz) {
