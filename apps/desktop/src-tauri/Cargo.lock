@@ -31,7 +31,7 @@ dependencies = [
 
 [[package]]
 name = "allezrobert-desktop"
-version = "0.1.24"
+version = "0.1.27"
 dependencies = [
  "base64 0.22.1",
  "btleplug",
