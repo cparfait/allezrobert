@@ -444,6 +444,9 @@ interface Vehicle {
   vz: number;
   /** Sur un chemin non revêtu , voie étroite (piste cyclable) ou (tracteur) près d'une commune : masqué, muet, sans aspiration. */
   onTrack?: boolean;
+  /** Tracteur : dernier point où la présence de bâtiments a été vérifiée, et son résultat. */
+  townD?: number;
+  inTown?: boolean;
 }
 
 /** Véhicules pour une densité donnée (`QualitySettings.trafficDensity`, 0–1) : 2 à 6. */
@@ -458,6 +461,8 @@ export class Traffic {
   private readonly r = rng(77);
   /** Communes (bourgs, villes) près desquelles les tracteurs n'apparaissent pas. */
   private urban: ReadonlyArray<{ x: number; z: number }> = [];
+  /** Bâti dense autour d'un point : la liste des communes ne couvre pas tout (Paris manque à Montmartre). */
+  private townAt: ((x: number, z: number) => boolean) | null = null;
   private readonly sample = { x: 0, y: 0, z: 0, dirX: 1, dirZ: 0, grade: 0, d: 0 };
 
   /** @param lodScale facteur des distances de niveau de détail (préréglage graphique) */
@@ -506,6 +511,11 @@ export class Traffic {
 
   setPlaces(places: ReadonlyArray<{ kind: string; x: number; z: number }> | undefined): void {
     this.urban = (places ?? []).filter((p) => p.kind === 'town' || p.kind === 'city' || p.kind === 'village' || p.kind === 'suburb');
+  }
+
+  /** Test du bâti dense : les tracteurs n'y circulent pas, quelle que soit la liste des communes. */
+  setTownTest(test: (x: number, z: number) => boolean): void {
+    this.townAt = test;
   }
 
   private laneOf(sens: 1 | -1): number {
@@ -622,9 +632,14 @@ export class Traffic {
       // Pistes cyclables (Longchamp…) et voies étroites : pas de voiture sous 4,8 m de large.
       if (!v.onTrack && !outside && this.narrowAt(((v.d % L) + L) % L)) v.onTrack = true;
       // Pas de tracteur près d'une commune : il disparaît à moins de 1,2 km d'un bourg ou d'une ville.
-      if (v.kind === 'tractor' && !v.onTrack && !outside && this.urban.length) {
-        const q = this.track.positionAt(((v.d % L) + L) % L, 0, this.sample);
-        v.onTrack = this.urban.some((u) => (u.x - q.x) ** 2 + (u.z - q.z) ** 2 < 1200 * 1200);
+      if (v.kind === 'tractor' && !v.onTrack && !outside && (this.urban.length || this.townAt)) {
+        // Vérifié tous les 30 m : la position change peu, et il y a une grille de bâtiments à parcourir.
+        if (v.townD === undefined || Math.abs(v.d - v.townD) > 30) {
+          const q = this.track.positionAt(((v.d % L) + L) % L, 0, this.sample);
+          v.townD = v.d;
+          v.inTown = this.urban.some((u) => (u.x - q.x) ** 2 + (u.z - q.z) ** 2 < 1200 * 1200) || !!this.townAt?.(q.x, q.z);
+        }
+        v.onTrack = !!v.inTown;
       }
       v.mesh.visible = !outside && !v.onTrack;
       if (outside || v.onTrack) continue;

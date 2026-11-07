@@ -1,10 +1,11 @@
 import * as THREE from 'three/webgpu';
 import { LOW_POLY } from '../engine/style.ts';
-import { uv, mix, smoothstep, step, fract, vec2, vec3, float, floor, hash, uniform, mx_noise_float, positionWorld, clamp, abs, max, fwidth } from 'three/tsl';
+import { uv, mix, smoothstep, step, fract, vec2, vec3, vec4, float, floor, hash, uniform, mx_noise_float, positionWorld, clamp, abs, max, fwidth, mrt, normalMap, normalView, packNormalToRGB } from 'three/tsl';
 import type { RouteData, RoutePoint } from '@allezrobert/shared';
 import { asphaltGrain } from './asphalt.ts';
 import { ribbonEdges, ribbonIndex, roundCorners } from './ribbon.ts';
 import { cloudShade } from './clouds.ts';
+import { ROAD_FX, RoadLightingModel, asphaltColor, reflectAlpha, rippleNormal, wetAlbedo, wetMasks, wetRoughness } from './roadSurface.ts';
 
 /**
  * Ruban de chaussée de l'itinéraire, posé sur le terrain déjà creusé, avec marquages
@@ -113,6 +114,21 @@ export class RoadMesh {
       // Mat (voir network.ts) : sans reflet du ciel en rasant.
       m.roughnessNode = clamp(float(0.95).sub(wet.mul(0.5)), 0.3, 1);
       m.envNode = vec3(0.34, 0.34, 0.35);
+    }
+    if (ROAD_FX && !LOW_POLY) {
+      const fh = float(half);
+      const pix = max(fwidth(across), fwidth(v));
+      const masks = wetMasks(wet, across, fh, pix);
+      const dry = asphaltColor(across, v, fh, onRoad);
+      const pore = float(0.75);
+      const wetCol = dry.mul(wetAlbedo(pore, masks));
+      const surface = mix(verge.mul(wetAlbedo(float(0.6), masks)), wetCol, onRoad);
+      m.colorNode = mix(surface, vec3(0.62, 0.62, 0.58), paint.mul(onRoad)).mul(cloudShade());
+      m.roughnessNode = clamp(mix(float(0.97), wetRoughness(mix(float(0.88), float(0.62), paint), pore, masks), onRoad), 0.04, 1);
+      const rip = rippleNormal(across, v, masks, wet, pix);
+      m.normalNode = normalMap(rip.normalize().mul(0.5).add(0.5), vec2(1, 1));
+      (m as unknown as { setupLightingModel: () => unknown }).setupLightingModel = () => new RoadLightingModel(mix(float(0.2), float(1), max(masks.x.mul(0.6), max(masks.y, masks.z))));
+      (m as unknown as { mrtNode: unknown }).mrtNode = mrt({ normal: vec4(packNormalToRGB(normalView), mix(float(1), reflectAlpha(masks), onRoad)) });
     }
     m.opacityNode = LOW_POLY ? step(ax, float(half + 0.6)) : step(ax, vergeOuter);
     m.alphaTest = 0.5;

@@ -1,11 +1,25 @@
 import * as THREE from 'three/webgpu';
-import { uv, attribute, mix, smoothstep, step, fract, floor, hash, min, vec3, float, uniform, mx_noise_float, positionWorld, positionLocal, clamp, abs, max, fwidth } from 'three/tsl';
+import { uv, attribute, mix, smoothstep, step, fract, floor, hash, min, vec2, vec3, vec4, float, uniform, mx_noise_float, positionWorld, positionLocal, clamp, abs, max, fwidth, mrt, normalMap, normalView, output, packNormalToRGB, cos } from 'three/tsl';
 import { LOW_POLY } from '../engine/style.ts';
 import type { LoadedTile, TileRoad } from './types.ts';
 import { asphaltGrain } from './asphalt.ts';
 import { isRouteTwin } from './splat.ts';
 import { chainPieces, ribbonIndex, sideRoadStrips, type RouteFootprint } from './ribbon.ts';
 import { cloudShade } from './clouds.ts';
+import { LAMP_FROM_CURB, LAMP_LEFT, LAMP_RIGHT, LAMP_SPACING, LAMP_STAGGERED, ROAD_FX, RoadLightingModel, asphaltColor, asphaltGrainSoft, decalShade, lampIsLeft, lampPool, reflectAlpha, rippleNormal, wetAlbedo, wetMasks, wetRoughness } from './roadSurface.ts';
+import { LampField, createLampMaterial, type LampSpot } from './streetLamps.ts';
+import { CURB_H, CURB_W, StreetIndex, pushSidewalk, dropShortRuns, refineSidewalkEnds, resampleStrip, trimOverBank, type EdgeKind, type MeshSink } from './sidewalks.ts';
+import { DECAL_GUTTER, DECAL_OIL, GUTTER_W, placeDecals, pushDecal, stripSeed } from './roadDecals.ts';
+import { tune } from '../dev/tuning.ts';
+
+/** Réglages (?reglages, voir dev/tuning.ts). */
+const ASPHALT = tune('route.enrobe', "Teinte de l'enrobé", 1, 0.4, 2.5, 0.02);
+const WEAR = tune('route.usure', "Usure de l'enrobé", 0, -0.5, 0.5, 0.01);
+const DECALS = tune('route.defauts', 'Défauts et équipements', 1, 0, 1, 0.02);
+const SLAB_TINT = tune('trottoir.teinte', 'Teinte des trottoirs', 1, 0.4, 2.5, 0.02);
+const WALL_SHADOW = tune('trottoir.ombre', 'Ombre au pied des murs', 0.45, 0, 1, 0.01);
+const SHOP_LIGHT = tune('nuit.vitrines', 'Lumière des vitrines', 1, 0, 3, 0.05);
+tune('pluie.forcer', 'Forcer la pluie (chaussée)', 0, 0, 1, 0.01);
 
 /** Routes revêtues avec marquage axial (départementales et plus). */
 const MARKED = new Set(['primary', 'secondary', 'tertiary', 'trunk', 'primary_link', 'secondary_link']);
@@ -21,6 +35,13 @@ const SKIP = new Set(['footway', 'path', 'steps', 'cycleway', 'bridleway', 'pede
 export class RoadNetwork {
   readonly group = new THREE.Group();
   readonly wetness = uniform(0);
+  /** 1 la nuit : lampadaires allumés (voir streetLamps.ts). */
+  readonly night = uniform(0);
+  private readonly lampMat = createLampMaterial(this.night);
+  /** Lampadaires de toutes les tuiles : un seul appel de dessin. */
+  private readonly lamps = new LampField(this.lampMat);
+  /** Murs à vitrine d'une tuile (bâtiments construits avant la voirie, voir world.ts). */
+  private shopWallsOf: (tileId: string) => readonly number[] = () => [];
   private readonly roadMat: THREE.MeshStandardNodeMaterial;
   private readonly tiles = new Map<string, THREE.Object3D[]>();
   private readonly activeRoute: string;
@@ -32,14 +53,21 @@ export class RoadNetwork {
    */
   /** Monde ouvert : les pistes cyclables sont roulables, donc dessinées. */
   private readonly drawCycleways: boolean;
+  private readonly groundAt: (x: number, z: number) => number;
 
   constructor(activeRoute: string, groundAt: (x: number, z: number) => number, footprint: RouteFootprint | null = null, drawCycleways = false) {
     this.activeRoute = activeRoute;
     this.drawCycleways = drawCycleways;
-    void groundAt;
+    this.groundAt = groundAt;
     this.footprint = footprint;
     this.group.name = 'network';
     this.roadMat = this.createRoadMaterial();
+    this.group.add(this.lamps.group);
+  }
+
+  /** Branche les vitrines des bâtiments : le trottoir s'éclaire devant elles la nuit. */
+  setShopWalls(of: (tileId: string) => readonly number[]): void {
+    this.shopWallsOf = of;
   }
 
   private createRoadMaterial(): THREE.MeshStandardNodeMaterial {
@@ -90,6 +118,79 @@ export class RoadNetwork {
     // pavés mouillés : brillants entre les joints (le « Enfer du Nord » sous la pluie)
     m.roughnessNode = clamp(mix(mix(float(0.8), float(0.97), unpaved), mix(float(0.62), float(0.9), float(1).sub(inStone)), cobble).sub(this.wetness.mul(0.55).mul(float(1).sub(unpaved))), 0.06, 1);
     m.metalnessNode = float(0);
+    if (ROAD_FX && !LOW_POLY) {
+      const pix = max(fwidth(across), fwidth(along));
+      // Trottoir (revêtement 3) : même maillage que la voirie, donc même pluie et même lumière des lampadaires.
+      const walk = step(2.5, info.z);
+      const cobbleF = cobble.mul(float(1).sub(walk));
+      const paved = float(1).sub(unpaved).sub(cobbleF).sub(walk).max(0);
+      const roadEdge = half.add(0.6);
+      const isCurb = walk.mul(step(ax, roadEdge.add(CURB_W)));
+      // Peu de flaques sur un trottoir bombé vers le caniveau, qui garde l'humidité.
+      // Caniveau pavé contre la bordure (drapeaux par côté dans `side` sur la chaussée) : passé au shader des
+      // décalques comme un décalque de plus, sans géométrie (il suivrait chaque profil de chaque rue).
+      const side = attribute<'vec2'>('side');
+      const gutterW = float(GUTTER_W);
+      const inGutter = float(1).sub(walk).mul(max(step(roadEdge.sub(gutterW), across.negate()).mul(side.x), step(roadEdge.sub(gutterW), across).mul(side.y))).mul(step(side.x, 1.5));
+      const dkAttr = attribute<'vec4'>('decal');
+      const dk = mix(dkAttr, vec4(DECAL_GUTTER, ax.sub(roadEdge.sub(gutterW)).div(gutterW), 0, 0), inGutter.mul(step(dkAttr.x, 0.5)));
+      const dsz = mix(attribute<'vec2'>('decalSize'), vec2(GUTTER_W, 1), inGutter.mul(step(dkAttr.x, 0.5)));
+      // Creux où l'eau stagne : tranchée tassée, avaloir, caniveau (type de décalque, sans calcul de son aspect).
+      const dKind = dk.x;
+      const hollow = step(1.5, dKind).mul(step(dKind, 2.5)).mul(0.12).add(step(3.5, dKind).mul(step(dKind, 4.5)).mul(0.1)).add(step(6.5, dKind).mul(0.22));
+      const wetRoad = wetMasks(this.wetness, across, half, pix, hollow as unknown as ReturnType<typeof float>);
+      const masks = mix(wetRoad, wetRoad.mul(vec3(1, 0.7, 0.2)), walk) as unknown as ReturnType<typeof vec3>;
+      // Pavés de granit, moins clairs ; au loin, une teinte moyenne plutôt que des joints qui scintillent.
+      const stoneFx = vec3(0.21, 0.2, 0.185).mul(shade.mul(0.4).add(0.72)).mul(n.mul(0.2).add(0.9));
+      const cobblesFx = mix(mix(vec3(0.045, 0.04, 0.035), stoneFx, inStone), vec3(0.14, 0.135, 0.125), smoothstep(0.018, 0.045, pix));
+      const pore = mix(mix(mix(float(0.75), float(0.9), unpaved), float(0.45), cobbleF), mix(float(0.6), float(0.35), isCurb), walk);
+      // Dalle : asphalte coulé gris, un peu plus clair que la chaussée ; bordure en granit par blocs de 1 m.
+      const walkN = mx_noise_float(positionWorld.xz.mul(0.5).add(41)).mul(0.5).add(0.5);
+      const walkJoint = float(1).sub(smoothstep(0.012, 0.03, min(fract(along.div(2.1)), float(1).sub(fract(along.div(2.1)))).mul(2.1))).mul(float(1).sub(smoothstep(0.02, 0.05, pix)));
+      const slab = vec3(0.135, 0.128, 0.118).mul(walkN.mul(0.25).add(0.87)).mul(float(1).sub(walkJoint.mul(0.28))).mul(n.mul(0.1).add(0.95));
+      const curbBlock = float(1).sub(smoothstep(0.01, 0.025, min(fract(along), float(1).sub(fract(along))))).mul(float(1).sub(smoothstep(0.02, 0.05, pix)));
+      const curbCol = vec3(0.27, 0.26, 0.24).mul(hash(floor(along).add(4096).mul(31)).mul(0.2).add(0.9)).mul(float(1).sub(curbBlock.mul(0.55)));
+      // Pied du mur : ombre de contact (le ciel n'y arrive qu'à moitié) ; la GTAO, à l'écran, la manque souvent.
+      const contact = float(1).sub(float(1).sub(smoothstep(0, 0.55, side.x)).mul(WALL_SHADOW).mul(walk));
+      const walkCol = mix(slab.mul(SLAB_TINT), curbCol, isCurb).mul(contact);
+      const road = mix(mix(asphaltColor(across, along, half, paved, false, WEAR, ASPHALT), gravel.mul(0.75), unpaved), cobblesFx, cobbleF);
+      // Décalques (rapiéçages, plaques, caniveaux, passages piétons… voir roadDecals.ts) : la chaussée recalculée dessous.
+      const dShade = decalShade(dk, dsz, pix, road, asphaltGrainSoft(), along);
+      const dCover = dShade.look.a.mul(DECALS);
+      const onDecal = step(0.5, dk.x);
+      const surface = mix(mix(road, dShade.look.rgb, dCover), walkCol, walk);
+      const chipped = smoothstep(0.25, 0.55, mx_noise_float(positionWorld.xz.mul(0.9)).mul(0.5).add(0.5)).mul(0.5).add(0.5);
+      // Marquage interrompu sous un décalque (passage piéton, reprise d'enrobé).
+      const paintFx = paint.mul(chipped).mul(float(1).sub(onDecal));
+      const poreD = mix(pore, dShade.mat.y, dCover);
+      const fxSurface = surface.mul(wetAlbedo(poreD, masks));
+      // Tache d'huile mouillée : irisation (film mince), légère.
+      const oil = dCover.mul(step(DECAL_OIL - 0.5, dk.x)).mul(step(dk.x, DECAL_OIL + 0.5)).mul(masks.x);
+      const irid = cos(vec3(0, 2.1, 4.2).add(positionWorld.x.add(positionWorld.z).mul(9))).mul(0.5).add(0.5).mul(0.025).mul(oil);
+      const fxCol = mix(fxSurface.add(irid), vec3(0.62, 0.62, 0.58), paintFx).mul(cloudShade());
+      m.colorNode = fxCol;
+      const rough0 = mix(mix(mix(mix(float(0.88), float(0.97), unpaved), mix(float(0.66), float(0.92), float(1).sub(inStone)), cobbleF), float(0.9), walk), float(0.62), paintFx);
+      const rough = mix(rough0, dShade.mat.x, dCover);
+      m.roughnessNode = clamp(wetRoughness(rough, poreD, masks), 0.04, 1);
+      m.metalnessNode = dShade.mat.z.mul(dCover);
+      // Relief : pavés bombés (bords de 3,5 cm) près de la caméra, anneaux des gouttes dans les flaques.
+      const near = float(1).sub(smoothstep(0.012, 0.03, pix));
+      const roundX = float(1).sub(smoothstep(0, 0.035, min(fu, float(1).sub(fu)).mul(0.17))).mul(step(0.5, fu).mul(2).sub(1));
+      const roundY = float(1).sub(smoothstep(0, 0.035, min(fv, float(1).sub(fv)).mul(0.14))).mul(step(0.5, fv).mul(2).sub(1));
+      const rip = rippleNormal(across, along, masks, this.wetness, pix);
+      const bump = vec2(roundX, roundY).mul(0.55).mul(cobbleF).mul(near);
+      m.normalNode = normalMap(vec3(rip.xy.add(bump), 1).normalize().mul(0.5).add(0.5), vec2(1, 1));
+      (m as unknown as { setupLightingModel: () => unknown }).setupLightingModel = () => new RoadLightingModel(mix(float(0.2), float(1), max(masks.x.mul(0.6), max(masks.y, masks.z))));
+      (m as unknown as { mrtNode: unknown }).mrtNode = mrt({ normal: vec4(packNormalToRGB(normalView), reflectAlpha(masks)) });
+      // Lumière des lampadaires hors émissif (sans bloom) : diffuse sur l'albédo, plus une brillance sur le mouillé.
+      const pool = lampPool(across, along, roadEdge.add(LAMP_FROM_CURB), attribute<'float'>('lamp')).mul(this.night);
+      const warm = vec3(1.0, 0.72, 0.42);
+      // Vitrines éclairées : lumière chaude devant le mur, par travée de 3,1 m (environ sept sur dix allumées).
+      const bay = step(0.3, hash(floor(along.div(3.1)).add(65536).mul(13).add(floor(abs(across)).mul(7))));
+      const shopLight = side.y.mul(walk).mul(this.night).mul(bay).mul(float(1).div(side.x.max(0).mul(side.x.max(0)).mul(0.8).add(1)).sub(0.08).max(0)).mul(SHOP_LIGHT);
+      const light = warm.mul(pool.add(shopLight.mul(vec3(1.0, 0.92, 0.8)))).mul(fxCol.mul(0.85).add(max(masks.x.mul(0.012), masks.z.mul(0.035))));
+      m.outputNode = vec4(output.rgb.add(light), output.a);
+    }
     m.polygonOffset = true;
     m.polygonOffsetFactor = -2;
     m.polygonOffsetUnits = -2;
@@ -125,13 +226,15 @@ export class RoadNetwork {
       return true;
     });
     if (roads.length) {
-      const geo = buildRoads(roads, this.footprint);
+      const lamps: LampSpot[] = [];
+      const geo = buildRoads(roads, this.footprint, ROAD_FX && !LOW_POLY ? new StreetIndex(tile, roads, this.shopWallsOf(tile.id)) : null, lamps, this.groundAt);
       if (geo) {
         const mesh = new THREE.Mesh(geo, this.roadMat);
         mesh.receiveShadow = true;
         mesh.name = `roads_${tile.id}`;
         objs.push(mesh);
       }
+      this.lamps.set(tile.id, lamps);
     }
     objs.forEach((o) => this.group.add(o));
     this.tiles.set(tile.id, objs);
@@ -140,6 +243,7 @@ export class RoadNetwork {
   removeTile(tile: LoadedTile): void {
     const objs = this.tiles.get(tile.id);
     if (!objs) return;
+    this.lamps.remove(tile.id);
     for (const o of objs) {
       this.group.remove(o);
       (o as THREE.Mesh).geometry.dispose();
@@ -148,12 +252,22 @@ export class RoadNetwork {
   }
 }
 
+/**
+ * Largeur de trottoir depuis un bord de chaussée (x, y, z) vers (dx, dz), et ce qui l'arrête (mur, vitrine). Avec
+ * `groundAt`, il s'arrête aussi là où le sol tombe sous la chaussée (talus vers une rue en contrebas).
+ */
+function edgeAt(street: StreetIndex, x: number, y: number, z: number, dx: number, dz: number, groundAt: ((x: number, z: number) => number) | null): { w: number; kind: EdgeKind } {
+  const w0 = street.clearWidth(x, z, dx, dz);
+  const w = groundAt ? trimOverBank(w0, x, y, z, dx, dz, groundAt) : w0;
+  const wall = street.hit === 'wall' && w === w0;
+  return { w, kind: { wall, shop: wall && street.shopNear(x + dx * (w - 0.3), z + dz * (w - 0.3)) } };
+}
+
 /** Rubans de toutes les routes d'une tuile, fusionnés (un seul appel de dessin). */
-function buildRoads(roads: TileRoad[], footprint: RouteFootprint | null): THREE.BufferGeometry | null {
-  const pos: number[] = [];
-  const uvs: number[] = [];
-  const info: number[] = [];
-  const index: number[] = [];
+function buildRoads(roads: TileRoad[], footprint: RouteFootprint | null, street: StreetIndex | null, lamps: LampSpot[], groundAt: ((x: number, z: number) => number) | null): THREE.BufferGeometry | null {
+  const lampGrid = new Map<number, LampSpot[]>();
+  const sink: MeshSink = { pos: [], uvs: [], info: [], lit: [], decal: [], dsize: [], side: [], index: [] };
+  const { pos, uvs, info, lit, decal, dsize, side, index } = sink;
   const pieces = roads
     .filter((r) => (r.pts3 as number[]).length >= 6)
     .map((r) => {
@@ -167,16 +281,129 @@ function buildRoads(roads: TileRoad[], footprint: RouteFootprint | null): THREE.
     const { half, marked, unpaved } = pieces[c.piece] as (typeof pieces)[number];
     // Bords à demi-largeur + 0,6 m de bas-côté fondu ; découpe contre l'itinéraire actif.
     const o = half + 0.6;
-    for (const s of sideRoadStrips(c.pts3, o, half, footprint, 0.05, c.dirs, c.stops)) {
+    for (const raw of sideRoadStrips(c.pts3, o, half, footprint, 0.05, c.dirs, c.stops)) {
+      // En ville, profils tous les 3 m : largeur de trottoir et lampadaires varient plus vite que les points OSM.
+      const city = !!street && unpaved !== 1 && half >= 2;
+      const s = city ? resampleStrip(raw.left, raw.right, raw.along, 3) : raw;
       const base = pos.length / 3;
       const n = s.along.length;
+      const lampAt = new Float32Array(n);
+      const ux: number[] = [];
+      const uz: number[] = [];
+      const wL = new Array<number>(n).fill(0);
+      const wR = new Array<number>(n).fill(0);
+      const kL: EdgeKind[] = [];
+      const kR: EdgeKind[] = [];
+      if (city && street) {
+        for (let i = 0; i < n; i++) {
+          const dx = (s.right[i * 3] as number) - (s.left[i * 3] as number);
+          const dz = (s.right[i * 3 + 2] as number) - (s.left[i * 3 + 2] as number);
+          const w = Math.hypot(dx, dz) || 1;
+          ux.push(dx / w);
+          uz.push(dz / w);
+          // Ce qui borde chaque côté : un mur (ombre à son pied), et s'il porte une vitrine (lumière la nuit).
+          for (const sd of [-1, 1]) {
+            const e = sd < 0 ? s.left : s.right;
+            const { w: width, kind } = edgeAt(street, e[i * 3] as number, e[i * 3 + 1] as number, e[i * 3 + 2] as number, (sd * dx) / w, (sd * dz) / w, groundAt);
+            if (sd < 0) {
+              wL[i] = width;
+              kL[i] = kind;
+            } else {
+              wR[i] = width;
+              kR[i] = kind;
+            }
+          }
+        }
+        // Pas de bout de trottoir isolé (quelques mètres devant un bâtiment seul, posés dans l'herbe).
+        dropShortRuns(wL, s.along, 10);
+        dropShortRuns(wR, s.along, 10);
+        // Lampadaires : sur le trottoir, à 60 cm de la bordure. Rue étroite : d'un seul côté, le plus large.
+        // Jamais sur une chaussée ou contre un carrefour (trottoir coupé à côté), ni à moins de 14 m d'un autre.
+        const sum = (a: number[]) => a.reduce((t, v) => t + v, 0);
+        const mode = half >= 3.5 ? LAMP_STAGGERED : sum(wL) >= sum(wR) ? LAMP_LEFT : LAMP_RIGHT;
+        const a0 = Math.min(s.along[0] as number, s.along[n - 1] as number);
+        const a1 = Math.max(s.along[0] as number, s.along[n - 1] as number);
+        for (let k = Math.ceil(a0 / LAMP_SPACING); k <= Math.floor(a1 / LAMP_SPACING); k++) {
+          const at = k * LAMP_SPACING;
+          let i = 0;
+          let best = Infinity;
+          for (let j = 0; j < n; j++) {
+            const d = Math.abs((s.along[j] as number) - at);
+            if (d < best) {
+              best = d;
+              i = j;
+            }
+          }
+          if (i < 2 || i > n - 3 || best > 2) continue;
+          const left = lampIsLeft(mode, k);
+          const widths = left ? wL : wR;
+          if (Math.min(widths[i - 2] as number, widths[i - 1] as number, widths[i] as number, widths[i + 1] as number, widths[i + 2] as number) < LAMP_FROM_CURB + 0.35) continue;
+          const edge = left ? s.left : s.right;
+          const sign = left ? -1 : 1;
+          const x = (edge[i * 3] as number) + (ux[i] as number) * sign * LAMP_FROM_CURB;
+          const z = (edge[i * 3 + 2] as number) + (uz[i] as number) * sign * LAMP_FROM_CURB;
+          if (street.onRoad(x, z, 0.3) || street.inBuilding(x, z)) continue;
+          const g = Math.floor(x / 14) * 65536 + Math.floor(z / 14);
+          let close = false;
+          for (let gx = -1; gx <= 1 && !close; gx++)
+            for (let gz = -1; gz <= 1 && !close; gz++)
+              for (const l of lampGrid.get(g + gx * 65536 + gz) ?? []) if (Math.hypot(l.x - x, l.z - z) < 14) close = true;
+          if (close) continue;
+          const spot = { x, y: (edge[i * 3 + 1] as number) + CURB_H, z };
+          lamps.push(spot);
+          const cell = lampGrid.get(g);
+          if (cell) cell.push(spot);
+          else lampGrid.set(g, [spot]);
+          // Flaque de lumière de ce lampadaire, à ±15 m : seulement là où il existe vraiment.
+          for (let j = 0; j < n; j++) if (Math.abs((s.along[j] as number) - at) <= LAMP_SPACING / 2 + 0.01) lampAt[j] = mode;
+        }
+      }
       for (let i = 0; i < n; i++) {
         pos.push(s.left[i * 3] as number, s.left[i * 3 + 1] as number, s.left[i * 3 + 2] as number);
         pos.push(s.right[i * 3] as number, s.right[i * 3 + 1] as number, s.right[i * 3 + 2] as number);
         uvs.push(-o, s.along[i] as number, o, s.along[i] as number);
-        info.push(half, marked, unpaved, half, marked, unpaved);
+        // Carrefour : pas de ligne de rive ni d'axe sur la chaussée de la rue qui croise (elles se superposaient).
+        let mL = marked;
+        let mR = marked;
+        if (marked && city && street) {
+          const ex = (s.right[i * 3] as number) - (s.left[i * 3] as number);
+          const ez = (s.right[i * 3 + 2] as number) - (s.left[i * 3 + 2] as number);
+          const el = Math.hypot(ex, ez) || 1;
+          const ax = ex / el;
+          const az = ez / el;
+          const cx = ((s.left[i * 3] as number) + (s.right[i * 3] as number)) / 2;
+          const cz = ((s.left[i * 3 + 2] as number) + (s.right[i * 3 + 2] as number)) / 2;
+          const r = half - 0.3;
+          if (street.crossRoad(cx - ax * r, cz - az * r, -az, ax)) mL = 0;
+          if (street.crossRoad(cx + ax * r, cz + az * r, -az, ax)) mR = 0;
+        }
+        info.push(half, mL, unpaved, half, mR, unpaved);
+        lit.push(lampAt[i] as number, lampAt[i] as number);
+        decal.push(0, 0, 0, 0, 0, 0, 0, 0);
+        dsize.push(0, 0, 0, 0);
+        // Chaussée : caniveau pavé à gauche, à droite (là où il y a un trottoir), lu par le shader.
+        const gL = (wL[i] as number) > 0 ? 1 : 0;
+        const gR = (wR[i] as number) > 0 ? 1 : 0;
+        side.push(gL, gR, gL, gR);
       }
       for (const k of ribbonIndex(pos.slice(base * 3), 3, 2, n, true)) index.push(base + k);
+      // Défauts et équipements de chaussée, posés selon la rue (enrobé seulement). Seulement là où le shader
+      // les dessine (ROAD_FX, style réaliste) : sinon ces quads restaient en dalles d'enrobé uni, sombres, posées
+      // de travers sur la chaussée et jusque sur les bas-côtés (rapiéçages, tranchées, plaques en low poly).
+      if (ROAD_FX && !LOW_POLY && street && unpaved === 0) {
+        const decals = placeDecals({ along: s.along, half, o, city, wL, wR, seed: stripSeed(s.left[0] as number, s.left[2] as number) });
+        for (const d of decals) pushDecal(sink, s.left, s.right, s.along, o, half, d, Array.from(lampAt));
+      }
+      if (city && groundAt && street) {
+        // Bouts de trottoir posés au bord de la chaussée voisine (plus de pointe qui la recouvre).
+        for (const sd of [-1, 1]) {
+          const r = refineSidewalkEnds(
+            { edge: sd < 0 ? s.left : s.right, along: s.along, widths: sd < 0 ? wL : wR, kinds: sd < 0 ? kL : kR, lamp: Array.from(lampAt), ux, uz },
+            (x, y, z, ax, az) => edgeAt(street, x, y, z, sd * ax, sd * az, groundAt),
+          );
+          pushSidewalk(sink, r.edge, r.along, r.widths, r.ux, r.uz, sd, o, half, r.lamp, groundAt, r.kinds);
+        }
+      }
     }
   }
   if (!pos.length) return null;
@@ -184,6 +411,12 @@ function buildRoads(roads: TileRoad[], footprint: RouteFootprint | null): THREE.
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
   g.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
   g.setAttribute('roadInfo', new THREE.Float32BufferAttribute(info, 3));
+  if (ROAD_FX && !LOW_POLY) {
+    g.setAttribute('lamp', new THREE.Float32BufferAttribute(lit, 1));
+    g.setAttribute('decal', new THREE.Float32BufferAttribute(decal, 4));
+    g.setAttribute('decalSize', new THREE.Float32BufferAttribute(dsize, 2));
+    g.setAttribute('side', new THREE.Float32BufferAttribute(side, 2));
+  }
   g.setIndex(index);
   g.computeVertexNormals();
   g.computeBoundingSphere();

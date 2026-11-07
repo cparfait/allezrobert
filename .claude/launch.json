@@ -201,6 +201,24 @@
         "set AR_HMR=0&& pnpm --filter @allezrobert/client exec vite --port 5204 --strictPort"
       ],
       "port": 5204
+    },
+    {
+      "name": "bord-de-route",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": [
+        "/c",
+        "set AR_HMR=0&& pnpm --filter @allezrobert/client exec vite --port 5210 --strictPort"
+      ],
+      "port": 5210
+    },
+    {
+      "name": "fontaines",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": [
+        "/c",
+        "set AR_HMR=0&& pnpm --filter @allezrobert/client exec vite --port 5206 --strictPort"
+      ],
+      "port": 5206
     }
   ]
 }

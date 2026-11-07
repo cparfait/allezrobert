@@ -9,6 +9,10 @@ export const sunlight = {
   color: colorUniform('#fff4e0'),
   /** Force du contre-jour : 0 la nuit et sous un ciel couvert. */
   backlight: uniform(0),
+  /** Direction réelle de la lumière qui porte les ombres (soleil ou lune, jamais rasante) : ombres de façade. */
+  castDir: uniform(new THREE.Vector3(0, 1, 0)),
+  /** Part du soleil dans cette lumière : 0 la nuit (clair de lune, sans ombres de façade), 1 le jour. */
+  sunShare: uniform(1),
 };
 
 /** ?backlit=0 : sans contre-jour du feuillage (comparaison). */

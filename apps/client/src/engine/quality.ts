@@ -15,6 +15,8 @@ export interface QualitySettings {
   taa: boolean;
   /** Anticrénelage SMAA quand le TAA est coupé (léger, ne traite pas le scintillement). */
   smaa: boolean;
+  /** Reflets du décor sur chaussée mouillée (SSR, seulement quand il pleut). */
+  ssr: boolean;
   /** Distance de vue (m). */
   viewDistance: number;
   /** Densité de végétation (arbres par 100 m² de forêt). */
@@ -62,6 +64,7 @@ export const QUALITY_PRESETS: Record<QualityLevel, QualitySettings> = {
     bloom: false,
     taa: false,
     smaa: true,
+    ssr: false,
     viewDistance: 2000,
     treeDensity: 0.2,
     grassDensity: 0,
@@ -92,6 +95,7 @@ export const QUALITY_PRESETS: Record<QualityLevel, QualitySettings> = {
     bloom: true,
     taa: false,
     smaa: true,
+    ssr: false,
     viewDistance: 4000,
     treeDensity: 0.5,
     grassDensity: 0.4,
@@ -123,6 +127,7 @@ export const QUALITY_PRESETS: Record<QualityLevel, QualitySettings> = {
     bloom: true,
     taa: true,
     smaa: false,
+    ssr: true,
     viewDistance: 5000,
     treeDensity: 0.8,
     grassDensity: 0.8,
@@ -153,6 +158,7 @@ export const QUALITY_PRESETS: Record<QualityLevel, QualitySettings> = {
     bloom: true,
     taa: true,
     smaa: false,
+    ssr: true,
     viewDistance: 7000,
     treeDensity: 1.1,
     grassDensity: 1.4,
@@ -181,10 +187,10 @@ export function detectDefaultQuality(): QualityLevel {
   return 'high';
 }
 
-/** Surcharges de débogage par l'URL : ?bloom=0&ao=0&taa=0&smaa=0, ?shadowevery=1 (ombres chaque image), ?shadowriders=N, ?cascades=N. */
+/** Surcharges de débogage par l'URL : ?bloom=0&ao=0&taa=0&smaa=0&ssr=0, ?shadowevery=1 (ombres chaque image), ?shadowriders=N, ?cascades=N. */
 export function withUrlOverrides(q: QualitySettings): QualitySettings {
   const p = new URLSearchParams(location.search);
-  const flag = (k: 'bloom' | 'ao' | 'taa' | 'smaa') => (p.has(k) ? p.get(k) !== '0' : q[k]);
+  const flag = (k: 'bloom' | 'ao' | 'taa' | 'smaa' | 'ssr') => (p.has(k) ? p.get(k) !== '0' : q[k]);
   const num = (param: string, fallback: number, min: number, max: number) => {
     const n = Number(p.get(param));
     return p.has(param) && Number.isFinite(n) ? Math.min(Math.max(Math.round(n), min), max) : fallback;
@@ -195,6 +201,7 @@ export function withUrlOverrides(q: QualitySettings): QualitySettings {
     ao: flag('ao'),
     taa: flag('taa'),
     smaa: flag('smaa'),
+    ssr: flag('ssr'),
     shadowEvery: num('shadowevery', q.shadowEvery, 1, 8),
     shadowRiders: num('shadowriders', q.shadowRiders, 0, 19),
     shadowCascades: num('cascades', q.shadowCascades, 1, 4),

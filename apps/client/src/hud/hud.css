@@ -197,20 +197,6 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #0a0e16; col
 .junction .jn-choice.on { border-color: #f59e0b; box-shadow: 0 0 0 1px #f59e0b inset; background: rgba(245,158,11,.12); }
 .junction .jn-choice.off { opacity: .4; }
 .junction .jn-keys { margin-top: 6px; font-size: 11px; color: var(--ar-muted); }
-/* Annonce du prochain virage (hud.ts, drawTurn) : jaune → orange → rouge selon la difficulté. */
-.turnwarn { --tw: #ffd23f; display: flex; align-items: center; gap: 12px; padding: 8px 16px 8px 10px; border-left: 4px solid var(--tw); }
-.turnwarn.sharp { --tw: #f97316; }
-.turnwarn.hard, .turnwarn.hairpin { --tw: #ef4444; }
-.turnwarn .tw-arrow { width: 54px; height: 54px; flex: none; }
-.turnwarn .tw-arrow polyline { fill: none; stroke: var(--tw); stroke-width: 6; stroke-linecap: round; stroke-linejoin: round; }
-.turnwarn .tw-arrow polygon { fill: var(--tw); stroke: var(--tw); stroke-width: 2; stroke-linejoin: round; }
-.turnwarn .tw-text { display: grid; line-height: 1.15; }
-.turnwarn .tw-text b { font-size: 17px; text-transform: uppercase; letter-spacing: .04em; color: var(--tw); }
-.turnwarn .tw-text span { font-size: 15px; font-weight: 700; }
-/* Dans les 40 derniers mètres : le panneau reste fixe, seule la flèche clignote. */
-.turnwarn.soon .tw-arrow { animation: tw-blink 0.8s steps(2, jump-none) infinite; }
-@keyframes tw-blink { 0% { opacity: 1; } 100% { opacity: 0.15; } }
-@keyframes tw-pulse { from { box-shadow: 0 0 0 0 transparent; } to { box-shadow: 0 0 0 3px var(--tw); } }
 .segment { padding: 8px 18px 10px; min-width: 320px; max-width: min(560px, 90vw); text-align: center; border-left: 4px solid var(--z6); }
 .segment.sprint { border-left-color: var(--z3); }
 .segment .name { font-weight: 700; font-size: 16px; }
@@ -538,10 +524,6 @@ body:has(.ob-preview) .subtitle { left: 2vw; right: auto; transform: none; max-w
 .hud.compact .junction .jn-choice span { font-size: calc(var(--u) * 10); }
 .hud.compact .junction .jn-choice em { font-size: calc(var(--u) * 9.5); }
 .hud.compact .junction .jn-keys { margin-top: calc(var(--u) * 4); font-size: calc(var(--u) * 9.5); }
-.hud.compact .turnwarn { gap: calc(var(--u) * 8); padding: calc(var(--u) * 5) calc(var(--u) * 12) calc(var(--u) * 5) calc(var(--u) * 7); border-left-width: calc(var(--u) * 3); }
-.hud.compact .turnwarn .tw-arrow { width: calc(var(--u) * 36); height: calc(var(--u) * 36); }
-.hud.compact .turnwarn .tw-text b { font-size: calc(var(--u) * 13); }
-.hud.compact .turnwarn .tw-text span { font-size: calc(var(--u) * 12); }
 /* Aspiration : jauge fine, seulement quand on est vraiment dans une roue. */
 .hud.compact .cx-draft { display: grid; grid-template-columns: auto calc(var(--u) * 80) auto; align-items: center; gap: calc(var(--u) * 2) calc(var(--u) * 8); padding: calc(var(--u) * 4) calc(var(--u) * 10); }
 .hud.compact .cx-draft .cx-l { color: #60a5fa; }

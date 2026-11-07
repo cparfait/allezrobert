@@ -58,6 +58,7 @@ import { ITINERARY_PREFIX } from './ui/routePlanner.ts';
 import { findRoute, routeKey } from './game/direction.ts';
 import { fmtLapTime, postRideEfforts, RouteTimer } from './game/efforts.ts';
 import { waitBike } from './ui/waitBike.ts';
+import { openTuningPanel } from './dev/tuning.ts';
 import { frameStats } from './engine/frameStats.ts';
 import { KomChallenge, readKomRecord, type ChallengeResult } from './game/challenge.ts';
 import { HairpinWatcher, hairpinToast, reachedFinish, summitStats } from './game/climb.ts';
@@ -81,6 +82,7 @@ import { TILES_BASE, installedPacks, keepStorage } from './world/packs.ts';
 import { inDesktop, installFullscreenKey, keepAwake, mirrorProfile } from './platform/desktop.ts';
 import { hasLocalMedia, prepareDesktop } from './platform/desktopBoot.ts';
 import { LOW_POLY } from './engine/style.ts';
+import { ROAD_FX } from './world/roadSurface.ts';
 import { offerDesktopUpdate } from './ui/desktopUi.ts';
 import type { DevicePanel } from './ui/menu.ts';
 import type { InterpolatedRider } from './net/index.ts';
@@ -1145,6 +1147,10 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   if (alive) await loadVehicleModels();
   const traffic = alive ? new Traffic(track, engine.quality.trafficDensity, startD, GltfRiderAvatar.lodScale) : null;
   traffic?.setPlaces(source.open?.places);
+  // Une dizaine de bâtiments à moins de 120 m : bourg ou ville, pas de tracteur.
+  traffic?.setTownTest((x, z) => world.buildings.footprints.countNear(x, z, 120) >= 10);
+  // ?reglages : curseurs en direct sur la route, les trottoirs, la pluie et la nuit (dev/tuning.ts).
+  openTuningPanel();
   if (traffic) engine.scene.add(traffic.group);
   if (import.meta.env.DEV && traffic) (globalThis as { __traffic?: Traffic }).__traffic = traffic;
   // Trains : départ quand on approche de l'endroit où la route longe ou croise une voie.
@@ -1862,35 +1868,6 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   const hands = new THREE.Vector3();
   let hudAcc = 0;
   let remoteRiders: InterpolatedRider[] = [];
-  /** Prochain virage annoncé au HUD, recalculé 5 fois par seconde ; affiché à 8 s de route (80 m au moins). */
-  let turnInfo: { inM: number; angleDeg: number } | null = null;
-  let turnCheckedAt = 0;
-  /** Virage annoncé (position sur l'itinéraire) : gardé jusqu'à son passage. */
-  let announced: { atM: number } | null = null;
-  const upcomingTurn = () => {
-    const now = performance.now();
-    if (now - turnCheckedAt > 200) {
-      turnCheckedAt = now;
-      const tn = track.nextTurn(ride.state.distM, ride.dir, 220);
-      // Seulement aux bifurcations (une autre route part du virage), pas dans chaque courbe.
-      // Virage déjà annoncé : gardé (sans nouveau contrôle de bifurcation) jusqu'à ce qu'il soit passé ; le
-      // contrôle refait toutes les 200 ms le faisait apparaître et disparaître.
-      const d = ride.state.distM;
-      if (announced && ride.dir * (announced.atM - d) > -20 && tn && Math.abs(d + ride.dir * tn.inM - announced.atM) < 30) turnInfo = tn;
-      else {
-        announced = null;
-        let tj = tn && Math.abs(tn.angleDeg) >= 30 && tn.inM <= Math.max(80, ride.state.speedMs * 8) ? tn : null;
-        if (tj) {
-          // Bifurcation seulement : une autre route rejoint l'itinéraire au milieu du virage.
-          const mid = track.positionAt(d + ride.dir * (tj.inM + 14), 0);
-          if (!scene.world.terrain.junctionNear(mid.x, mid.z, track.route.id)) tj = null;
-        }
-        if (tj) announced = { atM: d + ride.dir * tj.inM };
-        turnInfo = tj;
-      }
-    }
-    return turnInfo;
-  };
   let prevHeading = Number.NaN;
   let bank = 0;
   /**
@@ -1937,6 +1914,8 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
       envState.weather.fog = wNow.fog;
       envState.weather.windMs = wNow.windMs;
       envState.weather.windFrom = wNow.windFrom;
+      // Sans route réaliste (low poly, ?routefx=0), aucun matériau ne demande de reflet : pas de passe SSR.
+      engine.setWetReflections(ROAD_FX && !LOW_POLY && envState.weather.rain > 0.05);
       ride.setWind(wNow.windMs, wNow.windFrom);
       const here = track.positionAt(ride.state.distM, ride.lateral, sample);
       const t = world.terrain.getTile(...world.terrain.tileCoord(here.x, here.z));
@@ -2210,7 +2189,6 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
           wind: windInfo(),
           altitudeM: sample.y,
           lap: ride.lap,
-          turn: upcomingTurn(),
           ...(() => {
             const town = placeFinder.at(pos.x, pos.z, track.route.loop ? ride.state.distM % Math.max(track.length, 1) : ride.state.distM);
             const road = nav?.roadName(ride.state.distM);

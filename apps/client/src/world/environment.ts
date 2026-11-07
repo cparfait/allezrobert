@@ -1,3 +1,5 @@
+import { tune } from '../dev/tuning.ts';
+import { LOW_POLY } from '../engine/style.ts';
 import * as THREE from 'three/webgpu';
 import { SkyMesh } from 'three/addons/objects/SkyMesh.js';
 import { CSMShadowNode } from 'three/addons/csm/CSMShadowNode.js';
@@ -33,9 +35,22 @@ export interface EnvironmentState {
 }
 
 /** Part de la lumière hémisphérique gardée quand le ciel éclaire la scène (carte d'environnement). */
-const HEMI_WITH_SKY = 0.3;
+// Rue étroite : une bonne part de ce « ciel » est en fait des façades, qui renvoient une lumière neutre. Mesuré contre
+// des photos de la rue Lepic (out/ref-photos, color_stats) : carte du ciel à 0,35 et appoint à 0,3, les ombres de midi
+// sortaient franchement bleues (+0,08 de bleu sur les zones sombres, contre −0,01 sur les photos) ; carte du ciel à
+// 0,105 et appoint à 0,78 : +0,01.
+const HEMI_WITH_SKY = LOW_POLY ? 0.3 : 0.78;
 /** Intensité de la lumière du ciel (réglée à l'œil : au-delà, les ombres se délavent sous le ciel physique, très lumineux). */
-const SKY_LIGHT_INTENSITY = 0.35;
+const SKY_LIGHT_INTENSITY = LOW_POLY ? 0.35 : 0.105;
+/** Réglages (?reglages) de l'éclairage du jour : lumière du ciel, appoint de l'hémisphère, soleil, balance, saturation. */
+const SKY_K = tune('image.ciel', 'Lumière du ciel', 1, 0, 2, 0.02);
+const HEMI_K = tune('image.ambiance', "Appoint d'ambiance", 1, 0, 2, 0.02);
+const SUN_K = tune('image.soleil', 'Soleil', 1, 0.3, 2, 0.02);
+const WARM_K = tune('image.balance', 'Balance des blancs (chaud)', 0, -1, 2, 0.02);
+/** Balance des blancs de jour, style réaliste : compense le reste de bleu du ciel (mesuré contre les photos). */
+const WARM_DEFAULT = 0.8;
+const SAT_K = tune('image.saturation', 'Saturation', 1, 0.5, 1.5, 0.01);
+const EXPO_K = tune('image.exposition', 'Exposition', 1, 0.5, 1.6, 0.01);
 /** ?skylight=0 : sans carte d'environnement du ciel (comparaison avant / après). */
 const SKY_LIGHT = typeof location === 'undefined' || new URLSearchParams(location.search).get('skylight') !== '0';
 /** ?mist=0 : brume uniforme d'avant, sans brume de vallée ni teinte vers le soleil (comparaison). */
@@ -269,8 +284,9 @@ export class Environment {
     const sunStrength = THREE.MathUtils.smoothstep(this.sunDir.y, -0.05, 0.25);
     const overcast = Math.max(weather.clouds - 0.3, 0) / 0.7;
     // Ciel plombé : le soleil n'est plus qu'une lueur diffuse (pas de reflet vif sur la route mouillée).
-    const dayIntensity = (0.4 + 3.0 * sunStrength) * (1 - 0.88 * overcast);
-    this.sun.intensity = THREE.MathUtils.lerp(dayIntensity, 0.12, moonK);
+    // Soleil un quart plus fort qu'avant la mesure contre les photos (contraste lumière / ombre, voir HEMI_WITH_SKY).
+    const dayIntensity = (LOW_POLY ? 0.4 + 3.0 * sunStrength : 0.5 + 3.75 * sunStrength) * (1 - 0.88 * overcast);
+    this.sun.intensity = THREE.MathUtils.lerp(dayIntensity * SUN_K.value, 0.12, moonK);
     this.sun.color.copy(pal.sunColor).lerp(new THREE.Color('#9fb4ff'), moonK);
     this.hemi.color.copy(pal.hemiSky);
     this.hemi.groundColor.copy(pal.hemiGround);
@@ -281,7 +297,9 @@ export class Environment {
     const renderer = mainRenderer();
     // Avec la carte d'environnement, le ciel éclaire déjà les ombres : l'hémisphère ne garde qu'un appoint.
     if (renderer && SKY_LIGHT) this.updateSkyLight(renderer, pal);
-    this.hemi.intensity = ambient * (this.scene.environment ? HEMI_WITH_SKY : 1) + nightK * 0.35;
+    this.hemi.intensity = ambient * (this.scene.environment ? HEMI_WITH_SKY : 1) * HEMI_K.value + nightK * 0.35;
+    // Ciel couvert : la carte du ciel est grise, plus bleue ; elle retrouve son intensité d'avant (ombres moins noires sous la pluie).
+    if (this.scene.environment) this.scene.environmentIntensity = SKY_LIGHT_INTENSITY * (LOW_POLY ? 1 : 1 + overcast * 2.3) * SKY_K.value;
     if (nightK > 0) this.hemi.color.lerp(new THREE.Color('#3b4f7a'), nightK * 0.8);
     this.lowPolySky?.update(_dt, center, pal.hemiSky, pal.fog, this.sunDir, this.sun.color, sunStrength, weather.clouds, weather.windMs, weather.windFrom);
     this.fog.color.copy(pal.fog);
@@ -292,6 +310,8 @@ export class Environment {
     sunlight.dir.value.copy(this.sunDir);
     sunlight.color.value.copy(this.sun.color);
     sunlight.backlight.value = isNight ? 0 : 0.55 * THREE.MathUtils.smoothstep(this.sunDir.y, 0.0, 0.12) * (1 - overcast);
+    sunlight.castDir.value.copy(lightDir);
+    sunlight.sunShare.value = 1 - moonK;
     const f = this.sceneFog;
     f.color.value.copy(pal.fog);
     f.density.value = this.fog.density;
@@ -332,9 +352,11 @@ export class Environment {
       winter: [0.96, 0.1, 0.97, 1.0],
     };
     const [sat, vib, r, g] = base[season];
-    out.saturation = (sat - night * 0.25) * (1 - weather.rain * 0.22 - weather.fog * 0.15);
+    out.saturation = (sat - night * 0.25) * (1 - weather.rain * (LOW_POLY ? 0.22 : 0.32) - weather.fog * 0.15) * SAT_K.value;
     out.vibrance = vib * (1 - night);
-    out.tint.setRGB(r + golden * 0.06 - night * 0.08, g - golden * 0.01 - night * 0.04, 1 - golden * 0.08 + night * 0.1 + (season === 'winter' ? 0.03 : 0));
+    // Balance des blancs (réglage) : de jour seulement, la nuit garde son bleu.
+    const warm = ((LOW_POLY ? 0 : WARM_DEFAULT) + WARM_K.value) * (1 - night);
+    out.tint.setRGB(r + golden * 0.06 - night * 0.08 + warm * 0.04, g - golden * 0.01 - night * 0.04 + warm * 0.01, 1 - golden * 0.08 + night * 0.1 + (season === 'winter' ? 0.03 : 0) - warm * 0.07);
     // Virage : ombres fraîches (ciel) et lumières chaudes (soleil), plus marqué à l'heure dorée, neutre sous la pluie.
     const split = (0.035 + golden * 0.045) * (1 - night) * (1 - weather.rain * 0.8) * (season === 'winter' ? 0.6 : 1);
     out.shadows.setRGB(1 - split * 0.8, 1 - split * 0.15, 1 + split);
@@ -347,7 +369,7 @@ export class Environment {
   exposure(): number {
     const el = this.sunDir.y;
     // Continue au coucher (l'ancien saut de 1,35 à 1,6 à l'horizon faisait « pomper » l'image et scintiller le lointain).
-    return 1.0 + 0.35 * (1 - THREE.MathUtils.smoothstep(el, 0, 0.3)) + 0.25 * (1 - THREE.MathUtils.smoothstep(el, -0.12, 0.0));
+    return (1.0 + 0.35 * (1 - THREE.MathUtils.smoothstep(el, 0, 0.3)) + 0.25 * (1 - THREE.MathUtils.smoothstep(el, -0.12, 0.0))) * EXPO_K.value;
   }
 
   dispose(): void {

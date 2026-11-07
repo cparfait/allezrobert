@@ -277,6 +277,16 @@ describe('réseau secondaire contre l’itinéraire', () => {
     expect(fp.clampTerrain(0, 0, 99, 4.5)).toBe(99);
     expect(fp.clampTerrain(0, 0, 112, 4.5)).toBe(112);
   });
+
+  it('terrain : au bord d’une rue en pente, le niveau de la route en face, pas celui de 10 m plus bas', () => {
+    // Rue à 13 % le long de x, points tous les 4 m.
+    const steep = axis([[-40, 0], [40, 0]], 4).map((p) => ({ ...p, y: 100 + p.x * 0.13 }));
+    const f = new RouteFootprint(steep, false, 2.5, 0.6);
+    // Sommet à 3 m de l'axe, en face de x = 0 (route à 100 m), portée d'une maille de 7,8 m.
+    const h = f.clampTerrain(0, 3, 100.5, 11.1);
+    expect(h).toBeGreaterThan(99.8);
+    expect(h).toBeLessThan(100);
+  });
 });
 
 describe('raccords du réseau (tronçons du graphe)', () => {

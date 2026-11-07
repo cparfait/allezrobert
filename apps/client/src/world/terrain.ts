@@ -10,6 +10,8 @@ import type { RouteFootprint } from './ribbon.ts';
 import type { Season } from './environment.ts';
 import { ALPINE_GROUND_M, ALPINE_MEADOW, SNOW_LINE_M, alpineProfile } from './alpine.ts';
 import { LOW_POLY } from '../engine/style.ts';
+import { ROAD_FX } from './roadSurface.ts';
+import { SIDEWALK_MAX_M, builtCells, isBuiltUp } from './sidewalks.ts';
 
 /** Orthophotos (prises en été) selon la saison : teinte et saturation. Partagé avec le relief lointain. */
 export const ORTHO_SEASON: Record<Season, [string, number]> = { spring: ['#f4fff0', 1.05], summer: ['#fffbf2', 1], autumn: ['#fbead2', 0.9], winter: ['#dde2e6', 0.5] };
@@ -48,6 +50,16 @@ interface TileEntry {
  * (IGN ou procédurale), déjà « creusées » le long des routes ; le matériau mélange
  * forêt / champs / prairies / urbain / routes selon le raster d'occupation du sol.
  */
+/**
+ * Détail fin près du coureur : maille d'environ 4 m sur les tuiles à moins de 350 m (hors qualité basse). À 7,8 m
+ * (qualité moyenne), deux rues de niveaux différents à moins d'une maille l'une de l'autre (rue qui longe en
+ * contrebas, au départ de Donnemarie) ne pouvaient pas avoir chacune leur sol : l'une flottait ou l'autre était
+ * recouverte. Le reste de l'anneau proche garde la maille du réglage de qualité.
+ */
+const FINE_LOD = -1;
+const FINE_CELL_M = 4;
+const FINE_REACH_M = 350;
+
 /** Durée de vie d'une tuile décodée en cache : l'URL de son orthophoto est libérée 2 min après le téléchargement. */
 const CACHE_MS = 90_000;
 /** Nombre maximal de tuiles décodées gardées en cache. */
@@ -125,7 +137,7 @@ export class TerrainManager {
 
   setQuality(q: QualitySettings): void {
     this.q = q;
-    for (const e of this.tiles.values()) e.lod = -1; // forcer la reconstruction à la prochaine mise à jour
+    for (const e of this.tiles.values()) e.lod = Number.NaN; // forcer la reconstruction à la prochaine mise à jour
   }
 
   /** Tuile contenant un point monde. */
@@ -263,6 +275,13 @@ export class TerrainManager {
   private lodAt(tx: number, tz: number): number {
     const [cx, cz] = this.tileCoord(this.focus.x, this.focus.z);
     const ring = Math.max(Math.abs(tx - cx), Math.abs(tz - cz));
+    if (ring <= 1 && this.q.level !== 'low') {
+      // Détail fin (FINE_LOD) sur les tuiles à moins de FINE_REACH_M du coureur : bord de la tuile le plus proche.
+      const T = this.source.tileSize;
+      const ex = Math.max(tx * T - this.focus.x, 0, this.focus.x - (tx + 1) * T);
+      const ez = Math.max(tz * T - this.focus.z, 0, this.focus.z - (tz + 1) * T);
+      if (ex * ex + ez * ez <= FINE_REACH_M * FINE_REACH_M) return FINE_LOD;
+    }
     return ring <= 1 ? 0 : ring <= 2 ? 1 : 2;
   }
 
@@ -373,7 +392,7 @@ export class TerrainManager {
 
   /** Grille régulière centrée + jupe de 6 m sur les bords pour masquer les fissures entre LOD. */
   private buildGeometry(tile: LoadedTile, lod: number): THREE.BufferGeometry {
-    const seg = Math.max(16, Math.min(this.q.terrainSegmentsPerTile >> lod, tile.n * 2));
+    const seg = lod === FINE_LOD ? Math.max(this.q.terrainSegmentsPerTile, Math.min(Math.ceil(tile.size / FINE_CELL_M), tile.n * 2)) : Math.max(16, Math.min(this.q.terrainSegmentsPerTile >> lod, tile.n * 2));
     const s = tile.size;
     const vertsPerRow = seg + 1;
     const mainCount = vertsPerRow * vertsPerRow;
@@ -549,7 +568,8 @@ export class TerrainManager {
     const forestFloor = mix(c.forest.node, vec3(0.2, 0.22, 0.13), alpine.mul(0.6)).mul(n2.mul(0.3).add(0.75));
     const water = vec3(0.18, 0.26, 0.27);
     const urban = c.urban.node.mul(n3.mul(0.2).add(0.85));
-    const asphalt = vec3(0.16, 0.165, 0.175);
+    // Trame des chaussées OSM (≈ 4 m), plus large que le ruban : teinte de trottoir et mate, sinon bande claire qui reflète le ciel.
+    const asphalt = ROAD_FX ? vec3(0.1, 0.095, 0.088) : vec3(0.16, 0.165, 0.175);
 
     let col = meadow;
     col = mix(col, field.mul(furrow), s0.g);
@@ -609,7 +629,7 @@ export class TerrainManager {
     col = mix(col, vec3(0.9, 0.93, 0.96).mul(n3.mul(0.06).add(0.96)), snow.mul(0.95));
     // Ombres des nuages qui passent (clouds.ts).
     m.colorNode = col.mul(cloudShade());
-    const rough = mix(float(0.95), float(0.55), roadMask);
+    const rough = mix(float(0.95), float(ROAD_FX ? 0.92 : 0.55), roadMask);
     m.roughnessNode = clamp(rough.sub(this.wetness.mul(0.45)).sub(s0.a.mul(0.6)).sub(ice.mul(0.4)).sub(snow.mul(0.25)), 0.08, 1);
     m.metalnessNode = float(0);
     return m;
@@ -677,6 +697,8 @@ export class TerrainManager {
 const ROAD_TERRAIN_BELOW = 0.04;
 const ROAD_TUNNEL_AXIS = 2.5;
 const ROAD_TUNNEL_COVER = 5;
+/** Sous un trottoir (bordure de 12 cm, voir sidewalks.ts), le sol peut monter jusqu'à ceci au-dessus de la chaussée. */
+const SIDEWALK_GROUND_M = 0.06;
 
 /**
  * Abaisse les sommets de la grille (positions locales, centrées sur la tuile) qui portent un triangle
@@ -684,13 +706,27 @@ const ROAD_TUNNEL_COVER = 5;
  * de son axe, le sol passe juste sous la route à cet endroit. Seuls les sommets du rectangle englobant
  * de chaque tronçon sont visités.
  */
-function clampUnderRoads(pos: Float32Array, tile: LoadedTile, seg: number, reach: number, axisGround: (x: number, z: number) => number): void {
+export function clampUnderRoads(pos: Float32Array, tile: LoadedTile, seg: number, reach: number, axisGround: (x: number, z: number) => number): void {
   const s = tile.size;
   const step = s / seg;
   const row = seg + 1;
-  /** Parcourt les sommets de grille à moins de `radius` m de chaque segment de la route. */
-  const around = (p: number[], radius: number, visit: (kk: number, d: number, y: number, axX: number, axZ: number) => void) => {
+  /** Projection (non bornée) de (x, z) sur le segment du point `a` au point `b` de la polyligne (indices ×3). */
+  const proj = (p: number[], a: number, b: number, x: number, z: number) => {
+    const dx = (p[b] as number) - (p[a] as number);
+    const dz = (p[b + 2] as number) - (p[a + 2] as number);
+    return ((x - (p[a] as number)) * dx + (z - (p[a + 2] as number)) * dz) / (dx * dx + dz * dz || 1);
+  };
+  /**
+   * Parcourt les sommets de grille à moins de `radius` m de la route, au point de la route qui leur fait face :
+   * projection à l'intérieur du segment, ou angle extérieur d'un virage (au-delà de la fin d'un segment et avant
+   * le début du suivant), ou bout de la polyligne. Le bout d'un segment voisin ne compte pas : sur une rue en
+   * pente (13 % dans le village de Donnemarie), il donnait au sol le niveau de la route 10 à 14 m plus bas, et
+   * le sol affiché passait 1,5 m sous la chaussée. Un lacet qui repasse à portée fait face au sommet : il compte.
+   */
+  const around = (p: number[], radiusOf: (k: number) => number, visit: (kk: number, d: number, y: number, k: number) => void) => {
+    const last = p.length - 6;
     for (let k = 0; k + 5 < p.length; k += 3) {
+      const radius = radiusOf(k);
       const ax = p[k] as number, ay = p[k + 1] as number, az = p[k + 2] as number;
       const bx = p[k + 3] as number, by = p[k + 4] as number, bz = p[k + 5] as number;
       const i0 = Math.max(0, Math.floor((Math.min(ax, bx) - radius - tile.x0) / step));
@@ -704,46 +740,226 @@ function clampUnderRoads(pos: Float32Array, tile: LoadedTile, seg: number, reach
         for (let i = i0; i <= i1; i++) {
           const x = tile.x0 + i * step, z = tile.z0 + j * step;
           const tRaw = ((x - ax) * dx + (z - az) * dz) / len2;
+          if (tRaw < 0 && k > 0 && proj(p, k - 3, k, x, z) < 1) continue;
+          if (tRaw > 1 && k < last && proj(p, k + 3, k + 6, x, z) > 0) continue;
           const t = Math.min(1, Math.max(0, tRaw));
           const ex = ax + dx * t - x, ez = az + dz * t - z;
           const d2 = ex * ex + ez * ez;
           if (d2 > radius * radius) continue;
-          visit((j * row + i) * 3 + 1, Math.sqrt(d2), ay + (by - ay) * t, ax + dx * t, az + dz * t);
+          visit((j * row + i) * 3 + 1, Math.sqrt(d2), ay + (by - ay) * t, k);
         }
     }
   };
+  /** Point de la route en face d'un sommet de grille. `road` : un de ses triangles passe sous la chaussée même. */
+  interface Cover {
+    kk: number;
+    y: number;
+    axX: number;
+    axZ: number;
+    d: number;
+    road: boolean;
+  }
+  /**
+   * Sommets des triangles de la grille qui touchent la route (demi-largeur `wRoad`) ou ses trottoirs (`wWide`), avec
+   * le niveau de la route en face de chacun (le plus bas des passages qui lui font face, voir `around`). Un sommet ne
+   * porte la route que si l'un de ses triangles passe sous elle : le rayon « demi-largeur + une maille en diagonale »
+   * d'avant prenait aussi les sommets voisins, et entre deux rues parallèles à des niveaux différents, la plus basse
+   * tirait sous elle le sol de l'autre sur toute une maille.
+   */
+  // Par sommet : premier et dernier segment qui l'ont atteint, s'il porte la chaussée, et la route qui l'a vu en
+  // dernier (`stamp`) ; tableaux partagés par toutes les routes de la tuile.
+  const nVert = row * row;
+  const hitK0 = new Int32Array(nVert);
+  const hitK1 = new Int32Array(nVert);
+  const hitRoad = new Uint8Array(nVert);
+  const stamp = new Int32Array(nVert).fill(-1);
+  let pass = 0;
+  const covering = (p: number[], wRoad: number, wWide: (k: number) => number): Cover[] => {
+    const id = pass++;
+    const touched: number[] = [];
+    const tx = [0, 0, 0];
+    const tz = [0, 0, 0];
+    const corner = [0, 0, 0, 0];
+    const R = (step * Math.SQRT2) / 2;
+    let reachMax = wRoad;
+    for (let k = 0; k + 5 < p.length; k += 3) {
+      const ax = p[k] as number, az = p[k + 2] as number;
+      const bx = p[k + 3] as number, bz = p[k + 5] as number;
+      const w = Math.max(wRoad, wWide(k));
+      reachMax = Math.max(reachMax, w);
+      const i0 = Math.max(0, Math.floor((Math.min(ax, bx) - w - tile.x0) / step) - 1);
+      const i1 = Math.min(seg - 1, Math.floor((Math.max(ax, bx) + w - tile.x0) / step) + 1);
+      const j0 = Math.max(0, Math.floor((Math.min(az, bz) - w - tile.z0) / step) - 1);
+      const j1 = Math.min(seg - 1, Math.floor((Math.max(az, bz) + w - tile.z0) / step) + 1);
+      for (let j = j0; j <= j1; j++)
+        for (let i = i0; i <= i1; i++) {
+          const x0 = tile.x0 + i * step, z0 = tile.z0 + j * step;
+          // Tri rapide : distance du segment au centre de la maille (cercle circonscrit de rayon R).
+          const dc = pointToSegment(x0 + step / 2, z0 + step / 2, ax, az, bx, bz);
+          if (dc > w + R) continue;
+          // Distance de chaque coin de la maille au segment : un triangle dont un coin est dans la bande la touche.
+          for (let c = 0; c < 4; c++) corner[c] = pointToSegment(x0 + (c & 1) * step, z0 + (c >> 1) * step, ax, az, bx, bz);
+          // Maille (i, j) : triangles (a, c, b) et (b, c, d), comme l'index de la grille.
+          for (const tri of CELL_TRIANGLES) {
+            let near = Infinity;
+            for (let v = 0; v < 3; v++) {
+              tx[v] = x0 + (tri[v * 2] as number) * step;
+              tz[v] = z0 + (tri[v * 2 + 1] as number) * step;
+              near = Math.min(near, corner[(tri[v * 2] as number) + (tri[v * 2 + 1] as number) * 2] as number);
+            }
+            if (near > w && !triangleNearSegment(tx, tz, ax, az, bx, bz, w)) continue;
+            const road = w === wRoad || near <= wRoad || (dc <= wRoad + R && triangleNearSegment(tx, tz, ax, az, bx, bz, wRoad));
+            for (let v = 0; v < 3; v++) {
+              const idx = (j + (tri[v * 2 + 1] as number)) * row + i + (tri[v * 2] as number);
+              if (stamp[idx] !== id) {
+                stamp[idx] = id;
+                hitK0[idx] = k;
+                hitK1[idx] = k;
+                hitRoad[idx] = road ? 1 : 0;
+                touched.push(idx);
+              } else {
+                hitK1[idx] = k;
+                if (road) hitRoad[idx] = 1;
+              }
+            }
+          }
+        }
+    }
+    const last = p.length - 6;
+    const radius = reachMax + step * Math.SQRT2 + 0.1;
+    const out: Cover[] = [];
+    for (const idx of touched) {
+      const x = tile.x0 + (idx % row) * step, z = tile.z0 + Math.floor(idx / row) * step;
+      let best: Cover | null = null;
+      for (let k = Math.max(0, (hitK0[idx] as number) - 6); k <= Math.min(last, (hitK1[idx] as number) + 6); k += 3) {
+        const tRaw = proj(p, k, k + 3, x, z);
+        if (tRaw < 0 && k > 0 && proj(p, k - 3, k, x, z) < 1) continue;
+        if (tRaw > 1 && k < last && proj(p, k + 3, k + 6, x, z) > 0) continue;
+        const t = Math.min(1, Math.max(0, tRaw));
+        const px = (p[k] as number) + ((p[k + 3] as number) - (p[k] as number)) * t;
+        const pz = (p[k + 2] as number) + ((p[k + 5] as number) - (p[k + 2] as number)) * t;
+        const d = Math.sqrt((px - x) * (px - x) + (pz - z) * (pz - z));
+        if (d > radius) continue;
+        const y = (p[k + 1] as number) + ((p[k + 4] as number) - (p[k + 1] as number)) * t;
+        if (!best || y < best.y) best = { kk: idx * 3 + 1, y, axX: px, axZ: pz, d, road: hitRoad[idx] === 1 };
+      }
+      if (best) out.push(best);
+    }
+    return out;
+  };
   const roads = tile.features.roads.filter((r) => r.pts3 && !r.tunnel && (r.pts3 as number[]).length >= 6);
-  // 1. Remblai : sous la chaussée et son accotement, un sol trop bas est remonté au niveau de la route, puis
-  //    descend en talus à 45° (6 m au plus) : plus de marche au bord d'une route à flanc de pente ou sur une
-  //    digue, ni de route qui flotte entre deux sommets de la grille grossière (8 m) au loin. Ni ponts, ni
-  //    dénivelé de plus de 6 m (viaduc).
-  for (const r of roads) {
-    if (r.bridge) continue;
-    const shoulder = Math.max(Math.max(r.width, 2.5) / 2 + 0.8, step * 0.6);
+  const built = builtCells(tile.features.buildings);
+  const halfOf = (r: (typeof roads)[number]) => Math.max(r.width, 2.5) / 2 + 0.6;
+  // En ville (bâtiment à moins de 16 à 32 m du milieu du segment, indice k / 3) : place pour des trottoirs.
+  const town = roads.map((r) => {
+    const p = r.pts3 as number[];
+    const out: boolean[] = [];
+    for (let k = 0; k + 5 < p.length; k += 3) out.push(isBuiltUp(built, ((p[k] as number) + (p[k + 3] as number)) / 2, ((p[k + 2] as number) + (p[k + 5] as number)) / 2));
+    return out;
+  });
+  // Sommets portés par chaque route : sous sa chaussée et son bas-côté, plus ses trottoirs en ville.
+  const covers = roads.map((r, ri) => {
+    const half = halfOf(r);
+    return covering(r.pts3 as number[], half, (k) => half + ((town[ri] as boolean[])[k / 3] ? SIDEWALK_MAX_M : 0));
+  });
+  // 1. Remblai : un sol trop bas est remonté au niveau de la route sous la chaussée, son bas-côté et, en ville,
+  //    ses trottoirs, puis descend en talus. La grille est grossière (4,5 à 10 m) : remblayée sur 4 à 5 m de l'axe
+  //    seulement, comme avant, la pente d'un village à flanc de coteau (sol 1 à 3 m plus bas à 10 m) tirait le sol
+  //    affiché 1 à 2 m sous la route : chaussée, bas-côtés et trottoirs flottaient, avec une marche à leur bord.
+  //    Ni ponts, ni dénivelé de plus de 8 m (viaduc).
+  roads.forEach((r, ri) => {
+    if (r.bridge) return;
+    const half = halfOf(r);
     // Talus en pente douce (≈ 1 pour 2,5) sur 14 m, au lieu d'un mur à 45° : la route se raccorde au terrain par une
     // pente, sans marche ni vide sous son bord (elle ne semble plus voler au-dessus du sol).
-    around(r.pts3 as number[], shoulder + 14, (kk, d, y) => {
+    const seg3 = town[ri] as boolean[];
+    around(r.pts3 as number[], (k) => half + (seg3[k / 3] ? SIDEWALK_MAX_M : 0) + 14, (kk, d, y, k) => {
       const h = pos[kk] as number;
       const top = y - ROAD_TERRAIN_BELOW - 0.02;
       if (h >= top || top - h > 8) return;
-      const target = d <= shoulder ? top : top - (d - shoulder) * 0.4;
+      const flat = half + (seg3[k / 3] ? SIDEWALK_MAX_M : 0);
+      const target = top - Math.max(0, d - flat) * 0.4;
       if (target > h) pos[kk] = target;
     });
-  }
+    for (const c of covers[ri] as Cover[]) {
+      const h = pos[c.kk] as number;
+      const top = c.y - ROAD_TERRAIN_BELOW - 0.02;
+      if (h < top && top - h <= 8) pos[c.kk] = top;
+    }
+  });
   // 2. Sous la chaussée : sol abaissé juste sous la route (après le remblai, il l'emporte toujours ; le talus
-  //    d'une route voisine, dans les lacets, ne peut pas recouvrir une chaussée).
-  for (const r of roads) {
-    const R = Math.max(r.width, 2.5) / 2 + 0.6 + reach;
-    around(r.pts3 as number[], R, (kk, _d, y, axX, axZ) => {
-      const h = pos[kk] as number;
+  //    d'une route voisine, dans les lacets, ne peut pas recouvrir une chaussée). Seuls les sommets dont un triangle
+  //    passe sous la route (ou sous ses trottoirs, en ville : juste sous la dalle) sont abaissés, au niveau de la
+  //    route en face d'eux. Entre deux rues de niveaux différents (rue qui longe en contrebas, au départ de
+  //    Donnemarie), un sommet sous la chaussée d'une rue garde le niveau de celle-ci : le plus bas toujours, comme
+  //    avant, faisait flotter toute la rue du haut (jusqu'à 2 m avec la maille de 7,8 m).
+  /** Par sommet : niveau exigé par chaque route qui le porte, distance à sa chaussée (m, ≤ 0 dessous). */
+  const claims = new Map<number, Array<{ y: number; e: number }>>();
+  roads.forEach((r, ri) => {
+    const half = halfOf(r);
+    for (const c of covers[ri] as Cover[]) {
+      const h = pos[c.kk] as number;
       // Talus d'une tranchée : abaissé même s'il monte vite (sinon il recouvre le bord de la route).
-      const g = axisGround(axX, axZ);
+      const g = axisGround(c.axX, c.axZ);
       // Itinéraire roulé : jamais pris pour un tunnel (seule l'étiquette OSM compte) ; une tranchée profonde
       // (côte en lacets) laissait le sol au-dessus de la chaussée et le vélo enterré.
-      if (!r.route && (Number.isFinite(g) ? g - y > ROAD_TUNNEL_AXIS : h - y > ROAD_TUNNEL_COVER)) return;
-      pos[kk] = Math.min(h, y - ROAD_TERRAIN_BELOW);
-    });
+      if (!r.route && (Number.isFinite(g) ? g - c.y > ROAD_TUNNEL_AXIS : h - c.y > ROAD_TUNNEL_COVER)) continue;
+      const claim = { y: c.road ? c.y : c.y + SIDEWALK_GROUND_M, e: c.d - (half - 0.6) };
+      const list = claims.get(c.kk);
+      if (list) list.push(claim);
+      else claims.set(c.kk, [claim]);
+    }
+  });
+  for (const [kk, list] of claims) {
+    // Sous la chaussée ou le bas-côté d'une ou plusieurs routes : la plus basse d'entre elles. Ailleurs (talus entre
+    // deux rues de niveaux différents) : la plus basse de toutes, pour ne jamais recouvrir une chaussée.
+    let under = Infinity;
+    let any = Infinity;
+    for (const c of list) {
+      any = Math.min(any, c.y);
+      if (c.e <= 0.6) under = Math.min(under, c.y);
+    }
+    pos[kk] = Math.min(pos[kk] as number, (Number.isFinite(under) ? under : any) - ROAD_TERRAIN_BELOW);
   }
+}
+
+/** Distance (plan x, z) du point (px, pz) au segment (a, b). */
+function pointToSegment(px: number, pz: number, ax: number, az: number, bx: number, bz: number): number {
+  const dx = bx - ax, dz = bz - az;
+  const t = Math.min(1, Math.max(0, ((px - ax) * dx + (pz - az) * dz) / (dx * dx + dz * dz || 1)));
+  const ex = ax + dx * t - px, ez = az + dz * t - pz;
+  return Math.sqrt(ex * ex + ez * ez);
+}
+
+/** Triangles d'une maille de la grille, en décalages (i, j) de ses trois sommets : (a, c, b) et (b, c, d). */
+const CELL_TRIANGLES = [
+  [0, 0, 0, 1, 1, 0],
+  [1, 0, 0, 1, 1, 1],
+] as const;
+
+/** Produit vectoriel (plan x, z) de (2 − 1) par (3 − 1). */
+function cross2(x1: number, z1: number, x2: number, z2: number, x3: number, z3: number): number {
+  return (x2 - x1) * (z3 - z1) - (z2 - z1) * (x3 - x1);
+}
+
+/** (x, z) est dans le triangle (tx, tz), bords compris. */
+function insideTriangle(tx: readonly number[], tz: readonly number[], x: number, z: number): boolean {
+  const c0 = cross2(tx[0] as number, tz[0] as number, tx[1] as number, tz[1] as number, x, z);
+  const c1 = cross2(tx[1] as number, tz[1] as number, tx[2] as number, tz[2] as number, x, z);
+  const c2 = cross2(tx[2] as number, tz[2] as number, tx[0] as number, tz[0] as number, x, z);
+  return !((c0 > 0 || c1 > 0 || c2 > 0) && (c0 < 0 || c1 < 0 || c2 < 0));
+}
+
+/** Le triangle (tx, tz) passe à moins de `w` du segment (a, b), dans le plan x, z (intersection comprise). */
+export function triangleNearSegment(tx: readonly number[], tz: readonly number[], ax: number, az: number, bx: number, bz: number, w: number): boolean {
+  if (insideTriangle(tx, tz, ax, az) || insideTriangle(tx, tz, bx, bz)) return true;
+  for (let e = 0; e < 3; e++) {
+    const x1 = tx[e] as number, z1 = tz[e] as number, x2 = tx[(e + 1) % 3] as number, z2 = tz[(e + 1) % 3] as number;
+    // Arête coupée par le segment, ou à moins de `w`.
+    if (cross2(ax, az, bx, bz, x1, z1) * cross2(ax, az, bx, bz, x2, z2) < 0 && cross2(x1, z1, x2, z2, ax, az) * cross2(x1, z1, x2, z2, bx, bz) < 0) return true;
+    if (pointToSegment(ax, az, x1, z1, x2, z2) <= w || pointToSegment(bx, bz, x1, z1, x2, z2) <= w || pointToSegment(x1, z1, ax, az, bx, bz) <= w) return true;
+  }
+  return false;
 }
 
 /**

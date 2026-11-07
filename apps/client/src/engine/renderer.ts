@@ -2,6 +2,7 @@ import * as THREE from 'three/webgpu';
 import { pass, mrt, output, emissive, normalView, velocity, vec4, vec3, packNormalToRGB, unpackRGBToNormal, sample, uniform, float, saturation, vibrance, mix, smoothstep, dot, screenUV, length } from 'three/tsl';
 import { bloom } from 'three/addons/tsl/display/BloomNode.js';
 import { ao } from 'three/addons/tsl/display/GTAONode.js';
+import { ssr } from 'three/addons/tsl/display/SSRNode.js';
 import { traa } from 'three/addons/tsl/display/TRAANode.js';
 import { taau } from 'three/addons/tsl/display/TAAUNode.js';
 import { smaa } from 'three/addons/tsl/display/SMAANode.js';
@@ -168,6 +169,8 @@ export interface Engine {
   /** Recalcule la résolution de rendu (plafond de pixels, format, échelle dynamique). */
   applyResolution(): void;
   rebuildPipeline(q: QualitySettings): void;
+  /** Pluie : active les reflets du décor (SSR) sur la chaussée mouillée si le préréglage les permet ; rien par temps sec. */
+  setWetReflections(on: boolean): void;
   /** Précompile la scène pour la passe réellement dessinée (voir `compilePass`). */
   compileScene(onProgress?: (done: number, total: number) => void): Promise<void>;
   /**
@@ -231,6 +234,8 @@ export async function createEngine(canvas: HTMLCanvasElement, q: QualitySettings
   let scenePassMrt = false;
   const aoNodes = new Map<number, ReturnType<ReturnType<typeof ao>['getTextureNode']>['r']>();
   let bloomNode: ReturnType<typeof bloom> | null = null;
+  let ssrNode: ReturnType<typeof ssr> | null = null;
+  let wetReflections = false;
   const variants = new Map<string, Vec4Node>();
   const perf = new PerfOverlay();
   /** Objets de la scène déjà vus (compilés ou en file) ; `null` : pas de surveillance (menu, garage). */
@@ -380,6 +385,7 @@ export async function createEngine(canvas: HTMLCanvasElement, q: QualitySettings
         scenePassMrt = needMrt;
         aoNodes.clear();
         bloomNode = null;
+        ssrNode = null;
         variants.clear();
         if (needMrt) {
           scenePass.setMRT(
@@ -400,7 +406,8 @@ export async function createEngine(canvas: HTMLCanvasElement, q: QualitySettings
       // Rendu de la scène à résolution réduite, reconstruit par l'anticrénelage temporel (TAAU) : seulement avec le TAA.
       const upscale = settings.taa ? taauScale() : 1;
       if (scenePass.getResolutionScale() !== upscale) scenePass.setResolutionScale(upscale);
-      const key = `${settings.ao ? settings.aoScale : 0}|${settings.bloom ? 1 : 0}|${settings.taa ? (upscale < 1 ? 3 : 1) : settings.smaa ? 2 : 0}`;
+      const useSsr = settings.ssr && wetReflections;
+      const key = `${settings.ao ? settings.aoScale : 0}|${settings.bloom ? 1 : 0}|${settings.taa ? (upscale < 1 ? 3 : 1) : settings.smaa ? 2 : 0}|${useSsr ? 1 : 0}`;
       let result = variants.get(key);
       if (!result) {
         const sp = scenePass;
@@ -424,6 +431,24 @@ export async function createEngine(canvas: HTMLCanvasElement, q: QualitySettings
           }
           // AO atténuée : on garde un monde lumineux (direction artistique).
           chain = vec4(color.rgb.mul(aoValue.mul(0.75).add(0.25)), color.a);
+        }
+
+        if (useSsr) {
+          // Reflets du décor : seulement là où la chaussée mouillée l'a demandé, dans l'alpha des normales
+          // (1 − alpha, voir roadSurface.ts). Demi-résolution : le flou et le TAA masquent la différence.
+          if (!ssrNode) {
+            const normalColor = sp.getTextureNode('normal');
+            const normal = sample((uvNode) => unpackRGBToNormal(normalColor.sample(uvNode)));
+            ssrNode = ssr(color, sp.getTextureNode('depth'), normal, { metalnessNode: float(1).sub(normalColor.a), roughnessNode: float(0.12), camera, binaryRefine: true });
+            ssrNode.resolutionScale = 0.5;
+            ssrNode.blurQuality = 1;
+            ssrNode.quality.value = 0.25;
+            ssrNode.maxDistance.value = 42;
+            ssrNode.thickness.value = 0.85;
+            ssrNode.intensity.value = 0.85;
+          }
+          // rgb : reflet déjà pondéré par le masque ; alpha : distance du point touché (m), pas une opacité.
+          chain = vec4(chain.rgb.add(ssrNode.getTextureNode().rgb), chain.a) as unknown as Vec4Node;
         }
 
         if (settings.bloom) {
@@ -456,6 +481,11 @@ export async function createEngine(canvas: HTMLCanvasElement, q: QualitySettings
       }
       pipeline.outputNode = result;
       pipeline.needsUpdate = true;
+    },
+    setWetReflections(on) {
+      if (on === wetReflections) return;
+      wetReflections = on;
+      if (current.ssr) engine.rebuildPipeline(current);
     },
     compileScene(onProgress) {
       return scenePass ? compilePass(renderer, scenePass, onProgress) : Promise.resolve();

@@ -1,8 +1,10 @@
+import { tuned } from '../dev/tuning.ts';
 import { frameStats } from '../engine/frameStats.ts';
 import { LOW_POLY } from '../engine/style.ts';
 import { RoadsideLife, type LifeDensity } from './roadsideLife.ts';
 import { RoadsidePeople } from './roadsidePeople.ts';
 import { SkyLife } from './skyLife.ts';
+import { VillageProps } from './villageProps.ts';
 import * as THREE from 'three/webgpu';
 import { baseRouteId, type RouteData, type RouteTrack } from '@allezrobert/shared';
 import type { QualitySettings } from '../engine/quality.ts';
@@ -46,6 +48,8 @@ export class World {
   readonly people: RoadsidePeople | null = null;
   /** Style jeu vidéo : oiseaux et papillons. */
   readonly sky: SkyLife | null = null;
+  /** Style réaliste : fontaines des villages (modèles générés, tools/blender/props). */
+  readonly villageProps: VillageProps | null = null;
   /** Relief lointain (montagnes au-delà des tuiles), chargé en arrière-plan s'il existe. */
   horizon: FarTerrain | null = null;
   private disposed = false;
@@ -68,6 +72,7 @@ export class World {
   readonly soundSources = new Map<string, SoundSource[]>();
   private lifeVersion = -1;
   private lifeFailed = false;
+  private villagePropsFailed = false;
   /** Tuiles dont la végétation est plantée. */
   private readonly vegReady = new Set<string>();
 
@@ -107,8 +112,12 @@ export class World {
     scene.add(this.vegetation.group);
     this.buildings = new Buildings(groundAt, q.propDensity);
     this.buildings.setWorld(source.id);
+    // Pas de bâtiment sur l'itinéraire roulé (le tracé GPS s'écarte des voies OSM, souvent plus étroites). Monde
+    // à graphe routier : ruban masqué, la chaussée dessinée est celle d'OSM ; seul le passage du coureur compte.
+    this.buildings.setRoute(route.points.flatMap((p) => [p.x, p.z]), open ? Math.min(2, route.roadWidthM / 2) : route.roadWidthM / 2);
     scene.add(this.buildings.group);
     this.network = new RoadNetwork(open ? '' : baseRouteId(route.id), groundAt, footprint, open);
+    this.network.setShopWalls((id) => this.buildings.shopWalls(id));
     scene.add(this.network.group);
     this.rain = new Rain();
     scene.add(this.rain.mesh);
@@ -139,6 +148,13 @@ export class World {
       scene.add(this.sky.group);
       if (import.meta.env.DEV) (globalThis as { __life?: RoadsideLife }).__life = this.life;
       if (import.meta.env.DEV) (globalThis as { __world?: World }).__world = this;
+    } else {
+      const propsTile = (x: number, z: number) => {
+        const t = this.terrain.getTile(...this.terrain.tileCoord(x, z));
+        return t && this.vegReady.has(t.id) ? t : undefined;
+      };
+      this.villageProps = new VillageProps(track, groundAt, propsTile, lifeDensity(q).props, (a, b, c, d) => this.treesIn(a, b, c, d));
+      scene.add(this.villageProps.group);
     }
 
     void source
@@ -236,6 +252,7 @@ export class World {
     this.water.setQuality(q);
     this.horizon?.setQuality(q);
     this.life?.setDensity(lifeDensity(q));
+    this.villageProps?.setDensity(lifeDensity(q).props);
   }
 
   update(dt: number, focus: THREE.Vector3): void {
@@ -245,9 +262,12 @@ export class World {
     if (frameStats.enabled) frameStats.add('végétation (détail)', performance.now() - tv);
     this.grass.update(focus);
     this.updateLife(dt, focus);
+    this.updateVillageProps(focus);
     const w = this.env.state.weather;
     this.road.wetness.value = w.rain;
-    this.network.wetness.value = w.rain;
+    // Réglage « forcer la pluie » (?reglages) : chaussée mouillée quel que soit le ciel.
+    this.network.wetness.value = Math.max(w.rain, tuned('pluie.forcer', 0));
+    this.network.night.value = this.nightFactor() > 0.3 ? 1 : 0;
     this.terrain.wetness.value = w.rain * 0.8;
     this.vegetation.windStrength.value = 0.15 + w.windMs * 0.06;
     this.grass.wind.value = 0.25 + w.windMs * 0.08;
@@ -310,10 +330,24 @@ export class World {
    * monde). Le décor des abords et ses personnages suivent ce nouvel itinéraire.
    */
   setTrack(track: RouteTrack): void {
-    if (!this.life || !track) return;
+    if (!track) return;
+    this.villageProps?.setTrack(track);
+    if (!this.life) return;
     this.life.setTrack(track);
     this.people?.reset();
     this.sky?.reset();
+  }
+
+  /** Style réaliste : fontaines des villages (une erreur n'arrête jamais la boucle de rendu). */
+  private updateVillageProps(focus: THREE.Vector3): void {
+    const vp = this.villageProps;
+    if (!vp || !focus || !Number.isFinite(focus.x) || !Number.isFinite(focus.z)) return;
+    try {
+      vp.update(focus);
+    } catch (err) {
+      if (!this.villagePropsFailed) console.error('Fontaines des villages :', err);
+      this.villagePropsFailed = true;
+    }
   }
 
   /** Style jeu vidéo : décor des abords (une erreur n'arrête jamais la boucle de rendu). */
@@ -431,6 +465,10 @@ export class World {
     if (this.sky) {
       this.scene.remove(this.sky.group);
       this.sky.dispose();
+    }
+    if (this.villageProps) {
+      this.scene.remove(this.villageProps.group);
+      this.villageProps.dispose();
     }
     void this.track;
   }

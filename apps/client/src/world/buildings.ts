@@ -1,6 +1,6 @@
 import * as THREE from 'three/webgpu';
 import { LOW_POLY } from '../engine/style.ts';
-import { attribute, frontFacing, uv, fract, floor, step, mix, vec2, vec3, float, int, uniform, uniformArray, mx_noise_float, positionWorld, smoothstep, max, min, abs, hash, normalWorld, normalMap, fwidth } from 'three/tsl';
+import { Fn, If, attribute, frontFacing, uv, fract, floor, step, mix, vec2, vec3, float, int, uniform, uniformArray, mx_noise_float, positionWorld, smoothstep, max, min, abs, hash, normalWorld, normalMap, fwidth } from 'three/tsl';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { setFlatNormals } from './flatNormals.ts';
 import { ARCHETYPES, pickArchetype, worldStyle, type Archetype, type WallMaterial, type WorldStyle } from '@allezrobert/shared';
@@ -8,13 +8,15 @@ import { rng, polygonArea } from '../engine/noise.ts';
 import type { LoadedTile, TileRoad } from './types.ts';
 import { orientedBox, planRoof, roofBuffers, flatRoof, ridgeLine, roofEdge } from './roofs.ts';
 import { meuliere } from './meuliere.ts';
-import { FootprintIndex } from './footprints.ts';
+import { FootprintIndex, insidePolygon } from './footprints.ts';
 import { wallGroundOffset } from './facadeGround.ts';
 import { flatRoofKind, leanSide, LEAN_PITCH } from './flatRoofs.ts';
 import { eaveHeight } from './eaveHeight.ts';
 import { genoiseDrop, genoiseRows } from './genoise.ts';
 import { LazyTexture } from '../engine/textures.ts';
 import { createLowPolyBuildingMaterial } from './buildingsLowPoly.ts';
+import { FACADE_DEPTH, FacadeLightingModel, facadeFrame, roomInterior, shopInterior as shopRoom } from './facadeDepth.ts';
+import { sunlight } from './sunlight.ts';
 
 /** Textures photo CC0 (Poly Haven) des façades et toits, chargées une fois et partagées. */
 function loadTex(dir: string, file: string, srgb: boolean): LazyTexture {
@@ -418,6 +420,13 @@ export class Buildings {
   private readonly tiles = new Map<string, THREE.Mesh>();
   /** Emprises des bâtiments chargés (collision de la caméra, sans lancer de rayon sur les triangles). */
   readonly footprints = new FootprintIndex();
+  /** Murs à vitrine côté rue, par tuile, [ax, az, bx, bz, hauteur du rez-de-chaussée, …] (SHOP_WALL_STRIDE) : trottoir éclairé la nuit, stores, terrasses (network.ts). */
+  private readonly shopWallsByTile = new Map<string, number[]>();
+
+  /** Murs à vitrine d'une tuile déjà construite (vide si aucun). */
+  shopWalls(tileId: string): readonly number[] {
+    return this.shopWallsByTile.get(tileId) ?? [];
+  }
   private readonly groundAt: (x: number, z: number) => number;
   /** Détails des maisons (cheminées, faîtières) : 0 = aucun, 1 = toutes les maisons qui s'y prêtent. */
   props = 1;
@@ -433,6 +442,18 @@ export class Buildings {
     this.props = props;
     this.group.name = 'buildings';
     this.material = this.createMaterial();
+  }
+
+  /** Axe de l'itinéraire (x, z à la suite) et demi-chaussée dessinée, indexés par cases (voir `setRoute`). */
+  private route: RouteAxis | null = null;
+
+  /**
+   * Itinéraire roulé : aucun bâtiment sur son ruban (demi-largeur `half`, celle du ruban dessiné, pas celle d'OSM).
+   * Les voies OSM seules ne suffisaient pas : la chaussée OSM est souvent plus étroite que le ruban (4 m contre 5 m)
+   * et le tracé GPS s'en écarte, d'où une tour posée sur l'enrobé aux Couloux (Donnemarie, 1,5 km de la boucle).
+   */
+  setRoute(pts: readonly number[], half: number): void {
+    this.route = routeAxis(pts, half);
   }
 
   /** Monde courant : son profil de style s'applique aux tuiles ajoutées ensuite. */
@@ -534,9 +555,11 @@ export class Buildings {
     // (hauteur du mur ÷ nombre d'étages entiers), allège et fenêtres de l'archétype.
     // facade.y = travées + hauteur d'étage ÷ 10 (≤ 0,999) : marge de 0,0004 (voir archIdx).
     const bays = max(floor(facade.y.add(0.0004)), float(0.0001));
-    const local = fract(u.div(facade.x).mul(bays));
-    const bayW = facade.x.div(bays);
-    const bayIdx = floor(u.div(facade.x).mul(bays));
+    // Toits (facade.x = 0) : longueur bornée, sinon NaN, qui passerait dans la pièce derrière la vitre puis dans tout le post-traitement.
+    const wallLen = max(facade.x, float(0.01));
+    const local = fract(u.div(wallLen).mul(bays));
+    const bayW = max(wallLen.div(bays), float(0.5));
+    const bayIdx = floor(u.div(wallLen).mul(bays));
     const wx = local.sub(0.5).mul(bayW); // mètres depuis l'axe de la travée
     const fhA = max(facade.y.sub(floor(facade.y.add(0.0004))).mul(10), float(2.4));
     const rdc = archA.w.mul(isArch);
@@ -580,9 +603,16 @@ export class Buildings {
       .mul(mix(float(1), archB.x, isArch));
     // Lames des volets.
     const slats = mix(fract(fy.mul(9)).mul(0.25).add(0.8), float(0.925), smoothstep(0.03, 0.08, pix));
-    // Environ une fenêtre sur deux allumée la nuit (bruit par pièce).
-    const lit = step(0.0, mx_noise_float(floor(positionWorld.mul(0.3)).add(0.37))).mul(this.night);
-    const glass = mix(vec3(0.1, 0.12, 0.14).add(normalWorld.y.mul(0)), vec3(1.0, 0.74, 0.42), lit);
+    // Couleur du bâtiment ramenée à 8 bits : même tirage sur toute la façade (voir wallKey).
+    const shopSeed = hash(floor(base.r.mul(255).add(0.5)).mul(3.573).add(floor(base.g.mul(255).add(0.5)).mul(2.265)).add(floor(base.b.mul(255).add(0.5)).mul(1.031)));
+    // Profondeur (facadeDepth.ts) : repère du mur, tirage par pièce (travée, étage, mur, bâtiment).
+    const frame = facadeFrame();
+    const roomSeed = hash(bayIdx.mul(37).add(floorIdx.add(4).mul(113)).add(wallKey.mul(7)).add(shopSeed.mul(60000)));
+    // Détail intérieur fondu vers une teinte moyenne avant de scintiller (pixel de 3 à 7 cm sur la façade).
+    const nearDetail = float(1).sub(smoothstep(0.03, 0.07, pix));
+    // Environ une fenêtre sur deux allumée la nuit. Sans profondeur : bruit du monde, qui coupait parfois une fenêtre en deux.
+    const lit = FACADE_DEPTH ? step(0.5, hash(roomSeed.mul(65521).add(7))).mul(this.night) : step(0.0, mx_noise_float(floor(positionWorld.mul(0.3)).add(0.37))).mul(this.night);
+    const glass =mix(vec3(0.1, 0.12, 0.14).add(normalWorld.y.mul(0)), vec3(1.0, 0.74, 0.42), lit);
     // Reflet du ciel dans les vitres (haut plus clair).
     const glassSky = glass.add(vec3(0.12, 0.15, 0.18).mul(fy.div(winH)).mul(float(1).sub(lit)));
 
@@ -597,16 +627,18 @@ export class Buildings {
     const filantNext = step(float(1.5), archB.y).mul(max(step(abs(nextNo.sub(2)), float(0.5)), step(abs(nextNo.sub(5)), float(0.5))));
     const strCourse = orn.mul(archB.z).mul(step(rdc.sub(0.3), v)).mul(step(v, wallH.sub(0.6)));
     wall = mix(wall, wallLight, strCourse.mul(step(zNext, float(0.14))).mul(float(1).sub(filantNext)));
-    wall = mix(wall, wall.mul(0.84), strCourse.mul(step(float(0.14), zNext)).mul(step(zNext, float(0.22))).mul(float(1).sub(filantNext)));
+    // Avec la profondeur, ces ombres peintes ne gardent que l'occlusion : la part du soleil passe par `direct`, plus bas.
+    const SH = FACADE_DEPTH ? { course: 0.93, slabA: 0.8, slabB: 0.97, cornice: 0.78, sill: 0.78 } : { course: 0.84, slabA: 0.55, slabB: 0.9, cornice: 0.55, sill: 0.55 };
+    wall = mix(wall, wall.mul(SH.course), strCourse.mul(step(float(0.14), zNext)).mul(step(zNext, float(0.22))).mul(float(1).sub(filantNext)));
     // Balcon filant (2e et 5e étages) : dalle de pierre saillante et son ombre sur le mur.
     const slab = orn.mul(filantNext).mul(step(v, wallH.sub(1.2)));
     wall = mix(wall, wallLight.mul(1.04).min(1), slab.mul(step(zNext, float(0.2))));
-    wall = mix(wall, wall.mul(mix(float(0.55), float(0.9), smoothstep(0.2, 0.55, zNext))), slab.mul(step(float(0.2), zNext)).mul(step(zNext, float(0.55))));
+    wall = mix(wall, wall.mul(mix(float(SH.slabA), float(SH.slabB), smoothstep(0.2, 0.55, zNext))), slab.mul(step(float(0.2), zNext)).mul(step(zNext, float(0.55))));
     // Corniche sous l'égout : bandeau clair, ombre franche dessous.
     const top = wallH.sub(v);
     const cornice = orn.mul(archC.y);
     wall = mix(wall, wallLight, cornice.mul(step(top, float(0.38))));
-    wall = mix(wall, wall.mul(0.55), cornice.mul(step(float(0.38), top)).mul(step(top, float(0.5))));
+    wall = mix(wall, wall.mul(SH.cornice), cornice.mul(step(float(0.38), top)).mul(step(top, float(0.5))));
     // Rez-de-chaussée en pierre de taille : refends (joints horizontaux profonds tous les 45 cm).
     const inRdc = isArch.mul(isWall).mul(hasRdc).mul(step(v, rdc.sub(0.3))).mul(step(float(0.5), wallH)).mul(aboveGround);
     wall = mix(wall, wall.mul(0.62), inRdc.mul(isAshlar).mul(step(fract(v.div(0.45)), float(0.07))));
@@ -614,18 +646,63 @@ export class Buildings {
     wall = mix(wall, accent.mul(slats), inShutter.mul(float(1).sub(inWin)));
     const frameCol = mix(mix(vec3(0.93, 0.92, 0.88), lightStone, isLocal), mix(vec3(0.9, 0.88, 0.83), wallLight, isAshlar.add(isRender.mul(0.5))), isArch);
     wall = mix(wall, frameCol, inFrame.mul(float(1).sub(inWin)));
-    wall = mix(wall, wall.mul(0.55), underSill);
-    wall = mix(wall, glassSky, inWin);
-    // Embrasure : la vitre est en retrait de 15 cm ; le linteau et un tableau portent leur ombre sur
-    // le haut et le côté de la baie, l'appui est éclairé.
-    const reveal = max(step(winH.sub(0.12), fy), step(wx, halfW.negate().add(0.09))).mul(inWin);
-    wall = mix(wall, wall.mul(0.45), reveal.mul(isLocal.mul(0.6).add(0.4)));
+    wall = mix(wall, wall.mul(SH.sill), underSill);
+    // Baie en retrait : le rayon de vue atteint la vitre 20 cm derrière le mur, et ce qui n'y tombe pas voit
+    // l'embrasure (tableaux sur les côtés, linteau en haut, appui en bas). Derrière la vitre, la pièce.
+    const RECESS = 0.2;
+    const gx = wx.add(frame.vx.mul(RECESS));
+    const gy = fy.add(frame.vy.mul(RECESS));
+    const inGlass = step(abs(gx), halfW).mul(step(float(0), gy)).mul(step(gy, winH)).mul(inWin);
+    const inJamb = step(halfW, abs(gx));
+    const inLintel = step(winH, gy).mul(float(1).sub(inJamb));
+    const onSill = step(gy, float(0)).mul(float(1).sub(inJamb));
+    // Rez-de-chaussée sans commerce : même pièce, plancher au sol, baie plus haute (zone exclusive des étages).
+    const rdcZone = inRdc.mul(float(1).sub(shopOn)).mul(windowed).mul(float(1).sub(isDoorBay)).mul(step(float(0.5), facade.y));
+    const rgv = v.add(frame.vy.mul(RECESS));
+    const rdcGlassTop = rdc.sub(0.8);
+    const rdcIn = rdcZone.mul(step(abs(gx), halfW)).mul(step(float(1.0), rgv)).mul(step(rgv, rdcGlassTop));
+    const roomY = mix(mix(gy.add(0.9), gy.add(archA.z), isArch), rgv, rdcZone);
+    const roomWinY = mix(gy, rgv.sub(1), rdcZone);
+    const roomH = mix(mix(float(2.8), fhA, isArch), rdc, rdcZone);
+    const roomWinH = mix(winH, rdcGlassTop.sub(1), rdcZone);
+    // Pièce et boutique : vrais branchements, sinon ces calculs tourneraient sur chaque pixel de bâtiment (toits
+    // et façades lointaines compris). Entrées mises en variables avant le `If`, car elles servent aussi hors du bloc.
+    const inRoomGlass = inGlass.max(rdcIn).mul(nearDetail);
+    const roomPart = (part: 'albedo' | 'glow', cond: THREE.Node<'bool'>, far: THREE.Node<'vec3'>) =>
+      Fn(() => {
+        const o = { x: gx.toVar(), y: roomY.toVar(), winY: roomWinY.toVar(), w: bayW.toVar(), h: roomH.toVar(), halfW: halfW.toVar(), winH: roomWinH.toVar(), seed: roomSeed.toVar(), vx: frame.vx.toVar(), vy: frame.vy.toVar() };
+        const near = nearDetail.toVar();
+        const out = vec3(far).toVar();
+        If(cond, () => {
+          out.assign(mix(far, roomInterior(o)[part], near));
+        });
+        return out;
+      })();
+    const farGlass = vec3(0.1, 0.12, 0.14);
+    const skyOnGlass = vec3(0.06, 0.08, 0.1);
+    const windowDay = FACADE_DEPTH ? roomPart('albedo', inRoomGlass.mul(float(1).sub(lit)).greaterThan(0), farGlass) : farGlass;
+    // Vitre allumée : presque rien en albédo, la pièce passe par l'émissif.
+    const glassDepth = mix(windowDay.add(skyOnGlass.mul(gy.div(winH).clamp(0, 1))), vec3(0.02), lit);
+    if (FACADE_DEPTH) {
+      const revealCol = frameCol.mul(mix(mix(float(0.72), float(0.42), inLintel), float(0.95), onSill));
+      wall = mix(wall, revealCol, inWin);
+      wall = mix(wall, glassDepth, inGlass);
+      const paneY = fract(gy.div(winH).mul(3));
+      const bars = max(max(step(abs(gx), float(0.022)), step(paneY, float(0.035))), max(step(halfW.sub(0.05), abs(gx)), step(winH.sub(0.05), gy)));
+      wall = mix(wall, vec3(0.86, 0.85, 0.8), bars.mul(inGlass).mul(isArch).mul(archB.w));
+    } else {
+      wall = mix(wall, glassSky, inWin);
+      // Embrasure : la vitre est en retrait de 15 cm ; le linteau et un tableau portent leur ombre sur
+      // le haut et le côté de la baie, l'appui est éclairé.
+      const reveal = max(step(winH.sub(0.12), fy), step(wx, halfW.negate().add(0.09))).mul(inWin);
+      wall = mix(wall, wall.mul(0.45), reveal.mul(isLocal.mul(0.6).add(0.4)));
+      // Petits-bois et dormant peints en blanc (fenêtres à la française : deux vantaux, trois carreaux).
+      const paneY = fract(fy.div(winH).mul(3));
+      const bars = max(max(step(abs(wx), float(0.022)), step(paneY, float(0.035))), max(step(halfW.sub(0.05), abs(wx)), step(winH.sub(0.05), fy)));
+      wall = mix(wall, vec3(0.86, 0.85, 0.8), bars.mul(inWin).mul(isArch).mul(archB.w).mul(float(1).sub(reveal.mul(0.5))));
+    }
     const outline = step(abs(wx), halfW.add(fm)).mul(step(halfW.add(fm).sub(0.025), abs(wx))).max(step(winH.add(fm).sub(0.025), fy).mul(step(fy, winH.add(fm))).mul(step(abs(wx), halfW.add(fm))));
     wall = mix(wall, wall.mul(0.7), outline.mul(inFrame).mul(isLocal));
-    // Petits-bois et dormant peints en blanc (fenêtres à la française : deux vantaux, trois carreaux).
-    const paneY = fract(fy.div(winH).mul(3));
-    const bars = max(max(step(abs(wx), float(0.022)), step(paneY, float(0.035))), max(step(halfW.sub(0.05), abs(wx)), step(winH.sub(0.05), fy)));
-    wall = mix(wall, vec3(0.86, 0.85, 0.8), bars.mul(inWin).mul(isArch).mul(archB.w).mul(float(1).sub(reveal.mul(0.5))));
     // Garde-corps en fonte : filants aux 2e et 5e étages, balconnets devant les autres portes-fenêtres.
     const thisFilant = step(float(1.5), archB.y).mul(max(step(abs(floorNo.sub(2)), float(0.5)), step(abs(floorNo.sub(5)), float(0.5))));
     const railZone = orn.mul(step(float(0.5), archB.y)).mul(step(float(0), zF)).mul(step(zF, float(0.95))).mul(step(rdc.add(0.5), v)).mul(step(v, wallH.sub(1)));
@@ -642,8 +719,6 @@ export class Buildings {
     const shopFront = shop.mul(step(abs(wx), bayW.mul(0.5).sub(0.04))).mul(step(v, rdc.sub(0.35)));
     const shopGlass = shop.mul(step(abs(wx), glassHW)).mul(step(float(0.45), v)).mul(step(v, glassTop)).mul(step(float(0.06), abs(v.sub(glassTop.sub(0.55)))));
     const signBand = shopFront.mul(step(rdc.sub(0.95), v));
-    // Couleur du bâtiment ramenée à 8 bits : même tirage sur toute la façade (voir wallKey).
-    const shopSeed = hash(floor(base.r.mul(255).add(0.5)).mul(3.573).add(floor(base.g.mul(255).add(0.5)).mul(2.265)).add(floor(base.b.mul(255).add(0.5)).mul(1.031)));
     const signCol = mix(mix(vec3(0.07, 0.16, 0.11), vec3(0.26, 0.06, 0.07), step(0.3, shopSeed)), mix(vec3(0.06, 0.09, 0.18), mix(vec3(0.05, 0.05, 0.05), vec3(0.42, 0.33, 0.2), step(0.9, shopSeed)), step(0.78, shopSeed)), step(0.55, shopSeed));
     const shopLit = this.night.mul(step(0.3, hash(shopSeed.add(bayIdx))));
     const streak = smoothstep(0.42, 0.5, fract(u.add(v.mul(0.7)).div(2.3))).mul(smoothstep(0.58, 0.5, fract(u.add(v.mul(0.7)).div(2.3))));
@@ -653,16 +728,45 @@ export class Buildings {
       shopLit,
     );
     wall = mix(wall, signCol.mul(mix(float(1.25), float(1), signBand)), shopFront);
-    wall = mix(wall, shopInterior, shopGlass);
+    // Vitrine en retrait de 16 cm, boutique derrière. Une boutique par travée, même teinte de fond par bâtiment.
+    const SHOP_RECESS = 0.16;
+    const sgx = wx.add(frame.vx.mul(SHOP_RECESS));
+    const sgv = v.add(frame.vy.mul(SHOP_RECESS));
+    const shopIn = shop.mul(step(abs(sgx), glassHW)).mul(step(float(0.45), sgv)).mul(step(sgv, glassTop)).mul(step(float(0.06), abs(sgv.sub(glassTop.sub(0.55)))));
+    const shopSeedBay = hash(shopSeed.mul(60000).add(bayIdx.mul(37)));
+    const shopPart = (part: 'albedo' | 'glow', cond: THREE.Node<'bool'>, far: THREE.Node<'vec3'>) =>
+      Fn(() => {
+        const o = { x: sgx.toVar(), y: sgv.toVar(), w: bayW.toVar(), h: rdc.toVar(), seed: shopSeedBay.toVar(), vx: frame.vx.toVar(), vy: frame.vy.toVar() };
+        const near = nearDetail.toVar();
+        const out = vec3(far).toVar();
+        If(cond, () => {
+          out.assign(mix(far, shopRoom(o)[part], near));
+        });
+        return out;
+      })();
+    const shopNear = shopIn.mul(nearDetail);
+    const shopFarDay = vec3(0.07, 0.075, 0.08);
+    const shopDay = (FACADE_DEPTH ? shopPart('albedo', shopNear.mul(float(1).sub(shopLit)).greaterThan(0), shopFarDay) : shopFarDay).add(vec3(0.05).mul(streak));
+    if (FACADE_DEPTH) {
+      wall = mix(wall, signCol.mul(0.55), shopGlass);
+      wall = mix(wall, mix(shopDay, vec3(0.02), shopLit), shopIn);
+    } else wall = mix(wall, shopInterior, shopGlass);
     // Rez-de-chaussée sans commerce : hautes fenêtres sous le bandeau, encadrées, à petits-bois.
-    const rdcCol = inRdc.mul(float(1).sub(shopOn)).mul(windowed).mul(float(1).sub(isDoorBay)).mul(step(float(0.5), facade.y));
-    const rdcTop = rdc.sub(0.8);
+    const rdcCol = rdcZone;
+    const rdcTop = rdcGlassTop;
     const rdcWin = rdcCol.mul(step(abs(wx), halfW)).mul(step(float(1.0), v)).mul(step(v, rdcTop));
     const rdcFrame = rdcCol.mul(step(abs(wx), halfW.add(fm))).mul(step(float(1.0).sub(fm), v)).mul(step(v, rdcTop.add(fm))).mul(float(1).sub(rdcWin));
     wall = mix(wall, frameCol, rdcFrame);
-    wall = mix(wall, vec3(0.1, 0.12, 0.14).add(vec3(0.12, 0.15, 0.18).mul(smoothstep(1.0, rdcTop, v))), rdcWin);
-    const rdcBars = max(step(abs(wx), float(0.022)), step(fract(v.sub(1.0).div(rdcTop.sub(1.0)).mul(3)), float(0.03)));
-    wall = mix(wall, vec3(0.86, 0.85, 0.8), rdcBars.mul(rdcWin).mul(archB.w));
+    if (FACADE_DEPTH) {
+      wall = mix(wall, frameCol.mul(0.7), rdcWin);
+      wall = mix(wall, mix(windowDay, vec3(0.02), lit), rdcIn);
+      const rdcBars = max(step(abs(gx), float(0.022)), step(fract(rgv.sub(1.0).div(rdcTop.sub(1.0)).mul(3)), float(0.03)));
+      wall = mix(wall, vec3(0.86, 0.85, 0.8), rdcBars.mul(rdcIn).mul(archB.w));
+    } else {
+      wall = mix(wall, vec3(0.1, 0.12, 0.14).add(vec3(0.12, 0.15, 0.18).mul(smoothstep(1.0, rdcTop, v))), rdcWin);
+      const rdcBars = max(step(abs(wx), float(0.022)), step(fract(v.sub(1.0).div(rdcTop.sub(1.0)).mul(3)), float(0.03)));
+      wall = mix(wall, vec3(0.86, 0.85, 0.8), rdcBars.mul(rdcWin).mul(archB.w));
+    }
 
     // Porte d'entrée : bois à panneaux (couleur des volets, plus sombre), imposte vitrée, encadrement de pierre ;
     // porte cochère (1,5 m, plus haute) au rez-de-chaussée des archétypes.
@@ -698,8 +802,8 @@ export class Buildings {
     const gz = genoiseOn.mul(isWall).mul(step(wallH.sub(0.45), v)).mul(step(v, wallH.add(0.05)));
     const gd = wallH.sub(v);
     const row = floor(gd.div(0.14));
-    const gx = fract(u.div(0.2).add(row.mul(0.5)));
-    const tileEnd = float(1).sub(gx.sub(0.5).mul(2).pow(2)).max(0).sqrt();
+    const tileX = fract(u.div(0.2).add(row.mul(0.5)));
+    const tileEnd = float(1).sub(tileX.sub(0.5).mul(2).pow(2)).max(0).sqrt();
     const rowY = fract(gd.div(0.14));
     const inTileEnd = step(rowY, tileEnd.mul(0.75).add(0.12));
     const terracotta = vec3(0.5, 0.22, 0.11).mul(tileEnd.mul(0.4).add(0.65)).mul(rowY.mul(0.3).add(0.75));
@@ -754,10 +858,64 @@ export class Buildings {
     const underside = isRoof.mul(float(1).sub(float(frontFacing)));
     col = mix(col, accent.mul(nBig.mul(0.1).add(0.95)), underside);
     m.colorNode = col;
-    m.emissiveNode = vec3(1.0, 0.62, 0.3)
-      .mul(inWin.mul(lit).mul(isWall).mul(0.38))
-      .add(vec3(1.0, 0.8, 0.55).mul(shopGlass.mul(shopLit).mul(isWall).mul(0.35)));
-    const glazed = inWin.max(shopGlass).max(rdcWin).mul(isWall);
+    if (FACADE_DEPTH) {
+      // La nuit, la pièce allumée rayonne (fond moyen au loin) ; la boutique reste un peu éclairée le jour.
+      const roomGlow = roomPart('glow', inRoomGlass.mul(lit).greaterThan(0), vec3(0.62, 0.42, 0.24));
+      const shopGlow = shopPart('glow', shopNear.greaterThan(0), vec3(0.72, 0.58, 0.4));
+      m.emissiveNode = roomGlow.mul(inGlass.max(rdcIn).mul(lit).mul(isWall).mul(0.28)).add(shopGlow.mul(shopIn.mul(isWall).mul(shopLit.mul(0.14).add(0.012))));
+    } else {
+      m.emissiveNode = vec3(1.0, 0.62, 0.3)
+        .mul(inWin.mul(lit).mul(isWall).mul(0.38))
+        .add(vec3(1.0, 0.8, 0.55).mul(shopGlass.mul(shopLit).mul(isWall).mul(0.35)));
+    }
+    if (FACADE_DEPTH) {
+      // ── Ombres de la modénature, d'après le soleil : elles ne retirent que la lumière directe (FacadeLightingModel) ──
+      // Point du mur à l'ombre d'une saillie de e mètres : vers le soleil, il passe à (u + e·sunU, v + e·sunV).
+      const sV = frame.sunV;
+      const below = (d: THREE.Node<'float'>, from: number, e: number) =>
+        step(float(from), d).mul(float(1).sub(smoothstep(sV.mul(e).add(from).sub(0.04), sV.mul(e).add(from).add(0.04), d)));
+      let shadow: THREE.Node<'float'> = below(zNext, 0.14, 0.07).mul(strCourse).mul(float(1).sub(filantNext));
+      shadow = max(shadow, below(zNext, 0.2, 0.85).mul(slab));
+      shadow = max(shadow, below(top, 0.38, 0.38).mul(cornice));
+      // Appui saillant de 10 cm.
+      shadow = max(shadow, below(fm.negate().sub(fy), 0, 0.1).mul(step(abs(wx), halfW.add(fm))).mul(winCol).mul(max(isLocal, isArch)));
+      // Garde-corps : leurs barreaux se projettent sur le mur (filants à 80 cm du mur, balconnets à 25 cm).
+      const railShadow = (e: number, zone: (floorAt: THREE.Node<'float'>, xAt: THREE.Node<'float'>) => THREE.Node<'float'>) => {
+        const u2 = u.add(frame.sunU.mul(e));
+        const v2 = v.add(sV.mul(e));
+        const fl2 = floor(v2.sub(rdc).div(fhA));
+        const z2 = v2.sub(rdc).sub(fl2.mul(fhA));
+        const ironAt = max(step(fract(u2.div(0.12)), float(0.16)), max(step(float(0.88), z2), step(abs(z2.sub(0.1)), float(0.03))));
+        return zone(fl2.add(hasRdc), wx.add(frame.sunU.mul(e))).mul(step(float(0), z2)).mul(step(z2, float(0.95))).mul(ironAt);
+      };
+      const isFilant = (no: THREE.Node<'float'>) => step(float(1.5), archB.y).mul(max(step(abs(no.sub(2)), float(0.5)), step(abs(no.sub(5)), float(0.5))));
+      const fineShadow = float(1).sub(smoothstep(0.02, 0.05, pix));
+      const railMask = orn.mul(archB.y.min(1)).mul(fineShadow);
+      const rails = Fn(() => {
+        const out = float(0).toVar();
+        If(railMask.greaterThan(0), () => {
+          const filantShadow = railShadow(0.8, (no) => isFilant(no));
+          const balcoShadow = railShadow(0.25, (no, x) => step(float(0.5), archB.y).mul(float(1).sub(isFilant(no))).mul(step(abs(x), halfW.add(0.06))));
+          out.assign(max(filantShadow, balcoShadow));
+        });
+        return out;
+      })();
+      shadow = max(shadow, rails.mul(railMask).mul(0.8));
+      let direct: THREE.Node<'float'> = float(1).sub(shadow.mul(0.85));
+      // Embrasure : chaque face reçoit le soleil selon son orientation (rapport à l'incidence sur le mur).
+      const jambLit = frame.sunU.mul(step(float(0), gx).mul(-2).add(1)).clamp(0, 1.6);
+      const faceLit = mix(mix(jambLit, float(0), inLintel), frame.sunV.clamp(0, 1.6), onSill);
+      direct = mix(direct, faceLit, inWin.mul(float(1).sub(inGlass)));
+      // Vitre : au soleil seulement si le rayon qui en part vers le soleil sort par l'ouverture.
+      const gx2 = gx.add(frame.sunU.mul(RECESS));
+      const gy2 = gy.add(sV.mul(RECESS));
+      direct = direct.mul(mix(float(1), step(abs(gx2), halfW).mul(step(float(0), gy2)).mul(step(gy2, winH)), inGlass));
+      direct = direct.mul(mix(float(1), float(0.45), shopIn.max(rdcIn)));
+      // Le jour et près de la caméra ; la nuit, le clair de lune ne dessine pas ces ombres.
+      const directMask = mix(float(1), direct, isWall.mul(sunlight.sunShare).mul(float(1).sub(smoothstep(0.05, 0.12, pix))));
+      (m as unknown as { setupLightingModel: () => unknown }).setupLightingModel = () => new FacadeLightingModel(directMask);
+    }
+    const glazed = (FACADE_DEPTH ? inGlass.max(shopIn).max(rdcIn) : inWin.max(shopGlass).max(rdcWin)).mul(isWall);
     m.roughnessNode = mix(mix(mix(mix(float(0.93), float(0.15), glazed), float(0.75), isTile.add(isSlate).min(1)).sub(isSlate.mul(0.2)), mix(float(0.55), float(0.42), isZinc), isMetal), float(0.95), isTerrace.max(underside));
     // Relief : cartes de normales de la texture correspondante (sauf sur les vitres).
     const nrm = (t: LazyTexture, size: number) => t.sample(vec2(u, v).div(size)).rgb;
@@ -803,6 +961,8 @@ export class Buildings {
       // Bâtiment posé sur une route carrossable (emprise OSM/BD TOPO qui mord sur la chaussée) : pas dessiné,
       // sinon le coureur le traverse.
       if (coversRoad(bld.pts, drivable)) continue;
+      // Ni sur le ruban de l'itinéraire (20 cm de tolérance au bord de la chaussée).
+      if (this.route && nearRouteAxis(bld.pts, this.route, this.route.half - 0.2)) continue;
       // Sol affiché sous l'emprise : la hauteur des données part du point bas (`y`), mais en pente le
       // côté amont est plus haut et y enterrait les murs.
       let groundLo = Infinity;
@@ -942,6 +1102,19 @@ export class Buildings {
           if (door) style.door = door;
         }
       }
+      // Vitrines : mêmes murs que ceux que walls() marque « côté rue + vitrine » (travée possible, milieu près d'une voie).
+      if (style?.shop && style.street) {
+        const list = this.shopWallsByTile.get(tile.id) ?? [];
+        const P = bld.pts;
+        for (let i = 0, m = P.length / 2; i < m; i++) {
+          const ax = P[i * 2] as number;
+          const az = P[i * 2 + 1] as number;
+          const bx = P[((i + 1) % m) * 2] as number;
+          const bz = P[((i + 1) % m) * 2 + 1] as number;
+          if (Math.hypot(bx - ax, bz - az) >= 2.6 && style.street((ax + bx) / 2, (az + bz) / 2)) list.push(ax, az, bx, bz, arch?.facade.groundFloorM ?? 3.6);
+        }
+        this.shopWallsByTile.set(tile.id, list);
+      }
       // Monopente : haut des murs sur le pan ; même façade que les autres murs (porte côté rue, sol amont).
       const w = walls(bld.pts, base, wallH + 0.3, style, this.groundAt, skillion ? (x, z) => roofAt(x, z) - base : undefined);
       // Granges, fermes et églises : enduit à pierres vues plutôt que meulière ou enduit lisse.
@@ -1040,12 +1213,78 @@ export class Buildings {
 
   removeTile(tile: LoadedTile): void {
     this.footprints.removeTile(tile.id);
+    this.shopWallsByTile.delete(tile.id);
     const m = this.tiles.get(tile.id);
     if (!m) return;
     this.group.remove(m);
     m.geometry.dispose();
     this.tiles.delete(tile.id);
   }
+}
+
+/** Axe de l'itinéraire indexé par cases de ROUTE_CELL m : indices (×2) des segments qui les traversent. */
+export interface RouteAxis {
+  pts: readonly number[];
+  half: number;
+  cells: Map<number, number[]>;
+}
+const ROUTE_CELL = 32;
+const routeKey = (cx: number, cz: number) => (cx + 32768) * 65536 + (cz + 32768);
+
+export function routeAxis(pts: readonly number[], half: number): RouteAxis {
+  const cells = new Map<number, number[]>();
+  for (let k = 0; k + 3 < pts.length; k += 2) {
+    const ax = pts[k] as number, az = pts[k + 1] as number, bx = pts[k + 2] as number, bz = pts[k + 3] as number;
+    for (let cx = Math.floor(Math.min(ax, bx) / ROUTE_CELL); cx <= Math.floor(Math.max(ax, bx) / ROUTE_CELL); cx++)
+      for (let cz = Math.floor(Math.min(az, bz) / ROUTE_CELL); cz <= Math.floor(Math.max(az, bz) / ROUTE_CELL); cz++) {
+        const key = routeKey(cx, cz);
+        const list = cells.get(key);
+        if (list) list.push(k);
+        else cells.set(key, [k]);
+      }
+  }
+  return { pts, half, cells };
+}
+
+/** Distance (plan x, z) du point p au segment (a, b). */
+function distToSegment(px: number, pz: number, ax: number, az: number, bx: number, bz: number): number {
+  const dx = bx - ax, dz = bz - az;
+  const t = Math.max(0, Math.min(1, ((px - ax) * dx + (pz - az) * dz) / (dx * dx + dz * dz || 1)));
+  const ex = ax + dx * t - px, ez = az + dz * t - pz;
+  return Math.sqrt(ex * ex + ez * ez);
+}
+
+/**
+ * L'emprise `poly` passe à moins de `clear` de l'axe de l'itinéraire : axe à l'intérieur, ou un côté du bâtiment
+ * (pas seulement un coin : un long mur en travers de la route a ses coins de part et d'autre) assez près de l'axe.
+ */
+export function nearRouteAxis(poly: readonly number[], route: RouteAxis, clear: number): boolean {
+  let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+  for (let i = 0; i < poly.length; i += 2) {
+    minX = Math.min(minX, poly[i] as number);
+    maxX = Math.max(maxX, poly[i] as number);
+    minZ = Math.min(minZ, poly[i + 1] as number);
+    maxZ = Math.max(maxZ, poly[i + 1] as number);
+  }
+  const seen = new Set<number>();
+  const p = route.pts;
+  const n = poly.length;
+  const cross = (x1: number, z1: number, x2: number, z2: number, x3: number, z3: number) => (x2 - x1) * (z3 - z1) - (z2 - z1) * (x3 - x1);
+  for (let cx = Math.floor((minX - clear) / ROUTE_CELL); cx <= Math.floor((maxX + clear) / ROUTE_CELL); cx++)
+    for (let cz = Math.floor((minZ - clear) / ROUTE_CELL); cz <= Math.floor((maxZ + clear) / ROUTE_CELL); cz++)
+      for (const k of route.cells.get(routeKey(cx, cz)) ?? []) {
+        if (seen.has(k)) continue;
+        seen.add(k);
+        const ax = p[k] as number, az = p[k + 1] as number, bx = p[k + 2] as number, bz = p[k + 3] as number;
+        if (Math.max(ax, bx) < minX - clear || Math.min(ax, bx) > maxX + clear || Math.max(az, bz) < minZ - clear || Math.min(az, bz) > maxZ + clear) continue;
+        if (insidePolygon(poly as number[], ax, az)) return true;
+        for (let i = 0, j = n - 2; i < n; j = i, i += 2) {
+          const x1 = poly[j] as number, z1 = poly[j + 1] as number, x2 = poly[i] as number, z2 = poly[i + 1] as number;
+          if (cross(ax, az, bx, bz, x1, z1) * cross(ax, az, bx, bz, x2, z2) < 0 && cross(x1, z1, x2, z2, ax, az) * cross(x1, z1, x2, z2, bx, bz) < 0) return true;
+          if (distToSegment(x1, z1, ax, az, bx, bz) < clear || distToSegment(ax, az, x1, z1, x2, z2) < clear || distToSegment(bx, bz, x1, z1, x2, z2) < clear) return true;
+        }
+      }
+  return false;
 }
 
 /** Voies carrossables d'une tuile (sans chemins, sentiers ni passages couverts) : axe 2D et demi-largeur. */
@@ -1067,7 +1306,7 @@ function drivableRoads(tile: LoadedTile): Array<{ pts: number[]; half: number; m
   return out;
 }
 
-/** L'emprise couvre la chaussée : un point de l'axe dedans, ou un coin du bâtiment à moins de la demi-largeur − 0,5 m. */
+/** L'emprise couvre la chaussée : un point de l'axe dedans, ou un coin du bâtiment à moins de la demi-largeur − 0,3 m. */
 function coversRoad(poly: number[], roads: ReturnType<typeof drivableRoads>): boolean {
   let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
   for (let i = 0; i < poly.length; i += 2) {
@@ -1087,7 +1326,9 @@ function coversRoad(poly: number[], roads: ReturnType<typeof drivableRoads>): bo
   for (const r of roads) {
     if (r.maxX < minX - r.half || r.minX > maxX + r.half || r.maxZ < minZ - r.half || r.minZ > maxZ + r.half) continue;
     const p = r.pts;
-    const clear = Math.max(0.5, r.half - 0.5);
+    // 30 cm de tolérance au bord de la chaussée (largeur OSM estimée) : 50 cm laissaient une tour des Couloux
+    // (Donnemarie) mordre de 40 cm sur une route de 4 m.
+    const clear = Math.max(0.5, r.half - 0.3);
     for (let k = 0; k + 3 < p.length; k += 2) {
       const ax = p[k] as number, az = p[k + 1] as number, bx = p[k + 2] as number, bz = p[k + 3] as number;
       const dx = bx - ax, dz = bz - az;

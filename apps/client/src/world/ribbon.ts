@@ -445,6 +445,28 @@ export class RouteFootprint {
       }
   }
 
+  /** Projection non bornée de (x, z) sur le segment `s` (0 à son début, 1 à sa fin). */
+  private rawT(s: number, x: number, z: number): number {
+    const n = this.pts.length;
+    const a = this.pts[s] as AxisPoint3;
+    const b = this.pts[(s + 1) % n] as AxisPoint3;
+    const ex = b.x - a.x;
+    const ez = b.z - a.z;
+    return ((x - a.x) * ex + (z - a.z) * ez) / (ex * ex + ez * ez || 1);
+  }
+
+  /**
+   * Le segment `s` fait face à (x, z) : projection à l'intérieur, angle extérieur d'un virage, ou bout de l'axe.
+   * Sinon, c'est le bout d'un segment voisin : en pente, il donnait au sol le niveau de la route plus bas.
+   */
+  private faces(s: number, x: number, z: number): boolean {
+    const t = this.rawT(s, x, z);
+    const loop = this.segs === this.pts.length;
+    if (t < 0 && (s > 0 || loop) && this.rawT((s - 1 + this.segs) % this.segs, x, z) < 1) return false;
+    if (t > 1 && (s < this.segs - 1 || loop) && this.rawT((s + 1) % this.segs, x, z) > 0) return false;
+    return true;
+  }
+
   /** Vrai si une case de la grille autour du point contient l'axe (test rapide). */
   near(x: number, z: number, reach: number): boolean {
     const c = this.cell;
@@ -467,6 +489,7 @@ export class RouteFootprint {
     // Passage le plus bas à portée (sous un pont de l'itinéraire, c'est la route du dessous qui compte).
     let top = h;
     this.scan(x, z, R, (s, t) => {
+      if (!this.faces(s, x, z)) return;
       const a = this.pts[s] as AxisPoint3;
       const b = this.pts[(s + 1) % this.pts.length] as AxisPoint3;
       const y = a.y + (b.y - a.y) * t;

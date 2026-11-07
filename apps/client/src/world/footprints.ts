@@ -80,6 +80,25 @@ export class FootprintIndex {
     this.byTile.clear();
   }
 
+  /** Nombre de bâtiments dont l'emprise est à moins de `radius` m de (x, z), compté à l'emprise près (rectangle englobant). */
+  countNear(x: number, z: number, radius: number): number {
+    const stamp = ++this.query;
+    let count = 0;
+    for (let cx = Math.floor((x - radius) / CELL); cx <= Math.floor((x + radius) / CELL); cx++)
+      for (let cz = Math.floor((z - radius) / CELL); cz <= Math.floor((z + radius) / CELL); cz++) {
+        const cell = this.cells.get(FootprintIndex.key(cx, cz));
+        if (!cell) continue;
+        for (const f of cell) {
+          if (f.stamp === stamp) continue;
+          f.stamp = stamp;
+          const dx = Math.max(f.minX - x, 0, x - f.maxX);
+          const dz = Math.max(f.minZ - z, 0, z - f.maxZ);
+          if (dx * dx + dz * dz <= radius * radius) count++;
+        }
+      }
+    return count;
+  }
+
   /**
    * Premier bâtiment traversé par le segment a → b : fraction (0–1) du segment au point d'entrée,
    * ou null s'il est dégagé. Bâtiment approché par un prisme (emprise × base–sommet, toit compris).
