@@ -149,6 +149,20 @@ export function createDeviceLayer(): DeviceLayer {
   manager.on('log', (m) => log(m));
   manager.on('deviceState', (e) => log(`${e.deviceId} → ${e.state}`));
   manager.on('powerSource', (s) => log(`source de puissance : ${s}`));
+  // Écran Capteurs : dernières valeurs mesurées, montrées en direct sur les tuiles Puissance et Cadence.
+  const liveVals = { watts: 0, wattsAt: -Infinity, cadence: 0, cadenceAt: -Infinity };
+  manager.on('power', (p) => {
+    liveVals.watts = p.rawWatts ?? p.watts;
+    liveVals.wattsAt = performance.now();
+    if (p.cadence !== undefined) {
+      liveVals.cadence = p.cadence;
+      liveVals.cadenceAt = liveVals.wattsAt;
+    }
+  });
+  manager.on('cadence', (c) => {
+    liveVals.cadence = c.cadence;
+    liveVals.cadenceAt = performance.now();
+  });
   manager.on('calibration', (c) => log(`calibration ${c.deviceId} : ${c.status}${c.targetSpeedLowKmh !== undefined ? ` (${c.targetSpeedLowKmh}–${c.targetSpeedHighKmh} km/h)` : ''}${c.reason ? ` — ${c.reason}` : ''}`));
   manager.on('shift', (s) => log(`vitesse ${s.action} (${s.sourceId})${s.realGear ? ` rapport réel ${s.realGear.front}/${s.realGear.rear}` : ''}`));
   (window as Window & { __arDeviceLog?: () => string }).__arDeviceLog = () => journal.join('\n');
@@ -283,6 +297,28 @@ export function createDeviceLayer(): DeviceLayer {
         ok: d.state === 'connected',
       })),
     transports: () => available.filter((k) => k !== 'simulator').map((id) => ({ id, label: TRANSPORT_LABEL[id] })),
+    live: () => {
+      // Source de la puissance (pédales prioritaires, sinon home trainer) et de la cadence (capteur dédié, sinon la même).
+      const now = performance.now();
+      const list = manager.summaries();
+      const connected = (id: string | undefined) => !!id && list.some((d) => d.id === id && d.state === 'connected');
+      const nameOf = (id: string | undefined) => list.find((d) => d.id === id)?.name;
+      const r = manager.roles;
+      const src = manager.powerSource;
+      const powerId = src === 'pedals' ? r.power : src === 'trainer' ? r.trainer : undefined;
+      const sensor = connected(r.cadence);
+      const cadenceId = sensor ? r.cadence : powerId;
+      const powerName = nameOf(powerId);
+      const cadenceName = nameOf(cadenceId);
+      return {
+        ...(src !== 'none' ? { powerFrom: src } : {}),
+        ...(powerName ? { powerName } : {}),
+        ...(now - liveVals.wattsAt < 3000 ? { watts: Math.round(liveVals.watts) } : {}),
+        ...(sensor ? { cadenceFrom: 'sensor' as const } : src !== 'none' ? { cadenceFrom: src } : {}),
+        ...(cadenceName ? { cadenceName } : {}),
+        ...(now - liveVals.cadenceAt < 3000 ? { cadence: Math.round(liveVals.cadence) } : {}),
+      };
+    },
     async pair(role, transport) {
       const kind = ROLE_KIND[role];
       const tr = transport as TransportKind;

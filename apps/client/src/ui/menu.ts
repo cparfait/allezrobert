@@ -77,6 +77,8 @@ export interface DevicePanel {
   renderExtras?(el: HTMLElement): void;
   /** Le home trainer assigné reproduit-il le revêtement (Tacx NEO) ? Bouton d'essai sur sa tuile. */
   roadFeelSupported?(): boolean;
+  /** Puissance et cadence mesurées en ce moment, et l'appareil qui les fournit (pédales, home trainer, capteur). */
+  live?(): DeviceLive;
 }
 
 export interface MenuCallbacks {
@@ -135,6 +137,7 @@ const ICON = {
   power: svg('<path d="M13 2 5 14h6l-1 8 8-12h-6z"/>'),
   heartRate: svg('<path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10Z"/><path d="M7 12h3l1-2 2 4 1-2h3"/>'),
   shifter: svg('<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="M12 4v3M12 17v3M4 12h3M17 12h3"/>'),
+  cadence: svg('<circle cx="12" cy="12" r="8"/><path d="M12 12 7.5 7.5M12 12h5"/><circle cx="12" cy="12" r="1.5"/>'),
   fan: svg('<circle cx="12" cy="12" r="1.5"/><path d="M12 10.5C11 6 13 3 16 4s1 5-2.5 7M13.5 12.5c4.4 1 6.5 3.5 5 6s-5 .5-6.5-3M10.5 12c-4.5.2-7.3-1.7-6.6-4.5s4.6-1.6 6.4 1.9"/>'),
   music: svg('<path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/>', 16),
   musicOff: svg('<path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/><path d="M3 3l18 18"/>', 16),
@@ -452,6 +455,23 @@ const JERSEY_PACKS: ReadonlyArray<{ id: string; name: { fr: string; en: string }
  * Onglet Rouler : modes en tuiles, carte et profil de l'itinéraire, départ. Garage : aperçu 3D
  * du coureur (vues prédéfinies, rotation à la souris) piloté par onScene.
  */
+/** Valeurs en direct de l'écran Capteurs ; absentes si rien n'est mesuré depuis 3 s. */
+export interface DeviceLive {
+  powerFrom?: 'pedals' | 'trainer';
+  powerName?: string;
+  watts?: number;
+  cadenceFrom?: 'sensor' | 'pedals' | 'trainer';
+  cadenceName?: string;
+  cadence?: number;
+}
+
+/** Texte des valeurs en direct des tuiles Puissance et Cadence. */
+function liveText(kind: 'watts' | 'cadence', live: DeviceLive | undefined): string {
+  const v = kind === 'watts' ? live?.watts : live?.cadence;
+  const unit = kind === 'watts' ? 'W' : fr() ? 'tr/min' : 'rpm';
+  return `${v === undefined ? '—' : v} ${unit}`;
+}
+
 export class MainMenu {
   private readonly root: HTMLElement;
   private readonly s: Settings;
@@ -461,6 +481,8 @@ export class MainMenu {
     return routesForBike(this.allRoutes, bikeSetupFor(loadProgress().equipped).tyre);
   }
   private readonly devices: DevicePanel;
+  /** Rafraîchissement des valeurs en direct de l'écran Capteurs. */
+  private devLiveTimer: ReturnType<typeof setInterval> | undefined;
   private readonly cb: MenuCallbacks;
   private workoutFile: { name: string; content: string } | undefined;
   /** Filtre de la fenêtre des séances : un type, « mes séances » (importées), ou tout. */
@@ -2623,22 +2645,35 @@ export class MainMenu {
     const roles: Array<[Role, I18nKey, string]> = [
       ['trainer', 'trainer', L ? 'Résistance pilotée (FTMS, FE-C)' : 'Controlled resistance (FTMS, FE-C)'],
       ['power', 'powerMeter', L ? 'Pédales ou manivelle (Assioma…)' : 'Pedals or crank (Assioma…)'],
+      ['cadence', 'cadence', L ? 'Capteur de cadence (Wahoo RPM…)' : 'Cadence sensor (Wahoo RPM…)'],
       ['heartRate', 'hrm', L ? 'Ceinture ou montre (TICKR…)' : 'Strap or watch (TICKR…)'],
       ['shifter', 'shifter', L ? 'Manettes (Click, AXS, D-Fly)' : 'Controllers (Click, AXS, D-Fly)'],
       ['fan', 'fan', L ? 'Ventilateur connecté' : 'Smart fan'],
     ];
+    const live = this.devices.live?.();
     const tile = ([role, k, sub]: [Role, I18nKey, string]) => {
       const ds = list.filter((d) => d.roleIds?.includes(role));
-      const ok = ds.some((d) => d.ok);
+      const own = ds.some((d) => d.ok);
+      // Puissance et cadence sans capteur dédié : fournies par le home trainer (ou les pédales), comme dans MyWhoosh.
+      const from = role === 'power' ? live?.powerFrom : role === 'cadence' ? live?.cadenceFrom : undefined;
+      const fromName = role === 'power' ? live?.powerName : live?.cadenceName;
+      const via = !own && fromName && (from === 'trainer' || (role === 'cadence' && from === 'pedals')) ? from : undefined;
+      const ok = own || via !== undefined;
+      const viaHtml = via
+        ? `<span class="mm-dev-name">${esc(fromName ?? '')} · ${via === 'trainer' ? (L ? 'via le home trainer' : 'via the trainer') : L ? 'via les pédales' : 'via the pedals'}</span>`
+        : '';
+      const liveKind = role === 'power' ? 'watts' : role === 'cadence' ? 'cadence' : undefined;
+      const liveHtml = liveKind && ok ? `<span class="mm-dev-live" data-live="${liveKind}">${liveText(liveKind, live)}</span>` : '';
       // Tacx NEO appairé : essai du ressenti route accessible tout de suite depuis la tuile.
       const roadTest = role === 'trainer' && ok && this.devices.roadFeelSupported?.() ? `<button class="mm-link" data-roadtest-open>${L ? 'Tester le ressenti route' : 'Test road feel'}</button>` : '';
       return `<div class="mm-dev ${ok ? 'ok' : ds.length ? 'pending' : ''}">
         <div class="mm-dev-ico">${ICON[role as keyof typeof ICON] ?? ''}</div>
         <div class="mm-dev-body"><b>${esc(t(k))}</b>
-          ${ds.length ? ds.map((d) => `<span class="mm-dev-name">${esc(d.name)} · ${esc(d.state)}${d.detail ? ` · ${esc(d.detail)}` : ''} <button class="mm-link" data-forget="${esc(d.id)}">${L ? 'oublier' : 'forget'}</button></span>`).join('') : `<span>${esc(sub)}</span>`}
+          ${ds.length ? ds.map((d) => `<span class="mm-dev-name">${esc(d.name)} · ${esc(d.state)}${d.detail ? ` · ${esc(d.detail)}` : ''} <button class="mm-link" data-forget="${esc(d.id)}">${L ? 'oublier' : 'forget'}</button></span>`).join('') : viaHtml || `<span>${esc(sub)}</span>`}
+          ${liveHtml}
           ${roadTest}
         </div>
-        <button class="btn small ${ok ? '' : 'primary'}" data-pair="${role}">${ok ? (L ? 'Changer' : 'Change') : L ? 'Associer' : 'Pair'}</button>
+        <button class="btn small ${ok ? '' : 'primary'}" data-pair="${role}"${via ? ` title="${esc(role === 'power' ? (L ? 'Des pédales associées deviennent la puissance de référence.' : 'Paired pedals become the reference power.') : L ? 'Un capteur de cadence associé passe avant le home trainer.' : 'A paired cadence sensor takes over from the trainer.')}"` : ''}>${own ? (L ? 'Changer' : 'Change') : L ? 'Associer' : 'Pair'}</button>
       </div>`;
     };
     box.innerHTML = `
@@ -2656,6 +2691,13 @@ export class MainMenu {
       <div class="mm-note">${t('oneAppAtATime')}<br/>${t('edgeWarn')}</div>
       <div id="m-devextra"></div>`;
     this.bindSegs(box);
+    // Valeurs en direct (W, tr/min) : rafraîchies chaque seconde tant que l'écran Capteurs est affiché.
+    clearInterval(this.devLiveTimer);
+    this.devLiveTimer = setInterval(() => {
+      if (!box.isConnected) return clearInterval(this.devLiveTimer);
+      const now = this.devices.live?.();
+      box.querySelectorAll<HTMLElement>('[data-live]').forEach((el) => (el.textContent = liveText(el.dataset.live as 'watts' | 'cadence', now)));
+    }, 1000);
     const extra = box.querySelector<HTMLElement>('#m-devextra');
     if (extra) this.devices.renderExtras?.(extra);
     box.querySelectorAll<HTMLButtonElement>('[data-pair]').forEach((b) =>
