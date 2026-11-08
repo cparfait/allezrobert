@@ -7,12 +7,14 @@ import { DflyShifter, HeadwindFan, SramAxsShifter, ZwiftControllerShifter, type 
 import { FtmsTrainer, type FtmsTrainerOptions } from './ftms-trainer.ts';
 import { PowerMeter } from './power-meter.ts';
 import { BatteryProfile, CscSensor, HeartRateMonitor } from './sensors.ts';
+import { TacxRoadFeel } from './tacx-road-feel.ts';
 
 export * from './ftms-trainer.ts';
 export * from './power-meter.ts';
 export * from './sensors.ts';
 export * from './ant-profiles.ts';
 export * from './experimental.ts';
+export * from './tacx-road-feel.ts';
 
 export interface ProfileFactoryOptions {
   experimental?: Partial<ExperimentalAdapters>;
@@ -55,6 +57,9 @@ export function createProfiles(link: DeviceLink, options: ProfileFactoryOptions 
   const fec = !ftms && hasService(s, TACX_FEC.service);
   if (ftms) out.push(new FtmsTrainer(options.ftms));
   else if (fec) out.push(new FecTrainer(options.fec));
+  // Tacx NEO en FTMS : le ressenti route passe par le canal FE-C over BLE, à côté du FTMS.
+  // (En FE-C seul, c'est FecTrainer qui envoie le ressenti route sur son propre canal.)
+  if (ftms && hasService(s, TACX_FEC.service)) out.push(new TacxRoadFeel());
   // Sur un trainer, le CPS/CSC éventuel duplique les données FTMS : on l'ignore.
   if (!ftms && !fec && hasService(s, SERVICE.cyclingPower)) out.push(new PowerMeter());
   if (!ftms && !fec && hasService(s, SERVICE.cyclingSpeedCadence)) out.push(new CscSensor(options.wheelCircumferenceM));

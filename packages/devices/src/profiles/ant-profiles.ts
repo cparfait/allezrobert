@@ -22,11 +22,12 @@ import {
   encodeFecTrackResistance,
   encodeFecUserConfiguration,
   encodeFecWindResistance,
+  encodeTacxNeoModes,
   leftBalanceFromPwr,
   parseAntDataMessage,
   type FecUserConfiguration,
 } from '@allezrobert/protocols';
-import type { DeviceLink, Profile, ProfileContext, TrainerControl } from '../types.ts';
+import type { DeviceLink, Profile, ProfileContext, RoadFeelControl, RoadFeelSetting, TrainerControl } from '../types.ts';
 
 /** Canal de pages FE-C, quel que soit le transport. */
 export interface FecPageChannel {
@@ -46,13 +47,20 @@ async function bleFecChannel(link: DeviceLink): Promise<FecPageChannel> {
       for (const h of handlers) h(d.data);
     }
   });
+  // Une seule écriture à la fois : Web Bluetooth refuse deux écritures simultanées sur la même
+  // caractéristique (pente, ressenti route et poids peuvent partir ensemble).
+  let chain: Promise<unknown> = Promise.resolve();
   return {
     onPage(h) {
       handlers.add(h);
       return () => handlers.delete(h);
     },
     // Canal 5 par convention Tacx ; message acquitté pour les commandes.
-    sendPage: (page) => link.write(TACX_FEC.service, TACX_FEC.tx, antAcknowledgedData(5, page), false),
+    sendPage: (page) => {
+      const p = chain.then(() => link.write(TACX_FEC.service, TACX_FEC.tx, antAcknowledgedData(5, page), false));
+      chain = p.catch(() => undefined);
+      return p;
+    },
   };
 }
 
@@ -66,7 +74,7 @@ export interface FecTrainerOptions {
   userConfiguration?: FecUserConfiguration;
 }
 
-export class FecTrainer implements Profile, TrainerControl {
+export class FecTrainer implements Profile, TrainerControl, RoadFeelControl {
   readonly name = 'fe-c';
   readonly streaming = true;
   private ctx: ProfileContext | undefined;
@@ -80,6 +88,10 @@ export class FecTrainer implements Profile, TrainerControl {
   private readonly options: FecTrainerOptions;
   /** Poids fixés par `setUserConfiguration` ; sinon ceux des options (lus à chaque connexion). */
   private userConfig: FecUserConfiguration | undefined;
+  /** Ressenti route demandé, et clé du dernier réglage envoyé sur la liaison en cours. */
+  private wantedRoadFeel: RoadFeelSetting | undefined;
+  private sentRoadFeel: string | undefined;
+  private overBle = false;
 
   constructor(options: FecTrainerOptions = {}) {
     this.options = options;
@@ -94,14 +106,44 @@ export class FecTrainer implements Profile, TrainerControl {
     return this.channel !== undefined;
   }
 
+  /** Ressenti route (page Tacx 0xFC) : seulement en FE-C over BLE, qui n'existe que sur les trainers Tacx. */
+  get roadFeelAvailable(): boolean {
+    return this.overBle && this.channel !== undefined;
+  }
+
+  get roadFeel(): RoadFeelSetting | undefined {
+    return this.wantedRoadFeel;
+  }
+
+  async setRoadFeel(setting: RoadFeelSetting): Promise<void> {
+    this.wantedRoadFeel = { ...setting };
+    const ch = this.channel;
+    if (!ch || !this.overBle) return;
+    const key = setting.surface === 'off' ? 'off' : `${setting.surface}:${Math.round(setting.intensityPercent)}`;
+    if (key === this.sentRoadFeel) return;
+    this.sentRoadFeel = key;
+    const page = encodeTacxNeoModes({ roadSurface: setting.surface, intensityPercent: setting.intensityPercent });
+    try {
+      await ch.sendPage(page);
+      this.ctx?.log(`Tacx FE-C : ressenti route ${setting.surface}${setting.surface === 'off' ? '' : ` ${page[6]} %`}`);
+    } catch (e) {
+      if (this.sentRoadFeel === key) this.sentRoadFeel = undefined;
+      this.ctx?.log(`Tacx FE-C : ressenti route non envoyé (${(e as Error).message})`);
+    }
+  }
+
   async attach(link: DeviceLink, ctx: ProfileContext): Promise<void> {
     this.ctx = ctx;
     this.lastWind = undefined;
+    this.sentRoadFeel = undefined;
+    this.overBle = link.type === 'gatt';
     this.channel = link.type === 'ant' ? antFecChannel(link) : await bleFecChannel(link);
     this.unsub = this.channel.onPage((p) => this.onPage(p));
     const user = this.userConfig ?? this.options.userConfiguration;
     if (user) await this.channel.sendPage(encodeFecUserConfiguration(user)).catch(() => undefined);
     if (this.lastCmd) await this.send(this.lastCmd).catch(() => undefined);
+    // Le NEO oublie le revêtement quand il s'éteint : renvoi après une reconnexion.
+    if (this.wantedRoadFeel && this.wantedRoadFeel.surface !== 'off') await this.setRoadFeel(this.wantedRoadFeel);
   }
 
   /** Poids du cycliste et du vélo (page 55) : envoyés tout de suite si connecté, puis à chaque reconnexion. */
@@ -114,6 +156,7 @@ export class FecTrainer implements Profile, TrainerControl {
     this.unsub?.();
     this.unsub = undefined;
     this.channel = undefined;
+    this.sentRoadFeel = undefined;
   }
 
   async send(command: TrainerCommand): Promise<void> {

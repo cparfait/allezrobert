@@ -38,7 +38,7 @@ import { PowerMatchController, type PowerMatchOptions } from './power-match.ts';
 import { FecTrainer, type FecTrainerOptions } from './profiles/index.ts';
 import type { ShifterSource } from './shifters.ts';
 import { PowerSmoother } from './smoothing.ts';
-import type { CalibrationEvent, DeviceWarning, DiscoveredDevice, ScanHandle, Transport } from './types.ts';
+import type { CalibrationEvent, DeviceWarning, DiscoveredDevice, Profile, RoadFeelControl, RoadFeelSetting, ScanHandle, Transport } from './types.ts';
 
 export type PowerSource = 'pedals' | 'trainer' | 'none';
 
@@ -471,6 +471,24 @@ export class DeviceManager extends Emitter<ManagerEvents> {
     const t = this.trainerDevice?.trainer as (TrainerControlLike & { supportsSpinDown?: boolean }) | undefined;
     if (!t) return 'unknown';
     return t.supportsSpinDown === false ? 'unsupported' : 'supported';
+  }
+
+  /** Ressenti route du trainer assigné (Tacx NEO en FTMS), s'il en a un. */
+  private get roadFeelControl(): RoadFeelControl | undefined {
+    return this.trainerDevice?.activeProfiles.find((p): p is Profile & RoadFeelControl => 'setRoadFeel' in p && (p as Partial<RoadFeelControl>).roadFeelAvailable !== false);
+  }
+
+  /** Le trainer assigné sait-il simuler le revêtement (vibrations du Tacx NEO) ? */
+  get roadFeelSupported(): boolean {
+    return this.roadFeelControl !== undefined;
+  }
+
+  /**
+   * Revêtement simulé par le trainer assigné ('off' pour couper). Sans trainer capable, ne fait rien :
+   * le jeu peut l'appeler à chaque changement de revêtement sans vérifier. Les doublons ne partent pas.
+   */
+  async setRoadFeel(setting: RoadFeelSetting): Promise<void> {
+    await this.roadFeelControl?.setRoadFeel(setting);
   }
 
   /** Relance tout de suite la reconnexion d'un appareil (bouton « reconnecter »). */

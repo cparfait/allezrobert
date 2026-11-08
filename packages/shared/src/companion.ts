@@ -48,6 +48,8 @@ export type PhoneCommand =
   | { kind: 'resume' }
   | { kind: 'camera'; camera: CameraMode }
   | { kind: 'fan'; percent: number }
+  /** Ressenti route du home trainer (Tacx NEO) : intensité 0–ROAD_FEEL.maxPercent, 0 = coupé. */
+  | { kind: 'roadFeel'; percent: number }
   | { kind: 'rideOn'; to: string }
   | { kind: 'chat'; text: string }
   /** Carrefour : −1 plus à gauche, +1 plus à droite ; ou sortie choisie par son indice. */
@@ -133,6 +135,8 @@ export interface PairState {
   pos?: { x: number; z: number; heading: number };
   camera?: CameraMode;
   fanPercent?: number;
+  /** Ressenti route : intensité réglée (%), trainer capable (Tacx NEO), revêtement simulé en ce moment. */
+  roadFeel?: { percent: number; supported: boolean; surface: string };
   hudVisible?: boolean;
   /** Son du jeu coupé ; regard vers l'arrière ; allure demandée au groupe en % de FTP. */
   muted?: boolean;
@@ -182,6 +186,56 @@ export interface PairPresence {
   game: boolean;
   phones: number;
 }
+
+/**
+ * Ressenti route du home trainer (Tacx NEO) : bornes de l'intensité et seuils des alertes, communs au
+ * jeu et à l'appli compagnon. `maxPercent` reprend le plafond du protocole (TACX_ROAD_FEEL_MAX_PERCENT) :
+ * d'après pycycling, 50 % se sent déjà fort et 100 % risquerait d'abîmer le trainer.
+ */
+export const ROAD_FEEL = { maxPercent: 80, defaultPercent: 30, strongPercent: 40, extremePercent: 60 } as const;
+
+export type RoadFeelLevel = 'off' | 'soft' | 'strong' | 'extreme';
+
+/** Niveau d'alerte d'une intensité de ressenti route. */
+export function roadFeelLevel(percent: number): RoadFeelLevel {
+  if (!(percent > 0)) return 'off';
+  if (percent >= ROAD_FEEL.extremePercent) return 'extreme';
+  if (percent >= ROAD_FEEL.strongPercent) return 'strong';
+  return 'soft';
+}
+
+/** Intensité ramenée dans les bornes (entier, 0 = coupé). */
+export function clampRoadFeel(percent: number): number {
+  return Number.isFinite(percent) ? Math.min(Math.max(Math.round(percent), 0), ROAD_FEEL.maxPercent) : 0;
+}
+
+/** Noms des motifs Tacx (clés de TACX_ROAD_SURFACE), pour le HUD et l'appli compagnon. */
+export const ROAD_FEEL_SURFACE_LABEL: Record<'fr' | 'en', Record<string, string>> = {
+  fr: { off: 'enrobé', cobblestonesHard: 'pavés durs', cobblestonesSoft: 'pavés', brickRoad: 'briques', concretePlates: 'plaques de béton', woodenBoards: 'planches', gravel: 'gravier', offRoad: 'terre', cattleGrid: 'grille à bétail', ice: 'glace' },
+  en: { off: 'tarmac', cobblestonesHard: 'hard cobbles', cobblestonesSoft: 'cobbles', brickRoad: 'bricks', concretePlates: 'concrete plates', woodenBoards: 'wooden boards', gravel: 'gravel', offRoad: 'dirt', cattleGrid: 'cattle grid', ice: 'ice' },
+};
+
+/** Textes d'alerte du ressenti route (réglages du jeu et appli compagnon). */
+export const ROAD_FEEL_TEXT: Record<'fr' | 'en', Record<RoadFeelLevel, string> & { title: string; unsupported: string; confirm: string }> = {
+  fr: {
+    title: 'Ressenti route',
+    off: 'Coupé : le home trainer ne vibre pas sur les pavés et les chemins.',
+    soft: 'Doux : le vélo vibre légèrement sur les pavés, le gravier et les chemins.',
+    strong: 'Fort : les vibrations secouent nettement le vélo. Vérifie que le vélo est bien serré sur le home trainer.',
+    extreme: `Très fort : forte contrainte sur le moteur du home trainer, la fixation du vélo et le cadre (surtout en carbone). À réserver à de courts passages. Plafonné à ${ROAD_FEEL.maxPercent} %.`,
+    unsupported: 'Seuls les home trainers Tacx NEO reproduisent le revêtement.',
+    confirm: `Ressenti route très fort (${ROAD_FEEL.extremePercent} % et plus) : le moteur du home trainer, la fixation du vélo et le cadre sont fortement sollicités. Continuer ?`,
+  },
+  en: {
+    title: 'Road feel',
+    off: 'Off: the trainer does not vibrate on cobbles and dirt roads.',
+    soft: 'Gentle: the bike vibrates slightly on cobbles, gravel and dirt roads.',
+    strong: 'Strong: the vibrations clearly shake the bike. Make sure the bike is firmly clamped on the trainer.',
+    extreme: `Very strong: heavy load on the trainer motor, the bike mount and the frame (carbon especially). Keep it for short sections. Capped at ${ROAD_FEEL.maxPercent}%.`,
+    unsupported: 'Only Tacx NEO trainers reproduce the road surface.',
+    confirm: `Very strong road feel (${ROAD_FEEL.extremePercent}% and above): the trainer motor, the bike mount and the frame are under heavy load. Continue?`,
+  },
+};
 
 /** Réduit une suite de points (x, z, y, d) à `max` points régulièrement espacés, en entiers. */
 export function decimateRoute(pts: Array<{ x: number; z: number; y: number; d: number }>, max = PAIR_ROUTE_MAX_POINTS): number[] {

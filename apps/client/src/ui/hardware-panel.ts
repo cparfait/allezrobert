@@ -1,5 +1,7 @@
 import type { FanMode } from '@allezrobert/devices';
-import type { ExperimentalAdapters } from '@allezrobert/protocols';
+import type { ExperimentalAdapters, TacxRoadSurface } from '@allezrobert/protocols';
+import { ROAD_FEEL, ROAD_FEEL_TEXT, clampRoadFeel, roadFeelLevel } from '@allezrobert/shared';
+import { loadSettings } from './settings.ts';
 import type { HardwareApi } from '../game/devices.ts';
 import { getLang } from '../i18n/index.ts';
 import './hardware-panel.css';
@@ -16,6 +18,8 @@ const L = (f: string, e: string) => (fr() ? f : e);
 
 /** Sections ouvertes : conservées entre deux rendus (le panneau se redessine à chaque événement capteur). */
 const openSections = new Set<string>(['calib']);
+/** Section d'essai du ressenti route déjà ouverte d'office (une fois, à l'appairage du NEO). */
+let roadAutoOpened = false;
 /** Apprentissage d'une touche de télécommande en cours. */
 let learning: 'up' | 'down' | null = null;
 let learnCleanup: (() => void) | null = null;
@@ -31,6 +35,76 @@ const ADAPTERS: Array<[keyof ExperimentalAdapters, string, string]> = [
   ['antControls', 'Télécommandes ANT+ Controls', 'App Windows + clé ANT+.'],
 ];
 
+/** Motifs du Tacx NEO proposés à l'essai (le revêtement « coupé » est le bouton Arrêter). */
+const ROAD_SURFACES: Array<[Exclude<TacxRoadSurface, 'off'>, string, string]> = [
+  ['cobblestonesHard', 'Pavés durs', 'Hard cobbles'],
+  ['cobblestonesSoft', 'Pavés doux', 'Soft cobbles'],
+  ['brickRoad', 'Briques', 'Brick road'],
+  ['concretePlates', 'Plaques de béton', 'Concrete plates'],
+  ['woodenBoards', 'Planches', 'Wooden boards'],
+  ['gravel', 'Gravier', 'Gravel'],
+  ['offRoad', 'Terre', 'Dirt'],
+  ['cattleGrid', 'Grille à bétail', 'Cattle grid'],
+  ['ice', 'Glace', 'Ice'],
+];
+/** Durée d'un essai (s) avant l'arrêt automatique, et d'un motif dans l'enchaînement. */
+const ROAD_TEST_S = 15;
+const ROAD_SEQ_STEP_S = 6;
+
+/** Essai du ressenti route en cours (conservé entre deux rendus du panneau). */
+const roadTest = {
+  percent: -1,
+  surface: 'off' as TacxRoadSurface,
+  endsAt: 0,
+  sequence: false,
+  timer: undefined as ReturnType<typeof setTimeout> | undefined,
+  confirmed: false,
+};
+
+function roadName(surface: TacxRoadSurface): string {
+  const r = ROAD_SURFACES.find(([k]) => k === surface);
+  return r ? (fr() ? r[1] : r[2]) : L('Arrêt', 'Off');
+}
+
+/** Lance un motif (ou l'enchaînement) et programme la suite ; 'off' arrête l'essai. */
+function runRoadTest(api: HardwareApi, surface: TacxRoadSurface, sequence: boolean, rerender: () => void): void {
+  clearTimeout(roadTest.timer);
+  roadTest.surface = surface;
+  roadTest.sequence = sequence && surface !== 'off';
+  const stepS = roadTest.sequence ? ROAD_SEQ_STEP_S : ROAD_TEST_S;
+  roadTest.endsAt = surface === 'off' ? 0 : Date.now() + stepS * 1000;
+  void api.testRoadFeel(surface, roadTest.percent).catch((e: unknown) => alert((e as Error).message));
+  if (surface !== 'off') {
+    roadTest.timer = setTimeout(() => {
+      const i = ROAD_SURFACES.findIndex(([k]) => k === surface);
+      const next = roadTest.sequence && i >= 0 && i + 1 < ROAD_SURFACES.length ? ROAD_SURFACES[i + 1]![0] : 'off';
+      runRoadTest(api, next, roadTest.sequence, rerender);
+    }, stepS * 1000);
+  }
+  rerender();
+}
+
+function roadTestBody(api: HardwareApi): string {
+  if (roadTest.percent < 0) roadTest.percent = clampRoadFeel(loadSettings().roadFeelPercent) || ROAD_FEEL.defaultPercent;
+  const T = ROAD_FEEL_TEXT[fr() ? 'fr' : 'en'];
+  const ok = api.roadFeelSupported();
+  const level = roadFeelLevel(roadTest.percent);
+  const running = roadTest.surface !== 'off';
+  const left = Math.max(0, Math.ceil((roadTest.endsAt - Date.now()) / 1000));
+  const status = !ok
+    ? L('Connectez un home trainer Tacx NEO (Bluetooth) pour l’essai.', 'Connect a Tacx NEO trainer (Bluetooth) to test.')
+    : running
+      ? L(`Essai : ${roadName(roadTest.surface)} à ${roadTest.percent} %${roadTest.sequence ? ' (enchaînement)' : ''} · arrêt dans ${left} s.`, `Testing: ${roadName(roadTest.surface)} at ${roadTest.percent}%${roadTest.sequence ? ' (sequence)' : ''} · stops in ${left} s.`)
+      : L('Prêt. Choisissez un revêtement.', 'Ready. Pick a surface.');
+  return `<p class="hw-msg ${running ? 'requested' : ''}">${esc(status)}</p>
+    <p class="hw-hint">${L('Le NEO ne vibre que si la roue tourne : pédalez (15 km/h ou plus) pendant l’essai. Hors sortie, rien d’autre n’est envoyé au trainer.', 'The NEO only vibrates while the wheel turns: pedal (15 km/h or more) during the test.')}</p>
+    <div class="hw-grid"><label class="field">${L('Intensité de l’essai', 'Test intensity')} <span id="hw-roadv">${roadTest.percent} %</span><input id="hw-roadpct" type="range" min="5" max="${ROAD_FEEL.maxPercent}" step="5" value="${roadTest.percent}"/></label></div>
+    <p class="${level === 'extreme' ? 'hw-msg error' : level === 'strong' ? 'hw-warn' : 'hw-hint'}" id="hw-roadmsg">${esc(T[level])}</p>
+    <div class="hw-row">${ROAD_SURFACES.map(([k, f, e]) => `<button class="btn small ${roadTest.surface === k ? 'primary' : ''}" data-roadtest="${k}" ${ok ? '' : 'disabled'}>${fr() ? f : e}</button>`).join('')}</div>
+    <div class="hw-row"><button class="btn small" id="hw-roadseq" ${ok ? '' : 'disabled'}>${L(`Enchaîner les ${ROAD_SURFACES.length} revêtements (${ROAD_SEQ_STEP_S} s chacun)`, `Play all ${ROAD_SURFACES.length} surfaces (${ROAD_SEQ_STEP_S} s each)`)}</button><button class="btn small" id="hw-roadstop" ${ok && running ? '' : 'disabled'}>${L('Arrêter', 'Stop')}</button></div>
+    <p class="hw-hint">${L(`L’intensité en sortie se règle dans Réglages → Home trainer (et sur l’appli compagnon). Plafond ${ROAD_FEEL.maxPercent} %.`, `Ride intensity: Settings → Trainer (and the companion app). Capped at ${ROAD_FEEL.maxPercent}%.`)}</p>`;
+}
+
 const FAN_MODES: Array<[FanMode, string, string]> = [
   ['off', 'Arrêt', 'Off'],
   ['manual', 'Manuel', 'Manual'],
@@ -43,6 +117,10 @@ function calibrationText(api: HardwareApi): string {
   const c = api.calibration();
   const support = api.calibrationSupport();
   if (support === 'unknown') return L('Connectez d’abord le home trainer.', 'Connect the trainer first.');
+  const neo = /\bneo\b/i.test(api.details().find((d) => d.roles.includes('trainer'))?.name ?? '');
+  if (neo && (!c || c.status === 'success')) {
+    return L('Les Tacx NEO n’ont pas besoin de calibration : le moteur s’étalonne seul (le spin-down répond aussitôt « réussi »). Inutile de le lancer.', 'Tacx NEO trainers need no calibration: the motor calibrates itself (spin-down answers “successful” at once). No need to run it.');
+  }
   if (!c) {
     return support === 'unsupported'
       ? L('Ce trainer n’annonce pas le spin-down par FTMS : faites-le dans l’appli du fabricant (Wahoo : appli Wahoo → Calibration avancée).', 'This trainer does not offer FTMS spin-down: use the maker’s app.')
@@ -75,6 +153,10 @@ export function renderHardwarePanel(el: HTMLElement, api: HardwareApi): void {
   const keepId = active && el.contains(active) && active.id ? active.id : null;
   const keepVal = keepId ? active?.value : undefined;
 
+  if (!roadAutoOpened && api.roadFeelSupported()) {
+    roadAutoOpened = true;
+    openSections.add('road');
+  }
   const p = api.prefs();
   const exp = api.experimental();
   const devices = api.details();
@@ -131,6 +213,7 @@ export function renderHardwarePanel(el: HTMLElement, api: HardwareApi): void {
   el.innerHTML = `<div class="hw">
     <h3>${L('Réglages avancés', 'Advanced settings')}</h3>
     ${section('calib', L('Calibration du home trainer (spin-down)', 'Trainer calibration (spin-down)'), calib)}
+    ${section('road', L('Ressenti route (Tacx NEO) · essai', 'Road feel (Tacx NEO) · test'), roadTestBody(api))}
     ${section('fan', L('Ventilateur KICKR HEADWIND', 'KICKR HEADWIND fan'), fan)}
     ${section('shift', L('Manette, télécommande, clavier', 'Gamepad, remote, keyboard'), shifters)}
     ${section('exp', L('Adaptateurs expérimentaux (Click, Di2, HEADWIND…)', 'Experimental adapters'), adapters)}
@@ -166,6 +249,32 @@ export function renderHardwarePanel(el: HTMLElement, api: HardwareApi): void {
   el.querySelectorAll<HTMLButtonElement>('[data-fantest]').forEach((b) =>
     b.addEventListener('click', () => void api.testFan(Number(b.dataset.fantest)).catch((e: unknown) => alert((e as Error).message))),
   );
+  // Essai du ressenti route : intensité propre à l'essai (non enregistrée), confirmation au premier « très fort ».
+  q<HTMLInputElement>('#hw-roadpct')?.addEventListener('input', (e) => {
+    roadTest.percent = clampRoadFeel(Number((e.target as HTMLInputElement).value));
+    const v = q('#hw-roadv');
+    if (v) v.textContent = `${roadTest.percent} %`;
+    const lvl = roadFeelLevel(roadTest.percent);
+    const msg = q('#hw-roadmsg');
+    if (msg) {
+      msg.className = lvl === 'extreme' ? 'hw-msg error' : lvl === 'strong' ? 'hw-warn' : 'hw-hint';
+      msg.textContent = ROAD_FEEL_TEXT[fr() ? 'fr' : 'en'][lvl];
+    }
+  });
+  q<HTMLInputElement>('#hw-roadpct')?.addEventListener('change', () => {
+    if (roadFeelLevel(roadTest.percent) === 'extreme' && !roadTest.confirmed) {
+      if (confirm(ROAD_FEEL_TEXT[fr() ? 'fr' : 'en'].confirm)) roadTest.confirmed = true;
+      else roadTest.percent = ROAD_FEEL.extremePercent - 5;
+    }
+    // Essai en cours : la nouvelle intensité part tout de suite.
+    if (roadTest.surface !== 'off') void api.testRoadFeel(roadTest.surface, roadTest.percent).catch(() => undefined);
+    rerender();
+  });
+  el.querySelectorAll<HTMLButtonElement>('[data-roadtest]').forEach((b) =>
+    b.addEventListener('click', () => runRoadTest(api, b.dataset.roadtest as TacxRoadSurface, false, rerender)),
+  );
+  q('#hw-roadseq')?.addEventListener('click', () => runRoadTest(api, ROAD_SURFACES[0]![0], true, rerender));
+  q('#hw-roadstop')?.addEventListener('click', () => runRoadTest(api, 'off', false, rerender));
   q<HTMLInputElement>('#hw-pad')?.addEventListener('change', (e) => api.update((pr) => (pr.gamepad = (e.target as HTMLInputElement).checked)));
   el.querySelectorAll<HTMLButtonElement>('[data-learn]').forEach((b) =>
     b.addEventListener('click', () => {

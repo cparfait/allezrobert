@@ -173,6 +173,10 @@ div.strip.climb-s { cursor: default; }
 .cams { display: flex; flex-wrap: wrap; gap: 8px; }
 .slider { display: grid; grid-template-columns: auto 1fr 52px; align-items: center; gap: 12px; padding: 12px 14px; background: var(--panel); border-radius: var(--radius); font-weight: 600; }
 .slider output { text-align: right; font-variant-numeric: tabular-nums; color: var(--muted); }
+/* Ressenti route : message sous le curseur, jaune « fort », rouge « très fort ». */
+.road-msg { margin: -4px 2px 0; padding: 8px 12px; border-radius: var(--radius); font-size: 13px; line-height: 1.35; color: var(--muted); }
+.road-msg.strong { background: rgba(234, 179, 8, 0.15); border: 1px solid rgba(234, 179, 8, 0.4); color: #fde68a; }
+.road-msg.extreme { background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.45); color: #fecaca; }
 input[type='range'] { width: 100%; accent-color: var(--accent); height: 30px; }
 @media (orientation: landscape) and (max-height: 600px) {
   .ctrl { display: grid; grid-template-columns: 1fr 1fr; align-items: start; }

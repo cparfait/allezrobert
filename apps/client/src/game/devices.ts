@@ -17,14 +17,14 @@ import {
   type Role,
   type Transport,
 } from '@allezrobert/devices';
-import { parseAntNetworkKey, type ExperimentalAdapters } from '@allezrobert/protocols';
-import type { DeviceKind, ShiftAction, TrainerCommand, TransportKind } from '@allezrobert/shared';
+import { parseAntNetworkKey, type ExperimentalAdapters, type TacxRoadSurface } from '@allezrobert/protocols';
+import { ROAD_FEEL_SURFACE_LABEL, type DeviceKind, type ShiftAction, type TrainerCommand, type TransportKind } from '@allezrobert/shared';
 import type { DevicePanel } from '../ui/menu.ts';
 import { renderHardwarePanel } from '../ui/hardware-panel.ts';
 import { loadSettings } from '../ui/settings.ts';
 import type { InputSource, RideInputs } from './inputs.ts';
 import { loadHardwarePrefs, onHardwarePrefs, updateHardwarePrefs, type HardwarePrefs } from './hardware.ts';
-import { t } from '../i18n/index.ts';
+import { getLang, t } from '../i18n/index.ts';
 
 export interface DeviceLayer {
   panel: DevicePanel;
@@ -56,6 +56,10 @@ export interface HardwareApi {
   log(): string;
   /** Essai du ventilateur : envoie une consigne tout de suite. */
   testFan(percent: number): Promise<void>;
+  /** Le home trainer assigné reproduit-il le revêtement (Tacx NEO) ? */
+  roadFeelSupported(): boolean;
+  /** Essai du ressenti route : envoie tout de suite un motif ('off' pour arrêter). */
+  testRoadFeel(surface: TacxRoadSurface, intensityPercent: number): Promise<void>;
   onChange(cb: () => void): void;
 }
 
@@ -260,6 +264,8 @@ export function createDeviceLayer(): DeviceLayer {
     isDesktop: isTauri(),
     log: () => journal.join('\n'),
     testFan: (percent) => manager.sendFan({ kind: 'speed', percent }),
+    roadFeelSupported: () => manager.roadFeelSupported,
+    testRoadFeel: (surface, intensityPercent) => manager.setRoadFeel({ surface, intensityPercent: surface === 'off' ? 0 : intensityPercent }),
     onChange: (cb) => listeners.push(cb),
   };
 
@@ -324,6 +330,7 @@ export function createDeviceLayer(): DeviceLayer {
     selectAdapter: (id) => manager.selectAdapter(id),
     onChange: (cb) => listeners.push(cb),
     renderExtras: (el) => renderHardwarePanel(el, hardware),
+    roadFeelSupported: () => manager.roadFeelSupported,
   };
 
   return {
@@ -347,6 +354,9 @@ class ManagerInputSource implements InputSource {
   private readonly offs: Array<() => void> = [];
   private readonly shiftCbs: Array<(a: ShiftAction) => void> = [];
   private inputs: RideInputs = { watts: 0, cadence: 0, steer: 0 };
+  /** Dernier ressenti route transmis (revêtement:intensité), et ce réglage pour la puce du HUD. */
+  private roadFeelKey: string | undefined;
+  private roadFeelSent: { surface: TacxRoadSurface; intensityPercent: number } | undefined;
   private lastHrT = 0;
   private lastPowerT = 0;
   private simCheckedAt = -Infinity;
@@ -427,6 +437,19 @@ class ManagerInputSource implements InputSource {
     this.manager.setUserConfiguration({ userWeightKg: riderKg, bikeWeightKg: bikeKg });
   }
 
+  /** Ressenti route : appelé à chaque image ; on ne transmet que les changements de revêtement ou d'intensité. */
+  setRoadFeel(setting: { surface: TacxRoadSurface; intensityPercent: number }): void {
+    const key = `${setting.surface}:${setting.intensityPercent}`;
+    if (key === this.roadFeelKey || !this.manager.roadFeelSupported) return;
+    this.roadFeelKey = key;
+    this.roadFeelSent = { ...setting };
+    void this.manager.setRoadFeel({ surface: setting.surface, intensityPercent: setting.intensityPercent }).catch(() => undefined);
+  }
+
+  roadFeelSupported(): boolean {
+    return this.manager.roadFeelSupported;
+  }
+
   /** Consigne de l'appli compagnon : le ventilateur passe en manuel à ce pourcentage. */
   setFan(percent: number): void {
     updateHardwarePrefs((p) => {
@@ -450,13 +473,20 @@ class ManagerInputSource implements InputSource {
     this.offs.push(this.manager.on('warning', (w) => cb(w.message)));
   }
 
+  /** Puce du home trainer : revêtement simulé en ce moment (« · pavés 30 % »), pour voir le ressenti suivre la route. */
+  private roadFeelChip(deviceId: string): string {
+    const rf = this.roadFeelSent;
+    if (!rf || rf.surface === 'off' || this.manager.roles.trainer !== deviceId) return '';
+    return ` · ${ROAD_FEEL_SURFACE_LABEL[getLang() === 'fr' ? 'fr' : 'en'][rf.surface] ?? rf.surface} ${rf.intensityPercent} %`;
+  }
+
   status(): Array<{ label: string; state: 'ok' | 'warn' | 'off' }> {
     const list = this.manager.summaries().map((d) => {
       // État affiché en clair hors « connecté » : reconnexion, muet, erreur… visibles pendant la sortie.
       // En tête du libellé : la puce du HUD tronque la fin des noms longs.
       const st = d.state === 'connected' ? '' : `${stateLabel(d.state).toUpperCase()} · `;
       return {
-        label: `${st}${d.transport === 'simulator' ? `${t('simulator')} · ` : ''}${d.name}${d.transport === 'simulator' && d.kinds.includes('trainer') ? ` · ${this.sim.riderPowerW} W (+/−)` : ''}`,
+        label: `${st}${d.transport === 'simulator' ? `${t('simulator')} · ` : ''}${d.name}${d.transport === 'simulator' && d.kinds.includes('trainer') ? ` · ${this.sim.riderPowerW} W (+/−)` : ''}${this.roadFeelChip(d.id)}`,
         state: (d.state === 'connected' ? 'ok' : d.state === 'connecting' || d.state === 'reconnecting' || d.state === 'silent' ? 'warn' : 'off') as 'ok' | 'warn' | 'off',
       };
     });

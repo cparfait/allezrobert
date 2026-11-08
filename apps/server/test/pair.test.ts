@@ -5,7 +5,7 @@
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Client, type Room } from '@colyseus/sdk';
-import { PAIR_MSG, PAIR_ROOM, decimateRoute, type PairPresence, type PairState, type PhoneCommand } from '@allezrobert/shared';
+import { PAIR_MSG, PAIR_ROOM, ROAD_FEEL, decimateRoute, type PairPresence, type PairState, type PhoneCommand } from '@allezrobert/shared';
 import { startServer, type RunningServer } from '../src/server.ts';
 import { testConfig } from '../src/config.ts';
 
@@ -54,6 +54,10 @@ describe('salle pair', () => {
     const fan = next<PhoneCommand>(game, PAIR_MSG.cmd);
     phone.send(PAIR_MSG.cmd, { kind: 'fan', percent: 180 });
     expect(await fan).toEqual({ kind: 'fan', percent: 100 });
+    // Ressenti route : intensité plafonnée (protection du moteur du trainer).
+    const roadFeel = next<PhoneCommand>(game, PAIR_MSG.cmd);
+    phone.send(PAIR_MSG.cmd, { kind: 'roadFeel', percent: 100 });
+    expect(await roadFeel).toEqual({ kind: 'roadFeel', percent: ROAD_FEEL.maxPercent });
 
     // Recherche Spotify : relayée au jeu ; URI de lecture invalide refusée, résultats renvoyés au téléphone.
     const search = next<PhoneCommand>(game, PAIR_MSG.cmd);

@@ -34,7 +34,9 @@ import {
   encodePwrStandardPowerOnly,
   encodePwrTePs,
   encodeRequestDataPage,
+  encodeTacxNeoModes,
   fromHex,
+  TACX_ROAD_FEEL_MAX_PERCENT,
   leftBalanceFromPwr,
   parseAntDataMessage,
   parseAntNetworkKey,
@@ -156,6 +158,21 @@ describe('ANT+ FE-C', () => {
     expect(toHex(encodeFecWindResistance())).toBe('32 ff ff ff ff ff ff ff');
     expect(toHex(encodeFecUserConfiguration({ userWeightKg: 75, bikeWeightKg: 8.5, wheelDiameterM: 0.7 }))).toBe('37 4c 1d ff a0 0a 46 00');
     expect(toHex(encodeFecCalibrationRequest({ spinDown: true }))).toBe('01 80 00 00 00 00 00 00');
+  });
+
+  it('page Tacx 0xFC : ressenti route du NEO', () => {
+    // Pavés durs à 40 % : octet 5 = 3, octet 6 = 0x28.
+    expect(toHex(encodeTacxNeoModes({ roadSurface: 'cobblestonesHard', intensityPercent: 40 }))).toBe('fc 00 00 00 00 03 28 00');
+    expect(toHex(encodeTacxNeoModes({ roadSurface: 'gravel', intensityPercent: 25.4 }))).toBe('fc 00 00 00 00 07 19 00');
+    // Coupé : revêtement 0, intensité forcée à 0.
+    expect(toHex(encodeTacxNeoModes({ roadSurface: 'off', intensityPercent: 60 }))).toBe('fc 00 00 00 00 00 00 00');
+    // Intensité bornée (protection du moteur) et jamais négative.
+    expect(encodeTacxNeoModes({ roadSurface: 'woodenBoards', intensityPercent: 100 })[6]).toBe(TACX_ROAD_FEEL_MAX_PERCENT);
+    expect(encodeTacxNeoModes({ roadSurface: 'ice', intensityPercent: -5 })[6]).toBe(0);
+    // Isocinétique 6 m/s → 120 = 0x78.
+    expect(toHex(encodeTacxNeoModes({ roadSurface: 'off', isokineticSpeedMs: 6 }))).toBe('fc 00 01 78 00 00 00 00');
+    // Message ANT complet (canal 5, acquitté) tel qu'envoyé sur 6e40fec3.
+    expect(toHex(antAcknowledgedData(5, encodeTacxNeoModes({ roadSurface: 'cobblestonesHard', intensityPercent: 40 }))).slice(0, 35)).toBe('a4 09 4f 05 fc 00 00 00 00 03 28 00');
   });
 
   it('pages 1 et 2 côté trainer : réponse et calibration en cours (spin-down)', () => {

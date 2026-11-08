@@ -341,6 +341,53 @@ export function encodeFecCalibrationRequest(p: { spinDown?: boolean; zeroOffset?
   return Uint8Array.of(0x01, flags, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00);
 }
 
+// --- Extension Tacx : ressenti route du NEO ------------------------------------------------
+
+/**
+ * Revêtements simulés par le moteur des Tacx NEO (« Road Feel »), octet 5 de la page 0xFC.
+ * Valeurs reprises de pycycling (`RoadSurface`, testé sur un NEO).
+ */
+export const TACX_ROAD_SURFACE = {
+  off: 0,
+  concretePlates: 1,
+  cattleGrid: 2,
+  cobblestonesHard: 3,
+  cobblestonesSoft: 4,
+  brickRoad: 5,
+  offRoad: 6,
+  gravel: 7,
+  ice: 8,
+  woodenBoards: 9,
+} as const;
+export type TacxRoadSurface = keyof typeof TACX_ROAD_SURFACE;
+
+/** Page propriétaire Tacx « NEO modes » (0xFC), envoyée en message acquitté comme les pages 48–51. */
+export const TACX_NEO_MODES_PAGE = 0xfc;
+
+/** Intensité maximale envoyée (%). pycycling : 50 % se sent déjà fort, 100 % n'est pas testé et risquerait d'abîmer le trainer. */
+export const TACX_ROAD_FEEL_MAX_PERCENT = 80;
+
+export interface TacxNeoModes {
+  roadSurface: TacxRoadSurface;
+  /** Intensité du revêtement, 0–100 % (bornée à TACX_ROAD_FEEL_MAX_PERCENT). Ignorée revêtement coupé. */
+  intensityPercent?: number;
+  /** Mode isocinétique (vitesse imposée), 4,2–8,4 m/s, résolution 0,05 m/s. Absent = coupé. */
+  isokineticSpeedMs?: number;
+}
+
+/**
+ * Page 0xFC — NEO modes (Tacx) : octet 1 réservé (0), octet 2 = mode isocinétique (1 = actif),
+ * octet 3 = vitesse isocinétique / 0,05 m/s, octet 4 réservé (0), octet 5 = revêtement,
+ * octet 6 = intensité en %, octet 7 réservé (0). Disposition reprise de pycycling (`set_neo_modes`).
+ */
+export function encodeTacxNeoModes(m: TacxNeoModes): Uint8Array {
+  const surface = TACX_ROAD_SURFACE[m.roadSurface];
+  const intensity = surface === 0 ? 0 : clamp(Math.round(m.intensityPercent ?? 0), 0, TACX_ROAD_FEEL_MAX_PERCENT);
+  const iso = m.isokineticSpeedMs === undefined ? 0 : 1;
+  const isoSpeed = m.isokineticSpeedMs === undefined ? 0 : clamp(Math.round(m.isokineticSpeedMs / 0.05), 84, 168);
+  return Uint8Array.of(TACX_NEO_MODES_PAGE, 0x00, iso, isoSpeed, 0x00, surface, intensity, 0x00);
+}
+
 function encodeTemperature(c: number | undefined): number {
   return c === undefined ? 0xff : clamp(Math.round((c + 25) * 2), 0, 0xfe);
 }

@@ -10,7 +10,7 @@
  */
 import { CloseCode, Room, ServerError, type Client } from '@colyseus/core';
 import { z } from 'zod';
-import { PAIR_MAX_PHONES, PAIR_MSG, PAIR_TOKEN_RE, SPOTIFY_URI_RE, type PairPresence, type PairRole, type PhoneCommand } from '@allezrobert/shared';
+import { PAIR_MAX_PHONES, PAIR_MSG, PAIR_TOKEN_RE, SPOTIFY_URI_RE, clampRoadFeel, type PairPresence, type PairRole, type PhoneCommand } from '@allezrobert/shared';
 
 const finite = z.number().refine(Number.isFinite, 'nombre fini attendu');
 
@@ -27,6 +27,7 @@ const PhoneCommandSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('resume') }),
   z.object({ kind: z.literal('camera'), camera: z.enum(['chase', 'cockpit', 'action', 'gopro', 'drone', 'tv', 'photo']) }),
   z.object({ kind: z.literal('fan'), percent: finite.transform((v) => Math.min(Math.max(Math.round(v), 0), 100)) }),
+  z.object({ kind: z.literal('roadFeel'), percent: finite.transform(clampRoadFeel) }),
   z.object({ kind: z.literal('rideOn'), to: z.string().min(1).max(40) }),
   z.object({ kind: z.literal('chat'), text: z.string().trim().min(1).max(280) }),
   z.object({ kind: z.literal('turn'), delta: z.union([z.literal(-1), z.literal(1)]).optional(), index: z.number().int().min(0).max(16).optional() }),

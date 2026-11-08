@@ -1,6 +1,7 @@
 import { workoutStudioHtml } from './workoutStudio.ts';
 import { crossedArmsSrc } from './waitBike.ts';
 import type { AvatarLook, CosmeticItem, RouteData, RouteSegment, WorldCatalogue } from '@allezrobert/shared';
+import { ROAD_FEEL, ROAD_FEEL_TEXT, clampRoadFeel, roadFeelLevel } from '@allezrobert/shared';
 import { GRAPHIC_STYLE, setGraphicStyle, type GraphicStyle } from '../engine/style.ts';
 import { readKomRecord } from '../game/challenge.ts';
 import { COUNTRIES, BIKE_BRANDS, BIKE_GROUPS, BIKE_TEAMS, COSMETICS, DEFAULT_BIKE, bikeById, routesForBike, mirrorStartM, rankRouteId, lookSex, tuneItem, withSex, bottleCapacity, bikeSetupFor, jerseyLookOf, helmetLookOf, glassesLookOf, levelProgress, SHOE_MARKS, equippedTuneIds, trainerOf, type BikeCollection, type BikeType, type CapLook, type CosmeticSlot } from '@allezrobert/shared';
@@ -74,6 +75,8 @@ export interface DevicePanel {
   onChange(cb: () => void): void;
   /** Réglages avancés du matériel (calibration, ventilateur, adaptateurs, journal) : ui/hardware-panel.ts. */
   renderExtras?(el: HTMLElement): void;
+  /** Le home trainer assigné reproduit-il le revêtement (Tacx NEO) ? Bouton d'essai sur sa tuile. */
+  roadFeelSupported?(): boolean;
 }
 
 export interface MenuCallbacks {
@@ -89,6 +92,19 @@ type Tab = 'home' | 'ride' | 'friends' | 'garage' | 'progress' | 'devices' | 'pr
 type Role = Parameters<DevicePanel['pair']>[0];
 
 const fr = () => getLang() === 'fr';
+
+/** Ressenti route : valeur affichée à côté du curseur. */
+function roadFeelValue(percent: number, L: boolean): string {
+  return percent > 0 ? `${percent} %` : L ? 'Coupé' : 'Off';
+}
+
+/** Ressenti route : message sous le curseur, en alerte à partir du seuil « fort » (id m-roadfeelmsg). */
+function roadFeelMessage(percent: number, L: boolean): string {
+  const T = ROAD_FEEL_TEXT[L ? 'fr' : 'en'];
+  const level = roadFeelLevel(percent);
+  const cls = level === 'extreme' ? 'warning mm-roadfeel-extreme' : level === 'strong' ? 'warning' : 'mm-hint';
+  return `<p id="m-roadfeelmsg" class="${cls}">${esc(T[level])} ${esc(T.unsupported)}</p>`;
+}
 
 /** Pictogrammes (traits, couleur héritée). */
 const svg = (d: string, size = 22) =>
@@ -2381,7 +2397,9 @@ export class MainMenu {
           ['1', '3 s'],
         ])}</div>
         <label class="field" title="${L ? 'Le coureur se met en danseuse au-delà de cette puissance (en plus du sprint, des côtes et des efforts en force). Auto : règles seules.' : 'The rider stands up above this power (on top of sprints, climbs and low-cadence efforts). Auto: rules only.'}">${L ? 'Danseuse au-delà de' : 'Stand up above'} <span id="m-standv">${s.standWatts ? `${s.standWatts} W` : 'Auto'}</span><input id="m-stand" type="range" min="0" max="1200" step="25" value="${s.standWatts}" /></label>
-      </div>`;
+        <label class="field" title="${esc(ROAD_FEEL_TEXT[L ? 'fr' : 'en'].unsupported)}">${ROAD_FEEL_TEXT[L ? 'fr' : 'en'].title} <span id="m-roadfeelv">${roadFeelValue(s.roadFeelPercent, L)}</span><input id="m-roadfeel" type="range" min="0" max="${ROAD_FEEL.maxPercent}" step="5" value="${s.roadFeelPercent}" /></label>
+      </div>
+      ${roadFeelMessage(s.roadFeelPercent, L)}`;
     const lang = `<div class="grid3">
         <div class="field">${t('language')}${this.seg('m-lang', s.lang, [
           ['fr', 'Français'],
@@ -2612,10 +2630,13 @@ export class MainMenu {
     const tile = ([role, k, sub]: [Role, I18nKey, string]) => {
       const ds = list.filter((d) => d.roleIds?.includes(role));
       const ok = ds.some((d) => d.ok);
+      // Tacx NEO appairé : essai du ressenti route accessible tout de suite depuis la tuile.
+      const roadTest = role === 'trainer' && ok && this.devices.roadFeelSupported?.() ? `<button class="mm-link" data-roadtest-open>${L ? 'Tester le ressenti route' : 'Test road feel'}</button>` : '';
       return `<div class="mm-dev ${ok ? 'ok' : ds.length ? 'pending' : ''}">
         <div class="mm-dev-ico">${ICON[role as keyof typeof ICON] ?? ''}</div>
         <div class="mm-dev-body"><b>${esc(t(k))}</b>
           ${ds.length ? ds.map((d) => `<span class="mm-dev-name">${esc(d.name)} · ${esc(d.state)}${d.detail ? ` · ${esc(d.detail)}` : ''} <button class="mm-link" data-forget="${esc(d.id)}">${L ? 'oublier' : 'forget'}</button></span>`).join('') : `<span>${esc(sub)}</span>`}
+          ${roadTest}
         </div>
         <button class="btn small ${ok ? '' : 'primary'}" data-pair="${role}">${ok ? (L ? 'Changer' : 'Change') : L ? 'Associer' : 'Pair'}</button>
       </div>`;
@@ -2652,6 +2673,12 @@ export class MainMenu {
       }),
     );
     box.querySelectorAll<HTMLButtonElement>('[data-forget]').forEach((b) => b.addEventListener('click', () => this.devices.forget(b.dataset.forget as string)));
+    box.querySelector('[data-roadtest-open]')?.addEventListener('click', () => {
+      const sec = box.querySelector<HTMLDetailsElement>('details[data-sec="road"]');
+      if (!sec) return;
+      sec.open = true;
+      sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
     (box.querySelector('#m-guest') as HTMLInputElement).addEventListener('change', (e) => {
       this.s.guest = (e.target as HTMLInputElement).checked;
       saveSettings(this.s);
@@ -3664,6 +3691,25 @@ export class MainMenu {
     );
     on<HTMLSelectElement>('m-smooth', 'change', (el) => {
       s.smoothing3s = el.value === '1';
+      changed();
+    });
+    // Ressenti route : valeur et message d'alerte suivent le curseur ; confirmation au premier passage en « très fort ».
+    let roadFeelConfirmed = roadFeelLevel(s.roadFeelPercent) === 'extreme';
+    on<HTMLInputElement>('m-roadfeel', 'input', (el) => {
+      s.roadFeelPercent = clampRoadFeel(Number(el.value));
+      const v = document.getElementById('m-roadfeelv');
+      if (v) v.textContent = roadFeelValue(s.roadFeelPercent, fr());
+      const msg = document.getElementById('m-roadfeelmsg');
+      if (msg) msg.outerHTML = roadFeelMessage(s.roadFeelPercent, fr());
+    });
+    on<HTMLInputElement>('m-roadfeel', 'change', (el) => {
+      const extreme = roadFeelLevel(s.roadFeelPercent) === 'extreme';
+      if (extreme && !roadFeelConfirmed && !confirm(ROAD_FEEL_TEXT[fr() ? 'fr' : 'en'].confirm)) {
+        s.roadFeelPercent = ROAD_FEEL.extremePercent - 5;
+        el.value = String(s.roadFeelPercent);
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+      roadFeelConfirmed = roadFeelLevel(s.roadFeelPercent) === 'extreme';
       changed();
     });
     on<HTMLInputElement>('m-stand', 'input', (el) => {

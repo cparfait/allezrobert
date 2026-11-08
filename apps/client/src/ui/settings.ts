@@ -1,4 +1,4 @@
-import { DEFAULT_LOOK, migrateBikeId, type AvatarLook, type RideMode } from '@allezrobert/shared';
+import { DEFAULT_LOOK, ROAD_FEEL, migrateBikeId, type AvatarLook, type RideMode } from '@allezrobert/shared';
 import type { QualityLevel } from '../engine/quality.ts';
 import type { Season } from '../world/environment.ts';
 import type { Lang } from '../i18n/index.ts';
@@ -47,6 +47,8 @@ export interface Settings {
   /** Source de puissance de référence quand pédales et trainer sont présents. */
   powerSource: 'pedals' | 'trainer';
   smoothing3s: boolean;
+  /** Ressenti route du home trainer (Tacx NEO), intensité en % (0 = coupé, plafond ROAD_FEEL.maxPercent). */
+  roadFeelPercent: number;
   /** Danseuse au-delà de cette puissance (W) ; 0 : automatique (sprint, côte, force). */
   standWatts: number;
   /** Invité sans matériel : puissance virtuelle au clavier / à la manette. */
@@ -104,6 +106,7 @@ export const DEFAULT_SETTINGS: Settings = {
   groupTargetKmh: 0,
   powerSource: 'pedals',
   smoothing3s: false,
+  roadFeelPercent: ROAD_FEEL.defaultPercent,
   standWatts: 0,
   guest: false,
   inertia: 1,

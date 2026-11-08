@@ -12,7 +12,7 @@
  */
 import './style.css';
 import { Client, type Room } from '@colyseus/sdk';
-import { rideOnMessage, climbAhead, climbElevation, gradeColor, PAIR_MSG, PAIR_ROOM, PAIR_TOKEN_RE, type CameraMode, type Climb, type ClimbAhead, type PairEvent, type PairMusicItem, type PairPresence, type PairRoute, type PairState, type PhoneCommand } from '@allezrobert/shared';
+import { rideOnMessage, climbAhead, climbElevation, gradeColor, PAIR_MSG, PAIR_ROOM, PAIR_TOKEN_RE, ROAD_FEEL, ROAD_FEEL_SURFACE_LABEL, ROAD_FEEL_TEXT, roadFeelLevel, type CameraMode, type Climb, type ClimbAhead, type PairEvent, type PairMusicItem, type PairPresence, type PairRoute, type PairState, type PhoneCommand } from '@allezrobert/shared';
 import { detectLang, STRINGS, type Lang } from './i18n.ts';
 import { climbsOf } from './climbs.ts';
 import { drawClimb, drawMap, drawProfile, RouteGeo } from './map.ts';
@@ -669,12 +669,35 @@ function ctrlHtml(): string {
     <h2>${esc(t.camera)}</h2>
     <div class="cams">${CAMERAS.map((c) => `<button class="seg" data-cam="${c}">${esc(t.cameras[c])}</button>`).join('')}</div>
     <label class="slider"><span>${esc(t.fan)}</span><input type="range" min="0" max="100" step="5" value="${st.fanPercent ?? 0}" id="c-fan"/><output id="c-fanv">${st.fanPercent ?? 0} %</output></label>
+    ${roadFeelHtml(st)}
     ${
       st.team
         ? `<h2>${esc(t.team)} <small id="c-grp-pace"></small></h2><div class="grp"><div class="grp-radar"><i class="grp-track"></i><div id="c-grp-dots"></div><i class="grp-me"></i></div><div class="grp-scale"><span>${esc(t.groupBehind)}</span><span>${esc(t.groupYou)}</span><span>${esc(t.groupAhead)}</span></div></div><div class="row3"><button class="btn big" data-cmd="pace-down">${esc(t.paceDown)}</button><button class="btn big" data-cmd="slowdown">${esc(t.slowDown)}</button><button class="btn big" data-cmd="pace-up">${esc(t.paceUp)}</button></div><div class="row3"><button class="btn big" data-cmd="waitme">${esc(t.waitMe)}</button><button class="btn big" data-cmd="formation">${esc(t.formation)}</button></div>`
         : ''
     }
   </section>`;
+}
+
+/** Ressenti route du home trainer : valeur affichée (0 = coupé). */
+function roadFeelValue(percent: number): string {
+  return percent > 0 ? `${percent} %` : lang === 'fr' ? 'Coupé' : 'Off';
+}
+
+/** Ressenti route : message sous le curseur, alerte jaune « fort », rouge « très fort ». */
+function roadFeelMsgHtml(percent: number, supported: boolean, surface = 'off'): string {
+  const T = ROAD_FEEL_TEXT[lang];
+  const level = roadFeelLevel(percent);
+  // Revêtement simulé en ce moment : on voit le ressenti suivre la route.
+  const now = supported && percent > 0 ? ` <b>${lang === 'fr' ? 'En ce moment' : 'Now'} : ${esc(ROAD_FEEL_SURFACE_LABEL[lang][surface] ?? surface)}.</b>` : '';
+  return `<p id="c-roadmsg" class="road-msg ${level}">${esc(T[level])}${supported ? '' : ` ${esc(T.unsupported)}`}${now}</p>`;
+}
+
+/** Ressenti route : curseur (Tacx NEO) et son message d'alerte, dans l'onglet Pilotage. */
+function roadFeelHtml(st: PairState): string {
+  const rf = st.roadFeel;
+  if (!rf) return '';
+  return `<label class="slider"><span>${esc(ROAD_FEEL_TEXT[lang].title)}</span><input type="range" min="0" max="${ROAD_FEEL.maxPercent}" step="5" value="${rf.percent}" id="c-road"/><output id="c-roadv">${roadFeelValue(rf.percent)}</output></label>
+    ${roadFeelMsgHtml(rf.percent, rf.supported, rf.surface)}`;
 }
 
 function updateCtrl(st: PairState): void {
@@ -711,6 +734,14 @@ function updateCtrl(st: PairState): void {
     fan.value = String(st.fanPercent);
     const out = document.getElementById('c-fanv');
     if (out) out.textContent = `${st.fanPercent} %`;
+  }
+  const road = document.getElementById('c-road') as HTMLInputElement | null;
+  if (road && st.roadFeel && document.activeElement !== road && Date.now() - roadTouched > 1500) {
+    road.value = String(st.roadFeel.percent);
+    const out = document.getElementById('c-roadv');
+    if (out) out.textContent = roadFeelValue(st.roadFeel.percent);
+    const msg = document.getElementById('c-roadmsg');
+    if (msg) msg.outerHTML = roadFeelMsgHtml(st.roadFeel.percent, st.roadFeel.supported, st.roadFeel.surface);
   }
 }
 
@@ -757,6 +788,7 @@ function musicSearch(query: string): void {
 
 let volTouched = 0;
 let fanTouched = 0;
+let roadTouched = 0;
 
 function updateMusic(): void {
   const mu = S.st?.music;
@@ -987,6 +1019,14 @@ app.addEventListener('input', (e) => {
     if (out) out.textContent = `${percent} %`;
     clearTimeout(fanTimer);
     fanTimer = setTimeout(() => send({ kind: 'fan', percent }), 150);
+  } else if (el.id === 'c-road') {
+    // Ressenti route : valeur et alerte suivent le doigt ; l'envoi attend le lâcher (événement « change »).
+    roadTouched = Date.now();
+    const percent = Number(el.value);
+    const out = document.getElementById('c-roadv');
+    if (out) out.textContent = roadFeelValue(percent);
+    const msg = document.getElementById('c-roadmsg');
+    if (msg) msg.outerHTML = roadFeelMsgHtml(percent, S.st?.roadFeel?.supported ?? true);
   } else if (el.id === 'mu-vol') {
     volTouched = Date.now();
     const volume = Number(el.value);
@@ -995,6 +1035,21 @@ app.addEventListener('input', (e) => {
     clearTimeout(volTimer);
     volTimer = setTimeout(() => send({ kind: 'music', action: 'volume', volume }), 120);
   }
+});
+
+// Ressenti route : envoyé au lâcher du curseur ; premier passage en « très fort » confirmé.
+app.addEventListener('change', (e) => {
+  const el = e.target as HTMLInputElement;
+  if (el.id !== 'c-road') return;
+  roadTouched = Date.now();
+  let percent = Number(el.value);
+  const before = roadFeelLevel(S.st?.roadFeel?.percent ?? 0);
+  if (roadFeelLevel(percent) === 'extreme' && before !== 'extreme' && !confirm(ROAD_FEEL_TEXT[lang].confirm)) {
+    percent = ROAD_FEEL.extremePercent - 5;
+    el.value = String(percent);
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+  send({ kind: 'roadFeel', percent });
 });
 
 app.addEventListener('submit', (e) => {

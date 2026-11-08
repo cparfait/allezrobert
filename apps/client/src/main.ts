@@ -1,7 +1,7 @@
 import './net/desktopAuth.ts';
 import './hud/hud.css';
 import * as THREE from 'three/webgpu';
-import { rideOnMessage, snapToRoad, DEFAULT_LOOK, RouteTrack, decimateRoute, rankRouteId, type PairState, type PhoneCommand, bikeOfLook, type AvatarLook, bikeSetupFor, weatherAt, weatherElapsedS, weatherSeed, worldToWgs84, type RideWeather, type RiderProfile, type RouteData } from '@allezrobert/shared';
+import { rideOnMessage, snapToRoad, DEFAULT_LOOK, RouteTrack, decimateRoute, rankRouteId, ROAD_FEEL_TEXT, clampRoadFeel, roadFeelLevel, type PairState, type PhoneCommand, bikeOfLook, type AvatarLook, bikeSetupFor, weatherAt, weatherElapsedS, weatherSeed, worldToWgs84, type RideWeather, type RiderProfile, type RouteData } from '@allezrobert/shared';
 import { createEngine, type Engine } from './engine/renderer.ts';
 import { QUALITY_PRESETS, withUrlOverrides, type QualitySettings } from './engine/quality.ts';
 import { detectHardwareQuality } from './engine/autoQuality.ts';
@@ -12,6 +12,7 @@ import { GltfRiderAvatar, createAvatar } from './rider/gltfAvatar.ts';
 import { CROWD_FAMILIES, onBikeFamilyLoaded } from './rider/bikes.ts';
 import { CameraRig } from './game/cameras.ts';
 import { buzzLevel } from './game/roadBuzz.ts';
+import { roadFeelFor } from './game/roadFeel.ts';
 import { FreeFlyCamera } from './game/freecam.ts';
 import { RideSession } from './game/ride.ts';
 import { KeyboardControls, type InputSource } from './game/inputs.ts';
@@ -1440,6 +1441,9 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     playIntro();
   }
   // Montée : annonce de chaque lacet numéroté ; arrivée au sommet d'un itinéraire aller simple.
+  // Ressenti route du home trainer : motif envoyé à l'image en cours (montré au compagnon), alerte « très fort » déjà donnée.
+  let roadFeelNow: ReturnType<typeof roadFeelFor>['surface'] = 'off';
+  let roadFeelWarned = false;
   const hairpins = new HairpinWatcher(nav ? undefined : track.route.hairpins);
   let summitShown = false;
   const reachSummit = () => {
@@ -1451,6 +1455,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     ride.paused = true;
     hud.setVisible(false);
     input.sendTrainer({ kind: 'simulation', gradePercent: 0 });
+    input.setRoadFeel?.({ surface: 'off', intensityPercent: 0 });
     const kom = ride.segmentResults.filter((r) => r.seg.kind === 'kom').at(-1);
     const stats = summitStats({
       elapsedS: ride.elapsedS,
@@ -1529,6 +1534,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     tutorial?.stop();
     audio.dispose();
     input.sendTrainer({ kind: 'simulation', gradePercent: 0 });
+    input.setRoadFeel?.({ surface: 'off', intensityPercent: 0 });
     const url = new URL(location.href);
     if (autostart) url.searchParams.set('autostart', '1');
     else {
@@ -1542,6 +1548,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     ride.paused = true;
     hud.setVisible(false);
     input.sendTrainer({ kind: 'simulation', gradePercent: 0 });
+    input.setRoadFeel?.({ surface: 'off', intensityPercent: 0 });
     const done = { distanceM: ride.state.distM - startD, elevationM: ride.elevationGainM, movingS: ride.elapsedS };
     // Invité : ni XP compétitive, ni segments, ni FIT.
     const xp = s.guest
@@ -1941,6 +1948,15 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     const prevD = ride.state.distM;
     // Ligne franchie en course : plus de pédalage, le coureur roule sur sa lancée.
     ride.update(dt, room?.finished ? coastInput : input, steer);
+    // Ressenti route du home trainer (Tacx NEO) : motif du revêtement sous les roues, coupé en pause, à l'arrêt et après l'arrivée.
+    const feel = roadFeelFor({ osmSurface: ride.surface, percent: s.roadFeelPercent, riding: !ride.paused && !room?.finished, speedMs: ride.state.speedMs });
+    roadFeelNow = feel.surface;
+    input.setRoadFeel?.(feel);
+    if (!roadFeelWarned && roadFeelLevel(s.roadFeelPercent) === 'extreme' && input.roadFeelSupported?.()) {
+      // Alerte une fois par sortie : intensité très forte réglée et trainer capable.
+      roadFeelWarned = true;
+      hud.toast(`${ROAD_FEEL_TEXT[getLang() === 'fr' ? 'fr' : 'en'].title} ${clampRoadFeel(s.roadFeelPercent)} % · ${ROAD_FEEL_TEXT[getLang() === 'fr' ? 'fr' : 'en'].extreme}`);
+    }
     lap('physique');
     // Jeu chargé : arrivée annoncée aux autres. Monde ouvert : à la première image où l'on roule (le serveur place alors
     // le coureur dans la roue de son ami) ; sortie de groupe / course : dès la première image, salon d'attente compris.
@@ -2361,6 +2377,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
       pos: { x: pos.x, z: pos.z, heading: Number.isFinite(prevHeading) ? prevHeading : 0 },
       camera: rig.mode === 'free' ? 'chase' : rig.mode,
       ...(fanPercent !== undefined ? { fanPercent } : {}),
+      roadFeel: { percent: clampRoadFeel(s.roadFeelPercent), supported: input.roadFeelSupported?.() ?? false, surface: roadFeelNow },
       hudVisible: hud.visible,
       muted: audio.isMuted(),
       lookBack: rig.lookBack,
@@ -2398,6 +2415,18 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
         fanPercent = c.percent;
         input.setFan?.(c.percent);
         break;
+      case 'roadFeel': {
+        // Réglage depuis le téléphone : enregistré comme dans les réglages ; alerte en jeu au-delà du seuil « fort ».
+        const before = roadFeelLevel(s.roadFeelPercent);
+        s.roadFeelPercent = clampRoadFeel(c.percent);
+        saveSettings(s);
+        const level = roadFeelLevel(s.roadFeelPercent);
+        if (level !== before && (level === 'strong' || level === 'extreme')) {
+          const L = ROAD_FEEL_TEXT[getLang() === 'fr' ? 'fr' : 'en'];
+          hud.toast(`${L.title} ${s.roadFeelPercent} % · ${L[level]}`);
+        }
+        break;
+      }
       case 'chat':
         mp?.net.chat(c.text);
         break;

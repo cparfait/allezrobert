@@ -11,7 +11,7 @@ import type {
   TrainerCommand,
   TransportKind,
 } from '@allezrobert/shared';
-import type { AntPlusProfileName, ExperimentalAdapters } from '@allezrobert/protocols';
+import type { AntPlusProfileName, ExperimentalAdapters, TacxRoadSurface } from '@allezrobert/protocols';
 import type { Clock } from './clock.ts';
 
 // --- Liaison GATT abstraite (Web Bluetooth, btleplug, Direct Connect, simulateur) ---------
@@ -184,6 +184,21 @@ export interface TrainerControl {
   send(command: TrainerCommand): Promise<void>;
   readonly lastCommand: TrainerCommand | undefined;
   readonly hasControl: boolean;
+}
+
+/** Réglage du ressenti route : revêtement simulé et intensité (%). */
+export interface RoadFeelSetting {
+  surface: TacxRoadSurface;
+  intensityPercent: number;
+}
+
+/** Ressenti route (Tacx NEO : le moteur fait vibrer le vélo selon le revêtement). */
+export interface RoadFeelControl {
+  setRoadFeel(setting: RoadFeelSetting): Promise<void>;
+  /** Dernier réglage demandé (renvoyé après une reconnexion). */
+  readonly roadFeel: RoadFeelSetting | undefined;
+  /** Faux quand le profil sait le faire mais pas sur cette liaison (FE-C par ANT+). Absent = disponible. */
+  readonly roadFeelAvailable?: boolean;
 }
 
 export interface FanControl {
