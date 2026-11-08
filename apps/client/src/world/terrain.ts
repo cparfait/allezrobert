@@ -1,5 +1,5 @@
 import * as THREE from 'three/webgpu';
-import { texture, uv, normalWorld, positionWorld, mix, smoothstep, vec2, vec3, float, uniform, mx_noise_float, clamp, cameraPosition } from 'three/tsl';
+import { texture, uv, normalWorld, positionWorld, mix, smoothstep, vec2, vec3, float, uniform, mx_noise_float, clamp, cameraPosition, mx_worley_noise_float, positionView, normalView, faceDirection, Fn, If, vec4, dot } from 'three/tsl';
 import type { QualitySettings } from '../engine/quality.ts';
 import { colorUniform } from '../engine/tsl.ts';
 import { cloudShade } from './clouds.ts';
@@ -60,6 +60,21 @@ const FINE_LOD = -1;
 const FINE_CELL_M = 4;
 const FINE_REACH_M = 350;
 
+/**
+ * Détail procédural du sol proche (P2.1b, expérimental) : grain, mottes, litière et microrelief tirés de
+ * bruits, fondus avec la distance. Coupé par défaut ; `?grounddetail=1` l'active, en style réaliste et pour
+ * les mondes de GROUND_DETAIL_WORLDS seulement. Coupé, le matériau du terrain est exactement celui d'avant
+ * (aucun nœud de shader ajouté).
+ */
+const GROUND_DETAIL_REQUESTED = (() => {
+  try {
+    return typeof location !== 'undefined' && new URLSearchParams(location.search).get('grounddetail') === '1';
+  } catch {
+    return false;
+  }
+})();
+const GROUND_DETAIL_WORLDS = new Set(['billom']);
+
 /** Durée de vie d'une tuile décodée en cache : l'URL de son orthophoto est libérée 2 min après le téléchargement. */
 const CACHE_MS = 90_000;
 /** Nombre maximal de tuiles décodées gardées en cache. */
@@ -114,9 +129,12 @@ export class TerrainManager {
   /** `alive()` : faux dès que la tuile est déchargée (ou rechargée), pour les constructions différées. */
   onTileLoaded?: (tile: LoadedTile, alive: () => boolean) => void;
   onTileUnloaded?: (tile: LoadedTile) => void;
+  /** Détail procédural du sol proche actif (voir GROUND_DETAIL_REQUESTED). */
+  private readonly groundDetail: boolean;
 
   constructor(source: WorldSource, q: QualitySettings, season: Season) {
     this.source = source;
+    this.groundDetail = GROUND_DETAIL_REQUESTED && !LOW_POLY && GROUND_DETAIL_WORLDS.has(source.id);
     this.q = q;
     this.group.name = 'terrain';
     const alp = alpineProfile(source.id);
@@ -623,6 +641,11 @@ export class TerrainManager {
       .mul(float(1).sub(roadMask))
       .max(ice.mul(smoothstep(line.sub(400), line, alt)));
     col = col.mul(detail);
+    // Détail du sol proche (?grounddetail=1, Billom) : rien n'est construit quand il est coupé.
+    const gd = this.groundDetail
+      ? groundDetail({ forest: s0.r, field: s0.g, meadow: s0.b, water: s0.a, urban: s1.r, road: roadMask, slope, rock: rockMask, snow, ice, camDist })
+      : null;
+    if (gd) col = col.mul(gd.tint);
     // Pluie : sol plus sombre ; givre : voile clair sur les surfaces planes.
     col = col.mul(float(1).sub(this.wetness.mul(0.35)));
     col = mix(col, vec3(0.86, 0.9, 0.93), this.frost.mul(smoothstep(0.85, 0.98, normalWorld.y)).mul(n2));
@@ -630,7 +653,9 @@ export class TerrainManager {
     // Ombres des nuages qui passent (clouds.ts).
     m.colorNode = col.mul(cloudShade());
     const rough = mix(float(0.95), float(ROAD_FX ? 0.92 : 0.55), roadMask);
-    m.roughnessNode = clamp(rough.sub(this.wetness.mul(0.45)).sub(s0.a.mul(0.6)).sub(ice.mul(0.4)).sub(snow.mul(0.25)), 0.08, 1);
+    const roughness = clamp(rough.sub(this.wetness.mul(0.45)).sub(s0.a.mul(0.6)).sub(ice.mul(0.4)).sub(snow.mul(0.25)), 0.08, 1);
+    m.roughnessNode = gd ? clamp(roughness.add(gd.rough), 0.08, 1) : roughness;
+    if (gd) m.normalNode = gd.normal;
     m.metalnessNode = float(0);
     return m;
   }
@@ -694,6 +719,129 @@ export class TerrainManager {
  * Sol à 4 cm sous la chaussée. Tunnel : sol à plus de 2,5 m au-dessus de la route sur l'axe même (le
  * générateur ne creuse pas les tunnels, il creuse les tranchées), ou à défaut plus de 5 m au sommet.
  */
+type GF = THREE.Node<'float'>;
+type GV3 = THREE.Node<'vec3'>;
+
+/** Masques du matériau du terrain utiles au détail du sol proche (0–1, sauf `camDist` en m). */
+interface GroundMasks {
+  forest: GF;
+  field: GF;
+  meadow: GF;
+  water: GF;
+  urban: GF;
+  road: GF;
+  slope: GF;
+  rock: GF;
+  snow: GF;
+  ice: GF;
+  camDist: GF;
+}
+
+/**
+ * Détail procédural du sol proche (P2.1b) : teinte multiplicative de moyenne ≈ 1 (la couleur de saison et
+ * l'orthophoto gardent la main), décalage de rugosité et normale perturbée par un microrelief (mottes,
+ * litière, cailloux). Quatre bruits par pixel : trois de Perlin (≈ 2,2 m, 60 cm, 12 cm) et un de Worley
+ * (≈ 31 cm). Chaque échelle s'efface avant de grésiller : 12 cm de 10 à 32 m, 31 et 60 cm de 22 à 70 m,
+ * l'ensemble de 40 à 110 m. Les motifs non linéaires s'effacent vers leur valeur moyenne (pas de bande plus
+ * claire ou plus sombre au fondu). Au-delà de 110 m, la teinte vaut exactement 1 et la normale celle du
+ * maillage. Rien sur la chaussée, l'eau, la neige ni la glace. Les bruits ne sont évalués que dans un bloc
+ * conditionnel (moins de 110 m, hors chaussée, eau et neige) : le terrain lointain ne paie que les masques.
+ */
+function groundDetail(p: GroundMasks): { tint: GV3; rough: GF; normal: GV3 } {
+  const wp = positionWorld.xz;
+  const one = float(1);
+  // Fondus par échelle : plus le motif est fin, plus tôt il s'efface (au-delà, il grésillerait).
+  const fineK = one.sub(smoothstep(5, 14, p.camDist));
+  const cellK = one.sub(smoothstep(12, 40, p.camDist));
+  const midK = one.sub(smoothstep(20, 60, p.camDist));
+  const nearK = one.sub(smoothstep(40, 110, p.camDist));
+  // Poids des matières (la chaussée, l'eau, la neige et la glace n'en reçoivent pas).
+  const keep = one.sub(p.road).mul(one.sub(p.water)).mul(one.sub(p.snow.max(p.ice)));
+  const strength = nearK.mul(keep);
+  const wForest = p.forest;
+  // Bruits calculés seulement là où le détail se voit (moins de 110 m, hors chaussée, eau et neige) : le reste du
+  // terrain (lointain compris) ne paie que les masques ci-dessus. Résultat : teinte (rgb) et hauteur (w).
+  const packed = Fn(() => {
+    const out = vec4(1, 1, 1, 0).toVar();
+    If(strength.greaterThan(0.001), () => {
+      out.assign(groundDetailCore(p, wp, fineK, cellK, midK, nearK, keep, strength));
+    });
+    return out;
+  })();
+  const tint = packed.xyz as unknown as GV3;
+  const h = packed.w;
+  // Rugosité : creux sombres un peu plus rugueux, paille claire un peu moins, litière légèrement plus lisse.
+  const lum = dot(tint, vec3(0.299, 0.587, 0.114));
+  const rough = clamp(one.sub(lum).mul(0.35), -0.05, 0.06).sub(wForest.mul(0.03).mul(strength)) as unknown as GF;
+
+  // Normale par les dérivées écran de la hauteur (Mikkelsen, « surface gradient » non normalisé : la pente suit
+  // la hauteur en mètres, quelle que soit la distance). Hors du bloc conditionnel (dérivées en flot uniforme).
+  const sx = positionView.dFdx();
+  const sy = positionView.dFdy();
+  const r1 = sy.cross(normalView);
+  const r2 = normalView.cross(sx);
+  const det = sx.dot(r1).mul(faceDirection);
+  const grad = det.sign().mul(r1.mul(h.dFdx()).add(r2.mul(h.dFdy())));
+  const normal = det.abs().mul(normalView).sub(grad).normalize() as unknown as GV3;
+  return { tint, rough, normal };
+}
+
+/** Teinte (rgb) et hauteur du microrelief en mètres (w) du sol proche, voir groundDetail. */
+function groundDetailCore(p: GroundMasks, wp: THREE.Node<'vec2'>, fineK: GF, cellK: GF, midK: GF, nearK: GF, keep: GF, strength: GF): THREE.Node<'vec4'> {
+  const one = float(1);
+  // Bruits bruts, centrés sur 0 (≈ ±0,5), et distance au germe de Worley le plus proche.
+  const nA = mx_noise_float(wp.mul(0.45));
+  const nB = mx_noise_float(wp.mul(1.7));
+  const nC = mx_noise_float(wp.mul(20));
+  const cell = mx_worley_noise_float(wp.mul(3.2));
+  // Termes linéaires fondus vers 0, motifs seuillés fondus vers leur moyenne.
+  const fA = nA.mul(nearK);
+  const fB = nB.mul(midK);
+  const fC = nC.mul(fineK);
+  // Bosse au germe (motte, touffe de feuilles, caillou), creux entre deux germes, brins de chaume.
+  const clod = one.sub(smoothstep(0.05, 0.55, cell)).sub(0.4).mul(cellK);
+  const gap = mix(float(0.3), smoothstep(0.45, 0.8, cell), cellK);
+  const speck = mix(float(0.5), smoothstep(-0.2, 0.2, nC.add(nB.mul(0.3))), fineK);
+
+  const wForest = p.forest;
+  const wField = p.field.mul(one.sub(p.meadow)).mul(one.sub(p.forest));
+  const wMineral = smoothstep(0.3, 0.55, p.slope).mul(0.6).max(p.rock).mul(one.sub(p.forest));
+  const wMeadow = clamp(one.sub(wForest).sub(wField).sub(wMineral), 0, 1);
+  const wSum = wForest.add(wField).add(wMineral).add(wMeadow).max(1e-3);
+
+  // Champs : brins de chaume clairs sur terre brune, creux sombres entre les mottes, nuances de 60 cm et 2 m
+  // (moyenne ≈ 0,93 : un peu plus de terre que de paille, ce qui ôte l'aspect de sable uni).
+  const field = mix(vec3(0.86, 0.83, 0.8), vec3(1.1, 1.1, 1.08), speck)
+    .mul(one.sub(gap.mul(0.16)))
+    .mul(fB.mul(0.14).add(1))
+    .mul(fA.mul(0.08).add(1));
+  // Prés et bas-côtés : taches vert tendre et herbe sèche de 2 m, grain fin.
+  const meadow = mix(vec3(0.93, 1.05, 0.92), vec3(1.07, 0.99, 0.88), mix(float(0.5), smoothstep(-0.3, 0.3, nA), nearK))
+    .mul(fB.mul(0.1).add(fC.mul(0.08)).add(1))
+    .mul(one.sub(gap.mul(0.08)));
+  // Sous-bois : litière brune (feuilles, brindilles) sur l'humus, plutôt qu'un aplat gris-vert.
+  const litter = mix(float(0.5), smoothstep(-0.25, 0.25, nB.add(clod.mul(0.8))), midK);
+  const forest = mix(vec3(0.8, 0.8, 0.78), vec3(1.2, 1.08, 0.92), litter)
+    .mul(fC.mul(0.1).add(1))
+    .mul(one.sub(gap.mul(0.1)));
+  // Terre et pierre des pentes : cailloux clairs, grain fin.
+  const mineral = vec3(1, 1, 1).mul(clod.mul(0.25).add(fC.mul(0.12)).add(1)).mul(one.sub(gap.mul(0.1)));
+  let t = forest.mul(wForest).add(field.mul(wField)).add(mineral.mul(wMineral)).add(meadow.mul(wMeadow)).div(wSum);
+  // Jardins et cours des zones bâties : grain discret seulement.
+  t = mix(t, vec3(1, 1, 1).mul(fB.mul(0.06).add(1)), p.urban.mul(0.55));
+  const tint = vec3(1, 1, 1).add(t.sub(1).mul(strength));
+
+  // Microrelief (m) : hauteurs par matière.
+  const h = wField
+    .mul(clod.mul(0.03).sub(gap.mul(0.012)).add(fB.mul(0.01)).add(fC.mul(0.006)))
+    .add(wMeadow.mul(fA.mul(0.012).add(fB.mul(0.008)).add(fC.mul(0.006))))
+    .add(wForest.mul(clod.mul(0.022).add(fB.mul(0.01)).add(fC.mul(0.007))))
+    .add(wMineral.mul(clod.mul(0.035).sub(gap.mul(0.01)).add(fB.mul(0.012)).add(fC.mul(0.008))))
+    .div(wSum)
+    .mul(keep);
+  return vec4(tint, h) as unknown as THREE.Node<'vec4'>;
+}
+
 const ROAD_TERRAIN_BELOW = 0.04;
 const ROAD_TUNNEL_AXIS = 2.5;
 const ROAD_TUNNEL_COVER = 5;
