@@ -3,6 +3,7 @@ import type { Season } from './environment.ts';
 import { snowCoverAt } from './alpine.ts';
 import { splatCell } from './splat.ts';
 import type { LoadedTile } from './types.ts';
+import { drawnRoads, roadClearance } from './roadAvoid.ts';
 
 /** Rayon (m) de l'herbe autour du coureur. */
 export const GRASS_RADIUS = 60;
@@ -16,6 +17,105 @@ export interface GrassEnv {
   /** Vrai sur la chaussée : pas d'herbe. */
   avoid: (x: number, z: number) => boolean;
   season: Season;
+  /** Herbe des champs cultivés éclaircie (P2.1c, voir fieldGrassDensity) ; absent : `?grassfields=1`. */
+  grassFields?: boolean;
+}
+
+/**
+ * P2.1c (expérimental) : dans les champs cultivés, l'herbe n'est plus semée comme sur une pelouse. Coupé par
+ * défaut ; `?grassfields=1` l'active. Limite : l'interrupteur vaut pour tous les mondes quand on l'active
+ * explicitement (le placement ne connaît pas le monde chargé) ; seul Billom est validé.
+ */
+const GRASS_FIELDS_REQUESTED = (() => {
+  try {
+    return typeof location !== 'undefined' && new URLSearchParams(location.search).get('grassfields') === '1';
+  } catch {
+    return false;
+  }
+})();
+/** Densité plancher dans un champ (quelques touffes isolées, jamais une surface vide). */
+export const FIELD_GRASS_MIN = 0.02;
+/** Supplément dans les taches enherbées (bruit de 25 m et de 7 m). */
+export const FIELD_GRASS_PATCH = 0.3;
+/** Supplément en tournière et en lisière de parcelle (cellule voisine hors champ). */
+export const FIELD_GRASS_EDGE = 0.25;
+/** Bas-côtés : densité d'origine gardée jusqu'à VERGE_KEEP_M du bord de chaussée, fondue sur VERGE_FADE_M. */
+export const VERGE_KEEP_M = 3;
+export const VERGE_FADE_M = 2;
+
+/** Hachage entier d'une maille (0–1), le même sur toutes les machines. */
+function hash2(ix: number, iz: number): number {
+  let h = Math.imul(ix | 0, 0x27d4eb2d) ^ Math.imul(iz | 0, 0x165667b1);
+  h = Math.imul(h ^ (h >>> 15), 0x85ebca6b);
+  h = Math.imul(h ^ (h >>> 13), 0xc2b2ae35);
+  return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+}
+
+/** Bruit de valeur (0–1), interpolation lissée entre les nœuds d'une grille unité. */
+function valueNoise(x: number, z: number): number {
+  const ix = Math.floor(x);
+  const iz = Math.floor(z);
+  const fx = x - ix;
+  const fz = z - iz;
+  const sx = fx * fx * (3 - 2 * fx);
+  const sz = fz * fz * (3 - 2 * fz);
+  const a = hash2(ix, iz);
+  const b = hash2(ix + 1, iz);
+  const c = hash2(ix, iz + 1);
+  const d = hash2(ix + 1, iz + 1);
+  return a + (b - a) * sx + (c - a) * sz + (a - b - c + d) * sx * sz;
+}
+
+function smoothstep(e0: number, e1: number, v: number): number {
+  const t = Math.min(1, Math.max(0, (v - e0) / (e1 - e0)));
+  return t * t * (3 - 2 * t);
+}
+
+/** Taches enherbées d'un champ (0–1) : bruit de 25 m (65 %) et de 7 m (35 %), seuillé (≈ un cinquième de la surface). */
+export function fieldGrassPatch(x: number, z: number): number {
+  return smoothstep(0.55, 0.85, valueNoise(x / 25, z / 25) * 0.65 + valueNoise(x / 7, z / 7) * 0.35);
+}
+
+/**
+ * Densité de l'herbe là où il y a du champ (P2.1c). `old` : densité d'origine du point ; `field` : part de champ
+ * du pixel ; `edge` : lisière (0–1, cellule voisine hors champ) ; `roadEdgeM` : distance au bord de la chaussée
+ * dessinée la plus proche (m, Infinity si aucune). Dans un champ pur : de FIELD_GRASS_MIN à environ 0,57 selon
+ * taches et lisière, jamais plus que `old` ; la part non champ du pixel et les bas-côtés gardent `old`.
+ */
+export function fieldGrassDensity(old: number, field: number, patch: number, edge: number, roadEdgeM: number): number {
+  if (old <= 0 || field < 0.05) return old;
+  const inField = Math.min(old, FIELD_GRASS_MIN + FIELD_GRASS_PATCH * patch + FIELD_GRASS_EDGE * edge);
+  const fieldPart = old + (inField - old) * Math.min(field, 1);
+  const verge = 1 - smoothstep(VERGE_KEEP_M, VERGE_KEEP_M + VERGE_FADE_M, roadEdgeM);
+  return fieldPart + (old - fieldPart) * verge;
+}
+
+/** Distance (m) au bord de la chaussée dessinée la plus proche, Infinity au-delà de 12 m ; index par tuile en cache. */
+const roadEdges = new WeakMap<LoadedTile, (x: number, z: number) => { d: number } | null>();
+function roadEdgeDistance(tile: LoadedTile, x: number, z: number): number {
+  let f = roadEdges.get(tile);
+  if (!f) {
+    // Mêmes routes que le réseau dessiné d'un monde ouvert (pistes cyclables comprises), bord = demi-largeur + accotement.
+    f = roadClearance(drawnRoads(tile.features.roads ?? [], true));
+    roadEdges.set(tile, f);
+  }
+  return f(x, z)?.d ?? Number.POSITIVE_INFINITY;
+}
+
+/** Lisière d'un champ (0–1) : une des quatre cellules voisines du raster (≈ 4 m) n'est pas du champ. */
+function fieldEdge(tile: LoadedTile, data: Uint8Array, x: number, z: number): number {
+  const step = tile.size / (tile.splat as { res: number }).res;
+  let e = 0;
+  for (const [dx, dz] of [
+    [step, 0],
+    [-step, 0],
+    [0, step],
+    [0, -step],
+  ] as const) {
+    const c = splatCell(tile, x + dx, z + dz);
+    if (c >= 0) e = Math.max(e, 1 - (data[c + 1] as number) / 255);
+  }
+  return e;
 }
 
 /** Touffes d'un bloc du monde, dans l'ordre des tirages. */
@@ -94,6 +194,7 @@ export function generateGrassBlock(bx: number, bz: number, tries: number, env: G
     scratchXz = new Float64Array(tries * 2);
   }
   const r = rng(((bx * 73856093) ^ (bz * 19349663)) | 0);
+  const fields = env.grassFields ?? GRASS_FIELDS_REQUESTED;
   let n = 0;
   let complete = true;
   // La tuile change rarement d'un essai à l'autre (un bloc fait 12 m, une tuile 1 km).
@@ -138,6 +239,9 @@ export function generateGrassBlock(bx: number, bz: number, tries: number, env: G
     // Style jeu vidéo : marge plus large autour des routes OSM (rien ne dépasse sur l'enrobé).
     const density = road > 0.12 || water > 0.3 || rock > 0.2 || sand > 0.3 ? 0 : 0.35 + meadow * 0.65 - forest * 0.25 + field * 0.1 + verge * 0.8;
     if (uDensity > density) continue;
+    // Champs cultivés (P2.1c) : densité réduite, calculée seulement pour les essais que l'ancienne règle accepte
+    // (même tirage, aucun nombre aléatoire de plus : le bloc reste identique d'une regénération à l'autre).
+    if (fields && d && field >= 0.05 && uDensity > fieldGrassDensity(density, field, fieldGrassPatch(x, z), fieldEdge(tile, d, x, z), roadEdgeDistance(tile, x, z))) continue;
     if (env.avoid(x, z)) continue;
     const y = env.heightAt(x, z);
     if (!Number.isFinite(y)) {
