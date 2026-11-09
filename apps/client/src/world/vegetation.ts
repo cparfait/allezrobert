@@ -1,5 +1,5 @@
 import * as THREE from 'three/webgpu';
-import { attribute, positionLocal, positionWorld, time, sin, vec3, float, uniform, mix, instanceIndex, hash, color, smoothstep, varying, floor, step, dot, fract } from 'three/tsl';
+import { attribute, positionLocal, positionWorld, time, sin, cos, vec2, vec3, vec4, float, uniform, mix, instanceIndex, hash, color, smoothstep, varying, floor, step, dot, fract, select, Fn, If, cameraPosition, mx_noise_float, positionPrevious, positionView, normalView, faceDirection, varyingProperty } from 'three/tsl';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import type { QualitySettings } from '../engine/quality.ts';
 import { colorUniform, type Vec3Node } from '../engine/tsl.ts';
@@ -11,6 +11,7 @@ import type { Season } from './environment.ts';
 import { drawnRoads, roadAvoidance, roadClearance, type AvoidRoad } from './roadAvoid.ts';
 import { shrubGeometry, shrubMaterial } from './trees.ts';
 import { alpineProfile, coniferBiasAt, larchShareAt, treeDensityAt, treeScaleAt } from './alpine.ts';
+import { CONIF_CROWN_BASE, CONIF_RADIUS, CONIF_TOP, DECID_FRAC, DECID_TOP, coniferRadius, coniferShare, crownFit, insideShare, neighbourCounts, openness } from './treeShape.ts';
 import { LOW_POLY } from '../engine/style.ts';
 
 /** Couleurs de feuillage par saison (feuillus) — palettes de ART_DIRECTION.md. */
@@ -59,6 +60,32 @@ const REAL_CHUNK = 125;
 /** Végétation réelle : arbres détaillés et ombres jusqu'à REAL_NEAR, silhouettes au-delà, buissons masqués après REAL_MID. */
 const REAL_NEAR = 160;
 const REAL_MID = 700;
+
+/**
+ * Arbres LiDAR plus crédibles (P2.3b-1, expérimental) : amas de feuillage proches (A), proportions des houppiers (B),
+ * conifères selon les forêts de résineux OSM (C). Coupé par défaut ; `?trees=1` l'active, en style réaliste et pour
+ * les mondes de TREES_WORLDS seulement. `?treesteps=a|ab|abc|…` (mesures) choisit les étapes, toutes par défaut.
+ * Coupé, la végétation est exactement celle d'avant (mêmes objets, matériaux et matrices).
+ */
+const TREES_PARAMS = (() => {
+  try {
+    if (typeof location === 'undefined') return null;
+    const u = new URLSearchParams(location.search);
+    if (u.get('trees') !== '1') return null;
+    const st = (u.get('treesteps') ?? 'abc').toLowerCase();
+    return { a: st.includes('a'), b: st.includes('b'), c: st.includes('c') };
+  } catch {
+    return null;
+  }
+})();
+const TREES_WORLDS = new Set(['billom']);
+/**
+ * Mode arbres : chaque instance de feuillu (blocs et silhouettes) porte trois paramètres dans `instanceColor` (le
+ * matériau annule la multiplication de couleur de three.js) : x = 200 + A (descente du houppier, voir treeShape.ts) ou
+ * 300 + échelle verticale pour un conifère des silhouettes lointaines ; y, z = position du pied + TREE_POS_OFFSET
+ * (toujours positive : jamais de division par zéro).
+ */
+const TREE_POS_OFFSET = 20000;
 
 /** Rapport hauteur / rayon de houppier au-delà duquel un arbre réel est élancé (peuplier, jeune arbre). */
 const SLENDER = 4.2;
@@ -247,6 +274,28 @@ function coniferGeometry(lod: number): THREE.BufferGeometry {
   return mergeGeometries(parts, false) as THREE.BufferGeometry;
 }
 
+/**
+ * Mode arbres : conifère existant recalé pour les arbres LiDAR — même sommet (CONIF_TOP) à tous les niveaux de
+ * détail (le LOD2 montait à 14 m, le LOD1 à 11,6 m : saut de hauteur à la bascule) et houppier descendu à
+ * CONIF_CROWN_BASE (fût nu de 30 % au lieu de 40 %). Mêmes triangles, simple déplacement des sommets.
+ */
+function treesConiferGeometry(lod: number): THREE.BufferGeometry {
+  const g = coniferGeometry(lod);
+  const pos = g.getAttribute('position');
+  const leaf = g.getAttribute('leaf');
+  let top = 0;
+  for (let i = 0; i < pos.count; i++) top = Math.max(top, pos.getY(i));
+  const base = 5;
+  for (let i = 0; i < pos.count; i++) {
+    const y = pos.getY(i);
+    if (leaf.getX(i) > 0.5) pos.setY(i, CONIF_TOP - ((top - y) * (CONIF_TOP - CONIF_CROWN_BASE)) / (top - base));
+    else pos.setY(i, (y * (CONIF_CROWN_BASE + 2)) / 7);
+  }
+  pos.needsUpdate = true;
+  g.computeBoundingSphere();
+  return g;
+}
+
 interface Chunk {
   key: string;
   tileId: string;
@@ -304,11 +353,24 @@ export class Vegetation {
   /** Monde : penchant régional pour les conifères et limite des arbres (voir alpine.ts). */
   private regional: (x: number, z: number) => number = () => 0;
   private treelineM = alpineProfile('').treelineM;
+  /** Mode arbres (P2.3b-1) : étapes actives, null = coupé (rendu d'origine). */
+  readonly trees: { a: boolean; b: boolean; c: boolean } | null = null;
+  /** Mode arbres : matériau des feuillus LiDAR (paramètres par instance) et conifères recalés. */
+  private treesMat: THREE.MeshStandardNodeMaterial | null = null;
+  private treesConif: THREE.BufferGeometry[] | null = null;
+  /** Chargement des tuiles réelles (mesures) : nombre, temps total et maximal (ms), arbres posés par espèce. */
+  readonly realStats = { tiles: 0, ms: 0, maxMs: 0, decid: 0, conif: 0 };
 
   /** Règles propres au monde chargé (à fixer avant le chargement des tuiles). */
   setWorld(id: string): void {
     this.regional = REGIONAL_CONIFERS[id] ?? (() => 0);
     this.treelineM = alpineProfile(id).treelineM;
+    const trees = TREES_PARAMS && !LOW_POLY && TREES_WORLDS.has(id) ? TREES_PARAMS : null;
+    (this as { trees: typeof trees }).trees = trees;
+    if (trees && !this.treesMat) {
+      this.treesMat = this.treesMaterial(trees);
+      this.treesConif = [0, 1, 2].map(treesConiferGeometry);
+    }
   }
 
   constructor(q: QualitySettings, season: Season, heightAt: (x: number, z: number) => number, avoid: (x: number, z: number) => boolean, avoidReal: (x: number, z: number) => boolean = avoid, routeRoads: AvoidRoad[] = []) {
@@ -332,18 +394,29 @@ export class Vegetation {
     this.setSeason(season);
   }
 
-  private materialFor(kind: Kind): THREE.MeshStandardNodeMaterial {
+  private materialFor(kind: Kind, mesh?: THREE.InstancedMesh): THREE.MeshStandardNodeMaterial {
     // Style jeu vidéo : les buissons sont des feuillus à facettes (même matériau, pas de cartes de feuilles).
     if (kind === 'shrub') return LOW_POLY ? this.mats.decid : this.shrubMat;
+    // Mode arbres : feuillus LiDAR porteurs de paramètres par instance.
+    if (kind === 'decid' && mesh?.instanceColor && this.treesMat) return this.treesMat;
     return this.mats[kind];
   }
 
   /** Géométrie et matériau d'un bloc selon le niveau de détail (null = masqué). */
   private applyLod(kind: Kind, mesh: THREE.InstancedMesh, lod: number): void {
-    const geo = this.geos[kind][lod] ?? null;
-    mesh.visible = geo !== null;
+    const conifNear = !!mesh.userData.treesConif;
+    const geo = (conifNear && this.treesConif ? this.treesConif : this.geos[kind])[lod] ?? null;
+    // Mode arbres : le modèle de conifère ne sert qu'au LOD0 ; plus loin, le bloc feuillu dessine ses conifères en
+    // cônes (paramètre x : 300 + échelle = cône, 600 + échelle = masqué).
+    mesh.visible = geo !== null && (!conifNear || lod === 0);
+    const conifIdx = mesh.userData.conifIdx as number[] | undefined;
+    if (conifIdx && mesh.instanceColor) {
+      const a = mesh.instanceColor.array as Float32Array;
+      for (const k of conifIdx) a[k * 3] = (((a[k * 3] as number) - 300) % 300) + (lod === 0 ? 600 : 300);
+      mesh.instanceColor.needsUpdate = true;
+    }
     if (geo) mesh.geometry = geo;
-    mesh.material = this.materialFor(kind);
+    mesh.material = this.materialFor(kind, mesh);
     mesh.castShadow = lod === 0;
     mesh.receiveShadow = lod === 0;
     mesh.computeBoundingSphere();
@@ -421,6 +494,151 @@ export class Vegetation {
     return m;
   }
 
+  /**
+   * Mode arbres (P2.3b-1) : matériau des feuillus LiDAR, blocs et silhouettes de tuile. Mêmes vent, saisons, rameaux
+   * d'hiver et contre-jour que `material('decid')`, plus, selon les étapes :
+   * - B : houppier descendu vers le sol (sommet fixe : hauteur LiDAR conservée), bosses et léger penché propres à
+   *   chaque arbre, tronc aminci (il grossissait avec la largeur du houppier) ;
+   * - C : conifères des silhouettes lointaines (le feuillu LOD2 prend la forme d'un cône, couleurs persistantes) ;
+   * - A : amas de feuillage sous 150 m (relief par la normale, creux plus sombres, nuances de teinte), en coordonnées
+   *   du modèle : le motif suit l'arbre, sans grésillement quand la caméra bouge. Au-delà, rien n'est évalué.
+   * Les paramètres par arbre viennent d'`instanceColor` (voir TREE_POS_OFFSET) ; la couleur est divisée par
+   * `instanceColor` pour annuler la multiplication automatique de three.js. La teinte de chaque arbre est tirée de sa
+   * position (et non de son rang dans le bloc) : elle ne change plus entre bloc et silhouette ni au rechargement.
+   */
+  private treesMaterial(steps: { a: boolean; b: boolean; c: boolean }): THREE.MeshStandardNodeMaterial {
+    const m = new THREE.MeshStandardNodeMaterial();
+    const leaf = attribute<'float'>('leaf').min(1);
+    const shade = attribute<'float'>('shade');
+    const raw = attribute<'vec3'>('position');
+    // Paramètres de l'instance (attribut d'instance, assigné par three.js avant positionNode).
+    const ic = varyingProperty('vec3', 'vInstanceColor') as unknown as THREE.Node<'vec3'>;
+    const tx = ic.y.sub(TREE_POS_OFFSET);
+    const tz = ic.z.sub(TREE_POS_OFFSET);
+    const isCon = steps.c ? step(250, ic.x) : float(0);
+    // Graine de l'arbre tirée de sa position (petites valeurs : le hash TSL dégénère sur les grandes coordonnées).
+    const cellT = floor(vec2(tx, tz)).mod(1024);
+    const seed = fract(sin(dot(cellT, vec2(12.9898, 78.233))).mul(43758.5453));
+    const seed2 = fract(seed.mul(7.13).add(0.37));
+
+    // Vent : identique au matériau d'origine (phase par arbre tirée de la graine stable).
+    const y = raw.y.max(0);
+    const gust = sin(time.mul(0.35).add(seed.mul(6.28))).mul(0.5).add(0.5);
+    const bend = y.mul(y).mul(0.0012).mul(this.windStrength);
+    const osc = sin(time.mul(float(1.3).add(seed2.mul(0.6))).add(seed.mul(40)));
+    const along = bend.mul(gust.mul(0.7).add(0.3)).mul(osc.mul(0.45).add(0.75));
+    const across = bend.mul(sin(time.mul(0.9).add(seed.mul(17)))).mul(0.25);
+    const flutter = sin(time.mul(7).add(raw.x.mul(3)).add(raw.z.mul(2))).mul(0.03).mul(leaf).mul(this.windStrength);
+    const wd = this.windDir;
+    let offset: THREE.Node<'vec3'> = vec3(wd.x.mul(along).sub(wd.y.mul(across)).add(flutter), 0, wd.y.mul(along).add(wd.x.mul(across)).add(flutter.mul(0.5)));
+
+    let staticDec: THREE.Node<'vec3'> | null = null;
+    if (steps.b || steps.c) {
+      // Vecteur horizontal pied → sommet du gabarit, en mètres monde (rotation et échelle de l'instance comprises).
+      const rel = positionLocal.xz.sub(vec2(tx, tz));
+      const rawR = raw.xz.length().max(0.04);
+      const sxz = rel.length().div(rawR);
+      let dec: THREE.Node<'vec3'> = vec3(0, 0, 0);
+      if (steps.b) {
+        // Houppier : y' = haut − (haut − y)·k, en mètres monde A·(haut − y) avec A = échelle verticale × (1 − k).
+        const a = ic.x.sub(200);
+        const dy = a.mul(float(DECID_TOP).sub(raw.y)).mul(leaf);
+        // Bosses (± 10 % du rayon, propres à l'arbre) et léger penché du houppier (≤ 0,35 m), feuillage seulement.
+        const lobe = sin(raw.x.mul(0.55).add(seed.mul(31))).mul(cos(raw.z.mul(0.5).sub(seed.mul(17)))).mul(0.09).add(sin(raw.y.mul(0.7).add(seed2.mul(9))).mul(0.04));
+        const lean = smoothstep(DECID_TOP * 0.38, DECID_TOP, raw.y).mul(0.35).mul(seed2);
+        const leanDir = vec2(cos(seed.mul(18.85)), sin(seed.mul(18.85)));
+        // Tronc : rayon ramené vers ≈ 0,9 / √(échelle horizontale) (il grossissait avec la largeur du houppier).
+        const tf = float(0.9).div(sxz.max(0.2).sqrt()).clamp(0.5, 1.1);
+        const dxz = rel.mul(lobe.mul(leaf)).add(leanDir.mul(lean.mul(leaf))).add(rel.mul(tf.sub(1)).mul(float(1).sub(leaf)));
+        dec = vec3(dxz.x, dy, dxz.y);
+      }
+      if (steps.c) {
+        // Conifère des silhouettes (gabarit feuillu LOD2 : boule de centre 7,6 m, rayon 4,2 m, aplatie à 0,82) remis en
+        // cône : moitié basse → disque de base, moitié haute → flanc ; tronc ramené sous le houppier.
+        const hidden = step(550, ic.x);
+        const syc = ic.x.sub(300).sub(hidden.mul(300));
+        const d = vec3(raw.x, raw.y.sub(7.6).div(0.82), raw.z).normalize();
+        const up = d.y.max(0);
+        const yNew = select(d.y.lessThan(0), float(CONIF_CROWN_BASE).add(d.y.mul(0.5)), float(CONIF_CROWN_BASE).add(up.mul(CONIF_TOP - CONIF_CROWN_BASE)));
+        const rNew = select(d.y.lessThan(0), d.xz.length().mul(CONIF_RADIUS), float(1).sub(up).mul(CONIF_RADIUS)).add(0.15);
+        const yWood = raw.y.mul((CONIF_CROWN_BASE + 1) / 5.5);
+        const yC = mix(yWood, yNew, leaf);
+        const rFactor = mix(float(0.7), rNew.div(rawR), leaf);
+        const con = mix(vec3(rel.x.mul(rFactor.sub(1)), syc.mul(yC.sub(raw.y)), rel.y.mul(rFactor.sub(1))), vec3(rel.x.negate(), syc.mul(raw.y).negate(), rel.y.negate()), hidden);
+        dec = mix(dec, con, isCon) as unknown as THREE.Node<'vec3'>;
+      }
+      offset = offset.add(dec);
+      // Déformation fixe : reportée sur la position de l'image précédente, sinon les vecteurs de mouvement (TRAA)
+      // voient bouger un arbre immobile et le feuillage grésille caméra arrêtée.
+      staticDec = dec;
+    }
+    const finalOffset = offset;
+    const prevDec = staticDec;
+    m.positionNode = Fn((builder: THREE.NodeBuilder) => {
+      if (prevDec && (builder as unknown as { needsPreviousData(): boolean }).needsPreviousData()) positionPrevious.addAssign(prevDec);
+      return positionLocal.add(finalOffset);
+    })();
+
+    // Rameaux d'hiver ajourés (feuillus seulement), comme le matériau d'origine.
+    const cellW = floor(positionWorld.mul(5)).mod(1024);
+    const twig = step(0.38, fract(sin(dot(cellW, vec3(12.9898, 78.233, 37.719))).mul(43758.5453)));
+    const leafV = varying(leaf);
+    const isConV = varying(isCon);
+    m.opacityNode = mix(float(1), mix(twig, float(1), this.leafAmount), leafV.mul(float(1).sub(isConV)));
+    m.alphaTest = 0.5;
+
+    // Couleur par arbre (graine stable), écorce gris-brun un peu plus claire que l'ancien brun presque noir.
+    const wood = color('#574b40');
+    const decidCol = mix(mix(this.leafA.node, this.leafB.node, smoothstep(0.2, 0.8, seed)), this.leafC.node, smoothstep(0.65, 0.95, seed2));
+    const conifCol = mix(color('#2f4a2c'), color('#3d5a33'), seed);
+    const leafCol = mix(decidCol, conifCol, isCon);
+    const col = mix(wood, leafCol, leaf).mul(shade).mul(seed2.mul(0.25).add(0.85));
+
+    let tint: THREE.Node<'vec3'> = vec3(1, 1, 1);
+    if (steps.a) {
+      const rawV = varying(raw);
+      const seedV = varying(seed);
+      const camDist = positionWorld.sub(cameraPosition).length();
+      const nearK = float(1).sub(smoothstep(110, 150, camDist));
+      const fineK = float(1).sub(smoothstep(15, 40, camDist));
+      const packed = Fn(() => {
+        const out = vec4(1, 1, 1, 0).toVar();
+        If(nearK.greaterThan(0.001).and(leafV.greaterThan(0.5)).and(isConV.lessThan(0.5)), () => {
+          // Amas (≈ 1,2 m) : bruit de gradient seuillé, en dômes arrondis séparés de creux ; sous-amas (≈ 0,6 m)
+          // évalués sous 40 m seulement. Deux bruits par pixel (les cellules de Worley 3D en coûtaient 54).
+          const q = rawV.mul(1.0).add(seedV.mul(37));
+          const n1 = mx_noise_float(q);
+          const n2 = float(0).toVar();
+          If(fineK.greaterThan(0.001), () => {
+            n2.assign(mx_noise_float(q.mul(2.3).add(5.3)).mul(fineK));
+          });
+          const clump = smoothstep(-0.25, 0.3, n1.mul(0.8).add(n2.mul(0.35)));
+          // Creux plus sombres, cœurs d'amas un peu plus clairs et plus chauds (moyenne ≈ 1 : pas de saut au fondu).
+          const cav = clump.sub(0.5).mul(0.55).add(1);
+          const hue = vec3(n1.mul(0.04).add(1), n1.mul(0.015).add(1), n1.mul(-0.05).add(1));
+          out.assign(vec4(mix(vec3(1, 1, 1), hue.mul(cav), nearK), clump.mul(0.3).mul(nearK)));
+        });
+        return out;
+      })();
+      tint = packed.xyz as unknown as THREE.Node<'vec3'>;
+      // Normale par les dérivées écran de la hauteur des amas (comme le sol proche, hors du bloc conditionnel).
+      const h = packed.w;
+      const sx = positionView.dFdx();
+      const sy = positionView.dFdy();
+      const r1 = sy.cross(normalView);
+      const r2 = normalView.cross(sx);
+      const det = sx.dot(r1).mul(faceDirection);
+      const grad = det.sign().mul(r1.mul(h.dFdx()).add(r2.mul(h.dFdy())));
+      m.normalNode = det.abs().mul(normalView).sub(grad).normalize();
+    }
+    // three.js multiplie la couleur par instanceColor (nos paramètres) : on l'annule.
+    m.colorNode = varying(col).mul(tint).div(ic);
+    m.roughnessNode = float(0.9);
+    m.metalnessNode = float(0);
+    m.outputNode = backlitOutput(varying(leafCol.mul(shade)) as unknown as Vec3Node, leafV);
+    return m;
+  }
+
   /** Distance (m) jusqu'à laquelle la végétation réelle est détaillée (préréglage graphique). */
   private get realMid(): number {
     return this.q.vegDetailM || REAL_MID;
@@ -439,7 +657,9 @@ export class Vegetation {
    * à la largeur de son houppier, haies et buissons ; aucun semis aléatoire.
    */
   private addRealTile(tile: LoadedTile): void {
+    const t0 = performance.now();
     const f = tile.features;
+    const T = this.trees;
     // Les arbres mesurés au LiDAR peuvent surplomber n'importe quelle route : aucun tronc sur la chaussée
     // d'une route ou d'une piste dessinée (l'itinéraire actif est déjà exclu par avoidReal).
     const onRoad = roadAvoidance(drawnRoads(f.roads ?? []));
@@ -448,6 +668,9 @@ export class Vegetation {
     // Taille des blocs d'instanciation selon la qualité : plus grands, moins d'appels de dessin.
     const chunkM = this.q.realChunk || REAL_CHUNK;
     const per = new Map<string, Map<Kind, THREE.Matrix4[]>>();
+    // Mode arbres : paramètres par instance des feuillus (blocs) et des silhouettes, dans l'ordre des matrices.
+    const perParams = new Map<string, number[]>();
+    const farParams: number[] = [];
     const m = new THREE.Matrix4();
     const qn = new THREE.Quaternion();
     const up = new THREE.Vector3(0, 1, 0);
@@ -461,10 +684,18 @@ export class Vegetation {
       if (!list) b.set(kind, (list = []));
       list.push(m.clone());
     };
+    const pushParams = (x: number, z: number, a: number, x1: number, z1: number) => {
+      const key = `${Math.floor(x / chunkM)}_${Math.floor(z / chunkM)}`;
+      let list = perParams.get(key);
+      if (!list) perParams.set(key, (list = []));
+      list.push(a, x1 + TREE_POS_OFFSET, z1 + TREE_POS_OFFSET);
+    };
     const farTrees: THREE.Matrix4[] = [];
     // pseudo-aléa stable par position (même arbre à chaque chargement)
     const seedAt = (x: number, z: number) => Math.abs(Math.sin(x * 12.9898 + z * 78.233) * 43758.5453) % 1;
     const trees = f.trees ?? [];
+    // Mode arbres, étape B : voisins de chaque arbre mesuré (dégagement : lisière, haie, arbre isolé).
+    const counts = T?.b ? neighbourCounts(trees) : null;
     for (let i = 0; i + 3 < trees.length; i += 4) {
       const x0 = trees[i] as number;
       const z0 = trees[i + 1] as number;
@@ -483,13 +714,57 @@ export class Vegetation {
       const y = this.heightAt(x, z);
       if (!Number.isFinite(y)) continue;
       const seed = seedAt(x0, z0);
-      const sxz = room / SEEDED_CROWN.decid;
       p.set(x, y - 0.15, z);
       qn.setFromAxisAngle(up, seed * Math.PI * 2);
-      sc.set(sxz, h / REAL_TREE_H, sxz);
+      if (!T) {
+        const sxz = room / SEEDED_CROWN.decid;
+        sc.set(sxz, h / REAL_TREE_H, sxz);
+        m.compose(p, qn, sc);
+        push('decid', x, z);
+        farTrees.push(m.clone());
+        continue;
+      }
+      // Mode arbres. Étape C : conifère si la carte des résineux OSM l'indique (part déterministe par arbre).
+      let conifer = false;
+      if (T.c) {
+        const resinous = splatAt(tile, 8, x0, z0);
+        if (resinous >= 0.3) conifer = seedAt(z0 + 0.71, x0 - 0.13) < coniferShare(resinous, fbm(x0 / 70 + 11, z0 / 70 - 7, 2), h0 / Math.max(cr, 0.8));
+      }
+      if (conifer) {
+        const sxz = coniferRadius(h, room) / CONIF_RADIUS;
+        const sy = h / CONIF_TOP;
+        sc.set(sxz, sy, sxz);
+        m.compose(p, qn, sc);
+        // modèle de conifère existant au LOD0 ; au-delà, cône tiré du gabarit feuillu dans le bloc feuillu
+        // (aucun objet ni appel de dessin de plus quand le bloc n'est pas proche)
+        push('conif', x, z);
+        push('decid', x, z);
+        pushParams(x, z, 300 + sy, x, z);
+        farTrees.push(m.clone());
+        farParams.push(300 + sy, x + TREE_POS_OFFSET, z + TREE_POS_OFFSET);
+        this.realStats.conif++;
+        continue;
+      }
+      // Étape B : sommet du gabarit à la hauteur mesurée (il la dépassait de 10 à 18 %), houppier plus profond
+      // quand l'arbre est dégagé ou très large, galettes bornées (voir treeShape.ts).
+      let radius = room;
+      let sy = h / REAL_TREE_H;
+      let a = 0;
+      if (T.b && counts) {
+        const open = openness(counts[i / 4] as number, insideShare(x0, z0, tile.x0, tile.z0, tile.size));
+        const fitC = crownFit(h, room, open, seedAt(x0 + 3.1, z0 - 1.7));
+        radius = fitC.radius;
+        sy = h / DECID_TOP;
+        a = sy * (1 - fitC.frac / DECID_FRAC);
+      }
+      const sxz = radius / SEEDED_CROWN.decid;
+      sc.set(sxz, sy, sxz);
       m.compose(p, qn, sc);
       push('decid', x, z);
+      pushParams(x, z, 200 + a, x, z);
       farTrees.push(m.clone());
+      farParams.push(200 + a, x + TREE_POS_OFFSET, z + TREE_POS_OFFSET);
+      this.realStats.decid++;
     }
     const shrubs = f.shrubs ?? [];
     for (let i = 0; i + 2 < shrubs.length; i += 3) {
@@ -519,6 +794,15 @@ export class Vegetation {
         const im = new THREE.InstancedMesh(this.geos[kind][0] as THREE.BufferGeometry, this.materialFor(kind), list.length);
         list.forEach((mat, k) => im.setMatrixAt(k, mat));
         im.instanceMatrix.needsUpdate = true;
+        if (T && kind === 'decid') {
+          const params = new Float32Array(perParams.get(key) as number[]);
+          im.instanceColor = new THREE.InstancedBufferAttribute(params, 3);
+          // conifères du bloc : basculés entre cône (LOD1-2) et masqué (LOD0, modèle de conifère) par applyLod
+          const conifIdx: number[] = [];
+          for (let k = 0; k < list.length; k++) if ((params[k * 3] as number) > 250) conifIdx.push(k);
+          if (conifIdx.length) im.userData.conifIdx = conifIdx;
+        }
+        if (T && kind === 'conif') im.userData.treesConif = true;
         this.applyLod(kind, im, chunk.lod);
         this.group.add(im);
         chunk.meshes.push({ kind, mesh: im });
@@ -530,11 +814,19 @@ export class Vegetation {
       const im = new THREE.InstancedMesh(this.geos.decid[2] as THREE.BufferGeometry, this.mats.decid, farTrees.length);
       farTrees.forEach((mat, k) => im.setMatrixAt(k, mat));
       im.instanceMatrix.needsUpdate = true;
+      if (T && this.treesMat) {
+        im.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(farParams), 3);
+        im.material = this.treesMat;
+      }
       im.computeBoundingSphere();
       this.group.add(im);
       this.realFar.set(tile.id, { mesh: im, x0: tile.x0, z0: tile.z0, size: tile.size, far: false });
       this.setTileFar(tile.id, this.isFar(tile.x0, tile.z0, tile.size), true);
     }
+    const ms = performance.now() - t0;
+    this.realStats.tiles++;
+    this.realStats.ms += ms;
+    this.realStats.maxMs = Math.max(this.realStats.maxMs, ms);
   }
 
   /** Tuile entièrement à plus de REAL_MID du coureur. */
