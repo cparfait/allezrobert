@@ -10,8 +10,10 @@ import type { RouteFootprint } from './ribbon.ts';
 import type { Season } from './environment.ts';
 import { ALPINE_GROUND_M, ALPINE_MEADOW, SNOW_LINE_M, alpineProfile } from './alpine.ts';
 import { LOW_POLY } from '../engine/style.ts';
+import { frameStats } from '../engine/frameStats.ts';
 import { ROAD_FX } from './roadSurface.ts';
 import { SIDEWALK_MAX_M, builtCells, isBuiltUp } from './sidewalks.ts';
+import { EDGE_FIELD_RES, EDGE_MAX_M, EDGE_MIN_M, edgeFieldUv, edgeRoads, roadEdgeField } from './roadEdgeField.ts';
 
 /** Orthophotos (prises en été) selon la saison : teinte et saturation. Partagé avec le relief lointain. */
 export const ORTHO_SEASON: Record<Season, [string, number]> = { spring: ['#f4fff0', 1.05], summer: ['#fffbf2', 1], autumn: ['#fbead2', 0.9], winter: ['#dde2e6', 0.5] };
@@ -75,6 +77,20 @@ const GROUND_DETAIL_REQUESTED = (() => {
 })();
 const GROUND_DETAIL_WORLDS = new Set(['billom']);
 
+/**
+ * Accotements (P2.2b, expérimental) : bande de terre tassée et fondu vers le sol le long des routes dessinées, tirés
+ * d'un champ de distance au bord de chaussée par tuile (roadEdgeField.ts). Coupé par défaut ; `?roadedge=1`
+ * l'active, en style réaliste et pour les mondes de ROAD_EDGE_WORLDS seulement. Coupé, rien n'est calculé ni créé.
+ */
+const ROAD_EDGE_REQUESTED = (() => {
+  try {
+    return typeof location !== 'undefined' && new URLSearchParams(location.search).get('roadedge') === '1';
+  } catch {
+    return false;
+  }
+})();
+const ROAD_EDGE_WORLDS = GROUND_DETAIL_WORLDS;
+
 /** Durée de vie d'une tuile décodée en cache : l'URL de son orthophoto est libérée 2 min après le téléchargement. */
 const CACHE_MS = 90_000;
 /** Nombre maximal de tuiles décodées gardées en cache. */
@@ -131,10 +147,15 @@ export class TerrainManager {
   onTileUnloaded?: (tile: LoadedTile) => void;
   /** Détail procédural du sol proche actif (voir GROUND_DETAIL_REQUESTED). */
   private readonly groundDetail: boolean;
+  /** Accotements actifs (voir ROAD_EDGE_REQUESTED). */
+  private readonly roadEdge: boolean;
+  /** Accotements : tuiles traitées, temps de calcul des champs (ms, total et pire) et octets alloués (mesures). */
+  readonly roadEdgeStats = { tiles: 0, ms: 0, maxMs: 0, bytes: 0 };
 
   constructor(source: WorldSource, q: QualitySettings, season: Season) {
     this.source = source;
     this.groundDetail = GROUND_DETAIL_REQUESTED && !LOW_POLY && GROUND_DETAIL_WORLDS.has(source.id);
+    this.roadEdge = ROAD_EDGE_REQUESTED && !LOW_POLY && ROAD_EDGE_WORLDS.has(source.id);
     this.q = q;
     this.group.name = 'terrain';
     const alp = alpineProfile(source.id);
@@ -389,7 +410,10 @@ export class TerrainManager {
       ortho.wrapS = ortho.wrapT = THREE.ClampToEdgeWrapping;
       textures.push(ortho as THREE.DataTexture);
     }
-    const material = this.createMaterial(textures, ortho);
+    // Accotements : champ de distance au bord des routes dessinées (libéré avec les autres textures de la tuile).
+    const edge = this.roadEdge ? this.roadEdgeTexture(tile) : null;
+    if (edge) textures.push(edge);
+    const material = this.createMaterial(textures, ortho, edge);
     const mesh = new THREE.Mesh(this.buildGeometry(tile, lod), material);
     mesh.position.set(tile.x0 + tile.size / 2, 0, tile.z0 + tile.size / 2);
     mesh.receiveShadow = true;
@@ -559,7 +583,27 @@ export class TerrainManager {
     });
   }
 
-  private createMaterial(textures: THREE.DataTexture[], ortho: THREE.Texture | null): THREE.MeshStandardNodeMaterial {
+  /** Champ de distance au bord de chaussée de la tuile (R8, 512², niveaux réduits), voir roadEdgeField.ts. */
+  private roadEdgeTexture(tile: LoadedTile): THREE.DataTexture {
+    const t0 = performance.now();
+    const data = roadEdgeField(tile.x0, tile.z0, tile.size, edgeRoads(tile.features.roads ?? []), EDGE_FIELD_RES);
+    const ms = performance.now() - t0;
+    const s = this.roadEdgeStats;
+    s.tiles++;
+    s.ms += ms;
+    s.maxMs = Math.max(s.maxMs, ms);
+    s.bytes += data.byteLength;
+    if (frameStats.enabled) frameStats.add('terrain (accotements)', ms);
+    const t = new THREE.DataTexture(data, EDGE_FIELD_RES, EDGE_FIELD_RES, THREE.RedFormat, THREE.UnsignedByteType);
+    t.magFilter = THREE.LinearFilter;
+    t.minFilter = THREE.LinearMipmapLinearFilter;
+    t.generateMipmaps = true;
+    t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping;
+    t.needsUpdate = true;
+    return t;
+  }
+
+  private createMaterial(textures: THREE.DataTexture[], ortho: THREE.Texture | null, edge: THREE.Texture | null = null): THREE.MeshStandardNodeMaterial {
     if (LOW_POLY) return this.createLowPolyMaterial(textures);
     const m = new THREE.MeshStandardNodeMaterial();
     const s0 = texture(textures[0] as THREE.Texture, uv());
@@ -574,6 +618,12 @@ export class TerrainManager {
     const n2 = mix(float(0.5), mx_noise_float(wp.mul(0.035)).mul(0.5).add(0.5), float(1).sub(smoothstep(250, 1200, camDist)));
     const n3 = mix(float(0.5), mx_noise_float(wp.mul(0.4)).mul(0.5).add(0.5), float(1).sub(smoothstep(40, 220, camDist)));
     const detail = n2.mul(0.18).add(n3.mul(0.12)).add(0.82);
+    // Accotements (?roadedge=1) : distance signée au bord des routes dessinées (m, négative sur la chaussée) et masque
+    // routier précis près d'elles. Le masque du raster (≈ 4 m) retirait orthophoto et détail sur 3 à 4 m de part et
+    // d'autre ; à moins de 4,5 m d'une route dessinée, seul son vrai bord compte (le raster garde les chemins non
+    // dessinés ailleurs). Au loin (150 à 300 m), retour au raster : rendu lointain inchangé.
+    const edgeD = edge ? edgeDistance(edge) : null;
+    const edgeRoadMask = edgeD ? edgeTerrainRoadMask(edgeD, smoothstep(0.35, 0.75, s1.g), camDist) : null;
 
     // Altitude : alpages au-dessus de ~1 500 m (pelouse rase, plus claire et plus sèche).
     const alt = positionWorld.y;
@@ -598,7 +648,7 @@ export class TerrainManager {
     // abords de l'itinéraire : herbe des bas-côtés
     col = mix(col, meadow, smoothstep(0.2, 0.8, s1.b).mul(0.85));
     col = mix(col, water, s0.a);
-    col = mix(col, asphalt, smoothstep(0.35, 0.75, s1.g));
+    col = mix(col, asphalt, edgeRoadMask ?? smoothstep(0.35, 0.75, s1.g));
     // Pentes fortes : terre et pierre apparentes.
     const slope = float(1).sub(normalWorld.y);
     col = mix(col, c.dirt.node, smoothstep(0.3, 0.55, slope).mul(0.6));
@@ -608,7 +658,7 @@ export class TerrainManager {
       const photo = texture(ortho, uv()).rgb;
       const lum = photo.dot(vec3(0.299, 0.587, 0.114));
       const seasonal = mix(vec3(lum, lum, lum), photo, this.orthoSat).mul(this.orthoTint.node).mul(1.08);
-      const roadMask = smoothstep(0.35, 0.75, s1.g);
+      const roadMask = edgeRoadMask ?? smoothstep(0.35, 0.75, s1.g);
       // abords de l'itinéraire : la chaussée floue de la photo ne déborde pas sur les bas-côtés
       const verge = smoothstep(0.2, 0.8, s1.b);
       col = mix(col, seasonal, float(ORTHO_WEIGHT).mul(float(1).sub(roadMask)).mul(float(1).sub(verge.mul(0.8))));
@@ -618,7 +668,7 @@ export class TerrainManager {
     // après l'orthophoto (prise en été), atténué quand elle montre déjà la roche.
     const ice = smoothstep(0.7, 0.9, s1.a);
     const scree = smoothstep(0.15, 0.4, s1.a).mul(float(1).sub(ice));
-    const roadMask = smoothstep(0.35, 0.75, s1.g);
+    const roadMask = edgeRoadMask ?? smoothstep(0.35, 0.75, s1.g);
     // (pas en plaine : talus des routes creusées et berges y restent en terre ; talus de
     // l'itinéraire surtout herbeux)
     const steep = smoothstep(mix(float(0.4), float(0.24), alpine), mix(float(0.6), float(0.44), alpine), slope)
@@ -646,6 +696,9 @@ export class TerrainManager {
       ? groundDetail({ forest: s0.r, field: s0.g, meadow: s0.b, water: s0.a, urban: s1.r, road: roadMask, slope, rock: rockMask, snow, ice, camDist })
       : null;
     if (gd) col = col.mul(gd.tint);
+    // Accotements (?roadedge=1, Billom) : terre tassée et gravillons au bord des routes dessinées.
+    const shoulder = edgeD ? roadShoulder(col as unknown as GV3, edgeD, { water: s0.a, urban: s1.r, snow, ice, camDist }) : null;
+    if (shoulder) col = shoulder.col as unknown as typeof col;
     // Pluie : sol plus sombre ; givre : voile clair sur les surfaces planes.
     col = col.mul(float(1).sub(this.wetness.mul(0.35)));
     col = mix(col, vec3(0.86, 0.9, 0.93), this.frost.mul(smoothstep(0.85, 0.98, normalWorld.y)).mul(n2));
@@ -654,7 +707,8 @@ export class TerrainManager {
     m.colorNode = col.mul(cloudShade());
     const rough = mix(float(0.95), float(ROAD_FX ? 0.92 : 0.55), roadMask);
     const roughness = clamp(rough.sub(this.wetness.mul(0.45)).sub(s0.a.mul(0.6)).sub(ice.mul(0.4)).sub(snow.mul(0.25)), 0.08, 1);
-    m.roughnessNode = gd ? clamp(roughness.add(gd.rough), 0.08, 1) : roughness;
+    const roughGd = gd ? clamp(roughness.add(gd.rough), 0.08, 1) : roughness;
+    m.roughnessNode = shoulder ? clamp(roughGd.add(shoulder.rough), 0.08, 1) : roughGd;
     if (gd) m.normalNode = gd.normal;
     m.metalnessNode = float(0);
     return m;
@@ -840,6 +894,66 @@ function groundDetailCore(p: GroundMasks, wp: THREE.Node<'vec2'>, fineK: GF, cel
     .div(wSum)
     .mul(keep);
   return vec4(tint, h) as unknown as THREE.Node<'vec4'>;
+}
+
+/** Distance signée au bord de chaussée (m) lue dans le champ de la tuile (filtre linéaire, nœuds aux centres des texels). */
+function edgeDistance(edge: THREE.Texture): GF {
+  const { k, c } = edgeFieldUv(EDGE_FIELD_RES);
+  return texture(edge, uv().mul(k).add(c)).r.mul(EDGE_MAX_M - EDGE_MIN_M).add(EDGE_MIN_M) as unknown as GF;
+}
+
+/**
+ * Masque routier du terrain près des routes dessinées : leur vrai bord (fondu de 30 cm vers l'intérieur) à moins de
+ * 3 à 4,5 m d'une route dessinée, le raster (`raster`, ≈ 4 m) ailleurs (chemins non dessinés) ; raster seul au loin.
+ */
+function edgeTerrainRoadMask(d: GF, raster: GF, camDist: GF): GF {
+  const one = float(1);
+  const drawn = one.sub(smoothstep(-0.3, 0.05, d));
+  const nearDrawn = one.sub(smoothstep(3, 4.5, d));
+  const precise = drawn.max(raster.mul(one.sub(nearDrawn)));
+  return mix(raster, precise, one.sub(smoothstep(150, 300, camDist))) as unknown as GF;
+}
+
+/**
+ * Accotement (P2.2b) : de 0 à environ 0,8 m du bord, terre tassée (teinte du sol locale désaturée et brunie) avec
+ * gravillons très fins ; fondu léger jusqu'à environ 2,5 m ; contour irrégulier (bruits de 1,7 m et 50 cm, ±35 cm).
+ * Moins marqué en zone bâtie, rien sur l'eau, la neige et la glace, effacé de 80 à 160 m. Bruits calculés seulement
+ * à moins de 3,2 m d'un bord et de 160 m de la caméra. Teinte moyenne plus sombre que le sol : pas de liseré clair.
+ */
+function roadShoulder(col: GV3, d: GF, p: { water: GF; urban: GF; snow: GF; ice: GF; camDist: GF }): { col: GV3; rough: GF } {
+  const one = float(1);
+  const nearK = one.sub(smoothstep(80, 160, p.camDist));
+  const keep = one.sub(p.water).mul(one.sub(p.snow.max(p.ice))).mul(one.sub(p.urban.mul(0.6)));
+  const gate = nearK.mul(keep).mul(one.sub(smoothstep(3, 3.2, d))).mul(smoothstep(-0.6, -0.3, d));
+  const out = Fn(() => {
+    const o = vec4(col, 0).toVar();
+    If(gate.greaterThan(0.001), () => {
+      const wp = positionWorld.xz;
+      const wobble = mx_noise_float(wp.mul(0.6)).mul(0.5).add(mx_noise_float(wp.mul(2.1)).mul(0.25));
+      const de = d.add(wobble.mul(0.9));
+      const core = one.sub(smoothstep(0.5, 1.3, de));
+      const fade = one.sub(smoothstep(1.1, 2.6, de));
+      const lum = dot(col, vec3(0.299, 0.587, 0.114));
+      // terre tassée : teinte locale désaturée et brunie ; frange de gravillons gris fins contre l'enrobé (0 à 0,4 m)
+      const earth = mix(vec3(lum, lum, lum), col, 0.4).mul(vec3(0.84, 0.78, 0.7));
+      const gravel = vec3(lum, lum, lum).mul(vec3(0.93, 0.89, 0.83));
+      const nearAsphalt = one.sub(smoothstep(0.05, 0.45, de));
+      const fadeTone = col.mul(vec3(0.96, 0.93, 0.88));
+      // grains clairs et sombres de 3 à 6 cm (gravillons), seulement de près, plus serrés dans la frange
+      const g = mx_noise_float(wp.mul(16));
+      const fineK = one.sub(smoothstep(6, 20, p.camDist));
+      const gritAmp = mix(float(1), float(1.6), nearAsphalt);
+      const grit = smoothstep(0.25, 0.42, g).mul(0.2).sub(smoothstep(-0.42, -0.25, g).mul(0.18)).mul(gritAmp).mul(fineK).add(1);
+      // gravillons par plaques (là où l'accotement s'élargit), pas en liseré continu
+      const gravelAmt = nearAsphalt.mul(smoothstep(0.2, -0.15, wobble)).mul(0.55);
+      const shoulderCol = mix(earth, gravel, gravelAmt).mul(grit);
+      const w = core.mul(0.9).mul(gate);
+      const withFade = mix(col, fadeTone, fade.mul(0.6).mul(gate));
+      o.assign(vec4(mix(withFade, shoulderCol, w), w.max(fade.mul(0.3).mul(gate))));
+    });
+    return o;
+  })();
+  return { col: out.xyz as unknown as GV3, rough: out.w.mul(0.03) as unknown as GF };
 }
 
 const ROAD_TERRAIN_BELOW = 0.04;
