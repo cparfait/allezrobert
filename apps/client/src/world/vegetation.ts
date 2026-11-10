@@ -11,7 +11,7 @@ import type { Season } from './environment.ts';
 import { drawnRoads, roadAvoidance, roadClearance, type AvoidRoad } from './roadAvoid.ts';
 import { shrubGeometry, shrubMaterial } from './trees.ts';
 import { alpineProfile, coniferBiasAt, larchShareAt, treeDensityAt, treeScaleAt } from './alpine.ts';
-import { CONIF_CROWN_BASE, CONIF_RADIUS, CONIF_TOP, DECID_FRAC, DECID_TOP, coniferRadius, coniferShare, crownFit, insideShare, neighbourCounts, openness } from './treeShape.ts';
+import { CONIF_CROWN_BASE, CONIF_RADIUS, CONIF_TOP, DECID_FRAC, DECID_TOP, coniferRadius, coniferShare, crownFit, edgeAt, insideShare, neighbourCounts, openSkirt, openness, skirtFrac } from './treeShape.ts';
 import { LOW_POLY } from '../engine/style.ts';
 
 /** Couleurs de feuillage par saison (feuillus) — palettes de ART_DIRECTION.md. */
@@ -64,7 +64,8 @@ const REAL_MID = 700;
 /**
  * Arbres LiDAR plus crédibles (P2.3b-1, expérimental) : amas de feuillage proches (A), proportions des houppiers (B),
  * conifères selon les forêts de résineux OSM (C). Coupé par défaut ; `?trees=1` l'active, en style réaliste et pour
- * les mondes de TREES_WORLDS seulement. `?treesteps=a|ab|abc|…` (mesures) choisit les étapes, toutes par défaut.
+ * les mondes de TREES_WORLDS seulement. `?treesteps=abc` conserve P2.3b-1 pour les comparaisons,
+ * tandis que `abcd` ajoute les houppiers bas de lisière (P2.3b-2b).
  * Coupé, la végétation est exactement celle d'avant (mêmes objets, matériaux et matrices).
  */
 const TREES_PARAMS = (() => {
@@ -72,8 +73,8 @@ const TREES_PARAMS = (() => {
     if (typeof location === 'undefined') return null;
     const u = new URLSearchParams(location.search);
     if (u.get('trees') !== '1') return null;
-    const st = (u.get('treesteps') ?? 'abc').toLowerCase();
-    return { a: st.includes('a'), b: st.includes('b'), c: st.includes('c') };
+    const st = (u.get('treesteps') ?? 'abcd').toLowerCase();
+    return { a: st.includes('a'), b: st.includes('b'), c: st.includes('c'), d: st.includes('d') };
   } catch {
     return null;
   }
@@ -354,12 +355,12 @@ export class Vegetation {
   private regional: (x: number, z: number) => number = () => 0;
   private treelineM = alpineProfile('').treelineM;
   /** Mode arbres (P2.3b-1) : étapes actives, null = coupé (rendu d'origine). */
-  readonly trees: { a: boolean; b: boolean; c: boolean } | null = null;
+  readonly trees: { a: boolean; b: boolean; c: boolean; d: boolean } | null = null;
   /** Mode arbres : matériau des feuillus LiDAR (paramètres par instance) et conifères recalés. */
   private treesMat: THREE.MeshStandardNodeMaterial | null = null;
   private treesConif: THREE.BufferGeometry[] | null = null;
   /** Chargement des tuiles réelles (mesures) : nombre, temps total et maximal (ms), arbres posés par espèce. */
-  readonly realStats = { tiles: 0, ms: 0, maxMs: 0, decid: 0, conif: 0 };
+  readonly realStats = { tiles: 0, ms: 0, maxMs: 0, decid: 0, conif: 0, edge: 0 };
 
   /** Règles propres au monde chargé (à fixer avant le chargement des tuiles). */
   setWorld(id: string): void {
@@ -696,6 +697,9 @@ export class Vegetation {
     const trees = f.trees ?? [];
     // Mode arbres, étape B : voisins de chaque arbre mesuré (dégagement : lisière, haie, arbre isolé).
     const counts = T?.b ? neighbourCounts(trees) : null;
+    // P2.3b-2b : rasters forêt (canal 0) et voies (canal 5) pour reconnaître les lisières
+    const forestAt = (x: number, z: number) => splatAt(tile, 0, x, z);
+    const roadAt = (x: number, z: number) => splatAt(tile, 5, x, z);
     for (let i = 0; i + 3 < trees.length; i += 4) {
       const x0 = trees[i] as number;
       const z0 = trees[i + 1] as number;
@@ -755,7 +759,20 @@ export class Vegetation {
         const fitC = crownFit(h, room, open, seedAt(x0 + 3.1, z0 - 1.7));
         radius = fitC.radius;
         sy = h / DECID_TOP;
-        a = sy * (1 - fitC.frac / DECID_FRAC);
+        let frac = fitC.frac;
+        // P2.3b-2b : arbre de lisière (forêt OSM qui s'ouvre sur un champ, une route ou un chemin) → jupe
+        if (T.d) {
+          const edge = edgeAt(forestAt, roadAt, x0, z0);
+          // Le voisinage LiDAR complète le masque forestier hors des alignements routiers.
+          const partial = openSkirt(open);
+          const clearance = partial > edge ? clear(x, z) : null;
+          const strength = clearance && clearance.d < 8 ? edge : Math.max(edge, partial);
+          if (strength > 0) {
+            frac = skirtFrac(frac, h, strength);
+            this.realStats.edge++;
+          }
+        }
+        a = sy * (1 - frac / DECID_FRAC);
       }
       const sxz = radius / SEEDED_CROWN.decid;
       sc.set(sxz, sy, sxz);

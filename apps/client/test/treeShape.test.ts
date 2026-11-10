@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CONIF_TOP, DECID_FRAC, NEIGHBOUR_R, coniferRadius, coniferShare, crownFit, insideShare, neighbourCounts, openness, seedAt } from '../src/world/treeShape.ts';
+import { CONIF_TOP, DECID_FRAC, EDGE_PROBE_M, NEIGHBOUR_R, coniferRadius, coniferShare, crownFit, edgeAt, insideShare, neighbourCounts, openSkirt, openness, seedAt, skirtFrac } from '../src/world/treeShape.ts';
 
 /** P2.3b-1 : arbres LiDAR plus crédibles (?trees=1), fonctions pures. */
 
@@ -102,5 +102,43 @@ describe('déterminisme', () => {
       for (let o = 0; o < 300; o++) if (o !== k && Math.hypot((pts[o * 4] as number) - (pts[k * 4] as number), (pts[o * 4 + 1] as number) - (pts[k * 4 + 1] as number)) < NEIGHBOUR_R) n++;
       expect(c[k]).toBe(n);
     }
+  });
+});
+
+describe('lisières (P2.3b-2b)', () => {
+  // forêt = demi-plan x < 0 ; route : bande |z − 100| < 3
+  const forest = (x: number) => (x < 0 ? 1 : 0);
+  const forestAt = (x: number, _z: number) => forest(x);
+  const roadAt = (_x: number, z: number) => (Math.abs(z - 100) < 3 ? 1 : 0);
+  it('reconnaît un arbre de bord de forêt', () => {
+    expect(edgeAt(forestAt, roadAt, -2, 0)).toBe(1);
+  });
+  it('rien au cœur du bois ni loin de la forêt', () => {
+    expect(edgeAt(forestAt, roadAt, -EDGE_PROBE_M * 2, 0)).toBe(0);
+    expect(edgeAt(forestAt, roadAt, 8, 0)).toBe(0);
+  });
+  it('compte le premier rang hors du polygone (à moins de 6 m de la forêt)', () => {
+    expect(edgeAt(forestAt, roadAt, 4, 0)).toBe(1);
+  });
+  it('reconnaît le bord d’un chemin qui traverse le bois', () => {
+    expect(edgeAt(forestAt, roadAt, -50, 100 - EDGE_PROBE_M)).toBe(0.5);
+  });
+  it('jupe : profondeur portée vers 82 % (bas à 0,4 m au moins), sans jamais réduire le houppier', () => {
+    expect(skirtFrac(0.6, 15, 0)).toBe(0.6);
+    expect(skirtFrac(0.6, 15, 1)).toBeCloseTo(0.82, 5);
+    expect(skirtFrac(0.6, 2, 1)).toBeCloseTo(0.8, 5);
+    expect(skirtFrac(0.6, 15, 0.5)).toBeCloseTo(0.71, 5);
+    expect(skirtFrac(0.85, 2, 1)).toBe(0.85);
+    expect(skirtFrac(0.6, 15, 1)).toBeGreaterThan(DECID_FRAC);
+  });
+});
+
+describe('openSkirt (P2.3b-2b)', () => {
+  it('nulle au cœur du bois et pour un arbre isolé, au plus 0,6 pour un arbre à demi dégagé', () => {
+    expect(openSkirt(0)).toBe(0);
+    expect(openSkirt(0.3)).toBe(0);
+    expect(openSkirt(1)).toBe(0);
+    expect(openSkirt(0.75)).toBeCloseTo(0.6, 5);
+    for (let o = 0; o <= 1; o += 0.05) expect(openSkirt(o)).toBeLessThanOrEqual(0.6 + 1e-9);
   });
 });

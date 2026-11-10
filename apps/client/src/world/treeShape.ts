@@ -134,3 +134,48 @@ export function neighbourCounts(trees: ArrayLike<number>, stride = 4): Uint16Arr
 function clamp01(v: number): number {
   return v < 0 ? 0 : v > 1 ? 1 : v;
 }
+
+/** Distance (m) à laquelle on sonde le raster autour d'un arbre pour reconnaître une lisière (P2.3b-2b). */
+export const EDGE_PROBE_M = 12;
+/** Un arbre hors du polygone de forêt mais à moins de cette distance (m) en fait partie (premier rang de la lisière). */
+export const EDGE_NEAR_M = 6;
+const EDGE_DIRS: ReadonlyArray<readonly [number, number]> = Array.from({ length: 8 }, (_, k) => [Math.cos((k * Math.PI) / 4), Math.sin((k * Math.PI) / 4)] as const);
+
+/**
+ * Lisière d'un arbre LiDAR (P2.3b-2b) : l'arbre est dans une forêt OSM (`forestAt` ≥ 0,5 à son pied, ou à moins de
+ * EDGE_NEAR_M : le premier rang d'arbres déborde souvent du polygone) et, à
+ * EDGE_PROBE_M, au moins une des huit directions sort de la forêt (`forestAt` < 0,25) ou tombe sur une voie dessinée
+ * (`roadAt` > 0,5 : chemin forestier, route qui traverse le bois). Déterministe (lecture des rasters de la tuile).
+ */
+export function edgeAt(forestAt: (x: number, z: number) => number, roadAt: (x: number, z: number) => number, x: number, z: number): number {
+  if (forestAt(x, z) < 0.5 && !EDGE_DIRS.some(([dx, dz]) => forestAt(x + dx * EDGE_NEAR_M, z + dz * EDGE_NEAR_M) >= 0.5)) return 0;
+  let open = 0;
+  for (const [dx, dz] of EDGE_DIRS) {
+    const px = x + dx * EDGE_PROBE_M;
+    const pz = z + dz * EDGE_PROBE_M;
+    if (forestAt(px, pz) < 0.25 || roadAt(px, pz) > 0.5) open++;
+    if (open === 2) return 1;
+  }
+  return open / 2;
+}
+
+/**
+ * Approfondit les houppiers de lisière vers 82 % de la hauteur, avec un dégagement minimal de 0,4 m
+ * au pied nominal. Les houppiers déjà plus profonds gardent leur forme.
+ */
+export function skirtFrac(frac: number, h: number, strength: number): number {
+  const target = Math.max(frac, Math.min(0.82, 1 - 0.4 / h));
+  return frac + (target - frac) * clamp01(strength);
+}
+
+/**
+ * Jupe partielle selon le voisinage LiDAR (P2.3b-2b) : arbres à demi dégagés (lisière hors polygone OSM, haie,
+ * bosquet), 0 au cœur d'un bois comme pour un arbre isolé (houppier gardé à sa hauteur), au plus 0,6.
+ */
+export function openSkirt(open: number): number {
+  const s = (a: number, b: number, v: number) => {
+    const t = clamp01((v - a) / (b - a));
+    return t * t * (3 - 2 * t);
+  };
+  return s(0.4, 0.7, open) * (1 - s(0.85, 1, open)) * 0.6;
+}
