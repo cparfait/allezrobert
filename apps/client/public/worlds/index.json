@@ -187,15 +187,15 @@
      "name": "Billom — gravel de Pont-du-Château à Cournon",
      "nameEn": "Billom — gravel from Pont-du-Château to Cournon",
      "lengthM": 49153.83,
-     "elevationGainM": 885.75,
+     "elevationGainM": 871.8,
      "loop": true
     }
    ],
    "pack": {
-    "version": "005c89c01804",
-    "bytes": 260427233,
+    "version": "5774250402fa",
+    "bytes": 260454137,
     "files": 902,
-    "gzBytes": 115949979
+    "gzBytes": 115958925
    },
    "l93": {
     "minE": 714000,

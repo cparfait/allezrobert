@@ -35,6 +35,7 @@ import { detectClimbs, elevationGain } from './profile.ts';
 import { loadRides, sensitivePoints } from './gpx.ts';
 import { matchRide } from './mapmatch.ts';
 import { auditWorldDir } from './privacy.ts';
+import { bridgeNodeHeights } from './bridge-decks.ts';
 import { buildRoads3d, type RouteOnGraph } from './roads3d.ts';
 import { ATTRIBUTION_BDTOPO } from './bdtopo.ts';
 import { bdTopoRoadAttrs, prepareEnrichment, type TileEnrichment } from './enrich.ts';
@@ -142,7 +143,22 @@ async function main(): Promise<void> {
 
   // 3. profils 3D
   log('3. Profils des routes');
-  const r3 = buildRoads3d(g, dem, kept, { routeEdgeProfiles: true });
+  // Extrémités de ponts relevées au tablier mesuré (MNS LiDAR HD + BD TOPO) : à l'essai, TERRAIN_BRIDGE_DECKS=1
+  let deckHeights: Map<number, number> | undefined;
+  if (process.env.TERRAIN_BRIDGE_DECKS === '1') {
+    const decks = await bridgeNodeHeights(g, dem);
+    deckHeights = decks.nodeHeights;
+    const by = new Map<string, number>();
+    for (const r of decks.report) {
+      const k = r.verdict.ok ? 'relevé' : r.verdict.reason;
+      by.set(k, (by.get(k) ?? 0) + 1);
+    }
+    log(
+      `   ponts : ${decks.report.length} examinés, ${deckHeights.size} nœuds relevés, ${decks.steepRejected} écartés (accès trop raide) ` +
+        `(${[...by].map(([k, n]) => `${k} ${n}`).join(', ')})`,
+    );
+  }
+  const r3 = buildRoads3d(g, dem, kept, { routeEdgeProfiles: true, ...(deckHeights ? { deckHeights } : {}) });
   log(`   ${r3.roads.length} tronçons, ${r3.carve.length} couloirs creusés`);
 
   // 3 bis. données fines IGN sur toute l'emprise : arbres et haies (MNH LiDAR HD), bâtiments

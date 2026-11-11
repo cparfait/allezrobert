@@ -32,7 +32,16 @@ export interface Roads3d {
   edgePts: Map<number, Array<[number, number, number]>>;
 }
 
-export function buildRoads3d(g: RoadGraph, dem: DemStack, routes: RouteOnGraph[], opts: { routeEdgeProfiles?: boolean } = {}): Roads3d {
+export function buildRoads3d(
+  g: RoadGraph,
+  dem: DemStack,
+  routes: RouteOnGraph[],
+  opts: {
+    routeEdgeProfiles?: boolean;
+    /** Altitudes de tablier des nœuds d'extrémité de ponts (`bridge-decks.ts`), prioritaires sur le MNT hors itinéraires. */
+    deckHeights?: Map<number, number>;
+  } = {},
+): Roads3d {
   const roads: TileRoad[] = [];
   const edgePts = new Map<number, Array<[number, number, number]>>();
   const carve: CarveLine[] = [];
@@ -99,6 +108,11 @@ export function buildRoads3d(g: RoadGraph, dem: DemStack, routes: RouteOnGraph[]
   const nodeHeight = (nd: number): number => {
     let h = nodeH.get(nd);
     if (h !== undefined) return h;
+    h = opts.deckHeights?.get(nd);
+    if (h !== undefined) {
+      nodeH.set(nd, h);
+      return h;
+    }
     const p = g.nodePos.get(nd)!;
     const vals = [demAt(dem, p[0], p[1]), demAt(dem, p[0] + 1.5, p[1]), demAt(dem, p[0] - 1.5, p[1]), demAt(dem, p[0], p[1] + 1.5), demAt(dem, p[0], p[1] - 1.5)]
       .filter(Number.isFinite)
