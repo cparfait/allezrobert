@@ -1,16 +1,21 @@
 import * as THREE from 'three/webgpu';
 import type { VehicleKind } from '@allezrobert/physics';
+import { buildDriver, driverTriangles, type DriverLook } from './vehicleDriver.ts';
 
 /**
  * Véhicules du style jeu vidéo (low poly) : silhouettes à facettes bâties en primitives (hexaèdres effilés,
  * roues octogonales), aplats de couleur sans texture, vitrages sombres, phares et feux en pastilles plates.
  * Avant vers +z, sol en y = 0, centrés sur leur longueur (comme les modèles réalistes de traffic.ts).
  *
+ * Vitrages translucides : les cabines sont creuses (montants à la teinte de la caisse, envers sombre), on y
+ * voit le conducteur assis à gauche (vehicleDriver.ts), le paysan dans la cabine du tracteur.
+ *
  * Roues : un maillage par roue, axe de rotation x (cylindre couché), centré sur son moyeu en (x, r, z),
  * `userData.radius` = son rayon : Traffic.update les fait tourner par `rotation.x`, chacune à sa vitesse.
  *
  * Partage : la géométrie de caisse (une seule, groupes par matériau) et celle des roues sont construites une
- * fois par variante ; les matériaux une fois par teinte. Une instance = un maillage de caisse + ses roues.
+ * fois par variante ; les matériaux une fois par teinte. Une instance = un maillage de caisse, ses roues et
+ * son occupant.
  */
 
 export type LowPolyVariant = 'citadine' | 'berline' | 'break' | 'suv' | 'sportive' | 'pickup' | 'fourgon' | 'camion' | 'tracteur' | 'tracteurRemorque';
@@ -141,6 +146,9 @@ const cross = (a: V3, b: V3): V3 => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[
 const dot = (a: V3, b: V3) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
 const lerp = (a: V3, b: V3, t: number): V3 => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
 
+/** Vitre sur une face : [u0, u1, v0, v1] (u le long du bord bas, v de bas en haut). */
+type Win = [number, number, number, number];
+
 /** Triangles accumulés par emplacement de matériau ; décalage en z (attelages recentrés). */
 class Parts {
   readonly pos: number[][];
@@ -186,6 +194,46 @@ class Parts {
     this.quad(s, p, [m[0] - o[0] * 10, m[1] - o[1] * 10, m[2] - o[2] * 10]);
   }
 
+  /**
+   * Face percée de vitres translucides (toutes de même hauteur, rangées par u croissant) : montants et
+   * traverses à la teinte `s`, doublés d'un envers sombre (vu de l'intérieur, à travers les autres vitres).
+   * Sans vitre : face pleine et son envers.
+   */
+  glazed(s: number, q: Quad, ref: V3, wins: Win[] = []): void {
+    const [a, b, c, d] = q;
+    const P = (u: number, v: number) => lerp(lerp(a, b, u), lerp(d, c, u), v);
+    const m = P(0.5, 0.5);
+    const outside: V3 = [2 * m[0] - ref[0], 2 * m[1] - ref[1], 2 * m[2] - ref[2]];
+    const rect = (slot: number, u0: number, u1: number, v0: number, v1: number, to: V3 = ref) => {
+      if (u1 - u0 > 1e-6 && v1 - v0 > 1e-6) this.quad(slot, [P(u0, v0), P(u1, v0), P(u1, v1), P(u0, v1)], to);
+    };
+    const wall = (u0: number, u1: number, v0: number, v1: number) => {
+      rect(s, u0, u1, v0, v1);
+      rect(S.Black, u0, u1, v0, v1, outside);
+    };
+    const first = wins[0];
+    if (!first) return wall(0, 1, 0, 1);
+    const [, , v0, v1] = first;
+    wall(0, 1, 0, v0);
+    wall(0, 1, v1, 1);
+    let u = 0;
+    for (const w of wins) {
+      wall(u, w[0], v0, v1);
+      rect(S.Glass, w[0], w[1], v0, v1);
+      u = w[1];
+    }
+    wall(u, 1, v0, v1);
+  }
+
+  /** Cabine creuse : toit plein, faces vitrées (`sides` : les deux flancs, u mesuré depuis l'avant). */
+  cabin(s: number, h: Hexa, wins: { front?: Win[]; back?: Win[]; sides?: Win[] }): void {
+    this.glazed(s, h.top, h.center);
+    this.glazed(s, h.front, h.center, wins.front);
+    this.glazed(s, h.back, h.center, wins.back);
+    this.glazed(s, h.right, h.center, wins.sides);
+    this.glazed(s, h.left, h.center, wins.sides?.map((w): Win => [1 - w[1], 1 - w[0], w[2], w[3]]).reverse());
+  }
+
   /** Pastilles symétriques sur les deux flancs ; u mesuré depuis l'avant. */
   sides(s: number, h: Hexa, u0: number, u1: number, v0: number, v1: number, off?: number): void {
     this.panel(s, h.right, u0, u1, v0, v1, off);
@@ -225,6 +273,9 @@ interface Shape {
   yellowHubs?: boolean;
   /** Caisse de teinte imposée (vert tracteur). */
   paint?: string;
+  /** Point de hanche de l'occupant (repère du véhicule) et son allure. */
+  seat?: V3;
+  look?: DriverLook;
 }
 
 /**
@@ -301,13 +352,16 @@ function lowerBody(p: Parts, d: CarDims): Hexa {
 /** Cabine vitrée (pare-brise, lunette, vitres latérales) et barres de toit. */
 function greenhouse(p: Parts, d: CarDims, x0 = d.W / 2 - 0.08, x1 = d.W / 2 - 0.24): Hexa {
   const cab = hexa({ y0: d.belt, y1: d.roof, xb: x0, zb: d.cabB, xt: x1, zt: d.cabT });
-  p.solid(S.Paint, cab);
-  p.panel(S.Glass, cab.front, 0.06, 0.94, 0.06, 0.92);
-  p.panel(S.Glass, cab.back, 0.08, 0.92, 0.12, 0.9);
-  if (d.pillar) {
-    p.sides(S.Glass, cab, 0.06, 0.48, 0.1, 0.88);
-    p.sides(S.Glass, cab, 0.53, 0.94, 0.1, 0.88);
-  } else p.sides(S.Glass, cab, 0.08, 0.9, 0.1, 0.88);
+  p.cabin(S.Paint, cab, {
+    front: [[0.06, 0.94, 0.06, 0.92]],
+    back: [[0.08, 0.92, 0.12, 0.9]],
+    sides: d.pillar
+      ? [
+          [0.06, 0.48, 0.1, 0.88],
+          [0.53, 0.94, 0.1, 0.88],
+        ]
+      : [[0.08, 0.9, 0.1, 0.88]],
+  });
   if (d.rails)
     for (const sx of [-1, 1]) {
       const zs: [number, number] = [d.cabT[0] + 0.08, d.cabT[1] - 0.12];
@@ -316,15 +370,28 @@ function greenhouse(p: Parts, d: CarDims, x0 = d.W / 2 - 0.08, x1 = d.W / 2 - 0.
   return cab;
 }
 
+/** Plancher sombre de l'habitacle, sur le dessus de la caisse basse (vu à travers les vitres). */
+function cabFloor(p: Parts, lower: Hexa, d: CarDims): void {
+  const z0 = -d.L / 2 + d.tail;
+  const z1 = d.L / 2 - d.nose;
+  const v = (z: number) => Math.min(0.99, Math.max(0.01, (z1 - z) / (z1 - z0)));
+  p.panel(S.Black, lower.top, 0.05, 0.95, v(d.cabB[1]), v(d.cabB[0]), 0.004);
+}
+
+/** Conducteur à gauche, tête sous le bord avant du toit, épaules au-dessus de la ceinture de caisse. */
+function seatOf(d: CarDims): V3 {
+  return [d.W / 2 - 0.5, Math.min(d.roof - 0.87, d.belt - 0.05), d.cabT[1] - 0.22];
+}
+
 function wheelsAt(d: { W: number; r: number; axles: number[] }, w: number): WheelSpec[] {
   return d.axles.flatMap((z) => [1, -1].map((sx) => ({ x: sx * (d.W / 2 - w / 2 + 0.03), z, r: d.r, w })));
 }
 
 function car(d: CarDims): Shape {
   const p = new Parts(SLOT_COUNT);
-  lowerBody(p, d);
+  cabFloor(p, lowerBody(p, d), d);
   greenhouse(p, d);
-  return { body: p.geometry(), wheels: wheelsAt(d, 0.22), length: d.L, wheelRadius: d.r };
+  return { body: p.geometry(), wheels: wheelsAt(d, 0.22), length: d.L, wheelRadius: d.r, seat: seatOf(d), look: 'driver' };
 }
 
 function pickup(): Shape {
@@ -332,10 +399,8 @@ function pickup(): Shape {
   const p = new Parts(SLOT_COUNT);
   const lower = lowerBody(p, d);
   const cab = hexa({ y0: d.belt, y1: d.roof, xb: d.W / 2 - 0.06, zb: d.cabB, xt: d.W / 2 - 0.18, zt: d.cabT });
-  p.solid(S.Paint, cab);
-  p.panel(S.Glass, cab.front, 0.06, 0.94, 0.06, 0.92);
-  p.panel(S.Glass, cab.back, 0.15, 0.85, 0.35, 0.88);
-  p.sides(S.Glass, cab, 0.08, 0.9, 0.1, 0.88);
+  p.cabin(S.Paint, cab, { front: [[0.06, 0.94, 0.06, 0.92]], back: [[0.15, 0.85, 0.35, 0.88]], sides: [[0.08, 0.9, 0.1, 0.88]] });
+  cabFloor(p, lower, d);
   // Benne : plancher sombre, ridelles et hayon à la teinte de la caisse.
   const zt0 = -d.L / 2 + d.tail;
   const zt1 = d.L / 2 - d.nose;
@@ -344,24 +409,27 @@ function pickup(): Shape {
   const bedZ = (d.cabB[0] + zt0) / 2;
   for (const sx of [-1, 1]) p.solid(S.Paint, block(sx * (d.W / 2 - 0.1), d.belt, d.belt + 0.32, bedZ, 0.08, bedL));
   p.solid(S.Paint, block(0, d.belt, d.belt + 0.32, zt0 + 0.05, d.W - 0.12, 0.08));
-  return { body: p.geometry(), wheels: wheelsAt(d, 0.26), length: d.L, wheelRadius: d.r };
+  return { body: p.geometry(), wheels: wheelsAt(d, 0.26), length: d.L, wheelRadius: d.r, seat: seatOf(d), look: 'driver' };
 }
 
 function fourgon(): Shape {
   const d: CarDims = { L: 4.9, W: 1.9, r: 0.34, sill: 0.34, belt: 1.02, roof: 2.0, nose: 0.42, tail: 0.04, cabB: [-2.42, 1.25], cabT: [-2.4, 0.78], axles: [-1.65, 1.55] };
   const p = new Parts(SLOT_COUNT);
-  lowerBody(p, d);
+  cabFloor(p, lowerBody(p, d), d);
   const box = hexa({ y0: d.belt, y1: d.roof, xb: d.W / 2 - 0.05, zb: d.cabB, xt: d.W / 2 - 0.12, zt: d.cabT });
-  p.solid(S.Paint, box);
-  p.panel(S.Glass, box.front, 0.05, 0.95, 0.06, 0.9);
-  p.sides(S.Glass, box, 0.02, 0.24, 0.12, 0.86);
   // Portes arrière : deux petites vitres, feux verticaux aux coins.
-  p.panel(S.Glass, box.back, 0.08, 0.46, 0.5, 0.88);
-  p.panel(S.Glass, box.back, 0.54, 0.92, 0.5, 0.88);
+  p.cabin(S.Paint, box, {
+    front: [[0.05, 0.95, 0.06, 0.9]],
+    sides: [[0.02, 0.24, 0.12, 0.86]],
+    back: [
+      [0.08, 0.46, 0.5, 0.88],
+      [0.54, 0.92, 0.5, 0.88],
+    ],
+  });
   p.panel(S.Black, box.back, 0.495, 0.505, 0.02, 0.98, 0.006);
   p.panel(S.Tail, box.back, 0.0, 0.05, 0.05, 0.4);
   p.panel(S.Tail, box.back, 0.95, 1.0, 0.05, 0.4);
-  return { body: p.geometry(), wheels: wheelsAt(d, 0.24), length: d.L, wheelRadius: d.r };
+  return { body: p.geometry(), wheels: wheelsAt(d, 0.24), length: d.L, wheelRadius: d.r, seat: seatOf(d), look: 'driver' };
 }
 
 function camion(): Shape {
@@ -378,9 +446,8 @@ function camion(): Shape {
   p.panel(S.Head, low.front, 0.8, 0.96, 0.3, 0.55);
   p.panel(S.Black, low.front, 0.26, 0.74, 0.25, 0.85);
   const cab = hexa({ y0: 1.55, y1: 2.8, xb: W / 2 - 0.04, zb: [1.88, L / 2 - 0.08], xt: W / 2 - 0.1, zt: [1.92, L / 2 - 0.35] });
-  p.solid(S.Paint, cab);
-  p.panel(S.Glass, cab.front, 0.05, 0.95, 0.08, 0.9);
-  p.sides(S.Glass, cab, 0.04, 0.6, 0.12, 0.85);
+  p.cabin(S.Paint, cab, { front: [[0.05, 0.95, 0.08, 0.9]], sides: [[0.04, 0.6, 0.12, 0.85]] });
+  p.panel(S.Black, low.top, 0.04, 0.96, 0.04, 0.96, 0.004);
   p.solid(S.Black, block(0, 0.42, 0.68, L / 2 - 0.02, W + 0.02, 0.18));
   // Caisse frigorifique blanche, bandeau à la teinte de la cabine.
   const box = hexa({ y0: 0.95, y1: 3.4, xb: W / 2 + 0.02, zb: [-L / 2, 1.78] });
@@ -391,7 +458,7 @@ function camion(): Shape {
   p.panel(S.Tail, box.back, 0.86, 0.98, 0.02, 0.1);
   p.solid(S.Black, block(0, 0.42, 0.6, -L / 2 + 0.08, W - 0.1, 0.12));
   const wheels = wheelsAt({ W, r, axles: [-2.75, -1.75, 2.6] }, 0.4);
-  return { body: p.geometry(), wheels, length: L, wheelRadius: r };
+  return { body: p.geometry(), wheels, length: L, wheelRadius: r, seat: [W / 2 - 0.55, 1.8, 2.62], look: 'driver' };
 }
 
 const TRACTOR_GREEN = '#3d9b35';
@@ -411,12 +478,11 @@ function tracteur(trailer: boolean): Shape {
   p.panel(S.Head, hood.front, 0.7, 0.92, 0.75, 0.94);
   p.solid(S.Black, block(0, 0.42, 0.75, 0.5, 0.62, 2.9));
   // Poste de conduite : plancher, cabine vitrée sur ses quatre faces, toit noir.
-  p.solid(S.Paint, block(0, 1.05, 1.3, -0.62, 1.2, 1.4));
+  const floor = block(0, 1.05, 1.3, -0.62, 1.2, 1.4);
+  p.solid(S.Paint, floor);
+  p.panel(S.Black, floor.top, 0.04, 0.96, 0.04, 0.96, 0.004);
   const cab = hexa({ y0: 1.3, y1: 2.7, xb: 0.6, zb: [-1.3, 0.06], xt: 0.56, zt: [-1.22, -0.04] });
-  p.solid(S.Paint, cab);
-  p.panel(S.Glass, cab.front, 0.07, 0.93, 0.05, 0.95);
-  p.panel(S.Glass, cab.back, 0.07, 0.93, 0.05, 0.95);
-  p.sides(S.Glass, cab, 0.06, 0.94, 0.05, 0.95);
+  p.cabin(S.Paint, cab, { front: [[0.07, 0.93, 0.05, 0.95]], back: [[0.07, 0.93, 0.05, 0.95]], sides: [[0.06, 0.94, 0.05, 0.95]] });
   p.solid(S.Black, block(0, 2.7, 2.84, -0.6, 1.36, 1.6));
   // Garde-boue arrière, pot d'échappement, attelage.
   for (const sx of [-1, 1]) p.solid(S.Paint, hexa({ cx: sx * 0.88, y0: 1.5, y1: 1.62, xb: 0.3, zb: [-1.5, -0.08], xt: 0.28, zt: [-1.42, -0.16] }));
@@ -436,7 +502,8 @@ function tracteur(trailer: boolean): Shape {
     for (const sx of [-1, 1]) wheels.push({ x: sx * 0.86, z: -4.1, r: 0.44, w: 0.3 });
   }
   for (const w of wheels) w.z += p.dz;
-  return { body: p.geometry(), wheels, length: zMax - zMin, wheelRadius: 0.78, yellowHubs: true, paint: TRACTOR_GREEN };
+  // Le paysan au milieu de sa cabine, pieds au plancher.
+  return { body: p.geometry(), wheels, length: zMax - zMin, wheelRadius: 0.78, yellowHubs: true, paint: TRACTOR_GREEN, seat: [0, 1.72, -0.75 + p.dz], look: 'farmer' };
 }
 
 const SHAPES: Record<LowPolyVariant, () => Shape> = {
@@ -469,9 +536,19 @@ function flat(color: string, roughness = 0.6, emissive = 0): THREE.MeshStandardN
   return m;
 }
 
+/** Vitrage teinté translucide, visible des deux côtés (on voit l'occupant, puis le paysage à travers la cabine). */
+function glassMaterial(): THREE.Material {
+  const m = flat('#1d2a3c', 0.25);
+  m.transparent = true;
+  m.opacity = 0.45;
+  m.depthWrite = false;
+  m.side = THREE.DoubleSide;
+  return m;
+}
+
 function sharedMaterials(): NonNullable<typeof shared> {
   shared ??= {
-    glass: flat('#1d2a3c', 0.3),
+    glass: glassMaterial(),
     black: flat('#1b1c1f', 0.75),
     head: flat('#fff3c4', 0.4, 0.35),
     tail: flat('#d0161f', 0.5, 0.25),
@@ -504,11 +581,11 @@ function wheelGeo(r: number, w: number): THREE.BufferGeometry {
   return g;
 }
 
-/** Nombre de triangles d'une variante (caisse et roues), pour le contrôle du budget. */
+/** Nombre de triangles d'une variante (caisse, roues et occupant), pour le contrôle du budget. */
 export function lowPolyTriangles(variant: LowPolyVariant): number {
   const s = shapeOf(variant);
   const tris = (g: THREE.BufferGeometry) => (g.getAttribute('position').count / 3) | 0;
-  return tris(s.body) + s.wheels.reduce((n, w) => n + tris(wheelGeo(w.r, w.w)), 0);
+  return tris(s.body) + s.wheels.reduce((n, w) => n + tris(wheelGeo(w.r, w.w)), 0) + (s.seat ? driverTriangles(s.look ?? 'driver') : 0);
 }
 
 function shapeOf(variant: LowPolyVariant): Shape {
@@ -523,8 +600,8 @@ function shapeOf(variant: LowPolyVariant): Shape {
   return s;
 }
 
-/** Une instance de la variante, caisse de teinte `color` (le tracteur garde son vert). */
-export function buildLowPolyVehicle(variant: LowPolyVariant, color: string): LowPolyBuilt {
+/** Une instance de la variante, caisse de teinte `color` (le tracteur garde son vert) ; `rand` habille l'occupant. */
+export function buildLowPolyVehicle(variant: LowPolyVariant, color: string, rand: () => number = Math.random): LowPolyBuilt {
   const spec = LOW_POLY_VARIANTS[variant];
   const shape = shapeOf(variant);
   const s = sharedMaterials();
@@ -534,6 +611,11 @@ export function buildLowPolyVehicle(variant: LowPolyVariant, color: string): Low
   body.castShadow = true;
   body.receiveShadow = true;
   group.add(body);
+  if (shape.seat) {
+    const driver = buildDriver(shape.look ?? 'driver', rand);
+    driver.position.set(...shape.seat);
+    group.add(driver);
+  }
   const wheelMats = [s.tire, shape.yellowHubs ? s.hubYellow : s.hub];
   const wheels: THREE.Object3D[] = [];
   for (const w of shape.wheels) {

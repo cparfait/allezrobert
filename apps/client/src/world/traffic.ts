@@ -9,6 +9,7 @@ import { LOW_POLY } from '../engine/style.ts';
 import type { VehicleSound } from '../audio/soundscape.ts';
 import { UNPAVED_SURFACES } from './dust.ts';
 import { buildLowPolyVehicle, pickLowPolyPaint, pickLowPolyTractor, pickLowPolyVariant, type LowPolyVariant } from './lowPolyVehicles.ts';
+import { buildDriver } from './vehicleDriver.ts';
 import { followSpeed, keepApart, keepClearOfRiders, leaderOf, oncomingInLane, RIDER_CLEAR_LAT } from './trafficSpacing.ts';
 
 /**
@@ -19,6 +20,7 @@ import { followSpeed, keepApart, keepClearOfRiders, leaderOf, oncomingInLane, RI
  * Modèles réalistes (Sketchfab, CC BY 4.0, voir ASSETS_LICENSES.md) préparés par tools/blender/vehicles :
  * `<nom>.glb` (proche) et `<nom>.far.glb` (lointain, simplifié), Meshopt + KTX2, à l'échelle réelle,
  * avant vers +z, roues = nœuds « wheel* » centrés sur leur axe. Sans fichiers : primitives.
+ * Occupants : conducteur assis à gauche, paysan sur le tracteur (vehicleDriver.ts), dans le modèle proche.
  * Style jeu vidéo (LOW_POLY) : aucun modèle chargé, véhicules à facettes de lowPolyVehicles.ts.
  */
 
@@ -33,22 +35,26 @@ interface ModelSpec {
   weight: number;
   /** Exporté l'avant vers −z (sans `--flip` à l'export) : retourné au chargement. */
   reversed?: boolean;
+  /** Point de hanche de l'occupant (m, avant vers +z, gauche en +x) ; absent : vitres opaques, personne à voir. */
+  seat?: [number, number, number];
+  /** Le modèle a gardé son siège et son volant : l'occupant vient sans les siens. */
+  ownCabin?: boolean;
 }
 
 const MODELS: ModelSpec[] = [
   // Vitesses de croisière (m/s) de routes de campagne et de bourgs : 36 à 68 km/h ; en virage, la vitesse est
   // en plus bornée par la courbure (Traffic.update, CORNER_ACCEL).
-  { file: 'citadine', kind: 'car', cruise: [10, 14], repaint: true, weight: 2 },
-  { file: 'berline', kind: 'car', cruise: [11, 16], repaint: true, weight: 3 },
-  { file: 'suv', kind: 'car', cruise: [11, 15], repaint: true, weight: 2 },
-  { file: 'porsche-911', kind: 'car', cruise: [13, 19], repaint: true, weight: 1 },
-  { file: 'nissan-silvia', kind: 'car', cruise: [12, 17], repaint: true, weight: 1.5 },
+  { file: 'citadine', kind: 'car', cruise: [10, 14], repaint: true, weight: 2, seat: [0.36, 0.52, -0.1] },
+  { file: 'berline', kind: 'car', cruise: [11, 16], repaint: true, weight: 3, seat: [0.36, 0.48, -0.1] },
+  { file: 'suv', kind: 'car', cruise: [11, 15], repaint: true, weight: 2, seat: [0.4, 0.55, -0.1] },
+  { file: 'porsche-911', kind: 'car', cruise: [13, 19], repaint: true, weight: 1, seat: [0.38, 0.3, -0.25] },
+  { file: 'nissan-silvia', kind: 'car', cruise: [12, 17], repaint: true, weight: 1.5, seat: [0.38, 0.33, -0.2] },
   { file: 'bmw-733i', kind: 'car', cruise: [11, 16], repaint: false, weight: 1.5, reversed: true },
   { file: 'mercedes-c230', kind: 'car', cruise: [11, 16], repaint: false, weight: 1.5 },
-  { file: 'lamborghini-aventador', kind: 'car', cruise: [13, 19], repaint: true, weight: 0.8 },
-  { file: 'mclaren-720s', kind: 'car', cruise: [13, 19], repaint: true, weight: 0.8, reversed: true },
-  { file: 'utilitaire', kind: 'van', cruise: [10, 14], repaint: false, weight: 1.5 },
-  { file: 'tractor', kind: 'tractor', cruise: [6.5, 8.5], repaint: false, weight: 0 },
+  { file: 'lamborghini-aventador', kind: 'car', cruise: [13, 19], repaint: true, weight: 0.8, seat: [0.4, 0.18, -0.1], ownCabin: true },
+  { file: 'mclaren-720s', kind: 'car', cruise: [13, 19], repaint: true, weight: 0.8, reversed: true, seat: [0.38, 0.26, -0.1], ownCabin: true },
+  { file: 'utilitaire', kind: 'van', cruise: [10, 14], repaint: false, weight: 1.5, seat: [0.5, 1.1, 1.0], ownCabin: true },
+  { file: 'tractor', kind: 'tractor', cruise: [6.5, 8.5], repaint: false, weight: 0, seat: [0, 1.5, -0.77], ownCabin: true },
 ];
 
 /** Teintes courantes sur les routes françaises (gris, blanc, noir dominent). */
@@ -365,12 +371,18 @@ interface Built {
   cruise: [number, number];
 }
 
-function buildModel(t: Template, color: string, lodScale: number): Built {
+function buildModel(t: Template, color: string, lodScale: number, rand: () => number = Math.random, seat = t.spec.seat): Built {
   const near = t.near.clone(true);
   const far = t.far?.clone(true) ?? null;
   if (t.spec.repaint) repaint(far ? [near, far] : [near], color);
   const wheels: THREE.Object3D[] = [];
   for (const root of far ? [near, far] : [near]) root.traverse((o) => isWheel(o) && wheels.push(o));
+  // Occupant : dans le modèle proche seulement (au-delà, on ne le distingue plus derrière les vitres).
+  if (seat) {
+    const driver = buildDriver(t.spec.kind === 'tractor' ? 'farmer' : 'driver', rand, t.spec.ownCabin);
+    driver.position.set(...seat);
+    near.add(driver);
+  }
   let group: THREE.Object3D = near;
   if (far) {
     const lod = new THREE.LOD();
@@ -449,6 +461,27 @@ interface Vehicle {
   inTown?: boolean;
 }
 
+/**
+ * Un exemplaire de chaque véhicule du style courant, pour le banc d'essai (vehicle-test.html). `seat` : point de
+ * hanche d'essai, à la place de celui du modèle (réglage d'un siège).
+ */
+export function vehicleShowcase(seat?: [number, number, number]): Array<{ name: string; group: THREE.Object3D; length: number }> {
+  const rand = rng(5);
+  if (LOW_POLY) {
+    const variants: LowPolyVariant[] = ['citadine', 'berline', 'break', 'suv', 'sportive', 'pickup', 'fourgon', 'camion', 'tracteur', 'tracteurRemorque'];
+    return variants.map((name) => {
+      const b = buildLowPolyVehicle(name, pickLowPolyPaint(name, rand), rand);
+      return { name, group: b.group, length: b.length };
+    });
+  }
+  return MODELS.flatMap((spec) => {
+    const t = templates.find((m) => m.spec === spec);
+    if (!t) return [];
+    const b = buildModel(t, PAINTS[Math.floor(rand() * PAINTS.length)] as string, 1e6, rand, seat ?? spec.seat);
+    return [{ name: spec.file, group: b.group, length: b.length }];
+  });
+}
+
 /** Véhicules pour une densité donnée (`QualitySettings.trafficDensity`, 0–1) : 2 à 6. */
 export function vehicleCount(density: number): number {
   return density <= 0 ? 0 : Math.max(1, Math.round(6 * Math.min(density, 1.5)));
@@ -459,6 +492,8 @@ export class Traffic {
   private readonly vehicles: Vehicle[] = [];
   private readonly track: RouteTrack;
   private readonly r = rng(77);
+  /** Tirage à part pour l'allure des occupants : la suite des véhicules et des teintes reste la même. */
+  private readonly people = rng(91);
   /** Communes (bourgs, villes) près desquelles les tracteurs n'apparaissent pas. */
   private urban: ReadonlyArray<{ x: number; z: number }> = [];
   /** Bâti dense autour d'un point : la liste des communes ne couvre pas tout (Paris manque à Montmartre). */
@@ -482,10 +517,10 @@ export class Traffic {
         // Style jeu vidéo : variante à facettes (tracteur au même rang), sans répéter la précédente.
         const variant = i === 1 && n >= 3 ? pickLowPolyTractor(this.r) : pickLowPolyVariant(this.r, lastLow);
         lastLow = variant;
-        built = buildLowPolyVehicle(variant, pickLowPolyPaint(variant, this.r));
+        built = buildLowPolyVehicle(variant, pickLowPolyPaint(variant, this.r), this.people);
       } else if (i === 1 && n >= 3) {
         const t = templates.find((m) => m.spec.kind === 'tractor');
-        built = t ? buildModel(t, color, lodScale) : buildPrimitive('tractor', color);
+        built = t ? buildModel(t, color, lodScale, this.people) : buildPrimitive('tractor', color);
       } else if (pool.length) {
         let t: Template = pool[0] as Template;
         for (let k = 0; k < 4 && (k === 0 || t === last); k++) {
@@ -493,7 +528,7 @@ export class Traffic {
           t = pool.find((m) => (x -= m.spec.weight) < 0) ?? (pool[0] as Template);
         }
         last = t;
-        built = buildModel(t, color, lodScale);
+        built = buildModel(t, color, lodScale, this.people);
       } else built = buildPrimitive(i % 4 === 3 ? 'van' : 'car', color);
       const sens: 1 | -1 = i % 2 ? -1 : 1;
       const cruise = built.cruise[0] + this.r() * (built.cruise[1] - built.cruise[0]);
