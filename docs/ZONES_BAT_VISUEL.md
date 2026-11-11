@@ -43,6 +43,36 @@ Versions :
 
 En 2c, le générateur n'applique pas encore les pignons. L'application est prévue en ZONES-BAT-2d.
 
+## Format v3 · volumes (ZONES-BAT-3b)
+
+Un complément de tuile en `schemaVersion: 3` peut porter une correction `kind: "volumes"`. Elle décrit un bâtiment fait de plusieurs volumes, chacun avec sa hauteur et son toit.
+
+Le champ `parts` liste de 1 à 12 volumes. Chacun a :
+- `pts` : la sous-emprise, en mètres, relative au premier sommet de l'emprise du bâtiment ;
+- `roof` : le toit, soit à deux pans (`type: "gable"`, avec `ridgeM`, `ridge` relatif au même premier sommet, `pitchLeftDeg` et `pitchRightDeg`, selon les règles de la v2), soit plat (`type: "flat"`, avec `topM` en IGN69).
+
+Règles de validation :
+- chaque sous-emprise est un polygone simple d'au moins 1 m² ;
+- ses sommets restent dans la boîte de l'emprise élargie de 0,5 m ;
+- son centre est dans l'emprise ;
+- la somme des aires des sous-emprises vaut celle de l'emprise à 3 % près ;
+- le faîtage d'un volume tombe dans la boîte de ce volume, élargie de 1 m.
+
+Le chevauchement entre volumes n'est pas vérifié directement : la règle d'aire le limite.
+
+L'emprise de base, et donc la collision COLL-MURS, ne change pas : seul le rendu est découpé.
+
+Versions :
+- le producteur écrit la version la plus basse qui suffit (v1, v2 ou v3) ;
+- un client v2 refuse un fichier v3 et garde le rendu de base ;
+- l'index ne change pas.
+
+Derrière `?visualBuildings=1`, le générateur (ZONES-BAT-3c, `volumesRoof.ts`) dessine chaque volume comme un prisme. Ses murs montent jusqu'à son toit : deux pans via `gableRoof.ts`, ou dalle plate.
+
+Pilote : le repère 28 du Roussel, découpé en trois volumes aux décrochements de son emprise. L'écart moyen au MNS LiDAR passe de 1,28 m à 0,12 m.
+
+Le repère 54 demandera un découpage piloté par le LiDAR (plans de toit) : ses volumes ne suivent pas les sommets de l'emprise.
+
 L’index et le complément doivent être compatibles avec le monde et la tuile réellement décodée. Chaque ID corrigé doit exister exactement une fois. Une correction dupliquée, une version inconnue ou une entrée invalide invalide le complément de la tuile. Seuls les champs du contrat sont exposés au client. Un changement quelconque du JSON de base, même de mise en forme, demande de recalculer le lien de compatibilité.
 
 [Exemple synthétique complet](../apps/client/test/fixtures/building-visual/0_0.buildings-visual.json) · [Tuile source synthétique](../apps/client/test/fixtures/building-visual/0_0.json)

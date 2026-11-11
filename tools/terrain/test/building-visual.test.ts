@@ -3,7 +3,9 @@ import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promis
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { parseBuildingVisualTile, type GableVisualCorrection, type RoofVisualCorrection } from '@allezrobert/shared/building-visual';
+import {
+  parseBuildingVisualTile, type GableVisualCorrection, type RoofVisualCorrection, type VolumePart, type VolumesVisualCorrection,
+} from '@allezrobert/shared/building-visual';
 import { writeBuildingVisualCorrections } from '../src/building-visual.ts';
 import { writePackManifest } from '../src/packs.ts';
 
@@ -82,6 +84,29 @@ describe('publication des compléments visuels', () => {
       await expect(writeBuildingVisualCorrections(root, worldId, new Map([[tileId, [bad]]]))).rejects.toThrow();
     }
     expect(await readdir(dir)).toEqual(['0_0.json']);
+  });
+
+  it('écrit un complément v3 pour des volumes qui couvrent l’emprise et refuse une couverture incomplète', async () => {
+    const { root, dir } = await world();
+    const volumes = (parts: VolumePart[]): VolumesVisualCorrection => ({
+      buildingId: 'w2', kind: 'volumes', parts, confidence: 'high',
+      provenance: { dataset: 'fixture', reference: 'volumes', observedOn: '2000-01-01', method: 'profil synthétique' },
+    });
+    // Emprise 8 × 6 m à partir de (10, 10) : moitié ouest à deux pans, moitié est plate.
+    const west: VolumePart = { pts: [0, 0, 4, 0, 4, 6, 0, 6], roof: { type: 'gable', ridgeM: 106, ridge: [2, 0, 2, 6], pitchLeftDeg: 20, pitchRightDeg: 20 } };
+    const east: VolumePart = { pts: [4, 0, 8, 0, 8, 6, 4, 6], roof: { type: 'flat', topM: 104 } };
+    await writeBuildingVisualCorrections(root, worldId, new Map([[tileId, [volumes([west, east]), correction('w1')]]]));
+    const visual = JSON.parse(await readFile(join(dir, '0_0.buildings-visual.json'), 'utf8'));
+    expect(visual.schemaVersion).toBe(3);
+    expect(visual.corrections.map((c: { kind: string }) => c.kind)).toEqual(['roof', 'volumes']);
+    expect(visual.corrections[1].parts).toEqual([west, east]);
+    expect(JSON.parse(await readFile(join(dir, 'buildings-visual.json'), 'utf8')).schemaVersion).toBe(1);
+    await expect(writeBuildingVisualCorrections(root, worldId, new Map([[tileId, [volumes([west])]]]))).rejects.toThrow();
+    const crossed: VolumePart = { ...east, pts: [4, 0, 8, 6, 8, 0, 4, 6] };
+    await expect(writeBuildingVisualCorrections(root, worldId, new Map([[tileId, [volumes([west, crossed])]]]))).rejects.toThrow();
+    const ridgeOut: VolumePart = { ...west, roof: { type: 'gable', ridgeM: 106, ridge: [7, 0, 7, 6], pitchLeftDeg: 20, pitchRightDeg: 20 } };
+    await expect(writeBuildingVisualCorrections(root, worldId, new Map([[tileId, [volumes([ridgeOut, east])]]]))).rejects.toThrow();
+    expect(await readFile(join(dir, '0_0.json'), 'utf8')).toBe(base);
   });
 
   it('refuse un pignon déclaré en v1 et un complément v2 sans pignon', () => {

@@ -13,6 +13,7 @@ import { wallGroundOffset } from './facadeGround.ts';
 import { flatRoofKind, leanSide, LEAN_PITCH } from './flatRoofs.ts';
 import { DOOR_FLOOR, eaveHeight } from './eaveHeight.ts';
 import { gableRoof } from './gableRoof.ts';
+import { concatMeshes, volumesGeometry } from './volumesRoof.ts';
 import { genoiseDrop, genoiseRows } from './genoise.ts';
 import { LazyTexture } from '../engine/textures.ts';
 import { createLowPolyBuildingMaterial } from './buildingsLowPoly.ts';
@@ -1038,8 +1039,12 @@ export class Buildings {
       const visual = bld.id ? tile.buildingVisualCorrections?.get(bld.id) : undefined;
       const gableTry = plan && visual?.kind === 'gable' ? gableRoof(bld.pts, visual, plan.overhang) : null;
       const gable = gableTry && gableTry.eaveMin - base >= DOOR_FLOOR ? gableTry : null;
+      // Volumes v3 (ZONES-BAT-3c) : un prisme et son toit par sous-emprise mesurée, même garde-fou de hauteur
+      // de porte pour chaque volume ; un seul volume refusé et c'est tout le bâtiment historique qui revient.
+      const volumesTry = !isChurch && visual?.kind === 'volumes' ? volumesGeometry(bld.pts, visual, plan?.overhang ?? (LOW_POLY ? ROOF_OVERHANG_LP : 0.4)) : null;
+      const volumes = volumesTry && volumesTry.every((v) => v.eaveMin - base >= DOOR_FLOOR) ? volumesTry : null;
       // Emprise pour la collision de la caméra (prisme toit compris ; le clocher dépasse, sans gêne).
-      this.footprints.add(tile.id, bld.pts, base, gable ? gable.ridgeM : wallTop + roofH);
+      this.footprints.add(tile.id, bld.pts, base, volumes ? Math.max(...volumes.map((v) => v.top)) : gable ? gable.ridgeM : wallTop + roofH);
       // Matériau de façade : celui de l'archétype ; sinon connu (BD TOPO, OSM) ou tiré au sort (meulière ≈ 45 %
       // hors annexes), ou couleur OSM.
       const pick = (list: string[]) => list[Math.floor(r() * list.length)] as string;
@@ -1132,14 +1137,24 @@ export class Buildings {
         this.shopWallsByTile.set(tile.id, list);
       }
       // Monopente : haut des murs sur le pan ; même façade que les autres murs (porte côté rue, sol amont).
-      const w = walls(bld.pts, base, wallH + 0.3, style, this.groundAt, skillion ? (x, z) => roofAt(x, z) - base : gable ? (x, z) => gable.at(x, z) - base : undefined);
+      // Volumes v3 : murs de chaque volume jusqu'à son toit ; génoise sous les murs parallèles à son faîtage.
+      const volumeStyle = (k: number): WallStyle | undefined => {
+        const roof = visual?.kind === 'volumes' ? visual.parts[k]?.roof : undefined;
+        const dir = volumes?.[k]?.ridgeDir;
+        if (!style || style.genoiseDrop === undefined || !dir || roof?.type !== 'gable') return style;
+        return { ...style, eave: (dx, dz) => Math.abs(dx * dir[0] + dz * dir[1]) / Math.hypot(dx, dz) > 0.7, genoiseDrop: genoiseDrop((roof.pitchLeftDeg + roof.pitchRightDeg) / 2) };
+      };
+      const volumeWalls = volumes
+        ? mergeGeometries(volumes.map((v, k) => walls(v.pts, base, wallH + 0.3, volumeStyle(k), this.groundAt, (x, z) => v.topAt(x, z) - base)).map((g) => (g.index ? g.toNonIndexed() : g)), false)
+        : null;
+      const w = volumeWalls ?? walls(bld.pts, base, wallH + 0.3, style, this.groundAt, skillion ? (x, z) => roofAt(x, z) - base : gable ? (x, z) => gable.at(x, z) - base : undefined);
       // Granges, fermes et églises : enduit à pierres vues plutôt que meulière ou enduit lisse.
       const rubble = !arch && !stones && !brick && !bld.colour && (bld.kind === 'barn' || bld.kind === 'farm' || isChurch) && r() < 0.7;
       const wallType = arch ? WALL_CODE[arch.wall] : stones ? 1 : rubble ? 3 : brick ? 2 : 0;
       paint(w, wc, 0, acc, wallType, isUtility ? 2 : 1, archId ? ARCH_IDS.indexOf(archId) + 1 : 0);
       parts.push(w);
       // Toit-terrasse : sans pente, hors bac acier (le béton est compté avec le métal ci-dessus).
-      const terrace = !plan && !skillion && flatKind !== 'steel';
+      const terrace = !volumes && !plan && !skillion && flatKind !== 'steel';
       const slate = roofMat === 'slate' && !terrace;
       // Tuiles : brun-rouge (tuile plate d'Île-de-France) ou orangé (tuile mécanique / canal, BD TOPO) ;
       // archétype : sa palette pour le zinc et la tuile.
@@ -1156,11 +1171,12 @@ export class Buildings {
                 ? pick(arch!.roof.colours)
                 : pick(arch && roofMat === 'tiles' ? MECHANICAL_TILES : roofMat === 'tiles' ? TERRACOTTA : ROOFS);
       const roofKind = terrace ? 4 : metal ? 3 : slate ? 2 : 1;
-      // Pignon v2 : pas de toit du plan (ni ses détails : faîtière et cheminée supposent un toit symétrique).
-      const buf = plan && !gable ? roofBuffers(plan, wallTop, pitch) : null;
-      const roofPart = gable ? gable.roof : buf ? buf.roof : flatRoof(bld.pts, wallTop);
-      if (skillion) for (let i = 0; i < roofPart.pos.length; i += 3) roofPart.pos[i + 1] = roofAt(roofPart.pos[i] as number, roofPart.pos[i + 2] as number);
-      else if (!plan) {
+      // Pignon v2 et volumes v3 : pas de toit du plan (ni ses détails : faîtière et cheminée supposent un toit symétrique).
+      const buf = plan && !gable && !volumes ? roofBuffers(plan, wallTop, pitch) : null;
+      const roofPart = volumes ? concatMeshes(volumes.map((v) => v.roof)) : gable ? gable.roof : buf ? buf.roof : flatRoof(bld.pts, wallTop);
+      // Volumes v3 : toits mesurés, ni monopente recalculée ni abaissement des toits plats.
+      if (skillion && !volumes) for (let i = 0; i < roofPart.pos.length; i += 3) roofPart.pos[i + 1] = roofAt(roofPart.pos[i] as number, roofPart.pos[i + 2] as number);
+      else if (!plan && !volumes) {
         // Toit plat : abaissé d'un rien propre au bâtiment (0 à 6 cm, tiré de son emprise ; le mur dépasse à peine). Deux bâtiments mitoyens
         // ou parties d'un même bâtiment (BD TOPO) à la même hauteur superposaient leurs toits : ils scintillaient.
         const lift = (Math.abs(Math.sin((bld.pts[0] as number) * 12.9898 + (bld.pts[1] as number) * 78.233)) * 43758.5453) % 1 * 0.06;
@@ -1172,7 +1188,7 @@ export class Buildings {
         // sous-face du débord (face arrière des pans), enduit du mur à l'ombre.
         paint(roof, LOW_POLY && (zinc || archTile) ? vivid(c.set(roofColour), 0.25, 0.02) : c.set(roofColour), roofKind, soffit.copy(wc).multiplyScalar(0.8), zinc || (bld.bdtopo && roofKind === 1) ? 1 : 0, 0);
         parts.push(roof);
-        if (plan || skillion) {
+        if (plan || skillion || volumes) {
           // Chant : tuiles et liteaux 16 cm, ardoise 10 cm, bac acier 6 cm ; couleur du toit assombrie (bouts de tuiles, rive).
           // Style jeu vidéo : dalle de toit épaisse (rive sombre bien lisible de loin).
           const edge = roofEdge(roofPart, LOW_POLY ? (metal ? 0.16 : slate ? 0.26 : 0.34) : metal ? 0.06 : slate ? 0.1 : 0.16);
@@ -1192,7 +1208,7 @@ export class Buildings {
         paint(parapet, wc, 0, acc, wallType, 0);
         parts.push(parapet);
       }
-      const gablePart = gable ? gable.gables : buf?.gables;
+      const gablePart = volumes ? concatMeshes(volumes.map((v) => v.gables)) : gable ? gable.gables : buf?.gables;
       if (gablePart && gablePart.pos.length) {
         // Pignons (murs triangulaires) : même enduit que les murs.
         const gables = toGeometry(gablePart.pos, gablePart.uv);

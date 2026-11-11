@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { WorldMeta, WorldTile } from '@allezrobert/shared';
 import {
   parseBuildingVisualTile, type BuildingVisualCorrection, type BuildingVisualTile, type GableVisualCorrection, type RoofVisualCorrection,
+  type VolumesVisualCorrection,
 } from '@allezrobert/shared/building-visual';
 import { createCompositeWorld } from '../src/world/composite.ts';
 import { createFileWorld } from '../src/world/fileWorld.ts';
@@ -177,6 +178,32 @@ describe('corrections visuelles des bâtiments', () => {
     expect(tb?.buildingVisualCorrections?.get(buildingId)).toEqual(gable);
     // Faîtage ramené dans le repère translaté : sur la ligne z = 12, de x = 1010 à 1020, dans l'emprise.
     expect([pts[0]! + gable.ridge[0], pts[1]! + gable.ridge[1], pts[0]! + gable.ridge[2], pts[1]! + gable.ridge[3]]).toEqual([1010, 12, 1020, 12]);
+  });
+
+  it('expose des volumes v3, qui suivent le bâtiment translaté, et se replie sur une couverture incomplète', async () => {
+    enable();
+    const { state } = network();
+    const volumes: VolumesVisualCorrection = {
+      buildingId, kind: 'volumes', confidence: 'high',
+      provenance: { dataset: 'fixture', reference: 'volumes', observedOn: '2000-01-01', method: 'profil synthétique' },
+      parts: [
+        { pts: [0, 0, 5, 0, 5, 6, 0, 6], roof: { type: 'gable', ridgeM: 106, ridge: [0, 3, 5, 3], pitchLeftDeg: 20, pitchRightDeg: 25 } },
+        { pts: [5, 0, 10, 0, 10, 6, 5, 6], roof: { type: 'flat', topM: 104 } },
+      ],
+    };
+    state.document = JSON.stringify({ ...JSON.parse(visual), schemaVersion: 3, corrections: [volumes] });
+    expect((await load())?.buildingVisualCorrections?.get(buildingId)).toEqual(volumes);
+    const composed = createCompositeWorld([
+      await createFileWorld('zone-a', metadata('zone-a')), await createFileWorld('zone-b', metadata('zone-b', 1000)),
+    ]);
+    const tb = await composed.loadTile(1, 0);
+    const pts = tb!.features.buildings[0]!.pts;
+    expect(tb?.buildingVisualCorrections?.get(buildingId)).toEqual(volumes);
+    expect([pts[0]! + volumes.parts[1]!.pts[2]!, pts[1]! + volumes.parts[1]!.pts[3]!]).toEqual([1020, 10]);
+    state.document = JSON.stringify({ ...JSON.parse(visual), schemaVersion: 3, corrections: [{ ...volumes, parts: [volumes.parts[0]] }] });
+    expect((await load())?.buildingVisualCorrections).toBeUndefined();
+    state.document = JSON.stringify({ ...JSON.parse(visual), schemaVersion: 2, corrections: [volumes] });
+    expect((await load())?.buildingVisualCorrections).toBeUndefined();
   });
 
   it.each([
