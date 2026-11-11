@@ -199,20 +199,31 @@ export interface DeckNodeResult {
   report: Array<{ wayId: number; kind: string; name: string; lenM: number; verdict: DeckVerdict }>;
   /** Nœuds écartés parce qu'une voie d'accès deviendrait trop raide. */
   steepRejected: number;
+  /** Ponts non relevés parce qu'ils touchent un nœud imposé (itinéraire gardé). */
+  fixedSkipped: number;
 }
 
 /** Altitudes de tablier des nœuds d'extrémité de tous les ponts routiers du graphe (MNS et BD TOPO en cache ou téléchargés). */
-export async function bridgeNodeHeights(g: RoadGraph, dem: DemStack): Promise<DeckNodeResult> {
+/**
+ * `fixedNodes` : nœuds dont l'altitude est imposée ailleurs (itinéraires publiés gardés, voir `roads3d.ts`) ;
+ * un pont qui en touche un n'est pas relevé (un seul bout relevé ferait une rampe).
+ */
+export async function bridgeNodeHeights(g: RoadGraph, dem: DemStack, opts: { fixedNodes?: ReadonlySet<number> } = {}): Promise<DeckNodeResult> {
   const perNode = new Map<number, number[]>();
   const report: DeckNodeResult['report'] = [];
   const segCache = new Map<string, BdSeg[]>();
   const groups: number[][] = [];
+  let fixedSkipped = 0;
   const mntAt = (p: Pt): number => {
     const l = worldToL93(p[0], p[1]);
     return dem.sample(l.e, l.n);
   };
   for (const e of g.edges) {
     if (!e.road.bridge || e.len < 8 || e.pts.length < 2) continue;
+    if (opts.fixedNodes?.has(e.a) || opts.fixedNodes?.has(e.b)) {
+      fixedSkipped++;
+      continue;
+    }
     const xs = e.pts.map((p) => p[0]);
     const zs = e.pts.map((p) => p[1]);
     const half = e.road.width / 2;
@@ -271,7 +282,7 @@ export async function bridgeNodeHeights(g: RoadGraph, dem: DemStack): Promise<De
     return h;
   };
   const { nodeHeights, rejected } = pruneLifts(cands, groups, g.edges, (nd) => g.adj.get(nd) ?? [], baseAt);
-  return { nodeHeights, report, steepRejected: rejected };
+  return { nodeHeights, report, steepRejected: rejected, fixedSkipped };
 }
 
 /** Pente maximale d'un pont après relèvement (au-delà, le tablier mesuré n'est pas celui de la route). */

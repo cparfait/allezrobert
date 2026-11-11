@@ -24,12 +24,22 @@ for (const t of meta.tiles) {
   const file = path.join(OUT_DIR, 'tiles', `${t.id}.json`);
   if (!fs.existsSync(file)) continue;
   const tile = JSON.parse(fs.readFileSync(file, 'utf8')) as {
-    roads: Array<{ id: string; kind: string; name?: string; width: number; bridge?: boolean; pts: number[] }>;
+    roads: Array<{ id: string; kind: string; name?: string; width: number; bridge?: boolean; route?: string; pts: number[] }>;
   };
   for (const r of tile.roads) {
     if (!r.bridge || !DRIVABLE.test(r.kind) || r.pts.length < 6) continue;
     const pts: Pt[] = [];
     for (let i = 0; i < r.pts.length; i += 3) pts.push([r.pts[i]!, r.pts[i + 2]!]);
+    // pont touchant un itinéraire gardé (morceau `route`) : laissé tel quel, comme dans build-open
+    const ends = [pts[0]!, pts[pts.length - 1]!];
+    const onRoute = tile.roads.some((q) => q.route && q.pts.length >= 6 && ends.some((e) => {
+      for (let i = 0; i < q.pts.length; i += 3) if (Math.hypot(q.pts[i]! - e[0], q.pts[i + 2]! - e[1]) < 1.5) return true;
+      return false;
+    }));
+    if (r.route || onRoute) {
+      counts.set('sur itinéraire gardé', (counts.get('sur itinéraire gardé') ?? 0) + 1);
+      continue;
+    }
     const ya = r.pts[1]!;
     const yb = r.pts[r.pts.length - 2]!;
     const xs = pts.map((p) => p[0]);
@@ -37,7 +47,13 @@ for (const t of meta.tiles) {
     const m = r.width / 2 + 8;
     const lo = worldToL93(Math.min(...xs) - m, Math.max(...zs) + m);
     const hi = worldToL93(Math.max(...xs) + m, Math.min(...zs) - m);
-    const mns = await fetchRaster(LAYER_MNS, lo.e, lo.n, hi.e, hi.n);
+    let mns;
+    try {
+      mns = await fetchRaster(LAYER_MNS, lo.e, lo.n, hi.e, hi.n);
+    } catch {
+      counts.set('mns hors cache', (counts.get('mns hors cache') ?? 0) + 1);
+      continue;
+    }
     const segs: BdSeg[] = [];
     for (let tx = Math.floor(Math.min(...xs) / TILE_SIZE_M); tx <= Math.floor(Math.max(...xs) / TILE_SIZE_M); tx++)
       for (let tz = Math.floor(Math.min(...zs) / TILE_SIZE_M); tz <= Math.floor(Math.max(...zs) / TILE_SIZE_M); tz++) {

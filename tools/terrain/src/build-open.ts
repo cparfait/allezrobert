@@ -146,7 +146,14 @@ async function main(): Promise<void> {
   // Extrémités de ponts relevées au tablier mesuré (MNS LiDAR HD + BD TOPO) : à l'essai, TERRAIN_BRIDGE_DECKS=1
   let deckHeights: Map<number, number> | undefined;
   if (process.env.TERRAIN_BRIDGE_DECKS === '1') {
-    const decks = await bridgeNodeHeights(g, dem);
+    // nœuds des itinéraires gardés (montées, sorties) : leur altitude vient de l'itinéraire, pas du tablier
+    const fixedNodes = new Set<number>();
+    for (const k of kept)
+      for (const eid of new Set(k.edgeOf)) {
+        fixedNodes.add(g.edges[eid]!.a);
+        fixedNodes.add(g.edges[eid]!.b);
+      }
+    const decks = await bridgeNodeHeights(g, dem, { fixedNodes });
     deckHeights = decks.nodeHeights;
     const by = new Map<string, number>();
     for (const r of decks.report) {
@@ -154,7 +161,7 @@ async function main(): Promise<void> {
       by.set(k, (by.get(k) ?? 0) + 1);
     }
     log(
-      `   ponts : ${decks.report.length} examinés, ${deckHeights.size} nœuds relevés, ${decks.steepRejected} écartés (accès trop raide) ` +
+      `   ponts : ${decks.report.length} examinés, ${deckHeights.size} nœuds relevés, ${decks.steepRejected} écartés (accès trop raide), ${decks.fixedSkipped} ponts sur itinéraire gardé laissés tels quels ` +
         `(${[...by].map(([k, n]) => `${k} ${n}`).join(', ')})`,
     );
   }
