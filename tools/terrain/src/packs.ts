@@ -14,6 +14,7 @@ import zlib from 'node:zlib';
 import fs from 'node:fs';
 import path from 'node:path';
 import type { WorldCatalogue, WorldMeta, WorldPackManifest } from '@allezrobert/shared';
+import { isBuildingVisualFile } from '@allezrobert/shared/building-visual';
 import { REPO_ROOT, allWorlds } from './config.ts';
 
 export const WORLDS_ROOT = path.join(REPO_ROOT, 'apps', 'client', 'public', 'worlds');
@@ -33,9 +34,13 @@ export function writePackManifest(worldDir: string, id: string): WorldPackManife
       return { p: `tiles/${f}`, b: bytes.length, h: createHash('sha256').update(bytes).digest('hex').slice(0, 32) };
     });
   if (!files.length) return null;
-  // version : noms et tailles seulement (formule d'origine : ajouter h ferait « mettre à jour » toutes les zones installées)
+  // Garder la version historique des packs sans compléments. Pour les données visuelles,
+  // une correction de même taille doit quand même signaler une nouvelle version.
   const h = createHash('sha1');
-  for (const f of files) h.update(`${f.p}:${f.b}\n`);
+  for (const f of files) {
+    const visualDigest = isBuildingVisualFile(path.basename(f.p)) ? `:${f.h}` : '';
+    h.update(`${f.p}:${f.b}${visualDigest}\n`);
+  }
   // taille téléchargée : fichiers compressés comme les sert Caddy (gzip/zstd) et les garde le jeu
   let gzBytes = 0;
   for (const f of files) gzBytes += /\.(jpe?g|png|webp)$/i.test(f.p) ? f.b : zlib.gzipSync(fs.readFileSync(path.join(worldDir, f.p)), { level: 6 }).length;

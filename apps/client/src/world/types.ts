@@ -1,4 +1,5 @@
 import type { RoadGraphData, RouteData, WorldPlace } from '@allezrobert/shared';
+import type { BuildingSourceTile, BuildingVisualCorrection } from '@allezrobert/shared/building-visual';
 
 /**
  * Classes d'occupation du sol rastérisées par tuile (un octet par canal). `verge` : abords de
@@ -33,6 +34,8 @@ export interface TileRoad {
 }
 
 export interface TileBuilding {
+  /** ID du fournisseur dans la tuile source, absent pour les anciens objets sans identité. */
+  id?: string;
   pts: number[];
   height: number;
   kind: string;
@@ -87,6 +90,10 @@ export interface LoadedTile {
   n: number;
   heights: Float32Array;
   features: TileFeatures;
+  /** Namespace d'origine. La composition change les coordonnées et l'ID de rendu, pas cette paire. */
+  buildingSource?: BuildingSourceTile;
+  /** Métadonnées expérimentales validées, indépendantes des entités de base et du rendu. */
+  buildingVisualCorrections?: ReadonlyMap<string, BuildingVisualCorrection>;
   /** Orthophoto IGN de la tuile (JPEG encore compressé : décodé hors du fil principal à l'affichage), facultative. */
   orthoBlob?: Blob;
   /** Raster d'occupation du sol (res×res, 6 canaux entrelacés), calculé côté client. */

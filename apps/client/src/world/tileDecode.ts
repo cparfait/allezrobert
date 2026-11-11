@@ -7,6 +7,7 @@ import type { TileFeatures } from './types.ts';
  */
 
 export interface DecodedTile {
+  sourceId: string;
   x0: number;
   z0: number;
   /** Grille (n+1)×(n+1). */
@@ -30,7 +31,7 @@ export function decodeHeights(tile: WorldTile, raw: Uint16Array): { n: number; h
 
 export function decodeTile(tile: WorldTile, raw: Uint16Array): DecodedTile {
   const { n, heights } = decodeHeights(tile, raw);
-  return { x0: tile.bounds.minX, z0: tile.bounds.minZ, n, heights, features: toFeatures(tile) };
+  return { sourceId: tile.id, x0: tile.bounds.minX, z0: tile.bounds.minZ, n, heights, features: toFeatures(tile) };
 }
 
 export function toFeatures(t: WorldTile): TileFeatures {
@@ -52,6 +53,7 @@ export function toFeatures(t: WorldTile): TileFeatures {
       };
     }),
     buildings: t.buildings.map((bd) => ({
+      ...(typeof bd.id === 'string' && bd.id && bd.id === bd.id.trim() ? { id: bd.id } : {}),
       pts: bd.pts,
       height: bd.height,
       kind: bd.kind,

@@ -3,6 +3,7 @@ import { LOW_POLY } from '../engine/style.ts';
 import type { HorizonGrid, LoadedTile, WorldSource } from './types.ts';
 import { graphFetch, worldFetch } from './packs.ts';
 import { decodeTileBytes } from './tileDecoder.ts';
+import { buildingVisualLoader } from './buildingVisual.ts';
 
 /**
  * Monde généré par tools/terrain (IGN + OpenStreetMap), servi depuis public/worlds/<id>/ :
@@ -38,6 +39,7 @@ export async function createFileWorld(id: string, meta: WorldMeta): Promise<Worl
   const b = meta.bounds;
   const inBounds = (tx: number, tz: number) => tx * T >= b.minX && (tx + 1) * T <= b.maxX && tz * T >= b.minZ && (tz + 1) * T <= b.maxZ;
   const missing = new Set<string>();
+  const loadBuildingVisual = meta.id === id ? buildingVisualLoader(id) : undefined;
 
   return {
     id,
@@ -93,6 +95,10 @@ export async function createFileWorld(id: string, meta: WorldMeta): Promise<Worl
       const bin = await binReady;
       // Lecture du JSON, altitudes et entités : dans un Web Worker (tileDecoder.ts).
       const tile = await decodeTileBytes(json, bin, bin ? gridFile : null, loadGrid);
+      const buildingSource = { worldId: id, tileId: key };
+      const buildingVisualCorrections = loadBuildingVisual && tile.sourceId === key
+        ? await loadBuildingVisual(buildingSource, json, tile.features.buildings)
+        : undefined;
       const orthoBlob = await orthoReady;
       return {
         id: key,
@@ -104,6 +110,8 @@ export async function createFileWorld(id: string, meta: WorldMeta): Promise<Worl
         n: tile.n,
         heights: tile.heights,
         features: tile.features,
+        buildingSource,
+        ...(buildingVisualCorrections ? { buildingVisualCorrections } : {}),
         ...(orthoBlob ? { orthoBlob } : {}),
       } satisfies LoadedTile;
     },

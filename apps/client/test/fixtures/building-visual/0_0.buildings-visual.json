@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "worldId": "zone-a",
+  "tileId": "0_0",
+  "sourceTileSha256": "e5ec21e4ae1205e52e019456d4ea7e33c587b9042d1ccd5a53fd84827e5f50ad",
+  "corrections": [
+    {
+      "buildingId": "bdtopo:BATIMENT-SYNTHETIQUE",
+      "kind": "roof",
+      "eaveM": 104,
+      "ridgeM": 106,
+      "pitchDeg": 24,
+      "confidence": "high",
+      "provenance": {
+        "dataset": "fixture",
+        "reference": "test/plan-1",
+        "observedOn": "2000-01-01",
+        "method": "profil synthétique"
+      }
+    }
+  ]
+}

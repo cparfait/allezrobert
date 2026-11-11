@@ -11,7 +11,8 @@ import { meuliere } from './meuliere.ts';
 import { FootprintIndex, insidePolygon } from './footprints.ts';
 import { wallGroundOffset } from './facadeGround.ts';
 import { flatRoofKind, leanSide, LEAN_PITCH } from './flatRoofs.ts';
-import { eaveHeight } from './eaveHeight.ts';
+import { DOOR_FLOOR, eaveHeight } from './eaveHeight.ts';
+import { gableRoof } from './gableRoof.ts';
 import { genoiseDrop, genoiseRows } from './genoise.ts';
 import { LazyTexture } from '../engine/textures.ts';
 import { createLowPolyBuildingMaterial } from './buildingsLowPoly.ts';
@@ -1031,8 +1032,14 @@ export class Buildings {
       // Égout : mesuré (BD TOPO enrichie au LiDAR) ou déduit des étages (OSM), voir eaveHeight.ts.
       const wallH = eaveHeight({ total, roofH, rise, ...(bld.levels !== undefined ? { levels: bld.levels } : {}), utility: isUtility || isChurch, measured: !!bld.bdtopo });
       const wallTop = base + wallH + 0.3;
+      // Correction visuelle v2 (?visualBuildings=1, ZONES-BAT-2d) : pignon mesuré à faîtage libre à la place du
+      // toit du plan ; murs montés jusqu'aux pans. Repli sur le toit historique si la géométrie est refusée ou
+      // si l'égout le plus bas ne laisse pas une hauteur de porte au-dessus du pied de mur.
+      const visual = bld.id ? tile.buildingVisualCorrections?.get(bld.id) : undefined;
+      const gableTry = plan && visual?.kind === 'gable' ? gableRoof(bld.pts, visual, plan.overhang) : null;
+      const gable = gableTry && gableTry.eaveMin - base >= DOOR_FLOOR ? gableTry : null;
       // Emprise pour la collision de la caméra (prisme toit compris ; le clocher dépasse, sans gêne).
-      this.footprints.add(tile.id, bld.pts, base, wallTop + roofH);
+      this.footprints.add(tile.id, bld.pts, base, gable ? gable.ridgeM : wallTop + roofH);
       // Matériau de façade : celui de l'archétype ; sinon connu (BD TOPO, OSM) ou tiré au sort (meulière ≈ 45 %
       // hors annexes), ou couleur OSM.
       const pick = (list: string[]) => list[Math.floor(r() * list.length)] as string;
@@ -1102,6 +1109,15 @@ export class Buildings {
           if (door) style.door = door;
         }
       }
+      // Pignon v2 : génoise sous les murs parallèles au faîtage mesuré, abaissée selon la pente moyenne des pans.
+      if (gable && visual?.kind === 'gable' && style?.genoiseDrop !== undefined) {
+        const [x1, z1, x2, z2] = visual.ridge;
+        const l = Math.hypot(x2 - x1, z2 - z1);
+        const rx = (x2 - x1) / l;
+        const rz = (z2 - z1) / l;
+        style.eave = (dx, dz) => Math.abs(dx * rx + dz * rz) / Math.hypot(dx, dz) > 0.7;
+        style.genoiseDrop = genoiseDrop((visual.pitchLeftDeg + visual.pitchRightDeg) / 2);
+      }
       // Vitrines : mêmes murs que ceux que walls() marque « côté rue + vitrine » (travée possible, milieu près d'une voie).
       if (style?.shop && style.street) {
         const list = this.shopWallsByTile.get(tile.id) ?? [];
@@ -1116,7 +1132,7 @@ export class Buildings {
         this.shopWallsByTile.set(tile.id, list);
       }
       // Monopente : haut des murs sur le pan ; même façade que les autres murs (porte côté rue, sol amont).
-      const w = walls(bld.pts, base, wallH + 0.3, style, this.groundAt, skillion ? (x, z) => roofAt(x, z) - base : undefined);
+      const w = walls(bld.pts, base, wallH + 0.3, style, this.groundAt, skillion ? (x, z) => roofAt(x, z) - base : gable ? (x, z) => gable.at(x, z) - base : undefined);
       // Granges, fermes et églises : enduit à pierres vues plutôt que meulière ou enduit lisse.
       const rubble = !arch && !stones && !brick && !bld.colour && (bld.kind === 'barn' || bld.kind === 'farm' || isChurch) && r() < 0.7;
       const wallType = arch ? WALL_CODE[arch.wall] : stones ? 1 : rubble ? 3 : brick ? 2 : 0;
@@ -1140,8 +1156,9 @@ export class Buildings {
                 ? pick(arch!.roof.colours)
                 : pick(arch && roofMat === 'tiles' ? MECHANICAL_TILES : roofMat === 'tiles' ? TERRACOTTA : ROOFS);
       const roofKind = terrace ? 4 : metal ? 3 : slate ? 2 : 1;
-      const buf = plan ? roofBuffers(plan, wallTop, pitch) : null;
-      const roofPart = buf ? buf.roof : flatRoof(bld.pts, wallTop);
+      // Pignon v2 : pas de toit du plan (ni ses détails : faîtière et cheminée supposent un toit symétrique).
+      const buf = plan && !gable ? roofBuffers(plan, wallTop, pitch) : null;
+      const roofPart = gable ? gable.roof : buf ? buf.roof : flatRoof(bld.pts, wallTop);
       if (skillion) for (let i = 0; i < roofPart.pos.length; i += 3) roofPart.pos[i + 1] = roofAt(roofPart.pos[i] as number, roofPart.pos[i + 2] as number);
       else if (!plan) {
         // Toit plat : abaissé d'un rien propre au bâtiment (0 à 6 cm, tiré de son emprise ; le mur dépasse à peine). Deux bâtiments mitoyens
@@ -1175,9 +1192,10 @@ export class Buildings {
         paint(parapet, wc, 0, acc, wallType, 0);
         parts.push(parapet);
       }
-      if (buf && buf.gables.pos.length) {
+      const gablePart = gable ? gable.gables : buf?.gables;
+      if (gablePart && gablePart.pos.length) {
         // Pignons (murs triangulaires) : même enduit que les murs.
-        const gables = toGeometry(buf.gables.pos, buf.gables.uv);
+        const gables = toGeometry(gablePart.pos, gablePart.uv);
         paint(gables, wc, 0, acc, wallType, 0);
         parts.push(gables);
       }

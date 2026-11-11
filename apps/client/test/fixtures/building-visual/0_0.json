@@ -1,0 +1,19 @@
+{
+  "id": "0_0",
+  "tx": 0,
+  "tz": 0,
+  "bounds": { "minX": 0, "maxX": 1000, "minZ": 0, "maxZ": 1000 },
+  "heights": { "baseM": 100, "stepM": 0.01, "encoding": "uint16le", "lo": { "n": 1, "resolutionM": 1000, "file": "0_0.lo.u16" } },
+  "roads": [],
+  "buildings": [
+    { "id": "bdtopo:BATIMENT-SYNTHETIQUE", "kind": "house", "pts": [10,10,20,10,20,16,10,16], "y": 100, "height": 7, "levels": 2, "roof": { "shape": "gabled", "height": 3 }, "source": "bdtopo" },
+    { "id": "w220", "kind": "house", "pts": [30,10,40,10,40,16,30,16], "y": 100, "height": 7, "levels": 2, "roof": { "shape": "gabled", "height": 3 } },
+    { "kind": "shed", "pts": [50,10,55,10,55,15,50,15], "y": 100, "height": 3, "levels": 1, "roof": { "shape": "flat", "height": 0 } }
+  ],
+  "forests": [],
+  "water": [],
+  "fields": [],
+  "landuse": [],
+  "waterways": [],
+  "pois": []
+}
