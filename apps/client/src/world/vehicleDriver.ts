@@ -1,9 +1,14 @@
 import * as THREE from 'three/webgpu';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
 /**
  * Occupant d'un véhicule du trafic : personnage assis à facettes (buste, tête, bras tendus vers le volant,
  * jambes), son siège et son volant. Conducteur des voitures et utilitaires, paysan (chapeau de paille, bleu
  * de travail) des tracteurs. Un seul maillage (groupes par matériau), géométrie partagée par allure.
+ *
+ * Style réaliste : une fois `loadDriverModels` passé, le personnage à facettes est remplacé par un personnage du
+ * public assis au volant (tools/blender/crowd/pose_driver.py, public/models/drivers/), le paysan par
+ * `paysan.glb` ; siège et volant à facettes restent quand le véhicule n'a pas les siens.
  *
  * Repère : origine au point de hanche (assise du siège), regard vers +z (avant du véhicule), y vers le haut.
  * Le sommet de la tête est à ≈ 0,80 m de l'origine, les mains à ≈ 0,42 m en avant.
@@ -48,11 +53,15 @@ function prism(out: number[], a: P, b: P, w0: number, d0: number, w1 = w0, d1 = 
   quad(r1[0] as THREE.Vector3, r1[1] as THREE.Vector3, r1[2] as THREE.Vector3, r1[3] as THREE.Vector3);
 }
 
-function geometryOf(look: DriverLook, bare: boolean): THREE.BufferGeometry {
+/** Ce qu'une géométrie contient : tout, le personnage seul, ou le siège et le volant seuls. */
+type Part = 'all' | 'body' | 'kit';
+
+function geometryOf(look: DriverLook, part: Part): THREE.BufferGeometry {
   const parts: number[][] = [[], [], [], [], []];
-  // `bare` : ni siège ni volant (le modèle a déjà les siens) ; les chaussures restent.
-  const add = (slot: number, a: P, b: P, w0: number, d0: number, w1?: number, d1?: number, keep = false) => {
-    if (!bare || slot !== SLOT.Dark || keep) prism(parts[slot] as number[], a, b, w0, d0, w1, d1);
+  // Siège et volant : les pièces sombres, sauf les chaussures (`shoe`), qui vont avec le personnage.
+  const add = (slot: number, a: P, b: P, w0: number, d0: number, w1?: number, d1?: number, shoe = false) => {
+    const kit = slot === SLOT.Dark && !shoe;
+    if (part === 'all' || (part === 'kit') === kit) prism(parts[slot] as number[], a, b, w0, d0, w1, d1);
   };
   const farmer = look === 'farmer';
   // Buste légèrement incliné vers le dossier ; le paysan se tient plus droit.
@@ -120,12 +129,13 @@ function geometryOf(look: DriverLook, bare: boolean): THREE.BufferGeometry {
 
 const geometries = new Map<string, THREE.BufferGeometry>();
 
-function sharedGeometry(look: DriverLook, bare: boolean): THREE.BufferGeometry {
-  const key = `${look}|${bare}`;
+function sharedGeometry(look: DriverLook, part: Part): THREE.BufferGeometry {
+  const key = `${look}|${part}`;
   let g = geometries.get(key);
-  if (!g) geometries.set(key, (g = geometryOf(look, bare)));
+  if (!g) geometries.set(key, (g = geometryOf(look, part)));
   return g;
 }
+
 const materials = new Map<string, THREE.Material>();
 
 function flat(color: string, roughness = 0.8): THREE.Material {
@@ -150,9 +160,44 @@ const SEAT = '#24262a';
 
 const pick = <T>(list: readonly T[], rand: () => number): T => list[Math.floor(rand() * list.length) % list.length] as T;
 
+/** Personnages du public assis (adultes), dans l'ordre de public/models/drivers. */
+const PEOPLE = ['spectateur', 'homme_fort', 'femme', 'jeune_homme', 'femme_agee', 'fan_pois', 'fan_pois_femme', 'fan_jaune'];
+const people: THREE.Object3D[] = [];
+let farmerModel: THREE.Object3D | null = null;
+let loadingPeople: Promise<boolean> | null = null;
+
+/**
+ * Charge une fois les occupants du style réaliste (facultatif : sans eux, personnages à facettes).
+ * Même repère que le personnage à facettes : origine sur l'assise, regard vers +z.
+ */
+export function loadDriverModels(base = '/models/drivers/'): Promise<boolean> {
+  loadingPeople ??= (async () => {
+    const loader = new GLTFLoader();
+    const load = async (name: string): Promise<THREE.Object3D | null> => {
+      try {
+        // La scène entière : le paysan a deux maillages (corps texturé, chapeau de paille).
+        const scene = (await loader.loadAsync(`${base}${name}.glb`)).scene;
+        scene.name = 'driver';
+        scene.traverse((o) => {
+          o.castShadow = false;
+          o.receiveShadow = false;
+        });
+        return scene;
+      } catch {
+        return null;
+      }
+    };
+    const [farmer, ...rest] = await Promise.all([load('paysan'), ...PEOPLE.map(load)]);
+    farmerModel = farmer ?? null;
+    for (const m of rest) if (m) people.push(m);
+    return people.length > 0;
+  })();
+  return loadingPeople;
+}
+
 /** Triangles d'un occupant (contrôle du budget). */
 export function driverTriangles(look: DriverLook): number {
-  return (sharedGeometry(look, false).getAttribute('position').count / 3) | 0;
+  return (sharedGeometry(look, 'all').getAttribute('position').count / 3) | 0;
 }
 
 /**
@@ -160,10 +205,20 @@ export function driverTriangles(look: DriverLook): number {
  * Couleurs (peau, cheveux, haut) tirées avec `rand`. `bare` : sans siège ni volant (modèle qui a les siens).
  * Sans ombre portée : il est le plus souvent sous un toit.
  */
-export function buildDriver(look: DriverLook, rand: () => number = Math.random, bare = false): THREE.Mesh {
-  const g = sharedGeometry(look, bare);
+export function buildDriver(look: DriverLook, rand: () => number = Math.random, bare = false): THREE.Object3D {
   const farmer = look === 'farmer';
-  const mesh = new THREE.Mesh(g, [
+  const model = farmer ? farmerModel : people.length ? pick(people, rand) : null;
+  if (model) {
+    // Personnage du public assis au volant ; siège et volant à facettes si le véhicule n'a pas les siens.
+    const person = model.clone();
+    if (bare) return person;
+    const kit = new THREE.Mesh(sharedGeometry(look, 'kit'), [flat(SEAT), flat(SEAT), flat(SEAT), flat(SEAT), flat(SEAT)]);
+    const group = new THREE.Group();
+    group.name = 'driver';
+    group.add(person, kit);
+    return group;
+  }
+  const mesh = new THREE.Mesh(sharedGeometry(look, bare ? 'body' : 'all'), [
     flat(pick(SKINS, rand)),
     flat(pick(farmer ? FARMER_SHIRTS : TOPS, rand)),
     flat(farmer ? FARMER_BLUE : pick(TROUSERS, rand)),

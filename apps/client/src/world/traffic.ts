@@ -9,7 +9,7 @@ import { LOW_POLY } from '../engine/style.ts';
 import type { VehicleSound } from '../audio/soundscape.ts';
 import { UNPAVED_SURFACES } from './dust.ts';
 import { buildLowPolyVehicle, pickLowPolyPaint, pickLowPolyTractor, pickLowPolyVariant, type LowPolyVariant } from './lowPolyVehicles.ts';
-import { buildDriver } from './vehicleDriver.ts';
+import { buildDriver, loadDriverModels } from './vehicleDriver.ts';
 import { followSpeed, keepApart, keepClearOfRiders, leaderOf, oncomingInLane, RIDER_CLEAR_LAT } from './trafficSpacing.ts';
 
 /**
@@ -53,7 +53,7 @@ const MODELS: ModelSpec[] = [
   { file: 'mercedes-c230', kind: 'car', cruise: [11, 16], repaint: false, weight: 1.5 },
   { file: 'lamborghini-aventador', kind: 'car', cruise: [13, 19], repaint: true, weight: 0.8, seat: [0.4, 0.18, -0.1], ownCabin: true },
   { file: 'mclaren-720s', kind: 'car', cruise: [13, 19], repaint: true, weight: 0.8, reversed: true, seat: [0.38, 0.26, -0.1], ownCabin: true },
-  { file: 'utilitaire', kind: 'van', cruise: [10, 14], repaint: false, weight: 1.5, seat: [0.5, 1.1, 1.0], ownCabin: true },
+  { file: 'utilitaire', kind: 'van', cruise: [10, 14], repaint: false, weight: 1.5, seat: [0.5, 1.15, 1.35], ownCabin: true },
   { file: 'tractor', kind: 'tractor', cruise: [6.5, 8.5], repaint: false, weight: 0, seat: [0, 1.5, -0.77], ownCabin: true },
 ];
 
@@ -82,6 +82,7 @@ export function loadVehicleModels(base = '/models/vehicles/'): Promise<boolean> 
   if (LOW_POLY) return (loading ??= Promise.resolve(true));
   loading ??= (async () => {
     const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
+    const drivers = loadDriverModels().catch(() => false);
     const ktx2 = await sharedKtx2Loader();
     if (ktx2) loader.setKTX2Loader(ktx2);
     const results = await Promise.allSettled(
@@ -125,6 +126,7 @@ export function loadVehicleModels(base = '/models/vehicles/'): Promise<boolean> 
     );
     const failed = results.filter((r) => r.status === 'rejected');
     if (failed.length) console.warn(`Véhicules : ${failed.length} modèle(s) indisponible(s), repli sur les primitives`, failed[0]);
+    await drivers;
     return templates.length > 0;
   })();
   return loading;
