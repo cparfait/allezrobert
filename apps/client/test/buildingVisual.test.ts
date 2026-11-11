@@ -206,6 +206,21 @@ describe('corrections visuelles des bâtiments', () => {
     expect((await load())?.buildingVisualCorrections).toBeUndefined();
   });
 
+  it('expose une monopente v3 et se replie sur une direction non unitaire', async () => {
+    enable();
+    const { state } = network();
+    const volumes: VolumesVisualCorrection = {
+      buildingId, kind: 'volumes', confidence: 'high',
+      provenance: { dataset: 'fixture', reference: 'monopente', observedOn: '2000-01-01', method: 'profil synthétique' },
+      parts: [{ pts: [0, 0, 10, 0, 10, 6, 0, 6], roof: { type: 'shed', topM: 106, through: [0, 0], down: [0, 1], pitchDeg: 15 } }],
+    };
+    state.document = JSON.stringify({ ...JSON.parse(visual), schemaVersion: 3, corrections: [volumes] });
+    expect((await load())?.buildingVisualCorrections?.get(buildingId)).toEqual(volumes);
+    const bad = { ...volumes, parts: [{ ...volumes.parts[0]!, roof: { type: 'shed', topM: 106, through: [0, 0], down: [1, 1], pitchDeg: 15 } }] };
+    state.document = JSON.stringify({ ...JSON.parse(visual), schemaVersion: 3, corrections: [bad] });
+    expect((await load())?.buildingVisualCorrections).toBeUndefined();
+  });
+
   it.each([
     ['pignon dans un complément v1', (x: Record<string, unknown>) => { x.schemaVersion = 1; }],
     ['faîtage hors emprise', (x: { corrections: GableVisualCorrection[] }) => { x.corrections[0]!.ridge = [40, 2, 50, 2]; }],

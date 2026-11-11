@@ -106,6 +106,13 @@ describe('publication des compléments visuels', () => {
     await expect(writeBuildingVisualCorrections(root, worldId, new Map([[tileId, [volumes([west, crossed])]]]))).rejects.toThrow();
     const ridgeOut: VolumePart = { ...west, roof: { type: 'gable', ridgeM: 106, ridge: [7, 0, 7, 6], pitchLeftDeg: 20, pitchRightDeg: 20 } };
     await expect(writeBuildingVisualCorrections(root, worldId, new Map([[tileId, [volumes([ridgeOut, east])]]]))).rejects.toThrow();
+    // Monopente : acceptée avec une direction unitaire, refusée sinon, ou avec un appui hors du volume.
+    const shed: VolumePart = { ...east, roof: { type: 'shed', topM: 105, through: [4, 0], down: [0, 1], pitchDeg: 15 } };
+    await writeBuildingVisualCorrections(root, worldId, new Map([[tileId, [volumes([west, shed])]]]));
+    expect(JSON.parse(await readFile(join(dir, '0_0.buildings-visual.json'), 'utf8')).corrections[0].parts[1]).toEqual(shed);
+    for (const roof of [{ ...shed.roof, down: [1, 1] }, { ...shed.roof, pitchDeg: 0 }, { ...shed.roof, through: [30, 0] }]) {
+      await expect(writeBuildingVisualCorrections(root, worldId, new Map([[tileId, [volumes([west, { ...east, roof } as VolumePart])]]]))).rejects.toThrow();
+    }
     expect(await readFile(join(dir, '0_0.json'), 'utf8')).toBe(base);
   });
 

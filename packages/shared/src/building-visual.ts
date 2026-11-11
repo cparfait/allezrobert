@@ -44,8 +44,14 @@ export interface GableVisualCorrection {
 }
 
 /** Toit d'un volume v3 : deux pans à faîtage libre (mêmes règles que la v2) ou toit plat. */
+/**
+ * Toit d'un volume v3 : deux pans à faîtage libre (mêmes règles que la v2), monopente ou plat.
+ * Monopente : plan passant par `through` (relatif au premier sommet de l'emprise) à l'altitude `topM`,
+ * descendant de `pitchDeg` dans la direction unitaire `down` (repère tuile, x vers l'est, z vers le sud).
+ */
 export type VolumeRoof =
   | { type: 'gable'; ridgeM: number; ridge: [number, number, number, number]; pitchLeftDeg: number; pitchRightDeg: number }
+  | { type: 'shed'; topM: number; through: [number, number]; down: [number, number]; pitchDeg: number }
   | { type: 'flat'; topM: number };
 
 /** Sous-emprise d'un volume : `pts` et `ridge` relatifs au premier sommet de l'emprise du bâtiment. */
@@ -200,6 +206,22 @@ function gableRoofOf(r: Record<string, unknown>, part: readonly number[], origin
   return { type: 'gable', ridgeM: r.ridgeM, ridge: [ridge[0]!, ridge[1]!, ridge[2]!, ridge[3]!], pitchLeftDeg: r.pitchLeftDeg, pitchRightDeg: r.pitchRightDeg };
 }
 
+/** Monopente : point d'appui dans la boîte du volume élargie de 1 m, direction unitaire à 1 % près. */
+function shedRoofOf(r: Record<string, unknown>, part: readonly number[], origin: readonly number[]): VolumeRoof | undefined {
+  const t = r.through, d = r.down;
+  if (!finite(r.topM) || !pitch(r.pitchDeg) || !Array.isArray(t) || t.length !== 2 || !t.every(finite) || !Array.isArray(d) || d.length !== 2 || !d.every(finite)) return;
+  const [tx, tz] = t as number[], [dx, dz] = d as number[];
+  if (Math.abs(Math.hypot(dx!, dz!) - 1) > 0.01) return;
+  let x0 = Infinity, z0 = Infinity, x1 = -Infinity, z1 = -Infinity;
+  for (let i = 0; i < part.length; i += 2) {
+    x0 = Math.min(x0, part[i]!); x1 = Math.max(x1, part[i]!);
+    z0 = Math.min(z0, part[i + 1]!); z1 = Math.max(z1, part[i + 1]!);
+  }
+  const x = origin[0]! + tx!, z = origin[1]! + tz!;
+  if (x < x0 - RIDGE_MARGIN_M || x > x1 + RIDGE_MARGIN_M || z < z0 - RIDGE_MARGIN_M || z > z1 + RIDGE_MARGIN_M) return;
+  return { type: 'shed', topM: r.topM, through: [tx!, tz!], down: [dx!, dz!], pitchDeg: r.pitchDeg };
+}
+
 /** Volumes v3 : sous-emprises (relatives au premier sommet de `pts`) qui partagent l'emprise du bâtiment. */
 function volumeParts(raw: unknown, pts: readonly number[] | undefined): VolumePart[] | undefined {
   if (!pts || pts.length < 6 || pts.length % 2 || !pts.every(finite) || !Array.isArray(raw) || raw.length < 1 || raw.length > PARTS_MAX) return;
@@ -224,7 +246,8 @@ function volumeParts(raw: unknown, pts: readonly number[] | undefined): VolumePa
     for (let i = 0; i < abs.length; i += 2) { cx += abs[i]!; cz += abs[i + 1]!; }
     if (!insidePoly(cx / (abs.length / 2), cz / (abs.length / 2), pts)) return;
     const r = item.roof;
-    const roof = r.type === 'gable' ? gableRoofOf(r, abs, origin) : r.type === 'flat' && finite(r.topM) ? { type: 'flat' as const, topM: r.topM } : undefined;
+    const roof = r.type === 'gable' ? gableRoofOf(r, abs, origin) : r.type === 'shed' ? shedRoofOf(r, abs, origin)
+      : r.type === 'flat' && finite(r.topM) ? { type: 'flat' as const, topM: r.topM } : undefined;
     if (!roof) return;
     parts.push({ pts: [...rel], roof });
     sum += a;

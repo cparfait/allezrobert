@@ -49,7 +49,10 @@ Un complément de tuile en `schemaVersion: 3` peut porter une correction `kind: 
 
 Le champ `parts` liste de 1 à 12 volumes. Chacun a :
 - `pts` : la sous-emprise, en mètres, relative au premier sommet de l'emprise du bâtiment ;
-- `roof` : le toit, soit à deux pans (`type: "gable"`, avec `ridgeM`, `ridge` relatif au même premier sommet, `pitchLeftDeg` et `pitchRightDeg`, selon les règles de la v2), soit plat (`type: "flat"`, avec `topM` en IGN69).
+- `roof` : le toit, de l'un des trois types suivants :
+  - à deux pans (`type: "gable"`) : `ridgeM`, `ridge` relatif au même premier sommet, `pitchLeftDeg` et `pitchRightDeg`, selon les règles de la v2 ;
+  - monopente (`type: "shed"`, ZONES-BAT-4b) : un plan qui passe par le point d'appui `through` (relatif au premier sommet) à l'altitude `topM` et descend de `pitchDeg` dans la direction `down`. `down` est unitaire à 1 % près, dans le repère de la tuile (x vers l'est, z vers le sud). La pente est dans ]0 ; 60°] et le point d'appui doit tomber dans la boîte du volume élargie de 1 m. Ce type a été ajouté à la v3 avant toute publication de client v3, d'où l'absence de nouvelle version : un client antérieur refuse le fichier et garde le rendu de base ;
+  - plat (`type: "flat"`) : `topM` en IGN69.
 
 Règles de validation :
 - chaque sous-emprise est un polygone simple d'au moins 1 m² ;
@@ -71,7 +74,13 @@ Derrière `?visualBuildings=1`, le générateur (ZONES-BAT-3c, `volumesRoof.ts`)
 
 Pilote : le repère 28 du Roussel, découpé en trois volumes aux décrochements de son emprise. L'écart moyen au MNS LiDAR passe de 1,28 m à 0,12 m.
 
-Le repère 54 demandera un découpage piloté par le LiDAR (plans de toit) : ses volumes ne suivent pas les sommets de l'emprise.
+Le repère 54 est découpé à partir du LiDAR (ZONES-BAT-4a), car ses volumes ne suivent pas les sommets de l'emprise. La méthode :
+1. hauteur maximale des points « bâtiment » sur une grille de 0,25 m ;
+2. plans de toit par croissance de région, en coordonnées centrées ;
+3. regroupement en volumes ;
+4. contours simplifiés à 0,4 m.
+
+On obtient 5 volumes : un corps haut à deux pans (faîtage à 368,75 m) et 4 monopentes. L'écart moyen au MNS passe de 1,91 m à 0,21 m. Ce découpage reste à porter dans le producteur.
 
 L’index et le complément doivent être compatibles avec le monde et la tuile réellement décodée. Chaque ID corrigé doit exister exactement une fois. Une correction dupliquée, une version inconnue ou une entrée invalide invalide le complément de la tuile. Seuls les champs du contrat sont exposés au client. Un changement quelconque du JSON de base, même de mise en forme, demande de recalculer le lien de compatibilité.
 
