@@ -287,7 +287,7 @@
      "name": "Chevreuse — VTT en forêt par Vieille-Église et Clairefontaine",
      "nameEn": "Chevreuse — forest MTB via Vieille-Église and Clairefontaine",
      "lengthM": 22754.13,
-     "elevationGainM": 66.62,
+     "elevationGainM": 66.41,
      "loop": true
     },
     {
@@ -295,15 +295,15 @@
      "name": "Chevreuse — gravel par Saint-Rémy-l'Honoré et Vieille-Église",
      "nameEn": "Chevreuse — gravel via Saint-Rémy-l'Honoré and Vieille-Église",
      "lengthM": 39482.04,
-     "elevationGainM": 444.58,
+     "elevationGainM": 443.98,
      "loop": true
     }
    ],
    "pack": {
-    "version": "3988c2d8d45e",
-    "bytes": 648740989,
+    "version": "94ed146c30de",
+    "bytes": 649644840,
     "files": 2246,
-    "gzBytes": 278408247
+    "gzBytes": 278766412
    },
    "l93": {
     "minE": 609000,
@@ -3811,10 +3811,10 @@
     }
    ],
    "pack": {
-    "version": "294fba16a654",
-    "bytes": 50166946,
+    "version": "d6aca8fa103e",
+    "bytes": 50166978,
     "files": 102,
-    "gzBytes": 19828526
+    "gzBytes": 19831439
    },
    "l93": {
     "minE": 649000,
@@ -3971,10 +3971,10 @@
     }
    ],
    "pack": {
-    "version": "e17b4da3a0f0",
-    "bytes": 188649536,
+    "version": "c46914c006db",
+    "bytes": 188639569,
     "files": 782,
-    "gzBytes": 74201368
+    "gzBytes": 74197739
    },
    "l93": {
     "minE": 720000,
