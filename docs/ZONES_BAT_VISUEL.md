@@ -105,7 +105,19 @@ Fonctionnement :
 - `writeWorldTiles` écrit les compléments après les tuiles et avant le pack, puis les relit sur leurs octets définitifs. Un échec est consigné dans le journal et laisse la zone sans complément.
 - Le WMS ne fournit pas la date d'acquisition du LiDAR : `observedOn` est donc la date de récupération du MNS, ce que précise `method`.
 
-Les corrections manuelles (49 en v2, 28 et 54 en v3) ne passent pas encore par le producteur. Au Roussel, le découpage automatique retient 23 bâtiments sur 58 : il retrouve le 28, mais refuse le 49 et le 54.
+Au Roussel, le découpage automatique retient 23 bâtiments sur 58 : il retrouve le 28, mais refuse le 49 et le 54.
+
+## Corrections manuelles d'une zone (ZONES-BAT-6a)
+
+Les mesures revues à la main sont versionnées dans `tools/terrain/building-visual/<zone>.json`, au format `{ worldId, tiles: { "<tx>_<tz>": [correction, …] } }`, avec des corrections v1, v2 ou v3.
+
+À chaque construction, quelle que soit l'option, `writeWorldTiles` les relit et les fusionne avec les volumes automatiques :
+- une correction manuelle l'emporte sur la correction automatique du même bâtiment ;
+- chaque correction est validée seule, contre les octets définitifs de sa tuile ;
+- une correction manuelle périmée est écartée et signalée dans le journal, sans faire échouer la tuile. C'est le cas d'un bâtiment disparu, d'un identifiant devenu ambigu, d'une tuile absente ou d'une géométrie hors contrat ;
+- la version du complément reste la plus basse qui suffit.
+
+`limagne.json` contient le 49 (deux pans à faîtage décalé) et le 54 (cinq volumes). Le 28 est laissé au découpage automatique, plus précis (0,09 m contre 0,12 m).
 
 ## Point de branchement du constructeur
 

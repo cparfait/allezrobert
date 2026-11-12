@@ -1,0 +1,218 @@
+{
+  "worldId": "limagne",
+  "tiles": {
+    "-1_-1": [
+      {
+        "buildingId": "bdtopo:BATIMENT0000000310275523",
+        "kind": "gable",
+        "ridgeM": 365.07,
+        "ridge": [
+          -0.63,
+          -2.42,
+          12.06,
+          -5.7
+        ],
+        "pitchLeftDeg": 17.27,
+        "pitchRightDeg": 17.56,
+        "confidence": "high",
+        "provenance": {
+          "dataset": "IGN LiDAR HD MNS 0,5 m IGN69 (dalle LHD_FXX_0733_6517)",
+          "reference": "BAT-FID-ROUSSEL-2 repère 49 / ZONES-BAT-2b",
+          "observedOn": "2022-08-02",
+          "method": "Ajustement robuste à deux pans libres (faîtage, décalage, deux pentes) sur 289 pixels intérieurs"
+        }
+      },
+      {
+        "buildingId": "bdtopo:BATIMENT0000000310275567",
+        "kind": "volumes",
+        "parts": [
+          {
+            "pts": [
+              -4.92,
+              -6.58,
+              -4.92,
+              -11.77,
+              0.52,
+              -12.27,
+              0.77,
+              -10.83,
+              0.02,
+              -10.77,
+              0.77,
+              -10.52,
+              0.52,
+              -7.83,
+              1.02,
+              -7.58,
+              0.52,
+              -7.52,
+              0.52,
+              -6.33
+            ],
+            "roof": {
+              "type": "gable",
+              "ridgeM": 368.75,
+              "ridge": [
+                -5.03,
+                -8.86,
+                0.94,
+                -9.16
+              ],
+              "pitchLeftDeg": 19.62,
+              "pitchRightDeg": 27.58
+            }
+          },
+          {
+            "pts": [
+              -6.92,
+              -11.83,
+              -7.42,
+              -20.77,
+              -10.42,
+              -20.83,
+              -10.67,
+              -25.02,
+              -1.98,
+              -25.27,
+              -1.73,
+              -21.33,
+              -0.48,
+              -21.27,
+              0.02,
+              -14.83,
+              0.52,
+              -14.77,
+              0.02,
+              -13.52,
+              0.52,
+              -13.08,
+              -0.23,
+              -12.83,
+              0.52,
+              -12.33
+            ],
+            "roof": {
+              "type": "shed",
+              "topM": 365.81,
+              "through": [
+                -6.92,
+                -11.83
+              ],
+              "down": [
+                0.0084,
+                -1
+              ],
+              "pitchDeg": 13.47
+            }
+          },
+          {
+            "pts": [
+              0.08,
+              -0.08,
+              0.08,
+              -6.27,
+              1.08,
+              -7.58,
+              0.58,
+              -7.83,
+              0.58,
+              -10.02,
+              4.77,
+              -10.52,
+              5.52,
+              -10.02,
+              5.02,
+              -9.52,
+              5.52,
+              -8.27,
+              5.02,
+              0.17
+            ],
+            "roof": {
+              "type": "shed",
+              "topM": 364.85,
+              "through": [
+                4.77,
+                -10.52
+              ],
+              "down": [
+                0.1038,
+                0.9946
+              ],
+              "pitchDeg": 13.31
+            }
+          },
+          {
+            "pts": [
+              5.02,
+              -10.08,
+              4.77,
+              -10.58,
+              0.08,
+              -10.58,
+              0.83,
+              -10.83,
+              0.58,
+              -12.52,
+              -0.17,
+              -12.83,
+              0.58,
+              -13.08,
+              0.08,
+              -13.33,
+              0.58,
+              -15.02,
+              4.77,
+              -15.02
+            ],
+            "roof": {
+              "type": "shed",
+              "topM": 365.38,
+              "through": [
+                0.08,
+                -10.58
+              ],
+              "down": [
+                0.6652,
+                -0.7467
+              ],
+              "pitchDeg": 26.32
+            }
+          },
+          {
+            "pts": [
+              10.02,
+              -7.33,
+              5.33,
+              -7.58,
+              5.33,
+              -10.27,
+              9.52,
+              -10.27
+            ],
+            "roof": {
+              "type": "shed",
+              "topM": 360.67,
+              "through": [
+                10.02,
+                -7.33
+              ],
+              "down": [
+                -0.0285,
+                -0.9996
+              ],
+              "pitchDeg": 15.3
+            }
+          }
+        ],
+        "confidence": "medium",
+        "provenance": {
+          "dataset": "IGN LiDAR HD nuage classé (dalle LHD_FXX_0732_6517), points bâtiment",
+          "reference": "BAT-FID-ROUSSEL repère 54 / ZONES-BAT-4a",
+          "observedOn": "2022-08-02",
+          "method": "Plans de toit par croissance de région (grille 0,25 m), regroupés en volumes, contours simplifiés à 0,3 m"
+        }
+      }
+    ]
+  }
+}

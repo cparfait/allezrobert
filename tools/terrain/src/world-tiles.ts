@@ -5,7 +5,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import type { VolumesVisualCorrection } from '@allezrobert/shared/building-visual';
-import { writeBuildingVisualCorrections } from './building-visual.ts';
+import { readManualCorrections, writeMergedCorrections } from './building-visual.ts';
 import type { Dem, DemStack } from './dem.ts';
 import { decorateTile, type TileEnrichment } from './enrich.ts';
 import { worldToL93 } from './frame.ts';
@@ -137,20 +137,23 @@ export async function writeWorldTiles(o: WriteTilesOptions): Promise<TileResult[
     );
     for (const { res, tile } of orthos) res.bytes += fs.statSync(tile.out).size;
   }
-  // Compléments visuels (volumes de toit mesurés, TERRAIN_BUILDING_VOLUMES=1) : après les tuiles, relus sur
-  // leurs octets définitifs, avant le pack. Un échec laisse le monde sans complément, pas sans tuiles.
+  // Compléments visuels : corrections manuelles de la zone (tools/terrain/building-visual/<zone>.json) et
+  // volumes de toit mesurés (TERRAIN_BUILDING_VOLUMES=1), le manuel l'emportant. Écrits après les tuiles, relus
+  // sur leurs octets définitifs, avant le pack. Un échec laisse le monde sans complément, pas sans tuiles.
   const visual = new Map<string, VolumesVisualCorrection[]>();
   for (const [tx, tz] of o.tiles) {
     const v = o.enrichment?.get(`${tx}_${tz}`)?.visual;
     if (v?.length) visual.set(`${tx}_${tz}`, v);
   }
-  if (visual.size) {
-    try {
-      await writeBuildingVisualCorrections(o.outDir, path.basename(o.outDir), visual);
-      log(`   compléments visuels : ${[...visual.values()].reduce((n, v) => n + v.length, 0)} bâtiments en volumes sur ${visual.size} tuile(s)`);
-    } catch (err) {
-      log(`   compléments visuels non écrits : ${(err as Error).message}`);
+  try {
+    const worldId = path.basename(o.outDir);
+    const manual = readManualCorrections(worldId);
+    if (visual.size || manual.size) {
+      const r = await writeMergedCorrections(o.outDir, worldId, visual, manual);
+      log(`   compléments visuels : ${r.written} bâtiment(s) corrigé(s), dont ${r.manual} manuel(s)${r.rejected.length ? ` ; écartés : ${r.rejected.map((x) => `${x.buildingId}${x.manual ? ' (manuel)' : ''}`).join(', ')}` : ''}`);
     }
+  } catch (err) {
+    log(`   compléments visuels non écrits : ${(err as Error).message}`);
   }
   return tileResults;
 }
