@@ -146,10 +146,9 @@ export function lowPolyCrowdMaterial(spot: Float32Array, still: Float32Array, ri
   const c = sp.z;
   const s = sp.w;
   const dInst = vec3(dObj.x.mul(c).add(dObj.z.mul(s)), dObj.y, dObj.z.mul(c).sub(dObj.x.mul(s)));
-  // Sauts déphasés (un sur deux saute franchement) ; au calme, léger balancement d'un pied sur l'autre.
-  const jump = sin(time.mul(float(5).add(h.mul(3))).add(h.mul(20))).max(0).mul(0.14).mul(h2.greaterThan(0.5).select(float(1), float(0.35))).mul(move).mul(float(1).sub(seated));
-  const sway = sin(time.mul(1.3).add(h.mul(20))).mul(0.012).mul(float(1).sub(act));
-  mat.positionNode = positionLocal.add(dInst).add(vec3(sway.mul(c), jump, sway.mul(s).negate()));
+  // Pas de saut (le public ne monte ni ne descend) : léger balancement d'un pied sur l'autre, sur le côté.
+  const sway = sin(time.mul(1.3).add(h.mul(20))).mul(0.012);
+  mat.positionNode = positionLocal.add(dInst).add(vec3(sway.mul(c), 0, sway.mul(s).negate()));
   const shirt = pick(h, SHIRTS);
   const skin = pick(h2, SKIN);
   const hair = pick(hash(instanceIndex.add(17)), HAIR);
@@ -194,8 +193,8 @@ export function lowPolySignMaterial(atlas: THREE.Texture, cell: THREE.Node<'vec2
   smat.roughnessNode = float(0.85);
   const sp = instancedBufferAttribute(new THREE.InstancedBufferAttribute(spot, 2)) as unknown as THREE.Node<'vec2'>;
   const act = activation(sp, rider);
-  const lift = sin(time.mul(float(4.5).add(sh)).add(sh.mul(12))).mul(0.1).mul(act);
+  // brandies sur le côté seulement, sans va-et-vient vertical
   const sway = sin(time.mul(3.2).add(sh.mul(9))).mul(0.08).mul(act);
-  smat.positionNode = positionLocal.add(vec3(sway, lift, 0));
+  smat.positionNode = positionLocal.add(vec3(sway, 0, 0));
   return smat;
 }

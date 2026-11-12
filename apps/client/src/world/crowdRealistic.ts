@@ -76,8 +76,11 @@ export function loadSpectators(): Promise<SpectatorAsset[]> {
     } catch {
       // index absent : seul le spectateur d'origine
     }
-    const assets = await Promise.all(names.map(loadOne));
-    return assets.filter((a): a is SpectatorAsset => a !== null);
+    const assets = (await Promise.all(names.map(loadOne))).filter((a): a is SpectatorAsset => a !== null);
+    // Rien de chargé (serveur injoignable un instant…) : on retentera à la prochaine sortie plutôt que de
+    // garder les capsules pour toute la session.
+    if (!assets.length) loading = null;
+    return assets;
   })();
   return loading;
 }

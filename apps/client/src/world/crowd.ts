@@ -1,5 +1,5 @@
 import * as THREE from 'three/webgpu';
-import { attribute, positionLocal, time, sin, abs, vec2, vec3, float, mix, instanceIndex, hash, color, varying, max, uv, texture, frontFacing, instancedBufferAttribute, uniform } from 'three/tsl';
+import { attribute, positionLocal, time, sin, vec2, vec3, float, mix, instanceIndex, hash, color, varying, uv, texture, frontFacing, instancedBufferAttribute, uniform } from 'three/tsl';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import type { RouteTrack } from '@allezrobert/shared';
 import { rng } from '../engine/noise.ts';
@@ -352,21 +352,20 @@ function padded(values: number[], itemSize: number): Float32Array {
   return out;
 }
 
-/** Spectateurs du style réaliste : sautent et agitent les bras en permanence. */
+/** Spectateurs du style réaliste (capsules de repli) : agitent les bras, les pieds restent au sol. */
 function realCrowdMaterial(still: number[]): THREE.MeshStandardNodeMaterial {
   const mat = new THREE.MeshStandardNodeMaterial();
   const part = attribute<'float'>('part');
   const h = hash(instanceIndex);
   const h2 = hash(instanceIndex.add(31));
-  // Porteurs de pancarte : ni saut ni bras agités (ils tiennent le manche).
+  // Porteurs de pancarte : bras immobiles (ils tiennent le manche).
   const stillAttr = instancedBufferAttribute(new THREE.InstancedBufferAttribute(new Float32Array(Math.max(still.length, 1)).map((_, i) => still[i] ?? 0), 1)) as unknown as ReturnType<typeof float>;
   const move = float(1).sub(stillAttr);
-  // Saut et bras agités, déphasés par spectateur.
-  const jump = max(sin(time.mul(float(5).add(h.mul(3))).add(h.mul(20))), float(0)).mul(0.12).mul(h2.greaterThan(0.5).select(float(1), float(0.3))).mul(move);
+  // Bras agités sur le côté, déphasés par spectateur (pas de saut : le public ne monte ni ne descend).
   const wave = sin(time.mul(9).add(h.mul(10))).mul(0.18).mul(part.equal(2).select(float(1), float(0))).mul(move);
   // positionLocal inclut déjà la transformation d'instance : le côté du bras vient de l'attribut brut.
   const raw = attribute<'vec3'>('position');
-  mat.positionNode = positionLocal.add(vec3(wave.mul(raw.x.sign()), jump.add(abs(wave).mul(0.3)), 0));
+  mat.positionNode = positionLocal.add(vec3(wave.mul(raw.x.sign()), 0, 0));
   // Maillots et vêtements variés : choix par paliers du hachage de l'instance.
   const step = (e: number) => h.greaterThan(e).select(float(1), float(0));
   const shirt = mix(mix(mix(mix(color('#e63946'), color('#ffd23f'), step(0.2)), color('#2a9d8f'), step(0.4)), color('#f4f4f4'), step(0.6)), color('#1f6feb'), step(0.8));
@@ -385,10 +384,9 @@ function realSignMaterial(atlas: THREE.Texture, cell: ReturnType<typeof vec2>): 
   const face = frontFacing.select(texture(atlas, atlasUv).rgb, vec3(0.48, 0.3, 0.13));
   smat.colorNode = spart.equal(0).select(face, vec3(0.2, 0.11, 0.05));
   smat.roughnessNode = float(0.85);
-  // Pancartes agitées : léger va-et-vient vertical et latéral, déphasé.
+  // Pancartes : lent balancement latéral, déphasé, sans va-et-vient vertical.
   const sh = hash(instanceIndex.add(7));
-  const lift = sin(time.mul(float(2.2).add(sh)).add(sh.mul(12))).mul(0.06);
-  const sway = sin(time.mul(1.6).add(sh.mul(9))).mul(0.05);
-  smat.positionNode = positionLocal.add(vec3(sway, lift, 0));
+  const sway = sin(time.mul(float(1.1).add(sh.mul(0.5))).add(sh.mul(9))).mul(0.04);
+  smat.positionNode = positionLocal.add(vec3(sway, 0, 0));
   return smat;
 }
