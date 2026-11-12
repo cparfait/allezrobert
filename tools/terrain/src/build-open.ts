@@ -143,9 +143,9 @@ async function main(): Promise<void> {
 
   // 3. profils 3D
   log('3. Profils des routes');
-  // Extrémités de ponts relevées au tablier mesuré (MNS LiDAR HD + BD TOPO) : à l'essai, TERRAIN_BRIDGE_DECKS=1
+  // Extrémités de ponts relevées au tablier mesuré (MNS LiDAR HD + BD TOPO) : par défaut, TERRAIN_BRIDGE_DECKS=0 pour s'en passer
   let deckHeights: Map<number, number> | undefined;
-  if (process.env.TERRAIN_BRIDGE_DECKS === '1') {
+  if (process.env.TERRAIN_BRIDGE_DECKS !== '0') {
     // nœuds des itinéraires gardés (montées, sorties) : leur altitude vient de l'itinéraire, pas du tablier
     const fixedNodes = new Set<number>();
     for (const k of kept)
