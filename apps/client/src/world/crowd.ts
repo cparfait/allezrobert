@@ -1,5 +1,5 @@
 import * as THREE from 'three/webgpu';
-import { attribute, positionLocal, time, sin, vec2, vec3, float, mix, instanceIndex, hash, color, varying, uv, texture, frontFacing, instancedBufferAttribute, uniform } from 'three/tsl';
+import { attribute, positionLocal, time, sin, vec2, vec3, float, floor, mix, instanceIndex, hash, color, varying, uv, texture, frontFacing, instancedBufferAttribute, uniform } from 'three/tsl';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import type { RouteTrack } from '@allezrobert/shared';
 import { rng } from '../engine/noise.ts';
@@ -105,6 +105,173 @@ export interface CrowdOptions {
   density?: number;
   /** Style réaliste : vrais personnages recolorés (crowdRealistic.ts) plutôt que des capsules ; vrai par défaut. */
   realPeople?: boolean;
+  /**
+   * Arrivée de course : foule sur les FINISH_M derniers mètres, en rangs de plus en plus serrés vers la ligne,
+   * derrière des barrières ; sinon (sortie libre) 60 m de public à la ligne. Faux par défaut.
+   */
+  finish?: boolean;
+}
+
+/** Arrivée de course : longueur de la foule et des barrières avant la ligne (m). */
+const FINISH_M = 250;
+const FINISH_BARRIER_M = 200;
+/** Barrière de foule : longueur d'un élément, écart au bord de la chaussée (m). */
+const BARRIER_LEN = 2;
+const BARRIER_GAP = 0.6;
+
+/**
+ * Barrière de foule (repère : longueur le long de x, centrée ; pieds en y = 0 ; face côté route vers −z) :
+ * cadre en tubes, barreaux, deux pieds plats et une bâche publicitaire côté route. Attribut `part` :
+ * 0 métal, 1 bâche.
+ */
+function barrierGeometry(): THREE.BufferGeometry {
+  const tag = (g: THREE.BufferGeometry, part: number) => {
+    const ng = g.index ? g.toNonIndexed() : g;
+    // uv gardées pour la bâche (publicité), nulles ailleurs (même jeu d'attributs pour la fusion)
+    if (part !== 1) ng.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(ng.getAttribute('position').count * 2), 2));
+    ng.setAttribute('part', new THREE.BufferAttribute(new Float32Array(ng.getAttribute('position').count).fill(part), 1));
+    return ng;
+  };
+  const L = BARRIER_LEN - 0.04;
+  const parts: THREE.BufferGeometry[] = [
+    tag(new THREE.BoxGeometry(L, 0.035, 0.035).translate(0, 1.08, 0), 0),
+    tag(new THREE.BoxGeometry(L, 0.035, 0.035).translate(0, 0.2, 0), 0),
+  ];
+  for (const x of [-L / 2, L / 2]) {
+    parts.push(tag(new THREE.BoxGeometry(0.04, 1.1, 0.04).translate(x, 0.55, 0), 0));
+    parts.push(tag(new THREE.BoxGeometry(0.05, 0.03, 0.6).translate(x * 0.92, 0.015, 0), 0));
+  }
+  for (let i = 1; i < 14; i++) parts.push(tag(new THREE.BoxGeometry(0.018, 0.88, 0.018).translate(-L / 2 + (i * L) / 14, 0.64, 0), 0));
+  parts.push(tag(new THREE.PlaneGeometry(L - 0.06, 0.82).rotateY(Math.PI).translate(0, 0.64, -0.03), 1));
+  return mergeGeometries(parts) as THREE.BufferGeometry;
+}
+
+/**
+ * Publicités des bâches : marques de vélo inventées (pas de vraies marques ni de logos réels). Atlas de
+ * ADS_COLS × ADS_ROWS cases de 512 × 224 px (bâche ≈ 1,9 × 0,82 m).
+ */
+const ADS: Array<{ bg: string; ink: string; name: string; sub: string; icon: 'bike' | 'wheel' | 'bottle' | 'none' }> = [
+  { bg: '#f2c21b', ink: '#111111', name: 'PNEUS VÉLOCE', sub: 'adhérence tous temps', icon: 'wheel' },
+  { bg: '#1d3557', ink: '#ffffff', name: 'CYCLES DUPÉDALIER', sub: 'cadres carbone depuis 1952', icon: 'bike' },
+  { bg: '#e63946', ink: '#ffffff', name: 'BRAQUET', sub: 'transmissions 12 vitesses', icon: 'none' },
+  { bg: '#ffffff', ink: '#d62828', name: 'ROUE LIBRE', sub: 'le magazine du cyclisme', icon: 'wheel' },
+  { bg: '#2a9d8f', ink: '#ffffff', name: 'CHAMOIS PRO', sub: 'cuissards & maillots', icon: 'none' },
+  { bg: '#111111', ink: '#ffd23f', name: 'ALLEZ ROBERT !', sub: 'roulez sur les vraies routes', icon: 'bike' },
+  { bg: '#ff7f11', ink: '#ffffff', name: 'GOURDE & CO', sub: 'bidons isothermes', icon: 'bottle' },
+  { bg: '#f4f4f4', ink: '#1d3557', name: 'COL DU JOUR', sub: 'barres énergétiques', icon: 'none' },
+];
+const ADS_COLS = 4;
+const ADS_ROWS = 2;
+const AD_W = 512;
+const AD_H = 224;
+
+/** Pictogrammes des publicités : vélo de route, roue à rayons, bidon. */
+function adIcon(ctx: CanvasRenderingContext2D, kind: 'bike' | 'wheel' | 'bottle', x: number, y: number, ink: string): void {
+  ctx.save();
+  ctx.strokeStyle = ink;
+  ctx.fillStyle = ink;
+  ctx.lineWidth = 7;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  if (kind === 'bike') {
+    const r = 30;
+    ctx.beginPath();
+    ctx.arc(x - 44, y + 18, r, 0, Math.PI * 2);
+    ctx.moveTo(x + 44 + r, y + 18);
+    ctx.arc(x + 44, y + 18, r, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.beginPath();
+    // base arrière, tube de selle, tube supérieur, tube diagonal, fourche, cintre, selle
+    ctx.moveTo(x - 44, y + 18);
+    ctx.lineTo(x - 2, y + 18);
+    ctx.lineTo(x - 18, y - 22);
+    ctx.lineTo(x + 30, y - 22);
+    ctx.lineTo(x - 2, y + 18);
+    ctx.moveTo(x - 44, y + 18);
+    ctx.lineTo(x - 18, y - 22);
+    ctx.moveTo(x + 44, y + 18);
+    ctx.lineTo(x + 30, y - 30);
+    ctx.lineTo(x + 42, y - 32);
+    ctx.moveTo(x - 28, y - 30);
+    ctx.lineTo(x - 8, y - 30);
+    ctx.stroke();
+  } else if (kind === 'wheel') {
+    ctx.beginPath();
+    ctx.arc(x, y, 46, 0, Math.PI * 2);
+    ctx.lineWidth = 12;
+    ctx.stroke();
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    for (let i = 0; i < 12; i++) {
+      const a = (i / 12) * Math.PI * 2;
+      ctx.moveTo(x, y);
+      ctx.lineTo(x + Math.cos(a) * 40, y + Math.sin(a) * 40);
+    }
+    ctx.stroke();
+  } else {
+    ctx.beginPath();
+    ctx.roundRect(x - 20, y - 34, 40, 78, 10);
+    ctx.fill();
+    ctx.fillRect(x - 10, y - 50, 20, 18);
+  }
+  ctx.restore();
+}
+
+/** Atlas des publicités des bâches. */
+function adsAtlas(): THREE.CanvasTexture {
+  const c = document.createElement('canvas');
+  c.width = AD_W * ADS_COLS;
+  c.height = AD_H * ADS_ROWS;
+  const ctx = c.getContext('2d') as CanvasRenderingContext2D;
+  ADS.forEach((ad, i) => {
+    const x0 = (i % ADS_COLS) * AD_W;
+    const y0 = Math.floor(i / ADS_COLS) * AD_H;
+    ctx.fillStyle = ad.bg;
+    ctx.fillRect(x0, y0, AD_W, AD_H);
+    // liseré, comme les bâches imprimées
+    ctx.fillStyle = ad.ink;
+    ctx.fillRect(x0, y0 + AD_H - 16, AD_W, 6);
+    const icon = ad.icon !== 'none';
+    if (icon) adIcon(ctx, ad.icon as 'bike' | 'wheel' | 'bottle', x0 + 90, y0 + AD_H / 2 - 6, ad.ink);
+    const cx = x0 + (icon ? 320 : AD_W / 2);
+    const maxW = icon ? 340 : 470;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    let size = 64;
+    const font = (px: number) => `900 ${px}px Impact, "Arial Black", "Helvetica Neue", Arial, sans-serif`;
+    ctx.font = font(size);
+    while (size > 28 && ctx.measureText(ad.name).width > maxW) ctx.font = font((size -= 2));
+    ctx.fillText(ad.name, cx, y0 + AD_H / 2 - 22);
+    ctx.font = `italic 600 26px "Helvetica Neue", Arial, sans-serif`;
+    ctx.fillText(ad.sub, cx, y0 + AD_H / 2 + 38, maxW);
+  });
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = 8;
+  return t;
+}
+
+/**
+ * Barrières : métal galvanisé ; bâche imprimée côté route (publicités de l'atlas, une marque par série de trois
+ * barrières, comme sur les arrivées), toile unie côté public.
+ */
+function barrierMaterial(): THREE.MeshStandardNodeMaterial {
+  const mat = new THREE.MeshStandardNodeMaterial({ side: THREE.DoubleSide });
+  mat.flatShading = LOW_POLY;
+  const part = attribute<'float'>('part');
+  // Les barrières sont créées par paires (gauche, droite) le long de la route : 6 instances = 3 barrières par côté.
+  // × 3 (premier avec 8) : les marques se suivent dans le désordre.
+  const cell = floor(float(instanceIndex).div(6)).mul(3).mod(ADS.length);
+  const col = cell.mod(ADS_COLS);
+  const row = floor(cell.div(ADS_COLS));
+  const adUv = uv()
+    .mul(vec2(1 / ADS_COLS, 1 / ADS_ROWS))
+    .add(vec2(col.div(ADS_COLS), float(1).sub(row.add(1).div(ADS_ROWS))));
+  const cloth = frontFacing.select(texture(adsAtlas(), adUv).rgb, vec3(0.82, 0.82, 0.8));
+  mat.colorNode = part.equal(1).select(cloth, vec3(0.4, 0.42, 0.44));
+  mat.roughnessNode = part.equal(1).select(float(0.8), float(0.45));
+  mat.metalnessNode = part.equal(1).select(float(0), float(0.6));
+  return mat;
 }
 
 /**
@@ -145,6 +312,8 @@ export class Crowd {
   readonly mesh: THREE.InstancedMesh;
   /** Pancartes (null si aucun segment). */
   readonly signs: THREE.InstancedMesh | null;
+  /** Barrières de l'arrivée de course (null hors course). */
+  readonly barriers: THREE.InstancedMesh | null;
   readonly group = new THREE.Group();
   /**
    * Style jeu vidéo : position du coureur (x, z). Le public ne s'anime qu'à son approche (voir
@@ -192,42 +361,83 @@ export class Crowd {
       zones.push({ startM: Math.max(0, seg.startM - 30), endM: Math.min(track.length, seg.startM + 30), kom, arch: true });
       zones.push({ startM: seg.endM, endM: Math.min(track.length, seg.endM + 30), kom, arch: true });
     }
-    zones.push({ startM: Math.max(0, track.length - 60), endM: track.length - 1, kom: false, arch: true });
+    // Arrivée de course : foule de FINISH_M mètres derrière les barrières (voir plus bas) ; sinon 60 m serrés.
+    const finish = opts.finish === true && track.length > 120;
+    if (!finish) zones.push({ startM: Math.max(0, track.length - 60), endM: track.length - 1, kom: false, arch: true });
     if (!track.route.loop) zones.push({ startM: 0, endM: 40, kom: false, arch: true });
+
+    /**
+     * Pose un spectateur à `dd` (m) et `lateral` (m, signé) ; porteur de pancarte avec la probabilité `sign`.
+     * `yawJitter` : écart d'orientation (rad) pour une foule moins alignée.
+     */
+    const put = (dd: number, lateral: number, kom: boolean, sign: number, yawJitter = 0): void => {
+      const side = Math.sign(lateral);
+      const p = track.positionAt(dd, lateral);
+      const ground = groundAt(p.x, p.z);
+      const y = (Number.isFinite(ground) ? ground : p.y) - 0.05;
+      // Face à la route : regard perpendiculaire à la direction de marche.
+      const yaw = Math.atan2(p.dirX, p.dirZ) + (side > 0 ? -Math.PI / 2 : Math.PI / 2) + (r() - 0.5) * 2 * yawJitter;
+      q.setFromAxisAngle(up, yaw);
+      spots.push(p.x, p.z, Math.cos(yaw), Math.sin(yaw));
+      const s = 0.9 + r() * 0.2;
+      orient.push(Math.cos(yaw), Math.sin(yaw), s);
+      m.compose(new THREE.Vector3(p.x, y, p.z), q, new THREE.Vector3(s, s, s));
+      mats.push(m.clone());
+      const holder = r() < sign;
+      still.push(holder ? 1 : 0);
+      if (!holder) return;
+      // Pancarte tournée vers la route et vers les coureurs qui arrivent.
+      const c = track.positionAt(dd, 0);
+      const n = new THREE.Vector3(c.x - p.x, 0, c.z - p.z).normalize().addScaledVector(new THREE.Vector3(-p.dirX, 0, -p.dirZ), 0.75).normalize();
+      const sq = new THREE.Quaternion().setFromAxisAngle(up, Math.atan2(n.x, n.z));
+      const pos = new THREE.Vector3(p.x + n.x * 0.25, y, p.z + n.z * 0.25);
+      signMats.push(new THREE.Matrix4().compose(pos, sq, new THREE.Vector3(s, s, s)));
+      signSpots.push(pos.x, pos.z);
+      signCells.push(kom ? komNext++ % 10 : 10 + (sprintNext++ % 6));
+    };
+
     for (const seg of zones) {
       const kom = seg.kom;
-      const from = seg.startM;
-      for (let d = from; d < seg.endM; d += (seg.arch ? 2.4 : kom ? 3.25 : 4) / density) {
+      for (let d = seg.startM; d < seg.endM; d += (seg.arch ? 2.4 : kom ? 3.25 : 4) / density) {
         for (const side of [-1, 1]) {
           if (r() < (seg.arch ? 0.15 : kom ? 0.35 : 0.5)) continue;
           const lateral = side * (half + 1.6 + r() * 3);
-          const dd = d + r() * 2;
-          const p = track.positionAt(dd, lateral);
-          const ground = groundAt(p.x, p.z);
-          const y = (Number.isFinite(ground) ? ground : p.y) - 0.05;
-          // Face à la route : regard perpendiculaire à la direction de marche.
-          const yaw = Math.atan2(p.dirX, p.dirZ) + (side > 0 ? -Math.PI / 2 : Math.PI / 2);
-          q.setFromAxisAngle(up, yaw);
-          spots.push(p.x, p.z, Math.cos(yaw), Math.sin(yaw));
-          const s = 0.9 + r() * 0.2;
-          orient.push(Math.cos(yaw), Math.sin(yaw), s);
-          m.compose(new THREE.Vector3(p.x, y, p.z), q, new THREE.Vector3(s, s, s));
-          mats.push(m.clone());
           // Premier rang, dans les 150 derniers mètres (KOM) : une pancarte de temps en temps.
           const front = Math.abs(lateral) < half + 3;
-          const holder = front && seg.endM - d < (kom ? 150 : 120) && r() < 0.32;
-          still.push(holder ? 1 : 0);
-          if (!holder) continue;
-          // Pancarte tournée vers la route et vers les coureurs qui arrivent.
-          const c = track.positionAt(dd, 0);
-          const n = new THREE.Vector3(c.x - p.x, 0, c.z - p.z).normalize().addScaledVector(new THREE.Vector3(-p.dirX, 0, -p.dirZ), 0.75).normalize();
-          const sq = new THREE.Quaternion().setFromAxisAngle(up, Math.atan2(n.x, n.z));
-          const pos = new THREE.Vector3(p.x + n.x * 0.25, y, p.z + n.z * 0.25);
-          signMats.push(new THREE.Matrix4().compose(pos, sq, new THREE.Vector3(s, s, s)));
-          signSpots.push(pos.x, pos.z);
-          signCells.push(kom ? komNext++ % 10 : 10 + (sprintNext++ % 6));
+          put(d + r() * 2, lateral, kom, front && seg.endM - d < (kom ? 150 : 120) ? 0.32 : 0);
         }
       }
+    }
+
+    // Arrivée de course : derrière les barrières, de plus en plus serrés et nombreux vers la ligne (1 rang à
+    // FINISH_M mètres, 4 sur les 50 derniers), pancartes au premier rang, un peu de foule passé la ligne.
+    const barrierMats: THREE.Matrix4[] = [];
+    if (finish) {
+      const len = track.length;
+      const from = Math.max(0, len - FINISH_M);
+      for (let d = from; d < len - 1; ) {
+        const c = Math.min(1, (d - from) / (len - 50 - from));
+        const rows = 1 + Math.round(3 * c * c);
+        for (const side of [-1, 1])
+          for (let row = 0; row < rows; row++) {
+            if (r() < 0.12) continue;
+            const lateral = side * (half + BARRIER_GAP + 0.55 + row * 0.7 + (r() - 0.5) * 0.25);
+            put(d + (r() - 0.5) * 0.8, lateral, false, row === 0 ? 0.08 + 0.17 * c : 0, 0.35);
+          }
+        d += (2.6 - 1.7 * c) / density;
+      }
+      // Barrières des deux côtés, de FINISH_BARRIER_M mètres avant la ligne jusqu'à la ligne.
+      const bq = new THREE.Quaternion();
+      for (let d = Math.max(0, len - FINISH_BARRIER_M); d + BARRIER_LEN <= len - 0.5; d += BARRIER_LEN + 0.05)
+        for (const side of [-1, 1]) {
+          const p = track.positionAt(d + BARRIER_LEN / 2, side * (half + BARRIER_GAP));
+          const ground = groundAt(p.x, p.z);
+          const y = (Number.isFinite(ground) ? ground : p.y) - 0.02;
+          // Bâche imprimée (−z local) tournée vers la chaussée.
+          const c = track.positionAt(d + BARRIER_LEN / 2, 0);
+          bq.setFromAxisAngle(up, Math.atan2(p.x - c.x, p.z - c.z));
+          barrierMats.push(new THREE.Matrix4().compose(new THREE.Vector3(p.x, y, p.z), bq, new THREE.Vector3(1, 1, 1)));
+        }
     }
     // Style jeu vidéo : spectateurs à facettes, animés seulement à l'approche du coureur (crowdLowPoly.ts).
     const mat = LOW_POLY ? lowPolyCrowdMaterial(padded(spots, 4), padded(still, 1), this.rider) : realCrowdMaterial(still);
@@ -300,6 +510,18 @@ export class Crowd {
       this.signs = signs;
       this.group.add(signs);
     } else this.signs = null;
+
+    if (barrierMats.length) {
+      const barriers = new THREE.InstancedMesh(barrierGeometry(), barrierMaterial(), barrierMats.length);
+      barrierMats.forEach((mm, i) => barriers.setMatrixAt(i, mm));
+      barriers.instanceMatrix.needsUpdate = true;
+      barriers.computeBoundingSphere();
+      barriers.castShadow = true;
+      barriers.receiveShadow = true;
+      barriers.name = 'crowd-barriers';
+      this.barriers = barriers;
+      this.group.add(barriers);
+    } else this.barriers = null;
   }
 
   /**
@@ -323,7 +545,7 @@ export class Crowd {
    */
   private reground(rx: number, rz: number): void {
     const bodies = this.people.length ? this.people : [this.mesh];
-    const meshes = this.signs ? [...bodies, this.signs] : bodies;
+    const meshes = [...bodies, ...(this.signs ? [this.signs] : []), ...(this.barriers ? [this.barriers] : [])];
     const total = meshes.reduce((n, m) => n + m.count, 0);
     if (!total) return;
     for (let k = 0; k < 64; k++) {
@@ -337,7 +559,7 @@ export class Crowd {
       if ((x - rx) ** 2 + (z - rz) ** 2 > 600 * 600) continue;
       const g = this.groundAt(x, z);
       if (!Number.isFinite(g)) continue;
-      const y = g - 0.05;
+      const y = g - (mesh === this.barriers ? 0.02 : 0.05);
       if (Math.abs((a[i * 16 + 13] as number) - y) < 0.02) continue;
       a[i * 16 + 13] = y;
       mesh.instanceMatrix.needsUpdate = true;

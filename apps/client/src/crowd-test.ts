@@ -3,13 +3,13 @@ import type { RouteTrack } from '@allezrobert/shared';
 import { createEngine } from './engine/renderer.ts';
 import { QUALITY_PRESETS, type QualityLevel } from './engine/quality.ts';
 import { Crowd } from './world/crowd.ts';
-import { loadSpectator } from './world/crowdRealistic.ts';
+import { loadSpectators, spectatorMaterial } from './world/crowdRealistic.ts';
 
 /**
  * Banc d'essai (développement) : /crowd-test.html montre le public d'un sommet de KOM sur une route droite,
  * sans serveur ni zone. ?d=… distance de la caméra sur la route (le KOM finit à 400 m), ?lat=… décalage
  * latéral, ?h=… hauteur, ?n=… nombre de mesures du temps d'image, ?quality=low|medium|high|ultra, ?capsules
- * (ancien public, pour comparer), ?perf=1 (temps GPU).
+ * (ancien public, pour comparer), ?finish (foule et barrières d'arrivée de course, ligne à 600 m), ?perf=1 (temps GPU).
  */
 const log = document.getElementById('log') as HTMLElement;
 const canvas = document.getElementById('scene') as HTMLCanvasElement;
@@ -47,12 +47,24 @@ async function main(): Promise<void> {
   road.position.set(0, 0.01, -300);
   scene.add(road);
 
-  const crowd = new Crowd(track, () => 0, { riderName: 'Robert', density: Number(params.get('density') ?? 0.75), realPeople: !params.has('capsules') });
-  scene.add(crowd.group);
-  const asset = params.has('capsules') ? null : await loadSpectator();
+  const crowd = new Crowd(track, () => 0, { riderName: 'Robert', density: Number(params.get('density') ?? 0.75), realPeople: !params.has('capsules'), finish: params.has('finish') });
+  const assets = params.has('capsules') ? [] : await loadSpectators();
+  // ?lineup : tous les personnages en rang face à la caméra (?lineup=3 : trois rangées de couleurs différentes).
+  if (params.has('lineup')) {
+    const rows = Math.max(1, Number(params.get('lineup')) || 1);
+    const dl = Number(params.get('d') ?? 360);
+    assets.forEach((a, k) => {
+      const mesh = new THREE.InstancedMesh(a.geometry, spectatorMaterial(a, new Float32Array(Array.from({ length: rows }, () => [-1, 0, 1]).flat()), new Float32Array(rows), k * 1009 + Number(params.get('seed') ?? 0)), rows);
+      for (let r = 0; r < rows; r++)
+        mesh.setMatrixAt(r, new THREE.Matrix4().compose(new THREE.Vector3((k - (assets.length - 1) / 2) * 1.1, 0, -dl - 7 - r * 2.5), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI), new THREE.Vector3(1, 1, 1)));
+      mesh.instanceMatrix.needsUpdate = true;
+      mesh.frustumCulled = false;
+      scene.add(mesh);
+    });
+  } else scene.add(crowd.group);
   // Le remplacement des capsules se fait juste après la promesse partagée.
   await new Promise((r) => setTimeout(r, 50));
-  log.textContent = `${asset ? `spectateur chargé (${asset.meta.tris} triangles)` : 'ÉCHEC : capsules'} · ${crowd.mesh.count} spectateurs`;
+  log.textContent = `${assets.length ? `${assets.length} personnages (${assets.map((a) => a.name).join(', ')})` : 'capsules'} · ${crowd.mesh.count} spectateurs`;
 
   const d = Number(params.get('d') ?? 360);
   camera.position.set(Number(params.get('lat') ?? 0.5), Number(params.get('h') ?? 1.6), -d);
