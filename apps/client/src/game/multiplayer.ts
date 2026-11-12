@@ -1,6 +1,8 @@
 import * as THREE from 'three/webgpu';
 import type { CompanionCommand, PublicPick, RideMode, RideWeather, RouteTrack, WelcomeMsg } from '@allezrobert/shared';
+import type { RiderState, RouteBuildingCollision, RouteObstaclePose } from '@allezrobert/physics';
 import { RideNetClient, type InterpolatedRider } from '../net/index.ts';
+import { CollisionPoseFollower, CollisionPrediction } from '../net/collision-follow.ts';
 import { frameAfterTurn, gapAlongRoute, toRouteFrame } from '../net/frame.ts';
 import { createAvatar, type RiderAvatarLike } from '../rider/gltfAvatar.ts';
 
@@ -33,6 +35,7 @@ function tokenProvider(apiBase: string, name: string, onSession?: () => Promise<
 
 interface Remote {
   avatar: RiderAvatarLike;
+  collisionPose?: { follower: CollisionPoseFollower; pose: RouteObstaclePose };
   /** Repère d'ami (nom doré et flèche au-dessus de la tête), visible de loin et à travers le décor. */
   label: THREE.Sprite | null;
 }
@@ -89,17 +92,66 @@ export class Multiplayer {
   private readonly sample = { x: 0, y: 0, z: 0, dirX: 1, dirZ: 0, grade: 0, d: 0 };
   /** Inclinaison affichée de chaque coureur distant en virage (rad, lissée). */
   private readonly banks = new Map<string, number>();
+  private collision?: RouteBuildingCollision;
+  private collisionPrediction?: CollisionPrediction;
+  private readonly predictedSelf: RouteObstaclePose = { distM: 0, lateral: 0, speedMs: 0 };
 
   /**
    * `syncProfile` : envoie le profil local au compte avant l'entrée — le serveur montre aux autres
    * l'avatar du compte, qui doit être celui que le coureur voit chez lui.
    */
-  constructor(scene: THREE.Scene, track: RouteTrack, riderName: string, syncProfile?: () => Promise<unknown>) {
+  constructor(scene: THREE.Scene, track: RouteTrack, riderName: string, syncProfile?: () => Promise<unknown>, private readonly collisionFingerprint?: string, private readonly wantsCollisionPilot = false) {
     this.scene = scene;
     this.track = track;
     const endpoint = serverEndpoint();
     const apiBase = `${endpoint.replace(/\/colyseus$/, '')}/api`;
     this.net = new RideNetClient({ endpoint, apiBase, token: tokenProvider(apiBase, riderName, syncProfile) });
+  }
+
+  enableBuildingCollisions(collision: RouteBuildingCollision): void {
+    this.collision = collision;
+    this.collisionPrediction = new CollisionPrediction(this.track, collision);
+  }
+
+  /** Un placement serveur à l'entrée précède le premier rendu. Les corrections suivantes restent balayées. */
+  async initialCollisionPose(): Promise<RouteObstaclePose | undefined> {
+    const read = () => {
+      const snapshot = this.net.getSelfSnapshot();
+      return snapshot ? { distM: snapshot.lap * this.track.length + snapshot.distM, lateral: snapshot.lateralM, speedMs: snapshot.speedMs } : undefined;
+    };
+    const initial = read();
+    if (initial) return initial;
+    return new Promise((resolve) => {
+      const off = this.net.on('snapshot', () => {
+        const pose = read();
+        if (pose) finish(pose);
+      });
+      const timeout = setTimeout(() => finish(), 2500);
+      function finish(pose?: RouteObstaclePose) {
+        clearTimeout(timeout);
+        off();
+        resolve(pose);
+      }
+    });
+  }
+
+  reconcileCollisionPose(state: RiderState, lateral: number, dt: number): number {
+    const snapshot = this.net.getSelfSnapshot();
+    if (!this.collisionPrediction || !snapshot || !this.net.latest || this.net.state !== 'connected') return lateral;
+    const rtt = Number.isFinite(this.net.rtt) ? this.net.rtt : 0;
+    // Une compilation de shaders peut gonfler le ping. Elle ne rend pas un paquet récent périmé.
+    const sinceSnapshot = Math.max(0, (this.net.serverNow() - this.net.latest.t) / 1000);
+    if (sinceSnapshot > 0.5) return lateral;
+    const age = sinceSnapshot + Math.min(rtt / 2000, 0.15);
+    this.collisionPrediction.reconcile(
+      { distM: state.distM, lateral, speedMs: state.speedMs },
+      { distM: snapshot.lap * this.track.length + snapshot.distM, lateral: snapshot.lateralM, speedMs: snapshot.speedMs },
+      age, dt, this.predictedSelf,
+    );
+    state.distM = this.predictedSelf.distM;
+    if (dt > 0) state.accelMs2 += (this.predictedSelf.speedMs - state.speedMs) / dt;
+    state.speedMs = this.predictedSelf.speedMs;
+    return this.predictedSelf.lateral;
   }
 
   /** Rejoint par code d'invitation, ou crée une sortie privée sur l'itinéraire courant. */
@@ -131,7 +183,7 @@ export class Multiplayer {
       if (friendId || /Connexion requise/.test(e.message)) throw e;
       return { friends: [] };
     });
-    const welcome = await this.net.joinPublic(routeId, { displayName: name, ...(pick.near ? { near: pick.near } : {}) }, pick.roomId, weather);
+    const welcome = await this.net.joinPublic(routeId, { displayName: name, ...(pick.near ? { near: pick.near } : {}), collisionFingerprint: this.collisionFingerprint }, pick.roomId, weather);
     this.isPublic = true;
     this.friendsHere = pick.roomId && pick.roomId === welcome.roomId ? pick.friends : [];
     this.proximity = welcome.proximity;
@@ -162,8 +214,9 @@ export class Multiplayer {
 
   async connect(opts: { inviteCode?: string; mode: RideMode; guest: boolean; aiRiders: number; aiLevel?: number; targetKmh?: number; laps?: number; trainerDifficulty: number; name: string; weather: RideWeather; equalEquipment?: boolean }): Promise<string> {
     const role = opts.guest ? 'guest' : 'rider';
+    const join = { role, displayName: opts.name, collisionFingerprint: this.collisionFingerprint, ...(this.wantsCollisionPilot ? { collisionPilot: true } as const : {}) } as const;
     const welcome = opts.inviteCode
-      ? await this.net.joinByCode(opts.inviteCode, { role, displayName: opts.name })
+      ? await this.net.joinByCode(opts.inviteCode, join)
       : await this.net.create(
           {
             routeId: this.track.route.id,
@@ -179,7 +232,7 @@ export class Multiplayer {
             ...(opts.mode === 'race' && opts.laps ? { laps: opts.laps } : {}),
             equalEquipment: opts.equalEquipment ?? opts.mode === 'race',
           },
-          { role, displayName: opts.name },
+          join,
         );
     this.weather = welcome.options.weather ?? null;
     this.equalized = welcome.options.equalEquipment ?? welcome.options.mode === 'race';
@@ -238,9 +291,28 @@ export class Multiplayer {
         this.scene.add(rem.avatar.root);
         this.remotes.set(r.id, rem);
       }
-      // Même trajectoire en arc que le joueur (virages fluides).
-      const p = this.track.linePositionAt(r.unwrappedM, r.lateralM, r.speedMs, this.sample);
       const root = rem.avatar.root;
+      if (this.collision) {
+        const goal = { distM: r.unwrappedM, lateral: r.lateralM, speedMs: r.speedMs };
+        if (!rem.collisionPose) {
+          if (!this.collision.isClear(this.track, goal.distM, goal.lateral)) {
+            goal.lateral = 0;
+            if (!this.collision.isClear(this.track, goal.distM, 0)) {
+              root.visible = false;
+              continue;
+            }
+          }
+          rem.collisionPose = { follower: new CollisionPoseFollower(this.track, this.collision), pose: goal };
+        } else {
+          const { follower, pose } = rem.collisionPose;
+          follower.follow(pose, goal, dt, false, pose);
+        }
+        const pose = rem.collisionPose.pose;
+        r.unwrappedM = pose.distM;
+        r.lateralM = pose.lateral;
+        r.speedMs = pose.speedMs;
+      }
+      const p = this.collision ? this.track.positionAt(r.unwrappedM, r.lateralM, this.sample) : this.track.linePositionAt(r.unwrappedM, r.lateralM, r.speedMs, this.sample);
       root.position.set(p.x, p.y + 0.06, p.z);
       root.rotation.set(0, 0, 0);
       // À contresens (demi-tour) : cap retourné, pente inversée.

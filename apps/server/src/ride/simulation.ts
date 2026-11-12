@@ -47,6 +47,8 @@ import {
   type LaneBody,
   type RiderPhysicsParams,
   type RiderState,
+  type RouteBuildingCollision,
+  sharedRoadCorridor,
   type StickyRider,
 } from '@allezrobert/physics';
 import {
@@ -209,6 +211,7 @@ export class SimRider {
   lap = 0;
   /** Distance dépliée au début du pas (détection des franchissements). */
   prevDist = 0;
+  prevLateral = 0;
   readonly row: SnapshotRow;
   readonly activeSegments = new Map<string, { startMs: number; endDist: number }>();
   readonly joinedAt: number;
@@ -271,6 +274,12 @@ export class RideSimulation {
   readonly track: RouteTrack;
   /** Itinéraire inversé (demi-tours), construit au premier demi-tour. */
   private reverseTrack: RouteTrack | undefined;
+  private readonly collision?: RouteBuildingCollision;
+  private readonly bounds = { left: 0, right: 0 };
+  /** Couloir praticable : chaussée réelle du tronçon, plus les façades en pilote. */
+  private get corridor(): RouteBuildingCollision {
+    return this.collision ?? sharedRoadCorridor();
+  }
   /** Segments chronométrés actifs (désactivés en salle publique : monde libre, pas de classement). */
   segmentsEnabled = true;
   /** Salle publique : les coureurs dont le jeu charge encore restent hors de la route (voir `SimRider.loading`). */
@@ -320,10 +329,11 @@ export class RideSimulation {
   /** Élastique doux du regroupement : pas de borne dure (aucune téléportation). */
   private readonly regroupReg = new StickyGroupRegulator({ deadbandM: 10, maxGapM: 1e6, stiffness: 0.012, damping: 0.5, maxAccelMs2: 0.45 });
 
-  constructor(route: RouteData, options: ResolvedRideOptions, now: number, opts: { guestMaxWkg?: number; seed?: number | string } = {}) {
+  constructor(route: RouteData, options: ResolvedRideOptions, now: number, opts: { guestMaxWkg?: number; seed?: number | string; collision?: RouteBuildingCollision } = {}) {
     this.route = route;
     this.track = new RouteTrack(route);
     this.options = options;
+    this.collision = opts.collision;
     this.guestMaxWkg = opts.guestMaxWkg ?? 3.5;
     this.rng = new SeededRng(opts.seed ?? `${route.id}:${now}`);
     this.draft = new DraftCalculator({ strength: options.draftingStrength });
@@ -673,6 +683,7 @@ export class RideSimulation {
       r.state.distM = -row * 2.2;
       r.state.speedMs = 0;
       r.lateralM = r.lateralTarget = -span / 2 + (span * (col + 0.5)) / perRow;
+      this.clearSpawn(r);
       r.activeSegments.clear();
       r.lap = this.lapOf(r.state.distM);
       r.finishMs = undefined;
@@ -705,7 +716,14 @@ export class RideSimulation {
       r.state.speedMs = others.reduce((s, x) => s + x.state.speedMs, 0) / others.length;
       r.lateralM = r.lateralTarget = Math.min(1.2, this.halfRoad());
     }
+    this.clearSpawn(r);
     r.lap = this.lapOf(r.state.distM);
+  }
+
+  private clearSpawn(r: SimRider): void {
+    const bounds = this.corridor.steeringBounds(this.trackOf(r), r.state.distM, 0, r.dir, this.bounds);
+    r.lateralM = r.lateralTarget = Math.max(-bounds.left, Math.min(bounds.right, r.lateralM));
+    if (this.collision && !this.collision.isClear(this.trackOf(r), r.state.distM, r.lateralM)) r.lateralM = r.lateralTarget = 0;
   }
 
   private lapOf(dist: number): number {
@@ -834,6 +852,7 @@ export class RideSimulation {
       const r = riders[i]!;
       r.draft = holding ? 0 : reductions[i]!;
       r.prevDist = r.state.distM;
+      if (this.collision) r.prevLateral = r.lateralM;
       const trk = this.trackOf(r);
       const s = trk.sample(trk.wrap(r.state.distM), this.sample);
       r.grade = s.grade;
@@ -921,11 +940,27 @@ export class RideSimulation {
 
     // 5. Latéral (vers la consigne), puis collisions : les IA ne se traversent ni entre elles ni les humains.
     for (const r of riders) {
-      const dl = r.lateralTarget - r.lateralM;
+      let target = r.lateralTarget;
       const maxStep = LATERAL_SPEED_MS * dt;
+      // Rester sur la chaussée réelle du tronçon (et, en pilote, contourner les façades à venir) : même calcul que le client.
+      const bounds = this.corridor.steeringBounds(this.trackOf(r), r.state.distM, r.state.speedMs, r.dir, this.bounds);
+      target = Math.max(-bounds.left, Math.min(bounds.right, target));
+      const dl = target - r.lateralM;
       r.lateralM += Math.abs(dl) <= maxStep ? dl : Math.sign(dl) * maxStep;
+      r.lateralM = Math.max(-bounds.left, Math.min(bounds.right, r.lateralM));
     }
     if (!holding && this.aiCount > 0) this.separateAi(riders, dt);
+    if (!this.collision && !holding && this.aiCount > 0) {
+      // La séparation des IA raisonne sur la largeur générale : retour sur la chaussée du tronçon.
+      for (const r of riders) {
+        const half = this.corridor.roadHalfAt(this.trackOf(r), r.state.distM, this.halfRoad());
+        r.lateralM = Math.max(-half, Math.min(half, r.lateralM));
+      }
+    }
+    if (this.collision) {
+      const half = this.halfRoad();
+      for (const r of riders) r.lateralM = this.collision.apply(this.trackOf(r), r.prevDist, r.prevLateral, r.state, r.lateralM, half, dt);
+    }
 
     // Tours, segments, arrivée, posture.
     const target = this.raceTarget();

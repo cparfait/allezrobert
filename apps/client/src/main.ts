@@ -44,14 +44,15 @@ import { showRideSummary } from './ui/summary.ts';
 import { previousComparable, readPowerRecords, rideStats, updatePowerRecords, type RideHistoryEntry } from './game/stats.ts';
 import { rideHistory } from './data/history/instance.ts';
 import { rideClientId } from './data/history/index.ts';
-import type { RideKind } from '@allezrobert/shared';
+import { COLLISION_PILOT_DISABLED, COLLISION_PILOT_ERROR, COLLISION_VERSION_CLOSE, COLLISION_VERSION_ERROR, type RideKind } from '@allezrobert/shared';
+import { loadRideCollisionData } from './net/collision-version.ts';
 import { shareCard } from './ui/sharecard.ts';
 import { Onboarding, RideTutorial } from './onboarding/onboarding.ts';
 import { fetchRealWeather } from './game/realWeather.ts';
 import { addXp, awardRide, loadProgress, tunedBike } from './ui/garage.ts';
 import { AtelierHost, slotOfPicked, type AtelierState } from './ui/atelier.ts';
 import { rimGlow } from './rider/rimDecal.ts';
-import { EQUALIZED_BIKE, paramsFromBike, roadHalfM } from '@allezrobert/physics';
+import { COLLISION_PILOT_ROUTE, COLLISION_PILOT_WORLD, EQUALIZED_BIKE, createPilotBuildingCollision, paramsFromBike, roadHalfM } from '@allezrobert/physics';
 import { awardTrophies } from './game/trophies.ts';
 import { roadSurfaceAt, windShelterAt } from './world/conditions.ts';
 import { OpenNavigator } from './game/open.ts';
@@ -976,6 +977,12 @@ async function boot(): Promise<void> {
 /** Matériel du poste, repris par la salle d'attente des courses (posé au démarrage). */
 let devicePanel: DevicePanel | null = null;
 
+function collisionVersionMessage(reason = COLLISION_VERSION_ERROR): string {
+  if (reason === COLLISION_PILOT_ERROR) return getLang() === 'fr' ? reason : 'This room requires experimental collisions on the pilot route.';
+  if (reason === COLLISION_PILOT_DISABLED) return getLang() === 'fr' ? reason : 'Experimental collisions are disabled on this server.';
+  return getLang() === 'fr' ? COLLISION_VERSION_ERROR : 'Obstacle data is missing or incompatible. Update the game and the map.';
+}
+
 async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras: { workoutFile?: { name: string; content: string }; inviteCode?: string; inviteFriends?: string[]; tutorial?: boolean; openStart?: { x: number; z: number }; publicRoom?: boolean; nearFriend?: string }, overlay?: HTMLElement): Promise<void> {
   const { engine, world, source } = scene;
   // Écran gardé allumé pendant la sortie (rendu à Windows au retour au menu, qui recharge la page).
@@ -1011,7 +1018,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   // Le vélo roulé dépend de l'équipement porté au garage et des pièces de l'atelier (masse, traînée, pneus, roues).
   const profile: RiderProfile = { id: 'local', displayName: s.name, massKg: s.massKg, heightCm: s.heightCm, ftpWatts: s.ftpWatts, bike: tunedBike() };
   const params = new URLSearchParams(location.search);
-  const startD = nav ? 0 : challenge ? challenge.startD : Number(params.get('d') ?? 0);
+  let startD = nav ? 0 : challenge ? challenge.startD : Number(params.get('d') ?? 0);
   const ride = new RideSession({
     profile,
     standWatts: s.standWatts,
@@ -1067,10 +1074,14 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   let rideWeather = myWeather;
   let mp: Multiplayer | null = null;
   let voice: VoiceChat | null = null;
+  const wantsCollisionPilot = params.get('collisionPilot') === '1' && source.id === COLLISION_PILOT_WORLD && !source.zones && track.route.id === COLLISION_PILOT_ROUTE && !extras.publicRoom;
+  let collisionData: Awaited<ReturnType<typeof loadRideCollisionData>>;
+  let collisionSpawn: Awaited<ReturnType<Multiplayer['initialCollisionPose']>>;
   if (s.mode === 'group' || s.mode === 'race' || extras.publicRoom) {
     // Profil (avatar) envoyé au compte juste avant l'entrée : les autres te voient comme tu te vois.
-    mp = new Multiplayer(engine.scene, track, s.name, () => pushProfile(s));
     try {
+      collisionData = await loadRideCollisionData(source.id, track.route);
+      mp = new Multiplayer(engine.scene, track, s.name, () => pushProfile(s), collisionData?.fingerprint, wantsCollisionPilot);
       // Monde ouvert : salle publique de la zone (celle des amis d'abord), sans code ni hôte.
       if (extras.publicRoom) {
         // Premier arrivé : son heure et sa météo ouvrent la salle, figées (sans évolution) pour tous ceux qui suivent.
@@ -1090,22 +1101,48 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
         void sendRideInvites(mp.net.roomId, extras.inviteFriends).then((n) => n && setTimeout(() => hud.toast(getLang() === 'fr' ? `Invitation envoyée à ${n} ami${n > 1 ? 's' : ''}` : `Invite sent to ${n} friend${n > 1 ? 's' : ''}`), 2500));
       }
       }
+      if (mp.net.welcome?.collisionPilot) {
+        collisionSpawn = await mp.initialCollisionPose();
+        if (!collisionSpawn) throw new Error('Pose de départ du serveur indisponible');
+        if (Math.abs(collisionSpawn.distM - startD) > 80) {
+          const p = track.positionAt(collisionSpawn.distM, collisionSpawn.lateral);
+          await world.preload(new THREE.Vector3(p.x, p.y, p.z));
+          collisionSpawn = await mp.initialCollisionPose() ?? collisionSpawn;
+        }
+        startD = collisionSpawn.distM;
+      }
     } catch (e) {
       console.warn(extras.publicRoom ? 'Monde ouvert indisponible, sortie solo' : 'Serveur injoignable, sortie solo', e);
       const L = getLang() === 'fr';
       const reason = String((e as Error).message ?? e);
       const login = /Connexion requise|401/.test(reason);
       // Rejoindre un ami impossible (il est parti, sa salle est pleine) : le message du serveur.
-      const friendMsg = extras.nearFriend && !login ? reason : '';
+      const friendMsg = reason === COLLISION_VERSION_ERROR || reason === COLLISION_PILOT_ERROR || reason === COLLISION_PILOT_DISABLED
+        ? collisionVersionMessage(reason) : extras.nearFriend && !login ? reason : '';
       setTimeout(() => hud.toast(friendMsg ? `${friendMsg}${L ? ' : sortie solo' : ': solo ride'}` : login ? (L ? 'Connecte-toi pour rouler en monde ouvert : sortie solo' : 'Sign in to ride in the open world: solo ride') : L ? 'Serveur injoignable : sortie solo' : 'Server unreachable: solo ride'), 500);
+      if (mp?.net.welcome?.collisionPilot) await mp.net.leave();
       mp = null;
     }
+  }
+  if (wantsCollisionPilot && !mp && !collisionData) {
+    try {
+      collisionData = await loadRideCollisionData(source.id, track.route);
+    } catch {
+      setTimeout(() => hud.toast(collisionVersionMessage()), 500);
+    }
+  }
+  const pilotCollision = wantsCollisionPilot && collisionData && (!mp || mp.net.welcome?.collisionPilot)
+    ? createPilotBuildingCollision(collisionData.data.obstacles) : undefined;
+  if (pilotCollision) {
+    ride.enableBuildingCollisions(pilotCollision, collisionSpawn);
+    mp?.enableBuildingCollisions(pilotCollision);
   }
   // Poids envoyé au trainer FE-C (Neo…) : celui du vélo réellement roulé, égalisé ou non en multijoueur.
   input.setRiderWeights?.(s.massKg, ride.params.massKg - s.massKg);
   // Sortie solo, séance, test FTP et défi : seul sur la route. Des IA locales seulement en repli d'une sortie de groupe / course (serveur injoignable).
   const aiCount = workout || mp || challenge || (s.mode !== 'group' && s.mode !== 'race') ? 0 : Math.min(Math.max(s.aiRiders, 0), engine.quality.aiRidersMax);
   const peloton = new Peloton(engine.scene, track, aiCount, startD, s.ftpWatts * (s.aiLevel ?? 1));
+  if (pilotCollision) peloton.enableBuildingCollisions(pilotCollision);
   const ghost = new Ghost(engine.scene, track, track.route.id, startD, { ...s.look, heightCm: s.heightCm });
   // Fantôme d'un ami (compte connecté, tour complet depuis le départ) : son meilleur tour sur cette boucle.
   // Et son propre record est envoyé au serveur pour que ses amis le retrouvent.
@@ -1165,7 +1202,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     trains.addRail(pts);
   }
   // Cyclistes croisés dans les deux sens (désactivables avec le monde vivant ou par ?cyclists=0).
-  const cyclists = alive && params.get('cyclists') !== '0' ? new AmbientCyclists(engine.scene, track, startD) : null;
+  const cyclists = alive && !pilotCollision && params.get('cyclists') !== '0' ? new AmbientCyclists(engine.scene, track, startD) : null;
   if (cyclists) cyclists.heightAt = (x, z) => world.terrain.heightAt(x, z);
   if (cyclists) cyclists.shadowRange = engine.quality.shadowRiders >= 8 ? 35 : engine.quality.shadowRiders > 0 ? 20 : 0;
   // Les équipiers IA ne doublent par la gauche que si personne ne vient en face.
@@ -1370,7 +1407,10 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
       };
     }
     // Télémétrie à 10 Hz : puissance mesurée (ou virtuelle pour un invité), rapport, direction.
-    net.startTelemetry(() => ({ watts: ride.inputs.watts, cadence: ride.inputs.cadence, ...(ride.inputs.hr !== undefined ? { hr: ride.inputs.hr } : {}), gear: ride.gearIndex, steer: ride.lateral * ride.dir }));
+    net.startTelemetry(() => ({ watts: ride.inputs.watts, cadence: ride.inputs.cadence, ...(ride.inputs.hr !== undefined ? { hr: ride.inputs.hr } : {}), gear: ride.gearIndex, steer: ride.steeringTarget * ride.dir }));
+    net.on('connection', ({ code, reason }) => {
+      if (code === COLLISION_VERSION_CLOSE) hud.toast(collisionVersionMessage(reason));
+    });
     net.on('event', (ev) => {
       if (ev.kind === 'segmentEnd' && ev.riderId === net.selfId && !s.guest) {
         const seg = track.route.segments.find((x) => x.id === ev.segmentId);
@@ -1941,13 +1981,14 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     if (room?.holding) {
       ride.paused = true;
       const me = mp?.net.getSelfSnapshot();
-      if (me) ride.state.distM = me.lap * track.length + me.distM;
+      if (me && !pilotCollision) ride.state.distM = me.lap * track.length + me.distM;
     }
     lap('conditions');
     banners.setLap(ride.lap, s.mode === 'race' ? s.raceLaps : undefined);
     const prevD = ride.state.distM;
     // Ligne franchie en course : plus de pédalage, le coureur roule sur sa lancée.
     ride.update(dt, room?.finished ? coastInput : input, steer);
+    if (pilotCollision && mp) ride.lateral = mp.reconcileCollisionPose(ride.state, ride.lateral, dt);
     // Ressenti route du home trainer (Tacx NEO) : motif du revêtement sous les roues, coupé en pause, à l'arrêt et après l'arrivée.
     const feel = roadFeelFor({ osmSurface: ride.surface, percent: s.roadFeelPercent, riding: !ride.paused && !room?.finished, speedMs: ride.state.speedMs });
     roadFeelNow = feel.surface;
@@ -1982,7 +2023,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
             hud.toast(ride.dir < 0 ? (getLang() === 'fr' ? '↶ Demi-tour' : '↶ U-turn') : getLang() === 'fr' ? '↷ Demi-tour : retour dans le sens initial' : '↷ U-turn: back the original way');
           }
         }
-        ride.state.distM += mp.reconcileLocal(ride.dir, ride.state.distM, dt);
+        if (!pilotCollision) ride.state.distM += mp.reconcileLocal(ride.dir, ride.state.distM, dt);
       } else {
         ride.draft = peloton.update(dt, { distM: ride.state.distM, lateral: ride.lateral, speedMs: ride.state.speedMs, watts: ride.inputs.watts, massKg: s.massKg, ftpWatts: s.ftpWatts, reversed: ride.dir < 0, headWindMs: ride.headWindMs, crossWindMs: ride.crossWindMs }, cyclists && ride.dir > 0 ? cyclists.sameWayBodies() : []);
         groupTalk(dt);
@@ -1994,21 +2035,24 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
       };
       ride.wheelFollowed = peloton.riders.some((r) => onWheel(r.state.distM, r.lateral)) || remoteRiders.some((r) => r.dir === ride.dir && onWheel(r.unwrappedM, r.lateralM));
       // Collisions : ni le joueur ni les IA ne traversent un autre coureur (les coureurs distants, imposés par le serveur, ne bougent pas).
-      if (ride.dir > 0) {
+      if (ride.dir > 0 && !(pilotCollision && mp)) {
         const mobile = peloton.riders.filter((r) => !r.uturn.active);
         // Le joueur garde sa ligne : ce sont les IA qui s'écartent (ou qui sont retenues), jamais lui qui est déporté.
-        const me: Body = { distM: ride.state.distM, lateral: ride.lateral, speedMs: ride.state.speedMs, priority: true };
+        const beforeD = ride.state.distM, beforeLateral = ride.lateral;
+        const me: Body = { distM: beforeD, lateral: beforeLateral, speedMs: ride.state.speedMs, priority: true };
         const ais: Body[] = mobile.map((r) => ({ distM: r.state.distM, lateral: r.lateral, speedMs: r.state.speedMs }));
         const far: Body[] = remoteRiders.filter((r) => r.dir === ride.dir).map((r) => ({ distM: r.unwrappedM, lateral: r.lateralM, speedMs: r.speedMs, fixed: true }));
         separateRiders([me, ...ais, ...far], roadHalfM(track.route.roadWidthM), dt);
         ride.state.distM = me.distM;
         ride.state.speedMs = me.speedMs;
         ride.lateral = me.lateral;
+        if (pilotCollision) ride.constrainPosition(beforeD, beforeLateral, dt);
         mobile.forEach((r, i) => {
           const b = ais[i] as Body;
+          const beforeD = r.state.distM, beforeLateral = r.lateral;
           r.state.distM = b.distM;
           r.state.speedMs = b.speedMs;
-          r.lateral = b.lateral;
+          r.lateral = pilotCollision ? pilotCollision.apply(track, beforeD, beforeLateral, r.state, b.lateral, roadHalfM(track.route.roadWidthM), dt) : b.lateral;
         });
         // Aucune IA entre la caméra de poursuite et mon coureur : elles doublent sur le côté ou restent en retrait.
         peloton.keepCameraClear({ distM: ride.state.distM, lateral: ride.lateral, speedMs: ride.state.speedMs }, dt);
@@ -2030,7 +2074,9 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
         const push = traffic.yieldPush(ride.state.distM, ride.lateral, ride.dir);
         if (push) {
           const half = roadHalfM(track.route.roadWidthM);
+          const beforeLateral = ride.lateral;
           ride.lateral = Math.max(-half, Math.min(half, ride.lateral + push * dt));
+          if (pilotCollision) ride.constrainPosition(ride.state.distM, beforeLateral, dt);
         }
       }
       traffic?.update(dt, ride.state, [
@@ -2041,7 +2087,8 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     }
     lap('trains, trafic');
     // Trajectoire d'affichage : virages pris en arc, cap progressif (la physique garde la distance sur le tracé).
-    track.linePositionAt(ride.state.distM, ride.lateral, ride.state.speedMs, sample);
+    if (pilotCollision) track.positionAt(ride.state.distM, ride.lateral, sample);
+    else track.linePositionAt(ride.state.distM, ride.lateral, ride.state.speedMs, sample);
     pos.set(sample.x, sample.y + 0.06, sample.z);
     // Sens de marche : après un demi-tour, on remonte l'itinéraire.
     dir.set(sample.dirX * ride.dir, 0, sample.dirZ * ride.dir);
@@ -2052,7 +2099,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     let dh = heading - prevHeading;
     if (dh > Math.PI) dh -= Math.PI * 2;
     if (dh < -Math.PI) dh += Math.PI * 2;
-    if (Math.abs(dh) > 2.4) {
+    if (!pilotCollision && Math.abs(dh) > 2.4) {
       // Demi-tour : on tourne du côté où se trouve la nouvelle position (de l'autre côté de la chaussée).
       const side = (pos.x - shownPos.x) * Math.cos(prevHeading) - (pos.z - shownPos.z) * Math.sin(prevHeading);
       turn = { t: 0, fromHeading: prevHeading, delta: side >= 0 ? Math.PI : -Math.PI, from: shownPos.clone(), fwdX: Math.sin(prevHeading), fwdZ: Math.cos(prevHeading) };

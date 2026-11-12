@@ -15,6 +15,9 @@
  */
 import { Client, type Room } from '@colyseus/sdk';
 import {
+  COLLISION_VERSION_CLOSE,
+  COLLISION_VERSION_ERROR,
+  COLLISION_PILOT_ERROR,
   Emitter,
   NET_MSG,
   PUBLIC_ROOM,
@@ -38,6 +41,7 @@ import {
   type WelcomeMsg,
   type WorldSnapshotMsg,
 } from '@allezrobert/shared';
+import { COLLISION_PILOT_ROUTE } from '@allezrobert/physics';
 import { ClockSync, SelfReconciler, SnapshotBuffer, type InterpolatedRider } from './interpolation.ts';
 
 export type { InterpolatedRider } from './interpolation.ts';
@@ -170,7 +174,7 @@ export class RideNetClient {
   async create(options: Partial<RideRoomOptions> = {}, join: Omit<RideJoinOptions, 'inviteCode' | 'token'> = {}): Promise<WelcomeMsg> {
     const token = await this.resolveToken();
     this.setState('connecting');
-    const room = await this.sdk.create('ride', { ...options, ...join, ...(token ? { token } : {}) });
+    const room = await this.sdkFor(join).create('ride', { ...options, ...join, ...(token ? { token } : {}) });
     return this.attach(room, { roomId: room.roomId, inviteCode: '', join: { ...join } });
   }
 
@@ -184,9 +188,13 @@ export class RideNetClient {
     const token = await this.resolveToken();
     this.setState('connecting');
     const opts = { ...join, routeId, ...(weather ? { weather } : {}), ...(token ? { token } : {}) };
+    const sdk = this.sdkFor(join);
     let room: Room | undefined;
-    if (roomId) room = await this.sdk.joinById(roomId, opts).catch(() => undefined);
-    room ??= await this.sdk.joinOrCreate(PUBLIC_ROOM, opts);
+    if (roomId) room = await sdk.joinById(roomId, opts).catch((error: unknown) => {
+      if (error instanceof Error && error.message === COLLISION_VERSION_ERROR) throw error;
+      return undefined;
+    });
+    room ??= await sdk.joinOrCreate(PUBLIC_ROOM, opts);
     return this.attach(room, { roomId: room.roomId, inviteCode: '', join: { ...join } });
   }
 
@@ -230,7 +238,7 @@ export class RideNetClient {
   async joinById(roomId: string, inviteCode: string, join: Omit<RideJoinOptions, 'inviteCode' | 'token'> = {}): Promise<WelcomeMsg> {
     const token = join.role === 'guest' ? await this.resolveToken().catch(() => undefined) : await this.resolveToken();
     this.setState('connecting');
-    const room = await this.sdk.joinById(roomId, { ...join, inviteCode, ...(token ? { token } : {}) });
+    const room = await this.sdkFor(join).joinById(roomId, { ...join, inviteCode, ...(token ? { token } : {}) });
     return this.attach(room, { roomId, inviteCode, join: { ...join } });
   }
 
@@ -262,6 +270,19 @@ export class RideNetClient {
     return ((await res.json()) as { token: string }).token;
   }
 
+  private sdkFor(join: RideJoinOptions): Client {
+    const fingerprint = join.collisionFingerprint;
+    if (!fingerprint) return this.sdk;
+    // La reprise native réutilise cette URL en remplaçant seulement le jeton de reconnexion.
+    return new Client(this.options.endpoint, { urlBuilder: (url) => {
+      if (url.protocol === 'ws:' || url.protocol === 'wss:') {
+        url.searchParams.set('collisionFingerprint', fingerprint);
+        if (join.collisionPilot) url.searchParams.set('collisionPilot', '1');
+      }
+      return url.toString();
+    } });
+  }
+
   private attach(room: Room, args: { roomId: string; inviteCode: string; join: RideJoinOptions }): Promise<WelcomeMsg> {
     this.room = room;
     this.leaving = false;
@@ -273,6 +294,14 @@ export class RideNetClient {
       let first = true;
       const timeout = setTimeout(() => first && reject(new Error("Pas d'accueil du serveur")), 10_000);
       room.onMessage(NET_MSG.welcome, (w: WelcomeMsg) => {
+        const versionMismatch = w.route.id === COLLISION_PILOT_ROUTE && (!w.collisionFingerprint || w.collisionFingerprint !== args.join.collisionFingerprint);
+        if (versionMismatch || (w.collisionPilot && !args.join.collisionPilot)) {
+          const message = versionMismatch ? COLLISION_VERSION_ERROR : COLLISION_PILOT_ERROR;
+          this.emitter.emit('error', { code: COLLISION_VERSION_CLOSE, message });
+          if (first) reject(new Error(message));
+          void this.leave();
+          return;
+        }
         this.applyWelcome(w);
         if (first) {
           first = false;
@@ -317,7 +346,7 @@ export class RideNetClient {
         this.stopPing();
         if (this.room === room) this.room = null;
         this.setState('disconnected', code, reason);
-        if (!this.leaving && code !== 4000 && this.options.autoRejoin) void this.rejoin();
+        if (!this.leaving && code !== 4000 && code !== COLLISION_VERSION_CLOSE && this.options.autoRejoin) void this.rejoin();
       });
       this.startPing();
       if (this.telemetryProvider && !this.telemetryTimer) this.startTelemetry(this.telemetryProvider);
@@ -333,7 +362,11 @@ export class RideNetClient {
     if (this.leaving || this.room) return;
     try {
       await this.joinById(args.roomId, args.inviteCode, args.join);
-    } catch {
+    } catch (error) {
+      if (error instanceof Error && (error.message === COLLISION_VERSION_ERROR || error.message === COLLISION_PILOT_ERROR)) {
+        this.setState('disconnected', COLLISION_VERSION_CLOSE, error.message);
+        return;
+      }
       void this.rejoin();
     }
   }

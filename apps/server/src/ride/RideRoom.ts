@@ -15,6 +15,10 @@ import { randomInt } from 'node:crypto';
 import { CloseCode, Room, ServerError, type AuthContext, type Client } from '@colyseus/core';
 import { z } from 'zod';
 import {
+  COLLISION_VERSION_CLOSE,
+  COLLISION_VERSION_ERROR,
+  COLLISION_PILOT_ERROR,
+  COLLISION_PILOT_DISABLED,
   MAX_RIDERS_PER_ROOM,
   NET_MSG,
   NET_TICK_HZ,
@@ -33,6 +37,9 @@ import {
   type FriendsHereMsg,
   type WelcomeMsg,
 } from '@allezrobert/shared';
+import { COLLISION_PILOT_ROUTE, createPilotBuildingCollision, type RouteBuildingCollision } from '@allezrobert/physics';
+import { pilotCollisionAuthority } from './collision-authority.ts';
+import { reconnectionCollisionProof } from './ride-transport.ts';
 import { RideSimulation, resolveRideOptions, type SimRider } from './simulation.ts';
 import { normalizeCode } from './registry.ts';
 import { rideServices, type RideServices } from './services.ts';
@@ -171,6 +178,8 @@ export class RideRoom extends Room {
   readonly tickStats = new TickStats(600);
   private svc!: RideServices;
   private routeId = '';
+  private collisionFingerprint?: string;
+  private collisionPilot = false;
   private creatorAuthorized = false;
   private aiAdded = false;
   private riderSeq = 0;
@@ -185,15 +194,32 @@ export class RideRoom extends Room {
   private readonly sentFriends = new WeakMap<Client, string>();
   private readonly snapBuf: number[] = [];
 
-  override onCreate(options: unknown): void {
+  override async onCreate(options: unknown): Promise<void> {
     this.svc = rideServices();
     const parsed = CreateOptionsSchema.safeParse(options ?? {});
     const o = parsed.success ? parsed.data : {};
     const pub = this.isPublic;
+    if (o.routeId === COLLISION_PILOT_ROUTE && !this.svc.routes.has(o.routeId)) throw new ServerError(503, COLLISION_VERSION_ERROR);
     // Monde ouvert : l'itinéraire doit exister (pas de repli silencieux sur un autre parcours).
     const route = pub ? this.svc.routes.get(o.routeId ?? '') : this.svc.routes.resolve(o.routeId);
     if (!route || (pub && !this.svc.publicRoutes.includes(route.data.id))) throw new ServerError(404, 'Zone inconnue');
     this.routeId = route.data.id;
+    let collision: RouteBuildingCollision | undefined;
+    if (this.routeId === COLLISION_PILOT_ROUTE) {
+      if (!pub && o.collisionPilot === true && !this.svc.collisionPilot) throw new ServerError(409, COLLISION_PILOT_DISABLED);
+      try {
+        const authority = await pilotCollisionAuthority(route.data);
+        this.collisionFingerprint = authority.fingerprint;
+        if (!pub && this.svc.collisionPilot && o.collisionPilot === true) {
+          collision = createPilotBuildingCollision(authority.data.obstacles);
+        }
+      } catch (error) {
+        this.svc.log('warn', `Manifeste de collision indisponible (${this.routeId}) : ${String(error)}`);
+        throw new ServerError(503, COLLISION_VERSION_ERROR);
+      }
+      if (o.collisionFingerprint !== this.collisionFingerprint) throw new ServerError(409, COLLISION_VERSION_ERROR);
+    }
+    this.collisionPilot = !!collision;
     // Monde ouvert : heure et météo du premier joueur (il a ouvert la salle en cliquant sur « Rejoindre »), figées pour
     // tous ceux qui arrivent ensuite ; à défaut, l'heure de Paris et un ciel clair.
     const opts = resolveRideOptions(
@@ -207,7 +233,7 @@ export class RideRoom extends Room {
     if (opts.weather) opts.weather.at = Date.now();
     this.inviteCode = this.svc.registry.newInviteCode();
     opts.inviteCode = this.inviteCode;
-    this.sim = new RideSimulation(route.data, opts, Date.now(), { guestMaxWkg: this.svc.guestMaxWkg, seed: this.roomId });
+    this.sim = new RideSimulation(route.data, opts, Date.now(), { guestMaxWkg: this.svc.guestMaxWkg, seed: this.roomId, collision });
     if (pub) {
       this.sim.segmentsEnabled = false;
       this.sim.hideLoading = true;
@@ -242,6 +268,8 @@ export class RideRoom extends Room {
     // Salle publique : pas de créateur ni de code, mais un compte obligatoire.
     const isCreator = !pub && !this.creatorAuthorized;
     if (!pub && !isCreator && normalizeCode(o.inviteCode ?? '') !== this.inviteCode) throw new ServerError(403, "Code d'invitation invalide");
+    if (this.collisionFingerprint && o.collisionFingerprint !== this.collisionFingerprint) throw new ServerError(409, COLLISION_VERSION_ERROR);
+    if (this.collisionPilot && o.collisionPilot !== true) throw new ServerError(409, COLLISION_PILOT_ERROR);
     if (pub && role === 'guest') throw new ServerError(403, 'Connexion requise pour rouler en monde ouvert');
     const cookie = context.headers?.get?.('cookie') ?? undefined;
     const user = await this.svc.authenticate(o.token ?? context.token, cookie);
@@ -359,6 +387,14 @@ export class RideRoom extends Room {
 
   override onReconnect(client: Client): void {
     const ud = client.userData as ClientData | undefined;
+    const proof = this.collisionFingerprint ? reconnectionCollisionProof(client) : undefined;
+    const mismatch = this.collisionFingerprint && proof?.fingerprint !== this.collisionFingerprint;
+    if (mismatch || (this.collisionPilot && !proof?.pilot)) {
+      // Colyseus a déjà transféré le socket de la place réservée. onLeave doit libérer ce coureur.
+      if (ud?.riderId && this.clientByRider.get(ud.riderId)?.userData === ud) this.clientByRider.set(ud.riderId, client);
+      client.leave(COLLISION_VERSION_CLOSE, mismatch ? COLLISION_VERSION_ERROR : COLLISION_PILOT_ERROR);
+      return;
+    }
     if (!ud) return;
     if (ud.riderId) {
       this.sim.setConnected(ud.riderId, true);
@@ -706,6 +742,8 @@ export class RideRoom extends Room {
       tickHz: NET_TICK_HZ,
       route: route.summary,
       roster: this.rosterMsg(),
+      ...(this.collisionFingerprint ? { collisionFingerprint: this.collisionFingerprint } : {}),
+      ...(this.collisionPilot ? { collisionPilot: true } : {}),
     };
     if (this.sim.startsAt !== undefined) w.startsAt = this.sim.startsAt;
     const results = this.sim.liveResults();

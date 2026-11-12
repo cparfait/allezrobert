@@ -1,11 +1,12 @@
 import { shadowCasters } from './shadowBudget.ts';
 import * as THREE from 'three/webgpu';
-import { AiRider, AI_PROFILES, DraftCalculator, FORMATION_PREFS, LANE_PACE, LaneRotator, Overtaker, keepRightM, laneOffsets, resolveFormation, roadHalfM, type Formation, type FormationPref, type LaneBody, PoseController, TeammateUTurn, createRiderState, paramsFromBike, powerForSpeed, stepRider, airDensity, wakeShiftM, type AiProfileName, type RiderState } from '@allezrobert/physics';
+import { AiRider, AI_PROFILES, DraftCalculator, FORMATION_PREFS, LANE_PACE, LaneRotator, Overtaker, keepRightM, laneOffsets, resolveFormation, roadHalfM, type Formation, type FormationPref, type LaneBody, PoseController, TeammateUTurn, createRiderState, paramsFromBike, powerForSpeed, stepRider, airDensity, wakeShiftM, sharedRoadCorridor, type AiProfileName, type RiderState } from '@allezrobert/physics';
 import { BASE_PROFILES, DEFAULT_BIKE, aiIdentity, DEFAULT_LOOK, FACE_SLIDERS, encodeFace, type AvatarLook, type FaceShape, type RouteTrack } from '@allezrobert/shared';
 import { createAvatar, type RiderAvatarLike } from '../rider/gltfAvatar.ts';
 import { crowdShoes } from '../rider/shoeLook.ts';
 import { crowdBike } from '../rider/bikes.ts';
 import { rng } from '../engine/noise.ts';
+import type { RouteBuildingCollision } from '@allezrobert/physics';
 
 const JERSEYS = ['#e63946', '#2a9d8f', '#f4a261', '#8d99ae', '#06d6a0', '#ef476f', '#118ab2', '#ffd166', '#6a4c93', '#90be6d', '#f3722c', '#277da1'];
 const PROFILES: AiProfileName[] = ['rouleur', 'diesel', 'puncheur', 'sprinter'];
@@ -102,6 +103,13 @@ export class Peloton {
   private readonly track: RouteTrack;
   private readonly scene: THREE.Scene;
   private readonly draft = new DraftCalculator();
+  private collision?: RouteBuildingCollision;
+  private readonly bounds = { left: 0, right: 0 };
+
+  enableBuildingCollisions(collision: RouteBuildingCollision): void {
+    this.collision = collision;
+    for (const r of this.riders) if (!collision.isClear(this.track, r.state.distM, r.lateral)) r.lateral = 0;
+  }
   private headWindMs = 0;
   private crossWindMs = 0;
   private paceWkg = 2.6;
@@ -275,6 +283,7 @@ export class Peloton {
     const half = roadHalfM(this.track.route.roadWidthM);
     const right = keepRightM(half);
     order.forEach((r, rank) => {
+      const beforeD = r.state.distM, beforeLateral = r.lateral;
       r.draft = r.uturn.active ? 0 : (factors[this.riders.indexOf(r) + 1] ?? 0);
       const s = this.track.sample(r.state.distM, this.sample);
       const env = { airDensity: airDensity(s.y, 14), windSpeedMs: this.headWindMs };
@@ -290,6 +299,7 @@ export class Peloton {
         r.state.speedMs = turn.speedMs;
         r.state.accelMs2 = 0;
         r.lateral = turn.lateralM;
+        if (this.collision) r.lateral = this.collision.apply(this.track, beforeD, beforeLateral, r.state, r.lateral, half, dt);
         r.heading = turn.headingRad;
         // À contresens, la pente ressentie est l'opposée de celle de l'itinéraire.
         r.watts = turn.pedaling ? Math.max(0, Math.round(powerForSpeed(turn.speedMs, -s.grade, r.ai.params, env))) : 0;
@@ -347,7 +357,12 @@ export class Peloton {
       // Circulation à droite : sauf pour doubler, on reste dans la moitié droite (ceux d'en face roulent à gauche).
       let targetLat = THREE.MathUtils.clamp(base + (double ? 0 : out.lateralTargetM) + shelter, right, half);
       if (plan.lateralM !== null) targetLat = plan.lateralM;
+      // Rester sur la chaussée réelle du tronçon (et, en pilote, contourner les façades à venir).
+      const bounds = (this.collision ?? sharedRoadCorridor()).steeringBounds(this.track, r.state.distM, r.state.speedMs, 1, this.bounds);
+      targetLat = THREE.MathUtils.clamp(targetLat, -bounds.left, bounds.right);
       r.lateral += (targetLat - r.lateral) * Math.min(1, dt * (plan.passing ? 1.8 : 0.8));
+      r.lateral = THREE.MathUtils.clamp(r.lateral, -bounds.left, bounds.right);
+      if (this.collision) r.lateral = this.collision.apply(this.track, beforeD, beforeLateral, r.state, r.lateral, half, dt);
     });
     return factors[0] ?? 0;
   }
@@ -362,8 +377,10 @@ export class Peloton {
       if (r.uturn.active) continue;
       const gap = player.distM - r.state.distM;
       if (gap < 0 || gap >= CAMERA_CLEAR_BACK_M || Math.abs(r.lateral - player.lateral) >= CAMERA_CLEAR_SIDE_M) continue;
+      const beforeD = r.state.distM;
       r.state.distM -= Math.min(CAMERA_CLEAR_BACK_M - gap, CAMERA_PUSHBACK_MS * dt);
       r.state.speedMs = Math.min(r.state.speedMs, player.speedMs);
+      if (this.collision) r.lateral = this.collision.apply(this.track, beforeD, r.lateral, r.state, r.lateral, roadHalfM(this.track.route.roadWidthM), dt);
     }
   }
 
@@ -422,11 +439,12 @@ export class Peloton {
     const dists: number[] = [];
     for (const r of this.riders) {
       // Même trajectoire en arc que le joueur (virages fluides).
-      const p = this.track.linePositionAt(r.state.distM, r.lateral, r.state.speedMs, this.sample);
+      const p = this.collision ? this.track.positionAt(r.state.distM, r.lateral, this.sample) : this.track.linePositionAt(r.state.distM, r.lateral, r.state.speedMs, this.sample);
       r.avatar.root.position.set(p.x, p.y + 0.06, p.z);
       r.avatar.root.rotation.set(0, 0, 0);
       // Cap relatif (demi-tour) : à contresens, l'inclinaison de la pente s'inverse.
-      r.avatar.root.rotateY(Math.atan2(p.dirX, p.dirZ) + r.heading);
+      const heading = this.collision ? (Math.cos(r.heading) < 0 ? Math.PI : 0) : r.heading;
+      r.avatar.root.rotateY(Math.atan2(p.dirX, p.dirZ) + heading);
       r.avatar.root.rotateX(-Math.atan(p.grade / 100) * Math.cos(r.heading));
       const dist = camera.position.distanceTo(r.avatar.root.position);
       r.avatar.root.visible = dist < 600;

@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import {
   parseBuildingVisualTile, type GableVisualCorrection, type RoofVisualCorrection, type VolumePart, type VolumesVisualCorrection,
 } from '@allezrobert/shared/building-visual';
+import { buildCollisionManifest, sha256Json } from '../../../packages/physics/src/collision-manifest.ts';
 import { writeBuildingVisualCorrections } from '../src/building-visual.ts';
 import { writePackManifest } from '../src/packs.ts';
 
@@ -43,8 +44,18 @@ async function world() {
 }
 
 describe('publication des compléments visuels', () => {
-  it('est déterministe et laisse la tuile de base intacte', async () => {
+  it('est déterministe et laisse les données physiques et leur empreinte intactes', async () => {
     const { root, dir } = await world();
+    const collision = async () => buildCollisionManifest({
+      formatVersion: 1, worldId, routeId: 'tour',
+      source: {
+        worldSha256: sha('monde'), routeSha256: sha('tour'),
+        tiles: { [tileId]: await sha256Json(JSON.parse(await readFile(join(dir, '0_0.json'), 'utf8'))) },
+        attribution: [],
+      },
+      obstacles: [{ id: '0_0/w2', tile: tileId, polygon, baseM: 99.7, topM: 107, solid: true }],
+    });
+    const before = await collision();
     const readVisual = () => readFile(join(dir, '0_0.buildings-visual.json'), 'utf8');
     const readIndex = () => readFile(join(dir, 'buildings-visual.json'), 'utf8');
     await writeBuildingVisualCorrections(root, worldId, new Map([[tileId, [correction(), correction('w1')]]]));
@@ -57,6 +68,7 @@ describe('publication des compléments visuels', () => {
     expect(await readVisual()).toBe(visual);
     expect(await readIndex()).toBe(index);
     expect(await readFile(join(dir, '0_0.json'), 'utf8')).toBe(base);
+    expect(await collision()).toEqual(before);
   });
 
   it('refuse un lot avec un ID inconnu sans publier de complément', async () => {

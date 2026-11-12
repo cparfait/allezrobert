@@ -1,6 +1,6 @@
 import * as THREE from 'three/webgpu';
 import { DEFAULT_BIKE, DEFAULT_LOOK, type AvatarLook, type RouteTrack } from '@allezrobert/shared';
-import { draftReductionSingle, paramsFromBike, rightLaneM, steadyStateSpeed, type LaneBody, type RiderPhysicsParams } from '@allezrobert/physics';
+import { draftReductionSingle, paramsFromBike, rightLaneM, sharedRoadCorridor, steadyStateSpeed, type LaneBody, type RiderPhysicsParams } from '@allezrobert/physics';
 import { createAvatar, type RiderAvatarLike } from '../rider/gltfAvatar.ts';
 import { crowdShoes } from '../rider/shoeLook.ts';
 import { crowdBike } from '../rider/bikes.ts';
@@ -202,6 +202,7 @@ export class AmbientCyclists {
   }
 
   private readonly sameWay: LaneBody[] = [];
+  private readonly bounds = { left: 0, right: 0 };
 
   /** Cyclistes qui vont dans le sens du joueur, un par membre de groupe : les IA du peloton les doublent sans les traverser. */
   sameWayBodies(): LaneBody[] {
@@ -297,6 +298,14 @@ export class AmbientCyclists {
         }
       }
       c.lateral += (lateralTarget - c.lateral) * Math.min(1, dt * rate);
+      // Rester sur la chaussée réelle du tronçon (pistes et rues étroites), membres côte à côte compris.
+      const b = sharedRoadCorridor().steeringBounds(this.track, c.d, c.speed, c.sens, this.bounds);
+      let lo = -b.left, hi = b.right;
+      for (const m of c.members) {
+        lo = Math.max(lo, -b.left - m.latOff);
+        hi = Math.min(hi, b.right - m.latOff);
+      }
+      c.lateral = lo <= hi ? Math.max(lo, Math.min(hi, c.lateral)) : (lo + hi) / 2;
       c.d += c.sens * c.speed * dt;
       c.travelledM += c.speed * dt;
       c.cadence = watts > 0 ? Math.min(105, 74 + c.watts / 12) : 0;

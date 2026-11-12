@@ -373,6 +373,12 @@ export interface HostOptions {
   leaderId: string;
 }
 
+/** Refus lors d'une reprise WebSocket. Le code privé empêche les nouvelles tentatives automatiques. */
+export const COLLISION_VERSION_CLOSE = 4409;
+export const COLLISION_VERSION_ERROR = 'Données d’obstacles absentes ou incompatibles. Mets à jour le jeu et la carte.';
+export const COLLISION_PILOT_ERROR = 'La salle exige le mode expérimental des collisions sur la boucle pilote.';
+export const COLLISION_PILOT_DISABLED = 'Le mode expérimental des collisions est désactivé sur ce serveur.';
+
 /** Options d'entrée dans une salle (`client.joinById(roomId, options)`). */
 export interface RideJoinOptions {
   /** Code d'invitation (obligatoire sauf pour le créateur). */
@@ -384,6 +390,10 @@ export interface RideJoinOptions {
   displayName?: string;
   /** Salle publique : identifiant d'un coureur de la salle, près de qui apparaître (rejoindre un ami). */
   near?: string;
+  /** SHA-256 du manifeste vérifié par le client, obligatoire sur le parcours pilote. */
+  collisionFingerprint?: string;
+  /** Accord du jeu pour créer ou rejoindre une salle expérimentale. */
+  collisionPilot?: true;
 }
 
 /** Données statiques d'un coureur, diffusées à chaque changement de la liste. */
@@ -442,6 +452,10 @@ export interface WelcomeMsg {
   tickHz: number;
   route: RouteSummary;
   roster: RosterMsg;
+  /** Empreinte autoritaire, présente uniquement pour une salle contrôlée. */
+  collisionFingerprint?: string;
+  /** Activation confirmée par la salle autoritaire. */
+  collisionPilot?: true;
   /** Course en cours ou terminée : classement à l'instant de l'accueil (arrivées, abandons). */
   results?: RideResult[];
   /** Course : heure limite d'arrivée (epoch ms) une fois le premier arrivé. */

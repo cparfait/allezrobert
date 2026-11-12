@@ -19,5 +19,8 @@ export * from './workout/index.ts';
 export * from './tuning.ts';
 export * from './formation.ts';
 export * from './collision.ts';
+export * from './building-obstacles.ts';
+export * from './building-collision.ts';
+export * from './collision-manifest.ts';
 export * from './overtake.ts';
 export * from './lanes.ts';

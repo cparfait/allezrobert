@@ -31,6 +31,7 @@ export interface RideServices {
   routes: RouteStore;
   guestMaxWkg: number;
   reconnectGraceS: number;
+  collisionPilot?: boolean;
   allowAnonymousGuests: boolean;
   /** Itinéraires ouverts au public (salles `public`). */
   publicRoutes: readonly string[];

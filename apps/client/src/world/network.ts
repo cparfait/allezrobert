@@ -214,7 +214,8 @@ export class RoadNetwork {
     // (« route:<autre>:<osm> », deux boucles sur la même route) passaient dessus, lissées autrement.
     const osmOf = (r: TileRoad) => (r.id ?? '').slice((r.id ?? '').lastIndexOf(':') + 1);
     const mine = new Set(this.activeRoute ? tile.features.roads.filter((r) => r.route === this.activeRoute).map(osmOf) : []);
-    let roads = tile.features.roads.filter((r) => r.pts3 && !r.tunnel && (!SKIP.has(r.kind) || (this.drawCycleways && r.kind === 'cycleway')) && r.route !== this.activeRoute && !(r.route && mine.has(osmOf(r))) && !isRouteTwin(r, tile.features.roads, this.activeRoute));
+    // Monde ouvert : pistes cyclables, et toute voie empruntée par un itinéraire (chemin, voie piétonne…) qu'on y roule.
+    let roads = tile.features.roads.filter((r) => r.pts3 && !r.tunnel && (!SKIP.has(r.kind) || (this.drawCycleways && (r.kind === 'cycleway' || (!!r.route && r.kind !== 'steps')))) && r.route !== this.activeRoute && !(r.route && mine.has(osmOf(r))) && !isRouteTwin(r, tile.features.roads, this.activeRoute));
     // Une voie partagée par plusieurs itinéraires figure une fois par itinéraire (« route:<id>:<osm> ») :
     // dessinée une seule fois (copies superposées : marquages qui scintillaient).
     const seen = new Set<string>();

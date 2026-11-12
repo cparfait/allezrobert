@@ -24,11 +24,18 @@ import {
   PoseController,
   TrainerGradeSmoother,
   NormalizedPowerAccumulator,
+  PILOT_LATERAL_SPEED_MS,
+  sharedRoadCorridor,
+  type RouteBuildingCollision,
+  type RouteObstaclePose,
   type Gear,
   type RiderPhysicsParams,
   type RiderState,
 } from '@allezrobert/physics';
 import type { InputSource, RideInputs } from './inputs.ts';
+
+/** Vitesse de déplacement latéral à la direction (m/s), hors pilote. */
+const CLASSIC_LATERAL_SPEED_MS = 1.8;
 
 export interface RideOptions {
   profile: RiderProfile;
@@ -76,7 +83,18 @@ export class RideSession {
   readonly params: RiderPhysicsParams;
   readonly gears: Gear[];
   gearIndex: number;
-  lateral = 1.2; // voie de droite (décalage positif = à droite dans le sens de marche)
+  private lateralM = 1.2;
+  /** Décalage latéral (m, positif = à droite dans le sens de marche). Hors pilote, le déplacer change aussi la voie voulue. */
+  get lateral(): number {
+    return this.lateralM;
+  }
+  set lateral(value: number) {
+    if (!this.collision && value !== this.lateralM) this.lateralIntent = value;
+    this.lateralM = value;
+  }
+  private collision?: RouteBuildingCollision;
+  private readonly bounds = { left: 0, right: 0 };
+  private lateralIntent = 0;
   pose: 'seated' | 'standing' | 'coasting' = 'seated';
   inputs: RideInputs = { watts: 0, cadence: 0, steer: 0 };
   paused = false;
@@ -151,7 +169,10 @@ export class RideSession {
   constructor(opts: RideOptions) {
     this.opts = opts;
     // Tout à droite de la chaussée, l'axe du vélo à ≈ 50 cm de la ligne de rive (code de la route).
-    this.lateral = Math.min(roadHalfM(opts.track.route.roadWidthM), Math.max(0.6, rightLaneM(opts.track.route.roadWidthM) - 0.3));
+    // Voie voulue : celle de droite ; la position de départ reste sur la chaussée réelle du tronçon.
+    this.lateralIntent = Math.min(roadHalfM(opts.track.route.roadWidthM), Math.max(0.6, rightLaneM(opts.track.route.roadWidthM) - 0.3));
+    const start = sharedRoadCorridor().steeringBounds(opts.track, opts.startDistM ?? 0, 0, 1, this.bounds);
+    this.lateralM = THREE.MathUtils.clamp(this.lateralIntent, -start.left, start.right);
     // Morphologie : le CdA du vélo vaut pour un coureur de 1,78 m et 75 kg.
     const base = paramsFromProfile(opts.profile);
     this.params = { ...base, cda: base.cda * bodyCdaFactor(opts.profile.heightCm, opts.profile.massKg), inertiaFactor: opts.inertiaFactor ?? 1 };
@@ -172,11 +193,37 @@ export class RideSession {
     return this.gears[this.gearIndex] as Gear;
   }
 
+  enableBuildingCollisions(collision: RouteBuildingCollision, initial?: RouteObstaclePose): void {
+    this.collision = collision;
+    if (initial) {
+      this.opts.startDistM = this.state.distM = initial.distM;
+      this.state.speedMs = initial.speedMs;
+      this.lateral = initial.lateral;
+      if (this.opts.track.route.loop) this.lap = Math.max(1, Math.floor(initial.distM / this.opts.track.length) + 1);
+    }
+    const bounds = collision.steeringBounds(this.opts.track, this.state.distM, 0, this.dir, this.bounds);
+    this.lateral = THREE.MathUtils.clamp(this.lateral, -bounds.left, bounds.right);
+    if (!collision.isClear(this.opts.track, this.state.distM, this.lateral)) this.lateral = 0;
+    this.lateralIntent = this.lateral;
+  }
+
+  get steeringTarget(): number {
+    return this.collision ? this.lateralIntent : this.lateral;
+  }
+
+  constrainPosition(prevD: number, prevLateral: number, dt: number): void {
+    const track = this.opts.track;
+    if (this.collision) this.lateral = this.collision.apply(track, prevD, prevLateral, this.state, this.lateral, roadHalfM(track.route.roadWidthM), dt);
+  }
+
   /** Demi-tour sur place : on repart dans l'autre sens, sur la voie de droite. */
   uturn(): void {
+    const prevLateral = this.lateral;
     this.dir = this.dir > 0 ? -1 : 1;
     this.lateral = -this.lateral;
     this.state.speedMs = Math.min(this.state.speedMs, 3);
+    this.constrainPosition(this.state.distM, prevLateral, 0);
+    this.lateralIntent = this.lateral;
     this.smoothedPower.reset(this.inputs.watts);
   }
 
@@ -301,17 +348,35 @@ export class RideSession {
         this.state.speedMs = 0;
       }
     }
+    // Direction dans le repère du tracé. La consigne reste distincte de la pose au contact.
+    const half = roadHalfM(track.route.roadWidthM);
+    if (this.collision) {
+      const prevLateral = this.lateral;
+      const step = PILOT_LATERAL_SPEED_MS * dt;
+      this.lateralIntent = THREE.MathUtils.clamp(this.lateralIntent + steer * this.dir * step, -half, half);
+      // Rester sur la chaussée et contourner les façades à venir ; la consigne reprend ensuite.
+      const bounds = this.collision.steeringBounds(track, this.state.distM, this.state.speedMs, this.dir, this.bounds);
+      const target = THREE.MathUtils.clamp(this.lateralIntent, -bounds.left, bounds.right);
+      this.lateral += THREE.MathUtils.clamp(target - this.lateral, -step, step);
+      this.lateral = THREE.MathUtils.clamp(this.lateral, -bounds.left, bounds.right);
+      this.constrainPosition(prevDist, prevLateral, dt);
+    }
     // Tour de boucle.
     if (this.dir > 0 && track.route.loop && Math.floor(this.state.distM / track.length) > Math.floor(prevDist / track.length)) {
       this.lap++;
       this.lapTimes.push(this.startT + this.elapsedS * 1000);
       this.onLap?.(this.lap);
     }
-    // Direction : décalage latéral borné à la chaussée.
-    const half = roadHalfM(track.route.roadWidthM);
-    // Décalage dans le repère de l'itinéraire : à contresens, la droite du coureur est à gauche.
-    this.lateral = THREE.MathUtils.clamp(this.lateral + steer * this.dir * dt * 1.8, -half, half);
-
+    if (!this.collision) {
+      // Tous les parcours : la direction règle la voie voulue ; la position la suit sans sortir de la chaussée
+      // réelle du tronçon (rétrécissements anticipés), puis regagne cette voie quand la route s'élargit.
+      const step = CLASSIC_LATERAL_SPEED_MS * dt;
+      this.lateralIntent = THREE.MathUtils.clamp(this.lateralIntent + steer * this.dir * step, -half, half);
+      const bounds = sharedRoadCorridor().steeringBounds(track, this.state.distM, this.state.speedMs, this.dir, this.bounds);
+      const target = THREE.MathUtils.clamp(this.lateralIntent, -bounds.left, bounds.right);
+      this.lateralM += THREE.MathUtils.clamp(target - this.lateralM, -step, step);
+      this.lateralM = THREE.MathUtils.clamp(this.lateralM, -bounds.left, bounds.right);
+    }
     this.pose = this.poseCtl.update(
       { watts: this.inputs.watts, cadence: this.inputs.cadence, gradePercent: grade, ftpWatts: this.opts.profile.ftpWatts, speedMs: this.state.speedMs, standWatts: this.opts.standWatts, sensorPose: this.inputs.riderPosition, sprint: this.segment?.seg.kind === 'sprint' },
       dt,
