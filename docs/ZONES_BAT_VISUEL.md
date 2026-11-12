@@ -94,6 +94,19 @@ Le client demande un index réseau avec `cache: "no-store"`, une fois par ouvert
 
 Lorsqu’un pack contient des fichiers de correction, leur empreinte contribue aussi à la version de pack. Les packs ordinaires gardent leur formule historique. Les SHA visuels n’interviennent ni dans les prismes, ni dans le manifeste COLL-MURS, ni dans le protocole de salle.
 
+## Volumes mesurés à la construction (ZONES-BAT-5c)
+
+Avec `TERRAIN_BUILDING_VOLUMES=1`, la construction de zone (`build-open`, `build-world`, `build-climb`) propose des volumes v3 pour chaque bâtiment BD TOPO des tuiles enrichies. L'option est désactivée par défaut.
+
+Fonctionnement :
+- `prepareEnrichment` appelle `measuredVolumes`, qui applique `segmentRoofVolumes` sur le MNS 0,5 m déjà chargé.
+- Les bâtiments à cour intérieure sont exclus, de même que les tuiles où le MNS couvre moins de la moitié de la surface.
+- Chaque correction est validée seule par le contrat v3, si bien qu'un bâtiment refusé ne fait pas échouer sa tuile.
+- `writeWorldTiles` écrit les compléments après les tuiles et avant le pack, puis les relit sur leurs octets définitifs. Un échec est consigné dans le journal et laisse la zone sans complément.
+- Le WMS ne fournit pas la date d'acquisition du LiDAR : `observedOn` est donc la date de récupération du MNS, ce que précise `method`.
+
+Les corrections manuelles (49 en v2, 28 et 54 en v3) ne passent pas encore par le producteur. Au Roussel, le découpage automatique retient 23 bâtiments sur 58 : il retrouve le 28, mais refuse le 49 et le 54.
+
 ## Point de branchement du constructeur
 
 `writeBuildingVisualCorrections` dans `tools/terrain/src/building-visual.ts` est le point commun pour la CLI et le Constructeur de zone. Le futur appel peut suivre `writeWorldTiles` et précéder la fabrication du pack. Pour mettre à jour une zone existante, le même producteur peut lire une copie de ses tuiles de base sans les réécrire. En 2a aucun build n’appelle le producteur.

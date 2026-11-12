@@ -9,12 +9,18 @@
  *
  * Champs ajoutés au JSON de la tuile : `trees` [x, z, hauteur, rayon du houppier, …],
  * `shrubs` [x, z, hauteur, …], `enriched` { vegetation, buildings }.
+ *
+ * À l'essai (TERRAIN_BUILDING_VOLUMES=1, ZONES-BAT-5c) : volumes de toit mesurés dans le MNS
+ * (building-volumes.ts), validés un par un et écrits à part en compléments visuels v3 par
+ * writeWorldTiles ; les tuiles elles-mêmes ne changent pas.
  */
+import { parseBuildingVisualTile, type VolumesVisualCorrection } from '@allezrobert/shared/building-visual';
+import { segmentRoofVolumes } from './building-volumes.ts';
 import type { WorldEnrich } from './config.ts';
 import { ORIGIN_L93, TILE_SIZE_M } from './config.ts';
 import { buildingKind, fetchBdTopoBuildings, fetchBdTopoRoads, roofMaterial, wallMaterial, type BdTopoBuilding } from './bdtopo.ts';
 import type { DemStack } from './dem.ts';
-import { distPointRect, tileId, tileRect } from './frame.ts';
+import { distPointRect, tileId, tileRect, worldToL93 } from './frame.ts';
 import type { Pt } from './geom.ts';
 import { detectVegetation, fetchRaster, LAYER_MNH, LAYER_MNS, measureRoof, orientedRect, type Raster } from './lidar.ts';
 import type { RoadWay } from './osm.ts';
@@ -25,6 +31,8 @@ export interface TileEnrichment {
   shrubs: number[] | null;
   /** Tronçons BD TOPO en coordonnées monde [x, z, …] (appariement des voies OSM). */
   roads: Array<{ nature: string; width: number | null; pts: number[] }>;
+  /** Volumes de toit mesurés (TERRAIN_BUILDING_VOLUMES=1), écrits en compléments visuels après la tuile. */
+  visual?: VolumesVisualCorrection[];
   stats: Record<string, number>;
 }
 
@@ -188,6 +196,30 @@ function toTileBuilding(b: BdTopoBuilding, mns: Raster | null, dem: DemStack): {
 }
 
 /**
+ * Volumes de toit d'un bâtiment BD TOPO mesurés dans le MNS (ZONES-BAT-5c), ou null. L'emprise est relue
+ * depuis les `pts` arrondis de la tuile, pour que la correction s'aligne exactement sur ce que le client
+ * décodera ; la correction est validée seule par le contrat v3 (un découpage refusé ne fait pas échouer
+ * le lot de la tuile). La date d'acquisition du LiDAR n'est pas fournie par le WMS : `observedOn` est
+ * la date de récupération du MNS.
+ */
+export function measuredVolumes(id: string, pts: number[], mns: Raster, retrievedOn: string): VolumesVisualCorrection | null {
+  const ring: Array<[number, number]> = [];
+  for (let i = 0; i < pts.length; i += 2) { const l = worldToL93(pts[i]!, pts[i + 1]!); ring.push([l.e, l.n]); }
+  const res = segmentRoofVolumes(mns, ring, ORIGIN_L93);
+  if (!res) return null;
+  const c: VolumesVisualCorrection = {
+    buildingId: id, kind: 'volumes', parts: res.parts, confidence: 'medium',
+    provenance: {
+      dataset: 'IGN LiDAR HD MNS 0,5 m (WMS-R Géoplateforme)', reference: 'segmentRoofVolumes', observedOn: retrievedOn,
+      method: 'Plans de toit par croissance de région sur le MNS, regroupés en volumes ; date de récupération du MNS',
+    },
+  };
+  const sha = '0'.repeat(64);
+  const ok = parseBuildingVisualTile({ schemaVersion: 3, worldId: 'essai', tileId: '0_0', sourceTileSha256: sha, corrections: [c] }, { worldId: 'essai', tileId: '0_0' }, sha, [{ id, pts }]);
+  return ok ? c : null;
+}
+
+/**
  * Prépare les données fines des tuiles à moins de `enrich.radiusM` de l'itinéraire (réseau,
  * en cache). Clé = identifiant de tuile.
  */
@@ -200,6 +232,7 @@ export async function prepareEnrichment(o: {
   log: (s: string) => void;
 }): Promise<Map<string, TileEnrichment>> {
   const out = new Map<string, TileEnrichment>();
+  const retrievedOn = new Date().toISOString().slice(0, 10);
   const near = o.tiles.filter(([tx, tz]) => {
     const rect = tileRect(tx, tz);
     for (let i = 0; i < o.routePts.length; i += 5) if (distPointRect(o.routePts[i]![0], o.routePts[i]![1], rect) <= o.enrich.radiusM) return true;
@@ -233,16 +266,26 @@ export async function prepareEnrichment(o: {
     if (o.enrich.bdtopoBuildings) {
       const list: Array<Record<string, unknown>> = [];
       let measured = 0;
+      const volumes = process.env.TERRAIN_BUILDING_VOLUMES === '1' && mns && mns.coverage >= 0.5;
+      const visual: VolumesVisualCorrection[] = [];
       for (const b of bd) {
         const c = centroid(b.rings[0]!);
         if (c[0] < eMin || c[0] >= eMax || c[1] < nMin || c[1] >= nMax) continue;
         const t = toTileBuilding(b, mns, o.dem);
         list.push(t.o);
         if (t.measured) measured++;
+        if (volumes && !b.rings[1]) {
+          const v = measuredVolumes(t.o.id as string, t.o.pts as number[], mns, retrievedOn);
+          if (v) visual.push(v);
+        }
       }
       res.buildings = list;
       res.stats.buildings = list.length;
       res.stats.roofsMeasured = measured;
+      if (volumes) {
+        res.visual = visual;
+        res.stats.roofVolumes = visual.length;
+      }
     }
     const mnh = o.enrich.lidarVegetation ? await fetchRaster(LAYER_MNH, eMin - M, nMin - M, eMax + M, nMax + M) : null;
     // LiDAR HD pas encore publié ici (absence = 0 m, comme un champ nu) : végétation semée d'après
