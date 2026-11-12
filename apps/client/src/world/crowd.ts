@@ -6,7 +6,7 @@ import { rng } from '../engine/noise.ts';
 import { LOW_POLY } from '../engine/style.ts';
 import { signDesigns, type SignDesign } from './crowdSigns.ts';
 import { lowPolyCrowdMaterial, lowPolyPersonGeometry, lowPolySignGeometry, lowPolySignMaterial } from './crowdLowPoly.ts';
-import { loadSpectator, spectatorMaterial } from './crowdRealistic.ts';
+import { loadSpectators, spectatorMaterial } from './crowdRealistic.ts';
 
 /** Spectateur : corps, tête et bras levés (attribut `part` : 0 corps, 1 tête, 2 bras). */
 function personGeometry(): THREE.BufferGeometry {
@@ -156,6 +156,8 @@ export class Crowd {
   private readonly groundAt: (x: number, z: number) => number;
   /** Reprise des hauteurs : prochain spectateur (puis pancarte) à reposer sur le sol dessiné. */
   private groundCursor = 0;
+  /** Style réaliste : maillages des vrais personnages (un par personnage), reposés sur le sol comme les capsules. */
+  private readonly people: THREE.InstancedMesh[] = [];
 
   constructor(track: RouteTrack, groundAt: (x: number, z: number) => number, opts: CrowdOptions = {}) {
     this.track = track;
@@ -240,15 +242,36 @@ export class Crowd {
     this.group.add(this.mesh);
     if (!LOW_POLY && mats.length && opts.realPeople !== false) {
       // Vrais personnages recolorés dès que leurs fichiers sont là ; d'ici là (ou s'ils manquent), les capsules.
-      void loadSpectator().then((asset) => {
-        if (!asset) return;
-        const oldGeometry = this.mesh.geometry;
-        const oldMaterial = this.mesh.material as THREE.Material;
-        this.mesh.geometry = asset.geometry;
-        this.mesh.material = spectatorMaterial(asset, padded(orient, 3), padded(still, 1));
-        this.mesh.computeBoundingSphere();
-        oldGeometry.dispose();
-        oldMaterial.dispose();
+      // Un maillage instancié par personnage ; chaque spectateur en tire un selon les poids (tirage fixe).
+      void loadSpectators().then((assets) => {
+        if (!assets.length) return;
+        const total = assets.reduce((n, a) => n + a.weight, 0);
+        const pick = rng(4242);
+        const groups = assets.map(() => ({ mats: [] as THREE.Matrix4[], orient: [] as number[], still: [] as number[] }));
+        mats.forEach((mm, i) => {
+          let x = pick() * total;
+          let k = 0;
+          while (k < assets.length - 1 && x >= (assets[k] as (typeof assets)[number]).weight) x -= (assets[k++] as (typeof assets)[number]).weight;
+          const g = groups[k] as (typeof groups)[number];
+          g.mats.push(mm);
+          g.orient.push(orient[i * 3] as number, orient[i * 3 + 1] as number, orient[i * 3 + 2] as number);
+          g.still.push(still[i] as number);
+        });
+        assets.forEach((asset, k) => {
+          const g = groups[k] as (typeof groups)[number];
+          if (!g.mats.length) return;
+          const mesh = new THREE.InstancedMesh(asset.geometry, spectatorMaterial(asset, padded(g.orient, 3), padded(g.still, 1), k * 1009), g.mats.length);
+          g.mats.forEach((mm, i) => mesh.setMatrixAt(i, mm));
+          mesh.instanceMatrix.needsUpdate = true;
+          mesh.computeBoundingSphere();
+          mesh.castShadow = false;
+          mesh.receiveShadow = true;
+          mesh.name = `crowd-${asset.name}`;
+          this.group.add(mesh);
+          this.people.push(mesh);
+        });
+        // Les capsules restent dans le groupe (comptes, tests) mais ne sont plus dessinées.
+        this.mesh.visible = false;
       });
     }
     if (LOW_POLY) {
@@ -284,29 +307,30 @@ export class Crowd {
    * se calme après son passage). À appeler à chaque image ; sans appel, la caméra sert de repli.
    */
   update(riderDistM: number): void {
-    if (!LOW_POLY) return;
     const p = this.track.positionAt(riderDistM, 0);
-    this.rider.value.set(p.x, p.z);
-    this.driven = true;
+    if (LOW_POLY) {
+      this.rider.value.set(p.x, p.z);
+      this.driven = true;
+    }
     this.reground(p.x, p.z);
   }
 
   /**
-   * Spectateurs et pancartes reposés sur le sol dessiné, 48 par image, à moins de 600 m du coureur : le
+   * Spectateurs et pancartes reposés sur le sol dessiné, 64 par image, à moins de 600 m du coureur : le
    * public est placé à la construction de la sortie, souvent avant le chargement des tuiles (hauteur de la
    * route en repli), et le terrain s'affine ensuite (tuile détaillée) : sinon enfoncés ou en l'air.
+   * Style réaliste : ce sont les maillages des vrais personnages (les capsules ne sont plus dessinées).
    */
   private reground(rx: number, rz: number): void {
-    const meshes = this.signs ? [this.mesh, this.signs] : [this.mesh];
+    const bodies = this.people.length ? this.people : [this.mesh];
+    const meshes = this.signs ? [...bodies, this.signs] : bodies;
     const total = meshes.reduce((n, m) => n + m.count, 0);
     if (!total) return;
-    for (let k = 0; k < 48; k++) {
+    for (let k = 0; k < 64; k++) {
       let i = this.groundCursor++ % total;
-      let mesh = this.mesh;
-      if (i >= this.mesh.count && this.signs) {
-        i -= this.mesh.count;
-        mesh = this.signs;
-      }
+      let j = 0;
+      while (i >= (meshes[j] as THREE.InstancedMesh).count) i -= (meshes[j++] as THREE.InstancedMesh).count;
+      const mesh = meshes[j] as THREE.InstancedMesh;
       const a = mesh.instanceMatrix.array as Float32Array;
       const x = a[i * 16 + 12] as number;
       const z = a[i * 16 + 14] as number;
