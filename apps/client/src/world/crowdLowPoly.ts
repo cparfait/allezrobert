@@ -189,7 +189,8 @@ export function lowPolySignMaterial(atlas: THREE.Texture, cell: THREE.Node<'vec2
   const sh = hash(instanceIndex.add(7));
   const boardCol = pick(sh, BOARDS);
   const front = frontFacing.select(texture(atlas, atlasUv).rgb, boardCol);
-  smat.colorNode = spart.equal(0).select(front, spart.equal(2).select(boardCol, rgb('#8a5a32')));
+  // `part` interpolé comparé à des seuils (égal à 2, il basculait sur certains pixels) : 0 recto, 1 manche, 2 planche
+  smat.colorNode = spart.lessThan(0.5).select(front, spart.greaterThan(1.5).select(boardCol, rgb('#8a5a32')));
   smat.roughnessNode = float(0.85);
   const sp = instancedBufferAttribute(new THREE.InstancedBufferAttribute(spot, 2)) as unknown as THREE.Node<'vec2'>;
   const act = activation(sp, rider);

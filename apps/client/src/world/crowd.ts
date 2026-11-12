@@ -1,5 +1,5 @@
 import * as THREE from 'three/webgpu';
-import { attribute, positionLocal, time, sin, vec2, vec3, float, floor, mix, instanceIndex, hash, color, varying, uv, texture, frontFacing, instancedBufferAttribute, uniform } from 'three/tsl';
+import { attribute, positionLocal, time, sin, vec2, vec3, float, mix, instanceIndex, hash, color, varying, uv, texture, frontFacing, instancedBufferAttribute, uniform } from 'three/tsl';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import type { RouteTrack } from '@allezrobert/shared';
 import { rng } from '../engine/noise.ts';
@@ -148,7 +148,9 @@ function barrierGeometry(): THREE.BufferGeometry {
 
 /**
  * Publicités des bâches : marques de vélo inventées (pas de vraies marques ni de logos réels). Atlas de
- * ADS_COLS × ADS_ROWS cases de 512 × 224 px (bâche ≈ 1,9 × 0,82 m).
+ * ADS_COLS × ADS_ROWS cases de 512 × 256 px : dimensions en puissances de deux, sinon les mipmaps (tailles
+ * impaires) donnaient un bruit délavé de loin. Chaque case est dessinée en 512 × 224 (proportions de la bâche,
+ * ≈ 1,9 × 0,82 m) puis étirée en hauteur, ce que la bâche compense.
  */
 const ADS: Array<{ bg: string; ink: string; name: string; sub: string; icon: 'bike' | 'wheel' | 'bottle' | 'none' }> = [
   { bg: '#f2c21b', ink: '#111111', name: 'PNEUS VÉLOCE', sub: 'adhérence tous temps', icon: 'wheel' },
@@ -163,6 +165,8 @@ const ADS: Array<{ bg: string; ink: string; name: string; sub: string; icon: 'bi
 const ADS_COLS = 4;
 const ADS_ROWS = 2;
 const AD_W = 512;
+/** Hauteur d'une case dans l'atlas, et hauteur du dessin (proportions de la bâche). */
+const AD_CELL_H = 256;
 const AD_H = 224;
 
 /** Pictogrammes des publicités : vélo de route, roue à rayons, bidon. */
@@ -221,11 +225,14 @@ function adIcon(ctx: CanvasRenderingContext2D, kind: 'bike' | 'wheel' | 'bottle'
 function adsAtlas(): THREE.CanvasTexture {
   const c = document.createElement('canvas');
   c.width = AD_W * ADS_COLS;
-  c.height = AD_H * ADS_ROWS;
+  c.height = AD_CELL_H * ADS_ROWS;
   const ctx = c.getContext('2d') as CanvasRenderingContext2D;
   ADS.forEach((ad, i) => {
+    ctx.save();
+    ctx.translate(0, Math.floor(i / ADS_COLS) * AD_CELL_H);
+    ctx.scale(1, AD_CELL_H / AD_H);
     const x0 = (i % ADS_COLS) * AD_W;
-    const y0 = Math.floor(i / ADS_COLS) * AD_H;
+    const y0 = 0;
     ctx.fillStyle = ad.bg;
     ctx.fillRect(x0, y0, AD_W, AD_H);
     // liseré, comme les bâches imprimées
@@ -244,6 +251,7 @@ function adsAtlas(): THREE.CanvasTexture {
     ctx.fillText(ad.name, cx, y0 + AD_H / 2 - 22);
     ctx.font = `italic 600 26px "Helvetica Neue", Arial, sans-serif`;
     ctx.fillText(ad.sub, cx, y0 + AD_H / 2 + 38, maxW);
+    ctx.restore();
   });
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
@@ -255,22 +263,21 @@ function adsAtlas(): THREE.CanvasTexture {
  * Barrières : métal galvanisé ; bâche imprimée côté route (publicités de l'atlas, une marque par série de trois
  * barrières, comme sur les arrivées), toile unie côté public.
  */
-function barrierMaterial(): THREE.MeshStandardNodeMaterial {
+function barrierMaterial(cell: ReturnType<typeof vec2>): THREE.MeshStandardNodeMaterial {
   const mat = new THREE.MeshStandardNodeMaterial({ side: THREE.DoubleSide });
   mat.flatShading = LOW_POLY;
-  const part = attribute<'float'>('part');
-  // Les barrières sont créées par paires (gauche, droite) le long de la route : 6 instances = 3 barrières par côté.
-  // × 3 (premier avec 8) : les marques se suivent dans le désordre.
-  const cell = floor(float(instanceIndex).div(6)).mul(3).mod(ADS.length);
-  const col = cell.mod(ADS_COLS);
-  const row = floor(cell.div(ADS_COLS));
-  const adUv = uv()
-    .mul(vec2(1 / ADS_COLS, 1 / ADS_ROWS))
-    .add(vec2(col.div(ADS_COLS), float(1).sub(row.add(1).div(ADS_ROWS))));
-  const cloth = frontFacing.select(texture(adsAtlas(), adUv).rgb, vec3(0.82, 0.82, 0.8));
-  mat.colorNode = part.equal(1).select(cloth, vec3(0.4, 0.42, 0.44));
-  mat.roughnessNode = part.equal(1).select(float(0.8), float(0.45));
-  mat.metalnessNode = part.equal(1).select(float(0), float(0.6));
+  // Bâche : `part` = 1, comparé à 0,5 et non égal à 1 : interpolé entre les sommets, il vaut parfois 0,99999994 et
+  // ces pixels prenaient la teinte et le reflet du métal (paillettes, couleurs délavées).
+  const cloth01 = attribute<'float'>('part').greaterThan(0.5);
+  // Coin de la case de l'atlas, par instance (attribut calculé sur le processeur).
+  const adUv = uv().mul(vec2(1 / ADS_COLS, 1 / ADS_ROWS)).add(cell);
+  const print = texture(adsAtlas(), adUv).rgb;
+  const cloth = frontFacing.select(print, vec3(0.82, 0.82, 0.8));
+  mat.colorNode = cloth01.select(cloth, vec3(0.4, 0.42, 0.44));
+  // Bâche imprimée en vinyle : couleurs vives même à l'ombre ou à contre-jour.
+  mat.emissiveNode = cloth01.and(frontFacing).select(print.mul(0.22), vec3(0, 0, 0));
+  mat.roughnessNode = cloth01.select(float(0.8), float(0.45));
+  mat.metalnessNode = cloth01.select(float(0), float(0.6));
   return mat;
 }
 
@@ -512,11 +519,21 @@ export class Crowd {
     } else this.signs = null;
 
     if (barrierMats.length) {
-      const barriers = new THREE.InstancedMesh(barrierGeometry(), barrierMaterial(), barrierMats.length);
+      // Barrières créées par paires (gauche, droite) : une marque par série de trois barrières de chaque côté,
+      // marques dans le désordre (pas de 3, premier avec leur nombre).
+      const offsets = new Float32Array(barrierMats.length * 2);
+      for (let i = 0; i < barrierMats.length; i++) {
+        const ad = (Math.floor(i / 6) * 3) % ADS.length;
+        offsets[i * 2] = (ad % ADS_COLS) / ADS_COLS;
+        offsets[i * 2 + 1] = 1 - (Math.floor(ad / ADS_COLS) + 1) / ADS_ROWS;
+      }
+      const adCell = instancedBufferAttribute(new THREE.InstancedBufferAttribute(offsets, 2)) as unknown as ReturnType<typeof vec2>;
+      const barriers = new THREE.InstancedMesh(barrierGeometry(), barrierMaterial(adCell), barrierMats.length);
       barrierMats.forEach((mm, i) => barriers.setMatrixAt(i, mm));
       barriers.instanceMatrix.needsUpdate = true;
       barriers.computeBoundingSphere();
-      barriers.castShadow = true;
+      // Pas d'ombre portée : la bâche, très fine, se faisait de l'ombre à elle-même (points sombres sur la publicité).
+      barriers.castShadow = false;
       barriers.receiveShadow = true;
       barriers.name = 'crowd-barriers';
       this.barriers = barriers;
