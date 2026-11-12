@@ -1,0 +1,14 @@
+{
+ "models": [
+  "fan_pois",
+  "spectateur",
+  "enfant",
+  "homme_fort",
+  "fan_pois_femme",
+  "fan_jaune",
+  "fan_jaune_enfant",
+  "femme",
+  "jeune_homme",
+  "femme_agee"
+ ]
+}

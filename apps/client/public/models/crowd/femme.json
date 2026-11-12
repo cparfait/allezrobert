@@ -1,0 +1,39 @@
+{
+ "vertexCount": 1603,
+ "indexCount": 4500,
+ "tris": 1500,
+ "vatRows": 208,
+ "normalRow": 104,
+ "clips": [
+  {
+   "name": "cheer",
+   "row": 0,
+   "frames": 49,
+   "fps": 4.0
+  },
+  {
+   "name": "clap",
+   "row": 49,
+   "frames": 55,
+   "fps": 4.0
+  }
+ ],
+ "hold": 20,
+ "maskSize": 256,
+ "refLum": {
+  "skin": 0.1725199967622757,
+  "hair": 0.016334492713212967,
+  "top": 0.4858429431915283,
+  "bottom": 0.15584202110767365
+ },
+ "heightM": 1.66,
+ "offsets": {
+  "position": 0,
+  "normal": 19236,
+  "uv": 38472,
+  "index": 51296,
+  "vat": 69296,
+  "mask": 2736688
+ },
+ "bytes": 2998832
+}

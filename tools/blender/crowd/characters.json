@@ -1,0 +1,66 @@
+{
+  "_doc": "Personnages du public réaliste. prompt : invite Tripo texte → image (modèle t_pose) ; height : taille en mètres ; hints : couleurs indicatives des zones pour le masque (bake_crowd.py --hints) ; recolor : zones recolorées en jeu (les maillots à pois et jaunes restent tels quels). Invites sans marque, sans logo, sans texte.",
+  "style": "Full body 3D game character, realistic proportions, standing in a neutral A-pose with both arms hanging 30 degrees away from the body, hands open and empty, legs slightly apart, facing the camera, front view, plain white background, soft even lighting",
+  "negative": "--no other people, bicycles, props, text, letters, logos, brand names, numbers, shadows",
+  "characters": {
+    "spectateur": {
+      "source": "zzModel3D/tripo_public/spectateur_a/animations_model_url.glb",
+      "height": 1.70,
+      "recolor": ["skin", "hair", "top", "bottom"]
+    },
+    "fan_pois": {
+      "prompt": "a cheerful French cycling fan man about 40 years old, white short-sleeve cycling jersey covered with large red polka dots, matching white cycling cap with red polka dots, dark blue denim shorts, white sneakers, short brown hair, light skin",
+      "height": 1.77,
+      "hints": { "skin": "#d9a07a", "hair": "#5a3a24", "top": "#e8e4e0", "bottom": "#3a4a6a", "none": ["#c8302a", "#f4f4f2", "#1c1c1c"] },
+      "recolor": ["skin", "hair", "bottom"]
+    },
+    "fan_pois_femme": {
+      "prompt": "a cheerful French cycling fan woman about 30 years old, no hat, long brown hair in a ponytail, white short-sleeve cycling jersey covered with large red polka dots, plain black leggings, white sneakers, light skin",
+      "height": 1.65,
+      "hints": { "skin": "#e0ac85", "hair": "#4a3020", "top": "#e8e4e0", "bottom": "#222226", "none": ["#c8302a", "#f4f4f2"] },
+      "recolor": ["skin", "hair", "bottom"]
+    },
+    "fan_jaune": {
+      "prompt": "a cheerful French cycling fan man about 50 years old, plain bright yellow short-sleeve cycling jersey without any logo, plain yellow cycling cap, beige chino trousers, brown shoes, short grey hair, tanned skin",
+      "height": 1.75,
+      "hints": { "skin": "#c68a62", "hair": "#a8a49e", "top": "#f2cc2a", "bottom": "#c2ad86", "none": ["#f2cc2a", "#5a3a24"] },
+      "recolor": ["skin", "hair", "bottom"]
+    },
+    "fan_jaune_enfant": {
+      "prompt": "a cheerful French boy about 10 years old, no hat, plain bright yellow short-sleeve cycling jersey without any logo, dark grey shorts, white sneakers, short blond hair, light skin",
+      "height": 1.38,
+      "hints": { "skin": "#e8b996", "hair": "#c8a66a", "top": "#f2cc2a", "bottom": "#4a4a4e", "none": ["#f2cc2a", "#f4f4f2"] },
+      "recolor": ["skin", "hair", "bottom"]
+    },
+    "femme_agee": {
+      "prompt": "an elderly French village woman about 75 years old, grey hair in a bun, light grey knitted cardigan over a plain white blouse, knee-length plain mid-grey skirt, flat dark shoes, light skin",
+      "height": 1.60,
+      "hints": { "skin": "#e0ac85", "hair": "#b8b4ae", "top": "#c8c8c6", "bottom": "#7a7a7c", "none": ["#1c1c1c"] },
+      "recolor": ["skin", "hair", "top", "bottom"]
+    },
+    "femme": {
+      "prompt": "a young French woman about 25 years old, long dark brown hair loose, plain white t-shirt, plain light blue jeans, white sneakers, medium skin",
+      "height": 1.66,
+      "hints": { "skin": "#c68a62", "hair": "#3a2418", "top": "#ecebe8", "bottom": "#7a96b8", "none": ["#f4f4f2"] },
+      "recolor": ["skin", "hair", "top", "bottom"]
+    },
+    "jeune_homme": {
+      "prompt": "a young French man about 20 years old, short dark hair, plain white t-shirt, plain beige cargo shorts, white sneakers, dark skin",
+      "height": 1.79,
+      "hints": { "skin": "#6a4430", "hair": "#1a1614", "top": "#ecebe8", "bottom": "#c2ad86", "none": ["#f4f4f2"] },
+      "recolor": ["skin", "hair", "top", "bottom"]
+    },
+    "enfant": {
+      "prompt": "a French girl about 9 years old, shoulder-length light brown hair, plain white t-shirt, plain mid-grey shorts, white sneakers, light skin",
+      "height": 1.34,
+      "hints": { "skin": "#e8b996", "hair": "#8a6040", "top": "#ecebe8", "bottom": "#7a7a7c", "none": ["#f4f4f2"] },
+      "recolor": ["skin", "hair", "top", "bottom"]
+    },
+    "homme_fort": {
+      "prompt": "a heavyset French man about 55 years old with a round belly, bald on top with short grey hair on the sides, short grey beard, plain light grey polo shirt, plain dark grey trousers, black shoes, light skin",
+      "height": 1.76,
+      "hints": { "skin": "#d9a07a", "hair": "#9a958e", "top": "#bebebe", "bottom": "#4a4a4e", "none": ["#1c1c1c"] },
+      "recolor": ["skin", "hair", "top", "bottom"]
+    }
+  }
+}

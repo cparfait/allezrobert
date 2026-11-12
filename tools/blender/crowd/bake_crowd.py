@@ -15,12 +15,18 @@ d'animation (clip et phase tirés au hasard) et recolore peau, cheveux, haut et 
 (couleur = teinte × luminance du texel / luminance de référence de la zone : plis et usure gardés).
 
 Masque : chaque texel prend la zone de l'os qui porte sa face (tête, mains, buste, jambes, pieds), puis sa
-couleur tranche (peau chaude et saturée, cheveux gris, chemise claire, pantalon sombre). Seuils réglés sur
-le spectateur de référence ; vérifier <nom>_zones.png pour un nouveau modèle.
+couleur tranche. Avec des couleurs indicatives (« hints » de characters.json : peau, cheveux, haut, bas et
+« none » pour ce qui ne se recolore pas : casquette, chaussures, motif du maillot), chaque texel prend la plus
+proche parmi celles permises dans sa zone (tête : peau, cheveux ; buste et mains : peau, haut ; jambes : peau,
+bas) ; sans elles, seuils réglés sur le spectateur de référence. Les zones absentes de « recolor » sont vidées
+(maillot à pois ou jaune gardé tel quel). Vérifier <nom>_zones.png (écrit dans out/crowd/).
 
 Usage :
+  blender -b --factory-startup -P tools/blender/crowd/bake_crowd.py -- --character <nom>
+      (characters.json : source zzModel3D/tripo_public/<nom>/animations_model_url.glb, taille, couleurs, zones ;
+       sortie apps/client/public/models/crowd/, index.json mis à jour)
   blender -b --factory-startup -P tools/blender/crowd/bake_crowd.py -- <animé.glb> <dossier> <nom>
-          [--tris 1500] [--step 4] [--tex 1024] [--mask 256] [--height 1.70] [--yaw 90]
+          [--tris 1500] [--step 6] [--tex 1024] [--mask 256] [--height 1.70] [--yaw 90]
 --yaw : rotation (degrés, autour de la verticale) qui tourne le modèle vers +Y de Blender, soit −Z du jeu,
 l'avant des spectateurs de crowd.ts ; Tripo exporte face à +X : 90.
 """
@@ -35,16 +41,28 @@ import bpy
 import numpy as np
 
 argv = sys.argv[sys.argv.index('--') + 1:]
-VALUED = ('--tris', '--step', '--tex', '--mask', '--height', '--yaw')
-src, out_dir, name = [a for i, a in enumerate(argv) if not a.startswith('--') and (i == 0 or argv[i - 1] not in VALUED)][:3]
+VALUED = ('--tris', '--step', '--tex', '--mask', '--height', '--yaw', '--character')
+HERE = os.path.dirname(os.path.abspath(__file__))
+ROOT = os.path.abspath(os.path.join(HERE, '..', '..', '..'))
 
 
 def opt(k, d):
     return type(d)(argv[argv.index(k) + 1]) if k in argv else d
 
 
-TRIS, STEP, TEX, MASK = opt('--tris', 1500), opt('--step', 4), opt('--tex', 1024), opt('--mask', 256)
-HEIGHT, YAW = opt('--height', 1.70), opt('--yaw', 90.0)
+HINTS, RECOLOR = None, ('skin', 'hair', 'top', 'bottom')
+if '--character' in argv:
+    name = argv[argv.index('--character') + 1]
+    spec = json.load(open(os.path.join(HERE, 'characters.json'), encoding='utf-8'))['characters'][name]
+    src = os.path.join(ROOT, spec.get('source') or f'zzModel3D/tripo_public/{name}/animations_model_url.glb')
+    out_dir = os.path.join(ROOT, 'apps/client/public/models/crowd')
+    HINTS, RECOLOR = spec.get('hints'), tuple(spec.get('recolor', RECOLOR))
+    default_height = spec['height']
+else:
+    src, out_dir, name = [a for i, a in enumerate(argv) if not a.startswith('--') and (i == 0 or argv[i - 1] not in VALUED)][:3]
+    default_height = 1.70
+TRIS, STEP, TEX, MASK = opt('--tris', 1500), opt('--step', 6), opt('--tex', 1024), opt('--mask', 256)
+HEIGHT, YAW = opt('--height', default_height), opt('--yaw', 90.0)
 out_dir = os.path.abspath(out_dir)
 os.makedirs(out_dir, exist_ok=True)
 
@@ -165,12 +183,13 @@ while stack and img is None:
             img = l.from_node.image
             break
         stack.extend(i for i in l.from_node.inputs if i.is_linked)
-if img.size[0] != MASK:
+WORK = max(MASK, min(img.size[0], 1024) // MASK * MASK)
+if img.size[0] != WORK:
     work = img.copy()
-    work.scale(MASK, MASK)
+    work.scale(WORK, WORK)
 else:
     work = img
-W = H = MASK
+W = H = WORK
 px = np.array(work.pixels[:], np.float32).reshape(H, W, 4)[..., :3]  # sRGB, ligne 0 = bas (v = 0)
 
 
@@ -221,10 +240,39 @@ beige = (s < 0.36) & (v > 0.5)                                         # tissu c
 dark = v <= 0.42                                                       # ceinture, haut du pantalon
 tete, mains, buste, jambes = (zmap == i for i in range(4))
 mask = np.zeros((H, W, 4), np.float32)
-mask[..., 0] = (tete | mains | buste) & warm
-mask[..., 1] = tete & grey & ~warm
-mask[..., 2] = ((buste | mains) & ~warm & ~dark) | (jambes & beige)
-mask[..., 3] = (jambes & ~beige) | (buste & ~warm & dark)
+if HINTS:
+    def lab(rgb):
+        '''sRGB (0..1) → CIELAB (D65), assez précis pour comparer des teintes.'''
+        c = np.where(rgb <= 0.04045, rgb / 12.92, ((rgb + 0.055) / 1.055) ** 2.4)
+        xyz = c @ np.array([[0.4124, 0.2126, 0.0193], [0.3576, 0.7152, 0.1192], [0.1805, 0.0722, 0.9505]], np.float32)
+        xyz = xyz / np.array([0.9505, 1.0, 1.089], np.float32)
+        f = np.where(xyz > 0.008856, np.cbrt(xyz), 7.787 * xyz + 16 / 116)
+        return np.stack([116 * f[..., 1] - 16, 500 * (f[..., 0] - f[..., 1]), 200 * (f[..., 1] - f[..., 2])], -1)
+
+    def hexrgb(h):
+        return np.array([int(h[i:i + 2], 16) / 255 for i in (1, 3, 5)], np.float32)
+
+    L = lab(px)
+    cands = {k: [lab(hexrgb(HINTS[k]))] for k in ('skin', 'hair', 'top', 'bottom') if k in HINTS}
+    cands['none'] = [lab(hexrgb(h)) for h in HINTS.get('none', [])]
+    dist = {k: (np.min([np.linalg.norm(L - c, axis=-1) for c in v], axis=0) if v else np.full((H, W), 1e9, np.float32)) for k, v in cands.items()}
+    # Rouges purs (pois, motifs) : ni peau ni cheveux, même proches de leur couleur indicative.
+    pure_red = ((h < 0.02) | (h > 0.95)) & (s > 0.45)
+    for k in ('skin', 'hair'):
+        if k in dist:
+            dist[k] = np.where(pure_red, 1e9, dist[k])
+    for zone, keys in ((tete, ('skin', 'hair', 'none')), (mains | buste, ('skin', 'top', 'none')), (jambes, ('skin', 'bottom', 'none'))):
+        keys = [k for k in keys if k in dist]
+        best = np.argmin(np.stack([dist[k] for k in keys]), axis=0)
+        for i, k in enumerate(keys):
+            if k != 'none':
+                ch = ('skin', 'hair', 'top', 'bottom').index(k)
+                mask[..., ch] = np.maximum(mask[..., ch], (zone & (best == i)).astype(np.float32))
+else:
+    mask[..., 0] = (tete | mains | buste) & warm
+    mask[..., 1] = tete & grey & ~warm
+    mask[..., 2] = ((buste | mains) & ~warm & ~dark) | (jambes & beige)
+    mask[..., 3] = (jambes & ~beige) | (buste & ~warm & dark)
 used = mask.sum(-1) > 0
 for _ in range(6):  # débord dans la marge des îlots UV (coutures invisibles au filtrage)
     grown = mask.copy()
@@ -236,23 +284,31 @@ kern = np.ones(3) / 3
 for c in range(4):
     m = np.apply_along_axis(lambda r: np.convolve(r, kern, 'same'), 1, mask[..., c])
     mask[..., c] = np.apply_along_axis(lambda r: np.convolve(r, kern, 'same'), 0, m)
+for ch, key in enumerate(('skin', 'hair', 'top', 'bottom')):
+    if key not in RECOLOR:
+        mask[..., ch] = 0
 lin = np.where(px <= 0.04045, px / 12.92, ((px + 0.055) / 1.055) ** 2.4)
 lum = lin @ np.array([0.2126, 0.7152, 0.0722], np.float32)
 ref = {k: float((lum * mask[..., i]).sum() / max(mask[..., i].sum(), 1)) for i, k in enumerate(('skin', 'hair', 'top', 'bottom'))}
+viz_px, viz_mask = px, mask
+if WORK != MASK:  # moyenne par blocs : bords adoucis
+    f = WORK // MASK
+    mask = mask.reshape(MASK, f, MASK, f, 4).mean((1, 3))
 
-# Couleur de base (PNG puis WebP par tools/blender/crowd/finish.mjs ou à la main).
+# Couleur de base (WebP).
 base = img.copy()
 if base.size[0] != TEX:
     base.scale(TEX, TEX)
-base.filepath_raw = f'{out_dir}/{name}_base.png'
-base.file_format = 'PNG'
+base.filepath_raw = f'{out_dir}/{name}.webp'
+base.file_format = 'WEBP'
 base.save()
-viz = px * 0.25 + 0.75 * (mask[..., 0:1] * [1.0, 0.55, 0.35] + mask[..., 1:2] * [0.95, 0.9, 0.2] + mask[..., 2:3] * [0.2, 0.5, 1.0] + mask[..., 3:4] * [0.3, 0.8, 0.3])
+viz = viz_px * 0.25 + 0.75 * (viz_mask[..., 0:1] * [1.0, 0.55, 0.35] + viz_mask[..., 1:2] * [0.95, 0.9, 0.2] + viz_mask[..., 2:3] * [0.2, 0.5, 1.0] + viz_mask[..., 3:4] * [0.3, 0.8, 0.3])
 zimg = bpy.data.images.new('zones', W, H, alpha=True)
 za = np.ones((H, W, 4), np.float32)
 za[..., :3] = np.clip(viz, 0, 1)
 zimg.pixels = za.ravel()
-zimg.filepath_raw = f'{out_dir}/{name}_zones.png'
+os.makedirs(os.path.join(ROOT, 'out', 'crowd'), exist_ok=True)
+zimg.filepath_raw = os.path.join(ROOT, 'out', 'crowd', f'{name}_zones.png')
 zimg.file_format = 'PNG'
 zimg.save()
 
@@ -273,5 +329,11 @@ with open(f'{out_dir}/{name}.bin', 'wb') as f:
 meta = {'vertexCount': V, 'indexCount': I, 'tris': I // 3, 'vatRows': 2 * R, 'normalRow': R, 'clips': clips, 'hold': hold,
         'maskSize': MASK, 'refLum': ref, 'heightM': HEIGHT, 'offsets': offsets, 'bytes': pos}
 json.dump(meta, open(f'{out_dir}/{name}.json', 'w', encoding='utf-8'), indent=1)
+# Liste des personnages lue par le jeu (crowdRealistic.ts).
+idx_path = f'{out_dir}/index.json'
+idx = json.load(open(idx_path, encoding='utf-8')) if os.path.exists(idx_path) else {'models': []}
+if name not in idx['models']:
+    idx['models'].append(name)
+json.dump(idx, open(idx_path, 'w', encoding='utf-8'), indent=1)
 print(f'SPECTATEUR {name} : {tris0} → {I // 3} triangles, {V} sommets, {R} images ({", ".join(c["name"] + " " + str(c["frames"]) for c in clips)}), '
       f'porteur : image {hold}, {pos / 1e6:.2f} Mo, références {ref}')
