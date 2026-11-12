@@ -1,7 +1,7 @@
 import { AERO_COAST_FULL, AERO_SPEED, AERO_SPEED_OUT, FOREARMS_IN, FOREARMS_OUT, HARD_EFFORT, HARD_EFFORT_OUT } from './poseThresholds.ts';
 import * as THREE from 'three/webgpu';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { bikeOfLook, lookSex, type AvatarLook, type BikeBuild, type WheelType } from '@allezrobert/shared';
+import { BIKE_REFERENCE, bikeOfLook, lookSex, type AvatarLook, type BikeBuild, type WheelType } from '@allezrobert/shared';
 import type { RiderAvatarLike, RiderGesture, RiderPose } from './gltfAvatar.ts';
 import { SweptBody, makeJoints, type BodyLook } from './sweptBody.ts';
 import { HELMET_FACETED, aeroHelmetGeometry } from './aeroHelmet.ts';
@@ -23,12 +23,15 @@ import { flatLook } from './flatLook.ts';
  * jambes et bras par cinématique inverse à deux os. Positions : assis, danseuse, roue libre.
  */
 
-const WHEEL_R = 0.335;
-const BB = new THREE.Vector3(0, 0.28, 0);
-const CRANK = 0.1725;
-const REAR_AXLE = new THREE.Vector3(0, WHEEL_R, -0.41);
-const FRONT_AXLE = new THREE.Vector3(0, WHEEL_R, 0.62);
-const SADDLE = new THREE.Vector3(0, 0.965, -0.2);
+/** Rayon de roue, manivelle et axe arrière : vélo de référence (BIKE_REFERENCE, packages/shared/src/bikeReference.ts). */
+const WHEEL_R = BIKE_REFERENCE.wheelRadiusM;
+/** Vélo en prismes (propre à ce style) : boîtier 1 cm plus haut que celui des modèles (0,27 : BIKE_REFERENCE, voir build). */
+const BB_PRISM = new THREE.Vector3(0, 0.28, 0);
+const CRANK = BIKE_REFERENCE.crankLengthM;
+const REAR_AXLE = new THREE.Vector3(...BIKE_REFERENCE.rearAxle);
+/** Vélo en prismes : axe avant (empattement 1,03 m) et selle, propres à ce style. */
+const FRONT_AXLE_PRISM = new THREE.Vector3(0, WHEEL_R, 0.62);
+const SADDLE_PRISM = new THREE.Vector3(0, 0.965, -0.2);
 const THIGH = 0.46;
 const SHIN = 0.47;
 const UPPER_ARM = 0.3;
@@ -48,7 +51,7 @@ const TUBES_DEFAULT = (typeof location === 'undefined' ? null : new URLSearchPar
 const REAL_BIKE_DEFAULT = (typeof location === 'undefined' ? null : new URLSearchParams(location.search).has('velo-prismes')) !== true;
 /** Familles dont le chargement a échoué (fichiers absents) : vélo en prismes sans réessayer. */
 const failedFamilies = new Set<FamilyKey>();
-/** Selle des modèles : dessus 2,7 cm plus bas que celle du vélo en prismes (SADDLE). */
+/** Selle des modèles : dessus 2,7 cm plus bas que celle du vélo en prismes (SADDLE_PRISM). */
 const REAL_SEAT_DY = -0.027;
 /**
  * Mains sur le poste de chrono des modèles (bikes/tt.glb…) : prolongateurs 12 cm plus courts et un peu plus bas que
@@ -565,7 +568,7 @@ export class LowPolyRider implements RiderAvatarLike {
   /** Vélo du modèle réaliste (REAL_BIKE_DEFAULT) : ses matériaux, et les réglages du coureur posé dessus. */
   private readonly realBike: boolean;
   private realMats: BikeMaterials | null = null;
-  private bb = BB.clone();
+  private bb = BB_PRISM.clone();
   private seatDy = 0;
   private readonly ttHandFix = new THREE.Vector3();
   private readonly hornsFix = new THREE.Vector3();
@@ -675,7 +678,7 @@ export class LowPolyRider implements RiderAvatarLike {
     const kind = bikeKind(look, bike);
     this.fit = FITS[kind === 'mtb' ? 'flat' : kind === 'tt' ? 'tt' : 'drop'];
     const real = this.realBike ? this.mountRealBike(look, bike) : null;
-    this.bb.set(BB.x, real ? 0.27 : BB.y, BB.z);
+    this.bb.set(BB_PRISM.x, real ? BIKE_REFERENCE.bottomBracket[1] : BB_PRISM.y, BB_PRISM.z);
     this.seatDy = real ? REAL_SEAT_DY : 0;
     this.ttHandFix.copy(real ? REAL_TT_HAND : new THREE.Vector3());
     this.hornsFix.copy(real ? REAL_TT_HORNS : new THREE.Vector3());
@@ -1105,21 +1108,21 @@ export class LowPolyRider implements RiderAvatarLike {
     const sx = aeroTubes ? 0.7 : 1;
     const sz = aeroTubes ? 1.8 : 1;
     const frame = [
-      tube(BB, seatTop, 0.02 * k, 0.02 * k, sides, sx, sz),
+      tube(BB_PRISM, seatTop, 0.02 * k, 0.02 * k, sides, sx, sz),
       tube(seatTop, headTop, 0.019 * k, 0.019 * k, sides, sx, aeroTubes ? 1.4 : 1),
       // Diagonal aéro moins profond vers la roue (il la frôlait).
-      tube(BB, headBottom, 0.028 * k, 0.024 * k, sides, sx, aeroTubes ? 1.35 : 1),
+      tube(BB_PRISM, headBottom, 0.028 * k, 0.024 * k, sides, sx, aeroTubes ? 1.35 : 1),
       tube(headBottom, headTop, 0.026 * k, 0.026 * k, sides),
     ];
     for (const s of [1, -1]) {
       const axle = REAR_AXLE.clone().setX(0.06 * s);
-      frame.push(tube(BB.clone().setX(0.03 * s), axle, 0.012 * k, 0.01 * k, 5));
+      frame.push(tube(BB_PRISM.clone().setX(0.03 * s), axle, 0.012 * k, 0.01 * k, 5));
       frame.push(tube(seatTop.clone().setX(0.015 * s).setY(seatTop.y - 0.04), axle, 0.011 * k, 0.009 * k, 5));
-      if (!mtb) frame.push(tube(headBottom.clone().setX(0.022 * s), FRONT_AXLE.clone().setX(0.05 * s), 0.016, 0.011, 5, aeroTubes ? 0.7 : 1, aeroTubes ? 1.6 : 1));
+      if (!mtb) frame.push(tube(headBottom.clone().setX(0.022 * s), FRONT_AXLE_PRISM.clone().setX(0.05 * s), 0.016, 0.011, 5, aeroTubes ? 0.7 : 1, aeroTubes ? 1.6 : 1));
     }
     g.add(merged(frame, frameMat));
     // Seconde couleur de la livrée : bande sur le diagonal et la douille.
-    g.add(merged([tube(BB.clone().lerp(headBottom, 0.35), BB.clone().lerp(headBottom, 0.75), 0.03 * k, 0.03 * k, sides, sx, aeroTubes ? 1.4 : 1), tube(headBottom.clone().lerp(headTop, 0.2), headBottom.clone().lerp(headTop, 0.8), 0.029 * k, 0.029 * k, sides)], accentMat));
+    g.add(merged([tube(BB_PRISM.clone().lerp(headBottom, 0.35), BB_PRISM.clone().lerp(headBottom, 0.75), 0.03 * k, 0.03 * k, sides, sx, aeroTubes ? 1.4 : 1), tube(headBottom.clone().lerp(headTop, 0.2), headBottom.clone().lerp(headTop, 0.8), 0.029 * k, 0.029 * k, sides)], accentMat));
 
     const parts: THREE.BufferGeometry[] = [];
     // Fourche suspendue du VTT : fourreaux épais, té, plongeurs.
@@ -1128,18 +1131,18 @@ export class LowPolyRider implements RiderAvatarLike {
       parts.push(box(0.15, 0.04, 0.06, crown.x, crown.y, crown.z));
       for (const s of [1, -1]) {
         const top = crown.clone().setX(0.065 * s);
-        const mid = top.clone().lerp(FRONT_AXLE.clone().setX(0.065 * s), 0.45);
-        parts.push(tube(top, mid, 0.022, 0.022, 6), tube(mid, FRONT_AXLE.clone().setX(0.06 * s), 0.016, 0.015, 6));
+        const mid = top.clone().lerp(FRONT_AXLE_PRISM.clone().setX(0.065 * s), 0.45);
+        parts.push(tube(top, mid, 0.022, 0.022, 6), tube(mid, FRONT_AXLE_PRISM.clone().setX(0.06 * s), 0.016, 0.015, 6));
       }
     }
     // Tige de selle, selle à bec effilé, potence.
-    const saddle = box(0.14, 0.045, 0.27, SADDLE.x, SADDLE.y, SADDLE.z);
+    const saddle = box(0.14, 0.045, 0.27, SADDLE_PRISM.x, SADDLE_PRISM.y, SADDLE_PRISM.z);
     const sp = saddle.getAttribute('position');
-    for (let i = 0; i < sp.count; i++) if (sp.getZ(i) > SADDLE.z) sp.setX(i, sp.getX(i) * 0.35);
+    for (let i = 0; i < sp.count; i++) if (sp.getZ(i) > SADDLE_PRISM.z) sp.setX(i, sp.getX(i) * 0.35);
     const fit = this.fit;
     const stemEnd = fit.bar === 'flat' ? v3(0, 0.95, 0.5) : v3(0, 0.89, 0.55);
     const steer = headTop.clone().add(headTop.clone().sub(headBottom).normalize().multiplyScalar(0.035));
-    parts.push(tube(seatTop, SADDLE.clone().setY(SADDLE.y - 0.03), 0.014 * (mtb ? 1.4 : 1)), saddle, tube(headTop, steer, 0.017, 0.017, 8), tube(steer.clone().add(v3(0, -0.005, -0.012)), stemEnd, 0.017, 0.016, 8), box(0.05, 0.036, 0.03, stemEnd.x, stemEnd.y, stemEnd.z));
+    parts.push(tube(seatTop, SADDLE_PRISM.clone().setY(SADDLE_PRISM.y - 0.03), 0.014 * (mtb ? 1.4 : 1)), saddle, tube(headTop, steer, 0.017, 0.017, 8), tube(steer.clone().add(v3(0, -0.005, -0.012)), stemEnd, 0.017, 0.016, 8), box(0.05, 0.036, 0.03, stemEnd.x, stemEnd.y, stemEnd.z));
     const bar: THREE.BufferGeometry[] = [];
     if (fit.bar === 'flat') {
       bar.push(tube(v3(0.36, 0.955, 0.5), v3(-0.36, 0.955, 0.5), 0.014, 0.014, 6));
@@ -1215,8 +1218,8 @@ export class LowPolyRider implements RiderAvatarLike {
     if (nBottles) {
       const bottles: THREE.BufferGeometry[] = [];
       const along = (a: THREE.Vector3, b: THREE.Vector3, f0: number, f1: number, off: THREE.Vector3) => tube(a.clone().lerp(b, f0).add(off), a.clone().lerp(b, f1).add(off), 0.034, 0.034, 8);
-      bottles.push(along(BB, headBottom, 0.3, 0.62, v3(0, 0.045, -0.02)));
-      if (nBottles > 1) bottles.push(along(BB, seatTop, 0.25, 0.55, v3(0, 0.0, 0.045)));
+      bottles.push(along(BB_PRISM, headBottom, 0.3, 0.62, v3(0, 0.045, -0.02)));
+      if (nBottles > 1) bottles.push(along(BB_PRISM, seatTop, 0.25, 0.55, v3(0, 0.0, 0.045)));
       g.add(merged(bottles, flat(bottleColorOf(look, bike.livery.colors[0]), 0.5)));
     }
 
@@ -1224,7 +1227,7 @@ export class LowPolyRider implements RiderAvatarLike {
     // lenticulaire ou trois bâtons.
     const tireR = mtb ? 0.032 : kind === 'gravel' ? 0.022 : 0.016;
     const types: [WheelType, WheelType] = mtb ? ['box', 'box'] : bike.params.wheels;
-    [REAR_AXLE, FRONT_AXLE].forEach((axle, i) => {
+    [REAR_AXLE, FRONT_AXLE_PRISM].forEach((axle, i) => {
       const type = (i === 0 ? types[1] : types[0]) ?? 'c35';
       const w = new THREE.Group();
       w.position.copy(axle);
@@ -1270,7 +1273,7 @@ export class LowPolyRider implements RiderAvatarLike {
       g.add(w);
     });
     // Pédalier : plateau à 14 pans, manivelles ; pédales mobiles (suivent le pied).
-    this.crank.position.copy(BB);
+    this.crank.position.copy(BB_PRISM);
     this.crank.add(
       merged([new THREE.CylinderGeometry(0.105, 0.105, 0.008, 14).rotateZ(Math.PI / 2).translate(-0.045, 0, 0)], metal),
       merged([box(0.014, CRANK, 0.026, 0.075, -CRANK / 2, 0), box(0.014, CRANK, 0.026, -0.075, CRANK / 2, 0)], dark),
@@ -1363,7 +1366,7 @@ export class LowPolyRider implements RiderAvatarLike {
     const dropHands = Math.max(this.dropsBlend * (1 - stand) * (1 - forearms) * (1 - hoodsAero) * (1 - clip), aero, sprint) * (1 - this.celebrate);
     // Danseuse : bassin monté de 16 cm et avancé vers le pédalier ; il reste à l'aplomb pendant que le vélo bascule.
     // Sprint : bassin hors de la selle mais bas, au-dessus du bec de selle.
-    const hip = this.hip.set(0, SADDLE.y + this.seatDy + 0.07 + 0.16 * stand - 0.07 * sprint, SADDLE.z + 0.02 + 0.23 * stand - 0.12 * sprint - 0.02 * aero);
+    const hip = this.hip.set(0, SADDLE_PRISM.y + this.seatDy + 0.07 + 0.16 * stand - 0.07 * sprint, SADDLE_PRISM.z + 0.02 + 0.23 * stand - 0.12 * sprint - 0.02 * aero);
     const up = this.celebrate;
     // Les bras levés ou la danseuse annulent la position de chrono (on se redresse).
     const fitK = 1 - Math.max(up, stand * 0.6);

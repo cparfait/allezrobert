@@ -1,5 +1,6 @@
 import * as THREE from 'three/webgpu';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { BIKE_REFERENCE } from '@allezrobert/shared';
 
 /**
  * Type de vélo affiché : route (modèle Blender), gravel (pneus larges à flancs beiges), VTT. Le gravel a son propre modèle
@@ -11,9 +12,10 @@ export type BikeType = 'road' | 'gravel' | 'mtb';
  * Repères du vélo route (bike.glb), en mètres, repère du modèle : x à gauche, y en haut,
  * z vers l'avant. Le pédalier et les pédales restent ceux du modèle ; les mains du coureur
  * (au repos, x = ±0,20, y = 0,958, z = 0,54) tiennent le cintre du VTT au même endroit.
+ * Boîtier et rayon de roue : valeurs du vélo de référence (BIKE_REFERENCE, packages/shared/src/bikeReference.ts).
  */
-const BB = new THREE.Vector3(0, 0.27, 0);
-const WHEEL_R = 0.335;
+const BB = new THREE.Vector3(...BIKE_REFERENCE.bottomBracket);
+const WHEEL_R = BIKE_REFERENCE.wheelRadiusM;
 
 const v = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
 

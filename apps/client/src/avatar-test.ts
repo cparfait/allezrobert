@@ -212,7 +212,7 @@ async function main(): Promise<void> {
   // ?hands : gros plans des mains droite et gauche des trois coureurs (assis, danseuse, roue libre)
   // et distance paume → cintre mesurée en repère monde (window.__hands).
   // ?shorts : cuissard du coureur assis, de près, à distance moyenne et au loin (grain, moiré) ;
-  // &bench&quality=ultra pour les réglages de la capture, &avatar=boutique pour l'autre modèle.
+  // &bench&quality=ultra pour les réglages de la capture, &avatar=boutique, &avatar=tripo ou &avatar=tripo-femme pour les autres modèles.
   if (params.has('shorts')) {
     const r = riders[0] as Rig;
     far.root.visible = false;
@@ -1305,7 +1305,7 @@ async function profileSheet(engine: Awaited<ReturnType<typeof createEngine>>): P
  */
 async function sizeSheet(engine: Awaited<ReturnType<typeof createEngine>>): Promise<void> {
   const { scene, camera } = engine;
-  const heights = [160, params.get('avatar') === 'boutique' ? 176.5 : 175, 195];
+  const heights = [160, params.get('avatar') === 'boutique' ? 176.5 : params.get('avatar') === 'tripo' ? 188.3 : params.get('avatar') === 'tripo-femme' ? 186.3 : 175, 195];
   const riders = heights.map((h, i) => {
     const a = new GltfRiderAvatar({ ...DEFAULT_LOOK, bikeModel: 's26-04-cervelo-s5', heightCm: h, jersey: ['#d62828', '#1f6feb', '#2a9d8f'][i] as string, ...(params.has('female') ? { face: encodeFace({ sex: -1 }) } : {}) });
     const priv = a as unknown as { crankAngle: number };
@@ -1997,7 +1997,9 @@ async function bikeSheet(engine: Awaited<ReturnType<typeof createEngine>>, list:
       await fetch(`/__shot?name=${b.id}${params.get('tag') ? `-${params.get('tag')}` : ''}&dir=bikes-render`, { method: 'POST', body: one.toDataURL('image/jpeg', 0.9) });
     }
     g.fillStyle = '#16181c';
-    g.fillText(`${b.name} · ${b.family}`, x + cw / 2, y + 24);
+    // Famille réellement montée (&biketype=gravel|mtb force gravel.glb / mtb.glb à la livrée du vélo du catalogue).
+    const shown = (a as unknown as { mounted?: { family: string } }).mounted?.family ?? b.family;
+    g.fillText(shown === b.family ? `${b.name} · ${b.family}` : `${b.name} · ${shown} (livrée de ${b.family})`, x + cw / 2, y + 24);
     scene.remove(a.root);
   }
   document.body.replaceChildren(sheet);

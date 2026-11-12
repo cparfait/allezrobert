@@ -14,6 +14,8 @@ export * from './reverse.ts';
 export * from './rotate.ts';
 export * from './weather.ts';
 export * from './bikes.ts';
+export * from './bikeReference.ts';
+export * from './bikeGeometry.ts';
 export * from './tuning.ts';
 export * from './face.ts';
 export * from './profiles.ts';

@@ -352,6 +352,37 @@ sc_ = (slo + shi) / 2
 transform(G['saddle'], Matrix.Translation(Vector((0, -SADDLE_Z - sc_.y, SADDLE_TOP - shi.z))))
 print('SELLE', [round(v, 3) for v in bbox(G['saddle'])[0]], [round(v, 3) for v in bbox(G['saddle'])[1]])
 
+# Hauteur de selle par la tige télescopique (A5) : la branche haute (tube haut, tête et chariot, rails, coque) coulisse le
+# long de l'axe réel du tube bas, qui reste dans le cadre ; le dessus de selle monte de SEATPOST_RISE (et recule, l'axe
+# étant incliné). Fait après le recalage SADDLE_TOP et avant la fusion ; aucune transformation de la selle ensuite.
+# Pièces indépendantes (parents retirés à l'import, transformations appliquées) : on déplace directement leurs sommets.
+SEATPOST_RISE = float(opt('--seatpost-rise', '0.045'))
+post_low = [o for o in G['saddle'] if has(o, 'Sattel_1879_734')]
+post_up = [o for o in G['saddle'] if has(o, 'Sattelstange2_736')]
+if (not post_low or not post_up or len(post_low) + len(post_up) != len(G['saddle']) or set(post_low) & set(post_up)
+        or len({o.data for o in post_up}) != len(post_up) or {o.data for o in post_up} & {o.data for o in post_low}):
+    sys.exit('TIGE : branches Sattel_1879_734 / Sattelstange2_736 introuvables, mêlées ou à maillage partagé')
+# Axe du tube bas : direction principale de ses sommets (deux anneaux d'extrémité), orientée vers le haut.
+pts = [v.co.copy() for o in post_low for v in o.data.vertices]
+mid = sum(pts, Vector()) / len(pts)
+cov = Matrix(((0.0, 0.0, 0.0), (0.0, 0.0, 0.0), (0.0, 0.0, 0.0)))
+for p in pts:
+    d_ = p - mid
+    for i in range(3):
+        for k in range(3):
+            cov[i][k] += d_[i] * d_[k]
+post_axis = Vector((0.0, 0.0, 1.0))
+for _ in range(200):
+    post_axis = (cov @ post_axis).normalized()
+if post_axis.z < 0:
+    post_axis.negate()
+if post_axis.z < 0.5:
+    sys.exit('TIGE : axe du tube bas trop couché %s' % [round(v, 4) for v in post_axis])
+slide = post_axis * (SEATPOST_RISE / post_axis.z)
+transform(post_up, Matrix.Translation(slide))
+print('TIGE axe', [round(v, 4) for v in post_axis], 'coulissement', [round(v, 4) for v in slide],
+      'selle', [round(v, 3) for v in bbox(G['saddle'])[0]], [round(v, 3) for v in bbox(G['saddle'])[1]])
+
 # ---------------------------------------------------------------------------------------------
 # 3. Roues : jante et moyeu du modèle, pneu lisse, rayons, disque et cassette refaits
 # ---------------------------------------------------------------------------------------------
@@ -567,6 +598,16 @@ for nm, c_ in (('decal_tt', (0, 0.7, 0.2)), ('decal_st', (0, 0.6, -0.1)), ('deca
 an = bpy.data.objects.get('anchor_number')
 if an:
     an.location = to_bl((0, 0.8, -0.15))
+# Ancres de la famille de base recalées sur ce vélo (sinon elles gardent les cotes du vélo route) : axes sur les roues
+# refaites (même repère Blender que wheel_front / wheel_rear), mains au milieu des poignées (cintre recalé plus haut),
+# droite en miroir de la gauche. Ancres importées à la racine : position locale = position dans la scène.
+for nm, loc in (('axle_front', front_axle), ('axle_rear', rear_axle),
+                ('hand_L', to_bl((BAR_HALF, GRIP_AXIS[1], GRIP_AXIS[2]))), ('hand_R', to_bl((-BAR_HALF, GRIP_AXIS[1], GRIP_AXIS[2])))):
+    e = bpy.data.objects.get(nm)
+    if e is None:
+        print('ANCRE ABSENTE', nm)
+        continue
+    e.location = loc.copy()
 
 keep_mesh = {frame, cockpit, saddle, wheel_f, wheel_r}
 for o in list(bpy.data.objects):

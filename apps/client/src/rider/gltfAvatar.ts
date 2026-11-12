@@ -8,7 +8,7 @@ import { shoeDialOf } from './shoeLook.ts';
 import { GLTFLoader, type GLTF } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
-import { HAIR_STYLE_COUNT, PLAIN_BIKE_FAMILY, bikeOfLook, decodeFace, lookSex, type AvatarLook, type BikeBuild, type BikeFamily, type HelmetShape } from '@allezrobert/shared';
+import { BIKE_REFERENCE, HAIR_STYLE_COUNT, PLAIN_BIKE_FAMILY, bikeOfLook, decodeFace, lookSex, type AvatarLook, type BikeBuild, type BikeFamily, type HelmetShape } from '@allezrobert/shared';
 import { RiderAvatar } from './avatar.ts';
 import { buildBikeKit, roadPartsReplaced, type BikeType } from './bikeKits.ts';
 import { FaceAnimator } from './face.ts';
@@ -128,12 +128,14 @@ const RIG_BONES: Record<'classic' | 'mpfb', Partial<Record<BoneName, string>>> =
 
 /**
  * Coureur affiché : avatar MPFB (docs/AVATARS.md) par défaut ; modèle acheté texturé
- * (tools/blender/avatars/build_boutique.py), pour les tests, avec ?avatar=boutique ; l'ancien
- * coureur (cyclist.glb) avec ?avatar=classic.
+ * (tools/blender/avatars/build_boutique.py), pour les tests, avec ?avatar=boutique ; coureur généré
+ * avec Tripo (tools/blender/avatars/build_tripo.py) avec ?avatar=tripo, coureuse avec
+ * ?avatar=tripo-femme ; l'ancien coureur
+ * (cyclist.glb) avec ?avatar=classic.
  */
 const AVATAR_PARAM = typeof location === 'undefined' ? null : new URLSearchParams(location.search).get('avatar');
-export type AvatarKind = 'boutique' | 'mpfb' | 'classic' | 'female';
-const AVATAR_KIND: AvatarKind = AVATAR_PARAM === 'classic' || AVATAR_PARAM === 'boutique' ? AVATAR_PARAM : 'mpfb';
+export type AvatarKind = 'boutique' | 'tripo' | 'tripo-femme' | 'mpfb' | 'classic' | 'female';
+const AVATAR_KIND: AvatarKind = AVATAR_PARAM === 'classic' || AVATAR_PARAM === 'boutique' || AVATAR_PARAM === 'tripo' || AVATAR_PARAM === 'tripo-femme' ? AVATAR_PARAM : 'mpfb';
 /**
  * Fichiers du coureur par niveau de détail et distance (m) d'apparition de chaque niveau
  * (avatar MPFB : 27,9 k, 5 k et 2,5 k triangles pour le corps ; modèle acheté : 47,8 k, 16,7 k
@@ -166,14 +168,17 @@ const SEX_HEAD_BONES: ReadonlySet<string> = new Set(['head', 'neck_01']);
 const SEX_CHEST_BONES: ReadonlySet<string> = new Set(['spine_03', 'spine_02', 'clavicle_l', 'clavicle_r']);
 const FILES: Record<AvatarKind, readonly string[]> = {
   boutique: ['avatar/boutique/rider.glb', 'avatar/boutique/rider_lod1.glb', 'avatar/boutique/rider_lod2.glb'],
+  // Coureur Tripo : 49,8 k, 17,4 k et 7,5 k triangles, un atlas 2048 px partagé par les matériaux « tex_* ».
+  tripo: ['avatar/tripo/rider.glb', 'avatar/tripo/rider_lod1.glb', 'avatar/tripo/rider_lod2.glb'],
+  'tripo-femme': ['avatar/tripo-femme/rider.glb', 'avatar/tripo-femme/rider_lod1.glb', 'avatar/tripo-femme/rider_lod2.glb'],
   // Style jeu vidéo : le niveau le plus simple (2,5 k triangles) à toutes les distances, à facettes.
   mpfb: LOW_POLY ? ['avatar/rider_lod2.glb'] : ['avatar/rider.glb', 'avatar/rider_lod1.glb', 'avatar/rider_lod2.glb'],
   classic: ['cyclist.glb', 'cyclist_lod1.glb'],
   // Modèle MPFB féminin de base (build_avatar.py --variant female) : choisi pour les looks « sex < 0 ».
   female: LOW_POLY ? ['avatar/rider_female_lod2.glb'] : ['avatar/rider_female.glb', 'avatar/rider_female_lod1.glb', 'avatar/rider_female_lod2.glb'],
 };
-const LOD_DISTANCES: Record<AvatarKind, readonly number[]> = { boutique: [0, 10, 30], mpfb: [0, 10, 30], classic: [0, 30], female: [0, 10, 30] };
-const WHEEL_R = 0.335;
+const LOD_DISTANCES: Record<AvatarKind, readonly number[]> = { boutique: [0, 10, 30], tripo: [0, 10, 30], 'tripo-femme': [0, 10, 30], mpfb: [0, 10, 30], classic: [0, 30], female: [0, 10, 30] };
+const WHEEL_R = BIKE_REFERENCE.wheelRadiusM;
 /** Phase de pédale des deux pieds dans la pose de repos de l'avatar MPFB (BIND_PHASE de build_avatar.py : en bas). */
 const BIND_PHASE = 0;
 /**
@@ -183,6 +188,8 @@ const BIND_PHASE = 0;
  * réelles. Point fixe : axe des roues à l'aplomb du pédalier (roues toujours au sol).
  */
 const MODEL_HEIGHT_CM = 176.5;
+/** Coureurs Tripo (build_tripo.py) : taille de construction (jambe calée sur le vélo de référence, voir « taille : » à la construction). */
+const TRIPO_HEIGHT_CM: Partial<Record<AvatarKind, number>> = { tripo: 188.3, 'tripo-femme': 186.3 };
 /** Avatar MPFB (build_avatar.py) : stature mesurée sur le squelette (jambe + tronc + cou + tête) ≈ 1,75 m. */
 const MPFB_HEIGHT_CM = 175;
 /** Avatar féminin (build_avatar.py --variant female, jambes à la longueur du vélo de référence) : stature mesurée ≈ 1,748 m. */
@@ -212,7 +219,8 @@ const DROPS_BEND = 0.8;
 /**
  * Assis sur les cocottes : petite bascule en plus de la pose du modèle, qui laissait le dos à ≈ 47° (hanche →
  * épaule, mesuré) au lieu des ≈ 41° validés ; épaules plus basses et plus en avant, coudes plus pliés (les bras
- * paraissaient trop longs de dos).
+ * paraissaient trop longs de dos). Coureurs Tripo : aucune, leur pose cuite est déjà calée sur les cocottes
+ * (build_tripo.py : buste et coudes de la référence).
  */
 const HOODS_BEND = 0.15;
 const AERO_BEND = 1.0;
@@ -1309,7 +1317,8 @@ export class GltfRiderAvatar implements RiderAvatarLike {
    * (attendues aussi ; les autres se chargent à la demande). Renvoie false si le coureur ou le
    * vélo de base manque.
    */
-  static async load(families: readonly BikeFamily[] = [], baseUrl = `${import.meta.env.BASE_URL}models/`, kinds: readonly AvatarKind[] = AVATAR_KIND === 'mpfb' ? ['mpfb', 'female'] : [AVATAR_KIND]): Promise<boolean> {
+  // Modèle féminin dédié chargé seulement avec ?femmes=modele : sans ce paramètre il ne sert jamais (constructeur).
+  static async load(families: readonly BikeFamily[] = [], baseUrl = `${import.meta.env.BASE_URL}models/`, kinds: readonly AvatarKind[] = AVATAR_KIND === 'mpfb' ? (FEMALE_OWN_MODEL ? ['mpfb', 'female'] : ['mpfb']) : [AVATAR_KIND]): Promise<boolean> {
     const extra = Promise.all(families.map((f) => loadBikeFamily(f)));
     const ok = await Promise.all(kinds.map((k) => GltfRiderAvatar.loadKind(k, baseUrl)));
     await extra;
@@ -1325,7 +1334,7 @@ export class GltfRiderAvatar implements RiderAvatarLike {
           const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
           const skin = kind === 'mpfb' || kind === 'female' ? loadSkinTextures(`${baseUrl}avatar/`) : null;
           const cloth = kind === 'mpfb' || kind === 'female' ? loadClothTextures(`${baseUrl}avatar/`) : null;
-          const masks = kind === 'boutique' ? loadTexturedMasks(`${baseUrl}avatar/boutique/`) : null;
+          const masks = kind === 'boutique' || kind === 'tripo' || kind === 'tripo-femme' ? loadTexturedMasks(`${baseUrl}avatar/${kind}/`) : null;
           const [riders, plain] = await Promise.all([Promise.all(FILES[kind].map((f) => loader.loadAsync(baseUrl + f))), loadBikeFamily(PLAIN_BIKE_FAMILY), skin, cloth, masks]);
           if (!plain) throw new Error(`vélo de base (${PLAIN_BIKE_FAMILY}) indisponible`);
           templates.set(kind, buildTemplates(riders));
@@ -1561,7 +1570,9 @@ export class GltfRiderAvatar implements RiderAvatarLike {
       } else {
         // Pli de repos, resserré : de dos (caméra de suivi), les coudes ne partent pas en V vers l'extérieur.
         this.elbowPole[s].copy(c.pole);
-        this.elbowPole[s].x *= ELBOW_FLARE;
+        // Coureurs Tripo : pli de repos gardé tel quel (build_tripo.py le règle sur le modèle de référence,
+        // coudes un peu écartés) ; resserré, il tordait les poignets (main gardée dans son orientation de repos).
+        this.elbowPole[s].x *= this.kind === 'tripo' || this.kind === 'tripo-femme' ? 1 : ELBOW_FLARE;
         this.elbowPole[s].normalize();
       }
       this.handTarget[s].y += this.saddleLift;
@@ -1592,7 +1603,8 @@ export class GltfRiderAvatar implements RiderAvatarLike {
       this.ttLay = { elbow: { L: elbow('L'), R: elbow('R') }, grip: { L: grip('L'), R: grip('R') } };
     } else this.ttLay = null;
     // Prolongateurs de l'atelier (vélo de route) : relevés avec le poste de pilotage (saddleLift).
-    const kind = this.mounted?.build.extras?.aerobars;
+    // Posture seulement si assembleBike a réellement monté les prolongateurs (ni gravel, ni VTT, ni vélo à repose-coudes).
+    const kind = this.mounted?.levels[0]?.group.getObjectByName('aerobars') ? this.mounted.build.extras?.aerobars : undefined;
     if (kind && this.barTargets) {
       const a = aerobarAnchors(kind, anchors.hands);
       const lift = (v: THREE.Vector3) => v.clone().setY(v.y + this.saddleLift);
@@ -1832,7 +1844,7 @@ export class GltfRiderAvatar implements RiderAvatarLike {
     // --- Bassin
     const hipsR = t.bones.hips;
     const roll = 0.02 * Math.sin(a) * (1 - stand) * (1 - coast);
-    const race = DROPS_BEND * drops + AERO_BEND * aero + RELAX_BEND * relax + HOODS_BEND * hoods + HOODS_AERO_BEND * hoodsAero + this.forearmTuck * forearms + this.clipTuck * clip + TURTLE_BEND * turtle;
+    const race = DROPS_BEND * drops + AERO_BEND * aero + RELAX_BEND * relax + (this.kind === 'tripo' || this.kind === 'tripo-femme' ? 0 : HOODS_BEND) * hoods + HOODS_AERO_BEND * hoodsAero + this.forearmTuck * forearms + this.clipTuck * clip + TURTLE_BEND * turtle;
     const tuck = this.tuck * (1 - 0.6 * stand) * (1 - HORNS_UNTUCK * horns) + race;
     const tilt = -0.09 * stand - 0.05 * coast + TUCK_HIPS * tuck;
     _q1.setFromAxisAngle(Z_AXIS, counter + roll);
@@ -2231,7 +2243,7 @@ export class GltfRiderAvatar implements RiderAvatarLike {
   /** Rapport de taille d'un look (modèles MPFB et acheté ; l'ancien coureur garde la sienne). */
   private sizeOf(look: AvatarLook): number {
     if (this.t.names.hips !== 'pelvis' || !look.heightCm) return 1;
-    const ref = this.t.textured.size ? MODEL_HEIGHT_CM : this.kind === 'female' ? FEMALE_HEIGHT_CM : MPFB_HEIGHT_CM;
+    const ref = TRIPO_HEIGHT_CM[this.kind] ?? (this.t.textured.size ? MODEL_HEIGHT_CM : this.kind === 'female' ? FEMALE_HEIGHT_CM : MPFB_HEIGHT_CM);
     return THREE.MathUtils.clamp(look.heightCm, HEIGHT_RANGE_CM[0], HEIGHT_RANGE_CM[1]) / ref;
   }
 
@@ -2298,7 +2310,9 @@ export class GltfRiderAvatar implements RiderAvatarLike {
     this.mountBike(bikeOfLook(look), look);
     if (this.mounted) this.applyHeadgear(this.mounted.build);
     this.setBuild(look.build);
-    if (bikeTypeOf(look) !== this.bikeType) this.setBikeType(bikeTypeOf(look));
+    const type = bikeTypeOf(look);
+    if (type !== this.bikeType) this.setBikeType(type);
+    else if (this.lod.scale.x !== this.size) this.applySize();
   }
 }
 

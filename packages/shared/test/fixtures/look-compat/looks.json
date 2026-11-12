@@ -1,0 +1,79 @@
+{
+  "about": "Corpus SYNTHÉTIQUE de tenues enregistrées (AvatarLook), sans aucune donnée de joueur. Audit n° 3, étape E0.2. Les codes visage et leurs valeurs attendues sont écrits en clair, indépendamment de encodeFace/decodeFace : si le format du code visage change, ces attentes échouent.",
+  "faceCodes": {
+    "male": {
+      "code": "_n9_f39_f39_f39_f39_f39_f39_pX9_f39_f38Af39_X3-_M-Wy_n9_",
+      "values": { "jawWidth": 1, "noseTip": -1, "age": 0.5, "originAfrican": 1, "mouthCorners": -0.25, "eyeSize": 0.3, "weight": -0.6, "muscle": 0.8, "shoulders": 0.4 }
+    },
+    "female": {
+      "code": "WX9_f39_f7J_f39_f39_f39Af5h_f39_f39_f39_f6t_fwB_f39_f39_",
+      "values": { "sex": -1, "cheekbones": 0.4, "lipFullness": 0.35, "jawWidth": -0.3, "browHeight": 0.2, "neckWidth": -0.5 }
+    },
+    "extremes": {
+      "code": "AP4A_gD-AP4A_gD-AP4A_gD-AP4A_gD-AP4A_gD-AP4A_gD-AP4A_gD-",
+      "note": "curseurs aux butées, −1 aux positions paires et +1 aux positions impaires de FACE_SLIDERS"
+    },
+    "neutral": {
+      "code": "f39_f39_f39_f39_f39_f39_f39_f39_f39_f39_f39_f39_f39_f39_",
+      "note": "tête de base : tous les octets à 127"
+    }
+  },
+  "looks": {
+    "legacyMinimal": {
+      "skin": "#c68863", "hair": "#1b1b1b", "hairStyle": 0, "jersey": "#ff0000", "jerseyAccent": "#ffffff", "helmet": "#222222", "bike": "#00a0e0", "build": 0.55
+    },
+    "fullMale": {
+      "skin": "#e0b48f", "hair": "#6b4a2b", "hairStyle": 8, "jersey": "#1f6feb", "jerseyAccent": "#ffd23f", "helmet": "#f4f4f4",
+      "cap": { "style": "panneaux", "color": "#ffffff", "accent": "#d7262e", "colors": ["#d7262e", "#ffffff", "#1f6feb", "#ffd23f"] },
+      "bike": "#c0392b", "bikeModel": "div-specialized-roubaix-sport-2020", "build": 0.7,
+      "shoes": "#111111", "shoeAccent": "#ff5fa2", "shoeMark": "sphyre", "socks": "#f2f2f2",
+      "glassesFrame": "#ffffff", "glassesLens": "#2a6fdb", "sockHeight": "high", "legs": "short", "gloves": "full", "gloveColor": "#222222",
+      "bikeType": "road", "face": "_n9_f39_f39_f39_f39_f39_f39_pX9_f39_f38Af39_X3-_M-Wy_n9_",
+      "beard": 0.6, "freckles": 0.2, "moustache": true, "nationality": "FR",
+      "tune": ["tune-wh-zipp-303", "tune-ty-gp5000", "tune-sa-antares"], "heightCm": 183,
+      "jerseyStyle": "bandes", "jerseyBands": ["#0055a4", "#ffffff", "#ef4135"], "bottles": 2, "bottleColor": "white", "sleeves": "short",
+      "jerseyLogo": { "id": "cofidis", "tint": "#ffffff", "w": 0.16, "y": 0.02 }
+    },
+    "female": {
+      "skin": "#8d5524", "hair": "#2b1d14", "hairStyle": 10, "jersey": "#ffffff", "jerseyAccent": "#d7262e", "helmet": "#d7262e", "noHelmet": true,
+      "bike": "#ffffff", "build": 0.35, "shoes": "#f2f2f2", "socks": "#d7262e", "sockHeight": "low", "legs": "long", "gloves": "mitts",
+      "face": "WX9_f39_f7J_f39_f39_f39Af5h_f39_f39_f39_f6t_fwB_f39_f39_", "beard": 0, "moustache": false, "freckles": 0.5, "nationality": "BE",
+      "heightCm": 165, "jerseyStyle": "pois", "jerseyDots": { "r": 3.5, "step": 12 }, "sleeves": "long"
+    },
+    "femaleBraid": {
+      "skin": "#f1c27d", "hair": "#a0522d", "hairStyle": 2, "jersey": "#2e7d32", "jerseyAccent": "#ffffff", "helmet": "#ffffff",
+      "bike": "#2e7d32", "bikeModel": "s26-08-rbb-sworks-aethos", "build": 0.3, "shoes": "#ffffff", "socks": "#ffffff",
+      "face": "WX9_f39_f7J_f39_f39_f39Af5h_f39_f39_f39_f6t_fwB_f39_f39_", "heightCm": 160,
+      "glassesFrame": "#ffffff", "glassesLens": "#d7262e", "jerseyStyle": "manches", "gloves": "none"
+    },
+    "tt": {
+      "skin": "#f1c27d", "hair": "#e5c07b", "hairStyle": 3, "jersey": "#000000", "jerseyAccent": "#ffd23f", "helmet": "#000000", "helmetShape": "chrono",
+      "noGlasses": true, "bike": "#000000", "bikeModel": "s26-03-uae-tt1", "build": 0.5,
+      "face": "AP4A_gD-AP4A_gD-AP4A_gD-AP4A_gD-AP4A_gD-AP4A_gD-AP4A_gD-", "heightCm": 195, "bottles": 0
+    },
+    "capRider": {
+      "skin": "#c68863", "hair": "#cccccc", "hairStyle": 4, "jersey": "#ffffff", "jerseyAccent": "#d7262e", "helmet": "#ffffff",
+      "cap": { "style": "pois", "color": "#ffffff", "accent": "#d7262e" },
+      "bike": "#ffffff", "bikeModel": "myth-peugeot-px10", "build": 0.45, "beard": 1, "moustache": true,
+      "face": "f39_f39_f39_f39_f39_f39_f39_f39_f39_f39_f39_f39_f39_f39_", "heightCm": 175, "sockHeight": "high", "jerseyStyle": "degrade"
+    },
+    "legacyBikeId": {
+      "skin": "#c68863", "hair": "#1b1b1b", "hairStyle": 0, "jersey": "#ff0000", "jerseyAccent": "#ffffff", "helmet": "#222222", "bike": "#00a0e0", "build": 0.55,
+      "bikeModel": "bike-alu", "face": "f39_f39_f39_f39_f39_f39_f39_f39_f39_f39_f39_f39_f39_f39_"
+    },
+    "unknownBike": {
+      "skin": "#c68863", "hair": "#1b1b1b", "hairStyle": 0, "jersey": "#ff0000", "jerseyAccent": "#ffffff", "helmet": "#222222", "bike": "#00a0e0", "build": 0.55,
+      "bikeModel": "velo-qui-n-existe-pas"
+    },
+    "mtb": {
+      "skin": "#e0b48f", "hair": "#6b4a2b", "hairStyle": 5, "jersey": "#ff6f00", "jerseyAccent": "#000000", "helmet": "#000000",
+      "bike": "#ff6f00", "bikeType": "mtb", "build": 0.6, "shoes": "#000000", "socks": "#000000", "gloves": "full", "heightCm": 178,
+      "face": "_n9_f39_f39_f39_f39_f39_f39_pX9_f39_f38Af39_X3-_M-Wy_n9_"
+    },
+    "gravel": {
+      "skin": "#8d5524", "hair": "#1b1b1b", "hairStyle": 11, "jersey": "#795548", "jerseyAccent": "#ffffff", "helmet": "#795548",
+      "bike": "#795548", "bikeType": "gravel", "build": 0.4, "legs": "long", "sleeves": "long",
+      "face": "WX9_f39_f7J_f39_f39_f39Af5h_f39_f39_f39_f6t_fwB_f39_f39_", "heightCm": 170
+    }
+  }
+}

@@ -52,7 +52,10 @@ OUT = os.path.abspath(args.out)
 os.makedirs(OUT, exist_ok=True)
 
 # ---------------------------------------------------------------------------------------------
-# Cotes (repère client, mètres) — identiques à apps/client/src/rider/avatar.ts
+# Cotes (repère client, mètres). Vélo (BB, CRANK, WHEEL_R, axes, PEDAL_AXIS_X, REST_PITCH) : mêmes valeurs
+# que le vélo de référence du client (BIKE_REFERENCE, packages/shared/src/bikeReference.ts). Segments du
+# coureur (THIGH, SHIN, UPPER, FORE) : propres au squelette de cyclist.glb ; l'avatar procédural
+# (apps/client/src/rider/avatar.ts) et le coureur low poly (lowPolyRider.ts) ont leurs propres segments.
 # ---------------------------------------------------------------------------------------------
 BB = np.array([0.0, 0.27, 0.0])
 CRANK = 0.1725

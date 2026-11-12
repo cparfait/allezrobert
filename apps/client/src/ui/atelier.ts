@@ -2,7 +2,7 @@ import * as THREE from 'three/webgpu';
 import { emissive, mrt, normalView, output, packNormalToRGB, pass, sample, unpackRGBToNormal, vec4 } from 'three/tsl';
 import { bloom } from 'three/addons/tsl/display/BloomNode.js';
 import { ao } from 'three/addons/tsl/display/GTAONode.js';
-import { DEFAULT_LOOK, bikeById, type AvatarLook, type BikeFamily, type TuneSlot } from '@allezrobert/shared';
+import { BIKE_REFERENCE, DEFAULT_LOOK, bikeById, type AvatarLook, type BikeFamily, type TuneSlot } from '@allezrobert/shared';
 import { createAvatar, type RiderAvatarLike, type RiderPose } from '../rider/gltfAvatar.ts';
 import { loadBikeFamily, loneWheel, onBikeFamilyLoaded } from '../rider/bikes.ts';
 import { compilePass, isCompiling, type Engine } from '../engine/renderer.ts';
@@ -612,7 +612,8 @@ export class AtelierHost {
     const own = (this.avatar as unknown as { wheels?: unknown }).wheels;
     if (Array.isArray(own)) for (const w of own) if (w instanceof THREE.Object3D && !wheels.rear.includes(w) && !wheels.front.includes(w)) wheels[w.position.z < 0 ? 'rear' : 'front'].push(w);
     const axle = (list: THREE.Object3D[], fallback: THREE.Vector3) => (list[0] ? this.bikeRoot.worldToLocal(list[0].getWorldPosition(new THREE.Vector3())) : fallback);
-    const rear = axle(wheels.rear, new THREE.Vector3(0, TRAINER_AXLE_Y, -0.41));
+    // Replis sans roue trouvée : axe arrière du vélo de référence ; axe avant à 0,6 (valeur historique, conservée).
+    const rear = axle(wheels.rear, new THREE.Vector3(0, TRAINER_AXLE_Y, BIKE_REFERENCE.rearAxle[2]));
     const front = axle(wheels.front, new THREE.Vector3(0, TRAINER_AXLE_Y, 0.6));
     // Axe du home trainer sur celui du vélo (écart de hauteur de roue borné : les pieds restent au sol).
     tr.group.position.set(0, THREE.MathUtils.clamp(rear.y - TRAINER_AXLE_Y, -0.02, 0.02), rear.z);

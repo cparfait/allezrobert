@@ -65,7 +65,8 @@ ap.add_argument('--elbow', default='', help='direction des coudes x,y,z (repère
 ap.add_argument('--seat', default='', help='décalage des hanches x,y,z (repère client), essais')
 ap.add_argument('--shoulders', default='', help='avancée,élévation des épaules (°), essais')
 ap.add_argument('--no-compress', action='store_true')
-args = ap.parse_args(argv)
+# Options inconnues ignorées : build_tripo.py importe ce module (pose de conduite, export) avec les siennes.
+args, _ = ap.parse_known_args(argv)
 OUT = os.path.abspath(args.out)
 os.makedirs(OUT, exist_ok=True)
 PNPM = shutil.which('pnpm') or 'pnpm'
@@ -1044,4 +1045,5 @@ def main():
         print(f'{name} : {os.path.getsize(out) / 1e6:.2f} Mo')
 
 
-main()
+if __name__ == '__main__':
+    main()

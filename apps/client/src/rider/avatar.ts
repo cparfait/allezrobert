@@ -1,5 +1,5 @@
 import * as THREE from 'three/webgpu';
-import { bikeOfLook, type AvatarLook } from '@allezrobert/shared';
+import { BIKE_REFERENCE, bikeOfLook, type AvatarLook } from '@allezrobert/shared';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 /**
@@ -35,13 +35,14 @@ function mergeByMaterial(group: THREE.Object3D): void {
  * Pédalage PROCÉDURAL : la manivelle tourne à la cadence réelle, les pieds sont
  * verrouillés sur les pédales et les jambes suivent par cinématique inverse à deux os.
  * Positions : assis, danseuse (balancement du vélo), roue libre.
+ * Boîtier, manivelle, rayon de roue et axes : vélo de référence (BIKE_REFERENCE, packages/shared/src/bikeReference.ts).
  */
 
-const BB = new THREE.Vector3(0, 0.27, 0);
-const CRANK = 0.1725;
-const WHEEL_R = 0.335;
-const REAR_AXLE = new THREE.Vector3(0, WHEEL_R, -0.41);
-const FRONT_AXLE = new THREE.Vector3(0, WHEEL_R, 0.59);
+const BB = new THREE.Vector3(...BIKE_REFERENCE.bottomBracket);
+const CRANK = BIKE_REFERENCE.crankLengthM;
+const WHEEL_R = BIKE_REFERENCE.wheelRadiusM;
+const REAR_AXLE = new THREE.Vector3(...BIKE_REFERENCE.rearAxle);
+const FRONT_AXLE = new THREE.Vector3(...BIKE_REFERENCE.frontAxle);
 const SADDLE = new THREE.Vector3(0, 0.95, -0.2);
 const HOODS_Z = 0.53;
 const THIGH = 0.46;
