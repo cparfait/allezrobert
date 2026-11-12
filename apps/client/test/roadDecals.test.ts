@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DECAL_CROSSWALK, DECAL_GRATE, DECAL_MANHOLE, GUTTER_W, placeDecals, pushDecal, type DecalSink } from '../src/world/roadDecals.ts';
+import { DECAL_CROSSWALK, DECAL_GRATE, DECAL_MANHOLE, GUTTER_W, decalAtCrossing, placeDecals, pushDecal, type DecalSink } from '../src/world/roadDecals.ts';
 
 /** Rue de 120 m (profils tous les 3 m), trottoirs partout sauf sur les 9 premiers mètres (carrefour). */
 const street = (along: number[] = Array.from({ length: 41 }, (_, i) => i * 3)) => {
@@ -18,6 +18,11 @@ describe('placeDecals', () => {
     expect(cross[0]!.a0).toBeGreaterThanOrEqual(9);
     expect(cross[0]!.a0).toBeLessThan(10);
     expect(cross[0]!.u1 - cross[0]!.u0).toBeCloseTo(8 - 0.5);
+  });
+
+  it('pas de passage piéton si le trottoir reprend sans rue qui croise', () => {
+    const ds = placeDecals({ ...street(), atCrossing: () => false });
+    expect(ds.some((d) => d.kind === DECAL_CROSSWALK)).toBe(false);
   });
 
   it('marche aussi dans une voie parcourue à rebours', () => {
@@ -86,5 +91,17 @@ describe('pushDecal', () => {
     const [bx, bz] = p(b!);
     const [cx, cz] = p(c!);
     expect((bz - az) * (cx - ax) - (bx - ax) * (cz - az)).toBeGreaterThan(0);
+  });
+});
+
+describe('decalAtCrossing', () => {
+  // Voie droite le long de z, de 0 à 30 m ; une rue la croise en z = 20 (chaussée de 3 m de part et d'autre).
+  const along = [0, 10, 20, 30];
+  const left = along.flatMap((a) => [-4.6, 0, a]);
+  const right = along.flatMap((a) => [4.6, 0, a]);
+  const crossing = (_x: number, z: number) => Math.abs(z - 20) < 3;
+  it('écarte un rapiéçage posé dans le carrefour, garde celui d avant', () => {
+    expect(decalAtCrossing({ kind: 1, u0: 0.5, u1: 3, a0: 18, a1: 24, seed: 0 }, left, right, along, 4.6, crossing)).toBe(true);
+    expect(decalAtCrossing({ kind: 1, u0: 0.5, u1: 3, a0: 4, a1: 12, seed: 0 }, left, right, along, 4.6, crossing)).toBe(false);
   });
 });

@@ -6,11 +6,12 @@ import { asphaltGrain } from './asphalt.ts';
 import { isRouteTwin } from './splat.ts';
 import { chainPieces, ribbonIndex, sideRoadStrips, type RouteFootprint } from './ribbon.ts';
 import { cloudShade } from './clouds.ts';
-import { LAMP_FROM_CURB, LAMP_LEFT, LAMP_RIGHT, LAMP_SPACING, LAMP_STAGGERED, ROAD_FX, RoadLightingModel, asphaltColor, asphaltGrainSoft, decalShade, lampIsLeft, lampPool, reflectAlpha, rippleNormal, wetAlbedo, wetMasks, wetRoughness } from './roadSurface.ts';
-import { LampField, createLampMaterial, type LampSpot } from './streetLamps.ts';
+import { LAMP_STRENGTH, LAMP_FROM_CURB, LAMP_LEFT, LAMP_RIGHT, LAMP_SPACING, LAMP_STAGGERED, ROAD_FX, RoadLightingModel, asphaltColor, asphaltGrainSoft, decalShade, lampIsLeft, lampPool, reflectAlpha, rippleNormal, wetAlbedo, wetMasks, wetRoughness } from './roadSurface.ts';
+import { LampField, NearLampLights, createLampMaterial, type LampSpot } from './streetLamps.ts';
 import { CURB_H, CURB_W, StreetIndex, pushSidewalk, dropShortRuns, refineSidewalkEnds, resampleStrip, trimOverBank, type EdgeKind, type MeshSink } from './sidewalks.ts';
-import { DECAL_GUTTER, DECAL_OIL, GUTTER_W, placeDecals, pushDecal, stripSeed } from './roadDecals.ts';
+import { DECAL_CROSSWALK, DECAL_GUTTER, DECAL_OIL, GUTTER_W, decalAtCrossing, placeDecals, pushDecal, stripSeed } from './roadDecals.ts';
 import { tune } from '../dev/tuning.ts';
+import { bollardGeometry, buildShopProps, createBollardMaterial, createPropMaterial, placeBollards } from './streetProps.ts';
 
 /** Réglages (?reglages, voir dev/tuning.ts). */
 const ASPHALT = tune('route.enrobe', "Teinte de l'enrobé", 1, 0.4, 2.5, 0.02);
@@ -40,6 +41,11 @@ export class RoadNetwork {
   private readonly lampMat = createLampMaterial(this.night);
   /** Lampadaires de toutes les tuiles : un seul appel de dessin. */
   private readonly lamps = new LampField(this.lampMat);
+  /** Potelets de toutes les tuiles (un appel de dessin) ; stores et terrasses : un maillage par tuile. */
+  private readonly bollards = new LampField(createBollardMaterial(), bollardGeometry(), 'bollards');
+  private readonly propMat = createPropMaterial();
+  /** Lampadaires proches allumés en vraies lumières la nuit (groupe à ajouter à la scène, hors du décor figé). */
+  readonly lampLights: NearLampLights;
   /** Murs à vitrine d'une tuile (bâtiments construits avant la voirie, voir world.ts). */
   private shopWallsOf: (tileId: string) => readonly number[] = () => [];
   private readonly roadMat: THREE.MeshStandardNodeMaterial;
@@ -55,14 +61,20 @@ export class RoadNetwork {
   private readonly drawCycleways: boolean;
   private readonly groundAt: (x: number, z: number) => number;
 
-  constructor(activeRoute: string, groundAt: (x: number, z: number) => number, footprint: RouteFootprint | null = null, drawCycleways = false) {
+  constructor(activeRoute: string, groundAt: (x: number, z: number) => number, footprint: RouteFootprint | null = null, drawCycleways = false, lampLights = 0) {
+    this.lampLights = new NearLampLights(ROAD_FX && !LOW_POLY ? lampLights : 0);
     this.activeRoute = activeRoute;
     this.drawCycleways = drawCycleways;
     this.groundAt = groundAt;
     this.footprint = footprint;
     this.group.name = 'network';
     this.roadMat = this.createRoadMaterial();
-    this.group.add(this.lamps.group);
+    this.group.add(this.lamps.group, this.bollards.group);
+  }
+
+  /** La nuit, les lampadaires les plus proches éclairent vraiment (voir NearLampLights). */
+  updateLights(dt: number, focus: THREE.Vector3): void {
+    this.lampLights.update(dt, focus, this.night.value, LAMP_STRENGTH.value, this.lamps.spots());
   }
 
   /** Branche les vitrines des bâtiments : le trottoir s'éclaire devant elles la nuit. */
@@ -228,7 +240,9 @@ export class RoadNetwork {
     });
     if (roads.length) {
       const lamps: LampSpot[] = [];
-      const geo = buildRoads(roads, this.footprint, ROAD_FX && !LOW_POLY ? new StreetIndex(tile, roads, this.shopWallsOf(tile.id)) : null, lamps, this.groundAt);
+      const bollards: LampSpot[] = [];
+      const street = ROAD_FX && !LOW_POLY ? new StreetIndex(tile, roads, this.shopWallsOf(tile.id)) : null;
+      const geo = buildRoads(roads, this.footprint, street, lamps, this.groundAt, bollards);
       if (geo) {
         const mesh = new THREE.Mesh(geo, this.roadMat);
         mesh.receiveShadow = true;
@@ -236,6 +250,16 @@ export class RoadNetwork {
         objs.push(mesh);
       }
       this.lamps.set(tile.id, lamps);
+      this.bollards.set(tile.id, bollards);
+      // Stores bannes et terrasses devant les vitrines (ombres portées sur le trottoir).
+      const props = street ? buildShopProps(this.shopWallsOf(tile.id), street, this.groundAt) : null;
+      if (props) {
+        const mesh = new THREE.Mesh(props, this.propMat);
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+        mesh.name = `props_${tile.id}`;
+        objs.push(mesh);
+      }
     }
     objs.forEach((o) => this.group.add(o));
     this.tiles.set(tile.id, objs);
@@ -245,6 +269,7 @@ export class RoadNetwork {
     const objs = this.tiles.get(tile.id);
     if (!objs) return;
     this.lamps.remove(tile.id);
+    this.bollards.remove(tile.id);
     for (const o of objs) {
       this.group.remove(o);
       (o as THREE.Mesh).geometry.dispose();
@@ -265,7 +290,7 @@ function edgeAt(street: StreetIndex, x: number, y: number, z: number, dx: number
 }
 
 /** Rubans de toutes les routes d'une tuile, fusionnés (un seul appel de dessin). */
-function buildRoads(roads: TileRoad[], footprint: RouteFootprint | null, street: StreetIndex | null, lamps: LampSpot[], groundAt: ((x: number, z: number) => number) | null): THREE.BufferGeometry | null {
+function buildRoads(roads: TileRoad[], footprint: RouteFootprint | null, street: StreetIndex | null, lamps: LampSpot[], groundAt: ((x: number, z: number) => number) | null, bollards: LampSpot[] = []): THREE.BufferGeometry | null {
   const lampGrid = new Map<number, LampSpot[]>();
   const sink: MeshSink = { pos: [], uvs: [], info: [], lit: [], decal: [], dsize: [], side: [], index: [] };
   const { pos, uvs, info, lit, decal, dsize, side, index } = sink;
@@ -285,7 +310,8 @@ function buildRoads(roads: TileRoad[], footprint: RouteFootprint | null, street:
     for (const raw of sideRoadStrips(c.pts3, o, half, footprint, 0.05, c.dirs, c.stops)) {
       // En ville, profils tous les 3 m : largeur de trottoir et lampadaires varient plus vite que les points OSM.
       const city = !!street && unpaved !== 1 && half >= 2;
-      const s = city ? resampleStrip(raw.left, raw.right, raw.along, 3) : raw;
+      // Routes marquées hors ville : profils tous les 4 m, pour couper net les lignes au carrefour (voir plus bas).
+      const s = city ? resampleStrip(raw.left, raw.right, raw.along, 3) : marked && street ? resampleStrip(raw.left, raw.right, raw.along, 4) : raw;
       const base = pos.length / 3;
       const n = s.along.length;
       const lampAt = new Float32Array(n);
@@ -366,7 +392,7 @@ function buildRoads(roads: TileRoad[], footprint: RouteFootprint | null, street:
         // Carrefour : pas de ligne de rive ni d'axe sur la chaussée de la rue qui croise (elles se superposaient).
         let mL = marked;
         let mR = marked;
-        if (marked && city && street) {
+        if (marked && street) {
           const ex = (s.right[i * 3] as number) - (s.left[i * 3] as number);
           const ez = (s.right[i * 3 + 2] as number) - (s.left[i * 3 + 2] as number);
           const el = Math.hypot(ex, ez) || 1;
@@ -392,8 +418,27 @@ function buildRoads(roads: TileRoad[], footprint: RouteFootprint | null, street:
       // les dessine (ROAD_FX, style réaliste) : sinon ces quads restaient en dalles d'enrobé uni, sombres, posées
       // de travers sur la chaussée et jusque sur les bas-côtés (rapiéçages, tranchées, plaques en low poly).
       if (ROAD_FX && !LOW_POLY && street && unpaved === 0) {
-        const decals = placeDecals({ along: s.along, half, o, city, wL, wR, seed: stripSeed(s.left[0] as number, s.left[2] as number) });
+        // Pas de rapiéçage, tache ou plaque là où la rue croise une autre chaussée (deux rubans s'y recouvrent).
+        // Profil sur la chaussée d'une rue qui croise (au milieu ou à l'un des bords) : carrefour.
+        const atCrossing = (k: number) => {
+          const ex = (s.right[k * 3] as number) - (s.left[k * 3] as number);
+          const ez = (s.right[k * 3 + 2] as number) - (s.left[k * 3 + 2] as number);
+          return [0, 0.15, 0.5, 0.85, 1].some((t) => street.crossRoad((s.left[k * 3] as number) + ex * t, (s.left[k * 3 + 2] as number) + ez * t, -ez, ex, 1));
+        };
+        const decals = placeDecals({ along: s.along, half, o, city, wL, wR, seed: stripSeed(s.left[0] as number, s.left[2] as number), atCrossing }).filter(
+          (d) => d.kind === DECAL_CROSSWALK || !decalAtCrossing(d, s.left, s.right, s.along, o, (x, z, dx, dz) => street.crossRoad(x, z, dx, dz)),
+        );
         for (const d of decals) pushDecal(sink, s.left, s.right, s.along, o, half, d, Array.from(lampAt));
+        // Potelets : près des passages piétons, et le long d'une rue sur trois environ.
+        if (city) {
+          const crossings = decals.filter((d) => d.kind === DECAL_CROSSWALK);
+          // Rue entière bordée de potelets : à la parisienne, seulement en quartier dense (pas dans les villages).
+          const mid = Math.floor(n / 2);
+          const dense = street.density(((s.left[mid * 3] as number) + (s.right[mid * 3] as number)) / 2, ((s.left[mid * 3 + 2] as number) + (s.right[mid * 3 + 2] as number)) / 2) >= 14;
+          const wholeStreet = dense && stripSeed(s.left[0] as number, s.left[2] as number) % 100 < 33;
+          for (const sd of [-1, 1])
+            bollards.push(...placeBollards({ edge: sd < 0 ? s.left : s.right, along: s.along, widths: sd < 0 ? wL : wR, ux, uz, sign: sd, crossings, lamps, wholeStreet }));
+        }
       }
       if (city && groundAt && street) {
         // Bouts de trottoir posés au bord de la chaussée voisine (plus de pointe qui la recouvre).

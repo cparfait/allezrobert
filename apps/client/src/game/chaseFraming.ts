@@ -127,17 +127,24 @@ export class CameraBoom {
       return out;
     }
     // Distance libre le long du bras depuis la tête (approchée par la distance au point d'impact pour les rayons obliques).
+    // `sight` : lignes de vue (tête, vélo), seules à imposer la butée dure ; les rayons des bords de l'objectif
+    // (obliques, distance approchée) ne font que rapprocher en douceur : le coureur qui frôle un angle de maison
+    // les déclenchait avant la ligne de vue, d'où un saut de la caméra.
     let free = reach;
-    const ray = (from: THREE.Vector3, to: THREE.Vector3) => {
+    let sight = reach;
+    const ray = (from: THREE.Vector3, to: THREE.Vector3, los: boolean) => {
       const h = occlusion(from, to);
-      if (h !== null) free = Math.min(free, h * from.distanceTo(to));
+      if (h === null) return;
+      const d = h * from.distanceTo(to);
+      free = Math.min(free, d);
+      if (los) sight = Math.min(sight, d);
     };
-    ray(_head, _probe);
-    if (!inside(_bike)) ray(_bike, _probe);
-    ray(_head, _a.copy(_probe).add(_side));
-    ray(_head, _a.copy(_probe).sub(_side));
+    ray(_head, _probe, true);
+    if (!inside(_bike)) ray(_bike, _probe, true);
+    ray(_head, _a.copy(_probe).add(_side), false);
+    ray(_head, _a.copy(_probe).sub(_side), false);
     const minScale = Math.min(1, MIN_LEN / len);
-    const hard = Math.max(minScale, (free - 0.15) / len);
+    const hard = Math.max(minScale, (sight - 0.15) / len);
     const target = Math.min(1, Math.max(minScale, (free - MARGIN) / len));
     this.scale += (target - this.scale) * (1 - Math.exp(-dt * (target < this.scale ? 12 : 1.5)));
     // Mur plus près que la caméra (sortie d'un porche, angle surgi) : rattrapage très rapide (≈ 0,03 s) plutôt

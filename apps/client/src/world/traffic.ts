@@ -35,6 +35,8 @@ interface ModelSpec {
   weight: number;
   /** Exporté l'avant vers −z (sans `--flip` à l'export) : retourné au chargement. */
   reversed?: boolean;
+  /** Vitrages presque opaques dans le modèle d'origine (noms de matériaux) : éclaircis pour voir l'occupant. */
+  tint?: string[];
   /** Point de hanche de l'occupant (m, avant vers +z, gauche en +x) ; absent : vitres opaques, personne à voir. */
   seat?: [number, number, number];
   /** Le modèle a gardé son siège et son volant : l'occupant vient sans les siens. */
@@ -47,8 +49,8 @@ const MODELS: ModelSpec[] = [
   { file: 'citadine', kind: 'car', cruise: [10, 14], repaint: true, weight: 2, seat: [0.36, 0.52, -0.1] },
   { file: 'berline', kind: 'car', cruise: [11, 16], repaint: true, weight: 3, seat: [0.36, 0.48, -0.1] },
   { file: 'suv', kind: 'car', cruise: [11, 15], repaint: true, weight: 2, seat: [0.4, 0.55, -0.1] },
-  { file: 'porsche-911', kind: 'car', cruise: [13, 19], repaint: true, weight: 1, seat: [0.38, 0.3, -0.25] },
-  { file: 'nissan-silvia', kind: 'car', cruise: [12, 17], repaint: true, weight: 1.5, seat: [0.38, 0.33, -0.2] },
+  { file: 'porsche-911', kind: 'car', cruise: [13, 19], repaint: true, weight: 1, seat: [0.38, 0.3, -0.05] },
+  { file: 'nissan-silvia', kind: 'car', cruise: [12, 17], repaint: true, weight: 1.5, seat: [0.38, 0.33, 0.25], tint: ['Material.006'] },
   { file: 'bmw-733i', kind: 'car', cruise: [11, 16], repaint: false, weight: 1.5, reversed: true },
   { file: 'mercedes-c230', kind: 'car', cruise: [11, 16], repaint: false, weight: 1.5 },
   { file: 'lamborghini-aventador', kind: 'car', cruise: [13, 19], repaint: true, weight: 0.8, seat: [0.4, 0.18, -0.1], ownCabin: true },
@@ -93,6 +95,7 @@ export function loadVehicleModels(base = '/models/vehicles/'): Promise<boolean> 
           () => null,
         );
         prepare(near, true);
+        if (spec.tint) for (const root of far ? [near, far] : [near]) clearGlass(root, spec.tint);
         if (far) prepare(far, false);
         // Modèle d'un seul tenant (tracteur) : roues retrouvées dans le maillage pour qu'elles tournent.
         for (const root of far ? [near, far] : [near]) {
@@ -136,6 +139,23 @@ const WHEEL = /^wheel/i;
 /** Nœud de roue le plus haut (ses sous-maillages, un par matériau, tournent avec lui). */
 const isWheel = (o: THREE.Object3D) => WHEEL.test(o.name) && !(o.parent && WHEEL.test(o.parent.name));
 const isPaint = (m: THREE.Material) => /paint|body|carros/i.test(m.name);
+
+/** Vitrage teinté mais translucide : on voit le conducteur au travers (la réfraction le masquait). */
+function clearGlass(root: THREE.Object3D, names: string[]): void {
+  root.traverse((o) => {
+    const mesh = o as THREE.Mesh;
+    if (!mesh.isMesh) return;
+    for (const m of Array.isArray(mesh.material) ? mesh.material : [mesh.material]) {
+      if (!names.includes(m.name)) continue;
+      const g = m as THREE.MeshPhysicalMaterial;
+      if ('transmission' in g) g.transmission = 0;
+      g.transparent = true;
+      g.opacity = 0.55;
+      g.depthWrite = false;
+      g.needsUpdate = true;
+    }
+  });
+}
 
 function prepare(root: THREE.Object3D, shadows: boolean): void {
   root.traverse((o) => {

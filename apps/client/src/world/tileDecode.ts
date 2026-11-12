@@ -1,5 +1,6 @@
 import { deltaDecodeU16, type WorldTile } from '@allezrobert/shared';
 import type { TileFeatures } from './types.ts';
+import { roundRoads } from './roadCorners.ts';
 
 /**
  * Décodage d'une tuile (JSON des entités + grille d'altitudes Uint16), sans DOM ni three.js : exécuté dans
@@ -35,16 +36,20 @@ export function decodeTile(tile: WorldTile, raw: Uint16Array): DecodedTile {
 }
 
 export function toFeatures(t: WorldTile): TileFeatures {
+  // Coudes arrondis (roadCorners.ts), sauf aux carrefours : chaussée, terrain, trottoirs et bâtiments lisent tous
+  // cette polyligne-ci.
+  const rounded = roundRoads(t.roads.map((r) => r.pts));
   return {
-    roads: t.roads.map((r) => {
+    roads: t.roads.map((r, ri) => {
+      const pts3 = rounded[ri] as number[];
       const flat: number[] = [];
-      for (let i = 0; i < r.pts.length; i += 3) flat.push(r.pts[i] as number, r.pts[i + 2] as number);
+      for (let i = 0; i < pts3.length; i += 3) flat.push(pts3[i] as number, pts3[i + 2] as number);
       return {
         ...(r.id ? { id: r.id } : {}),
         kind: r.kind,
         width: r.width,
         pts: flat,
-        pts3: r.pts,
+        pts3,
         surface: r.surface,
         ...(r.route ? { route: r.route } : {}),
         ...(r.ref ? { ref: r.ref } : {}),

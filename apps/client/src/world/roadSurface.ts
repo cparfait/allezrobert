@@ -226,12 +226,13 @@ export function decalShade(dk: THREE.Node<'vec4'>, size: THREE.Node<'vec2'>, pix
       If(k.lessThan(1.5), () => {
         // Rapiéçage : enrobé neuf noir ou ancien gris, joint de bitume tout autour.
         const fresh = step(0.45, sd);
-        const col = mix(vec3(0.088, 0.085, 0.08), vec3(0.045, 0.045, 0.047), fresh).mul(g).mul(mx_noise_float(wp.mul(0.9)).mul(0.08).add(1));
+        // Ancien : à peine plus clair que l'enrobé (plus clair, il faisait des bandes de travers).
+        const col = mix(vec3(0.068, 0.066, 0.063), vec3(0.045, 0.045, 0.047), fresh).mul(g).mul(mx_noise_float(wp.mul(0.9)).mul(0.08).add(1));
         out.assign(vec4(mix(col, vec3(0.016, 0.016, 0.018), seamOf(edgeDist(x, y, W, L), p).mul(0.85)), 1));
       })
         .ElseIf(k.lessThan(2.5), () => {
           // Tranchée : enrobé plus clair, plus grossier, joint marqué.
-          const col = vec3(0.1, 0.096, 0.09).mul(g).mul(mx_noise_float(wp.mul(2.3)).mul(0.12).add(1));
+          const col = vec3(0.072, 0.07, 0.066).mul(g).mul(mx_noise_float(wp.mul(2.3)).mul(0.12).add(1));
           out.assign(vec4(mix(col, vec3(0.02, 0.02, 0.021), seamOf(edgeDist(x, y, W, L), p).mul(0.8)), 1));
         })
         .ElseIf(k.lessThan(3.5), () => {

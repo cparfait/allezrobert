@@ -95,6 +95,20 @@ describe('CameraBoom', () => {
     for (let i = 0; i < 60; i++) boom.update(rider, end, 1 / 60, inBuilding, out);
     expect(out.distanceTo(end)).toBeLessThan(1e-6);
   });
+  it('angle de maison frôlé (rayon du bord de l’objectif seul touché) : rapprochement doux, pas de saut', () => {
+    // Angle de bâtiment : touché seulement par un rayon oblique (côté +x), à 0,6 m de la tête ; la ligne de vue est dégagée.
+    const corner = (a: THREE.Vector3, b: THREE.Vector3): number | null => (b.x > a.x + 0.05 ? 0.6 / a.distanceTo(b) : null);
+    const boom = new CameraBoom();
+    const out = new THREE.Vector3();
+    let prev = end.clone();
+    let maxStep = 0;
+    for (let i = 0; i < 30; i++) {
+      boom.update(rider, end, 1 / 60, corner, out);
+      maxStep = Math.max(maxStep, out.distanceTo(prev));
+      prev = out.clone();
+    }
+    expect(maxStep).toBeLessThan(0.45);
+  });
   it('recule doucement quand le mur disparaît (pas de saut)', () => {
     const boom = new CameraBoom();
     const out = new THREE.Vector3();

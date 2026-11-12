@@ -67,17 +67,26 @@ export function buildLampGeometry(spots: readonly LampSpot[]): THREE.BufferGeome
  */
 export class LampField {
   readonly group = new THREE.Group();
-  private readonly geometry = buildLampGeometry([{ x: 0, y: 0, z: 0 }]);
   private readonly byTile = new Map<string, readonly LampSpot[]>();
   private mesh: THREE.InstancedMesh | null = null;
   private capacity = 0;
 
-  constructor(private readonly material: THREE.Material) {
-    this.group.name = 'lamps';
+  /** `geometry` : modèle d'un pied (lampadaire par défaut ; aussi les potelets, streetProps.ts). */
+  constructor(
+    private readonly material: THREE.Material,
+    private readonly geometry: THREE.BufferGeometry = buildLampGeometry([{ x: 0, y: 0, z: 0 }]),
+    private readonly label = 'lamps',
+  ) {
+    this.group.name = label;
   }
 
   get count(): number {
     return this.mesh?.count ?? 0;
+  }
+
+  /** Tous les pieds posés. */
+  *spots(): Generator<LampSpot> {
+    for (const s of this.byTile.values()) yield* s;
   }
 
   set(tileId: string, spots: readonly LampSpot[]): void {
@@ -100,7 +109,7 @@ export class LampField {
       }
       this.capacity = Math.max(256, 2 ** Math.ceil(Math.log2(total)));
       this.mesh = new THREE.InstancedMesh(this.geometry, this.material, this.capacity);
-      this.mesh.name = 'lamps';
+      this.mesh.name = this.label;
       this.group.add(this.mesh);
     }
     if (!this.mesh) return;
@@ -112,6 +121,59 @@ export class LampField {
     if (i) this.mesh.computeBoundingSphere();
   }
 }
+
+/**
+ * La nuit, les lampadaires les plus proches du coureur deviennent de vraies lumières : elles éclairent les façades,
+ * le trottoir, les vélos (la flaque peinte au sol ne touchait que la voirie). Nombre fixe de lumières (allumées ou
+ * éteintes par l'intensité, jamais ajoutées ni retirées : pas de recompilation des matériaux), choisies 4 fois par
+ * seconde.
+ */
+export class NearLampLights {
+  readonly group = new THREE.Group();
+  private readonly lights: THREE.PointLight[] = [];
+  private wait = 0;
+
+  constructor(count: number) {
+    this.group.name = 'lamp-lights';
+    for (let i = 0; i < count; i++) {
+      const l = new THREE.PointLight(0xffc488, 0, 24, 2);
+      l.castShadow = false;
+      this.lights.push(l);
+      this.group.add(l);
+    }
+  }
+
+  update(dt: number, focus: THREE.Vector3, night: number, strength: number, spots: Iterable<LampSpot>): void {
+    if (!this.lights.length) return;
+    this.wait -= dt;
+    if (this.wait > 0) {
+      for (const l of this.lights) l.intensity = l.userData.on ? night * strength * LAMP_CANDELA : 0;
+      return;
+    }
+    this.wait = 0.25;
+    // Les plus proches (horizontalement), dans un rayon de 80 m.
+    const best: Array<{ d: number; s: LampSpot }> = [];
+    for (const s of spots) {
+      const d = (s.x - focus.x) ** 2 + (s.z - focus.z) ** 2;
+      if (d > 80 * 80) continue;
+      if (best.length < this.lights.length) best.push({ d, s });
+      else {
+        let w = 0;
+        for (let k = 1; k < best.length; k++) if ((best[k] as { d: number }).d > (best[w] as { d: number }).d) w = k;
+        if (d < (best[w] as { d: number }).d) best[w] = { d, s };
+      }
+    }
+    this.lights.forEach((l, i) => {
+      const b = best[i];
+      l.userData.on = !!b;
+      if (b) l.position.set(b.s.x, b.s.y + POST_H + 0.25, b.s.z);
+      l.intensity = b ? night * strength * LAMP_CANDELA : 0;
+    });
+  }
+}
+
+/** Intensité d'une lanterne (unités de la scène : le soleil vaut 3 à 4). */
+const LAMP_CANDELA = 9;
 
 /** Fonte sombre ; la vitre de la lanterne rayonne la nuit (bloom : halo dans la brume, reflet dans les flaques). */
 export function createLampMaterial(night: THREE.Node<'float'>): THREE.MeshStandardNodeMaterial {

@@ -116,7 +116,8 @@ export class World {
     // à graphe routier : ruban masqué, la chaussée dessinée est celle d'OSM ; seul le passage du coureur compte.
     this.buildings.setRoute(route.points.flatMap((p) => [p.x, p.z]), open ? Math.min(2, route.roadWidthM / 2) : route.roadWidthM / 2);
     scene.add(this.buildings.group);
-    this.network = new RoadNetwork(open ? '' : baseRouteId(route.id), groundAt, footprint, open);
+    this.network = new RoadNetwork(open ? '' : baseRouteId(route.id), groundAt, footprint, open, q.lampLights);
+    scene.add(this.network.lampLights.group);
     this.network.setShopWalls((id) => this.buildings.shopWalls(id));
     scene.add(this.network.group);
     this.rain = new Rain();
@@ -268,6 +269,7 @@ export class World {
     // Réglage « forcer la pluie » (?reglages) : chaussée mouillée quel que soit le ciel.
     this.network.wetness.value = Math.max(w.rain, tuned('pluie.forcer', 0));
     this.network.night.value = this.nightFactor() > 0.3 ? 1 : 0;
+    this.network.updateLights(dt, focus);
     this.terrain.wetness.value = w.rain * 0.8;
     this.vegetation.windStrength.value = 0.15 + w.windMs * 0.06;
     this.grass.wind.value = 0.25 + w.windMs * 0.08;
@@ -453,6 +455,7 @@ export class World {
     this.terrain.disposeAll();
     this.env.dispose();
     this.road.mesh.geometry.dispose();
+    this.scene.remove(this.network.lampLights.group);
     this.scene.remove(this.terrain.group, this.road.mesh, this.vegetation.group, this.buildings.group, this.network.group, this.grass.mesh, this.rain.mesh, this.water.group, this.railways.group, this.dust.sprite);
     if (this.life) {
       this.scene.remove(this.life.group);

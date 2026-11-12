@@ -17,6 +17,8 @@ export interface QualitySettings {
   smaa: boolean;
   /** Reflets du décor sur chaussée mouillée (SSR, seulement quand il pleut). */
   ssr: boolean;
+  /** Lampadaires les plus proches allumés en vraies lumières la nuit (façades, trottoir, coureur éclairés). */
+  lampLights: number;
   /** Distance de vue (m). */
   viewDistance: number;
   /** Densité de végétation (arbres par 100 m² de forêt). */
@@ -65,6 +67,7 @@ export const QUALITY_PRESETS: Record<QualityLevel, QualitySettings> = {
     taa: false,
     smaa: true,
     ssr: false,
+    lampLights: 0,
     viewDistance: 2000,
     treeDensity: 0.2,
     grassDensity: 0,
@@ -96,6 +99,7 @@ export const QUALITY_PRESETS: Record<QualityLevel, QualitySettings> = {
     taa: false,
     smaa: true,
     ssr: false,
+    lampLights: 0,
     viewDistance: 4000,
     treeDensity: 0.5,
     grassDensity: 0.4,
@@ -128,6 +132,7 @@ export const QUALITY_PRESETS: Record<QualityLevel, QualitySettings> = {
     taa: true,
     smaa: false,
     ssr: true,
+    lampLights: 6,
     viewDistance: 5000,
     treeDensity: 0.8,
     grassDensity: 0.8,
@@ -159,6 +164,7 @@ export const QUALITY_PRESETS: Record<QualityLevel, QualitySettings> = {
     taa: true,
     smaa: false,
     ssr: true,
+    lampLights: 8,
     viewDistance: 7000,
     treeDensity: 1.1,
     grassDensity: 1.4,
@@ -202,6 +208,7 @@ export function withUrlOverrides(q: QualitySettings): QualitySettings {
     taa: flag('taa'),
     smaa: flag('smaa'),
     ssr: flag('ssr'),
+    lampLights: num('lamplights', q.lampLights, 0, 16),
     shadowEvery: num('shadowevery', q.shadowEvery, 1, 8),
     shadowRiders: num('shadowriders', q.shadowRiders, 0, 19),
     shadowCascades: num('cascades', q.shadowCascades, 1, 4),

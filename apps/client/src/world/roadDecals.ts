@@ -44,6 +44,12 @@ export interface StripDecalInput {
   wR: readonly number[];
   /** Graine stable du tronçon (même tirage à chaque chargement). */
   seed: number;
+  /**
+   * Le profil `i` est-il sur la chaussée d'une rue qui croise ? Un passage piéton n'est posé que si le trottoir
+   * reprend juste après un tel profil : un trottoir qui reprend après un terrain sans maison n'en mérite pas.
+   * Par défaut : oui.
+   */
+  atCrossing?: (i: number) => boolean;
 }
 
 /** Générateur pseudo-aléatoire déterministe (mulberry32). */
@@ -115,6 +121,11 @@ export function placeDecals(s: StripDecalInput): Decal[] {
         if (k < 0 || k >= n || k === end) continue;
         const run = Math.abs((s.along[k] as number) - (s.along[end] as number));
         if (run < 2 || run > 25) continue;
+        if (s.atCrossing) {
+          let found = false;
+          for (let j = end; j !== k && !found; j += step) found = s.atCrossing(j);
+          if (!found) continue;
+        }
         const inward = (atStart ? dirUp : -dirUp) as number;
         const a = (s.along[k] as number) + inward * 0.3;
         const b = a + inward * (half >= 4 ? 3.5 : 2.8);
@@ -198,6 +209,45 @@ export function placeDecals(s: StripDecalInput): Decal[] {
     }
   }
   return out;
+}
+
+/** Point (x, z) de la voie à l'abscisse transverse `u` et curviligne `a` (interpolé entre ses profils). */
+export function stripPoint(left: readonly number[], right: readonly number[], along: readonly number[], o: number, u: number, a: number): [number, number] {
+  const n = along.length;
+  const asc = (along[n - 1] as number) >= (along[0] as number);
+  let i = 0;
+  while (i < n - 2 && (asc ? (along[i + 1] as number) < a : (along[i + 1] as number) > a)) i++;
+  const a0 = along[i] as number;
+  const a1 = along[i + 1] as number;
+  const f = a1 !== a0 ? Math.min(1, Math.max(0, (a - a0) / (a1 - a0))) : 0;
+  const t = (u + o) / (2 * o);
+  const at = (arr: readonly number[], c: number) => (arr[i * 3 + c] as number) + ((arr[(i + 1) * 3 + c] as number) - (arr[i * 3 + c] as number)) * f;
+  const lx = at(left, 0);
+  const lz = at(left, 2);
+  return [lx + (at(right, 0) - lx) * t, lz + (at(right, 2) - lz) * t];
+}
+
+/**
+ * Le décalque touche-t-il la chaussée d'une voie qui croise (carrefour) ? Ses coins et son centre sont testés par
+ * `crossing(x, z, dx, dz)`, (dx, dz) étant le sens de la voie. Là, deux rubans se recouvrent : un rapiéçage de
+ * l'un passait par-dessus l'autre, en bandes claires de travers.
+ */
+export function decalAtCrossing(d: Decal, left: readonly number[], right: readonly number[], along: readonly number[], o: number, crossing: (x: number, z: number, dx: number, dz: number) => boolean): boolean {
+  const [p0x, p0z] = stripPoint(left, right, along, o, 0, d.a0);
+  const [p1x, p1z] = stripPoint(left, right, along, o, 0, d.a1);
+  const dx = p1x - p0x;
+  const dz = p1z - p0z;
+  for (const [u, a] of [
+    [d.u0, d.a0],
+    [d.u1, d.a0],
+    [d.u0, d.a1],
+    [d.u1, d.a1],
+    [(d.u0 + d.u1) / 2, (d.a0 + d.a1) / 2],
+  ] as const) {
+    const [x, z] = stripPoint(left, right, along, o, u, a);
+    if (crossing(x, z, dx || 1e-6, dz)) return true;
+  }
+  return false;
 }
 
 /** Sortie partagée avec la voirie (mêmes tableaux, voir network.ts). */

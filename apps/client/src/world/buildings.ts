@@ -17,6 +17,7 @@ import { concatMeshes, volumesGeometry } from './volumesRoof.ts';
 import { genoiseDrop, genoiseRows } from './genoise.ts';
 import { LazyTexture } from '../engine/textures.ts';
 import { createLowPolyBuildingMaterial } from './buildingsLowPoly.ts';
+import { tune } from '../dev/tuning.ts';
 import { FACADE_DEPTH, FacadeLightingModel, facadeFrame, roomInterior, shopInterior as shopRoom } from './facadeDepth.ts';
 import { sunlight } from './sunlight.ts';
 
@@ -55,6 +56,9 @@ const TERRACOTTA = LOW_POLY ? ['#d4683e', '#c95c36', '#dc7646', '#c2553a', '#d86
 const MECHANICAL_TILES = LOW_POLY ? ['#c4482f', '#b8402c', '#cc5536', '#b04a32'] : ['#9a5a40', '#8c5038', '#a0614a', '#94553d'];
 /** Bac acier et fibrociment : gris clair à gris-vert, parfois vert ou brun. */
 const METAL_ROOFS = LOW_POLY ? ['#a3adb3', '#b4bab9', '#8fa49c', '#6f9a7c', '#b0684c'] : ['#8d9294', '#9da1a0', '#7f8784', '#6f7a72', '#84776a'];
+/** Réglage (?reglages) : éclairage des boutiques le jour. */
+const SHOP_DAY_GLOW = tune('nuit.boutiquesjour', 'Boutiques éclairées le jour', 0.06, 0, 0.25, 0.005);
+
 /** Toits-terrasses : gravillons gris-beige, étanchéité bitumée par endroits. */
 const TERRACES = LOW_POLY ? ['#b9b4a8', '#c4beb0', '#aeaa9f', '#cbc5b6'] : ['#8e8a82', '#9a948a', '#85817a', '#a09a8e'];
 const SHUTTERS = LOW_POLY ? ['#3f86c8', '#4aa05e', '#f4f2ea', '#c9503a', '#2f6fa6', '#8cc7a4', '#e5a532'] : ['#7d8f9b', '#5f7d66', '#e8e4da', '#8a5a3c', '#4b6a8a', '#a7b8a0'];
@@ -121,6 +125,8 @@ interface WallStyle {
   street?: (x: number, z: number) => boolean;
   /** Rez-de-chaussée commerçant sur les murs côté rue. */
   shop?: boolean;
+  /** Corniche de l'archétype : posée en relief (32 cm) en haut des murs à fenêtres, là où le shader la peint. */
+  cornice?: boolean;
 }
 
 /** Couleur OSM (« brick », « #c0a080 »…) avec repli si elle n'est pas reconnue. */
@@ -205,6 +211,37 @@ function walls(pts: number[], base: number, height: number, style?: WallStyle, g
     for (let k = 0; k < 6; k++) {
       fac.push(len, bays + floorCode);
       sty.push(style?.local ? 1 : 0, h - drop, flags, doorBay);
+    }
+    // Corniche en relief : face avant (même uv que le mur : le shader y peint la corniche, 38 cm sous le haut du
+    // mur) et sous-face ; débord aux extrémités pour se rejoindre aux angles. Pas sur les monopentes.
+    const CORNICE_E = 0.32;
+    if (style?.cornice && bays > 0 && !topAt && !genoise && h > 4) {
+      const nx = (bz - az) / len;
+      const nz = -(bx - ax) / len;
+      const ux = (bx - ax) / len;
+      const uz = (bz - az) / len;
+      const e = CORNICE_E;
+      const y1 = top;
+      const y0 = top - 0.38;
+      const v0 = h - 0.38;
+      const v1 = h;
+      const x0 = ax - ux * e + nx * e;
+      const z0 = az - uz * e + nz * e;
+      const x1 = bx + ux * e + nx * e;
+      const z1 = bz + uz * e + nz * e;
+      const L = len + 2 * e;
+      pos.push(x0, y0, z0, x1, y0, z1, x0, y1, z0, x1, y0, z1, x1, y1, z1, x0, y1, z0);
+      uvs.push(-e, v0, L - e, v0, -e, v1, L - e, v0, L - e, v1, -e, v1);
+      const wx0 = ax - ux * e;
+      const wz0 = az - uz * e;
+      const wx1 = bx + ux * e;
+      const wz1 = bz + uz * e;
+      pos.push(wx0, y0, wz0, x1, y0, z1, x0, y0, z0, wx0, y0, wz0, wx1, y0, wz1, x1, y0, z1);
+      uvs.push(-e, v0, L - e, v0, -e, v0, -e, v0, L - e, v0, L - e, v0);
+      for (let k = 0; k < 12; k++) {
+        fac.push(len, bays + floorCode);
+        sty.push(style?.local ? 1 : 0, h, flags, 0);
+      }
     }
     if (genoise) {
       // Génoise : trois rangs en encorbellement (10, 20, 30 cm du bas vers le haut), 14 cm chacun, sous
@@ -730,6 +767,23 @@ export class Buildings {
       shopLit,
     );
     wall = mix(wall, signCol.mul(mix(float(1.25), float(1), signBand)), shopFront);
+    // Enseigne : une inscription en capitales par travée (3 à 9 lettres de 24 cm sur une grille 3 × 5), dorée ou
+    // crème ; de loin, une teinte moyenne plutôt que des lettres qui scintillent. Allumée la nuit (emissiveNode).
+    const signY = v.sub(rdc.sub(0.95));
+    const letterCount = floor(hash(shopSeed.mul(60000).add(bayIdx.mul(17)).add(5)).mul(7)).add(3);
+    const textW = min(letterCount.mul(0.24), bayW.sub(0.6));
+    const textX = wx.add(textW.mul(0.5));
+    const cellI = floor(textX.div(0.24));
+    const glyphX = floor(fract(textX.div(0.24)).mul(4));
+    const glyphYF = signY.sub(0.14).div(0.32);
+    const glyphY = floor(glyphYF.mul(5));
+    const sideCol = step(abs(glyphX.sub(1)), float(0.5)).oneMinus();
+    const bit = step(mix(float(0.6), float(0.3), sideCol), hash(shopSeed.mul(60000).add(bayIdx.mul(131)).add(cellI.add(64).mul(29)).add(glyphX.mul(3)).add(glyphY.mul(11)).add(1)));
+    const inText = signBand.mul(step(float(0), textX)).mul(step(textX, textW)).mul(step(glyphX, float(2.5))).mul(step(float(0), glyphYF)).mul(step(glyphYF, float(0.999))).mul(step(float(0.2), textW));
+    const letterNear = float(1).sub(smoothstep(0.012, 0.03, pix));
+    const letterCol = mix(vec3(0.78, 0.62, 0.3), vec3(0.88, 0.86, 0.78), step(0.5, hash(shopSeed.mul(60000).add(9))));
+    const letterMask = inText.mul(mix(float(0.35), bit, letterNear));
+    wall = mix(wall, letterCol, letterMask);
     // Vitrine en retrait de 16 cm, boutique derrière. Une boutique par travée, même teinte de fond par bâtiment.
     const SHOP_RECESS = 0.16;
     const sgx = wx.add(frame.vx.mul(SHOP_RECESS));
@@ -864,7 +918,11 @@ export class Buildings {
       // La nuit, la pièce allumée rayonne (fond moyen au loin) ; la boutique reste un peu éclairée le jour.
       const roomGlow = roomPart('glow', inRoomGlass.mul(lit).greaterThan(0), vec3(0.62, 0.42, 0.24));
       const shopGlow = shopPart('glow', shopNear.greaterThan(0), vec3(0.72, 0.58, 0.4));
-      m.emissiveNode = roomGlow.mul(inGlass.max(rdcIn).mul(lit).mul(isWall).mul(0.28)).add(shopGlow.mul(shopIn.mul(isWall).mul(shopLit.mul(0.14).add(0.012))));
+      // Boutique éclairée aussi le jour (plafonniers allumés, comme les vraies) ; enseigne allumée la nuit.
+      m.emissiveNode = roomGlow
+        .mul(inGlass.max(rdcIn).mul(lit).mul(isWall).mul(0.28))
+        .add(shopGlow.mul(shopIn.mul(isWall).mul(shopLit.mul(0.14).add(float(1).sub(this.night).mul(SHOP_DAY_GLOW)).add(0.012))))
+        .add(letterCol.mul(letterMask).mul(isWall).mul(this.night).mul(0.45));
     } else {
       m.emissiveNode = vec3(1.0, 0.62, 0.3)
         .mul(inWin.mul(lit).mul(isWall).mul(0.38))
@@ -1087,6 +1145,7 @@ export class Buildings {
           bayM: f.bayM,
           floorM: Math.min(Math.max(span / floors, 2.5), 3.8),
           shop: r() < f.shopfronts,
+          cornice: !!f.cornice,
           ...(dist ? { street: (x: number, z: number) => dist(x, z) < 9 } : {}),
         };
         const door = streetWall(bld.pts, tile.features.roads, dist);

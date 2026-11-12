@@ -127,6 +127,15 @@ export class StreetIndex {
     }
   }
 
+  /** Nombre de bâtiments dont l'emprise touche les 3 × 3 cases autour du point (48 m) : bourg dense ou non. */
+  density(x: number, z: number): number {
+    const cx = Math.floor(x / CELL);
+    const cz = Math.floor(z / CELL);
+    const seen = new Set<ArrayLike<number>>();
+    for (let dx = -1; dx <= 1; dx++) for (let dz = -1; dz <= 1; dz++) for (const b of this.buildings.get(key(cx + dx, cz + dz)) ?? []) seen.add(b);
+    return seen.size;
+  }
+
   /** Bâtiment à moins de 16 à 32 m : on est en ville. Pas de trottoir ni de lampadaire en rase campagne. */
   urban(x: number, z: number): boolean {
     const cx = Math.floor(x / CELL);
@@ -163,7 +172,7 @@ export class StreetIndex {
    * Sur la chaussée d'une voie qui croise la direction (dx, dz) : carrefour. Les voies presque parallèles (la rue
    * elle-même, son prolongement, une chaussée jumelle) ne comptent pas.
    */
-  crossRoad(x: number, z: number, dx: number, dz: number): boolean {
+  crossRoad(x: number, z: number, dx: number, dz: number, margin = 0): boolean {
     const list = this.segments.get(key(Math.floor(x / CELL), Math.floor(z / CELL)));
     if (!list) return false;
     const dl = Math.hypot(dx, dz) || 1;
@@ -176,7 +185,7 @@ export class StreetIndex {
       const t = Math.max(0, Math.min(1, ((x - s.ax) * sx + (z - s.az) * sz) / l2));
       const ex = x - s.ax - t * sx;
       const ez = z - s.az - t * sz;
-      if (ex * ex + ez * ez < s.half * s.half) return true;
+      if (ex * ex + ez * ez < (s.half + margin) ** 2) return true;
     }
     return false;
   }

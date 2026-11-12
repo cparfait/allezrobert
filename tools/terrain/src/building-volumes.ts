@@ -75,6 +75,43 @@ function edgeDist(x: number, y: number, ring: ReadonlyArray<readonly [number, nu
   return d;
 }
 
+/** Distance en deçà de laquelle un sommet de volume est collé sur l'emprise (m). */
+const SNAP_M = 0.8;
+
+/** Colle chaque sommet proche de l'emprise sur son sommet le plus proche, ou à défaut sur son bord. */
+function snapToRing(poly: Array<[number, number]>, ring: ReadonlyArray<readonly [number, number]>, d: number): Array<[number, number]> {
+  return poly.map(([x, y]) => {
+    let best: [number, number] = [x, y], bd = d;
+    for (const [rx, ry] of ring) {
+      const k = Math.hypot(x - rx, y - ry);
+      if (k < bd) { bd = k; best = [rx, ry]; }
+    }
+    if (bd < d) return best;
+    for (let i = 0; i < ring.length; i++) {
+      const [ax, ay] = ring[i]!, [bx, by] = ring[(i + 1) % ring.length]!;
+      const dx = bx - ax, dy = by - ay, L2 = dx * dx + dy * dy || 1e-12;
+      const t = Math.max(0, Math.min(1, ((x - ax) * dx + (y - ay) * dy) / L2));
+      const px = ax + t * dx, py = ay + t * dy, k = Math.hypot(x - px, y - py);
+      if (k < bd) { bd = k; best = [px, py]; }
+    }
+    return best;
+  });
+}
+
+/** Retire les sommets confondus (5 cm) et alignés (écart < 5 cm à la corde de leurs voisins). */
+function tidy(poly: Array<[number, number]>): Array<[number, number]> {
+  let r = poly.filter((p, i) => Math.hypot(p[0] - poly[(i + poly.length - 1) % poly.length]![0], p[1] - poly[(i + poly.length - 1) % poly.length]![1]) > 0.05);
+  for (let changed = true; changed && r.length > 3; ) {
+    changed = false;
+    for (let i = 0; i < r.length && r.length > 3; i++) {
+      const a = r[(i + r.length - 1) % r.length]!, p = r[i]!, b = r[(i + 1) % r.length]!;
+      const L = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1e-9;
+      if (Math.abs((b[0] - a[0]) * (a[1] - p[1]) - (a[0] - p[0]) * (b[1] - a[1])) / L < 0.05) { r = r.filter((_, k) => k !== i); changed = true; }
+    }
+  }
+  return r;
+}
+
 function ringArea(r: ReadonlyArray<readonly [number, number]>): number {
   let a = 0;
   for (let i = 0; i < r.length; i++) { const p = r[i]!, q = r[(i + 1) % r.length]!; a += p[0] * q[1] - q[0] * p[1]; }
@@ -324,12 +361,18 @@ export function segmentRoofVolumes(mns: Raster, ring: ReadonlyArray<readonly [nu
   let sse = 0, ns = 0;
   for (const [v, regs] of vol) {
     const sse0 = sse, ns0 = ns;
-    const raw = contour(v);
-    if (!raw) continue;
+    // Un seul volume : l'emprise elle-même (autant de sommets que le rendu historique, aucun retrait aux murs).
+    // Plusieurs : contour des pixels simplifié, puis collé sur l'emprise près des murs (escalier des pixels et
+    // retrait d'un demi-pixel effacés) ; seules les limites intérieures entre volumes restent tracées au MNS.
     let poly: Array<[number, number]> | null = null;
-    for (const eps of [eps0, eps0 / 2, R / 4]) {
-      const sp = simplify(raw, eps);
-      if (sp.length >= 3 && simple(sp)) { poly = sp; break; }
+    if (vol.size === 1) poly = ring.map(([e, n]) => [e, n] as [number, number]);
+    else {
+      const raw = contour(v);
+      if (!raw) continue;
+      for (const [eps, snap] of [[eps0, true], [eps0 / 2, true], [eps0 / 2, false], [R / 4, false]] as const) {
+        const sp = tidy(snap ? snapToRing(simplify(raw, eps), ring, SNAP_M) : simplify(raw, eps));
+        if (sp.length >= 3 && simple(sp) && Math.abs(ringArea(sp)) >= 1) { poly = sp; break; }
+      }
     }
     if (!poly) return null;
     const rel = poly.flatMap(([e, n]) => { const [x, z] = toTile(e, n); return [r2(x - ox), r2(z - oz)]; });
