@@ -196,12 +196,47 @@ export class RouteTrack {
         cx -= excess * r0x;
         cz -= excess * r0z;
       }
+      // Virage à angle droit sur une voie étroite : la composante de la corde le long de la route sort aussi
+      // du virage. On mesure la vraie distance au tracé et on réduit la coupe tant qu'elle déborde.
+      const baseX = out.x, baseZ = out.z;
+      const offX = -out.dirZ * lateral, offZ = out.dirX * lateral;
+      const span = w + 4;
+      if (this.distanceToAxis(baseX + cx + offX, baseZ + cz + offZ, d - span, d + span) > limit + 0.02) {
+        let lo = 0, hi = 1;
+        for (let i = 0; i < 7; i++) {
+          const k = (lo + hi) / 2;
+          if (this.distanceToAxis(baseX + cx * k + offX, baseZ + cz * k + offZ, d - span, d + span) > limit + 0.02) hi = k;
+          else lo = k;
+        }
+        cx *= lo;
+        cz *= lo;
+      }
       out.x += cx;
       out.z += cz;
     }
     out.x += -out.dirZ * lateral;
     out.z += out.dirX * lateral;
     return out;
+  }
+
+  /** Distance (m) d'un point à l'axe de l'itinéraire, mesurée sur les segments entre d0 et d1. */
+  private distanceToAxis(x: number, z: number, d0: number, d1: number): number {
+    const n = this.pts.length;
+    const loop = !!this.route.loop;
+    let i = this.indexAt(this.wrap(d0));
+    let best = Infinity;
+    for (let k = 0, run = 0; k < n && run <= d1 - d0 + 1; k++) {
+      const a = this.pts[i] as RoutePoint;
+      const j = i + 1 < n ? i + 1 : loop ? 0 : -1;
+      if (j < 0) break;
+      const b = this.pts[j] as RoutePoint;
+      const sx = b.x - a.x, sz = b.z - a.z, l2 = sx * sx + sz * sz;
+      const t = l2 > 0 ? Math.max(0, Math.min(1, ((x - a.x) * sx + (z - a.z) * sz) / l2)) : 0;
+      best = Math.min(best, Math.hypot(x - a.x - t * sx, z - a.z - t * sz));
+      run += Math.sqrt(l2);
+      i = j;
+    }
+    return best;
   }
 
   /**

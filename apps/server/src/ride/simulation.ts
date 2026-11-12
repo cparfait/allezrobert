@@ -1125,7 +1125,9 @@ export class RideSimulation {
     for (const r of riders) {
       if (r.dir !== 1) continue;
       list.push(r);
-      bodies.push({ distM: r.state.distM, lateral: r.lateralM, speedMs: r.state.speedMs, ...(r.kind === 'ai' ? {} : { fixed: true }) });
+      // Chaussée réelle du tronçon (et façades en pilote) : la séparation ne pousse pas une IA au-delà.
+      const b = this.corridor.steeringBounds(this.trackOf(r), r.state.distM, r.state.speedMs, r.dir, this.bounds);
+      bodies.push({ distM: r.state.distM, lateral: r.lateralM, speedMs: r.state.speedMs, minLateral: -b.left, maxLateral: b.right, ...(r.kind === 'ai' ? {} : { fixed: true }) });
     }
     separateRiders(bodies, this.halfRoad(), dt);
     list.forEach((r, i) => {

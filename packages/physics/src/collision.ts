@@ -16,6 +16,9 @@ export interface Body {
   fixed?: boolean;
   /** Mené par un humain : garde sa ligne, ce sont les IA qui s'écartent. */
   priority?: boolean;
+  /** Bornes propres du décalage (chaussée réelle du tronçon) : la séparation ne pousse pas au-delà. */
+  minLateral?: number;
+  maxLateral?: number;
 }
 
 /** Longueur d'un vélo avec son coureur, et largeur d'encombrement (m). */
@@ -26,8 +29,14 @@ const PUSH_MS = 2.5;
 const YIELD_MS = 4;
 
 const movable = (b: Body): boolean => !b.fixed && !b.priority;
+/** Résultat du dernier `shift` : arrêté par le plafond de déplacement par appel (et non par le bord). */
+let shiftCapped = false;
 
 export function separateRiders(bodies: Body[], halfRoadM: number, dt: number): void {
+  // Dans un groupe serré, plusieurs voisins poussent le même coureur : son déplacement latéral total par appel
+  // est plafonné (YIELD_MS), sans quoi il sautait de près d'un mètre en un pas serveur ; le reste passe par la retenue.
+  const start = bodies.map((b) => b.lateral);
+  const cap = YIELD_MS * dt;
   for (let pass = 0; pass < 2; pass++) {
     for (let i = 0; i < bodies.length; i++) {
       for (let j = i + 1; j < bodies.length; j++) {
@@ -49,9 +58,15 @@ export function separateRiders(bodies: Body[], halfRoadM: number, dt: number): v
           // Vers le côté où l'on est déjà ; à égalité, le doubleur part à gauche (on double par la gauche), le doublé se range à droite.
           const away = giver.lateral > other.lateral ? 1 : giver.lateral < other.lateral ? -1 : giver === rear ? -1 : 1;
           push = Math.min(overlap, (giver === front ? YIELD_MS : PUSH_MS) * dt);
-          moved = shift(giver, away * push, halfRoadM);
+          const startOf = (r: Body) => (r === a ? start[i] : start[j]) as number;
+          moved = shift(giver, away * push, halfRoadM, startOf(giver), cap);
+          // Arrêté par le plafond (et non par le bord) : il cède déjà à pleine vitesse, la suite au pas suivant.
+          if (moved < push - 1e-9 && shiftCapped) moved = push;
           // Bord de chaussée : le reste de l'écart est pris par l'autre, s'il peut bouger.
-          if (moved < push - 1e-9 && movable(other)) moved += shift(other, -away * (push - moved), halfRoadM);
+          if (moved < push - 1e-9 && movable(other)) {
+            const extra = shift(other, -away * (push - moved), halfRoadM, startOf(other), cap);
+            moved = shiftCapped ? push : moved + extra;
+          }
         }
         // Écart pas encore suffisant (poussée plafonnée ou bord de chaussée) : retenue longitudinale.
         if (overlap - moved > 0.05) {
@@ -77,8 +92,16 @@ export function separateRiders(bodies: Body[], halfRoadM: number, dt: number): v
 }
 
 /** Décale `r` de `delta` (m) dans la chaussée ; renvoie ce dont il a réellement bougé. */
-function shift(r: Body, delta: number, halfRoadM: number): number {
+function shift(r: Body, delta: number, halfRoadM: number, startLateral: number, cap: number): number {
   const before = r.lateral;
-  r.lateral = Math.max(-halfRoadM, Math.min(halfRoadM, r.lateral + delta));
+  // Ni au-delà de la chaussée (ou de ses bornes propres), ni à plus de `cap` de sa position de départ.
+  const edgeLo = Math.max(-halfRoadM, r.minLateral ?? -halfRoadM);
+  const edgeHi = Math.min(halfRoadM, r.maxLateral ?? halfRoadM);
+  const lo = Math.min(before, Math.max(edgeLo, startLateral - cap));
+  const hi = Math.max(before, Math.min(edgeHi, startLateral + cap));
+  const wanted = r.lateral + delta;
+  r.lateral = Math.max(lo, Math.min(hi, wanted));
+  // Arrêté par le plafond de déplacement alors que la chaussée laissait de la place.
+  shiftCapped = r.lateral !== wanted && Math.max(edgeLo, Math.min(edgeHi, wanted)) !== r.lateral;
   return Math.abs(r.lateral - before);
 }

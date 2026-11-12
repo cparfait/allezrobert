@@ -52,7 +52,7 @@ import { fetchRealWeather } from './game/realWeather.ts';
 import { addXp, awardRide, loadProgress, tunedBike } from './ui/garage.ts';
 import { AtelierHost, slotOfPicked, type AtelierState } from './ui/atelier.ts';
 import { rimGlow } from './rider/rimDecal.ts';
-import { COLLISION_PILOT_ROUTE, COLLISION_PILOT_WORLD, EQUALIZED_BIKE, createPilotBuildingCollision, paramsFromBike, roadHalfM } from '@allezrobert/physics';
+import { COLLISION_PILOT_ROUTE, COLLISION_PILOT_WORLD, EQUALIZED_BIKE, createPilotBuildingCollision, paramsFromBike, roadHalfM, sharedRoadCorridor } from '@allezrobert/physics';
 import { awardTrophies } from './game/trophies.ts';
 import { roadSurfaceAt, windShelterAt } from './world/conditions.ts';
 import { OpenNavigator } from './game/open.ts';
@@ -1077,6 +1077,8 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   const wantsCollisionPilot = params.get('collisionPilot') === '1' && source.id === COLLISION_PILOT_WORLD && !source.zones && track.route.id === COLLISION_PILOT_ROUTE && !extras.publicRoom;
   let collisionData: Awaited<ReturnType<typeof loadRideCollisionData>>;
   let collisionSpawn: Awaited<ReturnType<Multiplayer['initialCollisionPose']>>;
+  // Messages de connexion : affichés une fois l’écran « Préparation de la sortie… » retiré (sinon perdus dessous).
+  const afterStart: string[] = [];
   if (s.mode === 'group' || s.mode === 'race' || extras.publicRoom) {
     // Profil (avatar) envoyé au compte juste avant l'entrée : les autres te voient comme tu te vois.
     try {
@@ -1119,7 +1121,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
       // Rejoindre un ami impossible (il est parti, sa salle est pleine) : le message du serveur.
       const friendMsg = reason === COLLISION_VERSION_ERROR || reason === COLLISION_PILOT_ERROR || reason === COLLISION_PILOT_DISABLED
         ? collisionVersionMessage(reason) : extras.nearFriend && !login ? reason : '';
-      setTimeout(() => hud.toast(friendMsg ? `${friendMsg}${L ? ' : sortie solo' : ': solo ride'}` : login ? (L ? 'Connecte-toi pour rouler en monde ouvert : sortie solo' : 'Sign in to ride in the open world: solo ride') : L ? 'Serveur injoignable : sortie solo' : 'Server unreachable: solo ride'), 500);
+      afterStart.push(friendMsg ? `${friendMsg.replace(/\.$/, '')}${L ? ' : sortie solo' : ': solo ride'}` : login ? (L ? 'Connecte-toi pour rouler en monde ouvert : sortie solo' : 'Sign in to ride in the open world: solo ride') : L ? 'Serveur injoignable : sortie solo' : 'Server unreachable: solo ride');
       if (mp?.net.welcome?.collisionPilot) await mp.net.leave();
       mp = null;
     }
@@ -1128,9 +1130,10 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     try {
       collisionData = await loadRideCollisionData(source.id, track.route);
     } catch {
-      setTimeout(() => hud.toast(collisionVersionMessage()), 500);
+      afterStart.push(collisionVersionMessage());
     }
   }
+  const aiBounds = { left: 0, right: 0 };
   const pilotCollision = wantsCollisionPilot && collisionData && (!mp || mp.net.welcome?.collisionPilot)
     ? createPilotBuildingCollision(collisionData.data.obstacles) : undefined;
   if (pilotCollision) {
@@ -2040,7 +2043,11 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
         // Le joueur garde sa ligne : ce sont les IA qui s'écartent (ou qui sont retenues), jamais lui qui est déporté.
         const beforeD = ride.state.distM, beforeLateral = ride.lateral;
         const me: Body = { distM: beforeD, lateral: beforeLateral, speedMs: ride.state.speedMs, priority: true };
-        const ais: Body[] = mobile.map((r) => ({ distM: r.state.distM, lateral: r.lateral, speedMs: r.state.speedMs }));
+        // Chaussée réelle du tronçon (et façades en pilote) : la séparation ne pousse pas une IA au-delà.
+        const ais: Body[] = mobile.map((r) => {
+          const b = (pilotCollision ?? sharedRoadCorridor()).steeringBounds(track, r.state.distM, r.state.speedMs, 1, aiBounds);
+          return { distM: r.state.distM, lateral: r.lateral, speedMs: r.state.speedMs, minLateral: -b.left, maxLateral: b.right };
+        });
         const far: Body[] = remoteRiders.filter((r) => r.dir === ride.dir).map((r) => ({ distM: r.unwrappedM, lateral: r.lateralM, speedMs: r.speedMs, fixed: true }));
         separateRiders([me, ...ais, ...far], roadHalfM(track.route.roadWidthM), dt);
         ride.state.distM = me.distM;
@@ -2353,6 +2360,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   // Repère pour les outils de mesure (tools/perf) : la sortie commence.
   performance.mark('ar:ride-start');
   startOverlay.remove();
+  for (const text of afterStart) hud.toast(text);
   engine.renderer.setAnimationLoop(() => {
     timer.update();
     frame(Math.min(timer.getDelta(), 0.1), true);
