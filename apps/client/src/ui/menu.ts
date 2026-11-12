@@ -56,7 +56,7 @@ import './menu.css';
 /** Ce que l'écran d'appairage sait faire, quel que soit le transport (implémenté avec @allezrobert/devices). */
 export interface DevicePanel {
   /** Appareils connus avec leur état lisible. */
-  list(): Array<{ id: string; name: string; role: string; roleIds?: string[]; kinds?: string[]; simulated?: boolean; state: string; detail?: string; ok: boolean }>;
+  list(): Array<{ id: string; name: string; role: string; roleIds?: string[]; kinds?: string[]; simulated?: boolean; state: string; detail?: string; ok: boolean; canReconnect?: boolean }>;
   /** Transports disponibles sur cette plateforme. */
   transports(): Array<{ id: string; label: string }>;
   /** Lance l'appairage d'un rôle (Web Bluetooth ouvre le sélecteur du navigateur). */
@@ -455,7 +455,7 @@ const JERSEY_PACKS: ReadonlyArray<{ id: string; name: { fr: string; en: string }
  * Onglet Rouler : modes en tuiles, carte et profil de l'itinéraire, départ. Garage : aperçu 3D
  * du coureur (vues prédéfinies, rotation à la souris) piloté par onScene.
  */
-/** Valeurs en direct de l'écran Capteurs ; absentes si rien n'est mesuré depuis 3 s. */
+/** Mesures récentes affichées sur l'écran Capteurs. */
 export interface DeviceLive {
   powerFrom?: 'pedals' | 'trainer';
   powerName?: string;
@@ -463,12 +463,21 @@ export interface DeviceLive {
   cadenceFrom?: 'sensor' | 'pedals' | 'trainer';
   cadenceName?: string;
   cadence?: number;
+  hr?: number;
+  gear?: string;
+  di2ButtonsOnly?: boolean;
 }
 
-/** Texte des valeurs en direct des tuiles Puissance et Cadence. */
-function liveText(kind: 'watts' | 'cadence', live: DeviceLive | undefined): string {
-  const v = kind === 'watts' ? live?.watts : live?.cadence;
-  const unit = kind === 'watts' ? 'W' : fr() ? 'tr/min' : 'rpm';
+type LiveKind = 'watts' | 'cadence' | 'hr' | 'gear';
+
+function liveText(kind: LiveKind, live: DeviceLive | undefined): string {
+  const v = live?.[kind];
+  if (kind === 'gear') {
+    if (live?.gear) return live.gear;
+    if (live?.di2ButtonsOnly) return fr() ? 'Rapport indisponible via D-Fly' : 'Gear position unavailable via D-Fly';
+    return fr() ? 'En attente du rapport engagé' : 'Waiting for gear position';
+  }
+  const unit = kind === 'watts' ? 'W' : kind === 'hr' ? 'bpm' : fr() ? 'tr/min' : 'rpm';
   return `${v === undefined ? '—' : v} ${unit}`;
 }
 
@@ -2642,11 +2651,13 @@ export class MainMenu {
     const L = fr();
     const list = this.devices.list();
     const transports = this.devices.transports();
+    const previousTransport = box.querySelector<HTMLElement>('#m-transport')?.dataset.value;
+    const selectedTransport = transports.find((tr) => tr.id === previousTransport)?.id ?? transports[0]?.id ?? '';
     const roles: Array<[Role, I18nKey, string]> = [
       ['trainer', 'trainer', L ? 'Résistance pilotée (FTMS, FE-C)' : 'Controlled resistance (FTMS, FE-C)'],
       ['power', 'powerMeter', L ? 'Pédales ou manivelle (Assioma…)' : 'Pedals or crank (Assioma…)'],
       ['cadence', 'cadence', L ? 'Capteur de cadence (Wahoo RPM…)' : 'Cadence sensor (Wahoo RPM…)'],
-      ['heartRate', 'hrm', L ? 'Ceinture ou montre (TICKR…)' : 'Strap or watch (TICKR…)'],
+      ['heartRate', 'hrm', L ? 'Ceinture ou montre (TRACKR, TICKR…)' : 'Strap or watch (TRACKR, TICKR…)'],
       ['shifter', 'shifter', L ? 'Manettes (Click, AXS, D-Fly)' : 'Controllers (Click, AXS, D-Fly)'],
       ['fan', 'fan', L ? 'Ventilateur connecté' : 'Smart fan'],
     ];
@@ -2662,14 +2673,15 @@ export class MainMenu {
       const viaHtml = via
         ? `<span class="mm-dev-name">${esc(fromName ?? '')} · ${via === 'trainer' ? (L ? 'via le home trainer' : 'via the trainer') : L ? 'via les pédales' : 'via the pedals'}</span>`
         : '';
-      const liveKind = role === 'power' ? 'watts' : role === 'cadence' ? 'cadence' : undefined;
+      const liveKind = role === 'power' ? 'watts' : role === 'cadence' ? 'cadence' : role === 'heartRate' ? 'hr'
+        : role === 'shifter' && this.s.drivetrain === 'cassette' ? 'gear' : undefined;
       const liveHtml = liveKind && ok ? `<span class="mm-dev-live" data-live="${liveKind}">${liveText(liveKind, live)}</span>` : '';
       // Tacx NEO appairé : essai du ressenti route accessible tout de suite depuis la tuile.
       const roadTest = role === 'trainer' && ok && this.devices.roadFeelSupported?.() ? `<button class="mm-link" data-roadtest-open>${L ? 'Tester le ressenti route' : 'Test road feel'}</button>` : '';
       return `<div class="mm-dev ${ok ? 'ok' : ds.length ? 'pending' : ''}">
         <div class="mm-dev-ico">${ICON[role as keyof typeof ICON] ?? ''}</div>
         <div class="mm-dev-body"><b>${esc(t(k))}</b>
-          ${ds.length ? ds.map((d) => `<span class="mm-dev-name">${esc(d.name)} · ${esc(d.state)}${d.detail ? ` · ${esc(d.detail)}` : ''} <button class="mm-link" data-forget="${esc(d.id)}">${L ? 'oublier' : 'forget'}</button></span>`).join('') : viaHtml || `<span>${esc(sub)}</span>`}
+          ${ds.length ? ds.map((d) => `<span class="mm-dev-name">${esc(d.name)} · ${esc(d.state)}${d.detail ? ` · ${esc(d.detail)}` : ''} ${d.canReconnect && this.devices.reconnect ? `<button class="mm-link" data-reconnect="${esc(d.id)}">${L ? 'reconnecter' : 'reconnect'}</button> ` : ''}<button class="mm-link" data-forget="${esc(d.id)}">${L ? 'oublier' : 'forget'}</button></span>`).join('') : viaHtml || `<span>${esc(sub)}</span>`}
           ${liveHtml}
           ${roadTest}
         </div>
@@ -2679,7 +2691,7 @@ export class MainMenu {
     box.innerHTML = `
       <div class="mm-devgrid">${roles.map(tile).join('')}</div>
       <div class="mm-devopts">
-        <div class="field">${L ? 'Connexion' : 'Connection'}${this.seg('m-transport', transports[0]?.id ?? '', transports.map((tr) => [tr.id, tr.label]))}</div>
+        <div class="field">${L ? 'Connexion' : 'Connection'}${this.seg('m-transport', selectedTransport, transports.map((tr) => [tr.id, tr.label]))}</div>
         <div id="m-adapters"></div>
         <label class="mm-check"><input type="checkbox" id="m-sim" ${this.devices.simulatorOn() ? 'checked' : ''}/> ${t('simulator')} (${L ? 'rouler sans matériel' : 'ride without hardware'})</label>
         <label class="mm-check"><input type="checkbox" id="m-guest" ${this.s.guest ? 'checked' : ''}/> ${L ? 'Invité sans matériel (clavier / manette, hors classements)' : 'Guest without hardware (keyboard / gamepad, unranked)'}</label>
@@ -2691,12 +2703,12 @@ export class MainMenu {
       <div class="mm-note">${t('oneAppAtATime')}<br/>${t('edgeWarn')}</div>
       <div id="m-devextra"></div>`;
     this.bindSegs(box);
-    // Valeurs en direct (W, tr/min) : rafraîchies chaque seconde tant que l'écran Capteurs est affiché.
+    // Mesures en direct : rafraîchies chaque seconde tant que l'écran Capteurs est affiché.
     clearInterval(this.devLiveTimer);
     this.devLiveTimer = setInterval(() => {
       if (!box.isConnected) return clearInterval(this.devLiveTimer);
       const now = this.devices.live?.();
-      box.querySelectorAll<HTMLElement>('[data-live]').forEach((el) => (el.textContent = liveText(el.dataset.live as 'watts' | 'cadence', now)));
+      box.querySelectorAll<HTMLElement>('[data-live]').forEach((el) => (el.textContent = liveText(el.dataset.live as LiveKind, now)));
     }, 1000);
     const extra = box.querySelector<HTMLElement>('#m-devextra');
     if (extra) this.devices.renderExtras?.(extra);
@@ -2715,6 +2727,7 @@ export class MainMenu {
       }),
     );
     box.querySelectorAll<HTMLButtonElement>('[data-forget]').forEach((b) => b.addEventListener('click', () => this.devices.forget(b.dataset.forget as string)));
+    box.querySelectorAll<HTMLButtonElement>('[data-reconnect]').forEach((b) => b.addEventListener('click', () => this.devices.reconnect?.(b.dataset.reconnect as string)));
     box.querySelector('[data-roadtest-open]')?.addEventListener('click', () => {
       const sec = box.querySelector<HTMLDetailsElement>('details[data-sec="road"]');
       if (!sec) return;

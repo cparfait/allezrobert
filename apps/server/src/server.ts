@@ -3,7 +3,7 @@
  * Colyseus (transport WebSocket + application Express de l'API) → écoute.
  */
 import { Server } from '@colyseus/core';
-import { WebSocketTransport } from '@colyseus/ws-transport';
+import { RideTransport } from './ride/ride-transport.ts';
 import type express from 'express';
 import { loadConfig, type Config } from './config.ts';
 import { createDb, migrate, type Db } from './db/db.ts';
@@ -51,7 +51,7 @@ export async function startServer(opts: StartOptions = {}): Promise<RunningServe
     }, 5000).unref();
   }
 
-  const transport = new WebSocketTransport({ pingInterval: 5000, pingMaxRetries: 3, maxPayload: 16 * 1024 });
+  const transport = new RideTransport({ pingInterval: 5000, pingMaxRetries: 3, maxPayload: 16 * 1024 });
   const gameServer = new Server({
     transport,
     greet: false,

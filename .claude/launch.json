@@ -221,6 +221,33 @@
       "port": 5206
     },
     {
+      "name": "avatar-tripo",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": [
+        "/c",
+        "set AR_HMR=0&& pnpm --filter @allezrobert/client exec vite --port 5212 --strictPort"
+      ],
+      "port": 5212
+    },
+    {
+      "name": "ressenti-route",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": [
+        "/c",
+        "set AR_HMR=0&& pnpm --filter @allezrobert/client exec vite --port 5216 --strictPort"
+      ],
+      "port": 5216
+    },
+    {
+      "name": "collision-pilote",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": [
+        "/c",
+        "set AR_HMR=0&& pnpm --filter @allezrobert/client exec vite --port 5218 --strictPort"
+      ],
+      "port": 5218
+    },
+    {
       "name": "public-realiste",
       "runtimeExecutable": "cmd",
       "runtimeArgs": [

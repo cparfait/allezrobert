@@ -25,14 +25,14 @@ Quand le chantier est commité ou abandonné, supprimer l'entrée (ou passer l'�
 
 ## BeamNG.Earth projet intégration (BeamNG.Earth projet intégration)
 - Chantier : altitude des ponts (bouts de ponts au niveau du tablier)
-- Fichiers ou dossiers réservés : aucun en cours. Fichiers commités (5a070067, 5155b4a7, e36fc2db) : `tools/terrain/src/bridge-decks.ts`, `simulate-bridge-decks.ts`, `probe-bridge-z.ts`, `roads3d.ts`, `build-open.ts`, `tools/terrain/test/bridge-decks.test.ts`, données billom, montmartre, chevreuse et roubaix dans `apps/client/public/worlds/` (sauf `chevreuse/collisions/`)
-- État : commité, non poussé ; push et déploiement des tuiles en attente de décision. Préviendra avant de relancer un build dans `worlds/`.
+- Fichiers ou dossiers réservés : aucun en cours (simulation en lecture seule des zones `idf-*`). Fichiers commités (5a070067, 5155b4a7, e36fc2db, d84d131d) : `tools/terrain/src/bridge-decks.ts`, `simulate-bridge-decks.ts`, `probe-bridge-z.ts`, `roads3d.ts`, `build-open.ts`, `tools/terrain/test/bridge-decks.test.ts`, données billom, montmartre, chevreuse et roubaix dans `apps/client/public/worlds/` (sauf `chevreuse/collisions/`)
+- État : billom, montmartre, chevreuse, roubaix en production (serveur 58c6d9e0). Correction activée par défaut dans build-open (d84d131d, non poussé) : tout build:world relève désormais les ponts. Préviendra avant de relancer un build dans `worlds/`.
 - Mis à jour : 2026-11-12
 
 ## Paysan manquant sur tracteur (Paysan manquant sur tracteur)
 - Chantier : occupants des véhicules du trafic (conducteurs, paysan des tracteurs)
 - Fichiers ou dossiers réservés : aucun en cours. Fichiers commités (0e682945, 24a06c65) : `apps/client/src/world/vehicleDriver.ts`, `lowPolyVehicles.ts`, `traffic.ts`, `apps/client/src/vehicle-test.ts`, `apps/client/vehicle-test.html`, `tools/blender/crowd/pose_driver.py`, `apps/client/public/models/drivers/`, deux lignes de `ASSETS_LICENSES.md`
-- État : commité, non poussé. Serveur de prévisualisation « lowpoly » (port 5192) lancé.
+- État : terminé, poussé (58c6d9e0). Serveur de prévisualisation arrêté.
 - Mis à jour : 2026-11-12
 
 ## Attente confirmation pour continuer (Attente confirmation pour continuer)
@@ -45,9 +45,16 @@ Quand le chantier est commité ou abandonné, supprimer l'entrée (ou passer l'�
 - Mis à jour : 2026-11-12
 
 ## Reprise sans continuation (Reprise sans continuation)
-- Chantier : Roubaix 54, fil V1 (adaptation vélo-cycliste), V1e-11
-- Fichiers ou dossiers réservés : aucun dans le dépôt (tout est écrit hors dépôt, dans `C:\Users\chris\.codex\visualizations\…\roubaix54_v1e*`). Lit sans modifier `apps/client/public/models/bikes/*.glb`, `models/avatar/**/rider.glb`, `packages/shared/src/bikeMetric.ts`, `apps/client/src/rider/gltfAvatar.ts`.
-- État : rapport en rédaction, puis en attente de validation.
+- Chantier : Roubaix 54, fil V1 (adaptation vélo-cycliste), V1e-13 = intégration étape 1 (asset 54 sans logo, contrat, chargeur isolé, banc), autorisée par l'utilisateur le 2026-11-12
+- Fichiers ou dossiers réservés (tous NOUVEAUX, aucun fichier existant modifié) : `apps/client/public/models/bikes/roubaix54/`, `packages/shared/src/roubaix54Metric.ts`, `packages/shared/test/roubaix54Metric.test.ts`, `apps/client/src/rider/roubaix54.ts`, `apps/client/test/roubaix54.test.ts`, `apps/client/roubaix-test.html`, `apps/client/src/roubaix-test.ts` ; une seule ligne ajoutée dans `ASSETS_LICENSES.md` (les lignes non commitées des autres restent intactes). Lit sans modifier `bikeMetric.ts`, `gltfAvatar.ts`, `models/bikes/*.glb`.
+- État : en cours, rien de commité. Aucun build dans `worlds/`, aucune mesure GPU.
+- Mis à jour : 2026-11-12
+
+## Bâtiments du Roussel, ZONES-BAT (Reprendre ce point)
+- Chantier : corrections visuelles des toits par ID de bâtiment (contrats v1 à v3, volumes, découpage LiDAR, corrections manuelles par zone)
+- Fichiers ou dossiers réservés : aucun en cours. Fichiers commités (84f1eac7, 443eaced, cd405dd1, 84c00b89 poussés ; 197f3ed2, 12f72959 non poussés) : `tools/terrain/src/building-visual.ts`, `world-tiles.ts`, `tools/terrain/building-visual/`, `tools/terrain/test/building-visual-manual.test.ts`, `docs/ZONES_BAT_VISUEL.md`, `packages/shared/src/building-visual.ts`, `tools/terrain/src/building-volumes.ts`, `enrich.ts` (volumes mesurés), `packs.ts` (version des compléments), `apps/client/src/world/buildingVisual.ts`, `gableRoof.ts`, `volumesRoof.ts`, sections ZONES-BAT de `buildings.ts`, `tileDecode.ts`, `fileWorld.ts`, `types.ts`, leurs tests. Dans `tools/terrain/test/building-visual.test.ts`, le contrôle COLL-MURS non commité appartient à COLL-MURS.
+- Option : `TERRAIN_BUILDING_VOLUMES=1` (désactivée par défaut). Les corrections manuelles de `tools/terrain/building-visual/<zone>.json` s'appliquent à chaque construction. Aucun build dans `worlds/` sans prévenir.
+- État : commité (12f72959), non poussé. Réduction du coût en triangles validée par l'utilisateur dans `tools/terrain/src/building-volumes.ts` (réservé), non commitée.
 - Mis à jour : 2026-11-12
 
 ## Modifications sans session ouverte (ne pas toucher sans l'accord de l'utilisateur)
@@ -57,6 +64,24 @@ Relevé du 2026-11-12. Elles viennent de sessions fermées ; aucune session ouve
 - Public (spectateurs) : `models/crowd/**`, `world/crowd.ts`, `crowdRealistic.ts`, `crowd-test.ts`, `tools/blender/crowd/` (sauf `pose_driver.py`)
 - Rue et rendu : `world/roadCorners.ts`, `streetProps.ts`, `roadDecals.ts`, `roadSurface.ts`, `sidewalks.ts`, `streetLamps.ts`, `buildings.ts`, `tileDecode.ts`, `world.ts`, `engine/quality.ts`, `game/chaseFraming.ts`, leurs tests, `tools/terrain/test/building-visual.test.ts`, `tools/blender/textures/to-ktx2.mjs`
 - Divers : `apps/client/src/ui/menu.ts`, `apps/server/src/server.ts`, `.agents/`, `ASSETS_LICENSES.md` (lignes non commitées)
+
+## Public animé et au sol (Public animé)
+- Chantier : spectateurs du bord de route animés et reposés sur le sol (demande de l'utilisateur du 2026-11-12)
+- Fichiers ou dossiers réservés : aucun en cours. Commités (909efb59, e31ca1ec, non poussés) : `apps/client/src/world/crowd.ts`, `crowdRealistic.ts`, `crowdLowPoly.ts`. Les modèles de `models/crowd/` (nouveaux personnages, `index.json`) ne sont toujours pas commités.
+- État : commité (e31ca1ec), non poussé
+- Mis à jour : 2026-11-12
+
+## Foule d'arrivée (Public animé)
+- Chantier : foule d'arrivée en course (zone de 250 m, rangs, barrières avec publicités vélo inventées), demande de l'utilisateur du 2026-11-12
+- Fichiers ou dossiers réservés : aucun en cours. Commité (246e123c, non poussé) : `apps/client/src/world/crowd.ts`, `apps/client/src/crowd-test.ts`, une ligne de `apps/client/src/main.ts` (`new Crowd(`, option `finish`). Les autres changements non commités de `main.ts` (bornes des IA, `sharedRoadCorridor`) ne sont pas à cette session et restent en place.
+- État : commité (246e123c, f18e9baf), non poussé. Aucun fichier réservé. Serveur du banc d'essai sur le port 5214.
+- Mis à jour : 2026-11-12
+
+## Essai voiture Tripo (Essai voiture Tripo)
+- Chantier : essai d'une voiture générée par Tripo, vue sur un banc à côté de la Porsche actuelle (demande de l'utilisateur du 2026-11-12) ; provisoire, rien à commiter
+- Fichiers ou dossiers réservés (tous NOUVEAUX, aucun fichier existant modifié) : `apps/client/public/models/vehicles-essai/`, `apps/client/tripo-car-test.html`, `apps/client/src/tripo-car-test.ts`. Lit sans modifier `models/vehicles/porsche-911.glb` et `world/traffic.ts`.
+- État : en attente de validation, rien de commité. Aucun build dans `worlds/`, aucune mesure GPU. Serveur Vite « client » sur le port 5173.
+- Mis à jour : 2026-11-12
 
 ## Points d'attention
 - `main` a au moins 24 commits d'avance sur l'origine, venant de plusieurs chantiers : un `git push` les publie tous.
