@@ -124,6 +124,11 @@ describe('capteur muet', () => {
     manager.on('heartRate', (h) => bpm.push(h.bpm));
     await clock.advance(3000);
     expect(bpm.length).toBeGreaterThan(1);
+    expect(manager.heartRate?.bpm).toBe(bpm.at(-1));
+    manager.assignRole('heartRate', undefined, false);
+    expect(manager.heartRate).toBeUndefined();
+    manager.assignRole('heartRate', hr.id, false);
+    expect(manager.heartRate?.bpm).toBe(bpm.at(-1));
     expect(hr.battery).toBe(95);
 
     sim.silence('heartRate', 9000);
@@ -131,9 +136,11 @@ describe('capteur muet', () => {
     expect(hr.state).toBe('connected');
     await clock.advance(3000);
     expect(hr.state).toBe('silent');
+    expect(manager.heartRate).toBeUndefined();
     expect(warnings.some((w) => w.code === 'sensor-silent')).toBe(true);
     await clock.advance(4000);
     expect(hr.state).toBe('connected');
+    expect(manager.heartRate?.bpm).toBe(bpm.at(-1));
     await manager.dispose();
   });
 });

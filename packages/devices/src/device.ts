@@ -41,7 +41,7 @@ export interface DeviceOptions extends ProfileFactoryOptions {
   connectTimeoutMs?: number;
 }
 
-const DATA_EVENTS = new Set<keyof DeviceEventMap>(['power', 'heartRate', 'trainer', 'cadence', 'speed']);
+const DATA_EVENTS = new Set<keyof DeviceEventMap>(['power', 'heartRate', 'trainer', 'cadence', 'speed', 'gear']);
 
 export class Device extends Emitter<DeviceEventMap> {
   readonly descriptor: DiscoveredDevice;
@@ -128,18 +128,22 @@ export class Device extends Emitter<DeviceEventMap> {
     if (this._state === 'connected' || this._state === 'silent') return;
     if (this.connecting) return this.connecting;
     this.userDisconnect = false;
+    this.cancelReconnect();
     this.setState('connecting');
-    this.connecting = this.openLink()
+    return this.openConnection()
       .then(() => {
         this.attempt = 0;
       })
       .catch((e: unknown) => {
         this.setState('error');
         throw e;
-      })
-      .finally(() => {
-        this.connecting = undefined;
       });
+  }
+
+  private openConnection(): Promise<void> {
+    this.connecting = this.openLink().finally(() => {
+      this.connecting = undefined;
+    });
     return this.connecting;
   }
 
@@ -155,6 +159,7 @@ export class Device extends Emitter<DeviceEventMap> {
 
   /** Relance immédiatement une reconnexion (bouton « reconnecter » de l'UI). */
   reconnectNow(): void {
+    if (this.connecting || this.link) return;
     if (this.userDisconnect) this.userDisconnect = false;
     this.cancelReconnect();
     this.attempt = 0;
@@ -162,7 +167,9 @@ export class Device extends Emitter<DeviceEventMap> {
   }
 
   private async openLink(): Promise<void> {
-    const link = await this.withTimeout(this.transport.connect(this.descriptor), this.options.connectTimeoutMs ?? 20000);
+    // Le pont natif peut devoir retrouver le capteur avant la connexion et la découverte GATT.
+    const timeout = this.options.connectTimeoutMs ?? (this.transport.kind === 'native-ble' ? 45000 : 20000);
+    const link = await this.withTimeout(this.transport.connect(this.descriptor), timeout);
     if (this.userDisconnect) {
       await link.disconnect().catch(() => undefined);
       return;
@@ -288,15 +295,16 @@ export class Device extends Emitter<DeviceEventMap> {
   }
 
   private async tryReconnect(): Promise<void> {
-    if (this.userDisconnect || this.link) return;
+    if (this.userDisconnect || this.link || this.connecting) return;
     this.setState('reconnecting');
     try {
-      await this.openLink();
+      await this.openConnection();
       this.attempt = 0;
       this.emit('log', `${this.info.name} : reconnecté`);
     } catch (e) {
       this.emit('log', `${this.info.name} : reconnexion échouée (${(e as Error).message})`);
-      if (!this.userDisconnect) this.scheduleReconnect();
+      if (!this.userDisconnect && this.options.reconnect !== false) this.scheduleReconnect();
+      else if (!this.userDisconnect) this.setState('error');
     }
   }
 

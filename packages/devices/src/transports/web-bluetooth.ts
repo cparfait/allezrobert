@@ -124,19 +124,19 @@ export class WebBluetoothTransport implements Transport {
   }
 
   /** Chrome / Edge récents : les appareils déjà autorisés se reconnectent sans rouvrir le sélecteur. */
-  async canRestoreWithoutGesture(): Promise<boolean> {
-    return !!this.bt?.getDevices;
+  async canRestoreWithoutGesture(device: DiscoveredDevice): Promise<boolean> {
+    return !!(await this.authorizedDevice(device));
+  }
+
+  private async authorizedDevice(device: DiscoveredDevice): Promise<BtDevice | undefined> {
+    const rawId = String(device.address?.['deviceId'] ?? device.id.replace(PREFIX, ''));
+    return this.devices.get(rawId) ?? (await this.bt?.getDevices?.())?.find((d) => d.id === rawId);
   }
 
   async connect(device: DiscoveredDevice): Promise<DeviceLink> {
-    const rawId = String(device.address?.['deviceId'] ?? device.id.replace(PREFIX, ''));
-    let dev = this.devices.get(rawId);
-    if (!dev && this.bt?.getDevices) {
-      // Chrome : appareils déjà autorisés (permission persistante), utile après rechargement.
-      dev = (await this.bt.getDevices()).find((d) => d.id === rawId);
-    }
+    const dev = await this.authorizedDevice(device);
     if (!dev?.gatt) throw new Error('Appareil Web Bluetooth inconnu : relancez l’appairage (geste utilisateur requis)');
-    this.devices.set(rawId, dev);
+    this.devices.set(dev.id, dev);
     const server = await dev.gatt.connect();
     const conn = new WebGattConnection(device.id, dev, server);
     await conn.discover();

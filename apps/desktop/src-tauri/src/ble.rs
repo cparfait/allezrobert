@@ -29,6 +29,7 @@ pub const EVENT_DISCONNECTED: &str = "ble://disconnected";
 
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(15);
 const DISCOVER_TIMEOUT: Duration = Duration::from_secs(20);
+const REDISCOVER_TIMEOUT: Duration = Duration::from_secs(4);
 const OPERATION_TIMEOUT: Duration = Duration::from_secs(10);
 /// Intervalle minimal entre deux `ble://discovered` pour un même appareil (mise à jour RSSI).
 const DISCOVERY_THROTTLE: Duration = Duration::from_millis(1000);
@@ -128,6 +129,7 @@ struct Inner {
     /// Déduplication des annonces : dernier contenu émis et date d'émission.
     seen: Mutex<HashMap<String, (SeenDevice, Instant)>>,
     scanning: std::sync::atomic::AtomicBool,
+    scan_lock: Mutex<()>,
 }
 
 /// État Tauri (`app.manage(BleState::default())`).
@@ -159,8 +161,10 @@ impl BleState {
             .or_else(|| adapters.first())
             .ok_or_else(|| AppError::new("Aucun adaptateur Bluetooth détecté"))?;
         let (info, adapter) = (default.0.clone(), default.1.clone());
-        self.install_adapter(app, info.id, adapter.clone()).await?;
-        Ok(adapter)
+        self.install_adapter(app, info.id, adapter).await?;
+        self.0.selected.lock().await.as_ref()
+            .map(|selected| selected.adapter.clone())
+            .ok_or_else(|| AppError::new("Aucun adaptateur Bluetooth sélectionné"))
     }
 
     async fn install_adapter(&self, app: &AppHandle, id: String, adapter: Adapter) -> AppResult<()> {
@@ -201,18 +205,45 @@ impl BleState {
             return Ok(p.clone());
         }
         let adapter = self.adapter(app).await?;
-        let peripherals = adapter
-            .peripherals()
-            .await
-            .map_err(|e| ble_error("Recherche de l'appareil", e))?;
-        peripherals
-            .into_iter()
-            .find(|p| peripheral_key(&p.id()) == device_id)
-            .ok_or_else(|| {
-                AppError(format!(
-                    "Appareil Bluetooth introuvable : {device_id} (relancez une recherche)"
-                ))
-            })
+        let find = || async {
+            adapter.peripherals()
+                .await
+                .map_err(|e| ble_error("Recherche de l'appareil", e))
+                .map(|devices| devices.into_iter().find(|p| peripheral_key(&p.id()) == device_id))
+        };
+        if let Some(peripheral) = find().await? {
+            return Ok(peripheral);
+        }
+
+        // Après un redémarrage, la liste de l'adaptateur est vide tant que la radio n'a pas cherché.
+        let wait_for_peripheral = || async {
+            loop {
+                if let Some(peripheral) = find().await? {
+                    return Ok(peripheral);
+                }
+                tokio::time::sleep(Duration::from_millis(200)).await;
+            }
+        };
+        let _scan = tokio::select! {
+            guard = self.0.scan_lock.lock() => guard,
+            result = wait_for_peripheral() => return result,
+        };
+        if let Some(peripheral) = find().await? {
+            return Ok(peripheral);
+        }
+        let start_scan = !self.0.scanning.load(std::sync::atomic::Ordering::SeqCst);
+        if start_scan {
+            adapter.start_scan(ScanFilter::default())
+                .await
+                .map_err(|e| ble_error("Recherche du capteur mémorisé", e))?;
+        }
+        let result = tokio::time::timeout(REDISCOVER_TIMEOUT, wait_for_peripheral()).await;
+        if start_scan {
+            let _ = adapter.stop_scan().await;
+        }
+        result.unwrap_or_else(|_| {
+            Err(AppError(format!("Capteur Bluetooth hors de portée ou éteint : {device_id}")))
+        })
     }
 
     async fn connected_peripheral(&self, device_id: &str) -> AppResult<Peripheral> {
@@ -531,6 +562,7 @@ pub async fn ble_start_scan(
         .map(|s| parse_uuid(s))
         .collect::<AppResult<Vec<_>>>()?;
     let adapter = state.adapter(&app).await?;
+    let _scan = state.0.scan_lock.lock().await;
     state.0.seen.lock().await.clear();
     state.0.scanning.store(true, std::sync::atomic::Ordering::SeqCst);
     // Relance propre si une recherche était déjà en cours (nouveau filtre).
@@ -545,6 +577,7 @@ pub async fn ble_start_scan(
 
 #[tauri::command]
 pub async fn ble_stop_scan(state: State<'_, BleState>) -> AppResult<()> {
+    let _scan = state.0.scan_lock.lock().await;
     state.0.scanning.store(false, std::sync::atomic::Ordering::SeqCst);
     let adapter = state.0.selected.lock().await.as_ref().map(|s| s.adapter.clone());
     if let Some(adapter) = adapter {

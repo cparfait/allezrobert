@@ -29,6 +29,7 @@ pub const NETWORK_KEY_ENV: &str = "ANT_PLUS_NETWORK_KEY";
 pub const NETWORK_KEY_FILE: &str = "ant-plus-network-key.txt";
 
 const GARMIN_VENDOR_ID: u16 = 0x0fcf;
+const SHIMANO_NETWORK: u8 = 1;
 const SUPPORTED_PRODUCTS: [(u16, &str); 2] = [
     (0x1008, "Clé ANT USB2 (Garmin/Dynastream)"),
     (0x1009, "Clé ANT USB-m (Garmin/Dynastream)"),
@@ -58,13 +59,17 @@ struct OpenStick {
     reader_task: JoinHandle<()>,
     incoming: broadcast::Sender<AntMessage>,
     open_channels: BTreeSet<u8>,
+    ant_plus_configured: bool,
+    shimano_configured: bool,
     _interface: nusb::Interface,
 }
 
 impl OpenStick {
     async fn write(&mut self, message: &AntMessage) -> AppResult<()> {
         let frame = message.encode();
-        log::trace!("ANT → {:02X?}", frame);
+        if message.id != proto::MSG_NETWORK_KEY {
+            log::trace!("ANT → {:02X?}", frame);
+        }
         let result = tokio::time::timeout(RESPONSE_TIMEOUT, async {
             self.writer.write_all(&frame).await?;
             self.writer.flush().await
@@ -87,7 +92,7 @@ impl OpenStick {
                 match rx.recv().await {
                     Ok(msg) => {
                         if let Some((ch, msg_id, code)) = msg.channel_event() {
-                            if msg_id == id && ch == channel {
+                            if msg_id == id && (ch == channel || (id == proto::MSG_NETWORK_KEY && ch == 0)) {
                                 return Ok(code);
                             }
                         }
@@ -228,7 +233,7 @@ async fn find_sticks() -> AppResult<Vec<(NativeAntStick, nusb::DeviceInfo)>> {
 }
 
 /// Clé réseau ANT+ : variable d'environnement, puis fichier de configuration de l'application.
-fn load_network_key(app: &AppHandle) -> AppResult<[u8; 8]> {
+fn load_network_key(app: &AppHandle, required: bool) -> AppResult<Option<[u8; 8]>> {
     let mut sources: Vec<(String, String)> = Vec::new();
     if let Ok(value) = std::env::var(NETWORK_KEY_ENV) {
         sources.push((format!("variable d'environnement {NETWORK_KEY_ENV}"), value));
@@ -248,6 +253,9 @@ fn load_network_key(app: &AppHandle) -> AppResult<[u8; 8]> {
         }
     }
     let Some((origin, raw)) = sources.into_iter().next() else {
+        if !required {
+            return Ok(None);
+        }
         let hint = candidates
             .first()
             .map(|p| p.display().to_string())
@@ -257,7 +265,7 @@ fn load_network_key(app: &AppHandle) -> AppResult<[u8; 8]> {
              (16 caractères hexadécimaux) ou créez le fichier {hint}"
         )));
     };
-    proto::parse_network_key(&raw).ok_or_else(|| {
+    proto::parse_network_key(&raw).map(Some).ok_or_else(|| {
         AppError(format!(
             "Clé réseau ANT+ invalide ({origin}) : 8 octets attendus en hexadécimal, ex. « 0011223344556677 »"
         ))
@@ -279,6 +287,7 @@ pub async fn ant_open(
     state: State<'_, AntState>,
     stick_id: Option<String>,
     network_key: Option<Vec<u8>>,
+    shimano_network_key: Option<Vec<u8>>,
 ) -> AppResult<()> {
     let wanted = stick_id.filter(|s| !s.trim().is_empty());
     let mut guard = state.0.stick.lock().await;
@@ -292,11 +301,20 @@ pub async fn ant_open(
     }
 
     // Clé saisie dans le jeu (onglet Capteurs) en priorité, sinon variable d'environnement ou fichier.
+    let shimano_key = shimano_network_key
+        .map(|bytes| {
+            proto::network_key_from_bytes(&bytes)
+                .ok_or_else(|| AppError::new("Clé réseau Shimano Di2 invalide : 8 octets attendus"))
+        })
+        .transpose()?;
     let key = match network_key {
-        Some(bytes) => proto::network_key_from_bytes(&bytes).ok_or_else(|| {
-            AppError(format!("Clé réseau ANT+ invalide : 8 octets attendus, {} reçus", bytes.len()))
-        })?,
-        None => load_network_key(&app)?,
+        Some(bytes) => Some(proto::network_key_from_bytes(&bytes).ok_or_else(|| {
+            AppError(format!(
+                "Clé réseau ANT+ invalide : 8 octets attendus, {} reçus",
+                bytes.len()
+            ))
+        })?),
+        None => load_network_key(&app, shimano_key.is_none())?,
     };
     let sticks = find_sticks().await?;
     if sticks.is_empty() {
@@ -352,19 +370,23 @@ pub async fn ant_open(
         reader_task,
         incoming,
         open_channels: BTreeSet::new(),
+        ant_plus_configured: key.is_some(),
+        shimano_configured: shimano_key.is_some(),
         _interface: interface,
     };
 
     let setup = async {
         stick.reset().await?;
-        let mut payload = vec![proto::ANT_PLUS_NETWORK];
-        payload.extend_from_slice(&key);
-        stick
-            .command(
-                proto::ANT_PLUS_NETWORK,
-                AntMessage::new(proto::MSG_NETWORK_KEY, payload),
-            )
-            .await
+        for (network, key) in [(proto::ANT_PLUS_NETWORK, key), (SHIMANO_NETWORK, shimano_key)] {
+            if let Some(key) = key {
+                let mut payload = vec![network];
+                payload.extend_from_slice(&key);
+                stick
+                    .command(network, AntMessage::new(proto::MSG_NETWORK_KEY, payload))
+                    .await?;
+            }
+        }
+        Ok::<(), AppError>(())
     };
     if let Err(e) = setup.await {
         stick.reader_task.abort();
@@ -455,12 +477,24 @@ pub async fn ant_open_channel(
     transmission_type: u8,
     period: u16,
     rf_freq: u8,
+    shimano_di2: Option<bool>,
 ) -> AppResult<()> {
     if channel > MAX_CHANNELS {
         return Err(AppError(format!("Canal ANT+ invalide : {channel}")));
     }
     let mut guard = state.0.stick.lock().await;
     let stick = with_stick(&mut guard).await?;
+    let network = if shimano_di2 == Some(true) {
+        if !stick.shimano_configured {
+            return Err(AppError::new("Clé réseau Shimano Di2 absente"));
+        }
+        SHIMANO_NETWORK
+    } else {
+        if !stick.ant_plus_configured {
+            return Err(AppError::new("Clé réseau ANT+ absente"));
+        }
+        proto::ANT_PLUS_NETWORK
+    };
     if stick.open_channels.contains(&channel) {
         stick.close_channel(channel).await;
     }
@@ -471,7 +505,7 @@ pub async fn ant_open_channel(
             channel,
             AntMessage::new(
                 proto::MSG_ASSIGN_CHANNEL,
-                vec![channel, proto::CHANNEL_TYPE_SLAVE, proto::ANT_PLUS_NETWORK],
+                vec![channel, proto::CHANNEL_TYPE_SLAVE, network],
             ),
         )
         .await?;

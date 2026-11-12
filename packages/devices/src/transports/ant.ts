@@ -20,6 +20,8 @@ export interface AntTransportOptions {
   bridge?: TauriBridge | (() => Promise<TauriBridge>);
   /** Clé réseau ANT+ (8 octets ou chaîne hexadécimale) issue de la configuration. */
   networkKey?: Uint8Array | string;
+  /** Clé du réseau privé Shimano, distincte de la clé ANT+. */
+  shimanoNetworkKey?: Uint8Array;
   /** Clé USB à utiliser (sinon la première). */
   stickId?: string;
   experimental?: Partial<ExperimentalAdapters>;
@@ -32,6 +34,7 @@ const PROFILE_KINDS: Partial<Record<AntPlusProfileName, DeviceKind[]>> = {
   power: ['power', 'cadence'],
   heartRate: ['heartRate'],
   controls: ['shifter'],
+  shimanoDi2: ['shifter'],
 };
 
 const PROFILE_NAMES: Partial<Record<AntPlusProfileName, string>> = {
@@ -39,6 +42,7 @@ const PROFILE_NAMES: Partial<Record<AntPlusProfileName, string>> = {
   power: 'Capteur de puissance ANT+',
   heartRate: 'Ceinture cardio ANT+',
   controls: 'Télécommande ANT+',
+  shimanoDi2: 'Shimano Di2 (ANT)',
 };
 
 function profilesFor(kinds: readonly DeviceKind[] | undefined, exp: Partial<ExperimentalAdapters>): AntPlusProfileName[] {
@@ -137,7 +141,11 @@ export class AntTransport implements Transport {
       const stickId = this.options.stickId ?? (await this.listSticks())[0]?.id;
       if (!stickId) throw new Error('Aucune clé ANT+ USB détectée');
       await b.listen<{ channel: number; data: number[] }>('ant://message', (e) => this.onMessage(e.payload.channel, Uint8Array.from(e.payload.data)));
-      await b.invoke<void>('ant_open', { stickId, ...(this.networkKey ? { networkKey: Array.from(this.networkKey) } : {}) });
+      await b.invoke<void>('ant_open', {
+        stickId,
+        ...(this.networkKey ? { networkKey: Array.from(this.networkKey) } : {}),
+        ...(this.options.shimanoNetworkKey ? { shimanoNetworkKey: Array.from(this.options.shimanoNetworkKey) } : {}),
+      });
     })();
     this.opened.catch(() => {
       this.opened = undefined;
@@ -165,6 +173,7 @@ export class AntTransport implements Transport {
         transmissionType: p.transmissionType,
         period: p.period,
         rfFreq: p.rfFreq,
+        ...(profile === 'shimanoDi2' ? { shimanoDi2: true } : {}),
       });
     } catch (e) {
       this.channels.delete(channel);
@@ -175,6 +184,7 @@ export class AntTransport implements Transport {
 
   async releaseChannel(channel: number): Promise<void> {
     this.channels.delete(channel);
+    this.foundHandlers.delete(channel);
     const b = await this.bridge();
     // Commande optionnelle (non présente dans le contrat initial) : ignorée si absente.
     await b.invoke<void>('ant_close_channel', { channel }).catch(() => undefined);
@@ -198,10 +208,19 @@ export class AntTransport implements Transport {
   async scan(options: ScanOptions, onFound: (d: DiscoveredDevice) => void): Promise<ScanHandle> {
     const exp = { ...this.options.experimental, ...(options.experimental ?? {}) };
     const opened: number[] = [];
-    for (const profile of profilesFor(options.kinds, exp)) {
-      // Un canal de ce profil est déjà actif (appareil connecté) : inutile d'en rouvrir un.
-      if ([...this.channels.values()].some((c) => c.profile === profile)) continue;
-      const channel = await this.openChannel(profile);
+    const profiles = profilesFor(options.kinds, exp);
+    if (this.options.shimanoNetworkKey && (!options.kinds?.length || options.kinds.includes('shifter'))) profiles.unshift('shimanoDi2');
+    let firstError: unknown;
+    for (const profile of profiles) {
+      const existing = [...this.channels.entries()].find(([, c]) => c.profile === profile);
+      if (existing?.[1].link) continue;
+      let channel: number;
+      try {
+        channel = existing?.[0] ?? await this.openChannel(profile);
+      } catch (error) {
+        firstError ??= error;
+        continue;
+      }
       opened.push(channel);
       this.foundHandlers.set(channel, () => {
         this.foundHandlers.delete(channel);
@@ -214,7 +233,10 @@ export class AntTransport implements Transport {
           address: { profile, channel, deviceNumber: 0 },
         });
       });
+      // La première trame peut arriver avant la réponse à l'ouverture du canal.
+      if (!existing && this.channels.get(channel)?.seen) this.foundHandlers.get(channel)?.();
     }
+    if (!opened.length && firstError !== undefined) throw firstError;
     return {
       stop: async () => {
         // Les canaux de recherche qui ont trouvé un capteur restent ouverts (réutilisés à la connexion).
@@ -230,6 +252,7 @@ export class AntTransport implements Transport {
   async connect(device: DiscoveredDevice): Promise<DeviceLink> {
     const profile = String(device.address?.['profile'] ?? '') as AntPlusProfileName;
     if (!(profile in ANT_PLUS_PROFILES)) throw new Error(`Profil ANT+ inconnu : ${profile}`);
+    if (profile === 'shimanoDi2' && !this.options.shimanoNetworkKey) throw new Error('Clé réseau Shimano Di2 manquante');
     const wanted = device.address?.['channel'];
     let channel: number | undefined;
     if (typeof wanted === 'number') {

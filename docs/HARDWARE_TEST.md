@@ -113,9 +113,9 @@ natif). Dans l'app, si le PC a deux adaptateurs (intégré + dongle), choisir le
       la valeur finale : c'est l'écart d'étalonnage trainer / pédales.
 - [ ] 3.7 Décocher le power match, refaire 2 min : la puissance pédales reste décalée de cette valeur.
 
-## 4. TICKR en Bluetooth HRS
+## 4. TRACKR ou TICKR en Bluetooth HRS
 
-- [ ] 4.1 **Cardio → Associer** : `TICKR…` apparaît, tuile verte, batterie affichée.
+- [ ] 4.1 **Cardio → Associer** : `TRACKR…` ou `TICKR…` apparaît. Avec la ceinture portée, vérifier que la tuile affiche les BPM.
 - [ ] 4.2 FC du HUD = FC de l'Edge ou de la montre (± 2 bpm). Le TICKR accepte plusieurs connexions :
       l'Edge et la montre peuvent rester appairés.
 - [ ] 4.3 Le fichier FIT exporté en fin de sortie contient la FC (l'ouvrir dans Garmin Connect ou
@@ -195,11 +195,18 @@ sur le vélo et le jeu envoie la pente sans la moduler.
 - [ ] 7.13 **Premier appui après connexion** : vérifier s'il est pris en compte. Le décodeur ignore la
       toute première trame reçue (elle sert de référence) : si le premier appui est perdu à chaque
       connexion, le signaler.
-- [ ] 7.14 Les vraies vitesses du Di2 (leviers) doivent continuer à fonctionner normalement : le jeu ne
-      fait que lire les boutons D-Fly. Le rapport réellement engagé n'est **pas** lisible (protocole
-      E-TUBE non public).
+- [ ] 7.14 Les leviers doivent continuer à changer les vitesses du vélo normalement. La lecture du
+      rapport engagé se teste séparément avec la clé ANT USB (section 8).
 
 ## 8. ANT+ USB (app Windows)
+
+### Rapport engagé du Shimano Di2 (expérimental)
+
+1. Dans **Capteurs → Réglages avancés → ANT+ USB et Direct Connect**, renseigner la **Clé réseau Shimano Di2** et relancer l'app Windows. Le réseau privé est décrit dans le [tableau 7 de MakeShift](https://www.usenix.org/system/files/woot24-motallebighomi.pdf).
+2. Sélectionner la transmission **Cassette réelle**. Réveiller le dérailleur en changeant de vitesse, puis choisir **Capteurs → ANT+ (clé USB) → Vitesses → Associer**. La tuile Vitesses doit afficher le plateau et le pignon dès réception de la trame.
+3. En sortie, comparer l'affichage du HUD aux positions réelles en changeant de pignon, puis de plateau. Laisser le dérailleur s'endormir et vérifier que la dernière position disparaît.
+
+### Capteurs ANT+ standard
 
 - [ ] 8.1 Clé ANT+ branchée, pilote **WinUSB** installé avec Zadig (sinon message « vérifiez que la clé
       utilise le pilote WinUSB »). Garmin Express fermé.
@@ -251,7 +258,7 @@ sur le vélo et le jeu envoie la pente sans la moduler.
 
 ## Ce qui ne pourra pas être validé ici
 
-- **Rapport réellement engagé du Di2** (et « mode boutons » sans D-Fly) : protocole E-TUBE non public.
+- **Rapport engagé du Di2 par Bluetooth** et **mode boutons sans D-Fly** : protocole E-TUBE non public.
 - **Zwift Click v2 gauche / Ride v2 sans l'appli Zwift** : déverrouillage réservé à Zwift.
 - **Appli compagnon en sortie solo** : elle ne rejoint aujourd'hui que les sorties de groupe et les
   courses (salle sur le serveur).

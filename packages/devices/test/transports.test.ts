@@ -202,4 +202,34 @@ describe('AntTransport (contrat Tauri ant_*)', () => {
     expect(pwr.state).toBe('connected');
     await manager.dispose();
   });
+
+  it('Di2 ANT : affiche la position reçue sans produire de commande de vitesse', async () => {
+    const clock = newClock();
+    const bridge = antBridge();
+    const shimanoNetworkKey = Uint8Array.of(1, 2, 3, 4, 5, 6, 7, 8);
+    const manager = new DeviceManager({ transports: [new AntTransport({ bridge, shimanoNetworkKey })], clock });
+    await manager.scan({ kinds: ['shifter'] });
+    expect(bridge.callsOf('ant_open')[0]).toMatchObject({ shimanoNetworkKey: Array.from(shimanoNetworkKey) });
+    expect(bridge.callsOf('ant_open_channel')[0]).toMatchObject({ deviceType: 1, transmissionType: 5, period: 8198, shimanoDi2: true });
+    const receive = (rear: number, page = 0) => bridge.emit('ant://message', { channel: 0, data: [page, 0xff, 2, rear, 0x3c, 0, 0xff, 0xff] });
+    receive(8);
+    const di2 = await settle(clock, manager.connect(manager.discovered[0]!));
+    const shifts: string[] = [];
+    manager.on('shift', (s) => shifts.push(s.action));
+    receive(8);
+    expect(manager.realGear).toEqual({ front: 2, rear: 8 });
+    receive(7, 1);
+    receive(0xff);
+    expect(manager.realGear).toEqual({ front: 2, rear: 8 });
+    receive(7);
+    expect(manager.realGear).toEqual({ front: 2, rear: 7 });
+    expect(shifts).toEqual([]);
+    await clock.advance(7000);
+    expect(manager.realGear).toBeUndefined();
+    receive(1);
+    expect(manager.realGear).toEqual({ front: 2, rear: 1 });
+    await manager.disconnect(di2.id);
+    expect(manager.realGear).toBeUndefined();
+    await manager.dispose();
+  });
 });

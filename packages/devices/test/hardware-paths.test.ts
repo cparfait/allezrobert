@@ -283,6 +283,31 @@ describe('Web Bluetooth : reconnexion au démarrage', () => {
     const third = new DeviceManager({ transports: [new WebBluetoothTransport({ bluetooth: noPerm })], clock, storage });
     await settle(clock, third.restore());
     expect(third.devices).toHaveLength(0);
+    expect(third.summaries()).toMatchObject([{ id: 'web-bluetooth:bt-heartRate', state: 'disconnected', roles: ['heartRate'] }]);
+    await third.forget('web-bluetooth:bt-heartRate');
+    expect(third.summaries()).toEqual([]);
+    expect(third.exportConfig().devices).toEqual([]);
     await third.dispose();
+  });
+
+  it('retrouve un capteur autorisé qui se réveille après le lancement', async () => {
+    const clock = newClock();
+    const sim = new SimulatorTransport({ clock, devices: ['heartRate'] });
+    const bt = fakeWebBluetooth(sim);
+    const storage = new MemoryPairingStorage();
+    const first = new DeviceManager({ transports: [new WebBluetoothTransport({ bluetooth: bt })], clock, storage });
+    await first.scan({ kinds: ['heartRate'] });
+    const desc = first.discovered[0]!;
+    sim.dropConnection('heartRate', 2500);
+    await expect(settle(clock, first.connect(desc, { roles: ['heartRate'] }))).rejects.toThrow('NetworkError');
+    await first.dispose();
+
+    const second = new DeviceManager({ transports: [new WebBluetoothTransport({ bluetooth: bt })], clock, storage });
+    await settle(clock, second.restore());
+    expect(second.summaries()).toMatchObject([{ id: desc.id, state: 'reconnecting', roles: ['heartRate'] }]);
+    await clock.advance(4000);
+    expect(second.summaries()).toMatchObject([{ id: desc.id, state: 'connected', roles: ['heartRate'] }]);
+    expect(second.heartRate?.bpm).toBeGreaterThan(0);
+    await second.dispose();
   });
 });

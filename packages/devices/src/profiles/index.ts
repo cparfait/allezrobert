@@ -2,7 +2,7 @@
 import { SERVICE, TACX_FEC, ZWIFT_CONTROLLER, HEADWIND, SHIMANO_DFLY, zwiftDeviceTypeFromManufacturerData, type ExperimentalAdapters } from '@allezrobert/protocols';
 import { hasService, isSramAxs } from '../gatt-util.ts';
 import type { DeviceLink, Profile } from '../types.ts';
-import { AntControlsShifter, AntHeartRateMonitor, AntPowerMeter, FecTrainer, type FecTrainerOptions } from './ant-profiles.ts';
+import { AntControlsShifter, AntHeartRateMonitor, AntPowerMeter, AntShimanoDi2, FecTrainer, type FecTrainerOptions } from './ant-profiles.ts';
 import { DflyShifter, HeadwindFan, SramAxsShifter, ZwiftControllerShifter, type SramAxsShifterOptions, type ZwiftControllerOptions } from './experimental.ts';
 import { FtmsTrainer, type FtmsTrainerOptions } from './ftms-trainer.ts';
 import { PowerMeter } from './power-meter.ts';
@@ -47,6 +47,8 @@ export function createProfiles(link: DeviceLink, options: ProfileFactoryOptions 
         return [new AntHeartRateMonitor()];
       case 'controls':
         return exp.antControls ? [new AntControlsShifter()] : [];
+      case 'shimanoDi2':
+        return [new AntShimanoDi2()];
       default:
         return [];
     }

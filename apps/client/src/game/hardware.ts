@@ -13,6 +13,8 @@ export interface HardwarePrefs {
   hidBindings: Record<string, 'up' | 'down'>;
   /** Clé réseau ANT+ (16 caractères hexadécimaux), jamais dans le dépôt : saisie par le coureur. */
   antNetworkKey: string;
+  /** Clé du réseau privé Shimano pour lire le rapport Di2 via ANT USB. */
+  shimanoNetworkKey: string;
   /** Trainers Direct Connect ajoutés par adresse IP (mDNS bloqué sur certains réseaux). */
   dirconHosts: string[];
 }
@@ -24,6 +26,7 @@ export const DEFAULT_HARDWARE_PREFS: HardwarePrefs = {
   gamepad: true,
   hidBindings: {},
   antNetworkKey: '',
+  shimanoNetworkKey: '',
   dirconHosts: [],
 };
 

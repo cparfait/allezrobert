@@ -199,9 +199,10 @@ export function renderHardwarePanel(el: HTMLElement, api: HardwareApi): void {
   const desktop = api.isDesktop
     ? `<div class="hw-grid">
         <label class="field">${L('Clé réseau ANT+ (16 caractères hexadécimaux, licence ANT+ : jamais fournie avec le jeu)', 'ANT+ network key (16 hex characters)')}<input id="hw-antkey" type="password" autocomplete="off" spellcheck="false" value="${esc(p.antNetworkKey)}" placeholder="${L('vide = variable ANT_PLUS_NETWORK_KEY ou fichier', 'empty = env variable or file')}"/></label>
+        <label class="field">${L('Clé réseau Shimano Di2 (rapport engagé via ANT, expérimental)', 'Shimano Di2 network key (gear position over ANT, experimental)')}<input id="hw-shimano-key" type="password" autocomplete="off" spellcheck="false" value="${esc(p.shimanoNetworkKey)}" placeholder="${L('16 caractères hexadécimaux', '16 hex characters')}"/></label>
         <label class="field">${L('Direct Connect : ajouter un trainer par adresse IP', 'Direct Connect: add a trainer by IP')}<span class="hw-row"><input id="hw-dircon" placeholder="192.168.1.42"/><button class="btn small" id="hw-diradd">${L('Ajouter', 'Add')}</button></span></label>
       </div>
-      <p class="hw-hint">${L('Clé ANT+ : prise en compte au prochain lancement de l’app. Direct Connect : choisir « Wahoo Direct Connect » puis Associer.', 'ANT+ key: applied at next launch.')} ${p.dirconHosts.length ? `${L('Adresses', 'Hosts')} : ${p.dirconHosts.map(esc).join(', ')}` : ''}</p>`
+      <p class="hw-hint">${L('Redémarre l’app après avoir saisi une clé réseau. Pour le Di2, sélectionne ANT+ puis associe le dérailleur dans Vitesses.', 'Restart the app after entering a network key. For Di2, select ANT+ and pair the derailleur under Shifters.')} ${p.dirconHosts.length ? `${L('Adresses', 'Hosts')} : ${p.dirconHosts.map(esc).join(', ')}` : ''}</p>`
     : `<p class="hw-hint">${L('ANT+ USB et Wahoo Direct Connect ne sont disponibles que dans l’app Windows (le navigateur ne voit que le Bluetooth).', 'ANT+ USB and Direct Connect need the Windows app.')}</p>`;
 
   const diag = `<table class="hw-table"><thead><tr><th>${L('Appareil', 'Device')}</th><th>${L('Liaison', 'Link')}</th><th>${L('État', 'State')}</th><th>Firmware</th><th>${L('Batterie', 'Battery')}</th><th>RSSI</th><th></th></tr></thead><tbody>
@@ -314,6 +315,7 @@ export function renderHardwarePanel(el: HTMLElement, api: HardwareApi): void {
     rerender();
   });
   q<HTMLInputElement>('#hw-antkey')?.addEventListener('change', (e) => api.update((pr) => (pr.antNetworkKey = (e.target as HTMLInputElement).value.trim())));
+  q<HTMLInputElement>('#hw-shimano-key')?.addEventListener('change', (e) => api.update((pr) => (pr.shimanoNetworkKey = (e.target as HTMLInputElement).value.trim())));
   q('#hw-diradd')?.addEventListener('click', () => {
     const v = q<HTMLInputElement>('#hw-dircon')?.value ?? '';
     if (/^[\w.-]+$/.test(v.trim())) api.addDirconHost(v);

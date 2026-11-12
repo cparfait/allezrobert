@@ -26,6 +26,8 @@ export const ANT_PLUS_PROFILES = {
   cadence: { deviceType: 122, period: 8102, rfFreq: ANT_PLUS_RF_FREQUENCY, transmissionType: 0 },
   /** ANT+ Controls Device Profile : type 16, 8192 (télécommandes génériques). */
   controls: { deviceType: 16, period: 8192, rfFreq: ANT_PLUS_RF_FREQUENCY, transmissionType: 0 },
+  /** Réseau privé Shimano, paramètres observés dans MakeShift (WOOT 2024), tableau 7. */
+  shimanoDi2: { deviceType: 1, period: 8198, rfFreq: ANT_PLUS_RF_FREQUENCY, transmissionType: 5 },
 } as const satisfies Record<string, AntProfileChannel>;
 
 export type AntPlusProfileName = keyof typeof ANT_PLUS_PROFILES;

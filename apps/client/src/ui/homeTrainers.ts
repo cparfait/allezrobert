@@ -1,4 +1,5 @@
 import * as THREE from 'three/webgpu';
+import { BIKE_REFERENCE } from '@allezrobert/shared';
 import { LOW_POLY } from '../engine/style.ts';
 import { canvasTex } from './atelierRoom.ts';
 
@@ -13,8 +14,8 @@ import { canvasTex } from './atelierRoom.ts';
  * formes et mêmes couleurs.
  */
 
-/** Hauteur de l'axe arrière (m) : celle d'une roue de route, le vélo reste à plat. */
-export const TRAINER_AXLE_Y = 0.335;
+/** Hauteur de l'axe arrière (m) : celle d'une roue de route, le vélo reste à plat (rayon du vélo de référence, BIKE_REFERENCE). */
+export const TRAINER_AXLE_Y = BIKE_REFERENCE.wheelRadiusM;
 
 const SEG = LOW_POLY ? 10 : 40;
 

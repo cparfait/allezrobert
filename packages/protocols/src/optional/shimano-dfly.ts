@@ -11,8 +11,8 @@
  *
  * NON IMPLÉMENTÉ (22/10/2026) : le « mode boutons » des Di2 12 v sans fil et le rapport réellement
  * engagé passent par le service de configuration 0x18FF, authentifié par le code E-TUBE ; le protocole
- * n'est publié nulle part (BikeControl le garde dans un paquet privé). Le rapport engagé est aussi
- * diffusé en ANT+ « Shifting », profil réservé aux membres ANT+.
+ * n'est pas documenté publiquement. Le profil ANT privé Shimano permet de lire le rapport engagé
+ * séparément (voir `AntShimanoDi2` dans le paquet devices).
  */
 import { toBytes, type ByteSource } from '../bytes.ts';
 

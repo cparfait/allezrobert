@@ -38,7 +38,7 @@ import { PowerMatchController, type PowerMatchOptions } from './power-match.ts';
 import { FecTrainer, type FecTrainerOptions } from './profiles/index.ts';
 import type { ShifterSource } from './shifters.ts';
 import { PowerSmoother } from './smoothing.ts';
-import type { CalibrationEvent, DeviceWarning, DiscoveredDevice, Profile, RoadFeelControl, RoadFeelSetting, ScanHandle, Transport } from './types.ts';
+import type { CalibrationEvent, DeviceEventMap, DeviceWarning, DiscoveredDevice, Profile, RoadFeelControl, RoadFeelSetting, ScanHandle, Transport } from './types.ts';
 
 export type PowerSource = 'pedals' | 'trainer' | 'none';
 
@@ -101,8 +101,8 @@ export interface DeviceManagerOptions {
 
 type TrainerControlLike = NonNullable<Device['trainer']>;
 
-/** Profils qui émettent des événements `shift`. */
-const SHIFTER_PROFILES = new Set(['zwift-controller', 'shimano-dfly', 'sram-axs', 'ant-controls']);
+/** Profils qui émettent des commandes ou des positions de dérailleur. */
+const SHIFTER_PROFILES = new Set(['zwift-controller', 'shimano-dfly', 'sram-axs', 'ant-controls', 'ant-shimano-di2']);
 
 const SINGLE_ROLES = ['trainer', 'power', 'heartRate', 'cadence', 'fan'] as const;
 type SingleRole = (typeof SINGLE_ROLES)[number];
@@ -124,6 +124,8 @@ export class DeviceManager extends Emitter<ManagerEvents> {
   private lastErgSentAt = -Infinity;
   private lastPmUpdate: number | undefined;
   private lastCadence = new Map<string, { t: number; cadence: number }>();
+  private lastHeartRate = new Map<string, HeartRateSample>();
+  private lastGear = new Map<string, DeviceEventMap['gear']>();
   private shifterSources = new Map<string, { src: ShifterSource; off: () => void }>();
   private currentSource: PowerSource = 'none';
   /**
@@ -232,6 +234,7 @@ export class DeviceManager extends Emitter<ManagerEvents> {
   async scan(options: { kinds?: DeviceKind[]; transports?: TransportKind[]; timeoutMs?: number; acceptAll?: boolean } = {}): Promise<void> {
     await this.stopScan();
     const targets = this.transports.filter((t) => !options.transports || options.transports.includes(t.kind));
+    for (const [id, d] of this.found) if (targets.some((t) => t.kind === d.transport)) this.found.delete(id);
     for (const t of targets) {
       if (!(await t.isAvailable().catch(() => false))) continue;
       try {
@@ -270,7 +273,7 @@ export class DeviceManager extends Emitter<ManagerEvents> {
   }
 
   summaries(): DeviceSummary[] {
-    return this.devices.map((d) => ({
+    const live = this.devices.map((d) => ({
       id: d.id,
       name: d.info.name,
       transport: d.info.transport,
@@ -280,6 +283,15 @@ export class DeviceManager extends Emitter<ManagerEvents> {
       ...(d.battery !== undefined ? { battery: d.battery } : {}),
       ...(d.info.rssi !== undefined ? { rssi: d.info.rssi } : {}),
     }));
+    const remembered: DeviceSummary[] = this.config.devices.filter((p) => !this.devicesById.has(p.id)).map((p) => ({
+      id: p.id,
+      name: p.name,
+      transport: p.transport,
+      kinds: p.kinds,
+      state: 'disconnected',
+      roles: this.rolesOf(p.id),
+    }));
+    return [...live, ...remembered];
   }
 
   rolesOf(deviceId: string): Role[] {
@@ -312,6 +324,14 @@ export class DeviceManager extends Emitter<ManagerEvents> {
       this.devicesById.set(desc.id, dev);
       this.wire(dev);
     }
+    // Une association choisie reste visible même si le capteur s'endort avant la connexion.
+    const remember = options.persist !== false;
+    if (remember && options.roles?.length) {
+      this.rememberDevice(desc);
+      for (const r of options.roles) this.assignRole(r, dev.id, false);
+      await this.persist();
+    }
+    if (this.devicesById.get(desc.id) !== dev) return dev;
     try {
       await dev.connect();
     } catch (e) {
@@ -320,16 +340,22 @@ export class DeviceManager extends Emitter<ManagerEvents> {
       }
       throw e;
     }
-    for (const r of options.roles ?? []) this.assignRole(r, dev.id, false);
+    if (this.devicesById.get(desc.id) !== dev) return dev;
+    if (!remember) for (const r of options.roles ?? []) this.assignRole(r, dev.id, false);
     if (this.options.autoAssignRoles !== false) this.autoAssign(dev);
-    if (options.persist !== false) {
-      const paired = pairedFromDiscovered(desc);
-      paired.kinds = [...dev.info.kinds];
-      this.config.devices = this.config.devices.filter((p) => p.id !== desc.id).concat(paired);
+    if (remember) {
+      this.rememberDevice({ ...desc, kinds: dev.info.kinds });
       await this.persist();
     }
     this.emitDevices();
     return dev;
+  }
+
+  private rememberDevice(desc: DiscoveredDevice): void {
+    const index = this.config.devices.findIndex((p) => p.id === desc.id);
+    const paired = pairedFromDiscovered(desc);
+    if (index === -1) this.config.devices.push(paired);
+    else this.config.devices[index] = paired;
   }
 
   private pairedDescriptor(id: string): DiscoveredDevice | undefined {
@@ -351,12 +377,12 @@ export class DeviceManager extends Emitter<ManagerEvents> {
 
   /** Oublie l'appairage (et déconnecte). */
   async forget(deviceId: string): Promise<void> {
-    await this.disconnect(deviceId);
     this.config.devices = this.config.devices.filter((p) => p.id !== deviceId);
     for (const k of SINGLE_ROLES) if (this.config.roles[k] === deviceId) delete this.config.roles[k];
     this.config.roles.shifters = this.config.roles.shifters.filter((x) => x !== deviceId);
-    await this.persist();
+    await Promise.all([this.disconnect(deviceId), this.persist()]);
     this.emit('roles', this.roles);
+    this.emitDevices();
   }
 
   assignRole(role: Role, deviceId: string | undefined, persist = true): void {
@@ -384,7 +410,8 @@ export class DeviceManager extends Emitter<ManagerEvents> {
     const kinds = dev.info.kinds;
     const r = this.config.roles;
     const set = (role: SingleRole) => {
-      if (!r[role] || !this.devicesById.has(r[role]!)) this.assignRole(role, dev.id, false);
+      const id = r[role];
+      if (!id || (!this.devicesById.has(id) && !this.pairedDescriptor(id))) this.assignRole(role, dev.id, false);
     };
     if (kinds.includes('trainer') && dev.trainer) set('trainer');
     if (kinds.includes('power') && !kinds.includes('trainer')) set('power');
@@ -393,31 +420,31 @@ export class DeviceManager extends Emitter<ManagerEvents> {
     if (kinds.includes('fan') && dev.fan) set('fan');
     // Commande de vitesses : seulement si un profil de boutons est réellement branché (adaptateur activé).
     if (kinds.includes('shifter') && !r.shifters.includes(dev.id) && dev.activeProfiles.some((p) => SHIFTER_PROFILES.has(p.name))) this.assignRole('shifter', dev.id, false);
-    void this.persist();
   }
 
   /** Reconnecte les appareils appairés (au démarrage de l'app). Les échecs passent en reconnexion différée. */
   async restore(): Promise<void> {
     const text = this.options.storage ? await this.options.storage.load() : null;
     this.config = parsePairingConfig(text ?? null);
+    this.emit('roles', this.roles);
+    this.emitDevices();
     if (this.config.adapterId) {
       const t = this.transports.find((x) => x.selectAdapter);
       await t?.selectAdapter?.(this.config.adapterId).catch(() => undefined);
     }
-    this.emit('roles', this.roles);
-    for (const p of this.config.devices) {
-      if (!p.autoConnect) continue;
+    await Promise.all(this.config.devices.map(async (p) => {
+      if (!p.autoConnect) return;
       const transport = this.transports.find((t) => t.kind === p.transport);
-      if (!transport) continue;
+      if (!transport) return;
+      const desc = discoveredFromPaired(p);
       // Web Bluetooth : seulement si le navigateur a gardé l'autorisation (sinon geste utilisateur requis).
-      const silent = transport.canRestoreWithoutGesture ? await transport.canRestoreWithoutGesture().catch(() => false) : true;
-      if (!silent) continue;
-      await this.connect(discoveredFromPaired(p), { persist: false }).catch((e: unknown) => {
+      const silent = transport.canRestoreWithoutGesture ? await transport.canRestoreWithoutGesture(desc).catch(() => false) : true;
+      if (!silent || !this.config.devices.includes(p)) return;
+      await this.connect(desc, { persist: false }).catch((e: unknown) => {
         this.emit('log', `Reconnexion de ${p.name} impossible : ${(e as Error).message}`);
-        // Hors de portée ou éteint : nouvel essai différé. Web Bluetooth sans autorisation : rien à faire.
-        if (transport.kind !== 'web-bluetooth') this.device(p.id)?.reconnectNow();
+        if (this.options.reconnect !== false && this.config.devices.includes(p)) this.device(p.id)?.reconnectNow();
       });
-    }
+    }));
   }
 
   private async persist(): Promise<void> {
@@ -533,6 +560,22 @@ export class DeviceManager extends Emitter<ManagerEvents> {
     return this.currentSource;
   }
 
+  /** Dernière mesure fraîche du capteur cardio assigné. */
+  get heartRate(): HeartRateSample | undefined {
+    const id = this.config.roles.heartRate;
+    if (!id || !this.isLive(id)) return undefined;
+    const sample = this.lastHeartRate.get(id);
+    return sample && this.clock.now() - sample.t < 5000 ? sample : undefined;
+  }
+
+  get realGear(): DeviceEventMap['gear'] | undefined {
+    for (const id of this.config.roles.shifters) {
+      const gear = this.lastGear.get(id);
+      if (gear && this.isLive(id)) return gear;
+    }
+    return undefined;
+  }
+
   async dispose(): Promise<void> {
     await this.stopScan();
     for (const id of [...this.shifterSources.keys()]) this.removeShifterSource(id);
@@ -547,6 +590,10 @@ export class DeviceManager extends Emitter<ManagerEvents> {
     const u: Array<() => void> = [];
     u.push(
       dev.on('state', (state) => {
+        if (state !== 'connected') {
+          this.lastHeartRate.delete(id);
+          this.lastGear.delete(id);
+        }
         this.emit('deviceState', { deviceId: id, state });
         if (state !== 'connected' && (this.config.roles.power === id || this.config.roles.trainer === id)) {
           this.powerMatch.reset(true);
@@ -557,6 +604,7 @@ export class DeviceManager extends Emitter<ManagerEvents> {
       dev.on('power', (s) => this.onPower(id, s)),
       dev.on('trainer', (s) => this.onTrainer(id, s)),
       dev.on('heartRate', (s) => {
+        this.lastHeartRate.set(id, s);
         if (this.config.roles.heartRate === id) this.emit('heartRate', s);
       }),
       dev.on('cadence', (s) => this.onCadence(id, s)),
@@ -564,8 +612,10 @@ export class DeviceManager extends Emitter<ManagerEvents> {
         if (this.config.roles.cadence === id || this.config.roles.trainer === id || !this.config.roles.cadence) this.emit('speed', s);
       }),
       dev.on('shift', (s) => {
+        if (s.realGear) this.lastGear.set(id, s.realGear);
         if (this.config.roles.shifters.includes(id)) this.emit('shift', { ...s, sourceId: id });
       }),
+      dev.on('gear', (gear) => this.lastGear.set(id, gear)),
       dev.on('battery', (percent) => {
         this.emit('battery', { deviceId: id, percent });
         this.emitDevices();

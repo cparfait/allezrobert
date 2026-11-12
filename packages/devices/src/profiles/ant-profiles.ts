@@ -324,6 +324,28 @@ export class AntHeartRateMonitor implements Profile {
   }
 }
 
+/** Page 0 du réseau privé Shimano, observée dans MakeShift (WOOT 2024), figure 10. */
+export class AntShimanoDi2 implements Profile {
+  readonly name = 'ant-shimano-di2';
+  readonly streaming = true;
+  private unsub: (() => void) | undefined;
+
+  async attach(link: DeviceLink, ctx: ProfileContext): Promise<void> {
+    if (link.type !== 'ant') throw new Error('Shimano Di2 : canal ANT attendu');
+    this.unsub = link.onPage((data) => {
+      if (data.length !== 8 || data[0] !== 0) return;
+      const front = data[2]!;
+      const rear = data[3]!;
+      if (front >= 1 && front <= 3 && rear >= 1 && rear <= 13) ctx.emit('gear', { front, rear });
+    });
+  }
+
+  detach(): void {
+    this.unsub?.();
+    this.unsub = undefined;
+  }
+}
+
 /** EXPÉRIMENTAL : télécommandes ANT+ Controls, page 73. */
 export class AntControlsShifter implements Profile {
   readonly name = 'ant-controls';

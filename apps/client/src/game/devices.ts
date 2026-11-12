@@ -131,7 +131,16 @@ export function createDeviceLayer(): DeviceLayer {
     }
     dircon = new DirconTransport();
     for (const h of prefs.dirconHosts) dircon.addManualDevice(h);
-    transports.push(new NativeBleTransport(), dircon, new AntTransport(networkKey ? { networkKey } : {}));
+    let shimanoNetworkKey: Uint8Array | undefined;
+    try {
+      if (prefs.shimanoNetworkKey.trim()) shimanoNetworkKey = parseAntNetworkKey(prefs.shimanoNetworkKey);
+    } catch {
+      shimanoNetworkKey = undefined;
+    }
+    transports.push(new NativeBleTransport(), dircon, new AntTransport({
+      ...(networkKey ? { networkKey } : {}),
+      ...(shimanoNetworkKey ? { shimanoNetworkKey } : {}),
+    }));
   }
   const manager = new DeviceManager({
     transports,
@@ -293,6 +302,7 @@ export function createDeviceLayer(): DeviceLayer {
         kinds: [...d.kinds],
         simulated: d.transport === 'simulator',
         state: stateLabel(d.state),
+        canReconnect: d.transport !== 'web-bluetooth' && available.includes(d.transport) && (d.state === 'disconnected' || d.state === 'error' || d.state === 'reconnecting'),
         ...(d.battery !== undefined ? { detail: `🔋 ${d.battery} %` } : {}),
         ok: d.state === 'connected',
       })),
@@ -310,6 +320,9 @@ export function createDeviceLayer(): DeviceLayer {
       const cadenceId = sensor ? r.cadence : powerId;
       const powerName = nameOf(powerId);
       const cadenceName = nameOf(cadenceId);
+      const hr = manager.heartRate?.bpm;
+      const gear = manager.realGear;
+      const di2ButtonsOnly = r.shifters.some((id) => connected(id) && manager.device(id)?.activeProfiles.some((p) => p.name === 'shimano-dfly'));
       return {
         ...(src !== 'none' ? { powerFrom: src } : {}),
         ...(powerName ? { powerName } : {}),
@@ -317,6 +330,9 @@ export function createDeviceLayer(): DeviceLayer {
         ...(sensor ? { cadenceFrom: 'sensor' as const } : src !== 'none' ? { cadenceFrom: src } : {}),
         ...(cadenceName ? { cadenceName } : {}),
         ...(now - liveVals.cadenceAt < 3000 ? { cadence: Math.round(liveVals.cadence) } : {}),
+        ...(hr !== undefined ? { hr } : {}),
+        ...(gear ? { gear: `${gear.front} · ${gear.rear}` } : {}),
+        ...(di2ButtonsOnly ? { di2ButtonsOnly } : {}),
       };
     },
     async pair(role, transport) {
@@ -343,13 +359,25 @@ export function createDeviceLayer(): DeviceLayer {
       }
       const candidates = manager.discovered.filter((d) => d.transport === tr && (d.kinds.includes(kind) || (tr === 'web-bluetooth' && showAllDevices)));
       log(`trouvés : ${candidates.map((d) => `${d.name} [${d.kinds.join(',')}] ${d.rssi ?? ''}`).join(' ; ') || 'aucun'}`);
-      const best = candidates[0];
+      const di2 = role === 'shifter' && tr === 'ant-usb' && loadSettings().drivetrain === 'cassette'
+        ? candidates.find((d) => d.address?.['profile'] === 'shimanoDi2')
+        : undefined;
+      const best = di2 ?? candidates[0];
       if (!best) throw new Error(`Aucun ${ROLE_LABEL[role]().toLowerCase()} trouvé. Vérifiez qu'il est réveillé et libre (une seule appli à la fois).`);
+      if (role === 'power' && tr === 'native-ble' && /^assioma\s*\d+[lr]$/i.test(best.name) &&
+          candidates.some((d) => /^assioma\s*\d+l$/i.test(d.name)) && candidates.some((d) => /^assioma\s*\d+r$/i.test(d.name))) {
+        throw new Error(getLang() === 'fr'
+          ? 'Les Assioma gauche et droite sont détectées séparément. Dans l’appli Favero, ouvre « Compatibilité avec d’autres applis » et choisis le canal unifié G+D. Ferme Favero puis associe à nouveau les pédales.'
+          : 'The left and right Assioma pedals were detected separately. In the Favero app, open “Compatibility with other apps” and select the unified L+R channel. Close Favero and pair again.');
+      }
       await manager.connect(best, { roles: [role] });
       changed();
     },
     forget: (id) => {
-      void manager.forget(id).then(changed);
+      void manager.forget(id).then(() => {
+        for (let i = warnings.length - 1; i >= 0; i--) if (warnings[i]?.deviceId === id) warnings.splice(i, 1);
+        changed();
+      });
     },
     reconnect: (id) => hardware.reconnect(id),
     useSimulator: (on) => {
@@ -377,7 +405,7 @@ export function createDeviceLayer(): DeviceLayer {
       const smooth = loadSettings().smoothing3s;
       if (manager.smoothingEnabled !== smooth) manager.setSmoothing(smooth);
       // Sans aucun capteur : simulateur automatique (rouler tout de suite sans matériel).
-      if (localStorage.getItem('ar.sim') !== 'off' && !manager.summaries().some((d) => d.state === 'connected' || d.state === 'connecting')) void connectSimulator().then(changed);
+      if (localStorage.getItem('ar.sim') !== 'off' && !manager.summaries().some((d) => d.state === 'connected' || d.state === 'connecting' || d.state === 'reconnecting')) void connectSimulator().then(changed);
       return new ManagerInputSource(manager, sim);
     },
   };
@@ -393,7 +421,6 @@ class ManagerInputSource implements InputSource {
   /** Dernier ressenti route transmis (revêtement:intensité), et ce réglage pour la puce du HUD. */
   private roadFeelKey: string | undefined;
   private roadFeelSent: { surface: TacxRoadSurface; intensityPercent: number } | undefined;
-  private lastHrT = 0;
   private lastPowerT = 0;
   private simCheckedAt = -Infinity;
   private readonly fan = new FanController(loadHardwarePrefs().fan);
@@ -424,12 +451,7 @@ class ManagerInputSource implements InputSource {
         }
       }),
       manager.on('cadence', (c) => (this.inputs.cadence = c.cadence)),
-      manager.on('heartRate', (h) => {
-        this.inputs.hr = h.bpm;
-        this.lastHrT = performance.now();
-      }),
       manager.on('shift', (s) => {
-        if (s.realGear) this.inputs.realGear = { ...s.realGear };
         this.shiftCbs.forEach((cb) => cb(s.action));
       }),
       // Changement de mode du ventilateur dans le menu : appliqué tout de suite.
@@ -451,8 +473,12 @@ class ManagerInputSource implements InputSource {
       this.inputs.watts = 0;
       this.inputs.cadence = 0;
     }
-    // Plus de mesure cardiaque depuis 5 s (ceinture perdue ou déconnectée) : pas de dernière valeur périmée.
-    if (this.inputs.hr !== undefined && performance.now() - this.lastHrT > 5000) delete this.inputs.hr;
+    const hr = this.manager.heartRate?.bpm;
+    if (hr === undefined) delete this.inputs.hr;
+    else this.inputs.hr = hr;
+    const gear = this.manager.realGear;
+    if (gear === undefined) delete this.inputs.realGear;
+    else this.inputs.realGear = gear;
     // Cadence du simulateur (aucun vrai capteur de puissance, de cadence ni home trainer) : calculée par la sortie.
     const now = performance.now();
     if (now - this.simCheckedAt > 1000) {

@@ -100,7 +100,7 @@ export interface Transport {
    * Reconnexion au démarrage sans geste utilisateur possible ? (Web Bluetooth : seulement si le
    * navigateur conserve les autorisations, `navigator.bluetooth.getDevices()`). Absent = oui.
    */
-  canRestoreWithoutGesture?(): Promise<boolean>;
+  canRestoreWithoutGesture?(device: DiscoveredDevice): Promise<boolean>;
   /** Choix de l'adaptateur Bluetooth (Bluetooth natif uniquement). */
   listAdapters?(): Promise<NativeAdapter[]>;
   selectAdapter?(adapterId: string): Promise<void>;
@@ -151,6 +151,7 @@ export interface CalibrationEvent {
 
 /** Événements d'un appareil : ceux de @allezrobert/shared + avertissements, infos et calibration. */
 export interface DeviceEventMap extends DeviceEvents {
+  gear: { front: number; rear: number };
   warning: DeviceWarning;
   info: DeviceInfo;
   calibration: CalibrationEvent;
