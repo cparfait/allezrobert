@@ -53,6 +53,8 @@ function jobs(group) {
       { src: join(dir, 'cloth_normal.webp'), options: NORMAL },
       { src: join(dir, 'knit_normal.webp'), options: NORMAL },
       { src: join(dir, 'boutique/jersey_mask.webp'), options: DATA },
+      { src: join(dir, 'tripo/jersey_mask.webp'), options: DATA },
+      { src: join(dir, 'tripo-femme/jersey_mask.webp'), options: DATA },
     ];
   }
   if (group.startsWith('ortho:')) {
