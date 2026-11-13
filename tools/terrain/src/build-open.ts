@@ -367,7 +367,8 @@ function buildTour(tour: OpenTour, g: RoadGraph, net: RoadNet, edgeIndex: Map<nu
     const e = g.edges[eid]!;
     const forward = e.a === node;
     const s = path.add({ edge: edgeIndex.get(eid)!, forward });
-    steps.push({ startD: s.startD, endD: s.endD, surface: e.road.surface || 'asphalt', width: e.road.width });
+    // Largeur du graphe publié (BD TOPO si connue), pas celle d'OSM : c'est elle qui est dessinée et qui borne le vélo.
+    steps.push({ startD: s.startD, endD: s.endD, surface: e.road.surface || 'asphalt', width: net.edge(edgeIndex.get(eid)!).width });
     node = forward ? e.b : e.a;
   }
   const points = path.pointsFrom(0);
