@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { StreetIndex, dropShortRuns, pushSidewalk, trimOverBank, refineSidewalkEnds, resampleStrip, type MeshSink } from '../src/world/sidewalks.ts';
+import { StreetIndex, bevelSidewalkEnds, dropShortRuns, pushSidewalk, trimOverBank, refineSidewalkEnds, resampleStrip, type MeshSink } from '../src/world/sidewalks.ts';
 import { FootprintIndex } from '../src/world/footprints.ts';
 import type { LoadedTile, TileRoad } from '../src/world/types.ts';
 
@@ -188,5 +188,30 @@ describe('FootprintIndex.countNear', () => {
     expect(f.countNear(50, 20, 15)).toBe(1);
     expect(f.countNear(50, 20, 5)).toBe(0);
     expect(f.countNear(100, 5, 110)).toBe(2);
+  });
+});
+
+describe('bouts de trottoir en biseau', () => {
+  const sink = (): MeshSink => ({ pos: [], uvs: [], info: [], lit: [], decal: [], dsize: [], side: [], index: [] });
+  const sd = { edge: [4.6, 0, 0, 4.6, 0, 6, 4.6, 0, 12], along: [0, 6, 12], widths: [2, 2, 2], kinds: [], lamp: [0, 0, 0], ux: [1, 1, 1], uz: [0, 0, 0] };
+
+  it('ajoute un profil de rampe à chaque bout et abaisse le bout', () => {
+    const r = bevelSidewalkEnds(sd);
+    expect(r.along).toEqual([0, 0.7, 6, 11.3, 12]);
+    expect(r.fall).toEqual([0.15, 1, 1, 1, 0.15]);
+  });
+
+  it('descend la bordure presque au niveau de la chaussée au bout', () => {
+    const r = bevelSidewalkEnds(sd);
+    const s = sink();
+    pushSidewalk(s, r.edge, r.along, r.widths, r.ux, r.uz, 1, 4.6, 4, r.lamp, () => 0, r.kinds, r.fall);
+    // Dessus de bordure (sommet 1 du profil) : 12 cm en plein trottoir, ~2 cm au bout.
+    expect(s.pos[(8 * 1 + 1) * 3 + 1]).toBeCloseTo(0.12);
+    expect(s.pos[1 * 3 + 1]).toBeCloseTo(0.12 * 0.15);
+  });
+
+  it('ne change rien sans bout (trottoir sans largeur ou profil isolé)', () => {
+    const r = bevelSidewalkEnds({ ...sd, widths: [0, 0, 0] });
+    expect(r.along).toEqual([0, 6, 12]);
   });
 });

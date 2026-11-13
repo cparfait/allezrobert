@@ -8,7 +8,7 @@ import { chainPieces, ribbonIndex, sideRoadStrips, type RouteFootprint } from '.
 import { cloudShade } from './clouds.ts';
 import { LAMP_STRENGTH, LAMP_FROM_CURB, LAMP_LEFT, LAMP_RIGHT, LAMP_SPACING, LAMP_STAGGERED, ROAD_FX, RoadLightingModel, asphaltColor, asphaltGrainSoft, decalShade, lampIsLeft, lampPool, reflectAlpha, rippleNormal, wetAlbedo, wetMasks, wetRoughness } from './roadSurface.ts';
 import { LampField, NearLampLights, createLampMaterial, type LampSpot } from './streetLamps.ts';
-import { CURB_H, CURB_W, StreetIndex, pushSidewalk, dropShortRuns, refineSidewalkEnds, resampleStrip, trimOverBank, type EdgeKind, type MeshSink } from './sidewalks.ts';
+import { CURB_H, CURB_W, StreetIndex, pushSidewalk, dropShortRuns, refineSidewalkEnds, bevelSidewalkEnds, resampleStrip, trimOverBank, type EdgeKind, type MeshSink } from './sidewalks.ts';
 import { DECAL_CROSSWALK, DECAL_GUTTER, DECAL_OIL, GUTTER_W, decalAtCrossing, placeDecals, pushDecal, stripSeed } from './roadDecals.ts';
 import { tune } from '../dev/tuning.ts';
 import { bollardGeometry, buildShopProps, createBollardMaterial, createPropMaterial, placeBollards } from './streetProps.ts';
@@ -28,6 +28,20 @@ const UNPAVED = new Set(['unpaved', 'gravel', 'dirt', 'ground', 'compacted', 'fi
 /** Pavés (secteurs de Paris–Roubaix, vieilles rues) : mêmes valeurs OSM que la physique et le son. */
 const COBBLES = new Set(['sett', 'cobblestone', 'unhewn_cobblestone', 'cobblestone:flattened', 'paving_stones:sett']);
 const SKIP = new Set(['footway', 'path', 'steps', 'cycleway', 'bridleway', 'pedestrian', 'corridor', 'platform']);
+
+const WALK_CELL = 2;
+const WALK_REACH = 2.2;
+
+function indexWalk(walk: number[]): Map<number, number[]> {
+  const grid = new Map<number, number[]>();
+  for (let i = 0; i < walk.length; i += 3) {
+    const key = Math.floor((walk[i] as number) / WALK_CELL) * 100003 + Math.floor((walk[i + 1] as number) / WALK_CELL);
+    let cell = grid.get(key);
+    if (!cell) grid.set(key, (cell = []));
+    cell.push(walk[i] as number, walk[i + 1] as number, walk[i + 2] as number);
+  }
+  return grid;
+}
 
 /**
  * Réseau routier OSM (hors itinéraire actif, déjà dessiné par RoadMesh) en rubans 3D posés
@@ -50,6 +64,8 @@ export class RoadNetwork {
   private shopWallsOf: (tileId: string) => readonly number[] = () => [];
   private readonly roadMat: THREE.MeshStandardNodeMaterial;
   private readonly tiles = new Map<string, THREE.Object3D[]>();
+  /** Surface des trottoirs par tuile (cellules de WALK_CELL m). */
+  private readonly walks = new Map<string, Map<number, number[]>>();
   private readonly activeRoute: string;
   private readonly footprint: RouteFootprint | null;
 
@@ -242,7 +258,9 @@ export class RoadNetwork {
       const lamps: LampSpot[] = [];
       const bollards: LampSpot[] = [];
       const street = ROAD_FX && !LOW_POLY ? new StreetIndex(tile, roads, this.shopWallsOf(tile.id)) : null;
-      const geo = buildRoads(roads, this.footprint, street, lamps, this.groundAt, bollards);
+      const walk: number[] = [];
+      const geo = buildRoads(roads, this.footprint, street, lamps, this.groundAt, bollards, walk);
+      if (walk.length) this.walks.set(tile.id, indexWalk(walk));
       if (geo) {
         const mesh = new THREE.Mesh(geo, this.roadMat);
         mesh.receiveShadow = true;
@@ -265,11 +283,37 @@ export class RoadNetwork {
     this.tiles.set(tile.id, objs);
   }
 
+  /**
+   * Hauteur du dessus d'un trottoir au plus près de (x, z) (à moins de WALK_REACH m d'un point mesuré), NaN ailleurs :
+   * les spectateurs y sont posés au lieu d'être enfoncés sous la dalle, qui monte au-dessus du terrain.
+   */
+  walkHeightAt(x: number, z: number): number {
+    let best = WALK_REACH * WALK_REACH;
+    let y = Number.NaN;
+    const cx = Math.floor(x / WALK_CELL);
+    const cz = Math.floor(z / WALK_CELL);
+    for (const grid of this.walks.values())
+      for (let i = -1; i <= 1; i++)
+        for (let j = -1; j <= 1; j++) {
+          const s = grid.get((cx + i) * 100003 + (cz + j));
+          if (!s) continue;
+          for (let k = 0; k < s.length; k += 3) {
+            const d = ((s[k] as number) - x) ** 2 + ((s[k + 1] as number) - z) ** 2;
+            if (d < best) {
+              best = d;
+              y = s[k + 2] as number;
+            }
+          }
+        }
+    return y;
+  }
+
   removeTile(tile: LoadedTile): void {
     const objs = this.tiles.get(tile.id);
     if (!objs) return;
     this.lamps.remove(tile.id);
     this.bollards.remove(tile.id);
+    this.walks.delete(tile.id);
     for (const o of objs) {
       this.group.remove(o);
       (o as THREE.Mesh).geometry.dispose();
@@ -290,9 +334,9 @@ function edgeAt(street: StreetIndex, x: number, y: number, z: number, dx: number
 }
 
 /** Rubans de toutes les routes d'une tuile, fusionnés (un seul appel de dessin). */
-function buildRoads(roads: TileRoad[], footprint: RouteFootprint | null, street: StreetIndex | null, lamps: LampSpot[], groundAt: ((x: number, z: number) => number) | null, bollards: LampSpot[] = []): THREE.BufferGeometry | null {
+function buildRoads(roads: TileRoad[], footprint: RouteFootprint | null, street: StreetIndex | null, lamps: LampSpot[], groundAt: ((x: number, z: number) => number) | null, bollards: LampSpot[] = [], walk: number[] = []): THREE.BufferGeometry | null {
   const lampGrid = new Map<number, LampSpot[]>();
-  const sink: MeshSink = { pos: [], uvs: [], info: [], lit: [], decal: [], dsize: [], side: [], index: [] };
+  const sink: MeshSink = { pos: [], uvs: [], info: [], lit: [], decal: [], dsize: [], side: [], index: [], walk };
   const { pos, uvs, info, lit, decal, dsize, side, index } = sink;
   const pieces = roads
     .filter((r) => (r.pts3 as number[]).length >= 6)
@@ -443,11 +487,11 @@ function buildRoads(roads: TileRoad[], footprint: RouteFootprint | null, street:
       if (city && groundAt && street) {
         // Bouts de trottoir posés au bord de la chaussée voisine (plus de pointe qui la recouvre).
         for (const sd of [-1, 1]) {
-          const r = refineSidewalkEnds(
+          const r = bevelSidewalkEnds(refineSidewalkEnds(
             { edge: sd < 0 ? s.left : s.right, along: s.along, widths: sd < 0 ? wL : wR, kinds: sd < 0 ? kL : kR, lamp: Array.from(lampAt), ux, uz },
             (x, y, z, ax, az) => edgeAt(street, x, y, z, sd * ax, sd * az, groundAt),
-          );
-          pushSidewalk(sink, r.edge, r.along, r.widths, r.ux, r.uz, sd, o, half, r.lamp, groundAt, r.kinds);
+          ));
+          pushSidewalk(sink, r.edge, r.along, r.widths, r.ux, r.uz, sd, o, half, r.lamp, groundAt, r.kinds, r.fall);
         }
       }
     }

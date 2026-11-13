@@ -321,6 +321,8 @@ export interface MeshSink {
   /** Trottoir : distance au mur (m, 99 sans mur) et vitrine éclairée la nuit (0 ou 1). */
   side: number[];
   index: number[];
+  /** Échantillons de la surface des trottoirs (x, z, y), pour poser les spectateurs dessus (RoadNetwork.walkHeightAt). */
+  walk?: number[];
 }
 
 /** Ce qui borde un profil de trottoir : mur atteint (ombre à son pied) et vitrine (lumière la nuit). */
@@ -337,7 +339,7 @@ const STRIDE = 8;
  * chaque face (arêtes vives). Il s'arrête net (face verticale au bout) là où un profil n'a plus de largeur.
  * `sign` : −1 à gauche, +1 à droite ; `o` : abscisse transverse du bord de chaussée ; `lamp` : état par profil.
  */
-export function pushSidewalk(sink: MeshSink, edge: readonly number[], along: readonly number[], widths: readonly number[], ux: readonly number[], uz: readonly number[], sign: number, o: number, half: number, lamp: readonly number[], groundAt: (x: number, z: number) => number, kinds: readonly EdgeKind[] = []): void {
+export function pushSidewalk(sink: MeshSink, edge: readonly number[], along: readonly number[], widths: readonly number[], ux: readonly number[], uz: readonly number[], sign: number, o: number, half: number, lamp: readonly number[], groundAt: (x: number, z: number) => number, kinds: readonly EdgeKind[] = [], fall: readonly number[] = []): void {
   const n = along.length;
   const base = sink.pos.length / 3;
   for (let i = 0; i < n; i++) {
@@ -345,7 +347,9 @@ export function pushSidewalk(sink: MeshSink, edge: readonly number[], along: rea
     const y = edge[i * 3 + 1] as number;
     const z = edge[i * 3 + 2] as number;
     const w = widths[i] as number;
-    const h = w > 0 ? CURB_H : 0;
+    // Bout en biseau (bevelSidewalkEnds) : k = 1 en plein trottoir, près de 0 au bout, où il rejoint la chaussée.
+    const k = fall[i] ?? 1;
+    const h = w > 0 ? CURB_H * k : 0;
     const c = Math.min(CURB_W, w);
     const dx = (ux[i] as number) * sign;
     const dz = (uz[i] as number) * sign;
@@ -354,11 +358,18 @@ export function pushSidewalk(sink: MeshSink, edge: readonly number[], along: rea
     // Dalle posée au-dessus du terrain, qui peut monter vers le mur (rue à flanc de butte) ; bornée si la hauteur est absente.
     const g = groundAt(ox, oz);
     const top = y + h;
-    const yOuter = Number.isFinite(g) && g > top && g - top < 1.5 ? g + 0.02 : top;
+    const yOuter0 = Number.isFinite(g) && g > top && g - top < 1.5 ? g + 0.02 : top;
+    const yOuter = k < 1 ? y + (yOuter0 - y) * k : yOuter0;
     // Terrain plus bas que la dalle (talus, fossé) : une face verticale descend jusqu'à lui, sinon la dalle
     // flottait au-dessus de l'herbe. Bornée à 3 m (hauteur absente ou aberrante).
     const yFoot = Number.isFinite(g) && g < yOuter - 0.02 ? Math.max(g - 0.05, yOuter - 3) : yOuter;
     const a = along[i] as number;
+    if (w > 0 && sink.walk) {
+      const yc = top;
+      sink.walk.push(x + dx * (c + 0.2), z + dz * (c + 0.2), yc + (yOuter - yc) * Math.min(0.2 / Math.max(w - c, 0.2), 1));
+      sink.walk.push(x + dx * (c + w) * 0.5, z + dz * (c + w) * 0.5, (yc + yOuter) / 2);
+      sink.walk.push(ox, oz, yOuter);
+    }
     const profile: Array<[number, number, number, number]> = [
       [x, y, z, o],
       [x, top, z, o],
@@ -450,6 +461,60 @@ export interface SideProfiles {
   lamp: number[];
   ux: number[];
   uz: number[];
+  /** Hauteur relative du trottoir par profil (1 : entière, absent : 1), voir bevelSidewalkEnds. */
+  fall?: number[];
+}
+
+/** Longueur (m) de la rampe d'un bout de trottoir et hauteur relative qui reste à son extrémité (≈ 2 cm de bordure). */
+export const BEVEL_M = 0.7;
+const BEVEL_END = 0.15;
+
+/**
+ * Biseaute les deux bouts de chaque tronçon de trottoir : un profil est ajouté BEVEL_M avant le bout (hauteur
+ * entière) et le dernier retombe presque au niveau de la chaussée, au lieu d'une face verticale. Sur un tronçon
+ * plus court que la rampe, la pente est simplement plus raide. À appeler après refineSidewalkEnds.
+ */
+export function bevelSidewalkEnds(sd: SideProfiles): SideProfiles {
+  const n = sd.along.length;
+  const out: SideProfiles = { edge: [], along: [], widths: [], kinds: [], lamp: [], ux: [], uz: [], fall: [] };
+  const none: EdgeKind = { wall: false, shop: false };
+  const has = (i: number) => i >= 0 && i < n && (sd.widths[i] as number) > 0;
+  const push = (i: number, k: number) => {
+    out.edge.push(sd.edge[i * 3] as number, sd.edge[i * 3 + 1] as number, sd.edge[i * 3 + 2] as number);
+    out.along.push(sd.along[i] as number);
+    out.widths.push(sd.widths[i] as number);
+    out.kinds.push(sd.kinds[i] ?? none);
+    out.lamp.push(sd.lamp[i] ?? 0);
+    out.ux.push(sd.ux[i] as number);
+    out.uz.push(sd.uz[i] as number);
+    out.fall?.push(k);
+  };
+  /** Profil intermédiaire à la fraction f du tronçon a → b (largeur et direction interpolées, hauteur entière). */
+  const between = (a: number, b: number, f: number) => {
+    const lerp = (p: number, q: number) => p + (q - p) * f;
+    for (let c = 0; c < 3; c++) out.edge.push(lerp(sd.edge[a * 3 + c] as number, sd.edge[b * 3 + c] as number));
+    out.along.push(lerp(sd.along[a] as number, sd.along[b] as number));
+    out.widths.push(lerp(sd.widths[a] as number, sd.widths[b] as number));
+    out.kinds.push(sd.kinds[a] ?? none);
+    out.lamp.push(sd.lamp[a] ?? 0);
+    let ux = lerp(sd.ux[a] as number, sd.ux[b] as number);
+    let uz = lerp(sd.uz[a] as number, sd.uz[b] as number);
+    const l = Math.hypot(ux, uz) || 1;
+    ux /= l;
+    uz /= l;
+    out.ux.push(ux);
+    out.uz.push(uz);
+    out.fall?.push(1);
+  };
+  const seg = (a: number, b: number) => Math.abs((sd.along[b] as number) - (sd.along[a] as number));
+  for (let i = 0; i < n; i++) {
+    const startEnd = has(i) && !has(i - 1) && has(i + 1);
+    const stopEnd = has(i) && !has(i + 1) && has(i - 1);
+    if (stopEnd && seg(i - 1, i) > BEVEL_M * 1.3) between(i - 1, i, 1 - BEVEL_M / seg(i - 1, i));
+    push(i, startEnd || stopEnd ? BEVEL_END : 1);
+    if (startEnd && seg(i, i + 1) > BEVEL_M * 1.3) between(i, i + 1, BEVEL_M / seg(i, i + 1));
+  }
+  return out;
 }
 
 /**

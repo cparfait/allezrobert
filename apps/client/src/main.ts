@@ -1177,7 +1177,13 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   const footprints = world.buildings.footprints;
   rig.occlusion = (a, b) => footprints.firstHit(a.x, a.y, a.z, b.x, b.y, b.z);
   // Public sur les côtes (une fois le terrain chargé autour du départ).
-  const crowd = new Crowd(track, (x, z) => world.terrain.heightAt(x, z), { riderName: s.name, density: engine.quality.crowdDensity, finish: s.mode === 'race' });
+  const crowdGround = (x: number, z: number): number => {
+    // Sur un trottoir, le dessus de la dalle (au-dessus du terrain) : sinon les spectateurs y sont enfoncés.
+    const g = world.terrain.heightAt(x, z);
+    const w = world.network.walkHeightAt(x, z);
+    return Number.isFinite(w) && (!Number.isFinite(g) || w > g) ? w : g;
+  };
+  const crowd = new Crowd(track, crowdGround, { riderName: s.name, density: engine.quality.crowdDensity, finish: s.mode === 'race' });
   engine.scene.add(crowd.group);
   engine.scene.add(new TownSigns(track, (x, z) => world.terrain.heightAt(x, z)).group);
   const banners = new FinishBanners(track, (x, z) => world.terrain.heightAt(x, z));
