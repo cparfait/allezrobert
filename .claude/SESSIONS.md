@@ -78,10 +78,16 @@ Relevé du 2026-11-12. Elles viennent de sessions fermées ; aucune session ouve
 - Mis à jour : 2026-11-12
 
 ## Essai voiture Tripo (Essai voiture Tripo)
-- Chantier : essai d'une voiture générée par Tripo, vue sur un banc à côté de la Porsche actuelle (demande de l'utilisateur du 2026-11-12) ; provisoire, rien à commiter
-- Fichiers ou dossiers réservés (tous NOUVEAUX, aucun fichier existant modifié) : `apps/client/public/models/vehicles-essai/`, `apps/client/tripo-car-test.html`, `apps/client/src/tripo-car-test.ts`. Lit sans modifier `models/vehicles/porsche-911.glb` et `world/traffic.ts`.
-- État : en attente de validation, rien de commité. Aucun build dans `worlds/`, aucune mesure GPU. Serveur Vite « client » sur le port 5173.
-- Mis à jour : 2026-11-12
+- Chantier : remplacer la Porsche du trafic. Tripo abandonné (pas assez propre) ; préparation de la 930 Turbo de Lexyc16 (Sketchfab, CC BY), vue sur un banc avant tout remplacement (demande de l'utilisateur du 2026-11-13)
+- Fichiers ou dossiers réservés (tous NOUVEAUX, aucun fichier existant modifié) : `apps/client/public/models/vehicles-essai/`, `apps/client/tripo-car-test.html`, `apps/client/src/tripo-car-test.ts`, `tools/blender/vehicles/porsche_911_930_turbo_1975.zip` (déposé par l'utilisateur). Lit sans modifier `models/vehicles/porsche-911.glb` et `world/traffic.ts`.
+- État : en pause (930 prête sur le banc, remplacement non autorisé à ce jour), rien de commité, `traffic.ts` non touché. Aucun build dans `worlds/`, aucune mesure GPU. Serveur Vite « client » sur le port 5173.
+- Mis à jour : 2026-11-13
+
+## Vélo hors route (Largeurs des parcours)
+- Chantier : largeurs de route des parcours (`roadWidths`, `roadWidthM`) recalées sur le graphe dessiné ; le vélo sortait de la chaussée (demande de l'utilisateur du 2026-11-13)
+- Fichiers ou dossiers réservés : `apps/client/public/worlds/*/routes/*.json` (champs `roadWidths` et `roadWidthM` seulement), sauf `idf-boulogne-billancourt` (modifié par une autre session, non touché)
+- État : appliqué sur 305 parcours, en attente de validation, rien de commité. Non traités : `idf-boulogne-billancourt` et `sancy/routes/gravel-sancy.json`. Aucun build, aucune mesure GPU.
+- Mis à jour : 2026-11-13
 
 ## Points d'attention
 - `main` a au moins 24 commits d'avance sur l'origine, venant de plusieurs chantiers : un `git push` les publie tous.
