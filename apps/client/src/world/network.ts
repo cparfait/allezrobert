@@ -29,8 +29,8 @@ const UNPAVED = new Set(['unpaved', 'gravel', 'dirt', 'ground', 'compacted', 'fi
 const COBBLES = new Set(['sett', 'cobblestone', 'unhewn_cobblestone', 'cobblestone:flattened', 'paving_stones:sett']);
 const SKIP = new Set(['footway', 'path', 'steps', 'cycleway', 'bridleway', 'pedestrian', 'corridor', 'platform']);
 
-const WALK_CELL = 2;
-const WALK_REACH = 2.2;
+const WALK_CELL = 1;
+const WALK_REACH = 0.45;
 
 function indexWalk(walk: number[]): Map<number, number[]> {
   const grid = new Map<number, number[]>();

@@ -342,6 +342,8 @@ const STRIDE = 8;
 export function pushSidewalk(sink: MeshSink, edge: readonly number[], along: readonly number[], widths: readonly number[], ux: readonly number[], uz: readonly number[], sign: number, o: number, half: number, lamp: readonly number[], groundAt: (x: number, z: number) => number, kinds: readonly EdgeKind[] = [], fall: readonly number[] = []): void {
   const n = along.length;
   const base = sink.pos.length / 3;
+  /** Par profil : bord de chaussée (x, z), direction, bordure, largeur, hauteur du dessus de bordure et du bord extérieur. */
+  const prof: number[][] = [];
   for (let i = 0; i < n; i++) {
     const x = edge[i * 3] as number;
     const y = edge[i * 3 + 1] as number;
@@ -364,12 +366,7 @@ export function pushSidewalk(sink: MeshSink, edge: readonly number[], along: rea
     // flottait au-dessus de l'herbe. Bornée à 3 m (hauteur absente ou aberrante).
     const yFoot = Number.isFinite(g) && g < yOuter - 0.02 ? Math.max(g - 0.05, yOuter - 3) : yOuter;
     const a = along[i] as number;
-    if (w > 0 && sink.walk) {
-      const yc = top;
-      sink.walk.push(x + dx * (c + 0.2), z + dz * (c + 0.2), yc + (yOuter - yc) * Math.min(0.2 / Math.max(w - c, 0.2), 1));
-      sink.walk.push(x + dx * (c + w) * 0.5, z + dz * (c + w) * 0.5, (yc + yOuter) / 2);
-      sink.walk.push(ox, oz, yOuter);
-    }
+    prof.push([x, z, dx, dz, c, w, top, yOuter]);
     const profile: Array<[number, number, number, number]> = [
       [x, y, z, o],
       [x, top, z, o],
@@ -409,6 +406,7 @@ export function pushSidewalk(sink: MeshSink, edge: readonly number[], along: rea
     else sink.index.push(a, c, b, b, c, d);
   };
   const has = (i: number) => (widths[i] as number) > 0;
+  if (sink.walk) sampleWalk(sink.walk, prof, has);
   for (let i = 0; i + 1 < n; i++) {
     // Seulement entre deux profils qui ont un trottoir : plus de pointe qui mordait sur la chaussée voisine au
     // carrefour (refineSidewalkEnds pose le dernier profil au bord de cette chaussée).
@@ -449,6 +447,34 @@ export function pushSidewalk(sink: MeshSink, edge: readonly number[], along: rea
       sink.side.push(sink.side[src * 2] as number, sink.side[src * 2 + 1] as number);
     });
     quad(cap, cap + 1, cap + 3, cap + 2, fx, 0, fz);
+  }
+}
+
+/** Pas (m) des échantillons de surface de trottoir, en travers et le long. */
+const WALK_STEP_M = 0.5;
+
+/** Échantillons (x, z, y) du dessus des trottoirs, tous les WALK_STEP_M, entre deux profils qui ont un trottoir. */
+function sampleWalk(walk: number[], prof: number[][], has: (i: number) => boolean): void {
+  for (let i = 0; i + 1 < prof.length; i++) {
+    if (!has(i) || !has(i + 1)) continue;
+    const a = prof[i] as number[];
+    const b = prof[i + 1] as number[];
+    const len = Math.hypot((b[0] as number) - (a[0] as number), (b[1] as number) - (a[1] as number));
+    const steps = Math.min(Math.max(Math.ceil(len / WALK_STEP_M), 1), 24);
+    for (let s = 0; s <= steps; s++) {
+      const f = s / steps;
+      const lerp = (k: number) => (a[k] as number) + ((b[k] as number) - (a[k] as number)) * f;
+      const w = lerp(5);
+      const c = Math.min(lerp(4), w);
+      const top = lerp(6);
+      const outer = lerp(7);
+      const dl = Math.hypot(lerp(2), lerp(3)) || 1;
+      const across = Math.max(Math.ceil(w / WALK_STEP_M), 1);
+      for (let t = 0; t <= across; t++) {
+        const d = (t / across) * w;
+        walk.push(lerp(0) + (lerp(2) / dl) * d, lerp(1) + (lerp(3) / dl) * d, d <= c || w <= c ? top : top + ((outer - top) * (d - c)) / (w - c));
+      }
+    }
   }
 }
 
@@ -510,9 +536,9 @@ export function bevelSidewalkEnds(sd: SideProfiles): SideProfiles {
   for (let i = 0; i < n; i++) {
     const startEnd = has(i) && !has(i - 1) && has(i + 1);
     const stopEnd = has(i) && !has(i + 1) && has(i - 1);
-    if (stopEnd && seg(i - 1, i) > BEVEL_M * 1.3) between(i - 1, i, 1 - BEVEL_M / seg(i - 1, i));
+    if (stopEnd && seg(i - 1, i) > BEVEL_M * 2.4) between(i - 1, i, 1 - BEVEL_M / seg(i - 1, i));
     push(i, startEnd || stopEnd ? BEVEL_END : 1);
-    if (startEnd && seg(i, i + 1) > BEVEL_M * 1.3) between(i, i + 1, BEVEL_M / seg(i, i + 1));
+    if (startEnd && seg(i, i + 1) > BEVEL_M * 2.4) between(i, i + 1, BEVEL_M / seg(i, i + 1));
   }
   return out;
 }
