@@ -11,7 +11,7 @@ export const SHOP_WALL_STRIDE = 5;
 export const CURB_H = 0.12;
 export const CURB_W = 0.18;
 /** Largeur maximale cherchée jusqu'au mur, et largeur d'un trottoir sans mur en face (m). */
-const REACH_M = 5;
+const REACH_M = 7;
 const OPEN_WIDTH_M = 2.2;
 /**
  * Trottoir sans mur atteint : seulement s'il y a un bâtiment de ce côté-ci à moins de ce rayon (jardinet, cour).

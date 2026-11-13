@@ -98,6 +98,11 @@ function signAtlas(designs: SignDesign[]): THREE.CanvasTexture {
   return t;
 }
 
+/** Rayon (m) dans lequel un spectateur suit le coureur du regard, écart maximal à son orientation d'origine (rad) et part du chemin parcourue par image. */
+const LOOK_REACH_M = 70;
+const LOOK_MAX_RAD = 0.95;
+const LOOK_EASE = 0.18;
+
 export interface CrowdOptions {
   /** Prénom du coureur, écrit sur certaines pancartes. */
   riderName?: string;
@@ -105,6 +110,8 @@ export interface CrowdOptions {
   density?: number;
   /** Style réaliste : vrais personnages recolorés (crowdRealistic.ts) plutôt que des capsules ; vrai par défaut. */
   realPeople?: boolean;
+  /** Vrai si (x, z) est dans un mur de bâtiment ou contre lui : le spectateur est rapproché de la route, ou retiré. */
+  inBuilding?: (x: number, z: number) => boolean;
   /**
    * Arrivée de course : foule sur les FINISH_M derniers mètres, en rangs de plus en plus serrés vers la ligne,
    * derrière des barrières ; sinon (sortie libre) 60 m de public à la ligne. Faux par défaut.
@@ -334,6 +341,8 @@ export class Crowd {
   private groundCursor = 0;
   /** Style réaliste : maillages des vrais personnages (un par personnage), reposés sur le sol comme les capsules. */
   private readonly people: THREE.InstancedMesh[] = [];
+  /** Spectateurs réalistes qui suivent le coureur du regard : lacet de base (vers la route), lacet actuel, pancarte tenue (immobile). */
+  private readonly lookers: Array<{ mesh: THREE.InstancedMesh; attr: THREE.InstancedBufferAttribute; base: Float32Array; cur: Float32Array; still: Float32Array }> = [];
 
   constructor(track: RouteTrack, groundAt: (x: number, z: number) => number, opts: CrowdOptions = {}) {
     this.track = track;
@@ -379,7 +388,16 @@ export class Crowd {
      */
     const put = (dd: number, lateral: number, kom: boolean, sign: number, yawJitter = 0): void => {
       const side = Math.sign(lateral);
-      const p = track.positionAt(dd, lateral);
+      let p = track.positionAt(dd, lateral);
+      // Dans un mur (rue étroite, trottoir court) : rapproché de la route par pas de 0,5 m, sinon retiré.
+      if (opts.inBuilding?.(p.x, p.z)) {
+        let lat = lateral;
+        do {
+          lat -= side * 0.5;
+          if (Math.abs(lat) < half + 0.9) return;
+          p = track.positionAt(dd, lat);
+        } while (opts.inBuilding(p.x, p.z));
+      }
       const ground = groundAt(p.x, p.z);
       const y = (Number.isFinite(ground) ? ground : p.y) - 0.05;
       // Face à la route : regard perpendiculaire à la direction de marche.
@@ -486,6 +504,12 @@ export class Crowd {
           mesh.name = `crowd-${asset.name}`;
           this.group.add(mesh);
           this.people.push(mesh);
+          const attr = (mesh.material as THREE.Material).userData.orientAttr as THREE.InstancedBufferAttribute | undefined;
+          if (attr) {
+            const base = new Float32Array(g.mats.length);
+            for (let i = 0; i < base.length; i++) base[i] = Math.atan2(g.orient[i * 3 + 1] as number, g.orient[i * 3] as number);
+            this.lookers.push({ mesh, attr, base, cur: base.slice(), still: Float32Array.from(g.still) });
+          }
         });
         // Les capsules restent dans le groupe (comptes, tests) mais ne sont plus dessinées.
         this.mesh.visible = false;
@@ -552,6 +576,52 @@ export class Crowd {
       this.driven = true;
     }
     this.reground(p.x, p.z);
+    this.lookAt(p.x, p.z);
+  }
+
+  /**
+   * Les spectateurs à moins de LOOK_REACH_M suivent le coureur du regard : le lacet va vers lui, à au plus LOOK_MAX_RAD
+   * de leur orientation d'origine (jamais dos à la route), en s'en rapprochant de LOOK_EASE par image. Les porteurs de
+   * pancarte restent face à la route. Matrice d'instance et attribut `orient` du nuanceur sont réécrits ensemble.
+   */
+  private lookAt(rx: number, rz: number): void {
+    for (const l of this.lookers) {
+      const a = l.mesh.instanceMatrix.array as Float32Array;
+      const o = l.attr.array as Float32Array;
+      let changed = false;
+      for (let i = 0; i < l.base.length; i++) {
+        if (l.still[i]) continue;
+        const x = a[i * 16 + 12] as number;
+        const z = a[i * 16 + 14] as number;
+        const base = l.base[i] as number;
+        let target = base;
+        if ((x - rx) ** 2 + (z - rz) ** 2 < LOOK_REACH_M * LOOK_REACH_M) {
+          let d = Math.atan2(rx - x, rz - z) - base;
+          d = Math.atan2(Math.sin(d), Math.cos(d));
+          target = base + Math.max(-LOOK_MAX_RAD, Math.min(LOOK_MAX_RAD, d));
+        }
+        let cur = l.cur[i] as number;
+        let dy = target - cur;
+        dy = Math.atan2(Math.sin(dy), Math.cos(dy));
+        if (Math.abs(dy) < 0.004) continue;
+        cur += dy * LOOK_EASE;
+        l.cur[i] = cur;
+        const c = Math.cos(cur);
+        const s = Math.sin(cur);
+        const k = o[i * 3 + 2] as number;
+        a[i * 16] = c * k;
+        a[i * 16 + 2] = -s * k;
+        a[i * 16 + 8] = s * k;
+        a[i * 16 + 10] = c * k;
+        o[i * 3] = c;
+        o[i * 3 + 1] = s;
+        changed = true;
+      }
+      if (changed) {
+        l.mesh.instanceMatrix.needsUpdate = true;
+        l.attr.needsUpdate = true;
+      }
+    }
   }
 
   /**

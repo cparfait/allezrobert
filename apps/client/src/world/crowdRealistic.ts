@@ -161,7 +161,10 @@ export function spectatorMaterial(asset: SpectatorAsset, orient: Float32Array, s
   // Deux faces : les maillages simplifiés (1 500 triangles) ont des trous, surtout sur la tête ; sans faces arrière
   // on voyait le ciel à travers (crânes, épaules incomplets).
   const mat = new THREE.MeshStandardNodeMaterial({ side: THREE.DoubleSide });
-  const o = instancedBufferAttribute(new THREE.InstancedBufferAttribute(orient, 3)) as unknown as ReturnType<typeof vec3>;
+  const orientAttr = new THREE.InstancedBufferAttribute(orient, 3);
+  // Gardé pour que Crowd.update tourne les spectateurs vers le coureur (cos, sin, échelle réécrits à chaque image).
+  mat.userData.orientAttr = orientAttr;
+  const o = instancedBufferAttribute(orientAttr) as unknown as ReturnType<typeof vec3>;
   const holder = instancedBufferAttribute(new THREE.InstancedBufferAttribute(still, 1)) as unknown as ReturnType<typeof float>;
   const h = hash(instanceIndex.add(5 + seed)) as unknown as F;
   const hp = hash(instanceIndex.add(17 + seed)) as unknown as F;

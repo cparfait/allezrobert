@@ -103,6 +103,18 @@ export class FootprintIndex {
    * Premier bâtiment traversé par le segment a → b : fraction (0–1) du segment au point d'entrée,
    * ou null s'il est dégagé. Bâtiment approché par un prisme (emprise × base–sommet, toit compris).
    */
+  /** Vrai si (x, z) est dans un bâtiment, ou à moins de `margin` m de ses murs (cinq points testés). */
+  contains(x: number, z: number, margin = 0): boolean {
+    const cell = this.cells.get(FootprintIndex.key(Math.floor(x / CELL), Math.floor(z / CELL)));
+    if (!cell) return false;
+    for (const f of cell) {
+      if (x < f.minX - margin || x > f.maxX + margin || z < f.minZ - margin || z > f.maxZ + margin) continue;
+      if (insidePolygon(f.pts, x, z)) return true;
+      if (margin > 0 && (insidePolygon(f.pts, x + margin, z) || insidePolygon(f.pts, x - margin, z) || insidePolygon(f.pts, x, z + margin) || insidePolygon(f.pts, x, z - margin))) return true;
+    }
+    return false;
+  }
+
   firstHit(ax: number, ay: number, az: number, bx: number, by: number, bz: number): number | null {
     const stamp = ++this.query;
     let best = Infinity;

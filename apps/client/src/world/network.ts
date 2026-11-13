@@ -402,8 +402,8 @@ function buildRoads(roads: TileRoad[], footprint: RouteFootprint | null, street:
           }
         }
         // Pas de bout de trottoir isolé (quelques mètres devant un bâtiment seul, posés dans l'herbe).
-        dropShortRuns(wL, s.along, 10);
-        dropShortRuns(wR, s.along, 10);
+        dropShortRuns(wL, s.along, 4);
+        dropShortRuns(wR, s.along, 4);
         // Lampadaires : sur le trottoir, à 60 cm de la bordure. Rue étroite : d'un seul côté, le plus large.
         // Jamais sur une chaussée ou contre un carrefour (trottoir coupé à côté), ni à moins de 14 m d'un autre.
         const sum = (a: number[]) => a.reduce((t, v) => t + v, 0);

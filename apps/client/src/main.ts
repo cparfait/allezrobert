@@ -1184,7 +1184,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     // +4 cm : la dalle est exacte, le décalage de −5 cm du public (terrain approximatif) y enfouirait les pieds.
     return Number.isFinite(w) && (!Number.isFinite(g) || w > g) ? w + 0.04 : g;
   };
-  const crowd = new Crowd(track, crowdGround, { riderName: s.name, density: engine.quality.crowdDensity, finish: s.mode === 'race' });
+  const crowd = new Crowd(track, crowdGround, { riderName: s.name, density: engine.quality.crowdDensity, finish: s.mode === 'race', inBuilding: (x, z) => world.buildings.footprints.contains(x, z, 0.4) });
   engine.scene.add(crowd.group);
   engine.scene.add(new TownSigns(track, (x, z) => world.terrain.heightAt(x, z)).group);
   const banners = new FinishBanners(track, (x, z) => world.terrain.heightAt(x, z), (ax, ay, az, bx, by, bz) => world.buildings.footprints.firstHit(ax, ay, az, bx, by, bz));
