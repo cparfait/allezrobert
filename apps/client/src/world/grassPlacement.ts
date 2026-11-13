@@ -22,9 +22,8 @@ export interface GrassEnv {
 }
 
 /**
- * P2.1c (expérimental) : dans les champs cultivés, l'herbe n'est plus semée comme sur une pelouse. Coupé par
- * défaut ; `?grassfields=1` l'active. Limite : l'interrupteur vaut pour tous les mondes quand on l'active
- * explicitement (le placement ne connaît pas le monde chargé) ; seul Billom est validé.
+ * P2.1c : dans les champs cultivés, l'herbe n'est plus semée comme sur une pelouse. Repli quand l'environnement
+ * ne le dit pas (tests) : `?grassfields=1`. En jeu, voir grassFieldsFor.
  */
 const GRASS_FIELDS_REQUESTED = (() => {
   try {
@@ -33,17 +32,17 @@ const GRASS_FIELDS_REQUESTED = (() => {
     return false;
   }
 })();
-/** Mondes où l'herbe des champs est active par défaut (`?grassfields=0` la coupe, `=1` la force partout). */
-export const GRASS_FIELDS_WORLDS = new Set(['billom']);
-export function grassFieldsFor(worldId: string): boolean {
+/**
+ * Herbe des champs active dans tous les mondes (`?grassfields=0` la coupe). Sans champ cultivé dans la carte
+ * d'occupation du sol, la densité reste celle d'avant : l'option ne joue que là où il y a des champs.
+ */
+export function grassFieldsFor(_worldId: string): boolean {
   try {
-    const v = typeof location !== 'undefined' ? new URLSearchParams(location.search).get('grassfields') : null;
-    if (v === '0') return false;
-    if (v === '1') return true;
+    if (typeof location !== 'undefined' && new URLSearchParams(location.search).get('grassfields') === '0') return false;
   } catch {
     /* pas d'URL : valeur par défaut */
   }
-  return GRASS_FIELDS_WORLDS.has(worldId);
+  return true;
 }
 /** Densité plancher dans un champ (quelques touffes isolées, jamais une surface vide). */
 export const FIELD_GRASS_MIN = 0.02;
