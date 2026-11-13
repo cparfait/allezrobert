@@ -77,6 +77,20 @@ const GROUND_DETAIL_REQUESTED = (() => {
 })();
 
 /**
+ * Sol des sous-bois (P2.3c) : sous la forêt et près de la caméra, l'orthophoto montre le dessus des houppiers vu
+ * d'avion (taches vert sombre sur le sol). Elle y cède la place à une litière de saison tachée de mousse, fondue
+ * de 120 à 250 m ; au loin, l'orthophoto garde la masse sombre des bois. Actif avec le détail du sol proche ;
+ * `?forestfloor=0` le coupe. Coupé, aucun nœud de shader n'est ajouté.
+ */
+const FOREST_FLOOR_REQUESTED = (() => {
+  try {
+    return typeof location !== 'undefined' && new URLSearchParams(location.search).get('forestfloor') !== '0';
+  } catch {
+    return false;
+  }
+})();
+
+/**
  * Accotements (P2.2b, expérimental) : bande de terre tassée et fondu vers le sol le long des routes dessinées, tirés
  * d'un champ de distance au bord de chaussée par tuile (roadEdgeField.ts). Actif par défaut ; `?roadedge=0`
  * le coupe. Il ne vaut qu'en style réaliste, dans tous les mondes. Coupé, rien n'est calculé ni créé.
@@ -660,6 +674,15 @@ export class TerrainManager {
       // abords de l'itinéraire : la chaussée floue de la photo ne déborde pas sur les bas-côtés
       const verge = smoothstep(0.2, 0.8, s1.b);
       col = mix(col, seasonal, float(ORTHO_WEIGHT).mul(float(1).sub(roadMask)).mul(float(1).sub(verge.mul(0.8))));
+      // Sol des sous-bois (P2.3c) : litière de saison (terre et feuilles) tachée de mousse, à la place des houppiers
+      // de l'orthophoto, près de la caméra seulement.
+      if (this.groundDetail && FOREST_FLOOR_REQUESTED) {
+        const under = smoothstep(0.45, 0.85, s0.r).mul(float(1).sub(smoothstep(120, 250, camDist))).mul(float(1).sub(roadMask)).mul(float(1).sub(verge));
+        // taches de mousse tirées des bruits déjà calculés pour le terrain (aucun bruit de plus)
+        const moss = smoothstep(0.4, 0.7, n2.mul(0.6).add(n3.mul(0.4)));
+        const litter = mix(c.dirt.node.mul(0.78), c.forest.node.mul(0.92), moss.mul(0.55).add(0.15)).mul(n3.mul(0.18).add(0.9));
+        col = mix(col, litter, under.mul(0.8));
+      }
     }
     // Montagne : roche grise sur les fortes pentes (plus tôt en altitude), au-dessus de la limite
     // des arbres et sur les éboulis OSM ; glace sur les glaciers ; neige selon la saison. Appliqué
