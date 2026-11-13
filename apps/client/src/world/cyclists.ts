@@ -1,6 +1,6 @@
 import * as THREE from 'three/webgpu';
 import { DEFAULT_BIKE, DEFAULT_LOOK, type AvatarLook, type RouteTrack } from '@allezrobert/shared';
-import { draftReductionSingle, paramsFromBike, rightLaneM, sharedRoadCorridor, steadyStateSpeed, type LaneBody, type RiderPhysicsParams } from '@allezrobert/physics';
+import { draftReductionSingle, paramsFromBike, rightLaneM, sharedRoadCorridor, steadyStateSpeed, type LaneBody, type RouteBuildingCollision, type RiderPhysicsParams } from '@allezrobert/physics';
 import { createAvatar, type RiderAvatarLike } from '../rider/gltfAvatar.ts';
 import { crowdShoes } from '../rider/shoeLook.ts';
 import { crowdBike } from '../rider/bikes.ts';
@@ -89,6 +89,14 @@ export class AmbientCyclists {
   /** Piste cyclable : chaussée étroite. */
   private readonly path: boolean;
   private serial = 0;
+
+  /** Couloir praticable : la chaussée réelle, ou celle du pilote de collision (façades comprises). */
+  private corridor: RouteBuildingCollision = sharedRoadCorridor();
+
+  /** Pilote de collision actif : les cyclistes d'ambiance restent aussi hors des façades. */
+  useCorridor(corridor: RouteBuildingCollision): void {
+    this.corridor = corridor;
+  }
 
   constructor(scene: THREE.Scene, track: RouteTrack, startDistM: number) {
     this.track = track;
@@ -299,7 +307,7 @@ export class AmbientCyclists {
       }
       c.lateral += (lateralTarget - c.lateral) * Math.min(1, dt * rate);
       // Rester sur la chaussée réelle du tronçon (pistes et rues étroites), membres côte à côte compris.
-      const b = sharedRoadCorridor().steeringBounds(this.track, c.d, c.speed, c.sens, this.bounds);
+      const b = this.corridor.steeringBounds(this.track, c.d, c.speed, c.sens, this.bounds);
       let lo = -b.left, hi = b.right;
       for (const m of c.members) {
         lo = Math.max(lo, -b.left - m.latOff);

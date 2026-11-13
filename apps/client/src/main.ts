@@ -1074,7 +1074,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   let rideWeather = myWeather;
   let mp: Multiplayer | null = null;
   let voice: VoiceChat | null = null;
-  const wantsCollisionPilot = params.get('collisionPilot') === '1' && source.id === COLLISION_PILOT_WORLD && !source.zones && track.route.id === COLLISION_PILOT_ROUTE && !extras.publicRoom;
+  const wantsCollisionPilot = params.get('collisionPilot') !== '0' && source.id === COLLISION_PILOT_WORLD && !source.zones && track.route.id === COLLISION_PILOT_ROUTE && !extras.publicRoom;
   let collisionData: Awaited<ReturnType<typeof loadRideCollisionData>>;
   let collisionSpawn: Awaited<ReturnType<Multiplayer['initialCollisionPose']>>;
   // Messages de connexion : affichés une fois l’écran « Préparation de la sortie… » retiré (sinon perdus dessous).
@@ -1211,7 +1211,8 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     trains.addRail(pts);
   }
   // Cyclistes croisés dans les deux sens (désactivables avec le monde vivant ou par ?cyclists=0).
-  const cyclists = alive && !pilotCollision && params.get('cyclists') !== '0' ? new AmbientCyclists(engine.scene, track, startD) : null;
+  const cyclists = alive && params.get('cyclists') !== '0' ? new AmbientCyclists(engine.scene, track, startD) : null;
+  if (cyclists && pilotCollision) cyclists.useCorridor(pilotCollision);
   if (cyclists) cyclists.heightAt = (x, z) => world.terrain.heightAt(x, z);
   if (cyclists) cyclists.shadowRange = engine.quality.shadowRiders >= 8 ? 35 : engine.quality.shadowRiders > 0 ? 20 : 0;
   // Les équipiers IA ne doublent par la gauche que si personne ne vient en face.

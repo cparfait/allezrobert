@@ -28,9 +28,9 @@ const cases = [
 /** Banc d'essai : rejoue une proposition des simulations existantes, puis résout avant de réutiliser la pose. */
 function replay(c: typeof cases[number], hz: 60 | 10, corrected: boolean, speedMs: number, lateral = c.lateral) {
   const { route: original, index, obstacles } = fixture(c.map);
-  // Banc du solveur seul (COLL-MURS-2) : largeur uniforme, pour garder le contact avec la façade.
-  // Le couloir de la chaussée réelle est vérifié par collision-pilot-replay.test.ts (COLL-MURS-3d).
-  const route = { ...original, roadWidths: undefined };
+  // Banc du solveur seul (COLL-MURS-2) : largeur uniforme de 6 m, celle des traversées enregistrées, pour garder
+  // le contact avec la façade. Le couloir de la chaussée réelle est vérifié par collision-pilot-replay.test.ts.
+  const route = { ...original, roadWidths: undefined, roadWidthM: 6 };
   const track = new RouteTrack(route);
   const wall = obstacles.find((o) => o.id.endsWith(c.wall))!;
   const solver = new RouteBuildingCollision(index);
@@ -122,7 +122,7 @@ describe('rejeu des traversées observées', () => {
   it('balaie aussi un déplacement de recalage qui aurait sauté toute l’emprise', () => {
     const { route, index } = fixture('chevreuse');
     const solve = new RouteBuildingCollision(index);
-    const track = new RouteTrack({ ...route, roadWidths: undefined });
+    const track = new RouteTrack({ ...route, roadWidths: undefined, roadWidthM: 6 });
     const from = { distM: 18533, lateral: 2.6, speedMs: 10 };
     const to = { ...from, distM: 18543 };
     const out = { ...from, hit: false };

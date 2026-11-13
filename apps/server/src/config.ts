@@ -82,7 +82,8 @@ export const ConfigSchema = z.object({
   RENDER_INLINE: bool.default(false),
 
   RECONNECT_GRACE_S: z.coerce.number().int().min(0).max(600).default(30),
-  COLLISION_PILOT: bool.default(false),
+  // Collisions de bâtiments sur la boucle pilote (Toussus-le-Noble) : actives par défaut, COLLISION_PILOT=0 pour les couper.
+  COLLISION_PILOT: bool.default(true),
   ALLOW_ANONYMOUS_GUESTS: bool.default(true),
   /** Puissance virtuelle maximale d'un invité au clavier / à la manette (W/kg). */
   GUEST_MAX_WKG: z.coerce.number().min(1).max(8).default(3.5),

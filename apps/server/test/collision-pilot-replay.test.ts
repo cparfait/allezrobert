@@ -220,7 +220,7 @@ describe('pilote intégré dans RideSession et RideSimulation', () => {
   });
 
   it('contourne un angle par la voie centrale si la correction directe traverse un mur', () => {
-    const straight = new RouteTrack({ ...route, loop: false, lengthM: 30, points: [{ d: 0, x: 0, y: 0, z: 0 }, { d: 30, x: 30, y: 0, z: 0 }] });
+    const straight = new RouteTrack({ ...route, roadWidths: undefined, roadWidthM: 6, loop: false, lengthM: 30, points: [{ d: 0, x: 0, y: 0, z: 0 }, { d: 30, x: 30, y: 0, z: 0 }] });
     const guard = createPilotBuildingCollision([{
       id: 'coin', tile: '0_0', polygon: [10, 1, 12, 1, 12, 3, 10, 3], baseM: 0, topM: 4, solid: true,
     }]);

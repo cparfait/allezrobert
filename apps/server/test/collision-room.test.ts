@@ -152,7 +152,7 @@ it('préserve les salles hors pilote pour un client sans empreinte', async () =>
 });
 
 it('roule à plusieurs en salle expérimentale, publie des poses sûres et exige l’accord à la reprise', async () => {
-  expect(testConfig().COLLISION_PILOT).toBe(false);
+  expect(testConfig().COLLISION_PILOT).toBe(true);
   const host = await login('Hôte expérimental');
   const guest = await login('Invité expérimental');
   const join = { collisionFingerprint: fingerprint, collisionPilot: true } as const;

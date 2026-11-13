@@ -268,8 +268,9 @@ export class RideRoom extends Room {
     // Salle publique : pas de créateur ni de code, mais un compte obligatoire.
     const isCreator = !pub && !this.creatorAuthorized;
     if (!pub && !isCreator && normalizeCode(o.inviteCode ?? '') !== this.inviteCode) throw new ServerError(403, "Code d'invitation invalide");
-    if (this.collisionFingerprint && o.collisionFingerprint !== this.collisionFingerprint) throw new ServerError(409, COLLISION_VERSION_ERROR);
-    if (this.collisionPilot && o.collisionPilot !== true) throw new ServerError(409, COLLISION_PILOT_ERROR);
+    // Le compagnon ne simule rien : pas de preuve d'obstacles à fournir.
+    if (role !== 'companion' && this.collisionFingerprint && o.collisionFingerprint !== this.collisionFingerprint) throw new ServerError(409, COLLISION_VERSION_ERROR);
+    if (role !== 'companion' && this.collisionPilot && o.collisionPilot !== true) throw new ServerError(409, COLLISION_PILOT_ERROR);
     if (pub && role === 'guest') throw new ServerError(403, 'Connexion requise pour rouler en monde ouvert');
     const cookie = context.headers?.get?.('cookie') ?? undefined;
     const user = await this.svc.authenticate(o.token ?? context.token, cookie);
@@ -389,7 +390,7 @@ export class RideRoom extends Room {
     const ud = client.userData as ClientData | undefined;
     const proof = this.collisionFingerprint ? reconnectionCollisionProof(client) : undefined;
     const mismatch = this.collisionFingerprint && proof?.fingerprint !== this.collisionFingerprint;
-    if (mismatch || (this.collisionPilot && !proof?.pilot)) {
+    if (ud?.role !== 'companion' && (mismatch || (this.collisionPilot && !proof?.pilot))) {
       // Colyseus a déjà transféré le socket de la place réservée. onLeave doit libérer ce coureur.
       if (ud?.riderId && this.clientByRider.get(ud.riderId)?.userData === ud) this.clientByRider.set(ud.riderId, client);
       client.leave(COLLISION_VERSION_CLOSE, mismatch ? COLLISION_VERSION_ERROR : COLLISION_PILOT_ERROR);
