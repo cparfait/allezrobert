@@ -4048,6 +4048,15 @@
      "lengthM": 45636,
      "elevationGainM": 1217.83,
      "loop": false
+    },
+    {
+     "id": "gravel-sancy",
+     "name": "Sancy — gravel par Super Besse et Le Verdier",
+     "lengthM": 51383.54,
+     "elevationGainM": 1592.63,
+     "loop": true,
+     "bike": "gravel",
+     "nameEn": "Sancy — gravel via Super Besse and Le Verdier"
     }
    ],
    "pack": {
