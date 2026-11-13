@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { approachOk, deckVerdict, pruneLifts, type DeckStation } from '../src/bridge-decks.ts';
+import { approachOk, bridgeChains, chainVerdict, deckVerdict, pruneLifts, type ChainEdge, type DeckStation } from '../src/bridge-decks.ts';
 
 /** Graphe en ligne : nœuds 0…n, arête i = (i, i+1) de longueur lens[i], `bridges` : indices des arêtes pont. */
 function line(lens: number[], bridges: number[]) {
@@ -49,6 +49,73 @@ function bridge(len: number, h0: number, h1: number, drop = 6, bdOff: number | n
   }
   return st;
 }
+
+/** Tronçon de pont de `len` m entre les nœuds a et b, tablier plat à `h`, berges `drop` m plus bas. */
+function piece(a: number, b: number, len: number, h: number, drop = 6, bdOff: number | null = 0.3): ChainEdge {
+  return { a, b, len, st: bridge(len, h, h, drop, bdOff) };
+}
+
+describe('ponts en plusieurs tronçons (ouvrages)', () => {
+  it('regroupe les tronçons de pont qui se touchent, pas les autres', () => {
+    const edges = [
+      { a: 0, b: 1 }, // route
+      { a: 1, b: 2 }, // pont
+      { a: 2, b: 3 }, // pont
+      { a: 3, b: 4 }, // pont
+      { a: 4, b: 5 }, // route
+      { a: 5, b: 6 }, // autre pont
+    ];
+    const chains = bridgeChains(edges, (i) => [1, 2, 3, 5].includes(i)).map((c) => c.sort());
+    expect(chains).toEqual([[1, 2, 3], [5]]);
+  });
+
+  it('relève tout le Pont d’Issy : deux tronçons centraux et deux bouts de 4 m sans bords mesurables', () => {
+    // tablier à 37 m, MNT à 27 m (la Seine) ; les bouts de 4 m n'ont pas de bords nets
+    const edges = [piece(1, 2, 4, 37, 0), piece(2, 3, 63, 37), piece(3, 4, 63, 37), piece(4, 5, 4, 37, 0)];
+    const v = chainVerdict(edges, () => 27);
+    expect(v.ok).toBe(true);
+    if (!v.ok) return;
+    expect([...v.heights.keys()].sort()).toEqual([1, 2, 3, 4, 5]);
+    for (const h of v.heights.values()) expect(h).toBeCloseTo(37.3, 0);
+    // chacun de ces bouts, jugé seul, aurait été refusé
+    expect(deckVerdict(edges[0]!.st, 27, 27).ok).toBe(false);
+  });
+
+  it('ne relève que les nœuds sous le tablier (bout de pont déjà sur la berge)', () => {
+    const v = chainVerdict([piece(1, 2, 40, 37), piece(2, 3, 40, 37)], (nd) => (nd === 1 ? 37 : 27));
+    expect(v.ok).toBe(true);
+    if (!v.ok) return;
+    expect([...v.heights.keys()].sort()).toEqual([2, 3]);
+  });
+
+  it('refuse un ouvrage dont la BD TOPO n’est pas d’accord', () => {
+    expect(chainVerdict([piece(1, 2, 40, 37, 6, 6), piece(2, 3, 40, 37, 6, 6)], () => 27)).toEqual({ ok: false, reason: 'bdtopo en désaccord' });
+  });
+
+  it('garde un ouvrage relevé entier quand ses accès sont assez longs', () => {
+    // route 120 m — pont 4 m — pont 63 m — pont 4 m — route 120 m, tous les nœuds du pont à 37 m
+    const { edges, adj } = line([120, 4, 63, 4, 120], [1, 2, 3]);
+    const cands = new Map([[1, 37], [2, 37], [3, 37], [4, 37]]);
+    const r = pruneLifts(cands, [[1, 2], [2, 3], [3, 4]], edges, adj, () => 27);
+    expect(r.nodeHeights.size).toBe(4);
+  });
+
+  it('ne laisse pas un bout de trottoir de 4 m bloquer le pont, mais garde le contrôle pour une route', () => {
+    // pont 63 m entre 1 et 2, accès de 120 m ; nœud 3 au sol relié au nœud 1 par une voie de 4 m
+    const mk = (kind: string) => {
+      const edges = [
+        { a: 0, b: 1, len: 120, road: { bridge: false, kind: 'primary' } },
+        { a: 1, b: 2, len: 63, road: { bridge: true, kind: 'primary' } },
+        { a: 2, b: 4, len: 120, road: { bridge: false, kind: 'primary' } },
+        { a: 1, b: 3, len: 4, road: { bridge: false, kind } },
+      ];
+      const adj = (nd: number) => edges.flatMap((e, i) => (e.a === nd || e.b === nd ? [i] : []));
+      return pruneLifts(new Map([[1, 37], [2, 37]]), [[1, 2]], edges, adj, () => 27).nodeHeights.size;
+    };
+    expect(mk('footway')).toBe(2);
+    expect(mk('residential')).toBe(0);
+  });
+});
 
 describe('altitude des extrémités de ponts', () => {
   it('relève un bout de pont posé sur la berge (cas du Pont du Bateau)', () => {

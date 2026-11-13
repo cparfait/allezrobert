@@ -12,6 +12,8 @@
  *   3. la BD TOPO (`troncon_de_route` hors sol, Z par sommet) donne la même altitude à 1,5 m près ;
  *   4. le nœud est à plus de 1 m sous ce tablier.
  * Tout le reste garde l'altitude du MNT.
+ * Ces critères se jugent par ouvrage (`chainVerdict`) : les tronçons de pont OSM qui se touchent forment un
+ * seul pont, sinon un bout de 3 m sans bords mesurables empêchait de relever le Pont d'Issy entier.
  */
 import { ORIGIN_L93, TILE_SIZE_M } from './config.ts';
 import type { DemStack } from './dem.ts';
@@ -88,6 +90,113 @@ export function deckVerdict(st: DeckStation[], ya: number, yb: number): DeckVerd
   if (both.length < 3 && both.length < have.length * 0.5) return { ok: false, reason: 'bdtopo absente' };
   if (Math.abs(median(both.map((p) => p.bd - p.mns))) > DECK_BDTOPO_TOL_M) return { ok: false, reason: 'bdtopo en désaccord' };
   return { ok: true, ha, hb, liftA, liftB };
+}
+
+/** Tronçon d'un ouvrage : nœuds de bout, longueur, stations de `a` (s = 0) vers `b` (s = len). */
+export interface ChainEdge {
+  a: number;
+  b: number;
+  len: number;
+  st: DeckStation[];
+}
+
+export type ChainVerdict =
+  | { ok: true; heights: Map<number, number>; lifts: Map<number, number> }
+  | { ok: false; reason: Exclude<DeckVerdict, { ok: true }>['reason'] };
+
+/** Distance au bout d'un tronçon dans laquelle le MNS donne l'altitude du nœud (m). */
+const END_WINDOW_M = 6;
+
+/**
+ * Décide des altitudes de tablier d'un ouvrage entier : tronçons de pont OSM qui se touchent (un pont est
+ * souvent découpé en plusieurs voies : changement de nom, de voies, bouts de 3 m sur les culées). Mêmes
+ * critères que `deckVerdict`, mais jugés sur toutes les stations de l'ouvrage : un petit bout sans bords
+ * mesurables ne bloque plus le pont, et tous les nœuds reçoivent l'altitude du tablier à leur endroit.
+ * `mntAt` : altitude actuelle d'un nœud. Fonction pure, testée seule.
+ */
+export function chainVerdict(edges: ChainEdge[], mntAt: (nd: number) => number): ChainVerdict {
+  const total = edges.reduce((s, e) => s + e.len, 0);
+  const all = edges.flatMap((e) => e.st);
+  if (total < 8 || all.length < 3) return { ok: false, reason: 'court' };
+  const have = all.filter((p) => Number.isFinite(p.mns));
+  if (have.length < 3 || have.length < all.length * 0.6) return { ok: false, reason: 'mns absent' };
+  // altitude du tablier à chaque nœud : médiane des stations proches sur tous ses tronçons
+  const near = new Map<number, number[]>();
+  const push = (nd: number, v: number) => {
+    let l = near.get(nd);
+    if (!l) near.set(nd, (l = []));
+    if (Number.isFinite(v)) l.push(v);
+  };
+  for (const e of edges)
+    for (const p of e.st) {
+      if (p.s <= END_WINDOW_M) push(e.a, p.mns);
+      if (p.s >= e.len - END_WINDOW_M) push(e.b, p.mns);
+    }
+  const deckAt = new Map<number, number>();
+  for (const [nd, l] of near) deckAt.set(nd, median(l));
+  // 1. forme de tablier, tronçon par tronçon ; l'ouvrage est refusé si plus d'un quart de sa longueur ne l'est pas
+  let badLen = 0;
+  for (const e of edges) {
+    const ha = deckAt.get(e.a) ?? NaN;
+    const hb = deckAt.get(e.b) ?? NaN;
+    if (e.len < 8 || !Number.isFinite(ha) || !Number.isFinite(hb)) continue;
+    const res = e.st.filter((p) => Number.isFinite(p.mns)).map((p) => Math.abs(p.mns - (ha + ((hb - ha) * p.s) / Math.max(1e-6, e.len))));
+    if (Math.abs(hb - ha) > DECK_MAX_GRADE * e.len + 0.5 || median(res) > 0.6 || quantile(res, 0.9) > 1.5) badLen += e.len;
+  }
+  if (badLen > total * 0.25) return { ok: false, reason: 'pas un tablier' };
+  // 4. nœuds à relever
+  const heights = new Map<number, number>();
+  const lifts = new Map<number, number>();
+  for (const [nd, h] of deckAt) {
+    if (!Number.isFinite(h)) continue;
+    const lift = h - mntAt(nd);
+    if (lift > DECK_MIN_LIFT_M && lift < DECK_MAX_LIFT_M) {
+      heights.set(nd, h);
+      lifts.set(nd, lift);
+    }
+  }
+  if (!heights.size) return { ok: false, reason: 'déjà au niveau' };
+  // 2. bords
+  const edged = have.filter((p) => (Number.isFinite(p.left) && p.mns - p.left > 1) || (Number.isFinite(p.right) && p.mns - p.right > 1)).length;
+  if (edged < have.length * 0.5) return { ok: false, reason: 'sans bords' };
+  // 3. accord de la BD TOPO
+  const both = have.filter((p) => Number.isFinite(p.bd));
+  if (both.length < 3 && both.length < have.length * 0.5) return { ok: false, reason: 'bdtopo absente' };
+  if (Math.abs(median(both.map((p) => p.bd - p.mns))) > DECK_BDTOPO_TOL_M) return { ok: false, reason: 'bdtopo en désaccord' };
+  return { ok: true, heights, lifts };
+}
+
+/** Ouvrages : groupes de tronçons de pont reliés par un nœud (union-find sur les nœuds). */
+export function bridgeChains(edges: ReadonlyArray<{ a: number; b: number }>, isBridge: (i: number) => boolean): number[][] {
+  const parent = new Map<number, number>();
+  const find = (x: number): number => {
+    let r = x;
+    while (parent.get(r) !== undefined && parent.get(r) !== r) r = parent.get(r)!;
+    let c = x;
+    while (c !== r) {
+      const n = parent.get(c)!;
+      parent.set(c, r);
+      c = n;
+    }
+    return r;
+  };
+  const ids: number[] = [];
+  edges.forEach((e, i) => {
+    if (!isBridge(i)) return;
+    ids.push(i);
+    for (const nd of [e.a, e.b]) if (!parent.has(nd)) parent.set(nd, nd);
+    const ra = find(e.a);
+    const rb = find(e.b);
+    if (ra !== rb) parent.set(ra, rb);
+  });
+  const out = new Map<number, number[]>();
+  for (const i of ids) {
+    const r = find(edges[i]!.a);
+    let l = out.get(r);
+    if (!l) out.set(r, (l = []));
+    l.push(i);
+  }
+  return [...out.values()];
 }
 
 /** Pente maximale imposée aux voies qui rejoignent un nœud relevé (la correction se répartit sur toute leur longueur). */
@@ -185,7 +294,12 @@ export function deckStations(pts: Pt[], halfWidth: number, mnsAt: (x: number, z:
       const x = a[0] + (b[0] - a[0]) * (k / n);
       const z = a[1] + (b[1] - a[1]) * (k / n);
       const at = (o: number) => mnsAt(x - dz * o, z + dx * o);
-      out.push({ s: acc + (L * k) / n, mns: median([at(0), at(1), at(-1)]), left: at(side), right: at(-side), bd: bdTopoZAt(segs, x, z, dx, dz, 1) });
+      // bord le plus bas à 6, 12 ou 20 m de la chaussée : une piste ou un trottoir parallèle sur son propre tablier masque le vide à 6 m
+      const low = (sgn: number) => {
+        const v = [side, side + 6, side + 14].map((o) => at(sgn * o)).filter(Number.isFinite);
+        return v.length ? Math.min(...v) : NaN;
+      };
+      out.push({ s: acc + (L * k) / n, mns: median([at(0), at(1), at(-1)]), left: low(1), right: low(-1), bd: bdTopoZAt(segs, x, z, dx, dz, 1) });
     }
     acc += L;
   }
@@ -208,7 +322,11 @@ export interface DeckNodeResult {
  * `fixedNodes` : nœuds dont l'altitude est imposée ailleurs (itinéraires publiés gardés, voir `roads3d.ts`) ;
  * un pont qui en touche un n'est pas relevé (un seul bout relevé ferait une rampe).
  */
-export async function bridgeNodeHeights(g: RoadGraph, dem: DemStack, opts: { fixedNodes?: ReadonlySet<number> } = {}): Promise<DeckNodeResult> {
+export async function bridgeNodeHeights(
+  g: RoadGraph,
+  dem: DemStack,
+  opts: { fixedNodes?: ReadonlySet<number>; onDrop?: (nd: number, eid: number) => void } = {},
+): Promise<DeckNodeResult> {
   const perNode = new Map<number, number[]>();
   const report: DeckNodeResult['report'] = [];
   const segCache = new Map<string, BdSeg[]>();
@@ -218,23 +336,32 @@ export async function bridgeNodeHeights(g: RoadGraph, dem: DemStack, opts: { fix
     const l = worldToL93(p[0], p[1]);
     return dem.sample(l.e, l.n);
   };
-  for (const e of g.edges) {
-    if (!e.road.bridge || e.len < 8 || e.pts.length < 2) continue;
-    if (opts.fixedNodes?.has(e.a) || opts.fixedNodes?.has(e.b)) {
+  const nodeMnt = (nd: number): number => {
+    const p = g.nodePos.get(nd);
+    return p ? mntAt(p) : NaN;
+  };
+  // un ouvrage = les tronçons de pont qui se touchent (voir `chainVerdict`)
+  const chains = bridgeChains(g.edges, (i) => g.edges[i]!.road.bridge && g.edges[i]!.pts.length >= 2);
+  for (const chain of chains) {
+    const es = chain.map((i) => g.edges[i]!);
+    const total = es.reduce((s, e) => s + e.len, 0);
+    const main = es.reduce((a, b) => (b.len > a.len ? b : a));
+    const entry = { wayId: main.road.id, kind: main.road.kind, name: main.road.name ?? '', lenM: total };
+    if (total < 8) continue;
+    if (es.some((e) => opts.fixedNodes?.has(e.a) || opts.fixedNodes?.has(e.b))) {
       fixedSkipped++;
       continue;
     }
-    const xs = e.pts.map((p) => p[0]);
-    const zs = e.pts.map((p) => p[1]);
-    const half = e.road.width / 2;
-    const m = half + 8;
+    const xs = es.flatMap((e) => e.pts.map((p) => p[0]));
+    const zs = es.flatMap((e) => e.pts.map((p) => p[1]));
+    const m = Math.max(...es.map((e) => e.road.width / 2)) + 8;
     const lo = worldToL93(Math.min(...xs) - m, Math.max(...zs) + m);
     const hi = worldToL93(Math.max(...xs) + m, Math.min(...zs) - m);
     let mns: Raster;
     try {
       mns = await fetchRaster(LAYER_MNS, lo.e, lo.n, hi.e, hi.n);
     } catch {
-      report.push({ wayId: e.road.id, kind: e.road.kind, name: e.road.name ?? '', lenM: e.len, verdict: { ok: false, reason: 'mns absent' } });
+      report.push({ ...entry, verdict: { ok: false, reason: 'mns absent' } });
       continue;
     }
     const segs: BdSeg[] = [];
@@ -252,22 +379,31 @@ export async function bridgeNodeHeights(g: RoadGraph, dem: DemStack, opts: { fix
         }
         segs.push(...s);
       }
-    const st = deckStations(e.pts, half, (x, z) => {
+    const mnsAt = (x: number, z: number) => {
       const l = worldToL93(x, z);
       return rasterAt(mns, l.e, l.n);
-    }, segs);
-    const verdict = deckVerdict(st, mntAt(e.pts[0]!), mntAt(e.pts[e.pts.length - 1]!));
-    report.push({ wayId: e.road.id, kind: e.road.kind, name: e.road.name ?? '', lenM: e.len, verdict });
-    if (!verdict.ok) continue;
-    const add = (nd: number, h: number, lift: number) => {
-      if (lift <= DECK_MIN_LIFT_M) return;
+    };
+    const cv = chainVerdict(
+      es.map((e) => ({ a: e.a, b: e.b, len: e.len, st: deckStations(e.pts, e.road.width / 2, mnsAt, segs) })),
+      nodeMnt,
+    );
+    if (!cv.ok) {
+      report.push({ ...entry, verdict: cv });
+      continue;
+    }
+    const hs = [...cv.heights.values()];
+    const ls = [...cv.lifts.values()];
+    report.push({ ...entry, verdict: { ok: true, ha: Math.min(...hs), hb: Math.max(...hs), liftA: Math.min(...ls), liftB: Math.max(...ls) } });
+    for (const [nd, h] of cv.heights) {
       let l = perNode.get(nd);
       if (!l) perNode.set(nd, (l = []));
       l.push(h);
-    };
-    add(e.a, verdict.ha, verdict.liftA);
-    add(e.b, verdict.hb, verdict.liftB);
-    groups.push([verdict.liftA, verdict.liftB].some((l) => l > DECK_MIN_LIFT_M) ? [e.a, e.b].filter((_, i) => [verdict.liftA, verdict.liftB][i]! > DECK_MIN_LIFT_M) : []);
+    }
+    // un tronçon et ses nœuds relevés tombent ensemble ; la contrainte de pente propage le refus le long de l'ouvrage
+    for (const e of es) {
+      const gr = [e.a, e.b].filter((nd) => cv.heights.has(nd));
+      if (gr.length) groups.push(gr);
+    }
   }
   const cands = new Map<number, number>();
   for (const [nd, hs] of perNode) cands.set(nd, median(hs));
@@ -281,12 +417,15 @@ export async function bridgeNodeHeights(g: RoadGraph, dem: DemStack, opts: { fix
     }
     return h;
   };
-  const { nodeHeights, rejected } = pruneLifts(cands, groups, g.edges, (nd) => g.adj.get(nd) ?? [], baseAt);
+  const { nodeHeights, rejected } = pruneLifts(cands, groups, g.edges, (nd) => g.adj.get(nd) ?? [], baseAt, opts.onDrop);
   return { nodeHeights, report, steepRejected: rejected, fixedSkipped };
 }
 
 /** Pente maximale d'un pont après relèvement (au-delà, le tablier mesuré n'est pas celui de la route). */
 export const DECK_MAX_FINAL_GRADE = 0.12;
+
+/** Voies piétonnes : jamais roulables (voir `RIDEABLE` de build-open), exclues du contrôle des accès. */
+const PEDESTRIAN_KINDS = new Set(['footway', 'path', 'pedestrian', 'steps', 'bridleway', 'corridor', 'elevator']);
 
 /**
  * Garde les relèvements cohérents, en itérant jusqu'à stabilité :
@@ -297,10 +436,13 @@ export const DECK_MAX_FINAL_GRADE = 0.12;
 export function pruneLifts(
   cands: Map<number, number>,
   groups: number[][],
-  edges: ReadonlyArray<{ a: number; b: number; len: number; road: { bridge: boolean } }>,
+  edges: ReadonlyArray<{ a: number; b: number; len: number; road: { bridge: boolean; kind?: string } }>,
   adj: (nd: number) => number[],
   base: (nd: number) => number,
+  onDrop?: (nd: number, eid: number) => void,
 ): { nodeHeights: Map<number, number>; rejected: number } {
+  // trottoirs et sentiers accrochés au tablier (bouts de 4 m non marqués pont) : non roulables, ils ne bloquent pas le relèvement
+  const ignored = (e: { road: { bridge: boolean; kind?: string } }) => !e.road.bridge && PEDESTRIAN_KINDS.has(e.road.kind ?? '');
   const keep = new Map(cands);
   const groupsOf = new Map<number, number[][]>();
   for (const gr of groups)
@@ -325,14 +467,18 @@ export function pruneLifts(
     const next: number[] = [];
     for (const nd of todo) {
       if (!keep.has(nd)) continue;
-      const bad = adj(nd).some((eid) => {
+      const bad = adj(nd).find((eid) => {
         const e = edges[eid]!;
+        if (ignored(e)) return false;
         const len = Math.max(e.len, 1e-6);
         const before = Math.abs(base(e.a) - base(e.b)) / len;
         const after = Math.abs(h(e.a) - h(e.b)) / len;
         return after > Math.max(before, e.road.bridge ? DECK_MAX_FINAL_GRADE : APPROACH_MAX_GRADE) + 1e-9;
       });
-      if (bad) drop(nd, next);
+      if (bad !== undefined) {
+        onDrop?.(nd, bad);
+        drop(nd, next);
+      }
     }
     todo = next;
   }
