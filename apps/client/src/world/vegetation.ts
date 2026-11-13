@@ -73,7 +73,8 @@ const TREES_PARAMS = (() => {
     if (typeof location === 'undefined') return null;
     const u = new URLSearchParams(location.search);
     if (u.get('trees') === '0') return null;
-    const st = (u.get('treesteps') ?? 'abcd').toLowerCase();
+    // Sans A par défaut (13/11/2026) : les amas de feuillage bosselés faisaient peu réaliste ; `?treesteps=abcd` les remet.
+    const st = (u.get('treesteps') ?? 'bcd').toLowerCase();
     return { a: st.includes('a'), b: st.includes('b'), c: st.includes('c'), d: st.includes('d') };
   } catch {
     return null;
