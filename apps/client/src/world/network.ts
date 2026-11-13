@@ -8,7 +8,7 @@ import { chainPieces, ribbonIndex, sideRoadStrips, type RouteFootprint } from '.
 import { cloudShade } from './clouds.ts';
 import { LAMP_STRENGTH, LAMP_FROM_CURB, LAMP_LEFT, LAMP_RIGHT, LAMP_SPACING, LAMP_STAGGERED, ROAD_FX, RoadLightingModel, asphaltColor, asphaltGrainSoft, decalShade, lampIsLeft, lampPool, reflectAlpha, rippleNormal, wetAlbedo, wetMasks, wetRoughness } from './roadSurface.ts';
 import { LampField, NearLampLights, createLampMaterial, type LampSpot } from './streetLamps.ts';
-import { CURB_H, CURB_W, StreetIndex, pushSidewalk, dropShortRuns, refineSidewalkEnds, bevelSidewalkEnds, resampleStrip, trimOverBank, type EdgeKind, type MeshSink } from './sidewalks.ts';
+import { CURB_H, CURB_W, StreetIndex, pushSidewalk, dropShortRuns, refineSidewalkEnds, bevelSidewalkEnds, resampleStrip, trimOverBank, WALK_STRIDE, walkHeight, type EdgeKind, type MeshSink } from './sidewalks.ts';
 import { DECAL_CROSSWALK, DECAL_GUTTER, DECAL_OIL, GUTTER_W, decalAtCrossing, placeDecals, pushDecal, stripSeed } from './roadDecals.ts';
 import { tune } from '../dev/tuning.ts';
 import { bollardGeometry, buildShopProps, createBollardMaterial, createPropMaterial, placeBollards } from './streetProps.ts';
@@ -29,18 +29,41 @@ const UNPAVED = new Set(['unpaved', 'gravel', 'dirt', 'ground', 'compacted', 'fi
 const COBBLES = new Set(['sett', 'cobblestone', 'unhewn_cobblestone', 'cobblestone:flattened', 'paving_stones:sett']);
 const SKIP = new Set(['footway', 'path', 'steps', 'cycleway', 'bridleway', 'pedestrian', 'corridor', 'platform']);
 
-const WALK_CELL = 1;
-const WALK_REACH = 0.45;
+const WALK_CELL = 4;
 
-function indexWalk(walk: number[]): Map<number, number[]> {
-  const grid = new Map<number, number[]>();
-  for (let i = 0; i < walk.length; i += 3) {
-    const key = Math.floor((walk[i] as number) / WALK_CELL) * 100003 + Math.floor((walk[i + 1] as number) / WALK_CELL);
-    let cell = grid.get(key);
-    if (!cell) grid.set(key, (cell = []));
-    cell.push(walk[i] as number, walk[i + 1] as number, walk[i + 2] as number);
+/** Surface des trottoirs d'une tuile : segments et cellules (WALK_CELL m) qui les croisent. */
+interface WalkIndex {
+  seg: number[];
+  cells: Map<number, number[]>;
+}
+
+function indexWalk(seg: number[]): WalkIndex {
+  const cells = new Map<number, number[]>();
+  for (let o = 0; o < seg.length; o += WALK_STRIDE) {
+    // Boîte du segment : bords de chaussée et bords extérieurs de ses deux profils.
+    let x0 = Infinity;
+    let x1 = -Infinity;
+    let z0 = Infinity;
+    let z1 = -Infinity;
+    for (const p of [0, 8]) {
+      const x = seg[o + p] as number;
+      const z = seg[o + p + 1] as number;
+      const ox = x + (seg[o + p + 2] as number) * (seg[o + p + 5] as number);
+      const oz = z + (seg[o + p + 3] as number) * (seg[o + p + 5] as number);
+      x0 = Math.min(x0, x, ox);
+      x1 = Math.max(x1, x, ox);
+      z0 = Math.min(z0, z, oz);
+      z1 = Math.max(z1, z, oz);
+    }
+    for (let cx = Math.floor(x0 / WALK_CELL); cx <= Math.floor(x1 / WALK_CELL); cx++)
+      for (let cz = Math.floor(z0 / WALK_CELL); cz <= Math.floor(z1 / WALK_CELL); cz++) {
+        const key = cx * 100003 + cz;
+        let list = cells.get(key);
+        if (!list) cells.set(key, (list = []));
+        list.push(o);
+      }
   }
-  return grid;
+  return { seg, cells };
 }
 
 /**
@@ -64,8 +87,8 @@ export class RoadNetwork {
   private shopWallsOf: (tileId: string) => readonly number[] = () => [];
   private readonly roadMat: THREE.MeshStandardNodeMaterial;
   private readonly tiles = new Map<string, THREE.Object3D[]>();
-  /** Surface des trottoirs par tuile (cellules de WALK_CELL m). */
-  private readonly walks = new Map<string, Map<number, number[]>>();
+  /** Surface des trottoirs par tuile. */
+  private readonly walks = new Map<string, WalkIndex>();
   private readonly activeRoute: string;
   private readonly footprint: RouteFootprint | null;
 
@@ -284,27 +307,20 @@ export class RoadNetwork {
   }
 
   /**
-   * Hauteur du dessus d'un trottoir au plus près de (x, z) (à moins de WALK_REACH m d'un point mesuré), NaN ailleurs :
+   * Hauteur du dessus d'un trottoir en (x, z) (le plus haut s'ils se recouvrent), NaN hors trottoir :
    * les spectateurs y sont posés au lieu d'être enfoncés sous la dalle, qui monte au-dessus du terrain.
    */
   walkHeightAt(x: number, z: number): number {
-    let best = WALK_REACH * WALK_REACH;
     let y = Number.NaN;
-    const cx = Math.floor(x / WALK_CELL);
-    const cz = Math.floor(z / WALK_CELL);
-    for (const grid of this.walks.values())
-      for (let i = -1; i <= 1; i++)
-        for (let j = -1; j <= 1; j++) {
-          const s = grid.get((cx + i) * 100003 + (cz + j));
-          if (!s) continue;
-          for (let k = 0; k < s.length; k += 3) {
-            const d = ((s[k] as number) - x) ** 2 + ((s[k + 1] as number) - z) ** 2;
-            if (d < best) {
-              best = d;
-              y = s[k + 2] as number;
-            }
-          }
-        }
+    const key = Math.floor(x / WALK_CELL) * 100003 + Math.floor(z / WALK_CELL);
+    for (const idx of this.walks.values()) {
+      const list = idx.cells.get(key);
+      if (!list) continue;
+      for (const o of list) {
+        const h = walkHeight(idx.seg, o, x, z);
+        if (Number.isFinite(h) && !(h <= y)) y = h;
+      }
+    }
     return y;
   }
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { StreetIndex, bevelSidewalkEnds, dropShortRuns, pushSidewalk, trimOverBank, refineSidewalkEnds, resampleStrip, type MeshSink } from '../src/world/sidewalks.ts';
+import { StreetIndex, bevelSidewalkEnds, walkHeight, dropShortRuns, pushSidewalk, trimOverBank, refineSidewalkEnds, resampleStrip, type MeshSink } from '../src/world/sidewalks.ts';
 import { FootprintIndex } from '../src/world/footprints.ts';
 import type { LoadedTile, TileRoad } from '../src/world/types.ts';
 
@@ -213,5 +213,19 @@ describe('bouts de trottoir en biseau', () => {
   it('ne change rien sans bout (trottoir sans largeur ou profil isolé)', () => {
     const r = bevelSidewalkEnds({ ...sd, widths: [0, 0, 0] });
     expect(r.along).toEqual([0, 6, 12]);
+  });
+});
+
+describe('hauteur du dessus du trottoir (walkHeight)', () => {
+  it('lit la bordure plate puis la rampe jusqu au mur, et rien hors du trottoir', () => {
+    const walk: number[] = [];
+    pushSidewalk({ pos: [], uvs: [], info: [], lit: [], decal: [], dsize: [], side: [], index: [], walk }, [4.6, 0, 0, 4.6, 0, 6], [0, 6], [4, 4], [1, 1], [0, 0], 1, 4.6, 4, [0, 0], (x) => (x - 4.6) * 0.25);
+    expect(walk.length).toBe(16);
+    expect(walkHeight(walk, 0, 4.6 + 0.1, 3)).toBeCloseTo(0.12);
+    // À 3,18 m du bord : 12 cm + (1,02 − 0,12) × (3,18 − 0,18) / (4 − 0,18) ≈ 0,83 (le dessus monte avec le terrain).
+    expect(walkHeight(walk, 0, 4.6 + 3.18, 3)).toBeGreaterThan(0.7);
+    expect(walkHeight(walk, 0, 4.6 + 5, 3)).toBeNaN();
+    expect(walkHeight(walk, 0, 4.6 + 1, 9)).toBeNaN();
+    expect(walkHeight(walk, 0, 4.6 - 1, 3)).toBeNaN();
   });
 });

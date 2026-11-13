@@ -321,7 +321,7 @@ export interface MeshSink {
   /** Trottoir : distance au mur (m, 99 sans mur) et vitrine éclairée la nuit (0 ou 1). */
   side: number[];
   index: number[];
-  /** Échantillons de la surface des trottoirs (x, z, y), pour poser les spectateurs dessus (RoadNetwork.walkHeightAt). */
+  /** Segments de la surface des trottoirs (WALK_STRIDE valeurs chacun), pour poser les spectateurs dessus (RoadNetwork.walkHeightAt). */
   walk?: number[];
 }
 
@@ -406,7 +406,7 @@ export function pushSidewalk(sink: MeshSink, edge: readonly number[], along: rea
     else sink.index.push(a, c, b, b, c, d);
   };
   const has = (i: number) => (widths[i] as number) > 0;
-  if (sink.walk) sampleWalk(sink.walk, prof, has);
+  if (sink.walk) walkSegments(sink.walk, prof, has);
   for (let i = 0; i + 1 < n; i++) {
     // Seulement entre deux profils qui ont un trottoir : plus de pointe qui mordait sur la chaussée voisine au
     // carrefour (refineSidewalkEnds pose le dernier profil au bord de cette chaussée).
@@ -450,32 +450,45 @@ export function pushSidewalk(sink: MeshSink, edge: readonly number[], along: rea
   }
 }
 
-/** Pas (m) des échantillons de surface de trottoir, en travers et le long. */
-const WALK_STEP_M = 0.5;
+/** Nombre de valeurs par segment de trottoir enregistré pour `walk` (voir walkSegments / walkHeight). */
+export const WALK_STRIDE = 16;
 
-/** Échantillons (x, z, y) du dessus des trottoirs, tous les WALK_STEP_M, entre deux profils qui ont un trottoir. */
-function sampleWalk(walk: number[], prof: number[][], has: (i: number) => boolean): void {
+/**
+ * Segments de trottoir (entre deux profils qui en ont un), WALK_STRIDE valeurs chacun : pour chaque bout, bord de
+ * chaussée (x, z), direction vers le mur (dx, dz), bordure, largeur, hauteur du dessus de bordure et du bord extérieur.
+ */
+function walkSegments(walk: number[], prof: number[][], has: (i: number) => boolean): void {
   for (let i = 0; i + 1 < prof.length; i++) {
     if (!has(i) || !has(i + 1)) continue;
-    const a = prof[i] as number[];
-    const b = prof[i + 1] as number[];
-    const len = Math.hypot((b[0] as number) - (a[0] as number), (b[1] as number) - (a[1] as number));
-    const steps = Math.min(Math.max(Math.ceil(len / WALK_STEP_M), 1), 24);
-    for (let s = 0; s <= steps; s++) {
-      const f = s / steps;
-      const lerp = (k: number) => (a[k] as number) + ((b[k] as number) - (a[k] as number)) * f;
-      const w = lerp(5);
-      const c = Math.min(lerp(4), w);
-      const top = lerp(6);
-      const outer = lerp(7);
-      const dl = Math.hypot(lerp(2), lerp(3)) || 1;
-      const across = Math.max(Math.ceil(w / WALK_STEP_M), 1);
-      for (let t = 0; t <= across; t++) {
-        const d = (t / across) * w;
-        walk.push(lerp(0) + (lerp(2) / dl) * d, lerp(1) + (lerp(3) / dl) * d, d <= c || w <= c ? top : top + ((outer - top) * (d - c)) / (w - c));
-      }
-    }
+    walk.push(...(prof[i] as number[]), ...(prof[i + 1] as number[]));
   }
+}
+
+/** Hauteur du dessus du trottoir à la distance `d` du bord de chaussée (plat sur la bordure, puis rampe jusqu'au mur). */
+function walkSurface(d: number, c: number, w: number, top: number, outer: number): number {
+  return d <= c || w <= c ? top : top + ((outer - top) * (d - c)) / (w - c);
+}
+
+/** Hauteur du trottoir d'un segment au point (px, pz), NaN s'il n'est pas dessus. `o` : début du segment dans `walk`. */
+export function walkHeight(walk: ArrayLike<number>, o: number, px: number, pz: number): number {
+  const g = (k: number) => walk[o + k] as number;
+  // Un profil : x, z, dx, dz, c, w, top, outer (8 valeurs) ; le second à partir de 8.
+  const ax = g(0);
+  const az = g(1);
+  const bx = g(8);
+  const bz = g(9);
+  const ex = bx - ax;
+  const ez = bz - az;
+  const l2 = ex * ex + ez * ez;
+  if (l2 < 1e-9) return Number.NaN;
+  const t = ((px - ax) * ex + (pz - az) * ez) / l2;
+  if (t < 0 || t > 1) return Number.NaN;
+  const lerp = (k: number) => g(k) + (g(8 + k) - g(k)) * t;
+  const dl = Math.hypot(lerp(2), lerp(3)) || 1;
+  const d = (px - lerp(0)) * (lerp(2) / dl) + (pz - lerp(1)) * (lerp(3) / dl);
+  const w = lerp(5);
+  if (d < -0.05 || d > w + 0.05) return Number.NaN;
+  return walkSurface(Math.min(Math.max(d, 0), w), Math.min(lerp(4), w), w, lerp(6), lerp(7));
 }
 
 /** Trottoir d'un côté : profils, largeurs, bordures, état de la flaque de lumière, sens du travers. */
