@@ -64,8 +64,8 @@ const FINE_REACH_M = 350;
 
 /**
  * Détail procédural du sol proche (P2.1b, expérimental) : grain, mottes, litière et microrelief tirés de
- * bruits, fondus avec la distance. Actif par défaut ; `?grounddetail=0` le coupe. Il ne vaut qu'en style réaliste et pour
- * les mondes de GROUND_DETAIL_WORLDS. Coupé, le matériau du terrain est exactement celui d'avant
+ * bruits, fondus avec la distance. Actif par défaut ; `?grounddetail=0` le coupe. Il ne vaut qu'en style réaliste, dans
+ * tous les mondes. Coupé, le matériau du terrain est exactement celui d'avant
  * (aucun nœud de shader ajouté).
  */
 const GROUND_DETAIL_REQUESTED = (() => {
@@ -75,12 +75,11 @@ const GROUND_DETAIL_REQUESTED = (() => {
     return false;
   }
 })();
-const GROUND_DETAIL_WORLDS = new Set(['billom']);
 
 /**
  * Accotements (P2.2b, expérimental) : bande de terre tassée et fondu vers le sol le long des routes dessinées, tirés
  * d'un champ de distance au bord de chaussée par tuile (roadEdgeField.ts). Actif par défaut ; `?roadedge=0`
- * le coupe. Il ne vaut qu'en style réaliste et pour les mondes de ROAD_EDGE_WORLDS. Coupé, rien n'est calculé ni créé.
+ * le coupe. Il ne vaut qu'en style réaliste, dans tous les mondes. Coupé, rien n'est calculé ni créé.
  */
 const ROAD_EDGE_REQUESTED = (() => {
   try {
@@ -89,7 +88,6 @@ const ROAD_EDGE_REQUESTED = (() => {
     return false;
   }
 })();
-const ROAD_EDGE_WORLDS = GROUND_DETAIL_WORLDS;
 
 /** Durée de vie d'une tuile décodée en cache : l'URL de son orthophoto est libérée 2 min après le téléchargement. */
 const CACHE_MS = 90_000;
@@ -154,8 +152,8 @@ export class TerrainManager {
 
   constructor(source: WorldSource, q: QualitySettings, season: Season) {
     this.source = source;
-    this.groundDetail = GROUND_DETAIL_REQUESTED && !LOW_POLY && GROUND_DETAIL_WORLDS.has(source.id);
-    this.roadEdge = ROAD_EDGE_REQUESTED && !LOW_POLY && ROAD_EDGE_WORLDS.has(source.id);
+    this.groundDetail = GROUND_DETAIL_REQUESTED && !LOW_POLY;
+    this.roadEdge = ROAD_EDGE_REQUESTED && !LOW_POLY;
     this.q = q;
     this.group.name = 'terrain';
     const alp = alpineProfile(source.id);

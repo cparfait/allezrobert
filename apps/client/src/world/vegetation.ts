@@ -63,8 +63,8 @@ const REAL_MID = 700;
 
 /**
  * Arbres LiDAR plus crédibles (P2.3b-1, expérimental) : amas de feuillage proches (A), proportions des houppiers (B),
- * conifères selon les forêts de résineux OSM (C). Actif par défaut ; `?trees=0` le coupe. Il ne vaut qu'en style réaliste et pour
- * les mondes de TREES_WORLDS. `?treesteps=abc` conserve P2.3b-1 pour les comparaisons,
+ * conifères selon les forêts de résineux OSM (C). Actif par défaut ; `?trees=0` le coupe. Il ne vaut qu'en style réaliste, dans
+ * tous les mondes. `?treesteps=abc` conserve P2.3b-1 pour les comparaisons,
  * tandis que `abcd` ajoute les houppiers bas de lisière (P2.3b-2b).
  * Coupé, la végétation est exactement celle d'avant (mêmes objets, matériaux et matrices).
  */
@@ -79,7 +79,6 @@ const TREES_PARAMS = (() => {
     return null;
   }
 })();
-const TREES_WORLDS = new Set(['billom']);
 /**
  * Mode arbres : chaque instance de feuillu (blocs et silhouettes) porte trois paramètres dans `instanceColor` (le
  * matériau annule la multiplication de couleur de three.js) : x = 200 + A (descente du houppier, voir treeShape.ts) ou
@@ -366,7 +365,7 @@ export class Vegetation {
   setWorld(id: string): void {
     this.regional = REGIONAL_CONIFERS[id] ?? (() => 0);
     this.treelineM = alpineProfile(id).treelineM;
-    const trees = TREES_PARAMS && !LOW_POLY && TREES_WORLDS.has(id) ? TREES_PARAMS : null;
+    const trees = TREES_PARAMS && !LOW_POLY ? TREES_PARAMS : null;
     (this as { trees: typeof trees }).trees = trees;
     if (trees && !this.treesMat) {
       this.treesMat = this.treesMaterial(trees);
