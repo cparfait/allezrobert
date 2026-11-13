@@ -1187,7 +1187,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   const crowd = new Crowd(track, crowdGround, { riderName: s.name, density: engine.quality.crowdDensity, finish: s.mode === 'race' });
   engine.scene.add(crowd.group);
   engine.scene.add(new TownSigns(track, (x, z) => world.terrain.heightAt(x, z)).group);
-  const banners = new FinishBanners(track, (x, z) => world.terrain.heightAt(x, z));
+  const banners = new FinishBanners(track, (x, z) => world.terrain.heightAt(x, z), (ax, ay, az, bx, by, bz) => world.buildings.footprints.firstHit(ax, ay, az, bx, by, bz));
   engine.scene.add(banners.group);
   // Monde vivant (circulation, cyclistes croisés) : désactivable par ?traffic=0.
   const alive = params.get('traffic') !== '0' && engine.quality.trafficDensity > 0;

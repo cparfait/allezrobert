@@ -122,7 +122,11 @@ export class FinishBanners {
     lf.mat.needsUpdate = true;
   }
 
-  constructor(track: RouteTrack, groundAt: (x: number, z: number) => number) {
+  /**
+   * `blocked` : premier bâtiment sur un segment (fraction 0–1 ou null, voir BuildingFootprints.firstHit) ; sert à
+   * rétrécir l'arche dans une rue étroite, sinon un montant disparaît dans la façade (l'arche semble coupée).
+   */
+  constructor(track: RouteTrack, groundAt: (x: number, z: number) => number, blocked?: (ax: number, ay: number, az: number, bx: number, by: number, bz: number) => number | null) {
     this.group.name = 'finish-banners';
     const len = track.length;
     this.lapLengthM = len;
@@ -158,7 +162,16 @@ export class FinishBanners {
       const y = Number.isFinite(ground) ? ground : p.y;
       const g = new THREE.Group();
       const H = kind === 'km1' || kind === 'km10' ? 5.4 : 6.0; // hauteur du sommet de l'arche
-      const hw = span + TUBE; // demi-largeur au centre des boudins
+      let hw = span + TUBE; // demi-largeur au centre des boudins
+      if (blocked) {
+        // Largeur libre de chaque côté à 1,5 m du sol : le montant (rayon TUBE + 0,15 m de marge) reste devant la façade.
+        const reach = hw + 0.5;
+        for (const side of [-1, 1]) {
+          const e = track.positionAt(d, side * reach);
+          const hit = blocked(p.x, y + 1.5, p.z, e.x, y + 1.5, e.z);
+          if (hit !== null) hw = Math.min(hw, Math.max(hit * reach - TUBE - 0.15, half + TUBE + 0.1));
+        }
+      }
       // Arche gonflable : boudin continu, montants verticaux et haut arrondi (carré à coins ronds).
       const path: THREE.Vector3[] = [];
       for (let k = 0; k <= 48; k++) {
