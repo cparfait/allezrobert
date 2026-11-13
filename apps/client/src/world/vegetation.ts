@@ -63,8 +63,8 @@ const REAL_MID = 700;
 
 /**
  * Arbres LiDAR plus crédibles (P2.3b-1, expérimental) : amas de feuillage proches (A), proportions des houppiers (B),
- * conifères selon les forêts de résineux OSM (C). Coupé par défaut ; `?trees=1` l'active, en style réaliste et pour
- * les mondes de TREES_WORLDS seulement. `?treesteps=abc` conserve P2.3b-1 pour les comparaisons,
+ * conifères selon les forêts de résineux OSM (C). Actif par défaut ; `?trees=0` le coupe. Il ne vaut qu'en style réaliste et pour
+ * les mondes de TREES_WORLDS. `?treesteps=abc` conserve P2.3b-1 pour les comparaisons,
  * tandis que `abcd` ajoute les houppiers bas de lisière (P2.3b-2b).
  * Coupé, la végétation est exactement celle d'avant (mêmes objets, matériaux et matrices).
  */
@@ -72,7 +72,7 @@ const TREES_PARAMS = (() => {
   try {
     if (typeof location === 'undefined') return null;
     const u = new URLSearchParams(location.search);
-    if (u.get('trees') !== '1') return null;
+    if (u.get('trees') === '0') return null;
     const st = (u.get('treesteps') ?? 'abcd').toLowerCase();
     return { a: st.includes('a'), b: st.includes('b'), c: st.includes('c'), d: st.includes('d') };
   } catch {

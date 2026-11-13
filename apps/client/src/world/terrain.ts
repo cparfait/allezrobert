@@ -64,13 +64,13 @@ const FINE_REACH_M = 350;
 
 /**
  * Détail procédural du sol proche (P2.1b, expérimental) : grain, mottes, litière et microrelief tirés de
- * bruits, fondus avec la distance. Coupé par défaut ; `?grounddetail=1` l'active, en style réaliste et pour
- * les mondes de GROUND_DETAIL_WORLDS seulement. Coupé, le matériau du terrain est exactement celui d'avant
+ * bruits, fondus avec la distance. Actif par défaut ; `?grounddetail=0` le coupe. Il ne vaut qu'en style réaliste et pour
+ * les mondes de GROUND_DETAIL_WORLDS. Coupé, le matériau du terrain est exactement celui d'avant
  * (aucun nœud de shader ajouté).
  */
 const GROUND_DETAIL_REQUESTED = (() => {
   try {
-    return typeof location !== 'undefined' && new URLSearchParams(location.search).get('grounddetail') === '1';
+    return typeof location !== 'undefined' && new URLSearchParams(location.search).get('grounddetail') !== '0';
   } catch {
     return false;
   }
@@ -79,12 +79,12 @@ const GROUND_DETAIL_WORLDS = new Set(['billom']);
 
 /**
  * Accotements (P2.2b, expérimental) : bande de terre tassée et fondu vers le sol le long des routes dessinées, tirés
- * d'un champ de distance au bord de chaussée par tuile (roadEdgeField.ts). Coupé par défaut ; `?roadedge=1`
- * l'active, en style réaliste et pour les mondes de ROAD_EDGE_WORLDS seulement. Coupé, rien n'est calculé ni créé.
+ * d'un champ de distance au bord de chaussée par tuile (roadEdgeField.ts). Actif par défaut ; `?roadedge=0`
+ * le coupe. Il ne vaut qu'en style réaliste et pour les mondes de ROAD_EDGE_WORLDS. Coupé, rien n'est calculé ni créé.
  */
 const ROAD_EDGE_REQUESTED = (() => {
   try {
-    return typeof location !== 'undefined' && new URLSearchParams(location.search).get('roadedge') === '1';
+    return typeof location !== 'undefined' && new URLSearchParams(location.search).get('roadedge') !== '0';
   } catch {
     return false;
   }

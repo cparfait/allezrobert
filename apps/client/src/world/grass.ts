@@ -7,7 +7,7 @@ import type { QualitySettings } from '../engine/quality.ts';
 import type { LoadedTile } from './types.ts';
 import type { Season } from './environment.ts';
 import { cloudShade } from './clouds.ts';
-import { GRASS_BLOCK, GRASS_RADIUS, appendGrassBlock, generateGrassBlock, grassBlocksAround, grassTriesPerBlock, type GrassBlock, type GrassEnv } from './grassPlacement.ts';
+import { GRASS_BLOCK, GRASS_RADIUS, appendGrassBlock, generateGrassBlock, grassBlocksAround, grassTriesPerBlock, type GrassBlock, grassFieldsFor, type GrassEnv } from './grassPlacement.ts';
 
 /** Essais de placement par image pendant une regénération (≈ 12 ms ; une vingtaine d'images pour la densité la plus forte). */
 const GRASS_TRIES_PER_FRAME = 6000;
@@ -125,6 +125,7 @@ export class GrassField {
   private readonly env: GrassEnv;
   private readonly tries: number;
   private season: Season = 'summer';
+  private grassFields = false;
   /**
    * Touffes déjà placées, par bloc du monde : un bloc ne dépend ni du coureur ni du rayon (graine fixe), donc une
    * regénération ne refait que les blocs qui entrent dans le disque (une bande de 12 m, au lieu des ~80 blocs
@@ -149,6 +150,9 @@ export class GrassField {
       avoid,
       get season() {
         return field.season;
+      },
+      get grassFields() {
+        return field.grassFields;
       },
     };
     this.max = Math.floor(60000 * q.grassDensity);
@@ -188,6 +192,11 @@ export class GrassField {
     this.mesh.receiveShadow = true;
     this.mesh.name = 'grass';
     this.setSeason(season);
+  }
+
+  /** Monde chargé : active l'herbe des champs là où elle est validée (voir grassFieldsFor). */
+  setWorld(id: string): void {
+    this.grassFields = grassFieldsFor(id);
   }
 
   setSeason(season: Season): void {

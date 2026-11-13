@@ -33,6 +33,18 @@ const GRASS_FIELDS_REQUESTED = (() => {
     return false;
   }
 })();
+/** Mondes où l'herbe des champs est active par défaut (`?grassfields=0` la coupe, `=1` la force partout). */
+export const GRASS_FIELDS_WORLDS = new Set(['billom']);
+export function grassFieldsFor(worldId: string): boolean {
+  try {
+    const v = typeof location !== 'undefined' ? new URLSearchParams(location.search).get('grassfields') : null;
+    if (v === '0') return false;
+    if (v === '1') return true;
+  } catch {
+    /* pas d'URL : valeur par défaut */
+  }
+  return GRASS_FIELDS_WORLDS.has(worldId);
+}
 /** Densité plancher dans un champ (quelques touffes isolées, jamais une surface vide). */
 export const FIELD_GRASS_MIN = 0.02;
 /** Supplément dans les taches enherbées (bruit de 25 m et de 7 m). */
