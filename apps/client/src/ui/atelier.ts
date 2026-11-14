@@ -3,10 +3,9 @@ import { emissive, mrt, normalView, output, packNormalToRGB, pass, sample, unpac
 import { bloom } from 'three/addons/tsl/display/BloomNode.js';
 import { ao } from 'three/addons/tsl/display/GTAONode.js';
 import { BIKE_REFERENCE, DEFAULT_LOOK, PLAIN_BIKE_FAMILY, bikeById, bikeOfLook, type AvatarLook, type BikeFamily, type TuneSlot } from '@allezrobert/shared';
-import { ROUBAIX_MODEL_ID, ROUBAIX_SIZE_GUIDE } from '../../../../packages/shared/src/roubaixMetric.ts';
 import { createAvatar, type RiderAvatarLike, type RiderPose } from '../rider/gltfAvatar.ts';
-import { BikeMaterials, familyScene, libraryWheel, loadBikeFamily, loneWheel, onBikeFamilyLoaded } from '../rider/bikes.ts';
-import { dressRoubaix, fitRoubaixWheels, loadRoubaix, roubaixAnchor, roubaixSpec, type RoubaixBike, type RoubaixDress } from '../rider/roubaix.ts';
+import { BikeMaterials, loadBikeFamily, loneWheel, onBikeFamilyLoaded } from '../rider/bikes.ts';
+import { assembleRoubaix, isRoubaixLook, loadRoubaix, roubaixSizeForRider, type RoubaixBike, type RoubaixDress } from '../rider/roubaix.ts';
 import { compilePass, isCompiling, type Engine } from '../engine/renderer.ts';
 import { box, buildRoom, cyl, mat, rod, WALL_WHEELS } from './atelierRoom.ts';
 import { buildPosters, POSTER_RIDERS, RIDER_BOX, type PosterArt } from './atelierPosters.ts';
@@ -590,14 +589,9 @@ export class AtelierHost {
    * suivante : 44 → 142–155 cm). `?roubaix=<taille>` force une taille modélisée, quelle que soit la taille du joueur.
    */
   private roubaixSize(st: AtelierState): string | null {
-    if (st.rider || st.look.bikeModel !== ROUBAIX_MODEL_ID) return null;
+    if (st.rider || !isRoubaixLook(st.look.bikeModel)) return null;
     const forced = typeof location !== 'undefined' ? new URLSearchParams(location.search).get('roubaix') : null;
-    if (forced) return roubaixSpec(forced) ? forced : null;
-    const h = st.look.heightCm;
-    if (!h) return null;
-    const i = ROUBAIX_SIZE_GUIDE.findIndex((b, k) => h >= b.minCm && h < (ROUBAIX_SIZE_GUIDE[k + 1]?.minCm ?? b.maxCm + 1));
-    const size = ROUBAIX_SIZE_GUIDE[i]?.size;
-    return size && roubaixSpec(size) ? size : null;
+    return roubaixSizeForRider(st.look.heightCm, forced && forced !== '1' ? forced : null);
   }
 
   /** Montre le Roubaix dédié à la place du vélo générique (chargé à la demande), ou revient au vélo générique. */
@@ -631,53 +625,20 @@ export class AtelierHost {
   }
 
   /**
-   * Roubaix dédié habillé comme le vélo du joueur : livrée et inscriptions du catalogue (dressRoubaix), roues du jeu
-   * choisies dans le look avec les disques de la taille, pédalier et pédales de série (famille de base) descendus au
-   * boîtier du Roubaix. Échelle 1 (les étriers sont à 0,30 mm des disques). Null si la famille de base n'est pas chargée.
+   * Roubaix dédié habillé comme le vélo du joueur, monté par assembleRoubaix (rider/roubaix.ts, partagé avec le coureur) :
+   * livrée et inscriptions du catalogue, roues du look avec les disques de la taille, pédalier et pédales de série au
+   * boîtier du Roubaix, manivelle du contrat. Échelle 1. Null si la famille de base n'est pas chargée.
    */
   private buildRoubaix(asset: RoubaixBike, look: AvatarLook, key: string): { key: string; group: THREE.Group; dress: RoubaixDress; materials: BikeMaterials } | null {
-    let plain: THREE.Object3D;
-    try {
-      plain = familyScene(PLAIN_BIKE_FAMILY);
-    } catch {
+    const build = bikeOfLook(look);
+    const materials = new BikeMaterials(build, look, PLAIN_BIKE_FAMILY);
+    const a = assembleRoubaix(asset, 0, build, materials);
+    if (!a) {
+      materials.dispose();
       return null;
     }
-    const build = bikeOfLook(look);
-    const group = new THREE.Group();
-    group.name = 'roubaix';
-    const frame = asset.lods[0].clone(true);
-    group.add(frame);
-    const dress = dressRoubaix(frame, asset.spec, build);
-    const materials = new BikeMaterials(build, look, PLAIN_BIKE_FAMILY);
-    const parts: THREE.Object3D[] = [];
-    const f = libraryWheel(build, true, 0);
-    const r = libraryWheel(build, false, 0);
-    const af = roubaixAnchor(frame, 'axle_front');
-    const ar = roubaixAnchor(frame, 'axle_rear');
-    if (f && r && af && ar) {
-      f.position.copy(af);
-      r.position.copy(ar);
-      fitRoubaixWheels(f, r, asset);
-      parts.push(f, r);
-    }
-    const dy = asset.spec.groundOffsetMm / 1000 - BIKE_REFERENCE.bottomBracket[1];
-    for (const name of ['crankset', 'pedal_L', 'pedal_R']) {
-      const o = plain.getObjectByName(name)?.clone(true);
-      if (!o) continue;
-      o.position.y += dy;
-      parts.push(o);
-    }
-    for (const o of parts) {
-      o.traverse((m) => {
-        const mesh = m as THREE.Mesh;
-        if (!mesh.isMesh) return;
-        mesh.material = materials.get((mesh.userData.matKey as string | undefined) ?? (mesh.material as THREE.Material).name);
-        mesh.castShadow = true;
-        mesh.receiveShadow = true;
-      });
-      group.add(o);
-    }
-    return { key, group, dress, materials };
+    a.group.name = 'roubaix';
+    return { key, group: a.group, dress: a.dress, materials };
   }
 
   private dropRoubaix(): void {

@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { ROUBAIX_44, ROUBAIX_SIZES } from '../../../packages/shared/src/roubaixMetric.ts';
 import * as THREE from 'three/webgpu';
-import { fitRoubaixWheels, roubaixSpec, seatpostOffset } from '../src/rider/roubaix.ts';
+import { fitRoubaixWheels, roubaixSeat, roubaixSizeForRider, roubaixSpec, seatpostOffset, sitPointOf, solveSeatDrop } from '../src/rider/roubaix.ts';
 
 interface GltfJson {
   asset: { extras?: { solMm?: number; contrat?: unknown; reglageSelle?: { axe?: { direction?: number[] } } } };
@@ -128,5 +128,43 @@ describe('Roubaix : disques de la taille sur les roues du jeu', () => {
   it('roue sans disque : refus', () => {
     const bike = { spec: ROUBAIX_44, lods: [new THREE.Group(), new THREE.Group(), new THREE.Group()], frontRotor: new THREE.Group() } as const;
     expect(fitRoubaixWheels(new THREE.Object3D(), new THREE.Object3D(), bike)).toBe(false);
+  });
+});
+
+describe('Roubaix : ajustement du coureur (I-4b)', () => {
+  it('taille de cadre : tranche du 44 (142–155 cm), taille forcée, sinon aucune', () => {
+    expect(roubaixSizeForRider(142)).toBe('44');
+    expect(roubaixSizeForRider(154.9)).toBe('44');
+    expect(roubaixSizeForRider(155)).toBeNull(); // tranche du 49, non modélisée
+    expect(roubaixSizeForRider(178)).toBeNull();
+    expect(roubaixSizeForRider(178, '44')).toBe('44');
+    expect(roubaixSizeForRider(150, '61')).toBeNull();
+    expect(roubaixSizeForRider(undefined)).toBeNull();
+  });
+  it('point d’assise : contrat, plus l’abaissement le long de la tige', () => {
+    const s0 = roubaixSeat(ROUBAIX_44, 0);
+    expect(s0.toArray()).toEqual([...(ROUBAIX_44.metric.contacts.saddle?.originM ?? [])]);
+    const s50 = roubaixSeat(ROUBAIX_44, 50);
+    expect(s50.distanceTo(s0)).toBeCloseTo(0.05, 6);
+    expect(s50.y).toBeLessThan(s0.y);
+  });
+  it('abaissement de selle : racine d’une fonction décroissante, bornée', () => {
+    expect(solveSeatDrop((d) => 40 - d, 120)).toBeCloseTo(40, 6);
+    expect(solveSeatDrop((d) => -1 - d, 120)).toBe(0); // jambe trop longue : selle au plus haut
+    expect(solveSeatDrop((d) => 500 - d, 120)).toBe(120); // jambe trop courte : selle au plus bas
+  });
+  it('point d’assise d’une selle : milieu de la zone large, dessus près du plan médian', () => {
+    // Selle synthétique : bec étroit (z 0 → 0,1 ; largeur 0,04), arrière large (z −0,1 → 0 ; largeur 0,14), dessus à y 0,9.
+    const pts: number[] = [];
+    for (let z = -0.1; z <= 0.1001; z += 0.005) for (const x of z < 0 ? [-0.07, -0.01, 0, 0.01, 0.07] : [-0.02, 0, 0.02]) pts.push(x, 0.9 - Math.abs(x) * 0.1, z);
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+    const root = new THREE.Group();
+    const saddle = new THREE.Mesh(g, new THREE.MeshBasicMaterial());
+    root.add(saddle);
+    const p = sitPointOf(saddle, root);
+    expect(p?.y).toBeCloseTo(0.9, 6);
+    expect(p?.z).toBeLessThan(0);
+    expect(p?.z).toBeGreaterThan(-0.1);
   });
 });

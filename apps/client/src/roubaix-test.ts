@@ -6,12 +6,17 @@ import { ROUBAIX_MODEL_ID } from '../../../packages/shared/src/roubaixMetric.ts'
 import { createEngine } from './engine/renderer.ts';
 import { QUALITY_PRESETS } from './engine/quality.ts';
 import { dressRoubaix, fitRoubaixWheels, loadRoubaix, roubaixAnchor, setSaddleDrop } from './rider/roubaix.ts';
+import { DEFAULT_LOOK } from '@allezrobert/shared';
+import { GltfRiderAvatar, type RiderPose } from './rider/gltfAvatar.ts';
+import type { Engine } from './engine/renderer.ts';
 
 /**
  * Banc de développement du Roubaix dédié par taille (étape I-3, non branché dans le jeu) : /roubaix-test.html.
  * Vélo seul, à l'échelle 1, avec les roues du jeu (wheels.glb) et les disques propres à la taille, habillé de la livrée du
  * catalogue (Specialized Roubaix Sport 2020). Paramètres : ?size=44, ?lod=0|1|2, ?drop=<mm> (selle abaissée), ?wheels=box|c35,
  * ?view=side|right|34|front|back|top, ?dist=…, ?target=x,y,z (point visé, m), ?nolivery=1, ?spin=1. Curseur et boutons dans la page.
+ * Mode coureur (I-4b) : ?rider=1&roubaix=1&taille=150 (ou &roubaix=44 pour forcer la taille), &pose=seated|standing|coasting,
+ * &cadence=80, &manivelle=<degrés> (pédalier figé à cet angle) ; ?avatar=tripo pour le coureur Tripo.
  */
 const log = document.getElementById('log') as HTMLElement;
 const canvas = document.getElementById('scene') as HTMLCanvasElement;
@@ -34,6 +39,8 @@ async function main(): Promise<void> {
   ground.rotation.x = -Math.PI / 2;
   ground.receiveShadow = true;
   scene.add(ground);
+
+  if (params.has('rider')) return riderBench(engine);
 
   const size = params.get('size') ?? '44';
   const bike = await loadRoubaix(size);
@@ -102,6 +109,54 @@ async function main(): Promise<void> {
   const spin = params.get('spin') === '1';
   const frame = (): void => {
     if (spin) for (const l of bike.lods) for (const n of ['roue_avant', 'roue_arriere']) { const w = l.getObjectByName(n); if (w) w.rotation.x += 0.08; }
+    engine.renderManual();
+    if (document.hidden) setTimeout(frame, 16);
+    else requestAnimationFrame(frame);
+  };
+  frame();
+}
+
+
+/**
+ * Coureur sur le Roubaix dédié (I-4b) : le look choisit le Roubaix du catalogue et la taille du coureur ; l'avatar monte le
+ * Roubaix si l'option ?roubaix est là (sinon le vélo de la famille, pour comparaison). Mesures affichées : taille montée,
+ * abaissement de selle, échelle du coureur, distances paume–cocotte et pied–pédale.
+ */
+async function riderBench(engine: Engine): Promise<void> {
+  const { scene, camera } = engine;
+  const ok = await GltfRiderAvatar.load();
+  if (!ok) {
+    log.textContent = 'modèles du coureur indisponibles';
+    return;
+  }
+  const taille = Number(params.get('taille') ?? 150);
+  const avatar = new GltfRiderAvatar({ ...DEFAULT_LOOK, bikeModel: ROUBAIX_MODEL_ID, heightCm: taille });
+  scene.add(avatar.root);
+  const pose = (params.get('pose') ?? 'seated') as RiderPose;
+  const cadence = Number(params.get('cadence') ?? 80);
+  const crank = params.get('manivelle');
+  const dist = Number(params.get('dist') ?? 3.2);
+  const eye: Record<string, [number, number, number]> = {
+    side: [dist, 1.0, 0.1], right: [-dist, 1.0, 0.1], '34': [dist * 0.7, dist * 0.45, dist * 0.7], front: [0, 1.2, dist], back: [0, 1.3, -dist], top: [0, dist, 0.01],
+  };
+  camera.fov = Number(params.get('fov') ?? 30);
+  camera.position.set(...(eye[params.get('view') ?? 'side'] ?? (eye.side as [number, number, number])));
+  const target = (params.get('target') ?? '0,0.8,0.05').split(',').map(Number) as [number, number, number];
+  camera.lookAt(...target);
+  camera.updateProjectionMatrix();
+  let last = performance.now();
+  const frame = (): void => {
+    const now = performance.now();
+    const dt = Math.min(0.05, (now - last) / 1000);
+    last = now;
+    if (crank !== null) {
+      (avatar as unknown as { setGesture?(g: { crank: number }): void }).setGesture?.({ crank: (Number(crank) * Math.PI) / 180 });
+      avatar.update(1 / 60, 0, 0, pose);
+    } else avatar.update(dt, cadence, 8, pose);
+    const fit = avatar.roubaixFit();
+    log.textContent = fit
+      ? `Roubaix ${fit.size} dédié · coureur ${taille} cm (échelle ${fit.k.toFixed(3)}) · selle abaissée de ${fit.dropMm.toFixed(0)} mm · ${pose}`
+      : `vélo de la famille (option ?roubaix absente, autre taille ou fichiers en chargement) · coureur ${taille} cm · ${pose}`;
     engine.renderManual();
     if (document.hidden) setTimeout(frame, 16);
     else requestAnimationFrame(frame);

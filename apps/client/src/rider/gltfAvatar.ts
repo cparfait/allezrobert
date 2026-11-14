@@ -20,6 +20,29 @@ import { addFrameAttributes, addJerseyFrame, addSleeveMask, type JerseyFrame } f
 import { applyTexturedLook, loadTexturedMasks, texturedMaterial } from './texturedLook.ts';
 import { aerobarAnchors } from './aerobars.ts';
 import { BikeMaterials, assembleBike, availableFamily, bikeAnchors, bikeFamilyReady, familyScene, loadBikeFamily, type AssembledBike, type BikeAnchors, type FamilyKey } from './bikes.ts';
+import { assembleRoubaix, isRoubaixLook, loadRoubaix, roubaixAnchor, roubaixSeat, roubaixSizeForRider, setSaddleDrop, sitPointOf, solveSeatDrop, type RoubaixAssembly, type RoubaixBike } from './roubaix.ts';
+
+/**
+ * Roubaix Sport 2020 dédié par taille (rider/roubaix.ts, étape I-4b), derrière l'option ?roubaix=1 (taille choisie d'après
+ * celle du coureur) ou ?roubaix=<taille> (taille forcée). Sans l'option, rien ne change. Le vélo reste à l'échelle 1 ; le
+ * coureur s'ajuste à ses points de contact (ischions sur le point d'assise, mains sur les cocottes, pieds sur le pédalier
+ * de la taille), selle abaissée le long de la tige pour un genou à KNEE_BOTTOM_DEG au point bas.
+ */
+const ROUBAIX_PARAM = typeof location === 'undefined' ? null : new URLSearchParams(location.search).get('roubaix');
+const roubaixAssets = new Map<string, RoubaixBike | 'chargement' | 'absent'>();
+/** Point d'assise de la selle du vélo de base (repère du coureur au repos) : origine du décalage du bassin. */
+let refSeat: THREE.Vector3 | null = null;
+function referenceSeat(): THREE.Vector3 | null {
+  if (refSeat) return refSeat;
+  try {
+    const s = familyScene(PLAIN_BIKE_FAMILY);
+    const saddle = s.getObjectByName('saddle');
+    refSeat = saddle ? sitPointOf(saddle, s) : null;
+  } catch {
+    refSeat = null;
+  }
+  return refSeat;
+}
 
 /**
  * Cycliste et vélo modélisés dans Blender (tools/blender/build_cyclist.py), squelette piloté
@@ -1205,6 +1228,18 @@ interface MountedBike {
   levels: AssembledBike[];
   materials: BikeMaterials;
   anchors: BikeAnchors;
+  /** Roubaix dédié (I-4b) : modèle, niveaux montés (repère du vélo, échelle 1), mains (repère du vélo), abaissement de selle (mm). */
+  roubaix?: { bike: RoubaixBike; levels: RoubaixAssembly[]; handsBike: Record<Side, THREE.Vector3>; dropMm: number };
+}
+
+/** Ajustement au Roubaix dédié, repère du coureur : boîtier, manivelle, écart latéral des pédales, décalage du bassin ; passage au repère du vélo. */
+interface RoubaixFit {
+  bb: THREE.Vector3;
+  crank: number;
+  pedalScaleX: number;
+  hips: THREE.Vector3;
+  k: number;
+  off: THREE.Vector3;
 }
 
 export class GltfRiderAvatar implements RiderAvatarLike {
@@ -1290,6 +1325,8 @@ export class GltfRiderAvatar implements RiderAvatarLike {
   private tuck = 0;
   /** Décalage de selle et de bassin (m, repère du coureur) : voir saddleLiftFor. */
   private saddleLift = 0;
+  /** Ajustement au Roubaix dédié (null : vélo de la famille, posé pour le vélo de référence). */
+  private fit: RoubaixFit | null = null;
   private readonly tmpAnkle = new THREE.Vector3();
   private readonly tmpPedal = new THREE.Vector3();
   /** Casques route et chrono, lunettes (les deux LOD) : casque chrono à visière selon le vélo. */
@@ -1627,6 +1664,7 @@ export class GltfRiderAvatar implements RiderAvatarLike {
     // Modèle, roues, marque des jantes et plaque de cadre changent la géométrie : vélo remonté.
     // Vélo gravel ou VTT : modèle complet (gravel.glb, mtb.glb : cadre, roues, cintre, selle) à la livrée du vélo choisi ; sinon kit sur le vélo route (bikeKits.ts).
     const type = bikeTypeOf(look);
+    if (type === 'road' && this.mountRoubaix(build, look)) return;
     const ownType = type === 'gravel' || type === 'mtb' ? type : null;
     const own = ownType !== null && bikeFamilyReady(ownType) ? ownType : null;
     const key = JSON.stringify([look.bikeModel ?? 'plain', build.params.wheels, build.params.rimBrand ?? '', build.extras?.number ?? null, look.bottles ?? null, own, build.extras?.aerobars ?? null]);
@@ -1637,10 +1675,7 @@ export class GltfRiderAvatar implements RiderAvatarLike {
       cur.materials.update(build, look);
       return;
     }
-    if (cur) {
-      for (const lv of cur.levels) lv.group.removeFromParent();
-      cur.materials.dispose();
-    }
+    if (cur) this.unmountBike(cur);
     const materials = new BikeMaterials(build, look, family);
     const levels = this.bikeSlots.map((_, i) => assembleBike(build, family, i === 0 ? 0 : 1, look.bottles));
     const parts: BikeParts = { crank: [], wheels: [], pedals: { L: [], R: [] } };
@@ -1685,6 +1720,76 @@ export class GltfRiderAvatar implements RiderAvatarLike {
         if (ok && this.mounted?.key === key) this.mountBike(this.mounted.build, this.look);
       });
     }
+  }
+
+  /** Démonte le vélo monté (groupes, matériaux du jeu, livrée du Roubaix dédié). */
+  private unmountBike(cur: MountedBike): void {
+    for (const lv of cur.levels) lv.group.removeFromParent();
+    cur.materials.dispose();
+    for (const lv of cur.roubaix?.levels ?? []) lv.dress.dispose();
+  }
+
+  /**
+   * Roubaix dédié (option ?roubaix, look du Roubaix du catalogue, taille modélisée pour ce coureur) : monté à la place du
+   * vélo de la famille. False tant qu'il ne s'applique pas (pas d'option, autre vélo, taille non modélisée, fichiers en
+   * cours de chargement ou absents) : le vélo de la famille est alors monté, puis remplacé à l'arrivée des fichiers.
+   */
+  private mountRoubaix(build: BikeBuild, look: AvatarLook): boolean {
+    if (!ROUBAIX_PARAM || !isRoubaixLook(look.bikeModel)) return false;
+    const size = roubaixSizeForRider(look.heightCm, ROUBAIX_PARAM === '1' ? null : ROUBAIX_PARAM);
+    if (!size) return false;
+    const asset = roubaixAssets.get(size);
+    if (asset === undefined || (typeof asset === 'object' && !bikeFamilyReady(PLAIN_BIKE_FAMILY))) {
+      if (asset === undefined) roubaixAssets.set(size, 'chargement');
+      void Promise.all([asset === undefined ? loadRoubaix(size) : Promise.resolve(asset), loadBikeFamily(PLAIN_BIKE_FAMILY)]).then(([b]) => {
+        roubaixAssets.set(size, b ?? 'absent');
+        if (b && this.mounted && isRoubaixLook(this.look.bikeModel)) this.mountBike(this.mounted.build, this.look);
+      });
+      return false;
+    }
+    if (typeof asset !== 'object') return false;
+    const key = JSON.stringify(['roubaix', size, build.params.wheels, build.params.rimBrand ?? '', build.livery]);
+    const cur = this.mounted;
+    if (cur && cur.key === key) {
+      cur.build = build;
+      cur.materials.update(build, look);
+      return true;
+    }
+    const materials = new BikeMaterials(build, look, PLAIN_BIKE_FAMILY);
+    const levels: RoubaixAssembly[] = [];
+    for (let i = 0; i < this.bikeSlots.length; i++) {
+      const lv = assembleRoubaix(asset, Math.min(i, 2) as 0 | 1 | 2, build, materials);
+      if (!lv) {
+        for (const l of levels) l.dress.dispose();
+        materials.dispose();
+        return false;
+      }
+      levels.push(lv);
+    }
+    if (cur) this.unmountBike(cur);
+    const parts: BikeParts = { crank: [], wheels: [], pedals: { L: [], R: [] } };
+    levels.forEach((lv, i) => {
+      lv.group.traverse((o) => {
+        const mesh = o as THREE.Mesh;
+        if (mesh.isMesh) mesh.castShadow = this.shadows && bigPart(mesh);
+      });
+      (this.bikeSlots[i] as THREE.Group).add(lv.group);
+      if (lv.crank) parts.crank.push(lv.crank);
+      parts.wheels.push(...lv.wheels);
+      for (const s of SIDES) {
+        const p = lv.pedals[s];
+        if (p) parts.pedals[s].push(p);
+      }
+    });
+    Object.assign(this.bike, parts);
+    const frame0 = levels[0]?.frame;
+    const hand = (n: string, fb: THREE.Vector3) => (frame0 ? roubaixAnchor(frame0, n) : null) ?? fb;
+    const handsBike = { L: hand('hand_L', new THREE.Vector3(0.18, 0.938, 0.516)), R: hand('hand_R', new THREE.Vector3(-0.18, 0.938, 0.516)) };
+    this.mounted = { key, build, family: PLAIN_BIKE_FAMILY, levels, materials, anchors: { hands: { L: handsBike.L.clone(), R: handsBike.R.clone() }, pads: null }, roubaix: { bike: asset, levels, handsBike, dropMm: 0 } };
+    this.tuck = 0;
+    this.applyHeadgear(build);
+    this.applySize();
+    return true;
   }
 
   /**
@@ -1852,6 +1957,8 @@ export class GltfRiderAvatar implements RiderAvatarLike {
     _q3.multiplyQuaternions(_q1, _q2).multiply(hipsR.modelQ);
     _v4.copy(hipsR.modelP);
     _v4.y += this.saddleLift;
+    // Roubaix dédié : ischions sur le point d'assise du vélo (décalage depuis la selle du vélo de base).
+    if (this.fit) _v4.add(this.fit.hips);
     _v4.y += 0.02 * stand + 0.004 * Math.sin(2 * a) * (1 - stand) * (1 - coast) - 0.01 * Math.abs(Math.cos(a)) * stand;
     _v4.z += 0.13 * stand;
     if (race !== 0) {
@@ -1973,13 +2080,18 @@ export class GltfRiderAvatar implements RiderAvatarLike {
       const c = t.legs[s];
       const as = a + (s === 'L' ? 0 : Math.PI);
       const rest = t.pedalRest[s];
-      const crank = t.crank / this.size;
-      this.pedal.set(rest.x, t.bb.y - Math.cos(as) * crank, t.bb.z - Math.sin(as) * crank);
+      // Roubaix dédié : boîtier et manivelle du vélo (repère du coureur) ; sinon vélo de référence, manivelle réelle.
+      const fit = this.fit;
+      const crank = fit ? fit.crank : t.crank / this.size;
+      const bb = fit ? fit.bb : t.bb;
+      this.pedal.set(fit ? rest.x * fit.pedalScaleX : rest.x, bb.y - Math.cos(as) * crank, bb.z - Math.sin(as) * crank);
       // Inclinaison du pied : talon plus haut en remontée (arrière), plus à plat en poussée (avant).
       let pitch = t.pedalPitch + 0.15 * Math.sin(as);
       pitch += (0.18 - pitch) * coast - 0.08 * stand;
       for (const p of this.bike.pedals[s]) {
-        p.position.copy(this.pedal);
+        // Pédales du Roubaix dédié : dans le repère du vélo (échelle 1).
+        if (fit) p.position.copy(this.pedal).multiplyScalar(fit.k).add(fit.off);
+        else p.position.copy(this.pedal);
         p.quaternion.setFromAxisAngle(X_AXIS, pitch);
       }
       this.target.copy(t.ankleFlat[s]).applyAxisAngle(X_AXIS, pitch).add(this.pedal);
@@ -2272,6 +2384,15 @@ export class GltfRiderAvatar implements RiderAvatarLike {
     const k = this.size;
     this.lod.scale.setScalar(k);
     this.lod.position.set(0, WHEEL_R * (1 - k), 0);
+    if (this.mounted?.roubaix) {
+      this.applyRoubaixFit(k);
+      return;
+    }
+    this.fit = null;
+    for (const slot of this.bikeSlots) {
+      slot.scale.setScalar(1);
+      slot.position.set(0, 0, 0);
+    }
     // VTT : kit de cadre propre (selle et poignées fusionnées), pas de réglage de selle.
     this.saddleLift = this.bikeType === 'mtb' ? 0 : this.saddleLiftFor(k);
     this.aimHands();
@@ -2288,6 +2409,47 @@ export class GltfRiderAvatar implements RiderAvatarLike {
       const base = (o.userData.baseScale ??= o.scale.clone()) as THREE.Vector3;
       o.scale.copy(base).divideScalar(k);
     }
+  }
+
+  /**
+   * Roubaix dédié : vélo à l'échelle 1 (emplacement du vélo à l'échelle 1/k, décalage du niveau de détail compensé) et
+   * coureur ajusté à ses points de contact, exprimés dans le repère du coureur ((vélo − décalage) / k) : boîtier et
+   * manivelle du contrat, selle abaissée le long de la tige pour un genou à KNEE_BOTTOM_DEG pédale en bas (même règle que
+   * saddleLiftFor), bassin posé par les ischions sur le point d'assise, mains sur les cocottes. Pas de saddleLift.
+   */
+  private applyRoubaixFit(k: number): void {
+    const r = this.mounted?.roubaix;
+    const ref = referenceSeat();
+    if (!r || !ref) return;
+    const spec = r.bike.spec;
+    const off = this.lod.position.clone();
+    for (const slot of this.bikeSlots) {
+      slot.scale.setScalar(1 / k);
+      slot.position.copy(off).multiplyScalar(-1 / k);
+    }
+    this.saddleLift = 0;
+    const toRider = (p: THREE.Vector3) => p.clone().sub(off).divideScalar(k);
+    const bb = toRider(new THREE.Vector3(0, spec.groundOffsetMm / 1000, 0));
+    const crank = (spec.metric.dimensions.crankLengthM ?? BIKE_REFERENCE.crankLengthM) / k;
+    const hipsFor = (dropMm: number) => toRider(roubaixSeat(spec, dropMm)).sub(ref);
+    const t = this.t;
+    const leg = t.legs.R;
+    const thigh = t.bones[leg.upper].modelP;
+    const ankle = this.tmpAnkle.copy(t.ankleFlat.R).applyAxisAngle(X_AXIS, t.pedalPitch).add(this.tmpPedal.set(t.pedalRest.R.x / k, bb.y - crank, bb.z));
+    const target = Math.sqrt(leg.l1 * leg.l1 + leg.l2 * leg.l2 - 2 * leg.l1 * leg.l2 * Math.cos(THREE.MathUtils.degToRad(KNEE_BOTTOM_DEG)));
+    const reach = (dropMm: number) => _v1.copy(thigh).add(hipsFor(dropMm)).distanceTo(ankle) - target;
+    const drop = solveSeatDrop(reach, spec.seatpost.maxDropMm);
+    for (const lv of r.levels) setSaddleDrop(lv.frame, spec, drop);
+    r.dropMm = drop;
+    this.fit = { bb, crank, pedalScaleX: 1 / k, hips: hipsFor(drop), k, off };
+    if (this.mounted) this.mounted.anchors.hands = { L: toRider(r.handsBike.L), R: toRider(r.handsBike.R) };
+    this.aimHands();
+  }
+
+  /** Ajustement au Roubaix dédié en cours (bancs d'essai) : taille montée, abaissement de selle (mm), échelle du coureur ; null sinon. */
+  roubaixFit(): { size: string; dropMm: number; k: number } | null {
+    const r = this.mounted?.roubaix;
+    return r && this.fit ? { size: r.bike.spec.size, dropMm: r.dropMm, k: this.fit.k } : null;
   }
 
   /** Coureur affiché ou masqué (atelier : le vélo seul sur le pied d'atelier). */
