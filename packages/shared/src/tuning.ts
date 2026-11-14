@@ -446,7 +446,7 @@ export function applyTuneLook(build: BikeBuild, ids: readonly string[]): BikeBui
     if (l.rimBrand) params.rimBrand = l.rimBrand;
     if (l.livery) {
       // Peinture complète : motif et couleurs remplacés, accessoires de la livrée conservés.
-      const { colors: _c, pattern: _p, axis: _a, at: _at, width: _w, line: _l, extra: _e, stops: _s, zones: _z, finish: _f, substrate: _sb, ...keep } = livery;
+      const { colors: _c, pattern: _p, axis: _a, at: _at, width: _w, line: _l, extra: _e, stops: _s, zones: _z, finish: _f, substrate: _sb, graphics: _g, ...keep } = livery;
       livery = { ...keep, colors: ['#808080'], pattern: 'solid', ...l.livery };
     }
     if (l.markColor) markColor = l.markColor;

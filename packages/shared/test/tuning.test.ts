@@ -132,6 +132,14 @@ describe('rendu des pièces', () => {
     // Sans support, rien n’en ajoute un.
     expect(applyTuneLook(base, ['tune-fi-mat']).livery.substrate).toBeUndefined();
   });
+  it('graphismes d’usine : gardés par un vernis, retirés par une peinture (qui garde les marques)', () => {
+    const base = bikeById('s26-01-uae-y1rs')!;
+    const filets = { ...base, livery: { ...base.livery, graphics: { ttf: { shape: 'stripes' as const, color: '#4a4d53' } } } };
+    expect(applyTuneLook(filets, ['tune-fi-mat']).livery.graphics?.ttf?.color).toBe('#4a4d53');
+    const repeint = applyTuneLook(filets, ['tune-pa-shadow']);
+    expect(repeint.livery.graphics).toBeUndefined();
+    expect(repeint.livery.marks?.dt?.color).toBe('#c1121f');
+  });
   it('bikeOfLook applique look.tune', () => {
     const b = bikeOfLook({ ...DEFAULT_LOOK, tune: ['tune-ty-corsa-gum', 'tune-tp-cuir'] });
     expect(b.livery.tireWall).toBe('#c8a36a');

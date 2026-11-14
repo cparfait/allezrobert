@@ -1,5 +1,5 @@
 import * as THREE from 'three/webgpu';
-import { BIKE_BRANDS, type BikeBuild, type FrameMark } from '@allezrobert/shared';
+import { BIKE_BRANDS, type BikeBuild, type FrameGraphic, type FrameMark } from '@allezrobert/shared';
 
 /**
  * Inscriptions des cadres, comme sur le vrai vélo (livery.marks ; par défaut la marque sur le
@@ -11,8 +11,11 @@ import { BIKE_BRANDS, type BikeBuild, type FrameMark } from '@allezrobert/shared
  * X latéral ; échelle = (épaisseur latérale, longueur, hauteur).
  */
 
-/** Emplacements et boîtes de décor, dans l'ordre des lignes de la texture (« ttf » : seulement les modèles qui ont sa boîte). */
-export const MARKS: readonly FrameMark[] = ['dt', 'tt', 'st', 'fork', 'cs', 'ttf'];
+/**
+ * Emplacements et boîtes de décor, dans l'ordre des lignes de la texture (« ttf », « ss » : seulement les modèles
+ * qui ont leur boîte). Tout nouvel emplacement s'ajoute en fin de liste.
+ */
+export const MARKS: readonly FrameMark[] = ['dt', 'tt', 'st', 'fork', 'cs', 'ttf', 'ss'];
 export const DECALS = MARKS.map((m) => `decal_${m}`);
 const ROW_W = 1024;
 const ROW_H = 128;
@@ -31,14 +34,21 @@ export interface DecalBox {
   aspect: number;
 }
 
-export type Mark = { text: string; color?: string; stretch?: number } | null;
+/** Contenu d'un emplacement : un texte, ou un graphisme (`shape`, couleur toujours imposée). */
+export type Mark = { text?: string; color?: string; stretch?: number; shape?: FrameGraphic['shape'] } | null;
 
-/** Inscription de chaque emplacement (null : rien) ; vélo sans marque : aucune. */
+/**
+ * Contenu de chaque emplacement (null : rien). Inscriptions : vélo de marque seulement ; graphismes d'usine
+ * (`livery.graphics`) : quelle que soit la marque. Un texte l'emporte sur un graphisme au même emplacement.
+ */
 export function frameMarks(build: BikeBuild): Mark[] {
   const brand = BIKE_BRANDS.find((b) => b.id === build.brand);
-  if (!brand) return MARKS.map(() => null);
-  const marks = build.livery.marks ?? { dt: { text: brand.wordmark } };
-  return MARKS.map((m) => marks[m] ?? null);
+  const marks = brand ? (build.livery.marks ?? { dt: { text: brand.wordmark } }) : {};
+  const graphics = build.livery.graphics ?? {};
+  return MARKS.map((m) => {
+    const g = graphics[m];
+    return marks[m] ?? (g ? { shape: g.shape, color: g.color } : null);
+  });
 }
 
 const cache = new Map<string, THREE.CanvasTexture>();
@@ -51,9 +61,10 @@ const cache = new Map<string, THREE.CanvasTexture>();
 export function wordmarkTexture(build: BikeBuild, boxes: readonly (DecalBox | null)[]): THREE.CanvasTexture | null {
   const marks = frameMarks(build);
   const t = marks.map((m) => m?.text ?? '');
-  if (!t.some(Boolean) || typeof document === 'undefined') return null;
+  const shapes = marks.map((m) => (m?.text ? '' : (m?.shape ?? '')));
+  if ((!t.some(Boolean) && !shapes.some(Boolean)) || typeof document === 'undefined') return null;
   const font = FONTS[BIKE_BRANDS.find((b) => b.id === build.brand)?.font ?? ''] ?? (FONTS['sans-bold'] as string);
-  const key = `${t.join('|')}|${marks.map((m) => m?.stretch ?? 1).join(',')}|${font}|${boxes.map((b) => b?.aspect.toFixed(2) ?? '-').join(',')}`;
+  const key = `${t.join('|')}|${shapes.join('|')}|${marks.map((m) => m?.stretch ?? 1).join(',')}|${font}|${boxes.map((b) => b?.aspect.toFixed(2) ?? '-').join(',')}`;
   const hit = cache.get(key);
   if (hit) return hit;
   const cv = document.createElement('canvas');
@@ -89,6 +100,21 @@ export function wordmarkTexture(build: BikeBuild, boxes: readonly (DecalBox | nu
     g.scale(k, 1);
     g.fillText(text, 0, 0);
     g.restore();
+  });
+  // Graphismes : « stripes » = deux bandes obliques (u + 0,35·h dans [0,18 ; 0,38] et [0,5 ; 0,7], h = hauteur
+  // dans la ligne, 0 en bas), en proportions de la boîte : ils s'étirent avec elle.
+  shapes.forEach((shape, i) => {
+    if (shape !== 'stripes' || !boxes[i]) return;
+    const y0 = ROW_H * (i + 1); // bas de la ligne (h = 0)
+    for (const [a, b] of [[0.18, 0.38], [0.5, 0.7]] as const) {
+      g.beginPath();
+      g.moveTo(a * ROW_W, y0);
+      g.lineTo(b * ROW_W, y0);
+      g.lineTo((b - 0.35) * ROW_W, y0 - ROW_H);
+      g.lineTo((a - 0.35) * ROW_W, y0 - ROW_H);
+      g.closePath();
+      g.fill();
+    }
   });
   const tex = new THREE.CanvasTexture(cv);
   tex.colorSpace = THREE.NoColorSpace;

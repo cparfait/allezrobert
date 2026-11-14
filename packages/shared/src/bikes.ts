@@ -23,8 +23,13 @@ export type LiveryPattern = 'solid' | 'fade' | 'split' | 'band' | 'stripes' | 'r
 export type LiveryAxis = 'z' | 'y' | 'x' | 'diag' | 'anti';
 /** « chroma » : chrome teinté de la livrée sous un film irisé. */
 export type LiveryFinish = 'gloss' | 'matte' | 'metallic' | 'chrome' | 'pearl' | 'iridescent' | 'raw' | 'chroma';
-/** Emplacements des inscriptions : diagonal, horizontal, tube de selle, fourche, bases, avant de l'horizontal (modèles qui l'ont). */
-export type FrameMark = 'dt' | 'tt' | 'st' | 'fork' | 'cs' | 'ttf';
+/**
+ * Emplacements des inscriptions : diagonal, horizontal, tube de selle, fourche, bases, avant de l'horizontal,
+ * haubans (« ttf » et « ss » : seulement les modèles qui ont leur boîte).
+ */
+export type FrameMark = 'dt' | 'tt' | 'st' | 'fork' | 'cs' | 'ttf' | 'ss';
+/** Graphisme peint d'un emplacement : « stripes » = deux bandes obliques (filets). */
+export type FrameGraphic = { shape: 'stripes'; color: string };
 /** Zones du cadre repeintes d'une couleur de la livrée (attribut « zone » des modèles). */
 export type FrameZone = 'rear' | 'fork' | 'head';
 
@@ -54,6 +59,12 @@ export interface BikeLivery {
    * mat. Absent : peinture pleine (comportement de toujours). Une peinture complète de l'atelier le retire.
    */
   substrate?: 'carbon';
+  /**
+   * Graphismes de la peinture d'usine (filets), par emplacement. Contrairement à `marks`, une peinture complète
+   * de l'atelier les retire et la couleur imposée aux inscriptions ne les recolore pas. Un texte de `marks` au
+   * même emplacement l'emporte.
+   */
+  graphics?: Partial<Record<FrameMark, FrameGraphic>>;
   /** Bande décor des jantes. */
   rim?: string;
   /** Guidoline. */
