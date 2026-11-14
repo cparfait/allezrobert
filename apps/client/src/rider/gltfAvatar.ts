@@ -2439,7 +2439,7 @@ export class GltfRiderAvatar implements RiderAvatarLike {
     const ankle = this.tmpAnkle.copy(t.ankleFlat.R).applyAxisAngle(X_AXIS, t.pedalPitch).add(this.tmpPedal.set(t.pedalRest.R.x / k, bb.y - crank, bb.z));
     const target = Math.sqrt(leg.l1 * leg.l1 + leg.l2 * leg.l2 - 2 * leg.l1 * leg.l2 * Math.cos(THREE.MathUtils.degToRad(KNEE_BOTTOM_DEG)));
     const reach = (dropMm: number) => _v1.copy(thigh).add(hipsFor(dropMm)).distanceTo(ankle) - target;
-    const drop = solveSeatDrop(reach, spec.seatpost.maxDropMm);
+    const drop = solveSeatDrop(reach, spec.seatpost.maxDropMm, spec.seatpost.minDropMm ?? 0);
     for (const lv of r.levels) setSaddleDrop(lv.frame, spec, drop);
     r.dropMm = drop;
     this.fit = { bb, crank, pedalScaleX: 1 / k, hips: hipsFor(drop), k, off };

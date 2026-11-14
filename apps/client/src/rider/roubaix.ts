@@ -15,7 +15,7 @@
 import * as THREE from 'three/webgpu';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { BIKE_REFERENCE, PLAIN_BIKE_FAMILY, type BikeBuild } from '@allezrobert/shared';
-import { ROUBAIX_MODEL_ID, ROUBAIX_SIZE_GUIDE, ROUBAIX_SIZES, type RoubaixSizeSpec } from '../../../../packages/shared/src/roubaixMetric.ts';
+import { ROUBAIX_MODEL_ID, ROUBAIX_SIZES, roubaixSizeFor, type RoubaixSizeSpec } from '../../../../packages/shared/src/roubaixMetric.ts';
 import { type BikeMaterials, familyScene, libraryWheel } from './bikes.ts';
 import { LiveryMaterial } from './livery.ts';
 import { decalBoxes, frameMarks, wordmarkTexture } from './wordmarks.ts';
@@ -58,9 +58,9 @@ export async function loadRoubaix(size: string, baseUrl = '/models/bikes/roubaix
   }
 }
 
-/** Déplacement (m) de la selle et de la tige pour un abaissement donné (mm), borné à [0 ; maxDropMm]. */
+/** Déplacement (m) de la selle et de la tige pour un abaissement donné (mm), borné à [minDropMm (≤ 0, rehausse) ; maxDropMm]. */
 export function seatpostOffset(spec: RoubaixSizeSpec, dropMm: number): THREE.Vector3 {
-  const d = THREE.MathUtils.clamp(Number.isFinite(dropMm) ? dropMm : 0, 0, spec.seatpost.maxDropMm) / 1000;
+  const d = THREE.MathUtils.clamp(Number.isFinite(dropMm) ? dropMm : 0, spec.seatpost.minDropMm ?? 0, spec.seatpost.maxDropMm) / 1000;
   const [x, y, z] = spec.seatpost.directionUp;
   return new THREE.Vector3(-x * d, -y * d, -z * d);
 }
@@ -155,15 +155,13 @@ export function roubaixAnchor(root: THREE.Object3D, name: string): THREE.Vector3
 // ---------------------------------------------------------------------------------------------
 
 /**
- * Taille de Roubaix dédié pour une taille de coureur : tranche du guide Specialized prise du début de la tranche au début de
- * la suivante (44 → 142–155 cm), seulement si cette taille est modélisée ; `forced` (option ?roubaix=<taille>) l'emporte.
+ * Taille de Roubaix dédié pour une taille de coureur : la taille modélisée la plus proche dans le guide Specialized
+ * (roubaixSizeFor : 44 jusqu'à 160 cm, 54 au-delà avec les tailles 44 et 54) ; `forced` (option ?roubaix=<taille>) l'emporte.
  */
 export function roubaixSizeForRider(heightCm: number | undefined, forced?: string | null): string | null {
   if (forced) return roubaixSpec(forced) ? forced : null;
   if (!heightCm) return null;
-  const i = ROUBAIX_SIZE_GUIDE.findIndex((b, k) => heightCm >= b.minCm && heightCm < (ROUBAIX_SIZE_GUIDE[k + 1]?.minCm ?? b.maxCm + 1));
-  const size = ROUBAIX_SIZE_GUIDE[i]?.size;
-  return size && roubaixSpec(size) ? size : null;
+  return roubaixSizeFor(heightCm, ROUBAIX_SIZES.map((s) => s.size));
 }
 
 /** Le look choisit-il le Roubaix Sport 2020 du catalogue ? */
@@ -291,14 +289,14 @@ export function roubaixSeat(spec: RoubaixSizeSpec, dropMm: number): THREE.Vector
 }
 
 /**
- * Abaissement de selle (mm, dans [0 ; maxMm]) qui annule `f`, fonction décroissante de l'abaissement (p. ex. distance
- * hanche–cheville au point bas moins la distance visée). f(0) ≤ 0 : 0 (jambe trop longue, selle déjà au plus haut) ;
- * f(max) ≥ 0 : max (jambe trop courte pour ce cadre).
+ * Abaissement de selle (mm, dans [minMm ; maxMm], minMm ≤ 0 = rehausse permise) qui annule `f`, fonction décroissante de
+ * l'abaissement (p. ex. distance hanche–cheville au point bas moins la distance visée). f(min) ≤ 0 : min (jambe trop longue,
+ * selle déjà au plus haut) ; f(max) ≥ 0 : max (jambe trop courte pour ce cadre).
  */
-export function solveSeatDrop(f: (dropMm: number) => number, maxMm: number): number {
-  if (f(0) <= 0) return 0;
+export function solveSeatDrop(f: (dropMm: number) => number, maxMm: number, minMm = 0): number {
+  if (f(minMm) <= 0) return minMm;
   if (f(maxMm) >= 0) return maxMm;
-  let a = 0, b = maxMm;
+  let a = minMm, b = maxMm;
   for (let i = 0; i < 40; i++) {
     const m = (a + b) / 2;
     if (f(m) > 0) a = m;

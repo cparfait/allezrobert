@@ -156,7 +156,7 @@ async function riderBench(engine: Engine): Promise<void> {
     const fit = avatar.roubaixFit();
     log.textContent = fit
       ? `Roubaix ${fit.size} dédié · coureur ${taille} cm (échelle ${fit.k.toFixed(3)}) · selle abaissée de ${fit.dropMm.toFixed(0)} mm · ${pose}`
-      : `vélo de la famille (option ?roubaix absente, autre taille ou fichiers en chargement) · coureur ${taille} cm · ${pose}`;
+      : `vélo de la famille (option ?roubaix=0, taille non modélisée ou fichiers en chargement) · coureur ${taille} cm · ${pose}`;
     engine.renderManual();
     if (document.hidden) setTimeout(frame, 16);
     else requestAnimationFrame(frame);

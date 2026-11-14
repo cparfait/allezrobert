@@ -8,7 +8,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { validateMetricBike } from '../src/bikeMetric.ts';
-import { ROUBAIX_44, ROUBAIX_MODEL_ID, ROUBAIX_SIZE_GUIDE, ROUBAIX_SIZES, roubaixSizeFor } from '../src/roubaixMetric.ts';
+import { ROUBAIX_44, ROUBAIX_54, ROUBAIX_MODEL_ID, ROUBAIX_SIZE_GUIDE, ROUBAIX_SIZES, roubaixSizeFor } from '../src/roubaixMetric.ts';
 
 describe('Roubaix : contrat de chaque taille', () => {
   for (const spec of ROUBAIX_SIZES) {
@@ -47,6 +47,12 @@ describe('Roubaix : contrat de chaque taille', () => {
     expect(d.handlebarWidthM).toBeCloseTo(0.36, 2);
     expect(d.crankLengthM).toBe(0.165);
   });
+  it('54 : cotes officielles du cockpit (potence 100, cintre 420) et manivelle 172,5', () => {
+    const d = ROUBAIX_54.metric.dimensions;
+    expect(d.stemLengthM).toBeCloseTo(0.1, 2);
+    expect(d.handlebarWidthM).toBeCloseTo(0.42, 2);
+    expect(d.crankLengthM).toBe(0.1725);
+  });
 });
 
 describe('Roubaix : taille de cadre selon la taille du coureur', () => {
@@ -65,8 +71,10 @@ describe('Roubaix : taille de cadre selon la taille du coureur', () => {
 
     expect(roubaixSizeFor(177, all)).toBe('56');
   });
-  it('seulement parmi les tailles disponibles (aujourd’hui le 44)', () => {
-    expect(roubaixSizeFor(185)).toBe('44');
+  it('seulement parmi les tailles disponibles (aujourd’hui 44 et 54)', () => {
+    expect(roubaixSizeFor(185)).toBe('54');
+    expect(roubaixSizeFor(160)).toBe('44');
+    expect(roubaixSizeFor(161)).toBe('54');
     expect(roubaixSizeFor(185, [])).toBeNull();
   });
 });

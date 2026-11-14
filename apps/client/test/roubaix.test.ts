@@ -9,7 +9,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { ROUBAIX_44, ROUBAIX_SIZES } from '../../../packages/shared/src/roubaixMetric.ts';
+import { ROUBAIX_44, ROUBAIX_54, ROUBAIX_SIZES } from '../../../packages/shared/src/roubaixMetric.ts';
 import * as THREE from 'three/webgpu';
 import { fitRoubaixWheels, roubaixOption, roubaixSeat, roubaixSizeForRider, roubaixSpec, seatpostOffset, sitPointOf, solveSeatDrop } from '../src/rider/roubaix.ts';
 
@@ -57,16 +57,17 @@ describe('Roubaix : fichiers livrés', () => {
     });
   }
 
-  it('44 : ancres conformes au contrat (axes des roues, mains), contrat et selle embarqués', () => {
-    const g = readJson(ROUBAIX_44.lods[0]);
+  for (const SPEC of [ROUBAIX_44, ROUBAIX_54]) {
+  it(`${SPEC.size} : ancres conformes au contrat (axes des roues, mains), contrat et selle embarqués`, () => {
+    const g = readJson(SPEC.lods[0]);
     const at = (n: string) => g.nodes.find((x) => x.name === n)?.translation ?? [NaN, NaN, NaN];
-    const m = ROUBAIX_44.metric;
+    const m = SPEC.metric;
     const near = (a: readonly number[], b: readonly number[] | undefined) => a.forEach((v, i) => expect(v).toBeCloseTo(b?.[i] ?? NaN, 4));
     near(at('axle_front'), m.axes.frontWheel?.originM);
     near(at('axle_rear'), m.axes.rearWheel?.originM);
     near(at('hand_L'), m.contacts.handL?.originM);
     near(at('hand_R'), m.contacts.handR?.originM);
-    expect(g.asset.extras?.solMm).toBeCloseTo(ROUBAIX_44.groundOffsetMm, 3);
+    expect(g.asset.extras?.solMm).toBeCloseTo(SPEC.groundOffsetMm, 3);
     // Contrat embarqué = contrat partagé, à 1e-9 près (le GLB garde des résidus de calcul de l'ordre de 1e-19).
     const flat = (o: unknown, p = ''): [string, unknown][] => (o !== null && typeof o === 'object' ? Object.entries(o).flatMap(([k, v]) => flat(v, `${p}.${k}`)) : [[p, o]]);
     const embarque = new Map(flat(g.asset.extras?.contrat));
@@ -76,8 +77,9 @@ describe('Roubaix : fichiers livrés', () => {
       if (typeof v === 'number') expect(embarque.get(k) as number, k).toBeCloseTo(v, 9);
       else expect(embarque.get(k), k).toEqual(v);
     }
-    expect(g.asset.extras?.reglageSelle?.axe?.direction).toEqual([...ROUBAIX_44.seatpost.directionUp]);
+    expect(g.asset.extras?.reglageSelle?.axe?.direction).toEqual([...SPEC.seatpost.directionUp]);
   });
+  }
 });
 
 describe('Roubaix : réglage de selle', () => {
@@ -95,6 +97,15 @@ describe('Roubaix : réglage de selle', () => {
   });
   it('taille non modélisée : aucune spécification', () => {
     expect(roubaixSpec('61')).toBeUndefined();
+  });
+  it('54 : rehausse permise jusqu’à minDropMm (selle d’origine pour un coureur d’environ 1,87 m)', () => {
+    const s = roubaixSpec('54');
+    expect(s).toBe(ROUBAIX_54);
+    if (!s) return;
+    const up = seatpostOffset(s, -30);
+    expect(up.length()).toBeCloseTo(0.03, 6);
+    expect(up.y).toBeGreaterThan(0);
+    expect(seatpostOffset(s, -500).length()).toBeCloseTo(-(s.seatpost.minDropMm ?? 0) / 1000, 6);
   });
 });
 
@@ -132,11 +143,12 @@ describe('Roubaix : disques de la taille sur les roues du jeu', () => {
 });
 
 describe('Roubaix : ajustement du coureur (I-4b)', () => {
-  it('taille de cadre : tranche du 44 (142–155 cm), taille forcée, sinon aucune', () => {
+  it('taille de cadre : taille modélisée la plus proche (44 jusqu’à 160 cm, 54 au-delà), taille forcée', () => {
     expect(roubaixSizeForRider(142)).toBe('44');
-    expect(roubaixSizeForRider(154.9)).toBe('44');
-    expect(roubaixSizeForRider(155)).toBeNull(); // tranche du 49, non modélisée
-    expect(roubaixSizeForRider(178)).toBeNull();
+    expect(roubaixSizeForRider(160)).toBe('44');
+    expect(roubaixSizeForRider(161)).toBe('54');
+    expect(roubaixSizeForRider(178)).toBe('54');
+    expect(roubaixSizeForRider(195)).toBe('54');
     expect(roubaixSizeForRider(178, '44')).toBe('44');
     expect(roubaixSizeForRider(150, '61')).toBeNull();
     expect(roubaixSizeForRider(undefined)).toBeNull();
@@ -152,6 +164,8 @@ describe('Roubaix : ajustement du coureur (I-4b)', () => {
     expect(solveSeatDrop((d) => 40 - d, 120)).toBeCloseTo(40, 6);
     expect(solveSeatDrop((d) => -1 - d, 120)).toBe(0); // jambe trop longue : selle au plus haut
     expect(solveSeatDrop((d) => 500 - d, 120)).toBe(120); // jambe trop courte : selle au plus bas
+    expect(solveSeatDrop((d) => -25 - d, 120, -60)).toBeCloseTo(-25, 6); // rehausse
+    expect(solveSeatDrop((d) => -100 - d, 120, -60)).toBe(-60);
   });
   it('point d’assise d’une selle : milieu de la zone large, dessus près du plan médian', () => {
     // Selle synthétique : bec étroit (z 0 → 0,1 ; largeur 0,04), arrière large (z −0,1 → 0 ; largeur 0,14), dessus à y 0,9.
