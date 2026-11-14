@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Allez Robert ! — banc Roubaix</title>
+    <style>
+      html, body { margin: 0; height: 100%; background: #222; color: #fff; font: 13px sans-serif; }
+      canvas { width: 1280px; height: 720px; display: block; }
+      #log { position: fixed; left: 8px; bottom: 8px; font: 12px monospace; }
+      #ui { position: fixed; left: 8px; top: 8px; display: flex; gap: 8px; align-items: center; background: #0008; padding: 6px 8px; border-radius: 4px; }
+    </style>
+  </head>
+  <body>
+    <canvas id="scene" width="1280" height="720"></canvas>
+    <div id="ui">
+      <button data-lod="0">LOD 0</button><button data-lod="1">LOD 1</button><button data-lod="2">LOD 2</button>
+      <label>Selle abaissée <input id="drop" type="range" min="0" max="120" step="1" value="0" /></label>
+    </div>
+    <div id="log"></div>
+    <script type="module" src="/src/roubaix-test.ts"></script>
+  </body>
+</html>
