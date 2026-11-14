@@ -35,11 +35,16 @@ export const ROUBAIX_SIZE_GUIDE: readonly RoubaixSizeBand[] = Object.freeze([
  * Taille de cadre pour une taille de coureur, parmi les tailles disponibles : la tranche du guide qui contient la taille
  * (au milieu de tranche le plus proche si deux tranches se chevauchent), sinon la tranche la plus proche (trous du guide,
  * p. ex. 152–155 cm). À égalité, la plus petite taille. Null si aucune taille disponible n'est dans le guide.
+ * `guide` : guide des tailles du modèle (Specialized par défaut ; LOOK 785 : LOOK785_SIZE_GUIDE).
  */
-export function roubaixSizeFor(heightCm: number, available: readonly string[] = ROUBAIX_SIZES.map((s) => s.size)): string | null {
+export function roubaixSizeFor(
+  heightCm: number,
+  available: readonly string[] = ROUBAIX_SIZES.map((s) => s.size),
+  guide: readonly RoubaixSizeBand[] = ROUBAIX_SIZE_GUIDE,
+): string | null {
   let best: RoubaixSizeBand | null = null;
   let bestKey: [number, number] = [Infinity, Infinity];
-  for (const b of ROUBAIX_SIZE_GUIDE) {
+  for (const b of guide) {
     if (!available.includes(b.size)) continue;
     const outside = heightCm < b.minCm ? b.minCm - heightCm : heightCm > b.maxCm ? heightCm - b.maxCm : 0;
     const key: [number, number] = [outside, Math.abs(heightCm - (b.minCm + b.maxCm) / 2)];
@@ -54,9 +59,11 @@ export function roubaixSizeFor(heightCm: number, available: readonly string[] = 
 /** Une taille modélisée : fichiers, origine, contrat métrique, réglage de selle, disques. */
 export interface RoubaixSizeSpec {
   readonly size: string;
-  /** Fichiers (dans public/models/bikes/roubaix/) : niveaux de détail 0, 1, 2. */
+  /** Dossier des fichiers dans public/models/bikes/ (« roubaix » si absent ; LOOK 785 : « look785 »). */
+  readonly dir?: string;
+  /** Fichiers (dans public/models/bikes/<dir>/) : niveaux de détail 0, 1, 2. */
   readonly lods: readonly [string, string, string];
-  /** Pièce de roue avant (disque et araignée propres à la taille), repère de la roue (axe à l'origine). */
+  /** Pièce de roue avant (disque et araignée propres à la taille), repère de la roue (axe à l'origine), dans le dossier roubaix/. */
   readonly frontRotorPiece: string;
   /** Hauteur du centre du boîtier au-dessus du sol (mm) : roues du jeu (R 335) posées au sol. */
   readonly groundOffsetMm: number;

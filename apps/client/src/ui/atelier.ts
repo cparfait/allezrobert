@@ -591,7 +591,7 @@ export class AtelierHost {
   private roubaixSize(st: AtelierState): string | null {
     if (st.rider || !isRoubaixLook(st.look.bikeModel)) return null;
     const opt = roubaixOption(typeof location !== 'undefined' ? location.search : null);
-    return opt.enabled ? roubaixSizeForRider(st.look.heightCm, opt.forced) : null;
+    return opt.enabled ? roubaixSizeForRider(st.look.heightCm, opt.forced, st.look.bikeModel) : null;
   }
 
   /** Montre le Roubaix dédié à la place du vélo générique (chargé à la demande), ou revient au vélo générique. */

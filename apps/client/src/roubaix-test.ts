@@ -3,6 +3,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { bikeOfLook } from '@allezrobert/shared';
 import { ROUBAIX_MODEL_ID } from '../../../packages/shared/src/roubaixMetric.ts';
+import { LOOK785_MODEL_ID } from '../../../packages/shared/src/look785Metric.ts';
 import { createEngine } from './engine/renderer.ts';
 import { QUALITY_PRESETS } from './engine/quality.ts';
 import { dressRoubaix, fitRoubaixWheels, loadRoubaix, roubaixAnchor, setSaddleDrop } from './rider/roubaix.ts';
@@ -17,10 +18,14 @@ import type { Engine } from './engine/renderer.ts';
  * ?view=side|right|34|front|back|top, ?dist=…, ?target=x,y,z (point visé, m), ?nolivery=1, ?spin=1. Curseur et boutons dans la page.
  * Mode coureur (I-4b) : ?rider=1&roubaix=1&taille=150 (ou &roubaix=44 pour forcer la taille), &pose=seated|standing|coasting,
  * &cadence=80, &manivelle=<degrés> (pédalier figé à cet angle) ; ?avatar=tripo pour le coureur Tripo.
+ * ?modele=look : LOOK 785 Huez RS dédié (tailles XS, M, L ; ?size=M par défaut) au lieu du Roubaix.
  */
 const log = document.getElementById('log') as HTMLElement;
 const canvas = document.getElementById('scene') as HTMLCanvasElement;
 const params = new URLSearchParams(location.search);
+const LOOK = params.get('modele') === 'look';
+const MODEL = LOOK ? LOOK785_MODEL_ID : ROUBAIX_MODEL_ID;
+const NAME = LOOK ? 'LOOK 785' : 'Roubaix';
 
 async function main(): Promise<void> {
   const engine = await createEngine(canvas, { ...QUALITY_PRESETS.high, ao: false, taa: false, pixelRatio: 1 });
@@ -42,13 +47,13 @@ async function main(): Promise<void> {
 
   if (params.has('rider')) return riderBench(engine);
 
-  const size = params.get('size') ?? '44';
+  const size = params.get('size') ?? (LOOK ? 'M' : '44');
   const bike = await loadRoubaix(size);
   if (!bike) {
-    log.textContent = `Roubaix ${size} : taille non modélisée ou fichiers absents`;
+    log.textContent = `${NAME} ${size} : taille non modélisée ou fichiers absents`;
     return;
   }
-  const build = bikeOfLook({ bike: '#121315', bikeModel: ROUBAIX_MODEL_ID, tune: [] });
+  const build = bikeOfLook({ bike: '#121315', bikeModel: MODEL, tune: [] });
   const wheelLoader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
   const wheels = (await wheelLoader.loadAsync('/models/bikes/wheels.glb')).scene;
   const wheelType = params.get('wheels') ?? 'box';
@@ -78,7 +83,7 @@ async function main(): Promise<void> {
   let drop = Number(params.get('drop') ?? 0);
   const apply = (): void => {
     bike.lods.forEach((l, i) => { l.visible = i === lodIdx; drop = setSaddleDrop(l, bike.spec, drop); });
-    log.textContent = `Roubaix ${size} · LOD ${lodIdx} (${Math.round(tris[lodIdx] ?? 0)} triangles du vélo, roues non comprises) · selle −${drop.toFixed(0)} mm · roues ${wheelType}, disques de la taille sur LOD ${fitted.join('/') || 'aucun'} · échelle 1`;
+    log.textContent = `${NAME} ${size} · LOD ${lodIdx} (${Math.round(tris[lodIdx] ?? 0)} triangles du vélo, roues non comprises) · selle −${drop.toFixed(0)} mm · roues ${wheelType}, disques de la taille sur LOD ${fitted.join('/') || 'aucun'} · échelle 1`;
   };
   // Commandes de la page.
   const slider = document.getElementById('drop') as HTMLInputElement | null;
@@ -130,7 +135,7 @@ async function riderBench(engine: Engine): Promise<void> {
     return;
   }
   const taille = Number(params.get('taille') ?? 150);
-  const avatar = new GltfRiderAvatar({ ...DEFAULT_LOOK, bikeModel: ROUBAIX_MODEL_ID, heightCm: taille });
+  const avatar = new GltfRiderAvatar({ ...DEFAULT_LOOK, bikeModel: MODEL, heightCm: taille });
   scene.add(avatar.root);
   const pose = (params.get('pose') ?? 'seated') as RiderPose;
   const cadence = Number(params.get('cadence') ?? 80);
@@ -155,7 +160,7 @@ async function riderBench(engine: Engine): Promise<void> {
     } else avatar.update(dt, cadence, 8, pose);
     const fit = avatar.roubaixFit();
     log.textContent = fit
-      ? `Roubaix ${fit.size} dédié · coureur ${taille} cm (échelle ${fit.k.toFixed(3)}) · selle abaissée de ${fit.dropMm.toFixed(0)} mm · ${pose}`
+      ? `${NAME} ${fit.size} dédié · coureur ${taille} cm (échelle ${fit.k.toFixed(3)}) · selle abaissée de ${fit.dropMm.toFixed(0)} mm · ${pose}`
       : `vélo de la famille (option ?roubaix=0, taille non modélisée ou fichiers en chargement) · coureur ${taille} cm · ${pose}`;
     engine.renderManual();
     if (document.hidden) setTimeout(frame, 16);

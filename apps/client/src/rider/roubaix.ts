@@ -15,7 +15,8 @@
 import * as THREE from 'three/webgpu';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { BIKE_REFERENCE, PLAIN_BIKE_FAMILY, type BikeBuild } from '@allezrobert/shared';
-import { ROUBAIX_MODEL_ID, ROUBAIX_SIZES, roubaixSizeFor, type RoubaixSizeSpec } from '../../../../packages/shared/src/roubaixMetric.ts';
+import { ROUBAIX_MODEL_ID, ROUBAIX_SIZE_GUIDE, ROUBAIX_SIZES, roubaixSizeFor, type RoubaixSizeBand, type RoubaixSizeSpec } from '../../../../packages/shared/src/roubaixMetric.ts';
+import { LOOK785_MODEL_ID, LOOK785_SIZE_GUIDE, LOOK785_SIZES } from '../../../../packages/shared/src/look785Metric.ts';
 import { type BikeMaterials, familyScene, libraryWheel } from './bikes.ts';
 import { LiveryMaterial } from './livery.ts';
 import { decalBoxes, frameMarks, wordmarkTexture } from './wordmarks.ts';
@@ -39,17 +40,37 @@ export interface RoubaixBike {
   readonly frontRotor: THREE.Object3D;
 }
 
+/**
+ * Modèles du catalogue montés en vélo dédié par taille (même chargeur, même ajustement du coureur) : Roubaix Sport 2020
+ * (tailles 44, 54) et LOOK 785 Huez RS (XS, M, L, cadre procédural). Les noms de taille sont uniques entre modèles.
+ */
+export const DEDICATED_BIKES: Readonly<Record<string, { readonly sizes: readonly RoubaixSizeSpec[]; readonly guide: readonly RoubaixSizeBand[] }>> = {
+  [ROUBAIX_MODEL_ID]: { sizes: ROUBAIX_SIZES, guide: ROUBAIX_SIZE_GUIDE },
+  [LOOK785_MODEL_ID]: { sizes: LOOK785_SIZES, guide: LOOK785_SIZE_GUIDE },
+};
+
 export function roubaixSpec(size: string): RoubaixSizeSpec | undefined {
-  return ROUBAIX_SIZES.find((s) => s.size === size);
+  for (const m of Object.values(DEDICATED_BIKES)) {
+    const s = m.sizes.find((x) => x.size === size);
+    if (s) return s;
+  }
+  return undefined;
 }
 
-/** Charge une taille ; null si elle n'est pas modélisée ou si un fichier manque (le jeu garde alors le vélo générique). */
-export async function loadRoubaix(size: string, baseUrl = '/models/bikes/roubaix/'): Promise<RoubaixBike | null> {
+/**
+ * Charge une taille (de n'importe quel modèle dédié) ; null si elle n'est pas modélisée ou si un fichier manque (le jeu garde
+ * alors le vélo générique). Fichiers dans /models/bikes/<dir>/ ; la pièce de disque avant est toujours dans roubaix/.
+ */
+export async function loadRoubaix(size: string, baseUrl?: string): Promise<RoubaixBike | null> {
   const spec = roubaixSpec(size);
   if (!spec) return null;
   const loader = new GLTFLoader();
+  const dir = baseUrl ?? `/models/bikes/${spec.dir ?? 'roubaix'}/`;
   try {
-    const [l0, l1, l2, rotor] = await Promise.all([...spec.lods, spec.frontRotorPiece].map((f) => loader.loadAsync(`${baseUrl}${f}`)));
+    const [l0, l1, l2, rotor] = await Promise.all([
+      ...spec.lods.map((f) => loader.loadAsync(`${dir}${f}`)),
+      loader.loadAsync(`${baseUrl ?? '/models/bikes/roubaix/'}${spec.frontRotorPiece}`),
+    ]);
     if (!l0 || !l1 || !l2 || !rotor) return null;
     return { spec, lods: [l0.scene, l1.scene, l2.scene], frontRotor: rotor.scene };
   } catch (e) {
@@ -155,18 +176,21 @@ export function roubaixAnchor(root: THREE.Object3D, name: string): THREE.Vector3
 // ---------------------------------------------------------------------------------------------
 
 /**
- * Taille de Roubaix dédié pour une taille de coureur : la taille modélisée la plus proche dans le guide Specialized
- * (roubaixSizeFor : 44 jusqu'à 160 cm, 54 au-delà avec les tailles 44 et 54) ; `forced` (option ?roubaix=<taille>) l'emporte.
+ * Taille de vélo dédié pour une taille de coureur : la taille modélisée la plus proche dans le guide du modèle (Roubaix :
+ * 44 jusqu'à 160 cm, 54 au-delà ; LOOK 785 : XS jusqu'à 168 cm, M jusqu'à 179, L au-delà) ; `forced` (option
+ * ?roubaix=<taille>) l'emporte quand c'est une taille de ce modèle.
  */
-export function roubaixSizeForRider(heightCm: number | undefined, forced?: string | null): string | null {
-  if (forced) return roubaixSpec(forced) ? forced : null;
+export function roubaixSizeForRider(heightCm: number | undefined, forced?: string | null, bikeModel: string = ROUBAIX_MODEL_ID): string | null {
+  const m = DEDICATED_BIKES[bikeModel];
+  if (!m) return null;
+  if (forced) return m.sizes.some((s) => s.size === forced) ? forced : null;
   if (!heightCm) return null;
-  return roubaixSizeFor(heightCm, ROUBAIX_SIZES.map((s) => s.size));
+  return roubaixSizeFor(heightCm, m.sizes.map((s) => s.size), m.guide);
 }
 
-/** Le look choisit-il le Roubaix Sport 2020 du catalogue ? */
+/** Le look choisit-il un modèle monté en vélo dédié (Roubaix Sport 2020, LOOK 785 Huez RS) ? */
 export function isRoubaixLook(bikeModel: string | undefined): boolean {
-  return bikeModel === ROUBAIX_MODEL_ID;
+  return bikeModel !== undefined && bikeModel in DEDICATED_BIKES;
 }
 
 /** Un niveau de détail du Roubaix monté : cadre habillé, roues du jeu (disques de la taille), pédalier et pédales de série. */

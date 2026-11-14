@@ -1737,7 +1737,7 @@ export class GltfRiderAvatar implements RiderAvatarLike {
    */
   private mountRoubaix(build: BikeBuild, look: AvatarLook): boolean {
     if (!ROUBAIX_OPTION.enabled || !isRoubaixLook(look.bikeModel)) return false;
-    const size = roubaixSizeForRider(look.heightCm, ROUBAIX_OPTION.forced);
+    const size = roubaixSizeForRider(look.heightCm, ROUBAIX_OPTION.forced, look.bikeModel);
     if (!size) return false;
     const asset = roubaixAssets.get(size);
     if (asset === undefined || (typeof asset === 'object' && !bikeFamilyReady(PLAIN_BIKE_FAMILY))) {

@@ -11,7 +11,8 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { ROUBAIX_44, ROUBAIX_54, ROUBAIX_SIZES } from '../../../packages/shared/src/roubaixMetric.ts';
 import * as THREE from 'three/webgpu';
-import { fitRoubaixWheels, roubaixOption, roubaixSeat, roubaixSizeForRider, roubaixSpec, seatpostOffset, sitPointOf, solveSeatDrop } from '../src/rider/roubaix.ts';
+import { LOOK785_MODEL_ID, LOOK785_SIZES } from '../../../packages/shared/src/look785Metric.ts';
+import { fitRoubaixWheels, isRoubaixLook, roubaixOption, roubaixSeat, roubaixSizeForRider, roubaixSpec, seatpostOffset, sitPointOf, solveSeatDrop } from '../src/rider/roubaix.ts';
 
 interface GltfJson {
   asset: { extras?: { solMm?: number; contrat?: unknown; reglageSelle?: { axe?: { direction?: number[] } } } };
@@ -190,5 +191,67 @@ describe('Roubaix : option ?roubaix (I-4d)', () => {
     expect(roubaixOption('?roubaix=1')).toEqual({ enabled: true, forced: null });
     expect(roubaixOption('?roubaix=0')).toEqual({ enabled: false, forced: null });
     expect(roubaixOption('?a=2&roubaix=44')).toEqual({ enabled: true, forced: '44' });
+  });
+});
+
+describe('LOOK 785 dédié : fichiers livrés et choix de taille', () => {
+  const lookDir = fileURLToPath(new URL('../public/models/bikes/look785/', import.meta.url));
+  const readLook = (file: string): GltfJson & { asset: { extras?: { reglageSelle?: { directionUp?: number[] } } } } => {
+    const b = readFileSync(lookDir + file);
+    return JSON.parse(b.subarray(20, 20 + b.readUInt32LE(12)).toString('utf8'));
+  };
+  const LOOK_ANCHORS = ['axle_front', 'axle_rear', 'hand_L', 'hand_R', 'decal_dt', 'decal_cs'];
+  for (const spec of LOOK785_SIZES) {
+    it(`${spec.size} : fichiers présents, mêmes nœuds et ancres aux trois niveaux, zones de livrée`, () => {
+      expect(spec.dir).toBe('look785');
+      for (const f of spec.lods) expect(existsSync(lookDir + f), f).toBe(true);
+      expect(existsSync(dir + spec.frontRotorPiece)).toBe(true);
+      const lods = spec.lods.map(readLook);
+      for (const g of lods) {
+        expect(g.nodes.map((n) => n.name).sort()).toEqual([...PIECES, ...LOOK_ANCHORS].sort());
+        for (const a of LOOK_ANCHORS) expect(g.nodes.find((n) => n.name === a)?.translation).toEqual(lods[0]?.nodes.find((n) => n.name === a)?.translation);
+        const frameMat = g.materials.findIndex((m) => m.name === 'frame');
+        for (const piece of ['frame', 'fork']) {
+          const node = g.nodes.find((n) => n.name === piece);
+          expect(g.meshes[node?.mesh ?? -1]?.primitives.find((p) => p.material === frameMat)?.attributes.COLOR_0, piece).toBeTypeOf('number');
+        }
+      }
+    });
+    it(`${spec.size} : ancres et contrat embarqué conformes aux données partagées`, () => {
+      const g = readLook(spec.lods[0]);
+      const at = (n: string) => g.nodes.find((x) => x.name === n)?.translation ?? [NaN, NaN, NaN];
+      const m = spec.metric;
+      const near = (a: readonly number[], b: readonly number[] | undefined) => a.forEach((v, i) => expect(v).toBeCloseTo(b?.[i] ?? NaN, 4));
+      near(at('axle_front'), m.axes.frontWheel?.originM);
+      near(at('axle_rear'), m.axes.rearWheel?.originM);
+      near(at('hand_L'), m.contacts.handL?.originM);
+      near(at('hand_R'), m.contacts.handR?.originM);
+      expect(g.asset.extras?.solMm).toBeCloseTo(spec.groundOffsetMm, 3);
+      const flat = (o: unknown, p = ''): [string, unknown][] => (o !== null && typeof o === 'object' ? Object.entries(o).flatMap(([k, v]) => flat(v, `${p}.${k}`)) : [[p, o]]);
+      const embarque = new Map(flat(g.asset.extras?.contrat));
+      const partage = flat(JSON.parse(JSON.stringify(m)));
+      expect([...embarque.keys()].sort()).toEqual(partage.map(([k]) => k).sort());
+      for (const [k, v] of partage) {
+        if (typeof v === 'number') expect(embarque.get(k) as number, k).toBeCloseTo(v, 5);
+        else expect(embarque.get(k), k).toEqual(v);
+      }
+      g.asset.extras?.reglageSelle?.directionUp?.forEach((v, i) => expect(v).toBeCloseTo(spec.seatpost.directionUp[i] ?? NaN, 5));
+    });
+  }
+  it('taille selon le coureur (guide LOOK : XS jusqu’à 168 cm, M jusqu’à 179, L au-delà), taille forcée, modèle reconnu', () => {
+    expect(roubaixSizeForRider(142, null, LOOK785_MODEL_ID)).toBe('XS');
+    expect(roubaixSizeForRider(168, null, LOOK785_MODEL_ID)).toBe('XS');
+    expect(roubaixSizeForRider(169, null, LOOK785_MODEL_ID)).toBe('M');
+    expect(roubaixSizeForRider(179, null, LOOK785_MODEL_ID)).toBe('M');
+    expect(roubaixSizeForRider(181, null, LOOK785_MODEL_ID)).toBe('L');
+    expect(roubaixSizeForRider(195, null, LOOK785_MODEL_ID)).toBe('L');
+    expect(roubaixSizeForRider(175, 'XS', LOOK785_MODEL_ID)).toBe('XS');
+    expect(roubaixSizeForRider(175, '44', LOOK785_MODEL_ID)).toBeNull();
+    expect(roubaixSizeForRider(175, null, 'div-autre-velo')).toBeNull();
+    expect(roubaixSpec('M')?.dir).toBe('look785');
+    expect(isRoubaixLook(LOOK785_MODEL_ID)).toBe(true);
+    expect(isRoubaixLook(ROUBAIX_44.metric.id.modelId)).toBe(true);
+    expect(isRoubaixLook('div-autre-velo')).toBe(false);
+    expect(isRoubaixLook(undefined)).toBe(false);
   });
 });
