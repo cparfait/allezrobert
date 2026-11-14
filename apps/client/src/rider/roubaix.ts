@@ -306,3 +306,13 @@ export function solveSeatDrop(f: (dropMm: number) => number, maxMm: number): num
   }
   return (a + b) / 2;
 }
+
+/**
+ * Option d'URL ?roubaix (étape I-4d : Roubaix dédié actif par défaut). Absente ou « 1 » : actif, taille de cadre choisie
+ * d'après la taille du coureur ; « 0 » : coupé (vélo de la famille partout) ; une taille (« 44 ») : forcée.
+ */
+export function roubaixOption(search: string | null | undefined): { enabled: boolean; forced: string | null } {
+  const v = search ? new URLSearchParams(search).get('roubaix') : null;
+  if (v === '0') return { enabled: false, forced: null };
+  return { enabled: true, forced: v && v !== '1' ? v : null };
+}

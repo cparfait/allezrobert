@@ -5,7 +5,7 @@ import { ao } from 'three/addons/tsl/display/GTAONode.js';
 import { BIKE_REFERENCE, DEFAULT_LOOK, PLAIN_BIKE_FAMILY, bikeById, bikeOfLook, type AvatarLook, type BikeFamily, type TuneSlot } from '@allezrobert/shared';
 import { createAvatar, type RiderAvatarLike, type RiderPose } from '../rider/gltfAvatar.ts';
 import { BikeMaterials, loadBikeFamily, loneWheel, onBikeFamilyLoaded } from '../rider/bikes.ts';
-import { assembleRoubaix, isRoubaixLook, loadRoubaix, roubaixSizeForRider, type RoubaixBike, type RoubaixDress } from '../rider/roubaix.ts';
+import { assembleRoubaix, isRoubaixLook, loadRoubaix, roubaixOption, roubaixSizeForRider, type RoubaixBike, type RoubaixDress } from '../rider/roubaix.ts';
 import { compilePass, isCompiling, type Engine } from '../engine/renderer.ts';
 import { box, buildRoom, cyl, mat, rod, WALL_WHEELS } from './atelierRoom.ts';
 import { buildPosters, POSTER_RIDERS, RIDER_BOX, type PosterArt } from './atelierPosters.ts';
@@ -590,8 +590,8 @@ export class AtelierHost {
    */
   private roubaixSize(st: AtelierState): string | null {
     if (st.rider || !isRoubaixLook(st.look.bikeModel)) return null;
-    const forced = typeof location !== 'undefined' ? new URLSearchParams(location.search).get('roubaix') : null;
-    return roubaixSizeForRider(st.look.heightCm, forced && forced !== '1' ? forced : null);
+    const opt = roubaixOption(typeof location !== 'undefined' ? location.search : null);
+    return opt.enabled ? roubaixSizeForRider(st.look.heightCm, opt.forced) : null;
   }
 
   /** Montre le Roubaix dédié à la place du vélo générique (chargé à la demande), ou revient au vélo générique. */

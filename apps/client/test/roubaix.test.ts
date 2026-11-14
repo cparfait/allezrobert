@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { ROUBAIX_44, ROUBAIX_SIZES } from '../../../packages/shared/src/roubaixMetric.ts';
 import * as THREE from 'three/webgpu';
-import { fitRoubaixWheels, roubaixSeat, roubaixSizeForRider, roubaixSpec, seatpostOffset, sitPointOf, solveSeatDrop } from '../src/rider/roubaix.ts';
+import { fitRoubaixWheels, roubaixOption, roubaixSeat, roubaixSizeForRider, roubaixSpec, seatpostOffset, sitPointOf, solveSeatDrop } from '../src/rider/roubaix.ts';
 
 interface GltfJson {
   asset: { extras?: { solMm?: number; contrat?: unknown; reglageSelle?: { axe?: { direction?: number[] } } } };
@@ -166,5 +166,15 @@ describe('Roubaix : ajustement du coureur (I-4b)', () => {
     expect(p?.y).toBeCloseTo(0.9, 6);
     expect(p?.z).toBeLessThan(0);
     expect(p?.z).toBeGreaterThan(-0.1);
+  });
+});
+
+describe('Roubaix : option ?roubaix (I-4d)', () => {
+  it('actif par défaut, coupé par 0, taille forcée', () => {
+    expect(roubaixOption('')).toEqual({ enabled: true, forced: null });
+    expect(roubaixOption(null)).toEqual({ enabled: true, forced: null });
+    expect(roubaixOption('?roubaix=1')).toEqual({ enabled: true, forced: null });
+    expect(roubaixOption('?roubaix=0')).toEqual({ enabled: false, forced: null });
+    expect(roubaixOption('?a=2&roubaix=44')).toEqual({ enabled: true, forced: '44' });
   });
 });

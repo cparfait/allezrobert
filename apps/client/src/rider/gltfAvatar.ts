@@ -20,15 +20,16 @@ import { addFrameAttributes, addJerseyFrame, addSleeveMask, type JerseyFrame } f
 import { applyTexturedLook, loadTexturedMasks, texturedMaterial } from './texturedLook.ts';
 import { aerobarAnchors } from './aerobars.ts';
 import { BikeMaterials, assembleBike, availableFamily, bikeAnchors, bikeFamilyReady, familyScene, loadBikeFamily, type AssembledBike, type BikeAnchors, type FamilyKey } from './bikes.ts';
-import { assembleRoubaix, isRoubaixLook, loadRoubaix, roubaixAnchor, roubaixSeat, roubaixSizeForRider, setSaddleDrop, sitPointOf, solveSeatDrop, type RoubaixAssembly, type RoubaixBike } from './roubaix.ts';
+import { assembleRoubaix, isRoubaixLook, loadRoubaix, roubaixAnchor, roubaixOption, roubaixSeat, roubaixSizeForRider, setSaddleDrop, sitPointOf, solveSeatDrop, type RoubaixAssembly, type RoubaixBike } from './roubaix.ts';
 
 /**
- * Roubaix Sport 2020 dédié par taille (rider/roubaix.ts, étape I-4b), derrière l'option ?roubaix=1 (taille choisie d'après
- * celle du coureur) ou ?roubaix=<taille> (taille forcée). Sans l'option, rien ne change. Le vélo reste à l'échelle 1 ; le
+ * Roubaix Sport 2020 dédié par taille (rider/roubaix.ts ; I-4b ajustement, I-4d actif par défaut) : monté quand le look
+ * choisit ce vélo du catalogue et que la taille du coureur tombe dans une taille modélisée (44 : 142–155 cm, coureur dessiné
+ * à 160 cm au moins). ?roubaix=0 le coupe ; ?roubaix=<taille> force une taille. Le vélo reste à l'échelle 1 ; le
  * coureur s'ajuste à ses points de contact (ischions sur le point d'assise, mains sur les cocottes, pieds sur le pédalier
  * de la taille), selle abaissée le long de la tige pour un genou à KNEE_BOTTOM_DEG au point bas.
  */
-const ROUBAIX_PARAM = typeof location === 'undefined' ? null : new URLSearchParams(location.search).get('roubaix');
+const ROUBAIX_OPTION = roubaixOption(typeof location === 'undefined' ? null : location.search);
 const roubaixAssets = new Map<string, RoubaixBike | 'chargement' | 'absent'>();
 /** Point d'assise de la selle du vélo de base (repère du coureur au repos) : origine du décalage du bassin. */
 let refSeat: THREE.Vector3 | null = null;
@@ -1735,8 +1736,8 @@ export class GltfRiderAvatar implements RiderAvatarLike {
    * cours de chargement ou absents) : le vélo de la famille est alors monté, puis remplacé à l'arrivée des fichiers.
    */
   private mountRoubaix(build: BikeBuild, look: AvatarLook): boolean {
-    if (!ROUBAIX_PARAM || !isRoubaixLook(look.bikeModel)) return false;
-    const size = roubaixSizeForRider(look.heightCm, ROUBAIX_PARAM === '1' ? null : ROUBAIX_PARAM);
+    if (!ROUBAIX_OPTION.enabled || !isRoubaixLook(look.bikeModel)) return false;
+    const size = roubaixSizeForRider(look.heightCm, ROUBAIX_OPTION.forced);
     if (!size) return false;
     const asset = roubaixAssets.get(size);
     if (asset === undefined || (typeof asset === 'object' && !bikeFamilyReady(PLAIN_BIKE_FAMILY))) {
