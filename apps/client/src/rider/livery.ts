@@ -1,5 +1,5 @@
 import * as THREE from 'three/webgpu';
-import { abs, attribute, clamp, color, dot, float, floor, fract, hash, length, max, min, mix, mod, normalGeometry, positionGeometry, select, sin, smoothstep, texture, time, uniform, vec2, vec3, vec4 } from 'three/tsl';
+import { abs, attribute, clamp, color, dot, float, floor, fract, fwidth, hash, length, max, min, mix, mod, normalGeometry, positionGeometry, select, sin, smoothstep, texture, time, uniform, vec2, vec3, vec4 } from 'three/tsl';
 import type { BikeLivery, LiveryAxis, LiveryFinish, LiveryPattern } from '@allezrobert/shared';
 import { colorUniform, type ColorUniform } from '../engine/tsl.ts';
 import { DECALS, type DecalBox } from './wordmarks.ts';
@@ -80,6 +80,13 @@ export class LiveryMaterial {
   /** Épaisseur du film irisé (nm) et miroitement animé (0–1). */
   private readonly film = uniform(0);
   private readonly shimmer = uniform(0);
+  /** Support carbone (livery.substrate) : 1 = tissage teinté sous le vernis, inscriptions par-dessus. */
+  private readonly substrate = uniform(0);
+  /**
+   * Décalage (m) ajouté à la position du maillage pour les abscisses des motifs seulement : modèles dont
+   * l'origine n'est pas celle des familles (p. ex. boîtier à l'origine au lieu de y = 0,27). Nul par défaut.
+   */
+  private readonly frameOffset = uniform(new THREE.Vector3());
 
   constructor(livery: BikeLivery) {
     this.material.name = 'frame';
@@ -123,6 +130,7 @@ export class LiveryMaterial {
     }
     const finish = liv.finish ?? 'gloss';
     this.raw.value = finish === 'raw' ? 1 : 0;
+    this.substrate.value = liv.substrate === 'carbon' ? 1 : 0;
     const [rough, metal, coat, film] = FINISH[finish];
     const m = this.material;
     m.roughness = rough;
@@ -152,15 +160,41 @@ export class LiveryMaterial {
     });
   }
 
+  /** Décalage (m) du repère du maillage vers celui des familles, pour les motifs seulement (voir frameOffset). */
+  setFrameOffset(x: number, y: number, z: number): void {
+    this.frameOffset.value.set(x, y, z);
+  }
+
   dispose(): void {
     this.material.dispose();
   }
 
+  /**
+   * Sergé 2 × 2 du carbone (pas de 2,5 mm), projeté sur les trois plans du repère et mélangé selon la normale
+   * (poids n⁴) ; fondu vers la teinte moyenne quand le motif devient plus fin que le pixel (pas de moiré au loin).
+   */
+  private twill(p: Vec3Node): Vec3Node {
+    const n = normalGeometry;
+    const plane = (a: FloatNode, b: FloatNode): FloatNode => {
+      const ua = a.div(0.0025);
+      const ub = b.div(0.0025);
+      const w = select(mod(floor(ua).add(floor(ub)), 4).lessThan(1.5), float(1), float(0));
+      const blur = smoothstep(0.25, 0.6, max(fwidth(ua), fwidth(ub)));
+      return mix(w, float(0.5), blur);
+    };
+    const n4 = vec3(n.x.mul(n.x).mul(n.x).mul(n.x), n.y.mul(n.y).mul(n.y).mul(n.y), n.z.mul(n.z).mul(n.z).mul(n.z));
+    const sum = max(n4.x.add(n4.y).add(n4.z), 1e-4);
+    const w = plane(p.y, p.z).mul(n4.x).add(plane(p.x, p.z).mul(n4.y)).add(plane(p.x, p.y).mul(n4.z)).div(sum);
+    return mix(color('#1a1b1f'), color('#0e0f11'), w) as unknown as Vec3Node;
+  }
+
   private colorNode(): Vec3Node {
     const p = positionGeometry;
-    const cx = p.x;
-    const cy = p.y;
-    const cz = p.z;
+    // Abscisses des motifs : position du maillage + décalage du modèle (nul pour les familles du catalogue).
+    const g = positionGeometry.add(this.frameOffset);
+    const cx = g.x;
+    const cy = g.y;
+    const cz = g.z;
     const [c0, c1, c2, e0, e1] = this.cols.map((u) => u.node as unknown as Vec3Node) as [Vec3Node, Vec3Node, Vec3Node, Vec3Node, Vec3Node];
     // Abscisse du motif (0–1) le long de l'axe choisi.
     const uz = clamp(cz.add(0.45).div(1.1), 0, 1);
@@ -226,11 +260,15 @@ export class LiveryMaterial {
     col = mix(col, (this.zoneCols[1] as ColorUniform).node as unknown as Vec3Node, gt(zone.z, 0.5).mul(on.y));
     col = mix(col, (this.zoneCols[2] as ColorUniform).node as unknown as Vec3Node, gt(zone.w, 0.5).mul(on.z));
 
+    // Support carbone : sergé teinté à 12 % par la peinture, AVANT les inscriptions (qui restent en pleine couleur).
+    // substrate = 0 : mix(col, x, 0) = col, rendu inchangé pour tous les autres vélos.
+    col = mix(col, mix(this.twill(p), col, 0.12), this.substrate);
+
     // Mots-symboles projetés de part et d'autre des tubes (lisibles des deux côtés), seulement sur
     // les faces tournées vers le côté (pas de traînées sur le dessus des tubes).
     // Faces tournées vers l'extérieur seulement (pas l'intérieur de la base ou du hauban d'en face).
     const nx = normalGeometry.x;
-    const side = smoothstep(0.12, 0.32, abs(nx)).mul(select(cx.mul(nx).greaterThan(-1e-4), float(1), float(0)));
+    const side = smoothstep(0.12, 0.32, abs(nx)).mul(select(p.x.mul(nx).greaterThan(-1e-4), float(1), float(0)));
     const luma = dot(col, vec3(0.2126, 0.7152, 0.0722));
     const auto = select(luma.greaterThan(0.25), color('#111214'), color('#f4f4f2')) as unknown as Vec3Node;
     this.decalM.forEach((m, i) => {
@@ -247,7 +285,7 @@ export class LiveryMaterial {
     });
 
     // Carbone brut : damier très fin, à peine teinté par la livrée.
-    const weave = mod(floor(cx.mul(300)).add(floor(cy.mul(300))).add(floor(cz.mul(300))), 2);
+    const weave = mod(floor(p.x.mul(300)).add(floor(p.y.mul(300))).add(floor(p.z.mul(300))), 2);
     const carbon = mix(mix(color('#16171a'), color('#2a2b30'), weave), col, 0.12);
     return mix(col, carbon, this.raw);
   }

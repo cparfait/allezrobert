@@ -48,6 +48,12 @@ export interface BikeLivery {
   stops?: Array<{ to: number; color: string }>;
   zones?: Partial<Record<FrameZone, number>>;
   finish?: LiveryFinish;
+  /**
+   * Support visible sous le vernis : « carbon » = tissage du carbone teinté par la livrée, inscriptions
+   * posées par-dessus en pleine couleur. Indépendant du vernis (`finish`) : un vernis mat donne du carbone
+   * mat. Absent : peinture pleine (comportement de toujours). Une peinture complète de l'atelier le retire.
+   */
+  substrate?: 'carbon';
   /** Bande décor des jantes. */
   rim?: string;
   /** Guidoline. */

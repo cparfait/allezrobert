@@ -123,6 +123,15 @@ describe('rendu des pièces', () => {
     // Le modèle du catalogue n’est pas modifié.
     expect(base.params.wheels).not.toEqual(['c65', 'c65']);
   });
+  it('support carbone : gardé par un vernis seul, retiré par une peinture complète', () => {
+    const base = bikeById('s26-01-uae-y1rs')!;
+    const carbone = { ...base, livery: { ...base.livery, substrate: 'carbon' as const } };
+    expect(applyTuneLook(carbone, ['tune-fi-mat']).livery.substrate).toBe('carbon');
+    expect(applyTuneLook(carbone, ['tune-fi-mat']).livery.finish).toBe('matte');
+    expect(applyTuneLook(carbone, ['tune-pa-shadow']).livery.substrate).toBeUndefined();
+    // Sans support, rien n’en ajoute un.
+    expect(applyTuneLook(base, ['tune-fi-mat']).livery.substrate).toBeUndefined();
+  });
   it('bikeOfLook applique look.tune', () => {
     const b = bikeOfLook({ ...DEFAULT_LOOK, tune: ['tune-ty-corsa-gum', 'tune-tp-cuir'] });
     expect(b.livery.tireWall).toBe('#c8a36a');
