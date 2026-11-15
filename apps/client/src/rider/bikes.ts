@@ -602,7 +602,8 @@ function addScreenUv(mesh: THREE.Mesh): void {
   const uv = new Float32Array(pos.count * 2);
   for (let i = 0; i < pos.count; i++) {
     const p = [pos.getX(i), pos.getY(i), pos.getZ(i)];
-    uv[i * 2] = ((p[wi] as number) - (min[wi] as number)) / Math.max(size[wi] as number, 1e-6);
+    // u croît vers la droite du coureur (x décroissant) : vu de la selle, l'écran se lit à l'endroit, pas en miroir.
+    uv[i * 2] = 1 - ((p[wi] as number) - (min[wi] as number)) / Math.max(size[wi] as number, 1e-6);
     uv[i * 2 + 1] = ((p[hi] as number) - (min[hi] as number)) / Math.max(size[hi] as number, 1e-6);
   }
   g.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
