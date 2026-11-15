@@ -20,6 +20,8 @@ import { Peloton } from './game/peloton.ts';
 import { separateRiders, type Body } from './game/collision.ts';
 import { WorkoutController, ftpTestProtocolOf, isFtpTestKind } from './game/workout.ts';
 import { showFtpResult } from './ui/ftpResult.ts';
+import { FtpCoach, COACH_PRELOAD } from './game/ftpCoach.ts';
+import { CoachVoice } from './audio/coachVoice.ts';
 import { FriendGhost, Ghost, fetchFriendGhost, uploadGhost } from './game/ghost.ts';
 import { createDeviceLayer } from './game/devices.ts';
 import { Hud } from './hud/hud.ts';
@@ -1363,6 +1365,28 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   // Voix de course : speaker, temps et records des segments, cris du public, bilan (audio/announcer.ts).
   const announcer = new Announcer(() => audio.audio.voiceOut());
   announcer.preload(['welcome', 'komStart', 'sprintStart', 'time', 'summit', 'sprintLine', 'allez', 'allezRobert', 'vasy']);
+  // Test FTP : coach vocal (phrases enregistrées dans public/voice/coach, aucun appel d'API) qui accompagne et explique le test
+  // (game/ftpCoach.ts décide quoi dire, audio/coachVoice.ts le dit). Coupé par le réglage ftpCoachVoice.
+  const coach =
+    workout && isFtpTestKind(workout.kind) && s.ftpCoachVoice !== false
+      ? (() => {
+          const lang = getLang() === 'fr' ? 'fr' : 'en';
+          const c = { logic: new FtpCoach(workout.kind, lang), voice: new CoachVoice(() => audio.audio.voiceOut(), lang) };
+          c.voice.preload(COACH_PRELOAD);
+          const w = workout;
+          const toast = w.onMessage;
+          w.onMessage = (m) => {
+            toast?.(m);
+            c.voice.say(c.logic.message(m));
+          };
+          const done = w.onFinished;
+          w.onFinished = (ftp, end) => {
+            c.voice.say(c.logic.finished({ ftp, end, oldFtp: s.ftpWatts, massKg: s.massKg, live: w.liveEstimate() }));
+            done?.(ftp, end);
+          };
+          return c;
+        })()
+      : null;
   /** Meilleur temps de chaque segment sur cet itinéraire (voix : record battu ou écart). */
   const segBestKey = (id: string) => `ar.segbest.${rankRouteId(track.route.id)}.${id}`;
   const voiceFlags = { start: false, half: false, lastKm: false };
@@ -1626,6 +1650,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   const finish = () => {
     // Test FTP quitté en cours : il se termine et propose son résultat (si l'effort suffit).
     workout?.stop();
+    coach?.voice.stop();
     ride.paused = true;
     hud.setVisible(false);
     input.sendTrainer({ kind: 'simulation', gradePercent: 0 });
@@ -2045,6 +2070,10 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
       rimGlow.night.value = 0.35 + 0.65 * world.nightFactor();
     }
     if (workout) ride.ergTarget = workout.update(ride.elapsedS, ride.inputs.watts);
+    if (coach && workout && !ride.paused) {
+      const w = workout;
+      coach.voice.say(coach.logic.update({ elapsedS: ride.elapsedS, position: w.position, watts: ride.inputs.watts, cadence: ride.inputs.cadence, live: () => w.liveEstimate(), ended: w.ended }));
+    }
     // Course au salon / compte à rebours : immobile sur la grille, à la place donnée par le serveur.
     if (room?.holding) {
       ride.paused = true;

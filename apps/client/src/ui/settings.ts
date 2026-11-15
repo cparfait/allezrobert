@@ -66,6 +66,8 @@ export interface Settings {
   workoutIntensity: number;
   /** Protocole du test FTP : rampe standard, rampe douce ou test de 20 minutes. */
   ftpTestProtocol: 'ramp' | 'rampLite' | 'ftp20';
+  /** Test FTP : coach vocal qui annonce les paliers, l'estimation, l'alerte avant l'arrêt et le résultat. */
+  ftpCoachVoice: boolean;
   /** Mode défi : montée choisie (identifiant de segment KOM de l'itinéraire). */
   challengeSeg: string;
   /** Météo qui évolue pendant la sortie (en groupe : choix de l'hôte, partagé). */
@@ -118,6 +120,7 @@ export const DEFAULT_SETTINGS: Settings = {
   workoutPreset: 'sweet-spot-3x12',
   workoutIntensity: 1,
   ftpTestProtocol: 'ramp',
+  ftpCoachVoice: true,
   challengeSeg: '',
   weatherEvolves: false,
   realWeather: true,

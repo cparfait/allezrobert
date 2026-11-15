@@ -1450,6 +1450,11 @@ export class MainMenu {
     return `<div class="mm-ftptest">
       <div class="field">${L ? 'Protocole' : 'Protocol'}${this.seg('m-ftpproto', p, opts)}</div>
       <p class="mm-hint">${who}</p>
+      <div class="field">${L ? 'Voix du coach' : 'Coach voice'}${this.seg('m-ftpvoice', this.s.ftpCoachVoice === false ? '0' : '1', [
+        ['1', L ? 'Oui' : 'On'],
+        ['0', L ? 'Non' : 'Off'],
+      ])}</div>
+      <p class="mm-hint">${L ? 'Une voix t’accompagne : annonce des paliers, FTP estimée en direct, alerte avant l’arrêt du test, résultat expliqué.' : 'A voice guides you: steps announced, live FTP estimate, warning before the test stops, result explained.'}</p>
       <h3>${L ? 'Comment se passe le test' : 'How the test works'}</h3>
       <ol>${steps.map(([t, d]) => `<li><b>${t}</b><span>${d}</span></li>`).join('')}</ol>
       <p class="mm-hint">${L ? `FTP actuelle : ${Math.round(this.s.ftpWatts)} W. Bien reposé, ventilateur allumé, bidon à portée de main.` : `Current FTP: ${Math.round(this.s.ftpWatts)} W. Be rested, fan on, bottle within reach.`}</p>
@@ -3822,6 +3827,10 @@ export class MainMenu {
       s.ftpTestProtocol = ftpTestProtocolOf(el.value);
       changed();
       this.render();
+    });
+    on<HTMLSelectElement>('m-ftpvoice', 'change', (el) => {
+      s.ftpCoachVoice = el.value !== '0';
+      changed();
     });
     if (this.tab === 'garage' && this.garageSlot === 'atelier') this.atelier.bind(this.root);
     on<HTMLSelectElement>('m-wx', 'change', (el) => {
