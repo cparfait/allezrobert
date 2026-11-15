@@ -99,3 +99,45 @@ export class RoadHeightField {
 }
 
 const key = (x: number, z: number): number => x * 1_000_003 + z;
+
+/**
+ * Surface de la chaussée du monde en cours (World la tient à jour ; null hors monde ouvert ou avec ?roadsnap=0).
+ * Les coureurs du peloton, en ligne et fantômes, les cyclistes croisés et les voitures s'y posent comme le coureur.
+ */
+let current: RoadHeightField | null = null;
+export function setCurrentRoadHeight(f: RoadHeightField | null): void {
+  current = f;
+}
+
+/** Pose sur la chaussée : y de l'origine (au sol) et tangage (rad, > 0 : avant plus haut). */
+export interface RoadPose {
+  y: number;
+  pitch: number;
+}
+
+/**
+ * Pose un véhicule sur la chaussée dessinée, d'après ses points de contact à `front` m devant et `rear` m derrière
+ * l'origine (x, z), le long de (fwdX, fwdZ) (sens de marche, unitaire). `nearY` et `pitch0` : altitude et tangage
+ * du profil de l'itinéraire, gardés là où il n'y a pas de route dessinée. Renvoie false sans surface.
+ */
+export function roadPose(x: number, z: number, fwdX: number, fwdZ: number, nearY: number, pitch0: number, front: number, rear: number, out: RoadPose, field: RoadHeightField | null = current): boolean {
+  out.y = nearY;
+  out.pitch = pitch0;
+  if (!field) return false;
+  const slope = Math.tan(pitch0);
+  const yF = field.surfaceAt(x + fwdX * front, z + fwdZ * front, nearY + slope * front);
+  const yR = field.surfaceAt(x - fwdX * rear, z - fwdZ * rear, nearY - slope * rear);
+  if (Number.isFinite(yF) && Number.isFinite(yR)) {
+    out.y = yR + ((yF - yR) * rear) / (front + rear);
+    out.pitch = Math.atan((yF - yR) / (front + rear));
+  } else if (Number.isFinite(yF)) out.y = yF - slope * front;
+  else if (Number.isFinite(yR)) out.y = yR + slope * rear;
+  else return false;
+  return true;
+}
+
+/** Points de contact des roues d'un vélo de route devant / derrière l'origine du coureur (m). */
+export const BIKE_FRONT_M = 0.6;
+export const BIKE_REAR_M = 0.417;
+/** Voiture : demi-empattement moyen (m). */
+export const CAR_AXLE_M = 1.3;

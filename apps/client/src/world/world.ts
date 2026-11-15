@@ -15,7 +15,7 @@ import { Buildings } from './buildings.ts';
 import { RoadMesh, SHOULDER } from './road.ts';
 import { RouteFootprint } from './ribbon.ts';
 import { RoadNetwork } from './network.ts';
-import { RoadHeightField } from './roadHeight.ts';
+import { RoadHeightField, setCurrentRoadHeight } from './roadHeight.ts';
 import { Rain } from './weather.ts';
 import { GrassField } from './grass.ts';
 import { WaterSystem } from './water.ts';
@@ -122,6 +122,7 @@ export class World {
     this.network = new RoadNetwork(open ? '' : baseRouteId(route.id), groundAt, footprint, open, q.lampLights);
     // ?roadsnap=0 : roues de nouveau sur le profil de l'itinéraire (comparaison).
     this.roadHeight = open && new URLSearchParams(globalThis.location?.search ?? '').get('roadsnap') !== '0' ? new RoadHeightField() : null;
+    setCurrentRoadHeight(this.roadHeight);
     scene.add(this.network.lampLights.group);
     this.network.setShopWalls((id) => this.buildings.shopWalls(id));
     scene.add(this.network.group);
@@ -460,6 +461,7 @@ export class World {
   }
 
   dispose(): void {
+    setCurrentRoadHeight(null);
     this.disposed = true;
     if (this.horizon) {
       this.scene.remove(this.horizon.mesh);

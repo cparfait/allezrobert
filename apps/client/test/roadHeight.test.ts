@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { NETWORK_ROAD_LIFT, RoadHeightField } from '../src/world/roadHeight.ts';
+import { NETWORK_ROAD_LIFT, RoadHeightField, roadPose } from '../src/world/roadHeight.ts';
 import type { LoadedTile, TileRoad } from '../src/world/types.ts';
 
 const tile = (id: string, roads: Partial<TileRoad>[]): LoadedTile => ({ id, features: { roads: roads.map((r) => ({ kind: 'residential', width: 4, pts: [], surface: 'asphalt', ...r })) } }) as unknown as LoadedTile;
@@ -39,5 +39,23 @@ describe('RoadHeightField, épingle', () => {
     f.addTile(tile('a', [{ pts3: [0, 100, 0, 100, 100, 0] }, { pts3: [0, 101, 3.5, 100, 101, 3.5] }]));
     expect(f.surfaceAt(50, 1, 100.5)).toBeCloseTo(100 + NETWORK_ROAD_LIFT, 6);
     expect(f.surfaceAt(50, 2.6, 100.5)).toBeCloseTo(101 + NETWORK_ROAD_LIFT, 6);
+  });
+});
+
+describe('roadPose', () => {
+  it('pose les deux roues sur la chaussée, tangage compris ; garde le profil hors des routes', () => {
+    const f = new RoadHeightField();
+    // route en pente de 10 % vers +x
+    f.addTile(tile('a', [{ pts3: [0, 100, 0, 100, 110, 0] }]));
+    const out = { y: 0, pitch: 0 };
+    expect(roadPose(50, 0, 1, 0, 105.3, 0, 0.6, 0.4, out, f)).toBe(true);
+    expect(out.y).toBeCloseTo(105 + NETWORK_ROAD_LIFT, 6);
+    expect(out.pitch).toBeCloseTo(Math.atan(0.1), 6);
+    // hors route : profil donné gardé
+    expect(roadPose(50, 30, 1, 0, 105.3, 0.02, 0.6, 0.4, out, f)).toBe(false);
+    expect(out.y).toBe(105.3);
+    expect(out.pitch).toBe(0.02);
+    // sans surface (monde à itinéraire) : rien ne change
+    expect(roadPose(50, 0, 1, 0, 105.3, 0.02, 0.6, 0.4, out, null)).toBe(false);
   });
 });

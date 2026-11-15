@@ -1,6 +1,9 @@
 import * as THREE from 'three/webgpu';
 import type { AvatarLook, FriendGhostLap, RouteTrack } from '@allezrobert/shared';
 import { createAvatar, type RiderAvatarLike } from '../rider/gltfAvatar.ts';
+import { BIKE_FRONT_M, BIKE_REAR_M, roadPose, type RoadPose } from '../world/roadHeight.ts';
+
+const _pose: RoadPose = { y: 0, pitch: 0 };
 
 interface GhostLap {
   lapTimeS: number;
@@ -101,9 +104,11 @@ export class Ghost {
     const b = this.best.dist[i + 1] ?? a;
     const d = this.lapStartD + a + (b - a) * f;
     const p = this.track.positionAt(d, 0.2, this.sample);
-    this.avatar.root.position.set(p.x, p.y + 0.06, p.z);
+    // Monde ouvert : roues posées sur la chaussée dessinée (roadHeight.ts).
+    roadPose(p.x, p.z, p.dirX, p.dirZ, p.y + 0.06, Math.atan(p.grade / 100), BIKE_FRONT_M, BIKE_REAR_M, _pose);
+    this.avatar.root.position.set(p.x, _pose.y, p.z);
     this.avatar.root.rotation.set(0, Math.atan2(p.dirX, p.dirZ), 0);
-    this.avatar.root.rotateX(-Math.atan(p.grade / 100));
+    this.avatar.root.rotateX(-_pose.pitch);
     const speed = (b - a) || 0;
     this.avatar.update(dt, speed > 0.5 ? 88 : 0, speed, 'seated');
     // Vélo remonté entre-temps (famille de vélo chargée après coup) : ses matériaux redeviennent translucides.
@@ -190,9 +195,11 @@ export class FriendGhost {
     // Tour terminé : il attend la ligne (le joueur finit son tour puis tout repart).
     const d = a + (b - a) * f;
     const p = this.track.positionAt(d, -0.4, this.sample);
-    this.avatar.root.position.set(p.x, p.y + 0.06, p.z);
+    // Monde ouvert : roues posées sur la chaussée dessinée (roadHeight.ts).
+    roadPose(p.x, p.z, p.dirX, p.dirZ, p.y + 0.06, Math.atan(p.grade / 100), BIKE_FRONT_M, BIKE_REAR_M, _pose);
+    this.avatar.root.position.set(p.x, _pose.y, p.z);
     this.avatar.root.rotation.set(0, Math.atan2(p.dirX, p.dirZ), 0);
-    this.avatar.root.rotateX(-Math.atan(p.grade / 100));
+    this.avatar.root.rotateX(-_pose.pitch);
     const speed = b - a || 0;
     this.avatar.update(dt, speed > 0.5 ? 88 : 0, speed, 'seated');
     this.reGhost += dt;

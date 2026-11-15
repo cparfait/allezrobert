@@ -11,6 +11,9 @@ import { UNPAVED_SURFACES } from './dust.ts';
 import { buildLowPolyVehicle, pickLowPolyPaint, pickLowPolyTractor, pickLowPolyVariant, type LowPolyVariant } from './lowPolyVehicles.ts';
 import { buildDriver, loadDriverModels } from './vehicleDriver.ts';
 import { followSpeed, keepApart, keepClearOfRiders, leaderOf, oncomingInLane, RIDER_CLEAR_LAT } from './trafficSpacing.ts';
+import { CAR_AXLE_M, roadPose, type RoadPose } from './roadHeight.ts';
+
+const _pose: RoadPose = { y: 0, pitch: 0 };
 
 /**
  * Circulation : voitures, utilitaire et tracteur dans le même repère que les coureurs (distance
@@ -703,11 +706,14 @@ export class Traffic {
       // Trajectoire en arc, comme les coureurs : plus de pivot brutal à chaque sommet du tracé.
       const p = this.track.linePositionAt(((v.d % L) + L) % L, v.lateral, v.speed, this.sample);
       // Pneus posés sur la chaussée, surélevée de 6 cm comme pour les coureurs (road.ts).
-      v.mesh.position.set(p.x, p.y + 0.06, p.z);
+      // Monde ouvert : roues sur la chaussée dessinée (roadHeight.ts), essieux à ±CAR_AXLE_M.
+      const yaw = Math.atan2(p.dirX, p.dirZ) + (v.sens < 0 ? Math.PI : 0);
+      roadPose(p.x, p.z, Math.sin(yaw), Math.cos(yaw), p.y + 0.06, Math.atan(p.grade / 100) * v.sens, CAR_AXLE_M, CAR_AXLE_M, _pose);
+      v.mesh.position.set(p.x, _pose.y, p.z);
       v.vx = p.dirX * v.sens * v.speed;
       v.vz = p.dirZ * v.sens * v.speed;
-      v.mesh.rotation.set(0, Math.atan2(p.dirX, p.dirZ) + (v.sens < 0 ? Math.PI : 0), 0);
-      v.mesh.rotateX(-Math.atan(p.grade / 100) * v.sens);
+      v.mesh.rotation.set(0, yaw, 0);
+      v.mesh.rotateX(-_pose.pitch);
       // Rotation affichée plafonnée (≈ 17° par image) : au-delà, les jantes semblent tourner à l'envers
       // (effet stroboscopique, 48° par image à 54 km/h et 60 images/s) ; plus lent mais dans le bon sens.
       // Chaque roue à sa vitesse (rayon propre : petites roues avant d'un tracteur, grandes à l'arrière).

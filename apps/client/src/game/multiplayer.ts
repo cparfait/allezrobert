@@ -5,6 +5,9 @@ import { RideNetClient, type InterpolatedRider } from '../net/index.ts';
 import { CollisionPoseFollower, CollisionPrediction } from '../net/collision-follow.ts';
 import { frameAfterTurn, gapAlongRoute, toRouteFrame } from '../net/frame.ts';
 import { createAvatar, type RiderAvatarLike } from '../rider/gltfAvatar.ts';
+import { BIKE_FRONT_M, BIKE_REAR_M, roadPose, type RoadPose } from '../world/roadHeight.ts';
+
+const _pose: RoadPose = { y: 0, pitch: 0 };
 
 /** Adresse du serveur : VITE_SERVER_URL (prod : https://allezrobert.cparfait.ovh/colyseus), sinon local. */
 export function serverEndpoint(): string {
@@ -313,11 +316,13 @@ export class Multiplayer {
         r.speedMs = pose.speedMs;
       }
       const p = this.collision ? this.track.positionAt(r.unwrappedM, r.lateralM, this.sample) : this.track.linePositionAt(r.unwrappedM, r.lateralM, r.speedMs, this.sample);
-      root.position.set(p.x, p.y + 0.06, p.z);
+      // À contresens (demi-tour) : cap retourné, pente inversée. Monde ouvert : roues sur la chaussée dessinée.
+      const yaw = Math.atan2(p.dirX, p.dirZ) + (r.dir === -1 ? Math.PI : 0);
+      roadPose(p.x, p.z, Math.sin(yaw), Math.cos(yaw), p.y + 0.06, Math.atan(p.grade / 100) * r.dir, BIKE_FRONT_M, BIKE_REAR_M, _pose);
+      root.position.set(p.x, _pose.y, p.z);
       root.rotation.set(0, 0, 0);
-      // À contresens (demi-tour) : cap retourné, pente inversée.
-      root.rotateY(Math.atan2(p.dirX, p.dirZ) + (r.dir === -1 ? Math.PI : 0));
-      root.rotateX(-Math.atan(p.grade / 100) * r.dir);
+      root.rotateY(yaw);
+      root.rotateX(-_pose.pitch);
       const dist = camera.position.distanceTo(root.position);
       root.visible = dist < 600;
       if (dist < 250) {

@@ -5,6 +5,9 @@ import { createAvatar, type RiderAvatarLike } from '../rider/gltfAvatar.ts';
 import { crowdShoes } from '../rider/shoeLook.ts';
 import { crowdBike } from '../rider/bikes.ts';
 import { rng } from '../engine/noise.ts';
+import { BIKE_FRONT_M, BIKE_REAR_M, roadPose, type RoadPose } from './roadHeight.ts';
+
+const _pose: RoadPose = { y: 0, pitch: 0 };
 
 /** Un cycliste d'ambiance : seul, ou membre d'un groupe qui roule ensemble. */
 interface Member {
@@ -325,10 +328,14 @@ export class AmbientCyclists {
         const p = this.track.positionAt(loop ? ((dm % L) + L) % L : Math.min(Math.max(dm, 0), L), c.lateral + m.latOff, this.sample);
         const a = m.avatar;
         const ground = this.heightAt ? Math.max(p.y, this.heightAt(p.x, p.z)) : p.y;
-        a.root.position.set(p.x, ground + 0.11, p.z);
+        const yaw = Math.atan2(p.dirX, p.dirZ) + (c.sens < 0 ? Math.PI : 0);
+        // Monde ouvert : roues sur la chaussée dessinée (roadHeight.ts) ; sinon au-dessus du sol (origine 5 cm plus
+        // bas que celle du coureur, d'où + 0,11 au lieu de + 0,06).
+        const onRoad = roadPose(p.x, p.z, Math.sin(yaw), Math.cos(yaw), ground + 0.06, Math.atan(p.grade / 100) * c.sens, BIKE_FRONT_M, BIKE_REAR_M, _pose);
+        a.root.position.set(p.x, onRoad ? _pose.y + 0.05 : ground + 0.11, p.z);
         a.root.rotation.set(0, 0, 0);
-        a.root.rotateY(Math.atan2(p.dirX, p.dirZ) + (c.sens < 0 ? Math.PI : 0));
-        a.root.rotateX(-Math.atan(p.grade / 100) * c.sens);
+        a.root.rotateY(yaw);
+        a.root.rotateX(-_pose.pitch);
         const dist = camera.position.distanceTo(a.root.position);
         a.root.visible = !outside && dist < 500;
         if (a.root.visible && dist < 200) a.update(dt, c.cadence > 0 ? c.cadence + m.cadenceOff : 0, c.speed, watts > 0 ? 'seated' : 'coasting');

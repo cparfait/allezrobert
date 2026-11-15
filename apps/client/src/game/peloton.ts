@@ -6,6 +6,7 @@ import { createAvatar, type RiderAvatarLike } from '../rider/gltfAvatar.ts';
 import { crowdShoes } from '../rider/shoeLook.ts';
 import { crowdBike } from '../rider/bikes.ts';
 import { rng } from '../engine/noise.ts';
+import { BIKE_FRONT_M, BIKE_REAR_M, roadPose, type RoadPose } from '../world/roadHeight.ts';
 import type { RouteBuildingCollision } from '@allezrobert/physics';
 
 const JERSEYS = ['#e63946', '#2a9d8f', '#f4a261', '#8d99ae', '#06d6a0', '#ef476f', '#118ab2', '#ffd166', '#6a4c93', '#90be6d', '#f3722c', '#277da1'];
@@ -176,6 +177,7 @@ export class Peloton {
     this.onFormation?.(f, this.formationPref);
   }
   private readonly sample = { x: 0, y: 0, z: 0, dirX: 1, dirZ: 0, grade: 0, d: 0 };
+  private readonly pose: RoadPose = { y: 0, pitch: 0 };
   /** Inclinaison affichée de chaque coureur en virage (rad, lissée). */
   private readonly banks = new WeakMap<PelotonRider, number>();
 
@@ -440,12 +442,15 @@ export class Peloton {
     for (const r of this.riders) {
       // Même trajectoire en arc que le joueur (virages fluides).
       const p = this.collision ? this.track.positionAt(r.state.distM, r.lateral, this.sample) : this.track.linePositionAt(r.state.distM, r.lateral, r.state.speedMs, this.sample);
-      r.avatar.root.position.set(p.x, p.y + 0.06, p.z);
-      r.avatar.root.rotation.set(0, 0, 0);
       // Cap relatif (demi-tour) : à contresens, l'inclinaison de la pente s'inverse.
       const heading = this.collision ? (Math.cos(r.heading) < 0 ? Math.PI : 0) : r.heading;
-      r.avatar.root.rotateY(Math.atan2(p.dirX, p.dirZ) + heading);
-      r.avatar.root.rotateX(-Math.atan(p.grade / 100) * Math.cos(r.heading));
+      const yaw = Math.atan2(p.dirX, p.dirZ) + heading;
+      // Monde ouvert : roues posées sur la chaussée dessinée (roadHeight.ts), comme le coureur.
+      roadPose(p.x, p.z, Math.sin(yaw), Math.cos(yaw), p.y + 0.06, Math.atan(p.grade / 100) * Math.cos(r.heading), BIKE_FRONT_M, BIKE_REAR_M, this.pose);
+      r.avatar.root.position.set(p.x, this.pose.y, p.z);
+      r.avatar.root.rotation.set(0, 0, 0);
+      r.avatar.root.rotateY(yaw);
+      r.avatar.root.rotateX(-this.pose.pitch);
       const dist = camera.position.distanceTo(r.avatar.root.position);
       r.avatar.root.visible = dist < 600;
       if (dist < 250) {

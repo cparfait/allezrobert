@@ -2,6 +2,9 @@ import type * as THREE from 'three/webgpu';
 import { rankRouteId, type AvatarLook, type RouteSegment, type RouteTrack } from '@allezrobert/shared';
 import { ghostAvatar, ghostify } from './ghost.ts';
 import type { RiderAvatarLike } from '../rider/gltfAvatar.ts';
+import { BIKE_FRONT_M, BIKE_REAR_M, roadPose, type RoadPose } from '../world/roadHeight.ts';
+
+const _pose: RoadPose = { y: 0, pitch: 0 };
 
 /** Record d'une montée : temps et distance parcourue depuis le pied, chaque seconde. */
 export interface KomRecord {
@@ -135,9 +138,11 @@ export class KomChallenge {
         const b = this.record.dist[i + 1] ?? a;
         const d = this.seg.startM + a + (b - a) * Math.min(t - i, 1);
         const p = this.track.positionAt(d, 0.3, this.sample);
-        this.ghost.root.position.set(p.x, p.y + 0.06, p.z);
+        // Monde ouvert : roues posées sur la chaussée dessinée (roadHeight.ts).
+        roadPose(p.x, p.z, p.dirX, p.dirZ, p.y + 0.06, Math.atan(p.grade / 100), BIKE_FRONT_M, BIKE_REAR_M, _pose);
+        this.ghost.root.position.set(p.x, _pose.y, p.z);
         this.ghost.root.rotation.set(0, Math.atan2(p.dirX, p.dirZ), 0);
-        this.ghost.root.rotateX(-Math.atan(p.grade / 100));
+        this.ghost.root.rotateX(-_pose.pitch);
         this.ghost.update(dt, b > a ? 80 : 0, b - a, p.grade > 7 ? 'standing' : 'seated');
         // Vélo remonté après coup (famille chargée) : de nouveau translucide.
         if ((this.reGhost += dt) > 2) {
