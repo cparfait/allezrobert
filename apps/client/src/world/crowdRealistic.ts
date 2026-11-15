@@ -115,7 +115,9 @@ async function loadOne(name: string): Promise<SpectatorAsset | null> {
       vat.needsUpdate = true;
       const ms = meta.maskSize;
       const mask = new THREE.DataTexture(new Uint8Array(bin, o.mask, ms * ms * 4), ms, ms, THREE.RGBAFormat);
-      mask.minFilter = THREE.LinearFilter;
+      // Mipmaps : sans eux, le masque (256 px) scintillait et crénelait les zones de couleur au loin.
+      mask.generateMipmaps = true;
+      mask.minFilter = THREE.LinearMipmapLinearFilter;
       mask.magFilter = THREE.LinearFilter;
       mask.needsUpdate = true;
       base.colorSpace = THREE.SRGBColorSpace;
@@ -134,6 +136,11 @@ function lowestVatY(data: Uint16Array, count: number): number {
   for (let i = 0; i < count; i++) low = Math.min(low, THREE.DataUtils.fromHalfFloat(data[i * 4 + 1] as number));
   return low;
 }
+
+/** Recoloration : référence de luminance minimale et bornes du rapport luminance / référence. */
+const TINT_REF_MIN = 0.12;
+const TINT_LO = 0.35;
+const TINT_HI = 1.6;
 
 /** Palettes (sRGB) tirées par spectateur. */
 const SKINS = ['#f2c9a8', '#e0ac85', '#c68a62', '#a8734f', '#8d5a3b', '#5b3a26'];
@@ -206,7 +213,10 @@ export function spectatorMaterial(asset: SpectatorAsset, orient: Float32Array, s
   const tex = texture(asset.base, uv());
   const m = texture(asset.mask, uv());
   const lum = dot(tex.rgb, vec3(0.2126, 0.7152, 0.0722)) as unknown as F;
-  const tint = (c: V3, ref: number) => c.mul(pow(clamp(lum.div(Math.max(ref, 1e-4)), 0, 3), 0.75)) as unknown as V3;
+  // Ombrage de la zone : luminance rapportée à celle de référence, plancher TINT_REF_MIN et écart borné. Avant
+  // (rapport^0,75 borné à 3, référence de 0,016 à 0,05 pour les cheveux et pantalons sombres), la moindre trace
+  // claire de la texture devenait une tache presque blanche.
+  const tint = (c: V3, ref: number) => c.mul(pow(clamp(lum.div(Math.max(ref, TINT_REF_MIN)), TINT_LO, TINT_HI), 0.6)) as unknown as V3;
   const skin = pick(SKINS, hash(instanceIndex.add(101 + seed)) as unknown as F);
   const hair = pick(HAIRS, hash(instanceIndex.add(202 + seed)) as unknown as F);
   const top = pick(TOPS, hash(instanceIndex.add(303 + seed)) as unknown as F);

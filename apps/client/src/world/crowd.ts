@@ -596,7 +596,10 @@ export class Crowd {
         const base = l.base[i] as number;
         let target = base;
         if ((x - rx) ** 2 + (z - rz) ** 2 < LOOK_REACH_M * LOOK_REACH_M) {
-          let d = Math.atan2(rx - x, rz - z) - base;
+          // Les personnages cuits regardent vers −Z (bake_crowd.py ; face à la route avec le lacet de `put`) : le
+          // lacet qui tourne −Z vers le coureur est celui qui tourne +Z à l'opposé de lui. (Avant : +Z vers lui, soit
+          // le dos ; borné à LOOK_MAX_RAD, le spectateur se tordait de 54° au hasard au lieu de le suivre des yeux.)
+          let d = Math.atan2(x - rx, z - rz) - base;
           d = Math.atan2(Math.sin(d), Math.cos(d));
           target = base + Math.max(-LOOK_MAX_RAD, Math.min(LOOK_MAX_RAD, d));
         }

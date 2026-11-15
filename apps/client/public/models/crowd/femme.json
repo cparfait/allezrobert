@@ -1,7 +1,7 @@
 {
- "vertexCount": 1603,
- "indexCount": 4500,
- "tris": 1500,
+ "vertexCount": 3353,
+ "indexCount": 12000,
+ "tris": 4000,
  "vatRows": 208,
  "normalRow": 104,
  "clips": [
@@ -18,22 +18,22 @@
    "fps": 4.0
   }
  ],
- "hold": 20,
- "maskSize": 256,
+ "hold": 15,
+ "maskSize": 512,
  "refLum": {
-  "skin": 0.1725199967622757,
-  "hair": 0.016334492713212967,
-  "top": 0.4858429431915283,
-  "bottom": 0.15584202110767365
+  "skin": 0.22627602517604828,
+  "hair": 0.01731184683740139,
+  "top": 0.5115249752998352,
+  "bottom": 0.12393742799758911
  },
  "heightM": 1.66,
  "offsets": {
   "position": 0,
-  "normal": 19236,
-  "uv": 38472,
-  "index": 51296,
-  "vat": 69296,
-  "mask": 2736688
+  "normal": 40236,
+  "uv": 80472,
+  "index": 107296,
+  "vat": 155296,
+  "mask": 5734688
  },
- "bytes": 2998832
+ "bytes": 6783264
 }

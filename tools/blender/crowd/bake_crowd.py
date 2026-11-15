@@ -261,7 +261,10 @@ if HINTS:
     for k in ('skin', 'hair'):
         if k in dist:
             dist[k] = np.where(pure_red, 1e9, dist[k])
-    for zone, keys in ((tete, ('skin', 'hair', 'none')), (mains | buste, ('skin', 'top', 'none')), (jambes, ('skin', 'bottom', 'none'))):
+    # Taille (ceinture, bas du haut, haut du jean) : les faces y sont portées tantôt par le buste, tantôt par les
+    # jambes ; le buste admet donc aussi le bas et les jambes le haut, la couleur tranche. (Avant : dents de scie
+    # d'un triangle à l'autre, jean recoloré en haut ou en peau, 15/11/2026.)
+    for zone, keys in ((tete, ('skin', 'hair', 'none')), (mains, ('skin', 'top', 'none')), (buste, ('skin', 'top', 'bottom', 'none')), (jambes, ('skin', 'bottom', 'top', 'none'))):
         keys = [k for k in keys if k in dist]
         best = np.argmin(np.stack([dist[k] for k in keys]), axis=0)
         for i, k in enumerate(keys):
