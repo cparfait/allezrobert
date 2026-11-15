@@ -1052,8 +1052,8 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   // Séance structurée : fichier .zwo/.erg/.mrc ou test FTP (rampe) ; pas d'IA pendant une séance.
   let workout: WorkoutController | null = null;
   try {
-    if (s.mode === 'workout' && extras.workoutFile) workout = new WorkoutController('file', s.ftpWatts, extras.workoutFile);
-    else if (s.mode === 'workout' && s.workoutPreset) workout = new WorkoutController('library', s.ftpWatts, undefined, s.workoutPreset);
+    if (s.mode === 'workout' && extras.workoutFile) workout = new WorkoutController('file', s.ftpWatts, extras.workoutFile, undefined, s.workoutIntensity);
+    else if (s.mode === 'workout' && s.workoutPreset) workout = new WorkoutController('library', s.ftpWatts, undefined, s.workoutPreset, s.workoutIntensity);
     else if (s.mode === 'ftpTest') workout = new WorkoutController(params.get('ftptest') === '20' ? 'ftp20' : 'ramp', s.ftpWatts);
   } catch (e) {
     console.warn('Séance illisible', e);

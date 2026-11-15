@@ -62,6 +62,8 @@ export interface Settings {
   world: string;
   /** Séance intégrée choisie (mode entraînement), si aucun fichier n'est importé. */
   workoutPreset: string;
+  /** Intensité des séances (0,8–1,2 ; 1 = 100 %) : multiplie toutes les cibles, réglée avant le départ. */
+  workoutIntensity: number;
   /** Mode défi : montée choisie (identifiant de segment KOM de l'itinéraire). */
   challengeSeg: string;
   /** Météo qui évolue pendant la sortie (en groupe : choix de l'hôte, partagé). */
@@ -112,6 +114,7 @@ export const DEFAULT_SETTINGS: Settings = {
   inertia: 1,
   world: 'longchamp',
   workoutPreset: 'sweet-spot-3x12',
+  workoutIntensity: 1,
   challengeSeg: '',
   weatherEvolves: false,
   realWeather: true,

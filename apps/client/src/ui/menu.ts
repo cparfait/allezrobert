@@ -1,4 +1,5 @@
-import { workoutStudioHtml } from './workoutStudio.ts';
+import { workoutStudioHtml, type WorkoutDurFilter, type WorkoutSort } from './workoutStudio.ts';
+import { clampWorkoutIntensity } from '../game/workout.ts';
 import { crossedArmsSrc } from './waitBike.ts';
 import type { AvatarLook, CosmeticItem, RouteData, RouteSegment, WorldCatalogue } from '@allezrobert/shared';
 import { ROAD_FEEL, ROAD_FEEL_TEXT, clampRoadFeel, roadFeelLevel } from '@allezrobert/shared';
@@ -500,6 +501,12 @@ export class MainMenu {
   private wkScrollKey: string | null = null;
   /** Séance regardée dans la fiche du studio (pas encore choisie). */
   private wkSel: string | null = null;
+  /** Recherche, filtre de durée et ordre de la liste du studio (le temps de la session). */
+  private wkQuery = '';
+  private wkDur: WorkoutDurFilter = '';
+  private wkSort: WorkoutSort = 'type';
+  /** Position du curseur dans la recherche, à rendre après un nouveau rendu (null : pas de focus à rendre). */
+  private wkQueryCaret: number | null = null;
   /** Séances importées, gardées dans l'historique (rechargées à l'ouverture de la fenêtre). */
   private myWorkouts: LocalWorkout[] = [];
   /** Séances favorites (identifiants de la bibliothèque ou `mine:…`), listées dans « Mes séances ». */
@@ -1179,7 +1186,7 @@ export class MainMenu {
     const scroll = key === this.panelKey ? ((this.root.querySelector('.gr-body') ?? this.root.querySelector('.mm-side'))?.scrollTop ?? 0) : 0;
     this.panelKey = key;
     // Fenêtre des séances : même défilement après une étoile ; à l'ouverture, la séance choisie en vue.
-    const wkKey = this.picker === 'workouts' ? this.wkFilter : null;
+    const wkKey = this.picker === 'workouts' ? `${this.wkFilter}|${this.wkDur}|${this.wkSort}|${this.wkQuery}` : null;
     const wkScroll = wkKey !== null && wkKey === this.wkScrollKey ? (this.root.querySelector('.mm-wks-grid')?.scrollTop ?? 0) : null;
     this.wkScrollKey = wkKey;
     // Arrivée dans le garage : le panneau glisse en place une seule fois (pas à chaque nouveau rendu).
@@ -1211,6 +1218,15 @@ export class MainMenu {
     const wks = this.root.querySelector<HTMLElement>('.mm-wks-grid');
     const wkOn = wks?.querySelector<HTMLElement>('.mm-wk.on');
     if (wks) wks.scrollTop = wkScroll ?? (wkOn ? wkOn.offsetTop - (wks.clientHeight - wkOn.offsetHeight) / 2 : 0);
+    // Recherche du studio : la frappe redessine l'écran, le champ garde le focus et la place du curseur.
+    if (this.wkQueryCaret !== null) {
+      const q = this.root.querySelector<HTMLInputElement>('#ws-q');
+      if (q) {
+        q.focus();
+        q.setSelectionRange(this.wkQueryCaret, this.wkQueryCaret);
+      }
+      this.wkQueryCaret = null;
+    }
     this.renderStatus();
     this.renderMusic();
     renderSoundSettings(this.root.querySelector('#m-sound-settings'));
@@ -1314,7 +1330,7 @@ export class MainMenu {
       ${
         s.mode === 'ftpTest'
           ? this.ftpTestHtml()
-          : s.mode === 'workout' || s.mode === 'challenge'
+          : s.mode === 'challenge'
             ? ''
             : `<h3 class="mm-where">${L ? 'Où rouler ?' : 'Where to ride?'}</h3>${this.pickersHtml(r)}`
       }
@@ -1369,6 +1385,10 @@ export class MainMenu {
           typeColors: TYPE_COLORS,
           typeLabels: WORKOUT_TYPE_LABELS,
           zoneColor: zoneColorOf,
+          query: this.wkQuery,
+          dur: this.wkDur,
+          sort: this.wkSort,
+          intensity: clampWorkoutIntensity(this.s.workoutIntensity),
         })}
         <label class="mm-file">${L ? 'Ou importer une séance' : 'Or import a workout'} (.zwo / .erg / .mrc)<input id="m-workout" type="file" accept=".zwo,.erg,.mrc" hidden /><span id="m-wname">${this.workoutFile ? esc(this.workoutFile.name) : ''}</span></label>
       </div></div>`;
@@ -3194,6 +3214,48 @@ export class MainMenu {
           this.myWorkouts = list;
           if (this.picker === 'workouts') this.render();
         });
+        this.render();
+      }),
+    );
+    // Studio des séances : filtre de durée, recherche, tri, intensité.
+    this.root.querySelectorAll<HTMLElement>('[data-wkdur]').forEach((el) =>
+      el.addEventListener('click', () => {
+        this.wkDur = (el.dataset.wkdur ?? '') as WorkoutDurFilter;
+        this.render();
+      }),
+    );
+    const wkQ = this.root.querySelector<HTMLInputElement>('#ws-q');
+    wkQ?.addEventListener('input', () => {
+      this.wkQuery = wkQ.value;
+      this.wkQueryCaret = wkQ.selectionStart ?? wkQ.value.length;
+      this.render();
+    });
+    // Échap vide la recherche avant de fermer la fenêtre.
+    wkQ?.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && wkQ.value) {
+        e.preventDefault();
+        e.stopPropagation();
+        this.wkQuery = '';
+        this.wkQueryCaret = 0;
+        this.render();
+      }
+    });
+    this.root.querySelector<HTMLSelectElement>('#ws-sort')?.addEventListener('change', (e) => {
+      this.wkSort = (e.target as HTMLSelectElement).value as WorkoutSort;
+      this.render();
+    });
+    this.root.querySelectorAll<HTMLElement>('[data-wkreset]').forEach((el) =>
+      el.addEventListener('click', () => {
+        this.wkQuery = '';
+        this.wkDur = '';
+        this.render();
+      }),
+    );
+    this.root.querySelectorAll<HTMLElement>('[data-wkint]').forEach((el) =>
+      el.addEventListener('click', () => {
+        const step = Number(el.dataset.wkint);
+        s.workoutIntensity = step === 0 ? 1 : clampWorkoutIntensity(clampWorkoutIntensity(s.workoutIntensity) + step * 0.05);
+        changed();
         this.render();
       }),
     );

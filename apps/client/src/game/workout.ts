@@ -29,8 +29,11 @@ export class WorkoutController {
   onFinished?: (ftpEstimate: number | null) => void;
   private finishedNotified = false;
 
-  /** `file` : séance importée ; `library` : séance intégrée dont `presetId` est l'identifiant. */
-  constructor(kind: WorkoutKind, ftpWatts: number, file?: { name: string; content: string }, presetId?: string) {
+  /**
+   * `file` : séance importée ; `library` : séance intégrée dont `presetId` est l'identifiant.
+   * `intensity` (0,8–1,2) multiplie toutes les cibles des séances ; les tests FTP l'ignorent.
+   */
+  constructor(kind: WorkoutKind, ftpWatts: number, file?: { name: string; content: string }, presetId?: string, intensity = 1) {
     this.kind = kind;
     const preset = WORKOUT_LIBRARY.find((w) => w.id === presetId);
     if (kind === 'library' && !preset) throw new Error(`Séance intégrée inconnue : ${presetId}`);
@@ -42,7 +45,8 @@ export class WorkoutController {
           : kind === 'library'
             ? (preset as (typeof WORKOUT_LIBRARY)[number]).build()
             : parseWorkoutFile((file as { name: string }).name, (file as { content: string }).content);
-    this.runner = new WorkoutRunner(this.workout, { ftpWatts });
+    const isTest = kind === 'ramp' || kind === 'ftp20';
+    this.runner = new WorkoutRunner(this.workout, { ftpWatts, intensity: isTest ? 1 : clampWorkoutIntensity(intensity) });
     this.position = this.runner.at(0);
   }
 
@@ -74,12 +78,26 @@ export class WorkoutController {
   /** Profil de la séance pour le HUD : [début (s), durée (s), cible début (W), cible fin (W)]. */
   profile(ftpWatts: number): Array<[number, number, number, number]> {
     let t = 0;
+    const k = this.runner.intensity;
     return this.workout.steps.map((s) => {
-      const a = stepTargetWatts(s, 0, ftpWatts) ?? ftpWatts * 0.5;
-      const b = stepTargetWatts(s, 1, ftpWatts) ?? a;
+      const a0 = stepTargetWatts(s, 0, ftpWatts);
+      const a = a0 === null ? ftpWatts * 0.5 : a0 * k;
+      const b1 = stepTargetWatts(s, 1, ftpWatts);
+      const b = b1 === null ? a : b1 * k;
       const row: [number, number, number, number] = [t, s.durationS, a, b];
       t += s.durationS;
       return row;
     });
   }
+}
+
+/** Bornes de l'intensité réglable des séances (80–120 %, pas de 5 %). */
+export const WORKOUT_INTENSITY_MIN = 0.8;
+export const WORKOUT_INTENSITY_MAX = 1.2;
+
+/** Intensité ramenée dans les bornes et au pas de 5 % ; 1 si la valeur est absente ou invalide. */
+export function clampWorkoutIntensity(v: unknown): number {
+  const n = typeof v === 'number' && Number.isFinite(v) ? v : 1;
+  const r = Math.round(n * 20) / 20;
+  return Math.min(WORKOUT_INTENSITY_MAX, Math.max(WORKOUT_INTENSITY_MIN, r));
 }
