@@ -194,7 +194,7 @@ function rampWarmupMessages(warmupS: number, startWatts: number, stepWatts: numb
     'Échauffement : pédale tranquillement, trouve ta position.',
     'Le test : des paliers d’une minute qui montent jusqu’à ce que tu ne puisses plus suivre.',
     `Départ à ${startWatts} W, puis +${stepWatts} W chaque minute. Le home trainer règle la puissance.`,
-    'Reste assis tout le test et garde une cadence régulière, entre 80 et 95 tr/min.',
+    `Reste assis tout le test et garde une cadence régulière, entre ${RAMP_CADENCE.low} et ${RAMP_CADENCE.high} tr/min.`,
     'Ta FTP vient de ta meilleure minute : chaque coup de pédale compte à la fin.',
     'Le début est très facile, c’est voulu. Ça devient dur d’un coup : c’est là qu’il faut tenir.',
     'Le test s’arrête tout seul quand tu ne tiens plus le palier pendant 15 secondes.',

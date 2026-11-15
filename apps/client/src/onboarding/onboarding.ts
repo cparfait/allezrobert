@@ -259,7 +259,7 @@ export class Onboarding {
           ? `<h2>${fr ? 'Le test FTP' : 'The FTP test'}</h2>
             <ol style="margin:0 0 12px;padding-left:20px;line-height:1.7">
               <li><b>${fr ? 'Échauffement' : 'Warm-up'}</b> — ${fr ? '5 min à 100 W, en mode ERG : le home trainer impose la puissance.' : '5 min at 100 W in ERG mode: the trainer sets the power.'}</li>
-              <li><b>${fr ? 'Paliers' : 'Steps'}</b> — ${fr ? '+20 W chaque minute, cadence régulière autour de 85–95 tr/min.' : '+20 W every minute, steady cadence around 85–95 rpm.'}</li>
+              <li><b>${fr ? 'Paliers' : 'Steps'}</b> — ${fr ? '+20 W chaque minute, cadence régulière entre 70 et 100 tr/min.' : '+20 W every minute, steady cadence between 70 and 100 rpm.'}</li>
               <li><b>${fr ? 'Jusqu’au bout' : 'To the end'}</b> — ${fr ? 'arrête-toi quand tu ne tiens plus le palier (souvent 15 à 25 min).' : 'stop when you can no longer hold the step (often 15–25 min).'}</li>
               <li><b>${fr ? 'Résultat' : 'Result'}</b> — ${fr ? 'FTP = 75 % de ta meilleure minute ; elle règle tes zones et tes séances.' : 'FTP = 75% of your best minute; it sets your zones and workouts.'}</li>
             </ol>
