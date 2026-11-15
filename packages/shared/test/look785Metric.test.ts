@@ -3,11 +3,11 @@
  */
 import { describe, expect, it } from 'vitest';
 import { validateMetricBike } from '../src/bikeMetric.ts';
-import { LOOK785_L, LOOK785_M, LOOK785_MODEL_ID, LOOK785_SIZE_GUIDE, LOOK785_SIZES, LOOK785_XS } from '../src/look785Metric.ts';
+import { LOOK785_L, LOOK785_M, LOOK785_MODEL_ID, LOOK785_SIZE_GUIDE, LOOK785_SIZES, LOOK785_XL, LOOK785_XS } from '../src/look785Metric.ts';
 import { roubaixSizeFor, type RoubaixSizeSpec } from '../src/roubaixMetric.ts';
 
 /** Cotes LOOK (génération disque 2019–2023) : stack, reach, angle de douille, manivelle, cintre, potence (cockpit du Roubaix). */
-const COTES = { XS: [510, 365, 71.8, 0.17, 0.36, 0.07], M: [558, 385, 73, 0.1725, 0.42, 0.1], L: [582, 395, 73, 0.1725, 0.42, 0.1] } as const;
+const COTES = { XS: [510, 365, 71.8, 0.17, 0.36, 0.07], M: [558, 385, 73, 0.1725, 0.42, 0.1], L: [582, 395, 73, 0.1725, 0.42, 0.1], XL: [606, 405, 73, 0.175, 0.44, 0.12] } as const;
 
 describe('LOOK 785 : contrat de chaque taille', () => {
   for (const spec of LOOK785_SIZES) {
@@ -55,8 +55,10 @@ describe('LOOK 785 : contrat de chaque taille', () => {
     const seat = (s: RoubaixSizeSpec) => s.metric.contacts.saddle?.originM[1] ?? 0;
     expect(wb(LOOK785_XS)).toBeLessThan(wb(LOOK785_M));
     expect(wb(LOOK785_M)).toBeLessThan(wb(LOOK785_L));
+    expect(wb(LOOK785_L)).toBeLessThan(wb(LOOK785_XL));
     expect(seat(LOOK785_XS)).toBeLessThan(seat(LOOK785_M));
     expect(seat(LOOK785_M)).toBeLessThan(seat(LOOK785_L));
+    expect(seat(LOOK785_L)).toBeLessThan(seat(LOOK785_XL));
   });
 });
 
@@ -70,12 +72,14 @@ describe('LOOK 785 : taille de cadre selon la taille du coureur', () => {
     expect(roubaixSizeFor(183, all, LOOK785_SIZE_GUIDE)).toBe('L');
     expect(roubaixSizeFor(192, all, LOOK785_SIZE_GUIDE)).toBe('XL');
   });
-  it('tailles modélisées (XS, M, L)', () => {
+  it('tailles modélisées (XS, M, L, XL)', () => {
     expect(roubaixSizeFor(142, dispo, LOOK785_SIZE_GUIDE)).toBe('XS');
     expect(roubaixSizeFor(168, dispo, LOOK785_SIZE_GUIDE)).toBe('XS');
     expect(roubaixSizeFor(169, dispo, LOOK785_SIZE_GUIDE)).toBe('M');
     expect(roubaixSizeFor(179, dispo, LOOK785_SIZE_GUIDE)).toBe('M');
     expect(roubaixSizeFor(181, dispo, LOOK785_SIZE_GUIDE)).toBe('L');
-    expect(roubaixSizeFor(200, dispo, LOOK785_SIZE_GUIDE)).toBe('L');
+    expect(roubaixSizeFor(187, dispo, LOOK785_SIZE_GUIDE)).toBe('L');
+    expect(roubaixSizeFor(188, dispo, LOOK785_SIZE_GUIDE)).toBe('XL');
+    expect(roubaixSizeFor(200, dispo, LOOK785_SIZE_GUIDE)).toBe('XL');
   });
 });

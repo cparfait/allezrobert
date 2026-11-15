@@ -238,13 +238,15 @@ describe('LOOK 785 dédié : fichiers livrés et choix de taille', () => {
       g.asset.extras?.reglageSelle?.directionUp?.forEach((v, i) => expect(v).toBeCloseTo(spec.seatpost.directionUp[i] ?? NaN, 5));
     });
   }
-  it('taille selon le coureur (guide LOOK : XS jusqu’à 168 cm, M jusqu’à 179, L au-delà), taille forcée, modèle reconnu', () => {
+  it('taille selon le coureur (guide LOOK : XS jusqu’à 168 cm, M jusqu’à 179, L jusqu’à 187, XL au-delà), taille forcée, modèle reconnu', () => {
     expect(roubaixSizeForRider(142, null, LOOK785_MODEL_ID)).toBe('XS');
     expect(roubaixSizeForRider(168, null, LOOK785_MODEL_ID)).toBe('XS');
     expect(roubaixSizeForRider(169, null, LOOK785_MODEL_ID)).toBe('M');
     expect(roubaixSizeForRider(179, null, LOOK785_MODEL_ID)).toBe('M');
     expect(roubaixSizeForRider(181, null, LOOK785_MODEL_ID)).toBe('L');
-    expect(roubaixSizeForRider(195, null, LOOK785_MODEL_ID)).toBe('L');
+    expect(roubaixSizeForRider(187, null, LOOK785_MODEL_ID)).toBe('L');
+    expect(roubaixSizeForRider(188, null, LOOK785_MODEL_ID)).toBe('XL');
+    expect(roubaixSizeForRider(195, null, LOOK785_MODEL_ID)).toBe('XL');
     expect(roubaixSizeForRider(175, 'XS', LOOK785_MODEL_ID)).toBe('XS');
     expect(roubaixSizeForRider(175, '44', LOOK785_MODEL_ID)).toBeNull();
     expect(roubaixSizeForRider(175, null, 'div-autre-velo')).toBeNull();

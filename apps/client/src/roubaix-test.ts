@@ -18,7 +18,7 @@ import type { Engine } from './engine/renderer.ts';
  * ?view=side|right|34|front|back|top, ?dist=…, ?target=x,y,z (point visé, m), ?nolivery=1, ?spin=1. Curseur et boutons dans la page.
  * Mode coureur (I-4b) : ?rider=1&roubaix=1&taille=150 (ou &roubaix=44 pour forcer la taille), &pose=seated|standing|coasting,
  * &cadence=80, &manivelle=<degrés> (pédalier figé à cet angle) ; ?avatar=tripo pour le coureur Tripo.
- * ?modele=look : LOOK 785 Huez RS dédié (tailles XS, M, L ; ?size=M par défaut) au lieu du Roubaix.
+ * ?modele=look : LOOK 785 Huez RS dédié (tailles XS, M, L, XL ; ?size=M par défaut) au lieu du Roubaix.
  */
 const log = document.getElementById('log') as HTMLElement;
 const canvas = document.getElementById('scene') as HTMLCanvasElement;

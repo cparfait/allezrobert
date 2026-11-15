@@ -42,7 +42,7 @@ export interface RoubaixBike {
 
 /**
  * Modèles du catalogue montés en vélo dédié par taille (même chargeur, même ajustement du coureur) : Roubaix Sport 2020
- * (tailles 44, 54) et LOOK 785 Huez RS (XS, M, L, cadre procédural). Les noms de taille sont uniques entre modèles.
+ * (tailles 44, 54) et LOOK 785 Huez RS (XS, M, L, XL, cadre procédural). Les noms de taille sont uniques entre modèles.
  */
 export const DEDICATED_BIKES: Readonly<Record<string, { readonly sizes: readonly RoubaixSizeSpec[]; readonly guide: readonly RoubaixSizeBand[] }>> = {
   [ROUBAIX_MODEL_ID]: { sizes: ROUBAIX_SIZES, guide: ROUBAIX_SIZE_GUIDE },
@@ -177,7 +177,7 @@ export function roubaixAnchor(root: THREE.Object3D, name: string): THREE.Vector3
 
 /**
  * Taille de vélo dédié pour une taille de coureur : la taille modélisée la plus proche dans le guide du modèle (Roubaix :
- * 44 jusqu'à 160 cm, 54 au-delà ; LOOK 785 : XS jusqu'à 168 cm, M jusqu'à 179, L au-delà) ; `forced` (option
+ * 44 jusqu'à 160 cm, 54 au-delà ; LOOK 785 : XS jusqu'à 168 cm, M jusqu'à 179, L jusqu'à 187, XL au-delà) ; `forced` (option
  * ?roubaix=<taille>) l'emporte quand c'est une taille de ce modèle.
  */
 export function roubaixSizeForRider(heightCm: number | undefined, forced?: string | null, bikeModel: string = ROUBAIX_MODEL_ID): string | null {
