@@ -253,6 +253,14 @@ const MENU_MEDIA_VERSION = 12;
 /** Points de contact des roues devant / derrière l'origine du coureur (m, vélo route de référence). */
 const WHEEL_FRONT_M = 0.6;
 const WHEEL_REAR_M = 0.417;
+/**
+ * Virages à angle droit : le vélo affiché avance selon son cap, à sa vitesse, et il est ramené vers la trajectoire
+ * (LINE_PULL par seconde, LINE_MAX_DEV m d'écart au plus). Sans cela, sa position suivait les cassures du tracé
+ * (rayon ≈ 2,5 m sur les routes étroites de Limagne) : il glissait de côté et la caméra encaissait un à-coup.
+ * Simulé sur les 25 virages ≥ 70° du Tour de Neuville : rayon médian 2,5 → 9,9 m, glissade divisée par trois.
+ */
+const LINE_PULL = 3;
+const LINE_MAX_DEV = 1.2;
 // Listes déroulantes aux couleurs de l'appli, y compris celles ajoutées après coup (appareils audio…).
 autoEnhanceSelects();
 
@@ -1934,6 +1942,8 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   // Monde ouvert : roues posées sur la chaussée du réseau (écart lissé au profil de l'itinéraire, et tangage).
   let roadDy = 0;
   let roadPitch = Number.NaN;
+  /** Position affichée lissée dans les virages (voir LINE_PULL). */
+  const linePos = new THREE.Vector3(Number.NaN, 0, 0);
   /**
    * Demi-tour : la physique repart d'un coup dans l'autre sens (itinéraire remonté, chemin inversé du monde
    * ouvert). Le coureur affiché, lui, le fait en roulant : un U à sa vitesse (avance, tourne vers la voie d'en
@@ -2138,6 +2148,24 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     pos.set(sample.x, sample.y + 0.06, sample.z);
     // Sens de marche : après un demi-tour, on remonte l'itinéraire.
     dir.set(sample.dirX * ride.dir, 0, sample.dirZ * ride.dir);
+    // Virages : position prédite selon le cap puis ramenée vers la trajectoire (voir LINE_PULL).
+    if (!pilotCollision && !turn && !Number.isNaN(linePos.x) && dt > 0 && dt < 0.25 && Math.hypot(pos.x - linePos.x, pos.z - linePos.z) < 10) {
+      const v = ride.state.speedMs;
+      linePos.x += dir.x * v * dt;
+      linePos.z += dir.z * v * dt;
+      const k = 1 - Math.exp(-dt * LINE_PULL);
+      linePos.x += (pos.x - linePos.x) * k;
+      linePos.z += (pos.z - linePos.z) * k;
+      const ex = linePos.x - pos.x;
+      const ez = linePos.z - pos.z;
+      const e = Math.hypot(ex, ez);
+      if (e > LINE_MAX_DEV) {
+        linePos.x = pos.x + (ex * LINE_MAX_DEV) / e;
+        linePos.z = pos.z + (ez * LINE_MAX_DEV) / e;
+      }
+      pos.x = linePos.x;
+      pos.z = linePos.z;
+    } else linePos.copy(pos);
     const heading = Math.atan2(sample.dirX, sample.dirZ) + (ride.dir < 0 ? Math.PI : 0);
     if (Number.isNaN(prevHeading)) prevHeading = heading;
     if (Number.isNaN(shownPos.x)) shownPos.copy(pos);
