@@ -19,7 +19,8 @@ import { KeyboardControls, type InputSource } from './game/inputs.ts';
 import { Peloton } from './game/peloton.ts';
 import { separateRiders, type Body } from './game/collision.ts';
 import { WorkoutController, ftpTestProtocolOf, isFtpTestKind } from './game/workout.ts';
-import { showFtpResult } from './ui/ftpResult.ts';
+import { showFtpResult, type FtpResultInput } from './ui/ftpResult.ts';
+import { buildFtpReport, type FtpDecision } from './ui/ftpTestReport.ts';
 import { FtpCoach, COACH_PRELOAD } from './game/ftpCoach.ts';
 import { CoachVoice } from './audio/coachVoice.ts';
 import { FriendGhost, Ghost, fetchFriendGhost, uploadGhost } from './game/ghost.ts';
@@ -55,7 +56,7 @@ import { fetchRealWeather } from './game/realWeather.ts';
 import { addXp, awardRide, loadProgress, tunedBike } from './ui/garage.ts';
 import { AtelierHost, slotOfPicked, type AtelierState } from './ui/atelier.ts';
 import { rimGlow } from './rider/rimDecal.ts';
-import { COLLISION_PILOT_ROUTE, COLLISION_PILOT_WORLD, EQUALIZED_BIKE, createPilotBuildingCollision, paramsFromBike, roadHalfM, sharedRoadCorridor } from '@allezrobert/physics';
+import { COLLISION_PILOT_ROUTE, COLLISION_PILOT_WORLD, EQUALIZED_BIKE, createPilotBuildingCollision, paramsFromBike, roadHalfM, sharedRoadCorridor, stepTargetWatts, type FtpTestProtocol } from '@allezrobert/physics';
 import { awardTrophies } from './game/trophies.ts';
 import { roadSurfaceAt, windShelterAt } from './world/conditions.ts';
 import { OpenNavigator } from './game/open.ts';
@@ -1326,6 +1327,34 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   musicCtl.onTrack = (label) => hud.toast(`♪ ${label}`);
   hud.ftp = s.ftpWatts;
   hud.setVisible(true);
+  /** Test FTP : FTP au départ, résultat (null tant qu'il n'y en a pas), choix du coureur, historique des FTP. */
+  const ftpOutcome: { oldFtp: number; result: Omit<FtpResultInput, 'fr'> | null; decision: FtpDecision; history: Array<{ t: number; ftp: number; source: string }> } = {
+    oldFtp: s.ftpWatts,
+    result: null,
+    decision: 'pending',
+    history: [],
+  };
+  let closeFtpResult: (() => void) | null = null;
+  if (workout && isFtpTestKind(workout.kind))
+    void rideHistory
+      .ftpHistory()
+      .then((list) => (ftpOutcome.history = list.map((f) => ({ t: f.recordedAt, ftp: f.ftpWatts, source: f.source }))))
+      .catch(() => undefined);
+  /** Choix du coureur après un test FTP (fenêtre de fin de test ou bilan) : une seule fois. */
+  const keepFtp = (keepNew: boolean) => {
+    const ftp = ftpOutcome.result?.newFtp;
+    if (ftpOutcome.decision !== 'pending' || !ftp || !workout) return;
+    ftpOutcome.decision = keepNew ? 'new' : 'old';
+    closeFtpResult?.();
+    closeFtpResult = null;
+    coach?.voice.say(coach.logic.decision(keepNew));
+    if (!keepNew) return;
+    s.ftpWatts = ftp;
+    hud.ftp = ftp;
+    saveSettings(s);
+    void rideHistory.addFtp(ftp, workout.kind === 'ftp20' ? '20min' : 'ramp', ride.startT);
+    hud.toast(getLang() === 'fr' ? `Nouvelle FTP : ${ftp} W` : `New FTP: ${ftp} W`);
+  };
   if (workout) {
     workout.onMessage = (m) => hud.toast(m);
     workout.onFinished = (ftp, end) => {
@@ -1339,18 +1368,11 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
         hud.toast(L ? 'Effort trop court pour estimer ta FTP (au moins 3 paliers, ou les 20 minutes).' : 'Effort too short to estimate your FTP (at least 3 steps, or the full 20 minutes).');
         return;
       }
-      // Résultat proposé, jamais imposé : le coureur garde la nouvelle FTP ou l'ancienne.
+      // Résultat proposé, jamais imposé : le coureur garde la nouvelle FTP ou l'ancienne (ici ou sur le bilan).
       const live = w.liveEstimate();
-      const oldFtp = s.ftpWatts;
+      ftpOutcome.result = { oldFtp: ftpOutcome.oldFtp, newFtp: ftp, massKg: s.massKg, end, ...(live ? { basis: { kind: live.basis, watts: live.basisWatts } } : {}) };
       hud.toast(L ? `FTP estimée : ${ftp} W` : `Estimated FTP: ${ftp} W`);
-      showFtpResult({ fr: L, oldFtp, newFtp: ftp, massKg: s.massKg, end, ...(live ? { basis: { kind: live.basis, watts: live.basisWatts } } : {}) }, (keepNew) => {
-        if (!keepNew) return;
-        s.ftpWatts = ftp;
-        hud.ftp = ftp;
-        saveSettings(s);
-        void rideHistory.addFtp(ftp, w.kind === 'ftp20' ? '20min' : 'ramp', ride.startT);
-        hud.toast(L ? `Nouvelle FTP : ${ftp} W` : `New FTP: ${ftp} W`);
-      });
+      closeFtpResult = showFtpResult({ fr: L, ...ftpOutcome.result }, keepFtp);
     };
   }
   ghost.onNewRecord = (lapS, prev) => hud.toast(`${t('newRecord')} ${Math.floor(lapS / 60)}:${String(Math.round(lapS % 60)).padStart(2, '0')}${prev ? ` (−${Math.round(prev - lapS)} s)` : ''}`);
@@ -1381,7 +1403,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
           };
           const done = w.onFinished;
           w.onFinished = (ftp, end) => {
-            c.voice.say(c.logic.finished({ ftp, end, oldFtp: s.ftpWatts, massKg: s.massKg, live: w.liveEstimate() }));
+            c.voice.say(c.logic.finished({ ftp, end, oldFtp: ftpOutcome.oldFtp, massKg: s.massKg, live: w.liveEstimate() }));
             done?.(ftp, end);
           };
           return c;
@@ -1634,6 +1656,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     clearInterval(sourcesTimer);
     void mp?.dispose();
     void voice?.disconnect();
+    coach?.voice.stop();
     tutorial?.stop();
     audio.dispose();
     input.sendTrainer({ kind: 'simulation', gradePercent: 0 });
@@ -1647,10 +1670,46 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     }
     location.href = url.toString();
   };
+  /** Bilan du test FTP (écran de fin) : résultat, choix, puissance seconde par seconde, consignes, historique. */
+  const ftpReportOf = (w: WorkoutController) => {
+    const samples = w.powerSamples;
+    const hrs = ride.records.map((r) => r.hr ?? 0).filter((h) => h > 0);
+    const cads = ride.records.map((r) => r.cadence ?? 0).filter((c) => c > 0);
+    let t = 0;
+    const steps = w.workout.steps.map((st) => {
+      const a = stepTargetWatts(st, 0, ftpOutcome.oldFtp);
+      const b = stepTargetWatts(st, 1, ftpOutcome.oldFtp);
+      const row = { startS: t, durationS: st.durationS, target: a === null || b === null ? null : ([a, b] as [number, number]) };
+      t += st.durationS;
+      return row;
+    });
+    const held = w.kind === 'ftp20' ? null : Math.max(0, w.position.stepIndex - 1);
+    return buildFtpReport({
+      protocol: w.kind as FtpTestProtocol,
+      name: w.workout.name,
+      result: ftpOutcome.result,
+      decision: ftpOutcome.decision,
+      oldFtp: ftpOutcome.oldFtp,
+      massKg: s.massKg,
+      samples: [...samples],
+      steps,
+      effortStartS: w.effortStart,
+      stepsHeld: held,
+      maxHr: hrs.length ? Math.max(...hrs) : null,
+      avgCadence: cads.length ? cads.reduce((x, c) => x + c, 0) / cads.length : null,
+      history: ftpOutcome.history,
+      now: Date.now(),
+    });
+  };
   const finish = () => {
-    // Test FTP quitté en cours : il se termine et propose son résultat (si l'effort suffit).
+    // Test FTP quitté en cours : il se termine (la voix dit le résultat) ; sinon la voix redit le bilan.
+    const ftpTestRide = !!workout && isFtpTestKind(workout.kind);
+    const ftpEndedBefore = ftpTestRide && !!workout?.ended;
     workout?.stop();
-    coach?.voice.stop();
+    // Le choix se fait sur le bilan : la fenêtre de fin de test se ferme.
+    closeFtpResult?.();
+    closeFtpResult = null;
+    if (coach && ftpEndedBefore) coach.voice.say(coach.logic.report({ ftp: ftpOutcome.result?.newFtp ?? null, massKg: s.massKg, decision: ftpOutcome.decision }));
     ride.paused = true;
     hud.setVisible(false);
     input.sendTrainer({ kind: 'simulation', gradePercent: 0 });
@@ -1712,8 +1771,9 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     );
     const trophyXp = trophies.reduce((a, t) => a + t.xp, 0);
     const after = trophyXp && xp ? addXp(trophyXp) : null;
-    // Bilan parlé à l'ouverture des statistiques : dans toutes les sorties (le reste de la voix de course ne sert qu'en course).
-    announcer.summary({
+    // Bilan parlé à l'ouverture des statistiques : dans toutes les sorties (le reste de la voix de course ne sert qu'en course),
+    // sauf le test FTP, dont le coach dit le bilan de la FTP.
+    if (!ftpTestRide) announcer.summary({
       distanceKm: stats.distanceM / 1000,
       avgSpeedKmh: stats.avgSpeedKmh,
       records: records.beaten.length > 0,
@@ -1735,6 +1795,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
         guest: s.guest,
         trophies: trophies.map((t) => ({ name: t.name[getLang()], description: t.description[getLang()], xp: t.xp })),
         ...(challengeResult ? { challenge: challengeResult } : {}),
+        ...(ftpTestRide && workout ? { ftpTest: ftpReportOf(workout) } : {}),
         ...(xp
           ? {
               xp: {
@@ -1772,6 +1833,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
                 ride.paused = false;
               },
             }),
+        ...(ftpTestRide ? { onFtpDecision: keepFtp } : {}),
         onNewRide: () => teardown(true),
         onQuit: () => teardown(false),
         ...(s.guest

@@ -92,6 +92,16 @@ export class WorkoutController {
     return this.finishedNotified;
   }
 
+  /** Puissance mesurée, une valeur par seconde depuis le départ de la séance (bilan du test FTP). */
+  get powerSamples(): readonly number[] {
+    return this.watts;
+  }
+
+  /** Début (s) des paliers de la rampe ou de l'effort libre du test 20 min (0 hors test). */
+  get effortStart(): number {
+    return this.effortStartS;
+  }
+
   /** Avance la séance ; renvoie la consigne ERG (W) ou null (pédalage libre en simulation). */
   update(elapsedS: number, measuredWatts: number): number | null {
     if (this.endedEarly) return null;

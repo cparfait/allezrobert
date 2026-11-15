@@ -2,6 +2,7 @@ import { getLang } from '../i18n/index.ts';
 import type { RideSession } from '../game/ride.ts';
 import { CURVE_DURATIONS, durationLabel, POWER_ZONES, type RideHistoryEntry, type RideStats } from '../game/stats.ts';
 import type { HistoryRide, RideFeedback } from '@allezrobert/shared';
+import { bindFtpReport, ftpHistoryHtml, ftpProfileHtml, ftpReportView, ftpResultCardHtml, ftpTestChartSvg, ftpZonesHtml, type FtpTestReport } from './ftpTestReport.ts';
 import './summary.css';
 
 /** Couleurs des séries (palette catégorielle validée sur fond sombre) et des zones (HUD). */
@@ -35,6 +36,8 @@ export interface SummaryData {
   challenge?: { name: string; timeS: number; previousS: number | null; isRecord: boolean };
   /** Trophées gagnés par cette sortie. */
   trophies?: Array<{ name: string; description: string; xp: number }>;
+  /** Test FTP : le bilan parle de la FTP (résultat, choix, zones) au lieu du parcours. */
+  ftpTest?: FtpTestReport;
 }
 
 export interface SummaryActions {
@@ -51,6 +54,8 @@ export interface SummaryActions {
   onlineBox?: (box: HTMLElement) => void;
   /** Ressenti de la sortie, gardé dans l'historique (absent : pas de question). */
   onFeedback?: (feedback: RideFeedback) => void;
+  /** Test FTP : choix fait sur le bilan (garder la nouvelle FTP ou l'ancienne). */
+  onFtpDecision?: (keepNew: boolean) => void;
 }
 
 const FEELINGS: Array<[RideFeedback, string, string]> = [
@@ -107,7 +112,9 @@ export function showRideSummary(root: HTMLElement, d: SummaryData, a: SummaryAct
   if (d.records.beaten.length) chips.push(`<span class="sum-chip gold">🏅 ${d.records.beaten.length} ${L ? (d.records.beaten.length > 1 ? 'records battus' : 'record battu') : d.records.beaten.length > 1 ? 'records beaten' : 'record beaten'}</span>`);
   if (d.xp?.levelUp) chips.push(`<span class="sum-chip gold">🎉 ${L ? 'Niveau' : 'Level'} ${d.xp.level}</span>`);
   if (d.trophies?.length) chips.push(`<span class="sum-chip gold">🏆 ${d.trophies.length} ${L ? (d.trophies.length > 1 ? 'trophées' : 'trophée') : d.trophies.length > 1 ? 'trophies' : 'trophy'}</span>`);
-  if (vs !== null) chips.push(`<span class="sum-chip ${vs >= 0 ? 'up' : 'down'}">${vs >= 0 ? '▲' : '▼'} ${num(Math.abs(vs), 1)} km/h ${L ? 'vs dernière fois' : 'vs last time'}</span>`);
+  const ftpT = d.ftpTest;
+  const fv = ftpT ? ftpReportView(ftpT, L) : null;
+  if (vs !== null && !ftpT) chips.push(`<span class="sum-chip ${vs >= 0 ? 'up' : 'down'}">${vs >= 0 ? '▲' : '▼'} ${num(Math.abs(vs), 1)} km/h ${L ? 'vs dernière fois' : 'vs last time'}</span>`);
   if (d.xp) chips.push(`<span class="sum-chip">+${d.xp.gained} XP</span>`);
   const segs = d.ride.segmentResults;
   const g = d.ride.group;
@@ -115,7 +122,7 @@ export function showRideSummary(root: HTMLElement, d: SummaryData, a: SummaryAct
   root.innerHTML = `<div class="sum">
     <header class="sum-head">
       <div class="sum-hero"><span class="sum-robert" aria-hidden="true"></span>
-        <div><h1>${L ? 'Bravo, <em>belle sortie</em> !' : 'Well done, <em>great ride</em>!'}</h1><p>${esc(d.routeName)} · ${num(s.distanceM / 1000, 1)} km · ${hms(s.movingS)} · ${num(s.avgSpeedKmh, 1)} km/h</p>
+        <div><h1>${fv ? fv.title : L ? 'Bravo, <em>belle sortie</em> !' : 'Well done, <em>great ride</em>!'}</h1><p>${fv ? esc(fv.subtitle) : `${esc(d.routeName)} · ${num(s.distanceM / 1000, 1)} km · ${hms(s.movingS)} · ${num(s.avgSpeedKmh, 1)} km/h`}</p>
           ${chips.length ? `<div class="sum-chips">${chips.join('')}</div>` : ''}</div></div>
       <nav class="sum-actions">
         ${a.onResume ? `<button class="sum-btn" id="s-resume">${L ? 'Reprendre' : 'Resume'}</button>` : ''}
@@ -198,7 +205,21 @@ export function showRideSummary(root: HTMLElement, d: SummaryData, a: SummaryAct
           <p class="sum-share-msg" id="s-share-msg" role="status"></p>
         </section>
       </aside>
-      <main class="sum-main">
+      <main class="sum-main${ftpT ? ' ftprep-main' : ''}">${
+        ftpT && fv
+          ? `
+        ${ftpResultCardHtml(ftpT, L)}
+        <h3 class="sum-cap">${L ? 'Le test' : 'The test'}</h3>
+        <div class="sum-tiles">${tilesHtml(fv.tiles, TILE_COLORS.slice(5))}</div>
+        <section class="sum-card sum-chart ftprep-chart"><h3>${L ? 'Ta puissance et la consigne' : 'Your power and the target'}</h3>${ftpTestChartSvg(ftpT, L)}</section>
+        <div class="sum-charts ftprep-grid">
+          ${ftpZonesHtml(ftpT, L)}
+          ${ftpProfileHtml(ftpT, L)}
+          ${ftpHistoryHtml(ftpT, L)}
+          <section class="sum-card sum-chart"><h3>${L ? 'Cardio et puissance' : 'Heart rate and power'}</h3>
+            <div class="sum-canvas tall"><canvas id="c-time"></canvas><div class="sum-tip" hidden></div></div></section>
+        </div>`
+          : `
         <h3 class="sum-cap">${L ? 'Le parcours' : 'The ride'}</h3>
         <div class="sum-tiles">${tilesHtml(course, TILE_COLORS.slice(0, 5))}</div>
         <h3 class="sum-cap">${L ? 'L’effort' : 'The effort'}</h3>
@@ -220,7 +241,8 @@ export function showRideSummary(root: HTMLElement, d: SummaryData, a: SummaryAct
                   .join('')
               : `<p class="sum-muted">${L ? 'Pas de segment chronométré sur cette sortie.' : 'No timed segment on this ride.'}</p>`
           }</section>
-        </div>
+        </div>`
+      }
       </main>
     </div>
   </div>`;
@@ -282,8 +304,13 @@ export function showRideSummary(root: HTMLElement, d: SummaryData, a: SummaryAct
   const online = root.querySelector('#s-online') as HTMLElement;
   if (a.onlineBox) a.onlineBox(online);
   else online.closest('.sum-share')?.querySelector('.sum-online')?.remove();
-  drawZones(root.querySelector('#c-zones') as HTMLElement, s.zonesS, d.ftp);
-  interactiveCanvas(root.querySelector('#c-curve') as HTMLCanvasElement, (ctx, w, h, hx) => drawCurve(ctx, w, h, hx, s, d.records.previous));
+  if (ftpT) {
+    // Choix fait sur le bilan : la carte et les zones suivent la valeur retenue.
+    bindFtpReport(root, ftpT, L, (keepNew) => a.onFtpDecision?.(keepNew));
+  } else {
+    drawZones(root.querySelector('#c-zones') as HTMLElement, s.zonesS, d.ftp);
+    interactiveCanvas(root.querySelector('#c-curve') as HTMLCanvasElement, (ctx, w, h, hx) => drawCurve(ctx, w, h, hx, s, d.records.previous));
+  }
   interactiveCanvas(root.querySelector('#c-time') as HTMLCanvasElement, (ctx, w, h, hx) => drawTimeline(ctx, w, h, hx, d.ride));
 }
 

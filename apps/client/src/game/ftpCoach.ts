@@ -1,6 +1,7 @@
 import type { FtpTestProtocol, WorkoutPosition } from '@allezrobert/physics';
 import { RAMP_FAIL_RATIO, RAMP_FAIL_S, type FtpTestEnd, type LiveFtpEstimate } from './workout.ts';
 import { coachMessageKey, numberKeys, wattsKeys, wkgKeys } from '../audio/coachLines.ts';
+import { levelIndex, type FtpDecision } from '../ui/ftpTestReport.ts';
 
 /**
  * Coach vocal du test FTP : décide quoi dire et quand, sous forme de suites de clés de la banque enregistrée
@@ -223,20 +224,39 @@ export class FtpCoach {
     }
   }
 
-  /** Fin du test : bilan dit à voix haute (rien si la sortie a été quittée : l'écran de résultat suffit). */
+  /** Fin du test (palier non tenu, fin des étapes ou sortie quittée en plein test) : bilan dit à voix haute. */
   finished(r: CoachResult): CoachLine[] {
     this.warned = 0;
-    if (r.end === 'quit') return [];
     if (!r.ftp) return [{ keys: [this.ramp ? 'tooShortRamp' : 'tooShort20'], urgent: true, ttlS: 10 }];
     const keys =
-      this.ramp && r.end === 'failed'
+      this.ramp && r.end !== 'completed'
         ? ['endHeld', ...numberKeys(this.stepsHeld), 'stepsDot', ...(r.live ? ['bestMinute', ...wattsKeys(r.live.basisWatts)] : []), 'estimatedFtp', ...wattsKeys(r.ftp)]
         : ['testDone', 'estimatedFtp', ...wattsKeys(r.ftp)];
     if (r.massKg > 0) keys.push('that', ...wkgKeys(r.ftp / r.massKg));
     const diff = r.ftp - Math.round(r.oldFtp);
     if (Math.abs(diff) < 3) keys.push('sameFtp');
     else keys.push(...numberKeys(Math.abs(diff)), diff > 0 ? 'moreWatts' : 'lessWatts');
-    keys.push(this.ramp ? 'chooseRamp' : 'choose20');
+    keys.push(this.ramp && r.end === 'failed' ? 'chooseRamp' : 'choose20');
     return [{ keys, urgent: true, ttlS: 20 }];
+  }
+
+  /**
+   * Bilan à l'ouverture de l'écran de fin, quand le résultat a déjà été annoncé pendant la sortie : FTP, W/kg,
+   * niveau indicatif, choix (fait ou à faire) et prochain test. Remplace le bilan de sortie habituel.
+   */
+  report(r: { ftp: number | null; massKg: number; decision: FtpDecision }): CoachLine[] {
+    if (!r.ftp) return [{ keys: ['reportIntro', 'noFtpReport', 'nextTest'], urgent: true, ttlS: 15 }];
+    const keys = ['reportIntro', 'estimatedFtp', ...wattsKeys(r.ftp)];
+    if (r.massKg > 0) {
+      const wkg = r.ftp / r.massKg;
+      keys.push('that', ...wkgKeys(wkg), `level${levelIndex(wkg)}`);
+    }
+    keys.push(r.decision === 'new' ? 'decidedNew' : r.decision === 'old' ? 'decidedOld' : 'choose20', 'nextTest');
+    return [{ keys, urgent: true, ttlS: 20 }];
+  }
+
+  /** Choix du coureur (garder la nouvelle FTP ou l'ancienne) : confirmation. */
+  decision(keepNew: boolean): CoachLine[] {
+    return [{ keys: [keepNew ? 'decidedNew' : 'decidedOld'], ttlS: 8 }];
   }
 }
