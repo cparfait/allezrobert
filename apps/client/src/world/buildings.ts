@@ -1091,7 +1091,7 @@ export class Buildings {
       // Égout : mesuré (BD TOPO enrichie au LiDAR) ou déduit des étages (OSM), voir eaveHeight.ts.
       const wallH = eaveHeight({ total, roofH, rise, ...(bld.levels !== undefined ? { levels: bld.levels } : {}), utility: isUtility || isChurch, measured: !!bld.bdtopo });
       const wallTop = base + wallH + 0.3;
-      // Correction visuelle v2 (?visualBuildings=1, ZONES-BAT-2d) : pignon mesuré à faîtage libre à la place du
+      // Correction visuelle v2 (actif par défaut, ?visualBuildings=0 pour couper, ZONES-BAT-2d) : pignon mesuré à faîtage libre à la place du
       // toit du plan ; murs montés jusqu'aux pans. Repli sur le toit historique si la géométrie est refusée ou
       // si l'égout le plus bas ne laisse pas une hauteur de porte au-dessus du pied de mur.
       const visual = bld.id ? tile.buildingVisualCorrections?.get(bld.id) : undefined;

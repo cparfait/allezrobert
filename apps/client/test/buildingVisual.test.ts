@@ -54,8 +54,8 @@ const sourceBuildings = () => toFeatures(JSON.parse(base) as WorldTile).building
 afterEach(() => vi.unstubAllGlobals());
 
 describe('corrections visuelles des bâtiments', () => {
-  it('préserve les identifiants de source, les anciens objets et leur ordre sans requête visuelle par défaut', async () => {
-    vi.stubGlobal('location', { search: '' });
+  it('préserve les identifiants de source, les anciens objets et leur ordre sans requête visuelle avec ?visualBuildings=0', async () => {
+    vi.stubGlobal('location', { search: '?visualBuildings=0' });
     const { fetchMock } = network();
     const tile = await load();
     expect(tile?.buildingSource).toEqual({ worldId: 'zone-a', tileId: '0_0' });

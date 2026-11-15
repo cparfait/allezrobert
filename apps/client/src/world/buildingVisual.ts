@@ -12,7 +12,8 @@ async function digest(bytes: ArrayBuffer): Promise<string> {
 
 /** Un index réseau frais par ouverture de zone. Aucun accès au cache des packs pour ces métadonnées. */
 export function buildingVisualLoader(worldId: string) {
-  if (typeof location === 'undefined' || new URLSearchParams(location.search).get('visualBuildings') !== '1') return;
+  // Actif par défaut depuis le 13/11/2026 ; `?visualBuildings=0` le coupe.
+  if (typeof location === 'undefined' || new URLSearchParams(location.search).get('visualBuildings') === '0') return;
   const base = `${TILES_BASE}/worlds/${encodeURIComponent(worldId)}/tiles/`;
   const fresh = (file: string) => fetch(base + file, { cache: 'no-store', signal: AbortSignal.timeout(4000) });
   let index: Promise<BuildingVisualIndex | undefined> | undefined;
