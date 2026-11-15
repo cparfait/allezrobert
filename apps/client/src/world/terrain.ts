@@ -929,7 +929,8 @@ function edgeDistance(edge: THREE.Texture): GF {
  */
 function edgeTerrainRoadMask(d: GF, raster: GF, camDist: GF): GF {
   const one = float(1);
-  const drawn = one.sub(smoothstep(-0.3, 0.05, d));
+  // sous le ruban seulement : la bande de 0,6 m découpée par le shader des routes (P2.2c) montre le sol
+  const drawn = one.sub(smoothstep(-0.78, -0.66, d));
   const nearDrawn = one.sub(smoothstep(3, 4.5, d));
   const precise = drawn.max(raster.mul(one.sub(nearDrawn)));
   return mix(raster, precise, one.sub(smoothstep(150, 300, camDist))) as unknown as GF;
@@ -945,7 +946,7 @@ function roadShoulder(col: GV3, d: GF, p: { water: GF; urban: GF; snow: GF; ice:
   const one = float(1);
   const nearK = one.sub(smoothstep(80, 160, p.camDist));
   const keep = one.sub(p.water).mul(one.sub(p.snow.max(p.ice))).mul(one.sub(p.urban.mul(0.6)));
-  const gate = nearK.mul(keep).mul(one.sub(smoothstep(3, 3.2, d))).mul(smoothstep(-0.6, -0.3, d));
+  const gate = nearK.mul(keep).mul(one.sub(smoothstep(3, 3.2, d))).mul(smoothstep(-0.8, -0.66, d));
   const out = Fn(() => {
     const o = vec4(col, 0).toVar();
     If(gate.greaterThan(0.001), () => {

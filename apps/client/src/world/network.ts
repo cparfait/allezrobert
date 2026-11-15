@@ -1,5 +1,5 @@
 import * as THREE from 'three/webgpu';
-import { uv, attribute, mix, smoothstep, step, fract, floor, hash, min, vec2, vec3, vec4, float, uniform, mx_noise_float, positionWorld, positionLocal, clamp, abs, max, fwidth, mrt, normalMap, normalView, output, packNormalToRGB, cos } from 'three/tsl';
+import { uv, attribute, mix, smoothstep, step, fract, floor, hash, min, vec2, vec3, vec4, float, uniform, mx_noise_float, positionWorld, positionLocal, clamp, abs, max, fwidth, mrt, normalMap, normalView, output, packNormalToRGB, cos, mod, cameraPosition } from 'three/tsl';
 import { LOW_POLY } from '../engine/style.ts';
 import type { LoadedTile, TileRoad } from './types.ts';
 import { asphaltGrain } from './asphalt.ts';
@@ -28,6 +28,20 @@ const UNPAVED = new Set(['unpaved', 'gravel', 'dirt', 'ground', 'compacted', 'fi
 /** Pavés (secteurs de Paris–Roubaix, vieilles rues) : mêmes valeurs OSM que la physique et le son. */
 const COBBLES = new Set(['sett', 'cobblestone', 'unhewn_cobblestone', 'cobblestone:flattened', 'paving_stones:sett']);
 const SKIP = new Set(['footway', 'path', 'steps', 'cycleway', 'bridleway', 'pedestrian', 'corridor', 'platform']);
+
+/**
+ * Bas-côtés (P2.2c) : les 0,6 m dessinés au-delà de la chaussée, jusque-là en enrobé à arête nette, deviennent des
+ * gravillons et de la terre tassée sous une rive d'enrobé effritée, raccordés à l'accotement peint sur le sol
+ * (terrain.ts, roadShoulder) ; chemins de terre avec deux traces de roues et une bande centrale herbeuse. Style
+ * réaliste seulement ; `?roadshoulder=0` le coupe (aucun nœud ajouté).
+ */
+const ROAD_SHOULDER = (() => {
+  try {
+    return typeof location !== 'undefined' && new URLSearchParams(location.search).get('roadshoulder') !== '0';
+  } catch {
+    return false;
+  }
+})();
 
 const WALK_CELL = 4;
 
@@ -134,7 +148,8 @@ export class RoadNetwork {
     const asphalt = LOW_POLY ? vec3(0.075, 0.078, 0.085) : vec3(0.24, 0.245, 0.26).mul(asphaltGrain()).mul(n2.mul(0.2).add(0.9));
     // Style jeu vidéo : chemins de terre bruns (le gris clair se lisait comme une dalle de béton).
     const gravel = LOW_POLY ? vec3(0.42, 0.33, 0.23) : vec3(0.5, 0.46, 0.38).mul(n.mul(0.35).add(0.7));
-    const unpaved = clamp(info.z, 0, 1).mul(step(info.z, 1.5));
+    // revêtement entier ; + 0,25 sur un pont (le ruban y sert de tablier : bas-côté jamais découpé, voir P2.2c)
+    const unpaved = step(0.5, info.z).mul(step(info.z, 1.5));
     const cobble = step(1.5, info.z);
     // Pavés : rangées de 14 cm décalées d'un demi-pavé, pavés de 17 cm, joints sombres, teinte par pavé.
     const rowF = along.div(0.14);
@@ -204,7 +219,39 @@ export class RoadNetwork {
       // Pied du mur : ombre de contact (le ciel n'y arrive qu'à moitié) ; la GTAO, à l'écran, la manque souvent.
       const contact = float(1).sub(float(1).sub(smoothstep(0, 0.55, side.x)).mul(WALL_SHADOW).mul(walk));
       const walkCol = mix(slab.mul(SLAB_TINT), curbCol, isCurb).mul(contact);
-      const road = mix(mix(asphaltColor(across, along, half, paved, false, WEAR, ASPHALT), gravel.mul(0.75), unpaved), cobblesFx, cobbleF);
+      let road = mix(mix(asphaltColor(across, along, half, paved, false, WEAR, ASPHALT), gravel.mul(0.75), unpaved), cobblesFx, cobbleF);
+      // Bas-côté (P2.2c) : la chaussée revêtue s'arrête sur une rive d'enrobé effritée bordée d'une frange de gravillons ;
+      // au-delà, le ruban est découpé et laisse voir l'accotement peint sur le sol, à la teinte locale (terrain.ts,
+      // roadShoulder). Jamais découpé sur un pont (le ruban y sert de tablier), contre un caniveau ou sur un trottoir.
+      // Chemins de terre : traces de roues et bande centrale herbeuse.
+      let shoulderK = float(0) as unknown as ReturnType<typeof float>;
+      if (ROAD_SHOULDER) {
+        const gutterSide = mix(side.x, side.y, step(0, across)).mul(step(side.x, 1.5));
+        const onBridge = step(0.1, fract(info.z));
+        // rive ondulante de ±20 cm, tirée des deux bruits déjà calculés (aucun bruit de plus)
+        const fray = n.sub(0.5).mul(0.3).add(n2.sub(0.5).mul(0.16));
+        const beyond = smoothstep(half.sub(0.03), half.add(0.05), ax.add(fray));
+        // grains de 4 cm (gravillons) de près ; teinte moyenne au loin, sans scintillement
+        const cellG = mod(floor(positionWorld.xz.mul(25)), 2048);
+        const grit = mix(hash(cellG.x.add(cellG.y.mul(613))).mul(0.36).add(0.82), float(1), smoothstep(0.012, 0.03, pix));
+        const shoulderCol = vec3(0.13, 0.124, 0.112).mul(grit).mul(n.mul(0.16).add(0.92));
+        const pavedK = beyond.mul(paved).mul(float(1).sub(gutterSide));
+        // chemin de terre : traces de roues tassées à ±0,75 m, herbe rase au milieu des chemins étroits
+        const isTrack = unpaved.mul(float(1).sub(cobbleF)).mul(float(1).sub(walk));
+        const rut = float(1).sub(smoothstep(0.1, 0.32, abs(ax.sub(0.8).add(fray.mul(0.4))))).mul(smoothstep(1.1, 1.3, half));
+        const mid = float(1).sub(smoothstep(0.22, 0.55, ax.add(fray.mul(0.5)))).mul(float(1).sub(smoothstep(1.6, 2.2, half)));
+        const trackBase = gravel.mul(0.75);
+        const grassy = mix(trackBase, vec3(0.15, 0.17, 0.08), 0.55).mul(n.mul(0.3).add(0.85));
+        const trackCol = mix(mix(trackBase, trackBase.mul(vec3(0.74, 0.72, 0.7)), rut.mul(0.8)), grassy, mid.mul(0.8));
+        road = mix(mix(road, trackCol, isTrack), shoulderCol, pavedK);
+        shoulderK = pavedK as unknown as ReturnType<typeof float>;
+        // découpe à 14 cm (± rive) au-delà du bord de chaussée ; ruban entier au-delà de 60-100 m (pas de scintillement)
+        const camD = positionWorld.sub(cameraPosition).length();
+        const reach = mix(fray.add(0.14), float(0.62), smoothstep(60, 100, camD)).max(-0.05);
+        const cutK = float(1).sub(onBridge).mul(float(1).sub(gutterSide)).mul(float(1).sub(walk));
+        m.opacityNode = float(1).sub(step(half.add(reach), ax).mul(cutK));
+        m.alphaTest = 0.5;
+      }
       // Décalques (rapiéçages, plaques, caniveaux, passages piétons… voir roadDecals.ts) : la chaussée recalculée dessous.
       const dShade = decalShade(dk, dsz, pix, road, asphaltGrainSoft(), along);
       const dCover = dShade.look.a.mul(DECALS);
@@ -221,7 +268,7 @@ export class RoadNetwork {
       const fxCol = mix(fxSurface.add(irid), vec3(0.62, 0.62, 0.58), paintFx).mul(cloudShade());
       m.colorNode = fxCol;
       const rough0 = mix(mix(mix(mix(float(0.88), float(0.97), unpaved), mix(float(0.66), float(0.92), float(1).sub(inStone)), cobbleF), float(0.9), walk), float(0.62), paintFx);
-      const rough = mix(rough0, dShade.mat.x, dCover);
+      const rough = mix(mix(rough0, float(0.96), shoulderK), dShade.mat.x, dCover);
       m.roughnessNode = clamp(wetRoughness(rough, poreD, masks), 0.04, 1);
       m.metalnessNode = dShade.mat.z.mul(dCover);
       // Relief : pavés bombés (bords de 3,5 cm) près de la caméra, anneaux des gouttes dans les flaques.
@@ -360,11 +407,13 @@ function buildRoads(roads: TileRoad[], footprint: RouteFootprint | null, street:
       const half = Math.max(r.width, 2.5) / 2;
       const marked = MARKED.has(r.kind) && r.width >= 5 ? 1 : 0;
       const unpaved = COBBLES.has(r.surface ?? '') ? 2 : UNPAVED.has(r.surface ?? '') || r.kind === 'track' ? 1 : 0;
-      return { pts3: r.pts3 as number[], half, marked, unpaved, key: `${half}|${marked}|${unpaved}` };
+      const bridge = r.bridge ? 1 : 0;
+      return { pts3: r.pts3 as number[], half, marked, unpaved, bridge, key: `${half}|${marked}|${unpaved}|${bridge}` };
     });
   // Tronçons du graphe mis bout à bout : rives continues aux nœuds, pointillé sans à-coup.
   for (const c of chainPieces(pieces)) {
-    const { half, marked, unpaved } = pieces[c.piece] as (typeof pieces)[number];
+    const { half, marked, unpaved, bridge } = pieces[c.piece] as (typeof pieces)[number];
+    const surfaceCode = unpaved + bridge * 0.25;
     // Bords à demi-largeur + 0,6 m de bas-côté fondu ; découpe contre l'itinéraire actif.
     const o = half + 0.6;
     for (const raw of sideRoadStrips(c.pts3, o, half, footprint, 0.05, c.dirs, c.stops)) {
@@ -464,7 +513,7 @@ function buildRoads(roads: TileRoad[], footprint: RouteFootprint | null, street:
           if (street.crossRoad(cx - ax * r, cz - az * r, -az, ax)) mL = 0;
           if (street.crossRoad(cx + ax * r, cz + az * r, -az, ax)) mR = 0;
         }
-        info.push(half, mL, unpaved, half, mR, unpaved);
+        info.push(half, mL, surfaceCode, half, mR, surfaceCode);
         lit.push(lampAt[i] as number, lampAt[i] as number);
         decal.push(0, 0, 0, 0, 0, 0, 0, 0);
         dsize.push(0, 0, 0, 0);
