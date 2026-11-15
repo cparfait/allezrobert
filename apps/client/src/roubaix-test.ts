@@ -26,6 +26,9 @@ const params = new URLSearchParams(location.search);
 const LOOK = params.get('modele') === 'look';
 const MODEL = LOOK ? LOOK785_MODEL_ID : ROUBAIX_MODEL_ID;
 const NAME = LOOK ? 'LOOK 785' : 'Roubaix';
+// ?dossier=<nom> : fichiers du Roubaix lus dans /models/bikes/<nom>/ (comparaisons avant / après avec un dossier temporaire).
+const DOSSIER = params.get('dossier');
+if (DOSSIER && /^[\w-]+$/.test(DOSSIER)) THREE.DefaultLoadingManager.setURLModifier((u) => u.replace('/models/bikes/roubaix/', `/models/bikes/${DOSSIER}/`));
 
 async function main(): Promise<void> {
   const engine = await createEngine(canvas, { ...QUALITY_PRESETS.high, ao: false, taa: false, pixelRatio: 1 });
