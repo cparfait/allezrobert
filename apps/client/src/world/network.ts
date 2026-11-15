@@ -123,6 +123,11 @@ export class RoadNetwork {
     this.group.name = 'network';
     this.roadMat = this.createRoadMaterial();
     this.group.add(this.lamps.group, this.bollards.group);
+    // Style jeu vidéo : lampadaires et mobilier des boutiques à facettes (LP-T1).
+    if (LOW_POLY) {
+      this.lampMat.flatShading = true;
+      this.propMat.flatShading = true;
+    }
   }
 
   /** La nuit, les lampadaires les plus proches éclairent vraiment (voir NearLampLights). */
@@ -178,6 +183,12 @@ export class RoadNetwork {
     const paint = max(edge, center).mul(LOW_POLY ? float(1) : n2.mul(0.25).add(0.75)).mul(float(1).sub(cobble));
     let col = mix(mix(asphalt, gravel, unpaved), cobbles, cobble);
     col = mix(col, vec3(0.9, 0.9, 0.86), paint);
+    if (LOW_POLY) {
+      // Trottoir (revêtement 3, LP-T1) : dalle claire unie et bordure plus claire, en aplats (sinon pris pour des pavés).
+      const walkLP = step(2.5, info.z);
+      const curbLP = walkLP.mul(step(ax, half.add(0.6 + CURB_W)));
+      col = mix(col, mix(vec3(0.36, 0.34, 0.31), vec3(0.56, 0.54, 0.5), curbLP), walkLP);
+    }
     // Bords fondus dans le bas-côté (pas d'arête nette sur l'herbe).
     col = col.mul(float(1).sub(this.wetness.mul(0.4).mul(float(1).sub(unpaved))));
     m.colorNode = col.mul(cloudShade());
@@ -327,7 +338,8 @@ export class RoadNetwork {
     if (roads.length) {
       const lamps: LampSpot[] = [];
       const bollards: LampSpot[] = [];
-      const street = ROAD_FX && !LOW_POLY ? new StreetIndex(tile, roads, this.shopWallsOf(tile.id)) : null;
+      // Trottoirs, lampadaires, stores et terrasses dans les deux styles (LP-T1) ; décalques et potelets : réaliste seulement (buildRoads).
+      const street = ROAD_FX ? new StreetIndex(tile, roads, this.shopWallsOf(tile.id)) : null;
       const walk: number[] = [];
       const geo = buildRoads(roads, this.footprint, street, lamps, this.groundAt, bollards, walk);
       if (walk.length) this.walks.set(tile.id, indexWalk(walk));
