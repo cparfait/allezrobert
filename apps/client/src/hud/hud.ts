@@ -625,6 +625,8 @@ export class Hud {
       stepRemainingS: number;
       remainingS: number;
       next?: string;
+      /** Ligne de plus (test FTP : estimation en direct, cadence conseillée). */
+      extra?: string;
       profile: Array<[number, number, number, number]>;
       elapsedS: number;
       totalS: number;
@@ -642,7 +644,7 @@ export class Hud {
     const tgt = this.el.wTarget as HTMLElement;
     tgt.textContent = w.targetWatts ? `${Math.round(w.targetWatts)} W` : 'Libre';
     tgt.style.color = !w.targetWatts ? '#f5f7fa' : Math.abs(delta) < w.targetWatts * 0.05 ? '#22c55e' : delta > 0 ? '#f97316' : '#60a5fa';
-    (this.el.wStep as HTMLElement).textContent = `Étape ${Math.min(w.stepIndex + 1, w.stepCount)}/${w.stepCount} · ${fmtTime(w.stepRemainingS)}${w.next ? ` · ensuite ${w.next}` : ''}`;
+    (this.el.wStep as HTMLElement).textContent = `Étape ${Math.min(w.stepIndex + 1, w.stepCount)}/${w.stepCount} · ${fmtTime(w.stepRemainingS)}${w.next ? ` · ensuite ${w.next}` : ''}${w.extra ? ` · ${w.extra}` : ''}`;
     const c = this.el.wChart as HTMLCanvasElement;
     const ctx = c.getContext('2d') as CanvasRenderingContext2D;
     ctx.clearRect(0, 0, c.width, c.height);

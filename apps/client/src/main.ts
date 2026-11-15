@@ -18,7 +18,8 @@ import { RideSession } from './game/ride.ts';
 import { KeyboardControls, type InputSource } from './game/inputs.ts';
 import { Peloton } from './game/peloton.ts';
 import { separateRiders, type Body } from './game/collision.ts';
-import { WorkoutController } from './game/workout.ts';
+import { WorkoutController, ftpTestProtocolOf, isFtpTestKind } from './game/workout.ts';
+import { showFtpResult } from './ui/ftpResult.ts';
 import { FriendGhost, Ghost, fetchFriendGhost, uploadGhost } from './game/ghost.ts';
 import { createDeviceLayer } from './game/devices.ts';
 import { Hud } from './hud/hud.ts';
@@ -1054,7 +1055,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   try {
     if (s.mode === 'workout' && extras.workoutFile) workout = new WorkoutController('file', s.ftpWatts, extras.workoutFile, undefined, s.workoutIntensity);
     else if (s.mode === 'workout' && s.workoutPreset) workout = new WorkoutController('library', s.ftpWatts, undefined, s.workoutPreset, s.workoutIntensity);
-    else if (s.mode === 'ftpTest') workout = new WorkoutController(params.get('ftptest') === '20' ? 'ftp20' : 'ramp', s.ftpWatts);
+    else if (s.mode === 'ftpTest') workout = new WorkoutController(params.get('ftptest') === '20' ? 'ftp20' : ftpTestProtocolOf(s.ftpTestProtocol), s.ftpWatts);
   } catch (e) {
     console.warn('Séance illisible', e);
   }
@@ -1325,13 +1326,29 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   hud.setVisible(true);
   if (workout) {
     workout.onMessage = (m) => hud.toast(m);
-    workout.onFinished = (ftp) => {
-      if (ftp) {
-        hud.toast(`FTP estimée : ${ftp} W`);
+    workout.onFinished = (ftp, end) => {
+      const w = workout;
+      if (!w || !isFtpTestKind(w.kind)) {
+        hud.toast(t('segmentDone'));
+        return;
+      }
+      const L = getLang() === 'fr';
+      if (!ftp) {
+        hud.toast(L ? 'Effort trop court pour estimer ta FTP (au moins 3 paliers, ou les 20 minutes).' : 'Effort too short to estimate your FTP (at least 3 steps, or the full 20 minutes).');
+        return;
+      }
+      // Résultat proposé, jamais imposé : le coureur garde la nouvelle FTP ou l'ancienne.
+      const live = w.liveEstimate();
+      const oldFtp = s.ftpWatts;
+      hud.toast(L ? `FTP estimée : ${ftp} W` : `Estimated FTP: ${ftp} W`);
+      showFtpResult({ fr: L, oldFtp, newFtp: ftp, massKg: s.massKg, end, ...(live ? { basis: { kind: live.basis, watts: live.basisWatts } } : {}) }, (keepNew) => {
+        if (!keepNew) return;
         s.ftpWatts = ftp;
+        hud.ftp = ftp;
         saveSettings(s);
-        void rideHistory.addFtp(ftp, workout?.kind === 'ftp20' ? '20min' : 'ramp', ride.startT);
-      } else hud.toast(t('segmentDone'));
+        void rideHistory.addFtp(ftp, w.kind === 'ftp20' ? '20min' : 'ramp', ride.startT);
+        hud.toast(L ? `Nouvelle FTP : ${ftp} W` : `New FTP: ${ftp} W`);
+      });
     };
   }
   ghost.onNewRecord = (lapS, prev) => hud.toast(`${t('newRecord')} ${Math.floor(lapS / 60)}:${String(Math.round(lapS % 60)).padStart(2, '0')}${prev ? ` (−${Math.round(prev - lapS)} s)` : ''}`);
@@ -1607,6 +1624,8 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     location.href = url.toString();
   };
   const finish = () => {
+    // Test FTP quitté en cours : il se termine et propose son résultat (si l'effort suffit).
+    workout?.stop();
     ride.paused = true;
     hud.setVisible(false);
     input.sendTrainer({ kind: 'simulation', gradePercent: 0 });
@@ -1630,7 +1649,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
       ? null
       : previousComparable(pastRides, { routeId: track.route.id, date: ride.startT, distanceM: stats.distanceM, movingS: stats.movingS, avgSpeedKmh: stats.avgSpeedKmh, avgWatts: stats.avgWatts, np: stats.np });
     // Historique d'entraînement : la sortie, ses mesures et sa séance (une sortie reprise remplace la précédente).
-    const rideKind: RideKind = workout ? (workout.kind === 'ramp' || workout.kind === 'ftp20' ? 'ftp_test' : 'workout') : s.mode === 'race' ? 'race' : mp ? 'group' : 'free';
+    const rideKind: RideKind = workout ? (isFtpTestKind(workout.kind) ? 'ftp_test' : 'workout') : s.mode === 'race' ? 'race' : mp ? 'group' : 'free';
     const rideWorkout = workout ? { workoutId: workout.kind === 'library' ? (s.workoutPreset ?? null) : workout.kind === 'file' ? null : `ftp.${workout.kind}`, workoutName: workout.workout.name } : {};
     if (!s.guest && ride.records.length >= 60) {
       void rideHistory
@@ -2438,6 +2457,13 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
       if (workout) {
         const w = workout.position;
         const next = workout.workout.steps[w.stepIndex + 1];
+        // Test FTP : estimation en direct et cadence conseillée du palier.
+        const est = workout.liveEstimate();
+        const frL = getLang() === 'fr';
+        const cad = w.step?.cadenceLow && w.step.cadenceHigh ? `${w.step.cadenceLow}–${w.step.cadenceHigh} tr/min` : '';
+        const extra = isFtpTestKind(workout.kind)
+          ? [est ? `${frL ? 'FTP estimée' : 'Est. FTP'} ${est.ftp} W` : '', !workout.ended ? cad : ''].filter(Boolean).join(' · ')
+          : '';
         hud.setWorkout({
           name: workout.workout.name,
           targetWatts: w.targetWatts,
@@ -2446,7 +2472,8 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
           stepCount: workout.workout.steps.length,
           stepRemainingS: w.stepRemainingS,
           remainingS: w.remainingS,
-          ...(next ? { next: `${Math.round(((next.powerStart + next.powerEnd) / 2) * (next.powerUnit === 'ftp' ? s.ftpWatts : 1))} W` } : {}),
+          ...(next && !workout.ended ? { next: `${Math.round(((next.powerStart + next.powerEnd) / 2) * (next.powerUnit === 'ftp' ? s.ftpWatts * workout.runner.intensity : 1))} W` } : {}),
+          ...(extra ? { extra } : {}),
           profile: workout.profile(s.ftpWatts),
           elapsedS: ride.elapsedS,
           totalS: workout.durationS,

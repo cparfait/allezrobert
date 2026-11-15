@@ -1,5 +1,5 @@
 import { workoutStudioHtml, type WorkoutDurFilter, type WorkoutSort } from './workoutStudio.ts';
-import { clampWorkoutIntensity } from '../game/workout.ts';
+import { clampWorkoutIntensity, ftpTestProtocolOf } from '../game/workout.ts';
 import { crossedArmsSrc } from './waitBike.ts';
 import type { AvatarLook, CosmeticItem, RouteData, RouteSegment, WorldCatalogue } from '@allezrobert/shared';
 import { ROAD_FEEL, ROAD_FEEL_TEXT, clampRoadFeel, roadFeelLevel } from '@allezrobert/shared';
@@ -122,8 +122,8 @@ const MODE_COLORS: Partial<Record<Settings['mode'], string>> = {
   challenge: '#fb923c',
 };
 const MODE_TAGS: Record<'fr' | 'en', Partial<Record<Settings['mode'], string>>> = {
-  fr: { free: 'En solo', group: 'Avec tes amis', race: 'Classement', workout: 'Séances ERG', ftpTest: 'Test rampe', challenge: 'Records en côte' },
-  en: { free: 'On your own', group: 'With friends', race: 'Results', workout: 'ERG sessions', ftpTest: 'Ramp test', challenge: 'Climb records' },
+  fr: { free: 'En solo', group: 'Avec tes amis', race: 'Classement', workout: 'Séances ERG', ftpTest: 'Rampe ou 20 min', challenge: 'Records en côte' },
+  en: { free: 'On your own', group: 'With friends', race: 'Results', workout: 'ERG sessions', ftpTest: 'Ramp or 20 min', challenge: 'Climb records' },
 };
 
 const ICON = {
@@ -1121,7 +1121,7 @@ export class MainMenu {
           ['group', 'group', 'Rouler à plusieurs : le groupe reste ensemble.'],
           ['race', 'race', 'Course en ligne, classement à l’arrivée.'],
           ['workout', 'workout', 'Séance structurée en mode ERG : séances intégrées ou fichier .zwo, .erg, .mrc.'],
-          ['ftpTest', 'ftpTest', 'Test rampe : paliers d’une minute jusqu’à épuisement, pour estimer ta FTP.'],
+          ['ftpTest', 'ftpTest', 'Test FTP : rampe, rampe douce ou 20 minutes, pour estimer ta FTP.'],
           ['challenge', 'challenge', 'Bats ton record sur une montée : départ lancé, fantôme de ton meilleur temps, écart en direct.'],
         ]
       : [
@@ -1129,7 +1129,7 @@ export class MainMenu {
           ['group', 'group', 'Ride together: the group stays as one.'],
           ['race', 'race', 'Online race, results at the finish.'],
           ['workout', 'workout', 'Structured session in ERG mode: built-in workouts or a .zwo, .erg, .mrc file.'],
-          ['ftpTest', 'ftpTest', 'Ramp test: one-minute steps to exhaustion, to estimate your FTP.'],
+          ['ftpTest', 'ftpTest', 'FTP test: ramp, gentle ramp or 20 minutes, to estimate your FTP.'],
           ['challenge', 'challenge', 'Beat your record on a climb: flying start, ghost of your best time, live gap.'],
         ];
   }
@@ -1394,23 +1394,62 @@ export class MainMenu {
       </div></div>`;
   }
 
-  /** Test FTP : déroulé du test rampe (pas de choix de zone ni de parcours). */
+  /** Test FTP : choix du protocole (rampe, rampe douce, 20 min) et son déroulé (pas de choix de zone ni de parcours). */
   private ftpTestHtml(): string {
     const L = fr();
-    const steps = L
-      ? [
-          ['Échauffement', '5 min à 100 W, mode ERG : le home trainer impose la puissance.'],
-          ['Paliers', '+20 W chaque minute. Garde une cadence régulière, autour de 85–95 tr/min.'],
-          ['Jusqu’au bout', 'Arrête-toi quand tu ne tiens plus le palier : c’est la fin du test (souvent 15 à 25 min).'],
-          ['Résultat', 'FTP = 75 % de ta meilleure minute. Elle est proposée à la fin et règle tes zones et tes séances.'],
-        ]
-      : [
-          ['Warm-up', '5 min at 100 W in ERG mode: the trainer sets the power.'],
-          ['Steps', '+20 W every minute. Keep a steady cadence, around 85–95 rpm.'],
-          ['To the end', 'Stop when you can no longer hold the step: that ends the test (often 15–25 min).'],
-          ['Result', 'FTP = 75% of your best minute. It is offered at the end and sets your zones and workouts.'],
-        ];
+    const p = ftpTestProtocolOf(this.s.ftpTestProtocol);
+    const ramp = (warm: string, start: number, inc: number, dur: string): string[][] =>
+      L
+        ? [
+            ['Échauffement', `${warm}, mode ERG : le home trainer impose la puissance.`],
+            ['Paliers', `${start} W puis +${inc} W chaque minute. Reste assis, cadence régulière (70–100 tr/min).`],
+            ['Jusqu’au bout', `Le test s’arrête tout seul quand tu ne tiens plus le palier pendant 15 s (souvent ${dur}).`],
+            ['Résultat', 'FTP = 75 % de ta meilleure minute, estimée en direct. Tu choisis à la fin de la garder ou non.'],
+          ]
+        : [
+            ['Warm-up', `${warm} in ERG mode: the trainer sets the power.`],
+            ['Steps', `${start} W then +${inc} W every minute. Stay seated, steady cadence (70–100 rpm).`],
+            ['To the end', `The test stops by itself when you can no longer hold the step for 15 s (often ${dur}).`],
+            ['Result', 'FTP = 75% of your best minute, estimated live. At the end you choose whether to keep it.'],
+          ];
+    const steps =
+      p === 'ftp20'
+        ? L
+          ? [
+              ['Échauffement', '20 min progressives, trois accélérations de 20 s, 5 min soutenues, 10 min faciles.'],
+              ['20 minutes', 'Effort libre au maximum que tu peux tenir : pars prudemment, finis fort. Moyenne affichée en direct.'],
+              ['Retour au calme', '10 min faciles. Durée totale : environ 1 h 10.'],
+              ['Résultat', 'FTP = 95 % de ta moyenne sur 20 min. Tu choisis à la fin de la garder ou non.'],
+            ]
+          : [
+              ['Warm-up', '20 progressive minutes, three 20 s efforts, 5 min hard, 10 min easy.'],
+              ['20 minutes', 'Free effort at the most you can hold: start carefully, finish strong. Live average shown.'],
+              ['Cool-down', '10 easy minutes. Total about 1 h 10.'],
+              ['Result', 'FTP = 95% of your 20-minute average. At the end you choose whether to keep it.'],
+            ]
+        : p === 'rampLite'
+          ? ramp(L ? '8 min de 50 à 80 W' : '8 min from 50 to 80 W', 50, 10, L ? '15 à 30 min' : '15–30 min')
+          : ramp(L ? '5 min à 100 W' : '5 min at 100 W', 100, 20, L ? '10 à 20 min' : '10–20 min');
+    const opts: Array<[string, string]> = [
+      ['ramp', L ? 'Rampe' : 'Ramp'],
+      ['rampLite', L ? 'Rampe douce' : 'Gentle ramp'],
+      ['ftp20', L ? 'Test 20 min' : '20-min test'],
+    ];
+    const who =
+      p === 'ftp20'
+        ? L
+          ? 'Le plus précis si tu sais doser un effort long ; le plus éprouvant.'
+          : 'Most accurate if you can pace a long effort; the hardest.'
+        : p === 'rampLite'
+          ? L
+            ? 'Pour débuter ou pour les coureurs légers : la puissance monte plus doucement.'
+            : 'For beginners or lighter riders: power rises more gently.'
+          : L
+            ? 'Court et sans calcul d’allure : le plus simple pour la plupart des coureurs.'
+            : 'Short and no pacing needed: the simplest for most riders.';
     return `<div class="mm-ftptest">
+      <div class="field">${L ? 'Protocole' : 'Protocol'}${this.seg('m-ftpproto', p, opts)}</div>
+      <p class="mm-hint">${who}</p>
       <h3>${L ? 'Comment se passe le test' : 'How the test works'}</h3>
       <ol>${steps.map(([t, d]) => `<li><b>${t}</b><span>${d}</span></li>`).join('')}</ol>
       <p class="mm-hint">${L ? `FTP actuelle : ${Math.round(this.s.ftpWatts)} W. Bien reposé, ventilateur allumé, bidon à portée de main.` : `Current FTP: ${Math.round(this.s.ftpWatts)} W. Be rested, fan on, bottle within reach.`}</p>
@@ -3778,6 +3817,11 @@ export class MainMenu {
     on<HTMLSelectElement>('m-equal', 'change', (el) => {
       s.equalEquipment = el.value === '1';
       changed();
+    });
+    on<HTMLSelectElement>('m-ftpproto', 'change', (el) => {
+      s.ftpTestProtocol = ftpTestProtocolOf(el.value);
+      changed();
+      this.render();
     });
     if (this.tab === 'garage' && this.garageSlot === 'atelier') this.atelier.bind(this.root);
     on<HTMLSelectElement>('m-wx', 'change', (el) => {

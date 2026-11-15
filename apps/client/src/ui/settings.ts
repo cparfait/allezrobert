@@ -64,6 +64,8 @@ export interface Settings {
   workoutPreset: string;
   /** Intensité des séances (0,8–1,2 ; 1 = 100 %) : multiplie toutes les cibles, réglée avant le départ. */
   workoutIntensity: number;
+  /** Protocole du test FTP : rampe standard, rampe douce ou test de 20 minutes. */
+  ftpTestProtocol: 'ramp' | 'rampLite' | 'ftp20';
   /** Mode défi : montée choisie (identifiant de segment KOM de l'itinéraire). */
   challengeSeg: string;
   /** Météo qui évolue pendant la sortie (en groupe : choix de l'hôte, partagé). */
@@ -115,6 +117,7 @@ export const DEFAULT_SETTINGS: Settings = {
   world: 'longchamp',
   workoutPreset: 'sweet-spot-3x12',
   workoutIntensity: 1,
+  ftpTestProtocol: 'ramp',
   challengeSeg: '',
   weatherEvolves: false,
   realWeather: true,
