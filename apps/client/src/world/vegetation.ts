@@ -14,11 +14,25 @@ import { alpineProfile, coniferBiasAt, larchShareAt, treeDensityAt, treeScaleAt 
 import { CONIF_CROWN_BASE, CONIF_RADIUS, CONIF_TOP, DECID_FRAC, DECID_TOP, coniferRadius, coniferShare, crownFit, edgeAt, insideShare, neighbourCounts, openSkirt, openness, skirtFrac } from './treeShape.ts';
 import { LOW_POLY } from '../engine/style.ts';
 
+/**
+ * Houppiers plus crédibles en style réaliste (P2.3d) : ombre interne et normales par amas cuites dans la géométrie
+ * des feuillus (aucun calcul de plus dans le shader), grain de feuillage sous 45 m, automne moins saturé et mêlé
+ * d'arbres encore verts ou déjà bruns. `?crownlook=0` revient à l'état d'avant.
+ */
+const CROWN_LOOK = (() => {
+  try {
+    return typeof location === 'undefined' || new URLSearchParams(location.search).get('crownlook') !== '0';
+  } catch {
+    return true;
+  }
+})();
+
 /** Couleurs de feuillage par saison (feuillus) — palettes de ART_DIRECTION.md. */
 const LEAVES: Record<Season, [string, string, string]> = {
   spring: ['#7fb24a', '#a9cf6a', '#6e9e3f'],
   summer: ['#4f7a32', '#6b8e3a', '#3f6a2b'],
-  autumn: ['#c8762c', '#e0a33a', '#9b3d1f'],
+  // Automne (P2.3d) : rouille et or rabattus, un arbre sur cinq environ encore vert olive (teinte C).
+  autumn: CROWN_LOOK ? ['#a8642c', '#c39a45', '#66702f'] : ['#c8762c', '#e0a33a', '#9b3d1f'],
   winter: ['#6e5d4f', '#6e5d4f', '#6e5d4f'],
 };
 
@@ -135,7 +149,7 @@ function fitCrown(clear: Clearance, x: number, z: number, r: number, maxShift: n
 type Kind = 'decid' | 'conif' | 'larch' | 'shrub';
 
 /** Marque chaque sommet : 0 = bois, 1 = feuillage (pour l'animation et la saison). */
-function tag(geo: THREE.BufferGeometry, leaf: number, shade: number, center?: THREE.Vector3): THREE.BufferGeometry {
+function tag(geo: THREE.BufferGeometry, leaf: number, shade: number, center?: THREE.Vector3, blob?: { center: THREE.Vector3; outer: number }): THREE.BufferGeometry {
   const g = geo.index ? geo.toNonIndexed() : geo;
   const pos = g.getAttribute('position');
   const n = pos.count;
@@ -143,19 +157,32 @@ function tag(geo: THREE.BufferGeometry, leaf: number, shade: number, center?: TH
   // Ombrage interne : le bas du houppier est plus sombre.
   const sh = new Float32Array(n);
   for (let i = 0; i < n; i++) sh[i] = shade * (0.72 + 0.28 * Math.min(1, pos.getY(i) / 10));
-  g.setAttribute('shade', new THREE.BufferAttribute(sh, 1));
   if (center) {
     // Normales sphériques : feuillage doux, sans facettes, malgré très peu de triangles.
     const nrm = new Float32Array(n * 3);
     const v = new THREE.Vector3();
+    const w = new THREE.Vector3();
     for (let i = 0; i < n; i++) {
-      v.set(pos.getX(i) - center.x, (pos.getY(i) - center.y) * 0.8, pos.getZ(i) - center.z).normalize();
+      v.set(pos.getX(i) - center.x, (pos.getY(i) - center.y) * 0.8, pos.getZ(i) - center.z);
+      const dist = v.length();
+      v.normalize();
+      if (blob) {
+        // P2.3d : normale à mi-chemin entre celle du houppier et celle de l'amas (chaque amas prend sa lumière, au
+        // lieu d'une seule boule lisse), et ombre de ciel dans les creux entre amas, proches du cœur du houppier,
+        // ainsi que sous le houppier.
+        w.set(pos.getX(i) - blob.center.x, (pos.getY(i) - blob.center.y) * 0.8, pos.getZ(i) - blob.center.z).normalize();
+        v.lerp(w, 0.5).normalize();
+        const occ = 0.62 + 0.38 * Math.min(1, Math.max(0, (dist / blob.outer - 0.45) / 0.5));
+        const under = 0.82 + 0.18 * Math.min(1, Math.max(0, (v.y + 0.7) / 1));
+        sh[i] = (sh[i] as number) * occ * under;
+      }
       nrm[i * 3] = v.x;
       nrm[i * 3 + 1] = v.y;
       nrm[i * 3 + 2] = v.z;
     }
     g.setAttribute('normal', new THREE.BufferAttribute(nrm, 3));
   } else if (!g.getAttribute('normal')) g.computeVertexNormals();
+  g.setAttribute('shade', new THREE.BufferAttribute(sh, 1));
   g.deleteAttribute('uv');
   return g;
 }
@@ -191,8 +218,10 @@ function deciduousGeometry(lod: number): THREE.BufferGeometry {
     const a = (i / blobs) * Math.PI * 2;
     const rad = lod === 0 ? 1.7 + r() * 0.7 : lod === 1 ? 1.1 : 0;
     const y = lod === 0 ? (i === blobs - 1 ? 9.2 : 6.6 + r() * 2) : lod === 1 ? 7 + i * 1.2 : 7.6;
-    blob.translate(i === blobs - 1 && lod === 0 ? 0 : Math.cos(a) * rad, y, i === blobs - 1 && lod === 0 ? 0 : Math.sin(a) * rad);
-    parts.push(tag(blob, 1, 0.82 + r() * 0.3, crown));
+    const top = i === blobs - 1 && lod === 0;
+    const bc = new THREE.Vector3(top ? 0 : Math.cos(a) * rad, y, top ? 0 : Math.sin(a) * rad);
+    blob.translate(bc.x, bc.y, bc.z);
+    parts.push(tag(blob, 1, 0.82 + r() * 0.3, crown, CROWN_LOOK && !LOW_POLY ? { center: bc, outer: 4.6 } : undefined));
   }
   return mergeGeometries(parts, false) as THREE.BufferGeometry;
 }
@@ -596,6 +625,16 @@ export class Vegetation {
     const col = mix(wood, leafCol, leaf).mul(shade).mul(seed2.mul(0.25).add(0.85));
 
     let tint: THREE.Node<'vec3'> = vec3(1, 1, 1);
+    if (CROWN_LOOK) {
+      // Grain de feuillage (P2.3d) : touffes de ≈ 12 cm plus ou moins éclairées, en coordonnées du modèle (le motif suit
+      // l'arbre, sans grésillement) ; sous 35 m seulement, une teinte unie au-delà. Un hash, aucun bruit. (Des cellules
+      // de 30 cm se lisaient comme des pixels carrés en gros plan.)
+      const camD = positionWorld.sub(cameraPosition).length();
+      const grainK = float(1).sub(smoothstep(18, 35, camD)).mul(leafV).mul(float(1).sub(isConV));
+      const cg = floor(varying(raw).mul(8)).mod(1024);
+      const gh = fract(sin(dot(cg, vec3(12.9898, 78.233, 37.719))).mul(43758.5453));
+      tint = vec3(1, 1, 1).mul(mix(float(1), gh.mul(0.22).add(0.89), grainK)) as unknown as THREE.Node<'vec3'>;
+    }
     if (steps.a) {
       const rawV = varying(raw);
       const seedV = varying(seed);
@@ -621,7 +660,7 @@ export class Vegetation {
         });
         return out;
       })();
-      tint = packed.xyz as unknown as THREE.Node<'vec3'>;
+      tint = tint.mul(packed.xyz) as unknown as THREE.Node<'vec3'>;
       // Normale par les dérivées écran de la hauteur des amas (comme le sol proche, hors du bloc conditionnel).
       const h = packed.w;
       const sx = positionView.dFdx();
