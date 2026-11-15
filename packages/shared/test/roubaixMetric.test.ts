@@ -8,7 +8,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { validateMetricBike } from '../src/bikeMetric.ts';
-import { ROUBAIX_44, ROUBAIX_54, ROUBAIX_MODEL_ID, ROUBAIX_SIZE_GUIDE, ROUBAIX_SIZES, roubaixSizeFor } from '../src/roubaixMetric.ts';
+import { ROUBAIX_44, ROUBAIX_54, ROUBAIX_61, ROUBAIX_MODEL_ID, ROUBAIX_SIZE_GUIDE, ROUBAIX_SIZES, roubaixSizeFor } from '../src/roubaixMetric.ts';
 
 describe('Roubaix : contrat de chaque taille', () => {
   for (const spec of ROUBAIX_SIZES) {
@@ -53,6 +53,18 @@ describe('Roubaix : contrat de chaque taille', () => {
     expect(d.handlebarWidthM).toBeCloseTo(0.42, 2);
     expect(d.crankLengthM).toBe(0.1725);
   });
+  it('61 : stack 665, reach 398, douille 74°, potence 110, cintre 440, manivelle 175', () => {
+    const { axes, dimensions: d } = ROUBAIX_61.metric;
+    const bb = axes.bottomBracket?.originM ?? [0, 0, 0];
+    const st = axes.steering?.originM ?? [0, 0, 0];
+    const u = axes.steering?.direction ?? [0, 0, 0];
+    expect(Math.abs((st[1] - bb[1]) * 1000 - 665)).toBeLessThan(1.5);
+    expect(Math.abs(st[2] * 1000 - 398)).toBeLessThan(1.5);
+    expect(Math.abs((Math.atan2(u[1], -u[2]) * 180) / Math.PI - 74)).toBeLessThan(0.15);
+    expect(d.stemLengthM).toBeCloseTo(0.11, 2);
+    expect(d.handlebarWidthM).toBeCloseTo(0.44, 2);
+    expect(d.crankLengthM).toBe(0.175);
+  });
 });
 
 describe('Roubaix : taille de cadre selon la taille du coureur', () => {
@@ -71,8 +83,11 @@ describe('Roubaix : taille de cadre selon la taille du coureur', () => {
 
     expect(roubaixSizeFor(177, all)).toBe('56');
   });
-  it('seulement parmi les tailles disponibles (aujourd’hui 44 et 54)', () => {
-    expect(roubaixSizeFor(185)).toBe('54');
+  it('seulement parmi les tailles disponibles (aujourd’hui 44, 54 et 61)', () => {
+    expect(roubaixSizeFor(183)).toBe('54');
+    expect(roubaixSizeFor(184)).toBe('61');
+    expect(roubaixSizeFor(185)).toBe('61');
+    expect(roubaixSizeFor(185, ['44', '54'])).toBe('54');
     expect(roubaixSizeFor(160)).toBe('44');
     expect(roubaixSizeFor(161)).toBe('54');
     expect(roubaixSizeFor(185, [])).toBeNull();

@@ -9,7 +9,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { ROUBAIX_44, ROUBAIX_54, ROUBAIX_SIZES } from '../../../packages/shared/src/roubaixMetric.ts';
+import { ROUBAIX_44, ROUBAIX_54, ROUBAIX_61, ROUBAIX_SIZES } from '../../../packages/shared/src/roubaixMetric.ts';
 import * as THREE from 'three/webgpu';
 import { LOOK785_MODEL_ID, LOOK785_SIZES } from '../../../packages/shared/src/look785Metric.ts';
 import { fitRoubaixWheels, isRoubaixLook, roubaixOption, roubaixSeat, roubaixSizeForRider, roubaixSpec, seatpostOffset, sitPointOf, solveSeatDrop } from '../src/rider/roubaix.ts';
@@ -58,7 +58,7 @@ describe('Roubaix : fichiers livrés', () => {
     });
   }
 
-  for (const SPEC of [ROUBAIX_44, ROUBAIX_54]) {
+  for (const SPEC of [ROUBAIX_44, ROUBAIX_54, ROUBAIX_61]) {
   it(`${SPEC.size} : ancres conformes au contrat (axes des roues, mains), contrat et selle embarqués`, () => {
     const g = readJson(SPEC.lods[0]);
     const at = (n: string) => g.nodes.find((x) => x.name === n)?.translation ?? [NaN, NaN, NaN];
@@ -97,7 +97,7 @@ describe('Roubaix : réglage de selle', () => {
     expect(seatpostOffset(s, Number.NaN).length()).toBe(0);
   });
   it('taille non modélisée : aucune spécification', () => {
-    expect(roubaixSpec('61')).toBeUndefined();
+    expect(roubaixSpec('58')).toBeUndefined();
   });
   it('54 : rehausse permise jusqu’à minDropMm (selle d’origine pour un coureur d’environ 1,87 m)', () => {
     const s = roubaixSpec('54');
@@ -144,14 +144,17 @@ describe('Roubaix : disques de la taille sur les roues du jeu', () => {
 });
 
 describe('Roubaix : ajustement du coureur (I-4b)', () => {
-  it('taille de cadre : taille modélisée la plus proche (44 jusqu’à 160 cm, 54 au-delà), taille forcée', () => {
+  it('taille de cadre : taille modélisée la plus proche (44 jusqu’à 160 cm, 54 jusqu’à 183, 61 au-delà), taille forcée', () => {
     expect(roubaixSizeForRider(142)).toBe('44');
     expect(roubaixSizeForRider(160)).toBe('44');
     expect(roubaixSizeForRider(161)).toBe('54');
     expect(roubaixSizeForRider(178)).toBe('54');
-    expect(roubaixSizeForRider(195)).toBe('54');
+    expect(roubaixSizeForRider(183)).toBe('54');
+    expect(roubaixSizeForRider(184)).toBe('61');
+    expect(roubaixSizeForRider(195)).toBe('61');
     expect(roubaixSizeForRider(178, '44')).toBe('44');
-    expect(roubaixSizeForRider(150, '61')).toBeNull();
+    expect(roubaixSizeForRider(150, '61')).toBe('61');
+    expect(roubaixSizeForRider(150, '58')).toBeNull();
     expect(roubaixSizeForRider(undefined)).toBeNull();
   });
   it('point d’assise : contrat, plus l’abaissement le long de la tige', () => {

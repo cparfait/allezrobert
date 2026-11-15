@@ -177,7 +177,7 @@ export function roubaixAnchor(root: THREE.Object3D, name: string): THREE.Vector3
 
 /**
  * Taille de vélo dédié pour une taille de coureur : la taille modélisée la plus proche dans le guide du modèle (Roubaix :
- * 44 jusqu'à 160 cm, 54 au-delà ; LOOK 785 : XS jusqu'à 168 cm, M jusqu'à 179, L jusqu'à 187, XL au-delà) ; `forced` (option
+ * 44 jusqu'à 160 cm, 54 jusqu'à 183, 61 au-delà ; LOOK 785 : XS jusqu'à 168 cm, M jusqu'à 179, L jusqu'à 187, XL au-delà) ; `forced` (option
  * ?roubaix=<taille>) l'emporte quand c'est une taille de ce modèle.
  */
 export function roubaixSizeForRider(heightCm: number | undefined, forced?: string | null, bikeModel: string = ROUBAIX_MODEL_ID): string | null {

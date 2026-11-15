@@ -191,5 +191,64 @@ export const ROUBAIX_54: RoubaixSizeSpec = f({
   } satisfies MetricBikeDraft),
 });
 
-/** Tailles modélisées : 44 (coureurs jusqu'à 160 cm) et 54 (au-delà), choisies par roubaixSizeFor. */
-export const ROUBAIX_SIZES: readonly RoubaixSizeSpec[] = Object.freeze([ROUBAIX_44, ROUBAIX_54]);
+const GROUND_61 = 258.933;
+
+/**
+ * Taille 61 (15/11/2026) : les LOD du 54 livré déformés vers le 61 avec le prototype validé T2c-4f (stack 665, reach 398, douille
+ * 205 à 74°, triangle arrière du 54) ; cockpit allongé (potence 110 / cocottes 440), manivelle 175. Selle d'origine pour environ 2 m.
+ */
+export const ROUBAIX_61: RoubaixSizeSpec = f({
+  size: '61',
+  lods: f(['roubaix61_lod0.glb', 'roubaix61_lod1.glb', 'roubaix61_lod2.glb'] as const),
+  frontRotorPiece: 'roubaix44_disque_avant.glb',
+  groundOffsetMm: GROUND_61,
+  liveryFrameOffsetM: f([0, +(0.27 - GROUND_61 / 1000).toFixed(6), 0] as const),
+  referenceRiderCm: 192,
+  seatpost: f({
+    axisPointM: f([0.0004, 0.88632, -0.18147] as const),
+    directionUp: f([0, 0.968739, -0.248083] as const),
+    radiusMm: 18.19,
+    maxDropMm: 120,
+    minDropMm: -20,
+  }),
+  rotors: f({ front: f({ planeXMm: 38, diameterMm: 160 }), rear: f({ planeXMm: 47.1, diameterMm: 160 }) }),
+  metric: f({
+    id: { modelId: ROUBAIX_MODEL_ID, size: '61' },
+    brakes: 'disc',
+    axes: {
+      bottomBracket: { originM: [0, 0.25893, 0], direction: [1, 0, 0] },
+      steering: { originM: [0, 0.92446, 0.39713], direction: [1e-9, 0.960900564, -0.276893673] },
+      frontWheel: { originM: [0, 0.335, 0.61301], direction: [1, 0, 0] },
+      rearWheel: { originM: [0, 0.335, -0.4079], direction: [1, 0, 0] },
+      pedalL: { originM: [0.072, 0.08393, 0.00023], direction: [1, 0, 0] },
+      pedalR: { originM: [-0.072, 0.43393, -0.00023], direction: [1, 0, 0] },
+    },
+    dimensions: { frontWheelRadiusM: 0.335, rearWheelRadiusM: 0.335, crankLengthM: 0.175, handlebarWidthM: 0.4402, stemLengthM: 0.1097 },
+    contacts: {
+      handL: {
+        originM: [0.22016, 1.06886, 0.60518],
+        basis: { x: [0.9999193508338763, -0.012697401013772968, -0.0002604524044603938], y: [0.012480034043610344, 0.986189338199569, -0.16515095510400976], z: [0.0023538432891505104, 0.16513438536232167, 0.9862682668487203] },
+      },
+      handR: {
+        originM: [-0.22008, 1.06876, 0.60518],
+        basis: { x: [0.9999247885851137, 0.012261888545065476, 0.000251520027034929], y: [-0.012063069476123667, 0.9869991701512789, -0.16027202025151174], z: [-0.0022134877071764165, 0.1602569318625412, 0.987072852560628] },
+      },
+      saddle: {
+        originM: [0, 1.07389, -0.28502],
+        basis: { x: [1, -3.6733579941395414e-11, 3.780873538739669e-10], y: [1.94522696308928e-11, 0.9989595005775885, 0.04560609833974603], z: [-3.793692294598182e-10, -0.04560609833974603, 0.9989595005775886] },
+      },
+      pedalL: {
+        originM: [0.1034, 0.09363, -0.00168],
+        basis: { x: [0.9999656384325443, -0.00828986349501267, 0.00001083645358574513], y: [0.00800026801346775, 0.9653740004361987, 0.26074707092031296], z: [-0.0021720188552023932, -0.26073802454771355, 0.9654071498021175] },
+      },
+      pedalR: {
+        originM: [-0.1034, 0.44363, -0.00214],
+        basis: { x: [0.9999656384325443, 0.00828986349501267, -0.00001083645358574513], y: [-0.00800026801346775, 0.9653740004361987, 0.26074707092031296], z: [0.0021720188552023932, -0.26073802454771355, 0.9654071498021175] },
+      },
+    },
+    rotors: { front: { centerM: [0.038, 0.335, 0.61301], diameterM: 0.16 }, rear: { centerM: [0.0471, 0.335, -0.4079], diameterM: 0.16 } },
+  } satisfies MetricBikeDraft),
+});
+
+/** Tailles modélisées : 44 (coureurs jusqu'à 160 cm), 54 (jusqu'à 183 cm) et 61 (au-delà), choisies par roubaixSizeFor. */
+export const ROUBAIX_SIZES: readonly RoubaixSizeSpec[] = Object.freeze([ROUBAIX_44, ROUBAIX_54, ROUBAIX_61]);
