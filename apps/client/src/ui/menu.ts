@@ -1,5 +1,6 @@
 import { workoutStudioHtml, type WorkoutDurFilter, type WorkoutSort } from './workoutStudio.ts';
 import { clampWorkoutIntensity, ftpTestProtocolOf } from '../game/workout.ts';
+import { ftpTestChartHtml } from './ftpTestChart.ts';
 import { crossedArmsSrc } from './waitBike.ts';
 import type { AvatarLook, CosmeticItem, RouteData, RouteSegment, WorldCatalogue } from '@allezrobert/shared';
 import { ROAD_FEEL, ROAD_FEEL_TEXT, clampRoadFeel, roadFeelLevel } from '@allezrobert/shared';
@@ -1450,6 +1451,7 @@ export class MainMenu {
     return `<div class="mm-ftptest">
       <div class="field">${L ? 'Protocole' : 'Protocol'}${this.seg('m-ftpproto', p, opts)}</div>
       <p class="mm-hint">${who}</p>
+      ${ftpTestChartHtml(p, this.s.ftpWatts, L)}
       <div class="field">${L ? 'Voix du coach' : 'Coach voice'}${this.seg('m-ftpvoice', this.s.ftpCoachVoice === false ? '0' : '1', [
         ['1', L ? 'Oui' : 'On'],
         ['0', L ? 'Non' : 'Off'],
