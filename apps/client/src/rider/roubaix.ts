@@ -106,7 +106,8 @@ export interface RoubaixDress {
 
 /**
  * Habille un niveau de détail : le cadre (primitives « frame » des nœuds frame et fork) prend la livrée du catalogue avec
- * ses inscriptions dans les boîtes decal_* du modèle ; les autres primitives des matériaux simples. Navigateur seulement
+ * ses inscriptions dans les boîtes decal_* du modèle ; les autres primitives des matériaux simples (selle et guidoline aux
+ * couleurs `livery.saddle` et `livery.tape` du catalogue quand elles sont données). Navigateur seulement
  * (les inscriptions sont dessinées sur un canevas).
  */
 export function dressRoubaix(root: THREE.Object3D, spec: RoubaixSizeSpec, build: BikeBuild): RoubaixDress {
@@ -125,7 +126,9 @@ export function dressRoubaix(root: THREE.Object3D, spec: RoubaixSizeSpec, build:
       let m = owned.get(name);
       if (!m) {
         const def = ROUBAIX_MATERIALS[name] ?? (['#808080', 0.6, 0] as const);
-        m = new THREE.MeshStandardNodeMaterial({ color: def[0], roughness: def[1], metalness: def[2] });
+        // Selle et guidoline aux couleurs de la livrée du catalogue quand elle les donne (comme les vélos des familles).
+        const color = (name === 'saddle' ? build.livery.saddle : name === 'bar_tape' ? build.livery.tape : undefined) ?? def[0];
+        m = new THREE.MeshStandardNodeMaterial({ color, roughness: def[1], metalness: def[2] });
         m.name = name;
         owned.set(name, m);
       }
