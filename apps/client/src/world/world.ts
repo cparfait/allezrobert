@@ -15,6 +15,7 @@ import { Buildings } from './buildings.ts';
 import { RoadMesh, SHOULDER } from './road.ts';
 import { RouteFootprint } from './ribbon.ts';
 import { RoadNetwork } from './network.ts';
+import { RoadHeightField } from './roadHeight.ts';
 import { Rain } from './weather.ts';
 import { GrassField } from './grass.ts';
 import { WaterSystem } from './water.ts';
@@ -37,6 +38,8 @@ export class World {
   readonly buildings: Buildings;
   readonly road: RoadMesh;
   readonly network: RoadNetwork;
+  /** Monde ouvert : hauteur de la chaussée dessinée par le réseau (roues posées dessus, main.ts) ; null sinon. */
+  readonly roadHeight: RoadHeightField | null;
   readonly rain: Rain;
   readonly grass: GrassField;
   readonly water: WaterSystem;
@@ -117,6 +120,8 @@ export class World {
     this.buildings.setRoute(route.points.flatMap((p) => [p.x, p.z]), open ? Math.min(2, route.roadWidthM / 2) : route.roadWidthM / 2);
     scene.add(this.buildings.group);
     this.network = new RoadNetwork(open ? '' : baseRouteId(route.id), groundAt, footprint, open, q.lampLights);
+    // ?roadsnap=0 : roues de nouveau sur le profil de l'itinéraire (comparaison).
+    this.roadHeight = open && new URLSearchParams(globalThis.location?.search ?? '').get('roadsnap') !== '0' ? new RoadHeightField() : null;
     scene.add(this.network.lampLights.group);
     this.network.setShopWalls((id) => this.buildings.shopWalls(id));
     scene.add(this.network.group);
@@ -180,7 +185,13 @@ export class World {
       const priority = this.terrain.distTo(tile.tx, tile.tz);
       for (const [label, step] of [
         ['bâtiments', () => this.buildings.addTile(tile)],
-        ['routes', () => this.network.addTile(tile)],
+        [
+          'routes',
+          () => {
+            this.network.addTile(tile);
+            this.roadHeight?.addTile(tile);
+          },
+        ],
         [
           'végétation',
           () => {
@@ -198,6 +209,7 @@ export class World {
       this.vegReady.delete(tile.id);
       this.buildings.removeTile(tile);
       this.network.removeTile(tile);
+      this.roadHeight?.removeTile(tile);
       this.vegetation.removeTile(tile);
       this.water.removeTile(tile);
       this.railways.removeTile(tile);

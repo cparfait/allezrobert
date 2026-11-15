@@ -250,6 +250,9 @@ function nextPaint(): Promise<void> {
 /** Drapeau posé en quittant une sortie : le menu s'ouvre sur l'onglet Rouler au rechargement. */
 const AFTER_RIDE_KEY = 'ar.afterRide';
 const MENU_MEDIA_VERSION = 12;
+/** Points de contact des roues devant / derrière l'origine du coureur (m, vélo route de référence). */
+const WHEEL_FRONT_M = 0.6;
+const WHEEL_REAR_M = 0.417;
 // Listes déroulantes aux couleurs de l'appli, y compris celles ajoutées après coup (appareils audio…).
 autoEnhanceSelects();
 
@@ -1928,6 +1931,9 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   let remoteRiders: InterpolatedRider[] = [];
   let prevHeading = Number.NaN;
   let bank = 0;
+  // Monde ouvert : roues posées sur la chaussée du réseau (écart lissé au profil de l'itinéraire, et tangage).
+  let roadDy = 0;
+  let roadPitch = Number.NaN;
   /**
    * Demi-tour animé : le cap saute d'un demi-tour d'une image à l'autre (itinéraire remonté, chemin
    * inversé du monde ouvert) ; le coureur affiché tourne en arc sur la chaussée pendant UTURN_S.
@@ -2151,10 +2157,34 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     } else camTurn = false;
     bank += (lean - bank) * Math.min(1, dt * 3);
     shownDir.set(Math.sin(shownHeading), 0, Math.cos(shownHeading));
+    let pitch = Math.atan((sample.grade * ride.dir) / 100);
+    if (world.roadHeight) {
+      // Monde ouvert : la chaussée visible est celle du réseau des tuiles (coudes arrondis), qui s'écarte du profil de
+      // l'itinéraire dans les virages, les épingles et en pente (±10 cm, jusqu'à 28 cm) : roues posées dessus.
+      const fx = Math.sin(shownHeading);
+      const fz = Math.cos(shownHeading);
+      const ref = shownPos.y - 0.06;
+      const slope = Math.tan(pitch);
+      const yF = world.roadHeight.surfaceAt(shownPos.x + fx * WHEEL_FRONT_M, shownPos.z + fz * WHEEL_FRONT_M, ref + slope * WHEEL_FRONT_M);
+      const yR = world.roadHeight.surfaceAt(shownPos.x - fx * WHEEL_REAR_M, shownPos.z - fz * WHEEL_REAR_M, ref - slope * WHEEL_REAR_M);
+      let dy = 0;
+      let p = pitch;
+      if (Number.isFinite(yF) && Number.isFinite(yR)) {
+        dy = yR + ((yF - yR) * WHEEL_REAR_M) / (WHEEL_FRONT_M + WHEEL_REAR_M) - ref;
+        p = Math.atan((yF - yR) / (WHEEL_FRONT_M + WHEEL_REAR_M));
+      } else if (Number.isFinite(yF)) dy = yF - slope * WHEEL_FRONT_M - ref;
+      else if (Number.isFinite(yR)) dy = yR + slope * WHEEL_REAR_M - ref;
+      // Lissé (un changement de route au carrefour ne fait pas sauter le vélo) ; assez vif pour suivre la chaussée.
+      const kRoad = Math.min(1, dt * 15);
+      roadDy += (dy - roadDy) * kRoad;
+      roadPitch = Number.isNaN(roadPitch) ? p : roadPitch + (p - roadPitch) * kRoad;
+      shownPos.y = ref + roadDy;
+      pitch = roadPitch;
+    }
     avatar.root.position.copy(shownPos);
     avatar.root.rotation.set(0, 0, 0);
     avatar.root.rotateY(shownHeading);
-    avatar.root.rotateX(-Math.atan((sample.grade * ride.dir) / 100));
+    avatar.root.rotateX(-pitch);
     avatar.setEffort?.(ride.inputs.watts / Math.max(50, s.ftpWatts), ride.inputs.hr !== undefined ? ride.inputs.hr / 190 : undefined);
     (avatar as { setSprint?(on: boolean): void }).setSprint?.(ride.segment?.seg.kind === 'sprint' || ride.inputs.watts > 1.4 * s.ftpWatts);
     avatar.update(dt, ride.inputs.cadence, ride.state.speedMs, ride.pose, bank);
