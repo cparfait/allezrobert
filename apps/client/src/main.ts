@@ -1935,11 +1935,33 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   let roadDy = 0;
   let roadPitch = Number.NaN;
   /**
-   * Demi-tour animé : le cap saute d'un demi-tour d'une image à l'autre (itinéraire remonté, chemin
-   * inversé du monde ouvert) ; le coureur affiché tourne en arc sur la chaussée pendant UTURN_S.
+   * Demi-tour : la physique repart d'un coup dans l'autre sens (itinéraire remonté, chemin inversé du monde
+   * ouvert). Le coureur affiché, lui, le fait en roulant : un U à sa vitesse (avance, tourne vers la voie d'en
+   * face sur UTURN_WIDTH_M au moins, s'incline), pendant que l'affichage reste en retard sur la physique le long
+   * du tracé (showLag, m) ; ce retard se résorbe ensuite en roulant un peu plus vite (UTURN_CATCHUP de la vitesse).
    */
-  const UTURN_S = 3.4;
-  let turn: { t: number; fromHeading: number; delta: number; from: THREE.Vector3; fwdX: number; fwdZ: number } | null = null;
+  const UTURN_WIDTH_M = 3;
+  const UTURN_CATCHUP = 0.35;
+  let turn: {
+    /** angle parcouru sur le U (0 → π) */
+    th: number;
+    /** distance de la physique au moment du demi-tour */
+    dFlip: number;
+    fromHeading: number;
+    delta: number;
+    from: THREE.Vector3;
+    fwdX: number;
+    fwdZ: number;
+    /** côté de la voie d'en face (unitaire) */
+    sx: number;
+    sz: number;
+    /** largeur du U et avancée maximale (m) */
+    w: number;
+    reach: number;
+  } | null = null;
+  /** Retard de l'affichage sur la physique le long du tracé (m, ≥ 0) et écart restant à la sortie du U (m). */
+  let showLag = 0;
+  const lagOffset = new THREE.Vector3();
   const shownPos = new THREE.Vector3(Number.NaN, 0, 0);
   const shownDir = new THREE.Vector3();
   /** Caméra pendant un demi-tour : elle reste en place pendant que le vélo poursuit sa route et fait son arc, puis pivote doucement. */
@@ -2108,8 +2130,11 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     }
     lap('trains, trafic');
     // Trajectoire d'affichage : virages pris en arc, cap progressif (la physique garde la distance sur le tracé).
-    if (pilotCollision) track.positionAt(ride.state.distM, ride.lateral, sample);
-    else track.linePositionAt(ride.state.distM, ride.lateral, ride.state.speedMs, sample);
+    // Pendant et après un demi-tour : affichage en retard sur la physique (le vélo a fait son U en roulant).
+    const lag = turn ? Math.max(0, (ride.state.distM - turn.dFlip) * ride.dir) : showLag;
+    const shownD = ride.state.distM - ride.dir * lag;
+    if (pilotCollision) track.positionAt(shownD, ride.lateral, sample);
+    else track.linePositionAt(shownD, ride.lateral, ride.state.speedMs, sample);
     pos.set(sample.x, sample.y + 0.06, sample.z);
     // Sens de marche : après un demi-tour, on remonte l'itinéraire.
     dir.set(sample.dirX * ride.dir, 0, sample.dirZ * ride.dir);
@@ -2123,7 +2148,13 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     if (!pilotCollision && Math.abs(dh) > 2.4) {
       // Demi-tour : on tourne du côté où se trouve la nouvelle position (de l'autre côté de la chaussée).
       const side = (pos.x - shownPos.x) * Math.cos(prevHeading) - (pos.z - shownPos.z) * Math.sin(prevHeading);
-      turn = { t: 0, fromHeading: prevHeading, delta: side >= 0 ? Math.PI : -Math.PI, from: shownPos.clone(), fwdX: Math.sin(prevHeading), fwdZ: Math.cos(prevHeading) };
+      const fwdX = Math.sin(prevHeading);
+      const fwdZ = Math.cos(prevHeading);
+      // côté de la nouvelle position ; largeur : l'écart jusqu'à elle, UTURN_WIDTH_M au moins
+      const sgn = side >= 0 ? 1 : -1;
+      const w = Math.max(UTURN_WIDTH_M, Math.abs(side));
+      turn = { th: 0, dFlip: ride.state.distM, fromHeading: prevHeading, delta: sgn * Math.PI, from: shownPos.clone(), fwdX, fwdZ, sx: sgn * Math.cos(prevHeading), sz: -sgn * Math.sin(prevHeading), w, reach: Math.max(0.6 * w, 0.5 * ride.state.speedMs) };
+      lagOffset.set(0, 0, 0);
       dh = 0;
     }
     prevHeading = heading;
@@ -2132,18 +2163,21 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     let shownHeading = heading;
     shownPos.copy(pos);
     if (turn) {
-      turn.t = Math.min(1, turn.t + dt / UTURN_S);
-      const t = turn.t;
-      const e = t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2;
-      shownHeading = turn.fromHeading + turn.delta * e;
-      // De l'ancienne position à la nouvelle, en arc vers l'avant (rayon : la moitié de l'écart, 2 m au moins).
-      const gap = Math.hypot(pos.x - turn.from.x, pos.z - turn.from.z);
-      const bulge = Math.sin(Math.PI * e) * Math.max(2, gap / 2);
-      shownPos.lerpVectors(turn.from, pos, e);
-      shownPos.x += turn.fwdX * bulge;
-      shownPos.z += turn.fwdZ * bulge;
-      // Penché franchement dans l'épingle (≈ 23° au milieu du demi-tour).
-      lean = -Math.sign(turn.delta) * 0.4 * Math.sin(Math.PI * t);
+      // U : P(θ) = départ + côté·(w/2)(1 − cos θ) + avant·reach·sin θ, parcouru à la vitesse du coureur.
+      const v = Math.max(1.5, ride.state.speedMs);
+      const r = turn.w / 2;
+      const speedAt = (th: number) => Math.hypot(r * Math.sin(th), turn!.reach * Math.cos(th)) || 1e-3;
+      turn.th = Math.min(Math.PI, turn.th + (v * dt) / speedAt(turn.th));
+      const th = turn.th;
+      const t = th / Math.PI;
+      const lat = r * (1 - Math.cos(th));
+      const fwd = turn.reach * Math.sin(th);
+      shownPos.set(turn.from.x + turn.sx * lat + turn.fwdX * fwd, pos.y, turn.from.z + turn.sz * lat + turn.fwdZ * fwd);
+      const tx = turn.sx * r * Math.sin(th) + turn.fwdX * turn.reach * Math.cos(th);
+      const tz = turn.sz * r * Math.sin(th) + turn.fwdZ * turn.reach * Math.cos(th);
+      shownHeading = Math.atan2(tx, tz);
+      // Penché selon la vitesse et le rayon (≈ 23° au plus), surtout au milieu du U.
+      lean = -Math.sign(turn.delta) * Math.min(0.4, Math.atan((v * v) / (9.81 * r))) * Math.sin(th);
       // Caméra : immobile jusqu'à 45 % du demi-tour (l'image « s'arrête », on voit le vélo traverser la chaussée en
       // arc), puis elle rejoint doucement la nouvelle position et le nouveau cap (arrivée sur `pos` et `dir` : pas de
       // saut à la fin). Vue embarquée : la caméra sort derrière le coureur le temps du demi-tour (CameraTarget.uturn).
@@ -2153,8 +2187,20 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
       const camHeading = turn.fromHeading + turn.delta * cs;
       camDir.set(Math.sin(camHeading), 0, Math.cos(camHeading));
       camTurn = true;
-      if (turn.t >= 1) turn = null;
-    } else camTurn = false;
+      if (th >= Math.PI) {
+        // Sortie du U : le retard sur la physique est gardé et se résorbe en roulant ; l'écart restant (voie, avancée) s'efface.
+        showLag = lag;
+        lagOffset.set(shownPos.x - pos.x, 0, shownPos.z - pos.z);
+        turn = null;
+      }
+    } else {
+      camTurn = false;
+      if (showLag > 0) showLag = Math.max(0, showLag - Math.max(0.6, UTURN_CATCHUP * ride.state.speedMs) * dt);
+      if (lagOffset.lengthSq() > 1e-6) {
+        lagOffset.multiplyScalar(Math.exp(-dt * 2.5));
+        shownPos.add(lagOffset);
+      }
+    }
     bank += (lean - bank) * Math.min(1, dt * 3);
     shownDir.set(Math.sin(shownHeading), 0, Math.cos(shownHeading));
     let pitch = Math.atan((sample.grade * ride.dir) / 100);
