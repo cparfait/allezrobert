@@ -2,6 +2,7 @@ import * as THREE from 'three/webgpu';
 import type { ActivityRecord, RiderProfile, RouteSegment, RouteTrack, VirtualGearing } from '@allezrobert/shared';
 import { DEFAULT_GEARING } from '@allezrobert/shared';
 import {
+  bestGearForCadence,
   buildGearTable,
   cadenceForSpeed,
   computeTrainerGrade,
@@ -117,6 +118,8 @@ export class RideSession {
   shelter = 0;
   /** Pluie 0–1 (chaussée mouillée). */
   rain = 0;
+  /** Freinage avant un virage serré pris trop vite (vrai pendant le freinage). */
+  braking = false;
   /** Coefficient de roulement effectif au dernier pas. */
   crr: number;
   /** Vent de face ressenti à hauteur du coureur (m/s), au dernier pas. */
@@ -281,13 +284,55 @@ export class RideSession {
     return (-Math.sin(w.from) * -dirZ + Math.cos(w.from) * dirX) * w.ms;
   }
 
+  /**
+   * Freinage avant les virages serrés : un coureur ne prend pas un angle droit de village à 50 km/h. Vitesse de
+   * passage d'un virage de rayon R : √(a·R), a = 0,7 g sur enrobé sec, 0,45 g mouillé ou en terre ; R estimé par
+   * le changement de cap sur ±6 m du tracé. Seuls les virages de moins de 30 m de rayon comptent (au-delà, la vitesse
+   * permise dépasse 50 km/h) : les courbes douces ne freinent jamais. Freinage à 4 m/s² au plus, juste ce qu'il faut
+   * pour arriver au virage à sa vitesse de passage ; la puissance relance ensuite.
+   */
+  private brakeForCorners(prevDist: number, dt: number): void {
+    const v = this.state.speedMs;
+    this.braking = false;
+    if (v < 5) return;
+    const track = this.opts.track;
+    const L = track.length;
+    const loop = !!track.route.loop;
+    const BRAKE = 4;
+    const grip = 9.81 * (this.rain > 0.2 || !/^(asphalt|paved|concrete|chipseal)/.test(this.surface) ? 0.45 : 0.7);
+    const at = (d: number) => (loop ? track.sample(((d % L) + L) % L) : track.sample(Math.min(L, Math.max(0, d))));
+    const head = (a: { x: number; z: number }, b: { x: number; z: number }) => Math.atan2(b.x - a.x, b.z - a.z);
+    const reach = (v * v) / (2 * BRAKE) + 12;
+    let limit = Infinity;
+    for (let k = 0; k <= reach; k += 3) {
+      const d = prevDist + this.dir * k;
+      if (!loop && (d < 6 || d > L - 6)) break;
+      const a = at(d - 6);
+      const m = at(d);
+      const b = at(d + 6);
+      let ang = head(m, b) - head(a, m);
+      ang = Math.abs(Math.atan2(Math.sin(ang), Math.cos(ang)));
+      if (ang < 0.4) continue;
+      const r = 12 / ang;
+      if (r > 30) continue;
+      limit = Math.min(limit, Math.sqrt(grip * r * 1 + 2 * BRAKE * Math.max(0, k - 6)));
+    }
+    if (v <= limit) return;
+    this.state.speedMs = Math.max(limit, v - BRAKE * dt);
+    this.braking = true;
+  }
+
   update(dt: number, source: InputSource, steer: number): void {
     this.inputs = source.read();
     // Cadence non mesurée (simulateur, invité) : celle qu'imposent la vitesse et le rapport engagé. Gros braquet en
     // côte, elle tombe ; petit braquet, elle remonte. Un léger battement évite une valeur figée.
+    // Le coureur simulé change de rapport comme un vrai : celui qui donne ≈ 90 tr/min, quel que soit le rapport
+    // virtuel affiché (rien ne le passait : 129 tr/min à 60 km/h, 30 tr/min en côte). Au-delà de 125 tr/min même sur
+    // le plus grand braquet (descente très rapide), il arrête de pédaler : roue libre.
     if (this.inputs.cadenceSimulated) {
-      const ratio = this.virtualShifting ? this.gear.ratio : this.referenceRatio;
-      const target = this.inputs.watts > 5 ? Math.min(130, Math.max(30, cadenceForSpeed(this.state.speedMs, ratio))) : 0;
+      const ratio = (this.gears[bestGearForCadence(this.state.speedMs, 90, this.gears)] as Gear | undefined)?.ratio ?? this.referenceRatio;
+      const cad = cadenceForSpeed(this.state.speedMs, ratio);
+      const target = this.inputs.watts > 5 && cad <= 125 ? Math.max(30, cad) : 0;
       this.simCadence += (target - this.simCadence) * Math.min(1, dt * 4);
       this.simBeat += dt;
       this.inputs = { ...this.inputs, cadence: target > 0 ? this.simCadence + Math.sin(this.simBeat * 0.7) * 1.5 : 0 };
@@ -340,6 +385,7 @@ export class RideSession {
       },
       dt,
     );
+    this.brakeForCorners(prevDist, dt);
     // Sens inverse : stepRider avance toujours ; on recule d'autant sur l'itinéraire.
     if (this.dir < 0) {
       this.state.distM = prevDist - (this.state.distM - prevDist);

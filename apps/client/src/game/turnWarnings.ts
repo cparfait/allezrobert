@@ -35,7 +35,7 @@ const STEP_M = 4;
 const ARM_R = 7;
 const NOT_ROADS = new Set(['footway', 'path', 'steps', 'cycleway', 'bridleway', 'pedestrian', 'corridor', 'platform', 'track', 'service']);
 /** Distance à laquelle le panneau apparaît. */
-export const TURN_WARN_M = 250;
+export const TURN_WARN_M = 50;
 
 /** Bras de chaussée autour de (x, z) : un par bout de tronçon proche, deux par tronçon qui passe. */
 export function armsAt(x: number, z: number, roads: Iterable<TileRoad>, r = ARM_R): number {

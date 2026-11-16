@@ -74,6 +74,11 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #0a0e16; col
 .tile.hr { --acc: #ff5d6c; }
 .tile.hr .value span:first-child { color: #ff8a94; }
 .tile.cad { --acc: #38bdf8; }
+.hud-stats { display: flex; gap: 6px; }
+.tile.mini { min-width: 0; padding: 4px 10px 5px 12px; --acc: #64748b; }
+.tile.mini::before { width: 3px; }
+.tile.mini .label { font-size: 9.5px; }
+.tile.mini .value { font-size: 22px; white-space: nowrap; }
 .tile.spd { --acc: #ffd23f; }
 .tile.grade { --acc: #f97316; }
 .tile.grade .value { font-size: 26px; }
@@ -203,6 +208,7 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #0a0e16; col
 .junction .jn-keys { margin-top: 6px; font-size: 11px; color: var(--ar-muted); }
 .segment { padding: 8px 18px 10px; min-width: 320px; max-width: min(560px, 90vw); text-align: center; border-left: 4px solid var(--z6); }
 .segment.sprint { border-left-color: var(--z3); }
+.segment.seg-bottom { position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(var(--hud-bottom) - 18px); }
 .segment .name { font-weight: 700; font-size: 16px; }
 .segment .bar { height: 6px; background: rgba(255, 255, 255, 0.15); border-radius: 3px; margin-top: 8px; overflow: hidden; }
 .segment .bar span { display: block; height: 100%; background: var(--ar-accent); }

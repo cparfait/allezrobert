@@ -494,19 +494,21 @@ export class Hud {
             <div class="tile grade" data-hud="grade"><div class="label">${ICONS.grade}${getLang() === 'fr' ? 'Pente' : 'Grade'}</div><div class="value num" data-k="grade">0,0 %</div></div>
           </div>
         </div>
+        <!-- Compteurs de la sortie au centre, en tuiles lisibles (ils étaient en petit dans le panneau de gauche) -->
+        <div class="hud-stats">
+          <div class="tile mini" data-hud="time"><div class="label">${t('time')}</div><div class="value num" data-k="time">0:00</div></div>
+          <div class="tile mini" data-hud="dist"><div class="label">${t('distance')}</div><div class="value num" data-k="dist">0,00 km</div></div>
+          <div class="tile mini" data-hud="gain"><div class="label">${t('elevation')}</div><div class="value num" data-k="gain">0 m</div></div>
+          <div class="tile mini" data-hud="avg"><div class="label">${t('avgPower')}</div><div class="value num" data-k="avg">0 W</div></div>
+          <div class="tile mini" data-hud="np"><div class="label">${t('np')}</div><div class="value num" data-k="np">0 W</div></div>
+        </div>
         <div class="panel hud-loc hidden" data-k="loc"></div>
         <div class="panel junction hidden" data-k="junction"></div>
         <div class="panel challenge hidden" data-k="challenge"></div>
-        <div class="panel segment hidden" data-k="segment"><div class="name" data-k="segName"></div><div class="num" data-k="segInfo"></div><div class="bar"><span data-k="segBar" style="width:0%"></span></div></div>
         <div class="toasts"></div>
       </div>
       <div class="hud-col hud-col-left">
         <div class="panel hud-left">
-          <span class="k" data-hud="time">${t('time')}</span><span class="v num" data-k="time" data-hud="time">0:00</span>
-          <span class="k" data-hud="dist">${t('distance')}</span><span class="v num" data-k="dist" data-hud="dist">0,00 km</span>
-          <span class="k" data-hud="gain">${t('elevation')}</span><span class="v num" data-k="gain" data-hud="gain">0 m</span>
-          <span class="k" data-hud="avg">${t('avgPower')}</span><span class="v num" data-k="avg" data-hud="avg">0 W</span>
-          <span class="k" data-hud="np">${t('np')}</span><span class="v num" data-k="np" data-hud="np">0 W</span>
           <span class="k" data-hud="draft">${t('draft')}</span><span class="v num" data-k="draft" data-hud="draft">0 %</span>
           <span data-hud="draft"></span><span data-hud="draft"><div style="height:6px;width:110px;background:rgba(255,255,255,.12);border-radius:3px;overflow:hidden;margin-left:auto"><div data-k="draftBar" style="height:100%;width:0%;background:linear-gradient(90deg,#60a5fa,#22c55e)"></div></div></span>
           <span class="hud-note" data-k="draftNote" data-hud="draft"></span>
@@ -532,6 +534,8 @@ export class Hud {
       <div class="panel workout hidden" data-k="workout"><div class="row" style="justify-content:space-between"><b data-k="wName"></b><span class="num" data-k="wRemain"></span></div><div class="num" data-k="wTarget" style="font-size:30px;font-weight:800"></div><div class="num" data-k="wStep" style="color:var(--ar-muted);font-size:13px"></div><canvas width="900" height="90" data-k="wChart"></canvas></div>
       <div class="panel profile" data-hud="profile"><canvas width="1800" height="160"></canvas></div>
       <div class="panel climbpro hidden" data-k="climbpro"></div>
+      <!-- Segment lancé (KOM, sprint) : en bas, au-dessus du profil, pour laisser le haut de l'écran à la route -->
+      <div class="panel segment seg-bottom hidden" data-k="segment"><div class="name" data-k="segName"></div><div class="num" data-k="segInfo"></div><div class="bar"><span data-k="segBar" style="width:0%"></span></div></div>
       <div class="attribution">${attribution.join(' · ')}</div>
     `;
     root.querySelectorAll<HTMLElement>('[data-k]').forEach((e) => (this.el[e.dataset.k as string] = e));

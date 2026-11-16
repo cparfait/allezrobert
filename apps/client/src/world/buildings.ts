@@ -50,8 +50,10 @@ const STONE_LOCAL = LOW_POLY ? ['#ddd0b2', '#d3c4a3', '#e6dabe', '#cbbd9f'] : ['
 const BRICK = LOW_POLY ? '#c65a3e' : '#a8624a';
 const ROOFS = LOW_POLY ? ['#c4432e', '#b53d2b', '#cf5636', '#a83f2e', '#9c4a33', '#d4663e'] : ['#8a4a35', '#7d4331', '#94553d', '#6f3f30', '#86513c', '#7a4a3a'];
 const SLATE = LOW_POLY ? '#4d5f7a' : '#4f565f';
-/** Tuiles mécaniques et canal (BD TOPO « tuiles », hors Île-de-France) : orangé à rouge brique. */
-const TERRACOTTA = LOW_POLY ? ['#d4683e', '#c95c36', '#dc7646', '#c2553a', '#d86e44', '#e0804e'] : ['#a87a6a', '#9d7062', '#b18574', '#94695c', '#a67d6e', '#b38a78'];
+/** Tuiles mécaniques et canal (BD TOPO « tuiles », hors Île-de-France) : orangé à rouge brique ; en style réaliste,
+ * dix teintes de la tuile neuve orangée à la tuile vieillie brun-gris (six roses saumon presque égaux donnaient des
+ * villages d'une seule couleur, 16/11). */
+const TERRACOTTA = LOW_POLY ? ['#d4683e', '#c95c36', '#dc7646', '#c2553a', '#d86e44', '#e0804e'] : ['#a87a6a', '#b3725a', '#8c5e50', '#bd8670', '#9a5a48', '#7e5c52', '#c4907a', '#a3684f', '#94695c', '#b07f6c'];
 /** Tuile mécanique des villes (archétype à toit de zinc mais BD TOPO « tuiles ») : rouge brique. */
 const MECHANICAL_TILES = LOW_POLY ? ['#c4482f', '#b8402c', '#cc5536', '#b04a32'] : ['#9a5a40', '#8c5038', '#a0614a', '#94553d'];
 /** Bac acier et fibrociment : gris clair à gris-vert, parfois vert ou brun. */
