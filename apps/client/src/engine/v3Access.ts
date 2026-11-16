@@ -1,8 +1,24 @@
-const ENDPOINT = '/__v3/access';
+import { inDesktop, invoke } from '../platform/desktop.ts';
+
+const desktopOrigin = inDesktop && !import.meta.env?.DEV
+  ? (/Windows/i.test(navigator.userAgent) ? 'http://arv3.localhost' : 'arv3://localhost')
+  : '';
+
+export function v3Resource(path: string): string {
+  return desktopOrigin + '/__v3/' + path;
+}
+
+async function access(code?: string): Promise<number> {
+  if (desktopOrigin) return invoke<number>('v3_access', { code });
+  const response = await fetch(v3Resource('access'), code === undefined
+    ? { cache: 'no-store' }
+    : { method: 'POST', headers: { 'X-AR-V3-Code': code } });
+  return response.status;
+}
 
 export async function hasV3Access(): Promise<boolean> {
   try {
-    return (await fetch(ENDPOINT, { cache: 'no-store' })).status === 204;
+    return await access() === 204;
   } catch {
     return false;
   }
@@ -33,12 +49,12 @@ export function requestV3Access(): Promise<boolean> {
     submit.disabled = true;
     status.textContent = '';
     try {
-      const result = await fetch(ENDPOINT, { method: 'POST', headers: { 'X-AR-V3-Code': input.value } });
-      if (result.status === 204) {
+      const result = await access(input.value);
+      if (result === 204) {
         dialog.close('unlocked');
         return;
       }
-      status.textContent = result.status === 429
+      status.textContent = result === 429
         ? fr ? 'Trop de tentatives. Réessaie dans une minute.' : 'Too many attempts. Try again in a minute.'
         : fr ? 'Code incorrect.' : 'Incorrect code.';
     } catch {

@@ -1,5 +1,6 @@
 import * as THREE from 'three/webgpu';
 import { isCompiling } from '../engine/renderer.ts';
+import { v3Resource } from '../engine/v3Access.ts';
 import { attachKit, BUILT_IN_BEARDS, freeGear, showSockHeight, getV3Catalog, getV3Gear, loadGearItem, loadRider, loadV3DisplayBike, loadV3DisplayWheel, restoreRider, showHairGeometry, type RiderVisual, type V3Gear } from './visuals.ts';
 
 /**
@@ -10,7 +11,7 @@ import { attachKit, BUILT_IN_BEARDS, freeGear, showSockHeight, getV3Catalog, get
 const SIZE = 160; // multiple de 32 : lignes relues sans remplissage (RGBA demi-flottants, 256 octets)
 const CACHE = 'ar-v3-vignettes-6';
 /** Version des photos gardées sur le serveur (out/v3/studio/<version>) : à changer avec CACHE quand le rendu change. */
-const STUDIO = '/__v3/studio/v6/';
+const STUDIO = v3Resource('studio/v6/');
 
 /** Vignette photographiée par le studio (sinon icône Zwift, ou pastille de couleur pour les chaussettes). */
 /**

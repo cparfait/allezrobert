@@ -139,8 +139,9 @@ function lanAddress(): Plugin {
 
 export default defineConfig(({ command, mode }) => {
   const code = command === 'serve' ? loadEnv(mode, import.meta.dirname, 'AR_V3_ACCESS_CODE').AR_V3_ACCESS_CODE : undefined;
+  const productionV3 = command === 'build' && process.env.AR_ENABLE_V3 === '1';
   return {
-    define: { __AR_V3_PROTECTED__: JSON.stringify(!!code) },
+    define: { __AR_V3_PROTECTED__: JSON.stringify(!!code || productionV3) },
     plugins: [screenshots(), excludeWorldTiles(), installerDiet(), lanAddress(), v3Access(code), v3Assets()],
     server: { port: 5173, strictPort: true, host: true, hmr },
     // Deux pages : le jeu et l'administration ; les applications de bureau n'embarquent pas l'administration.

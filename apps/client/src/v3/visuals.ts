@@ -5,8 +5,9 @@ import type { RiderPose } from '../rider/gltfAvatar.ts';
 import { rootNeutral, sampleV3, sampleV3At, type V3Clip } from './animation.ts';
 import { loadSettings } from '../ui/settings.ts';
 import { AERO_COAST_FULL, AERO_SPEED, AERO_SPEED_OUT, HARD_EFFORT } from '../rider/poseThresholds.ts';
+import { v3Resource } from '../engine/v3Access.ts';
 
-const base = '/__v3/';
+const base = v3Resource('');
 const defaultBike = 'canyonaeroad2024';
 const axis = new Vector3(0, 0, 1);
 const wheelRotation = new Quaternion();

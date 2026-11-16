@@ -10,6 +10,7 @@ import { loadWorldSource } from './world/loader.ts';
 import type { WorldSource } from './world/types.ts';
 import { GltfRiderAvatar, createAvatar } from './rider/gltfAvatar.ts';
 import { V3_STYLE } from './engine/style.ts';
+import { v3Resource } from './engine/v3Access.ts';
 import { V3Visual } from './v3/visuals.ts';
 import { readV3BikeSetup } from './v3/physics.ts';
 import { CROWD_FAMILIES, onBikeFamilyLoaded } from './rider/bikes.ts';
@@ -274,8 +275,7 @@ autoEnhanceSelects();
 
 /** Films du menu du style choisi : réaliste (loop-<saison>.*) ou jeu vidéo (loop-lowpoly-<saison>.*). */
 const MENU_STYLE = LOW_POLY ? 'lowpoly-' : V3_STYLE ? 'v3-' : '';
-/** Style V3 (développement) : films tournés avec les ressources Zwift locales, servis par le plugin V3, jamais publics. */
-const MENU_BASE = V3_STYLE ? '/__v3/menu' : '/menu';
+const MENU_BASE = V3_STYLE ? v3Resource('menu') : '/menu';
 
 /** Boucle vidéo de la saison (et du style) en fond du menu (public/menu/loop-<saison>.mp4), sur son image fixe. */
 function createMenuVideo(el: HTMLVideoElement | null) {

@@ -42,6 +42,7 @@ jobs:
           VITE_SERVER_URL: https://allezrobert.cparfait.ovh/colyseus
           VITE_WORLDS_URL: https://allezrobert.cparfait.ovh
           AR_DESKTOP: '1'
+          AR_ENABLE_V3: '1'
           # Signature ad hoc : sans elle, macOS (Apple silicon) annonce que l'application est « endommagée ».
           APPLE_SIGNING_IDENTITY: '-'
         run: pnpm --filter @allezrobert/desktop exec tauri build --target universal-apple-darwin --bundles dmg --config '{"bundle":{"createUpdaterArtifacts":false}}'

@@ -9,7 +9,8 @@ declare const __AR_V3_PROTECTED__: boolean;
  * ?style=real|lowpoly|v3 a priorité sur localStorage ar.style ; défaut : réaliste.
  */
 export type GraphicStyle = 'lowpoly' | 'real' | 'v3';
-export const V3_AVAILABLE = import.meta.env?.DEV === true;
+export const V3_AVAILABLE = import.meta.env?.DEV === true
+  || (typeof __AR_V3_PROTECTED__ !== 'undefined' && __AR_V3_PROTECTED__);
 
 export const STYLE_KEY = 'ar.style';
 const DEFAULT_STYLE: GraphicStyle = 'real';

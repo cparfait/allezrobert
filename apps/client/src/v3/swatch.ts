@@ -1,3 +1,5 @@
+import { v3Resource } from '../engine/v3Access.ts';
+
 /**
  * Couleur dominante d'un coloris de vélo V3, lue dans sa texture de peinture (servie par le plugin, sans teinte) :
  * pastille des coloris et dégradé du réglage « Couleur principale » (décalage de teinte des coloris réglables).
@@ -36,7 +38,7 @@ export function bikeSwatch(bike: string, color: number): Promise<Rgb | undefined
   if (!job) {
     job = (async () => {
       const image = new Image();
-      image.src = '/__v3/bikecolor/' + encodeURIComponent(bike) + '.png?color=' + color;
+      image.src = v3Resource('bikecolor/' + encodeURIComponent(bike) + '.png?color=' + color);
       await image.decode();
       const canvas = document.createElement('canvas');
       canvas.width = canvas.height = 64;

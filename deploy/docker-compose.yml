@@ -46,11 +46,34 @@ x-logging: &logging
     max-file: "3"
 
 services:
+  v3:
+    profiles: [v3]
+    build:
+      context: ..
+      dockerfile: deploy/docker/v3.Dockerfile
+    restart: unless-stopped
+    environment:
+      AR_V3_ACCESS_CODE: ${AR_V3_ACCESS_CODE:-}
+      AR_V3_PUBLIC_ORIGIN: https://${DOMAIN}
+      AR_V3_STUDY: /sources/study
+      AR_V3_DATA: /sources/data
+      AR_V3_TOOLS: /sources/convert/tools
+      AR_V3_CLIPS: /sources/clips-garage.json
+      AR_V3_CACHE: /cache
+      AR_V3_MEDIA: /sources/cache
+    user: "${AR_V3_UID:-1000}:${AR_V3_GID:-1000}"
+    volumes:
+      - ./data/v3-source:/sources:ro
+      - ./data/v3-cache:/cache
+    logging: *logging
+
   caddy:
     image: ${WEB_IMAGE:-ghcr.io/cparfait/allezrobert-web:latest}
     build:
       context: ..
       dockerfile: deploy/docker/web.Dockerfile
+      args:
+        AR_ENABLE_V3: ${AR_ENABLE_V3:-0}
     restart: unless-stopped
     ports:
       - "80:80"

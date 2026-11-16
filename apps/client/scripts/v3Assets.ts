@@ -3,6 +3,7 @@ import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { basename, dirname, extname, relative, resolve } from 'node:path';
 import { promisify } from 'node:util';
+import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { Plugin } from 'vite';
 
 const run = promisify(execFile);
@@ -53,12 +54,16 @@ function isLoopback(address = ''): boolean {
 }
 
 /** Distribue les fichiers du poste de test par identifiants, uniquement sur localhost en développement. */
-export function v3Assets(): Plugin {
+export function v3AssetMiddleware(
+  log: { info(message: string): void; warn(message: string): void },
+  production = false,
+): (req: IncomingMessage, res: ServerResponse) => void {
   const workspace = resolve(import.meta.dirname, '../../..');
   const study = resolve(process.env.AR_V3_STUDY ?? 'D:/zzCACHE_ALLEZROBERT/zwift-etude');
   const data = resolve(process.env.AR_V3_DATA ?? 'D:/Zwift/data');
   const tools = resolve(process.env.AR_V3_TOOLS ?? 'C:/Users/chris/AppData/Local/Temp/claude/d83c06b7f9a69396/4f613a66-5d01-40bb-90fd-3343a29947d1/scratchpad/assets-etude/tools');
-  const cache = resolve(workspace, 'out/v3');
+  const cache = resolve(process.env.AR_V3_CACHE ?? resolve(workspace, 'out/v3'));
+  const media = resolve(process.env.AR_V3_MEDIA ?? cache);
   const clipPath = resolve(process.env.AR_V3_CLIPS ?? resolve(workspace, 'out/essai-zwift/clips-garage.json'));
   const pipeline = resolve(workspace, 'tools/v3_assets.py');
   type Bike = { id: string; nom: string; marque: string; type: string; statut: string };
@@ -221,11 +226,7 @@ export function v3Assets(): Plugin {
       log('V3 · préchauffage des articles terminé (' + done + ' fichiers)');
     });
   }
-  return {
-    name: 'ar-v3-assets',
-    apply: 'serve',
-    configureServer(server) {
-      server.middlewares.use('/__v3', (req, res) => {
+  return (req, res) => {
         const json = (status: number, value: unknown) => {
           const body = JSON.stringify(value);
           res.writeHead(status, {
@@ -234,13 +235,30 @@ export function v3Assets(): Plugin {
         };
         const sendFile = (file: string, contentType = 'model/gltf-binary') => {
           if (res.destroyed) return;
-          res.writeHead(200, { 'Content-Type': contentType, 'Content-Length': statSync(file).size, 'Cache-Control': 'private, max-age=3600' });
-          createReadStream(file).on('error', () => res.destroy()).pipe(res);
+          const size = statSync(file).size;
+          const headers = { 'Content-Type': contentType, 'Cache-Control': production ? 'no-store' : 'private, max-age=3600', 'Accept-Ranges': 'bytes' };
+          const range = req.headers.range;
+          if (range) {
+            const match = /^bytes=(\d*)-(\d*)$/.exec(range);
+            const start = match?.[1] ? Number(match[1]) : match?.[2] ? Math.max(0, size - Number(match[2])) : size;
+            const end = match?.[1] && match[2] ? Math.min(size - 1, Number(match[2])) : size - 1;
+            if (!match || start >= size || end < start) {
+              res.writeHead(416, { ...headers, 'Content-Range': 'bytes */' + size }).end();
+              return;
+            }
+            res.writeHead(206, { ...headers, 'Content-Length': end - start + 1, 'Content-Range': `bytes ${start}-${end}/${size}` });
+            if (req.method === 'HEAD') res.end();
+            else createReadStream(file, { start, end }).on('error', () => res.destroy()).pipe(res);
+            return;
+          }
+          res.writeHead(200, { ...headers, 'Content-Length': size });
+          if (req.method === 'HEAD') res.end();
+          else createReadStream(file).on('error', () => res.destroy()).pipe(res);
         };
         // Photos du studio (vignettes) : lues et déposées par le garage, une fois pour toutes, dans out/v3/studio/<version>/.
         const studioMatch = /^\/studio\/(v\d{1,3})\/(index|[a-z0-9-]{1,80}\.png)$/.exec((req.url ?? '').split('?')[0] ?? '');
         const local = isLoopback(req.socket.remoteAddress) && /^(localhost|127\.0\.0\.1|\[::1\])(?::\d+)?$/i.test(req.headers.host ?? '');
-        if (local && studioMatch && req.method === 'POST' && studioMatch[2] !== 'index') {
+        if (!production && local && studioMatch && req.method === 'POST' && studioMatch[2] !== 'index') {
           const chunks: Buffer[] = [];
           let size = 0;
           req.on('data', (chunk: Buffer) => {
@@ -260,31 +278,29 @@ export function v3Assets(): Plugin {
           });
           return;
         }
-        if (local && studioMatch && req.method === 'GET') {
-          const dir = resolve(cache, 'studio', studioMatch[1]!);
+        if ((production || local) && studioMatch && (req.method === 'GET' || req.method === 'HEAD')) {
+          const dir = resolve(media, 'studio', studioMatch[1]!);
           if (studioMatch[2] === 'index') {
             return json(200, existsSync(dir) ? readdirSync(dir).filter(name => name.endsWith('.png')).map(name => name.slice(0, -4)) : []);
           }
           const file = resolve(dir, studioMatch[2]!);
           if (!existsSync(file)) return json(404, { error: 'Vignette absente.' });
-          if (res.destroyed) return;
-          res.writeHead(200, { 'Content-Type': 'image/png', 'Content-Length': statSync(file).size, 'Cache-Control': 'private, max-age=86400' });
-          createReadStream(file).on('error', () => res.destroy()).pipe(res);
-          return;
+          return sendFile(file, 'image/png');
         }
-        if (!local || req.method !== 'GET') {
+        if ((!production && !local) || (req.method !== 'GET' && req.method !== 'HEAD')) {
           json(404, { error: 'Ressources V3 réservées au poste local.' });
           return;
         }
         void (async () => {
           const url = new URL(req.url ?? '/', 'http://localhost');
           const variant = Number(url.searchParams.get('color') ?? 0);
-          const hue = url.searchParams.has('hue') ? Number(url.searchParams.get('hue')) : undefined;
-          if (!Number.isInteger(variant) || variant < 0 || variant > 999 || (hue !== undefined && (!Number.isFinite(hue) || hue < 0 || hue > 1))) {
+          const requestedHue = url.searchParams.has('hue') ? Number(url.searchParams.get('hue')) : undefined;
+          const hue = production && requestedHue !== undefined ? Math.round(requestedHue * 256) / 256 : requestedHue;
+          if (!Number.isInteger(variant) || variant < 0 || variant > 999 || (requestedHue !== undefined && (!Number.isFinite(requestedHue) || requestedHue < 0 || requestedHue > 1))) {
             return json(400, { error: 'Coloris invalide.' });
           }
           if (url.pathname === '/gear') {
-            void warm(message => server.config.logger.info(message));
+            if (!production) void warm(message => log.info(message));
             return json(200, (await loadGear()).map(row => ({
               id: row.i, type: row.type, category: row.cat, name: nameOf(row),
               variant: basename(row.fiche.replaceAll('\\', '/'), '.xml'), sex: row.sexe, sport: row.sport, group: row.geomgroup,
@@ -359,7 +375,7 @@ export function v3Assets(): Plugin {
           // Film d'accueil du style V3 (tools/menu-loop --style v3) : boucles et images fixes gardées hors du dossier public.
           const film = /^\/menu\/((?:loop|still)-v3-(?:spring|summer|autumn|winter)\.(?:mp4|av1\.mp4|webm|jpg))$/.exec(url.pathname);
           if (film) {
-            const file = resolve(cache, 'menu', film[1]!);
+            const file = resolve(media, 'menu', film[1]!);
             if (!existsSync(file)) return json(404, { error: 'Film V3 pas encore tourné.' });
             return sendFile(file, film[1]!.endsWith('.jpg') ? 'image/jpeg' : film[1]!.endsWith('.webm') ? 'video/webm' : 'video/mp4');
           }
@@ -390,10 +406,19 @@ export function v3Assets(): Plugin {
           if (kind === 'wheel') return sendFile(await prepare('object', 'wheel-' + id, source, 0));
           return sendFile(await prepare(kind, id, source, variant, kind === 'bike' ? hue : undefined));
         })().catch((error: unknown) => {
-          server.config.logger.warn('V3 · ' + (error instanceof Error ? error.message : String(error)));
+          log.warn('V3 · ' + (error instanceof Error ? error.message : String(error)));
           if (!res.headersSent && !res.destroyed) json(503, { error: 'Ressource V3 indisponible sur ce poste.' });
         });
-      });
+  };
+}
+
+/** Le serveur Vite garde ses ressources de développement sur localhost. */
+export function v3Assets(): Plugin {
+  return {
+    name: 'ar-v3-assets',
+    apply: 'serve',
+    configureServer(server) {
+      server.middlewares.use('/__v3', v3AssetMiddleware(server.config.logger));
     },
   };
 }

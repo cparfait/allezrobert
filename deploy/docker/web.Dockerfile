@@ -13,7 +13,8 @@ RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store pnpm fetch
 COPY . .
 RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
     pnpm install --offline --frozen-lockfile --filter "@allezrobert/client..." --filter "@allezrobert/companion..."
-RUN pnpm --filter @allezrobert/client build && pnpm --filter @allezrobert/companion build
+ARG AR_ENABLE_V3=0
+RUN AR_ENABLE_V3=$AR_ENABLE_V3 pnpm --filter @allezrobert/client build && pnpm --filter @allezrobert/companion build
 
 FROM caddy:2-alpine
 COPY --from=build /app/apps/client/dist /srv/client

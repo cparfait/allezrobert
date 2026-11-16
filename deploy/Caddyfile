@@ -48,6 +48,14 @@
 		reverse_proxy server:2567
 	}
 
+	# Les ressources de la V3 sont servies uniquement après vérification de la session.
+	@v3 path /__v3/*
+	handle @v3 {
+		reverse_proxy v3:2570 {
+			header_up X-Real-IP {client_ip}
+		}
+	}
+
 	# Salles Colyseus : matchmaking HTTP + WebSocket, préfixe retiré.
 	handle_path /colyseus/* {
 		reverse_proxy server:2567
@@ -114,9 +122,9 @@
 	redir /telechargement /telechargement/ 308
 	handle_path /telechargement/* {
 		root * /srv/downloads
-		@installer path *.exe *.msi
+		@installer path *.exe *.msi *.dmg
 		header @installer Content-Disposition "attachment"
-		@latest path /version.json /latest.json /allez-robert-setup.exe /allez-robert.msi
+		@latest path /version.json /latest.json /allez-robert-setup.exe /allez-robert.msi /allez-robert.dmg
 		header @latest Cache-Control "no-cache"
 		@media path /media/*
 		header @media Cache-Control "public, max-age=31536000, immutable"

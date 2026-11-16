@@ -1,0 +1,9 @@
+**
+!deploy/
+!deploy/v3-server.mts
+!apps/
+!apps/client/
+!apps/client/scripts/
+!apps/client/scripts/v3Assets.ts
+!tools/
+!tools/v3_assets.py

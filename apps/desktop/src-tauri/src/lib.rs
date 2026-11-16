@@ -19,6 +19,7 @@ pub mod localdb;
 pub mod packs;
 pub mod storage;
 pub mod system;
+mod v3;
 pub mod worlds;
 
 use tauri::{Manager, RunEvent};
@@ -100,12 +101,20 @@ pub fn run() {
         .register_asynchronous_uri_scheme_protocol("worlds", |_ctx, request, responder| {
             tauri::async_runtime::spawn_blocking(move || responder.respond(worlds::handle(request)));
         })
+        .register_asynchronous_uri_scheme_protocol("arv3", |ctx, request, responder| {
+            let app = ctx.app_handle().clone();
+            tauri::async_runtime::spawn(async move {
+                responder.respond(app.state::<v3::V3Session>().resource(request).await);
+            });
+        })
+        .manage(v3::V3Session::default())
         .manage(system::PendingUpdate::default())
         .manage(ble::BleState::default())
         .manage(dircon::DirconState::default())
         .manage(ant::AntState::default())
         .invoke_handler(tauri::generate_handler![
             open_external,
+            v3::v3_access,
             storage::storage_info,
             storage::storage_open_dir,
             storage::storage_pick_dir,

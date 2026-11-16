@@ -9,6 +9,7 @@ import { v3Select } from './dropdown.ts';
 import { bikeSwatch, css } from './swatch.ts';
 import { roadEffectHtml } from '../ui/roadEffect.ts';
 import { loadSettings } from '../ui/settings.ts';
+import { v3Resource } from '../engine/v3Access.ts';
 import './garage.css';
 
 export interface V3GarageActions {
@@ -91,7 +92,7 @@ function bikeIcon(bike: V3Bike | undefined, big = false): HTMLElement {
   }
   const image = document.createElement('img');
   image.className = 'mm-bikeicon' + (big ? ' big' : '');
-  image.src = '/__v3/bike/' + bike.id + '.png';
+  image.src = v3Resource('bike/' + bike.id + '.png');
   image.loading = 'lazy';
   image.decoding = 'async';
   image.alt = '';
@@ -477,7 +478,7 @@ export function createV3Garage(actions: V3GarageActions) {
     }
     const image = document.createElement('img');
     image.className = 'mm-bikeicon v3-wheelicon';
-    image.src = '/__v3/wheel/' + wheel.id + '.png';
+    image.src = v3Resource('wheel/' + wheel.id + '.png');
     image.loading = 'lazy';
     image.decoding = 'async';
     image.alt = '';

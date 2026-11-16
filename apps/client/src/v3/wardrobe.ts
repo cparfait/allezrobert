@@ -4,6 +4,7 @@ import { v3Select } from './dropdown.ts';
 import { v3Shown } from './catalogAdmin.ts';
 import { css, shiftHue, type Rgb } from './swatch.ts';
 import { needsPhoto } from './thumbnails.ts';
+import { v3Resource } from '../engine/v3Access.ts';
 
 type Actions = {
   equipment(equipment: V3Equipment): void;
@@ -415,7 +416,7 @@ export function addWardrobe(head: HTMLElement, parent: HTMLElement, settings: ()
       whenVisible(button, take);
     } else if (item.colors[0]?.preview) {
       const image = document.createElement('img');
-      image.src = '/__v3/gear/' + item.id + '/thumb.png';
+      image.src = v3Resource('gear/' + item.id + '/thumb.png');
       image.loading = 'lazy';
       image.decoding = 'async';
       image.alt = '';

@@ -35,6 +35,7 @@ if [[ "$mode" != "--upload-only" ]]; then
   # Installateur : le plugin Vite ar-installer-diet retire de dist/ les boucles vidéo VP9 en double et sort les
   # ressources lourdes vers apps/client/dist-media/ (manifeste embarqué : dist/media-manifest.json).
   export AR_DESKTOP=1
+  export AR_ENABLE_V3="${AR_ENABLE_V3:-1}"
   # Mises à jour signées : sans la clé privée, tauri build refuse de produire la signature.
   if [[ -z "${TAURI_SIGNING_PRIVATE_KEY:-}" ]]; then
     key="$HOME/.tauri/allezrobert-updater.key"

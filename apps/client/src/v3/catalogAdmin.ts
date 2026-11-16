@@ -2,6 +2,7 @@ import { apiBase } from '../ui/account.ts';
 import { getV3Catalog, getV3Gear, itemSex, type V3Bike, type V3Gear, type V3Wheel } from './visuals.ts';
 import { photoKey, needsPhoto } from './thumbnails.ts';
 import { V3_ICON, V3_SLOTS } from './icons.ts';
+import { v3Resource } from '../engine/v3Access.ts';
 
 /**
  * Gestion des objets du style V3 (développement) : chaque article, vélo ou paire de roues du catalogue local de Zwift
@@ -12,7 +13,7 @@ export type V3AdminKind = 'gear' | 'bike' | 'wheel';
 type AdminState = { hidden: string[] };
 
 const STORE = 'ar.v3.admin';
-const STUDIO = '/__v3/studio/v6/';
+const STUDIO = v3Resource('studio/v6/');
 let cache: Set<string> | undefined;
 const listeners = new Set<() => void>();
 
@@ -93,18 +94,18 @@ export async function openV3Admin(photo?: Photo): Promise<void> {
   const studio = (key: string) => (photos.has(key) ? STUDIO + key + '.png' : undefined);
   const sexOf = (item: V3Gear) => (itemSex(item) === 'female' ? 'female' : 'male');
   const gearImage = (item: V3Gear) => {
-    if (item.colors[0]?.preview && !needsPhoto(item)) return '/__v3/gear/' + item.id + '/thumb.png';
+    if (item.colors[0]?.preview && !needsPhoto(item)) return v3Resource('gear/' + item.id + '/thumb.png');
     // Sans photo au studio : prise à l'affichage de la carte (l'icône de Zwift n'est qu'une texture à plat).
-    return studio(photoKey(item, sexOf(item))) ?? (photo ? undefined : item.colors[0]?.preview ? '/__v3/gear/' + item.id + '/thumb.png' : undefined);
+    return studio(photoKey(item, sexOf(item))) ?? (photo ? undefined : item.colors[0]?.preview ? v3Resource('gear/' + item.id + '/thumb.png') : undefined);
   };
   const bikeRow = (bike: V3Bike): Row => ({
     key: keyOf('bike', bike.id), name: (bike.name.toLowerCase().startsWith(bike.brand.toLowerCase()) ? bike.name : bike.brand + ' ' + bike.name),
-    detail: bike.type + ' · ' + bike.id, image: studio('bike-' + bike.id) ?? (bike.preview ? '/__v3/bike/' + bike.id + '.png' : undefined),
+    detail: bike.type + ' · ' + bike.id, image: studio('bike-' + bike.id) ?? (bike.preview ? v3Resource('bike/' + bike.id + '.png') : undefined),
     zwift: /zwift/i.test(bike.brand + ' ' + bike.name),
   });
   const wheelRow = (wheel: V3Wheel): Row => ({
     key: keyOf('wheel', wheel.id), name: wheel.brand + ' ' + wheel.name, detail: wheel.kind + ' · ' + wheel.weightG + ' g · ' + wheel.id,
-    image: wheel.preview ? '/__v3/wheel/' + wheel.id + '.png' : studio('wheel-' + wheel.id), zwift: /zwift/i.test(wheel.brand + ' ' + wheel.id),
+    image: wheel.preview ? v3Resource('wheel/' + wheel.id + '.png') : studio('wheel-' + wheel.id), zwift: /zwift/i.test(wheel.brand + ' ' + wheel.id),
   });
   const gearRow = (item: V3Gear): Row => ({
     key: keyOf('gear', item.id), name: item.name || item.variant, detail: item.variant + ' · n° ' + item.id + (itemSex(item) !== 'tous' ? ' · ' + (itemSex(item) === 'female' ? 'femme' : 'homme') : ''),
