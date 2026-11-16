@@ -1,16 +1,19 @@
 import * as THREE from 'three/webgpu';
-import { texture, uv, float, vec2, vec3, vec4, mix, hash, instanceIndex, mx_noise_float, smoothstep, attribute, cameraPosition, cameraViewMatrix, positionLocal, atan, floor, mod } from 'three/tsl';
+import { texture, uv, float, vec2, vec3, vec4, mix, mx_noise_float, smoothstep, step, fract, dot, attribute, cameraPosition, cameraViewMatrix, positionLocal, atan, floor, mod, screenCoordinate } from 'three/tsl';
 import { Tree } from './eztree/tree.js';
 import { rng } from '../engine/noise.ts';
 
 /**
- * Vrais arbres autour du coureur (P2.5, `?eztree=1`) : branches et bouquets de feuilles générés par EZ-Tree (copie MIT,
+ * Vrais arbres autour du coureur (P2.5, actifs par défaut ; `?eztree=0` pour couper) : branches et bouquets de feuilles générés par EZ-Tree (copie MIT,
  * voir eztree/README.md) à la place des feuillus LiDAR :
  * - à moins de EZ_NEAR_M : l'arbre en 3D (≈ 7 000 à 20 000 triangles), ombres comprises ;
  * - de EZ_NEAR_M à EZ_IMPOSTOR_M : un imposteur, carte tournée vers la caméra qui montre l'arbre pré-rendu sous
  *   IMPOSTOR_VIEWS angles (atlas refait à chaque saison) ; tournée vers le soleil dans la passe d'ombre, elle porte
  *   une ombre d'arbre ;
- * - au-delà : les arbres du jeu (vegetation.ts), qui masque dans son shader ceux remplacés ici (`focus`, `hideR`).
+ * - au-delà : les arbres du jeu (vegetation.ts), qui masque dans son shader ceux remplacés ici.
+ * Aux deux limites, fondu sur une bande (NEAR_BAND, FAR_BAND) calculé à chaque image d'après la position réelle du
+ * coureur, en tramage complémentaire (`ezDither`) que l'anticrénelage temporel lisse : pas de bascule d'un groupe
+ * d'arbres quand les listes sont refaites (tous les 5 m). Teinte de chaque arbre tirée de sa position (stable).
  * Les textures d'EZ-Tree ne sont pas reprises : bouquets de feuilles dessinés ici (`leafSpray`), écorce par le shader.
  */
 
@@ -28,6 +31,25 @@ const SPECIES: Array<{ preset: string; leaf: Kind; bark: [string, string]; leafM
 export const EZ_NEAR_M = 60;
 /** Rayon des imposteurs (m) : au-delà, les arbres du jeu. */
 export const EZ_IMPOSTOR_M = 200;
+/** Demi-largeur des bandes de fondu 3D / imposteur et imposteur / arbres du jeu (m). */
+export const NEAR_BAND = 5;
+export const FAR_BAND = 10;
+/** Marge des listes (m) : le coureur avance d'au plus 5 m entre deux échanges. */
+const LIST_MARGIN = 6;
+
+/** Seuil de tramage par pixel (0–1), commun aux trois sortes d'arbres : leurs parts se complètent exactement. */
+export function ezDither(): THREE.Node<'float'> {
+  return fract(fract(dot(screenCoordinate.xy, vec2(0.06711056, 0.00583715))).mul(52.9829189)) as unknown as THREE.Node<'float'>;
+}
+/** Part des arbres en 3D à la distance `d` du coureur (1 près, 0 au-delà de la bande). */
+export function ezNearWeight(d: THREE.Node<'float'>): THREE.Node<'float'> {
+  return float(1).sub(smoothstep(EZ_NEAR_M - NEAR_BAND, EZ_NEAR_M + NEAR_BAND, d)) as unknown as THREE.Node<'float'>;
+}
+/** Part des arbres du jeu à la distance `d` (0 près, 1 au-delà de la bande lointaine). */
+export function ezFarWeight(d: THREE.Node<'float'>): THREE.Node<'float'> {
+  return smoothstep(EZ_IMPOSTOR_M - FAR_BAND, EZ_IMPOSTOR_M + FAR_BAND, d) as unknown as THREE.Node<'float'>;
+}
+
 /** Angles pré-rendus par essence (atlas). */
 const IMPOSTOR_VIEWS = 8;
 const FRAME_W = 128;
@@ -64,7 +86,7 @@ function leafSpray(kind: Kind, seed: number): THREE.Texture {
       const side = k % 2 ? 1 : -1;
       const ang = -Math.PI / 2 + side * (0.6 + r() * 0.5);
       const len = kind === 'ash' ? 20 + r() * 8 : kind === 'aspen' ? 17 + r() * 6 : 26 + r() * 10;
-      const l = Math.round(120 + r() * 110);
+      const l = Math.round(150 + r() * 60);
       g.save();
       g.translate(px, py);
       g.rotate(ang + Math.PI / 2);
@@ -120,6 +142,8 @@ interface Species {
   iPos: THREE.InstancedBufferAttribute;
   iSize: THREE.InstancedBufferAttribute;
   iYaw: THREE.InstancedBufferAttribute;
+  /** Pied (x, z) et teinte des arbres en 3D (attribut d'instance des deux maillages). */
+  iFoot: THREE.InstancedBufferAttribute;
   impCount: number;
 }
 
@@ -144,16 +168,16 @@ export class EzTreeNear {
   private readonly s = new THREE.Vector3();
 
   /**
-   * `focus`, `hideR` : uniformes du shader des arbres du jeu (vegetation.ts), qui y masque les feuillus à moins de
-   * `hideR` du dernier point d'échange.
+   * `live` : position du coureur, mise à jour à chaque image (uniforme partagé avec le shader des arbres du jeu,
+   * vegetation.ts) ; les fondus en dépendent.
    */
   constructor(
     leafA: THREE.Node<'vec3'>,
     leafB: THREE.Node<'vec3'>,
     leafAmount: THREE.Node<'float'>,
-    private readonly focus: { value: THREE.Vector3 },
-    private readonly hideR: { value: number },
+    private readonly live: THREE.Node<'vec3'> & { value: THREE.Vector3 },
   ) {
+    const n = ezDither();
     this.group.name = 'ez-tree-near';
     // Le moteur de rendu (pour pré-rendre les atlas entre deux images) : récupéré par un objet invisible.
     const probe = new THREE.Mesh(new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute([0, 0, 0, 0, 0, 0, 0, 0, 0], 3)), new THREE.MeshBasicNodeMaterial({ colorWrite: false, depthWrite: false }));
@@ -187,19 +211,28 @@ export class EzTreeNear {
       // Écorce : deux teintes mêlées par un bruit étiré le long des branches.
       const bn = mx_noise_float(vec2(uv().x.mul(6), uv().y.mul(1.5))).mul(0.5).add(0.5);
       const barkCol = mix(vec3(...new THREE.Color(sp.bark[0]).toArray()), vec3(...new THREE.Color(sp.bark[1]).toArray()), bn);
-      // Feuilles : bouquet dessiné, teinte de saison du jeu (deux tons tirés par arbre), absent en hiver.
+      // Feuilles : bouquet dessiné, teinte de saison du jeu, nuancée par arbre (teinte stable, tirée de sa position),
+      // absent en hiver.
       const tex = texture(leafSpray(sp.leaf, sp.seed), uv());
-      const h = hash(instanceIndex);
-      const leafCol = mix(leafA, leafB, smoothstep(0.2, 0.8, h)).mul(tex.r.mul(1.15).add(0.45)).mul(h.mul(0.2).add(0.9));
+      const leafColOf = (tone: THREE.Node<'float'>) => mix(leafA, leafB, tone.mul(0.4).add(0.3)).mul(tex.r.mul(1.15).add(0.45)).mul(tone.mul(0.12).add(0.94));
       const leafAlpha = tex.a.mul(leafAmount);
+      // Arbres en 3D : pied et teinte par instance, part du fondu tramé.
+      const iFoot = new THREE.InstancedBufferAttribute(new Float32Array(CAP_NEAR * 3), 3);
+      iFoot.setUsage(THREE.DynamicDrawUsage);
+      t.branchesMesh.geometry.setAttribute('iFoot', iFoot);
+      lg.setAttribute('iFoot', iFoot);
+      const foot = attribute<'vec3'>('iFoot');
+      const nearVisible = step(n, ezNearWeight(vec2(foot.x, foot.y).sub(this.live.xz).length()).sub(1e-4));
       const bMat = new THREE.MeshStandardNodeMaterial();
       bMat.colorNode = barkCol;
       bMat.roughnessNode = float(0.95);
+      bMat.opacityNode = nearVisible;
+      bMat.alphaTest = 0.5;
       const lMat = new THREE.MeshStandardNodeMaterial();
       lMat.side = THREE.DoubleSide;
       lMat.alphaTest = 0.5;
-      lMat.colorNode = leafCol;
-      lMat.opacityNode = leafAlpha;
+      lMat.colorNode = leafColOf(foot.z);
+      lMat.opacityNode = leafAlpha.mul(nearVisible);
       lMat.roughnessNode = float(0.75);
       const branches = new THREE.InstancedMesh(t.branchesMesh.geometry, bMat, CAP_NEAR);
       const leaves = new THREE.InstancedMesh(lg, lMat, CAP_NEAR);
@@ -217,7 +250,7 @@ export class EzTreeNear {
       const lBasic = new THREE.MeshBasicNodeMaterial();
       lBasic.side = THREE.DoubleSide;
       lBasic.alphaTest = 0.5;
-      lBasic.colorNode = leafCol;
+      lBasic.colorNode = leafColOf(float(0.5));
       lBasic.opacityNode = leafAlpha;
       bake.add(new THREE.Mesh(t.branchesMesh.geometry, bBasic), new THREE.Mesh(lg, lBasic));
       bake.visible = false;
@@ -232,7 +265,8 @@ export class EzTreeNear {
       geo.setAttribute('uv', plane.getAttribute('uv'));
       const iPos = new THREE.InstancedBufferAttribute(new Float32Array(CAP_IMPOSTOR * 3), 3);
       const iSize = new THREE.InstancedBufferAttribute(new Float32Array(CAP_IMPOSTOR * 2), 2);
-      const iYaw = new THREE.InstancedBufferAttribute(new Float32Array(CAP_IMPOSTOR), 1);
+      // (cap autour de la verticale, teinte de l'arbre)
+      const iYaw = new THREE.InstancedBufferAttribute(new Float32Array(CAP_IMPOSTOR * 2), 2);
       for (const a of [iPos, iSize, iYaw]) a.setUsage(THREE.DynamicDrawUsage);
       geo.setAttribute('iPos', iPos);
       geo.setAttribute('iSize', iSize);
@@ -240,7 +274,8 @@ export class EzTreeNear {
       geo.instanceCount = 0;
       const center = attribute<'vec3'>('iPos');
       const size = attribute<'vec2'>('iSize');
-      const yaw = attribute<'float'>('iYaw');
+      const yawTone = attribute<'vec2'>('iYaw');
+      const yaw = yawTone.x;
       const toCam = cameraPosition.xz.sub(center.xz);
       const dir = toCam.normalize();
       const right = vec3(dir.y, 0, dir.x.negate());
@@ -250,8 +285,10 @@ export class EzTreeNear {
       const frame = mod(floor(local.add(0.5)), IMPOSTOR_VIEWS);
       // (texture rendue sous WebGPU : axe vertical inversé)
       const tile = texture(atlas.texture, vec2(frame.add(uv().x).div(IMPOSTOR_VIEWS), float(1).sub(uv().y)));
-      imat.colorNode = tile.rgb;
-      imat.opacityNode = tile.a;
+      imat.colorNode = tile.rgb.mul(yawTone.y.mul(0.12).add(0.94));
+      // part de l'imposteur : ni celle des arbres en 3D, ni celle des arbres du jeu (tramage complémentaire)
+      const dImp = center.xz.sub(this.live.xz).length();
+      imat.opacityNode = tile.a.mul(step(ezNearWeight(dImp), n)).mul(step(n, float(1).sub(ezFarWeight(dImp)).sub(1e-4)));
       imat.alphaTest = 0.5;
       imat.side = THREE.DoubleSide;
       // normale : vers la caméra, relevée (houppier éclairé d'en haut)
@@ -262,7 +299,7 @@ export class EzTreeNear {
       impostor.castShadow = true;
       impostor.receiveShadow = true;
       this.group.add(impostor);
-      this.species.push({ h0, w0, branches, leaves, nearCount: 0, bake, atlas, impostor, iPos, iSize, iYaw, impCount: 0 });
+      this.species.push({ h0, w0, branches, leaves, nearCount: 0, bake, atlas, impostor, iPos, iSize, iYaw, iFoot, impCount: 0 });
     }
     this.bakeScene.add(new THREE.AmbientLight(0xffffff, 1));
   }
@@ -307,6 +344,8 @@ export class EzTreeNear {
    */
   update(focus: THREE.Vector3, meshes: Iterable<THREE.InstancedMesh>, isConifer: (mesh: THREE.InstancedMesh, i: number) => boolean, topOf: (mesh: THREE.InstancedMesh, i: number) => number): void {
     if (this.atlasDirty && this.renderer) this.bakeAtlases();
+    // fondus : position réelle, à chaque image
+    this.live.value.copy(focus);
     this.frames++;
     if (Math.hypot(focus.x - this.last.x, focus.z - this.last.z) < 5 && this.frames < 90) return;
     this.frames = 0;
@@ -315,8 +354,10 @@ export class EzTreeNear {
       sp.nearCount = 0;
       sp.impCount = 0;
     }
-    const rn2 = EZ_NEAR_M * EZ_NEAR_M;
-    const ri2 = EZ_IMPOSTOR_M * EZ_IMPOSTOR_M;
+    // listes élargies aux bandes de fondu (et au chemin parcouru d'ici le prochain échange)
+    const rn2 = (EZ_NEAR_M + NEAR_BAND + LIST_MARGIN) ** 2;
+    const ri0 = Math.max(0, EZ_NEAR_M - NEAR_BAND - LIST_MARGIN) ** 2;
+    const ri2 = (EZ_IMPOSTOR_M + FAR_BAND + LIST_MARGIN) ** 2;
     for (const mesh of meshes) {
       const a = mesh.instanceMatrix.array as Float32Array;
       for (let i = 0; i < mesh.count; i++) {
@@ -326,9 +367,10 @@ export class EzTreeNear {
         if (d2 > ri2 || isConifer(mesh, i)) continue;
         const k = Math.abs(Math.sin(x * 12.9898 + z * 78.233) * 43758.5453) % 1;
         const sp = this.species[Math.floor(k * this.species.length) % this.species.length] as Species;
+        const tone = (k * 7.31) % 1;
         const sc = topOf(mesh, i) / sp.h0;
-        if (d2 <= rn2) {
-          if (sp.nearCount >= CAP_NEAR) continue;
+        if (d2 <= rn2 && sp.nearCount < CAP_NEAR) {
+          sp.iFoot.setXYZ(sp.nearCount, x, z, tone);
           this.m.fromArray(a, i * 16);
           this.m.decompose(this.p, this.q, this.s);
           this.s.set(sc, sc, sc);
@@ -336,13 +378,14 @@ export class EzTreeNear {
           sp.branches.setMatrixAt(sp.nearCount, this.m);
           sp.leaves.setMatrixAt(sp.nearCount, this.m);
           sp.nearCount++;
-        } else {
+        }
+        if (d2 >= ri0) {
           if (sp.impCount >= CAP_IMPOSTOR) continue;
           const j = sp.impCount++;
           sp.iPos.setXYZ(j, x, a[i * 16 + 13] as number, z);
           sp.iSize.setXY(j, sp.w0 * 1.1 * sc, sp.h0 * 1.02 * sc);
           // rotation autour de la verticale : (sin, cos) dans la 3e colonne
-          sp.iYaw.setX(j, Math.atan2(a[i * 16 + 8] as number, a[i * 16 + 10] as number));
+          sp.iYaw.setXY(j, Math.atan2(a[i * 16 + 8] as number, a[i * 16 + 10] as number), tone);
         }
       }
     }
@@ -351,12 +394,10 @@ export class EzTreeNear {
       sp.leaves.count = sp.nearCount;
       sp.branches.instanceMatrix.needsUpdate = true;
       sp.leaves.instanceMatrix.needsUpdate = true;
+      sp.iFoot.needsUpdate = true;
       (sp.impostor.geometry as THREE.InstancedBufferGeometry).instanceCount = sp.impCount;
       for (const at of [sp.iPos, sp.iSize, sp.iYaw]) at.needsUpdate = true;
     }
-    // les arbres du jeu remplacés sont masqués par leur shader (vegetation.ts)
-    this.focus.value.copy(focus);
-    this.hideR.value = EZ_IMPOSTOR_M;
   }
 
   /** Arbres en 3D et imposteurs. */

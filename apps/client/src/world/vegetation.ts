@@ -13,7 +13,7 @@ import { shrubGeometry, shrubMaterial } from './trees.ts';
 import { alpineProfile, coniferBiasAt, larchShareAt, treeDensityAt, treeScaleAt } from './alpine.ts';
 import { CONIF_CROWN_BASE, CONIF_RADIUS, CONIF_TOP, DECID_FRAC, DECID_TOP, coniferRadius, coniferShare, crownFit, edgeAt, insideShare, neighbourCounts, openSkirt, openness, skirtFrac } from './treeShape.ts';
 import { LOW_POLY } from '../engine/style.ts';
-import { EZ_IMPOSTOR_M, EzTreeNear } from './ezTreeNear.ts';
+import { EZ_IMPOSTOR_M, FAR_BAND, EzTreeNear, ezDither, ezFarWeight } from './ezTreeNear.ts';
 
 /**
  * Houppiers plus crédibles en style réaliste (P2.3d) : ombre interne et normales par amas cuites dans la géométrie
@@ -107,10 +107,11 @@ function leafTone(t: THREE.Node<'float'>): THREE.Node<'float'> {
   return t.mul(0.3).add(0.85).add(smoothstep(0.86, 0.95, t).mul(0.22)).div(float(0.5 * 0.3 + 0.85)) as unknown as THREE.Node<'float'>;
 }
 
-/** Vrais arbres EZ-Tree autour du coureur (P2.5, 16/11/2026 ; `?eztree=1`, coupé par défaut ; voir ezTreeNear.ts). */
+/** Vrais arbres EZ-Tree autour du coureur (P2.5, voir ezTreeNear.ts) : actifs par défaut depuis le 16/11/2026 (validés en
+ *  jeu) ; `?eztree=0` les coupe. */
 const EZ_TREES = (() => {
   try {
-    return typeof location !== 'undefined' && new URLSearchParams(location.search).get('eztree') === '1';
+    return typeof location !== 'undefined' && new URLSearchParams(location.search).get('eztree') !== '0';
   } catch {
     return false;
   }
@@ -789,9 +790,10 @@ export class Vegetation {
     }
     const finalOffset = offset;
     const prevDec = staticDec;
-    // Vrais arbres (`?eztree=1`) : feuillus remplacés par ezTreeNear.ts (à moins de ezHideR du point d'échange) repliés
-    // en un point sous le sol ; conifères gardés.
-    const ezHidden = EZ_TREES ? step(vec2(tx, tz).sub(this.ezFocus.xz).length(), this.ezHideR).mul(float(1).sub(isCon)) : null;
+    // Vrais arbres (`?eztree=0` pour couper) : feuillus remplacés par ezTreeNear.ts (position réelle du coureur `ezFocus`) ;
+    // repliés en un point sous le sol en deçà de la bande de fondu lointaine, tramés dans la bande ; conifères gardés.
+    const ezDist = EZ_TREES ? vec2(tx, tz).sub(this.ezFocus.xz).length() : null;
+    const ezHidden = ezDist ? step(ezDist, float(EZ_IMPOSTOR_M - FAR_BAND - 1)).mul(float(1).sub(isCon)) : null;
     m.positionNode = Fn((builder: THREE.NodeBuilder) => {
       if (prevDec && (builder as unknown as { needsPreviousData(): boolean }).needsPreviousData()) positionPrevious.addAssign(prevDec);
       const pos = positionLocal.add(finalOffset);
@@ -808,7 +810,9 @@ export class Vegetation {
     const cardV = cardD.z;
     const lc = leafCard(cardD.xy, cardV, positionWorld.sub(cameraPosition).length());
     const cardA = lc.x.mul(mix(float(1), this.leafAmount, step(0.5, cardV)));
-    m.opacityNode = mix(float(1), mix(twig, float(1), this.leafAmount), leafV.mul(float(1).sub(isConV))).mul(cardA);
+    // vrais arbres : dans la bande de fondu lointaine, part tramée des arbres du jeu (complète celle des imposteurs)
+    const ezShow = ezDist ? mix(step(float(1).sub(ezFarWeight(varying(ezDist))), ezDither()), float(1), isConV) : float(1);
+    m.opacityNode = mix(float(1), mix(twig, float(1), this.leafAmount), leafV.mul(float(1).sub(isConV))).mul(cardA).mul(ezShow);
     m.alphaTest = 0.5;
 
     // Couleur par arbre (graine stable), écorce gris-brun un peu plus claire que l'ancien brun presque noir ; P2.3e :
@@ -1278,21 +1282,20 @@ export class Vegetation {
   }
 
   /** Met à jour les niveaux de détail quand le coureur s'est déplacé de plus de 40 m. */
-  /** Vrais arbres EZ-Tree (`?eztree=1`, voir ezTreeNear.ts) ; feuillus du jeu masqués à moins de `ezHideR` de `ezFocus`. */
+  /** Vrais arbres EZ-Tree (`?eztree=0` pour couper, voir ezTreeNear.ts) ; feuillus du jeu masqués à moins de `ezHideR` de `ezFocus`. */
   private ezNear: EzTreeNear | null = null;
   private readonly ezFocus = uniform(new THREE.Vector3(1e9, 0, 1e9));
-  private readonly ezHideR = uniform(0);
 
   update(focus: THREE.Vector3): void {
     this.drainLod();
     if (EZ_TREES && !LOW_POLY) {
       if (!this.ezNear) {
-        this.ezNear = new EzTreeNear(this.leafA.node as unknown as THREE.Node<'vec3'>, this.leafB.node as unknown as THREE.Node<'vec3'>, this.leafAmount, this.ezFocus, this.ezHideR);
+        this.ezNear = new EzTreeNear(this.leafA.node as unknown as THREE.Node<'vec3'>, this.leafB.node as unknown as THREE.Node<'vec3'>, this.leafAmount, this.ezFocus);
         this.group.add(this.ezNear.group);
       }
       // feuillus des blocs LiDAR qui touchent le rayon des imposteurs
       const near: THREE.InstancedMesh[] = [];
-      const R = EZ_IMPOSTOR_M;
+      const R = EZ_IMPOSTOR_M + FAR_BAND + 6;
       for (const c of this.chunks.values()) {
         if (!c.real) continue;
         const x0 = c.cx * c.size;
