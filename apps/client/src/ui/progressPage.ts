@@ -27,7 +27,7 @@ import { loadProgress } from './garage.ts';
 import { COIN, TUNE_SLOT_LABEL, bikeThumb, swatch as tuneSwatch } from './atelierPanel.ts';
 import { bikeThumbHtml } from './bikeThumb.ts';
 import { V3_STYLE } from '../engine/style.ts';
-import { V3_REWARD_CATS, v3Rewards, type V3RewardCat } from '../v3/progression.ts';
+import { V3_REWARD_CATS, v3RewardIcon, v3Rewards, type V3RewardCat } from '../v3/progression.ts';
 import { readV3Equipment } from '../v3/visuals.ts';
 import './progressPage.css';
 
@@ -250,7 +250,7 @@ export class ProgressPage {
         id: r.id,
         name: r.name,
         sub: r.sub,
-        thumb: r.image ? `<img class="pg-bikeimg" loading="lazy" alt="" src="${esc(r.image)}"/>` : `<i class="pg-shape jersey"></i>`,
+        thumb: r.image ? `<img class="pg-bikeimg" loading="lazy" alt="" data-pgv3="${r.cat}" src="${esc(r.image)}"/>` : v3RewardIcon(r.cat),
         state: r.worn ? 'on' : open ? 'open' : 'lock',
         stateText: r.worn ? (L ? 'Équipé' : 'Equipped') : open ? (L ? 'Débloqué' : 'Unlocked') : `${L ? 'Niveau' : 'Level'} ${r.level}`,
         tune: false,
@@ -584,6 +584,12 @@ export class ProgressPage {
         this.host.rerender();
       }),
     );
+    // Style Beta : vignette introuvable (photo pas encore prise) remplacée par le pictogramme de la catégorie.
+    root.querySelectorAll<HTMLImageElement>('img[data-pgv3]').forEach((img) => {
+      const fallback = () => { img.outerHTML = v3RewardIcon(img.dataset.pgv3 as V3RewardCat); };
+      if (img.complete && img.naturalWidth === 0 && img.currentSrc) fallback();
+      else img.addEventListener('error', fallback, { once: true });
+    });
     root.querySelectorAll<HTMLElement>('[data-pgcat]').forEach((el) =>
       el.addEventListener('click', (e) => {
         const c = el.dataset.pgcat as Cat | '';

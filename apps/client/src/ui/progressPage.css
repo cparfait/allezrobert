@@ -225,3 +225,6 @@
 .pg-d-row span { color: #b9c4d3; }
 .pg-d-actions { display: flex; gap: 8px; margin-top: 16px; flex-wrap: wrap; }
 @media (max-width: 640px) { .pg-detail { grid-template-columns: 1fr; } .pg-d-thumb { min-height: 120px; } }
+/* Style Beta : pictogramme des récompenses sans vignette. */
+.pg-v3icon { display: grid; place-items: center; color: #8d98a6; }
+.pg-v3icon svg { width: 34px; height: 34px; }
