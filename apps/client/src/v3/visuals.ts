@@ -22,7 +22,12 @@ const pivotTurned = new Vector3();
 const swing = new Quaternion();
 const inverse = new Quaternion();
 const frame = new Quaternion();
-const cycling = new Set([1, 3, 5, 13, 15, 18, 20, 24, 31]);
+/**
+ * Groupes de géométrie montrés d'origine. Le maillot (3) est ouvert en V devant : Zwift y ajoute une pièce de col et de
+ * poitrine parmi cinq ouvertures (8 fermé … 12 grand ouvert, bretelles 49 à 53 visibles quand il s'ouvre) ; le V3
+ * montre le col fermé (8).
+ */
+const cycling = new Set([1, 3, 5, 8, 13, 15, 18, 20, 24, 31]);
 /** Chaussures par défaut du coureur V3 (variante du catalogue) : S-Works SP7, chaussures de vélo de route. */
 const DEFAULT_SHOES = 'SworksSpSevenL';
 
