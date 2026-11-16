@@ -12,6 +12,7 @@ import {
   bikeOfLook,
   dayKey,
   kitProgress,
+  lookSex,
   trainerOf,
   xpForLevel,
   type AvatarLook,
@@ -25,6 +26,9 @@ import { rideHistory } from '../data/history/instance.ts';
 import { loadProgress } from './garage.ts';
 import { COIN, TUNE_SLOT_LABEL, bikeThumb, swatch as tuneSwatch } from './atelierPanel.ts';
 import { bikeThumbHtml } from './bikeThumb.ts';
+import { V3_STYLE } from '../engine/style.ts';
+import { V3_REWARD_CATS, v3Rewards, type V3RewardCat } from '../v3/progression.ts';
+import { readV3Equipment } from '../v3/visuals.ts';
 import './progressPage.css';
 
 /**
@@ -34,7 +38,7 @@ import './progressPage.css';
  */
 
 export type ProgressView = 'levels' | 'trophies';
-type Cat = 'bike' | 'jersey' | 'helmet' | 'glasses' | 'socks' | 'trainer' | 'tune' | 'kit';
+type Cat = 'bike' | 'jersey' | 'helmet' | 'glasses' | 'socks' | 'trainer' | 'tune' | 'kit' | V3RewardCat;
 
 export interface ProgressHost {
   /** Niveau affiché (celui du compte une fois connecté). */
@@ -62,9 +66,11 @@ interface Reward {
   stateText: string;
   tune: boolean;
   title: string;
+  /** Récompense du style Beta : pas de fiche (le garage Beta la montre une fois gagnée). */
+  inert?: boolean;
 }
 
-const CATS: Array<[Cat, string, string]> = [
+const REAL_CATS: Array<[Cat, string, string]> = [
   ['bike', 'Vélos', 'Bikes'],
   ['jersey', 'Maillots', 'Jerseys'],
   ['helmet', 'Casques', 'Helmets'],
@@ -74,6 +80,9 @@ const CATS: Array<[Cat, string, string]> = [
   ['tune', 'Atelier', 'Workshop'],
   ['kit', 'Ensembles', 'Sets'],
 ];
+
+/** Catégories de la page : celles du style Beta (catalogue V3) ou celles du Réel et du Poly. */
+const CATS: Array<[Cat, string, string]> = V3_STYLE ? V3_REWARD_CATS : REAL_CATS;
 
 /** XP d'une heure de selle à allure d'endurance sur le plat (≈ 28 km/h) : 20 XP/km + 2 XP/min. */
 const XP_PER_KM = 20 + (2 * 60) / 28;
@@ -170,6 +179,7 @@ export class ProgressPage {
   // ————————————————————————————————————————————— Récompenses
 
   private rewards(level: number): Reward[] {
+    if (V3_STYLE) return this.v3Rewards(level);
     const L = fr();
     const lang = L ? 'fr' : 'en';
     const p = loadProgress();
@@ -227,6 +237,29 @@ export class ProgressPage {
     return out;
   }
 
+  /** Style Beta : vélos, roues et articles du catalogue V3 (v3/progression.ts), chargés en tâche de fond. */
+  private v3Rewards(level: number): Reward[] {
+    const L = fr();
+    const sex = readV3Equipment().sex ?? lookSex(this.host.look());
+    const list = v3Rewards(sex, () => this.host.rerender()) ?? [];
+    return list.map((r) => {
+      const open = r.level <= level;
+      return {
+        cat: r.cat,
+        level: r.level,
+        id: r.id,
+        name: r.name,
+        sub: r.sub,
+        thumb: r.image ? `<img class="pg-bikeimg" loading="lazy" alt="" src="${esc(r.image)}"/>` : `<i class="pg-shape jersey"></i>`,
+        state: r.worn ? 'on' : open ? 'open' : 'lock',
+        stateText: r.worn ? (L ? 'Équipé' : 'Equipped') : open ? (L ? 'Débloqué' : 'Unlocked') : `${L ? 'Niveau' : 'Level'} ${r.level}`,
+        tune: false,
+        title: r.name,
+        inert: true,
+      };
+    });
+  }
+
   /** Lunettes : monture et verres à leurs couleurs. */
   private glasses(c: CosmeticItem): string {
     const frame = c.glasses?.frame ?? '#1a1d22';
@@ -236,7 +269,7 @@ export class ProgressPage {
 
   private card(r: Reward, big = false): string {
     const icon = r.state === 'lock' ? ICON.lock : r.state === 'open' && r.tune && r.cat === 'tune' ? '' : ICON.check;
-    return `<button class="pg-card ${r.state} ${big ? 'big' : ''} cat-${r.cat}" ${r.tune ? `data-pgtune="${r.id}"` : `data-pgitem="${r.id}"`} ${r.rar ? `style="--rar:${r.rar}"` : ''} title="${esc(r.title || r.name)}">
+    return `<button class="pg-card ${r.state} ${big ? 'big' : ''} cat-${r.cat}" ${r.inert ? '' : r.tune ? `data-pgtune="${r.id}"` : `data-pgitem="${r.id}"`} ${r.rar ? `style="--rar:${r.rar}"` : ''} title="${esc(r.title || r.name)}">
       <span class="pg-thumb">${r.thumb}</span>
       <span class="pg-card-t"><b>${esc(r.name)}</b><small>${esc(r.sub)}</small></span>
       <span class="pg-st">${icon}${r.stateText}</span></button>`;

@@ -3,17 +3,20 @@ import { loadProgress } from '../ui/garage.ts';
 import { isBare, V3_DEFAULT_BIKE, V3_DEFAULT_KIT, V3_DEFAULT_SHOES, type V3Bike, type V3Gear, type V3Wheel } from './visuals.ts';
 
 /**
- * Niveaux du style Beta (ex-V3) : chaque vélo, paire de roues et article se débloque au niveau du joueur (même XP et
- * mêmes niveaux que le Réel), puis il est libre, sans crédits. Le catalogue de Zwift n'a pas de niveau pour la plupart
- * des articles : il est calculé ici, toujours le même pour un objet donné.
+ * Progression du style Beta (ex-V3) : vélos, roues et articles se gagnent au niveau du joueur (même XP et mêmes niveaux
+ * que le Réel), sans crédits. Au garage, seuls les objets gagnés apparaissent ; la page Progression montre ce que chaque
+ * niveau apporte (v3/progression.ts). Le catalogue de Zwift n'a pas de niveau pour la plupart des objets : il est
+ * calculé ici, toujours le même pour un objet donné.
  * - Vélos, roues, casques et chaussures : selon leur gain de poids et de traînée face aux objets du même type
  *   (le moins bon au niveau 1, le meilleur au niveau 40).
- * - Tenues sans effet (maillots, chaussettes, gants, lunettes) : réparties de 1 à 50, plus nombreuses en bas.
- * - Visage, coiffure, barbe, pièces retirées et équipement de départ : libres dès le niveau 1.
+ * - Tenues sans effet, ou au même effet pour tous (maillots, chaussettes, gants, lunettes) : réparties de 1 à 50, plus
+ *   nombreuses en bas.
+ * - Visage, coiffure, barbe, pièces retirées et équipement de départ : gagnés dès le niveau 1.
  */
 export const V3_TOP_GEAR_LEVEL = 40;
 export const V3_MAX_LEVEL = 50;
-const FREE_TYPES = new Set(['HEAD_TYPE', 'HAIR', 'FACIAL_HAIR']);
+/** Personnage : jamais lié au niveau. */
+export const V3_FREE_TYPES = new Set(['HEAD_TYPE', 'HAIR', 'FACIAL_HAIR']);
 
 /** Niveau du joueur (progression locale, synchronisée avec le compte). */
 export function playerLevel(): number {
@@ -67,13 +70,12 @@ const starter = new Set(Object.values(V3_DEFAULT_KIT).map(selection => selection
 const hasEffect = (item: V3Gear) => !!item.weightG || !!item.cdaBias;
 
 export function gearLevel(item: V3Gear, items: readonly V3Gear[]): number {
-  if (FREE_TYPES.has(item.type) || isBare(item) || starter.has(item.id) || item.variant === V3_DEFAULT_SHOES) return 1;
+  if (V3_FREE_TYPES.has(item.type) || isBare(item) || starter.has(item.id) || item.variant === V3_DEFAULT_SHOES) return 1;
   if (hasEffect(item)) {
     const value = (row: V3Gear) => hasEffect(row) ? loss(row.weightG, row.cdaBias) : undefined;
-    return rankLevel(value(item)!, lossesOf(items, 'gear:' + item.type, row => row.type === item.type, value));
+    const all = lossesOf(items, 'gear:' + item.type, row => row.type === item.type, value);
+    // Effets tous égaux (lunettes, chaussures de Zwift) : rien à classer, réparties comme les tenues.
+    if (Math.min(...all) < Math.max(...all)) return rankLevel(value(item)!, all);
   }
   return 1 + Math.floor((V3_MAX_LEVEL - 1) * unit(item.id) ** 2);
 }
-
-/** Libellé d'un objet verrouillé. */
-export const lockedText = (level: number) => '🔒 niv. ' + level;

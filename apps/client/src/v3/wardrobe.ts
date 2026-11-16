@@ -1,5 +1,5 @@
 import { getV3Gear, isBare, itemFits, V3_DEFAULT_KIT, V3_HAIR_COLORS, V3_ZIPS, type V3Color, type V3Equipment, type V3Gear, type V3SockHeight } from './visuals.ts';
-import { gearLevel, lockedText, playerLevel } from './levels.ts';
+import { gearLevel, playerLevel } from './levels.ts';
 import { V3_SLOTS } from './icons.ts';
 import { v3Select } from './dropdown.ts';
 import { v3Shown } from './catalogAdmin.ts';
@@ -149,6 +149,8 @@ export function addWardrobe(head: HTMLElement, parent: HTMLElement, settings: ()
   const riderSex = () => actions.sex?.() ?? settings().sex ?? 'male';
   // Articles de la silhouette seulement (sexe du catalogue ou indiqué par le nom).
   const fits = (item: V3Gear) => itemFits(item, riderSex());
+  // Articles gagnés seulement (progression Beta, levels.ts) ; celui porté reste montré.
+  const earned = (item: V3Gear) => settings().kit?.[item.type]?.id === item.id || gearLevel(item, items) <= playerLevel();
   const slots = document.createElement('div');
   slots.className = 'gr-slots';
   const typeName = document.createElement('div');
@@ -341,9 +343,7 @@ export function addWardrobe(head: HTMLElement, parent: HTMLElement, settings: ()
     const bare = !!shown && isBare(shown);
     caption.classList.toggle('empty', !shown || bare);
     capName.textContent = bare ? 'Retiré' : shown ? label(shown) : 'Pièce d’origine du personnage';
-    const need = shown && !bare ? gearLevel(shown, items) : 1;
-    capState.textContent = !shown || bare ? '' : shown.id === current()?.id ? 'Équipé'
-      : need > playerLevel() ? 'Débloqué au niveau ' + need : 'Cliquer pour équiper';
+    capState.textContent = !shown || bare ? '' : shown.id === current()?.id ? 'Équipé' : 'Cliquer pour équiper';
     // Vignette de l'article (pastille non cliquable), refaite seulement quand l'article change.
     if (shown !== capShown) {
       capShown = shown;
@@ -432,17 +432,8 @@ export function addWardrobe(head: HTMLElement, parent: HTMLElement, settings: ()
     button.append(name);
     button.onmouseenter = button.onfocus = () => { showCaption(item); showTip(button, label(item)); };
     button.onmouseleave = button.onblur = () => { showCaption(); tip.hidden = true; };
-    // Article au-dessus du niveau du joueur : cadenas, rien à équiper (celui déjà porté reste).
-    const need = gearLevel(item, items);
-    const locked = need > playerLevel() && settings().kit?.[item.type]?.id !== item.id;
-    if (locked) {
-      button.classList.add('locked');
-      button.setAttribute('aria-disabled', 'true');
-      button.setAttribute('aria-label', label(item) + ' — niveau ' + need);
-      button.insertAdjacentHTML('beforeend', '<i class="v3-lock">' + lockedText(need) + '</i>');
-    }
     button.onclick = () => {
-      if (locked || settings().kit?.[item.type]?.id === item.id) return;
+      if (settings().kit?.[item.type]?.id === item.id) return;
       equip(item, 0);
     };
     return button;
@@ -452,7 +443,7 @@ export function addWardrobe(head: HTMLElement, parent: HTMLElement, settings: ()
   function filter() {
     const query = search.value.trim().toLowerCase();
     // Objets masqués par la page de gestion : hors de la liste (un coureur qui les porte les garde).
-    const matches = items.filter(item => item.type === category && fits(item) && !isBare(item) && v3Shown('gear', item.id) && (item.name + ' ' + item.variant).toLowerCase().includes(query));
+    const matches = items.filter(item => item.type === category && fits(item) && !isBare(item) && v3Shown('gear', item.id) && earned(item) && (item.name + ' ' + item.variant).toLowerCase().includes(query));
     const families = new Map<string, V3Gear[]>();
     for (const item of matches) {
       const family = familyOf(item);
@@ -527,7 +518,7 @@ export function addWardrobe(head: HTMLElement, parent: HTMLElement, settings: ()
     beardColor.row.hidden = type !== 'FACIAL_HAIR';
     hairColor.sync();
     beardColor.sync();
-    const count = items.filter(item => item.type === type && fits(item) && !isBare(item) && v3Shown('gear', item.id)).length;
+    const count = items.filter(item => item.type === type && fits(item) && !isBare(item) && v3Shown('gear', item.id) && earned(item)).length;
     typeName.textContent = (V3_SLOTS[type]?.label ?? type) + ' · ' + count;
     // Arrivée dans la rubrique : familles repliées ; l'article porté est montré en tête (légende).
     for (const id of [...openFamilies]) if (id.startsWith(type + '|')) openFamilies.delete(id);

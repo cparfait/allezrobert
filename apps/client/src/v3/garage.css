@@ -190,8 +190,3 @@ span.mm-bikeicon { display: block; }
 .ar-v3-garage .v3-dd .mm-dd-btn { padding: 7px 10px; border-radius: 8px; font-size: 13px; }
 .v3-dd-list .mm-dd-opt { font-size: 13px; padding: 6px 9px; }
 .v3-dd-list .v3-dd-group { margin: 6px 4px 2px; font: 700 9.5px/1.2 var(--mono, monospace); letter-spacing: 0.1em; text-transform: uppercase; color: #8d98a6; }
-/* Objets au-dessus du niveau du joueur (levels.ts) : grisés, niveau requis en bas de la pastille. */
-.v3-chip.locked { cursor: not-allowed; }
-.v3-chip.locked > img, .v3-chip.locked > svg { opacity: 0.45; }
-.v3-lock { position: absolute; left: 3px; right: 3px; bottom: 3px; padding: 1px 2px; border-radius: 4px; background: rgba(10, 14, 20, 0.82); color: #e2e8f0; font: 700 10px/1.3 inherit; font-style: normal; text-align: center; pointer-events: none; }
-.mm-bike.locked { cursor: not-allowed; }

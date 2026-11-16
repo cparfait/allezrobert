@@ -1,6 +1,6 @@
 import { getV3Catalog, getV3Clips, getV3Colors, getV3Gear, type V3SockHeight, readV3Equipment, V3_HAIR_COLORS, saveV3Equipment, V3_POSES, type V3Bike, type V3Body, type V3Color, type V3Equipment, type V3Gear, mountedWheel, wheelsFor, type V3Wheel, resolvedBody, riderBmi, itemFits } from './visuals.ts';
 import { addWardrobe, createHueControl, onScreen, whenVisible } from './wardrobe.ts';
-import { bikeLevel, gearLevel, lockedText, playerLevel, wheelLevel } from './levels.ts';
+import { bikeLevel, gearLevel, playerLevel, wheelLevel } from './levels.ts';
 import { V3_ICON } from './icons.ts';
 import { COSMETICS, DEFAULT_BIKE, DEFAULT_TRAINER } from '@allezrobert/shared';
 import { saveV3BikeSetup, v3BikeEffect } from './physics.ts';
@@ -489,7 +489,10 @@ export function createV3Garage(actions: V3GarageActions) {
   }
   function showWheels() {
     const bike = catalogBikes.find(row => row.id === equipment.bike);
-    const offered = wheelsFor(bike?.type, catalogWheels).filter(wheel => v3Shown('wheel', wheel.id))
+    const level = playerLevel();
+    // Roues gagnées seulement (progression Beta, levels.ts) ; la paire montée reste montrée.
+    const offered = wheelsFor(bike?.type, catalogWheels).filter(wheel => v3Shown('wheel', wheel.id)
+      && (wheel.id === equipment.wheels || wheelLevel(wheel, catalogWheels) <= level))
       .sort((a, b) => a.brand.localeCompare(b.brand, 'fr') || a.name.localeCompare(b.name, 'fr', { numeric: true }));
     wheelField.hidden = !offered.length;
     const current = mountedWheel(equipment, bike, catalogWheels);
@@ -505,15 +508,11 @@ export function createV3Garage(actions: V3GarageActions) {
       const drag = Math.round((wheel.cdaBias - own.cdaBias) / DEFAULT_BIKE.cda * 1000) / 10;
       return kind + ' · ' + (grams > 0 ? '+' : '') + grams.toLocaleString('fr-FR') + ' g · traînée ' + (drag > 0 ? '+' : '') + drag.toLocaleString('fr-FR') + ' %';
     };
-    const level = playerLevel();
     const row = (wheel: V3Wheel | undefined, name: string, detail: string) => {
       const on = current?.id === wheel?.id;
-      const need = wheel ? wheelLevel(wheel, catalogWheels) : 1;
-      const locked = !on && need > level;
       const button = document.createElement('button');
       button.type = 'button';
-      button.className = 'mm-bike' + (on ? ' on' : '') + (locked ? ' locked' : '');
-      if (locked) { button.setAttribute('aria-disabled', 'true'); button.title = 'Débloquées au niveau ' + need; }
+      button.className = 'mm-bike' + (on ? ' on' : '');
       button.setAttribute('aria-pressed', String(on));
       const text = document.createElement('span');
       text.className = 'mm-bike-txt';
@@ -525,9 +524,8 @@ export function createV3Garage(actions: V3GarageActions) {
       const side = document.createElement('span');
       side.className = 'mm-bike-side';
       if (on) side.innerHTML = '<span class="mm-bike-state">✓ Équipé</span>';
-      else if (locked) side.innerHTML = '<span class="mm-bike-state">' + lockedText(need) + '</span>';
       button.append(wheelIcon(wheel ?? origin), text, side);
-      button.onclick = () => { if (locked) return; apply({ ...equipment, wheels: wheel?.id }); showWheels(); };
+      button.onclick = () => { apply({ ...equipment, wheels: wheel?.id }); showWheels(); };
       return button;
     };
     const rows: HTMLElement[] = [row(undefined, 'D’origine', origin ? 'Livrées avec ce vélo : ' + wheelLabel(origin) : 'Livrées avec ce vélo')];
@@ -632,21 +630,23 @@ export function createV3Garage(actions: V3GarageActions) {
   const openBrands = new Set<string>();
   function fillBikes() {
     const query = searchBike.value.trim().toLowerCase();
+    const level = playerLevel();
+    // Vélos gagnés seulement (progression Beta, levels.ts) ; le vélo monté reste montré.
+    const earned = catalogBikes.filter(bike => bike.id === equipment.bike || bikeLevel(bike, catalogBikes) <= level);
     const counts = new Map<string, number>();
-    for (const bike of catalogBikes) counts.set(bike.type, (counts.get(bike.type) ?? 0) + 1);
+    for (const bike of earned) counts.set(bike.type, (counts.get(bike.type) ?? 0) + 1);
     const known = BIKE_TYPES.filter(([id]) => counts.has(id));
     const other = [...counts.keys()].filter(id => !BIKE_TYPES.some(([type]) => type === id)).map(id => [id, id] as [string, string]);
-    const options: Array<[string, string]> = [['all', 'Tous les types (' + catalogBikes.length + ')'],
+    const options: Array<[string, string]> = [['all', 'Tous les types (' + earned.length + ')'],
       ...[...known, ...other].map(([id, label]): [string, string] => [id, label + ' (' + (counts.get(id) ?? 0) + ')'])];
     if (types.options.length !== options.length) types.replaceChildren(...options.map(([id, label]) => new Option(label, id)));
     types.value = bikeType;
-    const shown = catalogBikes
+    const shown = earned
       .filter(bike => v3Shown('bike', bike.id))
       .filter(bike => bikeType === 'all' || bike.type === bikeType)
       .filter(bike => (bike.brand + ' ' + bike.name + ' ' + typeLabel(bike.type)).toLowerCase().includes(query))
       .sort((a, b) => a.brand.localeCompare(b.brand, 'fr') || bikeName(a).localeCompare(bikeName(b), 'fr'));
     const rows: HTMLElement[] = [];
-    const level = playerLevel();
     let brand: string | undefined;
     for (const bike of shown) {
       if (bike.brand !== brand) {
@@ -672,12 +672,9 @@ export function createV3Garage(actions: V3GarageActions) {
       }
       if (!query && !openBrands.has(bike.brand)) continue;
       const on = bike.id === equipment.bike;
-      const need = bikeLevel(bike, catalogBikes);
-      const locked = !on && need > level;
       const row = document.createElement('button');
       row.type = 'button';
-      row.className = 'mm-bike' + (on ? ' on' : '') + (locked ? ' locked' : '');
-      if (locked) { row.setAttribute('aria-disabled', 'true'); row.title = 'Débloqué au niveau ' + need; }
+      row.className = 'mm-bike' + (on ? ' on' : '');
       row.dataset.v3Bike = bike.id;
       row.setAttribute('aria-pressed', String(on));
       const text = document.createElement('span');
@@ -690,9 +687,8 @@ export function createV3Garage(actions: V3GarageActions) {
       const side = document.createElement('span');
       side.className = 'mm-bike-side';
       if (on) side.innerHTML = '<span class="mm-bike-state">✓ Équipé</span>';
-      else if (locked) side.innerHTML = '<span class="mm-bike-state">' + lockedText(need) + '</span>';
       row.append(bikeIcon(bike), text, side);
-      row.onclick = () => { if (!locked) choose(bike.id); };
+      row.onclick = () => choose(bike.id);
       rows.push(row);
     }
     if (!rows.length) {
