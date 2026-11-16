@@ -152,15 +152,32 @@ function onOtherSide(o: THREE.Mesh, x: number, y: number, z: number, tilt = 0): 
   return o;
 }
 
-/** Cassette 11 vitesses (11–30 dents) sur la roue libre du home trainer, grand pignon côté cadre. */
-function cassette(x0: number): THREE.Group {
+/** Cassette 11 vitesses sur la roue libre du home trainer, grand pignon côté cadre. */
+function cassette(x0: number, maxTeeth?: 28 | 30): THREE.Group {
   const g = new THREE.Group();
-  const steel = mat('#c9ced4', 0.28, 0.95);
-  const dark = mat('#5d636b', 0.35, 0.9);
-  const teeth = [30, 27, 24, 21, 19, 17, 15, 14, 13, 12, 11];
+  const steel = maxTeeth ? mat('#c9ced4', 0.32, 0.55) : mat('#c9ced4', 0.28, 0.95);
+  const dark = maxTeeth ? mat('#90969d', 0.37, 0.60) : mat('#5d636b', 0.35, 0.9);
+  const teeth = [maxTeeth ?? 30, maxTeeth === 28 ? 25 : 27, maxTeeth === 28 ? 23 : 24, 21, 19, 17, 15, 14, 13, 12, 11];
   teeth.forEach((t, i) => {
     const x = x0 - 0.002 - i * 0.0036;
-    g.add(cylX(t * 0.00202, x - 0.0009, x + 0.0009, TRAINER_AXLE_Y, 0, i < 4 ? dark : steel, LOW_POLY ? Math.min(t, 16) : t * 2));
+    const radius = t * 0.00202;
+    const material = i < 4 ? dark : steel;
+    if (!maxTeeth) {
+      g.add(cylX(radius, x - 0.0009, x + 0.0009, TRAINER_AXLE_Y, 0, material, LOW_POLY ? Math.min(t, 16) : t * 2));
+      return;
+    }
+    const ring = new THREE.Shape();
+    for (let tooth = 0; tooth < t; tooth++) {
+      for (const [offset, depth] of [[0, 0.0024], [0.26, 0], [0.56, 0], [0.82, 0.0024]] as const) {
+        const a = ((tooth + offset) / t) * Math.PI * 2;
+        const px = Math.cos(a) * (radius - depth);
+        const py = Math.sin(a) * (radius - depth) + TRAINER_AXLE_Y;
+        if (tooth === 0 && offset === 0) ring.moveTo(px, py);
+        else ring.lineTo(px, py);
+      }
+    }
+    ring.closePath();
+    g.add(slab(ring, x - 0.001, x + 0.001, material, 0));
   });
   // Corps de roue libre et axe traversant (bouchons des deux côtés).
   g.add(cylX(0.017, x0 + 0.004, x0 - 0.042, TRAINER_AXLE_Y, 0, dark, LOW_POLY ? 8 : 24));
@@ -182,14 +199,23 @@ function frontBlock(frontZ: number, kind: 'tacx' | 'tacx3m' | 'wahoo'): THREE.Gr
   } else {
     const neo3 = kind === 'tacx3m';
     const body = mat(neo3 ? '#26282c' : '#1e2024', 0.55, 0.15);
-    const len = neo3 ? 0.3 : 0.26;
-    const h = neo3 ? 0.045 : 0.075;
-    const top = neo3 ? 0.22 : 0.12;
-    const prof = () => rounded([[-len / 2, 0, 0.01], [len / 2, 0, 0.01], [top / 2, h, 0.03], [-top / 2, h, 0.03]], 0.02);
-    // Deux flancs de part et d'autre de la rainure du pneu, fond de rainure bas.
-    for (const s of [-1, 1]) g.add(slab(prof(), s < 0 ? -0.062 : 0.016, s < 0 ? -0.016 : 0.062, body, 0.008));
-    g.add(slab(rounded([[-len / 2 + 0.02, 0], [len / 2 - 0.02, 0], [len / 2 - 0.03, 0.012], [-len / 2 + 0.03, 0.012]], 0.004), -0.02, 0.02, body, 0.003));
-    g.add(onDriveSide(label('Tacx', neo3 ? '#e6e8ea' : '#19a7e6', 0.07, 0.022, 900, true), -0.0625, h * 0.45, 0.04));
+    const rubber = mat('#141517', 0.82);
+    const len = neo3 ? 0.265 : 0.23;
+    const h = neo3 ? 0.034 : 0.057;
+    const half = neo3 ? 0.078 : 0.067;
+    const gap = neo3 ? 0.024 : 0.020;
+    const end = len / 2;
+    const footprint: Pt[] = [[-half, -end + 0.027], [-half + 0.019, -end], [half - 0.019, -end],
+      [half, -end + 0.027], [half, end - 0.027], [half - 0.019, end],
+      [-half + 0.019, end], [-half, end - 0.027]];
+    g.add(plate(footprint, null, 0.01, 0, 0.008, rubber, 0.003));
+    for (const s of [-1, 1]) {
+      const shape = rounded([[-end + 0.012, 0.008], [end - 0.012, 0.008], [end - 0.032, h * 0.72],
+        [neo3 ? 0.061 : 0.016, h], [neo3 ? -0.08 : -0.053, h * 0.63]], 0.013);
+      g.add(slab(shape, s < 0 ? -half + 0.004 : gap, s < 0 ? -gap : half - 0.004, body, 0.006));
+    }
+    g.add(onDriveSide(label('Tacx', neo3 ? '#c7c9cb' : '#19a7e6', 0.051, 0.014, 900, true),
+      -half + 0.003, h * 0.39, 0.023));
   }
   g.position.z = frontZ;
   return g;
@@ -212,18 +238,6 @@ function grille(r: number, bg: string, hole: string, step = 14): THREE.Mesh {
   return new THREE.Mesh(new THREE.CircleGeometry(r, LOW_POLY ? 12 : 40), m);
 }
 
-/** Fentes d'aération parallèles (w × h m). */
-function vents(w: number, h: number, n: number): THREE.Mesh {
-  const map = canvasTex(256, 64, (c) => {
-    c.clearRect(0, 0, 256, 64);
-    c.fillStyle = '#0c0d0f';
-    for (let i = 0; i < n; i++) c.fillRect(8 + (i * 240) / n, 6, (240 / n) * 0.45, 52);
-  });
-  const o = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshStandardNodeMaterial({ map, transparent: true, roughness: 0.6, depthWrite: false }));
-  o.renderOrder = 2;
-  return o;
-}
-
 /** Pied plat posé au sol : contour (x, z) et découpe, entre les hauteurs y0 et y1. */
 function plate(pts: ReadonlyArray<Pt>, hole: ReadonlyArray<Pt> | null, r: number, y0: number, y1: number, m: THREE.Material, bevel = 0.005): THREE.Mesh {
   const flip = (p: Pt): Pt => [p[0], -p[1], p[2] ?? r];
@@ -235,13 +249,6 @@ function plate(pts: ReadonlyArray<Pt>, hole: ReadonlyArray<Pt> | null, r: number
   geo.rotateX(-Math.PI / 2);
   geo.translate(0, y0 + bevel, 0);
   return mesh(geo, m);
-}
-
-/** Contour réduit vers son centre (découpe d'un pied). */
-function inset(pts: ReadonlyArray<Pt>, k: number): Pt[] {
-  const cx = pts.reduce((s, p) => s + p[0], 0) / pts.length;
-  const cz = pts.reduce((s, p) => s + p[1], 0) / pts.length;
-  return pts.map((p): Pt => [cx + (p[0] - cx) * k, cz + (p[1] - cz) * k]);
 }
 
 /** Cylindre de rayon r de a à b. */
@@ -290,101 +297,156 @@ function flywheel(c: THREE.Vector3, r: number, width: number, black: THREE.Mater
 
 // ————————————————————————————————————————————— Modèles
 
-/**
- * Tacx NEO 2T Smart : corps gris anthracite satiné à pan coupé en haut à l'arrière, grand angle arrondi
- * à l'avant, arche ouverte en bas ; disque clair au centre (cassette), grilles de haut-parleur, fentes
- * d'aération, loquets clairs. Un pied plat par côté, triangle évidé noir sur tranche bleue, patins bleus,
- * logo Tacx bleu.
- */
-function neo2t(): THREE.Group {
+/** Un pied pliant : la face monte vers ses deux charnières, la découpe traverse les deux coques. */
+function tacxWing(s: -1 | 1, neo3: boolean, top: THREE.Material, liner: THREE.Material, rubber: THREE.Material): THREE.Group {
   const g = new THREE.Group();
-  const shell = mat('#31343a', 0.42, 0.25);
-  const black = mat('#15161a', 0.55, 0.15);
-  const blue = mat('#19a7e6', 0.4, 0.1);
-  const Y = TRAINER_AXLE_Y;
-  const X0 = -0.025;
-  const X1 = 0.085;
-  const XC = (X0 + X1) / 2;
-  const body = rounded(
-    [[-0.2, 0.03, 0.012], [-0.2, 0.3], [-0.1, 0.475], [0.27, 0.475, 0.1], [0.27, 0.19], [0.215, 0.05, 0.012], [0.185, 0.05, 0.012], [0.115, 0.18], [-0.055, 0.18], [-0.135, 0.03, 0.012]],
-    0.03,
-  );
-  g.add(slab(body, X0, X1, shell, 0.02));
-  // Disque clair dans son logement sombre, moyeu, cassette.
-  g.add(cylX(0.108, X0 - 0.003, X0 + 0.004, Y, 0, black));
-  g.add(cylX(0.1, X0 - 0.006, X0 + 0.004, Y, 0, mat('#d6d8da', 0.45, 0.3)));
-  g.add(cylX(0.032, X0 - 0.009, X0 - 0.005, Y, 0, mat('#2c2f34', 0.35, 0.7)));
-  g.add(cassette(X0 - 0.009));
-  // Détails des deux faces : grilles, aérations le long du pan coupé, loquets.
-  for (const [side, x, tilt] of [[onDriveSide, X0 - 0.002, 1.05], [onOtherSide, X1 + 0.002, -1.05]] as const) {
-    g.add(side(grille(0.022, '#24262b', '#08090a', 26), x, 0.275, -0.175));
-    g.add(side(grille(0.022, '#24262b', '#08090a', 26), x, 0.165, 0.205));
-    g.add(side(vents(0.075, 0.018, 7), x, 0.378, -0.125, tilt));
+  const edge = neo3 ? 0.392 : 0.368;
+  const back = neo3 ? -0.367 : -0.338;
+  const front = neo3 ? 0.251 : 0.229;
+  const wing: Pt[] = [[0.057, -0.164], [edge - 0.044, back], [edge, back + 0.032], [edge, front - 0.023],
+    [edge - 0.022, front], [edge - 0.087, front - 0.006], [0.057, 0.215]];
+  const cutout: Pt[] = [[0.106, -0.145], [edge - 0.073, back + 0.083], [edge - 0.063, back + 0.105],
+    [edge - 0.063, front - 0.152], [edge - 0.093, front - 0.069], [0.106, 0.133]];
+  const mirror = (pts: ReadonlyArray<Pt>): Pt[] => pts.map(([x, z]) => [s * x, z]);
+  const rise = (x: number, z: number) => {
+    const t = THREE.MathUtils.clamp((edge - Math.abs(x)) / (edge - 0.057), 0, 1);
+    return (neo3 ? 0.027 : 0.008) + t * (0.166 - z * 0.29);
+  };
+  const skin = (low: number, high: number, material: THREE.Material) => {
+    const part = plate(mirror(wing), mirror(cutout), 0.018, low, high, material, 0.004);
+    const p = part.geometry.attributes.position!;
+    for (let i = 0; i < p.count; i++) p.setY(i, p.getY(i) + rise(p.getX(i), p.getZ(i)));
+    part.geometry.computeVertexNormals();
+    g.add(part);
+    return part;
+  };
+  skin(0, 0.011, liner);
+  const upper = skin(0.01, neo3 ? 0.033 : 0.029, top);
+  // Pièces en relief orientées sur le plan du pied : logo, charnières et fenêtres de verrouillage.
+  const surface = (x: number, z: number) => {
+    const pivot = new THREE.Group();
+    const along = new THREE.Vector3(0, rise(x, z - s * 0.001) - rise(x, z), -s * 0.001).normalize();
+    const across = new THREE.Vector3(s * 0.001, rise(x + s * 0.001, z) - rise(x, z), 0).normalize();
+    const normal = across.cross(along).normalize();
+    pivot.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(along, normal.clone().cross(along), normal));
+    pivot.position.set(x, rise(x, z) + (neo3 ? 0.034 : 0.030), z);
+    g.add(pivot);
+    return pivot;
+  };
+  // Le marquage épouse la pente réelle du carter, y compris de part et d'autre de ses facettes.
+  const mark = label('Tacx', neo3 ? '#e2e5e7' : '#1fb2f2', 0.093, 0.032, 900, true);
+  const placement = surface(s * (edge - 0.033), front - 0.082);
+  placement.updateMatrix();
+  mark.geometry.dispose();
+  mark.geometry = new THREE.PlaneGeometry(0.093, 0.032, 8, 3);
+  const positions = mark.geometry.attributes.position!;
+  const point = new THREE.Vector3();
+  const ray = new THREE.Raycaster(new THREE.Vector3(), new THREE.Vector3(0, -1, 0));
+  for (let i = 0; i < positions.count; i++) {
+    point.fromBufferAttribute(positions, i).applyMatrix4(placement.matrix);
+    ray.ray.origin.set(point.x, 1, point.z);
+    const y = ray.intersectObject(upper)[0]?.point.y ?? point.y;
+    positions.setXYZ(i, point.x, y + 0.002, point.z);
   }
-  const latch = mat('#c9cdd2', 0.4, 0.4);
-  for (const x of [X0 - 0.004, X1 + 0.004]) for (const z of [-0.168, 0.2]) g.add(box3(0.01, 0.03, 0.022, latch, x, 0.09, z));
-  // Pieds : un triangle évidé de chaque côté, dessus noir, tranche bleue, patins bleus aux pointes.
-  for (const s of [-1, 1]) {
-    const leg: Pt[] = [[XC + s * 0.06, 0.17], [XC + s * 0.36, 0.35], [XC + s * 0.29, -0.37], [XC + s * 0.06, -0.15]];
-    const hole = inset(leg, 0.6);
-    g.add(plate(leg, hole, 0.03, 0.008, 0.032, blue));
-    g.add(plate(leg, hole, 0.03, 0.03, 0.05, black));
-    for (const p of [leg[1], leg[2]]) if (p) g.add(foot(p[0] - s * 0.025, p[1] - Math.sign(p[1]) * 0.025, 0.03, blue));
+  mark.geometry.computeVertexNormals();
+  g.remove(placement);
+  g.add(mark);
+  const latch = mat('#b6b9bd', 0.4, 0.35);
+  const slot = mat('#121315', 0.65);
+  const locked = mat('#2789bd', 0.5);
+  const locks = [-0.152, 0.183];
+  for (const z of locks) {
+    const pivot = surface(s * 0.107, z);
+    pivot.add(box3(0.033, 0.052, 0.008, slot, 0, 0, 0.003));
+    pivot.add(box3(0.021, 0.017, 0.004, latch, 0, -0.012, 0.008));
+    pivot.add(box3(0.012, 0.004, 0.003, locked, 0, 0.013, 0.008));
   }
-  const logo = label('Tacx', '#19a7e6', 0.12, 0.04, 900, true);
-  logo.rotation.set(-Math.PI / 2, 0, Math.atan2(-0.72, -0.07));
-  logo.position.set(XC - 0.26, 0.051, 0.21);
-  g.add(logo);
+  if (neo3) {
+    // Deux appuis reliés sous le pied, avec une molette à l'arrière pour bloquer la translation.
+    const rail: Pt[] = [[edge - 0.053, back + 0.009], [edge, back + 0.033], [edge, front - 0.022],
+      [edge - 0.028, front - 0.006], [edge - 0.061, front - 0.04], [edge - 0.074, back + 0.075]];
+    g.add(plate(mirror(rail), null, 0.016, 0.009, 0.032, rubber));
+    for (const z of [back + 0.066, front - 0.057]) {
+      g.add(box3(0.049, 0.014, 0.105, rubber, s * (edge - 0.035), 0.007, z));
+    }
+    const x = s * (edge - 0.048);
+    g.add(tube(new THREE.Vector3(x, 0.052, back + 0.048), new THREE.Vector3(x, 0.052, back - 0.02), 0.015, rubber));
+  } else {
+    for (const z of [back + 0.055, front - 0.044]) {
+      g.add(plate(mirror([[edge - 0.053, z - 0.034], [edge - 0.011, z - 0.027],
+        [edge - 0.011, z + 0.027], [edge - 0.053, z + 0.033]]), null, 0.008, 0, 0.017, liner, 0.003));
+    }
+  }
   return g;
 }
 
-/**
- * Tacx NEO 3M : corps anthracite plus massif, module arrière « GARMIN » en relief avec sa grille,
- * poignée évidée sur le dessus, grand disque gris clair ; posé sur un piédestal en arche (loquets
- * clairs marqués de rouge, logo Tacx blanc) et des semelles plates évidées, tout en noir.
- */
-function neo3m(): THREE.Group {
+/** Carter des NEO, côté transmission argenté et côté opposé fermé par un capot noir. */
+function neo(neo3: boolean): THREE.Group {
   const g = new THREE.Group();
-  const shell = mat('#2b2d32', 0.45, 0.22);
-  const module = mat('#222428', 0.55, 0.2);
-  const black = mat('#1a1b1e', 0.6, 0.15);
-  const Y = TRAINER_AXLE_Y;
-  const X0 = -0.028;
-  const X1 = 0.1;
-  const XC = (X0 + X1) / 2;
-  const body = rounded([[-0.215, 0.28, 0.02], [-0.205, 0.455], [-0.16, 0.48], [0.165, 0.49, 0.1], [0.165, 0.275], [0.105, 0.205], [-0.12, 0.225], [-0.2, 0.265, 0.02]], 0.03);
-  body.holes.push(rounded([[-0.03, 0.452], [0.055, 0.452], [0.055, 0.468], [-0.03, 0.468]], 0.007));
-  g.add(slab(body, X0, X1, shell, 0.02));
-  // Module arrière en relief des deux côtés.
-  g.add(slab(rounded([[-0.224, 0.27], [-0.212, 0.462], [-0.165, 0.487], [-0.075, 0.482], [-0.07, 0.29], [-0.125, 0.25]], 0.02), X0 - 0.01, X1 + 0.01, module, 0.012));
-  for (const [side, x] of [[onDriveSide, X0 - 0.012], [onOtherSide, X1 + 0.012]] as const) {
-    g.add(side(label('GARMIN', '#5d6168', 0.1, 0.02, 700), x, 0.36, -0.145));
-    g.add(side(grille(0.02, '#1c1d21', '#060607', 24), x, 0.432, -0.115));
+  const shell = mat(neo3 ? '#2b2d30' : '#323439', 0.56);
+  const edge = mat('#1d1f22', 0.5);
+  const rubber = mat('#151619', 0.86);
+  const silver = mat('#bac0c3', 0.36, 0.62);
+  const steel = mat('#d3d6da', 0.3, 0.8);
+  const x0 = -0.021;
+  const x1 = 0.053;
+  const y = TRAINER_AXLE_Y;
+  const top = y + (neo3 ? 0.194 : 0.167);
+  const profile: Pt[] = [[-0.235, y + 0.01], [-0.197, top - 0.018], [-0.064, top], [0.068, top, 0.095],
+    [0.138, top - 0.058], [0.254, y - 0.112, 0.024], [0.244, y - 0.203], [-0.152, y - 0.098], [-0.226, y - 0.032]];
+  const outline = (handle: boolean) => {
+    const shape = rounded(profile, 0.023);
+    if (handle) shape.holes.push(rounded([[-0.041, top - 0.049], [0.055, top - 0.049],
+      [0.047, top - 0.023], [-0.045, top - 0.023]], 0.009));
+    return shape;
+  };
+  g.add(slab(outline(neo3), x0, x1, edge, 0.006));
+  g.add(slab(outline(neo3), x0 - 0.003, x0 + 0.006, shell, 0.002));
+  // La coque extérieure du côté opposé à la cassette ménage le passage de la patte du vélo.
+  const cover = rounded([[-0.219, y + 0.01], [-0.183, top - 0.041], [-0.055, top - 0.055],
+    [0.061, top - 0.065], [0.103, y + 0.056], [0.233, y - 0.12],
+    [0.226, y - 0.167], [-0.14, y - 0.077]], 0.018);
+  g.add(slab(cover, x1 - 0.004, x1 + 0.006, shell, 0.003));
+  g.add(cylX(0.032, x1 + 0.004, 0.069, y, 0, silver));
+  g.add(cylX(0.014, 0.067, 0.073, y, 0, edge));
+  g.add(cylX(0.007, 0.073, 0.077, y, 0, steel));
+
+  const rotor = neo3 ? 0.122 : 0.125;
+  g.add(cylX(rotor + 0.007, x0 - 0.007, x0, y, 0, rubber));
+  g.add(cylX(rotor, x0 - 0.011, x0 - 0.007, y, 0, silver));
+  g.add(cylX(0.034, x0 - 0.015, x0 - 0.011, y, 0, edge));
+  g.add(cassette(x0 - 0.015, 30));
+  for (let i = 0; i < 7; i++) {
+    const a = (i / 7) * 2 * Math.PI;
+    const r = rotor + 0.017;
+    g.add(cylX(0.0027, x0 - 0.004, x0 - 0.002, y + Math.sin(a) * r, Math.cos(a) * r, edge, 8));
   }
-  // Disque gris clair, logement sombre, moyeu, cassette.
-  g.add(cylX(0.096, X0 - 0.003, X0 + 0.004, Y, 0, black));
-  g.add(cylX(0.088, X0 - 0.006, X0 + 0.004, Y, 0, mat('#cfcac3', 0.5, 0.25)));
-  g.add(cylX(0.034, X0 - 0.008, X0 - 0.005, Y, 0, mat('#3b3d41', 0.4, 0.5)));
-  g.add(cassette(X0 - 0.008));
-  g.add(onDriveSide(label('TACX NEO 3M', '#7d8189', 0.08, 0.012, 700), X0 - 0.002, 0.245, -0.01));
-  // Piédestal en arche sous le corps.
-  const ped = rounded([[-0.27, 0, 0.012], [0.24, 0, 0.012], [0.24, 0.03], [0.16, 0.215], [0.12, 0.235], [-0.13, 0.235], [-0.17, 0.215], [-0.27, 0.03]], 0.025);
-  ped.holes.push(rounded([[-0.11, 0.065], [0.15, 0.065], [0.115, 0.19], [-0.08, 0.19]], 0.02));
-  g.add(slab(ped, X0 + 0.005, X1 - 0.005, black, 0.012));
-  const latch = mat('#c9cdd2', 0.4, 0.4);
-  const red = mat('#c8282c', 0.5);
-  for (const [x, out] of [[X0, -0.004], [X1, 0.004]] as const) {
-    for (const [z, y] of [[-0.128, 0.205], [0.176, 0.117]] as const) {
-      g.add(box3(0.01, 0.034, 0.024, latch, x + out, y, z));
-      g.add(box3(0.011, 0.008, 0.016, red, x + out * 1.1, y - 0.008, z));
+  for (let i = 0; i < 4; i++) {
+    const a = Math.PI / 4 + (i * Math.PI) / 2;
+    g.add(cylX(0.003, x1 + 0.005, x1 + 0.007, y + Math.sin(a) * 0.047, Math.cos(a) * 0.047, silver, 8));
+  }
+
+  if (neo3) {
+    // Module d'alimentation derrière le moteur, dégagé de l'axe et de la poignée.
+    const module = rounded([[-0.235, y - 0.02], [-0.201, top - 0.022], [-0.089, top - 0.022],
+      [-0.112, y + 0.048], [-0.093, y - 0.055], [-0.159, y - 0.103], [-0.22, y - 0.063]], 0.018);
+    g.add(slab(module, x0 - 0.014, x1 + 0.028, edge, 0.007));
+    for (const [face, x] of [[onDriveSide, x0 - 0.015], [onOtherSide, x1 + 0.029]] as const) {
+      g.add(face(grille(0.023, '#1f2124', '#101113', 19), x, y + 0.097, -0.167));
+      g.add(face(label('GARMIN', '#888b8d', 0.079, 0.014, 700), x, y + 0.042, -0.17));
     }
+  } else {
+    g.add(onDriveSide(grille(0.021, '#303236', '#101113', 19), x0 - 0.004, y - 0.044, -0.17));
+    g.add(onDriveSide(grille(0.021, '#303236', '#101113', 19), x0 - 0.004, y - 0.128, 0.197));
   }
-  g.add(onDriveSide(label('Tacx', '#eef0f2', 0.09, 0.03, 900, true), X0 + 0.002, 0.045, 0.19));
-  // Semelles plates évidées de chaque côté.
-  for (const s of [-1, 1]) {
-    const sole: Pt[] = [[XC + s * 0.06, 0.22], [XC + s * 0.31, 0.27], [XC + s * 0.28, -0.31], [XC + s * 0.06, -0.27]];
-    g.add(plate(sole, inset(sole, 0.6), 0.03, 0, 0.032, black));
+  g.add(onOtherSide(label(neo3 ? 'TACX NEO 3M' : 'NEO 2T SMART', '#9da1a6', 0.095, 0.012, 700),
+    x1 + 0.007, y - 0.117, 0.145, 0.23));
+
+  const liner = neo3 ? edge : mat('#168cc4', 0.5);
+  for (const [z, hingeY] of [[-0.152, 0.236], [0.183, 0.148]] as const) {
+    g.add(cylX(0.015, -0.081, 0.081, hingeY, z, edge));
   }
+  for (const s of [-1, 1] as const) g.add(tacxWing(s, neo3, shell, liner, rubber));
   return g;
 }
 
@@ -474,8 +536,8 @@ function kickrCore2(): THREE.Group {
 }
 
 const BUILDERS: Record<string, { build: () => THREE.Group; block: 'tacx' | 'tacx3m' | 'wahoo' }> = {
-  'trainer-neo-2t': { build: neo2t, block: 'tacx' },
-  'trainer-neo-3m': { build: neo3m, block: 'tacx3m' },
+  'trainer-neo-2t': { build: () => neo(false), block: 'tacx' },
+  'trainer-neo-3m': { build: () => neo(true), block: 'tacx3m' },
   'trainer-kickr': { build: kickr, block: 'wahoo' },
   'trainer-kickr-core-2': { build: kickrCore2, block: 'wahoo' },
 };
