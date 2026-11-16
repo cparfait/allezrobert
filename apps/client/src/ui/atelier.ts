@@ -930,6 +930,8 @@ export class AtelierHost {
     if (this.v3 && this.avatar && this.state) {
       this.v3.update(this.v3Playing && this.state.v3Picker ? dt : 0, 90, 0, 'seated', {
         rider: this.state.rider, helmet: !this.state.bareHead && !this.v3BareHead, clip: this.v3Pose,
+        // Démonstration « Pédaler » : le vélo balance comme en sortie (danseuse, effort).
+        rock: this.v3Playing && this.state.v3Picker,
       });
       if (this.v3Panel) {
         const equipment = this.v3.activeEquipment();

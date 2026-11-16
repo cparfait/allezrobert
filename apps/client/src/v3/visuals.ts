@@ -9,6 +9,12 @@ const base = '/__v3/';
 const defaultBike = 'canyonaeroad2024';
 const axis = new Vector3(0, 0, 1);
 const wheelRotation = new Quaternion();
+const facing = new Quaternion().setFromAxisAngle(new Vector3(0, 1, 0), -Math.PI / 2);
+const roll = new Quaternion();
+const up = new Vector3(0, 1, 0);
+const forward = new Vector3();
+const footRight = new Vector3();
+const footLeft = new Vector3();
 const cycling = new Set([1, 3, 5, 13, 15, 18, 20, 24, 31]);
 
 export const V3_POSES: Record<string, string> = {
@@ -490,6 +496,10 @@ export class V3Visual {
   private kitKey = '';
   private kit: MountedGear[] = [];
   private ready = false;
+  /** Balancement du vélo (garage) : part de danseuse et de pédalage, lissées ; pieds du coureur repérés. */
+  private stance = 0;
+  private pedalled = 0;
+  private feet?: { rider: RiderVisual; right: Bone; left: Bone };
 
   activeEquipment(): V3Equipment | undefined {
     return this.group.visible ? this.bike?.equipment : undefined;
@@ -621,7 +631,55 @@ export class V3Visual {
     return this.dropsOn ? 'cyclistSeatedDrops' : 'cyclistSeatedHoods';
   }
 
-  update(dt: number, cadence: number, speed: number, pose: RiderPose, options: { rider?: boolean; head?: boolean; helmet?: boolean; clip?: string; effort?: number; transitions?: boolean } = {}): void {
+  /**
+   * Pieds du coureur : les deux os les plus bas de la pose en cours (pieds sur les pédales), un de chaque côté du vélo
+   * (côté droit = avant × haut).
+   * Les os du coureur V3 ne sont que numérotés.
+   */
+  private findFeet(rider: RiderVisual, ahead: Vector3): { rider: RiderVisual; right: Bone; left: Bone } | undefined {
+    if (this.feet?.rider === rider) return this.feet;
+    rider.scene.updateMatrixWorld(true);
+    const side = new Vector3().crossVectors(ahead, up);
+    const bones = [...rider.joints.values()].map(bone => {
+      const at = rider.scene.worldToLocal(bone.getWorldPosition(new Vector3()));
+      return { bone, y: at.y, side: at.dot(side) };
+    }).sort((a, b) => a.y - b.y);
+    const right = bones.find(bone => bone.side > 0.03);
+    const left = bones.find(bone => bone.side < -0.03);
+    this.feet = right && left ? { rider, right: right.bone, left: left.bone } : undefined;
+    return this.feet;
+  }
+
+  /**
+   * Balancement du vélo, comme l'avatar du jeu en sortie (gltfAvatar) : à l'opposé de la jambe qui appuie, ≈ 1° assis
+   * (un peu plus en forçant), ≈ 6° en danseuse, nul en roue libre. La phase vient des pieds du coureur (pied droit
+   * devant : le vélo penche à gauche), donc toujours d'accord avec le clip joué.
+   */
+  private rock(dt: number, cadence: number, effort: number, clip: string, steady: boolean): void {
+    const { bike, rider } = this;
+    const front = bike?.parts[0]?.find(part => part.part === 'FrontWheel')?.node;
+    const rear = bike?.parts[0]?.find(part => part.part === 'RearWheel')?.node;
+    if (!rider || !front || !rear) { this.group.quaternion.copy(facing); return; }
+    forward.subVectors(front.position, rear.position).setY(0);
+    if (forward.lengthSq() < 1e-6) { this.group.quaternion.copy(facing); return; }
+    forward.normalize();
+    const feet = this.findFeet(rider, forward);
+    const k = 1 - Math.exp(-dt * 4);
+    this.stance += ((/standing|sprint/i.test(clip) ? 1 : 0) - this.stance) * k;
+    this.pedalled += ((steady && cadence >= 5 && !/superaero/i.test(clip) ? 1 : 0) - this.pedalled) * k;
+    let angle = 0;
+    if (feet && this.pedalled > 0.001) {
+      rider.scene.updateMatrixWorld(true);
+      rider.scene.worldToLocal(feet.right.getWorldPosition(footRight));
+      rider.scene.worldToLocal(feet.left.getWorldPosition(footLeft));
+      const push = Math.max(-1, Math.min(1, footRight.sub(footLeft).dot(forward) / 0.3));
+      const seated = 0.014 + 0.01 * Math.max(0, Math.min(0.6, effort - 0.6));
+      angle = -push * (0.11 * this.stance + seated * (1 - this.stance)) * this.pedalled;
+    }
+    this.group.quaternion.copy(facing).multiply(roll.setFromAxisAngle(forward, angle));
+  }
+
+  update(dt: number, cadence: number, speed: number, pose: RiderPose, options: { rider?: boolean; head?: boolean; helmet?: boolean; clip?: string; effort?: number; transitions?: boolean; rock?: boolean } = {}): void {
     const { bike, rider } = this;
     const showRider = this.ready && !!rider && options.rider !== false;
     // Vélo ou coureur V3 pas encore chargé : rien plutôt que le coureur et le vélo du jeu (mode Réel) en attendant.
@@ -686,6 +744,8 @@ export class V3Visual {
     showHairGeometry(this.kit.find(gear => gear.item.type === 'HAIR')?.left,
       !covered ? 'none' : helmetGear?.item.hairGeom ?? 'helmet');
     rider.levels.forEach(node => { node.visible = node.name === ['LOD0', 'LOD2', 'LOD5'][level]; });
+    if (options.rock) this.rock(dt, cadence, options.effort ?? 0.7, name, at === undefined);
+    else this.group.quaternion.copy(facing);
   }
 
   dispose(): void {

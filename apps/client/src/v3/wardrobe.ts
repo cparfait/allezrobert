@@ -420,7 +420,10 @@ export function addWardrobe(head: HTMLElement, parent: HTMLElement, settings: ()
     beardColor.sync();
     const count = items.filter(item => item.type === type && fits(item)).length;
     typeName.textContent = (V3_SLOTS[type]?.label ?? type) + ' · ' + count;
+    // Menu ouvert sur l'article porté : sa famille dépliée, la pastille au milieu de la liste.
+    foldReady.delete(type);
     filter();
+    grid.querySelector<HTMLElement>('.gr-chip.on')?.scrollIntoView({ block: 'center' });
   }
   search.oninput = filter;
   color.onchange = () => {
@@ -449,7 +452,8 @@ export function addWardrobe(head: HTMLElement, parent: HTMLElement, settings: ()
     if (next) choose(next);
   }
   const open = () => {
-    if (loading || items.length) return;
+    if (items.length) { choose(category); return; }
+    if (loading) return;
     loading = true;
     status.textContent = 'Chargement des équipements…';
     void getV3Gear().then(result => {

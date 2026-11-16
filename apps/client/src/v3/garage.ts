@@ -171,9 +171,11 @@ export function createV3Garage(actions: V3GarageActions) {
     }
     status.textContent = '';
     actions.bareHead?.(id === 'character' && characterType === 'HAIR');
+    panel.parentElement?.scrollTo({ top: 0 });
+    // Chaque menu s'ouvre sur l'équipement porté (famille ou marque dépliée, article visible).
     if (id === 'kit') openKit();
     if (id === 'character') openCharacter();
-    panel.parentElement?.scrollTo({ top: 0 });
+    if (id === 'bikes') revealBike();
   }
 
   const kit = sectionFor('kit', 'Tenue', V3_ICON.tenue);
@@ -310,9 +312,10 @@ export function createV3Garage(actions: V3GarageActions) {
   focusText.append(focusName, focusType, effectLine);
   focus.append(bikeIcon(undefined, true), focusText);
   bikes.section.append(focus);
-  const colors = select(bikes.section, 'Coloris');
+  // Teinte des coloris réglables de Zwift : fait tourner les couleurs de la peinture (noir, gris et blanc restent).
+  // Proposée avec les coloris, sous le vélo choisi dans la liste.
   const hue = createHueControl(value => apply({ ...equipment, hue: value }));
-  bikes.section.append(hue.field);
+  hue.field.title = 'Fait tourner les couleurs de la peinture (coloris réglable) ; le noir, le gris et le blanc ne changent pas.';
   const ride = document.createElement('div');
   ride.className = 'v3-ride';
   const poses = select(ride, 'Posture');
@@ -341,8 +344,21 @@ export function createV3Garage(actions: V3GarageActions) {
   const trainerOptions: Array<[string | null, string]> = [
     [null, 'Aucun'], ...COSMETICS.filter(item => item.slot === 'trainer').map(item => [item.id, item.name.fr] as [string, string]),
   ];
+  // Replié par défaut : l'intertitre montre le home trainer choisi.
+  const trainerToggle = document.createElement('button');
+  trainerToggle.type = 'button';
+  trainerToggle.className = 'v3-fold';
+  trainerToggle.setAttribute('aria-expanded', 'false');
+  const trainerName = document.createElement('span');
+  trainerToggle.append('Home trainer', trainerName);
+  trainers.hidden = true;
+  trainerToggle.onclick = () => {
+    trainers.hidden = !trainers.hidden;
+    trainerToggle.setAttribute('aria-expanded', String(!trainers.hidden));
+  };
   function showTrainer() {
     const current = equipment.trainer === undefined ? DEFAULT_TRAINER : equipment.trainer;
+    trainerName.textContent = trainerOptions.find(([id]) => id === current)?.[1] ?? '';
     trainers.querySelectorAll<HTMLButtonElement>('button').forEach((button, i) => {
       const on = trainerOptions[i]?.[0] === current;
       button.classList.toggle('on', on);
@@ -358,7 +374,7 @@ export function createV3Garage(actions: V3GarageActions) {
     button.onclick = () => { apply({ ...equipment, trainer: id }); showTrainer(); };
     trainers.append(button);
   }
-  trainerField.append('Home trainer', trainers);
+  trainerField.append(trainerToggle, trainers);
   bikes.section.append(trainerField);
   showTrainer();
   const types = document.createElement('div');
@@ -382,32 +398,11 @@ export function createV3Garage(actions: V3GarageActions) {
 
   let catalogBikes: V3Bike[] = [];
   let bikeType = 'all';
-  let bikeColors: V3Color[] = [];
-  let colorRequest = 0;
   function showFocus() {
     const bike = catalogBikes.find(row => row.id === equipment.bike);
     focus.firstElementChild?.replaceWith(bikeIcon(bike, true));
     focusName.textContent = bike ? bikeName(bike) : equipment.bike;
     focusType.textContent = bike ? typeLabel(bike.type) : '';
-  }
-  async function showColors() {
-    const request = ++colorRequest;
-    colors.disabled = true;
-    colors.replaceChildren(new Option('Chargement…', '0'));
-    hue.set();
-    try {
-      const result = await getV3Colors(equipment.bike);
-      if (request !== colorRequest) return;
-      bikeColors = result.colors.length ? result.colors : [{ name: 'D’origine' }];
-      colors.replaceChildren(...bikeColors.map((color, i) => new Option(color.name || (bikeColors.length === 1 ? 'D’origine' : 'Coloris ' + (i + 1)), String(i))));
-      colors.value = String(equipment.color);
-      colors.disabled = bikeColors.length <= 1;
-      hue.set(bikeColors[equipment.color], equipment.hue);
-    } catch (error) {
-      if (request !== colorRequest) return;
-      colors.replaceChildren(new Option('Coloris indisponibles'));
-      report(error);
-    }
   }
   const openBrands = new Set<string>();
   let brandsReady = false;
@@ -480,7 +475,7 @@ export function createV3Garage(actions: V3GarageActions) {
       side.className = 'mm-bike-side';
       if (on) side.innerHTML = '<span class="mm-bike-state">✓ Équipé</span>';
       row.append(bikeIcon(bike), text, side);
-      row.onclick = () => { choose(bike.id); void showInlineColors(bike.id); };
+      row.onclick = () => choose(bike.id);
       rows.push(row);
     }
     if (!rows.length) {
@@ -490,6 +485,8 @@ export function createV3Garage(actions: V3GarageActions) {
       rows.push(empty);
     }
     list.replaceChildren(...rows);
+    // Coloris et teinte du vélo équipé, sous sa ligne (si sa marque est dépliée).
+    void showInlineColors(equipment.bike);
   }
   /** Vélo au hasard ; le dé général se limite aux vélos de route, gravel, chrono et VTT. */
   async function randomBike(usual = false): Promise<void> {
@@ -500,13 +497,11 @@ export function createV3Garage(actions: V3GarageActions) {
     const { colors: options } = await getV3Colors(bike.id);
     if (options.length > 1 && equipment.bike === bike.id) {
       apply({ ...equipment, color: Math.floor(Math.random() * options.length), hue: undefined });
-      void showColors();
+      markInline();
+      hue.set(options[equipment.color]);
     }
   }
-  /**
-   * Coloris proposés juste sous le vélo cliqué (s'il en a plusieurs), pour ne pas devoir remonter à la fiche du vélo.
-   * Reste synchronisé avec la liste « Coloris » du haut.
-   */
+  /** Coloris (s'il y en a plusieurs) et teinte (coloris réglable) du vélo équipé, juste sous sa ligne dans la liste. */
   let inlineFor = '';
   function markInline() {
     list.querySelectorAll<HTMLButtonElement>('.v3-inline-colors button').forEach((button, i) => {
@@ -518,15 +513,16 @@ export function createV3Garage(actions: V3GarageActions) {
   async function showInlineColors(id: string) {
     inlineFor = id;
     list.querySelector('.v3-inline-colors')?.remove();
-    const options = (await getV3Colors(id).catch(() => ({ colors: [] as V3Color[] }))).colors;
-    if (inlineFor !== id || options.length <= 1) return;
+    const options = (await getV3Colors(id).catch((error: unknown) => { report(error); return { colors: [] as V3Color[] }; })).colors;
+    if (inlineFor !== id || equipment.bike !== id) return;
+    if (options.length <= 1 && options[0]?.hue === undefined) return;
     const row = list.querySelector<HTMLElement>('[data-v3-bike="' + CSS.escape(id) + '"]');
     if (!row) return;
     const box = document.createElement('div');
     box.className = 'v3-inline-colors';
     box.setAttribute('role', 'radiogroup');
     box.setAttribute('aria-label', 'Coloris');
-    options.forEach((option, i) => {
+    if (options.length > 1) options.forEach((option, i) => {
       const button = document.createElement('button');
       button.type = 'button';
       button.className = 'gr-sub';
@@ -534,29 +530,33 @@ export function createV3Garage(actions: V3GarageActions) {
       button.textContent = option.name || 'Coloris ' + (i + 1);
       button.onclick = () => {
         apply({ ...equipment, color: i, hue: undefined });
-        colors.value = String(i);
-        hue.set(bikeColors[i]);
+        hue.set(option);
         markInline();
       };
       box.append(button);
     });
+    hue.set(options[equipment.color], equipment.hue);
+    box.append(hue.field);
     list.querySelector('.v3-inline-colors')?.remove();
     row.after(box);
     markInline();
+  }
+  /** Vélo équipé montré dans la liste : sa marque dépliée (et tous les types si le filtre le cachait), ligne au milieu. */
+  function revealBike() {
+    const worn = catalogBikes.find(bike => bike.id === equipment.bike);
+    if (!worn) return;
+    openBrands.add(worn.brand);
+    if (bikeType !== 'all' && worn.type !== bikeType) bikeType = 'all';
+    searchBike.value = '';
+    fillBikes();
+    list.querySelector<HTMLElement>('.mm-bike.on')?.scrollIntoView({ block: 'center' });
   }
   function choose(bike: string) {
     if (bike === equipment.bike) return;
     apply({ ...equipment, bike, color: 0, hue: undefined });
     showFocus();
     fillBikes();
-    void showColors();
   }
-  colors.onchange = () => {
-    const color = Number(colors.value);
-    hue.set(bikeColors[color]);
-    apply({ ...equipment, color, hue: undefined });
-    markInline();
-  };
   poses.onchange = () => {
     actions.pose(poses.value);
     const timeTrial = catalogBikes.find(bike => bike.id === equipment.bike)?.type === 'chrono';
@@ -570,7 +570,6 @@ export function createV3Garage(actions: V3GarageActions) {
     catalogBikes = catalog.bikes;
     void getV3Gear().then(items => { gearItems = items; updateEffect(); }).catch(() => updateEffect());
     if (!catalogBikes.some(bike => bike.id === equipment.bike) && catalogBikes[0]) choose(catalogBikes[0].id);
-    else void showColors();
     showFocus();
     fillBikes();
   }).catch(report);
