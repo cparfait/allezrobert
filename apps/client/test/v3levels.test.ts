@@ -26,7 +26,7 @@ describe('niveaux du style Beta', () => {
     expect(wheelLevel(wheels[2]!, wheels)).toBe(1);
   });
 
-  it('laisse le personnage, les pièces retirées et la tenue de départ au niveau 1 ; répartit les tenues de 1 à 50', () => {
+  it('laisse le personnage, les pièces retirées et la tenue de départ au niveau 1 ; répartit les tenues à parts égales de 1 à 50', () => {
     const item = (id: number, type: string, extra: Partial<V3Gear> = {}): V3Gear => ({
       id, type, category: type, name: 'Article ' + id, variant: 'V' + id, sex: 'tous', model: true, pair: false,
       offset: [0, 0, 0], rotation: [0, 0, 0], colors: [{ name: 'a' }], ...extra,
@@ -37,7 +37,8 @@ describe('niveaux du style Beta', () => {
     const levels = items.slice(3).map(row => gearLevel(row, items));
     expect(Math.min(...levels)).toBe(1);
     expect(Math.max(...levels)).toBeLessThanOrEqual(V3_MAX_LEVEL);
-    expect(levels.filter(level => level <= 10).length).toBeGreaterThan(levels.filter(level => level > 40).length);
+    // À parts égales : chaque tranche de 10 niveaux reçoit environ un cinquième des tenues.
+    for (let from = 0; from < 50; from += 10) expect(levels.filter(level => level > from && level <= from + 10).length).toBeGreaterThan(50);
     // Casques : selon leur effet.
     const helmets = [item(10, 'HEAD_GEAR', { weightG: 300 }), item(11, 'HEAD_GEAR', { weightG: 250, cdaBias: -0.004 })];
     expect(gearLevel(helmets[0]!, helmets)).toBe(1);
