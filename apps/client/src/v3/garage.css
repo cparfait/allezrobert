@@ -36,7 +36,7 @@ span.mm-bikeicon { display: block; }
 
 /* Nom de l'article survolé (position fixe, au-dessus de la pastille). */
 .v3-tip {
-  position: fixed; z-index: 50; max-width: 240px; padding: 5px 9px; border-radius: 6px; pointer-events: none;
+  position: fixed; z-index: 10000; max-width: 240px; padding: 5px 9px; border-radius: 6px; pointer-events: none;
   background: #0a0e16; border: 1px solid rgba(255, 255, 255, 0.18); box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
   color: #fff; font-size: 12px; font-weight: 700; line-height: 1.25; white-space: normal;
 }

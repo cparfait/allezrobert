@@ -197,11 +197,13 @@ export function addWardrobe(head: HTMLElement, parent: HTMLElement, settings: ()
   grid.className = 'v3-families';
   const status = document.createElement('output');
   // Nom de l'article au survol, au-dessus de la pastille (la légende peut être sortie de l'écran en défilant).
+  // Attachée à la page : dans le panneau (flou d'arrière-plan), une position fixe serait relative au panneau et rognée.
   const tip = document.createElement('div');
   tip.className = 'v3-tip';
   tip.setAttribute('role', 'tooltip');
   tip.hidden = true;
   function showTip(anchor: HTMLElement, text: string) {
+    if (!tip.isConnected) document.body.append(tip);
     tip.textContent = text;
     tip.hidden = false;
     const box = anchor.getBoundingClientRect();
@@ -209,7 +211,7 @@ export function addWardrobe(head: HTMLElement, parent: HTMLElement, settings: ()
     tip.style.left = Math.round(Math.min(window.innerWidth - width - 8, Math.max(8, box.left + box.width / 2 - width / 2))) + 'px';
     tip.style.top = Math.round(box.top - tip.offsetHeight - 6) + 'px';
   }
-  grid.addEventListener('scroll', () => { tip.hidden = true; }, { passive: true });
+  document.addEventListener('scroll', () => { tip.hidden = true; }, { passive: true, capture: true });
   // Hauteur des chaussettes (trois maillages du coureur V3), comme le réglage « Hauteur » du garage Réel.
   const sockField = document.createElement('div');
   sockField.className = 'field';
@@ -273,7 +275,7 @@ export function addWardrobe(head: HTMLElement, parent: HTMLElement, settings: ()
   }
   const hairColor = hairColorRow('Couleur des cheveux', 'hairColor');
   const beardColor = hairColorRow('Couleur de la barbe', 'beardColor');
-  panel.append(caption, sockField, hairColor.row, beardColor.row, colorLabel, hue.field, tools, status, grid, tip);
+  panel.append(caption, sockField, hairColor.row, beardColor.row, colorLabel, hue.field, tools, status, grid);
   parent.append(panel);
 
   let items: V3Gear[] = [];
