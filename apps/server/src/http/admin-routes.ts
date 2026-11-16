@@ -101,13 +101,7 @@ export function adminRoutes(ctx: AppContext): express.Router {
     res.json({ ok: true });
   });
 
-  // Tout ce qui suit demande le mot de passe (s'il est défini).
-  r.use((req: AuthedRequest, _res, next) => {
-    const u = requireUser(req);
-    if (!unlocked(ctx, req, u.userId)) return next(new HttpError(403, 'Mot de passe administrateur requis', 'locked'));
-    next();
-  });
-
+  // Catalogue V3 : le compte administrateur suffit. Les données des comptes restent sous le verrou ci-dessous.
   const catalogue = v3Catalogue(ctx.config.AR_V3_VISIBILITY_FILE);
   r.get('/v3/visibility', async (_req, res) => {
     if (!ctx.config.AR_V3_VISIBILITY_FILE) throw new HttpError(503, 'Gestion V3 indisponible', 'v3_unavailable');
@@ -128,6 +122,13 @@ export function adminRoutes(ctx: AppContext): express.Router {
       res.set('Cache-Control', 'no-store').json(await response.json());
     });
   }
+
+  // Tout ce qui suit demande le mot de passe (s'il est défini).
+  r.use((req: AuthedRequest, _res, next) => {
+    const u = requireUser(req);
+    if (!unlocked(ctx, req, u.userId)) return next(new HttpError(403, 'Mot de passe administrateur requis', 'locked'));
+    next();
+  });
 
   /* ───────────── Statistiques ───────────── */
   r.get('/stats', async (_req, res) => {

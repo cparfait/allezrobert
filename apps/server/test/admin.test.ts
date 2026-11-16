@@ -127,15 +127,13 @@ describe('catalogue V3 commun', () => {
     await rmdir(dir);
   });
 
-  it('réserve les modifications au compte déverrouillé et conserve les deux changements concurrents', async () => {
+  it('réserve le catalogue au compte administrateur et maintient le verrou sur les comptes', async () => {
     const admin = await sessionFor('ChefCatalogue', ADMIN_EMAIL);
     const other = await sessionFor('JoueurCatalogue', 'joueur@example.fr');
     const patch = { keys: ['gear:100'], hidden: true };
     expect((await call('PATCH', '/v3/visibility', other.cookie, patch)).status).toBe(404);
-    expect((await call('PATCH', '/v3/visibility', admin.cookie, patch)).status).toBe(403);
-    const unlocked = await call('POST', '/unlock', admin.cookie, { password: PASSWORD });
-    expect(unlocked.status).toBe(200);
-    const cookie = admin.cookie + '; ' + unlocked.setCookie[0]!.split(';')[0];
+    expect((await call('GET', '/stats', admin.cookie)).status).toBe(403);
+    const cookie = admin.cookie;
     expect((await call('PATCH', '/v3/visibility', cookie, { keys: ['../item'], hidden: true })).status).toBe(400);
     const results = await Promise.all([
       call('PATCH', '/v3/visibility', cookie, patch),
