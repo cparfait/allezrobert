@@ -63,7 +63,7 @@ function inkOn(color: string): string {
 /** Photos demandées seulement pour les pastilles visibles (le vestiaire compte plus de 1 700 articles). */
 let watcher: IntersectionObserver | undefined;
 const shots = new WeakMap<Element, () => void>();
-function whenVisible(element: Element, shoot: () => void): void {
+export function whenVisible(element: Element, shoot: () => void): void {
   watcher ??= new IntersectionObserver(entries => {
     for (const entry of entries) {
       if (!entry.isIntersecting) continue;
@@ -161,8 +161,7 @@ export function addWardrobe(head: HTMLElement, parent: HTMLElement, settings: ()
   caption.setAttribute('aria-live', 'polite');
   const capName = document.createElement('b');
   const capState = document.createElement('em');
-  const capVariant = document.createElement('span');
-  caption.append(capName, capState, capVariant);
+  caption.append(capName, capState);
   const colorLabel = document.createElement('label');
   colorLabel.className = 'field';
   const color = document.createElement('select');
@@ -281,7 +280,6 @@ export function addWardrobe(head: HTMLElement, parent: HTMLElement, settings: ()
     caption.classList.toggle('empty', !shown);
     capName.textContent = shown ? label(shown) : 'Pièce d’origine du personnage';
     capState.textContent = !shown ? '' : shown.id === current()?.id ? 'Équipé' : 'Cliquer pour équiper';
-    capVariant.textContent = shown && shown.variant !== shown.name ? shown.variant : '';
   }
   function equip(item: V3Gear, index: number, value?: number) {
     const equipment = settings();

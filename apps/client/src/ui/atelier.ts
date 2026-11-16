@@ -292,6 +292,7 @@ export class AtelierHost {
         pose: pose => { this.v3Pose = pose; this.frames = Math.max(this.frames, 2); },
         playing: on => { this.v3Playing = on; this.frames = Math.max(this.frames, 2); },
         sex: () => this.v3?.riderSex(),
+        photoBike: (id, wanted) => (this.v3Studio ??= new V3ThumbnailStudio(this.engine.renderer, this.scene.environment)).photoBike(id, wanted),
         photo: (item, sex, wanted) => (this.v3Studio ??= new V3ThumbnailStudio(this.engine.renderer, this.scene.environment)).photo(item, sex, wanted),
       });
       this.setV3Container(this.v3Container, this.v3Top);

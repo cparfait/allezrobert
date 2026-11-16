@@ -1,6 +1,6 @@
 import * as THREE from 'three/webgpu';
 import { isCompiling } from '../engine/renderer.ts';
-import { attachKit, freeGear, loadGearItem, loadRider, restoreRider, showHairGeometry, type RiderVisual, type V3Gear } from './visuals.ts';
+import { attachKit, freeGear, loadGearItem, loadRider, loadV3DisplayBike, restoreRider, showHairGeometry, type RiderVisual, type V3Gear } from './visuals.ts';
 
 /**
  * Vignettes du vestiaire V3 pour les articles sans icône Zwift (maillots, chaussettes, têtes, barbes…) :
@@ -110,6 +110,91 @@ export class V3ThumbnailStudio {
     return rider;
   }
 
+  /** Vélo sans icône Zwift : photo de profil, roues comprises (vignette 256 × 160, comme les icônes du catalogue). */
+  photoBike(id: string, wanted: () => boolean = () => true): Promise<string> {
+    const key = 'bike-' + id;
+    let job = this.done.get(key);
+    if (!job) {
+      job = this.cached(key).then(hit => hit ?? this.enqueue(() => (wanted() ? this.shootBike(id, key) : Promise.reject(new Error('Vignette abandonnée.')))));
+      job.catch(() => this.done.delete(key));
+      this.done.set(key, job);
+    }
+    return job;
+  }
+
+  private bikeTarget?: THREE.RenderTarget;
+
+  private async shootBike(id: string, key: string): Promise<string> {
+    const node = await loadV3DisplayBike(id);
+    try {
+      this.scene.add(node);
+      node.updateMatrixWorld(true);
+      const box = new THREE.Box3().setFromObject(node);
+      const size = box.getSize(new THREE.Vector3());
+      const center = box.getCenter(new THREE.Vector3());
+      // Profil : caméra sur l'axe horizontal le plus court (perpendiculaire au vélo), côté transmission.
+      const across = size.x < size.z ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 0, 1);
+      const length = Math.max(size.x, size.z);
+      const w = 256, h = 160;
+      const halfW = Math.max(length, size.y * (w / h)) * 0.53;
+      const halfH = halfW * (h / w);
+      const cam = new THREE.OrthographicCamera(-halfW, halfW, halfH, -halfH, 0.1, 20);
+      cam.position.copy(center).addScaledVector(across, 5);
+      cam.lookAt(center);
+      cam.updateProjectionMatrix();
+      this.bikeTarget ??= new THREE.RenderTarget(w, h, { type: THREE.HalfFloatType, samples: 4 });
+      return await this.capture(cam, this.bikeTarget, w, h, key);
+    } finally {
+      node.removeFromParent();
+      node.traverse(child => {
+        const mesh = child as THREE.Mesh;
+        if (!mesh.isMesh) return;
+        mesh.geometry.dispose();
+        for (const material of Array.isArray(mesh.material) ? mesh.material : [mesh.material]) material.dispose();
+      });
+    }
+  }
+
+  /** Rendu hors écran (fond transparent), relu, tonalisé, mis en cache ; renvoie une URL d'image. */
+  private async capture(cam: THREE.Camera, target: THREE.RenderTarget, width: number, height: number, key: string): Promise<string> {
+    await Promise.race([this.renderer.compileAsync(this.scene, cam), new Promise(done => setTimeout(done, 4000))]);
+    const renderer = this.renderer;
+    const prev = renderer.getRenderTarget();
+    const prevMrt = renderer.getMRT();
+    const clear = renderer.getClearColor(new THREE.Color());
+    const clearAlpha = renderer.getClearAlpha();
+    renderer.setMRT(null);
+    renderer.setRenderTarget(target);
+    renderer.setClearColor(0x000000, 0);
+    renderer.clear();
+    renderer.render(this.scene, cam);
+    renderer.setRenderTarget(prev);
+    renderer.setMRT(prevMrt);
+    renderer.setClearColor(clear, clearAlpha);
+    const pixels = (await renderer.readRenderTargetPixelsAsync(target, 0, 0, width, height)) as Uint16Array;
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext('2d') as CanvasRenderingContext2D;
+    const image = context.createImageData(width, height);
+    const half16 = THREE.DataUtils.fromHalfFloat;
+    for (let i = 0; i < width * height * 4; i += 4) {
+      // WebGPU : lignes relues de haut en bas, comme les photos des affiches.
+      const alpha = Math.min(1, half16(pixels[i + 3] as number));
+      if (alpha <= 0.002) continue;
+      image.data[i] = tone(half16(pixels[i] as number) / alpha);
+      image.data[i + 1] = tone(half16(pixels[i + 1] as number) / alpha);
+      image.data[i + 2] = tone(half16(pixels[i + 2] as number) / alpha);
+      image.data[i + 3] = Math.round(alpha * 255);
+    }
+    context.putImageData(image, 0, 0);
+    const blob = await new Promise<Blob>((done, fail) => canvas.toBlob(b => (b ? done(b) : fail(new Error('Vignette vide.'))), 'image/png'));
+    try {
+      await (await caches.open(CACHE)).put('/__v3-studio/' + key + '.png', new Response(blob, { headers: { 'Content-Type': 'image/png' } }));
+    } catch { /* cache indisponible */ }
+    return URL.createObjectURL(blob);
+  }
+
   private async shoot(item: V3Gear, key: string): Promise<string> {
     const sex = key.endsWith('female') ? 'female' : 'male';
     const rider = await this.rider(sex);
@@ -140,44 +225,7 @@ export class V3ThumbnailStudio {
       cam.position.set(0, y, z).addScaledVector(direction.normalize(), 5);
       cam.lookAt(0, y, z);
       cam.updateProjectionMatrix();
-      await Promise.race([this.renderer.compileAsync(this.scene, cam), new Promise(done => setTimeout(done, 4000))]);
-      const renderer = this.renderer;
-      const prev = renderer.getRenderTarget();
-      const prevMrt = renderer.getMRT();
-      const clear = renderer.getClearColor(new THREE.Color());
-      const clearAlpha = renderer.getClearAlpha();
-      renderer.setMRT(null);
-      renderer.setRenderTarget(this.target);
-      renderer.setClearColor(0x000000, 0);
-      renderer.clear();
-      renderer.render(this.scene, cam);
-      renderer.setRenderTarget(prev);
-      renderer.setMRT(prevMrt);
-      renderer.setClearColor(clear, clearAlpha);
-      const pixels = (await renderer.readRenderTargetPixelsAsync(this.target, 0, 0, SIZE, SIZE)) as Uint16Array;
-      const canvas = document.createElement('canvas');
-      canvas.width = canvas.height = SIZE;
-      const context = canvas.getContext('2d') as CanvasRenderingContext2D;
-      const image = context.createImageData(SIZE, SIZE);
-      const half16 = THREE.DataUtils.fromHalfFloat;
-      for (let row = 0; row < SIZE; row++) {
-        for (let x = 0; x < SIZE; x++) {
-          const i = (row * SIZE + x) * 4;
-          const o = i; // WebGPU : lignes relues de haut en bas, comme les photos des affiches
-          const alpha = Math.min(1, half16(pixels[i + 3] as number));
-          if (alpha <= 0.002) continue;
-          image.data[o] = tone(half16(pixels[i] as number) / alpha);
-          image.data[o + 1] = tone(half16(pixels[i + 1] as number) / alpha);
-          image.data[o + 2] = tone(half16(pixels[i + 2] as number) / alpha);
-          image.data[o + 3] = Math.round(alpha * 255);
-        }
-      }
-      context.putImageData(image, 0, 0);
-      const blob = await new Promise<Blob>((done, fail) => canvas.toBlob(b => (b ? done(b) : fail(new Error('Vignette vide.'))), 'image/png'));
-      try {
-        await (await caches.open(CACHE)).put('/__v3-studio/' + key + '.png', new Response(blob, { headers: { 'Content-Type': 'image/png' } }));
-      } catch { /* cache indisponible */ }
-      return URL.createObjectURL(blob);
+      return await this.capture(cam, this.target, SIZE, SIZE, key);
     } finally {
       rider.scene.visible = false;
       for (const node of hidden) node.visible = true;

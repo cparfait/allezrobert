@@ -1,5 +1,5 @@
 import { getV3Catalog, getV3Clips, getV3Colors, getV3Gear, type V3SockHeight, readV3Equipment, V3_HAIR_COLORS, saveV3Equipment, V3_POSES, type V3Bike, type V3Body, type V3Color, type V3Equipment, type V3Gear } from './visuals.ts';
-import { addWardrobe, createHueControl } from './wardrobe.ts';
+import { addWardrobe, createHueControl, whenVisible } from './wardrobe.ts';
 import { V3_ICON } from './icons.ts';
 import './garage.css';
 
@@ -11,6 +11,8 @@ export interface V3GarageActions {
   photo?(item: V3Gear, sex: 'male' | 'female', wanted?: () => boolean): Promise<string>;
   /** Silhouette effective du coureur V3. */
   sex?(): 'male' | 'female' | undefined;
+  /** Photo de profil d'un vélo sans icône Zwift. */
+  photoBike?(id: string, wanted: () => boolean): Promise<string>;
 }
 
 /** Libellés des types de vélos du catalogue V3, dans l'ordre d'affichage. */
@@ -49,10 +51,27 @@ function diceButton(title: string): HTMLButtonElement {
 
 const pick = <T>(list: T[]): T | undefined => list[Math.floor(Math.random() * list.length)];
 
+/** Photo de profil d'un vélo (studio de l'atelier) ; fournie par le garage. */
+let bikePhoto: ((id: string, wanted: () => boolean) => Promise<string>) | undefined;
+
 function bikeIcon(bike: V3Bike | undefined, big = false): HTMLElement {
-  if (!bike?.preview) {
+  // Tous les vélos en photo de profil roues comprises (les icônes Zwift ne montrent que le cadre).
+  if (!bike?.preview || bikePhoto) {
     const empty = document.createElement('span');
     empty.className = 'mm-bikeicon' + (big ? ' big' : '');
+    const photo = bikePhoto;
+    if (bike && photo) {
+      // Photo du vélo quand la ligne devient visible.
+      whenVisible(empty, () => {
+        void photo(bike.id, () => empty.isConnected).then(url => {
+          const image = document.createElement('img');
+          image.className = empty.className;
+          image.src = url;
+          image.alt = '';
+          empty.replaceWith(image);
+        }).catch(() => undefined);
+      });
+    }
     return empty;
   }
   const image = document.createElement('img');
@@ -69,6 +88,7 @@ function bikeIcon(bike: V3Bike | undefined, big = false): HTMLElement {
  * du panneau (`top`), leur contenu dans le corps (`panel`). Ressources Zwift locales, développement seulement.
  */
 export function createV3Garage(actions: V3GarageActions) {
+  bikePhoto = actions.photoBike;
   const top = document.createElement('div');
   top.className = 'v3-top';
   const nav = document.createElement('nav');

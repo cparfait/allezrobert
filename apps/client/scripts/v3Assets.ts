@@ -53,8 +53,10 @@ export function v3Assets(): Plugin {
         if (match?.[1]) previews.set(match[1].toLowerCase(), resolve(frames, name));
       }
     }
-    const bikes = readJson<Bike[]>(resolve(study, 'velos/index.json')).flatMap(bike => {
-      const path = resolve(study, 'velos', bike.id + '.glb');
+    // Vélos réassemblés avec les fiches complètes (guidons, pédaliers et dérailleurs Campagnolo…) s'ils existent.
+    const bikeDir = existsSync(resolve(study, 'v3/velos/index.json')) ? resolve(study, 'v3/velos') : resolve(study, 'velos');
+    const bikes = readJson<Bike[]>(resolve(bikeDir, 'index.json')).flatMap(bike => {
+      const path = resolve(bikeDir, bike.id + '.glb');
       if (!/^[a-z0-9-]+$/.test(bike.id) || !existsSync(path)) return [];
       files.set('bike/' + bike.id, path);
       const preview = previews.get(bike.id);
