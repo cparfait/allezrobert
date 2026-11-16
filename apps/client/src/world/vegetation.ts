@@ -27,6 +27,84 @@ const CROWN_LOOK = (() => {
   }
 })();
 
+/**
+ * Lisières (P2.3e) : fûts d'épaisseur, de courbure et d'écorce propres à chaque arbre, bas de couronne à hauteur
+ * variable (plus de colonnade régulière). Style réaliste, matériau des arbres LiDAR ; `?treeedge=0` revient à l'état
+ * d'avant. Essayé puis retiré : découper le bord des houppiers (trous ou contour festonné) ; sur des houppiers faits
+ * de boules fermées, toute découpe laisse des éclats d'amas flottant dans le vide.
+ */
+const TREE_EDGE = (() => {
+  try {
+    return typeof location === 'undefined' || new URLSearchParams(location.search).get('treeedge') !== '0';
+  } catch {
+    return true;
+  }
+})();
+
+/**
+ * Feuillage proche (P2.3f) : cartes de feuilles croisées sur les amas des feuillus au LOD0 (≈ 160-250 m autour du
+ * coureur), feuilles découpées dans le shader (leafCard), forme pleine au-delà de 80 m. Style réaliste ;
+ * `?leafcards=0` revient aux amas seuls.
+ */
+const LEAF_CARDS = (() => {
+  try {
+    return typeof location === 'undefined' || new URLSearchParams(location.search).get('leafcards') !== '0';
+  } catch {
+    return true;
+  }
+})();
+
+/**
+ * Carte de feuilles (P2.3f) : alpha (x) et teinte de la feuille (y, 0-1). Trois grilles de feuilles ovales, chacune
+ * tournée, décalée et à son pas (≈ 8, 10,5 et 13 feuilles par carte) : aucune grille ne se lit. Chaque feuille est
+ * décalée, tournée et de taille propres (0,7 à 1,15), plus clairsemée vers le bord de la carte (son contour ne se voit
+ * pas). La teinte varie d'une feuille à l'autre, quelques-unes plus claires (au soleil). Au-delà de 50-80 m, les
+ * feuilles deviennent plus petites qu'un pixel : la carte passe à une tache pleine au bord irrégulier, teinte moyenne,
+ * sans scintillement. Hors des cartes : (1, 0,5).
+ */
+function leafCard(cardUv: THREE.Node<'vec2'>, card: THREE.Node<'float'>, camDist: THREE.Node<'float'>): THREE.Node<'vec2'> {
+  const isCard = step(0.5, card);
+  const id = fract(card.mul(97.31));
+  const q = cardUv.sub(0.5);
+  const r = q.length().mul(2);
+  const density = float(1).sub(smoothstep(0.55, 1.0, r));
+  const layer = (scale: number, rot: number, shift: number) => {
+    const cr = Math.cos(rot);
+    const sr = Math.sin(rot);
+    const uvr = vec2(q.x.mul(cr).sub(q.y.mul(sr)), q.x.mul(sr).add(q.y.mul(cr)));
+    const pp = uvr.mul(scale).add(vec2(id.mul(17.3).add(shift), id.mul(29.1).add(shift * 1.7)));
+    const c = floor(pp);
+    const h = fract(sin(dot(c, vec2(127.1, 311.7))).mul(43758.5453));
+    const h2 = fract(h.mul(13.37));
+    const h3 = fract(h.mul(7.71).add(0.3));
+    const size = h2.mul(0.45).add(0.7);
+    const fr = fract(pp).sub(0.5).sub(vec2(h2.sub(0.5), h3.sub(0.5)).mul(float(0.5).sub(size.mul(0.3))));
+    const ang = h.mul(6.283);
+    const ca = cos(ang);
+    const sa = sin(ang);
+    const lx = fr.x.mul(ca).add(fr.y.mul(sa));
+    const ly = fr.y.mul(ca).sub(fr.x.mul(sa));
+    const inLeaf = step(vec2(lx.mul(2.1), ly).length(), size.mul(0.4)).mul(step(h3, density.mul(1.1)));
+    return vec2(inLeaf, fract(h.mul(3.17).add(0.11)));
+  };
+  const l1 = layer(8, 0.4, 0);
+  const l2 = layer(10.5, 1.7, 0.5);
+  const l3 = layer(13, 2.9, 0.25);
+  // feuille du dessus : première grille qui couvre le pixel
+  const tone = mix(mix(l3.y, l2.y, l2.x), l1.y, l1.x);
+  const near = l1.x.max(l2.x).max(l3.x);
+  const far = step(r, float(0.7).add(fract(sin(dot(floor(cardUv.mul(5)), vec2(12.9898, 78.233))).mul(43758.5453)).mul(0.18)));
+  const farK = smoothstep(50, 80, camDist);
+  const a = mix(near, far, farK);
+  const t = mix(tone, float(0.5), farK);
+  return mix(vec2(1, 0.5), vec2(a, t), isCard) as unknown as THREE.Node<'vec2'>;
+}
+
+/** Teinte d'une feuille (P2.3f) : ± 15 %, une feuille sur huit plus claire (au soleil). 1 pour une teinte de 0,5. */
+function leafTone(t: THREE.Node<'float'>): THREE.Node<'float'> {
+  return t.mul(0.3).add(0.85).add(smoothstep(0.86, 0.95, t).mul(0.22)).div(float(0.5 * 0.3 + 0.85)) as unknown as THREE.Node<'float'>;
+}
+
 /** Couleurs de feuillage par saison (feuillus) — palettes de ART_DIRECTION.md. */
 const LEAVES: Record<Season, [string, string, string]> = {
   spring: ['#7fb24a', '#a9cf6a', '#6e9e3f'],
@@ -184,6 +262,75 @@ function tag(geo: THREE.BufferGeometry, leaf: number, shade: number, center?: TH
   } else if (!g.getAttribute('normal')) g.computeVertexNormals();
   g.setAttribute('shade', new THREE.BufferAttribute(sh, 1));
   g.deleteAttribute('uv');
+  // Cartes de feuilles (P2.3f) : 0 hors des cartes (attribut commun à toutes les pièces fusionnées). Un seul attribut
+  // (u, v, identifiant) : WebGPU limite un objet instancié à 8 tampons de sommets.
+  if (!g.getAttribute('cardData')) g.setAttribute('cardData', new THREE.BufferAttribute(new Float32Array(n * 3), 3));
+  return g;
+}
+
+/**
+ * Feuillage proche (P2.3f) : cartes de feuilles croisées posées sur les amas du houppier (LOD0 seulement). Chaque carte
+ * est un carré de 1,9 à 2,7 m (dix par amas), doublé en sens inverse (visible des deux côtés sans rendre double tout le matériau),
+ * orienté au hasard autour de la normale de l'amas : jamais toutes vues par la tranche. Le shader y découpe des feuilles
+ * (leafCard) ; les normales sont celles du houppier (lumière douce, comme le reste du feuillage). Attribut
+ * `cardData` : coordonnées dans la carte (x, y) et 1 + identifiant aléatoire de la carte (z, 0 hors des cartes).
+ */
+function leafCards(blobs: Array<{ c: THREE.Vector3; s: number }>, crown: THREE.Vector3, perBlob: number): THREE.BufferGeometry {
+  const r = rng(13);
+  const pos: number[] = [];
+  const nrm: number[] = [];
+  const data: number[] = [];
+  const shade: number[] = [];
+  const d = new THREE.Vector3();
+  const t = new THREE.Vector3();
+  const b = new THREE.Vector3();
+  const nq = new THREE.Vector3();
+  const corner = new THREE.Vector3();
+  const nn = new THREE.Vector3();
+  const corners: Array<[number, number]> = [[0, 0], [1, 0], [1, 1], [0, 0], [1, 1], [0, 1]];
+  for (const blob of blobs) {
+    for (let k = 0; k < perBlob; k++) {
+      // Direction sur l'amas, un peu plus souvent vers le haut et le côté (le dessous est caché par l'ombre).
+      const u = r() * 2 - 0.6;
+      const phi = r() * Math.PI * 2;
+      const cy = Math.max(-1, Math.min(1, u));
+      const sy = Math.sqrt(1 - cy * cy);
+      d.set(Math.cos(phi) * sy, cy, Math.sin(phi) * sy);
+      const center = blob.c.clone().add(new THREE.Vector3(d.x * blob.s * 1.02, d.y * blob.s * 1.02 * 0.82, d.z * blob.s * 1.02));
+      // Plan de la carte : normale entre la direction de l'amas et une direction au hasard.
+      nq.set(r() * 2 - 1, r() * 2 - 1, r() * 2 - 1).normalize().lerp(d, 0.45).normalize();
+      t.set(0, 1, 0).cross(nq);
+      if (t.lengthSq() < 1e-4) t.set(1, 0, 0);
+      t.normalize();
+      b.copy(nq).cross(t).normalize();
+      const rot = r() * Math.PI * 2;
+      const ct = Math.cos(rot);
+      const st = Math.sin(rot);
+      const tx = t.clone().multiplyScalar(ct).addScaledVector(b, st);
+      const bx = b.clone().multiplyScalar(ct).addScaledVector(t, -st);
+      const size = 1.9 + r() * 0.8;
+      const id = 1 + r() * 0.99;
+      for (const side of [0, 1]) {
+        const order = side === 0 ? corners : corners.slice().reverse();
+        for (const [cu, cv] of order) {
+          corner.copy(center).addScaledVector(tx, (cu - 0.5) * size).addScaledVector(bx, (cv - 0.5) * size);
+          pos.push(corner.x, corner.y, corner.z);
+          nn.set(corner.x - crown.x, (corner.y - crown.y) * 0.8, corner.z - crown.z).normalize();
+          nrm.push(nn.x, nn.y, nn.z);
+          data.push(cu, cv, id);
+          // Feuillage extérieur : bien éclairé, plus sombre vers le bas du houppier.
+          shade.push(0.86 * (0.72 + 0.28 * Math.min(1, corner.y / 10)) * (0.8 + 0.2 * Math.min(1, Math.max(0, nn.y + 0.7))));
+        }
+      }
+    }
+  }
+  const g = new THREE.BufferGeometry();
+  const n = pos.length / 3;
+  g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(pos), 3));
+  g.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(nrm), 3));
+  g.setAttribute('leaf', new THREE.BufferAttribute(new Float32Array(n).fill(1), 1));
+  g.setAttribute('shade', new THREE.BufferAttribute(new Float32Array(shade), 1));
+  g.setAttribute('cardData', new THREE.BufferAttribute(new Float32Array(data), 3));
   return g;
 }
 
@@ -201,6 +348,8 @@ function deciduousGeometry(lod: number): THREE.BufferGeometry {
   }
   const blobs = lod === 0 ? 7 : lod === 1 ? 2 : 1;
   const crown = new THREE.Vector3(0, 7.6, 0);
+  const cards = lod === 0 && LEAF_CARDS && !LOW_POLY;
+  const placed: Array<{ c: THREE.Vector3; s: number }> = [];
   for (let i = 0; i < blobs; i++) {
     const s = lod === 0 ? 2.3 + r() * 1.3 : lod === 1 ? 3.4 : 4.2;
     const blob = new THREE.IcosahedronGeometry(s, lod === 0 ? 1 : 0);
@@ -212,7 +361,8 @@ function deciduousGeometry(lod: number): THREE.BufferGeometry {
       const x = p.getX(k);
       const y = p.getY(k);
       const z = p.getZ(k);
-      const f = 0.86 + 0.14 * Math.sin((x * 3.1 + seed) / s) * Math.cos((z * 2.7 - y * 1.3 + seed) / s) + 0.08 * Math.sin((y * 4.2 + seed) / s);
+      // P2.3f : avec les cartes de feuilles, l'amas plein rétrécit un peu (les cartes débordent autour).
+      const f = (0.86 + 0.14 * Math.sin((x * 3.1 + seed) / s) * Math.cos((z * 2.7 - y * 1.3 + seed) / s) + 0.08 * Math.sin((y * 4.2 + seed) / s)) * (cards ? 0.82 : 1);
       p.setXYZ(k, x * f, y * f * 0.82, z * f);
     }
     const a = (i / blobs) * Math.PI * 2;
@@ -222,7 +372,9 @@ function deciduousGeometry(lod: number): THREE.BufferGeometry {
     const bc = new THREE.Vector3(top ? 0 : Math.cos(a) * rad, y, top ? 0 : Math.sin(a) * rad);
     blob.translate(bc.x, bc.y, bc.z);
     parts.push(tag(blob, 1, 0.82 + r() * 0.3, crown, CROWN_LOOK && !LOW_POLY ? { center: bc, outer: 4.6 } : undefined));
+    placed.push({ c: bc, s: s * 0.82 });
   }
+  if (cards) parts.push(leafCards(placed, crown, 10));
   return mergeGeometries(parts, false) as THREE.BufferGeometry;
 }
 
@@ -389,7 +541,7 @@ export class Vegetation {
   private treesMat: THREE.MeshStandardNodeMaterial | null = null;
   private treesConif: THREE.BufferGeometry[] | null = null;
   /** Chargement des tuiles réelles (mesures) : nombre, temps total et maximal (ms), arbres posés par espèce. */
-  readonly realStats = { tiles: 0, ms: 0, maxMs: 0, decid: 0, conif: 0, edge: 0 };
+  readonly realStats = { tiles: 0, ms: 0, maxMs: 0, decid: 0, conif: 0, edge: 0, young: 0 };
 
   /** Règles propres au monde chargé (à fixer avant le chargement des tuiles). */
   setWorld(id: string): void {
@@ -494,6 +646,7 @@ export class Vegetation {
     const wd = this.windDir;
     const offset: THREE.Node<'vec3'> = vec3(wd.x.mul(along).sub(wd.y.mul(across)).add(flutter), 0, wd.y.mul(along).add(wd.x.mul(across)).add(flutter.mul(0.5)));
     m.positionNode = positionLocal.add(offset);
+    let cardTone: THREE.Node<'float'> = float(1);
     if (!conifer) {
       // Hiver : le houppier devient une masse de rameaux nus, gris-brun et ajourée (motif fixe
       // dans l'espace, un peu plus d'un tiers écarté). Le rétracter vers le tronc ne marche pas :
@@ -502,7 +655,13 @@ export class Vegetation {
       // Coordonnées monde (grandes valeurs) : hash classique, celui de TSL y dégénère.
       const cellW = floor(positionWorld.mul(5)).mod(1024);
       const twig = step(0.38, fract(sin(dot(cellW, vec3(12.9898, 78.233, 37.719))).mul(43758.5453)));
-      m.opacityNode = mix(float(1), mix(twig, float(1), this.leafAmount), leaf);
+      // Cartes de feuilles (P2.3f) : feuilles découpées, cartes absentes en hiver.
+      const cardD = varying(attribute<'vec3'>('cardData'));
+      const cardV = cardD.z;
+      const lc = leafCard(cardD.xy, cardV, positionWorld.sub(cameraPosition).length());
+      const cardA = lc.x.mul(mix(float(1), this.leafAmount, step(0.5, cardV)));
+      m.opacityNode = mix(float(1), mix(twig, float(1), this.leafAmount), leaf).mul(cardA);
+      cardTone = leafTone(lc.y);
       m.alphaTest = 0.5;
     }
     const wood = color('#4a3a2c');
@@ -516,7 +675,7 @@ export class Vegetation {
           : mix(mix(this.leafA.node, this.leafB.node, smoothstep(0.2, 0.8, h)), this.leafC.node, smoothstep(0.65, 0.95, h2));
     let col = mix(wood, leafCol, leaf).mul(shade).mul(h2.mul(LOW_POLY ? 0.12 : 0.25).add(LOW_POLY ? 0.94 : 0.85));
     if (LOW_POLY && !conifer) col = mix(col, color(FRUIT), step(1.5, fruitAttr).mul(step(0.62, h)).mul(this.leafAmount));
-    m.colorNode = varying(col);
+    m.colorNode = varying(col).mul(cardTone);
     m.roughnessNode = float(0.9);
     m.metalnessNode = float(0);
     // Contre-jour : les feuilles s'illuminent quand le soleil est derrière elles.
@@ -572,14 +731,28 @@ export class Vegetation {
       if (steps.b) {
         // Houppier : y' = haut − (haut − y)·k, en mètres monde A·(haut − y) avec A = échelle verticale × (1 − k).
         const a = ic.x.sub(200);
-        const dy = a.mul(float(DECID_TOP).sub(raw.y)).mul(leaf);
+        let dy: THREE.Node<'float'> = a.mul(float(DECID_TOP).sub(raw.y)).mul(leaf);
+        if (TREE_EDGE) {
+          // P2.3e : bas de couronne plus ou moins haut selon l'arbre (± ≈ 0,5 m par mètre d'échelle, sommet fixe), au lieu
+          // d'une ligne de houppiers régulière au-dessus d'une colonnade de fûts.
+          dy = dy.add(sxz.mul(float(DECID_TOP).sub(raw.y)).mul(leaf).mul(seed2.sub(0.45).mul(0.34)));
+        }
         // Bosses (± 10 % du rayon, propres à l'arbre) et léger penché du houppier (≤ 0,35 m), feuillage seulement.
         const lobe = sin(raw.x.mul(0.55).add(seed.mul(31))).mul(cos(raw.z.mul(0.5).sub(seed.mul(17)))).mul(0.09).add(sin(raw.y.mul(0.7).add(seed2.mul(9))).mul(0.04));
         const lean = smoothstep(DECID_TOP * 0.38, DECID_TOP, raw.y).mul(0.35).mul(seed2);
         const leanDir = vec2(cos(seed.mul(18.85)), sin(seed.mul(18.85)));
         // Tronc : rayon ramené vers ≈ 0,9 / √(échelle horizontale) (il grossissait avec la largeur du houppier).
-        const tf = float(0.9).div(sxz.max(0.2).sqrt()).clamp(0.5, 1.1);
-        const dxz = rel.mul(lobe.mul(leaf)).add(leanDir.mul(lean.mul(leaf))).add(rel.mul(tf.sub(1)).mul(float(1).sub(leaf)));
+        let tf: THREE.Node<'float'> = float(0.9).div(sxz.max(0.2).sqrt()).clamp(0.5, 1.1);
+        let dxz = rel.mul(lobe.mul(leaf)).add(leanDir.mul(lean.mul(leaf)));
+        if (TREE_EDGE) {
+          // P2.3e : fût plus ou moins épais selon l'arbre, courbé vers le penché du houppier, légère ondulation.
+          tf = tf.mul(seed.mul(0.55).add(0.75));
+          const ty = raw.y.div(5.5).clamp(0, 1.4);
+          const perp = vec2(leanDir.y.negate(), leanDir.x);
+          const curve = leanDir.mul(ty.mul(ty).mul(seed2.mul(0.35).add(0.1))).add(perp.mul(sin(raw.y.mul(0.9).add(seed.mul(6.28))).mul(0.07)));
+          dxz = dxz.add(curve.mul(float(1).sub(leaf)));
+        }
+        dxz = dxz.add(rel.mul(tf.sub(1)).mul(float(1).sub(leaf)));
         dec = vec3(dxz.x, dy, dxz.y);
       }
       if (steps.c) {
@@ -614,11 +787,17 @@ export class Vegetation {
     const twig = step(0.38, fract(sin(dot(cellW, vec3(12.9898, 78.233, 37.719))).mul(43758.5453)));
     const leafV = varying(leaf);
     const isConV = varying(isCon);
-    m.opacityNode = mix(float(1), mix(twig, float(1), this.leafAmount), leafV.mul(float(1).sub(isConV)));
+    // Cartes de feuilles (P2.3f) : feuilles découpées, cartes absentes en hiver.
+    const cardD = varying(attribute<'vec3'>('cardData'));
+    const cardV = cardD.z;
+    const lc = leafCard(cardD.xy, cardV, positionWorld.sub(cameraPosition).length());
+    const cardA = lc.x.mul(mix(float(1), this.leafAmount, step(0.5, cardV)));
+    m.opacityNode = mix(float(1), mix(twig, float(1), this.leafAmount), leafV.mul(float(1).sub(isConV))).mul(cardA);
     m.alphaTest = 0.5;
 
-    // Couleur par arbre (graine stable), écorce gris-brun un peu plus claire que l'ancien brun presque noir.
-    const wood = color('#574b40');
+    // Couleur par arbre (graine stable), écorce gris-brun un peu plus claire que l'ancien brun presque noir ; P2.3e :
+    // écorce propre à chaque arbre (gris clair à brun), pied plus sombre.
+    const wood = TREE_EDGE ? mix(color('#4a3d31'), color('#6b5b4b'), seed2).mul(smoothstep(0, 1.6, raw.y).mul(0.22).add(0.78)) : color('#574b40');
     const decidCol = mix(mix(this.leafA.node, this.leafB.node, smoothstep(0.2, 0.8, seed)), this.leafC.node, smoothstep(0.65, 0.95, seed2));
     const conifCol = mix(color('#2f4a2c'), color('#3d5a33'), seed);
     const leafCol = mix(decidCol, conifCol, isCon);
@@ -672,7 +851,7 @@ export class Vegetation {
       m.normalNode = det.abs().mul(normalView).sub(grad).normalize();
     }
     // three.js multiplie la couleur par instanceColor (nos paramètres) : on l'annule.
-    m.colorNode = varying(col).mul(tint).div(ic);
+    m.colorNode = varying(col).mul(tint).mul(leafTone(lc.y)).div(ic);
     m.roughnessNode = float(0.9);
     m.metalnessNode = float(0);
     m.outputNode = backlitOutput(varying(leafCol.mul(shade)) as unknown as Vec3Node, leafV);
@@ -739,6 +918,50 @@ export class Vegetation {
     // P2.3b-2b : rasters forêt (canal 0) et voies (canal 5) pour reconnaître les lisières
     const forestAt = (x: number, z: number) => splatAt(tile, 0, x, z);
     const roadAt = (x: number, z: number) => splatAt(tile, 5, x, z);
+    // P2.3e : jeunes pousses devant les arbres de lisière, côté ouvert (pente du masque forestier), houppier jusqu'au
+    // sol : elles masquent la colonnade de fûts. Ajoutées aux feuillus du même bloc (aucun objet ni appel de dessin de
+    // plus), absentes des silhouettes lointaines.
+    const youngM = new THREE.Matrix4();
+    const youngP = new THREE.Vector3();
+    const youngQ = new THREE.Quaternion();
+    const youngS = new THREE.Vector3();
+    const youngAt = (x: number, z: number, radius: number, strength: number, s: number) => {
+      // lisières franches seulement, une pousse pour deux arbres environ (103 000 pousses pour 178 000 feuillus à Billom
+      // sans cette limite : trop de triangles)
+      const count = strength > 0.6 && s < 0.5 ? 1 : 0;
+      let gx = forestAt(x - 6, z) - forestAt(x + 6, z);
+      let gz = forestAt(x, z - 6) - forestAt(x, z + 6);
+      const gl = Math.hypot(gx, gz);
+      if (gl < 0.05) {
+        gx = Math.cos(s * 6.283);
+        gz = Math.sin(s * 6.283);
+      } else {
+        gx /= gl;
+        gz /= gl;
+      }
+      for (let k = 0; k < count; k++) {
+        const sk = (s * 7.31 + k * 0.37) % 1;
+        const ang = Math.atan2(gz, gx) + (sk - 0.5) * 1.6;
+        const dist = radius * (0.9 + 0.6 * sk);
+        const yr = 1.1 + 0.9 * sk;
+        const fit = fitCrown(clear, x + Math.cos(ang) * dist, z + Math.sin(ang) * dist, yr, MAX_SHIFT);
+        if (!fit || this.avoidReal(fit[0], fit[1]) || onRoad(fit[0], fit[1], 0.6)) continue;
+        const [yx, yz, yroom] = fit;
+        const yy = this.heightAt(yx, yz);
+        if (!Number.isFinite(yy)) continue;
+        const yh = 2.6 + 2.2 * ((sk * 3.7) % 1);
+        const ysy = yh / DECID_TOP;
+        // vecteurs propres : p, qn et sc portent encore l'arbre de lisière en cours
+        youngP.set(yx, yy - 0.1, yz);
+        youngQ.setFromAxisAngle(up, sk * Math.PI * 2);
+        youngS.set(yroom / SEEDED_CROWN.decid, ysy, yroom / SEEDED_CROWN.decid);
+        youngM.compose(youngP, youngQ, youngS);
+        m.copy(youngM);
+        push('decid', yx, yz);
+        pushParams(yx, yz, 200 + ysy * (1 - 0.92 / DECID_FRAC), yx, yz);
+        this.realStats.young++;
+      }
+    };
     for (let i = 0; i + 3 < trees.length; i += 4) {
       const x0 = trees[i] as number;
       const z0 = trees[i + 1] as number;
@@ -809,6 +1032,7 @@ export class Vegetation {
           if (strength > 0) {
             frac = skirtFrac(frac, h, strength);
             this.realStats.edge++;
+            if (TREE_EDGE) youngAt(x, z, radius, strength, seedAt(x0 - 5.3, z0 + 2.9));
           }
         }
         a = sy * (1 - frac / DECID_FRAC);
