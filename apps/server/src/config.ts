@@ -75,6 +75,8 @@ export const ConfigSchema = z.object({
   ROUTES_DIR: optionalString,
   /** Dossier des vidéos rendues (volume partagé avec le conteneur renderer). */
   RENDERS_DIR: z.string().default('./renders'),
+  AR_V3_VISIBILITY_FILE: z.string().default(''),
+  AR_V3_INTERNAL_URL: z.string().default(''),
   /**
    * Worker vidéo dans le processus du serveur (petit VPS sans conteneur renderer, développement) :
    * HyperFrames si Chromium est là, sinon repli FFmpeg ; sans FFmpeg, aucun MP4.

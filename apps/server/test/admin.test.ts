@@ -6,6 +6,9 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import express from 'express';
 import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
+import { mkdtemp, rm, rmdir } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { testConfig } from '../src/config.ts';
 import { createDb, migrate, type Db } from '../src/db/db.ts';
 import { createContext, type AppContext } from '../src/context.ts';
@@ -109,6 +112,38 @@ describe('administration — accès par compte seul', () => {
     expect((await call('DELETE', `/users/${vic.userId}`, admin.cookie, { confirm: 'mauvais' })).status).toBe(400);
     expect((await call('DELETE', `/users/${vic.userId}`, admin.cookie, { confirm: 'Victime' })).status).toBe(204);
     expect((await call('GET', `/users/${vic.userId}`, admin.cookie)).status).toBe(404);
+  });
+});
+
+describe('catalogue V3 commun', () => {
+  let dir: string;
+  beforeAll(async () => {
+    dir = await mkdtemp(join(tmpdir(), 'ar-v3-visibility-'));
+    await boot({ AR_V3_VISIBILITY_FILE: join(dir, 'hidden.json'), ADMIN_PASSWORD: PASSWORD });
+  });
+  afterAll(async () => {
+    await stop();
+    await rm(join(dir, 'hidden.json'), { force: true });
+    await rmdir(dir);
+  });
+
+  it('réserve les modifications au compte déverrouillé et conserve les deux changements concurrents', async () => {
+    const admin = await sessionFor('ChefCatalogue', ADMIN_EMAIL);
+    const other = await sessionFor('JoueurCatalogue', 'joueur@example.fr');
+    const patch = { keys: ['gear:100'], hidden: true };
+    expect((await call('PATCH', '/v3/visibility', other.cookie, patch)).status).toBe(404);
+    expect((await call('PATCH', '/v3/visibility', admin.cookie, patch)).status).toBe(403);
+    const unlocked = await call('POST', '/unlock', admin.cookie, { password: PASSWORD });
+    expect(unlocked.status).toBe(200);
+    const cookie = admin.cookie + '; ' + unlocked.setCookie[0]!.split(';')[0];
+    expect((await call('PATCH', '/v3/visibility', cookie, { keys: ['../item'], hidden: true })).status).toBe(400);
+    const results = await Promise.all([
+      call('PATCH', '/v3/visibility', cookie, patch),
+      call('PATCH', '/v3/visibility', cookie, { keys: ['wheel:road-wheel'], hidden: true }),
+    ]);
+    expect(results.map(result => result.status)).toEqual([200, 200]);
+    expect((await call('GET', '/v3/visibility', cookie)).body.hidden).toEqual(['gear:100', 'wheel:road-wheel']);
+    expect((await call('PATCH', '/v3/visibility', cookie, { ...patch, hidden: false })).body.hidden).toEqual(['wheel:road-wheel']);
   });
 });
 

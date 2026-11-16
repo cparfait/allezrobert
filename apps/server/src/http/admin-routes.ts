@@ -14,6 +14,7 @@ import { safeEqual } from '../crypto.ts';
 import { activeRooms } from '../ride/RideRoom.ts';
 import { parseCookies, serializeCookie } from './cookies.ts';
 import { HttpError, RateLimiter, requireUser, type AuthedRequest } from './middleware.ts';
+import { v3Catalogue, visibilityPatch } from './v3-catalogue.ts';
 
 const ADMIN_COOKIE = 'ar_admin';
 const UNLOCK_TTL_S = 30 * 60;
@@ -106,6 +107,27 @@ export function adminRoutes(ctx: AppContext): express.Router {
     if (!unlocked(ctx, req, u.userId)) return next(new HttpError(403, 'Mot de passe administrateur requis', 'locked'));
     next();
   });
+
+  const catalogue = v3Catalogue(ctx.config.AR_V3_VISIBILITY_FILE);
+  r.get('/v3/visibility', async (_req, res) => {
+    if (!ctx.config.AR_V3_VISIBILITY_FILE) throw new HttpError(503, 'Gestion V3 indisponible', 'v3_unavailable');
+    res.set('Cache-Control', 'no-store').json({ hidden: await catalogue.read() });
+  });
+  r.patch('/v3/visibility', async (req, res) => {
+    if (!ctx.config.AR_V3_VISIBILITY_FILE) throw new HttpError(503, 'Gestion V3 indisponible', 'v3_unavailable');
+    const patch = visibilityPatch.safeParse(req.body);
+    if (!patch.success) throw new HttpError(400, 'Sélection d’objets invalide', 'invalid_selection');
+    res.set('Cache-Control', 'no-store').json({ hidden: await catalogue.update(patch.data) });
+  });
+  for (const key of ['gear', 'catalogue']) {
+    r.get('/v3/' + key, async (_req, res) => {
+      const source = ctx.config.AR_V3_INTERNAL_URL;
+      if (!source) throw new HttpError(503, 'Catalogue V3 indisponible', 'v3_unavailable');
+      const response = await fetch(source + '/internal/' + key, { signal: AbortSignal.timeout(125_000) });
+      if (!response.ok) throw new HttpError(503, 'Catalogue V3 indisponible', 'v3_unavailable');
+      res.set('Cache-Control', 'no-store').json(await response.json());
+    });
+  }
 
   /* ───────────── Statistiques ───────────── */
   r.get('/stats', async (_req, res) => {

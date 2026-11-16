@@ -57,7 +57,7 @@ function isLoopback(address = ''): boolean {
 export function v3AssetMiddleware(
   log: { info(message: string): void; warn(message: string): void },
   production = false,
-): (req: IncomingMessage, res: ServerResponse) => void {
+): (req: IncomingMessage, res: ServerResponse, hidden?: ReadonlySet<string>) => void {
   const workspace = resolve(import.meta.dirname, '../../..');
   const study = resolve(process.env.AR_V3_STUDY ?? 'D:/zzCACHE_ALLEZROBERT/zwift-etude');
   const data = resolve(process.env.AR_V3_DATA ?? 'D:/Zwift/data');
@@ -226,7 +226,7 @@ export function v3AssetMiddleware(
       log('V3 · préchauffage des articles terminé (' + done + ' fichiers)');
     });
   }
-  return (req, res) => {
+  return (req, res, hidden) => {
         const json = (status: number, value: unknown) => {
           const body = JSON.stringify(value);
           res.writeHead(status, {
@@ -301,7 +301,7 @@ export function v3AssetMiddleware(
           }
           if (url.pathname === '/gear') {
             if (!production) void warm(message => log.info(message));
-            return json(200, (await loadGear()).map(row => ({
+            return json(200, (await loadGear()).filter(row => !hidden?.has('gear:' + row.i)).map(row => ({
               id: row.i, type: row.type, category: row.cat, name: nameOf(row),
               variant: basename(row.fiche.replaceAll('\\', '/'), '.xml'), sex: row.sexe, sport: row.sport, group: row.geomgroup,
               model: !!row.source, pair: !!row.pairSource,
@@ -353,7 +353,11 @@ export function v3AssetMiddleware(
             return sendFile(await prepare('map', row.i + '-' + part, source, variant, shift), 'image/png');
           }
           catalog ??= index();
-          if (url.pathname === '/catalogue') return json(200, { bikes: catalog.bikes, objects: catalog.objects, wheels: catalog.wheels });
+          if (url.pathname === '/catalogue') return json(200, {
+            bikes: catalog.bikes.filter(bike => !hidden?.has('bike:' + bike.id)),
+            objects: catalog.objects,
+            wheels: catalog.wheels.filter(wheel => !hidden?.has('wheel:' + wheel.id)),
+          });
           if (url.pathname === '/clips') {
             // Clips du garage (format compact), complétés par les clips décodés de l'étude (version 24 comprise :
             // vélo couché, handbike, clips masculins assis), au format à clés explicites. Ni « BW » ni clignements.
