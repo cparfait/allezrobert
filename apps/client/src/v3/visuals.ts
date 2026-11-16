@@ -15,6 +15,9 @@ const up = new Vector3(0, 1, 0);
 const forward = new Vector3();
 const footRight = new Vector3();
 const footLeft = new Vector3();
+const pivot = new Vector3();
+const hinge = new Vector3();
+const pivotTurned = new Vector3();
 const cycling = new Set([1, 3, 5, 13, 15, 18, 20, 24, 31]);
 
 export const V3_POSES: Record<string, string> = {
@@ -655,15 +658,28 @@ export class V3Visual {
    * (un peu plus en forçant), ≈ 6° en danseuse, nul en roue libre. La phase vient des pieds du coureur (pied droit
    * devant : le vélo penche à gauche), donc toujours d'accord avec le clip joué.
    */
-  private rock(dt: number, cadence: number, effort: number, clip: string, steady: boolean): void {
+  private steady(): void {
+    this.group.quaternion.copy(facing);
+    this.group.position.set(0, 0, 0);
+  }
+
+  /**
+   * Charnière du balancement (repère du vélo V3) : au sol, la ligne des deux points de contact des pneus ; sur un home
+   * trainer, la ligne de l'axe arrière (serré dans le home trainer) au contact du pneu avant (calé) : rien ne décroche.
+   */
+  private rock(dt: number, cadence: number, effort: number, clip: string, steady: boolean, trainer: boolean): void {
     const { bike, rider } = this;
-    const front = bike?.parts[0]?.find(part => part.part === 'FrontWheel')?.node;
-    const rear = bike?.parts[0]?.find(part => part.part === 'RearWheel')?.node;
-    if (!rider || !front || !rear) { this.group.quaternion.copy(facing); return; }
-    forward.subVectors(front.position, rear.position).setY(0);
-    if (forward.lengthSq() < 1e-6) { this.group.quaternion.copy(facing); return; }
+    const front = bike?.parts[0]?.find(part => part.part === 'FrontWheel');
+    const rear = bike?.parts[0]?.find(part => part.part === 'RearWheel');
+    if (!bike || !rider || !front || !rear) { this.steady(); return; }
+    pivot.copy(rear.node.position).add(bike.scene.position);
+    if (!trainer) pivot.y -= rear.radius;
+    hinge.copy(front.node.position).add(bike.scene.position);
+    hinge.y -= front.radius;
+    forward.subVectors(hinge, pivot);
+    if (forward.lengthSq() < 1e-6) { this.steady(); return; }
     forward.normalize();
-    const feet = this.findFeet(rider, forward);
+    const feet = this.findFeet(rider, hinge.copy(forward).setY(0).normalize());
     const k = 1 - Math.exp(-dt * 4);
     this.stance += ((/standing|sprint/i.test(clip) ? 1 : 0) - this.stance) * k;
     this.pedalled += ((steady && cadence >= 5 && !/superaero/i.test(clip) ? 1 : 0) - this.pedalled) * k;
@@ -672,14 +688,19 @@ export class V3Visual {
       rider.scene.updateMatrixWorld(true);
       rider.scene.worldToLocal(feet.right.getWorldPosition(footRight));
       rider.scene.worldToLocal(feet.left.getWorldPosition(footLeft));
-      const push = Math.max(-1, Math.min(1, footRight.sub(footLeft).dot(forward) / 0.3));
+      // Sens de marche à plat pour comparer les pieds (la charnière sur home trainer descend vers l'avant).
+      hinge.copy(forward).setY(0).normalize();
+      const push = Math.max(-1, Math.min(1, footRight.sub(footLeft).dot(hinge) / 0.3));
       const seated = 0.014 + 0.01 * Math.max(0, Math.min(0.6, effort - 0.6));
       angle = -push * (0.11 * this.stance + seated * (1 - this.stance)) * this.pedalled;
     }
+    // Rotation autour de la charnière : la position compense pour que son point d'appui ne bouge pas.
     this.group.quaternion.copy(facing).multiply(roll.setFromAxisAngle(forward, angle));
+    pivotTurned.copy(pivot).applyQuaternion(this.group.quaternion);
+    this.group.position.copy(pivot).applyQuaternion(facing).sub(pivotTurned);
   }
 
-  update(dt: number, cadence: number, speed: number, pose: RiderPose, options: { rider?: boolean; head?: boolean; helmet?: boolean; clip?: string; effort?: number; transitions?: boolean; rock?: boolean } = {}): void {
+  update(dt: number, cadence: number, speed: number, pose: RiderPose, options: { rider?: boolean; head?: boolean; helmet?: boolean; clip?: string; effort?: number; transitions?: boolean; rock?: boolean | 'trainer' } = {}): void {
     const { bike, rider } = this;
     const showRider = this.ready && !!rider && options.rider !== false;
     // Vélo ou coureur V3 pas encore chargé : rien plutôt que le coureur et le vélo du jeu (mode Réel) en attendant.
@@ -744,8 +765,8 @@ export class V3Visual {
     showHairGeometry(this.kit.find(gear => gear.item.type === 'HAIR')?.left,
       !covered ? 'none' : helmetGear?.item.hairGeom ?? 'helmet');
     rider.levels.forEach(node => { node.visible = node.name === ['LOD0', 'LOD2', 'LOD5'][level]; });
-    if (options.rock) this.rock(dt, cadence, options.effort ?? 0.7, name, at === undefined);
-    else this.group.quaternion.copy(facing);
+    if (options.rock) this.rock(dt, cadence, options.effort ?? 0.7, name, at === undefined, options.rock === 'trainer');
+    else this.steady();
   }
 
   dispose(): void {
