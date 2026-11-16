@@ -3,10 +3,16 @@ import type { Engine } from './renderer.ts';
 import { frameStats } from './frameStats.ts';
 import { pipelineStats } from './pipelineStats.ts';
 
-/** ?perf=1 ouvre le panneau dès le départ et active les mesures GPU (nécessite le démarrage avec ce paramètre). */
+/** Mesures GPU gardées d'un lancement à l'autre (Maj+F3), pour l'application installée qui n'a pas d'adresse à modifier. */
+const PERF_KEY = 'ar.perf';
+
+/**
+ * ?perf=1 (ou Maj+F3, gardé dans ar.perf) ouvre le panneau dès le départ et active les mesures GPU (nécessite le
+ * démarrage avec ce réglage : Maj+F3 relance le jeu).
+ */
 export function perfRequested(): boolean {
   try {
-    return new URLSearchParams(location.search).has('perf');
+    return new URLSearchParams(location.search).has('perf') || localStorage.getItem(PERF_KEY) === '1';
   } catch {
     return false;
   }
@@ -53,7 +59,15 @@ export class PerfOverlay {
 
   constructor() {
     window.addEventListener('keydown', (e) => {
-      if (e.code === 'F3') {
+      if (e.code === 'F3' && e.shiftKey) {
+        // Maj+F3 : mesures GPU activées ou coupées, puis relance (le moteur ne les active qu'au démarrage).
+        e.preventDefault();
+        try {
+          if (localStorage.getItem(PERF_KEY) === '1') localStorage.removeItem(PERF_KEY);
+          else localStorage.setItem(PERF_KEY, '1');
+        } catch { /* stockage indisponible */ }
+        location.reload();
+      } else if (e.code === 'F3') {
         e.preventDefault();
         this.toggle();
       } else if (this.visible && e.altKey && this.engine) {
@@ -136,7 +150,7 @@ export class PerfOverlay {
     const max = sorted[sorted.length - 1] as number;
     const info = engine.renderer.info;
     const canvas = engine.renderer.domElement;
-    const gpu = this.tracking ? (info.render.timestamp > 0 ? `${info.render.timestamp.toFixed(1)} ms` : '…') : 'off (?perf=1)';
+    const gpu = this.tracking ? (info.render.timestamp > 0 ? `${info.render.timestamp.toFixed(1)} ms` : '…') : 'off (Maj+F3 ou ?perf=1)';
     const q = engine.quality;
     const px = (canvas.width * canvas.height) / 1e6;
     const cpuRender = this.cpu.reduce((a, b) => a + b, 0) / this.cpu.length;
@@ -163,7 +177,7 @@ export class PerfOverlay {
       ...groups,
       `saccades récentes (ms ; autre = décodage, ramasse-miettes, attente GPU) :`,
       ...(this.spikes.length ? this.spikes.map((k) => `  il y a ${Math.round((performance.now() - k.at) / 1000)} s  ${k.text}`) : ['  aucune']),
-      `F3 masquer · Alt+1 AO · Alt+2 bloom · Alt+3 TAA`,
+      `F3 masquer · Maj+F3 mesure GPU (relance) · Alt+1 AO · Alt+2 bloom · Alt+3 TAA`,
     ].join('\n');
   }
 }
