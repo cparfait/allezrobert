@@ -49,6 +49,25 @@ def source_image(source, converter, work, hue=0):
     return image
 
 
+def keep_stored_normals(converter):
+    """Normales lissées du modèle Zwift gardées (sinon recalculées par face : surfaces en facettes)."""
+    orient = converter.orient_and_normals
+    if getattr(orient, "keeps_stored", False):
+        return
+
+    def preserve_normals(positions, triangles, stored):
+        triangles, calculated = orient(positions, triangles, stored)
+        if stored is not None:
+            for index, normal in calculated.items():
+                candidate = stored[index]
+                if sum(a * b for a, b in zip(normal, candidate)) > 0:
+                    calculated[index] = candidate
+        return triangles, calculated
+
+    preserve_normals.keeps_stored = True
+    converter.orient_and_normals = preserve_normals
+
+
 def texture_packer(model, binary, converter, work):
     cache = {}
 
@@ -179,14 +198,17 @@ def main():
             output.replace(args.output)
             return
         if args.kind == "object" or (args.kind == "gear" and source.suffix.lower() == ".gde"):
-            from zgde2glb import GLB, read_materials, skinned, static_part_meshes
+            import zgde2glb
+            from zgde2glb import GLB, read_materials, static_part_meshes
 
+            # Accessoires (casquettes, casques, lunettes, chaussures…) lissés comme le coureur.
+            keep_stored_normals(zgde2glb)
             with source.open("rb") as model_file:
                 version = struct.unpack_from("<H", model_file.read(6), 4)[0]
             converted = work / "object.glb"
             if args.kind == "gear" and version == 1:
                 gear_refs = {m["shader"] or m["name"]: m["textures"] for m in read_materials(source.read_bytes())}
-                skinned(str(source), str(converted), (0,))
+                zgde2glb.skinned(str(source), str(converted), (0,))
             else:
                 glb = GLB()
                 levels, _ = static_part_meshes(glb, str(source), [args.variant], name=source.stem)
@@ -199,18 +221,7 @@ def main():
             if original.is_file():
                 import zgde2glb as converter
 
-                orient = converter.orient_and_normals
-
-                def preserve_normals(positions, triangles, stored):
-                    triangles, calculated = orient(positions, triangles, stored)
-                    if stored is not None:
-                        for index, normal in calculated.items():
-                            candidate = stored[index]
-                            if sum(a * b for a, b in zip(normal, candidate)) > 0:
-                                calculated[index] = candidate
-                    return triangles, calculated
-
-                converter.orient_and_normals = preserve_normals
+                keep_stored_normals(converter)
                 source = work / "rider.glb"
                 converter.skinned(str(original), str(source), (0, 2, 5))
 

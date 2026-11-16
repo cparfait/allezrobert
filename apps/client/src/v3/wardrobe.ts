@@ -1,5 +1,6 @@
 import { getV3Gear, V3_HAIR_COLORS, type V3Color, type V3Equipment, type V3Gear, type V3SockHeight } from './visuals.ts';
 import { V3_SLOTS } from './icons.ts';
+import { v3Select } from './dropdown.ts';
 import { needsPhoto } from './thumbnails.ts';
 
 type Actions = {
@@ -131,8 +132,8 @@ export function addWardrobe(head: HTMLElement, parent: HTMLElement, settings: ()
   const colorLabel = document.createElement('label');
   colorLabel.className = 'field';
   const color = document.createElement('select');
-  color.dataset.dd = 'native';
   colorLabel.append('Coloris', color);
+  v3Select(color);
   const hue = createHueControl(value => {
     const item = current();
     if (item) equip(item, Number(color.value), value);

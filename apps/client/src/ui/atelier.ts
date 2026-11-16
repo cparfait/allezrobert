@@ -293,6 +293,9 @@ export class AtelierHost {
     if (!this.v3Panel) return;
     if (container && this.v3Panel.panel.parentElement !== container) container.replaceChildren(this.v3Panel.panel);
     if (top && this.v3Panel.top.parentElement !== top) top.replaceChildren(this.v3Panel.top);
+    // « Effet sur la route » à gauche du panneau du garage, comme dans les styles Réel et Poly.
+    const side = container?.closest('.gr-panel');
+    if (side && this.v3Panel.road.nextElementSibling !== side) side.before(this.v3Panel.road);
   }
 
   private setV3(st: AtelierState): void {

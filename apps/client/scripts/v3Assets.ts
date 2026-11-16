@@ -145,7 +145,9 @@ export function v3Assets(): Plugin {
       // Autres corps Zwift (même squelette et mêmes groupes de géométrie) : mince, fort (coureur seulement).
       'rider/homme-mince': 'perso/corps/MaleMasterSkinny.glb', 'rider/homme-fort': 'perso/corps/MaleMasterBig.glb',
       'rider/femme-mince': 'perso/corps/FemaleMasterSkinny.glb',
-      'helmet/homme': 'perso/casque.glb', 'helmet/femme': 'femmes/casque_zwift.glb',
+      // Casques par défaut lissés (tools/v3_smooth_glb.py) s'ils existent, sinon ceux de l'étude (en facettes).
+      'helmet/homme': existsSync(resolve(study, 'v3/perso/casque_homme.glb')) ? 'v3/perso/casque_homme.glb' : 'perso/casque.glb',
+      'helmet/femme': existsSync(resolve(study, 'v3/perso/casque_femme.glb')) ? 'v3/perso/casque_femme.glb' : 'femmes/casque_zwift.glb',
     })) files.set(key, resolve(study, path));
     return { files, bikes, objects, wheels };
   }

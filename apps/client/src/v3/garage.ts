@@ -3,6 +3,10 @@ import { addWardrobe, createHueControl, onScreen, whenVisible } from './wardrobe
 import { V3_ICON } from './icons.ts';
 import { COSMETICS, DEFAULT_BIKE, DEFAULT_TRAINER } from '@allezrobert/shared';
 import { saveV3BikeSetup, v3BikeEffect } from './physics.ts';
+import { createProfilesCard } from './profiles.ts';
+import { v3Select } from './dropdown.ts';
+import { roadEffectHtml } from '../ui/roadEffect.ts';
+import { loadSettings } from '../ui/settings.ts';
 import './garage.css';
 
 export interface V3GarageActions {
@@ -39,8 +43,9 @@ function field(parent: HTMLElement, label: string, control: HTMLElement): HTMLLa
 
 function select(parent: HTMLElement, label: string): HTMLSelectElement {
   const control = document.createElement('select');
-  control.dataset.dd = 'native';
   field(parent, label, control);
+  // Liste aux couleurs de l'appli (refaite à chaque ouverture : les choix changent après coup).
+  v3Select(control);
   return control;
 }
 
@@ -105,7 +110,7 @@ export function createV3Garage(actions: V3GarageActions) {
   // Dé général à côté des rubriques : tout tiré ensemble (tenue, personnage, vélo, coloris, roues, home trainer).
   const navRow = document.createElement('div');
   navRow.className = 'v3-navrow';
-  const allDice = diceButton('Tout au hasard : tenue, personnage, vélo, coloris, roues et home trainer');
+  const allDice = diceButton('Tout au hasard : personnage, tenue, vélo, coloris, roues et home trainer');
   allDice.onclick = () => {
     void (async () => {
       await randomKit();
@@ -129,16 +134,35 @@ export function createV3Garage(actions: V3GarageActions) {
     saveV3Equipment(equipment);
     actions.equipment(equipment);
     updateEffect();
+    profiles.sync();
   }
+  // Profils de coureur (tout l'équipement sous un nom), en tête du panneau, visibles dans chaque rubrique.
+  const profiles = createProfilesCard({
+    current: () => equipment,
+    load: value => {
+      apply(value);
+      refreshAll();
+    },
+  });
+  panel.append(profiles.element);
   /**
    * Effet du vélo et des accessoires sur la sortie (poids, traînée) d'après leurs caractéristiques Zwift :
    * affiché sous la fiche du vélo et enregistré pour la prochaine sortie en style V3.
    */
   let gearItems: V3Gear[] = [];
+  // Panneau « Effet sur la route » des garages Réel et Poly (barres Aéro, Légèreté, Chemins, gains à mêmes watts),
+  // pour le vélo V3 roulé : placé par l'atelier à gauche du panneau, comme dans les autres styles.
+  const road = document.createElement('aside');
+  road.className = 'gr-road';
+  road.setAttribute('aria-label', 'Effet sur la route');
   function updateEffect() {
     if (!catalogBikes.length) return;
     const effect = v3BikeEffect(equipment, catalogBikes, gearItems, catalogWheels);
     saveV3BikeSetup(effect.setup);
+    const rider = loadSettings();
+    const html = document.createElement('template');
+    html.innerHTML = roadEffectHtml(effect.setup, rider.massKg, rider.ftpWatts);
+    road.replaceChildren(...(html.content.firstElementChild?.childNodes ?? []));
     const kg = (value: number) => value.toLocaleString('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
     const drag = Math.round(effect.dragPct * 10) / 10;
     effectLine.textContent = 'En selle : ' + kg(effect.setup.massKg) + ' kg · traînée ' + (drag > 0 ? '+' : '') + drag.toLocaleString('fr-FR') + ' %';
@@ -174,6 +198,8 @@ export function createV3Garage(actions: V3GarageActions) {
     }
     status.textContent = '';
     actions.bareHead?.(id === 'character' && characterType === 'HAIR');
+    // Comme dans les garages Réel et Poly : pas d'effet sur la route pour le visage et le corps.
+    road.hidden = id === 'character';
     panel.parentElement?.scrollTo({ top: 0 });
     // Chaque menu s'ouvre sur l'équipement porté (famille ou marque dépliée, article visible).
     if (id === 'kit') openKit();
@@ -181,9 +207,10 @@ export function createV3Garage(actions: V3GarageActions) {
     if (id === 'bikes') foldBikes();
   }
 
+  // Ordre des rubriques : Personnage, Tenue, Vélo (le garage s'ouvre sur la première).
+  const character = sectionFor('character', 'Personnage', V3_ICON.face);
   const kit = sectionFor('kit', 'Tenue', V3_ICON.tenue);
   const bikes = sectionFor('bikes', 'Vélo', V3_ICON.bike);
-  const character = sectionFor('character', 'Personnage', V3_ICON.face);
   const wardrobeActions = { equipment: apply, report, photo: actions.photo, sex: actions.sex };
   // Personnage › Cheveux : tête nue pour voir la coiffure (le casque revient dans les autres catégories et rubriques).
   let characterType = '';
@@ -319,24 +346,34 @@ export function createV3Garage(actions: V3GarageActions) {
   // Proposée avec les coloris, sous le vélo choisi dans la liste.
   const hue = createHueControl(value => apply({ ...equipment, hue: value }));
   hue.field.title = 'Fait tourner les couleurs de la peinture (coloris réglable) ; le noir, le gris et le blanc ne changent pas.';
+  // Réglages du vélo équipé, regroupés dans une carte : une ligne par réglage (posture, roues, home trainer).
+  const settingsCard = document.createElement('div');
+  settingsCard.className = 'v3-settings';
+  bikes.section.append(settingsCard);
+  // Coloris et teinte du vélo équipé, toujours accessibles (première ligne des réglages).
+  const colorRow = document.createElement('div');
+  colorRow.className = 'v3-color-row';
+  colorRow.hidden = true;
+  settingsCard.append(colorRow);
   const ride = document.createElement('div');
   ride.className = 'v3-ride';
   const poses = select(ride, 'Posture');
   for (const [id, label] of Object.entries(V3_POSES)) poses.add(new Option(label, id));
   const play = document.createElement('button');
   play.type = 'button';
-  play.className = 'gr-sub';
-  play.textContent = 'Pédaler à 90 tr/min';
+  play.className = 'gr-sub v3-play';
+  play.textContent = '▶ Pédaler';
+  play.title = 'Pédaler à 90 tr/min';
   play.setAttribute('aria-pressed', 'false');
   play.onclick = () => {
     const on = play.getAttribute('aria-pressed') === 'false';
     play.setAttribute('aria-pressed', String(on));
     play.classList.toggle('on', on);
-    play.textContent = on ? 'Pause' : 'Pédaler à 90 tr/min';
+    play.textContent = on ? '❚❚ Pause' : '▶ Pédaler';
     actions.playing(on);
   };
   ride.append(play);
-  bikes.section.append(ride);
+  settingsCard.append(ride);
   // Roues (comme dans Zwift, pas de pneus à part : ils viennent avec les roues). Même présentation que la liste des
   // vélos : intitulé repliable (paire montée), puis lignes avec vignette, marques repliées sauf celle de la paire montée.
   const wheelField = document.createElement('div');
@@ -344,7 +381,7 @@ export function createV3Garage(actions: V3GarageActions) {
   wheelField.hidden = true;
   const wheelToggle = document.createElement('button');
   wheelToggle.type = 'button';
-  wheelToggle.className = 'v3-fold';
+  wheelToggle.className = 'v3-fold v3-setting-toggle';
   wheelToggle.setAttribute('aria-expanded', 'false');
   const wheelName = document.createElement('span');
   wheelToggle.append('Roues', wheelName);
@@ -357,7 +394,7 @@ export function createV3Garage(actions: V3GarageActions) {
     showWheels();
   };
   wheelField.append(wheelToggle, wheelList);
-  bikes.section.append(wheelField);
+  settingsCard.append(wheelField);
   const openWheelBrands = new Set<string>();
   const wheelLabel = (wheel: V3Wheel) => wheel.name.toLowerCase().startsWith(wheel.brand.toLowerCase()) ? wheel.name : wheel.brand + ' ' + wheel.name;
   function wheelIcon(wheel: V3Wheel | undefined): HTMLElement {
@@ -463,7 +500,7 @@ export function createV3Garage(actions: V3GarageActions) {
   // Replié par défaut : l'intertitre montre le home trainer choisi.
   const trainerToggle = document.createElement('button');
   trainerToggle.type = 'button';
-  trainerToggle.className = 'v3-fold';
+  trainerToggle.className = 'v3-fold v3-setting-toggle';
   trainerToggle.setAttribute('aria-expanded', 'false');
   const trainerName = document.createElement('span');
   trainerToggle.append('Home trainer', trainerName);
@@ -491,11 +528,15 @@ export function createV3Garage(actions: V3GarageActions) {
     trainers.append(button);
   }
   trainerField.append(trainerToggle, trainers);
-  bikes.section.append(trainerField);
+  settingsCard.append(trainerField);
   showTrainer();
-  const types = document.createElement('div');
-  types.className = 'mm-biketypes';
-  types.setAttribute('role', 'radiogroup');
+  const catalogTitle = document.createElement('h4');
+  catalogTitle.className = 'v3-subtitle';
+  catalogTitle.textContent = 'Catalogue des vélos';
+  const types = document.createElement('select');
+  types.className = 'v3-types';
+  types.setAttribute('aria-label', 'Type de vélo');
+  types.onchange = () => { bikeType = types.value; fillBikes(); };
   const searchBike = document.createElement('input');
   searchBike.type = 'search';
   searchBike.placeholder = 'Rechercher un vélo';
@@ -506,9 +547,10 @@ export function createV3Garage(actions: V3GarageActions) {
   const bikeDice = diceButton('Vélo au hasard (modèle, coloris et roues)');
   bikeDice.onclick = () => { void randomBike().catch(report); };
   const searchRow = document.createElement('div');
-  searchRow.className = 'v3-searchrow';
-  searchRow.append(searchBike, bikeDice);
-  bikes.section.append(types, searchRow, list);
+  searchRow.className = 'v3-searchrow v3-catalog-row';
+  searchRow.append(types, searchBike, bikeDice);
+  v3Select(types);
+  bikes.section.append(catalogTitle, searchRow, list);
 
   panel.append(status);
 
@@ -526,21 +568,12 @@ export function createV3Garage(actions: V3GarageActions) {
     const query = searchBike.value.trim().toLowerCase();
     const counts = new Map<string, number>();
     for (const bike of catalogBikes) counts.set(bike.type, (counts.get(bike.type) ?? 0) + 1);
-    const chip = (id: string, label: string, n: number) => {
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.setAttribute('role', 'radio');
-      button.setAttribute('aria-checked', String(id === bikeType));
-      button.classList.toggle('on', id === bikeType);
-      const count = document.createElement('span');
-      count.textContent = String(n);
-      button.append(label, count);
-      button.onclick = () => { bikeType = id; fillBikes(); };
-      return button;
-    };
     const known = BIKE_TYPES.filter(([id]) => counts.has(id));
     const other = [...counts.keys()].filter(id => !BIKE_TYPES.some(([type]) => type === id)).map(id => [id, id] as [string, string]);
-    types.replaceChildren(chip('all', 'Tous', catalogBikes.length), ...[...known, ...other].map(([id, label]) => chip(id, label, counts.get(id) ?? 0)));
+    const options: Array<[string, string]> = [['all', 'Tous les types (' + catalogBikes.length + ')'],
+      ...[...known, ...other].map(([id, label]): [string, string] => [id, label + ' (' + (counts.get(id) ?? 0) + ')'])];
+    if (types.options.length !== options.length) types.replaceChildren(...options.map(([id, label]) => new Option(label, id)));
+    types.value = bikeType;
     const shown = catalogBikes
       .filter(bike => bikeType === 'all' || bike.type === bikeType)
       .filter(bike => (bike.brand + ' ' + bike.name + ' ' + typeLabel(bike.type)).toLowerCase().includes(query))
@@ -624,10 +657,10 @@ export function createV3Garage(actions: V3GarageActions) {
     apply({ ...equipment, trainer });
     showTrainer();
   }
-  /** Coloris (s'il y en a plusieurs) et teinte (coloris réglable) du vélo équipé, juste sous sa ligne dans la liste. */
+  /** Coloris (s'il y en a plusieurs) et teinte (coloris réglable) du vélo équipé, en tête des réglages. */
   let inlineFor = '';
   function markInline() {
-    list.querySelectorAll<HTMLButtonElement>('.v3-inline-colors button').forEach((button, i) => {
+    colorRow.querySelectorAll<HTMLButtonElement>('.v3-inline-colors button').forEach((button, i) => {
       const on = i === equipment.color;
       button.classList.toggle('on', on);
       button.setAttribute('aria-checked', String(on));
@@ -635,12 +668,23 @@ export function createV3Garage(actions: V3GarageActions) {
   }
   async function showInlineColors(id: string) {
     inlineFor = id;
-    list.querySelector('.v3-inline-colors')?.remove();
     const options = (await getV3Colors(id).catch((error: unknown) => { report(error); return { colors: [] as V3Color[] }; })).colors;
     if (inlineFor !== id || equipment.bike !== id) return;
-    if (options.length <= 1 && options[0]?.hue === undefined) return;
-    const row = list.querySelector<HTMLElement>('[data-v3-bike="' + CSS.escape(id) + '"]');
-    if (!row) return;
+    // Toujours affichée : un seul coloris (sans teinte réglable) est dit tel quel.
+    colorRow.hidden = false;
+    if (options.length <= 1 && options[0]?.hue === undefined) {
+      const only = document.createElement('div');
+      only.className = 'v3-setting-line';
+      const name = document.createElement('b');
+      name.textContent = options[0]?.name && options[0].name !== 'Default' ? options[0].name : 'D’origine';
+      only.append('Coloris', name);
+      only.title = 'Un seul coloris pour ce vélo dans Zwift, sans teinte réglable.';
+      colorRow.replaceChildren(only);
+      return;
+    }
+    const title = document.createElement('div');
+    title.className = 'v3-color-title';
+    title.textContent = 'Coloris';
     const box = document.createElement('div');
     box.className = 'v3-inline-colors';
     box.setAttribute('role', 'radiogroup');
@@ -660,8 +704,7 @@ export function createV3Garage(actions: V3GarageActions) {
     });
     hue.set(options[equipment.color], equipment.hue);
     box.append(hue.field);
-    list.querySelector('.v3-inline-colors')?.remove();
-    row.after(box);
+    colorRow.replaceChildren(title, box);
     markInline();
   }
   /**
@@ -711,6 +754,17 @@ export function createV3Garage(actions: V3GarageActions) {
     for (const name of alternatives) group.append(new Option(name, name));
     poses.add(group);
   }).catch(report);
-  show('kit');
-  return { top, panel, report };
+  /** Tout le panneau remis d'accord avec l'équipement (profil chargé). */
+  function refreshAll(): void {
+    showSex();
+    showBody();
+    kitWardrobe.refresh();
+    characterWardrobe.refresh();
+    showFocus();
+    if (catalogBikes.length) fillBikes();
+    showWheels();
+    showTrainer();
+  }
+  show('character');
+  return { top, panel, road, report };
 }
