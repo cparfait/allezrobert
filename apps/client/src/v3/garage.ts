@@ -228,6 +228,16 @@ export function createV3Garage(actions: V3GarageActions) {
   const characterActions = { ...wardrobeActions, view: (type: string) => { characterType = type; actions.bareHead?.(type === 'HAIR'); } };
   const kitWardrobe = addWardrobe(kit.head, kit.section, () => equipment, wardrobeActions);
   const openKit = kitWardrobe.open;
+  // Dé de la tenue seule, à droite des emplacements (maillot, casque, gants…), comme ceux du personnage et du vélo.
+  const kitDice = diceButton('Tenue au hasard (maillot, casque, lunettes, gants, chaussettes et chaussures)');
+  kitDice.onclick = () => { void randomKit().catch(report); };
+  const kitSlots = kit.head.querySelector<HTMLElement>('.gr-slots');
+  if (kitSlots) {
+    const kitRow = document.createElement('div');
+    kitRow.className = 'v3-navrow';
+    kitSlots.replaceWith(kitRow);
+    kitRow.append(kitSlots, kitDice);
+  } else kit.head.prepend(kitDice);
   // En tête du choix du personnage, avant les catégories : silhouette puis corps, en boutons segmentés.
   const identity = document.createElement('div');
   identity.className = 'v3-identity';
@@ -336,7 +346,7 @@ export function createV3Garage(actions: V3GarageActions) {
     showBody();
     characterWardrobe.refresh();
   }
-  // Tenue au hasard (dé général) : maillot, casque, gants, chaussettes et chaussures, lunettes deux fois sur trois.
+  // Tenue au hasard (dé général et dé de la tenue) : maillot, casque, gants, chaussettes et chaussures, lunettes deux fois sur trois.
   async function randomKit(): Promise<void> {
     const items = await getV3Gear();
     const sex = sexNow();

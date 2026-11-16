@@ -3,6 +3,8 @@
 .v3-head:empty { display: none; }
 .v3-top [hidden], .ar-v3-garage [hidden] { display: none !important; }
 .v3-head .gr-slots { grid-template-columns: repeat(min(var(--n, 4), 4), minmax(0, 1fr)); }
+/* Tenue : six emplacements en deux rangs de trois (dé de la tenue à droite). */
+.v3-head .v3-navrow .gr-slots { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .v3-head .gr-typename { margin-top: 0; }
 
 .ar-v3-garage .field { display: grid; gap: 5px; font-size: 12px; font-weight: 700; color: #aeb7c3; }
