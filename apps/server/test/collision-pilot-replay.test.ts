@@ -86,7 +86,10 @@ describe('pilote intégré dans RideSession et RideSimulation', () => {
   it.each([60, 10] as const)('contourne à 86,4 km/h et laisse la voie centrale libre à %d Hz', (hz) => {
     const after = trace(hz, true, 24);
     expect(after.inside + after.unsafe + after.crossedBetweenFrames + after.offRoad).toBe(0);
-    expect(after.minSpeed).toBeGreaterThan(20);
+    // Le pilote ne freine pas : vitesse minimale égale à celle de la même sortie sans pilote. Le freinage avant les
+    // virages serrés (RideSession, 6a9e2ef2) ralentit déjà le coureur à 60 Hz dans ce virage de 17 m environ.
+    expect(after.minSpeed).toBeGreaterThanOrEqual(trace(hz, false, 24).minSpeed - 0.01);
+    expect(after.minSpeed).toBeGreaterThan(8);
     expect(trace(hz, true, 24, 0).pose).toEqual(trace(hz, false, 24, 0).pose);
   });
 
