@@ -356,6 +356,13 @@ export function v3Assets(): Plugin {
             }
             return json(200, [...garage, ...extra]);
           }
+          // Film d'accueil du style V3 (tools/menu-loop --style v3) : boucles et images fixes gardées hors du dossier public.
+          const film = /^\/menu\/((?:loop|still)-v3-(?:spring|summer|autumn|winter)\.(?:mp4|av1\.mp4|webm|jpg))$/.exec(url.pathname);
+          if (film) {
+            const file = resolve(cache, 'menu', film[1]!);
+            if (!existsSync(file)) return json(404, { error: 'Film V3 pas encore tourné.' });
+            return sendFile(file, film[1]!.endsWith('.jpg') ? 'image/jpeg' : film[1]!.endsWith('.webm') ? 'video/webm' : 'video/mp4');
+          }
           // Texture de peinture d'un coloris de vélo (sans teinte) : couleur dominante de la pastille du garage.
           const paint = /^\/bikecolor\/([a-z0-9-]+)\.png$/.exec(url.pathname);
           if (paint) {

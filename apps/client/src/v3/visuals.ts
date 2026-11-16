@@ -23,6 +23,8 @@ const swing = new Quaternion();
 const inverse = new Quaternion();
 const frame = new Quaternion();
 const cycling = new Set([1, 3, 5, 13, 15, 18, 20, 24, 31]);
+/** Chaussures par défaut du coureur V3 (variante du catalogue) : S-Works SP7, chaussures de vélo de route. */
+const DEFAULT_SHOES = 'SworksSpSevenL';
 
 export const V3_POSES: Record<string, string> = {
   cyclistSeatedHoods: 'Assis · cocottes',
@@ -592,6 +594,13 @@ export class V3Visual {
   /** Balancement du vélo (garage) : part de danseuse et de pédalage, lissées ; pieds du coureur repérés. */
   private stance = 0;
   private pedalled = 0;
+  /** Chargements en cours (vélo, coureur, tenue) : le film d'accueil attend qu'il n'y en ait plus. */
+  private loading = 0;
+
+  /** Vélo, coureur, clips et tenue chargés (rien en attente). */
+  get settled(): boolean {
+    return this.ready && !!this.bike && !!this.rider && this.loading === 0;
+  }
   private feet?: { rider: RiderVisual; right: Bone; left: Bone };
 
   activeEquipment(): V3Equipment | undefined {
@@ -609,13 +618,14 @@ export class V3Visual {
     this.equipment = equipment;
     if (equipment.bike !== previous?.bike || equipment.color !== previous.color || equipment.hue !== previous.hue || equipment.wheels !== previous.wheels) {
       const request = ++this.bikeRequest;
+      this.loading++;
       void loadBike(equipment).then(bike => {
         if (request !== this.bikeRequest) { free(bike.scene); return; }
         if (this.bike) free(this.bike.scene);
         this.bike = bike;
         this.group.add(bike.scene);
         this.redraw();
-      }).catch(error => { if (request === this.bikeRequest) this.report(error); });
+      }).catch(error => { if (request === this.bikeRequest) this.report(error); }).finally(() => { this.loading--; });
     }
     const sex = equipment.sex ?? lookSex(look);
     const body = resolvedBody(equipment, sex);
@@ -623,6 +633,7 @@ export class V3Visual {
       this.sex = sex;
       this.body = body;
       const request = ++this.riderRequest;
+      this.loading++;
       void loadRider(sex, body).then(rider => {
         if (request !== this.riderRequest) { free(rider.scene); return; }
         if (this.rider) {
@@ -634,7 +645,7 @@ export class V3Visual {
         this.group.add(rider.scene);
         this.applyKit();
         this.redraw();
-      }).catch(error => { if (request === this.riderRequest) this.report(error); });
+      }).catch(error => { if (request === this.riderRequest) this.report(error); }).finally(() => { this.loading--; });
     }
     if (this.rider?.sex === sex && this.rider.body === body) {
       this.applyKit();
@@ -673,13 +684,17 @@ export class V3Visual {
     this.kitKey = key;
     const request = ++this.kitRequest;
     const entries = Object.values(kit);
-    const loaded = entries.length ? getV3Gear().then(items => {
-      return Promise.all(entries.flatMap(selection => {
+    // Sans chaussures choisies : chaussures de vélo de route (le corps de Zwift n'a que des chaussures de course).
+    const ownShoes = !!kit.CYCLING_SHOES || !!kit.RUNNING_SHOES;
+    this.loading++;
+    const loaded = getV3Gear().then(items => {
+      const shoes = ownShoes ? undefined : items.find(row => row.variant === DEFAULT_SHOES);
+      return Promise.all([...entries, ...(shoes ? [{ id: shoes.id, color: 0 }] : [])].flatMap(selection => {
         const item = items.find(row => row.id === selection.id);
         if (!item || (item.sex !== 'tous' && item.sex !== this.sex)) return [];
         return [loadGearItem(item, selection, this.sex)];
       }));
-    }) : Promise.resolve([]);
+    });
     void loaded.then(next => {
       if (request !== this.kitRequest) { next.forEach(freeGear); return; }
       restoreRider(rider);
@@ -691,7 +706,7 @@ export class V3Visual {
       this.redraw();
       const missing = next.filter(item => item.incomplete).map(item => item.item.name);
       if (missing.length) this.report(new Error('Ressources manquantes · ' + missing.join(', ')));
-    }).catch(error => { if (request === this.kitRequest) this.report(error); });
+    }).catch(error => { if (request === this.kitRequest) this.report(error); }).finally(() => { this.loading--; });
   }
 
   /**
@@ -806,7 +821,7 @@ export class V3Visual {
     this.group.position.copy(pivot).applyQuaternion(facing).sub(pivotTurned);
   }
 
-  update(dt: number, cadence: number, speed: number, pose: RiderPose, options: { rider?: boolean; head?: boolean; helmet?: boolean; clip?: string; effort?: number; transitions?: boolean; rock?: boolean; trainer?: boolean } = {}): void {
+  update(dt: number, cadence: number, speed: number, pose: RiderPose, options: { rider?: boolean; head?: boolean; helmet?: boolean; clip?: string; effort?: number; transitions?: boolean; rock?: boolean; trainer?: boolean; crank?: number } = {}): void {
     const { bike, rider } = this;
     const showRider = this.ready && !!rider && options.rider !== false;
     // Vélo ou coureur V3 pas encore chargé : rien plutôt que le coureur et le vélo du jeu (mode Réel) en attendant.
@@ -843,7 +858,8 @@ export class V3Visual {
     }
     wanted ??= this.ridingClip(pose, speed, cadence, options.effort ?? 0.7, bike.type);
     const name = at === undefined ? clipForBike(wanted, bike.type, exists) : wanted;
-    this.turns = (this.turns + dt * Math.max(0, cadence) / 60) % 2;
+    // Angle du pédalier imposé (radians, film d'accueil), sinon intégré de la cadence.
+    this.turns = options.crank !== undefined ? (((options.crank / (2 * Math.PI)) % 2) + 2) % 2 : (this.turns + dt * Math.max(0, cadence) / 60) % 2;
     this.distance += dt * speed;
     bike.levels.forEach((node, i) => { node.visible = i === level; });
     for (const { node, part, rest, radius } of bike.parts[level] ?? []) {

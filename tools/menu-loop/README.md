@@ -20,6 +20,18 @@ Les vidéos sont trop lourdes pour le dépôt public : on les régénère ici, p
 le serveur (docs/DEPLOY.md § 12 bis). Sans elles, le menu affiche l'image fixe (`createMenuVideo`
 dans `apps/client/src/main.ts`).
 
+## Style V3 (développement seulement)
+
+`--style v3` tourne le même film avec les coureurs du style V3 (ressources de l'installation Zwift locale) :
+Robert en tête et neuf profils fixés dans `apps/client/src/v3/cinematicRiders.ts`. Ces boucles ne sont **jamais
+distribuées** : elles sortent dans `out/v3/menu/` (`loop-v3-<saison>.*`, `still-v3-<saison>.jpg`), hors du dossier
+public et du déploiement, et le menu du style V3 les lit par le plugin V3 local (`/__v3/menu/…`). Le style V3 n'est pas
+tourné par défaut (`--style all` = réaliste et jeu vidéo).
+
+```bash
+pnpm --filter @allezrobert/menu-loop capture -- --style v3
+```
+
 ## Régénérer
 
 ```bash

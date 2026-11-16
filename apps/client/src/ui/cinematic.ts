@@ -9,7 +9,9 @@ import { sunDirection } from '../world/environment.ts';
 import { splatAt } from '../world/splat.ts';
 import type { World } from '../world/world.ts';
 import type { Engine } from '../engine/renderer.ts';
-import { GRAPHIC_STYLE, LOW_POLY } from '../engine/style.ts';
+import { GRAPHIC_STYLE, LOW_POLY, V3_STYLE } from '../engine/style.ts';
+import { V3Visual } from '../v3/visuals.ts';
+import { CINEMATIC_V3 } from '../v3/cinematicRiders.ts';
 import { filmClock, freezeStreaming, waitForAssets, type ViewPoint } from './cinematicStream.ts';
 import { CINE_ENV, GROUP_SPEED, LOOP_S, SLOTS, XFADE_S, formation, frameCount, frontFraming, gesture, isCineSeason, shotAt, smooth, type CineSeason } from './cinematicPlan.ts';
 
@@ -213,7 +215,7 @@ export async function runCinematic(engine: Engine, world: World, track: RouteTra
     document.title = msg;
   };
   /** Dossier des images et nom de la boucle : la saison, préfixée du style jeu vidéo. */
-  const tag = LOW_POLY ? `lowpoly-${season}` : season;
+  const tag = LOW_POLY ? `lowpoly-${season}` : V3_STYLE ? `v3-${season}` : season;
   const state = { season, style: GRAPHIC_STYLE, fps, frames: frameCount(fps), done: 0, finished: false, d0: 0, error: '' };
   (window as unknown as { __cine: unknown }).__cine = state;
 
@@ -241,6 +243,21 @@ export async function runCinematic(engine: Engine, world: World, track: RouteTra
     engine.scene.add(a.root);
     return a;
   });
+  // Style V3 (développement seulement) : chaque coureur habillé de son profil (v3/cinematicRiders.ts), Robert en tête ;
+  // tout est chargé avant la première image (vélos, coureurs, tenues).
+  const v3 = V3_STYLE
+    ? riders.map((a, i) => {
+        const visual = new V3Visual((a as GltfRiderAvatar).v3Mount(), () => {}, error => console.warn('[cinematic] V3', error));
+        visual.set(lookFor(i), CINEMATIC_V3[i % CINEMATIC_V3.length]);
+        return visual;
+      })
+    : [];
+  if (v3.length) {
+    say('cinematic : chargement des coureurs V3…');
+    const until = Date.now() + 10 * 60_000;
+    while (!v3.every(v => v.settled) && Date.now() < until) await new Promise(done => setTimeout(done, 250));
+    if (!v3.every(v => v.settled)) throw new Error('coureurs V3 incomplets après 10 min');
+  }
 
   const leaderD = (t: number) => d0 + GROUP_SPEED * t;
   /** Trajectoire du coureur i (repère monde, au sol). */
@@ -279,6 +296,8 @@ export async function runCinematic(engine: Engine, world: World, track: RouteTra
       a.setEffort?.(g.effort, g.effort);
       a.setGesture?.({ hands: g.hands, yaw: g.yaw, pitch: g.pitch, crank: g.crank });
       a.update(dt, g.cadence, speed, g.pose, 0);
+      // V3 : même pédalier (raccord de la boucle), posture selon l'allure et l'effort du plan.
+      v3[i]?.update(dt, g.cadence, speed, g.pose, { effort: g.effort, crank: g.crank });
     });
   };
 

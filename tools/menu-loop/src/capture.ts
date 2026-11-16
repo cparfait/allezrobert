@@ -27,7 +27,9 @@ const OUT = resolve(ROOT, 'out/menu-loop');
 const PUBLIC = resolve(ROOT, 'apps/client/public/menu');
 const SEASONS = ['spring', 'summer', 'autumn', 'winter'] as const;
 /** Styles graphiques du jeu (apps/client/src/engine/style.ts) : un film chacun. */
-const STYLES = ['real', 'lowpoly'] as const;
+const STYLES = ['real', 'lowpoly', 'v3'] as const;
+/** Styles tournés par défaut : le style V3 (ressources Zwift locales, jamais distribuées) seulement sur demande. */
+const DEFAULT_STYLES = ['real', 'lowpoly'];
 const NULL_DEV = process.platform === 'win32' ? 'NUL' : '/dev/null';
 /** Image fixe du menu : JPEG d'environ 200 à 300 ko. */
 const STILL_MAX_BYTES = 300 * 1024;
@@ -43,9 +45,9 @@ const mode = process.argv[2] === 'encode' ? 'encode' : 'capture';
 const seasonArg = arg('season', 'all') as string;
 const seasons = seasonArg === 'all' ? [...SEASONS] : seasonArg.split(',');
 const styleArg = arg('style', 'all') as string;
-const styles = styleArg === 'all' ? [...STYLES] : styleArg.split(',');
+const styles = styleArg === 'all' ? [...DEFAULT_STYLES] : styleArg.split(',');
 /** Nom d'une boucle (dossier des images, fichiers du menu) : la saison, préfixée du style jeu vidéo. */
-const tagOf = (style: string, season: string) => (style === 'lowpoly' ? `lowpoly-${season}` : season);
+const tagOf = (style: string, season: string) => (style === 'lowpoly' || style === 'v3' ? `${style}-${season}` : season);
 const [w, h] = (arg('size', `${DEFAULT_ENCODE.width}x${DEFAULT_ENCODE.height}`) as string).split('x').map(Number) as [number, number];
 /** Suréchantillonnage (rendu à w·ss × h·ss, réduit dans la page) et sous-rendus de l'anticrénelage temporel. */
 const ss = Number(arg('ss', '2'));
@@ -178,23 +180,29 @@ async function waitCapture(season: string, chrome: ChildProcess | null, keepServ
 
 const mb = (f: string) => `${(statSync(f).size / 1048576).toFixed(1)} Mo`;
 
+/**
+ * Dossier des boucles d'un style : apps/client/public/menu, sauf le style V3 (ressources Zwift locales, jamais
+ * distribuées) gardé hors du dossier public et du déploiement, dans out/v3/menu (servi par le plugin V3 en local).
+ */
+const outDirOf = (tag: string) => (tag.startsWith('v3-') ? resolve(ROOT, 'out/v3/menu') : PUBLIC);
 function encode(season: string): void {
+  const dest = outDirOf(season);
   const dir = resolve(OUT, season);
   const m = JSON.parse(readFileSync(resolve(dir, 'manifest.json'), 'utf8')) as Manifest;
-  mkdirSync(PUBLIC, { recursive: true });
+  mkdirSync(dest, { recursive: true });
   const frames = dir.replaceAll('\\', '/');
-  const mp4 = resolve(PUBLIC, `loop-${season}.mp4`);
+  const mp4 = resolve(dest, `loop-${season}.mp4`);
   console.log(`[${season}] MP4 H.264 ${enc.width}×${enc.height} CRF ${enc.crf}${enc.mp4MaxKbps ? ` (≤ ${enc.mp4MaxKbps} kbit/s)` : ''}…`);
   ffmpeg(mp4Args(m, frames, mp4, enc));
   const outputs = [mp4];
   if (withAv1) {
-    const av1 = resolve(PUBLIC, `loop-${season}.av1.mp4`);
+    const av1 = resolve(dest, `loop-${season}.av1.mp4`);
     console.log(`[${season}] MP4 AV1 CRF ${enc.av1Crf}…`);
     ffmpeg(av1Args(m, frames, av1, enc));
     outputs.push(av1);
   }
   if (withWebm) {
-    const webm = resolve(PUBLIC, `loop-${season}.webm`);
+    const webm = resolve(dest, `loop-${season}.webm`);
     const passlog = resolve(OUT, `pass-${season}`).replaceAll('\\', '/');
     console.log(`[${season}] WebM VP9 CRF ${enc.vp9Crf}, deux passes…`);
     for (const a of webmPasses(m, frames, webm, passlog, enc, NULL_DEV)) ffmpeg(a);
@@ -202,7 +210,7 @@ function encode(season: string): void {
     outputs.push(webm);
   }
   // Image fixe : première image de la vidéo, la meilleure qualité JPEG sous STILL_MAX_BYTES.
-  const still = resolve(PUBLIC, `still-${season}.jpg`);
+  const still = resolve(dest, `still-${season}.jpg`);
   for (let q = 2; q <= 12; q++) {
     ffmpeg(stillArgs(mp4, still, q));
     if (statSync(still).size <= STILL_MAX_BYTES) break;

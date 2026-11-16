@@ -273,7 +273,9 @@ const LINE_MAX_DEV = 1.2;
 autoEnhanceSelects();
 
 /** Films du menu du style choisi : réaliste (loop-<saison>.*) ou jeu vidéo (loop-lowpoly-<saison>.*). */
-const MENU_STYLE = LOW_POLY ? 'lowpoly-' : '';
+const MENU_STYLE = LOW_POLY ? 'lowpoly-' : V3_STYLE ? 'v3-' : '';
+/** Style V3 (développement) : films tournés avec les ressources Zwift locales, servis par le plugin V3, jamais publics. */
+const MENU_BASE = V3_STYLE ? '/__v3/menu' : '/menu';
 
 /** Boucle vidéo de la saison (et du style) en fond du menu (public/menu/loop-<saison>.mp4), sur son image fixe. */
 function createMenuVideo(el: HTMLVideoElement | null) {
@@ -302,13 +304,14 @@ function createMenuVideo(el: HTMLVideoElement | null) {
     if (el && formats[format] === 'mp4' && !el.canPlayType('video/mp4; codecs="avc1.640028"')) format = formats.indexOf('webm');
     // Application Windows : depuis les ressources du jeu sur le disque si elles ont la boucle, sinon du serveur ; web : même origine.
     const file = `menu/loop-${MENU_STYLE}${season}.${formats[format] as string}`;
+    if (V3_STYLE) return `${MENU_BASE}/loop-${MENU_STYLE}${season}.${formats[format] as string}`;
     return `${inDesktop && !hasLocalMedia(file) ? TILES_BASE : ''}/${file}?v=${MENU_MEDIA_VERSION}`;
   };
   // Image fixe de la saison, affichée tout de suite sous la vidéo (et seule si la vidéo échoue).
   const still = document.getElementById('menu-still');
   const showStill = (season: Settings['season'] | null) => {
     if (!still) return;
-    if (season) still.style.backgroundImage = `url(/menu/still-${MENU_STYLE}${season}.jpg?v=${MENU_MEDIA_VERSION})`;
+    if (season) still.style.backgroundImage = `url(${MENU_BASE}/still-${MENU_STYLE}${season}.jpg?v=${MENU_MEDIA_VERSION})`;
     still.hidden = !season;
   };
   if (el) {
