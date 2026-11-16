@@ -2488,7 +2488,7 @@ export class MainMenu {
     const sec = (id: string, title: string, body: string) => this.settingsSection(id, title, body);
     const graphics = `<div class="grid3">
         <div class="field">${t('quality')}${this.seg('m-quality', s.quality, (['low', 'medium', 'high', 'ultra'] as const).map((q) => [q, t(q)]))}</div>
-        <div class="field">${L ? 'Style graphique' : 'Graphic style'}${this.seg('m-style', GRAPHIC_STYLE, [['lowpoly', L ? 'Jeu vidéo' : 'Video game'], ['real', L ? 'Réaliste' : 'Realistic'], ...(V3_AVAILABLE ? [['v3', 'V3'] as [string, string]] : [])])}</div>
+        <div class="field">${L ? 'Style graphique' : 'Graphic style'}${this.seg('m-style', GRAPHIC_STYLE, [['lowpoly', L ? 'Jeu vidéo' : 'Video game'], ['real', L ? 'Réaliste' : 'Realistic'], ...(V3_AVAILABLE ? [['v3', 'Beta'] as [string, string]] : [])])}</div>
         <div class="field hud-field" style="grid-column: 1 / -1">${L ? 'Interface (HUD) · effet à la prochaine sortie' : 'HUD layout · applies from the next ride'}${hudPickerHtml()}</div>
         <div class="field">${L ? 'Format de l\'image' : 'Picture format'}${this.seg('m-aspect', getAspectCap(), [['full', L ? 'Plein écran' : 'Full'], ['16:9', '16:9'], ['21:9', '21:9'], ['32:9', '32:9']])}</div>
         <div class="field">${L ? 'Zone de l\'interface' : 'Interface area'}${this.seg('m-uiaspect', getUiAspectCap(), [['full', L ? 'Toute la largeur' : 'Full width'], ['16:9', '16:9'], ['21:9', '21:9']])}</div>

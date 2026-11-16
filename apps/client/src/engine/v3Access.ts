@@ -47,13 +47,13 @@ export function requestV3Access(): Promise<boolean> {
   dialog.setAttribute('aria-labelledby', 'v3-access-title');
   dialog.innerHTML = `
     <form method="dialog">
-      <h2 id="v3-access-title">${fr ? 'Accès au style V3' : 'Access to style V3'}</h2>
+      <h2 id="v3-access-title">${fr ? 'Accès au style Beta' : 'Access to style Beta'}</h2>
       <label>${fr ? 'Code d’accès' : 'Access code'}
         <input type="password" inputmode="numeric" autocomplete="off" required autofocus />
       </label>
       <p role="status"></p>
       <button type="button">${fr ? 'Annuler' : 'Cancel'}</button>
-      <button type="submit">${fr ? 'Activer V3' : 'Enable V3'}</button>
+      <button type="submit">${fr ? 'Activer Beta' : 'Enable Beta'}</button>
     </form>`;
   const form = dialog.querySelector('form')!;
   const input = form.querySelector('input')!;
@@ -77,7 +77,7 @@ export function requestV3Access(): Promise<boolean> {
           ? fr ? 'Code incorrect.' : 'Incorrect code.'
           : fr ? 'Le service V3 est inaccessible.' : 'The V3 service is unreachable.';
     } catch {
-      status.textContent = fr ? 'Le service V3 est inaccessible.' : 'The V3 service is unreachable.';
+      status.textContent = fr ? 'Le service Beta est inaccessible.' : 'The Beta service is unreachable.';
     } finally {
       submit.disabled = false;
       input.value = '';
