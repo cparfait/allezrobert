@@ -17,7 +17,6 @@ export const V3_SLOTS: Record<string, { label: string; icon: string }> = {
   GLOVES: { label: 'Gants', icon: svg('<path d="M7 21v-8L5.5 9.5c-.5-1.2 1-2 1.8-1L9 11V4.5c0-1.3 2-1.3 2 0V10V3.5c0-1.3 2-1.3 2 0V10V4.5c0-1.3 2-1.3 2 0V11V6.5c0-1.3 2-1.3 2 0V15c0 3.5-2 6-5.5 6Z"/>', 26) },
   SOCKS: { label: 'Chaussettes', icon: svg('<path d="M9 3h6v10l4.5 3c1.5 1 1 4-1.5 4H10c-2 0-2-1.5-2-3Z"/><path d="M9 7h6"/>', 26) },
   CYCLING_SHOES: { label: 'Chaussures', icon: svg('<path d="M3 17v-5l5-1 3 3 8 1.5c1.8.3 2.2 3.5 0 3.5H4a1 1 0 0 1-1-1Z"/><path d="M8 11l1.5 2M12 14l1 2"/>', 26) },
-  STREAK_FLAIR: { label: 'Mascotte', icon: svg('<path d="m12 3 2.6 5.6 6 .7-4.5 4.1 1.2 6L12 16.4 6.7 19.4l1.2-6L3.4 9.3l6-.7Z"/>', 26) },
   HEAD_TYPE: { label: 'Tête', icon: svg('<circle cx="12" cy="12" r="8.5"/><circle cx="9" cy="10.5" r=".9"/><circle cx="15" cy="10.5" r=".9"/><path d="M8.5 15c1 1.2 2.2 1.8 3.5 1.8s2.5-.6 3.5-1.8"/>', 26) },
   HAIR: { label: 'Cheveux', icon: svg('<path d="M5 14c0-6 3-9 7-9s7 3 7 9v1c-2-1-3-3-3-5-2 2-6 2-8 0 0 2-1 4-3 5Z"/>', 26) },
   FACIAL_HAIR: { label: 'Barbe', icon: svg('<path d="M6 8c0 6 2 10 6 10s6-4 6-10M9 14c1 1 5 1 6 0"/>', 26) },

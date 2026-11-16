@@ -136,6 +136,8 @@ export const getV3Gear = () => gear ??= get<V3Gear[]>('gear')
     const seen = new Set<string>();
     return items.filter(item => {
       if (item.sport ? item.sport !== 'cycling' && item.sport !== 'any' : item.type.startsWith('RUNNING_')) return false;
+      // Mascottes de série (Scotty, récompense des semaines d'affilée de Zwift) : rubrique retirée du V3.
+      if (item.type === 'STREAK_FLAIR') return false;
       const key = item.type + '|' + item.variant + '|' + item.sex;
       if (seen.has(key)) return false;
       seen.add(key);
