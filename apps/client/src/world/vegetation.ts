@@ -43,14 +43,15 @@ const TREE_EDGE = (() => {
 
 /**
  * Feuillage proche (P2.3f) : cartes de feuilles croisées sur les amas des feuillus au LOD0 (≈ 160-250 m autour du
- * coureur), feuilles découpées dans le shader (leafCard), forme pleine au-delà de 80 m. Style réaliste ;
- * `?leafcards=0` revient aux amas seuls.
+ * coureur), feuilles découpées dans le shader (leafCard), forme pleine au-delà de 80 m. Style réaliste.
+ * COUPÉ PAR DÉFAUT (16/11/2026) : vu en jeu, ce duvet de feuilles autour des amas lisses ne fait pas réaliste ; les
+ * houppiers restent en amas. `?leafcards=1` le remet pour comparer.
  */
 const LEAF_CARDS = (() => {
   try {
-    return typeof location === 'undefined' || new URLSearchParams(location.search).get('leafcards') !== '0';
+    return typeof location !== 'undefined' && new URLSearchParams(location.search).get('leafcards') === '1';
   } catch {
-    return true;
+    return false;
   }
 })();
 
