@@ -8,7 +8,9 @@ import { AERO_COAST_FULL, AERO_SPEED, AERO_SPEED_OUT, HARD_EFFORT } from '../rid
 import { recoverV3Access, v3Resource } from '../engine/v3Access.ts';
 
 const base = v3Resource('');
-const defaultBike = 'canyonaeroad2024';
+/** Vélo de départ du style Beta. */
+export const V3_DEFAULT_BIKE = 'canyonaeroad2024';
+const defaultBike = V3_DEFAULT_BIKE;
 const axis = new Vector3(0, 0, 1);
 const wheelRotation = new Quaternion();
 const facing = new Quaternion().setFromAxisAngle(new Vector3(0, 1, 0), -Math.PI / 2);
@@ -30,6 +32,15 @@ const frame = new Quaternion();
 const cycling = new Set([1, 3, 5, 13, 15, 18, 20, 24, 31]);
 /** Chaussures par défaut du coureur V3 (variante du catalogue) : S-Works SP7, chaussures de vélo de route. */
 const DEFAULT_SHOES = 'SworksSpSevenL';
+export const V3_DEFAULT_SHOES = DEFAULT_SHOES;
+/**
+ * Tenue de départ du style Beta, sans marquage Zwift : maillot blanc du Tour de France (validé pour le film d'accueil) et
+ * chaussettes noires unies ; casque et chaussures d'origine. « D'origine » dans le vestiaire y revient.
+ */
+export const V3_DEFAULT_KIT: Readonly<Record<string, V3GearSelection>> = {
+  CYCLING_JERSEY: { id: 452, color: 0 },
+  SOCKS: { id: 2037, color: 0 },
+};
 
 export const V3_POSES: Record<string, string> = {
   cyclistSeatedHoods: 'Assis · cocottes',
@@ -245,9 +256,10 @@ const equipmentKey = 'ar.v3.equipment';
 export function readV3Equipment(): V3Equipment {
   try {
     const value = JSON.parse(localStorage.getItem(equipmentKey) ?? 'null') as V3Equipment | null;
-    if (value && typeof value.bike === 'string' && Number.isInteger(value.color)) return value;
+    // Pièce jamais choisie (ou remise « d'origine ») : celle de la tenue de départ, sans marquage Zwift.
+    if (value && typeof value.bike === 'string' && Number.isInteger(value.color)) return { ...value, kit: { ...V3_DEFAULT_KIT, ...value.kit } };
   } catch { /* stockage indisponible */ }
-  return { bike: defaultBike, color: 0 };
+  return { bike: defaultBike, color: 0, kit: { ...V3_DEFAULT_KIT } };
 }
 
 export function saveV3Equipment(equipment: V3Equipment): void {

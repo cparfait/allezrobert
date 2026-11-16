@@ -1,5 +1,6 @@
 import { getV3Catalog, getV3Clips, getV3Colors, getV3Gear, type V3SockHeight, readV3Equipment, V3_HAIR_COLORS, saveV3Equipment, V3_POSES, type V3Bike, type V3Body, type V3Color, type V3Equipment, type V3Gear, mountedWheel, wheelsFor, type V3Wheel, resolvedBody, riderBmi, itemFits } from './visuals.ts';
 import { addWardrobe, createHueControl, onScreen, whenVisible } from './wardrobe.ts';
+import { bikeLevel, gearLevel, lockedText, playerLevel, wheelLevel } from './levels.ts';
 import { V3_ICON } from './icons.ts';
 import { COSMETICS, DEFAULT_BIKE, DEFAULT_TRAINER } from '@allezrobert/shared';
 import { saveV3BikeSetup, v3BikeEffect } from './physics.ts';
@@ -362,7 +363,9 @@ export function createV3Garage(actions: V3GarageActions) {
   const HELMET_COSTUME = /GarminUnbound|HelmetBowl|80sHelmet|Neokyo|BigSpin|OnBoarding/i;
   // Tenue au hasard (dé général et dé de la tenue) : maillot, casque, gants, chaussettes et chaussures, lunettes deux fois sur trois.
   async function randomKit(): Promise<void> {
-    const items = (await getV3Gear()).filter(item => v3Shown('gear', item.id));
+    const all = await getV3Gear();
+    const level = playerLevel();
+    const items = all.filter(item => v3Shown('gear', item.id) && gearLevel(item, all) <= level);
     const sex = sexNow();
     const kit = { ...equipment.kit };
     for (const type of ['CYCLING_JERSEY', 'HEAD_GEAR', 'GLASSES', 'GLOVES', 'SOCKS', 'CYCLING_SHOES']) {
@@ -502,11 +505,15 @@ export function createV3Garage(actions: V3GarageActions) {
       const drag = Math.round((wheel.cdaBias - own.cdaBias) / DEFAULT_BIKE.cda * 1000) / 10;
       return kind + ' · ' + (grams > 0 ? '+' : '') + grams.toLocaleString('fr-FR') + ' g · traînée ' + (drag > 0 ? '+' : '') + drag.toLocaleString('fr-FR') + ' %';
     };
+    const level = playerLevel();
     const row = (wheel: V3Wheel | undefined, name: string, detail: string) => {
       const on = current?.id === wheel?.id;
+      const need = wheel ? wheelLevel(wheel, catalogWheels) : 1;
+      const locked = !on && need > level;
       const button = document.createElement('button');
       button.type = 'button';
-      button.className = 'mm-bike' + (on ? ' on' : '');
+      button.className = 'mm-bike' + (on ? ' on' : '') + (locked ? ' locked' : '');
+      if (locked) { button.setAttribute('aria-disabled', 'true'); button.title = 'Débloquées au niveau ' + need; }
       button.setAttribute('aria-pressed', String(on));
       const text = document.createElement('span');
       text.className = 'mm-bike-txt';
@@ -518,8 +525,9 @@ export function createV3Garage(actions: V3GarageActions) {
       const side = document.createElement('span');
       side.className = 'mm-bike-side';
       if (on) side.innerHTML = '<span class="mm-bike-state">✓ Équipé</span>';
+      else if (locked) side.innerHTML = '<span class="mm-bike-state">' + lockedText(need) + '</span>';
       button.append(wheelIcon(wheel ?? origin), text, side);
-      button.onclick = () => { apply({ ...equipment, wheels: wheel?.id }); showWheels(); };
+      button.onclick = () => { if (locked) return; apply({ ...equipment, wheels: wheel?.id }); showWheels(); };
       return button;
     };
     const rows: HTMLElement[] = [row(undefined, 'D’origine', origin ? 'Livrées avec ce vélo : ' + wheelLabel(origin) : 'Livrées avec ce vélo')];
@@ -638,6 +646,7 @@ export function createV3Garage(actions: V3GarageActions) {
       .filter(bike => (bike.brand + ' ' + bike.name + ' ' + typeLabel(bike.type)).toLowerCase().includes(query))
       .sort((a, b) => a.brand.localeCompare(b.brand, 'fr') || bikeName(a).localeCompare(bikeName(b), 'fr'));
     const rows: HTMLElement[] = [];
+    const level = playerLevel();
     let brand: string | undefined;
     for (const bike of shown) {
       if (bike.brand !== brand) {
@@ -663,9 +672,12 @@ export function createV3Garage(actions: V3GarageActions) {
       }
       if (!query && !openBrands.has(bike.brand)) continue;
       const on = bike.id === equipment.bike;
+      const need = bikeLevel(bike, catalogBikes);
+      const locked = !on && need > level;
       const row = document.createElement('button');
       row.type = 'button';
-      row.className = 'mm-bike' + (on ? ' on' : '');
+      row.className = 'mm-bike' + (on ? ' on' : '') + (locked ? ' locked' : '');
+      if (locked) { row.setAttribute('aria-disabled', 'true'); row.title = 'Débloqué au niveau ' + need; }
       row.dataset.v3Bike = bike.id;
       row.setAttribute('aria-pressed', String(on));
       const text = document.createElement('span');
@@ -678,8 +690,9 @@ export function createV3Garage(actions: V3GarageActions) {
       const side = document.createElement('span');
       side.className = 'mm-bike-side';
       if (on) side.innerHTML = '<span class="mm-bike-state">✓ Équipé</span>';
+      else if (locked) side.innerHTML = '<span class="mm-bike-state">' + lockedText(need) + '</span>';
       row.append(bikeIcon(bike), text, side);
-      row.onclick = () => choose(bike.id);
+      row.onclick = () => { if (!locked) choose(bike.id); };
       rows.push(row);
     }
     if (!rows.length) {
@@ -699,11 +712,13 @@ export function createV3Garage(actions: V3GarageActions) {
    */
   async function randomBike(usual = false): Promise<void> {
     const catalog = await getV3Catalog();
-    const list = catalog.bikes.filter(row => v3Shown('bike', row.id));
+    const level = playerLevel();
+    const list = catalog.bikes.filter(row => v3Shown('bike', row.id) && bikeLevel(row, catalog.bikes) <= level);
     const bike = pick(usual ? list.filter(row => ['route', 'gravel', 'chrono', 'vtt'].includes(row.type)) : list);
     if (!bike) return;
     const { colors: options } = await getV3Colors(bike.id).catch(() => ({ colors: [] as V3Color[] }));
-    const offered = wheelsFor(bike.type, catalog.wheels ?? []).filter(wheel => v3Shown('wheel', wheel.id) && wheel.kind === (bike.type === 'gravel' ? 'gravel' : 'route'));
+    const offered = wheelsFor(bike.type, catalog.wheels ?? []).filter(wheel => v3Shown('wheel', wheel.id) && wheel.kind === (bike.type === 'gravel' ? 'gravel' : 'route')
+      && wheelLevel(wheel, catalog.wheels ?? []) <= level);
     const wheels = offered.length && Math.random() < 0.6 ? pick(offered)?.id : undefined;
     apply({ ...equipment, bike: bike.id, color: options.length > 1 ? Math.floor(Math.random() * options.length) : 0, hue: undefined, wheels });
     showFocus();

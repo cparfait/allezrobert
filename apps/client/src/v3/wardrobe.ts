@@ -1,4 +1,5 @@
-import { getV3Gear, isBare, itemFits, V3_HAIR_COLORS, V3_ZIPS, type V3Color, type V3Equipment, type V3Gear, type V3SockHeight } from './visuals.ts';
+import { getV3Gear, isBare, itemFits, V3_DEFAULT_KIT, V3_HAIR_COLORS, V3_ZIPS, type V3Color, type V3Equipment, type V3Gear, type V3SockHeight } from './visuals.ts';
+import { gearLevel, lockedText, playerLevel } from './levels.ts';
 import { V3_SLOTS } from './icons.ts';
 import { v3Select } from './dropdown.ts';
 import { v3Shown } from './catalogAdmin.ts';
@@ -340,7 +341,9 @@ export function addWardrobe(head: HTMLElement, parent: HTMLElement, settings: ()
     const bare = !!shown && isBare(shown);
     caption.classList.toggle('empty', !shown || bare);
     capName.textContent = bare ? 'Retiré' : shown ? label(shown) : 'Pièce d’origine du personnage';
-    capState.textContent = !shown || bare ? '' : shown.id === current()?.id ? 'Équipé' : 'Cliquer pour équiper';
+    const need = shown && !bare ? gearLevel(shown, items) : 1;
+    capState.textContent = !shown || bare ? '' : shown.id === current()?.id ? 'Équipé'
+      : need > playerLevel() ? 'Débloqué au niveau ' + need : 'Cliquer pour équiper';
     // Vignette de l'article (pastille non cliquable), refaite seulement quand l'article change.
     if (shown !== capShown) {
       capShown = shown;
@@ -382,7 +385,8 @@ export function addWardrobe(head: HTMLElement, parent: HTMLElement, settings: ()
     color.replaceChildren(...(item?.colors ?? []).map((option, index) => new Option(option.name || 'Coloris ' + (index + 1), String(index))));
     if (chosen) color.value = String(chosen.color);
     colorLabel.hidden = !item || color.options.length <= 1;
-    reset.disabled = !chosen;
+    const origin = V3_DEFAULT_KIT[category];
+    reset.disabled = origin ? chosen?.id === origin.id : !chosen;
     const none = bareItem();
     remove.hidden = !none;
     remove.disabled = !!none && chosen?.id === none.id;
@@ -428,8 +432,17 @@ export function addWardrobe(head: HTMLElement, parent: HTMLElement, settings: ()
     button.append(name);
     button.onmouseenter = button.onfocus = () => { showCaption(item); showTip(button, label(item)); };
     button.onmouseleave = button.onblur = () => { showCaption(); tip.hidden = true; };
+    // Article au-dessus du niveau du joueur : cadenas, rien à équiper (celui déjà porté reste).
+    const need = gearLevel(item, items);
+    const locked = need > playerLevel() && settings().kit?.[item.type]?.id !== item.id;
+    if (locked) {
+      button.classList.add('locked');
+      button.setAttribute('aria-disabled', 'true');
+      button.setAttribute('aria-label', label(item) + ' — niveau ' + need);
+      button.insertAdjacentHTML('beforeend', '<i class="v3-lock">' + lockedText(need) + '</i>');
+    }
     button.onclick = () => {
-      if (settings().kit?.[item.type]?.id === item.id) return;
+      if (locked || settings().kit?.[item.type]?.id === item.id) return;
       equip(item, 0);
     };
     return button;
@@ -532,7 +545,9 @@ export function addWardrobe(head: HTMLElement, parent: HTMLElement, settings: ()
   reset.onclick = () => {
     const equipment = settings();
     const kit = { ...equipment.kit };
-    delete kit[category];
+    const origin = V3_DEFAULT_KIT[category];
+    if (origin) kit[category] = { ...origin };
+    else delete kit[category];
     actions.equipment({ ...equipment, kit });
     markEquipped();
     showColor();
