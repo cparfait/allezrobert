@@ -63,6 +63,7 @@ import { COLLISION_PILOT_ROUTE, COLLISION_PILOT_WORLD, EQUALIZED_BIKE, createPil
 import { awardTrophies } from './game/trophies.ts';
 import { roadSurfaceAt, windShelterAt } from './world/conditions.ts';
 import { OpenNavigator } from './game/open.ts';
+import { TurnWarnings } from './game/turnWarnings.ts';
 import { ITINERARY_PREFIX } from './ui/routePlanner.ts';
 import { findRoute, routeKey } from './game/direction.ts';
 import { fmtLapTime, postRideEfforts, RouteTimer } from './game/efforts.ts';
@@ -1020,6 +1021,23 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   const track = nav ? nav.track : scene.track;
   // Monde ouvert : les abords (style jeu vidéo) suivent le tracé du navigateur.
   if (nav) world.setTrack(track);
+  // Itinéraire fixe : petit panneau quand l'itinéraire tourne à un carrefour (pas dans les simples virages).
+  const turnWarnings = nav
+    ? null
+    : new TurnWarnings(track, (x, z) => {
+        if (!world.terrain.getTile(...world.terrain.tileCoord(x, z))) return null;
+        const seen = new Set<string>();
+        const roads = [];
+        for (const [dx, dz] of [[0, 0], [-10, -10], [10, -10], [-10, 10], [10, 10]] as const) {
+          const c = world.terrain.tileCoord(x + dx, z + dz);
+          const k = c.join('_');
+          if (seen.has(k)) continue;
+          seen.add(k);
+          const t = world.terrain.getTile(...c);
+          if (t) roads.push(...t.features.roads);
+        }
+        return roads;
+      });
   // Défi KOM : départ lancé avant le pied de la montée choisie, fantôme du record.
   const komSeg = s.mode === 'challenge' && !nav ? (track.route.segments.find((g) => g.kind === 'kom' && g.id === s.challengeSeg) ?? track.route.segments.find((g) => g.kind === 'kom')) : undefined;
   const challenge = komSeg ? new KomChallenge(engine.scene, track, komSeg, { ...s.look, heightCm: s.heightCm }) : null;
@@ -2552,6 +2570,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
                 },
               }
             : {}),
+          ...(turnWarnings ? { turn: turnWarnings.next(ride.state.distM, ride.dir) } : {}),
         },
         s.massKg,
       );

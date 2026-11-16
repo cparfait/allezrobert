@@ -153,6 +153,8 @@ export interface HudState {
   place?: { town: string; road?: string };
   /** Monde ouvert : position du coureur (m) sur le chemin et carrefour à venir. */
   open?: { distM: number; road: string; junction: HudJunction | null };
+  /** Itinéraire fixe : l'itinéraire tourne au prochain carrefour (petit panneau d'avertissement). */
+  turn?: { inM: number; dir: 'left' | 'right'; sharp: boolean } | null;
 }
 
 /** Prochain carrefour en monde ouvert : sorties de gauche à droite, celle choisie surlignée. */
@@ -1378,6 +1380,26 @@ export class Hud {
   private drawJunction(s: HudState): void {
     const box = this.el.junction as HTMLElement;
     const j = s.open?.junction;
+    if (!j && s.turn) {
+      // Petit panneau : flèche, côté et distance ; seulement aux carrefours où l'itinéraire tourne.
+      const fr = getLang() === 'fr';
+      const tw = s.turn;
+      const key = `turn|${tw.dir}|${tw.sharp}`;
+      const dist = `${Math.max(0, Math.round(tw.inM / 10) * 10)} m`;
+      box.classList.remove('hidden');
+      box.classList.add('turn-sign');
+      if (key === this.lastJunction) {
+        const h = box.querySelector('.tn-dist');
+        if (h) h.textContent = dist;
+        return;
+      }
+      this.lastJunction = key;
+      const arrow = tw.dir === 'left' ? (tw.sharp ? '↲' : '↰') : tw.sharp ? '↳' : '↱';
+      const label = tw.dir === 'left' ? (fr ? 'À gauche' : 'Left') : fr ? 'À droite' : 'Right';
+      box.innerHTML = `<i class="tn-arrow">${arrow}</i><b>${label}</b><span class="num tn-dist">${dist}</span>`;
+      return;
+    }
+    box.classList.remove('turn-sign');
     if (!j || j.inM > 350) {
       box.classList.add('hidden');
       this.lastJunction = '';

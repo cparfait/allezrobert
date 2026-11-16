@@ -194,6 +194,10 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #0a0e16; col
 .junction .jn-choice b { font-size: 14px; text-transform: uppercase; }
 .junction .jn-choice span { font-size: 11.5px; color: var(--ar-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .junction .jn-choice em { font-size: 11px; font-style: normal; color: #f59e0b; }
+.junction.turn-sign { min-width: 0; display: flex; align-items: center; gap: 10px; padding: 6px 14px 6px 8px; border-left: 4px solid #f59e0b; }
+.junction.turn-sign .tn-arrow { font-style: normal; font-size: 28px; line-height: 1; width: 34px; height: 34px; display: grid; place-items: center; background: #f59e0b; color: #0a0e16; border-radius: 6px; }
+.junction.turn-sign b { font-size: 14px; text-transform: uppercase; letter-spacing: .04em; }
+.junction.turn-sign .tn-dist { font-weight: 700; font-size: 15px; }
 .junction .jn-choice.on { border-color: #f59e0b; box-shadow: 0 0 0 1px #f59e0b inset; background: rgba(245,158,11,.12); }
 .junction .jn-choice.off { opacity: .4; }
 .junction .jn-keys { margin-top: 6px; font-size: 11px; color: var(--ar-muted); }

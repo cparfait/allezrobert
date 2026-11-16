@@ -244,8 +244,10 @@ export class RoadNetwork {
       if (ROAD_SHOULDER) {
         const gutterSide = mix(side.x, side.y, step(0, across)).mul(step(side.x, 1.5));
         const onBridge = step(0.1, fract(info.z));
-        // rive ondulante de ±20 cm, tirée des deux bruits déjà calculés (aucun bruit de plus)
-        const fray = n.sub(0.5).mul(0.3).add(n2.sub(0.5).mul(0.16));
+        // rive ondulante de ±20 cm, tirée des deux bruits déjà calculés (aucun bruit de plus) ; la petite ondulation
+        // (≈ 60 cm) s'efface quand elle tombe sous ≈ 8 pixels, sinon ses crans grouillent en roulant (scintillement
+        // des bords proches, 16/11) ; la grande (≈ 12 m) reste
+        const fray = n.sub(0.5).mul(0.3).mul(float(1).sub(smoothstep(0.025, 0.07, pix))).add(n2.sub(0.5).mul(0.16));
         const beyond = smoothstep(half.sub(0.03), half.add(0.05), ax.add(fray));
         // grains de 4 cm (gravillons) de près ; teinte moyenne au loin, sans scintillement
         const cellG = mod(floor(positionWorld.xz.mul(25)), 2048);
