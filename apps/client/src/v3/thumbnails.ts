@@ -1,6 +1,6 @@
 import * as THREE from 'three/webgpu';
 import { isCompiling } from '../engine/renderer.ts';
-import { attachKit, BUILT_IN_BEARDS, freeGear, showSockHeight, getV3Catalog, getV3Gear, loadGearItem, loadRider, loadV3DisplayBike, restoreRider, showHairGeometry, type RiderVisual, type V3Gear } from './visuals.ts';
+import { attachKit, BUILT_IN_BEARDS, freeGear, showSockHeight, getV3Catalog, getV3Gear, loadGearItem, loadRider, loadV3DisplayBike, loadV3DisplayWheel, restoreRider, showHairGeometry, type RiderVisual, type V3Gear } from './visuals.ts';
 
 /**
  * Vignettes du vestiaire V3 pour les articles sans icône Zwift (maillots, chaussettes, têtes, barbes…) :
@@ -197,10 +197,27 @@ export class V3ThumbnailStudio {
     return job;
   }
 
+  /** Roue sans icône Zwift : photo de profil de la roue avant (même format que les vignettes de vélos). */
+  photoWheel(id: string, wanted: () => boolean = () => true): Promise<string> {
+    const key = 'wheel-' + id;
+    let job = this.done.get(key);
+    if (!job) {
+      job = this.cached(key).then(hit => hit ?? this.enqueue(() => (wanted() ? this.shootProfile(loadV3DisplayWheel(id), key) : Promise.reject(new Error('Vignette abandonnée.')))));
+      job.catch(() => this.done.delete(key));
+      this.done.set(key, job);
+    }
+    return job;
+  }
+
   private bikeTarget?: THREE.RenderTarget;
 
-  private async shootBike(id: string, key: string): Promise<string> {
-    const node = await loadV3DisplayBike(id);
+  private shootBike(id: string, key: string): Promise<string> {
+    return this.shootProfile(loadV3DisplayBike(id), key);
+  }
+
+  /** Photo de profil d'un modèle (vélo ou roue), cadré sur sa boîte, fond transparent. */
+  private async shootProfile(loading: Promise<THREE.Object3D>, key: string): Promise<string> {
+    const node = await loading;
     try {
       this.scene.add(node);
       node.updateMatrixWorld(true);

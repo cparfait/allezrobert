@@ -116,7 +116,10 @@ export function v3Assets(): Plugin {
     const iconOf = (sheet: string) => {
       const folder = dirname(sheet).replace(/^.*?bikes\/Wheels\//i, '').toLowerCase().replace(/[^a-z0-9/]/g, '');
       const last = folder.split('/').pop() ?? '';
-      return (icons.find(icon => icon.key === last) ?? icons.find(icon => folder.replaceAll('/', '').includes(icon.key)))?.path;
+      // Noms d'icônes parfois sans « SES » ni « Disc » (Wheel_Enve35 pour EnveSES_3.5, PinarelloEspadaDisc…).
+      const bare = (key: string) => key.replace(/ses|disc/g, '');
+      return (icons.find(icon => icon.key === last) ?? icons.find(icon => bare(icon.key) === bare(last))
+        ?? icons.find(icon => folder.replaceAll('/', '').includes(icon.key)))?.path;
     };
     const wheels = pieces.flatMap(rear => {
       const front = typeof rear.paire === 'number' ? pieces[rear.paire] : undefined;

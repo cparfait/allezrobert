@@ -400,6 +400,16 @@ async function mountWheels(levels: Object3D[], id: string): Promise<void> {
   }
 }
 
+/** Roue avant d'une paire (vignette du studio pour les roues sans icône Zwift). */
+export async function loadV3DisplayWheel(id: string): Promise<Group> {
+  const wheel = await model('wheel/' + id + '-av.glb');
+  wheel.traverse(node => { node.castShadow = false; });
+  const mount = new Group();
+  mount.name = 'v3-wheel-' + id;
+  mount.add(wheel);
+  return mount;
+}
+
 export async function loadV3DisplayBike(id: string): Promise<Group> {
   const bike = await loadBike({ bike: id, color: 0 });
   const detail = bike.levels[1] ?? bike.levels[0];

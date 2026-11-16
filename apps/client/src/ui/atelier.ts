@@ -309,6 +309,7 @@ export class AtelierHost {
         sex: () => this.v3?.riderSex(),
         bareHead: on => { this.v3BareHead = on; this.frames = Math.max(this.frames, 2); },
         photoBike: (id, wanted) => this.studio().photoBike(id, wanted),
+        photoWheel: (id, wanted) => this.studio().photoWheel(id, wanted),
         photo: (item, sex, wanted) => this.studio().photo(item, sex, wanted),
       });
       this.setV3Container(this.v3Container, this.v3Top);

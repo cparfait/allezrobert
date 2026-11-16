@@ -15,6 +15,8 @@ export interface V3GarageActions {
   sex?(): 'male' | 'female' | undefined;
   /** Photo de profil d'un vélo sans icône Zwift. */
   photoBike?(id: string, wanted: () => boolean): Promise<string>;
+  /** Photo de profil d'une roue sans icône Zwift. */
+  photoWheel?(id: string, wanted: () => boolean): Promise<string>;
   /** Tête nue (casque retiré) tant que la catégorie Cheveux est ouverte. */
   bareHead?(on: boolean): void;
 }
@@ -100,15 +102,16 @@ export function createV3Garage(actions: V3GarageActions) {
   const nav = document.createElement('nav');
   nav.className = 'gr-groups';
   nav.setAttribute('aria-label', 'Rubriques du garage V3');
-  // Dé général à côté des rubriques : tenue, vélo et personnage tirés ensemble.
+  // Dé général à côté des rubriques : tout tiré ensemble (tenue, personnage, vélo, coloris, roues, home trainer).
   const navRow = document.createElement('div');
   navRow.className = 'v3-navrow';
-  const allDice = diceButton('Tout au hasard : tenue, vélo et personnage');
+  const allDice = diceButton('Tout au hasard : tenue, personnage, vélo, coloris, roues et home trainer');
   allDice.onclick = () => {
     void (async () => {
       await randomKit();
       await randomCharacter();
       await randomBike(true);
+      randomTrainer();
     })().catch(report);
   };
   navRow.append(nav, allDice);
@@ -362,6 +365,20 @@ export function createV3Garage(actions: V3GarageActions) {
       const empty = document.createElement('span');
       empty.className = 'mm-bikeicon v3-wheelicon';
       empty.innerHTML = V3_ICON.bike;
+      // Pas d'icône Zwift : roue photographiée au studio quand la ligne devient visible.
+      const photo = actions.photoWheel;
+      if (wheel && photo) {
+        const take = () => {
+          void photo(wheel.id, () => onScreen(empty)).then(url => {
+            const image = document.createElement('img');
+            image.className = empty.className;
+            image.src = url;
+            image.alt = '';
+            empty.replaceWith(image);
+          }).catch(() => { if (empty.isConnected) whenVisible(empty, take); });
+        };
+        whenVisible(empty, take);
+      }
       return empty;
     }
     const image = document.createElement('img');
@@ -486,7 +503,7 @@ export function createV3Garage(actions: V3GarageActions) {
   const list = document.createElement('div');
   list.className = 'mm-bikelist';
   // Vélo au hasard, avec un coloris au hasard.
-  const bikeDice = diceButton('Vélo au hasard (modèle et coloris)');
+  const bikeDice = diceButton('Vélo au hasard (modèle, coloris et roues)');
   bikeDice.onclick = () => { void randomBike().catch(report); };
   const searchRow = document.createElement('div');
   searchRow.className = 'v3-searchrow';
@@ -583,17 +600,29 @@ export function createV3Garage(actions: V3GarageActions) {
     void showInlineColors(equipment.bike);
   }
   /** Vélo au hasard ; le dé général se limite aux vélos de route, gravel, chrono et VTT. */
+  /**
+   * Vélo au hasard : modèle, coloris et roues (d'origine deux fois sur cinq ; sinon une paire de la famille du vélo,
+   * gravel ou route), appliqués d'un coup (un seul chargement du vélo).
+   */
   async function randomBike(usual = false): Promise<void> {
-    const list = catalogBikes.length ? catalogBikes : (await getV3Catalog()).bikes;
+    const catalog = await getV3Catalog();
+    const list = catalog.bikes;
     const bike = pick(usual ? list.filter(row => ['route', 'gravel', 'chrono', 'vtt'].includes(row.type)) : list);
     if (!bike) return;
-    choose(bike.id);
-    const { colors: options } = await getV3Colors(bike.id);
-    if (options.length > 1 && equipment.bike === bike.id) {
-      apply({ ...equipment, color: Math.floor(Math.random() * options.length), hue: undefined });
-      markInline();
-      hue.set(options[equipment.color]);
-    }
+    const { colors: options } = await getV3Colors(bike.id).catch(() => ({ colors: [] as V3Color[] }));
+    const offered = wheelsFor(bike.type, catalog.wheels ?? []).filter(wheel => wheel.kind === (bike.type === 'gravel' ? 'gravel' : 'route'));
+    const wheels = offered.length && Math.random() < 0.6 ? pick(offered)?.id : undefined;
+    apply({ ...equipment, bike: bike.id, color: options.length > 1 ? Math.floor(Math.random() * options.length) : 0, hue: undefined, wheels });
+    showFocus();
+    fillBikes();
+    showWheels();
+  }
+  /** Home trainer au hasard parmi ceux du jeu (dé général). */
+  function randomTrainer(): void {
+    const trainer = pick(trainerOptions.map(([id]) => id).filter((id): id is string => !!id));
+    if (!trainer) return;
+    apply({ ...equipment, trainer });
+    showTrainer();
   }
   /** Coloris (s'il y en a plusieurs) et teinte (coloris réglable) du vélo équipé, juste sous sa ligne dans la liste. */
   let inlineFor = '';
