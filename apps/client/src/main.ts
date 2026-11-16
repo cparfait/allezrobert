@@ -1226,7 +1226,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   const rig = new CameraRig(engine.camera, track, (x, z) => world.terrain.heightAt(x, z), engine.renderer.domElement);
   const footprints = world.buildings.footprints;
   rig.occlusion = (a, b) => footprints.firstHit(a.x, a.y, a.z, b.x, b.y, b.z);
-  // Public sur les côtes (une fois le terrain chargé autour du départ).
+  // Public sur les côtes et foule d'arrivée : seulement en course (pas en sortie libre, itinéraire, séance, défi…).
   const crowdGround = (x: number, z: number): number => {
     // Sur un trottoir, le dessus de la dalle (au-dessus du terrain) : sinon les spectateurs y sont enfoncés.
     const g = world.terrain.heightAt(x, z);
@@ -1234,8 +1234,8 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     // +4 cm : la dalle est exacte, le décalage de −5 cm du public (terrain approximatif) y enfouirait les pieds.
     return Number.isFinite(w) && (!Number.isFinite(g) || w > g) ? w + 0.04 : g;
   };
-  const crowd = new Crowd(track, crowdGround, { riderName: s.name, density: engine.quality.crowdDensity, finish: s.mode === 'race', inBuilding: (x, z) => world.buildings.footprints.contains(x, z, 0.4) });
-  engine.scene.add(crowd.group);
+  const crowd = s.mode === 'race' ? new Crowd(track, crowdGround, { riderName: s.name, density: engine.quality.crowdDensity, finish: true, inBuilding: (x, z) => world.buildings.footprints.contains(x, z, 0.4) }) : null;
+  if (crowd) engine.scene.add(crowd.group);
   engine.scene.add(new TownSigns(track, (x, z) => world.terrain.heightAt(x, z)).group);
   const banners = new FinishBanners(track, (x, z) => world.terrain.heightAt(x, z), (ax, ay, az, bx, by, bz) => world.buildings.footprints.firstHit(ax, ay, az, bx, by, bz));
   engine.scene.add(banners.group);
@@ -2268,7 +2268,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     if (!ride.paused) {
       trains.update(dt, ride.state.distM, ride.dir, ride.state.speedMs);
       // Public : il s'anime quand le coureur approche (style jeu vidéo).
-      crowd.update(ride.state.distM);
+      crowd?.update(ride.state.distM);
       if (traffic) {
         const push = traffic.yieldPush(ride.state.distM, ride.lateral, ride.dir);
         if (push) {
