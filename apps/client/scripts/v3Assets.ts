@@ -1,4 +1,4 @@
-import { createReadStream, existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
+import { createReadStream, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, statSync, writeFileSync } from 'node:fs';
 import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { basename, dirname, extname, relative, resolve } from 'node:path';
@@ -110,6 +110,36 @@ export function v3Assets(): Plugin {
     return gear ??= prepare('gear-catalogue', 'catalogue', resolve(study, 'tenues-catalogue.json'))
       .then(file => readJson<Gear[]>(file)).catch(error => { gear = undefined; throw error; });
   }
+  /**
+   * Préchauffage, une fois par lancement du serveur, dès que le vestiaire est ouvert : textures (coloris d'origine)
+   * et maillages des articles vélo, maillots d'abord, deux conversions à la fois. Les vignettes du studio n'attendent
+   * plus la conversion (fichiers identiques à ceux des requêtes, déjà présents : rien n'est refait).
+   */
+  let warming: Promise<void> | undefined;
+  function warm(log: (message: string) => void): Promise<void> {
+    return warming ??= loadGear().then(async rows => {
+      const order = (row: Gear) => (row.type === 'CYCLING_JERSEY' ? 0 : 1);
+      const jobs: Array<() => Promise<unknown>> = [];
+      for (const row of [...rows].sort((a, b) => order(a) - order(b))) {
+        if (row.sport === 'running' || row.type.startsWith('RUNNING_')) continue;
+        const color = gearSchemes(row)[0];
+        if (!color) continue;
+        if (color.TexturePath) jobs.push(() => prepare('map', row.i + '-diffuse', color.TexturePath!, 0, hueOf(color)));
+        if (color.NormalsPath) jobs.push(() => prepare('map', row.i + '-normal', color.NormalsPath!, 0));
+        if (row.source) jobs.push(() => prepare('gear', row.i + '-model', row.source!));
+        if (row.pairSource) jobs.push(() => prepare('gear', row.i + '-pair', row.pairSource!));
+      }
+      let done = 0;
+      const worker = async () => {
+        for (let job = jobs.shift(); job; job = jobs.shift()) {
+          await job().catch(() => undefined);
+          if (++done % 200 === 0) log('V3 · préchauffage des articles : ' + done + ' fichiers prêts');
+        }
+      };
+      await Promise.all([worker(), worker()]);
+      log('V3 · préchauffage des articles terminé (' + done + ' fichiers)');
+    });
+  }
   return {
     name: 'ar-v3-assets',
     apply: 'serve',
@@ -126,7 +156,42 @@ export function v3Assets(): Plugin {
           res.writeHead(200, { 'Content-Type': contentType, 'Content-Length': statSync(file).size, 'Cache-Control': 'private, max-age=3600' });
           createReadStream(file).on('error', () => res.destroy()).pipe(res);
         };
-        if (!isLoopback(req.socket.remoteAddress) || !/^(localhost|127\.0\.0\.1|\[::1\])(?::\d+)?$/i.test(req.headers.host ?? '') || req.method !== 'GET') {
+        // Photos du studio (vignettes) : lues et déposées par le garage, une fois pour toutes, dans out/v3/studio/<version>/.
+        const studioMatch = /^\/studio\/(v\d{1,3})\/(index|[a-z0-9-]{1,80}\.png)$/.exec((req.url ?? '').split('?')[0] ?? '');
+        const local = isLoopback(req.socket.remoteAddress) && /^(localhost|127\.0\.0\.1|\[::1\])(?::\d+)?$/i.test(req.headers.host ?? '');
+        if (local && studioMatch && req.method === 'POST' && studioMatch[2] !== 'index') {
+          const chunks: Buffer[] = [];
+          let size = 0;
+          req.on('data', (chunk: Buffer) => {
+            size += chunk.length;
+            if (size > 2_000_000) { req.destroy(); return; }
+            chunks.push(chunk);
+          });
+          req.on('end', () => {
+            const body = Buffer.concat(chunks);
+            if (body.length < 8 || body.readUInt32BE(0) !== 0x89504e47) return json(400, { error: 'Image PNG attendue.' });
+            const dir = resolve(cache, 'studio', studioMatch[1]!);
+            mkdirSync(dir, { recursive: true });
+            const file = resolve(dir, studioMatch[2]!);
+            writeFileSync(file + '.part', body);
+            renameSync(file + '.part', file);
+            json(200, { ok: true });
+          });
+          return;
+        }
+        if (local && studioMatch && req.method === 'GET') {
+          const dir = resolve(cache, 'studio', studioMatch[1]!);
+          if (studioMatch[2] === 'index') {
+            return json(200, existsSync(dir) ? readdirSync(dir).filter(name => name.endsWith('.png')).map(name => name.slice(0, -4)) : []);
+          }
+          const file = resolve(dir, studioMatch[2]!);
+          if (!existsSync(file)) return json(404, { error: 'Vignette absente.' });
+          if (res.destroyed) return;
+          res.writeHead(200, { 'Content-Type': 'image/png', 'Content-Length': statSync(file).size, 'Cache-Control': 'private, max-age=86400' });
+          createReadStream(file).on('error', () => res.destroy()).pipe(res);
+          return;
+        }
+        if (!local || req.method !== 'GET') {
           json(404, { error: 'Ressources V3 réservées au poste local.' });
           return;
         }
@@ -138,6 +203,7 @@ export function v3Assets(): Plugin {
             return json(400, { error: 'Coloris invalide.' });
           }
           if (url.pathname === '/gear') {
+            void warm(message => server.config.logger.info(message));
             return json(200, (await loadGear()).map(row => ({
               id: row.i, type: row.type, category: row.cat, name: row.nom,
               variant: basename(row.fiche.replaceAll('\\', '/'), '.xml'), sex: row.sexe, sport: row.sport, group: row.geomgroup,

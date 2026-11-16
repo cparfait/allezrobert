@@ -1,5 +1,5 @@
 import { getV3Catalog, getV3Clips, getV3Colors, getV3Gear, type V3SockHeight, readV3Equipment, V3_HAIR_COLORS, saveV3Equipment, V3_POSES, type V3Bike, type V3Body, type V3Color, type V3Equipment, type V3Gear } from './visuals.ts';
-import { addWardrobe, createHueControl, whenVisible } from './wardrobe.ts';
+import { addWardrobe, createHueControl, onScreen, whenVisible } from './wardrobe.ts';
 import { V3_ICON } from './icons.ts';
 import './garage.css';
 
@@ -62,15 +62,17 @@ function bikeIcon(bike: V3Bike | undefined, big = false): HTMLElement {
     const photo = bikePhoto;
     if (bike && photo) {
       // Photo du vélo quand la ligne devient visible.
-      whenVisible(empty, () => {
-        void photo(bike.id, () => empty.isConnected).then(url => {
+      // Photographiée à son tour seulement si la ligne est encore à l'écran ; sinon redemandée quand elle y revient.
+      const take = () => {
+        void photo(bike.id, () => onScreen(empty)).then(url => {
           const image = document.createElement('img');
           image.className = empty.className;
           image.src = url;
           image.alt = '';
           empty.replaceWith(image);
-        }).catch(() => undefined);
-      });
+        }).catch(() => { if (empty.isConnected) whenVisible(empty, take); });
+      };
+      whenVisible(empty, take);
     }
     return empty;
   }

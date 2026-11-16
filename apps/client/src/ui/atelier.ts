@@ -276,6 +276,15 @@ export class AtelierHost {
   private v3Playing = false;
 
   /** Emplacements du panneau du garage V3 (corps et tête), recréés à chaque rendu du menu. */
+  /** Studio des vignettes V3 (créé à la première vignette) ; ne travaille d'avance que garage ouvert. */
+  private studio(): V3ThumbnailStudio {
+    if (!this.v3Studio) {
+      this.v3Studio = new V3ThumbnailStudio(this.engine.renderer, this.scene.environment);
+      this.v3Studio.active = () => this.state !== null;
+    }
+    return this.v3Studio;
+  }
+
   setV3Container(container: HTMLElement | null, top: HTMLElement | null = null): void {
     this.v3Container = container;
     this.v3Top = top;
@@ -292,12 +301,17 @@ export class AtelierHost {
         pose: pose => { this.v3Pose = pose; this.frames = Math.max(this.frames, 2); },
         playing: on => { this.v3Playing = on; this.frames = Math.max(this.frames, 2); },
         sex: () => this.v3?.riderSex(),
-        photoBike: (id, wanted) => (this.v3Studio ??= new V3ThumbnailStudio(this.engine.renderer, this.scene.environment)).photoBike(id, wanted),
-        photo: (item, sex, wanted) => (this.v3Studio ??= new V3ThumbnailStudio(this.engine.renderer, this.scene.environment)).photo(item, sex, wanted),
+        photoBike: (id, wanted) => this.studio().photoBike(id, wanted),
+        photo: (item, sex, wanted) => this.studio().photo(item, sex, wanted),
       });
       this.setV3Container(this.v3Container, this.v3Top);
     }
     if (this.v3Panel) this.v3Panel.panel.hidden = this.v3Panel.top.hidden = !st.v3Picker;
+    // Garage V3 ouvert : toutes les vignettes manquantes sont photographiées d'avance, une seule fois (gardées sur le serveur).
+    if (st.v3Picker) {
+      this.studio().prewarm(this.v3?.riderSex() ?? 'male');
+      this.studio().resume();
+    }
     this.v3 ??= new V3Visual(this.avatar.v3Mount(), () => { this.frames = Math.max(this.frames, 2); }, error => this.v3Panel?.report(error));
     this.v3.set(st.look);
   }

@@ -1,6 +1,6 @@
 import * as THREE from 'three/webgpu';
 import { isCompiling } from '../engine/renderer.ts';
-import { attachKit, freeGear, loadGearItem, loadRider, loadV3DisplayBike, restoreRider, showHairGeometry, type RiderVisual, type V3Gear } from './visuals.ts';
+import { attachKit, freeGear, getV3Catalog, getV3Gear, loadGearItem, loadRider, loadV3DisplayBike, restoreRider, showHairGeometry, type RiderVisual, type V3Gear } from './visuals.ts';
 
 /**
  * Vignettes du vestiaire V3 pour les articles sans icône Zwift (maillots, chaussettes, têtes, barbes…) :
@@ -9,6 +9,14 @@ import { attachKit, freeGear, loadGearItem, loadRider, loadV3DisplayBike, restor
  */
 const SIZE = 160; // multiple de 32 : lignes relues sans remplissage (RGBA demi-flottants, 256 octets)
 const CACHE = 'ar-v3-vignettes-6';
+/** Version des photos gardées sur le serveur (out/v3/studio/<version>) : à changer avec CACHE quand le rendu change. */
+const STUDIO = '/__v3/studio/v6/';
+
+/** Vignette photographiée par le studio (sinon icône Zwift, ou pastille de couleur pour les chaussettes). */
+export function needsPhoto(item: V3Gear): boolean {
+  if (item.type === 'SOCKS' && item.colors[0]?.diffuse) return false;
+  return item.type === 'CYCLING_JERSEY' || !item.colors[0]?.icon;
+}
 
 /** Cadrage par type : centre (m, pose de repos debout, face vers +X) et demi-hauteur du champ. */
 function framing(type: string): { y: number; half: number; z?: number; side?: number } {
@@ -35,7 +43,15 @@ export class V3ThumbnailStudio {
   private readonly done = new Map<string, Promise<string>>();
   /** Prises en attente : la dernière demandée passe d'abord (l'onglet regardé avant les précédents). */
   private readonly pending: Array<() => Promise<void>> = [];
+  /** Photos préparées d'avance, quand rien d'autre n'attend et que le garage est ouvert. */
+  private readonly background: Array<() => Promise<void>> = [];
   private busy = false;
+  /** Clés déjà photographiées et gardées sur le serveur. */
+  private readonly stored: Promise<Set<string>> = fetch(STUDIO + 'index').then(r => (r.ok ? r.json() as Promise<string[]> : []))
+    .then(keys => new Set(keys)).catch(() => new Set<string>());
+  /** Garage ouvert : sinon les photos d'avance attendent (pas de rendu hors écran pendant une sortie). */
+  active = () => true;
+  private prewarmed = false;
 
   constructor(private readonly renderer: THREE.WebGPURenderer, environment: THREE.Texture | null) {
     this.scene.environment = environment;
@@ -64,12 +80,57 @@ export class V3ThumbnailStudio {
   }
 
   private async cached(key: string): Promise<string | undefined> {
+    if ((await this.stored).has(key)) return STUDIO + key + '.png';
     try {
       const hit = await (await caches.open(CACHE)).match('/__v3-studio/' + key + '.png');
-      return hit ? URL.createObjectURL(await hit.blob()) : undefined;
+      if (!hit) return undefined;
+      const blob = await hit.blob();
+      void this.store(key, blob); // photo d'une session précédente : déposée sur le serveur au passage
+      return URL.createObjectURL(blob);
     } catch {
       return undefined; // stockage indisponible : la photo est refaite
     }
+  }
+
+  /** Dépose une photo sur le serveur (out/v3/studio) : elle servira à tous les navigateurs, sans être refaite. */
+  private async store(key: string, blob: Blob): Promise<void> {
+    try {
+      const response = await fetch(STUDIO + key + '.png', { method: 'POST', body: blob, headers: { 'Content-Type': 'image/png' } });
+      if (response.ok) (await this.stored).add(key);
+    } catch { /* serveur indisponible : la photo reste dans le cache du navigateur */ }
+  }
+
+  /** Relance les photos d'avance (garage rouvert). */
+  resume(): void {
+    void this.drain();
+  }
+
+  /**
+   * Photographie d'avance, une fois par session, tout ce qui manque sur le serveur : articles de la silhouette
+   * (petites catégories d'abord, maillots ensuite) puis vélos. Les vignettes demandées à l'écran passent toujours avant.
+   */
+  prewarm(sex: 'male' | 'female'): void {
+    if (this.prewarmed) return;
+    this.prewarmed = true;
+    void Promise.all([getV3Gear(), getV3Catalog(), this.stored]).then(([items, catalog, stored]) => {
+      const todo = items.filter(item => needsPhoto(item) && (item.sex === 'tous' || item.sex === sex))
+        .sort((a, b) => Number(a.type === 'CYCLING_JERSEY') - Number(b.type === 'CYCLING_JERSEY'));
+      for (const item of todo) {
+        const key = item.id + '-' + (item.sex === 'male' || item.sex === 'female' ? item.sex : sex);
+        if (!stored.has(key)) this.background.push(() => (this.done.has(key) ? Promise.resolve() : this.remember(key, this.shoot(item, key))));
+      }
+      for (const bike of catalog.bikes) {
+        const key = 'bike-' + bike.id;
+        if (!stored.has(key)) this.background.push(() => (this.done.has(key) ? Promise.resolve() : this.remember(key, this.shootBike(bike.id, key))));
+      }
+      void this.drain();
+    }).catch(() => { this.prewarmed = false; });
+  }
+
+  private remember(key: string, job: Promise<string>): Promise<void> {
+    job.catch(() => this.done.delete(key));
+    this.done.set(key, job);
+    return job.then(() => undefined, () => undefined);
   }
 
   private enqueue<T>(task: () => Promise<T>): Promise<T> {
@@ -83,7 +144,8 @@ export class V3ThumbnailStudio {
     if (this.busy) return;
     this.busy = true;
     try {
-      for (let next = this.pending.pop(); next; next = this.pending.pop()) {
+      for (let next = this.pending.pop() ?? (this.active() ? this.background.shift() : undefined); next;
+        next = this.pending.pop() ?? (this.active() ? this.background.shift() : undefined)) {
         // Pas pendant la précompilation des shaders de l'atelier ; une prise ne bloque jamais la file plus de 20 s.
         while (isCompiling()) await new Promise(done => setTimeout(done, 150));
         await Promise.race([next(), new Promise(done => setTimeout(done, 20_000))]);
@@ -192,6 +254,7 @@ export class V3ThumbnailStudio {
     try {
       await (await caches.open(CACHE)).put('/__v3-studio/' + key + '.png', new Response(blob, { headers: { 'Content-Type': 'image/png' } }));
     } catch { /* cache indisponible */ }
+    void this.store(key, blob);
     return URL.createObjectURL(blob);
   }
 

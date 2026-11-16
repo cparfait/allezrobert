@@ -63,6 +63,15 @@ function inkOn(color: string): string {
 /** Photos demandées seulement pour les pastilles visibles (le vestiaire compte plus de 1 700 articles). */
 let watcher: IntersectionObserver | undefined;
 const shots = new WeakMap<Element, () => void>();
+/** Élément à l'écran (dans la zone défilante du panneau, à 150 px près) au moment présent. */
+export function onScreen(element: Element): boolean {
+  if (!element.isConnected) return false;
+  const rect = element.getBoundingClientRect();
+  if (!rect.width && !rect.height) return false;
+  const area = (element.closest('.gr-body') ?? document.documentElement).getBoundingClientRect();
+  return rect.bottom > area.top - 150 && rect.top < area.bottom + 150;
+}
+
 export function whenVisible(element: Element, shoot: () => void): void {
   watcher ??= new IntersectionObserver(entries => {
     for (const entry of entries) {
@@ -340,7 +349,7 @@ export function addWardrobe(head: HTMLElement, parent: HTMLElement, settings: ()
       button.insertAdjacentHTML('afterbegin', V3_SLOTS[item.type]?.icon ?? '');
       // Prise abandonnée (rubrique quittée avant son tour) : redemandée quand la pastille réapparaît.
       const take = () => {
-        void photo(item, riderSex(), () => button.isConnected && button.getClientRects().length > 0).then(url => {
+        void photo(item, riderSex(), () => onScreen(button)).then(url => {
           const image = document.createElement('img');
           image.src = url;
           image.alt = '';
