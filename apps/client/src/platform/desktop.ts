@@ -55,11 +55,12 @@ export function installFullscreenKey(): void {
     invoke<boolean>('set_fullscreen', { on })
       .then((now) => localStorage.setItem(FULLSCREEN_KEY, now ? '1' : '0'))
       .catch(() => undefined);
-  if (localStorage.getItem(FULLSCREEN_KEY) === '1') void apply(true);
+  const preferred = () => localStorage.getItem(FULLSCREEN_KEY) !== '0';
+  void apply(preferred());
   window.addEventListener('keydown', (e) => {
     if (e.key !== 'F11' || e.repeat) return;
     e.preventDefault();
-    void apply(localStorage.getItem(FULLSCREEN_KEY) !== '1');
+    void apply(!preferred());
   });
 }
 

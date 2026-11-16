@@ -5,7 +5,7 @@ import type { RiderPose } from '../rider/gltfAvatar.ts';
 import { rootNeutral, sampleV3, sampleV3At, type V3Clip } from './animation.ts';
 import { loadSettings } from '../ui/settings.ts';
 import { AERO_COAST_FULL, AERO_SPEED, AERO_SPEED_OUT, HARD_EFFORT } from '../rider/poseThresholds.ts';
-import { v3Resource } from '../engine/v3Access.ts';
+import { recoverV3Access, v3Resource } from '../engine/v3Access.ts';
 
 const base = v3Resource('');
 const defaultBike = 'canyonaeroad2024';
@@ -256,7 +256,14 @@ export function saveV3Equipment(equipment: V3Equipment): void {
 
 async function get<T>(path: string): Promise<T> {
   const response = await fetch(base + path);
-  if (!response.ok) throw new Error((await response.json() as { error: string }).error);
+  if (response.status === 403) {
+    void recoverV3Access();
+    throw new Error('Session V3 expirée. Saisis à nouveau le code pour retrouver le catalogue.');
+  }
+  if (!response.ok) {
+    const body = await response.json().catch(() => null) as { error?: string } | null;
+    throw new Error(body?.error ?? `Ressource V3 indisponible (HTTP ${response.status}).`);
+  }
   return response.json() as Promise<T>;
 }
 

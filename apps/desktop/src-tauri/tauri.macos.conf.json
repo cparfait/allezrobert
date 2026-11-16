@@ -10,6 +10,7 @@
         "minWidth": 1024,
         "minHeight": 600,
         "resizable": true,
+        "fullscreen": true,
         "center": true
       }
     ]

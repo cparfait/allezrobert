@@ -1,6 +1,8 @@
 import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { createServer } from 'node:http';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import { v3AssetMiddleware } from '../apps/client/scripts/v3Assets.ts';
 
 const COOKIE = 'ar_v3_access';
@@ -11,13 +13,27 @@ const code = process.env.AR_V3_ACCESS_CODE;
 const origin = process.env.AR_V3_PUBLIC_ORIGIN;
 const expected = code && digest(code);
 const visibilityFile = process.env.AR_V3_VISIBILITY_FILE;
-const key = randomBytes(32);
+const key = sessionKey();
 const limits = new Map<string, number>();
 let failures = 0;
 let windowEnd = 0;
 
 function digest(value: string) {
   return createHash('sha256').update(value).digest();
+}
+
+function sessionKey(): Buffer {
+  const cache = process.env.AR_V3_CACHE;
+  if (!cache) return randomBytes(32);
+  const file = join(cache, '.session-key');
+  try {
+    writeFileSync(file, randomBytes(32), { flag: 'wx', mode: 0o600 });
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
+  }
+  const persisted = readFileSync(file);
+  if (persisted.length !== 32) throw new Error('Clé de session V3 invalide');
+  return persisted;
 }
 
 function signature(value: string) {

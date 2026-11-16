@@ -24,6 +24,15 @@ export async function hasV3Access(): Promise<boolean> {
   }
 }
 
+let recovery: Promise<void> | undefined;
+
+/** Une seule demande de code, même si plusieurs ressources refusent une session expirée. */
+export function recoverV3Access(): Promise<void> {
+  return recovery ??= requestV3Access().then(unlocked => {
+    if (unlocked) location.reload();
+  });
+}
+
 export function requestV3Access(): Promise<boolean> {
   const fr = (localStorage.getItem('ar.lang') ?? navigator.language).startsWith('fr');
   const dialog = document.createElement('dialog');
@@ -56,7 +65,9 @@ export function requestV3Access(): Promise<boolean> {
       }
       status.textContent = result === 429
         ? fr ? 'Trop de tentatives. Réessaie dans une minute.' : 'Too many attempts. Try again in a minute.'
-        : fr ? 'Code incorrect.' : 'Incorrect code.';
+        : result === 403
+          ? fr ? 'Code incorrect.' : 'Incorrect code.'
+          : fr ? 'Le service V3 est inaccessible.' : 'The V3 service is unreachable.';
     } catch {
       status.textContent = fr ? 'Le service V3 est inaccessible.' : 'The V3 service is unreachable.';
     } finally {
