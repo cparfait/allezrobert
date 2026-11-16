@@ -11,17 +11,18 @@ describe('crownFit', () => {
     expect(open.frac).toBeCloseTo(0.8, 2);
     expect(open.radius).toBe(4);
   });
-  it('transforme une galette (5 m de haut, 13,8 m de large) en couronne profonde, rayon réduit de 30 % au plus', () => {
+  it('transforme une galette (5 m de haut, 13,8 m de large) en couronne profonde, rayon réduit de 60 % au plus', () => {
     const g = crownFit(5, 6.9, 0.3, 0.5);
-    expect(g.frac).toBeCloseTo(0.8, 2);
+    expect(g.frac).toBeCloseTo(0.75, 2);
     expect(g.frac).toBeGreaterThan(DECID_FRAC);
     expect(g.radius).toBeLessThan(6.9);
-    expect(g.radius).toBeGreaterThanOrEqual(6.9 * 0.7 - 1e-9);
-    // 8 m × 13,8 m : couronne descendue à 85 % (6,8 m), rayon ramené à la profondeur (largeur = 2 × profondeur)
+    expect(g.radius).toBeGreaterThanOrEqual(6.9 * 0.4 - 1e-9);
+    // 8 m × 13,8 m : couronne descendue à 75 % (6 m, un fût reste visible), rayon réduit de 60 % (2,76 m)
     const h8 = crownFit(8, 6.9, 0.3, 0.5);
-    expect(h8.frac).toBeCloseTo(0.85, 2);
-    expect(h8.radius).toBeCloseTo(6.8, 5);
-    expect(crownFit(15, 4, 0, 0.5).radius).toBe(4);
+    expect(h8.frac).toBeCloseTo(0.75, 2);
+    expect(h8.radius).toBeCloseTo(6.9 * 0.4, 5);
+    // arbre de cœur de bois, 15 m × 8 m : couronne de 8,4 m, largeur ramenée à 0,85 × la profondeur (plus haute que large)
+    expect(crownFit(15, 4, 0, 0.5).radius).toBeCloseTo((8.4 * 0.85) / 2, 5);
   });
   it('laisse au moins 1 m de fût et reste dans [0,3 ; 0,85]', () => {
     for (const h of [2, 3, 6, 12, 30])

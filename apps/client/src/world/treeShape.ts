@@ -48,24 +48,28 @@ export interface CrownFit {
   radius: number;
 }
 
+/** Largeur maximale d'un houppier feuillu, en multiple de sa profondeur. */
+export const CROWN_WIDTH_RATIO = 0.85;
+
 /**
  * Houppier d'un feuillu LiDAR de hauteur `h` (m) et de rayon recalé `room` (m) :
  * - plus profond quand l'arbre est dégagé (lisière, haie, arbre isolé : les branches basses reçoivent la lumière) ;
- * - au moins 0,55 × sa largeur (une couronne de 14 m de large sur un arbre de 8 m descend vers le sol au lieu de faire
- *   une galette perchée) ;
+ * - au moins 0,55 × sa largeur, sans descendre au-delà de 75 % de la hauteur pour cette raison (un vrai fût reste
+ *   visible) ;
  * - bas du houppier à 1 m du sol au moins, profondeur au plus 85 % ;
  * - léger écart propre à l'arbre (`jitter` 0–1) pour éviter des couronnes toutes au même niveau.
- * Compromis documenté : si la couronne reste plus de 2 fois plus large que profonde (segmentations LiDAR qui fusionnent
- * plusieurs houppiers), son rayon est réduit, de 30 % au plus.
+ * Compromis documenté : si la couronne est plus large que CROWN_WIDTH_RATIO × sa profondeur (segmentations LiDAR qui
+ * fusionnent plusieurs houppiers), son rayon est réduit, de 60 % au plus (16/11/2026 : avec 2 fois et 30 %, puis
+ * 1,3 fois, les feuillus restaient des galettes ou des boules au lieu d'arbres plus hauts que larges sur un fût visible).
  */
 export function crownFit(h: number, room: number, open: number, jitter: number): CrownFit {
   let frac = 0.56 + 0.24 * open + (jitter - 0.5) * 0.08;
-  frac = Math.max(frac, Math.min(0.85, (0.55 * 2 * room) / h));
+  frac = Math.max(frac, Math.min(0.75, (0.55 * 2 * room) / h));
   frac = Math.min(frac, 0.85, 1 - 1 / h);
   frac = Math.max(frac, 0.3);
   let radius = room;
   const depth = frac * h;
-  if (depth < room) radius = Math.max(room * 0.7, depth);
+  if (depth * CROWN_WIDTH_RATIO < 2 * room) radius = Math.max(room * 0.4, (depth * CROWN_WIDTH_RATIO) / 2);
   return { frac, radius };
 }
 
