@@ -23,11 +23,10 @@ const swing = new Quaternion();
 const inverse = new Quaternion();
 const frame = new Quaternion();
 /**
- * Groupes de géométrie montrés d'origine. Le maillot (3) est ouvert en V devant : Zwift y ajoute une pièce de col et de
- * poitrine parmi cinq ouvertures (8 fermé … 12 grand ouvert, bretelles 49 à 53 visibles quand il s'ouvre) ; le V3
- * montre le col fermé (8).
+ * Groupes de géométrie montrés d'origine. Maillot fermé (3, col jusqu'à la base du cou) ; le corps a aussi un maillot
+ * ouvert en V sur la poitrine (40). Les groupes 8 à 12 sont les poches arrière, plus ou moins garnies (non montrées).
  */
-const cycling = new Set([1, 3, 5, 8, 13, 15, 18, 20, 24, 31]);
+const cycling = new Set([1, 3, 5, 13, 15, 18, 20, 24, 31]);
 /** Chaussures par défaut du coureur V3 (variante du catalogue) : S-Works SP7, chaussures de vélo de route. */
 const DEFAULT_SHOES = 'SworksSpSevenL';
 
@@ -98,6 +97,8 @@ export function resolvedBody(equipment: V3Equipment, sex: 'male' | 'female'): V3
 }
 export type V3Equipment = {
   bike: string; color: number; hue?: number; sex?: 'male' | 'female'; kit?: Record<string, V3GearSelection>; sockHeight?: V3SockHeight;
+  /** Ouverture du maillot : 0 fermé (d'origine), 1 ouvert en V (maillot 40 du corps Zwift). */
+  zip?: number;
   /** Corps Zwift : standard, mince ou fort (fort : coureur seulement). */
   body?: V3Body;
   /** Couleurs des cheveux et de la barbe : case 0 à 5 des planches Zwift. */
@@ -181,6 +182,36 @@ export function clipForBike(wanted: string, type: string | undefined, exists: (n
 const SOCK_GROUPS: Record<V3SockHeight, number> = { low: 5, mid: 6, high: 7 };
 
 /** Montre la chaussette de la hauteur choisie (basse par défaut, comme le coureur d'origine). */
+/**
+ * Sexe d'un article pour les listes et les tirages : celui du catalogue, sinon celui que son nom indique (beaucoup
+ * d'articles « pour tous » sont des tenues d'équipe féminine ou masculine : « … Femmes », « Ladies », « Équipe masculine »).
+ */
+const FEMALE_NAME = /femme|women|woman|wmn|f[ée]minin|ladies|female/i;
+const MALE_NAME = /homme|\bmen\b|men.s\b|\bmens\b|masculin|\bmale\b/i;
+export function itemSex(item: Pick<V3Gear, 'sex' | 'name' | 'variant'>): 'male' | 'female' | 'tous' {
+  if (item.sex === 'male' || item.sex === 'female') return item.sex;
+  const text = item.name + ' ' + item.variant;
+  const female = FEMALE_NAME.test(text);
+  const male = MALE_NAME.test(text);
+  return female && !male ? 'female' : male && !female ? 'male' : 'tous';
+}
+
+/** Article proposé pour cette silhouette (listes du garage, tirages au hasard). */
+export function itemFits(item: Pick<V3Gear, 'sex' | 'name' | 'variant'>, sex: 'male' | 'female'): boolean {
+  const own = itemSex(item);
+  return own === 'tous' || own === sex;
+}
+
+/** Ouverture du maillot : les deux maillots du corps Zwift, fermé (3) ou ouvert en V sur la poitrine (40). */
+const ZIP_JERSEYS = [3, 40];
+export const V3_ZIPS = ['Fermé', 'Ouvert'];
+
+/** Montre le maillot fermé (d'origine) ou ouvert ; la texture du maillot porté s'applique aux deux. */
+export function showZip(rider: RiderVisual, zip = 0): void {
+  const shown = ZIP_JERSEYS[zip > 0 ? 1 : 0];
+  for (const { id, node } of rider.groups) if (ZIP_JERSEYS.includes(id)) node.visible = id === shown;
+}
+
 export function showSockHeight(rider: RiderVisual, height: V3SockHeight = 'low'): void {
   const shown = SOCK_GROUPS[height];
   for (const { id, node } of rider.groups) if (Object.values(SOCK_GROUPS).includes(id)) node.visible = id === shown;
@@ -446,8 +477,8 @@ export async function loadV3DisplayWheel(id: string): Promise<Group> {
   return mount;
 }
 
-export async function loadV3DisplayBike(id: string): Promise<Group> {
-  const bike = await loadBike({ bike: id, color: 0 });
+export async function loadV3DisplayBike(id: string, wheels?: string): Promise<Group> {
+  const bike = await loadBike({ bike: id, color: 0, wheels });
   const detail = bike.levels[1] ?? bike.levels[0];
   for (const level of bike.levels) level.visible = level === detail;
   bike.scene.traverse(node => { node.castShadow = false; });
@@ -655,6 +686,8 @@ export class V3Visual {
     if (this.rider?.sex === sex && this.rider.body === body) {
       this.applyKit();
       this.applyHairColors();
+      showZip(this.rider, equipment.zip);
+      this.redraw();
     }
   }
 
@@ -707,6 +740,7 @@ export class V3Visual {
       this.kit = next;
       attachKit(rider, next);
       showSockHeight(rider, sockHeight);
+      showZip(rider, this.equipment?.zip);
       this.applyHairColors();
       this.redraw();
       const missing = next.filter(item => item.incomplete).map(item => item.item.name);

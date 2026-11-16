@@ -1,4 +1,4 @@
-import { getV3Catalog, getV3Gear, type V3Bike, type V3Gear, type V3Wheel } from './visuals.ts';
+import { getV3Catalog, getV3Gear, itemSex, type V3Bike, type V3Gear, type V3Wheel } from './visuals.ts';
 import { photoKey, needsPhoto } from './thumbnails.ts';
 import { V3_ICON, V3_SLOTS } from './icons.ts';
 
@@ -92,7 +92,7 @@ export async function openV3Admin(): Promise<void> {
     image: wheel.preview ? '/__v3/wheel/' + wheel.id + '.png' : studio('wheel-' + wheel.id), zwift: /zwift/i.test(wheel.brand + ' ' + wheel.id),
   });
   const gearRow = (item: V3Gear): Row => ({
-    key: keyOf('gear', item.id), name: item.name || item.variant, detail: item.variant + ' · n° ' + item.id + (item.sex !== 'tous' ? ' · ' + (item.sex === 'female' ? 'femme' : 'homme') : ''),
+    key: keyOf('gear', item.id), name: item.name || item.variant, detail: item.variant + ' · n° ' + item.id + (itemSex(item) !== 'tous' ? ' · ' + (itemSex(item) === 'female' ? 'femme' : 'homme') : ''),
     // Gamme « Originals » : maillots de Zwift, marqués de son logo même quand le nom ne le dit pas.
     image: gearImage(item), zwift: ZWIFT_NAME.test(item.name + ' ' + item.variant) || /^Originals_/.test(item.variant),
   });

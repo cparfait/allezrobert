@@ -1,4 +1,4 @@
-import { getV3Gear, V3_HAIR_COLORS, type V3Color, type V3Equipment, type V3Gear, type V3SockHeight } from './visuals.ts';
+import { getV3Gear, itemFits, V3_HAIR_COLORS, V3_ZIPS, type V3Color, type V3Equipment, type V3Gear, type V3SockHeight } from './visuals.ts';
 import { V3_SLOTS } from './icons.ts';
 import { v3Select } from './dropdown.ts';
 import { v3Shown } from './catalogAdmin.ts';
@@ -145,7 +145,8 @@ export function createHueControl(onChange: (hue: number) => void, label = 'Teint
  */
 export function addWardrobe(head: HTMLElement, parent: HTMLElement, settings: () => V3Equipment, actions: Actions, character = false): { open(): void; refresh(): void } {
   const riderSex = () => actions.sex?.() ?? settings().sex ?? 'male';
-  const fits = (item: V3Gear) => item.sex === 'tous' || item.sex === riderSex();
+  // Articles de la silhouette seulement (sexe du catalogue ou indiqué par le nom).
+  const fits = (item: V3Gear) => itemFits(item, riderSex());
   const slots = document.createElement('div');
   slots.className = 'gr-slots';
   const typeName = document.createElement('div');
@@ -235,6 +236,34 @@ export function addWardrobe(head: HTMLElement, parent: HTMLElement, settings: ()
   }
   sockField.append('Hauteur', sockSeg);
   sockField.hidden = true;
+  // Ouverture du maillot (fermeture éclair), comme Zwift quand le coureur a chaud : fermé d'origine.
+  const zipField = document.createElement('div');
+  zipField.className = 'field';
+  const zipSeg = document.createElement('div');
+  zipSeg.className = 'mm-seg';
+  zipSeg.setAttribute('role', 'radiogroup');
+  zipSeg.setAttribute('aria-label', 'Ouverture du maillot');
+  function showZipChoice() {
+    const current = settings().zip ?? 0;
+    zipSeg.querySelectorAll<HTMLButtonElement>('button').forEach((button, i) => {
+      const on = i === current;
+      button.classList.toggle('on', on);
+      button.setAttribute('aria-checked', String(on));
+    });
+  }
+  V3_ZIPS.forEach((text, zip) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.setAttribute('role', 'radio');
+    button.textContent = text;
+    button.onclick = () => {
+      actions.equipment({ ...settings(), zip });
+      showZipChoice();
+    };
+    zipSeg.append(button);
+  });
+  zipField.append('Ouverture', zipSeg);
+  zipField.hidden = true;
   // Couleur des cheveux et de la barbe : six cases des planches Zwift, en pastilles comme le garage Réel.
   function hairColorRow(text: string, key: 'hairColor' | 'beardColor', tintKey: 'hairTint' | 'beardTint') {
     const row = document.createElement('div');
@@ -287,7 +316,7 @@ export function addWardrobe(head: HTMLElement, parent: HTMLElement, settings: ()
   const beardColor = hairColorRow('Couleur de la barbe', 'beardColor', 'beardTint');
   // Personnage (tête, cheveux, barbe) : pas de carte « Équipé », l'article choisi est coché dans la grille.
   caption.hidden = character;
-  panel.append(caption, sockField, hairColor.row, beardColor.row, colorLabel, hue.field, tools, status, grid);
+  panel.append(caption, sockField, zipField, hairColor.row, beardColor.row, colorLabel, hue.field, tools, status, grid);
   parent.append(panel);
 
   let items: V3Gear[] = [];
@@ -465,6 +494,8 @@ export function addWardrobe(head: HTMLElement, parent: HTMLElement, settings: ()
     }
     sockField.hidden = type !== 'SOCKS';
     showSockHeight();
+    zipField.hidden = type !== 'CYCLING_JERSEY';
+    showZipChoice();
     hairColor.row.hidden = type !== 'HAIR';
     beardColor.row.hidden = type !== 'FACIAL_HAIR';
     hairColor.sync();

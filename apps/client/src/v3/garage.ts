@@ -1,4 +1,4 @@
-import { getV3Catalog, getV3Clips, getV3Colors, getV3Gear, type V3SockHeight, readV3Equipment, V3_HAIR_COLORS, saveV3Equipment, V3_POSES, type V3Bike, type V3Body, type V3Color, type V3Equipment, type V3Gear, mountedWheel, wheelsFor, type V3Wheel, resolvedBody, riderBmi } from './visuals.ts';
+import { getV3Catalog, getV3Clips, getV3Colors, getV3Gear, type V3SockHeight, readV3Equipment, V3_HAIR_COLORS, saveV3Equipment, V3_POSES, type V3Bike, type V3Body, type V3Color, type V3Equipment, type V3Gear, mountedWheel, wheelsFor, type V3Wheel, resolvedBody, riderBmi, itemFits } from './visuals.ts';
 import { addWardrobe, createHueControl, onScreen, whenVisible } from './wardrobe.ts';
 import { V3_ICON } from './icons.ts';
 import { COSMETICS, DEFAULT_BIKE, DEFAULT_TRAINER } from '@allezrobert/shared';
@@ -335,7 +335,7 @@ export function createV3Garage(actions: V3GarageActions) {
   async function randomCharacter(): Promise<void> {
     const items = (await getV3Gear()).filter(item => v3Shown('gear', item.id));
     const sex = sexNow();
-    const fits = (item: V3Gear, type: string) => item.type === type && (item.sex === 'tous' || item.sex === sex);
+    const fits = (item: V3Gear, type: string) => item.type === type && itemFits(item, sex);
     const kit = { ...equipment.kit };
     const wear = (type: string, item: V3Gear | undefined) => {
       if (item) kit[type] = { id: item.id, color: 0 };
@@ -361,7 +361,7 @@ export function createV3Garage(actions: V3GarageActions) {
     const sex = sexNow();
     const kit = { ...equipment.kit };
     for (const type of ['CYCLING_JERSEY', 'HEAD_GEAR', 'GLASSES', 'GLOVES', 'SOCKS', 'CYCLING_SHOES']) {
-      const choice = pick(items.filter(item => item.type === type && (item.sex === 'tous' || item.sex === sex) && !/^none$/i.test(item.variant)));
+      const choice = pick(items.filter(item => item.type === type && itemFits(item, sex) && !/^none$/i.test(item.variant)));
       if (choice && (type !== 'GLASSES' || Math.random() < 2 / 3)) kit[type] = { id: choice.id, color: Math.floor(Math.random() * Math.max(1, choice.colors.length)) };
       else delete kit[type];
     }

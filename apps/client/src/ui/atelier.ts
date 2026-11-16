@@ -552,22 +552,24 @@ export class AtelierHost {
       this.scene.add(node);
     };
     // Mêmes places que hangBikes : lisse du mur de gauche (3), mur de bois (gravel), mur du fond, puis au sol.
-    const slots: Array<[string, string[], (node: THREE.Object3D) => void]> = [
+    const slots: Array<[string, string[], (node: THREE.Object3D) => void, string?]> = [
       ['route', ['pinarellodogmaf122020'], hang(-1.6, 1.3, 3.22, -Math.PI / 2)],
       ['route', ['colnagov3rs2020'], hang(0.1, 1.3, 3.22, -Math.PI / 2)],
       ['route', ['specializedtarmac2021', 'cervelos52026'], hang(1.8, 1.3, 3.22, -Math.PI / 2)],
       ['gravel', ['canyongrail2025', 'canyongrailgravel'], hang(1.85, 1.3, -2.82, Math.PI / 2)],
       ['route', ['bmcteammachine2022'], hang(-2.9, 1.3, 2.15, 0)],
       ['route', ['cannondalesupersixevo2026', 'cannondalesupersixevo2020'], lean(-0.7, -2.62, Math.PI / 2, 0, -0.1)],
-      ['chrono', ['canyonspeedmaxcfr2026'], lean(3.02, -1.7, 0, 1, -0.1)],
-      ['route', ['factorone2026'], lean(3.02, 0.9, 0, 1, -0.1)],
+      // Deux vélos de marque contre le mur (à la place du vélo de chrono et du Factor), pas de vélo Zwift : un ancien
+      // (Pinarello Dogma 65.1, freins sur jante) et un récent à roue pleine (Tarmac SL9, roues Princeton Mach / Blur).
+      ['route', ['dogma65-1', 'pinarellof8'], lean(3.02, -1.7, 0, 1, -0.1)],
+      ['route', ['specializedtarmacsl92026', 'sworkstarmacsl82024'], lean(3.02, 0.9, 0, 1, -0.1), 'princetoncarbonworks-machtsv2blur'],
       ['vtt', ['scottsparkmtb2022'], lean(1.9, -2.5, Math.PI / 2, 0, -0.08)],
     ];
-    await Promise.all(slots.map(async ([type, preferred, place]) => {
+    await Promise.all(slots.map(async ([type, preferred, place, wheels]) => {
       const id = pick(type, preferred);
       if (!id) return;
       try {
-        const node = await loadV3DisplayBike(id);
+        const node = await loadV3DisplayBike(id, wheels);
         place(node);
         this.frames = Math.max(this.frames, 2);
       } catch (e) {
