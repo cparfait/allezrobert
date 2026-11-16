@@ -381,8 +381,9 @@ export function addWardrobe(head: HTMLElement, parent: HTMLElement, settings: ()
     };
     return button;
   }
+  /** Familles ouvertes, par catégorie (toutes repliées au départ, sauf celle de l'article porté). */
   const openFamilies = new Set<string>();
-  let foldReady = false;
+  const foldReady = new Set<string>();
   function filter() {
     const query = search.value.trim().toLowerCase();
     const matches = items.filter(item => item.type === category && fits(item) && (item.name + ' ' + item.variant).toLowerCase().includes(query));
@@ -397,11 +398,12 @@ export function addWardrobe(head: HTMLElement, parent: HTMLElement, settings: ()
       return ra - rb || na.localeCompare(nb, 'fr');
     });
     // Maillots : familles repliées par défaut (sauf celle du maillot porté) ; une recherche les ouvre toutes.
-    const foldable = category === 'CYCLING_JERSEY' && !query;
-    if (foldable && !foldReady) {
-      foldReady = true;
+    // Toutes les familles (maillots, marques) repliées par défaut ; une recherche les ouvre toutes.
+    const foldable = !query && sorted.length > 1;
+    if (foldable && !foldReady.has(category)) {
+      foldReady.add(category);
       const worn = items.find(item => item.id === settings().kit?.[category]?.id);
-      if (worn) openFamilies.add(familyOf(worn));
+      if (worn) openFamilies.add(category + '|' + familyOf(worn));
     }
     // Vignettes encore en téléchargement : annulées (le navigateur n'ouvre que quelques connexions à la fois).
     for (const image of grid.querySelectorAll('img')) image.removeAttribute('src');
@@ -413,15 +415,16 @@ export function addWardrobe(head: HTMLElement, parent: HTMLElement, settings: ()
         const count = document.createElement('span');
         count.textContent = String(list.length);
         if (foldable) {
-          const open = openFamilies.has(family);
+          const open = openFamilies.has(category + '|' + family);
           const toggle = document.createElement('button');
           toggle.type = 'button';
           toggle.className = 'v3-fold';
           toggle.setAttribute('aria-expanded', String(open));
           toggle.append(family, count);
           toggle.onclick = () => {
-            if (openFamilies.has(family)) openFamilies.delete(family);
-            else openFamilies.add(family);
+            const id = category + '|' + family;
+            if (openFamilies.has(id)) openFamilies.delete(id);
+            else openFamilies.add(id);
             filter();
           };
           title.append(toggle);

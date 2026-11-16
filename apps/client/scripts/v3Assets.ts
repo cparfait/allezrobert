@@ -9,7 +9,7 @@ const run = promisify(execFile);
 const readJson = <T>(path: string): T => JSON.parse(readFileSync(path, 'utf8').replace(/^\uFEFF/, '')) as T;
 type Scheme = { Name?: string; TexturePath?: string; NormalsPath?: string; HueShiftable?: string; HueOffset?: string; preview?: string };
 type Gear = {
-  i: number; type: string; cat: string; nom: string; sexe: string; sport: string; fiche: string;
+  i: number; type: string; cat: string; nom: string; cle?: string; sexe: string; sport: string; fiche: string;
   source?: string; pairSource?: string; texture?: string; normale?: string; normale_f?: string; geomgroup?: number; thumbnail?: string;
   os?: string; os_paire?: string; cheveux_override?: string | null; offset: [number, number, number]; rotation: [number, number, number];
   offset_paire?: [number, number, number]; rotation_paire?: [number, number, number]; colors: Scheme[];
@@ -105,6 +105,15 @@ export function v3Assets(): Plugin {
       pending.set(target, job);
     }
     return job.then(() => target);
+  }
+  /** Noms français de Zwift (clés LOC_…, extraites par tools/v3_loc.py), sinon anglais, sinon le nom de l'étude. */
+  let names: { fr: Record<string, string>; en: Record<string, string> } | undefined;
+  function nameOf(row: Gear): string {
+    names ??= {
+      fr: existsSync(resolve(study, 'v3/loc/FR.json')) ? readJson<Record<string, string>>(resolve(study, 'v3/loc/FR.json')) : {},
+      en: existsSync(resolve(study, 'v3/loc/EN.json')) ? readJson<Record<string, string>>(resolve(study, 'v3/loc/EN.json')) : {},
+    };
+    return (row.cle && (names.fr[row.cle] || names.en[row.cle])) || row.nom;
   }
   function loadGear() {
     return gear ??= prepare('gear-catalogue', 'catalogue', resolve(study, 'tenues-catalogue.json'))
@@ -205,7 +214,7 @@ export function v3Assets(): Plugin {
           if (url.pathname === '/gear') {
             void warm(message => server.config.logger.info(message));
             return json(200, (await loadGear()).map(row => ({
-              id: row.i, type: row.type, category: row.cat, name: row.nom,
+              id: row.i, type: row.type, category: row.cat, name: nameOf(row),
               variant: basename(row.fiche.replaceAll('\\', '/'), '.xml'), sex: row.sexe, sport: row.sport, group: row.geomgroup,
               model: !!row.source, pair: !!row.pairSource,
               bone: row.os, pairBone: row.os_paire, offset: row.offset, rotation: row.rotation,

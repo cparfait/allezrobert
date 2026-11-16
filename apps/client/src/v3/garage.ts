@@ -237,8 +237,8 @@ export function createV3Garage(actions: V3GarageActions) {
     };
     wear('HEAD_TYPE', pick(items.filter(item => fits(item, 'HEAD_TYPE'))));
     // Toujours des cheveux (« Clean Shaven » écarté) ; barbe une fois sur deux pour le coureur.
-    wear('HAIR', pick(items.filter(item => fits(item, 'HAIR') && !/clean shaven/i.test(item.name))));
-    const beards = items.filter(item => fits(item, 'FACIAL_HAIR') && !/clean shaven/i.test(item.name));
+    wear('HAIR', pick(items.filter(item => fits(item, 'HAIR') && !/clean shaven/i.test(item.variant))));
+    const beards = items.filter(item => fits(item, 'FACIAL_HAIR') && !/clean shaven/i.test(item.variant));
     wear('FACIAL_HAIR', sex === 'male' && Math.random() < 0.5 ? pick(beards) : undefined);
     const bodies: V3Body[] = sex === 'male' ? ['standard', 'standard', 'skinny', 'big'] : ['standard', 'standard', 'skinny'];
     const hairColor = Math.floor(Math.random() * (V3_HAIR_COLORS.length - 1)); // le bleu reste un choix délibéré
@@ -253,7 +253,7 @@ export function createV3Garage(actions: V3GarageActions) {
     const sex = sexNow();
     const kit = { ...equipment.kit };
     for (const type of ['CYCLING_JERSEY', 'HEAD_GEAR', 'GLASSES', 'GLOVES', 'SOCKS', 'CYCLING_SHOES']) {
-      const choice = pick(items.filter(item => item.type === type && (item.sex === 'tous' || item.sex === sex) && !/^none$/i.test(item.name)));
+      const choice = pick(items.filter(item => item.type === type && (item.sex === 'tous' || item.sex === sex) && !/^none$/i.test(item.variant)));
       if (choice && (type !== 'GLASSES' || Math.random() < 2 / 3)) kit[type] = { id: choice.id, color: Math.floor(Math.random() * Math.max(1, choice.colors.length)) };
       else delete kit[type];
     }
@@ -351,6 +351,8 @@ export function createV3Garage(actions: V3GarageActions) {
       report(error);
     }
   }
+  const openBrands = new Set<string>();
+  let brandsReady = false;
   function fillBikes() {
     const query = searchBike.value.trim().toLowerCase();
     const counts = new Map<string, number>();
@@ -376,17 +378,33 @@ export function createV3Garage(actions: V3GarageActions) {
       .sort((a, b) => a.brand.localeCompare(b.brand, 'fr') || bikeName(a).localeCompare(bikeName(b), 'fr'));
     const rows: HTMLElement[] = [];
     let brand: string | undefined;
+    if (!brandsReady && catalogBikes.length) {
+      brandsReady = true;
+      const worn = catalogBikes.find(bike => bike.id === equipment.bike);
+      if (worn) openBrands.add(worn.brand);
+    }
     for (const bike of shown) {
       if (bike.brand !== brand) {
         brand = bike.brand;
         const title = document.createElement('h5');
         title.className = 'mm-bl-brand';
-        title.textContent = brand || 'Sans marque';
         const count = document.createElement('span');
         count.textContent = String(shown.filter(row => row.brand === bike.brand).length);
-        title.append(count);
+        const toggle = document.createElement('button');
+        toggle.type = 'button';
+        toggle.className = 'v3-fold';
+        toggle.setAttribute('aria-expanded', String(!!query || openBrands.has(bike.brand)));
+        toggle.append(brand || 'Sans marque', count);
+        const name = bike.brand;
+        toggle.onclick = () => {
+          if (openBrands.has(name)) openBrands.delete(name);
+          else openBrands.add(name);
+          fillBikes();
+        };
+        title.append(toggle);
         rows.push(title);
       }
+      if (!query && !openBrands.has(bike.brand)) continue;
       const on = bike.id === equipment.bike;
       const row = document.createElement('button');
       row.type = 'button';
