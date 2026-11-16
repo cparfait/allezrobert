@@ -422,7 +422,8 @@ export function v3Assets(): Plugin {
     name: 'ar-v3-assets',
     apply: 'serve',
     configureServer(server) {
-      server.middlewares.use('/__v3', v3AssetMiddleware(server.config.logger));
+      const handler = v3AssetMiddleware(server.config.logger);
+      server.middlewares.use('/__v3', (req, res) => handler(req, res));
     },
   };
 }
