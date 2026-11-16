@@ -1,5 +1,5 @@
 import * as THREE from 'three/webgpu';
-import { texture, uv, normalWorld, positionWorld, mix, smoothstep, vec2, vec3, float, uniform, mx_noise_float, clamp, cameraPosition, mx_worley_noise_float, positionView, normalView, faceDirection, Fn, If, vec4, dot } from 'three/tsl';
+import { texture, uv, normalWorld, positionWorld, mix, smoothstep, vec2, vec3, float, uniform, mx_noise_float, clamp, cameraPosition, mx_worley_noise_float, positionView, normalView, faceDirection, Fn, If, vec4, dot, cos, fract, abs, fwidth, sqrt, sign, step } from 'three/tsl';
 import type { QualitySettings } from '../engine/quality.ts';
 import { colorUniform } from '../engine/tsl.ts';
 import { cloudShade } from './clouds.ts';
@@ -68,6 +68,118 @@ const FINE_REACH_M = 350;
  * tous les mondes. Coupé, le matériau du terrain est exactement celui d'avant
  * (aucun nœud de shader ajouté).
  */
+/**
+ * Champs cultivés (P2.4a) : chaque parcelle agricole OSM (farmland) reçoit l'orientation de son plus long côté et un
+ * état de culture tiré de sa position (labour, céréale levée, chaume, prairie temporaire), rangés dans les canaux libres
+ * de la troisième texture d'occupation du sol (aucune texture de plus). Le shader du terrain y dessine les rangs de
+ * culture de près et les passages de tracteur jusqu'à ≈ 300 m, orientés selon la parcelle. Style réaliste, avec le
+ * détail du sol proche ; `?fieldrows=0` le coupe.
+ */
+const FIELD_ROWS = (() => {
+  try {
+    return typeof location !== 'undefined' && new URLSearchParams(location.search).get('fieldrows') !== '0';
+  } catch {
+    return false;
+  }
+})();
+
+/**
+ * Raster des parcelles agricoles (P2.4a) : par pixel, (cos 2θ, sin 2θ) de l'orientation θ du plus long côté de la
+ * parcelle (ramenés à 0–255) et état de culture (0–255).
+ */
+function fieldParcelRaster(tile: LoadedTile, res: number): Uint8ClampedArray {
+  const canvas = new OffscreenCanvas(res, res);
+  const ctx = canvas.getContext('2d') as OffscreenCanvasRenderingContext2D;
+  const scale = res / tile.size;
+  const f = tile.features;
+  const parcels = [...f.fields, ...f.landuse].filter((p) => p.kind === 'farmland');
+  for (const p of parcels) {
+    const ring = p.rings[0];
+    if (!ring || ring.length < 6) continue;
+    let best = 0;
+    let theta = 0;
+    let cx = 0;
+    let cz = 0;
+    const n = ring.length / 2;
+    for (let i = 0; i < n; i++) {
+      const x0 = ring[i * 2] as number;
+      const z0 = ring[i * 2 + 1] as number;
+      const x1 = ring[((i + 1) % n) * 2] as number;
+      const z1 = ring[((i + 1) % n) * 2 + 1] as number;
+      const l = Math.hypot(x1 - x0, z1 - z0);
+      if (l > best) {
+        best = l;
+        theta = Math.atan2(z1 - z0, x1 - x0);
+      }
+      cx += x0;
+      cz += z0;
+    }
+    cx /= n;
+    cz /= n;
+    const state = Math.abs(Math.sin(cx * 12.9898 + cz * 78.233) * 43758.5453) % 1;
+    const r = Math.round((Math.cos(2 * theta) * 0.5 + 0.5) * 255);
+    const g = Math.round((Math.sin(2 * theta) * 0.5 + 0.5) * 255);
+    const b = Math.round(state * 255);
+    ctx.fillStyle = `rgb(${r},${g},${b})`;
+    ctx.beginPath();
+    for (const rg of p.rings) {
+      for (let i = 0; i < rg.length; i += 2) {
+        const x = ((rg[i] as number) - tile.x0) * scale;
+        const y = ((rg[i + 1] as number) - tile.z0) * scale;
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.closePath();
+    }
+    ctx.fill('evenodd');
+  }
+  return ctx.getImageData(0, 0, res, res).data;
+}
+
+/**
+ * Teinte multiplicative des champs cultivés (P2.4a), moyenne ≈ 1 (l'orthophoto garde la couleur des parcelles) :
+ * - rangs de culture parallèles au plus long côté (labour : sillons de 35 cm ; céréale levée : lignes vertes de 17 cm ;
+ *   chaume : lignes claires de 15 cm ; prairie temporaire : aucun rang), effacés vers leur moyenne avant de grésiller ;
+ * - passages de tracteur tous les 18 m (deux traces de 45 cm, à ± 0,9 m) jusqu'à ≈ 300 m, sauf en prairie.
+ * `p` : canaux g, b (orientation) et a (état) du raster des parcelles ; `k` : poids du champ (0–1).
+ */
+function fieldRowsTint(p: THREE.Node<'vec4'>, k: GF, camDist: GF): GV3 {
+  const one = float(1);
+  const c2 = p.g.mul(2).sub(1);
+  const s2 = p.b.mul(2).sub(1);
+  const len = vec2(c2, s2).length().max(1e-3);
+  const cn = c2.div(len);
+  const ct = sqrt(clamp(cn.add(1).mul(0.5), 0, 1));
+  const st = sqrt(clamp(one.sub(cn).mul(0.5), 0, 1)).mul(sign(s2.add(1e-4)));
+  // across : distance perpendiculaire aux rangs (m)
+  const wp = positionWorld.xz;
+  const across = wp.x.mul(st.negate()).add(wp.y.mul(ct));
+  const state = p.a;
+  const plowed = one.sub(step(0.3, state));
+  const sprout = step(0.3, state).mul(one.sub(step(0.55, state)));
+  const stubble = step(0.55, state).mul(one.sub(step(0.8, state)));
+  const ley = step(0.8, state);
+  const period = plowed.mul(0.35).add(sprout.mul(0.17)).add(stubble.mul(0.15)).add(ley.mul(1));
+  const ph = across.div(period);
+  const aa = fwidth(ph);
+  // rang : 0 au creux, 1 au sommet ; fondu vers 0,5 quand la période passe sous ≈ 3 pixels
+  const wave = cos(ph.mul(6.2832)).mul(0.5).add(0.5);
+  const rowsK = one.sub(smoothstep(0.18, 0.4, aa)).mul(one.sub(ley));
+  const row = mix(float(0.5), wave, rowsK);
+  const tPlow = mix(vec3(0.8, 0.77, 0.74), vec3(1.12, 1.1, 1.08), row);
+  const tSprout = mix(vec3(1.04, 1.0, 0.96), vec3(0.86, 1.08, 0.78), smoothstep(0.55, 0.9, row));
+  const tStub = mix(vec3(0.94, 0.93, 0.92), vec3(1.12, 1.09, 1.0), smoothstep(0.6, 0.95, row));
+  const tLey = vec3(0.97, 1.03, 0.95);
+  let t = tPlow.mul(plowed).add(tSprout.mul(sprout)).add(tStub.mul(stubble)).add(tLey.mul(ley));
+  // passages de tracteur : deux traces à ± 0,9 m d'une ligne tous les 18 m
+  const m = fract(across.div(18)).sub(0.5).mul(18);
+  const aT = fwidth(across).mul(0.75).max(1e-3);
+  const track = one.sub(smoothstep(float(0.22).sub(aT), float(0.22).add(aT), abs(abs(m).sub(0.9))));
+  const trackK = one.sub(ley).mul(one.sub(smoothstep(220, 320, camDist))).mul(one.sub(smoothstep(0.25, 0.6, aT)));
+  t = t.mul(one.sub(track.mul(trackK).mul(0.16)));
+  return vec3(1, 1, 1).add(t.sub(1).mul(k)) as unknown as GV3;
+}
+
 const GROUND_DETAIL_REQUESTED = (() => {
   try {
     return typeof location !== 'undefined' && new URLSearchParams(location.search).get('grounddetail') !== '0';
@@ -573,8 +685,15 @@ export class TerrainManager {
     // Troisième texture : sable (canal 9) en rouge.
     const c = new Uint8Array(res * res * 4);
     const C = SPLAT_CHANNELS.length;
+    // P2.4a : orientation et état des parcelles agricoles dans les canaux libres (g, b, a) de la troisième texture
+    const parcels = FIELD_ROWS && !LOW_POLY ? fieldParcelRaster(tile, res) : null;
     for (let i = 0; i < res * res; i++) {
       c[i * 4] = data[i * C + 9] as number;
+      if (parcels) {
+        c[i * 4 + 1] = parcels[i * 4] as number;
+        c[i * 4 + 2] = parcels[i * 4 + 1] as number;
+        c[i * 4 + 3] = parcels[i * 4 + 2] as number;
+      }
       a[i * 4] = data[i * C] as number;
       a[i * 4 + 1] = data[i * C + 1] as number;
       a[i * 4 + 2] = data[i * C + 2] as number;
@@ -712,6 +831,12 @@ export class TerrainManager {
       .mul(float(1).sub(roadMask))
       .max(ice.mul(smoothstep(line.sub(400), line, alt)));
     col = col.mul(detail);
+    // Champs cultivés (P2.4a) : rangs de culture et passages de tracteur orientés selon la parcelle.
+    if (FIELD_ROWS && this.groundDetail) {
+      const pr = texture(textures[2] as THREE.Texture, uv());
+      const fk = s0.g.mul(float(1).sub(s0.b)).mul(float(1).sub(s0.r)).mul(float(1).sub(roadMask)).mul(float(1).sub(s0.a)).mul(float(1).sub(snow));
+      col = col.mul(fieldRowsTint(pr as unknown as THREE.Node<'vec4'>, fk as unknown as GF, camDist as unknown as GF));
+    }
     // Détail du sol proche (?grounddetail=1, Billom) : rien n'est construit quand il est coupé.
     const gd = this.groundDetail
       ? groundDetail({ forest: s0.r, field: s0.g, meadow: s0.b, water: s0.a, urban: s1.r, road: roadMask, slope, rock: rockMask, snow, ice, camDist })
