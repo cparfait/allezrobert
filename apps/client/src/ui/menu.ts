@@ -4,7 +4,7 @@ import { ftpTestChartHtml } from './ftpTestChart.ts';
 import { crossedArmsSrc } from './waitBike.ts';
 import type { AvatarLook, CosmeticItem, RouteData, RouteSegment, WorldCatalogue } from '@allezrobert/shared';
 import { ROAD_FEEL, ROAD_FEEL_TEXT, clampRoadFeel, roadFeelLevel } from '@allezrobert/shared';
-import { GRAPHIC_STYLE, setGraphicStyle, type GraphicStyle } from '../engine/style.ts';
+import { GRAPHIC_STYLE, V3_AVAILABLE, V3_STYLE, setGraphicStyle, type GraphicStyle } from '../engine/style.ts';
 import { readKomRecord } from '../game/challenge.ts';
 import { COUNTRIES, BIKE_BRANDS, BIKE_GROUPS, BIKE_TEAMS, COSMETICS, DEFAULT_BIKE, bikeById, routesForBike, mirrorStartM, rankRouteId, lookSex, tuneItem, withSex, bottleCapacity, bikeSetupFor, jerseyLookOf, helmetLookOf, glassesLookOf, levelProgress, SHOE_MARKS, equippedTuneIds, trainerOf, type BikeCollection, type BikeType, type CapLook, type CosmeticSlot } from '@allezrobert/shared';
 import { shoeAccentOf } from '../rider/shoeLook.ts';
@@ -608,6 +608,8 @@ export class MainMenu {
   }
   /** Cadrage 3D demandé par le menu : photo du groupe ou vue du garage (rotation en radians). */
   onScene?: (view: 'poster' | GarageView, yaw: number, bikeOnly?: boolean, zoom?: number) => void;
+  /** Style V3 : emplacements du panneau du garage (corps, tête du panneau) à remplir par l'atelier. */
+  onV3Garage?: (body: HTMLElement | null, top: HTMLElement | null) => void;
   /** Aperçu d'un équipement (même verrouillé) sur le coureur du garage ; null : tenue équipée. */
   onPreviewLook?: (look: AvatarLook | null) => void;
   /** Carte du choix (sous « Choisir ma sortie ») : seulement après un choix fait dans ce menu. */
@@ -921,6 +923,7 @@ export class MainMenu {
       this.onPreviewLook?.(null);
     }
     this.tab = tab;
+    if (V3_STYLE && tab === 'garage') this.garageSlot = 'jersey';
     this.render();
     // Garage resté sur l'atelier : sa pièce 3D ; sinon la photo ou le coureur du garage.
     if (tab === 'garage' && this.garageSlot === 'atelier') return this.atelier.emit();
@@ -1213,6 +1216,7 @@ export class MainMenu {
         ${this.tab === 'ride' ? `<button id="m-start" class="mm-go">${t('ride')}</button>` : `<button class="mm-go ghost" data-tab="ride">← ${t('ride')}</button>`}
       </footer>
     </div>`;
+    if (V3_STYLE) this.onV3Garage?.(this.root.querySelector('[data-v3-garage]'), this.root.querySelector('[data-v3-top]'));
     if (this.tab === 'devices') this.renderDevices();
     const side = this.root.querySelector('.gr-body') ?? this.root.querySelector('.mm-side');
     if (side) side.scrollTop = scroll;
@@ -1992,7 +1996,7 @@ export class MainMenu {
   // ————————————————————————————————————————————— Garage
 
   private garageHtml(): string {
-    if (this.garageSlot === 'atelier') {
+    if (!V3_STYLE && this.garageSlot === 'atelier') {
       const xp = loadProgress().xp;
       return this.atelier.html(this.garageHeader(levelProgress(xp), xp), this.garageNav());
     }
@@ -2009,6 +2013,16 @@ export class MainMenu {
       ['bike', L ? 'Vélo' : 'Bike'],
       ['cockpit', 'Cockpit'],
     ];
+    const camera = `<div class="mm-dragzone" id="m-dragzone"></div>
+      <div class="mm-views">${views.map(([v, label]) => `<button class="mm-view ${v === this.view ? 'on' : ''}" data-view="${v}">${label}</button>`).join('')}
+        <span class="mm-drag">${ICON.rotate} ${L ? 'Glisser pour tourner' : 'Drag to rotate'}</span></div>`;
+    const reopen = `<button class="gr-reopen" data-gr="open" ${this.grFolded ? '' : 'hidden'}>‹ Menu</button>`;
+    if (V3_STYLE) return `${camera}${reopen}
+      <section class="mm-panel mm-side gr-panel${this.grFolded ? ' gr-folded' : ''}">
+        <div class="gr-top">${this.garageHeader(lp, p.xp)}<div data-v3-top></div></div>
+        <div class="gr-body" data-v3-garage></div>
+        <div class="gr-foot"><p>${L ? 'Style V3 : ressources de l’installation Zwift locale, pour l’étude seulement (jamais distribuées).' : 'V3 style: local Zwift install assets, for study only (never distributed).'}</p></div>
+      </section>`;
     const items =
       this.garageSlot === 'skin' || this.garageSlot === 'hair' || this.garageSlot === 'beard'
         ? characterTypeHtml(this.garageSlot, this.s.look, (l, k, c) => this.colorRow(l, k, c))
@@ -2044,11 +2058,9 @@ export class MainMenu {
         : `${this.colorRows()}${this.garageSlot === 'helmet' ? this.helmetTypeRow() : ''}${this.garageSlot === 'socks' ? this.optRow(fr() ? 'Hauteur' : 'Height', 'sockHeight', this.s.look.sockHeight ?? 'low', [['low', fr() ? 'Basses' : 'Low'], ['high', fr() ? 'Hautes' : 'High']]) : ''}${SLOT_PICTO[this.garageSlot] ? this.captionHtml() : ''}${this.filterBar(lp.level)}<div class="mm-items">${this.garageItems(lp.level)
             .map((c) => this.itemHtml(c, lp.level, c.slot === 'trainer' ? trainerOf(p.equipped) : p.equipped[c.slot]))
             .join('')}</div>`;
-    return `<div class="mm-dragzone" id="m-dragzone"></div>
-      <div class="mm-views">${views.map(([v, label]) => `<button class="mm-view ${v === this.view ? 'on' : ''}" data-view="${v}">${label}</button>`).join('')}
-        <span class="mm-drag">${ICON.rotate} ${L ? 'Glisser pour tourner' : 'Drag to rotate'}</span></div>
+    return `${camera}
       ${isFaceSlot(this.garageSlot) ? '' : this.roadEffect()}
-      <button class="gr-reopen" data-gr="open" ${this.grFolded ? '' : 'hidden'}>‹ ${L ? 'Menu' : 'Menu'}</button>
+      ${reopen}
       <section class="mm-panel mm-side gr-panel${this.grFolded ? ' gr-folded' : ''}">
         <div class="gr-top">${this.garageHeader(lp, p.xp)}${this.garageNav()}</div>
         <div class="gr-body">${items}</div>
@@ -2467,7 +2479,7 @@ export class MainMenu {
     const sec = (id: string, title: string, body: string) => this.settingsSection(id, title, body);
     const graphics = `<div class="grid3">
         <div class="field">${t('quality')}${this.seg('m-quality', s.quality, (['low', 'medium', 'high', 'ultra'] as const).map((q) => [q, t(q)]))}</div>
-        <div class="field">${L ? 'Style graphique' : 'Graphic style'}${this.seg('m-style', GRAPHIC_STYLE, [['lowpoly', L ? 'Jeu vidéo' : 'Video game'], ['real', L ? 'Réaliste' : 'Realistic']])}</div>
+        <div class="field">${L ? 'Style graphique' : 'Graphic style'}${this.seg('m-style', GRAPHIC_STYLE, [['lowpoly', L ? 'Jeu vidéo' : 'Video game'], ['real', L ? 'Réaliste' : 'Realistic'], ...(V3_AVAILABLE ? [['v3', 'V3'] as [string, string]] : [])])}</div>
         <div class="field hud-field" style="grid-column: 1 / -1">${L ? 'Interface (HUD) · effet à la prochaine sortie' : 'HUD layout · applies from the next ride'}${hudPickerHtml()}</div>
         <div class="field">${L ? 'Format de l\'image' : 'Picture format'}${this.seg('m-aspect', getAspectCap(), [['full', L ? 'Plein écran' : 'Full'], ['16:9', '16:9'], ['21:9', '21:9'], ['32:9', '32:9']])}</div>
         <div class="field">${L ? 'Zone de l\'interface' : 'Interface area'}${this.seg('m-uiaspect', getUiAspectCap(), [['full', L ? 'Toute la largeur' : 'Full width'], ['16:9', '16:9'], ['21:9', '21:9']])}</div>

@@ -9,6 +9,8 @@ import { World } from './world/world.ts';
 import { loadWorldSource } from './world/loader.ts';
 import type { WorldSource } from './world/types.ts';
 import { GltfRiderAvatar, createAvatar } from './rider/gltfAvatar.ts';
+import { V3_STYLE } from './engine/style.ts';
+import { V3Visual } from './v3/visuals.ts';
 import { CROWD_FAMILIES, onBikeFamilyLoaded } from './rider/bikes.ts';
 import { CameraRig } from './game/cameras.ts';
 import { buzzLevel } from './game/roadBuzz.ts';
@@ -848,14 +850,14 @@ async function boot(): Promise<void> {
   const showGarage = (look: AvatarLook, bareHead = menu.bareHeadPreview) => {
     if (!garage) return;
     garageLook = look;
-    const v = GARAGE_VIEWS[garage.view];
+    const v = V3_STYLE && garage.view === '3q' ? { cam: [2.65, 1.35, 2.48], look: [0, 0.81, 0.1], fov: 33 } as const : GARAGE_VIEWS[garage.view];
     const c = Math.cos(garage.yaw);
     const sn = Math.sin(garage.yaw);
     // Recul (tutoriel) : coureur plus petit, pour laisser la place aux sous-titres.
     const k = garage.far ?? 1;
     // Choix du vélo : le vélo seul sur le pied d'atelier (sans coureur), vue d'ensemble tournante.
     if (garage.bikeOnly) {
-      const only: AtelierState = { look: { ...look, heightCm: settings.heightCm }, focus: 'overview', rider: false, yaw: garage.yaw, bareHead: false };
+      const only: AtelierState = { look: { ...look, heightCm: settings.heightCm }, focus: 'overview', rider: false, yaw: garage.yaw, bareHead: false, v3Picker: V3_STYLE };
       whenAtelierReady(() => !!garage && (atelier.set(only), true));
       return;
     }
@@ -866,6 +868,7 @@ async function boot(): Promise<void> {
       trainer: menu.currentTrainer(),
       yaw: 0,
       bareHead,
+      v3Picker: V3_STYLE,
       view: { cam: [0, 0, 0], look: [v.look[0], v.look[1] - (k - 1) * 0.35, v.look[2]], fov: v.fov },
     };
     // La caméra reste dans la pièce (murs à x = −3,2 / 3,4 et z = −3 / 3,4) : elle recule moins et l'angle de champ
@@ -876,6 +879,7 @@ async function boot(): Promise<void> {
     st.view = { cam: [cam[0] * fit, cam[1], cam[2] * fit], look: st.view!.look, fov: fit < 1 ? (2 * Math.atan(Math.tan((v.fov * Math.PI) / 360) / fit) * 180) / Math.PI : v.fov };
     whenAtelierReady(() => !!garage && (atelier.set(st), true));
   };
+  menu.onV3Garage = (body, top) => atelier.setV3Container(body, top);
   menu.onScene = (view, yaw, bikeOnly, zoom) => {
     if (!inMenu || exploring) return;
     if (view !== 'poster') {
@@ -1046,8 +1050,11 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     inertiaFactor: s.inertia,
   });
   // Modèle du vélo (route, gravel, VTT) : celui du vélo équipé.
-  const avatar = createAvatar({ ...s.look, heightCm: s.heightCm, bikeType: profile.bike.tyre ?? 'road' });
+  const riderLook = { ...s.look, heightCm: s.heightCm, bikeType: profile.bike.tyre ?? 'road' };
+  const avatar = createAvatar(riderLook);
   engine.scene.add(avatar.root);
+  const v3 = V3_STYLE && avatar instanceof GltfRiderAvatar ? new V3Visual(avatar.v3Mount()) : undefined;
+  v3?.set(riderLook);
   // Phare avant (la nuit) : projecteur fixé au vélo, sans ombre portée (coût).
   const headlight = new THREE.SpotLight(0xfff1d6, 0, 60, 0.45, 0.6, 1.4);
   headlight.position.set(0, 1.0, 0.6);
@@ -1650,6 +1657,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   const fitBytes = () => rideToFit(ride, { name: `Allez Robert ! — ${track.route.name}`, massKg: s.massKg, ftp: s.ftpWatts, ...(source.originL93 ? { originL93: source.originL93 } : {}), skipStrava: s.skipStrava });
   const teardown = (autostart: boolean) => {
     disposed = true;
+    v3?.dispose();
     engine.renderer.setAnimationLoop(null);
     const raceHtml = room?.summaryHtml() ?? '';
     room?.dispose();
@@ -2397,6 +2405,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     // (pendant un demi-tour, la caméra sort derrière le coureur : la tête redevient visible)
     const onboard = (rig.mode === 'cockpit' || rig.mode === 'action' || rig.mode === 'gopro') && !rig.lookBack && !camTurn;
     avatar.setHeadVisible(!onboard);
+    v3?.update(dt, ride.inputs.cadence, ride.state.speedMs, ride.pose, { head: !onboard, helmet: !riderLook.noHelmet });
     lap('mon coureur');
     peloton.render(dt, engine.camera);
     lap('coureurs IA (animation)');

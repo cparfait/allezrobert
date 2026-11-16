@@ -1250,6 +1250,30 @@ export class GltfRiderAvatar implements RiderAvatarLike {
   /** Groupe incliné (danseuse / virages) contenant vélo et coureur. */
   private readonly lean = new THREE.Group();
   private readonly lod = new THREE.LOD();
+  /** Attache un modèle V3 au repère incliné de l’avatar et masque les pièces qu’il remplace. */
+  v3Mount() {
+    const hidden = new Map<THREE.Object3D, boolean>();
+    return {
+      parent: this.lean,
+      level: () => this.lod.getCurrentLevel(),
+      replace: (bike: boolean, rider: boolean) => {
+        const hide = (node: THREE.Object3D, on: boolean) => {
+          if (on) {
+            if (!hidden.has(node)) hidden.set(node, node.visible);
+            node.visible = false;
+          } else if (hidden.has(node)) {
+            node.visible = hidden.get(node)!;
+            hidden.delete(node);
+          }
+        };
+        this.lod.levels.forEach(({ object }, i) => {
+          const slot = this.bikeSlots[i];
+          if (slot) hide(slot, bike);
+          for (const child of object.children) if (child !== slot) hide(child, rider);
+        });
+      },
+    };
+  }
   private readonly t: Templates;
   private readonly bones = {} as Record<BoneName, THREE.Object3D>;
   private readonly mQ = {} as Record<BoneName, THREE.Quaternion>;

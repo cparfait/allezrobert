@@ -3,6 +3,7 @@ import { mkdirSync, writeFileSync, rmSync, existsSync, readdirSync } from 'node:
 import { resolve } from 'node:path';
 import { networkInterfaces } from 'node:os';
 import { extractMedia, pruneDist } from './scripts/installerDiet.ts';
+import { v3Assets } from './scripts/v3Assets.ts';
 
 // AR_HMR=0 coupe le rechargement à chaud (utile quand d'autres processus modifient les paquets partagés).
 const hmr = process.env.AR_HMR !== '0';
@@ -136,7 +137,7 @@ function lanAddress(): Plugin {
 }
 
 export default defineConfig({
-  plugins: [screenshots(), excludeWorldTiles(), installerDiet(), lanAddress()],
+  plugins: [screenshots(), excludeWorldTiles(), installerDiet(), lanAddress(), v3Assets()],
   server: { port: 5173, strictPort: true, host: true, hmr },
   // Deux pages : le jeu et l'administration (admin.html, autonome) ; les applications de bureau (AR_DESKTOP=1) n'embarquent pas l'administration.
   build: { target: 'es2022', sourcemap: true, chunkSizeWarningLimit: 2500, rollupOptions: { input: { main: resolve(import.meta.dirname, 'index.html'), ...(process.env.AR_DESKTOP === '1' ? {} : { admin: resolve(import.meta.dirname, 'admin.html') }) } } },

@@ -1,0 +1,44 @@
+/* Garage V3 : reprend les classes du garage Réel et Poly (menu.css) ; ici, seulement les ajustements. */
+.v3-top, .v3-head, .ar-v3-garage, .ar-v3-garage > section, .v3-wardrobe { display: grid; gap: 12px; min-width: 0; }
+.v3-head:empty { display: none; }
+.v3-top [hidden], .ar-v3-garage [hidden] { display: none !important; }
+.v3-head .gr-slots { grid-template-columns: repeat(min(var(--n, 4), 4), minmax(0, 1fr)); }
+.v3-head .gr-typename { margin-top: 0; }
+
+.ar-v3-garage .field { display: grid; gap: 5px; font-size: 12px; font-weight: 700; color: #aeb7c3; }
+.ar-v3-garage :is(select, input[type="search"]) {
+  box-sizing: border-box; width: 100%; min-width: 0; padding: 8px 10px;
+  border: 1px solid var(--mm-line); border-radius: 8px; background: rgba(255, 255, 255, 0.05);
+  color: var(--ar-fg); font: inherit; font-size: 13px; font-weight: 600;
+}
+.ar-v3-garage input[type="search"]::placeholder { color: #8d98a6; }
+.ar-v3-garage input[type="range"] { width: 100%; accent-color: var(--ar-accent); }
+.ar-v3-garage .gr-sub:disabled { opacity: 0.45; cursor: default; }
+.ar-v3-garage .gr-sub.on { background: var(--ar-accent); border-color: var(--ar-accent); color: #0a0e16; }
+.ar-v3-garage output:empty { display: none; }
+.ar-v3-garage output { font-size: 12px; color: #8d98a6; }
+.ar-v3-garage .gr-cap { margin: 0; }
+
+.v3-tools { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; }
+.v3-chip { overflow: hidden; background: rgba(255, 255, 255, 0.06); }
+.v3-chip img { width: 92%; height: 92%; object-fit: contain; pointer-events: none; }
+.v3-chip > span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+.v3-chip.v3-chip-text > span {
+  position: static; width: auto; height: auto; clip: auto; padding: 4px;
+  font-size: 10px; font-weight: 700; line-height: 1.15; color: #c9d1db; text-align: center; overflow-wrap: anywhere;
+}
+
+.v3-bikefocus { display: flex; align-items: center; gap: 12px; }
+.v3-ride { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: end; }
+.ar-v3-garage .mm-bikelist { display: grid; gap: 6px; }
+.ar-v3-garage .mm-biketypes { margin: 0; }
+span.mm-bikeicon { display: block; }
+
+/* Nom de l'article survolé (position fixe, au-dessus de la pastille). */
+.v3-tip {
+  position: fixed; z-index: 50; max-width: 240px; padding: 5px 9px; border-radius: 6px; pointer-events: none;
+  background: #0a0e16; border: 1px solid rgba(255, 255, 255, 0.18); box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
+  color: #fff; font-size: 12px; font-weight: 700; line-height: 1.25; white-space: normal;
+}
+/* Pastille en attente de sa photo : pictogramme de la catégorie. */
+.v3-chip-wait svg { width: 46%; height: 46%; color: #6f7a88; }

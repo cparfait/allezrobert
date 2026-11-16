@@ -31,6 +31,8 @@ valeurs publiées utilisées pour valider les montées (longueur, dénivelé, pe
 
 ## Modèles 3D, textures, sons
 
+Le profil V3 de développement lit sur localhost les ressources de l’installation Zwift de test (vélos, personnages, animations, matériaux et objets). Source : installation locale de Zwift et exports d’étude. Les conversions de `tools/v3_assets.py` restent dans `out/v3/`, hors des fichiers distribués.
+
 | Asset | Source | Licence | Usage |
 | --- | --- | --- | --- |
 | Vache, cheval et mouton animés (Farm Animal Pack : repos, marche, course, saut) | Quaternius, `Farm Animals by @Quaternius.zip` sur opengameart.org (« Lowpoly animated farm animal pack »), converti par `tools/blender/convert_quaternius_animals.py` | CC0 1.0 (domaine public) | Troupeaux du style jeu vidéo (`public/models/animals/*.glb`, `apps/client/src/world/farmAnimals.ts`) |

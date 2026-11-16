@@ -3,7 +3,11 @@ import { emissive, mrt, normalView, output, packNormalToRGB, pass, sample, unpac
 import { bloom } from 'three/addons/tsl/display/BloomNode.js';
 import { ao } from 'three/addons/tsl/display/GTAONode.js';
 import { BIKE_REFERENCE, DEFAULT_LOOK, PLAIN_BIKE_FAMILY, bikeById, bikeOfLook, type AvatarLook, type BikeFamily, type TuneSlot } from '@allezrobert/shared';
-import { createAvatar, type RiderAvatarLike, type RiderPose } from '../rider/gltfAvatar.ts';
+import { createAvatar, GltfRiderAvatar, type RiderAvatarLike, type RiderPose } from '../rider/gltfAvatar.ts';
+import { V3_STYLE } from '../engine/style.ts';
+import { createV3Garage } from '../v3/garage.ts';
+import { getV3Catalog, loadV3DisplayBike, V3Visual } from '../v3/visuals.ts';
+import { V3ThumbnailStudio } from '../v3/thumbnails.ts';
 import { BikeMaterials, loadBikeFamily, loneWheel, onBikeFamilyLoaded } from '../rider/bikes.ts';
 import { assembleRoubaix, isRoubaixLook, loadRoubaix, roubaixOption, roubaixSizeForRider, type RoubaixBike, type RoubaixDress } from '../rider/roubaix.ts';
 import { compilePass, isCompiling, type Engine } from '../engine/renderer.ts';
@@ -23,6 +27,8 @@ import { buildHomeTrainer, TRAINER_AXLE_Y } from './homeTrainers.ts';
 /** Ce que le menu demande à l'atelier. */
 export interface AtelierState {
   look: AvatarLook;
+  /** Affiche les commandes V3 dans le garage principal. */
+  v3Picker?: boolean;
   /** Emplacement mis en avant (caméra) ; « overview » : tout le vélo. */
   focus: TuneSlot | 'overview';
   /** Coureur en selle (vélo posé au sol) ou vélo seul sur le pied. */
@@ -261,6 +267,38 @@ export class AtelierHost {
   /** Effet animé monté (film irisé, jantes lumineuses, lettres holographiques) : rendu continu. */
   private animated = false;
   private lastAnimRender = 0;
+  private v3?: V3Visual;
+  private v3Panel?: ReturnType<typeof createV3Garage>;
+  private v3Container: HTMLElement | null = null;
+  private v3Top: HTMLElement | null = null;
+  private v3Studio?: V3ThumbnailStudio;
+  private v3Pose?: string;
+  private v3Playing = false;
+
+  /** Emplacements du panneau du garage V3 (corps et tête), recréés à chaque rendu du menu. */
+  setV3Container(container: HTMLElement | null, top: HTMLElement | null = null): void {
+    this.v3Container = container;
+    this.v3Top = top;
+    if (!this.v3Panel) return;
+    if (container && this.v3Panel.panel.parentElement !== container) container.replaceChildren(this.v3Panel.panel);
+    if (top && this.v3Panel.top.parentElement !== top) top.replaceChildren(this.v3Panel.top);
+  }
+
+  private setV3(st: AtelierState): void {
+    if (!V3_STYLE || !(this.avatar instanceof GltfRiderAvatar)) return;
+    if (st.v3Picker && !this.v3Panel) {
+      this.v3Panel = createV3Garage({
+        equipment: equipment => { if (this.state) this.v3?.set(this.state.look, equipment); },
+        pose: pose => { this.v3Pose = pose; this.frames = Math.max(this.frames, 2); },
+        playing: on => { this.v3Playing = on; this.frames = Math.max(this.frames, 2); },
+        photo: (item, sex, wanted) => (this.v3Studio ??= new V3ThumbnailStudio(this.engine.renderer, this.scene.environment)).photo(item, sex, wanted),
+      });
+      this.setV3Container(this.v3Container, this.v3Top);
+    }
+    if (this.v3Panel) this.v3Panel.panel.hidden = this.v3Panel.top.hidden = !st.v3Picker;
+    this.v3 ??= new V3Visual(this.avatar.v3Mount(), () => { this.frames = Math.max(this.frames, 2); }, error => this.v3Panel?.report(error));
+    this.v3.set(st.look);
+  }
 
   constructor(private readonly engine: Engine) {
     this.scene.add(this.bikeRoot);
@@ -398,6 +436,11 @@ export class AtelierHost {
 
   /** Vélos du jeu (sans coureur) posés sur la lisse du mur de gauche, de profil, comme dans un vrai rack. */
   private hangBikes(): void {
+    if (V3_STYLE) {
+      void this.hangV3Bikes();
+      this.hangWheels();
+      return;
+    }
     const slots: Array<[number, string]> = [[-1.6, 'myth-pinarello-dogma-f12'], [0.1, 'myth-colnago-v4rs'], [1.8, 'myth-specialized-tarmac-sl7']];
     for (const [x, bikeModel] of slots) {
       const a = createAvatar({ ...DEFAULT_LOOK, bikeModel });
@@ -449,7 +492,64 @@ export class AtelierHost {
       pivot.add(a.root);
       this.scene.add(pivot);
     }
-    // Roues haut de gamme de l'atelier (ENVE, DT Swiss, Zipp, HED, Campagnolo, Roval) accrochées aux crochets des murs.
+    this.hangWheels();
+  }
+
+  /**
+   * Style V3 : vélos du catalogue V3 aux mêmes emplacements que ceux du jeu (lisses des murs, appuyés au sol).
+   * Choix par identifiant préféré, sinon le premier vélo libre du même type.
+   */
+  private async hangV3Bikes(): Promise<void> {
+    const catalog = await getV3Catalog().catch((e: unknown) => { console.warn('garage V3 : catalogue des vélos', e); return undefined; });
+    if (!catalog) return;
+    const known = new Set(catalog.bikes.map((b) => b.id));
+    const used = new Set<string>();
+    const pick = (type: string, preferred: string[]) => {
+      const id = preferred.find((p) => known.has(p) && !used.has(p)) ?? catalog.bikes.find((b) => b.type === type && !used.has(b.id))?.id;
+      if (id) used.add(id);
+      return id;
+    };
+    const lean = (x: number, z: number, ry: number, axis: 0 | 1, angle: number) => (node: THREE.Object3D) => {
+      node.rotation.y = ry;
+      const pivot = new THREE.Group();
+      pivot.position.set(x, 0, z);
+      if (axis === 0) pivot.rotation.x = angle;
+      else pivot.rotation.z = angle;
+      pivot.add(node);
+      this.scene.add(pivot);
+    };
+    const hang = (x: number, y: number, z: number, ry: number) => (node: THREE.Object3D) => {
+      node.rotation.y = ry;
+      node.position.set(x, y, z);
+      this.scene.add(node);
+    };
+    // Mêmes places que hangBikes : lisse du mur de gauche (3), mur de bois (gravel), mur du fond, puis au sol.
+    const slots: Array<[string, string[], (node: THREE.Object3D) => void]> = [
+      ['route', ['pinarellodogmaf122020'], hang(-1.6, 1.3, 3.22, -Math.PI / 2)],
+      ['route', ['colnagov3rs2020'], hang(0.1, 1.3, 3.22, -Math.PI / 2)],
+      ['route', ['specializedtarmac2021', 'cervelos52026'], hang(1.8, 1.3, 3.22, -Math.PI / 2)],
+      ['gravel', ['canyongrail2025', 'canyongrailgravel'], hang(1.85, 1.3, -2.82, Math.PI / 2)],
+      ['route', ['bmcteammachine2022'], hang(-2.9, 1.3, 2.15, 0)],
+      ['route', ['cannondalesupersixevo2026', 'cannondalesupersixevo2020'], lean(-0.7, -2.62, Math.PI / 2, 0, -0.1)],
+      ['chrono', ['canyonspeedmaxcfr2026'], lean(3.02, -1.7, 0, 1, -0.1)],
+      ['route', ['factorone2026'], lean(3.02, 0.9, 0, 1, -0.1)],
+      ['vtt', ['scottsparkmtb2022'], lean(1.9, -2.5, Math.PI / 2, 0, -0.08)],
+    ];
+    await Promise.all(slots.map(async ([type, preferred, place]) => {
+      const id = pick(type, preferred);
+      if (!id) return;
+      try {
+        const node = await loadV3DisplayBike(id);
+        place(node);
+        this.frames = Math.max(this.frames, 2);
+      } catch (e) {
+        console.warn('garage V3 : vélo exposé', id, e);
+      }
+    }));
+  }
+
+  /** Roues haut de gamme de l'atelier (ENVE, DT Swiss, Zipp, HED, Campagnolo, Roval) accrochées aux crochets des murs. */
+  private hangWheels(): void {
     WALL_WHEELS.forEach(([tune, rear, x, y, z, ry]) => {
       const w = loneWheel(tune, rear);
       if (!w) return;
@@ -548,6 +648,7 @@ export class AtelierHost {
   set(st: AtelierState | null): void {
     if (!st) {
       this.state = null;
+      if (this.v3Panel) this.v3Panel.panel.hidden = this.v3Panel.top.hidden = true;
       return;
     }
     this.build();
@@ -568,8 +669,9 @@ export class AtelierHost {
     // Coureur en selle : vélo au sol (pied replié) ; sinon sur le pied d'atelier, roues décollées.
     this.bikeRoot.position.y = st.rider ? 0 : LIFT;
     if (this.stand) this.stand.visible = !st.rider;
-    this.mountTrainer(st.rider ? st.trainer : undefined);
-    this.updateRoubaix(st);
+    this.mountTrainer(st.rider && !V3_STYLE ? st.trainer : undefined);
+    if (!V3_STYLE) this.updateRoubaix(st);
+    this.setV3(st);
     if (st.pose) for (let i = 0; i < st.pose.frames; i++) this.avatar.update(1 / 60, st.pose.cadence, st.pose.speed ?? 5, st.pose.pose);
     else for (let i = 0; i < 4; i++) this.avatar.update(1 / 60, 0, 0, 'coasting');
     if (st.pulse?.length) {
@@ -741,6 +843,7 @@ export class AtelierHost {
     if (isCompiling()) return true;
     const dt = Math.min((now - (this.lastT || now)) / 1000, 0.1);
     this.lastT = now;
+    if (this.v3Playing && this.state.v3Picker) this.frames = Math.max(this.frames, 1);
     // Arrivée : la caméra entre dans la pièce (arc depuis le fond, recul et hauteur qui se résorbent)
     // pendant que les lumières s'allument ; ensuite, approche amortie du cadrage demandé.
     if (this.intro < 1) {
@@ -781,11 +884,20 @@ export class AtelierHost {
     if (this.frames <= 0) return true;
     this.frames--;
     this.lastAnimRender = now;
-    this.render();
+    this.render(dt);
     return true;
   }
 
-  private render(): void {
+  private render(dt = 0): void {
+    if (this.v3 && this.avatar && this.state) {
+      this.v3.update(this.v3Playing && this.state.v3Picker ? dt : 0, 90, 0, 'seated', {
+        rider: this.state.rider, helmet: !this.state.bareHead, clip: this.v3Pose,
+      });
+      if (this.v3Panel) {
+        const equipment = this.v3.activeEquipment();
+        this.v3Panel.panel.dataset.v3Bike = equipment ? equipment.bike + ':' + equipment.color : '';
+      }
+    }
     const canvas = this.engine.renderer.domElement;
     const w = canvas.clientWidth || window.innerWidth;
     const h = canvas.clientHeight || window.innerHeight;

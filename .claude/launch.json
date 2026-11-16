@@ -255,6 +255,16 @@
         "set AR_HMR=0&& pnpm --filter @allezrobert/client exec vite --port 5214 --strictPort"
       ],
       "port": 5214
+    },
+    {
+      "name": "garage-v3",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": [
+        "/c",
+        "set AR_HMR=0&& pnpm --filter @allezrobert/client exec vite --host 127.0.0.1 --port 5226 --strictPort"
+      ],
+      "port": 5226,
+      "url": "http://127.0.0.1:5226"
     }
   ]
 }
