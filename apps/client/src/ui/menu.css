@@ -72,8 +72,11 @@
 .mm-xp.big { width: 100%; height: 8px; margin-top: 6px; }
 .mm-link { appearance: none; border: 0; background: none; color: var(--ar-accent); font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; padding: 2px 4px; white-space: nowrap; }
 .mm-link:hover { text-decoration: underline; text-underline-offset: 3px; }
-.mm-link.mm-quit { color: #c3cad3; }
-.mm-link.mm-quit:hover { color: #fff; }
+/* Application installée : croix discrète tout à droite du bandeau pour quitter. */
+.mm-quit { appearance: none; display: grid; place-items: center; width: 26px; height: 26px; padding: 0; border: 0; border-radius: 6px; background: none; color: rgba(255, 255, 255, 0.42); cursor: pointer; }
+.mm-quit svg { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; }
+.mm-quit:hover { color: #fff; background: rgba(229, 72, 77, 0.85); }
+.mm-quit:focus-visible { outline: 2px solid var(--ar-accent); outline-offset: 2px; }
 .mm-link:focus-visible { outline: 2px solid var(--ar-accent); outline-offset: 2px; border-radius: 6px; }
 /* Liens de retour et d'en-tête (« ← Choix de la zone », « ← Carte de France », « ← Revenir à mon vélo ») : pastille discrète plutôt que texte jaune nu. */
 .rp-head-links .mm-link, .mm-link.zc-back, .mm-link[data-unpreview] { display: inline-flex; align-items: center; gap: 6px; padding: 6px 13px; border-radius: 999px; border: 1px solid rgba(255, 255, 255, 0.16); background: rgba(255, 255, 255, 0.06); color: #e6ebf1; font-size: 12.5px; font-weight: 600; letter-spacing: 0.01em; transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease; }

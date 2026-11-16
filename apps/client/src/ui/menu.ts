@@ -1207,8 +1207,8 @@ export class MainMenu {
             <div class="mm-who mm-me" data-tab="profile" role="button" title="${L ? 'Mon profil' : 'My profile'}"><b>${esc(name)}</b>
               <span>${L ? 'Niveau' : 'Level'} ${level}<i class="mm-xp"><i style="width:${(lp.progress * 100).toFixed(0)}%"></i></i><em class="mm-credits" role="button" tabindex="0" title="${L ? 'Crédits : ouvrir l’atelier du garage pour les dépenser' : 'Credits: open the garage workshop to spend them'}">${COIN} ${(this.account?.credits ?? p.credits).toLocaleString(L ? 'fr-FR' : 'en-GB')}</em></span></div>
             ${this.account ? `<button class="mm-link" id="m-logout">${L ? 'Déconnexion' : 'Sign out'}</button>` : `<button class="mm-link" id="m-login">${L ? 'Se connecter' : 'Sign in'}</button>`}
-            ${inDesktop ? `<button class="mm-link mm-quit" id="m-quit" title="${L ? 'Fermer Allez Robert !' : 'Close Allez Robert!'}">${L ? 'Quitter' : 'Quit'}</button>` : ''}
           </div>
+          ${inDesktop ? `<button class="mm-quit" id="m-quit" title="${L ? 'Quitter Allez Robert !' : 'Quit Allez Robert!'}" aria-label="${L ? 'Quitter' : 'Quit'}"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg></button>` : ''}
         </div>
       </header>
       ${body[this.tab]()}
