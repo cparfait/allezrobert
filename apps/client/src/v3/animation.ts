@@ -63,6 +63,30 @@ function tracksOf(clip: V3Clip): Track[] {
   return tracks;
 }
 
+const neutrals = new WeakMap<V3Clip, Quaternion | null>();
+
+/**
+ * Orientation moyenne de l'os racine (os_0) sur le clip : sa pose « droite ». L'écart à cette moyenne est
+ * l'oscillation du coureur (danseuse, sprint) que Zwift fait suivre au vélo.
+ */
+export function rootNeutral(clip: V3Clip): Quaternion | undefined {
+  const known = neutrals.get(clip);
+  if (known !== undefined) return known ?? undefined;
+  const keys = tracksOf(clip).find(track => track.bone === 0)?.keys.filter(key => key.rotation) ?? [];
+  const first = keys[0]?.rotation;
+  let neutral: Quaternion | null = null;
+  if (first) {
+    const sum = { x: 0, y: 0, z: 0, w: 0 };
+    for (const { rotation } of keys) {
+      const sign = rotation!.dot(first) < 0 ? -1 : 1;
+      sum.x += sign * rotation!.x; sum.y += sign * rotation!.y; sum.z += sign * rotation!.z; sum.w += sign * rotation!.w;
+    }
+    neutral = new Quaternion(sum.x, sum.y, sum.z, sum.w).normalize();
+  }
+  neutrals.set(clip, neutral);
+  return neutral ?? undefined;
+}
+
 export function sampleV3(clip: V3Clip, joints: Map<number, Bone>, turns: number): void {
   const cycles = Math.max(1, Math.round(clip.duration / (2 / 3)));
   sampleFrame(clip, joints, /^cyclistsuperaero$/i.test(clip.name) ? 0 : (turns % cycles) / cycles * clip.duration * 30);

@@ -931,8 +931,9 @@ export class AtelierHost {
       this.v3.update(this.v3Playing && this.state.v3Picker ? dt : 0, 90, 0, 'seated', {
         rider: this.state.rider, helmet: !this.state.bareHead && !this.v3BareHead, clip: this.v3Pose,
         // Démonstration « Pédaler » : le vélo balance comme en sortie (danseuse, effort).
+        rock: this.v3Playing && this.state.v3Picker,
         // Sur home trainer, le vélo pivote autour de l'axe arrière serré et du pneu avant calé.
-        rock: this.v3Playing && this.state.v3Picker ? (this.trainer ? 'trainer' : true) : false,
+        trainer: !!this.trainer,
       });
       if (this.v3Panel) {
         const equipment = this.v3.activeEquipment();
