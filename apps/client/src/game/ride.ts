@@ -1,4 +1,5 @@
 import * as THREE from 'three/webgpu';
+import { brakeForCorners, cornerGrip } from './cornerBrake.ts';
 import type { ActivityRecord, RiderProfile, RouteSegment, RouteTrack, VirtualGearing } from '@allezrobert/shared';
 import { DEFAULT_GEARING } from '@allezrobert/shared';
 import {
@@ -284,42 +285,11 @@ export class RideSession {
     return (-Math.sin(w.from) * -dirZ + Math.cos(w.from) * dirX) * w.ms;
   }
 
-  /**
-   * Freinage avant les virages serrés : un coureur ne prend pas un angle droit de village à 50 km/h. Vitesse de
-   * passage d'un virage de rayon R : √(a·R), a = 0,7 g sur enrobé sec, 0,45 g mouillé ou en terre ; R estimé par
-   * le changement de cap sur ±6 m du tracé. Seuls les virages de moins de 30 m de rayon comptent (au-delà, la vitesse
-   * permise dépasse 50 km/h) : les courbes douces ne freinent jamais. Freinage à 4 m/s² au plus, juste ce qu'il faut
-   * pour arriver au virage à sa vitesse de passage ; la puissance relance ensuite.
-   */
+  /** Freinage avant les virages serrés pris trop vite (voir cornerBrake.ts). */
   private brakeForCorners(prevDist: number, dt: number): void {
     const v = this.state.speedMs;
-    this.braking = false;
-    if (v < 5) return;
-    const track = this.opts.track;
-    const L = track.length;
-    const loop = !!track.route.loop;
-    const BRAKE = 4;
-    const grip = 9.81 * (this.rain > 0.2 || !/^(asphalt|paved|concrete|chipseal)/.test(this.surface) ? 0.45 : 0.7);
-    const at = (d: number) => (loop ? track.sample(((d % L) + L) % L) : track.sample(Math.min(L, Math.max(0, d))));
-    const head = (a: { x: number; z: number }, b: { x: number; z: number }) => Math.atan2(b.x - a.x, b.z - a.z);
-    const reach = (v * v) / (2 * BRAKE) + 12;
-    let limit = Infinity;
-    for (let k = 0; k <= reach; k += 3) {
-      const d = prevDist + this.dir * k;
-      if (!loop && (d < 6 || d > L - 6)) break;
-      const a = at(d - 6);
-      const m = at(d);
-      const b = at(d + 6);
-      let ang = head(m, b) - head(a, m);
-      ang = Math.abs(Math.atan2(Math.sin(ang), Math.cos(ang)));
-      if (ang < 0.4) continue;
-      const r = 12 / ang;
-      if (r > 30) continue;
-      limit = Math.min(limit, Math.sqrt(grip * r * 1 + 2 * BRAKE * Math.max(0, k - 6)));
-    }
-    if (v <= limit) return;
-    this.state.speedMs = Math.max(limit, v - BRAKE * dt);
-    this.braking = true;
+    this.state.speedMs = brakeForCorners(this.opts.track, prevDist, this.dir, v, cornerGrip(this.rain, this.surface), dt);
+    this.braking = this.state.speedMs < v;
   }
 
   update(dt: number, source: InputSource, steer: number): void {

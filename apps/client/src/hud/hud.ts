@@ -211,6 +211,10 @@ const ICONS = {
   cadence: ico('<path d="M21 12a9 9 0 1 1-3-6.700L21 8"/><path d="M21 3v5h-5"/>'),
   speed: ico('<path d="M4 18a9 9 0 1 1 16 0"/><path d="m12 14 4-5"/>'),
   grade: ico('<path d="m3 19 6-11 4 6 3-4 5 9Z"/>'),
+  time: ico('<circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.500 2"/><path d="M9 3h6"/>'),
+  dist: ico('<path d="M4 19c4-1 3-7 8-7s4-6 8-7"/><circle cx="4" cy="19" r="1.600"/><circle cx="20" cy="5" r="1.600"/>'),
+  gain: ico('<path d="M3 20h18"/><path d="m4 16 5-7 4 4 7-9"/><path d="M15 4h5v5"/>'),
+  np: ico('<path d="M13 2 4 14h7l-1 8 9-12h-7Z"/>'),
   pin: ico('<path d="M12 21s7-6.200 7-11a7 7 0 0 0-14 0c0 4.800 7 11 7 11Z"/><circle cx="12" cy="10" r="2.500"/>'),
 };
 /** Noms des zones de puissance (Coggan). */
@@ -469,6 +473,10 @@ export class Hud {
       : `
       <div class="hud-center">
         <div class="hud-top">
+          <div class="tile-col tile-col-out">
+            <div class="tile tm" data-hud="time"><div class="label">${ICONS.time}${t('time')}</div><div class="value num"><span data-k="time">0:00</span></div></div>
+            <div class="tile dst" data-hud="dist"><div class="label">${ICONS.dist}${t('distance')}</div><div class="value num"><span data-k="dist">0,00</span><span class="unit">km</span></div></div>
+          </div>
           <div class="tile-col">
             <div class="tile hr" data-hud="hr"><div class="label">${ICONS.heart}${t('heartRate')}</div><div class="value num"><span data-k="hr">--</span><span class="unit">bpm</span></div></div>
             <div class="tile cad" data-hud="cadence"><div class="label">${ICONS.cadence}${t('cadence')}</div><div class="value num"><span data-k="cad">0</span><span class="unit">${getLang() === 'fr' ? 'tr/min' : 'rpm'}</span></div></div>
@@ -486,6 +494,7 @@ export class Hud {
               <div class="label">${t('power')} 3 s</div>
               <div class="value num" data-k="watts">0</div>
               <div class="unit">W</div>
+              <div class="dial-avg num" data-hud="avg">${getLang() === 'fr' ? 'moy.' : 'avg'} <b data-k="avg">0</b> W</div>
               <div class="sub num" data-k="wkg">0,0 W/kg</div>
             </div>
           </div>
@@ -493,14 +502,10 @@ export class Hud {
             <div class="tile spd" data-hud="speed"><div class="label">${ICONS.speed}${t('speed')}</div><div class="value num"><span data-k="speed">0,0</span><span class="unit">km/h</span></div></div>
             <div class="tile grade" data-hud="grade"><div class="label">${ICONS.grade}${getLang() === 'fr' ? 'Pente' : 'Grade'}</div><div class="value num" data-k="grade">0,0 %</div></div>
           </div>
-        </div>
-        <!-- Compteurs de la sortie au centre, en tuiles lisibles (ils étaient en petit dans le panneau de gauche) -->
-        <div class="hud-stats">
-          <div class="tile mini" data-hud="time"><div class="label">${t('time')}</div><div class="value num" data-k="time">0:00</div></div>
-          <div class="tile mini" data-hud="dist"><div class="label">${t('distance')}</div><div class="value num" data-k="dist">0,00 km</div></div>
-          <div class="tile mini" data-hud="gain"><div class="label">${t('elevation')}</div><div class="value num" data-k="gain">0 m</div></div>
-          <div class="tile mini" data-hud="avg"><div class="label">${t('avgPower')}</div><div class="value num" data-k="avg">0 W</div></div>
-          <div class="tile mini" data-hud="np"><div class="label">${t('np')}</div><div class="value num" data-k="np">0 W</div></div>
+          <div class="tile-col tile-col-out">
+            <div class="tile gn" data-hud="gain"><div class="label">${ICONS.gain}${t('elevation')}</div><div class="value num"><span data-k="gain">0</span><span class="unit">m</span></div></div>
+            <div class="tile npw" data-hud="np"><div class="label">${ICONS.np}${t('np')}</div><div class="value num"><span data-k="np">0</span><span class="unit">W</span></div></div>
+          </div>
         </div>
         <div class="panel hud-loc hidden" data-k="loc"></div>
         <div class="panel junction hidden" data-k="junction"></div>
@@ -827,10 +832,10 @@ export class Hud {
     }
     // Bandeau compact : unités à part, en petit.
     const km = (s.distM / 1000).toFixed(2).replace('.', ',');
-    (e.dist as HTMLElement).textContent = cx ? km : `${km} km`;
-    (e.gain as HTMLElement).textContent = cx ? String(Math.round(s.elevationGainM)) : `${Math.round(s.elevationGainM)} m`;
-    (e.avg as HTMLElement).textContent = cx ? String(Math.round(s.avgWatts)) : `${Math.round(s.avgWatts)} W`;
-    (e.np as HTMLElement).textContent = `${Math.round(s.np)} W`;
+    (e.dist as HTMLElement).textContent = km;
+    (e.gain as HTMLElement).textContent = String(Math.round(s.elevationGainM));
+    (e.avg as HTMLElement).textContent = String(Math.round(s.avgWatts));
+    (e.np as HTMLElement).textContent = cx ? `${Math.round(s.np)} W` : String(Math.round(s.np));
     // Aspiration : watts économisés et part de la résistance de l'air en moins, roue de devant, abri par vent de côté.
     const draftTxt = s.draftW !== undefined && s.draftPct >= 1 ? `−${Math.round(s.draftW)} W · ${Math.round(s.draftPct)} %` : `${Math.round(s.draftPct)} %`;
     (e.draft as HTMLElement).textContent = draftTxt;

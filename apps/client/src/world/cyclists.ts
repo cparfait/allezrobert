@@ -2,16 +2,24 @@ import * as THREE from 'three/webgpu';
 import { DEFAULT_BIKE, DEFAULT_LOOK, type AvatarLook, type RouteTrack } from '@allezrobert/shared';
 import { draftReductionSingle, paramsFromBike, rightLaneM, sharedRoadCorridor, steadyStateSpeed, type LaneBody, type RouteBuildingCollision, type RiderPhysicsParams } from '@allezrobert/physics';
 import { createAvatar, type RiderAvatarLike } from '../rider/gltfAvatar.ts';
+import { brakeForCorners, cornerGrip } from '../game/cornerBrake.ts';
 import { crowdShoes } from '../rider/shoeLook.ts';
 import { crowdBike } from '../rider/bikes.ts';
 import { rng } from '../engine/noise.ts';
 import { BIKE_FRONT_M, BIKE_REAR_M, roadPose, type RoadPose } from './roadHeight.ts';
+import { crowdV3 } from '../game/v3Crowd.ts';
+import type { V3Visual } from '../v3/visuals.ts';
+
+/** Adhérence des IA en virage (enrobé sec), voir cornerBrake.ts. */
+const CORNER_GRIP = cornerGrip(0);
 
 const _pose: RoadPose = { y: 0, pitch: 0 };
 
 /** Un cycliste d'ambiance : seul, ou membre d'un groupe qui roule ensemble. */
 interface Member {
   avatar: RiderAvatarLike;
+  /** Style V3 : coureur et vélo V3 montés sur l'avatar (v3Crowd.ts). */
+  v3?: V3Visual;
   /** Décalage le long de la route par rapport au meneur (m, ≤ 0 : derrière). */
   off: number;
   /** Décalage latéral par rapport au groupe (m). */
@@ -180,7 +188,8 @@ export class AmbientCyclists {
         if (row > 0) rowOff += gap;
         lastRow = row;
       }
-      members.push({ avatar, off: -rowOff, latOff: pairs && k % 2 ? -1.0 * sens : 0, cadenceOff: Math.round((this.r() - 0.5) * 8) });
+      const v3 = crowdV3(avatar, look, i, this.r() < 0.4);
+      members.push({ avatar, ...(v3 ? { v3 } : {}), off: -rowOff, latOff: pairs && k % 2 ? -1.0 * sens : 0, cadenceOff: Math.round((this.r() - 0.5) * 8) });
     }
     const mass = lv.mass[0] + this.r() * (lv.mass[1] - lv.mass[0]);
     const length = Math.abs((members[members.length - 1] as Member).off);
@@ -317,6 +326,8 @@ export class AmbientCyclists {
         hi = Math.min(hi, b.right - m.latOff);
       }
       c.lateral = lo <= hi ? Math.max(lo, Math.min(hi, c.lateral)) : (lo + hi) / 2;
+      // Freinage avant les virages serrés, comme le joueur (cornerBrake.ts).
+      c.speed = brakeForCorners(this.track, c.d, c.sens, c.speed, CORNER_GRIP, dt);
       c.d += c.sens * c.speed * dt;
       c.travelledM += c.speed * dt;
       c.cadence = watts > 0 ? Math.min(105, 74 + c.watts / 12) : 0;
@@ -338,7 +349,10 @@ export class AmbientCyclists {
         a.root.rotateX(-_pose.pitch);
         const dist = camera.position.distanceTo(a.root.position);
         a.root.visible = !outside && dist < 500;
-        if (a.root.visible && dist < 200) a.update(dt, c.cadence > 0 ? c.cadence + m.cadenceOff : 0, c.speed, watts > 0 ? 'seated' : 'coasting');
+        if (a.root.visible && dist < 200) {
+          a.update(dt, c.cadence > 0 ? c.cadence + m.cadenceOff : 0, c.speed, watts > 0 ? 'seated' : 'coasting');
+          m.v3?.update(dt, c.cadence > 0 ? c.cadence + m.cadenceOff : 0, c.speed, watts > 0 ? 'seated' : 'coasting');
+        }
         a.setShadows(dist < this.shadowRange);
         if (c.sens > 0 && !outside) {
           const gap = dm - player.distM - 1.75;
@@ -374,6 +388,10 @@ export class AmbientCyclists {
   }
 
   dispose(scene: THREE.Scene): void {
-    for (const c of this.units) for (const m of c.members) scene.remove(m.avatar.root);
+    for (const c of this.units)
+      for (const m of c.members) {
+        m.v3?.dispose();
+        scene.remove(m.avatar.root);
+      }
   }
 }

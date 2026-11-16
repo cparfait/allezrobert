@@ -74,11 +74,15 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #0a0e16; col
 .tile.hr { --acc: #ff5d6c; }
 .tile.hr .value span:first-child { color: #ff8a94; }
 .tile.cad { --acc: #38bdf8; }
-.hud-stats { display: flex; gap: 6px; }
-.tile.mini { min-width: 0; padding: 4px 10px 5px 12px; --acc: #64748b; }
-.tile.mini::before { width: 3px; }
-.tile.mini .label { font-size: 9.5px; }
-.tile.mini .value { font-size: 22px; white-space: nowrap; }
+.tile.tm { --acc: #a78bfa; }
+.tile.dst { --acc: #34d399; }
+.tile.gn { --acc: #fb923c; }
+.tile.npw { --acc: #22c55e; }
+.tile-col-out .tile { min-width: 118px; }
+.dial-in .value { font-size: 52px; }
+.dial-in .sub { margin-top: 3px; }
+.dial-in .dial-avg { margin-top: 2px; font-size: 11px; font-weight: 700; color: var(--ar-muted); letter-spacing: .04em; }
+.dial-in .dial-avg b { color: #f5f7fa; font-size: 13px; }
 .tile.spd { --acc: #ffd23f; }
 .tile.grade { --acc: #f97316; }
 .tile.grade .value { font-size: 26px; }

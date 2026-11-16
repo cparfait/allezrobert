@@ -3,11 +3,17 @@ import * as THREE from 'three/webgpu';
 import { AiRider, AI_PROFILES, DraftCalculator, FORMATION_PREFS, LANE_PACE, LaneRotator, Overtaker, keepRightM, laneOffsets, resolveFormation, roadHalfM, type Formation, type FormationPref, type LaneBody, PoseController, TeammateUTurn, createRiderState, paramsFromBike, powerForSpeed, stepRider, airDensity, wakeShiftM, sharedRoadCorridor, type AiProfileName, type RiderState } from '@allezrobert/physics';
 import { BASE_PROFILES, DEFAULT_BIKE, aiIdentity, DEFAULT_LOOK, FACE_SLIDERS, encodeFace, type AvatarLook, type FaceShape, type RouteTrack } from '@allezrobert/shared';
 import { createAvatar, type RiderAvatarLike } from '../rider/gltfAvatar.ts';
+import { brakeForCorners, cornerGrip } from './cornerBrake.ts';
 import { crowdShoes } from '../rider/shoeLook.ts';
 import { crowdBike } from '../rider/bikes.ts';
 import { rng } from '../engine/noise.ts';
 import { BIKE_FRONT_M, BIKE_REAR_M, roadPose, type RoadPose } from '../world/roadHeight.ts';
 import type { RouteBuildingCollision } from '@allezrobert/physics';
+import { crowdV3 } from './v3Crowd.ts';
+import type { V3Visual } from '../v3/visuals.ts';
+
+/** Adhérence des IA en virage (enrobé sec), voir cornerBrake.ts. */
+const CORNER_GRIP = cornerGrip(0);
 
 const JERSEYS = ['#e63946', '#2a9d8f', '#f4a261', '#8d99ae', '#06d6a0', '#ef476f', '#118ab2', '#ffd166', '#6a4c93', '#90be6d', '#f3722c', '#277da1'];
 const PROFILES: AiProfileName[] = ['rouleur', 'diesel', 'puncheur', 'sprinter'];
@@ -51,6 +57,8 @@ export interface PelotonRider {
   lateral: number;
   ai: AiRider;
   avatar: RiderAvatarLike;
+  /** Style V3 : coureur et vélo V3 montés sur l'avatar (v3Crowd.ts). */
+  v3?: V3Visual;
   label: THREE.Sprite;
   watts: number;
   cadence: number;
@@ -208,6 +216,7 @@ export class Peloton {
       };
       const avatar = createAvatar(look);
       scene.add(avatar.root);
+      const v3 = crowdV3(avatar, look, i >> 1, i % 2 === 1);
       const name = identity.name;
       const label = nameSprite(name, color);
       scene.add(label);
@@ -222,6 +231,7 @@ export class Peloton {
         lateral: Math.min(((i % 3) - 1) * 0.7 + 1.2, roadHalfM(track.route.roadWidthM)),
         ai: new AiRider({ id: `ai-${i}`, profile: PROFILES[i % PROFILES.length] as AiProfileName, ftpWatts: ftp, params, riderMassKg: massKg, seed: i * 7919, aggressiveness: 0.35 }),
         avatar,
+        ...(v3 ? { v3 } : {}),
         label,
         watts: 0,
         cadence: 0,
@@ -353,6 +363,8 @@ export class Peloton {
       r.cadence = out.cadence;
       r.pose = r.poseCtl.update({ watts: r.watts, cadence: out.cadence, gradePercent: s.grade, ftpWatts: r.ftp, speedMs: r.state.speedMs }, dt);
       stepRider(r.state, { watts: r.watts, gradePercent: s.grade, params: r.ai.params, env, cdaFactor: 1 - r.draft }, dt);
+      // Freinage avant les virages serrés, comme le joueur (cornerBrake.ts).
+      r.state.speedMs = brakeForCorners(this.track, r.state.distM, Math.cos(r.heading) < 0 ? -1 : 1, r.state.speedMs, CORNER_GRIP, dt);
       // Vent de côté : l'abri est décalé sous le vent ; le coureur s'y place (bordure).
       const shelter = ahead && this.formationNow !== 'single' ? wakeShiftM(ahead.distM - r.state.distM - 1.75, this.crossWindMs, ahead.speedMs) : 0;
       const base = double ? laneAt[myLane] : (ahead?.lateral ?? Math.min(1.2, half));
@@ -426,6 +438,8 @@ export class Peloton {
       r.cadence = out.cadence;
       r.pose = r.poseCtl.update({ watts: out.watts, cadence: out.cadence, gradePercent: s.grade, ftpWatts: r.ftp, speedMs: r.state.speedMs }, dt);
       stepRider(r.state, { watts: r.watts, gradePercent: s.grade, params: r.ai.params, env, cdaFactor: 1 - r.draft }, dt);
+      // Freinage avant les virages serrés, comme le joueur (cornerBrake.ts).
+      r.state.speedMs = brakeForCorners(this.track, r.state.distM, Math.cos(r.heading) < 0 ? -1 : 1, r.state.speedMs, CORNER_GRIP, dt);
     });
     return 0;
   }
@@ -460,6 +474,7 @@ export class Peloton {
         const bank = (this.banks.get(r) ?? 0) + (lean - (this.banks.get(r) ?? 0)) * Math.min(1, dt * 3);
         this.banks.set(r, bank);
         r.avatar.update(dt, r.cadence, r.state.speedMs, r.pose, bank);
+        r.v3?.update(dt, r.cadence, r.state.speedMs, r.pose, { effort: r.watts / r.ftp });
       }
       dists.push(dist);
       r.label.position.set(p.x, p.y + 2.15, p.z);
@@ -471,6 +486,9 @@ export class Peloton {
   }
 
   dispose(): void {
-    for (const r of this.riders) this.scene.remove(r.avatar.root, r.label);
+    for (const r of this.riders) {
+      r.v3?.dispose();
+      this.scene.remove(r.avatar.root, r.label);
+    }
   }
 }
