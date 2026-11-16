@@ -71,10 +71,21 @@ const PROFILE_SKIP = new Set(['ar.packs']);
  * à chaque changement (regroupés) : si WebView2 perd ses données, le Rust les restaure au lancement
  * suivant (storage.rs, `profile_restore_script`).
  */
+/** Enregistrement immédiat du profil (avant de quitter), une fois `mirrorProfile` lancé. */
+let saveProfileNow: (() => Promise<unknown>) | null = null;
+
+/** Ferme l'application après avoir enregistré le profil (bouton « Quitter » du menu). */
+export async function quitApp(): Promise<void> {
+  if (!inDesktop) return;
+  await saveProfileNow?.().catch(() => undefined);
+  await invoke('quit_app');
+}
+
 export function mirrorProfile(): void {
   if (!inDesktop) return;
   let timer: ReturnType<typeof setTimeout> | null = null;
   const flush = () => {
+    if (timer) clearTimeout(timer);
     timer = null;
     const data: Record<string, string> = {};
     for (let i = 0; i < localStorage.length; i++) {
@@ -83,8 +94,11 @@ export function mirrorProfile(): void {
       const v = localStorage.getItem(k);
       if (v !== null) data[k] = v;
     }
-    void invoke('profile_save', { json: JSON.stringify(data) }).catch((e) => console.warn('Sauvegarde du profil impossible', e));
+    const saving = invoke('profile_save', { json: JSON.stringify(data) });
+    saving.catch((e) => console.warn('Sauvegarde du profil impossible', e));
+    return saving;
   };
+  saveProfileNow = flush;
   const schedule = () => {
     if (!timer) timer = setTimeout(flush, 3000);
   };

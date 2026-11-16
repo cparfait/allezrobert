@@ -69,6 +69,12 @@ fn open_external(url: String) -> Result<(), String> {
     Err("non pris en charge".into())
 }
 
+/// Ferme l'application (bouton « Quitter » du menu).
+#[tauri::command]
+fn quit_app(app: tauri::AppHandle) {
+    app.exit(0);
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     purge_stale_http_cache();
@@ -114,6 +120,7 @@ pub fn run() {
         .manage(ant::AntState::default())
         .invoke_handler(tauri::generate_handler![
             open_external,
+            quit_app,
             v3::v3_access,
             v3::v3_offline,
             v3::v3_prepare_offline,

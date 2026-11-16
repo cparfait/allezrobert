@@ -14,6 +14,7 @@ import type { LocalWorkout } from '../data/history/index.ts';
 import { HistoryPanel } from './historyPanel.ts';
 import { formatBytes, inTauri, installPack, installedPacks, loadCatalogue, packState, removePack } from '../world/packs.ts';
 import { fillStoragePanel, storagePanelHtml } from './desktopUi.ts';
+import { inDesktop, quitApp } from '../platform/desktop.ts';
 import { compositeId, neighbourZones } from '../world/composite.ts';
 import { t, setLang, getLang, type I18nKey } from '../i18n/index.ts';
 import type { Settings } from './settings.ts';
@@ -1206,6 +1207,7 @@ export class MainMenu {
             <div class="mm-who mm-me" data-tab="profile" role="button" title="${L ? 'Mon profil' : 'My profile'}"><b>${esc(name)}</b>
               <span>${L ? 'Niveau' : 'Level'} ${level}<i class="mm-xp"><i style="width:${(lp.progress * 100).toFixed(0)}%"></i></i><em class="mm-credits" role="button" tabindex="0" title="${L ? 'Crédits : ouvrir l’atelier du garage pour les dépenser' : 'Credits: open the garage workshop to spend them'}">${COIN} ${(this.account?.credits ?? p.credits).toLocaleString(L ? 'fr-FR' : 'en-GB')}</em></span></div>
             ${this.account ? `<button class="mm-link" id="m-logout">${L ? 'Déconnexion' : 'Sign out'}</button>` : `<button class="mm-link" id="m-login">${L ? 'Se connecter' : 'Sign in'}</button>`}
+            ${inDesktop ? `<button class="mm-link mm-quit" id="m-quit" title="${L ? 'Fermer Allez Robert !' : 'Close Allez Robert!'}">${L ? 'Quitter' : 'Quit'}</button>` : ''}
           </div>
         </div>
       </header>
@@ -2949,6 +2951,8 @@ export class MainMenu {
     on('m-tuto', 'click', () => this.onTutorial?.());
     on('m-login', 'click', () => this.onLogin?.());
     on('m-logout', 'click', () => this.onLogout?.());
+    // Application installée : enregistre le profil puis ferme le jeu.
+    on('m-quit', 'click', () => void quitApp());
     // Crédits : mènent à l'atelier du garage, où ils se dépensent (le bloc voisin ouvre le profil, d'où stopPropagation).
     const credits = this.root.querySelector<HTMLElement>('.mm-credits');
     const openWorkshop = (e: Event) => {
