@@ -71,5 +71,5 @@ Documentation : [ROADMAP](docs/ROADMAP.md) · [PROTOCOLS](docs/PROTOCOLS.md) · 
 
 - Relief et orthophotos : © IGN, Licence Ouverte Etalab 2.0. Cartographie : © les contributeurs OpenStreetMap (ODbL).
 - Aucune donnée personnelle dans ce dépôt public : les traces Garmin (`data/garmin/`) ne sont jamais versionnées, et les itinéraires ne contiennent ni départ ni arrivée au domicile (vérifié par un test).
-- Aucun code, asset, nom ni monde issu de Zwift ou MyWhoosh.
+- Sources, licences et usages des ressources dans [ASSETS_LICENSES.md](ASSETS_LICENSES.md).
 - Code : tous droits réservés pour l'instant (dépôt consultable, licence open source prévue plus tard).

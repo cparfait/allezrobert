@@ -78,4 +78,4 @@ Profils de monde : **Montmartre** (pierre et 5 niveaux ou plus → haussmannien 
 
 ## Références
 
-Ambiances à collecter en planches (photos libres de droits ou personnelles) : routes de la vallée de Chevreuse en automne, plateau de Saclay au lever du soleil, étangs de Hollande en forêt de Rambouillet, villages de Dampierre et Saint-Lambert. Aucun visuel issu de Zwift ou MyWhoosh n'entre dans le dépôt.
+Ambiances à collecter en planches (photos libres de droits ou personnelles) : routes de la vallée de Chevreuse en automne, plateau de Saclay au lever du soleil, étangs de Hollande en forêt de Rambouillet, villages de Dampierre et Saint-Lambert.

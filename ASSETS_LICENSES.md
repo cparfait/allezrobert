@@ -1,6 +1,6 @@
 # Registre des licences des assets
 
-Tout asset qui entre dans le dépôt ou dans le jeu est inscrit ici (source, licence, usage). Aucun asset de Zwift, MyWhoosh ou autre jeu.
+Tout asset qui entre dans le dépôt ou dans le jeu est inscrit ici (source, licence, usage).
 
 ## Données géographiques
 
@@ -31,7 +31,7 @@ valeurs publiées utilisées pour valider les montées (longueur, dénivelé, pe
 
 ## Modèles 3D, textures, sons
 
-Le profil V3 de développement lit sur localhost les ressources de l’installation Zwift de test (vélos, personnages, animations, matériaux et objets). Source : installation locale de Zwift et exports d’étude. Les conversions de `tools/v3_assets.py` restent dans `out/v3/`, hors des fichiers distribués.
+Le style V3 utilise des vélos, personnages, animations, matériaux et objets issus de l’installation locale de Zwift et d’exports d’étude. `tools/v3_assets.py` écrit les fichiers convertis dans `out/v3/`.
 
 | Asset | Source | Licence | Usage |
 | --- | --- | --- | --- |

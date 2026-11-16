@@ -1,8 +1,7 @@
 # Tenue UAE Team Emirates XRG 2026 (essai V3)
 
 Tenue d'essai pour le coureur du style V3 (garage), peinte d'après les photos produit Pissei du body route 2026.
-Usage **local seulement** : les logos sont des marques déposées (redessinés avec des polices Windows), et le style V3
-repose sur des ressources Zwift jamais distribuées. Les textures produites ne sont pas versionnées.
+Les logos des marques ont été redessinés avec des polices Windows. Les textures produites ne sont pas versionnées.
 
 ## Chaîne
 

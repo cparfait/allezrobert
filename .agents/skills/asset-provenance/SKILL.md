@@ -11,7 +11,7 @@ Apache 2.0 — voir `SOURCE.md`). Tenue de registre, pas un avis juridique.
 ## Règle
 
 **Tout asset qui entre dans le dépôt ou dans le jeu a sa ligne dans `ASSETS_LICENSES.md`, dans le même
-commit.** Aucun asset de Zwift, MyWhoosh ou d'un autre jeu.
+commit.**
 
 ## Ce que la ligne doit dire
 
