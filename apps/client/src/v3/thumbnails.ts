@@ -149,6 +149,31 @@ export class V3ThumbnailStudio {
     }).catch(() => { this.prewarmed = false; });
   }
 
+  /**
+   * Banc de développement : photographie tout ce qui manque au studio, articles des deux silhouettes, vélos et roues
+   * sans icône, une prise après l'autre. Les photos sont déposées dans out/v3/studio (servies ensuite par le service V3).
+   */
+  async photographAll(progress?: (done: number, total: number, key: string) => void): Promise<{ total: number; failed: string[] }> {
+    const [items, catalog, stored] = await Promise.all([getV3Gear(), getV3Catalog(), this.stored]);
+    const jobs = new Map<string, () => Promise<string>>();
+    for (const sex of ['male', 'female'] as const) {
+      for (const item of items) {
+        if (!needsPhoto(item) || (item.sex !== 'tous' && item.sex !== sex)) continue;
+        const key = photoKey(item, sex);
+        if (!stored.has(key) && !jobs.has(key)) jobs.set(key, () => this.photo(item, sex));
+      }
+    }
+    for (const bike of catalog.bikes) if (!stored.has('bike-' + bike.id)) jobs.set('bike-' + bike.id, () => this.photoBike(bike.id));
+    for (const wheel of catalog.wheels ?? []) if (!wheel.preview && !stored.has('wheel-' + wheel.id)) jobs.set('wheel-' + wheel.id, () => this.photoWheel(wheel.id));
+    const failed: string[] = [];
+    let done = 0;
+    for (const [key, shoot] of jobs) {
+      await shoot().catch(() => { failed.push(key); });
+      progress?.(++done, jobs.size, key);
+    }
+    return { total: jobs.size, failed };
+  }
+
   private remember(key: string, job: Promise<string>): Promise<void> {
     job.catch(() => this.done.delete(key));
     this.done.set(key, job);

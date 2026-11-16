@@ -288,6 +288,8 @@ export class AtelierHost {
   }
 
   setV3Container(container: HTMLElement | null, top: HTMLElement | null = null): void {
+    // Banc de développement : `await __v3PhotographAll()` dans la console photographie tout ce qui manque au studio.
+    if (import.meta.env.DEV) (window as unknown as { __v3PhotographAll?: V3ThumbnailStudio['photographAll'] }).__v3PhotographAll = progress => this.studio().photographAll(progress);
     this.v3Container = container;
     this.v3Top = top;
     if (!this.v3Panel) return;
