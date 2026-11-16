@@ -333,7 +333,8 @@ export function addWardrobe(head: HTMLElement, parent: HTMLElement, settings: ()
           button.classList.remove('v3-chip-wait');
         }).catch(() => undefined);
       });
-    } else if (photo && !item.colors[0]?.icon) {
+    } else if (photo && (!item.colors[0]?.icon || item.type === 'CYCLING_JERSEY')) {
+      // Maillots toujours photographiés (fond transparent) : leurs icônes Zwift ont un fond noir opaque.
       // Pas d'icône Zwift : pictogramme en attendant la photo de l'article porté.
       button.classList.add('v3-chip-wait');
       button.insertAdjacentHTML('afterbegin', V3_SLOTS[item.type]?.icon ?? '');
