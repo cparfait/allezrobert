@@ -153,19 +153,15 @@ function onOtherSide(o: THREE.Mesh, x: number, y: number, z: number, tilt = 0): 
 }
 
 /** Cassette 11 vitesses sur la roue libre du home trainer, grand pignon côté cadre. */
-function cassette(x0: number, maxTeeth?: 28 | 30): THREE.Group {
+function cassette(x0: number, maxTeeth: 28 | 30): THREE.Group {
   const g = new THREE.Group();
-  const steel = maxTeeth ? mat('#c9ced4', 0.32, 0.55) : mat('#c9ced4', 0.28, 0.95);
-  const dark = maxTeeth ? mat('#90969d', 0.37, 0.60) : mat('#5d636b', 0.35, 0.9);
-  const teeth = [maxTeeth ?? 30, maxTeeth === 28 ? 25 : 27, maxTeeth === 28 ? 23 : 24, 21, 19, 17, 15, 14, 13, 12, 11];
+  const steel = mat('#c9ced4', 0.32, 0.55);
+  const dark = mat('#90969d', 0.37, 0.60);
+  const teeth = [maxTeeth, maxTeeth === 28 ? 25 : 27, maxTeeth === 28 ? 23 : 24, 21, 19, 17, 15, 14, 13, 12, 11];
   teeth.forEach((t, i) => {
     const x = x0 - 0.002 - i * 0.0036;
     const radius = t * 0.00202;
     const material = i < 4 ? dark : steel;
-    if (!maxTeeth) {
-      g.add(cylX(radius, x - 0.0009, x + 0.0009, TRAINER_AXLE_Y, 0, material, LOW_POLY ? Math.min(t, 16) : t * 2));
-      return;
-    }
     const ring = new THREE.Shape();
     for (let tooth = 0; tooth < t; tooth++) {
       for (const [offset, depth] of [[0, 0.0024], [0.26, 0], [0.56, 0], [0.82, 0.0024]] as const) {
@@ -194,7 +190,7 @@ function frontBlock(frontZ: number, kind: 'tacx' | 'tacx3m' | 'wahoo'): THREE.Gr
   const g = new THREE.Group();
   if (kind === 'wahoo') {
     const body = mat('#16171a', 0.75);
-    g.add(slab(rounded([[-0.16, 0], [0.16, 0], [0.16, 0.03], [-0.16, 0.03]], 0.012), -0.065, 0.065, body, 0.008));
+    g.add(slab(rounded([[-0.16, 0.0064], [0.16, 0.0064], [0.16, 0.03], [-0.16, 0.03]], 0.012), -0.065, 0.065, body, 0.008));
     for (const s of [-1, 1]) g.add(slab(rounded([[s * 0.02, 0.028], [s * 0.15, 0.028], [s * 0.15, 0.062], [s * 0.1, 0.062]], 0.01), -0.05, 0.05, body, 0.006));
   } else {
     const neo3 = kind === 'tacx3m';
@@ -450,88 +446,114 @@ function neo(neo3: boolean): THREE.Group {
   return g;
 }
 
-/**
- * Wahoo KICKR : grand disque noir satiné marqué « wahoo », cassette en avant de son centre, poignée
- * grise en haut à l'arrière ; volant à chevrons derrière (face perforée côté transmission) ; colonne
- * et pieds en X en tubes ronds, embouts rectangulaires, patins à bague bleue, barre de réglage bleue.
- */
-function kickr(): THREE.Group {
+/** Couronne et cassette des KICKR, avec le bouchon d'axe visible côté opposé. */
+function wahooDrive(radius: number, z: number, lift: number, black: THREE.Material): THREE.Group {
   const g = new THREE.Group();
-  const black = mat('#18191c', 0.45, 0.3);
-  const satin = mat('#141518', 0.4, 0.3);
-  const blue = mat('#1f5fd6', 0.35, 0.3);
-  const rubber = mat('#0d0d0f', 0.95);
-  const Y = TRAINER_AXLE_Y;
-  const cz = -0.045;
-  const cy = Y + 0.03;
-  g.add(cylX(0.205, -0.034, -0.012, cy, cz, satin));
-  g.add(cylX(0.197, -0.037, -0.032, cy, cz, mat('#101113', 0.5, 0.2)));
-  g.add(cassette(-0.037));
-  g.add(onDriveSide(label('wahoo', '#f4f4f4', 0.3, 0.085, 900), -0.0375, cy + 0.08, cz + 0.005, 0.06));
-  // Carter derrière le disque, volant, poignée.
-  g.add(slab(rounded([[-0.24, 0.2], [-0.22, Y + 0.12], [0.06, Y + 0.12], [0.11, 0.21], [0.0, 0.12], [-0.19, 0.12]], 0.04), -0.012, 0.07, black, 0.012));
-  g.add(flywheel(new THREE.Vector3(0.075, 0.205, -0.11), 0.14, 0.1, black));
-  g.add(slab(rounded([[-0.17, Y + 0.1], [-0.13, Y + 0.1], [-0.13, Y + 0.17], [-0.19, Y + 0.17]], 0.012), 0.0, 0.06, black, 0.006));
-  g.add(tube(new THREE.Vector3(0.03, Y + 0.14, -0.18), new THREE.Vector3(0.03, Y + 0.14, -0.3), 0.022, mat('#8e949b', 0.45, 0.4)));
-  // Colonne, moyeu et pieds en X.
-  const hub = new THREE.Vector3(0.04, 0.075, -0.06);
-  g.add(bar(hub, new THREE.Vector3(0.03, 0.2, -0.04), 0.07, 0.06, black));
-  g.add(cylX(0.045, -0.02, 0.1, hub.y, hub.z, black));
-  const ends: Array<[number, number]> = [[-0.3, 0.3], [0.37, 0.3], [-0.26, -0.4], [0.33, -0.4]];
-  ends.forEach(([x, z], i) => {
-    const end = new THREE.Vector3(x, 0.045, z);
-    const dir = end.clone().sub(hub).setY(0).normalize();
-    const start = end.clone().addScaledVector(dir, -0.11);
-    g.add(tube(hub, start.clone().setY(0.05), 0.02, black));
-    g.add(bar(start, end.clone().addScaledVector(dir, 0.01), 0.055, 0.05, black));
-    g.add(foot(end.x, end.z, 0.04, rubber, blue));
-    if (i === 0 || i === 2) {
-      const t = label(i === 0 ? 'KICKR' : 'wahoo', '#f2f2f2', 0.075, 0.02, 800);
-      t.rotation.set(-Math.PI / 2, 0, Math.atan2(-dir.z, dir.x));
-      t.position.copy(start).lerp(end, 0.5).setY(0.071);
-      g.add(t);
-    }
-  });
-  // Barre de réglage bleue et ses pivots.
-  const a = new THREE.Vector3(-0.035, 0.06, 0.13);
-  const b = new THREE.Vector3(-0.035, 0.22, -0.02);
-  g.add(bar(a, b, 0.012, 0.03, blue));
-  for (const p of [a, b]) g.add(cylX(0.014, p.x - 0.01, p.x + 0.01, p.y, p.z, black));
+  const y = TRAINER_AXLE_Y;
+  const rim = mat('#161719', 0.43, 0.2);
+  g.add(cylX(radius, -0.039, -0.008, y + lift, z, rim));
+  g.add(cylX(radius - 0.003, -0.042, -0.038, y + lift, z, black));
+  g.add(cylX(0.031, -0.044, -0.041, y, 0, rim));
+  g.add(cassette(-0.040, 28));
+  const steel = mat('#a7adb3', 0.4, 0.65);
+  g.add(cylX(0.024, 0.027, 0.062, y, 0, rim));
+  g.add(cylX(0.012, 0.061, 0.076, y, 0, steel));
+  g.add(onDriveSide(label('wahoo', '#f5f5f5', radius * 1.66, radius * 0.46, 900),
+    -0.043, y + lift + radius * 0.57, z - 0.023, 0.28));
   return g;
 }
 
-/**
- * Wahoo KICKR CORE 2 : grande palette ronde noire marquée « wahoo » qui porte la cassette, châssis en A
- * (deux poutres de la tête vers les rails), deux rails transversaux à embouts caoutchouc, « KICKR CORE »
- * sur le rail avant ; volant à chevrons en bas à l'arrière, face perforée côté transmission.
- */
+/** KICKR : deux bras latéraux repliables, une jambe centrale et la biellette de réglage bleue. */
+function kickr(): THREE.Group {
+  const g = new THREE.Group();
+  const black = mat('#262729', 0.53, 0.22);
+  const edge = mat('#18191b', 0.43, 0.28);
+  const blue = mat('#245bd6', 0.45, 0.22);
+  const rubber = mat('#111214', 0.86);
+  const metal = mat('#a4a7aa', 0.36, 0.62);
+  const y = TRAINER_AXLE_Y;
+  g.add(wahooDrive(0.126, 0.009, 0.012, black));
+
+  const pillar = rounded([[-0.247, 0.063], [-0.186, 0.064], [0.05, y - 0.062], [0.067, y + 0.034],
+    [-0.044, y + 0.039], [-0.118, y - 0.026], [-0.253, 0.13]], 0.018);
+  g.add(slab(pillar, -0.029, 0.059, black, 0.011));
+  const handle = rounded([[-0.161, y + 0.017], [-0.159, y + 0.064], [-0.07, y + 0.055], [-0.046, y + 0.022]], 0.012);
+  g.add(slab(handle, -0.002, 0.051, edge, 0.008));
+  g.add(flywheel(new THREE.Vector3(0.101, 0.177, -0.132), 0.111, 0.089, edge));
+
+  const rear = -0.223;
+  const base = rounded([[rear - 0.034, 0.016], [rear + 0.039, 0.016], [rear + 0.043, 0.075],
+    [rear - 0.027, 0.082]], 0.009);
+  g.add(slab(base, -0.079, 0.102, edge, 0.007));
+  const badge = label('wahoo', '#f5f5f5', 0.10, 0.026, 900);
+  badge.rotation.y = Math.PI;
+  badge.position.set(0.012, 0.054, rear - 0.035);
+  g.add(badge);
+  g.add(box3(0.121, 0.016, 0.055, rubber, 0.013, 0.008, rear));
+  const hub = new THREE.Vector3(0.012, 0.055, rear);
+  for (const s of [-1, 1]) {
+    const tip = new THREE.Vector3(0.012 + s * 0.314, 0.057, -0.117);
+    const dir = tip.clone().sub(hub).setY(0).normalize();
+    g.add(tube(hub, tip.clone().addScaledVector(dir, 0.011), 0.024, black));
+    g.add(foot(tip.x, tip.z, 0.034, rubber, blue));
+    const t = label('KICKR', '#f2f2f2', 0.061, 0.018, 800);
+    t.rotation.set(-Math.PI / 2, 0, s > 0 ? Math.atan2(-dir.z, dir.x) : Math.atan2(dir.z, -dir.x));
+    t.position.copy(tip).addScaledVector(dir, -0.045).setY(0.082);
+    g.add(t);
+  }
+
+  g.add(tube(hub, new THREE.Vector3(0.012, 0.039, 0.211), 0.025, black));
+  g.add(slab(rounded([[0.181, 0.008], [0.251, 0.008], [0.257, 0.031], [0.23, 0.064],
+    [0.192, 0.062]], 0.01), -0.029, 0.053, rubber, 0.007));
+  g.add(box3(0.068, 0.008, 0.052, rubber, 0.012, 0.004, 0.213));
+  const a = new THREE.Vector3(-0.033, 0.058, 0.075);
+  const b = new THREE.Vector3(-0.033, 0.17, -0.103);
+  g.add(bar(a, b, 0.012, 0.024, blue));
+  for (const p of [a, b]) {
+    g.add(cylX(0.013, p.x - 0.008, p.x + 0.009, p.y, p.z, blue));
+    g.add(cylX(0.006, p.x - 0.010, p.x - 0.007, p.y, p.z, metal, 8));
+  }
+  for (const z of [0.037, 0.057, 0.078, 0.098]) g.add(cylX(0.004, -0.015, -0.012, 0.048, z, rubber, 8));
+  return g;
+}
+
+/** CORE 2 : bâti en A et deux rails boulonnés, avec le rail avant plus long. */
 function kickrCore2(): THREE.Group {
   const g = new THREE.Group();
-  const black = mat('#141416', 0.5, 0.2);
-  const rubber = mat('#0d0d0f', 0.95);
-  const Y = TRAINER_AXLE_Y;
-  g.add(cylX(0.125, -0.03, -0.008, Y, 0, black));
-  g.add(cylX(0.035, -0.034, -0.028, Y, 0, mat('#2c2f34', 0.4, 0.7)));
-  g.add(cassette(-0.034));
-  g.add(onDriveSide(label('wahoo', '#f4f4f4', 0.2, 0.058, 900), -0.0315, Y + 0.058, -0.008));
-  // Tête derrière la palette, poutres en A vers les rails.
-  g.add(slab(rounded([[-0.06, Y - 0.1], [0.05, Y - 0.1], [0.05, Y + 0.03], [-0.06, Y + 0.03]], 0.02), -0.008, 0.05, black, 0.008));
-  const apex = new THREE.Vector3(0.02, Y - 0.08, -0.01);
-  const zf = 0.2;
-  const zr = -0.21;
-  for (const z of [zf, zr]) g.add(bar(apex, new THREE.Vector3(0.02, 0.05, z), 0.065, 0.05, black));
-  // Volant, côté opposé à la transmission, derrière la poutre arrière.
-  g.add(flywheel(new THREE.Vector3(0.1, 0.2, -0.13), 0.105, 0.075, black));
-  g.add(bar(new THREE.Vector3(0.05, 0.2, -0.13), new THREE.Vector3(0.064, 0.2, -0.13), 0.03, 0.03, black));
-  // Rails transversaux et embouts.
-  for (const z of [zf, zr]) {
-    g.add(bar(new THREE.Vector3(-0.27, 0.027, z), new THREE.Vector3(0.31, 0.027, z), 0.07, 0.05, black));
-    for (const x of [-0.29, 0.33]) g.add(box3(0.045, 0.056, 0.076, rubber, x, 0.028, z));
+  const black = mat('#262729', 0.53, 0.20);
+  const edge = mat('#18191b', 0.47, 0.20);
+  const rubber = mat('#111214', 0.86);
+  const screws = mat('#36393d', 0.37, 0.35);
+  const y = TRAINER_AXLE_Y;
+  g.add(wahooDrive(0.118, 0.005, 0.01, black));
+
+  const rear = -0.225;
+  const front = 0.228;
+  const outer = rounded([[rear - 0.025, 0.047], [rear + 0.052, 0.041], [0.046, y - 0.06],
+    [0.033, y + 0.022], [-0.067, y + 0.023], [-0.122, y - 0.083]], 0.015);
+  g.add(slab(outer, -0.036, 0.043, black, 0.009));
+  const forward = rounded([[0.008, y - 0.018], [-0.04, y - 0.085], [front - 0.043, 0.045],
+    [front + 0.029, 0.044], [0.128, 0.179], [0.055, y - 0.026]], 0.012);
+  g.add(slab(forward, -0.021, 0.056, black, 0.008));
+  g.add(flywheel(new THREE.Vector3(0.093, 0.177, -0.137), 0.107, 0.088, edge));
+  g.add(tube(new THREE.Vector3(-0.04, 0.155, -0.21), new THREE.Vector3(-0.045, 0.13, -0.249), 0.005, edge));
+  for (const [z, half] of [[rear, 0.227], [front, 0.29]] as const) {
+    const rail = rounded([[z - 0.028, 0.006], [z + 0.028, 0.006], [z + 0.027, 0.039],
+      [z + 0.015, 0.048], [z - 0.015, 0.048], [z - 0.027, 0.039]], 0.005);
+    g.add(slab(rail, -half + 0.021, half - 0.021, black, 0.005));
+    for (const s of [-1, 1]) {
+      const end = rounded([[z - 0.032, 0.004], [z + 0.032, 0.004], [z + 0.032, 0.027],
+        [z + 0.017, 0.044], [z - 0.017, 0.044], [z - 0.032, 0.027]], 0.006);
+      g.add(slab(end, s < 0 ? -half : half - 0.05, s < 0 ? -half + 0.05 : half, rubber, 0.004));
+    }
+    for (const x of [-0.051, 0.062]) {
+      g.add(tube(new THREE.Vector3(x, 0.047, z), new THREE.Vector3(x, 0.051, z), 0.006, screws, 8));
+    }
+    const logo = labelParts([['KICKR', '#f2f2f2'], ['CORE', '#29a8e0']], 0.117, 0.023, 800);
+    logo.rotation.set(-Math.PI / 2, 0, 0);
+    logo.position.set(-0.131, 0.053, z);
+    g.add(logo);
   }
-  const logo = labelParts([['KICKR', '#f2f2f2'], ['CORE', '#29a8e0']], 0.15, 0.028, 800);
-  logo.rotation.set(-Math.PI / 2, 0, 0);
-  logo.position.set(-0.17, 0.053, zf);
-  g.add(logo);
   return g;
 }
 
