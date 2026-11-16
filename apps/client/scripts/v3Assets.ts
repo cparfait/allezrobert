@@ -356,6 +356,15 @@ export function v3Assets(): Plugin {
             }
             return json(200, [...garage, ...extra]);
           }
+          // Texture de peinture d'un coloris de vélo (sans teinte) : couleur dominante de la pastille du garage.
+          const paint = /^\/bikecolor\/([a-z0-9-]+)\.png$/.exec(url.pathname);
+          if (paint) {
+            const bike = catalog.files.get('bike/' + paint[1]);
+            const variant = Number(url.searchParams.get('color') ?? 0);
+            const scheme = bike && Number.isInteger(variant) ? readJson<{ coloris?: Scheme[] }>(resolve(dirname(bike), paint[1] + '.json')).coloris?.[variant] : undefined;
+            if (!scheme?.TexturePath) return json(404, { error: 'Coloris V3 introuvable.' });
+            return sendFile(await prepare('map', 'bikecolor-' + paint[1], scheme.TexturePath, variant), 'image/png');
+          }
           const match = /^\/(bike|object|rider|helmet|wheel)\/([a-z0-9-]+)(?:\.(glb|json|png))$/.exec(url.pathname);
           if (!match) return json(404, { error: 'Ressource V3 introuvable.' });
           const kind = match[1]!;

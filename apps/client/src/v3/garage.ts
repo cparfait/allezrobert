@@ -5,6 +5,7 @@ import { COSMETICS, DEFAULT_BIKE, DEFAULT_TRAINER } from '@allezrobert/shared';
 import { saveV3BikeSetup, v3BikeEffect } from './physics.ts';
 import { createProfilesCard } from './profiles.ts';
 import { v3Select } from './dropdown.ts';
+import { bikeSwatch, css } from './swatch.ts';
 import { roadEffectHtml } from '../ui/roadEffect.ts';
 import { loadSettings } from '../ui/settings.ts';
 import './garage.css';
@@ -155,6 +156,11 @@ export function createV3Garage(actions: V3GarageActions) {
   const road = document.createElement('aside');
   road.className = 'gr-road';
   road.setAttribute('aria-label', 'Effet sur la route');
+  // Poids changé dans « Mensurations » (pied du garage) : effet sur la route recalculé une fois le réglage enregistré.
+  document.addEventListener('change', event => {
+    const id = (event.target as HTMLElement | null)?.id;
+    if (id === 'm-mass' || id === 'm-ftp') setTimeout(updateEffect, 0);
+  });
   function updateEffect() {
     if (!catalogBikes.length) return;
     const effect = v3BikeEffect(equipment, catalogBikes, gearItems, catalogWheels);
@@ -182,14 +188,17 @@ export function createV3Garage(actions: V3GarageActions) {
     name.textContent = title;
     button.append(name);
     button.setAttribute('aria-controls', section.id);
-    button.onclick = () => show(id);
+    // Rubrique ouverte : un nouveau clic la referme (garage replié sur son en-tête).
+    button.onclick = () => show(opened === id ? null : id);
     nav.append(button);
     top.append(head);
     panel.append(section);
     sections.set(id, { head, section, button });
     return { head, section };
   }
-  function show(id: string) {
+  let opened: string | null = null;
+  function show(id: string | null) {
+    opened = id;
     for (const [key, { head, section, button }] of sections) {
       const on = key === id;
       head.hidden = section.hidden = !on;
@@ -199,7 +208,9 @@ export function createV3Garage(actions: V3GarageActions) {
     status.textContent = '';
     actions.bareHead?.(id === 'character' && characterType === 'HAIR');
     // Comme dans les garages Réel et Poly : pas d'effet sur la route pour le visage et le corps.
-    road.hidden = id === 'character';
+    road.hidden = !id || id === 'character';
+    // Aucune rubrique ouverte : seul l'en-tête (niveau, rubriques, dé) est visible, profils compris repliés.
+    profiles.element.hidden = !id;
     panel.parentElement?.scrollTo({ top: 0 });
     // Chaque menu s'ouvre sur l'équipement porté (famille ou marque dépliée, article visible).
     if (id === 'kit') openKit();
@@ -207,7 +218,7 @@ export function createV3Garage(actions: V3GarageActions) {
     if (id === 'bikes') foldBikes();
   }
 
-  // Ordre des rubriques : Personnage, Tenue, Vélo (le garage s'ouvre sur la première).
+  // Ordre des rubriques : Personnage, Tenue, Vélo.
   const character = sectionFor('character', 'Personnage', V3_ICON.face);
   const kit = sectionFor('kit', 'Tenue', V3_ICON.tenue);
   const bikes = sectionFor('bikes', 'Vélo', V3_ICON.bike);
@@ -344,7 +355,8 @@ export function createV3Garage(actions: V3GarageActions) {
   bikes.section.append(focus);
   // Teinte des coloris réglables de Zwift : fait tourner les couleurs de la peinture (noir, gris et blanc restent).
   // Proposée avec les coloris, sous le vélo choisi dans la liste.
-  const hue = createHueControl(value => apply({ ...equipment, hue: value }));
+  const hue = createHueControl(value => apply({ ...equipment, hue: value }), 'Couleur principale',
+    'Change les parties colorées de la peinture ; le noir, le gris et le blanc restent.');
   hue.field.title = 'Fait tourner les couleurs de la peinture (coloris réglable) ; le noir, le gris et le blanc ne changent pas.';
   // Réglages du vélo équipé, regroupés dans une carte : une ligne par réglage (posture, roues, home trainer).
   const settingsCard = document.createElement('div');
@@ -478,7 +490,7 @@ export function createV3Garage(actions: V3GarageActions) {
       toggle.append(brand, count);
       toggle.onclick = () => {
         if (openWheelBrands.has(brand)) openWheelBrands.delete(brand);
-        else openWheelBrands.add(brand);
+        else { openWheelBrands.clear(); openWheelBrands.add(brand); }
         showWheels();
       };
       heading.append(toggle);
@@ -594,8 +606,9 @@ export function createV3Garage(actions: V3GarageActions) {
         toggle.append(brand || 'Sans marque', count);
         const name = bike.brand;
         toggle.onclick = () => {
+          // Une seule marque ouverte à la fois : en ouvrir une ferme les autres.
           if (openBrands.has(name)) openBrands.delete(name);
-          else openBrands.add(name);
+          else { openBrands.clear(); openBrands.add(name); }
           fillBikes();
         };
         title.append(toggle);
@@ -685,6 +698,16 @@ export function createV3Garage(actions: V3GarageActions) {
     const title = document.createElement('div');
     title.className = 'v3-color-title';
     title.textContent = 'Coloris';
+    // Pastille de couleur de chaque coloris (couleur dominante de sa peinture), noms de Zwift souvent peu parlants.
+    const dot = (index: number) => {
+      const swatch = document.createElement('i');
+      swatch.className = 'v3-color-dot';
+      void bikeSwatch(id, index).then(color => {
+        if (color) swatch.style.background = css(color);
+        else swatch.classList.add('neutral');
+      });
+      return swatch;
+    };
     const box = document.createElement('div');
     box.className = 'v3-inline-colors';
     box.setAttribute('role', 'radiogroup');
@@ -694,15 +717,18 @@ export function createV3Garage(actions: V3GarageActions) {
       button.type = 'button';
       button.className = 'gr-sub';
       button.setAttribute('role', 'radio');
-      button.textContent = option.name || 'Coloris ' + (i + 1);
+      button.append(dot(i), option.name || 'Coloris ' + (i + 1));
       button.onclick = () => {
         apply({ ...equipment, color: i, hue: undefined });
         hue.set(option);
+        void bikeSwatch(id, i).then(color => hue.paint(color));
         markInline();
       };
       box.append(button);
     });
     hue.set(options[equipment.color], equipment.hue);
+    hue.paint(undefined);
+    if (options[equipment.color]?.hue !== undefined) void bikeSwatch(id, equipment.color).then(color => { if (equipment.bike === id) hue.paint(color); });
     box.append(hue.field);
     colorRow.replaceChildren(title, box);
     markInline();
@@ -765,6 +791,7 @@ export function createV3Garage(actions: V3GarageActions) {
     showWheels();
     showTrainer();
   }
-  show('character');
+  // Le garage s'ouvre replié : en-tête seul, rubriques au choix.
+  show(null);
   return { top, panel, road, report };
 }

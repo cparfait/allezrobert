@@ -1,6 +1,7 @@
 import { getV3Gear, V3_HAIR_COLORS, type V3Color, type V3Equipment, type V3Gear, type V3SockHeight } from './visuals.ts';
 import { V3_SLOTS } from './icons.ts';
 import { v3Select } from './dropdown.ts';
+import { css, shiftHue, type Rgb } from './swatch.ts';
 import { needsPhoto } from './thumbnails.ts';
 
 type Actions = {
@@ -84,22 +85,55 @@ function familyRank(name: string): [number, string] {
   return [100, name];
 }
 
-export function createHueControl(onChange: (hue: number) => void) {
+/**
+ * Réglage de teinte d'un coloris réglable de Zwift : décale la teinte des parties colorées de la peinture (le noir, le
+ * gris et le blanc ne changent pas). Avec la couleur dominante du coloris (`paint`), la piste montre les couleurs
+ * obtenues et une pastille la couleur choisie.
+ */
+export function createHueControl(onChange: (hue: number) => void, label = 'Teinte', hint?: string) {
   const field = document.createElement('label');
-  field.className = 'field';
+  field.className = 'field v3-hue';
+  const head = document.createElement('span');
+  head.className = 'v3-hue-head';
+  const preview = document.createElement('i');
+  preview.className = 'v3-hue-preview';
+  preview.hidden = true;
+  head.append(label, preview);
   const input = document.createElement('input');
   input.type = 'range';
   input.min = '0';
   input.max = '1';
   input.step = '0.005';
-  field.append('Teinte', input);
+  field.append(head, input);
+  if (hint) {
+    const note = document.createElement('small');
+    note.className = 'v3-hue-hint';
+    note.textContent = hint;
+    field.append(note);
+  }
   field.hidden = true;
+  let base: Rgb | undefined;
+  const show = () => {
+    preview.hidden = !base;
+    if (base) preview.style.background = css(shiftHue(base, Number(input.value)));
+  };
+  input.oninput = show;
   input.onchange = () => onChange(Number(input.value));
   return {
     field,
     set(color?: V3Color, value?: number) {
       field.hidden = color?.hue === undefined;
       if (color?.hue !== undefined) input.value = String(value ?? color.hue);
+      show();
+    },
+    /** Couleur dominante du coloris sans teinte : piste en dégradé des couleurs possibles. */
+    paint(color?: Rgb) {
+      base = color;
+      input.classList.toggle('v3-hue-track', !!color);
+      input.style.background = color
+        ? 'linear-gradient(to right, ' + Array.from({ length: 13 }, (_, i) => css(shiftHue(color, i / 12))).join(', ') + ')'
+        : '';
+      show();
     },
   };
 }
@@ -250,6 +284,8 @@ export function addWardrobe(head: HTMLElement, parent: HTMLElement, settings: ()
   }
   const hairColor = hairColorRow('Couleur des cheveux', 'hairColor', 'hairTint');
   const beardColor = hairColorRow('Couleur de la barbe', 'beardColor', 'beardTint');
+  // Personnage (tête, cheveux, barbe) : pas de carte « Équipé », l'article choisi est coché dans la grille.
+  caption.hidden = character;
   panel.append(caption, sockField, hairColor.row, beardColor.row, colorLabel, hue.field, tools, status, grid);
   parent.append(panel);
 
@@ -390,8 +426,12 @@ export function addWardrobe(head: HTMLElement, parent: HTMLElement, settings: ()
           toggle.append(family, count);
           toggle.onclick = () => {
             const id = category + '|' + family;
+            // Une seule famille ouverte à la fois dans la rubrique : en ouvrir une ferme les autres.
             if (openFamilies.has(id)) openFamilies.delete(id);
-            else openFamilies.add(id);
+            else {
+              for (const open of [...openFamilies]) if (open.startsWith(category + '|')) openFamilies.delete(open);
+              openFamilies.add(id);
+            }
             filter();
           };
           title.append(toggle);

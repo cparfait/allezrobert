@@ -2021,7 +2021,12 @@ export class MainMenu {
       <section class="mm-panel mm-side gr-panel${this.grFolded ? ' gr-folded' : ''}">
         <div class="gr-top">${this.garageHeader(lp, p.xp)}<div data-v3-top></div></div>
         <div class="gr-body" data-v3-garage></div>
-        <div class="gr-foot"><p>${L ? 'Style V3 : ressources de l’installation Zwift locale, pour l’étude seulement (jamais distribuées).' : 'V3 style: local Zwift install assets, for study only (never distributed).'}</p></div>
+        <div class="gr-foot">
+          <details class="set-sec">
+            <summary>${L ? 'Mensurations' : 'Body measurements'}</summary>
+            <div class="set-body grid2b">${this.bodyMeasurementFields()}</div>
+          </details>
+          <p>${L ? 'Style V3 : ressources de l’installation Zwift locale, pour l’étude seulement (jamais distribuées).' : 'V3 style: local Zwift install assets, for study only (never distributed).'}</p></div>
       </section>`;
     const items =
       this.garageSlot === 'skin' || this.garageSlot === 'hair' || this.garageSlot === 'beard'
@@ -2449,11 +2454,15 @@ export class MainMenu {
         <label class="field">${t('name')}<input id="m-name" value="${esc(s.name)}" /></label>
         <label class="field">${L ? 'Je suis' : 'I am'}<div class="row">${(['male', 'female'] as const).map((x) => `<button class="btn small ${lookSex(s.look) === x ? 'primary' : ''}" data-sex="${x}">${x === 'male' ? (L ? 'Un homme' : 'A man') : L ? 'Une femme' : 'A woman'}</button>`).join('')}</div></label>
         <div class="field">${L ? 'Nationalité' : 'Nationality'}${this.nationHtml()}</div>
-        <div class="field">${t('weight')}${this.stepper('m-mass', 30, 200, s.massKg, 0.5)}</div>
-        <div class="field">${t('height')}${this.stepper('m-height', 120, 220, s.heightCm)}</div>
+        ${this.bodyMeasurementFields()}
         <div class="field">${t('ftp')}${this.stepper('m-ftp', 50, 600, s.ftpWatts)}</div>
       </div>
     </section>`;
+  }
+
+  private bodyMeasurementFields(): string {
+    return `<div class="field"><label for="m-mass">${t('weight')}</label>${this.stepper('m-mass', 30, 200, this.s.massKg, 0.5)}</div>
+      <div class="field"><label for="m-height">${t('height')}</label>${this.stepper('m-height', 120, 220, this.s.heightCm)}</div>`;
   }
 
   /** Rubriques repliables de l'onglet Réglages ouvertes en ce moment (mémorisées, pour résister aux réaffichages). */
@@ -3695,15 +3704,28 @@ export class MainMenu {
       }),
     );
     // Profil.
-    const num = (id: string, key: 'massKg' | 'ftpWatts' | 'heightCm' | 'aiRiders') =>
+    const num = (id: string, key: 'ftpWatts' | 'aiRiders') =>
       on<HTMLInputElement>(id, 'change', (el) => {
         s[key] = Number(el.value);
         changed();
         if (this.tab === 'profile') this.render();
       });
-    num('m-mass', 'massKg');
+    const measurement = (id: string, key: 'massKg' | 'heightCm') =>
+      on<HTMLInputElement>(id, 'change', (el) => {
+        const value = el.valueAsNumber;
+        const step = Number(el.step);
+        const next = Number.isFinite(value)
+          ? Math.min(Number(el.max), Math.max(Number(el.min), Math.round(value / step) * step))
+          : s[key];
+        el.value = String(next);
+        if (next === s[key]) return;
+        s[key] = next;
+        changed();
+        if (this.tab === 'profile') this.render();
+      });
+    measurement('m-mass', 'massKg');
+    measurement('m-height', 'heightCm');
     num('m-ftp', 'ftpWatts');
-    num('m-height', 'heightCm');
     num('m-ai', 'aiRiders');
     this.root.querySelectorAll<HTMLElement>('[data-sex]').forEach((el) =>
       el.addEventListener('click', () => {

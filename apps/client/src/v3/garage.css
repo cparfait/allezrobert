@@ -20,6 +20,7 @@
 .ar-v3-garage .gr-cap { margin: 0; }
 /* Article porté en tête de la rubrique : vignette à gauche du nom. */
 .ar-v3-garage .gr-cap.v3-cap { grid-template-columns: auto 1fr auto; align-items: center; }
+.ar-v3-garage .gr-cap[hidden] { display: none; }
 .ar-v3-garage .v3-cap-thumb { grid-row: span 2; width: 52px; }
 .ar-v3-garage .v3-cap-thumb:empty { display: none; }
 .ar-v3-garage .v3-cap-thumb .gr-chip { width: 52px; pointer-events: none; }
@@ -42,6 +43,16 @@
 .v3-settings > [hidden] { display: none; }
 .v3-color-row { display: grid; gap: 8px; }
 .v3-color-title { font-size: 12px; font-weight: 700; color: #aeb7c3; }
+/* Coloris : pastille de la couleur dominante ; « Couleur principale » : piste des couleurs possibles. */
+.v3-color-dot { display: inline-block; width: 12px; height: 12px; margin-right: 7px; border-radius: 50%; vertical-align: -1px; background: rgba(255, 255, 255, 0.15); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.35); }
+.v3-color-dot.neutral { background: linear-gradient(135deg, #f2f2f2 0 50%, #1d1d1f 50% 100%); }
+.ar-v3-garage .v3-hue { gap: 6px; }
+.v3-hue-head { display: flex; align-items: center; justify-content: space-between; }
+.v3-hue-preview { width: 22px; height: 14px; border-radius: 4px; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.4); }
+.v3-hue-preview[hidden] { display: none; }
+.v3-hue-hint { font-size: 10.5px; font-weight: 500; color: #8d98a6; }
+.ar-v3-garage input[type=range].v3-hue-track { appearance: none; height: 10px; border-radius: 5px; }
+.ar-v3-garage input[type=range].v3-hue-track::-webkit-slider-thumb { appearance: none; width: 18px; height: 18px; border-radius: 50%; background: #fff; border: 2px solid #0a0e16; box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.6); }
 .v3-setting-line { display: flex; justify-content: space-between; font-size: 12px; font-weight: 700; color: #aeb7c3; }
 .v3-setting-line b { color: #fff; }
 .v3-color-row .v3-inline-colors { margin: 0; padding: 0; border: 0; background: none; border-radius: 0; }
@@ -55,6 +66,7 @@
 .ar-v3-garage .v3-fold.v3-setting-toggle[aria-expanded="true"]::after { transform: rotate(90deg); }
 /* Profils de coureur : carte en tête du panneau. */
 .ar-v3-garage .v3-profiles { margin-bottom: 4px; }
+.ar-v3-garage .v3-profiles[hidden] { display: none; }
 .v3-profiles-body { display: grid; gap: 6px; }
 .v3-profiles-label { display: inline-flex; align-items: center; gap: 8px; font-style: normal; }
 .v3-profiles-label svg { color: var(--ar-accent, #ffd23f); }
