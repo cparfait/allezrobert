@@ -16,12 +16,20 @@ async function access(code?: string): Promise<number> {
   return response.status;
 }
 
-export async function hasV3Access(): Promise<boolean> {
+/**
+ * État de l'accès V3 : 204 ouvert (en ligne, ou copie hors ligne de l'application de bureau), 403 code à saisir,
+ * 503 service injoignable (pas de réseau) sans copie hors ligne.
+ */
+export async function v3AccessStatus(): Promise<number> {
   try {
-    return await access() === 204;
+    return await access();
   } catch {
-    return false;
+    return 503;
   }
+}
+
+export async function hasV3Access(): Promise<boolean> {
+  return await v3AccessStatus() === 204;
 }
 
 let recovery: Promise<void> | undefined;

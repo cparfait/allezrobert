@@ -339,27 +339,85 @@ export async function prepareV3Object(id: string, extentLimit: number, lod = 0):
   return node;
 }
 
+// ——— Chemins des ressources (relatifs à /__v3/) : partagés par les chargements et par la préparation hors ligne.
+const bikePath = (equipment: V3Equipment) => 'bike/' + encodeURIComponent(equipment.bike) + '.glb' + colorQuery(equipment.color, equipment.hue);
+const wheelPaths = (id: string) => ['wheel/' + id + '-av.glb', 'wheel/' + id + '-ar.glb'];
+const riderId = (sex: 'male' | 'female', body: V3Body) =>
+  (sex === 'male' ? 'homme' : 'femme') + (body === 'skinny' ? '-mince' : body === 'big' && sex === 'male' ? '-fort' : '');
+const hairAtlasName = (item: V3Gear) => /^curly/i.test(item.name) ? 'male02' : item.sex === 'female' ? 'female01' : 'male01';
+
+/** Fichiers d'un article porté : modèle, modèle de la paire, texture et relief (relief féminin s'il existe). */
+function gearFiles(item: V3Gear, selection: V3GearSelection, sex?: 'male' | 'female') {
+  const color = item.colors[selection.color];
+  const query = colorQuery(selection.color, selection.hue);
+  const path = 'gear/' + item.id + '/';
+  return {
+    model: item.model ? path + 'model.glb' + query : undefined,
+    pair: item.pair ? path + 'pair.glb' + query : undefined,
+    diffuse: color?.diffuse ? path + 'diffuse.png' + query : undefined,
+    normal: sex === 'female' && color?.femaleNormal ? path + 'female-normal.png' + query
+      : color?.normal ? path + 'normal.png' + query : undefined,
+  };
+}
+
+/**
+ * Articles chargés pour cette tenue et cette silhouette, et pièces retirées (article « None ») : sans chaussures
+ * choisies, chaussures de vélo de route (le corps de Zwift n'a que des chaussures de course).
+ */
+function wornItems(items: readonly V3Gear[], kit: Record<string, V3GearSelection>, sex: 'male' | 'female' | undefined) {
+  const ownShoes = !!kit.CYCLING_SHOES || !!kit.RUNNING_SHOES;
+  const shoes = ownShoes ? undefined : items.find(row => row.variant === DEFAULT_SHOES);
+  const bare = new Set<string>();
+  const worn = [...Object.values(kit), ...(shoes ? [{ id: shoes.id, color: 0 }] : [])].flatMap(selection => {
+    const item = items.find(row => row.id === selection.id);
+    if (!item || (item.sex !== 'tous' && item.sex !== sex)) return [];
+    if (isBare(item)) { bare.add(item.type); return []; }
+    return [{ item, selection }];
+  });
+  return { worn, bare };
+}
+
+/**
+ * Ressources V3 d'une sortie (chemins « /__v3/… » tels que la page les demande) : catalogues et animations, puis pour
+ * chaque coureur son vélo, ses roues, son corps, son casque, les articles de sa tenue et les planches de cheveux.
+ * L'application de bureau les copie sur le disque pour rouler en V3 sans connexion (v3/offline.ts).
+ */
+export async function v3RidePaths(riders: readonly { equipment: V3Equipment; sex: 'male' | 'female' }[]): Promise<string[]> {
+  const [catalog, items] = await Promise.all([getV3Catalog(), getV3Gear()]);
+  const paths = new Set<string>(['catalogue', 'gear', 'clips']);
+  for (const { equipment, sex } of riders) {
+    paths.add(bikePath(equipment));
+    const wheel = mountedWheel(equipment, catalog.bikes.find(bike => bike.id === equipment.bike), catalog.wheels ?? []);
+    if (wheel) wheelPaths(wheel.id).forEach(path => paths.add(path));
+    const id = riderId(sex, resolvedBody(equipment, sex));
+    paths.add('rider/' + id + '.glb');
+    paths.add('helmet/' + id + '.glb');
+    for (const { item, selection } of wornItems(items, equipment.kit ?? {}, sex).worn) {
+      for (const path of Object.values(gearFiles(item, selection, sex))) if (path) paths.add(path);
+      if (item.type === 'HAIR' && item.model) for (const part of ['diffuse', 'normal']) paths.add('hair/' + hairAtlasName(item) + '/' + part + '.png');
+    }
+  }
+  return [...paths].map(path => '/__v3/' + path);
+}
+
 type BikeVisual = Awaited<ReturnType<typeof loadBike>>;
 export type RiderVisual = Awaited<ReturnType<typeof loadRider>>;
 export type MountedGear = Awaited<ReturnType<typeof loadGearItem>>;
 const boneIndex: Record<string, number> = { HEAD: 15, FOOT_LEFT: 6, FOOT_RIGHT: 10, SPINE_1: 2 };
 
 export async function loadGearItem(item: V3Gear, selection: V3GearSelection, sex?: 'male' | 'female') {
-  const color = item.colors[selection.color];
-  const query = colorQuery(selection.color, selection.hue);
-  const path = 'gear/' + item.id + '/';
-  const texture = async (part: string, srgb: boolean) => {
-    const map = await new TextureLoader().loadAsync(base + path + part + '.png' + query);
+  const files = gearFiles(item, selection, sex);
+  const texture = async (path: string, srgb: boolean) => {
+    const map = await new TextureLoader().loadAsync(base + path);
     map.flipY = false;
     if (srgb) map.colorSpace = SRGBColorSpace;
     return map;
   };
   const parts = await Promise.allSettled([
-    item.model ? model(path + 'model.glb' + query) : undefined,
-    item.pair ? model(path + 'pair.glb' + query) : undefined,
-    color?.diffuse ? texture('diffuse', true) : undefined,
-    sex === 'female' && color?.femaleNormal ? texture('female-normal', false)
-      : color?.normal ? texture('normal', false) : undefined,
+    files.model ? model(files.model) : undefined,
+    files.pair ? model(files.pair) : undefined,
+    files.diffuse ? texture(files.diffuse, true) : undefined,
+    files.normal ? texture(files.normal, false) : undefined,
   ] as const);
   const value = <T>(part: PromiseSettledResult<T>) => part.status === 'fulfilled' ? part.value : undefined;
   const left = value(parts[0]);
@@ -380,7 +438,7 @@ export async function loadGearItem(item: V3Gear, selection: V3GearSelection, sex
 /** Planche de texture d'une coiffure : bouclée, féminine ou masculine (les modèles convertis n'en ont pas). */
 const hairAtlases = new Map<string, Promise<{ map: Texture; normal?: Texture }>>();
 function hairAtlas(item: V3Gear): Promise<{ map: Texture; normal?: Texture }> {
-  const name = /^curly/i.test(item.name) ? 'male02' : item.sex === 'female' ? 'female01' : 'male01';
+  const name = hairAtlasName(item);
   let job = hairAtlases.get(name);
   if (!job) {
     const load = async (part: string, srgb: boolean) => {
@@ -440,7 +498,7 @@ export function freeGear(gear: MountedGear): void {
 
 async function loadBike(equipment: V3Equipment) {
   const [scene, catalog] = await Promise.all([
-    model('bike/' + encodeURIComponent(equipment.bike) + '.glb' + colorQuery(equipment.color, equipment.hue)),
+    model(bikePath(equipment)),
     getV3Catalog().catch(() => undefined),
   ]);
   const levels = scene.children.filter(node => /^LOD[0-2]$/.test(node.name));
@@ -464,7 +522,8 @@ async function loadBike(equipment: V3Equipment) {
  * FrontWheel / RearWheel), même nom, donc même rotation et même calage sur le home trainer.
  */
 async function mountWheels(levels: Object3D[], id: string): Promise<void> {
-  const [front, rear] = await Promise.all([model('wheel/' + id + '-av.glb'), model('wheel/' + id + '-ar.glb')]);
+  const [av, ar] = wheelPaths(id) as [string, string];
+  const [front, rear] = await Promise.all([model(av), model(ar)]);
   for (const level of levels) {
     for (const [part, source] of [['FrontWheel', front], ['RearWheel', rear]] as const) {
       const original = level.children.find(node => new RegExp('^' + part + '(?:_|$)').test(node.name));
@@ -504,7 +563,7 @@ export async function loadV3DisplayBike(id: string, wheels?: string): Promise<Gr
 }
 
 export async function loadRider(sex: 'male' | 'female', body: V3Body = 'standard') {
-  const id = (sex === 'male' ? 'homme' : 'femme') + (body === 'skinny' ? '-mince' : body === 'big' && sex === 'male' ? '-fort' : '');
+  const id = riderId(sex, body);
   const scene = await model('rider/' + id + '.glb');
   const joints = new Map<number, Bone>();
   const levels: Object3D[] = [];
@@ -738,20 +797,13 @@ export class V3Visual {
     if (this.kitKey === key) return;
     this.kitKey = key;
     const request = ++this.kitRequest;
-    const entries = Object.values(kit);
-    // Sans chaussures choisies : chaussures de vélo de route (le corps de Zwift n'a que des chaussures de course).
-    const ownShoes = !!kit.CYCLING_SHOES || !!kit.RUNNING_SHOES;
     this.loading++;
     // Pièces retirées (article « None ») : rien à charger, la pièce du corps est cachée.
     const bare = new Set<string>();
     const loaded = getV3Gear().then(items => {
-      const shoes = ownShoes ? undefined : items.find(row => row.variant === DEFAULT_SHOES);
-      return Promise.all([...entries, ...(shoes ? [{ id: shoes.id, color: 0 }] : [])].flatMap(selection => {
-        const item = items.find(row => row.id === selection.id);
-        if (!item || (item.sex !== 'tous' && item.sex !== this.sex)) return [];
-        if (isBare(item)) { bare.add(item.type); return []; }
-        return [loadGearItem(item, selection, this.sex)];
-      }));
+      const kept = wornItems(items, kit, this.sex);
+      kept.bare.forEach(type => bare.add(type));
+      return Promise.all(kept.worn.map(({ item, selection }) => loadGearItem(item, selection, this.sex)));
     });
     void loaded.then(next => {
       if (request !== this.kitRequest) { next.forEach(freeGear); return; }

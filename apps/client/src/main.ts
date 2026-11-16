@@ -12,6 +12,7 @@ import { GltfRiderAvatar, createAvatar } from './rider/gltfAvatar.ts';
 import { V3_STYLE } from './engine/style.ts';
 import { v3Resource } from './engine/v3Access.ts';
 import { V3Visual } from './v3/visuals.ts';
+import { syncV3Offline } from './v3/offline.ts';
 import { readV3BikeSetup } from './v3/physics.ts';
 import { CROWD_FAMILIES, onBikeFamilyLoaded } from './rider/bikes.ts';
 import { CameraRig } from './game/cameras.ts';
@@ -468,6 +469,8 @@ async function boot(): Promise<void> {
   setLang(settings.lang);
   // Vélo affiché au garage et sur l'image d'accueil : celui qui est équipé (sauvegardes anciennes).
   settings.look = { ...settings.look, bikeType: bikeSetupFor(loadProgress().equipped).tyre ?? 'road' };
+  // Application de bureau en V3 : copie sur le disque de quoi rouler sans connexion (en tâche de fond).
+  syncV3Offline(settings.look);
   // Connexion ou « sans compte » : demandée tout de suite, pendant que le jeu se charge (sauf lancement direct d'une sortie).
   const earlyAuth: Promise<Me | null> | null = new URLSearchParams(location.search).has('autostart') ? null : earlyLogin(settings);
   bootStep(20, 'Chargement du jeu');
@@ -1078,6 +1081,8 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   engine.scene.add(avatar.root);
   const v3 = V3_STYLE && avatar instanceof GltfRiderAvatar ? new V3Visual(avatar.v3Mount()) : undefined;
   v3?.set(riderLook);
+  // Équipement V3 de cette sortie gardé pour les sorties sans connexion.
+  if (v3) syncV3Offline(riderLook);
   // Phare avant (la nuit) : projecteur fixé au vélo, sans ombre portée (coût).
   const headlight = new THREE.SpotLight(0xfff1d6, 0, 60, 0.45, 0.6, 1.4);
   headlight.position.set(0, 1.0, 0.6);

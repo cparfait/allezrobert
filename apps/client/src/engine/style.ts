@@ -1,4 +1,4 @@
-import { hasV3Access, requestV3Access } from './v3Access.ts';
+import { requestV3Access, v3AccessStatus } from './v3Access.ts';
 
 declare const __AR_V3_PROTECTED__: boolean;
 
@@ -31,7 +31,10 @@ async function bootStyle(): Promise<GraphicStyle> {
   if (style !== 'v3' || !protectedV3) return style;
   const activating = sessionStorage.getItem(pendingV3) === '1';
   sessionStorage.removeItem(pendingV3);
-  const allowed = (!activating && await hasV3Access()) || await requestV3Access();
+  const status = activating ? 403 : await v3AccessStatus();
+  // Pas de réseau et rien de copié sur le disque : sortie en Réel cette fois, le choix V3 reste enregistré.
+  if (status === 503) return DEFAULT_STYLE;
+  const allowed = status === 204 || await requestV3Access();
   if (activating || !allowed) {
     const url = new URL(location.href);
     url.searchParams.delete('style');

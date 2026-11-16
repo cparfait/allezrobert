@@ -115,6 +115,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             open_external,
             v3::v3_access,
+            v3::v3_offline,
+            v3::v3_prepare_offline,
             storage::storage_info,
             storage::storage_open_dir,
             storage::storage_pick_dir,
