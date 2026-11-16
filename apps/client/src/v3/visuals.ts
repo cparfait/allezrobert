@@ -33,9 +33,29 @@ export const V3_POSES: Record<string, string> = {
   cyclistSuperAero: 'Super-aéro · roue libre',
 };
 
-export type V3Bike = { id: string; name: string; brand: string; type: string; preview?: boolean; weightG?: number; cdaBias?: number };
+export type V3Bike = {
+  id: string; name: string; brand: string; type: string; preview?: boolean; weightG?: number; cdaBias?: number;
+  /** Roues d'origine : paire du catalogue (si elle y figure), poids (g) et bonus de traînée (m²) compris dans le vélo. */
+  wheels?: { id?: string; weightG: number; cdaBias: number };
+};
+/** Paire de roues de Zwift (avant + arrière) : famille, poids total (g) et bonus de traînée (m²). */
+export type V3Wheel = { id: string; name: string; brand: string; kind: 'route' | 'gravel' | 'vtt'; weightG: number; cdaBias: number; preview?: boolean };
 export type V3Object = { id: string; name: string; category: string; path: string };
-export type V3Catalog = { bikes: V3Bike[]; objects: V3Object[] };
+export type V3Catalog = { bikes: V3Bike[]; objects: V3Object[]; wheels?: V3Wheel[] };
+
+/**
+ * Roues proposées selon le type de vélo, comme dans Zwift : roues de route et de gravel sur les vélos de route, de
+ * chrono et de gravel ; les autres (VTT, ville, concept, tricycle, handbike, couché) gardent leurs roues.
+ */
+export function wheelsFor(type: string | undefined, wheels: readonly V3Wheel[]): V3Wheel[] {
+  return type === 'route' || type === 'chrono' || type === 'gravel' ? wheels.filter(wheel => wheel.kind !== 'vtt') : [];
+}
+
+/** Roues montées : celles choisies si elles vont sur ce vélo, sinon aucune (roues d'origine). */
+export function mountedWheel(equipment: V3Equipment, bike: V3Bike | undefined, wheels: readonly V3Wheel[]): V3Wheel | undefined {
+  if (!equipment.wheels || !bike || equipment.wheels === bike.wheels?.id) return undefined;
+  return wheelsFor(bike.type, wheels).find(wheel => wheel.id === equipment.wheels);
+}
 export type V3Color = { name: string; hue?: number };
 export type V3GearSelection = { id: number; color: number; hue?: number };
 export type V3SockHeight = 'low' | 'mid' | 'high';
@@ -50,6 +70,8 @@ export type V3Equipment = {
   /** Couleur libre (palette) des cheveux et de la barbe, « #rrggbb » : prime sur la case de la planche. */
   hairTint?: string;
   beardTint?: string;
+  /** Roues choisies (paire du catalogue) ; absent : roues d'origine du vélo. */
+  wheels?: string;
   /** Home trainer du garage (catalogue du jeu) ; null : aucun ; absent : celui par défaut. */
   trainer?: string | null;
 };
@@ -341,6 +363,10 @@ async function loadBike(equipment: V3Equipment) {
     getV3Catalog().catch(() => undefined),
   ]);
   const levels = scene.children.filter(node => /^LOD[0-2]$/.test(node.name));
+  const info = catalog?.bikes.find(bike => bike.id === equipment.bike);
+  const wheel = mountedWheel(equipment, info, catalog?.wheels ?? []);
+  // Roues indisponibles (conversion en échec) : le vélo garde les siennes.
+  if (wheel) await mountWheels(levels, wheel.id).catch((error: unknown) => console.warn('V3 · roues', error));
   const parts = levels.map(level => level.children.flatMap(node => {
     const part = /^(FrontWheel|RearWheel|Crank)(?:_|$)/.exec(node.name)?.[1];
     if (!part) return [];
@@ -349,7 +375,29 @@ async function loadBike(equipment: V3Equipment) {
   }));
   const wheels = parts[0]?.filter(part => part.part !== 'Crank') ?? [];
   scene.position.y = wheels.length ? -Math.min(...wheels.map(part => part.bottom)) : 0;
-  return { scene, levels, parts, equipment, type: catalog?.bikes.find(bike => bike.id === equipment.bike)?.type };
+  return { scene, levels, parts, equipment, type: info?.type };
+}
+
+/**
+ * Roues choisies montées à la place de celles d'origine, sur chaque niveau de détail : même moyeu (origine des nœuds
+ * FrontWheel / RearWheel), même nom, donc même rotation et même calage sur le home trainer.
+ */
+async function mountWheels(levels: Object3D[], id: string): Promise<void> {
+  const [front, rear] = await Promise.all([model('wheel/' + id + '-av.glb'), model('wheel/' + id + '-ar.glb')]);
+  for (const level of levels) {
+    for (const [part, source] of [['FrontWheel', front], ['RearWheel', rear]] as const) {
+      const original = level.children.find(node => new RegExp('^' + part + '(?:_|$)').test(node.name));
+      if (!original) continue;
+      const mount = new Group();
+      mount.name = part;
+      mount.position.copy(original.position);
+      mount.quaternion.copy(original.quaternion);
+      mount.add(source.clone(true));
+      level.add(mount);
+      level.remove(original);
+      free(original);
+    }
+  }
 }
 
 export async function loadV3DisplayBike(id: string): Promise<Group> {
@@ -520,7 +568,7 @@ export class V3Visual {
   set(look: AvatarLook, equipment = readV3Equipment()): void {
     const previous = this.equipment;
     this.equipment = equipment;
-    if (equipment.bike !== previous?.bike || equipment.color !== previous.color || equipment.hue !== previous.hue) {
+    if (equipment.bike !== previous?.bike || equipment.color !== previous.color || equipment.hue !== previous.hue || equipment.wheels !== previous.wheels) {
       const request = ++this.bikeRequest;
       void loadBike(equipment).then(bike => {
         if (request !== this.bikeRequest) { free(bike.scene); return; }

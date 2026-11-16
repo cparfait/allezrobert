@@ -123,7 +123,11 @@ export function addWardrobe(head: HTMLElement, parent: HTMLElement, settings: ()
   caption.setAttribute('aria-live', 'polite');
   const capName = document.createElement('b');
   const capState = document.createElement('em');
-  caption.append(capName, capState);
+  const capThumb = document.createElement('span');
+  capThumb.className = 'v3-cap-thumb';
+  caption.classList.add('v3-cap');
+  caption.append(capThumb, capName, capState);
+  let capShown: V3Gear | undefined;
   const colorLabel = document.createElement('label');
   colorLabel.className = 'field';
   const color = document.createElement('select');
@@ -261,6 +265,17 @@ export function addWardrobe(head: HTMLElement, parent: HTMLElement, settings: ()
     caption.classList.toggle('empty', !shown);
     capName.textContent = shown ? label(shown) : 'Pièce d’origine du personnage';
     capState.textContent = !shown ? '' : shown.id === current()?.id ? 'Équipé' : 'Cliquer pour équiper';
+    // Vignette de l'article (pastille non cliquable), refaite seulement quand l'article change.
+    if (shown !== capShown) {
+      capShown = shown;
+      const thumb = shown ? chip(shown) : undefined;
+      if (thumb) {
+        thumb.tabIndex = -1;
+        thumb.setAttribute('aria-hidden', 'true');
+        thumb.onclick = thumb.onmouseenter = thumb.onmouseleave = thumb.onfocus = thumb.onblur = null;
+      }
+      capThumb.replaceChildren(...(thumb ? [thumb] : []));
+    }
   }
   function equip(item: V3Gear, index: number, value?: number) {
     const equipment = settings();
@@ -339,9 +354,8 @@ export function addWardrobe(head: HTMLElement, parent: HTMLElement, settings: ()
     };
     return button;
   }
-  /** Familles ouvertes, par catégorie (toutes repliées au départ, sauf celle de l'article porté). */
+  /** Familles ouvertes, par catégorie : toutes repliées à l'arrivée dans la rubrique (l'article porté est en tête). */
   const openFamilies = new Set<string>();
-  const foldReady = new Set<string>();
   function filter() {
     const query = search.value.trim().toLowerCase();
     const matches = items.filter(item => item.type === category && fits(item) && (item.name + ' ' + item.variant).toLowerCase().includes(query));
@@ -355,14 +369,8 @@ export function addWardrobe(head: HTMLElement, parent: HTMLElement, settings: ()
       const [rb, nb] = familyRank(b);
       return ra - rb || na.localeCompare(nb, 'fr');
     });
-    // Maillots : familles repliées par défaut (sauf celle du maillot porté) ; une recherche les ouvre toutes.
     // Toutes les familles (maillots, marques) repliées par défaut ; une recherche les ouvre toutes.
     const foldable = !query && sorted.length > 1;
-    if (foldable && !foldReady.has(category)) {
-      foldReady.add(category);
-      const worn = items.find(item => item.id === settings().kit?.[category]?.id);
-      if (worn) openFamilies.add(category + '|' + familyOf(worn));
-    }
     // Vignettes encore en téléchargement : annulées (le navigateur n'ouvre que quelques connexions à la fois).
     for (const image of grid.querySelectorAll('img')) image.removeAttribute('src');
     grid.replaceChildren(...sorted.flatMap(([family, list]) => {
@@ -420,10 +428,9 @@ export function addWardrobe(head: HTMLElement, parent: HTMLElement, settings: ()
     beardColor.sync();
     const count = items.filter(item => item.type === type && fits(item)).length;
     typeName.textContent = (V3_SLOTS[type]?.label ?? type) + ' · ' + count;
-    // Menu ouvert sur l'article porté : sa famille dépliée, la pastille au milieu de la liste.
-    foldReady.delete(type);
+    // Arrivée dans la rubrique : familles repliées ; l'article porté est montré en tête (légende).
+    for (const id of [...openFamilies]) if (id.startsWith(type + '|')) openFamilies.delete(id);
     filter();
-    grid.querySelector<HTMLElement>('.gr-chip.on')?.scrollIntoView({ block: 'center' });
   }
   search.oninput = filter;
   color.onchange = () => {

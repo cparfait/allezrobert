@@ -1,7 +1,7 @@
-import { getV3Catalog, getV3Clips, getV3Colors, getV3Gear, type V3SockHeight, readV3Equipment, V3_HAIR_COLORS, saveV3Equipment, V3_POSES, type V3Bike, type V3Body, type V3Color, type V3Equipment, type V3Gear } from './visuals.ts';
+import { getV3Catalog, getV3Clips, getV3Colors, getV3Gear, type V3SockHeight, readV3Equipment, V3_HAIR_COLORS, saveV3Equipment, V3_POSES, type V3Bike, type V3Body, type V3Color, type V3Equipment, type V3Gear, mountedWheel, wheelsFor, type V3Wheel } from './visuals.ts';
 import { addWardrobe, createHueControl, onScreen, whenVisible } from './wardrobe.ts';
 import { V3_ICON } from './icons.ts';
-import { COSMETICS, DEFAULT_TRAINER } from '@allezrobert/shared';
+import { COSMETICS, DEFAULT_BIKE, DEFAULT_TRAINER } from '@allezrobert/shared';
 import { saveV3BikeSetup, v3BikeEffect } from './physics.ts';
 import './garage.css';
 
@@ -134,7 +134,7 @@ export function createV3Garage(actions: V3GarageActions) {
   let gearItems: V3Gear[] = [];
   function updateEffect() {
     if (!catalogBikes.length) return;
-    const effect = v3BikeEffect(equipment, catalogBikes, gearItems);
+    const effect = v3BikeEffect(equipment, catalogBikes, gearItems, catalogWheels);
     saveV3BikeSetup(effect.setup);
     const kg = (value: number) => value.toLocaleString('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
     const drag = Math.round(effect.dragPct * 10) / 10;
@@ -175,7 +175,7 @@ export function createV3Garage(actions: V3GarageActions) {
     // Chaque menu s'ouvre sur l'équipement porté (famille ou marque dépliée, article visible).
     if (id === 'kit') openKit();
     if (id === 'character') openCharacter();
-    if (id === 'bikes') revealBike();
+    if (id === 'bikes') foldBikes();
   }
 
   const kit = sectionFor('kit', 'Tenue', V3_ICON.tenue);
@@ -334,6 +334,105 @@ export function createV3Garage(actions: V3GarageActions) {
   };
   ride.append(play);
   bikes.section.append(ride);
+  // Roues (comme dans Zwift, pas de pneus à part : ils viennent avec les roues). Même présentation que la liste des
+  // vélos : intitulé repliable (paire montée), puis lignes avec vignette, marques repliées sauf celle de la paire montée.
+  const wheelField = document.createElement('div');
+  wheelField.className = 'field';
+  wheelField.hidden = true;
+  const wheelToggle = document.createElement('button');
+  wheelToggle.type = 'button';
+  wheelToggle.className = 'v3-fold';
+  wheelToggle.setAttribute('aria-expanded', 'false');
+  const wheelName = document.createElement('span');
+  wheelToggle.append('Roues', wheelName);
+  const wheelList = document.createElement('div');
+  wheelList.className = 'mm-bikelist v3-wheels';
+  wheelList.hidden = true;
+  wheelToggle.onclick = () => {
+    wheelList.hidden = !wheelList.hidden;
+    wheelToggle.setAttribute('aria-expanded', String(!wheelList.hidden));
+    showWheels();
+  };
+  wheelField.append(wheelToggle, wheelList);
+  bikes.section.append(wheelField);
+  const openWheelBrands = new Set<string>();
+  const wheelLabel = (wheel: V3Wheel) => wheel.name.toLowerCase().startsWith(wheel.brand.toLowerCase()) ? wheel.name : wheel.brand + ' ' + wheel.name;
+  function wheelIcon(wheel: V3Wheel | undefined): HTMLElement {
+    if (!wheel?.preview) {
+      const empty = document.createElement('span');
+      empty.className = 'mm-bikeicon v3-wheelicon';
+      empty.innerHTML = V3_ICON.bike;
+      return empty;
+    }
+    const image = document.createElement('img');
+    image.className = 'mm-bikeicon v3-wheelicon';
+    image.src = '/__v3/wheel/' + wheel.id + '.png';
+    image.loading = 'lazy';
+    image.decoding = 'async';
+    image.alt = '';
+    return image;
+  }
+  function showWheels() {
+    const bike = catalogBikes.find(row => row.id === equipment.bike);
+    const offered = wheelsFor(bike?.type, catalogWheels)
+      .sort((a, b) => a.brand.localeCompare(b.brand, 'fr') || a.name.localeCompare(b.name, 'fr', { numeric: true }));
+    wheelField.hidden = !offered.length;
+    const current = mountedWheel(equipment, bike, catalogWheels);
+    const origin = bike?.wheels?.id ? catalogWheels.find(wheel => wheel.id === bike.wheels?.id) : undefined;
+    wheelName.textContent = current ? wheelLabel(current) : 'D’origine';
+    if (wheelList.hidden) return;
+    // Poids et traînée de la paire par rapport aux roues d'origine du vélo.
+    const versus = (wheel: V3Wheel) => {
+      const own = bike?.wheels;
+      const kind = wheel.kind === 'gravel' ? 'Gravel' : 'Route';
+      if (!own) return kind + ' · ' + wheel.weightG.toLocaleString('fr-FR') + ' g';
+      const grams = Math.round(wheel.weightG - own.weightG);
+      const drag = Math.round((wheel.cdaBias - own.cdaBias) / DEFAULT_BIKE.cda * 1000) / 10;
+      return kind + ' · ' + (grams > 0 ? '+' : '') + grams.toLocaleString('fr-FR') + ' g · traînée ' + (drag > 0 ? '+' : '') + drag.toLocaleString('fr-FR') + ' %';
+    };
+    const row = (wheel: V3Wheel | undefined, name: string, detail: string) => {
+      const on = current?.id === wheel?.id;
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'mm-bike' + (on ? ' on' : '');
+      button.setAttribute('aria-pressed', String(on));
+      const text = document.createElement('span');
+      text.className = 'mm-bike-txt';
+      const title = document.createElement('b');
+      title.textContent = name;
+      const sub = document.createElement('small');
+      sub.textContent = detail;
+      text.append(title, sub);
+      const side = document.createElement('span');
+      side.className = 'mm-bike-side';
+      if (on) side.innerHTML = '<span class="mm-bike-state">✓ Équipé</span>';
+      button.append(wheelIcon(wheel ?? origin), text, side);
+      button.onclick = () => { apply({ ...equipment, wheels: wheel?.id }); showWheels(); };
+      return button;
+    };
+    const rows: HTMLElement[] = [row(undefined, 'D’origine', origin ? 'Livrées avec ce vélo : ' + wheelLabel(origin) : 'Livrées avec ce vélo')];
+    for (const brand of [...new Set(offered.map(wheel => wheel.brand))]) {
+      const own = offered.filter(wheel => wheel.brand === brand);
+      const heading = document.createElement('h5');
+      heading.className = 'mm-bl-brand';
+      const count = document.createElement('span');
+      count.textContent = String(own.length);
+      const toggle = document.createElement('button');
+      toggle.type = 'button';
+      toggle.className = 'v3-fold';
+      toggle.setAttribute('aria-expanded', String(openWheelBrands.has(brand)));
+      toggle.append(brand, count);
+      toggle.onclick = () => {
+        if (openWheelBrands.has(brand)) openWheelBrands.delete(brand);
+        else openWheelBrands.add(brand);
+        showWheels();
+      };
+      heading.append(toggle);
+      rows.push(heading);
+      if (openWheelBrands.has(brand)) rows.push(...own.map(wheel => row(wheel, wheelLabel(wheel), versus(wheel))));
+    }
+    wheelList.replaceChildren(...rows);
+  }
   // Home trainer du garage (ceux du jeu) : le vélo V3 est monté dessus, roue arrière retirée.
   const trainerField = document.createElement('div');
   trainerField.className = 'field';
@@ -397,6 +496,7 @@ export function createV3Garage(actions: V3GarageActions) {
   panel.append(status);
 
   let catalogBikes: V3Bike[] = [];
+  let catalogWheels: V3Wheel[] = [];
   let bikeType = 'all';
   function showFocus() {
     const bike = catalogBikes.find(row => row.id === equipment.bike);
@@ -405,7 +505,6 @@ export function createV3Garage(actions: V3GarageActions) {
     focusType.textContent = bike ? typeLabel(bike.type) : '';
   }
   const openBrands = new Set<string>();
-  let brandsReady = false;
   function fillBikes() {
     const query = searchBike.value.trim().toLowerCase();
     const counts = new Map<string, number>();
@@ -431,11 +530,6 @@ export function createV3Garage(actions: V3GarageActions) {
       .sort((a, b) => a.brand.localeCompare(b.brand, 'fr') || bikeName(a).localeCompare(bikeName(b), 'fr'));
     const rows: HTMLElement[] = [];
     let brand: string | undefined;
-    if (!brandsReady && catalogBikes.length) {
-      brandsReady = true;
-      const worn = catalogBikes.find(bike => bike.id === equipment.bike);
-      if (worn) openBrands.add(worn.brand);
-    }
     for (const bike of shown) {
       if (bike.brand !== brand) {
         brand = bike.brand;
@@ -541,21 +635,27 @@ export function createV3Garage(actions: V3GarageActions) {
     row.after(box);
     markInline();
   }
-  /** Vélo équipé montré dans la liste : sa marque dépliée (et tous les types si le filtre le cachait), ligne au milieu. */
-  function revealBike() {
-    const worn = catalogBikes.find(bike => bike.id === equipment.bike);
-    if (!worn) return;
-    openBrands.add(worn.brand);
-    if (bikeType !== 'all' && worn.type !== bikeType) bikeType = 'all';
+  /**
+   * Arrivée dans la rubrique Vélo : tout replié (marques, roues, home trainer) ; le vélo équipé est en tête (fiche),
+   * les roues et le home trainer montés dans leurs intitulés.
+   */
+  function foldBikes() {
+    openBrands.clear();
+    openWheelBrands.clear();
     searchBike.value = '';
-    fillBikes();
-    list.querySelector<HTMLElement>('.mm-bike.on')?.scrollIntoView({ block: 'center' });
+    wheelList.hidden = true;
+    wheelToggle.setAttribute('aria-expanded', 'false');
+    trainers.hidden = true;
+    trainerToggle.setAttribute('aria-expanded', 'false');
+    if (catalogBikes.length) fillBikes();
+    showWheels();
   }
   function choose(bike: string) {
     if (bike === equipment.bike) return;
     apply({ ...equipment, bike, color: 0, hue: undefined });
     showFocus();
     fillBikes();
+    showWheels();
   }
   poses.onchange = () => {
     actions.pose(poses.value);
@@ -568,6 +668,8 @@ export function createV3Garage(actions: V3GarageActions) {
   searchBike.oninput = fillBikes;
   void getV3Catalog().then(catalog => {
     catalogBikes = catalog.bikes;
+    catalogWheels = catalog.wheels ?? [];
+    showWheels();
     void getV3Gear().then(items => { gearItems = items; updateEffect(); }).catch(() => updateEffect());
     if (!catalogBikes.some(bike => bike.id === equipment.bike) && catalogBikes[0]) choose(catalogBikes[0].id);
     showFocus();

@@ -18,6 +18,12 @@
 .ar-v3-garage output:empty { display: none; }
 .ar-v3-garage output { font-size: 12px; color: #8d98a6; }
 .ar-v3-garage .gr-cap { margin: 0; }
+/* Article porté en tête de la rubrique : vignette à gauche du nom. */
+.ar-v3-garage .gr-cap.v3-cap { grid-template-columns: auto 1fr auto; align-items: center; }
+.ar-v3-garage .v3-cap-thumb { grid-row: span 2; width: 52px; }
+.ar-v3-garage .v3-cap-thumb:empty { display: none; }
+.ar-v3-garage .v3-cap-thumb .gr-chip { width: 52px; pointer-events: none; }
+.ar-v3-garage .v3-cap-thumb .gr-chip span, .ar-v3-garage .v3-cap-thumb .gr-chip u { display: none; }
 
 .v3-tools { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; }
 .v3-chip { overflow: hidden; background: rgba(255, 255, 255, 0.06); }
@@ -79,6 +85,12 @@ span.mm-bikeicon { display: block; }
 .v3-inline-colors .gr-sub { font-size: 12px; padding: 5px 11px; }
 .v3-inline-colors > .field { flex: 1 0 100%; margin: 0; }
 .v3-inline-colors[hidden] { display: none; }
+/* Roues : vignettes Zwift (roue entière), sinon pictogramme de vélo. */
+.ar-v3-garage .v3-wheelicon { object-fit: contain; }
+.ar-v3-garage span.v3-wheelicon { display: grid; place-items: center; color: #6f7a88; }
+.ar-v3-garage span.v3-wheelicon svg { width: 46%; height: 46%; }
+.v3-wheels { margin-top: 6px; }
+.v3-wheels[hidden] { display: none; }
 .v3-trainers { margin-top: 6px; border-top: 1px solid rgba(255, 210, 63, 0.25); border-radius: 12px; }
 .v3-inline-colors .gr-sub.on { background: var(--ar-accent, #ffd23f); border-color: var(--ar-accent, #ffd23f); color: #0a0e16; }
 /* Effet du vélo et de l'équipement sur la sortie (poids, traînée). */

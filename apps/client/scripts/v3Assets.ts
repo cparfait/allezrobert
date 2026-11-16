@@ -20,6 +20,25 @@ function gearSchemes(row: Gear): Scheme[] {
   return row.colors.length ? (row.texture ? [base, ...row.colors] : row.colors) : [base];
 }
 
+/** Pièce du catalogue de l'étude (pieces-catalogue.json) : seules les roues servent ici. */
+type Piece = {
+  type: string; fichier: string; nom: string; cle?: string; marque?: string; modele?: string | null;
+  poids?: number | null; poids_v2?: number | null; cda?: number | null; paire?: number | null;
+};
+/** Identifiant d'une paire de roues : dossier et fiche de la roue arrière (« …/Zipp_404_Firecrest/Rear.xml »). */
+const wheelId = (sheet: string) => sheet.replace(/^.*?bikes\/Wheels\//i, '').replace(/rear\.xml$/i, '')
+  .toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+/**
+ * Famille d'une paire de roues : route, gravel (pneus à crampons fins) ou VTT ; null pour les roues propres à un vélo
+ * particulier (concept, tricycle, cruiser, BMX, handbike, couché, Brompton), jamais proposées.
+ */
+function wheelKind(sheet: string): 'route' | 'gravel' | 'vtt' | null {
+  if (/Concept|Zwift_BW|Buffalo|Handcycle|BigSpin|Brompton|Recumbent/i.test(sheet)) return null;
+  if (/ZwiftMountain/i.test(sheet)) return 'vtt';
+  if (/ZwiftGravel|EnveG23|RovalTerra|Cadex_AR35|Reserve25GR|Zipp303XPLR/i.test(sheet)) return 'gravel';
+  return 'route';
+}
+
 function* models(folder: string): Generator<string> {
   if (!existsSync(folder)) return;
   for (const entry of readdirSync(folder, { withFileTypes: true })) {
@@ -62,12 +81,21 @@ export function v3Assets(): Plugin {
       const preview = previews.get(bike.id);
       if (preview) files.set('bike-thumbnail/' + bike.id, preview);
       // Poids total (grammes) et bonus de traînée (m²) de Zwift, valeurs « v2 » en priorité : pour la physique du V3.
+      type Part = { role: string; xml?: string; weight_g?: number | null; weight_v2_g?: number | null; cda?: number | null; cda_v2?: number | null };
       const sheet = existsSync(resolve(bikeDir, bike.id + '.json'))
-        ? readJson<{ poids_total_g?: number; poids_total_v2_g?: number; cda_bias_total?: number; cda_bias_v2_total?: number }>(resolve(bikeDir, bike.id + '.json'))
+        ? readJson<{ poids_total_g?: number; poids_total_v2_g?: number; cda_bias_total?: number; cda_bias_v2_total?: number; pieces?: Part[] }>(resolve(bikeDir, bike.id + '.json'))
         : {};
       const weightG = sheet.poids_total_v2_g || sheet.poids_total_g || undefined;
       const cdaBias = sheet.cda_bias_v2_total ?? sheet.cda_bias_total;
-      return [{ id: bike.id, name: bike.nom, brand: bike.marque, type: bike.type, preview: !!preview, weightG, cdaBias }];
+      // Roues d'origine (poids et traînée à retrancher quand on en monte d'autres).
+      const own = (sheet.pieces ?? []).filter(part => part.role === 'FrontWheel' || part.role === 'RearWheel');
+      const rearSheet = own.find(part => part.role === 'RearWheel')?.xml;
+      const wheels = own.length === 2 ? {
+        id: rearSheet ? wheelId(rearSheet) : undefined,
+        weightG: own.reduce((sum, part) => sum + (part.weight_v2_g || part.weight_g || 0), 0),
+        cdaBias: own.reduce((sum, part) => sum + (part.cda_v2 ?? part.cda ?? 0), 0),
+      } : undefined;
+      return [{ id: bike.id, name: bike.nom, brand: bike.marque, type: bike.type, preview: !!preview, weightG, cdaBias, wheels }];
     });
     const objects = ['Environment', 'Worlds', 'Misc', 'Pickups'].flatMap(category =>
       Array.from(models(resolve(data, category)), path => {
@@ -76,6 +104,39 @@ export function v3Assets(): Plugin {
         files.set('object/' + id, path);
         return { id, name: basename(path, extname(path)), category, path: key };
       }));
+    // Roues de Zwift (paires avant / arrière du catalogue des pièces) : modèles .gde de l'installation locale.
+    const pieces = existsSync(resolve(study, 'pieces-catalogue.json')) ? readJson<{ pieces: Piece[] }>(resolve(study, 'pieces-catalogue.json')).pieces : [];
+    const seenWheels = new Set<string>();
+    // Vignettes des roues de Zwift (UI/…/Customization/Wheels/Wheel_<nom>.ztx), rapprochées du dossier de la roue.
+    const wheelIcons = resolve(data, 'UI/WhiteOrangeTheme/Customization/Wheels');
+    const icons = existsSync(wheelIcons) ? readdirSync(wheelIcons).flatMap(name => {
+      const match = /^Wheel_(.+)\.(ztx|tgax)$/i.exec(name);
+      return match?.[1] ? [{ key: match[1].toLowerCase().replace(/[^a-z0-9]/g, ''), path: resolve(wheelIcons, name) }] : [];
+    }).sort((a, b) => b.key.length - a.key.length) : [];
+    const iconOf = (sheet: string) => {
+      const folder = dirname(sheet).replace(/^.*?bikes\/Wheels\//i, '').toLowerCase().replace(/[^a-z0-9/]/g, '');
+      const last = folder.split('/').pop() ?? '';
+      return (icons.find(icon => icon.key === last) ?? icons.find(icon => folder.replaceAll('/', '').includes(icon.key)))?.path;
+    };
+    const wheels = pieces.flatMap(rear => {
+      const front = typeof rear.paire === 'number' ? pieces[rear.paire] : undefined;
+      if (rear.type !== 'REAR_WHEEL' || front?.type !== 'FRONT_WHEEL' || !rear.modele || !front.modele) return [];
+      const kind = wheelKind(rear.fichier);
+      const id = wheelId(rear.fichier);
+      const rearPath = resolve(data, dirname(rear.fichier), rear.modele);
+      const frontPath = resolve(data, dirname(front.fichier), front.modele);
+      if (!kind || !id || seenWheels.has(id) || !existsSync(rearPath) || !existsSync(frontPath)) return [];
+      seenWheels.add(id);
+      files.set('wheel/' + id + '-av', frontPath);
+      files.set('wheel/' + id + '-ar', rearPath);
+      const icon = iconOf(rear.fichier);
+      if (icon) files.set('wheel-thumbnail/' + id, icon);
+      return [{ preview: !!icon,
+        id, name: nameOf({ cle: rear.cle, nom: rear.nom } as Gear), brand: rear.marque ?? 'Zwift', kind,
+        weightG: (front.poids_v2 || front.poids || 0) + (rear.poids_v2 || rear.poids || 0),
+        cdaBias: (front.cda ?? 0) + (rear.cda ?? 0),
+      }];
+    });
     for (const [key, path] of Object.entries({
       'rider/homme': 'perso/corps/MaleMaster.glb', 'rider/femme': 'perso/corps/FemaleMaster.glb',
       // Autres corps Zwift (même squelette et mêmes groupes de géométrie) : mince, fort (coureur seulement).
@@ -83,7 +144,7 @@ export function v3Assets(): Plugin {
       'rider/femme-mince': 'perso/corps/FemaleMasterSkinny.glb',
       'helmet/homme': 'perso/casque.glb', 'helmet/femme': 'femmes/casque_zwift.glb',
     })) files.set(key, resolve(study, path));
-    return { files, bikes, objects };
+    return { files, bikes, objects, wheels };
   }
   let catalog: ReturnType<typeof index> | undefined;
   let gear: Promise<Gear[]> | undefined;
@@ -271,7 +332,7 @@ export function v3Assets(): Plugin {
             return sendFile(await prepare('map', row.i + '-' + part, source, variant, shift), 'image/png');
           }
           catalog ??= index();
-          if (url.pathname === '/catalogue') return json(200, { bikes: catalog.bikes, objects: catalog.objects });
+          if (url.pathname === '/catalogue') return json(200, { bikes: catalog.bikes, objects: catalog.objects, wheels: catalog.wheels });
           if (url.pathname === '/clips') {
             // Clips du garage (format compact), complétés par les clips décodés de l'étude (version 24 comprise :
             // vélo couché, handbike, clips masculins assis), au format à clés explicites. Ni « BW » ni clignements.
@@ -290,20 +351,22 @@ export function v3Assets(): Plugin {
             }
             return json(200, [...garage, ...extra]);
           }
-          const match = /^\/(bike|object|rider|helmet)\/([a-z0-9-]+)(?:\.(glb|json|png))$/.exec(url.pathname);
+          const match = /^\/(bike|object|rider|helmet|wheel)\/([a-z0-9-]+)(?:\.(glb|json|png))$/.exec(url.pathname);
           if (!match) return json(404, { error: 'Ressource V3 introuvable.' });
           const kind = match[1]!;
           const id = match[2]!;
           const format = match[3];
-          const source = catalog.files.get((kind === 'bike' && format === 'png' ? 'bike-thumbnail' : kind) + '/' + id);
+          const source = catalog.files.get(((kind === 'bike' || kind === 'wheel') && format === 'png' ? kind + '-thumbnail' : kind) + '/' + id);
           if (!source || !existsSync(source)) return json(404, { error: 'Fichier source V3 introuvable.' });
           if (kind === 'object' && variant !== 0 && variant !== 2) return json(400, { error: 'Niveau de détail invalide.' });
-          if (kind === 'bike' && format === 'png') return sendFile(await prepare('thumb', 'bike-' + id, source), 'image/png');
+          if ((kind === 'bike' || kind === 'wheel') && format === 'png') return sendFile(await prepare('thumb', kind + '-' + id, source), 'image/png');
           if (format === 'json' && kind === 'bike') {
             const info = readJson<{ coloris?: Scheme[] }>(resolve(dirname(source), id + '.json'));
             return json(200, { colors: (info.coloris ?? []).map(color => ({ name: color.Name, hue: hueOf(color) })) });
           }
           if (format !== 'glb') return json(404, { error: 'Format V3 introuvable.' });
+          // Roue : modèle .gde converti comme un objet (premier niveau de détail, textures de Zwift).
+          if (kind === 'wheel') return sendFile(await prepare('object', 'wheel-' + id, source, 0));
           return sendFile(await prepare(kind, id, source, variant, kind === 'bike' ? hue : undefined));
         })().catch((error: unknown) => {
           server.config.logger.warn('V3 · ' + (error instanceof Error ? error.message : String(error)));

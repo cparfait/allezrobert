@@ -1,5 +1,5 @@
 import { DEFAULT_BIKE, type BikeSetup } from '@allezrobert/shared';
-import type { V3Bike, V3Equipment, V3Gear } from './visuals.ts';
+import { mountedWheel, type V3Bike, type V3Equipment, type V3Gear, type V3Wheel } from './visuals.ts';
 
 /**
  * Vélo roulé du style V3, d'après les caractéristiques Zwift du vélo et des accessoires portés :
@@ -28,11 +28,14 @@ function tyreOf(type: string | undefined): BikeSetup['tyre'] {
   return type === 'vtt' ? 'mtb' : type === 'gravel' ? 'gravel' : 'road';
 }
 
-export function v3BikeEffect(equipment: V3Equipment, bikes: readonly V3Bike[], items: readonly V3Gear[]): V3BikeEffect {
+export function v3BikeEffect(equipment: V3Equipment, bikes: readonly V3Bike[], items: readonly V3Gear[], wheels: readonly V3Wheel[] = []): V3BikeEffect {
   const bike = bikes.find(row => row.id === equipment.bike);
-  const bikeKg = bike?.weightG ? bike.weightG / 1000 : DEFAULT_BIKE.massKg;
+  // Roues choisies : celles d'origine retranchées du vélo (poids et traînée), les nouvelles ajoutées ; leurs pneus.
+  const wheel = mountedWheel(equipment, bike, wheels);
+  const swap = wheel && bike?.wheels ? { kg: (wheel.weightG - bike.wheels.weightG) / 1000, cda: wheel.cdaBias - bike.wheels.cdaBias } : { kg: 0, cda: 0 };
+  const bikeKg = bike?.weightG ? bike.weightG / 1000 + swap.kg : DEFAULT_BIKE.massKg;
   let gearKg = 0;
-  let cdaDelta = bike?.cdaBias ?? 0;
+  let cdaDelta = (bike?.cdaBias ?? 0) + swap.cda;
   for (const selection of Object.values(equipment.kit ?? {})) {
     const item = items.find(row => row.id === selection.id);
     if (!item) continue;
@@ -42,7 +45,7 @@ export function v3BikeEffect(equipment: V3Equipment, bikes: readonly V3Bike[], i
   cdaDelta = clamp(cdaDelta, CDA_DELTA);
   const massKg = Math.round(clamp(bikeKg + gearKg, MASS_KG) * 100) / 100;
   const cda = Math.round((DEFAULT_BIKE.cda + cdaDelta) * 10000) / 10000;
-  const setup: BikeSetup = { ...DEFAULT_BIKE, name: bike ? bike.name : DEFAULT_BIKE.name, massKg, cda, tyre: tyreOf(bike?.type) };
+  const setup: BikeSetup = { ...DEFAULT_BIKE, name: bike ? bike.name : DEFAULT_BIKE.name, massKg, cda, tyre: wheel ? (wheel.kind === 'gravel' ? 'gravel' : 'road') : tyreOf(bike?.type) };
   return { setup, bikeKg, gearKg, cdaDelta, dragPct: (cdaDelta / DEFAULT_BIKE.cda) * 100 };
 }
 
