@@ -11,7 +11,9 @@ const tile = (buildings: Array<{ pts: number[] }>) => ({ features: { buildings }
 describe('StreetIndex', () => {
   // Voie nord-sud en x = 0 (demi-chaussée 4 m), bâtiment dont le mur est en x = 9.
   const main = road([0, 0, -100, 0, 0, 100]);
-  const index = new StreetIndex(tile([square(9, -10, 20)]), [main]);
+  // Deux voisins à l'écart des rayons testés : hameau de trois bâtiments (BUILT_UP_MIN), « en ville ».
+  const hamlet = [square(-14, 20, 4), square(-14, -14, 3)];
+  const index = new StreetIndex(tile([square(9, -10, 20), ...hamlet]), [main]);
 
   it('sait où est la chaussée et où sont les bâtiments', () => {
     expect(index.onRoad(3, 0)).toBe(true);
@@ -32,7 +34,7 @@ describe('StreetIndex', () => {
 
   it('arrête le trottoir avant la chaussée d une autre voie', () => {
     const cross = road([-100, 0, 8, 100, 0, 8]);
-    const x = new StreetIndex(tile([square(10, -6, 4)]), [cross]);
+    const x = new StreetIndex(tile([square(10, -6, 4), ...hamlet]), [cross]);
     // Depuis z = 1 vers z croissant : la chaussée de la voie transversale commence vers z = 3,5.
     const w = x.clearWidth(0, 1, 0, 1);
     expect(w).toBeGreaterThan(0);
@@ -45,13 +47,18 @@ describe('StreetIndex', () => {
     expect(new StreetIndex(tile([square(500, 500, 10)]), [main]).clearWidth(4.6, 0, 1, 0)).toBe(0);
   });
 
+  it('ne pose rien devant une ferme isolée (un ou deux bâtiments)', () => {
+    expect(new StreetIndex(tile([square(9, -10, 20)]), [main]).clearWidth(4.6, 0, 1, 0)).toBe(0);
+    expect(new StreetIndex(tile([square(9, -10, 20), square(-14, 20, 4)]), [main]).clearWidth(4.6, 0, 1, 0)).toBe(0);
+  });
+
   it('ne pose rien côté champ quand le seul bâtiment est en face', () => {
     // Bâtiment à l'est (mur en x = 9) : le trottoir ouest ne donnerait que sur un pré.
     expect(index.clearWidth(-4.6, 0, -1, 0)).toBe(0);
   });
 
   it('pose un trottoir de largeur par défaut devant un bâtiment en retrait (jardinet)', () => {
-    const w = new StreetIndex(tile([square(14, -10, 20)]), [main]).clearWidth(4.6, 0, 1, 0);
+    const w = new StreetIndex(tile([square(14, -10, 20), ...hamlet]), [main]).clearWidth(4.6, 0, 1, 0);
     expect(w).toBeCloseTo(2.2);
   });
 });

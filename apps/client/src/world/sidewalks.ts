@@ -22,10 +22,18 @@ const OPEN_REACH_M = 14;
  *  est remblayé jusque-là en ville (terrain.ts), sinon la dalle dominait le sol d'un village à flanc de pente. */
 export const SIDEWALK_MAX_M = REACH_M + 0.5;
 
-/** Cases de 16 m qui touchent un bâtiment (rectangle englobant) : « en ville » à une case près (`isBuiltUp`). */
-export function builtCells(buildings: ReadonlyArray<{ pts: ArrayLike<number> }>): Set<number> {
-  const out = new Set<number>();
-  for (const b of buildings) {
+/**
+ * Nombre de bâtiments distincts, à une case de 16 m près, à partir duquel on est « en ville » (trottoirs, lampadaires,
+ * terrain remblayé). Un ou deux bâtiments (ferme isolée, hangar) ne suffisent plus : des bouts de trottoir naissaient en
+ * pleine campagne (16/11/2026).
+ */
+export const BUILT_UP_MIN = 3;
+
+/** Bâtiments (rang dans la liste) de chaque case de 16 m qu'ils touchent (rectangle englobant), voir `isBuiltUp`. */
+export function builtCells(buildings: ReadonlyArray<{ pts: ArrayLike<number> }>): Map<number, number[]> {
+  const out = new Map<number, number[]>();
+  for (let bi = 0; bi < buildings.length; bi++) {
+    const b = buildings[bi] as { pts: ArrayLike<number> };
     if (b.pts.length < 6) continue;
     let minX = Infinity;
     let minZ = Infinity;
@@ -37,16 +45,27 @@ export function builtCells(buildings: ReadonlyArray<{ pts: ArrayLike<number> }>)
       minZ = Math.min(minZ, b.pts[i + 1] as number);
       maxZ = Math.max(maxZ, b.pts[i + 1] as number);
     }
-    for (let cx = Math.floor(minX / CELL); cx <= Math.floor(maxX / CELL); cx++) for (let cz = Math.floor(minZ / CELL); cz <= Math.floor(maxZ / CELL); cz++) out.add(key(cx, cz));
+    for (let cx = Math.floor(minX / CELL); cx <= Math.floor(maxX / CELL); cx++)
+      for (let cz = Math.floor(minZ / CELL); cz <= Math.floor(maxZ / CELL); cz++) {
+        const k = key(cx, cz);
+        const l = out.get(k);
+        if (l) l.push(bi);
+        else out.set(k, [bi]);
+      }
   }
   return out;
 }
 
-/** Bâtiment à moins de 16 à 32 m (même règle que `StreetIndex.urban`, qui décide des trottoirs). */
-export function isBuiltUp(cells: ReadonlySet<number>, x: number, z: number): boolean {
+/** Au moins BUILT_UP_MIN bâtiments à moins de 16 à 32 m (même règle que `StreetIndex.urban`, qui décide des trottoirs). */
+export function isBuiltUp(cells: ReadonlyMap<number, readonly number[]>, x: number, z: number): boolean {
   const cx = Math.floor(x / CELL);
   const cz = Math.floor(z / CELL);
-  for (let dx = -1; dx <= 1; dx++) for (let dz = -1; dz <= 1; dz++) if (cells.has(key(cx + dx, cz + dz))) return true;
+  const seen = new Set<number>();
+  for (let dx = -1; dx <= 1; dx++)
+    for (let dz = -1; dz <= 1; dz++) {
+      for (const b of cells.get(key(cx + dx, cz + dz)) ?? []) seen.add(b);
+      if (seen.size >= BUILT_UP_MIN) return true;
+    }
   return false;
 }
 
@@ -136,12 +155,10 @@ export class StreetIndex {
     return seen.size;
   }
 
-  /** Bâtiment à moins de 16 à 32 m : on est en ville. Pas de trottoir ni de lampadaire en rase campagne. */
+  /** Au moins BUILT_UP_MIN bâtiments à moins de 16 à 32 m : on est en ville. Pas de trottoir ni de lampadaire en rase
+   *  campagne, ni devant une ferme isolée. */
   urban(x: number, z: number): boolean {
-    const cx = Math.floor(x / CELL);
-    const cz = Math.floor(z / CELL);
-    for (let dx = -1; dx <= 1; dx++) for (let dz = -1; dz <= 1; dz++) if (this.buildings.has(key(cx + dx, cz + dz))) return true;
-    return false;
+    return this.density(x, z) >= BUILT_UP_MIN;
   }
 
   private readonly shopWalls: readonly number[];

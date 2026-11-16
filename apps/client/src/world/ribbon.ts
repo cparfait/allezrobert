@@ -850,6 +850,8 @@ export interface NetChain {
   dirs: EndDirs;
   /** Bouts qui débouchent sur la route principale d'un carrefour (voir `sideRoadStrips`). */
   stops: EndStops;
+  /** Demi-chaussée du tronçon raccordé (sans fusion) à chaque bout : transition de largeur (network.ts). */
+  joinHalf: { start?: number; end?: number };
 }
 
 /** Deux bouts de tronçon à moins de ceci (m) forment un même nœud du graphe. */
@@ -1032,7 +1034,21 @@ export function chainPieces(pieces: readonly NetPiece[]): NetChain[] {
     const end = joint(last, -1);
     const s0 = stopOf[first.p * 2 + first.end];
     const s1 = stopOf[last.p * 2 + last.end];
-    out.push({ piece: first.p, pts3: pts, dirs: { ...(start ? { start } : {}), ...(end ? { end } : {}) }, stops: { ...(s0 ? { start: s0 } : {}), ...(s1 ? { end: s1 } : {}) } });
+    // Tronçon voisin raccordé sans fusion (autres attributs) : sa demi-chaussée, pour une transition de largeur.
+    const joinOf = (e: { p: number; end: 0 | 1 }) => {
+      const l = link[e.p * 2 + e.end];
+      return l && !l.merge ? (pieces[l.to.p] as NetPiece).half : undefined;
+    };
+    // (bout posé sur la rive d'une route principale de carrefour : pas de transition)
+    const h0 = start && !s0 ? joinOf(first) : undefined;
+    const h1 = end && !s1 ? joinOf(last) : undefined;
+    out.push({
+      piece: first.p,
+      pts3: pts,
+      dirs: { ...(start ? { start } : {}), ...(end ? { end } : {}) },
+      stops: { ...(s0 ? { start: s0 } : {}), ...(s1 ? { end: s1 } : {}) },
+      joinHalf: { ...(h0 !== undefined ? { start: h0 } : {}), ...(h1 !== undefined ? { end: h1 } : {}) },
+    });
   }
   return out;
 }

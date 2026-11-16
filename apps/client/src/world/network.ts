@@ -146,6 +146,11 @@ export class RoadNetwork {
     const across = uv().x; // mètres depuis l'axe (signé)
     const along = uv().y;
     const half = info.x;
+    // info.y : marquage de rive et d'axe (0-1) ; négatif à l'approche d'un carrefour (P2.2c, 16/11) : ni bas-côté ni
+    // découpe ni ornières là où deux rubans se recouvrent (ils soulignaient les raccords). Un seul attribut : le maillage
+    // des routes est déjà à 8 tampons de sommets, la limite WebGPU.
+    const marking = info.y.max(0);
+    const junction = clamp(info.y.negate(), 0, 1);
     const ax = abs(across);
     const n = mx_noise_float(positionWorld.xz.mul(1.7)).mul(0.5).add(0.5);
     const n2 = mx_noise_float(positionWorld.xz.mul(0.08)).mul(0.5).add(0.5);
@@ -167,9 +172,9 @@ export class RoadNetwork {
     const shade = hash(floor(u).add(row.mul(57)));
     const stone = vec3(0.43, 0.41, 0.38).mul(shade.mul(0.4).add(0.72)).mul(n.mul(0.2).add(0.9));
     const cobbles = mix(vec3(0.13, 0.12, 0.1), stone, inStone);
-    let edge = smoothstep(half.sub(0.35), half.sub(0.3), ax).mul(smoothstep(half.sub(0.1), half.sub(0.15), ax)).mul(info.y);
+    let edge = smoothstep(half.sub(0.35), half.sub(0.3), ax).mul(smoothstep(half.sub(0.1), half.sub(0.15), ax)).mul(marking);
     const dash = step(fract(along.div(13)), float(3 / 13));
-    let center = smoothstep(0.08, 0.06, ax).mul(dash).mul(info.y);
+    let center = smoothstep(0.08, 0.06, ax).mul(dash).mul(marking);
     if (LOW_POLY) {
       // Marquages antialiasés selon leur taille à l'écran (plus de scintillement au loin).
       const aa = fwidth(ax).max(0.002);
@@ -177,8 +182,8 @@ export class RoadNetwork {
       const da = fwidth(dv).max(0.001);
       const t = fract(dv);
       const dashAA = smoothstep(float(0).sub(da), da, t).mul(float(1).sub(smoothstep(float(3 / 13).sub(da), float(3 / 13).add(da), t)));
-      edge = float(1).sub(smoothstep(float(0.075).sub(aa), float(0.075).add(aa), abs(ax.sub(half.sub(0.225))))).mul(info.y);
-      center = float(1).sub(smoothstep(float(0.07).sub(aa), float(0.07).add(aa), ax)).mul(dashAA).mul(info.y);
+      edge = float(1).sub(smoothstep(float(0.075).sub(aa), float(0.075).add(aa), abs(ax.sub(half.sub(0.225))))).mul(marking);
+      center = float(1).sub(smoothstep(float(0.07).sub(aa), float(0.07).add(aa), ax)).mul(dashAA).mul(marking);
     }
     const paint = max(edge, center).mul(LOW_POLY ? float(1) : n2.mul(0.25).add(0.75)).mul(float(1).sub(cobble));
     let col = mix(mix(asphalt, gravel, unpaved), cobbles, cobble);
@@ -246,9 +251,10 @@ export class RoadNetwork {
         const cellG = mod(floor(positionWorld.xz.mul(25)), 2048);
         const grit = mix(hash(cellG.x.add(cellG.y.mul(613))).mul(0.36).add(0.82), float(1), smoothstep(0.012, 0.03, pix));
         const shoulderCol = vec3(0.13, 0.124, 0.112).mul(grit).mul(n.mul(0.16).add(0.92));
-        const pavedK = beyond.mul(paved).mul(float(1).sub(gutterSide));
+        // pas de bas-côté sur un pont : le tablier garde son bord d'enrobé (16/11)
+        const pavedK = beyond.mul(paved).mul(float(1).sub(gutterSide)).mul(float(1).sub(onBridge)).mul(float(1).sub(junction));
         // chemin de terre : traces de roues tassées à ±0,75 m, herbe rase au milieu des chemins étroits
-        const isTrack = unpaved.mul(float(1).sub(cobbleF)).mul(float(1).sub(walk));
+        const isTrack = unpaved.mul(float(1).sub(cobbleF)).mul(float(1).sub(walk)).mul(float(1).sub(junction));
         const rut = float(1).sub(smoothstep(0.1, 0.32, abs(ax.sub(0.8).add(fray.mul(0.4))))).mul(smoothstep(1.1, 1.3, half));
         const mid = float(1).sub(smoothstep(0.22, 0.55, ax.add(fray.mul(0.5)))).mul(float(1).sub(smoothstep(1.6, 2.2, half)));
         const trackBase = gravel.mul(0.75);
@@ -258,6 +264,8 @@ export class RoadNetwork {
         shoulderK = pavedK as unknown as ReturnType<typeof float>;
         // découpe à 14 cm (± rive) au-delà du bord de chaussée ; ruban entier au-delà de 60-100 m (pas de scintillement)
         const camD = positionWorld.sub(cameraPosition).length();
+        // aux carrefours, la découpe irrégulière reste (un ruban entier y faisait une plaque d'enrobé à bords droits) ;
+        // seules la teinte de gravillons et les ornières sont retirées (`junction` dans pavedK et isTrack)
         const reach = mix(fray.add(0.14), float(0.62), smoothstep(60, 100, camD)).max(-0.05);
         const cutK = float(1).sub(onBridge).mul(float(1).sub(gutterSide)).mul(float(1).sub(walk));
         m.opacityNode = float(1).sub(step(half.add(reach), ax).mul(cutK));
@@ -408,6 +416,74 @@ function edgeAt(street: StreetIndex, x: number, y: number, z: number, dx: number
   return { w, kind: { wall, shop: wall && street.shopNear(x + dx * (w - 0.3), z + dz * (w - 0.3)) } };
 }
 
+/** Longueur de la transition de largeur entre deux tronçons raccordés (m). `?roadtaper=0` la coupe. */
+const TAPER_M = 10;
+/** Arrondis des carrefours (`?roadflare=0` les coupe). */
+const ROAD_FLARE = (() => {
+  try {
+    return typeof location === 'undefined' || new URLSearchParams(location.search).get('roadflare') !== '0';
+  } catch {
+    return true;
+  }
+})();
+const ROAD_TAPER = (() => {
+  try {
+    return typeof location === 'undefined' || new URLSearchParams(location.search).get('roadtaper') !== '0';
+  } catch {
+    return true;
+  }
+})();
+
+/** Rayon des arrondis d'une branche qui débouche sur la route principale d'un carrefour (m). */
+const FLARE_R = 3.5;
+
+/**
+ * Demi-chaussée par profil d'un ruban, au bout de sa chaîne :
+ * - raccord à un tronçon d'autre largeur (`c.joinHalf`) : la moyenne des deux au bout, la sienne à TAPER_M (au plus la
+ *   moitié du ruban), raccord en S entre les deux ;
+ * - branche qui débouche sur la route principale d'un carrefour (`c.stops`) : évasée en quart de cercle de FLARE_R (au
+ *   plus la moitié du ruban), comme les bordures arrondies d'un vrai carrefour, au lieu d'un bout d'équerre.
+ * Null si rien ne change. Seuls les rubans qui commencent ou finissent au bout de la chaîne sont concernés (un morceau
+ * coupé par l'itinéraire n'a pas de voisin).
+ */
+function taperedHalves(s: { left: number[]; right: number[]; along: number[] }, c: { pts3: number[]; joinHalf: { start?: number; end?: number }; stops: { start?: unknown; end?: unknown } }, half: number): Float64Array | null {
+  const n = s.along.length;
+  if (n < 2 || (!ROAD_TAPER && !ROAD_FLARE)) return null;
+  const midOf = (i: number) => [((s.left[i * 3] as number) + (s.right[i * 3] as number)) / 2, ((s.left[i * 3 + 2] as number) + (s.right[i * 3 + 2] as number)) / 2] as const;
+  const near = (i: number, k: number) => {
+    const [x, z] = midOf(i);
+    return Math.hypot(x - (c.pts3[k * 3] as number), z - (c.pts3[k * 3 + 2] as number)) < 1;
+  };
+  const m = c.pts3.length / 3;
+  const hs = ROAD_TAPER && c.joinHalf.start !== undefined && Math.abs(c.joinHalf.start - half) > 0.05 && near(0, 0) ? (c.joinHalf.start + half) / 2 : null;
+  const he = ROAD_TAPER && c.joinHalf.end !== undefined && Math.abs(c.joinHalf.end - half) > 0.05 && near(n - 1, m - 1) ? (c.joinHalf.end + half) / 2 : null;
+  // bouts posés sur la rive d'une route principale (ils ne sont plus sur le premier point de la chaîne : coupés)
+  const fs = ROAD_FLARE && !!c.stops.start;
+  const fe = ROAD_FLARE && !!c.stops.end;
+  if (hs === null && he === null && !fs && !fe) return null;
+  const a0 = s.along[0] as number;
+  const L = (s.along[n - 1] as number) - a0;
+  const span = Math.min(TAPER_M, L / 2);
+  const R = Math.min(FLARE_R, L / 2);
+  // quart de cercle : R au bout, 0 à R du bout
+  const flare = (a: number) => (a >= R ? 0 : R - Math.sqrt(Math.max(0, R * R - (R - a) * (R - a))));
+  const out = new Float64Array(n).fill(half);
+  const ease = (t: number) => {
+    const u = Math.max(0, Math.min(1, t));
+    return u * u * (3 - 2 * u);
+  };
+  for (let i = 0; i < n; i++) {
+    const a = (s.along[i] as number) - a0;
+    let h = half;
+    if (hs !== null) h += (hs - half) * (1 - ease(a / span));
+    if (he !== null) h += (he - half) * (1 - ease((L - a) / span));
+    if (fs) h += flare(a);
+    if (fe) h += flare(L - a);
+    out[i] = h;
+  }
+  return out;
+}
+
 /** Rubans de toutes les routes d'une tuile, fusionnés (un seul appel de dessin). */
 function buildRoads(roads: TileRoad[], footprint: RouteFootprint | null, street: StreetIndex | null, lamps: LampSpot[], groundAt: ((x: number, z: number) => number) | null, bollards: LampSpot[] = [], walk: number[] = []): THREE.BufferGeometry | null {
   const lampGrid = new Map<number, LampSpot[]>();
@@ -435,6 +511,21 @@ function buildRoads(roads: TileRoad[], footprint: RouteFootprint | null, street:
       const s = city ? resampleStrip(raw.left, raw.right, raw.along, 3) : marked && street ? resampleStrip(raw.left, raw.right, raw.along, 4) : raw;
       const base = pos.length / 3;
       const n = s.along.length;
+      // Transition de largeur (16/11/2026) : au raccord avec un tronçon d'autre largeur, chaque ruban rejoint la
+      // demi-chaussée moyenne des deux sur TAPER_M, au lieu d'une marche ; bords, marquages et bas-côtés suivent.
+      const halfAt = taperedHalves(s, c, half);
+      if (halfAt) {
+        for (let i = 0; i < n; i++) {
+          const k = ((halfAt[i] as number) + 0.6) / o;
+          const lx = s.left[i * 3] as number, lz = s.left[i * 3 + 2] as number;
+          const rx = s.right[i * 3] as number, rz = s.right[i * 3 + 2] as number;
+          const cx = (lx + rx) / 2, cz = (lz + rz) / 2;
+          s.left[i * 3] = cx + (lx - cx) * k;
+          s.left[i * 3 + 2] = cz + (lz - cz) * k;
+          s.right[i * 3] = cx + (rx - cx) * k;
+          s.right[i * 3 + 2] = cz + (rz - cz) * k;
+        }
+      }
       const lampAt = new Float32Array(n);
       const ux: number[] = [];
       const uz: number[] = [];
@@ -506,10 +597,27 @@ function buildRoads(roads: TileRoad[], footprint: RouteFootprint | null, street:
           for (let j = 0; j < n; j++) if (Math.abs((s.along[j] as number) - at) <= LAMP_SPACING / 2 + 0.01) lampAt[j] = mode;
         }
       }
+      // Carrefours (P2.2c, 16/11) : rangs dont le profil, bas-côtés compris, touche la chaussée d'une voie qui croise,
+      // élargis de 3 m le long de la rue ; le shader y retire bas-côté, découpe et ornières (voir `junction`).
+      const nearJunction = new Uint8Array(n);
+      if (ROAD_SHOULDER && street) {
+        const hit = new Uint8Array(n);
+        for (let k = 0; k < n; k++) {
+          const ex = (s.right[k * 3] as number) - (s.left[k * 3] as number);
+          const ez = (s.right[k * 3 + 2] as number) - (s.left[k * 3 + 2] as number);
+          if ([0, 0.2, 0.5, 0.8, 1].some((t) => street.crossRoad((s.left[k * 3] as number) + ex * t, (s.left[k * 3 + 2] as number) + ez * t, -ez, ex, 1))) hit[k] = 1;
+        }
+        for (let k = 0; k < n; k++) {
+          if (!hit[k]) continue;
+          for (let j = 0; j < n; j++) if (Math.abs((s.along[j] as number) - (s.along[k] as number)) <= 3) nearJunction[j] = 1;
+        }
+      }
       for (let i = 0; i < n; i++) {
         pos.push(s.left[i * 3] as number, s.left[i * 3 + 1] as number, s.left[i * 3 + 2] as number);
         pos.push(s.right[i * 3] as number, s.right[i * 3 + 1] as number, s.right[i * 3 + 2] as number);
-        uvs.push(-o, s.along[i] as number, o, s.along[i] as number);
+        const hi = halfAt ? (halfAt[i] as number) : half;
+        const oi = hi + 0.6;
+        uvs.push(-oi, s.along[i] as number, oi, s.along[i] as number);
         // Carrefour : pas de ligne de rive ni d'axe sur la chaussée de la rue qui croise (elles se superposaient).
         let mL = marked;
         let mR = marked;
@@ -525,7 +633,8 @@ function buildRoads(roads: TileRoad[], footprint: RouteFootprint | null, street:
           if (street.crossRoad(cx - ax * r, cz - az * r, -az, ax)) mL = 0;
           if (street.crossRoad(cx + ax * r, cz + az * r, -az, ax)) mR = 0;
         }
-        info.push(half, mL, surfaceCode, half, mR, surfaceCode);
+        const jn = nearJunction[i] ? -1 : 0;
+        info.push(hi, jn || mL, surfaceCode, hi, jn || mR, surfaceCode);
         lit.push(lampAt[i] as number, lampAt[i] as number);
         decal.push(0, 0, 0, 0, 0, 0, 0, 0);
         dsize.push(0, 0, 0, 0);
