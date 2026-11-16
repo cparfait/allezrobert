@@ -1,6 +1,7 @@
 import { getV3Catalog, getV3Clips, getV3Colors, getV3Gear, type V3SockHeight, readV3Equipment, V3_HAIR_COLORS, saveV3Equipment, V3_POSES, type V3Bike, type V3Body, type V3Color, type V3Equipment, type V3Gear } from './visuals.ts';
 import { addWardrobe, createHueControl, onScreen, whenVisible } from './wardrobe.ts';
 import { V3_ICON } from './icons.ts';
+import { saveV3BikeSetup, v3BikeEffect } from './physics.ts';
 import './garage.css';
 
 export interface V3GarageActions {
@@ -121,6 +122,22 @@ export function createV3Garage(actions: V3GarageActions) {
     equipment = value;
     saveV3Equipment(equipment);
     actions.equipment(equipment);
+    updateEffect();
+  }
+  /**
+   * Effet du vélo et des accessoires sur la sortie (poids, traînée) d'après leurs caractéristiques Zwift :
+   * affiché sous la fiche du vélo et enregistré pour la prochaine sortie en style V3.
+   */
+  let gearItems: V3Gear[] = [];
+  function updateEffect() {
+    if (!catalogBikes.length) return;
+    const effect = v3BikeEffect(equipment, catalogBikes, gearItems);
+    saveV3BikeSetup(effect.setup);
+    const kg = (value: number) => value.toLocaleString('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+    const drag = Math.round(effect.dragPct * 10) / 10;
+    effectLine.textContent = 'En selle : ' + kg(effect.setup.massKg) + ' kg · traînée ' + (drag > 0 ? '+' : '') + drag.toLocaleString('fr-FR') + ' %';
+    effectLine.title = 'Vélo ' + kg(effect.bikeKg) + ' kg + équipement ' + kg(effect.gearKg) + ' kg (poids et traînée Zwift) ; '
+      + 'appliqué à la prochaine sortie en style V3. Pneus : ' + (effect.setup.tyre === 'mtb' ? 'VTT' : effect.setup.tyre === 'gravel' ? 'gravel' : 'route') + '.';
   }
   function sectionFor(id: string, title: string, icon: string) {
     const head = document.createElement('div');
@@ -239,7 +256,9 @@ export function createV3Garage(actions: V3GarageActions) {
     // Toujours des cheveux (« Clean Shaven » écarté) ; barbe une fois sur deux pour le coureur.
     wear('HAIR', pick(items.filter(item => fits(item, 'HAIR') && !/clean shaven/i.test(item.variant))));
     const beards = items.filter(item => fits(item, 'FACIAL_HAIR') && !/clean shaven/i.test(item.variant));
-    wear('FACIAL_HAIR', sex === 'male' && Math.random() < 0.5 ? pick(beards) : undefined);
+    // Barbe une fois sur deux ; sinon « sans barbe » (sinon la moustache d'origine du visage resterait).
+    const shaven = items.find(item => item.type === 'FACIAL_HAIR' && /clean shaven/i.test(item.variant));
+    wear('FACIAL_HAIR', sex === 'male' && Math.random() < 0.5 ? pick(beards) : shaven);
     const bodies: V3Body[] = sex === 'male' ? ['standard', 'standard', 'skinny', 'big'] : ['standard', 'standard', 'skinny'];
     const hairColor = Math.floor(Math.random() * (V3_HAIR_COLORS.length - 1)); // le bleu reste un choix délibéré
     apply({ ...equipment, sex, kit, body: pick(bodies), hairColor, beardColor: Math.random() < 0.8 ? hairColor : Math.floor(Math.random() * 5) });
@@ -279,7 +298,9 @@ export function createV3Garage(actions: V3GarageActions) {
   focusText.className = 'mm-bike-txt';
   const focusName = document.createElement('b');
   const focusType = document.createElement('small');
-  focusText.append(focusName, focusType);
+  const effectLine = document.createElement('small');
+  effectLine.className = 'v3-effect';
+  focusText.append(focusName, focusType, effectLine);
   focus.append(bikeIcon(undefined, true), focusText);
   bikes.section.append(focus);
   const colors = select(bikes.section, 'Coloris');
@@ -510,6 +531,7 @@ export function createV3Garage(actions: V3GarageActions) {
   searchBike.oninput = fillBikes;
   void getV3Catalog().then(catalog => {
     catalogBikes = catalog.bikes;
+    void getV3Gear().then(items => { gearItems = items; updateEffect(); }).catch(() => updateEffect());
     if (!catalogBikes.some(bike => bike.id === equipment.bike) && catalogBikes[0]) choose(catalogBikes[0].id);
     else void showColors();
     showFocus();

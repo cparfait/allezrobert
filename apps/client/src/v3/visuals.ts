@@ -20,7 +20,7 @@ export const V3_POSES: Record<string, string> = {
   cyclistSuperAero: 'Super-aéro · roue libre',
 };
 
-export type V3Bike = { id: string; name: string; brand: string; type: string; preview?: boolean };
+export type V3Bike = { id: string; name: string; brand: string; type: string; preview?: boolean; weightG?: number; cdaBias?: number };
 export type V3Object = { id: string; name: string; category: string; path: string };
 export type V3Catalog = { bikes: V3Bike[]; objects: V3Object[] };
 export type V3Color = { name: string; hue?: number };
@@ -43,8 +43,12 @@ export const V3_HAIR_COLORS: Array<{ name: string; swatch: string }> = [
 ];
 const hairCell = (index = 0): [number, number] => [(index % 2) * 0.5, Math.floor(Math.min(5, Math.max(0, index)) / 2) / 3];
 
-/** Coiffures intégrées au corps masculin (groupes de géométrie 24 à 30, matériau HAIR) : la 24 est celle d'origine. */
-const BUILT_IN_HAIR = [24, 25, 26, 27, 28, 29, 30];
+/**
+ * Barbes et moustaches intégrées au visage du coureur (groupes de géométrie 24 à 30, matériau HAIR, à hauteur de
+ * bouche et de menton) : la moustache 24 est montrée d'origine. « Sans barbe » les masque toutes.
+ */
+export const BUILT_IN_BEARDS = [24, 25, 26, 27, 28, 29, 30];
+const BUILT_IN_BEARD_NAMES = ['Moustache', 'Bouc et moustache', 'Barbe courte', 'Barbe fournie', 'Favoris', 'Barbiche', 'Fine moustache'];
 
 /**
  * Posture adaptée au type de vélo : variantes Zwift VTT (Mountain), ville (_Buffalo), concept, chrono (_TT),
@@ -83,6 +87,9 @@ export type V3Gear = {
   model: boolean; pair: boolean; bone?: string; pairBone?: string;
   offset: [number, number, number]; rotation: [number, number, number];
   pairOffset?: [number, number, number]; pairRotation?: [number, number, number];
+  /** Poids (grammes) et bonus de traînée (m²) selon Zwift. */
+  weightG?: number;
+  cdaBias?: number;
   /** Couvre-chef : géométrie de coiffure à montrer dessous (1 libre, 2 bandeau ou visière, 3 tassée) ; casque : aucune. */
   hairGeom?: number;
   colors: (V3Color & { diffuse?: boolean; normal?: boolean; femaleNormal?: boolean; preview?: boolean; icon?: boolean })[];
@@ -127,8 +134,8 @@ export const getV3Gear = () => gear ??= get<V3Gear[]>('gear')
       if (seen.has(key)) return false;
       seen.add(key);
       return true;
-    }).concat(BUILT_IN_HAIR.map((group, i): V3Gear => ({
-      id: -group, type: 'HAIR', category: 'Cheveux', name: 'Coiffure intégrée ' + (i + 1), variant: 'BuiltInHair' + group,
+    }).concat(BUILT_IN_BEARDS.map((group, i): V3Gear => ({
+      id: -group, type: 'FACIAL_HAIR', category: 'Barbe / moustache', name: (BUILT_IN_BEARD_NAMES[i] ?? 'Barbe') + ' (visage)', variant: 'BuiltInBeard' + group,
       sex: 'male', sport: 'cycling', group, model: false, pair: false, offset: [0, 0, 0], rotation: [0, 0, 0], colors: [{ name: 'D’origine' }],
     })));
   })
@@ -262,7 +269,8 @@ export function applyHairColors(rider: RiderVisual, kit: MountedGear[], hair = 0
     if (gear.item.type === 'HAIR') materialsOf(gear.left).forEach(material => move(material, hair));
     if (gear.item.type === 'FACIAL_HAIR') materialsOf(gear.left).forEach(material => move(material, beard));
   }
-  for (const { material } of rider.originalMaterials) if (/^HAIR$/i.test(material.name)) move(material, hair);
+  // Matériau HAIR du corps : barbes et moustaches intégrées au visage, donc couleur de barbe.
+  for (const { material } of rider.originalMaterials) if (/^HAIR$/i.test(material.name)) move(material, beard);
 }
 
 export function freeGear(gear: MountedGear): void {
@@ -393,10 +401,11 @@ export function attachKit(rider: RiderVisual, kit: MountedGear[]): void {
     showGroup(set.map(id => (present.has(id) ? id : 18)), true);
   }
   if (worn.get('CYCLING_SHOES')?.left && worn.get('CYCLING_SHOES')?.right) showGroup([14, 19, 20], false);
-  if (worn.has('HAIR')) {
-    showGroup(BUILT_IN_HAIR, false);
-    const builtIn = worn.get('HAIR')?.item.group;
-    if (builtIn !== undefined && builtIn !== null && BUILT_IN_HAIR.includes(builtIn)) showGroup([builtIn], true);
+  // Barbe choisie (« sans barbe » compris) : les barbes intégrées au visage sont masquées, sauf celle choisie.
+  if (worn.has('FACIAL_HAIR')) {
+    showGroup(BUILT_IN_BEARDS, false);
+    const builtIn = worn.get('FACIAL_HAIR')?.item.group;
+    if (builtIn !== undefined && builtIn !== null && BUILT_IN_BEARDS.includes(builtIn)) showGroup([builtIn], true);
   }
   for (const { item, left, right, diffuse, normal } of kit) {
     if (item.type === 'CYCLING_SHOES' && (!left || !right)) continue;

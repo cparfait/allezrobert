@@ -1,6 +1,6 @@
 import * as THREE from 'three/webgpu';
 import { isCompiling } from '../engine/renderer.ts';
-import { attachKit, freeGear, getV3Catalog, getV3Gear, loadGearItem, loadRider, loadV3DisplayBike, restoreRider, showHairGeometry, type RiderVisual, type V3Gear } from './visuals.ts';
+import { attachKit, BUILT_IN_BEARDS, freeGear, getV3Catalog, getV3Gear, loadGearItem, loadRider, loadV3DisplayBike, restoreRider, showHairGeometry, type RiderVisual, type V3Gear } from './visuals.ts';
 
 /**
  * Vignettes du vestiaire V3 pour les articles sans icône Zwift (maillots, chaussettes, têtes, barbes…) :
@@ -13,6 +13,15 @@ const CACHE = 'ar-v3-vignettes-6';
 const STUDIO = '/__v3/studio/v6/';
 
 /** Vignette photographiée par le studio (sinon icône Zwift, ou pastille de couleur pour les chaussettes). */
+/**
+ * Clé de la photo d'un article ; têtes, coiffures et barbes en version « b » : photographiées sans la moustache
+ * d'origine (les premières photos la montraient sur toutes les têtes).
+ */
+function photoKey(item: V3Gear, sex: 'male' | 'female'): string {
+  const base = item.id + '-' + (item.sex === 'male' || item.sex === 'female' ? item.sex : sex);
+  return ['HEAD_TYPE', 'HAIR', 'FACIAL_HAIR'].includes(item.type) ? base + '-b' : base;
+}
+
 export function needsPhoto(item: V3Gear): boolean {
   if (item.type === 'SOCKS' && item.colors[0]?.diffuse) return false;
   return item.type === 'CYCLING_JERSEY' || !item.colors[0]?.icon;
@@ -68,7 +77,7 @@ export class V3ThumbnailStudio {
 
   /** URL d'image (blob) de l'article porté ; même promesse pour le même article. */
   photo(item: V3Gear, sex: 'male' | 'female', wanted: () => boolean = () => true): Promise<string> {
-    const key = item.id + '-' + (item.sex === 'male' || item.sex === 'female' ? item.sex : sex);
+    const key = photoKey(item, sex);
     let job = this.done.get(key);
     if (!job) {
       // Pastille retirée entre-temps (autre catégorie, recherche) : la prise est abandonnée.
@@ -116,7 +125,7 @@ export class V3ThumbnailStudio {
       const todo = items.filter(item => needsPhoto(item) && (item.sex === 'tous' || item.sex === sex))
         .sort((a, b) => Number(a.type === 'CYCLING_JERSEY') - Number(b.type === 'CYCLING_JERSEY'));
       for (const item of todo) {
-        const key = item.id + '-' + (item.sex === 'male' || item.sex === 'female' ? item.sex : sex);
+        const key = photoKey(item, sex);
         if (!stored.has(key)) this.background.push(() => (this.done.has(key) ? Promise.resolve() : this.remember(key, this.shoot(item, key))));
       }
       for (const bike of catalog.bikes) {
@@ -266,6 +275,10 @@ export class V3ThumbnailStudio {
     try {
       restoreRider(rider);
       attachKit(rider, [gear]);
+      // Têtes et coiffures : visage rasé (pas de moustache d'origine) pour bien voir l'article.
+      if (item.type === 'HEAD_TYPE' || item.type === 'HAIR') {
+        for (const { id, node } of rider.groups) if (BUILT_IN_BEARDS.includes(id)) node.visible = false;
+      }
       if (item.type === 'HAIR') showHairGeometry(gear.left, 'none');
       // Maillot seul, sans le personnage : seules les surfaces du matériau du maillot restent visibles.
       if (item.type === 'CYCLING_JERSEY') rider.scene.traverse(node => {

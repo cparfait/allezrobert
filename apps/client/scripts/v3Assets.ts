@@ -9,7 +9,7 @@ const run = promisify(execFile);
 const readJson = <T>(path: string): T => JSON.parse(readFileSync(path, 'utf8').replace(/^\uFEFF/, '')) as T;
 type Scheme = { Name?: string; TexturePath?: string; NormalsPath?: string; HueShiftable?: string; HueOffset?: string; preview?: string };
 type Gear = {
-  i: number; type: string; cat: string; nom: string; cle?: string; sexe: string; sport: string; fiche: string;
+  i: number; type: string; cat: string; nom: string; cle?: string; poids_g?: number | null; cda?: number | null; sexe: string; sport: string; fiche: string;
   source?: string; pairSource?: string; texture?: string; normale?: string; normale_f?: string; geomgroup?: number; thumbnail?: string;
   os?: string; os_paire?: string; cheveux_override?: string | null; offset: [number, number, number]; rotation: [number, number, number];
   offset_paire?: [number, number, number]; rotation_paire?: [number, number, number]; colors: Scheme[];
@@ -61,7 +61,13 @@ export function v3Assets(): Plugin {
       files.set('bike/' + bike.id, path);
       const preview = previews.get(bike.id);
       if (preview) files.set('bike-thumbnail/' + bike.id, preview);
-      return [{ id: bike.id, name: bike.nom, brand: bike.marque, type: bike.type, preview: !!preview }];
+      // Poids total (grammes) et bonus de traînée (m²) de Zwift, valeurs « v2 » en priorité : pour la physique du V3.
+      const sheet = existsSync(resolve(bikeDir, bike.id + '.json'))
+        ? readJson<{ poids_total_g?: number; poids_total_v2_g?: number; cda_bias_total?: number; cda_bias_v2_total?: number }>(resolve(bikeDir, bike.id + '.json'))
+        : {};
+      const weightG = sheet.poids_total_v2_g || sheet.poids_total_g || undefined;
+      const cdaBias = sheet.cda_bias_v2_total ?? sheet.cda_bias_total;
+      return [{ id: bike.id, name: bike.nom, brand: bike.marque, type: bike.type, preview: !!preview, weightG, cdaBias }];
     });
     const objects = ['Environment', 'Worlds', 'Misc', 'Pickups'].flatMap(category =>
       Array.from(models(resolve(data, category)), path => {
@@ -219,6 +225,8 @@ export function v3Assets(): Plugin {
               model: !!row.source, pair: !!row.pairSource,
               bone: row.os, pairBone: row.os_paire, offset: row.offset, rotation: row.rotation,
               pairOffset: row.offset_paire, pairRotation: row.rotation_paire,
+              // Poids (grammes) et bonus de traînée (m²) de l'accessoire selon Zwift (casques, lunettes, chaussures…).
+              weightG: row.poids_g || undefined, cdaBias: row.cda || undefined,
               // Géométrie de coiffure imposée par le couvre-chef (Accessories.xml, hairGeomOverride) : 1, 2 ou 3.
               hairGeom: row.cheveux_override ? Number(row.cheveux_override) : undefined,
               colors: gearSchemes(row).map(color => ({
