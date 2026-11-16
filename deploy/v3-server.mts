@@ -8,7 +8,8 @@ import { v3AssetMiddleware } from '../apps/client/scripts/v3Assets.ts';
 const COOKIE = 'ar_v3_access';
 const PREFIX = '/__v3';
 const MINUTE = 60_000;
-const SESSION_TTL = 12 * 60 * MINUTE;
+// Session d'un an, prolongée à chaque ouverture du jeu : le code n'est demandé qu'une fois par appareil.
+const SESSION_TTL = 365 * 24 * 60 * MINUTE;
 const code = process.env.AR_V3_ACCESS_CODE;
 const origin = process.env.AR_V3_PUBLIC_ORIGIN;
 const expected = code && digest(code);
@@ -34,6 +35,12 @@ function sessionKey(): Buffer {
   const persisted = readFileSync(file);
   if (persisted.length !== 32) throw new Error('Clé de session V3 invalide');
   return persisted;
+}
+
+/** Session neuve (ou prolongée) d'un an. */
+function grant(res: import('node:http').ServerResponse, now: number) {
+  const claim = `${now + SESSION_TTL}.${randomBytes(16).toString('base64url')}`;
+  res.setHeader('Set-Cookie', `${COOKIE}=${claim}.${signature(claim)}; Path=${PREFIX}; Max-Age=${SESSION_TTL / 1000}; Secure; HttpOnly; SameSite=Strict`);
 }
 
 function signature(value: string) {
@@ -82,7 +89,11 @@ createServer(async (req, res) => {
     return assets(req, res);
   }
 
-  if (req.method === 'GET') return reply(validSession(cookie, now) ? 204 : 403);
+  if (req.method === 'GET') {
+    if (!validSession(cookie, now)) return reply(403);
+    grant(res, now);
+    return reply(204);
+  }
   if (req.method !== 'POST') return reply(405);
   if (req.headers.origin && req.headers.origin !== origin) return reply(403);
   if (now >= windowEnd) {
@@ -104,7 +115,6 @@ createServer(async (req, res) => {
     failures++;
     return reply(403);
   }
-  const claim = `${now + SESSION_TTL}.${randomBytes(16).toString('base64url')}`;
-  res.setHeader('Set-Cookie', `${COOKIE}=${claim}.${signature(claim)}; Path=${PREFIX}; Max-Age=${SESSION_TTL / 1000}; Secure; HttpOnly; SameSite=Strict`);
+  grant(res, now);
   reply(204);
 }).listen(Number(process.env.PORT ?? 2570), process.env.HOST ?? '127.0.0.1');

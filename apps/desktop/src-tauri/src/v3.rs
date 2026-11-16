@@ -237,7 +237,15 @@ pub async fn v3_access(
     let request = if let Some(code) = code {
         state.client.post(url).header("X-AR-V3-Code", code)
     } else {
-        let cookie = state.cookie.lock().map_err(|e| e.to_string())?.clone();
+        // Premier contrôle depuis le lancement : session enregistrée sur le disque (code saisi une seule fois).
+        let saved = tokio::fs::read_to_string(session_file()).await.ok()
+            .map(|value| value.trim().to_owned())
+            .filter(|value| value.starts_with("ar_v3_access=") && value.len() < 512);
+        let cookie = {
+            let mut cookie = state.cookie.lock().map_err(|e| e.to_string())?;
+            if cookie.is_none() { *cookie = saved; }
+            cookie.clone()
+        };
         let request = state.client.get(url);
         if let Some(cookie) = cookie { request.header(header::COOKIE, cookie) } else { request }
     };
@@ -258,6 +266,14 @@ pub async fn v3_access(
         .filter(|value| value.starts_with("ar_v3_access="))
     {
         *state.cookie.lock().map_err(|e| e.to_string())? = Some(cookie.to_owned());
+        // Session gardée pour les prochains lancements (le service la prolonge à chaque contrôle).
+        let value = cookie.to_owned();
+        let _ = tauri::async_runtime::spawn_blocking(move || write_atomic(&session_file(), value.as_bytes())).await;
     }
     Ok(response.status().as_u16())
+}
+
+/// Session V3 enregistrée (cookie signé par le service, valable un an et prolongé à chaque lancement).
+fn session_file() -> PathBuf {
+    data_dir().join("v3-session")
 }
