@@ -34,6 +34,9 @@ export type V3Equipment = {
   /** Couleurs des cheveux et de la barbe : case 0 à 5 des planches Zwift. */
   hairColor?: number;
   beardColor?: number;
+  /** Couleur libre (palette) des cheveux et de la barbe, « #rrggbb » : prime sur la case de la planche. */
+  hairTint?: string;
+  beardTint?: string;
 };
 
 /** Six couleurs des planches de cheveux et de barbe Zwift (2 colonnes × 3 lignes), dans l'ordre des cases. */
@@ -261,21 +264,27 @@ function materialsOf(node: Object3D | undefined): MeshStandardMaterial[] {
 }
 
 /** Place chaque planche de cheveux ou de barbe sur la case de couleur choisie. */
-export function applyHairColors(rider: RiderVisual, kit: MountedGear[], hair = 0, beard = 0): void {
-  const move = (material: MeshStandardMaterial, index: number) => {
+/** Case grise claire de la planche : base des couleurs libres (teinte multipliée par la couleur choisie). */
+const TINT_CELL = 4;
+
+export function applyHairColors(rider: RiderVisual, kit: MountedGear[], hair = 0, beard = 0, hairTint?: string, beardTint?: string): void {
+  const paint = (material: MeshStandardMaterial, index: number, tint?: string) => {
     for (const map of [material.map, material.normalMap]) {
       if (!map) continue;
-      const [u, v] = hairCell(index);
+      const [u, v] = hairCell(tint ? TINT_CELL : index);
       map.offset.set(u, v);
       map.needsUpdate = true;
     }
+    // Couleur libre : la case grise est teintée ; sinon couleur neutre (la planche porte la couleur).
+    material.color.set(tint ?? 0xffffff);
   };
+
   for (const gear of kit) {
-    if (gear.item.type === 'HAIR') materialsOf(gear.left).forEach(material => move(material, hair));
-    if (gear.item.type === 'FACIAL_HAIR') materialsOf(gear.left).forEach(material => move(material, beard));
+    if (gear.item.type === 'HAIR') materialsOf(gear.left).forEach(material => paint(material, hair, hairTint));
+    if (gear.item.type === 'FACIAL_HAIR') materialsOf(gear.left).forEach(material => paint(material, beard, beardTint));
   }
   // Matériau HAIR du corps : barbes et moustaches intégrées au visage, donc couleur de barbe.
-  for (const { material } of rider.originalMaterials) if (/^HAIR$/i.test(material.name)) move(material, beard);
+  for (const { material } of rider.originalMaterials) if (/^HAIR$/i.test(material.name)) paint(material, beard, beardTint);
 }
 
 export function freeGear(gear: MountedGear): void {
@@ -510,7 +519,7 @@ export class V3Visual {
   private applyHairColors(): void {
     const rider = this.rider;
     if (!rider) return;
-    applyHairColors(rider, this.kit, this.equipment?.hairColor, this.equipment?.beardColor);
+    applyHairColors(rider, this.kit, this.equipment?.hairColor, this.equipment?.beardColor, this.equipment?.hairTint, this.equipment?.beardTint);
     this.redraw();
   }
 
@@ -555,9 +564,10 @@ export class V3Visual {
 
   update(dt: number, cadence: number, speed: number, pose: RiderPose, options: { rider?: boolean; head?: boolean; helmet?: boolean; clip?: string } = {}): void {
     const { bike, rider } = this;
-    if (!bike) return;
     const showRider = this.ready && !!rider && options.rider !== false;
-    if (options.rider !== false && !showRider) {
+    // Vélo ou coureur V3 pas encore chargé : rien plutôt que le coureur et le vélo du jeu (mode Réel) en attendant.
+    if (!bike || (options.rider !== false && !showRider)) {
+      this.mount.replace(true, true);
       this.group.visible = false;
       return;
     }

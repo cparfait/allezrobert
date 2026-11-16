@@ -42,9 +42,6 @@ span.mm-bikeicon { display: block; }
 }
 /* Pastille en attente de sa photo : pictogramme de la catégorie. */
 .v3-chip-wait svg { width: 46%; height: 46%; color: #6f7a88; }
-/* Chaussettes : pastille à la couleur de la chaussette, pictogramme à l'encre contrastée. */
-.v3-chip-swatch svg { width: 52%; height: 52%; }
-.v3-chip-swatch:not(.v3-chip-wait) svg { color: inherit; }
 /* Familles de maillots repliables : l'intertitre est un bouton, chevron selon l'état. */
 .ar-v3-garage .v3-fold {
   all: unset; box-sizing: border-box; display: flex; align-items: baseline; justify-content: space-between; width: 100%;

@@ -1,6 +1,6 @@
 import * as THREE from 'three/webgpu';
 import { isCompiling } from '../engine/renderer.ts';
-import { attachKit, BUILT_IN_BEARDS, freeGear, getV3Catalog, getV3Gear, loadGearItem, loadRider, loadV3DisplayBike, restoreRider, showHairGeometry, type RiderVisual, type V3Gear } from './visuals.ts';
+import { attachKit, BUILT_IN_BEARDS, freeGear, showSockHeight, getV3Catalog, getV3Gear, loadGearItem, loadRider, loadV3DisplayBike, restoreRider, showHairGeometry, type RiderVisual, type V3Gear } from './visuals.ts';
 
 /**
  * Vignettes du vestiaire V3 pour les articles sans icône Zwift (maillots, chaussettes, têtes, barbes…) :
@@ -20,12 +20,12 @@ const STUDIO = '/__v3/studio/v6/';
 function photoKey(item: V3Gear, sex: 'male' | 'female'): string {
   const base = item.id + '-' + (item.sex === 'male' || item.sex === 'female' ? item.sex : sex);
   if (item.type === 'FACIAL_HAIR') return base + '-c'; // barbes montrées par les pièces du visage
+  if (item.type === 'SOCKS') return base + '-d'; // chaussette seule, haute, de côté
   if (item.type === 'HAIR') return base + '-c'; // coiffures vues de trois quarts arrière
   return item.type === 'HEAD_TYPE' ? base + '-b' : base;
 }
 
 export function needsPhoto(item: V3Gear): boolean {
-  if (item.type === 'SOCKS' && item.colors[0]?.diffuse) return false;
   // Maillots et coiffures toujours photographiés (icônes Zwift : fond noir, ou mannequin d'un autre style).
   return item.type === 'CYCLING_JERSEY' || item.type === 'HAIR' || !item.colors[0]?.icon;
 }
@@ -35,7 +35,7 @@ function framing(type: string): { y: number; half: number; z?: number; side?: nu
   switch (type) {
     case 'HAIR': return { y: 1.6, half: 0.21 }; // coiffures longues (queues de cheval, chignons) comprises
     case 'HEAD_TYPE': case 'FACIAL_HAIR': case 'HEAD_GEAR': case 'GLASSES': return { y: 1.63, half: 0.17 };
-    case 'SOCKS': return { y: 0.135, half: 0.08 };
+    case 'SOCKS': return { y: 0.19, half: 0.14 };
     case 'CYCLING_SHOES': return { y: 0.12, half: 0.18 };
     case 'GLOVES': return { y: 1.0, half: 0.5 };
     default: return { y: 1.27, half: 0.36 };
@@ -285,6 +285,18 @@ export class V3ThumbnailStudio {
       }
       if (item.type === 'HAIR') showHairGeometry(gear.left, 'none');
       // Maillot seul, sans le personnage : seules les surfaces du matériau du maillot restent visibles.
+      // Chaussette seule, en version haute (plus de motif visible), sans la jambe ni la chaussure.
+      if (item.type === 'SOCKS') {
+        showSockHeight(rider, 'high');
+        rider.scene.traverse(node => {
+          const mesh = node as THREE.Mesh;
+          if (!mesh.isMesh) return;
+          const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+          if (materials.some(material => /^SockKIT$/i.test(material.name))) return;
+          hidden.push(mesh);
+          mesh.visible = false;
+        });
+      }
       if (item.type === 'CYCLING_JERSEY') rider.scene.traverse(node => {
         const mesh = node as THREE.Mesh;
         if (!mesh.isMesh) return;
@@ -299,7 +311,8 @@ export class V3ThumbnailStudio {
       // Maillot presque de face, comme les icônes Zwift ; pieds un peu de côté ; têtes de trois quarts.
       const direction = item.type === 'CYCLING_JERSEY' ? new THREE.Vector3(1, 0.06, 0.22)
         : item.type === 'HAIR' ? new THREE.Vector3(-0.35, 0.25, 1) // trois quarts arrière : la coiffure, pas le visage
-        : item.type === 'SOCKS' || item.type === 'CYCLING_SHOES' ? new THREE.Vector3(0.75, 0.25, 0.85) : new THREE.Vector3(1, 0.12, 0.5);
+        : item.type === 'SOCKS' ? new THREE.Vector3(0.3, 0.12, 1) // de côté : le motif de la chaussette
+        : item.type === 'CYCLING_SHOES' ? new THREE.Vector3(0.75, 0.25, 0.85) : new THREE.Vector3(1, 0.12, 0.5);
       const cam = this.camera;
       cam.left = cam.bottom = -half;
       cam.right = cam.top = half;

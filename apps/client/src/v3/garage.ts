@@ -267,7 +267,7 @@ export function createV3Garage(actions: V3GarageActions) {
     wear('FACIAL_HAIR', sex === 'male' && Math.random() < 0.5 ? pick(beards) : shaven);
     const bodies: V3Body[] = sex === 'male' ? ['standard', 'standard', 'skinny', 'big'] : ['standard', 'standard', 'skinny'];
     const hairColor = Math.floor(Math.random() * (V3_HAIR_COLORS.length - 1)); // le bleu reste un choix délibéré
-    apply({ ...equipment, sex, kit, body: pick(bodies), hairColor, beardColor: Math.random() < 0.8 ? hairColor : Math.floor(Math.random() * 5) });
+    apply({ ...equipment, sex, kit, body: pick(bodies), hairColor, beardColor: Math.random() < 0.8 ? hairColor : Math.floor(Math.random() * 5), hairTint: undefined, beardTint: undefined });
     showSex();
     showBody();
     characterWardrobe.refresh();

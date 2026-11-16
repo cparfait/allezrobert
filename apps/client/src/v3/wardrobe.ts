@@ -13,56 +13,6 @@ type Actions = {
   sex?(): 'male' | 'female' | undefined;
 };
 
-/**
- * Couleurs dominantes d'une texture (chaussettes : la photo ne montre qu'une bande au-dessus de la chaussure).
- * Pixels opaques réduits à 4 bits par canal ; renvoie la couleur principale, plus la seconde si elle couvre au moins 15 %.
- */
-const swatches = new Map<number, Promise<string[]>>();
-function dominantColors(item: V3Gear): Promise<string[]> {
-  let job = swatches.get(item.id);
-  if (!job) {
-    job = new Promise<string[]>((resolve, reject) => {
-      const image = new Image();
-      image.onload = () => {
-        const size = 48;
-        const canvas = document.createElement('canvas');
-        canvas.width = canvas.height = size;
-        const context = canvas.getContext('2d', { willReadFrequently: true });
-        if (!context) return reject(new Error('Canvas indisponible.'));
-        context.drawImage(image, 0, 0, size, size);
-        const data = context.getImageData(0, 0, size, size).data;
-        const counts = new Map<number, { n: number; r: number; g: number; b: number }>();
-        let total = 0;
-        for (let i = 0; i < data.length; i += 4) {
-          if ((data[i + 3] ?? 0) < 128) continue;
-          const r = data[i] ?? 0, g = data[i + 1] ?? 0, b = data[i + 2] ?? 0;
-          const key = ((r >> 4) << 8) | ((g >> 4) << 4) | (b >> 4);
-          const bin = counts.get(key) ?? { n: 0, r: 0, g: 0, b: 0 };
-          bin.n++; bin.r += r; bin.g += g; bin.b += b;
-          counts.set(key, bin);
-          total++;
-        }
-        const ranked = [...counts.values()].sort((a, b) => b.n - a.n);
-        const css = (bin: { n: number; r: number; g: number; b: number }) => `rgb(${Math.round(bin.r / bin.n)}, ${Math.round(bin.g / bin.n)}, ${Math.round(bin.b / bin.n)})`;
-        const [first, second] = ranked;
-        if (!first) return reject(new Error('Texture vide.'));
-        resolve(second && second.n >= total * 0.15 ? [css(first), css(second)] : [css(first)]);
-      };
-      image.onerror = () => reject(new Error('Texture indisponible.'));
-      image.src = '/__v3/gear/' + item.id + '/diffuse.png?color=0';
-    });
-    job.catch(() => swatches.delete(item.id));
-    swatches.set(item.id, job);
-  }
-  return job;
-}
-
-/** Encre lisible (sombre ou claire) sur une couleur « rgb(r, g, b) ». */
-function inkOn(color: string): string {
-  const [r = 0, g = 0, b = 0] = (color.match(/\d+/g) ?? []).map(Number);
-  return 0.2126 * r + 0.7152 * g + 0.0722 * b > 150 ? '#0a0e16' : '#ffffff';
-}
-
 /** Photos demandées seulement pour les pastilles visibles (le vestiaire compte plus de 1 700 articles). */
 let watcher: IntersectionObserver | undefined;
 const shots = new WeakMap<Element, () => void>();
@@ -246,18 +196,34 @@ export function addWardrobe(head: HTMLElement, parent: HTMLElement, settings: ()
   sockField.append('Hauteur', sockSeg);
   sockField.hidden = true;
   // Couleur des cheveux et de la barbe : six cases des planches Zwift, en pastilles comme le garage Réel.
-  function hairColorRow(text: string, key: 'hairColor' | 'beardColor') {
+  function hairColorRow(text: string, key: 'hairColor' | 'beardColor', tintKey: 'hairTint' | 'beardTint') {
     const row = document.createElement('div');
     row.className = 'gr-colors';
     const small = document.createElement('small');
     small.textContent = text;
     const swatches = document.createElement('div');
+    // Autre couleur : palette libre (comme le garage Réel), appliquée sur la case grise de la planche Zwift.
+    const custom = document.createElement('label');
+    custom.className = 'gr-sw gr-custom';
+    custom.title = 'Autre couleur';
+    const picker = document.createElement('input');
+    picker.type = 'color';
+    picker.setAttribute('aria-label', 'Autre couleur');
+    custom.append(picker);
+    picker.oninput = () => {
+      actions.equipment({ ...settings(), [tintKey]: picker.value });
+      sync();
+    };
     const sync = () => {
-      const chosen = settings()[key] ?? 0;
+      const tint = settings()[tintKey];
+      const chosen = tint ? -1 : settings()[key] ?? 0;
       swatches.querySelectorAll<HTMLButtonElement>('button').forEach((button, i) => {
         button.classList.toggle('on', i === chosen);
         button.setAttribute('aria-pressed', String(i === chosen));
       });
+      custom.classList.toggle('on', !!tint);
+      custom.style.background = tint ?? '';
+      picker.value = tint ?? '#7a5230';
     };
     V3_HAIR_COLORS.forEach(({ name, swatch }, i) => {
       const button = document.createElement('button');
@@ -267,17 +233,18 @@ export function addWardrobe(head: HTMLElement, parent: HTMLElement, settings: ()
       button.title = name;
       button.setAttribute('aria-label', name);
       button.onclick = () => {
-        actions.equipment({ ...settings(), [key]: i });
+        actions.equipment({ ...settings(), [key]: i, [tintKey]: undefined });
         sync();
       };
       swatches.append(button);
     });
+    swatches.append(custom);
     row.append(small, swatches);
     row.hidden = true;
     return { row, sync };
   }
-  const hairColor = hairColorRow('Couleur des cheveux', 'hairColor');
-  const beardColor = hairColorRow('Couleur de la barbe', 'beardColor');
+  const hairColor = hairColorRow('Couleur des cheveux', 'hairColor', 'hairTint');
+  const beardColor = hairColorRow('Couleur de la barbe', 'beardColor', 'beardTint');
   panel.append(caption, sockField, hairColor.row, beardColor.row, colorLabel, hue.field, tools, status, grid);
   parent.append(panel);
 
@@ -335,19 +302,7 @@ export function addWardrobe(head: HTMLElement, parent: HTMLElement, settings: ()
     button.dataset.v3Item = String(item.id);
     button.setAttribute('aria-label', label(item));
     const photo = actions.photo;
-    if (item.type === 'SOCKS' && item.colors[0]?.diffuse) {
-      // Chaussettes : pastille à leurs couleurs, pictogramme par-dessus (comme les pastilles du garage Réel).
-      button.classList.add('v3-chip-wait', 'v3-chip-swatch');
-      button.insertAdjacentHTML('afterbegin', V3_SLOTS.SOCKS?.icon ?? '');
-      whenVisible(button, () => {
-        void dominantColors(item).then(colors => {
-          const [main = '#777', accent] = colors;
-          button.style.background = accent ? `linear-gradient(135deg, ${main} 0 55%, ${accent} 55% 100%)` : main;
-          button.style.color = inkOn(main);
-          button.classList.remove('v3-chip-wait');
-        }).catch(() => undefined);
-      });
-    } else if (photo && needsPhoto(item)) {
+    if (photo && needsPhoto(item)) {
       // Maillots toujours photographiés (fond transparent) : leurs icônes Zwift ont un fond noir opaque.
       // Pas d'icône Zwift : pictogramme en attendant la photo de l'article porté.
       button.classList.add('v3-chip-wait');
