@@ -194,7 +194,7 @@ def main():
                 glb.save(str(converted))
             source = converted
         if args.kind == "rider":
-            folder = "Female" if source.stem == "FemaleMaster" else "Male"
+            folder = "Female" if source.stem.startswith("Female") else "Male"
             original = args.study / "outils/wadsrc/Humans" / folder / (source.stem + ".gde")
             if original.is_file():
                 import zgde2glb as converter

@@ -1,4 +1,4 @@
-import { getV3Catalog, getV3Clips, getV3Colors, getV3Gear, readV3Equipment, V3_HAIR_COLORS, saveV3Equipment, V3_POSES, type V3Bike, type V3Body, type V3Color, type V3Equipment, type V3Gear } from './visuals.ts';
+import { getV3Catalog, getV3Clips, getV3Colors, getV3Gear, type V3SockHeight, readV3Equipment, V3_HAIR_COLORS, saveV3Equipment, V3_POSES, type V3Bike, type V3Body, type V3Color, type V3Equipment, type V3Gear } from './visuals.ts';
 import { addWardrobe, createHueControl } from './wardrobe.ts';
 import { V3_ICON } from './icons.ts';
 import './garage.css';
@@ -36,6 +36,19 @@ function select(parent: HTMLElement, label: string): HTMLSelectElement {
   return control;
 }
 
+/** Bouton « au hasard » : dé à points pleins sur fond jaune, pour qu'on le repère au premier coup d'œil. */
+function diceButton(title: string): HTMLButtonElement {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'v3-dice';
+  button.innerHTML = V3_ICON.dice;
+  button.title = title;
+  button.setAttribute('aria-label', title);
+  return button;
+}
+
+const pick = <T>(list: T[]): T | undefined => list[Math.floor(Math.random() * list.length)];
+
 function bikeIcon(bike: V3Bike | undefined, big = false): HTMLElement {
   if (!bike?.preview) {
     const empty = document.createElement('span');
@@ -61,7 +74,19 @@ export function createV3Garage(actions: V3GarageActions) {
   const nav = document.createElement('nav');
   nav.className = 'gr-groups';
   nav.setAttribute('aria-label', 'Rubriques du garage V3');
-  top.append(nav);
+  // Dé général à côté des rubriques : tenue, vélo et personnage tirés ensemble.
+  const navRow = document.createElement('div');
+  navRow.className = 'v3-navrow';
+  const allDice = diceButton('Tout au hasard : tenue, vélo et personnage');
+  allDice.onclick = () => {
+    void (async () => {
+      await randomKit();
+      await randomCharacter();
+      await randomBike(true);
+    })().catch(report);
+  };
+  navRow.append(nav, allDice);
+  top.append(navRow);
   const panel = document.createElement('div');
   panel.className = 'ar-v3-garage';
   const sections = new Map<string, { head: HTMLElement; section: HTMLElement; button: HTMLButtonElement }>();
@@ -177,36 +202,44 @@ export function createV3Garage(actions: V3GarageActions) {
     bodySeg.append(button);
   }
   bodyField.append('Corps', bodySeg);
-  // Personnage au hasard (dé du garage Réel) : corps, tête, coiffure et couleur, barbe ; la silhouette choisie est gardée.
-  const dice = document.createElement('button');
-  dice.type = 'button';
-  dice.className = 'gr-dice';
-  dice.innerHTML = V3_ICON.dice;
-  dice.title = 'Personnage au hasard (corps, tête, cheveux, barbe)';
-  dice.setAttribute('aria-label', 'Personnage au hasard');
-  const pick = <T>(list: T[]): T | undefined => list[Math.floor(Math.random() * list.length)];
-  dice.onclick = () => {
-    void getV3Gear().then(items => {
-      const sexNow = equipment.sex ?? actions.sex?.() ?? 'male';
-      const fits = (item: V3Gear, type: string) => item.type === type && (item.sex === 'tous' || item.sex === sexNow);
-      const kit = { ...equipment.kit };
-      const wear = (type: string, item: V3Gear | undefined) => {
-        if (item) kit[type] = { id: item.id, color: 0 };
-        else delete kit[type];
-      };
-      wear('HEAD_TYPE', pick(items.filter(item => fits(item, 'HEAD_TYPE'))));
-      // Toujours des cheveux (« Clean Shaven » écarté) ; barbe une fois sur deux pour le coureur.
-      wear('HAIR', pick(items.filter(item => fits(item, 'HAIR') && !/clean shaven/i.test(item.name))));
-      const beards = items.filter(item => fits(item, 'FACIAL_HAIR') && !/clean shaven/i.test(item.name));
-      wear('FACIAL_HAIR', sexNow === 'male' && Math.random() < 0.5 ? pick(beards) : undefined);
-      const bodies: V3Body[] = sexNow === 'male' ? ['standard', 'standard', 'skinny', 'big'] : ['standard', 'standard', 'skinny'];
-      const hairColor = Math.floor(Math.random() * (V3_HAIR_COLORS.length - 1)); // le bleu reste un choix délibéré
-      apply({ ...equipment, sex: sexNow, kit, body: pick(bodies), hairColor, beardColor: Math.random() < 0.8 ? hairColor : Math.floor(Math.random() * 5) });
-      showSex();
-      showBody();
-      characterWardrobe.refresh();
-    }).catch(report);
-  };
+  // Personnage au hasard : corps, tête, coiffure et couleur, barbe ; la silhouette choisie est gardée.
+  const sexNow = () => equipment.sex ?? actions.sex?.() ?? 'male';
+  async function randomCharacter(): Promise<void> {
+    const items = await getV3Gear();
+    const sex = sexNow();
+    const fits = (item: V3Gear, type: string) => item.type === type && (item.sex === 'tous' || item.sex === sex);
+    const kit = { ...equipment.kit };
+    const wear = (type: string, item: V3Gear | undefined) => {
+      if (item) kit[type] = { id: item.id, color: 0 };
+      else delete kit[type];
+    };
+    wear('HEAD_TYPE', pick(items.filter(item => fits(item, 'HEAD_TYPE'))));
+    // Toujours des cheveux (« Clean Shaven » écarté) ; barbe une fois sur deux pour le coureur.
+    wear('HAIR', pick(items.filter(item => fits(item, 'HAIR') && !/clean shaven/i.test(item.name))));
+    const beards = items.filter(item => fits(item, 'FACIAL_HAIR') && !/clean shaven/i.test(item.name));
+    wear('FACIAL_HAIR', sex === 'male' && Math.random() < 0.5 ? pick(beards) : undefined);
+    const bodies: V3Body[] = sex === 'male' ? ['standard', 'standard', 'skinny', 'big'] : ['standard', 'standard', 'skinny'];
+    const hairColor = Math.floor(Math.random() * (V3_HAIR_COLORS.length - 1)); // le bleu reste un choix délibéré
+    apply({ ...equipment, sex, kit, body: pick(bodies), hairColor, beardColor: Math.random() < 0.8 ? hairColor : Math.floor(Math.random() * 5) });
+    showSex();
+    showBody();
+    characterWardrobe.refresh();
+  }
+  // Tenue au hasard (dé général) : maillot, casque, gants, chaussettes et chaussures, lunettes deux fois sur trois.
+  async function randomKit(): Promise<void> {
+    const items = await getV3Gear();
+    const sex = sexNow();
+    const kit = { ...equipment.kit };
+    for (const type of ['CYCLING_JERSEY', 'HEAD_GEAR', 'GLASSES', 'GLOVES', 'SOCKS', 'CYCLING_SHOES']) {
+      const choice = pick(items.filter(item => item.type === type && (item.sex === 'tous' || item.sex === sex) && !/^none$/i.test(item.name)));
+      if (choice && (type !== 'GLASSES' || Math.random() < 2 / 3)) kit[type] = { id: choice.id, color: Math.floor(Math.random() * Math.max(1, choice.colors.length)) };
+      else delete kit[type];
+    }
+    apply({ ...equipment, kit, sockHeight: pick<V3SockHeight>(['low', 'mid', 'high']) });
+    kitWardrobe.refresh();
+  }
+  const dice = diceButton('Personnage au hasard (corps, tête, cheveux, barbe)');
+  dice.onclick = () => { void randomCharacter().catch(report); };
   const sexRow = document.createElement('div');
   sexRow.className = 'v3-sexrow';
   sexRow.append(sexSeg, dice);
@@ -257,7 +290,13 @@ export function createV3Garage(actions: V3GarageActions) {
   searchBike.setAttribute('aria-label', searchBike.placeholder);
   const list = document.createElement('div');
   list.className = 'mm-bikelist';
-  bikes.section.append(types, searchBike, list);
+  // Vélo au hasard, avec un coloris au hasard.
+  const bikeDice = diceButton('Vélo au hasard (modèle et coloris)');
+  bikeDice.onclick = () => { void randomBike().catch(report); };
+  const searchRow = document.createElement('div');
+  searchRow.className = 'v3-searchrow';
+  searchRow.append(searchBike, bikeDice);
+  bikes.section.append(types, searchRow, list);
 
   panel.append(status);
 
@@ -353,6 +392,18 @@ export function createV3Garage(actions: V3GarageActions) {
       rows.push(empty);
     }
     list.replaceChildren(...rows);
+  }
+  /** Vélo au hasard ; le dé général se limite aux vélos de route, gravel, chrono et VTT. */
+  async function randomBike(usual = false): Promise<void> {
+    const list = catalogBikes.length ? catalogBikes : (await getV3Catalog()).bikes;
+    const bike = pick(usual ? list.filter(row => ['route', 'gravel', 'chrono', 'vtt'].includes(row.type)) : list);
+    if (!bike) return;
+    choose(bike.id);
+    const { colors: options } = await getV3Colors(bike.id);
+    if (options.length > 1 && equipment.bike === bike.id) {
+      apply({ ...equipment, color: Math.floor(Math.random() * options.length), hue: undefined });
+      void showColors();
+    }
   }
   function choose(bike: string) {
     if (bike === equipment.bike) return;

@@ -63,3 +63,16 @@ span.mm-bikeicon { display: block; }
 /* Silhouette et dé « personnage au hasard » sur la même ligne. */
 .v3-sexrow { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; }
 .ar-v3-garage .gr-dice, .v3-identity .gr-dice { width: 38px; height: 38px; padding: 0; }
+
+/* Dés « au hasard » : carré jaune, dé sombre à points pleins. */
+.v3-dice {
+  appearance: none; display: grid; place-items: center; width: 38px; height: 38px; padding: 0;
+  border: 0; border-radius: 10px; background: var(--ar-accent, #ffd23f); color: #0a0e16;
+  cursor: pointer; box-shadow: 0 2px 10px rgba(255, 210, 63, 0.3); transition: transform 0.15s ease, filter 0.15s ease;
+}
+.v3-dice svg { width: 24px; height: 24px; stroke-width: 2; transition: transform 0.25s ease; }
+.v3-dice:hover { filter: brightness(1.1); }
+.v3-dice:hover svg { transform: rotate(25deg); }
+.v3-dice:active { transform: scale(0.94); }
+.v3-dice:focus-visible { outline: 2px solid rgba(255, 210, 63, 0.8); outline-offset: 2px; }
+.v3-navrow, .v3-searchrow { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; }
