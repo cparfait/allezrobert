@@ -155,6 +155,35 @@ span.mm-bikeicon { display: block; }
 /* Effet du vélo et de l'équipement sur la sortie (poids, traînée). */
 .v3-effect { display: block; margin-top: 4px; color: var(--ar-accent, #ffd23f) !important; font-weight: 700; }
 
+/* Page de gestion des objets V3 (v3/catalogAdmin.ts), plein écran par-dessus le jeu. */
+.v3-navrow { grid-template-columns: 1fr auto auto; }
+.v3-admin-open { appearance: none; display: grid; place-items: center; width: 40px; height: 40px; border: 1px solid rgba(255, 255, 255, 0.14); border-radius: 10px; background: rgba(255, 255, 255, 0.05); color: #d8dee6; cursor: pointer; }
+.v3-admin-open:hover { background: rgba(255, 255, 255, 0.1); color: #fff; }
+.v3-admin { position: fixed; inset: 0; z-index: 9000; display: grid; grid-template-rows: auto auto auto 1fr; gap: 12px; padding: 18px 22px; background: #0b0f16; color: #d8dee6; font: 13px/1.4 system-ui, sans-serif; }
+.v3-admin header { display: flex; align-items: center; justify-content: space-between; }
+.v3-admin h2 { margin: 0; font-size: 18px; font-weight: 800; color: #fff; }
+.v3-admin-close { font-size: 16px; }
+.v3-admin-tabs { display: flex; flex-wrap: wrap; gap: 6px; }
+.v3-admin-tabs button { appearance: none; display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px; border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 9px; background: rgba(255, 255, 255, 0.04); color: #c9d1db; font: inherit; font-weight: 700; cursor: pointer; }
+.v3-admin-tabs button svg { width: 18px; height: 18px; }
+.v3-admin-tabs button.on { border-color: var(--ar-accent, #ffd23f); background: rgba(255, 210, 63, 0.12); color: #fff; }
+.v3-admin-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.v3-admin-tools input[type=search] { min-width: 260px; padding: 8px 11px; border: 1px solid rgba(255, 255, 255, 0.14); border-radius: 8px; background: rgba(0, 0, 0, 0.3); color: #fff; font: inherit; }
+.v3-admin-tools output { color: #8d98a6; font-size: 12px; margin-right: auto; }
+.v3-admin-tools .mm-seg button.on { background: var(--ar-accent, #ffd23f); color: #0a0e16; }
+.v3-admin .gr-sub { padding: 6px 11px; border: 1px solid rgba(255, 255, 255, 0.16); border-radius: 999px; background: rgba(255, 255, 255, 0.05); color: #d8dee6; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
+.v3-admin .gr-sub.on { background: rgba(95, 211, 195, 0.18); border-color: #5fd3c3; color: #fff; }
+.v3-admin .gr-sub:disabled { opacity: 0.4; cursor: default; }
+.v3-admin .gr-sub.v3-danger { border-color: #e5484d; color: #ff8589; }
+.v3-admin-grid { overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; align-content: start; padding-bottom: 20px; }
+.v3-admin-card { display: grid; gap: 4px; padding: 8px; border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 10px; background: rgba(255, 255, 255, 0.03); min-width: 0; }
+.v3-admin-card.off { opacity: 0.45; }
+.v3-admin-card b { font-size: 12.5px; color: #fff; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.v3-admin-card small { font-size: 10.5px; color: #8d98a6; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.v3-admin-pic { height: 110px; display: grid; place-items: center; border-radius: 8px; background: rgba(255, 255, 255, 0.05); overflow: hidden; }
+.v3-admin-pic img { max-width: 100%; max-height: 100%; object-fit: contain; }
+.v3-admin-tags { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+.v3-admin-tags span { padding: 2px 7px; border-radius: 999px; background: rgba(229, 72, 77, 0.18); color: #ff8589; font-size: 10.5px; font-weight: 800; }
 /* Listes déroulantes V3 (v3/dropdown.ts) : celles de l'appli, à la taille du panneau. */
 .ar-v3-garage .v3-dd .mm-dd-btn { padding: 7px 10px; border-radius: 8px; font-size: 13px; }
 .v3-dd-list .mm-dd-opt { font-size: 13px; padding: 6px 9px; }

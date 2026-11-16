@@ -17,7 +17,7 @@ const STUDIO = '/__v3/studio/v6/';
  * Clé de la photo d'un article ; têtes, coiffures et barbes en version « b » : photographiées sans la moustache
  * d'origine (les premières photos la montraient sur toutes les têtes).
  */
-function photoKey(item: V3Gear, sex: 'male' | 'female'): string {
+export function photoKey(item: V3Gear, sex: 'male' | 'female'): string {
   const base = item.id + '-' + (item.sex === 'male' || item.sex === 'female' ? item.sex : sex);
   if (item.type === 'FACIAL_HAIR') return base + '-c'; // barbes montrées par les pièces du visage
   if (item.type === 'SOCKS') return base + '-d'; // chaussette seule, haute, de côté

@@ -4,6 +4,7 @@ import { V3_ICON } from './icons.ts';
 import { COSMETICS, DEFAULT_BIKE, DEFAULT_TRAINER } from '@allezrobert/shared';
 import { saveV3BikeSetup, v3BikeEffect } from './physics.ts';
 import { createProfilesCard } from './profiles.ts';
+import { onV3AdminChange, openV3Admin, v3Shown } from './catalogAdmin.ts';
 import { v3Select } from './dropdown.ts';
 import { bikeSwatch, css } from './swatch.ts';
 import { roadEffectHtml } from '../ui/roadEffect.ts';
@@ -120,7 +121,15 @@ export function createV3Garage(actions: V3GarageActions) {
       randomTrainer();
     })().catch(report);
   };
-  navRow.append(nav, allDice);
+  // Page de gestion des objets V3 (masquer des articles, vélos ou roues du garage et des tirages).
+  const adminButton = document.createElement('button');
+  adminButton.type = 'button';
+  adminButton.className = 'v3-admin-open';
+  adminButton.innerHTML = V3_ICON.admin;
+  adminButton.title = 'Gérer les objets V3';
+  adminButton.setAttribute('aria-label', 'Gérer les objets V3');
+  adminButton.onclick = () => { void openV3Admin().catch(report); };
+  navRow.append(nav, adminButton, allDice);
   top.append(navRow);
   const panel = document.createElement('div');
   panel.className = 'ar-v3-garage';
@@ -324,7 +333,7 @@ export function createV3Garage(actions: V3GarageActions) {
   // Personnage au hasard : corps, tête, coiffure et couleur, barbe ; la silhouette choisie est gardée.
   const sexNow = () => equipment.sex ?? actions.sex?.() ?? 'male';
   async function randomCharacter(): Promise<void> {
-    const items = await getV3Gear();
+    const items = (await getV3Gear()).filter(item => v3Shown('gear', item.id));
     const sex = sexNow();
     const fits = (item: V3Gear, type: string) => item.type === type && (item.sex === 'tous' || item.sex === sex);
     const kit = { ...equipment.kit };
@@ -348,7 +357,7 @@ export function createV3Garage(actions: V3GarageActions) {
   }
   // Tenue au hasard (dé général et dé de la tenue) : maillot, casque, gants, chaussettes et chaussures, lunettes deux fois sur trois.
   async function randomKit(): Promise<void> {
-    const items = await getV3Gear();
+    const items = (await getV3Gear()).filter(item => v3Shown('gear', item.id));
     const sex = sexNow();
     const kit = { ...equipment.kit };
     for (const type of ['CYCLING_JERSEY', 'HEAD_GEAR', 'GLASSES', 'GLOVES', 'SOCKS', 'CYCLING_SHOES']) {
@@ -470,7 +479,7 @@ export function createV3Garage(actions: V3GarageActions) {
   }
   function showWheels() {
     const bike = catalogBikes.find(row => row.id === equipment.bike);
-    const offered = wheelsFor(bike?.type, catalogWheels)
+    const offered = wheelsFor(bike?.type, catalogWheels).filter(wheel => v3Shown('wheel', wheel.id))
       .sort((a, b) => a.brand.localeCompare(b.brand, 'fr') || a.name.localeCompare(b.name, 'fr', { numeric: true }));
     wheelField.hidden = !offered.length;
     const current = mountedWheel(equipment, bike, catalogWheels);
@@ -617,6 +626,7 @@ export function createV3Garage(actions: V3GarageActions) {
     if (types.options.length !== options.length) types.replaceChildren(...options.map(([id, label]) => new Option(label, id)));
     types.value = bikeType;
     const shown = catalogBikes
+      .filter(bike => v3Shown('bike', bike.id))
       .filter(bike => bikeType === 'all' || bike.type === bikeType)
       .filter(bike => (bike.brand + ' ' + bike.name + ' ' + typeLabel(bike.type)).toLowerCase().includes(query))
       .sort((a, b) => a.brand.localeCompare(b.brand, 'fr') || bikeName(a).localeCompare(bikeName(b), 'fr'));
@@ -682,11 +692,11 @@ export function createV3Garage(actions: V3GarageActions) {
    */
   async function randomBike(usual = false): Promise<void> {
     const catalog = await getV3Catalog();
-    const list = catalog.bikes;
+    const list = catalog.bikes.filter(row => v3Shown('bike', row.id));
     const bike = pick(usual ? list.filter(row => ['route', 'gravel', 'chrono', 'vtt'].includes(row.type)) : list);
     if (!bike) return;
     const { colors: options } = await getV3Colors(bike.id).catch(() => ({ colors: [] as V3Color[] }));
-    const offered = wheelsFor(bike.type, catalog.wheels ?? []).filter(wheel => wheel.kind === (bike.type === 'gravel' ? 'gravel' : 'route'));
+    const offered = wheelsFor(bike.type, catalog.wheels ?? []).filter(wheel => v3Shown('wheel', wheel.id) && wheel.kind === (bike.type === 'gravel' ? 'gravel' : 'route'));
     const wheels = offered.length && Math.random() < 0.6 ? pick(offered)?.id : undefined;
     apply({ ...equipment, bike: bike.id, color: options.length > 1 ? Math.floor(Math.random() * options.length) : 0, hue: undefined, wheels });
     showFocus();
@@ -810,6 +820,8 @@ export function createV3Garage(actions: V3GarageActions) {
     for (const name of alternatives) group.append(new Option(name, name));
     poses.add(group);
   }).catch(report);
+  // Gestion des objets changée : listes du garage refaites.
+  onV3AdminChange(() => refreshAll());
   /** Tout le panneau remis d'accord avec l'équipement (profil chargé). */
   function refreshAll(): void {
     showSex();

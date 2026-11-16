@@ -1,6 +1,7 @@
 import { getV3Gear, V3_HAIR_COLORS, type V3Color, type V3Equipment, type V3Gear, type V3SockHeight } from './visuals.ts';
 import { V3_SLOTS } from './icons.ts';
 import { v3Select } from './dropdown.ts';
+import { v3Shown } from './catalogAdmin.ts';
 import { css, shiftHue, type Rgb } from './swatch.ts';
 import { needsPhoto } from './thumbnails.ts';
 
@@ -395,7 +396,8 @@ export function addWardrobe(head: HTMLElement, parent: HTMLElement, settings: ()
   const openFamilies = new Set<string>();
   function filter() {
     const query = search.value.trim().toLowerCase();
-    const matches = items.filter(item => item.type === category && fits(item) && (item.name + ' ' + item.variant).toLowerCase().includes(query));
+    // Objets masqués par la page de gestion : hors de la liste (un coureur qui les porte les garde).
+    const matches = items.filter(item => item.type === category && fits(item) && v3Shown('gear', item.id) && (item.name + ' ' + item.variant).toLowerCase().includes(query));
     const families = new Map<string, V3Gear[]>();
     for (const item of matches) {
       const family = familyOf(item);
@@ -467,7 +469,7 @@ export function addWardrobe(head: HTMLElement, parent: HTMLElement, settings: ()
     beardColor.row.hidden = type !== 'FACIAL_HAIR';
     hairColor.sync();
     beardColor.sync();
-    const count = items.filter(item => item.type === type && fits(item)).length;
+    const count = items.filter(item => item.type === type && fits(item) && v3Shown('gear', item.id)).length;
     typeName.textContent = (V3_SLOTS[type]?.label ?? type) + ' · ' + count;
     // Arrivée dans la rubrique : familles repliées ; l'article porté est montré en tête (légende).
     for (const id of [...openFamilies]) if (id.startsWith(type + '|')) openFamilies.delete(id);
