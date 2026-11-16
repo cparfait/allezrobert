@@ -76,3 +76,8 @@ span.mm-bikeicon { display: block; }
 .v3-dice:active { transform: scale(0.94); }
 .v3-dice:focus-visible { outline: 2px solid rgba(255, 210, 63, 0.8); outline-offset: 2px; }
 .v3-navrow, .v3-searchrow { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; }
+
+/* Coloris proposés sous le vélo cliqué, dans la liste. */
+.v3-inline-colors { display: flex; flex-wrap: wrap; gap: 6px; margin: -4px 0 4px; padding: 10px; border-radius: 0 0 12px 12px; background: rgba(255, 210, 63, 0.07); border: 1px solid rgba(255, 210, 63, 0.25); border-top: 0; }
+.v3-inline-colors .gr-sub { font-size: 12px; padding: 5px 11px; }
+.v3-inline-colors .gr-sub.on { background: var(--ar-accent, #ffd23f); border-color: var(--ar-accent, #ffd23f); color: #0a0e16; }

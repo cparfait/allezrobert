@@ -402,7 +402,7 @@ export function createV3Garage(actions: V3GarageActions) {
       side.className = 'mm-bike-side';
       if (on) side.innerHTML = '<span class="mm-bike-state">✓ Équipé</span>';
       row.append(bikeIcon(bike), text, side);
-      row.onclick = () => choose(bike.id);
+      row.onclick = () => { choose(bike.id); void showInlineColors(bike.id); };
       rows.push(row);
     }
     if (!rows.length) {
@@ -425,6 +425,47 @@ export function createV3Garage(actions: V3GarageActions) {
       void showColors();
     }
   }
+  /**
+   * Coloris proposés juste sous le vélo cliqué (s'il en a plusieurs), pour ne pas devoir remonter à la fiche du vélo.
+   * Reste synchronisé avec la liste « Coloris » du haut.
+   */
+  let inlineFor = '';
+  function markInline() {
+    list.querySelectorAll<HTMLButtonElement>('.v3-inline-colors button').forEach((button, i) => {
+      const on = i === equipment.color;
+      button.classList.toggle('on', on);
+      button.setAttribute('aria-checked', String(on));
+    });
+  }
+  async function showInlineColors(id: string) {
+    inlineFor = id;
+    list.querySelector('.v3-inline-colors')?.remove();
+    const options = (await getV3Colors(id).catch(() => ({ colors: [] as V3Color[] }))).colors;
+    if (inlineFor !== id || options.length <= 1) return;
+    const row = list.querySelector<HTMLElement>('[data-v3-bike="' + CSS.escape(id) + '"]');
+    if (!row) return;
+    const box = document.createElement('div');
+    box.className = 'v3-inline-colors';
+    box.setAttribute('role', 'radiogroup');
+    box.setAttribute('aria-label', 'Coloris');
+    options.forEach((option, i) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'gr-sub';
+      button.setAttribute('role', 'radio');
+      button.textContent = option.name || 'Coloris ' + (i + 1);
+      button.onclick = () => {
+        apply({ ...equipment, color: i, hue: undefined });
+        colors.value = String(i);
+        hue.set(bikeColors[i]);
+        markInline();
+      };
+      box.append(button);
+    });
+    list.querySelector('.v3-inline-colors')?.remove();
+    row.after(box);
+    markInline();
+  }
   function choose(bike: string) {
     if (bike === equipment.bike) return;
     apply({ ...equipment, bike, color: 0, hue: undefined });
@@ -436,6 +477,7 @@ export function createV3Garage(actions: V3GarageActions) {
     const color = Number(colors.value);
     hue.set(bikeColors[color]);
     apply({ ...equipment, color, hue: undefined });
+    markInline();
   };
   poses.onchange = () => {
     actions.pose(poses.value);
