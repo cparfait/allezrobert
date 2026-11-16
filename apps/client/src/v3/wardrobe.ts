@@ -466,8 +466,13 @@ export function addWardrobe(head: HTMLElement, parent: HTMLElement, settings: ()
         const icon = document.createElement('i');
         icon.innerHTML = V3_SLOTS[type]?.icon ?? '';
         const name = document.createElement('small');
-        name.textContent = V3_SLOTS[type]?.label ?? items.find(item => item.type === type)?.category ?? type;
+        const label = V3_SLOTS[type]?.label ?? items.find(item => item.type === type)?.category ?? type;
+        name.textContent = label;
         tile.append(icon, name);
+        // Infobulle : le nom de la rubrique (seule l'icône est visible sur la tuile).
+        tile.setAttribute('aria-label', label);
+        tile.onmouseenter = tile.onfocus = () => showTip(tile, label);
+        tile.onmouseleave = tile.onblur = () => { tip.hidden = true; };
         tile.onclick = () => choose(type);
         slots.append(tile);
       }

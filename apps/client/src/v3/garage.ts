@@ -1,6 +1,7 @@
 import { getV3Catalog, getV3Clips, getV3Colors, getV3Gear, type V3SockHeight, readV3Equipment, V3_HAIR_COLORS, saveV3Equipment, V3_POSES, type V3Bike, type V3Body, type V3Color, type V3Equipment, type V3Gear } from './visuals.ts';
 import { addWardrobe, createHueControl, onScreen, whenVisible } from './wardrobe.ts';
 import { V3_ICON } from './icons.ts';
+import { COSMETICS, DEFAULT_TRAINER } from '@allezrobert/shared';
 import { saveV3BikeSetup, v3BikeEffect } from './physics.ts';
 import './garage.css';
 
@@ -330,6 +331,36 @@ export function createV3Garage(actions: V3GarageActions) {
   };
   ride.append(play);
   bikes.section.append(ride);
+  // Home trainer du garage (ceux du jeu) : le vélo V3 est monté dessus, roue arrière retirée.
+  const trainerField = document.createElement('div');
+  trainerField.className = 'field';
+  const trainers = document.createElement('div');
+  trainers.className = 'v3-inline-colors v3-trainers';
+  trainers.setAttribute('role', 'radiogroup');
+  trainers.setAttribute('aria-label', 'Home trainer');
+  const trainerOptions: Array<[string | null, string]> = [
+    [null, 'Aucun'], ...COSMETICS.filter(item => item.slot === 'trainer').map(item => [item.id, item.name.fr] as [string, string]),
+  ];
+  function showTrainer() {
+    const current = equipment.trainer === undefined ? DEFAULT_TRAINER : equipment.trainer;
+    trainers.querySelectorAll<HTMLButtonElement>('button').forEach((button, i) => {
+      const on = trainerOptions[i]?.[0] === current;
+      button.classList.toggle('on', on);
+      button.setAttribute('aria-checked', String(on));
+    });
+  }
+  for (const [id, name] of trainerOptions) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'gr-sub';
+    button.setAttribute('role', 'radio');
+    button.textContent = name;
+    button.onclick = () => { apply({ ...equipment, trainer: id }); showTrainer(); };
+    trainers.append(button);
+  }
+  trainerField.append('Home trainer', trainers);
+  bikes.section.append(trainerField);
+  showTrainer();
   const types = document.createElement('div');
   types.className = 'mm-biketypes';
   types.setAttribute('role', 'radiogroup');

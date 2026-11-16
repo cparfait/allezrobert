@@ -65,7 +65,16 @@ function tracksOf(clip: V3Clip): Track[] {
 
 export function sampleV3(clip: V3Clip, joints: Map<number, Bone>, turns: number): void {
   const cycles = Math.max(1, Math.round(clip.duration / (2 / 3)));
-  const frame = /^cyclistsuperaero$/i.test(clip.name) ? 0 : (turns % cycles) / cycles * clip.duration * 30;
+  sampleFrame(clip, joints, /^cyclistsuperaero$/i.test(clip.name) ? 0 : (turns % cycles) / cycles * clip.duration * 30);
+}
+
+/** Clip lu au temps (secondes) : arrêt pied à terre (en boucle), départ et arrivée (une fois). */
+export function sampleV3At(clip: V3Clip, joints: Map<number, Bone>, seconds: number, loop: boolean): void {
+  const t = loop ? seconds % Math.max(clip.duration, 1 / 30) : Math.min(seconds, clip.duration);
+  sampleFrame(clip, joints, t * 30);
+}
+
+function sampleFrame(clip: V3Clip, joints: Map<number, Bone>, frame: number): void {
   for (const { bone, keys } of tracksOf(clip)) {
     const joint = joints.get(bone);
     if (!joint || !keys.length) continue;

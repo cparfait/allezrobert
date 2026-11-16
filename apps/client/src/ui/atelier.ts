@@ -2,11 +2,11 @@ import * as THREE from 'three/webgpu';
 import { emissive, mrt, normalView, output, packNormalToRGB, pass, sample, unpackRGBToNormal, vec4 } from 'three/tsl';
 import { bloom } from 'three/addons/tsl/display/BloomNode.js';
 import { ao } from 'three/addons/tsl/display/GTAONode.js';
-import { BIKE_REFERENCE, DEFAULT_LOOK, PLAIN_BIKE_FAMILY, bikeById, bikeOfLook, type AvatarLook, type BikeFamily, type TuneSlot } from '@allezrobert/shared';
+import { BIKE_REFERENCE, DEFAULT_LOOK, DEFAULT_TRAINER, PLAIN_BIKE_FAMILY, bikeById, bikeOfLook, type AvatarLook, type BikeFamily, type TuneSlot } from '@allezrobert/shared';
 import { createAvatar, GltfRiderAvatar, type RiderAvatarLike, type RiderPose } from '../rider/gltfAvatar.ts';
 import { V3_STYLE } from '../engine/style.ts';
 import { createV3Garage } from '../v3/garage.ts';
-import { getV3Catalog, loadV3DisplayBike, V3Visual } from '../v3/visuals.ts';
+import { getV3Catalog, loadV3DisplayBike, readV3Equipment, V3Visual } from '../v3/visuals.ts';
 import { V3ThumbnailStudio } from '../v3/thumbnails.ts';
 import { BikeMaterials, loadBikeFamily, loneWheel, onBikeFamilyLoaded } from '../rider/bikes.ts';
 import { assembleRoubaix, isRoubaixLook, loadRoubaix, roubaixOption, roubaixSizeForRider, type RoubaixBike, type RoubaixDress } from '../rider/roubaix.ts';
@@ -299,7 +299,11 @@ export class AtelierHost {
     if (!V3_STYLE || !(this.avatar instanceof GltfRiderAvatar)) return;
     if (st.v3Picker && !this.v3Panel) {
       this.v3Panel = createV3Garage({
-        equipment: equipment => { if (this.state) this.v3?.set(this.state.look, equipment); },
+        equipment: equipment => {
+          if (!this.state) return;
+          this.v3?.set(this.state.look, equipment);
+          this.mountTrainer(this.state.rider ? this.v3TrainerId() : undefined);
+        },
         pose: pose => { this.v3Pose = pose; this.frames = Math.max(this.frames, 2); },
         playing: on => { this.v3Playing = on; this.frames = Math.max(this.frames, 2); },
         sex: () => this.v3?.riderSex(),
@@ -315,7 +319,8 @@ export class AtelierHost {
       this.studio().prewarm(this.v3?.riderSex() ?? 'male');
       this.studio().resume();
     }
-    this.v3 ??= new V3Visual(this.avatar.v3Mount(), () => { this.frames = Math.max(this.frames, 2); }, error => this.v3Panel?.report(error));
+    // Vélo V3 chargé ou changé : home trainer recalé sur ses roues.
+    this.v3 ??= new V3Visual(this.avatar.v3Mount(), () => { this.frames = Math.max(this.frames, 2); if (this.trainer) this.fitTrainer(); }, error => this.v3Panel?.report(error));
     this.v3.set(st.look);
   }
 
@@ -688,7 +693,7 @@ export class AtelierHost {
     // Coureur en selle : vélo au sol (pied replié) ; sinon sur le pied d'atelier, roues décollées.
     this.bikeRoot.position.y = st.rider ? 0 : LIFT;
     if (this.stand) this.stand.visible = !st.rider;
-    this.mountTrainer(st.rider && !V3_STYLE ? st.trainer : undefined);
+    this.mountTrainer(st.rider ? (V3_STYLE ? this.v3TrainerId() : st.trainer) : undefined);
     if (!V3_STYLE) this.updateRoubaix(st);
     this.setV3(st);
     if (st.pose) for (let i = 0; i < st.pose.frames; i++) this.avatar.update(1 / 60, st.pose.cadence, st.pose.speed ?? 5, st.pose.pose);
@@ -770,6 +775,12 @@ export class AtelierHost {
     this.roubaix = null;
   }
 
+  /** Home trainer du garage V3 : celui choisi dans la rubrique Vélo (aucun si « Aucun »). */
+  private v3TrainerId(): string | undefined {
+    const chosen = readV3Equipment().trainer;
+    return chosen === null ? undefined : chosen ?? DEFAULT_TRAINER;
+  }
+
   /** Monte le vélo sur le home trainer `id` (construit à la demande) ; sans id, le démonte (roue arrière remise). */
   private mountTrainer(id: string | undefined): void {
     if (this.trainer && this.trainer.id !== id) {
@@ -800,10 +811,18 @@ export class AtelierHost {
     const root = this.avatar.root;
     root.updateMatrixWorld(true);
     const wheels: Record<'front' | 'rear', THREE.Object3D[]> = { front: [], rear: [] };
+    // Vélo V3 (roues « RearWheel » / « FrontWheel ») prioritaire : celui du jeu est alors masqué.
+    const v3Wheels: Record<'front' | 'rear', THREE.Object3D[]> = { front: [], rear: [] };
     root.traverse((o) => {
       if (o.name === 'wheel_rear') wheels.rear.push(o);
       else if (o.name === 'wheel_front') wheels.front.push(o);
+      else if (/^RearWheel(?:_|$)/.test(o.name) && !(o as THREE.Mesh).isMesh) v3Wheels.rear.push(o);
+      else if (/^FrontWheel(?:_|$)/.test(o.name) && !(o as THREE.Mesh).isMesh) v3Wheels.front.push(o);
     });
+    if (V3_STYLE && v3Wheels.rear.length) {
+      wheels.rear = v3Wheels.rear;
+      wheels.front = v3Wheels.front;
+    }
     // Coureur low poly : roues sans nom, rangées dans `wheels` (arrière : axe derrière le pédalier).
     const own = (this.avatar as unknown as { wheels?: unknown }).wheels;
     if (Array.isArray(own)) for (const w of own) if (w instanceof THREE.Object3D && !wheels.rear.includes(w) && !wheels.front.includes(w)) wheels[w.position.z < 0 ? 'rear' : 'front'].push(w);

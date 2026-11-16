@@ -2407,7 +2407,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     // (pendant un demi-tour, la caméra sort derrière le coureur : la tête redevient visible)
     const onboard = (rig.mode === 'cockpit' || rig.mode === 'action' || rig.mode === 'gopro') && !rig.lookBack && !camTurn;
     avatar.setHeadVisible(!onboard);
-    v3?.update(dt, ride.inputs.cadence, ride.state.speedMs, ride.pose, { head: !onboard, helmet: !riderLook.noHelmet });
+    v3?.update(dt, ride.inputs.cadence, ride.state.speedMs, ride.pose, { head: !onboard, helmet: !riderLook.noHelmet, effort: ride.inputs.watts / Math.max(1, s.ftpWatts), transitions: true });
     lap('mon coureur');
     peloton.render(dt, engine.camera);
     lap('coureurs IA (animation)');

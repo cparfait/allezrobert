@@ -2,7 +2,8 @@ import { lookSex, type AvatarLook } from '@allezrobert/shared';
 import { Box3, Group, Quaternion, SRGBColorSpace, Texture, TextureLoader, Vector3, type Bone, type Material, type Mesh, type MeshStandardMaterial, type Object3D } from 'three/webgpu';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import type { RiderPose } from '../rider/gltfAvatar.ts';
-import { sampleV3, type V3Clip } from './animation.ts';
+import { sampleV3, sampleV3At, type V3Clip } from './animation.ts';
+import { AERO_COAST_FULL, AERO_SPEED, AERO_SPEED_OUT, HARD_EFFORT } from '../rider/poseThresholds.ts';
 
 const base = '/__v3/';
 const defaultBike = 'canyonaeroad2024';
@@ -37,6 +38,8 @@ export type V3Equipment = {
   /** Couleur libre (palette) des cheveux et de la barbe, « #rrggbb » : prime sur la case de la planche. */
   hairTint?: string;
   beardTint?: string;
+  /** Home trainer du garage (catalogue du jeu) ; null : aucun ; absent : celui par défaut. */
+  trainer?: string | null;
 };
 
 /** Six couleurs des planches de cheveux et de barbe Zwift (2 colonnes × 3 lignes), dans l'ordre des cases. */
@@ -60,6 +63,30 @@ const BEARD_GROUPS: Record<string, number> = {
  * Posture adaptée au type de vélo : variantes Zwift VTT (Mountain), ville (_Buffalo), concept, chrono (_TT),
  * couché (Recumbent) et handbike (Handcycle) ; la posture de base si la variante n'existe pas.
  */
+/**
+ * Clips d'arrêt et de départ selon le type de vélo : pied à terre (en boucle), clip-in au premier coup de pédale,
+ * clip-out à l'arrêt. Sans variante pour le type, le clip du vélo de route ; absent (couché, handbike) : pas de transition.
+ */
+const TRANSITIONS: Record<'idle' | 'clipIn' | 'clipOut', Record<string, string[]>> = {
+  idle: {
+    '': ['cyclistFootDownIdle'], vtt: ['CyclistFootDownIdleMountain'], cruiser: ['cyclistFootDownIdle_Buffalo'],
+    concept: ['cyclist_clipOutIdleConcept'], 'couché': ['CyclistIdleRecumbent'], handbike: ['CyclistIdleHandcycle'],
+  },
+  clipIn: {
+    '': ['cyclistClipIn'], vtt: ['CyclistClipInMountain'], cruiser: ['cyclistClipIn_Buffalo'], concept: ['cyclist_clipInConcept'],
+    chrono: ['cyclist_clipIn_TT'], 'couché': [], handbike: [],
+  },
+  clipOut: {
+    '': ['cyclistClipOut'], vtt: ['CyclistClipOutMountain'], cruiser: ['cyclistClipOut_Buffalo'], concept: ['cyclist_clipOutConcept'],
+    'couché': [], handbike: [],
+  },
+};
+
+export function transitionClip(kind: 'idle' | 'clipIn' | 'clipOut', type: string | undefined, exists: (name: string) => boolean): string | undefined {
+  const table = TRANSITIONS[kind];
+  return (table[type ?? ''] ?? table[''] ?? []).find(exists);
+}
+
 export function clipForBike(wanted: string, type: string | undefined, exists: (name: string) => boolean): string {
   const kind = /superaero/i.test(wanted) ? 'aero' : /sprint.*alt/i.test(wanted) ? 'sprintAlt' : /sprint/i.test(wanted) ? 'sprint'
     : /standing/i.test(wanted) ? 'standing' : /drops/i.test(wanted) ? 'drops' : 'hoods';
@@ -564,7 +591,37 @@ export class V3Visual {
     }).catch(error => { if (request === this.kitRequest) this.report(error); });
   }
 
-  update(dt: number, cadence: number, speed: number, pose: RiderPose, options: { rider?: boolean; head?: boolean; helmet?: boolean; clip?: string } = {}): void {
+  /**
+   * Phase de sortie : arrêt pied à terre, départ (clip-in), en selle, arrivée (clip-out). Au départ d'un parcours,
+   * le coureur attend pied à terre le premier coup de pédale.
+   */
+  private phase: 'idle' | 'clipIn' | 'ride' | 'clipOut' = 'idle';
+  private phaseT = 0;
+  private dropsOn = false;
+  private tuckOn = false;
+
+  private enter(phase: 'idle' | 'clipIn' | 'ride' | 'clipOut'): void {
+    this.phase = phase;
+    this.phaseT = 0;
+  }
+
+  /**
+   * Posture en selle selon l'allure et l'effort, aux seuils de l'avatar du jeu (poseThresholds.ts) : cocottes, bas du
+   * cintre vite ou fort, super-aéro en roue libre rapide (descente), danseuse, sprint en danseuse à forte puissance.
+   * Le type de vélo choisit ensuite la variante (clipForBike).
+   */
+  private ridingClip(pose: RiderPose, speed: number, cadence: number, effort: number, type: string | undefined): string {
+    if (pose === 'standing') return effort > 1.5 ? 'cyclistSprint' : 'cyclistStandingHoods';
+    const coasting = pose === 'coasting' || cadence < 5;
+    this.tuckOn = coasting && (speed > AERO_COAST_FULL || (this.tuckOn && speed > AERO_SPEED));
+    if (this.tuckOn && (type === 'route' || type === 'chrono' || type === 'gravel')) return 'cyclistSuperAero';
+    // Bas du cintre seulement vite (45 km/h, retour sous 41), comme l'avatar du jeu : à allure basse, haut du cintre,
+    // même en forçant (l'effort fort ne compte qu'au-delà de 45 km/h).
+    this.dropsOn = speed > AERO_SPEED || (this.dropsOn && speed > AERO_SPEED_OUT) || (speed > AERO_SPEED_OUT && effort > HARD_EFFORT);
+    return this.dropsOn ? 'cyclistSeatedDrops' : 'cyclistSeatedHoods';
+  }
+
+  update(dt: number, cadence: number, speed: number, pose: RiderPose, options: { rider?: boolean; head?: boolean; helmet?: boolean; clip?: string; effort?: number; transitions?: boolean } = {}): void {
     const { bike, rider } = this;
     const showRider = this.ready && !!rider && options.rider !== false;
     // Vélo ou coureur V3 pas encore chargé : rien plutôt que le coureur et le vélo du jeu (mode Réel) en attendant.
@@ -577,9 +634,30 @@ export class V3Visual {
     this.mount.replace(true, showRider);
     if (rider) rider.scene.visible = showRider;
     const level = Math.min(this.mount.level(), 2);
-    const wanted = options.clip ?? (pose === 'standing' ? 'cyclistStandingHoods' : bike.type === 'chrono' ? 'cyclistSeatedDrops_TT' : 'cyclistSeatedHoods');
     const rigName = this.sex === 'female' ? 'Female' : 'Male';
-    const name = clipForBike(wanted, bike.type, n => this.clips.some(c => c.name === n && c.rig === rigName) || this.clips.some(c => c.name === n));
+    const exists = (n: string) => this.clips.some(c => c.name === n && c.rig === rigName) || this.clips.some(c => c.name === n);
+    // Sortie : pied à terre à l'arrêt, clip-in au premier coup de pédale, clip-out en s'arrêtant.
+    let wanted = options.clip;
+    let at: number | undefined;
+    let loop = false;
+    if (!wanted && options.transitions) {
+      const stopped = speed < 0.4 && cadence < 5;
+      this.phaseT += dt;
+      if (this.phase === 'ride' && stopped) this.enter('clipOut');
+      else if ((this.phase === 'idle' || this.phase === 'clipOut') && !stopped) this.enter('clipIn');
+      if (this.phase === 'clipIn' || this.phase === 'clipOut') {
+        const transition = transitionClip(this.phase, bike.type, exists);
+        const clip = transition ? this.clips.find(c => c.name === transition) : undefined;
+        if (!clip || this.phaseT >= clip.duration) this.enter(this.phase === 'clipIn' ? 'ride' : 'idle');
+        else { wanted = transition; at = this.phaseT; }
+      }
+      if (this.phase === 'idle') {
+        const idle = transitionClip('idle', bike.type, exists);
+        if (idle) { wanted = idle; at = this.phaseT; loop = true; }
+      }
+    }
+    wanted ??= this.ridingClip(pose, speed, cadence, options.effort ?? 0.7, bike.type);
+    const name = at === undefined ? clipForBike(wanted, bike.type, exists) : wanted;
     this.turns = (this.turns + dt * Math.max(0, cadence) / 60) % 2;
     this.distance += dt * speed;
     bike.levels.forEach((node, i) => { node.visible = i === level; });
@@ -597,7 +675,8 @@ export class V3Visual {
       }
       this.clip = clip;
     }
-    if (clip) sampleV3(clip, rider.joints, this.turns);
+    if (clip && at !== undefined) sampleV3At(clip, rider.joints, at, loop);
+    else if (clip) sampleV3(clip, rider.joints, this.turns);
     rider.head.scale.setScalar(options.head === false ? 0.001 : 1);
     const helmetGear = this.kit.find(gear => gear.item.type === 'HEAD_GEAR');
     if (rider.helmet) rider.helmet.visible = options.helmet !== false && !helmetGear;
