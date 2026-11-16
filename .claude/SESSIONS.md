@@ -95,3 +95,9 @@ Relevé du 2026-11-12. Elles viennent de sessions fermées ; aucune session ouve
 - `ASSETS_LICENSES.md` contient encore des modifications non commitées d'une autre session.
 - `apps/client/public/worlds/chevreuse/collisions/` : chantier COLL-MURS, non commité.
 - **Fichiers partagés entre chantiers non commités** : `ride.ts`, `peloton.ts`, `simulation.ts`, `network.ts` et `main.ts` contiennent des sections COLL-MURS et des modifications d'autres sessions (propriétaire non identifié). Ne commiter ces fichiers qu'avec `git add -p`, section par section.
+
+## Tenue UAE 2026 V3 (essai de tenue)
+- Chantier : tenue d'essai UAE Team Emirates XRG 2026 pour le coureur V3, ajoutée au vestiaire sans toucher au code (demande de l'utilisateur du 2026-11-16)
+- Fichiers ou dossiers réservés : `out/tenue-uae-2026/`, `D:/zzCACHE_ALLEZROBERT/zwift-etude/tenues-perso/`, une ligne ajoutée (i = 9001) à la fin de `D:/zzCACHE_ALLEZROBERT/zwift-etude/tenues-catalogue.json` (copie d'avant : `tenues-catalogue.avant-uae2026.json`), config « garage-v3-uae » de `.claude/launch.json` (port 5233). Ne modifie ni `apps/client/src/v3/`, ni `v3Assets.ts`, ni `tools/v3_assets.py` (réservés par « Garage V3 »).
+- État : tenue visible dans le vestiaire V3 (Équipes pro, « UAE Team Emirates XRG 2026 (essai) »), vérifiée sur le banc 5233 ; rien de commité (aucun fichier suivi par git touché, sauf ce registre et la config de lancement). Serveur « garage-v3-uae » lancé sur le port 5233. Aucun build dans `worlds/`, aucune mesure GPU.
+- Mis à jour : 2026-11-16 17:20
