@@ -2494,7 +2494,7 @@ export class MainMenu {
         <div class="field hud-field" style="grid-column: 1 / -1">${L ? 'Interface (HUD) · effet à la prochaine sortie' : 'HUD layout · applies from the next ride'}${hudPickerHtml()}</div>
         <div class="field">${L ? 'Format de l\'image' : 'Picture format'}${this.seg('m-aspect', getAspectCap(), [['full', L ? 'Plein écran' : 'Full'], ['16:9', '16:9'], ['21:9', '21:9'], ['32:9', '32:9']])}</div>
         <div class="field">${L ? 'Zone de l\'interface' : 'Interface area'}${this.seg('m-uiaspect', getUiAspectCap(), [['full', L ? 'Toute la largeur' : 'Full width'], ['16:9', '16:9'], ['21:9', '21:9']])}</div>
-        <div class="field">${L ? 'Résolution max' : 'Max resolution'}${this.seg('m-maxres', getResolutionCap(), [['auto', 'Auto'], ['1080p', '1080p'], ['1440p', '1440p'], ['4k', '4K']])}</div>
+        <div class="field">${L ? 'Résolution max' : 'Max resolution'}${this.seg('m-maxres', getResolutionCap(), [['auto', 'Auto'], ['1080p', '1080p'], ['1440p', '1440p'], ['4k', '4K']])}<p class="mm-hint" id="m-res-now"></p></div>
         <div class="field">${t('season')}${this.seg('m-season', s.season, (['spring', 'summer', 'autumn', 'winter'] as const).map((q) => [q, t(q)]))}</div>
         ${this.hourFields()}
         <label class="field">${L ? 'Nuages' : 'Clouds'}<input id="m-clouds" type="range" min="0" max="1" step="0.05" value="${s.clouds}" /></label>
@@ -3810,9 +3810,20 @@ export class MainMenu {
       setUiAspectCap(el.value as AspectCap);
       window.dispatchEvent(new Event('resize'));
     });
+    // Taille de l'image réellement calculée (le choix « Auto » ne la dit pas) : celle du canevas 3D.
+    const showRes = () => {
+      const out = this.root.querySelector<HTMLElement>('#m-res-now');
+      const c = document.getElementById('scene') as HTMLCanvasElement | null;
+      if (!out || !c?.width) return;
+      const lang = fr() ? 'fr-FR' : 'en-GB';
+      out.textContent = `${fr() ? 'Rendu actuel' : 'Current render'} : ${c.width.toLocaleString(lang)} × ${c.height.toLocaleString(lang)} · ${((c.width * c.height) / 1e6).toLocaleString(lang, { maximumFractionDigits: 1 })} Mpx`;
+    };
+    showRes();
     on<HTMLSelectElement>('m-maxres', 'change', (el) => {
       setResolutionCap(el.value as ResolutionCap);
       window.dispatchEvent(new Event('resize'));
+      // Le moteur redimensionne à l'image suivante.
+      requestAnimationFrame(() => requestAnimationFrame(showRes));
     });
     on<HTMLSelectElement>('m-season', 'change', (el) => {
       s.season = el.value as Settings['season'];
