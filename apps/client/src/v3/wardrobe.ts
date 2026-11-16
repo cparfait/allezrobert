@@ -468,7 +468,9 @@ export function addWardrobe(head: HTMLElement, parent: HTMLElement, settings: ()
   function refresh() {
     if (!items.length) return;
     for (const tile of slots.querySelectorAll<HTMLButtonElement>('.gr-slot')) {
-      tile.hidden = !items.some(item => item.type === tile.dataset.v3Slot && fits(item));
+      // Pas de barbe pour la coureuse (seul « Clean Shaven », commun aux deux, y figurerait).
+      tile.hidden = !items.some(item => item.type === tile.dataset.v3Slot && fits(item))
+        || (tile.dataset.v3Slot === 'FACIAL_HAIR' && riderSex() === 'female');
     }
     const visible = [...slots.querySelectorAll<HTMLButtonElement>('.gr-slot')].filter(tile => !tile.hidden);
     const next = visible.some(tile => tile.dataset.v3Slot === category) ? category : visible[0]?.dataset.v3Slot;

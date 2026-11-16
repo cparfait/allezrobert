@@ -56,3 +56,10 @@ span.mm-bikeicon { display: block; }
 .ar-v3-garage .v3-fold:hover { color: #fff; }
 .ar-v3-garage .v3-fold:focus-visible { outline: 2px solid rgba(255, 210, 63, 0.8); outline-offset: 2px; }
 .ar-v3-garage .mm-seg button { width: auto; border: 0; }
+/* Personnage : silhouette et corps en tête, avant les catégories (deux rangées de boutons segmentés). */
+.v3-identity { display: grid; gap: 10px; padding-bottom: 12px; border-bottom: 1px solid var(--mm-line); }
+.v3-identity .field { display: grid; gap: 5px; font-size: 12px; font-weight: 700; color: #aeb7c3; }
+.v3-identity .mm-seg button { width: auto; border: 0; padding: 6px 8px; font-size: 12.5px; }
+/* Silhouette et dé « personnage au hasard » sur la même ligne. */
+.v3-sexrow { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; }
+.ar-v3-garage .gr-dice, .v3-identity .gr-dice { width: 38px; height: 38px; padding: 0; }

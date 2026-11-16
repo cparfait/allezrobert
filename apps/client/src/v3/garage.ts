@@ -1,4 +1,4 @@
-import { getV3Catalog, getV3Clips, getV3Colors, readV3Equipment, saveV3Equipment, V3_POSES, type V3Bike, type V3Body, type V3Color, type V3Equipment, type V3Gear } from './visuals.ts';
+import { getV3Catalog, getV3Clips, getV3Colors, getV3Gear, readV3Equipment, V3_HAIR_COLORS, saveV3Equipment, V3_POSES, type V3Bike, type V3Body, type V3Color, type V3Equipment, type V3Gear } from './visuals.ts';
 import { addWardrobe, createHueControl } from './wardrobe.ts';
 import { V3_ICON } from './icons.ts';
 import './garage.css';
@@ -114,11 +114,41 @@ export function createV3Garage(actions: V3GarageActions) {
   const wardrobeActions = { equipment: apply, report, photo: actions.photo, sex: actions.sex };
   const kitWardrobe = addWardrobe(kit.head, kit.section, () => equipment, wardrobeActions);
   const openKit = kitWardrobe.open;
-  const sex = select(character.section, 'Silhouette');
-  sex.add(new Option('Selon mon profil', ''));
-  sex.add(new Option('Coureur', 'male'));
-  sex.add(new Option('Coureuse', 'female'));
-  sex.value = equipment.sex ?? '';
+  // En tête du choix du personnage, avant les catégories : silhouette puis corps, en boutons segmentés.
+  const identity = document.createElement('div');
+  identity.className = 'v3-identity';
+  const sexField = document.createElement('div');
+  sexField.className = 'field';
+  const sexSeg = document.createElement('div');
+  sexSeg.className = 'mm-seg';
+  sexSeg.setAttribute('role', 'radiogroup');
+  sexSeg.setAttribute('aria-label', 'Silhouette');
+  // Homme ou femme ; sans choix enregistré, la silhouette effective (celle du profil) est cochée.
+  const sexes: Array<['male' | 'female', string]> = [['male', 'Homme'], ['female', 'Femme']];
+  function showSex() {
+    const current = equipment.sex ?? actions.sex?.() ?? 'male';
+    for (const button of sexSeg.querySelectorAll<HTMLButtonElement>('button')) {
+      const on = button.dataset.v3Sex === current;
+      button.classList.toggle('on', on);
+      button.setAttribute('aria-checked', String(on));
+    }
+  }
+  for (const [value, text] of sexes) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.setAttribute('role', 'radio');
+    button.dataset.v3Sex = value;
+    button.textContent = text;
+    button.onclick = () => {
+      apply({ ...equipment, sex: value });
+      showSex();
+      showBody();
+      kitWardrobe.refresh();
+      characterWardrobe.refresh();
+    };
+    sexSeg.append(button);
+  }
+  sexField.append('Silhouette');
   // Corps Zwift : standard, mince, fort (le corps fort n'existe que pour le coureur).
   const bodyField = document.createElement('div');
   bodyField.className = 'field';
@@ -147,15 +177,45 @@ export function createV3Garage(actions: V3GarageActions) {
     bodySeg.append(button);
   }
   bodyField.append('Corps', bodySeg);
-  character.section.append(bodyField);
-  sex.onchange = () => {
-    apply({ ...equipment, sex: sex.value === 'male' || sex.value === 'female' ? sex.value : undefined });
-    showBody();
-    kitWardrobe.refresh();
-    characterWardrobe.refresh();
+  // Personnage au hasard (dé du garage Réel) : corps, tête, coiffure et couleur, barbe ; la silhouette choisie est gardée.
+  const dice = document.createElement('button');
+  dice.type = 'button';
+  dice.className = 'gr-dice';
+  dice.innerHTML = V3_ICON.dice;
+  dice.title = 'Personnage au hasard (corps, tête, cheveux, barbe)';
+  dice.setAttribute('aria-label', 'Personnage au hasard');
+  const pick = <T>(list: T[]): T | undefined => list[Math.floor(Math.random() * list.length)];
+  dice.onclick = () => {
+    void getV3Gear().then(items => {
+      const sexNow = equipment.sex ?? actions.sex?.() ?? 'male';
+      const fits = (item: V3Gear, type: string) => item.type === type && (item.sex === 'tous' || item.sex === sexNow);
+      const kit = { ...equipment.kit };
+      const wear = (type: string, item: V3Gear | undefined) => {
+        if (item) kit[type] = { id: item.id, color: 0 };
+        else delete kit[type];
+      };
+      wear('HEAD_TYPE', pick(items.filter(item => fits(item, 'HEAD_TYPE'))));
+      // Toujours des cheveux (« Clean Shaven » écarté) ; barbe une fois sur deux pour le coureur.
+      wear('HAIR', pick(items.filter(item => fits(item, 'HAIR') && !/clean shaven/i.test(item.name))));
+      const beards = items.filter(item => fits(item, 'FACIAL_HAIR') && !/clean shaven/i.test(item.name));
+      wear('FACIAL_HAIR', sexNow === 'male' && Math.random() < 0.5 ? pick(beards) : undefined);
+      const bodies: V3Body[] = sexNow === 'male' ? ['standard', 'standard', 'skinny', 'big'] : ['standard', 'standard', 'skinny'];
+      const hairColor = Math.floor(Math.random() * (V3_HAIR_COLORS.length - 1)); // le bleu reste un choix délibéré
+      apply({ ...equipment, sex: sexNow, kit, body: pick(bodies), hairColor, beardColor: Math.random() < 0.8 ? hairColor : Math.floor(Math.random() * 5) });
+      showSex();
+      showBody();
+      characterWardrobe.refresh();
+    }).catch(report);
   };
+  const sexRow = document.createElement('div');
+  sexRow.className = 'v3-sexrow';
+  sexRow.append(sexSeg, dice);
+  sexField.append(sexRow);
+  identity.append(sexField, bodyField);
+  character.head.append(identity);
+  showSex();
   const characterWardrobe = addWardrobe(character.head, character.section, () => equipment, wardrobeActions, true);
-  const openCharacter = () => { characterWardrobe.open(); showBody(); };
+  const openCharacter = () => { characterWardrobe.open(); showSex(); showBody(); };
 
   // Vélo : fiche du vélo équipé (vignette, coloris, teinte), posture, puis le catalogue par type et par marque.
   const focus = document.createElement('div');
