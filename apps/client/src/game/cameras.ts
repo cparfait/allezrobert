@@ -176,8 +176,9 @@ export class CameraRig {
   update(dt: number, t: CameraTarget): void {
     const cam = this.camera;
     if (this.mode !== 'tv') {
-      // Poursuite : le champ s'ouvre avec la vitesse dès 11 km/h (+9° vers 50 km/h), lissé : sensation de vitesse.
-      const boost = this.mode === 'chase' ? 9 * THREE.MathUtils.smoothstep(t.speedMs, 3, 14) : 0;
+      // Poursuite : le champ s'ouvre avec la vitesse dès 11 km/h (+5° vers 50 km/h ; +9° rapetissait trop le coureur),
+      // lissé : sensation de vitesse.
+      const boost = this.mode === 'chase' ? 5 * THREE.MathUtils.smoothstep(t.speedMs, 3, 14) : 0;
       this.fovBoost += (boost - this.fovBoost) * (1 - Math.exp(-dt * 1.2));
       const fov = this.fovFor(this.mode) + this.fovBoost;
       if (Math.abs(cam.fov - fov) > 0.01) {
@@ -235,6 +236,10 @@ export class CameraRig {
         look.set(ahead.x, ahead.y + 1.0, ahead.z).lerp(_tmp.copy(t.position).setY(t.position.y + 1.1), 0.55);
         if (t.uturn && t.subject) look.set(t.subject.x, t.subject.y + 1.0, t.subject.z);
         stiffness = 5;
+        // Retard du lissage compensé (16/11/2026) : à vitesse v, une poursuite lissée au taux 5 traîne de v / 5 m derrière
+        // sa cible (≈ 3 m de plus à 55 km/h : le coureur paraissait loin). La cible est avancée de 85 % de ce retard : la
+        // caméra reste à ≈ CHASE_BACK m quelle que soit l'allure, avec un léger jeu (comme Zwift ou MyWhoosh).
+        desired.addScaledVector(t.dir, (0.85 * t.speedMs) / stiffness);
         // (collision avec les bâtiments : après le lissage, sur la position réelle de la caméra, voir plus bas)
         // Vibration de la route : quelques millimètres, plus vive avec la vitesse (sensation de vitesse). Appliquée
         // en fin d'update : ajoutée ici à la cible, le lissage (taux 5) n'en laissait passer que ≈ 2 % à 37 Hz.
