@@ -1,3 +1,4 @@
+import { apiBase } from '../ui/account.ts';
 import { getV3Catalog, getV3Gear, itemSex, type V3Bike, type V3Gear, type V3Wheel } from './visuals.ts';
 import { photoKey, needsPhoto } from './thumbnails.ts';
 import { V3_ICON, V3_SLOTS } from './icons.ts';
@@ -56,7 +57,7 @@ function setHidden(keys: string[], hidden: boolean): void {
 
 /** Rubriques de la page : articles du vestiaire (sauf course à pied), puis vélos et roues. */
 const TABS: Array<{ id: string; label: string }> = [
-  { id: 'CYCLING_JERSEY', label: 'Maillots' }, { id: 'HEAD_GEAR', label: 'Casques' }, { id: 'GLASSES', label: 'Lunettes' },
+  { id: 'all', label: 'Tout' }, { id: 'CYCLING_JERSEY', label: 'Maillots' }, { id: 'HEAD_GEAR', label: 'Casques' }, { id: 'GLASSES', label: 'Lunettes' },
   { id: 'GLOVES', label: 'Gants' }, { id: 'CYCLING_SHOES', label: 'Chaussures' }, { id: 'SOCKS', label: 'Chaussettes' },
   { id: 'HEAD_TYPE', label: 'Têtes' }, { id: 'HAIR', label: 'Cheveux' }, { id: 'FACIAL_HAIR', label: 'Barbes' },
   { id: 'bikes', label: 'Vélos' }, { id: 'wheels', label: 'Roues' },
@@ -65,22 +66,36 @@ const TABS: Array<{ id: string; label: string }> = [
 /** Marquage Zwift reconnaissable au nom (Zwift, ZC, ZRL, Watopia, Makuri, Neokyo, Academy…). */
 const ZWIFT_NAME = /zwift|\bzc\b|\bzrl|\bzrs|\bza\b|watopia|makuri|neokyo|\btron|scotty|academy|big ?spin|drop ?shop/i;
 
-type Row = { key: string; name: string; detail: string; image?: string; zwift: boolean };
+type Row = { key: string; name: string; detail: string; image?: string; zwift: boolean; gear?: V3Gear };
+/** Photo d'un article au studio du garage (têtes, cheveux, chaussettes… sans icône utilisable). */
+type Photo = (item: V3Gear, sex: 'male' | 'female', wanted?: () => boolean) => Promise<string>;
 
 let open: HTMLElement | undefined;
 
+let manager: Promise<boolean> | undefined;
+/**
+ * Page de gestion réservée au développement ou au compte administrateur : le serveur reconnaît son e-mail
+ * (ADMIN_EMAIL, comparé par empreinte) et répond 404 à tout autre compte. Aucune adresse dans le code du client.
+ */
+export function canManageV3(): Promise<boolean> {
+  if (import.meta.env.DEV) return Promise.resolve(true);
+  return manager ??= fetch(apiBase() + '/admin/status', { credentials: 'include' }).then(response => response.ok).catch(() => false);
+}
+
 /** Ouvre la page de gestion (plein écran, par-dessus le jeu). */
-export async function openV3Admin(): Promise<void> {
-  if (open) return;
+export async function openV3Admin(photo?: Photo): Promise<void> {
+  if (open || !(await canManageV3())) return;
   const [gear, catalog, stored] = await Promise.all([
     getV3Gear(), getV3Catalog(),
     fetch(STUDIO + 'index').then(response => (response.ok ? response.json() as Promise<string[]> : [])).catch(() => [] as string[]),
   ]);
   const photos = new Set(stored);
   const studio = (key: string) => (photos.has(key) ? STUDIO + key + '.png' : undefined);
+  const sexOf = (item: V3Gear) => (itemSex(item) === 'female' ? 'female' : 'male');
   const gearImage = (item: V3Gear) => {
     if (item.colors[0]?.preview && !needsPhoto(item)) return '/__v3/gear/' + item.id + '/thumb.png';
-    return studio(photoKey(item, item.sex === 'female' ? 'female' : 'male')) ?? (item.colors[0]?.preview ? '/__v3/gear/' + item.id + '/thumb.png' : undefined);
+    // Sans photo au studio : prise à l'affichage de la carte (l'icône de Zwift n'est qu'une texture à plat).
+    return studio(photoKey(item, sexOf(item))) ?? (photo ? undefined : item.colors[0]?.preview ? '/__v3/gear/' + item.id + '/thumb.png' : undefined);
   };
   const bikeRow = (bike: V3Bike): Row => ({
     key: keyOf('bike', bike.id), name: (bike.name.toLowerCase().startsWith(bike.brand.toLowerCase()) ? bike.name : bike.brand + ' ' + bike.name),
@@ -94,11 +109,12 @@ export async function openV3Admin(): Promise<void> {
   const gearRow = (item: V3Gear): Row => ({
     key: keyOf('gear', item.id), name: item.name || item.variant, detail: item.variant + ' · n° ' + item.id + (itemSex(item) !== 'tous' ? ' · ' + (itemSex(item) === 'female' ? 'femme' : 'homme') : ''),
     // Gamme « Originals » : maillots de Zwift, marqués de son logo même quand le nom ne le dit pas.
-    image: gearImage(item), zwift: ZWIFT_NAME.test(item.name + ' ' + item.variant) || /^Originals_/.test(item.variant),
+    image: gearImage(item), gear: item, zwift: ZWIFT_NAME.test(item.name + ' ' + item.variant) || /^Originals_/.test(item.variant),
   });
-  const rowsOf = (tab: string): Row[] => tab === 'bikes' ? catalog.bikes.map(bikeRow)
-    : tab === 'wheels' ? (catalog.wheels ?? []).map(wheelRow)
-      : gear.filter(item => item.type === tab).map(gearRow);
+  const rowsOf = (tab: string): Row[] => tab === 'all' ? TABS.filter(row => row.id !== 'all').flatMap(row => rowsOf(row.id))
+    : tab === 'bikes' ? catalog.bikes.map(bikeRow)
+      : tab === 'wheels' ? (catalog.wheels ?? []).map(wheelRow)
+        : gear.filter(item => item.type === tab).map(gearRow);
 
   const page = document.createElement('div');
   page.className = 'v3-admin';
@@ -136,13 +152,15 @@ export async function openV3Admin(): Promise<void> {
   const hideZwift = document.createElement('button');
   hideZwift.type = 'button';
   hideZwift.className = 'gr-sub v3-danger';
-  tools.append(search, filter, counts, hideShown, showShown, hideZwift);
+  hideShown.title = 'Masquer tous les objets affichés (rubrique, recherche et filtre en cours)';
+  showShown.title = 'Proposer tous les objets affichés (rubrique, recherche et filtre en cours)';
+  tools.append(search, filter, counts, showShown, hideShown, hideZwift);
   const grid = document.createElement('div');
   grid.className = 'v3-admin-grid';
   page.append(head, tabs, tools, grid);
   document.body.append(page);
 
-  let tab = TABS[0]!.id;
+  let tab = TABS[1]!.id;
   type Mode = 'all' | 'shown' | 'hidden' | 'zwift';
   let mode = 'all' as Mode;
   const modes: Array<[Mode, string]> = [['all', 'Tous'], ['shown', 'Proposés'], ['hidden', 'Masqués'], ['zwift', 'Marqués Zwift']];
@@ -159,7 +177,7 @@ export async function openV3Admin(): Promise<void> {
     button.type = 'button';
     button.dataset.tab = id;
     button.onclick = () => { tab = id; search.value = ''; render(); };
-    const icon = V3_SLOTS[id]?.icon ?? (id === 'bikes' || id === 'wheels' ? V3_ICON.bike : '');
+    const icon = V3_SLOTS[id]?.icon ?? (id === 'bikes' || id === 'wheels' ? V3_ICON.bike : id === 'all' ? V3_ICON.admin : '');
     button.innerHTML = icon;
     button.append(label);
     tabs.append(button);
@@ -187,6 +205,14 @@ export async function openV3Admin(): Promise<void> {
       image.alt = '';
       image.onerror = () => image.remove();
       picture.append(image);
+    } else if (row.gear && photo) {
+      const gear = row.gear;
+      void photo(gear, sexOf(gear), () => picture.isConnected).then(url => {
+        const image = document.createElement('img');
+        image.src = url;
+        image.alt = '';
+        picture.replaceChildren(image);
+      }).catch(() => undefined);
     }
     const name = document.createElement('b');
     name.textContent = row.name;
@@ -227,10 +253,11 @@ export async function openV3Admin(): Promise<void> {
     const shownHere = rows.filter(row => !hidden.has(row.key));
     const hiddenHere = rows.filter(row => hidden.has(row.key));
     const zwiftHere = all.filter(row => row.zwift && !hidden.has(row.key));
-    hideShown.textContent = 'Masquer les affichés (' + shownHere.length + ')';
+    // Actions sur la sélection affichée (rubrique, recherche et filtre en cours).
+    hideShown.textContent = 'Tout masquer (' + shownHere.length + ')';
     hideShown.disabled = !shownHere.length;
     hideShown.onclick = () => { setHidden(shownHere.map(row => row.key), true); render(); };
-    showShown.textContent = 'Proposer les affichés (' + hiddenHere.length + ')';
+    showShown.textContent = 'Tout proposer (' + hiddenHere.length + ')';
     showShown.disabled = !hiddenHere.length;
     showShown.onclick = () => { setHidden(hiddenHere.map(row => row.key), false); render(); };
     hideZwift.textContent = 'Masquer les marqués Zwift (' + zwiftHere.length + ')';

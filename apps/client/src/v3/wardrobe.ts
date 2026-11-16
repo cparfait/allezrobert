@@ -1,4 +1,4 @@
-import { getV3Gear, itemFits, V3_HAIR_COLORS, V3_ZIPS, type V3Color, type V3Equipment, type V3Gear, type V3SockHeight } from './visuals.ts';
+import { getV3Gear, isBare, itemFits, V3_HAIR_COLORS, V3_ZIPS, type V3Color, type V3Equipment, type V3Gear, type V3SockHeight } from './visuals.ts';
 import { V3_SLOTS } from './icons.ts';
 import { v3Select } from './dropdown.ts';
 import { v3Shown } from './catalogAdmin.ts';
@@ -186,7 +186,13 @@ export function addWardrobe(head: HTMLElement, parent: HTMLElement, settings: ()
   reset.textContent = 'D’origine';
   reset.title = 'Rétablir la pièce d’origine';
   reset.disabled = true;
-  tools.append(search, reset);
+  // Retirer la pièce (gants, casque, lunettes, chaussettes) : article « None » de Zwift, mains ou tête nues.
+  const remove = document.createElement('button');
+  remove.type = 'button';
+  remove.className = 'gr-sub';
+  remove.textContent = 'Retirer';
+  remove.hidden = true;
+  tools.append(search, remove, reset);
   const grid = document.createElement('div');
   grid.className = 'v3-families';
   const status = document.createElement('output');
@@ -326,16 +332,18 @@ export function addWardrobe(head: HTMLElement, parent: HTMLElement, settings: ()
     return items.find(item => item.id === equipped?.id);
   };
   const label = (item: V3Gear) => item.name || item.variant;
+  const bareItem = () => items.find(item => item.type === category && isBare(item));
 
   function showCaption(item?: V3Gear) {
     const shown = item ?? current();
-    caption.classList.toggle('empty', !shown);
-    capName.textContent = shown ? label(shown) : 'Pièce d’origine du personnage';
-    capState.textContent = !shown ? '' : shown.id === current()?.id ? 'Équipé' : 'Cliquer pour équiper';
+    const bare = !!shown && isBare(shown);
+    caption.classList.toggle('empty', !shown || bare);
+    capName.textContent = bare ? 'Retiré' : shown ? label(shown) : 'Pièce d’origine du personnage';
+    capState.textContent = !shown || bare ? '' : shown.id === current()?.id ? 'Équipé' : 'Cliquer pour équiper';
     // Vignette de l'article (pastille non cliquable), refaite seulement quand l'article change.
     if (shown !== capShown) {
       capShown = shown;
-      const thumb = shown ? chip(shown) : undefined;
+      const thumb = shown && !bare ? chip(shown) : undefined;
       if (thumb) {
         thumb.tabIndex = -1;
         thumb.setAttribute('aria-hidden', 'true');
@@ -374,6 +382,10 @@ export function addWardrobe(head: HTMLElement, parent: HTMLElement, settings: ()
     if (chosen) color.value = String(chosen.color);
     colorLabel.hidden = !item || color.options.length <= 1;
     reset.disabled = !chosen;
+    const none = bareItem();
+    remove.hidden = !none;
+    remove.disabled = !!none && chosen?.id === none.id;
+    remove.title = 'Retirer la pièce (' + (V3_SLOTS[category]?.label ?? category).toLowerCase() + ')';
     hue.set(item?.colors[Number(color.value)], chosen?.hue);
     showCaption();
   }
@@ -426,7 +438,7 @@ export function addWardrobe(head: HTMLElement, parent: HTMLElement, settings: ()
   function filter() {
     const query = search.value.trim().toLowerCase();
     // Objets masqués par la page de gestion : hors de la liste (un coureur qui les porte les garde).
-    const matches = items.filter(item => item.type === category && fits(item) && v3Shown('gear', item.id) && (item.name + ' ' + item.variant).toLowerCase().includes(query));
+    const matches = items.filter(item => item.type === category && fits(item) && !isBare(item) && v3Shown('gear', item.id) && (item.name + ' ' + item.variant).toLowerCase().includes(query));
     const families = new Map<string, V3Gear[]>();
     for (const item of matches) {
       const family = familyOf(item);
@@ -494,13 +506,14 @@ export function addWardrobe(head: HTMLElement, parent: HTMLElement, settings: ()
     }
     sockField.hidden = type !== 'SOCKS';
     showSockHeight();
-    zipField.hidden = type !== 'CYCLING_JERSEY';
+    // Maillot ouvert : corps masculin seulement (le corps féminin de Zwift n'en a pas).
+    zipField.hidden = type !== 'CYCLING_JERSEY' || riderSex() !== 'male';
     showZipChoice();
     hairColor.row.hidden = type !== 'HAIR';
     beardColor.row.hidden = type !== 'FACIAL_HAIR';
     hairColor.sync();
     beardColor.sync();
-    const count = items.filter(item => item.type === type && fits(item) && v3Shown('gear', item.id)).length;
+    const count = items.filter(item => item.type === type && fits(item) && !isBare(item) && v3Shown('gear', item.id)).length;
     typeName.textContent = (V3_SLOTS[type]?.label ?? type) + ' · ' + count;
     // Arrivée dans la rubrique : familles repliées ; l'article porté est montré en tête (légende).
     for (const id of [...openFamilies]) if (id.startsWith(type + '|')) openFamilies.delete(id);
@@ -510,6 +523,10 @@ export function addWardrobe(head: HTMLElement, parent: HTMLElement, settings: ()
   color.onchange = () => {
     const item = current();
     if (item) equip(item, Number(color.value));
+  };
+  remove.onclick = () => {
+    const none = bareItem();
+    if (none) equip(none, 0);
   };
   reset.onclick = () => {
     const equipment = settings();

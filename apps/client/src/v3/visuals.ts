@@ -196,6 +196,11 @@ export function itemSex(item: Pick<V3Gear, 'sex' | 'name' | 'variant'>): 'male' 
   return female && !male ? 'female' : male && !female ? 'male' : 'tous';
 }
 
+/** Article « None » de Zwift (gants, casque, lunettes, chaussettes) : la pièce est retirée. */
+export function isBare(item: Pick<V3Gear, 'variant'>): boolean {
+  return /^none$/i.test(item.variant ?? '');
+}
+
 /** Article proposé pour cette silhouette (listes du garage, tirages au hasard). */
 export function itemFits(item: Pick<V3Gear, 'sex' | 'name' | 'variant'>, sex: 'male' | 'female'): boolean {
   const own = itemSex(item);
@@ -208,7 +213,8 @@ export const V3_ZIPS = ['Fermé', 'Ouvert'];
 
 /** Montre le maillot fermé (d'origine) ou ouvert ; la texture du maillot porté s'applique aux deux. */
 export function showZip(rider: RiderVisual, zip = 0): void {
-  const shown = ZIP_JERSEYS[zip > 0 ? 1 : 0];
+  // Corps féminin : pas de maillot ouvert (son groupe 40 est le déguisement de dinosaure de Zwift).
+  const shown = ZIP_JERSEYS[zip > 0 && rider.sex === 'male' ? 1 : 0];
   for (const { id, node } of rider.groups) if (ZIP_JERSEYS.includes(id)) node.visible = id === shown;
 }
 
@@ -712,6 +718,9 @@ export class V3Visual {
     this.kit = [];
   }
 
+  /** Casque retiré (article « None ») : ni casque d'origine ni couvre-chef. */
+  private bareHead = false;
+
   private applyKit(): void {
     const rider = this.rider;
     if (!rider) return;
@@ -725,11 +734,14 @@ export class V3Visual {
     // Sans chaussures choisies : chaussures de vélo de route (le corps de Zwift n'a que des chaussures de course).
     const ownShoes = !!kit.CYCLING_SHOES || !!kit.RUNNING_SHOES;
     this.loading++;
+    // Pièces retirées (article « None ») : rien à charger, la pièce du corps est cachée.
+    const bare = new Set<string>();
     const loaded = getV3Gear().then(items => {
       const shoes = ownShoes ? undefined : items.find(row => row.variant === DEFAULT_SHOES);
       return Promise.all([...entries, ...(shoes ? [{ id: shoes.id, color: 0 }] : [])].flatMap(selection => {
         const item = items.find(row => row.id === selection.id);
         if (!item || (item.sex !== 'tous' && item.sex !== this.sex)) return [];
+        if (isBare(item)) { bare.add(item.type); return []; }
         return [loadGearItem(item, selection, this.sex)];
       }));
     });
@@ -741,6 +753,11 @@ export class V3Visual {
       attachKit(rider, next);
       showSockHeight(rider, sockHeight);
       showZip(rider, this.equipment?.zip);
+      // Mains et chevilles nues : la peau du corps (groupe 15) est dessous.
+      for (const { id, node } of rider.groups) {
+        if ((bare.has('GLOVES') && id === 13) || (bare.has('SOCKS') && Object.values(SOCK_GROUPS).includes(id))) node.visible = false;
+      }
+      this.bareHead = bare.has('HEAD_GEAR');
       this.applyHairColors();
       this.redraw();
       const missing = next.filter(item => item.incomplete).map(item => item.item.name);
@@ -919,10 +936,10 @@ export class V3Visual {
     else if (clip) sampleV3(clip, rider.joints, this.turns);
     rider.head.scale.setScalar(options.head === false ? 0.001 : 1);
     const helmetGear = this.kit.find(gear => gear.item.type === 'HEAD_GEAR');
-    if (rider.helmet) rider.helmet.visible = options.helmet !== false && !helmetGear;
+    if (rider.helmet) rider.helmet.visible = options.helmet !== false && !helmetGear && !this.bareHead;
     if (helmetGear?.left) helmetGear.left.visible = options.helmet !== false;
-    // Coiffure adaptée au couvre-chef porté (casque d'origine ou article du vestiaire).
-    const covered = options.helmet !== false && (!!helmetGear?.left || !!rider.helmet);
+    // Coiffure adaptée au couvre-chef porté (casque d'origine ou article du vestiaire) ; tête nue : cheveux libres.
+    const covered = options.helmet !== false && (!!helmetGear?.left || (!!rider.helmet && !this.bareHead));
     showHairGeometry(this.kit.find(gear => gear.item.type === 'HAIR')?.left,
       !covered ? 'none' : helmetGear?.item.hairGeom ?? 'helmet');
     rider.levels.forEach(node => { node.visible = node.name === ['LOD0', 'LOD2', 'LOD5'][level]; });

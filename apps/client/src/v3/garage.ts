@@ -4,7 +4,7 @@ import { V3_ICON } from './icons.ts';
 import { COSMETICS, DEFAULT_BIKE, DEFAULT_TRAINER } from '@allezrobert/shared';
 import { saveV3BikeSetup, v3BikeEffect } from './physics.ts';
 import { createProfilesCard } from './profiles.ts';
-import { onV3AdminChange, openV3Admin, v3Shown } from './catalogAdmin.ts';
+import { canManageV3, onV3AdminChange, openV3Admin, v3Shown } from './catalogAdmin.ts';
 import { v3Select } from './dropdown.ts';
 import { bikeSwatch, css } from './swatch.ts';
 import { roadEffectHtml } from '../ui/roadEffect.ts';
@@ -128,7 +128,10 @@ export function createV3Garage(actions: V3GarageActions) {
   adminButton.innerHTML = V3_ICON.admin;
   adminButton.title = 'Gérer les objets V3';
   adminButton.setAttribute('aria-label', 'Gérer les objets V3');
-  adminButton.onclick = () => { void openV3Admin().catch(report); };
+  adminButton.onclick = () => { void openV3Admin(actions.photo).catch(report); };
+  // Montré seulement en développement ou au compte administrateur.
+  adminButton.hidden = true;
+  void canManageV3().then(allowed => { adminButton.hidden = !allowed; });
   navRow.append(nav, adminButton, allDice);
   top.append(navRow);
   const panel = document.createElement('div');
@@ -355,13 +358,16 @@ export function createV3Garage(actions: V3GarageActions) {
     showBody();
     characterWardrobe.refresh();
   }
+  const HELMET_COSTUME = /GarminUnbound|HelmetBowl|80sHelmet|Neokyo|BigSpin|OnBoarding/i;
   // Tenue au hasard (dé général et dé de la tenue) : maillot, casque, gants, chaussettes et chaussures, lunettes deux fois sur trois.
   async function randomKit(): Promise<void> {
     const items = (await getV3Gear()).filter(item => v3Shown('gear', item.id));
     const sex = sexNow();
     const kit = { ...equipment.kit };
     for (const type of ['CYCLING_JERSEY', 'HEAD_GEAR', 'GLASSES', 'GLOVES', 'SOCKS', 'CYCLING_SHOES']) {
-      const choice = pick(items.filter(item => item.type === type && itemFits(item, sex) && !/^none$/i.test(item.variant)));
+      // Casque : un vrai casque de vélo (ni casquette, bandeau ou écouteurs, ni déguisement comme le T-Rex de Garmin Unbound).
+      const choice = pick(items.filter(item => item.type === type && itemFits(item, sex) && !/^none$/i.test(item.variant)
+        && (type !== 'HEAD_GEAR' || (item.hairGeom === undefined && !HELMET_COSTUME.test(item.variant)))));
       if (choice && (type !== 'GLASSES' || Math.random() < 2 / 3)) kit[type] = { id: choice.id, color: Math.floor(Math.random() * Math.max(1, choice.colors.length)) };
       else delete kit[type];
     }

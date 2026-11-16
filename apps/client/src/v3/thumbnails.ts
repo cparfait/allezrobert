@@ -18,11 +18,19 @@ const STUDIO = '/__v3/studio/v6/';
  * d'origine (les premières photos la montraient sur toutes les têtes).
  */
 export function photoKey(item: V3Gear, sex: 'male' | 'female'): string {
-  const base = item.id + '-' + (item.sex === 'male' || item.sex === 'female' ? item.sex : sex);
-  if (item.type === 'FACIAL_HAIR') return base + '-c'; // barbes montrées par les pièces du visage
-  if (item.type === 'SOCKS') return base + '-d'; // chaussette seule, haute, de côté
-  if (item.type === 'HAIR') return base + '-c'; // coiffures vues de trois quarts arrière
-  return item.type === 'HEAD_TYPE' ? base + '-b' : base;
+  const own = item.sex === 'male' || item.sex === 'female' ? item.sex : sex;
+  const base = item.id + '-' + own;
+  // Photos féminines à suffixe refaites (« 2 ») : prises à tort sur le coureur (voir sexOfKey).
+  const again = own === 'female' ? '2' : '';
+  if (item.type === 'FACIAL_HAIR') return base + '-c' + again; // barbes montrées par les pièces du visage
+  if (item.type === 'SOCKS') return base + '-d' + again; // chaussette seule, haute, de côté
+  if (item.type === 'HAIR') return base + '-c' + again; // coiffures vues de trois quarts arrière
+  return item.type === 'HEAD_TYPE' ? base + '-b' + again : base;
+}
+
+/** Silhouette d'une photo d'après sa clé (« 1709-female-b2 », « 453-female ») : le suffixe ne doit pas la masquer. */
+function sexOfKey(key: string): 'male' | 'female' {
+  return /-female(-|$)/.test(key) ? 'female' : 'male';
 }
 
 export function needsPhoto(item: V3Gear): boolean {
@@ -289,7 +297,7 @@ export class V3ThumbnailStudio {
   }
 
   private async shoot(item: V3Gear, key: string): Promise<string> {
-    const sex = key.endsWith('female') ? 'female' : 'male';
+    const sex = sexOfKey(key);
     const rider = await this.rider(sex);
     const gear = await loadGearItem(item, { id: item.id, color: 0 }, sex);
     const hidden: THREE.Object3D[] = [];

@@ -157,7 +157,9 @@ span.mm-bikeicon { display: block; }
 
 /* Page de gestion des objets V3 (v3/catalogAdmin.ts), plein écran par-dessus le jeu. */
 .v3-navrow { grid-template-columns: 1fr auto auto; }
+.v3-navrow:has(> .v3-admin-open[hidden]) { grid-template-columns: 1fr auto; }
 .v3-admin-open { appearance: none; display: grid; place-items: center; width: 40px; height: 40px; border: 1px solid rgba(255, 255, 255, 0.14); border-radius: 10px; background: rgba(255, 255, 255, 0.05); color: #d8dee6; cursor: pointer; }
+.v3-admin-open[hidden] { display: none; }
 .v3-admin-open:hover { background: rgba(255, 255, 255, 0.1); color: #fff; }
 .v3-admin { position: fixed; inset: 0; z-index: 9000; display: grid; grid-template-rows: auto auto auto 1fr; gap: 12px; padding: 18px 22px; background: #0b0f16; color: #d8dee6; font: 13px/1.4 system-ui, sans-serif; }
 .v3-admin header { display: flex; align-items: center; justify-content: space-between; }
