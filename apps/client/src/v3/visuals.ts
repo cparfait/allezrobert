@@ -48,7 +48,10 @@ const hairCell = (index = 0): [number, number] => [(index % 2) * 0.5, Math.floor
  * bouche et de menton) : la moustache 24 est montrée d'origine. « Sans barbe » les masque toutes.
  */
 export const BUILT_IN_BEARDS = [24, 25, 26, 27, 28, 29, 30];
-const BUILT_IN_BEARD_NAMES = ['Moustache', 'Bouc et moustache', 'Barbe courte', 'Barbe fournie', 'Favoris', 'Barbiche', 'Fine moustache'];
+/** Barbe du catalogue → pièce du visage (mêmes formes, appariées une à une par leur emprise). */
+const BEARD_GROUPS: Record<string, number> = {
+  MaleFacialHair01: 24, MaleFacialHair02: 25, MaleFacialHair03: 26, MaleFacialHair04: 27, MaleFacialHair05: 28, MaleFacialHair07: 29, MaleFacialHair08: 30,
+};
 
 /**
  * Posture adaptée au type de vélo : variantes Zwift VTT (Mountain), ville (_Buffalo), concept, chrono (_TT),
@@ -134,10 +137,12 @@ export const getV3Gear = () => gear ??= get<V3Gear[]>('gear')
       if (seen.has(key)) return false;
       seen.add(key);
       return true;
-    }).concat(BUILT_IN_BEARDS.map((group, i): V3Gear => ({
-      id: -group, type: 'FACIAL_HAIR', category: 'Barbe / moustache', name: (BUILT_IN_BEARD_NAMES[i] ?? 'Barbe') + ' (visage)', variant: 'BuiltInBeard' + group,
-      sex: 'male', sport: 'cycling', group, model: false, pair: false, offset: [0, 0, 0], rotation: [0, 0, 0], colors: [{ name: 'D’origine' }],
-    })));
+    }).map(item => {
+      // Barbes du catalogue : leurs modèles sont enfoncés de quelques millimètres dans le visage (invisibles) ;
+      // ce sont exactement les pièces 24 à 30 du visage, bien placées : la barbe est montrée par sa pièce.
+      const group = BEARD_GROUPS[item.variant];
+      return item.type === 'FACIAL_HAIR' && group ? { ...item, group, model: false } : item;
+    });
   })
   .catch(error => { gear = undefined; throw error; });
 export const getV3Colors = (id: string) => get<{ colors: V3Color[] }>('bike/' + id + '.json');

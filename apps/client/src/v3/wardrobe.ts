@@ -1,11 +1,14 @@
 import { getV3Gear, V3_HAIR_COLORS, type V3Color, type V3Equipment, type V3Gear, type V3SockHeight } from './visuals.ts';
 import { V3_SLOTS } from './icons.ts';
+import { needsPhoto } from './thumbnails.ts';
 
 type Actions = {
   equipment(equipment: V3Equipment): void;
   report(error: unknown): void;
   /** Photo de l'article porté par le coureur V3 (articles sans icône Zwift). */
   photo?(item: V3Gear, sex: 'male' | 'female', wanted?: () => boolean): Promise<string>;
+  /** Catégorie ouverte (les coiffures se montrent tête nue). */
+  view?(type: string): void;
   /** Silhouette effective du coureur V3 (articles réservés à l'autre silhouette masqués). */
   sex?(): 'male' | 'female' | undefined;
 };
@@ -344,7 +347,7 @@ export function addWardrobe(head: HTMLElement, parent: HTMLElement, settings: ()
           button.classList.remove('v3-chip-wait');
         }).catch(() => undefined);
       });
-    } else if (photo && (!item.colors[0]?.icon || item.type === 'CYCLING_JERSEY')) {
+    } else if (photo && needsPhoto(item)) {
       // Maillots toujours photographiés (fond transparent) : leurs icônes Zwift ont un fond noir opaque.
       // Pas d'icône Zwift : pictogramme en attendant la photo de l'article porté.
       button.classList.add('v3-chip-wait');
@@ -446,6 +449,7 @@ export function addWardrobe(head: HTMLElement, parent: HTMLElement, settings: ()
     showColor();
   }
   function choose(type: string) {
+    actions.view?.(type);
     category = type;
     search.value = '';
     for (const tile of slots.querySelectorAll<HTMLButtonElement>('.gr-slot')) {

@@ -274,6 +274,8 @@ export class AtelierHost {
   private v3Studio?: V3ThumbnailStudio;
   private v3Pose?: string;
   private v3Playing = false;
+  /** Garage V3, Personnage › Cheveux : casque retiré pour voir la coiffure. */
+  private v3BareHead = false;
 
   /** Emplacements du panneau du garage V3 (corps et tête), recréés à chaque rendu du menu. */
   /** Studio des vignettes V3 (créé à la première vignette) ; ne travaille d'avance que garage ouvert. */
@@ -301,6 +303,7 @@ export class AtelierHost {
         pose: pose => { this.v3Pose = pose; this.frames = Math.max(this.frames, 2); },
         playing: on => { this.v3Playing = on; this.frames = Math.max(this.frames, 2); },
         sex: () => this.v3?.riderSex(),
+        bareHead: on => { this.v3BareHead = on; this.frames = Math.max(this.frames, 2); },
         photoBike: (id, wanted) => this.studio().photoBike(id, wanted),
         photo: (item, sex, wanted) => this.studio().photo(item, sex, wanted),
       });
@@ -907,7 +910,7 @@ export class AtelierHost {
   private render(dt = 0): void {
     if (this.v3 && this.avatar && this.state) {
       this.v3.update(this.v3Playing && this.state.v3Picker ? dt : 0, 90, 0, 'seated', {
-        rider: this.state.rider, helmet: !this.state.bareHead, clip: this.v3Pose,
+        rider: this.state.rider, helmet: !this.state.bareHead && !this.v3BareHead, clip: this.v3Pose,
       });
       if (this.v3Panel) {
         const equipment = this.v3.activeEquipment();

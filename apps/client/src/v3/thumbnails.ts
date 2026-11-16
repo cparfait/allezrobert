@@ -19,18 +19,22 @@ const STUDIO = '/__v3/studio/v6/';
  */
 function photoKey(item: V3Gear, sex: 'male' | 'female'): string {
   const base = item.id + '-' + (item.sex === 'male' || item.sex === 'female' ? item.sex : sex);
-  return ['HEAD_TYPE', 'HAIR', 'FACIAL_HAIR'].includes(item.type) ? base + '-b' : base;
+  if (item.type === 'FACIAL_HAIR') return base + '-c'; // barbes montrées par les pièces du visage
+  if (item.type === 'HAIR') return base + '-c'; // coiffures vues de trois quarts arrière
+  return item.type === 'HEAD_TYPE' ? base + '-b' : base;
 }
 
 export function needsPhoto(item: V3Gear): boolean {
   if (item.type === 'SOCKS' && item.colors[0]?.diffuse) return false;
-  return item.type === 'CYCLING_JERSEY' || !item.colors[0]?.icon;
+  // Maillots et coiffures toujours photographiés (icônes Zwift : fond noir, ou mannequin d'un autre style).
+  return item.type === 'CYCLING_JERSEY' || item.type === 'HAIR' || !item.colors[0]?.icon;
 }
 
 /** Cadrage par type : centre (m, pose de repos debout, face vers +X) et demi-hauteur du champ. */
 function framing(type: string): { y: number; half: number; z?: number; side?: number } {
   switch (type) {
-    case 'HEAD_TYPE': case 'HAIR': case 'FACIAL_HAIR': case 'HEAD_GEAR': case 'GLASSES': return { y: 1.63, half: 0.17 };
+    case 'HAIR': return { y: 1.6, half: 0.21 }; // coiffures longues (queues de cheval, chignons) comprises
+    case 'HEAD_TYPE': case 'FACIAL_HAIR': case 'HEAD_GEAR': case 'GLASSES': return { y: 1.63, half: 0.17 };
     case 'SOCKS': return { y: 0.135, half: 0.08 };
     case 'CYCLING_SHOES': return { y: 0.12, half: 0.18 };
     case 'GLOVES': return { y: 1.0, half: 0.5 };
@@ -294,6 +298,7 @@ export class V3ThumbnailStudio {
       const { y, half, z = 0 } = framing(item.type);
       // Maillot presque de face, comme les icônes Zwift ; pieds un peu de côté ; têtes de trois quarts.
       const direction = item.type === 'CYCLING_JERSEY' ? new THREE.Vector3(1, 0.06, 0.22)
+        : item.type === 'HAIR' ? new THREE.Vector3(-0.35, 0.25, 1) // trois quarts arrière : la coiffure, pas le visage
         : item.type === 'SOCKS' || item.type === 'CYCLING_SHOES' ? new THREE.Vector3(0.75, 0.25, 0.85) : new THREE.Vector3(1, 0.12, 0.5);
       const cam = this.camera;
       cam.left = cam.bottom = -half;

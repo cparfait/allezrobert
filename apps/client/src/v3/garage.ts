@@ -14,6 +14,8 @@ export interface V3GarageActions {
   sex?(): 'male' | 'female' | undefined;
   /** Photo de profil d'un vélo sans icône Zwift. */
   photoBike?(id: string, wanted: () => boolean): Promise<string>;
+  /** Tête nue (casque retiré) tant que la catégorie Cheveux est ouverte. */
+  bareHead?(on: boolean): void;
 }
 
 /** Libellés des types de vélos du catalogue V3, dans l'ordre d'affichage. */
@@ -167,6 +169,7 @@ export function createV3Garage(actions: V3GarageActions) {
       button.setAttribute('aria-pressed', String(on));
     }
     status.textContent = '';
+    actions.bareHead?.(id === 'character' && characterType === 'HAIR');
     if (id === 'kit') openKit();
     if (id === 'character') openCharacter();
     panel.parentElement?.scrollTo({ top: 0 });
@@ -176,6 +179,9 @@ export function createV3Garage(actions: V3GarageActions) {
   const bikes = sectionFor('bikes', 'Vélo', V3_ICON.bike);
   const character = sectionFor('character', 'Personnage', V3_ICON.face);
   const wardrobeActions = { equipment: apply, report, photo: actions.photo, sex: actions.sex };
+  // Personnage › Cheveux : tête nue pour voir la coiffure (le casque revient dans les autres catégories et rubriques).
+  let characterType = '';
+  const characterActions = { ...wardrobeActions, view: (type: string) => { characterType = type; actions.bareHead?.(type === 'HAIR'); } };
   const kitWardrobe = addWardrobe(kit.head, kit.section, () => equipment, wardrobeActions);
   const openKit = kitWardrobe.open;
   // En tête du choix du personnage, avant les catégories : silhouette puis corps, en boutons segmentés.
@@ -288,7 +294,7 @@ export function createV3Garage(actions: V3GarageActions) {
   identity.append(sexField, bodyField);
   character.head.append(identity);
   showSex();
-  const characterWardrobe = addWardrobe(character.head, character.section, () => equipment, wardrobeActions, true);
+  const characterWardrobe = addWardrobe(character.head, character.section, () => equipment, characterActions, true);
   const openCharacter = () => { characterWardrobe.open(); showSex(); showBody(); };
 
   // Vélo : fiche du vélo équipé (vignette, coloris, teinte), posture, puis le catalogue par type et par marque.
