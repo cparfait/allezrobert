@@ -261,7 +261,7 @@
       "runtimeExecutable": "cmd",
       "runtimeArgs": [
         "/c",
-        "set AR_HMR=0&& pnpm --filter @allezrobert/client exec vite --host 127.0.0.1 --port 5226 --strictPort"
+        "set AR_HMR=0&& set VITE_WORLDS_URL=https://allezrobert.cparfait.ovh&& pnpm --filter @allezrobert/client exec vite --host 127.0.0.1 --port 5226 --strictPort"
       ],
       "port": 5226,
       "url": "http://127.0.0.1:5226"

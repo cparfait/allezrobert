@@ -42,3 +42,17 @@ span.mm-bikeicon { display: block; }
 }
 /* Pastille en attente de sa photo : pictogramme de la catégorie. */
 .v3-chip-wait svg { width: 46%; height: 46%; color: #6f7a88; }
+/* Chaussettes : pastille à la couleur de la chaussette, pictogramme à l'encre contrastée. */
+.v3-chip-swatch svg { width: 52%; height: 52%; }
+.v3-chip-swatch:not(.v3-chip-wait) svg { color: inherit; }
+/* Familles de maillots repliables : l'intertitre est un bouton, chevron selon l'état. */
+.ar-v3-garage .v3-fold {
+  all: unset; box-sizing: border-box; display: flex; align-items: baseline; justify-content: space-between; width: 100%;
+  cursor: pointer; font: inherit; letter-spacing: inherit; text-transform: inherit; color: inherit;
+}
+.ar-v3-garage .v3-fold::before { content: '▸'; margin-right: 8px; transition: transform 0.15s; }
+.ar-v3-garage .v3-fold[aria-expanded="true"]::before { transform: rotate(90deg); }
+.ar-v3-garage .v3-fold span { margin-left: auto; }
+.ar-v3-garage .v3-fold:hover { color: #fff; }
+.ar-v3-garage .v3-fold:focus-visible { outline: 2px solid rgba(255, 210, 63, 0.8); outline-offset: 2px; }
+.ar-v3-garage .mm-seg button { width: auto; border: 0; }

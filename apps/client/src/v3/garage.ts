@@ -1,4 +1,4 @@
-import { getV3Catalog, getV3Clips, getV3Colors, readV3Equipment, saveV3Equipment, V3_POSES, type V3Bike, type V3Color, type V3Equipment, type V3Gear } from './visuals.ts';
+import { getV3Catalog, getV3Clips, getV3Colors, readV3Equipment, saveV3Equipment, V3_POSES, type V3Bike, type V3Body, type V3Color, type V3Equipment, type V3Gear } from './visuals.ts';
 import { addWardrobe, createHueControl } from './wardrobe.ts';
 import { V3_ICON } from './icons.ts';
 import './garage.css';
@@ -9,6 +9,8 @@ export interface V3GarageActions {
   playing(on: boolean): void;
   /** Photo d'un article porté par le coureur V3 (vignettes des articles sans icône Zwift). */
   photo?(item: V3Gear, sex: 'male' | 'female', wanted?: () => boolean): Promise<string>;
+  /** Silhouette effective du coureur V3. */
+  sex?(): 'male' | 'female' | undefined;
 }
 
 /** Libellés des types de vélos du catalogue V3, dans l'ordre d'affichage. */
@@ -109,15 +111,51 @@ export function createV3Garage(actions: V3GarageActions) {
   const kit = sectionFor('kit', 'Tenue', V3_ICON.tenue);
   const bikes = sectionFor('bikes', 'Vélo', V3_ICON.bike);
   const character = sectionFor('character', 'Personnage', V3_ICON.face);
-  const wardrobeActions = { equipment: apply, report, photo: actions.photo };
-  const openKit = addWardrobe(kit.head, kit.section, () => equipment, wardrobeActions);
+  const wardrobeActions = { equipment: apply, report, photo: actions.photo, sex: actions.sex };
+  const kitWardrobe = addWardrobe(kit.head, kit.section, () => equipment, wardrobeActions);
+  const openKit = kitWardrobe.open;
   const sex = select(character.section, 'Silhouette');
   sex.add(new Option('Selon mon profil', ''));
   sex.add(new Option('Coureur', 'male'));
   sex.add(new Option('Coureuse', 'female'));
   sex.value = equipment.sex ?? '';
-  sex.onchange = () => apply({ ...equipment, sex: sex.value === 'male' || sex.value === 'female' ? sex.value : undefined });
-  const openCharacter = addWardrobe(character.head, character.section, () => equipment, wardrobeActions, true);
+  // Corps Zwift : standard, mince, fort (le corps fort n'existe que pour le coureur).
+  const bodyField = document.createElement('div');
+  bodyField.className = 'field';
+  const bodySeg = document.createElement('div');
+  bodySeg.className = 'mm-seg';
+  bodySeg.setAttribute('role', 'radiogroup');
+  bodySeg.setAttribute('aria-label', 'Corps');
+  const bodies: Array<[V3Body, string]> = [['standard', 'Standard'], ['skinny', 'Mince'], ['big', 'Fort']];
+  function showBody() {
+    const female = (actions.sex?.() ?? equipment.sex) === 'female';
+    const chosen = female && equipment.body === 'big' ? 'standard' : equipment.body ?? 'standard';
+    for (const button of bodySeg.querySelectorAll<HTMLButtonElement>('button')) {
+      button.hidden = female && button.dataset.v3Body === 'big';
+      const on = button.dataset.v3Body === chosen;
+      button.classList.toggle('on', on);
+      button.setAttribute('aria-checked', String(on));
+    }
+  }
+  for (const [body, text] of bodies) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.setAttribute('role', 'radio');
+    button.dataset.v3Body = body;
+    button.textContent = text;
+    button.onclick = () => { apply({ ...equipment, body }); showBody(); };
+    bodySeg.append(button);
+  }
+  bodyField.append('Corps', bodySeg);
+  character.section.append(bodyField);
+  sex.onchange = () => {
+    apply({ ...equipment, sex: sex.value === 'male' || sex.value === 'female' ? sex.value : undefined });
+    showBody();
+    kitWardrobe.refresh();
+    characterWardrobe.refresh();
+  };
+  const characterWardrobe = addWardrobe(character.head, character.section, () => equipment, wardrobeActions, true);
+  const openCharacter = () => { characterWardrobe.open(); showBody(); };
 
   // Vélo : fiche du vélo équipé (vignette, coloris, teinte), posture, puis le catalogue par type et par marque.
   const focus = document.createElement('div');

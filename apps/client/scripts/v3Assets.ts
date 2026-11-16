@@ -11,7 +11,7 @@ type Scheme = { Name?: string; TexturePath?: string; NormalsPath?: string; HueSh
 type Gear = {
   i: number; type: string; cat: string; nom: string; sexe: string; sport: string; fiche: string;
   source?: string; pairSource?: string; texture?: string; normale?: string; normale_f?: string; geomgroup?: number; thumbnail?: string;
-  os?: string; os_paire?: string; offset: [number, number, number]; rotation: [number, number, number];
+  os?: string; os_paire?: string; cheveux_override?: string | null; offset: [number, number, number]; rotation: [number, number, number];
   offset_paire?: [number, number, number]; rotation_paire?: [number, number, number]; colors: Scheme[];
 };
 const hueOf = (color: Scheme) => /^true$/i.test(color.HueShiftable ?? '') ? Number.parseFloat(color.HueOffset ?? '') || 0 : undefined;
@@ -70,6 +70,9 @@ export function v3Assets(): Plugin {
       }));
     for (const [key, path] of Object.entries({
       'rider/homme': 'perso/corps/MaleMaster.glb', 'rider/femme': 'perso/corps/FemaleMaster.glb',
+      // Autres corps Zwift (même squelette et mêmes groupes de géométrie) : mince, fort (coureur seulement).
+      'rider/homme-mince': 'perso/corps/MaleMasterSkinny.glb', 'rider/homme-fort': 'perso/corps/MaleMasterBig.glb',
+      'rider/femme-mince': 'perso/corps/FemaleMasterSkinny.glb',
       'helmet/homme': 'perso/casque.glb', 'helmet/femme': 'femmes/casque_zwift.glb',
     })) files.set(key, resolve(study, path));
     return { files, bikes, objects };
@@ -139,6 +142,8 @@ export function v3Assets(): Plugin {
               model: !!row.source, pair: !!row.pairSource,
               bone: row.os, pairBone: row.os_paire, offset: row.offset, rotation: row.rotation,
               pairOffset: row.offset_paire, pairRotation: row.rotation_paire,
+              // Géométrie de coiffure imposée par le couvre-chef (Accessories.xml, hairGeomOverride) : 1, 2 ou 3.
+              hairGeom: row.cheveux_override ? Number(row.cheveux_override) : undefined,
               colors: gearSchemes(row).map(color => ({
                 name: color.Name, hue: hueOf(color), diffuse: !!color.TexturePath, normal: !!color.NormalsPath,
                 femaleNormal: !!(color.Name === 'D’origine' && row.normale_f), preview: !!(color.preview || row.thumbnail),
@@ -146,6 +151,17 @@ export function v3Assets(): Plugin {
                 icon: /[\\/]UI[\\/]/i.test(color.preview || row.thumbnail || ''),
               })),
             })));
+          }
+          // Planches de texture des coiffures (6 couleurs) : les modèles de cheveux convertis n'en ont pas.
+          const hairMatch = /^\/hair\/(male01|male02|female01)\/(diffuse|normal)\.png$/.exec(url.pathname);
+          if (hairMatch) {
+            const files: Record<string, [string, string]> = {
+              male01: ['MaleHair01', 'MaleHair01Nml'], male02: ['MaleHair02D', 'MaleHair02N'], female01: ['FemaleHair01', 'FemaleHair01Nml'],
+            };
+            const [diffuse, normal] = files[hairMatch[1]!]!;
+            const source = resolve(study, 'outils/wadsrc/Humans/Accessories/Hair/Textures', (hairMatch[2] === 'diffuse' ? diffuse : normal) + '.tgax');
+            if (!existsSync(source)) return json(404, { error: 'Planche de cheveux introuvable.' });
+            return sendFile(await prepare('map', 'hair-' + hairMatch[1] + '-' + hairMatch[2], source), 'image/png');
           }
           const gearMatch = /^\/gear\/(\d{1,5})\/(model|pair|diffuse|normal|female-normal|thumb)\.(?:glb|png)$/.exec(url.pathname);
           if (gearMatch) {
@@ -171,7 +187,24 @@ export function v3Assets(): Plugin {
           }
           catalog ??= index();
           if (url.pathname === '/catalogue') return json(200, { bikes: catalog.bikes, objects: catalog.objects });
-          if (url.pathname === '/clips') return json(200, readJson(clipPath));
+          if (url.pathname === '/clips') {
+            // Clips du garage (format compact), complétés par les clips décodés de l'étude (version 24 comprise :
+            // vélo couché, handbike, clips masculins assis), au format à clés explicites. Ni « BW » ni clignements.
+            const garage = readJson<{ name: string; rig: string }[]>(clipPath);
+            const known = new Set(garage.map(clip => clip.name + '|' + clip.rig));
+            const extra: unknown[] = [];
+            for (const [folder, rig] of [['homme', 'Male'], ['femme', 'Female']] as const) {
+              const dir = resolve(study, 'animations/clips', folder);
+              if (!existsSync(dir)) continue;
+              for (const file of readdirSync(dir)) {
+                const name = basename(file, '.json');
+                if (!/^cyclist/i.test(name) || /BW$|Blink$/i.test(name) || known.has(name + '|' + rig)) continue;
+                const clip = readJson<{ duree: number; pistes: unknown[] }>(resolve(dir, file));
+                extra.push({ name, rig, duration: clip.duree, keys: clip.pistes });
+              }
+            }
+            return json(200, [...garage, ...extra]);
+          }
           const match = /^\/(bike|object|rider|helmet)\/([a-z0-9-]+)(?:\.(glb|json|png))$/.exec(url.pathname);
           if (!match) return json(404, { error: 'Ressource V3 introuvable.' });
           const kind = match[1]!;

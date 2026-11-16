@@ -1,6 +1,6 @@
 import * as THREE from 'three/webgpu';
 import { isCompiling } from '../engine/renderer.ts';
-import { attachKit, freeGear, loadGearItem, loadRider, restoreRider, type RiderVisual, type V3Gear } from './visuals.ts';
+import { attachKit, freeGear, loadGearItem, loadRider, restoreRider, showHairGeometry, type RiderVisual, type V3Gear } from './visuals.ts';
 
 /**
  * Vignettes du vestiaire V3 pour les articles sans icône Zwift (maillots, chaussettes, têtes, barbes…) :
@@ -8,7 +8,7 @@ import { attachKit, freeGear, loadGearItem, loadRider, restoreRider, type RiderV
  * cadré sur la partie du corps concernée. Une prise à la fois ; gardées en mémoire et dans le cache du navigateur.
  */
 const SIZE = 160; // multiple de 32 : lignes relues sans remplissage (RGBA demi-flottants, 256 octets)
-const CACHE = 'ar-v3-vignettes-4';
+const CACHE = 'ar-v3-vignettes-6';
 
 /** Cadrage par type : centre (m, pose de repos debout, face vers +X) et demi-hauteur du champ. */
 function framing(type: string): { y: number; half: number; z?: number; side?: number } {
@@ -114,13 +114,26 @@ export class V3ThumbnailStudio {
     const sex = key.endsWith('female') ? 'female' : 'male';
     const rider = await this.rider(sex);
     const gear = await loadGearItem(item, { id: item.id, color: 0 }, sex);
+    const hidden: THREE.Object3D[] = [];
     try {
       restoreRider(rider);
       attachKit(rider, [gear]);
+      if (item.type === 'HAIR') showHairGeometry(gear.left, 'none');
+      // Maillot seul, sans le personnage : seules les surfaces du matériau du maillot restent visibles.
+      if (item.type === 'CYCLING_JERSEY') rider.scene.traverse(node => {
+        const mesh = node as THREE.Mesh;
+        if (!mesh.isMesh) return;
+        const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+        if (materials.some(material => /^CyclistKIT$/i.test(material.name))) return;
+        hidden.push(mesh);
+        mesh.visible = false;
+      });
       rider.scene.visible = true;
       // Trois quarts face, légèrement plongeant ; pieds vus un peu plus de côté.
       const { y, half, z = 0 } = framing(item.type);
-      const direction = item.type === 'SOCKS' || item.type === 'CYCLING_SHOES' ? new THREE.Vector3(0.75, 0.25, 0.85) : new THREE.Vector3(1, 0.12, 0.5);
+      // Maillot presque de face, comme les icônes Zwift ; pieds un peu de côté ; têtes de trois quarts.
+      const direction = item.type === 'CYCLING_JERSEY' ? new THREE.Vector3(1, 0.06, 0.22)
+        : item.type === 'SOCKS' || item.type === 'CYCLING_SHOES' ? new THREE.Vector3(0.75, 0.25, 0.85) : new THREE.Vector3(1, 0.12, 0.5);
       const cam = this.camera;
       cam.left = cam.bottom = -half;
       cam.right = cam.top = half;
@@ -167,6 +180,7 @@ export class V3ThumbnailStudio {
       return URL.createObjectURL(blob);
     } finally {
       rider.scene.visible = false;
+      for (const node of hidden) node.visible = true;
       restoreRider(rider);
       freeGear(gear);
     }

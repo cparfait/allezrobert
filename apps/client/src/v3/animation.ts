@@ -5,9 +5,12 @@ export interface V3Clip {
   name: string;
   rig: 'Male' | 'Female';
   duration: number;
-  tracks: [number, number, number, number][];
-  timeBytes: number;
-  data: string;
+  /** Format compact des clips du garage (pistes encodées en base64). */
+  tracks?: [number, number, number, number][];
+  timeBytes?: number;
+  data?: string;
+  /** Format de l'étude (clips décodés, version 24 comprise) : temps en secondes, quaternions et positions en clair. */
+  keys?: { b: number; t: number[]; q?: number[]; p?: number[] }[];
 }
 type Track = { bone: number; keys: Key[] };
 const decoded = new WeakMap<V3Clip, Track[]>();
@@ -21,13 +24,25 @@ function rotation(value: number): Quaternion {
 function tracksOf(clip: V3Clip): Track[] {
   const existing = decoded.get(clip);
   if (existing) return existing;
-  const binary = Uint8Array.from(atob(clip.data), char => char.charCodeAt(0));
+  if (clip.keys) {
+    const tracks = clip.keys.map(({ b, t, q, p }) => ({
+      bone: b,
+      keys: t.map((time, i): Key => ({
+        frame: time * 30,
+        rotation: q && q.length >= i * 4 + 4 ? new Quaternion().fromArray(q, i * 4).normalize() : undefined,
+        position: p && p.length >= i * 3 + 3 ? new Vector3().fromArray(p, i * 3) : undefined,
+      })),
+    }));
+    decoded.set(clip, tracks);
+    return tracks;
+  }
+  const binary = Uint8Array.from(atob(clip.data ?? ''), char => char.charCodeAt(0));
   const source = new DataView(binary.buffer);
-  const tracks = clip.tracks.map(([offset, count, bone, flags]) => {
+  const tracks = (clip.tracks ?? []).map(([offset, count, bone, flags]) => {
     const keys: Key[] = [];
     for (let i = 0; i < count; i++) {
       const frame = clip.timeBytes === 1 ? source.getUint8(offset) : source.getUint16(offset, true);
-      offset += clip.timeBytes;
+      offset += clip.timeBytes ?? 1;
       const key: Key = { frame };
       if (flags & 1) {
         key.rotation = rotation(source.getUint32(offset, true));

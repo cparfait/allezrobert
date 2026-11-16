@@ -1,4 +1,4 @@
-import { getV3Gear, type V3Color, type V3Equipment, type V3Gear } from './visuals.ts';
+import { getV3Gear, V3_HAIR_COLORS, type V3Color, type V3Equipment, type V3Gear, type V3SockHeight } from './visuals.ts';
 import { V3_SLOTS } from './icons.ts';
 
 type Actions = {
@@ -6,7 +6,59 @@ type Actions = {
   report(error: unknown): void;
   /** Photo de l'article porté par le coureur V3 (articles sans icône Zwift). */
   photo?(item: V3Gear, sex: 'male' | 'female', wanted?: () => boolean): Promise<string>;
+  /** Silhouette effective du coureur V3 (articles réservés à l'autre silhouette masqués). */
+  sex?(): 'male' | 'female' | undefined;
 };
+
+/**
+ * Couleurs dominantes d'une texture (chaussettes : la photo ne montre qu'une bande au-dessus de la chaussure).
+ * Pixels opaques réduits à 4 bits par canal ; renvoie la couleur principale, plus la seconde si elle couvre au moins 15 %.
+ */
+const swatches = new Map<number, Promise<string[]>>();
+function dominantColors(item: V3Gear): Promise<string[]> {
+  let job = swatches.get(item.id);
+  if (!job) {
+    job = new Promise<string[]>((resolve, reject) => {
+      const image = new Image();
+      image.onload = () => {
+        const size = 48;
+        const canvas = document.createElement('canvas');
+        canvas.width = canvas.height = size;
+        const context = canvas.getContext('2d', { willReadFrequently: true });
+        if (!context) return reject(new Error('Canvas indisponible.'));
+        context.drawImage(image, 0, 0, size, size);
+        const data = context.getImageData(0, 0, size, size).data;
+        const counts = new Map<number, { n: number; r: number; g: number; b: number }>();
+        let total = 0;
+        for (let i = 0; i < data.length; i += 4) {
+          if ((data[i + 3] ?? 0) < 128) continue;
+          const r = data[i] ?? 0, g = data[i + 1] ?? 0, b = data[i + 2] ?? 0;
+          const key = ((r >> 4) << 8) | ((g >> 4) << 4) | (b >> 4);
+          const bin = counts.get(key) ?? { n: 0, r: 0, g: 0, b: 0 };
+          bin.n++; bin.r += r; bin.g += g; bin.b += b;
+          counts.set(key, bin);
+          total++;
+        }
+        const ranked = [...counts.values()].sort((a, b) => b.n - a.n);
+        const css = (bin: { n: number; r: number; g: number; b: number }) => `rgb(${Math.round(bin.r / bin.n)}, ${Math.round(bin.g / bin.n)}, ${Math.round(bin.b / bin.n)})`;
+        const [first, second] = ranked;
+        if (!first) return reject(new Error('Texture vide.'));
+        resolve(second && second.n >= total * 0.15 ? [css(first), css(second)] : [css(first)]);
+      };
+      image.onerror = () => reject(new Error('Texture indisponible.'));
+      image.src = '/__v3/gear/' + item.id + '/diffuse.png?color=0';
+    });
+    job.catch(() => swatches.delete(item.id));
+    swatches.set(item.id, job);
+  }
+  return job;
+}
+
+/** Encre lisible (sombre ou claire) sur une couleur « rgb(r, g, b) ». */
+function inkOn(color: string): string {
+  const [r = 0, g = 0, b = 0] = (color.match(/\d+/g) ?? []).map(Number);
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b > 150 ? '#0a0e16' : '#ffffff';
+}
 
 /** Photos demandées seulement pour les pastilles visibles (le vestiaire compte plus de 1 700 articles). */
 let watcher: IntersectionObserver | undefined;
@@ -93,7 +145,9 @@ export function createHueControl(onChange: (hue: number) => void) {
  * Vestiaire V3 sur le modèle du garage Réel : pastilles des catégories (en tête du panneau),
  * nom de la catégorie, légende de l'article survolé, puis pastilles regroupées par famille.
  */
-export function addWardrobe(head: HTMLElement, parent: HTMLElement, settings: () => V3Equipment, actions: Actions, character = false): () => void {
+export function addWardrobe(head: HTMLElement, parent: HTMLElement, settings: () => V3Equipment, actions: Actions, character = false): { open(): void; refresh(): void } {
+  const riderSex = () => actions.sex?.() ?? settings().sex ?? 'male';
+  const fits = (item: V3Gear) => item.sex === 'tous' || item.sex === riderSex();
   const slots = document.createElement('div');
   slots.className = 'gr-slots';
   const typeName = document.createElement('div');
@@ -148,7 +202,70 @@ export function addWardrobe(head: HTMLElement, parent: HTMLElement, settings: ()
     tip.style.top = Math.round(box.top - tip.offsetHeight - 6) + 'px';
   }
   grid.addEventListener('scroll', () => { tip.hidden = true; }, { passive: true });
-  panel.append(caption, colorLabel, hue.field, tools, status, grid, tip);
+  // Hauteur des chaussettes (trois maillages du coureur V3), comme le réglage « Hauteur » du garage Réel.
+  const sockField = document.createElement('div');
+  sockField.className = 'field';
+  const sockSeg = document.createElement('div');
+  sockSeg.className = 'mm-seg';
+  sockSeg.setAttribute('role', 'radiogroup');
+  sockSeg.setAttribute('aria-label', 'Hauteur des chaussettes');
+  const sockHeights: Array<[V3SockHeight, string]> = [['low', 'Basses'], ['mid', 'Mi-hautes'], ['high', 'Hautes']];
+  function showSockHeight() {
+    const current = settings().sockHeight ?? 'low';
+    for (const button of sockSeg.querySelectorAll<HTMLButtonElement>('button')) {
+      const on = button.dataset.v3Sock === current;
+      button.classList.toggle('on', on);
+      button.setAttribute('aria-checked', String(on));
+    }
+  }
+  for (const [height, text] of sockHeights) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.setAttribute('role', 'radio');
+    button.dataset.v3Sock = height;
+    button.textContent = text;
+    button.onclick = () => {
+      actions.equipment({ ...settings(), sockHeight: height });
+      showSockHeight();
+    };
+    sockSeg.append(button);
+  }
+  sockField.append('Hauteur', sockSeg);
+  sockField.hidden = true;
+  // Couleur des cheveux et de la barbe : six cases des planches Zwift, en pastilles comme le garage Réel.
+  function hairColorRow(text: string, key: 'hairColor' | 'beardColor') {
+    const row = document.createElement('div');
+    row.className = 'gr-colors';
+    const small = document.createElement('small');
+    small.textContent = text;
+    const swatches = document.createElement('div');
+    const sync = () => {
+      const chosen = settings()[key] ?? 0;
+      swatches.querySelectorAll<HTMLButtonElement>('button').forEach((button, i) => {
+        button.classList.toggle('on', i === chosen);
+        button.setAttribute('aria-pressed', String(i === chosen));
+      });
+    };
+    V3_HAIR_COLORS.forEach(({ name, swatch }, i) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'gr-sw';
+      button.style.background = swatch;
+      button.title = name;
+      button.setAttribute('aria-label', name);
+      button.onclick = () => {
+        actions.equipment({ ...settings(), [key]: i });
+        sync();
+      };
+      swatches.append(button);
+    });
+    row.append(small, swatches);
+    row.hidden = true;
+    return { row, sync };
+  }
+  const hairColor = hairColorRow('Couleur des cheveux', 'hairColor');
+  const beardColor = hairColorRow('Couleur de la barbe', 'beardColor');
+  panel.append(caption, sockField, hairColor.row, beardColor.row, colorLabel, hue.field, tools, status, grid, tip);
   parent.append(panel);
 
   let items: V3Gear[] = [];
@@ -206,13 +323,25 @@ export function addWardrobe(head: HTMLElement, parent: HTMLElement, settings: ()
     button.dataset.v3Item = String(item.id);
     button.setAttribute('aria-label', label(item));
     const photo = actions.photo;
-    if (photo && !item.colors[0]?.icon) {
+    if (item.type === 'SOCKS' && item.colors[0]?.diffuse) {
+      // Chaussettes : pastille à leurs couleurs, pictogramme par-dessus (comme les pastilles du garage Réel).
+      button.classList.add('v3-chip-wait', 'v3-chip-swatch');
+      button.insertAdjacentHTML('afterbegin', V3_SLOTS.SOCKS?.icon ?? '');
+      whenVisible(button, () => {
+        void dominantColors(item).then(colors => {
+          const [main = '#777', accent] = colors;
+          button.style.background = accent ? `linear-gradient(135deg, ${main} 0 55%, ${accent} 55% 100%)` : main;
+          button.style.color = inkOn(main);
+          button.classList.remove('v3-chip-wait');
+        }).catch(() => undefined);
+      });
+    } else if (photo && !item.colors[0]?.icon) {
       // Pas d'icône Zwift : pictogramme en attendant la photo de l'article porté.
       button.classList.add('v3-chip-wait');
       button.insertAdjacentHTML('afterbegin', V3_SLOTS[item.type]?.icon ?? '');
       // Prise abandonnée (rubrique quittée avant son tour) : redemandée quand la pastille réapparaît.
       const take = () => {
-        void photo(item, settings().sex ?? 'male', () => button.isConnected && button.getClientRects().length > 0).then(url => {
+        void photo(item, riderSex(), () => button.isConnected && button.getClientRects().length > 0).then(url => {
           const image = document.createElement('img');
           image.src = url;
           image.alt = '';
@@ -242,9 +371,11 @@ export function addWardrobe(head: HTMLElement, parent: HTMLElement, settings: ()
     };
     return button;
   }
+  const openFamilies = new Set<string>();
+  let foldReady = false;
   function filter() {
     const query = search.value.trim().toLowerCase();
-    const matches = items.filter(item => item.type === category && (item.name + ' ' + item.variant).toLowerCase().includes(query));
+    const matches = items.filter(item => item.type === category && fits(item) && (item.name + ' ' + item.variant).toLowerCase().includes(query));
     const families = new Map<string, V3Gear[]>();
     for (const item of matches) {
       const family = familyOf(item);
@@ -255,6 +386,13 @@ export function addWardrobe(head: HTMLElement, parent: HTMLElement, settings: ()
       const [rb, nb] = familyRank(b);
       return ra - rb || na.localeCompare(nb, 'fr');
     });
+    // Maillots : familles repliées par défaut (sauf celle du maillot porté) ; une recherche les ouvre toutes.
+    const foldable = category === 'CYCLING_JERSEY' && !query;
+    if (foldable && !foldReady) {
+      foldReady = true;
+      const worn = items.find(item => item.id === settings().kit?.[category]?.id);
+      if (worn) openFamilies.add(familyOf(worn));
+    }
     // Vignettes encore en téléchargement : annulées (le navigateur n'ouvre que quelques connexions à la fois).
     for (const image of grid.querySelectorAll('img')) image.removeAttribute('src');
     grid.replaceChildren(...sorted.flatMap(([family, list]) => {
@@ -262,11 +400,27 @@ export function addWardrobe(head: HTMLElement, parent: HTMLElement, settings: ()
       if (family || sorted.length > 1) {
         const title = document.createElement('h3');
         title.className = 'mm-presets-title mm-pack';
-        title.textContent = family + ' ';
         const count = document.createElement('span');
         count.textContent = String(list.length);
-        title.append(count);
-        blocks.push(title);
+        if (foldable) {
+          const open = openFamilies.has(family);
+          const toggle = document.createElement('button');
+          toggle.type = 'button';
+          toggle.className = 'v3-fold';
+          toggle.setAttribute('aria-expanded', String(open));
+          toggle.append(family, count);
+          toggle.onclick = () => {
+            if (openFamilies.has(family)) openFamilies.delete(family);
+            else openFamilies.add(family);
+            filter();
+          };
+          title.append(toggle);
+          blocks.push(title);
+          if (!open) return blocks;
+        } else {
+          title.append(family + ' ', count);
+          blocks.push(title);
+        }
       }
       const row = document.createElement('div');
       row.className = 'mm-items';
@@ -286,7 +440,13 @@ export function addWardrobe(head: HTMLElement, parent: HTMLElement, settings: ()
       tile.classList.toggle('on', on);
       tile.setAttribute('aria-pressed', String(on));
     }
-    const count = items.filter(item => item.type === type).length;
+    sockField.hidden = type !== 'SOCKS';
+    showSockHeight();
+    hairColor.row.hidden = type !== 'HAIR';
+    beardColor.row.hidden = type !== 'FACIAL_HAIR';
+    hairColor.sync();
+    beardColor.sync();
+    const count = items.filter(item => item.type === type && fits(item)).length;
     typeName.textContent = (V3_SLOTS[type]?.label ?? type) + ' · ' + count;
     filter();
   }
@@ -304,7 +464,17 @@ export function addWardrobe(head: HTMLElement, parent: HTMLElement, settings: ()
     showColor();
   };
   let loading = false;
-  return () => {
+  /** Silhouette changée : articles, compteurs et catégories (pas de barbe pour la coureuse) mis à jour. */
+  function refresh() {
+    if (!items.length) return;
+    for (const tile of slots.querySelectorAll<HTMLButtonElement>('.gr-slot')) {
+      tile.hidden = !items.some(item => item.type === tile.dataset.v3Slot && fits(item));
+    }
+    const visible = [...slots.querySelectorAll<HTMLButtonElement>('.gr-slot')].filter(tile => !tile.hidden);
+    const next = visible.some(tile => tile.dataset.v3Slot === category) ? category : visible[0]?.dataset.v3Slot;
+    if (next) choose(next);
+  }
+  const open = () => {
     if (loading || items.length) return;
     loading = true;
     status.textContent = 'Chargement des équipements…';
@@ -329,6 +499,8 @@ export function addWardrobe(head: HTMLElement, parent: HTMLElement, settings: ()
       }
       status.textContent = '';
       if (types[0]) choose(types[0]);
+      refresh();
     }).catch(actions.report).finally(() => { loading = false; });
   };
+  return { open, refresh };
 }
