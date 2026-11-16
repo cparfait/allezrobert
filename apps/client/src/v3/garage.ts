@@ -1,4 +1,4 @@
-import { getV3Catalog, getV3Clips, getV3Colors, getV3Gear, type V3SockHeight, readV3Equipment, V3_HAIR_COLORS, saveV3Equipment, V3_POSES, type V3Bike, type V3Body, type V3Color, type V3Equipment, type V3Gear, mountedWheel, wheelsFor, type V3Wheel } from './visuals.ts';
+import { getV3Catalog, getV3Clips, getV3Colors, getV3Gear, type V3SockHeight, readV3Equipment, V3_HAIR_COLORS, saveV3Equipment, V3_POSES, type V3Bike, type V3Body, type V3Color, type V3Equipment, type V3Gear, mountedWheel, wheelsFor, type V3Wheel, resolvedBody, riderBmi } from './visuals.ts';
 import { addWardrobe, createHueControl, onScreen, whenVisible } from './wardrobe.ts';
 import { V3_ICON } from './icons.ts';
 import { COSMETICS, DEFAULT_BIKE, DEFAULT_TRAINER } from '@allezrobert/shared';
@@ -271,16 +271,36 @@ export function createV3Garage(actions: V3GarageActions) {
   bodySeg.setAttribute('role', 'radiogroup');
   bodySeg.setAttribute('aria-label', 'Corps');
   const bodies: Array<[V3Body, string]> = [['standard', 'Standard'], ['skinny', 'Mince'], ['big', 'Fort']];
+  // Corps par défaut selon l'IMC (Mensurations) tant qu'aucun n'est choisi ; un bouton y revient après un choix.
+  const bodyHint = document.createElement('small');
+  bodyHint.className = 'v3-body-hint';
+  const bodyAuto = document.createElement('button');
+  bodyAuto.type = 'button';
+  bodyAuto.className = 'v3-link';
+  bodyAuto.textContent = 'Revenir à l’IMC';
+  bodyAuto.onclick = () => { const { body: _, ...rest } = equipment; apply(rest); showBody(); };
   function showBody() {
     const female = (actions.sex?.() ?? equipment.sex) === 'female';
-    const chosen = female && equipment.body === 'big' ? 'standard' : equipment.body ?? 'standard';
+    const chosen = resolvedBody(equipment, female ? 'female' : 'male');
     for (const button of bodySeg.querySelectorAll<HTMLButtonElement>('button')) {
       button.hidden = female && button.dataset.v3Body === 'big';
       const on = button.dataset.v3Body === chosen;
       button.classList.toggle('on', on);
       button.setAttribute('aria-checked', String(on));
     }
+    const bmi = riderBmi();
+    const value = bmi === undefined ? '' : 'IMC ' + bmi.toLocaleString('fr-FR');
+    bodyHint.replaceChildren(equipment.body ? value + (value ? ' · ' : '') : 'Selon ton ' + (value || 'IMC') + ' (Mensurations)', ...(equipment.body ? [bodyAuto] : []));
   }
+  // Poids ou taille changés dans « Mensurations » : le corps par défaut suit.
+  document.addEventListener('change', event => {
+    const id = (event.target as HTMLElement | null)?.id;
+    if (id !== 'm-mass' && id !== 'm-height') return;
+    setTimeout(() => {
+      showBody();
+      if (!equipment.body) actions.equipment(equipment);
+    }, 0);
+  });
   for (const [body, text] of bodies) {
     const button = document.createElement('button');
     button.type = 'button';
@@ -290,7 +310,7 @@ export function createV3Garage(actions: V3GarageActions) {
     button.onclick = () => { apply({ ...equipment, body }); showBody(); };
     bodySeg.append(button);
   }
-  bodyField.append('Corps', bodySeg);
+  bodyField.append('Corps', bodySeg, bodyHint);
   // Personnage au hasard : corps, tête, coiffure et couleur, barbe ; la silhouette choisie est gardée.
   const sexNow = () => equipment.sex ?? actions.sex?.() ?? 'male';
   async function randomCharacter(): Promise<void> {

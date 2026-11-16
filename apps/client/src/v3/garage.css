@@ -53,6 +53,9 @@
 .v3-hue-hint { font-size: 10.5px; font-weight: 500; color: #8d98a6; }
 .ar-v3-garage input[type=range].v3-hue-track { appearance: none; height: 10px; border-radius: 5px; }
 .ar-v3-garage input[type=range].v3-hue-track::-webkit-slider-thumb { appearance: none; width: 18px; height: 18px; border-radius: 50%; background: #fff; border: 2px solid #0a0e16; box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.6); }
+.v3-body-hint { display: flex; gap: 6px; align-items: baseline; font-size: 10.5px; font-weight: 500; color: #8d98a6; }
+.v3-link { all: unset; cursor: pointer; color: var(--ar-accent, #ffd23f); text-decoration: underline; text-underline-offset: 2px; }
+.v3-link:focus-visible { outline: 2px solid rgba(255, 210, 63, 0.8); }
 .v3-setting-line { display: flex; justify-content: space-between; font-size: 12px; font-weight: 700; color: #aeb7c3; }
 .v3-setting-line b { color: #fff; }
 .v3-color-row .v3-inline-colors { margin: 0; padding: 0; border: 0; background: none; border-radius: 0; }

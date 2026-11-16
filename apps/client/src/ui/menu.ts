@@ -2023,8 +2023,8 @@ export class MainMenu {
         <div class="gr-body" data-v3-garage></div>
         <div class="gr-foot">
           <details class="set-sec">
-            <summary>${L ? 'Mensurations' : 'Body measurements'}</summary>
-            <div class="set-body grid2b">${this.bodyMeasurementFields()}</div>
+            <summary>${L ? 'Mensurations et FTP' : 'Body measurements and FTP'}</summary>
+            <div class="set-body grid2b">${this.bodyMeasurementFields()}<div class="field"><label for="m-ftp">${t('ftp')}</label>${this.stepper('m-ftp', 50, 600, this.s.ftpWatts)}</div></div>
           </details>
           <p>${L ? 'Style V3 : ressources de l’installation Zwift locale, pour l’étude seulement (jamais distribuées).' : 'V3 style: local Zwift install assets, for study only (never distributed).'}</p></div>
       </section>`;

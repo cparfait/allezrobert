@@ -3,6 +3,7 @@ import { Box3, Group, Quaternion, SRGBColorSpace, Texture, TextureLoader, Vector
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import type { RiderPose } from '../rider/gltfAvatar.ts';
 import { rootNeutral, sampleV3, sampleV3At, type V3Clip } from './animation.ts';
+import { loadSettings } from '../ui/settings.ts';
 import { AERO_COAST_FULL, AERO_SPEED, AERO_SPEED_OUT, HARD_EFFORT } from '../rider/poseThresholds.ts';
 
 const base = '/__v3/';
@@ -60,6 +61,34 @@ export type V3Color = { name: string; hue?: number };
 export type V3GearSelection = { id: number; color: number; hue?: number };
 export type V3SockHeight = 'low' | 'mid' | 'high';
 export type V3Body = 'standard' | 'skinny' | 'big';
+
+/** IMC du joueur (poids et taille des Mensurations), arrondi au dixième. */
+export function riderBmi(): number | undefined {
+  try {
+    const { massKg, heightCm } = loadSettings();
+    const metres = heightCm / 100;
+    return massKg > 0 && metres > 0 ? Math.round((massKg / (metres * metres)) * 10) / 10 : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Corps par défaut selon l'IMC : mince sous 20,5, fort au-delà de 27 (coureur seulement, Zwift n'a pas de corps fort
+ * féminin), standard entre les deux.
+ */
+export function bodyForBmi(bmi: number | undefined, sex: 'male' | 'female'): V3Body {
+  if (bmi === undefined) return 'standard';
+  if (bmi < 20.5) return 'skinny';
+  if (bmi > 27 && sex === 'male') return 'big';
+  return 'standard';
+}
+
+/** Corps montré : celui choisi dans le garage, sinon celui de l'IMC ; jamais « fort » pour la coureuse. */
+export function resolvedBody(equipment: V3Equipment, sex: 'male' | 'female'): V3Body {
+  const body = equipment.body ?? bodyForBmi(riderBmi(), sex);
+  return body === 'big' && sex === 'female' ? 'standard' : body;
+}
 export type V3Equipment = {
   bike: string; color: number; hue?: number; sex?: 'male' | 'female'; kit?: Record<string, V3GearSelection>; sockHeight?: V3SockHeight;
   /** Corps Zwift : standard, mince ou fort (fort : coureur seulement). */
@@ -589,7 +618,7 @@ export class V3Visual {
       }).catch(error => { if (request === this.bikeRequest) this.report(error); });
     }
     const sex = equipment.sex ?? lookSex(look);
-    const body: V3Body = equipment.body === 'big' && sex === 'female' ? 'standard' : equipment.body ?? 'standard';
+    const body = resolvedBody(equipment, sex);
     if (sex !== this.sex || body !== this.body) {
       this.sex = sex;
       this.body = body;
