@@ -27,6 +27,31 @@ describe('pièces trop petites à l’écran', () => {
     expect(eye.layers.isEnabled(0)).toBe(true);
   });
 
+  it('hystérésis : pas de va-et-vient juste au-dessus du seuil', () => {
+    const root = new THREE.Group();
+    const part = new THREE.Mesh(new THREE.SphereGeometry(0.01));
+    root.add(part);
+    const cam = new THREE.Vector3();
+    // Distance où la pièce fait exactement 1,2 × le seuil : visible au départ, retirée plus loin, reste retirée à 1,2 ×.
+    const at = (k: number) => (0.01 * projY) / (MIN_SCREEN_FRAC * k);
+    root.position.set(0, 0, -at(1.2));
+    root.updateMatrixWorld(true);
+    cullSmallParts(root, cam, projY);
+    expect(part.layers.isEnabled(0)).toBe(true);
+    root.position.set(0, 0, -at(0.9));
+    root.updateMatrixWorld(true);
+    cullSmallParts(root, cam, projY);
+    expect(part.layers.isEnabled(0)).toBe(false);
+    root.position.set(0, 0, -at(1.2));
+    root.updateMatrixWorld(true);
+    cullSmallParts(root, cam, projY);
+    expect(part.layers.isEnabled(0)).toBe(false);
+    root.position.set(0, 0, -at(1.5));
+    root.updateMatrixWorld(true);
+    cullSmallParts(root, cam, projY);
+    expect(part.layers.isEnabled(0)).toBe(true);
+  });
+
   it('ne touche pas une pièce en cours de préchauffage (masque à 0)', () => {
     const root = new THREE.Group();
     const bolt = new THREE.Mesh(new THREE.SphereGeometry(0.004));

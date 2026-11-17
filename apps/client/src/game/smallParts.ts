@@ -42,7 +42,9 @@ export function cullSmallParts(root: THREE.Object3D, camPos: THREE.Vector3, proj
     _c.y = e[1]! * bs.center.x + e[5]! * bs.center.y + e[9]! * bs.center.z + e[13]!;
     _c.z = e[2]! * bs.center.x + e[6]! * bs.center.y + e[10]! * bs.center.z + e[14]!;
     const dist = Math.hypot(_c.x - camPos.x, _c.y - camPos.y, _c.z - camPos.z);
-    const small = screenFrac(bs.radius * m.matrixWorld.getMaxScaleOnAxis(), dist, projY) < minFrac;
+    // Hystérésis : une pièce retirée ne revient qu'au-dessus de 1,4 × le seuil (pas de clignotement au seuil).
+    const frac = screenFrac(bs.radius * m.matrixWorld.getMaxScaleOnAxis(), dist, projY);
+    const small = frac < (culled.has(m) ? minFrac * 1.4 : minFrac);
     if (small) {
       // Pas pendant le préchauffage d'un shader (masque à 0) : la pièce sera vue au passage suivant.
       if (!culled.has(m) && m.layers.mask !== 0) {
