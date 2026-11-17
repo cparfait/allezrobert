@@ -115,7 +115,7 @@ export class CameraRig {
     this.track = track;
     this.groundAt = groundAt;
     this.free = new FreeFlyCamera(camera, dom, groundAt);
-    this.free.exitHint = getLang() === 'fr' ? '<kbd>C</kbd> caméra suivante' : '<kbd>C</kbd> next camera';
+    this.free.exitHint = getLang() === 'fr' ? '<kbd>C</kbd> caméra suivante · <kbd>1</kbd> poursuite' : '<kbd>C</kbd> next camera · <kbd>1</kbd> chase';
     dom.addEventListener('pointerdown', () => (this.dragging = this.mode === 'photo'));
     window.addEventListener('pointerup', () => (this.dragging = false));
     window.addEventListener('pointermove', (e) => {

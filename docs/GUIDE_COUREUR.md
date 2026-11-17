@@ -34,6 +34,7 @@ Le tutoriel (voix off, coupable) règle : la langue, ton profil (poids, taille, 
 | U | Demi-tour (en solo ; en monde ouvert, nouveau chemin) |
 | X (maintenue) | Regarder derrière soi |
 | C | Caméra : poursuite, cockpit, drone, réalisation TV, photo (souris pour orbiter) |
+| 1 à 8 | Caméra directe : 1 poursuite, 2 cockpit, 3 casque, 4 poitrine, 5 drone, 6 TV, 7 photo, 8 libre |
 | Espace / Échap | Pause (reprendre, terminer la sortie) |
 | H | Masquer l'interface |
 | M | Couper le son (la musique a sa touche B) |

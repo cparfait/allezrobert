@@ -2036,6 +2036,13 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
       const m = rig.cycle();
       hud.toast(t(m === 'free' ? 'freeCam' : m));
     }
+    // Touches 1 à 8 (rangée du haut ou pavé numérique) : caméra choisie directement, comme dans Zwift. Alt+1 à 3 reste au panneau F3.
+    const camKey = /^(?:Digit|Numpad)([1-8])$/.exec(e.code);
+    if (camKey && !e.altKey && !e.ctrlKey && !e.metaKey) {
+      const m = (['chase', 'cockpit', 'action', 'gopro', 'drone', 'tv', 'photo', 'free'] as const)[Number(camKey[1]) - 1]!;
+      if (rig.mode !== m) rig.setMode(m);
+      hud.toast(t(m === 'free' ? 'freeCam' : m));
+    }
     if (e.key === 'h' || e.key === 'H') hud.toggle();
     if (e.key === 'm' || e.key === 'M') audio.toggleMute();
     // Musique : B lecture / arrêt (Spotify s'il est connecté, sinon musique du jeu), N morceau suivant.
