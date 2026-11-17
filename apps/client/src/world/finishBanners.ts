@@ -183,10 +183,23 @@ export class FinishBanners {
       const tube = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(path), 96, TUBE, 14), tubeMat);
       tube.castShadow = true;
       g.add(tube);
-      // Pieds : socles noirs à la base des montants.
+      // Pieds : socles noirs à la base des montants, posés sur le sol réel sous chaque montant (talus, dévers,
+      // pente) ; le montant est prolongé jusqu'au sol au lieu de rester à la hauteur du centre de la chaussée.
+      const len2 = Math.hypot(p.dirX, p.dirZ) || 1;
       for (const sx of [-1, 1]) {
+        // Axe x local de l'arche après rotation (voir g.rotation.y plus bas) : (−dirZ, dirX) normalisé.
+        const fx = p.x + (sx * hw * -p.dirZ) / len2;
+        const fz = p.z + (sx * hw * p.dirX) / len2;
+        const fg = groundAt(fx, fz);
+        const drop = Number.isFinite(fg) ? Math.min(Math.max(y - fg, 0), 30) : 0;
+        if (drop > 0.03) {
+          const leg = new THREE.Mesh(new THREE.CylinderGeometry(TUBE, TUBE, drop + TUBE, 14), tubeMat);
+          leg.position.set(sx * hw, TUBE / 2 - drop / 2, 0);
+          leg.castShadow = true;
+          g.add(leg);
+        }
         const foot = new THREE.Mesh(new THREE.CylinderGeometry(TUBE * 1.1, TUBE * 1.1, 0.25, 14), new THREE.MeshStandardNodeMaterial({ color: '#222', roughness: 0.8 }));
-        foot.position.set(sx * hw, 0.12, 0);
+        foot.position.set(sx * hw, 0.12 - drop, 0);
         g.add(foot);
       }
       // Panneau d'inscription tendu sous le haut de l'arche, lisible des deux côtés.
