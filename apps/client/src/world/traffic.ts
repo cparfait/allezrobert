@@ -596,6 +596,22 @@ export class Traffic {
     return best;
   }
 
+  /**
+   * Un véhicule vient en face entre `distM - 8` et `distM + rangeM` : la voie de gauche n'est pas libre. Les
+   * équipiers IA ne doublent pas par la gauche dans ce cas ; sinon le véhicule d'en face s'arrête devant eux,
+   * et celui qui les suit, faute de pouvoir déboîter, reste bloqué derrière le groupe.
+   */
+  oncomingAhead(distM: number, rangeM: number): boolean {
+    const L = this.track.length;
+    for (const v of this.vehicles) {
+      if (v.sens > 0) continue;
+      let d = v.d - distM;
+      if (this.track.route.loop && L > 0) d = ((((d + L / 2) % L) + L) % L) - L / 2;
+      if (d > -8 && d < rangeM) return true;
+    }
+    return false;
+  }
+
   /** @param riders distances déroulées et décalages des coureurs (joueur compris) */
   update(dt: number, player: { distM: number }, riders: Array<{ distM: number; lateral: number; speedMs: number }>, playerDir: 1 | -1 = 1): void {
     const L = this.track.length;

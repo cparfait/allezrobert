@@ -484,7 +484,7 @@ async function boot(): Promise<void> {
   // Avatars Blender (glTF) : chargés en parallèle, attendus seulement quand la 3D sert.
   const modelsReady = GltfRiderAvatar.load([bikeOfLook(settings.look).family, ...CROWD_FAMILIES]);
   // Voitures : en tâche de fond, attendues au départ d'une sortie (facultatives).
-  const vehiclesReady = new URLSearchParams(location.search).get('traffic') !== '0' ? loadVehicleModels().catch(() => undefined) : Promise.resolve();
+  const vehiclesReady = new URLSearchParams(location.search).get('traffic') !== '0' && !V3_STYLE ? loadVehicleModels().catch(() => undefined) : Promise.resolve();
   // Léger : moteur, liste des mondes et des parcours. Le paysage (tuiles, shaders) se charge après le menu.
   const scene = await loadScene(settings);
   // Film d'accueil (développement) : rendu image par image, sans menu (voir tools/menu-loop).
@@ -1242,9 +1242,11 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   engine.scene.add(banners.group);
   // Monde vivant (circulation, cyclistes croisés) : désactivable par ?traffic=0.
   const alive = params.get('traffic') !== '0' && engine.quality.trafficDensity > 0;
-  // Voitures (modèles chargés à la demande ; primitives si indisponibles).
-  if (alive) await loadVehicleModels();
-  const traffic = alive ? new Traffic(track, engine.quality.trafficDensity, startD, GltfRiderAvatar.lodScale) : null;
+  // Voitures, camions et tracteurs (modèles chargés à la demande ; primitives si indisponibles). Pas en style
+  // Beta (V3) : seulement des cyclistes sur la route (demande du 17/11/2026).
+  const vehiclesOn = alive && !V3_STYLE;
+  if (vehiclesOn) await loadVehicleModels();
+  const traffic = vehiclesOn ? new Traffic(track, engine.quality.trafficDensity, startD, GltfRiderAvatar.lodScale) : null;
   traffic?.setPlaces(source.open?.places);
   // Une dizaine de bâtiments à moins de 120 m : bourg ou ville, pas de tracteur.
   traffic?.setTownTest((x, z) => world.buildings.footprints.countNear(x, z, 120) >= 10);
@@ -1268,7 +1270,9 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   if (cyclists) cyclists.heightAt = (x, z) => world.terrain.heightAt(x, z);
   if (cyclists) cyclists.shadowRange = engine.quality.shadowRiders >= 8 ? 35 : engine.quality.shadowRiders > 0 ? 20 : 0;
   // Les équipiers IA ne doublent par la gauche que si personne ne vient en face.
-  if (cyclists) peloton.oncoming = (d, range) => cyclists.oncomingAhead(d, range);
+  // Voitures et tracteurs d'en face compris (200 m : ils arrivent vite) : sinon ils s'arrêtent devant le groupe
+  // et bloquent ceux qui le suivent.
+  if (cyclists || traffic) peloton.oncoming = (d, range) => (cyclists?.oncomingAhead(d, range) ?? false) || (traffic?.oncomingAhead(d, Math.max(range, 200)) ?? false);
   const hud = new Hud(hudRoot, track, source.attribution);
   // Mini-carte : fond Plan IGN quand le monde est calé en Lambert-93 ; bandeau « lieu » (commune, route).
   if (source.originL93) hud.setBasemap(source.originL93);
