@@ -1,4 +1,5 @@
 import { shadowCasters } from './shadowBudget.ts';
+import { AnimBudget } from './animBudget.ts';
 import * as THREE from 'three/webgpu';
 import { AiRider, AI_PROFILES, DraftCalculator, FORMATION_PREFS, LANE_PACE, LaneRotator, Overtaker, keepRightM, laneOffsets, resolveFormation, roadHalfM, type Formation, type FormationPref, type LaneBody, PoseController, TeammateUTurn, createRiderState, paramsFromBike, powerForSpeed, stepRider, airDensity, wakeShiftM, sharedRoadCorridor, type AiProfileName, type RiderState } from '@allezrobert/physics';
 import { BASE_PROFILES, DEFAULT_BIKE, aiIdentity, DEFAULT_LOOK, FACE_SLIDERS, encodeFace, type AvatarLook, type FaceShape, type RouteTrack } from '@allezrobert/shared';
@@ -188,6 +189,9 @@ export class Peloton {
   private readonly pose: RoadPose = { y: 0, pitch: 0 };
   /** Inclinaison affichée de chaque coureur en virage (rad, lissée). */
   private readonly banks = new WeakMap<PelotonRider, number>();
+  /** Budget d'animation : coureurs lointains animés une image sur 2 à 4 (animBudget.ts). */
+  private readonly animBudgets = new WeakMap<PelotonRider, AnimBudget>();
+  private animFrame = 0;
 
   constructor(scene: THREE.Scene, track: RouteTrack, count: number, startDistM: number, ftpRef: number) {
     this.scene = scene;
@@ -453,7 +457,8 @@ export class Peloton {
   /** Place les avatars ; les coureurs lointains ne sont pas animés (économie). */
   render(dt: number, camera: THREE.Camera): void {
     const dists: number[] = [];
-    for (const r of this.riders) {
+    this.animFrame++;
+    for (const [ri, r] of this.riders.entries()) {
       // Même trajectoire en arc que le joueur (virages fluides).
       const p = this.collision ? this.track.positionAt(r.state.distM, r.lateral, this.sample) : this.track.linePositionAt(r.state.distM, r.lateral, r.state.speedMs, this.sample);
       // Cap relatif (demi-tour) : à contresens, l'inclinaison de la pente s'inverse.
@@ -473,8 +478,13 @@ export class Peloton {
         const lean = this.track.leanAt(r.state.distM, r.state.speedMs, Math.cos(r.heading) < 0 ? -1 : 1);
         const bank = (this.banks.get(r) ?? 0) + (lean - (this.banks.get(r) ?? 0)) * Math.min(1, dt * 3);
         this.banks.set(r, bank);
-        r.avatar.update(dt, r.cadence, r.state.speedMs, r.pose, bank);
-        r.v3?.update(dt, r.cadence, r.state.speedMs, r.pose, { effort: r.watts / r.ftp });
+        let budget = this.animBudgets.get(r);
+        if (!budget) this.animBudgets.set(r, (budget = new AnimBudget(ri)));
+        const animDt = budget.step(dt, dist, this.animFrame);
+        if (animDt > 0) {
+          r.avatar.update(animDt, r.cadence, r.state.speedMs, r.pose, bank);
+          r.v3?.update(animDt, r.cadence, r.state.speedMs, r.pose, { effort: r.watts / r.ftp });
+        }
       }
       dists.push(dist);
       r.label.position.set(p.x, p.y + 2.15, p.z);

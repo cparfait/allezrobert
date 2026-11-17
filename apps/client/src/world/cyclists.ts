@@ -8,6 +8,7 @@ import { crowdBike } from '../rider/bikes.ts';
 import { rng } from '../engine/noise.ts';
 import { BIKE_FRONT_M, BIKE_REAR_M, roadPose, type RoadPose } from './roadHeight.ts';
 import { crowdV3 } from '../game/v3Crowd.ts';
+import { AnimBudget } from '../game/animBudget.ts';
 import type { V3Visual } from '../v3/visuals.ts';
 
 /** Adhérence des IA en virage (enrobé sec), voir cornerBrake.ts. */
@@ -26,6 +27,8 @@ interface Member {
   latOff: number;
   /** Décalage de cadence : chacun a son coup de pédale. */
   cadenceOff: number;
+  /** Budget d'animation : une image sur 2 à 4 au-delà de 40 m (animBudget.ts). */
+  anim: AnimBudget;
 }
 
 /** Cycliste ou groupe d'ambiance : il roule sur la même route, dans un sens ou dans l'autre. */
@@ -189,7 +192,7 @@ export class AmbientCyclists {
         lastRow = row;
       }
       const v3 = crowdV3(avatar, look, i, this.r() < 0.4);
-      members.push({ avatar, ...(v3 ? { v3 } : {}), off: -rowOff, latOff: pairs && k % 2 ? -1.0 * sens : 0, cadenceOff: Math.round((this.r() - 0.5) * 8) });
+      members.push({ avatar, ...(v3 ? { v3 } : {}), off: -rowOff, latOff: pairs && k % 2 ? -1.0 * sens : 0, cadenceOff: Math.round((this.r() - 0.5) * 8), anim: new AnimBudget(members.length + Math.floor(this.r() * 4)) });
     }
     const mass = lv.mass[0] + this.r() * (lv.mass[1] - lv.mass[0]);
     const length = Math.abs((members[members.length - 1] as Member).off);
@@ -247,6 +250,7 @@ export class AmbientCyclists {
     return false;
   }
 
+  private animFrame = 0;
   /**
    * @param player distance et décalage du joueur
    * @param camera pour les niveaux de détail (animation et ombres seulement près de la caméra)
@@ -254,6 +258,7 @@ export class AmbientCyclists {
    * @returns l'aspiration dont profite le joueur derrière un cycliste qui va dans son sens
    */
   update(dt: number, player: { distM: number; lateral: number; speedMs: number }, camera: THREE.Camera, others: ReadonlyArray<{ distM: number; lateral: number; speedMs: number }> = []): number {
+    this.animFrame++;
     const L = this.track.length;
     const loop = this.track.route.loop;
     let draft = 0;
@@ -350,8 +355,11 @@ export class AmbientCyclists {
         const dist = camera.position.distanceTo(a.root.position);
         a.root.visible = !outside && dist < 500;
         if (a.root.visible && dist < 200) {
-          a.update(dt, c.cadence > 0 ? c.cadence + m.cadenceOff : 0, c.speed, watts > 0 ? 'seated' : 'coasting');
-          m.v3?.update(dt, c.cadence > 0 ? c.cadence + m.cadenceOff : 0, c.speed, watts > 0 ? 'seated' : 'coasting');
+          const animDt = m.anim.step(dt, dist, this.animFrame);
+          if (animDt > 0) {
+            a.update(animDt, c.cadence > 0 ? c.cadence + m.cadenceOff : 0, c.speed, watts > 0 ? 'seated' : 'coasting');
+            m.v3?.update(animDt, c.cadence > 0 ? c.cadence + m.cadenceOff : 0, c.speed, watts > 0 ? 'seated' : 'coasting');
+          }
         }
         a.setShadows(dist < this.shadowRange);
         if (c.sens > 0 && !outside) {
