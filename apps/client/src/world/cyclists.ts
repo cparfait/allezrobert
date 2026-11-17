@@ -10,6 +10,7 @@ import { BIKE_FRONT_M, BIKE_REAR_M, roadPose, type RoadPose } from './roadHeight
 import { crowdV3 } from '../game/v3Crowd.ts';
 import { AnimBudget } from '../game/animBudget.ts';
 import { skipHiddenMatrixUpdates } from '../game/hiddenMatrices.ts';
+import { SMALL_PARTS_CULL, cullSmallParts } from '../game/smallParts.ts';
 import type { V3Visual } from '../v3/visuals.ts';
 
 /** Adhérence des IA en virage (enrobé sec), voir cornerBrake.ts. */
@@ -364,6 +365,7 @@ export class AmbientCyclists {
           }
         }
         a.setShadows(dist < this.shadowRange);
+        if (SMALL_PARTS_CULL && a.root.visible && (this.animFrame + m.cadenceOff + 8) % 6 === 0) cullSmallParts(a.root, camera.position, (camera as THREE.PerspectiveCamera).projectionMatrix.elements[5] ?? 1);
         if (c.sens > 0 && !outside) {
           const gap = dm - player.distM - 1.75;
           draft = Math.max(draft, draftReductionSingle(gap, c.lateral + m.latOff - player.lateral));

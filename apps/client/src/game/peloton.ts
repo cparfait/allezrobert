@@ -2,6 +2,7 @@ import { shadowCasters } from './shadowBudget.ts';
 import { AnimBudget } from './animBudget.ts';
 import { flagSvg } from '../ui/flagSvg.ts';
 import { skipHiddenMatrixUpdates } from './hiddenMatrices.ts';
+import { SMALL_PARTS_CULL, cullSmallParts } from './smallParts.ts';
 import * as THREE from 'three/webgpu';
 import { AiRider, AI_PROFILES, DraftCalculator, FORMATION_PREFS, LANE_PACE, LaneRotator, Overtaker, keepRightM, laneOffsets, resolveFormation, roadHalfM, type Formation, type FormationPref, type LaneBody, PoseController, TeammateUTurn, createRiderState, paramsFromBike, powerForSpeed, stepRider, airDensity, wakeShiftM, sharedRoadCorridor, type AiProfileName, type RiderState } from '@allezrobert/physics';
 import { BASE_PROFILES, DEFAULT_BIKE, aiIdentity, DEFAULT_LOOK, FACE_SLIDERS, encodeFace, type AvatarLook, type FaceShape, type RouteTrack } from '@allezrobert/shared';
@@ -527,6 +528,8 @@ export class Peloton {
       dists.push(dist);
       r.label.position.set(p.x, p.y + 2.15, p.z);
       r.label.visible = dist > 7 && dist < 150;
+      // Pièces sous ~1,5 px retirées du rendu (smallParts.ts), une image sur 6 par coureur.
+      if (SMALL_PARTS_CULL && r.avatar.root.visible && (this.animFrame + ri) % 6 === 0) cullSmallParts(r.avatar.root, camera.position, camera.projectionMatrix.elements[5] ?? 1);
     }
     // Ombres portées : seulement les coureurs les plus proches (coût des cascades d'ombre).
     const casters = shadowCasters(dists, this.shadowRiders, 40);
