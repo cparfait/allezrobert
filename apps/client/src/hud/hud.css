@@ -428,7 +428,7 @@ body:has(.ob-preview) .subtitle { left: 2vw; right: auto; transform: none; max-w
 
 /* Tutoriel : titre « Allez Robert ! » remonté (jusqu'à 72 px, ~7 % de la hauteur) sans bouger la carte ; rien sur les fenêtres basses. */
 .ob-hero { transform: translateY(calc(clamp(0px, (100vh - 760px) / 3, 72px) * -1)); }
-.rd-flag { font-size: 13px; line-height: 1; }
+.rd-flag { font-size: 13px; line-height: 1; margin-right: 5px; }
 
 /* ───────────── Mobile : sous-titres pleine largeur en bas, tutoriel resserré ───────────── */
 @media (max-width: 700px) {
