@@ -1,5 +1,6 @@
 import { climbCategory, climbCategoryLabel, countryName, type RoadGraphData, type RouteSegment, type RouteTrack } from '@allezrobert/shared';
 import { flagSvg } from '../ui/flagSvg.ts';
+import { cadenceLabel } from './riderLevel.ts';
 import { getLang, t } from '../i18n/index.ts';
 import { BASEMAP_ATTRIBUTION, basemapUrl } from '../ui/basemap.ts';
 import { GRAPHIC_STYLE, LOW_POLY } from '../engine/style.ts';
@@ -113,6 +114,24 @@ export interface HudRider {
   km?: number;
   /** Puissance (W) du moment. */
   watts?: number;
+  /** Niveau (loisir, régulier, sportif, pro) d'après la FTP en W/kg (riderLevel.ts). */
+  level?: string;
+  /** Cadence (tr/min) du moment, si connue. */
+  cadence?: number;
+  /** Membre de mon groupe (équipiers IA) : pastille et liseré bleus dans « À proximité ». */
+  group?: boolean;
+}
+
+/** Niveau en barres (1 à 4) pour « À proximité » : loisir, régulier, sportif, pro ; 0 si inconnu. */
+function levelBars(level: string | undefined): number {
+  return level === 'pro' ? 4 : level === 'sportif' ? 3 : level === 'régulier' ? 2 : level === 'loisir' ? 1 : 0;
+}
+
+/** « Matteo MORETTI » → « M. MORETTI » (un seul mot ou « Groupe de 3 » : inchangé). */
+function shortName(name: string): string {
+  const parts = name.trim().split(/\s+/);
+  if (parts.length < 2 || /^\d/.test(parts[parts.length - 1] ?? '') || /^(Groupe|Group|Cycliste|Cyclist)$/i.test(parts[0] ?? '')) return name;
+  return `${(parts[0] ?? '').charAt(0)}. ${parts.slice(1).join(' ')}`;
 }
 
 export interface HudState {
@@ -1322,7 +1341,7 @@ export class Hud {
     if (!me) return '';
     const pool = s.riders.filter((r) => r.me || this.riderFilter === 'all' || (!r.isAI && !r.isGuest) || r.online).sort((a, b) => b.distM - a.distM);
     const i = pool.indexOf(me);
-    const shown = pool.slice(Math.max(0, i - 4), i + 5);
+    const shown = pool.slice(Math.max(0, i - 5), i + 6);
     const speed = Math.max(s.speedKmh / 3.6, 2);
     const real = s.riders.filter((r) => !r.me && !r.isAI).length;
     const head = `<div class="rd-head"><b>${fr ? 'À proximité' : 'Nearby'}</b><button class="rd-filter" data-rfilter title="${fr ? 'Coureurs réels ou tous' : 'Real riders or all'}">${
@@ -1330,8 +1349,14 @@ export class Hud {
     }</button></div>`;
     const rows = shown
       .map((r) => {
+        // Ligne serrée : à gauche le niveau en barres (couleur du coureur) et l'écart en temps ; à droite le nom
+        // court suivi du drapeau, puis W/kg, cadence et kilomètres.
         const gap = r.distM - me.distM;
-        const sub = r.ambient ? r.ambient.level : r.me ? t('you') : r.isAI ? t('ai') : r.isGuest ? t('guest') : r.friend ? (fr ? 'Ami' : 'Friend') : '';
+        const sec = gap / speed;
+        const abs = Math.round(Math.abs(sec));
+        const time = r.me ? '' : `${sec > 0.5 ? '+' : sec < -0.5 ? '−' : ''}${Math.floor(abs / 60)}:${String(abs % 60).padStart(2, '0')}`;
+        const lvl = levelBars(r.ambient?.level ?? r.level);
+        const lvlName = r.ambient?.level ?? r.level ?? '';
         const verdict = r.ambient
           ? r.ambient.follow === 'ok'
             ? `<em class="rd-badge ok">${fr ? 'À suivre' : 'Can follow'}</em>`
@@ -1340,11 +1365,18 @@ export class Hud {
               : `<em class="rd-badge easy">${fr ? 'Plus lent' : 'Slower'}</em>`
           : '';
         const rideOn = r.online && !r.me ? `<button class="rideon" data-rideon="${r.id}" title="Ride On">👍</button>` : '';
-        const sec = gap / speed;
-        const time = Math.abs(sec) >= 60 ? `${sec > 0 ? '+' : '−'}${Math.floor(Math.abs(sec) / 60)}:${String(Math.round(Math.abs(sec) % 60)).padStart(2, '0')}` : `${sec > 0 ? '+' : sec < 0 ? '−' : ''}${Math.round(Math.abs(sec))} s`;
-        const dist = Math.abs(gap) >= 1000 ? `${(Math.abs(gap) / 1000).toFixed(1).replace('.', fr ? ',' : '.')} km` : `${Math.round(Math.abs(gap))} m`;
-        const kmTxt = r.km !== undefined ? `${r.km.toFixed(1).replace('.', fr ? ',' : '.')} km` : '';
-        return `<div class="row ${r.me ? 'me' : ''}"><i class="rd-dot" style="background:${r.color}"></i><span class="rd-name"><b class="rd-n">${r.friend ? `<em class="rd-friend" title="${fr ? 'Ami' : 'Friend'}">★</em>` : ''}${flagSvg(r.nationality, 13) ? `<span class="rd-flag" title="${countryName(r.nationality, fr ? 'fr' : 'en')}">${flagSvg(r.nationality, 13)}</span>` : ''}${r.name.replace(/[<>&]/g, '')}${r.speaking ? ' 🔊' : ''} ${rideOn}</b><small class="rd-sub">${sub}${verdict}</small></span><span class="num rd-wkg"><b>${r.watts !== undefined ? Math.round(r.watts) : '—'}<u>W</u></b><small>${kmTxt}</small></span><span class="num rd-gap">${r.me ? '' : `<b>${time}</b><small>${dist}</small>`}</span></div>`;
+        const num = (v: number, d: number) => v.toFixed(d).replace('.', fr ? ',' : '.');
+        const sub = [
+          r.wkg !== undefined ? `${num(r.wkg, 1)} W/kg` : r.watts !== undefined ? `${Math.round(r.watts)} W` : '',
+          cadenceLabel(r.cadence, fr),
+          r.km !== undefined ? `${num(r.km, 1)} km` : '',
+        ]
+          .filter(Boolean)
+          .join(' · ');
+        const flag = flagSvg(r.nationality, 13);
+        const name = shortName(r.name).replace(/[<>&]/g, '');
+        const title = [r.me ? t('you') : r.isAI ? t('ai') : r.isGuest ? t('guest') : '', lvlName].filter(Boolean).join(' · ');
+        return `<div class="row nb ${r.me ? 'me' : ''}${r.group ? ' grp' : ''}" title="${title}"><span class="nb-l"><i class="nb-lvl l${lvl}" style="--c:${r.me ? '#ffd23f' : r.color}"><b></b><b></b><b></b><b></b></i><b class="nb-gap num">${time}</b></span><span class="nb-r"><b class="nb-n">${r.friend ? `<em class="rd-friend" title="${fr ? 'Ami' : 'Friend'}">★</em>` : ''}${rideOn}${r.group ? `<i class="nb-grp" title="${fr ? 'Mon groupe' : 'My group'}"></i>` : ''}<span class="nb-name">${name}${r.speaking ? ' 🔊' : ''}</span>${flag ? `<span class="rd-flag" title="${countryName(r.nationality, fr ? 'fr' : 'en')}">${flag}</span>` : ''}</b><small class="nb-sub num">${verdict}${sub}</small></span></div>`;
       })
       .join('');
     return head + rows;
@@ -1377,7 +1409,7 @@ export class Hud {
         // Sous le nom : niveau (cyclistes croisés) ou type, kilomètres parcourus ; à droite W et W/kg, écart.
         const sub = r.ambient ? r.ambient.level : r.me ? t('you') : r.isAI ? t('ai') : r.isGuest ? t('guest') : r.friend ? (fr ? 'Ami' : 'Friend') : '';
         const kmTxt = r.km !== undefined ? `${r.km.toFixed(1).replace('.', fr ? ',' : '.')} km` : '';
-        const subLine = [sub, kmTxt].filter(Boolean).join(' · ');
+        const subLine = [sub, r.ambient ? '' : (r.level ?? ''), cadenceLabel(r.cadence, fr), kmTxt].filter(Boolean).join(' · ');
         const wkg = r.wkg !== undefined ? `${r.wkg.toFixed(1).replace('.', fr ? ',' : '.')} W/kg` : '';
         return `<div class="row ${r.me ? 'me' : ''}"><i class="rd-dot" style="background:${r.color}"></i><span class="rd-name"><b class="rd-n">${friend}${flag ? `<span class="rd-flag">${flag}</span>` : ''}${r.name.replace(/[<>&]/g, '')}${r.speaking ? ' 🔊' : ''}${rideOn}</b>${subLine ? `<small class="rd-sub">${subLine}</small>` : ''}</span><span class="num rd-w">${r.watts !== undefined ? Math.round(r.watts) : '—'}<u>W</u>${wkg ? `<small>${wkg}</small>` : ''}</span><span class="num rd-gap">${r.me ? '' : time}</span></div>`;
       })

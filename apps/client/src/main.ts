@@ -81,6 +81,7 @@ import { RideSequences } from './game/sequences.ts';
 import { GuestInputSource } from './game/guest.ts';
 import { Crowd } from './world/crowd.ts';
 import { FinishBanners } from './world/finishBanners.ts';
+import { levelOfFtpWkg } from './hud/riderLevel.ts';
 import { TownSigns } from './world/signs.ts';
 import { AmbientCyclists } from './world/cyclists.ts';
 import { Traffic, loadVehicleModels } from './world/traffic.ts';
@@ -2524,7 +2525,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
             return town ? { place: { town, ...(road ? { road } : {}) } } : road ? { place: { town: road } } : {};
           })(),
           riders: [
-            { id: 'me', name: s.name, distM: ride.state.distM, x: pos.x, z: pos.z, me: true, isAI: false, isGuest: false, color: '#ffd23f', km: ride.state.distM / 1000, watts: ride.watts3s(), wkg: ride.watts3s() / s.massKg, ...(s.look.nationality ? { nationality: s.look.nationality } : {}) },
+            { id: 'me', name: s.name, distM: ride.state.distM, x: pos.x, z: pos.z, me: true, isAI: false, isGuest: false, color: '#ffd23f', km: ride.state.distM / 1000, watts: ride.watts3s(), wkg: ride.watts3s() / s.massKg, level: levelOfFtpWkg(s.ftpWatts / s.massKg), cadence: ride.inputs.cadence, ...(s.look.nationality ? { nationality: s.look.nationality } : {}) },
             ...remoteRiders.map((r) => {
               const p = track.sample(r.unwrappedM);
               const mass = mp?.net.roster.get(r.id)?.massKg ?? 75;
@@ -2534,12 +2535,12 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
               ? cyclists.roster(ride.state.distM, 400).map((c) => {
                   const mine = s.ftpWatts / s.massKg;
                   const follow: 'easy' | 'ok' | 'hard' = c.wkg > mine * 1.0 ? 'hard' : c.wkg < mine * 0.6 ? 'easy' : 'ok';
-                  return { id: c.id, name: c.name, distM: c.distM, x: c.x, z: c.z, me: false, isAI: true, isGuest: false, color: c.color, wkg: c.wkg, km: c.km, watts: c.watts, ambient: { level: c.level, follow } };
+                  return { id: c.id, name: c.name, distM: c.distM, x: c.x, z: c.z, me: false, isAI: true, isGuest: false, color: c.color, wkg: c.wkg, km: c.km, watts: c.watts, cadence: c.cadence, ambient: { level: c.level, follow } };
                 })
               : []),
             ...peloton.riders.map((r) => {
               const p = track.sample(r.state.distM);
-              return { id: r.id, name: r.name, distM: r.state.distM, x: p.x, z: p.z, me: false, isAI: true, isGuest: false, color: r.color, km: r.state.distM / 1000, watts: r.watts, wkg: r.watts / r.massKg, nationality: r.nationality };
+              return { id: r.id, name: r.name, distM: r.state.distM, x: p.x, z: p.z, me: false, isAI: true, isGuest: false, color: r.color, km: r.state.distM / 1000, watts: r.watts, wkg: r.watts / r.massKg, nationality: r.nationality, level: levelOfFtpWkg(r.ftp / r.massKg), cadence: r.cadence, group: true };
             }),
           ],
           ...(ride.segment

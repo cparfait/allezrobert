@@ -1,5 +1,7 @@
 import { shadowCasters } from './shadowBudget.ts';
 import { AnimBudget } from './animBudget.ts';
+import { flagSvg } from '../ui/flagSvg.ts';
+import { skipHiddenMatrixUpdates } from './hiddenMatrices.ts';
 import * as THREE from 'three/webgpu';
 import { AiRider, AI_PROFILES, DraftCalculator, FORMATION_PREFS, LANE_PACE, LaneRotator, Overtaker, keepRightM, laneOffsets, resolveFormation, roadHalfM, type Formation, type FormationPref, type LaneBody, PoseController, TeammateUTurn, createRiderState, paramsFromBike, powerForSpeed, stepRider, airDensity, wakeShiftM, sharedRoadCorridor, type AiProfileName, type RiderState } from '@allezrobert/physics';
 import { BASE_PROFILES, DEFAULT_BIKE, aiIdentity, DEFAULT_LOOK, FACE_SLIDERS, encodeFace, type AvatarLook, type FaceShape, type RouteTrack } from '@allezrobert/shared';
@@ -76,25 +78,60 @@ export interface PelotonRider {
   overtaker: Overtaker;
 }
 
-function nameSprite(text: string, color: string): THREE.Sprite {
+/**
+ * Étiquette au-dessus d'un coureur : bulle sombre à pointe, drapeau puis nom court (« M. MORETTI ») pour le
+ * reconnaître d'un coup d'œil ; sans nationalité, une pastille à la couleur du coureur remplace le drapeau.
+ */
+function nameSprite(text: string, color: string, nationality?: string): THREE.Sprite {
   const c = document.createElement('canvas');
   c.width = 256;
   c.height = 64;
   const ctx = c.getContext('2d') as CanvasRenderingContext2D;
-  ctx.fillStyle = 'rgba(10,14,22,0.7)';
-  ctx.beginPath();
-  ctx.roundRect(4, 8, 248, 48, 22);
-  ctx.fill();
-  ctx.fillStyle = color;
-  ctx.beginPath();
-  ctx.arc(32, 32, 9, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = '#f5f7fa';
-  ctx.font = '600 26px Inter, Segoe UI, sans-serif';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(text, 52, 33);
+  const parts = text.trim().split(/\s+/);
+  const label = parts.length > 1 ? `${(parts[0] ?? '').charAt(0)}. ${parts.slice(1).join(' ')}` : text;
+  ctx.font = '700 25px Inter, Segoe UI, sans-serif';
+  const FLAG_W = 34;
+  const textW = Math.min(ctx.measureText(label).width, 256 - 16 - FLAG_W - 10);
+  const w = 12 + FLAG_W + 9 + textW + 14;
+  const x0 = (256 - w) / 2;
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
+  const draw = (flag?: HTMLImageElement) => {
+    ctx.clearRect(0, 0, 256, 64);
+    ctx.fillStyle = 'rgba(10,14,22,0.78)';
+    ctx.beginPath();
+    ctx.roundRect(x0, 4, w, 42, 7);
+    ctx.fill();
+    // Liseré bleu : membre de mon groupe (même repère que dans « À proximité »).
+    ctx.strokeStyle = '#38bdf8';
+    ctx.lineWidth = 3;
+    ctx.stroke();
+    // Pointe vers le coureur.
+    ctx.beginPath();
+    ctx.moveTo(128 - 8, 46);
+    ctx.lineTo(128, 56);
+    ctx.lineTo(128 + 8, 46);
+    ctx.fill();
+    if (flag) ctx.drawImage(flag, x0 + 12, 13, FLAG_W, 24);
+    else {
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.arc(x0 + 12 + FLAG_W / 2, 25, 9, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.fillStyle = '#f5f7fa';
+    ctx.font = '700 25px Inter, Segoe UI, sans-serif';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(label, x0 + 12 + FLAG_W + 9, 26, textW);
+    tex.needsUpdate = true;
+  };
+  draw();
+  const svg = nationality ? flagSvg(nationality, 34) : '';
+  if (svg) {
+    const img = new Image();
+    img.onload = () => draw(img);
+    img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+  }
   // Taille constante à l'écran, quelle que soit la distance.
   const mat = new THREE.SpriteMaterial({ map: tex, depthWrite: false, transparent: true, sizeAttenuation: false });
   const s = new THREE.Sprite(mat);
@@ -220,9 +257,10 @@ export class Peloton {
       };
       const avatar = createAvatar(look);
       scene.add(avatar.root);
+      skipHiddenMatrixUpdates(avatar.root);
       const v3 = crowdV3(avatar, look, i >> 1, i % 2 === 1);
       const name = identity.name;
-      const label = nameSprite(name, color);
+      const label = nameSprite(name, color, identity.nationality);
       scene.add(label);
       const params = paramsFromBike(massKg, DEFAULT_BIKE);
       this.riders.push({

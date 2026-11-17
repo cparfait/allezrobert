@@ -479,6 +479,28 @@ body:has(.ob-preview) .subtitle { left: 2vw; right: auto; transform: none; max-w
 .riders .rd-wkg small, .riders .rd-gap small { font-size: 11.5px; color: var(--ar-muted); }
 .riders .rd-gap { align-items: flex-end; }
 .riders .rd-gap b { font-size: 15px; font-weight: 700; }
+/* « À proximité » serrée : niveau en barres et écart à gauche, nom court + drapeau et W/kg · cadence · km à droite. */
+/* Liste plus transparente : on voit la route à travers (quel que soit le préréglage, flou compris). */
+.hud-col > .riders.panel { background: rgba(10, 14, 22, 0.38); }
+.riders .row.nb:not(.me) { background: rgba(255, 255, 255, 0.03); border-color: transparent; }
+.riders .row.nb { grid-template-columns: 62px minmax(0, 1fr); gap: 8px; padding: 4px 10px; margin-top: 3px; border-radius: 9px; }
+.riders .nb-l { display: flex; align-items: center; gap: 7px; }
+.riders .nb-lvl { display: inline-flex; align-items: flex-end; gap: 1.5px; height: 13px; flex: none; }
+.riders .nb-lvl b { width: 3px; border-radius: 1px; background: rgba(255, 255, 255, 0.2); }
+.riders .nb-lvl b:nth-child(1) { height: 4px; }
+.riders .nb-lvl b:nth-child(2) { height: 7px; }
+.riders .nb-lvl b:nth-child(3) { height: 10px; }
+.riders .nb-lvl b:nth-child(4) { height: 13px; }
+.riders .nb-lvl.l1 b:nth-child(-n + 1), .riders .nb-lvl.l2 b:nth-child(-n + 2), .riders .nb-lvl.l3 b:nth-child(-n + 3), .riders .nb-lvl.l4 b { background: var(--c); }
+.riders .nb-gap { font-size: 14px; font-weight: 700; }
+.riders .nb-r { display: flex; flex-direction: column; align-items: flex-end; min-width: 0; line-height: 1.15; }
+.riders .nb-n { display: flex; align-items: center; justify-content: flex-end; gap: 5px; max-width: 100%; font-size: 15px; font-weight: 700; white-space: nowrap; }
+.riders .nb-name { overflow: hidden; text-overflow: ellipsis; }
+.riders .nb-n .rd-flag { margin-right: 0; flex: none; }
+.riders .nb-n .rd-friend { margin-right: 0; flex: none; }
+.riders .nb-sub .rd-badge { font-size: 9px; padding: 0 5px; }
+.riders .nb-grp { flex: none; width: 9px; height: 9px; border-radius: 50%; background: #38bdf8; box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.25); }
+.riders .nb-sub { display: flex; align-items: center; gap: 6px; color: var(--ar-muted); font-size: 11.5px; }
 
 /*
  * ───────────── HUD compact (style low poly ; hud.ts : HUD_LAYOUT, compactLayout) ─────────────

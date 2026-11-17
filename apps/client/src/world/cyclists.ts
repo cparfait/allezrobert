@@ -9,6 +9,7 @@ import { rng } from '../engine/noise.ts';
 import { BIKE_FRONT_M, BIKE_REAR_M, roadPose, type RoadPose } from './roadHeight.ts';
 import { crowdV3 } from '../game/v3Crowd.ts';
 import { AnimBudget } from '../game/animBudget.ts';
+import { skipHiddenMatrixUpdates } from '../game/hiddenMatrices.ts';
 import type { V3Visual } from '../v3/visuals.ts';
 
 /** Adhérence des IA en virage (enrobé sec), voir cornerBrake.ts. */
@@ -182,6 +183,7 @@ export class AmbientCyclists {
       };
       const avatar = createAvatar(look);
       scene.add(avatar.root);
+      skipHiddenMatrixUpdates(avatar.root);
       // Loisir en duo côte à côte, club en file serrée (roue dans la roue au-delà de 25 km/h).
       const row = pairs ? Math.floor(k / 2) : k;
       // Le vélo fait 1,75 m : sous 2,1 m entre les centres, les roues se chevauchent. L'écart s'ajoute rang après rang
@@ -375,8 +377,8 @@ export class AmbientCyclists {
    * Cyclistes qui vont dans le sens du joueur à moins de `rangeM` : nom, niveau, W/kg et centre du
    * groupe, pour « À proximité » (savoir si on peut les suivre).
    */
-  roster(playerDistM: number, rangeM: number): Array<{ id: string; name: string; level: string; levelIdx: number; distM: number; x: number; z: number; color: string; wkg: number; km: number; watts: number }> {
-    const out: Array<{ id: string; name: string; level: string; levelIdx: number; distM: number; x: number; z: number; color: string; wkg: number; km: number; watts: number }> = [];
+  roster(playerDistM: number, rangeM: number): Array<{ id: string; name: string; level: string; levelIdx: number; distM: number; x: number; z: number; color: string; wkg: number; km: number; watts: number; cadence: number }> {
+    const out: Array<{ id: string; name: string; level: string; levelIdx: number; distM: number; x: number; z: number; color: string; wkg: number; km: number; watts: number; cadence: number }> = [];
     const L = this.track.length;
     for (const c of this.units) {
       if (c.sens < 0) continue;
@@ -385,7 +387,7 @@ export class AmbientCyclists {
       const p = this.track.sample(this.track.route.loop ? ((mid % L) + L) % L : Math.min(Math.max(mid, 0), L), this.sample);
       const n = c.members.length;
       const lv = LEVELS[c.level] as (typeof LEVELS)[number];
-      out.push({ id: c.id, name: n > 1 ? `Groupe de ${n}` : 'Cycliste', level: lv.name, levelIdx: c.level, distM: mid, x: p.x, z: p.z, color: c.color, wkg: c.watts / c.massKg, km: c.kmBase + c.travelledM / 1000, watts: c.watts });
+      out.push({ id: c.id, name: n > 1 ? `Groupe de ${n}` : 'Cycliste', level: lv.name, levelIdx: c.level, distM: mid, x: p.x, z: p.z, color: c.color, wkg: c.watts / c.massKg, km: c.kmBase + c.travelledM / 1000, watts: c.watts, cadence: c.cadence });
     }
     return out;
   }
