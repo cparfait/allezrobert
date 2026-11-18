@@ -26,4 +26,29 @@ describe('ombres des coureurs V3', () => {
     expect(r.frame.castShadow).toBe(true);
     expect(r.glasses.castShadow).toBe(false);
   });
+  it('version légère hors budget : son ombre reste coupée à chaque image (updateRiderLight la remet)', () => {
+    const r = rider();
+    const group = new THREE.Group();
+    group.visible = false; // rendu détaillé masqué : version légère
+    r.root.add(group);
+    const light = new THREE.Mesh(new THREE.BoxGeometry(1, 1.7, 0.4));
+    light.name = 'rider-light';
+    r.root.add(light);
+    for (let frame = 0; frame < 40; frame++) {
+      light.castShadow = true; // ce que fait updateRiderLight(…, true) à chaque image
+      applyRiderShadows(r.root, false, group, false);
+      expect(light.castShadow).toBe(false);
+    }
+  });
+  it('version légère dans le budget : elle projette son ombre', () => {
+    const r = rider();
+    const group = new THREE.Group();
+    group.visible = false;
+    r.root.add(group);
+    const light = new THREE.Mesh(new THREE.BoxGeometry(1, 1.7, 0.4));
+    light.name = 'rider-light';
+    r.root.add(light);
+    for (let frame = 0; frame < 5; frame++) applyRiderShadows(r.root, true, group, false);
+    expect(light.castShadow).toBe(true);
+  });
 });

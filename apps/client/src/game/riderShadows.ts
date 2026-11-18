@@ -192,7 +192,12 @@ export function applyRiderShadows(root: THREE.Object3D, caster: boolean, group?:
   const proxies = !!st && (!!st.body || !!st.bike) && enabled && caster && !light;
   const key = `${caster ? 1 : 0}${proxies ? 1 : 0}${light ? 1 : 0}`;
   const last = applied.get(root);
-  if (last && last.key === key && --last.left > 0) return;
+  if (last && last.key === key && --last.left > 0) {
+    // Version légère : updateRiderLight remet son ombre à chaque image ; le budget du jeu a le dernier mot (enfant
+    // direct de la racine, trouvé sans parcourir le coureur).
+    if (light) for (const c of root.children) if (c.name === 'rider-light' && (c as THREE.Mesh).castShadow !== caster) (c as THREE.Mesh).castShadow = caster;
+    return;
+  }
   applied.set(root, { key, left: 30 });
   root.traverse((o) => {
     const m = o as THREE.Mesh;

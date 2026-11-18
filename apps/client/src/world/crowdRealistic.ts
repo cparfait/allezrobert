@@ -5,7 +5,6 @@ import {
   floor,
   fract,
   hash,
-  instanceIndex,
   ivec2,
   mix,
   mod,
@@ -164,13 +163,16 @@ function pick(list: string[], h: F): V3 {
  * Les données par spectateur sont portées par la géométrie et non par le matériau : un seul matériau par
  * personnage sert à tous les tronçons de public, donc un seul nuanceur à compiler.
  */
-export function spectatorGeometry(asset: SpectatorAsset, orient: Float32Array, still: Float32Array): THREE.BufferGeometry {
+export function spectatorGeometry(asset: SpectatorAsset, orient: Float32Array, still: Float32Array, ids?: Float32Array): THREE.BufferGeometry {
   const src = asset.geometry;
   const g = new THREE.BufferGeometry();
   for (const [name, a] of Object.entries(src.attributes)) g.setAttribute(name, a);
   g.setIndex(src.index);
   g.setAttribute('crowdOrient', new THREE.InstancedBufferAttribute(orient, 3));
   g.setAttribute('crowdStill', new THREE.InstancedBufferAttribute(still, 1));
+  // Numéro de chaque spectateur dans tout le public (tirages de couleur, de geste et de phase) : avec le rang dans
+  // le maillage (instanceIndex), le n-ième spectateur de chaque tronçon aurait la même tenue et le même geste.
+  g.setAttribute('crowdId', new THREE.InstancedBufferAttribute(ids ?? Float32Array.from(still, (_, i) => i), 1));
   // Sphère élargie aux bras levés (le maillage bouge dans le nuanceur).
   if (src.boundingSphere) g.boundingSphere = src.boundingSphere.clone();
   return g;
@@ -187,8 +189,9 @@ export function spectatorMaterial(asset: SpectatorAsset, seed = 0): THREE.MeshSt
   const mat = new THREE.MeshStandardNodeMaterial({ side: THREE.DoubleSide });
   const o = attribute<'vec3'>('crowdOrient', 'vec3') as unknown as ReturnType<typeof vec3>;
   const holder = attribute<'float'>('crowdStill', 'float') as unknown as ReturnType<typeof float>;
-  const h = hash(instanceIndex.add(5 + seed)) as unknown as F;
-  const hp = hash(instanceIndex.add(17 + seed)) as unknown as F;
+  const id = attribute<'float'>('crowdId', 'float') as unknown as F;
+  const h = hash(id.add(5 + seed)) as unknown as F;
+  const hp = hash(id.add(17 + seed)) as unknown as F;
   const c0 = meta.clips[0] as SpectatorMeta['clips'][number];
   const c1 = meta.clips[1] ?? c0;
   // Clip « clap » (applaudissements à peine visibles de loin) pour un spectateur sur quatre ; les autres acclament.
@@ -217,7 +220,7 @@ export function spectatorMaterial(asset: SpectatorAsset, seed = 0): THREE.MeshSt
     normalLocal.assign(rot(n as unknown as V3));
     // Porteurs de pancarte (pose tenue) : lent balancement d'un pied sur l'autre, sans mouvement vertical,
     // nul aux pieds et croissant avec la hauteur, pour qu'ils ne restent pas figés.
-    const hb = hash(instanceIndex.add(29 + seed)) as unknown as F;
+    const hb = hash(id.add(29 + seed)) as unknown as F;
     const isHolder = holder.greaterThan(0.5).select(float(1), float(0));
     const lean = sin(time.mul(float(1.1).add(hb.mul(0.5))).add(hb.mul(17))).mul(0.04).mul(isHolder).mul(p.y.div(1.7));
     return positionLocal.add(rot(d.add(vec3(lean, 0, 0)) as unknown as V3).mul(o.z));
@@ -231,10 +234,10 @@ export function spectatorMaterial(asset: SpectatorAsset, seed = 0): THREE.MeshSt
   // (rapport^0,75 borné à 3, référence de 0,016 à 0,05 pour les cheveux et pantalons sombres), la moindre trace
   // claire de la texture devenait une tache presque blanche.
   const tint = (c: V3, ref: number) => c.mul(pow(clamp(lum.div(Math.max(ref, TINT_REF_MIN)), TINT_LO, TINT_HI), 0.6)) as unknown as V3;
-  const skin = pick(SKINS, hash(instanceIndex.add(101 + seed)) as unknown as F);
-  const hair = pick(HAIRS, hash(instanceIndex.add(202 + seed)) as unknown as F);
-  const top = pick(TOPS, hash(instanceIndex.add(303 + seed)) as unknown as F);
-  const bottom = pick(BOTTOMS, hash(instanceIndex.add(404 + seed)) as unknown as F);
+  const skin = pick(SKINS, hash(id.add(101 + seed)) as unknown as F);
+  const hair = pick(HAIRS, hash(id.add(202 + seed)) as unknown as F);
+  const top = pick(TOPS, hash(id.add(303 + seed)) as unknown as F);
+  const bottom = pick(BOTTOMS, hash(id.add(404 + seed)) as unknown as F);
   let col = tex.rgb as unknown as V3;
   col = mix(col, tint(skin, meta.refLum.skin), m.r as unknown as F) as unknown as V3;
   col = mix(col, tint(hair, meta.refLum.hair), m.g as unknown as F) as unknown as V3;

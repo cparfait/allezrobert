@@ -494,22 +494,24 @@ export class Crowd {
         const total = assets.reduce((n, a) => n + a.weight, 0);
         const pick = rng(4242);
         // Un groupe par tronçon de route et par personnage ; un seul matériau par personnage, partagé.
-        const groups = new Map<string, { k: number; mats: THREE.Matrix4[]; orient: number[]; still: number[] }>();
+        const groups = new Map<string, { k: number; mats: THREE.Matrix4[]; orient: number[]; still: number[]; ids: number[] }>();
         mats.forEach((mm, i) => {
           let x = pick() * total;
           let k = 0;
           while (k < assets.length - 1 && x >= (assets[k] as (typeof assets)[number]).weight) x -= (assets[k++] as (typeof assets)[number]).weight;
           const key = `${bins[i] as number}:${k}`;
           let g = groups.get(key);
-          if (!g) groups.set(key, (g = { k, mats: [], orient: [], still: [] }));
+          if (!g) groups.set(key, (g = { k, mats: [], orient: [], still: [], ids: [] }));
           g.mats.push(mm);
           g.orient.push(orient[i * 3] as number, orient[i * 3 + 1] as number, orient[i * 3 + 2] as number);
           g.still.push(still[i] as number);
+          // Numéro dans tout le public : tirages de tenue et de geste propres à chacun, quel que soit le tronçon.
+          g.ids.push(i);
         });
         const materials = assets.map((asset, k) => spectatorMaterial(asset, k * 1009));
         for (const [key, g] of groups) {
           const asset = assets[g.k] as (typeof assets)[number];
-          const geometry = spectatorGeometry(asset, Float32Array.from(g.orient), Float32Array.from(g.still));
+          const geometry = spectatorGeometry(asset, Float32Array.from(g.orient), Float32Array.from(g.still), Float32Array.from(g.ids));
           const mesh = new THREE.InstancedMesh(geometry, materials[g.k] as THREE.Material, g.mats.length);
           g.mats.forEach((mm, i) => mesh.setMatrixAt(i, mm));
           mesh.instanceMatrix.needsUpdate = true;
@@ -646,8 +648,9 @@ export class Crowd {
         l.mesh.instanceMatrix.needsUpdate = true;
         l.attr.needsUpdate = true;
       }
-      // Au repos dès qu'aucun spectateur du tronçon ne bouge plus (hors de portée, ils sont revenus face à la route).
-      l.settled = !changed;
+      // Au repos (revenus face à la route) seulement si le coureur est hors de portée : tant qu'il est là, ils restent tournés vers lui même
+      // immobiles, et un saut de position (reprise, téléportation) les laissait tournés pour de bon.
+      l.settled = !near && !changed;
     }
   }
 
