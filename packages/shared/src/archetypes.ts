@@ -9,6 +9,7 @@
  */
 import archetypesJson from './styles/archetypes.json' with { type: 'json' };
 import montmartre from './styles/worlds/montmartre.json' with { type: 'json' };
+import boulogne from './styles/worlds/boulogne-billancourt.json' with { type: 'json' };
 
 /** Matériau de façade : enduit, meulière, brique, moellons, pierre de taille, béton. */
 export type WallMaterial = 'render' | 'meuliere' | 'brick' | 'rubble' | 'ashlar' | 'concrete';
@@ -94,6 +95,7 @@ export const ARCHETYPES: Record<string, Archetype> = (archetypesJson as unknown 
 
 const STYLES: Record<string, WorldStyle> = {
   montmartre: montmartre as unknown as WorldStyle,
+  'idf-boulogne-billancourt': boulogne as unknown as WorldStyle,
 };
 
 /** Profil de style d'un monde, ou null (rendu historique). */

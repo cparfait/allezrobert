@@ -1,0 +1,17 @@
+{
+  "world": "idf-boulogne-billancourt",
+  "label": "Boulogne-Billancourt",
+  "notes": "Profil parisien (mêmes archétypes que Montmartre), demande du 18/11/2026 : à Boulogne, immeubles de ville et non bâtiments de campagne. Ajusté à la commune : plus d'immeubles de brique et de béton des années 1930 et d'après-guerre, tours modernes, pavillons de faubourg pour le bâti bas.",
+  "skipKinds": ["shed", "garage", "garages", "barn", "greenhouse", "roof", "industrial", "ruins", "church", "chapel", "tower", "castle"],
+  "rules": [
+    { "when": { "material": ["concrete"] }, "pick": { "moderne": 1 } },
+    { "when": { "minLevels": 10 }, "pick": { "moderne": 1 } },
+    { "when": { "material": ["brick"] }, "pick": { "brique": 1 } },
+    { "when": { "material": ["stone"], "minLevels": 5 }, "pick": { "haussmann": 0.8, "faubourien": 0.2 } },
+    { "when": { "material": ["stone"], "minLevels": 3 }, "pick": { "faubourien": 0.6, "haussmann": 0.4 } },
+    { "when": { "material": ["render", "wood"], "minLevels": 3 }, "pick": { "faubourien": 1 } },
+    { "when": { "minLevels": 6 }, "pick": { "haussmann": 0.45, "moderne": 0.3, "brique": 0.25 } },
+    { "when": { "minLevels": 3 }, "pick": { "faubourien": 0.65, "brique": 0.35 } },
+    { "when": {}, "pick": { "maison_faubourg": 1 } }
+  ]
+}

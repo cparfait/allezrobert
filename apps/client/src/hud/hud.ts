@@ -550,7 +550,7 @@ export class Hud {
         </div>
       </div>
       <div class="hud-col hud-col-right">
-        <div class="panel minimap" data-hud="map"><canvas width="460" height="460"></canvas></div>
+        <div class="panel minimap" data-hud="map"><canvas width="460" height="460"></canvas><div class="map-town hidden" data-k="mapTown"></div></div>
         ${groupPanel(getLang() === 'fr')}
         <div class="panel riders" data-k="riders" data-hud="riders"></div>
         <div class="chat" data-k="chat"><div class="chat-log" data-k="chatLog"></div><input class="chat-input hidden" data-k="chatInput" maxlength="200" /></div>
@@ -954,11 +954,18 @@ export class Hud {
     this.updateGroup(s, fr);
 
     const loc = e.loc as HTMLElement;
+    const mapTown = e.mapTown as HTMLElement | undefined;
     const placeKey = s.place ? `${s.place.town}|${s.place.road ?? ''}` : '';
     if (loc.dataset.k2 !== placeKey) {
       loc.dataset.k2 = placeKey;
-      loc.classList.toggle('hidden', !s.place);
+      // Disposition large : le lieu est écrit dans la mini-carte ronde (le haut de l'écran reste dégagé).
+      loc.classList.toggle('hidden', !s.place || !!mapTown);
       if (s.place) loc.innerHTML = `${ICONS.pin}<b>${s.place.town.replace(/[<>&]/g, '')}</b>${s.place.road ? `<span>${s.place.road.replace(/[<>&]/g, '')}</span>` : ''}`;
+      if (mapTown) {
+        mapTown.classList.toggle('hidden', !s.place);
+        mapTown.textContent = s.place ? s.place.town : '';
+        mapTown.title = s.place?.road ?? '';
+      }
     }
 
     // Reconstruits seulement s'ils ont changé (10 fois par seconde sinon, boutons compris).
@@ -1376,7 +1383,7 @@ export class Hud {
         const flag = flagSvg(r.nationality, 13);
         const name = shortName(r.name).replace(/[<>&]/g, '');
         const title = [r.me ? t('you') : r.isAI ? t('ai') : r.isGuest ? t('guest') : '', lvlName].filter(Boolean).join(' · ');
-        return `<div class="row nb ${r.me ? 'me' : ''}${r.group ? ' grp' : ''}" title="${title}"><span class="nb-l"><i class="nb-lvl l${lvl}" style="--c:${r.me ? '#ffd23f' : r.color}"><b></b><b></b><b></b><b></b></i><b class="nb-gap num">${time}</b></span><span class="nb-r"><b class="nb-n">${r.friend ? `<em class="rd-friend" title="${fr ? 'Ami' : 'Friend'}">★</em>` : ''}${rideOn}${r.group ? `<i class="nb-grp" title="${fr ? 'Mon groupe' : 'My group'}"></i>` : ''}<span class="nb-name">${name}${r.speaking ? ' 🔊' : ''}</span>${flag ? `<span class="rd-flag" title="${countryName(r.nationality, fr ? 'fr' : 'en')}">${flag}</span>` : ''}</b><small class="nb-sub num">${verdict}${sub}</small></span></div>`;
+        return `<div class="row nb ${r.me ? 'me' : ''}${r.group ? ' grp' : ''}" title="${title}"><span class="nb-l"><i class="nb-lvl l${lvl}" title="${lvlName}"><b></b><b></b><b></b><b></b></i><b class="nb-gap num">${time}</b></span><span class="nb-r"><b class="nb-n">${r.friend ? `<em class="rd-friend" title="${fr ? 'Ami' : 'Friend'}">★</em>` : ''}${rideOn}${r.group ? `<i class="nb-grp" title="${fr ? 'Mon groupe' : 'My group'}"></i>` : ''}<span class="nb-name">${name}${r.speaking ? ' 🔊' : ''}</span>${flag ? `<span class="rd-flag" title="${countryName(r.nationality, fr ? 'fr' : 'en')}">${flag}</span>` : ''}</b><small class="nb-sub num">${verdict}${sub}</small></span></div>`;
       })
       .join('');
     return head + rows;
