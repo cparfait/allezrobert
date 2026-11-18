@@ -190,3 +190,10 @@ span.mm-bikeicon { display: block; }
 .ar-v3-garage .v3-dd .mm-dd-btn { padding: 7px 10px; border-radius: 8px; font-size: 13px; }
 .v3-dd-list .mm-dd-opt { font-size: 13px; padding: 6px 9px; }
 .v3-dd-list .v3-dd-group { margin: 6px 4px 2px; font: 700 9.5px/1.2 var(--mono, monospace); letter-spacing: 0.1em; text-transform: uppercase; color: #8d98a6; }
+/* Objets pas encore gagnés (progression Beta) : montrés atténués avec un cadenas, comme aux garages Réel et Poly. */
+.ar-v3-garage .mm-bike.locked { opacity: 0.6; }
+.ar-v3-garage .mm-bike.locked:hover { opacity: 0.85; }
+.ar-v3-garage .v3-locked { display: inline-flex; align-items: center; gap: 4px; color: #aeb7c3; }
+.ar-v3-garage .gr-chip.v3-chip.locked { filter: saturate(0.5) brightness(0.75); }
+.ar-v3-garage .gr-chip.v3-chip.locked:hover { filter: none; }
+.ar-v3-garage .gr-chip.v3-chip { position: relative; }

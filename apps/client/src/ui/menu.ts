@@ -549,6 +549,8 @@ export class MainMenu {
   onAtelier?: (st: AtelierState | null) => void;
   /** Pièce du vélo 3D sous le pointeur (coordonnées écran) : emplacement d'atelier, null si aucune. */
   onAtelierPick?: (x: number, y: number) => import('@allezrobert/shared').TuneSlot | null;
+  /** Style Beta : clic sur la vue du garage (pièce du coureur ou du vélo V3 → sa rubrique, qui pulse). */
+  onV3Pick?: (x: number, y: number) => boolean;
   /** Éditeur de visage : groupe de curseurs, tête nue dans l'aperçu, tenues précédentes (annulation). */
   private faceTab: FaceTab = 'head';
   private bareHead = true;
@@ -611,6 +613,8 @@ export class MainMenu {
   onScene?: (view: 'poster' | GarageView, yaw: number, bikeOnly?: boolean, zoom?: number) => void;
   /** Style V3 : emplacements du panneau du garage (corps, tête du panneau) à remplir par l'atelier. */
   onV3Garage?: (body: HTMLElement | null, top: HTMLElement | null) => void;
+  /** Style Beta : récompense de la page Progression (`gear:…`, `bike:…`, `wheel:…`) à montrer au garage. */
+  onV3Reveal?: (id: string) => void;
   /** Aperçu d'un équipement (même verrouillé) sur le coureur du garage ; null : tenue équipée. */
   onPreviewLook?: (look: AvatarLook | null) => void;
   /** Carte du choix (sous « Choisir ma sortie ») : seulement après un choix fait dans ce menu. */
@@ -820,8 +824,17 @@ export class MainMenu {
       look: () => this.s.look,
       cosmeticSwatch: swatch,
       bikeIcon: (colors) => bikeIcon(colors),
-      openCosmetic: (item) => this.openInGarage(item),
+      openCosmetic: (item) => {
+        this.leaveProgress();
+        this.openInGarage(item);
+      },
+      openV3: (id) => {
+        this.leaveProgress();
+        this.go('garage');
+        this.onV3Reveal?.(id);
+      },
       openTune: (id) => {
+        this.leaveProgress();
         if (this.garageSlot !== 'atelier') this.garageSlot = 'atelier';
         this.atelier.openItem(id);
         this.go('garage');
@@ -915,10 +928,19 @@ export class MainMenu {
     this.root.innerHTML = '';
   }
 
+  /** Arrivée au garage depuis une fiche de la page Progression : bouton de retour affiché au garage. */
+  private fromProgress = false;
+
+  private leaveProgress(): void {
+    this.progress.keep();
+    this.fromProgress = true;
+  }
+
   private go(tab: Tab): void {
     if (tab !== 'garage') clearInterval(this.blinkTimer);
+    if (tab !== 'garage') this.fromProgress = false;
     this.picker = null;
-    if (tab !== 'progress') this.progress.reset();
+    if (tab !== 'progress' && !this.fromProgress) this.progress.reset();
     if (tab !== 'garage' && this.previews.size) {
       this.previews.clear();
       this.onPreviewLook?.(null);
@@ -2019,7 +2041,9 @@ export class MainMenu {
       <div class="mm-views">${views.map(([v, label]) => `<button class="mm-view ${v === this.view ? 'on' : ''}" data-view="${v}">${label}</button>`).join('')}
         <span class="mm-drag">${ICON.rotate} ${L ? 'Glisser pour tourner' : 'Drag to rotate'}</span></div>`;
     const reopen = `<button class="gr-reopen" data-gr="open" ${this.grFolded ? '' : 'hidden'}>‹ Menu</button>`;
-    if (V3_STYLE) return `${camera}${reopen}
+    // Venu d'une fiche de la page Progression : retour direct à la frise, au même endroit.
+    const back = this.fromProgress ? `<button class="gr-back" data-grback>‹ ${L ? 'Retour à la progression' : 'Back to progress'}</button>` : '';
+    if (V3_STYLE) return `${camera}${back}${reopen}
       <section class="mm-panel mm-side gr-panel${this.grFolded ? ' gr-folded' : ''}">
         <div class="gr-top">${this.garageHeader(lp, p.xp)}<div data-v3-top></div></div>
         <div class="gr-body" data-v3-garage></div>
@@ -2067,7 +2091,7 @@ export class MainMenu {
             .join('')}</div>`;
     return `${camera}
       ${isFaceSlot(this.garageSlot) ? '' : this.roadEffect()}
-      ${reopen}
+      ${back}${reopen}
       <section class="mm-panel mm-side gr-panel${this.grFolded ? ' gr-folded' : ''}">
         <div class="gr-top">${this.garageHeader(lp, p.xp)}${this.garageNav()}</div>
         <div class="gr-body">${items}</div>
@@ -3555,6 +3579,7 @@ export class MainMenu {
         zone.setPointerCapture(e.pointerId);
       });
       zone.addEventListener('pointermove', (e) => {
+    this.root.querySelector<HTMLElement>('[data-grback]')?.addEventListener('click', () => this.go('progress'));
         if (lastX === null) return;
         if (this.garageSlot === 'atelier') {
           this.atelier.yaw -= (e.clientX - lastX) * 0.008;
@@ -3590,6 +3615,13 @@ export class MainMenu {
           }
         },
         { passive: false },
+        } else if (e.type === 'pointerup' && downAt && V3_STYLE && Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]) < 5) {
+          // Style Beta : la pièce cliquée (vélo, roue, maillot, gants…) ouvre sa rubrique et pulse sur le coureur.
+          if (this.grFolded && this.onV3Pick?.(e.clientX, e.clientY)) {
+            this.grFolded = false;
+            this.root.querySelector('.gr-panel')?.classList.remove('gr-folded');
+            this.root.querySelector<HTMLElement>('.gr-reopen')?.toggleAttribute('hidden', true);
+          } else this.onV3Pick?.(e.clientX, e.clientY);
       );
       zone.addEventListener('pointerup', up);
       zone.addEventListener('pointercancel', up);

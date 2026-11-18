@@ -271,6 +271,8 @@ export class AtelierHost {
   private v3Panel?: ReturnType<typeof createV3Garage>;
   private v3Container: HTMLElement | null = null;
   private v3Top: HTMLElement | null = null;
+  /** Pièce à montrer au garage Beta (page Progression) quand le panneau n'est pas encore créé. */
+  private v3Reveal?: string;
   private v3Studio?: V3ThumbnailStudio;
   private v3Pose?: string;
   private v3Playing = false;
@@ -300,6 +302,12 @@ export class AtelierHost {
     if (side && this.v3Panel.road.nextElementSibling !== side) side.before(this.v3Panel.road);
   }
 
+  /** Récompense Beta choisie dans la page Progression (`gear:…`, `bike:…`, `wheel:…`) : montrée au garage. */
+  revealV3(id: string): void {
+    if (this.v3Panel) void this.v3Panel.reveal(id).catch((error: unknown) => this.v3Panel?.report(error));
+    else this.v3Reveal = id;
+  }
+
   private setV3(st: AtelierState): void {
     if (!V3_STYLE || !(this.avatar instanceof GltfRiderAvatar)) return;
     if (st.v3Picker && !this.v3Panel) {
@@ -311,6 +319,7 @@ export class AtelierHost {
         },
         pose: pose => { this.v3Pose = pose; this.frames = Math.max(this.frames, 2); },
         playing: on => { this.v3Playing = on; this.frames = Math.max(this.frames, 2); },
+        highlight: (target, delayed) => this.v3?.highlight(target, delayed),
         sex: () => this.v3?.riderSex(),
         bareHead: on => { this.v3BareHead = on; this.frames = Math.max(this.frames, 2); },
         photoBike: (id, wanted) => this.studio().photoBike(id, wanted),
@@ -318,6 +327,10 @@ export class AtelierHost {
         photo: (item, sex, wanted) => this.studio().photo(item, sex, wanted),
       });
       this.setV3Container(this.v3Container, this.v3Top);
+      if (this.v3Reveal) {
+        this.revealV3(this.v3Reveal);
+        this.v3Reveal = undefined;
+      }
     }
     if (this.v3Panel) this.v3Panel.panel.hidden = this.v3Panel.top.hidden = !st.v3Picker;
     // Garage V3 ouvert : toutes les vignettes manquantes sont photographiées d'avance, une seule fois (gardées sur le serveur).
@@ -335,6 +348,31 @@ export class AtelierHost {
     onBikeFamilyLoaded(() => {
       if (this.state) this.frames = Math.max(this.frames, 2);
     });
+  }
+
+  /**
+   * Style Beta : clic sur la vue du garage. La pièce du coureur ou du vélo V3 sous le pointeur ouvre sa rubrique du
+   * garage Beta et pulse ; `false` si rien d'interchangeable n'est touché.
+   */
+  pickV3(clientX: number, clientY: number): boolean {
+    if (!this.v3 || !this.v3Panel) return false;
+    const canvas = this.engine.renderer.domElement;
+    const r = canvas.getBoundingClientRect();
+    const ndc = new THREE.Vector2(((clientX - r.left) / r.width) * 2 - 1, -((clientY - r.top) / r.height) * 2 + 1);
+    const ray = new THREE.Raycaster();
+    this.camera.updateMatrixWorld();
+    ray.setFromCamera(ndc, this.camera);
+    // Home trainer (monté par l'atelier, hors du coureur V3) : le plus proche des deux s'il est devant.
+    const trainerHit = this.trainer ? ray.intersectObject(this.trainer.group, true).find(hit => (hit.object as THREE.Mesh).isMesh && hit.object.visible) : undefined;
+    const part = this.v3.partAt(ray);
+    if (trainerHit && this.trainer && (!part || trainerHit.distance < part.distance)) {
+      this.v3.highlight({ kind: 'object', root: this.trainer.group });
+      void this.v3Panel.focusPart({ kind: 'trainer' }).catch((error: unknown) => this.v3Panel?.report(error));
+      return true;
+    }
+    if (!part) return false;
+    void this.v3Panel.focusPart(part).catch((error: unknown) => this.v3Panel?.report(error));
+    return true;
   }
 
   /**

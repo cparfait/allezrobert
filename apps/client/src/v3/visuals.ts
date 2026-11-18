@@ -1,6 +1,7 @@
 import { lookSex, type AvatarLook } from '@allezrobert/shared';
-import { Box3, Group, Quaternion, SRGBColorSpace, Texture, TextureLoader, Vector3, type Bone, type Material, type Mesh, type MeshStandardMaterial, type Object3D } from 'three/webgpu';
+import { Box3, Color, Group, MeshStandardMaterial, MeshStandardNodeMaterial, Quaternion, type Raycaster, SRGBColorSpace, Texture, TextureLoader, Vector3, type Bone, type Material, type Mesh, type Object3D } from 'three/webgpu';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { abs, clamp, float, materialColor, mix, positionGeometry, step, uniform, vec3 } from 'three/tsl';
 import type { RiderPose } from '../rider/gltfAvatar.ts';
 import { rootNeutral, sampleV3, sampleV3At, type V3Clip } from './animation.ts';
 import { loadSettings } from '../ui/settings.ts';
@@ -109,8 +110,15 @@ export function resolvedBody(equipment: V3Equipment, sex: 'male' | 'female'): V3
 }
 export type V3Equipment = {
   bike: string; color: number; hue?: number; sex?: 'male' | 'female'; kit?: Record<string, V3GearSelection>; sockHeight?: V3SockHeight;
-  /** Ouverture du maillot : 0 fermé (d'origine), 1 ouvert en V (maillot 40 du corps Zwift). */
+  /**
+   * Manches du maillot : 0 courtes, col en V (maillot 3 du corps Zwift, d'origine), 1 longues, col rond (maillot 40).
+   * Nom `zip` gardé pour les réglages déjà enregistrés.
+   */
   zip?: number;
+  /** Poches du maillot, dans le dos : 0 vides (d'origine) à 4 pleines (pièces 9 à 12 du corps Zwift, 55 à 58 en manches longues). */
+  pockets?: number;
+  /** Maillot ouvert (fermeture éclair descendue sur la poitrine), manches courtes comme longues ; fermé d'origine. */
+  open?: boolean;
   /** Corps Zwift : standard, mince ou fort (fort : coureur seulement). */
   body?: V3Body;
   /** Couleurs des cheveux et de la barbe : case 0 à 5 des planches Zwift. */
@@ -219,15 +227,93 @@ export function itemFits(item: Pick<V3Gear, 'sex' | 'name' | 'variant'>, sex: 'm
   return own === 'tous' || own === sex;
 }
 
-/** Ouverture du maillot : les deux maillots du corps Zwift, fermé (3) ou ouvert en V sur la poitrine (40). */
+/** Coupe du maillot : les deux maillots du corps Zwift, manches courtes et col en V (3) ou manches longues et col rond (40). */
 const ZIP_JERSEYS = [3, 40];
-export const V3_ZIPS = ['Fermé', 'Ouvert'];
+export const V3_ZIPS = ['Courtes', 'Longues'];
+/** Contenu des poches arrière (pièces du corps Zwift posées sur le maillot, de plus en plus remplies). */
+export const V3_POCKETS = ['Vides', 'Peu', 'Moyennes', 'Remplies', 'Pleines'];
+export const V3_OPENINGS = ['Fermé', 'Ouvert'];
+const POCKETS_SHORT = [9, 10, 11, 12];
+const POCKETS_LONG = [55, 56, 57, 58];
 
-/** Montre le maillot fermé (d'origine) ou ouvert ; la texture du maillot porté s'applique aux deux. */
-export function showZip(rider: RiderVisual, zip = 0): void {
-  // Corps féminin : pas de maillot ouvert (son groupe 40 est le déguisement de dinosaure de Zwift).
-  const shown = ZIP_JERSEYS[zip > 0 && rider.sex === 'male' ? 1 : 0];
+/**
+ * Ouverture du maillot : le corps Zwift n'a pas de maillot ouvert (ni morphose, ni pièce) et pas de peau sous le haut
+ * du maillot. L'ouverture est donc dessinée : un V de peau sous le col, sur le devant, bordé d'une fermeture éclair
+ * sombre. Le dessin suit la pose de repos (positionGeometry), donc les animations, et vaut pour les deux maillots.
+ */
+const openingUniforms = () => ({ on: uniform(0), skin: uniform(new Color(0.78, 0.58, 0.46)) });
+type Opening = ReturnType<typeof openingUniforms> & { bottom: number; top: number; width: number };
+function openableJersey(source: MeshStandardMaterial, opening: Opening): MeshStandardNodeMaterial {
+  const material = new MeshStandardNodeMaterial();
+  material.name = source.name;
+  material.map = source.map;
+  material.normalMap = source.normalMap;
+  material.normalScale.copy(source.normalScale);
+  material.color.copy(source.color);
+  material.roughness = source.roughness;
+  material.metalness = source.metalness;
+  material.roughnessMap = source.roughnessMap;
+  material.metalnessMap = source.metalnessMap;
+  material.side = source.side;
+  material.transparent = source.transparent;
+  material.opacity = source.opacity;
+  material.alphaTest = source.alphaTest;
+  const p = positionGeometry;
+  const top = float(opening.top);
+  const bottom = float(opening.bottom);
+  // V : demi-largeur `width` au col, quelques millimètres en bas de la fermeture.
+  const t = clamp(top.sub(p.y).div(top.sub(bottom)), 0, 1);
+  const half = mix(float(opening.width), float(0.004), t);
+  const zone = step(bottom, p.y).mul(step(float(0), p.x)).mul(opening.on);
+  const skin = step(abs(p.z), half).mul(zone);
+  const zip = step(abs(p.z), half.add(0.0055)).mul(zone).sub(skin);
+  material.colorNode = mix(mix(materialColor.rgb, vec3(0.07, 0.07, 0.08), zip), opening.skin, skin);
+  return material;
+}
+
+/** Teinte de peau du coureur : pixel médian de la texture du visage porté (planche FLESH). */
+const skinTones = new WeakMap<object, Color>();
+function skinTone(rider: RiderVisual): Color {
+  const fallback = new Color(0.78, 0.58, 0.46);
+  const flesh = rider.originalMaterials.find(({ material }) => /^FLESH$/i.test(material.name))?.material.map
+    ?? rider.originalMaterials.find(({ material }) => /^FLESH/i.test(material.name))?.material.map;
+  const image = flesh?.image as (CanvasImageSource & { width: number }) | undefined;
+  if (!image?.width || typeof document === 'undefined') return fallback;
+  const known = skinTones.get(image);
+  if (known) return known;
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = 32;
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  if (!ctx) return fallback;
+  ctx.drawImage(image, 0, 0, 32, 32);
+  const data = ctx.getImageData(0, 0, 32, 32).data;
+  const pixels: Array<[number, number, number, number]> = [];
+  for (let i = 0; i < data.length; i += 4) {
+    if (data[i + 3]! < 200) continue;
+    pixels.push([0.299 * data[i]! + 0.587 * data[i + 1]! + 0.114 * data[i + 2]!, data[i]!, data[i + 1]!, data[i + 2]!]);
+  }
+  if (!pixels.length) return fallback;
+  pixels.sort((a, b) => a[0] - b[0]);
+  const [, r, g, b] = pixels[Math.floor(pixels.length * 0.8)]!;
+  const tone = new Color().setRGB(r / 255, g / 255, b / 255, SRGBColorSpace);
+  skinTones.set(image, tone);
+  return tone;
+}
+
+/**
+ * Montre le maillot à manches courtes (d'origine) ou longues et ses poches ; la texture du maillot porté s'applique
+ * à toutes ces pièces.
+ */
+export function showZip(rider: RiderVisual, zip = 0, pockets = 0, open = false): void {
+  rider.opening.on.value = open ? 1 : 0;
+  if (open) rider.opening.skin.value.copy(skinTone(rider));
+  // Corps féminin : pas de manches longues (son groupe 40 est le déguisement de dinosaure de Zwift) ; corps fort
+  // masculin : pas de groupe 40 du tout (manches courtes gardées, sinon le coureur n'aurait plus de haut).
+  const long = zip > 0 && rider.sex === 'male' && rider.groups.some(group => group.id === 40);
+  const shown = ZIP_JERSEYS[long ? 1 : 0];
   for (const { id, node } of rider.groups) if (ZIP_JERSEYS.includes(id)) node.visible = id === shown;
+  const pocket = pockets > 0 ? (long ? POCKETS_LONG : POCKETS_SHORT)[Math.min(pockets, 4) - 1] : undefined;
+  for (const { id, node } of rider.groups) if (POCKETS_SHORT.includes(id) || POCKETS_LONG.includes(id)) node.visible = id === pocket;
 }
 
 export function showSockHeight(rider: RiderVisual, height: V3SockHeight = 'low'): void {
@@ -318,7 +404,147 @@ async function model(path: string): Promise<Group> {
     mesh.castShadow = true;
     mesh.receiveShadow = true;
   });
+  // Pneus unis : inscriptions claires des flancs (marques, tailles) effacées, roues des vélos et paires de roues.
+  if (path.startsWith('bike/') || path.startsWith('wheel/')) plainTyres(result.scene, path.startsWith('wheel/'));
   return result.scene;
+}
+
+/** Rayon du talon d'une roue de 700c (jante ISO 622) : au-delà, c'est le pneu. */
+const TYRE_BEAD = 0.3105;
+/** Triangle du pneu : tous ses sommets au-delà du talon et son centre nettement dehors (pas l'arête de la jante). */
+const TYRE_CENTER = 0.3135;
+
+/**
+ * Pneus sans inscriptions : dans les textures Zwift, le pneu partage souvent la planche de la jante (lettrage blanc
+ * de la jante étiré sur les flancs). Les triangles du pneu sont retrouvés par la géométrie ; si la zone de texture
+ * qu'ils lisent porte du lettrage clair, ils passent sur un matériau de gomme unie (couleur ordinaire de cette zone).
+ * Les pneus sans lettrage (flancs bruns de la roue classique) gardent leur texture ; jante et rayons ne changent pas.
+ */
+function plainTyres(root: Object3D, whole: boolean): void {
+  const found: Array<{ mesh: Mesh; map: Texture; tyre: number[] }> = [];
+  const uvTriangles = new Map<Texture, number[][]>();
+  root.traverse(node => {
+    const mesh = node as Mesh;
+    if (!mesh.isMesh || Array.isArray(mesh.material)) return;
+    if (!whole) {
+      let wheel = false;
+      for (let at: Object3D | null = mesh; at && !wheel; at = at.parent) wheel = /^(FrontWheel|RearWheel)(?:_|$)/.test(at.name);
+      if (!wheel) return;
+    }
+    const map = (mesh.material as MeshStandardMaterial).map;
+    const position = mesh.geometry.getAttribute('position');
+    const uv = mesh.geometry.getAttribute('uv');
+    if (!map?.image || !position || !uv) return;
+    // Axe de la roue : la plus petite dimension du modèle (les deux autres portent le rayon).
+    mesh.geometry.computeBoundingBox();
+    const size = mesh.geometry.boundingBox!.getSize(new Vector3());
+    if (Math.max(size.x, size.y, size.z) / 2 < TYRE_BEAD + 0.005) return;
+    const axis = size.x < size.y && size.x < size.z ? 0 : size.y < size.z ? 1 : 2;
+    const center = mesh.geometry.boundingBox!.getCenter(new Vector3());
+    const radius = (i: number) => {
+      const q = [position.getX(i) - center.x, position.getY(i) - center.y, position.getZ(i) - center.z];
+      q[axis] = 0;
+      return Math.hypot(q[0]!, q[1]!, q[2]!);
+    };
+    const index = mesh.geometry.getIndex();
+    const count = index ? index.count : position.count;
+    const tyre: number[] = [];
+    const triangles = uvTriangles.get(map) ?? [];
+    for (let t = 0; t + 2 < count; t += 3) {
+      const ids = [0, 1, 2].map(k => (index ? index.getX(t + k) : t + k));
+      const r = ids.map(radius);
+      if (r.some(value => value <= TYRE_BEAD) || (r[0]! + r[1]! + r[2]!) / 3 <= TYRE_CENTER) continue;
+      tyre.push(t);
+      triangles.push(ids.flatMap(i => [uv.getX(i), uv.getY(i)]));
+    }
+    if (!tyre.length) return;
+    uvTriangles.set(map, triangles);
+    found.push({ mesh, map, tyre });
+  });
+  const rubbers = new Map<Texture, MeshStandardMaterial | null>();
+  for (const { mesh, map, tyre } of found) {
+    if (!rubbers.has(map)) {
+      const color = letteredTyreColor(map, uvTriangles.get(map)!);
+      rubbers.set(map, color ? new MeshStandardMaterial({ color, roughness: 0.85, metalness: 0, name: 'pneu uni' }) : null);
+    }
+    const rubber = rubbers.get(map);
+    if (!rubber) continue;
+    // Index refait : triangles ordinaires d'abord (matériau d'origine), puis ceux du pneu (gomme unie).
+    const geometry = mesh.geometry;
+    const index = geometry.getIndex();
+    const count = index ? index.count : geometry.getAttribute('position').count;
+    const isTyre = new Uint8Array(count / 3);
+    for (const t of tyre) isTyre[t / 3] = 1;
+    const order: number[] = [];
+    for (const pass of [0, 1]) for (let t = 0; t + 2 < count; t += 3) {
+      if (isTyre[t / 3] !== pass) continue;
+      for (let k = 0; k < 3; k++) order.push(index ? index.getX(t + k) : t + k);
+    }
+    geometry.setIndex(order);
+    geometry.clearGroups();
+    geometry.addGroup(0, count - tyre.length * 3, 0);
+    geometry.addGroup(count - tyre.length * 3, tyre.length * 3, 1);
+    mesh.material = [mesh.material as Material, rubber];
+  }
+}
+
+/**
+ * Couleur de gomme d'un pneu si la zone de texture qu'il lit porte du lettrage clair (sinon `null` : texture gardée).
+ * Zone retrouvée en posant ses triangles dans l'espace de la texture (coordonnées répétées ramenées dans [0, 1[).
+ */
+function letteredTyreColor(map: Texture, triangles: number[][]): Color | null {
+  const image = map.image as CanvasImageSource & { width: number; height: number };
+  const w = Math.min(512, image.width);
+  const h = Math.min(512, image.height);
+  if (!w || !h || typeof document === 'undefined') return null;
+  const canvas = document.createElement('canvas');
+  canvas.width = w;
+  canvas.height = h;
+  const maskCanvas = document.createElement('canvas');
+  maskCanvas.width = w;
+  maskCanvas.height = h;
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  const mask = maskCanvas.getContext('2d', { willReadFrequently: true });
+  if (!ctx || !mask) return null;
+  ctx.drawImage(image, 0, 0, w, h);
+  mask.fillStyle = '#fff';
+  for (const tri of triangles) {
+    const du = Math.floor(Math.min(tri[0]!, tri[2]!, tri[4]!));
+    const dv = Math.floor(Math.min(tri[1]!, tri[3]!, tri[5]!));
+    for (const ox of [0, -1]) for (const oy of [0, -1]) {
+      mask.beginPath();
+      for (let k = 0; k < 3; k++) {
+        const x = (tri[k * 2]! - du + ox) * w;
+        const y = (tri[k * 2 + 1]! - dv + oy) * h;
+        if (k === 0) mask.moveTo(x, y);
+        else mask.lineTo(x, y);
+      }
+      mask.closePath();
+      mask.fill();
+    }
+  }
+  const inside = mask.getImageData(0, 0, w, h).data;
+  const data = ctx.getImageData(0, 0, w, h).data;
+  const lums: number[] = [];
+  const pixels: number[] = [];
+  for (let i = 0; i < w * h; i++) {
+    if (!inside[i * 4]) continue;
+    pixels.push(i * 4);
+    lums.push(0.299 * data[i * 4]! + 0.587 * data[i * 4 + 1]! + 0.114 * data[i * 4 + 2]!);
+  }
+  if (pixels.length < 64) return null;
+  const sorted = [...lums].sort((a, b) => a - b);
+  const median = sorted[sorted.length >> 1]!;
+  // Lettrage : pixels nettement plus clairs que la gomme et peu colorés (blanc, gris).
+  let letters = 0;
+  let r = 0, g = 0, b = 0, n = 0;
+  pixels.forEach((at, k) => {
+    const sat = Math.max(data[at]!, data[at + 1]!, data[at + 2]!) - Math.min(data[at]!, data[at + 1]!, data[at + 2]!);
+    if (lums[k]! - median >= 60 && sat <= 60) letters++;
+    else if (Math.abs(lums[k]! - median) < 25) { r += data[at]!; g += data[at + 1]!; b += data[at + 2]!; n++; }
+  });
+  if (letters < pixels.length * 0.004 || !n) return null;
+  return new Color().setRGB(r / n / 255, g / n / 255, b / n / 255, SRGBColorSpace);
 }
 
 function free(scene: Object3D): void {
@@ -581,6 +807,9 @@ export async function loadRider(sex: 'male' | 'female', body: V3Body = 'standard
   const levels: Object3D[] = [];
   const groups: { id: number; node: Object3D }[] = [];
   const materials = new Set<MeshStandardMaterial>();
+  // Ouverture du maillot : col à 1,50 m, fermeture descendue jusqu'au sternum (moins bas pour la coureuse).
+  const opening: Opening = { ...openingUniforms(), top: 1.5, bottom: sex === 'female' ? 1.37 : 1.32, width: 0.038 };
+  const jerseys = new Map<MeshStandardMaterial, MeshStandardNodeMaterial>();
   scene.traverse(node => {
     const match = /^os_(\d+)$/.exec(node.name);
     if (match) joints.set(Number(match[1]), node as Bone);
@@ -594,10 +823,18 @@ export async function loadRider(sex: 'male' | 'female', body: V3Body = 'standard
     const mesh = node as Mesh;
     if (!mesh.isMesh) return;
     mesh.frustumCulled = false;
+    // Maillot : matériau à ouverture dessinée (voir openableJersey), un par matériau d'origine.
+    if (!Array.isArray(mesh.material) && /^CyclistKIT$/i.test(mesh.material.name)) {
+      const source = mesh.material as MeshStandardMaterial;
+      let jersey = jerseys.get(source);
+      if (!jersey) jerseys.set(source, jersey = openableJersey(source, opening));
+      mesh.material = jersey;
+    }
     for (const material of Array.isArray(mesh.material) ? mesh.material : [mesh.material]) {
       if ((material as MeshStandardMaterial).isMeshStandardMaterial) materials.add(material as MeshStandardMaterial);
     }
   });
+  jerseys.forEach((_, source) => source.dispose());
   const rest = [...joints.values()].map(node => ({ node, position: node.position.clone(), rotation: node.quaternion.clone() }));
   const head = joints.get(15);
   if (!head) { free(scene); throw new Error('Squelette V3 incomplet.'); }
@@ -612,7 +849,7 @@ export async function loadRider(sex: 'male' | 'female', body: V3Body = 'standard
   const helmet = await model('helmet/' + id + '.glb').catch(() => null);
   if (helmet) head.add(helmet);
   const originalMaterials = [...materials].map(material => ({ material, map: material.map, normal: material.normalMap, color: material.color.clone() }));
-  return { scene, joints, rest, levels, head, helmet, groups, originalMaterials, sex, body, shoeBasis };
+  return { scene, joints, rest, levels, head, helmet, groups, originalMaterials, sex, body, shoeBasis, opening };
 }
 
 function materialsFor(item: V3Gear): RegExp | undefined {
@@ -695,8 +932,30 @@ export function attachKit(rider: RiderVisual, kit: MountedGear[]): void {
   }
 }
 
+/** Pièce à faire pulser sur le coureur (récompense venue de la page Progression, clic sur la vue du garage). */
+export type V3Glow = { kind: 'bike'; id: string } | { kind: 'wheel'; id: string } | { kind: 'gear'; item: V3Gear }
+  /** Emplacement porté, quel que soit l'article (gants ou maillot d'origine du corps compris). */
+  | { kind: 'slot'; type: string }
+  /** Objet de la scène du garage hors coureur et vélo (home trainer). */
+  | { kind: 'object'; root: Object3D };
+/** Pièce cliquée sur la vue du garage : le vélo, ses roues, ou un emplacement de la tenue ou du personnage. */
+export type V3Part = { kind: 'bike' } | { kind: 'wheel' } | { kind: 'trainer' } | { kind: 'slot'; type: string };
+/** Matériaux du corps Zwift et emplacement qu'ils habillent. */
+const PART_OF_MATERIAL: Array<[RegExp, string]> = [
+  [/^CyclistKIT$/i, 'CYCLING_JERSEY'], [/^SockKIT$/i, 'SOCKS'], [/^GloveKIT$/i, 'GLOVES'], [/^HAIR$/i, 'HAIR'], [/^FLESH/i, 'HEAD_TYPE'],
+];
+const GLOW_COLOR = new Color(0xffd23f);
+/** Un seul flash : montée puis retombée, en moins d'une seconde. */
+const GLOW_SECONDS = 0.8;
+/** Délai avant la première pulsation : la caméra du garage a fini d'arriver sur le coureur. */
+const GLOW_DELAY_MS = 1400;
+/** Matériau du corps Zwift habillé par chaque emplacement (pièces portées sans modèle à part). */
+const SLOT_MATERIAL: Record<string, RegExp> = { CYCLING_JERSEY: /^CyclistKIT$/i, SOCKS: /^SockKIT$/i, GLOVES: /^GloveKIT$/i, HEAD_TYPE: /^FLESH/i };
+
 export class V3Visual {
   private readonly group = new Group();
+  /** Pulsation jaune d'une pièce : attendue (chargement en cours), puis un seul flash, et matériaux rendus tels quels. */
+  private glow?: { target: V3Glow; asked: number; delay: number; start: number; materials: Array<{ material: MeshStandardMaterial; emissive: Color; intensity: number; map: Texture | null }> };
   private bike?: BikeVisual;
   private rider?: RiderVisual;
   private equipment?: V3Equipment;
@@ -771,7 +1030,7 @@ export class V3Visual {
     if (this.rider?.sex === sex && this.rider.body === body) {
       this.applyKit();
       this.applyHairColors();
-      showZip(this.rider, equipment.zip);
+      showZip(this.rider, equipment.zip, equipment.pockets, equipment.open);
       this.redraw();
     }
   }
@@ -824,7 +1083,7 @@ export class V3Visual {
       this.kit = next;
       attachKit(rider, next);
       showSockHeight(rider, sockHeight);
-      showZip(rider, this.equipment?.zip);
+      showZip(rider, this.equipment?.zip, this.equipment?.pockets, this.equipment?.open);
       // Mains et chevilles nues : la peau du corps (groupe 15) est dessous.
       for (const { id, node } of rider.groups) {
         if ((bare.has('GLOVES') && id === 13) || (bare.has('SOCKS') && Object.values(SOCK_GROUPS).includes(id))) node.visible = false;
@@ -949,7 +1208,128 @@ export class V3Visual {
     this.group.position.copy(pivot).applyQuaternion(facing).sub(pivotTurned);
   }
 
+  /**
+   * La pièce pulse en jaune sur le coureur (ou le vélo) quelques secondes, dès qu'elle est chargée. Arrivée depuis la
+   * page Progression : `delayed`, la caméra du garage finit d'abord d'arriver ; clic sur la vue : tout de suite.
+   */
+  highlight(target: V3Glow, delayed = false): void {
+    this.endGlow();
+    this.glow = { target, asked: performance.now(), delay: delayed ? GLOW_DELAY_MS : 0, start: -1, materials: [] };
+    this.redraw();
+  }
+
+  /** Matériaux de la pièce, une fois l'équipement voulu chargé (sinon `undefined` : on attend). */
+  private glowMaterials(target: V3Glow): MeshStandardMaterial[] | undefined {
+    const { bike, rider } = this;
+    if (this.loading > 0 || !bike || !rider) return;
+    const found = new Set<MeshStandardMaterial>();
+    const take = (node: Object3D) => {
+      const material = (node as Mesh).material as Material | Material[] | undefined;
+      for (const one of Array.isArray(material) ? material : material ? [material] : []) {
+        if ((one as MeshStandardMaterial).emissive) found.add(one as MeshStandardMaterial);
+      }
+    };
+    const wheel = (node: Object3D) => {
+      for (let at: Object3D | null = node; at; at = at.parent) if (/^(FrontWheel|RearWheel)(?:_|$)/.test(at.name)) return true;
+      return false;
+    };
+    if (target.kind === 'object') {
+      target.root.traverse(take);
+    } else if (target.kind === 'bike') {
+      if (target.id && bike.equipment.bike !== target.id) return;
+      bike.scene.traverse(node => { if (!wheel(node)) take(node); });
+    } else if (target.kind === 'wheel') {
+      if (target.id && bike.equipment.wheels !== target.id) return;
+      bike.scene.traverse(node => { if (wheel(node)) take(node); });
+    } else if (target.kind === 'slot') {
+      const pattern = SLOT_MATERIAL[target.type];
+      if (pattern) {
+        for (const { material } of rider.originalMaterials) {
+          if (pattern.test(material.name) && (material as MeshStandardMaterial).emissive) found.add(material as MeshStandardMaterial);
+        }
+      }
+      for (const gear of this.kit) if (gear.item.type === target.type) { gear.left?.traverse(take); gear.right?.traverse(take); }
+      if (target.type === 'HEAD_GEAR' && !this.kit.some(gear => gear.item.type === 'HEAD_GEAR')) rider.helmet?.traverse(take);
+    } else {
+      if (this.equipment?.kit?.[target.item.type]?.id !== target.item.id) return;
+      const pattern = materialsFor(target.item);
+      if (pattern) {
+        for (const { material } of rider.originalMaterials) {
+          if (pattern.test(material.name) && (material as MeshStandardMaterial).emissive) found.add(material as MeshStandardMaterial);
+        }
+      } else {
+        const mounted = this.kit.find(gear => gear.item.id === target.item.id);
+        mounted?.left?.traverse(take);
+        mounted?.right?.traverse(take);
+      }
+    }
+    return found.size ? [...found] : undefined;
+  }
+
+  /** Pièce du vélo ou du coureur sous le rayon (clic sur la vue du garage) ; `undefined` si rien n'est touché. */
+  partAt(ray: Raycaster): (V3Part & { distance: number }) | undefined {
+    if (!this.group.visible) return;
+    const shown = (node: Object3D) => {
+      for (let at: Object3D | null = node; at; at = at.parent) if (!at.visible) return false;
+      return true;
+    };
+    const hit = ray.intersectObject(this.group, true).find(one => (one.object as Mesh).isMesh && shown(one.object));
+    if (!hit) return;
+    const mesh = hit.object as Mesh;
+    const within = (root: Object3D | null | undefined) => {
+      for (let at: Object3D | null = mesh; at; at = at.parent) if (at === root) return true;
+      return false;
+    };
+    const distance = hit.distance;
+    if (this.bike && within(this.bike.scene)) {
+      for (let at: Object3D | null = mesh; at; at = at.parent) if (/^(FrontWheel|RearWheel)(?:_|$)/.test(at.name)) return { kind: 'wheel', distance };
+      return { kind: 'bike', distance };
+    }
+    const gear = this.kit.find(one => within(one.left) || within(one.right));
+    if (gear) return { kind: 'slot', type: gear.item.type, distance };
+    if (this.rider && within(this.rider.helmet)) return { kind: 'slot', type: 'HEAD_GEAR', distance };
+    const material = Array.isArray(mesh.material) ? mesh.material[hit.face?.materialIndex ?? 0] : mesh.material;
+    const type = PART_OF_MATERIAL.find(([pattern]) => pattern.test(material?.name ?? ''))?.[1];
+    // Peau du corps (bras, jambes) : rien à changer ; seule la tête renvoie au visage.
+    if (type === 'HEAD_TYPE' && this.rider && hit.point.y < this.rider.head.getWorldPosition(new Vector3()).y - 0.12) return;
+    return type ? { kind: 'slot', type, distance } : undefined;
+  }
+
+  private tickGlow(): void {
+    const glow = this.glow;
+    if (!glow) return;
+    const now = performance.now();
+    if (glow.start < 0) {
+      // Pièce introuvable après 20 s (chargement en échec) : abandon.
+      if (now - glow.asked > 20000) { this.glow = undefined; return; }
+      const found = now - glow.asked < glow.delay ? undefined : this.glowMaterials(glow.target);
+      if (!found) { this.redraw(); return; }
+      glow.materials = found.map(material => ({ material, emissive: material.emissive.clone(), intensity: material.emissiveIntensity, map: material.emissiveMap }));
+      glow.start = now;
+    }
+    const t = (now - glow.start) / 1000;
+    if (t > GLOW_SECONDS) { this.endGlow(); return; }
+    const k = Math.sin((t / GLOW_SECONDS) * Math.PI);
+    for (const { material } of glow.materials) {
+      material.emissive.copy(GLOW_COLOR);
+      material.emissiveMap = null;
+      material.emissiveIntensity = 0.85 * k;
+    }
+    this.redraw();
+  }
+
+  private endGlow(): void {
+    for (const { material, emissive, intensity, map } of this.glow?.materials ?? []) {
+      material.emissive.copy(emissive);
+      material.emissiveIntensity = intensity;
+      material.emissiveMap = map;
+    }
+    this.glow = undefined;
+    this.redraw();
+  }
+
   update(dt: number, cadence: number, speed: number, pose: RiderPose, options: { rider?: boolean; head?: boolean; helmet?: boolean; clip?: string; effort?: number; transitions?: boolean; rock?: boolean; trainer?: boolean; crank?: number } = {}): void {
+    this.tickGlow();
     const { bike, rider } = this;
     const showRider = this.ready && !!rider && options.rider !== false;
     // Vélo ou coureur V3 pas encore chargé : rien plutôt que le coureur et le vélo du jeu (mode Réel) en attendant.

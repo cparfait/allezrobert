@@ -50,6 +50,8 @@ export interface ProgressHost {
   bikeIcon(colors: readonly string[]): string;
   openCosmetic(item: CosmeticItem): void;
   openTune(id: string): void;
+  /** Style Beta : récompense (`gear:…`, `bike:…`, `wheel:…`) montrée au garage Beta, où elle clignote. */
+  openV3?(id: string): void;
   rerender(): void;
 }
 
@@ -66,8 +68,8 @@ interface Reward {
   stateText: string;
   tune: boolean;
   title: string;
-  /** Récompense du style Beta : pas de fiche (le garage Beta la montre une fois gagnée). */
-  inert?: boolean;
+  /** Récompense du style Beta (catalogue V3) : fiche simple, « Voir au garage » ouvre le garage Beta sur elle. */
+  v3?: boolean;
 }
 
 const REAL_CATS: Array<[Cat, string, string]> = [
@@ -156,10 +158,12 @@ export class ProgressPage {
   /** Dernier affichage (vue) : au premier, la frise défile jusqu'au niveau atteint ; ensuite le défilement est gardé. */
   private shownView: ProgressView | null = null;
   private scroll = 0;
+  /** Défilement gardé au départ vers le garage (« Voir au garage »), rendu au retour (-1 : aucun). */
+  private kept = -1;
   /** Prochain niveau : toutes les récompenses affichées (clic sur « +N »). */
   private spotAll = false;
   /** Récompense ouverte en fiche (sans quitter la page Progression). */
-  private detail: { id: string; tune: boolean } | null = null;
+  private detail: { id: string; tune: boolean; v3?: boolean } | null = null;
 
   constructor(
     private readonly root: HTMLElement,
@@ -169,6 +173,12 @@ export class ProgressPage {
   /** Quitte l'onglet : la frise revient au niveau actuel à la prochaine ouverture. */
   reset(): void {
     this.shownView = null;
+    this.kept = -1;
+  }
+
+  /** Départ vers le garage ou l'atelier depuis une fiche : la frise reprendra au même endroit au retour. */
+  keep(): void {
+    this.kept = this.root.querySelector<HTMLElement>('.pg')?.scrollTop ?? -1;
   }
 
   private xp(level: number): number {
@@ -255,7 +265,7 @@ export class ProgressPage {
         stateText: r.worn ? (L ? 'Équipé' : 'Equipped') : open ? (L ? 'Débloqué' : 'Unlocked') : `${L ? 'Niveau' : 'Level'} ${r.level}`,
         tune: false,
         title: r.name,
-        inert: true,
+        v3: true,
       };
     });
   }
@@ -269,7 +279,7 @@ export class ProgressPage {
 
   private card(r: Reward, big = false): string {
     const icon = r.state === 'lock' ? ICON.lock : r.state === 'open' && r.tune && r.cat === 'tune' ? '' : ICON.check;
-    return `<button class="pg-card ${r.state} ${big ? 'big' : ''} cat-${r.cat}" ${r.inert ? '' : r.tune ? `data-pgtune="${r.id}"` : `data-pgitem="${r.id}"`} ${r.rar ? `style="--rar:${r.rar}"` : ''} title="${esc(r.title || r.name)}">
+    return `<button class="pg-card ${r.state} ${big ? 'big' : ''} cat-${r.cat}" ${r.v3 ? `data-pgv3item="${esc(r.id)}"` : r.tune ? `data-pgtune="${r.id}"` : `data-pgitem="${r.id}"`} ${r.rar ? `style="--rar:${r.rar}"` : ''} title="${esc(r.title || r.name)}">
       <span class="pg-thumb">${r.thumb}</span>
       <span class="pg-card-t"><b>${esc(r.name)}</b><small>${esc(r.sub)}</small></span>
       <span class="pg-st">${icon}${r.stateText}</span></button>`;
@@ -282,7 +292,8 @@ export class ProgressPage {
     const level = this.host.level();
     const xp = this.xp(level);
     // Défilement gardé d'un rendu à l'autre (même vue).
-    this.scroll = this.shownView === this.view ? (this.root.querySelector<HTMLElement>('.pg')?.scrollTop ?? 0) : -1;
+    this.scroll = this.kept >= 0 ? this.kept : this.shownView === this.view ? (this.root.querySelector<HTMLElement>('.pg')?.scrollTop ?? 0) : -1;
+    this.kept = -1;
     const views: Array<[ProgressView, string]> = [
       ['levels', L ? 'Niveaux et récompenses' : 'Levels and rewards'],
       ['trophies', L ? 'Trophées et défis' : 'Trophies and challenges'],
@@ -344,6 +355,7 @@ export class ProgressPage {
         perf(c.physics);
       }
     }
+    if (d.v3) rows.push([L ? 'Catégorie' : 'Category', esc(CATS.find(([c]) => c === r.cat)?.[L ? 1 : 2] ?? r.cat)]);
     rows.push([L ? 'Déblocage' : 'Unlock', `${L ? 'niveau' : 'level'} ${r.level}`]);
     const body = rows.map(([k, v]) => `<div class="pg-d-row"><span>${esc(k)}</span><b>${v}</b></div>`).join('');
     return `<div class="pg-modal" data-pgclose><div class="pg-detail ${r.state}" role="dialog" aria-label="${esc(r.name)}" ${r.rar ? `style="--rar:${r.rar}"` : ''}>
@@ -352,7 +364,7 @@ export class ProgressPage {
       <div class="pg-d-main"><h3>${esc(r.name)}</h3><p class="pg-d-sub">${esc(r.sub)}</p><span class="pg-d-state ${r.state}">${r.stateText}</span>
         ${desc ? `<p class="pg-d-desc">${esc(desc)}</p>` : ''}${effect ? `<p class="pg-d-effect">${esc(effect)}</p>` : ''}
         <div class="pg-d-rows">${body}</div>
-        <div class="pg-d-actions"><button class="btn primary" data-pgtry>${d.tune ? (L ? 'Voir à l’atelier' : 'See in the workshop') : L ? 'Essayer au garage' : 'Try in the garage'}</button><button class="btn" data-pgclose>${L ? 'Fermer' : 'Close'}</button></div></div>
+        <div class="pg-d-actions"><button class="btn primary" data-pgtry>${d.v3 ? (L ? 'Voir au garage' : 'See in the garage') : d.tune ? (L ? 'Voir à l’atelier' : 'See in the workshop') : L ? 'Essayer au garage' : 'Try in the garage'}</button><button class="btn" data-pgclose>${L ? 'Fermer' : 'Close'}</button></div></div>
     </div></div>`;
   }
 
@@ -611,6 +623,14 @@ export class ProgressPage {
         }
       }),
     );
+    root.querySelectorAll<HTMLElement>('[data-pgv3item]').forEach((el) =>
+      el.addEventListener('click', () => {
+        if (el.dataset.pgv3item) {
+          this.detail = { id: el.dataset.pgv3item, tune: false, v3: true };
+          this.host.rerender();
+        }
+      }),
+    );
     root.querySelectorAll<HTMLElement>('[data-pgtune]').forEach((el) =>
       el.addEventListener('click', () => {
         if (el.dataset.pgtune) {
@@ -637,7 +657,8 @@ export class ProgressPage {
       const d = this.detail;
       this.detail = null;
       if (!d) return;
-      if (d.tune) this.host.openTune(d.id);
+      if (d.v3) this.host.openV3?.(d.id);
+      else if (d.tune) this.host.openTune(d.id);
       else {
         const item = COSMETICS.find((c) => c.id === d.id);
         if (item) this.host.openCosmetic(item);

@@ -1,5 +1,5 @@
-import { getV3Catalog, getV3Clips, getV3Colors, getV3Gear, type V3SockHeight, readV3Equipment, V3_HAIR_COLORS, saveV3Equipment, V3_POSES, type V3Bike, type V3Body, type V3Color, type V3Equipment, type V3Gear, mountedWheel, wheelsFor, type V3Wheel, resolvedBody, riderBmi, itemFits } from './visuals.ts';
-import { addWardrobe, createHueControl, onScreen, whenVisible } from './wardrobe.ts';
+import { getV3Catalog, type V3Glow, type V3Part, getV3Clips, getV3Colors, getV3Gear, type V3SockHeight, readV3Equipment, V3_HAIR_COLORS, saveV3Equipment, V3_POSES, type V3Bike, type V3Body, type V3Color, type V3Equipment, type V3Gear, mountedWheel, wheelsFor, type V3Wheel, resolvedBody, riderBmi, itemFits } from './visuals.ts';
+import { addWardrobe, createHueControl, onScreen, V3_LOCK, whenVisible } from './wardrobe.ts';
 import { bikeLevel, gearLevel, playerLevel, wheelLevel } from './levels.ts';
 import { V3_ICON } from './icons.ts';
 import { COSMETICS, DEFAULT_BIKE, DEFAULT_TRAINER } from '@allezrobert/shared';
@@ -17,6 +17,8 @@ export interface V3GarageActions {
   equipment(equipment: V3Equipment): void;
   pose(name: string): void;
   playing(on: boolean): void;
+  /** Pièce à faire pulser sur le coureur (récompense venue de la page Progression). */
+  highlight?(target: V3Glow, delayed?: boolean): void;
   /** Photo d'un article porté par le coureur V3 (vignettes des articles sans icône Zwift). */
   photo?(item: V3Gear, sex: 'male' | 'female', wanted?: () => boolean): Promise<string>;
   /** Silhouette effective du coureur V3. */
@@ -144,7 +146,11 @@ export function createV3Garage(actions: V3GarageActions) {
   status.setAttribute('role', 'status');
   const report = (error: unknown) => { status.textContent = error instanceof Error ? error.message : String(error); };
   let equipment = readV3Equipment();
+  // Essai d'une pièce venue de la page Progression (voir `reveal`).
+  let trialTimer: ReturnType<typeof setInterval> | undefined;
+  let trying = false;
   function apply(value: V3Equipment) {
+    stopTrial();
     equipment = value;
     saveV3Equipment(equipment);
     actions.equipment(equipment);
@@ -212,6 +218,7 @@ export function createV3Garage(actions: V3GarageActions) {
   }
   let opened: string | null = null;
   function show(id: string | null) {
+    stopTrial();
     opened = id;
     for (const [key, { head, section, button }] of sections) {
       const on = key === id;
@@ -236,7 +243,10 @@ export function createV3Garage(actions: V3GarageActions) {
   const character = sectionFor('character', 'Personnage', V3_ICON.face);
   const kit = sectionFor('kit', 'Tenue', V3_ICON.tenue);
   const bikes = sectionFor('bikes', 'Vélo', V3_ICON.bike);
-  const wardrobeActions = { equipment: apply, report, photo: actions.photo, sex: actions.sex };
+  const wardrobeActions = {
+    equipment: apply, report, photo: actions.photo, sex: actions.sex,
+    tryOn: (item: V3Gear) => startTrial({ ...equipment, kit: { ...equipment.kit, [item.type]: { id: item.id, color: 0 } } }),
+  };
   // Personnage › Cheveux : tête nue pour voir la coiffure (le casque revient dans les autres catégories et rubriques).
   let characterType = '';
   const characterActions = { ...wardrobeActions, view: (type: string) => { characterType = type; actions.bareHead?.(type === 'HAIR'); } };
@@ -490,9 +500,8 @@ export function createV3Garage(actions: V3GarageActions) {
   function showWheels() {
     const bike = catalogBikes.find(row => row.id === equipment.bike);
     const level = playerLevel();
-    // Roues gagnées seulement (progression Beta, levels.ts) ; la paire montée reste montrée.
-    const offered = wheelsFor(bike?.type, catalogWheels).filter(wheel => v3Shown('wheel', wheel.id)
-      && (wheel.id === equipment.wheels || wheelLevel(wheel, catalogWheels) <= level))
+    // Toutes les roues ; celles pas encore gagnées (progression Beta, levels.ts) portent un cadenas et s'essaient.
+    const offered = wheelsFor(bike?.type, catalogWheels).filter(wheel => v3Shown('wheel', wheel.id))
       .sort((a, b) => a.brand.localeCompare(b.brand, 'fr') || a.name.localeCompare(b.name, 'fr', { numeric: true }));
     wheelField.hidden = !offered.length;
     const current = mountedWheel(equipment, bike, catalogWheels);
@@ -524,8 +533,23 @@ export function createV3Garage(actions: V3GarageActions) {
       const side = document.createElement('span');
       side.className = 'mm-bike-side';
       if (on) side.innerHTML = '<span class="mm-bike-state">✓ Équipé</span>';
+      if (wheel) button.dataset.v3Wheel = wheel.id;
+      const need = wheel && !on ? wheelLevel(wheel, catalogWheels) : 0;
+      if (need > level) {
+        button.classList.add('locked');
+        side.innerHTML = '<span class="mm-bike-state v3-locked">' + V3_LOCK + ' Niveau ' + need + ' · dans ' + (need - level) + ' niv.</span>';
+        button.title = 'Pas encore débloquée : cliquer pour l’essayer';
+      }
       button.append(wheelIcon(wheel ?? origin), text, side);
-      button.onclick = () => { apply({ ...equipment, wheels: wheel?.id }); showWheels(); };
+      button.onclick = () => {
+        if (need > level && wheel) {
+          startTrial({ ...equipment, wheels: wheel.id });
+          wheelName.textContent = wheelLabel(wheel) + ' · aperçu, niveau ' + need;
+          return;
+        }
+        apply({ ...equipment, wheels: wheel?.id });
+        showWheels();
+      };
       return button;
     };
     const rows: HTMLElement[] = [row(undefined, 'D’origine', origin ? 'Livrées avec ce vélo : ' + wheelLabel(origin) : 'Livrées avec ce vélo')];
@@ -631,8 +655,8 @@ export function createV3Garage(actions: V3GarageActions) {
   function fillBikes() {
     const query = searchBike.value.trim().toLowerCase();
     const level = playerLevel();
-    // Vélos gagnés seulement (progression Beta, levels.ts) ; le vélo monté reste montré.
-    const earned = catalogBikes.filter(bike => bike.id === equipment.bike || bikeLevel(bike, catalogBikes) <= level);
+    // Tous les vélos ; ceux pas encore gagnés (progression Beta, levels.ts) portent un cadenas et s'essaient.
+    const earned = catalogBikes;
     const counts = new Map<string, number>();
     for (const bike of earned) counts.set(bike.type, (counts.get(bike.type) ?? 0) + 1);
     const known = BIKE_TYPES.filter(([id]) => counts.has(id));
@@ -687,8 +711,24 @@ export function createV3Garage(actions: V3GarageActions) {
       const side = document.createElement('span');
       side.className = 'mm-bike-side';
       if (on) side.innerHTML = '<span class="mm-bike-state">✓ Équipé</span>';
+      const need = on ? 0 : bikeLevel(bike, catalogBikes);
+      if (need > level) {
+        row.classList.add('locked');
+        side.innerHTML = '<span class="mm-bike-state v3-locked">' + V3_LOCK + ' Niveau ' + need + ' · dans ' + (need - level) + ' niv.</span>';
+        row.title = 'Pas encore débloqué : cliquer pour l’essayer';
+      }
       row.append(bikeIcon(bike), text, side);
-      row.onclick = () => choose(bike.id);
+      row.onclick = () => {
+        if (need > level) {
+          // Essai sur le coureur (non enregistré) ; la fiche du haut le montre le temps de l'essai.
+          startTrial({ ...equipment, bike: bike.id, color: 0, hue: undefined });
+          focus.firstElementChild?.replaceWith(bikeIcon(bike, true));
+          focusName.textContent = bikeName(bike);
+          focusType.textContent = 'Aperçu · niveau ' + need;
+          return;
+        }
+        choose(bike.id);
+      };
       rows.push(row);
     }
     if (!rows.length) {
@@ -851,7 +891,126 @@ export function createV3Garage(actions: V3GarageActions) {
     showWheels();
     showTrainer();
   }
+  /**
+   * Essai venu de la page Progression (comme aux garages Réel et Poly) : la pièce est montrée sur le coureur sans
+   * être enregistrée ; un article de la tenue clignote quelques secondes (il apparaît et disparaît). L'essai cesse
+   * dès qu'on équipe autre chose ou qu'on change de rubrique.
+   */
+  function stopTrial() {
+    clearInterval(trialTimer);
+    trialTimer = undefined;
+    if (!trying) return;
+    trying = false;
+    actions.equipment(equipment);
+    showFocus();
+    showWheels();
+  }
+  function startTrial(trial: V3Equipment) {
+    trying = true;
+    actions.equipment(trial);
+  }
+  /** Ligne ou pastille de la pièce mise en vue dans la liste (c'est sur le coureur qu'elle clignote). */
+  function flash(target: HTMLElement | null) {
+    target?.scrollIntoView({ block: 'center' });
+  }
+  /**
+   * Récompense choisie dans la page Progression (`gear:…`, `bike:…`, `wheel:…`) : la rubrique s'ouvre sur la pièce
+   * (catégorie, famille ou marque dépliée), qui clignote dans la liste et s'essaie sur le coureur.
+   */
+  async function reveal(id: string): Promise<void> {
+    const cut = id.indexOf(':');
+    const kind = id.slice(0, cut);
+    const key = id.slice(cut + 1);
+    if (kind === 'gear') {
+      const item = (await getV3Gear()).find(row => String(row.id) === key);
+      if (!item) return;
+      show('kit');
+      flash(await kitWardrobe.reveal(item));
+      if (equipment.kit?.[item.type]?.id !== item.id) startTrial({ ...equipment, kit: { ...equipment.kit, [item.type]: { id: item.id, color: 0 } } });
+      actions.highlight?.({ kind: 'gear', item }, true);
+      return;
+    }
+    const catalog = await getV3Catalog();
+    catalogBikes = catalog.bikes;
+    catalogWheels = catalog.wheels ?? [];
+    if (kind === 'bike') {
+      const bike = catalogBikes.find(row => row.id === key);
+      if (!bike) return;
+      show('bikes');
+      bikeType = 'all';
+      openBrands.clear();
+      openBrands.add(bike.brand);
+      fillBikes();
+      const row = list.querySelector<HTMLElement>(`[data-v3-bike="${CSS.escape(bike.id)}"]`);
+      if (equipment.bike !== bike.id) startTrial({ ...equipment, bike: bike.id, color: 0, hue: undefined });
+      actions.highlight?.({ kind: 'bike', id: bike.id }, true);
+      // Vélo pas encore gagné (absent de la liste) : la fiche du haut le montre le temps de l'essai.
+      if (!row) {
+        focus.firstElementChild?.replaceWith(bikeIcon(bike, true));
+        focusName.textContent = bikeName(bike);
+        focusType.textContent = 'Aperçu · niveau ' + bikeLevel(bike, catalogBikes);
+      }
+      flash(row ?? focus);
+    } else if (kind === 'wheel') {
+      const wheel = catalogWheels.find(row => row.id === key);
+      if (!wheel) return;
+      show('bikes');
+      wheelList.hidden = false;
+      wheelToggle.setAttribute('aria-expanded', 'true');
+      openWheelBrands.clear();
+      openWheelBrands.add(wheel.brand);
+      showWheels();
+      const row = wheelList.querySelector<HTMLElement>(`[data-v3-wheel="${CSS.escape(wheel.id)}"]`);
+      const bike = catalogBikes.find(other => other.id === equipment.bike);
+      if (mountedWheel(equipment, bike, catalogWheels)?.id !== wheel.id) startTrial({ ...equipment, wheels: wheel.id });
+      actions.highlight?.({ kind: 'wheel', id: wheel.id }, true);
+      // Paire pas encore gagnée (ou d'une autre famille que le vélo) : l'intitulé des roues la montre le temps de l'essai.
+      if (!row) wheelName.textContent = wheelLabel(wheel) + ' · aperçu, niveau ' + wheelLevel(wheel, catalogWheels);
+      flash(row ?? wheelToggle);
+    }
+  }
+  /**
+   * Clic sur une pièce de la vue du garage (vélo, roues, maillot, gants, casque, chaussures, cheveux…) : la rubrique
+   * correspondante s'ouvre sur l'objet porté, qui pulse sur le coureur.
+   */
+  async function focusPart(part: V3Part): Promise<void> {
+    if (part.kind === 'bike') {
+      show('bikes');
+      const bike = catalogBikes.find(row => row.id === equipment.bike);
+      if (bike) {
+        openBrands.add(bike.brand);
+        fillBikes();
+        flash(list.querySelector<HTMLElement>(`[data-v3-bike="${CSS.escape(bike.id)}"]`) ?? focus);
+      }
+      actions.highlight?.({ kind: 'bike', id: '' });
+      return;
+    }
+    if (part.kind === 'trainer') {
+      // Home trainer : liste des home trainers dépliée, celui monté en vue (le pulse vient de l'atelier).
+      show('bikes');
+      trainers.hidden = false;
+      trainerToggle.setAttribute('aria-expanded', 'true');
+      flash(trainers.querySelector<HTMLElement>('[aria-checked="true"]') ?? trainerToggle);
+      return;
+    }
+    if (part.kind === 'wheel') {
+      show('bikes');
+      const bike = catalogBikes.find(row => row.id === equipment.bike);
+      const wheel = mountedWheel(equipment, bike, catalogWheels);
+      wheelList.hidden = false;
+      wheelToggle.setAttribute('aria-expanded', 'true');
+      if (wheel) openWheelBrands.add(wheel.brand);
+      showWheels();
+      flash((wheel && wheelList.querySelector<HTMLElement>(`[data-v3-wheel="${CSS.escape(wheel.id)}"]`)) || wheelToggle);
+      actions.highlight?.({ kind: 'wheel', id: '' });
+      return;
+    }
+    const characterSlot = ['HEAD_TYPE', 'HAIR', 'FACIAL_HAIR'].includes(part.type);
+    show(characterSlot ? 'character' : 'kit');
+    actions.highlight?.({ kind: 'slot', type: part.type });
+    await (characterSlot ? characterWardrobe : kitWardrobe).focus(part.type);
+  }
   // Le garage s'ouvre replié : en-tête seul, rubriques au choix.
   show(null);
-  return { top, panel, road, report };
+  return { top, panel, road, report, reveal, focusPart };
 }
