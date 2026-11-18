@@ -213,6 +213,11 @@ export async function createEngine(canvas: HTMLCanvasElement, q: QualitySettings
   renderer.shadowMap.type = THREE.PCFShadowMap;
 
   const scene = new THREE.Scene();
+  // La scène ne bouge jamais : sa matrice n'est plus recomposée à chaque passe de rendu. Sinon three.js la marque
+  // modifiée à chaque passe (vue, zones d'ombre) et force le recalcul des matrices de tout le décor, même figé
+  // (freezeStatic) ; seuls les objets qui bougent sont désormais recalculés. Mesure du 18/11/2026 (Bêta, Boulogne,
+  // 8 coureurs, qualité moyenne) : 30,5 → 31,8 images/s.
+  scene.matrixAutoUpdate = false;
   const camera = new THREE.PerspectiveCamera(62, 16 / 9, 0.1, q.viewDistance);
 
   const exposure = { value: 1 };

@@ -91,7 +91,9 @@ export const QUALITY_PRESETS: Record<QualityLevel, QualitySettings> = {
     pixelRatio: 1,
     maxPixels: 1920 * 1080,
     shadowMapSize: 2048,
-    shadowCascades: 2,
+    // Une cascade (au lieu de 2) : chaque cascade coûte une passe d'ombre et sa préparation à chaque image, et le
+    // jeu est limité par le processeur. Mesure du 18/11/2026 (Bêta, Boulogne, 8 coureurs) : 32,1 → 34,4 images/s.
+    shadowCascades: 1,
     shadowFar: 250,
     ao: false,
     aoScale: 0.5,
@@ -124,7 +126,9 @@ export const QUALITY_PRESETS: Record<QualityLevel, QualitySettings> = {
     // 4K : couvre un écran 32:9 de 5120 × 1440 sans réduire (image nette) ; les GPU modestes partent en medium.
     maxPixels: 3840 * 2160,
     shadowMapSize: 2048,
-    shadowCascades: 3,
+    // Deux cascades (au lieu de 3), même raison qu'en medium. Mesure du 18/11/2026 (Bêta, Boulogne, 8 coureurs) :
+    // 24,2 → 26,5 images/s, sans différence visible sur les ombres proches.
+    shadowCascades: 2,
     shadowFar: 400,
     ao: true,
     aoScale: 0.5,
