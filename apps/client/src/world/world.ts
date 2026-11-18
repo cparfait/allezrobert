@@ -1,3 +1,4 @@
+import { drainStartupQueue } from './startupDrain.ts';
 import { tuned } from '../dev/tuning.ts';
 import { frameStats } from '../engine/frameStats.ts';
 import { LOW_POLY } from '../engine/style.ts';
@@ -223,9 +224,14 @@ export class World {
   async preload(focus: THREE.Vector3, onTile?: (done: number, total: number) => void): Promise<void> {
     this.focusTile = this.terrain.tileCoord(focus.x, focus.z);
     this.vegetation.update(focus);
-    await this.terrain.update(focus, onTile);
-    // Avant le départ : tout est construit tout de suite (écran d'attente affiché).
-    this.terrain.work.flush();
+    if (new URLSearchParams(globalThis.location?.search ?? '').get('startflush') === '1') {
+      await this.terrain.update(focus, onTile);
+      this.terrain.work.flush();
+    } else {
+      // Le téléchargement et la construction se partagent l'étape de chargement des tuiles.
+      await this.terrain.update(focus, onTile && ((done, total) => onTile(total ? done / total : 1, 2)));
+      await drainStartupQueue(this.terrain.work, onTile && ((fraction) => onTile(1 + fraction, 2)));
+    }
     this.lastFocusTile = this.focusTile.join('_');
   }
 
