@@ -46,6 +46,12 @@ interface ShadowState {
 const states = new WeakMap<THREE.Object3D, ShadowState>();
 const cache = new Map<string, THREE.BufferGeometry>();
 let tick = 0;
+/**
+ * Dernière répartition des ombres de chaque coureur (projeteur, formes d'ombre, version légère) : le parcours de
+ * ses ~800 nœuds n'est refait que si elle change, ou toutes les 30 images pour les pièces apparues entre-temps
+ * (fusion, LOD). Avant, il l'était à chaque image pour chaque coureur (profil du 18/11/2026).
+ */
+const applied = new WeakMap<THREE.Object3D, { key: string; left: number }>();
 
 /** Positions seulement (plus les poids des os pour le corps) : l'ombre n'a besoin que de la forme. */
 function positionsOnly(g: THREE.BufferGeometry, skinned: boolean): THREE.BufferGeometry {
@@ -157,6 +163,8 @@ export function applyRiderShadows(root: THREE.Object3D, caster: boolean, group?:
       if (sig !== st.signature) {
         dropProxies(st);
         st.signature = sig;
+        // Formes d'ombre refaites : répartition à revoir tout de suite.
+        applied.delete(root);
         group.updateWorldMatrix(true, true);
         const { skins, rigid } = partsOf(group);
         const bodyGeo = buildShadowBody(skins);
@@ -182,6 +190,10 @@ export function applyRiderShadows(root: THREE.Object3D, caster: boolean, group?:
     }
   }
   const proxies = !!st && (!!st.body || !!st.bike) && enabled && caster && !light;
+  const key = `${caster ? 1 : 0}${proxies ? 1 : 0}${light ? 1 : 0}`;
+  const last = applied.get(root);
+  if (last && last.key === key && --last.left > 0) return;
+  applied.set(root, { key, left: 30 });
   root.traverse((o) => {
     const m = o as THREE.Mesh;
     if (!m.isMesh) return;
@@ -200,4 +212,5 @@ export function disposeRiderShadows(root: THREE.Object3D): void {
   const st = states.get(root);
   if (st) dropProxies(st);
   states.delete(root);
+  applied.delete(root);
 }

@@ -101,6 +101,8 @@ export class Railways {
   private readonly tiles = new Map<string, TileRails>();
   private lines: RailLine[] = [];
   private anchors: Array<{ x: number; z: number }> = [];
+  /** Abscisse de l'ancre de chaque ligne (fixe jusqu'au prochain assemblage) : plus cherchée à chaque image. */
+  private anchorS: number[] = [];
   private dirty = false;
   private readonly groundAt: (x: number, z: number) => number;
   private props: number;
@@ -443,6 +445,10 @@ export class Railways {
       const prev = this.anchors.find((a) => nearestS(l, a.x, a.z).d < 30);
       return prev ?? { x: l.pts[Math.floor(l.pts.length / 6) * 3] as number, z: l.pts[Math.floor(l.pts.length / 6) * 3 + 2] as number };
     });
+    this.anchorS = this.lines.map((l, i) => {
+      const a = this.anchors[i];
+      return a ? nearestS(l, a.x, a.z).s : 0;
+    });
   }
 
   update(dt: number): void {
@@ -459,8 +465,7 @@ export class Railways {
     const upV = new THREE.Vector3(0, 1, 0);
     let count = 0;
     this.lines.forEach((line, li) => {
-      const anchor = this.anchors[li];
-      const s = anchor ? nearestS(line, anchor.x, anchor.z).s : 0;
+      const s = this.anchorS[li] ?? 0;
       for (const tr of trainsAt(line, this.clock, RER, (li % 2) * 450 + 120, li % 2 === 0 ? 1 : -1, s)) {
         if (count + CARS > MAX_TRAINS * CARS) break;
         for (let c = 0; c < CARS; c++) {
