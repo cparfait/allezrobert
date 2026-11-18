@@ -51,10 +51,39 @@ export function createNameTag(text: string, nationality?: string): NameTag {
 const _v = new THREE.Vector3();
 
 /** Place les étiquettes visibles à l'écran (une fois par image, après le déplacement des coureurs). */
+// Rectangle du canevas mis en cache : relu à chaque image, getBoundingClientRect forçait un recalcul de mise en page
+// (les étiquettes déplacées à l'image précédente l'invalident), ≈ 2 % du temps processeur en groupe.
+let rectCanvas: HTMLCanvasElement | null = null;
+let rectCache: DOMRect | null = null;
+let rectWatch: ResizeObserver | null = null;
+let rectListening = false;
+const dropRect = () => {
+  rectCache = null;
+};
+
+function canvasRect(): DOMRect | null {
+  if (!rectCanvas?.isConnected) {
+    rectCanvas = document.querySelector<HTMLCanvasElement>('canvas#scene') ?? document.querySelector('canvas');
+    rectCache = null;
+    rectWatch?.disconnect();
+    rectWatch = null;
+    if (!rectCanvas) return null;
+    if (typeof ResizeObserver !== 'undefined') {
+      rectWatch = new ResizeObserver(dropRect);
+      rectWatch.observe(rectCanvas);
+    }
+    if (!rectListening) {
+      rectListening = true;
+      addEventListener('resize', dropRect);
+      addEventListener('scroll', dropRect, true);
+    }
+  }
+  return (rectCache ??= rectCanvas.getBoundingClientRect());
+}
+
 export function placeNameTags(tags: readonly NameTag[], camera: THREE.Camera): void {
-  const canvas = document.querySelector<HTMLCanvasElement>('canvas#scene') ?? document.querySelector('canvas');
   camera.updateMatrixWorld();
-  const rect = canvas?.getBoundingClientRect();
+  const rect = canvasRect();
   for (const t of tags) {
     let show = t.anchor.visible && !!rect;
     if (show && rect) {
