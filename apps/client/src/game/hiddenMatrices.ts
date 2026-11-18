@@ -1,4 +1,4 @@
-import type * as THREE from 'three/webgpu';
+import * as THREE from 'three/webgpu';
 
 /**
  * Les coureurs (style V3 surtout) portent des centaines de nœuds masqués : variantes de maillots, casques,
@@ -8,28 +8,71 @@ import type * as THREE from 'three/webgpu';
  * l'image suivante : la racine d'un coureur bouge à chaque image, la mise à jour est donc toujours forcée.
  * Mesure (dev, 24 coureurs) : 2,46 → 0,88 ms par image pour la mise à jour des matrices de la scène.
  */
-export function skipHiddenMatrixUpdates(root: THREE.Object3D): void {
+/** ?hiddenmatrices=0 : mise à jour de toutes les matrices (comparaison). */
+export const HIDDEN_MATRICES = typeof location !== 'undefined' && new URLSearchParams(location.search).get('hiddenmatrices') !== '0';
+
+/**
+ * Horloge d'images du moteur (renderer.info.frame) : three.js remet à jour les matrices de toute la scène à chaque
+ * passe de rendu (vue principale, chaque zone d'ombre). Rien ne bouge entre ces passes ; pour un coureur, la
+ * seconde mise à jour de la même image est sautée (≈ 2 mises à jour par image mesurées à Boulogne, 18/11/2026).
+ */
+let frameClock: (() => number) | null = null;
+export function setMatrixFrameClock(clock: (() => number) | null): void {
+  frameClock = clock;
+}
+
+export function skipHiddenMatrixUpdates(root: THREE.Object3D, enabled = HIDDEN_MATRICES): void {
+  if (!enabled) return;
+  const used = new Set<THREE.Object3D>();
+  let lastFrame = -1;
+  const lastPos = new THREE.Vector3(Infinity, 0, 0);
+  const lastQuat = new THREE.Quaternion();
   root.updateMatrixWorld = function (this: THREE.Object3D, force?: boolean) {
-    updateVisible(this, force ?? false);
+    const frame = frameClock ? frameClock() : -1;
+    // Même image, coureur immobile depuis : déjà à jour (les os ne bougent que pendant la logique, avant le rendu).
+    // `force` est ignoré ici : la scène (fixe) le transmet à chaque passe parce qu'elle recalcule sa propre matrice.
+    if (frame >= 0 && frame === lastFrame && this.position.equals(lastPos) && this.quaternion.equals(lastQuat)) return;
+    lastFrame = frame;
+    lastPos.copy(this.position);
+    lastQuat.copy(this.quaternion);
+    // Os réellement utilisés : ceux des maillages animés visibles (relevé à chaque image : un corps qui apparaît
+    // n'est jamais en retard). Une branche masquée n'est parcourue que si elle porte l'un de ces os ; le squelette
+    // de l'ancien modèle, masqué en style V3, n'est plus recalculé (3,65 ms par image à Boulogne, 18/11/2026).
+    used.clear();
+    this.traverseVisible((o) => {
+      const sk = (o as THREE.SkinnedMesh).isSkinnedMesh ? (o as THREE.SkinnedMesh).skeleton : null;
+      if (sk) for (const b of sk.bones) used.add(b);
+    });
+    updateVisible(this, force ?? false, used);
   };
 }
 
-const bonesCache = new WeakMap<THREE.Object3D, boolean>();
+const BASE_UPDATE = THREE.Object3D.prototype.updateMatrixWorld;
+/** Os portés par chaque branche (structure stable ; relu de temps en temps si la garde-robe change). */
+const bonesUnder = new WeakMap<THREE.Object3D, { bones: THREE.Object3D[]; at: number }>();
+let tick = 0;
 
-function hasBones(o: THREE.Object3D): boolean {
-  let b = bonesCache.get(o);
-  if (b === undefined) {
-    b = false;
-    o.traverse((x) => {
-      if ((x as THREE.Bone).isBone) b = true;
-    });
-    bonesCache.set(o, b);
-  }
-  return b;
+function bonesOf(o: THREE.Object3D): THREE.Object3D[] {
+  const hit = bonesUnder.get(o);
+  if (hit && tick - hit.at < 600) return hit.bones;
+  const bones: THREE.Object3D[] = [];
+  o.traverse((x) => {
+    if ((x as THREE.Bone).isBone) bones.push(x);
+  });
+  bonesUnder.set(o, { bones, at: tick });
+  return bones;
 }
 
-/** Même calcul que Object3D.updateMatrixWorld (three r186), sans descendre dans les branches masquées sans os. */
-function updateVisible(o: THREE.Object3D, force: boolean): void {
+function needed(c: THREE.Object3D, used: Set<THREE.Object3D>): boolean {
+  if (c.visible) return true;
+  if (!used.size) return false;
+  for (const b of bonesOf(c)) if (used.has(b)) return true;
+  return false;
+}
+
+/** Même calcul que Object3D.updateMatrixWorld (three r186), sans descendre dans les branches masquées inutiles. */
+function updateVisible(o: THREE.Object3D, force: boolean, used: Set<THREE.Object3D>): void {
+  tick++;
   if (o.matrixAutoUpdate) o.updateMatrix();
   if (o.matrixWorldNeedsUpdate || force) {
     if (o.matrixWorldAutoUpdate === true) {
@@ -40,7 +83,11 @@ function updateVisible(o: THREE.Object3D, force: boolean): void {
     force = true;
   }
   for (const c of o.children) {
-    if (!c.visible && !hasBones(c)) continue;
-    updateVisible(c, force);
+    if (!needed(c, used)) continue;
+    // Objet à mise à jour propre (SkinnedMesh : bindMatrixInverse recalculée à chaque image ; LOD…) : sa méthode
+    // à lui. Sans elle, le corps des coureurs était dessiné avec une matrice de liaison périmée (jusqu'à 11 m),
+    // décalé par rapport au casque et aux pièces rigides, qui semblaient flotter et scintiller (17/11/2026).
+    if (c.updateMatrixWorld !== BASE_UPDATE) c.updateMatrixWorld(force);
+    else updateVisible(c, force, used);
   }
 }

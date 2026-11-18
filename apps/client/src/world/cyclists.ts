@@ -11,6 +11,10 @@ import { crowdV3 } from '../game/v3Crowd.ts';
 import { AnimBudget } from '../game/animBudget.ts';
 import { skipHiddenMatrixUpdates } from '../game/hiddenMatrices.ts';
 import { SMALL_PARTS_CULL, cullSmallParts } from '../game/smallParts.ts';
+import { disposeRiderMerge, updateRiderMerge } from '../game/riderMerge.ts';
+import { disposeRiderLight, needsLightBuild, updateRiderLight } from '../game/riderLight.ts';
+import { applyRiderShadows, disposeRiderShadows } from '../game/riderShadows.ts';
+import { LATERAL_CRUISE, LATERAL_SPRING, LATERAL_URGENT, stepLateral, syncLateral, type LateralMotion } from '../game/lateralSpring.ts';
 import type { V3Visual } from '../v3/visuals.ts';
 
 /** Adhérence des IA en virage (enrobé sec), voir cornerBrake.ts. */
@@ -254,6 +258,8 @@ export class AmbientCyclists {
   }
 
   private animFrame = 0;
+  /** Vitesse latérale de chaque groupe de cyclistes (lateralSpring.ts). */
+  private readonly latMotion = new WeakMap<object, LateralMotion>();
   /**
    * @param player distance et décalage du joueur
    * @param camera pour les niveaux de détail (animation et ombres seulement près de la caméra)
@@ -325,7 +331,12 @@ export class AmbientCyclists {
           break avoid;
         }
       }
-      c.lateral += (lateralTarget - c.lateral) * Math.min(1, dt * rate);
+      // Ressort amorti à vitesse plafonnée (lateralSpring.ts) : écarts sans à-coup, plus vifs pour éviter quelqu'un.
+      let motion = this.latMotion.get(c);
+      if (!motion) this.latMotion.set(c, (motion = { v: 0 }));
+      const tuning = rate >= 4 ? LATERAL_URGENT : LATERAL_CRUISE;
+      const latBefore = c.lateral;
+      c.lateral = LATERAL_SPRING ? stepLateral(motion, c.lateral, lateralTarget, dt, tuning) : c.lateral + (lateralTarget - c.lateral) * Math.min(1, dt * rate);
       // Rester sur la chaussée réelle du tronçon (pistes et rues étroites), membres côte à côte compris.
       const b = this.corridor.steeringBounds(this.track, c.d, c.speed, c.sens, this.bounds);
       let lo = -b.left, hi = b.right;
@@ -334,6 +345,7 @@ export class AmbientCyclists {
         hi = Math.min(hi, b.right - m.latOff);
       }
       c.lateral = lo <= hi ? Math.max(lo, Math.min(hi, c.lateral)) : (lo + hi) / 2;
+      syncLateral(motion, latBefore, c.lateral, dt, tuning);
       // Freinage avant les virages serrés, comme le joueur (cornerBrake.ts).
       c.speed = brakeForCorners(this.track, c.d, c.sens, c.speed, CORNER_GRIP, dt);
       c.d += c.sens * c.speed * dt;
@@ -363,9 +375,15 @@ export class AmbientCyclists {
             a.update(animDt, c.cadence > 0 ? c.cadence + m.cadenceOff : 0, c.speed, watts > 0 ? 'seated' : 'coasting');
             m.v3?.update(animDt, c.cadence > 0 ? c.cadence + m.cadenceOff : 0, c.speed, watts > 0 ? 'seated' : 'coasting');
           }
+        } else if (m.v3 && a.root.visible && needsLightBuild(a.root) && (this.animFrame + m.cadenceOff + 30) % 30 === 0) {
+          // Trop loin pour être animé : mise à jour V3 occasionnelle pour qu'il se charge et passe en version légère.
+          m.v3.update(1 / 60, c.cadence > 0 ? c.cadence + m.cadenceOff : 0, c.speed, watts > 0 ? 'seated' : 'coasting');
         }
         a.setShadows(dist < this.shadowRange);
         if (SMALL_PARTS_CULL && a.root.visible && (this.animFrame + m.cadenceOff + 8) % 6 === 0) cullSmallParts(a.root, camera.position, (camera as THREE.PerspectiveCamera).projectionMatrix.elements[5] ?? 1);
+        if (m.v3) updateRiderLight(a.root, (m.v3 as unknown as { group: THREE.Object3D }).group, dist, this.animFrame, true);
+        if (m.v3) applyRiderShadows(a.root, dist < this.shadowRange, (m.v3 as unknown as { group: THREE.Object3D }).group);
+        if (m.v3 && a.root.visible && (this.animFrame + m.cadenceOff + 3) % 10 === 0) updateRiderMerge(a.root, this.animFrame);
         if (c.sens > 0 && !outside) {
           const gap = dm - player.distM - 1.75;
           draft = Math.max(draft, draftReductionSingle(gap, c.lateral + m.latOff - player.lateral));
@@ -403,6 +421,9 @@ export class AmbientCyclists {
     for (const c of this.units)
       for (const m of c.members) {
         m.v3?.dispose();
+        disposeRiderMerge(m.avatar.root);
+        disposeRiderLight(m.avatar.root);
+        disposeRiderShadows(m.avatar.root);
         scene.remove(m.avatar.root);
       }
   }

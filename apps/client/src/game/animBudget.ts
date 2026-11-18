@@ -6,7 +6,7 @@
  */
 
 /** ?animbudget=0 : toutes les animations à chaque image (comparaison). */
-const ENABLED = typeof location === 'undefined' || new URLSearchParams(location.search).get('animbudget') !== '0';
+const ENABLED = typeof location !== 'undefined' && new URLSearchParams(location.search).get('animbudget') !== '0';
 
 /** Une image sur N selon la distance à la caméra (m). */
 export function animStride(distM: number, enabled = ENABLED): number {
@@ -23,10 +23,10 @@ export class AnimBudget {
   /** Décalage propre au coureur, pour que les coureurs lointains ne se mettent pas tous à jour la même image. */
   constructor(private readonly phase = 0) {}
 
-  step(dt: number, distM: number, frame: number): number {
+  step(dt: number, distM: number, frame: number, enabled = ENABLED): number {
     this.acc += dt;
     this.frames++;
-    const stride = animStride(distM);
+    const stride = animStride(distM, enabled);
     // Mise à jour si le pas est atteint pour ce coureur, ou si du temps s'est trop accumulé (changement de pas).
     if (stride > 1 && (frame + this.phase) % stride !== 0 && this.frames < stride) return 0;
     const out = this.acc;

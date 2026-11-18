@@ -14,7 +14,7 @@ import type * as THREE from 'three/webgpu';
 export const MIN_SCREEN_FRAC = 1.5 / 1080;
 
 /** ?smallparts=0 : tout dessiner (comparaison). */
-export const SMALL_PARTS_CULL = typeof location === 'undefined' || new URLSearchParams(location.search).get('smallparts') !== '0';
+export const SMALL_PARTS_CULL = typeof location !== 'undefined' && new URLSearchParams(location.search).get('smallparts') !== '0';
 
 const culled = new WeakSet<THREE.Object3D>();
 const _c = { x: 0, y: 0, z: 0 };
@@ -32,7 +32,7 @@ export function cullSmallParts(root: THREE.Object3D, camPos: THREE.Vector3, proj
   let hidden = 0;
   root.traverseVisible((o) => {
     const m = o as THREE.Mesh;
-    if (!m.isMesh) return;
+    if (!m.isMesh || m.name.startsWith('shadow-')) return;
     const g = m.geometry;
     if (!g.boundingSphere) g.computeBoundingSphere();
     const bs = g.boundingSphere;

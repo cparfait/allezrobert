@@ -1,8 +1,12 @@
 import { shadowCasters } from './shadowBudget.ts';
 import { AnimBudget } from './animBudget.ts';
-import { flagSvg } from '../ui/flagSvg.ts';
+import { disposeRiderMerge, updateRiderMerge } from './riderMerge.ts';
+import { disposeRiderLight, needsLightBuild, updateRiderLight } from './riderLight.ts';
+import { applyRiderShadows, disposeRiderShadows } from './riderShadows.ts';
+import { createNameTag, placeNameTags, removeNameTag, type NameTag } from './nameTags.ts';
 import { skipHiddenMatrixUpdates } from './hiddenMatrices.ts';
 import { SMALL_PARTS_CULL, cullSmallParts } from './smallParts.ts';
+import { LATERAL_CRUISE, LATERAL_PASSING, LATERAL_SPRING, stepLateral, syncLateral, type LateralMotion } from './lateralSpring.ts';
 import * as THREE from 'three/webgpu';
 import { AiRider, AI_PROFILES, DraftCalculator, FORMATION_PREFS, LANE_PACE, LaneRotator, Overtaker, keepRightM, laneOffsets, resolveFormation, roadHalfM, type Formation, type FormationPref, type LaneBody, PoseController, TeammateUTurn, createRiderState, paramsFromBike, powerForSpeed, stepRider, airDensity, wakeShiftM, sharedRoadCorridor, type AiProfileName, type RiderState } from '@allezrobert/physics';
 import { BASE_PROFILES, DEFAULT_BIKE, aiIdentity, DEFAULT_LOOK, FACE_SLIDERS, encodeFace, type AvatarLook, type FaceShape, type RouteTrack } from '@allezrobert/shared';
@@ -63,7 +67,9 @@ export interface PelotonRider {
   avatar: RiderAvatarLike;
   /** Style V3 : coureur et vélo V3 montés sur l'avatar (v3Crowd.ts). */
   v3?: V3Visual;
-  label: THREE.Sprite;
+  label: THREE.Object3D;
+  /** Nom affiché au-dessus du coureur (texte de la page, nameTags.ts). */
+  tag: NameTag;
   watts: number;
   cadence: number;
   draft: number;
@@ -79,67 +85,6 @@ export interface PelotonRider {
   overtaker: Overtaker;
 }
 
-/**
- * Étiquette au-dessus d'un coureur : bulle sombre à pointe, drapeau puis nom court (« M. MORETTI ») pour le
- * reconnaître d'un coup d'œil ; sans nationalité, une pastille à la couleur du coureur remplace le drapeau.
- */
-function nameSprite(text: string, color: string, nationality?: string): THREE.Sprite {
-  const c = document.createElement('canvas');
-  c.width = 256;
-  c.height = 64;
-  const ctx = c.getContext('2d') as CanvasRenderingContext2D;
-  const parts = text.trim().split(/\s+/);
-  const label = parts.length > 1 ? `${(parts[0] ?? '').charAt(0)}. ${parts.slice(1).join(' ')}` : text;
-  ctx.font = '700 25px Inter, Segoe UI, sans-serif';
-  const FLAG_W = 34;
-  const textW = Math.min(ctx.measureText(label).width, 256 - 16 - FLAG_W - 10);
-  const w = 12 + FLAG_W + 9 + textW + 14;
-  const x0 = (256 - w) / 2;
-  const tex = new THREE.CanvasTexture(c);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  const draw = (flag?: HTMLImageElement) => {
-    ctx.clearRect(0, 0, 256, 64);
-    ctx.fillStyle = 'rgba(10,14,22,0.78)';
-    ctx.beginPath();
-    ctx.roundRect(x0, 4, w, 42, 7);
-    ctx.fill();
-    // Liseré bleu : membre de mon groupe (même repère que dans « À proximité »).
-    ctx.strokeStyle = '#38bdf8';
-    ctx.lineWidth = 3;
-    ctx.stroke();
-    // Pointe vers le coureur.
-    ctx.beginPath();
-    ctx.moveTo(128 - 8, 46);
-    ctx.lineTo(128, 56);
-    ctx.lineTo(128 + 8, 46);
-    ctx.fill();
-    if (flag) ctx.drawImage(flag, x0 + 12, 13, FLAG_W, 24);
-    else {
-      ctx.fillStyle = color;
-      ctx.beginPath();
-      ctx.arc(x0 + 12 + FLAG_W / 2, 25, 9, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    ctx.fillStyle = '#f5f7fa';
-    ctx.font = '700 25px Inter, Segoe UI, sans-serif';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(label, x0 + 12 + FLAG_W + 9, 26, textW);
-    tex.needsUpdate = true;
-  };
-  draw();
-  const svg = nationality ? flagSvg(nationality, 34) : '';
-  if (svg) {
-    const img = new Image();
-    img.onload = () => draw(img);
-    img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
-  }
-  // Taille constante à l'écran, quelle que soit la distance.
-  const mat = new THREE.SpriteMaterial({ map: tex, depthWrite: false, transparent: true, sizeAttenuation: false });
-  const s = new THREE.Sprite(mat);
-  s.scale.set(0.11, 0.0275, 1);
-  s.renderOrder = 10;
-  return s;
-}
 
 /**
  * Peloton local de coureurs IA (sortie solo). Les IA roulent à l'allure du joueur
@@ -227,6 +172,10 @@ export class Peloton {
   private readonly pose: RoadPose = { y: 0, pitch: 0 };
   /** Inclinaison affichée de chaque coureur en virage (rad, lissée). */
   private readonly banks = new WeakMap<PelotonRider, number>();
+  /** Coureurs dont le dépassement est suspendu (quelqu'un arrive en face). */
+  private readonly passHeld = new WeakSet<PelotonRider>();
+  /** Vitesse latérale de chaque coureur (lateralSpring.ts : écarts sans à-coup). */
+  private readonly latMotion = new WeakMap<PelotonRider, LateralMotion>();
   /** Budget d'animation : coureurs lointains animés une image sur 2 à 4 (animBudget.ts). */
   private readonly animBudgets = new WeakMap<PelotonRider, AnimBudget>();
   private animFrame = 0;
@@ -261,8 +210,8 @@ export class Peloton {
       skipHiddenMatrixUpdates(avatar.root);
       const v3 = crowdV3(avatar, look, i >> 1, i % 2 === 1);
       const name = identity.name;
-      const label = nameSprite(name, color, identity.nationality);
-      scene.add(label);
+      const tag = createNameTag(name, identity.nationality);
+      const label = tag.anchor;
       const params = paramsFromBike(massKg, DEFAULT_BIKE);
       this.riders.push({
         id: `ai-${i}`,
@@ -276,6 +225,7 @@ export class Peloton {
         avatar,
         ...(v3 ? { v3 } : {}),
         label,
+        tag,
         watts: 0,
         cadence: 0,
         draft: 0,
@@ -413,13 +363,28 @@ export class Peloton {
       const base = double ? laneAt[myLane] : (ahead?.lateral ?? Math.min(1.2, half));
       // Circulation à droite : sauf pour doubler, on reste dans la moitié droite (ceux d'en face roulent à gauche).
       let targetLat = THREE.MathUtils.clamp(base + (double ? 0 : out.lateralTargetM) + shelter, right, half);
-      if (plan.lateralM !== null) targetLat = plan.lateralM;
+      // Dépassement en cours mais quelqu'un arrive en face à moins de 60 m : on l'abandonne et on se rabat
+      // (sinon le cycliste d'en face roulait à travers le doubleur).
+      // Hystérésis : une fois abandonné, le dépassement ne reprend que lorsque plus personne n'arrive à moins de
+      // 120 m (sinon, au seuil, le coureur déboîtait et se rabattait d'une image à l'autre et scintillait).
+      const held = this.passHeld.has(r);
+      const comingClose = !!this.oncoming?.(r.state.distM, held ? 120 : 60);
+      if (comingClose && plan.passing) this.passHeld.add(r);
+      else if (!comingClose) this.passHeld.delete(r);
+      const abortPass = plan.lateralM !== null && plan.passing && this.passHeld.has(r);
+      if (plan.lateralM !== null && !abortPass) targetLat = plan.lateralM;
       // Rester sur la chaussée réelle du tronçon (et, en pilote, contourner les façades à venir).
       const bounds = (this.collision ?? sharedRoadCorridor()).steeringBounds(this.track, r.state.distM, r.state.speedMs, 1, this.bounds);
       targetLat = THREE.MathUtils.clamp(targetLat, -bounds.left, bounds.right);
-      r.lateral += (targetLat - r.lateral) * Math.min(1, dt * (plan.passing ? 1.8 : 0.8));
+      // Ressort amorti à vitesse plafonnée : déboîter et se rabattre sans à-coup (lateralSpring.ts).
+      let motion = this.latMotion.get(r);
+      if (!motion) this.latMotion.set(r, (motion = { v: 0 }));
+      const tuning = plan.passing ? LATERAL_PASSING : LATERAL_CRUISE;
+      const latBefore = r.lateral;
+      r.lateral = LATERAL_SPRING ? stepLateral(motion, r.lateral, targetLat, dt, tuning) : r.lateral + (targetLat - r.lateral) * Math.min(1, dt * (plan.passing ? 1.8 : 0.8));
       r.lateral = THREE.MathUtils.clamp(r.lateral, -bounds.left, bounds.right);
       if (this.collision) r.lateral = this.collision.apply(this.track, beforeD, beforeLateral, r.state, r.lateral, half, dt);
+      syncLateral(motion, latBefore, r.lateral, dt, tuning);
     });
     return factors[0] ?? 0;
   }
@@ -524,22 +489,41 @@ export class Peloton {
           r.avatar.update(animDt, r.cadence, r.state.speedMs, r.pose, bank);
           r.v3?.update(animDt, r.cadence, r.state.speedMs, r.pose, { effort: r.watts / r.ftp });
         }
+      } else if (r.v3 && r.avatar.root.visible && needsLightBuild(r.avatar.root) && (this.animFrame + ri) % 30 === 0) {
+        // Trop loin pour être animé : une mise à jour V3 de temps en temps pour qu'il se charge (sinon l'ancien
+        // coureur détaillé, plus de 100 pièces, restait affiché) et qu'on en tire sa version légère.
+        r.v3.update(1 / 60, r.cadence, r.state.speedMs, r.pose, { effort: r.watts / r.ftp });
       }
       dists.push(dist);
       r.label.position.set(p.x, p.y + 2.15, p.z);
-      r.label.visible = dist > 7 && dist < 150;
+      // Nom seulement quand le coureur est juste à côté : au-delà, les étiquettes s'empilent et cachent le groupe.
+      r.label.visible = dist < 12;
       // Pièces sous ~1,5 px retirées du rendu (smallParts.ts), une image sur 6 par coureur.
       if (SMALL_PARTS_CULL && r.avatar.root.visible && (this.animFrame + ri) % 6 === 0) cullSmallParts(r.avatar.root, camera.position, camera.projectionMatrix.elements[5] ?? 1);
+      // Au-delà de 60 m, coureur V3 en version légère : un seul maillage figé (riderLight.ts), après sa mise à jour V3.
+      if (r.v3) updateRiderLight(r.avatar.root, (r.v3 as unknown as { group: THREE.Object3D }).group, dist, this.animFrame, true);
+      // Pièces de même matériau fusionnées (riderMerge.ts), coureurs V3 seulement : vérification une image sur 10.
+      if (r.v3 && r.avatar.root.visible && (this.animFrame + ri) % 10 === 0) updateRiderMerge(r.avatar.root, this.animFrame);
     }
+    // Noms : placés après le rendu de cette image (caméra à jour), d'où la microtâche.
+    queueMicrotask(() => placeNameTags(this.riders.map((x) => x.tag), camera));
     // Ombres portées : seulement les coureurs les plus proches (coût des cascades d'ombre).
     const casters = shadowCasters(dists, this.shadowRiders, 40);
-    this.riders.forEach((r, i) => r.avatar.setShadows(casters[i] as boolean));
+    this.riders.forEach((r, i) => {
+      r.avatar.setShadows(casters[i] as boolean);
+      // Pièces V3 : le budget s'applique aussi (riderShadows.ts), grandes pièces seulement.
+      if (r.v3) applyRiderShadows(r.avatar.root, casters[i] as boolean, (r.v3 as unknown as { group: THREE.Object3D }).group);
+    });
   }
 
   dispose(): void {
     for (const r of this.riders) {
       r.v3?.dispose();
-      this.scene.remove(r.avatar.root, r.label);
+      disposeRiderMerge(r.avatar.root);
+      disposeRiderLight(r.avatar.root);
+      disposeRiderShadows(r.avatar.root);
+      this.scene.remove(r.avatar.root);
+      removeNameTag(r.tag);
     }
   }
 }

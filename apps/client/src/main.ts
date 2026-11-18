@@ -82,6 +82,9 @@ import { GuestInputSource } from './game/guest.ts';
 import { Crowd } from './world/crowd.ts';
 import { FinishBanners } from './world/finishBanners.ts';
 import { levelOfFtpWkg } from './hud/riderLevel.ts';
+import { headlightBeamTexture } from './game/headlightBeam.ts';
+import { setMatrixFrameClock } from './game/hiddenMatrices.ts';
+import { applyRiderShadows } from './game/riderShadows.ts';
 import { TownSigns } from './world/signs.ts';
 import { AmbientCyclists } from './world/cyclists.ts';
 import { Traffic, loadVehicleModels } from './world/traffic.ts';
@@ -1087,9 +1090,12 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   // Équipement V3 de cette sortie gardé pour les sorties sans connexion.
   if (v3) syncV3Offline(riderLook);
   // Phare avant (la nuit) : projecteur fixé au vélo, sans ombre portée (coût).
-  const headlight = new THREE.SpotLight(0xfff1d6, 0, 60, 0.45, 0.6, 1.4);
+  // Faisceau route (headlightBeam.ts) : large et plat, coupure nette en haut, plus fort au loin qu'au pied du vélo
+  // (le projecteur nu dessinait un rond devant la roue et éclairait le dos des coureurs et le feuillage).
+  const headlight = new THREE.SpotLight(0xfff1d6, 0, 55, 0.6, 0.25, 1.4);
+  headlight.map = headlightBeamTexture();
   headlight.position.set(0, 1.0, 0.6);
-  headlight.target.position.set(0, 0, 14);
+  headlight.target.position.set(0, 0.2, 20);
   avatar.root.add(headlight, headlight.target);
   // Séance structurée : fichier .zwo/.erg/.mrc ou test FTP (rampe) ; pas d'IA pendant une séance.
   let workout: WorkoutController | null = null;
@@ -1217,6 +1223,8 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     });
   }
   peloton.shadowRiders = engine.quality.shadowRiders;
+  // Matrices des coureurs mises à jour une fois par image, pas à chaque passe de rendu (hiddenMatrices.ts).
+  setMatrixFrameClock(() => engine.renderer.info.frame);
   peloton.onWait = (name) => name && hud.toast(getLang() === 'fr' ? `On attend ${name}` : `Waiting for ${name}`);
   peloton.onFormation = (f, pref) => {
     const L = getLang() === 'fr';
@@ -1272,9 +1280,9 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   if (cyclists) cyclists.heightAt = (x, z) => world.terrain.heightAt(x, z);
   if (cyclists) cyclists.shadowRange = engine.quality.shadowRiders >= 8 ? 35 : engine.quality.shadowRiders > 0 ? 20 : 0;
   // Les équipiers IA ne doublent par la gauche que si personne ne vient en face.
-  // Voitures et tracteurs d'en face compris (200 m : ils arrivent vite) : sinon ils s'arrêtent devant le groupe
-  // et bloquent ceux qui le suivent.
-  if (cyclists || traffic) peloton.oncoming = (d, range) => (cyclists?.oncomingAhead(d, range) ?? false) || (traffic?.oncomingAhead(d, Math.max(range, 200)) ?? false);
+  // Cyclistes, voitures et tracteurs d'en face à moins de 200 m (ils arrivent vite : un dépassement prend plus
+  // de 80 m) : sinon ils roulent à travers le doubleur, ou s'arrêtent devant le groupe et bloquent ceux qui le suivent.
+  if (cyclists || traffic) peloton.oncoming = (d, range) => (cyclists?.oncomingAhead(d, Math.max(range, 200)) ?? false) || (traffic?.oncomingAhead(d, Math.max(range, 200)) ?? false);
   const hud = new Hud(hudRoot, track, source.attribution);
   // Mini-carte : fond Plan IGN quand le monde est calé en Lambert-93 ; bandeau « lieu » (commune, route).
   if (source.originL93) hud.setBasemap(source.originL93);
@@ -2180,6 +2188,11 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
       }
       // Jantes lumineuses de l'atelier : pulsation plus marquée la nuit.
       rimGlow.night.value = 0.35 + 0.65 * world.nightFactor();
+      // La nuit, la lune basse étirait les ombres des coureurs sur toute la chaussée (peu crédible et coûteux :
+      // chaque coureur repasse dans chaque zone d'ombre). Ombres des coureurs et cyclistes coupées de nuit.
+      const nightShadows = world.nightFactor() > 0.6;
+      peloton.shadowRiders = nightShadows ? 0 : engine.quality.shadowRiders;
+      if (cyclists) cyclists.shadowRange = nightShadows ? 0 : engine.quality.shadowRiders >= 8 ? 35 : engine.quality.shadowRiders > 0 ? 20 : 0;
     }
     if (workout) ride.ergTarget = workout.update(ride.elapsedS, ride.inputs.watts);
     if (coach && workout && !ride.paused) {
@@ -2448,6 +2461,8 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     const onboard = (rig.mode === 'cockpit' || rig.mode === 'action' || rig.mode === 'gopro') && !rig.lookBack && !camTurn;
     avatar.setHeadVisible(!onboard);
     v3?.update(dt, ride.inputs.cadence, ride.state.speedMs, ride.pose, { head: !onboard, helmet: !riderLook.noHelmet, effort: ride.inputs.watts / Math.max(1, s.ftpWatts), transitions: true });
+    // Ombre de mon coureur : deux formes simplifiées (corps animé + vélo) au lieu de ~30 pièces (riderShadows.ts).
+    if (v3) applyRiderShadows(avatar.root, true, (v3 as unknown as { group: THREE.Object3D }).group);
     lap('mon coureur');
     peloton.render(dt, engine.camera);
     lap('coureurs IA (animation)');

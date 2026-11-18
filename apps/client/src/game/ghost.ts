@@ -1,6 +1,8 @@
 import * as THREE from 'three/webgpu';
 import type { AvatarLook, FriendGhostLap, RouteTrack } from '@allezrobert/shared';
-import { createAvatar, type RiderAvatarLike } from '../rider/gltfAvatar.ts';
+import { createAvatar, GltfRiderAvatar, type RiderAvatarLike } from '../rider/gltfAvatar.ts';
+import { V3_STYLE } from '../engine/style.ts';
+import { V3Visual } from '../v3/visuals.ts';
 import { BIKE_FRONT_M, BIKE_REAR_M, roadPose, type RoadPose } from '../world/roadHeight.ts';
 
 const _pose: RoadPose = { y: 0, pitch: 0 };
@@ -13,6 +15,14 @@ interface GhostLap {
 }
 
 const KEY = (routeId: string) => `ar.ghost.${routeId}`;
+
+/**
+ * Tour vraisemblable : moyenne sous 90 km/h. Un coureur téléporté (outils de mesure, essais) bouclait un tour de
+ * 3,6 km en 38 s : enregistré comme record, son fantôme traversait ensuite le groupe à plus de 300 km/h.
+ */
+export function plausibleLap(lapTimeS: number, lapLengthM: number): boolean {
+  return lapTimeS > 0 && lapLengthM / lapTimeS <= 25;
+}
 
 /** Meilleur tour enregistré sur cet itinéraire (fiche du parcours dans le menu), ou null. */
 export function readGhostBest(routeId: string): { lapTimeS: number; date: string } | null {
@@ -28,8 +38,15 @@ export function readGhostBest(routeId: string): { lapTimeS: number; date: string
 /** Rend un avatar translucide et sans ombre (à refaire si son vélo est remonté : nouveaux matériaux). */
 export function ghostify(root: THREE.Object3D): void {
   root.traverse((o) => {
-    const m = (o as THREE.Mesh).material as THREE.Material | THREE.Material[] | undefined;
-    for (const mm of Array.isArray(m) ? m : m ? [m] : []) {
+    const mesh = o as THREE.Mesh;
+    if (!mesh.isMesh) return;
+    // Matériaux copiés une fois : les modèles (V3 surtout) partagent les leurs avec les autres coureurs, qui
+    // seraient devenus translucides avec le fantôme.
+    if (!mesh.userData.ghostOwn) {
+      mesh.material = Array.isArray(mesh.material) ? mesh.material.map((mm) => mm.clone()) : mesh.material.clone();
+      mesh.userData.ghostOwn = true;
+    }
+    for (const mm of Array.isArray(mesh.material) ? mesh.material : [mesh.material]) {
       if (mm.transparent && mm.opacity === 0.42) continue;
       mm.transparent = true;
       mm.opacity = 0.42;
@@ -75,10 +92,21 @@ export class Ghost {
     this.routeId = routeId;
     this.lapStartD = startD;
     const raw = localStorage.getItem(KEY(routeId));
-    this.best = raw ? (JSON.parse(raw) as GhostLap) : null;
+    const stored = raw ? (JSON.parse(raw) as GhostLap) : null;
+    // Record invraisemblable (tour « téléporté ») : ignoré et effacé.
+    this.best = stored && plausibleLap(stored.lapTimeS, track.length) ? stored : null;
+    if (stored && !this.best) localStorage.removeItem(KEY(routeId));
     this.avatar = ghostAvatar(scene, look);
+    // Style Beta (V3) : le fantôme porte la tenue et le vélo V3 du joueur (sinon un coureur de l'ancien style
+    // traversait le groupe).
+    if (V3_STYLE && this.avatar instanceof GltfRiderAvatar) {
+      this.v3 = new V3Visual(this.avatar.v3Mount(), () => ghostify(this.avatar.root), (error) => console.warn('[V3] fantôme', error));
+      this.v3.set(look);
+    }
     this.avatar.root.visible = !!this.best;
   }
+
+  private v3?: V3Visual;
 
   get bestLapS(): number | null {
     return this.best?.lapTimeS ?? null;
@@ -103,7 +131,9 @@ export class Ghost {
     const a = this.best.dist[i] ?? 0;
     const b = this.best.dist[i + 1] ?? a;
     const d = this.lapStartD + a + (b - a) * f;
-    const p = this.track.positionAt(d, 0.2, this.sample);
+    // À gauche de la chaussée, à côté du groupe et non au travers : un coureur translucide qui en chevauche un autre
+    // scintille (ordre de dessin qui alterne).
+    const p = this.track.positionAt(d, -1, this.sample);
     // Monde ouvert : roues posées sur la chaussée dessinée (roadHeight.ts).
     roadPose(p.x, p.z, p.dirX, p.dirZ, p.y + 0.06, Math.atan(p.grade / 100), BIKE_FRONT_M, BIKE_REAR_M, _pose);
     this.avatar.root.position.set(p.x, _pose.y, p.z);
@@ -111,6 +141,7 @@ export class Ghost {
     this.avatar.root.rotateX(-_pose.pitch);
     const speed = (b - a) || 0;
     this.avatar.update(dt, speed > 0.5 ? 88 : 0, speed, 'seated');
+    this.v3?.update(dt, speed > 0.5 ? 88 : 0, speed, 'seated');
     // Vélo remonté entre-temps (famille de vélo chargée après coup) : ses matériaux redeviennent translucides.
     this.reGhost += dt;
     if (this.reGhost > 2) {
@@ -122,7 +153,7 @@ export class Ghost {
   /** Fin de tour : enregistre le record si battu, et relance le fantôme. */
   lap(elapsedS: number, distM: number): void {
     const lapTimeS = elapsedS - this.lapStartT;
-    if (this.current.length > 30 && (!this.best || lapTimeS < this.best.lapTimeS)) {
+    if (this.current.length > 30 && plausibleLap(lapTimeS, this.track.length) && (!this.best || lapTimeS < this.best.lapTimeS)) {
       const previous = this.best?.lapTimeS ?? null;
       this.best = { lapTimeS, dist: this.current, date: new Date().toISOString() };
       localStorage.setItem(KEY(this.routeId), JSON.stringify(this.best));
