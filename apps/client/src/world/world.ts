@@ -1,5 +1,4 @@
 import { drainStartupQueue } from './startupDrain.ts';
-import { TILE_BATCH, TileBatcher } from './tileBatch.ts';
 import { tuned } from '../dev/tuning.ts';
 import { frameStats } from '../engine/frameStats.ts';
 import { LOW_POLY } from '../engine/style.ts';
@@ -38,7 +37,6 @@ export class World {
   readonly terrain: TerrainManager;
   readonly vegetation: Vegetation;
   readonly buildings: Buildings;
-  private readonly tileBatch: TileBatcher;
   readonly road: RoadMesh;
   readonly network: RoadNetwork;
   /** Monde ouvert : hauteur de la chaussée dessinée par le réseau (roues posées dessus, main.ts) ; null sinon. */
@@ -84,7 +82,6 @@ export class World {
 
   constructor(scene: THREE.Scene, source: WorldSource, route: RouteData, track: RouteTrack, q: QualitySettings, envState: EnvironmentState) {
     this.scene = scene;
-    this.tileBatch = new TileBatcher(scene);
     this.source = source;
     this.track = track;
     this.env = new Environment(scene, q, envState);
@@ -182,8 +179,6 @@ export class World {
 
     // Décor fixe (rien n'y bouge après sa pose) : matrices calculées une fois, plus à chaque image.
     for (const g of [this.terrain.group, this.buildings.group, this.network.group, this.vegetation.group, this.water.group, this.railways.group]) freezeStatic(g);
-    // Décor par tuile regroupé : un objet à préparer par famille au lieu d'un par tuile (voir tileBatch.ts).
-    if (TILE_BATCH) for (const g of [this.buildings.group, this.network.group, this.water.group, this.railways.group]) this.tileBatch.adopt(g);
 
     // Entités d'une tuile construites par étapes (bâtiments, routes, végétation…) dans le budget de
     // chaque image, plutôt que toutes d'un coup au moment où la tuile arrive (saccades en roulant).
@@ -483,7 +478,6 @@ export class World {
     this.road.mesh.geometry.dispose();
     this.scene.remove(this.network.lampLights.group);
     this.scene.remove(this.terrain.group, this.road.mesh, this.vegetation.group, this.buildings.group, this.network.group, this.grass.mesh, this.rain.mesh, this.water.group, this.railways.group, this.dust.sprite);
-    this.tileBatch.dispose();
     if (this.life) {
       this.scene.remove(this.life.group);
       this.life.dispose();
