@@ -1,9 +1,10 @@
 import * as THREE from 'three/webgpu';
-import { attribute, uv, vec3, float, uniform, mix, smoothstep, step, fract, abs, mx_noise_float, positionWorld, max, varying, fwidth, positionLocal, sign } from 'three/tsl';
+import { attribute, uv, vec3, float, uniform, mix, smoothstep, step, fract, abs, mx_noise_float, positionWorld, max, fwidth, positionLocal, sign } from 'three/tsl';
 import type { QualitySettings } from '../engine/quality.ts';
 import { LOW_POLY } from '../engine/style.ts';
 import type { LoadedTile } from './types.ts';
 import { assembleLines, pointAt, RER, trainsAt, type RailLine, type RailPiece } from './railgeom.ts';
+import { railColor } from './railLivery.ts';
 
 /** Écartement des rails (m, entre axes des files de rails). */
 const GAUGE = 1.505;
@@ -96,6 +97,10 @@ export class Railways {
   private readonly trackMat: THREE.MeshStandardNodeMaterial;
   private readonly cars: THREE.InstancedMesh;
   private readonly carEnds: THREE.InstancedBufferAttribute;
+  /** Couleur de la ligne desservie (RER, Transilien ; railLivery.ts) de chaque voiture, en linéaire. */
+  private readonly carLine: THREE.InstancedBufferAttribute;
+  /** Couleur de chaque ligne assemblée (même ordre que `lines`). */
+  private lineColors: THREE.Color[] = [];
   /** Style jeu vidéo : axe avant de chaque voiture (repère du monde), pour biseauter les cabines dans le shader. */
   private readonly carFwd: THREE.InstancedBufferAttribute | null = null;
   private readonly tiles = new Map<string, TileRails>();
@@ -117,6 +122,8 @@ export class Railways {
     const geo = carGeometry();
     this.carEnds = new THREE.InstancedBufferAttribute(new Float32Array(MAX_TRAINS * CARS * 2), 2);
     geo.setAttribute('ends', this.carEnds);
+    this.carLine = new THREE.InstancedBufferAttribute(new Float32Array(MAX_TRAINS * CARS * 3), 3);
+    geo.setAttribute('lineCol', this.carLine);
     if (LOW_POLY) {
       this.carFwd = new THREE.InstancedBufferAttribute(new Float32Array(MAX_TRAINS * CARS * 3), 3);
       geo.setAttribute('fwd', this.carFwd);
@@ -171,13 +178,17 @@ export class Railways {
     const winBand = step(float(2.0), y).mul(step(y, float(3.0))).mul(side);
     const pillar = step(fract(z.div(1.6)), float(0.12));
     const window = winBand.mul(float(1).sub(pillar)).mul(step(dz, float(half - 1.2)));
-    const lower = step(y, float(1.55)).mul(step(float(1.12), y)); // bandeau bas bleu
+    // Livrée Île-de-France Mobilités : caisse blanche, bandeau bas et portes à la couleur de la ligne desservie
+    // (railLivery.ts), filet gris anthracite sous les vitres.
+    const lower = step(y, float(1.55)).mul(step(float(1.12), y));
+    const sill = step(y, float(1.95)).mul(step(float(1.8), y)).mul(side);
     const white = vec3(0.86, 0.87, 0.85);
-    const blue = vec3(0.12, 0.23, 0.5);
+    const blue = attribute<'vec3'>('lineCol');
     const glass = vec3(0.05, 0.07, 0.09);
-    const doorCol = vec3(0.62, 0.64, 0.66);
+    const doorCol = blue;
     let col: THREE.Node<'vec3'> = white;
     col = mix(col, blue, lower);
+    col = mix(col, vec3(0.16, 0.17, 0.19), sill);
     col = mix(col, doorCol, door);
     col = mix(col, glass, max(window, door.mul(step(float(1.7), y)).mul(step(y, float(2.9)))));
     // Faces d'extrémité : cabine (grand pare-brise sombre) si l'extrémité est une tête ou une queue.
@@ -187,7 +198,9 @@ export class Railways {
     col = mix(col, glass, cab.mul(step(float(2.3), y)).mul(step(y, float(3.4))).mul(step(abs(raw.x), float(1.2))));
     col = mix(col, vec3(0.12, 0.12, 0.13), step(float(0.5), part).mul(step(part, float(1.5))));
     col = mix(col, vec3(0.45, 0.46, 0.48), step(float(1.5), part));
-    m.colorNode = varying(col);
+    // Calculée par pixel : la caisse n'a de sommets qu'aux extrémités, une couleur par sommet effaçait portes,
+    // vitres et bandeaux (trains uniformément blancs).
+    m.colorNode = col;
     // Feux : deux phares blancs en tête, deux feux rouges en queue.
     const lamp = cab.mul(step(abs(abs(raw.x).sub(0.95)), float(0.17))).mul(step(abs(y.sub(1.55)), float(0.13)));
     const head = step(abs(endKind.sub(1)), float(0.5));
@@ -227,7 +240,7 @@ export class Railways {
     const window = winBand.mul(float(1).sub(pillar)).mul(step(dz, float(half - 1.2)));
     const lower = step(y, float(1.6)).mul(step(float(1.12), y));
     const white = vec3(0.88, 0.88, 0.85);
-    const blue = vec3(0.02, 0.18, 0.72);
+    const blue = attribute<'vec3'>('lineCol');
     const glass = vec3(0.025, 0.05, 0.12);
     let col: THREE.Node<'vec3'> = white;
     col = mix(col, blue, lower);
@@ -449,6 +462,7 @@ export class Railways {
       const a = this.anchors[i];
       return a ? nearestS(l, a.x, a.z).s : 0;
     });
+    this.lineColors = this.lines.map((l) => new THREE.Color(railColor(l.name)));
   }
 
   update(dt: number): void {
@@ -485,6 +499,8 @@ export class Railways {
           const lowEnd = c === 0 ? (headHigh ? 2 : 1) : 0;
           const highEnd = c === CARS - 1 ? (headHigh ? 1 : 2) : 0;
           this.carEnds.setXY(count, lowEnd, highEnd);
+          const lc = this.lineColors[li];
+          if (lc) this.carLine.setXYZ(count, lc.r, lc.g, lc.b);
           if (this.carFwd) {
             const f = fwd.clone().normalize();
             this.carFwd.setXYZ(count, f.x, f.y, f.z);
@@ -496,6 +512,7 @@ export class Railways {
     this.cars.count = count;
     this.cars.instanceMatrix.needsUpdate = true;
     this.carEnds.needsUpdate = true;
+    this.carLine.needsUpdate = true;
     if (this.carFwd) this.carFwd.needsUpdate = true;
   }
 
