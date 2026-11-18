@@ -1,6 +1,6 @@
 import * as THREE from 'three/webgpu';
 import { LOW_POLY } from '../engine/style.ts';
-import { Fn, If, attribute, frontFacing, uv, fract, floor, step, mix, vec2, vec3, float, int, uniform, uniformArray, mx_noise_float, positionWorld, smoothstep, max, min, abs, hash, normalWorld, normalMap, fwidth } from 'three/tsl';
+import { Fn, If, attribute, frontFacing, uv, fract, floor, step, mix, vec2, vec3, vec4, float, int, uniform, uniformArray, mx_noise_float, positionWorld, smoothstep, max, min, abs, hash, mrt, normalMap, fwidth } from 'three/tsl';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { setFlatNormals } from './flatNormals.ts';
 import { ARCHETYPES, pickArchetype, worldStyle, type Archetype, type WallMaterial, type WorldStyle } from '@allezrobert/shared';
@@ -17,6 +17,7 @@ import { concatMeshes, volumesGeometry } from './volumesRoof.ts';
 import { genoiseDrop, genoiseRows } from './genoise.ts';
 import { LazyTexture } from '../engine/textures.ts';
 import { createLowPolyBuildingMaterial } from './buildingsLowPoly.ts';
+import { windowLamp } from './windowLighting.ts';
 import { tune } from '../dev/tuning.ts';
 import { FACADE_DEPTH, FacadeLightingModel, facadeFrame, roomInterior, shopInterior as shopRoom } from './facadeDepth.ts';
 import { sunlight } from './sunlight.ts';
@@ -651,9 +652,10 @@ export class Buildings {
     const roomSeed = hash(bayIdx.mul(37).add(floorIdx.add(4).mul(113)).add(wallKey.mul(7)).add(shopSeed.mul(60000)));
     // Détail intérieur fondu vers une teinte moyenne avant de scintiller (pixel de 3 à 7 cm sur la façade).
     const nearDetail = float(1).sub(smoothstep(0.03, 0.07, pix));
-    // Environ une fenêtre sur deux allumée la nuit. Sans profondeur : bruit du monde, qui coupait parfois une fenêtre en deux.
-    const lit = FACADE_DEPTH ? step(0.5, hash(roomSeed.mul(65521).add(7))).mul(this.night) : step(0.0, mx_noise_float(floor(positionWorld.mul(0.3)).add(0.37))).mul(this.night);
-    const glass =mix(vec3(0.1, 0.12, 0.14).add(normalWorld.y.mul(0)), vec3(1.0, 0.74, 0.42), lit);
+    const roomKey = roomSeed.mul(65521);
+    const lit = step(0.66, hash(roomKey.add(7))).mul(this.night);
+    const lamp = windowLamp(roomKey.add(1901));
+    const glass = mix(vec3(0.1, 0.12, 0.14), lamp.mul(0.16), lit);
     // Reflet du ciel dans les vitres (haut plus clair).
     const glassSky = glass.add(vec3(0.12, 0.15, 0.18).mul(fy.div(winH)).mul(float(1).sub(lit)));
 
@@ -724,13 +726,16 @@ export class Buildings {
     const windowDay = FACADE_DEPTH ? roomPart('albedo', inRoomGlass.mul(float(1).sub(lit)).greaterThan(0), farGlass) : farGlass;
     // Vitre allumée : presque rien en albédo, la pièce passe par l'émissif.
     const glassDepth = mix(windowDay.add(skyOnGlass.mul(gy.div(winH).clamp(0, 1))), vec3(0.02), lit);
+    const paneX = FACADE_DEPTH ? gx : wx;
+    const paneY = FACADE_DEPTH ? gy : fy;
+    const bars = max(max(step(abs(paneX), float(0.022)), step(fract(paneY.div(winH).mul(3)), float(0.035))),
+      max(step(halfW.sub(0.05), abs(paneX)), step(winH.sub(0.05), paneY)));
+    const mullions = bars.mul(isArch).mul(archB.w);
     if (FACADE_DEPTH) {
       const revealCol = frameCol.mul(mix(mix(float(0.72), float(0.42), inLintel), float(0.95), onSill));
       wall = mix(wall, revealCol, inWin);
       wall = mix(wall, glassDepth, inGlass);
-      const paneY = fract(gy.div(winH).mul(3));
-      const bars = max(max(step(abs(gx), float(0.022)), step(paneY, float(0.035))), max(step(halfW.sub(0.05), abs(gx)), step(winH.sub(0.05), gy)));
-      wall = mix(wall, vec3(0.86, 0.85, 0.8), bars.mul(inGlass).mul(isArch).mul(archB.w));
+      wall = mix(wall, vec3(0.86, 0.85, 0.8), mullions.mul(inGlass));
     } else {
       wall = mix(wall, glassSky, inWin);
       // Embrasure : la vitre est en retrait de 15 cm ; le linteau et un tableau portent leur ombre sur
@@ -738,9 +743,7 @@ export class Buildings {
       const reveal = max(step(winH.sub(0.12), fy), step(wx, halfW.negate().add(0.09))).mul(inWin);
       wall = mix(wall, wall.mul(0.45), reveal.mul(isLocal.mul(0.6).add(0.4)));
       // Petits-bois et dormant peints en blanc (fenêtres à la française : deux vantaux, trois carreaux).
-      const paneY = fract(fy.div(winH).mul(3));
-      const bars = max(max(step(abs(wx), float(0.022)), step(paneY, float(0.035))), max(step(halfW.sub(0.05), abs(wx)), step(winH.sub(0.05), fy)));
-      wall = mix(wall, vec3(0.86, 0.85, 0.8), bars.mul(inWin).mul(isArch).mul(archB.w).mul(float(1).sub(reveal.mul(0.5))));
+      wall = mix(wall, vec3(0.86, 0.85, 0.8), mullions.mul(inWin).mul(float(1).sub(reveal.mul(0.5))));
     }
     const outline = step(abs(wx), halfW.add(fm)).mul(step(halfW.add(fm).sub(0.025), abs(wx))).max(step(winH.add(fm).sub(0.025), fy).mul(step(fy, winH.add(fm))).mul(step(abs(wx), halfW.add(fm))));
     wall = mix(wall, wall.mul(0.7), outline.mul(inFrame).mul(isLocal));
@@ -761,11 +764,13 @@ export class Buildings {
     const shopGlass = shop.mul(step(abs(wx), glassHW)).mul(step(float(0.45), v)).mul(step(v, glassTop)).mul(step(float(0.06), abs(v.sub(glassTop.sub(0.55)))));
     const signBand = shopFront.mul(step(rdc.sub(0.95), v));
     const signCol = mix(mix(vec3(0.07, 0.16, 0.11), vec3(0.26, 0.06, 0.07), step(0.3, shopSeed)), mix(vec3(0.06, 0.09, 0.18), mix(vec3(0.05, 0.05, 0.05), vec3(0.42, 0.33, 0.2), step(0.9, shopSeed)), step(0.78, shopSeed)), step(0.55, shopSeed));
-    const shopLit = this.night.mul(step(0.3, hash(shopSeed.add(bayIdx))));
+    const shopLightKey = shopSeed.mul(60000).add(bayIdx.mul(107)).add(wallKey.mul(7));
+    const shopLit = this.night.mul(step(0.45, hash(shopLightKey.add(945))));
+    const shopLamp = windowLamp(shopLightKey.add(1979));
     const streak = smoothstep(0.42, 0.5, fract(u.add(v.mul(0.7)).div(2.3))).mul(smoothstep(0.58, 0.5, fract(u.add(v.mul(0.7)).div(2.3))));
     const shopInterior = mix(
       vec3(0.045, 0.05, 0.055).add(vec3(0.16, 0.19, 0.22).mul(smoothstep(0.4, glassTop, v))).add(vec3(0.12).mul(streak)),
-      vec3(1.0, 0.82, 0.6),
+      shopLamp.mul(0.18),
       shopLit,
     );
     wall = mix(wall, signCol.mul(mix(float(1.25), float(1), signBand)), shopFront);
@@ -918,18 +923,19 @@ export class Buildings {
     m.colorNode = col;
     if (FACADE_DEPTH) {
       // La nuit, la pièce allumée rayonne (fond moyen au loin) ; la boutique reste un peu éclairée le jour.
-      const roomGlow = roomPart('glow', inRoomGlass.mul(lit).greaterThan(0), vec3(0.62, 0.42, 0.24));
+      const roomGlow = roomPart('glow', inRoomGlass.mul(lit).greaterThan(0), vec3(0.62, 0.52, 0.44));
       const shopGlow = shopPart('glow', shopNear.greaterThan(0), vec3(0.72, 0.58, 0.4));
       // Boutique éclairée aussi le jour (plafonniers allumés, comme les vraies) ; enseigne allumée la nuit.
-      m.emissiveNode = roomGlow
-        .mul(inGlass.max(rdcIn).mul(lit).mul(isWall).mul(0.28))
-        .add(shopGlow.mul(shopIn.mul(isWall).mul(shopLit.mul(0.14).add(float(1).sub(this.night).mul(SHOP_DAY_GLOW)).add(0.012))))
-        .add(letterCol.mul(letterMask).mul(isWall).mul(this.night).mul(0.45));
+      m.emissiveNode = roomGlow.mul(lamp)
+        .mul(inGlass.mul(float(1).sub(mullions)).max(rdcIn).mul(lit).mul(isWall).mul(0.32))
+        .add(shopGlow.mul(mix(vec3(1), shopLamp, this.night)).mul(shopIn.mul(isWall).mul(shopLit.mul(0.26).add(float(1).sub(this.night).mul(SHOP_DAY_GLOW)).add(0.012))))
+        .add(letterCol.mul(letterMask).mul(isWall).mul(this.night).mul(0.24));
     } else {
-      m.emissiveNode = vec3(1.0, 0.62, 0.3)
-        .mul(inWin.mul(lit).mul(isWall).mul(0.38))
-        .add(vec3(1.0, 0.8, 0.55).mul(shopGlass.mul(shopLit).mul(isWall).mul(0.35)));
+      m.emissiveNode = lamp
+        .mul(inWin.mul(lit).mul(isWall).mul(float(1).sub(mullions)).mul(0.28))
+        .add(shopLamp.mul(shopGlass.mul(shopLit).mul(isWall).mul(0.25)));
     }
+    m.mrtNode = mrt({ emissive: vec4(0) });
     if (FACADE_DEPTH) {
       // ── Ombres de la modénature, d'après le soleil : elles ne retirent que la lumière directe (FacadeLightingModel) ──
       // Point du mur à l'ombre d'une saillie de e mètres : vers le soleil, il passe à (u + e·sunU, v + e·sunV).

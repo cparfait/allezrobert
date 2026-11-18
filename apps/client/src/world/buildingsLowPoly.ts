@@ -1,5 +1,6 @@
 import * as THREE from 'three/webgpu';
-import { attribute, frontFacing, uv, fract, floor, step, mix, vec3, float, int, max, min, abs, hash, mx_noise_float, positionWorld, smoothstep, fwidth, type uniformArray } from 'three/tsl';
+import { attribute, frontFacing, uv, fract, floor, step, mix, vec3, vec4, float, int, max, min, abs, hash, mrt, smoothstep, fwidth, type uniformArray } from 'three/tsl';
+import { windowLamp } from './windowLighting.ts';
 
 type ArchArray = ReturnType<typeof uniformArray>;
 
@@ -88,14 +89,18 @@ export function createLowPolyBuildingMaterial(night: THREE.UniformNode<'float', 
     .mul(step(fy, winH.add(0.03)))
     .mul(hasWin)
     .mul(mix(float(1), archB.x, isArch));
-  // Environ une fenêtre sur deux allumée la nuit (une valeur par pièce, stable).
-  const lit = step(0.0, mx_noise_float(floor(positionWorld.mul(0.3)).add(0.37))).mul(night);
+  // Tirage constant dans toute la baie, même si elle chevauche une cellule du monde.
+  const facadeSeed = floor(facade.x.mul(64)).add(floor(wallH.mul(64)).mul(17))
+    .add(floor(base.r.mul(255)).mul(37)).add(floor(base.g.mul(255)).mul(157)).add(floor(base.b.mul(255)).mul(251));
+  const roomSeed = facadeSeed.add(bayIdx.mul(107)).add(floorIdx.add(64).mul(607));
+  const lit = step(0.66, hash(roomSeed)).mul(night);
+  const lamp = windowLamp(roomSeed.add(1901));
   // Vitre en deux aplats : bleu soutenu en bas, reflet du ciel plus clair en haut ; croisillon blanc.
   const paneSplit = winH.mul(0.62);
   const paneDay = mix(vec3(0.028, 0.06, 0.15), vec3(0.09, 0.18, 0.34), step(paneSplit, fy));
-  const pane = mix(paneDay, vec3(1.0, 0.74, 0.42), lit);
+  const pane = mix(paneDay, lamp.mul(0.22), lit);
   const frameCol = vec3(0.9, 0.88, 0.83);
-  const bars = max(step(abs(wx), float(0.035)), step(abs(fy.sub(paneSplit)), float(0.03))).mul(float(1).sub(smoothstep(0.02, 0.05, pix))).mul(float(1).sub(lit));
+  const bars = max(step(abs(wx), float(0.035)), step(abs(fy.sub(paneSplit)), float(0.03))).mul(float(1).sub(smoothstep(0.02, 0.05, pix)));
 
   // Corniche des archétypes : bandeau clair sous l'égout.
   const orn = isArch.mul(isWall).mul(windowed).mul(step(float(0.5), wallH)).mul(step(float(0.5), facade.y)).mul(aboveGround);
@@ -114,9 +119,10 @@ export function createLowPolyBuildingMaterial(night: THREE.UniformNode<'float', 
   // Couleur du bâtiment ramenée à 8 bits : même tirage sur toute la façade.
   const shopSeed = hash(floor(base.r.mul(255).add(0.5)).mul(3.573).add(floor(base.g.mul(255).add(0.5)).mul(2.265)).add(floor(base.b.mul(255).add(0.5)).mul(1.031)));
   const signCol = mix(mix(vec3(0.6, 0.06, 0.05), vec3(0.04, 0.32, 0.12), step(0.3, shopSeed)), mix(vec3(0.04, 0.14, 0.5), vec3(0.85, 0.55, 0.05), step(0.8, shopSeed)), step(0.55, shopSeed));
-  const shopLit = night.mul(step(0.3, hash(shopSeed.add(bayIdx))));
+  const shopLit = night.mul(step(0.45, hash(facadeSeed.add(bayIdx.mul(107)).add(945))));
+  const shopLamp = windowLamp(facadeSeed.add(bayIdx.mul(107)).add(1979));
   wall = mix(wall, mix(frameCol, signCol, signBand), shopFront);
-  wall = mix(wall, mix(paneDay, vec3(1.0, 0.82, 0.6), shopLit), shopGlass);
+  wall = mix(wall, mix(paneDay, shopLamp.mul(0.2), shopLit), shopGlass);
   const rdcCol = inRdc.mul(float(1).sub(shopOn)).mul(windowed).mul(float(1).sub(isDoorBay)).mul(step(float(0.5), facade.y));
   const rdcTop = rdc.sub(0.8);
   const rdcWin = rdcCol.mul(step(abs(wx), halfW)).mul(step(float(1.0), v)).mul(step(v, rdcTop));
@@ -159,9 +165,11 @@ export function createLowPolyBuildingMaterial(night: THREE.UniformNode<'float', 
   let col = mix(wall, base, isRoof);
   col = mix(col, accent, underside);
   m.colorNode = col;
-  m.emissiveNode = vec3(1.0, 0.62, 0.3)
-    .mul(inWin.mul(lit).mul(isWall).mul(2.2))
-    .add(vec3(1.0, 0.8, 0.55).mul(shopGlass.mul(shopLit).mul(isWall).mul(1.6)));
+  const paneGlow = mix(float(0.74), float(1), step(paneSplit, fy)).mul(hash(roomSeed.add(4219)).mul(0.25).add(0.24));
+  m.emissiveNode = lamp.mul(inWin.mul(lit).mul(float(1).sub(bars)).mul(paneGlow))
+    .add(shopLamp.mul(shopGlass.mul(shopLit).mul(0.28))).mul(isWall);
+  // Le vitrage s'éclaire dans la scène sans alimenter le halo des phares et lampadaires.
+  m.mrtNode = mrt({ emissive: vec4(0) });
   const glazed = inWin.max(shopGlass).max(rdcWin).mul(isWall);
   m.roughnessNode = mix(mix(mix(float(0.92), float(0.3), glazed), float(0.8), isRoof), float(0.55), isMetal).max(underside);
   m.metalnessNode = isMetal.mul(0.15).mul(float(1).sub(underside));

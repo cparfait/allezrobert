@@ -314,7 +314,8 @@ export class World {
       (this.horizon.sunDir.value as THREE.Vector3).copy(this.env.sceneFog.sunDir.value as THREE.Vector3);
     }
     this.rain.update(w.rain, w.windMs, w.windFrom);
-    this.buildings.night.value = this.nightFactor() > 0.35 ? 1 : 0;
+    const buildingNight = this.nightFactor();
+    this.buildings.night.value = THREE.MathUtils.smoothstep(buildingNight, 0.28, 0.8);
     this.railways.night.value = this.nightFactor() > 0.25 ? 1 : 0;
     // Horloge des trains : l'heure choisie (peut changer au menu) plus le temps écoulé.
     if (Math.abs(this.railways.clock / 3600 - this.env.state.hour) > 1 && Math.abs(this.lastHour - this.env.state.hour) > 1e-6) this.railways.clock = this.env.state.hour * 3600;

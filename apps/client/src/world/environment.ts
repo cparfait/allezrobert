@@ -133,8 +133,12 @@ function palette(el: number, season: Season, weather: Weather, clarity = 1): Pal
   // Météo couverte : lumière plus grise et plus diffuse.
   const overcast = Math.max(weather.clouds - 0.4, 0) / 0.6;
   sun.lerp(new THREE.Color('#c8ccd2'), overcast * 0.6);
-  sky.lerp(new THREE.Color('#a9b2bc').multiplyScalar(0.4 + 0.6 * day), overcast * 0.5);
-  fog.lerp(new THREE.Color('#b9c0c7').multiplyScalar(0.3 + 0.7 * day), Math.max(overcast, weather.fog) * 0.6);
+  const skyOvercast = new THREE.Color('#a9b2bc').multiplyScalar(0.4 + 0.6 * day);
+  const fogOvercast = new THREE.Color('#b9c0c7').multiplyScalar(0.3 + 0.7 * day);
+  skyOvercast.lerp(new THREE.Color('#29405d'), night);
+  fogOvercast.lerp(new THREE.Color('#26384e'), night);
+  sky.lerp(skyOvercast, overcast * 0.5);
+  fog.lerp(fogOvercast, Math.max(overcast, weather.fog) * 0.6);
   return { hemiSky: sky, hemiGround: ground, fog, sunColor: sun };
 }
 
@@ -293,13 +297,14 @@ export class Environment {
     const nightK = 1 - THREE.MathUtils.smoothstep(this.sunDir.y, -0.18, 0.02);
     this.nightSky.night.value = nightK;
     // Nuit : clair de lune bleuté (lisibilité de la route), jamais le noir complet.
-    const ambient = 0.25 + 1.1 * THREE.MathUtils.smoothstep(this.sunDir.y, -0.2, 0.3) + overcast * 0.5;
+    const ambient = 0.25 + 1.1 * THREE.MathUtils.smoothstep(this.sunDir.y, -0.2, 0.3)
+      + overcast * (0.5 - 0.3 * nightK);
     const renderer = mainRenderer();
     // Avec la carte d'environnement, le ciel éclaire déjà les ombres : l'hémisphère ne garde qu'un appoint.
     if (renderer && SKY_LIGHT) this.updateSkyLight(renderer, pal);
     this.hemi.intensity = ambient * (this.scene.environment ? HEMI_WITH_SKY : 1) * HEMI_K.value + nightK * 0.35;
     // Ciel couvert : la carte du ciel est grise, plus bleue ; elle retrouve son intensité d'avant (ombres moins noires sous la pluie).
-    if (this.scene.environment) this.scene.environmentIntensity = SKY_LIGHT_INTENSITY * (LOW_POLY ? 1 : 1 + overcast * 2.3) * SKY_K.value;
+    if (this.scene.environment) this.scene.environmentIntensity = SKY_LIGHT_INTENSITY * (LOW_POLY ? 1 : 1 + overcast * 2.3 * (1 - nightK)) * SKY_K.value;
     if (nightK > 0) this.hemi.color.lerp(new THREE.Color('#3b4f7a'), nightK * 0.8);
     this.lowPolySky?.update(_dt, center, pal.hemiSky, pal.fog, this.sunDir, this.sun.color, sunStrength, weather.clouds, weather.windMs, weather.windFrom);
     this.fog.color.copy(pal.fog);
@@ -369,7 +374,8 @@ export class Environment {
   exposure(): number {
     const el = this.sunDir.y;
     // Continue au coucher (l'ancien saut de 1,35 à 1,6 à l'horizon faisait « pomper » l'image et scintiller le lointain).
-    return (1.0 + 0.35 * (1 - THREE.MathUtils.smoothstep(el, 0, 0.3)) + 0.25 * (1 - THREE.MathUtils.smoothstep(el, -0.12, 0.0))) * EXPO_K.value;
+    const nightLift = 0.08;
+    return (1.0 + 0.35 * (1 - THREE.MathUtils.smoothstep(el, 0, 0.3)) + nightLift * (1 - THREE.MathUtils.smoothstep(el, -0.12, 0.0))) * EXPO_K.value;
   }
 
   dispose(): void {
