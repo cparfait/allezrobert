@@ -6,7 +6,7 @@ import { rng } from '../engine/noise.ts';
 import { LOW_POLY } from '../engine/style.ts';
 import { signDesigns, type SignDesign } from './crowdSigns.ts';
 import { lowPolyCrowdMaterial, lowPolyPersonGeometry, lowPolySignGeometry, lowPolySignMaterial } from './crowdLowPoly.ts';
-import { loadSpectators, spectatorMaterial } from './crowdRealistic.ts';
+import { loadSpectators, spectatorGeometry, spectatorMaterial } from './crowdRealistic.ts';
 
 /** Spectateur : corps, tête et bras levés (attribut `part` : 0 corps, 1 tête, 2 bras). */
 function personGeometry(): THREE.BufferGeometry {
@@ -102,6 +102,14 @@ function signAtlas(designs: SignDesign[]): THREE.CanvasTexture {
 const LOOK_REACH_M = 70;
 const LOOK_MAX_RAD = 0.95;
 const LOOK_EASE = 0.18;
+/**
+ * Style réaliste : public découpé en tronçons de CHUNK_M mètres de route (un maillage instancié par tronçon et par
+ * personnage). Chaque tronçon a sa sphère englobante : hors champ, il n'est plus dessiné ; au-delà de HIDE_M du
+ * coureur (quelques pixels), il est masqué. Avant, un maillage par personnage couvrait tout le parcours et tous
+ * les spectateurs passaient par la carte graphique à chaque image (≈ 1 µs chacun, mesuré le 18/11/2026).
+ */
+const CHUNK_M = 250;
+const HIDE_M = 1500;
 
 export interface CrowdOptions {
   /** Prénom du coureur, écrit sur certaines pancartes. */
@@ -342,13 +350,15 @@ export class Crowd {
   /** Style réaliste : maillages des vrais personnages (un par personnage), reposés sur le sol comme les capsules. */
   private readonly people: THREE.InstancedMesh[] = [];
   /** Spectateurs réalistes qui suivent le coureur du regard : lacet de base (vers la route), lacet actuel, pancarte tenue (immobile). */
-  private readonly lookers: Array<{ mesh: THREE.InstancedMesh; attr: THREE.InstancedBufferAttribute; base: Float32Array; cur: Float32Array; still: Float32Array }> = [];
+  private readonly lookers: Array<{ mesh: THREE.InstancedMesh; attr: THREE.InstancedBufferAttribute; base: Float32Array; cur: Float32Array; still: Float32Array; center: THREE.Vector3; radius: number; settled: boolean }> = [];
 
   constructor(track: RouteTrack, groundAt: (x: number, z: number) => number, opts: CrowdOptions = {}) {
     this.track = track;
     this.groundAt = groundAt;
     const r = rng(2026);
     const mats: THREE.Matrix4[] = [];
+    // Tronçon de route (CHUNK_M) de chaque spectateur.
+    const bins: number[] = [];
     const still: number[] = [];
     // Style réaliste : par spectateur cos et sin de son lacet et son échelle (vrais personnages, crowdRealistic.ts).
     const orient: number[] = [];
@@ -408,6 +418,7 @@ export class Crowd {
       orient.push(Math.cos(yaw), Math.sin(yaw), s);
       m.compose(new THREE.Vector3(p.x, y, p.z), q, new THREE.Vector3(s, s, s));
       mats.push(m.clone());
+      bins.push(Math.floor(dd / CHUNK_M));
       const holder = r() < sign;
       still.push(holder ? 1 : 0);
       if (!holder) return;
@@ -482,35 +493,38 @@ export class Crowd {
         if (!assets.length) return;
         const total = assets.reduce((n, a) => n + a.weight, 0);
         const pick = rng(4242);
-        const groups = assets.map(() => ({ mats: [] as THREE.Matrix4[], orient: [] as number[], still: [] as number[] }));
+        // Un groupe par tronçon de route et par personnage ; un seul matériau par personnage, partagé.
+        const groups = new Map<string, { k: number; mats: THREE.Matrix4[]; orient: number[]; still: number[] }>();
         mats.forEach((mm, i) => {
           let x = pick() * total;
           let k = 0;
           while (k < assets.length - 1 && x >= (assets[k] as (typeof assets)[number]).weight) x -= (assets[k++] as (typeof assets)[number]).weight;
-          const g = groups[k] as (typeof groups)[number];
+          const key = `${bins[i] as number}:${k}`;
+          let g = groups.get(key);
+          if (!g) groups.set(key, (g = { k, mats: [], orient: [], still: [] }));
           g.mats.push(mm);
           g.orient.push(orient[i * 3] as number, orient[i * 3 + 1] as number, orient[i * 3 + 2] as number);
           g.still.push(still[i] as number);
         });
-        assets.forEach((asset, k) => {
-          const g = groups[k] as (typeof groups)[number];
-          if (!g.mats.length) return;
-          const mesh = new THREE.InstancedMesh(asset.geometry, spectatorMaterial(asset, padded(g.orient, 3), padded(g.still, 1), k * 1009), g.mats.length);
+        const materials = assets.map((asset, k) => spectatorMaterial(asset, k * 1009));
+        for (const [key, g] of groups) {
+          const asset = assets[g.k] as (typeof assets)[number];
+          const geometry = spectatorGeometry(asset, Float32Array.from(g.orient), Float32Array.from(g.still));
+          const mesh = new THREE.InstancedMesh(geometry, materials[g.k] as THREE.Material, g.mats.length);
           g.mats.forEach((mm, i) => mesh.setMatrixAt(i, mm));
           mesh.instanceMatrix.needsUpdate = true;
           mesh.computeBoundingSphere();
           mesh.castShadow = false;
           mesh.receiveShadow = true;
-          mesh.name = `crowd-${asset.name}`;
+          mesh.name = `crowd-${asset.name}-${key.split(':')[0] as string}`;
           this.group.add(mesh);
           this.people.push(mesh);
-          const attr = (mesh.material as THREE.Material).userData.orientAttr as THREE.InstancedBufferAttribute | undefined;
-          if (attr) {
-            const base = new Float32Array(g.mats.length);
-            for (let i = 0; i < base.length; i++) base[i] = Math.atan2(g.orient[i * 3 + 1] as number, g.orient[i * 3] as number);
-            this.lookers.push({ mesh, attr, base, cur: base.slice(), still: Float32Array.from(g.still) });
-          }
-        });
+          const sphere = mesh.boundingSphere as THREE.Sphere;
+          const attr = geometry.getAttribute('crowdOrient') as THREE.InstancedBufferAttribute;
+          const base = new Float32Array(g.mats.length);
+          for (let i = 0; i < base.length; i++) base[i] = Math.atan2(g.orient[i * 3 + 1] as number, g.orient[i * 3] as number);
+          this.lookers.push({ mesh, attr, base, cur: base.slice(), still: Float32Array.from(g.still), center: sphere.center.clone(), radius: sphere.radius, settled: true });
+        }
         // Les capsules restent dans le groupe (comptes, tests) mais ne sont plus dessinées.
         this.mesh.visible = false;
       });
@@ -577,6 +591,11 @@ export class Crowd {
     }
     this.reground(p.x, p.z);
     this.lookAt(p.x, p.z);
+    // Tronçons de public à plus de HIDE_M du coureur : masqués (quelques pixels à cette distance).
+    for (const l of this.lookers) {
+      const far = Math.hypot(l.center.x - p.x, l.center.z - p.z) - l.radius > HIDE_M;
+      l.mesh.visible = !far;
+    }
   }
 
   /**
@@ -586,6 +605,9 @@ export class Crowd {
    */
   private lookAt(rx: number, rz: number): void {
     for (const l of this.lookers) {
+      // Tronçon hors de portée du regard et revenu au repos : rien à faire.
+      const near = Math.hypot(l.center.x - rx, l.center.z - rz) - l.radius < LOOK_REACH_M;
+      if (!near && l.settled) continue;
       const a = l.mesh.instanceMatrix.array as Float32Array;
       const o = l.attr.array as Float32Array;
       let changed = false;
@@ -624,6 +646,8 @@ export class Crowd {
         l.mesh.instanceMatrix.needsUpdate = true;
         l.attr.needsUpdate = true;
       }
+      // Au repos dès qu'aucun spectateur du tronçon ne bouge plus (hors de portée, ils sont revenus face à la route).
+      l.settled = !changed;
     }
   }
 

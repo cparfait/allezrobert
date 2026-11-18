@@ -6,7 +6,6 @@ import {
   fract,
   hash,
   instanceIndex,
-  instancedBufferAttribute,
   ivec2,
   mix,
   mod,
@@ -159,20 +158,35 @@ function pick(list: string[], h: F): V3 {
 }
 
 /**
- * Matériau du public réaliste. `orient` : par spectateur cos et sin de son orientation (lacet) et son échelle ;
- * `still` : 1 pour les porteurs de pancarte (pose tenue, sans animation) ; `seed` : décalage des tirages (un par
- * personnage, sinon le n-ième spectateur de chaque personnage aurait les mêmes couleurs et la même phase).
+ * Géométrie d'un groupe de spectateurs d'un même personnage : celle du personnage (tampons partagés) et, par
+ * spectateur, `crowdOrient` (cos et sin de son lacet, son échelle ; réécrit par Crowd pour qu'il suive le coureur
+ * du regard) et `crowdStill` (1 pour les porteurs de pancarte : pose tenue, sans animation).
+ * Les données par spectateur sont portées par la géométrie et non par le matériau : un seul matériau par
+ * personnage sert à tous les tronçons de public, donc un seul nuanceur à compiler.
  */
-export function spectatorMaterial(asset: SpectatorAsset, orient: Float32Array, still: Float32Array, seed = 0): THREE.MeshStandardNodeMaterial {
+export function spectatorGeometry(asset: SpectatorAsset, orient: Float32Array, still: Float32Array): THREE.BufferGeometry {
+  const src = asset.geometry;
+  const g = new THREE.BufferGeometry();
+  for (const [name, a] of Object.entries(src.attributes)) g.setAttribute(name, a);
+  g.setIndex(src.index);
+  g.setAttribute('crowdOrient', new THREE.InstancedBufferAttribute(orient, 3));
+  g.setAttribute('crowdStill', new THREE.InstancedBufferAttribute(still, 1));
+  // Sphère élargie aux bras levés (le maillage bouge dans le nuanceur).
+  if (src.boundingSphere) g.boundingSphere = src.boundingSphere.clone();
+  return g;
+}
+
+/**
+ * Matériau du public réaliste, à poser sur une géométrie de `spectatorGeometry`. `seed` : décalage des tirages
+ * (un par personnage, sinon le n-ième spectateur de chaque personnage aurait les mêmes couleurs et la même phase).
+ */
+export function spectatorMaterial(asset: SpectatorAsset, seed = 0): THREE.MeshStandardNodeMaterial {
   const { meta } = asset;
   // Deux faces : les maillages simplifiés (1 500 triangles) ont des trous, surtout sur la tête ; sans faces arrière
   // on voyait le ciel à travers (crânes, épaules incomplets).
   const mat = new THREE.MeshStandardNodeMaterial({ side: THREE.DoubleSide });
-  const orientAttr = new THREE.InstancedBufferAttribute(orient, 3);
-  // Gardé pour que Crowd.update tourne les spectateurs vers le coureur (cos, sin, échelle réécrits à chaque image).
-  mat.userData.orientAttr = orientAttr;
-  const o = instancedBufferAttribute(orientAttr) as unknown as ReturnType<typeof vec3>;
-  const holder = instancedBufferAttribute(new THREE.InstancedBufferAttribute(still, 1)) as unknown as ReturnType<typeof float>;
+  const o = attribute<'vec3'>('crowdOrient', 'vec3') as unknown as ReturnType<typeof vec3>;
+  const holder = attribute<'float'>('crowdStill', 'float') as unknown as ReturnType<typeof float>;
   const h = hash(instanceIndex.add(5 + seed)) as unknown as F;
   const hp = hash(instanceIndex.add(17 + seed)) as unknown as F;
   const c0 = meta.clips[0] as SpectatorMeta['clips'][number];

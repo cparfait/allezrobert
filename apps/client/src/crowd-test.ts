@@ -3,7 +3,7 @@ import type { RouteTrack } from '@allezrobert/shared';
 import { createEngine } from './engine/renderer.ts';
 import { QUALITY_PRESETS, type QualityLevel } from './engine/quality.ts';
 import { Crowd } from './world/crowd.ts';
-import { loadSpectators, spectatorMaterial } from './world/crowdRealistic.ts';
+import { loadSpectators, spectatorGeometry, spectatorMaterial } from './world/crowdRealistic.ts';
 
 /**
  * Banc d'essai (développement) : /crowd-test.html montre le public d'un sommet de KOM sur une route droite,
@@ -54,7 +54,8 @@ async function main(): Promise<void> {
     const rows = Math.max(1, Number(params.get('lineup')) || 1);
     const dl = Number(params.get('d') ?? 360);
     assets.forEach((a, k) => {
-      const mesh = new THREE.InstancedMesh(a.geometry, spectatorMaterial(a, new Float32Array(Array.from({ length: rows }, () => [-1, 0, 1]).flat()), new Float32Array(rows), k * 1009 + Number(params.get('seed') ?? 0)), rows);
+      const geometry = spectatorGeometry(a, new Float32Array(Array.from({ length: rows }, () => [-1, 0, 1]).flat()), new Float32Array(rows));
+      const mesh = new THREE.InstancedMesh(geometry, spectatorMaterial(a, k * 1009 + Number(params.get('seed') ?? 0)), rows);
       for (let r = 0; r < rows; r++)
         mesh.setMatrixAt(r, new THREE.Matrix4().compose(new THREE.Vector3((k - (assets.length - 1) / 2) * 1.1, 0, -dl - 7 - r * 2.5), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI), new THREE.Vector3(1, 1, 1)));
       mesh.instanceMatrix.needsUpdate = true;
