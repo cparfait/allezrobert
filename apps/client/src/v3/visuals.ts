@@ -243,7 +243,8 @@ const POCKETS_LONG = [55, 56, 57, 58];
  */
 const openingUniforms = () => ({ on: uniform(0), skin: uniform(new Color(0.78, 0.58, 0.46)) });
 type Opening = ReturnType<typeof openingUniforms> & { bottom: number; top: number; width: number };
-function openableJersey(source: MeshStandardMaterial, opening: Opening): MeshStandardNodeMaterial {
+/** Copie d'un matériau du corps Zwift en matériau à nœuds (même texture, relief et réglages). */
+function nodeCopy(source: MeshStandardMaterial): MeshStandardNodeMaterial {
   const material = new MeshStandardNodeMaterial();
   material.name = source.name;
   material.map = source.map;
@@ -258,6 +259,11 @@ function openableJersey(source: MeshStandardMaterial, opening: Opening): MeshSta
   material.transparent = source.transparent;
   material.opacity = source.opacity;
   material.alphaTest = source.alphaTest;
+  return material;
+}
+
+function openableJersey(source: MeshStandardMaterial, opening: Opening): MeshStandardNodeMaterial {
+  const material = nodeCopy(source);
   const p = positionGeometry;
   const top = float(opening.top);
   const bottom = float(opening.bottom);
@@ -269,6 +275,65 @@ function openableJersey(source: MeshStandardMaterial, opening: Opening): MeshSta
   const zip = step(abs(p.z), half.add(0.0055)).mul(zone).sub(skin);
   material.colorNode = mix(mix(materialColor.rgb, vec3(0.07, 0.07, 0.08), zip), opening.skin, skin);
   return material;
+}
+
+/**
+ * Col fermé du maillot à col en V (groupe 3, le seul de la coureuse) : Zwift n'a pas de version fermée. Le V de peau
+ * sous le col (cou et haut du sternum, matériaux FLESH) prend la couleur dominante du devant du maillot, comme si la
+ * fermeture était remontée. Même dessin sur la pose de repos que l'ouverture.
+ */
+const closingUniforms = () => ({ on: uniform(0), color: uniform(new Color(0.5, 0.5, 0.5)) });
+type Closing = ReturnType<typeof closingUniforms>;
+/** V du col du maillot 3 (pose de repos, mètres) : pointe à 1,43 m, bords du col à 1,50 m, ±7 cm (débord caché sous le col). */
+const COLLAR_V = { bottom: 1.43, top: 1.5, half: 0.07 };
+
+function closableSkin(source: MeshStandardMaterial, closing: Closing): MeshStandardNodeMaterial {
+  const material = nodeCopy(source);
+  const p = positionGeometry;
+  const t = clamp(p.y.sub(COLLAR_V.bottom).div(COLLAR_V.top - COLLAR_V.bottom), 0, 1);
+  const inside = step(abs(p.z), t.mul(COLLAR_V.half)).mul(step(float(COLLAR_V.bottom), p.y)).mul(step(p.y, float(COLLAR_V.top)))
+    .mul(step(float(0), p.x)).mul(closing.on);
+  material.colorNode = mix(materialColor.rgb, closing.color, inside);
+  return material;
+}
+
+/** Couleur dominante du maillot porté sur le devant de la poitrine (pixel médian de sa texture à cet endroit). */
+const collarColors = new WeakMap<object, Color>();
+function collarColor(rider: RiderVisual): Color | undefined {
+  let mesh: Mesh | undefined;
+  rider.groups.find(group => group.id === 3 && /^LOD0_/.test(group.node.name))?.node.traverse(node => {
+    if (!mesh && (node as Mesh).isMesh && /^CyclistKIT$/i.test(((node as Mesh).material as Material).name)) mesh = node as Mesh;
+  });
+  const map = (mesh?.material as MeshStandardMaterial | undefined)?.map;
+  const image = map?.image as (CanvasImageSource & { width: number; height: number }) | undefined;
+  if (!mesh || !image?.width || typeof document === 'undefined') return;
+  const known = collarColors.get(image);
+  if (known) return known;
+  const position = mesh.geometry.getAttribute('position');
+  const uv = mesh.geometry.getAttribute('uv');
+  if (!position || !uv) return;
+  const size = 256;
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = size;
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  if (!ctx) return;
+  ctx.drawImage(image, 0, 0, size, size);
+  const data = ctx.getImageData(0, 0, size, size).data;
+  const samples: Array<[number, number, number, number]> = [];
+  for (let i = 0; i < position.count; i++) {
+    const x = position.getX(i), y = position.getY(i), z = position.getZ(i);
+    if (x < 0.02 || Math.abs(z) > 0.09 || y < 1.22 || y > 1.42) continue;
+    const u = uv.getX(i) - Math.floor(uv.getX(i));
+    const v = uv.getY(i) - Math.floor(uv.getY(i));
+    const at = (Math.min(size - 1, Math.floor(v * size)) * size + Math.min(size - 1, Math.floor(u * size))) * 4;
+    samples.push([0.299 * data[at]! + 0.587 * data[at + 1]! + 0.114 * data[at + 2]!, data[at]!, data[at + 1]!, data[at + 2]!]);
+  }
+  if (!samples.length) return;
+  samples.sort((a, b) => a[0] - b[0]);
+  const [, r, g, b] = samples[samples.length >> 1]!;
+  const color = new Color().setRGB(r / 255, g / 255, b / 255, SRGBColorSpace).multiply(mesh.material instanceof MeshStandardMaterial ? (mesh.material as MeshStandardMaterial).color : new Color(1, 1, 1));
+  collarColors.set(image, color);
+  return color;
 }
 
 /** Teinte de peau du coureur : pixel médian de la texture du visage porté (planche FLESH). */
@@ -312,6 +377,10 @@ export function showZip(rider: RiderVisual, zip = 0, pockets = 0, open = false):
   const long = zip > 0 && rider.sex === 'male' && rider.groups.some(group => group.id === 40);
   const shown = ZIP_JERSEYS[long ? 1 : 0];
   for (const { id, node } of rider.groups) if (ZIP_JERSEYS.includes(id)) node.visible = id === shown;
+  // Col fermé : le V du maillot à manches courtes est comblé à la couleur du maillot (le col rond n'en a pas besoin).
+  const collar = !open && !long ? collarColor(rider) : undefined;
+  rider.closing.on.value = collar ? 1 : 0;
+  if (collar) rider.closing.color.value.copy(collar);
   const pocket = pockets > 0 ? (long ? POCKETS_LONG : POCKETS_SHORT)[Math.min(pockets, 4) - 1] : undefined;
   for (const { id, node } of rider.groups) if (POCKETS_SHORT.includes(id) || POCKETS_LONG.includes(id)) node.visible = id === pocket;
 }
@@ -810,6 +879,7 @@ export async function loadRider(sex: 'male' | 'female', body: V3Body = 'standard
   // Ouverture du maillot : col à 1,50 m, fermeture descendue jusqu'au sternum (moins bas pour la coureuse).
   const opening: Opening = { ...openingUniforms(), top: 1.5, bottom: sex === 'female' ? 1.37 : 1.32, width: 0.038 };
   const jerseys = new Map<MeshStandardMaterial, MeshStandardNodeMaterial>();
+  const closing = closingUniforms();
   scene.traverse(node => {
     const match = /^os_(\d+)$/.exec(node.name);
     if (match) joints.set(Number(match[1]), node as Bone);
@@ -829,6 +899,12 @@ export async function loadRider(sex: 'male' | 'female', body: V3Body = 'standard
       let jersey = jerseys.get(source);
       if (!jersey) jerseys.set(source, jersey = openableJersey(source, opening));
       mesh.material = jersey;
+    } else if (!Array.isArray(mesh.material) && /^FLESH/i.test(mesh.material.name)) {
+      // Peau : matériau à col fermé dessiné (voir closableSkin), un par matériau d'origine.
+      const source = mesh.material as MeshStandardMaterial;
+      let skin = jerseys.get(source);
+      if (!skin) jerseys.set(source, skin = closableSkin(source, closing));
+      mesh.material = skin;
     }
     for (const material of Array.isArray(mesh.material) ? mesh.material : [mesh.material]) {
       if ((material as MeshStandardMaterial).isMeshStandardMaterial) materials.add(material as MeshStandardMaterial);
@@ -849,7 +925,7 @@ export async function loadRider(sex: 'male' | 'female', body: V3Body = 'standard
   const helmet = await model('helmet/' + id + '.glb').catch(() => null);
   if (helmet) head.add(helmet);
   const originalMaterials = [...materials].map(material => ({ material, map: material.map, normal: material.normalMap, color: material.color.clone() }));
-  return { scene, joints, rest, levels, head, helmet, groups, originalMaterials, sex, body, shoeBasis, opening };
+  return { scene, joints, rest, levels, head, helmet, groups, originalMaterials, sex, body, shoeBasis, opening, closing };
 }
 
 function materialsFor(item: V3Gear): RegExp | undefined {
