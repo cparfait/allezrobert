@@ -5,6 +5,7 @@ import { LOW_POLY } from '../engine/style.ts';
 import type { LoadedTile } from './types.ts';
 import { assembleLines, pointAt, RER, trainsAt, type RailLine, type RailPiece } from './railgeom.ts';
 import { railColor } from './railLivery.ts';
+import { fillDips, pinEnd, RAIL_DIP_WINDOW_M } from './railProfile.ts';
 
 /** Écartement des rails (m, entre axes des files de rails). */
 const GAUGE = 1.505;
@@ -109,6 +110,8 @@ export class Railways {
   /** Abscisse de l'ancre de chaque ligne (fixe jusqu'au prochain assemblage) : plus cherchée à chaque image. */
   private anchorS: number[] = [];
   private dirty = false;
+  /** Hauteur retenue aux extrémités des tronçons déjà construits (clé : x, z au demi-mètre) : raccords sans marche entre tronçons et tuiles. */
+  private readonly nodeY = new Map<string, number>();
   private readonly groundAt: (x: number, z: number) => number;
   private props: number;
   /** Horloge du jeu (s depuis minuit). */
@@ -295,9 +298,12 @@ export class Railways {
     const uvs: number[] = [];
     const kinds: number[] = [];
     const up = new THREE.Vector3(0, 1, 0);
+    const nodeKey = (x: number, z: number) => `${Math.round(x * 2)}_${Math.round(z * 2)}`;
+    // Tronçons rééchantillonnés tous les 4 m ; ponts OSM traités après les autres (leurs culées prennent la hauteur
+    // retenue par les voies voisines).
+    const todo: Array<{ r: (typeof tile.features.railways & {})[number]; pts: number[] }> = [];
     for (const r of tile.features.railways ?? []) {
       if (r.tunnel || r.pts.length < 4) continue;
-      // Rééchantillonnage tous les 4 m, altitude lissée (ponts : droite entre les culées).
       const src = r.pts;
       const pts: number[] = [];
       for (let i = 0; i < src.length / 2 - 1; i++) {
@@ -309,15 +315,56 @@ export class Railways {
         for (let k = 0; k < steps; k++) pts.push(ax + ((bx - ax) * k) / steps, 0, az + ((bz - az) * k) / steps);
       }
       pts.push(src[src.length - 2] as number, 0, src[src.length - 1] as number);
+      todo.push({ r, pts });
+    }
+    todo.sort((a, b) => Number(a.r.bridge === true) - Number(b.r.bridge === true));
+    for (const { r, pts } of todo) {
       const np = pts.length / 3;
+      const sAt: number[] = [0];
+      for (let i = 1; i < np; i++) sAt.push((sAt[i - 1] as number) + Math.hypot((pts[i * 3] as number) - (pts[i * 3 - 3] as number), (pts[i * 3 + 2] as number) - (pts[i * 3 - 1] as number)));
+      const k0 = nodeKey(pts[0] as number, pts[2] as number);
+      const k1 = nodeKey(pts[(np - 1) * 3] as number, pts[(np - 1) * 3 + 2] as number);
+      const raw: number[] = [];
+      for (let i = 0; i < np; i++) raw.push(this.railY(pts[i * 3] as number, pts[i * 3 + 2] as number));
+      if (raw.some((v) => !Number.isFinite(v))) continue;
+      let y: number[];
       if (r.bridge) {
-        const y0 = this.railY(pts[0] as number, pts[2] as number);
-        const y1 = this.railY(pts[(np - 1) * 3] as number, pts[(np - 1) * 3 + 2] as number);
-        for (let i = 0; i < np; i++) pts[i * 3 + 1] = y0 + ((y1 - y0) * i) / Math.max(np - 1, 1);
-      } else for (let i = 0; i < np; i++) pts[i * 3 + 1] = this.railY(pts[i * 3] as number, pts[i * 3 + 2] as number);
-      if (pts.some((v) => !Number.isFinite(v))) continue;
+        // Pont OSM : droite entre les culées (hauteur des voies voisines si elles sont déjà là).
+        const y0 = this.nodeY.get(k0) ?? (raw[0] as number);
+        const y1 = this.nodeY.get(k1) ?? (raw[np - 1] as number);
+        y = raw.map((_, i) => y0 + ((y1 - y0) * i) / Math.max(np - 1, 1));
+      } else {
+        // Creux plus raides qu'une voie (route sous un pont ferroviaire que le MNT ne voit pas) : comblés.
+        // Prolongé de RAIL_DIP_WINDOW_M de chaque côté (sol mesuré dans l'axe) : un creux en bout de tronçon — souvent
+        // contre un pont OSM, où les voies sont coupées — est vu avec ses deux rives.
+        const G = Math.ceil(RAIL_DIP_WINDOW_M / 4);
+        const ext = (from: number, to: number) => {
+          const dx = (pts[from * 3] as number) - (pts[to * 3] as number);
+          const dz = (pts[from * 3 + 2] as number) - (pts[to * 3 + 2] as number);
+          const l = Math.hypot(dx, dz) || 1;
+          const out: number[] = [];
+          for (let k = 1; k <= G; k++) {
+            const v = this.railY((pts[from * 3] as number) + (dx / l) * 4 * k, (pts[from * 3 + 2] as number) + (dz / l) * 4 * k);
+            out.push(Number.isFinite(v) ? v : (raw[from] as number));
+          }
+          return out;
+        };
+        const before = ext(0, 1).reverse();
+        const after = ext(np - 1, np - 2);
+        const sExt = [...before.map((_, k) => -4 * (G - k)), ...sAt, ...after.map((_, k) => (sAt[np - 1] as number) + 4 * (k + 1))];
+        y = fillDips(sExt, [...before, ...raw, ...after]).slice(G, G + np);
+        const p0 = this.nodeY.get(k0);
+        const p1 = this.nodeY.get(k1);
+        if (p0 !== undefined) pinEnd(sAt, y, p0, false);
+        if (p1 !== undefined) pinEnd(sAt, y, p1, true);
+      }
+      for (let i = 0; i < np; i++) pts[i * 3 + 1] = y[i] as number;
+      if (!this.nodeY.has(k0)) this.nodeY.set(k0, y[0] as number);
+      if (!this.nodeY.has(k1)) this.nodeY.set(k1, y[np - 1] as number);
+      // Tablier (sans talus jusqu'au sol) sur les ponts OSM et là où la voie passe à plus de 1,5 m au-dessus du sol lissé.
+      const deck = r.bridge ? true : y.map((v, i) => v - (raw[i] as number) > 1.5);
       pieces.push({ pts, ...(r.name ? { name: r.name } : {}) });
-      this.buildTrack(pts, r.bridge === true, (r.name ?? '') !== '' && np * 4 > 120, pos, uvs, kinds, up);
+      this.buildTrack(pts, deck, (r.name ?? '') !== '' && np * 4 > 120, pos, uvs, kinds, up);
     }
     let mesh: THREE.Mesh | null = null;
     if (pos.length) {
@@ -338,7 +385,7 @@ export class Railways {
   }
 
   /** Ballast trapézoïdal, deux files de rails, et (lignes principales) poteaux et fil de contact. */
-  private buildTrack(pts: number[], bridge: boolean, catenary: boolean, pos: number[], uvs: number[], kinds: number[], up: THREE.Vector3): void {
+  private buildTrack(pts: number[], bridge: boolean | boolean[], catenary: boolean, pos: number[], uvs: number[], kinds: number[], up: THREE.Vector3): void {
     const n = pts.length / 3;
     const P = (i: number) => new THREE.Vector3(pts[i * 3] as number, pts[i * 3 + 1] as number, pts[i * 3 + 2] as number);
     const tan = (i: number) => P(Math.min(i + 1, n - 1)).sub(P(Math.max(i - 1, 0))).setY(0).normalize();
@@ -360,7 +407,8 @@ export class Railways {
         ballast.map(([o, h]) => {
           const q = p.clone().addScaledVector(side, o);
           const g = this.groundAt(q.x, q.z);
-          q.y = h === 'ground' ? (bridge || !Number.isFinite(g) ? p.y - 1.2 : Math.min(g, p.y - 0.32) - 0.25) : p.y + h;
+          const deck = typeof bridge === 'boolean' ? bridge : bridge[i] === true;
+          q.y = h === 'ground' ? (deck || !Number.isFinite(g) ? p.y - 1.2 : Math.min(g, p.y - 0.32) - 0.25) : p.y + h;
           return q;
         }),
       );
