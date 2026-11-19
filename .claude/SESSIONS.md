@@ -113,3 +113,9 @@ Relevé du 2026-11-12. Elles viennent de sessions fermées ; aucune session ouve
 - Fichiers ou dossiers réservés : `tools/island/src/verify.ts`
 - État : commité, non poussé ; test de l'île vert (5/5), types OK. Fichier libéré.
 - Mis à jour : 2026-11-19
+
+## Corrections du relevé avant publication (relevé du 19-20/11)
+- Chantier : branchements Beta de `main.ts` (52111b1a) ; `?hour` respecté et colonnes du HUD sous le cockpit sur écran étroit (afade71f) ; chantier Paris commité d'un bloc (3a099122)
+- Fichiers ou dossiers réservés : aucun (libérés). Config « verif-paris » ajoutée à `.claude/launch.json` (port 5310, accès Bêta ouvert, cartes en ligne ; `out/verif-paris/`)
+- État : commité, non poussé
+- Mis à jour : 2026-11-20
