@@ -1108,12 +1108,15 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   }
   // Sortie de groupe / course : le serveur fait rouler tout le monde (IA comprises).
   // Heure et météo de la sortie : réglages du coureur ; en groupe, celles de l'hôte (partagées).
-  const myWeather: RideWeather = { hour: s.hour, clouds: s.clouds, rain: s.rain, fog: s.fog, windMs: s.windMs, evolving: s.weatherEvolves, seed: weatherSeed(`${Date.now()}`) };
+  // ?hour=<h> (essais, captures) l'emporte sur l'heure réglée, sans être enregistré dans les réglages.
+  const hourParam = Number(params.get('hour') ?? NaN);
+  const startHour = Number.isFinite(hourParam) ? hourParam : s.hour;
+  const myWeather: RideWeather = { hour: startHour, clouds: s.clouds, rain: s.rain, fog: s.fog, windMs: s.windMs, evolving: s.weatherEvolves, seed: weatherSeed(`${Date.now()}`) };
   // Météo réelle du jour au départ, à l'heure choisie (Open-Meteo) ; sans réseau : conditions réglées.
   if (s.realWeather && source.originL93) {
     const p0 = track.positionAt(startD, 0);
     const { lat, lon } = worldToWgs84(p0.x, p0.z, source.originL93);
-    const real = await fetchRealWeather(lat, lon, s.hour);
+    const real = await fetchRealWeather(lat, lon, startHour);
     const L = getLang() === 'fr';
     if (real) Object.assign(myWeather, real, { evolving: false });
     setTimeout(
