@@ -11,6 +11,7 @@ import { overcastDome, setOvercast } from './overcast.ts';
 import { sunlight } from './sunlight.ts';
 import { LOW_POLY_SKY, LowPolySky } from './lowPolySky.ts';
 import type { QualitySettings } from '../engine/quality.ts';
+import { SHADOW_DITHER, stableShadowFilter } from '../engine/stableShadowFilter.ts';
 import { mainRenderer, type Grade } from '../engine/renderer.ts';
 
 export type Season = 'spring' | 'summer' | 'autumn' | 'winter';
@@ -217,6 +218,16 @@ export class Environment {
     this.csm = new CSMShadowNode(this.sun, { cascades: q.shadowCascades, maxFar: q.shadowFar, mode: 'practical', lightMargin: 120 });
     this.csm.fade = true;
     this.sun.shadow.shadowNode = this.csm;
+    // Sans TAA, le grain du PCF de three.js reste à l'écran et grésille sous l'ombre du coureur : filtre à angle
+    // fixe (stableShadowFilter.ts). Posé sur les ombres des cascades, créées (par clonage) à la première compilation.
+    if (!q.taa && !SHADOW_DITHER) {
+      const csmInit = this.csm as unknown as { _init: (builder: unknown) => void; lights: Array<{ shadow: { filterNode?: unknown } }> };
+      const init = csmInit._init.bind(csmInit);
+      csmInit._init = (builder) => {
+        init(builder);
+        for (const l of csmInit.lights) l.shadow.filterNode = stableShadowFilter;
+      };
+    }
     this.shadowEvery = Math.max(1, Math.round(q.shadowEvery));
     this.shadowTick = 0;
     this.shadowWarm = 0;
