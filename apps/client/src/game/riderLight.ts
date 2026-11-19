@@ -1,4 +1,5 @@
 import * as THREE from 'three/webgpu';
+import { LOW_POLY } from '../engine/style.ts';
 
 /**
  * Coureurs lointains en version légère (inspirée des bots « _Lw » de MyWhoosh) : au-delà de `LIGHT_FROM_M`, un
@@ -18,6 +19,14 @@ export const LIGHT_FROM_M = 60;
 const LIGHT_BACK_M = 52;
 
 const SHARED_MATERIAL = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.65, metalness: 0.05 });
+// Style poly : facettes, comme les pièces du coureur détaillé.
+SHARED_MATERIAL.flatShading = LOW_POLY;
+
+/**
+ * Couleur d'une pièce quand le matériau ne la porte pas lui-même (teinte calculée par nœuds sur une base blanche :
+ * peau et cadre des coureurs réalistes) ; null = couleur du matériau. Voir riderDetail.ts.
+ */
+export type LightColor = (mesh: THREE.Mesh, material: THREE.Material) => THREE.ColorRepresentation | null | undefined;
 const averageColors = new WeakMap<object, THREE.Color>();
 const geometryCache = new Map<string, THREE.BufferGeometry>();
 /** Une seule construction par image, pour éviter les à-coups. */
@@ -60,8 +69,10 @@ function textureAverage(tex: THREE.Texture | null | undefined): THREE.Color | nu
   }
 }
 
-function partColor(m: THREE.Mesh): THREE.Color {
+function partColor(m: THREE.Mesh, colorOf?: LightColor): THREE.Color {
   const mat = (Array.isArray(m.material) ? m.material[0] : m.material) as THREE.MeshStandardMaterial;
+  const hint = colorOf?.(m, mat);
+  if (hint !== null && hint !== undefined) return new THREE.Color(hint);
   const base = mat.color ? mat.color.clone() : new THREE.Color(0.6, 0.6, 0.6);
   const avg = textureAverage(mat.map);
   return avg ? base.multiply(avg) : base;
@@ -71,8 +82,15 @@ const _v = new THREE.Vector3();
 const _inv = new THREE.Matrix4();
 const _m = new THREE.Matrix4();
 
+/** Couleurs de sommets à reprendre (matériau à couleurs de sommets : corps en tubes du coureur poly). */
+function vertexColors(m: THREE.Mesh): THREE.BufferAttribute | THREE.InterleavedBufferAttribute | null {
+  const mat = (Array.isArray(m.material) ? m.material[0] : m.material) as THREE.Material;
+  const attr = m.geometry.getAttribute('color');
+  return mat.vertexColors && attr && attr.itemSize >= 3 ? attr : null;
+}
+
 /** Maillage léger d'un coureur, dans le repère de `root` (pose actuelle). */
-export function bakeLightGeometry(parts: THREE.Mesh[], root: THREE.Object3D): THREE.BufferGeometry {
+export function bakeLightGeometry(parts: THREE.Mesh[], root: THREE.Object3D, colorOf?: LightColor): THREE.BufferGeometry {
   _inv.copy(root.matrixWorld).invert();
   let total = 0;
   let totalIdx = 0;
@@ -89,7 +107,8 @@ export function bakeLightGeometry(parts: THREE.Mesh[], root: THREE.Object3D): TH
     const g = p.geometry;
     const src = g.getAttribute('position');
     const skin = p as THREE.SkinnedMesh;
-    const c = partColor(p);
+    const c = partColor(p, colorOf);
+    const vc = vertexColors(p);
     _m.multiplyMatrices(_inv, p.matrixWorld);
     for (let i = 0; i < src.count; i++) {
       _v.fromBufferAttribute(src, i);
@@ -98,9 +117,9 @@ export function bakeLightGeometry(parts: THREE.Mesh[], root: THREE.Object3D): TH
       pos[(vo + i) * 3] = _v.x;
       pos[(vo + i) * 3 + 1] = _v.y;
       pos[(vo + i) * 3 + 2] = _v.z;
-      col[(vo + i) * 3] = c.r;
-      col[(vo + i) * 3 + 1] = c.g;
-      col[(vo + i) * 3 + 2] = c.b;
+      col[(vo + i) * 3] = vc ? c.r * vc.getX(i) : c.r;
+      col[(vo + i) * 3 + 1] = vc ? c.g * vc.getY(i) : c.g;
+      col[(vo + i) * 3 + 2] = vc ? c.b * vc.getZ(i) : c.b;
     }
     if (g.index) for (let k = 0; k < g.index.count; k++) idx[io + k] = (g.index.getX(k) as number) + vo;
     else for (let k = 0; k < src.count; k++) idx[io + k] = k + vo;
@@ -129,21 +148,22 @@ function detailParts(group: THREE.Object3D): THREE.Mesh[] {
   return out;
 }
 
-function cacheKey(parts: THREE.Mesh[]): string {
+function cacheKey(parts: THREE.Mesh[], colorOf?: LightColor): string {
   return parts
     .map((p) => {
       const g = p.geometry;
       const mat = (Array.isArray(p.material) ? p.material[0] : p.material) as THREE.MeshStandardMaterial;
-      return `${g.name}:${g.getAttribute('position').count}:${mat.map?.image ? (mat.map.image as { width?: number }).width : 0}:${mat.color?.getHexString() ?? ''}:${partColor(p).getHexString()}`;
+      return `${g.name}:${g.getAttribute('position').count}:${mat.map?.image ? (mat.map.image as { width?: number }).width : 0}:${mat.color?.getHexString() ?? ''}:${partColor(p, colorOf).getHexString()}${vertexColors(p) ? `:vc${g.id}` : ''}`;
     })
     .join('|');
 }
 
 /**
- * Bascule détaillé ↔ léger pour un coureur V3. `group` : rendu détaillé (V3Visual.group) ; `root` : racine du
- * coureur. `frame` : compteur d'images de l'appelant (une construction au plus par image).
+ * Bascule détaillé ↔ léger pour un coureur. `group` : rendu détaillé (V3Visual.group, ou branche du coureur réaliste
+ * ou poly, voir riderDetail.ts) ; `root` : racine du coureur. `frame` : compteur d'images de l'appelant (une
+ * construction au plus par image). `colorOf` : couleurs des pièces teintées par nœuds (riderDetail.ts).
  */
-export function updateRiderLight(root: THREE.Object3D, group: THREE.Object3D, distM: number, frame: number, castShadow: boolean, enabled = RIDER_LIGHT): void {
+export function updateRiderLight(root: THREE.Object3D, group: THREE.Object3D, distM: number, frame: number, castShadow: boolean, enabled = RIDER_LIGHT, colorOf?: LightColor): void {
   if (!enabled) return;
   let st = states.get(root);
   if (!st) states.set(root, (st = { mesh: null, on: false }));
@@ -156,11 +176,11 @@ export function updateRiderLight(root: THREE.Object3D, group: THREE.Object3D, di
     // Taille du coureur (échelle de son rendu dans le repère de la racine) : deux coureurs de même tenue mais de
     // tailles différentes n'ont pas le même maillage.
     _m.copy(root.matrixWorld).invert().multiply(group.matrixWorld);
-    const key = `${_m.getMaxScaleOnAxis().toFixed(3)}|${cacheKey(parts)}`;
+    const key = `${_m.getMaxScaleOnAxis().toFixed(3)}|${cacheKey(parts, colorOf)}`;
     let geometry = geometryCache.get(key);
     if (!geometry) {
       lastBuildFrame = frame;
-      geometry = bakeLightGeometry(parts, root);
+      geometry = bakeLightGeometry(parts, root, colorOf);
       geometryCache.set(key, geometry);
     }
     const mesh = new THREE.Mesh(geometry, SHARED_MATERIAL);

@@ -11,6 +11,29 @@ import { BikeMaterials, assembleBike, bikeAnchors, bikeFamilyReady, libraryWheel
 import { flatLook } from './flatLook.ts';
 
 /**
+ * Ombres : les pièces du vélo du modèle (vis, valves, pédales, moyeux…) de moins de SHADOW_MIN_PART_M de rayon ne
+ * projettent rien, comme sur le vélo du coureur réaliste (bigPart de gltfAvatar.ts) : dans une carte d'ombre aux
+ * texels de ~25 cm elles ne se voient pas, et chacune coûtait un appel de dessin par passe d'ombre (≈ 17 par coureur,
+ * mesure du 19/11/2026). Le corps garde toutes ses pièces. `?polyshadowparts=0` : toutes les pièces (comparaison).
+ */
+const SHADOW_MIN_PART_M = 0.1;
+const SMALL_SHADOW_PARTS = typeof location === 'undefined' || new URLSearchParams(location.search).get('polyshadowparts') !== '0';
+const _scale = new THREE.Vector3();
+
+/** Petite pièce du vélo du modèle (marquée `shared` au montage), sans ombre portée. */
+function tinyBikePart(o: THREE.Object3D): boolean {
+  const mesh = o as THREE.Mesh;
+  if (!SMALL_SHADOW_PARTS || !mesh.isMesh || !o.userData.shared) return false;
+  const cached = o.userData.shadowTiny as boolean | undefined;
+  if (cached !== undefined) return cached;
+  if (!mesh.geometry.boundingSphere) mesh.geometry.computeBoundingSphere();
+  o.getWorldScale(_scale);
+  const tiny = (mesh.geometry.boundingSphere?.radius ?? 0) * Math.max(_scale.x, _scale.y, _scale.z) < SHADOW_MIN_PART_M;
+  o.userData.shadowTiny = tiny;
+  return tiny;
+}
+
+/**
  * Cycliste et vélo du style jeu vidéo (low poly, voir engine/style.ts), construits de zéro en prismes
  * à facettes et aplats de couleur, un millier de triangles environ. Vélo : celui du style réaliste (modèles du
  * catalogue, niveau de détail simplifié) à facettes, voir REAL_BIKE_DEFAULT ; vélo en prismes en attendant.
@@ -700,7 +723,9 @@ export class LowPolyRider implements RiderAvatarLike {
     this.bindPose = false;
     this.crankAngle = crank;
     this.update(0, 0, 0, 'seated');
-    if (!this.shadows) this.root.traverse((o) => (o.castShadow = false));
+    this.root.traverse((o) => {
+      if (!this.shadows || tinyBikePart(o)) o.castShadow = false;
+    });
   }
 
   /**
@@ -1605,7 +1630,7 @@ export class LowPolyRider implements RiderAvatarLike {
   setShadows(on: boolean): void {
     if (on === this.shadows) return;
     this.shadows = on;
-    this.root.traverse((o) => (o.castShadow = on));
+    this.root.traverse((o) => (o.castShadow = on && !tinyBikePart(o)));
   }
 
   eyeWorld(out: THREE.Vector3, hands?: THREE.Vector3): THREE.Vector3 {

@@ -14,6 +14,7 @@ import { SMALL_PARTS_CULL, cullSmallParts } from '../game/smallParts.ts';
 import { disposeRiderMerge, updateRiderMerge } from '../game/riderMerge.ts';
 import { disposeRiderLight, needsLightBuild, updateRiderLight } from '../game/riderLight.ts';
 import { applyRiderShadows, disposeRiderShadows } from '../game/riderShadows.ts';
+import { castsShadow, detailGroup, lightColorOf } from '../game/riderDetail.ts';
 import { LATERAL_CRUISE, LATERAL_SPRING, LATERAL_URGENT, stepLateral, syncLateral, type LateralMotion } from '../game/lateralSpring.ts';
 import type { V3Visual } from '../v3/visuals.ts';
 
@@ -369,10 +370,13 @@ export class AmbientCyclists {
         a.root.rotateX(-_pose.pitch);
         const dist = camera.position.distanceTo(a.root.position);
         a.root.visible = !outside && dist < 500;
+        // Rendu détaillé (groupe V3, ou branche du coureur réaliste / poly) ; masqué = version légère en place.
+        const detail = detailGroup(a, m.v3);
+        const light = !m.v3 && !!detail && !detail.visible;
         if (a.root.visible && dist < 200) {
           const animDt = m.anim.step(dt, dist, this.animFrame);
           if (animDt > 0) {
-            a.update(animDt, c.cadence > 0 ? c.cadence + m.cadenceOff : 0, c.speed, watts > 0 ? 'seated' : 'coasting');
+            if (!light) a.update(animDt, c.cadence > 0 ? c.cadence + m.cadenceOff : 0, c.speed, watts > 0 ? 'seated' : 'coasting');
             m.v3?.update(animDt, c.cadence > 0 ? c.cadence + m.cadenceOff : 0, c.speed, watts > 0 ? 'seated' : 'coasting');
           }
         } else if (m.v3 && a.root.visible && needsLightBuild(a.root) && (this.animFrame + m.cadenceOff + 30) % 30 === 0) {
@@ -381,9 +385,10 @@ export class AmbientCyclists {
         }
         a.setShadows(dist < this.shadowRange);
         if (SMALL_PARTS_CULL && a.root.visible && (this.animFrame + m.cadenceOff + 8) % 6 === 0) cullSmallParts(a.root, camera.position, (camera as THREE.PerspectiveCamera).projectionMatrix.elements[5] ?? 1);
-        if (m.v3) updateRiderLight(a.root, (m.v3 as unknown as { group: THREE.Object3D }).group, dist, this.animFrame, true);
+        // Version légère au-delà de 60 m et pièces fusionnées (riderLight.ts, riderMerge.ts), tous styles.
+        if (detail) updateRiderLight(a.root, detail, dist, this.animFrame, castsShadow(a) && dist < this.shadowRange, undefined, lightColorOf(a, m.v3));
         if (m.v3) applyRiderShadows(a.root, dist < this.shadowRange, (m.v3 as unknown as { group: THREE.Object3D }).group);
-        if (m.v3 && a.root.visible && (this.animFrame + m.cadenceOff + 3) % 10 === 0) updateRiderMerge(a.root, this.animFrame);
+        if (a.root.visible && (this.animFrame + m.cadenceOff + 3) % 10 === 0) updateRiderMerge(a.root, this.animFrame);
         if (c.sens > 0 && !outside) {
           const gap = dm - player.distM - 1.75;
           draft = Math.max(draft, draftReductionSingle(gap, c.lateral + m.latOff - player.lateral));

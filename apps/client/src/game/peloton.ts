@@ -6,6 +6,7 @@ import { applyRiderShadows, disposeRiderShadows } from './riderShadows.ts';
 import { createNameTag, placeNameTags, removeNameTag, type NameTag } from './nameTags.ts';
 import { skipHiddenMatrixUpdates } from './hiddenMatrices.ts';
 import { SMALL_PARTS_CULL, cullSmallParts } from './smallParts.ts';
+import { castsShadow, detailGroup, lightColorOf } from './riderDetail.ts';
 import { LATERAL_CRUISE, LATERAL_PASSING, LATERAL_SPRING, stepLateral, syncLateral, type LateralMotion } from './lateralSpring.ts';
 import * as THREE from 'three/webgpu';
 import { AiRider, AI_PROFILES, DraftCalculator, FORMATION_PREFS, LANE_PACE, LaneRotator, Overtaker, keepRightM, laneOffsets, resolveFormation, roadHalfM, type Formation, type FormationPref, type LaneBody, PoseController, TeammateUTurn, createRiderState, paramsFromBike, powerForSpeed, stepRider, airDensity, wakeShiftM, sharedRoadCorridor, type AiProfileName, type RiderState } from '@allezrobert/physics';
@@ -571,6 +572,9 @@ export class Peloton {
       r.avatar.root.rotateX(-this.pose.pitch);
       const dist = camera.position.distanceTo(r.avatar.root.position);
       r.avatar.root.visible = dist < 600;
+      // Rendu détaillé (groupe V3, ou branche du coureur réaliste / poly) ; masqué = version légère en place.
+      const detail = detailGroup(r.avatar, r.v3);
+      const light = !r.v3 && !!detail && !detail.visible;
       if (dist < 250) {
         r.avatar.setEffort?.(r.watts / r.ftp);
         // Inclinaison en virage, lissée comme celle du joueur (contresens après un demi-tour : virage inversé).
@@ -581,7 +585,8 @@ export class Peloton {
         if (!budget) this.animBudgets.set(r, (budget = new AnimBudget(ri)));
         const animDt = budget.step(dt, dist, this.animFrame);
         if (animDt > 0) {
-          r.avatar.update(animDt, r.cadence, r.state.speedMs, r.pose, bank);
+          // Version légère (réaliste, poly) : maillage figé, l'animation du coureur détaillé ne se voit pas.
+          if (!light) r.avatar.update(animDt, r.cadence, r.state.speedMs, r.pose, bank);
           // Transitions : pied à terre à l'arrêt (arrivée, demi-tour arrêté), départ au premier coup de pédale.
           r.v3?.update(animDt, r.cadence, r.state.speedMs, r.pose, { effort: r.watts / r.ftp, transitions: true });
         }
@@ -596,10 +601,10 @@ export class Peloton {
       r.label.visible = dist < 12;
       // Pièces sous ~1,5 px retirées du rendu (smallParts.ts), une image sur 6 par coureur.
       if (SMALL_PARTS_CULL && r.avatar.root.visible && (this.animFrame + ri) % 6 === 0) cullSmallParts(r.avatar.root, camera.position, camera.projectionMatrix.elements[5] ?? 1);
-      // Au-delà de 60 m, coureur V3 en version légère : un seul maillage figé (riderLight.ts), après sa mise à jour V3.
-      if (r.v3) updateRiderLight(r.avatar.root, (r.v3 as unknown as { group: THREE.Object3D }).group, dist, this.animFrame, true);
-      // Pièces de même matériau fusionnées (riderMerge.ts), coureurs V3 seulement : vérification une image sur 10.
-      if (r.v3 && r.avatar.root.visible && (this.animFrame + ri) % 10 === 0) updateRiderMerge(r.avatar.root, this.animFrame);
+      // Au-delà de 60 m, version légère : un seul maillage figé (riderLight.ts), après la mise à jour V3 en style Bêta.
+      if (detail) updateRiderLight(r.avatar.root, detail, dist, this.animFrame, true, undefined, lightColorOf(r.avatar, r.v3));
+      // Pièces de même matériau fusionnées (riderMerge.ts), tous styles : vérification une image sur 10.
+      if (r.avatar.root.visible && (this.animFrame + ri) % 10 === 0) updateRiderMerge(r.avatar.root, this.animFrame);
     }
     // Noms : placés après le rendu de cette image (caméra à jour), d'où la microtâche.
     queueMicrotask(() => placeNameTags(this.riders.map((x) => x.tag), camera));
@@ -609,6 +614,8 @@ export class Peloton {
       r.avatar.setShadows(casters[i] as boolean);
       // Pièces V3 : le budget s'applique aussi (riderShadows.ts), grandes pièces seulement.
       if (r.v3) applyRiderShadows(r.avatar.root, casters[i] as boolean, (r.v3 as unknown as { group: THREE.Object3D }).group);
+      // Version légère des autres styles : ombre selon le budget, et seulement si le coureur en projette (poly).
+      else for (const c of r.avatar.root.children) if (c.name === 'rider-light') (c as THREE.Mesh).castShadow = c.visible && (casters[i] as boolean) && castsShadow(r.avatar);
     });
   }
 
