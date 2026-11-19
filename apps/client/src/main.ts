@@ -892,9 +892,9 @@ async function boot(): Promise<void> {
     whenAtelierReady(() => !!garage && (atelier.set(st), true));
   };
   menu.onV3Garage = (body, top) => atelier.setV3Container(body, top);
-  menu.onScene = (view, yaw, bikeOnly, zoom) => {
   menu.onV3Reveal = (id) => atelier.revealV3(id);
   menu.onV3Pick = (x, y) => atelier.pickV3(x, y);
+  menu.onScene = (view, yaw, bikeOnly, zoom) => {
     if (!inMenu || exploring) return;
     if (view !== 'poster') {
       menuVideo.stop();
