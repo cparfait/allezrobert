@@ -3561,6 +3561,7 @@ export class MainMenu {
         this.onScene?.(this.view, this.yaw, this.garageSlot === 'bike', this.zoom);
       }),
     );
+    this.root.querySelector<HTMLElement>('[data-grback]')?.addEventListener('click', () => this.go('progress'));
     // Garage : réduire le menu de droite pour une vue plus large, le rouvrir avec « ‹ Menu ».
     this.root.querySelectorAll<HTMLElement>('[data-gr]').forEach((b) =>
       b.addEventListener('click', () => {
@@ -3579,7 +3580,6 @@ export class MainMenu {
         zone.setPointerCapture(e.pointerId);
       });
       zone.addEventListener('pointermove', (e) => {
-    this.root.querySelector<HTMLElement>('[data-grback]')?.addEventListener('click', () => this.go('progress'));
         if (lastX === null) return;
         if (this.garageSlot === 'atelier') {
           this.atelier.yaw -= (e.clientX - lastX) * 0.008;
@@ -3597,6 +3597,13 @@ export class MainMenu {
         if (e.type === 'pointerup' && downAt && this.garageSlot === 'atelier' && Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]) < 5) {
           const slot = this.onAtelierPick?.(e.clientX, e.clientY);
           if (slot) this.atelier.focusSlot(slot);
+        } else if (e.type === 'pointerup' && downAt && V3_STYLE && Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]) < 5) {
+          // Style Beta : la pièce cliquée (vélo, roue, maillot, gants…) ouvre sa rubrique et pulse sur le coureur.
+          if (this.grFolded && this.onV3Pick?.(e.clientX, e.clientY)) {
+            this.grFolded = false;
+            this.root.querySelector('.gr-panel')?.classList.remove('gr-folded');
+            this.root.querySelector<HTMLElement>('.gr-reopen')?.toggleAttribute('hidden', true);
+          } else this.onV3Pick?.(e.clientX, e.clientY);
         }
         downAt = null;
       };
@@ -3615,13 +3622,6 @@ export class MainMenu {
           }
         },
         { passive: false },
-        } else if (e.type === 'pointerup' && downAt && V3_STYLE && Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]) < 5) {
-          // Style Beta : la pièce cliquée (vélo, roue, maillot, gants…) ouvre sa rubrique et pulse sur le coureur.
-          if (this.grFolded && this.onV3Pick?.(e.clientX, e.clientY)) {
-            this.grFolded = false;
-            this.root.querySelector('.gr-panel')?.classList.remove('gr-folded');
-            this.root.querySelector<HTMLElement>('.gr-reopen')?.toggleAttribute('hidden', true);
-          } else this.onV3Pick?.(e.clientX, e.clientY);
       );
       zone.addEventListener('pointerup', up);
       zone.addEventListener('pointercancel', up);
