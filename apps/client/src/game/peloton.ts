@@ -55,6 +55,25 @@ const CAMERA_FOLLOW_SIDE_M = 1.6;
 /** Vitesse (m/s) à laquelle une IA entrée dans le couloir est repoussée en arrière. */
 const CAMERA_PUSHBACK_MS = 8;
 
+/**
+ * Arrivée d'un parcours non bouclé : à PARK_ZONE_M de la fin, une IA cesse de rouler et va se ranger à l'arrêt, pied à
+ * terre, sur la moitié gauche de la chaussée (le joueur roule à droite et s'arrête au bout du tracé). Places en rangs
+ * de deux, premier rang à PARK_FRONT_M avant la fin, rangs espacés de PARK_ROW_M et colonnes de PARK_COL_M (plus que
+ * l'encombrement d'un vélo, 1,8 × 0,7 m) : personne ne s'empile, même au bout de la route où la position est bornée.
+ */
+const PARK_ZONE_M = 40;
+const PARK_FRONT_M = 5;
+const PARK_ROW_M = 2.4;
+const PARK_COL_M = 0.85;
+/** Bord gauche : marge entre la première colonne et la bordure (m). */
+const PARK_EDGE_M = 0.45;
+/** Décélération pour s'arrêter pile à sa place (m/s²), allure d'approche minimale (m/s), pas de côté à l'arrêt (m/s). */
+const PARK_BRAKE_MS2 = 1.6;
+const PARK_CREEP_MS = 1.5;
+const PARK_SIDESTEP_MS = 0.3;
+/** Le joueur garde au moins cet écart (m) à droite de la colonne la plus à droite des IA rangées. */
+const PARK_PLAYER_GAP_M = 0.85;
+
 export interface PelotonRider {
   id: string;
   name: string;
@@ -136,6 +155,74 @@ export class Peloton {
   private waitUntil = 0;
   /** Changement de forme effective (annonce dans le HUD). */
   onFormation?: (formation: Formation, pref: FormationPref) => void;
+  /** IA rangées (ou qui vont se ranger) à l'arrivée d'un parcours non bouclé : place attribuée dans l'ordre d'arrivée. */
+  private readonly parked = new Map<PelotonRider, { distM: number; lateral: number }>();
+
+  /** IA qui se range à l'arrivée : hors des séparations et du couloir caméra (sa place est déjà libre). */
+  isParked(r: PelotonRider): boolean {
+    return this.parked.has(r);
+  }
+
+  /**
+   * Décalage minimal (m) laissé au joueur près de l'arrivée, à droite des IA rangées ; null loin de la fin ou si
+   * personne n'est rangé.
+   */
+  playerMinLateral(distM: number): number | null {
+    if (!this.parked.size || this.track.route.loop || distM < this.track.length - PARK_ZONE_M - 20) return null;
+    let max = -Infinity;
+    for (const slot of this.parked.values()) max = Math.max(max, slot.lateral);
+    return max + PARK_PLAYER_GAP_M;
+  }
+
+  /** Place n° k à l'arrivée : rangs de deux (un seul sur chaussée étroite) sur la moitié gauche. */
+  private parkSlot(k: number): { distM: number; lateral: number } {
+    const half = roadHalfM(this.track.route.roadWidthM);
+    const cols = half >= 2.2 ? 2 : 1;
+    const distM = this.track.length - PARK_FRONT_M - Math.floor(k / cols) * PARK_ROW_M;
+    const b = (this.collision ?? sharedRoadCorridor()).steeringBounds(this.track, distM, 0, 1, this.bounds);
+    return { distM, lateral: -b.left + PARK_EDGE_M + (k % cols) * PARK_COL_M };
+  }
+
+  /** L'IA va à sa place d'arrivée et s'y arrête (roue libre, freinage doux) : le coureur V3 pose alors le pied à terre. */
+  private park(r: PelotonRider, dt: number): void {
+    let slot = this.parked.get(r);
+    if (!slot) this.parked.set(r, (slot = this.parkSlot(this.parked.size)));
+    const rem = slot.distM - r.state.distM;
+    let v = 0;
+    if (rem > 0.02) {
+      const vStop = Math.sqrt(2 * PARK_BRAKE_MS2 * rem);
+      v = Math.max(Math.min(r.state.speedMs, vStop), Math.min(PARK_CREEP_MS, vStop));
+      r.state.distM = Math.min(slot.distM, r.state.distM + v * dt);
+    } else if (rem < -0.02) {
+      // Déjà passé sa place (rare) : il recule au pas, vélo à la main.
+      r.state.distM += Math.max(rem, -PARK_SIDESTEP_MS * dt);
+    }
+    // Vers sa colonne : en roulant (jusqu'à 0,35 × la vitesse), sinon un petit pas de côté.
+    const step = Math.max(PARK_SIDESTEP_MS, 0.35 * v) * dt;
+    r.lateral += THREE.MathUtils.clamp(slot.lateral - r.lateral, -step, step);
+    r.state.speedMs = v;
+    r.state.accelMs2 = 0;
+    r.heading = 0;
+    r.watts = 0;
+    r.cadence = 0;
+    r.draft = 0;
+    r.pose = 'coasting';
+  }
+
+  /** Doit se ranger : parcours non bouclé, dans la zone d'arrivée (ou déjà rangé). */
+  private parking(r: PelotonRider): boolean {
+    return this.parked.has(r) || (!this.track.route.loop && !r.uturn.active && r.state.distM >= this.track.length - PARK_ZONE_M);
+  }
+
+  /**
+   * Joueur arrivé (sortie figée sur l'écran d'arrivée) : toutes les IA finissent leur course et se rangent à leur
+   * place, pied à terre, sans jamais s'empiler.
+   */
+  settleAtFinish(dt: number): void {
+    if (this.track.route.loop) return;
+    const order = [...this.riders].sort((a, b) => b.state.distM - a.state.distM);
+    for (const r of order) this.park(r, dt);
+  }
 
   get formation(): Formation {
     return this.formationNow;
@@ -288,6 +375,10 @@ export class Peloton {
     const half = roadHalfM(this.track.route.roadWidthM);
     const right = keepRightM(half);
     order.forEach((r, rank) => {
+      if (this.parking(r)) {
+        this.park(r, dt);
+        return;
+      }
       const beforeD = r.state.distM, beforeLateral = r.lateral;
       r.draft = r.uturn.active ? 0 : (factors[this.riders.indexOf(r) + 1] ?? 0);
       const s = this.track.sample(r.state.distM, this.sample);
@@ -396,7 +487,7 @@ export class Peloton {
    */
   keepCameraClear(player: { distM: number; lateral: number; speedMs: number }, dt: number): void {
     for (const r of this.riders) {
-      if (r.uturn.active) continue;
+      if (r.uturn.active || this.parked.has(r)) continue;
       const gap = player.distM - r.state.distM;
       if (gap < 0 || gap >= CAMERA_CLEAR_BACK_M || Math.abs(r.lateral - player.lateral) >= CAMERA_CLEAR_SIDE_M) continue;
       const beforeD = r.state.distM;
@@ -422,6 +513,10 @@ export class Peloton {
     const factors = this.draft.compute(all);
     const order = [...this.riders].sort((a, b) => b.state.distM - a.state.distM);
     order.forEach((r, rank) => {
+      if (this.parking(r)) {
+        this.park(r, dt);
+        return;
+      }
       const i = this.riders.indexOf(r);
       r.draft = factors[i] ?? 0;
       const s = this.track.sample(r.state.distM, this.sample);
@@ -487,7 +582,8 @@ export class Peloton {
         const animDt = budget.step(dt, dist, this.animFrame);
         if (animDt > 0) {
           r.avatar.update(animDt, r.cadence, r.state.speedMs, r.pose, bank);
-          r.v3?.update(animDt, r.cadence, r.state.speedMs, r.pose, { effort: r.watts / r.ftp });
+          // Transitions : pied à terre à l'arrêt (arrivée, demi-tour arrêté), départ au premier coup de pédale.
+          r.v3?.update(animDt, r.cadence, r.state.speedMs, r.pose, { effort: r.watts / r.ftp, transitions: true });
         }
       } else if (r.v3 && r.avatar.root.visible && needsLightBuild(r.avatar.root) && (this.animFrame + ri) % 30 === 0) {
         // Trop loin pour être animé : une mise à jour V3 de temps en temps pour qu'il se charge (sinon l'ancien

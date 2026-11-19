@@ -1630,6 +1630,8 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     ride.state.distM = track.length;
     ride.state.speedMs = 0;
     ride.paused = true;
+    // Pied à terre (voir standDown) : la caméra de poursuite tourne sur le côté pour le montrer.
+    rig.showArrival(true);
     hud.setVisible(false);
     input.sendTrainer({ kind: 'simulation', gradePercent: 0 });
     input.setRoadFeel?.({ surface: 'off', intensityPercent: 0 });
@@ -2256,6 +2258,9 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
       } else {
         ride.draft = peloton.update(dt, { distM: ride.state.distM, lateral: ride.lateral, speedMs: ride.state.speedMs, watts: ride.inputs.watts, massKg: s.massKg, ftpWatts: s.ftpWatts, reversed: ride.dir < 0, headWindMs: ride.headWindMs, crossWindMs: ride.crossWindMs }, cyclists && ride.dir > 0 ? cyclists.sameWayBodies() : []);
         groupTalk(dt);
+        // Fin du parcours : IA déjà rangées pied à terre sur la gauche ; le joueur glisse à leur droite pour finir.
+        const minLateral = ride.dir > 0 ? peloton.playerMinLateral(ride.state.distM) : null;
+        if (minLateral !== null && ride.lateral < minLateral) ride.lateral += (minLateral - ride.lateral) * (1 - Math.exp(-dt * 2));
       }
       // Relais : quelqu'un roule dans ma roue (0,5 à 4 m derrière, à moins d'un mètre de côté).
       const onWheel = (d: number, lat: number) => {
@@ -2265,7 +2270,8 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
       ride.wheelFollowed = peloton.riders.some((r) => onWheel(r.state.distM, r.lateral)) || remoteRiders.some((r) => r.dir === ride.dir && onWheel(r.unwrappedM, r.lateralM));
       // Collisions : ni le joueur ni les IA ne traversent un autre coureur (les coureurs distants, imposés par le serveur, ne bougent pas).
       if (ride.dir > 0 && !(pilotCollision && mp)) {
-        const mobile = peloton.riders.filter((r) => !r.uturn.active);
+        // IA rangées à l'arrivée : immobiles à leur place, hors séparation (le joueur passe à leur droite, voir plus haut).
+        const mobile = peloton.riders.filter((r) => !r.uturn.active && !peloton.isParked(r));
         // Le joueur garde sa ligne : ce sont les IA qui s'écartent (ou qui sont retenues), jamais lui qui est déporté.
         const beforeD = ride.state.distM, beforeLateral = ride.lateral;
         const me: Body = { distM: beforeD, lateral: beforeLateral, speedMs: ride.state.speedMs, priority: true };
@@ -2296,6 +2302,9 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
         const d = cyclists.update(dt, { distM: ride.state.distM, lateral: ride.lateral, speedMs: ride.state.speedMs }, engine.camera, peloton.riders.filter((r) => !r.uturn.active).map((r) => ({ distM: r.state.distM, lateral: r.lateral, speedMs: r.state.speedMs })));
         if (ride.dir > 0) ride.draft = Math.max(ride.draft, d);
       }
+    } else if (summitShown && !mp) {
+      // Arrivée : sortie figée, mais les IA finissent leur course et vont se ranger pied à terre.
+      peloton.settleAtFinish(dt);
     }
     lap('coureurs IA');
     remoteRiders = mp ? mp.render(dt, engine.camera, ride.state.distM) : [];
@@ -2467,7 +2476,10 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     // (pendant un demi-tour, la caméra sort derrière le coureur : la tête redevient visible)
     const onboard = (rig.mode === 'cockpit' || rig.mode === 'action' || rig.mode === 'gopro') && !rig.lookBack && !camTurn;
     avatar.setHeadVisible(!onboard);
-    v3?.update(dt, ride.inputs.cadence, ride.state.speedMs, ride.pose, { head: !onboard, helmet: !riderLook.noHelmet, effort: ride.inputs.watts / Math.max(1, s.ftpWatts), transitions: true });
+    // Arrivée d'un parcours : arrêté, il déclipse et pose le pied à terre (la cadence simulée resterait sinon à ≈ 30 tr/min
+    // à l'arrêt, le coureur pédalait sur place).
+    const standDown = summitShown;
+    v3?.update(dt, standDown ? 0 : ride.inputs.cadence, standDown ? 0 : ride.state.speedMs, ride.pose, { head: !onboard, helmet: !riderLook.noHelmet, effort: ride.inputs.watts / Math.max(1, s.ftpWatts), transitions: true });
     // Ombre de mon coureur : deux formes simplifiées (corps animé + vélo) au lieu de ~30 pièces (riderShadows.ts).
     if (v3) applyRiderShadows(avatar.root, true, (v3 as unknown as { group: THREE.Object3D }).group);
     lap('mon coureur');

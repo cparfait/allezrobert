@@ -64,6 +64,13 @@ const CHASE_BACK = 3.0;
 const CHASE_UP = 1.5;
 /** Orbite de la caméra photo et du drone : toujours dans l'arc derrière le coureur (rad de part et d'autre). */
 const PHOTO_MAX_YAW = 1.2;
+/**
+ * Vue d'arrivée : angle de l'orbite (rad, négatif = vers la gauche du coureur), recul et hauteur (m). Trois-quarts avant
+ * gauche : on voit le pied gauche posé (clip Zwift pied à terre) et, derrière, les IA rangées sur la gauche.
+ */
+const ARRIVAL_YAW = -1.9;
+const ARRIVAL_BACK = 3.6;
+const ARRIVAL_UP = 1.25;
 
 /**
  * Caméras : poursuite (par défaut), cockpit (vue subjective), caméra embarquée, drone,
@@ -109,6 +116,16 @@ export class CameraRig {
    * balayait un arc de 5 m en un quart de seconde dans les virages serrés.
    */
   private chaseYaw = 0;
+  /**
+   * Arrivée d'un parcours : la poursuite tourne lentement vers l'avant gauche du coureur arrêté (pied à terre, IA rangées
+   * derrière lui à gauche), un peu plus loin et plus bas ; 0 → 1, lissé.
+   */
+  private arrival = false;
+  private arrivalBlend = 0;
+
+  showArrival(on: boolean): void {
+    this.arrival = on;
+  }
 
   constructor(camera: THREE.PerspectiveCamera, track: RouteTrack, groundAt: (x: number, z: number) => number, dom: HTMLElement) {
     this.camera = camera;
@@ -230,10 +247,14 @@ export class CameraRig {
         this.chaseYaw += dYaw * (1 - Math.exp(-dt * yawRate));
         // Demi-tour : recul et hauteur en plus (tout l'arc dans le cadre), regard sur le coureur affiché.
         this.uturnPull += ((t.uturn ? 1 : 0) - this.uturnPull) * (1 - Math.exp(-dt * 2.5));
-        const back = CHASE_BACK * (1 + 0.7 * this.uturnPull);
-        const up = CHASE_UP + 0.9 * this.uturnPull;
-        desired.set(t.position.x - Math.sin(this.chaseYaw) * back, t.position.y + up, t.position.z - Math.cos(this.chaseYaw) * back);
-        look.set(ahead.x, ahead.y + 1.0, ahead.z).lerp(_tmp.copy(t.position).setY(t.position.y + 1.1), 0.55);
+        // Arrivée : orbite d'environ 110° vers l'avant gauche en ≈ 3 s, regard sur le coureur.
+        this.arrivalBlend += ((this.arrival ? 1 : 0) - this.arrivalBlend) * (1 - Math.exp(-dt * 0.8));
+        const side = this.arrivalBlend;
+        const orbit = this.chaseYaw + ARRIVAL_YAW * side;
+        const back = CHASE_BACK * (1 + 0.7 * this.uturnPull) + (ARRIVAL_BACK - CHASE_BACK) * side;
+        const up = CHASE_UP + 0.9 * this.uturnPull + (ARRIVAL_UP - CHASE_UP) * side;
+        desired.set(t.position.x - Math.sin(orbit) * back, t.position.y + up, t.position.z - Math.cos(orbit) * back);
+        look.set(ahead.x, ahead.y + 1.0, ahead.z).lerp(_tmp.copy(t.position).setY(t.position.y + 1.1), 0.55 + 0.45 * side);
         if (t.uturn && t.subject) look.set(t.subject.x, t.subject.y + 1.0, t.subject.z);
         stiffness = 5;
         // Retard du lissage compensé (16/11/2026) : à vitesse v, une poursuite lissée au taux 5 traîne de v / 5 m derrière
