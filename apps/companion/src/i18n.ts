@@ -132,6 +132,16 @@ const fr = {
   rotate: 'Orientation',
   orient: { any: 'auto', landscape: 'paysage', portrait: 'portrait' },
   noFullscreen: 'Plein écran indisponible ici : ajoute l’appli à l’écran d’accueil (Partager → Sur l’écran d’accueil).',
+  mic: 'Micro',
+  micTitle: 'Parler avec le micro du téléphone (chat vocal de la sortie)',
+  micOn: 'ouvert',
+  micOff: 'coupé',
+  micWait: '…',
+  micLinked: 'Le téléphone sert de micro. Touche V ou ce bouton pour parler.',
+  micInsecure: 'Le micro du téléphone demande une connexion sécurisée (https).',
+  micDenied: 'Micro refusé : autorise-le dans les réglages du navigateur du téléphone.',
+  micNone: 'Aucun micro trouvé sur ce téléphone.',
+  micFailed: 'Voix indisponible',
 };
 
 const en: typeof fr = {
@@ -265,6 +275,16 @@ const en: typeof fr = {
   rotate: 'Orientation',
   orient: { any: 'auto', landscape: 'landscape', portrait: 'portrait' },
   noFullscreen: 'Full screen is not available here: add the app to your home screen (Share → Add to Home Screen).',
+  mic: 'Mic',
+  micTitle: 'Talk through the phone microphone (ride voice chat)',
+  micOn: 'on',
+  micOff: 'off',
+  micWait: '…',
+  micLinked: 'The phone is now your microphone. Press V or this button to talk.',
+  micInsecure: 'The phone microphone needs a secure connection (https).',
+  micDenied: 'Microphone blocked: allow it in the phone browser settings.',
+  micNone: 'No microphone found on this phone.',
+  micFailed: 'Voice unavailable',
 };
 
 export const STRINGS = { fr, en };

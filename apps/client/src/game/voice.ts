@@ -1,4 +1,4 @@
-import type { Room, RemoteTrack, Participant } from 'livekit-client';
+import type { Room, RemoteTrack, RemoteTrackPublication, Participant } from 'livekit-client';
 import { getLang } from '../i18n/index.ts';
 import { apiBase } from '../ui/account.ts';
 import { getAudioDevices, onAudioDevices } from '../audio/devices.ts';
@@ -33,7 +33,7 @@ export function proximityGain(distanceM: number | null, near: number, far: numbe
   return k * k * (3 - 2 * k);
 }
 
-/** Identifiant de coureur d'une identité vocale de salle publique (« r12 » ou « r12:companion »). */
+/** Identifiant de coureur d'une identité vocale (« r12 », « r12:companion » ou « r12:phone »). */
 export function riderOfIdentity(identity: string): string {
   return identity.split(':')[0] ?? identity;
 }
@@ -60,6 +60,7 @@ export class VoiceChat {
   private proximity: VoiceProximity | null = null;
   private proximityTimer: ReturnType<typeof setInterval> | null = null;
   private offDevices: (() => void) | null = null;
+  private roomId = '';
   micOn = false;
   /** Dernière raison d'échec du micro (vide si tout va bien) : affichée par le jeu. */
   micError = '';
@@ -68,6 +69,7 @@ export class VoiceChat {
   onState?: (state: 'connected' | 'disconnected' | 'unavailable', detail?: string) => void;
 
   async connect(roomId: string): Promise<boolean> {
+    this.roomId = roomId;
     try {
       const r = await fetch(`${apiBase()}/rides/${encodeURIComponent(roomId)}/voice-token`, { credentials: 'include' });
       if (!r.ok) {
@@ -84,8 +86,13 @@ export class VoiceChat {
         audioCaptureDefaults: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, ...(dev.micId ? { deviceId: dev.micId } : {}) },
         ...(dev.speakerId ? { audioOutput: { deviceId: dev.speakerId } } : {}),
       });
-      room.on(RoomEvent.TrackSubscribed, (track: RemoteTrack, _pub, participant: Participant) => {
+      room.on(RoomEvent.TrackSubscribed, (track: RemoteTrack, pub: RemoteTrackPublication, participant: Participant) => {
         if (track.kind !== Track.Kind.Audio) return;
+        // Micro de l'appli compagnon (« …:phone ») : sa propre voix ne repasse pas dans les haut-parleurs.
+        if (participant.identity !== room.localParticipant.identity && riderOfIdentity(participant.identity) === riderOfIdentity(room.localParticipant.identity)) {
+          pub.setSubscribed(false);
+          return;
+        }
         const el = track.attach();
         el.style.display = 'none';
         document.body.appendChild(el);
@@ -166,6 +173,34 @@ export class VoiceChat {
       this.micError = `${getLang() === 'fr' ? 'Micro indisponible' : 'Microphone unavailable'} (${String((e as Error)?.message ?? e).slice(0, 80)}).`;
     });
     return this.micOn;
+  }
+
+  /** Voix connectée (le téléphone peut alors prêter son micro). */
+  get connected(): boolean {
+    return !!this.room;
+  }
+
+  /**
+   * Jeton du micro de l'appli compagnon (identité « …:phone », publication seule), relayé au téléphone
+   * par la salle d'appairage : le téléphone n'a pas de compte, le jeu si.
+   */
+  async phoneToken(): Promise<{ url: string; token: string } | { error: string }> {
+    if (!this.room || !this.roomId) return { error: 'not_connected' };
+    try {
+      const r = await fetch(`${apiBase()}/rides/${encodeURIComponent(this.roomId)}/voice-token?device=phone`, { credentials: 'include' });
+      if (!r.ok) return { error: `HTTP ${r.status}` };
+      const { url, token } = (await r.json()) as { url: string; token: string };
+      return { url, token };
+    } catch (e) {
+      return { error: String((e as Error)?.message ?? e).slice(0, 80) };
+    }
+  }
+
+  /** Coupe le micro de l'ordinateur (le téléphone prend le relais). */
+  async muteLocal(): Promise<void> {
+    if (!this.room || !this.micOn) return;
+    this.micOn = false;
+    await this.room.localParticipant.setMicrophoneEnabled(false).catch(() => undefined);
   }
 
   async disconnect(): Promise<void> {

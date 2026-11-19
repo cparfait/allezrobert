@@ -77,6 +77,9 @@ importers:
       '@colyseus/sdk':
         specifier: ^0.18.5
         version: 0.18.5(@colyseus/core@0.18.21)(typescript@7.0.2)(zod@4.6.7)
+      livekit-client:
+        specifier: ^2.23.0
+        version: 2.23.0(@types/dom-mediacapture-record@1.0.22)
     devDependencies:
       vite:
         specifier: ^8.3.5

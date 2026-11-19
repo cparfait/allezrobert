@@ -10,7 +10,7 @@
  */
 import { CloseCode, Room, ServerError, type Client } from '@colyseus/core';
 import { z } from 'zod';
-import { PAIR_MAX_PHONES, PAIR_MSG, PAIR_TOKEN_RE, SPOTIFY_URI_RE, clampRoadFeel, type PairPresence, type PairRole, type PhoneCommand } from '@allezrobert/shared';
+import { PAIR_MAX_PHONES, PAIR_MSG, PAIR_TOKEN_RE, PAIR_VOICE_REQ_RE, SPOTIFY_URI_RE, clampRoadFeel, type PairPresence, type PairRole, type PhoneCommand } from '@allezrobert/shared';
 
 const finite = z.number().refine(Number.isFinite, 'nombre fini attendu');
 
@@ -43,6 +43,7 @@ const PhoneCommandSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('pace'), delta: z.union([z.literal(-1), z.literal(1)]) }),
   z.object({ kind: z.literal('waitMe') }),
   z.object({ kind: z.literal('formation') }),
+  z.object({ kind: z.literal('phoneMic'), on: z.boolean(), req: z.string().regex(PAIR_VOICE_REQ_RE).optional(), linked: z.boolean().optional() }),
   z.object({ kind: z.literal('sync') }),
 ]);
 

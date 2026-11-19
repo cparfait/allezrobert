@@ -33,6 +33,11 @@ input { user-select: text; -webkit-user-select: text; }
 .bar .where span { font-size: 12px; color: var(--muted); }
 .ico { appearance: none; border: 0; background: var(--panel2); border-radius: 10px; min-width: 40px; height: 38px; padding: 0 10px; font-size: 17px; font-weight: 700; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1; }
 .ico small { font-size: 9px; color: var(--muted); font-weight: 600; margin-top: 2px; }
+/* Micro du téléphone : gros bouton facile à toucher sur le vélo, rouge quand il est ouvert. */
+.ico.mic { min-width: 64px; font-size: 19px; }
+.ico.mic.on { background: #d6303a; color: #fff; }
+.ico.mic.on small { color: #ffe3e5; }
+.ico.mic.connecting { opacity: 0.7; }
 .dot { width: 10px; height: 10px; border-radius: 50%; background: #555; flex: none; }
 .dot.ok { background: var(--ok); box-shadow: 0 0 8px var(--ok); }
 .dot.warn { background: var(--warn); }

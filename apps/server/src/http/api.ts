@@ -541,7 +541,11 @@ export function mountApi(app: express.Application, ctx: AppContext): void {
     res.json({ livekit: !!(c.LIVEKIT_URL && c.LIVEKIT_API_KEY && c.LIVEKIT_API_SECRET), discordInvite: c.DISCORD_VOICE_INVITE ?? null });
   });
 
-  /** Jeton LiveKit pour la voix de la sortie (participants uniquement). */
+  /**
+   * Jeton LiveKit pour la voix de la sortie (participants uniquement). `?device=phone` : jeton du micro
+   * de l'appli compagnon, demandé par le jeu et relayé au téléphone (identité « …:phone », publication
+   * seule : le jeu joue déjà les voix des autres).
+   */
   api.get('/rides/:roomId/voice-token', async (req: AuthedRequest, res) => {
     const u = requireUser(req);
     const c = ctx.config;
@@ -554,9 +558,12 @@ export function mountApi(app: express.Application, ctx: AppContext): void {
     const entry = ctx.registry.byRoomId(roomId);
     const riderId = entry?.public ? entry.riderIds.get(u.userId) : undefined;
     if (entry?.public && !riderId) throw new HttpError(403, 'Aucun coureur de ce compte dans la salle', 'forbidden');
+    const phone = req.query.device === 'phone' && role !== 'companion';
     const grant = await createLiveKitToken(
       { url: c.LIVEKIT_URL, apiKey: c.LIVEKIT_API_KEY, apiSecret: c.LIVEKIT_API_SECRET },
-      { identity: `${riderId ?? u.userId}${role === 'companion' ? ':companion' : ''}`, name: u.name, room: voiceRoomName(roomId) },
+      phone
+        ? { identity: `${riderId ?? u.userId}:phone`, name: u.name, room: voiceRoomName(roomId), canSubscribe: false }
+        : { identity: `${riderId ?? u.userId}${role === 'companion' ? ':companion' : ''}`, name: u.name, room: voiceRoomName(roomId) },
     );
     res.json(grant);
   });

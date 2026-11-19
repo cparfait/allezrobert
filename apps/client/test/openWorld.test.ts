@@ -118,6 +118,7 @@ describe('voix de proximité', () => {
   it('l’identité vocale d’une salle publique est l’identifiant du coureur (compagnon compris)', () => {
     expect(riderOfIdentity('r12')).toBe('r12');
     expect(riderOfIdentity('r12:companion')).toBe('r12');
+    expect(riderOfIdentity('r12:phone')).toBe('r12');
   });
 });
 

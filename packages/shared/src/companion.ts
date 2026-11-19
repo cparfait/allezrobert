@@ -72,6 +72,12 @@ export type PhoneCommand =
   /** « Attendez-moi » et forme du peloton (auto, file, deux files, bordure). */
   | { kind: 'waitMe' }
   | { kind: 'formation' }
+  /**
+   * Micro du téléphone pour le chat vocal de la sortie. `req` : le téléphone n'a pas encore de jeton et
+   * en demande un (le jeu répond par l'événement « voiceToken » portant le même `req`). Sans `req` : le
+   * téléphone dit au jeu si son micro est ouvert (`on`) ; `linked: false` quand il quitte la voix.
+   */
+  | { kind: 'phoneMic'; on: boolean; req?: string; linked?: boolean }
   /** Demande de l'état complet et de la route (arrivée, retour au premier plan). */
   | { kind: 'sync' };
 
@@ -147,6 +153,8 @@ export interface PairState {
   segment?: { name: string; kind: string; progress: number; elapsedS: number } | null;
   workout?: { name: string; targetWatts: number | null; stepRemainingS: number; remainingS: number; next?: string } | null;
   riders?: PairRider[];
+  /** Chat vocal de la sortie : connecté (le téléphone peut prêter son micro), micro du téléphone ouvert. */
+  voice?: { available: boolean; phoneMic: boolean };
 }
 
 /** Résultat d'une recherche Spotify montré sur le téléphone. */
@@ -166,7 +174,14 @@ export type PairEvent =
   | { kind: 'chat'; who: string; text: string }
   | { kind: 'musicResults'; query: string; items: PairMusicItem[]; error?: string }
   | { kind: 'toast'; text: string }
-  | { kind: 'rideOn'; from: string };
+  | { kind: 'rideOn'; from: string }
+  /** Réponse à « phoneMic » avec `req` : jeton LiveKit du téléphone (publication seule), ou raison de l'échec. */
+  | { kind: 'voiceToken'; req: string; url?: string; token?: string; error?: string }
+  /** Le jeu ouvre ou coupe le micro du téléphone (touche V quand le téléphone sert de micro). */
+  | { kind: 'phoneMic'; on: boolean };
+
+/** Identifiant d'une demande de jeton vocal du téléphone. */
+export const PAIR_VOICE_REQ_RE = /^[A-Za-z0-9_-]{8,40}$/;
 
 /** Route pour la carte et le profil : points décimés, entiers (m) x, z, altitude, distance. */
 export interface PairRoute {

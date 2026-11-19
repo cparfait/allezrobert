@@ -58,6 +58,11 @@ describe('salle pair', () => {
     const roadFeel = next<PhoneCommand>(game, PAIR_MSG.cmd);
     phone.send(PAIR_MSG.cmd, { kind: 'roadFeel', percent: 100 });
     expect(await roadFeel).toEqual({ kind: 'roadFeel', percent: ROAD_FEEL.maxPercent });
+    // Micro du téléphone : demande de jeton mal formée ignorée, demande valide relayée au jeu.
+    const micReq = next<PhoneCommand>(game, PAIR_MSG.cmd);
+    phone.send(PAIR_MSG.cmd, { kind: 'phoneMic', on: true, req: 'x y' });
+    phone.send(PAIR_MSG.cmd, { kind: 'phoneMic', on: true, req: 'a1b2c3d4e5f6' });
+    expect(await micReq).toEqual({ kind: 'phoneMic', on: true, req: 'a1b2c3d4e5f6' });
 
     // Recherche Spotify : relayée au jeu ; URI de lecture invalide refusée, résultats renvoyés au téléphone.
     const search = next<PhoneCommand>(game, PAIR_MSG.cmd);

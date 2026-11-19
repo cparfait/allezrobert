@@ -16,6 +16,7 @@ import { rideOnMessage, climbAhead, climbElevation, gradeColor, PAIR_MSG, PAIR_R
 import { detectLang, STRINGS, type Lang } from './i18n.ts';
 import { climbsOf } from './climbs.ts';
 import { drawClimb, drawMap, drawProfile, RouteGeo } from './map.ts';
+import { PhoneMic, type PhoneMicError } from './phoneMic.ts';
 
 type Tab = 'dash' | 'ctrl' | 'music' | 'chat' | 'map';
 type FieldId = keyof (typeof STRINGS)['fr']['fields'];
@@ -101,6 +102,21 @@ function haptic(p: number | number[] = 12): void {
 function send(cmd: PhoneCommand): void {
   room?.send(PAIR_MSG.cmd, cmd);
 }
+
+/** Micro du téléphone pour le chat vocal de la sortie (bouton 🎙 de la barre). */
+const mic = new PhoneMic(send);
+mic.onChange = (error?: PhoneMicError, detail?: string) => {
+  updateMic();
+  if (error) {
+    const msg = { insecure: t.micInsecure, denied: t.micDenied, none: t.micNone, failed: `${t.micFailed}${detail ? ` (${detail})` : ''}` }[error];
+    showToast(msg);
+    haptic([40, 60, 40]);
+  } else if (mic.state === 'on' && !micWelcomed) {
+    micWelcomed = true;
+    showToast(t.micLinked);
+  }
+};
+let micWelcomed = false;
 
 const nf = (v: number, d = 0) => v.toLocaleString(lang, { minimumFractionDigits: d, maximumFractionDigits: d });
 
@@ -209,6 +225,7 @@ function connect(): void {
         S.presence = p;
         if (!p.game) {
           S.st = null;
+          if (mic.linked) void mic.stop(false);
           if (was) render();
         }
         renderBar();
@@ -242,6 +259,7 @@ let junctionLocked = false;
 function onState(st: PairState): void {
   const prevPhase = S.st?.phase;
   S.st = st;
+  mic.sync(st.phase === 'menu' ? undefined : st.voice);
   // Carrefour qui approche : vibration à l'apparition, petite secousse quand le choix se fige.
   const j = st.junction;
   const key = j ? j.choices.map((c) => c.name + c.dir).join('|') : '';
@@ -265,6 +283,11 @@ function showToast(text: string): void {
 }
 
 function onEvent(ev: PairEvent): void {
+  if (ev.kind === 'voiceToken') return mic.onToken(ev);
+  if (ev.kind === 'phoneMic') {
+    haptic(15);
+    return void mic.setOn(ev.on);
+  }
   if (ev.kind === 'musicResults') {
     S.music = { query: ev.query, state: ev.error ? 'error' : 'done', items: ev.items, error: ev.error ?? '' };
     if (S.tab === 'music') renderMusicResults();
@@ -321,8 +344,23 @@ function renderBar(): void {
   bar.innerHTML = `<i class="dot ${ok ? 'ok' : S.conn === 'connected' ? 'warn' : 'off'}"></i>
     <div class="where"><b>${esc(S.st?.road || S.st?.routeName || 'Allez Robert !')}</b><span>${esc(label)}</span></div>
     ${fs && 'orientation' in screen && 'lock' in (screen.orientation as object) ? `<button class="ico" data-act="rotate" title="${esc(t.rotate)}">⟳<small>${esc(t.orient[S.orient])}</small></button>` : ''}
+    <button class="ico mic" id="micbtn" data-act="mic" title="${esc(t.micTitle)}" hidden></button>
     <button class="ico" data-act="fullscreen" title="${esc(t.fullscreen)}">${fs ? '🗗' : '⛶'}</button>
     <button class="ico" data-act="lang">${lang === 'fr' ? 'EN' : 'FR'}</button>`;
+  updateMic();
+}
+
+/** Bouton 🎙 : visible quand la sortie a une voix (ou que le téléphone y est relié), avec l'état du micro. */
+function updateMic(): void {
+  const b = document.getElementById('micbtn');
+  if (!b) return;
+  const show = mic.linked || mic.state === 'connecting' || (!!S.st?.voice?.available && S.st.phase !== 'menu');
+  b.hidden = !show;
+  if (!show) return;
+  const label = mic.state === 'on' ? t.micOn : mic.state === 'connecting' ? t.micWait : mic.state === 'muted' ? t.micOff : t.mic;
+  const html = `${mic.state === 'muted' ? '🔇' : '🎙'}<small>${esc(label)}</small>`;
+  if (b.innerHTML !== html) b.innerHTML = html;
+  b.className = `ico mic ${mic.state}`;
 }
 
 function renderTabs(): void {
@@ -423,6 +461,7 @@ function refresh(): void {
 function renderBarLite(): void {
   const b = document.querySelector('#bar .where b');
   if (b) b.textContent = S.st?.road || S.st?.routeName || 'Allez Robert !';
+  updateMic();
 }
 
 function extraHtml(st: PairState): string {
@@ -918,6 +957,9 @@ app.addEventListener('click', (e) => {
     localStorage.setItem('ar-lang', lang);
     t = STRINGS[lang];
     render();
+  } else if (d.act === 'mic') {
+    haptic(25);
+    void mic.toggle();
   } else if (d.act === 'fullscreen') void toggleFullscreen();
   else if (d.act === 'rotate') void rotate();
   else if (d.act === 'follow') {
@@ -928,6 +970,7 @@ app.addEventListener('click', (e) => {
     localStorage.removeItem('ar-pair');
     localStorage.removeItem('ar-pair-server');
     S.pair = null;
+    void mic.stop(false);
     clearTimeout(retry);
     const r = room;
     room = null;

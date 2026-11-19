@@ -1133,6 +1133,8 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   let rideWeather = myWeather;
   let mp: Multiplayer | null = null;
   let voice: VoiceChat | null = null;
+  /** Micro de l'appli compagnon : téléphone relié à la voix de la sortie (`linked`), micro ouvert (`on`). */
+  const phoneMic = { linked: false, on: false };
   const wantsCollisionPilot = params.get('collisionPilot') !== '0' && source.id === COLLISION_PILOT_WORLD && !source.zones && track.route.id === COLLISION_PILOT_ROUTE && !extras.publicRoom;
   let collisionData: Awaited<ReturnType<typeof loadRideCollisionData>>;
   let collisionSpawn: Awaited<ReturnType<Multiplayer['initialCollisionPose']>>;
@@ -1568,7 +1570,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     // Chat vocal LiveKit (micro coupé à l'arrivée, V pour parler) et Ride On depuis la liste.
     voice = new VoiceChat();
     // Repli Discord : lien du salon proposé quand LiveKit est absent ou échoue.
-    voice.onState = (st, detail) => void voiceCfg.then((cfg) => hud.setVoice({ connected: st === 'connected', micOn: voice?.micOn ?? false, ...(detail ? { detail } : {}), discordUrl: cfg.discordInvite }));
+    voice.onState = (st, detail) => void voiceCfg.then((cfg) => hud.setVoice({ connected: st === 'connected', micOn: phoneMic.linked ? phoneMic.on : (voice?.micOn ?? false), phone: phoneMic.linked, ...(detail ? { detail } : {}), discordUrl: cfg.discordInvite }));
     void voice.connect(net.roomId);
     // Monde ouvert : on n'entend que les coureurs proches.
     if (mp.isPublic && mp.proximity) {
@@ -2072,10 +2074,15 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
       e.preventDefault();
       hud.openChat((text) => mp?.net.chat(text));
     }
-    if (voice && (e.key === 'v' || e.key === 'V')) void voice.toggleMic().then((on) => {
-      hud.setVoice({ connected: true, micOn: on });
-      if (voice?.micError) hud.toast(voice.micError);
-    });
+    // V : micro du téléphone quand l'appli compagnon sert de micro, sinon celui de l'ordinateur.
+    if (voice && (e.key === 'v' || e.key === 'V')) {
+      if (phoneMic.linked && companion.presence.phones) companion.sendEvent({ kind: 'phoneMic', on: !phoneMic.on });
+      else
+        void voice.toggleMic().then((on) => {
+          hud.setVoice({ connected: true, micOn: on });
+          if (voice?.micError) hud.toast(voice.micError);
+        });
+    }
     // Équipiers : allure du groupe en % de FTP ([ / ]), ordre « ralentissez » (R).
     if (e.key === '[' || e.key === ']') changePace(e.key === ']' ? 1 : -1);
     if (e.key === 'r' || e.key === 'R') slowDown();
@@ -2679,6 +2686,11 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   let phones = companion.presence.phones;
   companion.listen(() => {
     if (companion.presence.phones > phones) hud.toast(getLang() === 'fr' ? 'Appli compagnon connectée' : 'Companion app connected', true);
+    // Téléphone parti : le micro de l'ordinateur reprend la main (touche V).
+    if (!companion.presence.phones && phoneMic.linked) {
+      phoneMic.linked = phoneMic.on = false;
+      if (voice?.connected) hud.setVoice({ connected: true, micOn: voice.micOn });
+    }
     phones = companion.presence.phones;
   });
   hud.onToast = (text) => companion.sendEvent({ kind: 'toast', text });
@@ -2745,6 +2757,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
           ? { name: workout.workout.name, targetWatts: w.targetWatts, stepRemainingS: w.stepRemainingS, remainingS: w.remainingS, ...(wNext ? { next: `${Math.round(((wNext.powerStart + wNext.powerEnd) / 2) * (wNext.powerUnit === 'ftp' ? s.ftpWatts : 1))} W` } : {}) }
           : null,
       riders,
+      ...(voice ? { voice: { available: voice.connected, phoneMic: phoneMic.linked && phoneMic.on } } : {}),
     };
   };
   companion.onCommand = (c) => {
@@ -2815,6 +2828,21 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
       case 'formation':
         cycleFormation();
         break;
+      case 'phoneMic': {
+        // Le téléphone sert de micro : le jeu, qui a un compte, lui obtient un jeton vocal (publication seule).
+        if (!voice) break;
+        if (c.req) {
+          const req = c.req;
+          void voice.phoneToken().then((g) => companion.sendEvent({ kind: 'voiceToken', req, ...g }));
+          break;
+        }
+        phoneMic.linked = c.linked !== false;
+        phoneMic.on = phoneMic.linked && c.on;
+        // Une seule voix : le micro de l'ordinateur se coupe quand celui du téléphone s'ouvre.
+        if (phoneMic.on) void voice.muteLocal();
+        if (voice.connected) hud.setVoice({ connected: true, micOn: phoneMic.linked ? phoneMic.on : voice.micOn, phone: phoneMic.linked });
+        break;
+      }
     }
   };
   // Crochet de test : avance la simulation à pas fixe (1/60 s) sans dépendre de l'affichage.

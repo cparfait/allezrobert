@@ -26,7 +26,7 @@ export function voiceRoomName(rideRoomId: string): string {
 
 export async function createLiveKitToken(
   cfg: LiveKitConfig,
-  opts: { identity: string; name: string; room: string; canPublish?: boolean; ttlS?: number },
+  opts: { identity: string; name: string; room: string; canPublish?: boolean; canSubscribe?: boolean; ttlS?: number },
 ): Promise<VoiceGrant> {
   const ttl = opts.ttlS ?? 4 * 3600;
   const now = Math.floor(Date.now() / 1000);
@@ -36,7 +36,7 @@ export async function createLiveKitToken(
       room: opts.room,
       roomJoin: true,
       canPublish: opts.canPublish ?? true,
-      canSubscribe: true,
+      canSubscribe: opts.canSubscribe ?? true,
       canPublishData: true,
     },
   })

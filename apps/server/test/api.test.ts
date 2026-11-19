@@ -380,6 +380,12 @@ describe('API — sorties, segments, progression', () => {
     const t = await s.json('GET', '/api/rides/abc/voice-token');
     expect(t.status).toBe(200);
     expect(t.body).toMatchObject({ url: 'wss://lk.test', room: 'ride-abc' });
+    // Micro de l'appli compagnon : identité « …:phone », publication seule (le jeu joue déjà les voix).
+    const claims = (tok: string) => JSON.parse(Buffer.from(tok.split('.')[1]!, 'base64url').toString()) as { sub: string; video: { canPublish: boolean; canSubscribe: boolean } };
+    expect(claims(t.body.token).video.canSubscribe).toBe(true);
+    const ph = await s.json('GET', '/api/rides/abc/voice-token?device=phone');
+    expect(ph.status).toBe(200);
+    expect(claims(ph.body.token)).toMatchObject({ sub: `${id}:phone`, video: { canPublish: true, canSubscribe: false } });
     expect((await s.json('GET', '/api/rides/current')).body).toMatchObject({ roomId: 'abc', inviteCode: 'ZZZZZZ' });
     expect((await s.json('GET', '/api/rides/code/zzz-zzz')).body).toMatchObject({ roomId: 'abc' });
   });
