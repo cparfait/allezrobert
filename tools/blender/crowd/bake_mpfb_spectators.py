@@ -21,6 +21,7 @@ Usage :
   blender -b --factory-startup -P tools/blender/crowd/bake_mpfb_spectators.py -- [--only nom,nom] [--preview]
       [--src out/crowd-mpfb/src] [--out apps/client/public/models/crowd] [--index]
 --index : réécrit index.json avec les variantes du catalogue.
+Ensuite, relancer node tools/blender/crowd/crowd_lod.mjs (version allégée ajoutée au .bin, affichée au loin).
 """
 import json
 import math

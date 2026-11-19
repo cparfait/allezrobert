@@ -9,13 +9,13 @@
    "name": "cheer",
    "row": 0,
    "frames": 24,
-   "fps": 8.0
+   "fps": 8
   },
   {
    "name": "clap",
    "row": 24,
    "frames": 16,
-   "fps": 8.0
+   "fps": 8
   }
  ],
  "hold": 40,
@@ -27,15 +27,18 @@
   "bottom": 0.23839376866817474
  },
  "heightM": 1.63,
- "weight": 1.0,
+ "weight": 1,
  "offsets": {
   "position": 0,
   "normal": 18792,
   "uv": 37584,
   "index": 50112,
   "vat": 78936,
-  "mask": 1106232
+  "mask": 1106232,
+  "lodIndex": 1368376
  },
- "bytes": 1368376,
- "source": "mpfb"
+ "bytes": 1375564,
+ "source": "mpfb",
+ "lodIndexCount": 1797,
+ "lodTris": 599
 }

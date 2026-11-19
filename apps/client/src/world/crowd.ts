@@ -6,7 +6,7 @@ import { rng } from '../engine/noise.ts';
 import { LOW_POLY } from '../engine/style.ts';
 import { signDesigns, type SignDesign } from './crowdSigns.ts';
 import { lowPolyCrowdMaterial, lowPolyPersonGeometry, lowPolySignGeometry, lowPolySignMaterial } from './crowdLowPoly.ts';
-import { loadSpectators, spectatorGeometry, spectatorMaterial } from './crowdRealistic.ts';
+import { loadSpectators, spectatorGeometry, spectatorLodGeometry, spectatorMaterial } from './crowdRealistic.ts';
 
 /** Spectateur : corps, tête et bras levés (attribut `part` : 0 corps, 1 tête, 2 bras). */
 function personGeometry(): THREE.BufferGeometry {
@@ -110,6 +110,15 @@ const LOOK_EASE = 0.18;
  */
 const CHUNK_M = 250;
 const HIDE_M = 1500;
+/**
+ * Version allégée des spectateurs (≈ 640 triangles au lieu de 2 550, mêmes sommets et même matériau) pour les
+ * tronçons dont le bord est à plus de LOD_M du coureur et de la caméra ; retour au complet sous LOD_BACK_M (écart
+ * pour ne pas alterner à la limite). À 50 m, un spectateur fait une vingtaine de pixels de haut.
+ * ?crowdLod=0 : toujours la version complète (comparaisons).
+ */
+const LOD_M = 50;
+const LOD_BACK_M = 40;
+const CROWD_LOD = typeof location === 'undefined' || new URLSearchParams(location.search).get('crowdLod') !== '0';
 
 export interface CrowdOptions {
   /** Prénom du coureur, écrit sur certaines pancartes. */
@@ -350,7 +359,9 @@ export class Crowd {
   /** Style réaliste : maillages des vrais personnages (un par personnage), reposés sur le sol comme les capsules. */
   private readonly people: THREE.InstancedMesh[] = [];
   /** Spectateurs réalistes qui suivent le coureur du regard : lacet de base (vers la route), lacet actuel, pancarte tenue (immobile). */
-  private readonly lookers: Array<{ mesh: THREE.InstancedMesh; attr: THREE.InstancedBufferAttribute; base: Float32Array; cur: Float32Array; still: Float32Array; center: THREE.Vector3; radius: number; settled: boolean }> = [];
+  private readonly lookers: Array<{ mesh: THREE.InstancedMesh; full: THREE.BufferGeometry; lod: THREE.BufferGeometry | null; attr: THREE.InstancedBufferAttribute; base: Float32Array; cur: Float32Array; still: Float32Array; center: THREE.Vector3; radius: number; settled: boolean }> = [];
+  /** Position de la caméra au dernier rendu du public (choix de la version allégée ; NaN avant le premier). */
+  private readonly camPos = new THREE.Vector3(NaN, NaN, NaN);
 
   constructor(track: RouteTrack, groundAt: (x: number, z: number) => number, opts: CrowdOptions = {}) {
     this.track = track;
@@ -525,7 +536,12 @@ export class Crowd {
           const attr = geometry.getAttribute('crowdOrient') as THREE.InstancedBufferAttribute;
           const base = new Float32Array(g.mats.length);
           for (let i = 0; i < base.length; i++) base[i] = Math.atan2(g.orient[i * 3 + 1] as number, g.orient[i * 3] as number);
-          this.lookers.push({ mesh, attr, base, cur: base.slice(), still: Float32Array.from(g.still), center: sphere.center.clone(), radius: sphere.radius, settled: true });
+          const lod = CROWD_LOD ? spectatorLodGeometry(asset, geometry) : null;
+          // Caméra relevée au rendu (poursuite, TV, drone : elle n'est pas toujours près du coureur).
+          if (lod) mesh.onBeforeRender = (_r, _s, camera) => {
+            if ((camera as THREE.PerspectiveCamera).isPerspectiveCamera) this.camPos.setFromMatrixPosition(camera.matrixWorld);
+          };
+          this.lookers.push({ mesh, full: geometry, lod, attr, base, cur: base.slice(), still: Float32Array.from(g.still), center: sphere.center.clone(), radius: sphere.radius, settled: true });
         }
         // Les capsules restent dans le groupe (comptes, tests) mais ne sont plus dessinées.
         this.mesh.visible = false;
@@ -594,9 +610,18 @@ export class Crowd {
     this.reground(p.x, p.z);
     this.lookAt(p.x, p.z);
     // Tronçons de public à plus de HIDE_M du coureur : masqués (quelques pixels à cette distance).
+    // Au-delà de LOD_M du coureur et de la caméra : version allégée.
+    const cam = this.camPos;
     for (const l of this.lookers) {
-      const far = Math.hypot(l.center.x - p.x, l.center.z - p.z) - l.radius > HIDE_M;
+      const dRider = Math.hypot(l.center.x - p.x, l.center.z - p.z) - l.radius;
+      const far = dRider > HIDE_M;
       l.mesh.visible = !far;
+      if (!l.lod || far) continue;
+      const dCam = Number.isNaN(cam.x) ? Infinity : l.center.distanceTo(cam) - l.radius;
+      const d = Math.min(dRider, dCam);
+      const lod = l.mesh.geometry === l.lod ? d > LOD_BACK_M : d > LOD_M;
+      const want = lod ? l.lod : l.full;
+      if (l.mesh.geometry !== want) l.mesh.geometry = want;
     }
   }
 

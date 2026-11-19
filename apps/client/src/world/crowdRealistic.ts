@@ -40,6 +40,8 @@ export interface SpectatorAsset {
   /** Fréquence relative dans le public (supporters à pois ou en jaune plus nombreux). */
   weight: number;
   geometry: THREE.BufferGeometry;
+  /** Version allégée (tools/blender/crowd/crowd_lod.mjs) : autre liste de triangles sur les mêmes sommets. */
+  lodIndex: THREE.BufferAttribute | null;
   vat: THREE.DataTexture;
   mask: THREE.DataTexture;
   base: THREE.Texture;
@@ -56,8 +58,9 @@ interface SpectatorMeta {
   hold: number;
   maskSize: number;
   refLum: { skin: number; hair: number; top: number; bottom: number };
-  offsets: { position: number; normal: number; uv: number; index: number; vat: number; mask: number };
+  offsets: { position: number; normal: number; uv: number; index: number; vat: number; mask: number; lodIndex?: number };
   weight?: number;
+  lodIndexCount?: number;
 }
 
 const DIR = '/models/crowd';
@@ -101,6 +104,7 @@ async function loadOne(name: string): Promise<SpectatorAsset | null> {
       geometry.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(bin, o.normal, V * 3), 3));
       geometry.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(bin, o.uv, V * 2), 2));
       geometry.setIndex(new THREE.BufferAttribute(new Uint32Array(bin, o.index, meta.indexCount), 1));
+      const lodIndex = o.lodIndex !== undefined && meta.lodIndexCount ? new THREE.BufferAttribute(new Uint32Array(bin, o.lodIndex, meta.lodIndexCount), 1) : null;
       // Boîte élargie aux bras levés (le maillage bouge dans le nuanceur).
       geometry.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 1, 0), 1.4);
       const vat = new THREE.DataTexture(new Uint16Array(bin, o.vat, V * meta.vatRows * 4), V, meta.vatRows, THREE.RGBAFormat, THREE.HalfFloatType);
@@ -122,7 +126,7 @@ async function loadOne(name: string): Promise<SpectatorAsset | null> {
       mask.needsUpdate = true;
       base.colorSpace = THREE.SRGBColorSpace;
       base.anisotropy = 4;
-      return { name, weight: meta.weight ?? (name.startsWith('fan_') ? 1.6 : 1), geometry, vat, mask, base, meta };
+      return { name, weight: meta.weight ?? (name.startsWith('fan_') ? 1.6 : 1), geometry, lodIndex, vat, mask, base, meta };
     } catch (err) {
       console.warn(`Public : personnage ${name} indisponible`, err);
       return null;
@@ -177,6 +181,20 @@ export function spectatorGeometry(asset: SpectatorAsset, orient: Float32Array, s
   g.setAttribute('crowdId', new THREE.InstancedBufferAttribute(ids ?? Float32Array.from(still, (_, i) => i), 1));
   // Sphère élargie aux bras levés (le maillage bouge dans le nuanceur).
   if (src.boundingSphere) g.boundingSphere = src.boundingSphere.clone();
+  return g;
+}
+
+/**
+ * Version allégée d'une géométrie de `spectatorGeometry` (null si le personnage n'en a pas) : mêmes attributs, y
+ * compris ceux de chaque spectateur (le regard réécrit l'un vaut pour l'autre), seul l'index change. Même matériau,
+ * même texture d'animation : passer de l'une à l'autre ne compile rien.
+ */
+export function spectatorLodGeometry(asset: SpectatorAsset, full: THREE.BufferGeometry): THREE.BufferGeometry | null {
+  if (!asset.lodIndex) return null;
+  const g = new THREE.BufferGeometry();
+  for (const [name, a] of Object.entries(full.attributes)) g.setAttribute(name, a);
+  g.setIndex(asset.lodIndex);
+  if (full.boundingSphere) g.boundingSphere = full.boundingSphere.clone();
   return g;
 }
 
