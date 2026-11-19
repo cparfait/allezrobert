@@ -576,9 +576,18 @@ export function verifyWorld(dir: string): { ok: boolean; lines: string[] } {
     }
     const lim = ring ? GRADE_RING : r.bike === 'mtb' ? 0.27 : r.bike === 'gravel' ? 0.2 : 0.135;
     if (gMax > lim + 1e-4) errors.push(`pente max ${f(gMax * 100, 1)} %`);
-    // Le jeu place le coureur d'après roadWidthM sur tout le parcours : jamais plus large que la voie la plus étroite.
-    const narrow = Math.min(...(r.roadWidths ?? [{ widthM: r.roadWidthM }]).map((w) => w.widthM));
-    if (r.roadWidthM > narrow + 1e-6) errors.push(`largeur ${r.roadWidthM} m annoncée, voie la plus étroite ${narrow} m (coureur hors chaussée)`);
+    // Le jeu borne le coureur et les IA à la chaussée du tronçon (track.widthAt) ; roadWidthM ne sert que de voie voulue
+    // et de largeur de repli. Les tronçons de largeur doivent donc couvrir tout le parcours, sans trou ni largeur nulle
+    // (la fermeture d'une boucle, au plus 3 m, peut rester hors tronçon).
+    const runs = r.roadWidths ?? [];
+    let prevEnd = 0;
+    for (const w of runs) {
+      if (!(w.widthM > 0)) errors.push(`tronçon de largeur nulle à ${f(w.startM, 0)} m`);
+      if (w.endM <= w.startM) errors.push(`tronçon de largeur vide à ${f(w.startM, 0)} m`);
+      if (Math.abs(w.startM - prevEnd) > 0.5) errors.push(`largeurs : trou ou chevauchement de ${f(w.startM - prevEnd)} m à ${f(prevEnd, 0)} m`);
+      prevEnd = w.endM;
+    }
+    if (runs.length && Math.abs(r.lengthM - prevEnd) > 3) errors.push(`largeurs : les tronçons s'arrêtent à ${f(prevEnd, 0)} m sur ${f(r.lengthM, 0)} m`);
     check(`itinéraire ${ri.id}`, errors, `${f(r.lengthM / 1000, 2)} km, ${n} points, pente max ${f(gMax * 100, 1)} %, écart aux routes ${f(maxOff, 2)} m`);
   }
   if (!meta.routes.some((r) => r.id === meta.mainRoute)) check('itinéraire principal', [`${meta.mainRoute} absent de l'index`]);

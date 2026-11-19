@@ -107,3 +107,9 @@ Relevé du 2026-11-12. Elles viennent de sessions fermées ; aucune session ouve
 - Fichiers ou dossiers réservés (sections seulement) : `apps/client/src/ui/progressPage.ts`, `ui/menu.ts` (hôte de Progression, `onV3Reveal`, bouton `gr-back`), `ui/menu.css` (`.gr-back`), une ligne de `main.ts`, `ui/atelier.ts` (`revealV3`, `highlight`), `v3/garage.ts`, `v3/wardrobe.ts`, `v3/garage.css`, `v3/visuals.ts` (highlight, partAt, showZip/poches/ouverture, plainTyres), une ligne de plus dans `main.ts` (`onV3Pick`), `hud/hud.css` (3 lignes `.map-town`)
 - État : commité le 18/11 sur demande de l'utilisateur (voir git log, non poussé ; sans les 3 lignes `.map-town` de hud.css, liées à une modification non commitée d'une autre session). Puis col fermé dessiné (V du maillot 3 comblé à la couleur du maillot, matériaux FLESH, visuals.ts) : vérifié sur le banc, commité (voir git log, non poussé). Captures d'étude dans `out/zip-essai/`. Aucun build dans `worlds/`, aucune mesure GPU.
 - Mis à jour : 2026-11-18
+
+## Règle de largeur des itinéraires de l'île (relevé avant publication du 19/11)
+- Chantier : la vérification de l'île comparait la largeur annoncée à la voie la plus étroite, alors que le jeu borne déjà le coureur au tronçon (a30ec2e8) ; remplacée par un contrôle de couverture des tronçons de largeur
+- Fichiers ou dossiers réservés : `tools/island/src/verify.ts`
+- État : commité, non poussé ; test de l'île vert (5/5), types OK. Fichier libéré.
+- Mis à jour : 2026-11-19
