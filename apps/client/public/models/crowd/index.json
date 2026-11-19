@@ -1,13 +1,12 @@
 {
  "models": [
-  "fan_pois",
-  "spectateur",
-  "enfant",
-  "homme_fort",
-  "fan_pois_femme",
-  "fan_jaune",
-  "femme",
-  "jeune_homme",
-  "femme_agee"
+  "mpfb_homme_jeune",
+  "mpfb_homme",
+  "mpfb_homme_fort",
+  "mpfb_homme_age",
+  "mpfb_femme_jeune",
+  "mpfb_femme",
+  "mpfb_femme_forte",
+  "mpfb_femme_agee"
  ]
 }

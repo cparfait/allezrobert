@@ -1,0 +1,13 @@
+{
+ "_doc": "Spectateurs du public tirés des avatars MPFB (bake_mpfb_spectators.py). base : male (rider_lod2.glb) ou female (rider_female_lod2.glb), décompressés dans out/crowd-mpfb/src ; morph : cibles de forme MPFB (0 à 1) ; hair : coiffures (objets rider_hair*) ; sleeves : short | long ; legs : short (short au genou) | long ; shoe : couleur des chaussures ; weight : fréquence relative dans le public.",
+ "spectators": {
+  "mpfb_homme_jeune": { "base": "male", "height": 1.81, "morph": { "age-": 0.5, "weight-": 0.3, "muscle+": 0.3 }, "hair": ["rider_hairs_fade"], "sleeves": "short", "legs": "short", "shoe": "#e6e6e2" },
+  "mpfb_homme": { "base": "male", "height": 1.76, "morph": { "weight+": 0.3, "originAfrican+": 0.5 }, "hair": ["rider_hairs_cut"], "sleeves": "short", "legs": "long", "shoe": "#2b2b2e" },
+  "mpfb_homme_fort": { "base": "male", "height": 1.78, "morph": { "weight+": 1.6, "age+": 0.3 }, "hair": ["rider_hairs_slick"], "sleeves": "short", "legs": "long", "shoe": "#3a2c22" },
+  "mpfb_homme_age": { "base": "male", "height": 1.71, "morph": { "age+": 1.0, "weight+": 0.8, "muscle-": 0.3 }, "hair": ["rider_hairs_cut"], "moustache": true, "sleeves": "long", "legs": "long", "shoe": "#4a3a2c" },
+  "mpfb_femme_jeune": { "base": "female", "height": 1.67, "morph": { "age-": 0.5, "weight-": 0.2 }, "hair": ["rider_hairs_long"], "sleeves": "short", "legs": "short", "shoe": "#efefec" },
+  "mpfb_femme": { "base": "female", "height": 1.65, "morph": { "weight+": 0.2, "originAsian+": 0.5 }, "hair": ["rider_hairs_bob"], "sleeves": "short", "legs": "long", "shoe": "#2b2b2e" },
+  "mpfb_femme_forte": { "base": "female", "height": 1.63, "morph": { "weight+": 1.4 }, "hair": ["rider_hairs_cut", "rider_hair_bun"], "sleeves": "long", "legs": "long", "shoe": "#3a3a40" },
+  "mpfb_femme_agee": { "base": "female", "height": 1.6, "morph": { "age+": 1.0, "weight+": 0.7 }, "hair": ["rider_hairs_curls"], "sleeves": "long", "legs": "long", "shoe": "#5a4636" }
+ }
+}

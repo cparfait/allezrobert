@@ -68,8 +68,10 @@ export function loadSpectators(): Promise<SpectatorAsset[]> {
   if (typeof document === 'undefined') return Promise.resolve([]);
   loading ??= (async () => {
     let names = ['spectateur'];
+    // ?crowd=tripo : anciens personnages Tripo (index_tripo.json), pour comparer avec les spectateurs MPFB.
+    const list = new URLSearchParams(location.search).get('crowd') === 'tripo' ? 'index_tripo.json' : 'index.json';
     try {
-      const r = await fetch(`${DIR}/index.json`);
+      const r = await fetch(`${DIR}/${list}`);
       if (r.ok) names = ((await r.json()) as { models: string[] }).models;
     } catch {
       // index absent : seul le spectateur d'origine
