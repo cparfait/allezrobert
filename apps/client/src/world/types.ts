@@ -1,5 +1,6 @@
 import type { RoadGraphData, RouteData, WorldPlace } from '@allezrobert/shared';
 import type { BuildingSourceTile, BuildingVisualCorrection } from '@allezrobert/shared/building-visual';
+import type { ApurVegetationTile } from './apurVegetation.ts';
 
 /**
  * Classes d'occupation du sol rastérisées par tuile (un octet par canal). `verge` : abords de
@@ -96,6 +97,8 @@ export interface LoadedTile {
   buildingVisualCorrections?: ReadonlyMap<string, BuildingVisualCorrection>;
   /** Orthophoto IGN de la tuile (JPEG encore compressé : décodé hors du fil principal à l'affichage), facultative. */
   orthoBlob?: Blob;
+  /** Classes de couvert végétal APUR, alignées sur la tuile en Lambert-93. */
+  apurVegetation?: ApurVegetationTile;
   /** Raster d'occupation du sol (res×res, 6 canaux entrelacés), calculé côté client. */
   splat?: { res: number; data: Uint8Array };
 }

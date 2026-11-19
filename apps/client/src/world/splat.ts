@@ -1,5 +1,6 @@
 import type { LoadedTile, Rings } from './types.ts';
 import { SPLAT_CHANNELS } from './types.ts';
+import type { ApurVegetationTile } from './apurVegetation.ts';
 
 const RES = 256;
 
@@ -20,6 +21,28 @@ const FIELD_KINDS = new Set(['farmland', 'orchard', 'vineyard', 'allotments', 'f
 const ROCK_KINDS = new Set(['bare', 'scree']);
 const MEADOW_KINDS = new Set(['meadow', 'grass', 'heath', 'scrub', 'wetland', 'park', 'golf', 'pitch', 'cemetery', 'garden']);
 const URBAN_KINDS = new Set(['residential', 'industrial', 'commercial', 'railway', 'quarry', 'retail']);
+const PUBLIC_GARDENS = new Set(['park', 'garden', 'cemetery']);
+
+/** À l'intérieur des jardins urbains, le couvert mesuré distingue les allées des pelouses. */
+export function applyApurCover(data: Uint8Array, res: number, cover: ApurVegetationTile, parks: Uint8ClampedArray): void {
+  for (let z = 0; z < res; z++) {
+    const row = Math.floor(z * cover.res / res) * cover.res;
+    for (let x = 0; x < res; x++) {
+      const i = z * res + x;
+      const offset = i * SPLAT_CHANNELS.length;
+      const urban = offset + 4;
+      const meadow = offset + 2;
+      const kind = cover.classes[row + Math.floor(x * cover.res / res)];
+      if ((data[offset + 3] ?? 0) > 127 || (data[offset + 5] ?? 0) > 127) continue;
+      const inPark = (parks[i * 4 + 3] ?? 0) > 127;
+      if (kind === 1 && (inPark || (data[urban] ?? 0) > 127)) data[meadow] = 255;
+      else if (kind === 0 && inPark && (data[offset] ?? 0) < 127) {
+        data[meadow] = 0;
+        data[urban] = 255;
+      }
+    }
+  }
+}
 
 /**
  * Rastérise les entités vectorielles d'une tuile en carte d'occupation du sol
@@ -148,6 +171,11 @@ export function rasterizeSplat(tile: LoadedTile, skipRoute: string | null = null
     const img = ctx.getImageData(0, 0, RES, RES).data;
     for (let i = 0; i < RES * RES; i++) data[i * SPLAT_CHANNELS.length + c] = img[i * 4 + 3] as number;
   });
+  if (tile.apurVegetation) {
+    ctx.clearRect(0, 0, RES, RES);
+    f.landuse.filter((p) => PUBLIC_GARDENS.has(p.kind)).forEach((p) => poly(p.rings));
+    applyApurCover(data, RES, tile.apurVegetation, ctx.getImageData(0, 0, RES, RES).data);
+  }
   return { res: RES, data };
 }
 

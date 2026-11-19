@@ -1,12 +1,50 @@
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { gunzipSync } from 'node:zlib';
 import { Matrix4, Quaternion, Vector3 } from 'three';
 import { rng } from '../src/engine/noise.ts';
 import { snowCoverAt } from '../src/world/alpine.ts';
 import { GRASS_BLOCK, GRASS_RADIUS, appendGrassBlock, generateGrassBlock, grassBlocksAround, grassTriesPerBlock, type GrassBlock, type GrassEnv } from '../src/world/grassPlacement.ts';
-import { splatAt } from '../src/world/splat.ts';
+import { decodeApurTile } from '../src/world/apurVegetation.ts';
+import { applyApurCover, splatAt } from '../src/world/splat.ts';
 import { emptyFeatures, SPLAT_CHANNELS, type LoadedTile } from '../src/world/types.ts';
 
 const SIZE = 1000;
+
+it('évite les surfaces urbaines sans végétation cartographiée, tout en gardant les pelouses', () => {
+  const t = tile(0, 0, 0);
+  const data = t.splat!.data;
+  const env = { season: 'summer', tileAt: () => t, heightAt: () => 40, avoid: () => false } satisfies GrassEnv;
+  data.fill(0);
+  for (let i = 0; i < data.length; i += SPLAT_CHANNELS.length) data[i + 4] = 255;
+  expect(generateGrassBlock(0, 0, 100, env).count).toBe(0);
+  for (let i = 0; i < data.length; i += SPLAT_CHANNELS.length) data[i + 2] = 255;
+  expect(generateGrassBlock(0, 0, 100, env).count).toBe(100);
+});
+
+it('lit la végétation du Grand Paris dans le repère de la tuile, jusqu’au bois de Vincennes', () => {
+  const file = new URL('../public/geo/grand-paris-vegetation.bin.gz', import.meta.url);
+  const atlas = Uint8Array.from(gunzipSync(readFileSync(file))).buffer;
+  const champDeMars = decodeApurTile(atlas, 648000, 6863000);
+  const vincennes = decodeApurTile(atlas, 658000, 6860000);
+  for (const cover of [champDeMars, vincennes]) {
+    expect(cover?.res).toBe(128);
+    expect(new Set(cover?.classes)).toEqual(new Set([0, 1, 2]));
+  }
+  expect(decodeApurTile(atlas, 700000, 6600000)).toBeUndefined();
+});
+
+it('distingue allées et pelouses dans un jardin et protège l’eau et la chaussée', () => {
+  const channels = SPLAT_CHANNELS.length;
+  const data = new Uint8Array(4 * channels);
+  const parks = new Uint8ClampedArray(4 * 4).fill(255);
+  data[2] = 255;
+  data[2 * channels + 3] = 255;
+  data[3 * channels + 5] = 255;
+  applyApurCover(data, 2, { res: 2, classes: Uint8Array.of(0, 1, 1, 1) }, parks);
+  expect([data[2], data[4]]).toEqual([0, 255]);
+  expect([data[channels + 2], data[2 * channels + 2], data[3 * channels + 2]]).toEqual([255, 0, 0]);
+});
 
 /** Tuile de 1 km avec un raster d'occupation du sol aléatoire mais déterministe (prés, champs, forêts, route, eau, roche). */
 function tile(tx: number, tz: number, seed: number): LoadedTile {

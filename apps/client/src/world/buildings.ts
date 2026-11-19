@@ -18,6 +18,8 @@ import { genoiseDrop, genoiseRows } from './genoise.ts';
 import { LazyTexture } from '../engine/textures.ts';
 import { createLowPolyBuildingMaterial } from './buildingsLowPoly.ts';
 import { windowLamp } from './windowLighting.ts';
+import { createEiffelTower, EIFFEL_SITE, isEiffelSourceBuilding, ownsEiffelTower } from './parisEiffel.ts';
+import { urbanRoofPlan } from './urbanRoof.ts';
 import { tune } from '../dev/tuning.ts';
 import { FACADE_DEPTH, FacadeLightingModel, facadeFrame, roomInterior, shopInterior as shopRoom } from './facadeDepth.ts';
 import { sunlight } from './sunlight.ts';
@@ -51,6 +53,7 @@ const STONE_LOCAL = LOW_POLY ? ['#ddd0b2', '#d3c4a3', '#e6dabe', '#cbbd9f'] : ['
 const BRICK = LOW_POLY ? '#c65a3e' : '#a8624a';
 const ROOFS = LOW_POLY ? ['#c4432e', '#b53d2b', '#cf5636', '#a83f2e', '#9c4a33', '#d4663e'] : ['#8a4a35', '#7d4331', '#94553d', '#6f3f30', '#86513c', '#7a4a3a'];
 const SLATE = LOW_POLY ? '#4d5f7a' : '#4f565f';
+const URBAN_ZINC = ['#5e6d7c', '#687682', '#75838b', '#647481'];
 /** Tuiles mécaniques et canal (BD TOPO « tuiles », hors Île-de-France) : orangé à rouge brique ; en style réaliste,
  * dix teintes de la tuile neuve orangée à la tuile vieillie brun-gris (six roses saumon presque égaux donnaient des
  * villages d'une seule couleur, 16/11). */
@@ -460,6 +463,9 @@ export class Buildings {
   readonly night = uniform(0);
   private readonly material: THREE.MeshStandardNodeMaterial;
   private readonly tiles = new Map<string, THREE.Mesh>();
+  private eiffel?: { tileId: string; mesh: ReturnType<typeof createEiffelTower> };
+  private paris = false;
+  private ileDeFrance = false;
   /** Emprises des bâtiments chargés (collision de la caméra, sans lancer de rayon sur les triangles). */
   readonly footprints = new FootprintIndex();
   /** Murs à vitrine côté rue, par tuile, [ax, az, bx, bz, hauteur du rez-de-chaussée, …] (SHOP_WALL_STRIDE) : trottoir éclairé la nuit, stores, terrasses (network.ts). */
@@ -501,6 +507,8 @@ export class Buildings {
   /** Monde courant : son profil de style s'applique aux tuiles ajoutées ensuite. */
   setWorld(id: string): void {
     this.style = worldStyle(id);
+    this.paris = id === 'idf-paris';
+    this.ileDeFrance = id.startsWith('idf-') || id === 'montmartre';
   }
 
   private createMaterial(): THREE.MeshStandardNodeMaterial {
@@ -1004,6 +1012,17 @@ export class Buildings {
   }
 
   addTile(tile: LoadedTile): void {
+    if (LOW_POLY && this.paris && !this.eiffel && ownsEiffelTower(tile)) {
+      const { x, z, angle } = EIFFEL_SITE;
+      const y = this.groundAt(x, z);
+      if (Number.isFinite(y)) {
+        const mesh = createEiffelTower();
+        mesh.position.set(x, y, z);
+        mesh.rotation.y = angle;
+        this.group.add(mesh);
+        this.eiffel = { tileId: tile.id, mesh };
+      }
+    }
     if (this.tiles.has(tile.id) || !tile.features.buildings.length) return;
     const r = rng(tile.tx * 92821 + tile.tz * 68917);
     const parts: THREE.BufferGeometry[] = [];
@@ -1024,7 +1043,10 @@ export class Buildings {
       centres.set([x, z, Math.abs(polygonArea(b.pts))], k * 3);
     });
     const drivable = drivableRoads(tile);
+    const source = tile.buildingSource?.worldId;
+    const ileDeFrance = source ? source.startsWith('idf-') || source === 'montmartre' : this.ileDeFrance;
     for (const bld of tile.features.buildings) {
+      if (this.eiffel?.tileId === tile.id && isEiffelSourceBuilding(bld.id)) continue;
       if (bld.pts.length < 6) continue;
       // Bâtiment posé sur une route carrossable (emprise OSM/BD TOPO qui mord sur la chaussée) : pas dessiné,
       // sinon le coureur le traverse.
@@ -1073,9 +1095,6 @@ export class Buildings {
         bld.roofMaterial ??
         (bld.material === 'slate' || shape === 'mansard' || isChurch ? 'slate' : arch ? (archZinc ? 'metal' : archRoof === 'slate' ? 'slate' : archRoof === 'terrace' ? 'concrete' : 'tiles') : undefined);
       const metal = roofMat === 'metal' || roofMat === 'concrete';
-      // Zinc : toit métallique d'un archétype parisien (BD TOPO « zinc, aluminium »), pente de toit en tuile.
-      const zinc = !!arch && archZinc && roofMat === 'metal';
-      const minPitch = metal && !zinc ? 6 : 15;
       const footArea = Math.abs(polygonArea(bld.pts));
       // Sans pente mesurée : appentis de tuiles, bac acier presque plat ou toit-terrasse (voir flatRoofs.ts).
       const measuredSkillion = shape === 'skillion' && box.hw <= 20 && (bld.roofHeight ?? 0) > 0.3;
@@ -1085,14 +1104,20 @@ export class Buildings {
       const lean = flatKind === 'lean' && box.hw <= 20;
       // Monopente (annexes, hangars, appentis) : un seul pan sur le rectangle orienté, murs montés jusqu'au pan.
       const skillion = measuredSkillion || lean;
+      const visual = bld.id ? tile.buildingVisualCorrections?.get(bld.id) : undefined;
+      const urbanRoof = !visual && !flatKind && !skillion && !isChurch && !isUtility
+        ? urbanRoofPlan(bld, roofMat, total, 0.16, ileDeFrance)
+        : null;
+      const zinc = roofMat === 'metal' && (archZinc || !!urbanRoof);
+      const minPitch = metal && !zinc ? 6 : 15;
       // Toit sur l'emprise réelle (squelette droit) : deux pans si elle est presque rectangulaire, croupes sinon.
       const plan =
         skillion || flatKind
           ? null
-          : planRoof(bld.pts, { overhang: LOW_POLY ? ROOF_OVERHANG_LP : 0.4, gableOverhang: LOW_POLY ? GABLE_OVERHANG_LP : 0.25, gabled: !HIPPED.has(shape), maxInset: Math.max(15, box.hw + 1), ...(bld.ridgeShort ? { ridgeShort: true } : {}) });
+          : urbanRoof?.plan ?? planRoof(bld.pts, { overhang: LOW_POLY ? ROOF_OVERHANG_LP : 0.4, gableOverhang: LOW_POLY ? GABLE_OVERHANG_LP : 0.25, gabled: !HIPPED.has(shape), maxInset: Math.max(15, box.hw + 1), ...(bld.ridgeShort ? { ridgeShort: true } : {}) });
       // Pente : hauteur de toit (OSM, ou mesurée au LiDAR) sur la demi-largeur effective (là où les pans se rejoignent), bornée.
       const halfW = plan ? Math.max(plan.tEnd - plan.overhang, 0.5) : 0;
-      const wantH = Math.min(bld.roofHeight ?? Math.tan((42 * Math.PI) / 180) * halfW, total * 0.6);
+      const wantH = Math.min(urbanRoof?.height ?? bld.roofHeight ?? Math.tan((42 * Math.PI) / 180) * halfW, total * 0.6);
       const pitch = plan ? Math.min(Math.max((Math.atan(wantH / halfW) * 180) / Math.PI, minPitch), 55) : 0;
       // Appentis : pente de 12° sur toute la largeur.
       const roofH = plan ? Math.tan((pitch * Math.PI) / 180) * halfW : lean ? Math.tan((LEAN_PITCH * Math.PI) / 180) * 2 * box.hw : skillion ? Math.min(bld.roofHeight as number, total * 0.5) : 0;
@@ -1102,7 +1127,6 @@ export class Buildings {
       // Correction visuelle v2 (actif par défaut, ?visualBuildings=0 pour couper, ZONES-BAT-2d) : pignon mesuré à faîtage libre à la place du
       // toit du plan ; murs montés jusqu'aux pans. Repli sur le toit historique si la géométrie est refusée ou
       // si l'égout le plus bas ne laisse pas une hauteur de porte au-dessus du pied de mur.
-      const visual = bld.id ? tile.buildingVisualCorrections?.get(bld.id) : undefined;
       const gableTry = plan && visual?.kind === 'gable' ? gableRoof(bld.pts, visual, plan.overhang) : null;
       const gable = gableTry && gableTry.eaveMin - base >= DOOR_FLOOR ? gableTry : null;
       // Volumes v3 (ZONES-BAT-3c) : un prisme et son toit par sous-emprise mesurée, même garde-fou de hauteur
@@ -1229,7 +1253,7 @@ export class Buildings {
       const roofColour = terrace
         ? pick(TERRACES)
         : zinc
-          ? pick(arch!.roof.colours)
+          ? pick(urbanRoof ? URBAN_ZINC : arch!.roof.colours)
           : metal
             ? pick(METAL_ROOFS)
             : slate
@@ -1258,7 +1282,7 @@ export class Buildings {
         if (plan || skillion || volumes) {
           // Chant : tuiles et liteaux 16 cm, ardoise 10 cm, bac acier 6 cm ; couleur du toit assombrie (bouts de tuiles, rive).
           // Style jeu vidéo : dalle de toit épaisse (rive sombre bien lisible de loin).
-          const edge = roofEdge(roofPart, LOW_POLY ? (metal ? 0.16 : slate ? 0.26 : 0.34) : metal ? 0.06 : slate ? 0.1 : 0.16);
+          const edge = roofEdge(roofPart, urbanRoof ? 0.09 : LOW_POLY ? (metal ? 0.16 : slate ? 0.26 : 0.34) : metal ? 0.06 : slate ? 0.1 : 0.16);
           if (edge.pos.length) {
             const g = toGeometry(edge.pos, edge.uv);
             paint(g, c.set(roofColour).multiplyScalar(LOW_POLY ? 0.52 : 0.7), 0, acc, 0, 0);
@@ -1313,6 +1337,13 @@ export class Buildings {
   }
 
   removeTile(tile: LoadedTile): void {
+    if (this.eiffel?.tileId === tile.id) {
+      const { mesh } = this.eiffel;
+      this.group.remove(mesh);
+      mesh.geometry.dispose();
+      mesh.material.dispose();
+      this.eiffel = undefined;
+    }
     this.footprints.removeTile(tile.id);
     this.shopWallsByTile.delete(tile.id);
     const m = this.tiles.get(tile.id);

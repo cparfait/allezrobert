@@ -1292,7 +1292,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   // Mini-carte : fond Plan IGN quand le monde est calé en Lambert-93 ; bandeau « lieu » (commune, route).
   if (source.originL93) hud.setBasemap(source.originL93);
   hud.setPlaces(source.open?.places);
-  const placeFinder = new PlaceFinder(source.open?.places, track.route.landmarks, track.length, !!track.route.loop);
+  const placeFinder = new PlaceFinder(source.open?.places, track.route.landmarks, track.length, !!track.route.loop, source.originL93);
   hud.setHidden(s.hudHidden ?? []);
   if (nav && source.open) hud.setOpen(source.open.graph);
   // Monde ouvert : la mini-carte ouvre la carte complète ; on y choisit où aller (guidage) ou d'où repartir.

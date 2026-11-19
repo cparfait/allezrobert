@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { RoadGraphData, WorldCatalogue } from '@allezrobert/shared';
-import { compositeId, createCompositeWorld, neighbourZones } from '../src/world/composite.ts';
+import { readFileSync } from 'node:fs';
+import { compositeId, createCompositeWorld, neighbourZones, PARIS_CITY_ZONES } from '../src/world/composite.ts';
+import { isInParis } from '../src/world/parisBoundary.ts';
 import { emptyFeatures, type LoadedTile, type WorldSource } from '../src/world/types.ts';
 
 const zone = (id: string, minE: number, minN: number, maxE: number, maxN: number, open = true): WorldCatalogue['zones'][number] => ({
@@ -10,6 +12,34 @@ const zone = (id: string, minE: number, minN: number, maxE: number, maxN: number
   pack: null,
   l93: { minE, minN, maxE, maxN },
   ...(open ? { open: true as const } : {}),
+});
+
+it('couvre le contour de Paris sur le quadrillage du jeu, bois compris', () => {
+  const tiles = new Set<string>();
+  for (const id of PARIS_CITY_ZONES) {
+    const path = new URL(`../public/worlds/${id}/world.json`, import.meta.url);
+    const world = JSON.parse(readFileSync(path, 'utf8')) as {
+      originL93: { x: number; y: number };
+      tileSizeM: number;
+      tiles: Array<{ id: string }>;
+    };
+    expect(world.tileSizeM).toBe(1000);
+    for (const tile of world.tiles) {
+      const [x, z] = tile.id.split('_').map(Number);
+      tiles.add(`${world.originL93.x + x! * 1000}_${world.originL93.y - z! * 1000}`);
+    }
+  }
+  let samples = 0;
+  const missing = new Set<string>();
+  for (let x = 643025; x < 661100; x += 50)
+    for (let y = 6857425; y < 6867100; y += 50) {
+      if (!isInParis(x, y)) continue;
+      samples++;
+      const tile = `${Math.floor(x / 1000) * 1000}_${Math.ceil(y / 1000) * 1000}`;
+      if (!tiles.has(tile)) missing.add(tile);
+    }
+  expect(samples).toBeGreaterThan(42000);
+  expect([...missing]).toEqual([]);
 });
 
 describe('neighbourZones', () => {

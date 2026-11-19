@@ -4,6 +4,7 @@ import type { HorizonGrid, LoadedTile, WorldSource } from './types.ts';
 import { graphFetch, worldFetch } from './packs.ts';
 import { decodeTileBytes } from './tileDecoder.ts';
 import { buildingVisualLoader } from './buildingVisual.ts';
+import { apurVegetationCredit, loadApurVegetation } from './apurVegetation.ts';
 
 /**
  * Monde généré par tools/terrain (IGN + OpenStreetMap), servi depuis public/worlds/<id>/ :
@@ -47,7 +48,7 @@ export async function createFileWorld(id: string, meta: WorldMeta): Promise<Worl
     tileSize: T,
     bounds: b,
     routes,
-    attribution: meta.attribution,
+    attribution: [...meta.attribution, ...apurVegetationCredit(meta.originL93, b)],
     originL93: meta.originL93,
     ...(open ? { open } : {}),
     ...(meta.sea ? { sea: meta.sea } : {}),
@@ -84,6 +85,7 @@ export async function createFileWorld(id: string, meta: WorldMeta): Promise<Worl
       // Style jeu vidéo : aplats de couleur, l'orthophoto n'est pas téléchargée.
       const hasOrtho = !LOW_POLY && (idx ? idx.lods.includes('ortho') : true);
       const orthoReady = hasOrtho ? orthoSource(`${base}/tiles/${key}.ortho.jpg`) : Promise.resolve(null);
+      const vegetationReady = loadApurVegetation(meta.originL93.x + tx * T, meta.originL93.y - tz * T, T);
       const res = await worldFetch(`${base}/tiles/${key}.json`);
       // 404 : tuile hors du monde, on n'y revient plus ; autre erreur (génération en cours) : on réessaiera.
       if (res.status === 404 || (res.ok && !(res.headers.get('content-type') ?? '').includes('json'))) {
@@ -100,6 +102,7 @@ export async function createFileWorld(id: string, meta: WorldMeta): Promise<Worl
         ? await loadBuildingVisual(buildingSource, json, tile.features.buildings)
         : undefined;
       const orthoBlob = await orthoReady;
+      const apurVegetation = await vegetationReady;
       return {
         id: key,
         tx,
@@ -113,6 +116,7 @@ export async function createFileWorld(id: string, meta: WorldMeta): Promise<Worl
         buildingSource,
         ...(buildingVisualCorrections ? { buildingVisualCorrections } : {}),
         ...(orthoBlob ? { orthoBlob } : {}),
+        ...(apurVegetation ? { apurVegetation } : {}),
       } satisfies LoadedTile;
     },
   };

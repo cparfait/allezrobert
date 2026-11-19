@@ -15,7 +15,7 @@ import { HistoryPanel } from './historyPanel.ts';
 import { formatBytes, inTauri, installPack, installedPacks, loadCatalogue, packState, removePack } from '../world/packs.ts';
 import { fillStoragePanel, storagePanelHtml } from './desktopUi.ts';
 import { inDesktop, quitApp } from '../platform/desktop.ts';
-import { compositeId, neighbourZones } from '../world/composite.ts';
+import { compositeId, neighbourZones, PARIS_CITY_ZONES } from '../world/composite.ts';
 import { t, setLang, getLang, type I18nKey } from '../i18n/index.ts';
 import type { Settings } from './settings.ts';
 import { nowHour, saveSettings } from './settings.ts';
@@ -1800,7 +1800,20 @@ export class MainMenu {
     const region = spot?.region[lang] ?? '';
     const zoneSub = [hint.includes(region) ? '' : region, hint].filter(Boolean).join(' · ');
     // zones voisines (qui touchent ou chevauchent celle-ci) : chargées avec elle pour le libre et le dessin
-    const near = this.openWorld ? neighbourZones({ formatVersion: 1, zones: this.zones }, this.worldId) : [];
+    const showParis = this.openWorld && this.worldId === PARIS_CITY_ZONES[0];
+    const parisLoaded = showParis && PARIS_CITY_ZONES.every((id) => this.loadedZones.includes(id));
+    const near = this.openWorld
+      ? [...new Set([...neighbourZones({ formatVersion: 1, zones: this.zones }, this.worldId),
+          ...this.loadedZones.filter((id) => id !== this.worldId)])]
+      : [];
+    const parisHtml = showParis
+      ? `<div class="zc-near"><div><b>${L ? 'Tout Paris' : 'All of Paris'}</b><span>${L
+          ? 'Les 20 arrondissements et les bois de Boulogne et de Vincennes. Pour le parcours libre et le tracé sur la carte.'
+          : 'All 20 arrondissements plus the Bois de Boulogne and Bois de Vincennes. For free rides and drawn routes.'}</span></div>
+          <button class="zc-near-chip${parisLoaded ? ' on' : ''}" id="m-all-paris"${parisLoaded || this.loadingZone ? ' disabled' : ''}>${parisLoaded
+            ? (L ? 'Paris entier chargé' : 'All of Paris loaded')
+            : (L ? 'Charger tout Paris' : 'Load all of Paris')}</button></div>`
+      : '';
     const zoneName = (id: string) => WORLD_LIST.find((x) => x.id === id)?.name[lang] ?? ZONE_SPOTS.find((x) => x.id === id)?.name[lang] ?? id;
     const nearHtml = near.length
       ? `<div class="zc-near"><div><b>${L ? 'Zones voisines' : 'Neighbouring areas'}</b><span>${
@@ -1824,7 +1837,7 @@ export class MainMenu {
       <div class="mm-dialog mm-picker" role="dialog" aria-modal="true">
         <header class="zc-head"><div><h2>${esc(w ? w.name[lang] : (spot?.name[lang] ?? this.worldId))}</h2><small>${esc(zoneSub)}</small></div><button class="mm-x" data-picker-close aria-label="${L ? 'Fermer' : 'Close'}">×</button></header>
         ${kom ? koms : choices}
-        ${kom ? '' : nearHtml}
+        ${kom ? '' : parisHtml + nearHtml}
         <div class="zc-pack"><button class="mm-link zc-back" data-picker="zones">← ${L ? 'Carte de France' : 'Map of France'}</button>${pack ? `${L ? 'Cartes hors ligne' : 'Offline maps'} ${pack}` : ''}</div>
       </div></div>`;
   }
@@ -3158,18 +3171,23 @@ export class MainMenu {
         if (hint) hint.textContent = `${fr() ? 'Chargement de' : 'Loading'} ${this.loadingZone}…`;
         this.onWorld?.(id);
       });
+    on('m-all-paris', 'click', () => {
+      if (this.loadingZone) return;
+      this.loadingZone = fr() ? 'Paris entier' : 'All of Paris';
+      this.render();
+      this.onWorld?.(compositeId([...new Set([...PARIS_CITY_ZONES, ...this.loadedZones])]));
+    });
     // Zones voisines : ajoutées ou retirées, le monde est rechargé avec elles (même zone principale).
     this.root.querySelectorAll<HTMLElement>('[data-near]').forEach((el) =>
       el.addEventListener('click', () => {
         if (this.loadingZone) return;
         const id = el.dataset.near as string;
-        const near = neighbourZones({ formatVersion: 1, zones: this.zones }, this.worldId);
         const on = new Set(this.loadedZones.filter((z) => z !== this.worldId));
         if (on.has(id)) on.delete(id);
         else on.add(id);
         this.loadingZone = id;
         this.render();
-        this.onWorld?.(compositeId([this.worldId, ...near.filter((z) => on.has(z))]));
+        this.onWorld?.(compositeId([this.worldId, ...on]));
       }),
     );
     // Zone ouverte : parcours fixés, parcours libre (départ par défaut), parcours à dessiner.

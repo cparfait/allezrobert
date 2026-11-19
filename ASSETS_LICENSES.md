@@ -16,6 +16,8 @@ Tout asset qui entre dans le dépôt ou dans le jeu est inscrit ici (source, lic
 | Montées célèbres : tracé (D211, D974), panneaux des 21 virages de l'Alpe d'Huez (nom, numéro, altitude, plaque des vainqueurs : tags `name`, `ref`, `ele`, `inscription`), lieux, éboulis, glaciers | OpenStreetMap via Overpass | ODbL 1.0 | `routes/alpe-dhuez.json` et `routes/mont-ventoux-bedoin.json` (versionnés : géométrie dérivée d'OSM, champ `hairpins`, repères) et entités des tuiles |
 | Contour simplifié de la France et de la Corse (≈ 130 points lon/lat) | Tracé original pour Allez Robert, d'après des repères géographiques connus (villes côtières, caps, cols frontaliers) | CC0 1.0 (domaine public) | Carte de France du choix des zones (`apps/client/src/world/franceOutline.ts`) |
 | Noms et positions des villes, villages et hameaux des mondes ouverts (`places.json`) | OpenStreetMap (tag `place`), extraits des tuiles par tools/terrain | ODbL 1.0 | Noms sur la carte d'itinéraire du menu et repères des parcours dessinés |
+| Contour communal de Paris (`apps/client/src/world/parisBoundary.ts`) | [API Géo, commune INSEE 75056](https://geo.api.gouv.fr/communes/75056?format=geojson&geometry=contour), extrait le 15 novembre 2026, projeté en Lambert-93 et arrondi au décimètre | Licence Ouverte Etalab 2.0, [Contours administratifs — Etalab](https://www.data.gouv.fr/datasets/contours-administratifs) | Nom de la commune dans le HUD |
+| Couverture végétale du Grand Paris (`apps/client/public/geo/grand-paris-vegetation.bin.gz`) | [Apur — Hauteur de la végétation 2021](https://www.apur.org/fr/open-data-cartes/open-data/hauteur-vegetation-metropole-grand-paris-donnees-raster). Export Lambert-93 sous-échantillonné à 7,8125 m et ramené à trois classes par `tools/terrain/build-apur-cover.py`. La base dérivée est disponible dans le dépôt. | ODbL 1.0, crédit « © Apur, IGN 2021 — Couverture végétale du Grand Paris » | Distinguer les surfaces végétalisées, les allées et les places dans les jardins et quartiers urbains du Grand Paris |
 | Météo réelle du jour (nuages, pluie, visibilité, vent ; option « Conditions : du jour », désactivée par défaut) | Open-Meteo (`api.open-meteo.com`, sans clé) | CC BY 4.0 (attribution « Open-Meteo », lien dans le menu météo) | Lue au départ de la sortie, non stockée (cache mémoire 30 min) ; seule la position du départ, arrondie à 0,01°, est envoyée |
 
 L'attribution est affichée en jeu (bas de l'écran) et dans `world.json` (`attribution`) et dans chaque itinéraire. Les
@@ -32,6 +34,8 @@ valeurs publiées utilisées pour valider les montées (longueur, dénivelé, pe
 ## Modèles 3D, textures, sons
 
 Le style V3 utilise des vélos, personnages, animations, matériaux et objets issus de l’installation locale de Zwift et d’exports d’étude. `tools/v3_assets.py` écrit les fichiers convertis dans `out/v3/`.
+
+Tour Eiffel low-poly (`apps/client/src/world/parisEiffel.ts`) — géométrie procédurale originale créée pour Allez Robert avec assistance de Codex. Gabarit en mètres d'après les [chiffres officiels de la Tour Eiffel](https://www.toureiffel.paris/fr/le-monument/chiffres-cle). Emplacement et orientation calés sur les emprises de la tuile `idf-paris/0_5` (© IGN — BD TOPO®, Licence Ouverte Etalab 2.0). Palette et lecture du treillis inspirées visuellement de [Petit Paris](https://petitparis.app/). Code du projet. Affichage dans le Paris low-poly.
 
 | Asset | Source | Licence | Usage |
 | --- | --- | --- | --- |

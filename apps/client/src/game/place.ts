@@ -1,12 +1,13 @@
 import type { WorldPlace } from '@allezrobert/shared';
+import { isInParis } from '../world/parisBoundary.ts';
 
 /** Poids des types de lieux : une ville « pèse » plus loin qu'un hameau. */
 const REACH_M: Record<string, number> = { city: 4500, town: 3500, suburb: 2500, village: 2500, hamlet: 1100, locality: 900, isolated_dwelling: 500 };
 
 /**
- * Commune (ou village, hameau) la plus proche du coureur, pour le bandeau « lieu » du HUD :
- * d'après les lieux du monde (`places.json`) quand ils existent, sinon d'après les villages
- * traversés par l'itinéraire (`landmarks`). Résultat gardé tant que le coureur n'a pas bougé de 40 m.
+ * Lieu affiché dans le HUD. Le contour communal détermine l'appartenance à Paris.
+ * Ailleurs, on utilise les lieux du monde (`places.json`) puis les villages de l'itinéraire
+ * (`landmarks`), et on garde cette estimation pendant 40 m.
  */
 export class PlaceFinder {
   private lastX = Infinity;
@@ -18,14 +19,16 @@ export class PlaceFinder {
     private readonly landmarks: ReadonlyArray<{ name: string; d: number }> | undefined,
     private readonly routeLengthM: number,
     private readonly loop: boolean,
+    private readonly originL93?: { x: number; y: number },
   ) {}
 
   get available(): boolean {
-    return !!this.places?.length || !!this.landmarks?.length;
+    return !!this.originL93 || !!this.places?.length || !!this.landmarks?.length;
   }
 
   /** Lieu à la position (x, z) du monde ; `distM` : abscisse sur l'itinéraire (repli sur les villages traversés). */
   at(x: number, z: number, distM: number): string | null {
+    if (this.originL93 && isInParis(this.originL93.x + x, this.originL93.y - z)) return 'Paris';
     if (Math.hypot(x - this.lastX, z - this.lastZ) < 40) return this.last;
     this.lastX = x;
     this.lastZ = z;
@@ -37,6 +40,7 @@ export class PlaceFinder {
     let best: WorldPlace | null = null;
     let bestScore = Infinity;
     for (const p of this.places ?? []) {
+      if (this.originL93 && p.kind === 'city' && p.name === 'Paris') continue;
       const d = Math.hypot(p.x - x, p.z - z);
       const reach = REACH_M[p.kind] ?? 700;
       if (d > reach) continue;
@@ -58,8 +62,16 @@ export class PlaceFinder {
       const d = Math.abs(a - b);
       return this.loop ? Math.min(d, len - d) : d;
     };
-    let best = marks[0] as { name: string; d: number };
-    for (const m of marks) if (dist(m.d, distM) < dist(best.d, distM)) best = m;
-    return dist(best.d, distM) <= 2500 ? best.name : null;
+    let best: (typeof marks)[number] | undefined;
+    let bestDistance = Infinity;
+    for (const m of marks) {
+      if (this.originL93 && m.name === 'Paris') continue;
+      const d = dist(m.d, distM);
+      if (d < bestDistance) {
+        best = m;
+        bestDistance = d;
+      }
+    }
+    return bestDistance <= 2500 ? best?.name ?? null : null;
   }
 }

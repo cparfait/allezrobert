@@ -14,6 +14,9 @@ import type { LoadedTile, Rings, TileFeatures, WorldSource } from './types.ts';
 /** Écart minimal au bord extérieur du monde composé (m) : pas de cul-de-sac au bord des tuiles. */
 const EDGE_MARGIN_M = 30;
 
+/** Quatre zones du maillage francilien nécessaires pour couvrir la commune, bois compris. */
+export const PARIS_CITY_ZONES = ['idf-paris', 'idf-boulogne-billancourt', 'idf-montreuil', 'idf-creteil'] as const;
+
 interface Part {
   source: WorldSource;
   /** Décalage repère de la zone → repère de la zone principale (m), multiple de la tuile. */
