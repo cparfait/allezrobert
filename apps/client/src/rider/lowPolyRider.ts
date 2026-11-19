@@ -2,7 +2,7 @@ import { AERO_COAST_FULL, AERO_SPEED, AERO_SPEED_OUT, FOREARMS_IN, FOREARMS_OUT,
 import * as THREE from 'three/webgpu';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { BIKE_REFERENCE, bikeOfLook, lookSex, type AvatarLook, type BikeBuild, type WheelType } from '@allezrobert/shared';
-import type { RiderAvatarLike, RiderGesture, RiderPose } from './gltfAvatar.ts';
+import { GltfRiderAvatar, type RiderAvatarLike, type RiderGesture, type RiderPose } from './gltfAvatar.ts';
 import { SweptBody, makeJoints, type BodyLook } from './sweptBody.ts';
 import { HELMET_FACETED, aeroHelmetGeometry } from './aeroHelmet.ts';
 import { aerobarAnchors, buildAerobars, type AerobarAnchors } from './aerobars.ts';
@@ -19,6 +19,29 @@ import { flatLook } from './flatLook.ts';
 const SHADOW_MIN_PART_M = 0.1;
 const SMALL_SHADOW_PARTS = typeof location === 'undefined' || new URLSearchParams(location.search).get('polyshadowparts') !== '0';
 const _scale = new THREE.Vector3();
+
+/**
+ * Matrices d'une roue à niveaux de détail (proche / lointain), niveau choisi d'après la caméra principale seulement.
+ * Sans cela, three.js choisissait le niveau à chaque passe de rendu, caméra d'ombre comprise (orthographique, très
+ * loin : niveau lointain) ; les matrices du coureur n'étant recalculées qu'une fois par image (hiddenMatrices.ts), le
+ * niveau proche, masqué à ce moment-là, était dessiné avec une matrice périmée : roues absentes ou laissées derrière le
+ * coureur (jusqu'à 3 km d'écart mesurés le 19/11/2026 après un saut de position). Les deux niveaux sont recalculés.
+ */
+function wheelLodMatrices(this: THREE.LOD, force?: boolean): void {
+  if (this.matrixAutoUpdate) this.updateMatrix();
+  let f = !!force;
+  if (this.matrixWorldNeedsUpdate || f) {
+    if (this.parent === null) this.matrixWorld.copy(this.matrix);
+    else this.matrixWorld.multiplyMatrices(this.parent.matrixWorld, this.matrix);
+    this.matrixWorldNeedsUpdate = false;
+    f = true;
+  }
+  const camera = GltfRiderAvatar.camera;
+  // Pas de caméra principale (banc, vignettes) : choix habituel de three.js au rendu.
+  this.autoUpdate = !camera;
+  if (camera) this.update(camera);
+  for (const c of this.children) c.updateMatrixWorld(f);
+}
 
 /** Petite pièce du vélo du modèle (marquée `shared` au montage), sans ombre portée. */
 function tinyBikePart(o: THREE.Object3D): boolean {
@@ -1071,6 +1094,7 @@ export class LowPolyRider implements RiderAvatarLike {
           far.parent?.add(lod);
           lod.addLevel(near, 0);
           lod.addLevel(far, NEAR_WHEELS);
+          lod.updateMatrixWorld = wheelLodMatrices;
           return lod;
         });
     const mats = new BikeMaterials(bike, look, family);
