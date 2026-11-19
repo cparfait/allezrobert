@@ -90,7 +90,11 @@ export const QUALITY_PRESETS: Record<QualityLevel, QualitySettings> = {
     level: 'medium',
     pixelRatio: 1,
     maxPixels: 1920 * 1080,
-    shadowMapSize: 2048,
+    // 4096 : avec une seule cascade sur 250 m, une carte de 2048 donnait des texels de 18 à 25 cm ; jambes et cadre,
+    // plus fins, apparaissaient et disparaissaient de la carte d'une image à l'autre et l'ombre des coureurs
+    // scintillait (19/11/2026). Même nombre d'appels de dessin ; temps GPU inchangé à la mesure (écart < 0,2 ms,
+    // dans le bruit), 48 Mo de mémoire vidéo en plus. ?shadowmap=2048 pour comparer.
+    shadowMapSize: 4096,
     // Une cascade (au lieu de 2) : chaque cascade coûte une passe d'ombre et sa préparation à chaque image, et le
     // jeu est limité par le processeur. Mesure du 18/11/2026 (Bêta, Boulogne, 8 coureurs) : 32,1 → 34,4 images/s.
     shadowCascades: 1,
@@ -197,7 +201,7 @@ export function detectDefaultQuality(): QualityLevel {
   return 'high';
 }
 
-/** Surcharges de débogage par l'URL : ?bloom=0&ao=0&taa=0&smaa=0&ssr=0, ?shadowevery=1 (ombres chaque image), ?shadowriders=N, ?cascades=N. */
+/** Surcharges de débogage par l'URL : ?bloom=0&ao=0&taa=0&smaa=0&ssr=0, ?shadowevery=1 (ombres chaque image), ?shadowriders=N, ?cascades=N, ?shadowmap=N (taille des cartes d'ombre). */
 export function withUrlOverrides(q: QualitySettings): QualitySettings {
   const p = new URLSearchParams(location.search);
   const flag = (k: 'bloom' | 'ao' | 'taa' | 'smaa' | 'ssr') => (p.has(k) ? p.get(k) !== '0' : q[k]);
@@ -216,5 +220,6 @@ export function withUrlOverrides(q: QualitySettings): QualitySettings {
     shadowEvery: num('shadowevery', q.shadowEvery, 1, 8),
     shadowRiders: num('shadowriders', q.shadowRiders, 0, 19),
     shadowCascades: num('cascades', q.shadowCascades, 1, 4),
+    shadowMapSize: num('shadowmap', q.shadowMapSize, 512, 8192),
   };
 }
