@@ -40,6 +40,8 @@ export interface EnvironmentState {
 // des photos de la rue Lepic (out/ref-photos, color_stats) : carte du ciel à 0,35 et appoint à 0,3, les ombres de midi
 // sortaient franchement bleues (+0,08 de bleu sur les zones sombres, contre −0,01 sur les photos) ; carte du ciel à
 // 0,105 et appoint à 0,78 : +0,01.
+/** Pas de rotation de la lumière des ombres (rad) : 0,25°, soit environ une minute de course du soleil. */
+const SHADOW_DIR_STEP = (0.25 * Math.PI) / 180;
 const HEMI_WITH_SKY = LOW_POLY ? 0.3 : 0.78;
 /** Intensité de la lumière du ciel (réglée à l'œil : au-delà, les ombres se délavent sous le ciel physique, très lumineux). */
 const SKY_LIGHT_INTENSITY = LOW_POLY ? 0.35 : 0.105;
@@ -165,6 +167,9 @@ export class Environment {
   private shadowTick = 0;
   private shadowWarm = 0;
   private shadowFrozen = false;
+  /** Direction de la lumière qui porte les ombres, tournée par pas (voir SHADOW_DIR_STEP). */
+  private readonly shadowDir = new THREE.Vector3();
+  private shadowDirSet = false;
   private readonly sunDir = new THREE.Vector3();
   private readonly scene: THREE.Scene;
   /** Ciel du style jeu vidéo (lowPolySky.ts) : dôme en dégradé et nuages à facettes. */
@@ -293,8 +298,17 @@ export class Environment {
       const k = Math.sqrt(1 - 0.14 * 0.14) / h;
       lightDir.set(lightDir.x * k, 0.14, lightDir.z * k);
     }
+    // L'heure avance pendant la sortie : la direction était reprise 4 fois par seconde. Chaque reprise fait tourner
+    // la grille des cartes d'ombre autour de l'origine du monde ; à 8,6 km de l'origine (Boulogne), elle glissait
+    // de 20 cm (~2 texels) au niveau du coureur et toutes les ombres étaient redessinées un peu ailleurs : rien ne
+    // restait fixe (19/11/2026). La lumière des ombres ne tourne plus que par pas (~1 min de soleil) ; le ciel suit
+    // l'heure en continu.
+    if (!this.shadowDirSet || this.shadowDir.angleTo(lightDir) > SHADOW_DIR_STEP) {
+      this.shadowDir.copy(lightDir);
+      this.shadowDirSet = true;
+    }
     const center = focus ?? new THREE.Vector3();
-    this.sun.position.copy(center).addScaledVector(lightDir, 400);
+    this.sun.position.copy(center).addScaledVector(this.shadowDir, 400);
     this.sun.target.position.copy(center);
     const sunStrength = THREE.MathUtils.smoothstep(this.sunDir.y, -0.05, 0.25);
     const overcast = Math.max(weather.clouds - 0.3, 0) / 0.7;
@@ -326,7 +340,7 @@ export class Environment {
     sunlight.dir.value.copy(this.sunDir);
     sunlight.color.value.copy(this.sun.color);
     sunlight.backlight.value = isNight ? 0 : 0.55 * THREE.MathUtils.smoothstep(this.sunDir.y, 0.0, 0.12) * (1 - overcast);
-    sunlight.castDir.value.copy(lightDir);
+    sunlight.castDir.value.copy(this.shadowDir);
     sunlight.sunShare.value = 1 - moonK;
     const f = this.sceneFog;
     f.color.value.copy(pal.fog);

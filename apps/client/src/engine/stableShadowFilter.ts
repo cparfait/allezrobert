@@ -1,16 +1,18 @@
-import { Fn, add, float, int, reference, renderGroup, texture, vec2, vogelDiskSample } from 'three/tsl';
+import { Fn, add, reference, renderGroup, texture, vec2 } from 'three/tsl';
 import type * as THREE from 'three/webgpu';
 
 /**
- * Filtre d'ombre sans grain, pour les préréglages sans TAA (low, medium).
+ * Filtre d'ombre lisse, pour les préréglages sans TAA (low, medium).
  *
  * Le PCF de three.js (r186) fait tourner ses 5 échantillons d'un angle tiré par pixel (bruit IGN) : un grain prévu
  * pour être lissé par le TAA. Sans TAA, ce grain reste à l'écran sous forme de trame dans toute la pénombre, et
  * comme le motif est fixe à l'écran pendant que l'ombre défile dessous (caméra de poursuite), le bord des ombres
- * près du coureur grésille. En medium la pénombre est large (une seule cascade sur 250 m : texels de ~25 cm), donc
- * la trame couvre toute l'ombre portée (constat du 19/11/2026, Bêta, Boulogne, approche de l'arrivée).
- * Ici les 5 mêmes échantillons, même rayon, mais à angle fixe : chacun reste un PCF matériel bilinéaire, donc
- * l'ombre varie continûment quand elle se déplace, sans trame. Même coût (5 lectures).
+ * près du coureur grésille (constat du 19/11/2026, Bêta, Boulogne).
+ * Les mêmes 5 échantillons à angle fixe ne vont pas non plus : avec une carte nette (4096), chacun dessine une
+ * copie décalée de l'ombre, qui paraît dédoublée en peigne.
+ * Ici, PCF « tente » : 4 lectures matérielles bilinéaires (chacune compare 2 × 2 texels) placées à ±½ texel, qui
+ * se recouvrent exactement ; leur moyenne est un filtre en tente sur 3 × 3 texels, continu quand l'ombre se
+ * déplace, sans grain ni copie. 4 lectures au lieu de 5.
  * `?shadowdither=1` : retour au filtre de three.js (comparaison).
  */
 export const SHADOW_DITHER = typeof location !== 'undefined' && new URLSearchParams(location.search).get('shadowdither') === '1';
@@ -26,8 +28,8 @@ export const stableShadowFilter = Fn(({ depthTexture, shadowCoord, shadow, depth
   };
   const mapSize = (reference('mapSize', 'vec2', shadow) as unknown as Grouped<'vec2'>).setGroup(renderGroup);
   const radius = (reference('radius', 'float', shadow) as unknown as Grouped<'float'>).setGroup(renderGroup);
-  const radiusScaled = radius.mul(vec2(1).div(mapSize).x);
-  const phi = float(0);
-  const tap = (i: number) => depthCompare(shadowCoord.xy.add(vogelDiskSample(int(i), int(5), phi).mul(radiusScaled)));
-  return add(tap(0), tap(1), tap(2), tap(3), tap(4)).mul(1 / 5);
+  // Demi-texel (× rayon d'ombre, 1 par défaut).
+  const h = vec2(0.5).div(mapSize).mul(radius);
+  const tap = (sx: number, sy: number) => depthCompare(shadowCoord.xy.add(h.mul(vec2(sx, sy))));
+  return add(tap(-1, -1), tap(1, -1), tap(-1, 1), tap(1, 1)).mul(0.25);
 });

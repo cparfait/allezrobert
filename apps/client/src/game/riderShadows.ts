@@ -18,6 +18,12 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 /** ?shadowproxy=0 : pièces détaillées dans les ombres (comparaison). */
 export const SHADOW_PROXY = typeof location !== 'undefined' && new URLSearchParams(location.search).get('shadowproxy') !== '0';
+/**
+ * Ombres des coureurs V3 (joueur, IA, cyclistes croisés) : coupées par défaut, comme en style réaliste où les
+ * coureurs n'en projettent pas. Choix de l'utilisateur du 19/11/2026 : l'ombre sous les coureurs, toujours en
+ * mouvement, attirait l'œil et scintillait. `?ridershadows=1` pour les rétablir. Hors navigateur (tests) : actives.
+ */
+export const RIDER_SHADOWS = typeof location === 'undefined' || new URLSearchParams(location.search).get('ridershadows') === '1';
 /** Calque vu seulement par les caméras d'ombre. */
 export const SHADOW_LAYER = 5;
 const MIN_RADIUS_M = 0.2;
@@ -151,7 +157,9 @@ function dropProxies(st: ShadowState): void {
  * Applique le budget d'ombre à un coureur V3. `root` : racine du coureur ; `group` : rendu détaillé V3 (pour les
  * formes d'ombre) ; `caster` : le coureur projette-t-il une ombre (budget du jeu).
  */
-export function applyRiderShadows(root: THREE.Object3D, caster: boolean, group?: THREE.Object3D, enabled = SHADOW_PROXY): void {
+export function applyRiderShadows(root: THREE.Object3D, wantCaster: boolean, group?: THREE.Object3D, enabled = SHADOW_PROXY): void {
+  // Pas d'ombre de coureur, comme dans le style réaliste (choix de l'utilisateur, 19/11/2026).
+  const caster = wantCaster && RIDER_SHADOWS;
   tick++;
   const light = !!group && !group.visible; // version légère : le rendu détaillé est masqué
   let st = states.get(root);

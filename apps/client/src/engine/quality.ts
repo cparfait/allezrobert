@@ -119,7 +119,10 @@ export const QUALITY_PRESETS: Record<QualityLevel, QualitySettings> = {
     aiRidersMax: 8,
     trafficDensity: 0.67,
     crowdDensity: 0.75,
-    shadowEvery: 2,
+    // Ombres redessinées à chaque image : une image sur deux, l'ombre d'un coureur restait à sa position précédente
+    // et faisait des allers-retours (~11 px à 60 images/s), très visibles depuis la carte 4096. Coût mesuré le
+    // 19/11/2026 (Bêta, Boulogne) : 11,6 → 13,9 ms de processeur par image. Choix de l'utilisateur.
+    shadowEvery: 1,
     shadowRiders: 2,
     realChunk: 250,
     vegDetailM: 500,
