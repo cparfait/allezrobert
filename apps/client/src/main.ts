@@ -12,6 +12,7 @@ import { GltfRiderAvatar, createAvatar } from './rider/gltfAvatar.ts';
 import { V3_STYLE } from './engine/style.ts';
 import { v3Resource } from './engine/v3Access.ts';
 import { V3Visual } from './v3/visuals.ts';
+import { hiddenV3Mount, settleV3 } from './game/v3Crowd.ts';
 import { syncV3Offline } from './v3/offline.ts';
 import { readV3BikeSetup } from './v3/physics.ts';
 import { CROWD_FAMILIES, onBikeFamilyLoaded } from './rider/bikes.ts';
@@ -1085,7 +1086,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   const riderLook = { ...s.look, heightCm: s.heightCm, bikeType: profile.bike.tyre ?? 'road' };
   const avatar = createAvatar(riderLook);
   engine.scene.add(avatar.root);
-  const v3 = V3_STYLE && avatar instanceof GltfRiderAvatar ? new V3Visual(avatar.v3Mount()) : undefined;
+  const v3 = V3_STYLE && avatar instanceof GltfRiderAvatar ? new V3Visual(hiddenV3Mount(avatar)) : undefined;
   v3?.set(riderLook);
   // Équipement V3 de cette sortie gardé pour les sorties sans connexion.
   if (v3) syncV3Offline(riderLook);
@@ -2669,6 +2670,8 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   performance.mark('ar:départ : objets compilés');
   // Laisse l'écran d'attente se peindre, puis fait les premières images (lentes) derrière lui : la première
   // compile la passe de scène, les suivantes les ombres (redessinées une image sur deux) et le post-traitement.
+  // Bêta : coureurs V3 (joueur et groupe) chargés et affichés avant cette compilation (v3Crowd.ts, settleV3).
+  if (V3_STYLE) await settleV3([v3, ...peloton.riders.map((r) => r.v3)]);
   await new Promise<void>((r) => setTimeout(r, 50));
   for (let i = 0; i < 4; i++) engine.renderManual();
   performance.mark('ar:premières images');

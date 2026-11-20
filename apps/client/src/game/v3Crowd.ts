@@ -17,7 +17,29 @@ export function crowdV3(avatar: RiderAvatarLike, look: AvatarLook, seed: number,
   const list = female && FEMALE.length ? FEMALE : MALE.length ? MALE : CINEMATIC_V3;
   const equipment = list[((seed % list.length) + list.length) % list.length];
   if (!equipment) return undefined;
-  const visual = new V3Visual(avatar.v3Mount(), () => {}, (error) => console.warn('[V3] coureur IA', error));
+  const visual = new V3Visual(hiddenV3Mount(avatar), () => {}, (error) => console.warn('[V3] coureur IA', error));
   visual.set(look, equipment);
   return visual;
+}
+
+/**
+ * Support V3 d'un avatar, coureur et vélo du jeu (mode Réel) masqués dès maintenant : sans cela, ils restaient
+ * visibles jusqu'à la première mise à jour V3 (au départ, de loin, tant que le V3 se charge).
+ */
+export function hiddenV3Mount(avatar: GltfRiderAvatar): ReturnType<GltfRiderAvatar['v3Mount']> {
+  const mount = avatar.v3Mount();
+  mount.replace(true, true);
+  return mount;
+}
+
+/**
+ * Départ en Bêta : attend (au plus `timeoutMs`) que les coureurs V3 soient chargés, puis les affiche une fois, pour
+ * que la compilation du départ (compileScene) prépare leurs matériaux. Sinon ils arrivaient après le départ et leur
+ * première image compilait leurs shaders d'un coup : image figée de plusieurs secondes.
+ */
+export async function settleV3(visuals: ReadonlyArray<V3Visual | undefined>, timeoutMs = 20_000): Promise<void> {
+  const list = visuals.filter((v): v is V3Visual => !!v);
+  const until = performance.now() + timeoutMs;
+  while (list.some((v) => !v.settled) && performance.now() < until) await new Promise((r) => setTimeout(r, 100));
+  for (const v of list) if (v.settled) v.update(0, 0, 0, 'seated');
 }
