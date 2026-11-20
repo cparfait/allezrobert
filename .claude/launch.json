@@ -2,6 +2,19 @@
   "version": "0.0.1",
   "configurations": [
     {
+      "name": "bench-build-5175",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": [
+        "--filter",
+        "@allezrobert/client",
+        "preview",
+        "--port",
+        "5175",
+        "--strictPort"
+      ],
+      "port": 5175
+    },
+    {
       "name": "monde-ouvert-lan-server",
       "runtimeExecutable": "cmd",
       "runtimeArgs": [
@@ -257,6 +270,16 @@
       "port": 5214
     },
     {
+      "name": "beta-niveaux",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": [
+        "/c",
+        "cd /d C:/Users/chris/.codex/worktrees/v3-release/allezrobert&& set AR_V3_CLIPS=C:/tmp/__DEV__/allezrobert/out/essai-zwift/clips-garage.json&& set AR_V3_CACHE=C:/tmp/__DEV__/allezrobert/out/v3&& set AR_HMR=0&& set VITE_WORLDS_URL=https://allezrobert.cparfait.ovh&& pnpm --filter @allezrobert/client exec vite --host 127.0.0.1 --port 5241 --strictPort"
+      ],
+      "port": 5241,
+      "url": "http://127.0.0.1:5241"
+    },
+    {
       "name": "garage-v3",
       "runtimeExecutable": "cmd",
       "runtimeArgs": [
@@ -275,6 +298,45 @@
       ],
       "port": 5233,
       "url": "http://127.0.0.1:5233"
+    },
+    {
+      "name": "jeu-cartes-en-ligne",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": [
+        "/c",
+        "set AR_HMR=0&& set VITE_WORLDS_URL=https://allezrobert.cparfait.ovh&& pnpm --filter @allezrobert/client exec vite --port 5175 --strictPort"
+      ],
+      "port": 5175
+    },
+    {
+      "name": "public-mpfb",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": [
+        "/c",
+        "set AR_HMR=0&& pnpm --filter @allezrobert/client exec vite --config ../../out/crowd-mpfb/vite.config.mts"
+      ],
+      "port": 5297,
+      "url": "http://127.0.0.1:5297"
+    },
+    {
+      "name": "recul-camera",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": [
+        "/c",
+        "set AR_HMR=0&& pnpm --filter @allezrobert/client exec vite --config ../../out/recul-camera/vite.config.mts"
+      ],
+      "port": 5303,
+      "url": "http://127.0.0.1:5303"
+    },
+    {
+      "name": "verif-paris",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": [
+        "/c",
+        "set AR_HMR=0&& set VITE_WORLDS_URL=https://allezrobert.cparfait.ovh&& pnpm --filter @allezrobert/client exec vite --config ../../out/verif-paris/vite.config.mts"
+      ],
+      "port": 5310,
+      "url": "http://127.0.0.1:5310"
     }
   ]
 }
