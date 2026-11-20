@@ -75,6 +75,16 @@ const PARK_SIDESTEP_MS = 0.3;
 /** Le joueur garde au moins cet écart (m) à droite de la colonne la plus à droite des IA rangées. */
 const PARK_PLAYER_GAP_M = 0.85;
 
+/**
+ * Fin de relais : l'IA qui quitte la tête fait signe du coude au suivant de passer (clip Zwift existant
+ * cyclistHoodsElbowFlick, joué une fois par-dessus la posture en selle). Le clip avance avec le pédalier : il est
+ * déroulé par un angle de pédalier imposé, deux tours sur sa durée (1,33 s, soit 90 tr/min).
+ */
+const FLICK_CLIP = 'cyclistHoodsElbowFlick';
+const FLICK_S = 4 / 3;
+/** Pas de geste presque arrêté (le clip pédale) : interrompu sous cette vitesse (m/s). */
+const FLICK_MIN_MS = 2.5;
+
 export interface PelotonRider {
   id: string;
   name: string;
@@ -208,6 +218,28 @@ export class Peloton {
     r.cadence = 0;
     r.draft = 0;
     r.pose = 'coasting';
+  }
+
+  /** Coup de coude en cours (temps écoulé, s) ; file de chaque IA à l'image précédente (double file). */
+  private readonly flicks = new Map<PelotonRider, number>();
+  private readonly prevLane = new Map<PelotonRider, string>();
+
+  /** Fin de relais : coup de coude (une fois ; pas en roue libre presque arrêté, ni à l'arrivée). */
+  private flick(r: PelotonRider): void {
+    if (!this.flicks.has(r) && !this.parked.has(r) && r.state.speedMs > FLICK_MIN_MS) this.flicks.set(r, 0);
+  }
+
+  private stepFlicks(dt: number): void {
+    for (const [r, t] of this.flicks) {
+      if (t + dt >= FLICK_S || r.state.speedMs < FLICK_MIN_MS || this.parked.has(r)) this.flicks.delete(r);
+      else this.flicks.set(r, t + dt);
+    }
+  }
+
+  /** Options du coureur V3 pendant le coup de coude : clip imposé, déroulé par l'angle du pédalier. */
+  private gesture(r: PelotonRider): { clip: string; crank: number } | undefined {
+    const t = this.flicks.get(r);
+    return t === undefined || this.parked.has(r) ? undefined : { clip: FLICK_CLIP, crank: Math.min(t / FLICK_S, 0.999) * 2 * 2 * Math.PI };
   }
 
   /** Doit se ranger : parcours non bouclé, dans la zone d'arrivée (ou déjà rangé). */
@@ -364,6 +396,13 @@ export class Peloton {
     const halfRoad = Math.max(1.2, roadHalfM(this.track.route.roadWidthM));
     const laneAt = laneOffsets(halfRoad);
     if (double) this.lanes.update(this.riders.filter((r) => !r.uturn.active).map((r) => ({ id: r.id, distM: r.state.distM })), [{ distM: player.distM }], dt);
+    // Double file : celui qui quitte la file rapide (fin de son relais) fait signe du coude.
+    this.stepFlicks(dt);
+    for (const r of this.riders) {
+      const lane = double ? this.lanes.laneOf(r.id) : 'single';
+      if (this.prevLane.get(r) === 'fast' && lane === 'slow') this.flick(r);
+      this.prevLane.set(r, lane);
+    }
     const waitingForMe = this.time < this.waitUntil;
 
     // Équipier à contresens (demi-tour) : hors aspiration (écarté latéralement) et jamais « roue devant ».
@@ -421,6 +460,7 @@ export class Peloton {
         ...ambient,
       ];
       const plan = r.overtaker.update({ id: r.id, distM: r.state.distM, lateralM: r.lateral, speedMs: r.state.speedMs }, sameWay, half, !this.leftLaneBusy(r.state.distM));
+      const wasPulling = r.ai.state === 'pull';
       const out = r.ai.update(
         {
           gradePercent: s.grade,
@@ -440,6 +480,8 @@ export class Peloton {
         },
         dt,
       );
+      // File simple : relais terminé (il quitte la tête et se décale) → signe du coude au suivant.
+      if (wasPulling && r.ai.state === 'pullOff') this.flick(r);
       r.watts = out.watts;
       // Se laisser glisser : au-delà de 40 m d'avance, l'équipier se relève et attend le groupe
       // (au-delà de ~120 m qui ne se résorbent pas, il fait demi-tour : voir TeammateUTurn).
@@ -510,6 +552,7 @@ export class Peloton {
   /** Le groupe roule seul, à l'allure courante (joueur à contresens). */
   private rideOn(dt: number): number {
     this.time += dt;
+    this.stepFlicks(dt);
     const all = this.riders.map((r) => ({ distM: r.state.distM, lateralM: r.lateral, speedMs: r.state.speedMs }));
     const factors = this.draft.compute(all);
     const order = [...this.riders].sort((a, b) => b.state.distM - a.state.distM);
@@ -588,7 +631,8 @@ export class Peloton {
           // Version légère (réaliste, poly) : maillage figé, l'animation du coureur détaillé ne se voit pas.
           if (!light) r.avatar.update(animDt, r.cadence, r.state.speedMs, r.pose, bank);
           // Transitions : pied à terre à l'arrêt (arrivée, demi-tour arrêté), départ au premier coup de pédale.
-          r.v3?.update(animDt, r.cadence, r.state.speedMs, r.pose, { effort: r.watts / r.ftp, transitions: true });
+          // Coup de coude en fin de relais : clip imposé à la place de la posture (voir FLICK_CLIP).
+          r.v3?.update(animDt, r.cadence, r.state.speedMs, r.pose, { effort: r.watts / r.ftp, transitions: true, ...this.gesture(r) });
         }
       } else if (r.v3 && r.avatar.root.visible && needsLightBuild(r.avatar.root) && (this.animFrame + ri) % 30 === 0) {
         // Trop loin pour être animé : une mise à jour V3 de temps en temps pour qu'il se charge (sinon l'ancien
