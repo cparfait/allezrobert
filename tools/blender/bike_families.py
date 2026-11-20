@@ -53,6 +53,26 @@ FRAME_STYLES = {
 }
 FRAME_STYLES['retro_compact'] = dict(FRAME_STYLES['retro'])
 
+# Cadres Allez Robert du mode Réel, dessinés dans le générateur à partir des
+# différences de silhouette observées entre un vélo aéro et un vélo de chrono.
+REAL_FRAME_STYLES = {
+    'aero': dict(FRAME_STYLES['aero'],
+                 ht=(0.082, 0.065, 0.038, 0.034),
+                 dt=(0.062, 0.076, 0.036, 0.040),
+                 st=(0.061, 0.044, 0.029, 0.029),
+                 tt=(0.018, 0.014, 0.013, 0.010),
+                 ss=(0.025, 0.011), ss_j=0.67,
+                 fork=(0.053, 0.034, 0.017, 0.012), seat_bottle_offset=0.033),
+    'tt': dict(FRAME_STYLES['tt'],
+               ht=(0.105, 0.086, 0.038, 0.029),
+               dt=(0.102, 0.094, 0.038, 0.034),
+               st=(0.086, 0.060, 0.035, 0.030),
+               tt=(0.016, 0.014, 0.027, 0.018),
+               ss=(0.028, 0.012), ss_j=0.58,
+               fork=(0.070, 0.045, 0.020, 0.014),
+               post=(0.057, 0.022)),
+}
+
 
 # ---------------------------------------------------------------------------------------------
 # Géométrie de base et zones
@@ -61,14 +81,14 @@ class Bike:
     pass
 
 
-def bike_geometry(st_len=0.49, ht_len=0.17, fa=None, ht_bot_y=0.655, steer_extra=0.03):
+def bike_geometry(st_len=0.49, ht_len=0.17, fa=None, ht_bot_y=0.655, steer_extra=0.03, head_angle=73):
     g = Bike()
     g.fa = FRONT_AXLE.copy() if fa is None else np.asarray(fa, dtype=float)
     g.ra = REAR_AXLE.copy()
     g.st_dir = nrm(SADDLE - BB)
     g.st_len = st_len
     g.st_top = BB + g.st_dir * st_len
-    a = math.radians(73)
+    a = math.radians(head_angle)
     g.ht_up = V(0, math.sin(a), -math.cos(a))
     g.pf = V(0, math.cos(a), math.sin(a))
     A = g.fa - g.pf * 0.045
@@ -714,7 +734,8 @@ def build_bottles(g, sty, lod, single=False):
     mb = MB()
     build_bottle(mb, BB + g.dt_dir * 0.085 + g.dt_back * (sty['dt'][0] / 2 + 0.043), g.dt_dir, -g.dt_back, lod)
     if not single:
-        build_bottle(mb, BB + g.st_dir * 0.215 + g.st_front * (sty['st'][0] / 2 + 0.043), g.st_dir, -g.st_front, lod)
+        seat_offset = sty['st'][0] / 2 + sty.get('seat_bottle_offset', 0.043)
+        build_bottle(mb, BB + g.st_dir * 0.215 + g.st_front * seat_offset, g.st_dir, -g.st_front, lod)
     ob = mb.build('opt_bottles')
     shade(ob, 40)
     return ob
@@ -1078,7 +1099,13 @@ def build_wheel_lib(typ, front, lod=0):
 # ---------------------------------------------------------------------------------------------
 # Familles complètes
 # ---------------------------------------------------------------------------------------------
-def family_geometry(fam):
+def family_geometry(fam, real=False):
+    if real and fam == 'aero':
+        return bike_geometry(st_len=0.51, ht_len=0.156, fa=V(0, WHEEL_R, 0.566), ht_bot_y=0.678,
+                             steer_extra=0.024, head_angle=73.2)
+    if real and fam == 'tt':
+        return bike_geometry(st_len=0.54, ht_len=0.092, fa=V(0, WHEEL_R, 0.606), ht_bot_y=0.658,
+                             steer_extra=0.022)
     if fam == 'tt':
         return bike_geometry(st_len=0.53, ht_len=0.11, steer_extra=0.02)
     if fam == 'retro':
@@ -1097,11 +1124,11 @@ def family_geometry(fam):
     return bike_geometry()
 
 
-def build_family(fam, lod):
+def build_family(fam, lod, real=False):
     """Objets d'une famille (maillages + vides) ; renvoie (objets, infos des ancres)."""
     if fam == 'madone':
         return build_madone(lod)
-    g = family_geometry(fam)
+    g = family_geometry(fam, real)
     zl = []
     voxel = 0.002 if lod == 0 else (0.0032 if fam in ('steel', 'retro', 'retro_compact') else 0.004)
     target = 2250 if lod == 0 else 520
@@ -1110,7 +1137,7 @@ def build_family(fam, lod):
         frame = (build_espada_frame if fam == 'espada' else build_lotus_frame)(g, zl, voxel, target)
         sty = FRAME_STYLES['tt']
     else:
-        sty = FRAME_STYLES[fam]
+        sty = (REAL_FRAME_STYLES.get(fam) if real else None) or FRAME_STYLES[fam]
         frame = build_frame(g, sty, zl, voxel, target)
     # Pièces fixes fusionnées dans « frame » : tige de selle, chaîne, raccords chromés.
     fx = MB()

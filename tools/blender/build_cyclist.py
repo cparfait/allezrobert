@@ -47,6 +47,7 @@ ap.add_argument('--views', default='')  # (obsolète, conservé pour compatibili
 ap.add_argument('--only', default='', choices=['', 'rider', 'bikes'])
 # --families madone,aero : seulement ces familles (sans les bibliothèques de roues et de pièces, ni bike_stats.json complet).
 ap.add_argument('--families', default='')
+ap.add_argument('--real-bikes', action='store_true', help='profils aéro et chrono du mode Réel')
 args = ap.parse_args(argv)
 OUT = os.path.abspath(args.out)
 os.makedirs(OUT, exist_ok=True)
@@ -2215,7 +2216,7 @@ def main():
     liv_shots = {}
     rider_done = False
     for fam in (only_fams or FAMILIES):
-        objs, info, g = build_family(fam, 0)
+        objs, info, g = build_family(fam, 0, real=args.real_bikes)
         anchors[fam] = info
         stats[fam] = tris_of(objs)
         stats[fam + '_parts'] = {o.name: tri_count(o) for o in with_children(objs) if o.type == 'MESH'}
@@ -2265,7 +2266,7 @@ def main():
                 fr.data.materials[slot] = base_mat
         for o in with_children(objs):
             remove_obj(o) if o.type == 'MESH' else bpy.data.objects.remove(o)
-        objs1, _, _ = build_family(fam, 1)
+        objs1, _, _ = build_family(fam, 1, real=args.real_bikes)
         stats[fam + '_lod1'] = tris_of(objs1)
         export_glb(objs1, os.path.join(bout, f'{fam}_lod1.glb'))
         for o in with_children(objs1):

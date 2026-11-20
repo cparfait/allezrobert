@@ -23,9 +23,9 @@ import { BikeMaterials, assembleBike, availableFamily, bikeAnchors, bikeFamilyRe
 import { assembleRoubaix, isRoubaixLook, loadRoubaix, roubaixAnchor, roubaixOption, roubaixSeat, roubaixSizeForRider, setSaddleDrop, sitPointOf, solveSeatDrop, type RoubaixAssembly, type RoubaixBike } from './roubaix.ts';
 
 /**
- * Roubaix Sport 2020 dédié par taille (rider/roubaix.ts ; I-4b ajustement, I-4d actif par défaut) : monté quand le look
- * choisit ce vélo du catalogue et que la taille du coureur tombe dans une taille modélisée (44 : 142–155 cm, coureur dessiné
- * à 160 cm au moins). ?roubaix=0 le coupe ; ?roubaix=<taille> force une taille. Le vélo reste à l'échelle 1 ; le
+ * Vélos dédiés par taille (rider/roubaix.ts : Roubaix Sport 2020 44/54/61, LOOK 785 XS–XL ; I-4b ajustement, I-4d actif par
+ * défaut) : montés quand le look choisit l'un de ces vélos du catalogue, taille de cadre d'après la taille du coureur, dessiné
+ * à sa taille dès 142 cm (DEDICATED_MIN_CM). ?roubaix=0 le coupe ; ?roubaix=<taille> force une taille. Le vélo reste à l'échelle 1 ; le
  * coureur s'ajuste à ses points de contact (ischions sur le point d'assise, mains sur les cocottes, pieds sur le pédalier
  * de la taille), selle abaissée le long de la tige pour un genou à KNEE_BOTTOM_DEG au point bas.
  */
@@ -221,6 +221,12 @@ const FEMALE_HEIGHT_CM = 175;
 /** Flexion du genou visée, pédale en bas (route : 145° ± 5°). */
 const KNEE_BOTTOM_DEG = 145;
 const HEIGHT_RANGE_CM: readonly [number, number] = [160, 195];
+/**
+ * Borne basse sur un vélo dédié à géométrie réelle (Roubaix 44, LOOK XS, cadre à l'échelle 1) : les petits coureurs y sont
+ * dessinés à leur taille. Les cadres génériques, mis à l'échelle avec le coureur, gardent 160 cm (cadres minuscules entre des
+ * roues réelles en dessous ; décision du 14/11/2026, levée pour les vélos dédiés le 15/11/2026).
+ */
+const DEDICATED_MIN_CM = 142;
 /**
  * Position chrono, par unité de « tuck » (rad) : surtout le bassin qui bascule vers l'avant (dos
  * plat), un peu la colonne et le thorax ; la tête se relève pour regarder la route.
@@ -1244,12 +1250,6 @@ interface RoubaixFit {
 }
 
 export class GltfRiderAvatar implements RiderAvatarLike {
-  readonly root = new THREE.Group();
-  /** Nom affiché au-dessus du coureur. */
-  readonly label: THREE.Sprite | null = null;
-  /** Groupe incliné (danseuse / virages) contenant vélo et coureur. */
-  private readonly lean = new THREE.Group();
-  private readonly lod = new THREE.LOD();
   /** Attache un modèle V3 au repère incliné de l’avatar et masque les pièces qu’il remplace. */
   v3Mount() {
     const hidden = new Map<THREE.Object3D, boolean>();
@@ -1274,6 +1274,12 @@ export class GltfRiderAvatar implements RiderAvatarLike {
       },
     };
   }
+  readonly root = new THREE.Group();
+  /** Nom affiché au-dessus du coureur. */
+  readonly label: THREE.Sprite | null = null;
+  /** Groupe incliné (danseuse / virages) contenant vélo et coureur. */
+  private readonly lean = new THREE.Group();
+  private readonly lod = new THREE.LOD();
   private readonly t: Templates;
   private readonly bones = {} as Record<BoneName, THREE.Object3D>;
   private readonly mQ = {} as Record<BoneName, THREE.Quaternion>;
@@ -2381,7 +2387,8 @@ export class GltfRiderAvatar implements RiderAvatarLike {
   private sizeOf(look: AvatarLook): number {
     if (this.t.names.hips !== 'pelvis' || !look.heightCm) return 1;
     const ref = TRIPO_HEIGHT_CM[this.kind] ?? (this.t.textured.size ? MODEL_HEIGHT_CM : this.kind === 'female' ? FEMALE_HEIGHT_CM : MPFB_HEIGHT_CM);
-    return THREE.MathUtils.clamp(look.heightCm, HEIGHT_RANGE_CM[0], HEIGHT_RANGE_CM[1]) / ref;
+    const min = ROUBAIX_OPTION.enabled && isRoubaixLook(look.bikeModel) ? DEDICATED_MIN_CM : HEIGHT_RANGE_CM[0];
+    return THREE.MathUtils.clamp(look.heightCm, min, HEIGHT_RANGE_CM[1]) / ref;
   }
 
   /**

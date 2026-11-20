@@ -393,7 +393,8 @@ function bottleAxes(g: THREE.BufferGeometry, side: (y: number, z: number) => 0 |
 }
 
 async function loadLods(name: string): Promise<Lods> {
-  const [a, b] = await Promise.all([loader.loadAsync(`${base}${name}.glb`), loader.loadAsync(`${base}${name}_lod1.glb`)]);
+  const folder = !LOW_POLY && (name === 'aero' || name === 'tt' || name === 'gravel') ? `${base}real/` : base;
+  const [a, b] = await Promise.all([loader.loadAsync(`${folder}${name}.glb`), loader.loadAsync(`${folder}${name}_lod1.glb`)]);
   splitBottles(a.scene);
   splitBottles(b.scene);
   return [a as GLTF, b as GLTF];

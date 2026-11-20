@@ -612,8 +612,17 @@ describe('inventaire des vélos', () => {
   });
 });
 
-describe.each(ALL_FAMILIES.flatMap((f) => [`${f}`, `${f}_lod1`]))('vélo %s', (name) => {
-  const family = name.replace(/_lod1$/, '');
+const REAL_WHEELBASES = { aero: 0.976, tt: 1.016, gravel: 1.0 } as const;
+const BIKE_FILES = [
+  ...ALL_FAMILIES.flatMap((family) => [
+    [family, family, 1], [`${family}_lod1`, family, 1],
+  ] as const),
+  ...Object.entries(REAL_WHEELBASES).flatMap(([family, wheelbase]) => [
+    [`real/${family}`, family, wheelbase], [`real/${family}_lod1`, family, wheelbase],
+  ] as const),
+];
+
+describe.each(BIKE_FILES)('vélo %s', (name, family, wheelbase) => {
   const g = (): Glb => readGlb(`bikes/${name}.glb`);
   const at = (n: string): Vec3 => (nodeT(g(), n)?.translation ?? [Number.NaN, Number.NaN, Number.NaN]) as Vec3;
 
@@ -680,7 +689,7 @@ describe.each(ALL_FAMILIES.flatMap((f) => [`${f}`, `${f}_lod1`]))('vélo %s', (n
       expect(at('axle_front')[2]).toBeCloseTo(0.585, 4);
     } else {
       expect(f?.scale).toBeUndefined();
-      expect(at('axle_front')[2], 'empattement 1,00 m').toBeCloseTo(0.59, 4);
+      expect(at('axle_front')[2] - at('axle_rear')[2], 'empattement').toBeCloseTo(wheelbase, 4);
     }
   });
 

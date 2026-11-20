@@ -55,6 +55,7 @@ ap.add_argument('--cyclist', default='apps/client/public/models/cyclist.glb')
 # Quantification et compression meshopt (avatars/compress.mjs, glTF-Transform : MIT, outil de
 # fabrication seulement).
 ap.add_argument('--no-compress', action='store_true')
+ap.add_argument('--reuse-skin-textures', action='store_true', help='exporter les GLB en réutilisant les textures de peau existantes')
 # Variante : « male » (modèle de base) ou « female » (modèle féminin de base, fichiers rider_female*.glb une fois renommés).
 ap.add_argument('--variant', default='male', choices=['male', 'female'])
 ap.add_argument('--height', type=float, default=-1.0)   # macro MPFB « height » (variante féminine)
@@ -78,7 +79,8 @@ MPFB_URL = ('https://extensions.blender.org/download/sha256:c075b3e9b94b8e5556a5
             'add-on-mpfb-v2.0.18.zip?repository=%2Fapi%2Fv1%2Fextensions%2F&blender_version_min=4.2.0')
 MPFB_SHA256 = 'c075b3e9b94b8e5556a5f03f4653602d02ea306de08126e8f55ed6dee28a2dad'
 MPFB_MODULE = 'bl_ext.user_default.mpfb'
-PNPM = shutil.which('pnpm') or 'pnpm'
+NODE = shutil.which('node') or 'node'
+AVATAR_TOOLS = os.path.dirname(os.path.abspath(__file__))
 
 # Cotes du vélo (repère CLIENT : +x gauche, +y haut, +z avant) — identiques à build_cyclist.py.
 BB = Vector((0.0, 0.27, 0.0))
@@ -540,6 +542,9 @@ def build_base(HS, TS, LS):
     base_fix = [(p, w * args.skull) for p, w in SKULL_BACK if args.skull > 0]
     if args.variant == 'female' and args.neck > 0:
         base_fix += [(p, w * args.neck) for p, w in FEMALE_NECK]
+    if args.variant == 'female':
+        # Ajuste la coupe à la taille en gardant les articulations de référence.
+        base_fix.append(('torso/measure-waist-circ-decr', 0.16))
     if base_fix:
         for p, w in base_fix:
             TS.load_target(body, os.path.join(targets_dir, p + '.target.gz'), weight=w, name='fix_' + os.path.basename(p))
@@ -1647,11 +1652,11 @@ def hair_shells(body, rig, back_y, eye_z):
 # Aérations longitudinales, doublées de part et d'autre du milieu : centre latéral s (0 : milieu,
 # 1 : bord au-dessus de l'oreille), début et fin t (0 : bord avant, 1 : bord arrière), demi-largeur
 # (en s), rétrécissement vers l'arrière (0 à 1).
-HELMET_VENTS = ((0.10, 0.10, 0.60, 0.066, 0.45),
-                (0.33, 0.09, 0.55, 0.075, 0.50),
-                (0.57, 0.15, 0.47, 0.062, 0.55),
-                (0.20, 0.68, 0.88, 0.058, 0.25))
-HELMET_NS, HELMET_NT = 48, 56   # mailles de la coque : en travers, d'avant en arrière
+HELMET_VENTS = ((0.13, 0.09, 0.65, 0.085, 0.32),
+                (0.39, 0.13, 0.56, 0.090, 0.42),
+                (0.64, 0.22, 0.50, 0.078, 0.46),
+                (0.26, 0.70, 0.91, 0.085, 0.35))
+HELMET_NS, HELMET_NT = 32, 36   # mailles de la coque : en travers, d'avant en arrière
 
 
 def gear_material(name):
@@ -1941,7 +1946,10 @@ def build_headgear(body, eyes, rig, styles):
                         if ha * hb <= 0 and ha != hb:
                             cands.append((s, ta + (tb - ta) * ha / (ha - hb)))
             if cands:
-                st[i][j] = min(cands, key=lambda p: ((p[0] - s) * KS) ** 2 + ((p[1] - t) * KT) ** 2)
+                sv, tv = min(cands, key=lambda p: ((p[0] - s) * KS) ** 2 + ((p[1] - t) * KT) ** 2)
+                # Les sommets voisins doivent garder leur ordre autour des petites ouïes.
+                ds, dt = 0.90 / NS, 0.45 / NT
+                st[i][j] = (min(s + ds, max(s - ds, sv)), min(t + dt, max(t - dt, tv)))
     dirs = [[from_uv(*coons(*st[i][j])) for j in range(NS + 1)] for i in range(NT + 1)]
     raw = [[((ray_in(H, dirs[i][j]) or (H,))[0] - H).length for j in range(NS + 1)] for i in range(NT + 1)]
 
@@ -1959,7 +1967,7 @@ def build_headgear(body, eyes, rig, styles):
         row = []
         for j in range(NS + 1):
             s, t = st[i][j]
-            th = 0.012 + 0.008 * math.sin(math.pi * min(max(t, 0.0), 1.0)) ** 0.6 * (1 - 0.4 * s * s)
+            th = 0.011 + 0.005 * math.sin(math.pi * min(max(t, 0.0), 1.0)) ** 0.6 * (1 - 0.4 * s * s)
             r = max(sm2[i][j] + th, r_in[i][j] + 0.010)
             edge = min(i, NT - i, j, NS - j)
             r -= (0.0035, 0.0012)[edge] if edge < 2 else 0.0   # bord arrondi
@@ -2502,7 +2510,8 @@ def main():
         if not any(m.type == 'ARMATURE' for m in o.modifiers):
             m = o.modifiers.new('Armature', 'ARMATURE')
             m.object = rig
-    bake_skin_textures(body, eyes, OUT)
+    if not args.reuse_skin_textures:
+        bake_skin_textures(body, eyes, OUT)
     styles = build_hair_styles(body, rig)
     gear = build_headgear(body, eyes, rig, styles)
     pose_rider(rig, body)
@@ -2522,11 +2531,11 @@ def main():
         raw = out if args.no_compress else os.path.join(OUT, name + '.raw.glb')
         export([rig] + objs, raw)
         if not args.no_compress:
-            subprocess.run([PNPM, '--filter', '@allezrobert/blender-tools', 'compress:avatar', os.path.abspath(raw), os.path.abspath(out)], check=True)
+            subprocess.run([NODE, os.path.join(AVATAR_TOOLS, 'compress.mjs'), raw, out], check=True)
             os.remove(raw)
             print(f'{name} compressé : {os.path.getsize(out) / 1e6:.2f} Mo')
     # Chaussures de cyclist.glb / cyclist_lod1.glb, pied caché retiré (fichiers compressés).
-    subprocess.run([PNPM, '--filter', '@allezrobert/blender-tools', 'reshoe:avatar', OUT, os.path.dirname(os.path.abspath(args.cyclist))], check=True)
+    subprocess.run([NODE, os.path.join(AVATAR_TOOLS, 'reshoe.mjs'), OUT, os.path.dirname(os.path.abspath(args.cyclist))], check=True)
     print('exporté', os.path.join(OUT, 'rider.glb'))
 
 
