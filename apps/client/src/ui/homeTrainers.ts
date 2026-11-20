@@ -384,8 +384,9 @@ function neo(neo3: boolean): THREE.Group {
   const rubber = mat('#151619', 0.86);
   const silver = mat('#bac0c3', 0.36, 0.62);
   const steel = mat('#d3d6da', 0.3, 0.8);
+  // Affiner le carter côté opposé à la transmission sans déplacer la cassette sur l'axe.
   const x0 = -0.021;
-  const x1 = 0.053;
+  const x1 = neo3 ? 0.012 : 0.014;
   const y = TRAINER_AXLE_Y;
   const top = y + (neo3 ? 0.194 : 0.167);
   const profile: Pt[] = [[-0.235, y + 0.01], [-0.197, top - 0.018], [-0.064, top], [0.068, top, 0.095],
@@ -403,8 +404,9 @@ function neo(neo3: boolean): THREE.Group {
     [0.061, top - 0.065], [0.103, y + 0.056], [0.233, y - 0.12],
     [0.226, y - 0.167], [-0.14, y - 0.077]], 0.018);
   g.add(slab(cover, x1 - 0.004, x1 + 0.006, shell, 0.003));
-  g.add(cylX(0.032, x1 + 0.004, 0.069, y, 0, silver));
-  g.add(cylX(0.014, 0.067, 0.073, y, 0, edge));
+  g.add(cylX(0.032, x1 + 0.004, x1 + 0.011, y, 0, silver));
+  // La bague reste contre le carter ; seul l'adaptateur étroit rejoint la patte.
+  g.add(cylX(0.014, x1 + 0.01, 0.073, y, 0, edge));
   g.add(cylX(0.007, 0.073, 0.077, y, 0, steel));
 
   const rotor = neo3 ? 0.122 : 0.125;
@@ -426,8 +428,10 @@ function neo(neo3: boolean): THREE.Group {
     // Module d'alimentation derrière le moteur, dégagé de l'axe et de la poignée.
     const module = rounded([[-0.235, y - 0.02], [-0.201, top - 0.022], [-0.089, top - 0.022],
       [-0.112, y + 0.048], [-0.093, y - 0.055], [-0.159, y - 0.103], [-0.22, y - 0.063]], 0.018);
-    g.add(slab(module, x0 - 0.014, x1 + 0.028, edge, 0.007));
-    for (const [face, x] of [[onDriveSide, x0 - 0.015], [onOtherSide, x1 + 0.029]] as const) {
+    const moduleDrive = x0 - 0.014;
+    const moduleOther = x1 + 0.021;
+    g.add(slab(module, moduleDrive, moduleOther, edge, 0.007));
+    for (const [face, x] of [[onDriveSide, moduleDrive - 0.001], [onOtherSide, moduleOther + 0.001]] as const) {
       g.add(face(grille(0.023, '#1f2124', '#101113', 19), x, y + 0.097, -0.167));
       g.add(face(label('GARMIN', '#888b8d', 0.079, 0.014, 700), x, y + 0.042, -0.17));
     }
