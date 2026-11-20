@@ -4,6 +4,8 @@ import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { baseRouteId, type RouteTrack, type TrackSample } from '@allezrobert/shared';
 import { rng } from '../engine/noise.ts';
 import { sharedKtx2Loader } from '../engine/textures.ts';
+import { V3_STYLE } from '../engine/style.ts';
+import { getV3Catalog, prepareV3Object } from '../v3/visuals.ts';
 import type { LoadedTile } from './types.ts';
 import { LandProbe, dist2Seg, segmentsIn } from './lowPolyKit.ts';
 
@@ -71,6 +73,11 @@ interface Model {
 }
 
 const loading = new Map<string, Promise<Model | null>>();
+const v3Props: Record<string, [string, number]> = {
+  banc: ['Environment/Structures/Bench01.gde', 1.9],
+  fontaine: ['Environment/Structures/RoadSide/France/StoneGardenFountain.gde', 2.0],
+  puits: ['Environment/Structures/RoadSide/JapanCountryside/WaterWellA.gde', 2.1],
+};
 
 /**
  * Modèle chargé une fois. Couleurs par sommet (linéaires) sans matériau dans le .glb : le matériau par défaut du
@@ -80,6 +87,17 @@ function loadModel(name: string): Promise<Model | null> {
   let p = loading.get(name);
   if (p) return p;
   p = (async () => {
+    const v3 = V3_STYLE ? v3Props[name] : undefined;
+    if (v3) {
+      try {
+        const item = (await getV3Catalog()).objects.find(object => object.path.toLowerCase() === v3[0].toLowerCase());
+        if (item) {
+          const near = await prepareV3Object(item.id, v3[1]);
+          const far = await prepareV3Object(item.id, v3[1], 2).catch(() => near.clone());
+          return { near, far };
+        }
+      } catch { /* modèle d’origine en cas de conversion indisponible */ }
+    }
     const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
     // Couleurs TRELLIS cuites en texture (stylize_prop.py), compressées en KTX2 par optimize.mjs.
     const ktx2 = await sharedKtx2Loader();
