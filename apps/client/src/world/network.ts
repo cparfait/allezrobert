@@ -12,6 +12,7 @@ import { CURB_H, CURB_W, StreetIndex, pushSidewalk, dropShortRuns, refineSidewal
 import { DECAL_CROSSWALK, DECAL_GUTTER, DECAL_OIL, GUTTER_W, decalAtCrossing, placeDecals, pushDecal, stripSeed } from './roadDecals.ts';
 import { tune } from '../dev/tuning.ts';
 import { bollardGeometry, buildShopProps, createBollardMaterial, createPropMaterial, placeBollards } from './streetProps.ts';
+import { buildBridgeRailings, createRailingMaterial } from './bridgeRailings.ts';
 
 /** Réglages (?reglages, voir dev/tuning.ts). */
 const ASPHALT = tune('route.enrobe', "Teinte de l'enrobé", 1, 0.4, 2.5, 0.02);
@@ -95,6 +96,7 @@ export class RoadNetwork {
   /** Potelets de toutes les tuiles (un appel de dessin) ; stores et terrasses : un maillage par tuile. */
   private readonly bollards = new LampField(createBollardMaterial(), bollardGeometry(), 'bollards');
   private readonly propMat = createPropMaterial();
+  private readonly railingMat = createRailingMaterial();
   /** Lampadaires proches allumés en vraies lumières la nuit (groupe à ajouter à la scène, hors du décor figé). */
   readonly lampLights: NearLampLights;
   /** Murs à vitrine d'une tuile (bâtiments construits avant la voirie, voir world.ts). */
@@ -368,6 +370,18 @@ export class RoadNetwork {
         mesh.castShadow = true;
         mesh.receiveShadow = true;
         mesh.name = `props_${tile.id}`;
+        objs.push(mesh);
+      }
+    }
+    // Garde-corps des ponts (bridgeRailings.ts) : tous les tronçons « pont » de la tuile, itinéraire actif compris
+    // (sa chaussée est dessinée ailleurs, mais ses bords sont ici) ; le style low poly a ses parapets.
+    if (!LOW_POLY) {
+      const rails = buildBridgeRailings(tile.features.roads);
+      if (rails) {
+        const mesh = new THREE.Mesh(rails, this.railingMat);
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+        mesh.name = `railings_${tile.id}`;
         objs.push(mesh);
       }
     }
