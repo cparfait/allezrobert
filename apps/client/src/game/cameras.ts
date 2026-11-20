@@ -116,6 +116,8 @@ export class CameraRig {
    * balayait un arc de 5 m en un quart de seconde dans les virages serrés.
    */
   private chaseYaw = 0;
+  /** Virage : 0 → 1, la poursuite recule et monte un peu le temps que le vélo tourne (lissé, retour plus lent). */
+  private turnPull = 0;
   /**
    * Arrivée d'un parcours : la poursuite tourne lentement vers l'avant gauche du coureur arrêté (pied à terre, IA rangées
    * derrière lui à gauche), un peu plus loin et plus bas ; 0 → 1, lissé.
@@ -243,7 +245,17 @@ export class CameraRig {
         const yaw = Math.atan2(t.dir.x, t.dir.z);
         if (!this.initialized) this.chaseYaw = yaw;
         const dYaw = Math.atan2(Math.sin(yaw - this.chaseYaw), Math.cos(yaw - this.chaseYaw));
-        const yawRate = 2 + 2 * THREE.MathUtils.smoothstep(Math.abs(dYaw), 0.35, 1.1);
+        // Virage (19/11/2026) : la caméra prend du recul le temps que le vélo tourne, puis revient doucement. Collée à
+        // 3 m, elle pivotait sec autour du coureur (effet « robot »). Intensité : angle entre le cap du vélo et le point
+        // visé 18 m devant (≈ la moitié du virage à venir), ou retard du cap de la caméra s'il est plus grand.
+        const bearing = Math.atan2(ahead.x - t.position.x, ahead.z - t.position.z);
+        const dAhead = Math.abs(Math.atan2(Math.sin(bearing - yaw), Math.cos(bearing - yaw)));
+        const turnTarget = t.uturn || this.arrival ? 0 : THREE.MathUtils.smoothstep(Math.max(dAhead, Math.abs(dYaw)), 0.18, 0.6);
+        // Recul en ≈ 0,6 s à l'entrée, retour en ≈ 1,7 s à la sortie : pas de « pompage » dans les enchaînements.
+        const turnRate = turnTarget > this.turnPull ? 1.6 : 0.6;
+        this.turnPull += (turnTarget - this.turnPull) * (1 - Math.exp(-dt * turnRate));
+        // En recul, la caméra n'a plus besoin de rattraper le cap aussi vite pour garder le vélo : virage plus coulé.
+        const yawRate = 2 + 2 * THREE.MathUtils.smoothstep(Math.abs(dYaw), 0.35, 1.1) * (1 - 0.4 * this.turnPull);
         this.chaseYaw += dYaw * (1 - Math.exp(-dt * yawRate));
         // Demi-tour : recul et hauteur en plus (tout l'arc dans le cadre), regard sur le coureur affiché.
         this.uturnPull += ((t.uturn ? 1 : 0) - this.uturnPull) * (1 - Math.exp(-dt * 2.5));
@@ -251,10 +263,12 @@ export class CameraRig {
         this.arrivalBlend += ((this.arrival ? 1 : 0) - this.arrivalBlend) * (1 - Math.exp(-dt * 0.8));
         const side = this.arrivalBlend;
         const orbit = this.chaseYaw + ARRIVAL_YAW * side;
-        const back = CHASE_BACK * (1 + 0.7 * this.uturnPull) + (ARRIVAL_BACK - CHASE_BACK) * side;
-        const up = CHASE_UP + 0.9 * this.uturnPull + (ARRIVAL_UP - CHASE_UP) * side;
+        const tp = this.turnPull;
+        const back = CHASE_BACK * (1 + 0.7 * this.uturnPull + 0.5 * tp) + (ARRIVAL_BACK - CHASE_BACK) * side;
+        const up = CHASE_UP + 0.9 * this.uturnPull + 0.45 * tp + (ARRIVAL_UP - CHASE_UP) * side;
         desired.set(t.position.x - Math.sin(orbit) * back, t.position.y + up, t.position.z - Math.cos(orbit) * back);
-        look.set(ahead.x, ahead.y + 1.0, ahead.z).lerp(_tmp.copy(t.position).setY(t.position.y + 1.1), 0.55 + 0.45 * side);
+        // En virage, le regard se pose un peu plus sur le coureur (moins sur la sortie) : il reste au centre du cadre.
+        look.set(ahead.x, ahead.y + 1.0, ahead.z).lerp(_tmp.copy(t.position).setY(t.position.y + 1.1), Math.min(1, 0.55 + 0.15 * tp + 0.45 * side));
         if (t.uturn && t.subject) look.set(t.subject.x, t.subject.y + 1.0, t.subject.z);
         stiffness = 5;
         // Retard du lissage compensé (16/11/2026) : à vitesse v, une poursuite lissée au taux 5 traîne de v / 5 m derrière

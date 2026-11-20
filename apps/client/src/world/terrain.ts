@@ -250,6 +250,11 @@ export class TerrainManager {
   readonly wetness = uniform(0);
   /** Neige / givre (hiver). */
   readonly frost = uniform(0);
+  /**
+   * Nuit (0 → 1) : le microrelief du sol proche (groundDetail) garde sa teinte mais perd son relief. Éclairées en
+   * rasant par le phare (1 m de haut), ses petites bosses scintillaient sur les bas-côtés ; sous la lune, invisibles.
+   */
+  readonly night = uniform(0);
   /** Montagne : limite d'enneigement de la saison (m), alpage, roche du massif, limite des arbres. */
   private readonly snowLine = uniform(SNOW_LINE_M.summer);
   private readonly alpineMeadow = colorUniform(ALPINE_MEADOW.summer);
@@ -855,7 +860,8 @@ export class TerrainManager {
     const roughness = clamp(rough.sub(this.wetness.mul(0.45)).sub(s0.a.mul(0.6)).sub(ice.mul(0.4)).sub(snow.mul(0.25)), 0.08, 1);
     const roughGd = gd ? clamp(roughness.add(gd.rough), 0.08, 1) : roughness;
     m.roughnessNode = shoulder ? clamp(roughGd.add(shoulder.rough), 0.08, 1) : roughGd;
-    if (gd) m.normalNode = gd.normal;
+    // La nuit, normale du maillage : sous le phare, la normale du microrelief (dérivées écran) scintillait.
+    if (gd) m.normalNode = mix(gd.normal, normalView, this.night).normalize();
     m.metalnessNode = float(0);
     return m;
   }

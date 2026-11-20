@@ -1093,10 +1093,12 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   // Phare avant (la nuit) : projecteur fixé au vélo, sans ombre portée (coût).
   // Faisceau route (headlightBeam.ts) : large et plat, coupure nette en haut, plus fort au loin qu'au pied du vélo
   // (le projecteur nu dessinait un rond devant la roue et éclairait le dos des coureurs et le feuillage).
-  const headlight = new THREE.SpotLight(0xfff1d6, 0, 55, 0.6, 0.25, 1.4);
+  // Cône de ±24° (il était de ±34° : trop large et trop haut), axe sur le sol à 25 m, décroissance douce (0,8) pour
+  // que la lumière porte au loin au lieu de faire une flaque autour de la roue.
+  const headlight = new THREE.SpotLight(0xfff1d6, 0, 55, 0.42, 0.25, 0.8);
   headlight.map = headlightBeamTexture();
   headlight.position.set(0, 1.0, 0.6);
-  headlight.target.position.set(0, 0.2, 20);
+  headlight.target.position.set(0, 0, 25);
   avatar.root.add(headlight, headlight.target);
   // Séance structurée : fichier .zwo/.erg/.mrc ou test FTP (rampe) ; pas d'IA pendant une séance.
   let workout: WorkoutController | null = null;
@@ -2507,7 +2509,10 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     world.update(dt, rig.mode === 'free' ? engine.camera.position : pos);
     // Le monde mesure lui-même ses postes (tuiles, végétation) : pas de total ici, pour ne pas compter deux fois.
     lap(null);
-    headlight.intensity = world.nightFactor() * 120;
+    // 80 (et non plus 120) : avec la décroissance plus douce, la même puissance éblouissait au pied du vélo.
+    headlight.intensity = world.nightFactor() * 80;
+    // Sol proche sans microrelief la nuit : sous le phare, en lumière rasante, il scintillait (terrain.ts).
+    world.terrain.night.value = world.nightFactor();
     if (!render) return;
     engine.exposure.value = world.env.exposure();
     world.env.grade(engine.grade);
@@ -2665,13 +2670,13 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   };
   // Pipelines des objets ajoutés pour la sortie (coureur, groupe, circulation) compilés avant la première image,
   // au lieu de figer la première image du jeu.
+  // Bêta : coureurs V3 (joueur et groupe) chargés et affichés avant cette compilation (v3Crowd.ts, settleV3).
+  if (V3_STYLE) await settleV3([v3, ...peloton.riders.map((r) => r.v3)]);
   performance.mark('ar:départ : objets de la sortie');
   await engine.compileScene(tileStage(startOverlay, 0.85, 1));
   performance.mark('ar:départ : objets compilés');
   // Laisse l'écran d'attente se peindre, puis fait les premières images (lentes) derrière lui : la première
   // compile la passe de scène, les suivantes les ombres (redessinées une image sur deux) et le post-traitement.
-  // Bêta : coureurs V3 (joueur et groupe) chargés et affichés avant cette compilation (v3Crowd.ts, settleV3).
-  if (V3_STYLE) await settleV3([v3, ...peloton.riders.map((r) => r.v3)]);
   await new Promise<void>((r) => setTimeout(r, 50));
   for (let i = 0; i < 4; i++) engine.renderManual();
   performance.mark('ar:premières images');

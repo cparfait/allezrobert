@@ -15,17 +15,22 @@ export function headlightBeamTexture(size = 128): THREE.CanvasTexture {
     const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
     return t * t * (3 - 2 * t);
   };
-  /** Ligne de coupure (fraction de hauteur du motif, depuis le bas). */
-  const cutoff = 0.56;
+  /**
+   * Ligne de coupure (fraction de hauteur du motif, depuis le bas) : sur l'axe du projecteur, qui vise le sol à
+   * ≈ 25 m. Plus haut (0,56), le faisceau montait au-dessus de l'horizon et éclairait les dos et le feuillage.
+   */
+  const cutoff = 0.5;
   for (let y = 0; y < size; y++) {
     // Rangée 0 du canevas = haut du motif.
     const v = 1 - (y + 0.5) / size;
     for (let x = 0; x < size; x++) {
       const u = (x + 0.5) / size;
-      const side = 1 - smooth(0.3, 0.5, Math.abs(u - 0.5));
-      const top = 1 - smooth(cutoff - 0.03, cutoff + 0.01, v);
-      // Plus fort vers la coupure (le loin), discret au pied du vélo.
-      const ramp = 0.22 + 0.78 * smooth(0.12, cutoff - 0.02, v);
+      // Cœur étroit (≈ la chaussée à 10 m), bords vite éteints : il éclairait toute la largeur et les bas-côtés.
+      const side = 1 - smooth(0.16, 0.42, Math.abs(u - 0.5));
+      const top = 1 - smooth(cutoff - 0.03, cutoff + 0.005, v);
+      // Plus fort vers la coupure (le loin), très discret au pied du vélo : sans cela, la décroissance avec la
+      // distance et l'incidence rasante faisaient une flaque blanche autour de la roue et rien au-delà de 8 m.
+      const ramp = 0.05 + 0.95 * smooth(0.08, cutoff - 0.04, v);
       const k = Math.round(255 * side * top * ramp);
       const i = (y * size + x) * 4;
       img.data[i] = img.data[i + 1] = img.data[i + 2] = k;
