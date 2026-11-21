@@ -2,7 +2,10 @@
  * Carte de l'île vue du ciel (PNG), relue depuis les fichiers du monde : relief ombré, mer, bois, champs,
  * routes par catégorie, bâtiments, et en option un itinéraire en surimpression.
  *
- *   npx tsx tools/island/src/map.ts [--route <id>] [--out docs/screenshots/ile-carte.png] [--px 20]
+ *   npx tsx tools/island/src/map.ts [--route <id>] [--out docs/screenshots/ile-carte.png] [--px 20] [--style flat]
+ *
+ * `--style flat` : carte d'affiche pour le menu (vignette de la zone) : aplats sans relief ombré, mer sombre
+ * accordée à l'interface, bois et lacs en aplats, seules les grandes routes tracées en clair.
  */
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
@@ -19,6 +22,7 @@ const DIR = resolve(import.meta.dirname, '../../../apps/client/public/worlds/ile
 const PX = Number(opt('px', '20'));
 const OUTF = resolve(opt('out', 'docs/screenshots/ile-carte.png'));
 const ROUTE = opt('route', '');
+const FLAT = opt('style', '') === 'flat';
 
 const meta = JSON.parse(readFileSync(join(DIR, 'world.json'), 'utf8')) as WorldMeta;
 // --center x,z --span m : zoom sur une zone (sinon toute l'île).
@@ -60,6 +64,17 @@ for (let Z = 0; Z < H; Z++)
   for (let X = 0; X < W; X++) {
     const h = elev[Z * W + X]!;
     let col: number[];
+    if (FLAT) {
+      // Aplats : mer nuit, haut-fond un ton plus clair, liseré de sable, puis trois tons de terre et les sommets.
+      if (!(h > 0.05)) col = h > -6 ? [34, 64, 96] : h > -18 ? [24, 46, 74] : [16, 30, 50];
+      else if (h < 4) col = [236, 219, 172];
+      else if (h < 90) col = [126, 178, 108];
+      else if (h < 220) col = [150, 186, 116];
+      else if (h < 400) col = [184, 178, 138];
+      else col = [226, 224, 214];
+      img.set(col, (Z * W + X) * 3);
+      continue;
+    }
     if (!(h > 0.05)) col = mix([150, 200, 225], [40, 90, 150], Math.min(1, Math.max(0, -h / 25)));
     else if (h < 3) col = [228, 214, 170];
     else if (h < 120) col = mix([170, 205, 130], [200, 200, 140], h / 120);
@@ -118,6 +133,14 @@ const FIELD: Record<string, number[]> = { farmland: [222, 196, 110], meadow: [15
 const LAND: Record<string, number[]> = { retail: [200, 190, 180], pitch: [90, 170, 90], cemetery: [140, 160, 130], farmyard: [190, 170, 140], golf: [110, 200, 110], park: [120, 190, 110] };
 const ROAD: Record<string, [number[], number]> = { secondary: [[200, 60, 40], 2], tertiary: [[240, 170, 40], 2], residential: [[90, 90, 90], 1], unclassified: [[255, 255, 255], 1], cycleway: [[30, 140, 60], 1], track: [[140, 90, 40], 1] };
 const tiles: WorldTile[] = meta.tiles.filter(inView).map((t) => JSON.parse(readFileSync(join(DIR, 'tiles', `${t.id}.json`), 'utf8')) as WorldTile);
+if (FLAT) {
+  for (const t of tiles) for (const f of t.forests) fill(f.rings, f.kind === 'conifer' ? [52, 110, 78] : [72, 138, 84], 1);
+  for (const t of tiles) for (const w of t.water) fill(w.rings, [64, 132, 196], 1);
+  // Grandes routes seulement : liseré sombre puis trait crème ; les rues et chemins brouilleraient la vignette.
+  const major = (kind: string) => kind === 'secondary' || kind === 'tertiary';
+  for (const t of tiles) for (const r of t.roads) if (major(r.kind)) line(r.pts, 3, [40, 60, 52], 3);
+  for (const t of tiles) for (const r of t.roads) if (major(r.kind)) line(r.pts, 3, [255, 244, 214], 2);
+} else {
 for (const t of tiles) for (const f of t.fields) fill(f.rings, FIELD[f.kind] ?? [180, 180, 120], 0.45);
 for (const t of tiles) for (const f of t.forests) fill(f.rings, f.kind === 'conifer' ? [40, 90, 60] : [60, 120, 55], 0.75);
 for (const t of tiles) for (const f of t.landuse) fill(f.rings, LAND[f.kind] ?? [200, 200, 200], 0.6);
@@ -127,6 +150,7 @@ for (const t of tiles) for (const r of t.roads) if (r.kind === 'track' && r.surf
 for (const kind of ['track', 'cycleway', 'unclassified', 'residential', 'tertiary', 'secondary'])
   for (const t of tiles) for (const r of t.roads) if (r.kind === kind && !(kind === 'track' && r.surface !== 'gravel')) line(r.pts, 3, ROAD[kind]![0], ROAD[kind]![1], r.width);
 for (const t of tiles) for (const bd of t.buildings) put(bd.pts[0]!, bd.pts[1]!, [110, 60, 60]);
+}
 if (ROUTE && existsSync(join(DIR, 'routes', `${ROUTE}.json`))) {
   const r = JSON.parse(readFileSync(join(DIR, 'routes', `${ROUTE}.json`), 'utf8')) as RouteData;
   line(r.points.flatMap((p) => [p.x, p.z]), 2, [20, 60, 230], 2);

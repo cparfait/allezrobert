@@ -931,7 +931,7 @@ async function main(): Promise<void> {
   else {
     publishIsland(OUT);
     execFileSync('npx', ['tsx', join(import.meta.dirname, 'map.ts'), '--px', '25', '--out', join(OUT, 'carte.png')], { stdio: 'inherit', shell: true });
-    execFileSync('npx', ['tsx', join(import.meta.dirname, 'map.ts'), '--px', '80', '--out', join(OUT, 'vignette.png')], { stdio: 'inherit', shell: true });
+    execFileSync('npx', ['tsx', join(import.meta.dirname, 'map.ts'), '--px', '40', '--style', 'flat', '--out', join(OUT, 'vignette.png')], { stdio: 'inherit', shell: true });
   }
 }
 
