@@ -1742,7 +1742,7 @@ export class MainMenu {
           return `<div class="mm-routepick rpk ${on ? 'on' : ''}" role="button" tabindex="0" data-routepick="${esc(x.id)}" aria-pressed="${on}">
             ${this.routeCard(x)}
             <span class="mm-routetag">${tag}</span>
-            <span class="rpk-foot"><span class="ab-state${on ? ' is-ok' : ''}"><i></i>${on ? (L ? 'Choisi' : 'Selected') : L ? 'Clique pour choisir' : 'Click to select'}</span><button type="button" class="ab-btn ab-chip rpk-open" data-route="${esc(x.id)}">${L ? 'Fiche' : 'Details'}</button></span></div>`;
+            <span class="rpk-foot">${on ? `<span class="ab-state is-ok"><i></i>${L ? 'Parcours choisi' : 'Selected route'}</span>` : '<span></span>'}<button type="button" class="ab-btn ab-chip rpk-open" data-route="${esc(x.id)}">${L ? 'Fiche' : 'Details'}</button></span></div>`;
         })
         .join('')}${ghosts}</div>${
         this.routesFailed && !this.routeStore.complete
