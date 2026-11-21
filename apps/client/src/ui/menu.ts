@@ -118,6 +118,15 @@ function roadFeelMessage(percent: number, L: boolean): string {
 /** Pictogrammes (traits, couleur héritée). */
 const svg = (d: string, size = 22) =>
   `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
+/**
+ * Dessins des trois choix d'une zone : un tracé prêt (départ, lacets, drapeau d'arrivée), un panneau à deux
+ * directions pour le parcours libre, un crayon pour le parcours à dessiner.
+ */
+const ZONE_ICONS = {
+  routes: svg('<circle cx="5.5" cy="18.5" r="2"/><path d="M7.5 18.5H13a3 3 0 0 0 0-6h-2.5a3 3 0 0 1 0-6H15"/><path d="M17 3.5v6"/><path d="M17 4l4 1.5L17 7"/>'),
+  free: svg('<path d="M12 3v18"/><path d="M12 5h6l2.2 2.2L18 9.5h-6z"/><path d="M12 12H6l-2.2 2.2L6 16.5h6z"/>'),
+  draw: svg('<path d="M14.5 4.5l5 5L9 20H4v-5z"/><path d="M12.5 6.5l5 5"/><path d="M14 20h1.5M18 20h1.5"/>'),
+};
 /** Couleur et accroche de chaque mode (cartes « Que veux-tu faire ? »). */
 const MODE_COLORS: Partial<Record<Settings['mode'], string>> = {
   free: '#ffd23f',
@@ -2046,9 +2055,9 @@ export class MainMenu {
       : '';
     const kom = this.s.mode === 'challenge';
     const choices = `<div class="zc-choices">
-          ${n ? card('routes', ICON.free, L ? 'Parcours' : 'Routes', L ? `${n} parcours déjà tracé${n > 1 ? 's' : ''} dans la zone.` : `${n} ready-made route${n > 1 ? 's' : ''} in the area.`) : ''}
-          ${card('free', ICON.open, L ? 'Parcours libre' : 'Free ride', L ? 'Tu choisis ta route à chaque carrefour.' : 'You pick your road at each junction.')}
-          ${card('draw', svg('<path d="M4 19c3-.5 3.5-6 7-6s3 5.5 6 5"/><circle cx="4" cy="19" r="1.6"/><circle cx="17" cy="18" r="1.6"/><path d="m15.5 3.5 3 3L12 13H9v-3z"/>'), L ? 'Parcours à dessiner' : 'Draw a route', L ? 'Départ, points de passage et arrivée sur la carte.' : 'Start, waypoints and finish on the map.')}
+          ${n ? card('routes', ZONE_ICONS.routes, L ? 'Parcours' : 'Routes', L ? `${n} parcours déjà tracé${n > 1 ? 's' : ''} dans la zone.` : `${n} ready-made route${n > 1 ? 's' : ''} in the area.`) : ''}
+          ${card('free', ZONE_ICONS.free, L ? 'Parcours libre' : 'Free ride', L ? 'Tu choisis ta route à chaque carrefour.' : 'You pick your road at each junction.')}
+          ${card('draw', ZONE_ICONS.draw, L ? 'Parcours à dessiner' : 'Draw a route', L ? 'Départ, points de passage et arrivée sur la carte.' : 'Start, waypoints and finish on the map.')}
         </div>`;
     // Défi KOM : les côtes de la zone tout de suite (en choisir une prend son parcours)
     const koms = kom ? `<h3 class="ab-section">${L ? 'Choisis la côte à battre' : 'Pick the climb to beat'}</h3>${this.challengeHtml(this.routes.find((x) => x.id === this.s.routeId))}` : '';
