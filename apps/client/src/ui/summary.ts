@@ -105,6 +105,19 @@ export function showRideSummary(root: HTMLElement, d: SummaryData, a: SummaryAct
     [L ? 'Cardio moy.' : 'Avg HR', s.avgHr ? `${Math.round(s.avgHr)} bpm` : '— bpm', [s.maxHr ? `max ${Math.round(s.maxHr)}` : '', s.avgCadence ? `${Math.round(s.avgCadence)} tr/min` : ''].filter(Boolean).join(' · ')],
     [L ? 'Énergie' : 'Energy', `${Math.round(s.kcal)} kcal`, `${Math.round(s.workKJ)} kJ`],
   ];
+  // Bilan lisible d'un coup d'œil : quatre grands chiffres, le reste sur une ligne.
+  const heroTiles: Array<[string, string, string?]> = [course[0], course[1], effort[0], course[3]] as Array<[string, string, string?]>;
+  const minor: Array<[string, string]> = [
+    [L ? 'Dénivelé' : 'Climbing', `${Math.round(s.elevationGainM)} m`],
+    [L ? 'Normalisée' : 'Normalized', `${Math.round(s.np)} W`],
+    ['TSS', `${Math.round(s.tss)}`],
+    ['IF', num(s.ifactor, 2)],
+    ...(s.avgHr ? ([[L ? 'Cardio' : 'Heart rate', `${Math.round(s.avgHr)} bpm${s.maxHr ? ` (max ${Math.round(s.maxHr)})` : ''}`]] as Array<[string, string]>) : []),
+    ...(s.avgCadence ? ([['Cadence', `${Math.round(s.avgCadence)} tr/min`]] as Array<[string, string]>) : []),
+    [L ? 'Énergie' : 'Energy', `${Math.round(s.kcal)} kcal`],
+    ...(vs !== null ? ([[vsTile[0], vsTile[1]]] as Array<[string, string]>) : []),
+  ];
+  const minorHtml = `<div class="sum-minor">${minor.map(([k, v]) => `<span>${k} <b>${v}</b></span>`).join('')}</div>`;
   const tilesHtml = (list: Array<[string, string, string?]>, colors: string[]) =>
     list.map(([k, v, sub], i) => `<div class="sum-tile" style="--tc:${colors[i] ?? C_RIDE}"><span>${k}</span><b>${v}</b>${sub ? `<small>${esc(sub)}</small>` : ''}</div>`).join('');
   // Pastilles du résumé : ce qui compte en un coup d'œil.
@@ -122,7 +135,7 @@ export function showRideSummary(root: HTMLElement, d: SummaryData, a: SummaryAct
   root.innerHTML = `<div class="sum">
     <header class="sum-head">
       <div class="sum-hero"><span class="sum-robert" aria-hidden="true"></span>
-        <div><h1>${fv ? fv.title : L ? 'Bravo, <em>belle sortie</em> !' : 'Well done, <em>great ride</em>!'}</h1><p>${fv ? esc(fv.subtitle) : `${esc(d.routeName)} · ${num(s.distanceM / 1000, 1)} km · ${hms(s.movingS)} · ${num(s.avgSpeedKmh, 1)} km/h`}</p>
+        <div><h1>${fv ? fv.title : L ? 'Bravo, <em>belle sortie</em> !' : 'Well done, <em>great ride</em>!'}</h1><p>${fv ? esc(fv.subtitle) : esc(d.routeName)}</p>
           ${chips.length ? `<div class="sum-chips">${chips.join('')}</div>` : ''}</div></div>
       <nav class="sum-actions">
         ${a.onResume ? `<button class="sum-btn" id="s-resume">${L ? 'Reprendre' : 'Resume'}</button>` : ''}
@@ -167,7 +180,7 @@ export function showRideSummary(root: HTMLElement, d: SummaryData, a: SummaryAct
             : ''
         }
         ${
-          d.withGroup
+          d.withGroup && (g.draftS > 0 || g.pulls > 0 || g.savedJ > 0)
             ? `<section class="sum-card"><h3>${L ? 'En groupe' : 'In the group'}</h3>
               <div class="sum-row"><span>${L ? 'Dans les roues' : 'On a wheel'}</span><b>${hms(g.draftS)}</b></div>
               <div class="sum-row"><span>${L ? 'Énergie économisée' : 'Energy saved'}</span><b>${Math.round(g.savedJ / 1000)} kJ</b></div>
@@ -220,27 +233,25 @@ export function showRideSummary(root: HTMLElement, d: SummaryData, a: SummaryAct
             <div class="sum-canvas tall"><canvas id="c-time"></canvas><div class="sum-tip" hidden></div></div></section>
         </div>`
           : `
-        <h3 class="sum-cap">${L ? 'Le parcours' : 'The ride'}</h3>
-        <div class="sum-tiles">${tilesHtml(course, TILE_COLORS.slice(0, 5))}</div>
-        <h3 class="sum-cap">${L ? 'L’effort' : 'The effort'}</h3>
-        <div class="sum-tiles">${tilesHtml(effort, TILE_COLORS.slice(5))}</div>
+        <div class="sum-tiles sum-heroes">${tilesHtml(heroTiles, [TILE_COLORS[0], TILE_COLORS[1], TILE_COLORS[5], TILE_COLORS[3]] as string[])}</div>
+        ${minorHtml}
         <div class="sum-charts">
           <section class="sum-card sum-chart"><h3>${L ? 'Courbe de puissance' : 'Power curve'}</h3>
             <div class="sum-legend"><span><i style="background:${C_RIDE}"></i>${L ? 'Cette sortie' : 'This ride'}</span><span><i class="dash" style="border-color:${C_RECORD}"></i>${L ? 'Tes records (avant)' : 'Your records (before)'}</span></div>
             <div class="sum-canvas"><canvas id="c-curve"></canvas><div class="sum-tip" hidden></div></div></section>
           <section class="sum-card sum-chart"><h3>${L ? 'Profil · puissance · cardio' : 'Profile · power · heart rate'}</h3>
             <div class="sum-canvas tall"><canvas id="c-time"></canvas><div class="sum-tip" hidden></div></div></section>
-          <section class="sum-card sum-chart"><h3>${L ? 'Temps par zone' : 'Time in zone'}</h3><div class="sum-zones" id="c-zones"></div></section>
-          <section class="sum-card sum-chart"><h3>${L ? 'Segments et records' : 'Segments and records'}</h3>${
+          <section class="sum-card sum-chart${segs.length ? '' : ' sum-wide'}"><h3>${L ? 'Temps par zone' : 'Time in zone'}</h3><div class="sum-zones" id="c-zones"></div></section>
+          ${
             segs.length
-              ? segs
+              ? `<section class="sum-card sum-chart"><h3>${L ? 'Segments et records' : 'Segments and records'}</h3>${segs
                   .map(
                     (r) =>
                       `<div class="sum-row"><span>${r.seg.kind === 'kom' ? 'KOM' : 'Sprint'} · ${esc(r.seg.name)}</span><b>${hms(r.timeS)}</b><em>${Math.round(r.avgWatts)} W</em></div>`,
                   )
-                  .join('')
-              : `<p class="sum-muted">${L ? 'Pas de segment chronométré sur cette sortie.' : 'No timed segment on this ride.'}</p>`
-          }</section>
+                  .join('')}</section>`
+              : ''
+          }
         </div>`
       }
       </main>
@@ -579,14 +590,16 @@ function drawTimeline(ctx: CanvasRenderingContext2D, w: number, h: number, hx: n
 /** Barres horizontales Z1–Z7 (couleurs des zones du HUD), temps et part de la sortie. */
 function drawZones(box: HTMLElement, zonesS: number[], ftp: number): void {
   const total = zonesS.reduce((a, b) => a + b, 0) || 1;
-  const max = Math.max(...zonesS, 1);
   const bounds = [0, ...POWER_ZONES.map((z) => Math.round(z * ftp))];
-  box.innerHTML = zonesS
-    .map((sec, i) => {
-      const lo = bounds[i] as number;
-      const hi = bounds[i + 1];
-      const range = hi === undefined ? `> ${lo} W` : `${lo}–${hi} W`;
-      return `<div class="sum-zone" title="${range}"><span>Z${i + 1}</span><div class="sum-zbar"><i style="width:${((sec / max) * 100).toFixed(1)}%;background:${ZONE_HEX[i]}"></i></div><b>${hms(sec)}</b><em>${Math.round((sec / total) * 100)} %</em></div>`;
-    })
-    .join('');
+  const range = (i: number): string => {
+    const lo = bounds[i] as number;
+    const hi = bounds[i + 1];
+    return hi === undefined ? `> ${lo} W` : `${lo}–${hi} W`;
+  };
+  const used = zonesS.map((sec, i) => ({ sec, i })).filter((z) => z.sec > 0);
+  // Une seule barre, découpée selon le temps passé ; la légende ne cite que les zones réellement tenues.
+  box.innerHTML = `<div class="sum-zstack">${used.map((z) => `<i title="Z${z.i + 1} · ${range(z.i)}" style="flex:${z.sec};background:${ZONE_HEX[z.i]}"></i>`).join('')}</div>
+    <div class="sum-zlegend">${used
+      .map((z) => `<span title="${range(z.i)}"><i style="background:${ZONE_HEX[z.i]}"></i>Z${z.i + 1} <b>${hms(z.sec)}</b> <em>${Math.round((z.sec / total) * 100)} %</em></span>`)
+      .join('')}</div>`;
 }

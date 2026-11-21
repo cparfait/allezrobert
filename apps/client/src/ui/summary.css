@@ -90,3 +90,35 @@
 .sum-chip.up { background: rgba(34, 197, 94, 0.22); color: #86efac; }
 .sum-chip.down { background: rgba(239, 68, 68, 0.2); color: #fca5a5; }
 .sum-cap { margin: 2px 0 -4px; font-size: 11.5px; letter-spacing: 0.1em; text-transform: uppercase; color: #b9c4d3; font-weight: 700; }
+
+/* Lisibilité : contenu centré, quatre grands chiffres, chiffres secondaires sur une ligne, graphiques hauts,
+   blocs annexes (niveau, ressenti, partage…) en bandeau sous les graphiques. */
+.sum > * { width: 100%; max-width: 1480px; margin-left: auto; margin-right: auto; }
+.sum-head h1 { font-size: 28px; }
+.sum-head p { font-size: 15px; }
+.sum-body { grid-template-columns: 1fr; }
+.sum-main { order: 1; gap: 12px; }
+.sum-side { order: 2; display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); align-items: start; }
+.sum-heroes { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.sum-heroes .sum-tile { padding: 14px 18px; gap: 4px; border-radius: 16px; }
+.sum-heroes .sum-tile span { font-size: 13px; letter-spacing: 0.04em; text-transform: none; font-weight: 600; }
+.sum-heroes .sum-tile b { font-size: clamp(30px, 3.4vw, 46px); line-height: 1.05; }
+.sum-heroes .sum-tile small { font-size: 14px; }
+.sum-minor { display: flex; flex-wrap: wrap; gap: 6px 26px; padding: 0 4px; font-size: 15px; color: #b9c4d3; }
+.sum-minor b { color: #fff; font-weight: 700; font-variant-numeric: tabular-nums; }
+.sum-card h3 { font-size: 13px; letter-spacing: 0.04em; text-transform: none; color: #dbe3ed; }
+.sum-card { padding: 14px 16px; }
+.sum-canvas { height: clamp(190px, 30vh, 330px); }
+.sum-canvas.tall { height: clamp(190px, 30vh, 330px); }
+.sum-wide { grid-column: 1 / -1; }
+.sum-row, .sum-level p, .sum-muted, .sum-level p span { font-size: 14px; }
+.sum-legend { font-size: 13px; }
+.sum-zstack { display: flex; height: 18px; border-radius: 9px; overflow: hidden; background: rgba(255, 255, 255, 0.06); gap: 2px; }
+.sum-zstack i { display: block; min-width: 3px; }
+.sum-zlegend { display: flex; flex-wrap: wrap; gap: 6px 22px; margin-top: 10px; font-size: 14px; color: #c7cfd9; }
+.sum-zlegend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; }
+.sum-zlegend b { color: #fff; font-variant-numeric: tabular-nums; }
+.sum-zlegend em { font-style: normal; color: #9aa6b5; }
+@media (max-width: 1100px) {
+  .sum-heroes { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
