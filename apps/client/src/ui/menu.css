@@ -1114,7 +1114,9 @@
 .mm-picker.pk header h2.ab-title, .mm-picker header h2.ab-title { font-size: clamp(22px, 2.4vw, 32px); }
 .mm-picker.pk .ab-sub { margin-top: 2px; font-size: 14.5px; }
 /* Zones : carte à gauche, liste à droite ; la liste passe sous la carte en étroit. */
-.mm-picker.fm-dialog.pk { width: min(1320px, 96vw) !important; }
+/* Largeur d'origine : la carte de France est presque carrée, une fenêtre plus large laissait des bandes vides. */
+.mm-picker.fm-dialog.pk:has(.zp-layout) { width: min(1040px, 96vw) !important; }
+.mm-picker.fm-dialog.pk:not(:has(.zp-layout)) { width: min(1320px, 96vw) !important; }
 .zp-layout { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(300px, 1fr); gap: 16px; min-height: 0; align-items: start; }
 .zp-map { min-width: 0; }
 .zp-side { display: flex; flex-direction: column; gap: 10px; min-width: 0; max-height: min(66vh, 720px); }
