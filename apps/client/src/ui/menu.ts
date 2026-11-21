@@ -1990,14 +1990,9 @@ export class MainMenu {
       .join('');
     return `<div class="mm-modal mm-picker-modal" data-picker-close>
       <div class="mm-dialog mm-picker fm-dialog pk" role="dialog" aria-modal="true">
-        <header><div class="pk-head"><h2 class="ab-title">${L ? 'Où veux-tu rouler ?' : 'Where do you want to ride?'}</h2><p class="ab-sub mm-hint">${this.loadingZone ? `${L ? 'Chargement de' : 'Loading'} ${esc(this.loadingZone)}…` : L ? 'Choisis une zone dans la liste ou sur la carte.' : 'Pick an area in the list or on the map.'}</p></div><button class="mm-x" data-picker-close aria-label="${L ? 'Fermer' : 'Close'}">×</button></header>
+        <header><div class="pk-head"><h2 class="ab-title">${L ? 'Où veux-tu rouler ?' : 'Where do you want to ride?'}</h2><p class="ab-sub mm-hint">${this.loadingZone ? `${L ? 'Chargement de' : 'Loading'} ${esc(this.loadingZone)}…` : L ? 'Choisis une zone sur la carte, ou cherche une ville pour voir la zone qui la couvre.' : 'Pick an area on the map, or search a town to see which area covers it.'}</p></div><button class="mm-x" data-picker-close aria-label="${L ? 'Fermer' : 'Close'}">×</button></header>
         <div class="zp-layout">
           <div class="zp-map">${this.franceMap.html(this.mapZones())}</div>
-          <aside class="zp-side">
-            <input class="kom-search zp-q" id="m-zonepick-q" type="search" autocomplete="off" value="${esc(this.zonePickQuery)}" placeholder="${L ? 'Chercher une zone…' : 'Search an area…'}" aria-label="${L ? 'Chercher une zone' : 'Search an area'}" />
-            <div class="zp-list">${blocks}</div>
-            <p class="mm-hint zp-none" hidden>${L ? 'Aucune zone à ce nom.' : 'No area with that name.'}</p>
-          </aside>
         </div>
       </div></div>`;
   }

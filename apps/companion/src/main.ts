@@ -332,7 +332,7 @@ function render(): void {
   if (!S.pair) {
     app.innerHTML = `<main class="scan">
       <div class="scan-box">
-        <div class="logo" aria-hidden="true">🚴</div>
+        ${robertWait()}
         <h1 class="ab-title">${esc(t.scanTitle)}</h1>
         <p class="ab-sub">${esc(t.scanText)}</p>
         <form data-form="pair"><input name="link" placeholder="${esc(t.scanPaste)}" autocomplete="off"/><button class="btn go">${esc(t.scanGo)}</button></form>

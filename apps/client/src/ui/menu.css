@@ -1189,7 +1189,7 @@ p.kom-empty { margin: 0; padding: 28px 14px; text-align: center; color: #aeb7c3;
 
 /* Choix de la zone : la carte reste le choix principal ; la liste à droite est faite de lignes fines (nom, région,
    état à droite), pas de gros blocs répétés une soixantaine de fois. */
-.zp-layout { grid-template-columns: minmax(0, 1.7fr) minmax(270px, 0.8fr); gap: 20px; }
+.zp-layout { grid-template-columns: minmax(0, 1fr); }
 .zp-list { gap: 4px; }
 .zp-tile.ab-tile { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: 'name state' 'detail state'; align-items: center; gap: 0 12px; padding: 8px 12px; border-radius: 12px; border-width: 1px; background: rgba(255, 255, 255, 0.04); text-align: left; }
 .zp-tile.ab-tile:hover:not(:disabled) { transform: none; background: rgba(255, 255, 255, 0.09); }
