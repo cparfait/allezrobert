@@ -11,6 +11,7 @@ import { loadSeries, totals, weeklyZones, type LocalRide } from '../data/history
 import { getLang } from '../i18n/index.ts';
 import { apiBase } from './account.ts';
 import { showPastRide } from './summary.ts';
+import './blocks.css';
 import './historyPanel.css';
 
 const fr = () => getLang() === 'fr';
@@ -122,11 +123,11 @@ export class HistoryPanel {
               : L ? 'Synchronisé avec ton compte.' : 'Synced with your account.';
 
     const tile = (label: string, t: ReturnType<typeof totals>) =>
-      `<div class="hp-tile"><span>${label}</span><b>${t.rides} ${L ? (t.rides > 1 ? 'sorties' : 'sortie') : t.rides === 1 ? 'ride' : 'rides'}</b><small>${nf(t.distanceM / 1000)} km · ${hm(t.movingS)} · TSS ${Math.round(t.tss)}</small></div>`;
+      `<div class="ab-tile ab-plain hp-big"><span class="hp-big-l">${label}</span><div class="ab-val"><b>${nf(t.distanceM / 1000)}</b><small>km</small></div><span class="ab-detail">${t.rides} ${L ? (t.rides > 1 ? 'sorties' : 'sortie') : t.rides === 1 ? 'ride' : 'rides'} · ${hm(t.movingS)} · TSS ${Math.round(t.tss)}</span></div>`;
     const form = today
-      ? `<div class="hp-tile"><span>${L ? 'Forme' : 'Fitness'} <i class="hp-dot" style="background:${C_CTL}"></i></span><b>${Math.round(today.ctl)}</b><small>${L ? 'charge sur 42 jours' : '42-day load'}</small></div>
-         <div class="hp-tile"><span>${L ? 'Fatigue' : 'Fatigue'} <i class="hp-dot" style="background:${C_ATL}"></i></span><b>${Math.round(today.atl)}</b><small>${L ? 'charge sur 7 jours' : '7-day load'}</small></div>
-         <div class="hp-tile"><span>${L ? 'Fraîcheur' : 'Form'}</span><b>${today.tsb > 0 ? '+' : ''}${Math.round(today.tsb)}</b><small>${today.tsb > 5 ? (L ? 'reposé' : 'fresh') : today.tsb >= -10 ? (L ? 'normal' : 'neutral') : today.tsb >= -25 ? (L ? 'fatigué' : 'tired') : L ? 'très fatigué' : 'very tired'}</small></div>`
+      ? `<div class="ab-tile ab-plain hp-big"><span class="hp-big-l">${L ? 'Forme' : 'Fitness'} <i class="hp-dot" style="background:${C_CTL}"></i></span><div class="ab-val"><b>${Math.round(today.ctl)}</b></div><span class="ab-detail">${L ? 'Charge sur 42 jours' : '42-day load'}</span></div>
+         <div class="ab-tile ab-plain hp-big"><span class="hp-big-l">${L ? 'Fatigue' : 'Fatigue'} <i class="hp-dot" style="background:${C_ATL}"></i></span><div class="ab-val"><b>${Math.round(today.atl)}</b></div><span class="ab-detail">${L ? 'Charge sur 7 jours' : '7-day load'}</span></div>
+         <div class="ab-tile ab-plain hp-big"><span class="hp-big-l">${L ? 'Fraîcheur' : 'Form'}</span><div class="ab-val"><b>${today.tsb > 0 ? '+' : ''}${Math.round(today.tsb)}</b></div><span class="ab-detail">${today.tsb > 5 ? (L ? 'Reposé' : 'Fresh') : today.tsb >= -10 ? (L ? 'Normal' : 'Neutral') : today.tsb >= -25 ? (L ? 'Fatigué' : 'Tired') : L ? 'Très fatigué' : 'Very tired'}</span></div>`
       : '';
 
     const recMap = new Map(records.map(([d, w]) => [d, w]));
@@ -144,20 +145,16 @@ export class HistoryPanel {
     const rows = page
       .map((r) => {
         const wk = workoutLabel(r);
-        return `<tr data-ride="${esc(r.clientId)}" class="${this.selected.has(r.clientId) ? 'sel' : ''}">
-          <td><input type="checkbox" class="hp-check" data-sel="${esc(r.clientId)}" ${this.selected.has(r.clientId) ? 'checked' : ''} aria-label="${L ? 'Sélectionner' : 'Select'}"/></td>
-          <td>${esc(df.format(r.startedAt))}</td>
-          <td><b>${esc(r.name)}</b>${wk ? `<small>${esc(wk)}</small>` : ''}</td>
-          <td class="hp-types"><span class="hp-kind hp-kind-${r.kind}">${KIND_LABEL[r.kind]?.[L ? 0 : 1] ?? r.kind}</span>${isType(r.trainingType) ? `<span class="hp-tt" title="${r.workoutId ? (L ? 'Type de la séance' : 'Workout type') : L ? 'Estimé d’après le temps passé dans chaque zone' : 'Estimated from time in each zone'}"><i style="background:${TYPE_DOT[r.trainingType]}"></i>${WORKOUT_TYPE_LABELS[r.trainingType][L ? 'fr' : 'en']}</span>` : ''}</td>
-          <td class="num">${nf(r.distanceM / 1000, 1)} km</td>
-          <td class="num">${hm(r.movingS)}</td>
-          <td class="num">${Math.round(r.elevationM)} m</td>
-          <td class="num">${r.np ? `${Math.round(r.np)} W` : '—'}</td>
-          <td class="num">${r.tss !== null ? Math.round(r.tss) : '—'}</td>
-          <td class="num">${r.intensity !== null ? nf(r.intensity, 2) : '—'}</td>
-          <td class="muted">${r.feedback ? FEEL[r.feedback][L ? 0 : 1] : ''}</td>
-          <td><button class="hp-del" data-del="${esc(r.clientId)}" title="${L ? 'Supprimer cette sortie' : 'Delete this ride'}">${L ? 'Supprimer' : 'Delete'}</button></td>
-        </tr>`;
+        const power = r.avgWatts ?? r.np;
+        const extra = [`${Math.round(r.elevationM)} m D+`, r.tss !== null ? `TSS ${Math.round(r.tss)}` : '', r.intensity !== null ? `IF ${nf(r.intensity, 2)}` : '', r.feedback ? FEEL[r.feedback][L ? 0 : 1] : ''].filter(Boolean).join(' · ');
+        return `<div data-ride="${esc(r.clientId)}" class="hp-ride${this.selected.has(r.clientId) ? ' sel' : ''}" role="button" tabindex="0">
+          <input type="checkbox" class="hp-check" data-sel="${esc(r.clientId)}" ${this.selected.has(r.clientId) ? 'checked' : ''} aria-label="${L ? 'Sélectionner' : 'Select'}"/>
+          <div class="hp-ride-main"><b>${esc(r.name)}</b>
+            <span>${esc(df.format(r.startedAt))} · <span class="hp-kind hp-kind-${r.kind}">${KIND_LABEL[r.kind]?.[L ? 0 : 1] ?? r.kind}</span>${isType(r.trainingType) ? `<span class="hp-tt" title="${r.workoutId ? (L ? 'Type de la séance' : 'Workout type') : L ? 'Estimé d’après le temps passé dans chaque zone' : 'Estimated from time in each zone'}"><i style="background:${TYPE_DOT[r.trainingType]}"></i>${WORKOUT_TYPE_LABELS[r.trainingType][L ? 'fr' : 'en']}</span>` : ''}${wk ? ` · ${esc(wk)}` : ''}</span>
+            <small>${esc(extra)}</small></div>
+          <div class="hp-ride-vals"><span><b>${nf(r.distanceM / 1000, 1)}</b> km</span><span><b>${hm(r.movingS)}</b></span><span><b>${power ? Math.round(power) : '—'}</b> W</span></div>
+          <button class="hp-del" data-del="${esc(r.clientId)}" title="${L ? 'Supprimer cette sortie' : 'Delete this ride'}">${L ? 'Supprimer' : 'Delete'}</button>
+        </div>`;
       })
       .join('');
     const pages = Math.max(1, Math.ceil(count / PAGE));
@@ -175,15 +172,16 @@ export class HistoryPanel {
         <div class="hp-filters"><div class="hp-chips" role="group" aria-label="${L ? 'Nature de la sortie' : 'Ride kind'}">${kinds.map((k) => `<button class="hp-chip${k === this.kind ? ' on' : ''}" data-kind="${k}">${k ? KIND_LABEL[k][L ? 0 : 1] : L ? 'Toutes' : 'All'}</button>`).join('')}</div>
         <div class="hp-chips" role="group" aria-label="${L ? 'Type d’entraînement' : 'Training type'}">${(['', ...WORKOUT_TYPES] as Array<WorkoutType | ''>).map((t) => `<button class="hp-chip${t === this.ttype ? ' on' : ''}" data-ttype="${t}">${t ? `<i class="hp-chip-dot" style="background:${TYPE_DOT[t]}"></i>${WORKOUT_TYPE_LABELS[t][L ? 'fr' : 'en']}` : L ? 'Tous les types' : 'All types'}</button>`).join('')}</div></div>
         <div class="hp-rides-side"><span class="hp-count">${count} ${L ? (count > 1 ? 'sorties' : 'sortie') : count === 1 ? 'ride' : 'rides'}</span>${this.selected.size ? `<button class="btn small hp-delsel" id="hp-delsel">${L ? `Supprimer la sélection (${this.selected.size})` : `Delete selected (${this.selected.size})`}</button>` : ''}</div></header>
-        <div class="hp-scroll"><table class="hp-table hp-list"><thead><tr><th><input type="checkbox" class="hp-check" data-selall ${page.length && page.every((r) => this.selected.has(r.clientId)) ? 'checked' : ''} aria-label="${L ? 'Tout sélectionner' : 'Select all'}"/></th><th>${L ? 'Date' : 'Date'}</th><th>${L ? 'Sortie' : 'Ride'}</th><th>${L ? 'Type' : 'Type'}</th><th class="num">${L ? 'Distance' : 'Distance'}</th><th class="num">${L ? 'Temps' : 'Time'}</th><th class="num">D+</th><th class="num">NP</th><th class="num">TSS</th><th class="num">IF</th><th>${L ? 'Ressenti' : 'Feel'}</th><th></th></tr></thead><tbody>${rows || `<tr><td colspan="12" class="hp-muted">${L ? 'Aucune sortie pour ces filtres.' : 'No ride for these filters.'}</td></tr>`}</tbody></table></div>
+        <div class="hp-listhead"><label><input type="checkbox" class="hp-check" data-selall ${page.length && page.every((r) => this.selected.has(r.clientId)) ? 'checked' : ''}/> ${L ? 'Tout sélectionner' : 'Select all'}</label><span>${L ? 'Distance, durée, puissance moyenne' : 'Distance, time, average power'}</span></div>
+        <div class="hp-scroll"><div class="hp-list">${rows || `<p class="hp-muted">${L ? 'Aucune sortie pour ces filtres.' : 'No ride for these filters.'}</p>`}</div></div>
         ${pages > 1 ? `<div class="hp-pager"><button class="btn small" data-page="-1" ${this.page === 0 ? 'disabled' : ''}>‹</button><span>${this.page + 1} / ${pages}</span><button class="btn small" data-page="1" ${this.page + 1 >= pages ? 'disabled' : ''}>›</button></div>` : ''}
       </section>`,
-      form: () => `<div class="hp-tiles">${tile(L ? '7 derniers jours' : 'Last 7 days', week)}${tile(L ? '28 derniers jours' : 'Last 28 days', month)}${form}</div>
+      form: () => `<div class="ab-grid hp-bigs">${form}</div>
       <div class="hp-grid hp-grid-2">
-        <section class="hp-card"><h3>${L ? 'Forme et fatigue · 90 jours' : 'Fitness and fatigue · 90 days'}</h3>
+        <section class="hp-card"><h3>${L ? 'Forme et fatigue sur 90 jours' : 'Fitness and fatigue over 90 days'}</h3>
           <div class="hp-legend"><span><i style="background:${C_CTL}"></i>${L ? 'Forme (42 j)' : 'Fitness (42 d)'}</span><span><i style="background:${C_ATL}"></i>${L ? 'Fatigue (7 j)' : 'Fatigue (7 d)'}</span></div>
           <div class="hp-chart" id="hp-load"></div></section>
-        <section class="hp-card"><h3>${L ? 'Temps par zone · 12 semaines' : 'Time in zone · 12 weeks'}</h3>
+        <section class="hp-card"><h3>${L ? 'Temps par zone sur 12 semaines' : 'Time in zone over 12 weeks'}</h3>
           <div class="hp-legend">${ZONE_HEX.map((c, i) => `<span><i style="background:${c}"></i>Z${i + 1}</span>`).join('')}</div>
           <div class="hp-chart" id="hp-zones"></div></section>
       </div>`,
@@ -197,11 +195,12 @@ export class HistoryPanel {
     box.innerHTML =
       allTime === 0
         ? `<div class="hp-bar"><p class="hp-sync">${syncLine}</p>${account ? `<button class="btn small" id="hp-sync">${L ? 'Synchroniser' : 'Sync now'}</button>` : ''}</div>
-      <p class="hp-empty">${L ? 'Aucune sortie pour l’instant. Chaque sortie terminée s’ajoute ici, avec sa puissance, son TSS et ses zones.' : 'No rides yet. Every finished ride is added here, with its power, TSS and zones.'}</p>`
-        : `<div class="hp-top">
-        <div class="hp-odo"><span>${L ? 'Compteur' : 'Odometer'}</span><b>${Math.round(lifetime.distanceM / 1000).toLocaleString(L ? 'fr-FR' : 'en-GB')} <small>km</small></b><em>${lifetime.rides} ${L ? (lifetime.rides > 1 ? 'sorties' : 'sortie') : lifetime.rides === 1 ? 'ride' : 'rides'} · ${hm(lifetime.movingS)} · ${nf(lifetime.elevationM)} m D+</em></div>
-        <div class="hp-bar"><p class="hp-sync">${syncLine}</p>${account ? `<button class="btn small" id="hp-sync">${L ? 'Synchroniser' : 'Sync now'}</button>` : ''}</div>
+      <div class="ab-tile ab-plain hp-empty"><b>${L ? 'Aucune sortie pour l’instant' : 'No rides yet'}</b><p>${L ? 'Chaque sortie terminée s’ajoute ici.' : 'Every finished ride is added here.'}</p></div>`
+        : `<div class="ab-grid hp-bigs">
+        <div class="ab-tile ab-plain hp-big is-on"><span class="hp-big-l">${L ? 'Compteur' : 'Odometer'}</span><div class="ab-val"><b>${Math.round(lifetime.distanceM / 1000).toLocaleString(L ? 'fr-FR' : 'en-GB')}</b><small>km</small></div><span class="ab-detail">${lifetime.rides} ${L ? (lifetime.rides > 1 ? 'sorties' : 'sortie') : lifetime.rides === 1 ? 'ride' : 'rides'} · ${hm(lifetime.movingS)} · ${nf(lifetime.elevationM)} m D+</span></div>
+        ${tile(L ? '7 derniers jours' : 'Last 7 days', week)}${tile(L ? '28 derniers jours' : 'Last 28 days', month)}
       </div>
+      <div class="hp-bar"><p class="hp-sync">${syncLine}</p>${account ? `<button class="ab-btn ab-chip" id="hp-sync">${L ? 'Synchroniser' : 'Sync now'}</button>` : ''}</div>
       <nav class="hp-tabs" role="tablist">${views.map(([v, label]) => `<button role="tab" class="hp-tab${v === this.view ? ' on' : ''}" aria-selected="${v === this.view}" data-view="${v}">${label}</button>`).join('')}</nav>
       <div class="hp-view hp-view-${this.view}" role="tabpanel">${body[this.view]()}</div>`;
 
@@ -235,7 +234,10 @@ export class HistoryPanel {
       }),
     );
     // Clic sur une sortie : sa page de stats (pas sur la case à cocher ni sur « Supprimer »).
-    box.querySelectorAll<HTMLElement>('tr[data-ride]').forEach((tr) =>
+    box.querySelectorAll<HTMLElement>('.hp-ride[data-ride]').forEach((tr) => {
+      tr.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && e.target === tr) tr.click();
+      });
       tr.addEventListener('click', (e) => {
         if ((e.target as HTMLElement).closest('input, button')) return;
         const ride = page.find((x) => x.clientId === tr.dataset.ride);
@@ -253,8 +255,8 @@ export class HistoryPanel {
         };
         document.addEventListener('keydown', onKey, true);
         showPastRide(layer, ride, { massKg: this.massKg, ftp: ftp.at(-1)?.ftpWatts ?? 200, onClose: close });
-      }),
-    );
+      });
+    });
     const remove = async (ids: string[]) => {
       const msg = ids.length > 1 ? (L ? `Supprimer ces ${ids.length} sorties de l’historique (et du compte) ?` : `Delete these ${ids.length} rides from your history (and account)?`) : L ? 'Supprimer cette sortie de l’historique (et du compte) ?' : 'Delete this ride from your history (and account)?';
       if (!confirm(msg)) return;

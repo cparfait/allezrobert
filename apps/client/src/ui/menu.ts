@@ -1,3 +1,5 @@
+import { deviceOptionsHtml, deviceTilesHtml } from './hardware-panel.ts';
+import { ICONS as START_ICONS } from './startCheck.ts';
 import { workoutStudioHtml, type WorkoutDurFilter, type WorkoutSort } from './workoutStudio.ts';
 import { clampWorkoutIntensity, ftpTestProtocolOf } from '../game/workout.ts';
 import { ftpTestChartHtml } from './ftpTestChart.ts';
@@ -55,6 +57,7 @@ import { ZONE_SPOTS } from '../world/zoneMap.ts';
 // Vignettes des mondes imaginaires (à côté de la carte de France) : chargées dès le menu, prêtes à l'ouverture.
 if (typeof Image !== 'undefined') for (const z of ZONE_SPOTS) if (z.image) new Image().src = z.image;
 import { getAspectCap, getResolutionCap, getUiAspectCap, setAspectCap, setResolutionCap, setUiAspectCap, type AspectCap, type ResolutionCap } from '../engine/display.ts';
+import './blocks.css';
 import './menu.css';
 
 /** Ce que l'écran d'appairage sait faire, quel que soit le transport (implémenté avec @allezrobert/devices). */
@@ -127,6 +130,26 @@ const MODE_COLORS: Partial<Record<Settings['mode'], string>> = {
 const MODE_TAGS: Record<'fr' | 'en', Partial<Record<Settings['mode'], string>>> = {
   fr: { free: 'En solo', group: 'Avec tes amis', race: 'Classement', workout: 'Séances ERG', ftpTest: 'Rampe ou 20 min', challenge: 'Records en côte' },
   en: { free: 'On your own', group: 'With friends', race: 'Results', workout: 'ERG sessions', ftpTest: 'Ramp or 20 min', challenge: 'Climb records' },
+};
+
+/** Ce que fait chaque mode, en une ligne, dans son bloc de l'onglet Rouler. */
+const MODE_LINES: Record<'fr' | 'en', Partial<Record<Settings['mode'], string>>> = {
+  fr: {
+    free: 'Seul, à ton rythme',
+    group: 'À plusieurs, le groupe reste ensemble',
+    race: 'Départ groupé, classement à l’arrivée',
+    workout: 'Séance guidée en mode ERG',
+    ftpTest: 'Estime ta FTP en 20 à 30 min',
+    challenge: 'Bats ton record sur une montée',
+  },
+  en: {
+    free: 'Solo, at your own pace',
+    group: 'Together, the group stays as one',
+    race: 'Mass start, results at the finish',
+    workout: 'Guided session in ERG mode',
+    ftpTest: 'Estimate your FTP in 20 to 30 min',
+    challenge: 'Beat your record on a climb',
+  },
 };
 
 const ICON = {
@@ -1452,17 +1475,16 @@ export class MainMenu {
     const r = this.routes.find((x) => x.id === s.routeId) ?? (this.routeAsked.has(s.routeId) ? undefined : this.routes[0]);
     // Roulage libre (choisi dans la fenêtre de la zone) : une sortie libre.
     const shown = s.mode === 'open' ? 'free' : s.mode;
-    const mode = this.modes().find(([m]) => m === shown);
-    const tag = MODE_TAGS[L ? 'fr' : 'en'];
+    const line = MODE_LINES[L ? 'fr' : 'en'];
     return `<section class="mm-panel mm-left">
       <header class="mm-head"><h2>${L ? 'Que veux-tu faire ?' : 'What do you want to do?'}</h2></header>
       <div class="mm-modes">${this.modes()
         .map(
           ([v, k]) =>
-            `<button class="mm-mode ${v === shown ? 'on' : ''}" data-mode="${v}" style="--c:${MODE_COLORS[v] ?? '#ffd23f'}"><span class="mm-mode-ico">${ICON[v]}</span><b>${esc(t(k))}</b></button>`,
+            `<button class="mm-mode ab-tile ${v === shown ? 'on is-on' : ''}" data-mode="${v}" aria-pressed="${v === shown}" style="--c:${MODE_COLORS[v] ?? '#ffd23f'}"><span class="mm-mode-ico ab-ico sm">${ICON[v]}</span><b class="ab-name">${esc(t(k))}</b><span class="ab-detail">${esc(line[v] ?? '')}</span></button>`,
         )
         .join('')}</div>
-      <p class="mm-hint">${s.mode === 'open' ? (L ? 'Parcours libre : ← / → pour choisir ta direction à chaque carrefour, U pour faire demi-tour.' : 'Free ride: ← / → to pick your way at each junction, U to turn around.') : mode ? esc(mode[2]) : ''}</p>
+      ${s.mode === 'open' ? `<p class="mm-hint">${L ? 'Parcours libre : ← / → pour choisir ta direction à chaque carrefour, U pour faire demi-tour.' : 'Free ride: ← / → to pick your way at each junction, U to turn around.'}</p>` : ''}
       <div id="m-openworld" class="ow" hidden></div>
       <hr class="mm-sep" />
       ${this.weatherHtml()}
@@ -1507,7 +1529,7 @@ export class MainMenu {
           ? this.ftpTestHtml()
           : s.mode === 'challenge'
             ? ''
-            : `<h3 class="mm-where">${L ? 'Où rouler ?' : 'Where to ride?'}</h3>${this.pickersHtml(r)}`
+            : `<h3 class="ab-section mm-where">${L ? 'Où rouler ?' : 'Where to ride?'}</h3>${this.pickersHtml(r)}`
       }
     </section>
     <div class="mm-hero">${this.musicInHero() ? '<div class="mm-music mm-hero-music" id="m-music"></div>' : ''}<h1>Allez <em>Robert</em> !</h1><p>${L ? 'Rouler ensemble, chacun chez soi.' : 'Ride together, each from home.'}</p></div>
@@ -1538,7 +1560,7 @@ export class MainMenu {
         ? workoutCard(w, true, 'workouts')
         : '';
     return `<div class="mm-wks">${current}</div>
-      <button class="mm-link" data-picker="workouts">${L ? 'Changer de séance' : 'Change workout'}</button>`;
+      <button class="ab-btn mm-change" data-picker="workouts">${L ? 'Changer de séance' : 'Change workout'}</button>`;
   }
 
   /** Fenêtre « Séances » au milieu de l'écran, comme la carte de France : séances intégrées et import de fichier. */
@@ -1622,17 +1644,16 @@ export class MainMenu {
           : L
             ? 'Court et sans calcul d’allure : le plus simple pour la plupart des coureurs.'
             : 'Short and no pacing needed: the simplest for most riders.';
-    return `<div class="mm-ftptest">
-      <div class="field">${L ? 'Protocole' : 'Protocol'}${this.seg('m-ftpproto', p, opts)}</div>
-      <p class="mm-hint">${who}</p>
+    return `<div class="mm-card mm-ftptest">
+      <div class="mm-opt mm-opt-col mm-opt-first"><div class="mm-opt-l"><b>${L ? 'Protocole' : 'Protocol'}</b><small>${who}</small></div>${this.seg('m-ftpproto', p, opts)}</div>
       ${ftpTestChartHtml(p, this.s.ftpWatts, L)}
-      <div class="field">${L ? 'Voix du coach' : 'Coach voice'}${this.seg('m-ftpvoice', this.s.ftpCoachVoice === false ? '0' : '1', [
+      <div class="mm-opt"><div class="mm-opt-l"><b>${L ? 'Voix du coach' : 'Coach voice'}</b><small>${L ? 'Annonce les paliers et la FTP estimée en direct.' : 'Announces the steps and the live FTP estimate.'}</small></div>${this.seg('m-ftpvoice', this.s.ftpCoachVoice === false ? '0' : '1', [
         ['1', L ? 'Oui' : 'On'],
         ['0', L ? 'Non' : 'Off'],
       ])}</div>
-      <p class="mm-hint">${L ? 'Une voix t’accompagne : annonce des paliers, FTP estimée en direct, alerte avant l’arrêt du test, résultat expliqué.' : 'A voice guides you: steps announced, live FTP estimate, warning before the test stops, result explained.'}</p>
-      <h3>${L ? 'Comment se passe le test' : 'How the test works'}</h3>
-      <ol>${steps.map(([t, d]) => `<li><b>${t}</b><span>${d}</span></li>`).join('')}</ol>
+      <details class="mm-more"><summary>${L ? 'Comment se passe le test' : 'How the test works'}</summary>
+        <ol>${steps.map(([t, d]) => `<li><b>${t}</b><span>${d}</span></li>`).join('')}</ol>
+      </details>
       <p class="mm-hint">${L ? `FTP actuelle : ${Math.round(this.s.ftpWatts)} W. Bien reposé, ventilateur allumé, bidon à portée de main.` : `Current FTP: ${Math.round(this.s.ftpWatts)} W. Be rested, fan on, bottle within reach.`}</p>
     </div>`;
   }
@@ -1666,12 +1687,12 @@ export class MainMenu {
     const map = this.openWorld && this.selMap && this.s.mode !== 'workout' ? this.planner.preview(route, free ? this.freeStart : null) : '';
     const body = map ? `<div class="mm-selmap">${map}</div>` : route ? this.routeCard(route) : '';
     const pickers = `<div class="mm-pickers mm-pickers-one">
-      <button class="mm-pick mm-pick-big" data-picker="zones"><b>${L ? 'CHOISIR MA SORTIE' : 'CHOOSE MY RIDE'}</b></button>
+      <button class="mm-pick mm-pick-big ab-btn" data-picker="zones"><b>${what ? (L ? 'Changer de sortie' : 'Change ride') : L ? 'Choisir ma sortie' : 'Choose my ride'}</b></button>
     </div>`;
     // Sans carte de la zone, la fiche du parcours porte déjà son nom et ses chiffres.
     const head = map || !route ? `<b>${esc(what)}</b><span>${esc(stats)}</span>` : '';
-    return `${pickers}
-    ${what ? `<button class="mm-sel" data-picker="zone" title="${L ? 'Changer de parcours' : 'Change route'}"><span class="mm-sel-head"><small>${esc(zone)}</small>${head}</span>${body}</button>` : ''}`;
+    return `${what ? `<button class="mm-sel" data-picker="zone" title="${L ? 'Changer de parcours' : 'Change route'}"><span class="mm-sel-head"><small>${esc(zone)}</small>${head}</span>${body}</button>` : ''}
+    ${pickers}`;
   }
 
   /** Fenêtre centrée : liste des zones (avec leurs packs) ou des parcours de la zone. */
@@ -1795,13 +1816,14 @@ export class MainMenu {
   private challengeChoiceHtml(r: RouteData | undefined): string {
     const L = fr();
     const koms = this.zoneClimbs(r);
-    if (!koms.length) return `<p class="mm-hint">${L ? 'Pas de montée chronométrée dans cette zone : choisis-en une autre.' : 'No timed climb in this area: pick another one.'}</p><button class="mm-link" data-picker="koms">${L ? 'Voir toutes les montées' : 'See all climbs'}</button>`;
+    if (!koms.length) return `<p class="mm-hint">${L ? 'Pas de montée chronométrée dans cette zone.' : 'No timed climb in this area.'}</p><button class="ab-btn mm-change" data-picker="koms">${L ? 'Voir toutes les montées' : 'See all climbs'}</button>`;
     const cur = koms.find((c) => c.k.id === this.s.challengeSeg && c.route.id === this.s.routeId) ?? (koms[0] as (typeof koms)[number]);
     this.s.challengeSeg = cur.k.id;
     const rec = readKomRecord(cur.route.id, cur.k.id);
     const t = rec ? `${Math.floor(rec.timeS / 60)}:${String(Math.round(rec.timeS % 60)).padStart(2, '0')}` : L ? 'pas encore de record' : 'no record yet';
-    return `<div class="mm-routes mm-presets"><button class="mm-route on" data-picker="koms"><b>${esc(cur.k.name)}</b><span>${this.km(cur.k.endM - cur.k.startM)} km · ${cur.k.avgGrade.toFixed(1).replace('.', L ? ',' : '.')} % · ${L ? 'record' : 'best'} ${t}</span></button></div>
-      <button class="mm-link" data-picker="koms">${L ? 'Changer de montée · voir les records' : 'Change climb · see records'}</button>`;
+    return `<button class="ab-tile is-on mm-kom" data-picker="koms" title="${L ? 'Changer de montée' : 'Change climb'}"><span class="ab-ico sm">${ICON.challenge}</span><b class="ab-name">${esc(cur.k.name)}</b><span class="ab-detail">${L ? 'Record' : 'Best'} : ${t}</span>
+        <span class="mm-kom-vals"><span class="ab-val"><b>${this.km(cur.k.endM - cur.k.startM)}</b><small>km</small></span><span class="ab-val"><b>${cur.k.avgGrade.toFixed(1).replace('.', L ? ',' : '.')}</b><small>%</small></span></span></button>
+      <button class="ab-btn mm-change" data-picker="koms">${L ? 'Changer de montée' : 'Change climb'}</button>`;
   }
 
   /** Fenêtre centrale « Défi KOM » : tableau des montées et de tes records, filtre par zone. */
@@ -2193,10 +2215,10 @@ export class MainMenu {
         ${first ? `<circle cx="${X(first.x)}" cy="${Z(first.z)}" r="6" fill="var(--ar-accent)" stroke="#0a0e16" stroke-width="2.5"/>` : ''}
       </svg>
       <div class="mm-stats">
-        <div><b>${this.km(r.lengthM)}</b><span>km</span></div>
-        <div><b>${Math.round(r.elevationGainM)}</b><span>m D+</span></div>
-        <div><b>${r.maxGradePct !== undefined ? Math.round(r.maxGradePct) : '—'}</b><span>% max</span></div>
-        <div><b>${this.eta(r)}</b><span>${fr() ? 'durée env.' : 'est. time'}</span></div>
+        <div class="ab-val"><b>${this.km(r.lengthM)}</b><small>km</small></div>
+        <div class="ab-val"><b>${Math.round(r.elevationGainM)}</b><small>m D+</small></div>
+        <div class="ab-val"><b>${r.maxGradePct !== undefined ? Math.round(r.maxGradePct) : '—'}</b><small>% max</small></div>
+        <div class="ab-val"><b>${this.eta(r)}</b><small>${fr() ? 'env.' : 'est.'}</small></div>
       </div>
       <svg class="mm-profile" viewBox="0 0 ${PW} ${PH}" preserveAspectRatio="none" aria-hidden="true">
         <defs><linearGradient id="mm-prof" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffd23f" stop-opacity=".55"/><stop offset="1" stop-color="#ffd23f" stop-opacity=".04"/></linearGradient></defs>
@@ -2662,15 +2684,23 @@ export class MainMenu {
       return `<section class="mm-panel mm-center mm-wide mm-xl">${this.closeBtn()}
       <header class="mm-head"><h2>${t('profile')}</h2></header>${sub}<div id="m-history"></div></section>`;
     }
+    const stat = (value: string, unit: string, title = ''): string => `<div class="ab-tile ab-plain"${title ? ` title="${title}"` : ''}><div class="ab-val"><b>${value}</b><small>${unit}</small></div></div>`;
+    const row = (label: string, help: string, control: string, forId = ''): string =>
+      `<div class="mm-opt"><div class="mm-opt-l"><b>${forId ? `<label for="${forId}">${label}</label>` : label}</b>${help ? `<small>${help}</small>` : ''}</div>${control}</div>`;
     return `<section class="mm-panel mm-center">${this.closeBtn()}
-      <header class="mm-head"><h2>${t('profile')}</h2><p>${L ? 'Le poids et la taille servent à la physique (montées, prise au vent) ; la FTP règle les séances et les zones.' : 'Weight and height drive the physics (climbs, drag); FTP sets workouts and zones.'}</p></header>${sub}
-      <div class="mm-bigstats"><div><b>${wkg.toFixed(1).replace('.', L ? ',' : '.')}</b><span>W/kg</span></div><div><b>${Math.round(s.ftpWatts)}</b><span>W FTP</span></div><div><b>${s.massKg}</b><span>kg</span></div><div title="${L ? 'Kilomètres roulés dans le jeu, toutes sorties confondues' : 'Kilometres ridden in the game, all rides'}"><b>${Math.round((rideHistory.summary?.totals.distanceM ?? 0) / 1000).toLocaleString(L ? 'fr-FR' : 'en-GB')}</b><span>${L ? 'km au compteur' : 'km ridden'}</span></div></div>
-      <div class="grid2b">
-        <label class="field">${t('name')}<input id="m-name" value="${esc(s.name)}" /></label>
-        <label class="field">${L ? 'Je suis' : 'I am'}<div class="row">${(['male', 'female'] as const).map((x) => `<button class="btn small ${lookSex(s.look) === x ? 'primary' : ''}" data-sex="${x}">${x === 'male' ? (L ? 'Un homme' : 'A man') : L ? 'Une femme' : 'A woman'}</button>`).join('')}</div></label>
-        <div class="field">${L ? 'Nationalité' : 'Nationality'}${this.nationHtml()}</div>
-        ${this.bodyMeasurementFields()}
-        <div class="field">${t('ftp')}${this.stepper('m-ftp', 50, 600, s.ftpWatts)}</div>
+      <header class="mm-head"><h2>${t('profile')}</h2></header>${sub}
+      <div class="mm-bigstats ab-grid ab-grid-4">${stat(wkg.toFixed(1).replace('.', L ? ',' : '.'), 'W/kg')}${stat(String(Math.round(s.ftpWatts)), 'W FTP')}${stat(String(s.massKg), 'kg')}${stat(
+        Math.round((rideHistory.summary?.totals.distanceM ?? 0) / 1000).toLocaleString(L ? 'fr-FR' : 'en-GB'),
+        L ? 'km roulés' : 'km ridden',
+        L ? 'Kilomètres roulés dans le jeu, toutes sorties confondues' : 'Kilometres ridden in the game, all rides',
+      )}</div>
+      <div class="mm-card mm-profile-form">
+        ${row(t('name'), '', `<input id="m-name" class="mm-input" value="${esc(s.name)}" />`, 'm-name').replace('class="mm-opt"', 'class="mm-opt mm-opt-first"')}
+        ${row(L ? 'Je suis' : 'I am', '', `<div class="row">${(['male', 'female'] as const).map((x) => `<button class="btn small ${lookSex(s.look) === x ? 'primary' : ''}" data-sex="${x}">${x === 'male' ? (L ? 'Un homme' : 'A man') : L ? 'Une femme' : 'A woman'}</button>`).join('')}</div>`)}
+        ${row(L ? 'Nationalité' : 'Nationality', L ? 'Ton drapeau à côté de ton nom.' : 'Your flag next to your name.', this.nationHtml())}
+        ${row(t('weight'), L ? 'Compte dans les montées.' : 'Counts on the climbs.', this.stepper('m-mass', 30, 200, s.massKg, 0.5), 'm-mass')}
+        ${row(t('height'), L ? 'Compte dans la prise au vent.' : 'Counts for your drag.', this.stepper('m-height', 120, 220, s.heightCm), 'm-height')}
+        ${row(t('ftp'), L ? 'Règle les séances et les zones.' : 'Sets workouts and zones.', this.stepper('m-ftp', 50, 600, s.ftpWatts), 'm-ftp')}
       </div>
     </section>`;
   }
@@ -3034,19 +3064,12 @@ export class MainMenu {
         <button class="btn small ${ok ? '' : 'primary'}" data-pair="${role}"${via ? ` title="${esc(role === 'power' ? (L ? 'Des pédales associées deviennent la puissance de référence.' : 'Paired pedals become the reference power.') : L ? 'Un capteur de cadence associé passe avant le home trainer.' : 'A paired cadence sensor takes over from the trainer.')}"` : ''}>${own ? (L ? 'Changer' : 'Change') : L ? 'Associer' : 'Pair'}</button>
       </div>`;
     };
+    // Appareils en gros blocs, comme sur l'écran « Prêt à rouler ? » (mêmes dessins, mêmes mots d'état).
+    void roles;
+    void tile;
     box.innerHTML = `
-      <div class="mm-devgrid">${roles.map(tile).join('')}</div>
-      <div class="mm-devopts">
-        <div class="field">${L ? 'Connexion' : 'Connection'}${this.seg('m-transport', selectedTransport, transports.map((tr) => [tr.id, tr.label]))}</div>
-        <div id="m-adapters"></div>
-        <label class="mm-check"><input type="checkbox" id="m-sim" ${this.devices.simulatorOn() ? 'checked' : ''}/> ${t('simulator')} (${L ? 'rouler sans matériel' : 'ride without hardware'})</label>
-        <label class="mm-check"><input type="checkbox" id="m-guest" ${this.s.guest ? 'checked' : ''}/> ${L ? 'Invité sans matériel (clavier / manette, hors classements)' : 'Guest without hardware (keyboard / gamepad, unranked)'}</label>
-      </div>
-      ${this.devices
-        .warnings()
-        .map((w) => `<div class="warning">${esc(w)}</div>`)
-        .join('')}
-      <div class="mm-note">${t('oneAppAtATime')}<br/>${t('edgeWarn')}</div>
+      ${deviceTilesHtml({ devices: list, live, simulatorOn: this.devices.simulatorOn(), icons: START_ICONS, liveText: (k) => liveText(k, live), canReconnect: !!this.devices.reconnect, roadFeel: !!this.devices.roadFeelSupported?.(), cassette: this.s.drivetrain === 'cassette' })}
+      ${deviceOptionsHtml({ transportSeg: this.seg('m-transport', selectedTransport, transports.map((tr) => [tr.id, tr.label])), bluetooth: selectedTransport === 'web-bluetooth', simulatorOn: this.devices.simulatorOn(), guest: this.s.guest, warnings: this.devices.warnings() })}
       <div id="m-devextra"></div>`;
     this.bindSegs(box);
     // Mesures en direct : rafraîchies chaque seconde tant que l'écran Capteurs est affiché.

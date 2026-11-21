@@ -124,3 +124,48 @@
   .mm-tabs .mm-tab { padding: 0 12px; }
   .mm-music .mm-now { max-width: 160px; }
 }
+
+/* Onglet Amis en gros blocs (langage commun de blocks.css) : code et ajout en tête, demandes, puis un bloc par ami. */
+.fr-panel h3.ab-section { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 10px; margin: 18px 0 10px; font-size: 18px; font-weight: 800; letter-spacing: -0.01em; text-transform: none; color: var(--ar-fg, #f5f7fa); }
+.fr-panel .mm-head { margin-bottom: 12px; }
+.fr-panel .fr-sum { float: none; margin-left: auto; font-size: 14px; }
+.fr-panel .fr-count { font-size: 13px; padding: 2px 9px; }
+.fr-top { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: clamp(10px, 1.4vw, 18px); }
+.fr-top .ab-tile { padding: 16px 20px; }
+.fr-add-t { display: block; font-size: 15px; font-weight: 700; color: #c3cddb; }
+.fr-panel .fr-code { margin: 4px 0 10px; font-size: clamp(28px, 3vw, 40px); line-height: 1.1; }
+.fr-panel .fr-add { margin-top: 10px; }
+.fr-panel .fr-add .mm-input { font-size: 16px; padding: 12px 14px; }
+.fr-panel .fr-msg { font-size: 14px; min-height: 20px; }
+.fr-tiles .ab-tile { padding: 16px 18px 14px; }
+.fr-ava { color: #fff; font-size: 20px; font-weight: 800; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55); }
+.fr-tiles .ab-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 84px; }
+.fr-tiles .ab-name small { font-size: 13px; font-weight: 600; color: #9aa6b5; margin-left: 4px; }
+.fr-tiles .ab-detail { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fr-tiles .ab-detail b { color: var(--ar-fg, #f5f7fa); }
+.fr-tiles .ab-state { margin-top: 8px; }
+.fr-tiles .fr-act { grid-area: act; justify-self: end; margin-top: 8px; gap: 10px; }
+.fr-tiles .fr-quiet { opacity: 0.85; }
+.fr-friend.fr-st-offline .ab-ico { filter: saturate(0.55); }
+.fr-tiles .fr-pick { width: auto; display: inline-flex; align-items: center; gap: 6px; letter-spacing: 0.04em; cursor: pointer; }
+.fr-tiles .fr-bests { grid-column: 1 / -1; margin: 10px 0 0; padding-top: 10px; border-top: 1px solid rgba(255, 255, 255, 0.1); font-size: 14px; }
+.fr-panel .fr-invitebar { margin-top: 14px; padding: 14px 0 0; border: 0; border-top: 1px solid rgba(255, 255, 255, 0.1); border-radius: 0; }
+.fr-panel .fr-invitebar > span { font-size: 15px; }
+.fr-panel .fr-invitebar small { font-size: 13px; }
+.fr-panel .fr-empty { text-align: center; padding: 26px 22px; font-size: 15px; color: #c3cddb; }
+.fr-panel .fr-empty b { font-size: 20px; }
+.fr-panel .fr-empty .ab-btn { margin-top: 14px; }
+.fr-panel .fr-pending { display: flex; flex-direction: row; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-top: 12px; font-size: 15px; }
+.fr-panel .fr-boards { margin-top: 6px; }
+.fr-panel .fr-route { font-size: 14px; font-weight: 600; color: #c3cddb; }
+.fr-panel .fr-boardgrid { grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; }
+.fr-panel .fr-board { padding: 14px 16px; border-radius: 18px; border: 2px solid rgba(255, 255, 255, 0.1); background: linear-gradient(180deg, rgba(22, 29, 43, 0.92), rgba(12, 16, 25, 0.9)); }
+.fr-panel .fr-board-h b { font-size: 15px; }
+.fr-panel .fr-board li { font-size: 14px; }
+.fr-panel .fr-small { font-size: 14px; }
+@media (max-width: 900px) {
+  .fr-top { grid-template-columns: minmax(0, 1fr); }
+}
+.fr-panel button.ab-act { appearance: none; border: 0; cursor: pointer; font-family: inherit; }
+.fr-panel button.ab-act:hover:not(:disabled) { filter: brightness(1.08); }
+.fr-panel .ab-btn.ab-chip { grid-area: auto; justify-self: auto; }

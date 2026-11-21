@@ -83,3 +83,34 @@
 .rd-startbar { position: absolute; left: 10px; right: 10px; bottom: 10px; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 6px 12px; border-radius: 10px; background: rgba(8, 11, 18, 0.78); font-size: 12.5px; color: #c9d1db; pointer-events: none; }
 .rd-startbar b { color: #e6ebf2; }
 .rd-startbar button { pointer-events: auto; white-space: nowrap; }
+
+/* Langage commun des gros blocs (ui/blocks.css) : chiffres clés en blocs, cartes au même rayon, une action jaune. */
+.rd-map { border-radius: 22px; border: 2px solid rgba(255, 255, 255, 0.1); }
+.rd-profile-box { border-radius: 22px; border: 2px solid rgba(255, 255, 255, 0.1); background: linear-gradient(180deg, rgba(22, 29, 43, 0.92), rgba(12, 16, 25, 0.9)); padding: 10px 12px 0; }
+.rd-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; border: 0; border-radius: 0; overflow: visible; background: none; }
+.rd-stats .rd-fig { display: flex; flex-direction: column; gap: 2px; padding: 12px 16px; border-radius: 18px; background: linear-gradient(180deg, rgba(22, 29, 43, 0.92), rgba(12, 16, 25, 0.9)); }
+.rd-stats .rd-fig .ab-detail { font-size: 14px; font-weight: 600; color: #c3cddb; }
+.rd-stats .rd-fig .ab-val { min-height: 0; }
+.rd-stats .rd-fig .ab-val b { font-size: clamp(26px, 2.6vw, 36px); }
+.rd-stats .rd-fig .ab-val small { font-size: 15px; color: #c3cddb; }
+.rd-minor { margin: 0; display: flex; flex-wrap: wrap; gap: 4px 22px; font-size: 14.5px; color: #b9c4d3; }
+.rd-minor b { color: var(--ar-fg); font-variant-numeric: tabular-nums; }
+.rd-side h3.ab-section, .rd > h3.ab-section { margin: 6px 0 0; font-size: 17px; letter-spacing: -0.01em; text-transform: none; color: var(--ar-fg); }
+.rd-mine li, .rd-route-board > div { border-radius: 16px; border: 2px solid rgba(255, 255, 255, 0.08); background: rgba(255, 255, 255, 0.04); padding: 10px 14px; }
+.rd-mine li span, .rd-route-board > div > span { font-size: 14px; color: #c3cddb; }
+.rd-mine li b { font-size: 19px; }
+.rd-mine li small { font-size: 13px; color: #aeb7c3; }
+.rd-go.ab-go { margin-top: auto; align-self: stretch; text-transform: none; letter-spacing: 0; border-radius: 14px; }
+/* Montées et sprints : une ligne par segment, en bloc. */
+.rd-table { border-collapse: separate; border-spacing: 0 8px; font-size: 14px; }
+.rd-table th { font-size: 13px; letter-spacing: 0; text-transform: none; color: #aeb7c3; padding: 0 14px 0; }
+.rd-table td { border-top: 0; padding: 11px 14px; background: rgba(255, 255, 255, 0.045); }
+.rd-table td:first-child { border-radius: 16px 0 0 16px; }
+.rd-table td:last-child { border-radius: 0 16px 16px 0; }
+.rd-table td b { font-size: 15px; }
+.rd-table td small { font-size: 13px; color: #aeb7c3; }
+.rd-badge { width: 28px; height: 28px; font-size: 13px; }
+.rd-n { width: 36px; }
+.rd-defi { border: 0; border-radius: 10px; padding: 7px 14px; font-size: 14px; background: rgba(255, 255, 255, 0.12); }
+.rd-defi:hover { background: rgba(255, 255, 255, 0.2); }
+.rd-none, .rd-load { font-size: 13px; color: #8d98a6; }

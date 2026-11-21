@@ -1047,3 +1047,63 @@
   .set-range { width: 100%; flex: 1 1 auto; }
   .set-pane .mm-opt:not(.mm-opt-col) > .mm-seg { min-width: 0; }
 }
+
+/* ───────── Onglets Rouler et Profil au langage des gros blocs (ui/blocks.css, écran « Prêt à rouler ? ») ───────── */
+/* Titres de section en casse normale (la règle générale `.mm h3` les mettait en petites capitales espacées). */
+.mm h3.ab-section { margin: 14px 0 8px; font-size: 18px; font-weight: 800; letter-spacing: -0.01em; text-transform: none; color: var(--ar-fg); }
+
+/* Les six modes : un bloc par mode, icône carrée, nom en gras, une ligne de description. */
+.mm-left > .mm-modes { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; grid-auto-flow: row !important; gap: 10px; padding: 0; border: 0; background: none; }
+.mm-mode.ab-tile { display: grid; grid-template-columns: auto 1fr; grid-template-areas: 'ico name' 'ico detail'; align-items: center; gap: 2px 12px; padding: 12px 14px; border-radius: 18px; border: 2px solid rgba(255, 255, 255, 0.1); text-align: left; line-height: 1.2; font-size: inherit; box-shadow: none; }
+.mm-mode.ab-tile .mm-mode-ico { width: 52px; height: 52px; border-radius: 15px; color: var(--c); background: color-mix(in srgb, var(--c) 16%, transparent); box-shadow: none; }
+.mm-mode.ab-tile .mm-mode-ico svg { width: 30px; height: 30px; }
+.mm-mode.ab-tile .ab-name { font-size: 17px; color: var(--ar-fg); }
+.mm-mode.ab-tile .ab-detail { font-size: 13px; }
+.mm-mode.ab-tile:hover { transform: translateY(-2px); border-color: color-mix(in srgb, var(--c) 60%, transparent); }
+.mm-mode.ab-tile.on { border-color: var(--c); box-shadow: none; }
+
+/* Parcours choisi : nom en gras, carte, grandes valeurs, profil ; le bouton pour en changer vient dessous. */
+.mm-sel { margin: 0 0 10px; border-radius: 22px; border: 2px solid rgba(255, 255, 255, 0.1); }
+.mm-sel-head { padding: 12px 16px 6px; }
+.mm-sel-head small { font-size: 13px; letter-spacing: 0; text-transform: none; }
+.mm-sel-head b { font-size: 19px; font-weight: 800; }
+.mm-sel-head span { font-size: 14px; color: #c3cddb; }
+.mm-rc-title { padding: 12px 16px 0; font-size: 19px; }
+.mm-stats .ab-val { grid-area: auto; flex-direction: row; align-items: baseline; gap: 6px; min-height: 0; padding: 10px 12px; }
+.mm-stats .ab-val b { font-size: clamp(20px, 2vw, 28px); }
+.mm-stats .ab-val small { font-size: 13px; }
+.mm-pickers.mm-pickers-one { margin: 0 0 6px; }
+.mm-pick.mm-pick-big.ab-btn { min-height: 0; padding: 12px 20px; border: 0; border-radius: 14px; background: rgba(255, 255, 255, 0.14); }
+.mm-pick.mm-pick-big.ab-btn:hover { background: rgba(255, 255, 255, 0.22); }
+.mm-pick.mm-pick-big.ab-btn b { font-size: 15px; letter-spacing: 0; }
+.mm-routepick .mm-routecard { border-radius: 18px; }
+
+/* Entraînement, défi KOM : le choix en bloc, un bouton neutre pour en changer. */
+.mm-change { display: block; width: 100%; margin: 8px 0 0; }
+.mm-kom { width: 100%; margin-top: 12px; }
+.mm-kom .ab-ico { color: #fb923c; background: rgba(251, 146, 60, 0.16); }
+.mm-kom-vals { grid-column: 1 / -1; display: flex; gap: 22px; }
+.mm-kom-vals .ab-val { min-height: 0; }
+.mm-wk { border-radius: 18px; }
+
+/* Test FTP : réglages en lignes, déroulé replié. */
+.mm-card.mm-ftptest { margin-top: 12px; }
+.mm-more { margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(255, 255, 255, 0.08); }
+.mm-more > summary { cursor: pointer; font-size: 14.5px; font-weight: 700; color: var(--ar-fg); }
+.mm-more > ol { margin-top: 10px; }
+
+/* Profil : quatre grandes valeurs, puis un champ par ligne. */
+.mm-bigstats.ab-grid { margin-bottom: 12px; gap: 10px; }
+.mm-bigstats .ab-tile { padding: 14px 16px; border-radius: 18px; display: block; background: linear-gradient(180deg, rgba(22, 29, 43, 0.92), rgba(12, 16, 25, 0.9)); }
+.mm-bigstats .ab-val { min-height: 0; flex-wrap: wrap; flex-direction: row; padding: 0; border-radius: 0; background: none; }
+.mm-bigstats .ab-val b { font-size: clamp(26px, 2.6vw, 36px); color: var(--ar-accent); }
+.mm-bigstats .ab-val small { font-size: 14px; color: #c3cddb; }
+.mm-profile-form { margin-top: 0; }
+.mm-profile-form .mm-opt > .mm-input, .mm-profile-form .mm-opt > .mm-dd { flex: 0 1 260px; width: auto; margin-top: 0; }
+.mm-profile-form .mm-opt-l label { cursor: pointer; }
+
+@media (max-width: 900px) {
+  .mm-left > .mm-modes { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+  .mm-mode.ab-tile .ab-detail { display: none; }
+  .mm-mode.ab-tile .mm-mode-ico { width: 42px; height: 42px; border-radius: 12px; }
+}

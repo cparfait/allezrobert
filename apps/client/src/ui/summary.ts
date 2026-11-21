@@ -3,6 +3,7 @@ import type { RideSession } from '../game/ride.ts';
 import { CURVE_DURATIONS, durationLabel, POWER_ZONES, type RideHistoryEntry, type RideStats } from '../game/stats.ts';
 import type { HistoryRide, RideFeedback } from '@allezrobert/shared';
 import { bindFtpReport, ftpHistoryHtml, ftpProfileHtml, ftpReportView, ftpResultCardHtml, ftpTestChartSvg, ftpZonesHtml, type FtpTestReport } from './ftpTestReport.ts';
+import './blocks.css';
 import './summary.css';
 
 /** Couleurs des séries (palette catégorielle validée sur fond sombre) et des zones (HUD). */
@@ -12,8 +13,6 @@ const C_HR = '#e66767';
 const C_ALT = '#64748b';
 const ZONE_HEX = ['#9aa5b1', '#3b82f6', '#22c55e', '#eab308', '#f97316', '#ef4444', '#a855f7'];
 const INK = '#f1f5f9';
-/** Liseré des dix tuiles : distance, temps, dénivelé, vitesse, cardio, puissances, charge, énergie, comparaison. */
-const TILE_COLORS = ['#64a8ff', '#64a8ff', '#94a3b8', '#64a8ff', '#22c55e', C_RIDE, C_RIDE, '#f97316', C_HR, '#f97316'];
 const MUTED = '#b4bfcd';
 const GRID = 'rgba(255,255,255,0.14)';
 
@@ -56,6 +55,37 @@ export interface SummaryActions {
   onFeedback?: (feedback: RideFeedback) => void;
   /** Test FTP : choix fait sur le bilan (garder la nouvelle FTP ou l'ancienne). */
   onFtpDecision?: (keepNew: boolean) => void;
+}
+
+/** Icônes au trait des blocs du bilan (24 × 24, couleur du texte), dans le carré `ab-ico`. */
+const svg = (d: string) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
+const IC = {
+  distance: svg('<circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="6" r="2.5"/><path d="M8.5 18H15a3 3 0 0 0 0-6H9a3 3 0 0 1 0-6h6.5"/>'),
+  time: svg('<circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5M9.5 2.5h5"/>'),
+  power: svg('<path d="M13 2 5 13.5h6L10 22l9-12h-6.5z"/>'),
+  speed: svg('<path d="M4 17a8 8 0 1 1 16 0"/><path d="m12 17 4-6"/><circle cx="12" cy="17" r="1.3"/>'),
+  level: svg('<path d="m12 3 2.7 5.6 6.1.8-4.5 4.2 1.1 6-5.4-3-5.4 3 1.1-6L3.2 9.4l6.1-.8z"/>'),
+  flag: svg('<path d="M5 21V4M5 4h12l-2.5 4L17 12H5"/>'),
+  cup: svg('<path d="M8 4h8v5a4 4 0 0 1-8 0zM8 6H5a3 3 0 0 0 3 4M16 6h3a3 3 0 0 1-3 4M12 13v4M8.5 20h7M10 17h4"/>'),
+  medal: svg('<circle cx="12" cy="15" r="5"/><path d="m9 10.8-3-7.3M15 10.8l3-7.3M9 3.5h6"/>'),
+  group: svg('<circle cx="9" cy="8" r="3"/><circle cx="17" cy="9" r="2.3"/><path d="M3 19a6 6 0 0 1 12 0M15.5 14.5A4.5 4.5 0 0 1 21 19"/>'),
+  camera: svg('<path d="M4 8h3l1.5-2.5h7L17 8h3v11H4z"/><circle cx="12" cy="13.5" r="3.2"/>'),
+  feel: svg('<circle cx="12" cy="12" r="9"/><path d="M8.5 14.5a4.5 4.5 0 0 0 7 0M9 9.5h.01M15 9.5h.01"/>'),
+  user: svg('<circle cx="12" cy="8" r="3.5"/><path d="M5 20a7 7 0 0 1 14 0"/>'),
+  share: svg('<circle cx="6" cy="12" r="2.5"/><circle cx="17.5" cy="6" r="2.5"/><circle cx="17.5" cy="18" r="2.5"/><path d="m8.2 10.8 7-3.6M8.2 13.2l7 3.6"/>'),
+  file: svg('<path d="M7 3h7l4 4v14H7zM14 3v4h4M12 11v6M9.5 14.5 12 17l2.5-2.5"/>'),
+};
+/** Entête d'un bloc annexe : icône dans son carré et nom en gras. */
+const blockHead = (icon: string, title: string) => `<div class="sum-bh"><span class="ab-ico sm">${icon}</span><b class="ab-name">${title}</b></div>`;
+/** Sépare « 210 W » en valeur et unité (une valeur sans unité, comme « 1:39 », reste entière). */
+function splitUnit(v: string): [string, string] {
+  const i = v.lastIndexOf(' ');
+  return i > 0 && !/\d/.test(v.slice(i + 1)) ? [v.slice(0, i), v.slice(i + 1)] : [v, ''];
+}
+/** Bloc de chiffre : nom, grande valeur, détail ; avec une icône pour les quatre chiffres principaux. */
+function figureBlock(label: string, value: string, sub?: string, icon?: string): string {
+  const [n, u] = splitUnit(value);
+  return `<div class="ab-tile sum-fig${icon ? '' : ' sum-fig-plain'}">${icon ? `<span class="ab-ico sm">${icon}</span>` : ''}<span class="ab-name">${label}</span><span class="ab-detail">${sub ? esc(sub) : ''}</span><span class="ab-val"><b>${n}</b>${u ? `<small>${u}</small>` : ''}</span></div>`;
 }
 
 const FEELINGS: Array<[RideFeedback, string, string]> = [
@@ -118,8 +148,7 @@ export function showRideSummary(root: HTMLElement, d: SummaryData, a: SummaryAct
     ...(vs !== null ? ([[vsTile[0], vsTile[1]]] as Array<[string, string]>) : []),
   ];
   const minorHtml = `<div class="sum-minor">${minor.map(([k, v]) => `<span>${k} <b>${v}</b></span>`).join('')}</div>`;
-  const tilesHtml = (list: Array<[string, string, string?]>, colors: string[]) =>
-    list.map(([k, v, sub], i) => `<div class="sum-tile" style="--tc:${colors[i] ?? C_RIDE}"><span>${k}</span><b>${v}</b>${sub ? `<small>${esc(sub)}</small>` : ''}</div>`).join('');
+  const tilesHtml = (list: Array<[string, string, string?]>, icons: string[] = []) => list.map(([k, v, sub], i) => figureBlock(k, v, sub, icons[i])).join('');
   // Pastilles du résumé : ce qui compte en un coup d'œil.
   const chips: string[] = [];
   if (d.records.beaten.length) chips.push(`<span class="sum-chip gold">🏅 ${d.records.beaten.length} ${L ? (d.records.beaten.length > 1 ? 'records battus' : 'record battu') : d.records.beaten.length > 1 ? 'records beaten' : 'record beaten'}</span>`);
@@ -135,25 +164,25 @@ export function showRideSummary(root: HTMLElement, d: SummaryData, a: SummaryAct
   root.innerHTML = `<div class="sum">
     <header class="sum-head">
       <div class="sum-hero"><span class="sum-robert" aria-hidden="true"></span>
-        <div><h1>${fv ? fv.title : L ? 'Bravo, <em>belle sortie</em> !' : 'Well done, <em>great ride</em>!'}</h1><p>${fv ? esc(fv.subtitle) : esc(d.routeName)}</p>
+        <div><h1 class="ab-title">${fv ? fv.title : L ? 'Bravo, <em>belle sortie</em> !' : 'Well done, <em>great ride</em>!'}</h1><p class="ab-sub">${fv ? esc(fv.subtitle) : esc(d.routeName)}</p>
           ${chips.length ? `<div class="sum-chips">${chips.join('')}</div>` : ''}</div></div>
       <nav class="sum-actions">
-        ${a.onResume ? `<button class="sum-btn" id="s-resume">${L ? 'Reprendre' : 'Resume'}</button>` : ''}
-        <button class="sum-btn accent" id="s-new">${L ? 'Nouvelle sortie' : 'New ride'}</button>
-        <button class="sum-btn" id="s-quit">${L ? 'Quitter' : 'Quit'}</button>
+        ${a.onResume ? `<button class="sum-btn ab-btn" id="s-resume">${L ? 'Reprendre' : 'Resume'}</button>` : ''}
+        <button class="sum-btn accent ab-btn ab-go" id="s-new">${L ? 'Nouvelle sortie' : 'New ride'}</button>
+        <button class="sum-btn ab-btn" id="s-quit">${L ? 'Quitter' : 'Quit'}</button>
       </nav>
     </header>
     <div class="sum-body">
       <aside class="sum-side">
         ${
           d.xp
-            ? `<section class="sum-card sum-level"><div class="sum-lv"><b>${L ? 'Niveau' : 'Level'} ${d.xp.level}${d.xp.levelUp ? ' 🎉' : ''}</b><i class="sum-xp"><i style="width:${(d.xp.progress * 100).toFixed(0)}%"></i></i></div>
+            ? `<section class="sum-card sum-level">${blockHead(IC.level, `${L ? 'Niveau' : 'Level'} ${d.xp.level}${d.xp.levelUp ? ' 🎉' : ''}`)}<div class="sum-lv"><i class="sum-xp"><i style="width:${(d.xp.progress * 100).toFixed(0)}%"></i></i></div>
               <p>+${d.xp.gained} XP <span>(${esc(d.xp.detail)})</span>${d.xp.credits ? ` · <b class="sum-credits">+${d.xp.credits} ${L ? 'crédits' : 'credits'}</b>` : ''}</p>${d.xp.unlocked.length ? `<p class="sum-unlock">${L ? 'Débloqué' : 'Unlocked'} : ${d.xp.unlocked.map(esc).join(', ')}</p>` : ''}${d.xp.won?.length ? `<p class="sum-unlock">🔧 ${L ? 'Atelier' : 'Workshop'} : ${d.xp.won.map(esc).join(', ')}</p>` : ''}</section>`
-            : `<section class="sum-card"><p class="sum-muted">${L ? 'Invité : sortie hors classements, sans XP ni export.' : 'Guest: no rankings, XP or export.'}</p></section>`
+            : `<section class="sum-card">${blockHead(IC.user, L ? 'Invité' : 'Guest')}<p class="sum-muted">${L ? 'Sortie hors classements, sans XP ni export.' : 'No rankings, XP or export.'}</p></section>`
         }
         ${
           d.challenge
-            ? `<section class="sum-card sum-challenge"><h3>${L ? 'Défi' : 'Challenge'} · ${esc(d.challenge.name)}</h3><b>${hms(d.challenge.timeS)}</b><p>${
+            ? `<section class="sum-card sum-challenge">${blockHead(IC.flag, `${L ? 'Défi' : 'Challenge'} · ${esc(d.challenge.name)}`)}<span class="ab-val"><b>${hms(d.challenge.timeS)}</b></span><p>${
                 d.challenge.isRecord
                   ? d.challenge.previousS === null
                     ? L ? 'Premier record établi' : 'First record set'
@@ -164,14 +193,14 @@ export function showRideSummary(root: HTMLElement, d: SummaryData, a: SummaryAct
         }
         ${
           d.trophies?.length
-            ? `<section class="sum-card"><h3>${L ? 'Trophées' : 'Trophies'}</h3>${d.trophies
-                .map((t) => `<div class="sum-row sum-trophy"><span>🏆 <b>${esc(t.name)}</b><small>${esc(t.description)}</small></span><b></b><em>+${t.xp} XP</em></div>`)
+            ? `<section class="sum-card">${blockHead(IC.cup, L ? 'Trophées' : 'Trophies')}${d.trophies
+                .map((t) => `<div class="sum-row sum-trophy"><span><b>${esc(t.name)}</b><small>${esc(t.description)}</small></span><b></b><em>+${t.xp} XP</em></div>`)
                 .join('')}</section>`
             : ''
         }
         ${
           beaten.length
-            ? `<section class="sum-card"><h3>${L ? 'Nouveaux records' : 'New records'}</h3>${beaten
+            ? `<section class="sum-card">${blockHead(IC.medal, L ? 'Nouveaux records' : 'New records')}${beaten
                 .map((dur) => {
                   const w = s.curve.find((p) => p.durationS === dur)?.watts ?? 0;
                   return `<div class="sum-row"><span>${durationLabel(dur)}</span><b>${Math.round(w)} W</b><em>+${Math.max(1, Math.round(w - (d.records.previous[dur] ?? 0)))} W</em></div>`;
@@ -181,7 +210,7 @@ export function showRideSummary(root: HTMLElement, d: SummaryData, a: SummaryAct
         }
         ${
           d.withGroup && (g.draftS > 0 || g.pulls > 0 || g.savedJ > 0)
-            ? `<section class="sum-card"><h3>${L ? 'En groupe' : 'In the group'}</h3>
+            ? `<section class="sum-card">${blockHead(IC.group, L ? 'En groupe' : 'In the group')}
               <div class="sum-row"><span>${L ? 'Dans les roues' : 'On a wheel'}</span><b>${hms(g.draftS)}</b></div>
               <div class="sum-row"><span>${L ? 'Énergie économisée' : 'Energy saved'}</span><b>${Math.round(g.savedJ / 1000)} kJ</b></div>
               <div class="sum-row"><span>${L ? 'Relais pris' : 'Pulls taken'}</span><b>${g.pulls}</b></div></section>`
@@ -189,41 +218,44 @@ export function showRideSummary(root: HTMLElement, d: SummaryData, a: SummaryAct
         }
         ${
           d.ride.summitPhotos.length
-            ? `<section class="sum-card"><h3>${L ? 'Photos au sommet' : 'Summit photos'}</h3><div class="sum-photos">${d.ride.summitPhotos
+            ? `<section class="sum-card">${blockHead(IC.camera, L ? 'Photos au sommet' : 'Summit photos')}<div class="sum-photos">${d.ride.summitPhotos
                 .map((src, i) => `<a href="${src}" download="allez-robert-sommet-${i + 1}.jpg" title="${L ? 'Enregistrer la photo' : 'Save the photo'}"><img src="${src}" alt="${L ? 'Photo au sommet' : 'Summit photo'} ${i + 1}" /></a>`)
                 .join('')}</div></section>`
             : ''
         }
         ${
           a.onFeedback
-            ? `<section class="sum-card sum-feel"><h3>${L ? 'Ton ressenti' : 'How did it feel?'}</h3><div class="sum-feel-row">${FEELINGS.map(([id, f, e]) => `<button class="sum-btn" data-feel="${id}">${L ? f : e}</button>`).join('')}</div></section>`
+            ? `<section class="sum-card sum-feel">${blockHead(IC.feel, L ? 'Ton ressenti' : 'How did it feel?')}<div class="sum-feel-row">${FEELINGS.map(([id, f, e]) => `<button class="sum-btn" data-feel="${id}">${L ? f : e}</button>`).join('')}</div></section>`
             : ''
         }
         ${
           localStorage.getItem('ar.skipLogin')
-            ? `<section class="sum-card sum-login"><h3>${L ? 'Garde ta sortie' : 'Keep this ride'}</h3><p>${L ? 'Sans compte, cette sortie reste sur cet appareil. Connecte-toi pour la retrouver partout, rouler avec tes amis et l’envoyer à Strava.' : 'Without an account this ride stays on this device. Sign in to find it everywhere, ride with friends and upload it to Strava.'}</p><button class="sum-btn accent" id="s-login">${L ? 'Se connecter' : 'Sign in'}</button></section>`
+            ? `<section class="sum-card sum-login">${blockHead(IC.user, L ? 'Garde ta sortie' : 'Keep this ride')}<p>${L ? 'Sans compte, elle reste sur cet appareil.' : 'Without an account it stays on this device.'}</p><button class="sum-btn" id="s-login">${L ? 'Se connecter' : 'Sign in'}</button></section>`
             : ''
         }
         <section class="sum-card sum-share">
-          <h3>${L ? 'Partager' : 'Share'}</h3>
-          <div class="sum-share-row"><div><b>${L ? 'Carte de sortie' : 'Ride card'}</b><small>${L ? 'Une image à poster' : 'An image to post'}</small></div>
-            <div class="sum-share-btns"><button class="sum-btn" id="s-card">${L ? 'Enregistrer' : 'Save'}</button>${a.cardBlob ? `<button class="sum-btn" id="s-card-copy">${L ? 'Copier' : 'Copy'}</button><button class="sum-btn accent" id="s-card-share" hidden>${L ? 'Partager…' : 'Share…'}</button>` : ''}</div></div>
-          ${
-            d.guest
-              ? ''
-              : `<div class="sum-share-row"><div><b>${L ? 'Fichiers de la sortie' : 'Ride files'}</b><small>${L ? '.fit pour Strava, Garmin ; .gpx pour le tracé' : '.fit for Strava, Garmin; .gpx for the route'}</small></div>
-            <div class="sum-share-btns"><button class="sum-btn accent" id="s-fit">.fit</button><button class="sum-btn" id="s-gpx">.gpx</button></div></div>`
-          }
+          ${blockHead(IC.share, L ? 'Carte de sortie' : 'Ride card')}
+          <p class="sum-muted">${L ? 'Une image à poster.' : 'An image to post.'}</p>
+          <div class="sum-share-btns"><button class="sum-btn" id="s-card">${L ? 'Enregistrer' : 'Save'}</button>${a.cardBlob ? `<button class="sum-btn" id="s-card-copy">${L ? 'Copier' : 'Copy'}</button><button class="sum-btn" id="s-card-share" hidden>${L ? 'Partager…' : 'Share…'}</button>` : ''}</div>
           <div class="sum-online" id="s-online"></div>
           <p class="sum-share-msg" id="s-share-msg" role="status"></p>
         </section>
+        ${
+          d.guest
+            ? ''
+            : `<section class="sum-card sum-files">
+          ${blockHead(IC.file, L ? 'Fichiers de la sortie' : 'Ride files')}
+          <p class="sum-muted">${L ? '.fit pour Strava et Garmin, .gpx pour le tracé.' : '.fit for Strava and Garmin, .gpx for the route.'}</p>
+          <div class="sum-share-btns"><button class="sum-btn" id="s-fit">.fit</button><button class="sum-btn" id="s-gpx">.gpx</button></div>
+        </section>`
+        }
       </aside>
       <main class="sum-main${ftpT ? ' ftprep-main' : ''}">${
         ftpT && fv
           ? `
         ${ftpResultCardHtml(ftpT, L)}
         <h3 class="sum-cap">${L ? 'Le test' : 'The test'}</h3>
-        <div class="sum-tiles">${tilesHtml(fv.tiles, TILE_COLORS.slice(5))}</div>
+        <div class="sum-tiles sum-heroes">${tilesHtml(fv.tiles)}</div>
         <section class="sum-card sum-chart ftprep-chart"><h3>${L ? 'Ta puissance et la consigne' : 'Your power and the target'}</h3>${ftpTestChartSvg(ftpT, L)}</section>
         <div class="sum-charts ftprep-grid">
           ${ftpZonesHtml(ftpT, L)}
@@ -233,7 +265,7 @@ export function showRideSummary(root: HTMLElement, d: SummaryData, a: SummaryAct
             <div class="sum-canvas tall"><canvas id="c-time"></canvas><div class="sum-tip" hidden></div></div></section>
         </div>`
           : `
-        <div class="sum-tiles sum-heroes">${tilesHtml(heroTiles, [TILE_COLORS[0], TILE_COLORS[1], TILE_COLORS[5], TILE_COLORS[3]] as string[])}</div>
+        <div class="sum-tiles sum-heroes">${tilesHtml(heroTiles, [IC.distance, IC.time, IC.power, IC.speed])}</div>
         ${minorHtml}
         <div class="sum-charts">
           <section class="sum-card sum-chart"><h3>${L ? 'Courbe de puissance' : 'Power curve'}</h3>
@@ -349,10 +381,10 @@ export function showPastRide(root: HTMLElement, r: HistoryRide, o: { massKg: num
   root.innerHTML = `<div class="sum">
     <header class="sum-head">
       <div><h1>${esc(r.name)}</h1><p>${esc(date)} · ${num(r.distanceM / 1000, 1)} km${r.workoutName ? ` · ${esc(r.workoutName)}` : ''}${feel ? ` · ${L ? feel[1] : feel[2]}` : ''}</p></div>
-      <nav class="sum-actions"><button class="sum-btn accent" id="s-close">${L ? 'Retour à l’historique' : 'Back to history'}</button></nav>
+      <nav class="sum-actions"><button class="sum-btn accent ab-btn ab-go" id="s-close">${L ? 'Retour à l’historique' : 'Back to history'}</button></nav>
     </header>
     <main class="sum-main">
-      <div class="sum-tiles">${tiles.map(([k, v, sub]) => `<div class="sum-tile"><span>${k}</span><b>${v}</b>${sub ? `<small>${esc(sub)}</small>` : ''}</div>`).join('')}</div>
+      <div class="sum-tiles sum-heroes">${tiles.map(([k, v, sub]) => figureBlock(k, v, sub)).join('')}</div>
       <div class="sum-charts">
         <section class="sum-card sum-chart"><h3>${L ? 'Courbe de puissance' : 'Power curve'}</h3>
           <div class="sum-canvas"><canvas id="c-curve"></canvas><div class="sum-tip" hidden></div></div></section>

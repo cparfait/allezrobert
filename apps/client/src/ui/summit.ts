@@ -1,5 +1,6 @@
 import { getLang } from '../i18n/index.ts';
 import { thousands, type SummitStats } from '../game/climb.ts';
+import './blocks.css';
 import './summit.css';
 
 export interface SummitCallbacks {
@@ -28,7 +29,7 @@ export function showSummit(root: HTMLElement, data: { routeName: string; altitud
   const fr = getLang() === 'fr';
   const nf1 = (v: number) => (fr ? v.toFixed(1).replace('.', ',') : v.toFixed(1));
   const s = data.stats;
-  const tile = (label: string, value: string, unit = '') => `<div class="smt-tile"><span>${label}</span><b class="num">${value}${unit ? `<small>${unit}</small>` : ''}</b></div>`;
+  const tile = (label: string, value: string, unit = '') => `<div class="ab-tile ab-plain smt-tile"><span class="ab-detail">${label}</span><span class="ab-val"><b>${value}</b>${unit ? `<small>${unit}</small>` : ''}</span></div>`;
   const k = s.kom;
   let komHtml = '';
   if (k) {
@@ -36,7 +37,7 @@ export function showSummit(root: HTMLElement, data: { routeName: string; altitud
     const best = rec !== null && k.timeS <= rec + 0.5;
     const delta = rec === null ? '' : best ? (fr ? 'record personnel' : 'personal best') : `+${fmtTime(k.timeS - rec)} ${fr ? 'sur le record' : 'off the record'} (${fmtTime(rec)})`;
     komHtml = `<section class="smt-kom">
-      <h3><span class="smt-dots" aria-hidden="true"></span>${esc(k.name)}</h3>
+      <h3 class="ab-section"><span class="smt-dots" aria-hidden="true"></span>${esc(k.name)}</h3>
       <div class="smt-kom-row">
         <b class="num smt-kom-time">${fmtTime(k.timeS)}</b>
         <span class="num">${Math.round(k.avgWatts)} W · ${nf1(k.wkg)} W/kg · VAM ${thousands(k.vam, fr)} m/h</span>
@@ -47,7 +48,7 @@ export function showSummit(root: HTMLElement, data: { routeName: string; altitud
   root.innerHTML = `<div class="smt">
     <div class="smt-card">
       <p class="smt-kicker">${fr ? 'Arrivée au sommet' : 'Summit finish'}</p>
-      <h1>${esc(data.routeName)}</h1>
+      <h1 class="ab-title">${esc(data.routeName)}</h1>
       <p class="smt-alt num">${thousands(data.altitudeM, fr)} m</p>
       <div class="smt-tiles">
         ${tile(fr ? 'Temps' : 'Time', fmtTime(s.timeS))}
@@ -58,8 +59,8 @@ export function showSummit(root: HTMLElement, data: { routeName: string; altitud
       </div>
       ${komHtml}
       <div class="smt-actions">
-        <button class="smt-btn accent" id="smt-menu">${fr ? 'Retour au menu' : 'Back to menu'}</button>
-        <button class="smt-btn" id="smt-summary">${fr ? 'Bilan détaillé' : 'Full summary'}</button>
+        <button class="smt-btn accent ab-btn ab-go" id="smt-menu">${fr ? 'Retour au menu' : 'Back to menu'}</button>
+        <button class="smt-btn ab-btn" id="smt-summary">${fr ? 'Bilan détaillé' : 'Full summary'}</button>
       </div>
     </div>
   </div>`;

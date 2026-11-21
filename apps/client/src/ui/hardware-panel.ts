@@ -4,6 +4,9 @@ import { ROAD_FEEL, ROAD_FEEL_TEXT, clampRoadFeel, roadFeelLevel } from '@allezr
 import { loadSettings } from './settings.ts';
 import type { HardwareApi } from '../game/devices.ts';
 import { getLang } from '../i18n/index.ts';
+import { CHECK_ROLES, startCheckModel, type CheckDevice, type CheckRole, type CheckState } from './startCheck.ts';
+import type { DeviceLive } from './menu.ts';
+import './blocks.css';
 import './hardware-panel.css';
 
 /**
@@ -16,8 +19,16 @@ const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&
 const fr = () => getLang() === 'fr';
 const L = (f: string, e: string) => (fr() ? f : e);
 
-/** Sections ouvertes : conservées entre deux rendus (le panneau se redessine à chaque événement capteur). */
-const openSections = new Set<string>(['calib']);
+/**
+ * Carte ouverte : une seule à la fois, conservée entre deux rendus (le panneau se redessine à chaque événement
+ * capteur). Toutes repliées au départ : la liste des réglages avancés se lit d'un coup d'œil.
+ */
+const openSections = new Set<string>();
+/** Ouvre une carte et replie les autres. */
+function openOnly(id: string): void {
+  openSections.clear();
+  openSections.add(id);
+}
 /** Section d'essai du ressenti route déjà ouverte d'office (une fois, à l'appairage du NEO). */
 let roadAutoOpened = false;
 /** Apprentissage d'une touche de télécommande en cours. */
@@ -143,8 +154,9 @@ function calibrationText(api: HardwareApi): string {
   }
 }
 
-function section(id: string, title: string, body: string): string {
-  return `<details class="hw-sec" data-sec="${id}" ${openSections.has(id) ? 'open' : ''}><summary>${title}</summary><div class="hw-body">${body}</div></details>`;
+/** Carte repliée d'un réglage avancé : un nom clair, une ligne qui dit à quoi il sert, le contenu une fois ouverte. */
+function section(id: string, title: string, purpose: string, body: string): string {
+  return `<details class="hw-sec" data-sec="${id}" ${openSections.has(id) ? 'open' : ''}><summary><span class="hw-sec-t"><b>${title}</b><small>${purpose}</small></span></summary><div class="hw-body">${body}</div></details>`;
 }
 
 export function renderHardwarePanel(el: HTMLElement, api: HardwareApi): void {
@@ -155,7 +167,7 @@ export function renderHardwarePanel(el: HTMLElement, api: HardwareApi): void {
 
   if (!roadAutoOpened && api.roadFeelSupported()) {
     roadAutoOpened = true;
-    openSections.add('road');
+    openOnly('road');
   }
   const p = api.prefs();
   const exp = api.experimental();
@@ -212,23 +224,28 @@ export function renderHardwarePanel(el: HTMLElement, api: HardwareApi): void {
     <pre class="hw-log">${esc(api.log().split('\n').slice(-12).join('\n'))}</pre>`;
 
   el.innerHTML = `<div class="hw">
-    <h3>${L('Réglages avancés', 'Advanced settings')}</h3>
-    ${section('calib', L('Calibration du home trainer (spin-down)', 'Trainer calibration (spin-down)'), calib)}
-    ${section('road', L('Ressenti route (Tacx NEO) · essai', 'Road feel (Tacx NEO) · test'), roadTestBody(api))}
-    ${section('fan', L('Ventilateur KICKR HEADWIND', 'KICKR HEADWIND fan'), fan)}
-    ${section('shift', L('Manette, télécommande, clavier', 'Gamepad, remote, keyboard'), shifters)}
-    ${section('exp', L('Adaptateurs expérimentaux (Click, Di2, HEADWIND…)', 'Experimental adapters'), adapters)}
-    ${section('erg', 'ERG · power match', ergBody)}
-    ${section('desk', L('ANT+ USB et Direct Connect', 'ANT+ USB and Direct Connect'), desktop)}
-    ${section('diag', L('Diagnostic et journal', 'Diagnostics and log'), diag)}
+    <h3 class="ab-section">${L('Réglages avancés', 'Advanced settings')}</h3>
+    ${section('calib', L('Calibration du home trainer', 'Trainer calibration'), L('Spin-down : à refaire quand la puissance du trainer paraît fausse.', 'Spin-down: redo it when the trainer’s power looks off.'), calib)}
+    ${section('road', L('Ressenti route', 'Road feel'), L('Essayer les vibrations des revêtements (Tacx NEO).', 'Try the surface vibrations (Tacx NEO).'), roadTestBody(api))}
+    ${section('fan', L('Ventilateur', 'Fan'), L('Régler le KICKR HEADWIND sur la vitesse, le cardio ou la pente.', 'Drive the KICKR HEADWIND from speed, heart rate or grade.'), fan)}
+    ${section('shift', L('Manette, télécommande, clavier', 'Gamepad, remote, keyboard'), L('Choisir les boutons qui changent de vitesse.', 'Pick the buttons that shift gears.'), shifters)}
+    ${section('exp', L('Adaptateurs expérimentaux', 'Experimental adapters'), L('Zwift Click et Play, Shimano Di2, SRAM AXS, HEADWIND.', 'Zwift Click and Play, Shimano Di2, SRAM AXS, HEADWIND.'), adapters)}
+    ${section('erg', L('Power match', 'Power match'), L('En ERG, caler la consigne du trainer sur les pédales.', 'In ERG, align the trainer’s target with the pedals.'), ergBody)}
+    ${section('desk', L('ANT+ et Direct Connect', 'ANT+ and Direct Connect'), L('Clé ANT+ USB et trainer par adresse IP (application Windows).', 'ANT+ USB stick and trainer by IP address (Windows app).'), desktop)}
+    ${section('diag', L('Diagnostic', 'Diagnostics'), L('État des appareils et journal à copier pour un signalement.', 'Device states and a log to copy into a report.'), diag)}
   </div>`;
 
   const rerender = () => renderHardwarePanel(el, api);
   el.querySelectorAll<HTMLDetailsElement>('details.hw-sec').forEach((d) =>
     d.addEventListener('toggle', () => {
       const id = d.dataset.sec as string;
-      if (d.open) openSections.add(id);
-      else openSections.delete(id);
+      if (d.open) {
+        // Une seule carte ouverte à la fois : les autres se replient sans redessiner le panneau.
+        openOnly(id);
+        el.querySelectorAll<HTMLDetailsElement>('details.hw-sec[open]').forEach((o) => {
+          if (o !== d) o.open = false;
+        });
+      } else openSections.delete(id);
     }),
   );
   const q = <T extends HTMLElement>(sel: string) => el.querySelector<T>(sel);
@@ -339,4 +356,130 @@ export function renderHardwarePanel(el: HTMLElement, api: HardwareApi): void {
       again.focus();
     }
   }
+}
+
+// ————————————————————————————————————————————— Blocs des appareils (onglet Capteurs)
+
+/** Mots d'état des blocs : les mêmes que sur l'écran « Prêt à rouler ? » (ui/startCheck.ts). */
+const STATE_WORD: Record<'fr' | 'en', Record<CheckState, string>> = {
+  fr: { live: 'Connecté', simulated: 'Simulé', searching: 'Recherche…', lost: 'Signal perdu', none: 'Non associé' },
+  en: { live: 'Connected', simulated: 'Simulated', searching: 'Searching…', lost: 'Signal lost', none: 'Not paired' },
+};
+const STATE_CLASS: Record<CheckState, string> = { live: 'is-ok', simulated: 'is-info hw-sim', searching: 'is-warn hw-search', lost: 'is-bad', none: '' };
+const ROLE_NAME: Record<'fr' | 'en', Record<CheckRole, string>> = {
+  fr: { trainer: 'Home trainer', power: 'Puissance', cadence: 'Cadence', heartRate: 'Cardio', shifter: 'Vitesses', fan: 'Ventilateur' },
+  en: { trainer: 'Trainer', power: 'Power', cadence: 'Cadence', heartRate: 'Heart rate', shifter: 'Shifting', fan: 'Fan' },
+};
+const ROLE_HINT: Record<'fr' | 'en', Record<CheckRole, string>> = {
+  fr: { trainer: 'Résistance pilotée (FTMS, FE-C)', power: 'Pédales ou manivelle', cadence: 'Capteur de cadence', heartRate: 'Ceinture ou montre', shifter: 'Manettes (Click, AXS, D-Fly)', fan: 'Ventilateur connecté' },
+  en: { trainer: 'Controlled resistance (FTMS, FE-C)', power: 'Pedals or crank', cadence: 'Cadence sensor', heartRate: 'Strap or watch', shifter: 'Controllers (Click, AXS, D-Fly)', fan: 'Smart fan' },
+};
+/** Mesure en direct d'un rôle (clé de `DeviceLive`), s'il en a une. */
+const LIVE_KIND: Partial<Record<CheckRole, 'watts' | 'cadence' | 'hr' | 'gear'>> = { power: 'watts', cadence: 'cadence', heartRate: 'hr', shifter: 'gear' };
+
+/** Appareil tel que le liste le panneau des capteurs (`DevicePanel.list()`), avec son état déjà traduit. */
+export interface DeviceTileDevice extends CheckDevice {
+  /** État en clair (« connecté », « reconnexion… »), affiché à côté du nom quand il y a plusieurs appareils. */
+  state?: string;
+}
+
+export interface DeviceTilesInput {
+  devices: readonly DeviceTileDevice[];
+  live?: DeviceLive | undefined;
+  simulatorOn: boolean;
+  /** Dessin de chaque rôle (SVG), fourni par l'appelant ; sans dessin, le bloc garde sa case vide. */
+  icons?: Partial<Record<CheckRole, string>>;
+  /** Texte de la mesure en direct d'un rôle (« 215 W ») ; rafraîchi ensuite par l'appelant via `data-live`. */
+  liveText?: (kind: 'watts' | 'cadence' | 'hr' | 'gear') => string;
+  /** Le gestionnaire sait relancer un appareil (lien « reconnecter »). */
+  canReconnect?: boolean;
+  /** Tacx NEO associé : lien « Tester le ressenti route » sur le bloc du home trainer. */
+  roadFeel?: boolean;
+  /** Cassette réelle : le rapport engagé s'affiche sur le bloc Vitesses. */
+  cassette?: boolean;
+  lang?: 'fr' | 'en';
+}
+
+/**
+ * Gros blocs des appareils, au même aspect que l'écran « Prêt à rouler ? » (classes `ab-*` de blocks.css) et avec
+ * les mêmes mots d'état. Les attributs lus par l'onglet Capteurs sont conservés : `data-pair="<rôle>"` sur le
+ * bouton, `data-forget` et `data-reconnect` sur les liens d'un appareil, `data-live` sur la valeur,
+ * `data-roadtest-open` sur le lien d'essai du ressenti route. Fonction pure (aucun accès au document).
+ */
+export function deviceTilesHtml(o: DeviceTilesInput): string {
+  const lang = o.lang ?? (fr() ? 'fr' : 'en');
+  const F = lang === 'fr';
+  const model = startCheckModel({ devices: o.devices, live: o.live, simulatorOn: o.simulatorOn, loaded: true });
+  const tiles = CHECK_ROLES.map((role) => {
+    const tile = model.tiles.find((x) => x.role === role);
+    if (!tile) return '';
+    const mine = o.devices.filter((d) => d.roleIds?.includes(role));
+    const own = mine.some((d) => d.ok && !d.simulated);
+    const via = tile.via ? ` · ${tile.via === 'trainer' ? (F ? 'via le home trainer' : 'via the trainer') : F ? 'via les pédales' : 'via the pedals'}` : '';
+    // Un appareil par ligne, avec ses liens ; sans appareil, ce que le rôle attend (ou celui qui le fournit).
+    const lines = mine.length
+      ? mine
+          .map(
+            (d) =>
+              `<span class="hw-dev">${esc(d.name)}${mine.length > 1 && d.state ? ` · ${esc(d.state)}` : ''}${d.detail ? ` · ${esc(d.detail)}` : ''}${
+                d.canReconnect && o.canReconnect ? ` <button type="button" class="mm-link" data-reconnect="${esc(d.id)}">${F ? 'reconnecter' : 'reconnect'}</button>` : ''
+              }${d.simulated ? '' : ` <button type="button" class="mm-link" data-forget="${esc(d.id)}">${F ? 'oublier' : 'forget'}</button>`}</span>`,
+          )
+          .join('')
+      : `<span class="hw-dev">${esc(tile.device ? `${tile.device}${via}` : ROLE_HINT[lang][role])}</span>`;
+    const road = role === 'trainer' && o.roadFeel && tile.state === 'live' ? `<button type="button" class="mm-link" data-roadtest-open>${F ? 'Tester le ressenti route' : 'Test road feel'}</button>` : '';
+    // Le home trainer montre ses watts quand c'est lui la source de puissance, comme sur l'écran de départ.
+    const kind = role === 'shifter' && !o.cassette ? undefined : role === 'trainer' ? (o.live?.powerFrom === 'trainer' ? 'watts' : undefined) : LIVE_KIND[role];
+    const shown = kind && (tile.state === 'live' || tile.state === 'simulated');
+    const value = shown && o.liveText ? `<b data-live="${kind}">${esc(o.liveText(kind))}</b>` : '';
+    const tag = role === 'trainer' || role === 'power' ? (F ? 'source de puissance' : 'power source') : F ? 'facultatif' : 'optional';
+    const title =
+      tile.via && role === 'power'
+        ? F ? 'Des pédales associées deviennent la puissance de référence.' : 'Paired pedals become the reference power.'
+        : tile.via && role === 'cadence'
+          ? F ? 'Un capteur de cadence associé passe avant le home trainer.' : 'A paired cadence sensor takes over from the trainer.'
+          : '';
+    const quiet = tile.state === 'live' || tile.state === 'simulated';
+    return `<div class="ab-tile hw-tile ${STATE_CLASS[tile.state]}" data-role="${role}">
+      <span class="ab-tag">${tag}</span>
+      <span class="ab-ico" aria-hidden="true">${o.icons?.[role] ?? ''}</span>
+      <span class="ab-name">${ROLE_NAME[lang][role]}</span>
+      <span class="ab-detail">${lines}${road}</span>
+      <span class="ab-val">${value}</span>
+      <span class="ab-state"><i></i>${STATE_WORD[lang][tile.state]}</span>
+      <button type="button" class="ab-act${quiet ? ' quiet' : ''}" data-pair="${role}"${title ? ` title="${esc(title)}"` : ''}>${own ? (F ? 'Changer' : 'Change') : F ? 'Associer' : 'Pair'}</button>
+    </div>`;
+  }).join('');
+  return `<div class="ab-grid hw-tiles">${tiles}</div>`;
+}
+
+export interface DeviceOptionsInput {
+  /** Choix de la connexion, déjà construit par l'onglet (`this.seg('m-transport', …)`) ; vide s'il n'y en a qu'une. */
+  transportSeg: string;
+  /** La connexion choisie est le Bluetooth du navigateur : la mise en garde « une appli à la fois » s'applique. */
+  bluetooth: boolean;
+  simulatorOn: boolean;
+  guest: boolean;
+  /** Avertissements du gestionnaire d'appareils, un par ligne. */
+  warnings?: readonly string[];
+  lang?: 'fr' | 'en';
+}
+
+/**
+ * Connexion, simulateur et invité : un réglage par ligne (libellé, aide courte, commande), au motif `.mm-opt` du
+ * menu. Identifiants conservés : `#m-transport` (dans `transportSeg`), `#m-adapters`, `#m-sim`, `#m-guest`. La
+ * mise en garde Bluetooth tient en une ligne et ne s'affiche qu'avec le Bluetooth du navigateur. Fonction pure.
+ */
+export function deviceOptionsHtml(o: DeviceOptionsInput): string {
+  const F = (o.lang ?? (fr() ? 'fr' : 'en')) === 'fr';
+  const row = (label: string, help: string, control: string, col = false) =>
+    `<div class="mm-opt${col ? ' mm-opt-col' : ''}"><div class="mm-opt-l"><b>${label}</b><small>${help}</small></div>${control}</div>`;
+  return `<div class="hw-opts">
+    ${o.transportSeg ? row(F ? 'Connexion' : 'Connection', F ? 'Comment le jeu parle à tes capteurs.' : 'How the game talks to your sensors.', o.transportSeg, true) : ''}
+    <div id="m-adapters"></div>
+    ${row(F ? 'Simulateur' : 'Simulator', F ? 'Rouler sans matériel : la puissance est simulée.' : 'Ride without hardware: power is simulated.', `<input type="checkbox" class="hw-switch" id="m-sim" aria-label="${F ? 'Simulateur' : 'Simulator'}" ${o.simulatorOn ? 'checked' : ''}/>`)}
+    ${row(F ? 'Invité sans matériel' : 'Guest without hardware', F ? 'Au clavier ou à la manette, hors classements.' : 'Keyboard or gamepad, unranked.', `<input type="checkbox" class="hw-switch" id="m-guest" aria-label="${F ? 'Invité sans matériel' : 'Guest without hardware'}" ${o.guest ? 'checked' : ''}/>`)}
+    ${(o.warnings ?? []).map((w) => `<p class="hw-line warn">${esc(w)}</p>`).join('')}
+    ${o.bluetooth ? `<p class="hw-line">${F ? 'Bluetooth : un capteur ne parle qu’à une appli à la fois. Ferme les autres (téléphone, compteur, autre logiciel).' : 'Bluetooth: a sensor talks to one app at a time. Close the others (phone, head unit, other software).'}</p>` : ''}
+  </div>`;
 }

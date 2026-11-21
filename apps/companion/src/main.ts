@@ -331,11 +331,13 @@ function render(): void {
   document.documentElement.lang = lang;
   if (!S.pair) {
     app.innerHTML = `<main class="scan">
-      <div class="logo">🚴</div>
-      <h1>${esc(t.scanTitle)}</h1>
-      <p>${esc(t.scanText)}</p>
-      <form data-form="pair"><input name="link" placeholder="${esc(t.scanPaste)}" autocomplete="off"/><button class="btn">${esc(t.scanGo)}</button></form>
-      <button class="lang" data-act="lang">${lang === 'fr' ? 'English' : 'Français'}</button>
+      <div class="scan-box">
+        <div class="logo" aria-hidden="true">🚴</div>
+        <h1 class="ab-title">${esc(t.scanTitle)}</h1>
+        <p class="ab-sub">${esc(t.scanText)}</p>
+        <form data-form="pair"><input name="link" placeholder="${esc(t.scanPaste)}" autocomplete="off"/><button class="btn go">${esc(t.scanGo)}</button></form>
+        <button class="lang" data-act="lang">${lang === 'fr' ? 'English' : 'Français'}</button>
+      </div>
     </main>`;
     return;
   }
@@ -396,10 +398,19 @@ function robertWait(): string {
   return `<div class="rb" aria-hidden="true"><div class="rb-bike">${l('base')}${l('leg', 'rb-leg')}<div class="rb-upper">${l('upper')}${l('arm', 'rb-arm')}</div></div></div>`;
 }
 
+/** Bloc d'état d'un maillon de la liaison (écrans d'attente). */
+function linkTile(ico: string, name: string, state: 'ok' | 'warn' | 'bad' | 'none', word: string): string {
+  return `<div class="st-tile is-${state}"><span class="st-ico" aria-hidden="true">${ico}</span><b>${esc(name)}</b><span class="ab-state"><i></i>${esc(word)}</span></div>`;
+}
+
 function waitingHtml(): string {
-  if (S.conn !== 'connected') return `<div class="empty">${robertWait()}<p>${esc(S.conn === 'down' ? t.serverDown : t.connecting)}</p></div>`;
-  if (!S.presence.game || !S.st) return `<div class="empty">${robertWait()}<p>${esc(t.waitingGame)}</p><button class="btn ghost small" data-act="unpair">${esc(t.unpair)}</button></div>`;
-  return `<div class="empty">${robertWait()}<p>${esc(t.menu)}</p></div>`;
+  const phone = S.conn === 'connected' ? linkTile('📱', t.linkPhone, 'ok', t.linkOk) : linkTile('📱', t.linkPhone, S.conn === 'down' ? 'bad' : 'warn', S.conn === 'down' ? t.linkDown : t.linkWait);
+  const gameUp = S.conn === 'connected' && S.presence.game && !!S.st;
+  const game = gameUp ? linkTile('🖥', t.linkGame, 'ok', t.linkOk) : linkTile('🖥', t.linkGame, 'none', t.linkWait);
+  const tiles = `<div class="st-grid">${phone}${game}</div>`;
+  if (S.conn !== 'connected') return `<div class="empty">${robertWait()}<h1 class="ab-title">${esc(t.waitConnTitle)}</h1><p class="ab-sub">${esc(S.conn === 'down' ? t.serverDown : t.connecting)}</p>${tiles}</div>`;
+  if (!gameUp) return `<div class="empty">${robertWait()}<h1 class="ab-title">${esc(t.waitGameTitle)}</h1><p class="ab-sub">${esc(t.waitingGame)}</p>${tiles}<button class="btn ghost small" data-act="unpair">${esc(t.unpair)}</button></div>`;
+  return `<div class="empty">${robertWait()}<h1 class="ab-title">${esc(t.waitMenuTitle)}</h1><p class="ab-sub">${esc(t.menu)}</p>${tiles}</div>`;
 }
 
 /** Squelette de l'onglet courant (les valeurs sont remplies par `refresh`). */
@@ -722,29 +733,41 @@ function renderClimbMini(): void {
 function ctrlHtml(): string {
   const st = S.st!;
   return `<section class="ctrl">
-    <div class="shift">
-      <button class="btn huge" data-cmd="shift-down">−</button>
-      <div class="gearbox"><span>${esc(t.gear)}</span><b id="c-gear">–</b><small id="c-gearn"></small></div>
-      <button class="btn huge" data-cmd="shift-up">+</button>
+    <div class="cg">
+      <h2>${esc(t.ctrlGears)}</h2>
+      <div class="shift">
+        <button class="btn huge" data-cmd="shift-down" aria-label="${esc(t.shiftDown)}">−</button>
+        <div class="gearbox"><span>${esc(t.gear)}</span><b id="c-gear">–</b><small id="c-gearn"></small></div>
+        <button class="btn huge" data-cmd="shift-up" aria-label="${esc(t.shiftUp)}">+</button>
+      </div>
     </div>
-    <div class="row3">
-      <button class="btn big" data-cmd="pause" id="c-pause">${esc(st.phase === 'paused' ? t.resume : t.pause)}</button>
-      <button class="btn big" data-cmd="photo">📷 ${esc(t.photo)}</button>
-      <button class="btn big" data-cmd="hud" id="c-hud">${esc(t.hud)}</button>
+    <div class="cg">
+      <h2>${esc(t.ctrlRide)}</h2>
+      <div class="tiles">
+        <button class="btn big tile" data-ico="⏯" data-cmd="pause" id="c-pause">${esc(st.phase === 'paused' ? t.resume : t.pause)}</button>
+        ${st.open || !st.multiplayer ? `<button class="btn big tile" data-ico="↶" data-cmd="uturn">${esc(t.uturn)}</button>` : ''}
+        <button class="btn big tile" data-ico="📷" data-cmd="photo">${esc(t.photo)}</button>
+        <button class="btn big tile" data-ico="👀" data-cmd="lookback" id="c-look">${esc(t.lookBack)}</button>
+      </div>
     </div>
-    <div class="row3">
-      <button class="btn big" data-cmd="lookback" id="c-look">${esc(t.lookBack)}</button>
-      <button class="btn big" data-cmd="mute" id="c-mute">${esc(st.muted ? t.unmute : t.mute)}</button>
+    <div class="cg">
+      <h2>${esc(t.ctrlView)}</h2>
+      <div class="tiles">
+        <button class="btn big tile" data-ico="▦" data-cmd="hud" id="c-hud">${esc(t.hud)}</button>
+        <button class="btn big tile" data-ico="🔊" data-cmd="mute" id="c-mute">${esc(st.muted ? t.unmute : t.mute)}</button>
+        <button class="btn big tile wide2" data-ico="♪" data-music="toggle" id="c-music">${esc(st.music?.playing === false ? t.musicResume : t.musicCut)}</button>
+      </div>
+      <h3>${esc(t.camera)}</h3>
+      <div class="cams">${CAMERAS.map((c) => `<button class="seg" data-cam="${c}">${esc(t.cameras[c])}</button>`).join('')}</div>
     </div>
-    <button class="btn big wide" data-music="toggle" id="c-music">${esc(st.music?.playing === false ? t.musicResume : t.musicCut)}</button>
-    ${st.open || !st.multiplayer ? `<button class="btn big wide" data-cmd="uturn">↶ ${esc(t.uturn)}</button>` : ''}
-    <h2>${esc(t.camera)}</h2>
-    <div class="cams">${CAMERAS.map((c) => `<button class="seg" data-cam="${c}">${esc(t.cameras[c])}</button>`).join('')}</div>
-    <label class="slider"><span>${esc(t.fan)}</span><input type="range" min="0" max="100" step="5" value="${st.fanPercent ?? 0}" id="c-fan"/><output id="c-fanv">${st.fanPercent ?? 0} %</output></label>
-    ${roadFeelHtml(st)}
+    <div class="cg">
+      <h2>${esc(t.ctrlComfort)}</h2>
+      <label class="slider"><span>${esc(t.fan)}</span><input type="range" min="0" max="100" step="5" value="${st.fanPercent ?? 0}" id="c-fan"/><output id="c-fanv">${st.fanPercent ?? 0} %</output></label>
+      ${roadFeelHtml(st)}
+    </div>
     ${
       st.team
-        ? `<h2>${esc(t.team)} <small id="c-grp-pace"></small></h2><div class="grp"><div class="grp-radar"><i class="grp-track"></i><div id="c-grp-dots"></div><i class="grp-me"></i></div><div class="grp-scale"><span>${esc(t.groupBehind)}</span><span>${esc(t.groupYou)}</span><span>${esc(t.groupAhead)}</span></div></div><div class="row3"><button class="btn big" data-cmd="pace-down">${esc(t.paceDown)}</button><button class="btn big" data-cmd="slowdown">${esc(t.slowDown)}</button><button class="btn big" data-cmd="pace-up">${esc(t.paceUp)}</button></div><div class="row3"><button class="btn big" data-cmd="waitme">${esc(t.waitMe)}</button><button class="btn big" data-cmd="formation">${esc(t.formation)}</button></div>`
+        ? `<div class="cg"><h2>${esc(t.team)} <small id="c-grp-pace"></small></h2><div class="grp"><div class="grp-radar"><i class="grp-track"></i><div id="c-grp-dots"></div><i class="grp-me"></i></div><div class="grp-scale"><span>${esc(t.groupBehind)}</span><span>${esc(t.groupYou)}</span><span>${esc(t.groupAhead)}</span></div></div><div class="row3"><button class="btn big" data-cmd="pace-down">${esc(t.paceDown)}</button><button class="btn big" data-cmd="slowdown">${esc(t.slowDown)}</button><button class="btn big" data-cmd="pace-up">${esc(t.paceUp)}</button></div><div class="row3"><button class="btn big" data-cmd="waitme">${esc(t.waitMe)}</button><button class="btn big" data-cmd="formation">${esc(t.formation)}</button></div></div>`
         : ''
     }
   </section>`;
@@ -828,6 +851,7 @@ function musicHtml(): string {
     </div>
     <label class="slider"><span>${esc(t.volume)}</span><input type="range" min="0" max="1" step="0.05" id="mu-vol"/><output id="mu-volv"></output></label>
     <div class="mu-search" id="mu-search" hidden>
+      <h2>${esc(t.musicFind)}</h2>
       <form class="row" data-form="music"><input name="q" maxlength="100" autocomplete="off" enterkeyhint="search" placeholder="${esc(t.musicSearch)}" value="${esc(S.music.query)}"/><button class="btn">${esc(t.musicSearchGo)}</button></form>
       <button class="seg" data-act="music-mine">${esc(t.musicMine)}</button>
       <ul class="mu-results" id="mu-results"></ul>

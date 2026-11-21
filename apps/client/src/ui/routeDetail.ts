@@ -11,6 +11,7 @@ import { readSegmentPr } from '../game/sequences.ts';
 import { rideHistory } from '../data/history/instance.ts';
 import { getLang } from '../i18n/index.ts';
 import { apiBase } from './account.ts';
+import './blocks.css';
 import { loadProgress } from './garage.ts';
 import './routeDetail.css';
 
@@ -202,7 +203,8 @@ export function routeDetailHtml(r: RouteData, name: string, opts: { loggedIn: bo
   }
   const last = lastRide ? { date: lastRide.startedAt, avgSpeedKmh: lastRide.avgSpeedKmh ?? 0, avgWatts: lastRide.avgWatts ?? 0 } : null;
   const done = loadProgress().routesDone.some((id) => rankRouteId(id) === rank);
-  const stat = (v: string, u: string) => `<div><b>${v}</b><span>${u}</span></div>`;
+  // Quatre chiffres clés en grands blocs ; altitude et nombre de montées sur une ligne dessous.
+  const stat = (label: string, v: string, u = '') => `<div class="ab-tile ab-plain rd-fig"><span class="ab-detail">${label}</span><span class="ab-val"><b>${v}</b>${u ? `<small>${u}</small>` : ''}</span></div>`;
   const dateFmt = (d: number | string) => new Date(d).toLocaleDateString(L ? 'fr-FR' : 'en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
   const mine = [
     ghost ? `<li><span>${L ? 'Meilleur temps sur le parcours' : 'Best time on the route'}</span><b>${formatTime(ghost.lapTimeS)}</b><small>${dateFmt(ghost.date)}</small></li>` : '',
@@ -218,7 +220,7 @@ export function routeDetailHtml(r: RouteData, name: string, opts: { loggedIn: bo
         <td class="rd-me" data-mine="${best ?? ''}">${best !== null ? `<b>${formatTime(best)}</b>` : `<span class="rd-none">—</span>`}</td>
         <td class="rd-friends">${opts.loggedIn ? '<span class="rd-load">…</span>' : `<span class="rd-none">${L ? 'connecte-toi' : 'sign in'}</span>`}</td>
         <td class="rd-top"><span class="rd-load">…</span></td>
-        <td>${s.kind === 'kom' ? `<button class="rd-defi" data-rd-kom="${esc(s.id)}" title="${L ? 'Défi : bats ton record sur cette montée' : 'Challenge: beat your record on this climb'}">${L ? 'Défi' : 'Challenge'} →</button>` : ''}</td>
+        <td>${s.kind === 'kom' ? `<button class="rd-defi" data-rd-kom="${esc(s.id)}" title="${L ? 'Défi : bats ton record sur cette montée' : 'Challenge: beat your record on this climb'}">${L ? 'Défi' : 'Challenge'}</button>` : ''}</td>
       </tr>`;
     })
     .join('');
@@ -230,30 +232,29 @@ export function routeDetailHtml(r: RouteData, name: string, opts: { loggedIn: bo
       </div>
       <div class="rd-side">
         <div class="rd-stats">
-          ${stat(num(r.lengthM / 1000), 'km')}
-          ${stat(String(Math.round(r.elevationGainM)), 'm D+')}
-          ${stat(r.maxGradePct !== undefined ? String(Math.round(r.maxGradePct)) : '—', '% max')}
-          ${stat(eta, L ? 'durée env.' : 'est. time')}
-          ${stat(r.minElevationM !== undefined && r.maxElevationM !== undefined ? `${Math.round(r.minElevationM)}–${Math.round(r.maxElevationM)}` : '—', L ? 'altitude (m)' : 'altitude (m)')}
-          ${stat(String(kom.length), kom.length > 1 ? (L ? 'montées' : 'climbs') : L ? 'montée' : 'climb')}
+          ${stat('Distance', num(r.lengthM / 1000), 'km')}
+          ${stat(L ? 'Dénivelé' : 'Climbing', String(Math.round(r.elevationGainM)), 'm')}
+          ${stat(L ? 'Pente maximale' : 'Steepest', r.maxGradePct !== undefined ? String(Math.round(r.maxGradePct)) : '—', '%')}
+          ${stat(L ? 'Durée estimée' : 'Estimated time', eta)}
         </div>
-        <h3>${L ? 'Tes records' : 'Your records'}</h3>
+        <p class="rd-minor">${r.minElevationM !== undefined && r.maxElevationM !== undefined ? `<span>Altitude <b>${Math.round(r.minElevationM)} à ${Math.round(r.maxElevationM)} m</b></span>` : ''}<span>${kom.length > 1 ? (L ? 'Montées' : 'Climbs') : L ? 'Montée' : 'Climb'} <b>${kom.length}</b></span></p>
+        <h3 class="ab-section">${L ? 'Tes records' : 'Your records'}</h3>
         <ul class="rd-mine">${mine}</ul>
-        <h3>${L ? 'Parcours entier' : 'Whole route'}</h3>
+        <h3 class="ab-section">${L ? 'Parcours entier' : 'Whole route'}</h3>
         <div class="rd-route-board">
           <div><span>${L ? 'Tes amis' : 'Your friends'}</span><div class="rd-rb-friends">${opts.loggedIn ? '<span class="rd-load">…</span>' : `<span class="rd-none">${L ? 'connecte-toi pour voir leurs temps' : 'sign in to see their times'}</span>`}</div></div>
           <div><span>${L ? 'Meilleur temps' : 'Fastest'}</span><div class="rd-rb-top"><span class="rd-load">…</span></div></div>
         </div>
-        ${r.landmarks?.length ? `<h3>${L ? 'Villages traversés' : 'Villages on the way'}</h3>${placesList(r.landmarks)}` : ''}
-        <button class="rd-go" data-rd="ride">${L ? 'Rouler ce parcours' : 'Ride this route'} →</button>
+        ${r.landmarks?.length ? `<h3 class="ab-section">${L ? 'Villages traversés' : 'Villages on the way'}</h3>${placesList(r.landmarks)}` : ''}
+        <button class="rd-go ab-btn ab-go" data-rd="ride">${L ? 'Rouler ce parcours' : 'Ride this route'}</button>
       </div>
     </div>
     ${bigProfile(r, segs)}
     ${
       segs.length
-        ? `<h3>${L ? 'Montées et sprints chronométrés' : 'Timed climbs and sprints'}</h3>
+        ? `<h3 class="ab-section">${L ? 'Montées et sprints chronométrés' : 'Timed climbs and sprints'}</h3>
       <table class="rd-table"><thead><tr><th></th><th>${L ? 'Segment' : 'Segment'}</th><th>${L ? 'Ton record' : 'Your best'}</th><th>${L ? 'Tes amis' : 'Your friends'}</th><th>${L ? 'Meilleur temps' : 'Fastest'}</th><th></th></tr></thead><tbody>${rows}</tbody></table>
-      <p class="mm-hint">${L ? 'Les temps sont envoyés à la fin de chaque sortie, solo ou en groupe, quand on roule avec un compte (pas en invité, ni pendant une séance ERG).' : 'Times are sent at the end of every ride, solo or in a group, when riding with an account (not as a guest, nor during an ERG workout).'}</p>`
+      <p class="mm-hint">${L ? 'Les temps comptent quand tu roules avec un compte, hors séance ERG.' : 'Times count when you ride with an account, outside ERG workouts.'}</p>`
         : `<p class="mm-hint">${L ? 'Pas de montée ni de sprint chronométré sur ce parcours.' : 'No timed climb or sprint on this route.'}</p>`
     }
   </div>`;

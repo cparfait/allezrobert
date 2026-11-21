@@ -29,6 +29,7 @@ import { bikeThumbHtml } from './bikeThumb.ts';
 import { V3_STYLE } from '../engine/style.ts';
 import { V3_REWARD_CATS, v3RewardIcon, v3Rewards, type V3RewardCat } from '../v3/progression.ts';
 import { readV3Equipment } from '../v3/visuals.ts';
+import './blocks.css';
 import './progressPage.css';
 
 /**
@@ -391,10 +392,10 @@ export class ProgressPage {
         <span><small>${L ? 'Niveau' : 'Level'}</small><b>${level}</b></span>
       </div>
       <div class="pg-hero-main">
-        <h2>${max ? (L ? 'Niveau maximum atteint' : 'Max level reached') : `${L ? 'Niveau' : 'Level'} ${level} <em>→ ${level + 1}</em>`}</h2>
-        <div class="pg-xpline"><b>${int(xp)} XP</b>${max ? '' : `<span>${L ? `encore <b>${int(left)} XP</b> pour le niveau ${level + 1}` : `<b>${int(left)} XP</b> to level ${level + 1}`} · ${kmFor(left)} ${L ? 'à plat' : 'on the flat'} · ${timeFor(left)} ${L ? 'de selle' : 'in the saddle'}</span>`}</div>
+        <h2 class="ab-title">${max ? (L ? 'Niveau maximum atteint' : 'Max level reached') : `${L ? 'Niveau' : 'Level'} ${level}`}</h2>
+        <div class="pg-xpline"><b>${int(xp)} XP</b>${max ? '' : `<span>${L ? `Encore <b>${int(left)} XP</b> pour le niveau ${level + 1}` : `<b>${int(left)} XP</b> to level ${level + 1}`}, ${L ? 'soit' : 'about'} ${kmFor(left).replace('≈ ', '')} ${L ? 'à plat' : 'on the flat'}</span>`}</div>
         <div class="pg-xpbar"><i style="width:${pct(prog)}"></i><span>${int(cur)}</span><span>${max ? '' : int(next)}</span></div>
-        <div class="pg-rules"><span>${L ? 'Gagner de l’XP' : 'Earning XP'}</span><em>20 XP / km</em><em>1 XP / m D+</em><em>2 XP / min</em><em>${ICON.trophy} ${L ? 'trophées' : 'trophies'} +100 → +600</em><em class="dim">${L ? 'max' : 'max'} ${int(MAX_XP_PER_RIDE)} XP / ${L ? 'sortie' : 'ride'}</em></div>
+        <div class="pg-rules"><span>${L ? 'Gagner de l’XP :' : 'Earning XP:'}</span><em>20 XP / km</em><em>1 XP / m D+</em><em>2 XP / min</em><em>${ICON.trophy} ${L ? 'trophées' : 'trophies'} +100 → +600</em><em class="dim">${L ? 'max' : 'max'} ${int(MAX_XP_PER_RIDE)} XP / ${L ? 'sortie' : 'ride'}</em></div>
       </div>
       <div class="pg-tiles">
         ${tile(`${earned.size}<i>/${TROPHIES.length}</i>`, L ? 'Trophées' : 'Trophies', ICON.trophy)}
@@ -435,7 +436,7 @@ export class ProgressPage {
       const mile = Math.min(MAX_LEVEL, Math.ceil((level + 1) / 10) * 10);
       const mileLeft = xpForLevel(mile) - xp;
       spot = `<article class="pg-spot">
-        <div class="pg-spot-h"><small>${L ? 'Prochain niveau' : 'Next level'}</small><h3>${L ? 'Niveau' : 'Level'} ${nextL}</h3>
+        <div class="pg-spot-h"><small>${L ? 'Prochain déblocage' : 'Next unlock'}</small><h3>${L ? 'Niveau' : 'Level'} ${nextL}</h3>
           <p>${L ? `Encore <b>${int(left)} XP</b>` : `<b>${int(left)} XP</b> to go`} · ${kmFor(left)} · ${timeFor(left)}</p>
           ${mile !== nextL ? `<p class="dim">${L ? `Palier du niveau ${mile} : ${int(mileLeft)} XP (${kmFor(mileLeft)})` : `Level ${mile} milestone: ${int(mileLeft)} XP (${kmFor(mileLeft)})`}</p>` : ''}
         </div>
@@ -467,7 +468,7 @@ export class ProgressPage {
       );
     }
     return `<div class="pg-sticky">${filters}</div>${spot}
-      <h3 class="pg-sec">${L ? 'Tous les niveaux' : 'Every level'} <small>${L ? 'Clique une récompense pour l’essayer au garage ou à l’atelier.' : 'Click a reward to try it in the garage or workshop.'}</small></h3>
+      <h3 class="pg-sec">${L ? 'Tous les niveaux' : 'Every level'} <small>${L ? 'Clique une récompense pour la voir.' : 'Click a reward to see it.'}</small></h3>
       <ol class="pg-road">${rows.join('')}</ol>`;
   }
 
@@ -500,17 +501,18 @@ export class ProgressPage {
     const trophies = fams
       .map((fam) => {
         const list = TROPHIES.filter((t) => (TROPHY_FAMILY[t.id]?.[L ? 0 : 1] ?? '') === fam);
-        return `<div class="pg-tfam"><h5>${esc(fam)} <i>${list.filter((t) => earned.has(t.id)).length}/${list.length}</i></h5><div class="pg-trophies">${list
+        return `<div class="pg-tfam"><h5 class="pg-fam-t">${esc(fam)} <i>${list.filter((t) => earned.has(t.id)).length}/${list.length}</i></h5><div class="pg-trophies">${list
           .map((t) => {
             const won = earned.has(t.id);
             const pr = prog[t.id];
             const tr = tier(t.xp);
-            return `<article class="pg-trophy ${won ? 'won' : ''} ${tr}">
-            ${medal(t.id, t.xp, won)}
-            <div><b>${esc(t.name[lang])}</b><p>${esc(t.description[lang])}</p>
-              ${won ? `<span class="pg-won">${ICON.check} ${L ? 'Gagné' : 'Earned'}</span>` : pr ? bar(pr[0] / pr[1], esc(pr[2])) : `<small class="pg-bar-t">${L ? 'À débloquer en sortie' : 'Unlocked while riding'}</small>`}
-            </div>
-            <span class="pg-xp ${tr}" title="${TIER_LABEL[tr][L ? 0 : 1]}">+${t.xp} XP</span></article>`;
+            return `<article class="ab-tile pg-trophy ${won ? 'won is-ok' : ''} ${tr}">
+            <span class="pg-ico">${medal(t.id, t.xp, won)}</span>
+            <b class="ab-name">${esc(t.name[lang])}</b>
+            <span class="ab-detail">${esc(t.description[lang])}</span>
+            <span class="ab-tag pg-xp ${tr}" title="${TIER_LABEL[tr][L ? 0 : 1]}">+${t.xp} XP</span>
+            ${won ? '' : pr ? `<div class="pg-prog">${bar(pr[0] / pr[1], esc(pr[2]))}</div>` : ''}
+            <span class="ab-state"><i></i>${won ? (L ? 'Obtenu' : 'Earned') : pr && pr[0] > 0 ? (L ? 'En cours' : 'In progress') : L ? 'À faire' : 'To do'}</span></article>`;
           })
           .join('')}</div></div>`;
       })
@@ -540,7 +542,7 @@ export class ProgressPage {
         const rar = RARITY_LABEL[t.rarity];
         return `<button class="pg-ch ${won ? 'won' : ''}" data-pgtune="${t.id}" style="--rar:${rar.color}" title="${esc(`${t.desc[lang]} — ${t.effect[lang]}`)}">
           <span class="pg-ch-goal">${ICON.trophy}<b>${esc(TUNE_EVENT_LABEL[ev][lang])}</b></span>
-          ${won ? `<span class="pg-won">${ICON.check} ${L ? 'Réussi' : 'Done'}</span>` : pr ? bar(pr[0] / pr[1], esc(pr[2])) : `<small class="pg-bar-t">${L ? 'En course' : 'In a race'}</small>`}
+          ${won ? `<span class="ab-state is-ok"><i></i>${L ? 'Obtenu' : 'Earned'}</span>` : pr ? `${bar(pr[0] / pr[1], esc(pr[2]))}<span class="ab-state"><i></i>${pr[0] > 0 ? (L ? 'En cours' : 'In progress') : L ? 'À faire' : 'To do'}</span>` : `<span class="ab-state"><i></i>${L ? 'À gagner en course' : 'Win it in a race'}</span>`}
           <span class="pg-ch-rw"><i class="pg-tune" style="background:${tuneSwatch(t)}"></i><span><small>${L ? 'Récompense' : 'Reward'} · <em>${rar[lang]}</em></small><b>${esc(t.name[lang])}</b><small>${t.slot ? TUNE_SLOT_LABEL[t.slot][L ? 0 : 1] : ''} · ${esc(t.effect[lang])}</small></span></span>
         </button>`;
       })
@@ -571,11 +573,11 @@ export class ProgressPage {
       return `<div class="pg-coll"><b>${L ? f : e}</b>${bar(open / Math.max(1, list.length), `${open}/${list.length} ${L ? 'débloqués' : 'unlocked'}${own !== null ? ` · ${own} ${c === 'kit' ? (L ? 'complets' : 'complete') : L ? 'possédées' : 'owned'}` : ''}`)}</div>`;
     }).join('');
 
-    return `<h3 class="pg-sec">${L ? 'Trophées' : 'Trophies'} <i>${earned.size}/${TROPHIES.length}</i><small>${int(xpWon)} / ${int(xpAll)} XP ${L ? 'gagnés' : 'earned'} · ${L ? 'chaque trophée ne se gagne qu’une fois' : 'each trophy is earned once'}</small></h3>
+    return `<h3 class="pg-sec">${L ? 'Trophées' : 'Trophies'} <i>${earned.size}/${TROPHIES.length}</i><small>${int(xpWon)} / ${int(xpAll)} XP ${L ? 'gagnés' : 'earned'}</small></h3>
       ${trophies}
-      <h3 class="pg-sec">${L ? 'Défis de l’atelier' : 'Workshop challenges'} <i>${evItems.filter((t) => p.events.includes((t.unlock as { event: TuneEvent }).event) || p.owned.includes(t.id)).length}/${evItems.length}</i><small>${L ? 'Pièces exclusives, impossibles à acheter' : 'Exclusive parts that cannot be bought'}</small></h3>
+      <h3 class="pg-sec">${L ? 'Défis de l’atelier' : 'Workshop challenges'} <i>${evItems.filter((t) => p.events.includes((t.unlock as { event: TuneEvent }).event) || p.owned.includes(t.id)).length}/${evItems.length}</i><small>${L ? 'Des pièces qui ne s’achètent pas' : 'Parts that cannot be bought'}</small></h3>
       <div class="pg-chs">${challenges}</div>
-      <h3 class="pg-sec">${L ? 'Ensembles' : 'Sets'} <i>${TUNE_KITS.filter((k) => kitProgress(k, p.owned).complete).length}/${TUNE_KITS.length}</i><small>${L ? 'Toutes les pièces d’un ensemble : son titre et son badge' : 'Every part of a set: its title and badge'}</small></h3>
+      <h3 class="pg-sec">${L ? 'Ensembles' : 'Sets'} <i>${TUNE_KITS.filter((k) => kitProgress(k, p.owned).complete).length}/${TUNE_KITS.length}</i><small>${L ? 'Un ensemble complet donne son titre' : 'A complete set earns its title'}</small></h3>
       <div class="pg-kits">${kits}</div>
       <h3 class="pg-sec">${L ? 'Collection' : 'Collection'}</h3>
       <div class="pg-colls">${coll}</div>`;

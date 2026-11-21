@@ -228,3 +228,87 @@
 /* Style Beta : pictogramme des récompenses sans vignette. */
 .pg-v3icon { display: grid; place-items: center; color: #8d98a6; }
 .pg-v3icon svg { width: 34px; height: 34px; }
+
+/* Progression en gros blocs (langage commun de blocks.css) : titres en casse normale, grandes valeurs, un bloc par
+   trophée, défi ou ensemble, état écrit en un mot. */
+.pg .pg-hero { padding: 22px 30px 20px; }
+.pg .pg-hero-main h2.ab-title { font-size: clamp(26px, 3vw, 38px); font-weight: 800; font-style: normal; text-transform: none; letter-spacing: -0.02em; }
+.pg .pg-badge small { font-size: 12.5px; letter-spacing: 0.04em; text-transform: none; font-weight: 700; }
+.pg .pg-xpline { font-size: 16px; margin-top: 4px; }
+.pg .pg-xpline > b { font-family: var(--mono, ui-monospace, monospace); font-size: clamp(24px, 2.6vw, 34px); font-weight: 800; line-height: 1; }
+.pg .pg-xpbar { height: 10px; margin-top: 12px; }
+.pg .pg-xpbar > i::after { display: none; }
+.pg .pg-xpbar > i { background: var(--ar-accent, #ffd23f); box-shadow: none; }
+.pg .pg-xpbar > span { display: none; }
+.pg .pg-rules > span { font-size: 14px; font-weight: 700; letter-spacing: 0; text-transform: none; color: #c3cddb; }
+.pg .pg-rules em { font-size: 13.5px; padding: 4px 11px; }
+.pg .pg-tiles { gap: 10px; }
+.pg .pg-tile { padding: 12px 14px; border-radius: 18px; border: 2px solid rgba(255, 255, 255, 0.1); background: linear-gradient(180deg, rgba(22, 29, 43, 0.92), rgba(12, 16, 25, 0.9)); }
+.pg .pg-tile b { font-family: var(--mono, ui-monospace, monospace); font-size: 26px; font-weight: 800; }
+.pg .pg-tile b i { font-size: 15px; }
+.pg .pg-tile small { font-size: 13.5px; color: #c3cddb; }
+.pg .hp-tab { font-size: 15px; padding: 10px 16px; }
+.pg .pg-chip { font-size: 14px; padding: 7px 13px; }
+.pg .pg-chip i { font-size: 12.5px; }
+.pg h3.pg-sec { margin: 24px 30px 12px; font-size: 20px; font-weight: 800; letter-spacing: -0.01em; text-transform: none; color: var(--ar-fg, #f5f7fa); }
+.pg .pg-sec small { font-size: 14px; color: #aeb7c3; }
+
+/* Prochain déblocage et cartes de récompense. */
+.pg .pg-spot { border-radius: 22px; border-width: 2px; padding: 20px; }
+.pg .pg-spot-h small { font-size: 13.5px; letter-spacing: 0; text-transform: none; font-weight: 700; }
+.pg .pg-spot-h h3 { font-size: clamp(26px, 3vw, 38px); font-weight: 800; font-style: normal; text-transform: none; }
+.pg .pg-spot-h p { font-size: 15px; }
+.pg .pg-spot-h p.dim { font-size: 13.5px; }
+.pg .pg-card { width: 164px; padding: 10px 10px 11px; border-radius: 16px; border-width: 2px; }
+.pg .pg-card.big { width: 184px; }
+.pg .pg-thumb { height: 78px; border-radius: 12px; }
+.pg .pg-card.big .pg-thumb { height: 94px; }
+.pg .pg-card-t b { font-size: 14px; }
+.pg .pg-card-t small { font-size: 12.5px; color: #aeb7c3; }
+.pg .pg-st { font-size: 12.5px; padding: 3px 9px; }
+.pg .pg-st svg { width: 12px; height: 12px; }
+
+/* Frise des niveaux. */
+.pg .pg-lv-main h4 { font-size: 18px; font-weight: 800; font-style: normal; text-transform: none; letter-spacing: -0.01em; }
+.pg .pg-lv.done:not(.cur) h4 { font-size: 15px; }
+.pg .pg-lv-xp, .pg .pg-lv-eta, .pg .pg-lv-n { font-size: 13.5px; }
+.pg .pg-tag { font-size: 12px; letter-spacing: 0.04em; padding: 3px 9px; }
+.pg .pg-lv.cur .pg-lv-main { border-radius: 18px; border-width: 2px; }
+
+/* Trophées : un bloc par trophée. */
+.pg .pg-tfam { margin: 0 30px 18px; }
+.pg .pg-tfam h5.pg-fam-t { margin: 0 0 10px; font-size: 16px; font-weight: 800; letter-spacing: 0; text-transform: none; color: var(--ar-fg, #f5f7fa); }
+.pg .pg-tfam h5.pg-fam-t i { font-size: 14px; font-weight: 700; color: #aeb7c3; }
+.pg .pg-trophies { grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 12px; }
+.pg .pg-trophy.ab-tile { grid-template-columns: auto 1fr; grid-template-areas: 'ico name' 'ico detail' 'val val' 'state state'; gap: 4px 16px; padding: 16px 18px 14px; border-radius: 22px; border-width: 2px; border-style: solid; background: linear-gradient(180deg, rgba(22, 29, 43, 0.92), rgba(12, 16, 25, 0.9)); }
+.pg .pg-trophy.ab-tile.won { border-color: rgba(34, 197, 94, 0.75); }
+.pg .pg-ico { grid-area: ico; }
+.pg .pg-trophy .ab-name { font-size: 18px; padding-right: 76px; }
+.pg .pg-trophy .ab-detail { font-size: 14px; }
+.pg .pg-trophy .pg-xp { position: absolute; top: 12px; right: 14px; font-size: 13px; letter-spacing: 0; text-transform: none; }
+.pg .pg-prog { grid-area: val; margin-top: 10px; }
+.pg .pg-trophy .ab-state { margin-top: 10px; }
+.pg .pg-bar { height: 8px; }
+.pg .pg-bar-t { font-size: 13.5px; color: #c3cddb; margin-top: 6px; }
+
+/* Défis de l'atelier, ensembles et collection. */
+.pg .pg-chs { grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 12px; }
+.pg .pg-ch { gap: 8px; padding: 16px 18px 14px; border-radius: 22px; border: 2px solid rgba(255, 255, 255, 0.1); background: linear-gradient(180deg, rgba(22, 29, 43, 0.92), rgba(12, 16, 25, 0.9)); }
+.pg .pg-ch.won { border-color: rgba(34, 197, 94, 0.75); background: linear-gradient(180deg, rgba(22, 29, 43, 0.92), rgba(12, 16, 25, 0.9)); }
+.pg .pg-ch-goal svg { width: 22px; height: 22px; }
+.pg .pg-ch-goal b { font-size: 18px; font-weight: 800; }
+.pg .pg-ch-rw b { font-size: 14.5px; }
+.pg .pg-ch-rw small { font-size: 13px; color: #aeb7c3; }
+.pg .pg-ch-rw .pg-tune { width: 44px; height: 44px; }
+.pg .pg-kits { grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; }
+.pg .pg-kit { padding: 12px 14px 14px; border-radius: 22px; border: 2px solid rgba(255, 255, 255, 0.1); background: linear-gradient(180deg, rgba(22, 29, 43, 0.92), rgba(12, 16, 25, 0.9)); }
+.pg .pg-kit.won { border-color: rgba(34, 197, 94, 0.75); }
+.pg .pg-kit b { font-size: 16px; font-weight: 800; }
+.pg .pg-kit > small { font-size: 13.5px; }
+.pg .pg-coll b { font-size: 15px; }
+.pg .pg-won { font-size: 14px; }
+@media (max-width: 900px) {
+  .pg .pg-trophies, .pg .pg-chs { grid-template-columns: minmax(0, 1fr); }
+  .pg h3.pg-sec, .pg .pg-tfam { margin-left: 16px; margin-right: 16px; }
+}
+.pg .pg-trophy > div.pg-prog { padding-right: 0; min-width: 0; }

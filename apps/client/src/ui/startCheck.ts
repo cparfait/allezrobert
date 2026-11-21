@@ -165,7 +165,7 @@ const esc = (s: string): string => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeA
 
 const SVG = (d: string): string =>
   `<svg viewBox="0 0 48 48" width="56" height="56" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
-const ICONS: Record<CheckRole, string> = {
+export const ICONS: Record<CheckRole, string> = {
   trainer: SVG('<circle cx="15" cy="30" r="9"/><path d="M15 30 26 14h10M26 14l8 16H15M34 30l6 8M10 42h32"/>'),
   power: SVG('<path d="M27 5 12 27h11l-3 16 16-23H25z"/>'),
   cadence: SVG('<circle cx="24" cy="24" r="16"/><path d="M24 24 33 15M24 8v4M40 24h-4M24 40v-4M8 24h4"/>'),

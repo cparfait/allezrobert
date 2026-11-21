@@ -32,6 +32,7 @@ import {
   sortFriends,
   withoutFriendParam,
 } from './friendsLogic.ts';
+import './blocks.css';
 import './friends.css';
 
 const PENDING_KEY = 'ar.friendCode';
@@ -185,34 +186,33 @@ export class FriendsPanel {
   /** Panneau de l'onglet (les parties vivantes sont remplies par paint()). */
   html(): string {
     const L = fr();
-    const head = `<header class="mm-head"><h2>${L ? 'Amis' : 'Friends'}</h2><p>${L ? 'Ajoute tes amis avec leur code ami, vois qui roule et rejoins-les en un clic.' : 'Add friends with their friend code, see who is riding and join them in one click.'}</p></header>`;
+    const head = `<header class="mm-head"><h2 class="ab-title">${L ? 'Amis' : 'Friends'}</h2><p class="ab-sub">${L ? 'Vois qui roule et rejoins tes amis en un clic.' : 'See who is riding and join your friends in one click.'}</p></header>`;
     const close = `<button class="mm-close" data-tab="ride" aria-label="${L ? 'Fermer' : 'Close'}" title="${L ? 'Fermer (Échap)' : 'Close (Esc)'}">×</button>`;
     if (!this.hooks.loggedIn()) {
       const code = pendingCode();
       return `<section class="mm-panel mm-center mm-xl fr-panel">${close}${head}
-        <div class="fr-empty fr-signin">
+        <div class="ab-tile ab-plain fr-empty fr-signin">
           <b>${L ? 'Connecte-toi pour retrouver tes amis' : 'Sign in to find your friends'}</b>
-          <p>${L ? 'Les amis, leur présence et les invitations à rouler demandent un compte (les invités sans compte roulent seuls ou avec un code d’invitation).' : 'Friends, presence and ride invites need an account (guests without an account ride solo or with an invite code).'}</p>
-          ${code ? `<p class="fr-note">${L ? 'Lien d’ami reçu' : 'Friend link received'} : <b class="fr-mono">${esc(formatFriendCode(code))}</b> — ${L ? 'la demande te sera proposée après la connexion.' : 'you will be offered to send the request after signing in.'}</p>` : ''}
-          <button class="btn primary" data-fr="login">${L ? 'Se connecter' : 'Sign in'}</button>
+          <p>${L ? 'Les amis et les invitations à rouler demandent un compte.' : 'Friends and ride invites need an account.'}</p>
+          ${code ? `<p class="fr-note">${L ? 'Lien d’ami reçu' : 'Friend link received'} : <b class="fr-mono">${esc(formatFriendCode(code))}</b>. ${L ? 'La demande te sera proposée après la connexion.' : 'You will be offered to send the request after signing in.'}</p>` : ''}
+          <button class="ab-btn ab-go" data-fr="login">${L ? 'Se connecter' : 'Sign in'}</button>
         </div></section>`;
     }
     return `<section class="mm-panel mm-center mm-wide mm-xl fr-panel">${close}${head}
-      <div class="fr-grid">
-        <div class="fr-col">
-          <div class="fr-card fr-mine" id="fr-mine"></div>
+      <div class="fr-top">
+        <div class="ab-tile ab-plain fr-mine" id="fr-mine"></div>
+        <div class="ab-tile ab-plain fr-addbox">
+          <b class="fr-add-t">${L ? 'Ajouter un ami' : 'Add a friend'}</b>
           <form class="fr-add" id="fr-add" autocomplete="off">
-            <input id="fr-input" class="mm-input" maxlength="16" spellcheck="false" placeholder="${L ? 'Code ami (ex. K7QM-2XRA)' : 'Friend code (e.g. K7QM-2XRA)'}" value="${esc(formatFriendCode(pendingCode() ?? ''))}" />
-            <button class="btn primary" type="submit">${L ? 'Ajouter' : 'Add'}</button>
+            <input id="fr-input" class="mm-input" maxlength="16" spellcheck="false" aria-label="${L ? 'Code ami' : 'Friend code'}" placeholder="${L ? 'Son code ami, par exemple K7QM-2XRA' : 'Their friend code, e.g. K7QM-2XRA'}" value="${esc(formatFriendCode(pendingCode() ?? ''))}" />
+            <button class="ab-btn" type="submit">${L ? 'Ajouter' : 'Add'}</button>
           </form>
           <div class="fr-msg" id="fr-msg" aria-live="polite"></div>
-          <div id="fr-left"></div>
-        </div>
-        <div class="fr-col">
-          <div id="fr-right"></div>
-          <div id="fr-boards" class="fr-boards"></div>
         </div>
       </div>
+      <div id="fr-left"></div>
+      <div id="fr-right"></div>
+      <div id="fr-boards" class="fr-boards"></div>
     </section>`;
   }
 
@@ -280,7 +280,7 @@ export class FriendsPanel {
     if (msg) msg.innerHTML = this.msg ? `<span class="${this.msg.ok ? 'ok' : 'bad'}">${esc(this.msg.text)}</span>` : '';
     if (!this.data) {
       const text = this.failure ? friendErrorMessage(this.failure, L ? 'fr' : 'en') : L ? 'Chargement…' : 'Loading…';
-      if (mine) mine.innerHTML = `<span class="fr-label">${L ? 'Mon code ami' : 'My friend code'}</span><b class="fr-code fr-dim">····-····</b>`;
+      if (mine) mine.innerHTML = `<b class="fr-add-t">${L ? 'Mon code ami' : 'My friend code'}</b><b class="fr-code fr-dim">····-····</b>`;
       if (right) right.innerHTML = `<div class="fr-empty">${esc(text)}</div>`;
       if (left) left.innerHTML = '';
       return;
@@ -292,11 +292,11 @@ export class FriendsPanel {
 
   private mineHtml(code: string): string {
     const L = fr();
-    return `<span class="fr-label">${L ? 'Mon code ami' : 'My friend code'}</span>
+    return `<b class="fr-add-t">${L ? 'Mon code ami' : 'My friend code'}</b>
       <b class="fr-code fr-mono" title="${L ? 'À donner à tes amis' : 'Give it to your friends'}">${esc(formatFriendCode(code))}</b>
       <div class="fr-mine-actions">
-        <button class="btn small" data-fr="copy-code">${L ? 'Copier' : 'Copy'}</button>
-        <button class="btn small" data-fr="copy-link">${L ? 'Copier le lien' : 'Copy link'}</button>
+        <button class="ab-btn ab-chip" data-fr="copy-code">${L ? 'Copier' : 'Copy'}</button>
+        <button class="ab-btn ab-chip" data-fr="copy-link">${L ? 'Copier le lien' : 'Copy link'}</button>
         <button class="mm-link" data-fr="regen" title="${L ? 'L’ancien code et les liens déjà partagés ne marcheront plus' : 'The old code and shared links will stop working'}">${L ? 'Nouveau code' : 'New code'}</button>
       </div>`;
   }
@@ -305,8 +305,8 @@ export class FriendsPanel {
     const code = pendingCode();
     if (!code) return '';
     const L = fr();
-    return `<div class="fr-card fr-pending"><span>${L ? 'Lien d’ami reçu' : 'Friend link received'} : <b class="fr-mono">${esc(formatFriendCode(code))}</b></span>
-      <div><button class="btn small primary" data-fr="pending-send">${L ? 'Envoyer la demande' : 'Send request'}</button><button class="mm-link" data-fr="pending-drop">${L ? 'Ignorer' : 'Ignore'}</button></div></div>`;
+    return `<div class="ab-tile ab-plain is-warn fr-pending"><span>${L ? 'Lien d’ami reçu' : 'Friend link received'} : <b class="fr-mono">${esc(formatFriendCode(code))}</b></span>
+      <div><button class="ab-act" data-fr="pending-send">${L ? 'Envoyer la demande' : 'Send request'}</button><button class="mm-link" data-fr="pending-drop">${L ? 'Ignorer' : 'Ignore'}</button></div></div>`;
   }
 
   private routeName = (id: string): string | undefined => {
@@ -319,16 +319,23 @@ export class FriendsPanel {
     return `<i class="fr-dot ${state ? `fr-${state}` : ''}" style="background:${esc(color)}">${esc(initials(name))}</i>`;
   }
 
+  /** Carré d'icône d'un bloc : les initiales sur la couleur de l'ami. */
+  private ava(name: string, color: string): string {
+    return `<span class="ab-ico sm fr-ava" style="background:${esc(color)}" aria-hidden="true">${esc(initials(name))}</span>`;
+  }
+
   private invitesHtml(): string {
     const d = this.data;
     if (!d?.invites.length) return '';
     const L = fr();
     const lang = L ? 'fr' : 'en';
-    return `<h3>${L ? 'Invitations à rouler' : 'Ride invites'}</h3><div class="fr-list">${d.invites
+    return `<h3 class="ab-section">${L ? 'Invitations à rouler' : 'Ride invites'}</h3><div class="ab-grid ab-grid-2 fr-tiles">${d.invites
       .map(
-        (i) => `<div class="fr-row fr-invite">${this.dot(i.from, i.fromColor, 'riding')}
-          <div class="fr-who"><b>${esc(i.from)} ${L ? 't’invite à rouler' : 'invites you to ride'}</b><span class="fr-where">${esc(this.routeName(i.ride.routeId) ?? i.ride.name)}</span><span>${esc(modeLabel(i.ride.mode, lang))} · ${esc(ridersLabel(i.ride.riders, lang))} · ${esc(remainingLabel(i.expiresAt, Date.now(), lang))}</span></div>
-          <div class="fr-act"><button class="btn small primary" data-fr="join-invite" data-id="${esc(i.id)}">${L ? 'Rejoindre' : 'Join'}</button><button class="mm-link" data-fr="ignore-invite" data-id="${esc(i.id)}">${L ? 'Ignorer' : 'Ignore'}</button></div></div>`,
+        (i) => `<div class="ab-tile is-ok fr-invite">${this.ava(i.from, i.fromColor)}
+          <b class="ab-name">${esc(i.from)}</b>
+          <span class="ab-detail">${L ? 't’invite sur' : 'invites you on'} <b>${esc(this.routeName(i.ride.routeId) ?? i.ride.name)}</b> · ${esc(modeLabel(i.ride.mode, lang))} · ${esc(ridersLabel(i.ride.riders, lang))}</span>
+          <span class="ab-state"><i></i>${esc(remainingLabel(i.expiresAt, Date.now(), lang))}</span>
+          <div class="fr-act"><button class="mm-link" data-fr="ignore-invite" data-id="${esc(i.id)}">${L ? 'Ignorer' : 'Ignore'}</button><button class="ab-act" data-fr="join-invite" data-id="${esc(i.id)}">${L ? 'Rejoindre' : 'Join'}</button></div></div>`,
       )
       .join('')}</div>`;
   }
@@ -338,17 +345,19 @@ export class FriendsPanel {
     if (!d) return '';
     const L = fr();
     const incoming = d.incoming.length
-      ? `<h3>${L ? 'Demandes reçues' : 'Requests received'} <span class="fr-count">${d.incoming.length}</span></h3><div class="fr-list">${d.incoming
+      ? `<h3 class="ab-section">${L ? 'Demandes reçues' : 'Requests received'} <span class="fr-count">${d.incoming.length}</span></h3><div class="ab-grid ab-grid-2 fr-tiles">${d.incoming
           .map(
-            (r) => `<div class="fr-row">${this.dot(r.name, r.color)}<div class="fr-who"><b>${esc(r.name)}</b><span>${L ? 'veut rouler avec toi' : 'wants to ride with you'}</span></div>
-              <div class="fr-act"><button class="btn small primary" data-fr="accept" data-id="${esc(r.id)}">${L ? 'Accepter' : 'Accept'}</button><button class="mm-link" data-fr="decline" data-id="${esc(r.id)}">${L ? 'Refuser' : 'Decline'}</button></div></div>`,
+            (r) => `<div class="ab-tile is-warn">${this.ava(r.name, r.color)}<b class="ab-name">${esc(r.name)}</b><span class="ab-detail">${L ? 'veut rouler avec toi' : 'wants to ride with you'}</span>
+              <span class="ab-state"><i></i>${L ? 'En attente' : 'Waiting'}</span>
+              <div class="fr-act"><button class="mm-link" data-fr="decline" data-id="${esc(r.id)}">${L ? 'Refuser' : 'Decline'}</button><button class="ab-act" data-fr="accept" data-id="${esc(r.id)}">${L ? 'Accepter' : 'Accept'}</button></div></div>`,
           )
           .join('')}</div>`
       : '';
     const outgoing = d.outgoing.length
-      ? `<h3>${L ? 'Demandes envoyées' : 'Requests sent'}</h3><div class="fr-list">${d.outgoing
+      ? `<h3 class="ab-section">${L ? 'Demandes envoyées' : 'Requests sent'}</h3><div class="ab-grid ab-grid-2 fr-tiles">${d.outgoing
           .map(
-            (r) => `<div class="fr-row fr-quiet">${this.dot(r.name, r.color)}<div class="fr-who"><b>${esc(r.name)}</b><span>${L ? 'en attente de réponse' : 'waiting for an answer'}</span></div>
+            (r) => `<div class="ab-tile fr-quiet">${this.ava(r.name, r.color)}<b class="ab-name">${esc(r.name)}</b><span class="ab-detail">${L ? 'n’a pas encore répondu' : 'has not answered yet'}</span>
+              <span class="ab-state"><i></i>${L ? 'En attente' : 'Waiting'}</span>
               <div class="fr-act"><button class="mm-link" data-fr="cancel" data-id="${esc(r.id)}">${L ? 'Annuler' : 'Cancel'}</button></div></div>`,
           )
           .join('')}</div>`
@@ -364,9 +373,9 @@ export class FriendsPanel {
     const list = sortFriends(d.friends);
     const riding = list.filter((f) => f.presence.state === 'riding').length;
     const online = list.filter((f) => f.presence.state === 'online').length;
-    const head = `<h3 class="fr-h3-first">${L ? 'Mes amis' : 'My friends'} <span class="fr-count">${list.length}</span>${list.length ? `<span class="fr-sum">${riding ? `${riding} ${L ? 'roule' : 'riding'}${riding > 1 && L ? 'nt' : ''} · ` : ''}${online} ${L ? 'en ligne' : 'online'}</span>` : ''}</h3>`;
+    const head = `<h3 class="ab-section">${L ? 'Mes amis' : 'My friends'} <span class="fr-count">${list.length}</span>${list.length ? `<span class="fr-sum">${riding ? `${riding} ${L ? 'roule' : 'riding'}${riding > 1 && L ? 'nt' : ''} · ` : ''}${online} ${L ? 'en ligne' : 'online'}</span>` : ''}</h3>`;
     if (!list.length) {
-      return `${head}<div class="fr-empty"><b>${L ? 'Pas encore d’amis' : 'No friends yet'}</b><p>${L ? 'Donne ton code ami (ou le lien) à tes partenaires de sortie, ou saisis le leur à gauche.' : 'Give your friend code (or link) to your riding buddies, or enter theirs on the left.'}</p></div>`;
+      return `${head}<div class="ab-tile ab-plain fr-empty"><b>${L ? 'Pas encore d’amis' : 'No friends yet'}</b><p>${L ? 'Envoie ton lien à tes partenaires de sortie.' : 'Send your link to your riding buddies.'}</p><button class="ab-btn" data-fr="copy-link">${L ? 'Copier mon lien' : 'Copy my link'}</button></div>`;
     }
     const rows = list
       .map((f) => {
@@ -374,26 +383,32 @@ export class FriendsPanel {
         const sel = this.selected.has(f.id);
         const best = this.bests?.id === f.id ? `<div class="fr-bests">${this.bests.html}</div>` : '';
         const pres = presenceParts(f.presence, lang, this.routeName);
-        return `<div class="fr-row fr-friend fr-st-${st}">
-          <label class="fr-pick" title="${L ? 'Inviter dans ma sortie' : 'Invite to my ride'}"><input type="checkbox" data-fr-select="${esc(f.id)}" ${sel ? 'checked' : ''}/></label>
-          ${this.dot(f.name, f.color, st)}
-          <div class="fr-who"><b>${esc(f.name)} <small>${L ? 'niv.' : 'lvl'} ${f.level}</small></b><span class="fr-state">${esc(pres.state)}</span>${pres.where ? `<span class="fr-where" title="${esc(pres.where)}">${esc(pres.where)}</span>` : ''}</div>
+        // État en un mot (« Roule », « En ligne », « Hors ligne ») ; le reste du statut passe dans la ligne de détail.
+        const [word, ...more] = pres.state.split(' · ');
+        const detail = [pres.where, ...more].filter(Boolean).join(' · ') || `${L ? 'Niveau' : 'Level'} ${f.level}`;
+        const tone = st === 'riding' ? 'is-ok' : st === 'online' ? 'is-info' : '';
+        return `<div class="ab-tile fr-friend fr-st-${st} ${tone}">
+          <label class="ab-tag fr-pick" title="${L ? 'Inviter dans ma sortie' : 'Invite to my ride'}"><input type="checkbox" data-fr-select="${esc(f.id)}" ${sel ? 'checked' : ''}/>${L ? 'Inviter' : 'Invite'}</label>
+          ${this.ava(f.name, f.color)}
+          <b class="ab-name">${esc(f.name)} <small>${L ? 'niv.' : 'lvl'} ${f.level}</small></b>
+          <span class="ab-detail" title="${esc(detail)}">${esc(detail)}</span>
+          <span class="ab-state"><i></i>${esc(word ?? '')}</span>
           <div class="fr-act">
-            ${st === 'riding' && !(f.presence.state === 'riding' && f.presence.withYou) ? `<button class="btn small primary" data-fr="join-friend" data-id="${esc(f.id)}">${L ? 'Rejoindre' : 'Join'}</button>` : ''}
             <button class="mm-link" data-fr="bests" data-id="${esc(f.id)}">${L ? 'Records' : 'Records'}</button>
             <button class="fr-x" data-fr="remove" data-id="${esc(f.id)}" data-name="${esc(f.name)}" title="${L ? 'Retirer de mes amis' : 'Remove friend'}" aria-label="${L ? 'Retirer' : 'Remove'}">×</button>
-          </div></div>${best}`;
+            ${st === 'riding' && !(f.presence.state === 'riding' && f.presence.withYou) ? `<button class="ab-act" data-fr="join-friend" data-id="${esc(f.id)}">${L ? 'Rejoindre' : 'Join'}</button>` : ''}
+          </div>${best}</div>`;
       })
       .join('');
-    return `${head}<div class="fr-list">${rows}</div><div class="fr-invitebar" id="fr-invitebar">${this.inviteBarHtml()}</div>`;
+    return `${head}<div class="ab-grid ab-grid-2 fr-tiles">${rows}</div><div class="ab-foot fr-invitebar" id="fr-invitebar">${this.inviteBarHtml()}</div>`;
   }
 
   private inviteBarHtml(): string {
     const L = fr();
     const n = this.selected.size;
     const r = this.routeName(this.hooks.currentRouteId()) ?? '';
-    return `<span>${n ? (L ? `${n} ami${n > 1 ? 's' : ''} coché${n > 1 ? 's' : ''}` : `${n} friend${n > 1 ? 's' : ''} selected`) : L ? 'Coche des amis pour les inviter' : 'Tick friends to invite them'}<small>${L ? `Sortie de groupe sur ${esc(r)} ; ils reçoivent l’invitation dans leur menu.` : `Group ride on ${esc(r)}; they get the invite in their menu.`}</small></span>
-      <button class="btn small primary" data-fr="ride-with" ${n ? '' : 'disabled'}>${L ? 'Partir et inviter' : 'Ride and invite'}</button>`;
+    return `<span>${n ? (L ? `${n} ami${n > 1 ? 's' : ''} coché${n > 1 ? 's' : ''}` : `${n} friend${n > 1 ? 's' : ''} selected`) : L ? 'Coche « Inviter » sur tes amis pour partir ensemble' : 'Tick “Invite” on your friends to ride together'}<small>${L ? `Sortie de groupe sur ${esc(r)}.` : `Group ride on ${esc(r)}.`}</small></span>
+      <div class="ab-btns"><button class="ab-btn ab-go" data-fr="ride-with" ${n ? '' : 'disabled'}>${L ? 'Partir et inviter' : 'Ride and invite'}</button></div>`;
   }
 
   private paintInviteBar(): void {
@@ -428,7 +443,7 @@ export class FriendsPanel {
       if (b) b.innerHTML = this.boards.html;
       return;
     }
-    const title = `<h3>${L ? 'Classements entre amis' : 'Friends leaderboards'} · <span class="fr-route">${esc(this.routeName(routeId) ?? route.name)}</span></h3>`;
+    const title = `<h3 class="ab-section">${L ? 'Classements entre amis' : 'Friends leaderboards'} <span class="fr-route">${esc(this.routeName(routeId) ?? route.name)}</span></h3>`;
     if (!route.segments.length) {
       const html = `${title}<div class="fr-empty fr-small">${L ? 'Pas de segment chronométré sur cet itinéraire.' : 'No timed segment on this route.'}</div>`;
       this.boards = { routeId, at: Date.now(), html };
