@@ -570,9 +570,7 @@ export class Hud {
       </div>
       <div class="hud-col hud-col-right">
         <div class="panel minimap" data-hud="map"><canvas width="460" height="460"></canvas><div class="map-town hidden" data-k="mapTown"></div></div>
-        ${groupPanel(getLang() === 'fr')}
-        <div class="panel riders" data-k="riders" data-hud="riders"></div>
-        <!-- Aspiration, vent, altitude, tour : à droite, sous les coureurs (les données qui dépendent des autres). -->
+        <!-- Aspiration, vent, altitude, tour : à droite, sous la carte, avant le groupe et les coureurs. -->
         <div class="panel hud-left">
           <span class="k" data-hud="draft">${t('draft')}</span><span class="v num" data-k="draft" data-hud="draft">0 %</span>
           <span data-hud="draft"></span><span data-hud="draft"><div style="height:6px;width:110px;background:rgba(255,255,255,.12);border-radius:3px;overflow:hidden;margin-left:auto"><div data-k="draftBar" style="height:100%;width:0%;background:linear-gradient(90deg,#60a5fa,#22c55e)"></div></div></span>
@@ -581,6 +579,8 @@ export class Hud {
           <span class="k" data-hud="alt">${getLang() === 'fr' ? 'Altitude' : 'Altitude'}</span><span class="v num" data-k="alt" data-hud="alt">–</span>
           ${track.route.loop ? `<span class="k" data-hud="lap">${t('lap')}</span><span class="v num" data-k="lap" data-hud="lap">1</span>` : ''}
         </div>
+        ${groupPanel(getLang() === 'fr')}
+        <div class="panel riders" data-k="riders" data-hud="riders"></div>
         <div class="chat" data-k="chat"><div class="chat-log" data-k="chatLog"></div><input class="chat-input hidden" data-k="chatInput" maxlength="200" /></div>
       </div>
       <div class="panel workout hidden" data-k="workout"><div class="row" style="justify-content:space-between"><b data-k="wName"></b><span class="num" data-k="wRemain"></span></div><div class="num" data-k="wTarget" style="font-size:30px;font-weight:800"></div><div class="num" data-k="wStep" style="color:var(--ar-muted);font-size:13px"></div><canvas width="900" height="90" data-k="wChart"></canvas></div>
