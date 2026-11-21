@@ -1,0 +1,91 @@
+/*
+ * Langage visuel commun des écrans du jeu, tiré de l'écran « Prêt à rouler ? » (ui/startCheck.css), que
+ * l'utilisateur a retenu comme référence le 21/11/2026 : grand titre, sous-titre d'une ligne, gros blocs à coins
+ * ronds avec une icône carrée, un nom en gras, une ligne de détail, une grande valeur et un état écrit en toutes
+ * lettres ; une seule action principale jaune par écran, en bas à droite.
+ *
+ * À importer dans le module de l'écran (`import './blocks.css'`). Les classes sont préfixées `ab-` ; elles ne
+ * posent aucune mise en page de page entière (ni position fixe ni fond), seulement les éléments.
+ */
+
+/* En-tête d'écran. */
+.ab-title { margin: 0; font-size: clamp(24px, 3vw, 38px); font-weight: 800; letter-spacing: -0.02em; color: var(--ar-fg, #f5f7fa); text-transform: none; }
+.ab-sub { margin: 4px 0 0; font-size: 16px; line-height: 1.35; color: #c3cddb; }
+/* Titre d'une section à l'intérieur d'un écran : casse normale, jamais de capitales espacées. */
+.ab-section { margin: 0 0 10px; font-size: 18px; font-weight: 800; letter-spacing: -0.01em; color: var(--ar-fg, #f5f7fa); text-transform: none; }
+
+/* Grille de blocs : trois colonnes, puis deux, puis une. `ab-grid-2` et `ab-grid-4` pour d'autres rythmes. */
+.ab-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: clamp(10px, 1.4vw, 18px); }
+.ab-grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.ab-grid-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+
+/* Bloc : icône à gauche, nom et détail à droite, grande valeur dessous, état et action en pied. */
+.ab-tile { appearance: none; position: relative; display: grid; grid-template-columns: auto 1fr; grid-template-areas: 'ico name' 'ico detail' 'val val' 'state act'; align-items: center; gap: 4px 16px; padding: 18px 20px 16px; border-radius: 22px; border: 2px solid rgba(255, 255, 255, 0.1); background: linear-gradient(180deg, rgba(22, 29, 43, 0.92), rgba(12, 16, 25, 0.9)); color: var(--ar-fg, #f5f7fa); font: inherit; text-align: left; min-width: 0; }
+button.ab-tile, a.ab-tile, .ab-tile[role='button'] { cursor: pointer; transition: transform 0.12s, border-color 0.12s; }
+button.ab-tile:hover:not(:disabled), a.ab-tile:hover, .ab-tile[role='button']:hover { transform: translateY(-2px); border-color: rgba(255, 210, 63, 0.7); }
+.ab-tile:focus-visible, .ab-btn:focus-visible { outline: 3px solid var(--ar-accent, #ffd23f); outline-offset: 3px; }
+/* Bloc sans icône ni valeur : simple carte de contenu au même aspect. */
+.ab-tile.ab-plain { display: block; }
+.ab-tile.is-on { border-color: var(--ar-accent, #ffd23f); }
+
+.ab-ico { grid-area: ico; display: grid; place-items: center; width: 84px; height: 84px; border-radius: 22px; color: #c3cddb; background: rgba(255, 255, 255, 0.06); }
+.ab-ico.sm { width: 56px; height: 56px; border-radius: 16px; }
+.ab-ico svg { width: 52px; height: 52px; }
+.ab-ico.sm svg { width: 34px; height: 34px; }
+.ab-name { grid-area: name; align-self: end; font-size: clamp(19px, 1.9vw, 25px); font-weight: 800; line-height: 1.15; }
+.ab-detail { grid-area: detail; align-self: start; font-size: 14.5px; line-height: 1.35; color: #c3cddb; }
+.ab-val { grid-area: val; display: flex; align-items: baseline; gap: 8px; min-height: 46px; }
+.ab-val b { font-family: var(--mono, ui-monospace, monospace); font-variant-numeric: tabular-nums; font-size: clamp(30px, 3.2vw, 44px); font-weight: 800; line-height: 1; }
+.ab-val small { font-size: 16px; font-weight: 600; color: #c3cddb; }
+/* Petite mention en haut à droite du bloc (« Facultatif », « Nouveau »…). */
+.ab-tag { position: absolute; top: 12px; right: 14px; font-size: 11.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: #9aa6b5; }
+
+/* État : toujours un mot avec sa pastille ; la couleur ne fait que le renforcer. */
+.ab-state { grid-area: state; display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 700; color: #aeb7c3; }
+.ab-state i { flex: none; width: 12px; height: 12px; border-radius: 50%; background: #6b7686; }
+.ab-tile.is-ok { border-color: rgba(34, 197, 94, 0.75); }
+.ab-tile.is-ok .ab-ico { color: #86efac; background: rgba(34, 197, 94, 0.16); }
+.ab-tile.is-ok .ab-state, .ab-state.is-ok { color: #86efac; }
+.ab-tile.is-ok .ab-state i, .ab-state.is-ok i { background: #22c55e; }
+.ab-tile.is-info { border-color: rgba(96, 165, 250, 0.6); }
+.ab-tile.is-info .ab-ico { color: #93c5fd; background: rgba(96, 165, 250, 0.14); }
+.ab-tile.is-info .ab-state, .ab-state.is-info { color: #93c5fd; }
+.ab-tile.is-info .ab-state i, .ab-state.is-info i { background: #60a5fa; }
+.ab-tile.is-warn { border-color: rgba(255, 210, 63, 0.7); }
+.ab-tile.is-warn .ab-state, .ab-state.is-warn { color: #ffe37a; }
+.ab-tile.is-warn .ab-state i, .ab-state.is-warn i { background: #ffd23f; }
+.ab-tile.is-bad { border-color: rgba(239, 68, 68, 0.8); }
+.ab-tile.is-bad .ab-ico { color: #fca5a5; background: rgba(239, 68, 68, 0.14); }
+.ab-tile.is-bad .ab-state, .ab-state.is-bad { color: #fca5a5; }
+.ab-tile.is-bad .ab-state i, .ab-state.is-bad i { background: #ef4444; border-radius: 2px; }
+
+/* Boutons : neutre par défaut ; `ab-go` pour l'unique action principale de l'écran ; `ab-chip` dans un bloc. */
+.ab-btn { appearance: none; border: 0; border-radius: 14px; padding: 12px 20px; font: 700 15px var(--font, system-ui); color: var(--ar-fg, #f5f7fa); background: rgba(255, 255, 255, 0.14); cursor: pointer; }
+.ab-btn:hover:not(:disabled) { background: rgba(255, 255, 255, 0.22); }
+.ab-btn:disabled { color: #8d98a6; cursor: not-allowed; }
+.ab-btn.ab-go { padding: 14px 34px; font-size: 18px; font-weight: 800; background: var(--ar-accent, #ffd23f); color: #0a0e16; box-shadow: 0 6px 22px rgba(255, 210, 63, 0.28); }
+.ab-btn.ab-go:hover:not(:disabled) { background: var(--ar-accent, #ffd23f); filter: brightness(1.08); }
+.ab-btn.ab-go:disabled { background: rgba(255, 255, 255, 0.12); color: #8d98a6; box-shadow: none; }
+.ab-btn.ab-chip, .ab-act { grid-area: act; justify-self: end; padding: 7px 14px; border-radius: 10px; font-size: 14px; font-weight: 700; }
+.ab-act { background: var(--ar-accent, #ffd23f); color: #0a0e16; }
+.ab-act.quiet { background: rgba(255, 255, 255, 0.12); color: var(--ar-fg, #f5f7fa); }
+
+/* Pied d'écran : information à gauche, actions à droite, séparé par un filet. */
+.ab-foot { display: flex; align-items: center; gap: 14px 22px; flex-wrap: wrap; padding-top: 14px; border-top: 1px solid rgba(255, 255, 255, 0.1); }
+.ab-foot .ab-btns { display: flex; gap: 10px; margin-left: auto; flex-wrap: wrap; }
+.ab-bar { height: 6px; border-radius: 3px; background: rgba(255, 255, 255, 0.12); overflow: hidden; }
+.ab-bar i { display: block; height: 100%; border-radius: 3px; background: var(--ar-accent, #ffd23f); transition: width 0.3s; }
+
+@media (max-width: 900px) {
+  .ab-grid, .ab-grid-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ab-ico { width: 60px; height: 60px; border-radius: 16px; }
+  .ab-ico svg { width: 40px; height: 40px; }
+}
+@media (max-width: 560px) {
+  .ab-grid, .ab-grid-2, .ab-grid-4 { grid-template-columns: 1fr; }
+  .ab-foot .ab-btns { margin-left: 0; width: 100%; }
+  .ab-btn.ab-go { flex: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ab-tile, .ab-bar i { transition: none; }
+}
