@@ -23,6 +23,30 @@ export const TILES_BASE = env.VITE_WORLDS_URL ?? (inTauri ? DOWNLOADS_HOST : '')
 const DISK = typeof navigator !== 'undefined' && /Windows/i.test(navigator.userAgent) ? 'http://worlds.localhost' : 'worlds://localhost';
 
 const KEY = 'ar.packs';
+/** Zones que le joueur a supprimées lui-même : celles installées d'office (platform/offlineZones.ts) ne reviennent pas. */
+const DECLINED_KEY = 'ar.packsDeclined';
+
+/** Zones supprimées volontairement par le joueur (et pas réinstallées depuis). */
+export function declinedPacks(): Set<string> {
+  try {
+    const list = JSON.parse(localStorage.getItem(DECLINED_KEY) ?? '[]') as unknown;
+    return new Set(Array.isArray(list) ? list.filter((x): x is string => typeof x === 'string') : []);
+  } catch {
+    return new Set();
+  }
+}
+
+function setDeclined(id: string, declined: boolean): void {
+  try {
+    const all = declinedPacks();
+    if (declined === all.has(id)) return;
+    if (declined) all.add(id);
+    else all.delete(id);
+    localStorage.setItem(DECLINED_KEY, JSON.stringify([...all]));
+  } catch {
+    // stockage indisponible : la zone d'office sera simplement reproposée
+  }
+}
 const cacheName = (id: string) => `ar-pack-${id}`;
 const hasCaches = () => typeof caches !== 'undefined';
 /**
@@ -104,7 +128,11 @@ export function packState(id: string, catalogueVersion: string | undefined): Pac
  * en octets. Une version précédente est remplacée une fois le téléchargement complet.
  */
 export async function installPack(id: string, onProgress: (done: number, total: number) => void, signal?: AbortSignal): Promise<void> {
-  if (inDesktop) return installOnDisk(id, onProgress, signal);
+  if (inDesktop) {
+    await installOnDisk(id, onProgress, signal);
+    setDeclined(id, false);
+    return;
+  }
   if (!hasCaches()) throw new Error('stockage hors ligne indisponible (page non sécurisée)');
   const res = await fetch(`${TILES_BASE}/worlds/${id}/tiles/pack.json`, { cache: 'no-store', ...(signal ? { signal } : {}) });
   // Serveur de développement : un fichier absent renvoie la page du jeu (HTTP 200, HTML), pas une erreur.
@@ -159,6 +187,7 @@ export async function installPack(id: string, onProgress: (done: number, total: 
   await caches.delete(tmpName);
   const announced = (await loadCatalogue())?.zones.find((z) => z.id === id)?.pack?.version;
   setInstalled(id, { version: manifest.version, bytes: manifest.bytes, ...(announced ? { catalogue: announced } : {}) });
+  setDeclined(id, false);
   keepStorage();
 }
 
@@ -218,10 +247,12 @@ export async function removePack(id: string): Promise<void> {
   if (inDesktop) {
     await invoke('pack_remove', { id });
     disk?.delete(id);
+    setDeclined(id, true);
     return;
   }
   if (hasCaches()) await caches.delete(cacheName(id));
   setInstalled(id, null);
+  setDeclined(id, true);
 }
 
 /**

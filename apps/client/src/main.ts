@@ -101,6 +101,7 @@ import { TILES_BASE, installedPacks, keepStorage, openGraphReady } from './world
 import { loadRouteForKey } from './world/routeStore.ts';
 import { inDesktop, installFullscreenKey, keepAwake, mirrorProfile } from './platform/desktop.ts';
 import { hasLocalMedia, prepareDesktop } from './platform/desktopBoot.ts';
+import { installBackgroundZones, installBootZones, pauseBackgroundZones } from './platform/offlineZones.ts';
 import { LOW_POLY } from './engine/style.ts';
 import { ROAD_FX } from './world/roadSurface.ts';
 import { offerDesktopUpdate } from './ui/desktopUi.ts';
@@ -478,6 +479,8 @@ async function boot(): Promise<void> {
   music.unlockOnGesture();
   // Application Windows : zones du disque, ressources du jeu à jour, profil sauvegardé, F11, veille rendue à Windows.
   await prepareDesktop();
+  // Zone du mode en ligne (Longchamp) installée d'office au premier lancement : jouable ensuite sans connexion.
+  await installBootZones();
   mirrorProfile();
   installFullscreenKey();
   keepAwake(false);
@@ -657,6 +660,8 @@ async function boot(): Promise<void> {
 
   const menu = new MainMenu(ui, settings, scene.source.routes, devices.panel, {
     onStart: (s, extras) => {
+      // L'installation de fond d'une zone d'office laisse le réseau et le disque au chargement de la sortie.
+      pauseBackgroundZones();
       saveSettings(s);
       // Itinéraire tracé sur la carte : il remplace le précédent dans les parcours du monde.
       if (extras.customRoute) {
@@ -978,6 +983,8 @@ async function boot(): Promise<void> {
     bootWorld = null;
   }
   bootDone();
+  // Île de Robert : installée en tâche de fond une fois le menu affiché (application de bureau).
+  void installBackgroundZones();
   void offerDesktopUpdate();
   // Historique local (SQLite dans l'appli de bureau) : ouverture et import des anciennes données.
   void rideHistory.ready(settings.ftpWatts).catch((e) => console.warn('Historique indisponible', e));
