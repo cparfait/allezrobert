@@ -990,3 +990,18 @@
 .gr-typename { display: flex; align-items: center; justify-content: space-between; }
 .gr-dice { appearance: none; display: grid; place-items: center; width: 34px; height: 34px; border: 1px solid var(--mm-line); border-radius: 8px; background: rgba(255, 255, 255, 0.06); color: #c6cdd6; cursor: pointer; transition: transform 0.2s ease, background 0.15s ease; }
 .gr-dice:hover { background: var(--ar-accent); color: #0a0e16; transform: rotate(20deg); }
+
+/* Réglages d'une sortie de groupe ou d'une course : deux cartes titrées (rejoindre, créer), un réglage par ligne
+   avec son libellé et son explication à gauche de la commande. */
+.mm-card { margin-top: 12px; padding: 14px 14px 12px; border-radius: 14px; background: rgba(255, 255, 255, 0.045); border: 1px solid rgba(255, 255, 255, 0.07); }
+.mm-panel .mm-card .mm-card-t { margin: 0; font-size: 15px; font-weight: 800; color: var(--ar-fg); letter-spacing: 0; text-transform: none; }
+.mm-card-d { margin: 3px 0 0; font-size: 13px; color: #aeb7c3; line-height: 1.35; }
+.mm-card .mm-input { margin-top: 10px; }
+.mm-opt { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(255, 255, 255, 0.08); }
+.mm-opt-col { flex-direction: column; align-items: stretch; gap: 8px; }
+.mm-opt-l { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.mm-opt-l b { font-size: 14.5px; font-weight: 700; color: var(--ar-fg); }
+.mm-opt-l small { font-size: 12.5px; color: #aeb7c3; line-height: 1.35; }
+.mm-opt .mm-stepper { flex: none; }
+.mm-opt .mm-seg { margin-top: 0; }
+.mm-opt .mm-seg button { flex: 1 1 0; padding: 9px 6px; white-space: nowrap; }

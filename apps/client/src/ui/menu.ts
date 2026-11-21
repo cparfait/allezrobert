@@ -1130,7 +1130,7 @@ export class MainMenu {
     const levels: Array<[number, string, string]> = [
       [0.7, 'Facile', 'Easy'],
       [0.85, 'Modéré', 'Moderate'],
-      [1, 'À ton niveau', 'Your level'],
+      [1, 'Égal', 'Even'],
       [1.15, 'Fort', 'Strong'],
       [1.3, 'Pro', 'Pro'],
     ];
@@ -1138,7 +1138,7 @@ export class MainMenu {
     return this.seg(
       'm-ailevel',
       String(cur[0]),
-      levels.map(([v, f, e]) => [String(v), `${L ? f : e} · ${Math.round(v * 100)} %`]),
+      levels.map(([v, f, e]) => [String(v), `${L ? f : e} ${Math.round(v * 100)} %`]),
     );
   }
 
@@ -1430,33 +1430,33 @@ export class MainMenu {
       ${this.weatherHtml()}
       ${
         s.mode === 'group' || s.mode === 'race'
-          ? `<input id="m-invite" class="mm-input" placeholder="${L ? 'Code d’invitation (facultatif)' : 'Invite code (optional)'}" />${
-              // Course sur une boucle : nombre de tours (créateur de la course).
-              s.mode === 'race' && r?.loop ? `<div class="mm-steprow"><span>${L ? 'Tours de la course' : 'Race laps'}</span>${this.stepper('m-laps', 1, 20, s.raceLaps)}</div><p class="mm-hint">${L ? 'Valable seulement sur une boucle : la course s’arrête après ce nombre de tours.' : 'Only for a loop: the race ends after this many laps.'}</p>` : ''
-            }
-            <div class="mm-groupopts">
+          ? `<div class="mm-card">
+              <h3 class="mm-card-t">${L ? 'Rejoindre une sortie' : 'Join a ride'}</h3>
+              <p class="mm-card-d">${L ? 'Un ami t’a donné un code ? Saisis-le : tu roules avec ses réglages.' : 'Got a code from a friend? Enter it: you ride with their settings.'}</p>
+              <input id="m-invite" class="mm-input" placeholder="${L ? 'Code d’invitation' : 'Invite code'}" />
+            </div>
+            <div class="mm-card mm-groupopts">
+              <h3 class="mm-card-t">${s.mode === 'race' ? (L ? 'Ou créer ta course' : 'Or create your race') : L ? 'Ou créer ta sortie' : 'Or create your ride'}</h3>
+              <p class="mm-card-d">${L ? 'Ces réglages, ton heure et ta météo valent pour tout le groupe.' : 'These settings, your time and your weather apply to the whole group.'}</p>
+              ${
+                // Course sur une boucle : nombre de tours (créateur de la course).
+                s.mode === 'race' && r?.loop
+                  ? `<div class="mm-opt"><div class="mm-opt-l"><b>${L ? 'Tours' : 'Laps'}</b><small>${L ? 'La course s’arrête après ce nombre de tours.' : 'The race ends after this many laps.'}</small></div>${this.stepper('m-laps', 1, 20, s.raceLaps)}</div>`
+                  : ''
+              }
+              <div class="mm-opt"><div class="mm-opt-l"><b>${L ? 'Coureurs IA' : 'AI riders'}</b><small>${L ? 'Chacun a sa tactique et sa forme du jour.' : 'Each has its own tactic and form of the day.'}</small></div>${this.stepper('m-ai', 0, 19, s.aiRiders)}</div>
               ${
                 s.mode === 'race'
-                  ? `<div class="mm-steprow"><span>${L ? 'Coureurs IA' : 'AI riders'}</span>${this.stepper('m-ai', 0, 19, s.aiRiders)}</div>
-              <div class="field">${L ? 'Niveau des IA (part de ta FTP)' : 'AI level (share of your FTP)'}${this.aiLevelSeg()}</div>
-              <p class="mm-hint">${L ? 'Chaque IA a sa tactique (baroudeur, attentiste, grimpeur, équipier) et sa forme du jour ; une échappée reprise à bout de forces se paie.' : 'Each AI has its own tactic (breakaway artist, wheelsucker, climber, domestique) and form of the day; a spent breakaway pays for it.'}</p>`
-                  : ''
-              }
-              ${
-                s.mode === 'group'
-                  ? `<div class="mm-steprow"><span>${L ? 'Coureurs IA' : 'AI riders'}</span>${this.stepper('m-ai', 0, 19, s.aiRiders)}</div>
-              <div class="field">${L ? 'Vitesse moyenne visée (IA)' : 'Target average speed (AI)'}${this.seg('m-target', String(s.groupTargetKmh), [
+                  ? `<div class="mm-opt mm-opt-col"><div class="mm-opt-l"><b>${L ? 'Niveau des IA' : 'AI level'}</b><small>${L ? 'Leur puissance, en part de ta FTP.' : 'Their power, as a share of your FTP.'}</small></div>${this.aiLevelSeg()}</div>`
+                  : `<div class="mm-opt mm-opt-col"><div class="mm-opt-l"><b>${L ? 'Vitesse moyenne visée' : 'Target average speed'}</b><small>${L ? 'Les IA règlent leur effort pour la tenir ; l’organisateur peut l’augmenter en route.' : 'AI riders pace themselves to hold it; the host can raise it on the road.'}</small></div>${this.seg('m-target', String(s.groupTargetKmh), [
                       ['0', L ? 'Libre' : 'Free'],
                       ...[22, 25, 28, 30, 32, 35].map((v): [string, string] => [String(v), `${v} km/h`]),
-                    ])}</div>
-              <p class="mm-hint">${L ? 'Les IA règlent leur effort pour tenir cette moyenne sur la sortie ; l’organisateur peut l’augmenter en route.' : 'AI riders pace themselves to hold this average over the ride; the host can raise it on the road.'}</p>`
-                  : ''
+                    ])}</div>`
               }
-              <div class="field">${L ? 'Équipement égalisé' : 'Equal equipment'}${this.seg('m-equal', (s.equalEquipment ?? s.mode === 'race') ? '1' : '0', [
-                ['1', L ? 'Oui : même vélo pour tous' : 'Yes: same bike for all'],
-                ['0', L ? 'Non : pièces de l’atelier' : 'No: workshop parts'],
+              <div class="mm-opt mm-opt-col"><div class="mm-opt-l"><b>${L ? 'Vélos' : 'Bikes'}</b><small>${L ? 'Le même vélo pour tous, ou chacun le sien avec ses pièces de l’atelier.' : 'The same bike for all, or each rider’s own with its workshop parts.'}</small></div>${this.seg('m-equal', (s.equalEquipment ?? s.mode === 'race') ? '1' : '0', [
+                ['1', L ? 'Même vélo pour tous' : 'Same bike for all'],
+                ['0', L ? 'Chacun son vélo' : 'Each their own'],
               ])}</div>
-              <p class="mm-hint">${L ? 'Si tu crées la sortie, ton heure, ta météo et l’égalisation s’appliquent à tout le groupe.' : 'If you create the ride, your time, weather and equipment rule apply to the whole group.'}</p>
             </div>`
           : s.mode === 'challenge'
             ? this.challengeChoiceHtml(r)
