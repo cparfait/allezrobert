@@ -783,7 +783,7 @@ body:has(.ob-preview) .subtitle { left: 2vw; right: auto; transform: none; max-w
 .lg-load { margin: 12px 0 0; font-size: 12px; color: var(--ar-muted); text-align: center; }
 @media (max-width: 560px) { .lg-cmp { grid-template-columns: 1fr; } }
 
-/* Aspiration, vent, altitude et tour : en bas à gauche, dans la rangée du rapport et de l'équilibre. */
-.hud-drive { align-items: flex-end; flex-wrap: wrap; }
-.hud-drive .hud-left { align-self: stretch; align-content: center; }
-.hud.compact .hud-col-left { width: auto; max-width: 60vw; }
+/* Aspiration, vent, altitude et tour : à droite, sous le groupe et les coureurs à proximité. */
+.hud-col-right > .hud-left { align-self: stretch; grid-template-columns: 1fr auto; flex: none; }
+.hud-col-right > .hud-left .hud-note { max-width: none; }
+.hud.compact .hud-col-right > .hud-left { width: auto; }

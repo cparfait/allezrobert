@@ -565,15 +565,6 @@ export class Hud {
           <div class="hud-drive">
             <div class="panel gearbox" data-hud="gear"><div class="label metric-label" style="font-size:11px;color:var(--ar-muted);text-transform:uppercase;letter-spacing:.08em">${t('gear')}</div><div class="value num" data-k="gear">34×17</div><div class="bars" data-k="gearbars"></div></div>
             <div class="panel balance hidden" data-k="balanceBox" data-hud="balance"><div style="font-size:11px;color:var(--ar-muted);text-transform:uppercase;letter-spacing:.08em">${t('balance')}</div><div class="num" data-k="balance" style="font-size:20px;font-weight:700">50 / 50</div><div class="bar"><span data-k="balanceBar" style="width:50%"></span></div></div>
-            <!-- Aspiration, vent, altitude, tour : en bas, à côté du rapport et de l'équilibre. -->
-            <div class="panel hud-left">
-              <span class="k" data-hud="draft">${t('draft')}</span><span class="v num" data-k="draft" data-hud="draft">0 %</span>
-              <span data-hud="draft"></span><span data-hud="draft"><div style="height:6px;width:110px;background:rgba(255,255,255,.12);border-radius:3px;overflow:hidden;margin-left:auto"><div data-k="draftBar" style="height:100%;width:0%;background:linear-gradient(90deg,#60a5fa,#22c55e)"></div></div></span>
-              <span class="hud-note" data-k="draftNote" data-hud="draft"></span>
-              <span class="k" data-hud="wind">${getLang() === 'fr' ? 'Vent' : 'Wind'}</span><span class="v num" data-k="wind" data-hud="wind">–</span>
-              <span class="k" data-hud="alt">${getLang() === 'fr' ? 'Altitude' : 'Altitude'}</span><span class="v num" data-k="alt" data-hud="alt">–</span>
-              ${track.route.loop ? `<span class="k" data-hud="lap">${t('lap')}</span><span class="v num" data-k="lap" data-hud="lap">1</span>` : ''}
-            </div>
           </div>
         </div>
       </div>
@@ -581,6 +572,15 @@ export class Hud {
         <div class="panel minimap" data-hud="map"><canvas width="460" height="460"></canvas><div class="map-town hidden" data-k="mapTown"></div></div>
         ${groupPanel(getLang() === 'fr')}
         <div class="panel riders" data-k="riders" data-hud="riders"></div>
+        <!-- Aspiration, vent, altitude, tour : à droite, sous les coureurs (les données qui dépendent des autres). -->
+        <div class="panel hud-left">
+          <span class="k" data-hud="draft">${t('draft')}</span><span class="v num" data-k="draft" data-hud="draft">0 %</span>
+          <span data-hud="draft"></span><span data-hud="draft"><div style="height:6px;width:110px;background:rgba(255,255,255,.12);border-radius:3px;overflow:hidden;margin-left:auto"><div data-k="draftBar" style="height:100%;width:0%;background:linear-gradient(90deg,#60a5fa,#22c55e)"></div></div></span>
+          <span class="hud-note" data-k="draftNote" data-hud="draft"></span>
+          <span class="k" data-hud="wind">${getLang() === 'fr' ? 'Vent' : 'Wind'}</span><span class="v num" data-k="wind" data-hud="wind">–</span>
+          <span class="k" data-hud="alt">${getLang() === 'fr' ? 'Altitude' : 'Altitude'}</span><span class="v num" data-k="alt" data-hud="alt">–</span>
+          ${track.route.loop ? `<span class="k" data-hud="lap">${t('lap')}</span><span class="v num" data-k="lap" data-hud="lap">1</span>` : ''}
+        </div>
         <div class="chat" data-k="chat"><div class="chat-log" data-k="chatLog"></div><input class="chat-input hidden" data-k="chatInput" maxlength="200" /></div>
       </div>
       <div class="panel workout hidden" data-k="workout"><div class="row" style="justify-content:space-between"><b data-k="wName"></b><span class="num" data-k="wRemain"></span></div><div class="num" data-k="wTarget" style="font-size:30px;font-weight:800"></div><div class="num" data-k="wStep" style="color:var(--ar-muted);font-size:13px"></div><canvas width="900" height="90" data-k="wChart"></canvas></div>
