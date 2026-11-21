@@ -485,6 +485,9 @@ function liveText(kind: LiveKind, live: DeviceLive | undefined): string {
   return `${v === undefined ? '—' : v} ${unit}`;
 }
 
+/** Nom ramené en minuscules sans accents, pour une recherche tolérante. */
+const foldName = (v: string): string => v.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+
 export class MainMenu {
   private readonly root: HTMLElement;
   private readonly s: Settings;
@@ -1004,6 +1007,9 @@ export class MainMenu {
   /** Ouvre une rubrique des Réglages (retour de Strava : la rubrique d'envoi des sorties). */
   openSettingsSection(id: string): void {
     this.settingsOpen.add(id);
+    // Anciennes rubriques repliables : chacune a rejoint une catégorie.
+    const cat: Record<string, string> = { graphics: 'image', hud: 'interface', weather: 'ride', trainer: 'trainer', music: 'sound', sound: 'sound', companion: 'companion', zones: 'zones', lang: 'general', expert: 'expert' };
+    this.settingsCat = cat[id] ?? id;
   }
 
   show(tab: Tab = 'home'): void {
@@ -1094,8 +1100,22 @@ export class MainMenu {
     const near = WEATHER_PRESETS.map(([id, w]) => [id, Math.abs(w.clouds - s.clouds) + Math.abs(w.rain - s.rain) + Math.abs(w.fog - s.fog)] as const).sort((a, b) => a[1] - b[1])[0];
     const sky = near && near[1] < 0.35 ? near[0] : '';
     const wind = String(WIND_STEPS.reduce((best, v) => (Math.abs(v - s.windMs) < Math.abs(best - s.windMs) ? v : best), WIND_STEPS[0] as number));
-    // Replié par défaut : le titre rappelle l'heure choisie ; l'état ouvert / fermé est mémorisé comme dans les Réglages.
-    return `<details class="set-sec" data-sec="weather" ${this.settingsOpen.has('weather') ? 'open' : ''}><summary>${L ? 'Heure et météo de la sortie' : 'Ride time and weather'} <span style="text-transform:none;letter-spacing:0;font-weight:500;opacity:.8;margin-left:auto">${this.hourLabel(s.hour)}</span></summary><div class="set-body"><div class="mm-weather">
+    // Carte toujours visible : un interrupteur « Réelles / Personnalisées » règle d'un geste l'heure et la météo ;
+    // le détail (heure, ciel, vent) n'apparaît qu'en personnalisé.
+    const allReal = s.realTime && s.realWeather;
+    const skyName: Record<string, [string, string]> = { sun: ['soleil', 'sunny'], cloudy: ['nuageux', 'cloudy'], rain: ['pluie', 'rain'], fog: ['brouillard', 'fog'] };
+    const skyLabel = sky && skyName[sky] ? (skyName[sky] as [string, string])[L ? 0 : 1] : L ? 'ciel réglé' : 'custom sky';
+    const summary = allReal
+      ? L
+        ? `Heure actuelle (${this.hourLabel(nowHour())}) et météo du moment autour du départ.`
+        : `Current time (${this.hourLabel(nowHour())}) and today’s weather around the start.`
+      : `${L ? 'Départ à' : 'Start at'} ${this.hourLabel(s.realTime ? nowHour() : s.hour)} · ${s.realWeather ? (L ? 'météo du moment' : 'today’s weather') : skyLabel}`;
+    return `<div class="mm-card mm-wxcard">
+      <div class="mm-opt mm-opt-first"><div class="mm-opt-l"><b>${L ? 'Heure et météo' : 'Time and weather'}</b><small>${esc(summary)}</small></div>${this.seg('m-realall', allReal ? '1' : '0', [
+        ['1', L ? 'Réelles' : 'Real'],
+        ['0', L ? 'Personnalisées' : 'Custom'],
+      ])}</div>
+      ${allReal ? '' : `<div class="mm-weather">
       ${this.hourFields()}
       <div class="field">${L ? 'Conditions' : 'Conditions'}${this.seg('m-realwx', s.realWeather ? '1' : '0', [
         ['1', L ? 'Du jour (réelles)' : 'Today (real)'],
@@ -1121,7 +1141,8 @@ export class MainMenu {
         ['1', L ? 'Qui évolue' : 'Changing'],
       ])}</div>`
       }
-    </div></div></details>`;
+    </div>`}
+    </div>`;
   }
 
   /** Niveau des coureurs IA, en part de la FTP du joueur (chacun varie ensuite autour, forme du jour comprise). */
@@ -1371,7 +1392,24 @@ export class MainMenu {
     this.renderZonesSettings();
     renderExpertSettings(this.root.querySelector('#m-expert-settings'));
     // Rubriques repliables des Réglages : on retient celles qui sont ouvertes (l'écran est redessiné à chaque changement).
-    for (const d of this.root.querySelectorAll<HTMLDetailsElement>('details.set-sec')) {
+    // Catégories des Réglages : une seule visible, sans redessiner l'écran.
+    for (const b of this.root.querySelectorAll<HTMLElement>('[data-setcat]')) {
+      b.addEventListener('click', () => {
+        const id = b.dataset.setcat ?? 'image';
+        this.settingsCat = id;
+        try {
+          localStorage.setItem('ar.settingsCat', id);
+        } catch {
+          /* stockage indisponible : la catégorie reste en mémoire */
+        }
+        this.root.querySelectorAll<HTMLElement>('[data-setcat]').forEach((x) => {
+          x.classList.toggle('on', x === b);
+          x.setAttribute('aria-current', x === b ? 'true' : 'false');
+        });
+        this.root.querySelectorAll<HTMLElement>('[data-setpane]').forEach((x) => (x.hidden = x.dataset.setpane !== id));
+      });
+    }
+    for (const d of this.root.querySelectorAll<HTMLDetailsElement>('details.set-sec, details.set-adv')) {
       d.addEventListener('toggle', () => {
         const id = d.dataset.sec ?? '';
         if (d.open) this.settingsOpen.add(id);
@@ -2001,6 +2039,8 @@ export class MainMenu {
   private renderZonesSettings(): void {
     const box = this.root.querySelector<HTMLElement>('#m-zones-settings');
     if (!box) return;
+    // Un téléchargement en cours redessine la liste : la saisie de la recherche ne doit pas perdre le curseur.
+    const refocusZoneQuery = document.activeElement?.id === 'm-zone-q';
     const L = fr();
     const lang = getLang();
     const zones = this.zones.filter((z) => z.pack);
@@ -2035,7 +2075,7 @@ export class MainMenu {
           state = `<span class="zs-state">${L ? 'Non téléchargée' : 'Not downloaded'}</span>`;
           actions = `<button class="btn small primary" data-zpack="${esc(z.id)}">${L ? 'Télécharger' : 'Download'}</button>`;
         }
-        return { have, html: `<div class="zs-row${z.id === this.worldId ? ' cur' : ''}"><div class="zs-name"><b>${esc(nameOf(z.id))}</b><small>${sizeOf(z)}${z.id === this.worldId ? ` · ${L ? 'zone affichée' : 'current area'}` : ''}</small></div><div class="zs-mid">${state}</div><div class="zs-act">${actions}</div></div>` };
+        return { have, html: `<div class="zs-row${z.id === this.worldId ? ' cur' : ''}" data-zname="${esc(foldName(nameOf(z.id)))}"><div class="zs-name"><b>${esc(nameOf(z.id))}</b><small>${sizeOf(z)}${z.id === this.worldId ? ` · ${L ? 'zone affichée' : 'current area'}` : ''}</small></div><div class="zs-mid">${state}</div><div class="zs-act">${actions}</div></div>` };
       })
       .sort((a, b) => Number(b.have) - Number(a.have));
     const mine = installedPacks();
@@ -2056,9 +2096,33 @@ export class MainMenu {
     const where = inTauri ? (L ? 'Les cartes sont dans le dossier des données ci-dessous.' : 'Maps are kept in the data folder below.') : L ? 'Les cartes sont stockées sur cet appareil.' : 'Maps are stored on this device.';
     box.innerHTML = `<p class="mm-hint">${L ? 'Une zone téléchargée se charge tout de suite et fonctionne sans connexion ; sinon elle se charge pendant la sortie.' : 'A downloaded area loads instantly and works offline; otherwise it streams in during the ride.'} ${where}</p>
       ${storagePanelHtml()}
+      <input id="m-zone-q" class="mm-input zs-search" type="search" autocomplete="off" placeholder="${L ? 'Chercher une zone…' : 'Search an area…'}" value="${esc(this.zoneQuery)}" />
       <div class="zs-list">${rows.map((r) => r.html).join('')}</div>
+      <p class="mm-hint zs-none" hidden>${L ? 'Aucune zone à ce nom.' : 'No area with that name.'}</p>
       <div class="zs-foot"><span>${used}</span>${getAll}${allBtn}${mine.length ? `<button class="btn small" data-zunpack-all>${L ? 'Tout supprimer' : 'Remove all'}</button>` : ''}</div>`;
     void fillStoragePanel(box, () => this.renderZonesSettings());
+    // Recherche : filtre les lignes sans redessiner la liste (l'état des téléchargements la redessine déjà).
+    const q = box.querySelector<HTMLInputElement>('#m-zone-q');
+    const applyQuery = (): void => {
+      const needle = foldName(this.zoneQuery.trim());
+      let shown = 0;
+      box.querySelectorAll<HTMLElement>('.zs-row').forEach((row) => {
+        const hit = !needle || (row.dataset.zname ?? '').includes(needle);
+        row.hidden = !hit;
+        if (hit) shown++;
+      });
+      const none = box.querySelector<HTMLElement>('.zs-none');
+      if (none) none.hidden = shown > 0;
+    };
+    q?.addEventListener('input', () => {
+      this.zoneQuery = q.value;
+      applyQuery();
+    });
+    applyQuery();
+    if (refocusZoneQuery && q) {
+      q.focus();
+      q.setSelectionRange(q.value.length, q.value.length);
+    }
     box.querySelector('[data-zpack-all]')?.addEventListener('click', () => {
       const n = missing.length;
       const what = L ? `${n} zone${n > 1 ? 's' : ''} (${formatBytes(missingBytes, L)})` : `${n} area${n > 1 ? 's' : ''} (${formatBytes(missingBytes, L)})`;
@@ -2628,74 +2692,118 @@ export class MainMenu {
     })(),
   );
 
-  /** Rubrique repliable de l'onglet Réglages : titre cliquable, contenu replié ou non. */
-  private settingsSection(id: string, title: string, body: string): string {
-    return `<details class="set-sec" data-sec="${id}" ${this.settingsOpen.has(id) ? 'open' : ''}><summary>${title}</summary><div class="set-body">${body}</div></details>`;
+  /** Catégorie des Réglages affichée (mémorisée : l'écran est redessiné à chaque changement). */
+  private settingsCat: string = (() => {
+    try {
+      return localStorage.getItem('ar.settingsCat') ?? 'image';
+    } catch {
+      return 'image';
+    }
+  })();
+
+  /** Recherche de la liste des zones hors ligne (gardée d'un réaffichage à l'autre). */
+  private zoneQuery = '';
+
+  /** Un réglage : libellé et explication courte à gauche, commande à droite (ou dessous avec `col`). */
+  private setOpt(label: string, help: string, control: string, col = false): string {
+    return `<div class="mm-opt${col ? ' mm-opt-col' : ''}"><div class="mm-opt-l"><b>${label}</b>${help ? `<small>${help}</small>` : ''}</div>${control}</div>`;
+  }
+
+  /** Réglages rares ou techniques d'une catégorie : un seul repli, fermé par défaut, état mémorisé. */
+  private setAdvanced(id: string, body: string): string {
+    return `<details class="set-adv" data-sec="adv-${id}" ${this.settingsOpen.has(`adv-${id}`) ? 'open' : ''}><summary>${fr() ? 'Avancé' : 'Advanced'}</summary>${body}</details>`;
   }
 
   private settingsHtml(): string {
     const s = this.s;
     const L = fr();
-    const sec = (id: string, title: string, body: string) => this.settingsSection(id, title, body);
-    const graphics = `<div class="grid3">
-        <div class="field">${t('quality')}${this.seg('m-quality', s.quality, (['low', 'medium', 'high', 'ultra'] as const).map((q) => [q, t(q)]))}</div>
-        <div class="field">${L ? 'Style graphique' : 'Graphic style'}${this.seg('m-style', GRAPHIC_STYLE, [['lowpoly', L ? 'Jeu vidéo' : 'Video game'], ['real', L ? 'Réaliste' : 'Realistic'], ...(V3_AVAILABLE ? [['v3', 'Beta'] as [string, string]] : [])])}</div>
-        <div class="field hud-field" style="grid-column: 1 / -1">${L ? 'Interface (HUD) · effet à la prochaine sortie' : 'HUD layout · applies from the next ride'}${hudPickerHtml()}</div>
-        <div class="field">${L ? 'Format de l\'image' : 'Picture format'}${this.seg('m-aspect', getAspectCap(), [['full', L ? 'Plein écran' : 'Full'], ['16:9', '16:9'], ['21:9', '21:9'], ['32:9', '32:9']])}</div>
-        <div class="field">${L ? 'Zone de l\'interface' : 'Interface area'}${this.seg('m-uiaspect', getUiAspectCap(), [['full', L ? 'Toute la largeur' : 'Full width'], ['16:9', '16:9'], ['21:9', '21:9']])}</div>
-        <div class="field">${L ? 'Résolution max' : 'Max resolution'}${this.seg('m-maxres', getResolutionCap(), [['auto', 'Auto'], ['1080p', '1080p'], ['1440p', '1440p'], ['4k', '4K']])}<p class="mm-hint" id="m-res-now"></p></div>
-        <div class="field">${t('season')}${this.seg('m-season', s.season, (['spring', 'summer', 'autumn', 'winter'] as const).map((q) => [q, t(q)]))}</div>
-        ${this.hourFields()}
-        <label class="field">${L ? 'Nuages' : 'Clouds'}<input id="m-clouds" type="range" min="0" max="1" step="0.05" value="${s.clouds}" /></label>
-        <label class="field">${L ? 'Pluie' : 'Rain'}<input id="m-rain" type="range" min="0" max="1" step="0.05" value="${s.rain}" /></label>
-        <label class="field">${L ? 'Brouillard' : 'Fog'}<input id="m-fog" type="range" min="0" max="1" step="0.05" value="${s.fog}" /></label>
-        <div class="field">${L ? 'Météo' : 'Weather'}${this.seg('m-evolve', s.weatherEvolves ? '1' : '0', [
-          ['0', L ? 'Fixe' : 'Fixed'],
-          ['1', L ? 'Qui évolue' : 'Changing'],
-        ])}</div>
-      </div>`;
-    const trainer = `<div class="grid3">
-        <label class="field">${t('difficulty')} <span id="m-diffv">${Math.round(s.trainerDifficulty * 100)} %</span><input id="m-diff" type="range" min="0" max="1" step="0.05" value="${s.trainerDifficulty}" /></label>
-        <label class="field" title="${L ? '100 % : masse et roues réelles. Plus bas, la vitesse suit plus vite les relances (volant du home trainer).' : '100%: real mass and wheels. Lower: speed follows accelerations faster (trainer flywheel).'}">${L ? 'Inertie' : 'Inertia'} <span id="m-inertiav">${Math.round(s.inertia * 100)} %</span><input id="m-inertia" type="range" min="0.6" max="1" step="0.05" value="${s.inertia}" /></label>
-        <div class="field">Transmission${this.seg('m-drive', s.drivetrain, [
-          ['cog', L ? 'Vitesses virtuelles' : 'Virtual shifting'],
-          ['cassette', L ? 'Cassette réelle' : 'Real cassette'],
-        ])}</div>
-        <div class="field">${L ? 'Lissage puissance' : 'Power smoothing'}${this.seg('m-smooth', s.smoothing3s ? '1' : '0', [
-          ['0', L ? 'Non' : 'Off'],
-          ['1', '3 s'],
-        ])}</div>
-        <label class="field" title="${L ? 'Le coureur se met en danseuse au-delà de cette puissance (en plus du sprint, des côtes et des efforts en force). Auto : règles seules.' : 'The rider stands up above this power (on top of sprints, climbs and low-cadence efforts). Auto: rules only.'}">${L ? 'Danseuse au-delà de' : 'Stand up above'} <span id="m-standv">${s.standWatts ? `${s.standWatts} W` : 'Auto'}</span><input id="m-stand" type="range" min="0" max="1200" step="25" value="${s.standWatts}" /></label>
-        <label class="field" title="${esc(ROAD_FEEL_TEXT[L ? 'fr' : 'en'].unsupported)}">${ROAD_FEEL_TEXT[L ? 'fr' : 'en'].title} <span id="m-roadfeelv">${roadFeelValue(s.roadFeelPercent, L)}</span><input id="m-roadfeel" type="range" min="0" max="${ROAD_FEEL.maxPercent}" step="5" value="${s.roadFeelPercent}" /></label>
-      </div>
-      ${roadFeelMessage(s.roadFeelPercent, L)}`;
-    const lang = `<div class="grid3">
-        <div class="field">${t('language')}${this.seg('m-lang', s.lang, [
-          ['fr', 'Français'],
-          ['en', 'English'],
-        ])}</div>
-        <div class="field">${L ? 'Tutoriel' : 'Tutorial'}<div class="mm-seg"><button type="button" id="m-tuto">${L ? 'Revoir le tutoriel' : 'Watch the tutorial again'}</button></div></div>
-        <div class="field">Strava${this.seg('m-strava', s.skipStrava ? 'skip' : 'send', [
-          ['skip', L ? 'Ne pas envoyer' : 'Don’t upload'],
-          ['send', L ? 'Envoyer' : 'Upload'],
-        ])}</div>
-      </div>
-      <div id="m-strava-link"></div>`;
-    // Blocs du HUD : décocher ce que son matériel ne mesure pas (cardio, cadence…).
+    const opt = (label: string, help: string, control: string, col = false) => this.setOpt(label, help, control, col);
+    const range = (id: string, min: number, max: number, step: number, value: number) => `<input class="set-range" id="${id}" type="range" min="${min}" max="${max}" step="${step}" value="${value}" />`;
+    const val = (id: string, text: string) => ` <span class="set-val" id="${id}">${text}</span>`;
+
+    const image = `
+      ${opt(t('quality'), L ? 'Plus haut : plus beau, plus exigeant pour la carte graphique.' : 'Higher: prettier, harder on the graphics card.', this.seg('m-quality', s.quality, (['low', 'medium', 'high', 'ultra'] as const).map((q) => [q, t(q)])), true)}
+      ${opt(L ? 'Style graphique' : 'Graphic style', '', this.seg('m-style', GRAPHIC_STYLE, [['lowpoly', L ? 'Jeu vidéo' : 'Video game'], ['real', L ? 'Réaliste' : 'Realistic'], ...(V3_AVAILABLE ? [['v3', 'Beta'] as [string, string]] : [])]), true)}
+      ${this.setAdvanced(
+        'image',
+        `${opt(L ? 'Format de l’image' : 'Picture format', L ? 'Bandes noires sur un écran plus large que le format choisi.' : 'Black bars on a screen wider than the chosen format.', this.seg('m-aspect', getAspectCap(), [['full', L ? 'Plein écran' : 'Full'], ['16:9', '16:9'], ['21:9', '21:9'], ['32:9', '32:9']]), true)}
+        ${opt(L ? 'Résolution max' : 'Max resolution', '<span id="m-res-now"></span>', this.seg('m-maxres', getResolutionCap(), [['auto', 'Auto'], ['1080p', '1080p'], ['1440p', '1440p'], ['4k', '4K']]), true)}`,
+      )}`;
+
+    // Blocs du HUD : décocher ce que son matériel ne mesure pas (cardio, cadence…), rangés par famille.
     const hidden = new Set(s.hudHidden);
-    const hud = `<p class="mm-hint">${L ? 'Décoche ce que ton matériel ne mesure pas ou ce que tu ne veux pas voir.' : 'Untick what your hardware does not measure or what you do not want to see.'}</p><div class="grid3">${HUD_BLOCKS.map((b) => `<label class="mm-check"><input type="checkbox" data-hudblock="${b.id}" ${hidden.has(b.id) ? '' : 'checked'}/> ${L ? b.fr : b.en}</label>`).join('')}</div>`;
-    // Rubriques repliables (la première ouverte au départ, l'état est mémorisé) ; le mode expert est tout en bas.
+    const groups: Array<[string, string[]]> = [
+      [L ? 'Mes données' : 'My data', ['hr', 'power', 'cadence', 'speed', 'avg', 'np', 'gear', 'balance', 'zones']],
+      [L ? 'Parcours et environnement' : 'Route and conditions', ['grade', 'time', 'dist', 'gain', 'wind', 'alt', 'lap']],
+      [L ? 'Autres coureurs' : 'Other riders', ['draft', 'group', 'riders']],
+      [L ? 'Carte et profil' : 'Map and profile', ['map', 'profile']],
+    ];
+    const grouped = new Set(groups.flatMap(([, ids]) => ids));
+    // Un bloc ajouté plus tard au HUD et pas encore rangé reste proposé, dans la première famille.
+    const strays = HUD_BLOCKS.filter((b) => !grouped.has(b.id)).map((b) => b.id as string);
+    if (strays.length) (groups[0] as [string, string[]])[1].push(...strays);
+    const check = (id: string): string => {
+      const b = HUD_BLOCKS.find((x) => x.id === id);
+      return b ? `<label class="mm-check"><input type="checkbox" data-hudblock="${b.id}" ${hidden.has(b.id) ? '' : 'checked'}/> ${L ? b.fr : b.en}</label>` : '';
+    };
+    const interfaceCat = `
+      ${opt(L ? 'Disposition de l’interface' : 'Interface layout', L ? 'Prend effet à la prochaine sortie.' : 'Applies from the next ride.', hudPickerHtml(), true)}
+      <div class="mm-opt mm-opt-col"><div class="mm-opt-l"><b>${L ? 'Éléments affichés en sortie' : 'Shown during the ride'}</b><small>${L ? 'Décoche ce que ton matériel ne mesure pas ou ce que tu ne veux pas voir.' : 'Untick what your hardware does not measure or what you do not want to see.'}</small></div>
+        <div class="set-groups">${groups.map(([title, ids]) => `<div class="set-group"><h4>${title}</h4>${ids.map(check).join('')}</div>`).join('')}</div></div>
+      ${this.setAdvanced('interface', opt(L ? 'Zone de l’interface' : 'Interface area', L ? 'Sur un écran très large, garde les compteurs au centre.' : 'On a very wide screen, keeps the gauges in the centre.', this.seg('m-uiaspect', getUiAspectCap(), [['full', L ? 'Toute la largeur' : 'Full width'], ['16:9', '16:9'], ['21:9', '21:9']]), true))}`;
+
+    const ride = `
+      ${opt(t('season'), '', this.seg('m-season', s.season, (['spring', 'summer', 'autumn', 'winter'] as const).map((q) => [q, t(q)])), true)}
+      ${opt(L ? 'Heure de départ' : 'Start time', '', this.seg('m-realtime', s.realTime ? '1' : '0', [['1', `${L ? 'Heure actuelle' : 'Current time'} · ${this.hourLabel(nowHour())}`], ['0', L ? 'Réglée' : 'Custom']]), true)}
+      ${s.realTime ? '' : opt(`${t('hour')}${val('m-hourv', this.hourLabel(s.hour))}`, '', range('m-hour', 5, 22, 0.25, s.hour))}
+      ${opt(L ? 'Nuages' : 'Clouds', '', range('m-clouds', 0, 1, 0.05, s.clouds))}
+      ${opt(L ? 'Pluie' : 'Rain', L ? 'La chaussée mouillée roule moins bien.' : 'A wet road rolls slower.', range('m-rain', 0, 1, 0.05, s.rain))}
+      ${opt(L ? 'Brouillard' : 'Fog', '', range('m-fog', 0, 1, 0.05, s.fog))}
+      ${opt(L ? 'Météo pendant la sortie' : 'Weather during the ride', '', this.seg('m-evolve', s.weatherEvolves ? '1' : '0', [['0', L ? 'Fixe' : 'Fixed'], ['1', L ? 'Qui évolue' : 'Changing']]), true)}`;
+
+    const RF = ROAD_FEEL_TEXT[L ? 'fr' : 'en'];
+    const trainer = `
+      ${opt(`${t('difficulty')}${val('m-diffv', `${Math.round(s.trainerDifficulty * 100)} %`)}`, L ? 'Part de la pente que le home trainer te fait sentir.' : 'Share of the gradient the trainer makes you feel.', range('m-diff', 0, 1, 0.05, s.trainerDifficulty))}
+      ${opt('Transmission', L ? 'Vitesses virtuelles : le jeu change de rapport, ta chaîne ne bouge pas.' : 'Virtual shifting: the game changes gear, your chain stays put.', this.seg('m-drive', s.drivetrain, [['cog', L ? 'Vitesses virtuelles' : 'Virtual shifting'], ['cassette', L ? 'Cassette réelle' : 'Real cassette']]), true)}
+      ${opt(`${RF.title}${val('m-roadfeelv', roadFeelValue(s.roadFeelPercent, L))}`, '', range('m-roadfeel', 0, ROAD_FEEL.maxPercent, 5, s.roadFeelPercent))}
+      ${roadFeelMessage(s.roadFeelPercent, L)}
+      ${this.setAdvanced(
+        'trainer',
+        `${opt(`${L ? 'Inertie' : 'Inertia'}${val('m-inertiav', `${Math.round(s.inertia * 100)} %`)}`, L ? '100 % : masse et roues réelles. Plus bas, la vitesse suit plus vite les relances.' : '100%: real mass and wheels. Lower: speed follows accelerations faster.', range('m-inertia', 0.6, 1, 0.05, s.inertia))}
+        ${opt(L ? 'Lissage de la puissance' : 'Power smoothing', L ? 'Affiche la moyenne sur 3 secondes.' : 'Shows the 3-second average.', this.seg('m-smooth', s.smoothing3s ? '1' : '0', [['0', L ? 'Non' : 'Off'], ['1', '3 s']]))}
+        ${opt(`${L ? 'Danseuse au-delà de' : 'Stand up above'}${val('m-standv', s.standWatts ? `${s.standWatts} W` : 'Auto')}`, L ? 'Auto : le coureur se lève en sprint, en côte et en force.' : 'Auto: the rider stands in sprints, climbs and low-cadence efforts.', range('m-stand', 0, 1200, 25, s.standWatts))}`,
+      )}`;
+
+    const sound = `
+      <div class="mm-opt mm-opt-col"><div class="mm-opt-l"><b>${L ? 'Musique' : 'Music'}</b></div><div id="m-music-settings" class="mm-musicset"></div></div>
+      <div class="mm-opt mm-opt-col"><div class="mm-opt-l"><b>${L ? 'Sons du jeu' : 'Game sounds'}</b></div><div id="m-sound-settings"></div></div>`;
+
+    const general = `
+      ${opt(t('language'), '', this.seg('m-lang', s.lang, [['fr', 'Français'], ['en', 'English']]))}
+      ${opt(L ? 'Tutoriel' : 'Tutorial', L ? 'La présentation du premier lancement.' : 'The first-launch walkthrough.', `<button type="button" class="btn small" id="m-tuto">${L ? 'Revoir le tutoriel' : 'Watch the tutorial again'}</button>`)}
+      ${opt('Strava', L ? 'Envoi de tes sorties à la fin de chacune.' : 'Uploads your rides when each one ends.', this.seg('m-strava', s.skipStrava ? 'skip' : 'send', [['skip', L ? 'Ne pas envoyer' : 'Don’t upload'], ['send', L ? 'Envoyer' : 'Upload']]))}
+      <div id="m-strava-link"></div>`;
+
+    const ico = (d: string): string => `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
+    const cats: Array<[id: string, name: string, icon: string, body: string]> = [
+      ['image', L ? 'Image' : 'Picture', ico('<rect x="3" y="5" width="18" height="13" rx="2"/><path d="M8 21h8"/>'), image],
+      ['interface', L ? 'Interface' : 'Interface', ico('<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M9 10v10"/>'), interfaceCat],
+      ['ride', L ? 'Sortie' : 'Ride', ico('<circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M5.6 18.4L7 17M17 7l1.4-1.4"/>'), ride],
+      ['trainer', L ? 'Home trainer' : 'Smart trainer', ico('<circle cx="7" cy="16" r="4"/><circle cx="17" cy="16" r="4"/><path d="M7 16l4-8h4l2 8M9 8h4"/>'), trainer],
+      ['sound', L ? 'Son et musique' : 'Sound and music', ico('<path d="M4 10v4h4l5 4V6L8 10H4z"/><path d="M16 9a4 4 0 010 6M18.5 6.5a8 8 0 010 11"/>'), sound],
+      ['companion', L ? 'Compagnon' : 'Companion', ico('<rect x="7" y="3" width="10" height="18" rx="2"/><path d="M11 18h2"/>'), '<div id="m-companion-settings"></div>'],
+      ['zones', L ? 'Zones hors ligne' : 'Offline areas', ico('<path d="M12 4v10M8 10l4 4 4-4M5 19h14"/>'), '<div id="m-zones-settings"></div>'],
+      ['general', L ? 'Général' : 'General', ico('<circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1"/>'), general],
+      ['expert', 'Expert', ico('<path d="M4 20l5-1 10-10-4-4L5 15l-1 5z"/><path d="M13 7l4 4"/>'), '<div id="m-expert-settings"></div>'],
+    ];
+    const cur = cats.some(([id]) => id === this.settingsCat) ? this.settingsCat : 'image';
+    // Toutes les catégories restent dans la page (le branchement des réglages les trouve) ; une seule est visible.
     return `<section class="mm-panel mm-center mm-wide mm-xl">${this.closeBtn()}
       <header class="mm-head"><h2>${t('settings')}</h2></header>
-      ${sec('graphics', L ? 'Graphismes et conditions de la sortie' : 'Graphics and ride conditions', graphics)}
-      ${sec('trainer', L ? 'Home trainer' : 'Smart trainer', trainer)}
-      ${sec('music', L ? 'Musique' : 'Music', '<div id="m-music-settings" class="mm-musicset"></div>')}
-      ${sec('sound', L ? 'Son' : 'Sound', '<div id="m-sound-settings"></div>')}
-      ${sec('hud', L ? 'Affichage en sortie' : 'In-ride display', hud)}
-      ${sec('companion', L ? 'Appli compagnon (téléphone)' : 'Companion app (phone)', '<div id="m-companion-settings"></div>')}
-      ${sec('zones', L ? 'Zones et cartes hors ligne' : 'Areas and offline maps', '<div id="m-zones-settings"></div>')}
-      ${sec('lang', L ? 'Langue, tutoriel et envoi des sorties' : 'Language, tutorial and ride upload', lang)}
-      ${sec('expert', L ? 'Mode expert : créer mes zones' : 'Expert mode: build my own zones', '<div id="m-expert-settings"></div>')}
+      <div class="set-layout">
+        <nav class="set-nav" aria-label="${t('settings')}">${cats.map(([id, name, icon]) => `<button type="button" data-setcat="${id}" class="${id === cur ? 'on' : ''}" aria-current="${id === cur ? 'true' : 'false'}">${icon}<span>${name}</span></button>`).join('')}</nav>
+        <div class="set-panes">${cats.map(([id, name, , body]) => `<div class="set-pane" data-setpane="${id}" ${id === cur ? '' : 'hidden'}><h3 class="set-title">${name}</h3>${body}</div>`).join('')}</div>
+      </div>
     </section>`;
   }
 
@@ -3999,6 +4107,15 @@ export class MainMenu {
         changed();
       });
     range('m-hour', 'hour', 'm-hourv', (v) => this.hourLabel(v));
+    on<HTMLSelectElement>('m-realall', 'change', (el) => {
+      // Un geste pour l'heure et la météo : tout réel, ou tout réglable (chaque partie reste réglable ensuite).
+      const real = el.value === '1';
+      s.realTime = real;
+      s.realWeather = real;
+      if (real) s.hour = nowHour();
+      changed();
+      this.render();
+    });
     on<HTMLSelectElement>('m-realtime', 'change', (el) => {
       s.realTime = el.value === '1';
       if (s.realTime) s.hour = nowHour();
