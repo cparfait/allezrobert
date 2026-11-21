@@ -10,6 +10,7 @@ import { renderMusicControls, renderSoundSettings } from './soundSettings.ts';
 import type { QualityLevel } from '../engine/quality.ts';
 import { saveExport } from '../platform/desktop.ts';
 import { exportSaved } from './desktopUi.ts';
+import './blocks.css';
 
 /** Construit le fichier FIT de la sortie (positions GPS reconstruites depuis le repère monde). */
 export function rideToFit(ride: RideSession, opts: { name: string; massKg: number; ftp: number; originL93?: { x: number; y: number }; skipStrava: boolean }): Uint8Array {
@@ -112,11 +113,11 @@ function renderGraphics(box: HTMLElement | null, g: PauseGraphics): void {
     ['taa', fr ? 'Lissage' : 'Anti-aliasing'],
   ];
   const later = g.level !== g.current;
-  box.innerHTML = `<h3 class="pause-h">${fr ? 'Graphismes' : 'Graphics'}</h3>
-    <div class="row" style="flex-wrap:wrap">${levels.map(([l, name]) => `<button class="btn small ${l === g.level ? 'primary' : ''}" data-q="${l}">${name}</button>`).join('')}</div>
-    <p class="pause-note" style="margin-bottom:14px">${later ? (fr ? 'Qualité appliquée à la prochaine sortie.' : 'Quality applies from the next ride.') : fr ? 'Qualité graphique : changée, elle s’applique à la prochaine sortie.' : 'Graphics quality: a change applies from the next ride.'}</p>
-    <div class="row" style="flex-wrap:wrap">${fx.map(([k, name]) => `<button class="btn small ${g.effects[k] ? 'primary' : ''}" data-fx="${k}">${g.effects[k] ? '✓ ' : ''}${name}</button>`).join('')}</div>
-    <p class="pause-note">${fr ? 'Effets d’image : appliqués tout de suite ; les couper rend le jeu plus fluide.' : 'Image effects: applied at once; turning them off makes the game smoother.'}</p>`;
+  box.innerHTML = `<h3 class="ab-section">${fr ? 'Image' : 'Image'}</h3>
+    <div class="mm-opt mm-opt-first mm-opt-col"><div class="mm-opt-l"><b>${fr ? 'Qualité' : 'Quality'}</b><small>${later ? (fr ? 'Appliquée à la prochaine sortie.' : 'Applies from the next ride.') : fr ? 'Un changement s’applique à la prochaine sortie.' : 'A change applies from the next ride.'}</small></div>
+      <div class="pz-seg" role="group">${levels.map(([l, name]) => `<button type="button" class="${l === g.level ? 'on' : ''}" aria-pressed="${l === g.level}" data-q="${l}">${name}</button>`).join('')}</div></div>
+    <div class="mm-opt mm-opt-col"><div class="mm-opt-l"><b>${fr ? 'Effets d’image' : 'Image effects'}</b><small>${fr ? 'Appliqués tout de suite ; les couper rend le jeu plus fluide.' : 'Applied at once; turning them off makes the game smoother.'}</small></div>
+      <div class="pz-seg" role="group">${fx.map(([k, name]) => `<button type="button" class="${g.effects[k] ? 'on' : ''}" aria-pressed="${g.effects[k]}" data-fx="${k}">${name}</button>`).join('')}</div></div>`;
   box.querySelectorAll<HTMLElement>('[data-q]').forEach((b) =>
     b.addEventListener('click', () => {
       g.level = b.dataset.q as QualityLevel;
@@ -156,28 +157,36 @@ function shortcutsHtml(): string {
 
 export function showPause(root: HTMLElement, cb: PauseCallbacks): void {
   const fr = getLang() === 'fr';
-  root.innerHTML = `<div class="pause-overlay"><div class="pause-card">
-    <header class="pause-top">
-      <div><h2>${t('pause')}</h2><p>${fr ? 'La sortie est arrêtée : le chrono et la distance attendent ton retour.' : 'The ride is stopped: time and distance wait for you.'}</p></div>
-      <div class="pause-actions">
-        ${cb.onCompanion ? `<button class="btn" id="p-companion">${phoneIcon(18)} ${fr ? 'Appli compagnon' : 'Companion app'}</button>` : ''}
-        <button class="btn pause-quit" id="p-finish">${cb.finishLabel ?? t('finish')}</button>
-        <button class="btn primary pause-go" id="p-resume">▶ ${t('resume')}</button>
-      </div>
-    </header>
-    <div id="p-friends"></div>
-    <div class="pause-grid">
-      <div class="pause-col">
-        ${cb.graphics ? '<section class="pause-sec" id="p-graphics"></section>' : ''}
-        <section class="pause-sec"><h3 class="pause-h">${fr ? 'Son' : 'Sound'}</h3><div id="p-music" style="margin-bottom:14px"></div><div id="p-sound"></div></section>
-      </div>
-      <section class="pause-sec"><h3 class="pause-h">${fr ? 'Raccourcis clavier' : 'Keyboard shortcuts'}</h3>${shortcutsHtml()}</section>
+  // Trois gros blocs d'action en tête (une seule action jaune : reprendre), puis les réglages, un par ligne.
+  const ico = (path: string): string => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${path}</svg>`;
+  const keys = fr ? '<kbd>Espace</kbd> ou <kbd>Échap</kbd>' : '<kbd>Space</kbd> or <kbd>Esc</kbd>';
+  root.innerHTML = `<div class="pause-overlay"><div class="pause-card pz">
+    <header class="pz-head"><h2 class="ab-title">${t('pause')}</h2><p class="ab-sub">${fr ? 'Le chrono et la distance attendent ton retour.' : 'Time and distance wait for you.'}</p></header>
+    <div class="ab-grid ${cb.onCompanion ? '' : 'ab-grid-2'} pz-actions">
+      <button type="button" class="ab-tile pz-act pz-go" id="p-resume"><span class="ab-ico">${ico('<path d="M8 5.5v13l11-6.5z" fill="currentColor"/>')}</span><span class="ab-name">${t('resume')}</span><span class="ab-detail">${keys}</span></button>
+      <button type="button" class="ab-tile pz-act pz-quit" id="p-finish"><span class="ab-ico">${ico('<path d="M6 21V4"/><path d="M6 4h11l-2.2 4L17 12H6"/>')}</span><span class="ab-name">${cb.finishLabel ?? t('finish')}</span><span class="ab-detail">${fr ? 'Arrête la sortie et affiche le bilan.' : 'Ends the ride and shows the summary.'}</span></button>
+      ${cb.onCompanion ? `<button type="button" class="ab-tile pz-act" id="p-companion"><span class="ab-ico">${phoneIcon(46)}</span><span class="ab-name">${fr ? 'Appli compagnon' : 'Companion app'}</span><span class="ab-detail">${fr ? 'Affiche le code à scanner avec le téléphone.' : 'Shows the code to scan with your phone.'}</span></button>` : ''}
     </div>
-    <p class="pause-foot">${fr ? '<kbd>Espace</kbd> ou <kbd>Échap</kbd> pour reprendre' : '<kbd>Space</kbd> or <kbd>Esc</kbd> to resume'}</p>
+    <div id="p-friends"></div>
+    <div class="pz-grid">
+      ${cb.graphics ? '<section class="pz-sec" id="p-graphics"></section>' : ''}
+      <section class="pz-sec pz-sound"><h3 class="ab-section">${fr ? 'Son' : 'Sound'}</h3><div id="p-music"></div><div id="p-sound"></div>
+        <details class="pz-more"><summary>${fr ? 'Avancé' : 'Advanced'}</summary><div id="p-sound-more"></div></details></section>
+    </div>
+    <details class="pz-sec pz-keys"><summary>${fr ? 'Raccourcis clavier' : 'Keyboard shortcuts'}</summary>${shortcutsHtml()}</details>
   </div></div>`;
   if (cb.graphics) renderGraphics(root.querySelector('#p-graphics'), cb.graphics);
   renderMusicControls(root.querySelector('#p-music'));
   renderSoundSettings(root.querySelector('#p-sound'));
+  // Choix rares (roue libre, micro, sortie audio) : déplacés tels quels sous « Avancé », écouteurs compris.
+  const more = root.querySelector<HTMLElement>('#p-sound-more');
+  const sound = root.querySelector<HTMLElement>('#p-sound');
+  if (more && sound) {
+    const freewheel = sound.querySelector('#snd-freewheel')?.closest('label');
+    if (freewheel) more.appendChild(freewheel);
+    const devices = sound.querySelector('.snd-devices');
+    if (devices) more.appendChild(devices);
+  }
   (root.querySelector('#p-resume') as HTMLElement).onclick = cb.onResume;
   (root.querySelector('#p-finish') as HTMLElement).onclick = cb.onFinish;
   const cmp = root.querySelector<HTMLElement>('#p-companion');

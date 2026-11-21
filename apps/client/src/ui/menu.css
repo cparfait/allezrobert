@@ -1053,7 +1053,7 @@
 .mm h3.ab-section { margin: 14px 0 8px; font-size: 18px; font-weight: 800; letter-spacing: -0.01em; text-transform: none; color: var(--ar-fg); }
 
 /* Les six modes : un bloc par mode, icône carrée, nom en gras, une ligne de description. */
-.mm-left > .mm-modes { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; grid-auto-flow: row !important; gap: 10px; padding: 0; border: 0; background: none; }
+/* Les six modes gardent leur rangée de pastilles d'origine (préférence de l'utilisateur, 21/11/2026). */
 .mm-mode.ab-tile { display: grid; grid-template-columns: auto 1fr; grid-template-areas: 'ico name' 'ico detail'; align-items: center; gap: 2px 12px; padding: 12px 14px; border-radius: 18px; border: 2px solid rgba(255, 255, 255, 0.1); text-align: left; line-height: 1.2; font-size: inherit; box-shadow: none; }
 .mm-mode.ab-tile .mm-mode-ico { width: 52px; height: 52px; border-radius: 15px; color: var(--c); background: color-mix(in srgb, var(--c) 16%, transparent); box-shadow: none; }
 .mm-mode.ab-tile .mm-mode-ico svg { width: 30px; height: 30px; }
@@ -1103,7 +1103,86 @@
 .mm-profile-form .mm-opt-l label { cursor: pointer; }
 
 @media (max-width: 900px) {
-  .mm-left > .mm-modes { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+
   .mm-mode.ab-tile .ab-detail { display: none; }
   .mm-mode.ab-tile .mm-mode-ico { width: 42px; height: 42px; border-radius: 12px; }
 }
+
+/* Choix de sortie au style des gros blocs (ui/blocks.css) : zones, zone, parcours, montées. */
+.mm-picker.pk header { align-items: flex-start; gap: 14px; }
+.mm-picker.pk .pk-head { flex: 1 1 auto; min-width: 0; }
+.mm-picker.pk header h2.ab-title, .mm-picker header h2.ab-title { font-size: clamp(22px, 2.4vw, 32px); }
+.mm-picker.pk .ab-sub { margin-top: 2px; font-size: 14.5px; }
+/* Zones : carte à gauche, liste à droite ; la liste passe sous la carte en étroit. */
+.mm-picker.fm-dialog.pk { width: min(1320px, 96vw) !important; }
+.zp-layout { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(300px, 1fr); gap: 16px; min-height: 0; align-items: start; }
+.zp-map { min-width: 0; }
+.zp-side { display: flex; flex-direction: column; gap: 10px; min-width: 0; max-height: min(66vh, 720px); }
+.zp-side .zp-q { margin: 0; }
+.zp-list { display: flex; flex-direction: column; gap: 10px; overflow-y: auto; padding-right: 4px; min-height: 0; }
+.zp-tile { grid-template-areas: 'ico name' 'ico detail' 'state act'; padding: 12px 14px; border-radius: 18px; gap: 2px 14px; width: 100%; }
+.zp-tile[hidden] { display: none; }
+.zp-tile .ab-name { font-size: 18px; }
+.zp-tile .ab-detail { font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.zp-tile .ab-state { font-size: 13.5px; margin-top: 6px; }
+.zp-tile .ab-ico img { width: 100%; height: 100%; object-fit: cover; border-radius: inherit; }
+.zp-tile:disabled { opacity: 0.5; cursor: not-allowed; }
+.zp-tile:disabled:hover { transform: none; border-color: rgba(255, 255, 255, 0.1); }
+/* Zone : les trois choix en blocs. */
+.mm-picker.pk .zc-choices { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: clamp(10px, 1.2vw, 16px); }
+.mm-picker.pk .zc-choice.ab-tile { display: grid; grid-template-columns: auto 1fr; grid-template-areas: 'ico name' 'ico detail'; align-items: center; align-content: center; gap: 4px 16px; min-height: 120px; }
+.mm-picker.pk .zc-choice.ab-tile .ab-name { font-size: clamp(19px, 1.9vw, 25px); color: var(--ar-fg); line-height: 1.15; }
+.mm-picker.pk .zc-choice.ab-tile .ab-detail { font-size: 14.5px; color: #c3cddb; }
+.mm-picker.pk .zc-choice.ab-tile .ab-ico svg { width: 44px; height: 44px; }
+.mm-picker.pk .zc-pack.ab-foot { margin-top: 4px; font-size: 14px; text-transform: none; letter-spacing: 0; }
+.mm-picker.pk .zc-pack .ab-state { margin-left: auto; font-size: 14px; }
+/* Parcours : barre de tri, blocs, attente. */
+.rpk-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.rpk-bar .mm-seg { margin: 0; flex: none; }
+.rpk-count { font-size: 14.5px; font-weight: 700; color: #c3cddb; }
+.mm-routepick.rpk { border-radius: 22px; border: 2px solid rgba(255, 255, 255, 0.1); background: linear-gradient(180deg, rgba(22, 29, 43, 0.92), rgba(12, 16, 25, 0.9)); overflow: hidden; }
+.mm-routepick.rpk .mm-routecard { border: 0; background: none; box-shadow: none; border-radius: 0; }
+.mm-routepick.rpk:hover { border-color: rgba(255, 210, 63, 0.7); }
+.mm-routepick.rpk.on { border-color: var(--ar-accent); }
+.mm-routepick.rpk:focus-visible { outline: 3px solid var(--ar-accent); outline-offset: 3px; }
+.rpk-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 14px 12px; }
+.rpk-foot .ab-state { font-size: 14px; }
+.rpk-foot .rpk-open { background: rgba(255, 255, 255, 0.12); color: var(--ar-fg); cursor: pointer; }
+.rpk-foot .rpk-open:hover { background: rgba(255, 255, 255, 0.22); }
+.rpk-ghost { min-height: 300px; border-style: dashed; opacity: 0.5; animation: rpk-wait 1.2s ease-in-out infinite; pointer-events: none; }
+@keyframes rpk-wait { 50% { opacity: 0.25; } }
+.rpk-fail { color: #ffe37a; font-weight: 600; }
+/* Montées : un bloc par montée. */
+.mm-picker.kom-dialog.pk { width: min(1180px, 94vw) !important; }
+.kom-wrap:has(.kom-grid) { background: none; border-radius: 0; padding: 2px 4px 2px 2px; }
+.kom-tile { grid-template-areas: 'ico name' 'ico detail' 'val val' 'state act'; padding: 14px 16px; border-radius: 18px; }
+.kom-tile[hidden] { display: none; }
+.kom-tile .ab-name { font-size: 18px; }
+.kom-tile .ab-detail { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kom-vals { gap: 18px; flex-wrap: wrap; min-height: 0; margin: 8px 0 6px; }
+.kom-vals > span { display: inline-flex; align-items: baseline; gap: 5px; }
+.kom-vals b { font-size: clamp(22px, 2vw, 28px); }
+.kom-vals small { font-size: 13.5px; }
+.kom-best b { color: var(--ar-accent); }
+.kom-tile .ab-state { font-size: 13.5px; }
+p.kom-empty { margin: 0; padding: 28px 14px; text-align: center; color: #aeb7c3; font-size: 15px; }
+.mm-route.ab-tile.ab-plain { width: 100%; }
+@media (max-width: 1100px) {
+  .zp-layout { grid-template-columns: 1fr; }
+  .zp-side { max-height: none; }
+  .zp-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); overflow: visible; }
+}
+@media (max-width: 900px) {
+  .mm-picker.pk .zc-choices { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 560px) {
+  .zp-list, .mm-picker.pk .zc-choices { grid-template-columns: 1fr; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .rpk-ghost { animation: none; }
+}
+/* Blocs de parcours du choix de sortie : quatre valeurs sur une ligne, sans coupure (« 1 h 30 »). */
+.rpk .mm-stats { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2px 12px; padding: 0 12px; }
+.rpk .mm-stats .ab-val { min-height: 0; gap: 4px; white-space: nowrap; }
+.rpk .mm-stats .ab-val b { font-size: 17px; }
+.rpk .mm-stats .ab-val small { font-size: 12px; }

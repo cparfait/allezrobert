@@ -1481,10 +1481,10 @@ export class MainMenu {
       <div class="mm-modes">${this.modes()
         .map(
           ([v, k]) =>
-            `<button class="mm-mode ab-tile ${v === shown ? 'on is-on' : ''}" data-mode="${v}" aria-pressed="${v === shown}" style="--c:${MODE_COLORS[v] ?? '#ffd23f'}"><span class="mm-mode-ico ab-ico sm">${ICON[v]}</span><b class="ab-name">${esc(t(k))}</b><span class="ab-detail">${esc(line[v] ?? '')}</span></button>`,
+            `<button class="mm-mode ${v === shown ? 'on' : ''}" data-mode="${v}" aria-pressed="${v === shown}" style="--c:${MODE_COLORS[v] ?? '#ffd23f'}"><span class="mm-mode-ico">${ICON[v]}</span><b>${esc(t(k))}</b></button>`,
         )
         .join('')}</div>
-      ${s.mode === 'open' ? `<p class="mm-hint">${L ? 'Parcours libre : ← / → pour choisir ta direction à chaque carrefour, U pour faire demi-tour.' : 'Free ride: ← / → to pick your way at each junction, U to turn around.'}</p>` : ''}
+      <p class="mm-hint">${s.mode === 'open' ? (L ? 'Parcours libre : ← / → pour choisir ta direction à chaque carrefour, U pour faire demi-tour.' : 'Free ride: ← / → to pick your way at each junction, U to turn around.') : esc(line[shown as Settings['mode']] ?? '')}</p>
       <div id="m-openworld" class="ow" hidden></div>
       <hr class="mm-sep" />
       ${this.weatherHtml()}
@@ -1568,7 +1568,7 @@ export class MainMenu {
     const L = fr();
     return `<div class="mm-modal mm-picker-modal" data-picker-close>
       <div class="mm-dialog mm-picker wk-dialog ws" role="dialog" aria-modal="true">
-        <header><h2>${L ? 'Choisis ta séance' : 'Choose your workout'}</h2><button class="mm-x" data-picker-close aria-label="${L ? 'Fermer' : 'Close'}">×</button></header>
+        <header><h2 class="ab-title">${L ? 'Choisis ta séance' : 'Choose your workout'}</h2><button class="mm-x" data-picker-close aria-label="${L ? 'Fermer' : 'Close'}">×</button></header>
         ${workoutStudioHtml({
           fr: L,
           filter: this.wkFilter,
@@ -1713,23 +1713,37 @@ export class MainMenu {
     if (this.picker === 'koms') return this.komsHtml();
     if (this.picker === 'route') return this.routeDetailWindow();
     if (this.picker === 'zone') return this.zoneHtml();
-    // Parcours fixés de la zone (cartes), avec retour aux choix de la zone ou à la carte de France.
+    // Parcours fixés de la zone : un bloc par parcours (un clic le choisit, « Fiche » ouvre ses détails),
+    // tri simple en tête, avec retour aux choix de la zone.
     const w = WORLD_LIST.find((x) => x.id === this.worldId);
-    const list = `<div class="mm-cardgrid">${this.routes
-      .map(
-        (x) => `<button class="mm-routepick ${x.id === this.s.routeId ? 'on' : ''}" data-route="${esc(x.id)}">
+    const sorted = [...this.routes];
+    if (this.routeSort === 'dist') sorted.sort((x, y) => x.lengthM - y.lengthM);
+    else if (this.routeSort === 'climb') sorted.sort((x, y) => x.elevationGainM - y.elevationGainM);
+    const waiting = !this.routeStore.complete && !this.routesFailed;
+    const ghosts = waiting ? Array.from({ length: Math.max(0, Math.min(3, this.routeIds.length - sorted.length)) }, () => `<div class="rpk rpk-ghost" aria-hidden="true"></div>`).join('') : '';
+    const list = `<div class="rpk-bar"><span class="rpk-count">${sorted.length} ${L ? 'parcours' : sorted.length > 1 ? 'routes' : 'route'}${waiting ? ` · ${L ? 'chargement des autres…' : 'loading the others…'}` : ''}</span>${this.seg('m-routesort', this.routeSort, [
+      ['default', L ? 'Ordre de la zone' : 'Area order'],
+      ['dist', L ? 'Par distance' : 'By distance'],
+      ['climb', L ? 'Par dénivelé' : 'By climbing'],
+    ])}</div>
+      <div class="mm-cardgrid">${sorted
+        .map((x) => {
+          const on = x.id === this.s.routeId;
+          const tag = `${x.loop ? (L ? 'Boucle' : 'Loop') : L ? 'Aller simple' : 'One way'}${on ? ` · ${L ? 'choisi' : 'selected'}${this.s.reverse ? (L ? ', sens inverse' : ', reversed') : ''}${this.s.startM > 0 ? (L ? ', départ déplacé' : ', moved start') : ''}` : ''}`;
+          return `<div class="mm-routepick rpk ${on ? 'on' : ''}" role="button" tabindex="0" data-routepick="${esc(x.id)}" aria-pressed="${on}">
             ${this.routeCard(x)}
-            <span class="mm-routetag">${x.loop ? (L ? 'Boucle' : 'Loop') : L ? 'Aller simple' : 'One way'}${x.id === this.s.routeId ? ` · ${L ? 'choisi' : 'selected'}${this.s.reverse ? (L ? ', sens inverse' : ', reversed') : ''}${this.s.startM > 0 ? (L ? ', départ déplacé' : ', moved start') : ''}` : ''}</span></button>`,
-      )
-      .join('')}</div>${
-        this.routeStore.complete
-          ? ''
-          : `<p class="mm-hint">${this.routesFailed ? (L ? 'Certains parcours n’ont pas pu être chargés. Ferme puis rouvre cette fenêtre pour réessayer.' : 'Some routes could not be loaded. Close and reopen this window to try again.') : L ? 'Chargement des autres parcours…' : 'Loading the other routes…'}</p>`
+            <span class="mm-routetag">${tag}</span>
+            <span class="rpk-foot"><span class="ab-state${on ? ' is-ok' : ''}"><i></i>${on ? (L ? 'Choisi' : 'Selected') : L ? 'Clique pour choisir' : 'Click to select'}</span><button type="button" class="ab-btn ab-chip rpk-open" data-route="${esc(x.id)}">${L ? 'Fiche' : 'Details'}</button></span></div>`;
+        })
+        .join('')}${ghosts}</div>${
+        this.routesFailed && !this.routeStore.complete
+          ? `<p class="mm-hint rpk-fail">${L ? 'Certains parcours n’ont pas pu être chargés. Ferme puis rouvre cette fenêtre pour réessayer.' : 'Some routes could not be loaded. Close and reopen this window to try again.'}</p>`
+          : ''
       }
         ${this.onExplore ? `<button id="m-explore" class="mm-explore">${ICON.explore}<span><b>${L ? 'Explorer la carte' : 'Explore the map'}</b><small>${L ? 'Caméra libre, sans rouler · Échap pour revenir' : 'Free camera, no riding · Esc to come back'}</small></span></button>` : ''}`;
     return `<div class="mm-modal mm-picker-modal" data-picker-close>
-      <div class="mm-dialog mm-picker" role="dialog" aria-modal="true">
-        <header><h2>${L ? 'Parcours' : 'Routes'}${w ? ` — ${esc(w.name[getLang()])}` : ''}</h2><span class="rp-head-links"><button class="mm-link" data-picker="zone">← ${L ? 'Choix de la zone' : 'Area choices'}</button></span><button class="mm-x" data-picker-close aria-label="${L ? 'Fermer' : 'Close'}">×</button></header>
+      <div class="mm-dialog mm-picker pk" role="dialog" aria-modal="true">
+        <header><div class="pk-head"><h2 class="ab-title">${L ? 'Parcours' : 'Routes'}${w ? ` · ${esc(w.name[getLang()])}` : ''}</h2><p class="ab-sub">${L ? 'Un clic choisit le parcours ; sa fiche montre les montées et les records.' : 'One click selects the route; its details show climbs and records.'}</p></div><span class="rp-head-links"><button class="mm-link" data-picker="zone">← ${L ? 'Choix de la zone' : 'Area choices'}</button></span><button class="mm-x" data-picker-close aria-label="${L ? 'Fermer' : 'Close'}">×</button></header>
         ${list}
       </div></div>`;
   }
@@ -1848,26 +1862,24 @@ export class MainMenu {
             const on = c.routeId === this.s.routeId && c.segId === this.s.challengeSeg && this.s.mode === 'challenge';
             const date = c.rec ? new Date(c.rec.date).toLocaleDateString(L ? 'fr-FR' : 'en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '';
             const hay = `${c.name} ${c.routeName} ${this.zoneLabel(c.zone)}`.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
-            return `<tr class="${on ? 'on' : ''}" tabindex="0" data-kom="${esc(c.segId)}" data-kom-route="${esc(c.routeId)}" data-kom-zone="${esc(c.zone)}" data-search="${esc(hay)}">
-              <td class="kom-name"><b>${esc(c.name)}</b><small>${esc(c.routeName)}</small></td>
-              <td class="kom-zone">${esc(this.zoneLabel(c.zone))}</td>
-              <td class="num">${this.km(c.lengthM)} km</td>
-              <td class="num">${c.grade.toFixed(1).replace('.', L ? ',' : '.')} %</td>
-              <td class="num kom-rec">${c.rec ? `<b>${fmt(c.rec.timeS)}</b>` : `<span class="kom-none">—</span>`}</td>
-              <td class="kom-date">${date}</td>
-              <td class="kom-go">${on ? (L ? 'Choisie' : 'Selected') : L ? 'Défier ›' : 'Challenge ›'}</td>
-            </tr>`;
+            return `<button type="button" class="ab-tile kom-tile${on ? ' is-on' : ''}" data-kom="${esc(c.segId)}" data-kom-route="${esc(c.routeId)}" data-kom-zone="${esc(c.zone)}" data-search="${esc(hay)}">
+              <span class="ab-ico sm">${ICON.challenge}</span>
+              <span class="ab-name">${esc(c.name)}</span>
+              <span class="ab-detail">${esc(c.routeName)} · ${esc(this.zoneLabel(c.zone))}</span>
+              <span class="ab-val kom-vals"><span><b>${this.km(c.lengthM)}</b><small>km</small></span><span><b>${c.grade.toFixed(1).replace('.', L ? ',' : '.')}</b><small>%</small></span><span class="kom-best">${c.rec ? `<b>${fmt(c.rec.timeS)}</b><small>${L ? 'mon record' : 'my best'}</small>` : `<small>${L ? 'pas encore de record' : 'no record yet'}</small>`}</span></span>
+              <span class="ab-state${on ? ' is-ok' : ''}"><i></i>${on ? (L ? 'Choisie' : 'Selected') : date ? `${L ? 'Record du' : 'Best on'} ${date}` : L ? 'À découvrir' : 'Not ridden yet'}</span>
+              <span class="ab-act${on ? ' quiet' : ''}">${on ? (L ? 'Choisie' : 'Selected') : L ? 'Défier' : 'Challenge'}</span>
+            </button>`;
           })
           .join('')
-      : `<tr><td colspan="7" class="kom-empty">${L ? 'Aucune montée chronométrée connue pour le moment.' : 'No timed climb known yet.'}</td></tr>`;
+      : `<p class="kom-empty">${L ? 'Aucune montée chronométrée connue pour le moment.' : 'No timed climb known yet.'}</p>`;
     const records = rows.filter((c) => c.rec).length;
     return `<div class="mm-modal mm-picker-modal" data-picker-close>
-      <div class="mm-dialog mm-picker kom-dialog" role="dialog" aria-modal="true">
-        <header><h2>${L ? 'Défi KOM' : 'KOM challenge'}</h2><button class="mm-x" data-picker-close aria-label="${L ? 'Fermer' : 'Close'}">×</button></header>
-        <p class="mm-hint">${L ? 'Choisis une montée : départ lancé, fantôme de ton meilleur temps et écart en direct. Clique sur une ligne pour la défier.' : 'Pick a climb: flying start, ghost of your best time and live gap. Click a row to take it on.'}</p>
+      <div class="mm-dialog mm-picker kom-dialog pk" role="dialog" aria-modal="true">
+        <header><div class="pk-head"><h2 class="ab-title">${L ? 'Défi KOM' : 'KOM challenge'}</h2><p class="ab-sub">${L ? 'Départ lancé, fantôme de ton meilleur temps et écart en direct.' : 'Flying start, ghost of your best time and live gap.'}</p></div><button class="mm-x" data-picker-close aria-label="${L ? 'Fermer' : 'Close'}">×</button></header>
         <input class="kom-search" id="m-kom-q" type="search" autocomplete="off" value="${esc(this.komQuery)}" placeholder="${L ? 'Chercher une montée, un parcours ou une zone…' : 'Search a climb, a route or an area…'}" aria-label="${L ? 'Chercher une montée' : 'Search a climb'}" />
         <div class="kom-filter" role="group" aria-label="${L ? 'Filtrer par zone' : 'Filter by area'}">${chips}</div>
-        <div class="kom-wrap"><table class="kom-table"><thead><tr><th>${L ? 'Montée' : 'Climb'}</th><th>${L ? 'Zone' : 'Area'}</th><th class="num">${L ? 'Longueur' : 'Length'}</th><th class="num">${L ? 'Pente moy.' : 'Avg grade'}</th><th class="num">${L ? 'Mon record' : 'My best'}</th><th>${L ? 'Date' : 'Date'}</th><th></th></tr></thead><tbody>${body}</tbody></table></div>
+        <div class="kom-wrap"><div class="ab-grid kom-grid">${body}</div></div>
         <div class="kom-foot"><span>${rows.length} ${L ? (rows.length > 1 ? 'montées' : 'montée') : rows.length > 1 ? 'climbs' : 'climb'} · ${records} ${L ? (records > 1 ? 'records' : 'record') : records > 1 ? 'records' : 'record'}</span><span>${L ? 'Les montées d’une zone apparaissent après sa première visite.' : 'A zone’s climbs appear after you first visit it.'}</span></div>
       </div></div>`;
   }
@@ -1897,7 +1909,7 @@ export class MainMenu {
         const rec = readKomRecord(route.id, k.id);
         const t = rec ? `${Math.floor(rec.timeS / 60)}:${String(Math.round(rec.timeS % 60)).padStart(2, '0')}` : L ? 'pas encore de record' : 'no record yet';
         const on = route.id === cur && k.id === this.s.challengeSeg;
-        return `<button class="mm-route ${on ? 'on' : ''}" data-kom="${esc(k.id)}" data-kom-route="${esc(route.id)}"><b>${esc(k.name)}</b><span>${this.km(k.endM - k.startM)} km · ${k.avgGrade.toFixed(1).replace('.', L ? ',' : '.')} % · ${L ? 'record' : 'best'} ${t}</span></button>`;
+        return `<button class="mm-route ab-tile ab-plain ${on ? 'on is-on' : ''}" data-kom="${esc(k.id)}" data-kom-route="${esc(route.id)}"><b class="ab-name">${esc(k.name)}</b><span class="ab-detail">${this.km(k.endM - k.startM)} km · ${k.avgGrade.toFixed(1).replace('.', L ? ',' : '.')} % · ${L ? 'record' : 'best'} ${t}</span></button>`;
       })
       .join('')}</div>`;
   }
@@ -1940,14 +1952,53 @@ export class MainMenu {
     return '';
   }
 
-  /** Fenêtre « Zones » : carte de France, un point par zone. */
+  /** État du pack d'une zone, en un mot avec sa classe de pastille (liste des zones du choix de sortie). */
+  private zonePackState(id: string): { cls: string; text: string; rank: number } {
+    const L = fr();
+    const z = this.zones.find((c) => c.id === id);
+    const st = packState(id, z?.pack?.version);
+    const dl = this.downloads.get(id);
+    const size = z?.pack ? formatBytes(z.pack.gzBytes ?? z.pack.bytes, L) : '';
+    if (dl && !dl.error) return { cls: 'is-warn', text: `${L ? 'Téléchargement' : 'Downloading'} ${Math.floor((dl.done / Math.max(dl.total, 1)) * 100)} %`, rank: 0 };
+    if (st.kind === 'installed' && st.upToDate) return { cls: 'is-ok', text: L ? 'Téléchargée' : 'Downloaded', rank: 1 };
+    if (st.kind === 'installed') return { cls: 'is-warn', text: L ? 'Mise à jour disponible' : 'Update available', rank: 1 };
+    if (z?.pack) return { cls: '', text: `${L ? 'À télécharger' : 'To download'}${size ? ` · ${size}` : ''}`, rank: 2 };
+    return { cls: 'is-info', text: L ? 'Chargée pendant la sortie' : 'Loaded while riding', rank: 2 };
+  }
+
+  /** Fenêtre « Zones » : carte de France à gauche, les zones en gros blocs à droite (recherche par nom). */
   private franceHtml(): string {
     const L = fr();
+    const lang = getLang();
+    const fold = (t: string) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+    const zones = this.mapZones()
+      .map((z) => ({ z, st: z.available ? this.zonePackState(z.id) : { cls: '', text: L ? 'Bientôt' : 'Coming soon', rank: 9 } }))
+      // Zone en cours d'abord, puis celles qui se téléchargent ou sont déjà sur l'appareil, puis les autres par nom.
+      .sort((a, b) => Number(b.z.current) - Number(a.z.current) || a.st.rank - b.st.rank || a.z.name.localeCompare(b.z.name, lang));
+    const blocks = zones
+      .map(({ z, st }) => {
+        const detail = [z.region, z.info].filter(Boolean).join(' · ');
+        const ico = z.image ? `<img src="${esc(z.image)}" alt="" loading="lazy" />` : ICON.free;
+        return `<button type="button" class="ab-tile zp-tile${z.current ? ' is-on' : ''}${st.cls ? ` ${st.cls}` : ''}" data-zonepick="${esc(z.id)}" data-search="${esc(fold(`${z.name} ${z.region}`))}"${z.available ? '' : ' disabled'}>
+          <span class="ab-ico sm">${ico}</span>
+          <span class="ab-name">${esc(z.name)}</span>
+          <span class="ab-detail">${esc(detail)}</span>
+          <span class="ab-state"><i></i>${esc(st.text)}</span>
+          ${z.current ? `<span class="ab-act quiet">${L ? 'Zone en cours' : 'Current area'}</span>` : ''}
+        </button>`;
+      })
+      .join('');
     return `<div class="mm-modal mm-picker-modal" data-picker-close>
-      <div class="mm-dialog mm-picker fm-dialog" role="dialog" aria-modal="true">
-        <header><h2>${L ? 'Où veux-tu rouler ?' : 'Where do you want to ride?'}</h2><button class="mm-x" data-picker-close aria-label="${L ? 'Fermer' : 'Close'}">×</button></header>
-        <p class="mm-hint">${this.loadingZone ? `${L ? 'Chargement de' : 'Loading'} ${esc(this.loadingZone)}…` : L ? 'Clique sur un point pour ouvrir la zone ; un point numéroté réunit plusieurs zones proches. Glisse pour te déplacer, molette pour zoomer.' : 'Click a point to open the area; a numbered point groups several nearby areas. Drag to move, scroll to zoom.'}</p>
-        ${this.franceMap.html(this.mapZones())}
+      <div class="mm-dialog mm-picker fm-dialog pk" role="dialog" aria-modal="true">
+        <header><div class="pk-head"><h2 class="ab-title">${L ? 'Où veux-tu rouler ?' : 'Where do you want to ride?'}</h2><p class="ab-sub mm-hint">${this.loadingZone ? `${L ? 'Chargement de' : 'Loading'} ${esc(this.loadingZone)}…` : L ? 'Choisis une zone dans la liste ou sur la carte.' : 'Pick an area in the list or on the map.'}</p></div><button class="mm-x" data-picker-close aria-label="${L ? 'Fermer' : 'Close'}">×</button></header>
+        <div class="zp-layout">
+          <div class="zp-map">${this.franceMap.html(this.mapZones())}</div>
+          <aside class="zp-side">
+            <input class="kom-search zp-q" id="m-zonepick-q" type="search" autocomplete="off" value="${esc(this.zonePickQuery)}" placeholder="${L ? 'Chercher une zone…' : 'Search an area…'}" aria-label="${L ? 'Chercher une zone' : 'Search an area'}" />
+            <div class="zp-list">${blocks}</div>
+            <p class="mm-hint zp-none" hidden>${L ? 'Aucune zone à ce nom.' : 'No area with that name.'}</p>
+          </aside>
+        </div>
       </div></div>`;
   }
 
@@ -1960,12 +2011,13 @@ export class MainMenu {
     const n = this.routeIds.length;
     const openOnly = L ? 'Seulement dans les zones ouvertes (toutes les routes roulables).' : 'Only in open areas (every road rideable).';
     const fixedOnly = L ? 'Pas en course : le parcours est fixe (tu peux le dessiner).' : 'Not in a race: the course is fixed (you can draw it).';
+    const tileBody = (icon: string, title: string, text: string) => `<span class="ab-ico">${icon}</span><span class="ab-name">${title}</span><span class="ab-detail">${text}</span>`;
     const card = (id: string, icon: string, title: string, text: string) =>
       id === 'free' && this.s.mode === 'race'
-        ? `<button class="zc-choice zc-off" disabled>${icon}<b>${title}</b><span>${fixedOnly}</span></button>`
+        ? `<button class="zc-choice zc-off ab-tile" disabled>${tileBody(icon, title, fixedOnly)}</button>`
         : id !== 'routes' && !this.openWorld
-        ? `<button class="zc-choice zc-off" disabled>${icon}<b>${title}</b><span>${openOnly}</span></button>`
-        : `<button class="zc-choice" data-zc="${id}">${icon}<b>${title}</b><span>${text}</span></button>`;
+        ? `<button class="zc-choice zc-off ab-tile" disabled>${tileBody(icon, title, openOnly)}</button>`
+        : `<button class="zc-choice ab-tile" data-zc="${id}">${tileBody(icon, title, text)}</button>`;
     const pack = this.packAction(this.worldId);
     // Région, puis la description de la zone (sans répéter la région si elle y figure déjà).
     const hint = w?.hint[lang] ?? '';
@@ -1999,18 +2051,19 @@ export class MainMenu {
       : '';
     const kom = this.s.mode === 'challenge';
     const choices = `<div class="zc-choices">
-          ${n ? card('routes', ICON.free, L ? 'Parcours' : 'Routes', L ? `${n} parcours déjà tracé${n > 1 ? 's' : ''} : boucles et itinéraires de la zone.` : `${n} ready-made route${n > 1 ? 's' : ''}: loops and rides of the area.`) : ''}
-          ${card('free', ICON.open, L ? 'Parcours libre' : 'Free ride', L ? 'Pars du départ de la zone et choisis ta route à chaque carrefour (← / →, U pour faire demi-tour).' : 'Start from the area’s start and pick your road at each junction (← / →, U to turn around).')}
-          ${card('draw', svg('<path d="M4 19c3-.5 3.5-6 7-6s3 5.5 6 5"/><circle cx="4" cy="19" r="1.6"/><circle cx="17" cy="18" r="1.6"/><path d="m15.5 3.5 3 3L12 13H9v-3z"/>'), L ? 'Parcours à dessiner' : 'Draw a route', L ? 'Sur la carte : ton départ, tes points de passage, ton arrivée ou une boucle.' : 'On the map: your start, waypoints, finish or a loop.')}
+          ${n ? card('routes', ICON.free, L ? 'Parcours' : 'Routes', L ? `${n} parcours déjà tracé${n > 1 ? 's' : ''} dans la zone.` : `${n} ready-made route${n > 1 ? 's' : ''} in the area.`) : ''}
+          ${card('free', ICON.open, L ? 'Parcours libre' : 'Free ride', L ? 'Tu choisis ta route à chaque carrefour.' : 'You pick your road at each junction.')}
+          ${card('draw', svg('<path d="M4 19c3-.5 3.5-6 7-6s3 5.5 6 5"/><circle cx="4" cy="19" r="1.6"/><circle cx="17" cy="18" r="1.6"/><path d="m15.5 3.5 3 3L12 13H9v-3z"/>'), L ? 'Parcours à dessiner' : 'Draw a route', L ? 'Départ, points de passage et arrivée sur la carte.' : 'Start, waypoints and finish on the map.')}
         </div>`;
     // Défi KOM : les côtes de la zone tout de suite (en choisir une prend son parcours)
-    const koms = kom ? `<p class="mm-hint">${L ? 'Choisis la côte à battre :' : 'Pick the climb to beat:'}</p>${this.challengeHtml(this.routes.find((x) => x.id === this.s.routeId))}` : '';
+    const koms = kom ? `<h3 class="ab-section">${L ? 'Choisis la côte à battre' : 'Pick the climb to beat'}</h3>${this.challengeHtml(this.routes.find((x) => x.id === this.s.routeId))}` : '';
+    const packSt = this.zonePackState(this.worldId);
     return `<div class="mm-modal mm-picker-modal" data-picker-close>
-      <div class="mm-dialog mm-picker" role="dialog" aria-modal="true">
-        <header class="zc-head"><div><h2>${esc(w ? w.name[lang] : (spot?.name[lang] ?? this.worldId))}</h2><small>${esc(zoneSub)}</small></div><button class="mm-x" data-picker-close aria-label="${L ? 'Fermer' : 'Close'}">×</button></header>
+      <div class="mm-dialog mm-picker pk" role="dialog" aria-modal="true">
+        <header class="zc-head"><div class="pk-head"><h2 class="ab-title">${esc(w ? w.name[lang] : (spot?.name[lang] ?? this.worldId))}</h2><p class="ab-sub">${esc(zoneSub)}</p></div><button class="mm-x" data-picker-close aria-label="${L ? 'Fermer' : 'Close'}">×</button></header>
         ${kom ? koms : choices}
         ${kom ? '' : parisHtml + nearHtml}
-        <div class="zc-pack"><button class="mm-link zc-back" data-picker="zones">← ${L ? 'Carte de France' : 'Map of France'}</button>${pack ? `${L ? 'Cartes hors ligne' : 'Offline maps'} ${pack}` : ''}</div>
+        <div class="zc-pack ab-foot"><button class="mm-link zc-back" data-picker="zones">← ${L ? 'Carte de France' : 'Map of France'}</button><span class="ab-state ${packSt.cls}"><i></i>${L ? 'Cartes hors ligne' : 'Offline maps'} : ${esc(packSt.text)}</span>${pack && !/mm-pack ok/.test(pack) ? pack : ''}</div>
       </div></div>`;
   }
 
@@ -2733,6 +2786,9 @@ export class MainMenu {
 
   /** Recherche de la liste des zones hors ligne (gardée d'un réaffichage à l'autre). */
   private zoneQuery = '';
+  /** Choix de sortie : recherche dans la liste des zones, et tri des parcours d'une zone. */
+  private zonePickQuery = '';
+  private routeSort: 'default' | 'dist' | 'climb' = 'default';
 
   /** Un réglage : libellé et explication courte à gauche, commande à droite (ou dessous avec `col`). */
   private setOpt(label: string, help: string, control: string, col = false): string {
@@ -3320,7 +3376,7 @@ export class MainMenu {
       const apply = () => {
         const words = norm(this.komQuery).split(/\s+/).filter(Boolean);
         let n = 0;
-        this.root.querySelectorAll<HTMLElement>('tr[data-kom]').forEach((tr) => {
+        this.root.querySelectorAll<HTMLElement>('.kom-tile[data-kom]').forEach((tr) => {
           const ok = words.every((w) => (tr.dataset.search ?? '').includes(w));
           tr.hidden = !ok;
           if (ok) n++;
@@ -3347,7 +3403,6 @@ export class MainMenu {
         this.render();
       }),
     );
-    this.root.querySelectorAll<HTMLElement>('tr[data-kom]').forEach((el) => el.addEventListener('keydown', (e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), el.click())));
     this.root.querySelectorAll<HTMLElement>('[data-fav]').forEach((el) => {
       const toggle = (e: Event) => {
         e.preventDefault();
@@ -3400,8 +3455,8 @@ export class MainMenu {
       }),
     );
     // Carte de France : une zone choisie ouvre ses choix (parcours, libre, à dessiner).
-    if (this.picker === 'zones')
-      this.franceMap.bind(this.root, this.mapZones(), (id) => {
+    if (this.picker === 'zones') {
+      const openZone = (id: string): void => {
         if (id === this.worldId) {
           this.picker = 'zone';
           this.render();
@@ -3413,7 +3468,30 @@ export class MainMenu {
         const hint = this.root.querySelector('.fm-dialog .mm-hint');
         if (hint) hint.textContent = `${fr() ? 'Chargement de' : 'Loading'} ${this.loadingZone}…`;
         this.onWorld?.(id);
-      });
+      };
+      this.franceMap.bind(this.root, this.mapZones(), openZone);
+      // Liste des zones : même action que le point de la carte ; recherche par nom sans redessiner.
+      this.root.querySelectorAll<HTMLElement>('[data-zonepick]').forEach((el) => el.addEventListener('click', () => openZone(el.dataset.zonepick as string)));
+      const zq = this.root.querySelector<HTMLInputElement>('#m-zonepick-q');
+      if (zq) {
+        const applyZones = (): void => {
+          const words = this.zonePickQuery.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim().split(/\s+/).filter(Boolean);
+          let shown = 0;
+          this.root.querySelectorAll<HTMLElement>('.zp-tile').forEach((el) => {
+            const ok = words.every((x) => (el.dataset.search ?? '').includes(x));
+            el.hidden = !ok;
+            if (ok) shown++;
+          });
+          const none = this.root.querySelector<HTMLElement>('.zp-none');
+          if (none) none.hidden = shown > 0;
+        };
+        zq.addEventListener('input', () => {
+          this.zonePickQuery = zq.value;
+          applyZones();
+        });
+        if (this.zonePickQuery) applyZones();
+      }
+    }
     on('m-all-paris', 'click', () => {
       if (this.loadingZone) return;
       this.loadingZone = fr() ? 'Paris entier' : 'All of Paris';
@@ -3475,7 +3553,9 @@ export class MainMenu {
     this.root.querySelectorAll<HTMLElement>('[data-pack]').forEach((el) => el.addEventListener('click', () => void this.downloadZone(el.dataset.pack as string)));
     // Carte de parcours : sa fiche s'ouvre (records, montées) ; on part ou on le choisit depuis elle.
     this.root.querySelectorAll<HTMLElement>('[data-route]').forEach((el) =>
-      el.addEventListener('click', () => {
+      el.addEventListener('click', (e) => {
+        // Bouton « Fiche » d'un bloc : le clic ne doit pas aussi choisir le parcours.
+        e.stopPropagation();
         this.detailId = el.dataset.route as string;
         this.detailReverse = this.detailId === s.routeId && s.reverse;
         this.detailStartM = this.detailId === s.routeId ? s.startM || 0 : 0;
@@ -3493,6 +3573,32 @@ export class MainMenu {
       this.picker = null;
       changed();
     };
+    // Bloc d'un parcours (fenêtre « Parcours ») : un clic ou Entrée le choisit et ferme la fenêtre.
+    this.root.querySelectorAll<HTMLElement>('[data-routepick]').forEach((el) => {
+      const choose = (): void => {
+        const id = el.dataset.routepick as string;
+        // Parcours déjà choisi : son sens et son départ sont gardés.
+        this.detailReverse = id === s.routeId && s.reverse;
+        this.detailStartM = id === s.routeId ? s.startM || 0 : 0;
+        this.detailId = id;
+        pickRoute();
+        this.render();
+      };
+      el.addEventListener('click', choose);
+      el.addEventListener('keydown', (e) => {
+        if (e.target === el && (e.key === 'Enter' || e.key === ' ')) {
+          e.preventDefault();
+          choose();
+        }
+      });
+    });
+    // Tri des parcours : boutons de la fenêtre (hors du panneau où les choix segmentés sont branchés d'office).
+    this.root.querySelectorAll<HTMLElement>('#m-routesort [data-v]').forEach((el) =>
+      el.addEventListener('click', () => {
+        this.routeSort = (el.dataset.v ?? 'default') as 'default' | 'dist' | 'climb';
+        this.render();
+      }),
+    );
     this.root.querySelectorAll<HTMLElement>('[data-rd]').forEach((el) =>
       el.addEventListener('click', () => {
         pickRoute();
