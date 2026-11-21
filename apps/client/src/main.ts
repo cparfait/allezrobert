@@ -94,7 +94,7 @@ import { Trains } from './world/trains.ts';
 import { Multiplayer } from './game/multiplayer.ts';
 import { VoiceChat, fetchVoiceConfig } from './game/voice.ts';
 import { RideRoomUi } from './game/rideroom.ts';
-import { showStartGate } from './game/startGate.ts';
+import { openStartCheck, skipStartCheck, startCheckModel, startCheckSkipPref, startCheckWanted, type CheckDevice, type StartCheckHandle } from './ui/startCheck.ts';
 import { PlaceFinder } from './game/place.ts';
 import { buildPlaceIndex, searchPlaces, type PlaceIndex } from './game/placeSearch.ts';
 import { TILES_BASE, installedPacks, keepStorage, openGraphReady } from './world/packs.ts';
@@ -675,6 +675,8 @@ async function boot(): Promise<void> {
       }
       // Écran de préparation affiché tout de suite, avant tout calcul ; il reste jusqu'à la première image de la sortie.
       const overlay = rideOverlay();
+      // Capteurs à vérifier pendant que la sortie se prépare (voir beginStartCheck).
+      beginStartCheck(overlay, s, extras);
       // Changement d'itinéraire : monde reconstruit sur place (sans attendre l'ancien), la musique continue.
       if (routeKey(s) !== scene.route.id) {
         void nextPaint()
@@ -1036,6 +1038,33 @@ async function boot(): Promise<void> {
 
 /** Matériel du poste, repris par la salle d'attente des courses (posé au démarrage). */
 let devicePanel: DevicePanel | null = null;
+/**
+ * Écran de départ (capteurs en gros blocs) ouvert au clic sur « Rouler », par-dessus l'écran d'attente : le
+ * chargement continue derrière, et `startRide` attend sa validation avant de lancer l'intro.
+ */
+let startCheck: StartCheckHandle | null = null;
+
+/** Ouvre l'écran de départ si ce départ s'y prête (ni outil, ni invité, ni salle déjà partie, ni « ne plus afficher »). */
+function beginStartCheck(overlay: HTMLElement, s: Settings, extras: { inviteCode?: string; tutorial?: boolean; publicRoom?: boolean; nearFriend?: string }): void {
+  startCheck?.close();
+  startCheck = null;
+  const panel = devicePanel;
+  const q = new URLSearchParams(location.search);
+  if (!panel || !startCheckWanted({ autostart: q.has('autostart'), nointro: q.has('nointro'), guest: !!s.guest, tutorial: !!extras.tutorial, joining: !!(extras.inviteCode || extras.publicRoom || extras.nearFriend) })) return;
+  const model = startCheckModel({ devices: panel.list() as CheckDevice[], live: panel.live?.(), simulatorOn: panel.simulatorOn(), loaded: true });
+  if (skipStartCheck(model, startCheckSkipPref())) return;
+  startCheck = openStartCheck(document.body, {
+    panel,
+    fr: getLang() === 'fr',
+    loading: overlay,
+    // La sortie n'a pas commencé : le menu revient par un rechargement, comme en fin de sortie.
+    onLeave: () => {
+      const url = new URL(location.href);
+      url.searchParams.delete('autostart');
+      location.href = url.toString();
+    },
+  });
+}
 
 function collisionVersionMessage(reason = COLLISION_VERSION_ERROR): string {
   if (reason === COLLISION_PILOT_ERROR) return getLang() === 'fr' ? reason : 'This room requires experimental collisions on the pilot route.';
@@ -1690,22 +1719,15 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
       .intro({ season: s.season, riders: peloton.riders.length + 1, rideType: s.mode })
       .finally(() => (ride.paused = false));
   };
-  if (s.mode === 'race' && !mp && devicePanel && !params.has('nointro') && !params.has('autostart')) {
-    // Course sans salle en ligne : une fois dans la zone, la session attend le bouton (matériel visible et relançable).
+  // Écran de départ ouvert au clic sur « Rouler » : la sortie attend que le joueur valide ses capteurs.
+  const check = startCheck;
+  startCheck = null;
+  const wantsIntro = !params.has('nointro') && !(mp && s.mode === 'race') && !mp?.isPublic;
+  if (check && wantsIntro) {
+    // Sortie en pause tant que l'écran est là ; l'intro (qui la relance) part à la validation.
     ride.paused = true;
-    const panel = devicePanel;
-    showStartGate(hudRoot.parentElement ?? hudRoot, {
-      gear: { panel, phones: () => (companion.connected ? companion.presence.phones : null) },
-      fr: getLang() === 'fr',
-      routeName: track.route.name,
-      watch: (cb) => {
-        panel.onChange(cb);
-        companion.listen(cb);
-      },
-      onStart: playIntro,
-      onLeave: () => finish(),
-    });
-  } else if (!params.has('nointro') && !(mp && s.mode === 'race') && !mp?.isPublic) {
+    void check.confirmed.then(playIntro);
+  } else if (wantsIntro) {
     // Monde ouvert : pas d'intro ni de compte à rebours — le coureur est déjà dans la salle (parfois dans la roue d'un ami) et doit rouler tout de suite.
     playIntro();
   }

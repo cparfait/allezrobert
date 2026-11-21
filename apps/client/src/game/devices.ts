@@ -302,6 +302,8 @@ export function createDeviceLayer(): DeviceLayer {
         kinds: [...d.kinds],
         simulated: d.transport === 'simulator',
         state: stateLabel(d.state),
+        // État brut (connected, connecting, reconnecting, silent, error, disconnected) : lu par l'écran de départ.
+        raw: d.state,
         canReconnect: d.transport !== 'web-bluetooth' && available.includes(d.transport) && (d.state === 'disconnected' || d.state === 'error' || d.state === 'reconnecting'),
         ...(d.battery !== undefined ? { detail: `🔋 ${d.battery} %` } : {}),
         ok: d.state === 'connected',
