@@ -993,11 +993,11 @@
 
 /* Réglages d'une sortie de groupe ou d'une course : deux cartes titrées (rejoindre, créer), un réglage par ligne
    avec son libellé et son explication à gauche de la commande. */
-.mm-card { margin-top: 12px; padding: 14px 14px 12px; border-radius: 14px; background: rgba(255, 255, 255, 0.045); border: 1px solid rgba(255, 255, 255, 0.07); }
+.mm-card { margin-top: 10px; padding: 10px 14px 12px; border-radius: 14px; background: rgba(255, 255, 255, 0.045); border: 1px solid rgba(255, 255, 255, 0.07); }
 .mm-panel .mm-card .mm-card-t { margin: 0; font-size: 15px; font-weight: 800; color: var(--ar-fg); letter-spacing: 0; text-transform: none; }
 .mm-card-d { margin: 3px 0 0; font-size: 13px; color: #aeb7c3; line-height: 1.35; }
 .mm-card .mm-input { margin-top: 10px; }
-.mm-opt { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(255, 255, 255, 0.08); }
+.mm-opt { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(255, 255, 255, 0.08); }
 .mm-opt-col { flex-direction: column; align-items: stretch; gap: 8px; }
 .mm-opt-l { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .mm-opt-l b { font-size: 14.5px; font-weight: 700; color: var(--ar-fg); }
