@@ -7,6 +7,7 @@ import { ShoeMaterial } from './shoeMaterial.ts';
 import { shoeDialOf } from './shoeLook.ts';
 import { GLTFLoader, type GLTF } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
+import { V3_SWAY } from '../v3/sway.ts';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 import { BIKE_REFERENCE, HAIR_STYLE_COUNT, PLAIN_BIKE_FAMILY, bikeOfLook, decodeFace, lookSex, type AvatarLook, type BikeBuild, type BikeFamily, type HelmetShape } from '@allezrobert/shared';
 import { RiderAvatar } from './avatar.ts';
@@ -1983,7 +1984,8 @@ export class GltfRiderAvatar implements RiderAvatarLike {
     // léger balancement aussi (≈ 1°, un peu plus quand l'effort monte), nul en roue libre.
     const seatedRock = 0.014 + 0.01 * THREE.MathUtils.clamp(this.ftpFrac - 0.6, 0, 0.6);
     const rock = -Math.sin(a) * (0.11 * stand + seatedRock * (1 - stand) * (1 - this.coastBlend));
-    this.lean.rotation.z = bank + rock;
+    // Remplacé par son modèle V3 : balancement réduit (voir v3/sway.ts) ; l'inclinaison en virage est gardée entière.
+    this.lean.rotation.z = bank + rock * (this.v3RiderHidden ? V3_SWAY : 1);
     if (hidden) {
       this.poseFresh = false;
       const last = (this.lastPose ??= { cadence, speed, pose, bank });

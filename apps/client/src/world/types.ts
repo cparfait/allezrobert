@@ -1,6 +1,7 @@
 import type { RoadGraphData, RouteData, WorldPlace } from '@allezrobert/shared';
 import type { BuildingSourceTile, BuildingVisualCorrection } from '@allezrobert/shared/building-visual';
 import type { ApurVegetationTile } from './apurVegetation.ts';
+import type { WorldRoutes } from './routeStore.ts';
 
 /**
  * Classes d'occupation du sol rastérisées par tuile (un octet par canal). `verge` : abords de
@@ -122,7 +123,8 @@ export interface WorldSource {
   name: string;
   tileSize: number;
   bounds: { minX: number; minZ: number; maxX: number; maxZ: number };
-  routes: RouteData[];
+  /** Itinéraires du monde, chargés à la demande (voir routeStore.ts). */
+  routes: WorldRoutes;
   attribution: string[];
   /** Origine Lambert-93, pour reconvertir les positions en GPS (export FIT). */
   originL93?: { x: number; y: number };

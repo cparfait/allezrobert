@@ -1,3 +1,4 @@
+import { loadedRouteStore } from './routeStore.ts';
 import type { RouteData, RoutePoint } from '@allezrobert/shared';
 import { fbm, rng, valueNoise } from '../engine/noise.ts';
 import type { TileFeatures, WorldSource } from './types.ts';
@@ -156,7 +157,7 @@ export function createProceduralWorld(): WorldSource {
     name: 'Vallée procédurale',
     tileSize: TILE,
     bounds: { minX: -half * TILE, minZ: -half * TILE, maxX: half * TILE, maxZ: half * TILE },
-    routes: [route],
+    routes: loadedRouteStore([route]),
     attribution: route.attribution,
     hasTile: (tx, tz) => Math.abs(tx) <= half && Math.abs(tz) <= half,
     async loadTile(tx, tz) {

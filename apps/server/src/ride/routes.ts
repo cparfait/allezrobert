@@ -3,13 +3,26 @@
  * (ROUTES_DIR, un ou plusieurs dossiers séparés par des virgules, ex. apps/client/public/worlds/chevreuse/routes), avec repli sur une boucle
  * procédurale de ~10 km si le dossier est absent ou vide (développement, tests).
  */
-import { readdir, readFile } from 'node:fs/promises';
+import { open, readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { forwardRouteId, parseStartedRouteId, reverseRoute, rotateRoute, RouteTrack, type RouteData, type RoutePoint, type RouteSummary } from '@allezrobert/shared';
 
 export const FALLBACK_ROUTE_ID = 'dev-boucle';
 /** Parcours construits à la demande (sens inverse, départ choisi) gardés en mémoire. */
 const MAX_BUILT = 256;
+/**
+ * Itinéraires des zones indexées (entrée de ROUTES_DIR où une étoile tient la place de la zone) gardés en mémoire après lecture :
+ * les moins récemment demandés partent. Un tracé de 76 km pèse de l'ordre de 10 Mo une fois analysé ;
+ * une salle ouverte garde le sien par référence, même sorti de ce cache.
+ */
+export const MAX_LAZY = 8;
+
+export type RouteEntry = { data: RouteData; track: RouteTrack; summary: RouteSummary };
+/** Fichier d'itinéraire connu sans avoir été lu en entier. */
+interface LazyFile {
+  world: string;
+  file: string;
+}
 
 export class RouteStore {
   private readonly routes = new Map<string, { data: RouteData; track: RouteTrack; summary: RouteSummary }>();
@@ -19,8 +32,134 @@ export class RouteStore {
    */
   private readonly reversed = new Map<string, { data: RouteData; track: RouteTrack; summary: RouteSummary }>();
 
+  /** Identifiant d'itinéraire → fichiers des zones indexées (plusieurs zones portent le même identifiant). */
+  private readonly lazy = new Map<string, LazyFile[]>();
+  /** Itinéraires lus à la demande (clé « zone/identifiant », parcours dérivés compris), du plus ancien au plus récent. */
+  private readonly loaded = new Map<string, RouteEntry>();
+  private readonly loading = new Map<string, Promise<RouteEntry | undefined>>();
+  /** Fichiers déjà chargés au démarrage (chemins absolus), exclus de l'index. */
+  readonly eagerFiles = new Set<string>();
+  /** Lecture d'un fichier d'itinéraire (remplaçable dans les tests). */
+  readFileImpl: (file: string) => Promise<string> = (file) => readFile(file, 'utf8');
+
   get size(): number {
     return this.routes.size;
+  }
+
+  /** Nombre de fichiers d'itinéraire indexés pour un chargement à la demande. */
+  get indexed(): number {
+    let n = 0;
+    for (const l of this.lazy.values()) n += l.length;
+    return n;
+  }
+
+  /** Vrai si un index des zones est en place : un identifiant inconnu est alors refusé au lieu du repli historique. */
+  get strict(): boolean {
+    return this.lazy.size > 0;
+  }
+
+  /** Itinéraires à la demande en mémoire (pour les tests et la supervision). */
+  get lazyLoaded(): number {
+    return this.loaded.size;
+  }
+
+  /** L'identifiant existe dans plusieurs zones indexées et aucune n'est précisée. */
+  isAmbiguous(id: string, world?: string): boolean {
+    if (world || this.get(id)) return false;
+    return (this.lazy.get(baseRouteId(id))?.length ?? 0) > 1;
+  }
+
+  /**
+   * Itinéraire `id`, lu à la demande s'il n'est pas chargé au démarrage. `world` (identifiant de zone)
+   * désigne la zone quand plusieurs portent le même identifiant ; sans lui, seul un identifiant unique
+   * est résolu. Renvoie undefined si l'itinéraire est inconnu ou ambigu.
+   */
+  async ensure(id: string, world?: string): Promise<RouteEntry | undefined> {
+    if (!id) return undefined;
+    const base = baseRouteId(id);
+    const files = this.lazy.get(base) ?? [];
+    const pick = world ? files.find((f) => f.world === world) : undefined;
+    if (!pick) {
+      // Zone non précisée, ou sans fichier indexé pour elle : itinéraires du démarrage d'abord.
+      const eager = this.get(id);
+      if (eager) return eager;
+      if (world || files.length !== 1) return undefined;
+    }
+    const f = pick ?? (files[0] as LazyFile);
+    const key = `${f.world}/${id}`;
+    const hit = this.loaded.get(key);
+    if (hit) {
+      this.loaded.delete(key);
+      this.loaded.set(key, hit);
+      return hit;
+    }
+    const pending = this.loading.get(key);
+    if (pending) return pending;
+    const p = this.loadLazy(f, base, id, key).finally(() => this.loading.delete(key));
+    this.loading.set(key, p);
+    return p;
+  }
+
+  private async loadLazy(f: LazyFile, base: string, id: string, key: string): Promise<RouteEntry | undefined> {
+    const baseKey = `${f.world}/${base}`;
+    let b = this.loaded.get(baseKey);
+    if (!b) {
+      let data: unknown;
+      try {
+        data = JSON.parse(await this.readFileImpl(f.file));
+      } catch {
+        return undefined;
+      }
+      if (!isRouteData(data) || data.id !== base) return undefined;
+      const track = new RouteTrack(data);
+      b = { data, track, summary: summarize(data, track) };
+      this.remember(baseKey, b);
+    }
+    if (id === base) return b;
+    const r = derive(b, id);
+    if (r) this.remember(key, r);
+    return r;
+  }
+
+  private remember(key: string, r: RouteEntry): void {
+    this.loaded.delete(key);
+    this.loaded.set(key, r);
+    while (this.loaded.size > MAX_LAZY) this.loaded.delete(this.loaded.keys().next().value as string);
+  }
+
+  /**
+   * Indexe les fichiers `<racine>/<zone>/routes/*.json` sans analyser les points : l'identifiant est lu
+   * dans les premiers octets (il ouvre le fichier), à défaut c'est le nom du fichier.
+   */
+  async indexWorlds(root: string, log: (m: string) => void = () => undefined): Promise<number> {
+    let worlds: string[];
+    try {
+      worlds = (await readdir(root, { withFileTypes: true })).filter((d) => d.isDirectory()).map((d) => d.name).sort();
+    } catch {
+      log(`dossier des zones introuvable : ${root}`);
+      return 0;
+    }
+    let n = 0;
+    for (const world of worlds) {
+      const dir = path.join(root, world, 'routes');
+      let files: string[];
+      try {
+        files = (await readdir(dir)).filter((x) => x.endsWith('.json')).sort();
+      } catch {
+        continue;
+      }
+      for (const name of files) {
+        const file = path.join(dir, name);
+        // déjà chargé au démarrage par un dossier ordinaire : pas de seconde copie en mémoire
+        if (this.eagerFiles.has(path.resolve(file))) continue;
+        const id = (await headId(file)) ?? name.slice(0, -'.json'.length);
+        const list = this.lazy.get(id);
+        if (list) list.push({ world, file });
+        else this.lazy.set(id, [{ world, file }]);
+        n++;
+      }
+    }
+    return n;
   }
 
   add(data: RouteData): void {
@@ -32,18 +171,15 @@ export class RouteStore {
     return !!this.get(id);
   }
 
-  get(id: string): { data: RouteData; track: RouteTrack; summary: RouteSummary } | undefined {
+  get(id: string): RouteEntry | undefined {
     const hit = this.routes.get(id) ?? this.reversed.get(id);
     if (hit) return hit;
     const started = parseStartedRouteId(id);
     const fwd = started ? null : forwardRouteId(id);
     const base = started ? this.get(started.id) : fwd ? this.routes.get(fwd) : undefined;
     if (!base) return undefined;
-    const data = started ? rotateRoute(base.data, started.startM) : reverseRoute(base.data);
-    // départ invalide (aller simple, départ d'origine, distance qui ne tombe pas sur un point) : inconnu
-    if (data.id !== id) return undefined;
-    const track = new RouteTrack(data);
-    const r = { data, track, summary: summarize(data, track) };
+    const r = buildDerived(base, id, started);
+    if (!r) return undefined;
     this.reversed.set(id, r);
     // départs au choix : autant d'identifiants que de points du tracé, on n'en garde que les derniers
     if (this.reversed.size > MAX_BUILT) this.reversed.delete(this.reversed.keys().next().value as string);
@@ -75,7 +211,10 @@ export class RouteStore {
    */
   static async load(dir: string | undefined, log: (m: string) => void = () => undefined): Promise<RouteStore> {
     const store = new RouteStore();
-    for (const d of (dir ?? '').split(',').map((x) => x.trim()).filter(Boolean)) {
+    const entries = (dir ?? '').split(',').map((x) => x.trim()).filter(Boolean);
+    for (const d of entries) {
+      // Entrée « <racine>/*/routes » : indexée plus bas, une fois les dossiers ordinaires chargés.
+      if (worldsRoot(d) !== undefined) continue;
       try {
         const files = (await readdir(d)).filter((f) => f.endsWith('.json')).sort();
         for (const f of files) {
@@ -90,6 +229,7 @@ export class RouteStore {
               continue;
             }
             store.add(data);
+            store.eagerFiles.add(path.resolve(d, f));
           } catch (e) {
             log(`itinéraire illisible ${f} : ${(e as Error).message}`);
           }
@@ -98,6 +238,13 @@ export class RouteStore {
         log(`dossier d'itinéraires introuvable : ${d}`);
       }
     }
+    // Entrées « <racine>/*/routes » : toutes les zones, indexées et lues à la demande (jamais toutes en mémoire).
+    for (const d of entries) {
+      const root = worldsRoot(d);
+      if (root === undefined) continue;
+      const n = await store.indexWorlds(root, log);
+      log(`${n} itinéraire(s) indexé(s) pour un chargement à la demande : ${d}`);
+    }
     if (store.size === 0) {
       log('aucun itinéraire : boucle procédurale de développement');
       store.add(proceduralLoop());
@@ -105,6 +252,56 @@ export class RouteStore {
       log(`${store.size} itinéraire(s) chargé(s) : ${[...store.routes.keys()].join(', ')}`);
     }
     return store;
+  }
+}
+
+/** Racine des zones d'une entrée « racine / étoile / routes » de ROUTES_DIR ; undefined pour un dossier ordinaire. */
+function worldsRoot(entry: string): string | undefined {
+  const parts = entry.split(/[\\/]/).filter((x, i, a) => x !== '' || i === 0 || i < a.length - 1);
+  const n = parts.length;
+  if (n < 3 || parts[n - 1] !== 'routes' || parts[n - 2] !== '*') return undefined;
+  return parts.slice(0, n - 2).join('/') || '/';
+}
+
+/** Identifiant de l'itinéraire d'origine d'un parcours inversé ou à départ choisi (l'identifiant lui-même sinon). */
+function baseRouteId(id: string): string {
+  const started = parseStartedRouteId(id);
+  const from = started ? started.id : id;
+  return forwardRouteId(from) ?? from;
+}
+
+/** Un pas de dérivation : `base` roulé dans l'autre sens, ou depuis un autre départ (`started`). */
+function buildDerived(base: RouteEntry, id: string, started: ReturnType<typeof parseStartedRouteId>): RouteEntry | undefined {
+  const data = started ? rotateRoute(base.data, started.startM) : reverseRoute(base.data);
+  // départ invalide (aller simple, départ d'origine, distance qui ne tombe pas sur un point) : inconnu
+  if (data.id !== id) return undefined;
+  const track = new RouteTrack(data);
+  return { data, track, summary: summarize(data, track) };
+}
+
+/** Parcours inversé ou à départ choisi `id`, construit depuis son itinéraire d'origine `base`. */
+function derive(base: RouteEntry, id: string): RouteEntry | undefined {
+  const started = parseStartedRouteId(id);
+  if (!started) return buildDerived(base, id, null);
+  // départ choisi sur le parcours inversé : on inverse d'abord
+  const from = started.id === base.data.id ? base : buildDerived(base, started.id, null);
+  return from ? buildDerived(from, id, started) : undefined;
+}
+
+/** Identifiant lu dans les premiers octets d'un fichier d'itinéraire (`{"id":"…"` ouvre le fichier), sans tout lire. */
+async function headId(file: string): Promise<string | undefined> {
+  let fh: Awaited<ReturnType<typeof open>> | undefined;
+  try {
+    fh = await open(file, 'r');
+    const buf = Buffer.alloc(256);
+    const { bytesRead } = await fh.read(buf, 0, 256, 0);
+    const head = buf.toString('utf8', 0, bytesRead);
+    const m = /^\s*\{\s*"id"\s*:\s*"([^"\\]{1,120})"/.exec(head);
+    return m?.[1];
+  } catch {
+    return undefined;
+  } finally {
+    await fh?.close();
   }
 }
 

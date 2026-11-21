@@ -1,3 +1,4 @@
+import { V3_SWAY } from './sway.ts';
 import { lookSex, type AvatarLook } from '@allezrobert/shared';
 import { Box3, Color, Group, Matrix4, MeshStandardMaterial, MeshStandardNodeMaterial, Quaternion, type Raycaster, Sphere, SRGBColorSpace, Texture, TextureLoader, Vector3, type Bone, type Material, type Mesh, type Object3D, type SkinnedMesh } from 'three/webgpu';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
@@ -18,6 +19,7 @@ const axis = new Vector3(0, 0, 1);
 const wheelRotation = new Quaternion();
 const facing = new Quaternion().setFromAxisAngle(new Vector3(0, 1, 0), -Math.PI / 2);
 const roll = new Quaternion();
+const swayRest = new Quaternion();
 const up = new Vector3(0, 1, 0);
 const forward = new Vector3();
 const footRight = new Vector3();
@@ -1394,6 +1396,8 @@ export class V3Visual {
         root.parent.getWorldQuaternion(frame).premultiply(this.group.getWorldQuaternion(inverse).invert());
         swing.premultiply(frame).multiply(frame.invert());
       }
+      // Amplitude réglable de l'oscillation des clips (voir sway.ts).
+      if (V3_SWAY !== 1) swing.copy(swayRest.identity().slerp(swing, V3_SWAY));
     }
     let angle = 0;
     if (extra) {

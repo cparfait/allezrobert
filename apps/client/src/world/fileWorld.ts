@@ -3,6 +3,7 @@ import { LOW_POLY } from '../engine/style.ts';
 import type { HorizonGrid, LoadedTile, WorldSource } from './types.ts';
 import { deferOpenGraph, emptyGraph, graphFetch, worldFetch } from './packs.ts';
 import { decodeTileBytes } from './tileDecoder.ts';
+import { createRouteStore } from './routeStore.ts';
 import { buildingVisualLoader } from './buildingVisual.ts';
 import { apurVegetationCredit, loadApurVegetation } from './apurVegetation.ts';
 
@@ -13,15 +14,18 @@ import { apurVegetationCredit, loadApurVegetation } from './apurVegetation.ts';
  */
 export async function createFileWorld(id: string, meta: WorldMeta): Promise<WorldSource> {
   const base = `/worlds/${id}`;
-  const routes = await Promise.all(
-    meta.routes.map(async (r) => {
-      const res = await fetch(`${base}/${r.file}`);
-      if (!res.ok) throw new Error(`Itinéraire ${r.id} introuvable`);
+  // Itinéraires à la demande (routeStore.ts) : le principal d'abord dans l'index (jalon 1), aucun fichier lu ici.
+  const refs = [...meta.routes].sort((a, b) => (a.id === meta.mainRoute ? -1 : b.id === meta.mainRoute ? 1 : 0));
+  const routes = createRouteStore(
+    refs.map((r) => ({ id: r.id, name: r.name, lengthM: r.lengthM, elevationGainM: r.elevationGainM, loop: r.loop, ...(r.bike ? { bike: r.bike } : {}) })),
+    async (routeId) => {
+      const ref = refs.find((r) => r.id === routeId);
+      const res = ref ? await fetch(`${base}/${ref.file}`) : null;
+      if (!res?.ok) throw new Error(`Itinéraire ${routeId} introuvable`);
       return (await res.json()) as RouteData;
-    }),
+    },
   );
-  // Monde ouvert : noms des lieux habités pour la carte d'itinéraire du menu (facultatifs), chargés avec les
-  // itinéraires. Le graphe routier (15 à 35 Mo de JSON par zone) est chargé à la demande (`openGraphReady`,
+  // Monde ouvert : noms des lieux habités pour la carte d'itinéraire du menu (facultatifs). Le graphe routier (15 à 35 Mo de JSON par zone) est chargé à la demande (`openGraphReady`,
   // packs.ts) : monde ouvert, planificateur, mini-carte locale. D'ici là `open.graph` est un graphe vide.
   let open: WorldSource['open'];
   if (meta.open) {
@@ -40,8 +44,6 @@ export async function createFileWorld(id: string, meta: WorldMeta): Promise<Worl
     });
     open = pending;
   }
-  // Itinéraire principal en premier (jalon 1).
-  routes.sort((a, b) => (a.id === meta.mainRoute ? -1 : b.id === meta.mainRoute ? 1 : 0));
   const index = new Map(meta.tiles.map((t) => [t.id, t]));
   const T = meta.tileSizeM;
   const b = meta.bounds;

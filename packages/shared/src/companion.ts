@@ -61,6 +61,8 @@ export type PhoneCommand =
   | { kind: 'goTo'; x: number; z: number; name: string }
   /** Parcours libre : abandonne la destination en cours. */
   | { kind: 'clearDestination' }
+  /** Carte complète à l'écran du jeu : ouvrir, fermer, ou basculer sans `open`. */
+  | { kind: 'map'; open?: boolean }
   | { kind: 'music'; action: 'toggle' | 'next' | 'previous' | 'volume'; volume?: number }
   /** Recherche Spotify (morceau ou playlist) ; texte vide : les playlists du compte. Résultats : `PairEvent` « musicResults ». */
   | { kind: 'musicSearch'; query: string }
@@ -150,6 +152,8 @@ export interface PairState {
   /** Ressenti route : intensité réglée (%), trainer capable (Tacx NEO), revêtement simulé en ce moment. */
   roadFeel?: { percent: number; supported: boolean; surface: string };
   hudVisible?: boolean;
+  /** Carte complète ouverte à l'écran du jeu (absent : pas de carte pour cette sortie). */
+  mapOpen?: boolean;
   /** Son du jeu coupé ; regard vers l'arrière ; allure demandée au groupe en % de FTP. */
   muted?: boolean;
   lookBack?: boolean;

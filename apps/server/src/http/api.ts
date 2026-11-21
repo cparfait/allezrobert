@@ -20,6 +20,7 @@ import { spotifyRelayRoutes } from './spotify-relay-routes.ts';
 import { clearSessionCookie, cors, errorHandler, HttpError, loadUser, originCheck, platformOf, requireUser, type AuthedRequest } from './middleware.ts';
 import { COSMETICS, levelInfo, unlockedCosmetics, validateEquipped, xpForRide } from '../progression/xp.ts';
 import { decodeFit, FitImportError, stripHeartRate, trainingFromFit } from '../activities/fit-import.ts';
+import { decodeFitOffThread } from '../fit/decode-pool.ts';
 import { authorizeUrl, exchangeCode, newPkce, safeRedirect } from '../auth/oauth.ts';
 import { OAUTH_COOKIE, parseCookies, serializeCookie } from './cookies.ts';
 import { createLiveKitToken, voiceRoomName } from '../integrations/livekit.ts';
@@ -262,7 +263,8 @@ export function mountApi(app: express.Application, ctx: AppContext): void {
     if (!profile) throw new HttpError(401, 'Compte introuvable', 'unauthorized');
     let imported;
     try {
-      imported = decodeFit(new Uint8Array(req.body), q.name ?? 'Sortie Allez Robert !');
+      // Hors du fil de la simulation : le décodage d'une longue sortie retardait le tick de toutes les salles.
+      imported = await decodeFitOffThread(new Uint8Array(req.body), q.name ?? 'Sortie Allez Robert !');
     } catch (e) {
       if (e instanceof FitImportError) throw new HttpError(400, e.message, 'bad_fit');
       throw e;
@@ -722,7 +724,7 @@ async function stripHrFromStoredFits(ctx: AppContext, userId: string): Promise<v
     const fit = await ctx.repos.getActivityFit(userId, id);
     if (!fit) continue;
     try {
-      const imported = decodeFit(new Uint8Array(fit));
+      const imported = await decodeFitOffThread(new Uint8Array(fit));
       if (imported.hasHr) await ctx.repos.replaceActivityFit(id, stripHeartRate(imported));
     } catch (e) {
       ctx.log('warn', `FIT ${id} non ré-encodé : ${(e as Error).message}`);

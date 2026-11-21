@@ -3,6 +3,7 @@ import { clampWorkoutIntensity, ftpTestProtocolOf } from '../game/workout.ts';
 import { ftpTestChartHtml } from './ftpTestChart.ts';
 import { crossedArmsSrc } from './waitBike.ts';
 import type { AvatarLook, CosmeticItem, RouteData, RouteSegment, WorldCatalogue } from '@allezrobert/shared';
+import type { WorldRoutes } from '../world/routeStore.ts';
 import { ROAD_FEEL, ROAD_FEEL_TEXT, clampRoadFeel, roadFeelLevel } from '@allezrobert/shared';
 import { GRAPHIC_STYLE, V3_AVAILABLE, V3_STYLE, setGraphicStyle, type GraphicStyle } from '../engine/style.ts';
 import { readKomRecord } from '../game/challenge.ts';
@@ -487,10 +488,98 @@ function liveText(kind: LiveKind, live: DeviceLive | undefined): string {
 export class MainMenu {
   private readonly root: HTMLElement;
   private readonly s: Settings;
-  private allRoutes: RouteData[];
-  /** Parcours proposés : ceux du vélo équipé (route, gravel ou VTT). */
+  /** Itinéraires de la zone, chargés à la demande : seul celui qui est choisi l'est au lancement (routeStore.ts). */
+  private routeStore: WorldRoutes;
+  /** Itinéraires déjà chargés. */
+  private get allRoutes(): RouteData[] {
+    return this.routeStore.loaded();
+  }
+  /** Identifiants des parcours proposés avec le vélo équipé (route, gravel ou VTT), d'après l'index de la zone. */
+  private get routeIds(): string[] {
+    return routesForBike(this.routeStore.index, bikeSetupFor(loadProgress().equipped).tyre)
+      .map((r) => r.id)
+      .filter((id) => !this.routeBroken.has(id));
+  }
+  /** Parcours proposés et déjà chargés : ceux du vélo équipé. */
   private get routes(): RouteData[] {
-    return routesForBike(this.allRoutes, bikeSetupFor(loadProgress().equipped).tyre);
+    const mine = new Set(this.routeIds);
+    return this.allRoutes.filter((r) => mine.has(r.id));
+  }
+  /** Chargements en cours ou en échec, pour ne pas les relancer à chaque dessin de l'écran. */
+  private readonly routeAsked = new Set<string>();
+  private allRoutesAsked = false;
+  /** Parcours dont le fichier n'a pas pu être lu : plus proposés comme parcours choisi dans cette zone. */
+  private readonly routeBroken = new Set<string>();
+  /** Vrai quand le dernier chargement de parcours a échoué (message dans la liste, nouvel essai à la réouverture). */
+  private routesFailed = false;
+  /** Parcours des amis : ceux qui sont chargés, et le seul nom de l'index pour les autres (tableau gardé à jour sur place). */
+  private readonly friendRoutes: RouteData[] = [];
+
+  private syncFriendRoutes(): void {
+    this.friendRoutes.length = 0;
+    for (const ref of this.routeStore.index)
+      this.friendRoutes.push(this.routeStore.get(ref.id) ?? { id: ref.id, name: ref.name, loop: ref.loop, lengthM: ref.lengthM, elevationGainM: ref.elevationGainM, points: [], segments: [], roadWidthM: 0, attribution: [] });
+  }
+
+  /** Les parcours viennent d'arriver : index des montées, amis, écran refait si le menu est affiché. */
+  private routesArrived(): void {
+    this.syncFriendRoutes();
+    this.checkRoute();
+    this.indexClimbs();
+    if (this.root.querySelector('.mm')) this.render();
+  }
+
+  /** Charge le parcours `id` s'il est connu et pas encore là (fiche, parcours choisi), puis refait l'écran. */
+  private needRoute(id: string): void {
+    if (!id || this.routeStore.get(id) || this.routeAsked.has(id) || !this.routeStore.index.some((r) => r.id === id)) return;
+    this.routeAsked.add(id);
+    const store = this.routeStore;
+    store.load(id).then(
+      () => {
+        this.routeAsked.delete(id);
+        if (store === this.routeStore) this.routesArrived();
+      },
+      (e: unknown) => {
+        console.warn(`Parcours ${id} indisponible`, e);
+        this.routeAsked.delete(id);
+        if (store !== this.routeStore) return;
+        // Le parcours choisi est illisible : un autre prend sa place (checkRoute), sans redemander celui-ci.
+        this.routeBroken.add(id);
+        this.routesFailed = true;
+        this.routesArrived();
+      },
+    );
+  }
+
+  /** Charge tous les parcours de la zone (liste, fiches, montées du défi KOM), puis refait l'écran. */
+  private needAllRoutes(): void {
+    if (this.routeStore.complete || this.allRoutesAsked) return;
+    this.allRoutesAsked = true;
+    const store = this.routeStore;
+    store.loadAll().then(
+      () => {
+        if (store !== this.routeStore) return;
+        this.routesFailed = false;
+        this.routesArrived();
+      },
+      (e: unknown) => {
+        console.warn('Parcours de la zone indisponibles', e);
+        if (store !== this.routeStore) return;
+        this.routesFailed = true;
+        // Ceux qui sont arrivés restent utilisables ; la liste dit qu'il en manque.
+        this.routesArrived();
+      },
+    );
+  }
+
+  /**
+   * Parcours choisi : s'il n'est pas proposé avec le vélo équipé (ou inconnu), le premier qui l'est ; chargé s'il
+   * ne l'est pas encore.
+   */
+  private checkRoute(): void {
+    const ids = this.routeIds;
+    if (!this.s.routeId || !ids.includes(this.s.routeId)) this.s.routeId = ids[0] ?? '';
+    this.needRoute(this.s.routeId);
   }
   private readonly devices: DevicePanel;
   /** Rafraîchissement des valeurs en direct de l'écran Capteurs. */
@@ -643,6 +732,8 @@ export class MainMenu {
   }
 
   private indexClimbs(): void {
+    // Liste partielle (parcours pas tous chargés) : l'index mémorisé de la zone, complet, reste en place.
+    if (!this.routeStore.complete) return;
     const seen = new Set<string>();
     const list: ReturnType<MainMenu['komIndex']>[string] = [];
     for (const route of this.routes)
@@ -674,9 +765,14 @@ export class MainMenu {
   }
 
   /** Nouveau monde chargé sur place : parcours, identifiant, monde ouvert ; l'écran est refait. */
-  setWorld(routes: RouteData[], worldId: string, open: boolean): void {
-    this.allRoutes = routes;
-    routes = this.routes;
+  setWorld(store: WorldRoutes, worldId: string, open: boolean): void {
+    this.routeStore = store;
+    this.routeAsked.clear();
+    this.routeBroken.clear();
+    this.allRoutesAsked = false;
+    this.routesFailed = false;
+    this.syncFriendRoutes();
+    const routes = this.routeStore.index.filter((r) => this.routeIds.includes(r.id));
     this.worldId = worldId;
     this.openWorld = open;
     this.indexClimbs();
@@ -689,7 +785,7 @@ export class MainMenu {
       saveSettings(this.s);
       this.pendingKom = null;
     }
-    if (!routes.some((r) => r.id === this.s.routeId)) this.s.routeId = routes[0]?.id ?? '';
+    this.checkRoute();
     if (this.routesAfterWorld && this.picker === 'zones') this.picker = 'zone';
     // Autre zone : le parcours dessiné et le départ du libre de l'ancienne ne valent plus.
     if (worldId !== this.drawnWorld) {
@@ -768,16 +864,14 @@ export class MainMenu {
   /** Zone ouverte choisie dans un autre monde : rejointe dès que ce monde est chargé. */
   private pendingOpen: { routeId: string; friendId?: string } | null = null;
 
-  constructor(root: HTMLElement, settings: Settings, routes: RouteData[], devices: DevicePanel, cb: MenuCallbacks) {
+  constructor(root: HTMLElement, settings: Settings, routes: WorldRoutes, devices: DevicePanel, cb: MenuCallbacks) {
     this.root = root;
     this.s = settings;
-    this.allRoutes = routes;
+    this.routeStore = routes;
     this.devices = devices;
     this.cb = cb;
-    {
-      const mine = this.routes;
-      if (!this.s.routeId || !mine.some((r) => r.id === this.s.routeId)) this.s.routeId = mine[0]?.id ?? '';
-    }
+    this.syncFriendRoutes();
+    this.checkRoute();
     this.indexClimbs();
     void loadCatalogue().then((cat) => {
       this.zones = cat?.zones ?? [];
@@ -792,11 +886,11 @@ export class MainMenu {
     this.friends = new FriendsPanel({
       loggedIn: () => !!this.account,
       login: () => this.onLogin?.(),
-      routes,
+      routes: this.friendRoutes,
       currentRouteId: () => routeKey(this.s),
       join: (info) => {
         // Rejoindre un ami : son mode et son itinéraire (s'il existe dans ce monde), code fourni par le serveur.
-        const j = joinSettings(info, this.routes.map((r) => r.id), this.s);
+        const j = joinSettings(info, this.routeIds, this.s);
         this.s.mode = j.mode;
         this.s.routeId = j.routeId;
         this.s.reverse = j.reverse;
@@ -1182,7 +1276,14 @@ export class MainMenu {
     ];
     const p = loadProgress();
     // Vélo changé au garage : le parcours choisi doit être de son type
-    if (this.s.mode !== 'free' && this.allRoutes.length && !this.routes.some((r) => r.id === this.s.routeId)) this.s.routeId = this.routes[0]?.id ?? '';
+    if (this.s.mode !== 'free' && this.routeStore.index.length) this.checkRoute();
+    // Liste des parcours, fiche, carte de la zone, défi KOM : il faut tous les tracés de la zone (montées, cartes).
+    if ((this.picker && this.picker !== 'workouts' && this.picker !== 'zones') || this.s.mode === 'challenge') this.needAllRoutes();
+    else if (this.routesFailed) {
+      // Fenêtre refermée après un échec : la prochaine ouverture réessaie.
+      this.allRoutesAsked = false;
+      this.routesFailed = false;
+    }
     const lp = levelProgress(p.xp);
     const level = this.account?.level ?? lp.level;
     const name = this.account?.name ?? this.s.name;
@@ -1309,7 +1410,8 @@ export class MainMenu {
   private rideHtml(): string {
     const s = this.s;
     const L = fr();
-    const r = this.routes.find((x) => x.id === s.routeId) ?? this.routes[0];
+    // Parcours choisi en cours de chargement : pas de carte d'un autre parcours en attendant.
+    const r = this.routes.find((x) => x.id === s.routeId) ?? (this.routeAsked.has(s.routeId) ? undefined : this.routes[0]);
     // Roulage libre (choisi dans la fenêtre de la zone) : une sortie libre.
     const shown = s.mode === 'open' ? 'free' : s.mode;
     const mode = this.modes().find(([m]) => m === shown);
@@ -1560,7 +1662,11 @@ export class MainMenu {
             ${this.routeCard(x)}
             <span class="mm-routetag">${x.loop ? (L ? 'Boucle' : 'Loop') : L ? 'Aller simple' : 'One way'}${x.id === this.s.routeId ? ` · ${L ? 'choisi' : 'selected'}${this.s.reverse ? (L ? ', sens inverse' : ', reversed') : ''}${this.s.startM > 0 ? (L ? ', départ déplacé' : ', moved start') : ''}` : ''}</span></button>`,
       )
-      .join('')}</div>
+      .join('')}</div>${
+        this.routeStore.complete
+          ? ''
+          : `<p class="mm-hint">${this.routesFailed ? (L ? 'Certains parcours n’ont pas pu être chargés. Ferme puis rouvre cette fenêtre pour réessayer.' : 'Some routes could not be loaded. Close and reopen this window to try again.') : L ? 'Chargement des autres parcours…' : 'Loading the other routes…'}</p>`
+      }
         ${this.onExplore ? `<button id="m-explore" class="mm-explore">${ICON.explore}<span><b>${L ? 'Explorer la carte' : 'Explore the map'}</b><small>${L ? 'Caméra libre, sans rouler · Échap pour revenir' : 'Free camera, no riding · Esc to come back'}</small></span></button>` : ''}`;
     return `<div class="mm-modal mm-picker-modal" data-picker-close>
       <div class="mm-dialog mm-picker" role="dialog" aria-modal="true">
@@ -1791,7 +1897,7 @@ export class MainMenu {
     const lang = getLang();
     const w = WORLD_LIST.find((x) => x.id === this.worldId);
     const spot = ZONE_SPOTS.find((x) => x.id === this.worldId);
-    const n = this.routes.length;
+    const n = this.routeIds.length;
     const openOnly = L ? 'Seulement dans les zones ouvertes (toutes les routes roulables).' : 'Only in open areas (every road rideable).';
     const fixedOnly = L ? 'Pas en course : le parcours est fixe (tu peux le dessiner).' : 'Not in a race: the course is fixed (you can draw it).';
     const card = (id: string, icon: string, title: string, text: string) =>

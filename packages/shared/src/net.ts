@@ -348,6 +348,8 @@ export type RideRole = 'rider' | 'guest' | 'companion';
 
 /** Options de création étendues (ajouts facultatifs à `RoomOptions`). */
 export interface RideRoomOptions extends RoomOptions {
+  /** Zone de l'itinéraire : départage les identifiants communs à plusieurs zones (boucle-20-km…). */
+  worldId?: string;
   /** Allure des IA sans humain à suivre (W/kg). Défaut 2,6. */
   aiPaceWkg?: number;
   /** Heure de départ et météo choisies par l'hôte, appliquées à tout le groupe. */

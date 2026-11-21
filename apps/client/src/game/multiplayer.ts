@@ -215,7 +215,7 @@ export class Multiplayer {
     return this.gaps.get(riderId) ?? null;
   }
 
-  async connect(opts: { inviteCode?: string; mode: RideMode; guest: boolean; aiRiders: number; aiLevel?: number; targetKmh?: number; laps?: number; trainerDifficulty: number; name: string; weather: RideWeather; equalEquipment?: boolean }): Promise<string> {
+  async connect(opts: { worldId?: string; inviteCode?: string; mode: RideMode; guest: boolean; aiRiders: number; aiLevel?: number; targetKmh?: number; laps?: number; trainerDifficulty: number; name: string; weather: RideWeather; equalEquipment?: boolean }): Promise<string> {
     const role = opts.guest ? 'guest' : 'rider';
     const join = { role, displayName: opts.name, collisionFingerprint: this.collisionFingerprint, ...(this.wantsCollisionPilot ? { collisionPilot: true } as const : {}) } as const;
     const welcome = opts.inviteCode
@@ -223,6 +223,8 @@ export class Multiplayer {
       : await this.net.create(
           {
             routeId: this.track.route.id,
+            // Les identifiants d'itinéraire se répètent d'une zone à l'autre (boucle-20-km…) : la zone les départage.
+            ...(opts.worldId ? { worldId: opts.worldId } : {}),
             mode: opts.mode,
             stickyGroup: opts.mode === 'group',
             allowGuests: true,

@@ -231,6 +231,8 @@ input[type='range'] { width: 100%; accent-color: var(--accent); height: 30px; }
 .mapbox { flex: 1; min-height: 0; position: relative; }
 .mapbox canvas { width: 100%; height: 100%; display: block; }
 .mapprof { height: 90px; flex: none; border-top: 1px solid var(--line); }
+.chip-left { right: auto !important; left: 10px; }
+.chip[hidden] { display: none; }
 .chip { position: absolute; right: 10px; bottom: 10px; appearance: none; border: 1px solid var(--line); background: rgba(20, 26, 34, 0.92); border-radius: 999px; padding: 9px 14px; font-weight: 700; cursor: pointer; }
 
 /* ───────── Attente, appairage, sélecteur de champ ───────── */

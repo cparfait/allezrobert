@@ -420,7 +420,7 @@ function renderContent(): void {
   } else if (S.tab === 'dash') c.innerHTML = `<section class="dash" id="dash"></section><section class="extra" id="extra"></section><section class="extra" id="climbstrip"></section><section class="climb"><span>${esc(t.climb)}</span><canvas id="profile"></canvas></section>`;
   else if (S.tab === 'ctrl') c.innerHTML = ctrlHtml();
   else if (S.tab === 'map')
-    c.innerHTML = `${destHtml()}<section class="mapbox"><canvas id="map"></canvas><button class="chip" data-act="follow">${esc(S.follow ? t.whole : t.follow)}</button></section><section class="mapprof"><canvas id="mapprofile"></canvas></section>`;
+    c.innerHTML = `${destHtml()}<section class="mapbox"><canvas id="map"></canvas><button class="chip" data-act="follow">${esc(S.follow ? t.whole : t.follow)}</button><button class="chip chip-left" id="map-screen" data-act="map-screen" hidden></button></section><section class="mapprof"><canvas id="mapprofile"></canvas></section>`;
   refresh();
 }
 
@@ -477,6 +477,13 @@ function refresh(): void {
   else if (S.tab === 'map' && S.geo) {
     const canvas = document.getElementById('map') as HTMLCanvasElement | null;
     updateDest(st);
+    // Carte complète à l'écran du jeu : bouton présent seulement si la sortie en a une.
+    const scr = document.getElementById('map-screen');
+    if (scr) {
+      const label = st.mapOpen ? t.mapOnScreenClose : t.mapOnScreen;
+      if (scr.textContent !== label) scr.textContent = label;
+      scr.hidden = st.mapOpen === undefined;
+    }
     if (canvas) drawMap(canvas, S.geo, { routeM: m.routeM, ...(st.pos ? { pos: st.pos } : {}), riders: st.riders ?? [], follow: S.follow, ...(st.open && st.destination ? { destination: st.destination } : {}) });
     const prof = document.getElementById('mapprofile') as HTMLCanvasElement | null;
     if (prof) drawProfile(prof, S.geo, m.routeM, S.geo.startD, S.geo.route.loop ? S.geo.route.lengthM : S.geo.endD);
@@ -1039,7 +1046,10 @@ app.addEventListener('click', (e) => {
     void mic.toggle();
   } else if (d.act === 'fullscreen') void toggleFullscreen();
   else if (d.act === 'rotate') void rotate();
-  else if (d.act === 'follow') {
+  else if (d.act === 'map-screen') {
+    haptic();
+    send({ kind: 'map', open: !S.st?.mapOpen });
+  } else if (d.act === 'follow') {
     S.follow = !S.follow;
     el.textContent = S.follow ? t.whole : t.follow;
     refresh();

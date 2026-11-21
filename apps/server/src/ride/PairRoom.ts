@@ -35,6 +35,7 @@ const PhoneCommandSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('placeSearch'), query: z.string().trim().max(100) }),
   z.object({ kind: z.literal('goTo'), x: finite.min(-PAIR_COORD_MAX_M).max(PAIR_COORD_MAX_M), z: finite.min(-PAIR_COORD_MAX_M).max(PAIR_COORD_MAX_M), name: z.string().trim().min(1).max(PAIR_PLACE_NAME_MAX) }),
   z.object({ kind: z.literal('clearDestination') }),
+  z.object({ kind: z.literal('map'), open: z.boolean().optional() }),
   z.object({ kind: z.literal('music'), action: z.enum(['toggle', 'next', 'previous', 'volume']), volume: finite.transform((v) => Math.min(Math.max(v, 0), 1)).optional() }),
   z.object({ kind: z.literal('musicSearch'), query: z.string().trim().max(100) }),
   z.object({ kind: z.literal('musicPlay'), uri: z.string().regex(SPOTIFY_URI_RE) }),

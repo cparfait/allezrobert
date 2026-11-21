@@ -1,3 +1,4 @@
+import { loadedRouteStore } from '../src/world/routeStore.ts';
 import { describe, expect, it } from 'vitest';
 import type { RoadGraphData, WorldCatalogue } from '@allezrobert/shared';
 import { readFileSync } from 'node:fs';
@@ -68,7 +69,7 @@ function source(id: string, origin: { x: number; y: number }, graph: RoadGraphDa
     name: id,
     tileSize: 1000,
     bounds: { minX: 0, minZ: 0, maxX: 2000, maxZ: 1000 },
-    routes: [],
+    routes: loadedRouteStore([]),
     attribution: [id],
     originL93: origin,
     open: { graph, fullGraph: graph, start: { x: 0, z: 0 }, places: [{ name: id, kind: 'town', x: 500, z: 500 }] },

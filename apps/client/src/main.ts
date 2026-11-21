@@ -98,6 +98,7 @@ import { showStartGate } from './game/startGate.ts';
 import { PlaceFinder } from './game/place.ts';
 import { buildPlaceIndex, searchPlaces, type PlaceIndex } from './game/placeSearch.ts';
 import { TILES_BASE, installedPacks, keepStorage, openGraphReady } from './world/packs.ts';
+import { loadRouteForKey } from './world/routeStore.ts';
 import { inDesktop, installFullscreenKey, keepAwake, mirrorProfile } from './platform/desktop.ts';
 import { hasLocalMedia, prepareDesktop } from './platform/desktopBoot.ts';
 import { LOW_POLY } from './engine/style.ts';
@@ -119,6 +120,13 @@ interface Scene3D {
   track: RouteTrack;
 }
 
+/** Itinéraire principal d'un monde (le premier de son index), chargé s'il ne l'est pas encore. */
+async function firstRoute(source: WorldSource): Promise<RouteData> {
+  const first = source.routes.index[0];
+  if (!first) throw new Error(`Monde ${source.id} sans itinéraire`);
+  return source.routes.load(first.id);
+}
+
 /** Charge le monde et l'itinéraire choisis (le monde reste affiché derrière le menu). */
 async function loadScene(settings: Settings): Promise<Scene3D> {
   const params = new URLSearchParams(location.search);
@@ -132,7 +140,11 @@ async function loadScene(settings: Settings): Promise<Scene3D> {
   performance.mark('ar:monde chargé');
   // Le mode « monde ouvert » n'existe que dans un monde qui a un graphe routier.
   if (settings.mode === 'open' && !source.open) settings.mode = 'free';
-  const route = findRoute(source.routes, params.get('route') ?? routeKey(settings)) ?? (source.routes[0] as RouteData);
+  // Seul l'itinéraire choisi est lu ici ; les autres arrivent à la demande (routeStore.ts). Choix inconnu ou
+  // fichier introuvable : l'itinéraire principal de la zone.
+  const wanted = params.get('route') ?? routeKey(settings);
+  await loadRouteForKey(source.routes, wanted).catch((e: unknown) => console.warn('Itinéraire choisi indisponible, itinéraire principal à la place', e));
+  const route = findRoute(source.routes.loaded(), wanted) ?? (await firstRoute(source));
   const track = new RouteTrack(route);
   const world = new World(engine.scene, source, route, track, q, {
     hour: Number(params.get('hour') ?? settings.hour),
@@ -147,7 +159,8 @@ async function loadScene(settings: Settings): Promise<Scene3D> {
  * intégré continuent) : le monde est reconstruit pour le nouvel itinéraire.
  */
 async function switchRoute(scene: Scene3D, s: Settings, onTile?: (done: number, total: number) => void): Promise<void> {
-  const route = findRoute(scene.source.routes, routeKey(s));
+  await loadRouteForKey(scene.source.routes, routeKey(s)).catch((e: unknown) => console.warn('Itinéraire indisponible', e));
+  const route = findRoute(scene.source.routes.loaded(), routeKey(s));
   if (!route) return;
   scene.world.dispose();
   scene.route = route;
@@ -648,8 +661,8 @@ async function boot(): Promise<void> {
       // Itinéraire tracé sur la carte : il remplace le précédent dans les parcours du monde.
       if (extras.customRoute) {
         const routes = scene.source.routes;
-        for (let i = routes.length - 1; i >= 0; i--) if (routes[i]?.id.startsWith(ITINERARY_PREFIX) && routes[i]?.id !== extras.customRoute.id) routes.splice(i, 1);
-        if (!routes.some((r) => r.id === extras.customRoute?.id)) routes.push(extras.customRoute);
+        for (const r of routes.loaded()) if (r.id.startsWith(ITINERARY_PREFIX) && r.id !== extras.customRoute.id) routes.remove(r.id);
+        if (!routes.get(extras.customRoute.id)) routes.add(extras.customRoute);
       }
       // Changement de qualité graphique : rechargement propre de la page.
       if (s.quality !== scene.quality) {
@@ -718,7 +731,7 @@ async function boot(): Promise<void> {
       poster.dispose();
       scene.world.dispose();
       scene.source = source;
-      scene.route = source.routes[0] as RouteData;
+      scene.route = await firstRoute(source);
       scene.track = new RouteTrack(scene.route);
       scene.world = new World(scene.engine.scene, source, scene.route, scene.track, scene.q, {
         hour: settings.hour,
@@ -1180,7 +1193,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
         const here = mp.friendsHere.join(', ');
         setTimeout(() => hud.toast(here ? (L ? `Tes amis sont là : ${here}` : `Your friends are here: ${here}`) : L ? 'Monde ouvert : tu roules avec les coureurs connectés' : 'Open world: you are riding with the riders online'), 600);
       } else {
-      const code = await mp.connect({ ...(extras.inviteCode ? { inviteCode: extras.inviteCode } : {}), mode: s.mode, guest: s.guest, aiRiders: s.aiRiders, aiLevel: s.aiLevel, ...(s.groupTargetKmh ? { targetKmh: s.groupTargetKmh } : {}), laps: s.raceLaps, trainerDifficulty: s.trainerDifficulty, name: s.name, weather: myWeather, ...(s.equalEquipment !== undefined ? { equalEquipment: s.equalEquipment } : {}) });
+      const code = await mp.connect({ worldId: source.id, ...(extras.inviteCode ? { inviteCode: extras.inviteCode } : {}), mode: s.mode, guest: s.guest, aiRiders: s.aiRiders, aiLevel: s.aiLevel, ...(s.groupTargetKmh ? { targetKmh: s.groupTargetKmh } : {}), laps: s.raceLaps, trainerDifficulty: s.trainerDifficulty, name: s.name, weather: myWeather, ...(s.equalEquipment !== undefined ? { equalEquipment: s.equalEquipment } : {}) });
       // Équipement égalisé : la prédiction locale roule le même vélo que le serveur.
       if (mp.equalized) {
         Object.assign(ride.params, { ...paramsFromBike(s.massKg, EQUALIZED_BIKE), inertiaFactor: ride.params.inertiaFactor });
@@ -1322,6 +1335,8 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   hud.setPlaces(source.open?.places);
   const placeFinder = new PlaceFinder(source.open?.places, track.route.landmarks, track.length, !!track.route.loop, source.originL93);
   hud.setHidden(s.hudHidden ?? []);
+  /** Carte complète de la sortie (parcours libre ou itinéraire fixe), aussi ouverte et fermée depuis le compagnon. */
+  let fullMap: { open(): void; close(): void; readonly isOpen: boolean } | null = null;
   if (nav && source.open) hud.setOpen(source.open.graph);
   // Itinéraires fixes : même carte locale qu'en parcours libre.
   else if (source.open && graphOk) hud.setLocalMap(source.open.graph);
@@ -1395,13 +1410,16 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
       const me = track.sample(d);
       return { me: { x: me.x, z: me.z }, ahead, destination: nav.destination };
     };
-    hud.onMapClick = () => {
+    const openMap = () => {
+      if (wmap.isOpen) return;
       wmap.open(mapState());
       const tick = window.setInterval(() => {
         if (!wmap.isOpen) window.clearInterval(tick);
         else wmap.update(mapState());
       }, 1000);
     };
+    hud.onMapClick = openMap;
+    fullMap = { open: openMap, close: () => wmap.close(), get isOpen() { return wmap.isOpen; } };
   }
   // Itinéraire fixe : la mini-carte ouvre aussi la carte complète, à consulter seulement (parcours restant, position).
   if (!nav && source.open && graphOk) {
@@ -1433,13 +1451,16 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
       const me = track.sample(d);
       return { me: { x: me.x, z: me.z }, ahead, destination: null };
     };
-    hud.onMapClick = () => {
+    const openMap = () => {
+      if (wmap.isOpen) return;
       wmap.open(mapState());
       const tick = window.setInterval(() => {
         if (!wmap.isOpen) window.clearInterval(tick);
         else wmap.update(mapState());
       }, 1000);
     };
+    hud.onMapClick = openMap;
+    fullMap = { open: openMap, close: () => wmap.close(), get isOpen() { return wmap.isOpen; } };
   }
   // En groupe, le panneau « À proximité » montre d'abord les coureurs réels.
   hud.riderFilter = mp ? 'real' : 'all';
@@ -2874,6 +2895,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
       ...(fanPercent !== undefined ? { fanPercent } : {}),
       roadFeel: { percent: clampRoadFeel(s.roadFeelPercent), supported: input.roadFeelSupported?.() ?? false, surface: roadFeelNow },
       hudVisible: hud.visible,
+      ...(fullMap ? { mapOpen: (fullMap as { isOpen: boolean }).isOpen } : {}),
       muted: audio.isMuted(),
       lookBack: rig.lookBack,
       ...(peloton.riders.length ? { groupPacePct: Math.round((peloton.paceFtpPct ?? 0.75) * 100) } : {}),
@@ -2942,6 +2964,14 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
       case 'goTo':
         companionGoTo(c.x, c.z, c.name);
         break;
+      case 'map': {
+        const m = fullMap as { open(): void; close(): void; isOpen: boolean } | null;
+        if (m) {
+          if (c.open ?? !m.isOpen) m.open();
+          else m.close();
+        }
+        break;
+      }
       case 'clearDestination':
         if (nav) {
           nav.clearDestination();

@@ -97,7 +97,8 @@ export class WorldMap {
     host.appendChild(root);
     this.root = root;
     this.canvas = root.querySelector('canvas');
-    this.fitAll();
+    if (this.o.viewOnly) this.fitRoute();
+    else this.fitAll();
     this.renderDest();
     root.querySelectorAll('[data-wm-close]').forEach((b) => b.addEventListener('click', () => this.close()));
     root.addEventListener('pointerdown', (e) => e.target === root && this.close());
@@ -160,6 +161,28 @@ export class WorldMap {
     const w = c?.clientWidth || 1000;
     const h = c?.clientHeight || 700;
     this.view = { cx: (b.minX + b.maxX) / 2, cz: (b.minZ + b.maxZ) / 2, mPerPx: Math.max((b.maxX - b.minX) / w, (b.maxZ - b.minZ) / h) * 1.04 };
+  }
+
+  /** Itinéraire fixe : cadre le tracé (avec une marge) plutôt que toute la zone ; sans tracé, toute la zone. */
+  private fitRoute(): void {
+    const a = this.state?.ahead ?? [];
+    if (a.length < 4) return this.fitAll();
+    let minX = Infinity;
+    let maxX = -Infinity;
+    let minZ = Infinity;
+    let maxZ = -Infinity;
+    for (let i = 0; i + 1 < a.length; i += 2) {
+      const x = a[i] as number;
+      const z = a[i + 1] as number;
+      if (x < minX) minX = x;
+      if (x > maxX) maxX = x;
+      if (z < minZ) minZ = z;
+      if (z > maxZ) maxZ = z;
+    }
+    const c = this.canvas;
+    const w = c?.clientWidth || 1000;
+    const h = c?.clientHeight || 700;
+    this.view = { cx: (minX + maxX) / 2, cz: (minZ + maxZ) / 2, mPerPx: Math.max((maxX - minX) / w, (maxZ - minZ) / h, 0.5) * 1.18 };
   }
 
   private zoom(f: number, at?: { x: number; y: number }): void {
@@ -230,6 +253,7 @@ export class WorldMap {
     if (!el) return;
     if (this.o.viewOnly) {
       el.innerHTML = '';
+      el.style.display = 'none';
       return;
     }
     const L = this.o.fr;

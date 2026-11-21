@@ -43,6 +43,7 @@ import { reconnectionCollisionProof } from './ride-transport.ts';
 import { RideSimulation, resolveRideOptions, type SimRider } from './simulation.ts';
 import { normalizeCode } from './registry.ts';
 import { rideServices, type RideServices } from './services.ts';
+import type { RouteEntry } from './routes.ts';
 import { TickStats } from './tick-stats.ts';
 import { sanitizeName } from '../db/repos.ts';
 import { serverBike } from '../progression/atelier.ts';
@@ -52,6 +53,8 @@ const finite = z.number().refine(Number.isFinite, 'nombre fini attendu');
 const CreateOptionsSchema = z
   .object({
     routeId: z.string().max(80).optional(),
+    /** Zone de l'itinéraire : plusieurs zones portent le même identifiant (« boucle-20-km »). */
+    worldId: z.string().regex(/^[a-z0-9][a-z0-9-]{0,63}$/).optional(),
     mode: z.enum(['free', 'group', 'race', 'workout', 'ftpTest', 'open', 'challenge']).optional(),
     stickyGroup: z.boolean().optional(),
     allowGuests: z.boolean().optional(),
@@ -178,6 +181,8 @@ export class RideRoom extends Room {
   readonly tickStats = new TickStats(600);
   private svc!: RideServices;
   private routeId = '';
+  /** Itinéraire de la salle, gardé par référence : il reste valable même sorti du cache des itinéraires à la demande. */
+  private route!: RouteEntry;
   private collisionFingerprint?: string;
   private collisionPilot = false;
   private creatorAuthorized = false;
@@ -206,9 +211,25 @@ export class RideRoom extends Room {
     const creator = typeof rawToken === 'string' && rawToken.length <= 4096 ? await this.svc.authenticate(rawToken, undefined) : null;
     if (!creator) throw new ServerError(401, pub ? 'Connexion requise pour rouler en monde ouvert' : 'Connexion requise pour créer une sortie');
     if (o.routeId === COLLISION_PILOT_ROUTE && !this.svc.routes.has(o.routeId)) throw new ServerError(503, COLLISION_VERSION_ERROR);
-    // Monde ouvert : l'itinéraire doit exister (pas de repli silencieux sur un autre parcours).
-    const route = pub ? this.svc.routes.get(o.routeId ?? '') : this.svc.routes.resolve(o.routeId);
+    // L'itinéraire doit exister : chargé au démarrage, ou lu à la demande dans la zone indiquée.
+    const routes = this.svc.routes;
+    let route = o.routeId ? await routes.ensure(o.routeId, o.worldId) : undefined;
+    if (!route && !pub) {
+      if (!o.routeId) route = routes.resolve(undefined);
+      else if (!routes.strict) {
+        // Sans index des zones (développement, tests) : repli historique sur le premier itinéraire.
+        route = routes.resolve(o.routeId);
+      } else if (routes.isAmbiguous(o.routeId, o.worldId)) {
+        // Ancien client, qui ne dit pas sa zone : même repli qu'avant plutôt qu'un refus, mais signalé.
+        this.svc.log('warn', `itinéraire ${o.routeId} présent dans plusieurs zones et zone non précisée : repli sur le premier itinéraire`);
+        route = routes.resolve(o.routeId);
+      } else {
+        // Plus de repli silencieux sur un autre tracé (pentes fausses pour tout le groupe).
+        throw new ServerError(404, `Itinéraire inconnu : ${o.routeId}`);
+      }
+    }
     if (!route || (pub && !this.svc.publicRoutes.includes(route.data.id))) throw new ServerError(404, 'Zone inconnue');
+    this.route = route;
     this.routeId = route.data.id;
     let collision: RouteBuildingCollision | undefined;
     if (this.routeId === COLLISION_PILOT_ROUTE) {
@@ -791,7 +812,7 @@ export class RideRoom extends Room {
   }
 
   private welcome(role: RideRole, selfId: string): WelcomeMsg {
-    const route = this.svc.routes.resolve(this.routeId);
+    const route = this.route;
     const w: WelcomeMsg = {
       roomId: this.roomId,
       inviteCode: this.inviteCode,
